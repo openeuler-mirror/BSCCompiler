@@ -146,10 +146,11 @@ class TypeInferVisitor : public TypeInferBaseVisitor {
   void UpdateFuncRetTypeId(FunctionNode *node, TypeId tid, unsigned tidx);
   void UpdateTypeUseNode(TreeNode *target, TreeNode *input);
   void UpdateArgArrayDecls(unsigned nid, TypeId tid);
-  void UpdateArrayElemTypeIdMap(TreeNode *node, TypeId tid);
+  void UpdateArrayElemTypeMap(TreeNode *node, TypeId tid, unsigned tidx);
   void UpdateArrayDimMap(TreeNode *node, DimensionNode *dim);
   bool UpdateVarTypeWithInit(TreeNode *var, TreeNode *init);
   TypeId GetArrayElemTypeId(TreeNode *node);
+  unsigned GetArrayElemTypeIdx(TreeNode *node);
 
   TypeId MergeTypeId(TypeId tia, TypeId tib);
   unsigned MergeTypeIdx(unsigned tia, unsigned tib);

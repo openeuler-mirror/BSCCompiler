@@ -488,6 +488,7 @@ TreeNode *AST_INFO::GetAnonymousStruct(TreeNode *node) {
   }
 
   ModuleNode *module = mHandler->GetASTModule();
+  gTypeTable.AddType(newnode);
   module->GetScope()->AddType(newnode);
   module->AddTreeFront(newnode);
   return newnode;
@@ -743,6 +744,7 @@ StructNode *ClassStructVisitor::VisitStructNode(StructNode *node) {
   }
   (void) AstVisitor::VisitStructNode(node);
   if (mInfo->GetPass() == 0) {
+    gTypeTable.AddType(node);
     IdentifierNode *id = node->GetStructId();
     if (id && node->GetStrIdx() == 0) {
       node->SetStrIdx(id->GetStrIdx());
@@ -777,6 +779,7 @@ ClassNode *ClassStructVisitor::VisitClassNode(ClassNode *node) {
   mInfo->SetTypeId(node, TY_Class);
   (void) AstVisitor::VisitClassNode(node);
   if (mInfo->GetPass() == 0) {
+    gTypeTable.AddType(node);
     mInfo->SetStrIdx2Struct(node->GetStrIdx(), node);
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
       if (TreeNode *t = node->GetField(i)) {
@@ -807,6 +810,7 @@ InterfaceNode *ClassStructVisitor::VisitInterfaceNode(InterfaceNode *node) {
   mInfo->SetTypeId(node, TY_Class);
   (void) AstVisitor::VisitInterfaceNode(node);
   if (mInfo->GetPass() == 0) {
+    gTypeTable.AddType(node);
     mInfo->SetStrIdx2Struct(node->GetStrIdx(), node);
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
       if (TreeNode *t = node->GetField(i)) {

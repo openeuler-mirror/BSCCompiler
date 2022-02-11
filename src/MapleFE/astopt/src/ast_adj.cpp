@@ -176,6 +176,19 @@ UserTypeNode *AdjustASTVisitor::VisitUserTypeNode(UserTypeNode *node) {
   if (id) {
     node->SetStrIdx(id->GetStrIdx());
   }
+
+  // use array type node
+  DimensionNode *dim = node->GetDims();
+  TreeNode *p = node->GetParent();
+  if (dim && p->IsIdentifier()) {
+    ArrayTypeNode *arr = mHandler->NewTreeNode<ArrayTypeNode>();
+    arr->SetDims(dim);
+    arr->SetElemType(node);
+    node->SetDims(NULL);
+    IdentifierNode *inode = static_cast<IdentifierNode *>(p);
+    inode->SetType(arr);
+    mHandler->SetArrayElemTypeId(inode->GetNodeId(), id->GetTypeId());
+  }
   return node;
 }
 
