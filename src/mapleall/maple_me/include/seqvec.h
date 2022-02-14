@@ -37,14 +37,14 @@ class SeqVectorize {
   void Perform();
   void VisitNode(StmtNode *);
   void CollectStores(IassignNode *iassign);
-  void DumpCandidates(MeExpr *base, StoreList *storelist);
+  void DumpCandidates(const MeExpr *base, StoreList *storelist);
   void CheckAndTransform();
   bool IsOpExprConsecutiveMem(MeExpr *off1, MeExpr *off2, int32_t diff);
-  bool CanSeqVec(IassignNode *s1, IassignNode *s2);
+  bool CanSeqVec(const IassignNode *s1, const IassignNode *s2);
   bool CanSeqVecRhs(MeExpr *rhs1, MeExpr *rhs2);
   void LegalityCheckAndTransform(StoreList *storelist);
-  bool HasVecType(PrimType sPrimType, uint8 lanes);
-  MIRType* GenVecType(PrimType sPrimType, uint8 lanes);
+  bool HasVecType(PrimType sPrimType, uint8 lanes) const;
+  MIRType* GenVecType(PrimType sPrimType, uint8 lanes) const;
   RegassignNode *GenDupScalarStmt(BaseNode *scalar, PrimType vecPrimType);
   bool SameIntConstValue(MeExpr *, MeExpr *);
   bool CanAdjustRhsType(PrimType targetType, ConstvalNode *rhs);
@@ -54,9 +54,9 @@ class SeqVectorize {
   void ResetRhsStatus() { currRhsStatus = 0; }
   void SetRhsConst() { currRhsStatus = 1; }
   void SetRhsConsercutiveMem() { currRhsStatus = 2; }
-  bool IsRhsStatusUnset() { return currRhsStatus == 0; }
-  bool IsRhsConst() { return currRhsStatus == 1; }
-  bool IsRhsConsercutiveMem() { return currRhsStatus == 0; }
+  bool IsRhsStatusUnset() const { return currRhsStatus == 0; }
+  bool IsRhsConst() const { return currRhsStatus == 1; }
+  bool IsRhsConsercutiveMem() const { return currRhsStatus == 0; }
  public:
   static uint32_t seqVecStores;
   // iassignnode in same level block

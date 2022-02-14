@@ -166,9 +166,9 @@ bool DoloopInfo::OnlyInvariantScalars(MeExpr *x) {
       if (varx->GetOst()->GetMIRSymbol()->GetStIdx() == doloop->GetDoVarStIdx()) {
         return true;  // it is the IV
       }
-      // fall thru
-      [[clang::fallthrough]];
     }
+    // fall thru
+    [[clang::fallthrough]];
     case kMeOpReg: {
       ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
       BB *defBB = scalar->DefByBB();
@@ -567,7 +567,7 @@ bool DoloopInfo::CheckReductionLoop() {
   return true;
 }
 
-ArrayAccessDesc* DoloopInfo::GetArrayAccessDesc(ArrayNode *node, bool isRHS) {
+ArrayAccessDesc* DoloopInfo::GetArrayAccessDesc(const ArrayNode *node, bool isRHS) {
   MapleVector<ArrayAccessDesc *>* arrayDescptr = isRHS ? &rhsArrays : &lhsArrays;
   for (auto it = arrayDescptr->begin(); it != arrayDescptr->end(); ++it) {
     if ((*it)->theArray == node) {

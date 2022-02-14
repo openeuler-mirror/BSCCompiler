@@ -266,7 +266,7 @@ bool SeqVectorize::CanAdjustRhsType(PrimType targetType, ConstvalNode *rhs) {
   return res;
 }
 
-void SeqVectorize::DumpCandidates(MeExpr *base, StoreList *storelist) {
+void SeqVectorize::DumpCandidates(const MeExpr *base, StoreList *storelist) {
   LogInfo::MapleLogger() << "Dump base node \t";
   base->Dump(meIRMap, 0);
   for (uint32_t i = 0; i < (*storelist).size(); i++) {
@@ -417,7 +417,7 @@ bool SeqVectorize::IsIvarExprConsecutiveMem(IvarMeExpr *ivar1, IvarMeExpr *ivar2
     // check base opnds number are same
     if (base1NumOpnds != base2NumOpnds) return false;
     // check base low dimensions expr are same
-    for (int32_t i = 1; i < (int32_t)base1NumOpnds - 1; i++) {
+    for (uint32_t i = 1; i < base1NumOpnds - 1; i++) {
       if (base1->GetOpnd(i) != base2->GetOpnd(i)) {
         return false;
       }
@@ -433,14 +433,14 @@ bool SeqVectorize::IsIvarExprConsecutiveMem(IvarMeExpr *ivar1, IvarMeExpr *ivar2
     if (base2->GetOp() == OP_array) return false;
     // base is symbol
     uint32_t diff = GetPrimTypeSize(ptrType);
-    if (ivar2->GetOffset() - ivar1->GetOffset() != diff) {
+    if (static_cast<uint32>(ivar2->GetOffset() - ivar1->GetOffset()) != diff) {
       return false;
     }
   }
   return true;
 }
 
-bool SeqVectorize::CanSeqVec(IassignNode *s1, IassignNode *s2) {
+bool SeqVectorize::CanSeqVec(const IassignNode *s1, const IassignNode *s2) {
   PreMeMIRExtension *lfoP1 = (*PreMeStmtExtensionMap)[s1->GetStmtID()];
   IassignMeStmt *iassMeStmt1 = static_cast<IassignMeStmt *>(lfoP1->GetMeStmt());
   IvarMeExpr *lhsMeExpr1 = iassMeStmt1->GetLHSVal();
@@ -473,17 +473,17 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
   MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
   PrimType ptType = ptrType->GetPointedType()->GetPrimType();
   uint32_t maxLanes = 16 / GetPrimTypeSize((ptrType->GetPointedType()->GetPrimType()));
-  uint32 len = static_cast<uint32>(cands.size());
+  auto len = static_cast<uint32>(cands.size());
   uint32 start = 0;
   do {
     IassignNode *iassign = cands[start];
-    uint32_t candCountP2 = PreviousPowerOfTwo(len);
+    uint32_t candCountP2 = static_cast<uint32>(PreviousPowerOfTwo(len));
     uint32_t lanes = (candCountP2 <  maxLanes) ? candCountP2 : maxLanes;
-    if (!HasVecType(ptType, lanes)) {
+    if (!HasVecType(ptType, static_cast<uint8>(lanes))) {
       break; // early quit if ptType and lanes has no vectype
     }
     // update lhs type
-    MIRType *vecType = GenVecType(ptType, lanes);
+    MIRType *vecType = GenVecType(ptType, static_cast<uint8>(lanes));
     ASSERT(vecType != nullptr, "vector type should not be null");
     MIRType *pvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*vecType, PTY_ptr);
     iassign->SetTyIdx(pvecType->GetTypeIndex());
@@ -506,10 +506,10 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
       MIRType *rhsvecType = nullptr;
       if (ireadType->GetPrimType() == PTY_agg) {
         // iread variable from a struct, use iread type
-        rhsvecType = GenVecType(ireadnode->GetPrimType(), lanes);
+        rhsvecType = GenVecType(ireadnode->GetPrimType(), static_cast<uint8>(lanes));
         ASSERT(rhsvecType != nullptr, "vector type should not be null");
       } else {
-        rhsvecType = GenVecType(ireadType->GetPrimType(), lanes);
+        rhsvecType = GenVecType(ireadType->GetPrimType(), static_cast<uint8>(lanes));
         ASSERT(rhsvecType != nullptr, "vector type should not be null");
         MIRType *rhspvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*rhsvecType, PTY_ptr);
         ireadnode->SetTyIdx(rhspvecType->GetTypeIndex()); // update ptr type
@@ -546,7 +546,7 @@ void SeqVectorize::LegalityCheckAndTransform(StoreList *storelist) {
         cands.push_back(store2);
       }
     }
-    if (HasVecType(ptrType->GetPointedType()->GetPrimType(), cands.size())) {
+    if (HasVecType(ptrType->GetPointedType()->GetPrimType(), static_cast<uint8>(cands.size()))) {
       MergeIassigns(cands);
       needReverse = false;
       break;
@@ -566,7 +566,7 @@ void SeqVectorize::LegalityCheckAndTransform(StoreList *storelist) {
         cands.push_back(store2);
       }
     }
-    if (HasVecType(ptrType->GetPointedType()->GetPrimType(), cands.size())) {
+    if (HasVecType(ptrType->GetPointedType()->GetPrimType(), static_cast<uint8>(cands.size()))) {
       MergeIassigns(cands);
       break;
     }

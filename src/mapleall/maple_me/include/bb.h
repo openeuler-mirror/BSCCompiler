@@ -465,7 +465,7 @@ class BB {
     auto iter = std::find(succ.begin(), succ.end(), bb);
     CHECK_FATAL(iter != std::end(succ), "%d is not the successor of %d", bb->UintID(), this->UintID());
     CHECK_FATAL(succ.size() == succFreq.size(), "succfreq size doesn't match succ size");
-    const size_t idx = std::distance(succ.begin(), iter);
+    const size_t idx = static_cast<size_t>(std::distance(succ.begin(), iter));
     return succFreq[idx];
   }
 
@@ -480,7 +480,7 @@ class BB {
     CHECK_FATAL(iter != std::end(succ), "%d is not the successor of %d", bb->UintID(), this->UintID());
     CHECK_FATAL(succ.size() == succFreq.size(), "succfreq size %d doesn't match succ size %d",succFreq.size(),
         succ.size());
-    const size_t idx = std::distance(succ.begin(), iter);
+    const size_t idx = static_cast<size_t>(std::distance(succ.begin(), iter));
     succFreq[idx] = freq;
   }
 
