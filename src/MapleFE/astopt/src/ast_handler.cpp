@@ -200,6 +200,10 @@ TreeNode *Module_Handler::FindDecl(IdentifierNode *node, bool deep) {
     decl = scope->FindDeclOf(stridx);
   }
 
+  if (!decl && deep) {
+    decl = scope->FindExportedDeclOf(stridx);
+  }
+
   if (decl) {
     AddNodeId2DeclMap(node->GetNodeId(), decl);
   }
