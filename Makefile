@@ -117,6 +117,10 @@ libcore: maple-rt
 maple-rt: java-core-def
 	$(call build_gn, $(GN_OPTIONS), maple-rt)
 
+.PHONY: mapleallUT
+mapleallUT: install_patch
+	$(call build_gn, $(GN_OPTIONS), mapleallUT)
+
 .PHONY: java-core-def
 java-core-def: install
 	mkdir -p $(LIB_CORE_PATH); \
