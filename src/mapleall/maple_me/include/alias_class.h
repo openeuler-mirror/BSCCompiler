@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -18,6 +18,7 @@
 #include "mempool_allocator.h"
 #include "ssa_tab.h"
 #include "union_find.h"
+#include "type_based_alias_analysis.h"
 
 namespace maple {
 constexpr int64 bitsPerByte = 8;
@@ -33,6 +34,9 @@ inline int64 GetTypeBitSize(const MIRType *type) {
 inline bool IsMemoryOverlap(OffsetType startA, int64 sizeA, OffsetType startB, int64 sizeB) {
   // A : |---------|
   // B :   |----------|
+  if (startA.IsInvalid() || startB.IsInvalid()) {
+    return true; // process conservatively
+  }
   return startA < (startB + sizeB) &&
          startB < (startA + sizeA);
 }
@@ -176,6 +180,11 @@ class AliasClass : public AnalysisResult {
   void ApplyUnionForFieldsInCopiedAgg(OriginalSt *lhsOst, OriginalSt *rhsOst);
   void ApplyUnionForFieldsInCopiedAgg();
   void UnionAddrofOstOfUnionFields();
+  void PropagateTypeUnsafe();
+  void PropagateTypeUnsafeVertically(const OriginalSt &ost);
+  void SetTypeUnsafeForAddrofUnion(const AliasElem *ae) const;
+  void SetTypeUnsafeForTypeConversion(const AliasElem *lhsAe, const AliasElem *rhsAe) const;
+  void SetTypeUnsafeForBaseTypeCvt(const TyIdx &accessTyIdx, const OriginalSt *baseOst) const;
   void CreateAssignSets();
   void DumpAssignSets();
   void GetValueAliasSetOfOst(OriginalSt *ost, std::set<OriginalSt*> &result);

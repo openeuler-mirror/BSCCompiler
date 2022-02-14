@@ -15,6 +15,7 @@
 #ifndef MAPLEBE_INCLUDE_CG_CG_OPTION_H
 #define MAPLEBE_INCLUDE_CG_CG_OPTION_H
 #include <vector>
+#include <sys/stat.h>
 #include "mempool.h"
 #include "mempool_allocator.h"
 #include "mir_module.h"
@@ -468,7 +469,14 @@ class CGOptions : public MapleDriverOptionBase {
   }
 
   static bool IsDuplicateAsmFileEmpty() {
-    return duplicateAsmFile.empty();
+    if (duplicateAsmFile.empty()) {
+      return true;
+    }
+    struct stat buffer;
+    if (stat(duplicateAsmFile.c_str(), &buffer) != 0) {
+      return true;
+    }
+    return false;
   }
 
   static void SetDuplicateAsmFile(const std::string &fileName) {
@@ -609,6 +617,10 @@ class CGOptions : public MapleDriverOptionBase {
     doCGSSA = false;
   }
 
+  static void EnableCGSSA() {
+    doCGSSA = true;
+  }
+
   static bool DoCGSSA() {
     return doCGSSA;
   }
@@ -693,6 +705,17 @@ class CGOptions : public MapleDriverOptionBase {
     return cgBigEndian;
   }
 
+  static void EnableArm64ilp32() {
+    arm64ilp32 = true;
+  }
+
+  static void DisableArm64ilp32() {
+    arm64ilp32 = false;
+  }
+
+  static bool IsArm64ilp32() {
+    return arm64ilp32;
+  }
 
   static void EnableVregRename() {
     doVregRename = true;
@@ -1190,6 +1213,7 @@ class CGOptions : public MapleDriverOptionBase {
   static std::string globalVarProfile;
   static bool nativeOpt;
   static bool lazyBinding;
+  static bool arm64ilp32;
   static bool hotFix;
   /* if true dump scheduling information */
   static bool debugSched;

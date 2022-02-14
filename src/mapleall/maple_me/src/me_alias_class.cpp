@@ -44,6 +44,42 @@ bool MeAliasClass::HasWriteToStaticFinal() const {
   return false;
 }
 
+void MeAliasClass::PerformTBAAForC() {
+  if (!mirModule.IsCModule() || !MeOption::tbaa || MeOption::optLevel >= 3) {
+    return;
+  }
+  for (auto ae : Id2AliasElem()) {
+    if (ae->GetClassSet() != nullptr) {
+      auto *oldAliasSet = ae->GetClassSet();
+      MapleSet<unsigned int> *newAliasSet = nullptr;
+      for (auto otherId : *oldAliasSet) {
+        auto aliasedAe = Id2AliasElem()[otherId];
+        if (aliasedAe == ae) {
+          continue;
+        }
+        bool alias = false;
+        if (ae->GetClassID() < aliasedAe->GetClassID()) {
+          alias = TypeBasedAliasAnalysis::MayAliasTBAAForC(&ae->GetOriginalSt(),
+                                                           &Id2AliasElem()[otherId]->GetOriginalSt());
+        } else {
+          alias = (aliasedAe->GetClassSet()->find(ae->GetClassID()) != aliasedAe->GetClassSet()->end());
+        }
+        if (!alias) {
+          if (newAliasSet == nullptr) {
+            newAliasSet =
+                GetMapleAllocator().GetMemPool()->New<MapleSet<unsigned int>>(GetMapleAllocator().Adapter());
+            newAliasSet->insert(oldAliasSet->begin(), oldAliasSet->end());
+          }
+          newAliasSet->erase(otherId);
+        }
+      }
+      if (newAliasSet != nullptr) {
+        ae->SetClassSet(newAliasSet);
+      }
+    }
+  }
+}
+
 void MeAliasClass::PerformDemandDrivenAliasAnalysis() {
   if (!MeOption::ddaa) {
     return;
@@ -91,6 +127,7 @@ void MeAliasClass::DoAliasAnalysis() {
   ApplyUnionForFieldsInCopiedAgg();
   UnionAddrofOstOfUnionFields();
   CreateAssignSets();
+  PropagateTypeUnsafe();
   if (enabledDebug) {
     DumpAssignSets();
   }
@@ -105,11 +142,12 @@ void MeAliasClass::DoAliasAnalysis() {
       UnionForNotAllDefsSeenCLang();
     }
   }
-  // TBAA
+  // perform TBAA for Java
   if (MeOption::tbaa && mirModule.IsJavaModule()) {
     ReconstructAliasGroups();
   }
   CreateClassSets();
+  PerformTBAAForC();
   PerformDemandDrivenAliasAnalysis();
   if (enabledDebug) {
     if (MeOption::ddaa) {
@@ -128,6 +166,8 @@ void MeAliasClass::DoAliasAnalysis() {
       GenericInsertMayDefUse(stmt, bb->GetBBId());
     }
   }
+
+  TypeBasedAliasAnalysis::ClearOstTypeUnsafeInfo();
 }
 
 bool MEAliasClass::PhaseRun(maple::MeFunction &f) {

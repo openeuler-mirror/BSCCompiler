@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -19,7 +19,6 @@
 #include "mir_function.h"
 #include "mir_builder.h"
 #include "ipa_side_effect.h"
-#include "type_based_alias_analysis.h"
 
 namespace {
 using namespace maple;
@@ -250,6 +249,7 @@ AliasElem *AliasClass::FindOrCreateExtraLevAliasElem(BaseNode &baseAddress, cons
     return FindOrCreateDummyNADSAe();
   }
   auto *baseOst = aliasInfoOfBaseAddress.ae->GetOst();
+  SetTypeUnsafeForBaseTypeCvt(tyIdx, baseOst);
   if (mirModule.IsCModule() && IsNullOrDummySymbolOst(baseOst)) {
     return FindOrCreateDummyNADSAe();
   }
@@ -730,6 +730,105 @@ void AliasClass::CreateMirroringAliasElems(const OriginalSt *ost1, OriginalSt *o
   }
 }
 
+// Iteratively propagate type unsafe info to next level.
+void AliasClass::PropagateTypeUnsafeVertically(const OriginalSt &ost) {
+  for (auto *nextLevOst : ost.GetNextLevelOsts()) {
+    TypeBasedAliasAnalysis::SetOstTypeUnsafe(*nextLevOst);
+    PropagateTypeUnsafeVertically(*nextLevOst);
+  }
+}
+// Propagate type unsafe info as soon as assign set has been created.
+// If any Ost in assign set is type unsafe, propagate type-unsafe info
+// among all elements in this assign set and next level osts.
+void AliasClass::PropagateTypeUnsafe() {
+  if (!MeOption::tbaa || MeOption::optLevel >= 3) {
+    return;
+  }
+  TypeBasedAliasAnalysis::GetOstTypeUnsafe().resize(osym2Elem.size(), false);
+  for (auto *ae : id2Elem) {
+    auto *assSet = ae->GetAssignSet();
+    if (assSet == nullptr) {
+      OriginalSt *ost = ae->GetOst();
+      if (ost->GetType()->IsUnsafeType() || TypeBasedAliasAnalysis::IsOstTypeUnsafe(*ost)) {
+        // Vertical propagate : to next level.
+        PropagateTypeUnsafeVertically(*ost);
+      }
+      continue;
+    }
+    bool unsafe = false;
+    // if any element in assign set is typeUnsafe, all elements will be set unsafe
+    for (auto elemID : *assSet) {
+      OriginalSt &elemOst = id2Elem[elemID]->GetOriginalSt();
+      if (elemOst.GetType()->IsUnsafeType() || TypeBasedAliasAnalysis::IsOstTypeUnsafe(elemOst)) {
+        unsafe = true;
+        break;
+      }
+    }
+    if (unsafe) {
+      for (auto elemID : *assSet) {
+        OriginalSt &elemOst = id2Elem[elemID]->GetOriginalSt();
+        // Horizontal propagate : in assignSet
+        TypeBasedAliasAnalysis::SetOstTypeUnsafe(elemOst);
+        // Vertical propagate : to next level.
+        PropagateTypeUnsafeVertically(elemOst);
+      }
+    }
+  }
+}
+
+// if ae->ost is an address of an union type (or its field), we set ost type unsafe.
+// example: union {int x; float y;} u; u.x and u.y must alias, although their type is incompatible
+void AliasClass::SetTypeUnsafeForAddrofUnion(const AliasElem *ae) const {
+  if (!MeOption::tbaa || MeOption::optLevel >= 3) {
+    return;
+  }
+  if (ae == nullptr) {
+    return;
+  }
+  const OriginalSt &ost = ae->GetOriginalSt();
+  // if ost is an address of an union type (or its field), we set it type unsafe.
+  if (ost.GetIndirectLev() == -1) {
+    MIRType *rhsType = ost.GetType();
+    ASSERT(rhsType->IsMIRPtrType(), "Ost with -1 indirect level must have pointer type!");
+    MIRType *pointedType = static_cast<MIRPtrType*>(rhsType)->GetPointedType();
+    if (pointedType->GetKind() == kTypeUnion) {
+      TypeBasedAliasAnalysis::SetOstTypeUnsafe(ost);
+    }
+  }
+}
+
+// For x <- y, if type of x is different from y, type conversion occurs, and we should set them type unsafe.
+void AliasClass::SetTypeUnsafeForTypeConversion(const AliasElem *lhsAe, const AliasElem *rhsAe) const {
+  if (!MeOption::tbaa || MeOption::optLevel >= 3) {
+    return;
+  }
+  if (lhsAe == nullptr || rhsAe == nullptr) {
+    return;
+  }
+  // if lhs and rhs have different type, set both of them type unsafe
+  const OriginalSt &lhsOst = lhsAe->GetOriginalSt();
+  const OriginalSt &rhsOst = rhsAe->GetOriginalSt();
+  MIRType *lhsType = lhsOst.GetType();
+  MIRType *rhsType = rhsOst.GetType();
+  if (lhsType != rhsType && (lhsType->IsMIRPtrType() || rhsType->IsMIRPtrType())) {
+    TypeBasedAliasAnalysis::SetOstTypeUnsafe(lhsOst);
+    TypeBasedAliasAnalysis::SetOstTypeUnsafe(rhsOst);
+  }
+}
+
+// Example: iread <*type> (base) or iassign <*type> (base):
+// If base type is different from accessedType(i.e. <*type>), base type is re-interpreted,
+// and implicit type conversion occurs. We should set them type unsafe.
+void AliasClass::SetTypeUnsafeForBaseTypeCvt(const TyIdx &accessTyIdx, const OriginalSt *baseOst) const {
+  if (!MeOption::tbaa || MeOption::optLevel >= 3) {
+    return;
+  }
+  if (baseOst->GetTyIdx() != accessTyIdx) {
+    // base type is different from accessed type, implicit type conversion occurs. Set base ost unsafe
+    TypeBasedAliasAnalysis::SetOstTypeUnsafe(*baseOst);
+  }
+}
+
 void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
   switch (stmt.GetOpCode()) {
     case OP_maydassign:
@@ -741,11 +840,13 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       // LHS
       OriginalSt *ost = ssaTab.GetStmtsSSAPart().GetAssignedVarOf(stmt)->GetOst();
       if (ost->GetFieldID() != 0) {
-        (void) FindOrCreateAliasElemOfAddrofOSt(*ost);
+        (void)FindOrCreateAliasElemOfAddrofOSt(*ost);
       }
       AliasElem *lhsAe = FindOrCreateAliasElem(*ost);
       ASSERT_NOT_NULL(lhsAe);
       ApplyUnionForDassignCopy(*lhsAe, rhsAinfo.ae, *stmt.Opnd(0));
+      SetTypeUnsafeForAddrofUnion(rhsAinfo.ae);
+      SetTypeUnsafeForTypeConversion(lhsAe, rhsAinfo.ae);
       return;
     }
     case OP_iassign: {
@@ -756,6 +857,8 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       if (lhsAe != nullptr) {
         ApplyUnionForDassignCopy(*lhsAe, rhsAinfo.ae, *iassignNode.Opnd(1));
       }
+      SetTypeUnsafeForAddrofUnion(rhsAinfo.ae);
+      SetTypeUnsafeForTypeConversion(lhsAe, rhsAinfo.ae);
       return;
     }
     case OP_throw: {
@@ -1479,8 +1582,8 @@ void AliasClass::ProcessIdsAliasWithRoot(const std::set<unsigned int> &idsAliasW
                                          std::vector<unsigned int> &newGroups) {
   for (unsigned int idA : idsAliasWithRoot) {
     bool unioned = false;
+    OriginalSt &ostA = id2Elem[idA]->GetOriginalSt();
     for (unsigned int idB : newGroups) {
-      OriginalSt &ostA = id2Elem[idA]->GetOriginalSt();
       OriginalSt &ostB = id2Elem[idB]->GetOriginalSt();
       if (AliasAccordingToType(ostA.GetPrevLevelOst()->GetTyIdx(), ostB.GetPrevLevelOst()->GetTyIdx()) &&
           AliasAccordingToFieldID(ostA, ostB)) {
