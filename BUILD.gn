@@ -51,6 +51,12 @@ group("ast2mpl") {
   }
 }
 
+group("mapleallUT") {
+  deps = [
+    "${MAPLEALL_ROOT}/test:mapleallUT",
+  ]
+}
+
 group("maplegendef") {
   exec_script("${MAPLEALL_ROOT}/maple_be/mdgen/gendef.py",
               [
