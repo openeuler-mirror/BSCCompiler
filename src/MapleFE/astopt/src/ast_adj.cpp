@@ -179,11 +179,31 @@ UserTypeNode *AdjustASTVisitor::VisitUserTypeNode(UserTypeNode *node) {
 
   // use array type node
   DimensionNode *dim = node->GetDims();
+  bool isarr = (dim != NULL);
+  // element type
+  TreeNode *etype = NULL;
+
+  if (isarr) {
+    etype = node;
+  } else if (id && id->IsIdentifier()) {
+    IdentifierNode *idnode = static_cast<IdentifierNode *>(id);
+    isarr = (idnode->GetStrIdx() == gStringPool.GetStrIdx("Array"));
+    if (isarr) {
+      if (unsigned s = node->GetTypeGenericsNum()) {
+        if (s == 1) {
+          etype = node->GetTypeGeneric(0);
+        } else {
+          NOTYETIMPL("array usertype with multiple generic type");
+        }
+      }
+    }
+  }
+
   TreeNode *p = node->GetParent();
-  if (dim && p->IsIdentifier()) {
+  if (isarr && p->IsIdentifier()) {
     ArrayTypeNode *arr = mHandler->NewTreeNode<ArrayTypeNode>();
     arr->SetDims(dim);
-    arr->SetElemType(node);
+    arr->SetElemType(etype);
     node->SetDims(NULL);
     IdentifierNode *inode = static_cast<IdentifierNode *>(p);
     inode->SetType(arr);
