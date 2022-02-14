@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -19,10 +19,31 @@
 namespace maple{
 class TypeBasedAliasAnalysis {
  public:
-  TypeBasedAliasAnalysis() = default;
   static bool MayAlias(const OriginalSt *ostA, const OriginalSt *ostB);
   static bool FilterAliasElemOfRHSForIassign(const OriginalSt *aliasElemOst, const OriginalSt *lhsOst,
                                              const OriginalSt *rhsOst);
+  static bool MayAliasTBAAForC(const OriginalSt *ostA, const OriginalSt *ostB);
+  static void ClearOstTypeUnsafeInfo();
+  static std::vector<bool> &GetOstTypeUnsafe() {
+    return ostTypeUnsafe;
+  }
+  static void SetOstTypeUnsafe(const OriginalSt &ost) {
+    size_t ostIdx = ost.GetIndex().GetIdx();
+    if (ostIdx >= ostTypeUnsafe.size()) {
+      ostTypeUnsafe.resize(ostIdx + 1, false);
+    }
+    ostTypeUnsafe[ostIdx] = true;
+  }
+  static bool IsOstTypeUnsafe(const OriginalSt &ost) {
+    size_t ostIdx = ost.GetIndex().GetIdx();
+    if (ostIdx >= ostTypeUnsafe.size()) {
+      return false;
+    }
+    return ostTypeUnsafe[ostIdx];
+  }
+
+ private:
+  static std::vector<bool> ostTypeUnsafe; // index is OStIdx
 };
 } // namespace maple
 #endif //MAPLE_ME_INCLUDE_TYPE_BASED_ALIAS_ANALYSIS_H

@@ -203,6 +203,7 @@ enum OptionIndex : uint64 {
   kTailCall,
   kAlignAnalysis,
   kArm64ilp32,
+  kCGSSA,
 };
 
 const Descriptor kUsage[] = {
@@ -1097,6 +1098,16 @@ const Descriptor kUsage[] = {
     "  --no-align-analysis\n",
     "mplcg",
     {} },
+  { kCGSSA,
+    kEnable,
+    "",
+    "cg-ssa",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --cg-ssa                     \tPerform cg ssa\n"
+    "  --no-cg-ssa\n",
+    "mplcg",
+    {} },
   { kArm64ilp32, /* change to Target */
     kEnable,
     "ilp32",
@@ -1498,6 +1509,9 @@ bool CGOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
       case kArm64ilp32:
         (opt.Type() == kEnable) ? EnableArm64ilp32() : DisableArm64ilp32();
         break;
+      case kCGSSA:
+        (opt.Type() == kEnable) ? EnableCGSSA() : DisableCGSSA();
+        break;
       default:
         WARN(kLncWarn, "input invalid key for mplcg " + opt.OptionKey());
         break;
@@ -1592,7 +1606,11 @@ void CGOptions::EnableO0() {
   doSchedule = false;
   doWriteRefFieldOpt = false;
   doAlignAnalysis = false;
+#if ILP32
+  ClearOption(kUseStackGuard);
+#else
   SetOption(kUseStackGuard);
+#endif
   ClearOption(kConstFold);
   ClearOption(kProEpilogueOpt);
   ClearOption(kTailCallOpt);
