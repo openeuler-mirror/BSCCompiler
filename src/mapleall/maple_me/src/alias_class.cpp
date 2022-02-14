@@ -1092,7 +1092,7 @@ void AliasClass::UnionNextLevelOfAliasOst(std::set<AliasElem *> &aesToUnionNextL
         }
         auto *ost = id2Elem[id]->GetOst();
         auto &nextLevOsts = ost->GetNextLevelOsts();
-        (void)mayAliasOsts.insert(nextLevOsts.begin(), nextLevOsts.end());
+        mayAliasOsts.insert(nextLevOsts.begin(), nextLevOsts.end());
 
         auto *assignSet = id2Elem[id]->GetAssignSet();
         if (assignSet == nullptr) {
@@ -1103,7 +1103,7 @@ void AliasClass::UnionNextLevelOfAliasOst(std::set<AliasElem *> &aesToUnionNextL
             continue;
           }
           auto &nextLevelOsts = id2Elem[valAliasId]->GetOst()->GetNextLevelOsts();
-          (void)mayAliasOsts.insert(nextLevelOsts.begin(), nextLevelOsts.end());
+          mayAliasOsts.insert(nextLevelOsts.begin(), nextLevelOsts.end());
         }
       }
 

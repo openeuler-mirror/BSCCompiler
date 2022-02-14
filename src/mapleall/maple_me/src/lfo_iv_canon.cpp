@@ -435,7 +435,7 @@ void IVCanon::CanonExitValues() {
 void IVCanon::ReplaceSecondaryIVPhis() {
   BB *headBB = aloop->head;
   // first, form the expression of the primary IV minus its init value
-  IVDesc *primaryIVDesc = ivvec[idxPrimaryIV];
+  IVDesc *primaryIVDesc = ivvec[static_cast<uint32>(idxPrimaryIV)];
   // find its phi in the phi list at the loop head
   MapleMap<OStIdx, MePhiNode *>::iterator it = headBB->GetMePhiList().find(primaryIVDesc->ost->GetIndex());
   MePhiNode *phi = it->second;
@@ -448,7 +448,7 @@ void IVCanon::ReplaceSecondaryIVPhis() {
   }
 
   for (uint32 i = 0; i < ivvec.size(); i++) {
-    if (i == idxPrimaryIV) {
+    if (i == static_cast<uint32>(idxPrimaryIV)) {
       continue;
     }
     IVDesc *ivdesc = ivvec[i];
@@ -523,7 +523,7 @@ void IVCanon::PerformIVCanon() {
       ivdesc->ost->Dump();
       LogInfo::MapleLogger() << "  step: " << ivdesc->stepValue << " initExpr: ";
       ivdesc->initExpr->Dump(func->GetIRMap());
-      if (i == idxPrimaryIV) {
+      if (i == static_cast<uint32>(idxPrimaryIV)) {
         LogInfo::MapleLogger() << " [PRIMARY IV]";
       }
       LogInfo::MapleLogger() << endl;
@@ -579,7 +579,7 @@ bool MELfoIVCanon::PhaseRun(MeFunction &f) {
     ivCanon.PerformIVCanon();
     // transfer primary IV info to whileinfo
     if (ivCanon.idxPrimaryIV != -1) {
-      IVDesc *primaryIVDesc = ivCanon.ivvec[ivCanon.idxPrimaryIV];
+      IVDesc *primaryIVDesc = ivCanon.ivvec[static_cast<size_t>(ivCanon.idxPrimaryIV)];
       CHECK_FATAL(primaryIVDesc->ost->IsSymbolOst(), "primary IV cannot be preg");
       whileInfo->ivOst = primaryIVDesc->ost;
       whileInfo->initExpr = primaryIVDesc->initExpr;

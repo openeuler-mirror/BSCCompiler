@@ -515,7 +515,7 @@ LoopUnrolling::ReturnKindOfFullyUnroll LoopUnrolling::LoopFullyUnroll(int64 trip
   if (!SplitCondGotoBB()) {
     return kCanNotSplitCondGoto;
   }
-  replicatedLoopNum = tripCount;
+  replicatedLoopNum = static_cast<uint64>(tripCount);
   for (int64 i = 0; i < tripCount; ++i) {
     if (i > 0) {
       needUpdateInitLoopFreq = false;

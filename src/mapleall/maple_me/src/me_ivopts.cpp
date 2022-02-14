@@ -133,7 +133,7 @@ class CandSet;
 class IVOptData {
  public:
   friend class IVOptimizer;
-  IVOptData(MemPool *m) : mp(m), alloc(m) {}
+  IVOptData(MemPool *m) : mp(m) {}
   void CreateIV(MeExpr *expr, MeExpr *base, MeExpr *step, bool isBasicIV);
   void CreateFakeGroup(MeStmt &stmt, IV &iv, IVUseType type, MeExpr *expr);
   void CreateGroup(MeStmt &stmt, IV &iv, IVUseType type, MeExpr *expr);
@@ -142,7 +142,6 @@ class IVOptData {
   bool IsLoopInvariant(const MeExpr &expr);
  private:
   MemPool *mp;
-  MapleAllocator alloc;
   std::vector<IVGroup*> groups;  // record all groups in this loop, use IVGroup.id as index
   std::vector<IVGroup*> fakeGroups;  // record the groups that extracted by pre and no need to compute the cost
   std::vector<IVCand*> cands;  // record all candidates in this loop, use IVCand.id as index
@@ -152,7 +151,6 @@ class IVOptData {
   LoopDesc *currLoop = nullptr;  // currently optimized loop
   uint64 iterNum = kDefaultEstimatedLoopIterNum;  // the iterations of current loop
   uint64 realIterNum = -1;  // record the real iternum if we can compute
-  std::set<uint32> importantCands;  // record the IVCand.id of every important IVCand
   bool considerAll = false;  // true if we consider all candidates for every use
   CandSet *set = nullptr;  // used to record set
 };
@@ -173,7 +171,6 @@ class IVOptimizer {
   IVOptimizer(MemPool &memPool, MeFunction &f, bool enabledDebug, IdentifyLoops *meLoops, Dominance *d)
       : func(f),
         ivoptMP(&memPool),
-        ivoptAlloc(&memPool),
         irMap(f.GetIRMap()),
         dumpDetail(enabledDebug),
         cfg(f.GetCfg()),
@@ -189,7 +186,7 @@ class IVOptimizer {
   bool LoopOptimized() const;
   // step1: find basic iv (the minimal inc uint)
   MeExpr *ReplacePhiLhs(OpMeExpr *op, ScalarMeExpr *phiLhs, MeExpr *replace);
-  MeExpr *ResolveBasicIV(ScalarMeExpr *backValue, ScalarMeExpr *phiLhs, MeExpr *replace);
+  MeExpr *ResolveBasicIV(const ScalarMeExpr *backValue, ScalarMeExpr *phiLhs, MeExpr *replace);
   bool CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs);
   bool FindBasicIVs();
   // step2: find all ivs that is the affine form of basic iv, collect iv uses the same time
@@ -199,7 +196,7 @@ class IVOptimizer {
   bool CreateIVFromCvt(OpMeExpr &op, MeStmt &stmt);
   bool CreateIVFromIaddrof(OpMeExpr &op, MeStmt &stmt);
   bool FindGeneralIVInExpr(MeStmt &stmt, MeExpr &expr, bool useInAddress = false);
-  bool LHSEscape(ScalarMeExpr *lhs);
+  bool LHSEscape(const ScalarMeExpr *lhs);
   void FindGeneralIVInStmt(MeStmt &stmt);
   void FindGeneralIVInPhi(MePhiNode &phi);
   void TraversalLoopBB(BB &bb, std::vector<bool> &bbVisited);
@@ -222,8 +219,13 @@ class IVOptimizer {
   void TryReplaceWithCand(CandSet &set, IVCand &cand, std::unordered_map<IVGroup*, IVCand*> &changehange);
   bool OptimizeSet();
   // step6: replace ivs with selected candidates
-  bool IsReplaceSameOst(MeExpr *parent, ScalarMeExpr *target);
+  bool IsReplaceSameOst(const MeExpr *parent, ScalarMeExpr *target);
   MeStmt *GetIncPos();
+  MeExpr *GetInvariant(MeExpr *expr);
+  bool PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeStmt *incPos,
+                         MeExpr *&extraExpr, MeExpr *&replace);
+  MeExpr *GenerateRealReplace(int64 ratio, MeExpr *extraExpr, MeExpr *replace,
+                              PrimType realUseType, bool replaceCompare);
   void UseReplace();
   // optimization entry
   void ApplyOptimize();
@@ -231,7 +233,6 @@ class IVOptimizer {
  private:
   MeFunction &func;
   MemPool *ivoptMP;
-  MapleAllocator ivoptAlloc;
   MeIRMap *irMap;
   bool dumpDetail;  // dump the detail of the optimization
   MeCFG *cfg;
@@ -241,6 +242,7 @@ class IVOptimizer {
   bool optimized = false;
   IVOptData *data = nullptr;  // used to record the messages when processing the loop
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> ssaupdateCands;
+  std::unordered_map<int32, MeExpr*> invariables;  // used to record the newly added invariables
 };
 
 void IVOptimizer::DumpIV(const IV &iv, int32 indent) {
@@ -458,7 +460,7 @@ MeExpr *IVOptimizer::ReplacePhiLhs(OpMeExpr *op, ScalarMeExpr *phiLhs, MeExpr *r
 }
 
 // try to find the base & step from inc expr
-MeExpr *IVOptimizer::ResolveBasicIV(ScalarMeExpr *backValue, ScalarMeExpr *phiLhs, MeExpr *replace) {
+MeExpr *IVOptimizer::ResolveBasicIV(const ScalarMeExpr *backValue, ScalarMeExpr *phiLhs, MeExpr *replace) {
   if (backValue->GetDefBy() != kDefByStmt) {
     return nullptr;
   }
@@ -773,7 +775,7 @@ bool IVOptimizer::FindGeneralIVInExpr(MeStmt &stmt, MeExpr &expr, bool useInAddr
         data->CreateGroup(stmt, *iv, kUseGeneral, &op);
         return false;
       }
-      for (int j = 0; j < op.GetNumOpnds(); ++j) {
+      for (uint8 j = 0; j < op.GetNumOpnds(); ++j) {
         auto *iv = data->GetIV(*op.GetOpnd(j));
         if (iv != nullptr) {
           // create use of the iv
@@ -845,7 +847,7 @@ void IVOptimizer::FindGeneralIVInPhi(MePhiNode &phi) {
 }
 
 // check if the assign escape the loop, if so, we need to keep the value
-bool IVOptimizer::LHSEscape(ScalarMeExpr *lhs) {
+bool IVOptimizer::LHSEscape(const ScalarMeExpr *lhs) {
   if (lhs->IsVolatile()) {  // volatile var needs to keep the value, same as escaping the loop
     return true;
   }
@@ -1147,19 +1149,19 @@ void IVOptimizer::CreateIVCandidate() {
   }
 }
 
-static uint32 ComputeExprCost(MeExpr &expr, MeExpr *parent = nullptr) {
+static uint32 ComputeExprCost(MeExpr &expr, const MeExpr *parent = nullptr) {
 #ifndef TARGAARCH64
   return 0;
 #endif
   // initialize cost
-  static uint32 regCost = 0;
-  static uint32 constCost = 4;
-  static uint32 cvtCost = 4;
-  static uint32 addCost = 4;
-  static uint32 addressCost = 5;
-  static uint32 mulCost = 5;
-  static uint32 symbolCost = 9;
-  static uint32 defaultCost = 16;
+  constexpr uint32 regCost = 0;
+  constexpr uint32 constCost = 4;
+  constexpr uint32 cvtCost = 4;
+  constexpr uint32 addCost = 4;
+  constexpr uint32 addressCost = 5;
+  constexpr uint32 mulCost = 5;
+  constexpr uint32 symbolCost = 9;
+  constexpr uint32 defaultCost = 16;
 
   switch (expr.GetMeOp()) {
     case kMeOpReg:
@@ -1198,6 +1200,7 @@ static uint32 ComputeExprCost(MeExpr &expr, MeExpr *parent = nullptr) {
         }
         return op0Cost + cvtCost;
       }
+      return defaultCost;
     }
     default:
       return defaultCost;
@@ -1420,8 +1423,7 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
     if (itCand == candMap.end()) {
       MeExpr *constExpr = nullptr;
       MeExpr *expr = itGroup.second.first;
-      if (GetPrimTypeSize(expr->GetPrimType()) != GetPrimTypeSize(groupBase.GetPrimType()) ||
-          IsSignedInteger(expr->GetPrimType()) != IsSignedInteger(groupBase.GetPrimType())) {
+      if (NeedCvtOrRetype(expr->GetPrimType(), groupBase.GetPrimType())) {
         expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), expr->GetPrimType(), *expr);
       }
       if (itGroup.second.second != 1) {
@@ -1437,8 +1439,7 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
       }
       MeExpr *constExpr = nullptr;
       MeExpr *expr = itGroup.second.first;
-      if (GetPrimTypeSize(expr->GetPrimType()) != GetPrimTypeSize(groupBase.GetPrimType()) ||
-          IsSignedInteger(expr->GetPrimType()) != IsSignedInteger(groupBase.GetPrimType())) {
+      if (NeedCvtOrRetype(expr->GetPrimType(), groupBase.GetPrimType())) {
         expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), expr->GetPrimType(), *expr);
       }
       if (newMultiplier != 1) {
@@ -1470,13 +1471,11 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
       auto *constExpr = irMap->CreateIntConstMeExpr(-(itCand.second.second * ratio), ptyp);
       auto *expr = itCand.second.first;
       if (extraExpr != nullptr) {
-        if (GetPrimTypeSize(extraExpr->GetPrimType()) != GetPrimTypeSize(ptyp) ||
-            IsSignedInteger(extraExpr->GetPrimType()) != IsSignedInteger(ptyp)) {
+        if (NeedCvtOrRetype(extraExpr->GetPrimType(), ptyp)) {
           extraExpr = irMap->CreateMeExprTypeCvt(ptyp, extraExpr->GetPrimType(), *extraExpr);
         }
       }
-      if (GetPrimTypeSize(expr->GetPrimType()) != GetPrimTypeSize(ptyp) ||
-          IsSignedInteger(expr->GetPrimType()) != IsSignedInteger(ptyp)) {
+      if (NeedCvtOrRetype(expr->GetPrimType(), ptyp)) {
         expr = irMap->CreateMeExprTypeCvt(ptyp, expr->GetPrimType(), *expr);
       }
       expr = irMap->CreateMeExprBinary(OP_mul, ptyp, *expr, *constExpr);
@@ -1493,13 +1492,13 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
   return extraExpr;
 }
 
-static bool CheckOverflow(MeExpr *opnd0, MeExpr *opnd1, Opcode op, PrimType ptyp) {
+static bool CheckOverflow(const MeExpr *opnd0, const MeExpr *opnd1, Opcode op, PrimType ptyp) {
   // can be extended to scalar later
   if (opnd0->GetMeOp() != kMeOpConst || opnd1->GetMeOp() != kMeOpConst) {
     return true;
   }
-  int64 const0 = static_cast<ConstMeExpr*>(opnd0)->GetIntValue();
-  int64 const1 = static_cast<ConstMeExpr*>(opnd1)->GetIntValue();
+  int64 const0 = static_cast<const ConstMeExpr*>(opnd0)->GetIntValue();
+  int64 const1 = static_cast<const ConstMeExpr*>(opnd1)->GetIntValue();
   if (op == OP_add) {
     int64 res = static_cast<int64>(static_cast<uint64>(const0) + static_cast<uint64>(const1));
     if (IsUnsignedInteger(ptyp)) {
@@ -1861,11 +1860,11 @@ void IVOptimizer::FindCandSet() {
   }
 }
 
-bool IVOptimizer::IsReplaceSameOst(MeExpr *parent, ScalarMeExpr *target) {
+bool IVOptimizer::IsReplaceSameOst(const MeExpr *parent, ScalarMeExpr *target) {
   switch (parent->GetMeOp()) {
     case kMeOpReg:
     case kMeOpVar:
-      return static_cast<ScalarMeExpr*>(parent)->GetOstIdx() == target->GetOstIdx();
+      return static_cast<const ScalarMeExpr*>(parent)->GetOstIdx() == target->GetOstIdx();
     default: {
       for (uint32 i = 0; i < parent->GetNumOpnds(); ++i) {
         auto *opnd = parent->GetOpnd(i);
@@ -1923,13 +1922,189 @@ MeStmt *IVOptimizer::GetIncPos() {
   return incPos;
 }
 
-void IVOptimizer::UseReplace() {
-  std::unordered_map<int32, MeExpr*> invariables;
-  bool replaced = true;
+MeExpr *IVOptimizer::GetInvariant(MeExpr *expr) {
   auto *preheaderLast = data->currLoop->preheader->GetLastMe();
   while (preheaderLast != nullptr && (preheaderLast->GetOp() == OP_comment || preheaderLast->GetOp() == OP_goto)) {
     preheaderLast = preheaderLast->GetPrev();
   }
+  if (invariables.find(expr->GetExprID()) == invariables.end()) {
+    if (expr->GetMeOp() != kMeOpConst) {
+      auto *extraReg = irMap->CreateRegMeExpr(expr->GetPrimType());
+      auto *assign = irMap->CreateAssignMeStmt(*extraReg, *expr, *data->currLoop->preheader);
+      if (preheaderLast == nullptr) {
+        data->currLoop->preheader->AddMeStmtFirst(assign);
+      } else {
+        preheaderLast->GetBB()->InsertMeStmtAfter(preheaderLast, assign);
+      }
+      invariables.emplace(expr->GetExprID(), extraReg);
+      return extraReg;
+    }
+  } else {
+    return invariables[expr->GetExprID()];
+  }
+  return expr;
+}
+
+bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeStmt *incPos,
+                                    MeExpr *&extraExpr, MeExpr *&replace) {
+  bool replaced = true;
+  bool replaceCompare = false;
+  MeExpr *simplified = nullptr;
+  if (IsSignedInteger(static_cast<OpMeExpr*>(use->expr)->GetOpndType())) {
+    static_cast<OpMeExpr*>(use->expr)->SetOpndType(GetSignedPrimType(cand->iv->expr->GetPrimType()));
+  }
+  ratio = ComputeRatioOfStep(*cand->iv->step, *use->iv->step);
+  if (ratio == 0) {
+    ratio = ComputeRatioOfStep(*use->iv->step, *cand->iv->step);
+    // swap comparison if ratio is negative
+    if (ratio < 0) {
+      OpMeExpr newOpExpr(static_cast<OpMeExpr&>(*use->expr), kInvalidExprID);
+      auto op = newOpExpr.GetOp();
+      CHECK_FATAL(IsCompareHasReverseOp(op), "should be known op!");
+      auto newOp = GetSwapCmpOp(op);
+      newOpExpr.SetOp(newOp);
+      auto *hashed = irMap->HashMeExpr(newOpExpr);
+      (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *hashed);
+      use->expr = hashed;
+    }
+    // compute extra expr after replaced by new iv
+    if (incPos != nullptr && incPos->IsCondBr() && use->stmt == incPos) {
+      // use inc version to replace
+      auto *newBase = irMap->CreateMeExprBinary(OP_add, cand->iv->base->GetPrimType(),
+                                                *cand->iv->base, *cand->iv->step);
+      extraExpr = ComputeExtraExprOfBase(*use->iv->base, *newBase, ratio, replaced);
+      auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->iv->expr, *cand->incVersion);
+      (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
+      use->expr = tmp;
+    } else {
+      extraExpr = ComputeExtraExprOfBase(*use->iv->base, *cand->iv->base, ratio, replaced);
+      auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->iv->expr, *replace);
+      (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
+      use->expr = tmp;
+    }
+    replace = use->comparedExpr;
+    replaceCompare = true;
+  } else {
+    bool mayOverflow = true;
+    if (incPos != nullptr && incPos->IsCondBr() && use->stmt == incPos) {
+      // use inc version to replace
+      auto *newBase = irMap->CreateMeExprBinary(OP_add, cand->iv->base->GetPrimType(),
+                                                *cand->iv->base, *cand->iv->step);
+      extraExpr = ComputeExtraExprOfBase(*newBase, *use->iv->base, ratio, replaced);
+      replace = cand->incVersion;
+    } else {
+      extraExpr = ComputeExtraExprOfBase(*cand->iv->base, *use->iv->base, ratio, replaced);
+    }
+    // move extra computation to comparedExpr
+    if (extraExpr != nullptr) {
+      if (data->realIterNum == -1) {
+        mayOverflow = true;
+      } else {
+        mayOverflow = CheckOverflow(use->comparedExpr, extraExpr, OP_sub,
+                                    extraExpr->GetPrimType());
+        if (!mayOverflow) {
+          auto *candBase = cand->iv->base;
+          auto *candStep = cand->iv->step;
+          auto *tmp = irMap->CreateMeExprBinary(OP_mul, candStep->GetPrimType(), *candStep,
+              *irMap->CreateIntConstMeExpr(static_cast<int64>(data->realIterNum), candStep->GetPrimType()));
+          simplified = irMap->SimplifyMeExpr(tmp);
+          tmp = simplified == nullptr ? tmp : simplified;
+          mayOverflow = CheckOverflow(candBase, tmp, OP_add, tmp->GetPrimType()) ||
+                        CheckOverflow(candBase, extraExpr, OP_add, extraExpr->GetPrimType()) ||
+                        CheckOverflow(tmp, extraExpr, OP_add, extraExpr->GetPrimType());
+        }
+      }
+    }
+    if (static_cast<OpMeExpr*>(use->expr)->GetOp() == OP_eq ||
+        static_cast<OpMeExpr*>(use->expr)->GetOp() == OP_ne ||
+        !mayOverflow) {
+      if (extraExpr != nullptr) {
+        auto *comparedExpr = use->comparedExpr;
+        if (NeedCvtOrRetype(extraExpr->GetPrimType(), comparedExpr->GetPrimType())) {
+          comparedExpr = irMap->CreateMeExprTypeCvt(extraExpr->GetPrimType(),
+                                                    comparedExpr->GetPrimType(), *comparedExpr);
+        }
+        extraExpr = irMap->CreateMeExprBinary(OP_sub, extraExpr->GetPrimType(),
+                                              *comparedExpr, *extraExpr);
+        if (extraExpr->GetPrimType() != static_cast<OpMeExpr*>(use->expr)->GetOpndType()) {
+          extraExpr = irMap->CreateMeExprTypeCvt(static_cast<OpMeExpr*>(use->expr)->GetOpndType(),
+                                                 extraExpr->GetPrimType(), *extraExpr);
+        }
+        simplified = irMap->SimplifyMeExpr(extraExpr);
+        if (simplified != nullptr) { extraExpr = simplified; }
+        extraExpr = GetInvariant(extraExpr);
+        if (ratio == -1) {
+          // swap comparison
+          OpMeExpr newOpExpr(static_cast<OpMeExpr&>(*use->expr), kInvalidExprID);
+          auto op = newOpExpr.GetOp();
+          CHECK_FATAL(IsCompareHasReverseOp(op), "should be known op!");
+          auto newOp = GetSwapCmpOp(op);
+          newOpExpr.SetOp(newOp);
+          auto *hashed = irMap->HashMeExpr(newOpExpr);
+          (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *hashed);
+          use->expr = hashed;
+          extraExpr = irMap->CreateMeExprBinary(OP_mul, extraExpr->GetPrimType(), *extraExpr,
+                                                *irMap->CreateIntConstMeExpr(-1, extraExpr->GetPrimType()));
+          ratio = 1;
+          simplified = irMap->SimplifyMeExpr(extraExpr);
+          if (simplified != nullptr) { extraExpr = simplified; }
+        }
+        auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->comparedExpr, *extraExpr);
+        (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
+        use->expr = tmp;
+        use->comparedExpr = extraExpr;
+        extraExpr = nullptr;
+      }
+    }
+    if (use->comparedExpr->GetPrimType() != static_cast<OpMeExpr*>(use->expr)->GetOpndType()) {
+      auto *cvt = irMap->CreateMeExprTypeCvt(static_cast<OpMeExpr*>(use->expr)->GetOpndType(),
+                                             use->comparedExpr->GetPrimType(), *use->comparedExpr);
+      cvt = GetInvariant(cvt);
+      auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->comparedExpr, *cvt);
+      (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
+      use->expr = tmp;
+      use->comparedExpr = cvt;
+    }
+  }
+  ASSERT(replaced, "use should be able to be replaced");
+  return replaceCompare;
+}
+
+MeExpr *IVOptimizer::GenerateRealReplace(int64 ratio, MeExpr *extraExpr, MeExpr *replace, PrimType realUseType,
+                                         bool replaceCompare) {
+  MeExpr *simplified = nullptr;
+  if (ratio == 1 && extraExpr == nullptr) {
+  } else if (ratio == 1) {
+    replace = irMap->CreateMeExprBinary(OP_add, realUseType, *extraExpr, *replace);
+    simplified = irMap->SimplifyMeExpr(replace);
+    if (simplified != nullptr) { replace = simplified; }
+  } else if (extraExpr == nullptr) {
+    replace = irMap->CreateMeExprBinary(OP_mul, realUseType,
+                                        *irMap->CreateIntConstMeExpr(ratio, replace->GetPrimType()), *replace);
+  } else {
+    replace = irMap->CreateMeExprBinary(OP_mul, realUseType, *replace,
+                                        *irMap->CreateIntConstMeExpr(ratio, replace->GetPrimType()));
+    if (replaceCompare && extraExpr->GetMeOp() == kMeOpReg) {
+      auto *regExtra = static_cast<RegMeExpr*>(extraExpr);
+      auto *def = regExtra->GetDefStmt();
+      if (def != nullptr && invariables.find(def->GetRHS()->GetExprID()) != invariables.end()) {
+        auto *tmpReplace = irMap->CreateMeExprBinary(OP_add, replace->GetPrimType(),
+                                                     *regExtra->GetDefStmt()->GetRHS(), *replace);
+        simplified = irMap->SimplifyMeExpr(tmpReplace);
+        if (simplified != nullptr) { tmpReplace = simplified; }
+        if (tmpReplace->GetDepth() <= regExtra->GetDefStmt()->GetRHS()->GetDepth()) {
+          return tmpReplace;
+        }
+      }
+    }
+    replace = irMap->CreateMeExprBinary(OP_add, replace->GetPrimType(), *extraExpr, *replace);
+    simplified = irMap->SimplifyMeExpr(replace);
+    if (simplified != nullptr) { replace = simplified; }
+  }
+  return replace;
+}
+
+void IVOptimizer::UseReplace() {
   auto *latchBB = data->currLoop->latch;
   auto *incPos = GetIncPos();
 
@@ -1956,161 +2131,11 @@ void IVOptimizer::UseReplace() {
       bool replaceCompare = false;
       int64 ratio = 0;
       MeExpr *extraExpr = nullptr;
-      MeExpr *simplified = nullptr;
+      // preprocess use
       if (group->type == kUseCompare) {
-        if (IsSignedInteger(static_cast<OpMeExpr*>(use->expr)->GetOpndType())) {
-          static_cast<OpMeExpr*>(use->expr)->SetOpndType(GetSignedPrimType(cand->iv->expr->GetPrimType()));
-        }
-        ratio = ComputeRatioOfStep(*cand->iv->step, *use->iv->step);
-        if (ratio == 0) {
-          ratio = ComputeRatioOfStep(*use->iv->step, *cand->iv->step);
-          // swap comparison if ratio is negative
-          if (ratio < 0) {
-            OpMeExpr newOpExpr(static_cast<OpMeExpr&>(*use->expr), kInvalidExprID);
-            auto op = newOpExpr.GetOp();
-            CHECK_FATAL(IsCompareHasReverseOp(op), "should be known op!");
-            auto newOp = op == OP_ge ? OP_le
-                                     : op == OP_le ? OP_ge
-                                                   : op == OP_lt ? OP_gt
-                                                                 : op == OP_gt ? OP_lt
-                                                                               : op;
-            newOpExpr.SetOp(newOp);
-            auto *hashed = irMap->HashMeExpr(newOpExpr);
-            (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *hashed);
-            use->expr = hashed;
-          }
-          if (incPos != nullptr && incPos->IsCondBr() && use->stmt == incPos) {
-            // use inc version to replace
-            auto *newBase = irMap->CreateMeExprBinary(OP_add, cand->iv->base->GetPrimType(),
-                                                      *cand->iv->base, *cand->iv->step);
-            extraExpr = ComputeExtraExprOfBase(*use->iv->base, *newBase, ratio, replaced);
-            auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->iv->expr, *cand->incVersion);
-            (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
-            use->expr = tmp;
-          } else {
-            extraExpr = ComputeExtraExprOfBase(*use->iv->base, *cand->iv->base, ratio, replaced);
-            auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->iv->expr, *replace);
-            (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
-            use->expr = tmp;
-          }
-          replace = use->comparedExpr;
-          replaceCompare = true;
-        } else {
-          bool mayOverflow = true;
-          if (incPos != nullptr && incPos->IsCondBr() && use->stmt == incPos) {
-            // use inc version to replace
-            auto *newBase = irMap->CreateMeExprBinary(OP_add, cand->iv->base->GetPrimType(),
-                                                      *cand->iv->base, *cand->iv->step);
-            extraExpr = ComputeExtraExprOfBase(*newBase, *use->iv->base, ratio, replaced);
-            replace = cand->incVersion;
-          } else {
-            extraExpr = ComputeExtraExprOfBase(*cand->iv->base, *use->iv->base, ratio, replaced);
-          }
-          // move extra computation to comparedExpr
-          if (extraExpr != nullptr) {
-            if (data->realIterNum == -1) {
-              mayOverflow = true;
-            } else {
-              mayOverflow = CheckOverflow(use->comparedExpr, extraExpr, OP_sub,
-                                          extraExpr->GetPrimType());
-              if (!mayOverflow) {
-                auto *candBase = cand->iv->base;
-                auto *candStep = cand->iv->step;
-                auto *tmp = irMap->CreateMeExprBinary(OP_mul, candStep->GetPrimType(), *candStep,
-                    *irMap->CreateIntConstMeExpr(static_cast<int64>(data->realIterNum), candStep->GetPrimType()));
-                simplified = irMap->SimplifyMeExpr(tmp);
-                tmp = simplified == nullptr ? tmp : simplified;
-                mayOverflow = CheckOverflow(candBase, tmp, OP_add, tmp->GetPrimType()) ||
-                              CheckOverflow(candBase, extraExpr, OP_add, extraExpr->GetPrimType()) ||
-                              CheckOverflow(tmp, extraExpr, OP_add, extraExpr->GetPrimType());
-              }
-            }
-          }
-          if (static_cast<OpMeExpr*>(use->expr)->GetOp() == OP_eq ||
-              static_cast<OpMeExpr*>(use->expr)->GetOp() == OP_ne ||
-              !mayOverflow) {
-            if (extraExpr != nullptr) {
-              auto *comparedExpr = use->comparedExpr;
-              if (GetPrimTypeSize(extraExpr->GetPrimType()) != GetPrimTypeSize(comparedExpr->GetPrimType()) ||
-                  IsSignedInteger(extraExpr->GetPrimType()) != IsSignedInteger(comparedExpr->GetPrimType())) {
-                comparedExpr = irMap->CreateMeExprTypeCvt(extraExpr->GetPrimType(),
-                                                          comparedExpr->GetPrimType(), *comparedExpr);
-              }
-              extraExpr = irMap->CreateMeExprBinary(OP_sub, extraExpr->GetPrimType(),
-                                                    *comparedExpr, *extraExpr);
-              if (extraExpr->GetPrimType() != static_cast<OpMeExpr*>(use->expr)->GetOpndType()) {
-                extraExpr = irMap->CreateMeExprTypeCvt(static_cast<OpMeExpr*>(use->expr)->GetOpndType(),
-                                                       extraExpr->GetPrimType(), *extraExpr);
-              }
-              simplified = irMap->SimplifyMeExpr(extraExpr);
-              if (simplified != nullptr) { extraExpr = simplified; }
-              if (invariables.find(extraExpr->GetExprID()) == invariables.end()) {
-                if (!extraExpr->IsLeaf()) {
-                  auto *extraReg = irMap->CreateRegMeExpr(extraExpr->GetPrimType());
-                  auto *assign = irMap->CreateAssignMeStmt(*extraReg, *extraExpr, *data->currLoop->preheader);
-                  if (preheaderLast == nullptr) {
-                    data->currLoop->preheader->AddMeStmtFirst(assign);
-                  } else {
-                    preheaderLast->GetBB()->InsertMeStmtAfter(preheaderLast, assign);
-                  }
-                  preheaderLast = assign;
-                  invariables.emplace(extraExpr->GetExprID(), extraReg);
-                  extraExpr = extraReg;
-                }
-              } else {
-                extraExpr = invariables[extraExpr->GetExprID()];
-              }
-              if (ratio == -1) {
-                // swap comparison
-                OpMeExpr newOpExpr(static_cast<OpMeExpr&>(*use->expr), kInvalidExprID);
-                auto op = newOpExpr.GetOp();
-                CHECK_FATAL(IsCompareHasReverseOp(op), "should be known op!");
-                auto newOp = op == OP_ge ? OP_le
-                                         : op == OP_le ? OP_ge
-                                                       : op == OP_lt ? OP_gt
-                                                                     : op == OP_gt ? OP_lt
-                                                                                   : op;
-                newOpExpr.SetOp(newOp);
-                auto *hashed = irMap->HashMeExpr(newOpExpr);
-                (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *hashed);
-                use->expr = hashed;
-                extraExpr = irMap->CreateMeExprBinary(OP_mul, extraExpr->GetPrimType(), *extraExpr,
-                                                      *irMap->CreateIntConstMeExpr(-1, extraExpr->GetPrimType()));
-                ratio = 1;
-                simplified = irMap->SimplifyMeExpr(extraExpr);
-                if (simplified != nullptr) { extraExpr = simplified; }
-              }
-              auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->comparedExpr, *extraExpr);
-              (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
-              use->expr = tmp;
-              use->comparedExpr = extraExpr;
-              extraExpr = nullptr;
-            }
-          }
-          if (use->comparedExpr->GetPrimType() != static_cast<OpMeExpr*>(use->expr)->GetOpndType()) {
-            auto *cvt = irMap->CreateMeExprTypeCvt(static_cast<OpMeExpr*>(use->expr)->GetOpndType(),
-                                                   use->comparedExpr->GetPrimType(), *use->comparedExpr);
-            if (invariables.find(cvt->GetExprID()) == invariables.end()) {
-              auto *cvtReg = irMap->CreateRegMeExpr(cvt->GetPrimType());
-              auto *assign = irMap->CreateAssignMeStmt(*cvtReg, *cvt, *data->currLoop->preheader);
-              if (preheaderLast == nullptr) {
-                data->currLoop->preheader->AddMeStmtFirst(assign);
-              } else {
-                preheaderLast->GetBB()->InsertMeStmtAfter(preheaderLast, assign);
-              }
-              preheaderLast = assign;
-              invariables.emplace(cvt->GetExprID(), cvtReg);
-              cvt = cvtReg;
-            } else {
-              cvt = invariables[cvt->GetExprID()];
-            }
-            auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->comparedExpr, *cvt);
-            (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
-            use->expr = tmp;
-            use->comparedExpr = cvt;
-          }
-        }
+        replaceCompare = PrepareCompareUse(ratio, use, cand, incPos, extraExpr, replace);
       } else {
+        bool replaced = true;
         ratio = ComputeRatioOfStep(*cand->iv->step, *use->iv->step);
         extraExpr = ComputeExtraExprOfBase(*cand->iv->base, *use->iv->base, ratio, replaced);
         if (incPos != nullptr && incPos->IsCondBr() && use->stmt == incPos) {
@@ -2128,104 +2153,46 @@ void IVOptimizer::UseReplace() {
             replace = cand->incVersion;
           }
         }
+        ASSERT(replaced, "should have been replaced");
       }
-      ASSERT(replaced, "should have been replaced");
+      // confirm type consistent
+      MeExpr *simplified = nullptr;
       auto realUseType = replace->GetPrimType();
       if ((IsCompareHasReverseOp(use->expr->GetOp()) || use->expr->GetOp() == OP_retype) &&
           static_cast<OpMeExpr*>(use->expr)->GetOpndType() != kPtyInvalid) {
         realUseType = static_cast<OpMeExpr*>(use->expr)->GetOpndType();
       }
       if (extraExpr != nullptr) {
-        if (GetPrimTypeSize(extraExpr->GetPrimType()) != GetPrimTypeSize(realUseType) ||
-            IsSignedInteger(extraExpr->GetPrimType()) != IsSignedInteger(realUseType)) {
+        if (NeedCvtOrRetype(extraExpr->GetPrimType(), realUseType)) {
           extraExpr = irMap->CreateMeExprTypeCvt(realUseType, extraExpr->GetPrimType(), *extraExpr);
           simplified = irMap->SimplifyMeExpr(extraExpr);
-          if (simplified != nullptr) {
-            extraExpr = simplified;
-          }
+          if (simplified != nullptr) { extraExpr = simplified; }
         }
-        if (invariables.find(extraExpr->GetExprID()) == invariables.end()) {
-          auto *extraReg = irMap->CreateRegMeExpr(extraExpr->GetPrimType());
-          auto *assign = irMap->CreateAssignMeStmt(*extraReg, *extraExpr, *data->currLoop->preheader);
-          if (preheaderLast == nullptr) {
-            data->currLoop->preheader->AddMeStmtFirst(assign);
-          } else {
-            preheaderLast->GetBB()->InsertMeStmtAfter(preheaderLast, assign);
-          }
-          preheaderLast = assign;
-          invariables.emplace(extraExpr->GetExprID(), extraReg);
-          extraExpr = extraReg;
-        } else {
-          extraExpr = invariables[extraExpr->GetExprID()];
-        }
+        extraExpr = GetInvariant(extraExpr);
       }
-      if (GetPrimTypeSize(replace->GetPrimType()) != GetPrimTypeSize(realUseType) ||
-          IsSignedInteger(replace->GetPrimType()) != IsSignedInteger(realUseType)) {
+      if (NeedCvtOrRetype(replace->GetPrimType(), realUseType)) {
         replace = irMap->CreateMeExprTypeCvt(realUseType, replace->GetPrimType(), *replace);
         simplified = irMap->SimplifyMeExpr(replace);
-        if (simplified != nullptr) {
-          replace = simplified;
-        }
+        if (simplified != nullptr) { replace = simplified; }
       }
-      if (ratio == 1 && extraExpr == nullptr) {
-      } else if (ratio == 1) {
-        replace = irMap->CreateMeExprBinary(OP_add, realUseType, *extraExpr, *replace);
-        simplified = irMap->SimplifyMeExpr(replace);
-        if (simplified != nullptr) {
-          replace = simplified;
-        }
-      } else if (extraExpr == nullptr) {
-        replace = irMap->CreateMeExprBinary(OP_mul, realUseType,
-                                            *irMap->CreateIntConstMeExpr(ratio, replace->GetPrimType()), *replace);
-      } else {
-        replace = irMap->CreateMeExprBinary(OP_mul, realUseType, *replace,
-                                            *irMap->CreateIntConstMeExpr(ratio, replace->GetPrimType()));
-        if (replaceCompare) {
-          auto *regExtra = static_cast<RegMeExpr*>(extraExpr);
-          auto *tmpReplace = irMap->CreateMeExprBinary(OP_add, replace->GetPrimType(),
-                                                       *regExtra->GetDefStmt()->GetRHS(), *replace);
-          simplified = irMap->SimplifyMeExpr(tmpReplace);
-          if (simplified != nullptr) { tmpReplace = simplified; }
-          if (tmpReplace->GetDepth() <= regExtra->GetDefStmt()->GetRHS()->GetDepth()) {
-            replace = tmpReplace;
-          } else {
-            replace = irMap->CreateMeExprBinary(OP_add, replace->GetPrimType(), *extraExpr, *replace);
-            simplified = irMap->SimplifyMeExpr(replace);
-            if (simplified != nullptr) { replace = simplified; }
-          }
-        } else {
-          replace = irMap->CreateMeExprBinary(OP_add, replace->GetPrimType(), *extraExpr, *replace);
-          simplified = irMap->SimplifyMeExpr(replace);
-          if (simplified != nullptr) { replace = simplified; }
-        }
-      }
+      // compute real replace
+      replace = GenerateRealReplace(ratio, extraExpr, replace, realUseType, replaceCompare);
+      // do replace
       if (replaceCompare) {
-        if (invariables.find(replace->GetExprID()) == invariables.end()) {
-          auto *replaceReg = irMap->CreateRegMeExpr(replace->GetPrimType());
-          auto *assign = irMap->CreateAssignMeStmt(*replaceReg, *replace, *data->currLoop->preheader);
-          if (preheaderLast == nullptr) {
-            data->currLoop->preheader->AddMeStmtFirst(assign);
-          } else {
-            preheaderLast->GetBB()->InsertMeStmtAfter(preheaderLast, assign);
-          }
-          preheaderLast = assign;
-          invariables.emplace(replace->GetExprID(), replaceReg);
-          replace = replaceReg;
-        } else {
-          replace = invariables[replace->GetExprID()];
-        }
+        replace = GetInvariant(replace);
         auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->comparedExpr, *replace);
         (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
       } else {
-        MeExpr *tmp = nullptr;
-        if (use->expr == use->iv->expr) {
-          tmp = replace;
-        } else {
-          tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->iv->expr, *replace);
-        }
-        (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
+        replace = use->expr == use->iv->expr ? replace :
+            irMap->ReplaceMeExprExpr(*use->expr, *use->iv->expr, *replace);
+        (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *replace);
       }
     }
+  }
+
+  auto *preheaderLast = data->currLoop->preheader->GetLastMe();
+  while (preheaderLast != nullptr && (preheaderLast->GetOp() == OP_comment || preheaderLast->GetOp() == OP_goto)) {
+    preheaderLast = preheaderLast->GetPrev();
   }
 
   for (auto *cand : data->cands) {
@@ -2274,6 +2241,8 @@ void IVOptimizer::UseReplace() {
     data->currLoop->head->GetMePhiList().emplace(initVersion->GetOstIdx(), headPhi);
     headPhi->SetDefBB(data->currLoop->head);
   }
+  // clean up the invariables
+  invariables.clear();
 }
 
 void IVOptimizer::ApplyOptimize() {

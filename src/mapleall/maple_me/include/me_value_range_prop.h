@@ -30,7 +30,7 @@ class SafetyCheck {
   explicit SafetyCheck(MeFunction &f) : func(&f) {}
   virtual ~SafetyCheck() = default;
 
-  bool NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt) const;
+  bool NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt, bool isNullablePtr = false) const;
   virtual void HandleAssignWithDeadBeef(const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) {}
   virtual void HandleAssertNonnull(const MeStmt &meStmt, const ValueRange *valueRangeOfIndex) {}
   virtual bool HandleAssertError(const MeStmt &meStmt) {
@@ -189,12 +189,13 @@ class ValueRange {
     range.bound = bound;
   }
 
-  ValueRange(const Bound &lower, const Bound &upper, RangeType type) : rangeType(type) {
+  ValueRange(const Bound &lower, const Bound &upper, RangeType type, bool argAccurate = false)
+      : rangeType(type), isAccurate(argAccurate) {
     range.pair.lower = lower;
     range.pair.upper = upper;
   }
 
-  ValueRange(const Bound &bound, RangeType type) : rangeType(type) {
+  ValueRange(const Bound &bound, RangeType type, bool argAccurate = false) : rangeType(type), isAccurate(argAccurate) {
     range.bound = bound;
   }
 
@@ -350,12 +351,21 @@ class ValueRange {
     return rangeType == kEqual && range.bound.GetVar() == nullptr && range.bound.GetConstant() == 0;
   }
 
+  bool IsAccurate() const {
+    return isAccurate;
+  }
+
+  void SetAccurate(bool argAccurate) {
+    isAccurate = argAccurate;
+  }
+
   bool IsEqual(ValueRange *valueRangeRight) const;
 
  private:
   Range range;
   int64 stride = 0;
   RangeType rangeType;
+  bool isAccurate = false;
 };
 
 // return nullptr means cannot merge, intersect = true : intersection set, intersect = false : union set
@@ -399,7 +409,7 @@ class ValueRangePropagation {
 
   void JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
       const BB &bb, MeExpr &expr, std::set<MeExpr*> &visitedLHS, std::vector<MeStmt*> &stmts);
-  bool TheValueOfOpndIsInvaliedInABCO(const BB &bb, MeStmt *meStmt, MeExpr &boundOpnd, bool updateCaches = true);
+  bool TheValueOfOpndIsInvaliedInABCO(const BB &bb, const MeStmt *meStmt, MeExpr &boundOpnd, bool updateCaches = true);
 
  private:
   bool IsBiggerThanMaxInt64(const ValueRange &valueRange) const;

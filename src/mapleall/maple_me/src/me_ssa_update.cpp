@@ -192,7 +192,7 @@ void MeSSAUpdate::RenameStmts(BB &bb) {
     } else if (kOpcodeInfo.IsCallAssigned(stmt.GetOp())) {
       MapleVector<MustDefMeNode> *mustDefList = stmt.GetMustDefList();
       auto mustdefit = mustDefList->begin();
-      for (; mustdefit != mustDefList->end(); mustdefit++) {
+      for (; mustdefit != mustDefList->end(); ++mustdefit) {
         lhs = (*mustdefit).GetLHS();
         CHECK_FATAL(lhs != nullptr, "stmt doesn't have lhs?");
         auto it = renameStacks.find(lhs->GetOstIdx());
@@ -209,7 +209,7 @@ void MeSSAUpdate::RenamePhiOpndsInSucc(const BB &bb) {
     if (succ->GetMePhiList().empty()) {
       continue;
     }
-    auto predIdx = succ->GetPredIndex(bb);
+    auto predIdx = static_cast<size_t>(succ->GetPredIndex(bb));
     CHECK_FATAL(predIdx < succ->GetPred().size(), "RenamePhiOpndsinSucc: cannot find corresponding pred");
     for (auto it1 = renameStacks.begin(); it1 != renameStacks.end(); ++it1) {
       auto it2 = succ->GetMePhiList().find(it1->first);

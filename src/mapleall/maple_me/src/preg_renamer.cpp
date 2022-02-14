@@ -61,6 +61,10 @@ void PregRenamer::RunSelf() {
     if (meExpr == nullptr || meExpr->GetMeOp() != kMeOpReg)
       continue;
     auto *regMeExpr = static_cast<RegMeExpr*> (meExpr);
+    auto *defStmt = regMeExpr->GetDefByMeStmt();
+    if (defStmt != nullptr && defStmt->GetOp() == OP_asm) {
+      continue;  // it could be binded with other regs or vars in asm so keep them in original format
+    }
     if (regMeExpr->GetRegIdx() < 0) {
       continue;  // special register
     }
@@ -130,9 +134,9 @@ void PregRenamer::RunSelf() {
     auto *regMeexpr = static_cast<RegMeExpr*>(regMeExprTable[it->first]);
     PregIdx oldPredIdx = regMeexpr->GetRegIdx();
     ASSERT(static_cast<uint32>(oldPredIdx) < firstAppearTable.size(), "oversize ");
-    if (!firstAppearTable[oldPredIdx]) {
+    if (!firstAppearTable[static_cast<size_t>(oldPredIdx)]) {
       // use the previous register
-      firstAppearTable[oldPredIdx] = true;
+      firstAppearTable[static_cast<size_t>(oldPredIdx)] = true;
       continue;
     }
     PregIdx newPregIdx = pregTab->ClonePreg(*pregTab->PregFromPregIdx(oldPredIdx));
