@@ -1262,14 +1262,19 @@ class OneHoleBranchesPreAArch64 : public PeepPattern {
  * =>
  * ldr x0, label_of_constant_1
  */
-class LoadFloatPointAArch64 : public PeepPattern {
+class LoadFloatPointPattern : public CGPeepPattern {
  public:
-  explicit LoadFloatPointAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~LoadFloatPointAArch64() override = default;
+  LoadFloatPointPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~LoadFloatPointPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "LoadFloatPointPattern";
+  }
  private:
   bool FindLoadFloatPoint(std::vector<Insn*> &optInsn, Insn &insn);
   bool IsPatternMatch(const std::vector<Insn*> &optInsn);
+  std::vector<Insn*> optInsn;
 };
 
 /*

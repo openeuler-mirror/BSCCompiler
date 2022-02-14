@@ -1916,6 +1916,10 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
       manager->NormalPatternOpt<UbfxToUxtwPattern>();
       break;
     }
+    case MOP_xmovzri16: {
+      manager->NormalPatternOpt<LoadFloatPointPattern>();
+      break;
+    }
     default:
       break;
   }
@@ -2097,7 +2101,6 @@ void AArch64PeepHole0::Run(BB &bb, Insn &insn) {
 void AArch64PrePeepHole::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
   optimizations[kOneHoleBranchesPreOpt] = optOwnMemPool->New<OneHoleBranchesPreAArch64>(cgFunc);
-  optimizations[kLoadFloatPointOpt] = optOwnMemPool->New<LoadFloatPointAArch64>(cgFunc);
   optimizations[kReplaceOrrToMovOpt] = optOwnMemPool->New<ReplaceOrrToMovAArch64>(cgFunc);
   optimizations[kReplaceCmpToCmnOpt] = optOwnMemPool->New<ReplaceCmpToCmnAArch64>(cgFunc);
   optimizations[kRemoveIncRefOpt] = optOwnMemPool->New<RemoveIncRefAArch64>(cgFunc);
@@ -2114,10 +2117,6 @@ void AArch64PrePeepHole::InitOpts() {
 void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   switch (thisMop) {
-    case MOP_xmovzri16: {
-      (static_cast<LoadFloatPointAArch64*>(optimizations[kLoadFloatPointOpt]))->Run(bb, insn);
-      break;
-    }
     case MOP_wiorrri12:
     case MOP_xiorrri13: {
       (static_cast<ReplaceOrrToMovAArch64*>(optimizations[kReplaceOrrToMovOpt]))->Run(bb, insn);
@@ -4304,7 +4303,7 @@ void OneHoleBranchesPreAArch64::Run(BB &bb, Insn &insn) {
   }
 }
 
-bool LoadFloatPointAArch64::FindLoadFloatPoint(std::vector<Insn*> &optInsn, Insn &insn) {
+bool LoadFloatPointPattern::FindLoadFloatPoint(std::vector<Insn*> &optInsn, Insn &insn) {
   MOperator mOp = insn.GetMachineOpcode();
   optInsn.clear();
   if (mOp != MOP_xmovzri16) {
@@ -4341,7 +4340,7 @@ bool LoadFloatPointAArch64::FindLoadFloatPoint(std::vector<Insn*> &optInsn, Insn
   return true;
 }
 
-bool LoadFloatPointAArch64::IsPatternMatch(const std::vector<Insn*> &optInsn) {
+bool LoadFloatPointPattern::IsPatternMatch(const std::vector<Insn*> &optInsn) {
   int insnNum = 0;
   Insn *insn1 = optInsn[insnNum];
   Insn *insn2 = optInsn[++insnNum];
@@ -4367,11 +4366,16 @@ bool LoadFloatPointAArch64::IsPatternMatch(const std::vector<Insn*> &optInsn) {
   return true;
 }
 
-void LoadFloatPointAArch64::Run(BB &bb, Insn &insn) {
-  AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
-  /* logical shift left values in three optimized pattern */
-  std::vector<Insn*> optInsn;
+bool LoadFloatPointPattern::CheckCondition(Insn &insn) {
   if (FindLoadFloatPoint(optInsn, insn) && IsPatternMatch(optInsn)) {
+    return true;
+  }
+  return false;
+}
+
+void LoadFloatPointPattern::Run(BB &bb, Insn &insn) {
+  /* logical shift left values in three optimized pattern */
+  if (CheckCondition(insn)) {
     int insnNum = 0;
     Insn *insn1 = optInsn[insnNum];
     Insn *insn2 = optInsn[++insnNum];
@@ -4387,10 +4391,11 @@ void LoadFloatPointAArch64::Run(BB &bb, Insn &insn) {
                    (static_cast<uint64>(movConst3.GetValue()) << k32BitSize) +
                    (static_cast<uint64>(movConst4.GetValue()) << (k16BitSize + k32BitSize));
 
-    LabelIdx lableIdx = cgFunc.CreateLabel();
+    LabelIdx lableIdx = cgFunc->CreateLabel();
+    AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
     LabelOperand &target = aarch64CGFunc->GetOrCreateLabelOperand(lableIdx);
-    cgFunc.InsertLabelMap(lableIdx, value);
-    Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(MOP_xldli, insn4->GetOperand(kInsnFirstOpnd),
+    cgFunc->InsertLabelMap(lableIdx, value);
+    Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_xldli, insn4->GetOperand(kInsnFirstOpnd),
                                                                   target);
     bb.InsertInsnAfter(*insn4, newInsn);
     bb.RemoveInsn(*insn1);
