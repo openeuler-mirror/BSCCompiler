@@ -27,6 +27,12 @@ src_libmplutil = [
   "src/thread_env.cpp",
 ]
 
+src_libcommandline = [
+  "src/cl_option.cpp",
+  "src/cl_option_parser.cpp",
+  "src/cl_parser.cpp",
+]
+
 include_libmplutil = [
   "${MAPLEALL_ROOT}/maple_util/include",
   "${MAPLEALL_ROOT}/maple_ir/include",
@@ -35,11 +41,21 @@ include_libmplutil = [
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
 ]
 
+include_libcommandline = [
+  "${MAPLEALL_ROOT}/maple_util/include",
+]
+
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
 
 static_library("libmplutil") {
   sources = src_libmplutil
   include_dirs = include_libmplutil
   libs = [ "pthread" ]
+  output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
+}
+
+static_library("libcommandline") {
+  sources = src_libcommandline
+  include_dirs = include_libcommandline
   output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
 }
