@@ -53,7 +53,7 @@ bool LoopVecInfo::UpdateRHSTypeSize(PrimType ptype) {
 // limitation now:  initNode and incrNode are const and initnode is vectorLane aligned.
 // vectorization loop: <initnode, (uppernode-initnode)/vectorFactor * vectorFactor + initnode, incrNode*vectFact>
 // epilog loop: < (uppernode-initnode)/vectorFactor*vectorFactor+initnode, uppernode, incrnode>
-void LoopTransPlan::GenerateBoundInfo(DoloopNode *doloop, DoloopInfo *li) {
+void LoopTransPlan::GenerateBoundInfo(const DoloopNode *doloop, const DoloopInfo *li) {
   (void) li;
   BaseNode *initNode = doloop->GetStartExpr();
   BaseNode *incrNode = doloop->GetIncrExpr();
@@ -1004,7 +1004,7 @@ IntrinsicopNode *LoopVectorization::GenVectorWidenIntrn(BaseNode *oper0,
   return nullptr;
 }
 
-bool LoopVectorization::CanWidenOpcode(BaseNode *target, PrimType opndType) const {
+bool LoopVectorization::CanWidenOpcode(const BaseNode *target, PrimType opndType) const {
   if ((target->GetPrimType() == opndType) ||
       (GetPrimTypeSize(target->GetPrimType()) < GetPrimTypeSize(opndType))) {
         return false;
@@ -1023,9 +1023,9 @@ void LoopVectorization::GenWidenBinaryExpr(Opcode binOp,
                                            MapleVector<BaseNode *>& opnd0Vec,
                                            MapleVector<BaseNode *>& opnd1Vec,
                                            MapleVector<BaseNode *>& vectorizedNode) {
-  size_t op1veclen = opnd0Vec.size();
-  size_t op2veclen = opnd1Vec.size();
-  size_t lenMin = op1veclen < op2veclen ? op1veclen : op2veclen;
+  auto op1veclen = opnd0Vec.size();
+  auto op2veclen = opnd1Vec.size();
+  auto lenMin = op1veclen < op2veclen ? op1veclen : op2veclen;
   for (size_t i = 0; i < lenMin; i++) {
     BaseNode *opnd0 = opnd0Vec[i];
     BaseNode *opnd1 = opnd1Vec[i];
@@ -1052,13 +1052,16 @@ void LoopVectorization::GenWidenBinaryExpr(Opcode binOp,
 // insert retype/cvt if sign/unsign
 BaseNode *LoopVectorization::ConvertNodeType(bool cvtSigned, BaseNode* n) {
   MIRType *opcodetype = nullptr;
-  MIRType *nodetype = GenVecType(GetVecElemPrimType(n->GetPrimType()), GetVecLanes(n->GetPrimType()));
+  MIRType *nodetype = GenVecType(GetVecElemPrimType(n->GetPrimType()),
+                                 static_cast<uint8>(GetVecLanes(n->GetPrimType())));
   if (cvtSigned) {
-    opcodetype = GenVecType(GetSignedPrimType(GetVecElemPrimType(n->GetPrimType())), GetVecLanes(n->GetPrimType()));
+    opcodetype = GenVecType(GetSignedPrimType(GetVecElemPrimType(n->GetPrimType())),
+                            static_cast<uint8>(GetVecLanes(n->GetPrimType())));
   } else {
-    opcodetype = GenVecType(GetUnsignedPrimType(GetVecElemPrimType(n->GetPrimType())), GetVecLanes(n->GetPrimType()));
+    opcodetype = GenVecType(GetUnsignedPrimType(GetVecElemPrimType(n->GetPrimType())),
+                            static_cast<uint8>(GetVecLanes(n->GetPrimType())));
   }
-  BaseNode *newnode;
+  BaseNode *newnode = nullptr;
   if (GetPrimTypeSize(n->GetPrimType()) == GetPrimTypeSize(opcodetype->GetPrimType())) {
     //newnode = codeMP->New<RetypeNode>(opcodetype->GetPrimType(), n->GetPrimType(), opcodetype->GetTypeIndex(), n);
     newnode = codeMP->New<RetypeNode>(opcodetype->GetPrimType(), n->GetPrimType(), nodetype->GetTypeIndex(), n);
@@ -1121,7 +1124,7 @@ RegreadNode *LoopVectorization::GenVectorRedVarInit(StIdx redStIdx, LoopTransPla
   uint32_t lhstypesize = GetPrimTypeSize(lhsType.GetPrimType()) * 8;
   uint32_t lhsMaxLanes = ((MAX_VECTOR_LENGTH_SIZE / lhstypesize) < tp->vecFactor) ?
                           (MAX_VECTOR_LENGTH_SIZE / lhstypesize) : tp->vecFactor;
-  MIRType *lhsvecType = GenVecType(lhsType.GetPrimType(), lhsMaxLanes);
+  MIRType *lhsvecType = GenVecType(lhsType.GetPrimType(), static_cast<uint8>(lhsMaxLanes));
   PregIdx reglhsvec = mirFunc->GetPregTab()->CreatePreg(lhsvecType->GetPrimType());
   IntrinsicopNode *lhsvecIntrn = GenDupScalarExpr(tp->const0Node, lhsvecType->GetPrimType());
   RegassignNode *initlhsvec = codeMP->New<RegassignNode>(lhsvecType->GetPrimType(), reglhsvec, lhsvecIntrn);
@@ -1172,7 +1175,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
       }
       if ((IsSignedInteger(optype) && IsUnsignedInteger(vecType->GetPrimType())) ||
           (IsUnsignedInteger(optype) && IsSignedInteger(vecType->GetPrimType()))) {
-        for (int i = 0; i < vectorizedNode.size(); i++) {
+        for (size_t i = 0; i < vectorizedNode.size(); i++) {
           vectorizedNode[i] = ConvertNodeType(IsSignedInteger(optype), vectorizedNode[i]);
         }
       }
@@ -1224,7 +1227,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
           CanWidenOpcode(node, GetVecElemPrimType(opnd0PrimType))) {
         GenWidenBinaryExpr(binNode->GetOpCode(), vecopnd1, vecopnd2, vectorizedNode);
       } else {
-        size_t lenMax = vecopnd1.size() >= vecopnd2.size() ? vecopnd1.size() : vecopnd2.size();
+        auto lenMax = vecopnd1.size() >= vecopnd2.size() ? vecopnd1.size() : vecopnd2.size();
         for (size_t i = 0; i < lenMax; i++) {
           BinaryNode *newbin = binNode->CloneTree(*codeMPAlloc);
           BaseNode *vecn1 = i < vecopnd1.size() ? vecopnd1[i] : vecopnd1[0];
@@ -1244,7 +1247,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
       if (depth == 0 &&
           ((IsSignedInteger(node->GetPrimType()) && IsUnsignedInteger(opnd0PrimType)) ||
            (IsUnsignedInteger(node->GetPrimType()) && IsSignedInteger(opnd0PrimType)))) {
-        for (int i = 0; i < vectorizedNode.size(); i++) {
+        for (size_t i = 0; i < vectorizedNode.size(); i++) {
           vectorizedNode[i] = ConvertNodeType(IsSignedInteger(node->GetPrimType()), vectorizedNode[i]);
         }
       }
@@ -1270,7 +1273,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
         if ((node->GetOpCode() == OP_abs) && (vecOpnd[0]->GetOpCode() == OP_intrinsicop) &&
             ((static_cast<IntrinsicopNode *>(vecOpnd[0]))->GetIntrinsic() >= INTRN_vector_subl_low_v8i8 &&
              (static_cast<IntrinsicopNode *>(vecOpnd[0]))->GetIntrinsic() <= INTRN_vector_subl_high_v2u32)) {
-          for (int i = 0; i < vecOpnd.size(); i++) {
+          for (size_t i = 0; i < vecOpnd.size(); i++) {
             IntrinsicopNode *opnd0 = static_cast<IntrinsicopNode *>(vecOpnd[i]);
             PrimType opndPrimType = opnd0->GetPrimType();
             opnd0->SetIntrinsic(GenVectorAbsSublID(opnd0->GetIntrinsic()));
@@ -1282,7 +1285,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
             vectorizedNode.push_back(newopnd);
           }
         } else {
-          for (int i = 0; i < vecOpnd.size(); i++) {
+          for (size_t i = 0; i < vecOpnd.size(); i++) {
             UnaryNode *cloneunaryNode = unaryNode->CloneTree(*codeMPAlloc);
             BaseNode *opnd0 = vecOpnd[i];
             PrimType opndPrimType = opnd0->GetPrimType();
@@ -1388,7 +1391,7 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
           MAX_VECTOR_LENGTH_SIZE) {
         BaseNode *currVecNode = nullptr;
         PrimType currVecType;
-        for (int i = 0; i < vecOpnd.size(); i++) {
+        for (size_t i = 0; i < vecOpnd.size(); i++) {
           currVecNode = vecOpnd[i];
           currVecType = currVecNode->GetPrimType();
           // need widen

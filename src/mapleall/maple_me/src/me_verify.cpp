@@ -24,7 +24,7 @@ void MeVerify::VerifyFunction() {
     LogInfo::MapleLogger() << meFunc.GetName() << "\n";
   }
   VerifyCommonExitBB();
-  int i = 0;
+  uint64 i = 0;
   for (auto &bb : meFunc.GetLaidOutBBs()) {
     ++i;
     if (bb->GetSucc().empty() && bb->GetPred().empty()) {
@@ -361,7 +361,7 @@ void MeVerify::VerifyNestedTry(const BB &tryBB, const BB &currBB) const {
   }
 }
 
-void MeVerify::VerifyAttrTryBB(BB &tryBB, int index) {
+void MeVerify::VerifyAttrTryBB(BB &tryBB, uint64 index) {
   auto tryStmt = static_cast<TryMeStmt&>(tryBB.GetMeStmts().front());
   int i = 0;
   for (auto offsetIt = tryStmt.GetOffsets().rbegin(), offsetEIt = tryStmt.GetOffsets().rend();

@@ -106,8 +106,8 @@ class DoloopInfo {
   void TestDependences(MapleVector<DepTestPair> *depTestList, bool bothLHS);
   bool Parallelizable();
   bool CheckReductionLoop();
-  ArrayAccessDesc* GetArrayAccessDesc(ArrayNode *node, bool isRHS);
-  bool IsReductionVar(StIdx stidx) { return (redVars.count(stidx) > 0); }
+  ArrayAccessDesc* GetArrayAccessDesc(const ArrayNode *node, bool isRHS);
+  bool IsReductionVar(StIdx stidx) const { return (redVars.count(stidx) > 0); }
 };
 
 class LfoDepInfo : public AnalysisResult {

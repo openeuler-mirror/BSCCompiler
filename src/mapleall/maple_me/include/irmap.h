@@ -138,8 +138,8 @@ class IRMap : public AnalysisResult {
   MeExpr *CreateCanonicalizedMeExpr(PrimType primType, Opcode opA, Opcode opB, MeExpr *opndA, MeExpr *opndB,
                                     Opcode opC, MeExpr *opndC, MeExpr *opndD);
   MeExpr *FoldConstExpr(PrimType primType, Opcode op, ConstMeExpr *opndA, ConstMeExpr *opndB);
-  MeExpr *SimplifyAddExpr(OpMeExpr *addExpr);
-  MeExpr *SimplifyMulExpr(OpMeExpr *mulExpr);
+  MeExpr *SimplifyAddExpr(const OpMeExpr *addExpr);
+  MeExpr *SimplifyMulExpr(const OpMeExpr *mulExpr);
   MeExpr *SimplifyCmpExpr(OpMeExpr *cmpExpr);
   MeExpr *SimplifyOpMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyMeExpr(MeExpr *x);
@@ -194,7 +194,7 @@ class IRMap : public AnalysisResult {
     return verst2MeExprTable;
   }
 
-  MeExpr *GetVerst2MeExprTableItem(int i) {
+  MeExpr *GetVerst2MeExprTableItem(uint32 i) {
     return verst2MeExprTable[i];
   }
 

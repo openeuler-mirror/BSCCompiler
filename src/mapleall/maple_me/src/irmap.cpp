@@ -391,8 +391,8 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
         srcRHS = CreateMeExprTypeCvt(ivar->GetPrimType(), srcRHS->GetPrimType(), *srcRHS);
       }
       auto *extract = CreateMeExprUnary(OP_extractbits, ivar->GetPrimType(), *srcRHS);
-      static_cast<OpMeExpr *>(extract)->SetBitsSize(bitSize);
-      static_cast<OpMeExpr *>(extract)->SetBitsOffSet(bitOffset);
+      static_cast<OpMeExpr *>(extract)->SetBitsSize(static_cast<uint8>(bitSize));
+      static_cast<OpMeExpr *>(extract)->SetBitsOffSet(static_cast<uint8>(bitOffset));
       return extract;
     }
     return nullptr;
@@ -849,7 +849,7 @@ MeExpr *IRMap::CreateMeExprExt(Opcode op, PrimType pType, uint32 bitsSize, MeExp
   ASSERT(op == OP_zext || op == OP_sext, "must be");
   OpMeExpr opMeExpr(kInvalidExprID, op, pType, kOperandNumUnary);
   opMeExpr.SetOpnd(0, &opnd);
-  opMeExpr.SetBitsSize(bitsSize);
+  opMeExpr.SetBitsSize(static_cast<uint8>(bitsSize));
   return HashMeExpr(opMeExpr);
 }
 
@@ -1083,7 +1083,7 @@ MeExpr *IRMap::FoldConstExpr(PrimType primType, Opcode op, ConstMeExpr *opndA, C
   return CreateConstMeExpr(primType, *resconst);
 }
 
-MeExpr *IRMap::SimplifyAddExpr(OpMeExpr *addExpr) {
+MeExpr *IRMap::SimplifyAddExpr(const OpMeExpr *addExpr) {
   if (IsPrimitiveVector(addExpr->GetPrimType())) {
     return nullptr;
   }
@@ -1280,7 +1280,7 @@ static inline bool SignExtendsOpnd(PrimType toType, PrimType fromType) {
   return false;
 }
 
-MeExpr *IRMap::SimplifyMulExpr(OpMeExpr *mulExpr) {
+MeExpr *IRMap::SimplifyMulExpr(const OpMeExpr *mulExpr) {
   if (IsPrimitiveVector(mulExpr->GetPrimType())) {
     return nullptr;
   }

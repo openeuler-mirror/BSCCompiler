@@ -29,17 +29,17 @@ BaseNode *LfoUnrollOneLoop::CloneIVNode() {
   }
 }
 
-bool LfoUnrollOneLoop::IsIVNode(BaseNode *x) const {
+bool LfoUnrollOneLoop::IsIVNode(const BaseNode *x) const {
   if (doloop->IsPreg()) {
     if (x->GetOpCode() != OP_regread) {
       return false;
     }
-    return static_cast<RegreadNode *>(x)->GetRegIdx() == doloop->GetDoVarPregIdx();
+    return static_cast<const RegreadNode *>(x)->GetRegIdx() == doloop->GetDoVarPregIdx();
   } else {
     if (x->GetOpCode() != OP_dread) {
       return false;
     }
-    return static_cast<AddrofNode *>(x)->GetStIdx() == doloop->GetDoVarStIdx();
+    return static_cast<const AddrofNode *>(x)->GetStIdx() == doloop->GetDoVarStIdx();
   }
 }
 
@@ -159,7 +159,7 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
   // update incrExpr
   ConstvalNode *stepNode = static_cast<ConstvalNode *>(unrolledDoloop->GetIncrExpr());
   int64 origIncr = static_cast<MIRIntConst *>(stepNode->GetConstVal())->GetValue();
-  unrolledDoloop->SetIncrExpr(mirBuilder->CreateIntConst(static_cast<int64>(origIncr * times), ivPrimType));
+  unrolledDoloop->SetIncrExpr(mirBuilder->CreateIntConst(origIncr * static_cast<int64>(times), ivPrimType));
   unrolledBlk->AddStatement(unrolledDoloop);
   return unrolledBlk;
 }
@@ -232,7 +232,7 @@ void LfoUnrollOneLoop::Process() {
     MIRIntConst *startConst = static_cast<MIRIntConst *>(startNode->GetConstVal());
     ConstvalNode *endNode = static_cast<ConstvalNode *>(endExpr);
     MIRIntConst *endConst = static_cast<MIRIntConst *>(endNode->GetConstVal());
-    tripCount = (endConst->GetValue() - startConst->GetValue()) / stepAmount;
+    tripCount = static_cast<size_t>((endConst->GetValue() - startConst->GetValue()) / stepAmount);
     if (condExpr->GetOpCode() == OP_ge || condExpr->GetOpCode() == OP_le) {
       tripCount++;
     }

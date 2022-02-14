@@ -78,19 +78,19 @@ class LoopTransPlan {
     const0Node = nullptr;
   }
   ~LoopTransPlan() = default;
-  LoopBound *vBound;   // bound of vectorized part
+  LoopBound *vBound = nullptr;   // bound of vectorized part
   // list of vectorizable stmtnodes in current loop, others can't be vectorized
-  uint8_t  vecLanes;   // number of lanes of vector type in current loop
-  uint8_t  vecFactor;  // number of loop iterations combined to one vectorized loop iteration
+  uint8_t  vecLanes = 0;   // number of lanes of vector type in current loop
+  uint8_t  vecFactor = 0;  // number of loop iterations combined to one vectorized loop iteration
   // generate epilog if eBound is not null
-  LoopBound *eBound;   // bound of Epilog part
-  MemPool *codeMP;     // use to generate new bound node
-  MemPool *localMP;    // use to generate local info
-  LoopVecInfo *vecInfo; // collect loop information
-  BaseNode *const0Node;   // zero const used in reduction variable
+  LoopBound *eBound = nullptr;   // bound of Epilog part
+  MemPool *codeMP = nullptr;     // use to generate new bound node
+  MemPool *localMP = nullptr;    // use to generate local info
+  LoopVecInfo *vecInfo = nullptr; // collect loop information
+  BaseNode *const0Node = nullptr;   // zero const used in reduction variable
   // function
   bool Generate(DoloopNode *, DoloopInfo *, bool);
-  void GenerateBoundInfo(DoloopNode *, DoloopInfo *);
+  void GenerateBoundInfo(const DoloopNode *doloop, const DoloopInfo *li);
 };
 
 class LoopVectorization {
@@ -113,20 +113,20 @@ class LoopVectorization {
   void VectorizeDoLoop(DoloopNode *, LoopTransPlan*);
   void VectorizeStmt(BaseNode *, LoopTransPlan *);
   void VectorizeExpr(BaseNode *, LoopTransPlan *, MapleVector<BaseNode *>&, uint32_t);
-  MIRType *GenVecType(PrimType, uint8_t);
+  MIRType *GenVecType(PrimType, uint8_t) const;
   IntrinsicopNode *GenDupScalarExpr(BaseNode *scalar, PrimType vecPrimType);
   bool ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo*, BaseNode *x);
   bool Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo*, BlockNode *block);
   void widenDoloop(DoloopNode *doloop, LoopTransPlan *);
   DoloopNode *PrepareDoloop(DoloopNode *, LoopTransPlan *);
-  DoloopNode *GenEpilog(DoloopNode *);
+  DoloopNode *GenEpilog(DoloopNode *) const;
   MemPool *GetLocalMp() { return localMP; }
   MapleMap<DoloopNode *, LoopTransPlan *> *GetVecPlans() { return &vecPlans; }
   std::string PhaseName() const { return "lfoloopvec"; }
-  bool CanConvert(uint32_t, uint32_t);
+  bool CanConvert(uint32_t, uint32_t) const;
   bool CanAdjustRhsConstType(PrimType, ConstvalNode *);
-  bool IsReductionOp(Opcode op);
-  bool CanWidenOpcode(BaseNode *, PrimType);
+  bool IsReductionOp(Opcode op) const;
+  bool CanWidenOpcode(const BaseNode *target, PrimType opndType) const;
   IntrinsicopNode *GenSumVecStmt(BaseNode *, PrimType);
   IntrinsicopNode *GenVectorGetLow(BaseNode *, PrimType);
   IntrinsicopNode *GenVectorAddw(BaseNode *, BaseNode *, PrimType, bool);
@@ -141,8 +141,8 @@ class LoopVectorization {
   void GenWidenBinaryExpr(Opcode, MapleVector<BaseNode *>&, MapleVector<BaseNode *>&, MapleVector<BaseNode *>&);
   BaseNode* ConvertNodeType(bool, BaseNode*);
   RegreadNode* GenVectorRedVarInit(StIdx, LoopTransPlan *);
-  MIRIntrinsicID GenVectorAbsSublID(MIRIntrinsicID intrnID);
- public:
+  MIRIntrinsicID GenVectorAbsSublID(MIRIntrinsicID intrnID) const;
+
   static uint32_t vectorizedLoop;
  private:
   MIRFunction *mirFunc;

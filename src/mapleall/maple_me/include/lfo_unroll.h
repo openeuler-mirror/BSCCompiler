@@ -32,7 +32,7 @@ class LfoUnrollOneLoop {
       mirBuilder(mirModule->GetMIRBuilder()) {}
   ~LfoUnrollOneLoop() = default;
   BaseNode *CloneIVNode();
-  bool IsIVNode(BaseNode *x);
+  bool IsIVNode(const BaseNode *x) const;
   void ReplaceIV(BaseNode *x, BaseNode *repNode);
   BlockNode *DoFullUnroll(size_t tripCount);
   BlockNode *DoUnroll(size_t times, size_t tripCount);
