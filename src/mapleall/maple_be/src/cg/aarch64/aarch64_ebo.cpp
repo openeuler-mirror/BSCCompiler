@@ -15,6 +15,8 @@
 #include "aarch64_ebo.h"
 #include "aarch64_cg.h"
 #include "mpl_logging.h"
+#include "aarch64_utils.h"
+
 namespace maplebe {
 using namespace maple;
 #define EBO_DUMP CG_DEBUG_FUNC(*cgFunc)
@@ -863,35 +865,14 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
     return false;
   }
 
-  if (CGOptions::IsBigEndian()) {
-    uint32 memSize = AArch64CG::kMd[prevMop].GetOperandSize();
-    uint32 newMemSize = AArch64CG::kMd[newPreMop].GetOperandSize();
+  auto *newMemOp =
+      GetOrCreateMemOperandForNewMOP(*cgFunc, *prevInsn, newPreMop);
 
-    if (newMemSize < memSize) {
-      auto *memOp = static_cast<AArch64MemOperand *>(prevInsn->GetMemOpnd());
-      [[maybe_unused]] bool prevMisaligned = memOp->IsOffsetMisaligned(memSize);
-
-      if (memOp->GetAddrMode() != AArch64MemOperand::kAddrModeBOi) {
-        // for big-endian we need to adjust an offset of load instruction
-        return false;
-      }
-
-      MemPool &memPool = *cgFunc->GetMemoryPool();
-      AArch64OfstOperand *offOp = memOp->GetOffsetImmediate();
-
-      auto *newOffOp = static_cast<AArch64OfstOperand *>(offOp->Clone(memPool));
-      auto *newMemOp = static_cast<AArch64MemOperand *>(memOp->Clone(memPool));
-
-      newMemOp->SetSize(newMemSize);
-      newOffOp->AdjustOffset((memSize - newMemSize) >> kLog2BitsPerByte);
-
-      ASSERT(prevMisaligned || !newMemOp->IsOffsetMisaligned(newMemSize),
-             "New offset value is misaligned!");
-
-      newMemOp->SetOffsetImmediate(*newOffOp);
-      prevInsn->SetMemOpnd(newMemOp);
-    }
+  if (!newMemOp) {
+    return false;
   }
+
+  prevInsn->SetMemOpnd(newMemOp);
 
   if (is64bits && idx <= SXTW && idx >= SXTB) {
     newPreMop = ExtLoadSwitchBitSize(newPreMop);
