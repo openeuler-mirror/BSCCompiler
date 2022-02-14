@@ -90,9 +90,9 @@ uint8 LoopScalarAnalysisResult::GetByteSize(std::vector<CRNode*> &crNodeVector) 
     }
     auto *crMulNode = static_cast<CRMulNode*>(crNodeVector[i]);
     if (!IsConstantMultipliedByVariable(*crMulNode)) {
-      return false;
+      return 0;
     }
-    return static_cast<CRConstNode*>(crMulNode->GetOpnd(0))->GetConstValue();
+    return static_cast<uint8>(static_cast<CRConstNode*>(crMulNode->GetOpnd(0))->GetConstValue());
   }
   return 0;
 }
@@ -1197,7 +1197,7 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
   if (times < 0) {
     return kInvalidTripCount;
   }
-  uint64 remainder = (value - start) % stride;
+  uint64 remainder = static_cast<uint64>((value - start) % stride);
   switch (op) {
     case OP_ge: {
       if (isSigned && start < value) { return 0; }
@@ -1212,7 +1212,7 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
         // change to "i <= umax" to compute
         return ComputeTripCountWithSimpleConstCR(OP_le, false, -1, start, stride);
       }
-      return times + 1;
+      return static_cast<uint64>(times + 1);
     }
     case OP_gt: {
       if (isSigned && start <= value) { return 0; }
@@ -1226,7 +1226,7 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
         // change to "i <= umax" to compute
         return ComputeTripCountWithSimpleConstCR(OP_le, false, -1, start, stride);
       }
-      return times + (remainder != 0);
+      return static_cast<uint64>(times + (remainder != 0));
     }
     case OP_le: {
       if (isSigned && start > value) { return 0; }
@@ -1241,7 +1241,7 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
         // change to "i >= 0" to compute
         return ComputeTripCountWithSimpleConstCR(OP_ge, false, 0, start, stride);
       }
-      return times + 1;
+      return static_cast<uint64>(times + 1);
     }
     case OP_lt: {
       if (isSigned && start >= value) { return 0; }
@@ -1255,7 +1255,7 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
         // change to "i >= 0" to compute
         return ComputeTripCountWithSimpleConstCR(OP_ge, false, 0, start, stride);
       }
-      return times + (remainder != 0);
+      return static_cast<uint64>(times + (remainder != 0));
     }
     case OP_eq: {
       if (start != value) { return 0; }
@@ -1271,7 +1271,7 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
         // consider if there's overflow
         if (isSigned && start > value) { return kInvalidTripCount; }  // undefined overflow
       }
-      return times;
+      return static_cast<uint64>(times);
     }
     default:
       CHECK_FATAL(false, "operator must be >=, <=, >, <, !=, ==");

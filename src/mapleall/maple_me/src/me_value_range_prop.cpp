@@ -179,14 +179,14 @@ void ValueRangePropagation::DealWithSwitch(BB &bb, MeStmt &stmt) {
   std::vector<int64> valueOfCase;
   for (auto &pair : switchMeStmt.GetSwitchTable()) {
     valueOfCase.push_back(pair.first);
-    auto *bb = func.GetCfg()->GetLabelBBAt(pair.second);
+    auto *currbb = func.GetCfg()->GetLabelBBAt(pair.second);
     // Can prop value range to target bb only when the pred size of target bb is one and
     // only one case can jump to the target bb.
-    if (bb->GetPred().size() == 1 && bbOfCases.insert(bb->GetBBId()).second) {
-      (void)Insert2Caches(bb->GetBBId(), opnd->GetExprID(),
+    if (currbb->GetPred().size() == 1 && bbOfCases.insert(currbb->GetBBId()).second) {
+      (void)Insert2Caches(currbb->GetBBId(), opnd->GetExprID(),
                     std::make_unique<ValueRange>(Bound(nullptr, pair.first, PTY_i64), kEqual));
     } else {
-      (void)Insert2Caches(bb->GetBBId(), opnd->GetExprID(), nullptr);
+      (void)Insert2Caches(currbb->GetBBId(), opnd->GetExprID(), nullptr);
     }
   }
   if (dealWithCheck || defalutBB == nullptr) {
@@ -529,7 +529,7 @@ void SafetyCheckWithBoundaryError::HandleAssignWithDeadBeef(
 void SafetyCheckWithNonnullError::HandleAssertNonnull(const MeStmt &meStmt, const ValueRange *valueRangeOfIndex) {
   if ((valueRangeOfIndex == nullptr || valueRangeOfIndex->IsZeroInRange()) &&
       meStmt.IsInSafeRegion() && MeOption::safeRegionMode) {
-    (void)NeedDeleteTheAssertAfterErrorOrWarn(meStmt);
+    (void)NeedDeleteTheAssertAfterErrorOrWarn(meStmt, true);
   }
   if (valueRangeOfIndex != nullptr && valueRangeOfIndex->IsEqualZero()) {
     (void)NeedDeleteTheAssertAfterErrorOrWarn(meStmt);
@@ -591,9 +591,10 @@ bool ValueRangePropagation::CompareIndexWithUpper(const BB &bb, const MeStmt &me
       // The value of length is overflow, need deal with this case later.
     }
     auto *loop = loops->GetBBLoopParent(bb.GetBBId());
-    if (indexOpnd != nullptr && loop != nullptr && loop->IsCanonicalLoop() && loop->inloopBB2exitBBs.size() == 1 &&
-        loop->inloopBB2exitBBs.begin()->second != nullptr && loop->inloopBB2exitBBs.begin()->second->size() == 1 &&
-        IsLoopVariable(*loop, *indexOpnd)) {
+    // When some values of index which is loop var are out of bound, error during static compilation
+    // only if the loop is canonical and the range of var is accurate.
+    if (valueRangeOfIndex.IsAccurate() && indexOpnd != nullptr && loop != nullptr &&
+        loop->IsCanonicalAndOnlyHasOneExitBBLoop() && IsLoopVariable(*loop, *indexOpnd)) {
       if (safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
                                                         upperOfLength)) {
         return true;
@@ -700,10 +701,10 @@ bool ValueRangePropagation::IfAnalysisedBefore(const BB &bb, const MeStmt &stmt)
 }
 
 bool ValueRangePropagation::TheValueOfOpndIsInvaliedInABCO(
-    const BB &bb, MeStmt *meStmt, MeExpr &boundOpnd, bool updateCaches) {
+    const BB &bb, const MeStmt *meStmt, MeExpr &boundOpnd, bool updateCaches) {
   if (boundOpnd.GetMeOp() == kMeOpConst &&
       static_cast<const ConstMeExpr&>(boundOpnd).GetConstVal()->GetKind() == kConstInt &&
-      static_cast<const ConstMeExpr&>(boundOpnd).GetIntValue() == kInvaliedBound) {
+      static_cast<uint64>(static_cast<const ConstMeExpr&>(boundOpnd).GetIntValue()) == kInvaliedBound) {
     if (updateCaches) {
       Insert2AnalysisedArrayChecks(bb.GetBBId(), *meStmt->GetOpnd(1), *meStmt->GetOpnd(0), meStmt->GetOp());
     }
@@ -711,7 +712,7 @@ bool ValueRangePropagation::TheValueOfOpndIsInvaliedInABCO(
   } else {
     auto *valueRange = FindValueRange(bb, boundOpnd);
     if (valueRange != nullptr && valueRange->GetRangeType() != kNotEqual &&
-        valueRange->IsConstant() && valueRange->GetLower().GetConstant() == kInvaliedBound) {
+        valueRange->IsConstant() && static_cast<uint64>(valueRange->GetLower().GetConstant()) == kInvaliedBound) {
       if (updateCaches) {
         Insert2AnalysisedArrayChecks(bb.GetBBId(), *meStmt->GetOpnd(1), *meStmt->GetOpnd(0), meStmt->GetOp());
       }
@@ -817,12 +818,12 @@ bool ValueRangePropagation::ThePhiLHSIsLoopVariable(const LoopDesc &loop, const 
   return false;
 }
 
-static inline bool CanNotDoReplaceLoopVarOpt(ValueRange *valueRange) {
+static inline bool CanNotDoReplaceLoopVarOpt(const ValueRange *valueRange) {
   if (valueRange == nullptr) {
     return true;
   }
   auto type = valueRange->GetRangeType();
-  return type != kEqual && type != kLowerAndUpper;
+  return type != kEqual && !(type == kLowerAndUpper && valueRange->IsAccurate());
 }
 
 void ValueRangePropagation::CollectIndexOpndWithBoundInLoop(
@@ -859,7 +860,7 @@ void ValueRangePropagation::CollectIndexOpndWithBoundInLoop(
       }
     }
   }
-  for (int32 i = 0; i < opnd.GetNumOpnds(); ++i) {
+  for (uint8 i = 0; i < opnd.GetNumOpnds(); ++i) {
     CollectIndexOpndWithBoundInLoop(loop, bb, meStmt, *(opnd.GetOpnd(i)), index2NewExpr);
   }
 }
@@ -1000,10 +1001,10 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
     return false;
   }
   if (ValueRangePropagation::isDebug) {
-    std::for_each(indexVector.begin(), indexVector.end(), [this](CRNode *cr) {
+    std::for_each(indexVector.begin(), indexVector.end(), [this](const CRNode *cr) {
         sa.Dump(*cr); std::cout << " ";});
     LogInfo::MapleLogger() << "\n";
-    std::for_each(boundVector.begin(), boundVector.end(), [this](CRNode *cr) {
+    std::for_each(boundVector.begin(), boundVector.end(), [this](const CRNode *cr) {
         sa.Dump(*cr); std::cout << " ";});
     LogInfo::MapleLogger() << "\n";
   }
@@ -1038,6 +1039,13 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
         // Can opt the boundary check.
         return true;
       }
+    } else if (valueRangeOfIndex->GetRangeType() == kLowerAndUpper && valueRangeOfIndex->IsAccurate() &&
+        valueRangeOfIndex->IsConstantLowerAndUpper() && valueRangeOfbound->IsEqualZero() &&
+        valueRangeOfIndex->GetLower().GetConstant() < 0) {
+      // Error during static compilation.
+      if (safetyCheckBoundary->HandleAssertError(meStmt)) {
+        return true;
+      }
     }
   } else {
     auto *currIndexOpnd = (indexVector.size() == 1) ? indexVector[0]->GetExpr() : nullptr;
@@ -1067,7 +1075,7 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
 }
 
 // If error in Compile return false, else return true.
-bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt) const {
+bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt, bool isNullablePtr) const {
   auto srcPosition = stmt.GetSrcPosition();
   const char *fileName = func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str();
   switch (stmt.GetOp()) {
@@ -1102,13 +1110,26 @@ bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt) const 
       GStrIdx curFuncNameIdx = func->GetMirFunc()->GetNameStrIdx();
       GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(newStmt.GetFuncName().c_str());
       if (curFuncNameIdx == stmtFuncNameIdx) {
-        if (stmt.GetOp() == OP_assertnonnull) {
-          FATAL(kLncFatal, "%s:%d error: Dereference of null pointer", fileName, srcPosition.LineNum());
-        } else if (stmt.GetOp() == OP_returnassertnonnull) {
-          FATAL(kLncFatal, "%s:%d error: %s return nonnull but got null pointer", fileName, srcPosition.LineNum(),
-                newStmt.GetFuncName().c_str());
+        if (isNullablePtr) {
+          if (stmt.GetOp() == OP_assertnonnull) {
+            FATAL(kLncFatal, "%s:%d error: Dereference of nullable pointer in safe region",
+                  fileName, srcPosition.LineNum());
+          } else if (stmt.GetOp() == OP_returnassertnonnull) {
+            FATAL(kLncFatal, "%s:%d error: %s return nonnull but got nullable pointer in safe region",
+                  fileName, srcPosition.LineNum(), newStmt.GetFuncName().c_str());
+          } else {
+            FATAL(kLncFatal, "%s:%d error: nullable pointer assignment of nonnull pointer in safe region",
+                  fileName, srcPosition.LineNum());
+          }
         } else {
-          FATAL(kLncFatal, "%s:%d error: null assignment of nonnull pointer", fileName, srcPosition.LineNum());
+          if (stmt.GetOp() == OP_assertnonnull) {
+            FATAL(kLncFatal, "%s:%d error: Dereference of null pointer", fileName, srcPosition.LineNum());
+          } else if (stmt.GetOp() == OP_returnassertnonnull) {
+            FATAL(kLncFatal, "%s:%d error: %s return nonnull but got null pointer", fileName, srcPosition.LineNum(),
+                  newStmt.GetFuncName().c_str());
+          } else {
+            FATAL(kLncFatal, "%s:%d error: null assignment of nonnull pointer", fileName, srcPosition.LineNum());
+          }
         }
       } else {
         if (stmt.GetOp() == OP_assertnonnull) {
@@ -1268,7 +1289,7 @@ void ValueRangePropagation::CollectMeExpr(
     expr2ConstantValue[&meExpr] = std::make_pair(value, pType);
     return;
   }
-  for (int32 i = 0; i < meExpr.GetNumOpnds(); ++i) {
+  for (uint8 i = 0; i < meExpr.GetNumOpnds(); ++i) {
     CollectMeExpr(bb, stmt, *(meExpr.GetOpnd(i)), expr2ConstantValue);
   }
 }
@@ -1372,7 +1393,7 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
     default:
       break;
   }
-  for (int32 i = 0; i < meExpr.GetNumOpnds(); ++i) {
+  for (uint8 i = 0; i < meExpr.GetNumOpnds(); ++i) {
     DealWithOperand(bb, stmt, *(meExpr.GetOpnd(i)));
   }
 }
@@ -1456,7 +1477,7 @@ void ValueRangePropagation::InsertOstOfPhi2Cands(BB &bb, size_t i, bool setPhiIs
 void ValueRangePropagation::PrepareForSSAUpdateWhenPredBBIsRemoved(const BB &pred, BB &bb) {
   int index = bb.GetPredIndex(pred);
   CHECK_FATAL(index != -1, "pred is not in preds of bb");
-  InsertOstOfPhi2Cands(bb, index);
+  InsertOstOfPhi2Cands(bb, static_cast<size_t>(index));
   MeSSAUpdate::InsertDefPointsOfBBToSSACands(bb, cands);
 }
 
@@ -1842,7 +1863,10 @@ std::unique_ptr<ValueRange> ValueRangePropagation::RemWithValueRange(const BB &b
   if (!valueRange->IsConstantLowerAndUpper()) {
     return remValueRange;
   } else if (valueRange->GetRangeType() == kEqual) {
-    int64 res = valueRange->GetBound().GetConstant() % rhsConstant;
+    int64 res = opMeExpr.GetPrimType() == PTY_u64 ?
+        static_cast<uint64>(valueRange->GetBound().GetConstant()) % static_cast<uint64>(rhsConstant) :
+        GetRealValue(valueRange->GetBound().GetConstant(), opMeExpr.GetPrimType()) %
+        GetRealValue(rhsConstant, opMeExpr.GetPrimType());
     Bound bound = Bound(nullptr, res, valueRange->GetBound().GetPrimType());
     return std::make_unique<ValueRange>(bound, valueRange->GetRangeType());
   } else {
@@ -1862,6 +1886,9 @@ std::unique_ptr<ValueRange> ValueRangePropagation::RemWithValueRange(const BB &b
 // Create valueRange when deal with OP_rem.
 std::unique_ptr<ValueRange> ValueRangePropagation::DealWithRem(
     const BB &bb, const MeExpr &lhsVar, const OpMeExpr &opMeExpr) {
+  if (!IsNeededPrimType(opMeExpr.GetPrimType())) {
+    return nullptr;
+  }
   auto *opnd0 = opMeExpr.GetOpnd(0);
   auto *opnd1 = opMeExpr.GetOpnd(1);
   int64 lhsConstant = 0;
@@ -1873,7 +1900,9 @@ std::unique_ptr<ValueRange> ValueRangePropagation::DealWithRem(
   }
   std::unique_ptr<ValueRange> newValueRange;
   if (lhsIsConstant && rhsIsConstant) {
-    int64 res = lhsConstant % rhsConstant;
+    int64 res = opMeExpr.GetPrimType() == PTY_u64 ?
+        static_cast<uint64>(lhsConstant) % static_cast<uint64>(rhsConstant) :
+        GetRealValue(lhsConstant, opMeExpr.GetPrimType()) % GetRealValue(rhsConstant, opMeExpr.GetPrimType());
     newValueRange = std::make_unique<ValueRange>(Bound(res, opMeExpr.GetPrimType()), kEqual);
   } else if (rhsIsConstant) {
     newValueRange = RemWithValueRange(bb, opMeExpr, rhsConstant);
@@ -2001,23 +2030,24 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CopyValueRange(ValueRange &va
     case kEqual:
     case kNotEqual:
       if (primType == PTY_begin) {
-        return std::make_unique<ValueRange>(valueRange.GetBound(), valueRange.GetRangeType());
+        return std::make_unique<ValueRange>(valueRange.GetBound(), valueRange.GetRangeType(), valueRange.IsAccurate());
       } else {
         Bound bound = Bound(valueRange.GetBound().GetVar(),
                             GetRealValue(valueRange.GetBound().GetConstant(), primType), primType);
-        return std::make_unique<ValueRange>(bound, valueRange.GetRangeType());
+        return std::make_unique<ValueRange>(bound, valueRange.GetRangeType(), valueRange.IsAccurate());
       }
     case kLowerAndUpper:
     case kSpecialUpperForLoop:
     case kSpecialLowerForLoop:
       if (primType == PTY_begin) {
-        return std::make_unique<ValueRange>(valueRange.GetLower(), valueRange.GetUpper(), valueRange.GetRangeType());
+        return std::make_unique<ValueRange>(valueRange.GetLower(), valueRange.GetUpper(), valueRange.GetRangeType(),
+            valueRange.IsAccurate());
       } else {
         Bound lower = Bound(valueRange.GetLower().GetVar(),
                             GetRealValue(valueRange.GetLower().GetConstant(), primType), primType);
         Bound upper = Bound(valueRange.GetUpper().GetVar(),
                             GetRealValue(valueRange.GetUpper().GetConstant(), primType), primType);
-        return std::make_unique<ValueRange>(lower, upper, valueRange.GetRangeType());
+        return std::make_unique<ValueRange>(lower, upper, valueRange.GetRangeType(), valueRange.IsAccurate());
       }
     case kOnlyHasLowerBound:
       if (primType == PTY_begin) {
@@ -2034,7 +2064,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CopyValueRange(ValueRange &va
       } else {
         Bound upper = Bound(valueRange.GetUpper().GetVar(),
                             GetRealValue(valueRange.GetUpper().GetConstant(), primType), primType);
-        return std::make_unique<ValueRange>(upper, kOnlyHasUpperBound);
+        return std::make_unique<ValueRange>(upper, kOnlyHasUpperBound, valueRange.IsAccurate());
       }
     default:
       CHECK_FATAL(false, "can not be here");
@@ -2339,6 +2369,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForPhi(LoopDe
   if (valueRangeOfInit != nullptr && valueRangeOfInit->GetRangeType() == kNotEqual) {
     initBound = Bound(&init, init.GetPrimType());
   }
+  std::unique_ptr<ValueRange> valueRangeOfPhiNode;
   for (auto &it : loop.inloopBB2exitBBs) {
     auto *exitBB = func.GetCfg()->GetBBFromID(it.first);
     if (exitBB->GetKind() != kBBCondGoto) {
@@ -2357,9 +2388,12 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForPhi(LoopDe
             (loop.Has(*falseBranch) && (opMeExpr->GetOp() == OP_gt || opMeExpr->GetOp() == OP_ge)) ||
             (stride == 1 && ((loop.Has(*trueBranch) && opMeExpr->GetOp() == OP_ne) ||
                              (loop.Has(*falseBranch) && opMeExpr->GetOp() == OP_eq)))) {
-          return CreateValueRangeForMonotonicIncreaseVar(loop, *exitBB, bb, *opMeExpr, *opnd1, initBound, stride);
+          valueRangeOfPhiNode = CreateValueRangeForMonotonicIncreaseVar(
+              loop, *exitBB, bb, *opMeExpr, *opnd1, initBound, stride);
+          break;
         } else {
-          return std::make_unique<ValueRange>(initBound, stride, kOnlyHasLowerBound);
+          valueRangeOfPhiNode = std::make_unique<ValueRange>(initBound, stride, kOnlyHasLowerBound);
+          break;
         }
       }
       if (stride < 0) {
@@ -2367,12 +2401,23 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForPhi(LoopDe
             (loop.Has(*falseBranch) && (opMeExpr->GetOp() == OP_lt || opMeExpr->GetOp() == OP_le)) ||
             (stride == -1 && ((loop.Has(*trueBranch) && opMeExpr->GetOp() == OP_ne) ||
                               (loop.Has(*falseBranch) && opMeExpr->GetOp() == OP_eq)))) {
-          return CreateValueRangeForMonotonicDecreaseVar(loop, *exitBB, bb, *opMeExpr, *opnd1, initBound, stride);
+          valueRangeOfPhiNode = CreateValueRangeForMonotonicDecreaseVar(
+              loop, *exitBB, bb, *opMeExpr, *opnd1, initBound, stride);
+          break;
         } else {
-          return std::make_unique<ValueRange>(initBound, stride, kOnlyHasUpperBound);
+          valueRangeOfPhiNode = std::make_unique<ValueRange>(initBound, stride, kOnlyHasUpperBound);
+          break;
         }
       }
     }
+  }
+  if (valueRangeOfPhiNode != nullptr) {
+    if (loop.IsCanonicalAndOnlyHasOneExitBBLoop() && valueRangeOfPhiNode->GetRangeType() == kLowerAndUpper &&
+        initIsConstant && valueRangeOfInit->GetRangeType() != kNotEqual) {
+      // When the loop only has one exit bb and the init var is constant, the value range is accurate.
+      valueRangeOfPhiNode->SetAccurate(true);
+    }
+    return valueRangeOfPhiNode;
   }
   return MakeMonotonicIncreaseOrDecreaseValueRangeForPhi(static_cast<int>(stride), initBound);
 }
@@ -3191,7 +3236,7 @@ size_t ValueRangePropagation::FindBBInSuccs(const BB &bb, const BB &succBB) cons
 }
 
 void ValueRangePropagation::ComputeCodeSize(const MeExpr &meExpr, uint32 &cost) {
-  for (int32 i = 0; i < meExpr.GetNumOpnds(); ++i) {
+  for (uint8 i = 0; i < meExpr.GetNumOpnds(); ++i) {
     cost++;
     ComputeCodeSize(*(meExpr.GetOpnd(i)), cost);
   }

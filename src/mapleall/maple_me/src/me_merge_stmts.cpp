@@ -17,7 +17,7 @@
 #include "mpl_options.h"
 
 namespace maple {
-int32 MergeStmts::GetStructFieldBitSize(MIRStructType* structType, FieldID fieldID) {
+int32 MergeStmts::GetStructFieldBitSize(const MIRStructType *structType, FieldID fieldID) {
   TyIdx fieldTypeIdx = structType->GetFieldTyIdx(fieldID);
   MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTypeIdx);
   uint32 fieldBitSize;
@@ -43,9 +43,9 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
 
   std::sort(iassignCandidates.begin(), iassignCandidates.end());
 
-  int32 numOfCandidates = static_cast<int32>(iassignCandidates.size());
-  int32 startCandidate = 0;
-  int32 endCandidate = numOfCandidates - 1;
+  auto numOfCandidates = iassignCandidates.size();
+  size_t startCandidate = 0;
+  size_t endCandidate = numOfCandidates - 1;
   ASSERT(iassignCandidates[startCandidate].second->GetOp() == OP_iassign, "Candidate MeStmt must be Iassign");
 
   while (startCandidate < endCandidate) {
@@ -54,7 +54,7 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
     MIRStructType *lhsStructType = static_cast<MIRStructType *>(mirPtrType->GetPointedType());
 
     bool found = false;
-    int32 endIdx = -1;
+    size_t endIdx = 0;
     int32 startBitOffset = iassignCandidates[startCandidate].first;
 
     if ((startBitOffset & 0x7) != 0) {
@@ -64,7 +64,7 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
 
     // Find qualified candidates as many as possible
     int32 targetBitSize;
-    for (int32 end = endCandidate; end > startCandidate; end--) {
+    for (size_t end = endCandidate; end > startCandidate; end--) {
       FieldID endFieldID =  static_cast<IassignMeStmt*>(iassignCandidates[end].second)->GetLHSVal()->GetFieldID();
       if (endFieldID == 0) {
         TyIdx lhsPtrTypeIdx = static_cast<IassignMeStmt*>(iassignCandidates[end].second)->GetLHSVal()->GetTyIdx();
@@ -72,7 +72,7 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
         targetBitSize = iassignCandidates[end].first + lhsPointedTypeBitSize - startBitOffset;
         if (targetBitSize == 16 || targetBitSize == 32 || targetBitSize == 64) {
           int32 coveredBitSize = 0;
-          for (int32 i = startCandidate; i <= end; i++) {
+          for (size_t i = startCandidate; i <= end; i++) {
             TyIdx lhsPtrTypeIndex = static_cast<IassignMeStmt*>(iassignCandidates[i].second)->GetLHSVal()->GetTyIdx();
             coveredBitSize += GetPointedTypeBitSize(lhsPtrTypeIndex);
           }
@@ -83,11 +83,11 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
           }
         }
       } else {
-        targetBitSize = iassignCandidates[end].first + GetStructFieldBitSize(lhsStructType, endFieldID) -
-            startBitOffset;
+        targetBitSize = iassignCandidates[end].first +
+            static_cast<int32>(GetStructFieldBitSize(lhsStructType, endFieldID)) - startBitOffset;
         if (targetBitSize == 16 || targetBitSize == 32 || targetBitSize == 64) {
           int32 coveredBitSize = 0;
-          for (int32 i = startCandidate; i <= end; i++) {
+          for (size_t i = startCandidate; i <= end; i++) {
             FieldID fieldID = static_cast<IassignMeStmt*>(iassignCandidates[i].second)->GetLHSVal()->GetFieldID();
             coveredBitSize += GetStructFieldBitSize(lhsStructType, fieldID);
           }
@@ -112,9 +112,9 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
       }
       IassignMeStmt *lastIassignMeStmt = static_cast<IassignMeStmt*>(iassignCandidates[endIdx].second);
       ConstMeExpr *rhsLastIassignMeStmt = static_cast<ConstMeExpr*>(lastIassignMeStmt->GetOpnd(1));
-      uint64 fieldVal = rhsLastIassignMeStmt->GetIntValue();
+      uint64 fieldVal = static_cast<uint64>(rhsLastIassignMeStmt->GetIntValue());
       uint64 combinedVal = (fieldVal << (64 - fieldBitSize)) >> (64 - fieldBitSize);
-      for (int32 stmtIdx = endIdx - 1; stmtIdx >= startCandidate; stmtIdx--) {
+      for (int stmtIdx = static_cast<int>(endIdx) - 1; stmtIdx >= static_cast<int>(startCandidate); stmtIdx--) {
         fieldID = static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetLHSVal()->GetFieldID();
         if (fieldID == 0) {
           TyIdx lhsPtrTypeIdx = static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetLHSVal()->GetTyIdx();
@@ -122,8 +122,8 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
         } else {
           fieldBitSize = GetStructFieldBitSize(lhsStructType, fieldID);
         }
-        fieldVal = static_cast<ConstMeExpr*>(
-            static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetOpnd(1))->GetIntValue();
+        fieldVal = static_cast<uint64>(static_cast<ConstMeExpr*>(
+            static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetOpnd(1))->GetIntValue());
         fieldVal = (fieldVal << (64 - fieldBitSize)) >> (64 - fieldBitSize);
         combinedVal = combinedVal << fieldBitSize | fieldVal;
       }
@@ -136,7 +136,7 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
       firstIassignStmt->SetOmitEmit(false);
       // Mark deletion on the rest of merged stmts
       BB *bb = firstIassignStmt->GetBB();
-      for (int32 canIdx = startCandidate + 1; canIdx <= endIdx; canIdx++) {
+      for (size_t canIdx = startCandidate + 1; canIdx <= endIdx; canIdx++) {
         IassignMeStmt *removedIassignStmt = static_cast<IassignMeStmt*>(iassignCandidates[canIdx].second);
         removedIassignStmt->SetEmitIassignoff(false);
         removedIassignStmt->SetOmitEmit(true);
@@ -157,9 +157,9 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
 
   sort(dassignCandidates.begin(), dassignCandidates.end());
 
-  int32 numOfCandidates = static_cast<int32>(dassignCandidates.size());
-  int32 startCandidate = 0;
-  int32 endCandidate = numOfCandidates - 1;
+  size_t numOfCandidates = dassignCandidates.size();
+  size_t startCandidate = 0;
+  size_t endCandidate = numOfCandidates - 1;
   ASSERT(dassignCandidates[startCandidate].second->GetOp() == OP_dassign, "Candidate MeStmt must be Dassign");
 
   while (startCandidate < endCandidate) {
@@ -179,16 +179,16 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
     // Find qualified candidates as many as possible
     bool found = false;
     int32 targetBitSize;
-    int32 endIdx = -1;
+    size_t endIdx = 0;
 
-    for (int32 end = endCandidate; end > startCandidate; end--) {
+    for (size_t end = endCandidate; end > startCandidate; end--) {
       OriginalSt *lhsOrigStEnd = static_cast<DassignMeStmt*>(dassignCandidates[end].second)->GetVarLHS()->GetOst();
       FieldID lhsFieldIDEnd = lhsOrigStEnd->GetFieldID();
-      targetBitSize = dassignCandidates[end].first + GetStructFieldBitSize(
-          lhsStructTypeStart, lhsFieldIDEnd) - lhsFieldBitOffsetStart;
+      targetBitSize = dassignCandidates[end].first + static_cast<int32>(GetStructFieldBitSize(
+          lhsStructTypeStart, lhsFieldIDEnd)) - lhsFieldBitOffsetStart;
       if (targetBitSize == 16 || targetBitSize == 32 || targetBitSize == 64) {
         int32 coveredBitSize = 0;
-        for (int32 i = startCandidate; i <= end; i++) {
+        for (size_t i = startCandidate; i <= end; i++) {
           OriginalSt *lhsOrigSt = static_cast<DassignMeStmt*>(dassignCandidates[i].second)->GetLHS()->GetOst();
           FieldID lhsFieldID = lhsOrigSt->GetFieldID();
           coveredBitSize += GetStructFieldBitSize(lhsStructTypeStart, lhsFieldID);
@@ -206,18 +206,18 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
       OriginalSt *lhsOrigStEndIdx = static_cast<DassignMeStmt*>(dassignCandidates[endIdx].second)->GetLHS()->GetOst();
       FieldID fieldIDEndIdx = lhsOrigStEndIdx->GetFieldID();
       int32 fieldBitSizeEndIdx = GetStructFieldBitSize(lhsStructTypeStart, fieldIDEndIdx);
-      uint64 fieldValEndIdx = static_cast<ConstMeExpr*>(static_cast<IassignMeStmt*>(
-          dassignCandidates[endIdx].second)->GetRHS())->GetIntValue();
+      uint64 fieldValEndIdx = static_cast<uint64>(static_cast<ConstMeExpr*>(static_cast<IassignMeStmt*>(
+          dassignCandidates[endIdx].second)->GetRHS())->GetIntValue());
       uint64 combinedVal = (fieldValEndIdx << (64 - fieldBitSizeEndIdx)) >> (64 - fieldBitSizeEndIdx);
-      for (int32 stmtIdx = endIdx - 1; stmtIdx >= startCandidate; stmtIdx--) {
+      for (int stmtIdx = static_cast<int>(endIdx) - 1; stmtIdx >= static_cast<int>(startCandidate); stmtIdx--) {
         OriginalSt *lhsOrigStStmtIdx = static_cast<DassignMeStmt*>(
             dassignCandidates[stmtIdx].second)->GetVarLHS()->GetOst();
         FieldID fieldIDStmtIdx = lhsOrigStStmtIdx->GetFieldID();
         int32 fieldBitSizeStmtIdx = GetStructFieldBitSize(lhsStructTypeStart, fieldIDStmtIdx);
-        uint64 fieldValStmtIdx = static_cast<ConstMeExpr*>(static_cast<DassignMeStmt*>(
-            dassignCandidates[endIdx].second)->GetRHS())->GetIntValue();
-        fieldValStmtIdx = static_cast<ConstMeExpr*>(static_cast<DassignMeStmt*>(
-            dassignCandidates[stmtIdx].second)->GetRHS())->GetIntValue();
+        uint64 fieldValStmtIdx = static_cast<uint64>(static_cast<ConstMeExpr*>(static_cast<DassignMeStmt*>(
+            dassignCandidates[endIdx].second)->GetRHS())->GetIntValue());
+        fieldValStmtIdx = static_cast<uint64>(static_cast<ConstMeExpr*>(static_cast<DassignMeStmt*>(
+            dassignCandidates[stmtIdx].second)->GetRHS())->GetIntValue());
         fieldValStmtIdx = (fieldValStmtIdx << (64 - fieldBitSizeStmtIdx)) >> (64 - fieldBitSizeStmtIdx);
         combinedVal = (combinedVal << fieldBitSizeStmtIdx) | fieldValStmtIdx;
       }
@@ -230,7 +230,7 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
       firstDassignStmt->SetOmitEmit(false);
       // Mark deletion on the rest of merged stmts
       BB *bb = firstDassignStmt->GetBB();
-      for (int32 canIdx = startCandidate + 1; canIdx <= endIdx; canIdx++) {
+      for (size_t canIdx = startCandidate + 1; canIdx <= endIdx; canIdx++) {
         DassignMeStmt *removedDassignStmt = static_cast<DassignMeStmt*>(dassignCandidates[canIdx].second);
         removedDassignStmt->SetEmitDassignoff(false);
         removedDassignStmt->SetOmitEmit(true);
@@ -264,8 +264,8 @@ IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar, MeExpr&
   return xIassignStmt;
 }
 
-void MergeStmts::genShortSet(MeExpr *dstMeExpr, uint32 offset, MIRType *uXTgtMirType, RegMeExpr *srcRegMeExpr,
-                             IntrinsiccallMeStmt* memsetCallStmt,
+void MergeStmts::genShortSet(MeExpr *dstMeExpr, uint32 offset, const MIRType *uXTgtMirType, RegMeExpr *srcRegMeExpr,
+                             const IntrinsiccallMeStmt* memsetCallStmt,
                              const MapleMap<OStIdx, ChiMeNode *> &memsetCallStmtChi) {
 
     MIRType *uXTgtPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*uXTgtMirType, PTY_ptr);
@@ -429,19 +429,23 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
 
     if (numOf8Byte != 0) {
       MIRType *u64MirType = GlobalTables::GetTypeTable().GetUInt64();
-      genShortSet(dstMeExpr, offset8Byte, u64MirType, u64RegMeExpr, memsetCallStmt, *memsetCallStmtChi);
+      genShortSet(dstMeExpr, static_cast<uint32>(offset8Byte), u64MirType, u64RegMeExpr, memsetCallStmt,
+                  *memsetCallStmtChi);
     }
     if (numOf4Byte != 0) {
       MIRType *u32MirType = GlobalTables::GetTypeTable().GetUInt32();
-      genShortSet(dstMeExpr, offset4Byte, u32MirType, u64RegMeExpr, memsetCallStmt, *memsetCallStmtChi);
+      genShortSet(dstMeExpr, static_cast<uint32>(offset4Byte), u32MirType, u64RegMeExpr, memsetCallStmt,
+                  *memsetCallStmtChi);
     }
     if (numOf2Byte != 0) {
       MIRType *u16MirType = GlobalTables::GetTypeTable().GetUInt16();
-      genShortSet(dstMeExpr, offset2Byte, u16MirType, u64RegMeExpr, memsetCallStmt, *memsetCallStmtChi);
+      genShortSet(dstMeExpr, static_cast<uint32>(offset2Byte), u16MirType, u64RegMeExpr, memsetCallStmt,
+                  *memsetCallStmtChi);
     }
     if (numOf1Byte != 0) {
       MIRType *u8MirType = GlobalTables::GetTypeTable().GetUInt8();
-      genShortSet(dstMeExpr, offset1Byte, u8MirType, u64RegMeExpr, memsetCallStmt, *memsetCallStmtChi);
+      genShortSet(dstMeExpr, static_cast<uint32>(offset1Byte), u8MirType, u64RegMeExpr, memsetCallStmt,
+                  *memsetCallStmtChi);
     }
   }
   // Remove memset stmt

@@ -39,8 +39,8 @@ class MeSink {
   bool OpndOfExprRedefined(const MeExpr *expr) const;
   bool ScalarOnlyUsedInCurStmt(const ScalarMeExpr *scalar, const MeStmt *stmt,
                                std::set<const ScalarMeExpr*> &visitedScalars) const;
-  void RecordStmtSinkToHeaderOfTargetBB(MeStmt *defStmt, BB *targetBB);
-  void RecordStmtSinkToBottomOfTargetBB(MeStmt *defStmt, BB *targetBB);
+  void RecordStmtSinkToHeaderOfTargetBB(MeStmt *defStmt, const BB *targetBB);
+  void RecordStmtSinkToBottomOfTargetBB(MeStmt *defStmt, const BB *targetBB);
 
   bool MeExprSinkable(MeExpr *expr) const;
   bool DefStmtSinkable(MeStmt *defStmt) const;
@@ -53,7 +53,7 @@ class MeSink {
   DefUseInfoOfPhi DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::map<ScalarMeExpr*, MeStmt*> &defStmts,
       std::set<MePhiNode*> &processedPhi, std::set<MePhiNode*> &phisUseCurrPhiOpnds);
   void ReplacePhiWithNewDataFlow(MePhiNode *phi, ScalarMeExpr *scalar);
-  bool PhiCanBeReplacedWithDataFlowOfScalar(ScalarMeExpr *scalar, const BB *defBBOfScalar, MePhiNode *phi,
+  bool PhiCanBeReplacedWithDataFlowOfScalar(const ScalarMeExpr *scalar, const BB *defBBOfScalar, MePhiNode *phi,
                                             std::map<ScalarMeExpr*, MeStmt*> &defStmtsOfPhiOpnds);
   bool MergeAssignStmtWithPhi(AssignMeStmt *assign, MePhiNode *phi);
   bool UpwardMergeAssignStmt(MeStmt *stmt);
@@ -66,7 +66,7 @@ class MeSink {
   void ProcessPhiList(BB *bb);
   void SinkStmtsInBB(BB *bb);
 
-  BB *BestSinkBB(BB *fromBB, BB *toBB);
+  BB *BestSinkBB(const BB *fromBB, BB *toBB);
   std::pair<BB*, bool> CalCandSinkBBForUseSites(const ScalarMeExpr *scalar, const UseSitesType &useList);
   BB *CalSinkSiteOfScalarDefStmt(const ScalarMeExpr *scalar);
   void CalSinkSites();
@@ -194,7 +194,7 @@ bool MeSink::OstHasNotBeenDefined(const OriginalSt *ost) {
     if (ver == nullptr) {
       continue;
     }
-    if (ver->GetExprID() == ost->GetZeroVersionIndex()) {
+    if (static_cast<size_t>(ver->GetExprID()) == ost->GetZeroVersionIndex()) {
       continue;
     }
 
@@ -406,8 +406,8 @@ void MeSink::ReplacePhiWithNewDataFlow(MePhiNode *phi, ScalarMeExpr *scalar) {
   }
 }
 
-bool MeSink::PhiCanBeReplacedWithDataFlowOfScalar(ScalarMeExpr *scalar, const BB *defBBOfScalar, MePhiNode *phi,
-    std::map<ScalarMeExpr*, MeStmt*> &defStmtsOfPhiOpnds) {
+bool MeSink::PhiCanBeReplacedWithDataFlowOfScalar(const ScalarMeExpr *scalar, const BB *defBBOfScalar, MePhiNode *phi,
+                                                  std::map<ScalarMeExpr*, MeStmt*> &defStmtsOfPhiOpnds) {
   auto *verStack = versionStack[scalar->GetOstIdx()].get();
   // scalar has not been defined, the phi can be replaced
   ScalarMeExpr *topVer = nullptr;
@@ -702,7 +702,7 @@ MeExpr *MeSink::ConstructExpr(MeExpr *expr, const BB *predBB, const BB *phiBB) {
           return nullptr;
         }
         auto predIdx = phiBB->GetPredIndex(*predBB);
-        return phiIt->second->GetOpnd(predIdx);
+        return phiIt->second->GetOpnd(static_cast<size_t>(predIdx));
       }
       return nullptr;
     }
@@ -986,7 +986,7 @@ static void CollectUsedScalar(MeExpr *expr, std::set<ScalarMeExpr *> &scalarVec)
   }
 }
 
-static ScalarMeExpr *IsSelfCopy(AssignMeStmt *assign) {
+static ScalarMeExpr *IsSelfCopy(const AssignMeStmt *assign) {
   auto *rhs = GetEquivalentScalar(assign->GetRHS());
   if (rhs == nullptr) {
     return nullptr;
@@ -1024,7 +1024,7 @@ static bool BBIsEmptyOrContainsSingleGoto(const BB *bb) {
 
 // we should not sink stmt from non-loop BB into loop BB or from outter loop into inner loop.
 // if toBB is in a different loop with fromBB, return a dominator of toBB which is in the same loop with fromBB.
-BB *MeSink::BestSinkBB(BB *fromBB, BB *toBB) {
+BB *MeSink::BestSinkBB(const BB *fromBB, BB *toBB) {
   CHECK_FATAL(domTree->Dominate(*fromBB, *toBB), "fromBB must dom toBB");
   if (fromBB == toBB) {
     return toBB;
@@ -1044,14 +1044,14 @@ BB *MeSink::BestSinkBB(BB *fromBB, BB *toBB) {
   return toBB;
 }
 
-void MeSink::RecordStmtSinkToHeaderOfTargetBB(MeStmt *defStmt, BB *targetBB) {
+void MeSink::RecordStmtSinkToHeaderOfTargetBB(MeStmt *defStmt, const BB *targetBB) {
   if (defStmtsSinkToHeader[targetBB->GetBBId()] == nullptr) {
     defStmtsSinkToHeader[targetBB->GetBBId()] = std::make_unique<std::list<MeStmt *>>();
   }
   defStmtsSinkToHeader[targetBB->GetBBId()]->push_front(defStmt);
 }
 
-void MeSink::RecordStmtSinkToBottomOfTargetBB(MeStmt *defStmt, BB *targetBB) {
+void MeSink::RecordStmtSinkToBottomOfTargetBB(MeStmt *defStmt, const BB *targetBB) {
   if (defStmtsSinkToBottom[targetBB->GetBBId()] == nullptr) {
     defStmtsSinkToBottom[targetBB->GetBBId()] = std::make_unique<std::list<MeStmt *>>();
   }
