@@ -302,7 +302,7 @@ class FEIRStmt : public FELinkListNode {
 
   void SetMIRStmtSrcPos(std::list<StmtNode*> &stmts) const {
     if (FEOptions::GetInstance().IsDumpLOC() && !stmts.empty()) {
-      (*stmts.begin())->GetSrcPos().SetFileNum(srcFileIndex);
+      (*stmts.begin())->GetSrcPos().SetFileNum(static_cast<uint16>(srcFileIndex));
       (*stmts.begin())->GetSrcPos().SetLineNum(srcFileLineNum);
     }
   }
@@ -680,7 +680,7 @@ class FEIRExprAddrofConstArray : public FEIRExpr {
   ~FEIRExprAddrofConstArray() = default;
 
   uint32 GetStringLiteralSize() const {
-    return array.size();
+    return static_cast<uint32>(array.size());
   }
 
   const MIRType *GetElemType() const {

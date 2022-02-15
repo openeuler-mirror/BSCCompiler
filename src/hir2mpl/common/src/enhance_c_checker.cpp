@@ -738,7 +738,7 @@ void ASTParser::ProcessBoundaryLenExpr(MapleAllocator &allocator, ASTDecl &ptrDe
   if (isSize) {
     // The type size can only be obtained from ClangDecl instead of ASTDecl,
     // because the field of mir struct type has not yet been initialized at this time
-    uint64 lenSize = GetSizeFromQualType(qualType->getPointeeType());
+    uint32 lenSize = GetSizeFromQualType(qualType->getPointeeType());
     MIRType *pointedType = static_cast<MIRPtrType*>(ptrDecl.GetTypeDesc().front())->GetPointedType();
     if (pointedType->GetPrimType() == PTY_f64) {
       lenSize = 8; // 8 is f64 byte num, because now f128 also cvt to f64
@@ -960,7 +960,8 @@ MIRType *ENCChecker::GetArrayTypeFromExpr(const UniqueFEIRExpr &expr) {
       if (cst != nullptr && cst->GetKind() == kConstStrConst) {
         size_t size = GlobalTables::GetUStrTable().GetStringFromStrIdx(
             static_cast<MIRStrConst*>(cst)->GetValue()).size() + 1;  // including the end character with string
-        return GlobalTables::GetTypeTable().GetOrCreateArrayType(*GlobalTables::GetTypeTable().GetUInt8(), size);
+        return GlobalTables::GetTypeTable().GetOrCreateArrayType(
+            *GlobalTables::GetTypeTable().GetUInt8(), static_cast<uint32>(size));
       }
     }
     return nullptr;
@@ -1392,7 +1393,7 @@ UniqueFEIRExpr ENCChecker::GetRealBoundaryLenExprInFuncByIndex(const TypeAttrs &
       CHECK_FATAL(type.IsMIRPtrType(), "Must be ptr type!");
       size_t lenSize = static_cast<const MIRPtrType&>(type).GetPointedType()->GetSize();
       MapleAllocator &allocator = FEManager::GetModule().GetMPAllocator();
-      astLenExpr = ASTParser::GetAddrShiftExpr(allocator, astCallExpr.GetArgsExpr()[idx], lenSize);
+      astLenExpr = ASTParser::GetAddrShiftExpr(allocator, astCallExpr.GetArgsExpr()[idx], static_cast<uint32>(lenSize));
     }
     std::list<UniqueFEIRStmt> nullStmts;
     return astLenExpr->Emit2FEExpr(nullStmts);
@@ -1487,14 +1488,15 @@ UniqueFEIRExpr ENCChecker::GetRealBoundaryLenExprInField(const UniqueFEIRExpr &l
     if (!flag) {
       return nullptr;
     }
-    MIRType *reType = FEUtils::GetStructFieldType(&baseType, fieldID);
+    MIRType *reType = FEUtils::GetStructFieldType(&baseType, static_cast<FieldID>(fieldID));
     UniqueFEIRType reFEType = FEIRTypeHelper::CreateTypeNative(*reType);
     if (dstExpr->GetKind() == kExprDRead) {
-      return FEIRBuilder::CreateExprDReadAggField(dstExpr->GetVarUses().front()->Clone(), fieldID, std::move(reFEType));
+      return FEIRBuilder::CreateExprDReadAggField(
+          dstExpr->GetVarUses().front()->Clone(), static_cast<FieldID>(fieldID), std::move(reFEType));
     } else if (dstExpr->GetKind() == kExprIRead) {
       FEIRExprIRead *iread = static_cast<FEIRExprIRead*>(dstExpr.get());
       return FEIRBuilder::CreateExprIRead(
-          std::move(reFEType), iread->GetClonedPtrType(), iread->GetClonedOpnd(), fieldID);
+          std::move(reFEType), iread->GetClonedPtrType(), iread->GetClonedOpnd(), static_cast<FieldID>(fieldID));
     } else {
       return nullptr;
     }

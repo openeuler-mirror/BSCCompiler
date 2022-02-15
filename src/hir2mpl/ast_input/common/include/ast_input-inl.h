@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -41,10 +41,10 @@ bool ASTInput<T>::ReadASTFile(MapleAllocator &allocatorIn, uint32 index, const s
 }
 
 template<class T>
-bool ASTInput<T>::ReadASTFiles(MapleAllocator &allocator, const std::vector<std::string> &fileNames) {
+bool ASTInput<T>::ReadASTFiles(MapleAllocator &mapleAllocator, const std::vector<std::string> &fileNames) {
   bool res = true;
   for (uint32 i = 0; res && i < fileNames.size(); ++i) {
-    res = res && ReadASTFile(allocator, i, fileNames[i]);
+    res = res && ReadASTFile(mapleAllocator, i, fileNames[i]);
     RegisterFileInfo(fileNames[i]);
   }
   return res;

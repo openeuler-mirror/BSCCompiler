@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -122,11 +122,13 @@ bool ASTStruct2FEHelper::IsMultiDefImpl() const {
 
 // ---------- ASTGlobalVar2FEHelper ---------
 bool ASTStructField2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
+  (void)allocator;
   CHECK_FATAL(false, "should not run here");
   return false;
 }
 
 bool ASTStructField2FEHelper::ProcessDeclWithContainerImpl(MapleAllocator &allocator) {
+  (void)allocator;
   std::string fieldName = field.GetName();
   GStrIdx idx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fieldName);
   FieldAttrs attrs = field.GetGenericAttrs().ConvertToFieldAttrs();
@@ -146,13 +148,14 @@ bool ASTStructField2FEHelper::ProcessDeclWithContainerImpl(MapleAllocator &alloc
 
 // ---------- ASTGlobalVar2FEHelper ---------
 bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
+  (void)allocator;
   const std::string varName = astVar.GetName();
   MIRType *type = astVar.GetTypeDesc().front();
   MIRSymbol *mirSymbol = FEManager::GetMIRBuilder().GetOrCreateGlobalDecl(varName, *type);
   if (mirSymbol == nullptr) {
     return false;
   }
-  mirSymbol->GetSrcPosition().SetFileNum(astVar.GetSrcFileIdx());
+  mirSymbol->GetSrcPosition().SetFileNum(static_cast<uint16>(astVar.GetSrcFileIdx()));
   mirSymbol->GetSrcPosition().SetLineNum(astVar.GetSrcFileLineNum());
   auto typeAttrs = astVar.GetGenericAttrs().ConvertToTypeAttrs();
   ENCChecker::InsertBoundaryInAtts(typeAttrs, astVar.GetBoundaryInfo());
@@ -225,7 +228,7 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   }
   mirFunc = FEManager::GetTypeManager().CreateFunction(methodNameIdx, retMIRType->GetTypeIndex(),
                                                        argsTypeIdx, isVarg, isStatic);
-  mirFunc->GetSrcPosition().SetFileNum(func.GetSrcFileIdx());
+  mirFunc->GetSrcPosition().SetFileNum(static_cast<uint16>(func.GetSrcFileIdx()));
   mirFunc->GetSrcPosition().SetLineNum(func.GetSrcFileLineNum());
   MIRSymbol *funSym = mirFunc->GetFuncSymbol();
   if (!func.GetAliasAttr().empty()) {
@@ -254,9 +257,9 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
         paramDecls[i]->GetName(), *argMIRTypes[i], *mirFunc);
     sym->SetStorageClass(kScFormal);
     sym->SetSKind(kStVar);
-    TypeAttrs attrs = paramDecls[i]->GetGenericAttrs().ConvertToTypeAttrs();
-    ENCChecker::InsertBoundaryInAtts(attrs, paramDecls[i]->GetBoundaryInfo());
-    sym->AddAttrs(attrs);
+    TypeAttrs typeAttrs = paramDecls[i]->GetGenericAttrs().ConvertToTypeAttrs();
+    ENCChecker::InsertBoundaryInAtts(typeAttrs, paramDecls[i]->GetBoundaryInfo());
+    sym->AddAttrs(typeAttrs);
     mirFunc->AddArgument(sym);
   }
   mirMethodPair.first = mirFunc->GetStIdx();
@@ -272,6 +275,7 @@ const std::string &ASTFunc2FEHelper::GetSrcFileName() const {
 }
 
 void ASTFunc2FEHelper::SolveReturnAndArgTypesImpl(MapleAllocator &allocator) {
+  (void)allocator;
   const std::vector<MIRType*> &returnAndArgTypeNames = func.GetTypeDesc();
   retMIRType = returnAndArgTypeNames[1];
   // skip funcType and returnType

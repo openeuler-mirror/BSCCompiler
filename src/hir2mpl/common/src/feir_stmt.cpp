@@ -515,7 +515,7 @@ std::list<StmtNode*> FEIRStmtJavaFillArrayData::GenMIRStmtsImpl(MIRBuilder &mirB
   args.push_back(nodeAddrof);
   uint64 elemPrimTypeSize = GetPrimTypeSize(elemPrimType);
   uint64 val = elemPrimTypeSize * size;
-  BaseNode *nodebytes = mirBuilder.CreateIntConst(val, PTY_i32);
+  BaseNode *nodebytes = mirBuilder.CreateIntConst(static_cast<int64>(val), PTY_i32);
   args.push_back(nodebytes);
   StmtNode *stmt = mirBuilder.CreateStmtIntrinsicCallAssigned(INTRN_JAVA_ARRAY_FILL, std::move(args), nullptr);
   ans.push_back(stmt);
@@ -1976,7 +1976,7 @@ void FEIRStmtICallAssign::InsertNonnullCheckingInArgs(MIRBuilder &mirBuilder, st
   size_t size = funcType->GetParamAttrsList().size();
   for (const auto &expr : exprArgs) {
     ++idx;
-    if (idx < 0 || idx >= size || !funcType->GetNthParamAttrs(idx).GetAttr(ATTR_nonnull)) {
+    if (idx < 0 || idx >= static_cast<int>(size) || !funcType->GetNthParamAttrs(idx).GetAttr(ATTR_nonnull)) {
       continue;
     }
     if (ENCChecker::HasNullExpr(expr)) {
@@ -2531,7 +2531,8 @@ std::unique_ptr<FEIRExpr> FEIRExprAddrofConstArray::CloneImpl() const {
 }
 
 BaseNode *FEIRExprAddrofConstArray::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
-  MIRType *arrayTypeWithSize = GlobalTables::GetTypeTable().GetOrCreateArrayType(*elemType, array.size());
+  MIRType *arrayTypeWithSize = GlobalTables::GetTypeTable().GetOrCreateArrayType(
+      *elemType,static_cast<uint32>(array.size()));
   MIRSymbol *arrayVar = mirBuilder.GetOrCreateGlobalDecl(arrayName, *arrayTypeWithSize);
   arrayVar->SetAttr(ATTR_readonly);
   arrayVar->SetStorageClass(kScFstatic);
