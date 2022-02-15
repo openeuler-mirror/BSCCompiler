@@ -119,10 +119,10 @@ void AArch64MemLayout::SetSegmentSize(AArch64SymbolAlloc &symbolAlloc, MemSegmen
   uint32 size;
   uint32 align;
   SetSizeAlignForTypeIdx(typeIdx, size, align);
-  segment.SetSize(static_cast<int32>(RoundUp(static_cast<uint64>(segment.GetSize()), align)));
+  segment.SetSize(static_cast<uint32>(RoundUp(static_cast<uint64>(segment.GetSize()), align)));
   symbolAlloc.SetOffset(segment.GetSize());
-  segment.SetSize(segment.GetSize() + static_cast<int32>(size));
-  segment.SetSize(static_cast<int32>(RoundUp(static_cast<uint64>(segment.GetSize()), kSizeOfPtr)));
+  segment.SetSize(segment.GetSize() + size);
+  segment.SetSize(static_cast<uint32>(RoundUp(static_cast<uint64>(segment.GetSize()), kSizeOfPtr)));
 }
 
 void AArch64MemLayout::LayoutVarargParams() {
@@ -240,7 +240,7 @@ void AArch64MemLayout::LayoutFormalParams() {
             AArch64Abi::IsVectorArrayType(ty, tSize) != PTY_void) {
           align = k16ByteSize;
         }
-        segArgsRegPassed.SetSize(static_cast<int32>(RoundUp(segArgsRegPassed.GetSize(), align)));
+        segArgsRegPassed.SetSize(static_cast<uint32>(RoundUp(segArgsRegPassed.GetSize(), align)));
         symLoc->SetOffset(segArgsRegPassed.GetSize());
         segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + size);
       }
@@ -250,14 +250,14 @@ void AArch64MemLayout::LayoutFormalParams() {
       uint32 align;
       SetSizeAlignForTypeIdx(ptyIdx, size, align);
       symLoc->SetMemSegment(GetSegArgsStkPassed());
-      segArgsStkPassed.SetSize(static_cast<int32>(RoundUp(segArgsStkPassed.GetSize(), align)));
+      segArgsStkPassed.SetSize(static_cast<uint32>(RoundUp(segArgsStkPassed.GetSize(), align)));
       symLoc->SetOffset(segArgsStkPassed.GetSize());
       segArgsStkPassed.SetSize(segArgsStkPassed.GetSize() + size);
       /* We need it as dictated by the AArch64 ABI $5.4.2 C12 */
       if (CGOptions::IsArm64ilp32()) {
-        segArgsStkPassed.SetSize(static_cast<int32>(RoundUp(segArgsStkPassed.GetSize(), k8ByteSize)));
+        segArgsStkPassed.SetSize(static_cast<uint32>(RoundUp(segArgsStkPassed.GetSize(), k8ByteSize)));
       } else {
-        segArgsStkPassed.SetSize(static_cast<int32>(RoundUp(segArgsStkPassed.GetSize(), kSizeOfPtr)));
+        segArgsStkPassed.SetSize(static_cast<uint32>(RoundUp(segArgsStkPassed.GetSize(), kSizeOfPtr)));
       }
       if (mirFunction->GetNthParamAttr(i).GetAttr(ATTR_localrefvar)) {
         SetLocalRegLocInfo(sym->GetStIdx(), *symLoc);
@@ -311,9 +311,9 @@ void AArch64MemLayout::LayoutLocalVariables(std::vector<MIRSymbol*> &tempVar, st
         align = k16ByteSize;
       }
       if (ty->GetPrimType() == PTY_agg && align < k8BitSize) {
-        segLocals.SetSize(static_cast<int32>(RoundUp(segLocals.GetSize(), k8BitSize)));
+        segLocals.SetSize(static_cast<uint32>(RoundUp(segLocals.GetSize(), k8BitSize)));
       } else {
-        segLocals.SetSize(static_cast<int32>(RoundUp(segLocals.GetSize(), align)));
+        segLocals.SetSize(static_cast<uint32>(RoundUp(segLocals.GetSize(), align)));
       }
       symLoc->SetOffset(segLocals.GetSize());
       segLocals.SetSize(segLocals.GetSize() + be.GetTypeSize(tyIdx));
@@ -362,11 +362,11 @@ void AArch64MemLayout::LayoutReturnRef(std::vector<MIRSymbol*> &returnDelays,
     /* 8-VirtualRegNode occupy byte number */
     aarchCGFunc->SetCatchRegno(cgFunc->NewVReg(kRegTyInt, 8));
   }
-  segRefLocals.SetSize(static_cast<int32>(RoundUp(segRefLocals.GetSize(), kSizeOfPtr)));
+  segRefLocals.SetSize(static_cast<uint32>(RoundUp(segRefLocals.GetSize(), kSizeOfPtr)));
   if (CGOptions::IsArm64ilp32()) {
-    segLocals.SetSize(static_cast<int32>(RoundUp(segLocals.GetSize(), k8ByteSize)));
+    segLocals.SetSize(static_cast<uint32>(RoundUp(segLocals.GetSize(), k8ByteSize)));
   } else {
-    segLocals.SetSize(static_cast<int32>(RoundUp(segLocals.GetSize(), kSizeOfPtr)));
+    segLocals.SetSize(static_cast<uint32>(RoundUp(segLocals.GetSize(), kSizeOfPtr)));
   }
 }
 

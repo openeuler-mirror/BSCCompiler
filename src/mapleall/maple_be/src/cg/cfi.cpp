@@ -24,7 +24,7 @@ using maplebe::OpndProp;
 
 struct CfiDescr {
   const std::string name;
-  int32 opndCount;
+  uint32 opndCount;
   /* create 3 OperandType array to store cfi instruction's operand type */
   std::array<Operand::OperandType, 3> opndTypes;
 };
@@ -44,7 +44,7 @@ void CfiInsn::Dump() const {
   MOperator mOp = GetMachineOpcode();
   CfiDescr &cfiDescr = cfiDescrTable[mOp];
   LogInfo::MapleLogger() << "CFI " << cfiDescr.name;
-  for (uint32 i = 0; i < cfiDescr.opndCount; ++i) {
+  for (uint32 i = 0; i < static_cast<uint32>(cfiDescr.opndCount); ++i) {
     LogInfo::MapleLogger() << (i == 0 ? " : " : " ");
     Operand &curOperand = GetOperand(i);
     curOperand.Dump();
@@ -55,7 +55,7 @@ void CfiInsn::Dump() const {
 bool CfiInsn::Check() const {
   CfiDescr &cfiDescr = cfiDescrTable[GetMachineOpcode()];
   /* cfi instruction's 3rd /4th/5th operand must be null */
-  for (uint32 i = 0; i < cfiDescr.opndCount; ++i) {
+  for (uint32 i = 0; i < static_cast<uint32>(cfiDescr.opndCount); ++i) {
     Operand &opnd = GetOperand(i);
     if (opnd.GetKind() != cfiDescr.opndTypes[i]) {
       ASSERT(false, "incorrect operand");
@@ -70,9 +70,9 @@ void CfiInsn::Emit(const CG &cg, Emitter &emitter) const {
   MOperator mOp = GetMachineOpcode();
   CfiDescr &cfiDescr = cfiDescrTable[mOp];
   emitter.Emit("\t").Emit(cfiDescr.name);
-  for (int32 i = 0; i < cfiDescr.opndCount; ++i) {
+  for (uint32 i = 0; i < cfiDescr.opndCount; ++i) {
     emitter.Emit(" ");
-    Operand &curOperand = GetOperand(static_cast<uint32>(i));
+    Operand &curOperand = GetOperand(i);
     curOperand.Emit(emitter, nullptr);
     if (i < (cfiDescr.opndCount - 1)) {
       emitter.Emit(",");

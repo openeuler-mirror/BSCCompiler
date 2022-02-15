@@ -231,7 +231,7 @@ bool IsAllOpndsNotDefByCurrBB(const MeExpr &expr, const BB &currBB, std::set<con
 
 // opnds is defined by stmt not in currBB or defined by phiNode(no matter whether in currBB)
 bool IsAllOpndsNotDefByCurrBB(const MeStmt &stmt) {
-  BB *currBB = stmt.GetBB();
+  const BB *currBB = stmt.GetBB();
   for (size_t i = 0; i < stmt.NumMeStmtOpnds(); ++i) {
     std::set<const ScalarMeExpr*> infLoopCheck;
     if (!IsAllOpndsNotDefByCurrBB(*stmt.GetOpnd(i), *currBB, infLoopCheck)) {
@@ -410,7 +410,7 @@ bool DoesExprContainSubExpr(const MeExpr *expr, MeExpr *subExpr) {
 // we turn it to
 // a <- cond ? mx1 : mx2
 // so we should find oldVersion(mx1) from phi in jointBB
-MeExpr *FindCond2SelRHSFromPhiNode(BB *condBB, const BB *ftOrGtBB, BB *jointBB, OStIdx ostIdx) {
+MeExpr *FindCond2SelRHSFromPhiNode(BB *condBB, const BB *ftOrGtBB, BB *jointBB, const OStIdx &ostIdx) {
   if (ftOrGtBB != jointBB) {
     return nullptr;
   }
@@ -625,7 +625,7 @@ BB *FindFirstRealPred(BB *pred, const BB *stopBB) {
   return pred;
 }
 
-int GetRealPredIdx(BB &succ, BB &realPred) {
+int GetRealPredIdx(BB &succ, const BB &realPred) {
   size_t i = 0;
   size_t predSize = succ.GetPred().size();
   while (i < predSize) {
@@ -638,7 +638,7 @@ int GetRealPredIdx(BB &succ, BB &realPred) {
   return -1;
 }
 
-int GetRealSuccIdx(BB &pred, BB &realSucc) {
+int GetRealSuccIdx(BB &pred, const BB &realSucc) {
   size_t i = 0;
   size_t succSize = pred.GetSucc().size();
   while (i < succSize) {
@@ -672,7 +672,7 @@ void EliminateEmptyConnectingBB(const BB *predBB, BB *emptyBB, const BB *stopBB,
       int predIdx = succ->GetPredIndex(*emptyBB);
       succ->SetPred(static_cast<size_t>(predIdx), pred);
       int succIdx = pred->GetSuccIndex(*emptyBB);
-      pred->SetSucc(succIdx, succ);
+      pred->SetSucc(static_cast<size_t>(succIdx), succ);
     }
     cfg.DeleteBasicBlock(*emptyBB);
     emptyBB = succ;
@@ -774,8 +774,8 @@ class SimplifyCFG {
   // please use macro CHECK_CURR_BB instead
   bool CheckCurrBB();
   // Insert ost of philist in bb to cand, and set ost start from newBB(newBB will be bb itself if not specified)
-  void UpdateSSACandForBBPhiList(BB *bb, BB *newBB = nullptr);
-  void UpdateSSACandForOst(OStIdx ostIdx, const BB *bb);
+  void UpdateSSACandForBBPhiList(BB *bb, const BB *newBB = nullptr);
+  void UpdateSSACandForOst(const OStIdx &ostIdx, const BB *bb);
   // replace oldBBID in cands with newBBID
   void UpdateBBIdInSSACand(const BBId &oldBBID, const BBId &newBBID);
 
@@ -844,11 +844,11 @@ void SimplifyCFG::UpdateBBIdInSSACand(const BBId &oldBBID, const BBId &newBBID) 
   }
 }
 
-void SimplifyCFG::UpdateSSACandForOst(OStIdx ostIdx, const BB *bb) {
+void SimplifyCFG::UpdateSSACandForOst(const OStIdx &ostIdx, const BB *bb) {
   MeSSAUpdate::InsertOstToSSACands(ostIdx, *bb, cands);
 }
 
-void SimplifyCFG::UpdateSSACandForBBPhiList(BB *bb, BB *newBB) {
+void SimplifyCFG::UpdateSSACandForBBPhiList(BB *bb, const BB *newBB) {
   if (!isMeIR || bb == nullptr || bb->GetMePhiList().empty()) {
     return;
   }
@@ -943,7 +943,7 @@ bool SimplifyCFG::SimplifyBranchBBToUncondBB(BB &bb) {
   // delete all empty bb between bb and destBB
   // note : bb and destBB will be connected after empty BB is deleted
   for (int i = static_cast<int>(bb.GetSucc().size()) - 1; i >= 0; --i) {
-    EliminateEmptyConnectingBB(&bb, bb.GetSucc(i), destBB, *cfg);
+    EliminateEmptyConnectingBB(&bb, bb.GetSucc(static_cast<size_t>(i)), destBB, *cfg);
   }
   while (bb.GetSucc().size() != 1) { // bb is an unconditional bb now, and its successor num should be 1
     ASSERT(bb.GetSucc().back() == destBB, "[FUNC: %s]Goto BB%d has different destination", funcName, LOG_BBID(&bb));
@@ -1057,7 +1057,7 @@ BB *SimplifyCFG::GetFirstReturnBB() {
 bool SimplifyCFG::RemoveSuccFromNoReturnBB() {
   CHECK_CURR_BB();
   ONLY_FOR_MEIR();
-  if (currBB->IsMeStmtEmpty()) {
+  if (currBB->IsMeStmtEmpty() || currBB->GetSucc().empty()) {
     return false;
   }
   MeStmt *exceptionStmt = GetNoReturnStmt(currBB);

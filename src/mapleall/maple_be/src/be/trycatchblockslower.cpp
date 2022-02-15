@@ -474,7 +474,7 @@ void TryCatchBlocksLower::WrapCatchWithTryEndTryBlock(std::vector<BBT*> &currBBT
  * statement does not contain any other statements!!
  */
 void TryCatchBlocksLower::SwapEndTryBBAndCurrBBThread(const std::vector<BBT*> &currBBThread, bool &hasMoveEndTry,
-                                                      BBT *nextBBThreadHead) {
+                                                      const BBT *nextBBThreadHead) {
   BBT *endTryBB = tryEndTryBlock.GetEndTryBB();
   CHECK_FATAL(endTryBB->GetFirstStmt()->GetOpCode() == OP_comment ||
               endTryBB->GetFirstStmt()->GetOpCode() == OP_endtry,

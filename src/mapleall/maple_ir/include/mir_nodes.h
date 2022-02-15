@@ -2337,11 +2337,11 @@ class BlockNode : public StmtNode {
   void InsertLast(StmtNode *stmt);   // Insert stmt as the last
   void ReplaceStmtWithBlock(StmtNode &stmtNode, BlockNode &blk);
   void ReplaceStmt1WithStmt2(const StmtNode *stmtNode1, StmtNode *stmtNode2);
-  void RemoveStmt(StmtNode *stmtNode2);
+  void RemoveStmt(const StmtNode *stmtNode1);
   void InsertBefore(const StmtNode *stmtNode1, StmtNode *stmtNode2);  // Insert ss2 before ss1 in current block.
-  void InsertAfter(StmtNode *stmtNode1, StmtNode *stmtNode2);   // Insert ss2 after ss1 in current block.
+  void InsertAfter(const StmtNode *stmtNode1, StmtNode *stmtNode2);   // Insert ss2 after ss1 in current block.
   // insert all the stmts in inblock to the current block after stmt1
-  void InsertBlockAfter(BlockNode &inblock, StmtNode *stmt1);
+  void InsertBlockAfter(BlockNode &inblock, const StmtNode *stmt1);
   void Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable *thePregTab,
             bool withInfo, bool isFuncbody) const;
   bool Verify() const override;

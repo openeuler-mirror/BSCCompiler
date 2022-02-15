@@ -136,7 +136,7 @@ bool AArch64CGPeepHole::DoSSAOptimize(BB &bb, Insn &insn) {
     case MOP_wandrri12:
     case MOP_xandrri13: {
       manager->Optimize<LsrAndToUbfxPattern>(true);
-      manager->Optimize<ElimSpecificExtensionPattern>();
+      manager->Optimize<ElimSpecificExtensionPattern>(true);
       break;
     }
     case MOP_wcselrrrc:
@@ -794,6 +794,8 @@ bool ZeroCmpBranchesToTbzPattern::CheckAndSelectPattern(const Insn &currInsn) {
           return false;
       }
     }
+    default:
+      return false;
   }
   return true;
 }
@@ -1570,7 +1572,8 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterMov(Insn &insn) {
   uint64 maxRange = extValueRangeTable[extTypeIdx][1];
   if (currMop == MOP_xsxtb32 || currMop == MOP_xsxth32) {
     /* value should be in valid range */
-    if (value >= minRange && value <= maxRange && immMovOpnd.IsSingleInstructionMovable(currDstOpnd.GetSize())) {
+    if (static_cast<uint64>(value) >= minRange && static_cast<uint64>(value) <= maxRange &&
+        immMovOpnd.IsSingleInstructionMovable(currDstOpnd.GetSize())) {
       ReplaceExtWithMov(insn);
     }
   } else if (currMop == MOP_xuxtb32 || currMop == MOP_xuxth32) {
@@ -1599,7 +1602,7 @@ bool ElimSpecificExtensionPattern::IsValidLoadExtPattern(Insn &currInsn, MOperat
       !aarFunc->IsOperandImmValid(newMop, memOpnd, kInsnSecondOpnd)) {
     return false;
   }
-  int32 shiftAmount = memOpnd->ShiftAmount();
+  uint32 shiftAmount = memOpnd->ShiftAmount();
   if (shiftAmount == 0) {
     return true;
   }
@@ -1734,7 +1737,7 @@ void ElimSpecificExtensionPattern::Run(BB &bb, Insn &insn) {
   if (!CheckCondition(insn)) {
     return;
   }
-  if (sceneType == kSceneMov) {
+  if ((sceneType == kSceneMov) && (extTypeIdx != AND)) {
     ElimExtensionAfterMov(insn);
   } else if (sceneType == kSceneLoad) {
     ElimExtensionAfterLoad(insn);
@@ -1918,6 +1921,10 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
     }
     case MOP_xmovzri16: {
       manager->NormalPatternOpt<LoadFloatPointPattern>();
+      break;
+    }
+    case MOP_wcmpri: {
+      manager->NormalPatternOpt<LongIntCompareWithZPattern>();
       break;
     }
     default:
@@ -2104,7 +2111,6 @@ void AArch64PrePeepHole::InitOpts() {
   optimizations[kReplaceOrrToMovOpt] = optOwnMemPool->New<ReplaceOrrToMovAArch64>(cgFunc);
   optimizations[kReplaceCmpToCmnOpt] = optOwnMemPool->New<ReplaceCmpToCmnAArch64>(cgFunc);
   optimizations[kRemoveIncRefOpt] = optOwnMemPool->New<RemoveIncRefAArch64>(cgFunc);
-  optimizations[kLongIntCompareWithZOpt] = optOwnMemPool->New<LongIntCompareWithZAArch64>(cgFunc);
   optimizations[kComplexMemOperandOpt] = optOwnMemPool->New<ComplexMemOperandAArch64>(cgFunc);
   optimizations[kComplexMemOperandPreOptAdd] = optOwnMemPool->New<ComplexMemOperandPreAddAArch64>(cgFunc);
   optimizations[kComplexMemOperandOptLSL] = optOwnMemPool->New<ComplexMemOperandLSLAArch64>(cgFunc);
@@ -2132,10 +2138,6 @@ void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
       if (CGOptions::IsGCOnly() && CGOptions::DoWriteRefFieldOpt()) {
         (static_cast<WriteFieldCallAArch64*>(optimizations[kWriteFieldCallOpt]))->Run(bb, insn);
       }
-      break;
-    }
-    case MOP_xcmpri: {
-      (static_cast<LongIntCompareWithZAArch64*>(optimizations[kLongIntCompareWithZOpt]))->Run(bb, insn);
       break;
     }
     case MOP_xadrpl12: {
@@ -4522,51 +4524,51 @@ void RemoveIncRefAArch64::Run(BB &bb, Insn &insn) {
   bb.RemoveInsn(*insnMov1);
 }
 
-bool LongIntCompareWithZAArch64::FindLondIntCmpWithZ(std::vector<Insn*> &optInsn, Insn &insn) {
+bool LongIntCompareWithZPattern::FindLondIntCmpWithZ(std::vector<Insn*> &optInsn, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   optInsn.clear();
-  /* first */
-  if (thisMop != MOP_xcmpri) {
+  /* forth */
+  if (thisMop != MOP_wcmpri) {
     return false;
   }
   optInsn.emplace_back(&insn);
 
-  /* second */
-  Insn *nextInsn1 = insn.GetNextMachineInsn();
-  if (nextInsn1 == nullptr) {
-    return false;
-  }
-  MOperator nextMop1 = nextInsn1->GetMachineOpcode();
-  if (nextMop1 != MOP_wcsinvrrrc) {
-    return false;
-  }
-  optInsn.emplace_back(nextInsn1);
-
   /* third */
-  Insn *nextInsn2 = nextInsn1->GetNextMachineInsn();
-  if (nextInsn2 == nullptr) {
+  Insn *preInsn1 = insn.GetPreviousMachineInsn();
+  if (preInsn1 == nullptr) {
     return false;
   }
-  MOperator nextMop2 = nextInsn2->GetMachineOpcode();
-  if (nextMop2 != MOP_wcsincrrrc) {
+  MOperator preMop1 = preInsn1->GetMachineOpcode();
+  if (preMop1 != MOP_wcsincrrrc) {
     return false;
   }
-  optInsn.emplace_back(nextInsn2);
+  optInsn.emplace_back(preInsn1);
 
-  /* forth */
-  Insn *nextInsn3 = nextInsn2->GetNextMachineInsn();
-  if (nextInsn3 == nullptr) {
+  /* second */
+  Insn *preInsn2 = preInsn1->GetPreviousMachineInsn();
+  if (preInsn2 == nullptr) {
     return false;
   }
-  MOperator nextMop3 = nextInsn3->GetMachineOpcode();
-  if (nextMop3 != MOP_wcmpri) {
+  MOperator preMop2 = preInsn2->GetMachineOpcode();
+  if (preMop2 != MOP_wcsinvrrrc) {
     return false;
   }
-  optInsn.emplace_back(nextInsn3);
+  optInsn.emplace_back(preInsn2);
+
+  /* first */
+  Insn *preInsn3 = preInsn2->GetPreviousMachineInsn();
+  if (preInsn3 == nullptr) {
+    return false;
+  }
+  MOperator preMop3 = preInsn3->GetMachineOpcode();
+  if (preMop3 != MOP_xcmpri) {
+    return false;
+  }
+  optInsn.emplace_back(preInsn3);
   return true;
 }
 
-bool LongIntCompareWithZAArch64::IsPatternMatch(const std::vector<Insn*> &optInsn) {
+bool LongIntCompareWithZPattern::IsPatternMatch(const std::vector<Insn*> &optInsn) {
   constexpr int insnLen = 4;
   if (optInsn.size() != insnLen) {
     return false;
@@ -4577,11 +4579,11 @@ bool LongIntCompareWithZAArch64::IsPatternMatch(const std::vector<Insn*> &optIns
   Insn *insn3 = optInsn[++insnNum];
   Insn *insn4 = optInsn[++insnNum];
   ASSERT(insnNum == 3, " this specific case has three insns");
-  if (insn2->GetOperand(kInsnSecondOpnd).IsZeroRegister() && insn2->GetOperand(kInsnThirdOpnd).IsZeroRegister() &&
-      insn3->GetOperand(kInsnThirdOpnd).IsZeroRegister() &&
-      &(insn3->GetOperand(kInsnFirstOpnd)) == &(insn3->GetOperand(kInsnSecondOpnd)) &&
-      static_cast<CondOperand&>(insn2->GetOperand(kInsnFourthOpnd)).GetCode() == CC_GE &&
-      static_cast<CondOperand&>(insn3->GetOperand(kInsnFourthOpnd)).GetCode() == CC_LE &&
+  if (insn3->GetOperand(kInsnSecondOpnd).IsZeroRegister() && insn3->GetOperand(kInsnThirdOpnd).IsZeroRegister() &&
+      insn2->GetOperand(kInsnThirdOpnd).IsZeroRegister() &&
+      &(insn2->GetOperand(kInsnFirstOpnd)) == &(insn2->GetOperand(kInsnSecondOpnd)) &&
+      static_cast<CondOperand&>(insn3->GetOperand(kInsnFourthOpnd)).GetCode() == CC_GE &&
+      static_cast<CondOperand&>(insn2->GetOperand(kInsnFourthOpnd)).GetCode() == CC_LE &&
       static_cast<ImmOperand&>(insn1->GetOperand(kInsnThirdOpnd)).GetValue() == 0 &&
       static_cast<ImmOperand&>(insn4->GetOperand(kInsnThirdOpnd)).GetValue() == 0) {
     return true;
@@ -4589,16 +4591,22 @@ bool LongIntCompareWithZAArch64::IsPatternMatch(const std::vector<Insn*> &optIns
   return false;
 }
 
-void LongIntCompareWithZAArch64::Run(BB &bb, Insn &insn) {
-  std::vector<Insn*> optInsn;
-  /* found pattern */
+bool LongIntCompareWithZPattern::CheckCondition(Insn &insn) {
   if (FindLondIntCmpWithZ(optInsn, insn) && IsPatternMatch(optInsn)) {
-    Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(optInsn[0]->GetMachineOpcode(),
-                                                                  optInsn[0]->GetOperand(kInsnFirstOpnd),
-                                                                  optInsn[0]->GetOperand(kInsnSecondOpnd),
-                                                                  optInsn[0]->GetOperand(kInsnThirdOpnd));
+    return true;
+  }
+  return false;
+}
+
+void LongIntCompareWithZPattern::Run(BB &bb, Insn &insn) {
+  /* found pattern */
+  if (CheckCondition(insn)) {
+    Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(optInsn[3]->GetMachineOpcode(),
+                                                                   optInsn[3]->GetOperand(kInsnFirstOpnd),
+                                                                   optInsn[3]->GetOperand(kInsnSecondOpnd),
+                                                                   optInsn[3]->GetOperand(kInsnThirdOpnd));
     /* use newInsn to replace  the third optInsn */
-    bb.ReplaceInsn(*optInsn[3], newInsn);
+    bb.ReplaceInsn(*optInsn[0], newInsn);
     optInsn.clear();
   }
 }

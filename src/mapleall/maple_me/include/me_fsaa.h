@@ -32,9 +32,9 @@ class FSAA {
 
   bool needUpdateSSA = false;
  private:
-  void RemoveMayDefIfSameAsRHS(IassignNode *stmt);
-  void RemoveMayDefByIreadRHS(IreadSSANode *rhs, TypeOfMayDefList &mayDefNodes);
-  void RemoveMayDefByDreadRHS(AddrofSSANode *rhs, TypeOfMayDefList &mayDefNodes);
+  void RemoveMayDefIfSameAsRHS(const IassignNode *stmt);
+  void RemoveMayDefByIreadRHS(const IreadSSANode *rhs, TypeOfMayDefList &mayDefNodes);
+  void RemoveMayDefByDreadRHS(const AddrofSSANode *rhs, TypeOfMayDefList &mayDefNodes);
   void EraseMayDefItem(TypeOfMayDefList &mayDefNodes, MapleMap<OStIdx, MayDefNode>::iterator &it, bool canBeErased);
 
   MeFunction *func;

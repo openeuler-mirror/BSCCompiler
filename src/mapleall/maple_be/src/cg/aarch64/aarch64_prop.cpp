@@ -353,7 +353,7 @@ AArch64ImmOperand *A64ConstProp::CanDoConstFold(
 
 void A64StrLdrProp::DoOpt() {
   ASSERT(curInsn != nullptr, "not input insn");
-  bool tryOptAgain;
+  bool tryOptAgain = false;
   do {
     tryOptAgain = false;
     AArch64MemOperand *currMemOpnd = StrLdrPropPreCheck(*curInsn);
@@ -367,7 +367,7 @@ void A64StrLdrProp::DoOpt() {
   } while (tryOptAgain);
 }
 
-bool A64StrLdrProp::ReplaceMemOpnd(const AArch64MemOperand &currMemOpnd, Insn *defInsn) {
+bool A64StrLdrProp::ReplaceMemOpnd(const AArch64MemOperand &currMemOpnd, const Insn *defInsn) {
   auto GetDefInsn = [&defInsn, this](const RegOperand &regOpnd,
       std::vector<Insn*> &allUseInsns)->void{
     if (regOpnd.IsSSAForm() && defInsn == nullptr) {
@@ -1588,20 +1588,20 @@ void A64ReplaceRegOpndVisitor::Visit(MemOperand *v) {
   bool changed = false;
   CHECK_FATAL(a64memOpnd->IsIntactIndexed(), "NYI post/pre index model");
   StackMemPool tempMemPool(memPoolCtrler, "temp mempool for A64ReplaceRegOpndVisitor");
-  auto *copyMem = static_cast<AArch64MemOperand*>(a64memOpnd->Clone(tempMemPool));
-  if (copyMem->GetBaseRegister() != nullptr &&
-      copyMem->GetBaseRegister()->GetRegisterNumber() == oldReg->GetRegisterNumber()) {
-    copyMem->SetBaseRegister(*static_cast<AArch64RegOperand*>(newReg));
+  auto *cpyMem = static_cast<AArch64MemOperand*>(a64memOpnd->Clone(tempMemPool));
+  if (cpyMem->GetBaseRegister() != nullptr &&
+      cpyMem->GetBaseRegister()->GetRegisterNumber() == oldReg->GetRegisterNumber()) {
+    cpyMem->SetBaseRegister(*static_cast<AArch64RegOperand*>(newReg));
     changed = true;
   }
-  if (copyMem->GetIndexRegister() != nullptr &&
-      copyMem->GetIndexRegister()->GetRegisterNumber() == oldReg->GetRegisterNumber()) {
+  if (cpyMem->GetIndexRegister() != nullptr &&
+      cpyMem->GetIndexRegister()->GetRegisterNumber() == oldReg->GetRegisterNumber()) {
     CHECK_FATAL(!changed, "base reg is equal to index reg");
-    copyMem->SetIndexRegister(*newReg);
+    cpyMem->SetIndexRegister(*newReg);
     changed = true;
   }
   if (changed) {
-    insn->SetMemOpnd(&static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreateMemOpnd(*copyMem));
+    insn->SetMemOpnd(&static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreateMemOpnd(*cpyMem));
   }
 }
 void A64ReplaceRegOpndVisitor::Visit(ListOperand *v) {
