@@ -70,6 +70,10 @@ void TypeInfer::TypeInference() {
   MSGNOLOC0("============== Check Type ==============");
   CheckTypeVisitor visitor_check(mHandler, mFlags, true);
   visitor_check.Visit(module);
+
+  if (mFlags & FLG_trace_3) {
+    mHandler->DumpArrayElemTypeIdMap();
+  }
 }
 
 // build up mNodeId2Decl by visiting each Identifier

@@ -282,6 +282,7 @@ class Module_Handler {
   bool IsCppField(TreeNode *node);
 
   void Dump(char *msg);
+  void DumpArrayElemTypeIdMap();
 };
 
 }
