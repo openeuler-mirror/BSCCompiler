@@ -830,13 +830,13 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
 
   OpndInfo *opndInfo = origInfos[kInsnSecondOpnd];
 
-  if (!opndInfo) {
+  if (opndInfo == nullptr) {
     return false;
   }
 
   Insn *prevInsn = opndInfo->insn;
 
-  if (!prevInsn) {
+  if (prevInsn == nullptr) {
     return false;
   }
 
@@ -868,7 +868,7 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
   auto *newMemOp =
       GetOrCreateMemOperandForNewMOP(*cgFunc, *prevInsn, newPreMop);
 
-  if (!newMemOp) {
+  if (newMemOp == nullptr) {
     return false;
   }
 

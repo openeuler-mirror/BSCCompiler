@@ -59,7 +59,7 @@ AArch64MemOperand *GetOrCreateMemOperandForNewMOP(CGFunc &cgFunc,
   newMemOp->SetOffsetImmediate(*newOffOp);
 
   ASSERT(memOp->IsOffsetMisaligned(memSize) ||
-             !newMemOp->IsOffsetMisaligned(newMemSize),
+         !newMemOp->IsOffsetMisaligned(newMemSize),
          "New offset value is misaligned!");
 
   return newMemOp;

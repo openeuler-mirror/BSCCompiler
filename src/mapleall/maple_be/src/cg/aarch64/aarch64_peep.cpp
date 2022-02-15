@@ -1665,7 +1665,7 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterLoad(Insn &insn) {
     auto *newMemOp =
         GetOrCreateMemOperandForNewMOP(*cgFunc, *prevInsn, prevNewMop);
 
-    if (!newMemOp) {
+    if (newMemOp == nullptr) {
       return;
     }
 
