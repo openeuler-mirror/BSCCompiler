@@ -293,9 +293,8 @@ bool AArch64GenProEpilog::NeedProEpilog() {
     }
   }
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  const MapleVector<AArch64reg> &regsToRestore =
-    !CGOptions::DoRegSavesOpt() ?
-                aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
+  const MapleVector<AArch64reg> &regsToRestore = (!CGOptions::DoRegSavesOpt()) ?
+      aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
   size_t calleeSavedRegSize = kTwoRegister;
   CHECK_FATAL(regsToRestore.size() >= calleeSavedRegSize, "Forgot FP and LR ?");
   if (funcHasCalls || regsToRestore.size() > calleeSavedRegSize || aarchCGFunc.HasStackLoadStore() ||
@@ -825,9 +824,9 @@ BB *AArch64GenProEpilog::IsolateFastPath(BB &bb) {
 }
 
 AArch64MemOperand *AArch64GenProEpilog::SplitStpLdpOffsetForCalleeSavedWithAddInstruction(CGFunc &cgFunc,
-          const AArch64MemOperand &mo,
-          uint32 bitLen,
-          AArch64reg baseRegNum) {
+                                                                                          const AArch64MemOperand &mo,
+                                                                                          uint32 bitLen,
+                                                                                          AArch64reg baseRegNum) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CHECK_FATAL(mo.GetAddrMode() == AArch64MemOperand::kAddrModeBOi, "mode should be kAddrModeBOi");
   AArch64OfstOperand *ofstOp = mo.GetOffsetImmediate();
@@ -850,7 +849,7 @@ AArch64MemOperand *AArch64GenProEpilog::SplitStpLdpOffsetForCalleeSavedWithAddIn
 }
 
 void AArch64GenProEpilog::AppendInstructionPushPair(CGFunc &cgFunc,
-  AArch64reg reg0, AArch64reg reg1, RegType rty, int32 offset) {
+    AArch64reg reg0, AArch64reg reg1, RegType rty, int32 offset) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
   MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopPair];
@@ -881,7 +880,7 @@ void AArch64GenProEpilog::AppendInstructionPushPair(CGFunc &cgFunc,
 }
 
 void AArch64GenProEpilog::AppendInstructionPushSingle(CGFunc &cgFunc,
-  AArch64reg reg, RegType rty, int32 offset) {
+    AArch64reg reg, RegType rty, int32 offset) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
   MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopSingle];
@@ -1169,9 +1168,8 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrameDebug(AArch64reg reg
 void AArch64GenProEpilog::GeneratePushRegs() {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
-  const MapleVector<AArch64reg> &regsToSave =
-    !CGOptions::DoRegSavesOpt() ?
-                aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
+  const MapleVector<AArch64reg> &regsToSave = (!CGOptions::DoRegSavesOpt()) ?
+      aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
 
   CHECK_FATAL(!regsToSave.empty(), "FP/LR not added to callee-saved list?");
 
@@ -1292,13 +1290,13 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
     uint32 start_regno = k8BitSize - (memlayout->GetSizeOfGRSaveArea() / size);
     ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for GR Save Area");
     for (uint32 i = start_regno + static_cast<uint32>(R0); i < static_cast<uint32>(R8); i++) {
-      int32 tmpOffset = 0;
+      uint32 tmpOffset = 0;
       if (CGOptions::IsBigEndian()) {
         if((dataSizeBits >> 3) < 8) {
-          tmpOffset += 8 - (dataSizeBits >> 3);
+          tmpOffset += 8U - (dataSizeBits >> 3);
         }
       }
-      Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset + tmpOffset), dataSizeBits);
+      Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset + tmpOffset, dataSizeBits);
       RegOperand &reg =
           aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyInt);
       Insn &inst =
@@ -1311,13 +1309,13 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
       start_regno = k8BitSize - (memlayout->GetSizeOfVRSaveArea() / (size * k2BitSize));
       ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for VR Save Area");
       for (uint32 i = start_regno + static_cast<uint32>(V0); i < static_cast<uint32>(V8); i++) {
-        int32 tmpOffset = 0;
+        uint32 tmpOffset = 0;
         if (CGOptions::IsBigEndian()) {
           if((dataSizeBits >> 3) < 16) {
-            tmpOffset += 16 - (dataSizeBits >> 3);
+            tmpOffset += 16U - (dataSizeBits >> 3);
           }
         }
-        Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset + tmpOffset), dataSizeBits);
+        Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset + tmpOffset, dataSizeBits);
         RegOperand &reg =
             aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyFloat);
         Insn &inst =
@@ -1389,9 +1387,8 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
     }
   }
 
-  const MapleVector<AArch64reg> &regsToSave =
-    !CGOptions::DoRegSavesOpt() ?
-                aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
+  const MapleVector<AArch64reg> &regsToSave = (!CGOptions::DoRegSavesOpt()) ?
+      aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
   if (!regsToSave.empty()) {
     /*
      * Among other things, push the FP & LR pair.
@@ -1508,7 +1505,8 @@ void AArch64GenProEpilog::AppendInstructionPopSingle(CGFunc &cgFunc, AArch64reg 
   }
 }
 
-void AArch64GenProEpilog::AppendInstructionPopPair(CGFunc &cgFunc, AArch64reg reg0, AArch64reg reg1, RegType rty, int32 offset) {
+void AArch64GenProEpilog::AppendInstructionPopPair(CGFunc &cgFunc,
+    AArch64reg reg0, AArch64reg reg1, RegType rty, int32 offset) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
   MOperator mOp = pushPopOps[kRegsPopOp][rty][kPushPopPair];
@@ -1519,7 +1517,8 @@ void AArch64GenProEpilog::AppendInstructionPopPair(CGFunc &cgFunc, AArch64reg re
   uint32 dataSize = kSizeOfPtr * kBitsPerByte;
   CHECK_FATAL(offset >= 0, "offset must >= 0");
   if (offset > kStpLdpImm64UpperBound) {
-    o2 = SplitStpLdpOffsetForCalleeSavedWithAddInstruction(cgFunc, *static_cast<AArch64MemOperand*>(o2), dataSize, R16);
+    o2 = SplitStpLdpOffsetForCalleeSavedWithAddInstruction(cgFunc,
+        *static_cast<AArch64MemOperand*>(o2), dataSize, R16);
   }
   Insn &popInsn = currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, *o2);
   popInsn.SetComment("RESTORE RESTORE");
@@ -1667,9 +1666,8 @@ void AArch64GenProEpilog::GeneratePopRegs() {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
 
-  const MapleVector<AArch64reg> &regsToRestore =
-    !CGOptions::DoRegSavesOpt() ?
-                aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
+  const MapleVector<AArch64reg> &regsToRestore = (!CGOptions::DoRegSavesOpt()) ?
+      aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
 
   CHECK_FATAL(!regsToRestore.empty(), "FP/LR not added to callee-saved list?");
 
@@ -1804,9 +1802,8 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
     }
   }
 
-  const MapleVector<AArch64reg> &regsToSave =
-    !CGOptions::DoRegSavesOpt() ?
-                aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
+  const MapleVector<AArch64reg> &regsToSave = (!CGOptions::DoRegSavesOpt()) ?
+      aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
   if (!regsToSave.empty()) {
     GeneratePopRegs();
   } else {

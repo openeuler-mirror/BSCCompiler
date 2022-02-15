@@ -416,7 +416,7 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
       return true;
     }
     int32 start = __builtin_ctzll(static_cast<uint64>(val));
-    int32 end = static_cast<int32>(sizeof(val) * kBitsPerByte - __builtin_clzll(static_cast<uint64>(val)) - 1);
+    int32 end = static_cast<int32>(sizeof(val) * kBitsPerByte - __builtin_clzll(static_cast<uint64>(val)) - 1UL);
     return (size >= end - start + 1);
 #else
     uint8 start = 0;
@@ -730,26 +730,11 @@ class ListOperand : public OperandVisitable<ListOperand> {
       opndList(allocator.Adapter()) {}
 
   ~ListOperand() override = default;
+
   using OperandVisitable<ListOperand>::OperandVisitable;
-
-  void PopOpnd() {
-    opndList.pop_back();
-  }
-
-  void PopFrontOpnd() {
-    opndList.pop_front();
-  }
 
   void PushOpnd(RegOperand &opnd) {
     opndList.push_back(&opnd);
-  }
-
-  void PushFront(RegOperand &opnd) {
-    opndList.push_front(&opnd);
-  }
-
-  void RemoveOpnd(RegOperand &opnd) {
-    opndList.remove(&opnd);
   }
 
   MapleList<RegOperand*> &GetOperands() {

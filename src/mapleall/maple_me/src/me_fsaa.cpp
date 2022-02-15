@@ -223,7 +223,7 @@ void FSAA::EraseMayDefItem(TypeOfMayDefList &mayDefNodes, MapleMap<OStIdx, MayDe
 // If they have the same original value, we can remove the MayDef. Otherwise, we track def-chain of
 // their base. If they have the same base, and they also read the same field/offset of this base,
 // they are the same exactly, so we can also remove this MayDef from MayDefList.
-void FSAA::RemoveMayDefByIreadRHS(IreadSSANode *rhs, TypeOfMayDefList &mayDefNodes) {
+void FSAA::RemoveMayDefByIreadRHS(const IreadSSANode *rhs, TypeOfMayDefList &mayDefNodes) {
   const VersionSt *rhsVst = GetVersionStFromExpr(rhs);
   OffsetType rhsOffset = rhsVst->GetOst()->GetOffset();
   if (rhsOffset.IsInvalid()) {
@@ -247,7 +247,7 @@ void FSAA::RemoveMayDefByIreadRHS(IreadSSANode *rhs, TypeOfMayDefList &mayDefNod
 // If they have the same def-exprs, we can remove the MayDef. Otherwise, if the def-expr of rhs is an
 // iread expr, we will double check this iread expr like what we do for iread expr. That is to compare if
 // iread's base is the same as MayDef's.
-void FSAA::RemoveMayDefByDreadRHS(AddrofSSANode *rhs, TypeOfMayDefList &mayDefNodes) {
+void FSAA::RemoveMayDefByDreadRHS(const AddrofSSANode *rhs, TypeOfMayDefList &mayDefNodes) {
   const BaseNode *rhsOrigSrc = GetOriginalDefExpr(rhs);
   if (rhsOrigSrc == nullptr) {
     return;
@@ -283,7 +283,7 @@ void FSAA::RemoveMayDefByDreadRHS(AddrofSSANode *rhs, TypeOfMayDefList &mayDefNo
 // Case 2: The MayDef is alias with lhs, their memories overlap completely(not partially). Storing rhs to
 //         lhs will update the MayDef's value, but the value is the same as before.
 // Therefore, for typesafe, we can delete this MayDef from MayDefList.
-void FSAA::RemoveMayDefIfSameAsRHS(IassignNode *stmt) {
+void FSAA::RemoveMayDefIfSameAsRHS(const IassignNode *stmt) {
   if (!MeOption::tbaa) {
     return; // type-safe constraint is not valid, do nothing
   }

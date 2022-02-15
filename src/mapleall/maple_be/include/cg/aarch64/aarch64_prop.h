@@ -24,6 +24,7 @@ class AArch64Prop : public CGProp {
  public:
   AArch64Prop(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo)
       : CGProp(mp, f, sInfo){}
+  ~AArch64Prop() override = default;
 
   /* do not extend life range */
   static bool IsInLimitCopyRange(VRegVersion *toBeReplaced);
@@ -53,7 +54,7 @@ class A64StrLdrProp {
  private:
   AArch64MemOperand *StrLdrPropPreCheck(const Insn &insn, MemPropMode prevMod = kUndef);
   static MemPropMode SelectStrLdrPropMode(const  AArch64MemOperand &currMemOpnd);
-  bool ReplaceMemOpnd(const AArch64MemOperand &currMemOpnd, Insn *defInsn);
+  bool ReplaceMemOpnd(const AArch64MemOperand &currMemOpnd, const Insn *defInsn);
   AArch64MemOperand *SelectReplaceMem(const Insn &defInsn, const AArch64MemOperand &currMemOpnd);
   AArch64RegOperand *GetReplaceReg(AArch64RegOperand &a64Reg);
   AArch64MemOperand *HandleArithImmDef(AArch64RegOperand &replace, Operand *oldOffset, int64 defVal);
@@ -116,7 +117,7 @@ class A64ConstProp {
   Insn *curInsn;
 };
 
-class CopyRegProp : PropOptimizePattern {
+class CopyRegProp : public PropOptimizePattern {
  public:
   CopyRegProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
   ~CopyRegProp() override = default;
@@ -130,12 +131,12 @@ class CopyRegProp : PropOptimizePattern {
     srcVersion = nullptr;
   }
  private:
-  void VaildateImplicitCvt(RegOperand &destReg, RegOperand &srcReg, Insn &movInsn);
+  void VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn);
   VRegVersion *destVersion = nullptr;
   VRegVersion *srcVersion = nullptr;
 };
 
-class RedundantPhiProp : PropOptimizePattern {
+class RedundantPhiProp : public PropOptimizePattern {
  public:
   RedundantPhiProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
   ~RedundantPhiProp() override = default;
@@ -154,7 +155,7 @@ class RedundantPhiProp : PropOptimizePattern {
   VRegVersion *srcVersion = nullptr;
 };
 
-class ValidBitNumberProp : PropOptimizePattern {
+class ValidBitNumberProp : public PropOptimizePattern {
  public:
   ValidBitNumberProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
   ~ValidBitNumberProp() override = default;
@@ -311,6 +312,7 @@ class A64ReplaceRegOpndVisitor : public ReplaceRegOpndVisitor {
  public:
   A64ReplaceRegOpndVisitor(CGFunc &f, Insn &cInsn, uint32 cIdx, RegOperand &oldRegister ,RegOperand &newRegister)
       : ReplaceRegOpndVisitor(f, cInsn, cIdx, oldRegister, newRegister) {}
+  ~A64ReplaceRegOpndVisitor() override = default;
  private:
   void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;

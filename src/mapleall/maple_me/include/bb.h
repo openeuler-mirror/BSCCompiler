@@ -225,7 +225,9 @@ class BB {
   void SetFirstMe(MeStmt *stmt);
   void SetLastMe(MeStmt *stmt);
   MeStmt *GetLastMe();
+  const MeStmt *GetLastMe() const;
   MeStmt *GetFirstMe();
+  const MeStmt *GetFirstMe() const;
   bool IsPredBB(const BB &bb) const {
     // if this is a pred of bb return true;
     // otherwise return false;
@@ -244,7 +246,7 @@ class BB {
   void PrependStmtNode(StmtNode *stmt);
   void RemoveStmtNode(StmtNode *stmt);
   void RemoveLastStmt();
-  void InsertStmtBefore(StmtNode *stmt, StmtNode *newStmt);
+  void InsertStmtBefore(const StmtNode *stmt, StmtNode *newStmt);
   void ReplaceStmt(StmtNode *stmt, StmtNode *newStmt);
 
   void RemovePred(BB &predBB, bool updatePhi = true) {
@@ -299,13 +301,13 @@ class BB {
   const PhiNode *PhiofVerStInserted(const VersionSt &versionSt) const;
   void InsertPhi(MapleAllocator *alloc, VersionSt *versionSt);
   void PrependMeStmt(MeStmt *meStmt);
-  void RemoveMeStmt(const MeStmt *meStmt);
+  void RemoveMeStmt(MeStmt *meStmt);
   void AddMeStmtFirst(MeStmt *meStmt);
   void AddMeStmtLast(MeStmt *meStmt);
   void InsertMeStmtBefore(const MeStmt *meStmt, MeStmt *inStmt);
   void InsertMeStmtAfter(const MeStmt *meStmt, MeStmt *inStmt);
   void InsertMeStmtLastBr(MeStmt *inStmt);
-  void ReplaceMeStmt(const MeStmt *stmt, MeStmt *newStmt);
+  void ReplaceMeStmt(MeStmt *stmt, MeStmt *newStmt);
   void RemoveLastMeStmt();
   void DumpMePhiList(const IRMap *irMap);
   void DumpMeVarPiList(const IRMap *irMap);

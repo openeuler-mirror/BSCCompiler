@@ -183,7 +183,7 @@ class AnalysisInfoHook {
     (void)analysisPhasesData.emplace(std::pair<AnalysisMemKey, MaplePhase*>(AnalysisMemKey(phaseKey, id), phaseImpl));
   }
 
-  MaplePhase *FindAnalysisData(uint32 phaseKey, MaplePhase *p, MaplePhaseID id) {
+  MaplePhase *FindAnalysisData(uint32 phaseKey, const MaplePhase *p, MaplePhaseID id) {
     auto anaPhaseInfoIt = analysisPhasesData.find(AnalysisMemKey(phaseKey, id));
     if (anaPhaseInfoIt != analysisPhasesData.end()) {
       return anaPhaseInfoIt->second;

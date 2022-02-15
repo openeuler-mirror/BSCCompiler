@@ -3440,11 +3440,11 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
           TyIdx fieldtyidx = sty->GetFieldsElemt(i).second.first;
           MIRType *fieldty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldtyidx);
           if (prevSubstruct) {
-            embeddedIDs +=
-                Globals::GetInstance()->GetBECommon()->GetStructFieldCount(prevSubstruct->GetTypeIndex().GetIdx());
+            embeddedIDs += Globals::GetInstance()->GetBECommon()->GetStructFieldCount(
+                static_cast<uint32>(prevSubstruct->GetTypeIndex().GetIdx()));
           }
           prevSubstruct = fieldty->EmbeddedStructType();
-          FieldID fieldID = static_cast<int>(i) + embeddedIDs + 1;
+          FieldID fieldID = static_cast<int>(i + embeddedIDs) + 1;
           int offset = Globals::GetInstance()->GetBECommon()->GetFieldOffset(*sty, fieldID).first;
           GStrIdx fldName = sty->GetFieldsElemt(i).first;
           DBGDie *cdie = LFindChildDieWithName(die, DW_TAG_member, fldName);

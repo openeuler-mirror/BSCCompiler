@@ -394,7 +394,7 @@ BaseNode *CGLowerer::LowerFarray(ArrayNode &array) {
     ConstvalNode *idxNode = static_cast<ConstvalNode*>(resNode);
     int64 idx = safe_cast<MIRIntConst>(idxNode->GetConstVal())->GetValue();
     MIRIntConst *eConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        static_cast<int64>(idx * eSize), arrayType);
+        idx * static_cast<int64>(eSize), arrayType);
     rMul = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(eConst);
     rMul->SetPrimType(array.GetPrimType());
   } else {

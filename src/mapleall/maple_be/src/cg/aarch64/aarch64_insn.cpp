@@ -612,8 +612,8 @@ static void AsmStringOutputRegNum(
     newRegno = regno - fpBase;
   }
   if (newRegno > (kDecimalMax - 1)) {
-    auto tenth = static_cast<char>(newRegno / kDecimalMax);
-    strToEmit += '0' + tenth;
+    uint32 tenth = newRegno / kDecimalMax;
+    strToEmit += '0' + static_cast<char>(tenth);
     newRegno -= (kDecimalMax * tenth);
   }
   strToEmit += newRegno + '0';

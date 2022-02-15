@@ -178,10 +178,10 @@ void BB::RemoveBBFromSucc(const BB &bb) {
 }
 
 int BB::GetPredIndex(const BB &predBB) const {
-  int i = 0;
-  while (static_cast<size_t>(i) < pred.size()) {
+  size_t i = 0;
+  while (i < pred.size()) {
     if (pred[i] == &predBB) {
-      return i;
+      return static_cast<int>(i);
     }
     ++i;
   }
@@ -189,10 +189,10 @@ int BB::GetPredIndex(const BB &predBB) const {
 }
 
 int BB::GetSuccIndex(const BB &succBB) const {
-  int i = 0;
-  while (static_cast<size_t>(i) < succ.size()) {
+  size_t i = 0;
+  while (i < succ.size()) {
     if (succ[i] == &succBB) {
-      return i;
+      return static_cast<int>(i);
     }
     ++i;
   }
@@ -238,7 +238,7 @@ void BB::RemoveStmtNode(StmtNode *stmt) {
   stmtNodeList.erase(StmtNodes::iterator(stmt));
 }
 
-void BB::InsertStmtBefore(StmtNode *stmt, StmtNode *newStmt) {
+void BB::InsertStmtBefore(const StmtNode *stmt, StmtNode *newStmt) {
   CHECK_FATAL(newStmt != nullptr, "null ptr check");
   CHECK_FATAL(stmt != nullptr, "null ptr check");
   stmtNodeList.insert(stmt, newStmt);
@@ -359,20 +359,26 @@ void BB::SetLastMe(MeStmt *stmt) {
 }
 
 MeStmt *BB::GetFirstMe() {
-  if (meStmtList.empty()) return nullptr;
-  return &meStmtList.front();
+  return meStmtList.empty() ? nullptr : &meStmtList.front();
+}
+
+const MeStmt *BB::GetFirstMe() const {
+  return meStmtList.empty() ? nullptr : &meStmtList.front();
 }
 
 MeStmt *BB::GetLastMe() {
-  if (meStmtList.empty()) return nullptr;
-  return &meStmtList.back();
+  return meStmtList.empty() ? nullptr : &meStmtList.back();
+}
+
+const MeStmt *BB::GetLastMe() const {
+  return meStmtList.empty() ? nullptr : &meStmtList.back();
 }
 
 void BB::RemoveLastMeStmt() {
   meStmtList.pop_back();
 }
 
-void BB::RemoveMeStmt(const MeStmt *meStmt) {
+void BB::RemoveMeStmt(MeStmt *meStmt) {
   CHECK_FATAL(meStmt != nullptr, "null ptr check");
   meStmtList.erase(meStmt);
 }
@@ -417,7 +423,7 @@ void BB::InsertMeStmtLastBr(MeStmt *inStmt) {
   }
 }
 
-void BB::ReplaceMeStmt(const MeStmt *stmt, MeStmt *newStmt) {
+void BB::ReplaceMeStmt(MeStmt *stmt, MeStmt *newStmt) {
   InsertMeStmtBefore(stmt, newStmt);
   RemoveMeStmt(stmt);
 }

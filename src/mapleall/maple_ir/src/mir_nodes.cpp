@@ -219,7 +219,7 @@ void BlockNode::ReplaceStmt1WithStmt2(const StmtNode *stmtNode1, StmtNode *stmtN
 }
 
 // remove sstmtNode1 from block
-void BlockNode::RemoveStmt(StmtNode *stmtNode1) {
+void BlockNode::RemoveStmt(const StmtNode *stmtNode1) {
   ASSERT(stmtNode1 != nullptr, "delete a null stmtment");
   (void)stmtNodeList.erase(stmtNode1);
 }
@@ -230,12 +230,12 @@ void BlockNode::InsertBefore(const StmtNode *stmtNode1, StmtNode *stmtNode2) {
 }
 
 /// Insert stmtNode2 after stmtNode1 in current block.
-void BlockNode::InsertAfter(StmtNode *stmtNode1, StmtNode *stmtNode2) {
+void BlockNode::InsertAfter(const StmtNode *stmtNode1, StmtNode *stmtNode2) {
   stmtNodeList.insertAfter(stmtNode1, stmtNode2);
 }
 
 // insert all the stmts in inblock to the current block after stmt1
-void BlockNode::InsertBlockAfter(BlockNode &inblock, StmtNode *stmt1) {
+void BlockNode::InsertBlockAfter(BlockNode &inblock, const StmtNode *stmt1) {
   ASSERT(stmt1 != nullptr, "null ptr check");
   ASSERT(!inblock.IsEmpty(), "NYI");
   stmtNodeList.splice(stmt1, inblock.GetStmtNodes());
