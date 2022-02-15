@@ -78,6 +78,7 @@ class AdjustASTVisitor : public AstVisitor {
   TypeAliasNode *VisitTypeAliasNode(TypeAliasNode *node);
   LiteralNode *VisitLiteralNode(LiteralNode *node);
   UnaOperatorNode *VisitUnaOperatorNode(UnaOperatorNode *node);
+  PrimArrayTypeNode *VisitPrimArrayTypeNode(PrimArrayTypeNode *node);
 };
 
 }

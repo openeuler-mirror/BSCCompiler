@@ -169,6 +169,17 @@ StructNode *AdjustASTVisitor::VisitStructNode(StructNode *node) {
   return (StructNode*)newnode;
 }
 
+// convert prim array node to array type node
+PrimArrayTypeNode *AdjustASTVisitor::VisitPrimArrayTypeNode(PrimArrayTypeNode *node) {
+  (void) AstVisitor::VisitPrimArrayTypeNode(node);
+  ArrayTypeNode *arr = mHandler->NewTreeNode<ArrayTypeNode>();
+  DimensionNode *dim = node->GetDims();
+  arr->SetDims(dim);
+  arr->SetElemType(node->GetPrim());
+
+  return (PrimArrayTypeNode *)arr;
+}
+
 // set UserTypeNode's mStrIdx to be its mId's
 UserTypeNode *AdjustASTVisitor::VisitUserTypeNode(UserTypeNode *node) {
   (void) AstVisitor::VisitUserTypeNode(node);
@@ -199,16 +210,13 @@ UserTypeNode *AdjustASTVisitor::VisitUserTypeNode(UserTypeNode *node) {
     }
   }
 
-  TreeNode *p = node->GetParent();
-  if (isarr && p->IsIdentifier()) {
+  if (isarr) {
     ArrayTypeNode *arr = mHandler->NewTreeNode<ArrayTypeNode>();
     arr->SetDims(dim);
     arr->SetElemType(etype);
-    node->SetDims(NULL);
-    IdentifierNode *inode = static_cast<IdentifierNode *>(p);
-    inode->SetType(arr);
-    mHandler->SetArrayElemTypeId(inode->GetNodeId(), id->GetTypeId());
+    node = (UserTypeNode *)arr;
   }
+
   return node;
 }
 
