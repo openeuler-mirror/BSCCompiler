@@ -119,6 +119,11 @@ public:
 };
 
 
+// 20.5 Error objects for execptions
+class Error : public Object {
+  // TODO
+};
+
 // JavaScript generators and generator functions
 // - The builtin GeneratorFunction is the constructor for all generator functions.
 // - Generator functions are called directly to return generators (with closure).
@@ -151,15 +156,15 @@ struct IteratorResult {
 // ecma262 27.1.2.1 %IteratorPrototype%:
 // 1) All objects that implement iterator interface also inherit from %IteratorPrototype%
 // 2) %IteratorPrototype% provides shared props for all iterator objects
-// 3) %IteratorPrototype%[Symbol.iterator]() = this (current iterator instance)
+// 3) %IteratorPrototype%[Symbol.iterator]() = this (current iterator instance) - used in for loops
 class IteratorProto : public Object {
 public:
   IteratorProto(Function* ctor, Object* proto) : Object(ctor, proto) { }
   ~IteratorProto() { }
-  // note: arg passed to _next() should be ignored on iterator's 1st _next() call per spec
-  virtual IteratorResult _next(JS_Val arg)   { return IteratorResult(); }
-  virtual IteratorResult _return(JS_Val val) { return IteratorResult(); }
-  virtual IteratorResult _throw()            { return IteratorResult(); }
+  // note: the arg on an iterator's 1st next() call is ignored per spec 27.5.1.2
+  virtual IteratorResult _next(JS_Val* arg)       { return IteratorResult(); }
+  virtual IteratorResult _return(JS_Val* val)     { return IteratorResult(); }
+  virtual IteratorResult _throw(Error exception)  { return IteratorResult(); }
 
   // TODO: %IteratorPrototype%[Symbol.iterator]() = this (current iterator instance)
 };
@@ -173,7 +178,10 @@ class GeneratorProto : public IteratorProto {
 public:
   GeneratorProto(Function* ctor, Object* proto) : IteratorProto(ctor, proto) { }
   ~GeneratorProto() { }
-  bool _completed = false;  // flag if generator is in completed state
+  void*  _yield     = nullptr; // pointer to yield label to resume execution
+  bool   _finished  = false;   // flag if generator is in finished state
+  bool   _firstNext = true;    // flag if first next has been called on iterator (27.5.1.2)
+  JS_Val _retval = undefined;  // save optional arg from iterator's return(arg) method
 };
 
 // 27.3.1 GeneratorFunction Constructor

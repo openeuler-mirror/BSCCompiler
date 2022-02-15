@@ -82,6 +82,9 @@ struct JS_Val {
   JS_Type type;
 
   bool IsCxxProp() { return type & TY_CXX; } // true if a cxx field
+  bool IsNone()  { return type == TY_None; }
+  bool IsNull()  { return type & TY_Null;  }
+  bool IsUndef() { return type & TY_Undef; }
 
   JS_Val() { x.val_long = 0l; type = TY_Undef; }
   JS_Val(int64_t l, JS_Type t, bool c) { x.val_long = l; type = t; }
