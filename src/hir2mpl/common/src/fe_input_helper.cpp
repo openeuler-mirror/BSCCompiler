@@ -330,6 +330,7 @@ void FEInputStructHelper::ProcessPragma() {
 
 // ---------- FEInputMethodHelper ----------
 bool FEInputMethodHelper::ProcessDeclImpl(MapleAllocator &allocatorIn) {
+  (void)allocatorIn;
   CHECK_FATAL(false, "NYI");
   return true;
 }

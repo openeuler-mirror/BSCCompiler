@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -91,7 +91,7 @@ class ASTDeclsBuilder {
   static ASTStruct *ASTStructBuilder(const MapleAllocator &allocator, const std::string &srcFile, const std::string &nameIn,
       const std::vector<MIRType*> &typeDescIn, const GenericAttrs &genAttrsIn, int64 id = INT64_MAX) {
     if (id == INT64_MAX) {
-      allocator.GetMemPool()->New<ASTStruct>(srcFile, nameIn, typeDescIn, genAttrsIn);
+      return allocator.GetMemPool()->New<ASTStruct>(srcFile, nameIn, typeDescIn, genAttrsIn);
     } else if (declesTable[id] == nullptr) {
       declesTable[id] = allocator.GetMemPool()->New<ASTStruct>(srcFile, nameIn, typeDescIn, genAttrsIn);
     }
@@ -102,7 +102,7 @@ class ASTDeclsBuilder {
       const std::vector<MIRType*> &desc, const GenericAttrs &genAttrsIn, int64 id = INT64_MAX,
       bool isAnonymous = false) {
     if (id == INT64_MAX) {
-      allocator.GetMemPool()->New<ASTField>(srcFile, varName, desc, genAttrsIn, isAnonymous);
+      return allocator.GetMemPool()->New<ASTField>(srcFile, varName, desc, genAttrsIn, isAnonymous);
     } else if (declesTable[id] == nullptr) {
       declesTable[id] = allocator.GetMemPool()->New<ASTField>(srcFile, varName, desc, genAttrsIn, isAnonymous);
     }

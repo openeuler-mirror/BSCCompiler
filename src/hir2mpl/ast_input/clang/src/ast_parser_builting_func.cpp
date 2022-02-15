@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -577,6 +577,7 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinIslessgreater(std::list<UniqueFEIRStmt> &
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinWarnMemsetZeroLen(std::list<UniqueFEIRStmt> &stmts) const {
+  (void)stmts;
   return nullptr;
 }
 
@@ -704,6 +705,8 @@ ASTExpr *ASTParser::ParseBuiltinIsinfsign(MapleAllocator &allocator, const clang
 
 ASTExpr *ASTParser::ParseBuiltinHugeVal(MapleAllocator &allocator, const clang::CallExpr &expr,
                                         std::stringstream &ss) const {
+  (void)expr;
+  (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral->SetKind(F64);
   astFloatingLiteral->SetVal(std::numeric_limits<double>::infinity());
@@ -712,6 +715,8 @@ ASTExpr *ASTParser::ParseBuiltinHugeVal(MapleAllocator &allocator, const clang::
 
 ASTExpr *ASTParser::ParseBuiltinHugeValf(MapleAllocator &allocator, const clang::CallExpr &expr,
                                          std::stringstream &ss) const {
+  (void)expr;
+  (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral->SetKind(F32);
   astFloatingLiteral->SetVal(std::numeric_limits<float>::infinity());
@@ -720,6 +725,8 @@ ASTExpr *ASTParser::ParseBuiltinHugeValf(MapleAllocator &allocator, const clang:
 
 ASTExpr *ASTParser::ParseBuiltinInf(MapleAllocator &allocator, const clang::CallExpr &expr,
                                     std::stringstream &ss) const {
+  (void)expr;
+  (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral->SetKind(F64);
   astFloatingLiteral->SetVal(std::numeric_limits<float>::infinity());
@@ -728,6 +735,8 @@ ASTExpr *ASTParser::ParseBuiltinInf(MapleAllocator &allocator, const clang::Call
 
 ASTExpr *ASTParser::ParseBuiltinInff(MapleAllocator &allocator, const clang::CallExpr &expr,
                                      std::stringstream &ss) const {
+  (void)expr;
+  (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral->SetKind(F32);
   astFloatingLiteral->SetVal(std::numeric_limits<float>::infinity());
@@ -736,6 +745,8 @@ ASTExpr *ASTParser::ParseBuiltinInff(MapleAllocator &allocator, const clang::Cal
 
 ASTExpr *ASTParser::ParseBuiltinNan(MapleAllocator &allocator, const clang::CallExpr &expr,
                                     std::stringstream &ss) const {
+  (void)expr;
+  (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral->SetKind(F64);
   astFloatingLiteral->SetVal(nan(""));
@@ -744,6 +755,8 @@ ASTExpr *ASTParser::ParseBuiltinNan(MapleAllocator &allocator, const clang::Call
 
 ASTExpr *ASTParser::ParseBuiltinNanf(MapleAllocator &allocator, const clang::CallExpr &expr,
                                      std::stringstream &ss) const {
+  (void)expr;
+  (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral->SetKind(F32);
   astFloatingLiteral->SetVal(nanf(""));
@@ -782,6 +795,7 @@ ASTExpr *ASTParser::ParseBuiltinCopysignl(MapleAllocator &allocator, const clang
 
 ASTExpr *ASTParser::ParseBuiltinObjectsize(MapleAllocator &allocator, const clang::CallExpr &expr,
                                            std::stringstream &ss) const {
+  (void)ss;
   uint32 objSizeType = expr.getArg(1)->EvaluateKnownConstInt(*astFile->GetContext()).getZExtValue();
   // GCC size_t __builtin_object_size(void *ptr, int type) type range is 0 ~ 3
   ASSERT(objSizeType <= 3, "unexpected type");

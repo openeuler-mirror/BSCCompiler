@@ -38,6 +38,7 @@ include_directories = [
   "${HIR2MPL_ROOT}/bytecode_input/dex/include",
   "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/maple_ipa/include",
+  "${MAPLEALL_ROOT}/maple_ipa/include/old",
   "${MAPLEALL_ROOT}/maple_util/include",
   "${MAPLEALL_ROOT}/maple_phase/include",
   "${MAPLEALL_ROOT}/maple_driver/include",

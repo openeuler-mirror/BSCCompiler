@@ -333,8 +333,8 @@ MIRConst *FEUtils::CreateImplicitConst(MIRType *type) {
           for (int dim = 1; dim < arrayType->GetDim(); ++dim) {
             subSizeArray[dim - 1] = arrayType->GetSizeArrayItem(dim);
           }
-          auto subArrayType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*arrayType->GetElemType(),
-                                                                                arrayType->GetDim() - 1, subSizeArray);
+          auto subArrayType = GlobalTables::GetTypeTable().GetOrCreateArrayType(
+              *arrayType->GetElemType(), static_cast<uint8>(arrayType->GetDim() - 1), subSizeArray);
           elementConst = CreateImplicitConst(subArrayType);
         } else {
           elementConst = CreateImplicitConst(arrayType->GetElemType());

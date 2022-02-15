@@ -169,8 +169,8 @@ class FEInputMethodHelper {
     return ProcessDeclImpl(allocatorIn);
   }
 
-  void SolveReturnAndArgTypes(MapleAllocator &allocator) {
-    SolveReturnAndArgTypesImpl(allocator);
+  void SolveReturnAndArgTypes(MapleAllocator &allocatorIn) {
+    SolveReturnAndArgTypesImpl(allocatorIn);
   }
 
   std::string GetMethodName(bool inMpl, bool full = true) const {

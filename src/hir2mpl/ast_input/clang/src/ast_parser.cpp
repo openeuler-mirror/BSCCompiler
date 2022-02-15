@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -527,6 +527,7 @@ ASTStmt *ASTParser::ProcessStmtDoStmt(MapleAllocator &allocator, const clang::Do
 }
 
 ASTStmt *ASTParser::ProcessStmtBreakStmt(MapleAllocator &allocator, const clang::BreakStmt &breakStmt) {
+  (void)breakStmt;
   auto *astStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTBreakStmt>(allocator);
   CHECK_FATAL(astStmt != nullptr, "astStmt is nullptr");
   return astStmt;
@@ -571,12 +572,14 @@ ASTStmt *ASTParser::ProcessStmtDefaultStmt(MapleAllocator &allocator, const clan
 }
 
 ASTStmt *ASTParser::ProcessStmtNullStmt(MapleAllocator &allocator, const clang::NullStmt &nullStmt) {
+  (void)nullStmt;
   ASTNullStmt *astStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTNullStmt>(allocator);
   CHECK_FATAL(astStmt != nullptr, "astStmt is nullptr");
   return astStmt;
 }
 
 ASTStmt *ASTParser::ProcessStmtContinueStmt(MapleAllocator &allocator, const clang::ContinueStmt &continueStmt) {
+  (void)continueStmt;
   auto *astStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTContinueStmt>(allocator);
   CHECK_FATAL(astStmt != nullptr, "astStmt is nullptr");
   return astStmt;
@@ -723,12 +726,14 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
         case llvm::APFloat::S_x87DoubleExtended:
           bool LosesInfo;
           if (constMirType->GetPrimType() == PTY_f64) {
-            fValue.convert(llvm::APFloat::IEEEdouble(), llvm::APFloatBase::rmNearestTiesToAway,
-                           &LosesInfo);
+            (void)fValue.convert(llvm::APFloat::IEEEdouble(),
+                                      llvm::APFloatBase::rmNearestTiesToAway,
+                                      &LosesInfo);
             astValue->val.f64 = fValue.convertToDouble();
           } else {
-            fValue.convert(llvm::APFloat::IEEEsingle(), llvm::APFloatBase::rmNearestTiesToAway,
-                           &LosesInfo);
+            (void)fValue.convert(llvm::APFloat::IEEEsingle(),
+                                 llvm::APFloatBase::rmNearestTiesToAway,
+                                 &LosesInfo);
             astValue->val.f32 = fValue.convertToFloat();
           }
           break;
@@ -856,7 +861,9 @@ ASTExpr *ASTParser::EvaluateExprAsConst(MapleAllocator &allocator, const clang::
       floatExpr->SetVal(val);
     } else if (&fltSem == &llvm::APFloat::IEEEquad() || &fltSem == &llvm::APFloat::x87DoubleExtended()) {
       bool losesInfo;
-      floatVal.convert(llvm::APFloat::IEEEdouble(), llvm::APFloatBase::rmNearestTiesToAway, &losesInfo);
+      (void)floatVal.convert(llvm::APFloat::IEEEdouble(),
+                             llvm::APFloatBase::rmNearestTiesToAway,
+                             &losesInfo);
       val = static_cast<double>(floatVal.convertToDouble());
       floatExpr->SetKind(F64);
       floatExpr->SetVal(val);
@@ -1215,8 +1222,8 @@ ASTExpr *ASTParser::ProcessExprOffsetOfExpr(MapleAllocator &allocator, const cla
     auto comp = expr.getComponent(i);
     if (comp.getKind() == clang::OffsetOfNode::Kind::Field) {
       uint filedIdx = comp.getField()->getFieldIndex();
-      offset += astFile->GetContext()->getASTRecordLayout(comp.getField()->getParent()).getFieldOffset(filedIdx)
-          >> kBitToByteShift;
+      offset += static_cast<int64_t>(astFile->GetContext()->getASTRecordLayout(
+          comp.getField()->getParent()).getFieldOffset(filedIdx) >> kBitToByteShift);
     } else if (comp.getKind() == clang::OffsetOfNode::Kind::Array) {
       uint32 idx = comp.getArrayExprIndex();
       auto idxExpr = expr.getIndexExpr(idx);
@@ -1428,7 +1435,7 @@ ASTExpr *ASTParser::BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, con
       rhs = ProcessExpr(allocator, sizeExpr);
       CHECK_FATAL(sizeExpr->getType()->isIntegerType(), "the type should be integer");
     } else if (llvm::isa<clang::ConstantArrayType>(qualType)) {
-      uint32 size = llvm::cast<clang::ConstantArrayType>(qualType)->getSize().getSExtValue();
+      uint32 size = static_cast<uint32>(llvm::cast<clang::ConstantArrayType>(qualType)->getSize().getSExtValue());
       if (size == 1) {
         return lhs;
       }
@@ -1596,11 +1603,15 @@ ASTExpr *ASTParser::ProcessExprTypeTraitExpr(MapleAllocator &allocator, const cl
 }
 
 ASTExpr *ASTParser::ProcessExprShuffleVectorExpr(MapleAllocator &allocator, const clang::ShuffleVectorExpr &expr) {
+  (void)allocator;
+  (void)expr;
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
 
 ASTExpr *ASTParser::ProcessExprGNUNullExpr(MapleAllocator &allocator, const clang::GNUNullExpr &expr) {
+  (void)allocator;
+  (void)expr;
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -1776,7 +1787,9 @@ ASTExpr *ASTParser::ProcessExprFloatingLiteral(MapleAllocator &allocator, const 
     astFloatingLiteral->SetVal(val);
   } else if (&fltSem == &llvm::APFloat::IEEEquad() || &fltSem == &llvm::APFloat::x87DoubleExtended()) {
     bool losesInfo;
-    apf.convert(llvm::APFloat::IEEEdouble(), llvm::APFloatBase::rmNearestTiesToAway, &losesInfo);
+    (void)apf.convert(llvm::APFloat::IEEEdouble(),
+                      llvm::APFloatBase::rmNearestTiesToAway,
+                      &losesInfo);
     val = static_cast<double>(apf.convertToDouble());
     astFloatingLiteral->SetKind(F64);
     astFloatingLiteral->SetVal(val);
@@ -2172,14 +2185,14 @@ bool ASTParser::PreProcessAST() {
 
 #define DECL_CASE(CLASS)                                                                           \
   case clang::Decl::CLASS: {                                                                       \
-    ASTDecl *astDecl = ProcessDecl##CLASS##Decl(allocator, llvm::cast<clang::CLASS##Decl>(decl));  \
-    if (astDecl != nullptr) {                                                                      \
-      astDecl->SetDeclPos(astFile->GetDeclPosInfo(decl));                                          \
-      astDecl->SetGlobal(decl.isDefinedOutsideFunctionOrMethod());                                 \
+    ASTDecl *astDeclaration = ProcessDecl##CLASS##Decl(allocator, llvm::cast<clang::CLASS##Decl>(decl));  \
+    if (astDeclaration != nullptr) {                                                                      \
+      astDeclaration->SetDeclPos(astFile->GetDeclPosInfo(decl));                                          \
+      astDeclaration->SetGlobal(decl.isDefinedOutsideFunctionOrMethod());                                 \
       Pos loc = astFile->GetLOC(decl.getLocation());                                               \
-      astDecl->SetSrcLOC(loc.first, loc.second);                                                   \
+      astDeclaration->SetSrcLOC(loc.first, loc.second);                                                   \
     }                                                                                              \
-    return astDecl;                                                                                \
+    return astDeclaration;                                                                                \
   }
 ASTDecl *ASTParser::ProcessDecl(MapleAllocator &allocator, const clang::Decl &decl) {
   ASTDecl *astDecl = ASTDeclsBuilder::GetASTDecl(decl.getID());
@@ -2206,6 +2219,8 @@ ASTDecl *ASTParser::ProcessDecl(MapleAllocator &allocator, const clang::Decl &de
 }
 
 ASTDecl *ASTParser::ProcessDeclStaticAssertDecl(MapleAllocator &allocator, const clang::StaticAssertDecl &assertDecl) {
+  (void)allocator;
+  (void)assertDecl;
   return nullptr;
 }
 
@@ -2598,6 +2613,8 @@ ASTDecl *ASTParser::ProcessDeclEnumConstantDecl(MapleAllocator &allocator, const
 }
 
 ASTDecl *ASTParser::ProcessDeclLabelDecl(MapleAllocator &allocator, const clang::LabelDecl &decl) {
+  (void)allocator;
+  (void)decl;
   return nullptr;
 }
 
