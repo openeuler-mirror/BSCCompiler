@@ -27,6 +27,7 @@
 #include "ast_xxport.h"
 #include "astopt.h"
 #include "typetable.h"
+#include "gen_astdump.h"
 
 namespace maplefe {
 
@@ -268,6 +269,14 @@ void Module_Handler::Dump(char *msg) {
   std::cout << msg << " : " << std::endl;
   CfgFunc *func = GetCfgFunc();
   func->Dump();
+}
+
+void Module_Handler::DumpArrayElemTypeIdMap() {
+  std::cout << "================= ArrayDeclId2EleTypeIdMap ==========" << std::endl;
+  for (auto it : mArrayDeclId2EleTypeIdMap) {
+    std::cout << "nodeid : " << it.first  <<
+                 " " << AstDump::GetEnumTypeId(it.second) << std::endl;
+  }
 }
 
 }
