@@ -30,6 +30,7 @@ class AArch64CGFunc : public CGFunc {
       MemPool &memPool, StackMemPool &stackMp, MapleAllocator &mallocator, uint32 funcId)
       : CGFunc(mod, c, f, b, memPool, stackMp, mallocator, funcId),
         calleeSavedRegs(mallocator.Adapter()),
+        proEpilogSavedRegs(mallocator.Adapter()),
         formalRegList(mallocator.Adapter()),
         phyRegOperandTable(mallocator.Adapter()),
         hashLabelOpndTable(mallocator.Adapter()),
@@ -624,6 +625,10 @@ class AArch64CGFunc : public CGFunc {
 
   MIRPreg *GetPseudoRegFromVirtualRegNO(const regno_t vRegNO, bool afterSSA = false) const;
 
+ MapleVector<AArch64reg> &GetProEpilogSavedRegs() {
+   return proEpilogSavedRegs;
+ }
+
  private:
   enum RelationOperator : uint8 {
     kAND,
@@ -646,6 +651,7 @@ class AArch64CGFunc : public CGFunc {
   using MovkLslOperandArray = std::array<LogicalShiftLeftOperand, kMaxMovkLslEntries>;
 
   MapleVector<AArch64reg> calleeSavedRegs;
+  MapleVector<AArch64reg> proEpilogSavedRegs;
   MapleVector<AArch64reg> formalRegList; /* store the parameters register used by this function */
   uint32 refCount = 0;  /* Ref count number. 0 if function don't have "bl MCC_InitializeLocalStackRef" */
   int32 beginOffset = 0;        /* Begin offset based x29. */
@@ -669,7 +675,6 @@ class AArch64CGFunc : public CGFunc {
     Operand *opndCatch;  /* For O0-O1. */
   } uCatch;
   enum fpParamState {
-    kNotFp_be,
     kNotFp,
     kFp32Bit,
     kFp64Bit,

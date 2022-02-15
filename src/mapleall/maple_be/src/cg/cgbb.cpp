@@ -158,7 +158,7 @@ void BB::AppendBBInsns(BB &bb) {
   }
 }
 
-/* append all insns from bb into this bb */
+/* prepend all insns from bb into this bb */
 void BB::InsertAtBeginning(BB &bb) {
   if (bb.firstInsn == nullptr) { /* nothing to add */
     return;
@@ -175,6 +175,56 @@ void BB::InsertAtBeginning(BB &bb) {
     bb.lastInsn->SetNext(firstInsn);
     firstInsn->SetPrev(bb.lastInsn);
     firstInsn = bb.firstInsn;
+  }
+  bb.firstInsn = bb.lastInsn = nullptr;
+}
+
+/* append all insns from bb into this bb */
+void BB::InsertAtEnd(BB &bb) {
+  if (bb.firstInsn == nullptr) { /* nothing to add */
+    return;
+  }
+
+  FOR_BB_INSNS(insn, &bb) {
+    insn->SetBB(this);
+  }
+
+  if (firstInsn == nullptr) {
+    firstInsn = bb.firstInsn;
+    lastInsn = bb.lastInsn;
+  } else {
+    bb.firstInsn->SetPrev(lastInsn);
+    lastInsn->SetNext(bb.firstInsn);
+    lastInsn = bb.lastInsn;
+  }
+  bb.firstInsn = bb.lastInsn = nullptr;
+}
+
+/* Insert all insns from bb into this bb before the last instr */
+void BB::InsertAtEndMinus1(BB &bb) {
+  if (bb.firstInsn == nullptr) { /* nothing to add */
+    return;
+  }
+
+  if (NumInsn() == 1) {
+    InsertAtBeginning(bb);
+    return;
+  }
+
+  FOR_BB_INSNS(insn, &bb) {
+    insn->SetBB(this);
+  }
+
+  if (firstInsn == nullptr) {
+    firstInsn = bb.firstInsn;
+    lastInsn = bb.lastInsn;
+  } else {
+    /* Add between prevLast and lastInsn */
+    Insn *prevLast = lastInsn->GetPrev();
+    bb.firstInsn->SetPrev(prevLast);
+    prevLast->SetNext(bb.firstInsn);
+    lastInsn->SetPrev(bb.lastInsn);
+    bb.lastInsn->SetNext(lastInsn);
   }
   bb.firstInsn = bb.lastInsn = nullptr;
 }
