@@ -645,6 +645,41 @@ class CGOptions : public MapleDriverOptionBase {
     return doCFGO;
   }
 
+  static void EnableRegSavesOpt() {
+    doRegSavesOpt = true;
+  }
+
+  static void DisableRegSavesOpt() {
+    doRegSavesOpt = false;
+  }
+
+  static bool DoRegSavesOpt() {
+    return doRegSavesOpt;
+  }
+
+  static void EnableSsaPreSave() {
+    useSsaPreSave = true;
+  }
+
+  static void DisableSsaPreSave() {
+    useSsaPreSave = false;
+  }
+
+  static bool UseSsaPreSave() {
+    return useSsaPreSave;
+  }
+  static void EnableSsuPreRestore() {
+    useSsuPreRestore = true;
+  }
+
+  static void DisableSsuPreRestore() {
+    useSsuPreRestore = false;
+  }
+
+  static bool UseSsuPreRestore() {
+    return useSsuPreRestore;
+  }
+
   static void EnableICO() {
     doICO = true;
   }
@@ -1200,6 +1235,9 @@ class CGOptions : public MapleDriverOptionBase {
   static bool doSchedule;
   static bool doAlignAnalysis;
   static bool doWriteRefFieldOpt;
+  static bool doRegSavesOpt;
+  static bool useSsaPreSave;
+  static bool useSsuPreRestore;
   static bool dumpOptimizeCommonLog;
   static bool checkArrayStore;
   static bool exclusiveEH;

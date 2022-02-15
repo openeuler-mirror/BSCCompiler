@@ -293,7 +293,9 @@ bool AArch64GenProEpilog::NeedProEpilog() {
     }
   }
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  const MapleVector<AArch64reg> &regsToRestore = aarchCGFunc.GetCalleeSavedRegs();
+  const MapleVector<AArch64reg> &regsToRestore =
+    !CGOptions::DoRegSavesOpt() ?
+                aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
   size_t calleeSavedRegSize = kTwoRegister;
   CHECK_FATAL(regsToRestore.size() >= calleeSavedRegSize, "Forgot FP and LR ?");
   if (funcHasCalls || regsToRestore.size() > calleeSavedRegSize || aarchCGFunc.HasStackLoadStore() ||
@@ -822,9 +824,10 @@ BB *AArch64GenProEpilog::IsolateFastPath(BB &bb) {
   return coldBB;
 }
 
-AArch64MemOperand *AArch64GenProEpilog::SplitStpLdpOffsetForCalleeSavedWithAddInstruction(const AArch64MemOperand &mo,
-                                                                                          uint32 bitLen,
-                                                                                          AArch64reg baseRegNum) {
+AArch64MemOperand *AArch64GenProEpilog::SplitStpLdpOffsetForCalleeSavedWithAddInstruction(CGFunc &cgFunc,
+          const AArch64MemOperand &mo,
+          uint32 bitLen,
+          AArch64reg baseRegNum) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CHECK_FATAL(mo.GetAddrMode() == AArch64MemOperand::kAddrModeBOi, "mode should be kAddrModeBOi");
   AArch64OfstOperand *ofstOp = mo.GetOffsetImmediate();
@@ -846,7 +849,8 @@ AArch64MemOperand *AArch64GenProEpilog::SplitStpLdpOffsetForCalleeSavedWithAddIn
   return &aarchCGFunc.CreateReplacementMemOperand(bitLen, br, offsetVal);
 }
 
-void AArch64GenProEpilog::AppendInstructionPushPair(AArch64reg reg0, AArch64reg reg1, RegType rty, int32 offset) {
+void AArch64GenProEpilog::AppendInstructionPushPair(CGFunc &cgFunc,
+  AArch64reg reg0, AArch64reg reg1, RegType rty, int32 offset) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
   MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopPair];
@@ -857,7 +861,7 @@ void AArch64GenProEpilog::AppendInstructionPushPair(AArch64reg reg0, AArch64reg 
   uint32 dataSize = kSizeOfPtr * kBitsPerByte;
   CHECK_FATAL(offset >= 0, "offset must >= 0");
   if (offset > kStpLdpImm64UpperBound) {
-    o2 = SplitStpLdpOffsetForCalleeSavedWithAddInstruction(*static_cast<AArch64MemOperand*>(o2), dataSize, R16);
+    o2 = SplitStpLdpOffsetForCalleeSavedWithAddInstruction(cgFunc, *static_cast<AArch64MemOperand*>(o2), dataSize, R16);
   }
   Insn &pushInsn = currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, *o2);
   std::string comment = "SAVE CALLEE REGISTER PAIR";
@@ -876,7 +880,8 @@ void AArch64GenProEpilog::AppendInstructionPushPair(AArch64reg reg0, AArch64reg 
   }
 }
 
-void AArch64GenProEpilog::AppendInstructionPushSingle(AArch64reg reg, RegType rty, int32 offset) {
+void AArch64GenProEpilog::AppendInstructionPushSingle(CGFunc &cgFunc,
+  AArch64reg reg, RegType rty, int32 offset) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
   MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopSingle];
@@ -1164,7 +1169,9 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrameDebug(AArch64reg reg
 void AArch64GenProEpilog::GeneratePushRegs() {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
-  const MapleVector<AArch64reg> &regsToSave = aarchCGFunc.GetCalleeSavedRegs();
+  const MapleVector<AArch64reg> &regsToSave =
+    !CGOptions::DoRegSavesOpt() ?
+                aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
 
   CHECK_FATAL(!regsToSave.empty(), "FP/LR not added to callee-saved list?");
 
@@ -1242,19 +1249,19 @@ void AArch64GenProEpilog::GeneratePushRegs() {
       /* remember it */
       firstHalf = reg;
     } else {
-      AppendInstructionPushPair(firstHalf, reg, regType, offset);
+      AppendInstructionPushPair(cgFunc, firstHalf, reg, regType, offset);
       GetNextOffsetCalleeSaved(offset);
       firstHalf = kRinvalid;
     }
   }
 
   if (intRegFirstHalf != kRinvalid) {
-    AppendInstructionPushSingle(intRegFirstHalf, kRegTyInt, offset);
+    AppendInstructionPushSingle(cgFunc, intRegFirstHalf, kRegTyInt, offset);
     GetNextOffsetCalleeSaved(offset);
   }
 
   if (fpRegFirstHalf != kRinvalid) {
-    AppendInstructionPushSingle(fpRegFirstHalf, kRegTyFloat, offset);
+    AppendInstructionPushSingle(cgFunc, fpRegFirstHalf, kRegTyFloat, offset);
     GetNextOffsetCalleeSaved(offset);
   }
 
@@ -1278,7 +1285,7 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
       size = kSizeOfPtr;
     }
     uint32 dataSizeBits = size * kBitsPerByte;
-    uint32 offset = memlayout->GetGRSaveAreaBaseLoc();
+    uint32 offset = static_cast<uint32>(memlayout->GetGRSaveAreaBaseLoc());
     if (memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) {
       offset += size;  /* End of area should be aligned. Hole between VR and GR area */
     }
@@ -1300,7 +1307,7 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
       offset += size;
     }
     if (!CGOptions::UseGeneralRegOnly()) {
-      offset = memlayout->GetVRSaveAreaBaseLoc();
+      offset = static_cast<uint32>(memlayout->GetVRSaveAreaBaseLoc());
       start_regno = k8BitSize - (memlayout->GetSizeOfVRSaveArea() / (size * k2BitSize));
       ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for VR Save Area");
       for (uint32 i = start_regno + static_cast<uint32>(V0); i < static_cast<uint32>(V8); i++) {
@@ -1382,7 +1389,9 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
     }
   }
 
-  const MapleVector<AArch64reg> &regsToSave = aarchCGFunc.GetCalleeSavedRegs();
+  const MapleVector<AArch64reg> &regsToSave =
+    !CGOptions::DoRegSavesOpt() ?
+                aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
   if (!regsToSave.empty()) {
     /*
      * Among other things, push the FP & LR pair.
@@ -1477,7 +1486,7 @@ bool AArch64GenProEpilog::TestPredsOfRetBB(const BB &exitBB) {
   return true;
 }
 
-void AArch64GenProEpilog::AppendInstructionPopSingle(AArch64reg reg, RegType rty, int32 offset) {
+void AArch64GenProEpilog::AppendInstructionPopSingle(CGFunc &cgFunc, AArch64reg reg, RegType rty, int32 offset) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
   MOperator mOp = pushPopOps[kRegsPopOp][rty][kPushPopSingle];
@@ -1499,7 +1508,7 @@ void AArch64GenProEpilog::AppendInstructionPopSingle(AArch64reg reg, RegType rty
   }
 }
 
-void AArch64GenProEpilog::AppendInstructionPopPair(AArch64reg reg0, AArch64reg reg1, RegType rty, int32 offset) {
+void AArch64GenProEpilog::AppendInstructionPopPair(CGFunc &cgFunc, AArch64reg reg0, AArch64reg reg1, RegType rty, int32 offset) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
   MOperator mOp = pushPopOps[kRegsPopOp][rty][kPushPopPair];
@@ -1510,7 +1519,7 @@ void AArch64GenProEpilog::AppendInstructionPopPair(AArch64reg reg0, AArch64reg r
   uint32 dataSize = kSizeOfPtr * kBitsPerByte;
   CHECK_FATAL(offset >= 0, "offset must >= 0");
   if (offset > kStpLdpImm64UpperBound) {
-    o2 = SplitStpLdpOffsetForCalleeSavedWithAddInstruction(*static_cast<AArch64MemOperand*>(o2), dataSize, R16);
+    o2 = SplitStpLdpOffsetForCalleeSavedWithAddInstruction(cgFunc, *static_cast<AArch64MemOperand*>(o2), dataSize, R16);
   }
   Insn &popInsn = currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, *o2);
   popInsn.SetComment("RESTORE RESTORE");
@@ -1657,7 +1666,10 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg r
 void AArch64GenProEpilog::GeneratePopRegs() {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
-  const MapleVector<AArch64reg> &regsToRestore = aarchCGFunc.GetCalleeSavedRegs();
+
+  const MapleVector<AArch64reg> &regsToRestore =
+    !CGOptions::DoRegSavesOpt() ?
+                aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
 
   CHECK_FATAL(!regsToRestore.empty(), "FP/LR not added to callee-saved list?");
 
@@ -1709,19 +1721,19 @@ void AArch64GenProEpilog::GeneratePopRegs() {
       firstHalf = reg;
     } else {
       /* flush the pair */
-      AppendInstructionPopPair(firstHalf, reg, regType, offset);
+      AppendInstructionPopPair(cgFunc, firstHalf, reg, regType, offset);
       GetNextOffsetCalleeSaved(offset);
       firstHalf = kRinvalid;
     }
   }
 
   if (intRegFirstHalf != kRinvalid) {
-    AppendInstructionPopSingle(intRegFirstHalf, kRegTyInt, offset);
+    AppendInstructionPopSingle(cgFunc, intRegFirstHalf, kRegTyInt, offset);
     GetNextOffsetCalleeSaved(offset);
   }
 
   if (fpRegFirstHalf != kRinvalid) {
-    AppendInstructionPopSingle(fpRegFirstHalf, kRegTyFloat, offset);
+    AppendInstructionPopSingle(cgFunc, fpRegFirstHalf, kRegTyFloat, offset);
     GetNextOffsetCalleeSaved(offset);
   }
 
@@ -1792,7 +1804,9 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
     }
   }
 
-  const MapleVector<AArch64reg> &regsToSave = aarchCGFunc.GetCalleeSavedRegs();
+  const MapleVector<AArch64reg> &regsToSave =
+    !CGOptions::DoRegSavesOpt() ?
+                aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
   if (!regsToSave.empty()) {
     GeneratePopRegs();
   } else {

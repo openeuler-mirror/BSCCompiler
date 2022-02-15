@@ -108,6 +108,7 @@ src_libcgaarch64 = [
   "src/cg/aarch64/aarch64_lsra.cpp",
   "src/cg/aarch64/aarch64_ra_opt.cpp",
   "src/cg/aarch64/aarch64_alignment.cpp",
+  "src/cg/aarch64/aarch64_regsaves.cpp",
 ]
 
 src_libcgriscv64 = [
@@ -186,6 +187,7 @@ src_libcg = [
   "src/cg/alignment.cpp",
   "src/cg/cg_ssu_pre.cpp",
   "src/cg/cg_ssa_pre.cpp",
+  "src/cg/regsaves.cpp",
 ]
 
 cflags_cc -= [ "-DRC_NO_MMAP" ]

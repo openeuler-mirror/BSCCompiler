@@ -36,12 +36,18 @@ class AArch64GenProEpilog : public GenProEpilog {
 
   bool TailCallOpt() override;
   bool NeedProEpilog() override;
+  static AArch64MemOperand *SplitStpLdpOffsetForCalleeSavedWithAddInstruction(
+    CGFunc &cgFunc, const AArch64MemOperand &mo, uint32 bitLen, AArch64reg baseReg = AArch64reg::kRinvalid);
+  static void AppendInstructionPushPair(CGFunc &cgFunc, AArch64reg reg0, AArch64reg reg1, RegType rty, int offset);
+  static void AppendInstructionPushSingle(CGFunc &cgFunc, AArch64reg reg, RegType rty, int offset);
+  static void AppendInstructionPopSingle(CGFunc &cgFunc, AArch64reg reg, RegType rty, int offset);
+  static void AppendInstructionPopPair(CGFunc &cgFunc, AArch64reg reg0, AArch64reg reg1, RegType rty, int offset);
   void Run() override;
  private:
   void GenStackGuard(BB&);
   BB &GenStackGuardCheckInsn(BB&);
   bool HasLoop();
-  bool OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns, BB &exitBB);
+  bool OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns, const BB &exitBB);
   void TailCallBBOpt(BB &bb, std::set<Insn*> &callInsns, BB &exitBB);
   bool InsertOpndRegs(Operand &opnd, std::set<regno_t> &vecRegs);
   bool InsertInsnRegs(Insn &insn, bool insetSource, std::set<regno_t> &vecSourceRegs,
@@ -50,10 +56,6 @@ class AArch64GenProEpilog : public GenProEpilog {
   bool BackwardFindDependency(BB &ifbb, std::set<regno_t> &vecReturnSourceReg,
                               std::list<Insn*> &existingInsns, std::list<Insn*> &moveInsns);
   BB *IsolateFastPath(BB&);
-  AArch64MemOperand *SplitStpLdpOffsetForCalleeSavedWithAddInstruction(const AArch64MemOperand &mo, uint32 bitLen,
-                                                                       AArch64reg baseReg = AArch64reg::kRinvalid);
-  void AppendInstructionPushPair(AArch64reg reg0, AArch64reg reg1, RegType rty, int offset);
-  void AppendInstructionPushSingle(AArch64reg reg, RegType rty, int offset);
   void AppendInstructionAllocateCallFrame(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void AppendInstructionAllocateCallFrameDebug(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void GeneratePushRegs();
@@ -63,8 +65,6 @@ class AArch64GenProEpilog : public GenProEpilog {
 
   void GenerateRet(BB &bb);
   bool TestPredsOfRetBB(const BB &exitBB);
-  void AppendInstructionPopSingle(AArch64reg reg, RegType rty, int offset);
-  void AppendInstructionPopPair(AArch64reg reg0, AArch64reg reg1, RegType rty, int offset);
   void AppendInstructionDeallocateCallFrame(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void AppendInstructionDeallocateCallFrameDebug(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void GeneratePopRegs();

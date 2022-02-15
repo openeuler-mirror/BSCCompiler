@@ -102,6 +102,9 @@ bool CGOptions::inRange = false;
 bool CGOptions::doPreLSRAOpt = false;
 bool CGOptions::doLocalRefSpill = false;
 bool CGOptions::doCalleeToSpill = false;
+bool CGOptions::doRegSavesOpt = false;
+bool CGOptions::useSsaPreSave = false;
+bool CGOptions::useSsuPreRestore = false;
 bool CGOptions::replaceASM = false;
 bool CGOptions::generalRegOnly = false;
 bool CGOptions::fastMath = false;
@@ -202,6 +205,9 @@ enum OptionIndex : uint64 {
   kFastMath,
   kTailCall,
   kAlignAnalysis,
+  kRegSaves,
+  kSsaPreSave,
+  kSsuPreRestore,
   kArm64ilp32,
   kCGSSA,
 };
@@ -394,6 +400,36 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyBool,
     "  --lsra-optcallee            \tSpill callee if only one def to use\n"
     "  --no-lsra-optcallee\n",
+    "mplcg",
+    {} },
+  { kRegSaves,
+    kEnable,
+    "",
+    "calleeregs-placement",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --calleeregs-placement      \tOptimize placement of callee-save registers\n"
+    "  --no-calleeregs-placement\n",
+    "mplcg",
+    {} },
+  { kSsaPreSave,
+    kEnable,
+    "",
+    "ssapre-save",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --ssapre-save                \tUse ssapre algorithm to save callee-save registers\n"
+    "  --no-ssapre-save\n",
+    "mplcg",
+    {} },
+  { kSsuPreRestore,
+    kEnable,
+    "",
+    "ssupre-restore",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --ssupre-restore             \tUse ssupre algorithm to restore callee-save registers\n"
+    "  --no-ssupre-restore\n",
     "mplcg",
     {} },
   { kPrepeep,
@@ -1210,7 +1246,7 @@ bool CGOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
         break;
       case kFastAlloc:
         EnableFastAlloc();
-        SetFastAllocMode(static_cast<uint8>(std::stoul(opt.Args(), nullptr)));
+        SetFastAllocMode(std::stoul(opt.Args(), nullptr));
         break;
       case kCGBarrier:
         (opt.Type() == kEnable) ? EnableBarriersForVolatile() : DisableBarriersForVolatile();
@@ -1434,6 +1470,15 @@ bool CGOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
         (opt.Type() == kEnable) ? SetOption(CGOptions::kTailCallOpt)
                                 : ClearOption(CGOptions::kTailCallOpt);
         break;
+      case kRegSaves:
+        (opt.Type() == kEnable) ? EnableRegSavesOpt() : DisableRegSavesOpt();
+        break;
+      case kSsaPreSave:
+        (opt.Type() == kEnable) ? EnableSsaPreSave() : DisableSsaPreSave();
+        break;
+      case kSsuPreRestore:
+        (opt.Type() == kEnable) ? EnableSsuPreRestore() : DisableSsuPreRestore();
+        break;
       case kLSRABB:
         SetLSRABBOptSize(std::stoul(opt.Args(), nullptr));
         break;
@@ -1444,7 +1489,7 @@ bool CGOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
         SetOverlapNum(std::stoul(opt.Args(), nullptr));
         break;
       case kRaRemat:
-        SetRematLevel(static_cast<uint8>(std::stoul(opt.Args(), nullptr)));
+        SetRematLevel(std::stoul(opt.Args(), nullptr));
         break;
       case kCGO0:
         // Already handled above in DecideMplcgRealLevel
@@ -1604,6 +1649,7 @@ void CGOptions::EnableO0() {
   doLocalRefSpill = false;
   doCalleeToSpill = false;
   doSchedule = false;
+  doRegSavesOpt = false;
   doWriteRefFieldOpt = false;
   doAlignAnalysis = false;
 #if ILP32
@@ -1652,6 +1698,9 @@ void CGOptions::EnableO2() {
   doPreLSRAOpt = true;
   doLocalRefSpill = true;
   doCalleeToSpill = true;
+  doRegSavesOpt = false;
+  useSsaPreSave = false;
+  useSsuPreRestore = true;
   doWriteRefFieldOpt = true;
   SetOption(kProEpilogueOpt);
   SetOption(kTailCallOpt);

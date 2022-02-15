@@ -48,6 +48,7 @@
 #include "proepilog.h"
 #include "ra_opt.h"
 #include "alignment.h"
+#include "regsaves.h"
 
 #if TARGAARCH64
 #include "aarch64/aarch64_cg.h"
@@ -188,31 +189,50 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("buildehfunc", true);
   ADDMAPLECGPHASE("handlefunction", true);
   ADDMAPLECGPHASE("moveargs", true);
+  if (CGOptions::DoCGSSA()) {
+    /* SSA PHASES */
+    ADDMAPLECGPHASE("cgssaconstruct", true);
+    ADDMAPLECGPHASE("cgcopyprop", true);
+    ADDMAPLECGPHASE("cgpeephole", true);
+    ADDMAPLECGPHASE("cgtargetprop", true);
+    ADDMAPLECGPHASE("cgdeadcodeelimination", true);
+    ADDMAPLECGPHASE("cgsplitcriticaledge", true);
+    ADDMAPLECGPHASE("cgphielimination", true);
+    ADDMAPLECGPHASE("cgregcoalesce", true);
+    ADDMAPLECGPHASE("cgprepeephole", true);
 
-  ADDMAPLECGPHASE("cgssaconstruct", CGOptions::DoCGSSA());
-  ADDMAPLECGPHASE("cgcopyprop", CGOptions::DoCGSSA());
-  ADDMAPLECGPHASE("cgpeephole", CGOptions::DoCGSSA());
-  ADDMAPLECGPHASE("cgtargetprop", CGOptions::DoCGSSA());
-  ADDMAPLECGPHASE("cgdeadcodeelimination", CGOptions::DoCGSSA());
-  ADDMAPLECGPHASE("cgsplitcriticaledge", CGOptions::DoCGSSA());
-  ADDMAPLECGPHASE("cgphielimination", CGOptions::DoCGSSA());
-  ADDMAPLECGPHASE("cgregcoalesce", CGOptions::DoCGSSA());
-
-  ADDMAPLECGPHASE("ebo", CGOptions::DoEBO());
-  ADDMAPLECGPHASE("prepeephole", CGOptions::DoPrePeephole())
-  ADDMAPLECGPHASE("ico", CGOptions::DoICO())
-  ADDMAPLECGPHASE("cfgo", !CLANG && CGOptions::DoCFGO());
+    /* need remove */
+    ADDMAPLECGPHASE("ebo", CGOptions::DoEBO());
+    ADDMAPLECGPHASE("prepeephole", CGOptions::DoPrePeephole())
+    ADDMAPLECGPHASE("ico", CGOptions::DoICO())
+    ADDMAPLECGPHASE("cfgo", !CLANG && CGOptions::DoCFGO());
 #if TARGAARCH64
-  ADDMAPLECGPHASE("storeloadopt", CGOptions::DoStoreLoadOpt() && !CGOptions::DoCGSSA())
-  ADDMAPLECGPHASE("globalopt", CGOptions::DoGlobalOpt())
-  ADDMAPLECGPHASE("clearrdinfo", (CGOptions::DoStoreLoadOpt()) || CGOptions::DoGlobalOpt())
+    ADDMAPLECGPHASE("storeloadopt", CGOptions::DoStoreLoadOpt() && !CGOptions::DoCGSSA())
+    ADDMAPLECGPHASE("globalopt", CGOptions::DoGlobalOpt())
+    ADDMAPLECGPHASE("clearrdinfo", (CGOptions::DoStoreLoadOpt()) || CGOptions::DoGlobalOpt())
 #endif
-  ADDMAPLECGPHASE("prepeephole1", CGOptions::DoPrePeephole())
-  ADDMAPLECGPHASE("ebo1", CGOptions::DoEBO());
+    ADDMAPLECGPHASE("prepeephole1", CGOptions::DoPrePeephole())
+    ADDMAPLECGPHASE("ebo1", CGOptions::DoEBO());
+  } else {
+    /* NORMAL PHASES */
+    ADDMAPLECGPHASE("ebo", CGOptions::DoEBO());
+    ADDMAPLECGPHASE("prepeephole", CGOptions::DoPrePeephole())
+    ADDMAPLECGPHASE("ico", CGOptions::DoICO())
+    ADDMAPLECGPHASE("cfgo", !CLANG && CGOptions::DoCFGO());
+#if TARGAARCH64
+    ADDMAPLECGPHASE("storeloadopt", CGOptions::DoStoreLoadOpt() && !CGOptions::DoCGSSA())
+    ADDMAPLECGPHASE("globalopt", CGOptions::DoGlobalOpt())
+    ADDMAPLECGPHASE("clearrdinfo", (CGOptions::DoStoreLoadOpt()) || CGOptions::DoGlobalOpt())
+#endif
+    ADDMAPLECGPHASE("prepeephole1", CGOptions::DoPrePeephole())
+    ADDMAPLECGPHASE("ebo1", CGOptions::DoEBO());
+  }
+
   ADDMAPLECGPHASE("prescheduling", !JAVALANG && CGOptions::DoPreSchedule());
   ADDMAPLECGPHASE("raopt", CGOptions::DoPreLSRAOpt());
   ADDMAPLECGPHASE("cgsplitcriticaledge", CLANG);
   ADDMAPLECGPHASE("regalloc", true);
+  ADDMAPLECGPHASE("regsaves", CLANG && CGOptions::DoRegSavesOpt())
   ADDMAPLECGPHASE("storeloadopt", CLANG && CGOptions::DoStoreLoadOpt())
   ADDMAPLECGPHASE("globalopt", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("clearrdinfo", CLANG && (CGOptions::DoStoreLoadOpt() || CGOptions::DoGlobalOpt()))
@@ -439,6 +459,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgYieldPointInsertion, yieldpoint)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgRaOpt, raopt)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgBuildEHFunc, buildehfunc)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPeepHole, cgpeephole)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPrePeepHole, cgprepeephole)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPrePeepHole0, prepeephole)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPrePeepHole1, prepeephole1)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPeepHole0, peephole0)
@@ -456,6 +477,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgAlignAnalysis, alignanalysis)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFixShortBranch, fixshortbranch)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgCriticalEdge, cgsplitcriticaledge)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgRegAlloc, regalloc)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgRegSavesOpt, regsaves)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgGenCfi, gencfi)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgPhiElimination, cgphielimination)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgRegCoalesce, cgregcoalesce)
