@@ -37,7 +37,7 @@ class MeOption : public MapleDriverOptionBase {
   void ParseOptions(int argc, char **argv, std::string &fileName);
 
   void SplitPhases(const std::string &str, std::unordered_set<std::string> &set) const;
-  void SplitSkipPhases(const std::string &str) {
+  void SplitSkipPhases(const std::string &str) const {
     SplitPhases(str, skipPhases);
   }
   bool GetRange(const std::string &str) const;
@@ -74,11 +74,16 @@ class MeOption : public MapleDriverOptionBase {
     return !(skipPhases.find(phaseName) == skipPhases.end());
   }
 
+  static bool IsBigEndian() {
+    return isBigEndian;
+  }
+
   static bool DumpPhase(const std::string &phase);
   static bool DumpFunc(const std::string &func);
   static std::unordered_set<std::string> dumpPhases;
   static std::unordered_set<std::string> skipPhases;
 
+  static bool isBigEndian;
   static bool dumpBefore;
   static bool dumpAfter;
   static constexpr int kRangeArrayLen = 2;
