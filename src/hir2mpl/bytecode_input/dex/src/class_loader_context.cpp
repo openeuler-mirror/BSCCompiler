@@ -89,6 +89,7 @@ ClassLoaderInfo *ClassLoaderContext::ParseClassLoaderSpec(const std::string &spe
     return nullptr;
   }
   const char* classLoaderTypeStr = GetCLTypeName(classLoaderType);
+  CHECK_FATAL(classLoaderTypeStr != nullptr, "classLoaderTypeStr return a nullptr!");
   size_t typeStrZize = strlen(classLoaderTypeStr);
   // Check the opening and closing markers.
   if (spec[typeStrZize] != kClassLoaderOpeningMark) {

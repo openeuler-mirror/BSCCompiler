@@ -1112,7 +1112,7 @@ uint32_t IDexHeader::GetChecksum() const {
 }
 
 std::string IDexHeader::GetSignature() const {
-  static const char *kHex = "0123456789abcdef";
+  static const char *const kHex = "0123456789abcdef";
   static constexpr size_t kHexNum = 16;
   static constexpr size_t kSignatureSize = 20;
   const uint8_t *signature = GetDexFile(this)->GetHeader().signature_;
@@ -1224,7 +1224,7 @@ const IDexMapList *IDexMapList::GetInstance(const void *data) {
 }
 
 uint32_t IDexMapList::GetSize() const {
-  return GetMapList(this)->Size();
+  return static_cast<uint32_t>(GetMapList(this)->Size());
 }
 
 uint16_t IDexMapList::GetType(uint32_t index) const {
@@ -1628,7 +1628,7 @@ uint32_t LibDexFile::FindClassDefIdx(const std::string &descriptor) const {
     if (classDefsSize == 0) {
       return art::dex::kDexNoIndex;
     }
-    for (size_t i = 0; i < classDefsSize; ++i) {
+    for (uint32_t i = 0; i < classDefsSize; ++i) {
       const art::dex::ClassDef &class_def = dexFile->GetClassDef(i);
       if (class_def.class_idx_ == typeIdx) {
         return i;

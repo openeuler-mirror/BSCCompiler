@@ -48,12 +48,12 @@ class JBCStmtKindHelper {
 class JBCStmt : public FEIRStmt {
  public:
   explicit JBCStmt(JBCStmtKind argKind)
-      : FEIRStmt(kStmt), kind(argKind),
+      : FEIRStmt(kStmt), JBCkind(argKind),
         pc(UINT32_MAX) {}
 
   JBCStmt(FEIRNodeKind argGenKind, JBCStmtKind argKind)
       : FEIRStmt(argGenKind),
-        kind(argKind),
+        JBCkind(argKind),
         pc(UINT32_MAX) {}
 
   virtual ~JBCStmt() = default;
@@ -62,12 +62,12 @@ class JBCStmt : public FEIRStmt {
     return feirStmts;
   }
 
-  JBCStmtKind GetKind() const {
-    return kind;
+  JBCStmtKind GetJBCKind() const {
+    return JBCkind;
   }
 
-  void SetKind(JBCStmtKind argKind) {
-    kind = argKind;
+  void SetJBCKind(JBCStmtKind argKind) {
+    JBCkind = argKind;
   }
 
   void SetPC(uint32 argPC) {
@@ -78,14 +78,14 @@ class JBCStmt : public FEIRStmt {
     return pc;
   }
 
-  bool IsBranch() const {
-    return kind == JBCStmtKind::kJBCStmtInstBranch || kind == JBCStmtKind::kJBCStmtInstBranchRet;
+  bool IsJBCBranch() const {
+    return JBCkind == JBCStmtKind::kJBCStmtInstBranch || JBCkind == JBCStmtKind::kJBCStmtInstBranchRet;
   }
 
  protected:
   virtual std::list<UniqueFEIRStmt> EmitToFEIRImpl(JBCFunctionContext &context, bool &success) const = 0;
 
-  JBCStmtKind kind;
+  JBCStmtKind JBCkind;
   uint32 pc;
 };
 
@@ -244,7 +244,7 @@ class JBCStmtPesudoCatch : public JBCStmtPesudoLabel {
  public:
   JBCStmtPesudoCatch()
       : JBCStmtPesudoLabel() {
-    kind = kJBCStmtPesudoCatch;
+    JBCkind = kJBCStmtPesudoCatch;
   }
   ~JBCStmtPesudoCatch() = default;
   void AddCatchTypeName(const GStrIdx &nameIdx) {
@@ -347,7 +347,7 @@ class JBCStmtPesudoLOC : public JBCStmt {
     srcFileIdx = idx;
   }
 
-  uint32 GetSrcFileIdx() const {
+  uint32 GetPesudoLOCSrcFileIdx() const {
     return srcFileIdx;
   }
 
