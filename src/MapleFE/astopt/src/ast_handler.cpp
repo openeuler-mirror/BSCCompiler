@@ -249,6 +249,65 @@ bool Module_Handler::IsDirectField(TreeNode *node) {
   return mDirectFieldSet.find(node->GetNodeId()) != mDirectFieldSet.end();
 }
 
+// array's element typeid
+TypeId Module_Handler::GetArrayElemTypeId(unsigned nid) {
+  TypeId tid = TY_None;
+  if (mArrayDeclId2EleTypeIdMap.find(nid) != mArrayDeclId2EleTypeIdMap.end()) {
+    tid = mArrayDeclId2EleTypeIdMap[nid];
+  }
+  return tid;
+}
+
+void Module_Handler::SetArrayElemTypeId(unsigned nid, TypeId tid) {
+  mArrayDeclId2EleTypeIdMap[nid] = tid;
+}
+
+// array's element typeidx
+unsigned Module_Handler::GetArrayElemTypeIdx(unsigned nid) {
+  unsigned tidx = 0;
+  if (mArrayDeclId2EleTypeIdxMap.find(nid) != mArrayDeclId2EleTypeIdxMap.end()) {
+    tidx = mArrayDeclId2EleTypeIdxMap[nid];
+  }
+  return tidx;
+}
+
+void Module_Handler::SetArrayElemTypeIdx(unsigned nid, unsigned tidx) {
+  mArrayDeclId2EleTypeIdxMap[nid] = tidx;
+}
+
+DimensionNode *Module_Handler::GetArrayDim(unsigned nid) {
+  DimensionNode *dim = NULL;
+  if (mArrayDeclId2DimMap.find(nid) != mArrayDeclId2DimMap.end()) {
+    dim = mArrayDeclId2DimMap[nid];
+  }
+  return dim;
+}
+
+void Module_Handler::SetArrayDim(unsigned nid, DimensionNode *dim) {
+  mArrayDeclId2DimMap[nid] = dim;
+}
+
+void Module_Handler::AddGeneratorUse(unsigned nid, FunctionNode *func) {
+  mGeneratorUseMap[nid] = func;
+}
+
+bool Module_Handler::IsGeneratorUse(unsigned nid) {
+  return (mGeneratorUseMap.find(nid) != mGeneratorUseMap.end());
+}
+
+FunctionNode *Module_Handler::GetGeneratorUse(unsigned nid) {
+  if (mGeneratorUseMap.find(nid) != mGeneratorUseMap.end()) {
+    return mGeneratorUseMap[nid];
+  }
+  return NULL;
+}
+
+void Module_Handler::UpdateGeneratorUse(unsigned target, unsigned src) {
+  if (mGeneratorUseMap.find(src) != mGeneratorUseMap.end()) {
+    mGeneratorUseMap[target] = mGeneratorUseMap[src];
+  }
+}
+
 bool Module_Handler::IsFromLambda(TreeNode *node) {
   if (!node) {
     return false;
@@ -274,8 +333,8 @@ void Module_Handler::Dump(char *msg) {
 void Module_Handler::DumpArrayElemTypeIdMap() {
   std::cout << "================= ArrayDeclId2EleTypeIdMap ==========" << std::endl;
   for (auto it : mArrayDeclId2EleTypeIdMap) {
-    std::cout << "nodeid : " << it.first  <<
-                 " " << AstDump::GetEnumTypeId(it.second) << std::endl;
+    std::cout << "nodeid : " << it.first  << " "
+              << AstDump::GetEnumTypeId(it.second) << std::endl;
   }
 }
 
