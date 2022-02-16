@@ -1058,7 +1058,7 @@ CallNode *TypeInferVisitor::VisitCallNode(CallNode *node) {
             FunctionNode *func = static_cast<FunctionNode *>(decl);
             // check if called a generator
             if (func->IsGenerator()) {
-              mHandler->AddGeneratorUse(node->GetNodeId(), func);
+              mHandler->AddGeneratorUsed(node->GetNodeId(), func);
             }
             // update call's return type
             if (func->GetType()) {
@@ -1263,10 +1263,10 @@ DeclNode *TypeInferVisitor::VisitDeclNode(DeclNode *node) {
     elemTypeId = GetArrayElemTypeId(init);
     elemTypeIdx = GetArrayElemTypeIdx(init);
     isArray = (elemTypeId != TY_None);
-    // pass IsGeneratorUse
-    mHandler->UpdateGeneratorUse(node->GetNodeId(), init->GetNodeId());
+    // pass IsGeneratorUsed
+    mHandler->UpdateGeneratorUsed(node->GetNodeId(), init->GetNodeId());
     if (var) {
-      mHandler->UpdateGeneratorUse(var->GetNodeId(), init->GetNodeId());
+      mHandler->UpdateGeneratorUsed(var->GetNodeId(), init->GetNodeId());
     }
   }
   if (var) {

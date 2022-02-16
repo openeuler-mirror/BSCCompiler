@@ -287,24 +287,24 @@ void Module_Handler::SetArrayDim(unsigned nid, DimensionNode *dim) {
   mArrayDeclId2DimMap[nid] = dim;
 }
 
-void Module_Handler::AddGeneratorUse(unsigned nid, FunctionNode *func) {
-  mGeneratorUseMap[nid] = func;
+void Module_Handler::AddGeneratorUsed(unsigned nid, FunctionNode *func) {
+  mGeneratorUsedMap[nid] = func;
 }
 
-bool Module_Handler::IsGeneratorUse(unsigned nid) {
-  return (mGeneratorUseMap.find(nid) != mGeneratorUseMap.end());
+bool Module_Handler::IsGeneratorUsed(unsigned nid) {
+  return (mGeneratorUsedMap.find(nid) != mGeneratorUsedMap.end());
 }
 
-FunctionNode *Module_Handler::GetGeneratorUse(unsigned nid) {
-  if (mGeneratorUseMap.find(nid) != mGeneratorUseMap.end()) {
-    return mGeneratorUseMap[nid];
+FunctionNode *Module_Handler::GetGeneratorUsed(unsigned nid) {
+  if (mGeneratorUsedMap.find(nid) != mGeneratorUsedMap.end()) {
+    return mGeneratorUsedMap[nid];
   }
   return NULL;
 }
 
-void Module_Handler::UpdateGeneratorUse(unsigned target, unsigned src) {
-  if (mGeneratorUseMap.find(src) != mGeneratorUseMap.end()) {
-    mGeneratorUseMap[target] = mGeneratorUseMap[src];
+void Module_Handler::UpdateGeneratorUsed(unsigned target, unsigned src) {
+  if (mGeneratorUsedMap.find(src) != mGeneratorUsedMap.end()) {
+    mGeneratorUsedMap[target] = mGeneratorUsedMap[src];
   }
 }
 
