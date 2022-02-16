@@ -3390,7 +3390,7 @@ void Emitter::FillInClassByteSize(DBGDie *die, DBGDieAttr *byteSizeAttr) {
         GlobalTables::GetTypeNameTable().GetTyIdxFromGStrIdx(GStrIdx(nameAttr->GetId()));
     CHECK_FATAL(tyIdx.GetIdx() < Globals::GetInstance()->GetBECommon()->GetSizeOfTypeSizeTable(),
                 "index out of range in Emitter::FillInClassByteSize");
-    int64_t byteSize = Globals::GetInstance()->GetBECommon()->GetTypeSize(tyIdx.GetIdx());
+    int64_t byteSize = static_cast<int64_t>(Globals::GetInstance()->GetBECommon()->GetTypeSize(tyIdx.GetIdx()));
     LUpdateAttrValue(byteSizeAttr, byteSize);
   }
 }
@@ -3444,7 +3444,7 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
                 static_cast<uint32>(prevSubstruct->GetTypeIndex().GetIdx()));
           }
           prevSubstruct = fieldty->EmbeddedStructType();
-          FieldID fieldID = static_cast<int>(i + embeddedIDs) + 1;
+          FieldID fieldID = static_cast<int32>(i + embeddedIDs) + 1;
           int offset = Globals::GetInstance()->GetBECommon()->GetFieldOffset(*sty, fieldID).first;
           GStrIdx fldName = sty->GetFieldsElemt(i).first;
           DBGDie *cdie = LFindChildDieWithName(die, DW_TAG_member, fldName);

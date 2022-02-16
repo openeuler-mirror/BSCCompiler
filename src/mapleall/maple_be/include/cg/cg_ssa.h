@@ -174,7 +174,7 @@ class CGSSAInfo {
   bool IsNoDefVReg(regno_t vRegNO) const {
     return noDefVRegs.find(vRegNO) != noDefVRegs.end();
   }
-  int32 GetVersionNOOfOriginalVreg(regno_t vRegNO) {
+  uint32 GetVersionNOOfOriginalVreg(regno_t vRegNO) {
     if (vRegDefCount.count(vRegNO)) {
       return vRegDefCount[vRegNO];
     }
