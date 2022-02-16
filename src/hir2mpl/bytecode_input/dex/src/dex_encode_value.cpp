@@ -17,7 +17,7 @@
 
 namespace maple {
 namespace bc {
-uint64 DexEncodeValue::GetUVal(const uint8 **data, uint8 len) {
+uint64 DexEncodeValue::GetUVal(const uint8 **data, uint8 len) const {
   // get value, max 8 bytes, little-endian
   uint64 val = 0;
   for (uint8 j = 0; j <= len; j++) {
@@ -46,7 +46,7 @@ MIRStr16Const *DexEncodeValue::ProcessStringValue(const uint8 **data, uint8 valu
   return strCst;
 }
 
-MIRType *DexEncodeValue::GetTypeFromValueType(uint8 valueType) {
+MIRType *DexEncodeValue::GetTypeFromValueType(uint8 valueType) const {
   switch (valueType) {
     case kValueBoolean:
       return GlobalTables::GetTypeTable().GetInt8();

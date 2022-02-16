@@ -85,7 +85,7 @@ class JBCAttrMap {
 
 class JBCAttrRaw : public JBCAttr {
  public:
-  JBCAttrRaw(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
+  JBCAttrRaw(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
   ~JBCAttrRaw();
 
  protected:
@@ -140,7 +140,7 @@ class JBCAttrLocalVariableInfo {
 // ref: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.7.2
 class JBCAttrConstantValue : public JBCAttr {
  public:
-  JBCAttrConstantValue(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
+  JBCAttrConstantValue(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
   ~JBCAttrConstantValue();
   const JBCConst *GetConstValue() const {
     return constValue;
@@ -278,7 +278,7 @@ class JBCAttrInnerClass : public JBCAttr {
 // ref: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.7.7
 class JBCAttrEnclosingMethod : public JBCAttr {
  public:
-  JBCAttrEnclosingMethod(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
+  JBCAttrEnclosingMethod(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
   ~JBCAttrEnclosingMethod();
   const JBCConstClass *GetConstClass() const {
     return constClass;
@@ -304,7 +304,7 @@ class JBCAttrEnclosingMethod : public JBCAttr {
 // ref: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.7.8
 class JBCAttrSynthetic : public JBCAttr {
  public:
-  JBCAttrSynthetic(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
+  JBCAttrSynthetic(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
   ~JBCAttrSynthetic() = default;
 
  protected:
@@ -317,7 +317,7 @@ class JBCAttrSynthetic : public JBCAttr {
 // ref: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.7.9
 class JBCAttrSignature : public JBCAttr {
  public:
-  JBCAttrSignature(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
+  JBCAttrSignature(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
   ~JBCAttrSignature();
   const JBCConstUTF8 *GetConstSignatureName() const {
     return constSignatureName;
@@ -337,7 +337,7 @@ class JBCAttrSignature : public JBCAttr {
 // ref: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.7.10
 class JBCAttrSourceFile : public JBCAttr {
  public:
-  JBCAttrSourceFile(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
+  JBCAttrSourceFile(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
   ~JBCAttrSourceFile();
   const JBCConstUTF8 *GetConstFileName() const {
     return constFileName;
@@ -357,7 +357,7 @@ class JBCAttrSourceFile : public JBCAttr {
 // ref: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.7.11
 class JBCAttrSourceDebugEx : public JBCAttr {
  public:
-  JBCAttrSourceDebugEx(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
+  JBCAttrSourceDebugEx(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
   ~JBCAttrSourceDebugEx();
 
  protected:
@@ -433,7 +433,7 @@ class JBCAttrLocalVariableTypeTable : public JBCAttr {
 // ref: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.7.15
 class JBCAttrDeprecated : public JBCAttr {
  public:
-  JBCAttrDeprecated(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
+  JBCAttrDeprecated(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
   ~JBCAttrDeprecated() = default;
 
  protected:
@@ -533,7 +533,7 @@ class JBCAttrRTInvisTypeAnnotations : public JBCAttrRTTypeAnnotations {
 // ref: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.7.22
 class JBCAttrAnnotationDefault : public JBCAttr {
  public:
-  JBCAttrAnnotationDefault(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
+  JBCAttrAnnotationDefault(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
   ~JBCAttrAnnotationDefault();
 
  protected:

@@ -47,8 +47,8 @@ class DexEncodeValue {
   void ProcessEncodedValue(const uint8 **data, uint8 valueType, uint8 valueArg, MIRConst *&cst, uint32 &stringID);
 
  private:
-  uint64 GetUVal(const uint8 **data, uint8 len);
-  MIRType *GetTypeFromValueType(uint8 valueType);
+  uint64 GetUVal(const uint8 **data, uint8 len) const;
+  MIRType *GetTypeFromValueType(uint8 valueType) const;
   void ProcessEncodedValue(const uint8 **data, MIRConst *&cst);
   MIRStr16Const *ProcessStringValue(const uint8 **data, uint8 valueArg, uint32 &stringID);
   MIRIntConst *ProcessIntValue(const uint8 **data, uint8 valueArg, MIRType &type);

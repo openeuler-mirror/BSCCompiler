@@ -417,7 +417,7 @@ void IDexTryItem::GetCatchHandlerItems(const IDexFile &dexFile, uint32_t codeOff
     art::dex::TypeIndex artTypeIndex = handlerIterator.GetHandlerTypeIndex();
     uint32_t address = handlerIterator.GetHandlerAddress();
     uint16_t typeIdx = artTypeIndex.index_;
-    items.push_back(IDexCatchHandlerItem(typeIdx, address));
+    items.emplace_back(IDexCatchHandlerItem(typeIdx, address));
     handlerIterator.Next();
   }
 }
@@ -1677,13 +1677,13 @@ const ResolvedMethodHandleItem *LibDexFile::GetMethodHandleItem(uint32_t idx) co
   return ResolvedMethodHandleItem::GetInstance(*this, idx);;
 }
 
-void LibDexFile::DebugNewLocalCb(void *context, const art::DexFile::LocalInfo &entry) {
+void LibDexFile::DebugNewLocalCb(void *context, const art::DexFile::LocalInfo &entry) const {
   debugNewLocalCb(context, entry.reg_,  entry.start_address_, entry.end_address_,
                   entry.name_ == nullptr ? "this" : entry.name_, entry.descriptor_ == nullptr ? "" : entry.descriptor_,
                   entry.signature_ == nullptr ? "" : entry.signature_);
 }
 
-bool LibDexFile::DebugNewPositionCb(void *context, const art::DexFile::PositionInfo &entry) {
+bool LibDexFile::DebugNewPositionCb(void *context, const art::DexFile::PositionInfo &entry) const {
   debugNewPositionCb(context, entry.address_, entry.line_);
   return false;
 }

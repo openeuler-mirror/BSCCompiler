@@ -1602,9 +1602,7 @@ Opcode DexOpBinaryOp::GetOpcodeFromDexIns(void) const {
 
 std::list<UniqueFEIRStmt> DexOpBinaryOp::EmitToFEIRStmtsImpl() {
   std::list<UniqueFEIRStmt> stmts;
-  std::list<UniqueFEIRExpr> exprs;
   if (kDexOpAddInt <= opcode && opcode <= kDexOpRemDouble) {
-    UniqueFEIRExpr exprA = std::make_unique<FEIRExprDRead>(vA.GenFEIRVarReg());
     UniqueFEIRExpr exprB = std::make_unique<FEIRExprDRead>(vB.GenFEIRVarReg());
     UniqueFEIRExpr exprC = std::make_unique<FEIRExprDRead>(vC.GenFEIRVarReg());
     std::unique_ptr<FEIRExprBinary> binaryOp2AddrExpr =
@@ -1667,7 +1665,6 @@ Opcode DexOpBinaryOp2Addr::GetOpcodeFromDexIns(void) const {
 
 std::list<UniqueFEIRStmt> DexOpBinaryOp2Addr::EmitToFEIRStmtsImpl() {
   std::list<UniqueFEIRStmt> stmts;
-  std::list<UniqueFEIRExpr> exprs;
   if (kDexOpAddInt2Addr <= opcode && opcode <= kDexOpRemDouble2Addr) {
     UniqueFEIRExpr exprDst = std::make_unique<FEIRExprDRead>(vA.GenFEIRVarReg());
     UniqueFEIRExpr exprSrc = std::make_unique<FEIRExprDRead>(vB.GenFEIRVarReg());

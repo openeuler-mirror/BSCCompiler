@@ -1625,7 +1625,7 @@ MIRConst *ASTMemberExpr::GenerateMIRConstImpl() const {
       base->GetType();
   CHECK_FATAL(baseStructType->IsMIRStructType() || baseStructType->GetKind() == kTypeUnion, "Invalid");
   return FEManager::GetModule().GetMemPool()->New<MIRAddrofConst>(konst->GetSymbolIndex(), konst->GetFieldID(),
-      konst->GetType(), static_cast<uint64>(konst->GetOffset()) + fieldOffset);
+      konst->GetType(), konst->GetOffset() + static_cast<int32>(fieldOffset));
 }
 
 const ASTMemberExpr *ASTMemberExpr::FindFinalMember(const ASTMemberExpr *startExpr,
@@ -2364,7 +2364,7 @@ void ASTVAArgExpr::ProcessBigEndianForStack(std::list<UniqueFEIRStmt> &stmts, MI
   }
   int offset = 0;
   if (!vaArgType.IsStructType() && vaArgType.GetSize() < 8) {
-    offset = 8 - vaArgType.GetSize();
+    offset = 8 - static_cast<int>(vaArgType.GetSize());
   }
   if (offset == 0) {
     return;
@@ -2464,13 +2464,13 @@ void ASTVAArgExpr::CvtHFA2Struct(const MIRStructType &type, MIRType &fieldType, 
     UniqueFEIRExpr dreadVaArg = FEIRBuilder::CreateExprDRead(vaArgVar->Clone());
     if (i != 0) {
       dreadVaArg = FEIRBuilder::CreateExprBinary(
-          OP_add, std::move(dreadVaArg), FEIRBuilder::CreateExprConstPtr(16 * i));
+          OP_add, std::move(dreadVaArg), FEIRBuilder::CreateExprConstPtr(static_cast<int64>(16 * i)));
     }
     UniqueFEIRExpr ireadVaArg = FEIRBuilder::CreateExprIRead(baseType->Clone(), ptrType->Clone(), dreadVaArg->Clone());
     UniqueFEIRExpr addrofVar = FEIRBuilder::CreateExprAddrofVar(copyedVar->Clone());
     if(i != 0) {
       addrofVar = FEIRBuilder::CreateExprBinary(
-          OP_add, std::move(addrofVar), FEIRBuilder::CreateExprConstPtr(fieldType.GetSize() * i));
+          OP_add, std::move(addrofVar), FEIRBuilder::CreateExprConstPtr(static_cast<int64>(fieldType.GetSize() * i)));
     }
     MIRType *fieldPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(fieldType);
     UniqueFEIRType fieldFEIRType = std::make_unique<FEIRTypeNative>(*fieldPtrType);
