@@ -133,6 +133,8 @@ class Module_Handler {
   std::unordered_map<unsigned, unsigned> mArrayDeclId2EleTypeIdxMap;
   // array literal's dim: decl node id to dim
   std::unordered_map<unsigned, DimensionNode *> mArrayDeclId2DimMap;
+  // nodeid to used generator
+  std::unordered_map<unsigned, FunctionNode *> mGeneratorUseMap;
   // fields' nodeid set
   std::unordered_set<unsigned> mDirectFieldSet;
   // alias type, identifier node id
@@ -239,42 +241,18 @@ class Module_Handler {
   Module_Handler *GetModuleHandler(TreeNode *node) {return mASTHandler->GetModuleHandler(node);}
 
   // array's element typeid
-  TypeId GetArrayElemTypeId(unsigned nid) {
-    TypeId tid = TY_None;
-    if (mArrayDeclId2EleTypeIdMap.find(nid) != mArrayDeclId2EleTypeIdMap.end()) {
-      tid = mArrayDeclId2EleTypeIdMap[nid];
-    }
-    return tid;
-  }
+  TypeId GetArrayElemTypeId(unsigned nid);
+  void SetArrayElemTypeId(unsigned nid, TypeId tid);
+  unsigned GetArrayElemTypeIdx(unsigned nid);
+  void SetArrayElemTypeIdx(unsigned nid, unsigned tidx);
+  DimensionNode *GetArrayDim(unsigned nid);
+  void SetArrayDim(unsigned nid, DimensionNode *dim);
 
-  void SetArrayElemTypeId(unsigned nid, TypeId tid) {
-    mArrayDeclId2EleTypeIdMap[nid] = tid;
-  }
-
-  // array's element typeidx
-  unsigned GetArrayElemTypeIdx(unsigned nid) {
-    unsigned tidx = 0;
-    if (mArrayDeclId2EleTypeIdxMap.find(nid) != mArrayDeclId2EleTypeIdxMap.end()) {
-      tidx = mArrayDeclId2EleTypeIdxMap[nid];
-    }
-    return tidx;
-  }
-
-  void SetArrayElemTypeIdx(unsigned nid, unsigned tidx) {
-    mArrayDeclId2EleTypeIdxMap[nid] = tidx;
-  }
-
-  DimensionNode *GetArrayDim(unsigned nid) {
-    DimensionNode *dim = NULL;
-    if (mArrayDeclId2DimMap.find(nid) != mArrayDeclId2DimMap.end()) {
-      dim = mArrayDeclId2DimMap[nid];
-    }
-    return dim;
-  }
-
-  void SetArrayDim(unsigned nid, DimensionNode *dim) {
-    mArrayDeclId2DimMap[nid] = dim;
-  }
+  // used generator
+  void AddGeneratorUse(unsigned nid, FunctionNode *func);
+  bool IsGeneratorUse(unsigned nid);
+  FunctionNode *GetGeneratorUse(unsigned nid);
+  void UpdateGeneratorUse(unsigned target, unsigned src);
 
   // API to check a node is c++ field which satisfy both:
   // 1. direct field
