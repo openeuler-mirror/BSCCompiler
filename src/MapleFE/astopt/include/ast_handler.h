@@ -134,7 +134,7 @@ class Module_Handler {
   // array literal's dim: decl node id to dim
   std::unordered_map<unsigned, DimensionNode *> mArrayDeclId2DimMap;
   // nodeid to used generator
-  std::unordered_map<unsigned, FunctionNode *> mGeneratorUseMap;
+  std::unordered_map<unsigned, FunctionNode *> mGeneratorUsedMap;
   // fields' nodeid set
   std::unordered_set<unsigned> mDirectFieldSet;
   // alias type, identifier node id
@@ -249,10 +249,10 @@ class Module_Handler {
   void SetArrayDim(unsigned nid, DimensionNode *dim);
 
   // used generator
-  void AddGeneratorUse(unsigned nid, FunctionNode *func);
-  bool IsGeneratorUse(unsigned nid);
-  FunctionNode *GetGeneratorUse(unsigned nid);
-  void UpdateGeneratorUse(unsigned target, unsigned src);
+  void AddGeneratorUsed(unsigned nid, FunctionNode *func);
+  bool IsGeneratorUsed(unsigned nid);
+  FunctionNode *GetGeneratorUsed(unsigned nid);
+  void UpdateGeneratorUsed(unsigned target, unsigned src);
 
   // API to check a node is c++ field which satisfy both:
   // 1. direct field
