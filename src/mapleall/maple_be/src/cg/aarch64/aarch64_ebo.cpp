@@ -809,13 +809,13 @@ bool AArch64Ebo::ValidPatternForCombineExtAndLoad(OpndInfo *prevOpndInfo, Insn *
       !a64CGFunc->IsOperandImmValid(newMop, prevInsn->GetMemOpnd(), kInsnSecondOpnd)) {
     return false;
   }
-  int32 shiftAmount = memOpnd->ShiftAmount();
+  uint32 shiftAmount = memOpnd->ShiftAmount();
   if (shiftAmount == 0) {
     return true;
   }
   const AArch64MD *md = &AArch64CG::kMd[newMop];
   uint32 memSize = md->GetOperandSize() / k8BitSize;
-  int32 validShiftAmount = memSize == 8 ? 3 : memSize == 4 ? 2 : memSize == 2 ? 1 : 0;
+  uint32 validShiftAmount = memSize == 8 ? 3 : memSize == 4 ? 2 : memSize == 2 ? 1 : 0;
   if (shiftAmount != validShiftAmount) {
     return false;
   }

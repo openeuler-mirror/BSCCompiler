@@ -1963,7 +1963,7 @@ void CGFunc::PatchLongBranch() {
       insn = insn->GetPrev();
     }
     LabelIdx labidx = static_cast<LabelOperand&>(insn->GetOperand(insn->GetJumpTargetIdx())).GetLabelIndex();
-    BB *tbb = GetBBFromLab2BBMap(static_cast<int32>(labidx));
+    BB *tbb = GetBBFromLab2BBMap(labidx);
     if ((tbb->GetInternalFlag1() - bb->GetInternalFlag1()) < MaxCondBranchDistance()) {
       continue;
     }

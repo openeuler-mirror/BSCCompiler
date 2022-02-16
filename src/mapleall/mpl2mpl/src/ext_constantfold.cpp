@@ -252,9 +252,9 @@ BaseNode *ExtConstantFold::ExtFoldXand(BinaryNode *node) {
     uint64 rcVal = static_cast<uint64>(static_cast<MIRIntConst*>(rcConstVal)->GetValue());
 
     bool isWorkable = true;
-    for (uint32 i = 0; i < 64; i++) {
-      if ((lmVal & static_cast<uint64>(1U << i)) == (rmVal & static_cast<uint64>(1U << i)) &&
-          (lcVal & static_cast<uint64>(1U << i)) != (rcVal & static_cast<uint64>(1U << i))) {
+    for (uint64 i = 0; i < 64; i++) {
+      if ((lmVal & (1UL << i)) == (rmVal & (1UL << i)) &&
+          (lcVal & (1UL << i)) != (rcVal & (1UL << i))) {
         isWorkable = false;
         break;
       }
@@ -326,11 +326,10 @@ StmtNode *ExtConstantFold::ExtSimplifyIassign(IassignNode *node) {
 
 StmtNode *ExtConstantFold::ExtSimplifyWhile(WhileStmtNode *node) {
   CHECK_NULL_FATAL(node);
-  BaseNode *returnValue;
   if (node->Opnd(0) == nullptr) {
     return node;
   }
-  returnValue = ExtFold(node->Opnd(0));
+  BaseNode *returnValue = ExtFold(node->Opnd(0));
   if (returnValue != node->Opnd(0)) {
     node->SetOpnd(returnValue, 0);
   }

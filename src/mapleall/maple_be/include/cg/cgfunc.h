@@ -745,7 +745,7 @@ class CGFunc {
     lab2BBMap[index] = &bb;
   }
 
-  BB *GetBBFromLab2BBMap(int32 index) {
+  BB *GetBBFromLab2BBMap(uint32 index) {
     return lab2BBMap[index];
   }
 
@@ -1130,7 +1130,7 @@ class CGFunc {
   CGFunc &operator=(const CGFunc &cgFunc);
   CGFunc(const CGFunc&);
   StmtNode *HandleFirstStmt();
-  bool CheckSkipMembarOp(StmtNode &stmt);
+  bool CheckSkipMembarOp(const StmtNode &stmt);
   MIRFunction &func;
   EHFunc *ehFunc = nullptr;
   uint32 bbCnt = 0;
