@@ -162,25 +162,25 @@ std::string BCUtil::TrimArrayModifier(const std::string &typeName) {
 }
 
 void BCUtil::AddDefaultDepSet(std::unordered_set<std::string> &typeTable) {
-  typeTable.insert("Ljava/lang/Class;");
-  typeTable.insert("Ljava/lang/Runnable;");
-  typeTable.insert("Ljava/lang/ClassLoader;");
-  typeTable.insert("Ljava/lang/StringFactory;");
+  typeTable.emplace("Ljava/lang/Class;");
+  typeTable.emplace("Ljava/lang/Runnable;");
+  typeTable.emplace("Ljava/lang/ClassLoader;");
+  typeTable.emplace("Ljava/lang/StringFactory;");
   // pre-load dependent types for maple_ipa preinline phase
-  typeTable.insert("Ljava/lang/System;");
-  typeTable.insert("Ljava/lang/String;");
-  typeTable.insert("Ljava/lang/Math;");
-  typeTable.insert("Ljava/lang/Long;");
-  typeTable.insert("Ljava/lang/Throwable;");
-  typeTable.insert("Ljava/io/PrintStream;");
-  typeTable.insert("Ljava/io/InputStream;");
-  typeTable.insert("Lsun/misc/FloatingDecimal;");
-  typeTable.insert("Ljava/lang/reflect/Field;");
-  typeTable.insert("Ljava/lang/annotation/Annotation;");
-  typeTable.insert("Ljava/lang/AbstractStringBuilder;");
-  typeTable.insert("Ljava/io/UnixFileSystem;");
-  typeTable.insert("Ljava/util/concurrent/atomic/AtomicInteger;");
-  typeTable.insert("Ljava/lang/reflect/Method;");
+  typeTable.emplace("Ljava/lang/System;");
+  typeTable.emplace("Ljava/lang/String;");
+  typeTable.emplace("Ljava/lang/Math;");
+  typeTable.emplace("Ljava/lang/Long;");
+  typeTable.emplace("Ljava/lang/Throwable;");
+  typeTable.emplace("Ljava/io/PrintStream;");
+  typeTable.emplace("Ljava/io/InputStream;");
+  typeTable.emplace("Lsun/misc/FloatingDecimal;");
+  typeTable.emplace("Ljava/lang/reflect/Field;");
+  typeTable.emplace("Ljava/lang/annotation/Annotation;");
+  typeTable.emplace("Ljava/lang/AbstractStringBuilder;");
+  typeTable.emplace("Ljava/io/UnixFileSystem;");
+  typeTable.emplace("Ljava/util/concurrent/atomic/AtomicInteger;");
+  typeTable.emplace("Ljava/lang/reflect/Method;");
 }
 
 // get the serial number in register name, for example 2 in Reg2_I

@@ -618,7 +618,7 @@ std::list<UniqueFEIRStmt> JBCStmtInst::EmitToFEIRForOpConvert(JBCFunctionContext
   return ans;
 }
 
-std::list<UniqueFEIRStmt> JBCStmtInst::EmitToFEIRForOpCompare(JBCFunctionContext &context, bool &success) const {
+std::list<UniqueFEIRStmt> JBCStmtInst::EmitToFEIRForOpCompare(const JBCFunctionContext &context, bool &success) const {
   (void) context;
   std::list<UniqueFEIRStmt> ans;
   success = true;

@@ -136,7 +136,7 @@ class JBCStmtInst : public JBCStmt {
   std::list<UniqueFEIRStmt> EmitToFEIRForOpMathUnop(JBCFunctionContext &context, bool &success) const;
   std::list<UniqueFEIRStmt> EmitToFEIRForOpMathInc(JBCFunctionContext &context, bool &success) const;
   std::list<UniqueFEIRStmt> EmitToFEIRForOpConvert(JBCFunctionContext &context, bool &success) const;
-  std::list<UniqueFEIRStmt> EmitToFEIRForOpCompare(JBCFunctionContext &context, bool &success) const;
+  std::list<UniqueFEIRStmt> EmitToFEIRForOpCompare(const JBCFunctionContext &context, bool &success) const;
   std::list<UniqueFEIRStmt> EmitToFEIRForOpReturn(JBCFunctionContext &context, bool &success) const;
   std::list<UniqueFEIRStmt> EmitToFEIRForOpStaticFieldOpr(JBCFunctionContext &context, bool &success) const;
   std::list<UniqueFEIRStmt> EmitToFEIRForOpFieldOpr(JBCFunctionContext &context, bool &success) const;

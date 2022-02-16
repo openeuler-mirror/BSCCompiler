@@ -322,7 +322,7 @@ bool DexReader::ReadAllDepTypeNames(std::unordered_set<std::string> &depSet) {
 bool DexReader::ReadAllClassNames(std::unordered_set<std::string> &classSet) const {
   for (uint32 classIdx = 0; classIdx < iDexFile->GetClassItemsSize(); ++classIdx) {
     const IDexClassItem *classItem = iDexFile->GetClassItem(classIdx);
-    classSet.insert(classItem->GetClassName(GetIDexFile()));
+    classSet.emplace(classItem->GetClassName(GetIDexFile()));
   }
   return true;
 }

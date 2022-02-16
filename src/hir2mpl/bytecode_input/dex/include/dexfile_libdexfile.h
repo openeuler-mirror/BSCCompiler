@@ -115,8 +115,8 @@ class LibDexFile : public IDexFile {
   const ResolvedMethodHandleItem *GetMethodHandleItem(uint32_t idx) const override;
 
  private:
-  void DebugNewLocalCb(void *context, const art::DexFile::LocalInfo &entry);
-  bool DebugNewPositionCb(void *context, const art::DexFile::PositionInfo &entry);
+  void DebugNewLocalCb(void *context, const art::DexFile::LocalInfo &entry) const;
+  bool DebugNewPositionCb(void *context, const art::DexFile::PositionInfo &entry) const;
   bool CheckFileSize(size_t fileSize);
   uint32_t fileIdx = 0;
   // use for save opened content when load on-demand type from opened dexfile

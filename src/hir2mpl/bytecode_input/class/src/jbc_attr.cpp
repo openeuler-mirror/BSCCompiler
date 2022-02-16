@@ -126,7 +126,7 @@ bool JBCAttrMap::PreProcess(const JBCConstPool &constPool) {
 }
 
 // ---------- JBCAttrRaw ----------
-JBCAttrRaw::JBCAttrRaw(MapleAllocator &allocator, uint16 nameIdx, uint32 length)
+JBCAttrRaw::JBCAttrRaw(const MapleAllocator &allocator, uint16 nameIdx, uint32 length)
     : JBCAttr(kAttrRaw, nameIdx, length),
       rawData(nullptr) {
   (void) allocator;
@@ -304,7 +304,7 @@ void JBCAttrLocalVariableInfo::CheckItemAvaiable(uint16 slotIdx, uint16 start) c
 }
 
 // ---------- JBCAttrConstantValue ----------
-JBCAttrConstantValue::JBCAttrConstantValue(MapleAllocator &allocator, uint16 nameIdx, uint32 length)
+JBCAttrConstantValue::JBCAttrConstantValue(const MapleAllocator &allocator, uint16 nameIdx, uint32 length)
     : JBCAttr(kAttrConstantValue, nameIdx, length),
       constIdx(0),
       constValue(nullptr) {
@@ -624,7 +624,7 @@ SimpleXMLElem *JBCAttrInnerClass::GenXmlElemImpl(MapleAllocator &allocator, cons
 }
 
 // ---------- JBCAttrEnclosingMethod ----------
-JBCAttrEnclosingMethod::JBCAttrEnclosingMethod(MapleAllocator &allocator, uint16 nameIdx, uint32 length)
+JBCAttrEnclosingMethod::JBCAttrEnclosingMethod(const MapleAllocator &allocator, uint16 nameIdx, uint32 length)
     : JBCAttr(kAttrEnclosingMethod, nameIdx, length),
       classIdx(0),
       methodIdx(0),
@@ -661,7 +661,7 @@ SimpleXMLElem *JBCAttrEnclosingMethod::GenXmlElemImpl(MapleAllocator &allocator,
 }
 
 // ---------- JBCAttrSynthetic ----------
-JBCAttrSynthetic::JBCAttrSynthetic(MapleAllocator &allocator, uint16 nameIdx, uint32 length)
+JBCAttrSynthetic::JBCAttrSynthetic(const MapleAllocator &allocator, uint16 nameIdx, uint32 length)
     : JBCAttr(kAttrSynthetic, nameIdx, length) {
   (void) allocator;
 }
@@ -687,7 +687,7 @@ SimpleXMLElem *JBCAttrSynthetic::GenXmlElemImpl(MapleAllocator &allocator, const
 }
 
 // ---------- JBCAttrSignature ----------
-JBCAttrSignature::JBCAttrSignature(MapleAllocator &allocator, uint16 nameIdx, uint32 length)
+JBCAttrSignature::JBCAttrSignature(const MapleAllocator &allocator, uint16 nameIdx, uint32 length)
     : JBCAttr(kAttrSignature, nameIdx, length),
       signatureIdx(0),
       constSignatureName(nullptr) {
@@ -720,7 +720,7 @@ SimpleXMLElem *JBCAttrSignature::GenXmlElemImpl(MapleAllocator &allocator, const
 }
 
 // ---------- JBCAttrSourceFile ----------
-JBCAttrSourceFile::JBCAttrSourceFile(MapleAllocator &allocator, uint16 nameIdx, uint32 length)
+JBCAttrSourceFile::JBCAttrSourceFile(const MapleAllocator &allocator, uint16 nameIdx, uint32 length)
     : JBCAttr(kAttrSourceFile, nameIdx, length),
       sourceFileIdx(0),
       constFileName(nullptr) {
@@ -757,7 +757,7 @@ SimpleXMLElem *JBCAttrSourceFile::GenXmlElemImpl(MapleAllocator &allocator, cons
 }
 
 // ---------- JBCAttrSourceDebugEx ----------
-JBCAttrSourceDebugEx::JBCAttrSourceDebugEx(MapleAllocator &allocator, uint16 nameIdx, uint32 length)
+JBCAttrSourceDebugEx::JBCAttrSourceDebugEx(const MapleAllocator &allocator, uint16 nameIdx, uint32 length)
     : JBCAttr(kAttrSourceDebugEx, nameIdx, length),
       data(nullptr) {
   (void) allocator;
@@ -898,7 +898,7 @@ SimpleXMLElem *JBCAttrLocalVariableTypeTable::GenXmlElemImpl(MapleAllocator &all
 }
 
 // ---------- JBCAttrDeprecated ----------
-JBCAttrDeprecated::JBCAttrDeprecated(MapleAllocator &allocator, uint16 nameIdx, uint32 length)
+JBCAttrDeprecated::JBCAttrDeprecated(const MapleAllocator &allocator, uint16 nameIdx, uint32 length)
     : JBCAttr(kAttrDeprecated, nameIdx, length) {
   (void) allocator;
 }
@@ -1046,7 +1046,7 @@ JBCAttrRTInvisTypeAnnotations::JBCAttrRTInvisTypeAnnotations(MapleAllocator &all
     : JBCAttrRTTypeAnnotations(allocator, kAttrRTInvisTypeAnnotations, nameIdx, length) {}
 
 // ---------- JBCAttrAnnotationDefault ----------
-JBCAttrAnnotationDefault::JBCAttrAnnotationDefault(MapleAllocator &allocator, uint16 nameIdx, uint32 length)
+JBCAttrAnnotationDefault::JBCAttrAnnotationDefault(const MapleAllocator &allocator, uint16 nameIdx, uint32 length)
     : JBCAttr(kAttrAnnotationDefault, nameIdx, length), value(nullptr) {
   (void) allocator;
 }
