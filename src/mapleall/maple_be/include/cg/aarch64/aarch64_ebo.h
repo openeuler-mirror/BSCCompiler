@@ -20,7 +20,6 @@
 #include "aarch64_cgfunc.h"
 
 namespace maplebe {
-using namespace maple;
 
 class AArch64Ebo : public Ebo {
  public:
@@ -30,18 +29,9 @@ class AArch64Ebo : public Ebo {
     a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   }
 
-  ~AArch64Ebo() override = default;
+  enum ExtOpTable : uint8;
 
-  enum ExtOpTable {
-    AND = 0,
-    SXTB,
-    SXTH,
-    SXTW,
-    ZXTB,
-    ZXTH,
-    ZXTW,
-    ExtTableSize
-  };
+  ~AArch64Ebo() override = default;
 
  protected:
   MapleVector<RegOperand*> callerSaveRegTable;
@@ -73,12 +63,15 @@ class AArch64Ebo : public Ebo {
   bool IsSameRedefine(BB &bb, Insn &insn, OpndInfo &opndInfo) const override;
   bool ResIsNotDefAndUse(Insn &insn) const override;
   bool LiveOutOfBB(const Operand &opnd, const BB &bb) const override;
+  bool OperandLiveAfterInsn(const RegOperand &regOpnd, Insn &insn);
+  bool ValidPatternForCombineExtAndLoad(OpndInfo *prevOpndInfo, Insn *insn, MOperator newMop, MOperator oldMop,
+                                        const RegOperand& opnd);
 
  private:
   /* The number of elements in callerSaveRegTable must less then 45. */
   static constexpr int32 kMaxCallerSaveReg = 45;
   bool IsZeroRegister(const Operand &opnd) const;
-  MOperator ExtLoadSwitchBitSize(MOperator lowMop);
+  MOperator ExtLoadSwitchBitSize(MOperator lowMop) const;
   bool CheckCondCode(const CondOperand &cond) const;
   bool CombineMultiplyAdd(Insn *insn, const Insn *prevInsn, InsnInfo *insnInfo, Operand *addOpnd,
                           bool is64bits, bool isFp);
@@ -88,7 +81,7 @@ class AArch64Ebo : public Ebo {
   bool SimplifyBothConst(BB &bb, Insn &insn, const AArch64ImmOperand &immOperand0, const AArch64ImmOperand &immOperand1,
                          uint32 opndSize);
   AArch64CC_t GetReverseCond(const CondOperand &cond) const;
-  bool CombineLsrAnd(Insn &insn, OpndInfo &opndInfo, bool is64bits, bool isFp);
+  bool CombineLsrAnd(Insn &insn, const OpndInfo &opndInfo, bool is64bits, bool isFp);
 };
 }  /* namespace maplebe */
 

@@ -17,6 +17,7 @@
 #include "mpl_logging.h"
 #include "common_utils.h"
 #include "cg_option.h"
+#include "aarch64_utils.h"
 
 namespace maplebe {
 #define JAVALANG (cgFunc.GetMirModule().IsJavaModule())
@@ -1663,6 +1664,14 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterLoad(Insn &insn) {
     if (prevDstOpnd.GetSize() != currDstOpnd.GetSize()) {
       return;
     }
+
+    auto *newMemOp =
+        GetOrCreateMemOperandForNewMOP(*cgFunc, *prevInsn, prevNewMop);
+
+    if (newMemOp == nullptr) {
+      return;
+    }
+
     auto *aarCGSSAInfo = static_cast<AArch64CGSSAInfo*>(ssaInfo);
     if (CG_PEEP_DUMP) {
       LogInfo::MapleLogger() << ">>>>>>> In " << GetPatternName() << " : <<<<<<<\n";
@@ -1672,12 +1681,16 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterLoad(Insn &insn) {
         aarCGSSAInfo->DumpInsnInSSAForm(*prevInsn);
       }
     }
+
+    prevInsn->SetMemOpnd(newMemOp);
     prevInsn->SetMOP(prevNewMop);
+
     if ((prevOrigMop != prevNewMop) && CG_PEEP_DUMP) {
       LogInfo::MapleLogger() << "======= NewPrevInsn : \n";
       prevInsn->Dump();
       aarCGSSAInfo->DumpInsnInSSAForm(*prevInsn);
     }
+
     MOperator movMop = is64Bits ? MOP_xmovrr : MOP_wmovrr;
     Insn &newMovInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(movMop, insn.GetOperand(kInsnFirstOpnd),
                                                                       prevInsn->GetOperand(kInsnFirstOpnd));
