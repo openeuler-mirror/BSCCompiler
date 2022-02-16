@@ -155,6 +155,11 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   if (mirSymbol == nullptr) {
     return false;
   }
+  // Set the type here in case a previous declaration had an incomplete
+  // array type and the definition has the complete type.
+  if (mirSymbol->GetType()->GetTypeIndex() != type->GetTypeIndex()) {
+    mirSymbol->SetTyIdx(type->GetTypeIndex());
+  }
   mirSymbol->GetSrcPosition().SetFileNum(static_cast<uint16>(astVar.GetSrcFileIdx()));
   mirSymbol->GetSrcPosition().SetLineNum(astVar.GetSrcFileLineNum());
   auto typeAttrs = astVar.GetGenericAttrs().ConvertToTypeAttrs();
