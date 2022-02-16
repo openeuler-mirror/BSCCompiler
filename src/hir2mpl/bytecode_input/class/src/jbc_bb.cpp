@@ -45,7 +45,7 @@ bool JBCBB::UpdateStack() {
   minStackOut.CopyFrom(minStackIn);
   const JBCStmt *stmt = static_cast<const JBCStmt*>(stmtHead);
   while (stmt != nullptr) {
-    JBCStmtKind kind = stmt->GetKind();
+    JBCStmtKind kind = stmt->GetJBCKind();
     if (kind == JBCStmtKind::kJBCStmtInst) {
       const JBCStmtInst *stmtInst = static_cast<const JBCStmtInst*>(stmt);
       const jbc::JBCOp &op = stmtInst->GetOp();

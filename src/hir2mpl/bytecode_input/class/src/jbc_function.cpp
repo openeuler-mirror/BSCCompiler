@@ -712,8 +712,8 @@ bool JBCFunction::LabelLabelIdx(const std::string &phaseName) {
   FELinkListNode *nodeStmt = genStmtHead->GetNext();
   while (nodeStmt != nullptr && nodeStmt != genStmtTail) {
     JBCStmt *stmt = static_cast<JBCStmt*>(nodeStmt);
-    if (stmt->GetKind() == JBCStmtKind::kJBCStmtPesudoLabel ||
-        stmt->GetKind() == JBCStmtKind::kJBCStmtPesudoCatch) {
+    if (stmt->GetJBCKind() == JBCStmtKind::kJBCStmtPesudoLabel ||
+        stmt->GetJBCKind() == JBCStmtKind::kJBCStmtPesudoCatch) {
       JBCStmtPesudoLabel *stmtLabel = static_cast<JBCStmtPesudoLabel*>(stmt);
       stmtLabel->SetLabelIdx(idx);
       idx++;

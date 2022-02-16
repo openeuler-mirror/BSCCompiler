@@ -72,7 +72,7 @@ bool JBCStmtInst::IsStmtInstImpl() const {
 
 void JBCStmtInst::DumpImpl(const std::string &prefix) const {
   std::cout << prefix << "JBCStmtInst (id=" << id << ", " <<
-               "kind=" << JBCStmtKindHelper::JBCStmtKindName(kind) << ", " <<
+               "kind=" << JBCStmtKindHelper::JBCStmtKindName(JBCkind) << ", " <<
                "op=" << op.GetOpcodeName() <<
                ")" << std::endl;
 }
@@ -1138,7 +1138,7 @@ bool JBCStmtInstBranch::IsStmtInstImpl() const {
 
 void JBCStmtInstBranch::DumpImpl(const std::string &prefix) const {
   std::cout << prefix << "JBCStmtInstBranch (id=" << id << ", " <<
-               "kind=" << JBCStmtKindHelper::JBCStmtKindName(kind) << ", " <<
+               "kind=" << JBCStmtKindHelper::JBCStmtKindName(JBCkind) << ", " <<
                "op=" << op.GetOpcodeName() << ", " <<
                "targets={";
   for (FEIRStmt *stmt : predsOrSuccs) {
@@ -1361,7 +1361,7 @@ std::map<jbc::JBCOpcode, std::tuple<Opcode, Opcode, uint8>> JBCStmtInstBranch::I
 // ---------- JBCStmtInstBranchRet ----------
 JBCStmtInstBranchRet::JBCStmtInstBranchRet(const jbc::JBCOp &argOp)
     : JBCStmtInstBranch(argOp) {
-  kind = kJBCStmtInstBranchRet;
+  JBCkind = kJBCStmtInstBranchRet;
 }
 
 std::list<UniqueFEIRStmt> JBCStmtInstBranchRet::EmitToFEIRForOpRetImpl(JBCFunctionContext &context,
@@ -1414,7 +1414,7 @@ std::list<UniqueFEIRStmt> JBCStmtInstBranchRet::EmitToFEIRForOpRetImpl(JBCFuncti
 // ---------- JBCStmtPesudoLabel ----------
 void JBCStmtPesudoLabel::DumpImpl(const std::string &prefix) const {
   std::cout << prefix << "JBCStmtPesudoLabel (id=" << id << "," <<
-               "kind=" << JBCStmtKindHelper::JBCStmtKindName(kind) << ", " <<
+               "kind=" << JBCStmtKindHelper::JBCStmtKindName(JBCkind) << ", " <<
                "preds={";
   for (FEIRStmt *stmt : predsOrSuccs) {
     std::cout << stmt->GetID() << " ";
@@ -1440,7 +1440,7 @@ std::list<UniqueFEIRStmt> JBCStmtPesudoLabel::EmitToFEIRImpl(JBCFunctionContext 
 // ---------- JBCStmtPesudoCatch ----------
 void JBCStmtPesudoCatch::DumpImpl(const std::string &prefix) const {
   std::cout << prefix << "JBCStmtPesudoCatch (id=" << id << "," <<
-               "kind=" << JBCStmtKindHelper::JBCStmtKindName(kind) << ", " <<
+               "kind=" << JBCStmtKindHelper::JBCStmtKindName(JBCkind) << ", " <<
                "preds={";
   for (FEIRStmt *stmt : predsOrSuccs) {
     std::cout << stmt->GetID() << " ";
@@ -1470,7 +1470,7 @@ std::list<UniqueFEIRStmt> JBCStmtPesudoCatch::EmitToFEIRImpl(JBCFunctionContext 
 // ---------- JBCStmtPesudoTry ----------
 void JBCStmtPesudoTry::DumpImpl(const std::string &prefix) const {
   std::cout << prefix << "JBCStmtPesudoTry (id=" << id << "," <<
-               "kind=" << JBCStmtKindHelper::JBCStmtKindName(kind) << ", " <<
+               "kind=" << JBCStmtKindHelper::JBCStmtKindName(JBCkind) << ", " <<
                "succs={";
   for (JBCStmtPesudoCatch *stmt : catchStmts) {
     std::cout << stmt->GetID() << " ";
@@ -1500,7 +1500,7 @@ std::list<UniqueFEIRStmt> JBCStmtPesudoTry::EmitToFEIRImpl(JBCFunctionContext &c
 // ---------- JBCStmtPesudoEndTry ----------
 void JBCStmtPesudoEndTry::DumpImpl(const std::string &prefix) const {
   std::cout << prefix << "JBCStmtPesudoEndTry (id=" << id << ", " <<
-               "kind=" << JBCStmtKindHelper::JBCStmtKindName(kind) <<
+               "kind=" << JBCStmtKindHelper::JBCStmtKindName(JBCkind) <<
                ")" << std::endl;
 }
 

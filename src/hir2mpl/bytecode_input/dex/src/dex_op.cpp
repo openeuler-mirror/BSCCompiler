@@ -719,13 +719,13 @@ void DexOpGoto::SetVAImpl(uint32 num) {
 
 std::vector<uint32> DexOpGoto::GetTargetsImpl() const {
   std::vector<uint32> res;
-  res.emplace_back(offset + pc);
+  res.emplace_back(static_cast<uint32>(offset + pc));
   return res;
 }
 
 void DexOpGoto::ParseImpl(BCClassMethod &method) {
   (void) method;
-  target = offset + pc;
+  target = static_cast<uint32>(offset + pc);
 }
 
 std::list<UniqueFEIRStmt> DexOpGoto::EmitToFEIRStmtsImpl() {
@@ -758,7 +758,7 @@ void DexOpSwitch::ParseImpl(BCClassMethod &method) {
     int32 key = *(reinterpret_cast<const int32*>(&data[2]));
     const int32 *targets = reinterpret_cast<const int32*>(&data[4]);
     for (uint16 i = 0; i < size; i++) {
-      uint32 target = pc + targets[i];
+      uint32 target = static_cast<uint32>(pc + targets[i]);
       keyTargetOPpcMap.emplace(key, std::make_pair(target, pc));
       key = key + 1;
     }
@@ -768,7 +768,7 @@ void DexOpSwitch::ParseImpl(BCClassMethod &method) {
     const int32 *targets = reinterpret_cast<const int32*>(&data[2 + size * 2]);
     for (uint16 i = 0; i < size; i++) {
       int32 key = keys[i];
-      uint32 target = pc + targets[i];
+      uint32 target = static_cast<uint32>(pc + targets[i]);
       keyTargetOPpcMap.emplace(key, std::make_pair(target, pc));
     }
   }
@@ -867,13 +867,13 @@ void DexOpIfTest::SetVCImpl(uint32 num) {
 
 std::vector<uint32> DexOpIfTest::GetTargetsImpl() const {
   std::vector<uint32> res;
-  res.emplace_back(offset + pc);
+  res.emplace_back(static_cast<uint32>(offset + pc));
   return res;
 }
 
 void DexOpIfTest::ParseImpl(BCClassMethod &method) {
   (void) method;
-  target = offset + pc;
+  target = static_cast<uint32>(offset + pc);
 }
 
 std::list<UniqueFEIRStmt> DexOpIfTest::EmitToFEIRStmtsImpl() {
@@ -936,13 +936,13 @@ void DexOpIfTestZ::SetVBImpl(uint32 num) {
 
 std::vector<uint32> DexOpIfTestZ::GetTargetsImpl() const {
   std::vector<uint32> res;
-  res.emplace_back(offset + pc);
+  res.emplace_back(static_cast<uint32>(offset + pc));
   return res;
 }
 
 void DexOpIfTestZ::ParseImpl(BCClassMethod &method) {
   (void) method;
-  target = offset + pc;
+  target = static_cast<uint32>(offset + pc);
 }
 
 std::list<UniqueFEIRStmt> DexOpIfTestZ::EmitToFEIRStmtsImpl() {
