@@ -154,6 +154,7 @@ void TypeTable::Dump() {
               AstDump::GetEnumTypeId(tid) << " " <<
               "(typeid " << tid << ") " <<
               "(typeidx " << node->GetTypeIdx() << ") " <<
+              "(stridx " << node->GetStrIdx() << ") " <<
               "(nodeid " << node->GetNodeId() << ")" << std::endl;
   }
   std::cout << "===================== End TypeTable =====================" << std::endl;
