@@ -188,12 +188,10 @@ public:
   )""" + generatorName + R"""((t2crt::Function* ctor, t2crt::Object* proto)""" + ctorArgs + R"""() : t2crt::GeneratorProto(ctor, proto))""" + initList + R"""( {}
   ~)""" + generatorName + R"""(() {}
 
-  // capture data
+  // closure capture fields
 )""" + captureFields + R"""(
-  // iterator interface
+  // iterator interface (override _return and _throw when needed)
   t2crt::IteratorResult _next(t2crt::JS_Val* arg) override;
-  t2crt::IteratorResult _return(t2crt::JS_Val* val) override;
-  t2crt::IteratorResult _throw(t2crt::Error exception) override;
 };
 
 // )""" + funcName + R"""( generator function
@@ -202,9 +200,9 @@ public:
   )""" + generatorFuncName + R"""(() : t2crt::GeneratorFuncPrototype(&t2crt::GeneratorFunction, &t2crt::Generator, t2crt::GeneratorPrototype) {}
   ~)""" + generatorFuncName + R"""(() {}
 
-  // Overload call op to return generator instances
+  // call operator returns generator instances
   )""" + generatorName + R"""(* operator()()""" + functorArgs + R"""();
-  // Generator function body
+  // generator function body
   t2crt::IteratorResult _body(t2crt::Object* _this, void*& yield)""" + refArgs + R"""();
 };
 

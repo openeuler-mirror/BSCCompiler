@@ -182,6 +182,17 @@ public:
   bool   _finished  = false;   // flag if generator is in finished state
   bool   _firstNext = true;    // flag if first next has been called on iterator (27.5.1.2)
   JS_Val _retval = undefined;  // save optional arg from iterator's return(arg) method
+  
+  IteratorResult _return(JS_Val* arg) override {
+    IteratorResult res;
+    _finished = true;
+    if (arg != nullptr) {
+      _retval = *arg;
+      res._value = *arg;
+    }
+    return res;
+  }
+
 };
 
 // 27.3.1 GeneratorFunction Constructor
