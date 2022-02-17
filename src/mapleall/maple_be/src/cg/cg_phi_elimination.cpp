@@ -94,15 +94,12 @@ RegOperand *PhiEliminate::MakeRoomForNoDefVreg(RegOperand &conflictReg) {
   }
 }
 
-void PhiEliminate::RecordRematInfo(regno_t vRegNO, PregIdx pIdx, PrimType primType, MIRType *mirType) {
+void PhiEliminate::RecordRematInfo(regno_t vRegNO, PregIdx pIdx) {
   if (remateInfoAfterSSA.count(vRegNO)) {
     if (remateInfoAfterSSA[vRegNO] != pIdx) {
       remateInfoAfterSSA.erase(vRegNO);
     }
   } else {
-    if (cgFunc->GetFunction().GetPregTab()->GetPregIdxFromPregno(vRegNO) == 0) {
-      cgFunc->GetFunction().GetPregTab()->EnterPregNo(vRegNO, primType, mirType);
-    }
     (void)remateInfoAfterSSA.emplace(std::pair<regno_t, PregIdx>(vRegNO, pIdx));
   }
 }
