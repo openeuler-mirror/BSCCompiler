@@ -27,7 +27,6 @@
 #include "ast_xxport.h"
 #include "astopt.h"
 #include "typetable.h"
-#include "gen_astdump.h"
 
 namespace maplefe {
 
@@ -201,10 +200,6 @@ TreeNode *Module_Handler::FindDecl(IdentifierNode *node, bool deep) {
     decl = scope->FindDeclOf(stridx);
   }
 
-  if (!decl && deep) {
-    decl = scope->FindExportedDeclOf(stridx);
-  }
-
   if (decl) {
     AddNodeId2DeclMap(node->GetNodeId(), decl);
   }
@@ -249,65 +244,6 @@ bool Module_Handler::IsDirectField(TreeNode *node) {
   return mDirectFieldSet.find(node->GetNodeId()) != mDirectFieldSet.end();
 }
 
-// array's element typeid
-TypeId Module_Handler::GetArrayElemTypeId(unsigned nid) {
-  TypeId tid = TY_None;
-  if (mArrayDeclId2EleTypeIdMap.find(nid) != mArrayDeclId2EleTypeIdMap.end()) {
-    tid = mArrayDeclId2EleTypeIdMap[nid];
-  }
-  return tid;
-}
-
-void Module_Handler::SetArrayElemTypeId(unsigned nid, TypeId tid) {
-  mArrayDeclId2EleTypeIdMap[nid] = tid;
-}
-
-// array's element typeidx
-unsigned Module_Handler::GetArrayElemTypeIdx(unsigned nid) {
-  unsigned tidx = 0;
-  if (mArrayDeclId2EleTypeIdxMap.find(nid) != mArrayDeclId2EleTypeIdxMap.end()) {
-    tidx = mArrayDeclId2EleTypeIdxMap[nid];
-  }
-  return tidx;
-}
-
-void Module_Handler::SetArrayElemTypeIdx(unsigned nid, unsigned tidx) {
-  mArrayDeclId2EleTypeIdxMap[nid] = tidx;
-}
-
-DimensionNode *Module_Handler::GetArrayDim(unsigned nid) {
-  DimensionNode *dim = NULL;
-  if (mArrayDeclId2DimMap.find(nid) != mArrayDeclId2DimMap.end()) {
-    dim = mArrayDeclId2DimMap[nid];
-  }
-  return dim;
-}
-
-void Module_Handler::SetArrayDim(unsigned nid, DimensionNode *dim) {
-  mArrayDeclId2DimMap[nid] = dim;
-}
-
-void Module_Handler::AddGeneratorUsed(unsigned nid, FunctionNode *func) {
-  mGeneratorUsedMap[nid] = func;
-}
-
-bool Module_Handler::IsGeneratorUsed(unsigned nid) {
-  return (mGeneratorUsedMap.find(nid) != mGeneratorUsedMap.end());
-}
-
-FunctionNode *Module_Handler::GetGeneratorUsed(unsigned nid) {
-  if (mGeneratorUsedMap.find(nid) != mGeneratorUsedMap.end()) {
-    return mGeneratorUsedMap[nid];
-  }
-  return NULL;
-}
-
-void Module_Handler::UpdateGeneratorUsed(unsigned target, unsigned src) {
-  if (mGeneratorUsedMap.find(src) != mGeneratorUsedMap.end()) {
-    mGeneratorUsedMap[target] = mGeneratorUsedMap[src];
-  }
-}
-
 bool Module_Handler::IsFromLambda(TreeNode *node) {
   if (!node) {
     return false;
@@ -328,14 +264,6 @@ void Module_Handler::Dump(char *msg) {
   std::cout << msg << " : " << std::endl;
   CfgFunc *func = GetCfgFunc();
   func->Dump();
-}
-
-void Module_Handler::DumpArrayElemTypeIdMap() {
-  std::cout << "================= ArrayDeclId2EleTypeIdMap ==========" << std::endl;
-  for (auto it : mArrayDeclId2EleTypeIdMap) {
-    std::cout << "nodeid : " << it.first  << " "
-              << AstDump::GetEnumTypeId(it.second) << std::endl;
-  }
 }
 
 }

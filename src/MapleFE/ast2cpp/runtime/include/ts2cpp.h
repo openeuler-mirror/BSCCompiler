@@ -82,9 +82,6 @@ struct JS_Val {
   JS_Type type;
 
   bool IsCxxProp() { return type & TY_CXX; } // true if a cxx field
-  bool IsNone()  { return type == TY_None; }
-  bool IsNull()  { return type & TY_Null;  }
-  bool IsUndef() { return type & TY_Undef; }
 
   JS_Val() { x.val_long = 0l; type = TY_Undef; }
   JS_Val(int64_t l, JS_Type t, bool c) { x.val_long = l; type = t; }
@@ -448,11 +445,6 @@ void GenerateDOTGraph( std::vector<Object *>&obj, std::vector<std::string>&name)
 
 } // namespace t2crt
 
-extern std::ostream& operator<< (std::ostream& out, const t2crt::JS_Val& v);
-extern std::ostream& operator<< (std::ostream& out, t2crt::Object* obj);
-extern const t2crt::JS_Val undefined;
-extern const t2crt::JS_Val null;
-
 #include "builtins.h"
 
 template <typename T>
@@ -499,7 +491,10 @@ std::ostream& operator<< (std::ostream& out, const t2crt::Array<T>& v) {
   }
   return out;
 }
-
+extern std::ostream& operator<< (std::ostream& out, const t2crt::JS_Val& v);
+extern std::ostream& operator<< (std::ostream& out, t2crt::Object* obj);
+extern const t2crt::JS_Val undefined;
+extern const t2crt::JS_Val null;
 #define debugger (0)
 
 using t2crt::Object;

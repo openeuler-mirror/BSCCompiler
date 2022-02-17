@@ -169,17 +169,6 @@ StructNode *AdjustASTVisitor::VisitStructNode(StructNode *node) {
   return (StructNode*)newnode;
 }
 
-// convert prim array node to array type node
-PrimArrayTypeNode *AdjustASTVisitor::VisitPrimArrayTypeNode(PrimArrayTypeNode *node) {
-  (void) AstVisitor::VisitPrimArrayTypeNode(node);
-  ArrayTypeNode *arr = mHandler->NewTreeNode<ArrayTypeNode>();
-  DimensionNode *dim = node->GetDims();
-  arr->SetDims(dim);
-  arr->SetElemType(node->GetPrim());
-
-  return (PrimArrayTypeNode *)arr;
-}
-
 // set UserTypeNode's mStrIdx to be its mId's
 UserTypeNode *AdjustASTVisitor::VisitUserTypeNode(UserTypeNode *node) {
   (void) AstVisitor::VisitUserTypeNode(node);
@@ -190,33 +179,16 @@ UserTypeNode *AdjustASTVisitor::VisitUserTypeNode(UserTypeNode *node) {
 
   // use array type node
   DimensionNode *dim = node->GetDims();
-  bool isarr = (dim != NULL);
-  // element type
-  TreeNode *etype = NULL;
-
-  if (isarr) {
-    etype = node;
-  } else if (id && id->IsIdentifier()) {
-    IdentifierNode *idnode = static_cast<IdentifierNode *>(id);
-    isarr = (idnode->GetStrIdx() == gStringPool.GetStrIdx("Array"));
-    if (isarr) {
-      if (unsigned s = node->GetTypeGenericsNum()) {
-        if (s == 1) {
-          etype = node->GetTypeGeneric(0);
-        } else {
-          NOTYETIMPL("array usertype with multiple generic type");
-        }
-      }
-    }
-  }
-
-  if (isarr) {
+  TreeNode *p = node->GetParent();
+  if (dim && p->IsIdentifier()) {
     ArrayTypeNode *arr = mHandler->NewTreeNode<ArrayTypeNode>();
     arr->SetDims(dim);
-    arr->SetElemType(etype);
-    node = (UserTypeNode *)arr;
+    arr->SetElemType(node);
+    node->SetDims(NULL);
+    IdentifierNode *inode = static_cast<IdentifierNode *>(p);
+    inode->SetType(arr);
+    mHandler->SetArrayElemTypeId(inode->GetNodeId(), id->GetTypeId());
   }
-
   return node;
 }
 

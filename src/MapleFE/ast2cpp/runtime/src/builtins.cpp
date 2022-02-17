@@ -8,7 +8,7 @@ Number::Ctor   Number::ctor  (&Function::ctor, Function::ctor.prototype, Object:
 RegExp::Ctor   RegExp::ctor  (&Function::ctor, Function::ctor.prototype, Object::ctor.prototype);
 
 IteratorProto                IteratorPrototype(&Object::ctor, Object::ctor.prototype);
-GeneratorFuncPrototype       Generator(&GeneratorFunction, Function::ctor.prototype, &IteratorPrototype);
+GeneratorFunctionPrototype   Generator(&GeneratorFunction, Function::ctor.prototype, &IteratorPrototype);
 GeneratorFunc                GeneratorFunction(&Function::ctor, &Function::ctor, Function::ctor.prototype, &Generator);
 Object* GeneratorPrototype = Generator.prototype;
 
