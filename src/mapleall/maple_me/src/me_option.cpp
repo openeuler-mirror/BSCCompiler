@@ -24,6 +24,7 @@ using namespace mapleOption;
 
 std::unordered_set<std::string> MeOption::dumpPhases = {};
 std::unordered_set<std::string> MeOption::skipPhases = {};
+bool MeOption::isBigEndian = false;
 bool MeOption::dumpAfter = false;
 std::string MeOption::dumpFunc = "*";
 unsigned long MeOption::range[kRangeArrayLen] = { 0, 0 };
@@ -1397,6 +1398,9 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         break;
       case kMeDumpAfter:
         dumpAfter = (opt.Type() == kEnable);
+        break;
+      case kBigEndian:
+        isBigEndian = (opt.Type() == kEnable);
         break;
       case kMeDumpFunc:
         dumpFunc = opt.Args();
