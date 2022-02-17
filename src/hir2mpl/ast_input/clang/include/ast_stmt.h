@@ -109,12 +109,12 @@ class ASTReturnStmt : public ASTStmt {
 };
 
 class ASTAttributedStmt : public ASTStmt {
-  public:
+ public:
   ASTAttributedStmt() : ASTStmt(kASTStmtAttributed) {}
   ~ASTAttributedStmt() override = default;
 
-  private:
-    std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override{ return {}; };
+ private:
+  std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override{ return {}; };
 };
 
 class ASTIfStmt : public ASTStmt {

@@ -57,7 +57,7 @@ class AArch64MoveRegArgs : public MoveRegArgs {
   void MoveVRegisterArgs();
   void MoveLocalRefVarToRefLocals(MIRSymbol &mirSym);
   void LoadStackArgsToVReg(MIRSymbol &mirSym);
-  void MoveArgsToVReg(const PLocInfo &ploc, MIRSymbol &mirSym);
+  void MoveArgsToVReg(const CCLocInfo &ploc, MIRSymbol &mirSym);
 };
 }  /* namespace maplebe */
 

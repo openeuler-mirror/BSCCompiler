@@ -16,12 +16,14 @@
 #define MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_CGFUNC_H
 
 #include "cgfunc.h"
+#include "call_conv.h"
 #include "mpl_atomic.h"
 #include "aarch64_abi.h"
 #include "aarch64_operand.h"
 #include "aarch64_insn.h"
 #include "aarch64_memlayout.h"
 #include "aarch64_optimize_common.h"
+#include "aarch64_call_conv.h"
 
 namespace maplebe {
 class AArch64CGFunc : public CGFunc {
@@ -625,9 +627,9 @@ class AArch64CGFunc : public CGFunc {
 
   MIRPreg *GetPseudoRegFromVirtualRegNO(const regno_t vRegNO, bool afterSSA = false) const;
 
- MapleVector<AArch64reg> &GetProEpilogSavedRegs() {
-   return proEpilogSavedRegs;
- }
+  MapleVector<AArch64reg> &GetProEpilogSavedRegs() {
+    return proEpilogSavedRegs;
+  }
 
  private:
   enum RelationOperator : uint8 {
@@ -729,27 +731,27 @@ class AArch64CGFunc : public CGFunc {
   }
 
   void CreateCallStructParamPassByStack(int32 symSize, const MIRSymbol *sym, RegOperand *addrOpnd, int32 baseOffset);
-  AArch64RegOperand *SelectParmListDreadAccessField(const MIRSymbol &sym, FieldID fieldID, const PLocInfo &ploc,
+  AArch64RegOperand *SelectParmListDreadAccessField(const MIRSymbol &sym, FieldID fieldID, const CCLocInfo &ploc,
                                                     int32 offset, uint32 parmNum);
-  void CreateCallStructParamPassByReg(AArch64reg reg, MemOperand &memOpnd, AArch64ListOperand &srcOpnds,
+  void CreateCallStructParamPassByReg(regno_t reg, MemOperand &memOpnd, AArch64ListOperand &srcOpnds,
                                       fpParamState state);
   void CreateCallStructParamMemcpy(const MIRSymbol *sym, RegOperand *addropnd,
                                    uint32 structSize, int32 copyOffset, int32 fromOffset);
   AArch64RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, const MIRSymbol *sym, RegOperand *addrOpd,
-                                                      int32 copyOffset, int32 fromOffset, const PLocInfo &ploc);
+                                                      int32 copyOffset, int32 fromOffset, const CCLocInfo &ploc);
   void SelectParmListDreadSmallAggregate(const MIRSymbol &sym, MIRType &structType,
                                          AArch64ListOperand &srcOpnds,
-                                         int32 offset, ParmLocator &parmLocator, FieldID fieldID);
+                                         int32 offset, AArch64CallConvImpl &parmLocator, FieldID fieldID);
   void SelectParmListIreadSmallAggregate(const IreadNode &iread, MIRType &structType, AArch64ListOperand &srcOpnds,
-                                         int32 offset, ParmLocator &parmLocator);
+                                         int32 offset, AArch64CallConvImpl &parmLocator);
   void SelectParmListDreadLargeAggregate(const MIRSymbol &sym, MIRType &structType,
                                          AArch64ListOperand &srcOpnds,
-                                         ParmLocator &parmLocator, int32 &structCopyOffset, int32 fromOffset);
+                                         AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, int32 fromOffset);
   void SelectParmListIreadLargeAggregate(const IreadNode &iread, MIRType &structType, AArch64ListOperand &srcOpnds,
-                                         ParmLocator &parmLocator, int32 &structCopyOffset, int32 fromOffset);
-  void CreateCallStructMemcpyToParamReg(MIRType &structType, int32 structCopyOffset, ParmLocator &parmLocator,
+                                         AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, int32 fromOffset);
+  void CreateCallStructMemcpyToParamReg(MIRType &structType, int32 structCopyOffset, AArch64CallConvImpl &parmLocator,
                                         AArch64ListOperand &srcOpnds);
-  void SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator,
+  void SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOperand &srcOpnds, AArch64CallConvImpl &parmLocator,
                                   int32 &structCopyOffset);
   size_t SelectParmListGetStructReturnSize(StmtNode &naryNode);
   void SelectParmListPreprocessLargeStruct(BaseNode &argExpr, int32 &structCopyOffset);

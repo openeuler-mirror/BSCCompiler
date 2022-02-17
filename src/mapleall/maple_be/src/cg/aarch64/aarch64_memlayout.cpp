@@ -28,7 +28,7 @@ using namespace maple;
  */
 uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  int32 &aggCopySize, bool isIcall) {
   /* instantiate a parm locator */
-  ParmLocator parmLocator(be);
+  AArch64CallConvImpl parmLocator(be);
   uint32 sizeOfArgsToStkPass = 0;
   size_t i = 0;
   /* An indirect call's first operand is the invocation target */
@@ -89,7 +89,7 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
         }
       }
     }
-    PLocInfo ploc;
+    CCLocInfo ploc;
     aggCopySize += parmLocator.LocateNextParm(*ty, ploc);
     if (ploc.reg0 != 0) {
       continue;  /* passed in register, so no effect on actual area */
@@ -128,8 +128,8 @@ void AArch64MemLayout::SetSegmentSize(AArch64SymbolAlloc &symbolAlloc, MemSegmen
 void AArch64MemLayout::LayoutVarargParams() {
   uint32 nIntRegs = 0;
   uint32 nFpRegs = 0;
-  ParmLocator parmlocator(be);
-  PLocInfo ploc;
+  AArch64CallConvImpl parmlocator(be);
+  CCLocInfo ploc;
   MIRFunction *func = mirFunction;
   if (be.GetMIRModule().IsCModule() && func->GetAttr(FUNCATTR_varargs)) {
     for (uint32 i = 0; i < func->GetFormalCount(); i++) {
@@ -190,8 +190,8 @@ void AArch64MemLayout::LayoutVarargParams() {
 }
 
 void AArch64MemLayout::LayoutFormalParams() {
-  ParmLocator parmLocator(be);
-  PLocInfo ploc;
+  AArch64CallConvImpl parmLocator(be);
+  CCLocInfo ploc;
   for (size_t i = 0; i < mirFunction->GetFormalCount(); ++i) {
     MIRSymbol *sym = mirFunction->GetFormal(i);
     uint32 stIndex = sym->GetStIndex();
@@ -217,7 +217,8 @@ void AArch64MemLayout::LayoutFormalParams() {
     uint32 ptyIdx = ty->GetTypeIndex();
     parmLocator.LocateNextParm(*ty, ploc, i == 0, mirFunction);
     if (ploc.reg0 != kRinvalid) {  /* register */
-      symLoc->SetRegisters(ploc.reg0, ploc.reg1, ploc.reg2, ploc.reg3);
+      symLoc->SetRegisters(static_cast<AArch64reg>(ploc.reg0), static_cast<AArch64reg>(ploc.reg1),
+                           static_cast<AArch64reg>(ploc.reg2), static_cast<AArch64reg>(ploc.reg3));
       if (mirFunction->GetNthParamAttr(i).GetAttr(ATTR_localrefvar)) {
         symLoc->SetMemSegment(segRefLocals);
         SetSegmentSize(*symLoc, segRefLocals, ptyIdx);

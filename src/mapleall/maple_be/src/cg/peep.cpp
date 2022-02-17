@@ -483,8 +483,17 @@ void CgPeepHole::GetAnalysisDependence(AnalysisDep &aDep) const {
   aDep.AddPreserved<CgSSAConstruct>();
 }
 
-/* === Physical form === */
+/* === Physical Pre Form === */
 bool CgPrePeepHole::PhaseRun(maplebe::CGFunc &f) {
+  MemPool *mp = GetPhaseMemPool();
+  auto *cgpeep = mp->New<AArch64CGPeepHole>(f, mp);
+  CHECK_FATAL(cgpeep != nullptr, "PeepHoleOptimizer instance create failure");
+  cgpeep->Run();
+  return false;
+}
+
+/* === Physical Post Form === */
+bool CgPostPeepHole::PhaseRun(maplebe::CGFunc &f) {
   MemPool *mp = GetPhaseMemPool();
   auto *cgpeep = mp->New<AArch64CGPeepHole>(f, mp);
   CHECK_FATAL(cgpeep != nullptr, "PeepHoleOptimizer instance create failure");

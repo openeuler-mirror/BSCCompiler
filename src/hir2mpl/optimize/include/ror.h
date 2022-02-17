@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -36,7 +36,7 @@ class Ror {
   const UniqueFEIRExpr &rExpr;
   UniqueFEIRExpr rShiftBaseExpr;
   UniqueFEIRExpr lShiftBaseExpr;
-  uint32 constVal = 0;
+  uint64 constVal = 0;
   uint32 bitWidth = 0;
 };
 } // namespace maple

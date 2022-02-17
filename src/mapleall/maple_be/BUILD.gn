@@ -75,6 +75,7 @@ src_libmplbe = [
 
 src_libcgaarch64 = [
   "src/cg/aarch64/aarch64_abi.cpp",
+  "src/cg/aarch64/aarch64_call_conv.cpp",
   "src/cg/aarch64/mpl_atomic.cpp",
   "src/cg/aarch64/aarch64_cgfunc.cpp",
   "src/cg/aarch64/aarch64_dependence.cpp",

@@ -154,7 +154,7 @@ ASTStmt *ASTParser::ProcessStmt(MapleAllocator &allocator, const clang::Stmt &st
 
 ASTStmt *ASTParser::ProcessStmtAttributedStmt(MapleAllocator &allocator, const clang::AttributedStmt &AttrStmt) {
   ASSERT(clang::hasSpecificAttr<clang::FallThroughAttr>(AttrStmt.getAttrs()), "AttrStmt is not fallthrough");
-  ASTAttributedStmt *astAttributedStmt  = ASTDeclsBuilder::ASTStmtBuilder<ASTAttributedStmt>(allocator);
+  ASTAttributedStmt *astAttributedStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTAttributedStmt>(allocator);
   CHECK_FATAL(astAttributedStmt != nullptr, "astAttributedStmt is nullptr");
   return astAttributedStmt;
 }

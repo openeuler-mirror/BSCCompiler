@@ -33,8 +33,8 @@ void AArch64MoveRegArgs::CollectRegisterArgs(std::map<uint32, AArch64reg> &argsL
   uint32 numFormal = static_cast<uint32>(aarchCGFunc->GetFunction().GetFormalCount());
   numFpRegs.resize(numFormal);
   fpSize.resize(numFormal);
-  ParmLocator parmlocator(aarchCGFunc->GetBecommon());
-  PLocInfo ploc;
+  AArch64CallConvImpl parmlocator(aarchCGFunc->GetBecommon());
+  CCLocInfo ploc;
   uint32 start = 0;
   if (numFormal) {
     MIRFunction *func = const_cast<MIRFunction *>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
@@ -51,12 +51,13 @@ void AArch64MoveRegArgs::CollectRegisterArgs(std::map<uint32, AArch64reg> &argsL
     if (ploc.reg0 == kRinvalid) {
       continue;
     }
-    aarchCGFunc->PushElemIntoFormalRegList(ploc.reg0);
+    AArch64reg reg0 = static_cast<AArch64reg>(ploc.reg0);
+    aarchCGFunc->PushElemIntoFormalRegList(reg0);
     MIRSymbol *sym = aarchCGFunc->GetFunction().GetFormal(i);
     if (sym->IsPreg()) {
       continue;
     }
-    argsList[i] = ploc.reg0;
+    argsList[i] = reg0;
     indexList.emplace_back(i);
     if (ploc.reg1 == kRinvalid) {
       continue;
@@ -67,16 +68,16 @@ void AArch64MoveRegArgs::CollectRegisterArgs(std::map<uint32, AArch64reg> &argsL
       fpSize[index] = ploc.fpSize;
       continue;
     }
-    aarchCGFunc->PushElemIntoFormalRegList(ploc.reg1);
-    pairReg[i] = ploc.reg1;
+    aarchCGFunc->PushElemIntoFormalRegList(static_cast<AArch64reg>(ploc.reg1));
+    pairReg[i] = static_cast<AArch64reg>(ploc.reg1);
     if (ploc.reg2 == kRinvalid) {
       continue;
     }
-    aarchCGFunc->PushElemIntoFormalRegList(ploc.reg2);
+    aarchCGFunc->PushElemIntoFormalRegList(static_cast<AArch64reg>(ploc.reg2));
     if (ploc.reg3 == kRinvalid) {
       continue;
     }
-    aarchCGFunc->PushElemIntoFormalRegList(ploc.reg3);
+    aarchCGFunc->PushElemIntoFormalRegList(static_cast<AArch64reg>(ploc.reg3));
   }
 }
 
@@ -120,9 +121,13 @@ ArgInfo AArch64MoveRegArgs::GetArgInfo(std::map<uint32, AArch64reg> &argsList, s
     } else {
       argInfo.symSize = argInfo.stkSize = kSizeOfPtr;
     }
-  } else if ((argInfo.mirTy->GetPrimType() == PTY_agg) && (argInfo.symSize < k4ByteSize)) {
-    /* For small aggregate parameter, set to minimum of 4 bytes. */
-    argInfo.symSize = argInfo.stkSize = k4ByteSize;
+  } else if ((argInfo.mirTy->GetPrimType() == PTY_agg) && (argInfo.symSize < k8ByteSize)) {
+    /*
+     * For small aggregate parameter, set to minimum of 8 bytes.
+     * B.5:If the argument type is a Composite Type then the size of the argument is rounded up to the
+     * nearest multiple of 8 bytes.
+     */
+    argInfo.symSize = argInfo.stkSize = k8ByteSize;
   } else if (numFpRegs[argIndex] > kOneRegister) {
     argInfo.isTwoRegParm = true;
     argInfo.symSize = argInfo.stkSize = fpSize[argIndex];
@@ -386,7 +391,7 @@ void AArch64MoveRegArgs::LoadStackArgsToVReg(MIRSymbol &mirSym) {
   aarchCGFunc->GetCurBB()->InsertInsnBegin(insn);
 }
 
-void AArch64MoveRegArgs::MoveArgsToVReg(const PLocInfo &ploc, MIRSymbol &mirSym) {
+void AArch64MoveRegArgs::MoveArgsToVReg(const CCLocInfo &ploc, MIRSymbol &mirSym) {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   RegType regType = (ploc.reg0 < V0) ? kRegTyInt : kRegTyFloat;
   PrimType stype = mirSym.GetType()->GetPrimType();
@@ -396,7 +401,8 @@ void AArch64MoveRegArgs::MoveArgsToVReg(const PLocInfo &ploc, MIRSymbol &mirSym)
   RegOperand &dstRegOpnd =
       aarchCGFunc->GetOrCreateVirtualRegisterOperand(aarchCGFunc->GetVirtualRegNOFromPseudoRegIdx(pregIdx));
   dstRegOpnd.SetSize(srcBitSize);
-  RegOperand &srcRegOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(ploc.reg0, srcBitSize, regType);
+  RegOperand &srcRegOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(
+      static_cast<AArch64reg>(ploc.reg0), srcBitSize, regType);
   ASSERT(mirSym.GetStorageClass() == kScFormal, "should be args");
   MOperator mOp = aarchCGFunc->PickMovBetweenRegs(stype, stype);
   if (mOp == MOP_vmovvv || mOp == MOP_vmovuu) {
@@ -423,8 +429,8 @@ void AArch64MoveRegArgs::MoveVRegisterArgs() {
   BB *formerCurBB = aarchCGFunc->GetCurBB();
   aarchCGFunc->GetDummyBB()->ClearInsns();
   aarchCGFunc->SetCurBB(*aarchCGFunc->GetDummyBB());
-  ParmLocator parmlocator(aarchCGFunc->GetBecommon());
-  PLocInfo ploc;
+  AArch64CallConvImpl parmlocator(aarchCGFunc->GetBecommon());
+  CCLocInfo ploc;
 
   uint32 formalCount = static_cast<uint32>(aarchCGFunc->GetFunction().GetFormalCount());
   uint32 start = 0;

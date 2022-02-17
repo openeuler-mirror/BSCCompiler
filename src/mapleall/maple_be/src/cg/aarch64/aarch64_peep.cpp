@@ -131,7 +131,7 @@ bool AArch64CGPeepHole::DoSSAOptimize(BB &bb, Insn &insn) {
     case MOP_winegrr:
     case MOP_wfnegrr:
     case MOP_xfnegrr: {
-      manager->Optimize<SimplifyMulArithmeticPattern>();
+      manager->Optimize<SimplifyMulArithmeticPattern>(CGOptions::IsFastMath());
       break;
     }
     case MOP_wandrri12:
@@ -795,6 +795,8 @@ bool ZeroCmpBranchesToTbzPattern::CheckAndSelectPattern(const Insn &currInsn) {
           return false;
       }
     }
+      // fall through
+      [[clang::fallthrough]];
     default:
       return false;
   }
@@ -1928,16 +1930,22 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   manager = peepMemPool->New<PeepOptimizeManager>(*cgFunc, bb, insn);
   switch (thisMop) {
+    /*
+     * e.g.
+     * execute before & after RA: manager->NormalPatternOpt<>(true)
+     * execute before RA: manager->NormalPatternOpt<>(!cgFunc->IsAfterRegAlloc())
+     * execute after RA: manager->NormalPatternOpt<>(cgFunc->IsAfterRegAlloc())
+     */
     case MOP_xubfxrri6i6: {
-      manager->NormalPatternOpt<UbfxToUxtwPattern>();
+      manager->NormalPatternOpt<UbfxToUxtwPattern>(true);
       break;
     }
     case MOP_xmovzri16: {
-      manager->NormalPatternOpt<LoadFloatPointPattern>();
+      manager->NormalPatternOpt<LoadFloatPointPattern>(true);
       break;
     }
     case MOP_wcmpri: {
-      manager->NormalPatternOpt<LongIntCompareWithZPattern>();
+      manager->NormalPatternOpt<LongIntCompareWithZPattern>(true);
       break;
     }
     default:

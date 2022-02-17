@@ -50,7 +50,10 @@ class PeepOptimizeManager {
     }
   }
   template<typename OptimizePattern>
-  void NormalPatternOpt() {
+  void NormalPatternOpt(bool patternEnable = false) {
+    if (!patternEnable) {
+      return;
+    }
     OptimizePattern optPattern(*cgFunc, *currBB, *currInsn);
     optPattern.Run(*currBB, *currInsn);
   }
@@ -1324,15 +1327,21 @@ class RemoveIncRefAArch64 : public PeepPattern {
  *  =>
  *  cmp x0, #0
  */
-class LongIntCompareWithZAArch64 : public PeepPattern {
+class LongIntCompareWithZPattern : public CGPeepPattern {
  public:
-  explicit LongIntCompareWithZAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~LongIntCompareWithZAArch64() override = default;
+  LongIntCompareWithZPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~LongIntCompareWithZPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "LongIntCompareWithZPattern";
+  }
 
  private:
   bool FindLondIntCmpWithZ(std::vector<Insn*> &optInsn, Insn &insn);
   bool IsPatternMatch(const std::vector<Insn*> &optInsn);
+  std::vector<Insn*> optInsn;
 };
 
 /*
