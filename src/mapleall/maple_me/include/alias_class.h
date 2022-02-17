@@ -172,7 +172,7 @@ class AliasClass : public AnalysisResult {
     unionFind.Reinit();
   }
 
-  UnionFind &GetUnionFind() {
+  const UnionFind &GetUnionFind() {
     return unionFind;
   }
 
@@ -180,6 +180,7 @@ class AliasClass : public AnalysisResult {
   void ApplyUnionForFieldsInCopiedAgg(OriginalSt *lhsOst, OriginalSt *rhsOst);
   void ApplyUnionForFieldsInCopiedAgg();
   void UnionAddrofOstOfUnionFields();
+  bool IsGlobalOstTypeUnsafe(const OriginalSt &ost) const;
   void PropagateTypeUnsafe();
   void PropagateTypeUnsafeVertically(const OriginalSt &ost);
   void SetTypeUnsafeForAddrofUnion(const AliasElem *ae) const;

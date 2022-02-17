@@ -1362,9 +1362,8 @@ class MeStmt {
     prev = node;
   }
 
-  BB *GetBB() const {
-    return bb;
-  }
+  const BB *GetBB() const { return bb; }
+  BB *GetBB() { return bb; }
 
   void SetBB(BB *curBB) {
     bb = curBB;
@@ -2910,7 +2909,7 @@ class CommentMeStmt : public MeStmt {
   ~CommentMeStmt() = default;
 
   StmtNode &EmitStmt(SSATab &ssaTab);
-  MapleString& GetComment() { return comment; }
+  const MapleString& GetComment() { return comment; }
   const MapleString& GetComment() const { return comment; }
  private:
   MapleString comment;

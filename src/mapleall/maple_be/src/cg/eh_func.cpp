@@ -503,7 +503,8 @@ void EHFunc::GenerateCleanupLabel() {
   blockNode->InsertBefore(cgFunc->GetEndLabel(), cgFunc->GetCleanupLabel());
 }
 
-void EHFunc::InsertDefaultLabelAndAbortFunc(BlockNode &blkNode, SwitchNode &switchNode, StmtNode &beforeEndLabel) {
+void EHFunc::InsertDefaultLabelAndAbortFunc(BlockNode &blkNode, SwitchNode &switchNode,
+                                            const StmtNode &beforeEndLabel) {
   MIRModule &mirModule = *cgFunc->GetFunction().GetModule();
   LabelIdx dfLabIdx = cgFunc->GetFunction().GetLabelTab()->CreateLabel();
   cgFunc->GetFunction().GetLabelTab()->AddToStringLabelMap(dfLabIdx);
@@ -708,7 +709,7 @@ void EHFunc::CreateLSDAAction() {
 
   for (auto *ehTry : tryVec) {
     LSDAAction *lastAction = nullptr;
-    for (int32 j = ehTry->GetCatchVecSize() - 1; j >= 0; --j) {
+    for (int32 j = static_cast<int32>(ehTry->GetCatchVecSize()) - 1; j >= 0; --j) {
       CatchNode *catchNode = ehTry->GetCatchNodeAt(j);
       ASSERT(catchNode != nullptr, "null ptr check");
       for (uint32 idx = 0; idx < catchNode->Size(); ++idx) {
@@ -732,5 +733,4 @@ bool CgBuildEHFunc::PhaseRun(maplebe::CGFunc &f) {
   f.BuildEHFunc();
   return false;
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgBuildEHFunc, buildehfunc)
 }  /* namespace maplebe */
