@@ -45,7 +45,7 @@ class PhiEliminate {
   void UpdateRematInfo();
   regno_t GetAndIncreaseTempRegNO();
   RegOperand *MakeRoomForNoDefVreg(RegOperand &conflictReg);
-  void RecordRematInfo(regno_t vRegNO, PregIdx pIdx, PrimType primType = kPtyInvalid, MIRType *mirType = nullptr);
+  void RecordRematInfo(regno_t vRegNO, PregIdx pIdx);
   PregIdx FindRematInfo(regno_t vRegNO) {
     return remateInfoAfterSSA.count(vRegNO) ? remateInfoAfterSSA[vRegNO] : -1;
   }
