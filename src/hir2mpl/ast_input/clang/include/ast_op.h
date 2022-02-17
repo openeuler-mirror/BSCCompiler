@@ -168,6 +168,7 @@ enum ASTStmtOp {
   kASTStmtGCCAsmStmt,
   kASTOffsetOfStmt,
   kASTGenericSelectionExprStmt,
+  kASTStmtAttributed,
 };
 }  // namespace maple
 #endif  // HIR2MPL_AST_INPUT_INCLUDE_AST_OP_H

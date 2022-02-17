@@ -50,6 +50,7 @@ class ASTParser {
   ASTStmt *ProcessStmt(MapleAllocator &allocator, const clang::Stmt &stmt);
   ASTStmt *ProcessFunctionBody(MapleAllocator &allocator, const clang::CompoundStmt &cpdStmt);
 #define PROCESS_STMT(CLASS) ProcessStmt##CLASS(MapleAllocator&, const clang::CLASS&)
+  ASTStmt *PROCESS_STMT(AttributedStmt);
   ASTStmt *PROCESS_STMT(UnaryOperator);
   ASTStmt *PROCESS_STMT(BinaryOperator);
   ASTStmt *PROCESS_STMT(CompoundAssignOperator);

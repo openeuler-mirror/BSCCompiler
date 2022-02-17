@@ -144,11 +144,19 @@ ASTStmt *ASTParser::ProcessStmt(MapleAllocator &allocator, const clang::Stmt &st
     STMT_CASE(GCCAsmStmt);
     STMT_CASE(OffsetOfExpr);
     STMT_CASE(GenericSelectionExpr);
+    STMT_CASE(AttributedStmt);
     default: {
       CHECK_FATAL(false, "ASTStmt: %s NIY", stmt.getStmtClassName());
       return nullptr;
     }
   }
+}
+
+ASTStmt *ASTParser::ProcessStmtAttributedStmt(MapleAllocator &allocator, const clang::AttributedStmt &AttrStmt) {
+  ASSERT(clang::hasSpecificAttr<clang::FallThroughAttr>(AttrStmt.getAttrs()), "AttrStmt is not fallthrough");
+  ASTAttributedStmt *astAttributedStmt  = ASTDeclsBuilder::ASTStmtBuilder<ASTAttributedStmt>(allocator);
+  CHECK_FATAL(astAttributedStmt != nullptr, "astAttributedStmt is nullptr");
+  return astAttributedStmt;
 }
 
 ASTStmt *ASTParser::ProcessStmtOffsetOfExpr(MapleAllocator &allocator, const clang::OffsetOfExpr &expr) {
