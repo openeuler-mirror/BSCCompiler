@@ -73,6 +73,16 @@ bool IsByteType(const MIRType *type) {
   return (type != nullptr && GetPrimTypeActualBitSize(type->GetPrimType()) == 8);
 }
 
+// if offset is greater than typeBitSize, canonicalize offset.
+// The root cause of this is array index offset, like:
+// example : structA *a; and a[2].fld offset will be greater than size of structA
+void CanonicalizeOffset(OffsetType &offset, int64 typeBitSize) {
+  if (offset.IsInvalid()) {
+    return;
+  }
+  offset.Set(offset.val % typeBitSize);
+}
+
 bool IsArrayTypeCompatible(MIRType *arrayTypeA, MIRType *arrayTypeB) {
   if (arrayTypeA == nullptr || arrayTypeB == nullptr) {
     return false;
@@ -370,6 +380,7 @@ bool MayAliasOstAndFields(const OriginalSt *ost, MIRType *aggType, std::vector<F
   }
   MIRType *type = ost->GetType();
   OffsetType offset = ost->GetOffset();
+  CanonicalizeOffset(offset, GetTypeBitSize(aggType));
   if (offset.IsInvalid()) {
     std::vector<FieldID> ostFields{};
     GetPossibleFieldID(aggType, type, ostFields);
@@ -474,13 +485,14 @@ bool MayAliasOstAndType(const OriginalSt *ost, MIRType *checkedType) {
       return true; // conservatively
     }
     // if aggType is an array of structType, canonicalize offset.
-    size_t ostOffset = ost->GetOffset().val % (structType->GetSize() * bitsPerByte);
+    OffsetType ostOffset = ost->GetOffset();
+    CanonicalizeOffset(ostOffset, GetTypeBitSize(structType));
     size_t size = ostType->GetSize() * bitsPerByte;
     for (FieldID fld = 1; fld < ost->GetFieldID(); ++fld) {
       MIRType *fieldType = GetFieldType(structType, fld);
       if (fieldType == checkedType) {
         if (IsMemoryOverlap(OffsetType(structType->GetBitOffsetFromBaseAddr(fld)), sizeB * bitsPerByte,
-                            OffsetType(ostOffset), size)) {
+                            ostOffset, size)) {
           return true;
         }
         fld += fldNumB;
@@ -507,13 +519,17 @@ bool TypeBasedAliasAnalysis::MayAlias(const OriginalSt *ostA, const OriginalSt *
   if (ostA == ostB) {
     return true;
   }
-  const OffsetType &offsetA = ostA->GetOffset();
-  const OffsetType &offsetB = ostB->GetOffset();
+  OffsetType offsetA = ostA->GetOffset();
+  OffsetType offsetB = ostB->GetOffset();
   // Check field alias - If both of ost are fields of the same agg type, check if they overlap
   if (ostA->GetFieldID() != 0 && ostB->GetFieldID() != 0 && !offsetA.IsInvalid() && !offsetB.IsInvalid()) {
     MIRType *aggTypeA = GetAggTypeOstEmbedded(ostA);
     MIRType *aggTypeB = GetAggTypeOstEmbedded(ostB);
     if (aggTypeA == aggTypeB) { // We should check type compatibility here actually
+      if (aggTypeA != nullptr) {
+        CanonicalizeOffset(offsetA, GetTypeBitSize(aggTypeA));
+        CanonicalizeOffset(offsetB, GetTypeBitSize(aggTypeB));
+      }
       int32 bitSizeA = static_cast<int32>(GetTypeBitSize(ostA->GetType()));
       int32 bitSizeB = static_cast<int32>(GetTypeBitSize(ostB->GetType()));
       return IsMemoryOverlap(offsetA, bitSizeA, offsetB, bitSizeB);
@@ -523,14 +539,14 @@ bool TypeBasedAliasAnalysis::MayAlias(const OriginalSt *ostA, const OriginalSt *
 }
 
 void TypeBasedAliasAnalysis::ClearOstTypeUnsafeInfo() {
-  if (!MeOption::tbaa || MeOption::optLevel >= 3) {
+  if (!MeOption::tbaa || ostTypeUnsafe.empty()) {
     return;
   }
   ostTypeUnsafe.clear();
 }
 
 bool TypeBasedAliasAnalysis::MayAliasTBAAForC(const OriginalSt *ostA, const OriginalSt *ostB) {
-  if (!MeOption::tbaa || MeOption::optLevel >= 3) {
+  if (!MeOption::tbaa) {
     return true;
   }
   if (ostA == nullptr || ostB == nullptr) {
@@ -565,6 +581,11 @@ bool TypeBasedAliasAnalysis::MayAliasTBAAForC(const OriginalSt *ostA, const Orig
   OffsetType offsetA = ostA->GetOffset();
   OffsetType offsetB = ostB->GetOffset();
   if (aggTypeA == aggTypeB) {
+    // if aggType is a structType, and its offset is out of its size (e.g. structType is element type of array);
+    // canonicalize offset.
+    int64 aggSize = GetTypeBitSize(aggTypeA);
+    CanonicalizeOffset(offsetA, aggSize);
+    CanonicalizeOffset(offsetB, aggSize);
     return IsMemoryOverlap(offsetA, GetTypeBitSize(typeA), offsetB, GetTypeBitSize(typeB));
   }
 

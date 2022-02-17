@@ -45,7 +45,7 @@ bool MeAliasClass::HasWriteToStaticFinal() const {
 }
 
 void MeAliasClass::PerformTBAAForC() {
-  if (!mirModule.IsCModule() || !MeOption::tbaa || MeOption::optLevel >= 3) {
+  if (!mirModule.IsCModule() || !MeOption::tbaa) {
     return;
   }
   for (auto ae : Id2AliasElem()) {

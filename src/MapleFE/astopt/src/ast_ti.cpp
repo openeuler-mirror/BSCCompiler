@@ -70,10 +70,6 @@ void TypeInfer::TypeInference() {
   MSGNOLOC0("============== Check Type ==============");
   CheckTypeVisitor visitor_check(mHandler, mFlags, true);
   visitor_check.Visit(module);
-
-  if (mFlags & FLG_trace_3) {
-    mHandler->DumpArrayElemTypeIdMap();
-  }
 }
 
 // build up mNodeId2Decl by visiting each Identifier
@@ -1056,10 +1052,6 @@ CallNode *TypeInferVisitor::VisitCallNode(CallNode *node) {
         if (decl) {
           if (decl->IsFunction()) {
             FunctionNode *func = static_cast<FunctionNode *>(decl);
-            // check if called a generator
-            if (func->IsGenerator()) {
-              mHandler->AddGeneratorUsed(node->GetNodeId(), func);
-            }
             // update call's return type
             if (func->GetType()) {
               UpdateTypeId(node, func->GetType()->GetTypeId());
@@ -1263,11 +1255,6 @@ DeclNode *TypeInferVisitor::VisitDeclNode(DeclNode *node) {
     elemTypeId = GetArrayElemTypeId(init);
     elemTypeIdx = GetArrayElemTypeIdx(init);
     isArray = (elemTypeId != TY_None);
-    // pass IsGeneratorUsed
-    mHandler->UpdateGeneratorUsed(node->GetNodeId(), init->GetNodeId());
-    if (var) {
-      mHandler->UpdateGeneratorUsed(var->GetNodeId(), init->GetNodeId());
-    }
   }
   if (var) {
     // normal cases

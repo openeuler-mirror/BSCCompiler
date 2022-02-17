@@ -390,7 +390,7 @@ rule MemberExpression : ONEOF(
   MemberExpression + '[' + KeyOf + ']',
   MemberExpression + '!',
   MemberExpression + '.' + JSIdentifier + "as" + "const",
-  '<' + Type + '>' + MemberExpression,
+  '<' + Type + '>' + PrimaryExpression,
   PrimaryExpression + "as" + "const",
   MemberExpression + '.' + KeywordPropName)
   attr.action.%1 : AddAsType(%1, %2)

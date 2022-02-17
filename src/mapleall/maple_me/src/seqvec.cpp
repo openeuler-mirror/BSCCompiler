@@ -284,7 +284,7 @@ void SeqVectorize::CollectStores(IassignNode *iassign) {
   MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
   PrimType stmtpt = ptrType->GetPointedType()->GetPrimType();
   if (!IsPrimitiveInteger(stmtpt)) return;
-  // check lsh and rsh type
+  // check lhs and rhs type
   if (iassign->GetRHS()->IsConstval() &&
       (stmtpt != iassign->GetRHS()->GetPrimType()) &&
       (!CanAdjustRhsType(stmtpt, static_cast<ConstvalNode *>(iassign->GetRHS())))) {
@@ -454,11 +454,18 @@ bool SeqVectorize::CanSeqVec(const IassignNode *s1, const IassignNode *s2) {
   if (!IsIvarExprConsecutiveMem(lhsMeExpr1, lhsMeExpr2, ptrType->GetPointedType()->GetPrimType())) {
     return false;
   }
-  // check rsh
+  // check rhs
   MeExpr *rhs1 = iassMeStmt1->GetRHS();
   MeExpr *rhs2 = iassMeStmt2->GetRHS();
   if (!CanSeqVecRhs(rhs1, rhs2)) {
     return false;
+  }
+  // check lhs and rhs size consistent
+  if (rhs1->GetMeOp() == maple::kMeOpIvar && rhs2->GetMeOp() == maple::kMeOpIvar) {
+    MIRType *rhsType = static_cast<IvarMeExpr*>(rhs1)->GetType();
+    if (rhsType->GetSize() != ptrType->GetPointedType()->GetSize()) {
+      return false;
+    }
   }
   return true;
 }

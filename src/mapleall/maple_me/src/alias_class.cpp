@@ -737,11 +737,43 @@ void AliasClass::PropagateTypeUnsafeVertically(const OriginalSt &ost) {
     PropagateTypeUnsafeVertically(*nextLevOst);
   }
 }
+
+bool AliasClass::IsGlobalOstTypeUnsafe(const OriginalSt &ost) const {
+  if (ost.IsLocal()) {
+    return false;
+  }
+  const MIRSymbol *sym = ost.GetMIRSymbol();
+  if (sym == nullptr) {
+    return false;
+  }
+  static std::set<const MIRSymbol*> unsafeGSym;
+  static bool hasInited = false; // if unsafeGsym is initialed before cannot be checked by unsafeGsym.size == 0
+  if (!hasInited) {
+    const GSymbolTable &gSymbolTable = GlobalTables::GetGsymTable();
+    for (size_t i = 0; i < gSymbolTable.GetSymbolTableSize(); ++i) {
+      const MIRSymbol *gSym = gSymbolTable.GetSymbol(i);
+      if(gSym == nullptr) {
+        continue;
+      }
+      // example : typeA *gSym = (typeB*)initVal
+      if (gSym->IsConst()) {
+        MIRConst *initValue = gSym->GetKonst();
+        // set gSym type unsafe if type conversion occurs
+        if (&initValue->GetType() != gSym->GetType() &&
+            (initValue->GetType().IsMIRPtrType() || gSym->GetType()->IsMIRPtrType())) {
+          unsafeGSym.emplace(gSym);
+        }
+      }
+    }
+    hasInited = true;
+  }
+  return unsafeGSym.find(sym) != unsafeGSym.end();
+}
 // Propagate type unsafe info as soon as assign set has been created.
 // If any Ost in assign set is type unsafe, propagate type-unsafe info
 // among all elements in this assign set and next level osts.
 void AliasClass::PropagateTypeUnsafe() {
-  if (!MeOption::tbaa || MeOption::optLevel >= 3) {
+  if (!mirModule.IsCModule() || !MeOption::tbaa) {
     return;
   }
   TypeBasedAliasAnalysis::GetOstTypeUnsafe().resize(osym2Elem.size(), false);
@@ -749,7 +781,8 @@ void AliasClass::PropagateTypeUnsafe() {
     auto *assSet = ae->GetAssignSet();
     if (assSet == nullptr) {
       OriginalSt *ost = ae->GetOst();
-      if (ost->GetType()->IsUnsafeType() || TypeBasedAliasAnalysis::IsOstTypeUnsafe(*ost)) {
+      if (ost->GetType()->IsUnsafeType() || TypeBasedAliasAnalysis::IsOstTypeUnsafe(*ost) ||
+          IsGlobalOstTypeUnsafe(*ost)) {
         // Vertical propagate : to next level.
         PropagateTypeUnsafeVertically(*ost);
       }
@@ -759,7 +792,8 @@ void AliasClass::PropagateTypeUnsafe() {
     // if any element in assign set is typeUnsafe, all elements will be set unsafe
     for (auto elemID : *assSet) {
       OriginalSt &elemOst = id2Elem[elemID]->GetOriginalSt();
-      if (elemOst.GetType()->IsUnsafeType() || TypeBasedAliasAnalysis::IsOstTypeUnsafe(elemOst)) {
+      if (elemOst.GetType()->IsUnsafeType() || TypeBasedAliasAnalysis::IsOstTypeUnsafe(elemOst) ||
+          IsGlobalOstTypeUnsafe(elemOst)) {
         unsafe = true;
         break;
       }
@@ -779,7 +813,7 @@ void AliasClass::PropagateTypeUnsafe() {
 // if ae->ost is an address of an union type (or its field), we set ost type unsafe.
 // example: union {int x; float y;} u; u.x and u.y must alias, although their type is incompatible
 void AliasClass::SetTypeUnsafeForAddrofUnion(const AliasElem *ae) const {
-  if (!MeOption::tbaa || MeOption::optLevel >= 3) {
+  if (!mirModule.IsCModule() || !MeOption::tbaa) {
     return;
   }
   if (ae == nullptr) {
@@ -799,7 +833,7 @@ void AliasClass::SetTypeUnsafeForAddrofUnion(const AliasElem *ae) const {
 
 // For x <- y, if type of x is different from y, type conversion occurs, and we should set them type unsafe.
 void AliasClass::SetTypeUnsafeForTypeConversion(const AliasElem *lhsAe, const AliasElem *rhsAe) const {
-  if (!MeOption::tbaa || MeOption::optLevel >= 3) {
+  if (!mirModule.IsCModule() || !MeOption::tbaa) {
     return;
   }
   if (lhsAe == nullptr || rhsAe == nullptr) {
@@ -820,7 +854,7 @@ void AliasClass::SetTypeUnsafeForTypeConversion(const AliasElem *lhsAe, const Al
 // If base type is different from accessedType(i.e. <*type>), base type is re-interpreted,
 // and implicit type conversion occurs. We should set them type unsafe.
 void AliasClass::SetTypeUnsafeForBaseTypeCvt(const TyIdx &accessTyIdx, const OriginalSt *baseOst) const {
-  if (!MeOption::tbaa || MeOption::optLevel >= 3) {
+  if (!mirModule.IsCModule() || !MeOption::tbaa) {
     return;
   }
   if (baseOst->GetTyIdx() != accessTyIdx) {
