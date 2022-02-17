@@ -172,5 +172,12 @@ unsigned StringPool::GetStrIdx(const char *str, size_t len) {
   s.assign(str, len);
   return mMap->LookupEntryFor(s)->GetStrIdx();
 }
+
+void StringPool::Dump() {
+  std::cout << "===================== StringTable =====================" << std::endl;
+  for (unsigned idx = 1; idx < mStringTable.size(); idx++) {
+    std::cout << "  " << idx << " : " << mStringTable[idx] << std::endl;
+  }
+}
 }
 

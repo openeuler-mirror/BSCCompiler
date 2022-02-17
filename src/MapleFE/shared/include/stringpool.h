@@ -75,6 +75,8 @@ public:
     MASSERT(idx < mStringTable.size() && "string index out of range");
     return mStringTable[idx];
   }
+
+  void Dump();
 };
 
 // Lexing, Parsing, AST Building and IR Building all share one global
