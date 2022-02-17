@@ -108,6 +108,15 @@ class ASTReturnStmt : public ASTStmt {
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
 };
 
+class ASTAttributedStmt : public ASTStmt {
+  public:
+  ASTAttributedStmt() : ASTStmt(kASTStmtAttributed) {}
+  ~ASTAttributedStmt() override = default;
+
+  private:
+    std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override{ return {}; };
+};
+
 class ASTIfStmt : public ASTStmt {
  public:
   ASTIfStmt() : ASTStmt(kASTStmtIf) {}
