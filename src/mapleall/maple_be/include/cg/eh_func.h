@@ -178,7 +178,8 @@ class EHFunc {
 
  private:
   void CreateLSDAAction();
-  void InsertDefaultLabelAndAbortFunc(BlockNode &blkNode, SwitchNode &switchNode, StmtNode &beforeEndLabel);
+  void InsertDefaultLabelAndAbortFunc(BlockNode &blkNode, SwitchNode &switchNode,
+                                      const StmtNode &beforeEndLabel);
   void FillSwitchTable(SwitchNode &switchNode, const EHTry &ehTry);
   void CreateLSDAHeader();
   void FillLSDACallSiteTable();

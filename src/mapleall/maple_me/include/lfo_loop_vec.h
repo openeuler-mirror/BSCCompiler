@@ -120,8 +120,8 @@ class LoopVectorization {
   void widenDoloop(DoloopNode *doloop, LoopTransPlan *);
   DoloopNode *PrepareDoloop(DoloopNode *, LoopTransPlan *);
   DoloopNode *GenEpilog(DoloopNode *) const;
-  MemPool *GetLocalMp() { return localMP; }
-  MapleMap<DoloopNode *, LoopTransPlan *> *GetVecPlans() { return &vecPlans; }
+  const MemPool *GetLocalMp() { return localMP; }
+  const MapleMap<DoloopNode *, LoopTransPlan *> *GetVecPlans() { return &vecPlans; }
   std::string PhaseName() const { return "lfoloopvec"; }
   bool CanConvert(uint32_t, uint32_t) const;
   bool CanAdjustRhsConstType(PrimType, ConstvalNode *);
