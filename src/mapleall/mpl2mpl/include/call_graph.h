@@ -171,7 +171,7 @@ class CGNode {
   }
 
   MIRFunction *HasOneCandidate() const;
-  const MapleVector<MIRFunction*> &GetVCallCandidates() {
+  const MapleVector<MIRFunction*> &GetVCallCandidates() const {
     return vcallCands;
   }
 

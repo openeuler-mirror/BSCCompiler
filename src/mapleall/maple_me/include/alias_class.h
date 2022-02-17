@@ -172,7 +172,7 @@ class AliasClass : public AnalysisResult {
     unionFind.Reinit();
   }
 
-  const UnionFind &GetUnionFind() {
+  const UnionFind &GetUnionFind() const {
     return unionFind;
   }
 

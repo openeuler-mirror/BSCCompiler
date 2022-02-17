@@ -26,8 +26,8 @@ void AArch64ReachingDefinition::InitStartGen() {
   BB *bb = cgFunc->GetFirstBB();
 
   /* Parameters should be define first. */
-  ParmLocator parmLocator(cgFunc->GetBecommon());
-  PLocInfo pLoc;
+  AArch64CallConvImpl parmLocator(cgFunc->GetBecommon());
+  CCLocInfo pLoc;
   for (uint32 i = 0; i < cgFunc->GetFunction().GetFormalCount(); ++i) {
     MIRType *type = cgFunc->GetFunction().GetNthParamType(i);
     parmLocator.LocateNextParm(*type, pLoc);
@@ -61,24 +61,28 @@ void AArch64ReachingDefinition::InitStartGen() {
 
     AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
 
-    RegOperand &regOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(pLoc.reg0, srcBitSize, regType);
+    RegOperand &regOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(
+        static_cast<AArch64reg>(pLoc.reg0), srcBitSize, regType);
     Insn &pseudoInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd);
     bb->InsertInsnBegin(pseudoInsn);
     pseudoInsns.emplace_back(&pseudoInsn);
     if (pLoc.reg1) {
-      RegOperand &regOpnd1 = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(pLoc.reg1, srcBitSize, regType);
+      RegOperand &regOpnd1 = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(
+          static_cast<AArch64reg>(pLoc.reg1), srcBitSize, regType);
       Insn &pseudoInsn1 = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd1);
       bb->InsertInsnBegin(pseudoInsn1);
       pseudoInsns.emplace_back(&pseudoInsn1);
     }
     if (pLoc.reg2) {
-      RegOperand &regOpnd2 = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(pLoc.reg2, srcBitSize, regType);
+      RegOperand &regOpnd2 = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(
+          static_cast<AArch64reg>(pLoc.reg2), srcBitSize, regType);
       Insn &pseudoInsn1 = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd2);
       bb->InsertInsnBegin(pseudoInsn1);
       pseudoInsns.emplace_back(&pseudoInsn1);
     }
     if (pLoc.reg3) {
-      RegOperand &regOpnd3 = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(pLoc.reg3, srcBitSize, regType);
+      RegOperand &regOpnd3 = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(
+          static_cast<AArch64reg>(pLoc.reg3), srcBitSize, regType);
       Insn &pseudoInsn1 = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd3);
       bb->InsertInsnBegin(pseudoInsn1);
       pseudoInsns.emplace_back(&pseudoInsn1);
