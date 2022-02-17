@@ -75,10 +75,21 @@ of corresponding built-in type:
 
 ## TypeScript types
 
-Note that Record and Tuple currently are TypeScript only types. They are
+Additionally these TypeScript types will be treated as built-in object types too:
+- Record
+- Tuple
+- Iterable
+- Iterator 
+
+### 1. Record and Tuple types
+Record and Tuple currently are TypeScript only types. They are
 not ECMA-262 standard yet, but has been proposed and undergoing standardization.
 
 - https://tc39.es/proposal-record-tuple
 - https://www.typescriptlang.org/docs/handbook/2/objects.html#tuple-types
 - https://www.typescriptlang.org/docs/handbook/utility-types.html#recordkeys-type
 
+### 2. Iterable and Iterator types
+These are TypeScript types
+- https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-6.html#stricter-generators
+- https://www.typescriptlang.org/docs/handbook/iterators-and-generators.html#iterable-interface
