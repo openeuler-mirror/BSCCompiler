@@ -34,12 +34,15 @@ extern std::unordered_map<TypeId, std::string>TypeIdToJSType;
 extern std::unordered_map<TypeId, std::string>TypeIdToJSTypeCXX;
 extern TypeId hlpGetTypeId(TreeNode* node);
 extern std::string GenClassFldAddProp(std::string, std::string, std::string, std::string, std::string);
-extern std::string GenFuncClass(std::string retType, std::string funcName, std::string params, std::string args);
+extern std::string FunctionTemplate(std::string retType, std::string funcName, std::string params, std::string args);
+extern std::string GeneratorTemplate(std::string funcName, std::vector<std::pair<std::string, std::string>>&args);
 extern std::string tab(int n);
 extern bool IsClassMethod(TreeNode* node);
 extern std::string GetClassOfAssignedFunc(TreeNode* node);
 extern std::string GenAnonFuncName(TreeNode* node);
 inline std::string ClsName(std::string func) { return "Cls_"s + func; }
+inline std::string GeneratorName(std::string func) { return "Generator_"s + func; }
+inline std::string GeneratorFuncName(std::string func) { return "GeneratorFunc_"s + func; }
 extern void HandleThisParam(unsigned nParams, TreeNode* node, std::string& params, std::string&args);
 extern std::string hlpGetJSValTypeStr(TypeId typeId);
 extern std::string ArrayCtorName(int dim, std::string type);

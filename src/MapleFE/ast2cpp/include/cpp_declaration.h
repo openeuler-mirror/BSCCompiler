@@ -37,6 +37,7 @@ public:
   }
 
   std::string GenFunctionClass(FunctionNode* node);
+  std::string GenGeneratorClass(FunctionNode* node);
 
   void AddImportedModule(const std::string& module);
   bool IsImportedModule(const std::string& module);
