@@ -118,40 +118,99 @@ public:
   static Ctor ctor;
 };
 
+
+// 20.5 Error objects for execptions
+class Error : public Object {
+  // TODO
+};
+
+// JavaScript generators and generator functions
+// - The builtin GeneratorFunction is the constructor for all generator functions.
+// - Generator functions are called directly to return generators (with closure).
+// - Generators are iterators that calls corresponding generator function with
+//   data captured in closure to iterate for results.
+
+// ecma-262 section references are based on ecma-262 edition 12.0
+
+// ecma262 27.1.1.5 IteratorResult interface:
+struct IteratorResult {
+  bool   _done;  // status of iterator next() call
+  JS_Val _value; // done=false: current iteration element value
+                 // done=true:  return value of the iterator, undefined if none returned
+  IteratorResult() : _done(true), _value(undefined) { }
+  IteratorResult(bool done, JS_Val val) : _done(done), _value(val) { }
+  ~IteratorResult() { }
+};
+
+// ecma262 27.1.1.1 Iterable interface:
+// To be iterable, an object or one of the objects up its prototype chain must
+// have a property with a @@iterator key (<obj>[Symbol.iterator], the value of
+// which is a function that returns iterators (i.e objects with Iterator interace
+// methods next/return/throw).
+//
+// Note: For iterable objects such as arrays and strings, <obj>[Symbol.iterator]()
+// returns a new iteraor object. But for the intrinsic object %IteratorPrototype%
+// (27.1.2.1) it returns the current iterator instance, which
+// means for all iterators, <obj>[Sumbol.iterator]() returns itself.
+
+// ecma262 27.1.2.1 %IteratorPrototype%:
+// 1) All objects that implement iterator interface also inherit from %IteratorPrototype%
+// 2) %IteratorPrototype% provides shared props for all iterator objects
+// 3) %IteratorPrototype%[Symbol.iterator]() = this (current iterator instance) - used in for loops
 class IteratorProto : public Object {
 public:
-  // TODO
   IteratorProto(Function* ctor, Object* proto) : Object(ctor, proto) { }
+  ~IteratorProto() { }
+  // note: the arg on an iterator's 1st next() call is ignored per spec 27.5.1.2
+  virtual IteratorResult _next(JS_Val* arg)       { return IteratorResult(); }
+  virtual IteratorResult _return(JS_Val* val)     { return IteratorResult(); }
+  virtual IteratorResult _throw(Error exception)  { return IteratorResult(); }
+
+  // TODO: %IteratorPrototype%[Symbol.iterator]() = this (current iterator instance)
 };
 
-class GeneratorFunctionPrototype : public Function {
-public:
-  GeneratorFunctionPrototype(Function* ctor, Object* proto, Object* prototype_proto) : Function(ctor, proto, prototype_proto) { }
-};
-
-
+// 27.5.1 Generator Prototype Object
+// - in ecma edition 11: named %GeneratorPrototype% (25.4.1)
+// - in ecma edition 12: named %GeneratorFunction.prototype.prototype% (27.5.1) but
+//                       labelled as %GeneratoPrototype% in 27.3 Figure 5.
+//                       Label corrected in version at tc39.
 class GeneratorProto : public IteratorProto {
 public:
-  // TODO
   GeneratorProto(Function* ctor, Object* proto) : IteratorProto(ctor, proto) { }
+  ~GeneratorProto() { }
+  void*  _yield     = nullptr; // pointer to yield label to resume execution
+  bool   _finished  = false;   // flag if generator is in finished state
+  bool   _firstNext = true;    // flag if first next has been called on iterator (27.5.1.2)
+  JS_Val _retval = undefined;  // save optional arg from iterator's return(arg) method
 };
 
+// 27.3.1 GeneratorFunction Constructor
 class GeneratorFunc : public Function::Ctor {
 public:
-  // TODO
   GeneratorFunc(Function* ctor, Object* proto, Object* prototype_proto, Function* prototype_obj) : Function::Ctor(ctor, proto, prototype_proto, prototype_obj) { }
+  ~GeneratorFunc() {}
 };
 
-// GeneratorFunction objects. (Ref: ECMA spec 27.3)
+// 27.3.3 GeneratorFunction Prototype Obejct
+// - in ecma edition 11: named %Generator% (25.2.3)
+// - in ecma edition 12: named %GeneratorFunction.prorotype% (27.3.3) but
+//                       labelled as %Generator% in 27.3 Figure 5.
+//                       Label corrected in tc39 version.
+class GeneratorFuncPrototype : public Function {
+public:
+  GeneratorFuncPrototype(Function* ctor, Object* proto, Object* prototype_proto) : Function(ctor, proto, prototype_proto) { }
+};
+
+// Generator related intrinsic objects. (ecma 27.3)
 // IteratorPrototype: It is not a prototype object of any constructor func, but holds shared properties for iterators
-// GeneratorFunction: A builtin function used as the constructor for generators (i.e. generator functions).//
-// Generator:         (a.k.a. GeneratorFuncion.prototype in 2022 spec) is the prototype object of GeneratorFunction,
+// GeneratorFunction: A builtin function used as the constructor for generator functions.
+// Generator:         (GeneratorFuncion.prototype in edition 12.0) is the prototype object of GeneratorFunction,
 //                    It is a special object used as both prototype object and constructor - as prototype for sharing
 //                    properties between generator functions, and as constructor whose prototype object (GeneratorPrototype
-//                    in pre-2022 spec) holds shared properties for instances returned by generator functions.
+//                    in edition 11) holds shared properties for generators (i.e. instances returned by generator functions.
 extern IteratorProto              IteratorPrototype;
 extern GeneratorFunc              GeneratorFunction;
-extern GeneratorFunctionPrototype Generator;
+extern GeneratorFuncPrototype     Generator;
 extern Object*                    GeneratorPrototype;
 
 } // namespace t2crt

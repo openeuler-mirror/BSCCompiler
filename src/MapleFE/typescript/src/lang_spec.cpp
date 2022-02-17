@@ -585,14 +585,24 @@ bool TypescriptParser::TraverseASI(RuleTable *rule_table,
 
     // case 3. This is a special case we want to catch:
     //     foo(x) a=b;  <-- , is missing before a=b
+    //    { foo(x) a=b; } <-- , is missing before a=b
     // There could be many more similar cases, but we just match this special one in our
     // unit test. We don't encourage people write weird code.
     if ( (curr_token->IsIdentifier() || curr_token->IsKeyword()) &&
-         (prev_token->IsSeparator() && (prev_token->GetSepId() == SEP_Rparen)) ){
+         (prev_token->IsSeparator() && (prev_token->GetSepId() == SEP_Rparen)) &&
+         mActiveTokens.GetNum() > 4 ){
       Token *prev_2_token = GetActiveToken(mCurToken - 2);
       Token *prev_3_token = GetActiveToken(mCurToken - 3);
       Token *prev_4_token = GetActiveToken(mCurToken - 4);
-      if ( prev_4_token->mLineBegin &&
+
+      bool lbrace_ok = false;
+      if (mActiveTokens.GetNum() > 5){
+        Token *prev_5_token = GetActiveToken(mCurToken - 5);
+        if (prev_5_token->IsSeparator() && (prev_5_token->GetSepId() == SEP_Lbrace))
+          lbrace_ok = true;
+      }
+
+      if ( (prev_4_token->mLineBegin || lbrace_ok) &&
            (prev_4_token->IsIdentifier() || prev_4_token->IsKeyword()) &&
            (prev_2_token->IsIdentifier() || prev_2_token->IsKeyword()) &&
            (prev_3_token->IsSeparator() && (prev_3_token->GetSepId() == SEP_Lparen)) ){
