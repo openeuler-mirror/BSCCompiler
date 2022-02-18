@@ -134,7 +134,7 @@ FieldLiteralNode *BuildIdDirectFieldVisitor::VisitFieldLiteralNode(FieldLiteralN
   IdentifierNode *field = static_cast<IdentifierNode *>(name);
   TreeNode *decl = mHandler->FindDecl(field);
   TreeNode *vtype = GetParentVarClass(decl);
-  if (vtype) {
+  if (vtype && !mHandler->GetINFO()->IsBuiltInType(vtype)) {
     // check if decl is a field of vtype
     // note: vtype could be in different module
     Module_Handler *h = mHandler->GetModuleHandler(vtype);
@@ -1274,6 +1274,12 @@ DeclNode *TypeInferVisitor::VisitDeclNode(DeclNode *node) {
   if (var) {
     // normal cases
     if(var->IsIdentifier()) {
+      IdentifierNode *idvar = static_cast<IdentifierNode *>(var);
+      if (isFromGenerator) {
+        unsigned stridx = gStringPool.GetStrIdx("Generator");
+        UserTypeNode *ut = mInfo->CreateUserTypeNode(stridx, var->GetScope());
+        idvar->SetType(ut);
+      }
       merged = MergeTypeId(merged, var->GetTypeId());
       mergedtidx = MergeTypeIdx(mergedtidx, var->GetTypeIdx());
       bool isFunc = UpdateVarTypeWithInit(var, init);
@@ -1559,8 +1565,10 @@ IdentifierNode *TypeInferVisitor::VisitIdentifierNode(IdentifierNode *node) {
       TreeNode *uptype = gTypeTable.GetTypeFromTypeIdx(upper->GetTypeIdx());
       if (uptype) {
         scope = uptype->GetScope();
-        node->SetScope(scope);
-        decl = mHandler->FindDecl(node, true);
+        if (scope) {
+          node->SetScope(scope);
+          decl = mHandler->FindDecl(node, true);
+        }
       }
     } else {
       NOTYETIMPL("node not in field");
@@ -1721,10 +1729,12 @@ ReturnNode *TypeInferVisitor::VisitReturnNode(ReturnNode *node) {
       type->SetPrimType(TY_None);
       func->SetType(type);
     }
-    UpdateFuncRetTypeId(func, node->GetTypeId(), node->GetTypeIdx());
-    if (res) {
-      // use res to update function's return type
-      UpdateTypeUseNode(func->GetType(), res);
+    if (!func->IsGenerator() && !func->IsIterator()) {
+      UpdateFuncRetTypeId(func, node->GetTypeId(), node->GetTypeIdx());
+      if (res) {
+        // use res to update function's return type
+        UpdateTypeUseNode(func->GetType(), res);
+      }
     }
   }
   return node;
