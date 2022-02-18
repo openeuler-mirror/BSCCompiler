@@ -122,6 +122,38 @@ void AArch64CGSSAInfo::ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *new
   }
 }
 
+void AArch64CGSSAInfo::CreateNewInsnSSAInfo(Insn &newInsn) {
+  uint32 opndNum = newInsn.GetOperandSize();
+  MarkInsnsInSSA(newInsn);
+  for (uint32 i = 0; i < opndNum; i++) {
+    Operand &opnd = newInsn.GetOperand(i);
+    const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn&>(newInsn).GetMachineOpcode()];
+    auto *opndProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+    if (opndProp->IsDef() && opndProp->IsUse()) {
+      CHECK_FATAL(false, "do not support both def and use");
+    }
+    if (opndProp->IsDef()) {
+      CHECK_FATAL(opnd.IsRegister(), "defOpnd must be reg");
+      RegOperand &defRegOpnd = static_cast<RegOperand&>(opnd);
+      regno_t defRegNO = defRegOpnd.GetRegisterNumber();
+      uint32 defVIdx = IncreaseVregCount(defRegNO);
+      RegOperand *defSSAOpnd = CreateSSAOperand(defRegOpnd);
+      newInsn.SetOperand(i, *defSSAOpnd);
+      auto *defVersion = memPool->New<VRegVersion>(ssaAlloc, *defSSAOpnd, defVIdx, defRegNO);
+      auto *defInfo = CreateDUInsnInfo(&newInsn, i);
+      defVersion->SetDefInsn(defInfo, kDefByInsn);
+      if (!IncreaseSSAOperand(defSSAOpnd->GetRegisterNumber(), defVersion)) {
+        CHECK_FATAL(false, "insert ssa operand failed");
+      }
+    } else if (opndProp->IsUse()) {
+      A64OpndSSAUpdateVsitor ssaUpdator(*this);
+      ssaUpdator.MarkIncrease();
+      ssaUpdator.SetInsnOpndInfo(newInsn, *opndProp, i);
+      opnd.Accept(ssaUpdator);
+    }
+  }
+}
+
 void AArch64CGSSAInfo::DumpInsnInSSAForm(const Insn &insn) const {
   auto &a64Insn = static_cast<const AArch64Insn&>(insn);
   MOperator mOp = a64Insn.GetMachineOpcode();
@@ -169,16 +201,16 @@ void A64SSAOperandRenameVisitor::Visit(MemOperand*v) {
   RegOperand *index = a64MemOpnd->GetIndexRegister();
   bool needCopy = (base != nullptr && base->IsVirtualRegister()) || (index != nullptr && index->IsVirtualRegister());
   if (needCopy) {
-    AArch64MemOperand *copyMem = ssaInfo->CreateMemOperand(*a64MemOpnd, true);
+    AArch64MemOperand *cpyMem = ssaInfo->CreateMemOperand(*a64MemOpnd, true);
     if (base != nullptr && base->IsVirtualRegister()) {
       bool isDef = !a64MemOpnd->IsIntactIndexed();
-      copyMem->SetBaseRegister(
+      cpyMem->SetBaseRegister(
           *static_cast<AArch64RegOperand*>(ssaInfo->GetRenamedOperand(*base, isDef, *insn, idx)));
     }
     if (index != nullptr && index->IsVirtualRegister()) {
-      copyMem->SetIndexRegister(*ssaInfo->GetRenamedOperand(*index, false, *insn, idx));
+      cpyMem->SetIndexRegister(*ssaInfo->GetRenamedOperand(*index, false, *insn, idx));
     }
-    insn->SetMemOpnd(ssaInfo->CreateMemOperand(*copyMem, false));
+    insn->SetMemOpnd(ssaInfo->CreateMemOperand(*cpyMem, false));
   }
 }
 
@@ -187,14 +219,19 @@ void A64SSAOperandRenameVisitor::Visit(ListOperand *v) {
   bool isAsm = insn->GetMachineOpcode() == MOP_asm;
   /* record the orignal list order */
   std::list<RegOperand*> tempList;
-  for (auto *op : a64ListOpnd->GetOperands()) {
+  auto& opndList = a64ListOpnd->GetOperands();
+
+  while (!opndList.empty()) {
+    auto* op = opndList.front();
+    opndList.pop_front();
+
     if (op->IsSSAForm() || !op->IsVirtualRegister()) {
-      a64ListOpnd->RemoveOpnd(*op);
       tempList.push_back(op);
       continue;
     }
-    a64ListOpnd->RemoveOpnd(*op);
-    bool isDef = isAsm ? idx == kAsmClobberListOpnd || idx == kAsmOutputListOpnd : false;
+
+    bool isDef =
+        isAsm && (idx == kAsmClobberListOpnd || idx == kAsmOutputListOpnd);
     RegOperand *renameOpnd = ssaInfo->GetRenamedOperand(*op, isDef, *insn, idx);
     tempList.push_back(renameOpnd);
   }

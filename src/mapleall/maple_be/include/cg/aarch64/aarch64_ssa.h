@@ -28,6 +28,7 @@ class AArch64CGSSAInfo : public CGSSAInfo {
   AArch64MemOperand *CreateMemOperand(AArch64MemOperand &memOpnd, bool isOnSSA /* false = on cgfunc */);
   void ReplaceInsn(Insn &oriInsn, Insn &newInsn) override;
   void ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *newVersion) override;
+  void CreateNewInsnSSAInfo(Insn &newInsn) override;
 
  private:
   void RenameInsn(Insn &insn) override;
@@ -39,6 +40,7 @@ class A64SSAOperandRenameVisitor : public SSAOperandVisitor {
  public:
   A64SSAOperandRenameVisitor(AArch64CGSSAInfo &cssaInfo, Insn &cInsn, OpndProp &cProp, uint32 idx)
       : SSAOperandVisitor(cInsn, cProp, idx), ssaInfo(&cssaInfo) {}
+  ~A64SSAOperandRenameVisitor() override = default;
   void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;
   void Visit(MemOperand *v) final;
@@ -50,6 +52,7 @@ class A64SSAOperandRenameVisitor : public SSAOperandVisitor {
 class A64OpndSSAUpdateVsitor : public SSAOperandVisitor {
  public:
   explicit A64OpndSSAUpdateVsitor(AArch64CGSSAInfo &cssaInfo) : ssaInfo(&cssaInfo) {}
+  ~A64OpndSSAUpdateVsitor() override = default;
   void MarkIncrease() {
     isDecrease = false;
   };
@@ -75,6 +78,7 @@ class A64SSAOperandDumpVisitor : public SSAOperandDumpVisitor {
  public:
   explicit A64SSAOperandDumpVisitor(const MapleUnorderedMap<regno_t, VRegVersion*> &allssa) :
       SSAOperandDumpVisitor(allssa) {};
+  ~A64SSAOperandDumpVisitor() override = default;
   void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;
   void Visit(MemOperand *v) final;
