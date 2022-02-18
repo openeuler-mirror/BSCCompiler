@@ -31,6 +31,7 @@ void TypeInfer::TypeInference() {
   ModuleNode *module = mHandler->GetASTModule();
 
   if (mFlags & FLG_trace_3) {
+    gStringPool.Dump();
     gTypeTable.Dump();
   }
 
@@ -1256,6 +1257,7 @@ DeclNode *TypeInferVisitor::VisitDeclNode(DeclNode *node) {
   TypeId elemTypeId = TY_None;
   unsigned elemTypeIdx = 0;
   bool isArray = false;
+  bool isFromGenerator = false;
   if (init) {
     merged = MergeTypeId(merged, init->GetTypeId());
     mergedtidx = MergeTypeIdx(mergedtidx, init->GetTypeIdx());
@@ -1264,8 +1266,8 @@ DeclNode *TypeInferVisitor::VisitDeclNode(DeclNode *node) {
     elemTypeIdx = GetArrayElemTypeIdx(init);
     isArray = (elemTypeId != TY_None);
     // pass IsGeneratorUsed
-    mHandler->UpdateGeneratorUsed(node->GetNodeId(), init->GetNodeId());
-    if (var) {
+    isFromGenerator = mHandler->UpdateGeneratorUsed(node->GetNodeId(), init->GetNodeId());
+    if (var && isFromGenerator) {
       mHandler->UpdateGeneratorUsed(var->GetNodeId(), init->GetNodeId());
     }
   }

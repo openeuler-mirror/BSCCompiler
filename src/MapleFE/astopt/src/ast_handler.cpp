@@ -302,10 +302,12 @@ FunctionNode *Module_Handler::GetGeneratorUsed(unsigned nid) {
   return NULL;
 }
 
-void Module_Handler::UpdateGeneratorUsed(unsigned target, unsigned src) {
+bool Module_Handler::UpdateGeneratorUsed(unsigned target, unsigned src) {
   if (mGeneratorUsedMap.find(src) != mGeneratorUsedMap.end()) {
     mGeneratorUsedMap[target] = mGeneratorUsedMap[src];
+    return true;
   }
+  return false;
 }
 
 bool Module_Handler::IsFromLambda(TreeNode *node) {
