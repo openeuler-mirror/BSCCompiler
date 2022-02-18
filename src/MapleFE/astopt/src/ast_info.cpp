@@ -32,6 +32,8 @@ void AST_INFO::CollectInfo() {
     it->SetParent(module);
   }
 
+  AddBuiltInTypes();
+
   // collect import/export info
   MSGNOLOC0("============== XXport info ==============");
   mHandler->GetASTXXport()->CollectXXportInfo(mHandler->GetHidx());
@@ -65,6 +67,32 @@ void AST_INFO::CollectInfo() {
   mPass = 2;
   MSGNOLOC0("============== merge class/interface/struct ==============");
   visitor.Visit(module);
+}
+
+void AST_INFO::AddBuiltInTypes() {
+  // add language builtin types
+  TreeNode *node = NULL;
+#define BUILTIN(T) \
+  node = gTypeTable.CreateBuiltinType(#T, TY_Class);\
+  gTypeTable.AddType(node);\
+  mStrIdx2TypeIdxMap[node->GetStrIdx()] = node->GetTypeIdx();
+#include "lang_builtin.def"
+}
+
+bool AST_INFO::IsBuiltInType(TreeNode *node) {
+  return mStrIdx2TypeIdxMap.find(node->GetStrIdx()) != mStrIdx2TypeIdxMap.end();
+}
+
+unsigned AST_INFO::GetBuiltInTypeIdx(unsigned stridx) {
+  if (mStrIdx2TypeIdxMap.find(stridx) != mStrIdx2TypeIdxMap.end()) {
+    return mStrIdx2TypeIdxMap[stridx];
+  }
+  return 0;
+}
+
+unsigned AST_INFO::GetBuiltInTypeIdx(TreeNode *node) {
+  unsigned stridx = node->GetStrIdx();
+  return GetBuiltInTypeIdx(stridx);
 }
 
 TypeId AST_INFO::GetTypeId(TreeNode *node) {

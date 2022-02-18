@@ -1,0 +1,67 @@
+// Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+//
+// OpenArkFE is licensed under the Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+//
+//  http://license.coscl.org.cn/MulanPSL2
+//
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+// FIT FOR A PARTICULAR PURPOSE.
+// See the Mulan PSL v2 for more details.
+//
+
+// refer to docs/builtin-constructors.md
+
+// javascript builtin object types
+BUILTIN(AggregateError)
+BUILTIN(Array)
+BUILTIN(ArrayBuffer)
+BUILTIN(AsyncFunction)
+BUILTIN(BigInt64Array)
+BUILTIN(BigUint64Array)
+BUILTIN(Boolean)
+BUILTIN(DataView)
+BUILTIN(Date)
+BUILTIN(Error)
+BUILTIN(EvalError)
+BUILTIN(FinalizationRegistry)
+BUILTIN(Float32Array)
+BUILTIN(Float64Array)
+BUILTIN(Function)
+BUILTIN(Generator)
+BUILTIN(GeneratorFunction)
+BUILTIN(Int16Array)
+BUILTIN(Int32Array)
+BUILTIN(Int8Array)
+BUILTIN(InternalError (Mozilla only))
+BUILTIN(Map)
+BUILTIN(Math)
+BUILTIN(Number)
+BUILTIN(Object)
+BUILTIN(Promise)
+BUILTIN(Proxy)
+BUILTIN(RangeError)
+BUILTIN(ReferenceError)
+BUILTIN(RegExp)
+BUILTIN(Set)
+BUILTIN(SharedArrayBuffer)
+BUILTIN(String)
+BUILTIN(Symbol)
+BUILTIN(SyntaxError)
+BUILTIN(TypeError)
+BUILTIN(Uint16Array)
+BUILTIN(Uint32Array)
+BUILTIN(Uint8Array)
+BUILTIN(Uint8ClampedArray)
+BUILTIN(URIError)
+BUILTIN(WeakMap)
+BUILTIN(WeakRef)
+BUILTIN(WeakSet)
+
+// typescript builtin object types
+BUILTIN(Record)
+BUILTIN(Tuple)
+BUILTIN(Iterable)
+BUILTIN(Iterator)
