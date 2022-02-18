@@ -349,20 +349,20 @@ std::string CppDecl::GenFunctionClass(FunctionNode* node) {
   return FunctionTemplate(GetTypeString(node->GetType(), nullptr), GetIdentifierName(node), params, args);
 }
 
-std::string CppDecl::GenGeneratorClass(FunctionNode* node) {
-  std::string captureVars, callOpArgs, funcArgs, params;
+void CppDecl::CollectFuncArgInfo(TreeNode* node) {
+  if (!node->IsFunction())
+    return;
 
-  std::vector<std::pair<std::string, std::string>> args;
-  for (unsigned i = 0; i < node->GetParamsNum(); ++i) {
-    if (auto n = node->GetParam(i)) {
+  FunctionNode* func = static_cast<FunctionNode*>(node);
+  for (unsigned i = 0; i < func->GetParamsNum(); ++i) {
+    if (auto n = func->GetParam(i)) {
       // build vector of string pairs of argument types and names
       std::string name = GetIdentifierName(n);
       std::string type = GetTypeString(n, n->IsIdentifier()? static_cast<IdentifierNode*>(n)->GetType(): nullptr);
       type.erase(type.find_last_not_of(' ')+1);  // strip trailing spaces
-      args.push_back(std::pair(type, name));
+      hFuncTable.AddArgInfo(func->GetNodeId(), type, name);
     }
   }
-  return GeneratorTemplate(GetIdentifierName(node), args);
 }
 
 std::string CppDecl::EmitModuleNode(ModuleNode *node) {
@@ -405,11 +405,12 @@ namespace )""" + module + R"""( {
     TreeNode *node = func->GetFuncNode();
     if (!IsClassMethod(node)) {
       bool isGenerator = static_cast<FunctionNode*>(node)->IsGenerator();
+      CollectFuncArgInfo(node);
       std::string ns = GetNamespace(node);
       if (!ns.empty())
         str += "namespace "s + ns + " {\n"s;
       if (isGenerator)
-        str += GenGeneratorClass(static_cast<FunctionNode*>(node)); // gen generator and generator funcs
+        str += GenGeneratorClass(GetIdentifierName(node), hFuncTable.GetArgInfo(node->GetNodeId()));
       else
         str += GenFunctionClass(static_cast<FunctionNode*>(node));  // gen func cls for each top level func
       if (!mHandler->IsFromLambda(node)) {
