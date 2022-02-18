@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "cgfunc.h"
+#include "loop.h"
 #include "cg_ssa_pre.h"
 
 namespace maplebe {
@@ -26,7 +27,8 @@ void SSAPre::CodeMotion() {
     }
     PhiOpndOcc *phiOpndOcc = static_cast<PhiOpndOcc*>(occ);
     if (phiOpndOcc->insertHere) {
-      ASSERT(false, "should not do save of callee-save register at BB exit");
+      ASSERT(phiOpndOcc->cgbb->GetLoop() == nullptr, "cg_ssapre: save inserted inside loop");
+      workCand->saveAtEntryBBs.insert(phiOpndOcc->cgbb->GetId());
     }
   }
   // pass 2 only doing deletion
@@ -36,6 +38,7 @@ void SSAPre::CodeMotion() {
     }
     RealOcc *realOcc = static_cast<RealOcc*>(occ);
     if (!realOcc->redundant) {
+      ASSERT(realOcc->cgbb->GetLoop() == nullptr, "cg_ssapre: save in place inside loop");
       workCand->saveAtEntryBBs.insert(realOcc->cgbb->GetId());
     }
   }
@@ -187,7 +190,7 @@ void SSAPre::ComputeLater() const {
           break;
         }
       }
-      if (existNonNullUse) {
+      if (existNonNullUse || phiOcc->speculativeDownsafe) {
         ResetLater(phiOcc);
       }
     }
@@ -220,6 +223,9 @@ void SSAPre::ResetDownsafe(const PhiOpndOcc *phiOpnd) const {
     return;
   }
   PhiOcc *defPhiOcc = static_cast<PhiOcc*>(defOcc);
+  if (defPhiOcc->speculativeDownsafe) {
+    return;
+  }
   if (!defPhiOcc->isDownsafe) {
     return;
   }
@@ -242,6 +248,9 @@ void SSAPre::ComputeDownsafe() const {
     LogInfo::MapleLogger() << " _______ after downsafe computation _______" << '\n';
     for (PhiOcc *phiOcc : phiOccs) {
       phiOcc->Dump();
+      if (phiOcc->speculativeDownsafe) {
+        LogInfo::MapleLogger() << " spec_downsafe /";
+      }
       if (phiOcc->isDownsafe) {
         LogInfo::MapleLogger() << " downsafe";
       }
@@ -251,10 +260,26 @@ void SSAPre::ComputeDownsafe() const {
 }
 
 // ================ Step 2: rename ================
+static void PropagateSpeculativeDownsafe(PhiOcc *phiOcc) {
+  if (phiOcc->speculativeDownsafe) {
+    return;
+  }
+  phiOcc->isDownsafe = true;
+  phiOcc->speculativeDownsafe = true;
+  for (PhiOpndOcc *phiOpndOcc : phiOcc->phiOpnds) {
+    if (phiOpndOcc->def != nullptr && phiOpndOcc->def->occTy == kAOccPhi) {
+      PhiOcc *nextPhiOcc = static_cast<PhiOcc *>(phiOpndOcc->def);
+      if (nextPhiOcc->cgbb->GetLoop() != nullptr) {
+        PropagateSpeculativeDownsafe(nextPhiOcc);
+      }
+    }
+  }
+}
+
 void SSAPre::Rename() {
   std::stack<Occ*> occStack;
   classCount = 0;
-  // iterate thru the occurrences in order of preorder traversal of dominator 
+  // iterate thru the occurrences in order of preorder traversal of dominator
   // tree
   for (Occ *occ : allOccs) {
     while (!occStack.empty() && !occStack.top()->IsDominate(dom, occ)) {
@@ -265,7 +290,10 @@ void SSAPre::Rename() {
         if (!occStack.empty()) {
           Occ *topOcc = occStack.top();
           if (topOcc->occTy == kAOccPhi) {
-            static_cast<PhiOcc *>(topOcc)->isDownsafe = false;
+            PhiOcc *phiTopOcc = static_cast<PhiOcc *>(topOcc);
+            if (!phiTopOcc->speculativeDownsafe) {
+              phiTopOcc->isDownsafe = false;
+            }
           }
         }
         break;
@@ -285,6 +313,10 @@ void SSAPre::Rename() {
         occ->classId = topOcc->classId;
         if (topOcc->occTy == kAOccPhi) {
           occStack.push(occ);
+          if (occ->cgbb->GetLoop() != nullptr) {
+            static_cast<PhiOcc *>(topOcc)->isDownsafe = true;
+            static_cast<PhiOcc *>(topOcc)->speculativeDownsafe = true;
+          }
         }
         break;
       }
@@ -306,10 +338,29 @@ void SSAPre::Rename() {
         break;
     }
   }
+  // loop thru phiOccs to propagate speculativeDownsafe
+  for (PhiOcc *phiOcc : phiOccs) {
+    if (phiOcc->speculativeDownsafe) {
+      for (PhiOpndOcc *phiOpndOcc : phiOcc->phiOpnds) {
+        if (phiOpndOcc->def != nullptr && phiOpndOcc->def->occTy == kAOccPhi) {
+          PhiOcc *nextPhiOcc = static_cast<PhiOcc *>(phiOpndOcc->def);
+          if (nextPhiOcc->cgbb->GetLoop() != nullptr) {
+            PropagateSpeculativeDownsafe(nextPhiOcc);
+          }
+        }
+      }
+    }
+  }
   if (enabledDebug) {
     LogInfo::MapleLogger() << " _______ after rename _______" << '\n';
     for (Occ *occ : allOccs) {
       occ->Dump();
+      if (occ->occTy == kAOccPhi) {
+        PhiOcc *phiOcc = static_cast<PhiOcc *>(occ);
+        if (phiOcc->speculativeDownsafe) {
+          LogInfo::MapleLogger() << " spec_downsafe /";
+        }
+      }
       LogInfo::MapleLogger() << '\n';
     }
   }
@@ -478,14 +529,27 @@ void SSAPre::PropagateNotAnt(BB *bb, std::set<BB*, BBIdCmp> *visitedBBs) {
 
 void SSAPre::FormRealsNExits() {
   std::set<BB*, BBIdCmp> visitedBBs;
-  PropagateNotAnt(cgFunc->GetCommonExitBB(), &visitedBBs);
+  if (asEarlyAsPossible) {
+    for (BB *cgbb : cgFunc->GetExitBBsVec()) {
+      if (!cgbb->IsUnreachable()) {
+        PropagateNotAnt(cgbb, &visitedBBs);
+      }
+    }
+  }
 
   for (uint32 i = 0; i < dom->GetDtPreOrderSize(); i++) {
     BBId bbid = dom->GetDtPreOrderItem(i);
     BB *cgbb = cgFunc->GetAllBBs()[bbid];
-    if (fullyAntBBs[cgbb->GetId()]) {
-      RealOcc *realOcc = preMp->New<RealOcc>(cgbb);
-      realOccs.push_back(realOcc);
+    if (asEarlyAsPossible) {
+      if (fullyAntBBs[cgbb->GetId()]) {
+        RealOcc *realOcc = preMp->New<RealOcc>(cgbb);
+        realOccs.push_back(realOcc);
+      }
+    } else {
+      if (workCand->occBBs.count(cgbb->GetId()) != 0) {
+        RealOcc *realOcc = preMp->New<RealOcc>(cgbb);
+        realOccs.push_back(realOcc);
+      }
     }
     if (!cgbb->IsUnreachable() && (cgbb->NumSuccs() == 0 || cgbb->GetKind() == BB::kBBReturn)) {
       ExitOcc *exitOcc = preMp->New<ExitOcc>(cgbb);
@@ -528,7 +592,7 @@ void SSAPre::ApplySSAPre() {
 
 void DoSavePlacementOpt(CGFunc *f, DomAnalysis *dom, SsaPreWorkCand *workCand) {
   MemPool *tempMP = memPoolCtrler.NewMemPool("cg_ssa_pre", true);
-  SSAPre cgssapre(f, dom, tempMP, workCand, false/*enabledDebug*/);
+  SSAPre cgssapre(f, dom, tempMP, workCand, false/*asEarlyAsPossible*/, false/*enabledDebug*/);
 
   cgssapre.ApplySSAPre();
 

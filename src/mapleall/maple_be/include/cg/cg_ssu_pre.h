@@ -155,7 +155,7 @@ class SKillOcc : public SOcc {
 
 class SSUPre {
  public:
-  SSUPre(CGFunc *cgfunc, PostDomAnalysis *pd, MemPool *memPool, SPreWorkCand *wkcand, bool redSaves, bool enDebug)
+  SSUPre(CGFunc *cgfunc, PostDomAnalysis *pd, MemPool *memPool, SPreWorkCand *wkcand, bool alap, bool enDebug)
       : cgFunc(cgfunc),
         pdom(pd),
         spreMp(memPool),
@@ -168,7 +168,7 @@ class SSUPre {
         allOccs(spreAllocator.Adapter()),
         lambdaOccs(spreAllocator.Adapter()),
         entryOccs(spreAllocator.Adapter()),
-        redundanciesAmongSaves(redSaves),
+        asLateAsPossible(alap),
         enabledDebug(enDebug) {
     CreateEntryOcc(cgfunc->GetFirstBB());
   }
@@ -216,7 +216,7 @@ class SSUPre {
   MapleVector<bool> fullyAvailBBs; // index is BBid; true if occ is fully available at BB exit
   // step 1 lambda insertion data structures:
   MapleSet<uint32> lambdaDfns;  // set by FormLambdas(); set of BBs in terms of
-                                // their dfn's; index into 
+                                // their dfn's; index into
                                 // dominance->pdt_preorder to get their bbid's
   // step 2 renaming
   uint32 classCount;  // for assigning new class id
@@ -225,7 +225,7 @@ class SSUPre {
   MapleVector<SOcc*> allOccs;
   MapleVector<SLambdaOcc*> lambdaOccs;
   MapleVector<SEntryOcc*> entryOccs;
-  bool redundanciesAmongSaves; // if there is redundancy among the input saves
+  bool asLateAsPossible;
   bool enabledDebug;
 };
 

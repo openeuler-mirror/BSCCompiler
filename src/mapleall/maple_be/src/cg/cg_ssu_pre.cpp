@@ -521,7 +521,7 @@ void SSUPre::PropagateNotAvail(BB *bb, std::set<BB*, BBIdCmp> *visitedBBs) {
 }
 
 void SSUPre::FormReals() {
-  if (redundanciesAmongSaves) {
+  if (!asLateAsPossible) {
     for (uint32 i = 0; i < pdom->GetPdtPreOrderSize(); i++) {
       BBId bbid = pdom->GetPdtPreOrderItem(i);
       BB *cgbb = cgFunc->GetAllBBs()[bbid];
@@ -593,7 +593,7 @@ void SSUPre::ApplySSUPre() {
 
 void DoRestorePlacementOpt(CGFunc *f, PostDomAnalysis *pdom, SPreWorkCand *workCand) {
   MemPool *tempMP = memPoolCtrler.NewMemPool("cg_ssu_pre", true);
-  SSUPre cgssupre(f, pdom, tempMP, workCand, false/*redundanciesAmongSaves*/, false/*enabledDebug*/);
+  SSUPre cgssupre(f, pdom, tempMP, workCand, true/*asLateAsPossible*/, false/*enabledDebug*/);
 
   cgssupre.ApplySSUPre();
 

@@ -29,13 +29,13 @@ typedef uint32 BBId;
 
 // This must have been constructed by the caller of DoSavePlacementOpt() and
 // passed to it as parameter.  The caller of DoSavePlacementOpt() describes
-// the problem via occBBs.  DoSavePlacementOpt()'s outputs are returned to the 
+// the problem via occBBs.  DoSavePlacementOpt()'s outputs are returned to the
 // caller by setting saveAtEntryBBs.
 class SsaPreWorkCand {
  public:
   explicit SsaPreWorkCand(MapleAllocator *alloc):
-     occBBs(alloc->Adapter()),
-     saveAtEntryBBs(alloc->Adapter()) {}
+    occBBs(alloc->Adapter()),
+    saveAtEntryBBs(alloc->Adapter()) {}
   // inputs
   MapleSet<BBId> occBBs; // Id's of BBs with appearances of the callee-saved reg
   // outputs
@@ -123,6 +123,7 @@ class PhiOcc : public Occ {
 
 
   bool isDownsafe = true;
+  bool speculativeDownsafe = false;  // true if set to downsafe via speculation
   bool isCanBeAvail = true;
   bool isLater = true;
   MapleVector<PhiOpndOcc*> phiOpnds;
@@ -140,7 +141,7 @@ class ExitOcc : public Occ {
 
 class SSAPre {
  public:
-  SSAPre(CGFunc *cgfunc, DomAnalysis *dm, MemPool *memPool, SsaPreWorkCand *wkcand, bool enDebug)
+  SSAPre(CGFunc *cgfunc, DomAnalysis *dm, MemPool *memPool, SsaPreWorkCand *wkcand, bool aeap, bool enDebug)
       : cgFunc(cgfunc),
         dom(dm),
         preMp(memPool),
@@ -153,6 +154,7 @@ class SSAPre {
         allOccs(preAllocator.Adapter()),
         phiOccs(preAllocator.Adapter()),
         exitOccs(preAllocator.Adapter()),
+        asEarlyAsPossible(aeap),
         enabledDebug(enDebug) {}
   ~SSAPre() = default;
 
@@ -203,6 +205,7 @@ class SSAPre {
   MapleVector<Occ*> allOccs;
   MapleVector<PhiOcc*> phiOccs;
   MapleVector<ExitOcc*> exitOccs;
+  bool asEarlyAsPossible;
   bool enabledDebug;
 };
 
