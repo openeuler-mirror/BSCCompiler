@@ -422,8 +422,10 @@ IdentifierNode *AST_INFO::CreateIdentifierNode(unsigned stridx) {
 }
 
 UserTypeNode *AST_INFO::CreateUserTypeNode(unsigned stridx, ASTScope *scope) {
+  unsigned tidx = GetBuiltInTypeIdx(stridx);
   IdentifierNode *node = CreateIdentifierNode(stridx);
   SetTypeId(node, TY_Class);
+  SetTypeIdx(node, tidx);
   if (scope) {
     node->SetScope(scope);
   }
@@ -432,6 +434,7 @@ UserTypeNode *AST_INFO::CreateUserTypeNode(unsigned stridx, ASTScope *scope) {
   utype->SetId(node);
   utype->SetStrIdx(stridx);
   SetTypeId(utype, TY_Class);
+  SetTypeIdx(utype, tidx);
   node->SetParent(utype);
   return utype;
 }
@@ -666,6 +669,11 @@ FunctionNode *FillNodeInfoVisitor::VisitFunctionNode(FunctionNode *node) {
   if (type) {
     mInfo->SetTypeId(node, type->GetTypeId());
     mInfo->SetTypeIdx(node, type->GetTypeIdx());
+  } else if (node->IsGenerator()) {
+    unsigned stridx = gStringPool.GetStrIdx("Generator");
+    unsigned tidx = mInfo->GetBuiltInTypeIdx(stridx);
+    UserTypeNode *ut = mInfo->CreateUserTypeNode(stridx);
+    node->SetType(ut);
   }
   return node;
 }
@@ -728,8 +736,16 @@ PrimTypeNode *FillNodeInfoVisitor::VisitPrimTypeNode(PrimTypeNode *node) {
 UserTypeNode *FillNodeInfoVisitor::VisitUserTypeNode(UserTypeNode *node) {
   (void) AstVisitor::VisitUserTypeNode(node);
   TreeNode *id = node->GetId();
-  if (id && !id->IsTypeIdNone()) {
-    mInfo->SetTypeId(node, id->GetTypeId());
+  if (id) {
+    unsigned tidx = mInfo->GetBuiltInTypeIdx(id);
+    if (tidx) {
+      mInfo->SetTypeId(id, TY_Class);
+      mInfo->SetTypeIdx(id, tidx);
+    }
+    if (!id->IsTypeIdNone()) {
+      mInfo->SetTypeId(node, id->GetTypeId());
+      mInfo->SetTypeIdx(node, id->GetTypeIdx());
+    }
   }
   return node;
 }
