@@ -149,7 +149,7 @@ class )""" + clsName + R"""( : public t2crt::Function {
 // Template for generating Generators and Generator Functions:
 // For each TS generator function, 2 C++ classes: generator and generator function are emitted.
 // The generator function has only a single instance. It is called to create generator instances.
-std::string GeneratorTemplate(std::string funcName, std::vector<std::pair<std::string, std::string>>& args) {
+std::string GenGeneratorClass(std::string funcName, std::vector<std::pair<std::string, std::string>> args) {
   std::string str;
   std::string generatorName = GeneratorName(funcName);
   std::string generatorFuncName = GeneratorFuncName(funcName);

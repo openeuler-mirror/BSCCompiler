@@ -37,7 +37,6 @@ public:
   }
 
   std::string GenFunctionClass(FunctionNode* node);
-  std::string GenGeneratorClass(FunctionNode* node);
 
   void AddImportedModule(const std::string& module);
   bool IsImportedModule(const std::string& module);
@@ -77,6 +76,8 @@ public:
   std::string EmitArrayLiteral(ArrayLiteralNode *node, int dim, std::string type);
   std::string EmitTSEnum(StructNode *node);
   std::string EmitInterface(StructNode *node);
+
+  void CollectFuncArgInfo(TreeNode* node);
 };
 
 inline bool IsVarInitStructLiteral(DeclNode* node) {
