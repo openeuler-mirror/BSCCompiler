@@ -34,6 +34,13 @@ config("mapleallcompilecfg") {
     ]
   }
 
+  if (TARGET == "x86_64") {
+    cflags_cc += [
+      "-DTARGX86_64",
+      "-DMAPLE_ROOT=\"${MAPLE_ROOT}\"",
+    ]
+  }
+
   if (TARGET == "riscv64") {
     cflags_cc += [
       "-DTARGRISCV64",
