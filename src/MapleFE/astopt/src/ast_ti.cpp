@@ -1275,7 +1275,7 @@ DeclNode *TypeInferVisitor::VisitDeclNode(DeclNode *node) {
     // normal cases
     if(var->IsIdentifier()) {
       IdentifierNode *idvar = static_cast<IdentifierNode *>(var);
-      if (isFromGenerator) {
+      if (isFromGenerator && !idvar->GetType()) {
         unsigned stridx = gStringPool.GetStrIdx("Generator");
         UserTypeNode *ut = mInfo->CreateUserTypeNode(stridx, var->GetScope());
         idvar->SetType(ut);
