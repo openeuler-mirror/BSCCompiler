@@ -741,7 +741,7 @@ BaseNode *CGLowerer::LowerDreadBitfield(DreadNode &dread) {
   extrBitsNode->SetPrimType(GetRegPrimType(fType->GetPrimType()));
   if (CGOptions::IsBigEndian()) {
     uint8 bitSize = static_cast<MIRBitFieldType*>(fType)->GetFieldSize();
-    extrBitsNode->SetBitsOffset(fieldAlign * kBitsPerByte - static_cast<uint8>(byteBitOffsets.second) - bitSize);
+    extrBitsNode->SetBitsOffset(static_cast<uint8>(fieldAlign * kBitsPerByte - byteBitOffsets.second - bitSize));
   } else {
     extrBitsNode->SetBitsOffset(static_cast<uint8>(byteBitOffsets.second));
   }
@@ -803,7 +803,7 @@ BaseNode *CGLowerer::LowerIreadBitfield(IreadNode &iread) {
   extrBitsNode->SetPrimType(GetRegPrimType(fType->GetPrimType()));
   if (CGOptions::IsBigEndian()) {
     uint8 bitSize = static_cast<MIRBitFieldType*>(fType)->GetFieldSize();
-    extrBitsNode->SetBitsOffset(fieldAlign * kBitsPerByte - static_cast<uint8>(byteBitOffsets.second) - bitSize);
+    extrBitsNode->SetBitsOffset(static_cast<uint8>(fieldAlign * kBitsPerByte - byteBitOffsets.second - bitSize));
   } else {
     extrBitsNode->SetBitsOffset(static_cast<uint8>(byteBitOffsets.second));
   }
@@ -953,7 +953,7 @@ StmtNode *CGLowerer::LowerDassignBitfield(DassignNode &dassign, BlockNode &newBl
   depositBits->SetPrimType(GetRegPrimType(fType->GetPrimType()));
   if (CGOptions::IsBigEndian()) {
     uint8 bitSize = static_cast<MIRBitFieldType*>(fType)->GetFieldSize();
-    depositBits->SetBitsOffset(fieldAlign * kBitsPerByte - static_cast<uint8>(byteBitOffsets.second) - bitSize);
+    depositBits->SetBitsOffset(static_cast<uint8>(fieldAlign * kBitsPerByte - byteBitOffsets.second - bitSize));
   } else {
     depositBits->SetBitsOffset(static_cast<uint8>(byteBitOffsets.second));
   }
@@ -1054,7 +1054,7 @@ StmtNode *CGLowerer::LowerIassignBitfield(IassignNode &iassign, BlockNode &newBl
   depositBits->SetPrimType(GetRegPrimType(fType->GetPrimType()));
   if (CGOptions::IsBigEndian()) {
     uint8 bitSize = static_cast<MIRBitFieldType*>(fType)->GetFieldSize();
-    depositBits->SetBitsOffset(fieldAlign * kBitsPerByte - static_cast<uint8>(byteBitOffsets.second) - bitSize);
+    depositBits->SetBitsOffset(static_cast<uint8>(fieldAlign * kBitsPerByte - byteBitOffsets.second - bitSize));
   } else {
     depositBits->SetBitsOffset(static_cast<uint8>(byteBitOffsets.second));
   }
