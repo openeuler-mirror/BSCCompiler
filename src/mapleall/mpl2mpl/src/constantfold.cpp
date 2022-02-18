@@ -501,7 +501,7 @@ MIRConst *ConstantFold::FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resul
         if (useResult64) {
           result64 = static_cast<uint64>(intValueOfConst0 % intValueOfConst1);
         } else {
-          result32 = static_cast<int32>(intValueOfConst0) % static_cast<int32>(intValueOfConst1);
+          result32 = static_cast<uint32>(static_cast<int32>(intValueOfConst0) % static_cast<int32>(intValueOfConst1));
         }
       }
       break;
@@ -1229,11 +1229,11 @@ T ConstantFold::CalIntValueFromFloatValue(T value, const MIRType &resultType) co
   uint64 umax = ULONG_LONG_MAX >> shiftNum;
   int64 min = isSigned ? (LONG_LONG_MIN >> shiftNum) : 0;
   if (isSigned && (value > max)) {
-    return max;
+    return static_cast<T>(max);
   } else if (!isSigned && (value > umax)) {
-    return umax;
+    return static_cast<T>(umax);
   } else if (value < min) {
-    return min;
+    return static_cast<T>(min);
   }
   return value;
 }
@@ -1679,7 +1679,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       result = mirModule->GetMIRBuilder()->CreateIntConst(-1, cstTyp);
     } else if (op == OP_mul && rp.second != 0) {
       // lConst * (X + konst) -> the pair [(lConst*X), (lConst*konst)]
-      sum = static_cast<uint64>(cst) * rp.second;
+      sum = cst * rp.second;
       if (GetPrimTypeSize(primType) > GetPrimTypeSize(rp.first->GetPrimType())) {
         rp.first = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, primType, PTY_i32, rp.first);
       }
@@ -1743,7 +1743,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       result = l;
     } else if (op == OP_mul && lp.second != 0 && lp.second > -kMaxOffset) {
       // (X + konst) * rConst -> the pair [(X*rConst), (konst*rConst)]
-      sum = lp.second * static_cast<uint64>(cst);
+      sum = lp.second * cst;
       if (GetPrimTypeSize(primType) > GetPrimTypeSize(lp.first->GetPrimType())) {
         lp.first = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, primType, PTY_i32, lp.first);
       }

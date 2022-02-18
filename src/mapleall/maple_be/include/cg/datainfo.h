@@ -38,7 +38,7 @@ class DataInfo {
 
   void SetBit(int64 bitNO) {
     ASSERT(bitNO < info.size() * kWordSize, "Out of Range");
-    info[bitNO / kWordSize] |= (1ULL << static_cast<uint64>((bitNO % kWordSize)));
+    info[static_cast<size_t>(bitNO / kWordSize)] |= (1ULL << static_cast<uint64>((bitNO % kWordSize)));
   }
 
   void ResetBit(uint32 bitNO) {
@@ -101,7 +101,7 @@ class DataInfo {
   void AndBits(const DataInfo &secondInfo) {
     auto infoSize = static_cast<const int32>(info.size());
     ASSERT(infoSize == secondInfo.GetInfo().size(), "two dataInfo's size different");
-    for (int32 i = 0; i != infoSize; i++) {
+    for (uint32 i = 0; i != infoSize; ++i) {
       info[i] &= secondInfo.GetElem(i);
     }
   }

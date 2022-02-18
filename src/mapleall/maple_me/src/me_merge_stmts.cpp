@@ -24,7 +24,7 @@ int32 MergeStmts::GetStructFieldBitSize(const MIRStructType *structType, FieldID
   if (fieldType->GetKind() == kTypeBitField) {
     fieldBitSize = static_cast<MIRBitFieldType*>(fieldType)->GetFieldSize();
   } else {
-    fieldBitSize = static_cast<int32>(fieldType->GetSize() * 8);
+    fieldBitSize = static_cast<uint32>(fieldType->GetSize() * 8);
   }
   return fieldBitSize;
 }
