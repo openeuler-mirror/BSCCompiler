@@ -225,6 +225,11 @@ bool ContinuousCmpCsetPattern::CheckCondition(Insn &insn) {
   if (!static_cast<AArch64ImmOperand&>(prevCmpInsn->GetOperand(kInsnThirdOpnd)).IsZero()) {
     return false;
   }
+  auto &cmpCCReg = static_cast<RegOperand&>(prevCmpInsn->GetOperand(kInsnFirstOpnd));
+  InsnSet useSet= GetAllUseInsn(cmpCCReg);
+  if (useSet.size() > 1) {
+    return false;
+  }
   auto &cmpUseReg = static_cast<RegOperand&>(prevCmpInsn->GetOperand(kInsnSecondOpnd));
   prevCsetInsn1 = GetDefInsn(cmpUseReg);
   if (prevCsetInsn1 == nullptr) {
@@ -275,39 +280,59 @@ void ContinuousCmpCsetPattern::Run(BB &bb, Insn &insn) {
   }
   auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
   MOperator curMop = insn.GetMachineOpcode();
+  Operand &resOpnd = insn.GetOperand(kInsnFirstOpnd);
+  Insn *newCsetInsn = nullptr;
   if (reverse) {
     MOperator prevCsetMop = prevCsetInsn1->GetMachineOpcode();
     auto &prevCsetCondOpnd = static_cast<CondOperand&>(prevCsetInsn1->GetOperand(kInsnSecondOpnd));
     CondOperand &newCondOpnd = aarFunc->GetCondOperand(GetReverseCondCode(prevCsetCondOpnd));
-    Insn &newCsetInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
-        prevCsetMop, prevCsetInsn1->GetOperand(kInsnFirstOpnd),
-        newCondOpnd, prevCsetInsn1->GetOperand(kInsnThirdOpnd));
+    regno_t tmpRegNO = 0;
+    auto *tmpDefOpnd =
+        cgFunc->GetMemoryPool()->New<AArch64RegOperand>(tmpRegNO, resOpnd.GetSize(),
+                                                         static_cast<RegOperand&>(resOpnd).GetRegisterType());
+    newCsetInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+        prevCsetMop, *tmpDefOpnd, newCondOpnd, prevCsetInsn1->GetOperand(kInsnThirdOpnd));
     BB *prevCsetBB = prevCsetInsn1->GetBB();
-    prevCsetBB->ReplaceInsn(*prevCsetInsn1, newCsetInsn);
+    prevCsetBB->InsertInsnAfter(*prevCsetInsn1, *newCsetInsn);
     /* update ssa info */
-    ssaInfo->ReplaceInsn(*prevCsetInsn1, newCsetInsn);
+    auto *a64SSAInfo = static_cast<AArch64CGSSAInfo*>(ssaInfo);
+    a64SSAInfo->CreateNewInsnSSAInfo(*newCsetInsn);
     /* dump pattern info */
     if (CG_PEEP_DUMP) {
       std::vector<Insn*> prevs;
       prevs.emplace_back(prevCmpInsn1);
-      DumpAfterPattern(prevs, prevCsetInsn1, &newCsetInsn);
+      prevs.emplace_back(&insn);
+      DumpAfterPattern(prevs, prevCmpInsn, newCsetInsn);
     }
   }
   MOperator newMop = (curMop == MOP_wcsetrc) ? MOP_wmovrr : MOP_xmovrr;
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, insn.GetOperand(kInsnFirstOpnd),
-                                                                 prevCsetInsn1->GetOperand(kInsnFirstOpnd));
-  bb.ReplaceInsn(insn, newInsn);
+  Insn *newInsn = nullptr;
+  if (newCsetInsn == nullptr) {
+    newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, insn.GetOperand(kInsnFirstOpnd),
+                                                              prevCsetInsn1->GetOperand(kInsnFirstOpnd));
+  } else {
+    newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, insn.GetOperand(kInsnFirstOpnd),
+                                                              newCsetInsn->GetOperand(kInsnFirstOpnd));
+  }
+  if (newInsn == nullptr) {
+    return;
+  }
+  bb.ReplaceInsn(insn, *newInsn);
   /* update ssa info */
-  ssaInfo->ReplaceInsn(insn, newInsn);
+  ssaInfo->ReplaceInsn(insn, *newInsn);
   optSuccess = true;
-  SetCurrInsn(&newInsn);
+  SetCurrInsn(newInsn);
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
     prevs.emplace_back(prevCmpInsn1);
     prevs.emplace_back(prevCsetInsn1);
-    prevs.emplace_back(prevCmpInsn);
-    DumpAfterPattern(prevs, &insn, &newInsn);
+    if (newCsetInsn == nullptr) {
+      prevs.emplace_back(prevCmpInsn);
+    } else {
+      prevs.emplace_back(newCsetInsn);
+    }
+    DumpAfterPattern(prevs, &insn, newInsn);
   }
 }
 

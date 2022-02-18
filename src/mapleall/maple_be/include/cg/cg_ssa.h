@@ -150,8 +150,8 @@ class CGSSAInfo {
       cgFunc(&f),
       memPool(&mp),
       tempMp(&tmp),
-      domInfo(&da),
       ssaAlloc(&mp),
+      domInfo(&da),
       renamedBBs(ssaAlloc.Adapter()),
       vRegDefCount(ssaAlloc.Adapter()),
       vRegStk(ssaAlloc.Adapter()),
@@ -163,6 +163,7 @@ class CGSSAInfo {
   /* replace insn & update ssaInfo */
   virtual void ReplaceInsn(Insn &oriInsn, Insn &newInsn) = 0;
   virtual void ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *newVersion) = 0;
+  virtual void CreateNewInsnSSAInfo(Insn &newInsn) = 0;
 
   DUInsnInfo *CreateDUInsnInfo(Insn *cInsn, uint32 idx) {
     return memPool->New<DUInsnInfo>(cInsn, idx, ssaAlloc);
@@ -187,11 +188,12 @@ class CGSSAInfo {
  protected:
   VRegVersion *CreateNewVersion(RegOperand &virtualOpnd, Insn &defInsn, uint32 idx, bool isDefByPhi = false);
   virtual RegOperand *CreateSSAOperand(RegOperand &virtualOpnd) = 0;
+  bool IncreaseSSAOperand(regno_t vRegNO, VRegVersion *vst);
+  uint32 IncreaseVregCount(regno_t vRegNO);
   VRegVersion *GetVersion(const RegOperand &virtualOpnd);
   MapleUnorderedMap<regno_t, VRegVersion*> &GetPrivateAllSSAOperands() {
     return allSSAOperands;
   }
-  bool IncreaseSSAOperand(regno_t vRegNO, VRegVersion *vst);
   void AddNoDefVReg(regno_t noDefVregNO) {
     ASSERT(!noDefVRegs.count(noDefVregNO), "duplicate no def Reg, please check");
     noDefVRegs.emplace(noDefVregNO);
@@ -200,6 +202,8 @@ class CGSSAInfo {
   CGFunc *cgFunc  = nullptr;
   MemPool *memPool = nullptr;
   MemPool *tempMp = nullptr;
+  MapleAllocator ssaAlloc;
+
  private:
   void InsertPhiInsn();
   void RenameVariablesForBB(uint32 bbID);
@@ -219,10 +223,8 @@ class CGSSAInfo {
   bool IsBBRenamed(uint32 bbID) const {
     return renamedBBs.count(bbID);
   }
-  uint32 IncreaseVregCount(regno_t vRegNO);
 
   DomAnalysis *domInfo = nullptr;
-  MapleAllocator ssaAlloc;
   MapleSet<uint32> renamedBBs;
   /* original regNO - number of definitions (start from 0) */
   MapleMap<regno_t, uint32> vRegDefCount;
