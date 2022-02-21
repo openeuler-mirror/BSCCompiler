@@ -1,5 +1,5 @@
 /*
-* Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+* Copyright (C) [2021-2022] Futurewei Technologies, Inc. All rights reverved.
 *
 * OpenArkFE is licensed under the Mulan PSL v2.
 * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -31,6 +31,8 @@ void AST_INFO::CollectInfo() {
     TreeNode *it = module->GetTree(i);
     it->SetParent(module);
   }
+
+  AddBuiltInTypes();
 
   // collect import/export info
   MSGNOLOC0("============== XXport info ==============");
@@ -65,6 +67,32 @@ void AST_INFO::CollectInfo() {
   mPass = 2;
   MSGNOLOC0("============== merge class/interface/struct ==============");
   visitor.Visit(module);
+}
+
+void AST_INFO::AddBuiltInTypes() {
+  // add language builtin types
+  TreeNode *node = NULL;
+#define BUILTIN(T) \
+  node = gTypeTable.CreateBuiltinType(#T, TY_Class);\
+  gTypeTable.AddType(node);\
+  mStrIdx2TypeIdxMap[node->GetStrIdx()] = node->GetTypeIdx();
+#include "lang_builtin.def"
+}
+
+bool AST_INFO::IsBuiltInType(TreeNode *node) {
+  return mStrIdx2TypeIdxMap.find(node->GetStrIdx()) != mStrIdx2TypeIdxMap.end();
+}
+
+unsigned AST_INFO::GetBuiltInTypeIdx(unsigned stridx) {
+  if (mStrIdx2TypeIdxMap.find(stridx) != mStrIdx2TypeIdxMap.end()) {
+    return mStrIdx2TypeIdxMap[stridx];
+  }
+  return 0;
+}
+
+unsigned AST_INFO::GetBuiltInTypeIdx(TreeNode *node) {
+  unsigned stridx = node->GetStrIdx();
+  return GetBuiltInTypeIdx(stridx);
 }
 
 TypeId AST_INFO::GetTypeId(TreeNode *node) {
@@ -394,8 +422,10 @@ IdentifierNode *AST_INFO::CreateIdentifierNode(unsigned stridx) {
 }
 
 UserTypeNode *AST_INFO::CreateUserTypeNode(unsigned stridx, ASTScope *scope) {
+  unsigned tidx = GetBuiltInTypeIdx(stridx);
   IdentifierNode *node = CreateIdentifierNode(stridx);
   SetTypeId(node, TY_Class);
+  SetTypeIdx(node, tidx);
   if (scope) {
     node->SetScope(scope);
   }
@@ -404,6 +434,7 @@ UserTypeNode *AST_INFO::CreateUserTypeNode(unsigned stridx, ASTScope *scope) {
   utype->SetId(node);
   utype->SetStrIdx(stridx);
   SetTypeId(utype, TY_Class);
+  SetTypeIdx(utype, tidx);
   node->SetParent(utype);
   return utype;
 }
@@ -638,6 +669,11 @@ FunctionNode *FillNodeInfoVisitor::VisitFunctionNode(FunctionNode *node) {
   if (type) {
     mInfo->SetTypeId(node, type->GetTypeId());
     mInfo->SetTypeIdx(node, type->GetTypeIdx());
+  } else if (node->IsGenerator()) {
+    unsigned stridx = gStringPool.GetStrIdx("Generator");
+    unsigned tidx = mInfo->GetBuiltInTypeIdx(stridx);
+    UserTypeNode *ut = mInfo->CreateUserTypeNode(stridx);
+    node->SetType(ut);
   }
   return node;
 }
@@ -700,8 +736,16 @@ PrimTypeNode *FillNodeInfoVisitor::VisitPrimTypeNode(PrimTypeNode *node) {
 UserTypeNode *FillNodeInfoVisitor::VisitUserTypeNode(UserTypeNode *node) {
   (void) AstVisitor::VisitUserTypeNode(node);
   TreeNode *id = node->GetId();
-  if (id && !id->IsTypeIdNone()) {
-    mInfo->SetTypeId(node, id->GetTypeId());
+  if (id) {
+    unsigned tidx = mInfo->GetBuiltInTypeIdx(id);
+    if (tidx) {
+      mInfo->SetTypeId(id, TY_Class);
+      mInfo->SetTypeIdx(id, tidx);
+    }
+    if (!id->IsTypeIdNone()) {
+      mInfo->SetTypeId(node, id->GetTypeId());
+      mInfo->SetTypeIdx(node, id->GetTypeIdx());
+    }
   }
   return node;
 }

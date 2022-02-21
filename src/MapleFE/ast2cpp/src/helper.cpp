@@ -1,5 +1,5 @@
 /*
-* Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+* Copyright (C) [2021-2022] Futurewei Technologies, Inc. All rights reverved.
 *
 * OpenArkFE is licensed under the Mulan PSL v2.
 * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -108,9 +108,9 @@ std::string GenClassFldAddProp(std::string objName,
 //       for ctor(), it calls _body() but ignores return val from _body(), and instead returns _this
 //       per TS/JS spec.
 
-std::string GenFuncClass(std::string retType, std::string funcName, std::string params, std::string args) {
+std::string FunctionTemplate(std::string retType, std::string funcName, std::string params, std::string args) {
   std::string str;
-  std::string clsName = "Cls_" + funcName;
+  std::string clsName = ClsName(funcName);
   std::string functorArgs = args;
   std::string functorParams = params;
   std::string thisType;
@@ -140,6 +140,70 @@ class )""" + clsName + R"""( : public t2crt::Function {
       return(func);
     }
     virtual const char* __GetClassName() const {return ")""" + funcName + R"""( ";}
+};
+
+)""";
+  return str;
+}
+
+// Template for generating Generators and Generator Functions:
+// For each TS generator function, 2 C++ classes: generator and generator function are emitted.
+// The generator function has only a single instance. It is called to create generator instances.
+std::string GenGeneratorClass(std::string funcName, std::vector<std::pair<std::string, std::string>> args) {
+  std::string str;
+  std::string generatorName = GeneratorName(funcName);
+  std::string generatorFuncName = GeneratorFuncName(funcName);
+
+  // Different formats of arg list as needed by generator and generator function interfaces:
+  // <type>    <argName>   - args for function class functor and generation class constructor
+  // <argName> (<ArgName>) - generator class constructor field init list
+  // <type>&   <argName>   - args passed by reference to generation function _body method
+  // <type>    <argName>;  - generator class fields for capturing closure
+  std::string functorArgs, ctorArgs, refArgs, initList, captureFields;
+
+  for (bool hasArg=false; auto elem : args) {
+    if (!hasArg)
+      hasArg = true;
+    else {
+      functorArgs += ", "s;
+      refArgs     += ", "s;
+      initList    += ", "s;
+    }
+    std::string type = elem.first, name = elem.second;
+    functorArgs += type + " " + name;
+    refArgs     += type + "& "+ name;
+    initList    += name + "("s+ name + ")"s;
+    captureFields += tab(1) + type + " " + name + ";\n"s;
+  }
+  if (!refArgs.empty())
+    refArgs = ", " + refArgs;
+  if (!initList.empty())
+    initList = ", " + initList;
+  ctorArgs = functorArgs.empty()? std::string(): (", "s + functorArgs);
+
+  str = R"""(
+// )""" + funcName + R"""( generators
+class )""" + generatorName + R"""( : public t2crt::GeneratorProto {
+public:
+  )""" + generatorName + R"""((t2crt::Function* ctor, t2crt::Object* proto)""" + ctorArgs + R"""() : t2crt::GeneratorProto(ctor, proto))""" + initList + R"""( {}
+  ~)""" + generatorName + R"""(() {}
+
+  // closure capture fields
+)""" + captureFields + R"""(
+  // iterator interface (override _return and _throw when needed)
+  t2crt::IteratorResult _next(t2crt::JS_Val* arg) override;
+};
+
+// )""" + funcName + R"""( generator function
+class )""" + generatorFuncName + R"""( : public t2crt::GeneratorFuncPrototype {
+public:
+  )""" + generatorFuncName + R"""(() : t2crt::GeneratorFuncPrototype(&t2crt::GeneratorFunction, &t2crt::Generator, t2crt::GeneratorPrototype) {}
+  ~)""" + generatorFuncName + R"""(() {}
+
+  // call operator returns generator instances
+  )""" + generatorName + R"""(* operator()()""" + functorArgs + R"""();
+  // generator function body
+  t2crt::IteratorResult _body(t2crt::Object* _this, void*& yield)""" + refArgs + R"""();
 };
 
 )""";

@@ -1,5 +1,5 @@
 /*
-* Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+* Copyright (C) [2021-2022] Futurewei Technologies, Inc. All rights reverved.
 *
 * OpenArkFE is licensed under the Mulan PSL v2.
 * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -46,6 +46,7 @@ class AST_INFO {
   std::unordered_set<unsigned> mWithTypeParamNodeSet;
   std::unordered_set<unsigned> mWithThisFuncSet;;
   std::unordered_set<unsigned> mFromLambda;
+  std::unordered_map<unsigned, unsigned> mStrIdx2TypeIdxMap;
 
   void AddField(unsigned nid, TreeNode *node);
 
@@ -106,6 +107,11 @@ class AST_INFO {
 
   void AddFromLambda(unsigned nid) { mFromLambda.insert(nid); }
   bool IsFromLambda(unsigned nid) { return mFromLambda.find(nid) != mFromLambda.end(); }
+
+  void AddBuiltInTypes();
+  bool IsBuiltInType(TreeNode *node);
+  unsigned GetBuiltInTypeIdx(unsigned stridx);
+  unsigned GetBuiltInTypeIdx(TreeNode *node);
 };
 
 class FillNodeInfoVisitor : public AstVisitor {
