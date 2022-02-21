@@ -1,5 +1,5 @@
 /*
-* Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+* Copyright (C) [2021-2022] Futurewei Technologies, Inc. All rights reverved.
 *
 * OpenArkFE is licensed under the Mulan PSL v2.
 * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -34,12 +34,15 @@ extern std::unordered_map<TypeId, std::string>TypeIdToJSType;
 extern std::unordered_map<TypeId, std::string>TypeIdToJSTypeCXX;
 extern TypeId hlpGetTypeId(TreeNode* node);
 extern std::string GenClassFldAddProp(std::string, std::string, std::string, std::string, std::string);
-extern std::string GenFuncClass(std::string retType, std::string funcName, std::string params, std::string args);
+extern std::string FunctionTemplate(std::string retType, std::string funcName, std::string params, std::string args);
+extern std::string GenGeneratorClass(std::string funcName, std::vector<std::pair<std::string, std::string>>args);
 extern std::string tab(int n);
 extern bool IsClassMethod(TreeNode* node);
 extern std::string GetClassOfAssignedFunc(TreeNode* node);
 extern std::string GenAnonFuncName(TreeNode* node);
 inline std::string ClsName(std::string func) { return "Cls_"s + func; }
+inline std::string GeneratorName(std::string func) { return "Generator_"s + func; }
+inline std::string GeneratorFuncName(std::string func) { return "GeneratorFunc_"s + func; }
 extern void HandleThisParam(unsigned nParams, TreeNode* node, std::string& params, std::string&args);
 extern std::string hlpGetJSValTypeStr(TypeId typeId);
 extern std::string ArrayCtorName(int dim, std::string type);
@@ -50,6 +53,9 @@ private:
   std::set<std::string> TopLevelFuncNm;   // name of top level func or name of var assigned top level func
   std::set<std::string> ImportedFields;
   std::set<std::string> StaticMembers;
+
+  // map of FunctionNode node id to vector of function arg info (pair of arg type and name)
+  std::unordered_map<unsigned, std::vector<std::pair<std::string, std::string>>> args;
 
 public:
   FuncTable() {}
@@ -93,6 +99,15 @@ public:
   bool IsStaticMember(std::string& field) {
     return(StaticMembers.find(field) != StaticMembers.end());
   }
+
+  // Function arg info
+  void AddArgInfo(unsigned nodeId, std::string type, std::string name) {
+    args[nodeId].push_back(std::pair(type, name));
+  }
+  std::vector<std::pair<std::string, std::string>> GetArgInfo(unsigned nodeId) {
+    return args[nodeId];
+  }
+
 };
 
 extern FuncTable hFuncTable;

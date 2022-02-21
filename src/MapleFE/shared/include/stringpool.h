@@ -1,5 +1,5 @@
 /*
-* Copyright (C) [2020] Futurewei Technologies, Inc. All rights reverved.
+* Copyright (C) [2020-2022] Futurewei Technologies, Inc. All rights reverved.
 *
 * OpenArkFE is licensed under the Mulan PSL v2.
 * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -75,6 +75,8 @@ public:
     MASSERT(idx < mStringTable.size() && "string index out of range");
     return mStringTable[idx];
   }
+
+  void Dump();
 };
 
 // Lexing, Parsing, AST Building and IR Building all share one global

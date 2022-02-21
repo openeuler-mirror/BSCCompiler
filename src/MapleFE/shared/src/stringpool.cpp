@@ -1,5 +1,5 @@
 /*
-* Copyright (C) [2020] Futurewei Technologies, Inc. All rights reverved.
+* Copyright (C) [2020-2022] Futurewei Technologies, Inc. All rights reverved.
 *
 * OpenArkFE is licensed under the Mulan PSL v2.
 * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -171,6 +171,13 @@ unsigned StringPool::GetStrIdx(const char *str, size_t len) {
   std::string s;
   s.assign(str, len);
   return mMap->LookupEntryFor(s)->GetStrIdx();
+}
+
+void StringPool::Dump() {
+  std::cout << "===================== StringTable =====================" << std::endl;
+  for (unsigned idx = 1; idx < mStringTable.size(); idx++) {
+    std::cout << "  " << idx << " : " << mStringTable[idx] << std::endl;
+  }
 }
 }
 

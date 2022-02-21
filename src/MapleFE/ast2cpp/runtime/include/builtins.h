@@ -1,5 +1,5 @@
 /*
- * Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+ * Copyright (C) [2021-2022] Futurewei Technologies, Inc. All rights reverved.
  *
  * OpenArkFE is licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -162,8 +162,8 @@ public:
   IteratorProto(Function* ctor, Object* proto) : Object(ctor, proto) { }
   ~IteratorProto() { }
   // note: the arg on an iterator's 1st next() call is ignored per spec 27.5.1.2
-  virtual IteratorResult _next(JS_Val* arg)       { return IteratorResult(); }
-  virtual IteratorResult _return(JS_Val* val)     { return IteratorResult(); }
+  virtual IteratorResult _next  (JS_Val* arg = nullptr) { return IteratorResult(); }
+  virtual IteratorResult _return(JS_Val* val = nullptr) { return IteratorResult(); }
   virtual IteratorResult _throw(Error exception)  { return IteratorResult(); }
 
   // TODO: %IteratorPrototype%[Symbol.iterator]() = this (current iterator instance)
@@ -181,7 +181,15 @@ public:
   void*  _yield     = nullptr; // pointer to yield label to resume execution
   bool   _finished  = false;   // flag if generator is in finished state
   bool   _firstNext = true;    // flag if first next has been called on iterator (27.5.1.2)
-  JS_Val _retval = undefined;  // save optional arg from iterator's return(arg) method
+  
+  IteratorResult _return(JS_Val* arg = nullptr) override {
+    IteratorResult res;
+    _finished = true;
+    if (arg != nullptr) {
+      res._value = *arg;
+    }
+    return res;
+  }
 };
 
 // 27.3.1 GeneratorFunction Constructor

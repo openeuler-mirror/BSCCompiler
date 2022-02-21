@@ -1,5 +1,5 @@
 /*
- * Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+ * Copyright (C) [2021-2022] Futurewei Technologies, Inc. All rights reverved.
  *
  * OpenArkFE is licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -346,7 +346,23 @@ std::string CppDecl::GenFunctionClass(FunctionNode* node) {
   if (node->GetParamsNum() == 0)
     HandleThisParam(0, nullptr, params, args);
 
-  return GenFuncClass(GetTypeString(node->GetType(), nullptr), GetIdentifierName(node), params, args);
+  return FunctionTemplate(GetTypeString(node->GetType(), nullptr), GetIdentifierName(node), params, args);
+}
+
+void CppDecl::CollectFuncArgInfo(TreeNode* node) {
+  if (!node->IsFunction())
+    return;
+
+  FunctionNode* func = static_cast<FunctionNode*>(node);
+  for (unsigned i = 0; i < func->GetParamsNum(); ++i) {
+    if (auto n = func->GetParam(i)) {
+      // build vector of string pairs of argument types and names
+      std::string name = GetIdentifierName(n);
+      std::string type = GetTypeString(n, n->IsIdentifier()? static_cast<IdentifierNode*>(n)->GetType(): nullptr);
+      type.erase(type.find_last_not_of(' ')+1);  // strip trailing spaces
+      hFuncTable.AddArgInfo(func->GetNodeId(), type, name);
+    }
+  }
 }
 
 std::string CppDecl::EmitModuleNode(ModuleNode *node) {
@@ -388,19 +404,25 @@ namespace )""" + module + R"""( {
     CfgFunc *func = mod->GetNestedFuncAtIndex(i);
     TreeNode *node = func->GetFuncNode();
     if (!IsClassMethod(node)) {
+      bool isGenerator = static_cast<FunctionNode*>(node)->IsGenerator();
+      CollectFuncArgInfo(node);
       std::string ns = GetNamespace(node);
       if (!ns.empty())
         str += "namespace "s + ns + " {\n"s;
-      str += GenFunctionClass(static_cast<FunctionNode*>(node));  // gen func cls for each top level func
+      if (isGenerator)
+        str += GenGeneratorClass(GetIdentifierName(node), hFuncTable.GetArgInfo(node->GetNodeId()));
+      else
+        str += GenFunctionClass(static_cast<FunctionNode*>(node));  // gen func cls for each top level func
       if (!mHandler->IsFromLambda(node)) {
         // top level funcs instantiated here as function objects from their func class
         // top level lamda funcs instantiated later in assignment stmts
-        std::string funcinit = ClsName(node->GetName()) + "* "s + node->GetName() + " = new "s + ClsName(node->GetName()) + "();\n"s;
+        std::string typeName = isGenerator? GeneratorFuncName(node->GetName()): ClsName(node->GetName());
+        std::string funcinit = typeName + "* "s + node->GetName() + " = new "s + typeName + "();\n"s;
         if (ns.empty())
           AddDefinition(funcinit);
         else
           AddDefinition("namespace "s + ns + " {\n"s + funcinit + "\n}\n"s);
-        str += "extern "s + ClsName(node->GetName()) + "* "s + node->GetName() + ";\n"s;
+        str += "extern "s + typeName + "* "s + node->GetName() + ";\n"s;
       }
       if (!ns.empty())
         str += "\n} // namespace " + ns + '\n';
@@ -683,6 +705,11 @@ std::string CppDecl::GetTypeString(TreeNode *node, TreeNode *child) {
       str = child ? EmitTreeNode(child) : (k == TY_Array ? "t2crt::Array<t2crt::JS_Val>* "s : Emitter::GetEnumTypeId(k));
       if (str != "none"s)
         return str + " "s;
+    }
+    if (mHandler->IsGeneratorUsed(node->GetNodeId())) {
+      // check if generator type
+      if (auto func = mHandler->GetGeneratorUsed(node->GetNodeId()))
+        return GeneratorName(GetIdentifierName(func)) + "*"s;
     }
   }
   return "t2crt::JS_Val "s;

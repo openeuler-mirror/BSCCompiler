@@ -1,5 +1,5 @@
 /*
-* Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+* Copyright (C) [2021-2022] Futurewei Technologies, Inc. All rights reverved.
 *
 * OpenArkFE is licensed under the Mulan PSL v2.
 * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -302,10 +302,12 @@ FunctionNode *Module_Handler::GetGeneratorUsed(unsigned nid) {
   return NULL;
 }
 
-void Module_Handler::UpdateGeneratorUsed(unsigned target, unsigned src) {
+bool Module_Handler::UpdateGeneratorUsed(unsigned target, unsigned src) {
   if (mGeneratorUsedMap.find(src) != mGeneratorUsedMap.end()) {
     mGeneratorUsedMap[target] = mGeneratorUsedMap[src];
+    return true;
   }
+  return false;
 }
 
 bool Module_Handler::IsFromLambda(TreeNode *node) {

@@ -1,5 +1,5 @@
 /*
-* Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+* Copyright (C) [2021-2022] Futurewei Technologies, Inc. All rights reverved.
 *
 * OpenArkFE is licensed under the Mulan PSL v2.
 * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -31,6 +31,7 @@ void TypeInfer::TypeInference() {
   ModuleNode *module = mHandler->GetASTModule();
 
   if (mFlags & FLG_trace_3) {
+    gStringPool.Dump();
     gTypeTable.Dump();
   }
 
@@ -133,7 +134,7 @@ FieldLiteralNode *BuildIdDirectFieldVisitor::VisitFieldLiteralNode(FieldLiteralN
   IdentifierNode *field = static_cast<IdentifierNode *>(name);
   TreeNode *decl = mHandler->FindDecl(field);
   TreeNode *vtype = GetParentVarClass(decl);
-  if (vtype) {
+  if (vtype && !mHandler->GetINFO()->IsBuiltInType(vtype)) {
     // check if decl is a field of vtype
     // note: vtype could be in different module
     Module_Handler *h = mHandler->GetModuleHandler(vtype);
@@ -1256,6 +1257,7 @@ DeclNode *TypeInferVisitor::VisitDeclNode(DeclNode *node) {
   TypeId elemTypeId = TY_None;
   unsigned elemTypeIdx = 0;
   bool isArray = false;
+  bool isFromGenerator = false;
   if (init) {
     merged = MergeTypeId(merged, init->GetTypeId());
     mergedtidx = MergeTypeIdx(mergedtidx, init->GetTypeIdx());
@@ -1264,14 +1266,20 @@ DeclNode *TypeInferVisitor::VisitDeclNode(DeclNode *node) {
     elemTypeIdx = GetArrayElemTypeIdx(init);
     isArray = (elemTypeId != TY_None);
     // pass IsGeneratorUsed
-    mHandler->UpdateGeneratorUsed(node->GetNodeId(), init->GetNodeId());
-    if (var) {
+    isFromGenerator = mHandler->UpdateGeneratorUsed(node->GetNodeId(), init->GetNodeId());
+    if (var && isFromGenerator) {
       mHandler->UpdateGeneratorUsed(var->GetNodeId(), init->GetNodeId());
     }
   }
   if (var) {
     // normal cases
     if(var->IsIdentifier()) {
+      IdentifierNode *idvar = static_cast<IdentifierNode *>(var);
+      if (isFromGenerator && !idvar->GetType()) {
+        unsigned stridx = gStringPool.GetStrIdx("Generator");
+        UserTypeNode *ut = mInfo->CreateUserTypeNode(stridx, var->GetScope());
+        idvar->SetType(ut);
+      }
       merged = MergeTypeId(merged, var->GetTypeId());
       mergedtidx = MergeTypeIdx(mergedtidx, var->GetTypeIdx());
       bool isFunc = UpdateVarTypeWithInit(var, init);
@@ -1557,8 +1565,10 @@ IdentifierNode *TypeInferVisitor::VisitIdentifierNode(IdentifierNode *node) {
       TreeNode *uptype = gTypeTable.GetTypeFromTypeIdx(upper->GetTypeIdx());
       if (uptype) {
         scope = uptype->GetScope();
-        node->SetScope(scope);
-        decl = mHandler->FindDecl(node, true);
+        if (scope) {
+          node->SetScope(scope);
+          decl = mHandler->FindDecl(node, true);
+        }
       }
     } else {
       NOTYETIMPL("node not in field");
@@ -1719,10 +1729,12 @@ ReturnNode *TypeInferVisitor::VisitReturnNode(ReturnNode *node) {
       type->SetPrimType(TY_None);
       func->SetType(type);
     }
-    UpdateFuncRetTypeId(func, node->GetTypeId(), node->GetTypeIdx());
-    if (res) {
-      // use res to update function's return type
-      UpdateTypeUseNode(func->GetType(), res);
+    if (!func->IsGenerator() && !func->IsIterator()) {
+      UpdateFuncRetTypeId(func, node->GetTypeId(), node->GetTypeIdx());
+      if (res) {
+        // use res to update function's return type
+        UpdateTypeUseNode(func->GetType(), res);
+      }
     }
   }
   return node;

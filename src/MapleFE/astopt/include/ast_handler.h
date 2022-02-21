@@ -1,5 +1,5 @@
 /*
-* Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+* Copyright (C) [2021-2022] Futurewei Technologies, Inc. All rights reverved.
 *
 * OpenArkFE is licensed under the Mulan PSL v2.
 * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -252,7 +252,7 @@ class Module_Handler {
   void AddGeneratorUsed(unsigned nid, FunctionNode *func);
   bool IsGeneratorUsed(unsigned nid);
   FunctionNode *GetGeneratorUsed(unsigned nid);
-  void UpdateGeneratorUsed(unsigned target, unsigned src);
+  bool UpdateGeneratorUsed(unsigned target, unsigned src);
 
   // API to check a node is c++ field which satisfy both:
   // 1. direct field
