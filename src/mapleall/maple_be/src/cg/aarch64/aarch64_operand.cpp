@@ -322,7 +322,10 @@ void AArch64MemOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
      *                                      imm=0 or 3               imm=0 or 2, s/u
      */
     emitter.Emit("[");
-    GetBaseRegister()->Emit(emitter, nullptr);
+    auto *baseReg = static_cast<AArch64RegOperand*>(GetBaseRegister());
+    // After ssa version support different size, the value is changed back
+    baseReg->SetSize(k64BitSize);
+    baseReg->Emit(emitter, nullptr);
     emitter.Emit(",");
     GetOffsetRegister()->Emit(emitter, nullptr);
     if (ShouldEmitExtend() || GetBaseRegister()->GetSize() > GetOffsetRegister()->GetSize()) {
