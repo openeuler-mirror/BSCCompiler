@@ -211,14 +211,6 @@ class ASTFunc : public ASTDecl {
   std::list<UniqueFEIRStmt> InitArgsBoundaryVar(MIRFunction &mirFunc) const;
   void InsertBoundaryCheckingInRet(std::list<UniqueFEIRStmt> &stmts) const;
 
-  void SetAliasAttr(const std::string &attr) {
-    aliasAttr = attr;
-  }
-
-  const std::string &GetAliasAttr() const {
-    return aliasAttr;
-  }
-
   void SetWeakrefAttr(const std::pair<bool, std::string> &attr) {
     weakrefAttr = attr;
   }
@@ -239,7 +231,6 @@ class ASTFunc : public ASTDecl {
   // typeDesc format: [funcType, retType, arg0, arg1 ... argN]
   ASTStmt *compound = nullptr;  // func body
   std::vector<ASTDecl*> paramDecls;
-  std::string aliasAttr;
   std::pair<bool, std::string> weakrefAttr;
   uint32 bodySize = 0;
 };

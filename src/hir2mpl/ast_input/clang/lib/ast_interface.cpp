@@ -289,6 +289,22 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs 
   if (decl.isNoReturn()) {
     genAttrs.SetAttr(GENATTR_noreturn);
   }
+  clang::AliasAttr *aliasAttr = decl.getAttr<clang::AliasAttr>();
+  if (aliasAttr != nullptr) {
+    genAttrs.SetAttr(GENATTR_alias);
+    GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(aliasAttr->getAliasee().str());
+    genAttrs.InsertStrIdxContentMap(GENATTR_alias, strIdx);
+  }
+  clang::ConstructorAttr *constructorAttr = decl.getAttr<clang::ConstructorAttr>();
+  if (constructorAttr != nullptr) {
+    genAttrs.SetAttr(GENATTR_constructor_priority);
+    genAttrs.InsertIntContentMap(GENATTR_constructor_priority, constructorAttr->getPriority());
+  }
+  clang::DestructorAttr *destructorAttr = decl.getAttr<clang::DestructorAttr>();
+  if (destructorAttr != nullptr) {
+    genAttrs.SetAttr(GENATTR_destructor_priority);
+    genAttrs.InsertIntContentMap(GENATTR_destructor_priority, destructorAttr->getPriority());
+  }
 }
 
 void LibAstFile::CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access) {

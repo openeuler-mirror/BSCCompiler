@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "generic_attrs.h"
+#include "global_tables.h"
 
 namespace maple {
 TypeAttrs GenericAttrs::ConvertToTypeAttrs() {
@@ -60,6 +61,18 @@ FuncAttrs GenericAttrs::ConvertToFuncAttrs() {
       default:
         ASSERT(false, "unknown FuncAttrs");
         break;
+    }
+  }
+  for(auto iter = contentMap.begin(); iter != contentMap.end(); ++iter) {
+    if (iter->first == GENATTR_alias) {
+      std::string name = GlobalTables::GetStrTable().GetStringFromStrIdx(std::get<GStrIdx>(iter->second));
+      attr.SetAliasFuncName(name);
+    }
+    if (iter->first == GENATTR_constructor_priority) {
+      attr.SetConstructorPriority(std::get<int>(iter->second));
+    }
+    if (iter->first == GENATTR_destructor_priority) {
+      attr.SetDestructorPriority(std::get<int>(iter->second));
     }
   }
   return attr;

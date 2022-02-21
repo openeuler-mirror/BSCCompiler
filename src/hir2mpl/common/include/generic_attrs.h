@@ -15,9 +15,11 @@
 #ifndef GENERIC_ATTRS_H
 #define GENERIC_ATTRS_H
 #include <bitset>
+#include <variant>
 #include "mir_type.h"
 
 namespace maple {
+using AttrContent = std::variant<int, GStrIdx>;
 // only for internal use, not emitted
 enum GenericAttrKind {
 #define FUNC_ATTR
@@ -54,12 +56,21 @@ class GenericAttrs {
     return !(*this == tA);
   }
 
+  void InsertIntContentMap(GenericAttrKind key, int val) {
+    contentMap.insert(std::make_pair(key, val));
+  }
+
+  void InsertStrIdxContentMap(GenericAttrKind key, GStrIdx nameIdx) {
+    contentMap.insert(std::make_pair(key, nameIdx));
+  }
+
   FieldAttrs ConvertToFieldAttrs();
   TypeAttrs ConvertToTypeAttrs();
   FuncAttrs ConvertToFuncAttrs();
 
  private:
   std::bitset<128> attrFlag = 0;
+  std::map<GenericAttrKind, AttrContent> contentMap;
 };
 }
 #endif // GENERIC_ATTRS_H

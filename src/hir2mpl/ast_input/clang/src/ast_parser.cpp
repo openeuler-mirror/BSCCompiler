@@ -2359,10 +2359,6 @@ ASTDecl *ASTParser::ProcessDeclFunctionDecl(MapleAllocator &allocator, const cla
   ProcessNonnullFuncAttrs(funcDecl, *astFunc);
   ProcessBoundaryFuncAttrs(allocator, funcDecl, *astFunc);
   ProcessBoundaryParamAttrs(allocator, funcDecl, *astFunc);
-  clang::AliasAttr *aliasAttr = funcDecl.getAttr<clang::AliasAttr>();
-  if (aliasAttr != nullptr) {
-    astFunc->SetAliasAttr(aliasAttr->getAliasee().str());
-  }
   clang::WeakRefAttr *weakrefAttr = funcDecl.getAttr<clang::WeakRefAttr>();
   if (weakrefAttr != nullptr) {
     astFunc->SetWeakrefAttr(std::pair<bool, std::string> { true, weakrefAttr->getAliasee().str() });
@@ -2498,7 +2494,7 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
     astVar->SetDeclPos(astFile->GetDeclPosInfo(varDecl));
     auto initExpr = varDecl.getInit();
     auto astInitExpr = ProcessExpr(allocator, initExpr);
-    if (initExpr->getStmtClass() == clang::Stmt::InitListExprClass) {
+    if (initExpr->getStmtClass() == clang::Stmt::InitListExprClass && astInitExpr->GetASTOp() == kASTOpInitListExpr) {
       static_cast<ASTInitListExpr*>(astInitExpr)->SetInitListVarName(astVar->GenerateUniqueVarName());
     }
     astVar->SetInitExpr(astInitExpr);
