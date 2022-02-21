@@ -236,9 +236,6 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   mirFunc->GetSrcPosition().SetFileNum(static_cast<uint16>(func.GetSrcFileIdx()));
   mirFunc->GetSrcPosition().SetLineNum(func.GetSrcFileLineNum());
   MIRSymbol *funSym = mirFunc->GetFuncSymbol();
-  if (!func.GetAliasAttr().empty()) {
-    funSym->SetAliasAttr(GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(func.GetAliasAttr()));
-  }
   if (!func.GetSectionAttr().empty()) {
     funSym->sectionAttr = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(func.GetSectionAttr());
   }
