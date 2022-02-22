@@ -428,6 +428,7 @@ NamespaceNode *BuildScopeVisitor::VisitNamespaceNode(NamespaceNode *node) {
 DeclNode *BuildScopeVisitor::VisitDeclNode(DeclNode *node) {
   BuildScopeBaseVisitor::VisitDeclNode(node);
   ASTScope *scope = NULL;
+  bool deep = true;
   if (node->GetProp() == JS_Var) {
     // promote to use function or module scope
     scope = mUserScopeStack.top();
@@ -438,10 +439,33 @@ DeclNode *BuildScopeVisitor::VisitDeclNode(DeclNode *node) {
       node->GetVar()->SetScope(scope);
     }
   } else {
-    // use current scope
+    // restrict to current scope
     scope = mScopeStack.top();
+    deep = false;
   }
-  AddDecl(scope, node);
+  // check if it is already a decl in the scope
+  unsigned stridx = node->GetStrIdx();
+  TreeNode *decl = scope->FindDeclOf(stridx, deep);
+  if (decl) {
+    if (decl != node) {
+      // replace with an assignment if apply
+      if (node->GetInit()) {
+        BinOperatorNode *bop = mHandler->NewTreeNode<BinOperatorNode>();
+        bop->SetOprId(OPR_Assign);
+        IdentifierNode *id = mHandler->NewTreeNode<IdentifierNode>();
+        id->SetStrIdx(stridx);
+        id->SetScope(scope);
+
+        bop->SetOpndA(id);
+        bop->SetOpndB(node->GetInit());
+        node = (DeclNode *)bop;
+      } else {
+        node = NULL;
+      }
+    }
+  } else {
+    AddDecl(scope, node);
+  }
   return node;
 }
 
