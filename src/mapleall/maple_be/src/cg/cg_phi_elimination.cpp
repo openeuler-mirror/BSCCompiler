@@ -113,4 +113,5 @@ bool CgPhiElimination::PhaseRun(maplebe::CGFunc &f) {
 void CgPhiElimination::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgSSAConstruct>();
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgPhiElimination, cgphielimination)
 }

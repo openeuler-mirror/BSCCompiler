@@ -69,4 +69,5 @@ void CgRegCoalesce::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgLoopAnalysis>();
   aDep.PreservedAllExcept<CgLiveAnalysis>();
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgRegCoalesce, cgregcoalesce)
 }  /* namespace maplebe */

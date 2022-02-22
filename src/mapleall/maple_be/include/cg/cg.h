@@ -22,6 +22,7 @@
 #include "operand.h"
 #include "insn.h"
 #include "cgfunc.h"
+#include "live.h"
 #include "cg_option.h"
 #include "opcode_info.h"
 #include "global_tables.h"
@@ -29,13 +30,18 @@
 #include "mad.h"
 
 namespace maplebe {
-
+#define ADDTARGETPHASE(PhaseName, condition)    \
+  if (!CGOptions::IsSkipPhase(PhaseName)) {     \
+    pm->AddPhase(PhaseName, condition);         \
+  }
 /* subtarget opt phase -- cyclic Dependency, use Forward declaring */
 class CGSSAInfo;
 class PhiEliminate;
 class DomAnalysis;
 class CGProp;
 class CGDce;
+class AlignAnalysis;
+class MoveRegArgs;
 
 class Globals {
  public:
@@ -105,7 +111,7 @@ class CG {
 
  public:
   CG(MIRModule &mod, const CGOptions &cgOptions)
-      : memPool(memPoolCtrler.NewMemPool("maplecg mempool", false /* isLcalPool */)),
+      : memPool(memPoolCtrler.NewMemPool("maplecg mempool", false /* isLocalPool */)),
         allocator(memPool),
         mirModule(&mod),
         emitter(nullptr),
@@ -119,6 +125,9 @@ class CG {
   }
 
   virtual ~CG();
+
+  virtual void EnrollTargetPhases(MaplePhaseManager *pm) const = 0;
+
   void GenExtraTypeMetadata(const std::string &classListFileName, const std::string &outputBaseName);
   void GenPrimordialObjectList(const std::string &outputBaseName);
   const std::string ExtractFuncName(const std::string &str);
@@ -364,6 +373,10 @@ class CG {
     return dbgTraceExit;
   }
 
+  /* Init SubTarget phase */
+  virtual LiveAnalysis *CreateLiveAnalysis(MemPool &mp, CGFunc &f) const = 0;
+  virtual MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const = 0;
+  virtual AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const = 0;
   /* Init SubTarget optimization */
   virtual CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const = 0;
   virtual PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
@@ -388,6 +401,10 @@ class CG {
   }
 
  protected:
+  MIRModule *GetMIRModule() const {
+    return mirModule;
+  }
+
   MemPool *memPool;
   MapleAllocator allocator;
 

@@ -1,0 +1,64 @@
+/*
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under the Mulan PSL v1.
+ * You can use this software according to the terms and conditions of the Mulan PSL v1.
+ * You may obtain a copy of Mulan PSL v1 at:
+ *
+ *     http://license.coscl.org.cn/MulanPSL
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v1 for more details.
+ */
+ ADDTARGETPHASE("layoutstackframe", true);
+ ADDTARGETPHASE("createstartendlabel", true);
+ ADDTARGETPHASE("buildehfunc", true);
+ ADDTARGETPHASE("handlefunction", true);
+ ADDTARGETPHASE("moveargs", true);
+ /* SSA PHASES */
+ ADDTARGETPHASE("cgssaconstruct", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgcopyprop", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgpeephole", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgtargetprop", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgdeadcodeelimination", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgsplitcriticaledge", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgphielimination", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgregcoalesce", CGOptions::DoCGSSA());
+ /* Normal OPT PHASES */
+ ADDTARGETPHASE("cgprepeephole", true);
+ ADDTARGETPHASE("ebo", CGOptions::DoEBO());
+ ADDTARGETPHASE("prepeephole", CGOptions::DoPrePeephole())
+ ADDTARGETPHASE("ico", CGOptions::DoICO())
+ ADDTARGETPHASE("cfgo", !GetMIRModule()->IsCModule() && CGOptions::DoCFGO());
+
+ ADDTARGETPHASE("storeloadopt", CGOptions::DoStoreLoadOpt() && !CGOptions::DoCGSSA())
+ ADDTARGETPHASE("globalopt", CGOptions::DoGlobalOpt())
+ ADDTARGETPHASE("clearrdinfo", (CGOptions::DoStoreLoadOpt()) || CGOptions::DoGlobalOpt())
+
+ ADDTARGETPHASE("prepeephole1", CGOptions::DoPrePeephole())
+ ADDTARGETPHASE("ebo1", CGOptions::DoEBO());
+ ADDTARGETPHASE("prescheduling", !GetMIRModule()->IsJavaModule() && CGOptions::DoPreSchedule());
+ ADDTARGETPHASE("raopt", CGOptions::DoPreLSRAOpt());
+ ADDTARGETPHASE("cgsplitcriticaledge", GetMIRModule()->IsCModule());
+ ADDTARGETPHASE("regalloc", true);
+ ADDTARGETPHASE("regsaves", GetMIRModule()->IsCModule() && CGOptions::DoRegSavesOpt())
+ ADDTARGETPHASE("storeloadopt", GetMIRModule()->IsCModule() && CGOptions::DoStoreLoadOpt())
+ ADDTARGETPHASE("globalopt", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("clearrdinfo", GetMIRModule()->IsCModule() && (CGOptions::DoStoreLoadOpt() || CGOptions::DoGlobalOpt()))
+ ADDTARGETPHASE("generateproepilog", true);
+ ADDTARGETPHASE("framefinalize", true);
+ ADDTARGETPHASE("dbgfixcallframeoffsets", true);
+ ADDTARGETPHASE("cfgo", GetMIRModule()->IsCModule() && CGOptions::DoCFGO());
+ ADDTARGETPHASE("peephole0", CGOptions::DoPeephole())
+ ADDTARGETPHASE("postebo", CGOptions::DoEBO());
+ ADDTARGETPHASE("postcfgo", CGOptions::DoCFGO());
+ ADDTARGETPHASE("cgpostpeephole", true)
+ ADDTARGETPHASE("peephole", CGOptions::DoPeephole())
+ ADDTARGETPHASE("gencfi", !GetMIRModule()->IsCModule());
+ ADDTARGETPHASE("yieldpoint", GetMIRModule()->IsJavaModule() && CGOptions::IsInsertYieldPoint());
+ ADDTARGETPHASE("scheduling", CGOptions::DoSchedule());
+ ADDTARGETPHASE("alignanalysis", GetMIRModule()->IsCModule() && CGOptions::DoAlignAnalysis());
+ ADDTARGETPHASE("fixshortbranch", true);
+ ADDTARGETPHASE("cgemit", true);

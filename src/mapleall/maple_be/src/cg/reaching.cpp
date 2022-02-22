@@ -14,6 +14,7 @@
  */
 #if TARGAARCH64
 #include "aarch64_reaching.h"
+#include "aarch64_isa.h"
 #elif TARGRISCV64
 #include "riscv64_reaching.h"
 #endif
@@ -822,12 +823,15 @@ bool ReachingDefinition::CanReachEndBBFromCurrentBB(const BB &currentBB, const B
 
 /* check whether register may be redefined form startBB to endBB */
 bool ReachingDefinition::IsLiveInAllPathBB(uint32 regNO, const BB &startBB, const BB &endBB,
-                                           std::vector<bool> &visitedBB) const {
+                                           std::vector<bool> &visitedBB, bool isFirstNo) const {
   for (auto succ : startBB.GetSuccs()) {
     if (visitedBB[succ->GetId()]) {
       continue;
     }
     visitedBB[succ->GetId()] = true;
+    if (isFirstNo && CheckRegLiveinReturnBB(regNO, *succ)) {
+      return false;
+    }
     std::vector<bool> traversedPathSet(kMaxBBNum, false);
     bool canReachEndBB = true;
     if (regGen[succ->GetId()]->TestBit(regNO)) {
@@ -839,7 +843,7 @@ bool ReachingDefinition::IsLiveInAllPathBB(uint32 regNO, const BB &startBB, cons
     if (!canReachEndBB) {
       continue;
     }
-    bool isLive = IsLiveInAllPathBB(regNO, *succ, endBB, visitedBB);
+    bool isLive = IsLiveInAllPathBB(regNO, *succ, endBB, visitedBB, isFirstNo);
     if (!isLive) {
       return false;
     }
@@ -850,6 +854,9 @@ bool ReachingDefinition::IsLiveInAllPathBB(uint32 regNO, const BB &startBB, cons
       continue;
     }
     visitedBB[ehSucc->GetId()] = true;
+    if (isFirstNo && CheckRegLiveinReturnBB(regNO, *ehSucc)) {
+      return false;
+    }
     std::vector<bool> traversedPathSet(kMaxBBNum, false);
     bool canReachEndBB = true;
     if (regGen[ehSucc->GetId()]->TestBit(regNO)) {
@@ -861,7 +868,7 @@ bool ReachingDefinition::IsLiveInAllPathBB(uint32 regNO, const BB &startBB, cons
     if (!canReachEndBB) {
       continue;
     }
-    bool isLive = IsLiveInAllPathBB(regNO, *ehSucc, endBB, visitedBB);
+    bool isLive = IsLiveInAllPathBB(regNO, *ehSucc, endBB, visitedBB, isFirstNo);
     if (!isLive) {
       return false;
     }
@@ -869,22 +876,74 @@ bool ReachingDefinition::IsLiveInAllPathBB(uint32 regNO, const BB &startBB, cons
   return true;
 }
 
+/* Check if the reg is used in return BB */
+bool ReachingDefinition::CheckRegLiveinReturnBB(uint32 regNO, const BB &bb) const {
+#if TARGAARCH64 || TARGRISCV64
+  if (bb.GetKind() == BB::kBBReturn) {
+    PrimType returnType = cgFunc->GetFunction().GetReturnType()->GetPrimType();
+    regno_t returnReg = R0;
+    if (IsPrimitiveFloat(returnType)) {
+      returnReg = V0;
+    } else if (IsPrimitiveInteger(returnType)) {
+      returnReg = R0;
+    }
+    if (regNO == returnReg) {
+      return true;
+    }
+  }
+#endif
+  return false;
+}
+
+bool ReachingDefinition::RegIsUsedIncaller(uint32 regNO, Insn &startInsn, Insn &endInsn) const {
+  if (startInsn.GetBB() != endInsn.GetBB()) {
+    return false;
+  }
+  if (startInsn.GetNext() == &endInsn || &startInsn == &endInsn) {
+    return false;
+  }
+  auto RegDefVec = FindRegDefBetweenInsn(regNO, startInsn.GetNext(), endInsn.GetPrev());
+  if (!RegDefVec.empty()) {
+    return false;
+  }
+  if (IsCallerSavedReg(regNO) && startInsn.GetNext() != nullptr &&
+      KilledByCallBetweenInsnInSameBB(*startInsn.GetNext(), *(startInsn.GetBB()->GetLastInsn()), regNO)) {
+    return true;
+  }
+  if (CheckRegLiveinReturnBB(regNO, *startInsn.GetBB())) {
+    return true;
+  }
+  return false;
+}
+
 /* check whether control flow can reach endInsn from startInsn */
-bool ReachingDefinition::RegIsLiveBetweenInsn(uint32 regNO, Insn &startInsn, Insn &endInsn) const {
+bool ReachingDefinition::RegIsLiveBetweenInsn(uint32 regNO, Insn &startInsn, Insn &endInsn, bool isBack,
+    bool isFirstNo) const {
   ASSERT(&startInsn != &endInsn, "startInsn is not equal to endInsn");
   if (startInsn.GetBB() == endInsn.GetBB()) {
     /* register is difined more than once */
     if (startInsn.GetId() > endInsn.GetId()) {
-      return false;
+      if (!isBack) {
+        return false;
+      } else {
+        return true;
+      }
     }
     if (startInsn.GetNext() == &endInsn) {
       return true;
     }
-    if (regGen[startInsn.GetBB()->GetId()]->TestBit(regNO) &&
-        !FindRegDefBetweenInsn(regNO, &startInsn, endInsn.GetPrev()).empty()) {
-      return false;
+    if (regGen[startInsn.GetBB()->GetId()]->TestBit(regNO)) {
+      std::vector<Insn*> RegDefVec;
+      if (isBack) {
+        RegDefVec = FindRegDefBetweenInsn(regNO, startInsn.GetNext(), endInsn.GetPrev());
+      } else {
+        RegDefVec = FindRegDefBetweenInsn(regNO, &startInsn, endInsn.GetPrev());
+      }
+      if (!RegDefVec.empty()) {
+        return false;
+      }
     }
-    if (IsCallerSavedReg(regNO) && HasCallBetweenInsnInSameBB(*startInsn.GetNext(), *endInsn.GetPrev())) {
+    if (IsCallerSavedReg(regNO) && KilledByCallBetweenInsnInSameBB(*startInsn.GetNext(), *endInsn.GetPrev(), regNO)) {
       return false;
     }
     return true;
@@ -898,7 +957,7 @@ bool ReachingDefinition::RegIsLiveBetweenInsn(uint32 regNO, Insn &startInsn, Ins
 
   if (&startInsn != startInsn.GetBB()->GetLastInsn() &&
       IsCallerSavedReg(regNO) &&
-      HasCallBetweenInsnInSameBB(*startInsn.GetNext(), *startInsn.GetBB()->GetLastInsn())) {
+      KilledByCallBetweenInsnInSameBB(*startInsn.GetNext(), *startInsn.GetBB()->GetLastInsn(), regNO)) {
     return false;
   }
 
@@ -910,12 +969,151 @@ bool ReachingDefinition::RegIsLiveBetweenInsn(uint32 regNO, Insn &startInsn, Ins
 
   if (&endInsn != endInsn.GetBB()->GetFirstInsn() &&
       IsCallerSavedReg(regNO) &&
-      HasCallBetweenInsnInSameBB(*endInsn.GetBB()->GetFirstInsn(), *endInsn.GetPrev())) {
+      KilledByCallBetweenInsnInSameBB(*endInsn.GetBB()->GetFirstInsn(), *endInsn.GetPrev(), regNO)) {
     return false;
   }
 
   std::vector<bool> visitedBB(kMaxBBNum, false);
-  return IsLiveInAllPathBB(regNO, *startInsn.GetBB(), *endInsn.GetBB(), visitedBB);
+  return IsLiveInAllPathBB(regNO, *startInsn.GetBB(), *endInsn.GetBB(), visitedBB, isFirstNo);
+}
+
+bool ReachingDefinition::RegIsUsedOrDefBetweenInsn(uint32 regNO, Insn &startInsn, Insn &endInsn) const {
+  ASSERT(&startInsn != &endInsn, "startInsn is not equal to endInsn");
+  if (startInsn.GetBB() == endInsn.GetBB()) {
+    /* register is difined more than once */
+    if (startInsn.GetId() > endInsn.GetId()) {
+      return false;
+    }
+    if (startInsn.GetNext() == &endInsn) {
+      return true;
+    }
+    if (regGen[startInsn.GetBB()->GetId()]->TestBit(regNO) &&
+        !FindRegDefBetweenInsn(regNO, startInsn.GetNext(), endInsn.GetPrev()).empty()) {
+      return false;
+    }
+    if (regUse[startInsn.GetBB()->GetId()]->TestBit(regNO)) {
+      InsnSet useInsnSet;
+      FindRegUseBetweenInsn(regNO, startInsn.GetNext(), endInsn.GetPrev(), useInsnSet);
+      if (!useInsnSet.empty()) {
+        return false;
+      }
+    }
+    if (IsCallerSavedReg(regNO) && KilledByCallBetweenInsnInSameBB(*startInsn.GetNext(), *endInsn.GetPrev(), regNO)) {
+      return false;
+    }
+    return true;
+  }
+
+  if (&startInsn != startInsn.GetBB()->GetLastInsn() &&
+      regGen[startInsn.GetBB()->GetId()]->TestBit(regNO) &&
+      !FindRegDefBetweenInsn(regNO, startInsn.GetNext(), startInsn.GetBB()->GetLastInsn()).empty()) {
+    return false;
+  }
+
+  if (regUse[startInsn.GetBB()->GetId()]->TestBit(regNO)) {
+    InsnSet useInsnSet;
+    FindRegUseBetweenInsn(regNO, startInsn.GetNext(), startInsn.GetBB()->GetLastInsn(), useInsnSet);
+    if (!useInsnSet.empty()) {
+      return false;
+    }
+  }
+
+  if (&startInsn != startInsn.GetBB()->GetLastInsn() &&
+      IsCallerSavedReg(regNO) &&
+      KilledByCallBetweenInsnInSameBB(*startInsn.GetNext(), *startInsn.GetBB()->GetLastInsn(), regNO)) {
+    return false;
+  }
+
+  if (&endInsn != endInsn.GetBB()->GetFirstInsn() &&
+      regGen[endInsn.GetBB()->GetId()]->TestBit(regNO) &&
+      !FindRegDefBetweenInsn(regNO, endInsn.GetBB()->GetFirstInsn(), endInsn.GetPrev()).empty()) {
+    return false;
+  }
+
+  if (regUse[startInsn.GetBB()->GetId()]->TestBit(regNO)) {
+    InsnSet useInsnSet;
+    FindRegUseBetweenInsn(regNO, endInsn.GetBB()->GetFirstInsn(), endInsn.GetPrev(), useInsnSet);
+    if (!useInsnSet.empty()) {
+      return false;
+    }
+  }
+
+  if (&endInsn != endInsn.GetBB()->GetFirstInsn() &&
+      IsCallerSavedReg(regNO) &&
+      KilledByCallBetweenInsnInSameBB(*endInsn.GetBB()->GetFirstInsn(), *endInsn.GetPrev(), regNO)) {
+    return false;
+  }
+
+  std::vector<bool> visitedBB(kMaxBBNum, false);
+  return IsUseOrDefInAllPathBB(regNO, *startInsn.GetBB(), *endInsn.GetBB(), visitedBB);
+}
+
+/* check whether register may be redefined form in the same BB */
+bool ReachingDefinition::IsUseOrDefBetweenInsn(uint32 regNO, const BB &curBB,
+                                               const Insn &startInsn, Insn &endInsn) const {
+  if (regGen[curBB.GetId()]->TestBit(regNO)) {
+    if (!FindRegDefBetweenInsn(regNO, startInsn.GetNext(), endInsn.GetPrev()).empty()) {
+      return false;
+    }
+  }
+  if (regUse[curBB.GetId()]->TestBit(regNO)) {
+    InsnSet useInsnSet;
+    FindRegUseBetweenInsn(regNO, startInsn.GetNext(), endInsn.GetPrev(), useInsnSet);
+    if (!useInsnSet.empty()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/* check whether register may be redefined form startBB to endBB */
+bool ReachingDefinition::IsUseOrDefInAllPathBB(uint32 regNO, const BB &startBB, const BB &endBB,
+                                               std::vector<bool> &visitedBB) const {
+  for (auto succ : startBB.GetSuccs()) {
+    if (visitedBB[succ->GetId()] || succ == &endBB) {
+      continue;
+    }
+    visitedBB[succ->GetId()] = true;
+    std::vector<bool> traversedPathSet(kMaxBBNum, false);
+    bool canReachEndBB = true;
+    if (regGen[succ->GetId()]->TestBit(regNO) || regUse[succ->GetId()]->TestBit(regNO) ||
+        (succ->HasCall() && IsCallerSavedReg(regNO))) {
+      canReachEndBB = CanReachEndBBFromCurrentBB(*succ, endBB, traversedPathSet);
+      if (canReachEndBB) {
+        return false;
+      }
+    }
+    if (!canReachEndBB) {
+      continue;
+    }
+    bool isLive = IsUseOrDefInAllPathBB(regNO, *succ, endBB, visitedBB);
+    if (!isLive) {
+      return false;
+    }
+  }
+
+  for (auto ehSucc : startBB.GetEhSuccs()) {
+    if (visitedBB[ehSucc->GetId()]) {
+      continue;
+    }
+    visitedBB[ehSucc->GetId()] = true;
+    std::vector<bool> traversedPathSet(kMaxBBNum, false);
+    bool canReachEndBB = true;
+    if (regGen[ehSucc->GetId()]->TestBit(regNO) || regUse[ehSucc->GetId()]->TestBit(regNO)) {
+      canReachEndBB = CanReachEndBBFromCurrentBB(*ehSucc, endBB, traversedPathSet);
+      if (canReachEndBB) {
+        return false;
+      }
+    }
+    if (!canReachEndBB) {
+      continue;
+    }
+    bool isLive = IsUseOrDefInAllPathBB(regNO, *ehSucc, endBB, visitedBB);
+    if (!isLive) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool ReachingDefinition::HasCallBetweenInsnInSameBB(const Insn &startInsn, const Insn &endInsn) const {
@@ -1149,6 +1347,7 @@ bool CgReachingDefinition::PhaseRun(maplebe::CGFunc &f) {
   reachingDef->AnalysisStart();
   return false;
 }
+MAPLE_ANALYSIS_PHASE_REGISTER(CgReachingDefinition, reachingdefinition)
 
 bool CgClearRDInfo::PhaseRun(maplebe::CGFunc &f) {
   if (f.GetRDStatus()) {
@@ -1156,4 +1355,5 @@ bool CgClearRDInfo::PhaseRun(maplebe::CGFunc &f) {
   }
   return false;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgClearRDInfo, clearrdinfo)
 }  /* namespace maplebe */

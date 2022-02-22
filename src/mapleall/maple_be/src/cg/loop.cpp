@@ -663,4 +663,5 @@ bool CgLoopAnalysis::PhaseRun(maplebe::CGFunc &f) {
 #endif
   return false;
 }
+MAPLE_ANALYSIS_PHASE_REGISTER(CgLoopAnalysis, loopanalysis)
 }  /* namespace maplebe */

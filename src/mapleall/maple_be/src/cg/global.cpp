@@ -84,9 +84,12 @@ bool CgGlobalOpt::PhaseRun(maplebe::CGFunc &f) {
   }
   return true;
 }
+
 void CgGlobalOpt::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgReachingDefinition>();
   aDep.AddRequired<CgLiveAnalysis>();
   aDep.PreservedAllExcept<CgLiveAnalysis>();
 }
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgGlobalOpt, globalopt)
+
 }  /* namespace maplebe */

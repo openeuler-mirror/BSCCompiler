@@ -40,7 +40,18 @@ if (TARGET == "aarch64" || TARGET == "aarch64_ilp32") {
     "${MAPLEALL_ROOT}/maple_be/include/cg/aarch64",
     "${MAPLEALL_ROOT}/maple_be/include/be/aarch64",
   ]
-  deps_libcg += [ ":libcgaarch64" ]
+  deps_libcg += [ ":libcgaarch64",
+                  ":libcgphases",
+  ]
+}
+
+if (TARGET == "x86_64") {
+  include_directories += [
+    "${MAPLEALL_ROOT}/maple_be/include/cg/x86_64",
+    "${MAPLEALL_ROOT}/maple_be/include/be/x86_64",
+  ]
+  deps_libcg += [ ":libcgx8664",
+ ]
 }
 
 if (TARGET == "riscv64") {
@@ -74,6 +85,7 @@ src_libmplbe = [
 ]
 
 src_libcgaarch64 = [
+  "src/cg/aarch64/aarch64_rt.cpp",
   "src/cg/aarch64/aarch64_abi.cpp",
   "src/cg/aarch64/aarch64_call_conv.cpp",
   "src/cg/aarch64/mpl_atomic.cpp",
@@ -93,7 +105,6 @@ src_libcgaarch64 = [
   "src/cg/aarch64/aarch64_dce.cpp",
   "src/cg/aarch64/aarch64_phi_elimination.cpp",
   "src/cg/aarch64/aarch64_reg_coalesce.cpp",
-  "src/cg/aarch64/aarch64_cg.cpp",
   "src/cg/aarch64/aarch64_ico.cpp",
   "src/cg/aarch64/aarch64_insn.cpp",
   "src/cg/aarch64/aarch64_isa.cpp",
@@ -112,6 +123,16 @@ src_libcgaarch64 = [
   "src/cg/aarch64/aarch64_alignment.cpp",
   "src/cg/aarch64/aarch64_regsaves.cpp",
   "src/cg/aarch64/aarch64_utils.cpp",
+  "src/cg/aarch64/aarch64_cg.cpp",
+]
+
+src_libcgx8664 = [
+  "src/cg/x86_64/x64_cg.cpp",
+  "src/cg/x86_64/x64_MPIsel.cpp",
+  "src/cg/x86_64/x64_cgfunc.cpp",
+  "src/cg/x86_64/x64_rt.cpp",
+  "src/cg/x86_64/x64_reg_alloc.cpp",
+  "src/cg/x86_64/x64_emitter.cpp",
 ]
 
 src_libcgriscv64 = [
@@ -148,49 +169,52 @@ src_libcgriscv64 = [
 
 src_libcgark = [ "src/cg/ark/foo.cpp" ]
 
-src_libcg = [
-  "src/cg/args.cpp",
+src_libcgphases = [
   "src/cg/cfgo.cpp",
-  "src/cg/cfi.cpp",
-  "src/cg/cg.cpp",
-  "src/cg/cgbb.cpp",
-  "src/cg/cgfunc.cpp",
-  "src/cg/cg_cfg.cpp",
-  "src/cg/cg_option.cpp",
-  "src/cg/cg_phasemanager.cpp",
-  "src/cg/dbg.cpp",
   "src/cg/ebo.cpp",
-  "src/cg/eh_func.cpp",
-  "src/cg/emit.cpp",
-  "src/cg/global.cpp",
-  "src/cg/live.cpp",
-  "src/cg/ico.cpp",
-  "src/cg/peep.cpp",
-  "src/cg/label_creation.cpp",
-  "src/cg/loop.cpp",
-  "src/cg/cg_critical_edge.cpp",
-  "src/cg/memlayout.cpp",
-  "src/cg/offset_adjust.cpp",
-  "src/cg/optimize_common.cpp",
-  "src/cg/pressure.cpp",
-  "src/cg/proepilog.cpp",
-  "src/cg/reaching.cpp",
-  "src/cg/schedule.cpp",
-  "src/cg/strldr.cpp",
-  "src/cg/yieldpoint.cpp",
   "src/cg/ra_opt.cpp",
-  "src/cg/cg_dominance.cpp",
-  "src/cg/cg_pre.cpp",
-  "src/cg/cg_occur.cpp",
   "src/cg/cg_ssa.cpp",
   "src/cg/cg_prop.cpp",
   "src/cg/cg_dce.cpp",
   "src/cg/cg_phi_elimination.cpp",
   "src/cg/reg_coalesce.cpp",
-  "src/cg/alignment.cpp",
+  "src/cg/global.cpp",
+  "src/cg/ico.cpp",
+  "src/cg/peep.cpp",
+  "src/cg/pressure.cpp",
+  "src/cg/reaching.cpp",
+  "src/cg/schedule.cpp",
+  "src/cg/strldr.cpp",
+  "src/cg/cg_dominance.cpp",
+  "src/cg/cg_pre.cpp",
+  "src/cg/cg_occur.cpp",
   "src/cg/cg_ssu_pre.cpp",
   "src/cg/cg_ssa_pre.cpp",
   "src/cg/regsaves.cpp",
+  "src/cg/cg_critical_edge.cpp",
+]
+
+src_libcg = [
+  "src/cg/cfi.cpp",
+  "src/cg/cgbb.cpp",
+  "src/cg/cgfunc.cpp",
+  "src/cg/cg_cfg.cpp",
+  "src/cg/cg_option.cpp",
+  "src/cg/dbg.cpp",
+  "src/cg/optimize_common.cpp",
+  "src/cg/eh_func.cpp",
+  "src/cg/emit.cpp",
+  "src/cg/live.cpp",
+  "src/cg/loop.cpp",
+  "src/cg/memlayout.cpp",
+  "src/cg/yieldpoint.cpp",
+  "src/cg/args.cpp",
+  "src/cg/label_creation.cpp",
+  "src/cg/offset_adjust.cpp",
+  "src/cg/proepilog.cpp",
+  "src/cg/alignment.cpp",
+  "src/cg/cg.cpp",
+  "src/cg/cg_phasemanager.cpp",
 ]
 
 cflags_cc -= [ "-DRC_NO_MMAP" ]
@@ -223,6 +247,11 @@ source_set("libcgaarch64") {
   include_dirs = include_directories
 }
 
+source_set("libcgx8664") {
+  sources = src_libcgx8664
+  include_dirs = include_directories
+}
+
 source_set("libcgriscv64") {
   sources = src_libcgriscv64
   include_dirs = include_directories
@@ -230,6 +259,11 @@ source_set("libcgriscv64") {
 
 source_set("libcgark") {
   sources = src_libcgark
+  include_dirs = include_directories
+}
+
+source_set("libcgphases") {
+  sources = src_libcgphases
   include_dirs = include_directories
 }
 

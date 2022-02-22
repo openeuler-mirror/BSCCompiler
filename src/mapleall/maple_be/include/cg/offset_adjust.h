@@ -19,23 +19,23 @@
 #include "cg_phase.h"
 
 namespace maplebe {
-class FPLROffsetAdjustment {
+class FrameFinalize {
  public:
-  explicit FPLROffsetAdjustment(CGFunc &func) : cgFunc(&func) {}
+  explicit FrameFinalize(CGFunc &func) : cgFunc(&func) {}
 
-  virtual ~FPLROffsetAdjustment() = default;
+  virtual ~FrameFinalize() = default;
 
   virtual void Run() {}
 
   std::string PhaseName() const {
-    return "offsetadjustforfplr";
+    return "framefinalize";
   }
 
  protected:
   CGFunc *cgFunc;
 };
 
-MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgFPLROffsetAdjustment, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgFrameFinalize, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 

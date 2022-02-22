@@ -13,14 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "args.h"
-#if TARGAARCH64
-#include "aarch64_args.h"
-#elif TARGRISCV64
-#include "riscv64_args.h"
-#endif
-#if TARGARM32
-#include "arm32_args.h"
-#endif
+#include "cg.h"
 #include "cgfunc.h"
 
 namespace maplebe {
@@ -28,14 +21,9 @@ using namespace maple;
 bool CgMoveRegArgs::PhaseRun(maplebe::CGFunc &f) {
   MemPool *memPool = GetPhaseMemPool();
   MoveRegArgs *movRegArgs = nullptr;
-#if TARGAARCH64 || TARGRISCV64
-  movRegArgs = memPool->New<AArch64MoveRegArgs>(f);
-#endif
-#if TARGARM32
-  movRegArgs = memPool->New<Arm32MoveRegArgs>(f);
-#endif
+  movRegArgs = f.GetCG()->CreateMoveRegArgs(*memPool, f);
   movRegArgs->Run();
   return true;
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgMoveRegArgs, moveargs)
+
 }  /* namespace maplebe */

@@ -39,7 +39,7 @@ bool CgStoreLoadOpt::PhaseRun(maplebe::CGFunc &f) {
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgReachingDefinition::id);
     return false;
   }
-  GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
+  (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
 
   StoreLoadOpt *storeLoadOpt = nullptr;
 #if TARGAARCH64 || TARGRISCV64
@@ -55,4 +55,5 @@ void CgStoreLoadOpt::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgReachingDefinition>();
   aDep.SetPreservedAll();
 }
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgStoreLoadOpt, storeloadopt)
 }  /* namespace maplebe */

@@ -26,8 +26,8 @@
 
 namespace maplebe {
 using namespace maple;
-bool CgFPLROffsetAdjustment::PhaseRun(maplebe::CGFunc &f) {
-  FPLROffsetAdjustment *offsetAdjustment = nullptr;
+bool CgFrameFinalize::PhaseRun(maplebe::CGFunc &f) {
+  FrameFinalize *offsetAdjustment = nullptr;
 #if TARGAARCH64 || TARGRISCV64
   offsetAdjustment = GetPhaseAllocator()->New<AArch64FPLROffsetAdjustment>(f);
 #endif
@@ -37,5 +37,5 @@ bool CgFPLROffsetAdjustment::PhaseRun(maplebe::CGFunc &f) {
   offsetAdjustment->Run();
   return false;
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgFPLROffsetAdjustment, offsetadjustforfplr)
+
 }  /* namespace maplebe */

@@ -34,7 +34,7 @@ bool CgRegSavesOpt::PhaseRun(maplebe::CGFunc &f) {
   /* Perform live analysis, result to be obtained in CGFunc */
   LiveAnalysis *live = nullptr;
   MaplePhase *it = GetAnalysisInfoHook()->
-    ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLiveAnalysis::id, f);
+      ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLiveAnalysis::id, f);
   live = static_cast<CgLiveAnalysis*>(it)->GetResult();
   CHECK_FATAL(live != nullptr, "null ptr check");
   /* revert liveanalysis result container. */
@@ -46,11 +46,11 @@ bool CgRegSavesOpt::PhaseRun(maplebe::CGFunc &f) {
   if (Globals::GetInstance()->GetOptimLevel() >= 1 &&
       f.GetCG()->GetCGOptions().DoColoringBasedRegisterAllocation()) {
     MaplePhase *it = GetAnalysisInfoHook()->
-      ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgDomAnalysis::id, f);
+        ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgDomAnalysis::id, f);
     dom = static_cast<CgDomAnalysis*>(it)->GetResult();
     CHECK_FATAL(dom != nullptr, "null ptr check");
     it = GetAnalysisInfoHook()->
-      ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgPostDomAnalysis::id, f);
+        ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgPostDomAnalysis::id, f);
     pdom = static_cast<CgPostDomAnalysis*>(it)->GetResult();
     CHECK_FATAL(pdom != nullptr, "null ptr check");
   }
@@ -72,4 +72,5 @@ bool CgRegSavesOpt::PhaseRun(maplebe::CGFunc &f) {
   }
   return true;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgRegSavesOpt, regsaves)
 }  /* namespace maplebe */

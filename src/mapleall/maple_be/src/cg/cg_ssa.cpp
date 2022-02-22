@@ -297,4 +297,5 @@ bool CgSSAConstruct::PhaseRun(maplebe::CGFunc &f) {
   }
   return true;
 }
+MAPLE_ANALYSIS_PHASE_REGISTER(CgSSAConstruct, cgssaconstruct) /* both transform & analysis */
 }

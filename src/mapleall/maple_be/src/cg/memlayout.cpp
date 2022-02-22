@@ -84,4 +84,5 @@ bool CgLayoutFrame::PhaseRun(maplebe::CGFunc &f) {
   f.LayoutStackFrame();
   return false;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgLayoutFrame, layoutstackframe)
 }  /* namespace maplebe */

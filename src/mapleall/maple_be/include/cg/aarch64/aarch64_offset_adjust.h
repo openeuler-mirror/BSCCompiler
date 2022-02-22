@@ -21,9 +21,9 @@
 namespace maplebe {
 using namespace maple;
 
-class AArch64FPLROffsetAdjustment : public FPLROffsetAdjustment {
+class AArch64FPLROffsetAdjustment : public FrameFinalize {
  public:
-  explicit AArch64FPLROffsetAdjustment(CGFunc &func) : FPLROffsetAdjustment(func) {}
+  explicit AArch64FPLROffsetAdjustment(CGFunc &func) : FrameFinalize(func) {}
 
   ~AArch64FPLROffsetAdjustment() override = default;
 

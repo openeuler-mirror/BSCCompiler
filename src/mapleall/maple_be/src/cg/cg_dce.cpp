@@ -16,7 +16,7 @@
 #include "cg.h"
 namespace maplebe {
 void CGDce::DoDce() {
-  bool tryDceAgain;
+  bool tryDceAgain = false;
   do {
     tryDceAgain = false;
     for (auto &ssaIt : GetSSAInfo()->GetAllSSAOperands()) {
@@ -40,5 +40,6 @@ void CgDce::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgSSAConstruct>();
   aDep.AddPreserved<CgSSAConstruct>();
 }
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgDce, cgdeadcodeelimination)
 }
 
