@@ -57,4 +57,5 @@ bool CgCriticalEdge::PhaseRun(maplebe::CGFunc &f) {
 void CgCriticalEdge::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddPreserved<CgSSAConstruct>();
 }
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgCriticalEdge, cgsplitcriticaledge)
 }  /* namespace maplebe */

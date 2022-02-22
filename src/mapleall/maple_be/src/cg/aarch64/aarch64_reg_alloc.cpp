@@ -607,4 +607,5 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
   GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLoopAnalysis::id);
   return false;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgRegAlloc, regalloc)
 }  /* namespace maplebe */

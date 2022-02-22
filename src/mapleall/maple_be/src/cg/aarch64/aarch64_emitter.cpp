@@ -662,4 +662,5 @@ bool CgEmission::PhaseRun(maplebe::CGFunc &f) {
   emitter->EmitHugeSoRoutines();
   return false;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgEmission, cgemit)
 }  /* namespace maplebe */

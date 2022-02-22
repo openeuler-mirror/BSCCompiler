@@ -14,14 +14,7 @@
  */
 #include "live.h"
 #include <set>
-#if TARGAARCH64
-#include "aarch64_live.h"
-#elif TARGRISCV64
-#include "riscv64_live.h"
-#endif
-#if TARGARM32
-#include "arm32_live.h"
-#endif
+#include "cg.h"
 #include "cg_option.h"
 #include "cgfunc.h"
 
@@ -302,16 +295,12 @@ void LiveAnalysis::EnlargeSpaceForLiveAnalysis(BB &currBB) {
 
 bool CgLiveAnalysis::PhaseRun(maplebe::CGFunc &f) {
   MemPool *liveMemPool = GetPhaseMemPool();
-#if TARGAARCH64 || TARGRISCV64
-  live = liveMemPool->New<AArch64LiveAnalysis>(f, *liveMemPool);
-#endif
-#if TARGARM32
-  live = liveMemPool->New<Arm32LiveAnalysis>(f, *liveMemPool);
-#endif
+  live = f.GetCG()->CreateLiveAnalysis(*liveMemPool, f);
   live->AnalysisLive();
   if (LIVE_ANALYZE_DUMP_NEWPM) {
     live->Dump();
   }
   return false;
 }
+MAPLE_ANALYSIS_PHASE_REGISTER(CgLiveAnalysis, liveanalysis)
 }  /* namespace maplebe */

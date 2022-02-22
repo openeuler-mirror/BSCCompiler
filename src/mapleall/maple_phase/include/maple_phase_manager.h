@@ -85,11 +85,6 @@ class MaplePhaseManager {
 
 #define ADDMAPLEPHASE(PhaseName, condition) \
   AddPhase(PhaseName, condition);
-
-#define ADDMAPLECGPHASE(PhaseName, condition)   \
-  if (!CGOptions::IsSkipPhase(PhaseName)) {     \
-    AddPhase(PhaseName, condition);             \
-  }
 #define ADDMAPLEMEPHASE(PhaseName, condition)   \
   if (!MeOption::IsSkipPhase(PhaseName)) {      \
     AddPhase(PhaseName, condition);             \

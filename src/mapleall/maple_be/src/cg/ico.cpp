@@ -77,4 +77,5 @@ void CgIco::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgLiveAnalysis>();
   aDep.PreservedAllExcept<CgLiveAnalysis>();
 }
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgIco, ico)
 }  /* namespace maplebe */

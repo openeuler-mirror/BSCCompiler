@@ -48,6 +48,7 @@ void CgCopyProp::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgSSAConstruct>();
   aDep.AddPreserved<CgSSAConstruct>();
 }
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgCopyProp, cgcopyprop)
 
 bool CgTargetProp::PhaseRun(maplebe::CGFunc &f) {
   CGSSAInfo *ssaInfo = GET_ANALYSIS(CgSSAConstruct, f);
@@ -59,4 +60,5 @@ void CgTargetProp::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgSSAConstruct>();
   aDep.AddPreserved<CgSSAConstruct>();
 }
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgTargetProp, cgtargetprop)
 }

@@ -1795,7 +1795,6 @@ void CGFunc::HandleFunction() {
   if (mirModule.GetSrcLang() == kSrcLangC) {
     theCFG->WontExitAnalysis();
   }
-  SplitStrLdrPair();
   if (CGOptions::IsLazyBinding() && !GetCG()->IsLibcore()) {
     ProcessLazyBinding();
   }
@@ -1985,6 +1984,7 @@ bool CgHandleFunction::PhaseRun(maplebe::CGFunc &f) {
   }
   return false;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgHandleFunction, handlefunction)
 
 bool CgFixCFLocOsft::PhaseRun(maplebe::CGFunc &f) {
   if (f.GetCG()->GetCGOptions().WithDwarf()) {
@@ -1992,4 +1992,5 @@ bool CgFixCFLocOsft::PhaseRun(maplebe::CGFunc &f) {
   }
   return false;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgFixCFLocOsft, dbgfixcallframeoffsets)
 }  /* namespace maplebe */

@@ -21,6 +21,9 @@
 #include "aarch64_phi_elimination.h"
 #include "aarch64_prop.h"
 #include "aarch64_dce.h"
+#include "aarch64_live.h"
+#include "aarch64_args.h"
+#include "aarch64_alignment.h"
 
 namespace maplebe {
 constexpr int64 kShortBRDistance = (8 * 1024);
@@ -131,6 +134,8 @@ class AArch64CG : public CG {
     return memPool.New<AArch64CGFunc>(mod, *this, mirFunc, bec, memPool, stackMp, mallocator, funcId);
   }
 
+  void EnrollTargetPhases(MaplePhaseManager *pm) const override;
+
   const std::unordered_map<std::string, std::vector<std::string>> &GetCyclePatternMap() const {
     return cyclePatternMap;
   }
@@ -149,6 +154,15 @@ class AArch64CG : public CG {
 
   std::string FindGCTIBPatternName(const std::string &name) const override;
 
+  LiveAnalysis *CreateLiveAnalysis(MemPool &mp, CGFunc &f) const override {
+    return mp.New<AArch64LiveAnalysis>(f, mp);
+  }
+  MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const override {
+    return mp.New<AArch64MoveRegArgs>(f);
+  }
+  AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const override {
+    return mp.New<AArch64AlignAnalysis>(f, mp);
+  }
   CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const override {
     return mp.New<AArch64CGSSAInfo>(f, da, mp, tmp);
   }

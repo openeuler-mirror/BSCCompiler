@@ -13,9 +13,10 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "aarch64_cg.h"
-#include "aarch64_rt.h"
 #include "mir_builder.h"
 #include "becommon.h"
+#include "label_creation.h"
+#include "alignment.h"
 
 namespace maplebe {
 #include "aarch64_opnd.def"
@@ -295,6 +296,10 @@ void AArch64CG::GenerateObjectMaps(BECommon &beCommon) {
     uint32 rcHeader = (!bitmapWords.empty()) ? 0x40 : 0;
     FindOrCreateRepresentiveSym(bitmapWords, rcHeader, name);
   }
+}
+
+void AArch64CG::EnrollTargetPhases(MaplePhaseManager *pm) const {
+  #include "aarch64_phases.def"
 }
 
 Insn &AArch64CG::BuildPhiInsn(RegOperand &defOpnd, Operand &listParam) {
