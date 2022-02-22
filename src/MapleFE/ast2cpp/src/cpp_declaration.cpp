@@ -300,9 +300,27 @@ class CollectDecls : public AstVisitor {
       return node;
     }
 
+    unsigned GetModuleNodeId(TreeNode* node) {
+      while (node->GetParent() && !node->GetParent()->IsModule())
+        node = node->GetParent();
+      return node == nullptr? 0: node->GetParent()->GetNodeId();
+    }
+
     DeclNode *VisitDeclNode(DeclNode *node) {
       std::string def = mCppDecl->EmitTreeNode(node);
       std::string var = mCppDecl->EmitTreeNode(node->GetVar());
+
+      // Handle duplicate TS global var decls (legal in TS)
+      static std::unordered_map<unsigned, std::list<std::string>*>globVars; // map module id to its globalvar list
+      unsigned modId = GetModuleNodeId(node);
+      std::unordered_map<unsigned, std::list<std::string>*>::iterator mit = globVars.find(modId);
+      if (mit == globVars.end()) // create globalvar list for module
+        globVars[modId] = new std::list<std::string>;
+      std::list<std::string>::iterator it = std::find(globVars[modId]->begin(), globVars[modId]->end(), var);
+      if (it != globVars[modId]->end()) // skip C++ decl emit for duplciate TS globVar
+        return node;
+      globVars[modId]->push_back(var);
+
       std::string ns = mCppDecl->GetNamespace(node);
       std::string ext = "extern "s + def.substr(0, def.find('=')) + ";\n"s;
       if (ns.empty())
