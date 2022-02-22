@@ -122,6 +122,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectIcall(IcallNode &icallNode, Operand &fptrOpnd) override;
   void SelectIntrinCall(IntrinsiccallNode &intrinsicCallNode) override;
   Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrinopNode, std::string name) override;
+  Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinopNode, PrimType retType, std::string &name) override;
   Operand *SelectCclz(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCctz(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCpopcount(IntrinsicopNode &intrinopNode) override;
@@ -250,6 +251,8 @@ class AArch64CGFunc : public CGFunc {
   void SelectCopyImm(Operand &dest, PrimType dType, ImmOperand &src, PrimType sType);
   void SelectCopyImm(Operand &dest, ImmOperand &src, PrimType dtype);
   void SelectLibCall(const std::string&, std::vector<Operand*>&, PrimType, PrimType, bool is2ndRet = false);
+  void SelectLibCallNArg(const std::string &funcName, std::vector<Operand*> &opndVec, std::vector<PrimType> pt,
+                         PrimType retPrimType, bool is2ndRet);
   bool IsRegRematCand(const RegOperand &reg);
   void ClearRegRematInfo(const RegOperand &reg);
   bool IsRegSameRematInfo(const RegOperand &regDest, const RegOperand &regSrc);
