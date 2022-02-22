@@ -490,10 +490,15 @@ StructNode *AST_INFO::CreateStructFromStructLiteral(StructLiteralNode *node) {
   return newnode;
 }
 
-TreeNode *AST_INFO::GetAnonymousStruct(TreeNode *node) {
+unsigned AST_INFO::GetAnonymousName() {
   std::string str("AnonymousStruct_");
   str += std::to_string(mNum++);
   unsigned stridx = gStringPool.GetStrIdx(str);
+  return stridx;
+}
+
+TreeNode *AST_INFO::GetAnonymousStruct(TreeNode *node) {
+  unsigned stridx = GetAnonymousName();
   TreeNode *newnode = node;
   if (newnode->IsStructLiteral()) {
     StructLiteralNode *sl = static_cast<StructLiteralNode*>(node);
@@ -793,6 +798,9 @@ StructNode *ClassStructVisitor::VisitStructNode(StructNode *node) {
     if (id && node->GetStrIdx() == 0) {
       node->SetStrIdx(id->GetStrIdx());
     }
+    if (node->GetStrIdx() == 0) {
+      node->SetStrIdx(mInfo->GetAnonymousName());
+    }
     mInfo->SetStrIdx2Struct(node->GetStrIdx(), node);
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
       if (TreeNode *t = node->GetField(i)) {
@@ -823,6 +831,9 @@ ClassNode *ClassStructVisitor::VisitClassNode(ClassNode *node) {
   mInfo->SetTypeId(node, TY_Class);
   (void) AstVisitor::VisitClassNode(node);
   if (mInfo->GetPass() == 0) {
+    if (node->GetStrIdx() == 0) {
+      node->SetStrIdx(mInfo->GetAnonymousName());
+    }
     gTypeTable.AddType(node);
     mInfo->SetStrIdx2Struct(node->GetStrIdx(), node);
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
@@ -854,6 +865,9 @@ InterfaceNode *ClassStructVisitor::VisitInterfaceNode(InterfaceNode *node) {
   mInfo->SetTypeId(node, TY_Class);
   (void) AstVisitor::VisitInterfaceNode(node);
   if (mInfo->GetPass() == 0) {
+    if (node->GetStrIdx() == 0) {
+      node->SetStrIdx(mInfo->GetAnonymousName());
+    }
     gTypeTable.AddType(node);
     mInfo->SetStrIdx2Struct(node->GetStrIdx(), node);
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
