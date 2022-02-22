@@ -31,7 +31,7 @@ void ASTScope::AddChild(ASTScope *s) {
 
 // This is to find the decl having the name as stridx
 // starting from local scope
-TreeNode* ASTScope::FindDeclOf(unsigned stridx) {
+TreeNode* ASTScope::FindDeclOf(unsigned stridx, bool deep) {
   ASTScope *scope = this;
   while (scope) {
     for (unsigned i = 0; i < scope->GetDeclNum(); i++) {
@@ -46,8 +46,8 @@ TreeNode* ASTScope::FindDeclOf(unsigned stridx) {
         return tree;
       }
     }
-    // search parent scope
-    scope = scope->mParent;
+    // search parent scope if deep is set
+    scope = deep ? scope->mParent : NULL;
   }
   return NULL;
 }
