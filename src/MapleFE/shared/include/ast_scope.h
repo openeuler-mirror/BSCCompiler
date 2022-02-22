@@ -83,7 +83,7 @@ public:
   TreeNode* GetExportedDecl(unsigned i) {return mExportedDecls.ValueAtIndex(i);}
   TreeNode* GetType(unsigned i) {return mTypes.ValueAtIndex(i);}
 
-  TreeNode* FindDeclOf(unsigned stridx);
+  TreeNode* FindDeclOf(unsigned stridx, bool deep = true);
   TreeNode* FindExportedDeclOf(unsigned stridx);
   TreeNode* FindTypeOf(unsigned stridx);
 
