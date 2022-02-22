@@ -52,7 +52,7 @@ void AArch64RegSavesOpt::InitData() {
 }
 
 
-void AArch64RegSavesOpt::CollectLiveInfo(BB &bb, const Operand &opnd, bool isDef, bool isUse) {
+void AArch64RegSavesOpt::CollectLiveInfo(const BB &bb, const Operand &opnd, bool isDef, bool isUse) {
   if (!opnd.IsRegister()) {
     return;
   }
@@ -275,7 +275,7 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
     }
     CalleeBitsType mask = 1;
     for (int i=0; i<(sizeof(CalleeBitsType)<<3); i++) {
-      if (c & mask) {
+      if ((c & mask) != 0) {
         MapleSet<regno_t> &liveIn = bb->GetLiveInRegNO();
         regno_t reg = ReverseRegBitMap(i);
         if (oneAtaTime && oneAtaTimeReg != reg) {
@@ -319,7 +319,9 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
                   sp->RemoveBB(sbb);
                   bbSavedRegs[sbb->GetId()]->RemoveSaveReg(reg);
                   found = true;
-                  mLog << " --R" << reg-1 << " save removed from BB" << sbb->GetId() << "\n";
+                  if (RS_DUMP) {
+                    mLog << " --R" << reg-1 << " save removed from BB" << sbb->GetId() << "\n";
+                  }
                   break;
                 }
                 abb = GetDomInfo()->GetDom(abb->GetId());
@@ -357,7 +359,7 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsPre() {
   }
   const MapleVector<AArch64reg> &callees = aarchCGFunc->GetCalleeSavedRegs();
   for (auto reg : callees) {
-    if (reg >= R29) {
+    if (reg >= R29 && reg < V8) {
       continue;    /* save/restore in prologue, epilogue */
     }
     if (oneAtaTime && oneAtaTimeReg != reg) {
@@ -411,7 +413,7 @@ void AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
   }
   const MapleVector<AArch64reg> &callees = aarchCGFunc->GetCalleeSavedRegs();
   for (auto reg : callees) {
-    if (reg >= R29) {
+    if (reg >= R29 && reg < V8) {
       continue;    /* save/restore in prologue, epilogue */
     }
     if (oneAtaTime && oneAtaTimeReg != reg) {

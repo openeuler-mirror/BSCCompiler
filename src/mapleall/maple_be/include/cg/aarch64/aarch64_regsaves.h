@@ -30,9 +30,9 @@ class SavedRegInfo {
  public:
   bool insertAtLastMinusOne = false;
   explicit SavedRegInfo(MapleAllocator &alloc)
-    : saveSet(alloc.Adapter()),
-      restoreEntrySet(alloc.Adapter()),
-      restoreExitSet(alloc.Adapter()) {}
+      : saveSet(alloc.Adapter()),
+        restoreEntrySet(alloc.Adapter()),
+        restoreExitSet(alloc.Adapter()) {}
 
   bool ContainSaveReg(regno_t r) {
     if (saveSet.find(r) != saveSet.end()) {
@@ -91,8 +91,7 @@ class SavedRegInfo {
 
 class SavedBBInfo {
  public:
-  explicit SavedBBInfo(MapleAllocator &alloc)
-    : bbList (alloc.Adapter()) {}
+  explicit SavedBBInfo(MapleAllocator &alloc) : bbList (alloc.Adapter()) {}
 
   MapleSet<BB*> &GetBBList() {
     return bbList;
@@ -112,19 +111,19 @@ class SavedBBInfo {
 
 class AArch64RegSavesOpt : public RegSavesOpt {
  public:
-  AArch64RegSavesOpt(CGFunc &func, MemPool &pool, DomAnalysis &dom, PostDomAnalysis &pdom) :
-    RegSavesOpt(func, pool),
-    domInfo(&dom),
-    pDomInfo(&pdom),
-    bbSavedRegs(alloc.Adapter()),
-    regSavedBBs(alloc.Adapter()),
-    regOffset(alloc.Adapter()) {
+  AArch64RegSavesOpt(CGFunc &func, MemPool &pool, DomAnalysis &dom, PostDomAnalysis &pdom)
+      : RegSavesOpt(func, pool),
+        domInfo(&dom),
+        pDomInfo(&pdom),
+        bbSavedRegs(alloc.Adapter()),
+        regSavedBBs(alloc.Adapter()),
+        regOffset(alloc.Adapter()) {
     bbSavedRegs.resize(func.NumBBs());
     regSavedBBs.resize(sizeof(CalleeBitsType)<<3);
-    for (int i = 0; i < bbSavedRegs.size(); i++) {
+    for (int i = 0; i < bbSavedRegs.size(); ++i) {
       bbSavedRegs[i] = nullptr;
     }
-    for (int i = 0; i < regSavedBBs.size(); i++) {
+    for (int i = 0; i < regSavedBBs.size(); ++i) {
       regSavedBBs[i] = nullptr;
     }
   }
@@ -133,7 +132,7 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   typedef uint64 CalleeBitsType;
 
   void InitData();
-  void CollectLiveInfo(BB &bb, const Operand &opnd, bool isDef, bool isUse);
+  void CollectLiveInfo(const BB &bb, const Operand &opnd, bool isDef, bool isUse);
   void GenerateReturnBBDefUse(BB &bb);
   void ProcessCallInsnParam(BB &bb);
   void ProcessAsmListOpnd(BB &bb, Operand &opnd, uint32 idx);
@@ -197,7 +196,7 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   /* AArch64 specific callee-save registers bit positions
       0       9  10                33   -- position
      R19 ..  R28 V8 .. V15 V16 .. V31   -- regs */
-  uint32 RegBitMap(regno_t reg) {
+  uint32 RegBitMap(regno_t reg) const {
     uint32 r;
     if (reg <= R28) {
       r = (reg - R19);
@@ -207,11 +206,11 @@ class AArch64RegSavesOpt : public RegSavesOpt {
     return r;
   }
 
-  regno_t ReverseRegBitMap(uint32 reg) {
+  regno_t ReverseRegBitMap(uint32 reg) const {
     if (reg < 10) {
       return static_cast<AArch64reg>(R19 + reg);
     } else {
-      return static_cast<AArch64reg>(V8 + (reg - R28 - R19 - 1));
+      return static_cast<AArch64reg>(V8 + reg - (R28 - R19 + 1));
     }
   }
 
