@@ -855,6 +855,19 @@ class RemoveIdenticalLoadAndStoreAArch64 : public PeepPattern {
 };
 
 /* Remove redundant mov which src and dest opnd is exactly same */
+class RemoveMovingtoSameRegPattern : public CGPeepPattern {
+ public:
+  RemoveMovingtoSameRegPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~RemoveMovingtoSameRegPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "RemoveMovingtoSameRegPattern";
+  }
+};
+
+/* Remove redundant mov which src and dest opnd is exactly same */
 class RemoveMovingtoSameRegAArch64 : public PeepPattern {
  public:
   explicit RemoveMovingtoSameRegAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
@@ -865,13 +878,18 @@ class RemoveMovingtoSameRegAArch64 : public PeepPattern {
 /* Combining 2 STRs into 1 stp or 2 LDRs into 1 ldp, when they are
  * back to back and the [MEM] they access is conjointed.
  */
-class CombineContiLoadAndStoreAArch64 : public PeepPattern {
+class CombineContiLoadAndStorePattern : public CGPeepPattern {
  public:
-  explicit CombineContiLoadAndStoreAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {
+  explicit CombineContiLoadAndStorePattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {
     doAggressiveCombine = cgFunc.GetMirModule().IsCModule();
   }
-  ~CombineContiLoadAndStoreAArch64() override = default;
+  ~CombineContiLoadAndStorePattern() override = default;
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "CombineContiLoadAndStorePattern";
+  }
  private:
   std::vector<Insn*> FindPrevStrLdr(Insn &insn, regno_t destRegNO, regno_t memBaseRegNO, int64 baseOfst);
   /*
@@ -886,6 +904,7 @@ class CombineContiLoadAndStoreAArch64 : public PeepPattern {
   MOperator GetMopHigherByte(MOperator mop) const;
   bool SplitOfstWithAddToCombine(Insn &insn, const AArch64MemOperand &memOpnd);
   bool doAggressiveCombine = false;
+  AArch64MemOperand *memOpnd = nullptr;
 };
 
 /*
