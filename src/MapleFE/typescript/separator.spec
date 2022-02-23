@@ -42,4 +42,5 @@ STRUCT Separator : ((" ", Whitespace),
                     ("?.",Optional),
                     ("@", At),
                     ("#", Pound),
-                    ("\t", Tab))
+                    ("\t", Tab),
+                    ("///", TripleSlash))
