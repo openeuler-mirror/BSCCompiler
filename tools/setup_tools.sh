@@ -31,7 +31,7 @@ ANDROID_SRCDIR=$MAPLE_ROOT/../android/$ANDROID_VERSION
 
 ANDROID_DIR=$MAPLE_ROOT/android
 
-USR_EMAIL=`git config user.email`
+#USR_EMAIL=`git config user.email`
 
 if [ "$android_env" == "android" ]; then
   if [ ! -f $TOOLS/android-ndk-r21/ndk-build ]; then
