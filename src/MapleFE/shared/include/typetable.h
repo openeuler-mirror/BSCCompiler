@@ -62,7 +62,7 @@ public:
   unsigned GetPreBuildSize() { return mPreBuildSize; }
   unsigned GetPrimSize() { return mPrimSize; }
   TreeNode *CreatePrimType(std::string name, TypeId tid);
-  TreeNode *CreateBuiltinType(std::string name, TypeId tid);
+  TreeNode *CreateBuiltinType(std::string name, TypeId tid, TypeId uttid);
   void AddPrimAndBuiltinTypes();
   bool AddType(TreeNode *node);
   TypeEntry *GetTypeEntryFromTypeIdx(unsigned tidx);

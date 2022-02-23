@@ -65,7 +65,7 @@ TreeNode *TypeTable::CreatePrimType(std::string name, TypeId tid) {
   return ptype;
 }
 
-TreeNode *TypeTable::CreateBuiltinType(std::string name, TypeId tid) {
+TreeNode *TypeTable::CreateBuiltinType(std::string name, TypeId tid, TypeId uttid) {
   unsigned stridx = gStringPool.GetStrIdx(name);
   IdentifierNode *id = (IdentifierNode*)gTreePool.NewTreeNode(sizeof(IdentifierNode));
   new (id) IdentifierNode(stridx);
@@ -74,7 +74,7 @@ TreeNode *TypeTable::CreateBuiltinType(std::string name, TypeId tid) {
   UserTypeNode *utype = (UserTypeNode*)gTreePool.NewTreeNode(sizeof(UserTypeNode));
   new (utype) UserTypeNode(id);
   utype->SetStrIdx(stridx);
-  utype->SetTypeId(TY_Class);
+  utype->SetTypeId(uttid);
   id->SetParent(utype);
 
   mTypeId2TypeMap[tid] = utype;
@@ -117,7 +117,7 @@ void TypeTable::AddPrimAndBuiltinTypes() {
 
   mPrimSize = size();
 
-#define TYPE(T)     node = CreateBuiltinType(#T, TY_##T); AddType(node);
+#define TYPE(T) node = CreateBuiltinType(#T, TY_##T, TY_##T); AddType(node);
 #define PRIMTYPE(T)
   // additional usertype Boolean
   TYPE(Boolean);
