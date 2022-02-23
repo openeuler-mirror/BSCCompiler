@@ -1962,15 +1962,32 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
      * execute after RA: manager->NormalPatternOpt<>(cgFunc->IsAfterRegAlloc())
      */
     case MOP_xubfxrri6i6: {
-      manager->NormalPatternOpt<UbfxToUxtwPattern>(true);
+      manager->NormalPatternOpt<UbfxToUxtwPattern>(!cgFunc->IsAfterRegAlloc());
       break;
     }
     case MOP_xmovzri16: {
-      manager->NormalPatternOpt<LoadFloatPointPattern>(true);
+      manager->NormalPatternOpt<LoadFloatPointPattern>(!cgFunc->IsAfterRegAlloc());
       break;
     }
     case MOP_wcmpri: {
-      manager->NormalPatternOpt<LongIntCompareWithZPattern>(true);
+      manager->NormalPatternOpt<LongIntCompareWithZPattern>(!cgFunc->IsAfterRegAlloc());
+      break;
+    }
+    case MOP_wstrb:
+    case MOP_wldrb:
+    case MOP_wstrh:
+    case MOP_wldrh:
+    case MOP_xldr:
+    case MOP_xstr:
+    case MOP_wldr:
+    case MOP_wstr:
+    case MOP_dldr:
+    case MOP_dstr:
+    case MOP_sldr:
+    case MOP_sstr:
+    case MOP_qldr:
+    case MOP_qstr: {
+      manager->NormalPatternOpt<RemoveIdenticalLoadAndStorePattern>(cgFunc->IsAfterRegAlloc());
       break;
     }
     default:
@@ -1981,7 +1998,6 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
 
 void AArch64PeepHole::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
-  optimizations[kRemoveIdenticalLoadAndStoreOpt] = optOwnMemPool->New<RemoveIdenticalLoadAndStoreAArch64>(cgFunc);
   optimizations[kRemoveMovingtoSameRegOpt] = optOwnMemPool->New<RemoveMovingtoSameRegAArch64>(cgFunc);
   optimizations[kCombineContiLoadAndStoreOpt] = optOwnMemPool->New<CombineContiLoadAndStoreAArch64>(cgFunc);
   optimizations[kEliminateSpecifcSXTOpt] = optOwnMemPool->New<EliminateSpecifcSXTAArch64>(cgFunc);
@@ -2028,7 +2044,6 @@ void AArch64PeepHole::Run(BB &bb, Insn &insn) {
     case MOP_qstr: {
       (static_cast<CombineContiLoadAndStoreAArch64*>(optimizations[kCombineContiLoadAndStoreOpt]))->Run(bb, insn);
       (static_cast<ContiLDRorSTRToSameMEMAArch64*>(optimizations[kContiLDRorSTRToSameMEMOpt]))->Run(bb, insn);
-      (static_cast<RemoveIdenticalLoadAndStoreAArch64*>(optimizations[kRemoveIdenticalLoadAndStoreOpt]))->Run(bb, insn);
       break;
     }
     case MOP_xsxtb32:
@@ -2280,6 +2295,66 @@ void AArch64PrePeepHole1::Run(BB &bb, Insn &insn) {
         break;
     }
   }
+}
+
+bool RemoveIdenticalLoadAndStorePattern::CheckCondition(Insn &insn) {
+  nextInsn = insn.GetNextMachineInsn();
+  if (nextInsn == nullptr) {
+    return false;
+  }
+  return true;
+}
+
+void RemoveIdenticalLoadAndStorePattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  MOperator mop1 = insn.GetMachineOpcode();
+  MOperator mop2 = nextInsn->GetMachineOpcode();
+  if ((mop1 == MOP_wstr && mop2 == MOP_wstr) || (mop1 == MOP_xstr && mop2 == MOP_xstr)) {
+    if (IsMemOperandsIdentical(insn, *nextInsn)) {
+      bb.RemoveInsn(insn);
+    }
+  } else if ((mop1 == MOP_wstr && mop2 == MOP_wldr) || (mop1 == MOP_xstr && mop2 == MOP_xldr)) {
+    if (IsMemOperandsIdentical(insn, *nextInsn)) {
+      bb.RemoveInsn(*nextInsn);
+    }
+  }
+}
+
+bool RemoveIdenticalLoadAndStorePattern::IsMemOperandsIdentical(const Insn &insn1, const Insn &insn2) const {
+  regno_t regNO1 = static_cast<RegOperand&>(insn1.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+  regno_t regNO2 = static_cast<RegOperand&>(insn2.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+  if (regNO1 != regNO2) {
+    return false;
+  }
+  /* Match only [base + offset] */
+  auto &memOpnd1 = static_cast<AArch64MemOperand&>(insn1.GetOperand(kInsnSecondOpnd));
+  if (memOpnd1.GetAddrMode() != AArch64MemOperand::kAddrModeBOi || !memOpnd1.IsIntactIndexed()) {
+    return false;
+  }
+  auto &memOpnd2 = static_cast<AArch64MemOperand&>(insn2.GetOperand(kInsnSecondOpnd));
+  if (memOpnd2.GetAddrMode() != AArch64MemOperand::kAddrModeBOi || !memOpnd1.IsIntactIndexed()) {
+    return false;
+  }
+  Operand *base1 = memOpnd1.GetBaseRegister();
+  Operand *base2 = memOpnd2.GetBaseRegister();
+  if (!((base1 != nullptr) && base1->IsRegister()) || !((base2 != nullptr) && base2->IsRegister())) {
+    return false;
+  }
+
+  regno_t baseRegNO1 = static_cast<RegOperand*>(base1)->GetRegisterNumber();
+  /* First insn re-write base addr   reg1 <- [ reg1 + offset ] */
+  if (baseRegNO1 == regNO1) {
+    return false;
+  }
+
+  regno_t baseRegNO2 = static_cast<RegOperand*>(base2)->GetRegisterNumber();
+  if (baseRegNO1 != baseRegNO2) {
+    return false;
+  }
+
+  return memOpnd1.GetOffsetImmediate()->GetOffsetValue() == memOpnd2.GetOffsetImmediate()->GetOffsetValue();
 }
 
 void RemoveIdenticalLoadAndStoreAArch64::Run(BB &bb, Insn &insn) {
