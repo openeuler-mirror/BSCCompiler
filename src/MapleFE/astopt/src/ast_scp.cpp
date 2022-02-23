@@ -128,9 +128,12 @@ void BuildScopeVisitor::InitInternalTypes() {
     TreeNode *node = gTypeTable.GetTypeFromTypeIdx(i);
     node->SetScope(scope);
     if (node->IsUserType()) {
-      static_cast<UserTypeNode *>(node)->GetId()->SetScope(scope);
-      AddType(scope, node);
-      AddDecl(scope, node);
+      UserTypeNode *ut = static_cast<UserTypeNode *>(node);
+      TreeNode *id = ut->GetId();
+      id->SetScope(scope);
+      AddType(scope, ut);
+      // id as a decl
+      AddDecl(scope, id);
     } else {
       AddType(scope, node);
     }

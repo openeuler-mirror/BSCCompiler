@@ -84,7 +84,7 @@ void AST_INFO::AddBuiltInTypes() {
 #define BUILTIN(T) \
   stridx = gStringPool.GetStrIdx(#T);\
   if (mStrIdx2TypeIdxMap.find(stridx) == mStrIdx2TypeIdxMap.end()) {\
-    node = gTypeTable.CreateBuiltinType(#T, TY_Class, TY_Class);\
+    node = gTypeTable.CreateBuiltinType(#T, TY_Class);\
     gTypeTable.AddType(node);\
     mStrIdx2TypeIdxMap[stridx] = node->GetTypeIdx();\
   }
@@ -257,15 +257,15 @@ bool AST_INFO::IsTypeCompatible(TreeNode *node1, TreeNode *node2) {
   if ((!node1 && node2) || (node1 && !node2)) {
     return false;
   }
+  // not same kind
+  if (node1->GetKind() != node2->GetKind()) {
+    return false;
+  }
   // at least one is prim
   if (node1->IsPrimType() || node2->IsPrimType()) {
     TypeId tid_field = GetTypeId(node2);
     TypeId tid_target = GetTypeId(node1);
     return (tid_field == tid_target);
-  }
-  // not same kind
-  if (node1->GetKind() != node2->GetKind()) {
-    return false;
   }
   bool result = false;
   // same kind
