@@ -1743,7 +1743,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       result = l;
     } else if (op == OP_mul && lp.second != 0 && lp.second > -kMaxOffset) {
       // (X + konst) * rConst -> the pair [(X*rConst), (konst*rConst)]
-      sum = static_cast<uint64>(lp.second) * static_cast<uint64>(cst);
+      sum = static_cast<int64>(static_cast<uint64>(lp.second) * static_cast<uint64>(cst));
       if (GetPrimTypeSize(primType) > GetPrimTypeSize(lp.first->GetPrimType())) {
         lp.first = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, primType, PTY_i32, lp.first);
       }
