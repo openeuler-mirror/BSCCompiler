@@ -19,7 +19,7 @@
 #include <sys/stat.h>
 #include "cfi.h"
 #include "mpl_logging.h"
-#include "aarch64_rt.h"
+#include "rt.h"
 #include "opcode_info.h"
 #include "mir_builder.h"
 #include "mir_symbol_builder.h"
@@ -4788,6 +4788,31 @@ Operand *AArch64CGFunc::SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode
   return dst;
 }
 
+Operand *AArch64CGFunc::SelectIntrinsicOpWithNParams(IntrinsicopNode &intrnNode, PrimType retType, std::string &name) {
+  MapleVector<BaseNode*> argNodes = intrnNode.GetNopnd();
+  std::vector<Operand*> opndVec;
+  std::vector<PrimType> opndTypes;
+  RegOperand *retOpnd = &CreateRegisterOperandOfType(retType);
+  opndVec.push_back(retOpnd);
+  opndTypes.push_back(retType);
+
+  for (BaseNode *argexpr : argNodes) {
+    PrimType ptype = argexpr->GetPrimType();
+    Operand *opnd = HandleExpr(intrnNode, *argexpr);
+    if (opnd->IsMemoryAccessOperand()) {
+      RegOperand &ldDest = CreateRegisterOperandOfType(ptype);
+      Insn &insn = GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(GetPrimTypeBitSize(ptype), ptype), ldDest, *opnd);
+      GetCurBB()->AppendInsn(insn);
+      opnd = &ldDest;
+    }
+    opndVec.push_back(opnd);
+    opndTypes.push_back(ptype);
+  }
+  SelectLibCallNArg(name, opndVec, opndTypes, retType, false);
+
+  return retOpnd;
+}
+
 /* According to  gcc.target/aarch64/ffs.c */
 Operand *AArch64CGFunc::SelectAArch64ffs(Operand &argOpnd, PrimType argType) {
   RegOperand &destOpnd = LoadIntoRegister(argOpnd, argType);
@@ -5378,7 +5403,7 @@ Operand *AArch64CGFunc::SelectGCMalloc(GCMallocNode &node) {
   /* Get the size and alignment of the type. */
   TyIdx tyIdx = node.GetTyIdx();
   uint64 size = GetBecommon().GetTypeSize(tyIdx);
-  uint8 align = AArch64RTSupport::kObjectAlignment;
+  uint8 align = RTSupport::GetRTSupportInstance().GetObjectAlignment();
 
   /* Generate the call to MCC_NewObj */
   Operand &opndSize = CreateImmOperand(static_cast<int64>(size), k64BitSize, false);
@@ -5404,8 +5429,8 @@ Operand *AArch64CGFunc::SelectJarrayMalloc(JarrayMallocNode &node, Operand &opnd
   ASSERT(type != nullptr, "nullptr check");
   CHECK_FATAL(type->GetKind() == kTypeJArray, "expect MIRJarrayType");
   auto jaryType = static_cast<MIRJarrayType*>(type);
-  uint64 fixedSize = AArch64RTSupport::kArrayContentOffset;
-  uint8 align = AArch64RTSupport::kObjectAlignment;
+  uint64 fixedSize = RTSupport::GetRTSupportInstance().GetArrayContentOffset();
+  uint8 align = RTSupport::GetRTSupportInstance().GetObjectAlignment();
 
   MIRType *elemType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(jaryType->GetElemTyIdx());
   PrimType elemPrimType = elemType->GetPrimType();
@@ -5430,7 +5455,8 @@ Operand *AArch64CGFunc::SelectJarrayMalloc(JarrayMallocNode &node, Operand &opnd
   SelectLibCall(funcName, opndVec, PTY_u64, retType);
 
   /* Generate the store of the object length field */
-  MemOperand &opndArrayLengthField = CreateMemOpnd(resOpnd, AArch64RTSupport::kArrayLengthOffset, k4BitSize);
+  MemOperand &opndArrayLengthField = CreateMemOpnd(resOpnd,
+      RTSupport::GetRTSupportInstance().GetArrayLengthOffset(), k4BitSize);
   RegOperand *regOpndNElems = &SelectCopy(*opndNElems, PTY_u32, PTY_u32);
   ASSERT(regOpndNElems != nullptr, "null ptr check!");
   SelectCopy(opndArrayLengthField, PTY_u32, *regOpndNElems, PTY_u32);
@@ -7107,6 +7133,10 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, AArch64ListOperand &srcOp
       ploc.reg0 = AArch64Abi::floatParmRegs[static_cast<int>(ploc.reg0) - 1];
       destPrimType = PTY_f64;
     }
+
+    /* skip unused args */
+    if (callee != nullptr && callee->GetFuncDesc().IsArgUnused(pnum)) continue;
+
     if (ploc.reg0 != kRinvalid) {  /* load to the register. */
       CHECK_FATAL(expRegOpnd != nullptr, "null ptr check");
       AArch64RegOperand &parmRegOpnd = GetOrCreatePhysicalRegisterOperand(
@@ -8280,6 +8310,17 @@ Operand &AArch64CGFunc::GetOrCreatevaryreg() {
 /* the first operand in opndvec is return opnd */
 void AArch64CGFunc::SelectLibCall(const std::string &funcName, std::vector<Operand*> &opndVec, PrimType primType,
                                   PrimType retPrimType, bool is2ndRet) {
+  std::vector <PrimType> pt;
+  pt.push_back(retPrimType);
+  for (size_t i = 0; i < opndVec.size(); ++i) {
+    pt.push_back(primType);
+  }
+  SelectLibCallNArg(funcName, opndVec, pt, retPrimType, is2ndRet);
+  return;
+}
+
+void AArch64CGFunc::SelectLibCallNArg(const std::string &funcName, std::vector<Operand*> &opndVec,
+                                      std::vector<PrimType> pt, PrimType retPrimType, bool is2ndRet) {
   std::string newName = funcName;
   // Check whether we have a maple version of libcall and we want to use it instead.
   if (!CGOptions::IsDuplicateAsmFileEmpty() && asmMap.find(funcName) != asmMap.end()) {
@@ -8293,11 +8334,11 @@ void AArch64CGFunc::SelectLibCall(const std::string &funcName, std::vector<Opera
   std::vector<TyIdx> vec;
   std::vector<TypeAttrs> vecAt;
   for (size_t i = 1; i < opndVec.size(); ++i) {
-    vec.emplace_back(GlobalTables::GetTypeTable().GetTypeTable()[static_cast<size_t>(primType)]->GetTypeIndex());
+    vec.emplace_back(GlobalTables::GetTypeTable().GetTypeTable()[static_cast<size_t>(pt[i])]->GetTypeIndex());
     vecAt.emplace_back(TypeAttrs());
   }
 
-  MIRType *retType = GlobalTables::GetTypeTable().GetTypeTable().at(static_cast<size_t>(primType));
+  MIRType *retType = GlobalTables::GetTypeTable().GetTypeTable().at(static_cast<size_t>(retPrimType));
   st->SetTyIdx(GetBecommon().BeGetOrCreateFunctionType(retType->GetTypeIndex(), vec, vecAt)->GetTypeIndex());
 
   if (GetCG()->GenerateVerboseCG()) {
@@ -8307,22 +8348,22 @@ void AArch64CGFunc::SelectLibCall(const std::string &funcName, std::vector<Opera
 
   AArch64CallConvImpl parmLocator(GetBecommon());
   CCLocInfo ploc;
-  ASSERT(primType != PTY_void, "primType check");
   /* setup actual parameters */
   AArch64ListOperand *srcOpnds = memPool->New<AArch64ListOperand>(*GetFuncScopeAllocator());
   for (size_t i = 1; i < opndVec.size(); ++i) {
+    ASSERT(pt[i] != PTY_void, "primType check");
     MIRType *ty;
-    ty = GlobalTables::GetTypeTable().GetTypeTable()[static_cast<size_t>(primType)];
+    ty = GlobalTables::GetTypeTable().GetTypeTable()[static_cast<size_t>(pt[i])];
     Operand *stOpnd = opndVec[i];
     if (stOpnd->GetKind() != Operand::kOpdRegister) {
-      stOpnd = &SelectCopy(*stOpnd, primType, primType);
+      stOpnd = &SelectCopy(*stOpnd, pt[i], pt[i]);
     }
     RegOperand *expRegOpnd = static_cast<RegOperand*>(stOpnd);
     parmLocator.LocateNextParm(*ty, ploc);
     if (ploc.reg0 != 0) {  /* load to the register */
       AArch64RegOperand &parmRegOpnd = GetOrCreatePhysicalRegisterOperand(
-          static_cast<AArch64reg>(ploc.reg0), expRegOpnd->GetSize(), GetRegTyFromPrimTy(primType));
-      SelectCopy(parmRegOpnd, primType, *expRegOpnd, primType);
+          static_cast<AArch64reg>(ploc.reg0), expRegOpnd->GetSize(), GetRegTyFromPrimTy(pt[i]));
+      SelectCopy(parmRegOpnd, pt[i], *expRegOpnd, pt[i]);
       srcOpnds->PushOpnd(parmRegOpnd);
     }
     ASSERT(ploc.reg1 == 0, "SelectCall NYI");
