@@ -394,6 +394,26 @@ bool TypescriptLexer::FindNextTLPlaceHolder(unsigned start_idx, std::string& str
   return true;
 }
 
+// This is to catch TS triple-slash directives : /// <reference
+bool TypescriptLexer::FindTripleSlash() {
+  return false;
+/*
+  unsigned i = curidx;
+  if (line[i++] == '/' &&
+      line[i++] == '/' &&
+      line[i++] == '/' ){
+    // skip the whitespace
+    while(1) {
+      if (line[i] == '_') {
+        i++;
+      } else if (line[i] == '<') {
+      }
+    }
+  }
+*/
+}
+
+//
 Lexer* CreateLexer() {
   Lexer *lexer = new TypescriptLexer();
   return lexer;
