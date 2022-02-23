@@ -1,11 +1,6 @@
-Matched 7 tokens.
-Matched 70 tokens.
-Matched 77 tokens.
-Matched 87 tokens.
-Matched 94 tokens.
+Matched 63 tokens.
+Matched 73 tokens.
 ============= Module ===========
-== Sub Tree ==
-js_var Decl: name="abc"
 == Sub Tree ==
 func  foo(a)  throws: 
   js_var Decl: sum=0
@@ -19,8 +14,4 @@ func  foo(a)  throws:
   return sum
 
 == Sub Tree ==
-js_var Decl: name="xyz"
-== Sub Tree ==
 console.log(foo(10))
-== Sub Tree ==
-console.log(name)

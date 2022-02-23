@@ -19,7 +19,6 @@
 #include <set>
 #include "ast_handler.h"
 #include "cpp_emitter.h"
-#include <list>
 
 namespace maplefe {
 
