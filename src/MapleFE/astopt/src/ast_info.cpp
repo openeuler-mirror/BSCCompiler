@@ -70,12 +70,24 @@ void AST_INFO::CollectInfo() {
 }
 
 void AST_INFO::AddBuiltInTypes() {
+  unsigned size = gTypeTable.size();
+  for (unsigned idx = 1; idx < size; idx++) {
+    TreeNode *node = gTypeTable.GetTypeFromTypeIdx(idx);
+    if (node->IsUserType()) {
+      mStrIdx2TypeIdxMap[node->GetStrIdx()] = node->GetTypeIdx();
+    }
+  }
+
   // add language builtin types
   TreeNode *node = NULL;
+  unsigned stridx = 0;
 #define BUILTIN(T) \
-  node = gTypeTable.CreateBuiltinType(#T, TY_Class);\
-  gTypeTable.AddType(node);\
-  mStrIdx2TypeIdxMap[node->GetStrIdx()] = node->GetTypeIdx();
+  stridx = gStringPool.GetStrIdx(#T);\
+  if (mStrIdx2TypeIdxMap.find(stridx) == mStrIdx2TypeIdxMap.end()) {\
+    node = gTypeTable.CreateBuiltinType(#T, TY_Class, TY_Class);\
+    gTypeTable.AddType(node);\
+    mStrIdx2TypeIdxMap[stridx] = node->GetTypeIdx();\
+  }
 #include "lang_builtin.def"
 }
 
@@ -744,7 +756,6 @@ UserTypeNode *FillNodeInfoVisitor::VisitUserTypeNode(UserTypeNode *node) {
   if (id) {
     unsigned tidx = mInfo->GetBuiltInTypeIdx(id);
     if (tidx) {
-      mInfo->SetTypeId(id, TY_Class);
       mInfo->SetTypeIdx(id, tidx);
     }
     if (!id->IsTypeIdNone()) {
