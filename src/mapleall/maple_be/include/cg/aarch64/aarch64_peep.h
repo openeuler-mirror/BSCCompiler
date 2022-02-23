@@ -803,6 +803,34 @@ class UbfxToUxtwPattern : public CGPeepPattern {
   }
 };
 
+/*
+ * Looking for identical mem insn to eliminate.
+ * If two back-to-back is:
+ * 1. str + str
+ * 2. str + ldr
+ * And the [MEM] is pattern of [base + offset]
+ * 1. The [MEM] operand is exactly same then first
+ *    str can be eliminate.
+ * 2. The [MEM] operand is exactly same and src opnd
+ *    of str is same as the dest opnd of ldr then
+ *    ldr can be eliminate
+ */
+class RemoveIdenticalLoadAndStorePattern : public CGPeepPattern {
+ public:
+  explicit RemoveIdenticalLoadAndStorePattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~RemoveIdenticalLoadAndStorePattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "RemoveIdenticalLoadAndStorePattern";
+  }
+
+ private:
+  bool IsMemOperandsIdentical(const Insn &insn1, const Insn &insn2) const;
+  Insn *nextInsn = nullptr;
+};
+
 /* ======== CGPeepPattern End ======== */
 /*
  * Looking for identical mem insn to eliminate.
