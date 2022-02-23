@@ -35,7 +35,6 @@ class MeCFG : public AnalysisResult {
 
   MeCFG(MemPool *memPool, MeFunction &f)
       : AnalysisResult(memPool),
-        mp(memPool),
         mecfgAlloc(memPool),
         func(f),
         patternSet(mecfgAlloc.Adapter()),
@@ -72,6 +71,7 @@ class MeCFG : public AnalysisResult {
   BB *PrevBB(const BB *bb);
   void CloneBasicBlock(BB &newBB, const BB &orig);
   BB &SplitBB(BB &bb, StmtNode &splitPoint, BB *newBB = nullptr);
+  bool UnifyRetBBs();
   void SplitBBPhysically(BB &bb, StmtNode &splitPoint, BB &newBB);
 
   const MeFunction &GetFunc() const {
@@ -284,10 +284,6 @@ class MeCFG : public AnalysisResult {
     endTryBB2TryBB[endTryBB] = endTryBB2TryBB[otherTryBB];
   }
 
-  MemPool *GetMempool() const {
-    return mp;
-  }
-
   void CreateBasicBlocks();
 
   const MapleVector<SCCOfBBs*> &GetSccTopologicalVec() const {
@@ -295,7 +291,7 @@ class MeCFG : public AnalysisResult {
   }
   void BBTopologicalSort(SCCOfBBs &scc);
   void BuildSCC();
-  void UpdateBranchTarget(BB &currBB, BB &oldTarget, BB &newTarget, MeFunction &func);
+  void UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, MeFunction &func);
   void SwapBBId(BB &bb1, BB &bb2);
 
  private:
@@ -313,7 +309,6 @@ class MeCFG : public AnalysisResult {
   void BuildSCCDFS(BB &bb, uint32 &visitIndex, std::vector<SCCOfBBs*> &sccNodes, std::vector<uint32> &visitedOrder,
                    std::vector<uint32> &lowestOrder, std::vector<bool> &inStack, std::stack<uint32> &visitStack);
 
-  MemPool *mp;
   MapleAllocator mecfgAlloc;
   MeFunction &func;
   MapleSet<LabelIdx> patternSet;

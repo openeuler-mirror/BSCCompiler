@@ -184,6 +184,7 @@ class MeOption : public MapleDriverOptionBase {
   static bool seqVec;
   static uint8 rematLevel;
   static bool layoutWithPredict;
+  static bool unifyRets;
 // safety check option begin
   static SafetyCheckMode npeCheckMode;
   static bool isNpeCheckAll;

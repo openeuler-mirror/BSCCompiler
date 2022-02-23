@@ -127,6 +127,7 @@ SafetyCheckMode MeOption::npeCheckMode = SafetyCheckMode::kNoCheck;
 bool MeOption::isNpeCheckAll = false;
 SafetyCheckMode MeOption::boundaryCheckMode = SafetyCheckMode::kNoCheck;
 bool MeOption::safeRegionMode = false;
+bool MeOption::unifyRets = false;
 #if MIR_JAVA
 std::string MeOption::acquireFuncName = "Landroid/location/LocationManager;|requestLocationUpdates|";
 std::string MeOption::releaseFuncName = "Landroid/location/LocationManager;|removeUpdates|";
@@ -259,6 +260,7 @@ enum OptionIndex {
   kLayoutWithPredict,
   kvecLoops,
   kIvoptsLimit,
+  kUnifyRets,
 };
 
 const Descriptor kUsage[] = {
@@ -1316,6 +1318,16 @@ const Descriptor kUsage[] = {
     "                              \t  >= 4: rematerialize global dreads\n",
     "me",
     {} },
+  { kUnifyRets,
+    kEnable,
+    "",
+    "unifyrets",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --unifyrets                   \tEnable return blocks unification\n"
+    "  --no-unifyrets                \tDisable return blocks unification\n",
+    "me",
+    {} },
 #endif
   { kUnknown,
     0,
@@ -1738,6 +1750,9 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         break;
       case kIvoptsLimit:
         ivoptsLimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
+        break;
+      case kUnifyRets:
+        unifyRets = (opt.Type() == kEnable);
         break;
 #if MIR_JAVA
       case kMeAcquireFunc:
