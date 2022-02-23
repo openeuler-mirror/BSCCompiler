@@ -541,6 +541,9 @@ LitData Lexer::GetLiteral() {
 //
 // Return true if a comment is read. The contents are ignore.
 bool Lexer::GetComment() {
+  if (FindTripleSlash())
+    return false;
+
   if (line[curidx] == '/' && line[curidx+1] == '/') {
     curidx = current_line_size;
     return true;
