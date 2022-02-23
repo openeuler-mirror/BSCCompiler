@@ -439,8 +439,16 @@ DeclNode *BuildScopeVisitor::VisitDeclNode(DeclNode *node) {
       node->GetVar()->SetScope(scope);
     }
   } else {
-    // restrict to current scope
     scope = mScopeStack.top();
+    // for body of function use function scope instead of body scope
+    TreeNode *b = node->GetParent();
+    if (b && b->IsBlock()) {
+      TreeNode *f = b->GetParent();
+      if (f && f->IsFunction()) {
+        scope = mUserScopeStack.top();
+      }
+    }
+    // restrict to current scope
     deep = false;
   }
   // check if it is already a decl in the scope
