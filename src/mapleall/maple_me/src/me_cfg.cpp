@@ -1095,6 +1095,66 @@ void MeCFG::CloneBasicBlock(BB &newBB, const BB &orig) {
   }
 }
 
+// Unify all returns into one block
+// Return false if there is only one return block; otherwise, return true
+bool MeCFG::UnifyRetBBs() {
+  // Find all return blocks
+  std::vector<BB*> retBBs;
+  auto theCFG = func.GetCfg();
+  auto eIt = theCFG->valid_end();
+  for (auto bIt = theCFG->valid_begin(); bIt != eIt; ++bIt) {
+    auto *bb = *bIt;
+    if (bb->IsReturnBB()){
+      retBBs.push_back(bb);
+    }
+  }
+  // Check the number of return blocks to determine whether unification is necessary
+  if (retBBs.size() < 2) {
+    return false;
+  }
+
+  if (!MeOption::quiet) {
+    LogInfo::MapleLogger() << "++ Going to unify " << retBBs.size() << " returns\n";
+  }
+  // Create a return block as the only return block
+  BB *newRetBB = theCFG->NewBasicBlock();
+  newRetBB->SetKindReturn();
+  // Add return statement in the new return block
+  auto mirBuilder = func.GetMIRModule().GetMIRBuilder();
+  MIRSymbol *unifiedFuncRet = nullptr;
+  if (func.GetMirFunc()->IsReturnVoid()) {
+    newRetBB->SetFirst(mirBuilder->CreateStmtReturn(nullptr));
+  } else {
+    unifiedFuncRet = mirBuilder->CreateSymbol(func.GetMirFunc()->GetReturnTyIdx(), "unified_func_ret",
+                                              kStVar, kScAuto, func.GetMirFunc(), kScopeLocal);
+    newRetBB->SetFirst(mirBuilder->CreateStmtReturn(mirBuilder->CreateExprDread(*unifiedFuncRet)));
+  }
+  newRetBB->SetLast(newRetBB->GetStmtNodes().begin().d());
+
+  LabelIdx newRetBBLabel = func.GetOrCreateBBLabel(*newRetBB);
+  auto exitBB = func.GetCfg()->GetCommonExitBB();
+  for (auto curRetBB : retBBs) {
+    // Replace the return statement in the existing blocks with Dassign statement
+    // where the target var is "unified_func_ret" if the return of the function is not void.
+    if (unifiedFuncRet) {
+      auto *newAssign = mirBuilder->CreateStmtDassign(*unifiedFuncRet, 0, curRetBB->GetLast().Opnd(0));
+      curRetBB->RemoveLastStmt();
+      curRetBB->AddStmtNode(newAssign);
+    } else {
+      curRetBB->RemoveLastStmt();
+    }
+    // Add new goto assignment in existing return blocks so that it will goto the new return block
+    auto *newGoto = mirBuilder->CreateStmtGoto(OP_goto, newRetBBLabel);
+    curRetBB->AddStmtNode(newGoto);
+    curRetBB->SetKind(kBBGoto);
+    curRetBB->RemoveAllSucc();
+    curRetBB->AddSucc(*newRetBB);
+    exitBB->RemoveExit(*curRetBB);
+  }
+  exitBB->AddExit(*newRetBB);
+  return true;
+}
+
 void MeCFG::SplitBBPhysically(BB &bb, StmtNode &splitPoint, BB &newBB) {
   StmtNode *newBBStart = splitPoint.GetNext();
   // Fix Stmt in BB.
@@ -1774,6 +1834,9 @@ bool MEMeCfg::PhaseRun(MeFunction &f) {
   theCFG->VerifyLabels();
   (void)theCFG->UnreachCodeAnalysis();
   theCFG->WontExitAnalysis();
+  if (!f.GetMIRModule().IsJavaModule() && MeOption::unifyRets) {
+    theCFG->UnifyRetBBs();
+  }
   theCFG->Verify();
   return false;
 }
