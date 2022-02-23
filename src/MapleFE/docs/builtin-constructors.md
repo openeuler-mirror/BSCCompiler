@@ -25,7 +25,7 @@ Not all built-in objects work as object constructors. The following is a list of
 JavaScript built-in objects that works as object constructors to create objects
 of corresponding built-in type:
 
-## List of JavaScript built-in object constructors
+### 1. List of JavaScript built-in object constructors
 ```
   1 AggregateError
   2 Array
@@ -72,6 +72,35 @@ of corresponding built-in type:
  43 WeakRef
  44 WeakSet
 ```
+
+### 2. JavaScript builtin String/Number/Boolean object constructor and string/number/boolean primitive
+https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String#string_primitives_and_string_objects
+
+"Note that JavaScript distinguishes between String objects and primitive string values. (The same is true of Boolean and Numbers.)
+
+String literals (denoted by double or single quotes) and strings returned from String calls in a non-constructor context (that is, called without using the new keyword) are primitive strings. JavaScript automatically converts primitives to String objects, so that it's possible to use String object methods for primitive strings. In contexts where a method is to be invoked on a primitive string or a property lookup occurs, JavaScript will automatically wrap the string primitive and call the method or perform the property lookup."
+```
+  1 var s1 : string = "test";             // string literal
+  2 var s2 : String = "test";             // string literal
+  3 var s3 : string = String("test");     // string literal
+  4 var s4 : String = String("test");     // string literal
+  5 var s5 : String = new String("test"); // String object
+  6 console.log(typeof(s1));     // string
+  7 console.log(s1.slice(1,2));  // string literal s1 wrapped/converted to String object for call
+  8 console.log(typeof(s2));     // string
+  9 console.log(typeof(s3));     // string
+ 10 console.log(typeof(s4));     // string
+ 11 console.log(typeof(s5));     // object
+```
+
+For TypeScript to C++ mapping, string primitive maps to std::string, and String objects maples to builtin String object t2crt::String (same for Booelan and Numbers).
+
+The type returned by JavaScript/TypeScript String/Number/Boolean builtin/constructor function depends on the usage:
+- when used as a function, it is a type converter (convert between literal typeis), returns primitve/literal type string/number/boolean
+- when used with new op(), it is a constructor and returns an object
+- A variable declared as primitve type string/number/boolean will be wrapped/converted to a String/Number/Boolean object if any object property/method is referenced
+  For TypeScript to C++, this conversion can be done by the runtime, but there is opportunity for optimization if it can be determined at compile time whether a primitive will be used as an object, in which case the primitve literal can be generated as object intead.
+
 
 ## TypeScript types
 
