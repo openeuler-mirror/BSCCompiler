@@ -47,10 +47,19 @@ alias gounit='cd $unit'
 - For graphic view of JavaScript object inheritance relations:
   o cd $MFE/docs/util; node proto.js | ./viewdot.sh
 
-3. TypeScript/JavaScript inheritance modeling in C++
+3. Run a single case from .ts
+  1) ~/OpenArkCompiler/src/MapleFE/output/typescript/bin/ts2ast while-stmt.ts
+     This creates while-stmt.ts.ast at the same directory
+  2) ~/OpenArkCompiler/src/MapleFE/output/typescript/bin/ast2cpp while-stmt.ts.ast
+     This generates the while-stmt.cpp
+  3) g++ -g -o run -I/home/ubuntu/OpenArkCompiler/src/MapleFE/ast2cpp/runtime/include -I/home/ubuntu/OpenArkCompiler/src/MapleFE/astopt/include -std=c++17 while-stmt.cpp /home/ubuntu/OpenArkCompiler/src/MapleFE/ast2cpp/runtime/src/*.cpp
+     This generates the executable run.
+  4) ./run to test the result.
+
+4. TypeScript/JavaScript inheritance modeling in C++
 ====================================================
 
-3.1 JavaScript Object Properties
+4.1 JavaScript Object Properties
 
 JavaScript objects have both instance properties and inherited
 properties. Instance properties are held in the object's own property
@@ -67,7 +76,7 @@ In Javascript, object property lookup order is:
 - then lookup inherited property (from property list of object pointed to
   by chain of __proto__ starting from __proto__ of current object
 
-3.2 TypeScript/JavaScript inheritance modeling in C++
+4.2 TypeScript/JavaScript inheritance modeling in C++
 
 The inheritance relationship of TS/JS objects is mapped to C++ as
 classes derived hierarchically along the __proto__ chain. This allows
@@ -100,7 +109,7 @@ instead of a prototype object, there is still only a single copy of
 inheited properties, because in JavaScript, there is only 1 single
 instance of each function constructor.
  
-3.3 Property inheritance with __proto__ chain
+4.3 Property inheritance with __proto__ chain
 
 See environment section in readme for instruction to view graphic
 display of JavaScript object inheritance relationship. The following
