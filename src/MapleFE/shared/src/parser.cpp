@@ -576,14 +576,6 @@ ParseStatus Parser::ParseStmt() {
   mRootNode = mAppealNodePool.NewAppealNode();
   mAppealNodes.push_back(mRootNode);
 
-  // mActiveTokens contain some un-matched tokens from last time of TraverseStmt(),
-  // because at the end of every TraverseStmt() when it finishes its matching it always
-  // MoveCurToken() which in turn calls LexOneLine() to read new tokens of a new line.
-  //
-  // This means in LexOneLine() we also need check if there are already tokens pending.
-  //
-  // [TODO] Later on, we will move thoes pending tokens to a separate data structure.
-
   unsigned token_num = LexOneLine();
   // No more token, end of file
   if (!token_num)
