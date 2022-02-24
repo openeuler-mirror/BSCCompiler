@@ -26,7 +26,13 @@ std::string CppEmitter::GetIdentifierName(TreeNode *node) {
     case NK_Decl:
         return GetIdentifierName(static_cast<DeclNode *>(node)->GetVar());
     case NK_Struct:
-        return GetIdentifierName(static_cast<StructNode *>(node)->GetStructId());
+        // Named StructNode has name in StructId. Unamed StructNode is assigned
+        // anonymous name by frontend and can be accessed using node mStrIdx
+        // through node GetName() interface.
+        if (auto n = static_cast<StructNode *>(node)->GetStructId())
+            return GetIdentifierName(n);
+        else
+          return node->GetName(); // for anonomyous name
     case NK_Function:
         if (static_cast<FunctionNode *>(node)->GetFuncName())
           return GetIdentifierName(static_cast<FunctionNode *>(node)->GetFuncName());
