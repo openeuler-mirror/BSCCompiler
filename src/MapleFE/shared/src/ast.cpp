@@ -2153,4 +2153,30 @@ void InterfaceNode::Dump(unsigned indent) {
   }
 }
 
+void TripleSlashNode::Dump(unsigned indent) {
+  DumpIndentation(indent);
+  DUMP0_NORETURN("trip-slash reference ");
+
+  switch(mProp) {
+  case TSP_Path:
+    DUMP0_NORETURN("path = ");
+    break;
+  case TSP_Types:
+    DUMP0_NORETURN("types = ");
+    break;
+  case TSP_NoDefaultLib:
+    DUMP0_NORETURN("no-default-lib = ");
+    break;
+  case TSP_Lib:
+    DUMP0_NORETURN("lib = ");
+    break;
+  case TSP_NA:
+  default:
+    DUMP0_NORETURN("NA =  ");
+    break;
+  }
+
+  mValue->Dump(0);
+}
+
 }

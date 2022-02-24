@@ -798,6 +798,8 @@ void Parser::DumpExitTable(const char *table_name, unsigned indent,
     std::cout << " fail@WasFailed" << "}" << std::endl;
   else if (reason == FailNotRightToken)
     std::cout << " fail@NotRightToken" << "}" << std::endl;
+  else if (reason == FailNotRightString)
+    std::cout << " fail@NotRightString" << "}" << std::endl;
   else if (reason == FailNotIdentifier)
     std::cout << " fail@NotIdentifer" << "}" << std::endl;
   else if (reason == FailNotLiteral)
@@ -1250,6 +1252,41 @@ bool Parser::TraverseRuleTableRegular(RuleTable *rule_table, AppealNode *appeal)
     AddFailed(rule_table, mCurToken);
     return false;
   }
+}
+
+// Returns 1. true if succ.
+//         2. child_node which represents 'token'.
+bool Parser::TraverseStringSucc(Token *token, AppealNode *parent, AppealNode *&child_node) {
+  AppealNode *appeal = NULL;
+  mIndentation += 2;
+
+  if (mTraceTable) {
+    std::string name = "string:";
+    name += token->GetName();
+    name += " curr_token matches";
+    DumpEnterTable(name.c_str(), mIndentation);
+  }
+
+  appeal = mAppealNodePool.NewAppealNode();
+  child_node = appeal;
+  mAppealNodes.push_back(appeal);
+  appeal->SetToken(token);
+  appeal->SetStartIndex(mCurToken);
+  appeal->SetParent(parent);
+  parent->AddChild(appeal);
+  appeal->mResult = Succ;
+  appeal->AddMatch(mCurToken);
+  MoveCurToken();
+
+  if (mTraceTable) {
+    std::string name;
+    name = "string:";
+    name += token->GetName();
+    DumpExitTable(name.c_str(), mIndentation, appeal);
+  }
+
+  mIndentation -= 2;
+  return true;
 }
 
 // Returns 1. true if succ.
@@ -1798,10 +1835,14 @@ bool Parser::TraverseTableData(TableData *data, AppealNode *appeal, AppealNode *
 
   switch (data->mType) {
   case DT_Char:
+    MASSERT(0 && "Hit Char in TableData during matching!");
+    break;
   case DT_String:
-    //MASSERT(0 && "Hit Char/String in TableData during matching!");
-    //TODO: Need compare literal. But so far looks like it's impossible to
-    //      have a literal token able to match a string/char in rules.
+    if (curr_token->IsIdentifier() &&
+        !strncmp(curr_token->GetName(), data->mData.mString, strlen(data->mData.mString)) &&
+        strlen(curr_token->GetName()) == strlen(data->mData.mString) ){
+      found = TraverseStringSucc(curr_token, appeal, child_node);
+    }
     break;
   // separator, operator, keywords are generated as DT_Token.
   // just need check the pointer of token

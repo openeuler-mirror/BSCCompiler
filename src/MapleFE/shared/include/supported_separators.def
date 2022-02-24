@@ -34,4 +34,3 @@ SEPARATOR(Whitespace)
 SEPARATOR(Tab)            // Horizontal Tab, 0x09
 SEPARATOR(ArrowFunction)  // first coming from JS, =>
 SEPARATOR(Optional)       // first coming from JS, ?.
-SEPARATOR(TripleSlash)    // first coming from TS, ///, used in triple-slash-directive
