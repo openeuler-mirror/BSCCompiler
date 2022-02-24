@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -65,7 +65,9 @@ class LibAstFile {
   void GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs);
   void CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access);
   void CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access);
+  void CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl);
   void CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access);
+  void CheckUnsupportedVarAttrs(const clang::VarDecl &decl);
   MIRType *CvtPrimType(const clang::QualType qualType) const;
   PrimType CvtPrimType(const clang::BuiltinType::Kind) const;
   MIRType *CvtType(const clang::QualType qualType);
