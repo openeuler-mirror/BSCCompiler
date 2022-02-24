@@ -86,6 +86,12 @@ class Insn {
   void AddOperand(Operand &opnd) {
     opnds.emplace_back(&opnd);
   }
+
+  Insn &AddOperandChain(Operand &opnd) {
+    opnds.emplace_back(&opnd);
+    return *this;
+  }
+
   void PopBackOperand() {
     opnds.pop_back();
   }
@@ -135,6 +141,10 @@ class Insn {
   }
 
   virtual bool OpndIsMayDef(uint32) const {
+    return false;
+  }
+
+  virtual bool IsUseSpecReg() const {
     return false;
   }
 

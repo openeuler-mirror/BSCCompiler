@@ -299,6 +299,9 @@ void AArch64CG::GenerateObjectMaps(BECommon &beCommon) {
 }
 
 void AArch64CG::EnrollTargetPhases(MaplePhaseManager *pm) const {
+  if (!GetMIRModule()->IsCModule()) {
+    CGOptions::DisableCGSSA();
+  }
   #include "aarch64_phases.def"
 }
 

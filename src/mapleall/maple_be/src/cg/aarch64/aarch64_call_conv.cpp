@@ -22,6 +22,21 @@ using namespace maple;
 namespace {
 constexpr int kMaxRegCount = 4;
 
+/*
+ * Refer to ARM IHI 0055C_beta: Procedure Call Standard for
+ * ARM 64-bit Architecture. Table 1.
+ */
+enum AArch64ArgumentClass : uint8 {
+  kAArch64NoClass,
+  kAArch64IntegerClass,
+  kAArch64FloatClass,
+  kAArch64ShortVectorClass,
+  kAArch64PointerClass,
+  kAArch64CompositeTypeHFAClass,  /* Homegeneous Floating-point Aggregates */
+  kAArch64CompositeTypeHVAClass,  /* Homegeneous Short-Vector Aggregates */
+  kAArch64MemoryClass
+};
+
 int32 ProcessNonStructAndNonArrayWhenClassifyAggregate(const MIRType &mirType,
                                                        AArch64ArgumentClass classes[kMaxRegCount],
                                                        size_t classesLength) {

@@ -14,7 +14,7 @@
  */
 #ifndef MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_COLOR_RA_H
 #define MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_COLOR_RA_H
-#include "aarch64_reg_alloc.h"
+#include "reg_alloc.h"
 #include "aarch64_operand.h"
 #include "aarch64_insn.h"
 #include "aarch64_abi.h"
@@ -1197,10 +1197,10 @@ class SplitBBInfo {
   BB *startBB = nullptr;
 };
 
-class GraphColorRegAllocator : public AArch64RegAllocator {
+class GraphColorRegAllocator : public RegAllocator {
  public:
   GraphColorRegAllocator(CGFunc &cgFunc, MemPool &memPool, DomAnalysis &dom)
-      : AArch64RegAllocator(cgFunc, memPool),
+      : RegAllocator(cgFunc, memPool),
         domInfo(dom),
         bbVec(alloc.Adapter()),
         vregLive(alloc.Adapter()),

@@ -20,23 +20,22 @@
 #include "cg.h"
 namespace maplebe {
 class X64CG : public CG {
+ public:
+  X64CG(MIRModule &mod, const CGOptions &opts) : CG(mod, opts) {}
 
+  void EnrollTargetPhases(MaplePhaseManager *pm) const override;
   /* Init SubTarget phase */
-  LiveAnalysis *CreateLiveAnalysis(MemPool &mp, CGFunc &f) const override;
+  /*LiveAnalysis *CreateLiveAnalysis(MemPool &mp, CGFunc &f) const override;
   MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const override;
-  AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const override;
+  AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const override;*/
   /* Init SubTarget optimization */
-  CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const override;
-  PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override;
-  CGProp *CreateCGProp(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override;
-  CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override;
 
   Insn &BuildPhiInsn(RegOperand &defOpnd, Operand &listParam) override;
 
   PhiOperand &CreatePhiOperand(MemPool &mp, MapleAllocator &mAllocator) override;
 
-  CGFunc *CreateCGFunc(MIRModule &mod, MIRFunction&, BECommon&, MemPool&, StackMemPool&,
-                       MapleAllocator&, uint32) override;
+  CGFunc *CreateCGFunc(MIRModule &mod, MIRFunction &mirFunc, BECommon &bec, MemPool &memPool,
+                       StackMemPool &stackMp, MapleAllocator &mallocator, uint32 funcId) override;
 
   bool IsExclusiveFunc(MIRFunction &mirFunc) override;
 

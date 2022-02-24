@@ -50,14 +50,26 @@ class VirtualRegNode {
 
 class RegAllocator {
  public:
-  explicit RegAllocator(CGFunc &tempCGFunc) : cgFunc(&tempCGFunc) {}
+  RegAllocator(CGFunc &tempCGFunc, MemPool &memPool) :
+      cgFunc(&tempCGFunc),
+      memPool(&memPool),
+      alloc(&memPool) {}
 
   virtual ~RegAllocator() = default;
 
   virtual bool AllocateRegisters() = 0;
 
+  bool IsYieldPointReg(regno_t regNO) const;
+  bool IsUntouchableReg(uint32 regNO) const;
+
+  virtual std::string PhaseName() const {
+    return "regalloc";
+  }
+
  protected:
   CGFunc *cgFunc;
+  MemPool *memPool;
+  MapleAllocator alloc;
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgRegAlloc, maplebe::CGFunc)

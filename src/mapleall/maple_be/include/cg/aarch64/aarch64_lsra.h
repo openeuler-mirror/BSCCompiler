@@ -14,13 +14,13 @@
  */
 #ifndef MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_LSRA_H
 #define MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_LSRA_H
-#include "aarch64_reg_alloc.h"
+#include "reg_alloc.h"
 #include "aarch64_operand.h"
 #include "aarch64_insn.h"
 #include "aarch64_abi.h"
 
 namespace maplebe {
-class LSRALinearScanRegAllocator : public AArch64RegAllocator {
+class LSRALinearScanRegAllocator : public RegAllocator {
   enum RegInCatch : uint8 {
     /*
      * RA do not want to allocate certain registers if a live interval is
@@ -391,7 +391,7 @@ class LSRALinearScanRegAllocator : public AArch64RegAllocator {
 
  public:
   LSRALinearScanRegAllocator(CGFunc &cgFunc, MemPool &memPool)
-      : AArch64RegAllocator(cgFunc, memPool),
+      : RegAllocator(cgFunc, memPool),
         liveIntervalsArray(alloc.Adapter()),
         lastIntParamLi(alloc.Adapter()),
         lastFpParamLi(alloc.Adapter()),
@@ -455,7 +455,7 @@ class LSRALinearScanRegAllocator : public AArch64RegAllocator {
   void FinalizeRegisters();
   void SpillOperand(Insn &insn, Operand &opnd, bool isDef, uint32 spillIdx);
   void SetOperandSpill(Operand &opnd);
-  RegOperand *HandleSpillForInsn(Insn &insn, Operand &opnd);
+  RegOperand *HandleSpillForInsn(const Insn &insn, Operand &opnd);
   MemOperand *GetSpillMem(uint32 vregNO, bool isDest, Insn &insn, AArch64reg regNO, bool &isOutOfRange);
   void InsertCallerSave(Insn &insn, Operand &opnd, bool isDef);
   uint32 GetRegFromSet(MapleSet<uint32> &set, regno_t offset, LiveInterval &li, regno_t forcedReg = 0);

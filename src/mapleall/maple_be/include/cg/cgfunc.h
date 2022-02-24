@@ -19,6 +19,7 @@
 #include "operand.h"
 #include "eh_func.h"
 #include "memlayout.h"
+#include "reg_info.h"
 #include "cgbb.h"
 #include "reg_alloc.h"
 #include "cfi.h"
@@ -775,6 +776,14 @@ class CGFunc {
     memLayout = &layout;
   }
 
+  RegisterInfo *GetTargetRegInfo() {
+    return targetRegInfo;
+  }
+
+  void SetTargetRegInfo(RegisterInfo &regInfo) {
+    targetRegInfo = &regInfo;
+  }
+
   MemPool *GetMemoryPool() {
     return memPool;
   }
@@ -1151,6 +1160,7 @@ class CGFunc {
   MapleUnorderedMap<LabelIdx, BB*> lab2BBMap;
   BECommon &beCommon;
   MemLayout *memLayout = nullptr;
+  RegisterInfo *targetRegInfo = nullptr;
   MapleAllocator *funcScopeAllocator;
   MapleMap<uint32, MIRSymbol*> emitStVec;  /* symbol that needs to be emit as a local symbol. i.e, switch table */
 #if TARGARM32

@@ -48,20 +48,6 @@ bool IsSpillRegInRA(AArch64reg regNO, bool has3RegOpnd);
 PrimType IsVectorArrayType(MIRType *ty, uint32 &arraySize);
 }  /* namespace AArch64Abi */
 
-/*
- * Refer to ARM IHI 0055C_beta: Procedure Call Standard for
- * ARM 64-bit Architecture. Table 1.
- */
-enum AArch64ArgumentClass : uint8 {
-  kAArch64NoClass,
-  kAArch64IntegerClass,
-  kAArch64FloatClass,
-  kAArch64ShortVectorClass,
-  kAArch64PointerClass,
-  kAArch64CompositeTypeHFAClass,  /* Homegeneous Floating-point Aggregates */
-  kAArch64CompositeTypeHVAClass,  /* Homegeneous Short-Vector Aggregates */
-  kAArch64MemoryClass
-};
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_ABI_H */

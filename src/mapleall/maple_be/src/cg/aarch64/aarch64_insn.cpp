@@ -1738,6 +1738,10 @@ bool AArch64Insn::OpndIsUse(uint32 id) const {
   return AArch64CG::kMd[mOp].GetOperand(id)->IsUse();
 }
 
+bool AArch64Insn::IsUseSpecReg() const {
+  return AArch64CG::kMd[mOp].UseSpecReg();
+}
+
 uint32 AArch64Insn::GetLatencyType() const {
   return AArch64CG::kMd[mOp].GetLatencyType();
 }
