@@ -23,6 +23,24 @@ void CGSSAInfo::ConstructSSA() {
   InsertPhiInsn();
   /* Rename variables */
   RenameVariablesForBB(domInfo->GetCommonEntryBB().GetId());
+#if DEBUG
+  /* Check phiListOpnd, must be ssaForm */
+  FOR_ALL_BB(bb, cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      if (!insn->IsPhi()) {
+        continue;
+      }
+      Operand &phiListOpnd = insn->GetOperand(kInsnSecondOpnd);
+      CHECK_FATAL(phiListOpnd.IsPhi(), "unexpect phi operand");
+      MapleMap<uint32, RegOperand*> &phiList = static_cast<PhiOperand&>(phiListOpnd).GetOperands();
+      for (auto &phiOpndIt : phiList) {
+        if (!phiOpndIt.second->IsSSAForm()) {
+          CHECK_FATAL(false, "phiOperand is not ssaForm!");
+        }
+      }
+    }
+  }
+#endif
 }
 
 void CGSSAInfo::MarkInsnsInSSA(Insn &insn) {
