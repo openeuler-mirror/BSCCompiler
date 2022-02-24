@@ -65,6 +65,8 @@ class AArch64Insn : public Insn {
     return (mOp == MOP_pseudo_ret_int || mOp == MOP_pseudo_ret_float);
   }
 
+  bool IsUseSpecReg() const override;
+
   bool OpndIsDef(uint32 id) const override;
   bool OpndIsUse(uint32 id) const override;
   bool IsEffectiveCopy() const override {

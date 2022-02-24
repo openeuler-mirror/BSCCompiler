@@ -99,7 +99,7 @@ src_libcgaarch64 = [
   "src/cg/aarch64/aarch64_immediate.cpp",
   "src/cg/aarch64/aarch64_operand.cpp",
   "src/cg/aarch64/aarch64_color_ra.cpp",
-  "src/cg/aarch64/aarch64_reg_alloc.cpp",
+  "src/cg/aarch64/aarch64_reg_info.cpp",
   "src/cg/aarch64/aarch64_ssa.cpp",
   "src/cg/aarch64/aarch64_prop.cpp",
   "src/cg/aarch64/aarch64_dce.cpp",
@@ -130,9 +130,11 @@ src_libcgx8664 = [
   "src/cg/x86_64/x64_cg.cpp",
   "src/cg/x86_64/x64_MPIsel.cpp",
   "src/cg/x86_64/x64_cgfunc.cpp",
+  "src/cg/x86_64/x64_memlayout.cpp",
   "src/cg/x86_64/x64_rt.cpp",
   "src/cg/x86_64/x64_reg_alloc.cpp",
   "src/cg/x86_64/x64_emitter.cpp",
+  "src/cg/x86_64/x64_irbuilder.cpp",
 ]
 
 src_libcgriscv64 = [
@@ -173,6 +175,8 @@ src_libcgphases = [
   "src/cg/cfgo.cpp",
   "src/cg/ebo.cpp",
   "src/cg/ra_opt.cpp",
+  "src/cg/reg_alloc.cpp",
+  "src/cg/reg_alloc_basic.cpp",
   "src/cg/cg_ssa.cpp",
   "src/cg/cg_prop.cpp",
   "src/cg/cg_dce.cpp",
@@ -195,6 +199,8 @@ src_libcgphases = [
 ]
 
 src_libcg = [
+  "src/cg/args.cpp",
+  "src/cg/cg_irbuilder.cpp",
   "src/cg/cfi.cpp",
   "src/cg/cgbb.cpp",
   "src/cg/cgfunc.cpp",
@@ -206,9 +212,9 @@ src_libcg = [
   "src/cg/emit.cpp",
   "src/cg/live.cpp",
   "src/cg/loop.cpp",
+  "src/cg/Isel.cpp",
   "src/cg/memlayout.cpp",
   "src/cg/yieldpoint.cpp",
-  "src/cg/args.cpp",
   "src/cg/label_creation.cpp",
   "src/cg/offset_adjust.cpp",
   "src/cg/proepilog.cpp",

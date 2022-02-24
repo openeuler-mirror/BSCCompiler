@@ -43,7 +43,6 @@ enum MopProperty : maple::uint8 {
   kPropIsConversion,
   kPropIsConditionalSet,
   kPropUseSpecReg,
-  kPropIsX86style,
   kPropIsCondDef,
   kPropHasAcqure,
   kPropHasAcqureRCpc,
@@ -71,7 +70,6 @@ enum MopProperty : maple::uint8 {
 #define ISCONVERSION (1ULL << kPropIsConversion)
 #define ISCONDSET (1ULL << kPropIsConditionalSet)
 #define USESPECREG (1ULL << kPropUseSpecReg)
-#define ISX86STYLE (1ULL << kPropIsX86style)
 #define ISCONDDEF (1ULL << kPropIsCondDef)
 #define HASACQUIRE (1ULL << kPropHasAcqure)
 #define HASACQUIRERCPC (1ULL << kPropHasAcqureRCpc)
@@ -100,8 +98,18 @@ constexpr regno_t kInvalidRegNO = 0;
  */
 using CsrBitset = uint64_t;
 
+template <typename ParaType>
+class ConstraintFunction {
+ public:
+  typedef bool (*cfPointer)(ParaType);
+  bool CheckConstraint(cfPointer ccfunc, ParaType a) {
+    return (*ccfunc)(a);
+  }
+};
+
 /* empty class; just for parameter passing */
 class OpndProp {};
+
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_ISA_H */

@@ -27,6 +27,9 @@
 #include "aarch64_cg.h"
 #elif TARGRISCV64
 #include "riscv64_emitter.h"
+#elif TARGX86_64
+#include "x64_cg.h"
+#include "x64_emitter.h"
 #endif
 
 namespace maplebe {
@@ -95,9 +98,6 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
     uint32 countFuncId = 0;
     unsigned long rangeNum = 0;
 
-    if (!m.IsCModule()) {
-      CGOptions::DisableCGSSA();
-    }
     cg->EnrollTargetPhases(this);
 
     auto admMempool = AllocateMemPoolInPhaseManager("cg phase manager's analysis data manager mempool");
@@ -190,7 +190,8 @@ void CgFuncPM::CreateCGAndBeCommon(MIRModule &m) {
   cg = new Arm32CG(m, *cgOptions, cgOptions->GetEHExclusiveFunctionNameVec(), CGOptions::GetCyclePatternMap());
   cg->SetEmitter(*m.GetMemPool()->New<Arm32AsmEmitter>(*cg, m.GetOutputFileName()));
 #elif TARGX86_64
-
+  cg = new X64CG(m, *cgOptions);
+  cg->SetEmitter(*m.GetMemPool()->New<X64Emitter>(*cg, m.GetOutputFileName()));
 #else
 #error "unknown platform"
 #endif
@@ -220,9 +221,11 @@ void CgFuncPM::CreateCGAndBeCommon(MIRModule &m) {
     CHECK_FATAL(cgOptions->IsInsertCall(), "handling of --insert-call is not correct");
     cg->SetInstrumentationFunction(cgOptions->GetInstrumentationFunction());
   }
+#if TARGAARCH64
   if (!m.IsCModule()) {
     CGOptions::EnableFramePointer();
   }
+#endif
 }
 
 void CgFuncPM::PrepareLower(MIRModule &m) {
@@ -345,6 +348,7 @@ bool CgFuncPM::IsFramework(MIRModule &m) const {
 }
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFuncPM, cgFuncPhaseManager)
 /* register codegen common phases */
+MAPLE_TRANSFORM_PHASE_REGISTER(CgLayoutFrame, layoutstackframe)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgCreateLabel, createstartendlabel)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgMoveRegArgs, moveargs)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgAlignAnalysis, alignanalysis)

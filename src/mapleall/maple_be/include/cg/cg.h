@@ -126,6 +126,7 @@ class CG {
 
   virtual ~CG();
 
+  /* enroll all code generator phases for target machine */
   virtual void EnrollTargetPhases(MaplePhaseManager *pm) const = 0;
 
   void GenExtraTypeMetadata(const std::string &classListFileName, const std::string &outputBaseName);
@@ -208,7 +209,6 @@ class CG {
   }
 
   virtual Insn &BuildPhiInsn(RegOperand &defOpnd, Operand &listParam) = 0;
-
   virtual PhiOperand &CreatePhiOperand(MemPool &mp, MapleAllocator &mAllocator) = 0;
 
   virtual CGFunc *CreateCGFunc(MIRModule &mod, MIRFunction&, BECommon&, MemPool&, StackMemPool&,
@@ -374,14 +374,28 @@ class CG {
   }
 
   /* Init SubTarget phase */
-  virtual LiveAnalysis *CreateLiveAnalysis(MemPool &mp, CGFunc &f) const = 0;
-  virtual MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const = 0;
-  virtual AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const = 0;
+  virtual LiveAnalysis *CreateLiveAnalysis(MemPool &mp, CGFunc &f) const {
+    return nullptr;
+  };
+  virtual MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const {
+    return nullptr;
+  };
+  virtual AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const {
+    return nullptr;
+  };
   /* Init SubTarget optimization */
-  virtual CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const = 0;
-  virtual PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
-  virtual CGProp *CreateCGProp(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
-  virtual CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
+  virtual CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const {
+    return nullptr;
+  };
+  virtual PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const {
+    return nullptr;
+  };
+  virtual CGProp *CreateCGProp(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const {
+    return nullptr;
+  };
+  virtual CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const {
+    return nullptr;
+  };
 
   /* Object map generation helper */
   std::vector<int64> GetReferenceOffsets64(const BECommon &beCommon, MIRStructType &structType);
