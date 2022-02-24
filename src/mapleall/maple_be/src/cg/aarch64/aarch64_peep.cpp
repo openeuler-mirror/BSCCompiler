@@ -2000,6 +2000,16 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
       manager->NormalPatternOpt<RemoveIdenticalLoadAndStorePattern>(cgFunc->IsAfterRegAlloc());
       break;
     }
+    case MOP_xvmovrv:
+    case MOP_xvmovrd: {
+      manager->NormalPatternOpt<FmovRegPattern>(cgFunc->IsAfterRegAlloc());
+      break;
+    }
+    case MOP_wcbnz:
+    case MOP_xcbnz: {
+      manager->NormalPatternOpt<CbnzToCbzPattern>(cgFunc->IsAfterRegAlloc());
+      break;
+    }
     default:
       break;
   }
@@ -2010,8 +2020,6 @@ void AArch64PeepHole::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
   optimizations[kEliminateSpecifcSXTOpt] = optOwnMemPool->New<EliminateSpecifcSXTAArch64>(cgFunc);
   optimizations[kEliminateSpecifcUXTOpt] = optOwnMemPool->New<EliminateSpecifcUXTAArch64>(cgFunc);
-  optimizations[kFmovRegOpt] = optOwnMemPool->New<FmovRegAArch64>(cgFunc);
-  optimizations[kCbnzToCbzOpt] = optOwnMemPool->New<CbnzToCbzAArch64>(cgFunc);
   optimizations[kCsetCbzToBeqOpt] = optOwnMemPool->New<CsetCbzToBeqOptAArch64>(cgFunc);
   optimizations[kContiLDRorSTRToSameMEMOpt] = optOwnMemPool->New<ContiLDRorSTRToSameMEMAArch64>(cgFunc);
   optimizations[kRemoveIncDecRefOpt] = optOwnMemPool->New<RemoveIncDecRefAArch64>(cgFunc);
@@ -2058,14 +2066,8 @@ void AArch64PeepHole::Run(BB &bb, Insn &insn) {
       (static_cast<EliminateSpecifcUXTAArch64*>(optimizations[kEliminateSpecifcUXTOpt]))->Run(bb, insn);
       break;
     }
-    case MOP_xvmovrv:
-    case MOP_xvmovrd: {
-      (static_cast<FmovRegAArch64*>(optimizations[kFmovRegOpt]))->Run(bb, insn);
-      break;
-    }
     case MOP_wcbnz:
     case MOP_xcbnz: {
-      (static_cast<CbnzToCbzAArch64*>(optimizations[kCbnzToCbzOpt]))->Run(bb, insn);
       (static_cast<CsetCbzToBeqOptAArch64*>(optimizations[kCsetCbzToBeqOpt]))->Run(bb, insn);
       break;
     }
@@ -2967,13 +2969,29 @@ void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
   }
 }
 
-void FmovRegAArch64::Run(BB &bb, Insn &insn) {
-  MOperator thisMop = insn.GetMachineOpcode();
-  Insn *nextInsn = insn.GetNextMachineInsn();
-  if (&insn == bb.GetFirstInsn()) {
+bool FmovRegPattern::CheckCondition(Insn &insn) {
+  nextInsn = insn.GetNextMachineInsn();
+  if (nextInsn == nullptr) {
+    return false;
+  }
+  if (&insn == insn.GetBB()->GetFirstInsn()) {
+    return false;
+  }
+  prevInsn = insn.GetPrev();
+  auto &curSrcRegOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  auto &prevSrcRegOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
+  /* same src freg */
+  if (curSrcRegOpnd.GetRegisterNumber() != prevSrcRegOpnd.GetRegisterNumber()) {
+    return false;
+  }
+  return true;
+}
+
+void FmovRegPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
     return;
   }
-  Insn *prevInsn = insn.GetPrev();
+  MOperator thisMop = insn.GetMachineOpcode();
   MOperator prevMop = prevInsn->GetMachineOpcode();
   MOperator newMop;
   uint32 doOpt = 0;
@@ -2987,19 +3005,13 @@ void FmovRegAArch64::Run(BB &bb, Insn &insn) {
   if (doOpt == 0) {
     return;
   }
-  auto &curSrcRegOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  auto &prevSrcRegOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
-  /* same src freg */
-  if (curSrcRegOpnd.GetRegisterNumber() != prevSrcRegOpnd.GetRegisterNumber()) {
-    return;
-  }
   auto &curDstRegOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   regno_t curDstReg = curDstRegOpnd.GetRegisterNumber();
-  CG *cg = cgFunc.GetCG();
+  CG *cg = cgFunc->GetCG();
   /* optimize case 1 */
   auto &prevDstRegOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
   regno_t prevDstReg = prevDstRegOpnd.GetRegisterNumber();
-  auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
+  auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   RegOperand &dst =
       aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(curDstReg), doOpt, kRegTyInt);
   RegOperand &src =
@@ -3007,9 +3019,6 @@ void FmovRegAArch64::Run(BB &bb, Insn &insn) {
   Insn &newInsn = cg->BuildInstruction<AArch64Insn>(newMop, dst, src);
   bb.InsertInsnBefore(insn, newInsn);
   bb.RemoveInsn(insn);
-  if (nextInsn == nullptr) {
-    return;
-  }
   RegOperand &newOpnd =
       aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(prevDstReg), doOpt, kRegTyInt);
   uint32 opndNum = nextInsn->GetOperandSize();
@@ -3049,18 +3058,53 @@ void FmovRegAArch64::Run(BB &bb, Insn &insn) {
   }
 }
 
-void CbnzToCbzAArch64::Run(BB &bb, Insn &insn) {
-  MOperator thisMop = insn.GetMachineOpcode();
+bool CbnzToCbzPattern::CheckCondition(Insn &insn) {
   /* reg has to be R0, since return value is in R0 */
   auto &regOpnd0 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   if (regOpnd0.GetRegisterNumber() != R0) {
-    return;
+    return false;
   }
-  BB *nextBB = bb.GetNext();
+  nextBB = insn.GetBB()->GetNext();
   /* Make sure nextBB can only be reached by bb */
   if (nextBB->GetPreds().size() > 1 || nextBB->GetEhPreds().empty()) {
+    return false;
+  }
+  /* Next insn should be a mov R0 = 0 */
+  movInsn = nextBB->GetFirstMachineInsn();
+  if (movInsn == nullptr) {
+    return false;
+  }
+  MOperator movInsnMop = movInsn->GetMachineOpcode();
+  if (movInsnMop != MOP_xmovri32 && movInsnMop != MOP_xmovri64) {
+    return false;
+  }
+  auto &movDest = static_cast<RegOperand&>(movInsn->GetOperand(kInsnFirstOpnd));
+  if (movDest.GetRegisterNumber() != R0) {
+    return false;
+  }
+  auto &movImm = static_cast<ImmOperand&>(movInsn->GetOperand(kInsnSecondOpnd));
+  if (movImm.GetValue() != 0) {
+    return false;
+  }
+  Insn *brInsn = movInsn->GetNextMachineInsn();
+  if (brInsn == nullptr) {
+    return false;
+  }
+  if (brInsn->GetMachineOpcode() != MOP_xuncond) {
+    return false;
+  }
+  /* Is nextBB branch to the return-bb? */
+  if (nextBB->GetSuccs().size() != 1) {
+    return false;
+  }
+  return true;
+}
+
+void CbnzToCbzPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
     return;
   }
+  MOperator thisMop = insn.GetMachineOpcode();
   BB *targetBB = nullptr;
   auto it = bb.GetSuccsBegin();
   if (*it == nextBB) {
@@ -3071,36 +3115,8 @@ void CbnzToCbzAArch64::Run(BB &bb, Insn &insn) {
   if (targetBB != nextBB->GetNext()) {
     return;
   }
-  /* Is nextBB branch to the return-bb? */
-  if (nextBB->GetSuccs().size() != 1) {
-    return;
-  }
   BB *nextBBTarget = *(nextBB->GetSuccsBegin());
   if (nextBBTarget->GetKind() != BB::kBBReturn) {
-    return;
-  }
-  /* Next insn should be a mov R0 = 0 */
-  Insn *movInsn = nextBB->GetFirstMachineInsn();
-  if (movInsn == nullptr) {
-    return;
-  }
-  MOperator movInsnMop = movInsn->GetMachineOpcode();
-  if (movInsnMop != MOP_xmovri32 && movInsnMop != MOP_xmovri64) {
-    return;
-  }
-  auto &movDest = static_cast<RegOperand&>(movInsn->GetOperand(kInsnFirstOpnd));
-  if (movDest.GetRegisterNumber() != R0) {
-    return;
-  }
-  auto &movImm = static_cast<ImmOperand&>(movInsn->GetOperand(kInsnSecondOpnd));
-  if (movImm.GetValue() != 0) {
-    return;
-  }
-  Insn *brInsn = movInsn->GetNextMachineInsn();
-  if (brInsn == nullptr) {
-    return;
-  }
-  if (brInsn->GetMachineOpcode() != MOP_xuncond) {
     return;
   }
   /* Control flow looks nice, instruction looks nice */
