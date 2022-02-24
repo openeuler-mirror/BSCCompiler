@@ -45,7 +45,8 @@ std::string Emitter::GetEnding(TreeNode *n) {
   std::string str;
   switch(n->GetKind()) {
     case NK_Function:
-      str = "\n"s;
+    case NK_TripleSlash:
+      str += '\n';
       break;
     default:
       str += ';';
@@ -60,7 +61,7 @@ std::string Emitter::GetEnding(TreeNode *n) {
     case NK_Namespace:
     case NK_Declare:
     case NK_Module:
-      str += "\n"s;
+      str += '\n';
   }
   return str;
 }
@@ -1925,6 +1926,19 @@ std::string Emitter::EmitTupleTypeNode(TupleTypeNode *node) {
   mPrecedence = '\030';
   return str;
 }
+
+std::string Emitter::EmitTripleSlashNode(TripleSlashNode *node) {
+  if (node == nullptr)
+    return std::string();
+  std::string str;
+  str += "/// <reference "s + GetEnumTripleSlashProp(node->GetProp());
+  if (auto n = node->GetValue()) {
+    str += '=' + EmitTreeNode(n);
+  }
+  str += " />"s;
+  return str;
+}
+
 std::string Emitter::EmitModuleNode(ModuleNode *node) {
   if (node == nullptr)
     return std::string();
@@ -1951,6 +1965,12 @@ std::string Emitter::EmitAttrNode(AttrNode *node) {
     return std::string();
   std::string str(GetEnumAttrId(node->GetId()));
   return HandleTreeNode(str, node);
+}
+
+std::string Emitter::EmitArrayTypeNode(ArrayTypeNode *node) {
+  // TODO
+  std::string str = "";
+  return str;
 }
 
 std::string Emitter::EmitPrimTypeNode(PrimTypeNode *node) {
@@ -1984,12 +2004,6 @@ std::string Emitter::EmitPrimArrayTypeNode(PrimArrayTypeNode *node) {
     Replace(str, "never[", "[");
   }
   return HandleTreeNode(str, node);
-}
-
-std::string Emitter::EmitArrayTypeNode(ArrayTypeNode *node) {
-  // TODO
-  std::string str = "";
-  return str;
 }
 
 std::string Emitter::EmitTreeNode(TreeNode *node) {
@@ -2139,6 +2153,9 @@ std::string Emitter::EmitTreeNode(TreeNode *node) {
     break;
   case NK_Infer:
     return EmitInferNode(static_cast<InferNode *>(node));
+    break;
+  case NK_TripleSlash:
+    return EmitTripleSlashNode(static_cast<TripleSlashNode *>(node));
     break;
   case NK_Block:
     return EmitBlockNode(static_cast<BlockNode *>(node));
@@ -2403,6 +2420,24 @@ const char *Emitter::GetEnumOprId(OprId k) {
     MASSERT(0 && "Unexpected enumerator");
   }
   return "UNEXPECTED OprId";
+}
+
+const char *Emitter::GetEnumTripleSlashProp(TripleSlashProp k) {
+  switch (k) {
+  case TSP_Path:
+    return "path";
+  case TSP_Types:
+    return "types";
+  case TSP_Lib:
+    return "lib";
+  case TSP_NoDefaultLib:
+    return "no-default-lib";
+  case TSP_NA:
+    return "TSP_NA";
+  default:
+    MASSERT(0 && "Unexpected enumerator");
+  }
+  return "UNEXPECTED TripleSlashProp";
 }
 
 } // namespace maplefe
