@@ -126,4 +126,12 @@ void CppEmitter::InsertEscapes(std::string& str) {
   Emitter::Replace(str, "\"", "\\\"", 0);
 }
 
+bool CppEmitter::IsGenerator(TreeNode* node) {
+  return mHandler->IsGeneratorUsed(node->GetNodeId());
+}
+
+FunctionNode* CppEmitter::GetGeneratorFunc(TreeNode* node) {
+  return mHandler->GetGeneratorUsed(node->GetNodeId());
+}
+
 } // namespace maplefe

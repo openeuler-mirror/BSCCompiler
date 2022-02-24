@@ -273,6 +273,10 @@ std::string CppDef::EmitFunctionNode(FunctionNode *node) {
   std::string str, className, ns = GetNamespace(node);
   if (!ns.empty())
     ns += "::"s;
+
+  if (node->IsGenerator()) {
+    // TODO
+  }
   if (node->IsConstructor()) {
     className = ns + GetClassName(node);
     str = "\n"s;
@@ -547,6 +551,13 @@ std::string CppDef::EmitDeclNode(DeclNode *node) {
   // For func var of JS_Let/JS_Const, emit both var type & name
   if (auto n = node->GetVar()) {
     varType = n->GetTypeId();
+#if 1
+    if (varType == TY_None) {
+      // TODO: remove this workaround when the var type is corrected in AST
+      if (IsGenerator(n))
+        varType = TY_Class;
+    }
+#endif
     if (mIsInit || node->GetProp() == JS_Var) {
       // handle declnode inside for-of/for-in (uses GetSet() and has null GetInit())
       if (!node->GetInit() && node->GetParent() && !node->GetParent()->IsForLoop())
@@ -572,9 +583,8 @@ std::string CppDef::EmitDeclNode(DeclNode *node) {
         hFuncTable.AddNameIsTopLevelFunc(varStr);
       }
     } else {
-      // if no type info, assume type is any and wrap initializer in JS_Val.
       str += varStr + " = ";
-      if (varType == TY_None)
+      if (varType == TY_None)  // no type info. assume TY_Any and wrap val in JS_Val
         str += "t2crt::JS_Val("s + EmitTreeNode(n) + ")"s;
       else
         str += EmitTreeNode(n);

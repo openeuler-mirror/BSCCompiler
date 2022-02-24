@@ -36,8 +36,6 @@ public:
     return EmitTreeNode(GetASTModule());
   }
 
-  std::string GenFunctionClass(FunctionNode* node);
-
   void AddImportedModule(const std::string& module);
   bool IsImportedModule(const std::string& module);
 
