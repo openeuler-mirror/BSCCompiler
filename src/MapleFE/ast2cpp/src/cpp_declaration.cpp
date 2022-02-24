@@ -897,12 +897,9 @@ std::string CppDecl::EmitInterface(StructNode *node) {
     if (superClass.back() == '*')
       superClass.pop_back();
   }
-
-  if (auto n = node->GetStructId()) {
-    ifName = GetIdentifierName(n);
-    str = "class "s + ifName + " : public "s + superClass + " {\n"s;
-  }
-  str += "  public:\n"s;
+ ifName = node->GetName();
+ str = "class "s + ifName + " : public "s + superClass + " {\n"s;
+ str += "  public:\n"s;
 
   // Generate code to add prop in class constructor
   for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
