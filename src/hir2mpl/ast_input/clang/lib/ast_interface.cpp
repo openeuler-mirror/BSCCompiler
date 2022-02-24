@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -305,6 +305,37 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs 
     genAttrs.SetAttr(GENATTR_destructor_priority);
     genAttrs.InsertIntContentMap(GENATTR_destructor_priority, destructorAttr->getPriority());
   }
+  CheckUnsupportedFuncAttrs(decl);
+}
+
+void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) {
+  std::string unsupportedFuncAttrs = "";
+  if (decl.hasAttr<clang::NoInstrumentFunctionAttr>()) {
+    unsupportedFuncAttrs += " no_instrument_function";
+  }
+  if (decl.hasAttr<clang::StdCallAttr>()) {
+    unsupportedFuncAttrs += " stdcall";
+  }
+  if (decl.hasAttr<clang::CDeclAttr>()) {
+    unsupportedFuncAttrs += " cdecl";
+  }
+  if (decl.hasAttr<clang::MipsLongCallAttr>()) {
+    unsupportedFuncAttrs += " long_call";
+  }
+  if (decl.hasAttr<clang::MipsShortCallAttr>()) {
+    unsupportedFuncAttrs += " short_call";
+  }
+  if(decl.hasAttr<clang::ARMInterruptAttr>() || decl.hasAttr<clang::AnyX86InterruptAttr>()) {
+    unsupportedFuncAttrs += " interrupt";
+  }
+  if (decl.hasAttr<clang::NakedAttr>()) {
+    unsupportedFuncAttrs += " naked";
+  }
+  CHECK_FATAL(unsupportedFuncAttrs.empty(), "%s:%d error: The function %s has unsupported attribute(s): %s",
+              FEManager::GetModule().GetFileNameFromFileNum(GetLOC(decl.getLocation()).first).c_str(),
+              GetLOC(decl.getLocation()).second,
+              GetMangledName(decl).c_str(),
+              unsupportedFuncAttrs.c_str());
 }
 
 void LibAstFile::CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access) {
@@ -319,6 +350,25 @@ void LibAstFile::CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAt
   if (IsOneElementVector(decl.getType())) {
     genAttrs.SetAttr(GENATTR_oneelem_simd);
   }
+  CheckUnsupportedVarAttrs(decl);
+}
+
+void LibAstFile::CheckUnsupportedVarAttrs(const clang::VarDecl &decl) {
+  std::string unsupportedVarAttrs = "";
+  if(decl.hasAttr<clang::ModeAttr>()) {
+    unsupportedVarAttrs += " mode";
+  }
+  if(decl.hasAttr<clang::NoCommonAttr>()) {
+    unsupportedVarAttrs += " nocommon";
+  }
+  if(decl.hasAttr<clang::TransparentUnionAttr>()) {
+    unsupportedVarAttrs += " transparent_union";
+  }
+  CHECK_FATAL(unsupportedVarAttrs.empty(), "%s:%d error: The variable %s has unsupported attribute(s): %s",
+              FEManager::GetModule().GetFileNameFromFileNum(GetLOC(decl.getLocation()).first).c_str(),
+              GetLOC(decl.getLocation()).second,
+              GetMangledName(decl).c_str(),
+              unsupportedVarAttrs.c_str());
 }
 
 void LibAstFile::EmitTypeName(const clang::QualType qualType, std::stringstream &ss) {
