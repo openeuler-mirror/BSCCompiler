@@ -2388,5 +2388,35 @@ public:
   void Dump(unsigned);
 };
 
+//////////////////////////////////////////////////////
+//           Triple Slash Directive
+//////////////////////////////////////////////////////
+
+enum TripleSlashProp {
+  TSP_Path,
+  TSP_Types,
+  TSP_Lib,
+  TSP_NoDefaultLib,
+  TSP_NA
+};
+
+class TripleSlashNode : public TreeNode {
+private:
+  TripleSlashProp  mProp;
+  TreeNode *mValue;
+public:
+  TripleSlashNode() : TreeNode(NK_TripleSlash) {mValue = NULL; mProp = TSP_NA;}
+  ~TripleSlashNode() {}
+
+  TreeNode* GetValue() {return mValue;}
+  void SetValue(TreeNode *n) {mValue = n; SETPARENT(n);}
+
+  TripleSlashProp GetProp() {return mProp;}
+  void SetProp(TripleSlashProp p) {mProp = p;}
+
+  void Dump(unsigned);
+};
+
+
 }
 #endif

@@ -43,6 +43,7 @@ class TreeNode;
 typedef enum AppealStatus {
   FailWasFailed,
   FailNotRightToken,
+  FailNotRightString,
   FailNotIdentifier,
   FailNotLiteral,
   FailNotRegExpr,
@@ -302,6 +303,7 @@ public:
   // 1. If the target is a token, we just need compare mCurToken with it.
   // 2. If the target is a special rule table, like literal, identifier, we just
   //    need check the type of mCurToken.
+  bool TraverseStringSucc(Token*, AppealNode*, AppealNode *&);
   bool TraverseToken(Token*, AppealNode*, AppealNode *&);
   bool TraverseLiteral(RuleTable*, AppealNode*);
   bool TraverseIdentifier(RuleTable*, AppealNode*);

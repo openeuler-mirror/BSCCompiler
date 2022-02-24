@@ -88,6 +88,8 @@ NODEKIND(In)
 NODEKIND(Is)
 NODEKIND(Infer)
 
+NODEKIND(TripleSlash)  // TS triple-slash directive
+
 NODEKIND(Block)
 NODEKIND(Function)
 NODEKIND(Class)

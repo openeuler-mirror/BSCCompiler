@@ -81,4 +81,5 @@ OPERATOR(StNe, Binary)
 OPERATOR(ArrowFunction, Binary)
 OPERATOR(NullCoalesce, Binary)
 OPERATOR(NullAssign, Binary)
+OPERATOR(TripleSlash, Binary)            // triple slash directive
 
