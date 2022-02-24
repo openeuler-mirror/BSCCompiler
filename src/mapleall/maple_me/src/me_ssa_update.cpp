@@ -20,13 +20,103 @@
 // If some assignments have been deleted, the current implementation does not
 // delete useless phi's, and these useless phi's may end up having identical
 // phi operands.
-
 namespace maple {
+MapleStack<ScalarMeExpr*> *VectorVersionStacks::GetRenameStack(OStIdx idx) {
+  return renameWithVectorStacks.at(idx);
+}
+
+MapleStack<ScalarMeExpr*> *MapVersionStacks::GetRenameStack(OStIdx idx) {
+  auto it = renameWithMapStacks.find(idx);
+  if (it == renameWithMapStacks.end()) {
+    return nullptr;
+  }
+  return it->second;
+}
+
+void VectorVersionStacks::InsertZeroVersion2RenameStack(SSATab &ssaTab, IRMap &irMap) {
+  for (size_t i = 1; i < renameWithVectorStacks.size(); ++i) {
+    if (renameWithVectorStacks.at(i) == nullptr) {
+      continue;
+    }
+    OriginalSt *ost = ssaTab.GetOriginalStFromID(OStIdx(i));
+    ScalarMeExpr *zeroVersScalar =
+        (ost->IsSymbolOst()) ? irMap.GetOrCreateZeroVersionVarMeExpr(*ost) : irMap.CreateRegMeExprVersion(*ost);
+    MapleStack<ScalarMeExpr*> *renameStack = renameWithVectorStacks.at(i);
+    renameStack->push(zeroVersScalar);
+  }
+}
+
+void MapVersionStacks::InsertZeroVersion2RenameStack(SSATab &ssaTab, IRMap &irMap) {
+  for (auto it = renameWithMapStacks.begin(); it != renameWithMapStacks.end(); ++it) {
+    OriginalSt *ost = ssaTab.GetOriginalStFromID(it->first);
+    ScalarMeExpr *zeroVersScalar =
+        (ost->IsSymbolOst()) ? irMap.GetOrCreateZeroVersionVarMeExpr(*ost) : irMap.CreateRegMeExprVersion(*ost);
+    MapleStack<ScalarMeExpr*> *renameStack = it->second;
+    renameStack->push(zeroVersScalar);
+  }
+}
+
+void VectorVersionStacks::InitRenameStack(OStIdx idx) {
+  renameWithVectorStacks[idx] = ssaUpdateMp.New<MapleStack<ScalarMeExpr*>>(ssaUpdateAlloc.Adapter());
+}
+
+void MapVersionStacks::InitRenameStack(OStIdx idx) {
+  renameWithMapStacks[idx] = ssaUpdateMp.New<MapleStack<ScalarMeExpr*>>(ssaUpdateAlloc.Adapter());
+}
+
+void VectorVersionStacks::RecordCurrentStackSize(std::vector<std::pair<uint32, OStIdx >> &origStackSize) {
+  origStackSize.resize(renameWithVectorStacks.size());
+  uint32 stackId = 0;
+  for (size_t i = 0; i < renameWithVectorStacks.size(); ++i) {
+    if (renameWithVectorStacks.at(i) == nullptr) {
+      continue;
+    }
+    origStackSize[i] = std::make_pair(renameWithVectorStacks.at(i)->size(), OStIdx(i));
+    ++stackId;
+  }
+}
+
+void MapVersionStacks::RecordCurrentStackSize(std::vector<std::pair<uint32, OStIdx >> &origStackSize) {
+  origStackSize.resize(renameWithMapStacks.size());
+  uint32 stackId = 0;
+  for (const auto &ost2stack : renameWithMapStacks) {
+    origStackSize[stackId] = std::make_pair(ost2stack.second->size(), ost2stack.first);
+    ++stackId;
+  }
+}
+
+void VectorVersionStacks::RecoverStackSize(std::vector<std::pair<uint32, OStIdx >> &origStackSize) {
+  for (size_t i = 1; i < renameWithVectorStacks.size(); ++i) {
+    if (renameWithVectorStacks.at(i) == nullptr) {
+      continue;
+    }
+    while (renameWithVectorStacks.at(i)->size() > origStackSize[i].first) {
+      renameWithVectorStacks.at(i)->pop();
+    }
+  }
+}
+
+void MapVersionStacks::RecoverStackSize(std::vector<std::pair<uint32, OStIdx >> &origStackSize) {
+  uint32 stackId = 0;
+  for (const auto &ost2stack : renameWithMapStacks) {
+    ASSERT(ost2stack.first == origStackSize[stackId].second,
+           "OStIdx must be equal, element of renameWithMapStacks should not be changed");
+    while (ost2stack.second->size() > origStackSize[stackId].first) {
+      ost2stack.second->pop();
+    }
+    ++stackId;
+  }
+}
+
 void MeSSAUpdate::InsertPhis() {
   auto it = updateCands.begin();
   MapleSet<BBId> dfSet(ssaUpdateAlloc.Adapter());
   auto cfg = func.GetCfg();
   for (; it != updateCands.end(); ++it) {
+    const OriginalSt *ost = ssaTab.GetOriginalStFromID(it->first);
+    if (ost->IsVolatile()) { // volatile variables will not have ssa form.
+      continue;
+    }
     dfSet.clear();
     for (const auto &bbId : *it->second) {
       dfSet.insert(dom.iterDomFrontier[bbId].begin(), dom.iterDomFrontier[bbId].end());
@@ -50,7 +140,7 @@ void MeSSAUpdate::InsertPhis() {
       (void)bb->GetMePhiList().insert(std::make_pair(it->first, phiMeNode));
     }
     // initialize its rename stack
-    renameStacks[it->first] = ssaUpdateMp.New<MapleStack<ScalarMeExpr*>>(ssaUpdateAlloc.Adapter());
+    rename->InitRenameStack(it->first);
   }
 }
 
@@ -58,15 +148,15 @@ void MeSSAUpdate::RenamePhi(const BB &bb) {
   if (bb.GetMePhiList().empty()) {
     return;
   }
-  for (auto it1 = renameStacks.begin(); it1 != renameStacks.end(); ++it1) {
-    auto it2 = bb.GetMePhiList().find(it1->first);
-    if (it2 == bb.GetMePhiList().end()) {
+  for (auto &pair : bb.GetMePhiList()) {
+    auto *renameStack = rename->GetRenameStack(pair.first);
+    if (renameStack == nullptr) {
       continue;
     }
     // if there is existing phi result node
-    MePhiNode *phi = it2->second;
+    MePhiNode *phi = pair.second;
     phi->SetIsLive(true);  // always make it live, for correctness
-    it1->second->push(phi->GetLHS());  // push the stack
+    renameStack->push(phi->GetLHS());
   }
 }
 
@@ -77,11 +167,10 @@ MeExpr *MeSSAUpdate::RenameExpr(MeExpr &meExpr, bool &changed) {
     case kMeOpVar:
     case kMeOpReg: {
       auto &varExpr = static_cast<ScalarMeExpr&>(meExpr);
-      auto it = renameStacks.find(varExpr.GetOstIdx());
-      if (it == renameStacks.end()) {
+      auto *renameStack = rename->GetRenameStack(varExpr.GetOstIdx());
+      if (renameStack == nullptr) {
         return &meExpr;
       }
-      MapleStack<ScalarMeExpr*> *renameStack = it->second;
       ScalarMeExpr *curVar = renameStack->top();
       if (&varExpr == curVar) {
         return &meExpr;
@@ -152,9 +241,9 @@ void MeSSAUpdate::RenameStmts(BB &bb) {
     auto *muList = stmt.GetMuList();
     if (muList != nullptr) {
       for (auto &mu : *muList) {
-        auto it = renameStacks.find(mu.first);
-        if (it != renameStacks.end()) {
-          mu.second = it->second->top();
+        auto *renameStack = rename->GetRenameStack(mu.first);
+        if (renameStack != nullptr) {
+          mu.second = renameStack->top();
         }
       }
     }
@@ -173,10 +262,10 @@ void MeSSAUpdate::RenameStmts(BB &bb) {
     MapleMap<OStIdx, ChiMeNode*> *chiList = stmt.GetChiList();
     if (chiList != nullptr) {
       for (auto &chi : *chiList) {
-        auto it = renameStacks.find(chi.first);
-        if (it != renameStacks.end() && chi.second != nullptr) {
-          chi.second->SetRHS(it->second->top());
-          it->second->push(chi.second->GetLHS());
+        auto *renameStack = rename->GetRenameStack(chi.first);
+        if (renameStack != nullptr && chi.second != nullptr) {
+          chi.second->SetRHS(renameStack->top());
+          renameStack->push(chi.second->GetLHS());
         }
       }
     }
@@ -185,9 +274,9 @@ void MeSSAUpdate::RenameStmts(BB &bb) {
     if (stmt.GetOp() == OP_dassign || stmt.GetOp() == OP_maydassign || stmt.GetOp() == OP_regassign) {
       lhs = stmt.GetLHS();
       CHECK_FATAL(lhs != nullptr, "stmt doesn't have lhs?");
-      auto it = renameStacks.find(lhs->GetOstIdx());
-      if (it != renameStacks.end()) {
-        it->second->push(lhs);
+      auto *renameStack = rename->GetRenameStack(lhs->GetOstIdx());
+      if (renameStack != nullptr) {
+        renameStack->push(lhs);
       }
     } else if (kOpcodeInfo.IsCallAssigned(stmt.GetOp())) {
       MapleVector<MustDefMeNode> *mustDefList = stmt.GetMustDefList();
@@ -195,9 +284,9 @@ void MeSSAUpdate::RenameStmts(BB &bb) {
       for (; mustdefit != mustDefList->end(); ++mustdefit) {
         lhs = (*mustdefit).GetLHS();
         CHECK_FATAL(lhs != nullptr, "stmt doesn't have lhs?");
-        auto it = renameStacks.find(lhs->GetOstIdx());
-        if (it != renameStacks.end()) {
-          it->second->push(lhs);
+        auto *renameStack = rename->GetRenameStack(lhs->GetOstIdx());
+        if (renameStack != nullptr) {
+          renameStack->push(lhs);
         }
       }
     }
@@ -211,13 +300,12 @@ void MeSSAUpdate::RenamePhiOpndsInSucc(const BB &bb) {
     }
     auto predIdx = static_cast<size_t>(succ->GetPredIndex(bb));
     CHECK_FATAL(predIdx < succ->GetPred().size(), "RenamePhiOpndsinSucc: cannot find corresponding pred");
-    for (auto it1 = renameStacks.begin(); it1 != renameStacks.end(); ++it1) {
-      auto it2 = succ->GetMePhiList().find(it1->first);
-      if (it2 == succ->GetMePhiList().end()) {
+    for (auto &pair : succ->GetMePhiList()) {
+      auto *renameStack = rename->GetRenameStack(pair.first);
+      if (renameStack == nullptr) {
         continue;
       }
-      MePhiNode *phi = it2->second;
-      MapleStack<ScalarMeExpr*> *renameStack = it1->second;
+      MePhiNode *phi = pair.second;
       ScalarMeExpr *curScalar = renameStack->top();
       if (phi->GetOpnd(predIdx) != curScalar) {
         phi->SetOpnd(predIdx, curScalar);
@@ -227,38 +315,26 @@ void MeSSAUpdate::RenamePhiOpndsInSucc(const BB &bb) {
 }
 
 void MeSSAUpdate::RenameBB(BB &bb) {
-  // for recording stack height on entering this BB, to pop back to same height
+  // for recording stack height on entering this BB, to  back to same height
   // when backing up the dominator tree
-  std::vector<std::pair<uint32, OStIdx >> origStackSize(renameStacks.size());
-  auto cfg = func.GetCfg();
-  uint32 stackId = 0;
-  for (const auto &ost2stack : renameStacks) {
-    origStackSize[stackId] = std::make_pair(ost2stack.second->size(), ost2stack.first);
-    ++stackId;
-  }
+  std::vector<std::pair<uint32, OStIdx>> origStackSize;
+  rename->RecordCurrentStackSize(origStackSize);
 
   RenamePhi(bb);
   RenameStmts(bb);
   RenamePhiOpndsInSucc(bb);
   // recurse down dominator tree in pre-order traversal
+  auto cfg = func.GetCfg();
   const auto &children = dom.GetDomChildren(bb.GetBBId());
   for (const auto &child : children) {
     RenameBB(*cfg->GetBBFromID(child));
   }
   // pop stacks back to where they were at entry to this BB
-  stackId = 0;
-  for (const auto &ost2stack : renameStacks) {
-    ASSERT(ost2stack.first == origStackSize[stackId].second,
-           "OStIdx must be equal, element of renameStacks should not be changed");
-    while (ost2stack.second->size() > origStackSize[stackId].first) {
-      ost2stack.second->pop();
-    }
-    ++stackId;
-  }
+  rename->RecoverStackSize(origStackSize);
 }
 
 void MeSSAUpdate::InsertOstToSSACands(OStIdx ostIdx, const BB &defBB,
-                                      std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCands) {
+    std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCands) {
   if (ssaCands == nullptr) {
     return;
   }
@@ -272,15 +348,22 @@ void MeSSAUpdate::InsertOstToSSACands(OStIdx ostIdx, const BB &defBB,
   }
 }
 
+// Insert ost and def bbs to ssa cands except the updateSSAExceptTheOstIdx.
 void MeSSAUpdate::InsertDefPointsOfBBToSSACands(
-    BB &defBB, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &ssaCands) {
+    BB &defBB, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &ssaCands, OStIdx updateSSAExceptTheOstIdx) {
   // Insert the ost of philist to defBB.
   for (auto &it : defBB.GetMePhiList()) {
+    if (it.first == updateSSAExceptTheOstIdx) {
+      continue;
+    }
     MeSSAUpdate::InsertOstToSSACands(it.first, defBB, &ssaCands);
   }
   // Insert the ost of def points to the def bbs.
   for (auto &meStmt : defBB.GetMeStmts()) {
     if (kOpcodeInfo.AssignActualVar(meStmt.GetOp()) && meStmt.GetLHS() != nullptr) {
+      if (meStmt.GetLHS()->GetOstIdx() == updateSSAExceptTheOstIdx) {
+        continue;
+      }
       MeSSAUpdate::InsertOstToSSACands(meStmt.GetLHS()->GetOstIdx(), defBB, &ssaCands);
     }
     if (meStmt.GetChiList() != nullptr) {
@@ -300,15 +383,20 @@ void MeSSAUpdate::InsertDefPointsOfBBToSSACands(
 }
 
 void MeSSAUpdate::Run() {
+  VectorVersionStacks renameWithVectorStack(ssaUpdateMp);
+  MapVersionStacks renameWithMapStack(ssaUpdateMp);
+  // When the number of osts is greater than kOstLimitSize or greater than half of the size of original ost table,
+  // use the RenameWithVectorStack object to update the ssa, otherwise,
+  // use the RenameWithMapStack object to update the ssa.
+  if (updateCands.size() >= kOstLimitSize || updateCands.size() >= ssaTab.GetOriginalStTableSize() / 2) {
+    renameWithVectorStack.ResizeRenameStack(ssaTab.GetOriginalStTableSize());
+    rename = &renameWithVectorStack;
+  } else {
+    rename = &renameWithMapStack;
+  }
   InsertPhis();
   // push zero-version varmeexpr nodes to rename stacks
-  for (auto it = renameStacks.begin(); it != renameStacks.end(); ++it) {
-    OriginalSt *ost = ssaTab.GetOriginalStFromID(it->first);
-    ScalarMeExpr *zeroVersScalar =
-        (ost->IsSymbolOst()) ? irMap.GetOrCreateZeroVersionVarMeExpr(*ost) : irMap.CreateRegMeExprVersion(*ost);
-    MapleStack<ScalarMeExpr*> *renameStack = it->second;
-    renameStack->push(zeroVersScalar);
-  }
+  rename->InsertZeroVersion2RenameStack(ssaTab, irMap);
   // recurse down dominator tree in pre-order traversal
   auto cfg = func.GetCfg();
   const auto &children = dom.GetDomChildren(cfg->GetCommonEntryBB()->GetBBId());
