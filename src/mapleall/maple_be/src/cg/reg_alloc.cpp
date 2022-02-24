@@ -13,26 +13,32 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "reg_alloc.h"
-#include "aarch64_cg.h"
 #include "live.h"
+#include "loop.h"
 #include "cg_dominance.h"
 #include "mir_lower.h"
 #include "securec.h"
 #include "reg_alloc_basic.h"
+#include "cg.h"
+#if TARGAARCH64
 #include "aarch64_lsra.h"
 #include "aarch64_color_ra.h"
+#endif
 
 namespace maplebe {
 
 bool RegAllocator::IsYieldPointReg(regno_t regNO) const {
+#if TARGAARCH64
   if (cgFunc->GetCG()->GenYieldPoint()) {
     return (regNO == RYP);
   }
+#endif
   return false;
 }
 
 /* Those registers can not be overwrite. */
 bool RegAllocator::IsUntouchableReg(regno_t regNO) const {
+#if TARGAARCH64
   if ((regNO == RSP) || (regNO == RFP)) {
     return true;
   }
@@ -41,7 +47,7 @@ bool RegAllocator::IsUntouchableReg(regno_t regNO) const {
   if (cgFunc->GetCG()->GenYieldPoint() && (regNO == RYP)) {
     return true;
   }
-
+#endif
   return false;
 }
 
@@ -73,6 +79,7 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
     if (Globals::GetInstance()->GetOptimLevel() == 0) {
       regAllocator = phaseMp->New<DefaultO0RegAllocator>(f, *phaseMp);
     } else {
+#if TARGAARCH64
       if (f.GetCG()->GetCGOptions().DoLinearScanRegisterAllocation()) {
         regAllocator = phaseMp->New<LSRALinearScanRegAllocator>(f, *phaseMp);
       } else if (f.GetCG()->GetCGOptions().DoColoringBasedRegisterAllocation()) {
@@ -81,6 +88,7 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
         maple::LogInfo::MapleLogger(kLlErr) <<
             "Warning: We only support Linear Scan and GraphColor register allocation\n";
       }
+#endif
     }
 
     CHECK_FATAL(regAllocator != nullptr, "regAllocator is null in CgDoRegAlloc::Run");
