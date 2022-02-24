@@ -817,7 +817,7 @@ class UbfxToUxtwPattern : public CGPeepPattern {
  */
 class RemoveIdenticalLoadAndStorePattern : public CGPeepPattern {
  public:
-  explicit RemoveIdenticalLoadAndStorePattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+  RemoveIdenticalLoadAndStorePattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
       : CGPeepPattern(cgFunc, currBB, currInsn) {}
   ~RemoveIdenticalLoadAndStorePattern() override = default;
   void Run(BB &bb, Insn &insn) override;
@@ -880,7 +880,7 @@ class RemoveMovingtoSameRegAArch64 : public PeepPattern {
  */
 class CombineContiLoadAndStorePattern : public CGPeepPattern {
  public:
-  explicit CombineContiLoadAndStorePattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+  CombineContiLoadAndStorePattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
       : CGPeepPattern(cgFunc, currBB, currInsn) {
     doAggressiveCombine = cgFunc.GetMirModule().IsCModule();
   }
@@ -956,11 +956,19 @@ class EliminateSpecifcUXTAArch64 : public PeepPattern {
  * mov  ireg2 <- ireg1   current insn
  * use  ireg1            may or may not be present
  */
-class FmovRegAArch64 : public PeepPattern {
+class FmovRegPattern : public CGPeepPattern {
  public:
-  explicit FmovRegAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~FmovRegAArch64() override = default;
+  FmovRegPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~FmovRegPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "FmovRegPattern";
+  }
+
+ private:
+  Insn *prevInsn = nullptr;
+  Insn *nextInsn = nullptr;
 };
 
 /* cbnz x0, labelA
@@ -971,11 +979,20 @@ class FmovRegAArch64 : public PeepPattern {
  * cbz x0, return-bb
  * labelA:
  */
-class CbnzToCbzAArch64 : public PeepPattern {
+class CbnzToCbzPattern : public CGPeepPattern {
  public:
-  explicit CbnzToCbzAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~CbnzToCbzAArch64() override = default;
+  CbnzToCbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~CbnzToCbzPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "CbnzToCbzPattern";
+  }
+
+ private:
+  BB *nextBB = nullptr;
+  Insn *movInsn = nullptr;
+  Insn *brInsn = nullptr;
 };
 
 /* i.   cset    w0, EQ
