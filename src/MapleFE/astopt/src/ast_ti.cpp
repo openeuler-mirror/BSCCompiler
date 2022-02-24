@@ -1823,7 +1823,10 @@ UserTypeNode *TypeInferVisitor::VisitUserTypeNode(UserTypeNode *node) {
     SetTypeId(node, TY_Array);
     SetTypeIdx(node, TY_Array);
   } else if (node->GetId()) {
-    SetTypeId(node, TY_Class);
+    // non-enum user type which keep TY_None
+    if (node->GetId()->GetTypeId() != TY_None) {
+      SetTypeId(node, TY_Class);
+    }
     UpdateTypeIdx(node, node->GetId());
   }
   TreeNode *parent = node->GetParent();
