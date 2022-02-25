@@ -63,8 +63,6 @@ class CGPeepPattern {
     return "cgpeephole";
   }
 
-  virtual void Run(BB &bb, Insn &insn) = 0;
-  virtual bool CheckCondition(Insn &insn) = 0;
   virtual std::string GetPatternName() = 0;
   Insn *GetDefInsn(const RegOperand &useReg);
   void DumpAfterPattern(std::vector<Insn*> &prevInsns, const Insn *replacedInsn, const Insn *newInsn);
@@ -72,6 +70,12 @@ class CGPeepPattern {
   int64 GetLogValueAtBase2(int64 val) const;
   /* The CC reg is unique and cannot cross-version props. */
   bool IsCCRegCrossVersion(Insn &startInsn, Insn &endInsn, const RegOperand &ccReg);
+  /* optimization support function */
+  bool IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &insn);
+  bool FindRegLiveOut(const RegOperand &regOpnd, const BB &bb);
+  bool CheckOpndLiveinSuccs(const RegOperand &regOpnd, const BB &bb) const;
+  bool CheckRegLiveinReturnBB(const RegOperand &regOpnd, const BB &bb) const;
+  ReturnType IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) const;
   bool GetPatternRes() const {
     return optSuccess;
   }
@@ -88,6 +92,8 @@ class CGPeepPattern {
   Insn *currInsn;
   CGSSAInfo *ssaInfo;
   bool optSuccess = false;
+  virtual void Run(BB &bb, Insn &insn) = 0;
+  virtual bool CheckCondition(Insn &insn) = 0;
 };
 
 class PeepHoleOptimizer {

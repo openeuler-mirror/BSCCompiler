@@ -134,6 +134,227 @@ void CGPeepPattern::DumpAfterPattern(std::vector<Insn*> &prevInsns, const Insn *
   }
 }
 
+/* Check if a regOpnd is live after insn. True if live, otherwise false. */
+bool CGPeepPattern::IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &insn) {
+  for (Insn *nextInsn = insn.GetNext(); nextInsn != nullptr; nextInsn = nextInsn->GetNext()) {
+    if (!nextInsn->IsMachineInstruction()) {
+      continue;
+    }
+    int32 lastOpndId = static_cast<int32>(nextInsn->GetOperandSize() - 1);
+    for (int32 i = lastOpndId; i >= 0; --i) {
+      Operand &opnd = nextInsn->GetOperand(static_cast<uint32>(i));
+      if (opnd.IsMemoryAccessOperand()) {
+        auto &mem = static_cast<MemOperand&>(opnd);
+        Operand *base = mem.GetBaseRegister();
+        Operand *offset = mem.GetOffset();
+
+        if (base != nullptr && base->IsRegister()) {
+          auto *tmpRegOpnd = static_cast<RegOperand*>(base);
+          if (tmpRegOpnd->GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
+            return true;
+          }
+        }
+        if (offset != nullptr && offset->IsRegister()) {
+          auto *tmpRegOpnd = static_cast<RegOperand*>(offset);
+          if (tmpRegOpnd->GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
+            return true;
+          }
+        }
+      }
+
+      if (!opnd.IsRegister()) {
+        continue;
+      }
+      auto &tmpRegOpnd = static_cast<RegOperand&>(opnd);
+      if (opnd.IsRegister() && tmpRegOpnd.GetRegisterNumber() != regOpnd.GetRegisterNumber()) {
+        continue;
+      }
+#if TARGAARCH64 || TARGRISCV64
+      const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(nextInsn)->GetMachineOpcode()];
+      auto *regProp = static_cast<AArch64OpndProp*>(md->operand[static_cast<uint64>(i)]);
+#endif
+#if TARGARM32
+      const Arm32MD *md = &Arm32CG::kMd[static_cast<Arm32Insn*>(nextInsn)->GetMachineOpcode()];
+      auto *regProp = static_cast<Arm32OpndProp*>(md->operand[i]);
+#endif
+      bool isUse = regProp->IsUse();
+      /* if noUse Redefined, no need to check live-out. */
+      return isUse;
+    }
+  }
+  /* Check if it is live-out. */
+  return FindRegLiveOut(regOpnd, *insn.GetBB());
+}
+
+/* entrance for find if a regOpnd is live-out. */
+bool CGPeepPattern::FindRegLiveOut(const RegOperand &regOpnd, const BB &bb) {
+  /*
+   * Each time use peephole, index is initialized by the constructor,
+   * and the internal_flags3 should be cleared.
+   */
+  if (PeepOptimizer::index == 0) {
+    FOR_ALL_BB(currbb, cgFunc) {
+      currbb->SetInternalFlag3(0);
+    }
+  }
+  /* before each invoke check function, increase index. */
+  ++PeepOptimizer::index;
+  return CheckOpndLiveinSuccs(regOpnd, bb);
+}
+
+/* Check regOpnd in succs/ehSuccs. True is live-out, otherwise false. */
+bool CGPeepPattern::CheckOpndLiveinSuccs(const RegOperand &regOpnd, const BB &bb) const {
+  for (auto succ : bb.GetSuccs()) {
+    ASSERT(succ->GetInternalFlag3() <= PeepOptimizer::index, "internal error.");
+    if (succ->GetInternalFlag3() == PeepOptimizer::index)  {
+      continue;
+    }
+    succ->SetInternalFlag3(PeepOptimizer::index);
+    ReturnType result = IsOpndLiveinBB(regOpnd, *succ);
+    if (result == kResNotFind) {
+      if (CheckOpndLiveinSuccs(regOpnd, *succ)) {
+        return true;
+      }
+      continue;
+    } else if (result == kResUseFirst) {
+      return true;
+    } else if (result == kResDefFirst) {
+      continue;
+    }
+  }
+  for (auto ehSucc : bb.GetEhSuccs()) {
+    ASSERT(ehSucc->GetInternalFlag3() <= PeepOptimizer::index, "internal error.");
+    if (ehSucc->GetInternalFlag3() == PeepOptimizer::index) {
+      continue;
+    }
+    ehSucc->SetInternalFlag3(PeepOptimizer::index);
+    ReturnType result = IsOpndLiveinBB(regOpnd, *ehSucc);
+    if (result == kResNotFind) {
+      if (CheckOpndLiveinSuccs(regOpnd, *ehSucc)) {
+        return true;
+      }
+      continue;
+    } else if (result == kResUseFirst) {
+      return true;
+    } else if (result == kResDefFirst) {
+      continue;
+    }
+  }
+  return CheckRegLiveinReturnBB(regOpnd, bb);
+}
+
+/* Check if the reg is used in return BB */
+bool CGPeepPattern::CheckRegLiveinReturnBB(const RegOperand &regOpnd, const BB &bb) const {
+#if TARGAARCH64 || TARGRISCV64
+  if (bb.GetKind() == BB::kBBReturn) {
+    regno_t regNO = regOpnd.GetRegisterNumber();
+    RegType regType = regOpnd.GetRegisterType();
+    if (regType == kRegTyVary) {
+      return false;
+    }
+    PrimType returnType = cgFunc->GetFunction().GetReturnType()->GetPrimType();
+    regno_t returnReg = R0;
+    if (IsPrimitiveFloat(returnType)) {
+      returnReg = V0;
+    } else if (IsPrimitiveInteger(returnType)) {
+      returnReg = R0;
+    }
+    if (regNO == returnReg) {
+      return true;
+    }
+  }
+#endif
+  return false;
+}
+
+/*
+ * Check regNO in current bb:
+ * kResUseFirst:first find use point; kResDefFirst:first find define point;
+ * kResNotFind:cannot find regNO, need to continue searching.
+ */
+ReturnType CGPeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) const {
+  FOR_BB_INSNS_CONST(insn, &bb) {
+    if (!insn->IsMachineInstruction()) {
+      continue;
+    }
+#if TARGAARCH64 || TARGRISCV64
+    const AArch64MD *md = &AArch64CG::kMd[static_cast<const AArch64Insn*>(insn)->GetMachineOpcode()];
+#endif
+#if TARGARM32
+    const Arm32MD *md = &Arm32CG::kMd[static_cast<const Arm32Insn*>(insn)->GetMachineOpcode()];
+#endif
+    int32 lastOpndId = static_cast<int32>(insn->GetOperandSize() - 1);
+    for (int32 i = lastOpndId; i >= 0; --i) {
+      Operand &opnd = insn->GetOperand(static_cast<uint32>(i));
+#if TARGAARCH64 || TARGRISCV64
+      auto *regProp = static_cast<AArch64OpndProp*>(md->operand[static_cast<uint64>(i)]);
+#endif
+#if TARGARM32
+      auto *regProp = static_cast<Arm32OpndProp*>(md->operand[i]);
+#endif
+      if (opnd.IsConditionCode()) {
+        if (regOpnd.GetRegisterNumber() == kRFLAG) {
+          bool isUse = regProp->IsUse();
+          if (isUse) {
+            return kResUseFirst;
+          }
+          ASSERT(regProp->IsDef(), "register should be redefined.");
+          return kResDefFirst;
+        }
+      } else if (opnd.IsList()) {
+        auto &listOpnd = static_cast<ListOperand&>(opnd);
+        if (insn->GetMachineOpcode() == MOP_asm) {
+          if (static_cast<uint32>(i) == kAsmOutputListOpnd || static_cast<uint32>(i) == kAsmClobberListOpnd) {
+            for (auto op : listOpnd.GetOperands()) {
+              if (op->GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
+                return kResDefFirst;
+              }
+            }
+            continue;
+          } else if (static_cast<uint32>(i) != kAsmInputListOpnd) {
+            continue;
+          }
+          /* fall thru for kAsmInputListOpnd */
+        }
+        for (auto op : listOpnd.GetOperands()) {
+          if (op->GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
+            return kResUseFirst;
+          }
+        }
+      } else if (opnd.IsMemoryAccessOperand()) {
+        auto &mem = static_cast<MemOperand&>(opnd);
+        Operand *base = mem.GetBaseRegister();
+        Operand *offset = mem.GetOffset();
+
+        if (base != nullptr) {
+          ASSERT(base->IsRegister(), "internal error.");
+          auto *tmpRegOpnd = static_cast<RegOperand*>(base);
+          if (tmpRegOpnd->GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
+            return kResUseFirst;
+          }
+        }
+        if (offset != nullptr && offset->IsRegister()) {
+          auto *tmpRegOpnd = static_cast<RegOperand*>(offset);
+          if (tmpRegOpnd->GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
+            return kResUseFirst;
+          }
+        }
+      } else if (opnd.IsRegister()) {
+        auto &tmpRegOpnd = static_cast<RegOperand&>(opnd);
+        if (tmpRegOpnd.GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
+          bool isUse = regProp->IsUse();
+          if (isUse) {
+            return kResUseFirst;
+          }
+          ASSERT(regProp->IsDef(), "register should be redefined.");
+          return kResDefFirst;
+        }
+      }
+    }
+  }
+  return kResNotFind;
+}
+
 int PeepPattern::logValueAtBase2(int64 val) const {
   return (__builtin_popcountll(static_cast<uint64>(val)) == 1) ? (__builtin_ffsll(val) - 1) : (-1);
 }

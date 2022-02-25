@@ -1019,11 +1019,21 @@ class CsetCbzToBeqOptAArch64 : public PeepPattern {
 /* When exist load after load or load after store, and [MEM] is
  * totally same. Then optimize them.
  */
-class ContiLDRorSTRToSameMEMAArch64 : public PeepPattern {
+class ContiLDRorSTRToSameMEMPattern : public CGPeepPattern {
  public:
-  explicit ContiLDRorSTRToSameMEMAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~ContiLDRorSTRToSameMEMAArch64() override = default;
+  ContiLDRorSTRToSameMEMPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~ContiLDRorSTRToSameMEMPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "ContiLDRorSTRToSameMEMPattern";
+  }
+
+ private:
+  Insn *prevInsn = nullptr;
+  bool loadAfterStore = false;
+  bool loadAfterLoad = false;
 };
 
 /*
@@ -1084,11 +1094,19 @@ class InlineReadBarriersAArch64 : public PeepPattern {
  *    asr     x16, x16, #17
  *    add     x2, x16, x0, LSR #31
  */
-class ReplaceDivToMultiAArch64 : public PeepPattern {
+class ReplaceDivToMultiPattern : public CGPeepPattern {
  public:
-  explicit ReplaceDivToMultiAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~ReplaceDivToMultiAArch64() override = default;
+  ReplaceDivToMultiPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~ReplaceDivToMultiPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "ReplaceDivToMultiPattern";
+  }
+
+ private:
+  Insn *prevInsn = nullptr;
+  Insn *prePrevInsn = nullptr;
 };
 
 /*
