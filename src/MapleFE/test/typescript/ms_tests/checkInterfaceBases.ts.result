@@ -1,9 +1,12 @@
 Matched 16 tokens.
 Matched 24 tokens.
 Matched 32 tokens.
+Matched 40 tokens.
 ============= Module ===========
 == Sub Tree ==
 ts_interface: JQueryEventObjectTest {data;which;metaKey }
+== Sub Tree ==
+trip-slash reference path = "jquery.d.ts"
 == Sub Tree ==
 ts_interface: SecondEvent {data }
 == Sub Tree ==
