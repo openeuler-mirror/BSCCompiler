@@ -90,8 +90,6 @@ inline bool IsVarInitClass(DeclNode* node) {
          node->GetInit()->IsIdentifier();
 }
 
-bool IsBuiltinObj(std::string name);
-
 template <class T>
 bool HasAttrStatic(T* node) {
   for (unsigned i = 0; i < node->GetAttrsNum(); ++i) {

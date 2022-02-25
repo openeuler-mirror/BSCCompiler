@@ -47,6 +47,7 @@ inline std::string GeneratorFuncName(std::string func) { return "GeneratorFunc_"
 extern void HandleThisParam(unsigned nParams, TreeNode* node, std::string& params, std::string&args);
 extern std::string hlpGetJSValTypeStr(TypeId typeId);
 extern std::string ArrayCtorName(int dim, std::string type);
+extern bool IsBuiltinObj(std::string name);
 
 class FuncTable {
 private:
