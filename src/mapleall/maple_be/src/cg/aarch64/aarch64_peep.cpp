@@ -1997,6 +1997,7 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
     case MOP_qldr:
     case MOP_qstr: {
       manager->NormalPatternOpt<CombineContiLoadAndStorePattern>(cgFunc->IsAfterRegAlloc());
+      manager->NormalPatternOpt<ContiLDRorSTRToSameMEMPattern>(cgFunc->IsAfterRegAlloc());
       manager->NormalPatternOpt<RemoveIdenticalLoadAndStorePattern>(cgFunc->IsAfterRegAlloc());
       break;
     }
@@ -2010,6 +2011,10 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
       manager->NormalPatternOpt<CbnzToCbzPattern>(cgFunc->IsAfterRegAlloc());
       break;
     }
+    case MOP_wsdivrrr: {
+      manager->NormalPatternOpt<ReplaceDivToMultiPattern>(cgFunc->IsAfterRegAlloc());
+      break;
+    }
     default:
       break;
   }
@@ -2021,10 +2026,8 @@ void AArch64PeepHole::InitOpts() {
   optimizations[kEliminateSpecifcSXTOpt] = optOwnMemPool->New<EliminateSpecifcSXTAArch64>(cgFunc);
   optimizations[kEliminateSpecifcUXTOpt] = optOwnMemPool->New<EliminateSpecifcUXTAArch64>(cgFunc);
   optimizations[kCsetCbzToBeqOpt] = optOwnMemPool->New<CsetCbzToBeqOptAArch64>(cgFunc);
-  optimizations[kContiLDRorSTRToSameMEMOpt] = optOwnMemPool->New<ContiLDRorSTRToSameMEMAArch64>(cgFunc);
   optimizations[kRemoveIncDecRefOpt] = optOwnMemPool->New<RemoveIncDecRefAArch64>(cgFunc);
   optimizations[kInlineReadBarriersOpt] = optOwnMemPool->New<InlineReadBarriersAArch64>(cgFunc);
-  optimizations[kReplaceDivToMultiOpt] = optOwnMemPool->New<ReplaceDivToMultiAArch64>(cgFunc);
   optimizations[kAndCmpBranchesToCsetOpt] = optOwnMemPool->New<AndCmpBranchesToCsetAArch64>(cgFunc);
   optimizations[kAndCmpBranchesToTstOpt] = optOwnMemPool->New<AndCmpBranchesToTstAArch64>(cgFunc);
   optimizations[kAndCbzBranchesToTstOpt] = optOwnMemPool->New<AndCbzBranchesToTstAArch64>(cgFunc);
@@ -2035,23 +2038,6 @@ void AArch64PeepHole::InitOpts() {
 void AArch64PeepHole::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   switch (thisMop) {
-    case MOP_wstrb:
-    case MOP_wldrb:
-    case MOP_wstrh:
-    case MOP_wldrh:
-    case MOP_xldr:
-    case MOP_xstr:
-    case MOP_wldr:
-    case MOP_wstr:
-    case MOP_dldr:
-    case MOP_dstr:
-    case MOP_sldr:
-    case MOP_sstr:
-    case MOP_qldr:
-    case MOP_qstr: {
-      (static_cast<ContiLDRorSTRToSameMEMAArch64*>(optimizations[kContiLDRorSTRToSameMEMOpt]))->Run(bb, insn);
-      break;
-    }
     case MOP_xsxtb32:
     case MOP_xsxth32:
     case MOP_xsxtb64:
@@ -2078,10 +2064,6 @@ void AArch64PeepHole::Run(BB &bb, Insn &insn) {
     }
     case MOP_xbl: {
       (static_cast<RemoveIncDecRefAArch64*>(optimizations[kRemoveIncDecRefOpt]))->Run(bb, insn);
-      break;
-    }
-    case MOP_wsdivrrr: {
-      (static_cast<ReplaceDivToMultiAArch64*>(optimizations[kReplaceDivToMultiOpt]))->Run(bb, insn);
       break;
     }
     case MOP_wcsetrc:
@@ -3235,16 +3217,14 @@ MOperator CsetCbzToBeqOptAArch64::SelectMOperator(AArch64CC_t condCode, bool inv
   }
 }
 
-void ContiLDRorSTRToSameMEMAArch64::Run(BB &bb, Insn &insn) {
-  Insn *prevInsn = insn.GetPrev();
-  while (prevInsn != nullptr && !prevInsn->GetMachineOpcode() && prevInsn != bb.GetFirstInsn()) {
+bool ContiLDRorSTRToSameMEMPattern::CheckCondition(Insn &insn) {
+  prevInsn = insn.GetPrev();
+  while (prevInsn != nullptr && !prevInsn->GetMachineOpcode() && prevInsn != insn.GetBB()->GetFirstInsn()) {
     prevInsn = prevInsn->GetPrev();
   }
   if (!insn.IsMachineInstruction() || prevInsn == nullptr) {
-    return;
+    return false;
   }
-  bool loadAfterStore = false;
-  bool loadAfterLoad = false;
   MOperator thisMop = insn.GetMachineOpcode();
   MOperator prevMop = prevInsn->GetMachineOpcode();
   /*
@@ -3264,11 +3244,18 @@ void ContiLDRorSTRToSameMEMAArch64::Run(BB &bb, Insn &insn) {
     loadAfterLoad = true;
   }
   if (!loadAfterStore && !loadAfterLoad) {
-    return;
+    return false;
   }
   ASSERT(insn.GetOperand(kInsnSecondOpnd).IsMemoryAccessOperand(), "expects mem operands");
   ASSERT(prevInsn->GetOperand(kInsnSecondOpnd).IsMemoryAccessOperand(), "expects mem operands");
+  return true;
+}
 
+void ContiLDRorSTRToSameMEMPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  MOperator thisMop = insn.GetMachineOpcode();
   auto &memOpnd1 = static_cast<AArch64MemOperand&>(insn.GetOperand(kInsnSecondOpnd));
   AArch64MemOperand::AArch64AddressingMode addrMode1 = memOpnd1.GetAddrMode();
   if (addrMode1 != AArch64MemOperand::kAddrModeBOi || (!memOpnd1.IsIntactIndexed())) {
@@ -3324,7 +3311,7 @@ void ContiLDRorSTRToSameMEMAArch64::Run(BB &bb, Insn &insn) {
       }
     }
     if (moveSameReg == false) {
-      CG *cg = cgFunc.GetCG();
+      CG *cg = cgFunc->GetCG();
       bb.InsertInsnAfter(*prevInsn, cg->BuildInstruction<AArch64Insn>(newOp, reg1, reg2));
     }
     bb.RemoveInsn(insn);
@@ -3504,21 +3491,30 @@ void InlineReadBarriersAArch64::Run(BB &bb, Insn &insn) {
   }
 }
 
-void ReplaceDivToMultiAArch64::Run(BB &bb, Insn &insn) {
-  Insn *prevInsn = insn.GetPreviousMachineInsn();
+bool ReplaceDivToMultiPattern::CheckCondition(Insn &insn) {
+  prevInsn = insn.GetPreviousMachineInsn();
   if (prevInsn == nullptr) {
-    return;
+    return false;
   }
-  Insn *prePrevInsn = prevInsn->GetPreviousMachineInsn();
+  prePrevInsn = prevInsn->GetPreviousMachineInsn();
   auto &sdivOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   auto &sdivOpnd2 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
   if (sdivOpnd1.GetRegisterNumber() == sdivOpnd2.GetRegisterNumber() || sdivOpnd1.GetRegisterNumber() == R16 ||
       sdivOpnd2.GetRegisterNumber() == R16 || prePrevInsn == nullptr) {
-    return;
+    return false;
   }
   MOperator prevMop = prevInsn->GetMachineOpcode();
   MOperator prePrevMop = prePrevInsn->GetMachineOpcode();
   if (prevMop && (prevMop == MOP_wmovkri16) && prePrevMop && (prePrevMop == MOP_xmovri32)) {
+    return true;
+  }
+  return false;
+}
+
+void ReplaceDivToMultiPattern::Run(BB &bb, Insn &insn) {
+  if (CheckCondition(insn)) {
+    auto &sdivOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+    auto &sdivOpnd2 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
   /* Check if dest operand of insn is idential with  register of prevInsn and prePrevInsn. */
     if ((&(prevInsn->GetOperand(kInsnFirstOpnd)) != &sdivOpnd2) ||
         (&(prePrevInsn->GetOperand(kInsnFirstOpnd)) != &sdivOpnd2)) {
@@ -3537,8 +3533,8 @@ void ReplaceDivToMultiAArch64::Run(BB &bb, Insn &insn) {
     if ((prevImmOpnd.GetValue() != 1) || (prePrevImmOpnd.GetValue() != 34464)) {
       return;
     }
-    auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
-    CG *cg = cgFunc.GetCG();
+    auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+    CG *cg = cgFunc->GetCG();
     /* mov   w16, #0x588f */
     RegOperand &tempOpnd = aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16),
                                                                              k64BitSize, kRegTyInt);
