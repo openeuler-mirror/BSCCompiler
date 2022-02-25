@@ -622,24 +622,6 @@ std::string CppDecl::EmitFieldNode(FieldNode *node) {
   return std::string();
 }
 
-// note: entries below are to match values from ast nodes. Do not prepend with "t2crt::"
-std::vector<std::string>builtins = {"Object", "Function", "Number", "Array", "Record"};
-
-bool IsBuiltinObj(std::string name) {
- return std::find(builtins.begin(), builtins.end(), name) != builtins.end();
-}
-
-std::string GetUserTypeString(UserTypeNode* n) {
-  std::string str="";
-  if (n->GetId()->IsTypeIdClass())
-    str = n->GetId()->GetName() + "*"s;
-  else if (IsBuiltinObj(n->GetId()->GetName()))
-    str = "t2crt::"s + n->GetId()->GetName() + "*"s;
-  else // TypeAlias Id
-    str = n->GetId()->GetName();
-  return str;
-}
-
 std::string CppDecl::GetTypeString(TreeNode *node, TreeNode *child) {
   std::string str;
   if (node) {
