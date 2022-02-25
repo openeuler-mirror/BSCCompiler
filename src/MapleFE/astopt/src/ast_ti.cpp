@@ -625,7 +625,7 @@ bool TypeInferVisitor::UpdateVarTypeWithInit(TreeNode *var, TreeNode *init) {
   IdentifierNode *idnode = static_cast<IdentifierNode *>(var);
   TreeNode *type = idnode->GetType();
   // use init NewNode to set decl type
-  if (!type && init) {
+  if (init) {
     if (init->IsNew()) {
       NewNode *n = static_cast<NewNode *>(init);
       if (n->GetId()) {
@@ -650,25 +650,28 @@ bool TypeInferVisitor::UpdateVarTypeWithInit(TreeNode *var, TreeNode *init) {
     } else if (init->IsArrayLiteral()) {
       TypeId tid = GetArrayElemTypeId(init);
       unsigned tidx = GetArrayElemTypeIdx(init);
+      if (type) {
+        if (type->IsArrayType()) {
+          ArrayTypeNode *pat = static_cast<ArrayTypeNode *>(type);
+          // update array element type
+          SetTypeId(pat->GetElemType(), tid);
+          SetTypeIdx(pat->GetElemType(), tidx);
+          SetUpdated();
+        } else {
+          NOTYETIMPL("array type not ArrayTypeNode");
+        }
+          return result;
+      }
+
+      TreeNode *elemtype = NULL;
       if (IsPrimTypeId(tid)) {
-        PrimTypeNode *pt = mHandler->NewTreeNode<PrimTypeNode>();
-        pt->SetPrimType(tid);
-
-        PrimArrayTypeNode *pat = mHandler->NewTreeNode<PrimArrayTypeNode>();
-        pat->SetPrim(pt);
-
-        DimensionNode *dims = mHandler->GetArrayDim(init->GetNodeId());
-        pat->SetDims(dims);
-
-        pat->SetParent(idnode);
-        idnode->SetType(pat);
-        SetUpdated();
+        elemtype = gTypeTable.GetTypeFromTypeId(tid);
       } else if (tidx != 0) {
-        TreeNode *t = gTypeTable.GetTypeFromTypeIdx(tidx);
-        UserTypeNode *utype = mInfo->CreateUserTypeNode(t->GetStrIdx(), var->GetScope());
-
+        elemtype = gTypeTable.GetTypeFromTypeIdx(tidx);
+      }
+      if (elemtype) {
         ArrayTypeNode *pat = mHandler->NewTreeNode<ArrayTypeNode>();
-        pat->SetElemType(utype);
+        pat->SetElemType(elemtype);
 
         DimensionNode *dims = mHandler->GetArrayDim(init->GetNodeId());
         pat->SetDims(dims);
