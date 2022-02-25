@@ -1,6 +1,9 @@
-Matched 7 tokens.
-Matched 14 tokens.
+Matched 8 tokens.
+Matched 15 tokens.
+Matched 22 tokens.
 ============= Module ===========
+== Sub Tree ==
+trip-slash reference path = "import-in-module.ts"
 == Sub Tree ==
 import {X} "M1"
 == Sub Tree ==

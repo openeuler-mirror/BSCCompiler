@@ -609,6 +609,10 @@ maple::BaseNode *Ast2MplBuilder::ProcessInfer(StmtExprKind skind, TreeNode *tnod
   return nullptr;
 }
 
+maple::BaseNode *Ast2MplBuilder::ProcessTripleSlash(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+  return nullptr;
+}
+
 maple::BaseNode *Ast2MplBuilder::ProcessBlockDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   BlockNode *ast_block = static_cast<BlockNode *>(tnode);
   for (int i = 0; i < ast_block->GetChildrenNum(); i++) {

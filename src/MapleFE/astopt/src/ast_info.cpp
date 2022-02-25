@@ -70,12 +70,24 @@ void AST_INFO::CollectInfo() {
 }
 
 void AST_INFO::AddBuiltInTypes() {
+  unsigned size = gTypeTable.size();
+  for (unsigned idx = 1; idx < size; idx++) {
+    TreeNode *node = gTypeTable.GetTypeFromTypeIdx(idx);
+    if (node->IsUserType()) {
+      mStrIdx2TypeIdxMap[node->GetStrIdx()] = node->GetTypeIdx();
+    }
+  }
+
   // add language builtin types
   TreeNode *node = NULL;
+  unsigned stridx = 0;
 #define BUILTIN(T) \
-  node = gTypeTable.CreateBuiltinType(#T, TY_Class);\
-  gTypeTable.AddType(node);\
-  mStrIdx2TypeIdxMap[node->GetStrIdx()] = node->GetTypeIdx();
+  stridx = gStringPool.GetStrIdx(#T);\
+  if (mStrIdx2TypeIdxMap.find(stridx) == mStrIdx2TypeIdxMap.end()) {\
+    node = gTypeTable.CreateBuiltinType(#T, TY_Class);\
+    gTypeTable.AddType(node);\
+    mStrIdx2TypeIdxMap[stridx] = node->GetTypeIdx();\
+  }
 #include "lang_builtin.def"
 }
 
@@ -245,15 +257,15 @@ bool AST_INFO::IsTypeCompatible(TreeNode *node1, TreeNode *node2) {
   if ((!node1 && node2) || (node1 && !node2)) {
     return false;
   }
+  // not same kind
+  if (node1->GetKind() != node2->GetKind()) {
+    return false;
+  }
   // at least one is prim
   if (node1->IsPrimType() || node2->IsPrimType()) {
     TypeId tid_field = GetTypeId(node2);
     TypeId tid_target = GetTypeId(node1);
     return (tid_field == tid_target);
-  }
-  // not same kind
-  if (node1->GetKind() != node2->GetKind()) {
-    return false;
   }
   bool result = false;
   // same kind
@@ -490,10 +502,15 @@ StructNode *AST_INFO::CreateStructFromStructLiteral(StructLiteralNode *node) {
   return newnode;
 }
 
-TreeNode *AST_INFO::GetAnonymousStruct(TreeNode *node) {
+unsigned AST_INFO::GetAnonymousName() {
   std::string str("AnonymousStruct_");
   str += std::to_string(mNum++);
   unsigned stridx = gStringPool.GetStrIdx(str);
+  return stridx;
+}
+
+TreeNode *AST_INFO::GetAnonymousStruct(TreeNode *node) {
+  unsigned stridx = GetAnonymousName();
   TreeNode *newnode = node;
   if (newnode->IsStructLiteral()) {
     StructLiteralNode *sl = static_cast<StructLiteralNode*>(node);
@@ -739,7 +756,6 @@ UserTypeNode *FillNodeInfoVisitor::VisitUserTypeNode(UserTypeNode *node) {
   if (id) {
     unsigned tidx = mInfo->GetBuiltInTypeIdx(id);
     if (tidx) {
-      mInfo->SetTypeId(id, TY_Class);
       mInfo->SetTypeIdx(id, tidx);
     }
     if (!id->IsTypeIdNone()) {
@@ -793,6 +809,9 @@ StructNode *ClassStructVisitor::VisitStructNode(StructNode *node) {
     if (id && node->GetStrIdx() == 0) {
       node->SetStrIdx(id->GetStrIdx());
     }
+    if (node->GetStrIdx() == 0) {
+      node->SetStrIdx(mInfo->GetAnonymousName());
+    }
     mInfo->SetStrIdx2Struct(node->GetStrIdx(), node);
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
       if (TreeNode *t = node->GetField(i)) {
@@ -823,6 +842,9 @@ ClassNode *ClassStructVisitor::VisitClassNode(ClassNode *node) {
   mInfo->SetTypeId(node, TY_Class);
   (void) AstVisitor::VisitClassNode(node);
   if (mInfo->GetPass() == 0) {
+    if (node->GetStrIdx() == 0) {
+      node->SetStrIdx(mInfo->GetAnonymousName());
+    }
     gTypeTable.AddType(node);
     mInfo->SetStrIdx2Struct(node->GetStrIdx(), node);
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
@@ -854,6 +876,9 @@ InterfaceNode *ClassStructVisitor::VisitInterfaceNode(InterfaceNode *node) {
   mInfo->SetTypeId(node, TY_Class);
   (void) AstVisitor::VisitInterfaceNode(node);
   if (mInfo->GetPass() == 0) {
+    if (node->GetStrIdx() == 0) {
+      node->SetStrIdx(mInfo->GetAnonymousName());
+    }
     gTypeTable.AddType(node);
     mInfo->SetStrIdx2Struct(node->GetStrIdx(), node);
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {

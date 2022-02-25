@@ -790,6 +790,12 @@ rule Expression : ONEOF(
 #                                    Statements
 #-------------------------------------------------------------------------------
 
+rule TripleSlash : ONEOF( "///" + '<' + "reference" + "path" + '=' + Literal + '/' + '>',
+                          "///" + '<' + "reference" + "types"  + '=' + Literal + '/' + '>',
+                          "///" + '<' + "reference" + "lib"  + '=' + Literal + '/' + '>',
+                          "///" + '<' + "reference" + "no-default-lib"  + '=' + Literal + '/' + '>')
+  attr.action.%1,%2,%3,%4 : BuildTripleSlash(%4, %6)
+
 ##-----------------------------------
 ##rule Statement[Yield, Return] :
 ##  BlockStatement[?Yield, ?Return]
@@ -820,7 +826,8 @@ rule Statement : ONEOF(
 #  WithStatement[?Yield, ?Return]
   LabelledStatement,
   ThrowStatement,
-  TryStatement)
+  TryStatement,
+  TripleSlash)
 #  DebuggerStatement
   attr.property : Top
   attr.property : Single  # This is extremely important to give CallExpression the

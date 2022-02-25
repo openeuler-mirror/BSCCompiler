@@ -135,6 +135,8 @@ public:
   virtual bool FindNextTLFormat(unsigned start, std::string& s, unsigned& end) {return false;}
   virtual bool FindNextTLPlaceHolder(unsigned start, std::string& s, unsigned& end) {return false;}
 
+  virtual bool FindTripleSlash() {return false;}
+
   // replace keyword/opr/sep... with tokens
   //void PlantTokens();
   //void PlantTraverseRuleTable(RuleTable*);

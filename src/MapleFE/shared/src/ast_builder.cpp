@@ -4257,6 +4257,50 @@ TreeNode* ASTBuilder::BuildInfer() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+//                       Triple Slash Directive of TypeScript
+////////////////////////////////////////////////////////////////////////////////
+
+TreeNode* ASTBuilder::BuildTripleSlash() {
+  if (mTrace)
+    std::cout << "In BuildTripleSlash" << std::endl;
+
+  Param l_param = mParams[0];
+  MASSERT(!l_param.mIsEmpty);
+  MASSERT(l_param.mIsTreeNode);
+  TreeNode *left = l_param.mData.mTreeNode;
+
+  Param r_param = mParams[1];
+  MASSERT(!r_param.mIsEmpty);
+  MASSERT(r_param.mIsTreeNode);
+  TreeNode *right = r_param.mData.mTreeNode;
+
+  TripleSlashNode *tsnode = (TripleSlashNode*)gTreePool.NewTreeNode(sizeof(TripleSlashNode));
+  new (tsnode) TripleSlashNode();
+
+  TripleSlashProp prop = TSP_NA;
+  if (left->IsIdentifier()) {
+    // no-default-lib
+    if ((strlen(left->GetName()) == 14) && !strncmp(left->GetName(), "no-default-lib", 14))
+      prop = TSP_NoDefaultLib;
+    // lib
+    if ((strlen(left->GetName()) == 3) && !strncmp(left->GetName(), "lib", 3))
+      prop = TSP_Lib;
+    // types
+    if ((strlen(left->GetName()) == 5) && !strncmp(left->GetName(), "types", 5))
+      prop = TSP_Types;
+    // path
+    if ((strlen(left->GetName()) == 4) && !strncmp(left->GetName(), "path", 4))
+      prop = TSP_Path;
+  }
+  tsnode->SetProp(prop);
+
+  tsnode->SetValue(right);
+
+  mLastTreeNode = tsnode;
+  return mLastTreeNode;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 //                       Await
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -120,11 +120,12 @@ public:
   virtual std::string EmitAwaitNode(AwaitNode *node);
   virtual std::string EmitNameTypePairNode(NameTypePairNode *node);
   virtual std::string EmitTupleTypeNode(TupleTypeNode *node);
+  virtual std::string EmitTripleSlashNode(TripleSlashNode *node);
   virtual std::string EmitModuleNode(ModuleNode *node);
   virtual std::string EmitAttrNode(AttrNode *node);
+  virtual std::string EmitArrayTypeNode(ArrayTypeNode *node);
   virtual std::string EmitPrimTypeNode(PrimTypeNode *node);
   virtual std::string EmitPrimArrayTypeNode(PrimArrayTypeNode *node);
-  virtual std::string EmitArrayTypeNode(ArrayTypeNode *node);
 
   virtual std::string EmitTreeNode(TreeNode *node);
   virtual std::string& HandleTreeNode(std::string &str, TreeNode *node);
@@ -141,6 +142,7 @@ public:
   //static const char *GetEnumStructProp(StructProp k);
   //static const char *GetEnumForLoopProp(ForLoopProp k);
   //static const char *GetEnumLambdaProperty(LambdaProperty k);
+  const char *GetEnumTripleSlashProp(TripleSlashProp k);
   std::string &AddParentheses(std::string &str, TreeNode *node);
 
 };

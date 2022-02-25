@@ -49,6 +49,7 @@ public:
   TempLitData* GetTempLit();
   bool FindNextTLFormat(unsigned start, std::string& s, unsigned& end);
   bool FindNextTLPlaceHolder(unsigned start, std::string& s, unsigned& end);
+  bool FindTripleSlash();
 };
 
 ////////////////////////////////////////////////////////////////////////////////////

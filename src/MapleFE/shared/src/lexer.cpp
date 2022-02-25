@@ -541,6 +541,9 @@ LitData Lexer::GetLiteral() {
 //
 // Return true if a comment is read. The contents are ignore.
 bool Lexer::GetComment() {
+  if (FindTripleSlash())
+    return false;
+
   if (line[curidx] == '/' && line[curidx+1] == '/') {
     curidx = current_line_size;
     return true;
@@ -654,7 +657,9 @@ bool Lexer::TraverseTableData(TableData *data) {
       // Need to make sure the following text is a separator
       curidx += strlen(data->mData.mString);
       if (mCheckSeparator || special_need_check) {
-        if ((TraverseSepTable() != SEP_NA) || (TraverseOprTable() != OPR_NA)) {
+        if ((TraverseSepTable() != SEP_NA) ||
+           (TraverseOprTable() != OPR_NA) ||
+           EndOfLine()) {
           // TraverseSepTable() moves 'curidx', need restore it
           curidx = old_pos + strlen(data->mData.mString);
           // Put into gStringPool

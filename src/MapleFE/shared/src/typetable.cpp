@@ -89,6 +89,9 @@ bool TypeTable::AddType(TreeNode *node) {
   unsigned tid = mTypeTable.size();
   mNodeId2TypeIdxMap[id] = tid;
   node->SetTypeIdx(tid);
+  if (node->IsUserType()) {
+    static_cast<UserTypeNode*>(node)->GetId()->SetTypeIdx(tid);
+  }
   TypeEntry *entry = new TypeEntry(node);
   mTypeTable.push_back(entry);
   return true;
@@ -117,7 +120,7 @@ void TypeTable::AddPrimAndBuiltinTypes() {
 
   mPrimSize = size();
 
-#define TYPE(T)     node = CreateBuiltinType(#T, TY_##T); AddType(node);
+#define TYPE(T) node = CreateBuiltinType(#T, TY_##T); AddType(node);
 #define PRIMTYPE(T)
   // additional usertype Boolean
   TYPE(Boolean);
