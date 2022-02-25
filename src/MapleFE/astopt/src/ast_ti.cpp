@@ -660,7 +660,7 @@ bool TypeInferVisitor::UpdateVarTypeWithInit(TreeNode *var, TreeNode *init) {
         } else {
           NOTYETIMPL("array type not ArrayTypeNode");
         }
-          return result;
+        return result;
       }
 
       TreeNode *elemtype = NULL;

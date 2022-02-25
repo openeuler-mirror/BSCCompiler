@@ -69,7 +69,8 @@ TreeNode *TypeTable::CreateBuiltinType(std::string name, TypeId tid) {
   unsigned stridx = gStringPool.GetStrIdx(name);
   IdentifierNode *id = (IdentifierNode*)gTreePool.NewTreeNode(sizeof(IdentifierNode));
   new (id) IdentifierNode(stridx);
-  id->SetTypeId(tid);
+  // use TY_Class for Object type
+  (tid == TY_Object) ? id->SetTypeId(TY_Class) : id->SetTypeId(tid);
 
   UserTypeNode *utype = (UserTypeNode*)gTreePool.NewTreeNode(sizeof(UserTypeNode));
   new (utype) UserTypeNode(id);
