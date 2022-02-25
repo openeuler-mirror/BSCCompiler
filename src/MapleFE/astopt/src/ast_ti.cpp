@@ -226,6 +226,7 @@ TypeId TypeInferVisitor::MergeTypeId(TypeId tia, TypeId tib) {
   switch (tia) {
     case TY_None:        result = tib;       break;
 
+    case TY_Class:
     case TY_Object:
     case TY_User:        result = tia;       break;
 
@@ -233,7 +234,6 @@ TypeId TypeInferVisitor::MergeTypeId(TypeId tia, TypeId tib) {
     case TY_Undefined:
     case TY_String:
     case TY_Function:
-    case TY_Class:
     case TY_Array:       result = TY_Merge;  break;
 
     case TY_Boolean: {
@@ -1533,8 +1533,12 @@ IdentifierNode *TypeInferVisitor::VisitIdentifierNode(IdentifierNode *node) {
     }
   }
   if (node->GetInit()) {
-    UpdateTypeId(node, node->GetInit()->GetTypeId());
-    UpdateTypeIdx(node, node->GetInit()->GetTypeIdx());
+    if (node->GetTypeId() == TY_None) {
+      SetTypeId(node, node->GetInit()->GetTypeId());
+    }
+    if (node->GetTypeIdx() == 0) {
+      SetTypeIdx(node, node->GetInit()->GetTypeIdx());
+    }
     SetUpdated();
     return node;
   }
@@ -1819,7 +1823,10 @@ UserTypeNode *TypeInferVisitor::VisitUserTypeNode(UserTypeNode *node) {
     SetTypeId(node, TY_Array);
     SetTypeIdx(node, TY_Array);
   } else if (node->GetId()) {
-    UpdateTypeId(node, node->GetId());
+    // non-enum user type which keep TY_None
+    if (node->GetId()->GetTypeId() != TY_None) {
+      SetTypeId(node, TY_Class);
+    }
     UpdateTypeIdx(node, node->GetId());
   }
   TreeNode *parent = node->GetParent();

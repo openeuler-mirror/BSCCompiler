@@ -77,6 +77,7 @@ class AST_INFO {
   TypeAliasNode *CreateTypeAliasNode(TreeNode *to, TreeNode *from);
   StructNode *CreateStructFromStructLiteral(StructLiteralNode *node);
 
+  unsigned GetAnonymousName();
   TreeNode *GetAnonymousStruct(TreeNode *node);
 
   bool IsInterface(TreeNode *node);

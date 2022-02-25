@@ -34,6 +34,8 @@ public:
   bool IsClassId(TreeNode *node);
   bool IsVarTypeClass(TreeNode* var);
   void InsertEscapes(std::string& str);
+  bool IsGenerator(TreeNode *node);
+  FunctionNode* GetGeneratorFunc(TreeNode *node);
 };
 
 } // namespace maplefe

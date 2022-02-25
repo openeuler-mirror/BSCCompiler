@@ -128,9 +128,12 @@ void BuildScopeVisitor::InitInternalTypes() {
     TreeNode *node = gTypeTable.GetTypeFromTypeIdx(i);
     node->SetScope(scope);
     if (node->IsUserType()) {
-      static_cast<UserTypeNode *>(node)->GetId()->SetScope(scope);
-      AddType(scope, node);
-      AddDecl(scope, node);
+      UserTypeNode *ut = static_cast<UserTypeNode *>(node);
+      TreeNode *id = ut->GetId();
+      id->SetScope(scope);
+      AddType(scope, ut);
+      // id as a decl
+      AddDecl(scope, id);
     } else {
       AddType(scope, node);
     }
@@ -428,6 +431,7 @@ NamespaceNode *BuildScopeVisitor::VisitNamespaceNode(NamespaceNode *node) {
 DeclNode *BuildScopeVisitor::VisitDeclNode(DeclNode *node) {
   BuildScopeBaseVisitor::VisitDeclNode(node);
   ASTScope *scope = NULL;
+  bool deep = true;
   if (node->GetProp() == JS_Var) {
     // promote to use function or module scope
     scope = mUserScopeStack.top();
@@ -438,10 +442,41 @@ DeclNode *BuildScopeVisitor::VisitDeclNode(DeclNode *node) {
       node->GetVar()->SetScope(scope);
     }
   } else {
-    // use current scope
     scope = mScopeStack.top();
+    // for body of function use function scope instead of body scope
+    TreeNode *b = node->GetParent();
+    if (b && b->IsBlock()) {
+      TreeNode *f = b->GetParent();
+      if (f && f->IsFunction()) {
+        scope = mUserScopeStack.top();
+      }
+    }
+    // restrict to current scope
+    deep = false;
   }
-  AddDecl(scope, node);
+  // check if it is already a decl in the scope
+  unsigned stridx = node->GetStrIdx();
+  TreeNode *decl = scope->FindDeclOf(stridx, deep);
+  if (decl) {
+    if (decl != node) {
+      // replace with an assignment if apply
+      if (node->GetInit()) {
+        BinOperatorNode *bop = mHandler->NewTreeNode<BinOperatorNode>();
+        bop->SetOprId(OPR_Assign);
+        IdentifierNode *id = mHandler->NewTreeNode<IdentifierNode>();
+        id->SetStrIdx(stridx);
+        id->SetScope(scope);
+
+        bop->SetOpndA(id);
+        bop->SetOpndB(node->GetInit());
+        node = (DeclNode *)bop;
+      } else {
+        node = NULL;
+      }
+    }
+  } else {
+    AddDecl(scope, node);
+  }
   return node;
 }
 

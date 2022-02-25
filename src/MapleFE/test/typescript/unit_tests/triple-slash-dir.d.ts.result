@@ -1,1 +1,7 @@
+Matched 8 tokens.
+Matched 16 tokens.
 ============= Module ===========
+== Sub Tree ==
+trip-slash reference no-default-lib = "true"
+== Sub Tree ==
+trip-slash reference lib = "es5"

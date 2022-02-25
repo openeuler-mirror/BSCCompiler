@@ -568,4 +568,8 @@ void Verifier::VerifyArrayType(ArrayTypeNode *tree){
   return;
 }
 
+void Verifier::VerifyTripleSlash(TripleSlashNode *tree){
+  return;
+}
+
 }

@@ -16,4 +16,5 @@
 #
 rule JavaChar : ONEOF(CHAR, '_' , '$')
 rule CharOrDigit : ONEOF(JavaChar, DIGIT)
-rule Identifier : JavaChar + ZEROORMORE(CharOrDigit)
+rule Identifier : ONEOF("no-default-lib",
+                        JavaChar + ZEROORMORE(CharOrDigit))

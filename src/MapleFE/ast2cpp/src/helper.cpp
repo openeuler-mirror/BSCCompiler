@@ -108,19 +108,66 @@ std::string GenClassFldAddProp(std::string objName,
 //       for ctor(), it calls _body() but ignores return val from _body(), and instead returns _this
 //       per TS/JS spec.
 
-std::string FunctionTemplate(std::string retType, std::string funcName, std::string params, std::string args) {
+std::string FunctionClassDecl(std::string retType, std::string funcName, unsigned nodeId) {
+  std::vector<std::pair<std::string, std::string>> funcParams = hFuncTable.GetArgInfo(nodeId);
+  std::string args, params;
+  std::string t2cObjType = "t2crt::Object*";
+  std::string thisType = t2cObjType;
+
+  // Map TS function paramters to C++ interface args and params:
+  //
+  // TS2cpp's C++ mapping for TS func has a "this" obj in the c++ func param list
+  // which will be generated from AST if "this" is declared as a TS func parameter
+  // as required by TS strict mode. However TS funcs that do not reference 'this'
+  // are not required to declare it, in which case emitter has to insert one.
+  //
+  // Cases:
+  // o if TS func has no param
+  //   - insert param "ts2crt::Object* _this"
+  // o if 1st TS func param is not "this"
+  //   - insert param "ts2crt::Object* _this"
+  // o if 1st TS func param is "this"
+  //   - rename to "_this"
+  //   - if type is Any (JS_Val), change to "ts2crt::Object*"
+
+  if (funcParams.size() == 0) {
+    // TS func has no param. Insert _this for ts2cpp mapping.
+    params += t2cObjType + " "s + "_this"s;
+    args   += "_this"s;
+  }
+  for (bool firstParam=true; auto elem : funcParams) {
+    std::string type = elem.first, name = elem.second;
+    if (!firstParam) {  // not 1st param
+      params+= ", "s;
+      args  += ", "s;
+    } else {            // 1st param of TS func
+      firstParam = false;
+      if (name.compare("this") != 0) {
+        // 1st TS param not "this" - insert _this parameter
+        params += t2cObjType + " "s + "_this"s + ", "s;
+        args   += "_this"s + ", "s;
+        thisType = t2cObjType;
+      } else {
+        // 1st TS param is "this" - change to "_this"
+        name = "_this";
+        if (type.compare("t2crt::JS_Val") == 0)
+          type = t2cObjType; // change type Any to Object*
+        thisType = type;
+      }
+    }
+    params += type + " "s + name;
+    args   += name;
+  }
   std::string str;
   std::string clsName = ClsName(funcName);
   std::string functorArgs = args;
   std::string functorParams = params;
-  std::string thisType;
   functorArgs.replace(0, 5, "_thisArg"); // replace _this with _thisArg
   size_t pos;
   if ((pos = functorParams.find("_this, ")) != std::string::npos)
     functorParams.erase(0, pos+7);
   else if ((pos = functorParams.find("_this")) != std::string::npos)
     functorParams.erase(0, pos+5);
-  thisType = params.substr(0, pos-1);
 
   str = R"""(
 class )""" + clsName + R"""( : public t2crt::Function {
@@ -149,10 +196,11 @@ class )""" + clsName + R"""( : public t2crt::Function {
 // Template for generating Generators and Generator Functions:
 // For each TS generator function, 2 C++ classes: generator and generator function are emitted.
 // The generator function has only a single instance. It is called to create generator instances.
-std::string GenGeneratorClass(std::string funcName, std::vector<std::pair<std::string, std::string>> args) {
+std::string GeneratorClassDecl(std::string funcName, unsigned nodeId) {
   std::string str;
   std::string generatorName = GeneratorName(funcName);
   std::string generatorFuncName = GeneratorFuncName(funcName);
+  std::vector<std::pair<std::string, std::string>> args = hFuncTable.GetArgInfo(nodeId);
 
   // Different formats of arg list as needed by generator and generator function interfaces:
   // <type>    <argName>   - args for function class functor and generation class constructor
@@ -191,7 +239,7 @@ public:
   // closure capture fields
 )""" + captureFields + R"""(
   // iterator interface (override _return and _throw when needed)
-  t2crt::IteratorResult _next(t2crt::JS_Val* arg) override;
+  t2crt::IteratorResult _next(t2crt::JS_Val* arg = nullptr) override;
 };
 
 // )""" + funcName + R"""( generator function
@@ -205,6 +253,51 @@ public:
   // generator function body
   t2crt::IteratorResult _body(t2crt::Object* _this, void*& yield)""" + refArgs + R"""();
 };
+
+)""";
+  return str;
+}
+
+std::string GeneratorClassDef(std::string ns, std::string funcName, unsigned nodeId) {
+  std::string str, params, ctorArgs, functorArgs;
+  std::string generatorName = ns + GeneratorName(funcName);
+  std::string generatorFuncName = ns + GeneratorFuncName(funcName);
+  std::vector<std::pair<std::string, std::string>> args = hFuncTable.GetArgInfo(nodeId);
+
+  if (!ns.empty())
+    funcName = ns + "::" + funcName;
+  for (bool hasArg=false; auto elem : args) {
+    if (!hasArg)
+      hasArg = true;
+    else {
+      functorArgs += ", "s;
+      params += ", "s;
+    }
+    functorArgs += elem.first + " " + elem.second;  //1st=type 2nd=name
+    params += " " + elem.second;
+  }
+  ctorArgs = functorArgs.empty()? std::string(): (", "s + functorArgs);
+  params = params.empty()? std::string(): (", "s + params);
+
+  str = R"""(
+t2crt::IteratorResult )""" + generatorName + R"""(::_next(t2crt::JS_Val* arg) {
+  t2crt::IteratorResult res;
+
+  if (_finished) {
+    res._done = true;
+    return res;
+  }
+
+  // iterate by calling generation function with captures in generator
+  res = foo->_body(this, _yield)""" + params + R"""();
+  if (res._done == true)
+    _finished = true;
+  return res;
+}
+
+)""" + generatorName + "* "s + generatorFuncName + R"""(::operator()()""" + functorArgs + R"""() {
+  return new )""" + generatorName + R"""((&t2crt::Generator, foo->prototype)""" + params + R"""();
+}
 
 )""";
   return str;

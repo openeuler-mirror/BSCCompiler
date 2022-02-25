@@ -237,5 +237,7 @@ ACTION(AddTypeParameterExtends)
 
 ACTION(BuildNameTypePair)
 
+ACTION(BuildTripleSlash)    // TS triple-slash directive.
+
 // This is a special action to pass a child to parent
 ACTION(PassChild)

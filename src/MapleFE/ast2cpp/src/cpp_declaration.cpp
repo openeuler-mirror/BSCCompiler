@@ -327,28 +327,6 @@ bool CppDecl::IsImportedModule(const std::string& module) {
   return res != mImportedModules.end();
 }
 
-// Generate class to encap TS/JS required func interfaces
-// note: for top level and nested functions only. Not for class methods.
-std::string CppDecl::GenFunctionClass(FunctionNode* node) {
-  std::string params, args, retType;
-  for (unsigned i = 0; i < node->GetParamsNum(); ++i) {
-    if (i) {
-      params += ", "s;
-      args += ", "s;
-    }
-    if (auto n = node->GetParam(i)) {
-      params += EmitTreeNode(n);
-      args += GetIdentifierName(n);
-      if (i==0)
-        HandleThisParam(node->GetParamsNum(), n, params, args);
-    }
-  }
-  if (node->GetParamsNum() == 0)
-    HandleThisParam(0, nullptr, params, args);
-
-  return FunctionTemplate(GetTypeString(node->GetType(), nullptr), GetIdentifierName(node), params, args);
-}
-
 void CppDecl::CollectFuncArgInfo(TreeNode* node) {
   if (!node->IsFunction())
     return;
@@ -403,26 +381,34 @@ namespace )""" + module + R"""( {
   for(unsigned i = 0; i < num; ++i) {
     CfgFunc *func = mod->GetNestedFuncAtIndex(i);
     TreeNode *node = func->GetFuncNode();
+    std::string funcName = GetIdentifierName(node);
+
     if (!IsClassMethod(node)) {
-      bool isGenerator = static_cast<FunctionNode*>(node)->IsGenerator();
-      CollectFuncArgInfo(node);
       std::string ns = GetNamespace(node);
       if (!ns.empty())
         str += "namespace "s + ns + " {\n"s;
-      if (isGenerator)
-        str += GenGeneratorClass(GetIdentifierName(node), hFuncTable.GetArgInfo(node->GetNodeId()));
-      else
-        str += GenFunctionClass(static_cast<FunctionNode*>(node));  // gen func cls for each top level func
+      CollectFuncArgInfo(node);
+      bool isGenerator = static_cast<FunctionNode*>(node)->IsGenerator();
+      std::string generatorClassDef;
+      if (isGenerator) {
+        str += GeneratorClassDecl(funcName, node->GetNodeId());
+        generatorClassDef = GeneratorClassDef(ns, funcName, node->GetNodeId());
+        AddDefinition(generatorClassDef);
+      }
+      else {
+        // gen function class for each top level function
+        str += FunctionClassDecl(GetTypeString(static_cast<FunctionNode*>(node)->GetType(), nullptr), GetIdentifierName(node), node->GetNodeId());
+      }
       if (!mHandler->IsFromLambda(node)) {
         // top level funcs instantiated here as function objects from their func class
         // top level lamda funcs instantiated later in assignment stmts
-        std::string typeName = isGenerator? GeneratorFuncName(node->GetName()): ClsName(node->GetName());
-        std::string funcinit = typeName + "* "s + node->GetName() + " = new "s + typeName + "();\n"s;
+        std::string typeName = isGenerator? GeneratorFuncName(funcName): ClsName(funcName);
+        std::string funcinit = typeName + "* "s + funcName + " = new "s + typeName + "();\n"s;
         if (ns.empty())
           AddDefinition(funcinit);
         else
           AddDefinition("namespace "s + ns + " {\n"s + funcinit + "\n}\n"s);
-        str += "extern "s + typeName + "* "s + node->GetName() + ";\n"s;
+        str += "extern "s + typeName + "* "s + funcName + ";\n"s;
       }
       if (!ns.empty())
         str += "\n} // namespace " + ns + '\n';
@@ -657,6 +643,10 @@ std::string GetUserTypeString(UserTypeNode* n) {
 std::string CppDecl::GetTypeString(TreeNode *node, TreeNode *child) {
   std::string str;
   if (node) {
+    if (IsGenerator(node)) {  // check generator type
+      if (auto func = GetGeneratorFunc(node))
+        return GeneratorName(GetIdentifierName(func)) + "*"s;
+    }
     TypeId k = node->GetTypeId();
     if (k == TY_None || k == TY_Class) {
       switch(node->GetKind()) {
@@ -706,11 +696,6 @@ std::string CppDecl::GetTypeString(TreeNode *node, TreeNode *child) {
       if (str != "none"s)
         return str + " "s;
     }
-    if (mHandler->IsGeneratorUsed(node->GetNodeId())) {
-      // check if generator type
-      if (auto func = mHandler->GetGeneratorUsed(node->GetNodeId()))
-        return GeneratorName(GetIdentifierName(func)) + "*"s;
-    }
   }
   return "t2crt::JS_Val "s;
 }
@@ -727,8 +712,14 @@ std::string CppDecl::EmitUserTypeNode(UserTypeNode *node) {
   std::string str, usrType;
 
   if (auto n = node->GetId()) {
-    if (n->IsTypeIdClass())
-      usrType = n->GetName() + "*"s;
+    if (n->IsTypeIdClass()) {
+      if (mHandler->IsGeneratorUsed(n->GetNodeId())) {
+        // Check if a generator type : TODO: this needs TI
+        auto func = mHandler->GetGeneratorUsed(n->GetNodeId());
+        usrType = GetIdentifierName(func) + "*"s;
+      } else
+        usrType = n->GetName() + "*"s;
+    }
     else if (IsBuiltinObj(n->GetName()))
       usrType = "t2crt::"s + n->GetName() + "*"s;
     else // TypeAlias Id gets returned here
@@ -906,11 +897,8 @@ std::string CppDecl::EmitInterface(StructNode *node) {
     if (superClass.back() == '*')
       superClass.pop_back();
   }
-
-  if (auto n = node->GetStructId()) {
-    ifName = GetIdentifierName(n);
-    str = "class "s + ifName + " : public "s + superClass + " {\n"s;
-  }
+  ifName = GetIdentifierName(node);
+  str = "class "s + ifName + " : public "s + superClass + " {\n"s;
   str += "  public:\n"s;
 
   // Generate code to add prop in class constructor

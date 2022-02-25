@@ -72,5 +72,8 @@ STRUCT Operator : (
                     ("|=",   BorAssign),
                     ("^=",   BxorAssign),
                     (">>>=", ZextAssign),
+
+                    ("///",  TripleSlash),
+
                     # arrow function
                     ("=>",   ArrowFunction))

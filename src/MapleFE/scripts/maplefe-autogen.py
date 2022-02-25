@@ -818,7 +818,7 @@ bool PutNode(TreeNode *n) {{
       case NK_UserType:    *mOs << EnumVal(UserTypeNode, UT_Type, Type); break;
       case NK_XXportAsPair: *mOs << (static_cast<XXportAsPairNode*>(n)->IsDefault() ? "default" : "");
                             *mOs << (static_cast<XXportAsPairNode*>(n)->IsRef() ? " ref" : " copy"); break;
-      case NK_Struct:      *mOs << EnumVal(StructNode, StructProp, Prop); break;
+      case NK_Struct:      *mOs << EnumVal(StructNode, StructProp, Prop); *mOs << "\\\\n" << n->GetName(); break;
     }}
     if(n->IsStmt())
        *mOs << "\\",penwidth=2,color=\\"tomato";
