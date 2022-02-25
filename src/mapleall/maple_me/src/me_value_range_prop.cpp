@@ -1137,31 +1137,57 @@ bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt, bool i
           }
         }
       } else {
-        if (stmt.GetOp() == OP_assertnonnull) {
-          FATAL(kLncFatal, "%s:%d error: Dereference of null pointer when inlined to %s",
-                fileName, srcPosition.LineNum(), func->GetName().c_str());
-        } else if (stmt.GetOp() == OP_returnassertnonnull) {
-          FATAL(kLncFatal, "%s:%d error: %s return nonnull but got null pointer when inlined to %s",
-                fileName, srcPosition.LineNum(), newStmt.GetFuncName().c_str(), func->GetName().c_str());
+        if (isNullablePtr) {
+          if (stmt.GetOp() == OP_assertnonnull) {
+            FATAL(kLncFatal, "%s:%d error: Dereference of nullable pointer in safe region when inlined to %s",
+                  fileName, srcPosition.LineNum(), func->GetName().c_str());
+          } else if (stmt.GetOp() == OP_returnassertnonnull) {
+            FATAL(kLncFatal,
+                  "%s:%d error: %s return nonnull but got nullable pointer in safe region when inlined to %s",
+                  fileName, srcPosition.LineNum(), newStmt.GetFuncName().c_str(), func->GetName().c_str());
+          } else {
+            FATAL(kLncFatal,
+                  "%s:%d error: nullable pointer assignment of nonnull pointer in safe region when inlined to %s",
+                  fileName, srcPosition.LineNum(), func->GetName().c_str());
+          }
         } else {
-          FATAL(kLncFatal, "%s:%d error: null assignment of nonnull pointer when inlined to %s",
-                fileName, srcPosition.LineNum(), func->GetName().c_str());
+          if (stmt.GetOp() == OP_assertnonnull) {
+            FATAL(kLncFatal, "%s:%d error: Dereference of null pointer when inlined to %s",
+                  fileName, srcPosition.LineNum(), func->GetName().c_str());
+          } else if (stmt.GetOp() == OP_returnassertnonnull) {
+            FATAL(kLncFatal, "%s:%d error: %s return nonnull but got null pointer when inlined to %s",
+                  fileName, srcPosition.LineNum(), newStmt.GetFuncName().c_str(), func->GetName().c_str());
+          } else {
+            FATAL(kLncFatal, "%s:%d error: null assignment of nonnull pointer when inlined to %s",
+                  fileName, srcPosition.LineNum(), func->GetName().c_str());
+          }
         }
       }
       break;
     }
     case OP_callassertnonnull: {
       auto &callStmt = static_cast<const CallAssertNonnullMeStmt &>(stmt);
-      GStrIdx curFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(callStmt.GetFuncName().c_str());
+      GStrIdx curFuncNameIdx = func->GetMirFunc()->GetNameStrIdx();
       GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(callStmt.GetStmtFuncName().c_str());
       if (curFuncNameIdx == stmtFuncNameIdx) {
-        FATAL(kLncFatal, "%s:%d error: null pointer passed to %s that requires nonnull for %s argument", fileName,
-              srcPosition.LineNum(), callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
+        if (isNullablePtr) {
+          FATAL(kLncFatal, "%s:%d error: nullable pointer passed to %s that requires a nonnull pointer "\
+                "for %s argument in safe region", fileName, srcPosition.LineNum(), callStmt.GetFuncName().c_str(),
+                GetNthStr(callStmt.GetParamIndex()).c_str());
+        } else {
+          FATAL(kLncFatal, "%s:%d error: NULL passed to %s that requires a nonnull pointer for %s argument", fileName,
+                srcPosition.LineNum(), callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
+        }
       } else {
-        FATAL(kLncFatal,
-              "%s:%d error: null pointer passed to %s that requires nonnull for %s argument when inlined to %s",
-              fileName, srcPosition.LineNum(), callStmt.GetFuncName().c_str(),
-              GetNthStr(callStmt.GetParamIndex()).c_str(), func->GetName().c_str());
+        if (isNullablePtr) {
+          FATAL(kLncFatal, "%s:%d error: nullable pointer passed to %s that requires a nonnull pointer "\
+                "for %s argument in safe region when inlined to %s", fileName, srcPosition.LineNum(),
+                callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str(), func->GetName().c_str());
+        } else {
+          FATAL(kLncFatal, "%s:%d error: NULL passed to %s that requires a nonnull pointer for %s argument "\
+                "when inlined to %s", fileName, srcPosition.LineNum(), callStmt.GetFuncName().c_str(),
+                GetNthStr(callStmt.GetParamIndex()).c_str(), func->GetName().c_str());
+        }
       }
       break;
     }
@@ -1207,7 +1233,7 @@ bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt, bool i
     }
     case OP_callassertle: {
       auto &callStmt = static_cast<const CallAssertBoundaryMeStmt&>(stmt);
-      GStrIdx curFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(callStmt.GetFuncName().c_str());
+      GStrIdx curFuncNameIdx = func->GetMirFunc()->GetNameStrIdx();
       GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(callStmt.GetStmtFuncName().c_str());
       if (curFuncNameIdx == stmtFuncNameIdx) {
         FATAL(kLncFatal,
