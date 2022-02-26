@@ -26,17 +26,26 @@ rule DimExprs : DimExpr + ZEROORMORE(DimExpr)
 rule DimExpr :  '[' + Expression + ']'
 
 rule Expression : ONEOF(
-  PrimaryExpression)
+  PrimaryExpression,
+  UnaryExpression)
 
 rule UnaryExpression : ONEOF(
   PreIncrementExpression,
-  PreDecrementExpression)
+  PreDecrementExpression,
+  PostIncrementExpression,
+  PostDecrementExpression)
 
 rule PreIncrementExpression : "++" + PrimaryExpression
   attr.action : BuildUnaryOperation(%1, %2)
 
 rule PreDecrementExpression : "--" + PrimaryExpression
   attr.action : BuildUnaryOperation(%1, %2)
+
+rule PostIncrementExpression : PrimaryExpression + "++"
+  attr.action : BuildPostfixOperation(%2, %1)
+
+rule PostDecrementExpression : PrimaryExpression + "--"
+  attr.action : BuildPostfixOperation(%2, %1)
 
 ######################################################################
 #                         Variable                                   #
@@ -85,11 +94,23 @@ rule Dim  :  '[' + ']'
 ######################################################################
 
 rule Statement : ONEOF(LocalVariableDeclarationStatement,
+                       ExpressionStatement,
                        ReturnStatement)
+  attr.property: Single
+
+rule ExpressionStatement : StatementExpression + ';'
+
+rule StatementExpression : ONEOF(
+  PreIncrementExpression,
+  PreDecrementExpression,
+  PostIncrementExpression,
+  PostDecrementExpression,
+  )
   attr.property: Single
 
 rule ReturnStatement : "return" + ZEROORONE(Expression) + ';'
   attr.action : BuildReturn(%2)
+
 
 ######################################################################
 #                         Function                                   #
