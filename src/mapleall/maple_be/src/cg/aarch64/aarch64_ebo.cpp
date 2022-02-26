@@ -876,7 +876,9 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
 
   if (is64bits && idx <= SXTW && idx >= SXTB) {
     newPreMop = ExtLoadSwitchBitSize(newPreMop);
-    prevInsn->GetOperand(kInsnFirstOpnd).SetSize(k64BitSize);
+    auto &prevDstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
+    prevDstOpnd.SetSize(k64BitSize);
+    prevDstOpnd.SetValidBitsNum(k64BitSize);
   }
 
   prevInsn->SetMOP(newPreMop);

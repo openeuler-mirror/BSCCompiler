@@ -523,6 +523,7 @@ class BB {
   void SetCritical(bool arg) {
     isCritical = arg;
   }
+  bool HasCriticalEdge();
   bool GetInsertUse() const {
     return insertUse;
   }
@@ -630,6 +631,8 @@ class BB {
   MapleMap<regno_t, Insn*> &GetPhiInsns() {
     return phiInsnList;
   }
+  bool IsInPhiList(regno_t regNO);
+  bool IsInPhiDef(regno_t regNO);
   const Insn *GetFirstLoc() const {
     return firstLoc;
   }

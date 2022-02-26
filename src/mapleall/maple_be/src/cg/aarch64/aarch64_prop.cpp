@@ -523,7 +523,7 @@ AArch64MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const A
       if (replace != nullptr) {
         auto &immOpnd = static_cast<AArch64ImmOperand&>(defInsn.GetOperand(kInsnThirdOpnd));
         int64 defVal = -(immOpnd.GetValue());
-        newMemOpnd = HandleArithImmDef(*replace, offset, defVal);
+        newMemOpnd = HandleArithImmDef(*replace, offset, defVal, currMemOpnd.GetSize());
       }
       break;
     }
@@ -533,7 +533,7 @@ AArch64MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const A
       if (replace != nullptr) {
         auto &immOpnd = static_cast<AArch64ImmOperand&>(defInsn.GetOperand(kInsnThirdOpnd));
         int64 defVal = immOpnd.GetValue();
-        newMemOpnd = HandleArithImmDef(*replace, offset, defVal);
+        newMemOpnd = HandleArithImmDef(*replace, offset, defVal, currMemOpnd.GetSize());
       }
       break;
     }
@@ -610,11 +610,13 @@ AArch64MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const A
       break;
     }
     case MOP_xsxtw64: {
-      newMemOpnd = SelectReplaceExt(defInsn, *base, static_cast<uint32>(currMemOpnd.ShiftAmount()),true);
+      newMemOpnd = SelectReplaceExt(defInsn, *base, static_cast<uint32>(currMemOpnd.ShiftAmount()),
+                                    true, currMemOpnd.GetSize());
       break;
     }
     case MOP_xuxtw64: {
-      newMemOpnd = SelectReplaceExt(defInsn, *base, static_cast<uint32>(currMemOpnd.ShiftAmount()), false);
+      newMemOpnd = SelectReplaceExt(defInsn, *base, static_cast<uint32>(currMemOpnd.ShiftAmount()),
+                                    false, currMemOpnd.GetSize());
       break;
     }
     default:
@@ -633,7 +635,8 @@ AArch64RegOperand *A64StrLdrProp::GetReplaceReg(AArch64RegOperand &a64Reg) {
   return nullptr;
 }
 
-AArch64MemOperand *A64StrLdrProp::HandleArithImmDef(AArch64RegOperand &replace, Operand *oldOffset, int64 defVal) {
+AArch64MemOperand *A64StrLdrProp::HandleArithImmDef(AArch64RegOperand &replace, Operand *oldOffset,
+                                                    int64 defVal, uint32 memSize) {
   if (memPropMode != kPropBase) {
     return nullptr;
   }
@@ -646,11 +649,12 @@ AArch64MemOperand *A64StrLdrProp::HandleArithImmDef(AArch64RegOperand &replace, 
     newOfstImm = cgFunc->GetMemoryPool()->New<AArch64OfstOperand>(defVal + ofstOpnd->GetValue(), k32BitSize);
   }
   CHECK_FATAL(newOfstImm != nullptr, "newOffset is null!");
-  return cgFunc->GetMemoryPool()->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi, k64BitSize,
+  return cgFunc->GetMemoryPool()->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi, memSize,
                                                         replace, nullptr, newOfstImm, nullptr);
 }
 
-AArch64MemOperand *A64StrLdrProp::SelectReplaceExt(const Insn &defInsn, RegOperand &base, uint32 amount, bool isSigned) {
+AArch64MemOperand *A64StrLdrProp::SelectReplaceExt(const Insn &defInsn, RegOperand &base, uint32 amount,
+                                                   bool isSigned, uint32 memSize) {
   AArch64MemOperand *newMemOpnd = nullptr;
   AArch64RegOperand *newOfst = GetReplaceReg(static_cast<AArch64RegOperand&>(defInsn.GetOperand(kInsnSecondOpnd)));
   if (newOfst == nullptr) {
@@ -661,10 +665,10 @@ AArch64MemOperand *A64StrLdrProp::SelectReplaceExt(const Insn &defInsn, RegOpera
                     ((memPropMode == kPropUnsignedExtend) && !isSigned);
   if (memPropMode == kPropOffset) {
     newMemOpnd = cgFunc->GetMemoryPool()->New<AArch64MemOperand>(
-        AArch64MemOperand::kAddrModeBOrX, k64BitSize, base, *newOfst, 0, isSigned);
+        AArch64MemOperand::kAddrModeBOrX, memSize, base, *newOfst, 0, isSigned);
   } else if (propExtend) {
     newMemOpnd = cgFunc->GetMemoryPool()->New<AArch64MemOperand>(
-        AArch64MemOperand::kAddrModeBOrX, k64BitSize, base, *newOfst, amount, isSigned);
+        AArch64MemOperand::kAddrModeBOrX, memSize, base, *newOfst, amount, isSigned);
   } else {
     return nullptr;
   }
@@ -1263,6 +1267,31 @@ void CopyRegProp::Run() {
   }
 }
 
+bool CopyRegProp::IsValidCopyProp(RegOperand &dstReg, RegOperand &srcReg) {
+  ASSERT(destVersion != nullptr, "find destVersion failed");
+  ASSERT(srcVersion != nullptr, "find srcVersion failed");
+  if (destVersion->GetOriginalRegNO() == srcVersion->GetOriginalRegNO()) {
+    return true;
+  }
+  regno_t dstRegNO = dstReg.GetRegisterNumber();
+  regno_t srcRegNO = srcReg.GetRegisterNumber();
+  for (auto useDUInfoIt : destVersion->GetAllUseInsns()) {
+    if (useDUInfoIt.second == nullptr) {
+      continue;
+    }
+    Insn *useInsn = (useDUInfoIt.second)->GetInsn();
+    if (useInsn == nullptr) {
+      continue;
+    }
+    BB *useBB = useInsn->GetBB();
+    if (((useBB->IsInPhiDef(srcRegNO) || useBB->IsInPhiList(srcRegNO)) && useBB->HasCriticalEdge()) ||
+        useBB->IsInPhiList(dstRegNO)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool CopyRegProp::CheckCondition(Insn &insn) {
   if (insn.IsEffectiveCopy()) {
     MOperator mOp = insn.GetMachineOpcode();
@@ -1289,6 +1318,9 @@ bool CopyRegProp::CheckCondition(Insn &insn) {
         ASSERT(destVersion != nullptr, "find Version failed");
         srcVersion = optSsaInfo->FindSSAVersion(srcReg.GetRegisterNumber());
         ASSERT(srcVersion != nullptr, "find Version failed");
+        if (!IsValidCopyProp(destReg, srcReg)) {
+          return false;
+        }
         return true;
       } else {
         /* should be eliminated by ssa peep */
@@ -1299,11 +1331,7 @@ bool CopyRegProp::CheckCondition(Insn &insn) {
 }
 
 void CopyRegProp::Optimize(Insn &insn) {
-  /* do not extend register live range at current stage */
-  if (destVersion->GetOriginalRegNO() == srcVersion->GetOriginalRegNO() ||
-      AArch64Prop::IsInLimitCopyRange(destVersion)) {
-    optSsaInfo->ReplaceAllUse(destVersion, srcVersion);
-  }
+  optSsaInfo->ReplaceAllUse(destVersion, srcVersion);
 }
 
 void CopyRegProp::VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn) {
@@ -1501,7 +1529,8 @@ void FpSpConstProp::PropInMem(DUInsnInfo &useDUInfo, Insn &useInsn) {
             newOfstImm->SetVary(kUnAdjustVary);
           }
           auto *newMem = cgFunc.GetMemoryPool()->New<AArch64MemOperand>(
-              AArch64MemOperand::kAddrModeBOi, k64BitSize, *fpSpBase, nullptr, newOfstImm, nullptr);
+              AArch64MemOperand::kAddrModeBOi, a64memOpnd->GetSize(), *fpSpBase,
+              nullptr, newOfstImm, nullptr);
           if (static_cast<AArch64CGFunc&>(cgFunc).IsOperandImmValid(useMop, newMem, useOpndIt->first)) {
             useInsn.SetMemOpnd(newMem);
             useDUInfo.DecreaseDU(useOpndIt->first);

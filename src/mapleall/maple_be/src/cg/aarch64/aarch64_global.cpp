@@ -85,7 +85,7 @@ void AArch64GlobalOpt::Run() {
 bool OptimizePattern::OpndDefByZero(Insn &insn, int32 useIdx) const {
   ASSERT(insn.GetOperand(useIdx).IsRegister(), "the used Operand must be Register");
   /* Zero Register don't need be defined */
-  if (insn.GetOperand(useIdx).IsZeroRegister()) {
+  if (insn.GetOperand(static_cast<uint32>(useIdx)).IsZeroRegister()) {
     return true;
   }
 
@@ -105,7 +105,7 @@ bool OptimizePattern::OpndDefByZero(Insn &insn, int32 useIdx) const {
 bool OptimizePattern::OpndDefByOne(Insn &insn, int32 useIdx) const {
   ASSERT(insn.GetOperand(useIdx).IsRegister(), "the used Operand must be Register");
   /* Zero Register don't need be defined */
-  if (insn.GetOperand(useIdx).IsZeroRegister()) {
+  if (insn.GetOperand(static_cast<uint32>(useIdx)).IsZeroRegister()) {
     return false;
   }
   InsnSet defInsns = cgFunc.GetRD()->FindDefForRegOpnd(insn, useIdx);
@@ -122,7 +122,7 @@ bool OptimizePattern::OpndDefByOne(Insn &insn, int32 useIdx) const {
 
 /* if used Operand in insn is defined by one valid bit in all define insn, return true */
 bool OptimizePattern::OpndDefByOneOrZero(Insn &insn, int32 useIdx) const {
-  if (insn.GetOperand(useIdx).IsZeroRegister()) {
+  if (insn.GetOperand(static_cast<uint32>(useIdx)).IsZeroRegister()) {
     return true;
   }
 
@@ -1715,10 +1715,10 @@ bool ExtenToMovPattern::CheckHideUxtw(const Insn &insn, regno_t regno) {
   if (md->IsMove()) {
     return false;
   }
-  int optSize = static_cast<int>(insn.GetOperandSize());
-  for (int i = 0; i < optSize; i++) {
+  uint32 optSize = insn.GetOperandSize();
+  for (uint32 i = 0; i < optSize; ++i) {
     if (regno == static_cast<RegOperand&>(insn.GetOperand(i)).GetRegisterNumber()) {
-      AArch64OpndProp *curOpndProp = md->GetOperand(i);
+      AArch64OpndProp *curOpndProp = md->GetOperand(static_cast<int>(i));
       if (curOpndProp->IsDef() && curOpndProp->GetSize() == k32BitSize) {
         return true;
       }
@@ -2080,7 +2080,7 @@ bool SameRHSPropPattern::FindSameRHSInsnInBB(Insn &insn) {
     }
     Operand &opnd = insn.GetOperand(i);
     if (opnd.IsRegister()) {
-      if (static_cast<AArch64RegOperand&>(opnd).IsSPOrFP() || !(static_cast<RegOperand&>(opnd).IsVirtualRegister())) {
+      if (!static_cast<AArch64RegOperand&>(opnd).IsSPOrFP() && !static_cast<RegOperand&>(opnd).IsVirtualRegister()) {
         return false;
       }
       curRegOpnd = &opnd;
@@ -2115,7 +2115,7 @@ bool SameRHSPropPattern::FindSameRHSInsnInBB(Insn &insn) {
         continue;
       }
       if (opnd.IsRegister()) {
-        if (static_cast<AArch64RegOperand&>(opnd).IsSPOrFP() || !(static_cast<RegOperand&>(opnd).IsVirtualRegister())) {
+        if (!static_cast<AArch64RegOperand&>(opnd).IsSPOrFP() && !static_cast<RegOperand&>(opnd).IsVirtualRegister()) {
           return false;
         }
         candRegOpnd = &opnd;
@@ -2141,9 +2141,6 @@ bool SameRHSPropPattern::CheckCondition(Insn &insn) {
   }
   MOperator mOp = insn.GetMachineOpcode();
   if (std::find(candidates.begin(), candidates.end(), mOp) == candidates.end()) {
-    return false;
-  }
-  if (insn.GetBB()->HasCall()) {
     return false;
   }
   if (!FindSameRHSInsnInBB(insn)) {
