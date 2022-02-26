@@ -112,7 +112,7 @@ int main (int argc, char *argv[]) {
 
   std::ofstream ofs;
   std::string fname(module->GetFilename());
-  fname += ".mast";
+  fname = fname.replace(fname.find(".c"), 2, ".mast");
   ofs.open(fname, std::ofstream::out);
   const char *addr = (const char *)(&(ast_buf[0]));
   ofs.write(addr, ast_buf.size());
