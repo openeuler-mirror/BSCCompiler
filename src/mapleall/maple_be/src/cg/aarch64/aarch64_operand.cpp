@@ -256,7 +256,7 @@ void AArch64MemOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
     auto *baseReg = static_cast<AArch64RegOperand*>(GetBaseRegister());
     ASSERT(baseReg != nullptr, "expect an AArch64RegOperand here");
     uint32 baseSize = baseReg->GetSize();
-    if (CGOptions::IsPIC() && (baseSize != k64BitSize)) {
+    if (baseSize != k64BitSize) {
       baseReg->SetSize(k64BitSize);
     }
     baseReg->Emit(emitter, nullptr);
