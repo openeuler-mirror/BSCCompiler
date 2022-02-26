@@ -242,7 +242,8 @@ std::vector<Insn *> LiveRange::Rematerialize(AArch64CGFunc *cgFunc,
                                        kSizeOfPtr * kBitsPerByte,
                                        static_cast<AArch64RegOperand *>(&regOp),
                                        nullptr, &offsetOp, nullptr);
-        insn = &cg->BuildInstruction<AArch64Insn>(MOP_xldr, regOp, memOpnd);
+        MOperator ldOp = (memOpnd.GetSize() == k64BitSize) ? MOP_xldr : MOP_wldr;
+        insn = &cg->BuildInstruction<AArch64Insn>(ldOp, regOp, memOpnd);
         insns.push_back(insn);
         if (offset > 0) {
           AArch64OfstOperand &ofstOpnd = cgFunc->GetOrCreateOfstOpnd(static_cast<uint64>(offset), k32BitSize);
