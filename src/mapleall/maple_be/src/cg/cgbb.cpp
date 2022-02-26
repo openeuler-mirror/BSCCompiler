@@ -255,6 +255,56 @@ int32 BB::NumInsn() const {
   return bbSize;
 }
 
+bool BB::IsInPhiList(regno_t regNO) {
+  for (auto phiInsnIt : phiInsnList) {
+    Insn *phiInsn = phiInsnIt.second;
+    if (phiInsn == nullptr) {
+      continue;
+    }
+    auto &phiListOpnd = static_cast<PhiOperand&>(phiInsn->GetOperand(kInsnSecondOpnd));
+    for (auto phiListIt : phiListOpnd.GetOperands()) {
+      RegOperand *phiUseOpnd = phiListIt.second;
+      if (phiUseOpnd == nullptr) {
+        continue;
+      }
+      if (phiUseOpnd->GetRegisterNumber() == regNO) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool BB::IsInPhiDef(regno_t regNO) {
+  for (auto phiInsnIt : phiInsnList) {
+    Insn *phiInsn = phiInsnIt.second;
+    if (phiInsn == nullptr) {
+      continue;
+    }
+    auto &phiDefOpnd = static_cast<RegOperand&>(phiInsn->GetOperand(kInsnFirstOpnd));
+    if (phiDefOpnd.GetRegisterNumber() == regNO) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool BB::HasCriticalEdge() {
+  constexpr int minPredsNum = 2;
+  if (preds.size() < minPredsNum) {
+    return false;
+  }
+  for (BB *pred : preds) {
+    if (pred->GetKind() == BB::kBBGoto || pred->GetKind() == BB::kBBIgoto) {
+      continue;
+    }
+    if (pred->GetSuccs().size() > 1) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void BB::Dump() const {
   LogInfo::MapleLogger() << "=== BB " << this << " <" << GetKindName();
   if (labIdx) {

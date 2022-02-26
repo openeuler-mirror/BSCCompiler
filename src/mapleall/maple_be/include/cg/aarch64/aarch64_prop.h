@@ -57,8 +57,9 @@ class A64StrLdrProp {
   bool ReplaceMemOpnd(const AArch64MemOperand &currMemOpnd, const Insn *defInsn);
   AArch64MemOperand *SelectReplaceMem(const Insn &defInsn, const AArch64MemOperand &currMemOpnd);
   AArch64RegOperand *GetReplaceReg(AArch64RegOperand &a64Reg);
-  AArch64MemOperand *HandleArithImmDef(AArch64RegOperand &replace, Operand *oldOffset, int64 defVal);
-  AArch64MemOperand *SelectReplaceExt(const Insn &defInsn, RegOperand &base, uint32 amount, bool isSigned);
+  AArch64MemOperand *HandleArithImmDef(AArch64RegOperand &replace, Operand *oldOffset, int64 defVal, uint32 memSize);
+  AArch64MemOperand *SelectReplaceExt(const Insn &defInsn, RegOperand &base, uint32 amount,
+                                      bool isSigned, uint32 memSize);
   bool CheckNewMemOffset(const Insn &insn, AArch64MemOperand *newMemOpnd, uint32 opndIdx);
   void DoMemReplace(const RegOperand &replacedReg, AArch64MemOperand &newMem, Insn &useInsn);
   uint32 GetMemOpndIdx(AArch64MemOperand *newMemOpnd, const Insn &insn);
@@ -131,6 +132,7 @@ class CopyRegProp : public PropOptimizePattern {
     srcVersion = nullptr;
   }
  private:
+  bool IsValidCopyProp(RegOperand &dstReg, RegOperand &srcReg);
   void VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn);
   VRegVersion *destVersion = nullptr;
   VRegVersion *srcVersion = nullptr;
