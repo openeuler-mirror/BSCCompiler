@@ -13,20 +13,9 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef MAPLEBE_INCLUDE_CG_LABEL_CREATION_H
-#define MAPLEBE_INCLUDE_CG_LABEL_CREATION_H
-
-#include "cgfunc.h"
-
+#include "standardize.h"
 namespace maplebe {
+void Standardize::DoStandardize() {
 
-class Isel {
-
-};
-
-MAPLE_FUNC_PHASE_DECLARE_BEGIN(InstructionSelector, maplebe::CGFunc)
-MAPLE_FUNC_PHASE_DECLARE_END
 }
-
-
-#endif  /* MAPLEBE_INCLUDE_CG_LABEL_CREATION_H */
+}

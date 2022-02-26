@@ -1300,6 +1300,9 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
   /* maximum register count initial be increased by 1024 */
   maxRegCount = vRegCount + 1024;
 
+  insnBuilder = memPool.New<InsnBuilder>(memPool);
+  opndBuilder = memPool.New<OperandBuilder>(memPool);
+
   vRegTable.resize(maxRegCount);
   /* func.GetPregTab()->_preg_table[0] is nullptr, so skip it */
   ASSERT(func.GetPregTab()->PregFromPregIdx(0) == nullptr, "PregFromPregIdx(0) must be nullptr");
@@ -1848,6 +1851,22 @@ void CGFunc::DumpCFG() const {
       } while (!done);
     } else {
       LogInfo::MapleLogger() << "<empty BB>\n";
+    }
+  }
+}
+
+void CGFunc::DumpCGIR(bool isNew) const {
+  MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());
+  LogInfo::MapleLogger() << "\n******  CGIR for " << funcSt->GetName() << " *******\n";
+  FOR_ALL_BB_CONST(bb, this) {
+    if (bb->IsUnreachable()) {
+      continue;
+    }
+    LogInfo::MapleLogger() << "=== BB " << " <" << bb->GetKindName();
+    LogInfo::MapleLogger() << "> <" << bb->GetId() << "> ";
+    LogInfo::MapleLogger() << "===\n";
+    FOR_BB_CGINSNS_CONST(insn, bb) {
+      insn->Dump();
     }
   }
 }

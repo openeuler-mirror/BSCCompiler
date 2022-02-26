@@ -18,6 +18,8 @@
 #define MAPLEBE_INCLUDE_CG_X86_64_CG_H
 
 #include "cg.h"
+#include "x64_MPISel.h"
+
 namespace maplebe {
 class X64CG : public CG {
  public:
@@ -28,6 +30,10 @@ class X64CG : public CG {
   /*LiveAnalysis *CreateLiveAnalysis(MemPool &mp, CGFunc &f) const override;
   MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const override;
   AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const override;*/
+  MPISel *CreateMPIsel(MemPool &mp, CGFunc &f) const override {
+    return mp.New<X64MPIsel>(mp, f);
+  }
+
   /* Init SubTarget optimization */
 
   Insn &BuildPhiInsn(RegOperand &defOpnd, Operand &listParam) override;

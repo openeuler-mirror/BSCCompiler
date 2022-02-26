@@ -42,6 +42,7 @@ class CGProp;
 class CGDce;
 class AlignAnalysis;
 class MoveRegArgs;
+class MPISel;
 
 class Globals {
  public:
@@ -383,6 +384,9 @@ class CG {
   virtual AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const {
     return nullptr;
   };
+  virtual MPISel *CreateMPIsel(MemPool &mp, CGFunc &f) const {
+    return nullptr;
+  }
   /* Init SubTarget optimization */
   virtual CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const {
     return nullptr;

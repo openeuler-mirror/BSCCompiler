@@ -20,71 +20,34 @@
 #include "operand.h"
 
 namespace maplebe {
-
-#if 0
 class InsnBuilder {
  public:
   explicit InsnBuilder(MemPool &memPool) : mp(&memPool) {}
   virtual ~InsnBuilder() = default;
-  virtual Insn &BuildInsn(MOperator opCode) = 0;
+  CGInsn &BuildInsn(MOperator opCode) {
+    return *mp->New<CGInsn>(*mp, opCode);
+  }
 
  protected:
   MemPool *mp;
-
 };
 
-
-
- private:
-
-};
-
-
-
-class OperandDescription {
- public:
-  OperandDescription(Operand::OperandType ot,uint32 size, uint64 flag)
-      : opndType(),
-        size(),
-        flag() {}
- private:
-  Operand::OperandType opndType;
-  uint32 size;
-  uint64 flag;
-};
-
-namespace X64 {
-  OperandDescription opnd32RegSrc(Operand::kOpdRegister, 8, 12);
-}
-
-
+constexpr uint32 baseVirtualRegNO = 200; /* avoid conflicts between virtual and physical */
 class OperandBuilder {
  public:
-  explicit OperandBuilder(MemPool *mp) : Alloc(mp), pRegPool(), vRegPool() {}
-  virtual const RegOperand &GetorCreateVReg(OperandDescription &omd) = 0;
-  virtual const RegOperand &GetorCreatePReg(OpndProp &opndDesc) = 0;
-  virtual const RegOperand &GetorCreateImm(OpndProp &opndDesc) = 0;
-  virtual const RegOperand &GetorCreateMem(OpndProp &opndDesc) = 0;
+  explicit OperandBuilder(MemPool &mp) : alloc(&mp) {}
+
+  /* create an operand in cgfunc when no mempool is supplied */
+  CGImmOperand &CreateImm(uint32 size, int64 value, MemPool *mp = nullptr);
+  CGMemOperand &CreateMem(uint32 size, MemPool *mp = nullptr);
+  CGRegOperand &CreateVReg(uint32 size, MemPool *mp = nullptr);
 
  protected:
-  MapleAllocator Alloc;
+  MapleAllocator alloc;
 
  private:
+  uint32 virtualRegNum = 0;
   /* reg bank for multiple use */
-  MapleUnorderedMap<regno_t, RegOperand> pRegPool;
-  MapleUnorderedMap<regno_t, RegOperand> vRegPool;
-
 };
-
-class AArch64OpndBuilder : public OperandBuilder {
- public:
-  explicit AArch64OpndBuilder(MemPool *createMP) : OperandBuilder(createMP) {
-
-  }
-  const RegOperand &GetorCreateVReg(OperandDescription &omd) override {
-    Alloc.New<AArch64InsnBuilder>();
-  }
-};
-#endif
 }
 #endif //MAPLEBE_INCLUDE_CG_IRBUILDER_H

@@ -59,6 +59,20 @@ Insn *BB::InsertInsnAfter(Insn &existing, Insn &newInsn) {
   return &newInsn;
 }
 
+CGInsn *BB::InsertInsnAfter(CGInsn &existing, CGInsn &newInsn) {
+  newInsn.SetPrev(&existing);
+  newInsn.SetNext(existing.GetNext());
+  existing.SetNext(&newInsn);
+  if (&existing == lastCGInsn) {
+    lastCGInsn = &newInsn;
+  } else if (newInsn.GetNext()) {
+    newInsn.GetNext()->SetPrev(&newInsn);
+  }
+  newInsn.SetBB(this);
+  internalFlag1++;
+  return &newInsn;
+}
+
 void BB::ReplaceInsn(Insn &insn, Insn &newInsn) {
   if (insn.IsAccessRefField()) {
     newInsn.MarkAsAccessRefField(true);

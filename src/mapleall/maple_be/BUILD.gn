@@ -134,9 +134,9 @@ src_libcgx8664 = [
   "src/cg/x86_64/x64_rt.cpp",
   "src/cg/x86_64/x64_reg_alloc.cpp",
   "src/cg/x86_64/x64_emitter.cpp",
-  "src/cg/x86_64/x64_irbuilder.cpp",
   "src/cg/x86_64/x64_abi.cpp",
   "src/cg/x86_64/x64_call_conv.cpp",
+  "src/cg/x86_64/x64_standardize.cpp",
 ]
 
 src_libcgriscv64 = [
@@ -212,7 +212,8 @@ src_libcg = [
   "src/cg/emit.cpp",
   "src/cg/live.cpp",
   "src/cg/loop.cpp",
-  "src/cg/Isel.cpp",
+  "src/cg/isel.cpp",
+  "src/cg/standardize.cpp",
   "src/cg/memlayout.cpp",
   "src/cg/yieldpoint.cpp",
   "src/cg/label_creation.cpp",
@@ -222,6 +223,7 @@ src_libcg = [
   "src/cg/proepilog.cpp",
   "src/cg/alignment.cpp",
   "src/cg/cg.cpp",
+  "src/cg/insn.cpp",
   "src/cg/cg_phasemanager.cpp",
 ]
 

@@ -18,6 +18,7 @@
 #include "cg_option.h"
 #include "args.h"
 #include "label_creation.h"
+#include "isel.h"
 #include "offset_adjust.h"
 #include "alignment.h"
 #include "yieldpoint.h"
@@ -350,6 +351,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgFuncPM, cgFuncPhaseManager)
 /* register codegen common phases */
 MAPLE_TRANSFORM_PHASE_REGISTER(CgLayoutFrame, layoutstackframe)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgCreateLabel, createstartendlabel)
+MAPLE_TRANSFORM_PHASE_REGISTER(InstructionSelector, instructionselector)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgMoveRegArgs, moveargs)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgAlignAnalysis, alignanalysis)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFrameFinalize, framefinalize)
