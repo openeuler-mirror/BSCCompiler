@@ -14,6 +14,7 @@
  */
 
 #include "x64_cgfunc.h"
+#include "x64_memlayout.h"
 
 namespace maplebe {
 /* null implementation yet */
@@ -494,7 +495,19 @@ RegOperand &X64CGFunc::GetOrCreateStackBaseRegOperand() {
   return *a;
 }
 int32 X64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
-  CHECK_FATAL(false, "NIY");
+  const X64SymbolAlloc *symAlloc = static_cast<const X64SymbolAlloc*>(&symbolAlloc);
+  /* Call Frame layout of X64
+   * Refer to layout in x64_memlayout.h.
+   * Do Not change this unless you know what you do
+   */
+  MemSegmentKind sgKind = symAlloc->GetMemSegment()->GetMemSegmentKind();
+  X64MemLayout *memLayout = static_cast<X64MemLayout*>(this->GetMemlayout());
+  if (sgKind == kMsLocals) {
+    int32 baseOffset = symAlloc->GetOffset();
+    return baseOffset + memLayout->StackFrameSize();
+  } else {
+    CHECK_FATAL(false, "sgKind check");
+  }
   return 0;
 }
 Operand &X64CGFunc::GetZeroOpnd(uint32 size) {
