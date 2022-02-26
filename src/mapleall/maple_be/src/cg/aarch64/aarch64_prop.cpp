@@ -99,6 +99,8 @@ MOperator A64ConstProp::GetReversalMOP(MOperator arithMop) {
       return MOP_xsubrri12;
     case MOP_xsubrri12:
       return MOP_xaddrri12;
+    case MOP_wsubrri12:
+      return MOP_waddrri12;
     default:
       CHECK_FATAL(false, "NYI");
       break;
@@ -1592,10 +1594,9 @@ void FpSpConstProp::Optimize(Insn &insn) {
     PropInMem(*useInsnInfo.second, *useInsn);
     switch (useMop) {
       case MOP_xmovrr:
+      case MOP_wmovrr:
         PropInCopy(*useInsnInfo.second, *useInsn, insn.GetMachineOpcode());
         break;
-      case MOP_wmovrr:
-        CHECK_FATAL(false, "NIY mov 32");
       case MOP_xaddrri12:
         PropInArith(*useInsnInfo.second, *useInsn, kAArch64Add);
         break;
