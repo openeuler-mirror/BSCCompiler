@@ -45,6 +45,24 @@ namespace maplebe {
     }                         \
   } while (0)
 
+namespace {
+
+void DumpMIRFunc(MIRFunction &func, const char *msg, bool printAlways = false, const char* extraMsg = nullptr) {
+  bool dumpAll = (CGOptions::GetDumpPhases().find("*") != CGOptions::GetDumpPhases().end());
+  bool dumpFunc = CGOptions::FuncFilter(func.GetName());
+
+  if (printAlways || (dumpAll && dumpFunc)) {
+    LogInfo::MapleLogger() << msg << '\n';
+    func.Dump();
+
+    if (extraMsg) {
+      LogInfo::MapleLogger() << extraMsg << '\n';
+    }
+  }
+}
+
+} // anonymous namespace
+
 void CgFuncPM::GenerateOutPutFile(MIRModule &m) {
   CHECK_FATAL(cg != nullptr, "cg is null");
   CHECK_FATAL(cg->GetEmitter(), "emitter is null");
@@ -116,6 +134,7 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
       /* LowerIR. */
       m.SetCurFunction(mirFunc);
       if (cg->DoConstFold()) {
+        DumpMIRFunc(*mirFunc, "************* before ConstantFold **************");
         ConstantFold cf(m);
         (void)cf.Simplify(mirFunc->GetBody());
       }
@@ -249,20 +268,18 @@ void CgFuncPM::DoFuncCGLower(const MIRModule &m, MIRFunction &mirFunc) {
   if (m.GetFlavor() <= kFeProduced) {
     mirLower->SetLowerCG();
     mirLower->SetMirFunc(&mirFunc);
+
+    DumpMIRFunc(mirFunc, "************* before MIRLowerer **************");
     mirLower->LowerFunc(mirFunc);
   }
-  bool dumpAll = (CGOptions::GetDumpPhases().find("*") != CGOptions::GetDumpPhases().end());
-  bool dumpFunc = CGOptions::FuncFilter(mirFunc.GetName());
-  if (!cg->IsQuiet() || (dumpAll && dumpFunc)) {
-    LogInfo::MapleLogger() << "************* before CGLowerer **************" << '\n';
-    mirFunc.Dump();
-  }
+
+  bool isNotQuiet = !cg->IsQuiet();
+  DumpMIRFunc(mirFunc, "************* before CGLowerer **************", isNotQuiet);
+
   cgLower->LowerFunc(mirFunc);
-  if (!cg->IsQuiet() || (dumpAll && dumpFunc)) {
-    LogInfo::MapleLogger() << "************* after  CGLowerer **************" << '\n';
-    mirFunc.Dump();
-    LogInfo::MapleLogger() << "************* end    CGLowerer **************" << '\n';
-  }
+
+  DumpMIRFunc(mirFunc, "************* after  CGLowerer **************", isNotQuiet,
+              "************* end    CGLowerer **************");
 }
 
 void CgFuncPM::EmitDuplicatedAsmFunc(MIRModule &m) const {
