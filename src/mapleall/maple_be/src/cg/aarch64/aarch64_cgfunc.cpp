@@ -8235,7 +8235,7 @@ MemOperand &AArch64CGFunc::CreateNonExtendMemOpnd(PrimType ptype, const BaseNode
     ASSERT(constOfstNode->GetConstVal()->GetKind() == kConstInt, "expect MIRIntConst");
     MIRIntConst *intOfst = safe_cast<MIRIntConst>(constOfstNode->GetConstVal());
     CHECK_FATAL(intOfst != nullptr, "just checking");
-    offset = (addrExpr.GetOpCode() == OP_add) ? offset + intOfst->GetValue() : offset - intOfst->GetValue();
+    offset = (addrExpr.GetOpCode() == OP_add) ? offset + intOfst->GetSXTValue() : offset - intOfst->GetSXTValue();
   } else {
     addrOpnd = HandleExpr(parent, addrExpr);
   }
