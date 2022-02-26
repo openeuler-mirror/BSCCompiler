@@ -179,6 +179,14 @@ void LibAstFile::GetStorageAttrs(const clang::NamedDecl &decl, GenericAttrs &gen
       const auto *funcDecl = llvm::cast<clang::FunctionDecl>(&decl);
       const clang::StorageClass storageClass = funcDecl->getStorageClass();
       GetSClassAttrs(storageClass, genAttrs);
+      // static or extern maybe missing in current FunctionDecls,
+      // Since a given function can be declared several times in a program,
+      // Only one of those FunctionDecls will be found when traversing the list of declarations in the context.
+      const clang::FunctionDecl *prev = funcDecl->getPreviousDecl();
+      while (prev != nullptr && prev->isDefined()) {
+        GetStorageAttrs(*prev, genAttrs);
+        prev = prev->getPreviousDecl();
+      }
       break;
     }
     case clang::Decl::ParmVar:

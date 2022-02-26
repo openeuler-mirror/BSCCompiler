@@ -135,6 +135,8 @@ src_libcgx8664 = [
   "src/cg/x86_64/x64_reg_alloc.cpp",
   "src/cg/x86_64/x64_emitter.cpp",
   "src/cg/x86_64/x64_irbuilder.cpp",
+  "src/cg/x86_64/x64_abi.cpp",
+  "src/cg/x86_64/x64_call_conv.cpp",
 ]
 
 src_libcgriscv64 = [

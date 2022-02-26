@@ -1,0 +1,161 @@
+/*
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *     http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+#ifndef MAPLEBE_INCLUDE_CG_X64_X64_ISA_H
+#define MAPLEBE_INCLUDE_CG_X64_X64_ISA_H
+
+#include "operand.h"
+#include "mad.h"
+
+namespace maplebe {
+/*
+ * X64 Architecture Reference Manual
+ */
+constexpr int kX64StackPtrAlignment = 16;
+
+constexpr int32 kOffsetAlign = 8;
+constexpr uint32 kIntregBytelen = 8;   /* 64-bit */
+constexpr uint32 kFpregBytelen = 8;    /* only lower 64 bits are used */
+constexpr int kSizeOfFplr = 16;
+
+enum StpLdpImmBound : int {
+  kStpLdpImm64LowerBound = -512,
+  kStpLdpImm64UpperBound = 504,
+  kStpLdpImm32LowerBound = -256,
+  kStpLdpImm32UpperBound = 252
+};
+
+enum StrLdrPerPostBound : int64 {
+  kStrLdrPerPostLowerBound = -256,
+  kStrLdrPerPostUpperBound = 255
+};
+constexpr int64 kStrAllLdrAllImmLowerBound = 0;
+enum StrLdrImmUpperBound : int64 {
+  kStrLdrImm32UpperBound = 16380, /* must be a multiple of 4 */
+  kStrLdrImm64UpperBound = 32760, /* must be a multiple of 8 */
+  kStrbLdrbImmUpperBound = 4095,
+  kStrhLdrhImmUpperBound = 8190
+};
+
+/*
+ * Registers in x64 state
+ */
+enum X64reg : uint32 {
+  kRinvalid = kInvalidRegNO,
+/* integer registers */
+#define INT_REG(ID, PREF8, PREF8_16, PREF16, PREF32, PREF64, canBeAssigned, isCalleeSave, \
+    isParam, isSpill, isExtraSpill) R##ID,
+#define INT_REG_ALIAS(ALIAS, ID, PREF8, PREF8_16, PREF16, PREF32, PREF64)
+#include "x64_int_regs.def"
+#undef INT_REG
+#undef INT_REG_ALIAS
+/* fp-simd registers */
+#define FP_SIMD_REG(ID, PV, P8, P16, P32, P64, P128, canBeAssigned, isCalleeSave, \
+    isParam, isSpill, isExtraSpill) V##ID,
+#include "x64_fp_simd_regs.def"
+#undef FP_SIMD_REG
+  kMaxRegNum,
+  kRFLAG,
+  kAllRegNum,
+/* integer registers alias */
+#define INT_REG(ID, PREF8, PREF8_16, PREF16, PREF32, PREF64, canBeAssigned, isCalleeSave, \
+    isParam, isSpill, isExtraSpill)
+#define INT_REG_ALIAS(ALIAS, ID, PREF8, PREF8_16, PREF16, PREF32, PREF64) R##ALIAS = R##ID,
+#include "x64_int_regs.def"
+#undef INT_REG
+#undef INT_REG_ALIAS
+};
+
+namespace x64isa {
+static inline bool IsGPRegister(X64reg r) {
+  return R0 <= r && r <= RLAST_GP_REG;
+}
+
+static inline bool IsFPSIMDRegister(X64reg r) {
+  return V0 <= r && r <= V23;
+}
+
+static inline bool IsFPRegister(X64reg r) {
+  return V0 <= r && r <= V7;
+}
+
+static inline bool IsSIMDRegister(X64reg r) {
+  return V8 <= r && r <= V23;
+}
+
+static inline bool IsPhysicalRegister(regno_t r) {
+  return r < kMaxRegNum;
+}
+
+static inline RegType GetRegType(X64reg r) {
+  if (IsGPRegister(r)) {
+    return kRegTyInt;
+  }
+  if (IsFPSIMDRegister(r)) {
+    return kRegTyFloat;
+  }
+  ASSERT(false, "No suitable register type to return?");
+  return kRegTyUndef;
+}
+}  /* namespace x64isa */
+
+enum RegPropState : uint32 {
+  kRegPropUndef = 0,
+  kRegPropDef = 0x1,
+  kRegPropUse = 0x2
+};
+enum RegAddress : uint32 {
+  kRegHigh = 0x4,
+  kRegLow = 0x8
+};
+constexpr uint32 kMemLow12 = 0x10;
+constexpr uint32 kLiteralLow12 = kMemLow12;
+constexpr uint32 kPreInc = 0x20;
+constexpr uint32 kPostInc = 0x40;
+constexpr uint32 kLoadLiteral = 0x80;
+constexpr uint32 kVector = 0x100;
+
+class RegProp {
+ public:
+  RegProp(RegType t, X64reg r, uint32 d) : regType(t), physicalReg(r), defUse(d) {}
+  virtual ~RegProp() = default;
+  const RegType &GetRegType() const {
+    return regType;
+  }
+  const X64reg &GetPhysicalReg() const {
+    return physicalReg;
+  }
+  uint32 GetDefUse() const {
+    return defUse;
+  }
+ private:
+  RegType regType;
+  X64reg physicalReg;
+  uint32 defUse;  /* used for register use/define and other properties of other operand */
+};
+
+/*
+ * We save callee-saved registers from lower stack area to upper stack area.
+ * If possible, we store a pair of registers (int/int and fp/fp) in the stack.
+ * The Stack Pointer has to be aligned at 16-byte boundary.
+ * On X64, kIntregBytelen == 8 (see the above)
+ */
+// TODO(dixinkai)
+inline void GetNextOffsetCalleeSaved(int &offset) {
+  offset += (kIntregBytelen << 1);
+}
+
+}  /* namespace maplebe */
+
+#endif  /* MAPLEBE_INCLUDE_CG_X64_X64_ISA_H */

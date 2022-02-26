@@ -66,6 +66,8 @@ enum MemSegmentKind : uint8 {
    * responsibility to allocate space for those arguments in memory.
    */
   kMsArgsToStkPass,
+  /* The red zone stack area will not be modified by the exception signal. */
+  kMsRedZone,
 };
 
 class CGFunc;
