@@ -35,6 +35,57 @@ class CG;
 class Emitter;
 class DepNode;
 
+class CGInsn {
+ public:
+  CGInsn(MemPool &mp, MOperator opc)
+      : mOp(opc),
+        insnAlloc(&mp),
+        opnds(insnAlloc.Adapter()) {}
+
+
+  CGInsn &AddOperandChain(CGOperand &opnd) {
+    opnds.emplace_back(&opnd);
+    return *this;
+  }
+
+  MOperator GetMachineOp() {
+    return mOp;
+  }
+  CGInsn *GetPrev() {
+    return prev;
+  }
+  CGInsn *GetPrev() const {
+    return prev;
+  }
+  void SetPrev(CGInsn * prevInsn) {
+    prev = prevInsn;
+  }
+  CGInsn *GetNext() {
+    return next;
+  }
+  CGInsn *GetNext() const {
+    return next;
+  }
+  void SetNext(CGInsn *nextInsn) {
+    next = nextInsn;
+  }
+  BB *GetBB(){
+    return bb;
+  }
+  void SetBB(BB *curbb) {
+    bb = curbb;
+  }
+  void Dump() const;
+
+ private:
+  MOperator mOp;
+  MapleAllocator insnAlloc;
+  MapleVector<CGOperand*> opnds;
+  CGInsn *prev = nullptr;
+  CGInsn *next = nullptr;
+  BB *bb = nullptr;        /* BB to which this insn belongs */
+};
+
 
 class Insn {
  public:
@@ -85,11 +136,6 @@ class Insn {
 
   void AddOperand(Operand &opnd) {
     opnds.emplace_back(&opnd);
-  }
-
-  Insn &AddOperandChain(Operand &opnd) {
-    opnds.emplace_back(&opnd);
-    return *this;
   }
 
   void PopBackOperand() {

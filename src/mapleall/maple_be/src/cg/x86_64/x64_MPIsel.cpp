@@ -13,18 +13,20 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "cg_irbuilder.h"
+#include "x64_MPISel.h"
 
 namespace maplebe {
-CGImmOperand &OperandBuilder::CreateImm(uint32 size, int64 value, MemPool *mp) {
-  return mp ? *mp->New<CGImmOperand>(size, value) : *alloc.New<CGImmOperand>(size, value);
-}
-CGMemOperand &OperandBuilder::CreateMem(uint32 size, MemPool *mp) {
-  return mp ? *mp->New<CGMemOperand>(size) : *alloc.New<CGMemOperand>(size);
-}
-CGRegOperand &OperandBuilder::CreateVReg(uint32 size, MemPool *mp) {
-  virtualRegNum++;
-  regno_t vRegNO = baseVirtualRegNO + virtualRegNum;
-  return mp ? *mp->New<CGRegOperand>(vRegNO, size) : *alloc.New<CGRegOperand>(vRegNO, size);
+CGMemOperand &X64MPIsel::GetSymbolFromMemory(const MIRSymbol &symbol) {
+  MIRStorageClass storageClass = symbol.GetStorageClass();
+  CGMemOperand *result = nullptr;
+  if ((storageClass == kScAuto) || (storageClass == kScFormal)) {
+    uint32 opndSz = GetPrimTypeSize(symbol.GetType()->GetPrimType()) * kBitsPerByte;
+    result = &GetCurFunc()->GetOpndBuilder()->CreateMem(opndSz);
+    /* memoperand */
+  } else {
+    CHECK_FATAL(false, "NIY");
+  }
+  CHECK_FATAL(result != nullptr, "NIY");
+  return *result;
 }
 }

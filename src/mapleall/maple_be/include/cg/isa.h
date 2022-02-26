@@ -107,6 +107,18 @@ class ConstraintFunction {
   }
 };
 
+#if 0
+class InsnMD {
+  MOperator opc;
+  uint64 properties;
+  std::vector<CGOperand*> opnd;
+  const std::string &asmName;
+  const std::string &format;
+  uint32 atomicNum;
+};
+#endif
+;
+
 /* empty class; just for parameter passing */
 class OpndProp {};
 

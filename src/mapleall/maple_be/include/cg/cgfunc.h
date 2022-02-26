@@ -26,6 +26,7 @@
 #include "dbg.h"
 #include "reaching.h"
 #include "cg_cfg.h"
+#include "cg_irbuilder.h"
 /* MapleIR headers. */
 #include "mir_parser.h"
 #include "mir_function.h"
@@ -125,6 +126,13 @@ class CGFunc {
     reachingDef = paramRd;
   }
 
+  InsnBuilder *GetInsnBuilder() {
+    return insnBuilder;
+  }
+  OperandBuilder *GetOpndBuilder() {
+    return opndBuilder;
+  }
+
   bool GetRDStatus() const {
     return (reachingDef != nullptr);
   }
@@ -157,6 +165,7 @@ class CGFunc {
   };
   void DumpCFG() const;
   void DumpCGIR() const;
+  void DumpCGIR(bool isNew) const;
   void DumpLoop() const;
   void ClearLoopInfo();
   Operand *HandleExpr(const BaseNode &parent, BaseNode &expr);
@@ -1134,7 +1143,6 @@ class CGFunc {
   void SetHasAsm() {
     hasAsm = true;
   }
-
  private:
   CGFunc &operator=(const CGFunc &cgFunc);
   CGFunc(const CGFunc&);
@@ -1142,6 +1150,10 @@ class CGFunc {
   bool CheckSkipMembarOp(const StmtNode &stmt);
   MIRFunction &func;
   EHFunc *ehFunc = nullptr;
+
+  InsnBuilder *insnBuilder = nullptr;
+  OperandBuilder *opndBuilder = nullptr;
+
   uint32 bbCnt = 0;
   uint32 labelIdx = 0;          /* local label index number */
   LabelNode *startLabel = nullptr;    /* start label of the function */

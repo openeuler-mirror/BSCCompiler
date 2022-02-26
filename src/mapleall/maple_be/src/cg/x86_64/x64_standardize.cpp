@@ -13,11 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "Isel.h"
 namespace maplebe {
 
-bool InstructionSelector::PhaseRun(maplebe::CGFunc &f) {
-  return true;
-}
-MAPLE_TRANSFORM_PHASE_REGISTER(InstructionSelector, instructionselector)
 }

@@ -13,18 +13,19 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "cg_irbuilder.h"
+#ifndef MAPLEBE_INCLUDE_X64_MPISEL_H
+#define MAPLEBE_INCLUDE_X64_MPISEL_H
 
+#include "isel.h"
 namespace maplebe {
-CGImmOperand &OperandBuilder::CreateImm(uint32 size, int64 value, MemPool *mp) {
-  return mp ? *mp->New<CGImmOperand>(size, value) : *alloc.New<CGImmOperand>(size, value);
+class X64MPIsel : public MPISel {
+ public:
+  X64MPIsel(MemPool &mp, CGFunc &f) : MPISel(mp, f) {}
+  ~X64MPIsel() override = default;
+
+ private:
+  CGMemOperand &GetSymbolFromMemory(const MIRSymbol &symbol) override;
+};
 }
-CGMemOperand &OperandBuilder::CreateMem(uint32 size, MemPool *mp) {
-  return mp ? *mp->New<CGMemOperand>(size) : *alloc.New<CGMemOperand>(size);
-}
-CGRegOperand &OperandBuilder::CreateVReg(uint32 size, MemPool *mp) {
-  virtualRegNum++;
-  regno_t vRegNO = baseVirtualRegNO + virtualRegNum;
-  return mp ? *mp->New<CGRegOperand>(vRegNO, size) : *alloc.New<CGRegOperand>(vRegNO, size);
-}
-}
+
+#endif  /* MAPLEBE_INCLUDE_X64_MPISEL_H */

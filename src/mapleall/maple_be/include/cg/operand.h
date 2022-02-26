@@ -35,6 +35,99 @@ namespace {
 constexpr int32 kOffsetImmediateOpndSpace = 4; /* offset and immediate operand space is 4 */
 };
 
+namespace operand {
+constexpr uint64 kDef = (1ULL);
+constexpr uint64 kUse = (1ULL << 1ULL);
+};
+
+class CGOperand {
+ public:
+  enum OperandType : uint8 {
+    kOpdRegister,
+    kOpdImmediate,
+    kOpdMemory,
+    kOpdCond,
+    kOpdUndef
+  };
+
+  CGOperand(OperandType opndTy, uint32 sz) : opndKind(opndTy), size(sz) {}
+  virtual ~CGOperand() = default;
+
+  CGOperand &SetFlag(uint64 property) {
+    flag |= property;
+    return *this;
+  }
+
+  CGOperand::OperandType GetOpndKind() {
+    return opndKind;
+  }
+
+  bool IsReg() {
+    return opndKind == kOpdRegister;
+  }
+
+  uint32 GetSize() const {
+    return size;
+  }
+
+  virtual void Dump() const = 0;
+
+ private:
+  OperandType opndKind;  /* operand type */
+  uint64 flag = 0;       /* operand property*/
+  uint32 size;           /* size in bits */
+};
+
+class CGRegOperand : public CGOperand {
+ public:
+  CGRegOperand(regno_t regId, uint32 sz) : CGOperand(kOpdRegister, sz), regNO(regId) {}
+  ~CGRegOperand() override = default;
+
+  regno_t GetRegNO() const {
+    return regNO;
+  }
+  void Dump() const override {
+    std::array<const std::string, kRegTyLast> classes = { "[U]", "[I]", "[F]", "[CC]", "[X87]", "[Vra]" };
+
+    LogInfo::MapleLogger() << "reg ";
+    LogInfo::MapleLogger() << "size : " << GetSize() << " ";
+    LogInfo::MapleLogger() << classes[kind] <<"_" << GetRegNO();
+  }
+ private:
+  regno_t regNO;
+  RegType kind = kRegTyInt;
+};
+
+class CGImmOperand : public CGOperand {
+ public:
+  CGImmOperand(uint32 sz, int64 value) : CGOperand(kOpdImmediate, sz), val(value) {}
+  ~CGImmOperand() override = default;
+
+  int64 GetValue() const {
+    return val;
+  }
+
+  void Dump() const override {
+    LogInfo::MapleLogger() << "imm ";
+    LogInfo::MapleLogger() << "size : " << GetSize();
+    LogInfo::MapleLogger() << " value : " << GetValue();
+  }
+ private:
+  int64 val;
+};
+
+class CGMemOperand : public CGOperand {
+ public:
+  CGMemOperand(uint32 sz) : CGOperand(kOpdMemory, sz) {}
+  ~CGMemOperand() override = default;
+
+  void Dump() const override {
+    LogInfo::MapleLogger() << "mem ";
+    LogInfo::MapleLogger() << "size : " << GetSize();
+  }
+ private:
+};
+
 class Operand {
  public:
   enum OperandType : uint8 {
@@ -416,7 +509,7 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
       return true;
     }
     int32 start = __builtin_ctzll(static_cast<uint64>(val));
-    int32 end = static_cast<int32>(sizeof(val) * kBitsPerByte - __builtin_clzll(static_cast<uint64>(val)) - 1UL);
+    int32 end = static_cast<int32>(sizeof(val) * kBitsPerByte - __builtin_clzll(static_cast<uint64>(val)) - 1);
     return (size >= end - start + 1);
 #else
     uint8 start = 0;

@@ -13,18 +13,25 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "cg_irbuilder.h"
+#ifndef MAPLEBE_INCLUDE_STANDARDIZE_H
+#define MAPLEBE_INCLUDE_STANDARDIZE_H
 
+#include "cgfunc.h"
 namespace maplebe {
-CGImmOperand &OperandBuilder::CreateImm(uint32 size, int64 value, MemPool *mp) {
-  return mp ? *mp->New<CGImmOperand>(size, value) : *alloc.New<CGImmOperand>(size, value);
+class Standardize {
+ public:
+  explicit Standardize(CGFunc &f) : cgFunc(&f) {}
+
+  virtual ~Standardize() = default;
+
+  /*
+   * for cpu instruction contains different operands
+   * maple provide a default implement from three address to two address
+   */
+  void TwoAddressMapping();
+  void DoStandardize();
+ private:
+  CGFunc *cgFunc;
+};
 }
-CGMemOperand &OperandBuilder::CreateMem(uint32 size, MemPool *mp) {
-  return mp ? *mp->New<CGMemOperand>(size) : *alloc.New<CGMemOperand>(size);
-}
-CGRegOperand &OperandBuilder::CreateVReg(uint32 size, MemPool *mp) {
-  virtualRegNum++;
-  regno_t vRegNO = baseVirtualRegNO + virtualRegNum;
-  return mp ? *mp->New<CGRegOperand>(vRegNO, size) : *alloc.New<CGRegOperand>(vRegNO, size);
-}
-}
+#endif  /* MAPLEBE_INCLUDE_STANDARDIZE_H */
