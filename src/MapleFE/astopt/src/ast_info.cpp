@@ -746,7 +746,15 @@ LiteralNode *FillNodeInfoVisitor::VisitLiteralNode(LiteralNode *node) {
 
 PrimTypeNode *FillNodeInfoVisitor::VisitPrimTypeNode(PrimTypeNode *node) {
   (void) AstVisitor::VisitPrimTypeNode(node);
-  mInfo->SetTypeIdx(node, node->GetPrimType());
+  TypeId prim = node->GetPrimType();
+  bool isprim = gTypeTable.IsPrimTypeId(prim);
+
+  if (isprim) {
+    mInfo->SetTypeIdx(node, prim);
+  } else {
+    TreeNode *type = gTypeTable.GetTypeFromTypeId(prim);
+    mInfo->SetTypeIdx(node, type->GetTypeIdx());
+  }
   return node;
 }
 
