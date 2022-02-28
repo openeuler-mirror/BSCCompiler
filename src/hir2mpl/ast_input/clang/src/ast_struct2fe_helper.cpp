@@ -29,6 +29,7 @@ bool ASTStruct2FEHelper::ProcessDeclImpl() {
   if (mirStructType == nullptr) {
     return false;
   }
+  mirStructType->SetTypeAttrs(GetStructAttributeFromInput());
   // Process Fields
   InitFieldHelpers();
   ProcessFieldDef();

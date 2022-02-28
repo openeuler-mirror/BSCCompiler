@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -36,6 +36,11 @@ TypeAttrs GenericAttrs::ConvertToTypeAttrs() {
       default:
         ASSERT(false, "unknown TypeAttrs");
         break;
+    }
+  }
+  for(auto iter = contentMap.begin(); iter != contentMap.end(); ++iter) {
+    if (iter->first == GENATTR_pack) {
+      attr.SetPack(static_cast<uint32>(std::get<int>(iter->second)));
     }
   }
   return attr;
@@ -98,6 +103,11 @@ FieldAttrs GenericAttrs::ConvertToFieldAttrs() {
       default:
         ASSERT(false, "unknown FieldAttrs");
         break;
+    }
+  }
+  for(auto iter = contentMap.begin(); iter != contentMap.end(); ++iter) {
+    if (iter->first == GENATTR_pack) {
+      attr.SetPack(static_cast<uint32>(std::get<int>(iter->second)));
     }
   }
   return attr;

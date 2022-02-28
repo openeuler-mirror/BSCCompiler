@@ -379,6 +379,28 @@ void LibAstFile::CheckUnsupportedVarAttrs(const clang::VarDecl &decl) {
               unsupportedVarAttrs.c_str());
 }
 
+void LibAstFile::CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs &genAttrs, AccessKind access) {
+  clang::PackedAttr *packedAttr = decl.getAttr<clang::PackedAttr>();
+  if (packedAttr != nullptr) {
+    genAttrs.SetAttr(GENATTR_pack);
+    genAttrs.InsertIntContentMap(GENATTR_pack, 1); // 1 byte
+  }
+  clang::MaxFieldAlignmentAttr *maxFieldAlignAttr = decl.getAttr<clang::MaxFieldAlignmentAttr>();
+  if (maxFieldAlignAttr != nullptr) {
+    genAttrs.SetAttr(GENATTR_pack);
+    genAttrs.InsertIntContentMap(GENATTR_pack, static_cast<uint32>(maxFieldAlignAttr->getAlignment() / 8));
+  }
+}
+
+void LibAstFile::CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &genAttrs, AccessKind access) {
+  CollectAttrs(decl, genAttrs, access);
+  clang::PackedAttr *packedAttr = decl.getAttr<clang::PackedAttr>();
+  if (packedAttr != nullptr) {
+    genAttrs.SetAttr(GENATTR_pack);
+    genAttrs.InsertIntContentMap(GENATTR_pack, 1); // 1 byte
+  }
+}
+
 void LibAstFile::EmitTypeName(const clang::QualType qualType, std::stringstream &ss) {
   switch (qualType->getTypeClass()) {
     case clang::Type::LValueReference: {
