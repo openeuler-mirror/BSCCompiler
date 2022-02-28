@@ -33,8 +33,8 @@ namespace maplebe {
 constexpr int kAarch64StackPtrAlignment = 16;
 
 constexpr int32 kOffsetAlign = 8;
-constexpr uint32 kIntregBytelen = 8;   /* 64-bit */
-constexpr uint32 kFpregBytelen = 8;    /* only lower 64 bits are used */
+constexpr uint32 kIntregBytelen = 8; /* 64-bit */
+constexpr uint32 kFpregBytelen = 8;  /* only lower 64 bits are used */
 constexpr int kSizeOfFplr = 16;
 
 enum StpLdpImmBound : int {
@@ -48,6 +48,7 @@ enum StrLdrPerPostBound : int64 {
   kStrLdrPerPostLowerBound = -256,
   kStrLdrPerPostUpperBound = 255
 };
+
 constexpr int64 kStrAllLdrAllImmLowerBound = 0;
 enum StrLdrImmUpperBound : int64 {
   kStrLdrImm32UpperBound = 16380, /* must be a multiple of 4 */
@@ -144,13 +145,13 @@ static inline RegType GetRegType(AArch64reg r) {
 
 enum MemoryOrdering : uint32 {
   kMoNone = 0,
-  kMoAcquire = (1ULL << 0),      /* ARMv8 */
-  kMoAcquireRcpc = (1ULL << 1),  /* ARMv8.3 */
-  kMoLoacquire = (1ULL << 2),    /* ARMv8.1 */
-  kMoRelease = (1ULL << 3),      /* ARMv8 */
-  kMoLorelease = (1ULL << 4)     /* ARMv8.1 */
+  kMoAcquire = (1ULL << 0),     /* ARMv8 */
+  kMoAcquireRcpc = (1ULL << 1), /* ARMv8.3 */
+  kMoLoacquire = (1ULL << 2),   /* ARMv8.1 */
+  kMoRelease = (1ULL << 3),     /* ARMv8 */
+  kMoLorelease = (1ULL << 4)    /* ARMv8.1 */
 };
-}  /* namespace AArch64isa */
+} /* namespace AArch64isa */
 
 enum RegPropState : uint32 {
   kRegPropUndef = 0,
@@ -181,10 +182,11 @@ class RegProp {
   uint32 GetDefUse() const {
     return defUse;
   }
+
  private:
   RegType regType;
   AArch64reg physicalReg;
-  uint32 defUse;  /* used for register use/define and other properties of other operand */
+  uint32 defUse; /* used for register use/define and other properties of other operand */
 };
 
 class AArch64OpndProp : public OpndProp {
@@ -425,6 +427,6 @@ inline void GetNextOffsetCalleeSaved(int &offset) {
 }
 
 MOperator GetMopPair(MOperator mop);
-}  /* namespace maplebe */
+} /* namespace maplebe */
 
-#endif  /* MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_ISA_H */
+#endif /* MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_ISA_H */

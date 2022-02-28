@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -41,7 +41,7 @@ class X64CG : public CG {
   PhiOperand &CreatePhiOperand(MemPool &mp, MapleAllocator &mAllocator) override;
 
   CGFunc *CreateCGFunc(MIRModule &mod, MIRFunction &mirFunc, BECommon &bec, MemPool &memPool,
-                       StackMemPool &stackMp, MapleAllocator &mallocator, uint32 funcId) override;
+      StackMemPool &stackMp, MapleAllocator &mallocator, uint32 funcId) override;
 
   bool IsExclusiveFunc(MIRFunction &mirFunc) override;
 
@@ -51,5 +51,5 @@ class X64CG : public CG {
   /* Used for GCTIB pattern merging */
   std::string FindGCTIBPatternName(const std::string &name) const override;
 };
-}
-#endif  /* MAPLEBE_INCLUDE_CG_X86_64_CG_H */
+}  // namespace maplebe
+#endif /* MAPLEBE_INCLUDE_CG_X86_64_CG_H */
