@@ -2405,9 +2405,9 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm, FieldID f
     Operand *srcOpnd = &result;
     if (!IsAfterRegAlloc()) {
       // Create a new vreg/preg for the upper bits of the address
-      PregIdx pregIdx = GetFunction().GetPregTab()->CreatePreg(LOWERED_PTR_TYPE);
+      PregIdx pregIdx = GetFunction().GetPregTab()->CreatePreg(PTY_a64);
       MIRPreg *tmpPreg = GetFunction().GetPregTab()->PregFromPregIdx(pregIdx);
-      regno_t vRegNO = NewVReg(kRegTyInt, GetPrimTypeSize(LOWERED_PTR_TYPE));
+      regno_t vRegNO = NewVReg(kRegTyInt, GetPrimTypeSize(PTY_a64));
       RegOperand &tmpreg = GetOrCreateVirtualRegisterOperand(vRegNO);
 
       // Register this vreg mapping
@@ -3372,8 +3372,7 @@ Operand &AArch64CGFunc::SelectCGArrayElemAdd(BinaryNode &node, const BaseNode &p
       MIRSymbol &symbol = *mirModule.CurFunction()->GetLocalOrGlobalSymbol(addrofNode->GetStIdx());
       ASSERT(addrofNode->GetFieldID() == 0, "For debug SelectCGArrayElemAdd.");
 
-      PrimType primType = addrofNode->GetPrimType();
-      Operand &result = GetOrCreateResOperand(parent, primType);
+      Operand &result = GetOrCreateResOperand(parent, PTY_a64);
 
       /* OP_constval */
       ConstvalNode *constvalNode = static_cast<ConstvalNode *>(opnd1);
@@ -8236,7 +8235,7 @@ MemOperand &AArch64CGFunc::CreateNonExtendMemOpnd(PrimType ptype, const BaseNode
     ASSERT(constOfstNode->GetConstVal()->GetKind() == kConstInt, "expect MIRIntConst");
     MIRIntConst *intOfst = safe_cast<MIRIntConst>(constOfstNode->GetConstVal());
     CHECK_FATAL(intOfst != nullptr, "just checking");
-    offset = (addrExpr.GetOpCode() == OP_add) ? offset + intOfst->GetValue() : offset - intOfst->GetValue();
+    offset = (addrExpr.GetOpCode() == OP_add) ? offset + intOfst->GetSXTValue() : offset - intOfst->GetSXTValue();
   } else {
     addrOpnd = HandleExpr(parent, addrExpr);
   }
