@@ -189,28 +189,20 @@ class FEIRStmt : public FELinkListNode {
     return isAuxPre || isAuxPost;
   }
 
-  const std::vector<FEIRStmt*> &GetPredsOrSuccs() const {
-    return predsOrSuccs;
+  const std::vector<FEIRStmt*> &GetExtraPreds() const {
+    return extraPreds;
   }
 
-  void AddPredOrSucc(FEIRStmt &stmt) {
-    predsOrSuccs.push_back(&stmt);
+  const std::vector<FEIRStmt*> &GetExtraSuccs() const {
+    return extraSuccs;
   }
 
-  const std::vector<FEIRStmt*> &GetPreds() const {
-    return predsOrSuccs;
+  void AddExtraPred(FEIRStmt &stmt) {
+    extraPreds.push_back(&stmt);
   }
 
-  const std::vector<FEIRStmt*> &GetSuccs() const {
-    return predsOrSuccs;
-  }
-
-  void AddPred(FEIRStmt &stmt) {
-    predsOrSuccs.push_back(&stmt);
-  }
-
-  void AddSucc(FEIRStmt &stmt) {
-    predsOrSuccs.push_back(&stmt);
+  void AddExtraSucc(FEIRStmt &stmt) {
+    extraSuccs.push_back(&stmt);
   }
 
   bool HasDef() const {
@@ -317,7 +309,8 @@ class FEIRStmt : public FELinkListNode {
   bool isAuxPre = false;
   bool isAuxPost = false;
   bool isThrowable = false;
-  std::vector<FEIRStmt*> predsOrSuccs;
+  std::vector<FEIRStmt*> extraPreds;
+  std::vector<FEIRStmt*> extraSuccs;
 };
 
 using UniqueFEIRStmt = std::unique_ptr<FEIRStmt>;

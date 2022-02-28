@@ -161,7 +161,7 @@ source_set("lib_hir2mpl_test_common") {
     "${HIR2MPL_ROOT}/test/common/fe_algorithm_test.cpp",
     "${HIR2MPL_ROOT}/test/common/fe_file_ops_test.cpp",
     "${HIR2MPL_ROOT}/test/common/fe_file_type_test.cpp",
-    "${HIR2MPL_ROOT}/test/common/fe_function_test.cpp",
+    "${HIR2MPL_ROOT}/test/common/feir_cfg_test.cpp",
     "${HIR2MPL_ROOT}/test/common/fe_struct_elem_info_test.cpp",
     "${HIR2MPL_ROOT}/test/common/fe_type_hierarchy_test.cpp",
     "${HIR2MPL_ROOT}/test/common/fe_type_manager_test.cpp",

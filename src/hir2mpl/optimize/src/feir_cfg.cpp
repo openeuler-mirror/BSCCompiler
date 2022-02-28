@@ -31,18 +31,18 @@ void FEIRCFG::Init() {
 void FEIRCFG::BuildBB() {
   FELinkListNode *nodeStmt = stmtHead->GetNext();
   FEIRBB *currBB = nullptr;
-  while (nodeStmt != nullptr) {
+  while (nodeStmt != nullptr && nodeStmt != stmtTail) {
     FEIRStmt *stmt = static_cast<FEIRStmt*>(nodeStmt);
     if (!stmt->IsAux()) {
       // check start of BB
-      if (currBB == nullptr) { // Additional conditions need to be added
+      if (currBB == nullptr || !stmt->GetExtraPreds().empty()) {
         currBB = NewBBAppend();
         bbTail->InsertBefore(currBB);
       }
       CHECK_FATAL(currBB != nullptr, "nullptr check of currBB");
       currBB->AppendStmt(stmt);
       // check end of BB
-      if (!stmt->IsFallThru()) { // Additional conditions need to be added
+      if (!stmt->IsFallThru() || !stmt->GetExtraSuccs().empty()) {
         currBB = nullptr;
       }
     }
@@ -123,7 +123,7 @@ bool FEIRCFG::BuildCFG() {
       bb->AddSuccBB(bbNext);
       bbNext->AddPredBB(bb);
     }
-    for (FEIRStmt *stmt : locStmtTail->GetSuccs()) {
+    for (FEIRStmt *stmt : locStmtTail->GetExtraSuccs()) {
       auto itBB = mapTargetStmtBB.find(stmt);
       CHECK_FATAL(itBB != mapTargetStmtBB.end(), "Target BB is not found");
       FEIRBB *bbNext = itBB->second;
@@ -149,5 +149,48 @@ const FEIRBB *FEIRCFG::GetNextBB() {
     return nullptr;
   }
   return static_cast<FEIRBB*>(currBBNode);
+}
+
+void FEIRCFG::LabelStmtID() {
+  FELinkListNode *nodeStmt = stmtHead;
+  uint32 idx = 0;
+  while (nodeStmt != nullptr) {
+    FEIRStmt *stmt = static_cast<FEIRStmt*>(nodeStmt);
+    stmt->SetID(idx);
+    idx++;
+    nodeStmt = nodeStmt->GetNext();
+  }
+}
+
+void FEIRCFG::LabelBBID() {
+  FELinkListNode *nodeBB = bbHead.get();
+  uint32 idx = 0;
+  while (nodeBB != nullptr) {
+    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
+    bb->SetID(idx);
+    idx++;
+    nodeBB = nodeBB->GetNext();
+  }
+}
+
+bool FEIRCFG::HasDeadBB() const {
+  FELinkListNode *nodeBB = bbHead->GetNext();
+  while (nodeBB != nullptr && nodeBB != bbTail.get()) {
+    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
+    if (bb->IsDead()) {
+      return true;
+    }
+    nodeBB = nodeBB->GetNext();
+  }
+  return false;
+}
+
+void FEIRCFG::DumpFEIRBBs() {
+  FELinkListNode *nodeBB = bbHead->GetNext();
+  while (nodeBB != nullptr && nodeBB != bbTail.get()) {
+    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
+    bb->Dump();
+    nodeBB = nodeBB->GetNext();
+  }
 }
 }  // namespace maple
