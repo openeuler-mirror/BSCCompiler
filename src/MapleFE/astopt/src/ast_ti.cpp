@@ -647,6 +647,14 @@ bool TypeInferVisitor::UpdateVarTypeWithInit(TreeNode *var, TreeNode *init) {
           result = true;
         }
       }
+    } else if (init->IsStructLiteral()) {
+      if (!type && init->GetTypeIdx() != 0) {
+        type = gTypeTable.GetTypeFromTypeIdx(init->GetTypeIdx());
+        UserTypeNode *utype = mInfo->CreateUserTypeNode(type->GetStrIdx(), var->GetScope());
+        utype->SetParent(idnode);
+        idnode->SetType(utype);
+        SetUpdated();
+      }
     } else if (init->IsArrayLiteral()) {
       TypeId tid = GetArrayElemTypeId(init);
       unsigned tidx = GetArrayElemTypeIdx(init);
