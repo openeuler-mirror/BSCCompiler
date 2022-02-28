@@ -38,9 +38,6 @@ class FEFunction {
  public:
   FEFunction(MIRFunction &argMIRFunction, const std::unique_ptr<FEFunctionPhaseResult> &argPhaseResultTotal);
   virtual ~FEFunction();
-  void LabelGenStmt();
-  void LabelGenBB();
-  bool HasDeadBB();
 
   // element memory manage method
   FEIRStmt *RegisterGeneralStmt(std::unique_ptr<FEIRStmt> stmt);

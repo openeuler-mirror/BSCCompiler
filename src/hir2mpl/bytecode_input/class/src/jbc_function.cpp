@@ -367,7 +367,7 @@ FEIRStmt *JBCFunction::BuildStmtFromInstructionForBranch(const jbc::JBCOp &op) {
   FEIRStmt *stmt = uniStmt.get();
   const jbc::JBCOpBranch &opBranch = static_cast<const jbc::JBCOpBranch&>(op);
   FEIRStmt *target = BuildAndUpdateLabel(opBranch.GetTarget(), uniStmt);
-  static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
+  static_cast<JBCStmtInstBranch*>(stmt)->AddExtraSucc(*target);
   return stmt;
 }
 
@@ -378,7 +378,7 @@ FEIRStmt *JBCFunction::BuildStmtFromInstructionForGoto(const jbc::JBCOp &op) {
   stmt->SetFallThru(false);
   const jbc::JBCOpGoto &opGoto = static_cast<const jbc::JBCOpGoto&>(op);
   FEIRStmt *target = BuildAndUpdateLabel(opGoto.GetTarget(), uniStmt);
-  static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
+  static_cast<JBCStmtInstBranch*>(stmt)->AddExtraSucc(*target);
   return stmt;
 }
 
@@ -390,10 +390,10 @@ FEIRStmt *JBCFunction::BuildStmtFromInstructionForSwitch(const jbc::JBCOp &op) {
   const jbc::JBCOpSwitch &opSwitch = static_cast<const jbc::JBCOpSwitch&>(op);
   for (const std::pair<const int32, uint32> &targetInfo : opSwitch.GetTargets()) {
     FEIRStmt *target = BuildAndUpdateLabel(targetInfo.second, uniStmt);
-    static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
+    static_cast<JBCStmtInstBranch*>(stmt)->AddExtraSucc(*target);
   }
   FEIRStmt *target = BuildAndUpdateLabel(opSwitch.GetDefaultTarget(), uniStmt);
-  static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
+  static_cast<JBCStmtInstBranch*>(stmt)->AddExtraSucc(*target);
   return stmt;
 }
 
@@ -404,7 +404,7 @@ FEIRStmt *JBCFunction::BuildStmtFromInstructionForJsr(const jbc::JBCOp &op) {
   stmt->SetFallThru(false);
   const jbc::JBCOpJsr &opJsr = static_cast<const jbc::JBCOpJsr&>(op);
   FEIRStmt *target = BuildAndUpdateLabel(opJsr.GetTarget(), uniStmt);
-  static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
+  static_cast<JBCStmtInstBranch*>(stmt)->AddExtraSucc(*target);
   return stmt;
 }
 
@@ -423,7 +423,7 @@ FEIRStmt *JBCFunction::BuildStmtFromInstructionForRet(const jbc::JBCOp &op) {
   for (auto itTarget : itJsrInfo->second) {
     uint32 pc = itTarget.second;
     FEIRStmt *target = BuildAndUpdateLabel(pc, uniStmt);
-    static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
+    static_cast<JBCStmtInstBranch*>(stmt)->AddExtraSucc(*target);
   }
   return stmt;
 }
@@ -627,7 +627,7 @@ FEIRStmt *JBCFunction::BuildAndUpdateLabel(uint32 dstPC, const std::unique_ptr<F
     stmtLabel = it->second;
   }
   ASSERT(stmtLabel != nullptr, "null ptr check");
-  stmtLabel->AddPred(*srcStmt);
+  stmtLabel->AddExtraPred(*srcStmt);
   return stmtLabel;
 }
 

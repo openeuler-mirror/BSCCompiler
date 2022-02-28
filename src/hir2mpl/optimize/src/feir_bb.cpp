@@ -38,7 +38,7 @@ void FEIRBB::AppendStmt(FEIRStmt *stmt) {
     stmtHead = stmt;
   }
   stmtTail = stmt;
-  if (stmt->IsAux()) {
+  if (!stmt->IsAux()) {
     if (stmtNoAuxHead == nullptr) {
       stmtNoAuxHead = stmt;
     }

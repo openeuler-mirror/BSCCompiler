@@ -97,40 +97,6 @@ FEIRBB *FEFunction::RegisterFEIRBB(std::unique_ptr<FEIRBB> bb) {
   return feirBBList.back().get();
 }
 
-void FEFunction::LabelGenStmt() {
-  FELinkListNode *nodeStmt = genStmtHead;
-  uint32 idx = 0;
-  while (nodeStmt != nullptr) {
-    FEIRStmt *stmt = static_cast<FEIRStmt*>(nodeStmt);
-    stmt->SetID(idx);
-    idx++;
-    nodeStmt = nodeStmt->GetNext();
-  }
-}
-
-void FEFunction::LabelGenBB() {
-  FELinkListNode *nodeBB = genBBHead;
-  uint32 idx = 0;
-  while (nodeBB != nullptr) {
-    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
-    bb->SetID(idx);
-    idx++;
-    nodeBB = nodeBB->GetNext();
-  }
-}
-
-bool FEFunction::HasDeadBB() {
-  FELinkListNode *nodeBB = genBBHead->GetNext();
-  while (nodeBB != nullptr && nodeBB != genBBTail) {
-    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
-    if (bb->IsDead()) {
-      return true;
-    }
-    nodeBB = nodeBB->GetNext();
-  }
-  return false;
-}
-
 void FEFunction::DumpGeneralStmts() {
   FELinkListNode *nodeStmt = genStmtHead;
   while (nodeStmt != nullptr) {

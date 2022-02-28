@@ -34,6 +34,10 @@ class FEIRCFG {
   bool BuildCFG();
   const FEIRBB *GetHeadBB();
   const FEIRBB *GetNextBB();
+  void LabelStmtID();
+  void LabelBBID();
+  bool HasDeadBB() const;
+  void DumpFEIRBBs();
 
   FEIRBB *GetDummyHead() const {
     return bbHead.get();
@@ -47,7 +51,7 @@ class FEIRCFG {
     return std::make_unique<FEIRBB>();
   }
 
- private:
+ LLT_PRIVATE:
   void AppendAuxStmt();
   FEIRBB *NewBBAppend();
 
