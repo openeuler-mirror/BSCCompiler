@@ -236,7 +236,7 @@ std::string CppDef::EmitClassProps(TreeNode* node) {
 // a decl list with unique names for insert into function definition.
 //
 // The var may be initialized to different values in different
-// blocks which will done in the individual DeclNodes (re: var-dup.ts)
+// blocks which will be done in the individual DeclNodes (re: var-dup.ts)
 std::string CppDef::EmitFuncScopeVarDecls(FunctionNode *node) {
   std::unordered_map<std::string, DeclNode*>varDeclsInScope;
   ASTScope* s = node->GetScope();
@@ -258,8 +258,8 @@ std::string CppDef::EmitFuncScopeVarDecls(FunctionNode *node) {
   }
   std::string str;
   for (auto const&[key, val] : varDeclsInScope) {
-    // Emit decl for the var  (just type, name - init part emitted
-    // when corresponding DeclNode processed
+    // Emit decl for the var (just type and name). The init part
+    // to be emitted when corresponding DeclNode is processed
     str += tab(1) + mCppDecl.EmitTreeNode(val->GetVar()) + ";\n"s;
   }
   return str;
@@ -374,7 +374,7 @@ std::string CppDef::EmitStructLiteralNode(StructLiteralNode* node) {
         case TY_Function:
           break;
         case TY_Array:
-          fieldVal = EmitArrayLiteral(nullptr, lit);
+          fieldVal = EmitTreeNode(lit); // ArrayLiteralNode
           str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val("s + fieldVal + "))"s;
           break;
         case TY_Boolean:
@@ -460,19 +460,19 @@ std::string CppDef::GenObjectLiteral(TreeNode* var, std::string varName, TreeNod
 }
 
 // Generate code to construct an array of type any from an ArrayLiteral.
-std::string CppDef::GenArrayOfAny(TreeNode *node) {
+std::string CppDef::ConstructArrayAny(ArrayLiteralNode *node) {
   if (node == nullptr || !node->IsArrayLiteral())
     return std::string();
 
   // Generate array ctor call to instantiate array
   std::string literals;
-  for (unsigned i = 0; i < static_cast<ArrayLiteralNode*>(node)->GetLiteralsNum(); ++i) {
+  for (unsigned i = 0; i < node->GetLiteralsNum(); ++i) {
     if (i)
       literals += ", "s;
-    if (auto n = static_cast<ArrayLiteralNode*>(node)->GetLiteral(i)) {
+    if (auto n = node->GetLiteral(i)) {
       if (n->IsArrayLiteral())
         // Recurse to handle array elements that are arrays
-        literals += GenArrayOfAny(n);
+        literals += ConstructArrayAny(static_cast<ArrayLiteralNode*>(n));
       else {
         // Wrap element in JS_Val. C++ class constructor of JS_Val 
         // will set tupe tag in JS_Val according to element type. 
@@ -484,21 +484,19 @@ std::string CppDef::GenArrayOfAny(TreeNode *node) {
   return str;
 }
 
-std::string CppDef::EmitArrayLiterals(TreeNode *node, int dim, std::string type) {
-  if (node == nullptr || !node->IsArrayLiteral())
-    return std::string();
-
-  if (type.back() == ' ')
-    type.pop_back();
-
+// Generate code to construct an array object with brace-enclosed initializer list
+std::string CppDef::ConstructArray(ArrayLiteralNode *node, int dim, std::string type) {
+  if (type.empty()) {
+    return ConstructArrayAny(node); // proceed as array of type any if no type info
+  } 
   // Generate array ctor call to instantiate array
   std::string str = ArrayCtorName(dim, type) + "._new({"s;
-  for (unsigned i = 0; i < static_cast<ArrayLiteralNode*>(node)->GetLiteralsNum(); ++i) {
+  for (unsigned i = 0; i < node->GetLiteralsNum(); ++i) {
     if (i)
       str += ", "s;
-    if (auto n = static_cast<ArrayLiteralNode*>(node)->GetLiteral(i)) {
+    if (auto n = node->GetLiteral(i)) {
       if (n->IsArrayLiteral())
-        str += EmitArrayLiterals(static_cast<ArrayLiteralNode*>(n), dim-1, type);
+        str += ConstructArray(static_cast<ArrayLiteralNode*>(n), dim-1, type);
       else
         str += EmitTreeNode(n);
     }
@@ -507,36 +505,19 @@ std::string CppDef::EmitArrayLiterals(TreeNode *node, int dim, std::string type)
   return str;
 }
 
-std::string CppDef::EmitArrayLiteral(TreeNode* arrType, TreeNode* arrLiteral) {
-  std::string str, type;
-  int dims = 1;  // default to 1 dim array if no Dims info
-  if (arrLiteral == nullptr)
-    return "nullptr"s;
-
-  if (arrType == nullptr) {
-    // if no arrary type info proceed as array of type any (JS_Val)
-    str = GenArrayOfAny(arrLiteral);
-  } else if (arrType->IsUserType()) {             // array of usertyp
-    if (static_cast<UserTypeNode*>(arrType)->GetDims())
-      dims = static_cast<UserTypeNode*>(arrType)->GetDimsNum();
-    if (auto id = static_cast<UserTypeNode*>(arrType)->GetId()) {
-      type = id->GetName();
-      if (type.compare("t2crt::Object") == 0 || type.compare("Object") == 0)
-        type = "t2crt::Object*";
-    }
-    str = EmitArrayLiterals(arrLiteral, dims, type);
-  } else if (arrType->IsPrimArrayType()) { // array of prim type
-    if (static_cast<PrimArrayTypeNode *>(arrType)->GetDims())
-      dims = static_cast<PrimArrayTypeNode *>(arrType)->GetDims()->GetDimensionsNum();
-    type= EmitPrimTypeNode(static_cast<PrimArrayTypeNode*>(arrType)->GetPrim());
-    str = EmitArrayLiterals(arrLiteral, dims, type);
-  } 
-  return str;
-}
-
 // decl of global var is handled by EmitDeclNode in cpp_declaration
 // decl of function vars of type JS_Var is handled in EmitFuncSCopeVarDecls
 // This function handles init of global/func var, and decl/init of func let/const.
+//
+// Declaration of Javascript "var", "let" an "const" variables:
+// - "var" decls are function/global scoped
+// - "let" and "const" are block scoped
+// TS/JS allows duplicate "var" declarations in global scope as well as
+// function scope. Duplicate global scope var decls are resolved
+// by the front end which make only 1 decl for the dup and changes any inits
+// in the dup decls to assigments. Duplicate function scope var decls are
+// handled in CppDef::EmitFuncScopeVarDecls.
+//
 std::string CppDef::EmitDeclNode(DeclNode *node) {
   if (node == nullptr)
     return std::string();
@@ -551,13 +532,6 @@ std::string CppDef::EmitDeclNode(DeclNode *node) {
   // For func var of JS_Let/JS_Const, emit both var type & name
   if (auto n = node->GetVar()) {
     varType = n->GetTypeId();
-#if 1
-    if (varType == TY_None) {
-      // TODO: remove this workaround when the var type is corrected in AST
-      if (IsGenerator(n))
-        varType = TY_Class;
-    }
-#endif
     if (mIsInit || node->GetProp() == JS_Var) {
       // handle declnode inside for-of/for-in (uses GetSet() and has null GetInit())
       if (!node->GetInit() && node->GetParent() && !node->GetParent()->IsForLoop())
@@ -571,9 +545,7 @@ std::string CppDef::EmitDeclNode(DeclNode *node) {
     }
   }
   if (auto n = node->GetInit()) {
-    if (n->IsArrayLiteral())
-      str += varStr + " = " + EmitArrayLiteral(idType, n);
-    else if (n->IsStructLiteral())
+    if (n->IsStructLiteral())
       str += GenObjectLiteral(node->GetVar(), varStr, idType, static_cast<StructLiteralNode*>(n));
     else if (node->GetVar()->IsIdentifier() && n->IsIdentifier() && n->IsTypeIdClass())
       str += varStr + "= &"s + n->GetName() + "::ctor"s;           // init with ctor address
@@ -723,9 +695,23 @@ std::string CppDef::EmitArrayElementNode(ArrayElementNode *node) {
   return HandleTreeNode(str, node);
 }
 
+
 std::string CppDef::EmitArrayLiteralNode(ArrayLiteralNode *node) {
   if (node == nullptr)
     return std::string();
+  if (node->GetParent() &&
+      node->GetParent()->IsDecl() ||          // for var decl init
+      node->GetParent()->IsIdentifier() ||    // for default val init in class field decl
+      node->GetParent()->IsFieldLiteral()) {  // for obj decl with struct literal init
+    // emit code to construct array object with brace-enclosed initializer list
+    int dim;
+    std::string str, type;
+    GetArrayTypeInfo(node, dim, type);
+    str = ConstructArray(node, dim, type);
+    return str;
+  }
+
+  // emit code to build a brace-enclosed intializer list (for rhs of array var assignment op)
   std::string str("{"s);
   for (unsigned i = 0; i < node->GetLiteralsNum(); ++i) {
     if (i)

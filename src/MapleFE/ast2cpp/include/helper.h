@@ -48,6 +48,7 @@ extern void HandleThisParam(unsigned nParams, TreeNode* node, std::string& param
 extern std::string hlpGetJSValTypeStr(TypeId typeId);
 extern std::string ArrayCtorName(int dim, std::string type);
 extern bool IsBuiltinObj(std::string name);
+extern std::string ObjectTypeStr(std::string name);
 
 class FuncTable {
 private:

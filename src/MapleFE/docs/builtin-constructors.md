@@ -49,28 +49,27 @@ of corresponding built-in type:
  20 Int8Array
  21 InternalError (Mozilla only)
  22 Map
- 23 Math
- 24 Number
- 25 Object
- 26 Promise
- 27 Proxy
- 28 RangeError
- 29 ReferenceError
- 30 RegExp
- 31 Set
- 32 SharedArrayBuffer
- 33 String
- 34 Symbol
- 35 SyntaxError
- 36 TypeError
- 37 Uint16Array
- 38 Uint32Array
- 39 Uint8Array
- 40 Uint8ClampedArray
- 41 URIError
- 42 WeakMap
- 43 WeakRef
- 44 WeakSet
+ 23 Number
+ 24 Object
+ 25 Promise
+ 26 Proxy
+ 27 RangeError
+ 28 ReferenceError
+ 29 RegExp
+ 30 Set
+ 31 SharedArrayBuffer
+ 32 String
+ 33 Symbol
+ 34 SyntaxError
+ 35 TypeError
+ 36 Uint16Array
+ 37 Uint32Array
+ 38 Uint8Array
+ 39 Uint8ClampedArray
+ 40 URIError
+ 41 WeakMap
+ 42 WeakRef
+ 43 WeakSet
 ```
 
 ### 2. JavaScript builtin String/Number/Boolean object constructor and string/number/boolean primitive
