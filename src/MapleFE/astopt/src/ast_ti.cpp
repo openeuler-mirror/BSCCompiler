@@ -238,7 +238,7 @@ TypeId TypeInferVisitor::MergeTypeId(TypeId tia, TypeId tib) {
     case TY_Function:
     case TY_Array:       result = TY_Merge;  break;
 
-    case TY_Boolean: {
+    case TY_Number: {
       switch (tib) {
         case TY_Int:
         case TY_Long:
@@ -248,9 +248,22 @@ TypeId TypeInferVisitor::MergeTypeId(TypeId tia, TypeId tib) {
       }
       break;
     }
+
+    case TY_Boolean: {
+      switch (tib) {
+        case TY_Int:
+        case TY_Long:
+        case TY_Float:
+        case TY_Double:  result = tib;       break;
+        case TY_Number:  result = tia;       break;
+        default:         result = TY_Merge;  break;
+      }
+      break;
+    }
     case TY_Int: {
       switch (tib) {
-        case TY_Boolean: result = TY_Int;    break;
+        case TY_Number:
+        case TY_Boolean: result = tia;       break;
         case TY_Long:
         case TY_Float:
         case TY_Double:  result = tib;       break;
@@ -260,8 +273,9 @@ TypeId TypeInferVisitor::MergeTypeId(TypeId tia, TypeId tib) {
     }
     case TY_Long: {
       switch (tib) {
+        case TY_Number:
         case TY_Boolean:
-        case TY_Int:     result = TY_Long;   break;
+        case TY_Int:     result = tia;       break;
         case TY_Float:
         case TY_Double:  result = TY_Double; break;
         default:         result = TY_Merge;  break;
@@ -270,8 +284,9 @@ TypeId TypeInferVisitor::MergeTypeId(TypeId tia, TypeId tib) {
     }
     case TY_Float: {
       switch (tib) {
+        case TY_Number:
         case TY_Boolean:
-        case TY_Int:     result = TY_Float;  break;
+        case TY_Int:     result = tia;       break;
         case TY_Long:
         case TY_Double:  result = TY_Double; break;
         default:         result = TY_Merge;  break;
@@ -280,10 +295,11 @@ TypeId TypeInferVisitor::MergeTypeId(TypeId tia, TypeId tib) {
     }
     case TY_Double: {
       switch (tib) {
+        case TY_Number:
         case TY_Boolean:
         case TY_Int:
         case TY_Long:
-        case TY_Double:  result = TY_Double; break;
+        case TY_Double:  result = tia;       break;
         default:         result = TY_Merge;  break;
       }
       break;
