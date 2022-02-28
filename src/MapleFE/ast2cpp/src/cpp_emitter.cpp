@@ -167,8 +167,15 @@ void CppEmitter::GetArrayTypeInfo(ArrayLiteralNode* node, int& numDim, std::stri
     case TY_Double:
       type = "double";
       break;
-    case TY_Function:
     case TY_None:
+      type = "t2crt::JS_Val";
+      break;
+#if 0
+    case TY_Array:
+      type = "t2crt::Array<t2crt::JS_Val>*";
+      break;
+#endif
+    case TY_Function:
     default:
       // TODO
       dim = 0;
