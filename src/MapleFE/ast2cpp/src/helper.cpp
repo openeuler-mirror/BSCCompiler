@@ -360,7 +360,14 @@ std::string ArrayCtorName(int dim, std::string type) {
 std::vector<std::string>builtins = {"Object", "Function", "Number", "Array", "Record"};
 
 bool IsBuiltinObj(std::string name) {
- return std::find(builtins.begin(), builtins.end(), name) != builtins.end();
+  return std::find(builtins.begin(), builtins.end(), name) != builtins.end();
+}
+
+std::string ObjectTypeStr(std::string name) {
+  if (IsBuiltinObj(name))
+    return "t2crt::" + name + "*";
+  else
+    return name + "*";
 }
 
 } // namespace maplefe
