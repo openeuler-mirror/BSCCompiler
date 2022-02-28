@@ -21,12 +21,12 @@
 #include "visitor_common.h"
 
 /* maple_ir */
-#include "types_def.h"   /* need uint8 etc */
-#include "prim_types.h"  /* for PrimType */
+#include "types_def.h"  /* need uint8 etc */
+#include "prim_types.h" /* for PrimType */
 #include "mir_symbol.h"
 
 /* Mempool */
-#include "mempool_allocator.h"  /* MapleList */
+#include "mempool_allocator.h" /* MapleList */
 
 namespace maplebe {
 class Emitter;
@@ -40,94 +40,6 @@ constexpr uint64 kDef = (1ULL);
 constexpr uint64 kUse = (1ULL << 1ULL);
 };
 
-class CGOperand {
- public:
-  enum OperandType : uint8 {
-    kOpdRegister,
-    kOpdImmediate,
-    kOpdMemory,
-    kOpdCond,
-    kOpdUndef
-  };
-
-  CGOperand(OperandType opndTy, uint32 sz) : opndKind(opndTy), size(sz) {}
-  virtual ~CGOperand() = default;
-
-  CGOperand &SetFlag(uint64 property) {
-    flag |= property;
-    return *this;
-  }
-
-  CGOperand::OperandType GetOpndKind() {
-    return opndKind;
-  }
-
-  bool IsReg() {
-    return opndKind == kOpdRegister;
-  }
-
-  uint32 GetSize() const {
-    return size;
-  }
-
-  virtual void Dump() const = 0;
-
- private:
-  OperandType opndKind;  /* operand type */
-  uint64 flag = 0;       /* operand property*/
-  uint32 size;           /* size in bits */
-};
-
-class CGRegOperand : public CGOperand {
- public:
-  CGRegOperand(regno_t regId, uint32 sz) : CGOperand(kOpdRegister, sz), regNO(regId) {}
-  ~CGRegOperand() override = default;
-
-  regno_t GetRegNO() const {
-    return regNO;
-  }
-  void Dump() const override {
-    std::array<const std::string, kRegTyLast> classes = { "[U]", "[I]", "[F]", "[CC]", "[X87]", "[Vra]" };
-
-    LogInfo::MapleLogger() << "reg ";
-    LogInfo::MapleLogger() << "size : " << GetSize() << " ";
-    LogInfo::MapleLogger() << classes[kind] <<"_" << GetRegNO();
-  }
- private:
-  regno_t regNO;
-  RegType kind = kRegTyInt;
-};
-
-class CGImmOperand : public CGOperand {
- public:
-  CGImmOperand(uint32 sz, int64 value) : CGOperand(kOpdImmediate, sz), val(value) {}
-  ~CGImmOperand() override = default;
-
-  int64 GetValue() const {
-    return val;
-  }
-
-  void Dump() const override {
-    LogInfo::MapleLogger() << "imm ";
-    LogInfo::MapleLogger() << "size : " << GetSize();
-    LogInfo::MapleLogger() << " value : " << GetValue();
-  }
- private:
-  int64 val;
-};
-
-class CGMemOperand : public CGOperand {
- public:
-  CGMemOperand(uint32 sz) : CGOperand(kOpdMemory, sz) {}
-  ~CGMemOperand() override = default;
-
-  void Dump() const override {
-    LogInfo::MapleLogger() << "mem ";
-    LogInfo::MapleLogger() << "size : " << GetSize();
-  }
- private:
-};
-
 class Operand {
  public:
   enum OperandType : uint8 {
@@ -135,17 +47,17 @@ class Operand {
     kOpdImmediate,
     kOpdFPImmediate,
     kOpdFPZeroImmediate,
-    kOpdStImmediate,    /* use the symbol name as the offset */
-    kOpdOffset,         /* for the offset operand in MemOperand */
+    kOpdStImmediate, /* use the symbol name as the offset */
+    kOpdOffset,      /* for the offset operand in MemOperand */
     kOpdMem,
     kOpdBBAddress,
-    kOpdList,           /*  for list operand */
-    kOpdPhi,            /*  for phi operand */
-    kOpdCond,           /*  for condition code */
-    kOpdShift,          /*  for imm shift operand */
-    kOpdRegShift,       /*  for reg shift operand */
-    kOpdExtend,         /*  for extend operand */
-    kOpdString,         /*  for comments */
+    kOpdList,     /*  for list operand */
+    kOpdPhi,      /*  for phi operand */
+    kOpdCond,     /*  for condition code */
+    kOpdShift,    /*  for imm shift operand */
+    kOpdRegShift, /*  for reg shift operand */
+    kOpdExtend,   /*  for extend operand */
+    kOpdString,   /*  for comments */
     kOpdUndef
   };
 
@@ -169,8 +81,8 @@ class Operand {
   }
 
   bool IsConstImmediate() const {
-    return opndKind == kOpdImmediate || opndKind == kOpdOffset ||
-           opndKind == kOpdFPImmediate || opndKind == kOpdFPZeroImmediate;
+    return opndKind == kOpdImmediate || opndKind == kOpdOffset || opndKind == kOpdFPImmediate ||
+           opndKind == kOpdFPZeroImmediate;
   }
 
   bool IsOfstImmediate() const {
@@ -272,8 +184,8 @@ class Operand {
   virtual void Accept(OperandVisitorBase &v) = 0;
 
  protected:
-  OperandType opndKind;  /* operand type */
-  uint32 size;           /* size in bits */
+  OperandType opndKind; /* operand type */
+  uint32 size;          /* size in bits */
 };
 
 /* RegOperand */
@@ -282,7 +194,6 @@ enum RegOperandState : uint32 {
   kRegOpndSetLow32 = 0x1,
   kRegOpndSetHigh32 = 0x2
 };
-
 
 template<typename VisitableTy>
 class OperandVisitable : public Operand {
@@ -404,7 +315,7 @@ class RegOperand : public OperandVisitable<RegOperand> {
       return true;
     }
     return (BasicEquals(op) && regNO == op.GetRegisterNumber() && regType == op.GetRegisterType() &&
-        IsBBLocalVReg() == op.IsBBLocalVReg());
+            IsBBLocalVReg() == op.IsBBLocalVReg());
   }
 
   static bool IsSameRegNO(const Operand &firstOpnd, const Operand &secondOpnd) {
@@ -445,7 +356,7 @@ class RegOperand : public OperandVisitable<RegOperand> {
   uint32 validBitsNum;
   /* use for SSA analysis */
   bool isSSAForm = false;
-};  /* class RegOperand */
+}; /* class RegOperand */
 
 enum VaryType : uint8 {
   kNotVary = 0,
@@ -705,9 +616,8 @@ class MemOperand : public OperandVisitable<MemOperand> {
 
   bool Less(const Operand &right) const override = 0;
 
-  MemOperand(uint32 size, const MIRSymbol &mirSymbol)
-      : OperandVisitable(Operand::kOpdMem, size),
-        symbol(&mirSymbol) {}
+  MemOperand(uint32 size, const MIRSymbol &mirSymbol) :
+      OperandVisitable(Operand::kOpdMem, size), symbol(&mirSymbol) {}
 
   MemOperand(uint32 size, RegOperand *baseOp, RegOperand *indexOp, OfstOperand *ofstOp, const MIRSymbol *mirSymbol,
              Operand *scaleOp = nullptr)
@@ -734,13 +644,13 @@ class MemOperand : public OperandVisitable<MemOperand> {
   using OperandVisitable<MemOperand>::OperandVisitable;
 
  private:
-  RegOperand *baseOpnd = nullptr;     /* base register */
-  RegOperand *indexOpnd = nullptr;    /* index register */
-  OfstOperand *offsetOpnd = nullptr;  /* offset immediate */
+  RegOperand *baseOpnd = nullptr;    /* base register */
+  RegOperand *indexOpnd = nullptr;   /* index register */
+  OfstOperand *offsetOpnd = nullptr; /* offset immediate */
   Operand *scaleOpnd = nullptr;
-  const MIRSymbol *symbol;  /* AddrMode_Literal */
+  const MIRSymbol *symbol; /* AddrMode_Literal */
   uint32 memoryOrder = 0;
-  uint8 accessSize = 0;  /* temp, must be set right before use everytime. */
+  uint8 accessSize = 0; /* temp, must be set right before use everytime. */
 };
 
 class LabelOperand : public OperandVisitable<LabelOperand> {
@@ -937,6 +847,6 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
  protected:
   MapleMap<uint32, RegOperand*> phiList; /* ssa-operand && BBId */
 };
-}  /* namespace maplebe */
+} /* namespace maplebe */
 
-#endif  /* MAPLEBE_INCLUDE_CG_OPERAND_H */
+#endif /* MAPLEBE_INCLUDE_CG_OPERAND_H */

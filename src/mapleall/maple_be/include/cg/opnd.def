@@ -1,0 +1,255 @@
+/*
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under the Mulan PSL v1.
+ * You can use this software according to the terms and conditions of the Mulan PSL v1.
+ * You may obtain a copy of Mulan PSL v1 at:
+ *
+ *     http://license.coscl.org.cn/MulanPSL
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v1 for more details.
+ */
+
+OpndDescription mopdInt8RegSrc = {Operand::kOpdRegister, {kRegTyInt, kAllRegNum, kOpndIsUse }, 8};
+OpndDescription mopdInt8RegDest = {Operand::kOpdRegister, {kRegTyInt, kAllRegNum, kOpndIsDef}, 8};
+OpndDescription mopdInt8RegDestSrc = {Operand::kOpdRegister, {kRegTyInt, kAllRegNum, kOpndIsDef | kOpndIsUse}, 8};
+OpndDescription mopdInt16RegSrc = {Operand::kOpdRegister, {kRegTyInt, kAllRegNum, kOpndIsUse }, 16};
+OpndDescription mopdInt16RegDest = {Operand::kOpdRegister, {kRegTyInt, kAllRegNum, kOpndIsDef}, 16};
+OpndDescription mopdInt16RegDestSrc = {Operand::kOpdRegister, {kRegTyInt, kAllRegNum, kOpndIsDef | kOpndIsUse}, 16};
+OpndDescription mopdInt32RegSrc = {Operand::kOpdRegister, {kRegTyInt, kAllRegNum, kOpndIsUse }, 32};
+OpndDescription mopdInt32RegDest = {Operand::kOpdRegister, {kRegTyInt, kAllRegNum, kOpndIsDef}, 32};
+OpndDescription mopdInt32RegDestSrc = {Operand::kOpdRegister, {kRegTyInt, kAllRegNum, kOpndIsDef | kOpndIsUse}, 32};
+OpndDescription mopdInt64RegSrc = {Operand::kOpdRegister, {kRegTyInt, kAllRegNum, kOpndIsUse}, 64};
+OpndDescription mopdInt64RegDest = {Operand::kOpdRegister, {kRegTyInt, kAllRegNum, kOpndIsDef}, 64};
+OpndDescription mopdInt64RegDestSrc = {Operand::kOpdRegister, {kRegTyInt, kAllRegNum, kOpndIsDef | kOpndIsUse}, 64};
+OpndDescription mopdF8RegSrc = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsUse}, 8};
+OpndDescription mopdF8RegDest = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsDef}, 8};
+OpndDescription mopdF16RegSrc = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsUse}, 16};
+OpndDescription mopdF16RegDest = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsDef}, 16};
+OpndDescription mopdF32RegSrc = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsUse}, 32};
+OpndDescription mopdF32RegDest = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsDef}, 32};
+OpndDescription mopdF32RegDestSrc = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsDef | kOpndIsUse}, 32};
+OpndDescription mopdF64RegSrc = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsUse}, 64};
+OpndDescription mopdF64RegDest = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsDef}, 64};
+OpndDescription mopdF64RegDestSrc = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsDef | kOpndIsUse}, 64};
+OpndDescription mopdV128RegSrc = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsUse | kOpndIsVector}, 128};
+OpndDescription mopdV128RegDest = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsDef | kOpndIsVector}, 128};
+OpndDescription mopdV128RegDestSrc = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsDef | kOpndIsUse | kOpndIsVector}, 128};
+OpndDescription mopdV64RegSrc = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsUse | kOpndIsVector}, 64};
+OpndDescription mopdV64RegDest = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsDef | kOpndIsVector}, 64};
+OpndDescription mopdV64RegDestSrc = {Operand::kOpdRegister, {kRegTyFloat, kAllRegNum, kOpndIsDef | kOpndIsUse | kOpndIsVector}, 64};
+OpndDescription mopdIntImm4Src = {Operand::kOpdImmediate, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 4};
+OpndDescription mopdIntImm5Src = {Operand::kOpdImmediate, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 5};
+OpndDescription mopdIntImm6Src = {Operand::kOpdImmediate, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 6};
+OpndDescription mopdIntImm8Src = {Operand::kOpdImmediate, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 8};
+
+OpndDescription mopdIntImm16Src = {Operand::kOpdImmediate, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 16, Imm16BitValid};
+OpndDescription mopdIntImm32Src = {Operand::kOpdImmediate, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 32};
+OpndDescription mopdIntImm32Literal = {Operand::kOpdImmediate, {kRegTyUndef, kAllRegNum, kOpndIsUse | kIsLoadLiteral}, 32};
+OpndDescription mopdIntImm64Src = {Operand::kOpdImmediate, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 64};
+OpndDescription mopdIntImm64Literal = {Operand::kOpdImmediate, {kRegTyUndef, kAllRegNum, kOpndIsUse | kIsLoadLiteral}, 64};
+OpndDescription mopdFpzeroImm8Src = {Operand::kOpdFPZeroImmediate, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 8};
+
+/*
+ * 8bit         : 0
+ * halfword     : 1
+ * 32bit - word : 2
+ * 64bit - word : 3
+ * 128bit- word : 4
+ */
+bool StrLdrSignedOfstValid(int64 value, uint wordSize) {
+  if (value <= k256BitSize && value >= kNegative256BitSize) {
+    return true;
+  } else if ((value > k256BitSize) && (value <= kMaxPimm[wordSize])) {
+    uint64 mask = (1U << wordSize) - 1U;
+    return (static_cast<uint64>(value) & mask) ? false : true;
+  }
+  return false;
+}
+
+
+bool StrLdr8ImmValid(int64 value) {
+  return StrLdrSignedOfstValid(value, 0);
+}
+
+bool StrLdr16ImmValid(int64 value) {
+  return StrLdrSignedOfstValid(value, k1ByteSize);
+}
+
+bool StrLdr32ImmValid(int64 value) {
+  return StrLdrSignedOfstValid(value, k2ByteSize);
+}
+
+bool StrLdr32PairImmValid(int64 value) {
+  if ((value <= kMaxSimm32Pair)  && (value >= kMinSimm32)) {
+    return (static_cast<uint64>(value) & 3) ? false : true;
+  }
+  return false;
+}
+
+bool StrLdr64ImmValid(int64 value) {
+ return StrLdrSignedOfstValid(value, k3ByteSize);
+}
+
+bool StrLdr64PairImmValid(int64 value) {
+  if (value <= kMaxSimm64Pair && (value >= kMinSimm64)) {
+    return (static_cast<uint64>(value) & 7) ? false : true;
+  }
+  return false;
+}
+
+bool StrLdr128ImmValid(int64 value) {
+  return StrLdrSignedOfstValid(value, k4ByteSize);
+}
+
+bool StrLdr128PairImmValid(int64 value) {
+  if (value < k1024BitSize && (value >= kNegative1024BitSize)) {
+    return (static_cast<uint64>(value) & 0xf) ? false : true;
+  }
+  return false;
+}
+
+OpndDescription mopdMem8Src = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 8, StrLdr8ImmValid};
+OpndDescription mopdMem16Src = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 16, StrLdr16ImmValid};
+OpndDescription mopdMem32Src = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 32, StrLdr32ImmValid};
+OpndDescription mopdMem64Src = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 64, StrLdr64ImmValid};
+
+OpndDescription mopdMem8Dest  = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsDef }, 8, StrLdr8ImmValid};
+OpndDescription mopdMem16Dest = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsDef }, 16, StrLdr16ImmValid};
+OpndDescription mopdMem32Dest = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsDef }, 32, StrLdr32ImmValid};
+OpndDescription mopdMem64Dest = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsDef }, 64, StrLdr64ImmValid};
+
+OpndDescription mopdMem8DestSrc  = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsDef| kOpndIsUse }, 8, StrLdr8ImmValid};
+OpndDescription mopdMem16DestSrc = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsDef| kOpndIsUse }, 16, StrLdr16ImmValid};
+OpndDescription mopdMem32DestSrc = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsDef| kOpndIsUse }, 32, StrLdr32ImmValid};
+OpndDescription mopdMem64DestSrc = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsDef| kOpndIsUse }, 64, StrLdr64ImmValid};
+
+OpndDescription mopdLbl64Src = {Operand::kOpdBBAddress, {kRegTyUndef,kAllRegNum, kOpndIsUse}, 64};
+OpndDescription mopdLiteralSrc = {Operand::kOpdStImmediate, {kRegTyUndef,kAllRegNum, kOpndIsUse}, 64};
+OpndDescription mopdListSrc = {Operand::kOpdList, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 1};
+OpndDescription mopdListDest = {Operand::kOpdList, {kRegTyUndef, kAllRegNum, kOpndIsDef}, 1};
+OpndDescription mopdCcRegSrc = {Operand::kOpdRegister, {kRegTyCc, kAllRegNum, kOpndIsUse}, 1};
+OpndDescription mopdCcRegDest = {Operand::kOpdRegister, {kRegTyCc, kAllRegNum, kOpndIsDef}, 1};
+OpndDescription mopdCcRegDestSrc = {Operand::kOpdRegister, {kRegTyCc, kAllRegNum, kOpndIsDef | kOpndIsUse}, 1};
+OpndDescription mopdSpRegDest = {Operand::kOpdRegister, {kRegTyInt, RSP, kOpndIsDef}, 32};
+OpndDescription mopdMem32SrcPre = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsUse | kOpndPreInc}, 32};
+OpndDescription mopdMem32SrcPost = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsUse | kOpndPostInc}, 32};
+OpndDescription mopdMem64SrcPre = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsUse | kOpndPreInc}, 64};
+OpndDescription mopdMem64SrcPost = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsUse | kOpndPostInc}, 64};
+OpndDescription mopdMem32LiteralSrc = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 32};
+OpndDescription mopdMem64LiteralSrc = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 64};
+
+OpndDescription mopdCondSrc = {Operand::kOpdCond, {kRegTyCc, kAllRegNum, kOpndIsUse}, 4};
+
+OpndDescription mopdBitshift32Src = {Operand::kOpdShift, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 5};
+OpndDescription mopdBitshift64Src = {Operand::kOpdShift, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 6};
+OpndDescription mopdExtendshift64Src = {Operand::kOpdExtend, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 3};
+OpndDescription mopdLsl4Src  = {Operand::kOpdShift, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 4};
+OpndDescription mopdLsl6Src  = {Operand::kOpdShift, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 6};
+OpndDescription mopdLsl12Src = {Operand::kOpdShift, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 12};
+
+OpndDescription mopdString = {Operand::kOpdString, {kRegTyUndef, kAllRegNum, kOpndIsUse}, 0};
+
+// physical register
+
+OpndDescription *MOPDReg = &mopdInt32RegSrc;
+// in mopdReg32IS, Reg means register, 32 means 32-bits, I means integer(F means float),
+// S means source, D means dest, H means high harf bits, L means low harf bits
+OpndDescription *mopdReg8IS =  &mopdInt8RegSrc;
+OpndDescription *mopdReg8ID =  &mopdInt8RegDest;
+OpndDescription *mopdReg8IDS = &mopdInt8RegDestSrc;
+OpndDescription *mopdReg16IS =  &mopdInt16RegSrc;
+OpndDescription *mopdReg16ID =  &mopdInt16RegDest;
+OpndDescription *mopdReg16IDS = &mopdInt16RegDestSrc;
+OpndDescription *mopdReg32IS = &mopdInt32RegSrc;
+OpndDescription *mopdReg32ID = &mopdInt32RegDest;
+OpndDescription *mopdReg32IDS = &mopdInt32RegDestSrc;
+OpndDescription *mopdReg64IS = &mopdInt64RegSrc;
+OpndDescription *mopdReg64ID = &mopdInt64RegDest;
+OpndDescription *mopdReg64IDS = &mopdInt64RegDestSrc;
+OpndDescription *mopdReg8FS = &mopdF8RegSrc;
+OpndDescription *mopdReg8FD = &mopdF8RegDest;
+OpndDescription *mopdReg16FS = &mopdF16RegSrc;
+OpndDescription *mopdReg16FD = &mopdF16RegDest;
+OpndDescription *mopdReg32FS = &mopdF32RegSrc;
+OpndDescription *mopdReg32FD = &mopdF32RegDest;
+OpndDescription *mopdReg32FDS = &mopdF32RegDestSrc;
+OpndDescription *mopdReg64FS = &mopdF64RegSrc;
+OpndDescription *mopdReg64FD = &mopdF64RegDest;
+OpndDescription *mopdReg64FDS = &mopdF64RegDestSrc;
+OpndDescription *mopdReg128VS = &mopdV128RegSrc;
+OpndDescription *mopdReg128VD = &mopdV128RegDest;
+OpndDescription *mopdReg128VDS = &mopdV128RegDestSrc;
+OpndDescription *mopdReg64VS = &mopdV64RegSrc;
+OpndDescription *mopdReg64VD = &mopdV64RegDest;
+OpndDescription *mopdReg64VDS = &mopdV64RegDestSrc;
+OpndDescription *mopdMem = &mopdMem32Src;
+OpndDescription *mopdMem8S = &mopdMem8Src;
+OpndDescription *mopdMem16S = &mopdMem16Src;
+OpndDescription *mopdMem32S = &mopdMem32Src;
+OpndDescription *mopdMem32PS = &mopdMemPair32Src;
+OpndDescription *mopdMem32SL = &mopdMem32SrcL;
+OpndDescription *mopdMem32SH = &mopdMem32SrcH;
+OpndDescription *mopdMem64PS = &mopdMemPair64Src;
+OpndDescription *mopdMem64S = &mopdMem64Src;
+OpndDescription *mopdMem64SL = &mopdMem64SrcL;
+OpndDescription *mopdMem128S = &mopdMem128Src;
+OpndDescription *mopdMem128PS = &mopdMemPair128Src;
+OpndDescription *mopdMem8D  = &mopdMem8Dest;
+OpndDescription *mopdMem16D = &mopdMem16Dest;
+OpndDescription *mopdMem32D = &mopdMem32Dest;
+OpndDescription *mopdMem32PD = &mopdMemPair32Dest;
+OpndDescription *mopdMem64D = &mopdMem64Dest;
+OpndDescription *mopdMem64PD = &mopdMemPair64Dest;
+OpndDescription *mopdMem128D = &mopdMem128Dest;
+OpndDescription *mopdMem128PD = &mopdMemPair128Dest;
+OpndDescription *mopdMem32SPRE = &mopdMem32SrcPre;
+OpndDescription *mopdMem32SPOST = &mopdMem32SrcPost;
+OpndDescription *mopdMem64SPRE = &mopdMem64SrcPre;
+OpndDescription *mopdMem64SPOST = &mopdMem64SrcPost;
+OpndDescription *mopdMem32LiteralS = &mopdMem32LiteralSrc;
+OpndDescription *mopdMem64LiteralS = &mopdMem64LiteralSrc;
+
+OpndDescription *mopdMem8DS  = &mopdMem8DestSrc;
+OpndDescription *mopdMem16DS = &mopdMem16DestSrc;
+OpndDescription *mopdMem32DS = &mopdMem32DestSrc;
+OpndDescription *mopdMem64DS = &mopdMem64DestSrc;
+
+OpndDescription *mopdImm4 = &mopdIntImm4Src;
+OpndDescription *mopdImm5 = &mopdIntImm5Src;
+OpndDescription *mopdImm6 = &mopdIntImm6Src;
+OpndDescription *mopdImm8 = &mopdIntImm8Src;
+
+OpndDescription *mopdImm16 = &mopdIntImm16Src;
+OpndDescription *mopdImm24 = &mopdIntImm24Src;
+OpndDescription *mopdImm32 = &mopdIntImm32Src;
+OpndDescription* mopdImm32LI = &mopdIntImm32Literal;
+OpndDescription *mopdImm64 = &mopdIntImm64Src;
+OpndDescription* mopdImm64LI = &mopdIntImm64Literal;
+OpndDescription *mopdFPZeroImm8 = &mopdFpzeroImm8Src;
+OpndDescription *mopdFuncName = &mopdLbl64Src;
+OpndDescription *mopdLabel = &mopdLbl64Src;
+OpndDescription *mopdLiteral = &mopdLiteralSrc;
+OpndDescription *mopdLiteralL12 = &mopdLiteralL12Src;
+
+OpndDescription *mopdRegCCS = &mopdCcRegSrc;
+OpndDescription *mopdRegCCD = &mopdCcRegDest;
+OpndDescription *mopdRegCCDS = &mopdCcRegDestSrc;
+
+OpndDescription *mopdCond = &mopdCondSrc;
+
+OpndDescription *mopdBitShift32 = &mopdBitshift32Src;
+OpndDescription *mopdBitShift64 = &mopdBitshift64Src;
+OpndDescription *mopdExtendShift64 = &mopdExtendshift64Src;
+OpndDescription *mopdLSL4  = &mopdLsl4Src;
+OpndDescription *mopdLSL6  = &mopdLsl6Src;
+OpndDescription *mopdLSL12 = &mopdLsl12Src;
+
+OpndDescription *mopdRSPD = &mopdSpRegDest;
+OpndDescription *mopdLISTS = &mopdListSrc;
+OpndDescription *mopdLISTD = &mopdListDest;
+OpndDescription *mopdSTRING = &mopdString;
+OpndDescription *mopdUndef = nullptr;
