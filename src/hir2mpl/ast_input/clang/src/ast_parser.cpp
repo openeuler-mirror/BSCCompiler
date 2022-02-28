@@ -2245,7 +2245,7 @@ ASTDecl *ASTParser::ProcessDeclRecordDecl(MapleAllocator &allocator, const clang
     return nullptr;
   }
   GenericAttrs attrs;
-  astFile->CollectAttrs(recDecl, attrs, kNone);
+  astFile->CollectRecordAttrs(recDecl, attrs, kNone);
   std::string structName = recName.str();
   if (structName.empty() || !ASTUtil::IsValidName(structName)) {
     uint32 id = qType->getAs<clang::RecordType>()->getDecl()->getLocation().getRawEncoding();
@@ -2433,7 +2433,7 @@ ASTDecl *ASTParser::ProcessDeclFieldDecl(MapleAllocator &allocator, const clang:
     fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(bfTypeIdx);
   }
   GenericAttrs attrs;
-  astFile->CollectAttrs(decl, attrs, kNone);
+  astFile->CollectFieldAttrs(decl, attrs, kNone);
   // one elem vector type
   if (LibAstFile::IsOneElementVector(qualType)) {
     attrs.SetAttr(GENATTR_oneelem_simd);
