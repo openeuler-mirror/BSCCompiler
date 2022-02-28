@@ -85,7 +85,7 @@ IdentifierNode *BuildIdNodeToDeclVisitor::VisitIdentifierNode(IdentifierNode *no
   (void) AstVisitor::VisitIdentifierNode(node);
   // mHandler->FindDecl() will use/add entries to mNodeId2Decl
   TreeNode *decl = mHandler->FindDecl(node);
-  if (decl) {
+  if (decl && decl != node) {
     mHandler->GetUtil()->SetTypeId(node, decl->GetTypeId());
     mHandler->GetUtil()->SetTypeIdx(node, decl->GetTypeIdx());
   }
@@ -93,8 +93,10 @@ IdentifierNode *BuildIdNodeToDeclVisitor::VisitIdentifierNode(IdentifierNode *no
   if (type && type->IsPrimType()) {
     PrimTypeNode *ptn = static_cast<PrimTypeNode *>(type);
     TypeId tid = ptn->GetPrimType();
-    // mHandler->GetUtil()->SetTypeId(node, tid);
-    mHandler->GetUtil()->SetTypeIdx(node, tid);
+    if (gTypeTable.IsPrimTypeId(tid)) {
+      // mHandler->GetUtil()->SetTypeId(node, tid);
+      mHandler->GetUtil()->SetTypeIdx(node, tid);
+    }
   }
   return node;
 }
