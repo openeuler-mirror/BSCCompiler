@@ -22,8 +22,6 @@
 namespace maple {
 bool ValueRangePropagation::isDebug = false;
 constexpr size_t kNumOperands = 2;
-constexpr size_t kFourByte = 4;
-constexpr size_t kEightByte = 8;
 constexpr size_t kCodeSizeLimit = 2000;
 constexpr std::uint64_t kInvaliedBound = 0xdeadbeef;
 
@@ -80,8 +78,17 @@ void ValueRangePropagation::Execute() {
       if (!dealWithCheck) {
         ReplaceOpndWithConstMeExpr(*bb, *it);
       }
+      bool isNotNeededPType = false;
       for (size_t i = 0; i < it->NumMeStmtOpnds(); ++i) {
+        if (!IsNeededPrimType(it->GetOpnd(i)->GetPrimType())) {
+          isNotNeededPType = true;
+          continue;
+        }
         DealWithOperand(*bb, *it, *it->GetOpnd(i));
+      }
+      if (isNotNeededPType) {
+        ++it;
+        continue;
       }
       if (MeOption::safeRegionMode && (it->IsInSafeRegion()) &&
           kOpcodeInfo.IsCall(it->GetOp()) && instance_of<CallMeStmt>(*it)) {
@@ -1746,7 +1753,7 @@ bool ValueRangePropagation::AddOrSubWithConstant(
 bool ValueRangePropagation::CreateNewBoundWhenAddOrSub(Opcode op, Bound bound, int64 rhsConstant, Bound &res) {
   int64 constant = 0;
   if (AddOrSubWithConstant(bound.GetPrimType(), op, bound.GetConstant(), rhsConstant, constant)) {
-    res = Bound(bound.GetVar(), GetRealValue(constant, bound.GetPrimType()), bound.GetPrimType());
+    res = Bound(bound.GetVar(), constant, bound.GetPrimType());
     return true;
   }
   return false;
@@ -1766,8 +1773,7 @@ bool ValueRangePropagation::IsConstant(const BB &bb, MeExpr &expr, int64 &value,
             kConstInt) {
       value = static_cast<ConstMeExpr*>(static_cast<VarMeExpr&>(expr).GetDefStmt()->GetRHS())->GetIntValue();
       (void)Insert2Caches(static_cast<VarMeExpr&>(expr).GetDefStmt()->GetBB()->GetBBId(), expr.GetExprID(),
-                          std::make_unique<ValueRange>(Bound(GetRealValue(value, expr.GetPrimType()),
-                                                       expr.GetPrimType()), kEqual));
+                          std::make_unique<ValueRange>(Bound(value, expr.GetPrimType()), kEqual));
       return true;
     }
     return false;
@@ -1818,15 +1824,13 @@ std::unique_ptr<ValueRange> ValueRangePropagation::AddOrSubWithValueRange(
                             valueRangeLeft.GetLower().GetConstant(), rhsLowerConst, res)) {
     return nullptr;
   }
-  Bound lower = Bound(valueRangeLeft.GetLower().GetVar(), GetRealValue(
-      res, valueRangeLeft.GetLower().GetPrimType()), valueRangeLeft.GetLower().GetPrimType());
+  Bound lower = Bound(valueRangeLeft.GetLower().GetVar(), res, valueRangeLeft.GetLower().GetPrimType());
   res = 0;
   if (!AddOrSubWithConstant(valueRangeLeft.GetLower().GetPrimType(), op,
                             valueRangeLeft.GetUpper().GetConstant(), rhsUpperConst, res)) {
     return nullptr;
   }
-  Bound upper = Bound(valueRangeLeft.GetUpper().GetVar(), GetRealValue(
-      res, valueRangeLeft.GetUpper().GetPrimType()), valueRangeLeft.GetUpper().GetPrimType());
+  Bound upper = Bound(valueRangeLeft.GetUpper().GetVar(), res, valueRangeLeft.GetUpper().GetPrimType());
   return std::make_unique<ValueRange>(lower, upper, kLowerAndUpper);
 }
 
@@ -1839,15 +1843,13 @@ std::unique_ptr<ValueRange> ValueRangePropagation::AddOrSubWithValueRange(
                               valueRange.GetLower().GetConstant(), rhsConstant, res)) {
       return nullptr;
     }
-    Bound lower = Bound(valueRange.GetLower().GetVar(),
-                        GetRealValue(res, valueRange.GetLower().GetPrimType()), valueRange.GetLower().GetPrimType());
+    Bound lower = Bound(valueRange.GetLower().GetVar(), res, valueRange.GetLower().GetPrimType());
     res = 0;
     if (!AddOrSubWithConstant(valueRange.GetLower().GetPrimType(), op,
                               valueRange.GetUpper().GetConstant(), rhsConstant, res)) {
       return nullptr;
     }
-    Bound upper = Bound(valueRange.GetUpper().GetVar(),
-                        GetRealValue(res, valueRange.GetUpper().GetPrimType()), valueRange.GetUpper().GetPrimType());
+    Bound upper = Bound(valueRange.GetUpper().GetVar(), res, valueRange.GetUpper().GetPrimType());
     return std::make_unique<ValueRange>(lower, upper, kLowerAndUpper);
   } else if (valueRange.GetRangeType() == kEqual) {
     int64 res = 0;
@@ -1855,8 +1857,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::AddOrSubWithValueRange(
                               valueRange.GetBound().GetConstant(), rhsConstant, res)) {
       return nullptr;
     }
-    Bound bound = Bound(valueRange.GetBound().GetVar(),
-                        GetRealValue(res, valueRange.GetBound().GetPrimType()), valueRange.GetBound().GetPrimType());
+    Bound bound = Bound(valueRange.GetBound().GetVar(), res, valueRange.GetBound().GetPrimType());
     return std::make_unique<ValueRange>(bound, valueRange.GetRangeType());
   }
   return nullptr;
@@ -1910,10 +1911,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::RemWithValueRange(const BB &b
   if (!valueRange->IsConstantLowerAndUpper()) {
     return remValueRange;
   } else if (valueRange->GetRangeType() == kEqual) {
-    int64 res = opMeExpr.GetPrimType() == PTY_u64 ?
-        static_cast<uint64>(valueRange->GetBound().GetConstant()) % static_cast<uint64>(rhsConstant) :
-        GetRealValue(valueRange->GetBound().GetConstant(), opMeExpr.GetPrimType()) %
-        GetRealValue(rhsConstant, opMeExpr.GetPrimType());
+    int64 res = Bound::GetRemResult(valueRange->GetBound().GetConstant(), rhsConstant, opMeExpr.GetPrimType());
     Bound bound = Bound(nullptr, res, valueRange->GetBound().GetPrimType());
     return std::make_unique<ValueRange>(bound, valueRange->GetRangeType());
   } else {
@@ -1947,9 +1945,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::DealWithRem(
   }
   std::unique_ptr<ValueRange> newValueRange;
   if (lhsIsConstant && rhsIsConstant) {
-    int64 res = opMeExpr.GetPrimType() == PTY_u64 ?
-        static_cast<uint64>(lhsConstant) % static_cast<uint64>(rhsConstant) :
-        GetRealValue(lhsConstant, opMeExpr.GetPrimType()) % GetRealValue(rhsConstant, opMeExpr.GetPrimType());
+    int64 res = Bound::GetRemResult(lhsConstant, rhsConstant, opMeExpr.GetPrimType());
     newValueRange = std::make_unique<ValueRange>(Bound(res, opMeExpr.GetPrimType()), kEqual);
   } else if (rhsIsConstant) {
     newValueRange = RemWithValueRange(bb, opMeExpr, rhsConstant);
@@ -1977,8 +1973,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::DealWithAddOrSub(
   if (lhsIsConstant && rhsIsConstant) {
     int64 res = 0;
     if (AddOrSubWithConstant(opMeExpr.GetPrimType(), opMeExpr.GetOp(), lhsConstant, rhsConstant, res)) {
-      newValueRange = std::make_unique<ValueRange>(
-          Bound(GetRealValue(res, opMeExpr.GetPrimType()), opMeExpr.GetPrimType()), kEqual);
+      newValueRange = std::make_unique<ValueRange>(Bound(res, opMeExpr.GetPrimType()), kEqual);
     }
   } else if (rhsIsConstant) {
     auto *valueRange = FindValueRange(bb, *opnd0);
@@ -2036,7 +2031,6 @@ int64 GetRealValue(int64 value, PrimType primType) {
       return static_cast<int32>(value);
       break;
     case PTY_i64:
-    case PTY_i128:
       return static_cast<int64>(value);
       break;
     case PTY_u8:
@@ -2060,7 +2054,6 @@ int64 GetRealValue(int64 value, PrimType primType) {
       break;
     case PTY_u64:
     case PTY_a64:
-    case PTY_u128:
       return static_cast<uint64>(value);
       break;
     case PTY_u1:
@@ -2079,8 +2072,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CopyValueRange(ValueRange &va
       if (primType == PTY_begin) {
         return std::make_unique<ValueRange>(valueRange.GetBound(), valueRange.GetRangeType(), valueRange.IsAccurate());
       } else {
-        Bound bound = Bound(valueRange.GetBound().GetVar(),
-                            GetRealValue(valueRange.GetBound().GetConstant(), primType), primType);
+        Bound bound = Bound(valueRange.GetBound().GetVar(), valueRange.GetBound().GetConstant(), primType);
         return std::make_unique<ValueRange>(bound, valueRange.GetRangeType(), valueRange.IsAccurate());
       }
     case kLowerAndUpper:
@@ -2090,18 +2082,15 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CopyValueRange(ValueRange &va
         return std::make_unique<ValueRange>(valueRange.GetLower(), valueRange.GetUpper(), valueRange.GetRangeType(),
             valueRange.IsAccurate());
       } else {
-        Bound lower = Bound(valueRange.GetLower().GetVar(),
-                            GetRealValue(valueRange.GetLower().GetConstant(), primType), primType);
-        Bound upper = Bound(valueRange.GetUpper().GetVar(),
-                            GetRealValue(valueRange.GetUpper().GetConstant(), primType), primType);
+        Bound lower = Bound(valueRange.GetLower().GetVar(), valueRange.GetLower().GetConstant(), primType);
+        Bound upper = Bound(valueRange.GetUpper().GetVar(), valueRange.GetUpper().GetConstant(), primType);
         return std::make_unique<ValueRange>(lower, upper, valueRange.GetRangeType(), valueRange.IsAccurate());
       }
     case kOnlyHasLowerBound:
       if (primType == PTY_begin) {
         return std::make_unique<ValueRange>(valueRange.GetLower(), valueRange.GetStride(), kOnlyHasLowerBound);
       } else {
-        Bound lower = Bound(valueRange.GetLower().GetVar(),
-                            GetRealValue(valueRange.GetLower().GetConstant(), primType), primType);
+        Bound lower = Bound(valueRange.GetLower().GetVar(), valueRange.GetLower().GetConstant(), primType);
         return std::make_unique<ValueRange>(lower, valueRange.GetStride(), kOnlyHasLowerBound);
       }
 
@@ -2109,8 +2098,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CopyValueRange(ValueRange &va
       if (primType == PTY_begin) {
         return std::make_unique<ValueRange>(valueRange.GetUpper(), valueRange.GetStride(), kOnlyHasUpperBound);
       } else {
-        Bound upper = Bound(valueRange.GetUpper().GetVar(),
-                            GetRealValue(valueRange.GetUpper().GetConstant(), primType), primType);
+        Bound upper = Bound(valueRange.GetUpper().GetVar(), valueRange.GetUpper().GetConstant(), primType);
         return std::make_unique<ValueRange>(upper, kOnlyHasUpperBound, valueRange.IsAccurate());
       }
     default:
@@ -2162,8 +2150,8 @@ void ValueRangePropagation::DealWithAssign(BB &bb, const MeStmt &stmt) {
     if (FindValueRange(bb, *lhs) != nullptr) {
       return;
     }
-    std::unique_ptr<ValueRange> valueRange = std::make_unique<ValueRange>(Bound(GetRealValue(
-        static_cast<ConstMeExpr*>(rhs)->GetIntValue(), rhs->GetPrimType()), rhs->GetPrimType()), kEqual);
+    std::unique_ptr<ValueRange> valueRange =
+        std::make_unique<ValueRange>(Bound(static_cast<ConstMeExpr*>(rhs)->GetIntValue(), rhs->GetPrimType()), kEqual);
     (void)Insert2Caches(bb.GetBBId(), lhs->GetExprID(), std::move(valueRange));
   } else if (rhs->GetMeOp() == kMeOpVar) {
     if (lengthSet.find(rhs) != lengthSet.end()) {
@@ -2247,13 +2235,11 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForMonotonicI
   if (IsConstant(bb, opnd1, constantValue)) {
     int64 res = 0;
     if (AddOrSubWithConstant(opnd1.GetPrimType(), OP_add, constantValue, rightConstant, res)) {
-      upperBound = Bound(GetRealValue(res, opnd1.GetPrimType()), opnd1.GetPrimType());
+      upperBound = Bound(res, opnd1.GetPrimType());
     } else {
       return nullptr;
     }
-    if (initBound.GetVar() == upperBound.GetVar() &&
-        GetRealValue(initBound.GetConstant(), opMeExpr.GetOpndType()) >
-        GetRealValue(upperBound.GetConstant(), opMeExpr.GetOpndType())) {
+    if (initBound.GetVar() == upperBound.GetVar() && initBound.IsGreaterThan(upperBound, opMeExpr.GetOpndType())) {
       if (opMeExpr.GetOp() != OP_ne && opMeExpr.GetOp() != OP_eq) {
         AnalysisUnreachableBBOrEdge(exitBB, *inLoopBB, *outLoopBB);
       }
@@ -2270,8 +2256,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForMonotonicI
       int64 res = 0;
       if (AddOrSubWithConstant(opnd1.GetPrimType(), OP_add, valueRangeOfUpper->GetUpper().GetConstant(),
                                rightConstant, res)) {
-        upperBound =
-            Bound(valueRangeOfUpper->GetUpper().GetVar(), GetRealValue(res, opnd1.GetPrimType()), opnd1.GetPrimType());
+        upperBound = Bound(valueRangeOfUpper->GetUpper().GetVar(), res, opnd1.GetPrimType());
       }
       if (initBound.GetVar() == nullptr) {
         if (valueRangeOfUpper->GetRangeType() == kLowerAndUpper || valueRangeOfUpper->GetRangeType() == kEqual) {
@@ -2319,12 +2304,11 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForMonotonicD
   if (IsConstant(bb, opnd1, constantValue)) {
     int64 res = 0;
     if (AddOrSubWithConstant(opnd1.GetPrimType(), OP_add, constantValue, rightConstant, res)) {
-      lowerBound = Bound(GetRealValue(res, opnd1.GetPrimType()), opnd1.GetPrimType());
+      lowerBound = Bound(res, opnd1.GetPrimType());
     } else {
       return nullptr;
     }
-    if (lowerBound.GetVar() == initBound.GetVar() && GetRealValue(lowerBound.GetConstant(), opMeExpr.GetOpndType()) >
-                                                     GetRealValue(initBound.GetConstant(), opMeExpr.GetOpndType())) {
+    if (lowerBound.GetVar() == initBound.GetVar() && lowerBound.IsGreaterThan(initBound, opMeExpr.GetOpndType())) {
       if (opMeExpr.GetOp() != OP_ne && opMeExpr.GetOp() != OP_eq) {
         AnalysisUnreachableBBOrEdge(exitBB, *inLoopBB, *outLoopBB);
       }
@@ -2369,8 +2353,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForPhi(LoopDe
   bool initIsConstant = false;
   if (valueRangeOfInit != nullptr && valueRangeOfInit->IsConstant()) {
     initIsConstant = true;
-    initBound = Bound(GetRealValue(valueRangeOfInit->GetBound().GetConstant(),
-        valueRangeOfInit->GetBound().GetPrimType()), valueRangeOfInit->GetBound().GetPrimType());
+    initBound = Bound(valueRangeOfInit->GetBound().GetConstant(), valueRangeOfInit->GetBound().GetPrimType());
   } else {
     initBound = Bound(&init, init.GetPrimType());
   }
@@ -2556,10 +2539,8 @@ void ValueRangePropagation::JudgeEqual(MeExpr &expr, ValueRange &vrOfLHS, ValueR
   auto primType = static_cast<OpMeExpr&>(expr).GetOpndType();
   auto resPType = static_cast<OpMeExpr&>(expr).GetPrimType();
   auto op = expr.GetOp();
-  auto valueOfRHS = GetRealValue(vrOfRHS.GetBound().GetConstant(), primType);
   if (vrOfLHS.GetRangeType() == kEqual) {
-    auto valueOfLHS = GetRealValue(vrOfLHS.GetBound().GetConstant(), primType);
-    if (valueOfLHS == valueOfRHS) {
+    if (vrOfRHS.GetBound().IsEqual(vrOfLHS.GetBound(), primType)) {
       // dealwith this case:
       // a = (b == c)
       // valueRange(b): kEqual 1
@@ -2577,8 +2558,7 @@ void ValueRangePropagation::JudgeEqual(MeExpr &expr, ValueRange &vrOfLHS, ValueR
       valueRangePtr = (op == OP_eq) ? CreateValueRangeOfEqualZero(resPType) : CreateValueRangeOfNotEqualZero(resPType);
     }
   } else if (vrOfLHS.GetRangeType() == kNotEqual) {
-    auto valueOfLHS = GetRealValue(vrOfLHS.GetBound().GetConstant(), primType);
-    if (valueOfLHS == valueOfRHS) {
+    if (vrOfRHS.GetBound().IsEqual(vrOfLHS.GetBound(), primType)) {
       // dealwith this case:
       // a = (b == c)
       // valueRange(b): kNotEqual 1
@@ -2588,9 +2568,9 @@ void ValueRangePropagation::JudgeEqual(MeExpr &expr, ValueRange &vrOfLHS, ValueR
       valueRangePtr = (op == OP_eq) ? CreateValueRangeOfEqualZero(resPType) : CreateValueRangeOfNotEqualZero(resPType);
     }
   } else if (vrOfLHS.GetRangeType() == kLowerAndUpper) {
-    auto valueOfLHSLower = GetRealValue(vrOfLHS.GetLower().GetConstant(), primType);
-    auto valueOfLHSUper = GetRealValue(vrOfLHS.GetUpper().GetConstant(), primType);
-    if (valueOfLHSLower <= valueOfLHSUper && (valueOfRHS < valueOfLHSLower || valueOfRHS > valueOfLHSUper)) {
+    if (!vrOfLHS.GetLower().IsGreaterThan(vrOfLHS.GetUpper(), primType) &&
+        (vrOfLHS.GetLower().IsGreaterThan(vrOfRHS.GetBound(), primType) ||
+        vrOfRHS.GetBound().IsGreaterThan(vrOfLHS.GetUpper(), primType))) {
       // dealwith this case:
       // a = (b == c)
       // valueRange(b): kLowerAndUpper (1, Max)
@@ -2940,56 +2920,59 @@ void ValueRangePropagation::AnalysisUnreachableBBOrEdge(BB &bb, BB &unreachableB
 bool ValueRangePropagation::BrStmtInRange(const BB &bb, const ValueRange &leftRange,
                                           const ValueRange &rightRange, Opcode op, PrimType opndType,
                                           bool judgeNotInRange) {
+  Bound leftLower = leftRange.GetLower();
+  Bound leftUpper = leftRange.GetUpper();
+  Bound rightLower = rightRange.GetLower();
+  Bound rightUpper = rightRange.GetUpper();
+  RangeType leftRangeType = leftRange.GetRangeType();
+  RangeType rightRangeType = rightRange.GetRangeType();
   if (!IsNeededPrimType(opndType) ||
-      leftRange.GetLower().GetVar() != leftRange.GetUpper().GetVar() ||
-      leftRange.GetUpper().GetVar() != rightRange.GetUpper().GetVar() ||
-      rightRange.GetUpper().GetVar() != rightRange.GetLower().GetVar() ||
-      leftRange.GetRangeType() == kSpecialLowerForLoop ||
-      leftRange.GetRangeType() == kSpecialUpperForLoop) {
+      leftLower.GetVar() != leftUpper.GetVar() || leftUpper.GetVar() != rightUpper.GetVar() ||
+      rightUpper.GetVar() != rightLower.GetVar() || leftRangeType == kSpecialLowerForLoop ||
+      leftRangeType == kSpecialUpperForLoop) {
     return false;
   }
   if (judgeNotInRange) {
-    if (leftRange.GetLower().GetVar() != nullptr) {
+    if (leftLower.GetVar() != nullptr) {
       return false;
     }
   } else {
-    if (leftRange.GetLower().GetVar() != nullptr) {
-      auto *valueRange = FindValueRange(bb, *leftRange.GetLower().GetVar());
+    if (leftLower.GetVar() != nullptr) {
+      auto *valueRange = FindValueRange(bb, *leftLower.GetVar());
       if (valueRange == nullptr || !valueRange->IsConstant()) {
         return false;
       }
     }
   }
-  int64 leftLower = GetRealValue(leftRange.GetLower().GetConstant(), opndType);
-  int64 leftUpper = GetRealValue(leftRange.GetUpper().GetConstant(), opndType);
-  int64 rightLower = GetRealValue(rightRange.GetLower().GetConstant(), opndType);
-  int64 rightUpper = GetRealValue(rightRange.GetUpper().GetConstant(), opndType);
   // deal the difference between i32 and u32.
-  if (leftLower > leftUpper || rightLower > rightUpper) {
+  if (leftLower.IsGreaterThan(leftUpper, opndType) ||
+      rightLower.IsGreaterThan(rightUpper, opndType)) {
     return false;
   }
   if ((op == OP_eq && !judgeNotInRange) || (op == OP_ne && judgeNotInRange)) {
     // If the range of leftOpnd equal to the range of rightOpnd, remove the falseBranch.
-    return leftRange.GetRangeType() != kNotEqual && rightRange.GetRangeType() != kNotEqual &&
-        leftLower == leftUpper && rightLower == rightUpper && leftLower == rightLower;
+    return leftRangeType != kNotEqual && rightRangeType != kNotEqual &&
+        leftLower.IsEqual(leftUpper, opndType) &&
+        rightLower.IsEqual(rightUpper, opndType) &&
+        leftLower.IsEqual(rightLower, opndType);
   } else if ((op == OP_ne && !judgeNotInRange) || (op == OP_eq && judgeNotInRange)) {
     // If the range type of leftOpnd is kLowerAndUpper and the rightRange is not in range of it,
     // remove the trueBranch, such as :
     // brstmt a == b
     // valueRange a: [1, max]
     // valueRange b: 0
-    return (leftRange.GetRangeType() != kNotEqual && rightRange.GetRangeType() != kNotEqual &&
-            (leftLower > rightUpper || leftUpper < rightLower)) ||
-        (leftRange.GetRangeType() == kNotEqual && rightRange.GetRangeType() == kEqual && leftLower == rightLower) ||
-        (leftRange.GetRangeType() == kEqual && rightRange.GetRangeType() == kNotEqual && leftLower == rightLower);
+    return (leftRangeType != kNotEqual && rightRangeType != kNotEqual &&
+        (leftLower.IsGreaterThan(rightUpper, opndType) || rightLower.IsGreaterThan(leftUpper, opndType))) ||
+        (leftRangeType == kNotEqual && rightRangeType == kEqual && leftLower.IsEqual(rightLower, opndType)) ||
+        (leftRangeType == kEqual && rightRangeType == kNotEqual && leftLower.IsEqual(rightLower, opndType));
   } else if ((op == OP_lt && !judgeNotInRange) || (op == OP_ge && judgeNotInRange)) {
-    return leftRange.GetRangeType() != kNotEqual && rightRange.GetRangeType() != kNotEqual && leftUpper < rightLower;
+    return leftRangeType != kNotEqual && rightRangeType != kNotEqual && rightLower.IsGreaterThan(leftUpper, opndType);
   } else if ((op == OP_ge && !judgeNotInRange) || (op == OP_lt && judgeNotInRange)) {
-    return leftRange.GetRangeType() != kNotEqual && rightRange.GetRangeType() != kNotEqual && leftLower >= rightUpper;
+    return leftRangeType != kNotEqual && rightRangeType != kNotEqual && !rightUpper.IsGreaterThan(leftLower, opndType);
   } else if ((op == OP_le && !judgeNotInRange) || (op == OP_gt && judgeNotInRange)) {
-    return leftRange.GetRangeType() != kNotEqual && rightRange.GetRangeType() != kNotEqual && leftUpper <= rightLower;
+    return leftRangeType != kNotEqual && rightRangeType != kNotEqual && !leftUpper.IsGreaterThan(rightLower, opndType);
   } else if ((op == OP_gt && !judgeNotInRange) || (op == OP_le && judgeNotInRange)) {
-    return leftRange.GetRangeType() != kNotEqual && rightRange.GetRangeType() != kNotEqual && leftLower > rightUpper;
+    return leftRangeType != kNotEqual && rightRangeType != kNotEqual && leftLower.IsGreaterThan(rightUpper, opndType);
   }
   return false;
 }
@@ -3829,15 +3812,13 @@ void ValueRangePropagation::CreateValueRangeForCondGoto(const MeExpr &opnd, Opco
     if (!AddOrSubWithConstant(newRightUpper.GetPrimType(), OP_add, newRightUpper.GetConstant(), -1, constant)) {
       return;
     }
-    newRightUpper = Bound(newRightUpper.GetVar(),
-                          GetRealValue(constant, newRightUpper.GetPrimType()), newRightUpper.GetPrimType());
+    newRightUpper = Bound(newRightUpper.GetVar(), constant, newRightUpper.GetPrimType());
   } else if ((op == OP_le) || (op == OP_gt)) {
     int64 constant = 0;
     if (!AddOrSubWithConstant(newRightUpper.GetPrimType(), OP_add, newRightLower.GetConstant(), 1, constant)) {
       return;
     }
-    newRightLower =
-        Bound(newRightLower.GetVar(), GetRealValue(constant, newRightUpper.GetPrimType()), newRightUpper.GetPrimType());
+    newRightLower = Bound(newRightLower.GetVar(), constant, newRightUpper.GetPrimType());
   }
   if (op == OP_lt || op == OP_le) {
     if (leftRange != nullptr && leftRange->GetRangeType() == kNotEqual) {
@@ -3893,8 +3874,8 @@ bool ValueRangePropagation::GetValueRangeOfCondGotoOpnd(const BB &bb, OpMeExpr &
   valueRange = FindValueRange(bb, opnd);
   if (valueRange == nullptr) {
     if (opnd.GetMeOp() == kMeOpConst && static_cast<ConstMeExpr&>(opnd).GetConstVal()->GetKind() == kConstInt) {
-      rightRangePtr = std::make_unique<ValueRange>(Bound(GetRealValue(
-          static_cast<ConstMeExpr&>(opnd).GetIntValue(), opnd.GetPrimType()), opnd.GetPrimType()), kEqual);
+      rightRangePtr = std::make_unique<ValueRange>(Bound(static_cast<ConstMeExpr&>(opnd).GetIntValue(),
+          opnd.GetPrimType()), kEqual);
       valueRange = rightRangePtr.get();
       if (!Insert2Caches(bb.GetBBId(), opnd.GetExprID(), std::move(rightRangePtr))) {
         valueRange = nullptr;
@@ -3917,23 +3898,24 @@ bool ValueRangePropagation::GetValueRangeOfCondGotoOpnd(const BB &bb, OpMeExpr &
         return false;
       }
       RangeType lhsRangeType = valueRangeOfLHS->GetRangeType();
-      int64 lhsConstant = valueRangeOfLHS->GetBound().GetConstant();
-      int64 rhsConstant = GetRealValue(static_cast<ConstMeExpr*>(rhs)->GetIntValue(), rhs->GetPrimType());
+      Bound lhsBound = valueRangeOfLHS->GetBound();
+      PrimType rhsPrimType = rhs->GetPrimType();
+      Bound rhsBound = Bound(static_cast<ConstMeExpr*>(rhs)->GetIntValue(), rhsPrimType);
       // If the type of operands is OpMeExpr, need compute the valueRange of operand:
       // Example: if ((a != c) < b),
       // a: ValueRange(5, kEqual)
       // c: ValueRange(6, kEqual)
       // ===>
       // (a != c) : ValueRange(1, kEqual)
-      if ((opnd.GetOp() == OP_ne && lhsConstant != rhsConstant && lhsRangeType == kEqual) ||
-          (opnd.GetOp() == OP_eq && lhsConstant == rhsConstant && lhsRangeType == kEqual) ||
-          (opnd.GetOp() == OP_ne && lhsConstant == rhsConstant && lhsRangeType == kNotEqual)) {
+      if ((opnd.GetOp() == OP_ne && !lhsBound.IsEqual(rhsBound, rhsPrimType) && lhsRangeType == kEqual) ||
+          (opnd.GetOp() == OP_eq && lhsBound.IsEqual(rhsBound, rhsPrimType) && lhsRangeType == kEqual) ||
+          (opnd.GetOp() == OP_ne && lhsBound.IsEqual(rhsBound, rhsPrimType) && lhsRangeType == kNotEqual)) {
         rightRangePtr = std::make_unique<ValueRange>(Bound(1, PTY_u1), kEqual);
         valueRange = rightRangePtr.get();
         (void)Insert2Caches(bb.GetBBId(), opnd.GetExprID(), std::move(rightRangePtr));
-      } else if ((opnd.GetOp() == OP_ne && lhsConstant == rhsConstant && lhsRangeType == kEqual) ||
-                 (opnd.GetOp() == OP_eq && lhsConstant != rhsConstant && lhsRangeType == kEqual) ||
-                 (opnd.GetOp() == OP_eq && lhsConstant == rhsConstant && lhsRangeType == kNotEqual)) {
+      } else if ((opnd.GetOp() == OP_ne && lhsBound.IsEqual(rhsBound, rhsPrimType) && lhsRangeType == kEqual) ||
+          (opnd.GetOp() == OP_eq && !lhsBound.IsEqual(rhsBound, rhsPrimType) && lhsRangeType == kEqual) ||
+          (opnd.GetOp() == OP_eq && lhsBound.IsEqual(rhsBound, rhsPrimType) && lhsRangeType == kNotEqual)) {
         rightRangePtr = std::make_unique<ValueRange>(Bound(nullptr, 0, PTY_u1), kEqual);
         valueRange = rightRangePtr.get();
         (void)Insert2Caches(bb.GetBBId(), opnd.GetExprID(), std::move(rightRangePtr));
@@ -4085,8 +4067,8 @@ void ValueRangePropagation::DealWithBrStmtWithOneOpnd(BB &bb, const CondGotoMeSt
   std::unique_ptr<ValueRange> rightRangePtr = std::make_unique<ValueRange>(
       Bound(nullptr, 0, opnd.GetPrimType()), kEqual);
   if (opnd.GetMeOp() == kMeOpConst && static_cast<ConstMeExpr&>(opnd).GetConstVal()->GetKind() == kConstInt) {
-    std::unique_ptr<ValueRange> leftRangePtr = std::make_unique<ValueRange>(Bound(GetRealValue(
-        static_cast<ConstMeExpr&>(opnd).GetIntValue(), opnd.GetPrimType()), opnd.GetPrimType()), kEqual);
+    std::unique_ptr<ValueRange> leftRangePtr =
+        std::make_unique<ValueRange>(Bound(static_cast<ConstMeExpr&>(opnd).GetIntValue(), opnd.GetPrimType()), kEqual);
     DealWithCondGoto(bb, op, leftRangePtr.get(), *rightRangePtr.get(), stmt);
   } else {
     ValueRange *leftRange = FindValueRange(bb, opnd);

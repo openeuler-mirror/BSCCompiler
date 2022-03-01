@@ -22,6 +22,9 @@
 #include "me_loop_analysis.h"
 #include "me_scalar_analysis.h"
 namespace maple {
+constexpr size_t kFourByte = 4;
+constexpr size_t kEightByte = 8;
+
 class ValueRangePropagation;
 class ValueRange;
 class SafetyCheck {
@@ -105,6 +108,54 @@ class Bound {
 
   void SetPrimType(PrimType pType) {
     primType = pType;
+  }
+
+  static bool IsPrimTypeUint64(PrimType pType) {
+    if (pType == PTY_u64 || pType == PTY_a64 || ((pType == PTY_ref || pType == PTY_ptr) &&
+        GetPrimTypeSize(pType) == kEightByte)) {
+      return true;
+    }
+    return false;
+  }
+
+  bool IsGreaterThan(Bound rightBound, PrimType pType) const {
+    if (!IsNeededPrimType(pType)) {
+      CHECK_FATAL(false, "must not be here");
+    }
+    return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) > static_cast<uint64>(rightBound.GetConstant()) :
+        GetRealValue(constant, pType) > GetRealValue(rightBound.GetConstant(), pType);
+  }
+
+  bool IsEqual(Bound rightBound, PrimType pType) const {
+    if (!IsNeededPrimType(pType)) {
+      CHECK_FATAL(false, "must not be here");
+    }
+    return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) == static_cast<uint64>(rightBound.GetConstant()) :
+        GetRealValue(constant, pType) == GetRealValue(rightBound.GetConstant(), pType);
+  }
+
+  bool IsEqualToMax(PrimType pType) const {
+    if (!IsNeededPrimType(pType)) {
+      CHECK_FATAL(false, "must not be here");
+    }
+    return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) == static_cast<uint64>(GetMaxNumber(pType)) :
+        GetRealValue(constant, pType) == GetRealValue(GetMaxNumber(pType), pType);
+  }
+
+  bool IsEqualToMin(PrimType pType) const {
+    if (!IsNeededPrimType(pType)) {
+      CHECK_FATAL(false, "must not be here");
+    }
+    return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) == static_cast<uint64>(GetMinNumber(pType)) :
+        GetRealValue(constant, pType) == GetRealValue(GetMinNumber(pType), pType);
+  }
+
+  static int64 GetRemResult(int64 lhsConstant, int64 rhsConstant, PrimType pType) {
+    if (!IsNeededPrimType(pType)) {
+      CHECK_FATAL(false, "must not be here");
+    }
+    return IsPrimTypeUint64(pType) ? static_cast<uint64>(lhsConstant) % static_cast<uint64>(rhsConstant) :
+        GetRealValue(lhsConstant, pType) % GetRealValue(rhsConstant, pType);
   }
 
   bool CanBeComparedWith(const Bound &bound) const;
@@ -262,11 +313,11 @@ class ValueRange {
   }
 
   bool UpperIsMax(PrimType pType) const {
-    return GetRealValue(GetUpper().GetConstant(), pType) == GetMaxNumber(pType);
+    return GetUpper().IsEqualToMax(pType);
   }
 
   bool LowerIsMin(PrimType pType) const {
-    return GetRealValue(GetLower().GetConstant(), pType) == GetMinNumber(pType);
+    return GetLower().IsEqualToMin(pType);
   }
 
   void SetBound(const Bound &argBound) {
