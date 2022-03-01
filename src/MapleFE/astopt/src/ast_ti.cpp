@@ -864,15 +864,13 @@ FieldLiteralNode *TypeInferVisitor::VisitFieldLiteralNode(FieldLiteralNode *node
 ArrayLiteralNode *TypeInferVisitor::VisitArrayLiteralNode(ArrayLiteralNode *node) {
   UpdateTypeId(node, TY_Array);
   (void) AstVisitor::VisitArrayLiteralNode(node);
-  ArrayLiteralNode *al = node;
   if (node->IsArrayLiteral()) {
-    al = static_cast<ArrayLiteralNode *>(node);
-    unsigned size = al->GetLiteralsNum();
+    unsigned size = node->GetLiteralsNum();
     TypeId tid = TY_None;
     unsigned tidx = 0;
     bool allElemArray = true;
     for (unsigned i = 0; i < size; i++) {
-      TreeNode *n = al->GetLiteral(i);
+      TreeNode *n = node->GetLiteral(i);
       TypeId id = n->GetTypeId();
       unsigned idx = n->GetTypeIdx();
       tid = MergeTypeId(tid, id);
@@ -890,9 +888,9 @@ ArrayLiteralNode *TypeInferVisitor::VisitArrayLiteralNode(ArrayLiteralNode *node
       unsigned elemdim = DEFAULTVALUE;
       // recalculate element typeid
       tid = TY_None;
-      unsigned tidx = 0;
+      tidx = 0;
       for (unsigned i = 0; i < size; i++) {
-        TreeNode *n = al->GetLiteral(i);
+        TreeNode *n = node->GetLiteral(i);
         if (n->IsArrayLiteral()) {
           DimensionNode * dn = mHandler->GetArrayDim(n->GetNodeId());
           unsigned currdim = dn ? dn->GetDimensionsNum() : 0;
@@ -1561,14 +1559,26 @@ IdentifierNode *TypeInferVisitor::VisitIdentifierNode(IdentifierNode *node) {
       SetUpdated();
     }
   }
-  if (node->GetInit()) {
+  TreeNode *init = node->GetInit();
+  if (init) {
     if (node->GetTypeId() == TY_None) {
-      SetTypeId(node, node->GetInit()->GetTypeId());
+      SetTypeId(node, init->GetTypeId());
     }
     if (node->GetTypeIdx() == 0) {
-      SetTypeIdx(node, node->GetInit()->GetTypeIdx());
+      SetTypeIdx(node, init->GetTypeIdx());
     }
     SetUpdated();
+    if (init->IsArrayLiteral()) {
+      // pass array element info
+      TypeId tid = mHandler->GetArrayElemTypeId(init->GetNodeId());
+      unsigned tidx = mHandler->GetArrayElemTypeIdx(init->GetNodeId());
+      UpdateArrayElemTypeMap(node, tid, tidx);
+      if (type && type->IsArrayType()) {
+        TreeNode *et = static_cast<ArrayTypeNode *>(type)->GetElemType();
+        et->SetTypeId(tid);
+        et->SetTypeIdx(tidx);
+      }
+    }
     return node;
   }
   TreeNode *parent = node->GetParent();
