@@ -201,7 +201,8 @@ bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, AArch64ImmOpera
       auto *tempImm = static_cast<AArch64ImmOperand*>(constOpnd.Clone(*constPropMp));
       /* try aarch64 imm shift mode */
       tempImm->SetValue(tempImm->GetValue() >> 12);
-      if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, tempImm, kInsnThirdOpnd)) {
+      if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, tempImm, kInsnThirdOpnd) &&
+          CGOptions::GetInstance().GetOptimizeLevel() < 0) {
         ASSERT(false, "NIY");
       }
       /* Addition and subtraction reversal */
@@ -554,6 +555,29 @@ AArch64MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const A
         if (replace != nullptr && newOfst != nullptr) {
           newMemOpnd = cgFunc->GetMemoryPool()->New<AArch64MemOperand>(
               AArch64MemOperand::kAddrModeBOrX, currMemOpnd.GetSize(), *replace, newOfst, nullptr, nullptr);
+        }
+      }
+      break;
+    }
+    case MOP_xaddrrrs:
+    case MOP_waddrrrs: {
+      if (memPropMode == kPropBase) {
+        auto *ofstOpnd = static_cast<OfstOperand*>(offset);
+        if (!ofstOpnd->IsZero()) {
+          break;
+        }
+        AArch64RegOperand *newBaseOpnd = GetReplaceReg(
+            static_cast<AArch64RegOperand&>(defInsn.GetOperand(kInsnSecondOpnd)));
+        AArch64RegOperand *newIndexOpnd = GetReplaceReg(
+            static_cast<AArch64RegOperand&>(defInsn.GetOperand(kInsnThirdOpnd)));
+        auto &shift = static_cast<BitShiftOperand&>(defInsn.GetOperand(kInsnFourthOpnd));
+        if (shift.GetShiftOp() != BitShiftOperand::kLSL) {
+          break;
+        }
+        if (newBaseOpnd != nullptr && newIndexOpnd != nullptr) {
+          newMemOpnd = cgFunc->GetMemoryPool()->New<AArch64MemOperand>(
+              AArch64MemOperand::kAddrModeBOrX, currMemOpnd.GetSize(), *newBaseOpnd, *newIndexOpnd,
+              shift.GetShiftAmount(), false);
         }
       }
       break;
