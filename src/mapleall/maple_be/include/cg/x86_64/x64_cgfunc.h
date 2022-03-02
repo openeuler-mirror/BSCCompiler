@@ -17,15 +17,21 @@
 
 #include "cgfunc.h"
 #include "x64_memlayout.h"
+#include "x64_isa.h"
+#include "x64_reg_info.h"
 
 namespace maplebe {
 class X64CGFunc : public CGFunc {
  public:
   X64CGFunc(MIRModule &mod, CG &c, MIRFunction &f, BECommon &b,
       MemPool &memPool, StackMemPool &stackMp, MapleAllocator &mallocator, uint32 funcId)
-      : CGFunc(mod, c, f, b, memPool, stackMp, mallocator, funcId) {
+      : CGFunc(mod, c, f, b, memPool, stackMp, mallocator, funcId),
+        calleeSavedRegs(mallocator.Adapter()),
+        formalRegList(mallocator.Adapter()) {
     CGFunc::SetMemlayout(*memPool.New<X64MemLayout>(b, f, mallocator));
     CGFunc::GetMemlayout()->SetCurrFunction(*this);
+    CGFunc::SetTargetRegInfo(*memPool.New<X64RegInfo>(mallocator));
+    CGFunc::GetTargetRegInfo()->SetCurrFunction(*this);
   }
   /* null implementation yet */
   InsnVisitor *NewInsnModifier() override;
@@ -157,7 +163,6 @@ class X64CGFunc : public CGFunc {
   RegOperand &GetOrCreateVirtualRegisterOperand(RegOperand &regOpnd) override;
   RegOperand &GetOrCreateFramePointerRegOperand() override;
   RegOperand &GetOrCreateStackBaseRegOperand() override;
-  int32 GetBaseOffset(const SymbolAlloc &symbolAlloc) override;
   Operand &GetZeroOpnd(uint32 size) override;
   Operand &CreateCfiRegOperand(uint32 reg, uint32 size) override;
   Operand &GetTargetRetOperand(PrimType primType, int32 sReg) override;
@@ -209,6 +214,35 @@ class X64CGFunc : public CGFunc {
   void ProcessLazyBinding() override;
   void DBGFixCallFrameLocationOffsets() override;
   MemOperand *GetPseudoRegisterSpillMemoryOperand(PregIdx idx) override;
+
+  int32 GetBaseOffset(const SymbolAlloc &symbolAlloc) override;
+  CGRegOperand *GetBaseReg(const SymbolAlloc &symAlloc);
+  void DumpTargetIR(const CGInsn &insn) const override;
+
+  const MapleVector<x64::X64reg> &GetFormalRegList() const {
+    return formalRegList;
+  }
+
+  void PushElemIntoFormalRegList(x64::X64reg reg) {
+    formalRegList.emplace_back(reg);
+  }
+  void AddtoCalleeSaved(x64::X64reg reg) {
+    return;
+  }
+
+ private:
+  MapleVector<x64::X64reg> calleeSavedRegs;
+  MapleVector<x64::X64reg> formalRegList; /* store the parameters register used by this function */
+};
+
+class X64OpndDumpVistor : public CGOpndDumpVisitor {
+ public:
+  X64OpndDumpVistor() = default;
+  ~X64OpndDumpVistor() override = default;
+
+  void Visit(CGRegOperand *v) final;
+  void Visit(CGImmOperand *v) final;
+  void Visit(CGMemOperand *v) final;
 };
 } /* namespace maplebe */
 #endif  /* MAPLEBE_INCLUDE_CG_X86_64_CGFUNC_H */

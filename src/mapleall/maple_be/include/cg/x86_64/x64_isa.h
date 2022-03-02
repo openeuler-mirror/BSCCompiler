@@ -48,20 +48,27 @@ enum StrLdrImmUpperBound : int64 {
   kStrhLdrhImmUpperBound = 8190
 };
 
-/*
- * Registers in x64 state
- */
+namespace x64 {
+/* machine instruction description */
+#define DEFINE_MOP(op, ...) op,
+enum X64MOP_t : maple::uint32 {
+#include "x64_md.def"
+  kMopLast
+};
+#undef DEFINE_MOP
+
+/* Registers in x64 state */
 enum X64reg : uint32 {
   kRinvalid = kInvalidRegNO,
 /* integer registers */
 #define INT_REG(ID, PREF8, PREF8_16, PREF16, PREF32, PREF64, canBeAssigned, isCalleeSave, \
     isParam, isSpill, isExtraSpill) R##ID,
-#define INT_REG_ALIAS(ALIAS, ID, PREF8, PREF8_16, PREF16, PREF32, PREF64)
+#define INT_REG_ALIAS(ALIAS, ID)
 #include "x64_int_regs.def"
 #undef INT_REG
 #undef INT_REG_ALIAS
 /* fp-simd registers */
-#define FP_SIMD_REG(ID, PV, P8, P16, P32, P64, P128, canBeAssigned, isCalleeSave, \
+#define FP_SIMD_REG(ID, P8, P16, P32, P64, P128, canBeAssigned, isCalleeSave, \
     isParam, isSpill, isExtraSpill) V##ID,
 #include "x64_fp_simd_regs.def"
 #undef FP_SIMD_REG
@@ -71,13 +78,12 @@ enum X64reg : uint32 {
 /* integer registers alias */
 #define INT_REG(ID, PREF8, PREF8_16, PREF16, PREF32, PREF64, canBeAssigned, isCalleeSave, \
     isParam, isSpill, isExtraSpill)
-#define INT_REG_ALIAS(ALIAS, ID, PREF8, PREF8_16, PREF16, PREF32, PREF64) R##ALIAS = R##ID,
+#define INT_REG_ALIAS(ALIAS, ID) R##ALIAS = R##ID,
 #include "x64_int_regs.def"
 #undef INT_REG
 #undef INT_REG_ALIAS
 };
 
-namespace x64isa {
 static inline bool IsGPRegister(X64reg r) {
   return R0 <= r && r <= RLAST_GP_REG;
 }
@@ -108,7 +114,7 @@ static inline RegType GetRegType(X64reg r) {
   ASSERT(false, "No suitable register type to return?");
   return kRegTyUndef;
 }
-}  /* namespace x64isa */
+}  /* namespace x64 */
 
 enum RegPropState : uint32 {
   kRegPropUndef = 0,
@@ -126,23 +132,18 @@ constexpr uint32 kPostInc = 0x40;
 constexpr uint32 kLoadLiteral = 0x80;
 constexpr uint32 kVector = 0x100;
 
-class RegProp {
- public:
-  RegProp(RegType t, X64reg r, uint32 d) : regType(t), physicalReg(r), defUse(d) {}
-  virtual ~RegProp() = default;
-  const RegType &GetRegType() const {
-    return regType;
+struct X64MD {
+  MOperator opc;
+  std::vector<OpndDescription*> opndMD;
+  uint64 properties;
+  LatencyType latencyType;
+  const std::string &name;
+  const std::string &format;
+  uint32 atomicNum; /* indicate how many asm instructions it will emit. */
+
+  OpndDescription* GetOpndDes(size_t index) {
+    return opndMD[index];
   }
-  const X64reg &GetPhysicalReg() const {
-    return physicalReg;
-  }
-  uint32 GetDefUse() const {
-    return defUse;
-  }
- private:
-  RegType regType;
-  X64reg physicalReg;
-  uint32 defUse;  /* used for register use/define and other properties of other operand */
 };
 
 /*
@@ -151,11 +152,9 @@ class RegProp {
  * The Stack Pointer has to be aligned at 16-byte boundary.
  * On X64, kIntregBytelen == 8 (see the above)
  */
-// TODO(dixinkai)
 inline void GetNextOffsetCalleeSaved(int &offset) {
   offset += (kIntregBytelen << 1);
 }
-
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_X64_X64_ISA_H */

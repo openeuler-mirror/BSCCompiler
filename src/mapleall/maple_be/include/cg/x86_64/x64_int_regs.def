@@ -25,13 +25,13 @@
  * - rdx is used to pass 3rd argument to functions; 2nd return register
  * - %r11 is neither required to be preserved, nor is it used to pass arguments
  */
-/* ID, 8-bit prefix, 8-16 bit prefix, 16-bit prefix, 32-bit prefix, 64-bit prefix, canBeAssigned, isCalleeSave, isParam, isSpill, isExtraSpill*/
+/* ID, 8-bit prefix, 8-16 bit prefix, 16-bit prefix, 32-bit prefix, 64-bit prefix, canBeAssigned, isCalleeSave, isParam, isSpill, isExtraSpill */
 INT_REG(0 , "BL", "BH", "W", "L", "Q", true, false, false, false, false)
 INT_REG(1 , "BL", "BH", "W", "L", "Q", true, true, false, false, false)
 INT_REG(2 , "BL", "BH", "W", "L", "Q", true, false, true, false, false)
 INT_REG(3 , "BL", "BH", "W", "L", "Q", true, false, true, false, false)
-INT_REG(4 , "B",   "",  "W", "L", "Q", true, false, false, false, false)
-INT_REG(5 , "B",   "",  "W", "L", "Q", true, true, false, false, false)
+INT_REG(4 , "B",   "",  "W", "L", "Q", false, false, false, false, false)
+INT_REG(5 , "B",   "",  "W", "L", "Q", false, true, false, false, false)
 INT_REG(6 , "B",   "",  "W", "L", "Q", true, false, true, false, false)
 INT_REG(7 , "B",   "",  "W", "L", "Q", true, false, true, false, false)
 INT_REG(8 , "B",   "",  "W", "L", "Q", true, false, true, false, false)
@@ -43,16 +43,17 @@ INT_REG(13, "B",   "",  "W", "L", "Q", true, true, false, false, false)
 INT_REG(14, "B",   "",  "W", "L", "Q", true, true, false, false, false)
 INT_REG(15, "B",   "",  "W", "L", "Q", true, true, false, false, false)
 
-/* Alias ID, ID, 8-bit prefix,  8-16 bit prefix, 16-bit prefix, 32-bit prefix, 64-bit prefix */
-INT_REG_ALIAS(AX, 0, "", "", "", "", "" )
-INT_REG_ALIAS(BX, 1, "", "", "", "", "" )
-INT_REG_ALIAS(CX, 2, "", "", "", "", "" )
-INT_REG_ALIAS(DX, 3, "", "", "", "", "" )
-INT_REG_ALIAS(SP, 4, "", "", "", "", "" )
-INT_REG_ALIAS(BP, 5, "", "", "", "", "" )
-INT_REG_ALIAS(SI, 6, "", "", "", "", "" )
-INT_REG_ALIAS(DI, 7, "", "", "", "", "" )
+/* Alias */
+INT_REG_ALIAS(AX, 0)
+INT_REG_ALIAS(BX, 1)
+INT_REG_ALIAS(CX, 2)
+INT_REG_ALIAS(DX, 3)
+INT_REG_ALIAS(SP, 4)
+INT_REG_ALIAS(BP, 5)
+INT_REG_ALIAS(SI, 6)
+INT_REG_ALIAS(DI, 7)
 
-INT_REG_ALIAS(YP, 12, "", "", "", "", "" )
-INT_REG_ALIAS(LAST_GP_REG, 15, "", "", "", "", ""  )
+INT_REG_ALIAS(FP, 5)
+INT_REG_ALIAS(YP, 12)
+INT_REG_ALIAS(LAST_GP_REG, 15)
 

@@ -54,6 +54,7 @@ bool RegAllocator::IsUntouchableReg(regno_t regNO) const {
 bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
   bool success = false;
   (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
+#if TARGAARCH64
   DomAnalysis *dom = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() >= 1 &&
       f.GetCG()->GetCGOptions().DoColoringBasedRegisterAllocation()) {
@@ -62,6 +63,7 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
     dom = static_cast<CgDomAnalysis*>(it)->GetResult();
     CHECK_FATAL(dom != nullptr, "null ptr check");
   }
+#endif
   while (success == false) {
     MemPool *phaseMp = GetPhaseMemPool();
     LiveAnalysis *live = nullptr;
@@ -103,5 +105,4 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
   GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLoopAnalysis::id);
   return false;
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgRegAlloc, regalloc)
 }  /* namespace maplebe */

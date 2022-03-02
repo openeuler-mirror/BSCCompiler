@@ -18,7 +18,7 @@
 
 namespace maplebe {
 using namespace maple;
-namespace X64Abi {
+namespace x64 {
 bool IsAvailableReg(X64reg reg) {
   switch (reg) {
 /* integer registers */
@@ -26,12 +26,12 @@ bool IsAvailableReg(X64reg reg) {
     isParam, isSpill, isExtraSpill) \
     case R##ID:                                                                           \
       return canBeAssigned;
-#define INT_REG_ALIAS(ALIAS, ID, PREF8, PREF8_16, PREF16, PREF32, PREF64)
+#define INT_REG_ALIAS(ALIAS, ID)
 #include "x64_int_regs.def"
 #undef INT_REG
 #undef INT_REG_ALIAS
 /* fp-simd registers */
-#define FP_SIMD_REG(ID, PV, P8, P16, P32, P64, P128, canBeAssigned, isCalleeSave, \
+#define FP_SIMD_REG(ID, P8, P16, P32, P64, P128, canBeAssigned, isCalleeSave, \
     isParam, isSpill, isExtraSpill) \
     case V##ID:                                                                   \
       return canBeAssigned;
@@ -54,12 +54,12 @@ bool IsCalleeSavedReg(X64reg reg) {
     isParam, isSpill, isExtraSpill) \
     case R##ID:                                                                           \
       return isCalleeSave;
-#define INT_REG_ALIAS(ALIAS, ID, PREF8, PREF8_16, PREF16, PREF32, PREF64)
+#define INT_REG_ALIAS(ALIAS, ID)
 #include "x64_int_regs.def"
 #undef INT_REG
 #undef INT_REG_ALIAS
 /* fp-simd registers */
-#define FP_SIMD_REG(ID, PV, P8, P16, P32, P64, P128, canBeAssigned, isCalleeSave, \
+#define FP_SIMD_REG(ID, P8, P16, P32, P64, P128, canBeAssigned, isCalleeSave, \
     isParam, isSpill, isExtraSpill) \
     case V##ID:                                                                   \
       return isCalleeSave;
@@ -76,12 +76,12 @@ bool IsParamReg(X64reg reg) {
     isParam, isSpill, isExtraSpill) \
     case R##ID:                                                                           \
       return isParam;
-#define INT_REG_ALIAS(ALIAS, ID, PREF8, PREF8_16, PREF16, PREF32, PREF64)
+#define INT_REG_ALIAS(ALIAS, ID)
 #include "x64_int_regs.def"
 #undef INT_REG
 #undef INT_REG_ALIAS
 /* fp-simd registers */
-#define FP_SIMD_REG(ID, PV, P8, P16, P32, P64, P128, canBeAssigned, isCalleeSave, \
+#define FP_SIMD_REG(ID, P8, P16, P32, P64, P128, canBeAssigned, isCalleeSave, \
     isParam, isSpill, isExtraSpill) \
     case V##ID:                                                                   \
       return isParam;
@@ -98,12 +98,12 @@ bool IsSpillReg(X64reg reg) {
     isParam, isSpill, isExtraSpill) \
     case R##ID:                                                                           \
       return isSpill;
-#define INT_REG_ALIAS(ALIAS, ID, PREF8, PREF8_16, PREF16, PREF32, PREF64)
+#define INT_REG_ALIAS(ALIAS, ID)
 #include "x64_int_regs.def"
 #undef INT_REG
 #undef INT_REG_ALIAS
 /* fp-simd registers */
-#define FP_SIMD_REG(ID, PV, P8, P16, P32, P64, P128, canBeAssigned, isCalleeSave, \
+#define FP_SIMD_REG(ID, P8, P16, P32, P64, P128, canBeAssigned, isCalleeSave, \
     isParam, isSpill, isExtraSpill) \
     case V##ID:                                                                   \
       return isSpill;
@@ -120,12 +120,12 @@ bool IsExtraSpillReg(X64reg reg) {
     isParam, isSpill, isExtraSpill) \
     case R##ID:                                                                           \
       return isExtraSpill;
-#define INT_REG_ALIAS(ALIAS, ID, PREF8, PREF8_16, PREF16, PREF32, PREF64)
+#define INT_REG_ALIAS(ALIAS, ID)
 #include "x64_int_regs.def"
 #undef INT_REG
 #undef INT_REG_ALIAS
 /* fp-simd registers */
-#define FP_SIMD_REG(ID, PV, P8, P16, P32, P64, P128, canBeAssigned, isCalleeSave, \
+#define FP_SIMD_REG(ID, P8, P16, P32, P64, P128, canBeAssigned, isCalleeSave, \
     isParam, isSpill, isExtraSpill) \
     case V##ID:                                                                   \
       return isExtraSpill;
@@ -138,9 +138,9 @@ bool IsExtraSpillReg(X64reg reg) {
 bool IsSpillRegInRA(X64reg regNO, bool has3RegOpnd) {
   /* if has 3 RegOpnd, previous reg used to spill. */
   if (has3RegOpnd) {
-    return X64Abi::IsSpillReg(regNO) || X64Abi::IsExtraSpillReg(regNO);
+    return IsSpillReg(regNO) || IsExtraSpillReg(regNO);
   }
-  return X64Abi::IsSpillReg(regNO);
+  return IsSpillReg(regNO);
 }
-}  /* namespace X64Abi */
+}  /* namespace x64 */
 }  /* namespace maplebe */

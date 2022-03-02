@@ -22,7 +22,7 @@
 namespace maplebe {
 using namespace maple;
 
-namespace X64Abi {
+namespace x64 {
 constexpr int32 kNumIntParmRegs = 6;
 constexpr int32 kNumIntReturnRegs = 2;
 constexpr int32 kNumFloatParmRegs = 8;
@@ -48,7 +48,7 @@ bool IsSpillReg(X64reg reg);
 bool IsExtraSpillReg(X64reg reg);
 bool IsSpillRegInRA(X64reg regNO, bool has3RegOpnd);
 PrimType IsVectorArrayType(MIRType *ty, uint32 &arraySize);
-}  /* namespace X64Abi */
+}  /* namespace x64 */
 
 /*
  * X64-bit Architecture.
