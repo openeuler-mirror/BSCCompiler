@@ -30,6 +30,7 @@ constexpr char kFuncNameOfMemcpy[] = "memcpy";
 constexpr char kFuncNameOfMemsetS[] = "memset_s";
 constexpr char kFuncNameOfMemcpyS[] = "memcpy_s";
 constexpr uint64_t kSecurecMemMaxLen = 0x7fffffffUL;
+static constexpr maple::int32 kProbUnlikely = 1000;
 } // namespace
 
 namespace maple {
@@ -38,7 +39,7 @@ const uint32 SimplifyMemOp::thresholdMemsetExpand = 512;
 const uint32 SimplifyMemOp::thresholdMemcpyExpand = 512;
 const uint32 SimplifyMemOp::thresholdMemsetSExpand = 1024;
 const uint32 SimplifyMemOp::thresholdMemcpySExpand = 1024;
-static uint32 kMaxMemoryBlockSizeToAssign = 8;  // in byte
+static const uint32 kMaxMemoryBlockSizeToAssign = 8;  // in byte
 
 static void MayPrintLog(bool debug, bool success, MemOpKind memOpKind, const char *str) {
   if (!debug) {
@@ -204,7 +205,7 @@ static MIRStructType *GetReadedStructureType(const IreadNode *iread, const MIRFu
 }
 
 template <class RhsType, class AssignType>
-static StmtNode *SplitAggCopy(AssignType *assignNode, MIRStructType *structureType,
+static StmtNode *SplitAggCopy(const AssignType *assignNode, MIRStructType *structureType,
                               BlockNode *block, MIRFunction *func) {
   auto *readNode = static_cast<RhsType *>(assignNode->GetRHS());
   auto rhsFieldID = readNode->GetFieldID();
@@ -434,7 +435,7 @@ void Simplify::Finish() {
 //   0xff    8     0xffffffffffffffff
 static uint64 JoinBytes(int byte, uint32 num) {
   CHECK_FATAL(num <= 8, "not support");
-  uint64 realByte = byte % 256;
+  uint64 realByte = static_cast<uint64>(byte % 256);
   if (realByte == 0) {
     return 0;
   }
@@ -484,8 +485,8 @@ static BaseNode *ConstructConstvalNode(int64 val, PrimType primType, MIRBuilder 
   return ret;
 }
 
-static BaseNode *ConstructConstvalNode(int64 byte, int64 num, PrimType primType, MIRBuilder &mirBuilder) {
-  auto val = JoinBytes(static_cast<int32>(byte), static_cast<uint32>(num));
+static BaseNode *ConstructConstvalNode(int64 byte, uint64 num, PrimType primType, MIRBuilder &mirBuilder) {
+  auto val = JoinBytes(byte, static_cast<uint32>(num));
   return ConstructConstvalNode(static_cast<int64>(val), primType, mirBuilder);
 }
 
@@ -505,13 +506,13 @@ static void SplitMemoryIntoBlocks(size_t totalMemorySize, std::vector<uint32> &b
   }
 }
 
-static bool IsComplexExpr(BaseNode *expr, MIRFunction &func) {
+static bool IsComplexExpr(const BaseNode *expr, MIRFunction &func) {
   Opcode op = expr->GetOpCode();
   if (op == OP_regread) {
     return false;
   }
   if (op == OP_dread) {
-    auto *symbol = func.GetLocalOrGlobalSymbol(static_cast<DreadNode*>(expr)->GetStIdx());
+    auto *symbol = func.GetLocalOrGlobalSymbol(static_cast<const DreadNode*>(expr)->GetStIdx());
     if (symbol->IsGlobal() || symbol->GetStorageClass() == kScPstatic) {
       return true;  // dread global/static var is complex expr because it will be lowered to adrp + add
     } else {
@@ -519,7 +520,7 @@ static bool IsComplexExpr(BaseNode *expr, MIRFunction &func) {
     }
   }
   if (op == OP_addrof) {
-    auto *symbol = func.GetLocalOrGlobalSymbol(static_cast<AddrofNode*>(expr)->GetStIdx());
+    auto *symbol = func.GetLocalOrGlobalSymbol(static_cast<const AddrofNode*>(expr)->GetStIdx());
     if (symbol->IsGlobal() || symbol->GetStorageClass() == kScPstatic) {
       return true;  // addrof global/static var is complex expr because it will be lowered to adrp + add
     } else {
@@ -733,8 +734,30 @@ static BaseNode *TryToExtractComplexExpr(BaseNode *expr, MIRFunction &func, Bloc
   return extractedExpr;
 }
 
-void MemEntry::ExpandMemsetLowLevel(int64 byte, int64 size, MIRFunction &func, StmtNode &stmt, BlockNode &block,
-    MemOpKind memOpKind, bool debug, ErrorNumber errorNumber) const {
+static void InsertCheckFailedBranch(MIRFunction &func, StmtNode &stmt, BlockNode &block,
+                                    LabelIdx branchLabIdx, LabelIdx finalLabIdx, ErrorNumber errNumber,
+                                    MemOpKind memOpKind, bool debug) {
+  auto mirBuilder = func.GetModule()->GetMIRBuilder();
+  auto gotoFinal = mirBuilder->CreateStmtGoto(OP_goto, finalLabIdx);
+  auto branchLabNode = mirBuilder->CreateStmtLabel(branchLabIdx);
+  auto errnoAssign = MemEntry::GenMemopRetAssign(stmt, func, true, memOpKind, errNumber);
+  InsertAndMayPrintStmtList(block, stmt, debug, {branchLabNode, errnoAssign, gotoFinal});
+}
+
+static StmtNode *InsertMemsetCallStmt(const MapleVector<BaseNode *> &args, MIRFunction &func, StmtNode &stmt,
+                                      BlockNode &block, LabelIdx finalLabIdx, ErrorNumber errorNumber, bool debug) {
+  MIRBuilder *mirBuilder = func.GetModule()->GetMIRBuilder();
+  auto *gotoFinal = mirBuilder->CreateStmtGoto(OP_goto, finalLabIdx);
+  auto memsetFunc = mirBuilder->GetOrCreateFunction(kFuncNameOfMemset, TyIdx(PTY_void));
+  auto memsetCallStmt = mirBuilder->CreateStmtCallAssigned(memsetFunc->GetPuidx(), args, nullptr, OP_callassigned);
+  memsetCallStmt->SetSrcPos(stmt.GetSrcPos());
+  auto *errnoAssign = MemEntry::GenMemopRetAssign(stmt, func, true, MEM_OP_memset_s, errorNumber);
+  InsertAndMayPrintStmtList(block, stmt, debug, {memsetCallStmt, errnoAssign, gotoFinal});
+  return memsetCallStmt;
+}
+
+void MemEntry::ExpandMemsetLowLevel(int64 byte, uint64 size, MIRFunction &func, StmtNode &stmt, BlockNode &block,
+                                    MemOpKind memOpKind, bool debug, ErrorNumber errorNumber) const {
   MIRBuilder *mirBuilder = func.GetModule()->GetMIRBuilder();
   std::vector<uint32> blocks;
   SplitMemoryIntoBlocks(size, blocks);
@@ -744,14 +767,6 @@ void MemEntry::ExpandMemsetLowLevel(int64 byte, int64 size, MIRFunction &func, S
   BaseNode *realDstExpr = addrExpr;
   if (blocks.size() > 1) {
     realDstExpr = TryToExtractComplexExpr(addrExpr, func, block, stmt, debug);
-  }
-  LabelIdx nullLabIdx;
-  if (NeedCheck(memOpKind)) {
-    auto *cmpResType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_u8));
-    auto *cmpOpndType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_ptr));
-    auto *checkStmt = CreateNullptrCheckStmt(*realDstExpr, func, mirBuilder, *cmpResType, *cmpOpndType);
-    nullLabIdx = checkStmt->GetOffset();
-    InsertAndMayPrintStmt(block, stmt, debug, checkStmt);
   }
   BaseNode *readConst = nullptr;
   // rhs const is big, extract it to avoid redundant expression
@@ -783,22 +798,12 @@ void MemEntry::ExpandMemsetLowLevel(int64 byte, int64 size, MIRFunction &func, S
   auto *retAssign = GenMemopRetAssign(stmt, func, true, memOpKind, errorNumber);
   InsertAndMayPrintStmt(block, stmt, debug, retAssign);
   // return ERRNO_INVAL if memset_s dest is NULL
-  if (NeedCheck(memOpKind)) {
-    LabelIdx finalLabIdx = func.GetLabelTab()->CreateLabelWithPrefix('f');
-    auto *finalLabelNode = mirBuilder->CreateStmtLabel(finalLabIdx);
-    // Add goto final stmt for expanded body
-    auto *gotoFinal = mirBuilder->CreateStmtGoto(OP_goto, finalLabIdx);
-    InsertAndMayPrintStmt(block, stmt, debug, gotoFinal);
-    auto *errnoAssign = GenMemopRetAssign(stmt, func, true, memOpKind, ERRNO_INVAL);
-    AddNullptrHandlerIR(stmt, mirBuilder, block, errnoAssign, nullLabIdx, finalLabIdx, debug);
-    InsertAndMayPrintStmt(block, stmt, debug, finalLabelNode);
-  }
   block.RemoveStmt(&stmt);
 }
 
 // Lower memset(MemEntry, byte, size) into a series of assign stmts and replace callStmt in the block
 // with these assign stmts
-bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
+bool MemEntry::ExpandMemset(int64 byte, uint64 size, MIRFunction &func,
                             StmtNode &stmt, BlockNode &block, bool isLowLevel, bool debug,
                             ErrorNumber errorNumber) const {
   MemOpKind memOpKind = SimplifyMemOp::ComputeMemOpKind(stmt) ;
@@ -808,10 +813,6 @@ bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
     CHECK_FATAL(memKind != kMemEntryUnknown, "invalid memKind");
     if (memType->GetSize() != size) {
       MayPrintLog(debug, false, memOpKind, "dst size and size arg are not equal");
-      return false;
-    }
-    if (memOpKind == MEM_OP_memset_s) {
-      MayPrintLog(debug, false, memOpKind, "all memset_s will be handled by cglower");
       return false;
     }
   }
@@ -867,7 +868,7 @@ bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
 
     // Build assign for each fields in the struct type
     // We should skip union fields
-    for (uint32 id = 1; id <= numFields; ++id) {
+    for (FieldID id = 1; static_cast<size_t>(id) <= numFields; ++id) {
       MIRType *fieldType = structType->GetFieldType(id);
       // We only consider leaf field with valid type size
       if (fieldType->GetSize() == 0 || fieldType->GetPrimType() == PTY_agg) {
@@ -877,7 +878,7 @@ bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
         continue;
       }
       // now the fieldType is primitive type
-      BaseNode *rhsExpr = ConstructConstvalNode(byte, static_cast<int64>(fieldType->GetSize()),
+      BaseNode *rhsExpr = ConstructConstvalNode(byte, fieldType->GetSize(),
                                                 fieldType->GetPrimType(), *mirBuilder);
       StmtNode *fieldAssign = nullptr;
       if (addrExpr->GetOpCode() == OP_addrof) {
@@ -903,7 +904,7 @@ bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
       MayPrintLog(debug, false, memOpKind, "element size < 4, don't expand it to  avoid to genearte lots of strb/strh");
       return false;
     }
-    int64 elemCnt = arrayType->GetSizeArrayItem(0);
+    uint64 elemCnt = static_cast<uint64>(arrayType->GetSizeArrayItem(0));
     if (elemType->GetSize() * elemCnt != size) {
       MayPrintLog(debug, false, memOpKind, "array size not equal");
       return false;
@@ -911,7 +912,7 @@ bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
     for (size_t i = 0; i < elemCnt; ++i) {
       BaseNode *indexExpr = ConstructConstvalNode(i, PTY_u32, *mirBuilder);
       auto *arrayExpr = mirBuilder->CreateExprArray(*arrayType, addrExpr, indexExpr);
-      auto *newValOpnd = ConstructConstvalNode(byte, static_cast<int64>(elemType->GetSize()),
+      auto *newValOpnd = ConstructConstvalNode(byte, elemType->GetSize(),
                                                elemType->GetPrimType(), *mirBuilder);
       MIRType *elemPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*elemType);
       auto *arrayElementAssign = mirBuilder->CreateStmtIassign(*elemPtrType, 0, arrayExpr, newValOpnd);
@@ -946,12 +947,13 @@ static std::pair<StmtNode*, StmtNode*> GenerateMemoryCopyPair(MIRBuilder *mirBui
   return { regassign, iassignoff };
 }
 
-void MemEntry::ExpandMemcpyLowLevel(const MemEntry &srcMem, int64 copySize, MIRFunction &func,
-    StmtNode &stmt, BlockNode &block, MemOpKind memOpKind, bool debug, ErrorNumber errorNumber) const {
+void MemEntry::ExpandMemcpyLowLevel(const MemEntry &srcMem, uint64 copySize, MIRFunction &func,
+                                    StmtNode &stmt, BlockNode &block, MemOpKind memOpKind, bool debug,
+                                    ErrorNumber errorNumber) const {
   MIRBuilder *mirBuilder = func.GetModule()->GetMIRBuilder();
   std::vector<uint32> blocks;
   SplitMemoryIntoBlocks(copySize, blocks);
-  int32 offset = 0;
+  uint32 offset = 0;
   // If blocks.size() > 1 and `src` or `dst` is not a leaf node,
   // we should extract common expr to avoid redundant expression
   BaseNode *realSrcExpr = srcMem.addrExpr;
@@ -1001,7 +1003,7 @@ void MemEntry::ExpandMemcpyLowLevel(const MemEntry &srcMem, int64 copySize, MIRF
       BaseNode *rhsExpr = mirBuilder->CreateExprIread(*constMIRType, *constMIRPtrType, 0, rhsAddrExpr);
       auto *iassignoff = mirBuilder->CreateStmtIassignoff(constType, offset, realDstExpr, rhsExpr);
       InsertAndMayPrintStmt(block, stmt, debug, iassignoff);
-      offset += static_cast<int32>(curSize);
+      offset += curSize;
       continue;
     }
 
@@ -1014,7 +1016,7 @@ void MemEntry::ExpandMemcpyLowLevel(const MemEntry &srcMem, int64 copySize, MIRF
     auto pair2 = GenerateMemoryCopyPair(mirBuilder, realSrcExpr, realDstExpr, offset + curSize, curSize, tmpRegIdx2);
     // insert order: regassign1, regassign2, iassignoff1, iassignoff2
     InsertAndMayPrintStmtList(block, stmt, debug, { pair1.first, pair2.first, pair1.second, pair2.second});
-    offset += static_cast<int32>((2 * curSize));
+    offset += (2 * curSize);
     ++i;
   }
   // handle memcpy return val
@@ -1041,7 +1043,7 @@ void MemEntry::ExpandMemcpyLowLevel(const MemEntry &srcMem, int64 copySize, MIRF
   block.RemoveStmt(&stmt);
 }
 
-bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, int64 copySize, MIRFunction &func,
+bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, uint64 copySize, MIRFunction &func,
                             StmtNode &stmt, BlockNode &block, bool isLowLevel, bool debug,
                             ErrorNumber errorNumber) const {
   MemOpKind memOpKind = SimplifyMemOp::ComputeMemOpKind(stmt);
@@ -1160,7 +1162,7 @@ StmtNode *MemEntry::GenMemopRetAssign(StmtNode &stmt, MIRFunction &func, bool is
   }
   PregIdx pregIdx = retVec[0].second.GetPregIdx();
   if (pregIdx != 0) {
-    auto pregType = func.GetPregTab()->GetPregTableItem(pregIdx)->GetPrimType();
+    auto pregType = func.GetPregTab()->GetPregTableItem(static_cast<uint32>(pregIdx))->GetPrimType();
     auto *retAssign = mirBuilder->CreateStmtRegassign(pregType, pregIdx, rhs);
     if (isLowLevel) {
       retAssign->GetRHS()->SetPrimType(pregType);
@@ -1218,6 +1220,116 @@ bool SimplifyMemOp::AutoSimplify(StmtNode &stmt, BlockNode &block, bool isLowLev
   return false;
 }
 
+#define CREATE_AND_INSERT_CHECK_STMT(op, lhs, rhs, label)                                             \
+        do {                                                                                          \
+          auto cmpStmt = mirBuilder->CreateExprCompare(op, *cmpResType, *cmpU64Type, lhs, rhs);       \
+          auto checkStmt = mirBuilder->CreateStmtCondGoto(cmpStmt, OP_brtrue, label);                 \
+          checkStmt->SetBranchProb(kProbUnlikely);                                                    \
+          checkStmt->SetSrcPos(stmt.GetSrcPos());                                                     \
+          InsertAndMayPrintStmt(block, stmt, debug, checkStmt);                                       \
+        } while(0)
+
+// expand memset_s call statement, return pointer of memset call statement node to be expanded in the next step, return
+// nullptr if memset_s is expanded completely.
+StmtNode *SimplifyMemOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block, int64 &srcSize,
+                                                bool isSrcSizeConst) const {
+  uint32 dstOpndIdx = 0;
+  uint32 dstSizeOpndIdx = 1;  // only used by memset_s
+  uint32 srcOpndIdx = 2;
+  uint32 srcSizeOpndIdx = 3;
+  ErrorNumber errNum = ERRNO_OK;
+  int64 dstSize = 0;
+  bool isDstSizeConst = false;
+  BaseNode *foldDstSizeExpr = FoldIntConst(stmt.Opnd(dstSizeOpndIdx), dstSize, isDstSizeConst);
+  if (foldDstSizeExpr != nullptr) {
+    stmt.SetOpnd(foldDstSizeExpr, dstSizeOpndIdx);
+  }
+  if (isDstSizeConst) {
+    if (dstSize == 0 || static_cast<uint64>(dstSize) > kSecurecMemMaxLen) {
+      srcSize = 0;
+      errNum = ERRNO_RANGE;
+    }
+    if (srcSize > dstSize) {
+      srcSize = dstSize;
+      errNum = ERRNO_RANGE_AND_RESET;
+    }
+  }
+
+  MIRBuilder *mirBuilder = func->GetModule()->GetMIRBuilder();
+  LabelIdx finalLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('f');
+  if (errNum != ERRNO_OK) {
+    if (errNum == ERRNO_RANGE_AND_RESET) {
+      MapleVector<BaseNode *> args(func->GetCodeMempoolAllocator().Adapter());
+      args.push_back(stmt.Opnd(dstOpndIdx));
+      args.push_back(stmt.Opnd(srcOpndIdx));
+      args.push_back(ConstructConstvalNode(srcSize, stmt.Opnd(srcSizeOpndIdx)->GetPrimType(), *mirBuilder));
+      auto memsetFunc = mirBuilder->GetOrCreateFunction(kFuncNameOfMemset, TyIdx(PTY_void));
+      auto callStmt = mirBuilder->CreateStmtCallAssigned(memsetFunc->GetPuidx(), args, nullptr, OP_callassigned);
+      callStmt->SetSrcPos(stmt.GetSrcPos());
+      InsertAndMayPrintStmt(block, stmt, debug, callStmt);
+    }
+    auto errnoAssign = MemEntry::GenMemopRetAssign(stmt, *func, true, MEM_OP_memset_s, errNum);
+    InsertAndMayPrintStmt(block, stmt, debug, errnoAssign);
+    block.RemoveStmt(&stmt);
+    return nullptr;
+  } else {
+    LabelIdx dstSizeCheckLabIdx, srcSizeCheckLabIdx, srcSizeZeroLabIdx, nullPtrLabIdx;
+    auto cmpResType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_u8));
+    auto cmpU64Type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_u64));
+    if (!isSrcSizeConst) {
+      // check if src size is 0;
+      srcSizeZeroLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('n');  // 'n' means nullptr
+      CREATE_AND_INSERT_CHECK_STMT(OP_eq, stmt.Opnd(srcSizeOpndIdx),
+                                   ConstructConstvalNode(0, PTY_u64, *mirBuilder), srcSizeZeroLabIdx);
+    }
+    if (!isDstSizeConst) {
+      // check if dst size is equal to 0 or greater than maxlen
+      dstSizeCheckLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('n');  // 'n' means nullptr
+      CREATE_AND_INSERT_CHECK_STMT(OP_eq, stmt.Opnd(dstSizeOpndIdx),
+                                   ConstructConstvalNode(0, PTY_u64, *mirBuilder), dstSizeCheckLabIdx);
+      CREATE_AND_INSERT_CHECK_STMT(OP_gt, stmt.Opnd(dstSizeOpndIdx),
+                                   ConstructConstvalNode(kSecurecMemMaxLen, PTY_u64, *mirBuilder),
+                                   dstSizeCheckLabIdx);
+    }
+
+    // check if dst is nullptr
+    nullPtrLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('n');  // 'n' means nullptr
+    CREATE_AND_INSERT_CHECK_STMT(OP_eq, stmt.Opnd(dstOpndIdx), ConstructConstvalNode(0, PTY_u64, *mirBuilder),
+                                 nullPtrLabIdx);
+    if (!isSrcSizeConst) {
+      // check if src size is greater than dst size
+      srcSizeCheckLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('n');  // 'n' means nullptr
+      CREATE_AND_INSERT_CHECK_STMT(OP_gt, stmt.Opnd(srcSizeOpndIdx), stmt.Opnd(dstSizeOpndIdx), srcSizeCheckLabIdx);
+    }
+    MapleVector<BaseNode *> args(func->GetCodeMempoolAllocator().Adapter());
+    args.push_back(stmt.Opnd(dstOpndIdx));
+    args.push_back(stmt.Opnd(srcOpndIdx));
+    args.push_back(stmt.Opnd(srcSizeOpndIdx));
+    auto memsetCallStmt = InsertMemsetCallStmt(args, *func, stmt, block, finalLabIdx, errNum, debug);
+    if (!isSrcSizeConst) {
+      auto branchLabNode = mirBuilder->CreateStmtLabel(srcSizeCheckLabIdx);
+      InsertAndMayPrintStmt(block, stmt, debug, branchLabNode);
+      args.pop_back();
+      args.push_back(stmt.Opnd(dstSizeOpndIdx));
+      (void) InsertMemsetCallStmt(args, *func, stmt, block, finalLabIdx, ERRNO_RANGE_AND_RESET, debug);
+    }
+    InsertCheckFailedBranch(*func, stmt, block, nullPtrLabIdx, finalLabIdx, ERRNO_INVAL,
+                            MEM_OP_memset_s, debug);
+    if (!isDstSizeConst) {
+      InsertCheckFailedBranch(*func, stmt, block, dstSizeCheckLabIdx, finalLabIdx, ERRNO_RANGE,
+                              MEM_OP_memset_s, debug);
+    }
+    if (!isSrcSizeConst) {
+      InsertCheckFailedBranch(*func, stmt, block, srcSizeZeroLabIdx, finalLabIdx, ERRNO_OK,
+                              MEM_OP_memset_s, debug);
+    }
+    auto *finalLabelNode = mirBuilder->CreateStmtLabel(finalLabIdx);
+    InsertAndMayPrintStmt(block, stmt, debug, finalLabelNode);
+    block.RemoveStmt(&stmt);
+    return memsetCallStmt;
+  }
+}
+
 // Try to replace the call to memset with a series of assign operations (including dassign, iassign, iassignoff), which
 // is usually profitable for small memory size.
 // This function is called in two places, one in mpl2mpl simplify, another in cglower:
@@ -1231,12 +1343,10 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
     return false;
   }
   uint32 dstOpndIdx = 0;
-  uint32 dstSizeOpndIdx = 0;  // only used by memset_s
   uint32 srcOpndIdx = 1;
   uint32 srcSizeOpndIdx = 2;
   bool isSafeVersion = memOpKind == MEM_OP_memset_s;
   if (isSafeVersion) {
-    dstSizeOpndIdx = 1;
     srcOpndIdx = 2;
     srcSizeOpndIdx = 3;
   }
@@ -1245,55 +1355,47 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
     stmt.Dump(0);
   }
 
-  int64 size = 0;  // memset's 'src size'
-  bool isIntConst = false;
-  BaseNode *foldSizeExpr = FoldIntConst(stmt.Opnd(srcSizeOpndIdx), size, isIntConst);
-  if (foldSizeExpr != nullptr) {
-    stmt.SetOpnd(foldSizeExpr, srcSizeOpndIdx);
+  int64 srcSize = 0;
+  bool isSrcSizeConst = false;
+  BaseNode *foldSrcSizeExpr = FoldIntConst(stmt.Opnd(srcSizeOpndIdx), srcSize, isSrcSizeConst);
+  if (foldSrcSizeExpr != nullptr) {
+    stmt.SetOpnd(foldSrcSizeExpr, srcSizeOpndIdx);
   }
-  // memset's 'src size' must be a const value, otherwise we can not expand it
-  if (!isIntConst) {
-    MayPrintLog(debug, false, memOpKind, "size is not int const");
-    return false;
-  }
-  // If the size is too big, we won't expand it
-  uint32 thresholdExpand = (isSafeVersion ? thresholdMemsetSExpand : thresholdMemsetExpand);
-  if (size > thresholdExpand) {
-    MayPrintLog(debug, false, memOpKind, "size is too big");
-    return false;
-  }
-  if (size == 0) {
-    MayPrintLog(debug, false, memOpKind, "memset with size 0");
-    return false;
-  }
-  ErrorNumber errNum = ERRNO_OK;
-  // for memset_s, dstSize must be also a const value, and dstSize should >= srcSize
-  if (isSafeVersion) {
-    int64 dstSize = 0;
-    bool isDstSizeConst = false;
-    BaseNode *foldDstSizeExpr = FoldIntConst(stmt.Opnd(dstSizeOpndIdx), dstSize, isDstSizeConst);
-    if (foldDstSizeExpr != nullptr) {
-      stmt.SetOpnd(foldDstSizeExpr, dstSizeOpndIdx);
-    }
-    if (!isDstSizeConst) {
-      MayPrintLog(debug, false, memOpKind, "dst size is not int const");
+
+  if (isSrcSizeConst) {
+    // If the size is too big, we won't expand it
+    uint32 thresholdExpand = (isSafeVersion ? thresholdMemsetSExpand : thresholdMemsetExpand);
+    if (srcSize > thresholdExpand) {
+      MayPrintLog(debug, false, memOpKind, "size is too big");
       return false;
     }
-    if (dstSize == 0 || static_cast<uint64>(dstSize) > kSecurecMemMaxLen) {
-      size = 0;
-      errNum = ERRNO_RANGE;
-    }
-    if (size > dstSize) {
-      size = dstSize;  // if size > dstSize, set `size` to `dstSize`
-      errNum = ERRNO_RANGE_AND_RESET;
+    if (srcSize == 0) {
+      MayPrintLog(debug, false, memOpKind, "memset with size 0");
+      return false;
     }
   }
 
+  StmtNode *memsetCallStmt = &stmt;
+  if (memOpKind == MEM_OP_memset_s && !isLowLevel) {
+    memsetCallStmt = PartiallyExpandMemsetS(stmt, block, srcSize, isSrcSizeConst);
+  }
+  if (!memsetCallStmt) {
+    return true;
+  }
+
+  // memset's 'src size' must be a const value, otherwise we can not expand it
+  if (!isSrcSizeConst) {
+    MayPrintLog(debug, false, memOpKind, "size is not int const");
+    return false;
+  }
+
+  ErrorNumber errNum = ERRNO_OK;
+
   int64 val = 0;
-  isIntConst = false;
-  BaseNode *foldValExpr = FoldIntConst(stmt.Opnd(srcOpndIdx), val, isIntConst);
+  bool isIntConst = false;
+  BaseNode *foldValExpr = FoldIntConst(memsetCallStmt->Opnd(srcOpndIdx), val, isIntConst);
   if (foldValExpr != nullptr) {
-    stmt.SetOpnd(foldValExpr, srcOpndIdx);
+    memsetCallStmt->SetOpnd(foldValExpr, srcOpndIdx);
   }
   // memset's second argument 'val' should also be a const value
   if (!isIntConst) {
@@ -1302,19 +1404,20 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
   }
 
   MemEntry dstMemEntry;
-  bool valid = MemEntry::ComputeMemEntry(*stmt.Opnd(dstOpndIdx), *func, dstMemEntry, isLowLevel);
+  bool valid = MemEntry::ComputeMemEntry(*(memsetCallStmt->Opnd(dstOpndIdx)), *func, dstMemEntry, isLowLevel);
   if (!valid) {
     MayPrintLog(debug, false, memOpKind, "dstMemEntry is invalid");
     return false;
   }
   bool ret = false;
-  if (size != 0) {
-    ret = dstMemEntry.ExpandMemset(val, size, *func, stmt, block, isLowLevel, debug, errNum);
+  if (srcSize != 0) {
+    ret = dstMemEntry.ExpandMemset(val, static_cast<uint64>(srcSize), *func, *memsetCallStmt, block, isLowLevel,
+                                   debug, errNum);
   } else {
     // if size == 0, no need to set memory, just return error nummber
-    auto *retAssign = MemEntry::GenMemopRetAssign(stmt, *func, isLowLevel, memOpKind, errNum);
-    InsertAndMayPrintStmt(block, stmt, debug, retAssign);
-    block.RemoveStmt(&stmt);
+    auto *retAssign = MemEntry::GenMemopRetAssign(*memsetCallStmt, *func, isLowLevel, memOpKind, errNum);
+    InsertAndMayPrintStmt(block, *memsetCallStmt, debug, retAssign);
+    block.RemoveStmt(memsetCallStmt);
     ret = true;
   }
   if (ret) {
@@ -1402,14 +1505,15 @@ bool SimplifyMemOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowL
       MayPrintLog(debug, false, memOpKind, "dst and src have different type");
       return false;   // entryType must be identical
     }
-    if (dstMemEntry.memType->GetSize() != srcSize) {
+    if (dstMemEntry.memType->GetSize() != static_cast<uint64>(srcSize)) {
       MayPrintLog(debug, false, memOpKind, "copy size != dst memory size");
       return false;  // copy size should equal to dst memory size, we maybe allow smaller copy size later
     }
   }
   bool ret = false;
   if (copySize != 0) {
-    ret = dstMemEntry.ExpandMemcpy(srcMemEntry, copySize, *func, stmt, block, isLowLevel, debug, errNum);
+    ret = dstMemEntry.ExpandMemcpy(srcMemEntry, static_cast<uint64>(copySize), *func, stmt, block, isLowLevel, debug,
+                                   errNum);
   } else {
     // if copySize == 0, no need to copy memory, just return error number
     auto *retAssign = MemEntry::GenMemopRetAssign(stmt, *func, isLowLevel, memOpKind, errNum);
