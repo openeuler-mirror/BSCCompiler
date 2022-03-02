@@ -23,6 +23,7 @@
 #include "alignment.h"
 #include "yieldpoint.h"
 #include "emit.h"
+#include "reg_alloc.h"
 #if TARGAARCH64
 #include "aarch64_emitter.h"
 #include "aarch64_cg.h"
@@ -370,6 +371,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgLayoutFrame, layoutstackframe)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgCreateLabel, createstartendlabel)
 MAPLE_TRANSFORM_PHASE_REGISTER(InstructionSelector, instructionselector)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgMoveRegArgs, moveargs)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgRegAlloc, regalloc)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgAlignAnalysis, alignanalysis)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFrameFinalize, framefinalize)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgYieldPointInsertion, yieldpoint)

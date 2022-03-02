@@ -15,8 +15,33 @@
 
 #include "x64_cg.h"
 #include "x64_cgfunc.h"
-
+#include "x64_isa.h"
 namespace maplebe {
+using namespace x64;
+#include "opnd.def"
+#define DEFINE_MOP(...) {__VA_ARGS__},
+const X64MD X64CG::kMd[kMopLast] = {
+#include "x64_md.def"
+};
+#undef DEFINE_MOP
+
+std::array<std::array<const std::string, kAllRegNum>, kIntRegTypeNum> X64CG::intRegNames = {
+  std::array<const std::string, kAllRegNum> {
+    "al", "bl", "cl", "dl", "spl", "bpl", "sil", "dil", "r8b", "r9b", "r10b", "r11b", "r12b", "r13b",
+    "r14b", "r15b", "errMaxRegNum" },
+  std::array<const std::string, kAllRegNum> {
+    "ah", "bh", "ch", "dh", "err", "err0", "err1", "err2", "err3", "err4", "err5", "err6", "err7", "err8",
+    "err9", "err10", "errMaxRegNum" },
+  std::array<const std::string, kAllRegNum> {
+    "ax", "bx", "cx", "dx", "sp", "bp", "si", "di", "r8w", "r9w", "r10w", "r11w", "r12w", "r13w",
+    "r14w", "r15w", "errMaxRegNum" },
+  std::array<const std::string, kAllRegNum> {
+    "eax", "ebx", "ecx", "edx", "esp", "ebp", "esi", "edi", "r8d", "r9d", "r10d", "r11d", "r12d", "r13d",
+    "r14d", "r15d", "errMaxRegNum" },
+  std::array<const std::string, kAllRegNum> {
+    "rax", "rbx", "rcx", "rdx", "rsp", "rbp", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13",
+    "r14", "r15", "errMaxRegNum" },
+};
 
 void X64CG::EnrollTargetPhases(maple::MaplePhaseManager *pm) const {
 #include "x64_phases.def"

@@ -132,11 +132,11 @@ src_libcgx8664 = [
   "src/cg/x86_64/x64_cgfunc.cpp",
   "src/cg/x86_64/x64_memlayout.cpp",
   "src/cg/x86_64/x64_rt.cpp",
-  "src/cg/x86_64/x64_reg_alloc.cpp",
   "src/cg/x86_64/x64_emitter.cpp",
   "src/cg/x86_64/x64_abi.cpp",
   "src/cg/x86_64/x64_call_conv.cpp",
   "src/cg/x86_64/x64_standardize.cpp",
+  "src/cg/x86_64/x64_reg_info.cpp",
 ]
 
 src_libcgriscv64 = [

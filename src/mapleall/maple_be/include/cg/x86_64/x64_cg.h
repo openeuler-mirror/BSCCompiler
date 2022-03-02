@@ -18,13 +18,18 @@
 #define MAPLEBE_INCLUDE_CG_X86_64_CG_H
 
 #include "cg.h"
+#include "x64_isa.h"
 #include "x64_MPISel.h"
+#include "x64_standardize.h"
 
 namespace maplebe {
+constexpr int32 kIntRegTypeNum = 5;
+
 class X64CG : public CG {
  public:
   X64CG(MIRModule &mod, const CGOptions &opts) : CG(mod, opts) {}
 
+  static const X64MD kMd[x64::kMopLast];
   void EnrollTargetPhases(MaplePhaseManager *pm) const override;
   /* Init SubTarget phase */
   /*LiveAnalysis *CreateLiveAnalysis(MemPool &mp, CGFunc &f) const override;
@@ -32,6 +37,9 @@ class X64CG : public CG {
   AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const override;*/
   MPISel *CreateMPIsel(MemPool &mp, CGFunc &f) const override {
     return mp.New<X64MPIsel>(mp, f);
+  }
+  Standardize *CreateStandardize(MemPool &mp, CGFunc &f) const override {
+    return mp.New<X64Standardize>(f);
   }
 
   /* Init SubTarget optimization */
@@ -50,6 +58,7 @@ class X64CG : public CG {
 
   /* Used for GCTIB pattern merging */
   std::string FindGCTIBPatternName(const std::string &name) const override;
+  static std::array<std::array<const std::string, x64::kAllRegNum>, kIntRegTypeNum> intRegNames;
 };
 }  // namespace maplebe
 #endif /* MAPLEBE_INCLUDE_CG_X86_64_CG_H */
