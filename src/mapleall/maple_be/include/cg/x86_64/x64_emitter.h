@@ -16,6 +16,8 @@
 #define MAPLEBE_INCLUDE_CG_X86_64_EMITTER_H
 
 #include "asm_emit.h"
+#include "visitor_common.h"
+#include "cgoperand.h"
 
 namespace maplebe {
 
@@ -32,6 +34,26 @@ class X64Emitter : public AsmEmitter {
   void EmitBBHeaderLabel(FuncEmitInfo &funcEmitInfo, const std::string &name, LabelIdx labIdx) override;
   void EmitJavaInsnAddr(FuncEmitInfo &funcEmitInfo) override;
   void Run(FuncEmitInfo &funcEmitInfo) override;
+};
+
+class CGOpndEmitVisitor : public CGOperandVisitorBase,
+                          public OperandVisitors<CGRegOperand, CGImmOperand, CGMemOperand> {
+ public:
+  CGOpndEmitVisitor(Emitter &asmEmitter): emitter(asmEmitter) {}
+  virtual ~CGOpndEmitVisitor() = default;
+
+ protected:
+  Emitter &emitter;
+};
+
+class X64OpndEmitVisitor : public CGOpndEmitVisitor {
+ public:
+  X64OpndEmitVisitor(Emitter &emitter) : CGOpndEmitVisitor(emitter) {}
+  ~X64OpndEmitVisitor() override = default;
+
+  void Visit(CGRegOperand *v) final;
+  void Visit(CGImmOperand *v) final;
+  void Visit(CGMemOperand *v) final;
 };
 
 }  /* namespace maplebe */

@@ -13,7 +13,11 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "x64_cgfunc.h"
+#include "x64_cg.h"
 #include "x64_emitter.h"
+#include "insn.h"
+
 namespace maplebe {
 void X64Emitter::EmitRefToMethodDesc(FuncEmitInfo &funcEmitInfo, Emitter &emitter) {}
 void X64Emitter::EmitRefToMethodInfo(FuncEmitInfo &funcEmitInfo, Emitter &emitter) {}
@@ -24,7 +28,57 @@ void X64Emitter::EmitBBHeaderLabel(FuncEmitInfo &funcEmitInfo, const std::string
 void X64Emitter::EmitJavaInsnAddr(FuncEmitInfo &funcEmitInfo) {}
 void X64Emitter::Run(FuncEmitInfo &funcEmitInfo) {}
 
+void X64OpndEmitVisitor::Visit(maplebe::CGRegOperand *v) {
+  // TODO: mapping with physical register after register allocation is done
+  emitter.Emit("%").Emit(v->GetRegNO());
+}
+void X64OpndEmitVisitor::Visit(maplebe::CGImmOperand *v) {
+  emitter.Emit("$");
+  /* Emit in hex */
+  std::stringstream ss;
+  ss << std::hex << v->GetValue();
+  emitter.Emit("0x").Emit(ss.str());
+}
+void X64OpndEmitVisitor::Visit(maplebe::CGMemOperand *v) {
+  if (v->GetBaseOfst() != nullptr) {
+    /* Emit in hex */
+    std::stringstream ss;
+    ss << std::hex << v->GetBaseOfst()->GetValue();
+    emitter.Emit("0x").Emit(ss.str());
+  }
+  if (v->GetBaseReg() != nullptr) {
+    emitter.Emit("(");
+    Visit(v->GetBaseReg());
+    emitter.Emit(")");
+  }
+}
+
+void DumpTargetASM(Emitter &emitter, CGInsn &insn) {
+  X64MD curMd = X64CG::kMd[insn.GetMachineOp()];
+  emitter.Emit(curMd.name).Emit("\t");
+  auto opnds = insn.GetOperands();
+  size_t size = opnds.size();
+  for (int i = 0; i < size; i++) {
+    auto opnd = opnds[i];
+    X64OpndEmitVisitor visitor(emitter);
+    opnd->Accept(visitor);
+    if (i != size - 1) {
+      emitter.Emit(",\t");
+    }
+  }
+  emitter.Emit("\n");
+}
+
 bool CgEmission::PhaseRun(maplebe::CGFunc &f) {
+  Emitter *emitter = f.GetCG()->GetEmitter();
+  CHECK_NULL_FATAL(emitter);
+  X64CGFunc &x64CGFunc = static_cast<X64CGFunc&>(f);
+  FOR_ALL_BB(bb, &x64CGFunc) {
+    FOR_BB_CGINSNS(insn, bb) {
+      DumpTargetASM(*emitter, *insn);
+    }
+  }
   return false;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgEmission, cgemit)
 }  /* namespace maplebe */
