@@ -62,6 +62,7 @@
 #include "me_may2dassign.h"
 #include "me_loop_analysis.h"
 #include "me_ssa.h"
+#include "me_toplevel_ssa.h"
 #include "me_irmap_build.h"
 #include "me_bb_layout.h"
 #include "me_emit.h"
@@ -106,10 +107,10 @@ class MeFuncPM : public FunctionPM {
 
   bool PhaseRun(MIRModule &m) override;
  private:
-  bool SkipFuncForMe(MIRModule &m, const MIRFunction &func, uint64 range);
+  bool SkipFuncForMe(const MIRModule &m, const MIRFunction &func, uint64 range);
   bool FuncLevelRun(MeFunction &f, AnalysisDataManager &serialADM);
   void GetAnalysisDependence(AnalysisDep &aDep) const override;
-  void DumpMEIR(MeFunction &f, const std::string phaseName, bool isBefore);
+  void DumpMEIR(const MeFunction &f, const std::string phaseName, bool isBefore);
   virtual void DoPhasesPopulate(const MIRModule &m);
 
   std::string meInput = "";

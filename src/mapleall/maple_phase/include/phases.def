@@ -14,6 +14,7 @@ ADDMODULEPHASE("simplify", Options::O2)
 ADDMODULEPHASE("ConstantFold", Options::O2)
 // ipa phase manager
 ADDMODULEPHASE("IpaSccPM", CLANG && Options::O2)
+ADDMODULEPHASE("ipaclone", CLANG && Options::O2 && Options::enableIPAClone)
 // me phase manager is also a phase itself.
 ADDMAPLEPHASE("meFuncPM", IsRunMe());
 ADDMODULEPHASE("clinit", JAVALANG)
@@ -46,6 +47,7 @@ ADDMAPLEMEPHASE("bypatheh", JAVALANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("loopcanon", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("splitcriticaledge", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("ssatab", MeOption::optLevel >= 2 || JAVALANG)
+ADDMAPLEMEPHASE("toplevelssa", MeOption::optLevel >= 2 || JAVALANG)
 ADDMAPLEMEPHASE("aliasclass", MeOption::optLevel >= 2 || JAVALANG)
 ADDMAPLEMEPHASE("ssa", MeOption::optLevel >= 2 || JAVALANG)
 ADDMAPLEMEPHASE("dse", MeOption::optLevel >= 2)

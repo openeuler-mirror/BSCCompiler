@@ -80,6 +80,7 @@ bool MEIRMapBuild::PhaseRun(maple::MeFunction &f) {
     bb->SetLast(nullptr);
   }
   f.ReleaseVersMemory();
+  f.SetMeFuncState(kSSAHSSA);
   return false;
 }
 }  // namespace maple

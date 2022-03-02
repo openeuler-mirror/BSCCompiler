@@ -72,7 +72,7 @@ class StIdx {  // scope nesting level + symbol table index
   }
 
   void SetScope(uint32 scpe) {
-    u.scopeIdx.scope = scpe;
+    u.scopeIdx.scope = static_cast<uint8>(scpe);
   }
 
   uint32 FullIdx() const {
@@ -113,7 +113,6 @@ using OfstRegIdx = uint64;
 using LabelIDOrder = uint32;
 using PUIdx = uint32;
 using PregIdx = int32;
-using PregIdx16 = int16;
 using ExprIdx = int32;
 using FieldID = int32;
 
@@ -131,6 +130,14 @@ using U16StrIdx = utils::Index<U16StrTag, uint32>;  // user string table index (
 
 const TyIdx kInitTyIdx = TyIdx(0);
 const TyIdx kNoneTyIdx = TyIdx(UINT32_MAX);
+
+enum SSALevel : uint8 {
+  kSSAInvalid = 0x00,
+  kSSATopLevel = 0x01,                          // ssa only for local top-level is valid
+  kSSAAddrTaken = 0x02,                         // ssa only for addr-taken is valid
+  kSSAMemory = kSSATopLevel | kSSAAddrTaken,    // ssa for both top-level and addr-taken is valid
+  kSSAHSSA = 0x04,                              // hssa is valid
+};
 
 constexpr uint8 kOperandNumUnary = 1;
 constexpr uint8 kOperandNumBinary = 2;

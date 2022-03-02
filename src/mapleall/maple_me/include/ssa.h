@@ -17,6 +17,7 @@
 #include <iostream>
 #include "mir_module.h"
 #include "mir_nodes.h"
+#include "orig_symbol.h"
 
 namespace maple {
 class BB;  // circular dependency exists, no other choice
@@ -80,13 +81,14 @@ class PhiNode {
 
 class SSA {
  public:
-  SSA(MemPool &memPool, SSATab &stab, MapleVector<BB *> &bbvec, Dominance *dm)
+  SSA(MemPool &memPool, SSATab &stab, MapleVector<BB *> &bbvec, Dominance *dm, SSALevel level = kSSAInvalid)
       : ssaAlloc(&memPool),
         vstStacks(ssaAlloc.Adapter()),
         bbRenamed(ssaAlloc.Adapter()),
         ssaTab(&stab),
         bbVec(bbvec),
-        dom(dm) {}
+        dom(dm),
+        targetLevel(level) {}
 
   virtual ~SSA() = default;
 
@@ -95,11 +97,12 @@ class SSA {
     dom = dm;
   }
   VersionSt *CreateNewVersion(VersionSt &vSym, BB &defBB);
+  void PushToRenameStack(VersionSt *vSym);
   void RenamePhi(BB &bb);
   void RenameDefs(StmtNode &stmt, BB &defBB);
   void RenameMustDefs(const StmtNode &stmt, BB &defBB);
   void RenameExpr(BaseNode &expr);
-  void RenameUses(StmtNode &stmt);
+  void RenameUses(const StmtNode &stmt);
   void RenamePhiUseInSucc(const BB &bb);
   void RenameMayUses(const BaseNode &node);
   void RenameBB(BB &bb);
@@ -138,6 +141,20 @@ class SSA {
     return ssaTab;
   }
 
+  bool BuildSSATopLevel() const {
+    return targetLevel & kSSATopLevel;
+  }
+  bool BuildSSAAddrTaken() const {
+    return targetLevel & kSSAAddrTaken;
+  }
+  bool BuildSSAAllLevel() const {
+    return BuildSSAAddrTaken() && BuildSSATopLevel();
+  }
+  // Check if ost should be processed according to target ssa level set before
+  bool ShouldProcessOst(const OriginalSt &ost) const;
+
+  bool ShouldRenameVst(const VersionSt *vst) const;
+
  protected:
   MapleAllocator ssaAlloc;
   MapleVector<MapleStack<VersionSt*>*> vstStacks;    // rename stack for variable versions
@@ -145,6 +162,8 @@ class SSA {
   SSATab *ssaTab;
   MapleVector<BB *> &bbVec;
   Dominance *dom;
+  SSALevel targetLevel = kSSAInvalid;                // ssa level to build
+
  public:
   bool runRenameOnly = false;
 };
