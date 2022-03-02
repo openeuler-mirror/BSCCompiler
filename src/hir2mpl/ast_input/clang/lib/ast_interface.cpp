@@ -489,6 +489,9 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recoType, std::stringstre
     }
     auto nameStr = recoDecl->getName().str();
     if (nameStr.empty()) {
+      nameStr = GetTypedefNameFromUnnamedStruct(recoType);
+    }
+    if (nameStr.empty()) {
       uint32_t id = recoType.getDecl()->getLocation().getRawEncoding();
       nameStr = GetOrCreateMappedUnnamedName(id);
     }
@@ -502,5 +505,22 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recoType, std::stringstre
     Pos p = GetDeclPosInfo(*recoDecl);
     ss << "_" << p.first << "_" << p.second;
   }
+}
+
+std::string LibAstFile::GetTypedefNameFromUnnamedStruct(const clang::RecordType &recoType) {
+  clang::RecordDecl *recoDecl = recoType.getDecl();
+  // TypedefDecl is next node in RecordDecl for the unnamed struct, e.g. typedef struct {} foo;
+  auto *decl = recoDecl->getNextDeclInContext();
+  if (decl != nullptr) {
+    auto *tt = llvm::dyn_cast<clang::TypedefDecl>(decl);
+    if (tt != nullptr) {
+      clang::QualType underlyCanonicalTy = tt->getCanonicalDecl()->getUnderlyingType().getCanonicalType();
+      const auto *underlyRecordType = llvm::cast<clang::RecordType>(underlyCanonicalTy);
+      if (&recoType == underlyRecordType) {
+        return tt->getQualifiedNameAsString();
+      }
+    }
+  }
+  return std::string();
 }
 } // namespace maple
