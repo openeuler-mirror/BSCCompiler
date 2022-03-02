@@ -60,6 +60,9 @@ void MeSSA::InsertPhiNode() {
     if (ost->IsVolatile()) { // volatile variables will not have ssa form.
       continue;
     }
+    if (!ShouldProcessOst(*ost)) {
+      continue;
+    }
     std::set<BBId> phibbs;
     for (BBId bbid : *ssaTab->GetDefBBs4Ost(ost->GetIndex())) {
       phibbs.insert(dom->iterDomFrontier[bbid].begin(), dom->iterDomFrontier[bbid].end());
@@ -218,6 +221,8 @@ bool MESSA::PhaseRun(maple::MeFunction &f) {
   }
   if (DEBUGFUNC_NEWPM(f)) {
     f.DumpFunction();
-  }  return true;
+  }
+  f.SetMeFuncState(kSSAMemory);
+  return true;
 }
 }  // namespace maple

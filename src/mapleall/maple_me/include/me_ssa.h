@@ -18,16 +18,18 @@
 #include "mir_nodes.h"
 #include "me_function.h"
 #include "me_cfg.h"
-#include "me_phase.h"
 #include "ssa.h"
-#include "dominance.h"
+#include "me_dominance.h"
 #include "me_loop_analysis.h"
+#include "maple_phase_manager.h"
 
 namespace maple {
+// if local ssa has been built, only addr-taken ost will be processed in this phase;
+// Otherwise, both top-level and addr-taken ost will be handled.
 class MeSSA : public SSA, public AnalysisResult {
  public:
   MeSSA(MeFunction &func, SSATab *stab, Dominance &dom, MemPool &memPool, bool enabledDebug = false)
-      : SSA(memPool, *stab, func.GetCfg()->GetAllBBs(), &dom),
+      : SSA(memPool, *stab, func.GetCfg()->GetAllBBs(), &dom, func.IsTopLevelSSAValid() ? kSSAAddrTaken : kSSAMemory),
         AnalysisResult(&memPool),
         func(&func), eDebug(enabledDebug) {}
 
@@ -43,17 +45,12 @@ class MeSSA : public SSA, public AnalysisResult {
   bool eDebug = false;
 };
 
-class MeDoSSA : public MeFuncPhase {
- public:
-  explicit MeDoSSA(MePhaseID id) : MeFuncPhase(id) {}
-
-  ~MeDoSSA() = default;
-
- private:
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr *moduleResMgr) override;
-  std::string PhaseName() const override {
-    return "ssa";
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(MESSA, MeFunction)
+  MeSSA *GetResult() {
+    return ssa;
   }
-};
+  MeSSA *ssa = nullptr;
+OVERRIDE_DEPENDENCE
+MAPLE_FUNC_PHASE_DECLARE_END
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_SSA_H

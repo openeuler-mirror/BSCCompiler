@@ -16,20 +16,22 @@
 #include "me_cfg.h"
 #include <cstdlib>
 #include "mpl_timer.h"
+#include "me_dominance.h"
+#include "ssa_tab.h"
 
 // allocate the data structure to store SSA information
 namespace maple {
-AnalysisResult *MeDoSSATab::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  auto cfg = static_cast<MeCFG*>(m->GetAnalysisResult(MeFuncPhase_MECFG, func));
+bool MESSATab::PhaseRun(maple::MeFunction &f) {
+  auto *cfg = f.GetCfg();
   MPLTimer timer;
   timer.Start();
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== SSA and AA preparation =============" << '\n';
   }
-  MemPool *memPool = NewMemPool();
+  MemPool *memPool = GetPhaseMemPool();
   // allocate ssaTab including its SSAPart to store SSA information for statements
-  auto *ssaTab = memPool->New<SSATab>(memPool, func->GetVersMp(), &func->GetMIRModule(), func);
-  func->SetMeSSATab(ssaTab);
+  ssaTab = memPool->New<SSATab>(memPool, f.GetVersMp(), &f.GetMIRModule(), &f);
+  f.SetMeSSATab(ssaTab);
 #if DEBUG
   globalSSATab = ssaTab;
 #endif
@@ -40,10 +42,14 @@ AnalysisResult *MeDoSSATab::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResu
       ssaTab->CreateSSAStmt(stmt, bb);  // this adds the SSANodes for exprs
     }
   }
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     timer.Stop();
     LogInfo::MapleLogger() << "ssaTab consumes cumulatively " << timer.Elapsed() << "seconds " << '\n';
   }
-  return ssaTab;
+  return false;
+}
+
+void MESSATab::GetAnalysisDependence(AnalysisDep &aDep) const {
+  aDep.AddRequired<MEMeCfg>();
 }
 }  // namespace maple

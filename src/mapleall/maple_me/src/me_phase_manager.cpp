@@ -21,7 +21,7 @@ namespace maple {
 bool MeFuncPM::genMeMpl = false;
 bool MeFuncPM::timePhases = false;
 
-void MeFuncPM::DumpMEIR(MeFunction &f, const std::string phaseName, bool isBefore) {
+void MeFuncPM::DumpMEIR(const MeFunction &f, const std::string phaseName, bool isBefore) {
   bool dumpFunc = MeOption::DumpFunc(f.GetName());
   bool dumpPhase = MeOption::DumpPhase(phaseName);
   if (MeOption::dumpBefore && dumpFunc && dumpPhase && isBefore) {
@@ -45,7 +45,7 @@ void MeFuncPM::DumpMEIR(MeFunction &f, const std::string phaseName, bool isBefor
   }
 }
 
-bool MeFuncPM::SkipFuncForMe(MIRModule &m, const MIRFunction &func, uint64 range) {
+bool MeFuncPM::SkipFuncForMe(const MIRModule &m, const MIRFunction &func, uint64 range) {
   // when partO2 is set, skip func which not exists in partO2FuncList.
   if (m.HasPartO2List() && !m.IsInPartO2List(func.GetNameStrIdx())) {
     return true;
@@ -96,7 +96,7 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
       LogInfo::MapleLogger() << "---Preparing Function  < " << func->GetName() << " > [" << i << "] ---\n";
     }
     meFunc.Prepare();
-    FuncLevelRun(meFunc, *serialADM);
+    (void)FuncLevelRun(meFunc, *serialADM);
     serialADM->EraseAllAnalysisPhase();
   }
   if (genMeMpl) {
@@ -155,6 +155,7 @@ MAPLE_ANALYSIS_PHASE_REGISTER_CANSKIP(MELfoDepTest, deptest)
 MAPLE_ANALYSIS_PHASE_REGISTER_CANSKIP(MESSADevirtual, ssadevirt)
 MAPLE_ANALYSIS_PHASE_REGISTER_CANSKIP(MESideEffect, sideeffect)
 MAPLE_ANALYSIS_PHASE_REGISTER_CANSKIP(MESSA, ssa)
+MAPLE_ANALYSIS_PHASE_REGISTER_CANSKIP(METopLevelSSA, toplevelssa)
 MAPLE_ANALYSIS_PHASE_REGISTER_CANSKIP(MEBBLayout, bblayout)
 MAPLE_ANALYSIS_PHASE_REGISTER_CANSKIP(MEIRMapBuild, irmapbuild)
 MAPLE_ANALYSIS_PHASE_REGISTER_CANSKIP(MEPredict, predict)
@@ -194,6 +195,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEFSAA, fsaa)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESplitCEdge, splitcriticaledge)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MECheckCastOpt, checkcastopt)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESSAEPre, epre)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESimplifyCFGNoSSA, simplifyCFGNoSSA)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESimplifyCFG, simplifyCFG)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEProfGen, profileGen)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEPlacementRC, placementrc)

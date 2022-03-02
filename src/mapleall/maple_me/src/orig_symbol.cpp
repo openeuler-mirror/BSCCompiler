@@ -241,6 +241,7 @@ OriginalSt *OriginalStTable::FindOrCreateExtraLevSymOrRegOriginalSt(OriginalSt *
   nextLevOst->SetIndirectLev(ost->GetIndirectLev() + 1);
   nextLevOst->SetPrevLevelOst(ost);
   nextLevOst->SetOffset(offsetOfNextLevOst);
+  nextLevOst->SetAddressTaken(true);
   tyIdx = (tyIdx == 0u) ? ost->GetTyIdx() : tyIdx;
   if (tyIdx != 0u) {
     // use the tyIdx info from the instruction

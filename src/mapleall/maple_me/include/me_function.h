@@ -314,7 +314,7 @@ class MeFunction : public FuncEmit {
     hasWriteInputAsmNode = true;
   };
 
-  bool HasWriteInputAsmNode() {
+  bool HasWriteInputAsmNode() const {
     return hasWriteInputAsmNode;
   }
 
@@ -343,6 +343,29 @@ class MeFunction : public FuncEmit {
   void SetLfo(bool islfo) { isLfo = islfo; }
   void CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCands = nullptr,
                       bool copyWithoutLastMe = false);
+  bool IsTopLevelSSAValid() {
+    return state & kSSATopLevel;
+  }
+  bool IsAddrTakenSSAValid() {
+    return state & kSSAAddrTaken;
+  }
+  bool IsMemSSAValid() {
+    return IsTopLevelSSAValid() && IsAddrTakenSSAValid();
+  }
+  bool IsMeIRAvailable() {
+    return (state & kSSAHSSA);
+  }
+  bool IsMplIRAvailable() {
+    return !(state & kSSAHSSA);
+  }
+
+  void ResetMeFuncState(uint8 s) {
+    state &= ~s;
+  }
+
+  void SetMeFuncState(uint8 s) {
+    state |= s;
+  }
  private:
   MemPool *memPool;
   StackMemPool &stackMP;
@@ -369,6 +392,7 @@ class MeFunction : public FuncEmit {
   bool isLfo;
   PreMeFunction *preMeFunc;
   MemPool *preMeMp; // used for lfo function
+  uint8 state = 0;  // current state : ssa level and ir flavor
  public:
   uint32 dseRuns = 0;   // number of times dse phase has been run
   uint32 hdseRuns = 0;  // number of times hdse phase has been run
