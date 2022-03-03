@@ -41,11 +41,11 @@ class MPISel {
     return cgFunc;
   }
 
-  CGOperand *HandleExpr(const BaseNode &parent, BaseNode &expr);
+  Operand *HandleExpr(const BaseNode &parent, BaseNode &expr);
 
-  void SelectDassign(DassignNode &stmt, CGOperand &opndRhs);
-  CGOperand* SelectDread(const BaseNode &parent, AddrofNode &expr);
-  CGOperand* SelectAdd(BinaryNode &node, CGOperand &opnd0, CGOperand &opnd1, const BaseNode &parent);
+  void SelectDassign(DassignNode &stmt, Operand &opndRhs);
+  Operand* SelectDread(const BaseNode &parent, AddrofNode &expr);
+  Operand* SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   CGImmOperand *SelectIntConst(MIRIntConst &intConst);
 
  protected:
@@ -54,19 +54,19 @@ class MPISel {
  private:
   StmtNode *HandleFuncEntry();
   void HandleFuncExit();
-  void SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, CGOperand &opndRhs);
+  void SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, Operand &opndRhs);
   virtual CGMemOperand &GetSymbolFromMemory(const MIRSymbol &symbol) = 0;
   /*
    * Support conversion between all types and registers
    * only Support conversion between registers and memory
    * alltypes -> reg -> mem
    */
-  void SelectCopy(CGOperand &dest, CGOperand &src);
-  void SelectCopy(CGRegOperand &regDest, CGOperand &src);
+  void SelectCopy(Operand &dest, Operand &src);
+  void SelectCopy(CGRegOperand &regDest, Operand &src);
   template<typename destTy, typename srcTy>
-
   void SelectCopyInsn(destTy &dest, srcTy &src);
-  MOperator GetFastIselMop(CGOperand::OperandType dTy, CGOperand::OperandType sTy);
+
+  MOperator GetFastIselMop(Operand::OperandType dTy, Operand::OperandType sTy);
 };
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(InstructionSelector, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END

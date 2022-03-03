@@ -1855,23 +1855,7 @@ void CGFunc::DumpCFG() const {
   }
 }
 
-void CGFunc::DumpCGIR(bool isNew) const {
-  MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());
-  LogInfo::MapleLogger() << "\n******  CGIR for " << funcSt->GetName() << " *******\n";
-  FOR_ALL_BB_CONST(bb, this) {
-    if (bb->IsUnreachable()) {
-      continue;
-    }
-    LogInfo::MapleLogger() << "=== BB " << " <" << bb->GetKindName();
-    LogInfo::MapleLogger() << "> <" << bb->GetId() << "> ";
-    LogInfo::MapleLogger() << "===\n";
-    FOR_BB_CGINSNS_CONST(insn, bb) {
-      insn->Dump();
-    }
-  }
-}
-
-void CGFunc::DumpCGIR() const {
+void CGFunc::DumpCGIR(bool withTargetInfo) const {
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());
   LogInfo::MapleLogger() << "\n******  CGIR for " << funcSt->GetName() << " *******\n";
   FOR_ALL_BB_CONST(bb, this) {
@@ -1926,7 +1910,11 @@ void CGFunc::DumpCGIR() const {
     LogInfo::MapleLogger() << "frequency:" << bb->GetFrequency() << "\n";
 
     FOR_BB_INSNS_CONST(insn, bb) {
-      insn->Dump();
+      if (withTargetInfo) {
+        DumpTargetIR(*insn);
+      } else {
+        insn->Dump();
+      }
     }
   }
 }

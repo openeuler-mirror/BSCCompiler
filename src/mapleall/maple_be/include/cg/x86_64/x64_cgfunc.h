@@ -217,7 +217,6 @@ class X64CGFunc : public CGFunc {
 
   int32 GetBaseOffset(const SymbolAlloc &symbolAlloc) override;
   CGRegOperand *GetBaseReg(const SymbolAlloc &symAlloc);
-  void DumpTargetIR(const CGInsn &insn) const override;
 
   const MapleVector<x64::X64reg> &GetFormalRegList() const {
     return formalRegList;
@@ -233,9 +232,10 @@ class X64CGFunc : public CGFunc {
  private:
   MapleVector<x64::X64reg> calleeSavedRegs;
   MapleVector<x64::X64reg> formalRegList; /* store the parameters register used by this function */
+  void DumpTargetIR(const Insn &insn) const override;
 };
 
-class X64OpndDumpVistor : public CGOpndDumpVisitor {
+class X64OpndDumpVistor : public OpndDumpVisitor {
  public:
   X64OpndDumpVistor() = default;
   ~X64OpndDumpVistor() override = default;

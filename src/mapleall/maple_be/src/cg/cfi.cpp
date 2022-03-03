@@ -39,7 +39,7 @@ static CfiDescr cfiDescrTable[kOpCfiLast + 1] = {
 #undef ARM_DIRECTIVES_DEFINE
   { ".cfi_undef", 0, { Operand::kOpdUndef, Operand::kOpdUndef, Operand::kOpdUndef } }
 };
-
+#if TARGAARCH64 || TARGRISCV64
 void CfiInsn::Dump() const {
   MOperator mOp = GetMachineOpcode();
   CfiDescr &cfiDescr = cfiDescrTable[mOp];
@@ -80,6 +80,7 @@ void CfiInsn::Emit(const CG &cg, Emitter &emitter) const {
   }
   emitter.Emit("\n");
 }
+#endif
 
 void RegOperand::Emit(Emitter &emitter, const OpndProp*) const {
   emitter.Emit(regNO);

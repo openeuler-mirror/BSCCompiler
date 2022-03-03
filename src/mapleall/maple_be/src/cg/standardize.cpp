@@ -13,9 +13,27 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "isel.h"
 #include "standardize.h"
 namespace maplebe {
 void Standardize::DoStandardize() {
-
+  if (NeedTwoAddressMapping()) {
+    TwoAddressMapping();
+  }
+  FOR_ALL_BB(bb, cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      MOperator mOp = insn->GetMachineOpcode();
+      switch (mOp) {
+        case isel::kMOP_copyri:
+          STDZcopyri(*insn);
+          break;
+        case isel::kMOP_str:
+          STDZstr(*insn);
+          break;
+        default:
+          break;
+      }
+    }
+  }
 }
 }

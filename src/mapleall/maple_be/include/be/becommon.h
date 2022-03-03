@@ -23,10 +23,10 @@
 #include "mir_nodes.h"   /* maple_ir/include, for BaseNode */
 #include "mir_type.h"    /* maple_ir/include, for MIRType */
 #include "mir_module.h"  /* maple_ir/include, for mirModule */
+#include "isa.h"
 
 namespace maplebe {
 using namespace maple;
-
 #if TARGX86_64 || TARGAARCH64 || TARGRISCV64
 #if ILP32
 #define LOWERED_PTR_TYPE PTY_a32

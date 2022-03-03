@@ -17,9 +17,10 @@
 
 #include <cstdint>
 #include "types_def.h"
-#include "cgoperand.h"
 
 namespace maplebe {
+using regno_t = uint32_t;
+
 enum RegType : maple::uint8 {
   kRegTyUndef,
   kRegTyInt,
@@ -85,9 +86,6 @@ enum MopProperty : maple::uint8 {
 #define HASLOOP (1ULL << kPropHasLoop)
 #define ISVECTOR (1ULL << kPropIsVectorOp)
 #define ISPHI (1ULL << kPropIsPhi)
-
-using regno_t = uint32_t;
-
 constexpr regno_t kInvalidRegNO = 0;
 
 /*
@@ -98,82 +96,6 @@ constexpr regno_t kInvalidRegNO = 0;
  * 64 bit is not large enough?
  */
 using CsrBitset = uint64_t;
-
-// bit 0-7 for common
-enum CommOpndDescProp : maple::uint64 {
-  kOpndIsDef = (1ULL << 0),
-  kOpndIsUse = (1ULL << 1),
-  kOpndIsVector = (1ULL << 2)
-
-};
-
-// bit 8-15 for reg
-enum RegOpndDescProp : maple::uint64 {
-  kOpndPreInc = (1ULL << 8),
-  kOpndPostInc = (1ULL << 9),
-
-};
-
-// bit 16-23 for imm
-enum ImmOpndDescProp : maple::uint64 {
-
-};
-
-// bit 24-31 for mem
-enum MemOpndDescProp : maple::uint64 {
-
-  kMemOpndLow12 = (1ULL << 24),
-  kOpndLiteralLow12 = kMemOpndLow12,
-  kOpndIsLoadLiteral = (1ULL << 25)
-
-};
-
-class OpndDescription {
- public:
-  OpndDescription(CGOperand::OperandType t, maple::uint64 p, maple::uint32 s) :
-      opndType(t), property(p), size(s) {}
-  OpndDescription(CGOperand::OperandType t, maple::uint64 p, maple::uint32 s,
-      std::function<bool(int64)> f) : opndType(t), property(p), size(s), validFunc(f) {}
-  virtual ~OpndDescription() = default;
-
-  CGOperand::OperandType GetOperandType() const {
-    return opndType;
-  }
-
-  maple::uint32 GetSize() const {
-    return size;
-  }
-
-  maple::uint64 GetProperty() const {
-    return property;
-  }
-
-  bool IsRegister() const {
-    return opndType == CGOperand::kOpdRegister;
-  }
-
-  bool IsRegDef() const {
-    return opndType == CGOperand::kOpdRegister && (property & kOpndIsDef);
-  }
-
-  bool IsRegUse() const {
-    return opndType == CGOperand::kOpdRegister && (property & kOpndIsUse);
-  }
-
-  bool IsDef() const {
-    return (property & kOpndIsDef);
-  }
-
-  bool IsUse() const {
-    return (property & kOpndIsUse);
-  }
-
- private:
-  CGOperand::OperandType opndType;
-  maple::uint64 property;
-  maple::uint32 size;
-  std::function<bool(int64)> validFunc;
-};
 
 template <typename ParaType>
 class ConstraintFunction {

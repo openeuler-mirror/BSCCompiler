@@ -47,11 +47,6 @@ namespace maplebe {
 #define NEXT_INSN(INSN) (INSN)->GetNext()
 #define PREV_INSN(INSN) (INSN)->GetPrev()
 
-#define FIRST_CGINSN(BLOCK) (BLOCK)->GetFirstCGInsn()
-#define FOR_BB_CGINSNS_CONST(INSN, BLOCK) \
-  for (const CGInsn * (INSN) = FIRST_CGINSN(BLOCK); (INSN) != nullptr; (INSN) = (INSN)->GetNext())
-
-
 /* For iterating over insns in basic block. */
 #define FOR_INSN_BETWEEN(INSN, FROM, TO, DIR) \
   for (Insn * (INSN) = (FROM); (INSN) != nullptr && (INSN) != (TO); (INSN) = (INSN)->DIR)
@@ -327,9 +322,7 @@ class BB {
   const Insn *GetFirstInsn() const {
     return firstInsn;
   }
-  const CGInsn *GetFirstCGInsn() const {
-    return firstCGInsn;
-  }
+
   void SetFirstInsn(Insn *arg) {
     firstInsn = arg;
   }
@@ -749,20 +742,6 @@ class BB {
     return alignNopNum;
   }
 
-  void AppendInsn(CGInsn &insn) {
-    if (firstCGInsn != nullptr) {
-      InsertInsnAfter(*lastCGInsn, insn);
-    } else {
-      firstCGInsn = lastCGInsn = &insn;
-      insn.SetNext(nullptr);
-      insn.SetPrev(nullptr);
-      insn.SetBB(this);
-    }
-    internalFlag1++;
-  }
-  /* returns newly inserted instruction */
-  CGInsn *InsertInsnAfter(CGInsn &existing, CGInsn &newInsn);
-
  private:
   static const std::string bbNames[kBBLast];
   uint32 id;
@@ -776,8 +755,6 @@ class BB {
   LabelIdx labIdx;
   StmtNode *firstStmt = nullptr;
   StmtNode *lastStmt = nullptr;
-  CGInsn *firstCGInsn = nullptr;
-  CGInsn *lastCGInsn = nullptr;
   Insn *firstInsn = nullptr;        /* the first instruction */
   Insn *lastInsn = nullptr;         /* the last instruction */
   MapleList<BB*> preds;  /* preds, succs represent CFG */

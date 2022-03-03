@@ -21,10 +21,15 @@
 namespace maplebe {
 class X64Standardize : public Standardize {
  public:
-  explicit X64Standardize(CGFunc &f) : Standardize(f) {}
+  explicit X64Standardize(CGFunc &f) : Standardize(f) {
+    SetTwoAddressMapping();
+  }
 
   ~X64Standardize() override = default;
 
+ private:
+  void STDZcopyri(Insn &insn) override;
+  void STDZstr(Insn &insn) override;
 };
-}vim
+}
 #endif  /* MAPLEBE_INCLUDEX_64_STANDARDIZE_H */

@@ -24,10 +24,15 @@ class InsnBuilder {
  public:
   explicit InsnBuilder(MemPool &memPool) : mp(&memPool) {}
   virtual ~InsnBuilder() = default;
-  CGInsn &BuildInsn(MOperator opCode) {
-    return *mp->New<CGInsn>(*mp, opCode);
-  }
 
+#ifdef TARGX86_64
+  Insn &BuildInsn(MOperator opCode);
+#else
+  Insn &BuildInsn(MOperator opCode) {
+    Insn *a = nullptr;
+    return *a;
+  }
+#endif
  protected:
   MemPool *mp;
 };
@@ -41,6 +46,7 @@ class OperandBuilder {
   CGImmOperand &CreateImm(uint32 size, int64 value, MemPool *mp = nullptr);
   CGMemOperand &CreateMem(uint32 size, MemPool *mp = nullptr);
   CGRegOperand &CreateVReg(uint32 size, MemPool *mp = nullptr);
+  CGRegOperand &CreatePReg(regno_t pRegNO, uint32 size, MemPool *mp = nullptr);
 
  protected:
   MapleAllocator alloc;

@@ -16,6 +16,7 @@
 #include "isel.h"
 #include "factory.h"
 #include "cg.h"
+#include "standardize.h"
 
 namespace maplebe {
 void HandleDassign(StmtNode &stmt, MPISel &iSel) {
@@ -23,7 +24,7 @@ void HandleDassign(StmtNode &stmt, MPISel &iSel) {
   ASSERT(dassignNode.GetOpCode() == OP_dassign, "expect dassign");
   BaseNode *rhs = dassignNode.GetRHS();
   ASSERT(rhs != nullptr, "get rhs of dassignNode failed");
-  CGOperand* opndRhs = iSel.HandleExpr(dassignNode, *rhs);
+  Operand* opndRhs = iSel.HandleExpr(dassignNode, *rhs);
   if (opndRhs == nullptr) {
     return;
   }
@@ -45,17 +46,17 @@ void HandleReturn(StmtNode &stmt, MPISel &iSel) {
 
 }
 
-CGOperand *HandleDread(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
+Operand *HandleDread(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
   auto &dreadNode = static_cast<AddrofNode&>(expr);
   return iSel.SelectDread(parent, dreadNode);
 }
 
-CGOperand *HandleAdd(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
+Operand *HandleAdd(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectAdd(static_cast<BinaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)),
                         *iSel.HandleExpr(expr, *expr.Opnd(1)), parent);
 }
 
-CGOperand *HandleConstVal(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
+Operand *HandleConstVal(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
   auto &constValNode = static_cast<ConstvalNode&>(expr);
   MIRConst *mirConst = constValNode.GetConstVal();
   ASSERT(mirConst != nullptr, "get constval of constvalnode failed");
@@ -69,7 +70,7 @@ CGOperand *HandleConstVal(const BaseNode &parent, BaseNode &expr, MPISel &iSel) 
 }
 
 using HandleStmtFactory = FunctionFactory<Opcode, void, StmtNode&, MPISel&>;
-using HandleExprFactory = FunctionFactory<Opcode, maplebe::CGOperand*, const BaseNode&, BaseNode&, MPISel&>;
+using HandleExprFactory = FunctionFactory<Opcode, maplebe::Operand*, const BaseNode&, BaseNode&, MPISel&>;
 namespace isel {
 void InitHandleStmtFactory() {
   RegisterFactoryFunction<HandleStmtFactory>(OP_label, HandleLabel);
@@ -83,7 +84,7 @@ void InitHandleExprFactory() {
 }
 }
 
-CGOperand *MPISel::HandleExpr(const BaseNode &parent, BaseNode &expr) {
+Operand *MPISel::HandleExpr(const BaseNode &parent, BaseNode &expr) {
   auto function = CreateProductFunction<HandleExprFactory>(expr.GetOpCode());
   CHECK_FATAL(function != nullptr, "unsupported opCode in HandleExpr()");
   return function(parent, expr, *this);
@@ -102,11 +103,11 @@ void MPISel::doMPIS() {
   HandleFuncExit();
 }
 
-void MPISel::SelectDassign(DassignNode &stmt, CGOperand &opndRhs) {
+void MPISel::SelectDassign(DassignNode &stmt, Operand &opndRhs) {
   SelectDassign(stmt.GetStIdx(), stmt.GetFieldID(), stmt.GetRHS()->GetPrimType(), opndRhs);
 }
 
-void MPISel::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, CGOperand &opndRhs) {
+void MPISel::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, Operand &opndRhs) {
   MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(stIdx);
   if (fieldId != 0) {
     CHECK_FATAL(false, "NIY");
@@ -124,11 +125,11 @@ CGImmOperand *MPISel::SelectIntConst(MIRIntConst &intConst) {
   return &cgFunc->GetOpndBuilder()->CreateImm(opndSz, intConst.GetValue());
 }
 
-CGOperand* MPISel::SelectDread(const BaseNode &parent, AddrofNode &expr) {
+Operand* MPISel::SelectDread(const BaseNode &parent, AddrofNode &expr) {
   return nullptr;
 }
 
-CGOperand* MPISel::SelectAdd(BinaryNode &node, CGOperand &opnd0, CGOperand &opnd1, const BaseNode &parent) {
+Operand* MPISel::SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
   return nullptr;
 }
 
@@ -158,11 +159,11 @@ StmtNode *MPISel::HandleFuncEntry() {
   return stmt;
 }
 
-void MPISel::SelectCopy(CGOperand &dest, CGOperand &src) {
-  if (dest.GetOpndKind() == CGOperand::kOpdRegister) {
+void MPISel::SelectCopy(Operand &dest, Operand &src) {
+  if (dest.GetKind() == Operand::kOpdRegister) {
     SelectCopy(static_cast<CGRegOperand&>(dest), src);
-  } else if (dest.GetOpndKind() == CGOperand::kOpdMemory) {
-    if (src.GetOpndKind() != CGOperand::kOpdRegister) {
+  } else if (dest.GetKind() == Operand::kOpdMem) {
+    if (src.GetKind() != Operand::kOpdRegister) {
       CGRegOperand &tempReg = cgFunc->GetOpndBuilder()->CreateVReg(src.GetSize());
       SelectCopy(tempReg, src);
       SelectCopyInsn<CGMemOperand, CGRegOperand>(static_cast<CGMemOperand&>(dest), tempReg);
@@ -175,8 +176,8 @@ void MPISel::SelectCopy(CGOperand &dest, CGOperand &src) {
   }
 }
 
-void MPISel::SelectCopy(CGRegOperand &regDest, CGOperand &src) {
-  if (src.GetOpndKind() == CGOperand::kOpdImmediate) {
+void MPISel::SelectCopy(CGRegOperand &regDest, Operand &src) {
+  if (src.GetKind() == Operand::kOpdImmediate) {
     SelectCopyInsn<CGRegOperand, CGImmOperand>(regDest, static_cast<CGImmOperand&>(src));
   } else {
     CHECK_FATAL(false, "NIY");
@@ -185,9 +186,9 @@ void MPISel::SelectCopy(CGRegOperand &regDest, CGOperand &src) {
 
 template<typename destTy, typename srcTy>
 void MPISel::SelectCopyInsn(destTy &dest, srcTy &src) {
-  MOperator mop = GetFastIselMop(dest.GetOpndKind(), src.GetOpndKind());
+  MOperator mop = GetFastIselMop(dest.GetKind(), src.GetKind());
   CHECK_FATAL(mop != isel::kMOP_undef, "get mop failed");
-  CGInsn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mop);
+  Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mop);
   if (dest.GetSize() != src.GetSize()) {
     CHECK_FATAL(false, "NIY");
   }
@@ -195,14 +196,14 @@ void MPISel::SelectCopyInsn(destTy &dest, srcTy &src) {
   cgFunc->GetCurBB()->AppendInsn(insn);
 }
 
-MOperator fastIselMap[CGOperand::OperandType::kOpdUndef][CGOperand::OperandType::kOpdUndef] = {
+MOperator fastIselMap[Operand::OperandType::kOpdPhi][Operand::OperandType::kOpdPhi] = {
     /*register,         imm ,              memory,           cond */
     {isel::kMOP_copyrr, isel::kMOP_copyri, isel::kMOP_load,  isel::kMOP_undef},     /* reg    */
     {isel::kMOP_undef,  isel::kMOP_undef,  isel::kMOP_undef, isel::kMOP_undef},     /* imm    */
     {isel::kMOP_str ,   isel::kMOP_undef,  isel::kMOP_undef, isel::kMOP_undef},     /* memory */
     {isel::kMOP_undef,  isel::kMOP_undef,  isel::kMOP_undef, isel::kMOP_undef},     /* cond   */
 };
-MOperator MPISel::GetFastIselMop(CGOperand::OperandType dTy, CGOperand::OperandType sTy) {
+MOperator MPISel::GetFastIselMop(Operand::OperandType dTy, Operand::OperandType sTy) {
   return fastIselMap[dTy][sTy];
 }
 
@@ -218,6 +219,8 @@ void MPISel::HandleFuncExit() {
 bool InstructionSelector::PhaseRun(maplebe::CGFunc &f) {
   MPISel *mpIS = f.GetCG()->CreateMPIsel(*GetPhaseMemPool(), f);
   mpIS->doMPIS();
+  Standardize *stdz = f.GetCG()->CreateStandardize(*GetPhaseMemPool(), f);
+  stdz->DoStandardize();
   f.DumpCGIR(true);
   return true;
 }

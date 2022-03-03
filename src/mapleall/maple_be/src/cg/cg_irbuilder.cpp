@@ -16,6 +16,12 @@
 #include "cg_irbuilder.h"
 
 namespace maplebe {
+#ifdef TARGX86_64
+Insn &InsnBuilder::BuildInsn(MOperator opCode) {
+  return *mp->New<Insn>(*mp, opCode);
+}
+#endif
+
 CGImmOperand &OperandBuilder::CreateImm(uint32 size, int64 value, MemPool *mp) {
   return mp ? *mp->New<CGImmOperand>(size, value) : *alloc.New<CGImmOperand>(size, value);
 }
@@ -26,5 +32,8 @@ CGRegOperand &OperandBuilder::CreateVReg(uint32 size, MemPool *mp) {
   virtualRegNum++;
   regno_t vRegNO = baseVirtualRegNO + virtualRegNum;
   return mp ? *mp->New<CGRegOperand>(vRegNO, size) : *alloc.New<CGRegOperand>(vRegNO, size);
+}
+CGRegOperand &OperandBuilder::CreatePReg(regno_t pRegNO, uint32 size, MemPool *mp) {
+  return mp ? *mp->New<CGRegOperand>(pRegNO, size) : *alloc.New<CGRegOperand>(pRegNO, size);
 }
 }

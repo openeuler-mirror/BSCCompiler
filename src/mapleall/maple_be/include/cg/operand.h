@@ -16,7 +16,6 @@
 #define MAPLEBE_INCLUDE_CG_OPERAND_H
 
 #include "becommon.h"
-#include "isa.h"
 #include "cg_option.h"
 #include "visitor_common.h"
 
@@ -28,6 +27,8 @@
 /* Mempool */
 #include "mempool_allocator.h" /* MapleList */
 
+class OpndProp;
+
 namespace maplebe {
 class Emitter;
 
@@ -35,25 +36,21 @@ namespace {
 constexpr int32 kOffsetImmediateOpndSpace = 4; /* offset and immediate operand space is 4 */
 };
 
-namespace operand {
-constexpr uint64 kDef = (1ULL);
-constexpr uint64 kUse = (1ULL << 1ULL);
-};
 
 class Operand {
  public:
   enum OperandType : uint8 {
     kOpdRegister,
     kOpdImmediate,
+    kOpdMem,
+    kOpdCond,     /*  for condition code */
+    kOpdPhi,      /*  for phi operand */
     kOpdFPImmediate,
     kOpdFPZeroImmediate,
     kOpdStImmediate, /* use the symbol name as the offset */
     kOpdOffset,      /* for the offset operand in MemOperand */
-    kOpdMem,
     kOpdBBAddress,
     kOpdList,     /*  for list operand */
-    kOpdPhi,      /*  for phi operand */
-    kOpdCond,     /*  for condition code */
     kOpdShift,    /*  for imm shift operand */
     kOpdRegShift, /*  for reg shift operand */
     kOpdExtend,   /*  for extend operand */
@@ -94,8 +91,7 @@ class Operand {
   }
 
   bool IsImmediate() const {
-    ASSERT(kOpdOffset - kOpdImmediate == kOffsetImmediateOpndSpace, "offset and immediate operand space should be 4");
-    return (kOpdImmediate <= opndKind && opndKind <= kOpdOffset);
+    return (kOpdFPImmediate <= opndKind && opndKind <= kOpdOffset) || opndKind == kOpdImmediate;
   }
 
   bool IsRegister() const {
@@ -179,6 +175,7 @@ class Operand {
 
   virtual void Dump() const = 0;
 
+
   virtual bool Less(const Operand &right) const = 0;
 
   virtual void Accept(OperandVisitorBase &v) = 0;
@@ -186,6 +183,7 @@ class Operand {
  protected:
   OperandType opndKind; /* operand type */
   uint32 size;          /* size in bits */
+  uint64 flag = 0;      /* operand property*/
 };
 
 /* RegOperand */
@@ -207,6 +205,8 @@ class OperandVisitable : public Operand {
     }
   }
 };
+
+
 
 class RegOperand : public OperandVisitable<RegOperand> {
  public:
@@ -847,6 +847,195 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
  protected:
   MapleMap<uint32, RegOperand*> phiList; /* ssa-operand && BBId */
 };
+
+class CGRegOperand : public OperandVisitable<CGRegOperand> {
+ public:
+  CGRegOperand(regno_t regId, uint32 sz) : OperandVisitable(kOpdRegister, sz), regNO(regId) {}
+  ~CGRegOperand() override = default;
+  using OperandVisitable<CGRegOperand>::OperandVisitable;
+
+  regno_t GetRegNO() const {
+    return regNO;
+  }
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.New<CGRegOperand>(*this);
+  }
+  bool Less(const Operand &right) const override {
+    return GetKind() < right.GetKind();
+  }
+  /* delete soon */
+  void Emit(Emitter&, const OpndProp*) const override {}
+
+  void Dump() const override {
+    LogInfo::MapleLogger() << "reg ";
+    LogInfo::MapleLogger() << "size : " << GetSize();
+    LogInfo::MapleLogger() << " NO_" << GetRegNO();
+  }
+ private:
+  regno_t regNO;
+};
+
+class CGImmOperand : public OperandVisitable<CGImmOperand> {
+ public:
+  CGImmOperand(uint32 sz, int64 value) : OperandVisitable(kOpdImmediate, sz), val(value) {}
+  ~CGImmOperand() override = default;
+  using OperandVisitable<CGImmOperand>::OperandVisitable;
+
+  int64 GetValue() const {
+    return val;
+  }
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.New<CGImmOperand>(*this);
+  }
+  bool Less(const Operand &right) const override {
+    return GetKind() < right.GetKind();
+  }
+
+  /* delete soon */
+  void Emit(Emitter&, const OpndProp*) const override {}
+
+  void Dump() const override {
+    LogInfo::MapleLogger() << "imm ";
+    LogInfo::MapleLogger() << "size : " << GetSize();
+    LogInfo::MapleLogger() << " value : " << GetValue();
+  }
+ private:
+  int64 val;
+};
+
+class CGMemOperand : public OperandVisitable<CGMemOperand> {
+ public:
+  explicit CGMemOperand(uint32 sz) : OperandVisitable(kOpdMem, sz) {}
+  ~CGMemOperand() override = default;
+  using OperandVisitable<CGMemOperand>::OperandVisitable;
+
+  void Dump() const override {
+    LogInfo::MapleLogger() << "mem ";
+    LogInfo::MapleLogger() << "size : " << GetSize();
+  }
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.New<CGMemOperand>(*this);
+  }
+
+  bool Less(const Operand &right) const override {
+    return GetKind() < right.GetKind();
+  }
+  /* delete soon */
+  void Emit(Emitter&, const OpndProp*) const override {}
+
+  CGRegOperand *GetBaseReg() const {
+    return baseReg;
+  }
+
+  void SetBaseReg(CGRegOperand &newReg) {
+    baseReg = &newReg;
+  }
+
+  CGImmOperand *GetBaseOfst() const {
+    return baseOfst;
+  }
+
+  void SetBaseOfst(CGImmOperand &newOfst) {
+    baseOfst = &newOfst;
+  }
+
+ private:
+  CGRegOperand *baseReg = nullptr;
+  CGImmOperand *baseOfst = nullptr;
+};
+
+class OpndDumpVisitor : public OperandVisitorBase,
+                        public OperandVisitors<CGRegOperand, CGImmOperand, CGMemOperand> {
+ public:
+  virtual ~OpndDumpVisitor() = default;
+
+ protected:
+  virtual void DumpOpndPrefix() {
+    LogInfo::MapleLogger() << " (opnd:";
+  }
+  virtual void DumpOpndSuffix() {
+    LogInfo::MapleLogger() << " )";
+  }
+  void DumpSize(Operand &opnd) {
+    LogInfo::MapleLogger() << " [size:" << opnd.GetSize() << "]";
+  }
+};
+
+
+namespace operand {
+// bit 0-7 for common
+enum CommOpndDescProp : maple::uint64 {
+  kIsDef = (1ULL << 0),
+  kIsUse = (1ULL << 1),
+  kIsVector = (1ULL << 2)
+
+};
+
+// bit 8-15 for reg
+enum RegOpndDescProp : maple::uint64 {
+  kInt = (1ULL << 8),
+  kFloat = (1ULL << 9),
+};
+
+// bit 16-23 for imm
+enum ImmOpndDescProp : maple::uint64 {
+
+};
+
+// bit 24-31 for mem
+enum MemOpndDescProp : maple::uint64 {
+  kMemLow12 = (1ULL << 24),
+  kLiteralLow12 = kMemLow12,
+  kIsLoadLiteral = (1ULL << 25)
+
+};
+}
+
+class OpndDescription {
+ public:
+  OpndDescription(Operand::OperandType t, maple::uint64 p, maple::uint32 s) :
+      opndType(t), property(p), size(s) {}
+  OpndDescription(Operand::OperandType t, maple::uint64 p, maple::uint32 s,
+      std::function<bool(int64)> f) : opndType(t), property(p), size(s), validFunc(f) {}
+  virtual ~OpndDescription() = default;
+
+  Operand::OperandType GetOperandType() const {
+    return opndType;
+  }
+
+  maple::uint32 GetSize() const {
+    return size;
+  }
+
+  bool IsRegister() const {
+    return opndType == Operand::kOpdRegister;
+  }
+
+  bool IsRegDef() const {
+    return opndType == Operand::kOpdRegister && (property & operand::kIsDef);
+  }
+
+  bool IsRegUse() const {
+    return opndType == Operand::kOpdRegister && (property & operand::kIsUse);
+  }
+
+  bool IsDef() const {
+    return (property & operand::kIsDef);
+  }
+
+  bool IsUse() const {
+    return (property & operand::kIsUse);
+  }
+
+ private:
+
+  Operand::OperandType opndType;
+  maple::uint64 property;
+  maple::uint32 size;
+  std::function<bool(int64)> validFunc;
+};
+
 } /* namespace maplebe */
 
 #endif /* MAPLEBE_INCLUDE_CG_OPERAND_H */

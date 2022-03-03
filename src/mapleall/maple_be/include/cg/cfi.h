@@ -76,7 +76,7 @@ class CfiInsn : public maplebe::Insn {
   bool IsMachineInstruction() const override {
     return false;
   }
-
+#if TARGAARCH64 || TARGRISCV64
   void Emit(const maplebe::CG &cg, maplebe::Emitter &emitter) const override;
 
   void Dump() const override;
@@ -100,6 +100,7 @@ class CfiInsn : public maplebe::Insn {
     CHECK_FATAL(false, "cfi do not def regs");
     return std::set<uint32>();
   }
+#endif
 
  private:
   CfiInsn &operator=(const CfiInsn&);
