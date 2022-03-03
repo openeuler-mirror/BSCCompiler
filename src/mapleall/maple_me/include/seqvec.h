@@ -40,7 +40,7 @@ class SeqVectorize {
   void DumpCandidates(const MeExpr *base, StoreList *storelist);
   void CheckAndTransform();
   bool IsOpExprConsecutiveMem(MeExpr *off1, MeExpr *off2, int32_t diff);
-  bool CanSeqVec(const IassignNode *s1, const IassignNode *s2);
+  bool CanSeqVec(const IassignNode *s1, const IassignNode *s2, bool reverse = false);
   bool CanSeqVecRhs(MeExpr *rhs1, MeExpr *rhs2);
   void LegalityCheckAndTransform(StoreList *storelist);
   bool HasVecType(PrimType sPrimType, uint8 lanes) const;
@@ -54,6 +54,8 @@ class SeqVectorize {
   void ResetRhsStatus() { currRhsStatus = 0; }
   void SetRhsConst() { currRhsStatus = 1; }
   void SetRhsConsercutiveMem() { currRhsStatus = 2; }
+  bool IsExprDataIndependent(const MeExpr *expr, const IassignMeStmt *defStmt);
+  bool IsStmtDataIndependent(const IassignMeStmt *s1, const IassignMeStmt *s2);
   bool IsRhsStatusUnset() const { return currRhsStatus == 0; }
   bool IsRhsConst() const { return currRhsStatus == 1; }
   bool IsRhsConsercutiveMem() const { return currRhsStatus == 0; }

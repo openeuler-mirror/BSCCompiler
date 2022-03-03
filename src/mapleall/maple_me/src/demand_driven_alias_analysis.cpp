@@ -693,7 +693,6 @@ void PEGBuilder::UpdateAttributes() {
   // L2: def/use *(ptr + 1) = 1;
   // L3: ptr = array + 1;
   // L4: use *ptr; <=== *ptr alias with L2: *(ptr+1)
-  std::set<PEGNode*> updatedPEGNode;
   for (auto *node : peg->GetAllNodes()) {
     if (node->ost->GetIndirectLev() <= 0) {
       if (node->ost->IsSymbolOst() && node->ost->GetMIRSymbol()->IsGlobal()) {
@@ -713,7 +712,6 @@ void PEGBuilder::UpdateAttributes() {
       node->SetMultiDefined();
     }
   }
-  updatedPEGNode.clear();
 
   // update alias attributes
   bool changed = true;
@@ -735,6 +733,15 @@ void PEGBuilder::UpdateAttributes() {
             changed = true;
           }
         }
+        // update alias attribute of assign-to nodes
+        for (const auto &assignTo : node->assignTo) {
+          auto &attr = assignTo.pegNode->attr;
+          if (!attr[kAliasAttrNextLevNotAllDefsSeen]) {
+            attr[kAliasAttrNextLevNotAllDefsSeen] = true;
+            changed = true;
+          }
+        }
+        // AliasAttrNotAllDefsSeen is the most conservative attribute, we can stop to update other attr.
         continue;
       }
 
