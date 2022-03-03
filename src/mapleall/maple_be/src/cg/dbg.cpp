@@ -24,7 +24,7 @@ using maplebe::OpndProp;
 
 struct DbgDescr {
   const std::string name;
-  int32 opndCount;
+  uint32 opndCount;
   /* create 3 OperandType array to store dbg instruction's operand type */
   std::array<Operand::OperandType, 3> opndTypes;
 };
@@ -37,11 +37,12 @@ static DbgDescr dbgDescrTable[kOpDbgLast + 1] = {
   { "undef", 0, { Operand::kOpdUndef, Operand::kOpdUndef, Operand::kOpdUndef } }
 };
 
+#if TARGAARCH64 || TARGRISCV64
 void DbgInsn::Dump() const {
   MOperator mOp = GetMachineOpcode();
   DbgDescr &dbgDescr = dbgDescrTable[mOp];
   LogInfo::MapleLogger() << "DBG " << dbgDescr.name;
-  for (uint32 i = 0; i < static_cast<uint32>(dbgDescr.opndCount); ++i) {
+  for (uint32 i = 0; i < dbgDescr.opndCount; ++i) {
     LogInfo::MapleLogger() << (i == 0 ? " : " : " ");
     Operand &curOperand = GetOperand(i);
     curOperand.Dump();
@@ -52,7 +53,7 @@ void DbgInsn::Dump() const {
 bool DbgInsn::Check() const {
   DbgDescr &dbgDescr = dbgDescrTable[GetMachineOpcode()];
   /* dbg instruction's 3rd /4th/5th operand must be null */
-  for (uint32 i = 0; i < static_cast<uint32>(dbgDescr.opndCount); ++i) {
+  for (uint32 i = 0; i < dbgDescr.opndCount; ++i) {
     Operand &opnd = GetOperand(i);
     if (opnd.GetKind() != dbgDescr.opndTypes[i]) {
       ASSERT(false, "incorrect operand");
@@ -67,13 +68,14 @@ void DbgInsn::Emit(const CG &cg, Emitter &emitter) const {
   MOperator mOp = GetMachineOpcode();
   DbgDescr &dbgDescr = dbgDescrTable[mOp];
   emitter.Emit("\t.").Emit(dbgDescr.name);
-  for (uint32 i = 0; i < static_cast<uint32>(dbgDescr.opndCount); ++i) {
+  for (uint32 i = 0; i < dbgDescr.opndCount; ++i) {
     emitter.Emit(" ");
     Operand &curOperand = GetOperand(i);
     curOperand.Emit(emitter, nullptr);
   }
   emitter.Emit("\n");
 }
+#endif
 
 uint32 DbgInsn::GetLoc() const {
   if (mOp != OP_DBG_loc) {

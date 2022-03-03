@@ -164,8 +164,8 @@ class CGFunc {
     return maxRegCount;
   };
   void DumpCFG() const;
-  void DumpCGIR() const;
-  void DumpCGIR(bool isNew) const;
+  void DumpCGIR(bool withTargetInfo = false) const;
+  virtual void DumpTargetIR(const Insn &insn) const {};
   void DumpLoop() const;
   void ClearLoopInfo();
   Operand *HandleExpr(const BaseNode &parent, BaseNode &expr);

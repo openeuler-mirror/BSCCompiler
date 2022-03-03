@@ -16,7 +16,6 @@
 #include "insn.h"
 #include "isel.h"
 namespace maplebe {
-
 std::string TempTransForm(MOperator mOp) {
   std::string s = "";
   switch (mOp) {
@@ -43,7 +42,7 @@ std::string TempTransForm(MOperator mOp) {
   }
   return s;
 }
-void CGInsn::Dump() const {
+void Insn::Dump() const {
   LogInfo::MapleLogger() << "MOP (" << TempTransForm(mOp) << ")";
   for (auto opnd : opnds) {
     LogInfo::MapleLogger() << " (opnd:";

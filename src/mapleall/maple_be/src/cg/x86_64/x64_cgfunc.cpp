@@ -13,8 +13,10 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include <x86_64/x64_cg.h>
 #include "x64_cgfunc.h"
 #include "x64_memlayout.h"
+#include "x64_isa.h"
 
 namespace maplebe {
 /* null implementation yet */
@@ -494,22 +496,6 @@ RegOperand &X64CGFunc::GetOrCreateStackBaseRegOperand() {
   RegOperand *a;
   return *a;
 }
-int32 X64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
-  const X64SymbolAlloc *symAlloc = static_cast<const X64SymbolAlloc*>(&symbolAlloc);
-  /* Call Frame layout of X64
-   * Refer to layout in x64_memlayout.h.
-   * Do Not change this unless you know what you do
-   */
-  MemSegmentKind sgKind = symAlloc->GetMemSegment()->GetMemSegmentKind();
-  X64MemLayout *memLayout = static_cast<X64MemLayout*>(this->GetMemlayout());
-  if (sgKind == kMsLocals) {
-    int32 baseOffset = symAlloc->GetOffset();
-    return baseOffset + memLayout->StackFrameSize();
-  } else {
-    CHECK_FATAL(false, "sgKind check");
-  }
-  return 0;
-}
 Operand &X64CGFunc::GetZeroOpnd(uint32 size) {
   CHECK_FATAL(false, "NIY");
   Operand *a;
@@ -692,5 +678,68 @@ void X64CGFunc::DBGFixCallFrameLocationOffsets() {
 MemOperand *X64CGFunc::GetPseudoRegisterSpillMemoryOperand(PregIdx idx) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
+}
+int32 X64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
+  const auto *symAlloc = static_cast<const X64SymbolAlloc*>(&symbolAlloc);
+  /* Call Frame layout of X64
+   * Refer to layout in x64_memlayout.h.
+   * Do Not change this unless you know what you do
+   */
+  MemSegmentKind sgKind = symAlloc->GetMemSegment()->GetMemSegmentKind();
+  auto *memLayout = static_cast<X64MemLayout*>(this->GetMemlayout());
+  if (sgKind == kMsLocals) {
+    int32 baseOffset = symAlloc->GetOffset();
+    return baseOffset + memLayout->StackFrameSize();
+  } else {
+    CHECK_FATAL(false, "sgKind check");
+  }
+  return 0;
+}
+CGRegOperand* X64CGFunc::GetBaseReg(const maplebe::SymbolAlloc &symAlloc) {
+  MemSegmentKind sgKind = symAlloc.GetMemSegment()->GetMemSegmentKind();
+  ASSERT(((sgKind == kMsArgsRegPassed) || (sgKind == kMsLocals) || (sgKind == kMsRefLocals) ||
+          (sgKind == kMsArgsToStkPass) || (sgKind == kMsArgsStkPassed)), "NYI");
+  if (sgKind == kMsLocals) {
+    return &GetOpndBuilder()->CreatePReg(x64::RBP, kSizeOfPtr);
+  } else {
+    CHECK_FATAL(false, "NIY sgKind");
+  }
+  return nullptr;
+}
+void X64CGFunc::DumpTargetIR(const Insn &insn) const {
+  X64MD curMd =  X64CG::kMd[insn.GetMachineOpcode()];
+  LogInfo::MapleLogger() << "MOP (" << curMd.name << ")";
+  for (size_t i = 0; i < insn.GetOperandSize(); ++i) {
+    X64OpndDumpVistor odv;
+    insn.GetOperand(i).Accept(odv);
+  }
+  LogInfo::MapleLogger() << "\n";
+}
+
+void X64OpndDumpVistor::Visit(maplebe::CGRegOperand *v) {
+  DumpOpndPrefix();
+  LogInfo::MapleLogger() << "reg ";
+  LogInfo::MapleLogger() << v->GetRegNO();
+  DumpSize(*v);
+  DumpOpndSuffix();
+}
+void X64OpndDumpVistor::Visit(maplebe::CGImmOperand *v) {
+  DumpOpndPrefix();
+  LogInfo::MapleLogger() << "imm ";
+  LogInfo::MapleLogger() << v->GetValue();
+  DumpSize(*v);
+  DumpOpndSuffix();
+}
+void X64OpndDumpVistor::Visit(maplebe::CGMemOperand *v) {
+  DumpOpndPrefix();
+  LogInfo::MapleLogger() << "mem ";
+  if (v->GetBaseReg() != nullptr) {
+    LogInfo::MapleLogger() << v->GetBaseReg()->GetRegNO();
+    if (v->GetBaseOfst() != nullptr) {
+      LogInfo::MapleLogger() << " + " << v->GetBaseOfst()->GetValue();
+    }
+  }
+  DumpSize(*v);
+  DumpOpndSuffix();
 }
 }

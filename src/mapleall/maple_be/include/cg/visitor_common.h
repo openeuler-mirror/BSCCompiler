@@ -18,17 +18,21 @@
 namespace maplebe {
 class OperandVisitorBase {
  public:
-  virtual ~OperandVisitorBase() {}
+  virtual ~OperandVisitorBase() = default;
 };
 
 template<typename Visitable>
 class OperandVisitor {
  public:
+  virtual ~OperandVisitor() = default;
   virtual void Visit(Visitable *v) = 0;
 };
 
 template<typename ... V>
-class OperandVisitors;
+class OperandVisitors {
+ public:
+  virtual ~OperandVisitors() = default;
+};
 
 template<typename OpV1, typename OpV2, typename ... OpV3>
 class OperandVisitors<OpV1, OpV2, OpV3 ...> :
@@ -36,6 +40,5 @@ class OperandVisitors<OpV1, OpV2, OpV3 ...> :
     public OperandVisitor<OpV2>,
     public OperandVisitor<OpV3 ...>
 {};
-
 }  /* namespace maplebe */
 #endif /* MAPLEBE_INCLUDE_CG_VISITOR_COMMON_H */

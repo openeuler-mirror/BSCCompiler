@@ -13,6 +13,23 @@
  * See the Mulan PSL v2 for more details.
  */
 
-namespace maplebe {
+#include "x64_standardize.h"
+#include "x64_isa.h"
+#include "insn.h"
 
+namespace maplebe {
+void X64Standardize::STDZcopyri(Insn &insn) {
+  insn.SetMOperator(x64::MOP_movl_i_r);
+  Operand &dest = insn.GetOperand(kInsnFirstOpnd);
+  Operand &src = insn.GetOperand(kInsnSecondOpnd);
+  insn.CleanAllOperand();
+  insn.AddOperandChain(src).AddOperandChain(dest);
+}
+void X64Standardize::STDZstr(Insn &insn) {
+  insn.SetMOperator(x64::MOP_movq_r_m);
+  Operand &dest = insn.GetOperand(kInsnFirstOpnd);
+  Operand &src = insn.GetOperand(kInsnSecondOpnd);
+  insn.CleanAllOperand();
+  insn.AddOperandChain(src).AddOperandChain(dest);
+}
 }

@@ -28,10 +28,21 @@ class Standardize {
    * for cpu instruction contains different operands
    * maple provide a default implement from three address to two address
    */
-  void TwoAddressMapping();
+  void TwoAddressMapping() {}
   void DoStandardize();
+
+ protected:
+  void SetTwoAddressMapping() {
+    needTwoAddrMapping = true;
+  }
+  bool NeedTwoAddressMapping() {
+    return needTwoAddrMapping;
+  }
  private:
+  virtual void STDZcopyri(Insn &insn) = 0;
+  virtual void STDZstr(Insn &insn) = 0;
   CGFunc *cgFunc;
+  bool needTwoAddrMapping = false;
 };
 }
 #endif  /* MAPLEBE_INCLUDE_STANDARDIZE_H */

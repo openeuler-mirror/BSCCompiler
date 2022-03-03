@@ -58,6 +58,7 @@ class DbgInsn : public maplebe::Insn {
     return false;
   }
 
+#if TARGAARCH64 || TARGRISCV64
   void Emit(const maplebe::CG &cg, maplebe::Emitter &emitter) const override;
 
   void Dump() const override;
@@ -81,6 +82,7 @@ class DbgInsn : public maplebe::Insn {
     CHECK_FATAL(false, "dbg insn do not def regs");
     return std::set<uint32>();
   }
+#endif
 
   uint32 GetLoc() const;
 
