@@ -176,6 +176,31 @@ static TypeId FindPrimTypeId(const char *keyword) {
 }
 
 //////////////////////////////////////////////////////////////////////////
+//                           FunctionTypeNode                           //
+//////////////////////////////////////////////////////////////////////////
+
+bool FunctionTypeNode::IsEqual(FunctionTypeNode *node) {
+  bool result = true;
+  if (node->GetRetType() != mRetType) {
+    result = false;
+  } else if (node->GetParamsNum() != GetParamsNum()) {
+    result = false;
+  } else {
+    for (unsigned i = 0; i < GetParamsNum(); i++) {
+      if (node->GetParam(i) != GetParam(i)) {
+        result = false;
+        break;
+      }
+    }
+  }
+  return result;
+}
+
+void FunctionTypeNode::Dump(unsigned ind) {
+  DUMP0_NORETURN("functiontype-TBD");
+}
+
+//////////////////////////////////////////////////////////////////////////
 //                             PrimTypeNode                             //
 //////////////////////////////////////////////////////////////////////////
 
