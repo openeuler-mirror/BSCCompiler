@@ -16,5 +16,6 @@
  ADDTARGETPHASE("layoutstackframe", true);
  ADDTARGETPHASE("createstartendlabel", true);
  ADDTARGETPHASE("instructionselector", true);
+ ADDTARGETPHASE("regalloc", true);
  /* ASM EMIT */
  ADDTARGETPHASE("cgemit", true);

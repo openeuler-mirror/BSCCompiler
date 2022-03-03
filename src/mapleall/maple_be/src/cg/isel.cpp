@@ -117,7 +117,7 @@ void MPISel::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, Oper
   /* Get symbol location */
   CGMemOperand &symbolMem = GetSymbolFromMemory(*symbol);
   /* Generate Insn */
-  SelectCopy(symbolMem, opndRhs);
+  SelectCopy(symbolMem, opndRhs, rhsPType);
 }
 
 CGImmOperand *MPISel::SelectIntConst(MIRIntConst &intConst) {
@@ -159,24 +159,23 @@ StmtNode *MPISel::HandleFuncEntry() {
   return stmt;
 }
 
-void MPISel::SelectCopy(Operand &dest, Operand &src) {
+void MPISel::SelectCopy(Operand &dest, Operand &src, PrimType type) {
   if (dest.GetKind() == Operand::kOpdRegister) {
-    SelectCopy(static_cast<CGRegOperand&>(dest), src);
+    SelectCopy(static_cast<CGRegOperand&>(dest), src, type);
   } else if (dest.GetKind() == Operand::kOpdMem) {
     if (src.GetKind() != Operand::kOpdRegister) {
-      CGRegOperand &tempReg = cgFunc->GetOpndBuilder()->CreateVReg(src.GetSize());
-      SelectCopy(tempReg, src);
+      CGRegOperand &tempReg = cgFunc->GetOpndBuilder()->CreateVReg(src.GetSize(), cgFunc->GetRegTyFromPrimTy(type));
+      SelectCopy(tempReg, src, type);
       SelectCopyInsn<CGMemOperand, CGRegOperand>(static_cast<CGMemOperand&>(dest), tempReg);
     } else {
       SelectCopyInsn<CGMemOperand, CGRegOperand>(static_cast<CGMemOperand&>(dest), static_cast<CGRegOperand&>(src));
     }
-
   } else {
     CHECK_FATAL(false, "NIY, CPU supports more than memory and registers");
   }
 }
 
-void MPISel::SelectCopy(CGRegOperand &regDest, Operand &src) {
+void MPISel::SelectCopy(CGRegOperand &regDest, Operand &src, PrimType type) {
   if (src.GetKind() == Operand::kOpdImmediate) {
     SelectCopyInsn<CGRegOperand, CGImmOperand>(regDest, static_cast<CGImmOperand&>(src));
   } else {

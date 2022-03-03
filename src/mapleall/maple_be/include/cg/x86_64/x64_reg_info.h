@@ -32,6 +32,9 @@ class X64RegInfo : public RegisterInfo {
   uint32 GetInvalidReg() override {
     return x64::kRinvalid;
   };
+  bool IsVirtualRegister(const CGRegOperand &regOpnd) override {
+    return regOpnd.GetRegisterNumber() > x64::kAllRegNum;
+  }
 
   void Init() override;
   void Fini() override;
@@ -40,7 +43,10 @@ class X64RegInfo : public RegisterInfo {
   bool IsCalleeSavedReg(regno_t regno) const override;
   bool IsYieldPointReg(regno_t regNO) const override;
   bool IsUnconcernedReg(regno_t regNO) const override;
-  bool IsUnconcernedReg(const RegOperand &regOpnd) const override;
+  bool IsUnconcernedReg(const RegOperand &regOpnd) const override {
+    return false;
+  }
+  bool IsUnconcernedReg(const CGRegOperand &regOpnd) const override;
   RegOperand &GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag = 0) override;
   ListOperand *CreateListOperand() override;
   Insn *BuildMovInstruction(Operand &opnd0, Operand &opnd1) override;

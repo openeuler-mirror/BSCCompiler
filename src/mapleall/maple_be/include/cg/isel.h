@@ -61,8 +61,8 @@ class MPISel {
    * only Support conversion between registers and memory
    * alltypes -> reg -> mem
    */
-  void SelectCopy(Operand &dest, Operand &src);
-  void SelectCopy(CGRegOperand &regDest, Operand &src);
+  void SelectCopy(Operand &dest, Operand &src, PrimType type);
+  void SelectCopy(CGRegOperand &regDest, Operand &src, PrimType type);
   template<typename destTy, typename srcTy>
   void SelectCopyInsn(destTy &dest, srcTy &src);
 

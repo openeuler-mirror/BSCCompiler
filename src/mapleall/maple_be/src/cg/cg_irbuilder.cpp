@@ -28,12 +28,12 @@ CGImmOperand &OperandBuilder::CreateImm(uint32 size, int64 value, MemPool *mp) {
 CGMemOperand &OperandBuilder::CreateMem(uint32 size, MemPool *mp) {
   return mp ? *mp->New<CGMemOperand>(size) : *alloc.New<CGMemOperand>(size);
 }
-CGRegOperand &OperandBuilder::CreateVReg(uint32 size, MemPool *mp) {
+CGRegOperand &OperandBuilder::CreateVReg(uint32 size, RegType type, MemPool *mp) {
   virtualRegNum++;
   regno_t vRegNO = baseVirtualRegNO + virtualRegNum;
-  return mp ? *mp->New<CGRegOperand>(vRegNO, size) : *alloc.New<CGRegOperand>(vRegNO, size);
+  return mp ? *mp->New<CGRegOperand>(vRegNO, size, type) : *alloc.New<CGRegOperand>(vRegNO, size, type);
 }
-CGRegOperand &OperandBuilder::CreatePReg(regno_t pRegNO, uint32 size, MemPool *mp) {
-  return mp ? *mp->New<CGRegOperand>(pRegNO, size) : *alloc.New<CGRegOperand>(pRegNO, size);
+CGRegOperand &OperandBuilder::CreatePReg(regno_t pRegNO, uint32 size, RegType type, MemPool *mp) {
+  return mp ? *mp->New<CGRegOperand>(pRegNO, size, type) : *alloc.New<CGRegOperand>(pRegNO, size, type);
 }
 }

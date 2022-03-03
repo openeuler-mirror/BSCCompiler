@@ -45,8 +45,8 @@ class OperandBuilder {
   /* create an operand in cgfunc when no mempool is supplied */
   CGImmOperand &CreateImm(uint32 size, int64 value, MemPool *mp = nullptr);
   CGMemOperand &CreateMem(uint32 size, MemPool *mp = nullptr);
-  CGRegOperand &CreateVReg(uint32 size, MemPool *mp = nullptr);
-  CGRegOperand &CreatePReg(regno_t pRegNO, uint32 size, MemPool *mp = nullptr);
+  CGRegOperand &CreateVReg(uint32 size, RegType type, MemPool *mp = nullptr);
+  CGRegOperand &CreatePReg(regno_t pRegNO, uint32 size, RegType type, MemPool *mp = nullptr);
 
  protected:
   MapleAllocator alloc;

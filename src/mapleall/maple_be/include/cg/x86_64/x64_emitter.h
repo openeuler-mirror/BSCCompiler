@@ -17,7 +17,7 @@
 
 #include "asm_emit.h"
 #include "visitor_common.h"
-#include "cgoperand.h"
+#include "operand.h"
 
 namespace maplebe {
 
@@ -36,7 +36,7 @@ class X64Emitter : public AsmEmitter {
   void Run(FuncEmitInfo &funcEmitInfo) override;
 };
 
-class CGOpndEmitVisitor : public CGOperandVisitorBase,
+class CGOpndEmitVisitor : public OperandVisitorBase,
                           public OperandVisitors<CGRegOperand, CGImmOperand, CGMemOperand> {
  public:
   CGOpndEmitVisitor(Emitter &asmEmitter): emitter(asmEmitter) {}

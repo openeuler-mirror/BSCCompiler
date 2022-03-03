@@ -30,7 +30,7 @@ void X64Emitter::Run(FuncEmitInfo &funcEmitInfo) {}
 
 void X64OpndEmitVisitor::Visit(maplebe::CGRegOperand *v) {
   // TODO: mapping with physical register after register allocation is done
-  emitter.Emit("%").Emit(v->GetRegNO());
+  emitter.Emit("%").Emit(v->GetRegisterNumber());
 }
 void X64OpndEmitVisitor::Visit(maplebe::CGImmOperand *v) {
   emitter.Emit("$");
@@ -46,20 +46,19 @@ void X64OpndEmitVisitor::Visit(maplebe::CGMemOperand *v) {
     ss << std::hex << v->GetBaseOfst()->GetValue();
     emitter.Emit("0x").Emit(ss.str());
   }
-  if (v->GetBaseReg() != nullptr) {
+  if (v->GetBaseRegister() != nullptr) {
     emitter.Emit("(");
-    Visit(v->GetBaseReg());
+    Visit(v->GetBaseRegister());
     emitter.Emit(")");
   }
 }
 
-void DumpTargetASM(Emitter &emitter, CGInsn &insn) {
-  X64MD curMd = X64CG::kMd[insn.GetMachineOp()];
+void DumpTargetASM(Emitter &emitter, Insn &insn) {
+  X64MD curMd = X64CG::kMd[insn.GetMachineOpcode()];
   emitter.Emit(curMd.name).Emit("\t");
-  auto opnds = insn.GetOperands();
-  size_t size = opnds.size();
+  size_t size = insn.GetOperandSize();
   for (int i = 0; i < size; i++) {
-    auto opnd = opnds[i];
+    Operand *opnd = &insn.GetOperand(i);
     X64OpndEmitVisitor visitor(emitter);
     opnd->Accept(visitor);
     if (i != size - 1) {
@@ -74,7 +73,7 @@ bool CgEmission::PhaseRun(maplebe::CGFunc &f) {
   CHECK_NULL_FATAL(emitter);
   X64CGFunc &x64CGFunc = static_cast<X64CGFunc&>(f);
   FOR_ALL_BB(bb, &x64CGFunc) {
-    FOR_BB_CGINSNS(insn, bb) {
+    FOR_BB_INSNS(insn, bb) {
       DumpTargetASM(*emitter, *insn);
     }
   }
