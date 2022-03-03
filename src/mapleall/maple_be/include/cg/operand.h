@@ -850,13 +850,39 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
 
 class CGRegOperand : public OperandVisitable<CGRegOperand> {
  public:
-  CGRegOperand(regno_t regId, uint32 sz) : OperandVisitable(kOpdRegister, sz), regNO(regId) {}
+  CGRegOperand(regno_t regId, uint32 sz, RegType type) : OperandVisitable(kOpdRegister, sz),
+      regNO(regId),
+      regType(type) {}
   ~CGRegOperand() override = default;
   using OperandVisitable<CGRegOperand>::OperandVisitable;
 
-  regno_t GetRegNO() const {
+  regno_t GetRegisterNumber() const {
     return regNO;
   }
+  bool IsOfIntClass() const {
+    return regType == kRegTyInt;
+  }
+
+  bool IsOfFloatOrSIMDClass() const {
+    return regType == kRegTyFloat;
+  }
+
+  bool IsOfCC() const {
+    return regType == kRegTyCc;
+  }
+
+  bool IsOfVary() const {
+    return regType == kRegTyVary;
+  }
+
+  RegType GetRegisterType() const {
+    return regType;
+  }
+
+  void SetRegisterType(RegType newTy) {
+    regType = newTy;
+  }
+
   Operand *Clone(MemPool &memPool) const override {
     return memPool.New<CGRegOperand>(*this);
   }
@@ -869,10 +895,11 @@ class CGRegOperand : public OperandVisitable<CGRegOperand> {
   void Dump() const override {
     LogInfo::MapleLogger() << "reg ";
     LogInfo::MapleLogger() << "size : " << GetSize();
-    LogInfo::MapleLogger() << " NO_" << GetRegNO();
+    LogInfo::MapleLogger() << " NO_" << GetRegisterNumber();
   }
  private:
   regno_t regNO;
+  RegType regType;
 };
 
 class CGImmOperand : public OperandVisitable<CGImmOperand> {
@@ -924,12 +951,20 @@ class CGMemOperand : public OperandVisitable<CGMemOperand> {
   /* delete soon */
   void Emit(Emitter&, const OpndProp*) const override {}
 
-  CGRegOperand *GetBaseReg() const {
+  CGRegOperand *GetBaseRegister() const {
     return baseReg;
   }
 
-  void SetBaseReg(CGRegOperand &newReg) {
+  void SetBaseRegister(CGRegOperand &newReg) {
     baseReg = &newReg;
+  }
+
+  CGRegOperand *GetIndexRegister() const {
+    return indexReg;
+  }
+
+  void SetIndexRegister(CGRegOperand &newIndex) {
+    indexReg = &newIndex;
   }
 
   CGImmOperand *GetBaseOfst() const {
@@ -942,6 +977,7 @@ class CGMemOperand : public OperandVisitable<CGMemOperand> {
 
  private:
   CGRegOperand *baseReg = nullptr;
+  CGRegOperand *indexReg = nullptr;
   CGImmOperand *baseOfst = nullptr;
 };
 

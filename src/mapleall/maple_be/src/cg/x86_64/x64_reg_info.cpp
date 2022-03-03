@@ -81,7 +81,7 @@ bool X64RegInfo::IsUnconcernedReg(regno_t regNO) const {
   return false;
 }
 
-bool X64RegInfo::IsUnconcernedReg(const RegOperand &regOpnd) const {
+bool X64RegInfo::IsUnconcernedReg(const CGRegOperand &regOpnd) const {
   RegType regType = regOpnd.GetRegisterType();
   if (regType == kRegTyCc || regType == kRegTyVary) {
     return true;

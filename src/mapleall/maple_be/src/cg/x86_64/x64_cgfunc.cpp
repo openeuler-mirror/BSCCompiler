@@ -700,7 +700,7 @@ CGRegOperand* X64CGFunc::GetBaseReg(const maplebe::SymbolAlloc &symAlloc) {
   ASSERT(((sgKind == kMsArgsRegPassed) || (sgKind == kMsLocals) || (sgKind == kMsRefLocals) ||
           (sgKind == kMsArgsToStkPass) || (sgKind == kMsArgsStkPassed)), "NYI");
   if (sgKind == kMsLocals) {
-    return &GetOpndBuilder()->CreatePReg(x64::RBP, kSizeOfPtr);
+    return &GetOpndBuilder()->CreatePReg(x64::RBP, kSizeOfPtr, kRegTyInt);
   } else {
     CHECK_FATAL(false, "NIY sgKind");
   }
@@ -719,10 +719,11 @@ void X64CGFunc::DumpTargetIR(const Insn &insn) const {
 void X64OpndDumpVistor::Visit(maplebe::CGRegOperand *v) {
   DumpOpndPrefix();
   LogInfo::MapleLogger() << "reg ";
-  LogInfo::MapleLogger() << v->GetRegNO();
+  LogInfo::MapleLogger() << v->GetRegisterNumber();
   DumpSize(*v);
   DumpOpndSuffix();
 }
+
 void X64OpndDumpVistor::Visit(maplebe::CGImmOperand *v) {
   DumpOpndPrefix();
   LogInfo::MapleLogger() << "imm ";
@@ -733,8 +734,8 @@ void X64OpndDumpVistor::Visit(maplebe::CGImmOperand *v) {
 void X64OpndDumpVistor::Visit(maplebe::CGMemOperand *v) {
   DumpOpndPrefix();
   LogInfo::MapleLogger() << "mem ";
-  if (v->GetBaseReg() != nullptr) {
-    LogInfo::MapleLogger() << v->GetBaseReg()->GetRegNO();
+  if (v->GetBaseRegister() != nullptr) {
+    LogInfo::MapleLogger() << v->GetBaseRegister()->GetRegisterNumber();
     if (v->GetBaseOfst() != nullptr) {
       LogInfo::MapleLogger() << " + " << v->GetBaseOfst()->GetValue();
     }

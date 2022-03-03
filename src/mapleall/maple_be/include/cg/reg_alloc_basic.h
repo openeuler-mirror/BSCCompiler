@@ -12,8 +12,8 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#ifndef MAPLEBE_INCLUDE_CG_REG_ALLOC_DEFAULT_H
-#define MAPLEBE_INCLUDE_CG_REG_ALLOC_DEFAULT_H
+#ifndef MAPLEBE_INCLUDE_CG_REG_ALLOC_BASIC_H
+#define MAPLEBE_INCLUDE_CG_REG_ALLOC_BASIC_H
 #include "reg_alloc.h"
 #include "operand.h"
 #include "cgfunc.h"
@@ -39,9 +39,18 @@ class DefaultO0RegAllocator : public RegAllocator {
   bool AllocateRegisters() override;
 
   void InitAvailReg();
+
+#ifdef TARGX86_64
+  bool AllocatePhysicalRegister(const CGRegOperand &opnd);
+#else
   bool AllocatePhysicalRegister(const RegOperand &opnd);
+#endif
   void ReleaseReg(regno_t reg);
+#ifdef TARGX86_64
+  void ReleaseReg(const CGRegOperand &regOpnd);
+#else
   void ReleaseReg(const RegOperand &regOpnd);
+#endif
   void GetPhysicalRegisterBank(RegType regType, uint8 &start, uint8 &end) const;
   void AllocHandleDestList(Insn &insn, Operand &opnd, uint32 idx);
   void AllocHandleDest(Insn &insn, Operand &opnd, uint32 idx);
@@ -49,7 +58,11 @@ class DefaultO0RegAllocator : public RegAllocator {
   void AllocHandleSrc(Insn &insn, Operand &opnd, uint32 idx);
   void AllocHandleCallee(Insn &insn);
   bool IsSpecialReg(regno_t reg) const;
+#ifdef TARGX86_64
+  void SaveCalleeSavedReg(const CGRegOperand &opnd);
+#else
   void SaveCalleeSavedReg(const RegOperand &opnd);
+#endif
 
  protected:
   Operand *HandleRegOpnd(Operand &opnd);
@@ -71,4 +84,4 @@ class DefaultO0RegAllocator : public RegAllocator {
 };
 }  /* namespace maplebe */
 
-#endif  /* MAPLEBE_INCLUDE_CG_REG_ALLOC_DEFAULT_H */
+#endif  /* MAPLEBE_INCLUDE_CG_REG_ALLOC_BASIC_H */

@@ -69,7 +69,12 @@ class RegisterInfo {
   virtual bool IsUnconcernedReg(regno_t regNO) const = 0;
   virtual bool IsUnconcernedReg(const RegOperand &regOpnd) const = 0;
   virtual void SaveCalleeSavedReg(MapleSet<regno_t> savedRegs) = 0;
-
+  virtual bool IsVirtualRegister(const CGRegOperand &regOpnd) {
+    return false;
+  }
+  virtual bool IsUnconcernedReg(const CGRegOperand &regOpnd) const {
+    return false;
+  }
  private:
   MapleAllocator *memAllocator;
   MapleSet<regno_t> allIntRegs;
