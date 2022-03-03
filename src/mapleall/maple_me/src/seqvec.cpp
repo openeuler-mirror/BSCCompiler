@@ -440,7 +440,47 @@ bool SeqVectorize::IsIvarExprConsecutiveMem(IvarMeExpr *ivar1, IvarMeExpr *ivar2
   return true;
 }
 
-bool SeqVectorize::CanSeqVec(const IassignNode *s1, const IassignNode *s2) {
+// check if expr is independent on defStmt.
+bool SeqVectorize::IsExprDataIndependent(const MeExpr *expr, const IassignMeStmt *defStmt) {
+  if (expr->IsScalar()) {
+    MeStmt *stmt = static_cast<const ScalarMeExpr *>(expr)->GetDefByMeStmt();
+    if (stmt == defStmt) {
+      return false;
+    }
+  } else if (expr->GetMeOp() == kMeOpIvar) {
+    auto *iass = static_cast<const IvarMeExpr *>(expr)->GetDefStmt();
+    if (iass == defStmt) {
+      return false;
+    }
+    auto *mu = static_cast<const IvarMeExpr *>(expr)->GetMu();
+    if (!IsExprDataIndependent(mu, defStmt)) {
+      return false;
+    }
+  }
+  for (size_t i = 0; i < expr->GetNumOpnds(); ++i) {
+    if (!IsExprDataIndependent(expr->GetOpnd(i), defStmt)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// check if s2 is independent on def of s1
+bool SeqVectorize::IsStmtDataIndependent(const IassignMeStmt *s1, const IassignMeStmt *s2) {
+  IvarMeExpr *lhs1 = s1->GetLHSVal();
+  MeExpr *rhs2 = s2->GetRHS();
+  if (lhs1 == rhs2) {
+    return false;
+  }
+  for (size_t i = 0; i < s2->NumMeStmtOpnds(); ++i) {
+    if (!IsExprDataIndependent(s2->GetOpnd(i), s1)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool SeqVectorize::CanSeqVec(const IassignNode *s1, const IassignNode *s2, bool reverse) {
   PreMeMIRExtension *lfoP1 = (*PreMeStmtExtensionMap)[s1->GetStmtID()];
   IassignMeStmt *iassMeStmt1 = static_cast<IassignMeStmt *>(lfoP1->GetMeStmt());
   IvarMeExpr *lhsMeExpr1 = iassMeStmt1->GetLHSVal();
@@ -467,11 +507,19 @@ bool SeqVectorize::CanSeqVec(const IassignNode *s1, const IassignNode *s2) {
       return false;
     }
   }
+  // check data dependency, example
+  // S1: a[1] <- a[2]
+  // S2: a[0] <- a[1]
+  // rhs of S2 is dependent on S1, we can not merge them
+  if ((!reverse && !IsStmtDataIndependent(iassMeStmt1, iassMeStmt2)) ||
+      (reverse && !IsStmtDataIndependent(iassMeStmt2, iassMeStmt1))) {
+    return false;
+  }
   return true;
 }
 
 static int PreviousPowerOfTwo(unsigned int x) {
-  return 1U << ((sizeof(x)*8 - 1) - __builtin_clz(x));
+  return 1U << ((sizeof(x)*8 - 1) - static_cast<uint64>(__builtin_clz(x)));
 }
 
 void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
@@ -549,7 +597,7 @@ void SeqVectorize::LegalityCheckAndTransform(StoreList *storelist) {
     cands.push_back(store1);
     for (size_t j = i + 1; j < len; ++j) {
       IassignNode *store2 = (*storelist)[j];
-      if (CanSeqVec(cands.back(), store2)) {
+      if (CanSeqVec(cands.back(), store2, false)) {
         cands.push_back(store2);
       }
     }
@@ -569,7 +617,7 @@ void SeqVectorize::LegalityCheckAndTransform(StoreList *storelist) {
     cands.push_back(store1);
     for (int j = i - 1; j >= 0; --j) {
       IassignNode *store2 = (*storelist)[j];
-      if (CanSeqVec(cands.back(), store2)) {
+      if (CanSeqVec(cands.back(), store2, true)) {
         cands.push_back(store2);
       }
     }

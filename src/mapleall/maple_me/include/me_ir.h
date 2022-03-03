@@ -1213,6 +1213,7 @@ class MeStmt {
     op = sst->GetOpCode();
     srcPos = sst->GetSrcPos();
     originalId = sst->GetOriginalID();
+    meStmtId = sst->GetStmtID();
     if (sst->IsInSafeRegion()) {
       SetInSafeRegion();
     }
@@ -1288,6 +1289,7 @@ class MeStmt {
     srcPos = meStmt.srcPos;
     isLive = meStmt.isLive;
     originalId = meStmt.originalId;
+    meStmtId = meStmt.meStmtId;
     stmtAttrs = meStmt.stmtAttrs;
   }
 
@@ -1380,6 +1382,7 @@ class MeStmt {
   void CopyInfo(const MeStmt &stmt) {
     this->srcPos = stmt.srcPos;
     this->originalId = stmt.originalId;
+    this->meStmtId = stmt.meStmtId;
     this->stmtAttrs = stmt.stmtAttrs;
   }
 
@@ -1415,6 +1418,14 @@ class MeStmt {
     originalId = id;
   }
 
+  uint32 GetMeStmtId() {
+    return meStmtId;
+  }
+
+  void SetMeStmtId(uint32 id) {
+    meStmtId = id;
+  }
+
   bool IsInSafeRegion() const {
     return stmtAttrs.GetAttr(STMTATTR_insaferegion);
   }
@@ -1436,6 +1447,7 @@ class MeStmt {
 
  private:
   uint32 originalId = 0xdeadbeef;
+  uint32 meStmtId = 0xdeadbeef;
   Opcode op;
   bool isLive = true;
   BB *bb = nullptr;
@@ -1944,6 +1956,9 @@ class IassignMeStmt : public MeStmt {
   }
 
   MapleMap<OStIdx, ChiMeNode*> *GetChiList() {
+    return &chiList;
+  }
+  const MapleMap<OStIdx, ChiMeNode*> *GetChiList() const {
     return &chiList;
   }
 
@@ -2837,8 +2852,8 @@ class TryMeStmt : public MeStmt {
 
 class CatchMeStmt : public MeStmt {
  public:
-  CatchMeStmt(MapleAllocator *alloc, StmtNode *stt) : MeStmt(stt), exceptionTyIdxVec(alloc->Adapter()) {
-    for (auto it : static_cast<CatchNode*>(stt)->GetExceptionTyIdxVec()) {
+  CatchMeStmt(MapleAllocator *alloc, const StmtNode *stt) : MeStmt(stt), exceptionTyIdxVec(alloc->Adapter()) {
+    for (auto it : static_cast<const CatchNode*>(stt)->GetExceptionTyIdxVec()) {
       exceptionTyIdxVec.push_back(it);
     }
   }
