@@ -85,7 +85,7 @@ IdentifierNode *BuildIdNodeToDeclVisitor::VisitIdentifierNode(IdentifierNode *no
   (void) AstVisitor::VisitIdentifierNode(node);
   // mHandler->FindDecl() will use/add entries to mNodeId2Decl
   TreeNode *decl = mHandler->FindDecl(node);
-  if (decl) {
+  if (decl && decl != node) {
     mHandler->GetUtil()->SetTypeId(node, decl->GetTypeId());
     mHandler->GetUtil()->SetTypeIdx(node, decl->GetTypeIdx());
   }
@@ -93,8 +93,10 @@ IdentifierNode *BuildIdNodeToDeclVisitor::VisitIdentifierNode(IdentifierNode *no
   if (type && type->IsPrimType()) {
     PrimTypeNode *ptn = static_cast<PrimTypeNode *>(type);
     TypeId tid = ptn->GetPrimType();
-    // mHandler->GetUtil()->SetTypeId(node, tid);
-    mHandler->GetUtil()->SetTypeIdx(node, tid);
+    if (gTypeTable.IsPrimTypeId(tid)) {
+      // mHandler->GetUtil()->SetTypeId(node, tid);
+      mHandler->GetUtil()->SetTypeIdx(node, tid);
+    }
   }
   return node;
 }
@@ -236,7 +238,7 @@ TypeId TypeInferVisitor::MergeTypeId(TypeId tia, TypeId tib) {
     case TY_Function:
     case TY_Array:       result = TY_Merge;  break;
 
-    case TY_Boolean: {
+    case TY_Number: {
       switch (tib) {
         case TY_Int:
         case TY_Long:
@@ -246,9 +248,22 @@ TypeId TypeInferVisitor::MergeTypeId(TypeId tia, TypeId tib) {
       }
       break;
     }
+
+    case TY_Boolean: {
+      switch (tib) {
+        case TY_Int:
+        case TY_Long:
+        case TY_Float:
+        case TY_Double:  result = tib;       break;
+        case TY_Number:  result = tia;       break;
+        default:         result = TY_Merge;  break;
+      }
+      break;
+    }
     case TY_Int: {
       switch (tib) {
-        case TY_Boolean: result = TY_Int;    break;
+        case TY_Number:
+        case TY_Boolean: result = tia;       break;
         case TY_Long:
         case TY_Float:
         case TY_Double:  result = tib;       break;
@@ -258,8 +273,9 @@ TypeId TypeInferVisitor::MergeTypeId(TypeId tia, TypeId tib) {
     }
     case TY_Long: {
       switch (tib) {
+        case TY_Number:
         case TY_Boolean:
-        case TY_Int:     result = TY_Long;   break;
+        case TY_Int:     result = tia;       break;
         case TY_Float:
         case TY_Double:  result = TY_Double; break;
         default:         result = TY_Merge;  break;
@@ -268,8 +284,9 @@ TypeId TypeInferVisitor::MergeTypeId(TypeId tia, TypeId tib) {
     }
     case TY_Float: {
       switch (tib) {
+        case TY_Number:
         case TY_Boolean:
-        case TY_Int:     result = TY_Float;  break;
+        case TY_Int:     result = tia;       break;
         case TY_Long:
         case TY_Double:  result = TY_Double; break;
         default:         result = TY_Merge;  break;
@@ -278,10 +295,11 @@ TypeId TypeInferVisitor::MergeTypeId(TypeId tia, TypeId tib) {
     }
     case TY_Double: {
       switch (tib) {
+        case TY_Number:
         case TY_Boolean:
         case TY_Int:
         case TY_Long:
-        case TY_Double:  result = TY_Double; break;
+        case TY_Double:  result = tia;       break;
         default:         result = TY_Merge;  break;
       }
       break;
@@ -625,7 +643,7 @@ bool TypeInferVisitor::UpdateVarTypeWithInit(TreeNode *var, TreeNode *init) {
   IdentifierNode *idnode = static_cast<IdentifierNode *>(var);
   TreeNode *type = idnode->GetType();
   // use init NewNode to set decl type
-  if (!type && init) {
+  if (init) {
     if (init->IsNew()) {
       NewNode *n = static_cast<NewNode *>(init);
       if (n->GetId()) {
@@ -647,28 +665,39 @@ bool TypeInferVisitor::UpdateVarTypeWithInit(TreeNode *var, TreeNode *init) {
           result = true;
         }
       }
+    } else if (init->IsStructLiteral()) {
+      if (!type && init->GetTypeIdx() != 0) {
+        type = gTypeTable.GetTypeFromTypeIdx(init->GetTypeIdx());
+        UserTypeNode *utype = mInfo->CreateUserTypeNode(type->GetStrIdx(), var->GetScope());
+        utype->SetParent(idnode);
+        idnode->SetType(utype);
+        SetUpdated();
+      }
     } else if (init->IsArrayLiteral()) {
       TypeId tid = GetArrayElemTypeId(init);
       unsigned tidx = GetArrayElemTypeIdx(init);
+      if (type) {
+        if (type->IsArrayType()) {
+          ArrayTypeNode *pat = static_cast<ArrayTypeNode *>(type);
+          // update array element type
+          SetTypeId(pat->GetElemType(), tid);
+          SetTypeIdx(pat->GetElemType(), tidx);
+          SetUpdated();
+        } else {
+          NOTYETIMPL("array type not ArrayTypeNode");
+        }
+        return result;
+      }
+
+      TreeNode *elemtype = NULL;
       if (IsPrimTypeId(tid)) {
-        PrimTypeNode *pt = mHandler->NewTreeNode<PrimTypeNode>();
-        pt->SetPrimType(tid);
-
-        PrimArrayTypeNode *pat = mHandler->NewTreeNode<PrimArrayTypeNode>();
-        pat->SetPrim(pt);
-
-        DimensionNode *dims = mHandler->GetArrayDim(init->GetNodeId());
-        pat->SetDims(dims);
-
-        pat->SetParent(idnode);
-        idnode->SetType(pat);
-        SetUpdated();
+        elemtype = gTypeTable.GetTypeFromTypeId(tid);
       } else if (tidx != 0) {
-        TreeNode *t = gTypeTable.GetTypeFromTypeIdx(tidx);
-        UserTypeNode *utype = mInfo->CreateUserTypeNode(t->GetStrIdx(), var->GetScope());
-
+        elemtype = gTypeTable.GetTypeFromTypeIdx(tidx);
+      }
+      if (elemtype) {
         ArrayTypeNode *pat = mHandler->NewTreeNode<ArrayTypeNode>();
-        pat->SetElemType(utype);
+        pat->SetElemType(elemtype);
 
         DimensionNode *dims = mHandler->GetArrayDim(init->GetNodeId());
         pat->SetDims(dims);
@@ -835,15 +864,13 @@ FieldLiteralNode *TypeInferVisitor::VisitFieldLiteralNode(FieldLiteralNode *node
 ArrayLiteralNode *TypeInferVisitor::VisitArrayLiteralNode(ArrayLiteralNode *node) {
   UpdateTypeId(node, TY_Array);
   (void) AstVisitor::VisitArrayLiteralNode(node);
-  ArrayLiteralNode *al = node;
   if (node->IsArrayLiteral()) {
-    al = static_cast<ArrayLiteralNode *>(node);
-    unsigned size = al->GetLiteralsNum();
+    unsigned size = node->GetLiteralsNum();
     TypeId tid = TY_None;
     unsigned tidx = 0;
     bool allElemArray = true;
     for (unsigned i = 0; i < size; i++) {
-      TreeNode *n = al->GetLiteral(i);
+      TreeNode *n = node->GetLiteral(i);
       TypeId id = n->GetTypeId();
       unsigned idx = n->GetTypeIdx();
       tid = MergeTypeId(tid, id);
@@ -861,9 +888,9 @@ ArrayLiteralNode *TypeInferVisitor::VisitArrayLiteralNode(ArrayLiteralNode *node
       unsigned elemdim = DEFAULTVALUE;
       // recalculate element typeid
       tid = TY_None;
-      unsigned tidx = 0;
+      tidx = 0;
       for (unsigned i = 0; i < size; i++) {
-        TreeNode *n = al->GetLiteral(i);
+        TreeNode *n = node->GetLiteral(i);
         if (n->IsArrayLiteral()) {
           DimensionNode * dn = mHandler->GetArrayDim(n->GetNodeId());
           unsigned currdim = dn ? dn->GetDimensionsNum() : 0;
@@ -1532,14 +1559,26 @@ IdentifierNode *TypeInferVisitor::VisitIdentifierNode(IdentifierNode *node) {
       SetUpdated();
     }
   }
-  if (node->GetInit()) {
+  TreeNode *init = node->GetInit();
+  if (init) {
     if (node->GetTypeId() == TY_None) {
-      SetTypeId(node, node->GetInit()->GetTypeId());
+      SetTypeId(node, init->GetTypeId());
     }
     if (node->GetTypeIdx() == 0) {
-      SetTypeIdx(node, node->GetInit()->GetTypeIdx());
+      SetTypeIdx(node, init->GetTypeIdx());
     }
     SetUpdated();
+    if (init->IsArrayLiteral()) {
+      // pass array element info
+      TypeId tid = mHandler->GetArrayElemTypeId(init->GetNodeId());
+      unsigned tidx = mHandler->GetArrayElemTypeIdx(init->GetNodeId());
+      UpdateArrayElemTypeMap(node, tid, tidx);
+      if (type && type->IsArrayType()) {
+        TreeNode *et = static_cast<ArrayTypeNode *>(type)->GetElemType();
+        et->SetTypeId(tid);
+        et->SetTypeIdx(tidx);
+      }
+    }
     return node;
   }
   TreeNode *parent = node->GetParent();

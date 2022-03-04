@@ -513,6 +513,11 @@ std::string CppDecl::EmitIdentifierNode(IdentifierNode *node) {
 
   if (HasAttrStatic<IdentifierNode>(node))
     str = "static "s + str;
+  else if (auto n = node->GetInit()) {
+    // emit init for non static class field
+    if (node->GetParent() && node->GetParent()->IsClass())
+      str += " = "s + EmitTreeNode(n);
+  }
   return str;
 }
 
@@ -557,9 +562,68 @@ std::string CppDecl::EmitAssertNode(AssertNode *node) {
   return std::string();
 }
 
-std::string CppDecl::EmitArrayLiteralNode(ArrayLiteralNode *node) {
+// Generate code to construct an array of type any from an ArrayLiteral. TODO: merge with similar in cppdef
+std::string CppDecl::ConstructArrayAny(ArrayLiteralNode *node) {
+  if (node == nullptr || !node->IsArrayLiteral())
+    return std::string();
+
+  // Generate array ctor call to instantiate array
+  std::string literals;
+  for (unsigned i = 0; i < node->GetLiteralsNum(); ++i) {
+    if (i)
+      literals += ", "s;
+    if (auto n = node->GetLiteral(i)) {
+      if (n->IsArrayLiteral())
+        // Recurse to handle array elements that are arrays
+        literals += ConstructArrayAny(static_cast<ArrayLiteralNode*>(n));
+      else {
+        // Wrap element in JS_Val. C++ class constructor of JS_Val
+        // will set tupe tag in JS_Val according to element type.
+        literals += "t2crt::JS_Val("s + EmitTreeNode(n) + ")"s;
+      }
+    }
+  }
+  std::string str = ArrayCtorName(1, "t2crt::JS_Val") + "._new({"s + literals + "})"s;
+  return str;
+}
+
+// Generate code to construct an array object with brace-enclosed initializer list TODO: merge with similar in cppdef
+std::string CppDecl::ConstructArray(ArrayLiteralNode *node, int dim, std::string type) {
+  if (type.empty()) {
+    return ConstructArrayAny(node); // proceed as array of type any if no type info
+  }
+  // Generate array ctor call to instantiate array
+  std::string str = ArrayCtorName(dim, type) + "._new({"s;
+  for (unsigned i = 0; i < node->GetLiteralsNum(); ++i) {
+    if (i)
+      str += ", "s;
+    if (auto n = node->GetLiteral(i)) {
+      if (n->IsArrayLiteral())
+        str += ConstructArray(static_cast<ArrayLiteralNode*>(n), dim-1, type);
+      else
+        str += EmitTreeNode(n);
+    }
+  }
+  str += "})"s;
+  return str;
+}
+
+std::string CppDecl::EmitArrayLiteralNode(ArrayLiteralNode *node) { // TODO: merge with similar in cppdef
   if (node == nullptr)
     return std::string();
+  if (node->GetParent() &&
+      node->GetParent()->IsDecl() ||          // for var decl init
+      node->GetParent()->IsIdentifier() ||    // for default val init in class field decl
+      node->GetParent()->IsFieldLiteral()) {  // for obj decl with struct literal init
+    // emit code to construct array object with brace-enclosed initializer list
+    int dim;
+    std::string str, type;
+    GetArrayTypeInfo(node, dim, type);
+    str = ConstructArray(node, dim, type);
+    return str;
+  }
+
+  // emit code to build a brace-enclosed intializer list (for rhs of array var assignment op)
   std::string str("{"s);
   for (unsigned i = 0; i < node->GetLiteralsNum(); ++i) {
     if (i)
@@ -572,27 +636,7 @@ std::string CppDecl::EmitArrayLiteralNode(ArrayLiteralNode *node) {
   return str;
 }
 
-std::string CppDecl::EmitArrayLiteral(ArrayLiteralNode *node, int dim, std::string type) {
-  if (node == nullptr)
-    return std::string();
-
-  // Generate array ctor call to instantiate array
-  std::string str = ArrayCtorName(dim, type) + "._new({"s;
-  for (unsigned i = 0; i < node->GetLiteralsNum(); ++i) {
-    if (i)
-      str += ", "s;
-    if (auto n = node->GetLiteral(i)) {
-      if (n->IsArrayLiteral())
-        str += EmitArrayLiteral(static_cast<ArrayLiteralNode*>(n), dim-1, type);
-      else
-        str += EmitTreeNode(n);
-    }
-  }
-  str += "})"s;
-  return str;
-}
-
-std::string GetArrayTypeString(int dim, std::string typeStr) {
+std::string BuildArrayType(int dim, std::string typeStr) {
   std::string str;
   str = "t2crt::Array<"s + typeStr + ">*"s;;
   for (unsigned i = 1; i < dim; ++i) {
@@ -601,43 +645,21 @@ std::string GetArrayTypeString(int dim, std::string typeStr) {
   return str;
 }
 
-std::string CppDecl::EmitPrimArrayTypeNode(PrimArrayTypeNode *node) {
+std::string CppDecl::EmitArrayTypeNode(ArrayTypeNode *node) {
   if (node == nullptr)
     return std::string();
   std::string str;
-  if (node->GetPrim() && node->GetDims()) {
-    str = GetArrayTypeString(
-      static_cast<DimensionNode*>(node->GetDims())->GetDimensionsNum(),
-      EmitPrimTypeNode(node->GetPrim()));
+
+  if (node->GetElemType() && node->GetDims()) {
+    str = BuildArrayType(
+      node->GetDims()->GetDimensionsNum(),
+      EmitTreeNode(node->GetElemType()));
   }
-  /*
-  if (auto n = node->GetDims()) {
-    str += EmitDimensionNode(n);
-  }
-  */
   return str;
 }
 
 std::string CppDecl::EmitFieldNode(FieldNode *node) {
   return std::string();
-}
-
-// note: entries below are to match values from ast nodes. Do not prepend with "t2crt::"
-std::vector<std::string>builtins = {"Object", "Function", "Number", "Array", "Record"};
-
-bool IsBuiltinObj(std::string name) {
- return std::find(builtins.begin(), builtins.end(), name) != builtins.end();
-}
-
-std::string GetUserTypeString(UserTypeNode* n) {
-  std::string str="";
-  if (n->GetId()->IsTypeIdClass())
-    str = n->GetId()->GetName() + "*"s;
-  else if (IsBuiltinObj(n->GetId()->GetName()))
-    str = "t2crt::"s + n->GetId()->GetName() + "*"s;
-  else // TypeAlias Id
-    str = n->GetId()->GetName();
-  return str;
 }
 
 std::string CppDecl::GetTypeString(TreeNode *node, TreeNode *child) {
@@ -725,11 +747,7 @@ std::string CppDecl::EmitUserTypeNode(UserTypeNode *node) {
     else // TypeAlias Id gets returned here
       usrType = n->GetName();
 
-    if (node->GetDims()) {
-      return GetArrayTypeString(node->GetDims()->GetDimensionsNum(), usrType);
-    } else {
-      str = usrType;
-    }
+    str = usrType; // note: array dimension now come from ArrayTypeNode
     auto num = node->GetTypeGenericsNum();
     if(num) {
       std::string lastChar = "";
@@ -787,26 +805,13 @@ std::string CppDecl::EmitClassNode(ClassNode *node) {
   // class field decl and init. TODO: handle private, protected attrs.
   for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
     auto n = node->GetField(i);
-    if (n->IsIdentifier() && GetIdentifierName(n).compare("private")==0)
-      continue;
     str += "  "s + EmitTreeNode(n);
 
     if (n->IsIdentifier()) {
-      IdentifierNode* id = static_cast<IdentifierNode*>(n);
-      if (HasAttrStatic<IdentifierNode>(id)) {
+      if (HasAttrStatic<IdentifierNode>(static_cast<IdentifierNode*>(n))) {
         // static field - add field to ctor prop and init later at field def in cpp
         staticProps += tab(3) + "this->AddProp(\""s + clsName + "\", t2crt::JS_Val("s +
-          TypeIdToJSTypeCXX[n->GetTypeId()] + ", &"s + clsName + "::"s + id->GetName() + "));\n"s;
-      } else if (auto init = id->GetInit()) {
-        if (init->IsArrayLiteral() && id->GetType() && id->GetType()->IsPrimArrayType()) {
-          // Generate initializer for t2crt::Array member field decl in header file
-          PrimArrayTypeNode* mtype = static_cast<PrimArrayTypeNode *>(id->GetType());
-          str += " = "s + EmitArrayLiteral(static_cast<ArrayLiteralNode*>(init),
-                            mtype->GetDims()->GetDimensionsNum(),
-                            EmitPrimTypeNode(mtype->GetPrim()));
-        } else {
-          str += " = "s + EmitTreeNode(init);
-        }
+          TypeIdToJSTypeCXX[n->GetTypeId()] + ", &"s + clsName + "::"s + GetIdentifierName(n) + "));\n"s;
       }
     }
     str += ";\n";

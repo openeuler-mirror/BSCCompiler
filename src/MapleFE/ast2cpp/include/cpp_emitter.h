@@ -36,6 +36,7 @@ public:
   void InsertEscapes(std::string& str);
   bool IsGenerator(TreeNode *node);
   FunctionNode* GetGeneratorFunc(TreeNode *node);
+  void GetArrayTypeInfo(ArrayLiteralNode* node, int& numDim, std::string& type);
 };
 
 } // namespace maplefe

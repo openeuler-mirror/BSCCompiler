@@ -43,6 +43,7 @@ NODEKIND(AsType)
 NODEKIND(TypeAlias)
 NODEKIND(ConditionalType)  // Conditional types in Typescript
 NODEKIND(TupleType)        // tuple types in Typescript
+NODEKIND(FunctionType)
 
 //
 NODEKIND(Cast)
