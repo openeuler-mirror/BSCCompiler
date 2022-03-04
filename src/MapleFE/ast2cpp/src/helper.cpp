@@ -129,6 +129,11 @@ std::string FunctionClassDecl(std::string retType, std::string funcName, unsigne
   // o if 1st TS func param is "this"
   //   - rename to "_this"
   //   - if type is Any (JS_Val), change to "ts2crt::Object*"
+  //
+  // CPP emitter Handling of "this" in AST:
+  // - if "this" is used as an identifier in functions, cpp emitter renames it to _this
+  // - if "this" is used as an identifier outside functions, cpp emitter rename it to the module obj
+  // - if "this" is used as a string literal, it is left unchanged.
 
   if (funcParams.size() == 0) {
     // TS func has no param. Insert _this for ts2cpp mapping.

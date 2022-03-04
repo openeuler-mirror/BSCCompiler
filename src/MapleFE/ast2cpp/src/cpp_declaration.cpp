@@ -1117,17 +1117,7 @@ std::string CppDecl::EmitLiteralNode(LiteralNode *node) {
   mPrecedence = '\030';
   str = HandleTreeNode(str, node);
   if (auto n = node->GetType()) {
-    if (str.compare("this") == 0) {
-      // handle special literal "this"
-      std::string type = EmitTreeNode(n);
-      if (type.compare("t2crt::JS_Val ") == 0)
-        // map type ANY for "this" to generic object type
-        str = "t2crt::Object* "s + "_this"s;
-      else
-        str = type + " _this";
-    }
-    else
-      str += ": "s + EmitTreeNode(n);
+    str += ": "s + EmitTreeNode(n);
   }
   if (auto n = node->GetInit()) {
     str += " = "s + EmitTreeNode(n);
