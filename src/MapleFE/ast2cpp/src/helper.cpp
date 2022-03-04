@@ -111,14 +111,14 @@ std::string GenClassFldAddProp(std::string objName,
 //   - rename to "_this"
 //   - if type is Any (JS_Val), change to "ts2crt::Object*"
 //
-std::string FunctionParams(unsigned nodeId, bool handleThis, bool argsOnly) {
+std::string FunctionParams(unsigned nodeId, bool handleThis, bool argsOnly, bool byRef) {
   std::vector<std::pair<std::string, std::string>> funcParams = hFuncTable.GetArgInfo(nodeId);
   std::string ObjT = "t2crt::Object*";
   std::string str;
 
   if (handleThis) {
     if (funcParams.size() == 0)          // func has no param
-      return argsOnly? "_this"s: (ObjT + " _this");
+      return argsOnly ? "_this"s : (ObjT + " _this");
   }
 
   for (bool first=true; auto elem : funcParams) {
@@ -137,7 +137,7 @@ std::string FunctionParams(unsigned nodeId, bool handleThis, bool argsOnly) {
       }
       first = false;
     }
-    str += argsOnly? name: (type + " "s + name);
+    str += argsOnly? name: (type + (byRef?"\&":"") +  " "s + name);
   }
   return str;
 }
@@ -156,19 +156,15 @@ std::string FunctionParams(unsigned nodeId, bool handleThis, bool argsOnly) {
 //       per TS/JS spec.
 
 std::string FunctionClassDecl(std::string retType, std::string funcName, unsigned nodeId) {
-  std::vector<std::pair<std::string, std::string>> funcParams = hFuncTable.GetArgInfo(nodeId);
-  std::string args, params;
-  std::string t2cObjType = "t2crt::Object*";
-  std::string thisType = t2cObjType;
+  std::string str, args, params, thisType;
 
+  std::string clsName = ClsName(funcName);
   params = FunctionParams(nodeId, true, false);
   args   = FunctionParams(nodeId, true, true);
-  thisType = params.substr(0, params.find(" "));
+  thisType = params.substr(0, params.find(" "));  // extract return type of "this" parameter
 
-  std::string str;
-  std::string clsName = ClsName(funcName);
-  std::string functorArgs = args;
   std::string functorParams = params;
+  std::string functorArgs   = args;
   functorArgs.replace(0, 5, "_thisArg"); // replace _this with _thisArg
   size_t pos;
   if ((pos = functorParams.find("_this, ")) != std::string::npos)
@@ -202,22 +198,10 @@ class )""" + clsName + R"""( : public t2crt::Function {
 
 // build generator function header for _body
 std::string GeneratorFuncHeader(std::string prefix, unsigned nodeId) {
-  std::string refArgs;
-  std::vector<std::pair<std::string, std::string>> args = hFuncTable.GetArgInfo(nodeId);
-
-  // build parameter list
-  for (bool hasArg=false; auto elem : args) {
-    if (!hasArg)
-      hasArg = true;
-    else
-      refArgs     += ", ";
-    std::string type = elem.first, name = elem.second;
-    refArgs     += type + "& "+ name; // pass all parameters by reference
-  }
-  if (!refArgs.empty())
-    refArgs = ", " + refArgs;
-  // return func header
-  return "t2crt::IteratorResult " + prefix + "_body(t2crt::Object* _this, void*& yield" + refArgs + ")";
+  std::string params = FunctionParams(nodeId, false, false, true); // pass params by ref into _body()
+  if (!params.empty())
+    params = ", " + params;
+  return "t2crt::IteratorResult " + prefix + "_body(t2crt::Object* _this, void*& yield" + params + ")";
 }
 
 // Template for generating Generators and Generator Functions:
@@ -286,25 +270,17 @@ public:
 }
 
 std::string GeneratorClassDef(std::string ns, std::string funcName, unsigned nodeId) {
-  std::string str, params, ctorArgs, functorArgs;
+  std::string str;
   std::string generatorName = ns + GeneratorName(funcName);
   std::string generatorFuncName = ns + GeneratorFuncName(funcName);
-  std::vector<std::pair<std::string, std::string>> args = hFuncTable.GetArgInfo(nodeId);
 
   if (!ns.empty())
     funcName = ns + "::" + funcName;
-  for (bool hasArg=false; auto elem : args) {
-    if (!hasArg)
-      hasArg = true;
-    else {
-      functorArgs += ", "s;
-      params += ", "s;
-    }
-    functorArgs += elem.first + " " + elem.second;  //1st=type 2nd=name
-    params += " " + elem.second;
-  }
-  ctorArgs = functorArgs.empty()? std::string(): (", "s + functorArgs);
-  params = params.empty()? std::string(): (", "s + params);
+
+  std::string params = FunctionParams(nodeId, false, false);
+  std::string args   = FunctionParams(nodeId, false, true);
+  if (!args.empty())
+    args = ", " + args;
 
   str = R"""(
 t2crt::IteratorResult )""" + generatorName + R"""(::_next(t2crt::JS_Val* arg) {
@@ -316,14 +292,14 @@ t2crt::IteratorResult )""" + generatorName + R"""(::_next(t2crt::JS_Val* arg) {
   }
 
   // iterate by calling generation function with captures in generator
-  res = foo->_body(this, _yield)""" + params + R"""();
+  res = foo->_body(this, _yield)""" + args + R"""();
   if (res._done == true)
     _finished = true;
   return res;
 }
 
-)""" + generatorName + "* "s + generatorFuncName + R"""(::operator()()""" + functorArgs + R"""() {
-  return new )""" + generatorName + R"""((&t2crt::Generator, foo->prototype)""" + params + R"""();
+)""" + generatorName + "* "s + generatorFuncName + R"""(::operator()()""" + params + R"""() {
+  return new )""" + generatorName + R"""((&t2crt::Generator, foo->prototype)""" + args + R"""();
 }
 
 )""";
