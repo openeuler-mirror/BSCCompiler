@@ -1239,7 +1239,7 @@ std::string CppDef::GetThisParamObjType(TreeNode *node) {
   std::string str = "t2crt::Object";
   if (static_cast<FunctionNode*>(node)->GetParamsNum()) {
     auto n = static_cast<FunctionNode*>(node)->GetParam(0);
-    if (n->IsIdentifier() && n->IsThis()) {
+    if (n->IsThis()) {
       TreeNode* tn = static_cast<IdentifierNode*>(n)->GetType();
       str = mCppDecl.GetTypeString(tn, nullptr);
       if (str.back() == '*')
@@ -1283,6 +1283,7 @@ std::string CppDef::EmitNewNode(NewNode *node) {
         str = fnName + "->ctor("s + newObj + ", "s;  // call ctor function with new obj as this arg
       }
     } else {
+      // for builtins
       str = "new "s + EmitTreeNode(node->GetId());
       str += "("s;
     }
