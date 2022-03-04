@@ -188,14 +188,6 @@ std::string CppDef::EmitXXportAsPairNode(XXportAsPairNode *node) {
   return std::string();
 }
 
-// Return class name from class method or class field
-inline std::string GetClassName(TreeNode* node) {
-  TreeNode* n = node->GetParent();
-  if (n && n->IsClass())
-    return n->GetName();
-  return ""s;
-}
-
 inline bool IsClassMethod(FunctionNode* f) {
   return (f && f->GetParent() && f->GetParent()->IsClass());
 }
@@ -266,53 +258,14 @@ std::string CppDef::EmitFuncScopeVarDecls(FunctionNode *node) {
 }
 
 std::string CppDef::EmitFunctionNode(FunctionNode *node) {
-  bool isTopLevel = hFuncTable.IsTopLevelFunc(node);
   if (mIsInit || node == nullptr)
     return std::string();
 
-  std::string str, className, ns = GetNamespace(node);
-  if (!ns.empty())
-    ns += "::"s;
+  bool isTopLevel = hFuncTable.IsTopLevelFunc(node);
+  std::string str;
+  str += "\n";
+  str += FunctionHeader(node, mCppDecl.GetTypeString(node->GetType(), node->GetType()));
 
-  if (node->IsGenerator()) {
-    // TODO
-  }
-  if (node->IsConstructor()) {
-    className = ns + GetClassName(node);
-    str = "\n"s;
-    str += className + "* "s + className + "::Ctor::operator()("s + className + "* obj"s;
-  } else {
-    str = mCppDecl.GetTypeString(node->GetType(), node->GetType());
-    std::string funcName = GetIdentifierName(node);
-    str += " "s;
-
-    if (IsClassMethod(node))
-      str += ns + GetClassName(node) + "::"s + funcName;
-    else if (isTopLevel)
-      str += ns + "Cls_"s + funcName + "::_body"s; // emit body of top level function
-    else
-      str += ns + funcName;
-    str += "("s;
-  }
-
-  std::string params, unused;
-  for (unsigned i = 0; i < node->GetParamsNum(); ++i) {
-    if (i || node->IsConstructor())
-      params += ", "s;
-    if (auto n = node->GetParam(i)) {
-      params += mCppDecl.EmitTreeNode(n);
-      if (isTopLevel && i == 0) {
-        HandleThisParam(node->GetParamsNum(), n, params, unused);
-      }
-    }
-  }
-
-  if (isTopLevel && !IsClassMethod(node)) {
-    if (node->GetParamsNum() == 0) {
-      HandleThisParam(0, nullptr, params, unused);
-    }
-  }
-  str += params + ") "s;
   int bodyPos = str.size();
   if (auto n = node->GetBody()) {
     auto varDecls = EmitFuncScopeVarDecls(node);

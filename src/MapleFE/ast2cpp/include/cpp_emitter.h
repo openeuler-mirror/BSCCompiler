@@ -37,6 +37,8 @@ public:
   bool IsGenerator(TreeNode *node);
   FunctionNode* GetGeneratorFunc(TreeNode *node);
   void GetArrayTypeInfo(ArrayLiteralNode* node, int& numDim, std::string& type);
+  std::string FunctionHeader(FunctionNode* node, std::string retType);
+  std::string GetClassName(TreeNode* node);
 };
 
 } // namespace maplefe

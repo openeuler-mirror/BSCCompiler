@@ -44,11 +44,12 @@ extern std::string GenAnonFuncName(TreeNode* node);
 inline std::string ClsName(std::string func) { return "Cls_"s + func; }
 inline std::string GeneratorName(std::string func) { return "Generator_"s + func; }
 inline std::string GeneratorFuncName(std::string func) { return "GeneratorFunc_"s + func; }
-extern void HandleThisParam(unsigned nParams, TreeNode* node, std::string& params, std::string&args);
 extern std::string hlpGetJSValTypeStr(TypeId typeId);
 extern std::string ArrayCtorName(int dim, std::string type);
 extern bool IsBuiltinObj(std::string name);
 extern std::string ObjectTypeStr(std::string name);
+extern std::string GeneratorFuncHeader(std::string prefix, unsigned nodeId);
+extern std::string FunctionParams(unsigned nodeId, bool handleThis, bool argsOnly = false);
 
 class FuncTable {
 private:
