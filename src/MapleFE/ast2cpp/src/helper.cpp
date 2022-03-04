@@ -95,6 +95,53 @@ std::string GenClassFldAddProp(std::string objName,
   return str;
 }
 
+// TS function paramteri mapping to C++:
+//
+// TS2cpp's C++ mapping for TS func has a "this" obj in the c++ func param list
+// which will be generated from AST if "this" is declared as a TS func parameter
+// as required by TS strict mode. However TS funcs that do not reference 'this'
+// are not required to declare it, in which case emitter has to insert one.
+//
+// Cases:
+// if TS func has no param
+//   - insert param "ts2crt::Object* _this"
+// if 1st TS func param is not "this"
+//   - insert param "ts2crt::Object* _this"
+// if 1st TS func param is "this"
+//   - rename to "_this"
+//   - if type is Any (JS_Val), change to "ts2crt::Object*"
+//
+std::string FunctionParams(unsigned nodeId, bool handleThis, bool argsOnly) {
+  std::vector<std::pair<std::string, std::string>> funcParams = hFuncTable.GetArgInfo(nodeId);
+  std::string ObjT = "t2crt::Object*";
+  std::string str;
+
+  if (handleThis) {
+    if (funcParams.size() == 0)          // func has no param
+      return argsOnly? "_this"s: (ObjT + " _this");
+  }
+
+  for (bool first=true; auto elem : funcParams) {
+    std::string type = elem.first, name = elem.second;
+    if (!first)
+      str += ", "s;
+    else {                              // 1st param of TS func
+      if (handleThis) {
+        if (name.compare("this") != 0)  // if not "this", insert _this
+          str += argsOnly? ("_this, "s): (ObjT + " _this, "s);
+        else {                          // if "this"
+          name = "_this";
+          if (type.compare("t2crt::JS_Val") == 0)
+            type = ObjT;                // change type Any to Object*
+        }
+      }
+      first = false;
+    }
+    str += argsOnly? name: (type + " "s + name);
+  }
+  return str;
+}
+
 // Each first level function is instantiated from a corresponding class generated with interfaces below:
 //   Body  - user defined function code
 //   ()    - functor for OrdinaryCallEvaluteBody [9.2.1.3]
@@ -114,55 +161,10 @@ std::string FunctionClassDecl(std::string retType, std::string funcName, unsigne
   std::string t2cObjType = "t2crt::Object*";
   std::string thisType = t2cObjType;
 
-  // Map TS function paramters to C++ interface args and params:
-  //
-  // TS2cpp's C++ mapping for TS func has a "this" obj in the c++ func param list
-  // which will be generated from AST if "this" is declared as a TS func parameter
-  // as required by TS strict mode. However TS funcs that do not reference 'this'
-  // are not required to declare it, in which case emitter has to insert one.
-  //
-  // Cases:
-  // o if TS func has no param
-  //   - insert param "ts2crt::Object* _this"
-  // o if 1st TS func param is not "this"
-  //   - insert param "ts2crt::Object* _this"
-  // o if 1st TS func param is "this"
-  //   - rename to "_this"
-  //   - if type is Any (JS_Val), change to "ts2crt::Object*"
-  //
-  // CPP emitter Handling of "this" in AST:
-  // - if "this" is used as an identifier in functions, cpp emitter renames it to _this
-  // - if "this" is used as an identifier outside functions, cpp emitter rename it to the module obj
-  // - if "this" is used as a string literal, it is left unchanged.
+  params = FunctionParams(nodeId, true, false);
+  args   = FunctionParams(nodeId, true, true);
+  thisType = params.substr(0, params.find(" "));
 
-  if (funcParams.size() == 0) {
-    // TS func has no param. Insert _this for ts2cpp mapping.
-    params += t2cObjType + " "s + "_this"s;
-    args   += "_this"s;
-  }
-  for (bool firstParam=true; auto elem : funcParams) {
-    std::string type = elem.first, name = elem.second;
-    if (!firstParam) {  // not 1st param
-      params+= ", "s;
-      args  += ", "s;
-    } else {            // 1st param of TS func
-      firstParam = false;
-      if (name.compare("this") != 0) {
-        // 1st TS param not "this" - insert _this parameter
-        params += t2cObjType + " "s + "_this"s + ", "s;
-        args   += "_this"s + ", "s;
-        thisType = t2cObjType;
-      } else {
-        // 1st TS param is "this" - change to "_this"
-        name = "_this";
-        if (type.compare("t2crt::JS_Val") == 0)
-          type = t2cObjType; // change type Any to Object*
-        thisType = type;
-      }
-    }
-    params += type + " "s + name;
-    args   += name;
-  }
   std::string str;
   std::string clsName = ClsName(funcName);
   std::string functorArgs = args;
@@ -196,6 +198,26 @@ class )""" + clsName + R"""( : public t2crt::Function {
 
 )""";
   return str;
+}
+
+// build generator function header for _body
+std::string GeneratorFuncHeader(std::string prefix, unsigned nodeId) {
+  std::string refArgs;
+  std::vector<std::pair<std::string, std::string>> args = hFuncTable.GetArgInfo(nodeId);
+
+  // build parameter list
+  for (bool hasArg=false; auto elem : args) {
+    if (!hasArg)
+      hasArg = true;
+    else
+      refArgs     += ", ";
+    std::string type = elem.first, name = elem.second;
+    refArgs     += type + "& "+ name; // pass all parameters by reference
+  }
+  if (!refArgs.empty())
+    refArgs = ", " + refArgs;
+  // return func header
+  return "t2crt::IteratorResult " + prefix + "_body(t2crt::Object* _this, void*& yield" + refArgs + ")";
 }
 
 // Template for generating Generators and Generator Functions:
@@ -318,29 +340,6 @@ std::string tab(int n) {
 
 std::string GenAnonFuncName(TreeNode* node) {
   return "_anon_func_"s + std::to_string(node->GetNodeId());
-}
-
-// Check 1st param of top level function for "this" and do substitution.
-void HandleThisParam(unsigned nParams, TreeNode* node, std::string& params, std::string&args) {
-  if (nParams == 0) {
-    // ts2cpp's C++ mapping for TS func has a "this" obj in the c++ func param list
-    // which will be generated from AST if "this" is declared as a TS func parameter
-    // as required by TS strict mode. However TS funcs that do not reference 'this'
-    // are not required to declare it, so emitter has to check and insert one.
-    params = "t2crt::Object* _this"s;
-    args = "_this"s;
-    return;
-  }
-
-  if (node->IsThis()) {
-    args = "_this";
-    Emitter::Replace(params, "this", "_this"); // change this to _this to avoid c++ keyword
-    Emitter::Replace(params, "t2crt::JS_Val", "t2crt::Object*"); // change type any (JS_Val) to Object* per ts2cpp func mapping to C++ interface
-  } else {
-    // if 1st func param is not "this", insert one to work with c++ mapping for TS func
-    args = "_this, "s + args;
-    params = "t2crt::Object* _this, "s + params;
-  }
 }
 
 // return array constructor name of given type

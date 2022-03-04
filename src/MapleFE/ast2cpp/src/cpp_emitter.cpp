@@ -205,4 +205,41 @@ void CppEmitter::GetArrayTypeInfo(ArrayLiteralNode* node, int& numDim, std::stri
 #endif
 }
 
+// C++ function header for different TS function types:
+//   Generator:    t2crt::IteratorResult [<ns>::]GeneratorFunc_<function>::_body(t2crt::Object* _this, void*& yield[, &<params>]...)
+//   Class ctor:   [<ns>::]<class>* <class>::Ctor::operator()(<class>* obj[, <params>]...)
+//   Class method: <retType> [<ns>::]<class>::<function>([params]...)
+//   Function:     <retType> [<ns>::]Cls_<function>::_body(t2crt::Object|<object>* _this[, params]...)
+std::string CppEmitter::FunctionHeader(FunctionNode* node, std::string retType) {
+  std::string str;
+  std::string ns = GetNamespace(node).empty() ? ""s : GetNamespace(node)+"::";
+  std::string funcName = GetIdentifierName(node);
+  std::string className= ns + GetClassName(node);
+  bool isTopLevel = hFuncTable.IsTopLevelFunc(node);
+  retType = retType + " "s + ns;
+
+  if (node->IsGenerator())                     // generator
+    str += GeneratorFuncHeader(ns+GeneratorFuncName(funcName)+"::", node->GetNodeId());
+  else if (node->IsConstructor()) {            // class constructor
+    std::string param = FunctionParams(node->GetNodeId(), false);
+    param = param.empty() ? ""s : (", "s+param);
+    str += className + "* "s + className + "::Ctor::operator()" + "(" +className+ "* obj" +param+ ") ";
+  }
+  else if (IsClassMethod(node))                // class method
+    str += retType + GetClassName(node) + "::" + funcName + "(" + FunctionParams(node->GetNodeId(), false) + ") ";
+  else if (isTopLevel)                         // top level function
+    str += retType + "Cls_" + funcName + "::_body" + "(" + FunctionParams(node->GetNodeId(), true) + ") ";
+  else
+    str += retType + funcName + "(" + FunctionParams(node->GetNodeId(), false) + ") ";
+  return str;
+}
+
+// Return class name from class method or class field
+std::string CppEmitter::GetClassName(TreeNode* node) {
+  TreeNode* n = node->GetParent();
+  if (n && n->IsClass())
+    return n->GetName();
+  return ""s;
+}
+
 } // namespace maplefe

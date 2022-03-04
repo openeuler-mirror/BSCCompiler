@@ -383,11 +383,11 @@ namespace )""" + module + R"""( {
     TreeNode *node = func->GetFuncNode();
     std::string funcName = GetIdentifierName(node);
 
+    CollectFuncArgInfo(node);
     if (!IsClassMethod(node)) {
       std::string ns = GetNamespace(node);
       if (!ns.empty())
         str += "namespace "s + ns + " {\n"s;
-      CollectFuncArgInfo(node);
       bool isGenerator = static_cast<FunctionNode*>(node)->IsGenerator();
       std::string generatorClassDef;
       if (isGenerator) {
