@@ -29,7 +29,14 @@ class X64CG : public CG {
  public:
   X64CG(MIRModule &mod, const CGOptions &opts) : CG(mod, opts) {}
 
-  static const X64MD kMd[x64::kMopLast];
+  static const InsnDescription kMd[x64::kMopLast];
+  enum : uint8 {
+    kR8LowList,
+    kR8HighList,
+    kR16List,
+    kR32List,
+    kR64List
+  };
   void EnrollTargetPhases(MaplePhaseManager *pm) const override;
   /* Init SubTarget phase */
   /*LiveAnalysis *CreateLiveAnalysis(MemPool &mp, CGFunc &f) const override;

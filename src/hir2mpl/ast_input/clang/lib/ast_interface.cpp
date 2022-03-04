@@ -489,7 +489,7 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recoType, std::stringstre
     }
     auto nameStr = recoDecl->getName().str();
     if (nameStr.empty()) {
-      nameStr = GetTypedefNameFromUnnamedStruct(recoType);
+      nameStr = GetTypedefNameFromUnnamedStruct(*recoDecl);
     }
     if (nameStr.empty()) {
       uint32_t id = recoType.getDecl()->getLocation().getRawEncoding();
@@ -507,19 +507,11 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recoType, std::stringstre
   }
 }
 
-std::string LibAstFile::GetTypedefNameFromUnnamedStruct(const clang::RecordType &recoType) {
-  clang::RecordDecl *recoDecl = recoType.getDecl();
-  // TypedefDecl is next node in RecordDecl for the unnamed struct, e.g. typedef struct {} foo;
-  auto *decl = recoDecl->getNextDeclInContext();
-  if (decl != nullptr) {
-    auto *tt = llvm::dyn_cast<clang::TypedefDecl>(decl);
-    if (tt != nullptr) {
-      clang::QualType underlyCanonicalTy = tt->getCanonicalDecl()->getUnderlyingType().getCanonicalType();
-      const auto *underlyRecordType = llvm::cast<clang::RecordType>(underlyCanonicalTy);
-      if (&recoType == underlyRecordType) {
-        return tt->getQualifiedNameAsString();
-      }
-    }
+// get TypedefDecl name for the unnamed struct, e.g. typedef struct {} foo;
+std::string LibAstFile::GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl) {
+  auto *defnameDcel = recoDecl.getTypedefNameForAnonDecl();
+  if (defnameDcel != nullptr) {
+    return defnameDcel->getQualifiedNameAsString();
   }
   return std::string();
 }

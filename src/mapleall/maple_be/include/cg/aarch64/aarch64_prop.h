@@ -293,11 +293,11 @@ protected:
 
 private:
   void SelectExtendOrShift(const Insn &def);
-  bool CheckDefUseInfo(uint32 size);
   SuffixType CheckOpType(const Operand &lastOpnd) const;
   void ReplaceUseInsn(Insn &use, const Insn &def, uint32 amount);
   void SetExMOpType(const Insn &use);
   void SetLsMOpType(const Insn &use);
+  Insn *FindDefInsn(VRegVersion *useVersion);
 
   MOperator replaceOp;
   uint32 replaceIdx;

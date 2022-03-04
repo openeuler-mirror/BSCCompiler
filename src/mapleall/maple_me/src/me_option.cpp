@@ -31,7 +31,7 @@ unsigned long MeOption::range[kRangeArrayLen] = { 0, 0 };
 bool MeOption::useRange = false;
 bool MeOption::quiet = false;
 bool MeOption::setCalleeHasSideEffect = false;
-bool MeOption::steensgaardAA = true;
+bool MeOption::unionBasedAA = true;
 bool MeOption::tbaa = true;
 bool MeOption::ddaa = true;
 uint8 MeOption::aliasAnalysisLevel = 3;
@@ -154,7 +154,7 @@ enum OptionIndex {
   kMeSkipFrom,
   kMeSkipAfter,
   kSetCalleeHasSideEffect,
-  kSteensgaardAA,
+  kUnionBasedAA,
   kTBAA,
   kDDAA,
   kAliasAnalysisLevel,
@@ -421,16 +421,16 @@ const Descriptor kUsage[] = {
     "  --no-setCalleeHasSideEffect \tNot set all the callees have side effect\n",
     "me",
     {} },
-  { kSteensgaardAA,
-    kEnable,
-    "",
-    "steens-aa",
-    kBuildTypeExperimental,
-    kArgCheckPolicyBool,
-    "  --steens-aa                 \tEnable Steensgaard-style alias analysis\n"
-    "  --no-steens-aa              \tDisable Steensgaard-style alias analysis\n",
-    "me",
-    {} },
+  {kUnionBasedAA,
+   kEnable,
+   "",
+   "ubaa",
+   kBuildTypeExperimental,
+   kArgCheckPolicyBool,
+    "  --ubaa                      \tEnable UnionBased alias analysis\n"
+    "  --no-ubaa                   \tDisable UnionBased alias analysis\n",
+   "me",
+   {} },
   { kTBAA,
     kEnable,
     "",
@@ -459,8 +459,8 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyRequired,
     "  --aliasAnalysisLevel        \tSet level of alias analysis. \n"
     "                              \t0: most conservative;\n"
-    "                              \t1: Steensgaard-style alias analysis; 2: type-based alias analysis;\n"
-    "                              \t3: Steensgaard-style and type-based alias analysis\n"
+    "                              \t1: Union-based alias analysis; 2: type-based alias analysis;\n"
+    "                              \t3: Union-based and type-based alias analysis\n"
     "                              \t--aliasAnalysisLevel=NUM\n",
     "me",
     {} },
@@ -1435,8 +1435,8 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
       case kSetCalleeHasSideEffect:
         setCalleeHasSideEffect = (opt.Type() == kEnable);
         break;
-      case kSteensgaardAA:
-        steensgaardAA = (opt.Type() == kEnable);
+      case kUnionBasedAA:
+        unionBasedAA = (opt.Type() == kEnable);
         break;
       case kTBAA:
         tbaa = (opt.Type() == kEnable);
@@ -1453,22 +1453,22 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         switch (aliasAnalysisLevel) {
           case kLevelThree:
             setCalleeHasSideEffect = false;
-            steensgaardAA = true;
+            unionBasedAA = true;
             tbaa = true;
             break;
           case kLevelZero:
             setCalleeHasSideEffect = true;
-            steensgaardAA = false;
+            unionBasedAA = false;
             tbaa = false;
             break;
           case kLevelOne:
             setCalleeHasSideEffect = false;
-            steensgaardAA = true;
+            unionBasedAA = true;
             tbaa = false;
             break;
           case kLevelTwo:
             setCalleeHasSideEffect = false;
-            steensgaardAA = false;
+            unionBasedAA = false;
             tbaa = true;
             break;
           default:
@@ -1477,7 +1477,7 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         if (isDebug) {
           LogInfo::MapleLogger() << "--sub options: setCalleeHasSideEffect "
                                  << setCalleeHasSideEffect << '\n';
-          LogInfo::MapleLogger() << "--sub options: steens-aa " << steensgaardAA << '\n';
+          LogInfo::MapleLogger() << "--sub options: ubaa " << unionBasedAA << '\n';
           LogInfo::MapleLogger() << "--sub options: tbaa " << tbaa << '\n';
         }
         break;

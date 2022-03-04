@@ -721,10 +721,7 @@ bool A64StrLdrProp::CheckNewMemOffset(const Insn &insn, AArch64MemOperand *newMe
 void AArch64Prop::PropPatternOpt() {
   PropOptimizeManager optManager(*cgFunc, GetSSAInfo());
   optManager.Optimize<ExtendMovPattern>();
-  /* need peephole optimize */
-  if (CGOptions::GetInstance().GetOptimizeLevel() < 0) {
-    optManager.Optimize<ExtendShiftPattern>();
-  }
+  optManager.Optimize<ExtendShiftPattern>();
   optManager.Optimize<FpSpConstProp>();
 }
 
@@ -899,33 +896,6 @@ void ExtendShiftPattern::SelectExtendOrShift(const Insn &def) {
   }
 }
 
-/* first use must match SelectExtendOrShift */
-bool ExtendShiftPattern::CheckDefUseInfo(uint32 size) {
-  auto &regOperand = static_cast<AArch64RegOperand&>(defInsn->GetOperand(kInsnFirstOpnd));
-  Operand &defSrcOpnd = defInsn->GetOperand(kInsnSecondOpnd);
-  CHECK_FATAL(defSrcOpnd.IsRegister(), "defSrcOpnd must be register!");
-  auto &regDefSrc = static_cast<AArch64RegOperand&>(defSrcOpnd);
-  if (regDefSrc.IsPhysicalRegister()) {
-    return false;
-  }
-  regno_t defSrcRegNo = regDefSrc.GetRegisterNumber();
-  /* check regDefSrc */
-  Insn *defSrcInsn = nullptr;
-  VRegVersion *useVersion = optSsaInfo->FindSSAVersion(defSrcRegNo);
-  CHECK_FATAL(useVersion != nullptr, "useVRegVersion must not be null based on ssa");
-  DUInsnInfo *defInfo = useVersion->GetDefInsnInfo();
-  if (defInfo == nullptr) {
-    return false;
-  }
-  defSrcInsn = defInfo->GetInsn();
-
-  const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(defSrcInsn)->GetMachineOpcode()];
-  if ((size != regOperand.GetSize()) && md->IsMove()) {
-    return false;
-  }
-  return true;
-}
-
 /* Optimize ExtendShiftPattern:
  * ==========================================================
  *           nosuffix  LSL   LSR   ASR      extrn   (def)
@@ -1093,6 +1063,17 @@ void ExtendShiftPattern::DoExtendShiftOpt(Insn &insn) {
   }
 }
 
+Insn *ExtendShiftPattern::FindDefInsn(VRegVersion *useVersion) {
+  if (!useVersion) {
+    return nullptr;
+  }
+  DUInsnInfo *defInfo = useVersion->GetDefInsnInfo();
+  if (!defInfo) {
+    return nullptr;
+  }
+  return defInfo->GetInsn();
+}
+
 /* check and set:
  * exMOpType, lsMOpType, extendOp, shiftOp, defInsn
  */
@@ -1105,14 +1086,10 @@ bool ExtendShiftPattern::CheckCondition(Insn &insn) {
   auto &regOperand = static_cast<AArch64RegOperand&>(insn.GetOperand(replaceIdx));
   regno_t regNo = regOperand.GetRegisterNumber();
   VRegVersion *useVersion = optSsaInfo->FindSSAVersion(regNo);
-  if (useVersion == nullptr) {
+  defInsn = FindDefInsn(useVersion);
+  if (!defInsn || (useVersion->GetAllUseInsns().size() > 1)) {
     return false;
   }
-  DUInsnInfo *defInfo = useVersion->GetDefInsnInfo();
-  if (defInfo == nullptr) {
-    return false;
-  }
-  defInsn = defInfo->GetInsn();
   SelectExtendOrShift(*defInsn);
   if (useVersion->HasImplicitCvt() && shiftOp != BitShiftOperand::kUndef) {
     return false;
@@ -1121,7 +1098,20 @@ bool ExtendShiftPattern::CheckCondition(Insn &insn) {
   if ((extendOp == ExtendShiftOperand::kUndef) && (shiftOp == BitShiftOperand::kUndef)) {
     return false;
   }
-  return CheckDefUseInfo(regOperand.GetSize());
+  Operand &defSrcOpnd = defInsn->GetOperand(kInsnSecondOpnd);
+  CHECK_FATAL(defSrcOpnd.IsRegister(), "defSrcOpnd must be register!");
+  auto &regDefSrc = static_cast<AArch64RegOperand&>(defSrcOpnd);
+  if (regDefSrc.IsPhysicalRegister()) {
+    return false;
+  }
+  regno_t defSrcRegNo = regDefSrc.GetRegisterNumber();
+  /* check regDefSrc */
+  VRegVersion *replaceUseV = optSsaInfo->FindSSAVersion(defSrcRegNo);
+  CHECK_FATAL(replaceUseV != nullptr, "useVRegVersion must not be null based on ssa");
+  if (replaceUseV->GetAllUseInsns().size() > 1) {
+    return false;
+  }
+  return true;
 }
 
 void ExtendShiftPattern::Init() {
@@ -1129,8 +1119,8 @@ void ExtendShiftPattern::Init() {
   extendOp = ExtendShiftOperand::kUndef;
   shiftOp = BitShiftOperand::kUndef;
   defInsn = nullptr;
-  replaceIdx = kInsnThirdOpnd;
   newInsn = nullptr;
+  replaceIdx = kInsnThirdOpnd;
   optSuccess = false;
   exMOpType = kExUndef;
   lsMOpType = kLsUndef;

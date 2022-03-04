@@ -3693,9 +3693,19 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
         if (updateSSAExceptTheScalarExpr->GetDefBy() == kDefByStmt) {
           // PredOpnd is only used by condGoto stmt and phi, if the condGoto stmt can be deleted, need not update ssa
           // of predOpnd and the def point of predOpnd can be deleted.
-          updateSSAExceptTheScalarExpr->GetDefStmt()->GetBB()->RemoveMeStmt(
-              updateSSAExceptTheScalarExpr->GetDefStmt());
-          updateSSAExceptTheScalarExpr->SetDefBy(kDefByNo);
+          phiOpnds.at(indexOfOpnd - 1) = nullptr;
+          bool opndIsRemovedFromPhi = true;
+          for (auto &temp : phiOpnds) {
+            if (temp == updateSSAExceptTheScalarExpr) {
+              opndIsRemovedFromPhi = false;
+              break;
+            }
+          }
+          if (opndIsRemovedFromPhi) {
+            updateSSAExceptTheScalarExpr->GetDefStmt()->GetBB()->RemoveMeStmt(
+                updateSSAExceptTheScalarExpr->GetDefStmt());
+            updateSSAExceptTheScalarExpr->SetDefBy(kDefByNo);
+          }
         }
       }
       opt = true;

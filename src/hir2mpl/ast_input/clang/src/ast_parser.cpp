@@ -2248,8 +2248,11 @@ ASTDecl *ASTParser::ProcessDeclRecordDecl(MapleAllocator &allocator, const clang
   astFile->CollectRecordAttrs(recDecl, attrs, kNone);
   std::string structName = recName.str();
   if (structName.empty() || !ASTUtil::IsValidName(structName)) {
-    uint32 id = qType->getAs<clang::RecordType>()->getDecl()->getLocation().getRawEncoding();
-    structName = astFile->GetOrCreateMappedUnnamedName(id);
+    structName = astFile->GetTypedefNameFromUnnamedStruct(recDecl);
+    if (structName.empty()) {
+      uint32 id = qType->getAs<clang::RecordType>()->getDecl()->getLocation().getRawEncoding();
+      structName = astFile->GetOrCreateMappedUnnamedName(id);
+    }
   } else if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
     structName = structName + astFile->GetAstFileNameHashStr();
   }
