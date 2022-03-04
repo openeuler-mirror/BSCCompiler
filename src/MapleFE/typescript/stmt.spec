@@ -94,6 +94,8 @@ rule KeywordIdentifier : ONEOF("type",
                                "throw",
                                "class",
                                "unknown",
+                               "if",
+                               "try",
                                "do",
                                "for")
 ## "
