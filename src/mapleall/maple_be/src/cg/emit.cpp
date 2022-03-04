@@ -2434,7 +2434,9 @@ void Emitter::EmitGlobalVariable() {
         } else {
           EmitAsmLabel(*mirSymbol, kAsmGlbl);
         }
-        EmitAsmLabel(*mirSymbol, kAsmHidden);
+        if(theMIRModule->IsJavaModule()) {
+          EmitAsmLabel(*mirSymbol, kAsmHidden);
+        }
       } else if (mirSymbol->GetStorageClass() == kScFstatic) {
         if (mirSymbol->sectionAttr == UStrIdx(0)) {
           EmitAsmLabel(*mirSymbol, kAsmLocal);
@@ -3440,8 +3442,8 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
           TyIdx fieldtyidx = sty->GetFieldsElemt(i).second.first;
           MIRType *fieldty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldtyidx);
           if (prevSubstruct) {
-            embeddedIDs += Globals::GetInstance()->GetBECommon()->GetStructFieldCount(
-                static_cast<uint32>(prevSubstruct->GetTypeIndex().GetIdx()));
+            embeddedIDs += static_cast<uint32>(Globals::GetInstance()->GetBECommon()->GetStructFieldCount(
+                static_cast<uint32>(prevSubstruct->GetTypeIndex().GetIdx())));
           }
           prevSubstruct = fieldty->EmbeddedStructType();
           FieldID fieldID = static_cast<int32>(i + embeddedIDs) + 1;
