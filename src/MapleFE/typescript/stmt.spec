@@ -2263,6 +2263,13 @@ rule KeywordMemberFunctionName : ONEOF("return",
                                        "set",
                                        "continue",
                                        "break",
+                                       "const",
+                                       "let",
+                                       "var",
+                                       "if",
+                                       "else",
+                                       "for",
+                                       "try",
                                        "export")
   attr.action : BuildIdentifier()
 
