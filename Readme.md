@@ -38,7 +38,7 @@ Open the front end, back end, and compilation optimization of compilers. Support
 - source build/envsetup.sh arm release
   or
 - source build/envsetup.sh arm debug
-- make setup
+- make setup (In this step, you may need to configure the proxy or VPN to download all dependencies.)
 - make
 - make libcore
 - make testall
