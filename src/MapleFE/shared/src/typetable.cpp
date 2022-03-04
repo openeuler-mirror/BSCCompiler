@@ -69,7 +69,8 @@ TreeNode *TypeTable::CreateBuiltinType(std::string name, TypeId tid) {
   unsigned stridx = gStringPool.GetStrIdx(name);
   IdentifierNode *id = (IdentifierNode*)gTreePool.NewTreeNode(sizeof(IdentifierNode));
   new (id) IdentifierNode(stridx);
-  id->SetTypeId(tid);
+  // use TY_Class for Object type
+  (tid == TY_Object) ? id->SetTypeId(TY_Class) : id->SetTypeId(tid);
 
   UserTypeNode *utype = (UserTypeNode*)gTreePool.NewTreeNode(sizeof(UserTypeNode));
   new (utype) UserTypeNode(id);
@@ -97,6 +98,10 @@ bool TypeTable::AddType(TreeNode *node) {
   return true;
 }
 
+void TypeTable::AddPrimTypeId(TypeId tid) {
+  mPrimTypeId.insert(tid);
+}
+
 #undef  TYPE
 #undef  PRIMTYPE
 void TypeTable::AddPrimAndBuiltinTypes() {
@@ -112,7 +117,7 @@ void TypeTable::AddPrimAndBuiltinTypes() {
 
   // first are primitive types, and their typeid TY_Xyz is their typeidx as well
 #define TYPE(T)
-#define PRIMTYPE(T) node = CreatePrimType(#T, TY_##T); AddType(node);
+#define PRIMTYPE(T) node = CreatePrimType(#T, TY_##T); AddType(node); AddPrimTypeId(TY_##T);
 #include "supported_types.def"
   // add additional primitive types for number and string
   PRIMTYPE(Number);

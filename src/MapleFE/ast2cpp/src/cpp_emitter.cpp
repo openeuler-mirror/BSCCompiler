@@ -30,7 +30,7 @@ std::string CppEmitter::GetIdentifierName(TreeNode *node) {
         // anonymous name by frontend and can be accessed using node mStrIdx
         // through node GetName() interface.
         if (auto n = static_cast<StructNode *>(node)->GetStructId())
-            return GetIdentifierName(n);
+          return GetIdentifierName(n);
         else
           return node->GetName(); // for anonomyous name
     case NK_Function:
@@ -138,6 +138,71 @@ bool CppEmitter::IsGenerator(TreeNode* node) {
 
 FunctionNode* CppEmitter::GetGeneratorFunc(TreeNode* node) {
   return mHandler->GetGeneratorUsed(node->GetNodeId());
+}
+
+//
+// Interface to get array type and dimension interface for an ArrayLiteral
+// (should be just a wrapper to call TI interfaces GetArrayElemTypeId()
+// and GetArrayDim(), but until the usage of those 2 interface can cover all
+// use caes, this interface encaps any additional work to get array type info.
+//
+void CppEmitter::GetArrayTypeInfo(ArrayLiteralNode* node, int& numDim, std::string& type) {
+  TypeId typeId = mHandler->GetArrayElemTypeId(node->GetNodeId());
+  DimensionNode* dim  = mHandler->GetArrayDim(node->GetNodeId());
+  if (dim)
+    numDim = dim->GetDimensionsNum();
+  switch(typeId) {
+    case TY_Class: {
+      unsigned tIdx = mHandler->GetArrayElemTypeIdx(node->GetNodeId());
+      TreeNode* tp  = gTypeTable.GetTypeFromTypeIdx(tIdx);
+      type = ObjectTypeStr(tp->GetName());
+      break;
+    }
+    case TY_Int:
+      type = "long";
+      break;
+    case TY_String:
+      type = "std::string";
+      break;
+    case TY_Double:
+      type = "double";
+      break;
+    case TY_None:
+      type = "t2crt::JS_Val";
+      break;
+#if 0
+    case TY_Array:
+      type = "t2crt::Array<t2crt::JS_Val>*";
+      break;
+#endif
+    case TY_Function:
+    default:
+      // TODO
+      dim = 0;
+      type = "TBD";
+      break;
+  }
+  return;
+
+#if 0
+  if (!node->GetParent())
+    return;
+
+  switch(node->GetParent()->GetKind()) {
+  case NK_Decl:
+    // e.g. var arr: number[]=[1,2,3];
+    //GetArrInfoByVarId(node, dim, type);
+    break;
+  case NK_Identifier:
+    // e.g. class Foo { arr: number[]=[1,2,3]; }
+    //GetArrInfoByClassFieldId(node, dim, type);
+    break;
+  case NK_FieldLiteral:
+    // e.g. var: {arr:number[]} = { n:[1,2,3] };
+    //GetArrInfoByObjLiteralClassField(node, dim, type);
+    break;
+  }
+#endif
 }
 
 } // namespace maplefe

@@ -74,14 +74,14 @@ public:
   std::string EmitCtorInstance(ClassNode *c);
   std::string EmitDefaultCtor(ClassNode *c);
   std::string EmitBracketNotationProp(ArrayElementNode* ae, OprId binOpId, bool isLhs, bool& isDynProp);
-  std::string EmitArrayLiteral(TreeNode* arrType, TreeNode* arrLiteral);
-  std::string EmitArrayLiterals(TreeNode* arrLiteral, int dim, std::string type);
   TypeId GetTypeIdFromDecl(TreeNode* id);
   bool   IsClassField(ArrayElementNode* node, std::string propKey);
   std::string GetTypeForTemplateArg(TreeNode* node);
   TreeNode*   FindDeclType(TreeNode* node);
   std::string GetThisParamObjType(TreeNode *node);
-  std::string GenArrayOfAny(TreeNode* node);
+
+  std::string ConstructArray(ArrayLiteralNode* node, int dim, std::string type);
+  std::string ConstructArrayAny(ArrayLiteralNode* node);
   std::string GenObjectLiteral(TreeNode* var, std::string varName, TreeNode* idType, StructLiteralNode* n);
   std::string GenDirectFieldInit(std::string varName, StructLiteralNode* node);
 };

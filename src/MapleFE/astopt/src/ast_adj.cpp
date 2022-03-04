@@ -214,6 +214,7 @@ UserTypeNode *AdjustASTVisitor::VisitUserTypeNode(UserTypeNode *node) {
     ArrayTypeNode *arr = mHandler->NewTreeNode<ArrayTypeNode>();
     arr->SetDims(dim);
     arr->SetElemType(etype);
+    node->SetDims(NULL);
     node = (UserTypeNode *)arr;
   }
 

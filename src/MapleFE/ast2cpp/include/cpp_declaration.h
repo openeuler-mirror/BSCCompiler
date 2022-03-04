@@ -58,7 +58,6 @@ public:
   std::string EmitCallNode(CallNode *node) override;
   std::string EmitFunctionNode(FunctionNode *node) override;
   std::string EmitPrimTypeNode(PrimTypeNode *node) override;
-  std::string EmitPrimArrayTypeNode(PrimArrayTypeNode *node) override;
   std::string EmitModuleNode(ModuleNode *node) override;
   std::string EmitClassNode(ClassNode *node) override;
 
@@ -69,13 +68,15 @@ public:
   std::string EmitStructNode(StructNode *node) override;
   std::string EmitTypeAliasNode(TypeAliasNode* node) override;
   std::string EmitLiteralNode(LiteralNode* node) override;
+  std::string EmitArrayTypeNode(ArrayTypeNode *node) override;
 
   std::string GetTypeString(TreeNode *node, TreeNode *child = nullptr);
-  std::string EmitArrayLiteral(ArrayLiteralNode *node, int dim, std::string type);
   std::string EmitTSEnum(StructNode *node);
   std::string EmitInterface(StructNode *node);
 
   void CollectFuncArgInfo(TreeNode* node);
+  std::string ConstructArray(ArrayLiteralNode* node, int dim, std::string type);
+  std::string ConstructArrayAny(ArrayLiteralNode* node);
 };
 
 inline bool IsVarInitStructLiteral(DeclNode* node) {
@@ -89,8 +90,6 @@ inline bool IsVarInitClass(DeclNode* node) {
          node->GetInit()->IsTypeIdClass() &&
          node->GetInit()->IsIdentifier();
 }
-
-bool IsBuiltinObj(std::string name);
 
 template <class T>
 bool HasAttrStatic(T* node) {
