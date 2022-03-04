@@ -22,103 +22,55 @@
 
 namespace maplebe {
 using namespace maple;
+using namespace x64;
+
 class X64CallConvImpl {
  public:
   explicit X64CallConvImpl(BECommon &be) : beCommon(be) {}
 
   ~X64CallConvImpl() = default;
 
-  /* Return size of aggregate structure copy on stack. */
-  int32 LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, bool isFirst = false, MIRFunction *func = nullptr);
-
-  int32 LocateRetVal(MIRType &retType, CCLocInfo &ploc);
-
   void InitCCLocInfo(CCLocInfo &pLoc) const;
 
+  /* Passing  value related */
+  int32 LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, bool isFirst = false, MIRFunction *func = nullptr);
+
   /*  return value related  */
-  void InitReturnInfo(MIRType &retTy, CCLocInfo &pLoc);
-
-  void SetupSecondRetReg(const MIRType &retTy2, CCLocInfo &pLoc);
-
-  void SetupToReturnThroughMemory(CCLocInfo &pLoc) {
-    pLoc.regCount = 1;
-    pLoc.reg0 = R7;  /* storage in %rdi provided by caller */
-    pLoc.primTypeOfReg0 = PTY_u64;
-  }
+  int32 LocateRetVal(MIRType &retType, CCLocInfo &ploc);
 
  private:
   X64reg AllocateGPParmRegister() {
-    return (nextGeneralParmRegNO < X64Abi::kNumIntParmRegs) ?
-      X64Abi::intParmRegs[nextGeneralParmRegNO++] : kRinvalid;
+    return (nextGeneralParmRegNO < kNumIntParmRegs) ?
+        intParmRegs[nextGeneralParmRegNO++] : kRinvalid;
   }
 
   void AllocateTwoGPParmRegisters(CCLocInfo &pLoc) {
-    if ((nextGeneralParmRegNO + 1) < X64Abi::kNumIntParmRegs) {
-      pLoc.reg0 = X64Abi::intParmRegs[nextGeneralParmRegNO++];
-      pLoc.reg1 = X64Abi::intParmRegs[nextGeneralParmRegNO++];
+    if ((nextGeneralParmRegNO + 1) < kNumIntParmRegs) {
+      pLoc.reg0 = intParmRegs[nextGeneralParmRegNO++];
+      pLoc.reg1 = intParmRegs[nextGeneralParmRegNO++];
     } else {
       pLoc.reg0 = kRinvalid;
     }
   }
 
   X64reg AllocateGPReturnRegister() {
-    return (nextGeneralReturnRegNO < X64Abi::kNumIntReturnRegs) ?
-      X64Abi::intReturnRegs[nextGeneralReturnRegNO++] : kRinvalid;
+    return (nextGeneralReturnRegNO < kNumIntReturnRegs) ?
+        intReturnRegs[nextGeneralReturnRegNO++] : kRinvalid;
   }
 
   void AllocateTwoGPReturnRegisters(CCLocInfo &pLoc) {
-    if ((nextGeneralReturnRegNO + 1) < X64Abi::kNumIntReturnRegs) {
-      pLoc.reg0 = X64Abi::intReturnRegs[nextGeneralReturnRegNO++];
-      pLoc.reg1 = X64Abi::intReturnRegs[nextGeneralReturnRegNO++];
+    if ((nextGeneralReturnRegNO + 1) < kNumIntReturnRegs) {
+      pLoc.reg0 = intReturnRegs[nextGeneralReturnRegNO++];
+      pLoc.reg1 = intReturnRegs[nextGeneralReturnRegNO++];
     } else {
       pLoc.reg0 = kRinvalid;
     }
   }
 
-  X64reg AllocateSIMDFPRegister() {
-    return (nextFloatRegNO < X64Abi::kNumFloatParmRegs) ? X64Abi::floatParmRegs[nextFloatRegNO++] : kRinvalid;
-  }
-
-  void AllocateNSIMDFPRegisters(CCLocInfo &ploc, uint32 num) {
-    if ((nextFloatRegNO + num - 1) < X64Abi::kNumFloatParmRegs) {
-      switch (num) {
-        case kOneRegister:
-          ploc.reg0 = X64Abi::floatParmRegs[nextFloatRegNO++];
-          break;
-        case kTwoRegister:
-          ploc.reg0 = X64Abi::floatParmRegs[nextFloatRegNO++];
-          ploc.reg1 = X64Abi::floatParmRegs[nextFloatRegNO++];
-          break;
-        case kThreeRegister:
-          ploc.reg0 = X64Abi::floatParmRegs[nextFloatRegNO++];
-          ploc.reg1 = X64Abi::floatParmRegs[nextFloatRegNO++];
-          ploc.reg2 = X64Abi::floatParmRegs[nextFloatRegNO++];
-          break;
-        case kFourRegister:
-          ploc.reg0 = X64Abi::floatParmRegs[nextFloatRegNO++];
-          ploc.reg1 = X64Abi::floatParmRegs[nextFloatRegNO++];
-          ploc.reg2 = X64Abi::floatParmRegs[nextFloatRegNO++];
-          ploc.reg3 = X64Abi::floatParmRegs[nextFloatRegNO++];
-          break;
-        default:
-          CHECK_FATAL(0, "AllocateNSIMDFPRegisters: unsupported");
-      }
-    } else {
-      ploc.reg0 = kRinvalid;
-    }
-  }
-
-  void RoundNGRNUpToNextEven() {
-    nextGeneralParmRegNO = static_cast<int32>((nextGeneralParmRegNO + 1) & ~static_cast<int32>(1));
-  }
-
-  int32 ProcessPtyAggWhenLocateNextParm(MIRType &mirType, CCLocInfo &pLoc, uint64 &typeSize, int32 typeAlign);
-
   BECommon &beCommon;
   uint64 paramNum = 0;  /* number of all types of parameters processed so far */
   int32 nextGeneralParmRegNO = 0;  /* number of integer parameters processed so far */
   int32 nextGeneralReturnRegNO = 0;  /* number of integer return processed so far */
-  uint32 nextFloatRegNO = 0;  /* number of float parameters processed so far */
   int32 nextStackArgAdress = 0;
 };
 }  /* namespace maplebe */

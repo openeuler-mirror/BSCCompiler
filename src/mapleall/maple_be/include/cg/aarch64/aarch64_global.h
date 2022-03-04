@@ -389,8 +389,12 @@ class SameDefPattern : public OptimizePattern {
   void Init() final;
 
  private:
-  bool IsSameDef(Insn &currInsn, Insn &sameInsn);
-  bool SrcRegIsRedefined(Insn &currInsn, Insn &sameInsn, regno_t regNo);
+  bool IsSameDef();
+  bool SrcRegIsRedefined(regno_t regNo);
+  bool IsSameOperand(Operand &opnd0, Operand &opnd1);
+
+  Insn *currInsn;
+  Insn *sameInsn;
 };
 
 /*

@@ -20,7 +20,7 @@
 #include "aarch64_utils.h"
 
 namespace maplebe {
-#define JAVALANG (cgFunc.GetMirModule().IsJavaModule())
+#define JAVALANG (cgFunc->GetMirModule().IsJavaModule())
 #define CG_PEEP_DUMP CG_DEBUG_FUNC(*cgFunc)
 namespace {
 const std::string kMccLoadRef = "MCC_LoadRefField";
@@ -131,7 +131,7 @@ bool AArch64CGPeepHole::DoSSAOptimize(BB &bb, Insn &insn) {
     case MOP_winegrr:
     case MOP_wfnegrr:
     case MOP_xfnegrr: {
-      manager->Optimize<SimplifyMulArithmeticPattern>(CGOptions::IsFastMath());
+      manager->Optimize<SimplifyMulArithmeticPattern>(true);
       break;
     }
     case MOP_wandrri12:
@@ -820,8 +820,8 @@ bool ZeroCmpBranchesToTbzPattern::CheckAndSelectPattern(const Insn &currInsn) {
           return false;
       }
     }
-      // fall through
-      [[clang::fallthrough]];
+    // fall through
+    [[clang::fallthrough]];
     default:
       return false;
   }
@@ -1387,6 +1387,11 @@ bool SimplifyMulArithmeticPattern::CheckCondition(Insn &insn) {
   if (prevInsn == nullptr) {
     return false;
   }
+  regno_t useRegNO = useReg.GetRegisterNumber();
+  VRegVersion *useVersion = ssaInfo->FindSSAVersion(useRegNO);
+  if (useVersion->GetAllUseInsns().size() > 1) {
+    return false;
+  }
   MOperator currMop = insn.GetMachineOpcode();
   if (currMop == MOP_dadd || currMop == MOP_sadd || currMop == MOP_dsub || currMop == MOP_ssub ||
       currMop == MOP_wfnegrr || currMop == MOP_xfnegrr) {
@@ -1402,7 +1407,10 @@ bool SimplifyMulArithmeticPattern::CheckCondition(Insn &insn) {
   if (!isFloat && (prevMop == MOP_xvmuld || prevMop == MOP_xvmuls)) {
     return false;
   }
-  return true;
+  if ((currMop == MOP_xaddrrr) || (currMop == MOP_waddrrr)) {
+    return true;
+  }
+  return CGOptions::IsFastMath();
 }
 
 void SimplifyMulArithmeticPattern::DoOptimize(BB &currBB, Insn &currInsn) {
@@ -2015,8 +2023,24 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
       manager->NormalPatternOpt<ReplaceDivToMultiPattern>(cgFunc->IsAfterRegAlloc());
       break;
     }
+    case MOP_xbl: {
+      if (JAVALANG) {
+        manager->NormalPatternOpt<RemoveIncRefPattern>(!cgFunc->IsAfterRegAlloc());
+        manager->NormalPatternOpt<RemoveDecRefPattern>(!cgFunc->IsAfterRegAlloc());
+        manager->NormalPatternOpt<ReplaceIncDecWithIncPattern>(!cgFunc->IsAfterRegAlloc());
+        manager->NormalPatternOpt<RemoveIncDecRefPattern>(cgFunc->IsAfterRegAlloc());
+      }
+      if (CGOptions::IsGCOnly() && CGOptions::DoWriteRefFieldOpt()) {
+        manager->NormalPatternOpt<WriteFieldCallPattern>(!cgFunc->IsAfterRegAlloc());
+      }
+      break;
+    }
     default:
       break;
+  }
+  /* skip if it is not a read barrier call. */
+  if (GetReadBarrierName(insn) != "") {
+    manager->NormalPatternOpt<InlineReadBarriersPattern>(!cgFunc->IsAfterRegAlloc());
   }
 }
 /* ======== CGPeepPattern End ======== */
@@ -2026,8 +2050,6 @@ void AArch64PeepHole::InitOpts() {
   optimizations[kEliminateSpecifcSXTOpt] = optOwnMemPool->New<EliminateSpecifcSXTAArch64>(cgFunc);
   optimizations[kEliminateSpecifcUXTOpt] = optOwnMemPool->New<EliminateSpecifcUXTAArch64>(cgFunc);
   optimizations[kCsetCbzToBeqOpt] = optOwnMemPool->New<CsetCbzToBeqOptAArch64>(cgFunc);
-  optimizations[kRemoveIncDecRefOpt] = optOwnMemPool->New<RemoveIncDecRefAArch64>(cgFunc);
-  optimizations[kInlineReadBarriersOpt] = optOwnMemPool->New<InlineReadBarriersAArch64>(cgFunc);
   optimizations[kAndCmpBranchesToCsetOpt] = optOwnMemPool->New<AndCmpBranchesToCsetAArch64>(cgFunc);
   optimizations[kAndCmpBranchesToTstOpt] = optOwnMemPool->New<AndCmpBranchesToTstAArch64>(cgFunc);
   optimizations[kAndCbzBranchesToTstOpt] = optOwnMemPool->New<AndCbzBranchesToTstAArch64>(cgFunc);
@@ -2062,10 +2084,6 @@ void AArch64PeepHole::Run(BB &bb, Insn &insn) {
       (static_cast<CsetCbzToBeqOptAArch64*>(optimizations[kCsetCbzToBeqOpt]))->Run(bb, insn);
       break;
     }
-    case MOP_xbl: {
-      (static_cast<RemoveIncDecRefAArch64*>(optimizations[kRemoveIncDecRefOpt]))->Run(bb, insn);
-      break;
-    }
     case MOP_wcsetrc:
     case MOP_xcsetrc: {
       (static_cast<AndCmpBranchesToCsetAArch64*>(optimizations[kAndCmpBranchesToCsetOpt]))->Run(bb, insn);
@@ -2086,9 +2104,6 @@ void AArch64PeepHole::Run(BB &bb, Insn &insn) {
     }
     default:
       break;
-  }
-  if (GetReadBarrierName(insn) != "") { /* skip if it is not a read barrier call. */
-    (static_cast<InlineReadBarriersAArch64*>(optimizations[kInlineReadBarriersOpt]))->Run(bb, insn);
   }
   if (&insn == bb.GetLastInsn()) {
     (static_cast<ZeroCmpBranchesAArch64*>(optimizations[kZeroCmpBranchesOpt]))->Run(bb, insn);
@@ -2153,12 +2168,10 @@ void AArch64PrePeepHole::InitOpts() {
   optimizations[kOneHoleBranchesPreOpt] = optOwnMemPool->New<OneHoleBranchesPreAArch64>(cgFunc);
   optimizations[kReplaceOrrToMovOpt] = optOwnMemPool->New<ReplaceOrrToMovAArch64>(cgFunc);
   optimizations[kReplaceCmpToCmnOpt] = optOwnMemPool->New<ReplaceCmpToCmnAArch64>(cgFunc);
-  optimizations[kRemoveIncRefOpt] = optOwnMemPool->New<RemoveIncRefAArch64>(cgFunc);
   optimizations[kComplexMemOperandOpt] = optOwnMemPool->New<ComplexMemOperandAArch64>(cgFunc);
   optimizations[kComplexMemOperandPreOptAdd] = optOwnMemPool->New<ComplexMemOperandPreAddAArch64>(cgFunc);
   optimizations[kComplexMemOperandOptLSL] = optOwnMemPool->New<ComplexMemOperandLSLAArch64>(cgFunc);
   optimizations[kComplexMemOperandOptLabel] = optOwnMemPool->New<ComplexMemOperandLabelAArch64>(cgFunc);
-  optimizations[kWriteFieldCallOpt] = optOwnMemPool->New<WriteFieldCallAArch64>(cgFunc);
   optimizations[kDuplicateExtensionOpt] = optOwnMemPool->New<ElimDuplicateExtensionAArch64>(cgFunc);
   optimizations[kEnhanceStrLdrAArch64Opt] = optOwnMemPool->New<EnhanceStrLdrAArch64>(cgFunc);
 }
@@ -2174,13 +2187,6 @@ void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
     case MOP_xmovri32:
     case MOP_xmovri64: {
       (static_cast<ReplaceCmpToCmnAArch64*>(optimizations[kReplaceCmpToCmnOpt]))->Run(bb, insn);
-      break;
-    }
-    case MOP_xbl: {
-      (static_cast<RemoveIncRefAArch64*>(optimizations[kRemoveIncRefOpt]))->Run(bb, insn);
-      if (CGOptions::IsGCOnly() && CGOptions::DoWriteRefFieldOpt()) {
-        (static_cast<WriteFieldCallAArch64*>(optimizations[kWriteFieldCallOpt]))->Run(bb, insn);
-      }
       break;
     }
     case MOP_xadrpl12: {
@@ -2226,17 +2232,12 @@ void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
   }
   if (&insn == bb.GetLastInsn()) {
     (static_cast<OneHoleBranchesPreAArch64*>(optimizations[kOneHoleBranchesPreOpt]))->Run(bb, insn);
-    if (CGOptions::IsGCOnly() && CGOptions::DoWriteRefFieldOpt()) {
-      (static_cast<WriteFieldCallAArch64*>(optimizations[kWriteFieldCallOpt]))->Reset();
-    }
   }
 }
 
 void AArch64PrePeepHole1::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
-  optimizations[kRemoveDecRefOpt] = optOwnMemPool->New<RemoveDecRefAArch64>(cgFunc);
   optimizations[kOneHoleBranchesOpt] = optOwnMemPool->New<OneHoleBranchesAArch64>(cgFunc);
-  optimizations[kReplaceIncDecWithIncOpt] = optOwnMemPool->New<ReplaceIncDecWithIncAArch64>(cgFunc);
   optimizations[kAndCmpBranchesToTbzOpt] = optOwnMemPool->New<AndCmpBranchesToTbzAArch64>(cgFunc);
   optimizations[kComplexExtendWordLslOpt] = optOwnMemPool->New<ComplexExtendWordLslAArch64>(cgFunc);
 }
@@ -2244,13 +2245,6 @@ void AArch64PrePeepHole1::InitOpts() {
 void AArch64PrePeepHole1::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   switch (thisMop) {
-    case MOP_xbl: {
-      if (JAVALANG) {
-        (static_cast<RemoveDecRefAArch64*>(optimizations[kRemoveDecRefOpt]))->Run(bb, insn);
-        (static_cast<ReplaceIncDecWithIncAArch64*>(optimizations[kReplaceIncDecWithIncOpt]))->Run(bb, insn);
-      }
-      break;
-    }
     case MOP_xsxtw64:
     case MOP_xuxtw64: {
       (static_cast<ComplexExtendWordLslAArch64*>(optimizations[kComplexExtendWordLslOpt]))->Run(bb, insn);
@@ -3321,20 +3315,35 @@ void ContiLDRorSTRToSameMEMPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
-void RemoveIncDecRefAArch64::Run(BB &bb, Insn &insn) {
-  ASSERT(insn.GetMachineOpcode() == MOP_xbl, "expect a xbl MOP at RemoveIncDecRef optimization");
+bool RemoveIncDecRefPattern::CheckCondition(Insn &insn) {
+  if (insn.GetMachineOpcode() !=  MOP_xbl) {
+    return false;
+  }
+  prevInsn = insn.GetPreviousMachineInsn();
+  if (prevInsn == nullptr) {
+    return false;
+  }
+  MOperator prevMop = prevInsn->GetMachineOpcode();
+  if (prevMop != MOP_xmovrr) {
+    return false;
+  }
   auto &target = static_cast<FuncNameOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  Insn *insnMov = insn.GetPreviousMachineInsn();
-  if (insnMov == nullptr) {
+  if (target.GetName() != "MCC_IncDecRef_NaiveRCFast") {
+    return false;
+  }
+  if (static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd)).GetRegisterNumber() != R1 ||
+      static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd)).GetRegisterNumber() != R0) {
+    return false;
+  }
+  return true;
+}
+
+void RemoveIncDecRefPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
     return;
   }
-  MOperator mopMov = insnMov->GetMachineOpcode();
-  if (target.GetName() == "MCC_IncDecRef_NaiveRCFast" && mopMov == MOP_xmovrr &&
-      static_cast<RegOperand&>(insnMov->GetOperand(kInsnFirstOpnd)).GetRegisterNumber() == R1 &&
-      static_cast<RegOperand&>(insnMov->GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == R0) {
-    bb.RemoveInsn(*insnMov);
-    bb.RemoveInsn(insn);
-  }
+  bb.RemoveInsn(*prevInsn);
+  bb.RemoveInsn(insn);
 }
 
 #ifdef USE_32BIT_REF
@@ -3459,12 +3468,20 @@ AArch64CC_t CselZeroOneToCsetOpt::GetReverseCond(const CondOperand &cond) const 
   return kCcLast;
 }
 
-void InlineReadBarriersAArch64::Run(BB &bb, Insn &insn) {
-  if (!CGOptions::IsGCOnly()) { /* Inline read barriers only enabled for GCONLY. */
+bool InlineReadBarriersPattern::CheckCondition(Insn &insn) {
+  /* Inline read barriers only enabled for GCONLY. */
+  if (!CGOptions::IsGCOnly()) {
+    return false;
+  }
+  return true;
+}
+
+void InlineReadBarriersPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
     return;
   }
   const std::string &barrierName = GetReadBarrierName(insn);
-  CG *cg = cgFunc.GetCG();
+  CG *cg = cgFunc->GetCG();
   if (barrierName == kMccDummy) {
     /* remove dummy call. */
     bb.RemoveInsn(insn);
@@ -3474,7 +3491,7 @@ void InlineReadBarriersAArch64::Run(BB &bb, Insn &insn) {
     bool isStatic = (barrierName == kMccLoadRefS || barrierName == kMccLoadRefVS);
     /* refSize is 32 if USE_32BIT_REF defined, otherwise 64. */
     const uint32 refSize = kRefSize;
-    auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
+    auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
     MOperator loadOp = GetLoadOperator(refSize, isVolatile);
     RegOperand &regOp = aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(R0, refSize, kRegTyInt);
     AArch64reg addrReg = isStatic ? R0 : R1;
@@ -4642,39 +4659,46 @@ void ReplaceCmpToCmnAArch64::Run(BB &bb, Insn &insn) {
   }
 }
 
-void RemoveIncRefAArch64::Run(BB &bb, Insn &insn) {
+bool RemoveIncRefPattern::CheckCondition(Insn &insn) {
   MOperator mOp = insn.GetMachineOpcode();
   if (mOp != MOP_xbl) {
-    return;
+    return false;
   }
   auto &target = static_cast<FuncNameOperand&>(insn.GetOperand(kInsnFirstOpnd));
   if (target.GetName() != "MCC_IncDecRef_NaiveRCFast") {
-    return;
+    return false;
   }
-  Insn *insnMov2 = insn.GetPreviousMachineInsn();
+  insnMov2 = insn.GetPreviousMachineInsn();
   if (insnMov2 == nullptr) {
-    return;
+    return false;
   }
   MOperator mopMov2 = insnMov2->GetMachineOpcode();
   if (mopMov2 != MOP_xmovrr) {
-    return;
+    return false;
   }
-  Insn *insnMov1 = insnMov2->GetPreviousMachineInsn();
+  insnMov1 = insnMov2->GetPreviousMachineInsn();
   if (insnMov1 == nullptr) {
-    return;
+    return false;
   }
   MOperator mopMov1 = insnMov1->GetMachineOpcode();
   if (mopMov1 != MOP_xmovrr) {
-    return;
+    return false;
   }
   if (static_cast<RegOperand&>(insnMov1->GetOperand(kInsnSecondOpnd)).GetRegisterNumber() !=
       static_cast<RegOperand&>(insnMov2->GetOperand(kInsnSecondOpnd)).GetRegisterNumber()) {
-    return;
+    return false;
   }
   auto &mov2Dest = static_cast<RegOperand&>(insnMov2->GetOperand(kInsnFirstOpnd));
   auto &mov1Dest = static_cast<RegOperand&>(insnMov1->GetOperand(kInsnFirstOpnd));
   if (mov1Dest.IsVirtualRegister() || mov2Dest.IsVirtualRegister() || mov1Dest.GetRegisterNumber() != R0 ||
       mov2Dest.GetRegisterNumber() != R1) {
+    return false;
+  }
+  return true;
+}
+
+void RemoveIncRefPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
     return;
   }
   bb.RemoveInsn(insn);
@@ -4996,13 +5020,22 @@ void ComplexMemOperandLabelAArch64::Run(BB &bb, Insn &insn) {
   bb.RemoveInsn(*nextInsn);
 }
 
+static bool MayThrowBetweenInsn(const Insn &prevCallInsn, const Insn &currCallInsn) {
+  for (Insn *insn = prevCallInsn.GetNext(); insn != nullptr && insn != &currCallInsn; insn = insn->GetNext()) {
+    if (insn->MayThrow()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /*
  * mov R0, vreg1 / R0      -> objDesignateInsn
  * add vreg2, vreg1, #imm  -> fieldDesignateInsn
  * mov R1, vreg2           -> fieldParamDefInsn
  * mov R2, vreg3           -> fieldValueDefInsn
  */
-bool WriteFieldCallAArch64::WriteFieldCallOptPatternMatch(const Insn &writeFieldCallInsn, WriteRefFieldParam &param,
+bool WriteFieldCallPattern::WriteFieldCallOptPatternMatch(const Insn &writeFieldCallInsn, WriteRefFieldParam &param,
                                                           std::vector<Insn*> &paramDefInsns) {
   Insn *fieldValueDefInsn = writeFieldCallInsn.GetPreviousMachineInsn();
   if (fieldValueDefInsn == nullptr || fieldValueDefInsn->GetMachineOpcode() != MOP_xmovrr) {
@@ -5058,7 +5091,7 @@ bool WriteFieldCallAArch64::WriteFieldCallOptPatternMatch(const Insn &writeField
   return true;
 }
 
-bool WriteFieldCallAArch64::IsWriteRefFieldCallInsn(const Insn &insn) {
+bool WriteFieldCallPattern::IsWriteRefFieldCallInsn(const Insn &insn) {
   if (!insn.IsCall() || insn.IsIndirectCall()) {
     return false;
   }
@@ -5067,54 +5100,54 @@ bool WriteFieldCallAArch64::IsWriteRefFieldCallInsn(const Insn &insn) {
   if (!targetOpnd->IsFuncNameOpnd()) {
     return false;
   }
-  FuncNameOperand *target = static_cast<FuncNameOperand*>(targetOpnd);
+  auto *target = static_cast<FuncNameOperand*>(targetOpnd);
   const MIRSymbol *funcSt = target->GetFunctionSymbol();
   ASSERT(funcSt->GetSKind() == kStFunc, "the kind of funcSt is unreasonable");
   const std::string &funcName = funcSt->GetName();
   return funcName == "MCC_WriteRefField" || funcName == "MCC_WriteVolatileField";
 }
 
-static bool MayThrowBetweenInsn(const Insn &prevCallInsn, const Insn &currCallInsn) {
-  for (Insn *insn = prevCallInsn.GetNext(); insn != nullptr && insn != &currCallInsn; insn = insn->GetNext()) {
-    if (insn->MayThrow()) {
-      return true;
-    }
+bool WriteFieldCallPattern::CheckCondition(Insn &insn) {
+  nextInsn = insn.GetNextMachineInsn();
+  if (nextInsn == nullptr) {
+    return false;
   }
-  return false;
-}
-
-void WriteFieldCallAArch64::Run(BB &bb, Insn &insn) {
-  AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
-  std::vector<Insn*> paramDefInsns;
-  Insn *nextInsn = insn.GetNextMachineInsn();
   if (!IsWriteRefFieldCallInsn(insn)) {
-    return;
+    return false;
   }
   if (!hasWriteFieldCall) {
     if (!WriteFieldCallOptPatternMatch(insn, firstCallParam, paramDefInsns)) {
-      return;
+      return false;
     }
     prevCallInsn = &insn;
     hasWriteFieldCall = true;
-    return;
+    return false;
   }
-  WriteRefFieldParam currentCallParam;
   if (!WriteFieldCallOptPatternMatch(insn, currentCallParam, paramDefInsns)) {
-    return;
+    return false;
   }
   if (prevCallInsn == nullptr || MayThrowBetweenInsn(*prevCallInsn, insn)) {
-    return;
+    return false;
   }
   if (firstCallParam.objOpnd == nullptr || currentCallParam.objOpnd == nullptr ||
       currentCallParam.fieldBaseOpnd == nullptr) {
-    return;
+    return false;
   }
   if (!RegOperand::IsSameReg(*firstCallParam.objOpnd, *currentCallParam.objOpnd)) {
+    return false;
+  }
+  return true;
+}
+
+void WriteFieldCallPattern::Run(BB &bb, Insn &insn) {
+  paramDefInsns.clear();
+  if (!CheckCondition(insn)) {
     return;
   }
+  auto *aarCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   MemOperand &addr =
-      aarch64CGFunc->CreateMemOpnd(*currentCallParam.fieldBaseOpnd, currentCallParam.fieldOffset, k64BitSize);
-  Insn &strInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(MOP_xstr, *currentCallParam.fieldValue, addr);
+      aarCGFunc->CreateMemOpnd(*currentCallParam.fieldBaseOpnd, currentCallParam.fieldOffset, k64BitSize);
+  Insn &strInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_xstr, *currentCallParam.fieldValue, addr);
   strInsn.AppendComment("store reference field");
   strInsn.MarkAsAccessRefField(true);
   bb.InsertInsnAfter(insn, strInsn);
@@ -5126,29 +5159,36 @@ void WriteFieldCallAArch64::Run(BB &bb, Insn &insn) {
   nextInsn = strInsn.GetNextMachineInsn();
 }
 
-void RemoveDecRefAArch64::Run(BB &bb, Insn &insn) {
+bool RemoveDecRefPattern::CheckCondition(Insn &insn) {
   if (insn.GetMachineOpcode() != MOP_xbl) {
-    return;
+    return false;
   }
   auto &target = static_cast<FuncNameOperand&>(insn.GetOperand(kInsnFirstOpnd));
   if (target.GetName() != "MCC_DecRef_NaiveRCFast") {
-    return;
+    return false;
   }
-  Insn *insnMov = insn.GetPreviousMachineInsn();
-  if (insnMov == nullptr) {
-    return;
+  prevInsn = insn.GetPreviousMachineInsn();
+  if (prevInsn == nullptr) {
+    return false;
   }
-  MOperator mopMov = insnMov->GetMachineOpcode();
+  MOperator mopMov = prevInsn->GetMachineOpcode();
   if ((mopMov != MOP_xmovrr && mopMov != MOP_xmovri64) ||
-      static_cast<RegOperand&>(insnMov->GetOperand(kInsnFirstOpnd)).GetRegisterNumber() != R0) {
-    return;
+      static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd)).GetRegisterNumber() != R0) {
+    return false;
   }
-  Operand &srcOpndOfMov = insnMov->GetOperand(kInsnSecondOpnd);
+  Operand &srcOpndOfMov = prevInsn->GetOperand(kInsnSecondOpnd);
   if (!srcOpndOfMov.IsZeroRegister() &&
       !(srcOpndOfMov.IsImmediate() && static_cast<ImmOperand&>(srcOpndOfMov).GetValue() == 0)) {
+    return false;
+  }
+  return true;
+}
+
+void RemoveDecRefPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
     return;
   }
-  bb.RemoveInsn(*insnMov);
+  bb.RemoveInsn(*prevInsn);
   bb.RemoveInsn(insn);
 }
 
@@ -5215,24 +5255,31 @@ void OneHoleBranchesAArch64::Run(BB &bb, Insn &insn) {
   bb.RemoveInsn(insn);
 }
 
-void ReplaceIncDecWithIncAArch64::Run(BB &bb, Insn &insn) {
+bool ReplaceIncDecWithIncPattern::CheckCondition(Insn &insn) {
   if (insn.GetMachineOpcode() != MOP_xbl) {
-    return;
+    return false;
   }
-  auto &target = static_cast<FuncNameOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  if (target.GetName() != "MCC_IncDecRef_NaiveRCFast") {
-    return;
+  target = &static_cast<FuncNameOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  if (target->GetName() != "MCC_IncDecRef_NaiveRCFast") {
+    return false;
   }
-  Insn *insnMov = insn.GetPreviousMachineInsn();
-  if (insnMov == nullptr) {
-    return;
+  prevInsn = insn.GetPreviousMachineInsn();
+  if (prevInsn == nullptr) {
+    return false;
   }
-  MOperator mopMov = insnMov->GetMachineOpcode();
+  MOperator mopMov = prevInsn->GetMachineOpcode();
   if (mopMov != MOP_xmovrr) {
-    return;
+    return false;
   }
-  if (static_cast<RegOperand&>(insnMov->GetOperand(kInsnFirstOpnd)).GetRegisterNumber() != R1 ||
-      !insnMov->GetOperand(kInsnSecondOpnd).IsZeroRegister()) {
+  if (static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd)).GetRegisterNumber() != R1 ||
+      !prevInsn->GetOperand(kInsnSecondOpnd).IsZeroRegister()) {
+    return false;
+  }
+  return true;
+}
+
+void ReplaceIncDecWithIncPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
     return;
   }
   std::string funcName = "MCC_IncRef_NaiveRCFast";
@@ -5242,8 +5289,8 @@ void ReplaceIncDecWithIncAArch64::Run(BB &bb, Insn &insn) {
     LogInfo::MapleLogger() << "WARNING: Replace IncDec With Inc fail due to no MCC_IncRef_NaiveRCFast func\n";
     return;
   }
-  bb.RemoveInsn(*insnMov);
-  target.SetFunctionSymbol(*st);
+  bb.RemoveInsn(*prevInsn);
+  target->SetFunctionSymbol(*st);
 }
 
 

@@ -29,22 +29,16 @@ void X64Emitter::EmitJavaInsnAddr(FuncEmitInfo &funcEmitInfo) {}
 void X64Emitter::Run(FuncEmitInfo &funcEmitInfo) {}
 
 void X64OpndEmitVisitor::Visit(maplebe::CGRegOperand *v) {
-  // TODO: mapping with physical register after register allocation is done
-  emitter.Emit("%").Emit(v->GetRegisterNumber());
+  bool r32 = (v->GetSize() == 32);
+  emitter.Emit("%").Emit(X64CG::intRegNames[(r32 ? X64CG::kR32List : X64CG::kR64List)][v->GetRegisterNumber()]);
 }
 void X64OpndEmitVisitor::Visit(maplebe::CGImmOperand *v) {
   emitter.Emit("$");
-  /* Emit in hex */
-  std::stringstream ss;
-  ss << std::hex << v->GetValue();
-  emitter.Emit("0x").Emit(ss.str());
+  emitter.Emit(v->GetValue());
 }
 void X64OpndEmitVisitor::Visit(maplebe::CGMemOperand *v) {
   if (v->GetBaseOfst() != nullptr) {
-    /* Emit in hex */
-    std::stringstream ss;
-    ss << std::hex << v->GetBaseOfst()->GetValue();
-    emitter.Emit("0x").Emit(ss.str());
+    emitter.Emit(v->GetBaseOfst()->GetValue());
   }
   if (v->GetBaseRegister() != nullptr) {
     emitter.Emit("(");
@@ -54,8 +48,9 @@ void X64OpndEmitVisitor::Visit(maplebe::CGMemOperand *v) {
 }
 
 void DumpTargetASM(Emitter &emitter, Insn &insn) {
-  X64MD curMd = X64CG::kMd[insn.GetMachineOpcode()];
-  emitter.Emit(curMd.name).Emit("\t");
+  emitter.Emit("\t");
+  const InsnDescription &curMd = X64CG::kMd[insn.GetMachineOpcode()];
+  emitter.Emit(curMd.GetName()).Emit("\t");
   size_t size = insn.GetOperandSize();
   for (int i = 0; i < size; i++) {
     Operand *opnd = &insn.GetOperand(i);

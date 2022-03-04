@@ -25,7 +25,7 @@
 #include "me_phase_manager.h"
 
 namespace maple {
-// This phase performs alias analysis based on Steensgaard's algorithm and
+// This phase performs alias analysis based on union-based alias analysis algorithm and
 // represent the resulting alias relationships in the Maple IR representation
 bool MeAliasClass::HasWriteToStaticFinal() const {
   for (auto bIt = cfg->valid_begin(); bIt != cfg->valid_end(); ++bIt) {
@@ -132,7 +132,7 @@ void MeAliasClass::DoAliasAnalysis() {
     DumpAssignSets();
   }
   ReinitUnionFind();
-  if (!MeOption::steensgaardAA) {
+  if (!MeOption::unionBasedAA) {
     UnionAllPointedTos();
   } else {
     ApplyUnionForPointedTos();

@@ -1861,7 +1861,10 @@ void SameDefPattern::Run() {
   }
 }
 
-void SameDefPattern::Init() {}
+void SameDefPattern::Init() {
+  currInsn = nullptr;
+  sameInsn = nullptr;
+}
 
 bool SameDefPattern::CheckCondition(Insn &insn) {
   MOperator mOp = insn.GetMachineOpcode();
@@ -1871,7 +1874,7 @@ bool SameDefPattern::CheckCondition(Insn &insn) {
   if (insn.GetBB()->HasCall()) {
     return false;
   }
-  return (mOp == MOP_wcmprr) || (mOp == MOP_xcmprr);
+  return (mOp == MOP_wcmprr) || (mOp == MOP_xcmprr) || (mOp == MOP_xwcmprre) || (mOp == MOP_xcmprrs);
 }
 
 void SameDefPattern::Optimize(Insn &insn) {
@@ -1883,7 +1886,9 @@ void SameDefPattern::Optimize(Insn &insn) {
   if (sameDefInsn == nullptr) {
     return;
   }
-  if (!IsSameDef(insn, *sameDefInsn)) {
+  currInsn = &insn;
+  sameInsn = sameDefInsn;
+  if (!IsSameDef()) {
     return;
   }
   if (GLOBAL_DUMP) {
@@ -1896,20 +1901,28 @@ void SameDefPattern::Optimize(Insn &insn) {
   insn.GetBB()->RemoveInsn(insn);
 }
 
-bool SameDefPattern::IsSameDef(Insn &currInsn, Insn &sameInsn) {
-  if (!CheckCondition(sameInsn)) {
+bool SameDefPattern::IsSameDef() {
+  if (!CheckCondition(*sameInsn)) {
     return false;
   }
-  if (&currInsn == &sameInsn) {
+  if (currInsn == sameInsn) {
     return false;
   }
-  if (currInsn.GetMachineOpcode() != sameInsn.GetMachineOpcode()) {
+  if (currInsn->GetMachineOpcode() != sameInsn->GetMachineOpcode()) {
     return false;
   }
-  for (uint32 i = k1BitSize; i < currInsn.GetOperandSize(); ++i) {
-    Operand &opnd0 = currInsn.GetOperand(i);
-    Operand &opnd1 = sameInsn.GetOperand(i);
-    CHECK_FATAL(opnd0.IsRegister(), "must be RegOperand!");
+  for (uint32 i = k1BitSize; i < currInsn->GetOperandSize(); ++i) {
+    Operand &opnd0 = currInsn->GetOperand(i);
+    Operand &opnd1 = sameInsn->GetOperand(i);
+    if (!IsSameOperand(opnd0, opnd1)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool SameDefPattern::IsSameOperand(Operand &opnd0, Operand &opnd1) {
+  if (opnd0.IsRegister()) {
     CHECK_FATAL(opnd1.IsRegister(), "must be RegOperand!");
     RegOperand &regOpnd0 = static_cast<RegOperand&>(opnd0);
     RegOperand &regOpnd1 = static_cast<RegOperand&>(opnd1);
@@ -1918,25 +1931,41 @@ bool SameDefPattern::IsSameDef(Insn &currInsn, Insn &sameInsn) {
     }
     regno_t regNo = regOpnd0.GetRegisterNumber();
     /* src reg not redefined between sameInsn and currInsn */
-    if (SrcRegIsRedefined(currInsn, sameInsn, regNo)) {
+    if (SrcRegIsRedefined(regNo)) {
       return false;
     }
+  } else if (opnd0.IsOpdShift()) {
+    CHECK_FATAL(opnd1.IsOpdShift(), "must be ShiftOperand!");
+    BitShiftOperand &shiftOpnd0 = static_cast<BitShiftOperand&>(opnd0);
+    BitShiftOperand &shiftOpnd1 = static_cast<BitShiftOperand&>(opnd1);
+    if (shiftOpnd0.GetShiftAmount() != shiftOpnd1.GetShiftAmount()) {
+      return false;
+    }
+  } else if (opnd0.IsOpdExtend()) {
+    CHECK_FATAL(opnd1.IsOpdExtend(), "must be ExtendOperand!");
+    ExtendShiftOperand &extendOpnd0 = static_cast<ExtendShiftOperand&>(opnd0);
+    ExtendShiftOperand &extendOpnd1 = static_cast<ExtendShiftOperand&>(opnd1);
+    if (extendOpnd0.GetShiftAmount() != extendOpnd1.GetShiftAmount()) {
+      return false;
+    }
+  } else {
+    return false;
   }
   return true;
 }
 
-bool SameDefPattern::SrcRegIsRedefined(Insn &currInsn, Insn &sameInsn, regno_t regNo) {
+bool SameDefPattern::SrcRegIsRedefined(regno_t regNo) {
   AArch64ReachingDefinition *a64RD = static_cast<AArch64ReachingDefinition*>(cgFunc.GetRD());
-  if (currInsn.GetBB() == sameInsn.GetBB()) {
-    FOR_BB_INSNS(insn, currInsn.GetBB()) {
+  if (currInsn->GetBB() == sameInsn->GetBB()) {
+    FOR_BB_INSNS(insn, currInsn->GetBB()) {
       if (insn->GetMachineOpcode() == MOP_xbl) {
         return true;
       }
     }
-    if (!a64RD->FindRegDefBetweenInsn(regNo, &sameInsn, &currInsn).empty()) {
+    if (!a64RD->FindRegDefBetweenInsn(regNo, sameInsn, currInsn).empty()) {
       return true;
     }
-  } else if (a64RD->HasRegDefBetweenInsnGlobal(regNo, sameInsn, currInsn)) {
+  } else if (a64RD->HasRegDefBetweenInsnGlobal(regNo, *sameInsn, *currInsn)) {
     return true;
   }
   return false;
