@@ -158,6 +158,10 @@ ctorture-ci:
 ctorture:
 	(cd third_party/ctorture; git checkout .; git pull; ./run.sh work.list)
 
+.PHONY: ctorture2
+ctorture2:
+	(cd third_party/ctorture; git checkout .; git pull; ./run.sh work.list hir2mpl)
+
 THREADS := 50
 ifneq ($(findstring test,$(MAKECMDGOALS)),)
 TESTTARGET := $(MAKECMDGOALS)

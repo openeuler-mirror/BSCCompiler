@@ -604,8 +604,8 @@ void ReachingDefinition::InitDataSize() {
 
 /* compute bb->in, bb->out for each BB execpt cleanup BB */
 void ReachingDefinition::BuildInOutForFuncBody() {
-  std::set<BB*, BBIdCmp> normalBBSetBak(normalBBSet.begin(), normalBBSet.end());
-  std::set<BB*, BBIdCmp>::iterator setItr;
+  std::unordered_set<BB*> normalBBSetBak(normalBBSet.begin(), normalBBSet.end());
+  std::unordered_set<BB*>::iterator setItr;
   while (!normalBBSetBak.empty()) {
     setItr = normalBBSetBak.begin();
     BB *bb = *setItr;
@@ -634,8 +634,8 @@ void ReachingDefinition::UpdateInOut(BB &changedBB) {
     return;
   }
 
-  std::set<BB*, BBIdCmp> bbSet;
-  std::set<BB*, BBIdCmp>::iterator setItr;
+  std::unordered_set<BB*> bbSet;
+  std::unordered_set<BB*>::iterator setItr;
 
   for (auto succ : changedBB.GetSuccs()) {
     (void)bbSet.insert(succ);
@@ -727,8 +727,8 @@ void ReachingDefinition::BuildInOutForCleanUpBB() {
   if (GenerateInForFirstCleanUpBB()) {
     GenerateOut(*firstCleanUpBB);
   }
-  std::set<BB*, BBIdCmp> cleanupBBSetBak(cleanUpBBSet.begin(), cleanUpBBSet.end());
-  std::set<BB*, BBIdCmp>::iterator setItr;
+  std::unordered_set<BB*> cleanupBBSetBak(cleanUpBBSet.begin(), cleanUpBBSet.end());
+  std::unordered_set<BB*>::iterator setItr;
 
   while (!cleanupBBSetBak.empty()) {
     setItr = cleanupBBSetBak.begin();
@@ -753,8 +753,8 @@ void ReachingDefinition::BuildInOutForCleanUpBB(bool isReg, const std::set<uint3
   if (GenerateInForFirstCleanUpBB(isReg, index)) {
     GenerateOut(*firstCleanUpBB, index, isReg);
   }
-  std::set<BB*, BBIdCmp> cleanupBBSetBak(cleanUpBBSet.begin(), cleanUpBBSet.end());
-  std::set<BB*, BBIdCmp>::iterator setItr;
+  std::unordered_set<BB*> cleanupBBSetBak(cleanUpBBSet.begin(), cleanUpBBSet.end());
+  std::unordered_set<BB*>::iterator setItr;
   while (!cleanupBBSetBak.empty()) {
     setItr = cleanupBBSetBak.begin();
     BB *bb = *setItr;
