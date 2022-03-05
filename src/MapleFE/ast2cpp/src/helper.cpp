@@ -197,11 +197,11 @@ class )""" + clsName + R"""( : public t2crt::Function {
 }
 
 // build generator function header for _body
-std::string GeneratorFuncHeader(std::string prefix, unsigned nodeId) {
+std::string GeneratorFuncHeader(std::string cls, unsigned nodeId) {
   std::string params = FunctionParams(nodeId, false, false, true); // pass params by ref into _body()
   if (!params.empty())
     params = ", " + params;
-  return "t2crt::IteratorResult " + prefix + "_body(t2crt::Object* _this, void*& yield" + params + ")";
+  return "t2crt::IteratorResult " + cls + "_body(t2crt::Object* _this, void*& yield" + params + ")";
 }
 
 // Template for generating Generators and Generator Functions:
@@ -211,61 +211,56 @@ std::string GeneratorClassDecl(std::string funcName, unsigned nodeId) {
   std::string str;
   std::string generatorName = GeneratorName(funcName);
   std::string generatorFuncName = GeneratorFuncName(funcName);
-  std::vector<std::pair<std::string, std::string>> args = hFuncTable.GetArgInfo(nodeId);
+  std::vector<std::pair<std::string, std::string>> params = hFuncTable.GetArgInfo(nodeId);
 
   // Different formats of arg list as needed by generator and generator function interfaces:
   // <type>    <argName>   - args for function class functor and generation class constructor
   // <argName> (<ArgName>) - generator class constructor field init list
   // <type>&   <argName>   - args passed by reference to generation function _body method
   // <type>    <argName>;  - generator class fields for capturing closure
-  std::string functorArgs, ctorArgs, refArgs, initList, captureFields;
+  std::string functorArgs, ctorArgs, initList, captureFields;
 
-  for (bool hasArg=false; auto elem : args) {
+  for (bool hasArg=false; auto elem : params) {
     if (!hasArg)
       hasArg = true;
     else {
       functorArgs += ", "s;
-      refArgs     += ", "s;
       initList    += ", "s;
     }
     std::string type = elem.first, name = elem.second;
     functorArgs += type + " " + name;
-    refArgs     += type + "& "+ name;
     initList    += name + "("s+ name + ")"s;
     captureFields += tab(1) + type + " " + name + ";\n"s;
   }
-  if (!refArgs.empty())
-    refArgs = ", " + refArgs;
   if (!initList.empty())
     initList = ", " + initList;
   ctorArgs = functorArgs.empty()? std::string(): (", "s + functorArgs);
 
-  str = R"""(
-// )""" + funcName + R"""( generators
-class )""" + generatorName + R"""( : public t2crt::GeneratorProto {
-public:
-  )""" + generatorName + R"""((t2crt::Function* ctor, t2crt::Object* proto)""" + ctorArgs + R"""() : t2crt::GeneratorProto(ctor, proto))""" + initList + R"""( {}
-  ~)""" + generatorName + R"""(() {}
+  std::string genClsDecl[] = {
+"// " +funcName+ " generators",
+"class " +generatorName+ " : public t2crt::GeneratorProto {",
+"public:",
+"  " +generatorName+ "(t2crt::Function* ctor, t2crt::Object* proto" +ctorArgs+ ") : t2crt::GeneratorProto(ctor, proto)" +initList+ " {}",
+"  ~" +generatorName+ "() {}",
+"  // closure capture fields",
+   captureFields,
+"  // iterator interface (override _return and _throw when needed)",
+"  t2crt::IteratorResult _next(t2crt::JS_Val* arg = nullptr) override;",
+"};",
+"// " +funcName+ " generator function",
+"class " +generatorFuncName+ " : public t2crt::GeneratorFuncPrototype {",
+"public:",
+"  " +generatorFuncName+ "() : t2crt::GeneratorFuncPrototype(&t2crt::GeneratorFunction, &t2crt::Generator, t2crt::GeneratorPrototype) {}",
+"  ~" +generatorFuncName+ "() {}",
+"  // call operator returns generator instances",
+"  " +generatorName+ "* operator()(" +functorArgs+ ");",
+"  // generator function body",
+"  " +GeneratorFuncHeader("", nodeId)+ ";",
+"};"
+  };
 
-  // closure capture fields
-)""" + captureFields + R"""(
-  // iterator interface (override _return and _throw when needed)
-  t2crt::IteratorResult _next(t2crt::JS_Val* arg = nullptr) override;
-};
-
-// )""" + funcName + R"""( generator function
-class )""" + generatorFuncName + R"""( : public t2crt::GeneratorFuncPrototype {
-public:
-  )""" + generatorFuncName + R"""(() : t2crt::GeneratorFuncPrototype(&t2crt::GeneratorFunction, &t2crt::Generator, t2crt::GeneratorPrototype) {}
-  ~)""" + generatorFuncName + R"""(() {}
-
-  // call operator returns generator instances
-  )""" + generatorName + R"""(* operator()()""" + functorArgs + R"""();
-  // generator function body
-  t2crt::IteratorResult _body(t2crt::Object* _this, void*& yield)""" + refArgs + R"""();
-};
-
-)""";
+  for (auto elem : genClsDecl)
+    str += elem + "\n";
   return str;
 }
 
