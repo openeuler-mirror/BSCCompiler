@@ -1155,9 +1155,9 @@ rule ContinueStatement : ONEOF(
 ##  break [no LineTerminator here] LabelIdentifier[?Yield] ;
 rule BreakStatement : ONEOF(
   "break" + ZEROORONE(';'),
-  "break" + LabelIdentifier + ZEROORONE(';'))
+  "break" + NoLineTerminator + LabelIdentifier + ZEROORONE(';'))
   attr.action.%1 : BuildBreak()
-  attr.action.%2 : BuildBreak(%2)
+  attr.action.%2 : BuildBreak(%3)
 
 ##-----------------------------------
 ##rule ReturnStatement[Yield] :

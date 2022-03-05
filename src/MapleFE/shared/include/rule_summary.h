@@ -28,6 +28,7 @@ extern RuleTable TblHEXDIGIT;
 extern RuleTable TblUTF8;
 extern RuleTable TblIRREGULAR_CHAR;
 
+extern RuleTable TblNoLineTerminator;
 extern RuleTable TblTemplateLiteral;
 extern RuleTable TblRegularExpression;
 extern RuleTable TblExpression;
