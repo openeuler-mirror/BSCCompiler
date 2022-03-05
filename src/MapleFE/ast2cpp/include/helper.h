@@ -48,7 +48,7 @@ extern std::string hlpGetJSValTypeStr(TypeId typeId);
 extern std::string ArrayCtorName(int dim, std::string type);
 extern bool IsBuiltinObj(std::string name);
 extern std::string ObjectTypeStr(std::string name);
-extern std::string GeneratorFuncHeader(std::string prefix, unsigned nodeId);
+extern std::string GeneratorFuncHeader(std::string cls, unsigned nodeId);
 extern std::string FunctionParams(unsigned nodeId, bool handleThis, bool argsOnly = false, bool byRef = false);
 
 class FuncTable {
