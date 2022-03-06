@@ -247,21 +247,37 @@ void IVCanon::ComputeTripCount() {
   // make the side that consists of a single IV the left operand
   // check left operand
   ScalarMeExpr *iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0));
+  bool cvtDetected = false;
+  if (iv == nullptr && testExpr->GetOpnd(0)->GetOp() == OP_cvt) {
+    iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0)->GetOpnd(0));
+    cvtDetected = true;
+  }
   IVDesc *ivdesc = nullptr;
   if (iv) {
     for (uint32 i = 0; i < ivvec.size(); i++) {
       if (iv->GetOst() == ivvec[i]->ost) {
         ivdesc = ivvec[i];
+        if (cvtDetected) {
+          ivdesc->canBePrimary = false;
+        }
         break;
       }
     }
   }
   if (ivdesc == nullptr) { // check second operand
+    cvtDetected = false;
     iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(1));
+    if (iv == nullptr && testExpr->GetOpnd(1)->GetOp() == OP_cvt) {
+      iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(1)->GetOpnd(0));
+      cvtDetected = true;
+    }
     if (iv) {
       for (uint32 i = 0; i < ivvec.size(); i++) {
         if (iv->GetOst() == ivvec[i]->ost) {
           ivdesc = ivvec[i];
+          if (cvtDetected) {
+            ivdesc->canBePrimary = false;
+          }
           break;
         }
       }
@@ -311,15 +327,16 @@ void IVCanon::ComputeTripCount() {
   }
 
   // form the trip count expression
+  MeExpr *testExprRHS = testExpr->GetOpnd(1);
   PrimType primTypeUsed = (!ivdesc->initExpr->IsZero()) ?
-      GetSignedPrimType(testExpr->GetOpnd(0)->GetPrimType()) : testExpr->GetOpnd(0)->GetPrimType();
+      GetSignedPrimType(testExprRHS->GetPrimType()) : testExprRHS->GetPrimType();
   PrimType divPrimType = primTypeUsed;
   if (ivdesc->stepValue < 0) {
     divPrimType = GetSignedPrimType(divPrimType);
   }
   // add: t = bound + (stepValue +/-1)
   OpMeExpr add(-1, OP_add, primTypeUsed, 2);
-  add.SetOpnd(0, testExpr->GetOpnd(1)); // IV bound
+  add.SetOpnd(0, testExprRHS); // IV bound
   if (CompareHasEqual(condbr->GetOpnd()->GetOp())) {
     // if cond has equal operand, t = bound + stepValue
     add.SetOpnd(1, irMap->CreateIntConstMeExpr(ivdesc->stepValue, primTypeUsed));
@@ -329,6 +346,13 @@ void IVCanon::ComputeTripCount() {
                                                primTypeUsed));
   }
   MeExpr *subx = irMap->HashMeExpr(add);
+  // insert a CVT for ivdesc->initExpr if needed
+  if (GetPrimTypeSize(ivdesc->initExpr->GetPrimType()) != GetPrimTypeSize(primTypeUsed) && ivdesc->initExpr->GetMeOp() != kMeOpConst) {
+    OpMeExpr cvtx(-1, OP_cvt, primTypeUsed, 1);
+    cvtx.SetOpnd(0, ivdesc->initExpr);
+    cvtx.SetOpndType(ivdesc->initExpr->GetPrimType());
+    ivdesc->initExpr = func->GetIRMap()->HashMeExpr(cvtx);
+  }
   if (!ivdesc->initExpr->IsZero()) {
     // sub: t = t - initExpr
     OpMeExpr subtract(-1, OP_sub, primTypeUsed, 2);
@@ -513,6 +537,11 @@ void IVCanon::PerformIVCanon() {
       CharacterizeIV(initVersion, loopbackVersion, philhs);
     }
   }
+  CanonEntryValues();
+  ComputeTripCount();
+  if (tripCount == nullptr) {
+    return;
+  }
   FindPrimaryIV();
   if (DEBUGFUNC(func)) {
     LogInfo::MapleLogger() << "****** while loop at label " << "@"
@@ -528,11 +557,6 @@ void IVCanon::PerformIVCanon() {
       }
       LogInfo::MapleLogger() << endl;
     }
-  }
-  CanonEntryValues();
-  ComputeTripCount();
-  if (tripCount == nullptr) {
-    return;
   }
   if (DEBUGFUNC(func)) {
     LogInfo::MapleLogger() << "****** trip count is: ";
