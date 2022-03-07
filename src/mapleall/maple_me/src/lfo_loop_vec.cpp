@@ -139,7 +139,7 @@ void LoopTransPlan::GenerateBoundInfo(const DoloopNode *doloop, const DoloopInfo
 }
 
 // generate best plan for current doloop
-bool LoopTransPlan::Generate(DoloopNode *doloop, DoloopInfo* li, bool enableDebug) {
+bool LoopTransPlan::Generate(const DoloopNode *doloop, const DoloopInfo* li, bool enableDebug) {
   // vector length / type size
   vecLanes = MAX_VECTOR_LENGTH_SIZE / (vecInfo->largestTypeSize);
   vecFactor = vecLanes;
@@ -149,6 +149,30 @@ bool LoopTransPlan::Generate(DoloopNode *doloop, DoloopInfo* li, bool enableDebu
       LogInfo::MapleLogger() << "NOT VECTORIZABLE because no builtin vector type for smallestType in loop\n";
     }
     return false;
+  }
+  // if depdist is not zero
+  if (vecInfo->minTrueDepDist > 0 || vecInfo->maxAntiDepDist < 0) {
+    // true dep distance is less than vecLanes, return false
+    if ((vecInfo->minTrueDepDist > 0) && (vecInfo->minTrueDepDist < vecLanes)) {
+      if (enableDebug) {
+        LogInfo::MapleLogger() << "NOT VECTORIZABLE because true dependence distance less than veclanes in loop\n";
+      }
+      return false;
+    }
+    // anti-dep distance doesn't break vectorization in case
+    //  use before def like a[i] = a[i+1]
+    // if use is after def as following, distance less than vecLanes will break vectorization
+    //  a[i] =
+    //       = a[i+1]
+    // there's no extra information to describe sequence now
+    // we only handle one stmt in loopbody without considering anti-dep distance
+    if ((vecInfo->maxAntiDepDist < 0) && ((-vecInfo->maxAntiDepDist) < vecLanes) &&
+        (doloop->GetDoBody()->GetFirst() != doloop->GetDoBody()->GetLast())) {
+      if (enableDebug) {
+        LogInfo::MapleLogger() << "NOT VECTORIZABLE because anti dependence distance less than veclanes in loop\n";
+      }
+      return false;
+    }
   }
   // compare trip count if lanes is larger than tripcount
   {
@@ -1580,10 +1604,7 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
     case OP_constval:
     case OP_dread:
     case OP_addrof: {
-      PreMeMIRExtension* lfopart = (*PreMeExprExtensionMap)[x];
-      CHECK_FATAL(lfopart, "nullptr check");
-      BaseNode *parent = lfopart->GetParent();
-      if (parent && parent->GetOpCode() == OP_array) {
+      if (isArraySub) {
         return true;
       }
       if (x->GetOpCode() == OP_constval) {
@@ -1680,9 +1701,12 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
     // supported n-ary ops
     case OP_array: {
       for (size_t i = 0; i < x->NumOpnds(); i++) {
+        isArraySub = true;
         if (!ExprVectorizable(doloopInfo, vecInfo, x->Opnd(i))) {
+          isArraySub = false;
           return false;
         }
+        isArraySub = false;
       }
       return true;
     }
@@ -1896,8 +1920,7 @@ void LoopVectorization::Perform() {
   // step 2: collect information, legality check and generate transform plan
   MapleMap<DoloopNode *, DoloopInfo *>::iterator mapit = depInfo->doloopInfoMap.begin();
   for (; mapit != depInfo->doloopInfoMap.end(); ++mapit) {
-    if (!mapit->second->children.empty() ||
-        ((!mapit->second->Parallelizable()) && (!mapit->second->CheckReductionLoop()))) {
+    if (!mapit->second->children.empty() || mapit->second->NotParallel()) {
       continue;
     }
     // check in debug
@@ -1905,6 +1928,12 @@ void LoopVectorization::Perform() {
       break;
     }
     LoopVecInfo *vecInfo = localMP->New<LoopVecInfo>(localAlloc);
+    if (mapit->second->HasTrueDepOnly() > 0) {
+      vecInfo->minTrueDepDist = mapit->second->HasTrueDepOnly();
+    }
+    if (mapit->second->HasAntiDepOnly() < 0) {
+      vecInfo->maxAntiDepDist = mapit->second->HasAntiDepOnly();
+    }
     bool vectorizable = Vectorizable(mapit->second, vecInfo, mapit->first->GetDoBody());
     if (vectorizable) {
       LoopVectorization::vectorizedLoop++;

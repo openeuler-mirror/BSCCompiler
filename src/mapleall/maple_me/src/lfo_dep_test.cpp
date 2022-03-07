@@ -508,6 +508,59 @@ bool DoloopInfo::Parallelizable() {
   return true;
 }
 
+// complex case not handled
+bool DoloopInfo::NotParallel() {
+  if (hasPtrAccess || hasOtherCtrlFlow || hasMayDef ||
+      (hasScalarAssign && !CheckReductionLoop())) {
+    return true;
+  }
+  return false;
+}
+
+bool DoloopInfo::HasOutputDep() {
+  for (size_t i = 0; i < outputDepTestList.size(); ++i) {
+    DepTestPair *testPair = &outputDepTestList[i];
+    if (testPair->dependent && (testPair->unknownDist || testPair->depDist != 0)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// return 1 means has other dep type
+// return max anti-depDist which is < 0
+int DoloopInfo::HasAntiDepOnly() {
+  int depdist = INT32_MIN;
+  for (size_t i = 0; i < flowDepTestList.size(); ++i) {
+    DepTestPair *testPair = &flowDepTestList[i];
+    if (testPair->dependent) {
+      if (testPair->unknownDist || testPair->depDist > 0) {
+        return 1;
+      } else if (testPair->depDist < 0) {
+        depdist = depdist < testPair->depDist ? testPair->depDist : depdist; // get max value
+      }
+    }
+  }
+  return (depdist == INT32_MIN) ? 0 : depdist;
+}
+// -1 means has other dep type
+// return min flowdepdist which is >= 0
+int DoloopInfo::HasTrueDepOnly() {
+  int depdist = INT32_MAX;
+  for (size_t i = 0; i < flowDepTestList.size(); ++i) {
+    DepTestPair *testPair = &flowDepTestList[i];
+    if (testPair->dependent) {
+      if (testPair->unknownDist || testPair->depDist < 0) {
+        return -1;
+      } else if (testPair->depDist > 0) {
+        depdist = depdist < testPair->depDist ? depdist : testPair->depDist; // get min value
+      }
+    }
+  }
+  return (depdist == INT32_MAX) ? -1 : depdist;
+}
+
+
 static bool IsDreadOf(BaseNode *x, StIdx stIdx, FieldID fieldID) {
   if (x->op != OP_dread) {
     return false;
