@@ -21,6 +21,9 @@
 #if TARGARM32
 #include "arm32_proepilog.h"
 #endif
+#if TARGX86_64
+#include "x64_proepilog.h"
+#endif
 #include "cgfunc.h"
 #include "cg.h"
 
@@ -49,8 +52,10 @@ bool CgGenProEpiLog::PhaseRun(maplebe::CGFunc &f) {
 #if TARGARM32
   genPE = GetPhaseAllocator()->New<Arm32GenProEpilog>(f);
 #endif
+#if TARGX86_64
+  genPE = GetPhaseAllocator()->New<X64GenProEpilog>(f);
+#endif
   genPE->Run();
   return false;
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgGenProEpiLog, generateproepilog)
 }  /* namespace maplebe */

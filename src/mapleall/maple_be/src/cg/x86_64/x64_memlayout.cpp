@@ -37,13 +37,11 @@ void X64MemLayout::LayoutFormalParams() {
     X64SymbolAlloc *symLoc = memAllocator->GetMemPool()->New<X64SymbolAlloc>();
     SetSymAllocInfo(stIndex, *symLoc);
     if (i == 0) {
+     // The function name here is not appropriate, it should be to determine
+     // whether the function returns a structure less than 16 bytes. At this
+     // time, the first parameter is a structure occupant, which has no
+     // practical significance.
      if (be.HasFuncReturnType(*mirFunction)) {
-       symLoc->SetMemSegment(GetSegArgsRegPassed());
-       symLoc->SetOffset(GetSegArgsRegPassed().GetSize());
-       TyIdx tidx = be.GetFuncReturnType(*mirFunction);
-       if (be.GetTypeSize(tidx.GetIdx()) > k16ByteSize) {
-         segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + kSizeOfPtr);
-       }
        continue;
      }
     }
