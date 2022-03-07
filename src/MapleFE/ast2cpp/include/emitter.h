@@ -124,6 +124,7 @@ public:
   virtual std::string EmitModuleNode(ModuleNode *node);
   virtual std::string EmitAttrNode(AttrNode *node);
   virtual std::string EmitArrayTypeNode(ArrayTypeNode *node);
+  virtual std::string EmitFunctionTypeNode(FunctionTypeNode *node);
   virtual std::string EmitPrimTypeNode(PrimTypeNode *node);
   virtual std::string EmitPrimArrayTypeNode(PrimArrayTypeNode *node);
 

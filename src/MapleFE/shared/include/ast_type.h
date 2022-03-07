@@ -167,7 +167,7 @@ public:
 
 ///////////////////////////////////////////////////////////////////////////////
 //                          FunctionTypeNode
-// It is used to specify function types with its signature and return type
+// It is used to specify function types with its parameters and return type
 ///////////////////////////////////////////////////////////////////////////////
 class FunctionTypeNode : public TreeNode {
 private:
