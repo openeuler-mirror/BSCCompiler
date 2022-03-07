@@ -19,16 +19,6 @@
 #include "cgfunc.h"
 
 namespace maplebe {
-namespace isel {
-enum ISelMOP_t :maple::uint32 {
-  kMOP_undef,
-  kMOP_addrrr,
-  kMOP_copyrr,
-  kMOP_copyri,
-  kMOP_str,
-  kMOP_load,
-};
-}
 /* macro expansion instruction selection */
 class MPISel {
  public:

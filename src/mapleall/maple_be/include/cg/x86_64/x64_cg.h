@@ -38,6 +38,7 @@ class X64CG : public CG {
     kR64List
   };
   void EnrollTargetPhases(MaplePhaseManager *pm) const override;
+  const InsnDescription *GetTargetInsnDecription(MOperator opCode) const override;
   /* Init SubTarget phase */
   /*LiveAnalysis *CreateLiveAnalysis(MemPool &mp, CGFunc &f) const override;
   MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const override;

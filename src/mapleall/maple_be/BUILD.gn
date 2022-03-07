@@ -224,6 +224,7 @@ src_libcg = [
   "src/cg/proepilog.cpp",
   "src/cg/alignment.cpp",
   "src/cg/cg.cpp",
+  "src/cg/isa.cpp",
   "src/cg/insn.cpp",
   "src/cg/cg_phasemanager.cpp",
 ]

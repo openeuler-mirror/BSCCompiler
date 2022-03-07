@@ -14,11 +14,14 @@
  */
 
 #include "cg_irbuilder.h"
+#include "isa.h"
 
 namespace maplebe {
 #ifdef TARGX86_64
-Insn &InsnBuilder::BuildInsn(MOperator opCode) {
-  return *mp->New<Insn>(*mp, opCode);
+Insn &InsnBuilder::BuildInsn(MOperator opCode, const InsnDescription &idesc) {
+  Insn *newInsn = mp->New<Insn>(*mp, opCode);
+  newInsn->SetInsnDescrption(idesc);
+  return *newInsn;
 }
 #endif
 

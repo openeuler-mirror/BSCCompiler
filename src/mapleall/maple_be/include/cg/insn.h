@@ -27,13 +27,12 @@
 #include "common_utils.h"
 
 namespace maplebe {
-using MOperator = uint32;
-
 /* forward declaration */
 class BB;
 class CG;
 class Emitter;
 class DepNode;
+struct InsnDescription;
 class Insn {
  public:
   enum RetType : uint8 {
@@ -76,10 +75,13 @@ class Insn {
   MOperator GetMachineOpcode() const {
     return mOp;
   }
-
+#ifdef TARGX86_64
+  void SetMOP(const InsnDescription &idesc);
+#else
   void SetMOP(MOperator mOp) {
     this->mOp = mOp;
   }
+#endif
 
   void AddOperand(Operand &opnd) {
     opnds.emplace_back(&opnd);
@@ -124,9 +126,7 @@ class Insn {
     return retSize;
   }
 
-  virtual bool IsMachineInstruction() const {
-    return false;
-  };
+  virtual bool IsMachineInstruction() const;
 
   virtual bool IsPseudoInstruction() const {
     return false;
@@ -559,10 +559,6 @@ class Insn {
     return 0;
   }
 
-  void SetMOperator(MOperator mOp) {
-    this->mOp = mOp;
-  }
-
   void SetPrev(Insn *prev) {
     this->prev = prev;
   }
@@ -743,6 +739,14 @@ class Insn {
     return labelOpnds;
   }
 
+  void SetInsnDescrption(const InsnDescription &newMD) {
+    md = &newMD;
+  }
+
+  const InsnDescription *GetInsnDescrption() const {
+    return md;
+  }
+
  protected:
   MOperator mOp;
   MapleAllocator localAlloc;
@@ -779,6 +783,9 @@ class Insn {
   bool asmDefCondCode = false;
   bool asmModMem = false;
   bool needSplit = false;
+
+  /* for multiple architecture */
+  const InsnDescription *md = nullptr;
 };
 
 struct InsnIdCmp {

@@ -237,7 +237,7 @@ class X64CGFunc : public CGFunc {
 
 class X64OpndDumpVistor : public OpndDumpVisitor {
  public:
-  X64OpndDumpVistor() = default;
+  explicit X64OpndDumpVistor(const OpndDescription &operandDesc) : OpndDumpVisitor(operandDesc) {};
   ~X64OpndDumpVistor() override = default;
 
   void Visit(CGRegOperand *v) final;

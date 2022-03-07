@@ -19,6 +19,8 @@
 #include "mempool_allocator.h"
 #include "mir_symbol.h"
 
+#include "operand.h"
+
 /*
  * Reference:
  * GNU Binutils. AS documentation

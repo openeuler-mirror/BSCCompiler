@@ -27,15 +27,26 @@
 /* Mempool */
 #include "mempool_allocator.h" /* MapleList */
 
-class OpndProp;
-
 namespace maplebe {
+class OpndProp;
 class Emitter;
 
 namespace {
 constexpr int32 kOffsetImmediateOpndSpace = 4; /* offset and immediate operand space is 4 */
 };
-
+using regno_t = uint32_t;
+using MOperator = uint32;
+enum RegType : maple::uint8 {
+  kRegTyUndef,
+  kRegTyInt,
+  kRegTyFloat,
+  kRegTyCc,
+  kRegTyX87,
+  kRegTyVary,
+  kRegTyFpsc,
+  kRegTyIndex,
+  kRegTyLast,
+};
 
 class Operand {
  public:
@@ -981,24 +992,6 @@ class CGMemOperand : public OperandVisitable<CGMemOperand> {
   CGImmOperand *baseOfst = nullptr;
 };
 
-class OpndDumpVisitor : public OperandVisitorBase,
-                        public OperandVisitors<CGRegOperand, CGImmOperand, CGMemOperand> {
- public:
-  virtual ~OpndDumpVisitor() = default;
-
- protected:
-  virtual void DumpOpndPrefix() {
-    LogInfo::MapleLogger() << " (opnd:";
-  }
-  virtual void DumpOpndSuffix() {
-    LogInfo::MapleLogger() << " )";
-  }
-  void DumpSize(Operand &opnd) {
-    LogInfo::MapleLogger() << " [size:" << opnd.GetSize() << "]";
-  }
-};
-
-
 namespace operand {
 // bit 0-7 for common
 enum CommOpndDescProp : maple::uint64 {
@@ -1064,14 +1057,40 @@ class OpndDescription {
     return (property & operand::kIsUse);
   }
 
- private:
+#define DEFINE_MOP(op, ...) static const OpndDescription op;
+#include "operand.def"
+#undef DEFINE_MOP
 
+ private:
   Operand::OperandType opndType;
   maple::uint64 property;
   maple::uint32 size;
-  std::function<bool(int64)> validFunc;
+  std::function<bool(int64)> validFunc = nullptr;
 };
 
+class OpndDumpVisitor : public OperandVisitorBase,
+                        public OperandVisitors<CGRegOperand, CGImmOperand, CGMemOperand> {
+ public:
+  explicit OpndDumpVisitor(const OpndDescription &operandDesc) : opndDesc(&operandDesc) {}
+  virtual ~OpndDumpVisitor() = default;
+
+ protected:
+  virtual void DumpOpndPrefix() {
+    LogInfo::MapleLogger() << " (opnd:";
+  }
+  virtual void DumpOpndSuffix() {
+    LogInfo::MapleLogger() << " )";
+  }
+  void DumpSize(Operand &opnd) {
+    LogInfo::MapleLogger() << " [size:" << opnd.GetSize() << "]";
+  }
+  const OpndDescription *GetOpndDesc() const {
+    return opndDesc;
+  }
+
+ private:
+  const OpndDescription *opndDesc;
+};
 } /* namespace maplebe */
 
 #endif /* MAPLEBE_INCLUDE_CG_OPERAND_H */

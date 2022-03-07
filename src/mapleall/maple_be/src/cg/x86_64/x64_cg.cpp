@@ -18,7 +18,6 @@
 #include "x64_isa.h"
 namespace maplebe {
 using namespace x64;
-#include "opnd.def"
 #define DEFINE_MOP(...) {__VA_ARGS__},
 const InsnDescription X64CG::kMd[kMopLast] = {
 #include "x64_md.def"

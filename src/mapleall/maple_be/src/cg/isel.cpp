@@ -19,6 +19,17 @@
 #include "standardize.h"
 
 namespace maplebe {
+#define DEF_FAST_ISEL_MAPPING_INT(SIZE)                                                                       \
+MOperator fastIselMap##SIZE[Operand::OperandType::kOpdPhi][Operand::OperandType::kOpdPhi] = {                 \
+{abstract::MOP_copy_rr_##SIZE, abstract::MOP_copy_ri_##SIZE, abstract::MOP_load_##SIZE, abstract::MOP_undef}, \
+{abstract::MOP_undef,          abstract::MOP_undef,          abstract::MOP_undef,       abstract::MOP_undef}, \
+{abstract::MOP_str_##SIZE,     abstract::MOP_undef,          abstract::MOP_undef,       abstract::MOP_undef}, \
+{abstract::MOP_undef,          abstract::MOP_undef,          abstract::MOP_undef,       abstract::MOP_undef}, \
+};
+
+DEF_FAST_ISEL_MAPPING_INT(32)
+DEF_FAST_ISEL_MAPPING_INT(64)
+
 void HandleDassign(StmtNode &stmt, MPISel &iSel) {
   auto &dassignNode = static_cast<DassignNode&>(stmt);
   ASSERT(dassignNode.GetOpCode() == OP_dassign, "expect dassign");
@@ -186,8 +197,8 @@ void MPISel::SelectCopy(CGRegOperand &regDest, Operand &src, PrimType type) {
 template<typename destTy, typename srcTy>
 void MPISel::SelectCopyInsn(destTy &dest, srcTy &src) {
   MOperator mop = GetFastIselMop(dest.GetKind(), src.GetKind());
-  CHECK_FATAL(mop != isel::kMOP_undef, "get mop failed");
-  Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mop);
+  CHECK_FATAL(mop != abstract::MOP_undef, "get mop failed");
+  Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mop, InsnDescription::GetAbstractId(mop));
   if (dest.GetSize() != src.GetSize()) {
     CHECK_FATAL(false, "NIY");
   }
@@ -195,15 +206,8 @@ void MPISel::SelectCopyInsn(destTy &dest, srcTy &src) {
   cgFunc->GetCurBB()->AppendInsn(insn);
 }
 
-MOperator fastIselMap[Operand::OperandType::kOpdPhi][Operand::OperandType::kOpdPhi] = {
-    /*register,         imm ,              memory,           cond */
-    {isel::kMOP_copyrr, isel::kMOP_copyri, isel::kMOP_load,  isel::kMOP_undef},     /* reg    */
-    {isel::kMOP_undef,  isel::kMOP_undef,  isel::kMOP_undef, isel::kMOP_undef},     /* imm    */
-    {isel::kMOP_str ,   isel::kMOP_undef,  isel::kMOP_undef, isel::kMOP_undef},     /* memory */
-    {isel::kMOP_undef,  isel::kMOP_undef,  isel::kMOP_undef, isel::kMOP_undef},     /* cond   */
-};
 MOperator MPISel::GetFastIselMop(Operand::OperandType dTy, Operand::OperandType sTy) {
-  return fastIselMap[dTy][sTy];
+  return fastIselMap32[dTy][sTy];
 }
 
 void MPISel::HandleFuncExit() {
@@ -220,7 +224,6 @@ bool InstructionSelector::PhaseRun(maplebe::CGFunc &f) {
   mpIS->doMPIS();
   Standardize *stdz = f.GetCG()->CreateStandardize(*GetPhaseMemPool(), f);
   stdz->DoStandardize();
-  f.DumpCGIR(true);
   return true;
 }
 }

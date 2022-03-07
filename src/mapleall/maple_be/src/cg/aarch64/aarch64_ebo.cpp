@@ -433,7 +433,7 @@ bool AArch64Ebo::DoConstProp(Insn &insn, uint32 idx, Operand &opnd) {
         }
         insn.SetOperand(kInsnSecondOpnd, *src);
         MOperator mOp = (mopCode == MOP_wmovrr) ? MOP_xmovri32 : MOP_xmovri64;
-        insn.SetMOperator(mOp);
+        insn.SetMOP(mOp);
         if (EBO_DUMP) {
           LogInfo::MapleLogger() << " after constprop the insn is:\n";
           insn.Dump();
@@ -468,9 +468,9 @@ bool AArch64Ebo::DoConstProp(Insn &insn, uint32 idx, Operand &opnd) {
       }
       insn.SetOperand(kInsnThirdOpnd, *src);
       if ((mopCode == MOP_xaddrrr) || (mopCode == MOP_waddrrr)) {
-        is64Bits ? insn.SetMOperator(MOP_xaddrri12) : insn.SetMOperator(MOP_waddrri12);
+        is64Bits ? insn.SetMOP(MOP_xaddrri12) : insn.SetMOP(MOP_waddrri12);
       } else if ((mopCode == MOP_xsubrrr) || (mopCode == MOP_wsubrrr)) {
-        is64Bits ? insn.SetMOperator(MOP_xsubrri12) : insn.SetMOperator(MOP_wsubrri12);
+        is64Bits ? insn.SetMOP(MOP_xsubrri12) : insn.SetMOP(MOP_wsubrri12);
       }
       if (EBO_DUMP) {
         LogInfo::MapleLogger() << " after constprop the insn is:\n";
@@ -1535,7 +1535,7 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
  */
 bool AArch64Ebo::IsMovToSIMDVmov(Insn &insn, const Insn &replaceInsn) const {
   if (insn.GetMachineOpcode() == MOP_wmovrr && replaceInsn.GetMachineOpcode() == MOP_xvmovrv) {
-    insn.SetMOperator(replaceInsn.GetMachineOpcode());
+    insn.SetMOP(replaceInsn.GetMachineOpcode());
     return true;
   }
   return false;
@@ -1566,22 +1566,22 @@ bool AArch64Ebo::ChangeLdrMop(Insn &insn, const Operand &opnd) const {
   if (regOpnd->GetRegisterType() == kRegTyFloat) {
     switch (insn.GetMachineOpcode()) {
       case MOP_wldrb:
-        insn.SetMOperator(MOP_bldr);
+        insn.SetMOP(MOP_bldr);
         break;
       case MOP_wldrh:
-        insn.SetMOperator(MOP_hldr);
+        insn.SetMOP(MOP_hldr);
         break;
       case MOP_wldr:
-        insn.SetMOperator(MOP_sldr);
+        insn.SetMOP(MOP_sldr);
         break;
       case MOP_xldr:
-        insn.SetMOperator(MOP_dldr);
+        insn.SetMOP(MOP_dldr);
         break;
       case MOP_wldli:
-        insn.SetMOperator(MOP_sldli);
+        insn.SetMOP(MOP_sldli);
         break;
       case MOP_xldli:
-        insn.SetMOperator(MOP_dldli);
+        insn.SetMOP(MOP_dldli);
         break;
       case MOP_wldrsb:
       case MOP_wldrsh:
@@ -1592,22 +1592,22 @@ bool AArch64Ebo::ChangeLdrMop(Insn &insn, const Operand &opnd) const {
   } else if (regOpnd->GetRegisterType() == kRegTyInt) {
     switch (insn.GetMachineOpcode()) {
       case MOP_bldr:
-        insn.SetMOperator(MOP_wldrb);
+        insn.SetMOP(MOP_wldrb);
         break;
       case MOP_hldr:
-        insn.SetMOperator(MOP_wldrh);
+        insn.SetMOP(MOP_wldrh);
         break;
       case MOP_sldr:
-        insn.SetMOperator(MOP_wldr);
+        insn.SetMOP(MOP_wldr);
         break;
       case MOP_dldr:
-        insn.SetMOperator(MOP_xldr);
+        insn.SetMOP(MOP_xldr);
         break;
       case MOP_sldli:
-        insn.SetMOperator(MOP_wldli);
+        insn.SetMOP(MOP_wldli);
         break;
       case MOP_dldli:
-        insn.SetMOperator(MOP_xldli);
+        insn.SetMOP(MOP_xldli);
         break;
       default:
         bRet = false;

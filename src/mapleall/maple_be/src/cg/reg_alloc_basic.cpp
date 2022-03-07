@@ -39,20 +39,18 @@ Operand *DefaultO0RegAllocator::HandleRegOpnd(Operand &opnd) {
     availRegSet[newRegNO] = false;  /* make sure the real register can not be allocated and live */
     (void)liveReg.insert(newRegNO);
     (void)allocatedSet.insert(&opnd);
-    return &regInfo->GetOrCreatePhyRegOperand(newRegNO, regOpnd.GetSize(), regOpnd.GetRegisterType());
+    return &cgFunc->GetOpndBuilder()->CreatePReg(newRegNO, regOpnd.GetSize(), regOpnd.GetRegisterType());
   }
   if (AllocatePhysicalRegister(regOpnd)) {
     (void)allocatedSet.insert(&opnd);
     auto regMapItSecond = regMap.find(regOpnd.GetRegisterNumber());
     ASSERT(regMapItSecond != regMap.end(), " ERROR: can not find register number in regmap ");
-    return &regInfo->GetOrCreatePhyRegOperand(regMapItSecond->second, regOpnd.GetSize(),
-                                              regOpnd.GetRegisterType());
+    return &cgFunc->GetOpndBuilder()->CreatePReg(regMapItSecond->second, regOpnd.GetSize(), regOpnd.GetRegisterType());
   }
 
   /* use 0 register as spill register */
   regno_t regNO = 0;
-  return &regInfo->GetOrCreatePhyRegOperand(regNO, regOpnd.GetSize(),
-                                            regOpnd.GetRegisterType());
+  return &cgFunc->GetOpndBuilder()->CreatePReg(regNO, regOpnd.GetSize(), regOpnd.GetRegisterType());
 }
 
 Operand *DefaultO0RegAllocator::HandleMemOpnd(Operand &opnd) {
@@ -125,12 +123,11 @@ Operand *DefaultO0RegAllocator::AllocDestOpnd(Operand &opnd, const Insn &insn) {
     } else {
       /* For register spill. use 0 register as spill register */
       regno_t regNO = 0;
-      return &regInfo->GetOrCreatePhyRegOperand(regNO, regOpnd.GetSize(),
-                                                regOpnd.GetRegisterType());
+      return &cgFunc->GetOpndBuilder()->CreatePReg(regNO, regOpnd.GetSize(), regOpnd.GetRegisterType());
     }
   }
   (void)allocatedSet.insert(&opnd);
-  return &regInfo->GetOrCreatePhyRegOperand(regMapIt->second, regOpnd.GetSize(), regOpnd.GetRegisterType());
+  return &cgFunc->GetOpndBuilder()->CreatePReg(regMapIt->second, regOpnd.GetSize(), regOpnd.GetRegisterType());
 }
 
 void DefaultO0RegAllocator::AllocHandleCallee(Insn &insn) {
@@ -144,8 +141,8 @@ void DefaultO0RegAllocator::AllocHandleCallee(Insn &insn) {
     if (allocatedSet.find(&opnd) != allocatedSet.end()) {
       auto &regOpnd = static_cast<CGRegOperand&>(opnd);
       regno_t physicalReg = regMap[regOpnd.GetRegisterNumber()];
-      Operand &phyRegOpnd = regInfo->GetOrCreatePhyRegOperand(physicalReg, regOpnd.GetSize(),
-                                                              regOpnd.GetRegisterType());
+      Operand &phyRegOpnd = cgFunc->GetOpndBuilder()->CreatePReg(physicalReg, regOpnd.GetSize(),
+                                                                 regOpnd.GetRegisterType());
       insn.SetOperand(0, phyRegOpnd);
     } else {
       Operand *srcOpnd = AllocSrcOpnd(opnd);
@@ -281,7 +278,7 @@ void DefaultO0RegAllocator::AllocHandleDest(Insn &insn, Operand &opnd, uint32 id
         ReleaseReg(regOpnd);
       }
     }
-    insn.SetOperand(idx, regInfo->GetOrCreatePhyRegOperand(
+    insn.SetOperand(idx, cgFunc->GetOpndBuilder()->CreatePReg(
         regMap[regOpnd.GetRegisterNumber()], regOpnd.GetSize(), regOpnd.GetRegisterType()));
     return;  /* already allocated */
   }
@@ -306,7 +303,7 @@ void DefaultO0RegAllocator::AllocHandleSrc(Insn &insn, Operand &opnd, uint32 idx
     availRegSet[reg] = false;
     (void)liveReg.insert(reg);  /* this register is live now */
     insn.SetOperand(
-        idx, regInfo->GetOrCreatePhyRegOperand(reg, regOpnd->GetSize(), regOpnd->GetRegisterType()));
+        idx, cgFunc->GetOpndBuilder()->CreatePReg(reg, regOpnd->GetSize(), regOpnd->GetRegisterType()));
   } else {
     Operand *srcOpnd = AllocSrcOpnd(opnd);
     CHECK_NULL_FATAL(srcOpnd);
@@ -333,11 +330,12 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
         AllocHandleCallee(*insn);
         continue;
       }
-
       uint32 opndNum = insn->GetOperandSize();
+      const InsnDescription *curMd = cgFunc->GetCG()->GetTargetInsnDecription(insn->GetMachineOpcode());
       for (uint32 i = 0; i < opndNum; ++i) {  /* the dest registers */
         Operand &opnd = insn->GetOperand(i);
-        if (!(opnd.IsRegister() && insn->OpndIsDef(i)) &&
+        const OpndDescription* opndDesc = curMd->GetOpndDes(i);
+        if (!(opnd.IsRegister() && opndDesc->IsDef()) &&
             ((!insn->IsAsmInsn()) || i != kAsmOutputListOpnd)) {
           continue;
         }
@@ -350,7 +348,8 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
 
       for (uint32 i = 0; i < opndNum; ++i) {  /* the src registers */
         Operand &opnd = insn->GetOperand(i);
-        if (!((opnd.IsRegister() && insn->OpndIsUse(i)) || opnd.GetKind() == Operand::kOpdMem) &&
+        const OpndDescription* opndDesc = curMd->GetOpndDes(i);
+        if (!((opnd.IsRegister() && opndDesc->IsUse()) || opnd.GetKind() == Operand::kOpdMem) &&
             ((!insn->IsAsmInsn()) || i != kAsmInputListOpnd)) {
           continue;
         }

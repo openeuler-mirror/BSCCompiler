@@ -517,7 +517,7 @@ void FlipBRPattern::RelocateThrowBB(BB &curBB) {
   uint32 targetIdx = 1;
   MOperator mOp = curBBBranchInsn->FlipConditionOp(curBBBranchInsn->GetMachineOpcode(), targetIdx);
   LabelOperand &brTarget = cgFunc->GetOrCreateLabelOperand(*ftBB);
-  curBBBranchInsn->SetMOperator(mOp);
+  curBBBranchInsn->SetMOP(mOp);
   curBBBranchInsn->SetOperand(targetIdx, brTarget);
 
   /* move ftBB after retBB */
@@ -585,7 +585,7 @@ bool FlipBRPattern::Optimize(BB &curBB) {
           (ftBB->IsSoloGoto() ||
            (!IsLabelInLSDAOrSwitchTable(tgtBB->GetLabIdx()) &&
             cgFunc->GetTheCFG()->CanMerge(*ftBB, *tgtBB)))) {
-        curBBBranchInsn->SetMOperator(mOp);
+        curBBBranchInsn->SetMOP(mOp);
         Operand &brTarget = brInsn->GetOperand(brInsn->GetJumpTargetIdx());
         curBBBranchInsn->SetOperand(targetIdx, brTarget);
         /* Insert ftBB's insn at the beginning of tgtBB. */
@@ -626,7 +626,7 @@ bool FlipBRPattern::Optimize(BB &curBB) {
         ftBB->SetKind(BB::kBBFallthru);
       } else if (!IsLabelInLSDAOrSwitchTable(ftBB->GetLabIdx()) &&
                  !tgtBB->IsPredecessor(*tgtBB->GetPrev())) {
-        curBBBranchInsn->SetMOperator(mOp);
+        curBBBranchInsn->SetMOP(mOp);
         LabelIdx tgtLabIdx = ftBB->GetLabIdx();
         if (ftBB->GetLabIdx() == MIRLabelTable::GetDummyLabel()) {
           tgtLabIdx = cgFunc->CreateLabel();

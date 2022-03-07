@@ -1,0 +1,41 @@
+/*
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under the Mulan PSL v1.
+ * You can use this software according to the terms and conditions of the Mulan PSL v1.
+ * You may obtain a copy of Mulan PSL v1 at:
+ *
+ *     http://license.coscl.org.cn/MulanPSL
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v1 for more details.
+ */
+
+DEFINE_MOP(Mem8S, {Operand::kOpdMem, operand::kIsUse, 8})
+DEFINE_MOP(Mem8D, {Operand::kOpdMem, operand::kIsDef, 8})
+DEFINE_MOP(Mem16S, {Operand::kOpdMem, operand::kIsUse, 16})
+DEFINE_MOP(Mem16D, {Operand::kOpdMem, operand::kIsDef, 16})
+DEFINE_MOP(Mem32D, {Operand::kOpdMem, operand::kIsDef, 32})
+DEFINE_MOP(Mem32S, {Operand::kOpdMem, operand::kIsUse, 32})
+DEFINE_MOP(Mem64D, {Operand::kOpdMem, operand::kIsDef, 64})
+DEFINE_MOP(Mem64S, {Operand::kOpdMem, operand::kIsUse, 64})
+
+DEFINE_MOP(Reg8IS, {Operand::kOpdRegister, operand::kIsUse | operand::kInt, 8})
+DEFINE_MOP(Reg8ID, {Operand::kOpdRegister, operand::kIsDef | operand::kInt, 8})
+DEFINE_MOP(Reg16ID, {Operand::kOpdRegister, operand::kIsDef | operand::kInt, 16})
+DEFINE_MOP(Reg16IS, {Operand::kOpdRegister, operand::kIsUse | operand::kInt, 16})
+DEFINE_MOP(Reg16IDS, {Operand::kOpdRegister, operand::kIsDef | operand::kIsUse | operand::kInt, 16})
+DEFINE_MOP(Reg32ID, {Operand::kOpdRegister, operand::kIsDef | operand::kInt, 32})
+DEFINE_MOP(Reg32IS, {Operand::kOpdRegister, operand::kIsUse | operand::kInt, 32})
+DEFINE_MOP(Reg32IDS, {Operand::kOpdRegister, operand::kIsDef | operand::kIsUse | operand::kInt, 32})
+DEFINE_MOP(Reg64ID, {Operand::kOpdRegister, operand::kIsDef | operand::kInt, 64})
+DEFINE_MOP(Reg64IS, {Operand::kOpdRegister, operand::kIsUse | operand::kInt, 64})
+DEFINE_MOP(Reg64IDS, {Operand::kOpdRegister, operand::kIsDef | operand::kIsUse | operand::kInt, 64})
+
+DEFINE_MOP(Imm8, {Operand::kOpdImmediate, operand::kIsUse, 8})
+DEFINE_MOP(Imm32, {Operand::kOpdImmediate, operand::kIsUse, 32})
+DEFINE_MOP(Imm64, {Operand::kOpdImmediate, operand::kIsUse, 64})
+
+DEFINE_MOP(Lbl64, {Operand::kOpdUndef, operand::kIsUse, 64})
