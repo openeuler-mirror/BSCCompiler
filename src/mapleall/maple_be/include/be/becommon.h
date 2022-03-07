@@ -23,7 +23,6 @@
 #include "mir_nodes.h"   /* maple_ir/include, for BaseNode */
 #include "mir_type.h"    /* maple_ir/include, for MIRType */
 #include "mir_module.h"  /* maple_ir/include, for mirModule */
-#include "isa.h"
 
 namespace maplebe {
 using namespace maple;

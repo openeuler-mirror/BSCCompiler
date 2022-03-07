@@ -14,36 +14,26 @@
  */
 
 #include "insn.h"
-#include "isel.h"
+#include "isa.h"
 namespace maplebe {
-std::string TempTransForm(MOperator mOp) {
-  std::string s = "";
-  switch (mOp) {
-    case isel::kMOP_undef:
-      s = "undef";
-      break;
-    case isel::kMOP_copyrr:
-      s = "copyrr";
-      break;
-    case isel::kMOP_copyri:
-      s = "copyri";
-      break;
-    case isel::kMOP_str:
-      s = "str";
-      break;
-    case isel::kMOP_load:
-      s = "load";
-      break;
-    case isel::kMOP_addrrr:
-      s = "addrrr";
-      break;
-    default:
-      break;
-  }
-  return s;
+bool Insn::IsMachineInstruction() const {
+  return md ? md->IsPhysicalInsn() : false;
+};
+
+#ifdef TARGX86_64
+void Insn::SetMOP(const InsnDescription &idesc) {
+  mOp = idesc.GetOpc();
+  md = &idesc;
 }
+#endif
+
 void Insn::Dump() const {
-  LogInfo::MapleLogger() << "MOP (" << TempTransForm(mOp) << ")";
+
+  LogInfo::MapleLogger() << "MOP (";
+  if (md) {
+    LogInfo::MapleLogger() << md->GetName();
+  }
+  LogInfo::MapleLogger() << ")";
   for (auto opnd : opnds) {
     LogInfo::MapleLogger() << " (opnd:";
     opnd->Dump();

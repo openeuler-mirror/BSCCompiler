@@ -29,7 +29,9 @@ void X64Emitter::EmitJavaInsnAddr(FuncEmitInfo &funcEmitInfo) {}
 void X64Emitter::Run(FuncEmitInfo &funcEmitInfo) {}
 
 void X64OpndEmitVisitor::Visit(maplebe::CGRegOperand *v) {
-  bool r32 = (v->GetSize() == 32);
+  /* Mapping with physical register after register allocation is done
+   * try table-driven register mapping ? */
+  bool r32 = (v->GetSize() == k32BitSize);
   emitter.Emit("%").Emit(X64CG::intRegNames[(r32 ? X64CG::kR32List : X64CG::kR64List)][v->GetRegisterNumber()]);
 }
 void X64OpndEmitVisitor::Visit(maplebe::CGImmOperand *v) {

@@ -2835,7 +2835,7 @@ void EliminateSpecifcSXTAArch64::Run(BB &bb, Insn &insn) {
             RegOperand &dstOpnd = aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(
                 static_cast<AArch64reg>(dstMovOpnd.GetRegisterNumber()), k64BitSize, dstMovOpnd.GetRegisterType());
             prevInsn->SetOperand(kInsnFirstOpnd, dstOpnd);
-            prevInsn->SetMOperator(MOP_xmovri64);
+            prevInsn->SetMOP(MOP_xmovri64);
             bb.RemoveInsn(insn);
           }
         }

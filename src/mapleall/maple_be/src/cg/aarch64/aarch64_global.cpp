@@ -438,7 +438,7 @@ void ForwardPropPattern::Run() {
         Init();
         if (!CheckCondition(*insn)) {
           if (insn->GetMachineOpcode() == MOP_xmovrr_uxtw) {
-            insn->SetMOperator(MOP_xuxtw64);
+            insn->SetMOP(MOP_xuxtw64);
           }
           continue;
         }
@@ -1847,7 +1847,7 @@ void ExtenToMovPattern::Init() {
 }
 
 void ExtenToMovPattern::Optimize(Insn &insn) {
-  insn.SetMOperator(replaceMop);
+  insn.SetMOP(replaceMop);
 }
 
 void SameDefPattern::Run() {

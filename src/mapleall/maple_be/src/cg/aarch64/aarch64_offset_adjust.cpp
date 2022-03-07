@@ -85,7 +85,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGF
 }
 
 void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 index, AArch64CGFunc &aarchCGFunc) {
-  auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(static_cast<int32>(index)));
+  auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(index));
   MemLayout *memLayout = aarchCGFunc.GetMemlayout();
   if (immOpnd.GetVary() == kUnAdjustVary) {
     int64 ofst = static_cast<AArch64MemLayout*>(memLayout)->RealStackFrameSize() - memLayout->SizeOfArgsToStackPass();
@@ -94,7 +94,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
       if (immOpnd.GetValue() < 0) {
         immOpnd.Negate();
       }
-      insn.SetMOperator(A64ConstProp::GetReversalMOP(insn.GetMachineOpcode()));
+      insn.SetMOP(A64ConstProp::GetReversalMOP(insn.GetMachineOpcode()));
     } else {
       immOpnd.Add(ofst);
     }
@@ -115,7 +115,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
         MOperator tempMovOp = is64bit ? MOP_xmovri64 : MOP_xmovri32;
         Insn &tempMov = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(tempMovOp, tempReg, immOpnd);
         insn.SetOperand(index, tempReg);
-        insn.SetMOperator(is64bit ? MOP_xsubrrr : MOP_wsubrrr);
+        insn.SetMOP(is64bit ? MOP_xsubrrr : MOP_wsubrrr);
         (void)insn.GetBB()->InsertInsnBefore(insn, tempMov);
       }
     } else {

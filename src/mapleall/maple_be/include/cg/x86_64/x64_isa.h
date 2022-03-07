@@ -29,25 +29,6 @@ constexpr uint32 kIntregBytelen = 8;   /* 64-bit */
 constexpr uint32 kFpregBytelen = 8;    /* only lower 64 bits are used */
 constexpr int kSizeOfFplr = 16;
 
-enum StpLdpImmBound : int {
-  kStpLdpImm64LowerBound = -512,
-  kStpLdpImm64UpperBound = 504,
-  kStpLdpImm32LowerBound = -256,
-  kStpLdpImm32UpperBound = 252
-};
-
-enum StrLdrPerPostBound : int64 {
-  kStrLdrPerPostLowerBound = -256,
-  kStrLdrPerPostUpperBound = 255
-};
-constexpr int64 kStrAllLdrAllImmLowerBound = 0;
-enum StrLdrImmUpperBound : int64 {
-  kStrLdrImm32UpperBound = 16380, /* must be a multiple of 4 */
-  kStrLdrImm64UpperBound = 32760, /* must be a multiple of 8 */
-  kStrbLdrbImmUpperBound = 4095,
-  kStrhLdrhImmUpperBound = 8190
-};
-
 namespace x64 {
 /* machine instruction description */
 #define DEFINE_MOP(op, ...) op,
@@ -131,20 +112,6 @@ constexpr uint32 kPreInc = 0x20;
 constexpr uint32 kPostInc = 0x40;
 constexpr uint32 kLoadLiteral = 0x80;
 constexpr uint32 kVector = 0x100;
-
-struct X64MD {
-  MOperator opc;
-  std::vector<OpndDescription*> opndMD;
-  uint64 properties;
-  LatencyType latencyType;
-  const std::string &name;
-  const std::string &format;
-  uint32 atomicNum; /* indicate how many asm instructions it will emit. */
-
-  OpndDescription* GetOpndDes(size_t index) {
-    return opndMD[index];
-  }
-};
 
 /*
  * We save callee-saved registers from lower stack area to upper stack area.

@@ -1265,7 +1265,7 @@ void ExtendMovPattern::Init() {
 }
 
 void ExtendMovPattern::Optimize(Insn &insn) {
-  insn.SetMOperator(replaceMop);
+  insn.SetMOP(replaceMop);
 }
 
 void CopyRegProp::Run() {
@@ -1353,9 +1353,9 @@ void CopyRegProp::Optimize(Insn &insn) {
 void CopyRegProp::VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn) {
   ASSERT(movInsn.GetMachineOpcode() == MOP_xmovrr || movInsn.GetMachineOpcode() == MOP_wmovrr, "NIY explicit CVT");
   if (destReg.GetSize() == k64BitSize && srcReg.GetSize() == k32BitSize) {
-    movInsn.SetMOperator(MOP_xuxtw64);
+    movInsn.SetMOP(MOP_xuxtw64);
   } else if (destReg.GetSize() == k32BitSize && srcReg.GetSize() == k64BitSize) {
-    movInsn.SetMOperator(MOP_xubfxrri6i6);
+    movInsn.SetMOP(MOP_xubfxrri6i6);
     movInsn.AddOperand(cgFunc.CreateImmOperand(PTY_i64, 0));
     movInsn.AddOperand(cgFunc.CreateImmOperand(PTY_i64, k32BitSize));
   } else {

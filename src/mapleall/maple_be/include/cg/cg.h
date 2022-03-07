@@ -43,6 +43,7 @@ class CGDce;
 class AlignAnalysis;
 class MoveRegArgs;
 class MPISel;
+class Standardize;
 
 class Globals {
  public:
@@ -129,6 +130,9 @@ class CG {
 
   /* enroll all code generator phases for target machine */
   virtual void EnrollTargetPhases(MaplePhaseManager *pm) const = 0;
+  virtual const InsnDescription *GetTargetInsnDecription(MOperator opCode) const {
+    return nullptr;
+  };
 
   void GenExtraTypeMetadata(const std::string &classListFileName, const std::string &outputBaseName);
   void GenPrimordialObjectList(const std::string &outputBaseName);
@@ -387,6 +391,10 @@ class CG {
   virtual MPISel *CreateMPIsel(MemPool &mp, CGFunc &f) const {
     return nullptr;
   }
+  virtual Standardize *CreateStandardize(MemPool &mp, CGFunc &f) const {
+    return nullptr;
+  }
+
   /* Init SubTarget optimization */
   virtual CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const {
     return nullptr;

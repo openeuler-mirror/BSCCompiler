@@ -708,10 +708,11 @@ CGRegOperand* X64CGFunc::GetBaseReg(const maplebe::SymbolAlloc &symAlloc) {
   return nullptr;
 }
 void X64CGFunc::DumpTargetIR(const Insn &insn) const {
-  X64MD curMd =  X64CG::kMd[insn.GetMachineOpcode()];
-  LogInfo::MapleLogger() << "MOP (" << curMd.name << ")";
+  const InsnDescription &curMd =  X64CG::kMd[insn.GetMachineOpcode()];
+  LogInfo::MapleLogger() << "MOP (" << curMd.GetName() << ")";
   for (size_t i = 0; i < insn.GetOperandSize(); ++i) {
-    X64OpndDumpVistor odv;
+    const OpndDescription *curOpndDesc = curMd.GetOpndDes(i);
+    X64OpndDumpVistor odv(*curOpndDesc);
     insn.GetOperand(i).Accept(odv);
   }
   LogInfo::MapleLogger() << "\n";
@@ -722,6 +723,15 @@ void X64OpndDumpVistor::Visit(maplebe::CGRegOperand *v) {
   LogInfo::MapleLogger() << "reg ";
   LogInfo::MapleLogger() << v->GetRegisterNumber();
   DumpSize(*v);
+  const OpndDescription *regDesc = GetOpndDesc();
+  LogInfo::MapleLogger() << " [";
+  if (regDesc->IsRegDef()) {
+    LogInfo::MapleLogger() << "DEF,";
+  }
+  if (regDesc->IsRegUse()) {
+    LogInfo::MapleLogger() << "USE,";
+  }
+  LogInfo::MapleLogger() << "]";
   DumpOpndSuffix();
 }
 

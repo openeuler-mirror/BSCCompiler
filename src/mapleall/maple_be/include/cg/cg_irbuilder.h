@@ -26,8 +26,13 @@ class InsnBuilder {
   virtual ~InsnBuilder() = default;
 
 #ifdef TARGX86_64
-  Insn &BuildInsn(MOperator opCode);
+  Insn &BuildInsn(MOperator opCode, const InsnDescription &idesc);
 #else
+  Insn &BuildInsn(MOperator opCode, const InsnDescription &idesc) {
+    (void)idesc;
+    Insn *a = nullptr;
+    return *a;
+  }
   Insn &BuildInsn(MOperator opCode) {
     Insn *a = nullptr;
     return *a;

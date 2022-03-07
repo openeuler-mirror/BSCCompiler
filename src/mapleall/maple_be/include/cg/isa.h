@@ -17,76 +17,65 @@
 
 #include <cstdint>
 #include "types_def.h"
+#include "operand.h"
 
 namespace maplebe {
-using regno_t = uint32_t;
-
-enum RegType : maple::uint8 {
-  kRegTyUndef,
-  kRegTyInt,
-  kRegTyFloat,
-  kRegTyCc,
-  kRegTyX87,
-  kRegTyVary,
-  kRegTyFpsc,
-  kRegTyIndex,
-  kRegTyLast,
-};
-
 enum MopProperty : maple::uint8 {
-  kPropIsMove,
-  kPropIsLoad,
-  kPropIsLoadPair,
-  kPropIsStore,
-  kPropIsStorePair,
-  kPropIsLoadAddress,
-  kPropIsAtomic,
-  kPropIsCall,
-  kPropIsConversion,
-  kPropIsConditionalSet,
-  kPropUseSpecReg,
-  kPropIsCondDef,
-  kPropHasAcqure,
-  kPropHasAcqureRCpc,
-  kPropHasLOAcqure,
-  kPropHasRelease,
-  kPropHasLORelease,
-  kPropCanThrow,
-  kPropIsPartDefine,
-  kPropIsDMB,
-  kPropIsUnCondBr,
-  kPropIsCondBr,
-  kPropHasLoop,
-  kPropIsVectorOp,
-  kPropIsPhi,
+  kInsnIsAbstract,
+  kInsnIsMove,
+  kInsnIsLoad,
+  kInsnIsLoadPair,
+  kInsnIsStore,
+  kInsnIsStorePair,
+  kInsnIsLoadAddress,
+  kInsnIsAtomic,
+  kInsnIsCall,
+  kInsnIsConversion,
+  kInsnIsConditionalSet,
+  kInsnUseSpecReg,
+  kInsnIsCondDef,
+  kInsnHasAcqure,
+  kInsnHasAcqureRCpc,
+  kInsnHasLOAcqure,
+  kInsnHasRelease,
+  kInsnHasLORelease,
+  kInsnCanThrow,
+  kInsnIsPartDefine,
+  kInsnIsDMB,
+  kInsnIsUnCondBr,
+  kInsnIsCondBr,
+  kInsnHasLoop,
+  kInsnIsVectorOp,
+  kInsnIsPhi,
 };
-
-#define ISMOVE (1ULL << kPropIsMove)
-#define ISLOAD (1ULL << kPropIsLoad)
-#define ISLOADPAIR (1ULL << kPropIsLoadPair)
-#define ISSTORE (1ULL << kPropIsStore)
-#define ISSTOREPAIR (1ULL << kPropIsStorePair)
-#define ISLOADADDR (1ULL << kPropIsLoadAddress)
-#define ISATOMIC (1ULL << kPropIsAtomic)
-#define ISCALL (1ULL << kPropIsCall)
-#define ISCONVERSION (1ULL << kPropIsConversion)
-#define ISCONDSET (1ULL << kPropIsConditionalSet)
-#define USESPECREG (1ULL << kPropUseSpecReg)
-#define ISCONDDEF (1ULL << kPropIsCondDef)
-#define HASACQUIRE (1ULL << kPropHasAcqure)
-#define HASACQUIRERCPC (1ULL << kPropHasAcqureRCpc)
-#define HASLOACQUIRE (1ULL << kPropHasLOAcqure)
-#define HASRELEASE (1ULL << kPropHasRelease)
-#define HASLORELEASE (1ULL << kPropHasLORelease)
-#define CANTHROW (1ULL << kPropCanThrow)
-#define ISPARTDEF (1ULL << kPropIsPartDefine)
-#define ISDMB (1ULL << kPropIsDMB)
-#define ISUNCONDBRANCH (1ULL << kPropIsUnCondBr)
-#define ISCONDBRANCH (1ULL << kPropIsCondBr)
-#define HASLOOP (1ULL << kPropHasLoop)
-#define ISVECTOR (1ULL << kPropIsVectorOp)
-#define ISPHI (1ULL << kPropIsPhi)
-constexpr regno_t kInvalidRegNO = 0;
+using regno_t = uint32_t;
+#define ISABSTRACT (1ULL << kInsnIsAbstract)
+#define ISMOVE (1ULL << kInsnIsMove)
+#define ISLOAD (1ULL << kInsnIsLoad)
+#define ISLOADPAIR (1ULL << kInsnIsLoadPair)
+#define ISSTORE (1ULL << kInsnIsStore)
+#define ISSTOREPAIR (1ULL << kInsnIsStorePair)
+#define ISLOADADDR (1ULL << kInsnIsLoadAddress)
+#define ISATOMIC (1ULL << kInsnIsAtomic)
+#define ISCALL (1ULL << kInsnIsCall)
+#define ISCONVERSION (1ULL << kInsnIsConversion)
+#define ISCONDSET (1ULL << kInsnIsConditionalSet)
+#define USESPECREG (1ULL << kInsnUseSpecReg)
+#define ISCONDDEF (1ULL << kInsnIsCondDef)
+#define HASACQUIRE (1ULL << kInsnHasAcqure)
+#define HASACQUIRERCPC (1ULL << kInsnHasAcqureRCpc)
+#define HASLOACQUIRE (1ULL << kInsnHasLOAcqure)
+#define HASRELEASE (1ULL << kInsnHasRelease)
+#define HASLORELEASE (1ULL << kInsnHasLORelease)
+#define CANTHROW (1ULL << kInsnCanThrow)
+#define ISPARTDEF (1ULL << kInsnIsPartDefine)
+#define ISDMB (1ULL << kInsnIsDMB)
+#define ISUNCONDBRANCH (1ULL << kInsnIsUnCondBr)
+#define ISCONDBRANCH (1ULL << kInsnIsCondBr)
+#define HASLOOP (1ULL << kInsnHasLoop)
+#define ISVECTOR (1ULL << kInsnIsVectorOp)
+#define ISPHI (1ULL << kInsnIsPhi)
+constexpr maplebe::regno_t kInvalidRegNO = 0;
 
 /*
  * ARM64 has 32 int registes and 32 FP registers.
@@ -104,6 +93,59 @@ class ConstraintFunction {
   bool CheckConstraint(cfPointer ccfunc, ParaType a) {
     return (*ccfunc)(a);
   }
+};
+
+/*
+ * abstract machine instruction
+ * a lower-level maple IR which is aimed to represent general machine instruction for extreme cpus
+ * 1. Support conversion between all types and registers
+ * 2. Support conversion between memory and registers
+ * 3. Support three address basic operations
+ *
+ */
+namespace abstract {
+#define DEFINE_MOP(op, ...) op,
+enum AbstractMOP_t : maple::uint32 {
+#include "abstract_mmir.def"
+  kMopLast
+};
+#undef DEFINE_MOP
+}
+
+struct InsnDescription {
+  MOperator opc;
+  std::vector<const OpndDescription*> opndMD;
+  uint64 properties;
+  uint32 latencyType;
+  const std::string &name;
+  const std::string &format;
+  uint32 atomicNum; /* indicate how many asm instructions it will emit. */
+
+  const OpndDescription* GetOpndDes(size_t index) const {
+    return opndMD[index];
+  }
+  MOperator GetOpc() const {
+    return opc;
+  }
+  bool IsPhysicalInsn() const {
+    return !(properties & ISABSTRACT);
+  }
+  uint32 GetLatencyType() {
+    return latencyType;
+  }
+  const std::string &GetName() const {
+    return name;
+  }
+  const std::string &GetFormat() const {
+    return format;
+  }
+  uint32 GetAtomicNum() {
+    return atomicNum;
+  }
+  static const InsnDescription &GetAbstractId(MOperator opc) {
+    return abstractId[opc];
+  }
+  static const InsnDescription abstractId[abstract::kMopLast];
 };
 
 /* empty class; just for parameter passing */

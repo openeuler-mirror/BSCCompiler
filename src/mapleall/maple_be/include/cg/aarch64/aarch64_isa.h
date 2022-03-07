@@ -15,8 +15,7 @@
 #ifndef MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_ISA_H
 #define MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_ISA_H
 
-#include "operand.h"
-#include "mad.h"
+#include "isa.h"
 
 #define DEFINE_MOP(op, ...) op,
 enum AArch64MOP_t : maple::uint32 {
@@ -292,7 +291,7 @@ struct AArch64MD {
   MOperator opc;
   std::vector<OpndProp*> operand;
   uint64 properties;
-  LatencyType latencyType;
+  uint32 latencyType;
   const std::string &name;
   const std::string &format;
   uint32 atomicNum; /* indicate how many asm instructions it will emit. */
@@ -411,7 +410,7 @@ struct AArch64MD {
     return properties & ISVECTOR;
   }
 
-  LatencyType GetLatencyType() const {
+  uint32 GetLatencyType() const {
     return latencyType;
   }
 };

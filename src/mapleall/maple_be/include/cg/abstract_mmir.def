@@ -1,0 +1,37 @@
+/*
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under the Mulan PSL v1.
+ * You can use this software according to the terms and conditions of the Mulan PSL v1.
+ * You may obtain a copy of Mulan PSL v1 at:
+ *
+ *     http://license.coscl.org.cn/MulanPSL
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v1 for more details.
+ */
+
+ /* Abstract Maple Machine IR */
+ /* {mop, opnds, prop, latency, name, format, length} */
+ DEFINE_MOP(MOP_undef, {}, ISABSTRACT,0,"","",0)
+
+ /* conversion between all types and registers */
+ DEFINE_MOP(MOP_copy_ri_32, {&OpndDescription::Reg32ID ,&OpndDescription::Imm32}, ISABSTRACT,0,"copy_ri_32","",1)
+ DEFINE_MOP(MOP_copy_rr_32, {&OpndDescription::Reg64ID, &OpndDescription::Reg64IS}, ISABSTRACT,0,"copy_rr_32","",1)
+ DEFINE_MOP(MOP_copy_ri_64, {&OpndDescription::Reg32ID ,&OpndDescription::Imm32}, ISABSTRACT,0,"copy_ri_32","",1)
+ DEFINE_MOP(MOP_copy_rr_64, {&OpndDescription::Reg64ID, &OpndDescription::Reg64IS}, ISABSTRACT,0,"copy_rr_32","",1)
+
+ /* conversion between registers */
+ DEFINE_MOP(MOP_cvt_r32_r64, {&OpndDescription::Reg32IS ,&OpndDescription::Reg64IS}, ISABSTRACT,0,"cvt_r32_r64","",1)
+
+ /* Support conversion between memory and registers */
+ DEFINE_MOP(MOP_str_32, {&OpndDescription::Reg32IS, &OpndDescription::Mem32D}, ISABSTRACT,0,"str_32","",1)
+ DEFINE_MOP(MOP_str_64, {&OpndDescription::Reg64IS, &OpndDescription::Mem64D}, ISABSTRACT,0,"str_64","",1)
+ DEFINE_MOP(MOP_load_32, {&OpndDescription::Reg32ID, &OpndDescription::Mem32S},ISABSTRACT,0,"load_32","",1)
+ DEFINE_MOP(MOP_load_64, {&OpndDescription::Reg64ID, &OpndDescription::Mem64S},ISABSTRACT,0,"load_64","",1)
+
+ /* Support three address basic operations */
+ DEFINE_MOP(MOP_add_32, {&OpndDescription::Reg32ID, &OpndDescription::Reg32IS, &OpndDescription::Reg32IS}, ISABSTRACT,0,"add_32","",1)
+
