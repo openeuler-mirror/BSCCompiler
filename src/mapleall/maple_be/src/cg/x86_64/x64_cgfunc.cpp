@@ -688,8 +688,9 @@ int32 X64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
   MemSegmentKind sgKind = symAlloc->GetMemSegment()->GetMemSegmentKind();
   auto *memLayout = static_cast<X64MemLayout*>(this->GetMemlayout());
   if (sgKind == kMsLocals) {
+    // baseOffset is the offset of this symbol based on the rbp position.
     int32 baseOffset = symAlloc->GetOffset();
-    return baseOffset + memLayout->StackFrameSize();
+    return baseOffset - memLayout->StackFrameSize();
   } else {
     CHECK_FATAL(false, "sgKind check");
   }

@@ -375,4 +375,5 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgRegAlloc, regalloc)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgAlignAnalysis, alignanalysis)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFrameFinalize, framefinalize)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgYieldPointInsertion, yieldpoint)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgGenProEpiLog, generateproepilog)
 }  /* namespace maplebe */

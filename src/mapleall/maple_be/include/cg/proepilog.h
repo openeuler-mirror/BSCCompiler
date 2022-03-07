@@ -56,9 +56,6 @@ class GenProEpilog {
   CGFunc &cgFunc;
   int64 offsetFromCfa = 0; /* SP offset from Call Frame Address */
 };
-
-MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgGenProEpiLog, maplebe::CGFunc)
-MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_PROEPILOG_H */
