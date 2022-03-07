@@ -49,7 +49,7 @@ extern std::string ArrayCtorName(int dim, std::string type);
 extern bool IsBuiltinObj(std::string name);
 extern std::string ObjectTypeStr(std::string name);
 extern std::string GeneratorFuncHeader(std::string cls, unsigned nodeId);
-extern std::string FunctionParams(unsigned nodeId, bool handleThis, bool argsOnly = false, bool byRef = false);
+extern std::string FunctionParams(unsigned nodeId, bool handleThis, bool argsOnly = false, bool byRef = false, bool fdInit = false, bool capture = false);
 
 class FuncTable {
 private:
