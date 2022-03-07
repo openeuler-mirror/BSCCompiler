@@ -95,27 +95,35 @@ std::string GenClassFldAddProp(std::string objName,
   return str;
 }
 
-// TS function paramteri mapping to C++:
+// From TS func param info, generate param and arg list for corresponding mapped C++ func.
 //
-// TS2cpp's C++ mapping for TS func has a "this" obj in the c++ func param list
-// which will be generated from AST if "this" is declared as a TS func parameter
-// as required by TS strict mode. However TS funcs that do not reference 'this'
-// are not required to declare it, in which case emitter has to insert one.
+// Different formats of arg list as needed by C++ mapping of function/class/generators
+// <type>    <argName>   - args for function class functor and generation class constructor
+// <argName> (<ArgName>) - generator class constructor field init list
+// <type>&   <argName>   - args passed by reference to generation function _body method
+// <type>    <argName>;  - generator class fields for capturing closure
 //
-// Cases:
-// if TS func has no param
-//   - insert param "ts2crt::Object* _this"
-// if 1st TS func param is not "this"
-//   - insert param "ts2crt::Object* _this"
-// if 1st TS func param is "this"
-//   - rename to "_this"
-//   - if type is Any (JS_Val), change to "ts2crt::Object*"
-//
-std::string FunctionParams(unsigned nodeId, bool handleThis, bool argsOnly, bool byRef) {
+std::string FunctionParams(unsigned nodeId, bool handleThis, bool argsOnly, bool byRef, bool fdInit, bool capture) {
   std::vector<std::pair<std::string, std::string>> funcParams = hFuncTable.GetArgInfo(nodeId);
   std::string ObjT = "t2crt::Object*";
   std::string str;
 
+  // "this" in TS function paramter mapping to C++:
+  //
+  // TS2cpp's C++ mapping for TS func has a "this" obj in the c++ func param list
+  // which will be generated from AST if "this" is declared as a TS func parameter
+  // as required by TS strict mode. However TS funcs that do not reference 'this'
+  // are not required to declare it, in which case emitter has to insert one.
+  //
+  // Cases:
+  // if TS func has no param
+  //   - insert param "ts2crt::Object* _this"
+  // if 1st TS func param is not "this"
+  //   - insert param "ts2crt::Object* _this"
+  // if 1st TS func param is "this"
+  //   - rename to "_this"
+  //   - if type is Any (JS_Val), change to "ts2crt::Object*"
+  //
   if (handleThis) {
     if (funcParams.size() == 0)          // func has no param
       return argsOnly ? "_this"s : (ObjT + " _this");
@@ -130,14 +138,19 @@ std::string FunctionParams(unsigned nodeId, bool handleThis, bool argsOnly, bool
         if (name.compare("this") != 0)  // if not "this", insert _this
           str += argsOnly? ("_this, "s): (ObjT + " _this, "s);
         else {                          // if "this"
-          name = "_this";
+          name = "_this";               // rename to "_this"
           if (type.compare("t2crt::JS_Val") == 0)
             type = ObjT;                // change type Any to Object*
         }
       }
       first = false;
     }
-    str += argsOnly? name: (type + (byRef?"\&":"") +  " "s + name);
+    if (fdInit)
+      str += name + "(" + name + ")";
+    else if (capture)
+      str += type + " " + name + ";\n";
+    else
+      str += argsOnly? name: (type + (byRef?"\&":"") +  " "s + name);
   }
   return str;
 }
@@ -204,37 +217,19 @@ std::string GeneratorFuncHeader(std::string cls, unsigned nodeId) {
   return "t2crt::IteratorResult " + cls + "_body(t2crt::Object* _this, void*& yield" + params + ")";
 }
 
-// Template for generating Generators and Generator Functions:
+// Generating Generators and Generator Functions:
 // For each TS generator function, 2 C++ classes: generator and generator function are emitted.
 // The generator function has only a single instance. It is called to create generator instances.
 std::string GeneratorClassDecl(std::string funcName, unsigned nodeId) {
   std::string str;
   std::string generatorName = GeneratorName(funcName);
   std::string generatorFuncName = GeneratorFuncName(funcName);
-  std::vector<std::pair<std::string, std::string>> params = hFuncTable.GetArgInfo(nodeId);
 
-  // Different formats of arg list as needed by generator and generator function interfaces:
-  // <type>    <argName>   - args for function class functor and generation class constructor
-  // <argName> (<ArgName>) - generator class constructor field init list
-  // <type>&   <argName>   - args passed by reference to generation function _body method
-  // <type>    <argName>;  - generator class fields for capturing closure
-  std::string functorArgs, ctorArgs, initList, captureFields;
-
-  for (bool hasArg=false; auto elem : params) {
-    if (!hasArg)
-      hasArg = true;
-    else {
-      functorArgs += ", "s;
-      initList    += ", "s;
-    }
-    std::string type = elem.first, name = elem.second;
-    functorArgs += type + " " + name;
-    initList    += name + "("s+ name + ")"s;
-    captureFields += tab(1) + type + " " + name + ";\n"s;
-  }
-  if (!initList.empty())
-    initList = ", " + initList;
-  ctorArgs = functorArgs.empty()? std::string(): (", "s + functorArgs);
+  std::string functorArgs  = FunctionParams(nodeId, false, false);
+  std::string initList     = FunctionParams(nodeId, false, false, false, true) ;
+  std::string captureFields = FunctionParams(nodeId, false, false, false, false, true);
+  std::string ctorArgs = functorArgs.empty()? std::string(): (", "s + functorArgs);
+  initList = initList.empty()? "": (", "s + initList);
 
   std::string genClsDecl[] = {
 "// " +funcName+ " generators",
