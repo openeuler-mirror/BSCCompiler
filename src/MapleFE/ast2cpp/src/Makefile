@@ -27,10 +27,12 @@ SRCG := $(wildcard $(BUILDGEN)/gen*.cpp)
 OBJG := $(patsubst %.cpp, %.o, $(SRCG))
 DEPG := $(patsubst %.cpp, %.d, $(SRCG))
 
-OBJS :=$(foreach obj,$(OBJ), $(BUILD)/$(obj)) $(OBJG)
-DEPS :=$(foreach dep,$(DEP), $(BUILD)/$(dep)) $(DEPG)
+LOCALOBJS :=$(foreach obj,$(OBJ), $(BUILD)/$(obj))
+LOCALDEPS :=$(foreach dep,$(DEP), $(BUILD)/$(dep))
+OBJS :=$(LOCALOBJS) $(OBJG)
+DEPS :=$(LOCALDEPS) $(DEPG)
 
-LIBOBJS :=$(patsubst $(BUILD)/main.o,,$(OBJS))
+LIBOBJS :=$(patsubst $(BUILD)/main.o,,$(LOCALOBJS))
 
 GENDIR:=${BUILDDIR}/ast_gen/shared
 
@@ -45,6 +47,8 @@ INCLUDES := -I $(MAPLEFE_ROOT)/shared/include \
 INCLUDEGEN := -I $(MAPLEFE_ROOT)/shared/include -I $(BUILDDIR)/gen -I $(BUILDASTGEN)
 
 TARGET=ast2cpp
+TARGET_A=ast2cpp.a
+
 SHAREDLIB = $(BUILDDIR)/astopt/astopt.a $(BUILDDIR)/shared/shared.a $(BUILDASTGEN)/genast.a
 LANGSPEC=$(BUILDDIR)/typescript/lang_spec.o
 
@@ -78,9 +82,12 @@ $(BUILDGEN)/%.d : $(BUILDGEN)/%.cpp
 
 # TARGET depends on OBJS and shared OBJS from shared directory
 # as well as mapleall libraries
-$(BUILDBIN)/$(TARGET): $(OBJS) $(SHAREDLIB)
+$(BUILD)/$(TARGET_A): $(LIBOBJS)
+	/usr/bin/ar rcs $(BUILD)/$(TARGET_A) $(LIBOBJS)
+
+$(BUILDBIN)/$(TARGET): $(BUILD)/$(TARGET_A) $(OBJS) $(SHAREDLIB)
 	@mkdir -p $(BUILDBIN)
-	$(LD) -o $(BUILDBIN)/$(TARGET) $(OBJS) $(LANGSPEC) $(SHAREDLIB)
+	$(LD) -o $(BUILDBIN)/$(TARGET) $(BUILD)/main.o $(BUILD)/$(TARGET_A) $(OBJG) $(LANGSPEC) $(SHAREDLIB)
 
 clean:
 	rm -rf $(BUILD)
