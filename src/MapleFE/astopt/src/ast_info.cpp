@@ -67,6 +67,10 @@ void AST_INFO::CollectInfo() {
   mPass = 2;
   MSGNOLOC0("============== merge class/interface/struct ==============");
   visitor.Visit(module);
+
+  // collect function types
+  FunctionVisitor func_visitor(mHandler, mFlags, true);
+  func_visitor.Visit(module);
 }
 
 void AST_INFO::AddBuiltInTypes() {
@@ -933,6 +937,24 @@ FunctionNode *ClassStructVisitor::VisitFunctionNode(FunctionNode *node) {
       mInfo->InsertWithThisFunc(node);
     }
   }
+  return node;
+}
+
+FunctionNode *FunctionVisitor::VisitFunctionNode(FunctionNode *node) {
+  FunctionTypeNode *functype = mHandler->NewTreeNode<FunctionTypeNode>();
+  TreeNode *n = NULL;
+  for (unsigned i = 0; i < node->GetParamsNum(); i++) {
+    n = node->GetParam(i);
+    functype->AddParam(n ? n->GetTypeIdx() : 0);
+  }
+
+  // add return
+  n = node->GetType();
+  functype->AddParam(n ? n->GetTypeIdx() : 0);
+
+  unsigned tidx = gTypeTable.GetOrCreateFunctionTypeIdx(functype);
+  node->SetTypeIdx(tidx);
+
   return node;
 }
 

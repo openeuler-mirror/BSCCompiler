@@ -1185,13 +1185,17 @@ CastNode *TypeInferVisitor::VisitCastNode(CastNode *node) {
 AsTypeNode *TypeInferVisitor::VisitAsTypeNode(AsTypeNode *node) {
   (void) AstVisitor::VisitAsTypeNode(node);
   TreeNode *dest = node->GetType();
-  SetTypeId(node, dest);
+  if (node->GetTypeIdx() == 0) {
+    SetTypeId(node, dest);
+  }
 
   TreeNode *parent = node->GetParent();
   if (parent) {
     // pass to parent, need refine if multiple AsTypeNode
     if (parent->GetAsTypesNum() == 1 && parent->GetAsTypeAtIndex(0) == node) {
-      SetTypeId(parent, dest);
+      if (parent->GetTypeIdx() == 0) {
+        SetTypeId(parent, dest);
+      }
     }
   }
   return node;
@@ -1531,9 +1535,6 @@ FunctionNode *TypeInferVisitor::VisitFunctionNode(FunctionNode *node) {
   (void) AstVisitor::VisitFunctionNode(node);
   if (node->GetFuncName()) {
     SetTypeId(node->GetFuncName(), node->GetTypeId());
-  }
-  if (node->GetType()) {
-    SetTypeIdx(node, node->GetType()->GetTypeIdx());
   }
   return node;
 }
