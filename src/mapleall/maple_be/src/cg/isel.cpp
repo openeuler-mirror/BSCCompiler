@@ -54,7 +54,16 @@ void HandleLabel(StmtNode &stmt, MPISel &iSel) {
 }
 
 void HandleReturn(StmtNode &stmt, MPISel &iSel) {
-
+  CGFunc *cgFunc = iSel.GetCurFunc();
+  auto &retNode = static_cast<NaryStmtNode&>(stmt);
+  ASSERT(retNode.NumOpnds() <= 1, "NYI return nodes number > 1");
+  Operand *opnd = nullptr;
+  if (retNode.NumOpnds() != 0) {
+    opnd = iSel.HandleExpr(retNode, *retNode.Opnd(0));
+  }
+  iSel.SelectReturn(*opnd);
+  cgFunc->SetCurBBKind(BB::kBBReturn);
+  cgFunc->SetCurBB(*cgFunc->StartNewBB(retNode));
 }
 
 Operand *HandleDread(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
@@ -136,12 +145,61 @@ CGImmOperand *MPISel::SelectIntConst(MIRIntConst &intConst) {
   return &cgFunc->GetOpndBuilder()->CreateImm(opndSz, intConst.GetValue());
 }
 
+
 Operand* MPISel::SelectDread(const BaseNode &parent, AddrofNode &expr) {
-  return nullptr;
+  MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(expr.GetStIdx());
+  PrimType symType = symbol->GetType()->GetPrimType();
+  uint32 dataSize = GetPrimTypeBitSize(symType);
+   /* Get symbol location */
+  CGMemOperand &symbolMem = GetSymbolFromMemory(*symbol);
+  CGRegOperand &regOpnd = cgFunc->GetOpndBuilder()->CreateVReg(dataSize,
+      cgFunc->GetRegTyFromPrimTy(symType));
+  SelectCopy(regOpnd, symbolMem, symType);
+  return &regOpnd;
 }
 
 Operand* MPISel::SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
-  return nullptr;
+  PrimType dtype = node.GetPrimType();
+  bool isSigned = IsSignedInteger(dtype);
+  uint32 dsize = GetPrimTypeBitSize(dtype);
+  bool is64Bits = (dsize == k64BitSize);
+  bool isFloat = IsPrimitiveFloat(dtype);
+  PrimType primType =
+      isFloat ? dtype : ((is64Bits ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32)));
+  CGRegOperand &resReg = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(dtype),
+      cgFunc->GetRegTyFromPrimTy(primType));
+  SelectAdd(resReg, opnd0, opnd1, primType);
+  return &resReg;
+}
+
+void MPISel::SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) {
+  MOperator mOp = abstract::MOP_add_32;
+  Operand::OperandType opnd0Type = opnd0.GetKind();
+  Operand::OperandType opnd1Type = opnd1.GetKind();
+
+  if (opnd0Type != Operand::kOpdRegister) {
+    /* add #imm, #imm */
+    if (opnd1Type != Operand::kOpdRegister) {
+      CGRegOperand opnd0Reg = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
+          cgFunc->GetRegTyFromPrimTy(primType));
+      SelectCopy(opnd0Reg, opnd0,primType);
+      SelectAdd(resOpnd,opnd0Reg, opnd1, primType);
+      return;
+    }
+    /* add #imm, reg */
+    SelectAdd(resOpnd, opnd1, opnd0, primType);  /* commutative */
+    return;
+  }
+
+  /* add reg, reg */
+  if (opnd1Type == Operand::kOpdRegister) {
+    ASSERT(IsPrimitiveFloat(primType) || IsPrimitiveInteger(primType), "NYI add");
+  } else if(opnd1Type == Operand::kOpdImmediate) {
+    // add reg, imm
+  }
+  Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDescription::GetAbstractId(mOp));
+  insn.AddOperandChain(resOpnd).AddOperandChain(opnd0).AddOperandChain(opnd1);
+  cgFunc->GetCurBB()->AppendInsn(insn);
 }
 
 StmtNode *MPISel::HandleFuncEntry() {
@@ -175,11 +233,13 @@ void MPISel::SelectCopy(Operand &dest, Operand &src, PrimType type) {
     SelectCopy(static_cast<CGRegOperand&>(dest), src, type);
   } else if (dest.GetKind() == Operand::kOpdMem) {
     if (src.GetKind() != Operand::kOpdRegister) {
-      CGRegOperand &tempReg = cgFunc->GetOpndBuilder()->CreateVReg(src.GetSize(), cgFunc->GetRegTyFromPrimTy(type));
+      CGRegOperand &tempReg = cgFunc->GetOpndBuilder()->CreateVReg(src.GetSize(),
+          cgFunc->GetRegTyFromPrimTy(type));
       SelectCopy(tempReg, src, type);
       SelectCopyInsn<CGMemOperand, CGRegOperand>(static_cast<CGMemOperand&>(dest), tempReg);
     } else {
-      SelectCopyInsn<CGMemOperand, CGRegOperand>(static_cast<CGMemOperand&>(dest), static_cast<CGRegOperand&>(src));
+      SelectCopyInsn<CGMemOperand, CGRegOperand>(static_cast<CGMemOperand&>(dest),
+          static_cast<CGRegOperand&>(src));
     }
   } else {
     CHECK_FATAL(false, "NIY, CPU supports more than memory and registers");
@@ -189,6 +249,8 @@ void MPISel::SelectCopy(Operand &dest, Operand &src, PrimType type) {
 void MPISel::SelectCopy(CGRegOperand &regDest, Operand &src, PrimType type) {
   if (src.GetKind() == Operand::kOpdImmediate) {
     SelectCopyInsn<CGRegOperand, CGImmOperand>(regDest, static_cast<CGImmOperand&>(src));
+  } else if (src.GetKind() == Operand::kOpdMem) {
+    SelectCopyInsn<CGRegOperand, CGMemOperand>(regDest, static_cast<CGMemOperand&>(src));
   } else {
     CHECK_FATAL(false, "NIY");
   }
