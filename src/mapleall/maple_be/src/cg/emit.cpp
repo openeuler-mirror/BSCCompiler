@@ -284,6 +284,11 @@ void Emitter::EmitAsmLabel(AsmLabel label) {
       Emit("\n");
       return;
     }
+    case kAsmText: {
+      Emit(asmInfo->GetText());
+      Emit("\n");
+      return;
+    }
     case kAsmByte: {
       Emit(asmInfo->GetByte());
       return;

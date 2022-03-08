@@ -30,13 +30,6 @@ class X64CG : public CG {
   X64CG(MIRModule &mod, const CGOptions &opts) : CG(mod, opts) {}
 
   static const InsnDescription kMd[x64::kMopLast];
-  enum : uint8 {
-    kR8LowList,
-    kR8HighList,
-    kR16List,
-    kR32List,
-    kR64List
-  };
   void EnrollTargetPhases(MaplePhaseManager *pm) const override;
   const InsnDescription *GetTargetInsnDecription(MOperator opCode) const override;
   /* Init SubTarget phase */
@@ -67,6 +60,13 @@ class X64CG : public CG {
   /* Used for GCTIB pattern merging */
   std::string FindGCTIBPatternName(const std::string &name) const override;
   static std::array<std::array<const std::string, x64::kAllRegNum>, kIntRegTypeNum> intRegNames;
+  enum : uint8 {
+    kR8LowList,
+    kR8HighList,
+    kR16List,
+    kR32List,
+    kR64List
+  };
 };
 }  // namespace maplebe
 #endif /* MAPLEBE_INCLUDE_CG_X86_64_CG_H */

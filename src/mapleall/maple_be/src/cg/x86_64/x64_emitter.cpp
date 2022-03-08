@@ -24,9 +24,28 @@ void X64Emitter::EmitRefToMethodInfo(FuncEmitInfo &funcEmitInfo, Emitter &emitte
 void X64Emitter::EmitMethodDesc(FuncEmitInfo &funcEmitInfo, Emitter &emitter) {}
 void X64Emitter::EmitFastLSDA(FuncEmitInfo &funcEmitInfo) {}
 void X64Emitter::EmitFullLSDA(FuncEmitInfo &funcEmitInfo) {}
-void X64Emitter::EmitBBHeaderLabel(FuncEmitInfo &funcEmitInfo, const std::string &name, LabelIdx labIdx) {}
 void X64Emitter::EmitJavaInsnAddr(FuncEmitInfo &funcEmitInfo) {}
-void X64Emitter::Run(FuncEmitInfo &funcEmitInfo) {}
+
+void X64Emitter::EmitBBHeaderLabel(FuncEmitInfo &funcEmitInfo, const std::string &name, LabelIdx labIdx) {
+  CGFunc &cgFunc = funcEmitInfo.GetCGFunc();
+  CG *currCG = cgFunc.GetCG();
+  Emitter &emitter = *(currCG->GetEmitter());
+
+  PUIdx pIdx = currCG->GetMIRModule()->CurFunction()->GetPuidx();
+  const char *puIdx = strdup(std::to_string(pIdx).c_str());
+  const std::string &labelName = cgFunc.GetFunction().GetLabelTab()->GetName(labIdx);
+  if (currCG->GenerateVerboseCG()) {
+    emitter.Emit(".L.").Emit(puIdx).Emit("__").Emit(labIdx).Emit(":\t");
+    if (!labelName.empty() && labelName.at(0) != '@') {
+      /* If label name has @ as its first char, it is not from MIR */
+      emitter.Emit("//  MIR: @").Emit(labelName).Emit("\n");
+    } else {
+      emitter.Emit("\n");
+    }
+  } else {
+    emitter.Emit(".L.").Emit(puIdx).Emit("__").Emit(labIdx).Emit(":\n");
+  }
+}
 
 void X64OpndEmitVisitor::Visit(maplebe::CGRegOperand *v) {
   /* Mapping with physical register after register allocation is done
@@ -65,15 +84,70 @@ void DumpTargetASM(Emitter &emitter, Insn &insn) {
   emitter.Emit("\n");
 }
 
+void EmitFunctionHeader(FuncEmitInfo &funcEmitInfo) {
+  CGFunc &cgFunc = funcEmitInfo.GetCGFunc();
+  CG *currCG = cgFunc.GetCG();
+  const MIRSymbol *funcSymbol = cgFunc.GetFunction().GetFuncSymbol();
+  Emitter &emitter = *currCG->GetEmitter();
+
+  if (cgFunc.GetFunction().GetAttr(FUNCATTR_section)) {
+    emitter.EmitSymbolsWithPrefixSection(*funcSymbol);
+  } else {
+    emitter.EmitAsmLabel(kAsmText);
+  }
+  emitter.EmitAsmLabel(*funcSymbol,kAsmAlign);
+
+  if (funcSymbol->GetFunction()->GetAttr(FUNCATTR_weak)) {
+    emitter.EmitAsmLabel(*funcSymbol, kAsmWeak);
+    emitter.EmitAsmLabel(*funcSymbol, kAsmHidden);
+  } else if (funcSymbol->GetFunction()->GetAttr(FUNCATTR_local)) {
+    emitter.EmitAsmLabel(*funcSymbol, kAsmLocal);
+  } else {
+    emitter.EmitAsmLabel(*funcSymbol, kAsmGlbl);
+    if (!currCG->GetMIRModule()->IsCModule()) {
+      emitter.EmitAsmLabel(*funcSymbol, kAsmHidden);
+    }
+  }
+  emitter.EmitAsmLabel(*funcSymbol, kAsmType);
+  emitter.EmitAsmLabel(*funcSymbol, kAsmSyname);
+}
+
+void X64Emitter::Run(FuncEmitInfo &funcEmitInfo) {
+  CGFunc &cgFunc = funcEmitInfo.GetCGFunc();
+  X64CGFunc &x64CGFunc = static_cast<X64CGFunc&>(cgFunc);
+  CG *currCG = cgFunc.GetCG();
+  const MIRSymbol *funcSymbol = cgFunc.GetFunction().GetFuncSymbol();
+  Emitter &emitter = *currCG->GetEmitter();
+  /* emit function header */
+  EmitFunctionHeader(funcEmitInfo);
+
+  /* emit instructions */
+  const std::string &funcName = std::string(cgFunc.GetShortFuncName().c_str());
+  FOR_ALL_BB(bb, &x64CGFunc) {
+    if (bb->IsUnreachable()) {
+      continue;
+    }
+    if (currCG->GenerateVerboseCG()) {
+      emitter.Emit("//    freq:").Emit(bb->GetFrequency()).Emit("\n");
+    }
+    /* emit bb headers */
+    if (bb->GetLabIdx() != MIRLabelTable::GetDummyLabel()) {
+      EmitBBHeaderLabel(funcEmitInfo, funcName, bb->GetLabIdx());
+    }
+
+    FOR_BB_INSNS(insn, bb) {
+      DumpTargetASM(emitter, *insn);
+    }
+  }
+  emitter.EmitAsmLabel(*funcSymbol, kAsmSize);
+}
+
 bool CgEmission::PhaseRun(maplebe::CGFunc &f) {
   Emitter *emitter = f.GetCG()->GetEmitter();
   CHECK_NULL_FATAL(emitter);
-  X64CGFunc &x64CGFunc = static_cast<X64CGFunc&>(f);
-  FOR_ALL_BB(bb, &x64CGFunc) {
-    FOR_BB_INSNS(insn, bb) {
-      DumpTargetASM(*emitter, *insn);
-    }
-  }
+  AsmFuncEmitInfo funcEmitInfo(f);
+  emitter->EmitLocalVariable(f);
+  static_cast<X64Emitter*>(emitter)->Run(funcEmitInfo);
   return false;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER(CgEmission, cgemit)
