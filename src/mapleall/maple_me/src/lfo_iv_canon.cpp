@@ -327,9 +327,15 @@ void IVCanon::ComputeTripCount() {
   }
 
   // form the trip count expression
+  MeExpr *testExprLHS = testExpr->GetOpnd(0);
   MeExpr *testExprRHS = testExpr->GetOpnd(1);
-  PrimType primTypeUsed = (!ivdesc->initExpr->IsZero()) ?
-      GetSignedPrimType(testExprRHS->GetPrimType()) : testExprRHS->GetPrimType();
+  PrimType primTypeUsed = testExprRHS->GetPrimType();
+  if (GetPrimTypeSize(testExprLHS->GetPrimType()) > GetPrimTypeSize(primTypeUsed)) {
+    primTypeUsed = testExprLHS->GetPrimType();
+  }
+  if (!ivdesc->initExpr->IsZero()) {
+    primTypeUsed = GetSignedPrimType(primTypeUsed);
+  }
   PrimType divPrimType = primTypeUsed;
   if (ivdesc->stepValue < 0) {
     divPrimType = GetSignedPrimType(divPrimType);
