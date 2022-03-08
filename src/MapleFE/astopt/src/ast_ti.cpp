@@ -1627,6 +1627,8 @@ IdentifierNode *TypeInferVisitor::VisitIdentifierNode(IdentifierNode *node) {
       UpdateTypeId(node, decl);
       UpdateTypeIdx(node, decl);
     }
+    // pass IsGeneratorUsed
+    mHandler->UpdateGeneratorUsed(node->GetNodeId(), decl->GetNodeId());
   } else {
     NOTYETIMPL("node not declared");
     MSGNOLOC0(node->GetName());
