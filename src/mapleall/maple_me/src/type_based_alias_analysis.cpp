@@ -482,7 +482,13 @@ bool MayAliasOstAndType(const OriginalSt *ost, MIRType *checkedType) {
       return IsFieldTypeOfArrayType(static_cast<MIRArrayType*>(aggType), checkedType);
     }
     if (ost->GetOffset().IsInvalid()) {
-      return true; // conservatively
+      for (FieldID fld = 1; fld < structType->NumberOfFieldIDs(); ++fld) {
+        MIRType *fieldType = GetFieldType(structType, fld);
+        if (fieldType == checkedType) {
+          return true; // conservatively
+        }
+      }
+      return false;
     }
     // if aggType is an array of structType, canonicalize offset.
     OffsetType ostOffset = ost->GetOffset();
