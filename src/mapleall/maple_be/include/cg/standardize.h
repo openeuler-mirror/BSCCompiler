@@ -27,20 +27,28 @@ class Standardize {
   /*
    * for cpu instruction contains different operands
    * maple provide a default implement from three address to two address
+   * convertion rule is: mop(dest, src1, src2) -> mov(src1,dest), mop(src2, dest)
    */
-  void TwoAddressMapping() {}
+  void TwoAddressMapping(Insn &insn);
+
   void DoStandardize();
 
  protected:
-  void SetTwoAddressMapping() {
-    needTwoAddrMapping = true;
+  void SetTwoAddressMapping(bool needMapping) {
+    needTwoAddrMapping = needMapping;
   }
-  bool NeedTwoAddressMapping() {
+  bool NeedTwoAddressMapping(Insn &insn) {
+    /* Operand number for two addressing mode is 2 */
+    /* and 3 for three addressing mode */
+    needTwoAddrMapping = insn.GetOperandSize() > 2;
     return needTwoAddrMapping;
   }
  private:
   virtual void STDZcopyri(Insn &insn) = 0;
+  virtual void STDZcopyrr(Insn &insn) = 0;
   virtual void STDZstr(Insn &insn) = 0;
+  virtual void STDZload(Insn &insn) = 0;
+  virtual void STDZaddrr(Insn &insn) = 0;
   CGFunc *cgFunc;
   bool needTwoAddrMapping = false;
 };

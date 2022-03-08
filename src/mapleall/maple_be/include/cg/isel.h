@@ -37,6 +37,8 @@ class MPISel {
   Operand* SelectDread(const BaseNode &parent, AddrofNode &expr);
   Operand* SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   CGImmOperand *SelectIntConst(MIRIntConst &intConst);
+  virtual void SelectReturn(Operand &opnd) = 0;
+  void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
 
  protected:
   MemPool *isMp;

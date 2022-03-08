@@ -26,11 +26,32 @@ void X64Standardize::STDZcopyri(Insn &insn) {
   insn.CleanAllOperand();
   insn.AddOperandChain(src).AddOperandChain(dest);
 }
+void X64Standardize::STDZcopyrr(Insn &insn) {
+  insn.SetMOP(X64CG::kMd[x64::MOP_movl_r_r]);
+  Operand &dest = insn.GetOperand(kInsnFirstOpnd);
+  Operand &src = insn.GetOperand(kInsnSecondOpnd);
+  insn.CleanAllOperand();
+  insn.AddOperandChain(src).AddOperandChain(dest);
+}
 void X64Standardize::STDZstr(Insn &insn) {
   insn.SetMOP(X64CG::kMd[x64::MOP_movq_r_m]);
   Operand &dest = insn.GetOperand(kInsnFirstOpnd);
   Operand &src = insn.GetOperand(kInsnSecondOpnd);
   insn.CleanAllOperand();
   insn.AddOperandChain(src).AddOperandChain(dest);
+}
+void X64Standardize::STDZload(Insn &insn) {
+  insn.SetMOP(X64CG::kMd[x64::MOP_movl_m_r]);
+  Operand &dest = insn.GetOperand(kInsnFirstOpnd);
+  Operand &src = insn.GetOperand(kInsnSecondOpnd);
+  insn.CleanAllOperand();
+  insn.AddOperandChain(src).AddOperandChain(dest);
+}
+void X64Standardize::STDZaddrr(Insn &insn) {
+  insn.SetMOP(X64CG::kMd[x64::MOP_addl_r_r]);
+  Operand &dest = insn.GetOperand(kInsnFirstOpnd);
+  Operand &src2 = insn.GetOperand(kInsnThirdOpnd);
+  insn.CleanAllOperand();
+  insn.AddOperandChain(src2).AddOperandChain(dest);
 }
 }
