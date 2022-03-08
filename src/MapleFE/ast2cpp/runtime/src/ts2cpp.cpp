@@ -32,6 +32,8 @@ std::ostream& operator<< (std::ostream& out, const t2crt::JS_Val& v) {
 }
 
 std::ostream& operator<< (std::ostream& out, t2crt::Object *obj) {
+  if (obj == nullptr)
+    return out;
   out << obj->Dump();
   return out;
 }

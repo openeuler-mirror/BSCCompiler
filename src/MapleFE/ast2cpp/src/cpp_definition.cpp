@@ -257,6 +257,72 @@ std::string CppDef::EmitFuncScopeVarDecls(FunctionNode *node) {
   return str;
 }
 
+std::string CppDef::EmitYieldNode(YieldNode *node) {
+  if (node == nullptr)
+    return std::string();
+  //std::string str(node->IsTransfer() ? "yield* " : "yield ");
+  std::string str, res;
+  if (auto n = node->GetResult())
+    res = EmitTreeNode(n);
+  else
+    res = "undefined";
+
+  std::string yieldLabel = GenFnLabels.NextYieldLabel();
+  str += "  yield = &&" + yieldLabel + ";\n";           // save yp
+  str += "  res.value = t2crt::JS_Val(" +res+ ");\n";  // init value and return
+  str += "  res.done  = false;\n";
+  str += "  return res;\n";
+  str += yieldLabel + ":\n";                            // label for this yp
+
+  mPrecedence = '\024';
+  return str;
+}
+
+std::string CppDef::EmitWhileLoopNode(WhileLoopNode *node) {
+//  return(Emitter::EmitWhileLoopNode(node));
+
+  if (node == nullptr)
+    return std::string();
+  std::string str;
+  std::string loopLabel;
+
+  if(auto n = node->GetLabel()) {
+    str = EmitTreeNode(n) + ":\n"s;
+  }
+
+  if (mIsGenerator) { // insert label and loop cond check
+    loopLabel = GenFnLabels.NextLoopLabel();
+    str += loopLabel + ":\n";
+    if (auto n = node->GetCond()) {
+      std::string cond = EmitTreeNode(n);
+      str += "  if (!(" +cond+ "))\n";
+      str += "    goto " +loopLabel+ "_exit;\n";
+    }
+  } else {            // normal while loop
+    str += "while("s;
+    if (auto n = node->GetCond()) {
+      str += EmitTreeNode(n);
+    }
+    str += ')';
+  }
+
+  if (auto n = node->GetBody()) {
+    str += EmitTreeNode(n) + GetEnding(n);
+    if (mIsGenerator) {
+      str.insert(str.find_first_of("{"), "  ");
+      str.insert(str.find_last_of("}"), "  ");
+    }
+  }
+
+  if (mIsGenerator) { // insert loop back and label at loop exit
+    str += "  goto " +loopLabel+ ";\n";
+    str += loopLabel + "_exit:";
+  }
+
+  return HandleTreeNode(str, node);
+}
+
+
 std::string CppDef::EmitFunctionNode(FunctionNode *node) {
   if (mIsInit || node == nullptr)
     return std::string();
@@ -265,6 +331,7 @@ std::string CppDef::EmitFunctionNode(FunctionNode *node) {
   std::string str;
   str += "\n";
   str += FunctionHeader(node, mCppDecl.GetTypeString(node->GetType(), node->GetType()));
+  mIsGenerator = node->IsGenerator();
 
   int bodyPos = str.size();
   if (auto n = node->GetBody()) {
@@ -280,6 +347,11 @@ std::string CppDef::EmitFunctionNode(FunctionNode *node) {
   } else
     str += "{}\n"s;
 
+  if (mIsGenerator) {
+    str.insert(str.find_first_of("{")+1, GeneratorFn_start);
+    str.insert(str.find_last_of("}"), GeneratorFn_return);
+  }
+
   if (node->IsConstructor()) {
     Emitter::Replace(str, "this->", "obj->", 0);
     std::string ctorBody;
@@ -288,6 +360,10 @@ std::string CppDef::EmitFunctionNode(FunctionNode *node) {
     str += EmitCtorInstance(static_cast<ClassNode*>(node->GetParent()));
   }
 
+  if (mIsGenerator) {
+    mIsGenerator = false;
+    GenFnLabels.ResetLabels();
+  }
   return str;
 }
 
@@ -683,9 +759,11 @@ std::string CppDef::EmitFieldNode(FieldNode *node) {
   std::string upper, field, propType;
   bool isRhs = false;   // indicate if field is rhs (val) or lhs (ref)
   auto upnode = node->GetUpper();
+  bool upperIsGenerator = false;
   if (upnode) {
     upper = EmitTreeNode(upnode);
     isRhs = !mHandler->IsDef(upnode);
+    upperIsGenerator = IsGenerator(upnode); // TODO: await TI fix for generator3.ts
   }
   if (auto n = node->GetField()) {
     if (isRhs) {
@@ -745,6 +823,10 @@ std::string CppDef::EmitBlockNode(BlockNode *node) {
   for (unsigned i = 0; i < node->GetChildrenNum(); ++i) {
     if (auto n = node->GetChildAtIndex(i)) {
       std::string s = EmitTreeNode(n);
+      if (n->IsYield()) {
+        str += s;
+        continue;
+      }
       if (!s.empty())
         str += "  "s + s + GetEnding(n);
     }
