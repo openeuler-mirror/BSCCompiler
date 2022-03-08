@@ -26,8 +26,9 @@ class CppDef : public CppEmitter {
 public:
   CppDecl        &mCppDecl;
   bool            mIsInit;
+  bool            mIsGenerator;
 
-  CppDef(Module_Handler *h, CppDecl &d) : CppEmitter(h), mCppDecl(d), mIsInit(false) {}
+  CppDef(Module_Handler *h, CppDecl &d) : CppEmitter(h), mCppDecl(d), mIsInit(false), mIsGenerator(false) {}
 
   std::string Emit() {
     return EmitTreeNode(GetASTModule());
@@ -64,12 +65,14 @@ public:
   std::string EmitAsTypeNode(AsTypeNode *node) override;
   std::string EmitNamespaceNode(NamespaceNode *node) override;
   std::string EmitRegExprNode(RegExprNode *node);
+  std::string EmitStructNode(StructNode *node) override;
+  std::string EmitStructLiteralNode(StructLiteralNode* node) override;
+  std::string EmitWhileLoopNode(WhileLoopNode *node) override;
+  std::string EmitYieldNode(YieldNode *node) override;
   std::string& HandleTreeNode(std::string &str, TreeNode *node) override;
 
   std::string EmitClassProps(TreeNode *node);
   std::string EmitFuncScopeVarDecls(FunctionNode *node);
-  std::string EmitStructNode(StructNode *node);
-  std::string EmitStructLiteralNode(StructLiteralNode* node);
   std::string EmitCppCtor(ClassNode* node);
   std::string EmitCtorInstance(ClassNode *c);
   std::string EmitDefaultCtor(ClassNode *c);

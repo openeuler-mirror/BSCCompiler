@@ -16,6 +16,9 @@
 
 namespace maplefe {
 
+FuncTable hFuncTable;
+GeneratorLabels GenFnLabels;
+
 std::unordered_map<TypeId, std::string>TypeIdToJSTypeCXX = {
   // AST TypeId to t2crt JS_Type mapping for JS_Val type of obj props that pts to CXX class fields 
   {TY_Object,  "t2crt::TY_CXX_Object"},
@@ -30,7 +33,18 @@ std::unordered_map<TypeId, std::string>TypeIdToJSTypeCXX = {
   {TY_Any,     "t2crt::TY_CXX_Any"},
 };
 
-FuncTable hFuncTable;
+std::string GeneratorFn_start = R"""(
+  t2crt::IteratorResult res;
+
+  if (yield != nullptr)
+    goto *yield;
+)""";
+
+std::string GeneratorFn_return = R"""(
+  res.value = undefined;
+  res.done  = true;
+  return res;
+)""";
 
 // Used to build GetProp<xxx> for calls to get Object (class Object in ts2cpp.h) property
 std::string hlpGetJSValTypeStr(TypeId typeId) {
@@ -240,7 +254,7 @@ std::string GeneratorClassDecl(std::string funcName, unsigned nodeId) {
 "  // closure capture fields",
    captureFields,
 "  // iterator interface (override _return and _throw when needed)",
-"  t2crt::IteratorResult _next(t2crt::JS_Val* arg = nullptr) override;",
+"  t2crt::IteratorResult* next(t2crt::JS_Val* arg = nullptr) override;",
 "};",
 "// " +funcName+ " generator function",
 "class " +generatorFuncName+ " : public t2crt::GeneratorFuncPrototype {",
@@ -273,19 +287,16 @@ std::string GeneratorClassDef(std::string ns, std::string funcName, unsigned nod
     args = ", " + args;
 
   str = R"""(
-t2crt::IteratorResult )""" + generatorName + R"""(::_next(t2crt::JS_Val* arg) {
-  t2crt::IteratorResult res;
-
+t2crt::IteratorResult* )""" + generatorName + R"""(::next(t2crt::JS_Val* arg) {
   if (_finished) {
-    res._done = true;
-    return res;
+    _res.done = true;
+    return &_res;
   }
-
   // iterate by calling generation function with captures in generator
-  res = foo->_body(this, _yield)""" + args + R"""();
-  if (res._done == true)
+  _res = foo->_body(this, _yield)""" + args + R"""();
+  if (_res.done == true)
     _finished = true;
-  return res;
+  return &_res;
 }
 
 )""" + generatorName + "* "s + generatorFuncName + R"""(::operator()()""" + params + R"""() {
