@@ -25,8 +25,8 @@ class BBChain {
 public:
   using iterator = MapleVector<BB*>::iterator;
   using const_iterator = MapleVector<BB*>::const_iterator;
-  BBChain(MapleAllocator &alloc, MapleVector<BBChain*> &bb2chain, BB *bb)
-      : bbVec(1, bb, alloc.Adapter()), bb2chain(bb2chain) {
+  BBChain(MapleAllocator &alloc, MapleVector<BBChain*> &bb2chain, BB *bb, uint32 inputId)
+      : id(inputId), bbVec(1, bb, alloc.Adapter()), bb2chain(bb2chain) {
     bb2chain[bb->GetBBId()] = this;
   }
 
@@ -49,6 +49,10 @@ public:
 
   size_t size() const {
     return bbVec.size();
+  }
+
+  uint32 GetId() const {
+    return id;
   }
 
   BB *GetHeader() {
@@ -141,6 +145,7 @@ private:
     isCacheValid = true;
   }
 
+  uint32 id = 0;
   MapleVector<BB*> bbVec;
   MapleVector<BBChain*> &bb2chain;
   uint32 unlaidPredCnt = 0;   // how many predecessors are not laid out
