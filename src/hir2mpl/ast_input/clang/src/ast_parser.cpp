@@ -430,7 +430,14 @@ ASTStmt *ASTParser::ProcessStmtWhileStmt(MapleAllocator &allocator, const clang:
 ASTStmt *ASTParser::ProcessStmtGotoStmt(MapleAllocator &allocator, const clang::GotoStmt &gotoStmt) {
   ASTGotoStmt *astStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTGotoStmt>(allocator);
   CHECK_FATAL(astStmt != nullptr, "astStmt is nullptr");
-  astStmt->SetLabelName(gotoStmt.getLabel()->getStmt()->getName());
+  std::string name;
+  if (gotoStmt.getLabel() != nullptr) {
+    ASTDecl *astDecl = ProcessDecl(allocator, *gotoStmt.getLabel());
+    name = astDecl->GetName();
+  } else {
+    name = gotoStmt.getLabel()->getStmt()->getName();
+  }
+  astStmt->SetLabelName(name);
   return astStmt;
 }
 
@@ -544,8 +551,14 @@ ASTStmt *ASTParser::ProcessStmtBreakStmt(MapleAllocator &allocator, const clang:
 ASTStmt *ASTParser::ProcessStmtLabelStmt(MapleAllocator &allocator, const clang::LabelStmt &stmt) {
   auto *astStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTLabelStmt>(allocator);
   CHECK_FATAL(astStmt != nullptr, "astStmt is nullptr");
+  std::string name;
   ASTStmt *astSubStmt = ProcessStmt(allocator, *stmt.getSubStmt());
-  std::string name(stmt.getName());
+  if (stmt.getDecl() != nullptr) {
+    ASTDecl *astDecl = ProcessDecl(allocator, *stmt.getDecl());
+    name = astDecl->GetName();
+  } else {
+    name = stmt.getName();
+  }
   astStmt->SetLabelName(name);
   astStmt->SetSubStmt(astSubStmt);
   return astStmt;
@@ -1071,8 +1084,9 @@ ASTExpr *ASTParser::ProcessExprUnaryOperator(MapleAllocator &allocator, const cl
 ASTExpr *ASTParser::ProcessExprAddrLabelExpr(MapleAllocator &allocator, const clang::AddrLabelExpr &expr) {
   ASTUOAddrOfLabelExpr *astAddrOfLabelExpr = ASTDeclsBuilder::ASTExprBuilder<ASTUOAddrOfLabelExpr>(allocator);
   const clang::LabelDecl *lbDecl = expr.getLabel();
-  std::string labelName = lbDecl->getName().str();
-  astAddrOfLabelExpr->SetLabelName(labelName);
+  CHECK_NULL_FATAL(lbDecl);
+  ASTDecl *astDecl = ProcessDecl(allocator, *lbDecl);
+  astAddrOfLabelExpr->SetLabelName(astDecl->GetName());
   astAddrOfLabelExpr->SetUOType(GlobalTables::GetTypeTable().GetPrimType(PTY_ptr));
   return astAddrOfLabelExpr;
 }
@@ -2620,9 +2634,17 @@ ASTDecl *ASTParser::ProcessDeclEnumConstantDecl(MapleAllocator &allocator, const
 }
 
 ASTDecl *ASTParser::ProcessDeclLabelDecl(MapleAllocator &allocator, const clang::LabelDecl &decl) {
-  (void)allocator;
-  (void)decl;
-  return nullptr;
+  ASTDecl *astDecl= static_cast<ASTVar*>(ASTDeclsBuilder::GetASTDecl(decl.getID()));
+  if (astDecl != nullptr) {
+    return astDecl;
+  }
+  std::string varName = astFile->GetMangledName(decl);
+  if (varName.empty()) {
+    return nullptr;
+  }
+  varName = FEUtils::GetSequentialName0(varName + "@", FEUtils::GetSequentialNumber());
+  astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, fileName, varName, std::vector<MIRType*>{}, decl.getID());
+  return astDecl;
 }
 
 bool ASTParser::RetrieveStructs(MapleAllocator &allocator) {
