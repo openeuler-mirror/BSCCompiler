@@ -229,6 +229,93 @@ bool IVCanon::IsLoopInvariant(MeExpr *x) {
   return false;
 }
 
+// If the LHS of the test expression is used to store the previous value of an
+// IV before it's increment/decrement, then change the test to be based on the
+// IV.  Return true if change has taken place.
+bool IVCanon::CheckPostIncDecFixUp(CondGotoMeStmt *condbr) {
+  OpMeExpr *testExpr = static_cast<OpMeExpr *>(condbr->GetOpnd());
+  ScalarMeExpr *scalar = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0));
+  bool cvtOnScalar = false;
+  if (scalar == nullptr && testExpr->GetOpnd(0)->GetOp() == OP_cvt) {
+    scalar = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0)->GetOpnd(0));
+    cvtOnScalar = true;
+  }
+  if (scalar == nullptr) {
+    return false;
+  }
+  if (scalar->GetDefBy() != kDefByPhi) {
+    return false;
+  }
+  MePhiNode *phi = &scalar->GetDefPhi();
+  MapleVector<ScalarMeExpr *> &phiOpnds = phi->GetOpnds();
+  if (phiOpnds.size() != 2) {
+    return false;
+  }
+  if (phiOpnds[0]->GetDefBy() != kDefByStmt || phiOpnds[1]->GetDefBy() != kDefByStmt) {
+    return false;
+  }
+  AssignMeStmt *defStmt0 = static_cast<AssignMeStmt *>(phiOpnds[0]->GetDefStmt());
+  AssignMeStmt *defStmt1 = static_cast<AssignMeStmt *>(phiOpnds[1]->GetDefStmt());
+  ScalarMeExpr *rhsScalar0 = dynamic_cast<ScalarMeExpr *>( defStmt0->GetRHS());
+  ScalarMeExpr *rhsScalar1 = dynamic_cast<ScalarMeExpr *>( defStmt1->GetRHS());
+  if (rhsScalar0 == nullptr || rhsScalar1 == nullptr) {
+    return false;
+  }
+  if (rhsScalar0->GetOst() != rhsScalar1->GetOst()) {
+    return false;
+  }
+  OriginalSt *ivOst = rhsScalar0->GetOst();
+  // find the phi for ivOst 
+  BB *bb = condbr->GetBB();
+  MapleMap<OStIdx, MePhiNode*> &mePhiList = bb->GetMePhiList();
+  MePhiNode *ivPhiNode =  mePhiList[ivOst->GetIndex()];
+  if (ivPhiNode == nullptr) {
+    return false;
+  }
+  if (ivPhiNode->GetOpnd(0)->GetDefBy() != kDefByStmt || ivPhiNode->GetOpnd(1)->GetDefBy() != kDefByStmt) {
+    return false;
+  }
+  AssignMeStmt *ivDefStmt0 = static_cast<AssignMeStmt *>(ivPhiNode->GetOpnd(0)->GetDefStmt());
+  AssignMeStmt *ivDefStmt1 = static_cast<AssignMeStmt *>(ivPhiNode->GetOpnd(1)->GetDefStmt());
+  if (!ivDefStmt0->isIncDecStmt || !ivDefStmt1->isIncDecStmt) {
+    return false;
+  }
+  if (ivDefStmt0->GetRHS()->GetOp() != ivDefStmt1->GetRHS()->GetOp()) {
+    return false;
+  }
+  if (ivDefStmt0->GetRHS()->GetOpnd(1) != ivDefStmt1->GetRHS()->GetOpnd(1)) {
+    return false;
+  }
+  ScalarMeExpr *iv0 = static_cast<ScalarMeExpr *>(ivDefStmt0->GetRHS()->GetOpnd(0));
+  ScalarMeExpr *iv1 = static_cast<ScalarMeExpr *>(ivDefStmt1->GetRHS()->GetOpnd(0));
+  if (iv0 != rhsScalar0 || iv1 != rhsScalar1) {
+    return false;
+  }
+  // give up if type is unsigned and it will decrement past 0
+  if (IsPrimitiveUnsigned(testExpr->GetOpndType()) && testExpr->GetOpnd(1)->IsZero()) {
+    return false;
+  }
+  // match successful; modify the test expression
+  OpMeExpr newCmpRHS(-1, ivDefStmt0->GetRHS()->GetOp(), testExpr->GetOpnd(1)->GetPrimType(), 2);
+  newCmpRHS.SetOpnd(0, testExpr->GetOpnd(1));
+  newCmpRHS.SetOpnd(1, ivDefStmt0->GetRHS()->GetOpnd(1));
+
+  OpMeExpr cmpMeExpr(-1, testExpr->GetOp(), testExpr->GetPrimType(), 2);
+  if (!cvtOnScalar) {
+    cmpMeExpr.SetOpnd(0, ivPhiNode->GetLHS());
+  } else {
+    OpMeExpr cvtx(-1, OP_cvt, testExpr->GetOpnd(0)->GetPrimType(), 1);
+    cvtx.SetOpnd(0, ivPhiNode->GetLHS());
+    cvtx.SetOpndType(static_cast<OpMeExpr *>(testExpr->GetOpnd(0))->GetOpndType());
+    cmpMeExpr.SetOpnd(0, func->GetIRMap()->HashMeExpr(cvtx));
+  }
+  cmpMeExpr.SetOpnd(1, func->GetIRMap()->HashMeExpr(newCmpRHS));
+  cmpMeExpr.SetOpndType(testExpr->GetOpndType());
+
+  condbr->SetOpnd(0, func->GetIRMap()->HashMeExpr(cmpMeExpr));
+  return true;
+}
+
 static bool CompareHasEqual(Opcode op) {
   return (op == OP_le || op == OP_ge);
 }
@@ -243,39 +330,19 @@ void IVCanon::ComputeTripCount() {
   if (!kOpcodeInfo.IsCompare(condbr->GetOpnd()->GetOp())) {
     return;
   }
-  OpMeExpr *testExpr = static_cast<OpMeExpr *>(condbr->GetOpnd());
-  // make the side that consists of a single IV the left operand
-  // check left operand
-  ScalarMeExpr *iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0));
-  bool cvtDetected = false;
-  if (iv == nullptr && testExpr->GetOpnd(0)->GetOp() == OP_cvt) {
-    auto *cvtOpnd = testExpr->GetOpnd(0)->GetOpnd(0);
-    if (cvtOpnd->GetMeOp() == kMeOpVar || cvtOpnd->GetMeOp() == kMeOpReg) {
-      iv = static_cast<ScalarMeExpr *>(cvtOpnd);
-      cvtDetected = true;
-    }
-  }
+  bool tryAgain = false;
+  size_t trialsCount = 0;
   IVDesc *ivdesc = nullptr;
-  if (iv) {
-    for (uint32 i = 0; i < ivvec.size(); i++) {
-      if (iv->GetOst() == ivvec[i]->ost) {
-        ivdesc = ivvec[i];
-        if (cvtDetected) {
-          ivdesc->canBePrimary = false;
-        }
-        break;
-      }
-    }
-  }
-  if (ivdesc == nullptr) { // check second operand
-    cvtDetected = false;
-    iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(1));
-    if (iv == nullptr && testExpr->GetOpnd(1)->GetOp() == OP_cvt) {
-      auto *cvtOpnd = testExpr->GetOpnd(1)->GetOpnd(0);
-      if (cvtOpnd->GetMeOp() == kMeOpVar || cvtOpnd->GetMeOp() == kMeOpReg) {
-        iv = static_cast<ScalarMeExpr *>(cvtOpnd);
-        cvtDetected = true;
-      }
+  OpMeExpr *testExpr = nullptr;
+  do {
+    trialsCount++;
+    testExpr = static_cast<OpMeExpr *>(condbr->GetOpnd());
+    // check left operand
+    ScalarMeExpr *iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0));
+    bool cvtDetected = false;
+    if (iv == nullptr && testExpr->GetOpnd(0)->GetOp() == OP_cvt) {
+      iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0)->GetOpnd(0));
+      cvtDetected = true;
     }
     if (iv) {
       for (uint32 i = 0; i < ivvec.size(); i++) {
@@ -288,32 +355,55 @@ void IVCanon::ComputeTripCount() {
         }
       }
     }
-    if (ivdesc) {  // swap the 2 sides
-      Opcode newop = testExpr->GetOp();
-      switch (testExpr->GetOp()) {
-        case OP_lt:
-          newop = OP_gt;
-          break;
-        case OP_le:
-          newop = OP_ge;
-          break;
-        case OP_gt:
-          newop = OP_lt;
-          break;
-        case OP_ge:
-          newop = OP_le;
-          break;
-        default:
-          break;
+    if (ivdesc == nullptr) { // check second operand
+      cvtDetected = false;
+      iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(1));
+      if (iv == nullptr && testExpr->GetOpnd(1)->GetOp() == OP_cvt) {
+        iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(1)->GetOpnd(0));
+        cvtDetected = true;
       }
-      OpMeExpr opMeExpr(-1, newop, testExpr->GetPrimType(), 2);
-      opMeExpr.SetOpnd(0, testExpr->GetOpnd(1));
-      opMeExpr.SetOpnd(1, testExpr->GetOpnd(0));
-      opMeExpr.SetOpndType(testExpr->GetOpndType());
-      testExpr = static_cast<OpMeExpr *>(irMap->HashMeExpr(opMeExpr));
-      condbr->SetOpnd(0, testExpr);
+      if (iv) {
+        for (uint32 i = 0; i < ivvec.size(); i++) {
+          if (iv->GetOst() == ivvec[i]->ost) {
+            ivdesc = ivvec[i];
+            if (cvtDetected) {
+              ivdesc->canBePrimary = false;
+            }
+            break;
+          }
+        }
+      }
+      if (ivdesc) {  // swap the 2 sides to make the IV the left operand
+        Opcode newop = testExpr->GetOp();
+        switch (testExpr->GetOp()) {
+          case OP_lt:
+            newop = OP_gt;
+            break;
+          case OP_le:
+            newop = OP_ge;
+            break;
+          case OP_gt:
+            newop = OP_lt;
+            break;
+          case OP_ge:
+            newop = OP_le;
+            break;
+          default:
+            break;
+        }
+        OpMeExpr opMeExpr(-1, newop, testExpr->GetPrimType(), 2);
+        opMeExpr.SetOpnd(0, testExpr->GetOpnd(1));
+        opMeExpr.SetOpnd(1, testExpr->GetOpnd(0));
+        opMeExpr.SetOpndType(testExpr->GetOpndType());
+        testExpr = static_cast<OpMeExpr *>(irMap->HashMeExpr(opMeExpr));
+        condbr->SetOpnd(0, testExpr);
+      }
     }
-  }
+    if (ivdesc == nullptr && trialsCount == 1) {
+      tryAgain = CheckPostIncDecFixUp(condbr);
+    }
+  } while (tryAgain && trialsCount == 1);
+
   if (ivdesc == nullptr || ivdesc->stepValue == 0) {
     return;  // no IV in the termination test
   }
@@ -358,14 +448,6 @@ void IVCanon::ComputeTripCount() {
                                                primTypeUsed));
   }
   MeExpr *subx = irMap->HashMeExpr(add);
-  // insert a CVT for ivdesc->initExpr if needed
-  if (GetPrimTypeSize(ivdesc->initExpr->GetPrimType()) != GetPrimTypeSize(primTypeUsed) &&
-      ivdesc->initExpr->GetMeOp() != kMeOpConst) {
-    OpMeExpr cvtx(-1, OP_cvt, primTypeUsed, 1);
-    cvtx.SetOpnd(0, ivdesc->initExpr);
-    cvtx.SetOpndType(ivdesc->initExpr->GetPrimType());
-    ivdesc->initExpr = func->GetIRMap()->HashMeExpr(cvtx);
-  }
   if (!ivdesc->initExpr->IsZero()) {
     // sub: t = t - initExpr
     OpMeExpr subtract(-1, OP_sub, primTypeUsed, 2);
@@ -611,6 +693,7 @@ bool MELfoIVCanon::PhaseRun(MeFunction &f) {
     if (whileInfo->injectedIVSym == nullptr) {
       continue;
     }
+
     MemPool *ivmp = GetPhaseMemPool();
     IVCanon ivCanon(ivmp, &f, dom, aloop, static_cast<uint32>(i), whileInfo);
     ivCanon.PerformIVCanon();
