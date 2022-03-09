@@ -18,7 +18,25 @@
 namespace maplebe {
 bool Insn::IsMachineInstruction() const {
   return md ? md->IsPhysicalInsn() : false;
-};
+}
+bool Insn::IsLoad() const {
+  return md ? md->IsLoad() : false;
+}
+bool Insn::IsStore() const {
+  return md ? md->IsStore() : false;
+}
+bool Insn::IsMove() const {
+  return md ? md->IsMove() : false;
+}
+bool Insn::IsBasicOp() const {
+  return md ? md->IsBasicOp() : false;
+}
+
+void Insn::CommuteOperands(uint32 dIndex, uint32 sIndex) {
+  Operand *tempCopy = opnds[sIndex];
+  opnds[sIndex] = opnds[dIndex];
+  opnds[dIndex] = tempCopy;
+}
 
 #ifdef TARGX86_64
 void Insn::SetMOP(const InsnDescription &idesc) {

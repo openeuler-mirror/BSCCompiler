@@ -16,6 +16,7 @@
 #include "x64_MPISel.h"
 #include "x64_memlayout.h"
 #include "x64_cgfunc.h"
+#include "x64_call_conv.h"
 
 namespace maplebe {
 CGMemOperand &X64MPIsel::GetSymbolFromMemory(const MIRSymbol &symbol) {
@@ -37,4 +38,23 @@ CGMemOperand &X64MPIsel::GetSymbolFromMemory(const MIRSymbol &symbol) {
   CHECK_FATAL(result != nullptr, "NIY");
   return *result;
 }
+
+void X64MPIsel::SelectReturn(Operand &opnd) {
+  X64CallConvImpl retLocator(cgFunc->GetBecommon());
+  CCLocInfo retMech;
+  /* need to fill retLocator InitReturnInfo(*retTyp, retMech); */
+  regno_t retReg = retMech.GetReg0();
+  if (opnd.IsRegister()) {
+    auto *regOpnd = static_cast<CGRegOperand*>(&opnd);
+    if (regOpnd->GetRegisterNumber() != retReg) {
+    } else {
+      CHECK_FATAL(false, "NIY");
+    }
+  } else {
+    CHECK_FATAL(false, "NIY");
+  }
+
+  cgFunc->GetExitBBsVec().emplace_back(cgFunc->GetCurBB());
+}
+
 }

@@ -46,6 +46,7 @@ enum MopProperty : maple::uint8 {
   kInsnIsCondBr,
   kInsnHasLoop,
   kInsnIsVectorOp,
+  kInsnIsBinaryOp,
   kInsnIsPhi,
 };
 using regno_t = uint32_t;
@@ -74,6 +75,7 @@ using regno_t = uint32_t;
 #define ISCONDBRANCH (1ULL << kInsnIsCondBr)
 #define HASLOOP (1ULL << kInsnHasLoop)
 #define ISVECTOR (1ULL << kInsnIsVectorOp)
+#define ISBASICOP (1ULL << kInsnIsBinaryOp)
 #define ISPHI (1ULL << kInsnIsPhi)
 constexpr maplebe::regno_t kInvalidRegNO = 0;
 
@@ -124,14 +126,25 @@ struct InsnDescription {
   const OpndDescription* GetOpndDes(size_t index) const {
     return opndMD[index];
   }
+  bool IsSame(const InsnDescription &left,
+      std::function<bool (const InsnDescription &left, const InsnDescription &right)> cmp) const;
   MOperator GetOpc() const {
     return opc;
   }
   bool IsPhysicalInsn() const {
     return !(properties & ISABSTRACT);
   }
-  uint32 GetLatencyType() {
-    return latencyType;
+  bool IsStore() const {
+    return (properties & ISSTORE);
+  }
+  bool IsLoad() const {
+    return (properties & ISLOAD);
+  }
+  bool IsMove() const {
+    return (properties & ISMOVE);
+  }
+  bool IsBasicOp() const {
+    return (properties & ISBASICOP);
   }
   const std::string &GetName() const {
     return name;

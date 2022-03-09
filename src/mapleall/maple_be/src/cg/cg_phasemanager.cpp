@@ -62,7 +62,7 @@ void DumpMIRFunc(MIRFunction &func, const char *msg, bool printAlways = false, c
   }
 }
 
-} // anonymous namespace
+} /* anonymous namespace */
 
 void CgFuncPM::GenerateOutPutFile(MIRModule &m) {
   CHECK_FATAL(cg != nullptr, "cg is null");
@@ -176,7 +176,11 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
 void CgFuncPM::DumpFuncCGIR(const CGFunc &f, const std::string &phaseName) const {
   if (CGOptions::DumpPhase(phaseName) && CGOptions::FuncFilter(f.GetName())) {
     LogInfo::MapleLogger() << "\n******** CG IR After " << phaseName << ": *********\n";
+#ifdef TARGX86_64
+    f.DumpCGIR(true);
+#else
     f.DumpCGIR();
+#endif
   }
 }
 

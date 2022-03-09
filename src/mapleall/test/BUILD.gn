@@ -1,0 +1,46 @@
+#
+# Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
+#
+# OpenArkCompiler is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#     http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+# FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+#
+configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
+
+cflags_cc -= [
+  "-Werror",
+]
+
+include_directories = [
+  "${MAPLE_ROOT}/tools/gtest_lib/include",
+  "${MAPLEALL_ROOT}/maple_util/include",
+]
+src_mapleallUT = [ "cl_ut_test.cpp" ]
+
+executable("mapleallUT") {
+  sources = src_mapleallUT
+  include_dirs = include_directories
+  output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
+
+  deps = [
+    "${MAPLEALL_ROOT}/maple_util:libmplutil",
+    "${MAPLEALL_ROOT}/maple_util:libcommandline",
+    "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
+  ]
+
+  libs = [
+    "${MAPLE_ROOT}/tools/gtest_lib/lib/libgmock.a",
+    "${MAPLE_ROOT}/tools/gtest_lib/lib/libgmock_main.a",
+    "${MAPLE_ROOT}/tools/gtest_lib/lib/libgtest.a",
+    "${MAPLE_ROOT}/tools/gtest_lib/lib/libgtest_main.a",
+    "pthread",
+  ]
+}
+
