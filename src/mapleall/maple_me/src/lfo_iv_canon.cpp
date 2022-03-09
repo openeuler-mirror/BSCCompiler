@@ -249,8 +249,11 @@ void IVCanon::ComputeTripCount() {
   ScalarMeExpr *iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0));
   bool cvtDetected = false;
   if (iv == nullptr && testExpr->GetOpnd(0)->GetOp() == OP_cvt) {
-    iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0)->GetOpnd(0));
-    cvtDetected = true;
+    auto *cvtOpnd = testExpr->GetOpnd(0)->GetOpnd(0);
+    if (cvtOpnd->GetMeOp() == kMeOpVar || cvtOpnd->GetMeOp() == kMeOpReg) {
+      iv = static_cast<ScalarMeExpr *>(cvtOpnd);
+      cvtDetected = true;
+    }
   }
   IVDesc *ivdesc = nullptr;
   if (iv) {
@@ -268,8 +271,11 @@ void IVCanon::ComputeTripCount() {
     cvtDetected = false;
     iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(1));
     if (iv == nullptr && testExpr->GetOpnd(1)->GetOp() == OP_cvt) {
-      iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(1)->GetOpnd(0));
-      cvtDetected = true;
+      auto *cvtOpnd = testExpr->GetOpnd(1)->GetOpnd(0);
+      if (cvtOpnd->GetMeOp() == kMeOpVar || cvtOpnd->GetMeOp() == kMeOpReg) {
+        iv = static_cast<ScalarMeExpr *>(cvtOpnd);
+        cvtDetected = true;
+      }
     }
     if (iv) {
       for (uint32 i = 0; i < ivvec.size(); i++) {
@@ -353,7 +359,8 @@ void IVCanon::ComputeTripCount() {
   }
   MeExpr *subx = irMap->HashMeExpr(add);
   // insert a CVT for ivdesc->initExpr if needed
-  if (GetPrimTypeSize(ivdesc->initExpr->GetPrimType()) != GetPrimTypeSize(primTypeUsed) && ivdesc->initExpr->GetMeOp() != kMeOpConst) {
+  if (GetPrimTypeSize(ivdesc->initExpr->GetPrimType()) != GetPrimTypeSize(primTypeUsed) &&
+      ivdesc->initExpr->GetMeOp() != kMeOpConst) {
     OpMeExpr cvtx(-1, OP_cvt, primTypeUsed, 1);
     cvtx.SetOpnd(0, ivdesc->initExpr);
     cvtx.SetOpndType(ivdesc->initExpr->GetPrimType());

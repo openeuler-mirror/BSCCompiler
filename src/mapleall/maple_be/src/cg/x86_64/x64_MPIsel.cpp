@@ -42,10 +42,10 @@ CGMemOperand &X64MPIsel::GetSymbolFromMemory(const MIRSymbol &symbol) {
 void X64MPIsel::SelectReturn(Operand &opnd) {
   X64CallConvImpl retLocator(cgFunc->GetBecommon());
   CCLocInfo retMech;
-  // need to fill retLocator InitReturnInfo(*retTyp, retMech);
+  /* need to fill retLocator InitReturnInfo(*retTyp, retMech); */
   regno_t retReg = retMech.GetReg0();
   if (opnd.IsRegister()) {
-    CGRegOperand *regOpnd = static_cast<CGRegOperand*>(&opnd);
+    auto *regOpnd = static_cast<CGRegOperand*>(&opnd);
     if (regOpnd->GetRegisterNumber() != retReg) {
     } else {
       CHECK_FATAL(false, "NIY");
@@ -55,7 +55,6 @@ void X64MPIsel::SelectReturn(Operand &opnd) {
   }
 
   cgFunc->GetExitBBsVec().emplace_back(cgFunc->GetCurBB());
-  return;
 }
 
 }

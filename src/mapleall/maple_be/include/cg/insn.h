@@ -91,7 +91,8 @@ class Insn {
     AddOperand(opnd);
     return *this;
   }
-
+  /* use carefully which might cause insn to illegal */
+  void CommuteOperands(uint32 dIndex, uint32 sIndex);
   void CleanAllOperand() {
     opnds.clear();
   }
@@ -275,25 +276,21 @@ class Insn {
     return false;
   }
 
-  virtual bool IsMove() const{
+  virtual bool IsMove() const;
+
+  virtual bool IsMoveRegReg() const {
     return false;
   }
 
-  virtual bool IsMoveRegReg() const{
-    return false;
-  }
+  virtual bool IsBasicOp() const;
 
   virtual bool IsPhi() const{
     return false;
   }
 
-  virtual bool IsLoad() const {
-    return false;
-  }
+  virtual bool IsLoad() const;
 
-  virtual bool IsStore() const {
-    return false;
-  }
+  virtual bool IsStore() const;
 
   virtual bool IsLoadPair() const {
     return false;
