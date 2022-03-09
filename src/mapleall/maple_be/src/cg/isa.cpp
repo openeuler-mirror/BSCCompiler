@@ -23,4 +23,9 @@ const InsnDescription InsnDescription::abstractId[abstract::kMopLast] = {
 #include "abstract_mmir.def"
 };
 #undef DEFINE_MOP
+
+bool InsnDescription::IsSame(const InsnDescription &left,
+    std::function<bool (const InsnDescription &left, const InsnDescription &right)> cmp) const {
+  return cmp == nullptr ? false : cmp(left, *this);
+}
 }

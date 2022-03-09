@@ -13,14 +13,13 @@
  * See the Mulan PSL v1 for more details.
  */
 /* {mop, opnds, prop, latency, name, format, length} */
-/* MOP_undef, */
+/* begin machine operation code of X86_64 instruction , */
 DEFINE_MOP(MOP_begin, {},0,0,"","",0)
 
-/* # Definitions */
-
-/* # Definitions */
-// use x64 style b/w/l/q for 8b/16b/32b/64b operation
-// and using AT&T style assembly
+/* # Definitions
+ * use x64 style b/w/l/q for 8b/16b/32b/64b operation
+ * and using AT&T style assembly
+ */
 
 /* X64 MOVES */
 // TODO: fix intruction opnds, prop, latency, format and length
@@ -30,24 +29,29 @@ DEFINE_MOP(MOP_begin, {},0,0,"","",0)
 // TODO: should make sure the convention is consistent with (AT&T style?)
 // TODO: how the general Machine instruction is designed?
 
-DEFINE_MOP(MOP_movq_r_r, {&OpndDescription::Reg64IS,&OpndDescription::Reg64ID},0,kLtAlu,"movq","0,1",1)
-DEFINE_MOP(MOP_movq_m_r, {&OpndDescription::Mem64S,&OpndDescription::Reg64ID},0,kLtAlu,"movq","0,1",1)
-DEFINE_MOP(MOP_movq_r_m, {&OpndDescription::Reg64IS,&OpndDescription::Mem64D},0,kLtAlu,"movq","0,1",1)
-DEFINE_MOP(MOP_movq_i_m, {&OpndDescription::Imm64,&OpndDescription::Mem64D},0,kLtAlu,"movq","0,1",1)
+DEFINE_MOP(MOP_movl_i_r, {&OpndDescription::Imm32,&OpndDescription::Reg32ID},ISMOVE,kLtAlu,"movl","0,1",1)
+DEFINE_MOP(MOP_movl_r_r, {&OpndDescription::Reg32IS,&OpndDescription::Reg32ID},ISMOVE,kLtAlu,"movl","0,1",1)
+DEFINE_MOP(MOP_movq_i_r, {&OpndDescription::Imm64,&OpndDescription::Reg64ID},ISMOVE,kLtAlu,"movq","0,1",1)
+DEFINE_MOP(MOP_movq_r_r, {&OpndDescription::Reg64IS,&OpndDescription::Reg64ID},ISMOVE,kLtAlu,"movq","0,1",1)
 
-DEFINE_MOP(MOP_movl_r_r, {&OpndDescription::Reg32IS,&OpndDescription::Reg32ID},0,kLtAlu,"movl","0,1",1)
-DEFINE_MOP(MOP_movl_i_r, {&OpndDescription::Imm32,&OpndDescription::Reg32ID},0,kLtAlu,"movl","0,1",1)
-DEFINE_MOP(MOP_movl_m_r, {&OpndDescription::Mem32S,&OpndDescription::Reg32ID},0,kLtAlu,"movl","0,1",1)
-DEFINE_MOP(MOP_movl_r_m, {&OpndDescription::Reg32IS,&OpndDescription::Mem32D},0,kLtAlu,"movl","0,1",1)
+DEFINE_MOP(MOP_movb_i_m, {&OpndDescription::Imm8,&OpndDescription::Mem8D},0,kLtAlu,"movb","0,1",1)
 DEFINE_MOP(MOP_movl_i_m, {&OpndDescription::Imm32,&OpndDescription::Mem32D},0,kLtAlu,"movl","0,1",1)
+DEFINE_MOP(MOP_movq_i_m, {&OpndDescription::Imm64,&OpndDescription::Mem64D},0,kLtAlu,"movq","0,1",1)
+/* move byte loaded from mem and zero extend to 32  bit*/
+DEFINE_MOP(MOP_movzbl_m_r, {&OpndDescription::Mem8S,&OpndDescription::Reg32ID},0,kLtAlu,"movzbl","0,1",1)
 
-DEFINE_MOP(MOP_movb_i_m, {&OpndDescription::Imm8, &OpndDescription::Mem8D},0,kLtAlu,"movb","0,1",1)
-
-DEFINE_MOP(MOP_movzbl_m_r, {&OpndDescription::Mem8S, &OpndDescription::Reg32ID},0,kLtAlu,"movzbl","0,1",1)
-// move byte loaded from mem and zero extend to 32  bit
-
+/* move 32 bits register and signed extend to 64 bit */
 DEFINE_MOP(MOP_movslq_r_r, {&OpndDescription::Reg32IS,&OpndDescription::Reg64ID},0,kLtAlu,"movslq","0,1",1)
-// move 32 bits register and signed extend to 64 bit
+
+DEFINE_MOP(MOP_movl_r_m, {&OpndDescription::Reg32IS,&OpndDescription::Mem32D},ISSTORE,kLtAlu,"movl","0,1",1)
+DEFINE_MOP(MOP_movq_r_m, {&OpndDescription::Reg64IS,&OpndDescription::Mem64D},ISSTORE,kLtAlu,"movq","0,1",1)
+DEFINE_MOP(MOP_movl_m_r, {&OpndDescription::Mem32S,&OpndDescription::Reg32ID},ISLOAD,kLtAlu,"movl","0,1",1)
+DEFINE_MOP(MOP_movq_m_r, {&OpndDescription::Mem64S,&OpndDescription::Reg64ID},ISLOAD,kLtAlu,"movq","0,1",1)
+
+/* add */
+DEFINE_MOP(MOP_addl_r_r, {&OpndDescription::Reg32IS,&OpndDescription::Reg32IDS},0,kLtAlu,"addl","0,1",1)
+DEFINE_MOP(MOP_addq_i_r, {&OpndDescription::Imm32,&OpndDescription::Reg64IDS},0,kLtAlu,"addq","0,1",1)
+DEFINE_MOP(MOP_addq_r_r, {&OpndDescription::Reg64IS,&OpndDescription::Reg64IDS},0,kLtAlu,"addq","0,1",1)
 
 DEFINE_MOP(MOP_movabs_i_r, {&OpndDescription::Imm64,&OpndDescription::Reg64ID},0,kLtAlu,"movabs","0,1",1)
 //The movabs instruction to load arbitrary 64-bit constant into register and to load/store integer register from/to arbitrary constant 64-bit address is available
@@ -59,11 +63,6 @@ DEFINE_MOP(MOP_popq_r, {&OpndDescription::Reg32IS},0,kLtAlu,"popq","0,1",1)
 DEFINE_MOP(MOP_leaq_m_r, {&OpndDescription::Mem64S,&OpndDescription::Reg64ID},0,kLtAlu,"leaq","0,1",1)
 DEFINE_MOP(MOP_leal_m_r, {&OpndDescription::Mem32S,&OpndDescription::Reg32ID},0,kLtAlu,"leal","0,1",1)
 DEFINE_MOP(MOP_leaw_m_r, {&OpndDescription::Mem16S,&OpndDescription::Reg16ID},0,kLtAlu,"leaw","0,1",1)
-
-/* add */
-DEFINE_MOP(MOP_addq_i_r, {&OpndDescription::Imm32,&OpndDescription::Reg64IDS},0,kLtAlu,"addq","0,1",1)
-DEFINE_MOP(MOP_addq_r_r, {&OpndDescription::Reg64IS,&OpndDescription::Reg64IDS},0,kLtAlu,"addq","0,1",1)
-DEFINE_MOP(MOP_addl_r_r, {&OpndDescription::Reg32IS,&OpndDescription::Reg32IDS},0,kLtAlu,"addl","0,1",1)
 
 /* sub & sbb */
 DEFINE_MOP(MOP_subq_i_r, {&OpndDescription::Imm32, &OpndDescription::Reg64ID},0,kLtAlu,"subq","0,1",1)
@@ -129,8 +128,8 @@ DEFINE_MOP(MOP_retq, {},CANTHROW,kLtBranch,"ret","",1)
 
 /* nop */
 // TODO: still not clear why we need so many forms of nop (except for patch)
-DEFINE_MOP(MOP_nopb, {&OpndDescription::Mem8S},0,kLtAlu,"nopb","",1) // one byte nop
-DEFINE_MOP(MOP_nopw, {&OpndDescription::Mem16S},0,kLtAlu,"nopw","",1) // two byte nop
-DEFINE_MOP(MOP_nopl, {&OpndDescription::Mem32S},0,kLtAlu,"nopl","",1) // four byte nop
+DEFINE_MOP(MOP_nopb, {&OpndDescription::Mem8S},0,kLtAlu,"nopb","",1)
+DEFINE_MOP(MOP_nopw, {&OpndDescription::Mem16S},0,kLtAlu,"nopw","",1)
+DEFINE_MOP(MOP_nopl, {&OpndDescription::Mem32S},0,kLtAlu,"nopl","",1)
 DEFINE_MOP(MOP_nop, {},0,0,"nop","",1)
 /* end of X64 instructions */

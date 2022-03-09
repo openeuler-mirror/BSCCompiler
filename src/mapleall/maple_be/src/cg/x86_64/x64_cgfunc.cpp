@@ -721,7 +721,7 @@ void X64CGFunc::DumpTargetIR(const Insn &insn) const {
 void X64OpndDumpVistor::Visit(maplebe::CGRegOperand *v) {
   DumpOpndPrefix();
   LogInfo::MapleLogger() << "reg ";
-  LogInfo::MapleLogger() << v->GetRegisterNumber();
+  DumpRegInfo(*v);
   DumpSize(*v);
   const OpndDescription *regDesc = GetOpndDesc();
   LogInfo::MapleLogger() << " [";
@@ -734,7 +734,6 @@ void X64OpndDumpVistor::Visit(maplebe::CGRegOperand *v) {
   LogInfo::MapleLogger() << "]";
   DumpOpndSuffix();
 }
-
 void X64OpndDumpVistor::Visit(maplebe::CGImmOperand *v) {
   DumpOpndPrefix();
   LogInfo::MapleLogger() << "imm ";
@@ -746,12 +745,22 @@ void X64OpndDumpVistor::Visit(maplebe::CGMemOperand *v) {
   DumpOpndPrefix();
   LogInfo::MapleLogger() << "mem ";
   if (v->GetBaseRegister() != nullptr) {
-    LogInfo::MapleLogger() << v->GetBaseRegister()->GetRegisterNumber();
+    DumpRegInfo(*v->GetBaseRegister());
     if (v->GetBaseOfst() != nullptr) {
       LogInfo::MapleLogger() << " + " << v->GetBaseOfst()->GetValue();
     }
   }
   DumpSize(*v);
   DumpOpndSuffix();
+}
+void X64OpndDumpVistor::DumpRegInfo(maplebe::CGRegOperand &v) {
+  if (v.GetRegisterNumber() > baseVirtualRegNO) {
+    LogInfo::MapleLogger() << "V" << v.GetRegisterNumber();
+  } else {
+    bool r32 = (v.GetSize() == k32BitSize);
+    LogInfo::MapleLogger() << "%"
+                           << X64CG::intRegNames[(r32 ? X64CG::kR32List : X64CG::kR64List)][v.GetRegisterNumber()];
+  }
+
 }
 }

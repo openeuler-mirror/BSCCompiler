@@ -18,20 +18,29 @@
  DEFINE_MOP(MOP_undef, {}, ISABSTRACT,0,"","",0)
 
  /* conversion between all types and registers */
- DEFINE_MOP(MOP_copy_ri_32, {&OpndDescription::Reg32ID ,&OpndDescription::Imm32}, ISABSTRACT,0,"copy_ri_32","",1)
- DEFINE_MOP(MOP_copy_rr_32, {&OpndDescription::Reg64ID, &OpndDescription::Reg64IS}, ISABSTRACT,0,"copy_rr_32","",1)
- DEFINE_MOP(MOP_copy_ri_64, {&OpndDescription::Reg32ID ,&OpndDescription::Imm32}, ISABSTRACT,0,"copy_ri_32","",1)
- DEFINE_MOP(MOP_copy_rr_64, {&OpndDescription::Reg64ID, &OpndDescription::Reg64IS}, ISABSTRACT,0,"copy_rr_32","",1)
+ DEFINE_MOP(MOP_copy_ri_32, {&OpndDescription::Reg32ID ,&OpndDescription::Imm32},ISABSTRACT|ISMOVE,0,"copy_ri_32","",1)
+ DEFINE_MOP(MOP_copy_rr_32, {&OpndDescription::Reg32ID, &OpndDescription::Reg32IS},ISABSTRACT|ISMOVE,0,"copy_rr_32","",1)
+ DEFINE_MOP(MOP_copy_ri_64, {&OpndDescription::Reg64ID ,&OpndDescription::Imm64},ISABSTRACT|ISMOVE,0,"copy_ri_32","",1)
+ DEFINE_MOP(MOP_copy_rr_64, {&OpndDescription::Reg64ID, &OpndDescription::Reg64IS},ISABSTRACT|ISMOVE,0,"copy_rr_32","",1)
+
+ DEFINE_MOP(MOP_copy_fi_32, {&OpndDescription::Reg32FD ,&OpndDescription::Imm32},ISABSTRACT|ISMOVE,0,"copy_fi_32","",1)
+ DEFINE_MOP(MOP_copy_ff_32, {&OpndDescription::Reg64FD, &OpndDescription::Reg64FS},ISABSTRACT|ISMOVE,0,"copy_ff_32","",1)
+ DEFINE_MOP(MOP_copy_fi_64, {&OpndDescription::Reg32FD ,&OpndDescription::Imm32},ISABSTRACT|ISMOVE,0,"copy_fi_32","",1)
+ DEFINE_MOP(MOP_copy_ff_64, {&OpndDescription::Reg64FD, &OpndDescription::Reg64FS},ISABSTRACT|ISMOVE,0,"copy_ff_32","",1)
 
  /* conversion between registers */
- DEFINE_MOP(MOP_cvt_r32_r64, {&OpndDescription::Reg32IS ,&OpndDescription::Reg64IS}, ISABSTRACT,0,"cvt_r32_r64","",1)
+ DEFINE_MOP(MOP_cvt_r32_r64, {&OpndDescription::Reg32IS ,&OpndDescription::Reg64IS},ISABSTRACT|ISCONVERSION,0,"cvt_r32_r64","",1)
 
  /* Support conversion between memory and registers */
- DEFINE_MOP(MOP_str_32, {&OpndDescription::Reg32IS, &OpndDescription::Mem32D}, ISABSTRACT,0,"str_32","",1)
- DEFINE_MOP(MOP_str_64, {&OpndDescription::Reg64IS, &OpndDescription::Mem64D}, ISABSTRACT,0,"str_64","",1)
- DEFINE_MOP(MOP_load_32, {&OpndDescription::Reg32ID, &OpndDescription::Mem32S},ISABSTRACT,0,"load_32","",1)
- DEFINE_MOP(MOP_load_64, {&OpndDescription::Reg64ID, &OpndDescription::Mem64S},ISABSTRACT,0,"load_64","",1)
+ DEFINE_MOP(MOP_str_32, {&OpndDescription::Reg32IS, &OpndDescription::Mem32D},ISABSTRACT|ISSTORE,0,"str_32","",1)
+ DEFINE_MOP(MOP_str_64, {&OpndDescription::Reg64IS, &OpndDescription::Mem64D},ISABSTRACT|ISSTORE,0,"str_64","",1)
+ DEFINE_MOP(MOP_load_32, {&OpndDescription::Reg32ID, &OpndDescription::Mem32S},ISABSTRACT|ISLOAD,0,"load_32","",1)
+ DEFINE_MOP(MOP_load_64, {&OpndDescription::Reg64ID, &OpndDescription::Mem64S},ISABSTRACT|ISLOAD,0,"load_64","",1)
+ DEFINE_MOP(MOP_str_f_32, {&OpndDescription::Reg32FS, &OpndDescription::Mem32D},ISABSTRACT|ISSTORE,0,"str_f_32","",1)
+ DEFINE_MOP(MOP_str_f_64, {&OpndDescription::Reg64FS, &OpndDescription::Mem64D},ISABSTRACT|ISSTORE,0,"str_f_64","",1)
+ DEFINE_MOP(MOP_load_f_32, {&OpndDescription::Reg32FD, &OpndDescription::Mem32S},ISABSTRACT|ISLOAD,0,"load_f_32","",1)
+ DEFINE_MOP(MOP_load_f_64, {&OpndDescription::Reg64FD, &OpndDescription::Mem64S},ISABSTRACT|ISLOAD,0,"load_f_64","",1)
 
  /* Support three address basic operations */
- DEFINE_MOP(MOP_add_32, {&OpndDescription::Reg32ID, &OpndDescription::Reg32IS, &OpndDescription::Reg32IS}, ISABSTRACT,0,"add_32","",1)
+ DEFINE_MOP(MOP_add_32, {&OpndDescription::Reg32ID, &OpndDescription::Reg32IS, &OpndDescription::Reg32IS},ISABSTRACT|ISBASICOP,0,"add_32","",1)
 

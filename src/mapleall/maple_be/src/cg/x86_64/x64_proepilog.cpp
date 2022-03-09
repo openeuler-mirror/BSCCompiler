@@ -40,21 +40,21 @@ void X64GenProEpilog::GenerateProlog(BB &bb) {
   x64CGFunc.GetDummyBB()->SetIsProEpilog(true);
   cgFunc.SetCurBB(*x64CGFunc.GetDummyBB());
 
-  // push %rbp
+  /* push %rbp */
   MOperator mPushrOp = x64::MOP_pushq_r;
   Insn &pushInsn = cgFunc.GetInsnBuilder()->BuildInsn(mPushrOp, X64CG::kMd[mPushrOp]);
   CGRegOperand &opndFpReg = cgFunc.GetOpndBuilder()->CreatePReg(x64::RBP, k64BitSize, kRegTyInt);
   pushInsn.AddOperandChain(opndFpReg);
   cgFunc.GetCurBB()->AppendInsn(pushInsn);
 
-  // mov %rsp, %rbp
+  /* mov %rsp, %rbp */
   MOperator mMovrrOp = x64::MOP_movq_r_r;
   Insn &copyInsn = cgFunc.GetInsnBuilder()->BuildInsn(mMovrrOp, X64CG::kMd[mMovrrOp]);
   CGRegOperand &opndSpReg = cgFunc.GetOpndBuilder()->CreatePReg(x64::RSP, k64BitSize, kRegTyInt);
   copyInsn.AddOperandChain(opndSpReg).AddOperandChain(opndFpReg);
   cgFunc.GetCurBB()->AppendInsn(copyInsn);
 
-  // sub $framesize, %rsp
+  /* sub $framesize, %rsp */
   MOperator mSubirOp = x64::MOP_subq_i_r;
   Insn &subInsn = cgFunc.GetInsnBuilder()->BuildInsn(mSubirOp, X64CG::kMd[mSubirOp]);
   auto *memLayout = static_cast<X64MemLayout*>(cgFunc.GetMemlayout());
@@ -74,7 +74,7 @@ void X64GenProEpilog::GenerateEpilog(BB &bb) {
   x64CGFunc.GetDummyBB()->SetIsProEpilog(true);
   cgFunc.SetCurBB(*x64CGFunc.GetDummyBB());
 
-  // add $framesize, %rsp
+  /* add $framesize, %rsp */
   MOperator mAddirOp = x64::MOP_addq_i_r;
   Insn &addInsn = cgFunc.GetInsnBuilder()->BuildInsn(mAddirOp, X64CG::kMd[x64::MOP_addq_i_r]);
   CGRegOperand &opndSpReg = cgFunc.GetOpndBuilder()->CreatePReg(x64::RSP, k64BitSize, kRegTyInt);
@@ -84,14 +84,14 @@ void X64GenProEpilog::GenerateEpilog(BB &bb) {
   addInsn.AddOperandChain(opndImm).AddOperandChain(opndSpReg);
   cgFunc.GetCurBB()->AppendInsn(addInsn);
 
-  // pop %rbp
+  /* pop %rbp */
   MOperator mPoprOp = x64::MOP_popq_r;
   Insn &popInsn = cgFunc.GetInsnBuilder()->BuildInsn(mPoprOp, X64CG::kMd[x64::MOP_popq_r]);
   CGRegOperand &opndFpReg = cgFunc.GetOpndBuilder()->CreatePReg(x64::RBP, k64BitSize, kRegTyInt);
   popInsn.AddOperandChain(opndFpReg);
   cgFunc.GetCurBB()->AppendInsn(popInsn);
 
-  // ret
+  /* ret */
   MOperator mRetOp = x64::MOP_retq;
   Insn &retInsn = cgFunc.GetInsnBuilder()->BuildInsn(mRetOp, X64CG::kMd[x64::MOP_retq]);
   cgFunc.GetCurBB()->AppendInsn(retInsn);
@@ -103,6 +103,5 @@ void X64GenProEpilog::GenerateEpilog(BB &bb) {
 void X64GenProEpilog::Run() {
   GenerateProlog(*(cgFunc.GetFirstBB()));
   GenerateEpilog(*(cgFunc.GetLastBB()));
-  cgFunc.DumpCGIR(true);
 }
 }  /* namespace maplebe */

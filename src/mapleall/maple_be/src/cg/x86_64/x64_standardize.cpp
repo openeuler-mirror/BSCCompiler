@@ -19,39 +19,88 @@
 #include "insn.h"
 
 namespace maplebe {
-void X64Standardize::STDZcopyri(Insn &insn) {
-  insn.SetMOP(X64CG::kMd[x64::MOP_movl_i_r]);
-  Operand &dest = insn.GetOperand(kInsnFirstOpnd);
-  Operand &src = insn.GetOperand(kInsnSecondOpnd);
-  insn.CleanAllOperand();
-  insn.AddOperandChain(src).AddOperandChain(dest);
+bool X64Standardize::TryFastTargetIRMapping(maplebe::Insn &insn) {
+  const InsnDescription &targetMd = X64CG::kMd[insn.GetMachineOpcode()];
+  auto cmpFunc =[](const InsnDescription &left, const InsnDescription &right)->bool {
+    uint32 leftPropClear = left.properties | ISABSTRACT;
+    uint32 rightPropClear = left.properties | ISABSTRACT;
+    if ((left.opndMD.size() == right.opndMD.size()) && (leftPropClear == rightPropClear)) {
+      for (size_t i = 0; i < left.opndMD.size(); ++i) {
+        if (left.opndMD[i] != right.opndMD[i]) {
+          return false;
+        }
+      }
+      if (CGOptions::kVerboseAsm) {
+        LogInfo::MapleLogger() << "Do fast mapping for " << left.name << " to " << right.name << " successfully\n";
+      }
+      return true;
+    }
+    return false;
+  };
+  if (insn.GetInsnDescrption()->IsSame(targetMd, cmpFunc)) {
+    insn.SetMOP(targetMd);
+    return true;
+  }
+  return false;
 }
-void X64Standardize::STDZcopyrr(Insn &insn) {
-  insn.SetMOP(X64CG::kMd[x64::MOP_movl_r_r]);
-  Operand &dest = insn.GetOperand(kInsnFirstOpnd);
-  Operand &src = insn.GetOperand(kInsnSecondOpnd);
-  insn.CleanAllOperand();
-  insn.AddOperandChain(src).AddOperandChain(dest);
+
+void X64Standardize::StdzMov(maplebe::Insn &insn) {
+  MOperator directlyMappingMop = abstract::MOP_undef;
+  switch (insn.GetMachineOpcode()) {
+    case abstract::MOP_copy_ri_32:
+      directlyMappingMop = x64::MOP_movl_i_r;
+      break;
+    case abstract::MOP_copy_rr_32:
+      directlyMappingMop = x64::MOP_movl_r_r;
+      break;
+    default:
+      break;
+  }
+  if (directlyMappingMop != abstract::MOP_undef) {
+    insn.SetMOP(X64CG::kMd[directlyMappingMop]);
+    insn.CommuteOperands(kInsnFirstOpnd, kInsnSecondOpnd);
+  } else {
+    CHECK_FATAL(false, "NIY mapping");
+  }
 }
-void X64Standardize::STDZstr(Insn &insn) {
-  insn.SetMOP(X64CG::kMd[x64::MOP_movq_r_m]);
-  Operand &dest = insn.GetOperand(kInsnFirstOpnd);
-  Operand &src = insn.GetOperand(kInsnSecondOpnd);
-  insn.CleanAllOperand();
-  insn.AddOperandChain(src).AddOperandChain(dest);
+
+void X64Standardize::StdzStrLdr(Insn &insn) {
+  MOperator directlyMappingMop = abstract::MOP_undef;
+  switch (insn.GetMachineOpcode()) {
+    case abstract::MOP_str_32:
+      directlyMappingMop = x64::MOP_movl_r_m;
+      break;
+    case abstract::MOP_load_32:
+      directlyMappingMop = x64::MOP_movl_m_r;
+      break;
+    default:
+      break;
+  }
+  if (directlyMappingMop != abstract::MOP_undef) {
+    insn.SetMOP(X64CG::kMd[directlyMappingMop]);
+    insn.CommuteOperands(kInsnFirstOpnd, kInsnSecondOpnd);
+  } else {
+    CHECK_FATAL(false, "NIY mapping");
+  }
 }
-void X64Standardize::STDZload(Insn &insn) {
-  insn.SetMOP(X64CG::kMd[x64::MOP_movl_m_r]);
-  Operand &dest = insn.GetOperand(kInsnFirstOpnd);
-  Operand &src = insn.GetOperand(kInsnSecondOpnd);
-  insn.CleanAllOperand();
-  insn.AddOperandChain(src).AddOperandChain(dest);
-}
-void X64Standardize::STDZaddrr(Insn &insn) {
-  insn.SetMOP(X64CG::kMd[x64::MOP_addl_r_r]);
-  Operand &dest = insn.GetOperand(kInsnFirstOpnd);
-  Operand &src2 = insn.GetOperand(kInsnThirdOpnd);
-  insn.CleanAllOperand();
-  insn.AddOperandChain(src2).AddOperandChain(dest);
+
+void X64Standardize::StdzBasicOp(Insn &insn) {
+  MOperator directlyMappingMop = abstract::MOP_undef;
+  switch (insn.GetMachineOpcode()) {
+    case abstract::MOP_add_32:
+      directlyMappingMop = x64::MOP_addl_r_r;
+      break;
+    default:
+      break;
+  }
+  if (directlyMappingMop != abstract::MOP_undef) {
+    insn.SetMOP(X64CG::kMd[directlyMappingMop]);
+    Operand &dest = insn.GetOperand(kInsnFirstOpnd);
+    Operand &src2 = insn.GetOperand(kInsnThirdOpnd);
+    insn.CleanAllOperand();
+    insn.AddOperandChain(src2).AddOperandChain(dest);
+  } else {
+    CHECK_FATAL(false, "NIY mapping");
+  }
 }
 }

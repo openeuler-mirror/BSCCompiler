@@ -28,11 +28,11 @@ class X64Standardize : public Standardize {
   ~X64Standardize() override = default;
 
  private:
-  void STDZcopyri(Insn &insn) override;
-  void STDZcopyrr(Insn &insn) override;
-  void STDZstr(Insn &insn) override;
-  void STDZload(Insn &insn) override;
-  void STDZaddrr(Insn &insn) override;
+  bool TryFastTargetIRMapping(Insn &insn) override;
+
+  void StdzMov(Insn &insn) override;
+  void StdzStrLdr(Insn &insn) override;
+  void StdzBasicOp(Insn &insn) override;
 };
 }
 #endif  /* MAPLEBE_INCLUDEX_64_STANDARDIZE_H */
