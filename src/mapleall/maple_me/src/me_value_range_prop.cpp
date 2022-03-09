@@ -1736,7 +1736,7 @@ bool ValueRangePropagation::AddOrSubWithConstant(
     overflowOrUnderflow = OverflowOrUnderflow(primType, lhsConstant, rhsConstant);
   } else {
     CHECK_FATAL(op == OP_sub, "must be sub");
-    if (rhsConstant == GetMinNumber(primType)) {
+    if (rhsConstant == GetMinNumber(primType) || rhsConstant == GetMinInt64()) {
       overflowOrUnderflow = true;
     } else {
       overflowOrUnderflow = OverflowOrUnderflow(primType, lhsConstant, -rhsConstant);
