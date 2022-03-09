@@ -56,7 +56,9 @@ class DefaultO0RegAllocator : public RegAllocator {
   void AllocHandleDest(Insn &insn, Operand &opnd, uint32 idx);
   void AllocHandleSrcList(Insn &insn, Operand &opnd, uint32 idx);
   void AllocHandleSrc(Insn &insn, Operand &opnd, uint32 idx);
+#ifndef TARGX86_64
   void AllocHandleCallee(Insn &insn);
+#endif
   bool IsSpecialReg(regno_t reg) const;
 #ifdef TARGX86_64
   void SaveCalleeSavedReg(const CGRegOperand &opnd);

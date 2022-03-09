@@ -130,28 +130,6 @@ Operand *DefaultO0RegAllocator::AllocDestOpnd(Operand &opnd, const Insn &insn) {
   return &cgFunc->GetOpndBuilder()->CreatePReg(regMapIt->second, regOpnd.GetSize(), regOpnd.GetRegisterType());
 }
 
-void DefaultO0RegAllocator::AllocHandleCallee(Insn &insn) {
-  Operand &opnd1 = insn.GetOperand(1);
-  if (opnd1.IsList()) {
-    ASSERT(0, "NYI");
-  }
-
-  Operand &opnd = insn.GetOperand(0);
-  if (opnd.IsRegister() && insn.OpndIsUse(0)) {
-    if (allocatedSet.find(&opnd) != allocatedSet.end()) {
-      auto &regOpnd = static_cast<CGRegOperand&>(opnd);
-      regno_t physicalReg = regMap[regOpnd.GetRegisterNumber()];
-      Operand &phyRegOpnd = cgFunc->GetOpndBuilder()->CreatePReg(physicalReg, regOpnd.GetSize(),
-                                                                 regOpnd.GetRegisterType());
-      insn.SetOperand(0, phyRegOpnd);
-    } else {
-      Operand *srcOpnd = AllocSrcOpnd(opnd);
-      CHECK_NULL_FATAL(srcOpnd);
-      insn.SetOperand(0, *srcOpnd);
-    }
-  }
-}
-
 void DefaultO0RegAllocator::GetPhysicalRegisterBank(RegType regTy, uint8 &begin, uint8 &end) const {
   switch (regTy) {
     case kRegTyVary:
@@ -260,7 +238,28 @@ void DefaultO0RegAllocator::AllocHandleDestList(Insn &insn, Operand &opnd, uint3
   if (!opnd.IsList()) {
     return;
   }
-  ASSERT(0, "NYI");
+  auto *listOpnds = &static_cast<CGListOperand&>(opnd);
+  auto *listOpndsNew = &cgFunc->GetOpndBuilder()->CreateList();
+  for (auto *dstOpnd : listOpnds->GetOperands()) {
+    if (allocatedSet.find(dstOpnd) != allocatedSet.end()) {
+      auto &regOpnd = static_cast<CGRegOperand&>(*dstOpnd);
+      SaveCalleeSavedReg(regOpnd);
+      listOpndsNew->PushOpnd(
+          cgFunc->GetOpndBuilder()->CreatePReg(
+              regMap[regOpnd.GetRegisterNumber()], regOpnd.GetSize(), regOpnd.GetRegisterType()));
+      continue;  /* already allocated */
+    }
+    CGRegOperand *regOpnd = static_cast<CGRegOperand *>(AllocDestOpnd(*dstOpnd, insn));
+    auto physRegno = regOpnd->GetRegisterNumber();
+    availRegSet[physRegno] = false;
+    (void)liveReg.insert(physRegno);
+    listOpndsNew->PushOpnd(
+        cgFunc->GetOpndBuilder()->CreatePReg(physRegno, regOpnd->GetSize(), regOpnd->GetRegisterType()));
+  }
+  insn.SetOperand(idx, *listOpndsNew);
+  for (auto *dstOpnd : listOpndsNew->GetOperands()) {
+    ReleaseReg(*dstOpnd);
+  }
 }
 
 void DefaultO0RegAllocator::AllocHandleDest(Insn &insn, Operand &opnd, uint32 idx) {
@@ -293,7 +292,23 @@ void DefaultO0RegAllocator::AllocHandleSrcList(Insn &insn, Operand &opnd, uint32
   if (!opnd.IsList()) {
     return;
   }
-  ASSERT(0, "NYI");
+  auto *listOpnds = &static_cast<CGListOperand&>(opnd);
+  auto *listOpndsNew = &cgFunc->GetOpndBuilder()->CreateList();
+  for (auto *srcOpnd : listOpnds->GetOperands()) {
+    if (allocatedSet.find(srcOpnd) != allocatedSet.end()) {
+      auto *regOpnd = static_cast<CGRegOperand *>(srcOpnd);
+      regno_t reg = regMap[regOpnd->GetRegisterNumber()];
+      availRegSet[reg] = false;
+      (void)liveReg.insert(reg);  /* this register is live now */
+      listOpndsNew->PushOpnd(
+          cgFunc->GetOpndBuilder()->CreatePReg(reg, regOpnd->GetSize(), regOpnd->GetRegisterType()));
+      continue;  /* already allocated */
+    }
+    CGRegOperand *regOpnd = static_cast<CGRegOperand *>(AllocSrcOpnd(*srcOpnd));
+    CHECK_NULL_FATAL(regOpnd);
+    listOpndsNew->PushOpnd(*regOpnd);
+  }
+  insn.SetOperand(idx, *listOpndsNew);
 }
 
 void DefaultO0RegAllocator::AllocHandleSrc(Insn &insn, Operand &opnd, uint32 idx) {
@@ -324,10 +339,6 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
     SetupRegLiveness(bb);
     FOR_BB_INSNS_REV(insn, bb) {
       if (!insn->IsMachineInstruction()) {
-        continue;
-      }
-      if (insn->IsCall() && (!insn->IsClinit()) && (!insn->IsAsmInsn())) {
-        AllocHandleCallee(*insn);
         continue;
       }
       uint32 opndNum = insn->GetOperandSize();

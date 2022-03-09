@@ -52,6 +52,7 @@ class OperandBuilder {
   CGMemOperand &CreateMem(uint32 size, MemPool *mp = nullptr);
   CGRegOperand &CreateVReg(uint32 size, RegType type, MemPool *mp = nullptr);
   CGRegOperand &CreatePReg(regno_t pRegNO, uint32 size, RegType type, MemPool *mp = nullptr);
+  CGListOperand &CreateList(MemPool *mp = nullptr);
 
  protected:
   MapleAllocator alloc;

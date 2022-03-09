@@ -992,6 +992,45 @@ class CGMemOperand : public OperandVisitable<CGMemOperand> {
   CGImmOperand *baseOfst = nullptr;
 };
 
+class CGListOperand : public OperandVisitable<CGListOperand> {
+public:
+  explicit CGListOperand(MapleAllocator &allocator) :
+          OperandVisitable(Operand::kOpdList, 0),
+          opndList(allocator.Adapter()) {}
+
+  ~CGListOperand() override = default;
+
+  using OperandVisitable<CGListOperand>::OperandVisitable;
+
+  void PushOpnd(CGRegOperand &opnd) {
+    opndList.push_back(&opnd);
+  }
+
+  MapleList<CGRegOperand*> &GetOperands() {
+    return opndList;
+  }
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.New<CGListOperand>(*this);
+  }
+
+  bool Less(const Operand &right) const override {
+    return GetKind() < right.GetKind();
+  }
+  /* delete soon */
+  void Emit(Emitter&, const OpndProp*) const override {}
+
+  void Dump() const override {
+    for (auto it = opndList.begin(); it != opndList.end();) {
+      (*it)->Dump();
+      LogInfo::MapleLogger() << (++it == opndList.end() ? "" : " ,");
+    }
+  }
+
+protected:
+  MapleList<CGRegOperand*> opndList;
+};
+
 namespace operand {
 /* bit 0-7 for common */
 enum CommOpndDescProp : maple::uint64 {

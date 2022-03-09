@@ -28,15 +28,22 @@ Insn &InsnBuilder::BuildInsn(MOperator opCode, const InsnDescription &idesc) {
 CGImmOperand &OperandBuilder::CreateImm(uint32 size, int64 value, MemPool *mp) {
   return mp ? *mp->New<CGImmOperand>(size, value) : *alloc.New<CGImmOperand>(size, value);
 }
+
 CGMemOperand &OperandBuilder::CreateMem(uint32 size, MemPool *mp) {
   return mp ? *mp->New<CGMemOperand>(size) : *alloc.New<CGMemOperand>(size);
 }
+
 CGRegOperand &OperandBuilder::CreateVReg(uint32 size, RegType type, MemPool *mp) {
   virtualRegNum++;
   regno_t vRegNO = baseVirtualRegNO + virtualRegNum;
   return mp ? *mp->New<CGRegOperand>(vRegNO, size, type) : *alloc.New<CGRegOperand>(vRegNO, size, type);
 }
+
 CGRegOperand &OperandBuilder::CreatePReg(regno_t pRegNO, uint32 size, RegType type, MemPool *mp) {
   return mp ? *mp->New<CGRegOperand>(pRegNO, size, type) : *alloc.New<CGRegOperand>(pRegNO, size, type);
+}
+
+CGListOperand &OperandBuilder::CreateList(MemPool *mp) {
+  return mp ? *mp->New<CGListOperand>(alloc) : *alloc.New<CGListOperand>(alloc);
 }
 }
