@@ -243,6 +243,9 @@ class X64OpndDumpVistor : public OpndDumpVisitor {
   void Visit(CGRegOperand *v) final;
   void Visit(CGImmOperand *v) final;
   void Visit(CGMemOperand *v) final;
+
+ private:
+  void DumpRegInfo(CGRegOperand &v);
 };
 } /* namespace maplebe */
 #endif  /* MAPLEBE_INCLUDE_CG_X86_64_CGFUNC_H */

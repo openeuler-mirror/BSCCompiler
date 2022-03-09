@@ -993,7 +993,7 @@ class CGMemOperand : public OperandVisitable<CGMemOperand> {
 };
 
 namespace operand {
-// bit 0-7 for common
+/* bit 0-7 for common */
 enum CommOpndDescProp : maple::uint64 {
   kIsDef = (1ULL << 0),
   kIsUse = (1ULL << 1),
@@ -1001,18 +1001,18 @@ enum CommOpndDescProp : maple::uint64 {
 
 };
 
-// bit 8-15 for reg
+/* bit 8-15 for reg */
 enum RegOpndDescProp : maple::uint64 {
   kInt = (1ULL << 8),
   kFloat = (1ULL << 9),
 };
 
-// bit 16-23 for imm
+/* bit 16-23 for imm */
 enum ImmOpndDescProp : maple::uint64 {
 
 };
 
-// bit 24-31 for mem
+/* bit 24-31 for mem */
 enum MemOpndDescProp : maple::uint64 {
   kMemLow12 = (1ULL << 24),
   kLiteralLow12 = kMemLow12,

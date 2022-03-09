@@ -37,6 +37,8 @@ class MPISel {
   Operand* SelectDread(const BaseNode &parent, AddrofNode &expr);
   Operand* SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   CGImmOperand *SelectIntConst(MIRIntConst &intConst);
+  virtual void SelectReturn(Operand &opnd) = 0;
+  void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
 
  protected:
   MemPool *isMp;
@@ -54,9 +56,7 @@ class MPISel {
   void SelectCopy(Operand &dest, Operand &src, PrimType type);
   void SelectCopy(CGRegOperand &regDest, Operand &src, PrimType type);
   template<typename destTy, typename srcTy>
-  void SelectCopyInsn(destTy &dest, srcTy &src);
-
-  MOperator GetFastIselMop(Operand::OperandType dTy, Operand::OperandType sTy);
+  void SelectCopyInsn(destTy &dest, srcTy &src, PrimType type);
 };
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(InstructionSelector, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END

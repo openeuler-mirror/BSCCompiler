@@ -17,11 +17,13 @@
 #define MAPLEBE_INCLUDE_X64_MPISEL_H
 
 #include "isel.h"
+
 namespace maplebe {
 class X64MPIsel : public MPISel {
  public:
   X64MPIsel(MemPool &mp, CGFunc &f) : MPISel(mp, f) {}
   ~X64MPIsel() override = default;
+  void SelectReturn(Operand &opnd) override;
 
  private:
   CGMemOperand &GetSymbolFromMemory(const MIRSymbol &symbol) override;

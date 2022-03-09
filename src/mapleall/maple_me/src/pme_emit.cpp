@@ -769,7 +769,7 @@ DoloopNode *PreMeEmitter::EmitPreMeDoloop(BB *mewhilebb, BlockNode *curblk, PreM
     PrimType resPrimType = compare->Opnd(0)->GetPrimType();
     PrimType opndPrimType = static_cast<TypeCvtNode*>(compare->Opnd(0))->FromType();
     TypeCvtNode *secondCvtX = static_cast<TypeCvtNode*>(compare->Opnd(0)->Opnd(0));
-    if (IsNoCvtNeeded(resPrimType, secondCvtX->FromType()) && 
+    if (IsNoCvtNeeded(resPrimType, secondCvtX->FromType()) &&
         IsNoCvtNeeded(opndPrimType, secondCvtX->GetPrimType())) {
       compare->SetOpnd(secondCvtX->Opnd(0), 0);
     }

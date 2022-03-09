@@ -20,15 +20,52 @@
 
 namespace maplebe {
 #define DEF_FAST_ISEL_MAPPING_INT(SIZE)                                                                       \
-MOperator fastIselMap##SIZE[Operand::OperandType::kOpdPhi][Operand::OperandType::kOpdPhi] = {                 \
+MOperator fastIselMapI##SIZE[Operand::OperandType::kOpdPhi][Operand::OperandType::kOpdPhi] = {                \
 {abstract::MOP_copy_rr_##SIZE, abstract::MOP_copy_ri_##SIZE, abstract::MOP_load_##SIZE, abstract::MOP_undef}, \
 {abstract::MOP_undef,          abstract::MOP_undef,          abstract::MOP_undef,       abstract::MOP_undef}, \
 {abstract::MOP_str_##SIZE,     abstract::MOP_undef,          abstract::MOP_undef,       abstract::MOP_undef}, \
 {abstract::MOP_undef,          abstract::MOP_undef,          abstract::MOP_undef,       abstract::MOP_undef}, \
 };
+#define DEF_FAST_ISEL_MAPPING_FLOAT(SIZE)                                                                       \
+MOperator fastIselMapF##SIZE[Operand::OperandType::kOpdPhi][Operand::OperandType::kOpdPhi] = {                  \
+{abstract::MOP_copy_ff_##SIZE, abstract::MOP_copy_fi_##SIZE, abstract::MOP_load_f_##SIZE, abstract::MOP_undef}, \
+{abstract::MOP_undef,          abstract::MOP_undef,          abstract::MOP_undef,         abstract::MOP_undef}, \
+{abstract::MOP_str_f_##SIZE,   abstract::MOP_undef,          abstract::MOP_undef,         abstract::MOP_undef}, \
+{abstract::MOP_undef,          abstract::MOP_undef,          abstract::MOP_undef,         abstract::MOP_undef}, \
+};
 
 DEF_FAST_ISEL_MAPPING_INT(32)
 DEF_FAST_ISEL_MAPPING_INT(64)
+DEF_FAST_ISEL_MAPPING_FLOAT(32)
+DEF_FAST_ISEL_MAPPING_FLOAT(64)
+
+
+#define DEF_SEL_MAPPING_TBL(SIZE)                                     \
+MOperator SelMapping##SIZE(bool isInt, uint32 x, uint32 y) {          \
+  return isInt ? fastIselMapI##SIZE[x][y] : fastIselMapF##SIZE[x][y]; \
+}
+#define USE_SELMAPPING_TBL(SIZE) \
+{SIZE, SelMapping##SIZE}
+
+DEF_SEL_MAPPING_TBL(32);
+DEF_SEL_MAPPING_TBL(64);
+
+std::map<uint32, std::function<MOperator (bool, uint32, uint32)>> fastIselMappingTable = {
+    USE_SELMAPPING_TBL(32),
+    USE_SELMAPPING_TBL(64)};
+
+MOperator GetFastIselMop(Operand::OperandType dTy, Operand::OperandType sTy, PrimType type) {
+  uint32 bitSize = GetPrimTypeBitSize(type);
+  bool isInteger = IsPrimitiveInteger(type);
+  auto tableDriven = fastIselMappingTable.find(bitSize);
+  if (tableDriven != fastIselMappingTable.end())  {
+    auto funcIt = tableDriven->second;
+    return funcIt(isInteger, dTy, sTy);
+  } else {
+    CHECK_FATAL(false, "unsupport type");
+  }
+  return abstract::MOP_undef;
+}
 
 void HandleDassign(StmtNode &stmt, MPISel &iSel) {
   auto &dassignNode = static_cast<DassignNode&>(stmt);
@@ -54,7 +91,16 @@ void HandleLabel(StmtNode &stmt, MPISel &iSel) {
 }
 
 void HandleReturn(StmtNode &stmt, MPISel &iSel) {
-
+  CGFunc *cgFunc = iSel.GetCurFunc();
+  auto &retNode = static_cast<NaryStmtNode&>(stmt);
+  ASSERT(retNode.NumOpnds() <= 1, "NYI return nodes number > 1");
+  Operand *opnd = nullptr;
+  if (retNode.NumOpnds() != 0) {
+    opnd = iSel.HandleExpr(retNode, *retNode.Opnd(0));
+  }
+  iSel.SelectReturn(*opnd);
+  cgFunc->SetCurBBKind(BB::kBBReturn);
+  cgFunc->SetCurBB(*cgFunc->StartNewBB(retNode));
 }
 
 Operand *HandleDread(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
@@ -106,7 +152,6 @@ void MPISel::doMPIS() {
   isel::InitHandleExprFactory();
   StmtNode *secondStmt = HandleFuncEntry();
   for (StmtNode *stmt = secondStmt; stmt != nullptr; stmt = stmt->GetNext()) {
-   /* dassign %a_2_3 0 (constval i32 1)*/
     auto function = CreateProductFunction<HandleStmtFactory>(stmt->GetOpCode());
     CHECK_FATAL(function != nullptr, "unsupported opCode or has been lowered before");
     function(*stmt, *this);
@@ -137,11 +182,59 @@ CGImmOperand *MPISel::SelectIntConst(MIRIntConst &intConst) {
 }
 
 Operand* MPISel::SelectDread(const BaseNode &parent, AddrofNode &expr) {
-  return nullptr;
+  MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(expr.GetStIdx());
+  PrimType symType = symbol->GetType()->GetPrimType();
+  uint32 dataSize = GetPrimTypeBitSize(symType);
+   /* Get symbol location */
+  CGMemOperand &symbolMem = GetSymbolFromMemory(*symbol);
+  CGRegOperand &regOpnd = cgFunc->GetOpndBuilder()->CreateVReg(dataSize,
+      cgFunc->GetRegTyFromPrimTy(symType));
+  SelectCopy(regOpnd, symbolMem, symType);
+  return &regOpnd;
 }
 
 Operand* MPISel::SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
-  return nullptr;
+  PrimType dtype = node.GetPrimType();
+  bool isSigned = IsSignedInteger(dtype);
+  uint32 dsize = GetPrimTypeBitSize(dtype);
+  bool is64Bits = (dsize == k64BitSize);
+  bool isFloat = IsPrimitiveFloat(dtype);
+  PrimType primType =
+      isFloat ? dtype : ((is64Bits ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32)));
+  CGRegOperand &resReg = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(dtype),
+      cgFunc->GetRegTyFromPrimTy(primType));
+  SelectAdd(resReg, opnd0, opnd1, primType);
+  return &resReg;
+}
+
+void MPISel::SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) {
+  MOperator mOp = abstract::MOP_add_32;
+  Operand::OperandType opnd0Type = opnd0.GetKind();
+  Operand::OperandType opnd1Type = opnd1.GetKind();
+
+  if (opnd0Type != Operand::kOpdRegister) {
+    /* add #imm, #imm */
+    if (opnd1Type != Operand::kOpdRegister) {
+      CGRegOperand opnd0Reg = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
+          cgFunc->GetRegTyFromPrimTy(primType));
+      SelectCopy(opnd0Reg, opnd0,primType);
+      SelectAdd(resOpnd,opnd0Reg, opnd1, primType);
+      return;
+    }
+    /* add #imm, reg */
+    SelectAdd(resOpnd, opnd1, opnd0, primType);  /* commutative */
+    return;
+  }
+
+  /* add reg, reg */
+  if (opnd1Type == Operand::kOpdRegister) {
+    ASSERT(IsPrimitiveFloat(primType) || IsPrimitiveInteger(primType), "NYI add");
+  } else if(opnd1Type == Operand::kOpdImmediate) {
+    // add reg, imm
+  }
+  Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDescription::GetAbstractId(mOp));
+  insn.AddOperandChain(resOpnd).AddOperandChain(opnd0).AddOperandChain(opnd1);
+  cgFunc->GetCurBB()->AppendInsn(insn);
 }
 
 StmtNode *MPISel::HandleFuncEntry() {
@@ -175,11 +268,13 @@ void MPISel::SelectCopy(Operand &dest, Operand &src, PrimType type) {
     SelectCopy(static_cast<CGRegOperand&>(dest), src, type);
   } else if (dest.GetKind() == Operand::kOpdMem) {
     if (src.GetKind() != Operand::kOpdRegister) {
-      CGRegOperand &tempReg = cgFunc->GetOpndBuilder()->CreateVReg(src.GetSize(), cgFunc->GetRegTyFromPrimTy(type));
+      CGRegOperand &tempReg = cgFunc->GetOpndBuilder()->CreateVReg(src.GetSize(),
+          cgFunc->GetRegTyFromPrimTy(type));
       SelectCopy(tempReg, src, type);
-      SelectCopyInsn<CGMemOperand, CGRegOperand>(static_cast<CGMemOperand&>(dest), tempReg);
+      SelectCopyInsn<CGMemOperand, CGRegOperand>(static_cast<CGMemOperand&>(dest), tempReg, type);
     } else {
-      SelectCopyInsn<CGMemOperand, CGRegOperand>(static_cast<CGMemOperand&>(dest), static_cast<CGRegOperand&>(src));
+      SelectCopyInsn<CGMemOperand, CGRegOperand>(static_cast<CGMemOperand&>(dest),
+          static_cast<CGRegOperand&>(src), type);
     }
   } else {
     CHECK_FATAL(false, "NIY, CPU supports more than memory and registers");
@@ -188,26 +283,28 @@ void MPISel::SelectCopy(Operand &dest, Operand &src, PrimType type) {
 
 void MPISel::SelectCopy(CGRegOperand &regDest, Operand &src, PrimType type) {
   if (src.GetKind() == Operand::kOpdImmediate) {
-    SelectCopyInsn<CGRegOperand, CGImmOperand>(regDest, static_cast<CGImmOperand&>(src));
+    SelectCopyInsn<CGRegOperand, CGImmOperand>(regDest, static_cast<CGImmOperand&>(src), type);
+  } else if (src.GetKind() == Operand::kOpdMem) {
+    SelectCopyInsn<CGRegOperand, CGMemOperand>(regDest, static_cast<CGMemOperand&>(src), type);
   } else {
     CHECK_FATAL(false, "NIY");
   }
 }
 
 template<typename destTy, typename srcTy>
-void MPISel::SelectCopyInsn(destTy &dest, srcTy &src) {
-  MOperator mop = GetFastIselMop(dest.GetKind(), src.GetKind());
+void MPISel::SelectCopyInsn(destTy &dest, srcTy &src, PrimType type) {
+  MOperator mop = GetFastIselMop(dest.GetKind(), src.GetKind(), type);
   CHECK_FATAL(mop != abstract::MOP_undef, "get mop failed");
   Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mop, InsnDescription::GetAbstractId(mop));
   if (dest.GetSize() != src.GetSize()) {
     CHECK_FATAL(false, "NIY");
   }
-  insn.AddOperandChain(dest).AddOperandChain(src);
+  if (insn.IsStore()) { /* common usage : commute for store */
+    insn.AddOperandChain(src).AddOperandChain(dest);
+  } else {
+    insn.AddOperandChain(dest).AddOperandChain(src);
+  }
   cgFunc->GetCurBB()->AppendInsn(insn);
-}
-
-MOperator MPISel::GetFastIselMop(Operand::OperandType dTy, Operand::OperandType sTy) {
-  return fastIselMap32[dTy][sTy];
 }
 
 void MPISel::HandleFuncExit() {

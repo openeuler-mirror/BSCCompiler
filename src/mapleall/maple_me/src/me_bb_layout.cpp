@@ -70,10 +70,11 @@ bool BBLayout::IsBBInCurrContext(const BB &bb, const MapleVector<bool> *context)
 
 // Create chains for each BB
 void BBLayout::InitBBChains() {
+  uint32 id = 0;
   bb2chain.resize(cfg->NumBBs(), nullptr);
   for (auto it = cfg->valid_begin(); it != cfg->valid_end(); ++it) {
     // BBChain constructor will update bb2chain
-    (void)layoutAlloc.GetMemPool()->New<BBChain>(layoutAlloc, bb2chain, *it);
+    (void)layoutAlloc.GetMemPool()->New<BBChain>(layoutAlloc, bb2chain, *it, id++);
   }
 }
 
@@ -207,7 +208,7 @@ bool BBLayout::HasBetterLayoutPred(const BB &bb, BB &succ) {
   }
   uint32 sumEdgeFreq = succ.GetFrequency();
   const double hotEdgeFreqPercent = 0.8;  // should further fine tuning
-  uint32 hotEdgeFreq = sumEdgeFreq * hotEdgeFreqPercent;
+  uint32 hotEdgeFreq = static_cast<uint32>(sumEdgeFreq * hotEdgeFreqPercent);
   // if edge freq(bb->succ) contribute more than 80% to succ block freq, no better layout pred than bb
   for (uint32 i = 0; i < predList.size(); ++i) {
     if (predList[i] == &bb) {
@@ -280,6 +281,9 @@ BB *BBLayout::GetBestSucc(BB &bb, const BBChain &chain, const MapleVector<bool> 
       }
       if (subBestFreq > bestFreq) {
         bestFreq = subBestFreq;
+        bestSucc = header;
+      } else if (subBestFreq == bestFreq && bestSucc != nullptr &&
+                 bb2chain[header->GetBBId()]->GetId() < bb2chain[bestSucc->GetBBId()]->GetId()) {
         bestSucc = header;
       }
     }
