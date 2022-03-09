@@ -480,6 +480,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
       }
       callnode->CopySafeRegionAttr(mestmt->GetStmtAttr());
       callnode->SetOriginalID(mestmt->GetOriginalId());
+      callnode->SetMeStmtID(callMeStmt->GetMeStmtId());
       PreMeStmtExtensionMap[callnode->GetStmtID()] = pmeExt;
       return callnode;
     }
@@ -587,6 +588,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
       CondNode->SetOpnd(EmitPreMeExpr(condMeStmt->GetOpnd(), CondNode), 0);
       CondNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
       CondNode->SetOriginalID(mestmt->GetOriginalId());
+      CondNode->SetMeStmtID(mestmt->GetMeStmtId());
       PreMeStmtExtensionMap[CondNode->GetStmtID()] = pmeExt;
       return CondNode;
     }
@@ -762,6 +764,16 @@ DoloopNode *PreMeEmitter::EmitPreMeDoloop(BB *mewhilebb, BlockNode *curblk, PreM
   CondGotoMeStmt *condGotostmt = static_cast<CondGotoMeStmt *>(lastmestmt);
   Doloopnode->SetStartExpr(EmitPreMeExpr(whileInfo->initExpr, Doloopnode));
   Doloopnode->SetContExpr(EmitPreMeExpr(condGotostmt->GetOpnd(), Doloopnode));
+  CompareNode *compare = static_cast<CompareNode *>(Doloopnode->GetCondExpr());
+  if (compare->Opnd(0)->GetOpCode() == OP_cvt && compare->Opnd(0)->Opnd(0)->GetOpCode() == OP_cvt) {
+    PrimType resPrimType = compare->Opnd(0)->GetPrimType();
+    PrimType opndPrimType = static_cast<TypeCvtNode*>(compare->Opnd(0))->FromType();
+    TypeCvtNode *secondCvtX = static_cast<TypeCvtNode*>(compare->Opnd(0)->Opnd(0));
+    if (IsNoCvtNeeded(resPrimType, secondCvtX->FromType()) && 
+        IsNoCvtNeeded(opndPrimType, secondCvtX->GetPrimType())) {
+      compare->SetOpnd(secondCvtX->Opnd(0), 0);
+    }
+  }
   BlockNode *dobodyNode = codeMP->New<BlockNode>();
   Doloopnode->SetDoBody(dobodyNode);
   PreMeMIRExtension *doloopExt = preMeMP->New<PreMeMIRExtension>(Doloopnode);
@@ -864,6 +876,7 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curj, BlockNode *curblk) {
   PreMeStmtExtensionMap[IfstmtNode->GetStmtID()] = pmeExt;
   BaseNode *condnode = EmitPreMeExpr(condgoto->GetOpnd(), IfstmtNode);
   IfstmtNode->SetOpnd(condnode, 0);
+  IfstmtNode->SetMeStmtID(condgoto->GetMeStmtId());
   curblk->AddStatement(IfstmtNode);
   PreMeMIRExtension *ifpmeExt = preMeMP->New<PreMeMIRExtension>(IfstmtNode);
   if (ifInfo->elseLabel != 0) {  // both else and then are not empty;
