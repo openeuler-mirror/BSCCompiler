@@ -46,6 +46,8 @@ class LoopVecInfo {
     currentRHSTypeSize = 0;
     currentLHSTypeSize = 0;
     widenop = 0;
+    minTrueDepDist = 0;
+    maxAntiDepDist = 0;
     hasRedvar = false;
   }
   virtual ~LoopVecInfo() = default;
@@ -57,6 +59,8 @@ class LoopVecInfo {
   uint32_t currentRHSTypeSize; // largest size of current stmt's RHS, this is temp value and update for each stmt
   uint32_t currentLHSTypeSize; // record current stmt lhs type in vectorize phase
   uint32_t widenop;          // can't handle t * t which t need widen operation
+  int16_t  minTrueDepDist;
+  int16_t  maxAntiDepDist;   // negative value
   bool     hasRedvar;                          // loop has reduction variable
   // list of vectorizable stmtnodes in current loop, others can't be vectorized
   MapleSet<uint32_t> vecStmtIDs;
@@ -89,7 +93,7 @@ class LoopTransPlan {
   LoopVecInfo *vecInfo = nullptr; // collect loop information
   BaseNode *const0Node = nullptr;   // zero const used in reduction variable
   // function
-  bool Generate(DoloopNode *, DoloopInfo *, bool);
+  bool Generate(const DoloopNode *, const DoloopInfo *, bool);
   void GenerateBoundInfo(const DoloopNode *doloop, const DoloopInfo *li);
 };
 
@@ -104,6 +108,7 @@ class LoopVectorization {
     codeMP = lfoEmit->GetCodeMP();
     codeMPAlloc = lfoEmit->GetCodeMPAlloc();
     localMP = localmp;
+    isArraySub = false;
     enableDebug = debug;
   }
   ~LoopVectorization() = default;
@@ -156,6 +161,7 @@ class LoopVectorization {
   MemPool *localMP;   // local mempool
   MapleAllocator localAlloc;
   MapleMap<DoloopNode *, LoopTransPlan *> vecPlans; // each vectoriable loopnode has its best vectorization plan
+  bool isArraySub; // current expression is used in array subscript
   bool enableDebug;
 };
 }  // namespace maple

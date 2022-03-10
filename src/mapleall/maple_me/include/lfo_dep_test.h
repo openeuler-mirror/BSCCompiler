@@ -108,6 +108,10 @@ class DoloopInfo {
   bool CheckReductionLoop();
   ArrayAccessDesc* GetArrayAccessDesc(const ArrayNode *node, bool isRHS);
   bool IsReductionVar(StIdx stidx) const { return (redVars.count(stidx) > 0); }
+  int HasTrueDepOnly(); // return min flow-dep distance
+  int HasAntiDepOnly(); // return max anti-dep distance
+  bool HasOutputDep();
+  bool NotParallel();   // return true if doloop has complex issue we dont handle now
 };
 
 class LfoDepInfo : public AnalysisResult {
