@@ -49,6 +49,10 @@ void AArch64RegSavesOpt::InitData() {
       aarchCGFunc->GetProEpilogSavedRegs().push_back(RLR);
     }
   }
+
+  for (auto bb : bfs->sortedBBs) {
+    SetId2bb(bb);
+  }
 }
 
 
@@ -405,7 +409,7 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsPre() {
 
 /* Determine calleesave regs restore locations by calling ssu-pre,
    previous bbSavedRegs memory is cleared and restore locs recorded in it */
-void AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
+bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   MapleAllocator sprealloc(memPool);
   if (RS_DUMP) {
@@ -444,8 +448,24 @@ void AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
       /* something gone wrong, skip this reg */
       wkCand.restoreAtEpilog = true;
     }
+    /* splitted empty block for critical edge present, skip function */
+    MapleSet<uint32> rset = wkCand.restoreAtEntryBBs;
+    for (auto bbid : wkCand.restoreAtExitBBs) {
+      rset.insert(bbid);
+    }
+    for (auto bbid : rset) {
+      BB *bb = GetId2bb(bbid);
+      if (bb->GetKind() == BB::kBBGoto && bb->NumInsn() == 1) {
+        aarchCGFunc->GetProEpilogSavedRegs().clear();
+        const MapleVector<AArch64reg> &callees = aarchCGFunc->GetCalleeSavedRegs();
+        for (auto areg : callees) {
+          aarchCGFunc->GetProEpilogSavedRegs().push_back(areg);
+        }
+        return false;
+      }
+    }
     if (wkCand.restoreAtEpilog) {
-      /* Restore cannot be applied, skip this reg and place save/restore
+      /* Restore cannot b3 applied, skip this reg and place save/restore
          in prolog/epilog */
       for (int bid = 1; bid < bbSavedRegs.size(); bid++) {
         SavedRegInfo *sp = bbSavedRegs[bid];
@@ -473,36 +493,31 @@ void AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
         GetbbSavedRegsEntry(entBB)->InsertEntryReg(reg);
       }
       for (uint32 exitBB : wkCand.restoreAtExitBBs) {
-        for (BB *bb : bfs->sortedBBs) {
-          if (bb->GetId() == exitBB) {
-            if (bb->GetKind() == BB::kBBIgoto) {
-              CHECK_FATAL(false, "igoto detected");
+        BB *bb = GetId2bb(exitBB);
+        if (bb->GetKind() == BB::kBBIgoto) {
+          CHECK_FATAL(false, "igoto detected");
+        }
+        Insn *lastInsn = bb->GetLastInsn();
+        if (lastInsn != nullptr && lastInsn->IsBranch() &&
+            (!lastInsn->GetOperand(0).IsRegister() ||   /* not a reg OR */
+             (!AArch64Abi::IsCalleeSavedReg(            /* reg but not cs */
+              static_cast<AArch64reg>(static_cast<RegOperand&>(
+                  lastInsn->GetOperand(0)).GetRegisterNumber()))))) {
+          /* To insert in this block - 1 instr */
+          SavedRegInfo *sp = GetbbSavedRegsEntry(exitBB);
+          sp->InsertExitReg(reg);
+          sp->insertAtLastMinusOne = true;
+        } else if (bb->GetSuccs().size() > 1) {
+          for (BB *sbb : bb->GetSuccs()) {
+            if (sbb->GetPreds().size() > 1) {
+              CHECK_FATAL(false, "critical edge detected");
             }
-            Insn *lastInsn = bb->GetLastInsn();
-            if (lastInsn != nullptr && lastInsn->IsBranch() &&
-                (!lastInsn->GetOperand(0).IsRegister() ||   /* not a reg OR */
-                 (!AArch64Abi::IsCalleeSavedReg(            /* reg but not cs */
-                  static_cast<AArch64reg>(static_cast<RegOperand&>(
-                      lastInsn->GetOperand(0)).GetRegisterNumber()))))) {
-                /* To insert in this block - 1 instr */
-                SavedRegInfo *sp = GetbbSavedRegsEntry(exitBB);
-                sp->InsertExitReg(reg);
-                sp->insertAtLastMinusOne = true;
-            } else if (bb->GetSuccs().size() > 1) {
-              for (BB *sbb : bb->GetSuccs()) {
-                if (sbb->GetPreds().size() > 1) {
-                  CHECK_FATAL(false, "critical edge detected");
-                }
-              }
-              for (BB *sbb : bb->GetSuccs()) {
-                /* To insert at all succs */
-                GetbbSavedRegsEntry(sbb->GetId())->InsertEntryReg(reg);
-              }
-            } else {
-              /* otherwise, BB_FT etc */
-              GetbbSavedRegsEntry(exitBB)->InsertExitReg(reg);
-            }
+            /* To insert at all succs */
+            GetbbSavedRegsEntry(sbb->GetId())->InsertEntryReg(reg);
           }
+        } else {
+          /* otherwise, BB_FT etc */
+          GetbbSavedRegsEntry(exitBB)->InsertExitReg(reg);
         }
         if (RS_DUMP) {
           std::string r = reg <= R28 ? "R" : "V";
@@ -511,6 +526,7 @@ void AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
       }
     }
   }
+  return true;
 }
 
 int32 AArch64RegSavesOpt::FindNextOffsetForCalleeSave() {
@@ -806,8 +822,11 @@ void AArch64RegSavesOpt::Run() {
   }
 
   /* Determine restore sites */
-  DetermineCalleeRestoreLocations();
+  if (!DetermineCalleeRestoreLocations()) {
+    return;
+  }
 
+#ifdef VERIFY
   /* Verify saves/restores are in pair */
   if (RS_DUMP) {
     std::vector<regno_t> rlist = { R19, R20, R21, R22, R23, R24, R25, R26, R27, R28 };
@@ -820,6 +839,7 @@ void AArch64RegSavesOpt::Run() {
       mLog << "\nVerify Done\n";
     }
   }
+#endif
 
   /* Generate callee save instrs at found sites */
   InsertCalleeSaveCode();
