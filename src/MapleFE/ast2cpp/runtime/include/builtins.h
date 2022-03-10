@@ -137,7 +137,10 @@ struct IteratorResult : public Object {
   bool   done;  // status of iterator next() call
   JS_Val value; // done=false: current iteration element value
                 // done=true:  return value of the iterator, undefined if none returned
-  IteratorResult() : done(true), value(undefined) { }
+  IteratorResult() : done(true), value(undefined) {
+    this->AddProp("done",  t2crt::ClassFld<bool   IteratorResult::*>(&IteratorResult::done).NewProp(this, t2crt::TY_CXX_Bool));
+    this->AddProp("value", t2crt::ClassFld<JS_Val IteratorResult::*>(&IteratorResult::value).NewProp(this, t2crt::TY_CXX_Any));
+  }
   IteratorResult(bool done, JS_Val val) : done(done), value(val) { }
   ~IteratorResult() { }
 };
