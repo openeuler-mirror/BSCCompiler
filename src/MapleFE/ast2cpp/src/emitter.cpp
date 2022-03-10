@@ -1538,7 +1538,7 @@ std::string Emitter::EmitCallNode(CallNode *node) {
     bool optional = n->IsOptional();
     if (optional && !s.empty() && s.back() == '?')
       s.pop_back();
-    if(n->IsFunction() || n->IsLambda())
+    if(n->IsFunction() || n->IsLambda() || n->IsTerOperator())
       str += '(' + s + ')';
     else
       str += s;
