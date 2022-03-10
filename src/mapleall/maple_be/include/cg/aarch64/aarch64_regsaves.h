@@ -59,10 +59,6 @@ class SavedRegInfo {
     saveSet.insert(r);
   }
 
-  void RemoveSaveReg(regno_t r) {
-    saveSet.erase(r);
-  }
-
   void InsertEntryReg(regno_t r) {
     restoreEntrySet.insert(r);
   }
@@ -81,6 +77,10 @@ class SavedRegInfo {
 
   MapleSet<regno_t> &GetExitSet() {
     return restoreExitSet;
+  }
+
+  void RemoveSaveReg(regno_t r) {
+    saveSet.erase(r);
   }
 
  private:
@@ -117,7 +117,8 @@ class AArch64RegSavesOpt : public RegSavesOpt {
         pDomInfo(&pdom),
         bbSavedRegs(alloc.Adapter()),
         regSavedBBs(alloc.Adapter()),
-        regOffset(alloc.Adapter()) {
+        regOffset(alloc.Adapter()),
+        id2bb(alloc.Adapter()) {
     bbSavedRegs.resize(func.NumBBs());
     regSavedBBs.resize(sizeof(CalleeBitsType)<<3);
     for (int i = 0; i < bbSavedRegs.size(); ++i) {
@@ -145,7 +146,7 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   bool AlreadySavedInDominatorList(BB *bb, regno_t reg) const;
   void DetermineCalleeSaveLocationsDoms();
   void DetermineCalleeSaveLocationsPre();
-  void DetermineCalleeRestoreLocations();
+  bool DetermineCalleeRestoreLocations();
   int32 FindNextOffsetForCalleeSave();
   void InsertCalleeSaveCode();
   void InsertCalleeRestoreCode();
@@ -221,6 +222,14 @@ class AArch64RegSavesOpt : public RegSavesOpt {
     return bbSavedRegs[bid];
   }
 
+  void SetId2bb(BB *bb) {
+    id2bb[bb->GetId()] = bb;
+  }
+
+  BB *GetId2bb(uint32 bid) {
+    return id2bb[bid];
+  }
+
  private:
   DomAnalysis *domInfo;
   PostDomAnalysis *pDomInfo;
@@ -230,6 +239,7 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   MapleVector<SavedRegInfo *> bbSavedRegs; /* set of regs to be saved in a BB */
   MapleVector<SavedBBInfo *> regSavedBBs;  /* set of BBs to be saved for a reg */
   MapleMap<regno_t, uint32> regOffset;     /* save offset of each register */
+  MapleMap<uint32, BB*> id2bb;             /* bbid to bb* mapping */
   bool oneAtaTime = false;
   regno_t oneAtaTimeReg = 0;
 };

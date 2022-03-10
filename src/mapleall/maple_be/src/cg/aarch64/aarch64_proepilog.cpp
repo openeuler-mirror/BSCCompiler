@@ -104,6 +104,18 @@ bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns, con
     }
     MOperator insnMop = insn->GetMachineOpcode();
     switch (insnMop) {
+      case MOP_xldr:
+      case MOP_xldp:
+      case MOP_dldr:
+      case MOP_dldp: {
+        if (bb.GetKind() == BB::kBBReturn) {
+          RegOperand &reg = static_cast<RegOperand&>(insn->GetOperand(0));
+          if (AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(reg.GetRegisterNumber()))) {
+            break;  /* inserted restore from calleeregs-placement, ignore */
+          }
+        }
+        return false;
+      }
       case MOP_wmovrr:
       case MOP_xmovrr: {
         CHECK_FATAL(insn->GetOperand(0).IsRegister(), "operand0 is not register");
