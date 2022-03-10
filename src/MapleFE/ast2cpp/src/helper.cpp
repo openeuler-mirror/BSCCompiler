@@ -34,8 +34,6 @@ std::unordered_map<TypeId, std::string>TypeIdToJSTypeCXX = {
 };
 
 std::string GeneratorFn_start = R"""(
-  t2crt::IteratorResult res;
-
   if (yield != nullptr)
     goto *yield;
 )""";
@@ -43,7 +41,7 @@ std::string GeneratorFn_start = R"""(
 std::string GeneratorFn_return = R"""(
   res.value = undefined;
   res.done  = true;
-  return res;
+  return;
 )""";
 
 // Used to build GetProp<xxx> for calls to get Object (class Object in ts2cpp.h) property
@@ -51,8 +49,9 @@ std::string hlpGetJSValTypeStr(TypeId typeId) {
   switch(typeId) {
     case TY_Object:
     case TY_Class:
-    case TY_Any:
       return "Obj";
+    case TY_Any:
+      return "";
     case TY_Function:
       return "Func";
     case TY_Boolean:
@@ -228,7 +227,7 @@ std::string GeneratorFuncHeader(std::string cls, unsigned nodeId) {
   std::string params = FunctionParams(nodeId, false, false, true); // pass params by ref into _body()
   if (!params.empty())
     params = ", " + params;
-  return "t2crt::IteratorResult " + cls + "_body(t2crt::Object* _this, void*& yield" + params + ")";
+  return "void " + cls + "_body(t2crt::Object* _this, void*& yield, t2crt::IteratorResult& res" + params + ")";
 }
 
 // Generating Generators and Generator Functions:
@@ -252,7 +251,7 @@ std::string GeneratorClassDecl(std::string funcName, unsigned nodeId) {
 "  " +generatorName+ "(t2crt::Function* ctor, t2crt::Object* proto" +ctorArgs+ ") : t2crt::GeneratorProto(ctor, proto)" +initList+ " {}",
 "  ~" +generatorName+ "() {}",
 "  // closure capture fields",
-   captureFields,
+"  " +captureFields,
 "  // iterator interface (override _return and _throw when needed)",
 "  t2crt::IteratorResult* next(t2crt::JS_Val* arg = nullptr) override;",
 "};",
@@ -265,9 +264,11 @@ std::string GeneratorClassDecl(std::string funcName, unsigned nodeId) {
 "  " +generatorName+ "* operator()(" +functorArgs+ ");",
 "  // generator function body",
 "  " +GeneratorFuncHeader("", nodeId)+ ";",
-"};"
+"};",
+""
   };
 
+  str += "\n";
   for (auto elem : genClsDecl)
     str += elem + "\n";
   return str;
@@ -293,7 +294,7 @@ t2crt::IteratorResult* )""" + generatorName + R"""(::next(t2crt::JS_Val* arg) {
     return &_res;
   }
   // iterate by calling generation function with captures in generator
-  _res = foo->_body(this, _yield)""" + args + R"""();
+  )""" + funcName + R"""(->_body(this, _yield, _res)""" + args + R"""();
   if (_res.done == true)
     _finished = true;
   return &_res;

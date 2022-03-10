@@ -271,7 +271,7 @@ std::string CppDef::EmitYieldNode(YieldNode *node) {
   str += "  yield = &&" + yieldLabel + ";\n";           // save yp
   str += "  res.value = t2crt::JS_Val(" +res+ ");\n";  // init value and return
   str += "  res.done  = false;\n";
-  str += "  return res;\n";
+  str += "  return;\n";
   str += yieldLabel + ":\n";                            // label for this yp
 
   mPrecedence = '\024';
@@ -1043,6 +1043,9 @@ std::string CppDef::EmitBracketNotationProp(ArrayElementNode* ae, OprId binOpId,
       case TY_Function:
       case TY_Object:
         str = objName + "->GetPropObj("s + propKey + ")"s;
+        break;
+      case TY_Any:
+        str = objName + "->GetProp("s + propKey + ")"s;
         break;
       default:
         str = "(*"s + objName + ")["s + propKey + ']';
