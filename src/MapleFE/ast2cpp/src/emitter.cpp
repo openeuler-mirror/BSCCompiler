@@ -704,6 +704,7 @@ std::string Emitter::EmitConditionalTypeNode(ConditionalTypeNode *node) {
     precd = mPrecedence;
   }
   if (auto n = node->GetTypeB()) {
+    str = Clean(str);
     if (precd < '\024')
       str = '(' + str + ')';
     str += " extends "s + EmitTreeNode(n);
