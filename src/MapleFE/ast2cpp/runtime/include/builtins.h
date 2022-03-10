@@ -180,7 +180,6 @@ public:
 //                       Label corrected in version at tc39.
 class GeneratorProto : public IteratorProto {
 public:
-  IteratorResult _res;
   GeneratorProto(Function* ctor, Object* proto) : IteratorProto(ctor, proto) { }
   ~GeneratorProto() { }
   void*  _yield     = nullptr; // pointer to yield label to resume execution
