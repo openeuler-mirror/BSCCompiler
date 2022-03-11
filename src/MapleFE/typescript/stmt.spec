@@ -1856,9 +1856,10 @@ rule TupleElementType: ONEOF(ZEROORONE(JSIdentifier + ':') + Type,
 rule UnionType : ONEOF(ZEROORONE('|') + UnionOrIntersectionOrPrimaryType + '|' + IntersectionOrPrimaryType,
                        UnionOrIntersectionOrPrimaryType + '|' + KeyOf,
                        KeyOf + '|' + UnionOrIntersectionOrPrimaryType,
-                       TypeQuery + '|' + UnionOrIntersectionOrPrimaryType)
+                       TypeQuery + '|' + UnionOrIntersectionOrPrimaryType,
+                       TemplateLiteral + '|' + TemplateLiteral)
   attr.action.%1 : BuildUnionUserType(%2, %4)
-  attr.action.%2,%3,%4 : BuildUnionUserType(%1, %3)
+  attr.action.%2,%3,%4,%5 : BuildUnionUserType(%1, %3)
 
 ## rule IntersectionType: IntersectionOrPrimaryType & PrimaryType
 rule IntersectionType: ONEOF(IntersectionOrPrimaryType + '&' + PrimaryType,
