@@ -2223,11 +2223,11 @@ rule PropertyMemberDeclaration: ONEOF(MemberVariableDeclaration,
 
 ## MemberVariableDeclaration: AccessibilityModifieropt staticopt PropertyName TypeAnnotationopt Initializeropt ;
 rule MemberVariableDeclaration: ONEOF(
-  ZEROORMORE(Annotation) + ZEROORMORE(AccessibilityModifier) + PropertyName + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'),
-  ZEROORMORE(Annotation) + ZEROORMORE(AccessibilityModifier) + PropertyName + '?' + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'),
+  ZEROORMORE(Annotation) + ZEROORMORE(AccessibilityModifier) + PropertySignatureName + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'),
+  ZEROORMORE(Annotation) + ZEROORMORE(AccessibilityModifier) + PropertySignatureName + '?' + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'),
   ZEROORMORE(Annotation) + ZEROORMORE(AccessibilityModifier) + "get" + '=' + ArrowFunction + ZEROORONE(';'),
   ZEROORMORE(Annotation) + ZEROORMORE(AccessibilityModifier) + "set" + '=' + ArrowFunction + ZEROORONE(';'),
-  '#' + PropertyName + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'),
+  '#' + PropertySignatureName + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'),
   '#' + "private" + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'),
   ZEROORMORE(Annotation) + ZEROORMORE(AccessibilityModifier) + "if" + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'))
   attr.action.%1: AddInitTo(%3, %5)
