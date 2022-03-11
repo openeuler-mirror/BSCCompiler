@@ -1146,9 +1146,9 @@ rule ForBinding : ONEOF(BindingIdentifier,
 ##  continue [no LineTerminator here] LabelIdentifier[?Yield] ;
 rule ContinueStatement : ONEOF(
   "continue" + ZEROORONE(';'),
-  "continue" + LabelIdentifier + ZEROORONE(';'))
+  "continue" + NoLineTerminator + LabelIdentifier + ZEROORONE(';'))
   attr.action.%1 : BuildContinue()
-  attr.action.%2 : BuildContinue(%2)
+  attr.action.%2 : BuildContinue(%3)
 
 ##-----------------------------------
 ##rule BreakStatement[Yield] :
