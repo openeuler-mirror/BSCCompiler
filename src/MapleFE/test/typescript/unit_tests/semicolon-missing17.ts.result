@@ -1,0 +1,17 @@
+Matched 50 tokens.
+Matched 60 tokens.
+============= Module ===========
+== Sub Tree ==
+func  func(arg)  throws: 
+  for ( )
+    cond-branch cond:i Mod 2 GT 0
+    true branch :
+      continue:
+    false branch :
+
+    console.log(i)
+
+  return arg Mul 10
+
+== Sub Tree ==
+console.log(func(5))
