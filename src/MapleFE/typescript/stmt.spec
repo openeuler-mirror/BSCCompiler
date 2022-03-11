@@ -473,7 +473,8 @@ rule CallExpression : ONEOF(
   "set" + ZEROORONE(TypeArguments) + Arguments + ZEROORMORE(AsType),
   "get" + ZEROORONE(TypeArguments) + Arguments + ZEROORMORE(AsType),
   CallExpression + "?." + Arguments + ZEROORMORE(AsType),
-  ImportFunction)
+  ImportFunction,
+  CallExpression + '.' + KeywordPropName + ZEROORMORE(AsType))
   attr.action.%1,%3,%10,%11 : BuildCall(%1)
   attr.action.%1,%10,%11 : AddAsType(%4)
   attr.action.%1,%10,%11 : AddTypeGenerics(%2)
@@ -482,8 +483,8 @@ rule CallExpression : ONEOF(
   attr.action.%3 : AddAsType(%3)
   attr.action.%4 : BuildArrayElement(%1, %3)
   attr.action.%4 : AddAsType(%5)
-  attr.action.%5 : BuildField(%1, %3)
-  attr.action.%5 : AddAsType(%4)
+  attr.action.%5,%14 : BuildField(%1, %3)
+  attr.action.%5,%14 : AddAsType(%4)
   attr.action.%7 : SetIsNonNull(%1)
   attr.action.%7 : AddAsType(%1, %3)
   attr.action.%8 : SetIsOptional(%1)

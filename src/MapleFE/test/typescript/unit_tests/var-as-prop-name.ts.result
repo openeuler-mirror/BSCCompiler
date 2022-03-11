@@ -1,0 +1,11 @@
+Matched 26 tokens.
+Matched 36 tokens.
+============= Module ===========
+== Sub Tree ==
+js_const Decl: obj= {else:func  else()  throws: 
+  return this
+, var:func  var()  throws: 
+  console.log("var")
+}
+== Sub Tree ==
+obj.else().var()
