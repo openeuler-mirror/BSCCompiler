@@ -23,6 +23,8 @@
 
 #include <map>
 #include <vector>
+#include <unordered_map>
+#include <unordered_set>
 #include <string>
 #include "massert.h"
 
@@ -45,17 +47,31 @@ private:
   StringMap            *mMap;
   std::vector<SPBlock>  mBlocks;
   int                   mFirstAvail; // -1 means no available.
+  bool                  mUseAltStr;  // use alter string
 
   std::vector<char*> mLongStrings; // for strings longer than block size,
                                    // we allocate them by malloc.
 
   std::vector<const char*> mStringTable;
 
+  // alternate string which can be used for obfuscation
+  std::unordered_set<unsigned> mAltStrIdxSet;
+  std::unordered_map<unsigned, unsigned> mAltStrIdxMap;
+
   friend class StringMap;
 
 public:
   StringPool();
   ~StringPool();
+
+  void SetUseAltStr(bool b) { mUseAltStr = b; }
+  void AddAltStrIdx(unsigned idx) { mAltStrIdxSet.insert(idx); }
+  unsigned GetAltStrSize() { return mAltStrIdxSet.size(); }
+  bool IsAltStrIdx(unsigned idx) {
+    return mAltStrIdxSet.find(idx) != mAltStrIdxSet.end();
+  }
+  void AddAltStrIdxMap(unsigned orig, unsigned alt) { mAltStrIdxMap[orig] = alt; }
+  void SetAltStrIdxMap();
 
   char* AllocBlock();
   char* Alloc(const size_t);
@@ -71,12 +87,10 @@ public:
   unsigned GetStrIdx(const char*);
   unsigned GetStrIdx(const char*, size_t);
 
-  const char *GetStringFromStrIdx(unsigned idx) {
-    MASSERT(idx < mStringTable.size() && "string index out of range");
-    return mStringTable[idx];
-  }
+  const char *GetStringFromStrIdx(unsigned idx);
 
   void Dump();
+  void DumpAlt();
 };
 
 // Lexing, Parsing, AST Building and IR Building all share one global
