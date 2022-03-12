@@ -53,7 +53,18 @@ ClassNode *AdjustASTVisitor::VisitClassNode(ClassNode *node) {
   (void) AstVisitor::VisitClassNode(node);
   CheckAndRenameCppKeywords(node);
   AssignPseudoName(node);
+
+  // record names
   gStringPool.AddAltStrIdx(node->GetStrIdx());
+  for (unsigned i = 0; i < node->GetFieldsNum(); i++) {
+    TreeNode *n = node->GetField(i);
+    gStringPool.AddAltStrIdx(n->GetStrIdx());
+  }
+  for (unsigned i = 0; i < node->GetMethodsNum(); i++) {
+    TreeNode *n = node->GetMethod(i);
+    gStringPool.AddAltStrIdx(n->GetStrIdx());
+  }
+
   // skip getting canonical type if not only fields
   if (node->GetMethodsNum() || node->GetSuperClassesNum() || node->GetSuperInterfacesNum() ||
       node->GetSuperClassesNum() || node->GetTypeParamsNum()) {
@@ -77,7 +88,18 @@ ClassNode *AdjustASTVisitor::VisitClassNode(ClassNode *node) {
 InterfaceNode *AdjustASTVisitor::VisitInterfaceNode(InterfaceNode *node) {
   (void) AstVisitor::VisitInterfaceNode(node);
   CheckAndRenameCppKeywords(node);
+
+  // record names
   gStringPool.AddAltStrIdx(node->GetStrIdx());
+  for (unsigned i = 0; i < node->GetFieldsNum(); i++) {
+    TreeNode *n = node->GetField(i);
+    gStringPool.AddAltStrIdx(n->GetStrIdx());
+  }
+  for (unsigned i = 0; i < node->GetMethodsNum(); i++) {
+    TreeNode *n = node->GetMethod(i);
+    gStringPool.AddAltStrIdx(n->GetStrIdx());
+  }
+
   // skip getting canonical type if not only fields
   if (node->GetMethodsNum() || node->GetSuperInterfacesNum()) {
     return node;
@@ -121,7 +143,18 @@ StructLiteralNode *AdjustASTVisitor::VisitStructLiteralNode(StructLiteralNode *n
 StructNode *AdjustASTVisitor::VisitStructNode(StructNode *node) {
   (void) AstVisitor::VisitStructNode(node);
   CheckAndRenameCppKeywords(node);
+
+  // record names
   gStringPool.AddAltStrIdx(node->GetStrIdx());
+  for (unsigned i = 0; i < node->GetFieldsNum(); i++) {
+    TreeNode *n = node->GetField(i);
+    gStringPool.AddAltStrIdx(n->GetStrIdx());
+  }
+  for (unsigned i = 0; i < node->GetMethodsNum(); i++) {
+    TreeNode *n = node->GetMethod(i);
+    gStringPool.AddAltStrIdx(n->GetStrIdx());
+  }
+
   // skip getting canonical type for TypeAlias
   TreeNode *parent_orig = node->GetParent();
   TreeNode *p = parent_orig;
