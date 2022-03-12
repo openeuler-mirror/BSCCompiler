@@ -501,7 +501,7 @@ void TypeInferVisitor::UpdateTypeUseNode(TreeNode *target, TreeNode *input) {
         TypeId new_elemTypeId = GetArrayElemTypeId(target);
         TreeNode *type = static_cast<IdentifierNode *>(target)->GetType();
         MASSERT(target->IsIdentifier() && "target node not identifier");
-        if (type->IsPrimArrayType()) {
+        if (type && type->IsPrimArrayType()) {
           unsigned nid = target->GetNodeId();
           mParam2ArgArrayDeclMap[nid].insert(decl);
           if (old_elemTypeId != new_elemTypeId) {
