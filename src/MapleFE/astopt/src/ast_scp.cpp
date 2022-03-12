@@ -761,6 +761,7 @@ void AST_SCP::RenameVar() {
         str += std::to_string(size);
         visitor.mOldStrIdx = stridx;
         visitor.mNewStrIdx = gStringPool.GetStrIdx(str);
+        gStringPool.AddAltStrIdx(visitor.mNewStrIdx);
         TreeNode *tn = mHandler->GetAstOpt()->GetNodeFromNodeId(nid);
         ASTScope *scope = tn->GetScope();
         tn = scope->GetTree();

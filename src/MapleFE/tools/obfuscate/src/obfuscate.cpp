@@ -132,6 +132,19 @@ int Obfuscate::ProcessAST() {
     }
   }
 
+  if (mFlags & FLG_trace_3) {
+    gStringPool.Dump();
+  }
+
+  gStringPool.SetAltStrIdxMap();
+
+  if (mFlags & FLG_trace_3) {
+    gStringPool.Dump();
+    gStringPool.DumpAlt();
+  }
+
+  gStringPool.SetUseAltStr(true);
+
   for (auto handler: mHandlersInOrder) {
     ModuleNode *module = handler->GetASTModule();
 
