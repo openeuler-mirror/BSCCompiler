@@ -320,11 +320,11 @@ TypeId TypeInferVisitor::MergeTypeId(TypeId tia, TypeId tib) {
 }
 
 unsigned TypeInferVisitor::MergeTypeIdx(unsigned tia, unsigned tib) {
-  if (tia == tib || tib == 0) {
+  if (tia == tib || tib <= 1) {
     return tia;
   }
 
-  if (tia == 0) {
+  if (tia <= 1) {
     return tib;
   }
 
@@ -433,7 +433,11 @@ PrimTypeNode *TypeInferVisitor::GetOrClonePrimTypeNode(PrimTypeNode *pt, TypeId 
       new_pt->SetPrimType(pt->GetPrimType());
     }
     SetTypeId(new_pt, tid);
-    SetTypeIdx(new_pt, tid);
+    if (IsPrimTypeId(tid)) {
+      SetTypeIdx(new_pt, tid);
+    } else {
+      SetTypeIdx(new_pt, gTypeTable.GetTypeFromTypeId(tid)->GetTypeIdx());
+    }
     SetUpdated();
   }
   return new_pt;
@@ -1152,6 +1156,13 @@ CallNode *TypeInferVisitor::VisitCallNode(CallNode *node) {
             }
           } else if (decl->IsLiteral()) {
             NOTYETIMPL("VisitCallNode literal node");
+          } else if (decl->IsTypeIdClass()) {
+            // object
+            if (node->GetArgsNum()) {
+              TreeNode *arg = node->GetArg(0);
+              SetTypeId(arg, TY_Object);
+              SetTypeIdx(arg, decl->GetTypeIdx());
+            }
           } else {
             NOTYETIMPL("VisitCallNode not function node");
           }
