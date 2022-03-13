@@ -213,7 +213,7 @@ void StringPool::SetAltStrIdxMap() {
       odd = s%2;
       *(A+1) = (odd ? 'A' : 'a') + s/2;
 
-      unsigned size = mStringTable.size();
+      unsigned size = GetSize();
       unsigned alt = GetStrIdx(A);
       // make sure alt is a new string
       if (alt == size) {

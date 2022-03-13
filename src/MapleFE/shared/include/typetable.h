@@ -77,6 +77,7 @@ public:
   TypeEntry *GetTypeEntryFromTypeIdx(unsigned tidx);
   TreeNode  *GetTypeFromTypeIdx(unsigned tidx);
   TreeNode  *GetTypeFromTypeId(TypeId tid) { return mTypeId2TypeMap[tid]; }
+  TreeNode  *GetTypeFromStrIdx(unsigned strid);
 
   unsigned GetOrCreateFunctionTypeIdx(FunctionTypeNode *type);
 
