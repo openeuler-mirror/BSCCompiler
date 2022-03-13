@@ -222,6 +222,8 @@ void StringPool::SetAltStrIdxMap() {
       }
     }
   }
+
+  free(A);
 }
 
 void StringPool::Dump() {
