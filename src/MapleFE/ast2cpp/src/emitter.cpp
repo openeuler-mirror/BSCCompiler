@@ -285,7 +285,7 @@ std::string Emitter::EmitFunctionNode(FunctionNode *node) {
     str += " : asserts "s + EmitTreeNode(n);
 
   auto body = node->GetBody();
-  if (auto n = node->GetType()) {
+  if (auto n = node->GetRetType()) {
     std::string s = EmitTreeNode(n);
     if(!s.empty()) {
       str += (body || has_name || inside ? " : "s : " => "s) + s;
@@ -1766,7 +1766,7 @@ std::string Emitter::EmitLambdaNode(LambdaNode *node) {
   str += ')';
 
   if (auto n = node->GetBody()) {
-    if (auto t = node->GetType()) {
+    if (auto t = node->GetRetType()) {
       str += ": "s + EmitTreeNode(t);
     }
     std::string s = EmitTreeNode(n);
@@ -1776,7 +1776,7 @@ std::string Emitter::EmitLambdaNode(LambdaNode *node) {
     str += " => "s + s;
   }
   else {
-    if (auto t = node->GetType()) {
+    if (auto t = node->GetRetType()) {
       str += " => "s + EmitTreeNode(t);
     }
   }

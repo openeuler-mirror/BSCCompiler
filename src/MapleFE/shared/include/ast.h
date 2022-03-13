@@ -1830,7 +1830,7 @@ private:
   SmallVector<ExceptionNode*>  mThrows;      // exceptions it can throw
   SmallVector<TreeNode*>       mTypeParams;
   TreeNode                    *mFuncName;    // function name, usually an identifier
-  TreeNode                    *mType;        // return type
+  TreeNode                    *mRetType;     // return type
   SmallVector<TreeNode*>       mParams;      //
   BlockNode                   *mBody;
   DimensionNode               *mDims;
@@ -1909,8 +1909,8 @@ public:
   void      SetTypeParamAtIndex(unsigned i, TreeNode* n) {*(mTypeParams.RefAtIndex(i)) = n; SETPARENT(n);}
   void      AddTypeParam(TreeNode *);
 
-  void SetType(TreeNode *t) {mType = t; SETPARENT(t);}
-  TreeNode* GetType(){return mType;}
+  void SetRetType(TreeNode *t) {mRetType = t; SETPARENT(t);}
+  TreeNode* GetRetType(){return mRetType;}
 
   DimensionNode* GetDims()       {return mDims;}
   void SetDims(DimensionNode *t) {mDims = t;}
@@ -2120,7 +2120,7 @@ enum LambdaProperty {
 class LambdaNode : public TreeNode {
 private:
   LambdaProperty         mProperty;
-  TreeNode              *mType;         // The return type. nullptr as Java Lambda.
+  TreeNode              *mRetType;      // The return type. nullptr as Java Lambda.
   SmallVector<TreeNode*> mParams;       // A param could be an IdentifierNode or DeclNode.
   TreeNode              *mBody;         // the body could be an expression, or block.
                                         // nullptr as TS FunctionType and ConstructorType
@@ -2128,7 +2128,7 @@ private:
   SmallVector<AttrId>    mAttrs;
 public:
   LambdaNode() : TreeNode(NK_Lambda),
-    mBody(nullptr), mProperty(LP_JSArrowFunction), mType(nullptr) {}
+    mBody(nullptr), mProperty(LP_JSArrowFunction), mRetType(nullptr) {}
   ~LambdaNode(){Release();}
 
 
@@ -2138,8 +2138,8 @@ public:
   LambdaProperty  GetProperty()                 {return mProperty;}
   void            SetProperty(LambdaProperty p) {mProperty = p;}
 
-  TreeNode* GetType()            {return mType;}
-  void      SetType(TreeNode* t) {mType = t; SETPARENT(t);}
+  TreeNode* GetRetType()            {return mRetType;}
+  void      SetRetType(TreeNode* t) {mRetType = t; SETPARENT(t);}
 
   unsigned  GetParamsNum()        {return mParams.GetNum();}
   TreeNode* GetParam(unsigned i)  {return mParams.ValueAtIndex(i);}

@@ -397,7 +397,7 @@ namespace )""" + module + R"""( {
       }
       else {
         // gen function class for each top level function
-        str += FunctionClassDecl(GetTypeString(static_cast<FunctionNode*>(node)->GetType(), nullptr), GetIdentifierName(node), node->GetNodeId());
+        str += FunctionClassDecl(GetTypeString(static_cast<FunctionNode*>(node)->GetRetType(), nullptr), GetIdentifierName(node), node->GetNodeId());
       }
       if (!mHandler->IsFromLambda(node)) {
         // top level funcs instantiated here as function objects from their func class
@@ -441,7 +441,7 @@ namespace )""" + module + R"""( {
 std::string CppDecl::EmitFunctionNode(FunctionNode *node) {
   if (node == nullptr)
     return std::string();
-  std::string str(GetTypeString(node->GetType(), node->GetType()));
+  std::string str(GetTypeString(node->GetRetType(), node->GetRetType()));
   if(node->GetStrIdx())
     str += " "s + node->GetName();
   str += "("s;

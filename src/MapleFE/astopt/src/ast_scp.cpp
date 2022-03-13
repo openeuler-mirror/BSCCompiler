@@ -492,7 +492,7 @@ UserTypeNode *BuildScopeVisitor::VisitUserTypeNode(UserTypeNode *node) {
     if (p->IsFunction()) {
       // exclude function return type
       FunctionNode *f = static_cast<FunctionNode *>(p);
-      if (f->GetType() == node) {
+      if (f->GetRetType() == node) {
         return node;
       }
     } else if (p->IsTypeAlias()) {
