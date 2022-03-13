@@ -176,14 +176,14 @@ static void add_type_to(TreeNode *tree, TreeNode *type) {
     lit->SetType(type);
   } else if (tree->IsLambda()) {
     LambdaNode *lam = (LambdaNode*)tree;
-    lam->SetType(type);
+    lam->SetRetType(type);
   } else if (tree->IsVarList()) {
     VarListNode *vl = (VarListNode*)tree;
     for (unsigned i = 0; i < vl->GetVarsNum(); i++)
       vl->GetVarAtIndex(i)->SetType(type);
   } else if (tree->IsFunction()) {
     FunctionNode *func = (FunctionNode*)tree;
-    func->SetType(type);
+    func->SetRetType(type);
   } else if (tree->IsBindingPattern()) {
     BindingPatternNode *bp = (BindingPatternNode*)tree;
     bp->SetType(type);

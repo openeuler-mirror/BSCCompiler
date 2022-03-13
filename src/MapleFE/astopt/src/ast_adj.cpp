@@ -328,7 +328,7 @@ FunctionNode *AdjustASTVisitor::VisitFunctionNode(FunctionNode *node) {
     gStringPool.AddAltStrIdx(it->GetStrIdx());
   }
 
-  TreeNode *type = node->GetType();
+  TreeNode *type = node->GetRetType();
   if (type && type->IsUserType()) {
     type->SetParent(node);
   }
@@ -554,7 +554,7 @@ LambdaNode *AdjustASTVisitor::VisitLambdaNode(LambdaNode *node) {
   if (tn) {
     if (tn->IsBlock()) {
       func->SetBody(static_cast<BlockNode*>(tn));
-      func->SetType(node->GetType());
+      func->SetRetType(node->GetRetType());
     } else {
       BlockNode *blk = mHandler->NewTreeNode<BlockNode>();
       ReturnNode *ret = mHandler->NewTreeNode<ReturnNode>();
@@ -566,8 +566,8 @@ LambdaNode *AdjustASTVisitor::VisitLambdaNode(LambdaNode *node) {
   }
 
   // func return type
-  if (node->GetType()) {
-    func->SetType(node->GetType());
+  if (node->GetRetType()) {
+    func->SetRetType(node->GetRetType());
   }
 
   mUpdated = true;

@@ -686,7 +686,7 @@ IdentifierNode *FillNodeInfoVisitor::VisitIdentifierNode(IdentifierNode *node) {
 
 FunctionNode *FillNodeInfoVisitor::VisitFunctionNode(FunctionNode *node) {
   (void) AstVisitor::VisitFunctionNode(node);
-  TreeNode *type = node->GetType();
+  TreeNode *type = node->GetRetType();
   if (type) {
     mInfo->SetTypeId(node, type->GetTypeId());
     mInfo->SetTypeIdx(node, type->GetTypeIdx());
@@ -694,7 +694,7 @@ FunctionNode *FillNodeInfoVisitor::VisitFunctionNode(FunctionNode *node) {
     unsigned stridx = gStringPool.GetStrIdx("Generator");
     unsigned tidx = mInfo->GetBuiltInTypeIdx(stridx);
     UserTypeNode *ut = mInfo->CreateUserTypeNode(stridx);
-    node->SetType(ut);
+    node->SetRetType(ut);
   }
   return node;
 }
@@ -949,7 +949,7 @@ FunctionNode *FunctionVisitor::VisitFunctionNode(FunctionNode *node) {
   }
 
   // add return
-  n = node->GetType();
+  n = node->GetRetType();
   functype->AddParam(n ? n->GetTypeIdx() : 0);
 
   unsigned tidx = gTypeTable.GetOrCreateFunctionTypeIdx(functype);

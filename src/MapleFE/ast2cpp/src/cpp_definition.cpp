@@ -330,7 +330,7 @@ std::string CppDef::EmitFunctionNode(FunctionNode *node) {
   bool isTopLevel = hFuncTable.IsTopLevelFunc(node);
   std::string str;
   str += "\n";
-  str += FunctionHeader(node, mCppDecl.GetTypeString(node->GetType(), node->GetType()));
+  str += FunctionHeader(node, mCppDecl.GetTypeString(node->GetRetType(), node->GetRetType()));
   mIsGenerator = node->IsGenerator();
 
   int bodyPos = str.size();

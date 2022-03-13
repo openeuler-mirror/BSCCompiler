@@ -574,13 +574,13 @@ void TypeInferVisitor::UpdateFuncRetTypeId(FunctionNode *node, TypeId tid, unsig
   if (!node || (node->GetTypeId() == tid && node->GetTypeIdx() == tidx)) {
     return;
   }
-  TreeNode *type = node->GetType();
+  TreeNode *type = node->GetRetType();
   // create new return type node if it was shared
 
   if (type) {
     if (type->IsPrimType() && type->IsTypeIdNone()) {
       type = GetOrClonePrimTypeNode((PrimTypeNode *)type, tid);
-      node->SetType(type);
+      node->SetRetType(type);
     }
     tid = MergeTypeId(type->GetTypeId(), tid);
     SetTypeId(type, tid);
@@ -1093,8 +1093,8 @@ CallNode *TypeInferVisitor::VisitCallNode(CallNode *node) {
               mHandler->AddGeneratorUsed(node->GetNodeId(), func);
             }
             // update call's return type
-            if (func->GetType()) {
-              UpdateTypeId(node, func->GetType()->GetTypeId());
+            if (func->GetRetType()) {
+              UpdateTypeId(node, func->GetRetType()->GetTypeId());
             }
             // skip imported and exported functions as they are generic
             // so should not restrict their types
@@ -1664,7 +1664,7 @@ IsNode *TypeInferVisitor::VisitIsNode(IsNode *node) {
   TreeNode *parent = node->GetParent();
   if (parent->IsFunction()) {
     FunctionNode *func = static_cast<FunctionNode *>(parent);
-    if (func->GetType() == node) {
+    if (func->GetRetType() == node) {
       TreeNode *right = node->GetRight();
       if (right->IsUserType()) {
         TreeNode *id = static_cast<UserTypeNode *>(right)->GetId();
@@ -1781,16 +1781,16 @@ ReturnNode *TypeInferVisitor::VisitReturnNode(ReturnNode *node) {
   if (tn) {
     FunctionNode *func = static_cast<FunctionNode *>(tn);
     // use dummy PrimTypeNode as return type of function if not set to carry return TypeId
-    if (!func->GetType()) {
+    if (!func->GetRetType()) {
       PrimTypeNode *type = mHandler->NewTreeNode<PrimTypeNode>();
       type->SetPrimType(TY_None);
-      func->SetType(type);
+      func->SetRetType(type);
     }
     if (!func->IsGenerator() && !func->IsIterator()) {
       UpdateFuncRetTypeId(func, node->GetTypeId(), node->GetTypeIdx());
       if (res) {
         // use res to update function's return type
-        UpdateTypeUseNode(func->GetType(), res);
+        UpdateTypeUseNode(func->GetRetType(), res);
       }
     }
   }
