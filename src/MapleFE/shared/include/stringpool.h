@@ -87,6 +87,8 @@ public:
   unsigned GetStrIdx(const char*);
   unsigned GetStrIdx(const char*, size_t);
 
+  unsigned GetSize() {return mStringTable.size();}
+
   const char *GetStringFromStrIdx(unsigned idx);
 
   void Dump();

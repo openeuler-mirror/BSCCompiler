@@ -507,7 +507,7 @@ StructNode *AST_INFO::CreateStructFromStructLiteral(StructLiteralNode *node) {
 }
 
 unsigned AST_INFO::GetAnonymousName() {
-  std::string str("AnonymousStruct_");
+  std::string str("AnonymousStruct__");
   str += std::to_string(mNum++);
   unsigned stridx = gStringPool.GetStrIdx(str);
   return stridx;
