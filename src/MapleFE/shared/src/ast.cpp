@@ -1775,7 +1775,7 @@ void ClassNode::Dump(unsigned indent) {
 //////////////////////////////////////////////////////////////////////////////////////
 
 FunctionNode::FunctionNode() : TreeNode(NK_Function),
-  mFuncName(NULL), mType(NULL), mBody(NULL), mDims(NULL),
+  mFuncName(NULL), mRetType(NULL), mBody(NULL), mDims(NULL),
   mIsConstructor(false), mIsGenerator(false), mIsIterator(false), mIsGetAccessor(false),
   mIsSetAccessor(false), mIsCallSignature(false), mIsConstructSignature(false),
   mAssert(NULL) {}
@@ -1797,7 +1797,7 @@ void FunctionNode::AddTypeParam(TreeNode *param) {
 // and parameter types. So languages require Type Erasure at first, like Java.
 // Type erasure should be done earlier in language specific process.
 bool FunctionNode::OverrideEquivalent(FunctionNode *fun) {
-  if (!mType->TypeEquivalent(fun->GetType()))
+  if (!mRetType->TypeEquivalent(fun->GetRetType()))
     return false;
   if (GetStrIdx() != fun->GetStrIdx())
     return false;

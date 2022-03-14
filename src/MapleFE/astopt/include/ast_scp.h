@@ -93,7 +93,7 @@ class BuildScopeVisitor : public BuildScopeBaseVisitor {
   void SetRunIt(bool b) { mRunIt = b; }
 
   void InitInternalTypes();
-  ClassNode *AddClass(std::string name, unsigned tyidx = 0);
+  ClassNode *AddClass(unsigned stridx, unsigned tyidx = 0);
   FunctionNode *AddFunction(std::string name);
 
   void AddType(ASTScope *scope, TreeNode *node);

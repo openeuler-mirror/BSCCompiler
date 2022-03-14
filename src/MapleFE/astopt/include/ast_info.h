@@ -154,6 +154,21 @@ class ClassStructVisitor : public AstVisitor {
   FunctionNode *VisitFunctionNode(FunctionNode *node);
 };
 
+class FunctionVisitor : public AstVisitor {
+ private:
+  Module_Handler *mHandler;
+  AST_INFO       *mInfo;
+
+ public:
+  explicit FunctionVisitor(Module_Handler *h, unsigned f, bool base = false)
+    : AstVisitor((f & FLG_trace_1) && base), mHandler(h) {
+      mInfo= mHandler->GetINFO();
+    }
+  ~FunctionVisitor() = default;
+
+  FunctionNode *VisitFunctionNode(FunctionNode *node);
+};
+
 class FindStrIdxVisitor : public AstVisitor {
  private:
   Module_Handler *mHandler;

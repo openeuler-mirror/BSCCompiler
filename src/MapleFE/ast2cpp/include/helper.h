@@ -29,6 +29,8 @@
 using namespace std::string_literals;
 
 namespace maplefe {
+extern std::string GeneratorFn_start;
+extern std::string GeneratorFn_return;
 
 extern std::unordered_map<TypeId, std::string>TypeIdToJSType;
 extern std::unordered_map<TypeId, std::string>TypeIdToJSTypeCXX;
@@ -44,11 +46,31 @@ extern std::string GenAnonFuncName(TreeNode* node);
 inline std::string ClsName(std::string func) { return "Cls_"s + func; }
 inline std::string GeneratorName(std::string func) { return "Generator_"s + func; }
 inline std::string GeneratorFuncName(std::string func) { return "GeneratorFunc_"s + func; }
-extern void HandleThisParam(unsigned nParams, TreeNode* node, std::string& params, std::string&args);
 extern std::string hlpGetJSValTypeStr(TypeId typeId);
 extern std::string ArrayCtorName(int dim, std::string type);
 extern bool IsBuiltinObj(std::string name);
 extern std::string ObjectTypeStr(std::string name);
+extern std::string GeneratorFuncHeader(std::string cls, unsigned nodeId);
+extern std::string FunctionParams(unsigned nodeId, bool handleThis, bool argsOnly = false, bool byRef = false, bool fdInit = false, bool capture = false);
+
+class GeneratorLabels {
+private:
+  unsigned GenLoopId = 0;
+  unsigned GenYieldId= 0;
+public:
+  std::string NextLoopLabel(void) {
+    std::string label = "_loop_" + std::to_string(++GenLoopId);
+    return label;
+  }
+  std::string NextYieldLabel(void) {
+    std::string label = "_yield_" + std::to_string(++GenYieldId);
+    return label;
+  }
+  void ResetLabels(void) {
+    GenLoopId  = 0;
+    GenYieldId = 0;
+  }
+};
 
 class FuncTable {
 private:
@@ -114,6 +136,7 @@ public:
 };
 
 extern FuncTable hFuncTable;
+extern GeneratorLabels GenFnLabels;
 
 }
 #endif  // __HELPER_H__

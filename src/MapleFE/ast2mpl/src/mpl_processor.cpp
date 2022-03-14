@@ -613,6 +613,10 @@ maple::BaseNode *Ast2MplBuilder::ProcessTripleSlash(StmtExprKind skind, TreeNode
   return nullptr;
 }
 
+maple::BaseNode *Ast2MplBuilder::ProcessFunctionType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+  return nullptr;
+}
+
 maple::BaseNode *Ast2MplBuilder::ProcessBlockDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   BlockNode *ast_block = static_cast<BlockNode *>(tnode);
   for (int i = 0; i < ast_block->GetChildrenNum(); i++) {
@@ -654,7 +658,7 @@ maple::BaseNode *Ast2MplBuilder::ProcessFuncDecl(StmtExprKind skind, TreeNode *t
   // SmallVector<AttrId>          mAttrs;
   // SmallVector<AnnotationNode*> mAnnotations; //annotation or pragma
   // SmallVector<ExceptionNode*>  mThrows;      // exceptions it can throw
-  TreeNode                    *ast_rettype = ast_func->GetType();        // return type
+  TreeNode                    *ast_rettype = ast_func->GetRetType();        // return type
   // SmallVector<TreeNode*>       mParams;      //
   BlockNode                   *ast_body = ast_func->GetBody();
   // DimensionNode               *mDims;

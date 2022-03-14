@@ -359,6 +359,7 @@ rule KeywordPropName : ONEOF("break",
                              "export",
                              "const",
                              "if",
+                             "try",
                              "else",
                              "continue",
                              "implements",
@@ -472,7 +473,8 @@ rule CallExpression : ONEOF(
   "set" + ZEROORONE(TypeArguments) + Arguments + ZEROORMORE(AsType),
   "get" + ZEROORONE(TypeArguments) + Arguments + ZEROORMORE(AsType),
   CallExpression + "?." + Arguments + ZEROORMORE(AsType),
-  ImportFunction)
+  ImportFunction,
+  CallExpression + '.' + KeywordPropName + ZEROORMORE(AsType))
   attr.action.%1,%3,%10,%11 : BuildCall(%1)
   attr.action.%1,%10,%11 : AddAsType(%4)
   attr.action.%1,%10,%11 : AddTypeGenerics(%2)
@@ -481,8 +483,8 @@ rule CallExpression : ONEOF(
   attr.action.%3 : AddAsType(%3)
   attr.action.%4 : BuildArrayElement(%1, %3)
   attr.action.%4 : AddAsType(%5)
-  attr.action.%5 : BuildField(%1, %3)
-  attr.action.%5 : AddAsType(%4)
+  attr.action.%5,%14 : BuildField(%1, %3)
+  attr.action.%5,%14 : AddAsType(%4)
   attr.action.%7 : SetIsNonNull(%1)
   attr.action.%7 : AddAsType(%1, %3)
   attr.action.%8 : SetIsOptional(%1)
@@ -1144,9 +1146,9 @@ rule ForBinding : ONEOF(BindingIdentifier,
 ##  continue [no LineTerminator here] LabelIdentifier[?Yield] ;
 rule ContinueStatement : ONEOF(
   "continue" + ZEROORONE(';'),
-  "continue" + LabelIdentifier + ZEROORONE(';'))
+  "continue" + NoLineTerminator + LabelIdentifier + ZEROORONE(';'))
   attr.action.%1 : BuildContinue()
-  attr.action.%2 : BuildContinue(%2)
+  attr.action.%2 : BuildContinue(%3)
 
 ##-----------------------------------
 ##rule BreakStatement[Yield] :
@@ -1154,9 +1156,9 @@ rule ContinueStatement : ONEOF(
 ##  break [no LineTerminator here] LabelIdentifier[?Yield] ;
 rule BreakStatement : ONEOF(
   "break" + ZEROORONE(';'),
-  "break" + LabelIdentifier + ZEROORONE(';'))
+  "break" + NoLineTerminator + LabelIdentifier + ZEROORONE(';'))
   attr.action.%1 : BuildBreak()
-  attr.action.%2 : BuildBreak(%2)
+  attr.action.%2 : BuildBreak(%3)
 
 ##-----------------------------------
 ##rule ReturnStatement[Yield] :
@@ -1854,9 +1856,10 @@ rule TupleElementType: ONEOF(ZEROORONE(JSIdentifier + ':') + Type,
 rule UnionType : ONEOF(ZEROORONE('|') + UnionOrIntersectionOrPrimaryType + '|' + IntersectionOrPrimaryType,
                        UnionOrIntersectionOrPrimaryType + '|' + KeyOf,
                        KeyOf + '|' + UnionOrIntersectionOrPrimaryType,
-                       TypeQuery + '|' + UnionOrIntersectionOrPrimaryType)
+                       TypeQuery + '|' + UnionOrIntersectionOrPrimaryType,
+                       TemplateLiteral + '|' + TemplateLiteral)
   attr.action.%1 : BuildUnionUserType(%2, %4)
-  attr.action.%2,%3,%4 : BuildUnionUserType(%1, %3)
+  attr.action.%2,%3,%4,%5 : BuildUnionUserType(%1, %3)
 
 ## rule IntersectionType: IntersectionOrPrimaryType & PrimaryType
 rule IntersectionType: ONEOF(IntersectionOrPrimaryType + '&' + PrimaryType,
@@ -2222,11 +2225,11 @@ rule PropertyMemberDeclaration: ONEOF(MemberVariableDeclaration,
 
 ## MemberVariableDeclaration: AccessibilityModifieropt staticopt PropertyName TypeAnnotationopt Initializeropt ;
 rule MemberVariableDeclaration: ONEOF(
-  ZEROORMORE(Annotation) + ZEROORMORE(AccessibilityModifier) + PropertyName + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'),
-  ZEROORMORE(Annotation) + ZEROORMORE(AccessibilityModifier) + PropertyName + '?' + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'),
+  ZEROORMORE(Annotation) + ZEROORMORE(AccessibilityModifier) + PropertySignatureName + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'),
+  ZEROORMORE(Annotation) + ZEROORMORE(AccessibilityModifier) + PropertySignatureName + '?' + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'),
   ZEROORMORE(Annotation) + ZEROORMORE(AccessibilityModifier) + "get" + '=' + ArrowFunction + ZEROORONE(';'),
   ZEROORMORE(Annotation) + ZEROORMORE(AccessibilityModifier) + "set" + '=' + ArrowFunction + ZEROORONE(';'),
-  '#' + PropertyName + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'),
+  '#' + PropertySignatureName + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'),
   '#' + "private" + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'),
   ZEROORMORE(Annotation) + ZEROORMORE(AccessibilityModifier) + "if" + ZEROORONE(TypeAnnotation) + ZEROORONE(Initializer) + ZEROORONE(';'))
   attr.action.%1: AddInitTo(%3, %5)
@@ -2263,6 +2266,13 @@ rule KeywordMemberFunctionName : ONEOF("return",
                                        "set",
                                        "continue",
                                        "break",
+                                       "const",
+                                       "let",
+                                       "var",
+                                       "if",
+                                       "else",
+                                       "for",
+                                       "try",
                                        "export")
   attr.action : BuildIdentifier()
 

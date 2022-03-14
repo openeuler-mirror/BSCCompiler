@@ -404,7 +404,18 @@ bool TypescriptLexer::FindTripleSlash() {
       if (line[i] == ' ') {
         i++;
       } else if (line[i] == '<') {
-        return true;
+        // Need make sure the following word is 'reference',
+        // or 'amd-module', or 'amd-dependency'
+        i++;
+        while(line[i] == ' ') {
+          i++;
+        }
+        if (!strncmp(line + i, "reference", 9) ||
+            !strncmp(line + i, "amd-module", 10) ||
+            !strncmp(line + i, "amd-dependency", 14)) {
+          if (i < current_line_size)
+            return true;
+        }
       } else {
         return false;
       }

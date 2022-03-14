@@ -167,23 +167,21 @@ public:
 
 ///////////////////////////////////////////////////////////////////////////////
 //                          FunctionTypeNode
-// It is used to specify function types with its signature and return type
+// It is used to specify function types with its parameters and return type
 ///////////////////////////////////////////////////////////////////////////////
 class FunctionTypeNode : public TreeNode {
 private:
   SmallVector<unsigned>        mParams;     // type index of formal parameters
-  unsigned                     mRetType;    // type index of return type
+                                            // and return which is the last one
 
 public:
-  FunctionTypeNode() : TreeNode(NK_FunctionType), mRetType(0) {}
+  FunctionTypeNode() : TreeNode(NK_FunctionType) {}
   ~FunctionTypeNode(){}
 
   unsigned GetParamsNum()         {return mParams.GetNum();}
   unsigned GetParam(unsigned i)   {return mParams.ValueAtIndex(i);}
   void     SetParam(unsigned i, unsigned n) {*(mParams.RefAtIndex(i)) = n;}
   void     AddParam(unsigned i)   {mParams.PushBack(i);}
-  void     SetRetType(unsigned i) {mRetType = i;}
-  unsigned GetRetType()           {return mRetType;}
   void     ClearParam()           {mParams.Clear();}
 
   bool     IsEqual(FunctionTypeNode *f);

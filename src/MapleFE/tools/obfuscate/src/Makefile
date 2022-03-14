@@ -1,4 +1,4 @@
-# Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+# Copyright (C) [2022] Futurewei Technologies, Inc. All rights reverved.
 # 
 # OpenArkFE is licensed under the Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -12,9 +12,9 @@
 # See the Mulan PSL v2 for more details.
 # 
 
-include ../../Makefile.in
+include ../../../Makefile.in
 BUILDBIN=$(BUILDDIR)/bin
-BUILD=$(BUILDDIR)/ast2cpp
+BUILD=$(BUILDDIR)/tools/obfuscate
 BUILDGEN=$(BUILDDIR)/gen
 BUILDASTGEN=$(BUILDDIR)/ast_gen/shared
 $(shell $(MKDIR_P) $(BUILD))
@@ -38,6 +38,7 @@ GENDIR:=${BUILDDIR}/ast_gen/shared
 
 INCLUDES := -I $(MAPLEFE_ROOT)/shared/include \
             -I $(MAPLEFE_ROOT)/astopt/include \
+            -I $(MAPLEFE_ROOT)/tools/obfuscate/include \
             -I $(MAPLEFE_ROOT)/ast2cpp/include \
             -I $(MAPLEFE_ROOT)/autogen/include \
             -I $(MAPLEFE_ROOT)/shared/include \
@@ -46,10 +47,9 @@ INCLUDES := -I $(MAPLEFE_ROOT)/shared/include \
 
 INCLUDEGEN := -I $(MAPLEFE_ROOT)/shared/include -I $(BUILDDIR)/gen -I $(BUILDASTGEN)
 
-TARGET=ast2cpp
-TARGET_A=ast2cpp.a
+TARGET=obfuscate
 
-SHAREDLIB = $(BUILDDIR)/astopt/astopt.a $(BUILDDIR)/shared/shared.a $(BUILDASTGEN)/genast.a
+SHAREDLIB = $(BUILDDIR)/ast2cpp/ast2cpp.a $(BUILDDIR)/astopt/astopt.a $(BUILDDIR)/shared/shared.a $(BUILDASTGEN)/genast.a
 LANGSPEC=$(BUILDDIR)/typescript/lang_spec.o
 
 .PHONY: all
@@ -82,12 +82,9 @@ $(BUILDGEN)/%.d : $(BUILDGEN)/%.cpp
 
 # TARGET depends on OBJS and shared OBJS from shared directory
 # as well as mapleall libraries
-$(BUILD)/$(TARGET_A): $(LIBOBJS)
-	/usr/bin/ar rcs $(BUILD)/$(TARGET_A) $(LIBOBJS)
-
-$(BUILDBIN)/$(TARGET): $(BUILD)/$(TARGET_A) $(OBJS) $(SHAREDLIB)
+$(BUILDBIN)/$(TARGET): $(OBJS) $(SHAREDLIB)
 	@mkdir -p $(BUILDBIN)
-	$(LD) -o $(BUILDBIN)/$(TARGET) $(BUILD)/main.o $(BUILD)/$(TARGET_A) $(OBJG) $(LANGSPEC) $(SHAREDLIB)
+	$(LD) -o $(BUILDBIN)/$(TARGET) $(LOCALOBJS) $(OBJG) $(LANGSPEC) $(SHAREDLIB)
 
 clean:
 	rm -rf $(BUILD)

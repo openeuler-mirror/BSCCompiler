@@ -870,6 +870,10 @@ bool Parser::LookAheadFail(RuleTable *rule_table, unsigned token) {
           if (curr_token->IsTempLit() || curr_token->IsRegExpr())
             found = true;
         }
+        if (rule_table == &TblNoLineTerminator) {
+          if (!curr_token->mLineBegin)
+            found = true;
+        }
       }
       break;
     case LA_Identifier:
@@ -1203,6 +1207,14 @@ bool Parser::TraverseRuleTableRegular(RuleTable *rule_table, AppealNode *appeal)
 
   if ((rule_table == &TblRegularExpression))
     return TraverseRegularExpression(rule_table, appeal);
+
+  if (rule_table == &TblNoLineTerminator) {
+    Token *token = mActiveTokens.ValueAtIndex(mCurToken);
+    if (token->mLineBegin)
+      return false;
+    else
+      return true;
+  }
 
   EntryType type = rule_table->mType;
   switch(type) {
@@ -1697,17 +1709,21 @@ bool Parser::TraverseConcatenate(RuleTable *rule_table, AppealNode *appeal) {
   bool turned_on_AltToken = false;
 
   for (unsigned i = 0; i < rule_table->mNum; i++) {
-    bool is_zeroxxx = false;
+    bool is_zeroxxx = false;  // If the table is Zeroorxxx(), or NoLineTerminator.
+    bool no_line_term = false;  // If the table is NoLineTerminator
+    bool no_line_term_met = false;  // If the table is NoLineTerminator and token is no line term.
     bool is_asi = false;
     bool is_token = false;
     bool old_mInAltTokensMatching = mInAltTokensMatching;
 
     TableData *data = rule_table->mData + i;
     if (data->mType == DT_Subtable) {
-      RuleTable *zero_rt = data->mData.mEntry;
-      if (zero_rt->mType == ET_Zeroormore || zero_rt->mType == ET_Zeroorone)
+      RuleTable *curr_rt = data->mData.mEntry;
+      if (curr_rt == &TblNoLineTerminator) 
+        no_line_term = true;
+      if (curr_rt->mType == ET_Zeroormore || curr_rt->mType == ET_Zeroorone)
         is_zeroxxx = true;
-      if (zero_rt->mType == ET_ASI)
+      if (curr_rt->mType == ET_ASI)
         is_asi = true;
     } else if (data->mType == DT_Token) {
       is_token = true;
@@ -1749,11 +1765,18 @@ bool Parser::TraverseConcatenate(RuleTable *rule_table, AppealNode *appeal) {
       }
     }
 
+    if ((prev_succ_tokens.GetNum() == 1) && no_line_term) {
+      unsigned prev = prev_succ_tokens.ValueAtIndex(0);
+      Token *t = GetActiveToken(prev + 1);
+      if (!t->mLineBegin)
+        no_line_term_met = true;
+    }
+
     // for Zeroorone/Zeroormore node it always returns true. NO matter how
     // many tokens it really matches, 'zero' is also a correct match. we
     // need take it into account so that the next rule table can try
     // on it.
-    if (!is_zeroxxx)
+    if (!is_zeroxxx && !no_line_term_met)
       prev_succ_tokens.Clear();
 
     // is_zeroxxx seems redundant because the traversal should always be true.
@@ -1887,8 +1910,10 @@ void Parser::SetIsDone(RuleTable *rt, unsigned start_token) {
 
   SuccMatch *succ = &gSucc[rt->mIndex];
   bool found = succ->GetStartToken(start_token);
-  MASSERT(found);
-  succ->SetIsDone();
+  if (rt != &TblNoLineTerminator) {
+    MASSERT(found);
+    succ->SetIsDone();
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -2276,7 +2301,7 @@ void Parser::SortOutConcatenate(AppealNode *parent) {
     if (!child) {
       if (data->mType == DT_Subtable) {
         RuleTable *table = data->mData.mEntry;
-        if (table->mType == ET_Zeroorone || table->mType == ET_Zeroormore)
+        if (table->mType == ET_Zeroorone || table->mType == ET_Zeroormore || table == &TblNoLineTerminator)
           good_child = true;
         if (table->mType == ET_ASI)
           good_child = true;

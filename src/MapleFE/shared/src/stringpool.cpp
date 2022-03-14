@@ -20,6 +20,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <stdlib.h>
 
 #include "stringpool.h"
 #include "stringmap.h"
@@ -31,6 +32,7 @@ namespace maplefe {
 StringPool gStringPool;
 
 StringPool::StringPool() {
+  mUseAltStr = false;
   mMap = new StringMap();
   mMap->SetPool(this);
   mFirstAvail = -1;
@@ -173,11 +175,76 @@ unsigned StringPool::GetStrIdx(const char *str, size_t len) {
   return mMap->LookupEntryFor(s)->GetStrIdx();
 }
 
+const char *StringPool::GetStringFromStrIdx(unsigned idx) {
+  MASSERT(idx < mStringTable.size() && "string index out of range");
+  if (mUseAltStr) {
+    if (mAltStrIdxMap.find(idx) != mAltStrIdxMap.end()) {
+      idx = mAltStrIdxMap[idx];
+    }
+  }
+  return mStringTable[idx];
+}
+
+// This is the public interface to setup AltStrIdxMap used for obfuscation
+// a name is mapped to a fixed length random unused name.
+// two letters, [a-zA-Z] [a-zA-Z], which will cover over 2K names
+// AA Aa AB Ab, ...., zz
+#define LEN   2
+//
+#define KIND  52
+#define SIZE  KIND*KIND
+void StringPool::SetAltStrIdxMap() {
+  unsigned size = mAltStrIdxSet.size();
+  bool done = false;
+  char *A = (char*)malloc(LEN+1);
+  *(A+LEN) = 0;
+  for (auto stridx : mAltStrIdxSet) {
+    done = false;
+    while (!done) {
+      int r = rand() % (SIZE);
+      int t = r/KIND;
+      int s = r%KIND;
+
+      // first char, use upper case for odd number
+      bool odd = t%2;
+      *A = (odd ? 'A' : 'a') + t/2;
+
+      // second char, use upper case for odd number
+      odd = s%2;
+      *(A+1) = (odd ? 'A' : 'a') + s/2;
+
+      unsigned size = GetSize();
+      unsigned alt = GetStrIdx(A);
+      // make sure alt is a new string
+      if (alt == size) {
+        mAltStrIdxMap[stridx] = alt;
+        done = true;
+      }
+    }
+  }
+
+  free(A);
+}
+
 void StringPool::Dump() {
   std::cout << "===================== StringTable =====================" << std::endl;
   for (unsigned idx = 1; idx < mStringTable.size(); idx++) {
     std::cout << "  " << idx << " : " << mStringTable[idx] << std::endl;
   }
 }
+
+void StringPool::DumpAlt() {
+  std::cout << "================= Alt String Map ======================" << std::endl;
+  unsigned count = 0;
+  for (auto stridx : mAltStrIdxSet) {
+    unsigned alt = mAltStrIdxMap[stridx];
+    std::cout << "count #" << stridx
+              << " str " << GetStringFromStrIdx(stridx)
+              << " --> "
+              << " alt " << GetStringFromStrIdx(alt)
+              << std::endl;
+  }
+}
+
 }
 

@@ -52,6 +52,7 @@ typedef enum JS_Type : uint8_t {
   TY_Function,  // "function"
   TY_Object,    // "object"
   TY_Array,
+  TY_Any,       // JS_Val::x.field points to a JS_Val
   TY_LAST,
   TY_CXX_Undef = TY_Undef | TY_CXX,
   TY_CXX_Null,
@@ -64,7 +65,7 @@ typedef enum JS_Type : uint8_t {
   TY_CXX_Function,
   TY_CXX_Object,
   TY_CXX_Array,
-  TY_CXX_Any,   //indicate JS_Val::x.field pointing to a JS_Val
+  TY_CXX_Any,   // JS_Val::x.field points to a JS_Val
   TY_CXX_LAST,
 } JS_Type;
 
