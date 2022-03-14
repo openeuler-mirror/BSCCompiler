@@ -53,6 +53,18 @@ ClassNode *AdjustASTVisitor::VisitClassNode(ClassNode *node) {
   (void) AstVisitor::VisitClassNode(node);
   CheckAndRenameCppKeywords(node);
   AssignPseudoName(node);
+
+  // record names
+  gStringPool.AddAltStrIdx(node->GetStrIdx());
+  for (unsigned i = 0; i < node->GetFieldsNum(); i++) {
+    TreeNode *n = node->GetField(i);
+    gStringPool.AddAltStrIdx(n->GetStrIdx());
+  }
+  for (unsigned i = 0; i < node->GetMethodsNum(); i++) {
+    TreeNode *n = node->GetMethod(i);
+    gStringPool.AddAltStrIdx(n->GetStrIdx());
+  }
+
   // skip getting canonical type if not only fields
   if (node->GetMethodsNum() || node->GetSuperClassesNum() || node->GetSuperInterfacesNum() ||
       node->GetSuperClassesNum() || node->GetTypeParamsNum()) {
@@ -76,6 +88,18 @@ ClassNode *AdjustASTVisitor::VisitClassNode(ClassNode *node) {
 InterfaceNode *AdjustASTVisitor::VisitInterfaceNode(InterfaceNode *node) {
   (void) AstVisitor::VisitInterfaceNode(node);
   CheckAndRenameCppKeywords(node);
+
+  // record names
+  gStringPool.AddAltStrIdx(node->GetStrIdx());
+  for (unsigned i = 0; i < node->GetFieldsNum(); i++) {
+    TreeNode *n = node->GetField(i);
+    gStringPool.AddAltStrIdx(n->GetStrIdx());
+  }
+  for (unsigned i = 0; i < node->GetMethodsNum(); i++) {
+    TreeNode *n = node->GetMethod(i);
+    gStringPool.AddAltStrIdx(n->GetStrIdx());
+  }
+
   // skip getting canonical type if not only fields
   if (node->GetMethodsNum() || node->GetSuperInterfacesNum()) {
     return node;
@@ -108,6 +132,7 @@ StructLiteralNode *AdjustASTVisitor::VisitStructLiteralNode(StructLiteralNode *n
   }
 
   TreeNode *newnode = mInfo->GetCanonicStructNode(node);
+  gStringPool.AddAltStrIdx(newnode->GetStrIdx());
   if (newnode != node) {
     node->SetTypeIdx(newnode->GetTypeIdx());
   }
@@ -118,6 +143,18 @@ StructLiteralNode *AdjustASTVisitor::VisitStructLiteralNode(StructLiteralNode *n
 StructNode *AdjustASTVisitor::VisitStructNode(StructNode *node) {
   (void) AstVisitor::VisitStructNode(node);
   CheckAndRenameCppKeywords(node);
+
+  // record names
+  gStringPool.AddAltStrIdx(node->GetStrIdx());
+  for (unsigned i = 0; i < node->GetFieldsNum(); i++) {
+    TreeNode *n = node->GetField(i);
+    gStringPool.AddAltStrIdx(n->GetStrIdx());
+  }
+  for (unsigned i = 0; i < node->GetMethodsNum(); i++) {
+    TreeNode *n = node->GetMethod(i);
+    gStringPool.AddAltStrIdx(n->GetStrIdx());
+  }
+
   // skip getting canonical type for TypeAlias
   TreeNode *parent_orig = node->GetParent();
   TreeNode *p = parent_orig;
@@ -284,7 +321,14 @@ FunctionNode *AdjustASTVisitor::VisitFunctionNode(FunctionNode *node) {
   (void) AstVisitor::VisitFunctionNode(node);
   CheckAndRenameCppKeywords(node);
 
-  TreeNode *type = node->GetType();
+  gStringPool.AddAltStrIdx(node->GetStrIdx());
+
+  for(unsigned i = 0; i < node->GetParamsNum(); i++) {
+    TreeNode *it = node->GetParam(i);
+    gStringPool.AddAltStrIdx(it->GetStrIdx());
+  }
+
+  TreeNode *type = node->GetRetType();
   if (type && type->IsUserType()) {
     type->SetParent(node);
   }
@@ -314,6 +358,7 @@ DeclNode *AdjustASTVisitor::VisitDeclNode(DeclNode *node) {
     unsigned stridx = inode->GetStrIdx();
     if (stridx) {
       node->SetStrIdx(stridx);
+      gStringPool.AddAltStrIdx(stridx);
       mUpdated = true;
     }
 
@@ -509,7 +554,7 @@ LambdaNode *AdjustASTVisitor::VisitLambdaNode(LambdaNode *node) {
   if (tn) {
     if (tn->IsBlock()) {
       func->SetBody(static_cast<BlockNode*>(tn));
-      func->SetType(node->GetType());
+      func->SetRetType(node->GetRetType());
     } else {
       BlockNode *blk = mHandler->NewTreeNode<BlockNode>();
       ReturnNode *ret = mHandler->NewTreeNode<ReturnNode>();
@@ -521,8 +566,8 @@ LambdaNode *AdjustASTVisitor::VisitLambdaNode(LambdaNode *node) {
   }
 
   // func return type
-  if (node->GetType()) {
-    func->SetType(node->GetType());
+  if (node->GetRetType()) {
+    func->SetRetType(node->GetRetType());
   }
 
   mUpdated = true;

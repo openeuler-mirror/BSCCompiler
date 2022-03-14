@@ -16,6 +16,7 @@ std::ostream& operator<< (std::ostream& out, const t2crt::JS_Val& v) {
     case t2crt::TY_Symbol: out << "symbol"; break;
     case t2crt::TY_Function: out << "function"; break;
     case t2crt::TY_Object: out << v.x.val_obj; break;
+    case t2crt::TY_Any: out << *(t2crt::JS_Val*)v.x.field; break;
 
     case t2crt::TY_CXX_Undef: out  << "undefined"; break;
     case t2crt::TY_CXX_Null: out   << "null"; break;
@@ -27,11 +28,14 @@ std::ostream& operator<< (std::ostream& out, const t2crt::JS_Val& v) {
     case t2crt::TY_CXX_Symbol: out << "symbol"; break;
     case t2crt::TY_CXX_Function: out << "function"; break;
     case t2crt::TY_CXX_Object: out << *(Object**)v.x.field; break;
+    case t2crt::TY_CXX_Any: out << *(t2crt::JS_Val*)v.x.field; break;
   }
   return out;
 }
 
 std::ostream& operator<< (std::ostream& out, t2crt::Object *obj) {
+  if (obj == nullptr)
+    return out;
   out << obj->Dump();
   return out;
 }

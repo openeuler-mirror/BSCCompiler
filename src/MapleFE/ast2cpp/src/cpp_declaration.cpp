@@ -383,11 +383,11 @@ namespace )""" + module + R"""( {
     TreeNode *node = func->GetFuncNode();
     std::string funcName = GetIdentifierName(node);
 
+    CollectFuncArgInfo(node);
     if (!IsClassMethod(node)) {
       std::string ns = GetNamespace(node);
       if (!ns.empty())
         str += "namespace "s + ns + " {\n"s;
-      CollectFuncArgInfo(node);
       bool isGenerator = static_cast<FunctionNode*>(node)->IsGenerator();
       std::string generatorClassDef;
       if (isGenerator) {
@@ -397,7 +397,7 @@ namespace )""" + module + R"""( {
       }
       else {
         // gen function class for each top level function
-        str += FunctionClassDecl(GetTypeString(static_cast<FunctionNode*>(node)->GetType(), nullptr), GetIdentifierName(node), node->GetNodeId());
+        str += FunctionClassDecl(GetTypeString(static_cast<FunctionNode*>(node)->GetRetType(), nullptr), GetIdentifierName(node), node->GetNodeId());
       }
       if (!mHandler->IsFromLambda(node)) {
         // top level funcs instantiated here as function objects from their func class
@@ -441,7 +441,7 @@ namespace )""" + module + R"""( {
 std::string CppDecl::EmitFunctionNode(FunctionNode *node) {
   if (node == nullptr)
     return std::string();
-  std::string str(GetTypeString(node->GetType(), node->GetType()));
+  std::string str(GetTypeString(node->GetRetType(), node->GetRetType()));
   if(node->GetStrIdx())
     str += " "s + node->GetName();
   str += "("s;
@@ -1117,17 +1117,7 @@ std::string CppDecl::EmitLiteralNode(LiteralNode *node) {
   mPrecedence = '\030';
   str = HandleTreeNode(str, node);
   if (auto n = node->GetType()) {
-    if (str.compare("this") == 0) {
-      // handle special literal "this"
-      std::string type = EmitTreeNode(n);
-      if (type.compare("t2crt::JS_Val ") == 0)
-        // map type ANY for "this" to generic object type
-        str = "t2crt::Object* "s + "_this"s;
-      else
-        str = type + " _this";
-    }
-    else
-      str += ": "s + EmitTreeNode(n);
+    str += ": "s + EmitTreeNode(n);
   }
   if (auto n = node->GetInit()) {
     str += " = "s + EmitTreeNode(n);

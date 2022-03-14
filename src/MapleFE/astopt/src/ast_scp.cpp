@@ -140,20 +140,24 @@ void BuildScopeVisitor::InitInternalTypes() {
   }
 
   // add dummpy console.log()
-  ClassNode *console = AddClass("console");
-  ASTScope *scp = NewScope(scope, console);
-  mStrIdx2ScopeMap[console->GetStrIdx()] = scp;
-  FunctionNode *log = AddFunction("log");
-  log->SetTypeIdx(TY_Void);
-  console->AddMethod(log);
-  log->SetScope(scp);
-  AddDecl(scp, log);
+  unsigned size = gStringPool.GetSize();
+  unsigned stridx = gStringPool.GetStrIdx("console");
+  TreeNode *type = gTypeTable.GetTypeFromStrIdx(stridx);
+  if (!type) {
+    ClassNode *console = AddClass(stridx);
+    ASTScope *scp = NewScope(scope, console);
+    mStrIdx2ScopeMap[console->GetStrIdx()] = scp;
+    FunctionNode *log = AddFunction("log");
+    log->SetTypeIdx(TY_Void);
+    console->AddMethod(log);
+    log->SetScope(scp);
+    AddDecl(scp, log);
+  }
 }
 
-ClassNode *BuildScopeVisitor::AddClass(std::string name, unsigned tyidx) {
+ClassNode *BuildScopeVisitor::AddClass(unsigned stridx, unsigned tyidx) {
   ClassNode *node = mHandler->NewTreeNode<ClassNode>();
-  unsigned idx = gStringPool.GetStrIdx(name);
-  node->SetStrIdx(idx);
+  node->SetStrIdx(stridx);
   node->SetTypeIdx(tyidx);
 
   ModuleNode *module = mHandler->GetASTModule();
@@ -488,7 +492,7 @@ UserTypeNode *BuildScopeVisitor::VisitUserTypeNode(UserTypeNode *node) {
     if (p->IsFunction()) {
       // exclude function return type
       FunctionNode *f = static_cast<FunctionNode *>(p);
-      if (f->GetType() == node) {
+      if (f->GetRetType() == node) {
         return node;
       }
     } else if (p->IsTypeAlias()) {
@@ -761,6 +765,7 @@ void AST_SCP::RenameVar() {
         str += std::to_string(size);
         visitor.mOldStrIdx = stridx;
         visitor.mNewStrIdx = gStringPool.GetStrIdx(str);
+        gStringPool.AddAltStrIdx(visitor.mNewStrIdx);
         TreeNode *tn = mHandler->GetAstOpt()->GetNodeFromNodeId(nid);
         ASTScope *scope = tn->GetScope();
         tn = scope->GetTree();

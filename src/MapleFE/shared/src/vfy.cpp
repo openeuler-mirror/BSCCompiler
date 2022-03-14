@@ -572,4 +572,8 @@ void Verifier::VerifyTripleSlash(TripleSlashNode *tree){
   return;
 }
 
+void Verifier::VerifyFunctionType(FunctionTypeNode *tree){
+  return;
+}
+
 }

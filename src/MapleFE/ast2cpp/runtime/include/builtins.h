@@ -133,12 +133,15 @@ class Error : public Object {
 // ecma-262 section references are based on ecma-262 edition 12.0
 
 // ecma262 27.1.1.5 IteratorResult interface:
-struct IteratorResult {
-  bool   _done;  // status of iterator next() call
-  JS_Val _value; // done=false: current iteration element value
-                 // done=true:  return value of the iterator, undefined if none returned
-  IteratorResult() : _done(true), _value(undefined) { }
-  IteratorResult(bool done, JS_Val val) : _done(done), _value(val) { }
+struct IteratorResult : public Object {
+  bool   done;  // status of iterator next() call
+  JS_Val value; // done=false: current iteration element value
+                // done=true:  return value of the iterator, undefined if none returned
+  IteratorResult() : done(true), value(undefined) {
+    this->AddProp("done",  t2crt::ClassFld<bool   IteratorResult::*>(&IteratorResult::done).NewProp(this, t2crt::TY_CXX_Bool));
+    this->AddProp("value", t2crt::ClassFld<JS_Val IteratorResult::*>(&IteratorResult::value).NewProp(this, t2crt::TY_CXX_Any));
+  }
+  IteratorResult(bool done, JS_Val val) : done(done), value(val) { }
   ~IteratorResult() { }
 };
 
@@ -159,12 +162,13 @@ struct IteratorResult {
 // 3) %IteratorPrototype%[Symbol.iterator]() = this (current iterator instance) - used in for loops
 class IteratorProto : public Object {
 public:
+  IteratorResult _res;
   IteratorProto(Function* ctor, Object* proto) : Object(ctor, proto) { }
   ~IteratorProto() { }
   // note: the arg on an iterator's 1st next() call is ignored per spec 27.5.1.2
-  virtual IteratorResult _next  (JS_Val* arg = nullptr) { return IteratorResult(); }
-  virtual IteratorResult _return(JS_Val* val = nullptr) { return IteratorResult(); }
-  virtual IteratorResult _throw(Error exception)  { return IteratorResult(); }
+  virtual IteratorResult* next  (JS_Val* arg = nullptr) { return &_res; }
+  virtual IteratorResult* _return(JS_Val* val = nullptr) { return &_res; }
+  virtual IteratorResult* _throw(Error exception)  { return &_res; }
 
   // TODO: %IteratorPrototype%[Symbol.iterator]() = this (current iterator instance)
 };
@@ -182,13 +186,12 @@ public:
   bool   _finished  = false;   // flag if generator is in finished state
   bool   _firstNext = true;    // flag if first next has been called on iterator (27.5.1.2)
   
-  IteratorResult _return(JS_Val* arg = nullptr) override {
-    IteratorResult res;
+  IteratorResult* _return(JS_Val* arg = nullptr) override {
     _finished = true;
     if (arg != nullptr) {
-      res._value = *arg;
+      _res.value = *arg;
     }
-    return res;
+    return &_res;
   }
 };
 

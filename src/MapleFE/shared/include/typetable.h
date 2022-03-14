@@ -27,6 +27,7 @@
 #include <string>
 #include "massert.h"
 #include "ast.h"
+#include "ast_type.h"
 
 namespace maplefe {
 
@@ -53,6 +54,7 @@ private:
   std::unordered_map<unsigned, unsigned> mNodeId2TypeIdxMap;
   std::unordered_map<TypeId, TreeNode*> mTypeId2TypeMap;
   std::unordered_set<TypeId> mPrimTypeId;
+  std::unordered_set<unsigned> mFuncTypeIdx;
   unsigned mPrimSize;
   unsigned mPreBuildSize;
 
@@ -62,16 +64,23 @@ public:
 
   unsigned size() { return mTypeTable.size(); }
   unsigned GetPreBuildSize() { return mPreBuildSize; }
+
+  bool IsPrimTypeId(TypeId tid) { return mPrimTypeId.find(tid) != mPrimTypeId.end(); }
   unsigned GetPrimSize() { return mPrimSize; }
   TreeNode *CreatePrimType(std::string name, TypeId tid);
   TreeNode *CreateBuiltinType(std::string name, TypeId tid);
+
   void AddPrimTypeId(TypeId tid);
   void AddPrimAndBuiltinTypes();
   bool AddType(TreeNode *node);
+
   TypeEntry *GetTypeEntryFromTypeIdx(unsigned tidx);
   TreeNode  *GetTypeFromTypeIdx(unsigned tidx);
   TreeNode  *GetTypeFromTypeId(TypeId tid) { return mTypeId2TypeMap[tid]; }
-  bool IsPrimTypeId(TypeId tid) { return mPrimTypeId.find(tid) != mPrimTypeId.end(); }
+  TreeNode  *GetTypeFromStrIdx(unsigned strid);
+
+  unsigned GetOrCreateFunctionTypeIdx(FunctionTypeNode *type);
+
   void Dump();
 };
 

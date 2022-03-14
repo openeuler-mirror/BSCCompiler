@@ -1,0 +1,30 @@
+Matched 16 tokens.
+Matched 32 tokens.
+Matched 47 tokens.
+Matched 57 tokens.
+Matched 68 tokens.
+Matched 69 tokens.
+Matched 70 tokens.
+Matched 77 tokens.
+Matched 80 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Num
+  Fields: 
+    neg=false    val=0
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+func  func(v)  throws: 
+  return  template-literal: NULL,v.neg ? "-" : "",NULL,v.val,"n",NULL
+
+== Sub Tree ==
+js_var Decl: obj= {neg:true, val:123}
+== Sub Tree ==
+console.log(func(obj))
+== Sub Tree ==
+console.log( typeof func(obj))

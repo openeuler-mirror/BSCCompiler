@@ -1,0 +1,34 @@
+Matched 61 tokens.
+Matched 71 tokens.
+Matched 83 tokens.
+Matched 95 tokens.
+Matched 102 tokens.
+Matched 109 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Klass
+  Fields: 
+    num=1
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  if(n)  throws: 
+      return this.num EQ n
+    func  try(n)  throws: 
+      cond-branch cond:n EQ this.num
+      true branch :
+        console.log("EQ")      false branch :
+        console.log("NE")
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+js_var Decl: obj=new Klass()
+== Sub Tree ==
+console.log(obj.if(0))
+== Sub Tree ==
+console.log(obj.if(1))
+== Sub Tree ==
+obj.try(0)
+== Sub Tree ==
+obj.try(1)

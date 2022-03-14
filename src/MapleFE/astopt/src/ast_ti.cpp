@@ -320,11 +320,11 @@ TypeId TypeInferVisitor::MergeTypeId(TypeId tia, TypeId tib) {
 }
 
 unsigned TypeInferVisitor::MergeTypeIdx(unsigned tia, unsigned tib) {
-  if (tia == tib || tib == 0) {
+  if (tia == tib || tib <= 1) {
     return tia;
   }
 
-  if (tia == 0) {
+  if (tia <= 1) {
     return tib;
   }
 
@@ -433,7 +433,11 @@ PrimTypeNode *TypeInferVisitor::GetOrClonePrimTypeNode(PrimTypeNode *pt, TypeId 
       new_pt->SetPrimType(pt->GetPrimType());
     }
     SetTypeId(new_pt, tid);
-    SetTypeIdx(new_pt, tid);
+    if (IsPrimTypeId(tid)) {
+      SetTypeIdx(new_pt, tid);
+    } else {
+      SetTypeIdx(new_pt, gTypeTable.GetTypeFromTypeId(tid)->GetTypeIdx());
+    }
     SetUpdated();
   }
   return new_pt;
@@ -501,7 +505,7 @@ void TypeInferVisitor::UpdateTypeUseNode(TreeNode *target, TreeNode *input) {
         TypeId new_elemTypeId = GetArrayElemTypeId(target);
         TreeNode *type = static_cast<IdentifierNode *>(target)->GetType();
         MASSERT(target->IsIdentifier() && "target node not identifier");
-        if (type->IsPrimArrayType()) {
+        if (type && type->IsPrimArrayType()) {
           unsigned nid = target->GetNodeId();
           mParam2ArgArrayDeclMap[nid].insert(decl);
           if (old_elemTypeId != new_elemTypeId) {
@@ -570,13 +574,13 @@ void TypeInferVisitor::UpdateFuncRetTypeId(FunctionNode *node, TypeId tid, unsig
   if (!node || (node->GetTypeId() == tid && node->GetTypeIdx() == tidx)) {
     return;
   }
-  TreeNode *type = node->GetType();
+  TreeNode *type = node->GetRetType();
   // create new return type node if it was shared
 
   if (type) {
     if (type->IsPrimType() && type->IsTypeIdNone()) {
       type = GetOrClonePrimTypeNode((PrimTypeNode *)type, tid);
-      node->SetType(type);
+      node->SetRetType(type);
     }
     tid = MergeTypeId(type->GetTypeId(), tid);
     SetTypeId(type, tid);
@@ -1089,8 +1093,8 @@ CallNode *TypeInferVisitor::VisitCallNode(CallNode *node) {
               mHandler->AddGeneratorUsed(node->GetNodeId(), func);
             }
             // update call's return type
-            if (func->GetType()) {
-              UpdateTypeId(node, func->GetType()->GetTypeId());
+            if (func->GetRetType()) {
+              UpdateTypeId(node, func->GetRetType()->GetTypeId());
             }
             // skip imported and exported functions as they are generic
             // so should not restrict their types
@@ -1152,6 +1156,13 @@ CallNode *TypeInferVisitor::VisitCallNode(CallNode *node) {
             }
           } else if (decl->IsLiteral()) {
             NOTYETIMPL("VisitCallNode literal node");
+          } else if (decl->IsTypeIdClass()) {
+            // object
+            if (node->GetArgsNum()) {
+              TreeNode *arg = node->GetArg(0);
+              SetTypeId(arg, TY_Object);
+              SetTypeIdx(arg, decl->GetTypeIdx());
+            }
           } else {
             NOTYETIMPL("VisitCallNode not function node");
           }
@@ -1185,13 +1196,17 @@ CastNode *TypeInferVisitor::VisitCastNode(CastNode *node) {
 AsTypeNode *TypeInferVisitor::VisitAsTypeNode(AsTypeNode *node) {
   (void) AstVisitor::VisitAsTypeNode(node);
   TreeNode *dest = node->GetType();
-  SetTypeId(node, dest);
+  if (node->GetTypeIdx() == 0) {
+    SetTypeId(node, dest);
+  }
 
   TreeNode *parent = node->GetParent();
   if (parent) {
     // pass to parent, need refine if multiple AsTypeNode
     if (parent->GetAsTypesNum() == 1 && parent->GetAsTypeAtIndex(0) == node) {
-      SetTypeId(parent, dest);
+      if (parent->GetTypeIdx() == 0) {
+        SetTypeId(parent, dest);
+      }
     }
   }
   return node;
@@ -1532,9 +1547,6 @@ FunctionNode *TypeInferVisitor::VisitFunctionNode(FunctionNode *node) {
   if (node->GetFuncName()) {
     SetTypeId(node->GetFuncName(), node->GetTypeId());
   }
-  if (node->GetType()) {
-    SetTypeIdx(node, node->GetType()->GetTypeIdx());
-  }
   return node;
 }
 
@@ -1626,6 +1638,8 @@ IdentifierNode *TypeInferVisitor::VisitIdentifierNode(IdentifierNode *node) {
       UpdateTypeId(node, decl);
       UpdateTypeIdx(node, decl);
     }
+    // pass IsGeneratorUsed
+    mHandler->UpdateGeneratorUsed(node->GetNodeId(), decl->GetNodeId());
   } else {
     NOTYETIMPL("node not declared");
     MSGNOLOC0(node->GetName());
@@ -1650,7 +1664,7 @@ IsNode *TypeInferVisitor::VisitIsNode(IsNode *node) {
   TreeNode *parent = node->GetParent();
   if (parent->IsFunction()) {
     FunctionNode *func = static_cast<FunctionNode *>(parent);
-    if (func->GetType() == node) {
+    if (func->GetRetType() == node) {
       TreeNode *right = node->GetRight();
       if (right->IsUserType()) {
         TreeNode *id = static_cast<UserTypeNode *>(right)->GetId();
@@ -1767,16 +1781,16 @@ ReturnNode *TypeInferVisitor::VisitReturnNode(ReturnNode *node) {
   if (tn) {
     FunctionNode *func = static_cast<FunctionNode *>(tn);
     // use dummy PrimTypeNode as return type of function if not set to carry return TypeId
-    if (!func->GetType()) {
+    if (!func->GetRetType()) {
       PrimTypeNode *type = mHandler->NewTreeNode<PrimTypeNode>();
       type->SetPrimType(TY_None);
-      func->SetType(type);
+      func->SetRetType(type);
     }
     if (!func->IsGenerator() && !func->IsIterator()) {
       UpdateFuncRetTypeId(func, node->GetTypeId(), node->GetTypeIdx());
       if (res) {
         // use res to update function's return type
-        UpdateTypeUseNode(func->GetType(), res);
+        UpdateTypeUseNode(func->GetRetType(), res);
       }
     }
   }

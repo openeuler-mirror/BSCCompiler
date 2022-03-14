@@ -83,15 +83,15 @@ TreeNode *TypeTable::CreateBuiltinType(std::string name, TypeId tid) {
 }
 
 bool TypeTable::AddType(TreeNode *node) {
-  unsigned id = node->GetNodeId();
-  if (mNodeId2TypeIdxMap.find(id) != mNodeId2TypeIdxMap.end()) {
+  unsigned nid = node->GetNodeId();
+  if (mNodeId2TypeIdxMap.find(nid) != mNodeId2TypeIdxMap.end()) {
     return false;
   }
-  unsigned tid = mTypeTable.size();
-  mNodeId2TypeIdxMap[id] = tid;
-  node->SetTypeIdx(tid);
+  unsigned tidx = mTypeTable.size();
+  mNodeId2TypeIdxMap[nid] = tidx;
+  node->SetTypeIdx(tidx);
   if (node->IsUserType()) {
-    static_cast<UserTypeNode*>(node)->GetId()->SetTypeIdx(tid);
+    static_cast<UserTypeNode*>(node)->GetId()->SetTypeIdx(tidx);
   }
   TypeEntry *entry = new TypeEntry(node);
   mTypeTable.push_back(entry);
@@ -135,14 +135,46 @@ void TypeTable::AddPrimAndBuiltinTypes() {
   return;
 }
 
-TypeEntry *TypeTable::GetTypeEntryFromTypeIdx(unsigned idx) {
-  MASSERT(idx < mTypeTable.size() && "type index out of range");
-  return mTypeTable[idx];
+TypeEntry *TypeTable::GetTypeEntryFromTypeIdx(unsigned tidx) {
+  MASSERT(tidx < mTypeTable.size() && "type index out of range");
+  return mTypeTable[tidx];
 }
 
-TreeNode *TypeTable::GetTypeFromTypeIdx(unsigned idx) {
-  MASSERT(idx < mTypeTable.size() && "type index out of range");
-  return mTypeTable[idx]->GetType();
+TreeNode *TypeTable::GetTypeFromTypeIdx(unsigned tidx) {
+  MASSERT(tidx < mTypeTable.size() && "type index out of range");
+  return mTypeTable[tidx]->GetType();
+}
+
+TreeNode *TypeTable::GetTypeFromStrIdx(unsigned stridx) {
+  for (auto entry : mTypeTable) {
+    TreeNode *node = entry->GetType();
+    if (node && node->GetStrIdx() == stridx) {
+      return node;
+    }
+  }
+  return NULL;
+}
+
+unsigned TypeTable::GetOrCreateFunctionTypeIdx(FunctionTypeNode *node) {
+  for (auto tidx: mFuncTypeIdx) {
+    TreeNode *type = GetTypeFromTypeIdx(tidx);
+    FunctionTypeNode *functype = static_cast<FunctionTypeNode *>(type);
+    bool found = functype->IsEqual(node);
+    if (found) {
+      return tidx;
+    }
+  }
+  bool status = AddType(node);
+  MASSERT(status && "failed to add a functiontype");
+  unsigned tidx = node->GetTypeIdx();
+  mFuncTypeIdx.insert(tidx);
+
+  std::string str("FuncType__");
+  str += std::to_string(tidx);
+  unsigned stridx = gStringPool.GetStrIdx(str);
+  node->SetStrIdx(stridx);
+
+  return tidx;
 }
 
 void TypeTable::Dump() {

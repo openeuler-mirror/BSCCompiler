@@ -285,7 +285,7 @@ std::string Emitter::EmitFunctionNode(FunctionNode *node) {
     str += " : asserts "s + EmitTreeNode(n);
 
   auto body = node->GetBody();
-  if (auto n = node->GetType()) {
+  if (auto n = node->GetRetType()) {
     std::string s = EmitTreeNode(n);
     if(!s.empty()) {
       str += (body || has_name || inside ? " : "s : " => "s) + s;
@@ -704,6 +704,7 @@ std::string Emitter::EmitConditionalTypeNode(ConditionalTypeNode *node) {
     precd = mPrecedence;
   }
   if (auto n = node->GetTypeB()) {
+    str = Clean(str);
     if (precd < '\024')
       str = '(' + str + ')';
     str += " extends "s + EmitTreeNode(n);
@@ -1537,7 +1538,7 @@ std::string Emitter::EmitCallNode(CallNode *node) {
     bool optional = n->IsOptional();
     if (optional && !s.empty() && s.back() == '?')
       s.pop_back();
-    if(n->IsFunction() || n->IsLambda())
+    if(n->IsFunction() || n->IsLambda() || n->IsTerOperator())
       str += '(' + s + ')';
     else
       str += s;
@@ -1765,7 +1766,7 @@ std::string Emitter::EmitLambdaNode(LambdaNode *node) {
   str += ')';
 
   if (auto n = node->GetBody()) {
-    if (auto t = node->GetType()) {
+    if (auto t = node->GetRetType()) {
       str += ": "s + EmitTreeNode(t);
     }
     std::string s = EmitTreeNode(n);
@@ -1775,7 +1776,7 @@ std::string Emitter::EmitLambdaNode(LambdaNode *node) {
     str += " => "s + s;
   }
   else {
-    if (auto t = node->GetType()) {
+    if (auto t = node->GetRetType()) {
       str += " => "s + EmitTreeNode(t);
     }
   }
@@ -1973,6 +1974,12 @@ std::string Emitter::EmitArrayTypeNode(ArrayTypeNode *node) {
   return str;
 }
 
+std::string Emitter::EmitFunctionTypeNode(FunctionTypeNode *node) {
+  // TODO
+  std::string str = "";
+  return str;
+}
+
 std::string Emitter::EmitPrimTypeNode(PrimTypeNode *node) {
   if (node == nullptr)
     return std::string();
@@ -2054,6 +2061,9 @@ std::string Emitter::EmitTreeNode(TreeNode *node) {
     break;
   case NK_ArrayType:
     return EmitArrayTypeNode(static_cast<ArrayTypeNode *>(node));
+    break;
+  case NK_FunctionType:
+    return EmitFunctionTypeNode(static_cast<FunctionTypeNode *>(node));
     break;
   case NK_UserType:
     return EmitUserTypeNode(static_cast<UserTypeNode *>(node));
