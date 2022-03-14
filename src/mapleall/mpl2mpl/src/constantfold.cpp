@@ -1709,7 +1709,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       result = NewBinaryNode(node, op, primType, l, PairToExpr(rPrimTypes, rp));
       sum = 0;
     }
-    if (result->GetPrimType() != primType) {
+    if (!IsNoCvtNeeded(result->GetPrimType(), primType)) {
       result = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, primType, result->GetPrimType(), result);
     }
   } else if (rConst != nullptr && isInt) {
@@ -1799,7 +1799,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       result = NewBinaryNode(node, op, primType, PairToExpr(lPrimTypes, lp), r);
       sum = 0;
     }
-    if (result->GetPrimType() != primType) {
+    if (!IsNoCvtNeeded(result->GetPrimType(), primType)) {
       result = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, primType, result->GetPrimType(), result);
     }
   } else if (isInt && (op == OP_add || op == OP_sub)) {
