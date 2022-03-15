@@ -219,8 +219,9 @@ void StringPool::SetAltStrIdxMap() {
       // check if already encounted
       if (used.find(r) != used.end()) {
         // expand to use one more leter if close to limit
-        if (used.size() > mod - k) {
+        if (used.size() > mod - Size[offset + 1]) {
           len++;
+          MASSERT(len < 5 && "Need more names");
         }
         continue;
       }
