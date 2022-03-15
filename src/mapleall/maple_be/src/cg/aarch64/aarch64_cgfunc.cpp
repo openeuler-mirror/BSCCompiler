@@ -6782,7 +6782,7 @@ void AArch64CGFunc::CreateCallStructParamMemcpy(const MIRSymbol *sym, RegOperand
       AArch64SymbolAlloc *symloc = static_cast<AArch64SymbolAlloc*>(GetMemlayout()->GetSymAllocInfo(sym->GetStIndex()));
       AArch64RegOperand *baseOpnd = static_cast<AArch64RegOperand*>(GetBaseReg(*symloc));
       int32 stoffset = GetBaseOffset(*symloc);
-      AArch64ImmOperand *offsetOpnd1 = &CreateImmOperand(static_cast<int64>(stoffset) + fromOffset, k64BitSize, false);
+      AArch64ImmOperand *offsetOpnd1 = &CreateImmOperand(static_cast<int64>(stoffset), k64BitSize, false);
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *parm1Reg, *baseOpnd, *offsetOpnd1));
       if (sym->GetStorageClass() == kScFormal) {
         MemOperand *ldmopnd =
