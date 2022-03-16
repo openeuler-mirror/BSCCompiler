@@ -719,7 +719,11 @@ void LfoDepInfo::PerformDepTest() {
             LogInfo::MapleLogger() << " [" << subs->coeff << "*";
             ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(preEmit->GetMexpr(subs->iv));
             scalar->GetOst()->Dump();
-            LogInfo::MapleLogger() << "+" << subs->additiveConst << "]";
+            LogInfo::MapleLogger() << "+" << subs->additiveConst;
+            if (subs->additiveLoopInvar != nullptr) {
+              LogInfo::MapleLogger() << "+<loopinvar>";
+            }
+            LogInfo::MapleLogger() << "]";
           }
         }
         LogInfo::MapleLogger() << std::endl;
