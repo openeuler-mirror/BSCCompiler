@@ -554,7 +554,7 @@ BlockNode *MIRLower::LowerBlock(BlockNode &block) {
           CHECK_FATAL(funcType != nullptr, "MIRLower::LowerBlock: cannot find prototype for icall");
           ic->SetRetTyIdx(funcType->GetTypeIndex());
           MIRType *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetRetTyIdx());
-          if (retType->GetPrimType() == PTY_agg && retType->GetSize() > 16) {
+          if (retType->GetPrimType() == PTY_agg && retType->GetSize() > k16BitSize) {
             funcType->funcAttrs.SetAttr(FUNCATTR_firstarg_return);
           }
         }
@@ -690,8 +690,8 @@ BaseNode *MIRLower::LowerFarray(ArrayNode *array) {
     const ConstvalNode *constvalNode = static_cast<const ConstvalNode*>(array->GetIndex(0));
     if (constvalNode->GetConstVal()->GetKind() == kConstInt) {
       const MIRIntConst *pIntConst = static_cast<const MIRIntConst*>(constvalNode->GetConstVal());
-      CHECK_FATAL(mirModule.IsJavaModule() || pIntConst->GetValue() >= 0, "Array index should >= 0.");
-      int64 eleOffset = pIntConst->GetValue() * static_cast<int64>(eSize);
+      CHECK_FATAL(mirModule.IsJavaModule() || !pIntConst->IsNegative(), "Array index should >= 0.");
+      int64 eleOffset = pIntConst->GetExtValue() * eSize;
 
       BaseNode *baseNode = array->GetBase();
       if (eleOffset == 0) {
@@ -786,14 +786,13 @@ BaseNode *MIRLower::LowerCArray(ArrayNode *array) {
 
       BaseNode *index = static_cast<ConstvalNode *>(array->GetIndex(i));
       bool isConst = false;
-      int64 indexVal = 0;
+      uint64 indexVal = 0;
       if (index->op == OP_constval) {
         ConstvalNode *constNode = static_cast<ConstvalNode *>(index);
-        indexVal = (static_cast<MIRIntConst *>(constNode->GetConstVal()))->GetValue();
+        indexVal = (static_cast<MIRIntConst *>(constNode->GetConstVal()))->GetExtValue();
         isConst = true;
         MIRIntConst *newConstNode = mirModule.GetMemPool()->New<MIRIntConst>(
-            indexVal * static_cast<int64>(mpyDim),
-            *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array->GetPrimType())));
+            indexVal * mpyDim, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array->GetPrimType())));
         BaseNode *newValNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(newConstNode);
         newValNode->SetPrimType(array->GetPrimType());
         if (i == 0) {
@@ -1094,14 +1093,14 @@ MIRFuncType *MIRLower::FuncTypeFromFuncPtrExpr(BaseNode *x) {
         res = static_cast<MIRPtrType *>(mirType)->GetPointedFuncType();
       }
       if (res == nullptr) {
-        res = FuncTypeFromFuncPtrExpr(x->Opnd(0));
+        res = FuncTypeFromFuncPtrExpr(x->Opnd(kNodeFirstOpnd));
       }
       break;
     }
     case OP_select: {
-      res = FuncTypeFromFuncPtrExpr(x->Opnd(1));
+      res = FuncTypeFromFuncPtrExpr(x->Opnd(kNodeSecondOpnd));
       if (res == nullptr) {
-        res = FuncTypeFromFuncPtrExpr(x->Opnd(2));
+        res = FuncTypeFromFuncPtrExpr(x->Opnd(kNodeThirdOpnd));
       }
       break;
     }

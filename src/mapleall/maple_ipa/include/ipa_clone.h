@@ -52,8 +52,7 @@ class IpaClone : public AnalysisResult {
                          std::map<int64_t, std::vector<CallerSummary>> &summary, uint32 index);
   void EvalImportantExpression(MIRFunction *func, std::vector<ImpExpr> &result);
   bool CheckCostModel(MIRFunction *newFunc, uint32 paramIndex, std::vector<int64_t> &calleeValue, uint32 impSize);
-  template<typename dataT>
-  void ComupteValue(dataT value, dataT paramValue, CompareNode *cond, uint64_t &bitRes);
+  void ComupteValue(const IntVal& value, const IntVal& paramValue, CompareNode *cond, uint64_t &bitRes);
   void CloneNoImportantExpressFunction(MIRFunction *func, uint32 paramIndex);
   void ModifyParameterSideEffect(MIRFunction *newFunc, uint32 paramIndex);
 

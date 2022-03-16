@@ -61,7 +61,7 @@ static bool PropagatableBaseOfIvar(const IvarMeExpr *ivar, const MeExpr *newExpr
       if (constVal->GetKind() != kConstInt) {
         return false;
       }
-      int64 val = static_cast<MIRIntConst*>(constVal)->GetValue();
+      int64 val = static_cast<MIRIntConst*>(constVal)->GetExtValue();
       if (val == 0 || val == GetPrimTypeSize(PTY_ptr)) {
         return true;
       }

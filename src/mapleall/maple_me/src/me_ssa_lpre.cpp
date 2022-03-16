@@ -400,7 +400,7 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       if (intConst == nullptr) {
         break;
       }
-      if ((static_cast<uint64>(intConst->GetValue()) >> 12) == 0) {
+      if ((intConst->GetExtValue() >> 12) == 0) {
         break;  // not promoting if value fits in 12 bits
       }
       if (!meStmt.GetBB()->GetAttributes(kBBAttrIsInLoop)) {

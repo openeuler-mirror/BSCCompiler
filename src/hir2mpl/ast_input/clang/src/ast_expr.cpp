@@ -27,8 +27,105 @@
 #include "ror.h"
 #include "conditional_operator.h"
 
+#include <optional>
+
 namespace maple {
+
+namespace {
+
 const uint32 kOneByte = 8;
+
+template <class T>
+std::optional<T> GenerateConstCommon(Opcode op, T p0, T p1) {
+  switch (op) {
+    case OP_add: {
+      return p0 + p1;
+    }
+    case OP_sub: {
+      return p0 - p1;
+    }
+    case OP_mul: {
+      return p0 * p1;
+    }
+    case OP_div: {
+      return p0 / p1;
+    }
+    default: {
+      return std::nullopt;
+    }
+  }
+}
+
+template <typename T, std::enable_if_t<std::is_floating_point_v<T>, bool> = true>
+T GenerateConst(Opcode op, T p0, T p1) {
+  auto res = GenerateConstCommon(op, p0, p1);
+  ASSERT(res, "invalid operations for floating point values");
+  return *res;
+}
+
+IntVal GenerateConst(Opcode op, const IntVal &p0, const IntVal &p1) {
+  ASSERT(p0.GetBitWidth() == p1.GetBitWidth() && p0.IsSigned() == p1.IsSigned(), "width and sign must be the same");
+
+  if (auto res = GenerateConstCommon(op, p0, p1)) {
+    return *res;
+  }
+
+  switch (op) {
+    case OP_rem: {
+      return p0 % p1;
+    }
+    case OP_shl: {
+      return p0 << p1;
+    }
+    case OP_lshr:
+    case OP_ashr: {
+      return p0 >> p1;
+    }
+    case OP_bior: {
+      return p0 | p1;
+    }
+    case OP_band: {
+      return p0 & p1;
+    }
+    case OP_bxor: {
+      return p0 ^ p1;
+    }
+    case OP_land:
+    case OP_cand: {
+      return IntVal(p0.GetExtValue() && p1.GetExtValue(), p0.GetBitWidth(), p0.IsSigned());
+    }
+    case OP_lior:
+    case OP_cior: {
+      return IntVal(p0.GetExtValue() || p1.GetExtValue(), p0.GetBitWidth(), p0.IsSigned());
+    }
+    default:
+      CHECK_FATAL(false, "unsupported operation");
+  }
+}
+
+MIRConst *MIRConstGenerator(MemPool *mp, MIRConst *konst0, MIRConst *konst1, Opcode op) {
+#define RET_VALUE_IF_CONST_TYPE_IS(TYPE)                                                         \
+  {                                                                                              \
+    auto *c0 = safe_cast<TYPE>(konst0);                                                          \
+    if (c0) {                                                                                    \
+      auto *c1 = safe_cast<TYPE>(konst1);                                                        \
+      ASSERT(c1, "invalid const type");                                                          \
+      ASSERT(c0->GetType().GetPrimType() == c1->GetType().GetPrimType(), "types are not equal"); \
+      return mp->New<TYPE>(GenerateConst(op, c0->GetValue(), c1->GetValue()), c0->GetType());    \
+    }                                                                                            \
+  }
+
+  RET_VALUE_IF_CONST_TYPE_IS(MIRIntConst)
+  RET_VALUE_IF_CONST_TYPE_IS(MIRFloatConst)
+  RET_VALUE_IF_CONST_TYPE_IS(MIRDoubleConst)
+
+#undef RET_VALUE_IF_CONST_TYPE_IS
+
+  CHECK_FATAL(false, "unreachable code");
+}
+
+} // anonymous namespace
+
 // ---------- ASTValue ----------
 MIRConst *ASTValue::Translate2MIRConst() const {
   switch (pty) {
@@ -356,7 +453,7 @@ MIRConst *ASTCastExpr::GenerateMIRDoubleConst() const {
     }
     case kConstInt: {
       return FEManager::GetModule().GetMemPool()->New<MIRDoubleConst>(
-          static_cast<double>(static_cast<MIRIntConst*>(childConst)->GetValue()),
+          static_cast<double>(static_cast<MIRIntConst*>(childConst)->GetExtValue()),
           *GlobalTables::GetTypeTable().GetPrimType(PTY_f64));
     }
     case kConstDoubleConst: {
@@ -384,7 +481,7 @@ MIRConst *ASTCastExpr::GenerateMIRFloatConst() const {
     }
     case kConstInt: {
       return FEManager::GetModule().GetMemPool()->New<MIRFloatConst>(
-          static_cast<float>(static_cast<MIRIntConst*>(childConst)->GetValue()),
+          static_cast<float>(static_cast<MIRIntConst*>(childConst)->GetExtValue()),
           *GlobalTables::GetTypeTable().GetPrimType(PTY_f32));
     }
     default: {
@@ -402,9 +499,9 @@ MIRConst *ASTCastExpr::GenerateMIRIntConst() const {
   switch (childConst->GetKind()) {
     case kConstDoubleConst:
     case kConstInt: {
-      int64 val = childConst->GetKind() == kConstDoubleConst ?
-          static_cast<int64>(static_cast<MIRDoubleConst*>(childConst)->GetValue()) :
-          static_cast<MIRIntConst*>(childConst)->GetValue();
+      int64 val = childConst->GetKind() == kConstDoubleConst
+                      ? static_cast<int64>(static_cast<MIRDoubleConst *>(childConst)->GetValue())
+                      : static_cast<MIRIntConst *>(childConst)->GetExtValue();
 
       PrimType destPrimType = mirType->GetPrimType();
       switch (destPrimType) {
@@ -1971,7 +2068,7 @@ MIRConst *ASTBinaryOperatorExpr::GenerateMIRConstImpl() const {
     } else {
       CHECK_FATAL(false, "Unsupported yet");
     }
-    int64 value = constInt->GetValue();
+    int64 value = constInt->GetExtValue();
     if (baseConst->GetKind() == kConstStrConst) {
       std::string str =
           GlobalTables::GetUStrTable().GetStringFromStrIdx(static_cast<MIRStrConst*>(baseConst)->GetValue());
@@ -1997,7 +2094,7 @@ MIRConst *ASTBinaryOperatorExpr::GenerateMIRConstImpl() const {
     auto id = konst->GetFieldID();
     auto ty = konst->GetType();
     auto offset = konst->GetOffset();
-    int64 value = static_cast<MIRIntConst*>(rightConst)->GetValue();
+    int64 value = static_cast<MIRIntConst*>(rightConst)->GetExtValue();
     return FEManager::GetModule().GetMemPool()->New<MIRAddrofConst>(idx, id, ty, offset - value);
   } else {
     CHECK_FATAL(false, "NIY");

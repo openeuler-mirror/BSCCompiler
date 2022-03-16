@@ -194,7 +194,7 @@ OffsetType AliasClass::OffsetInBitOfArrayElement(const ArrayNode *arrayNode) {
     }
     auto mirConst = static_cast<ConstvalNode*>(opnd)->GetConstVal();
     ASSERT(mirConst->GetKind() == kConstInt, "array index must be integer");
-    auto index = static_cast<MIRIntConst*>(mirConst)->GetValue();
+    int64 index = static_cast<MIRIntConst*>(mirConst)->GetExtValue();
     arrayIndexVector[opndId - 1] = index;
   }
 
@@ -373,7 +373,7 @@ AliasInfo AliasClass::CreateAliasInfoExpr(BaseNode &expr) {
       }
       auto mirConst = static_cast<ConstvalNode*>(opnd)->GetConstVal();
       CHECK_FATAL(mirConst->GetKind() == kConstInt, "array index must be integer");
-      int64 constVal = static_cast<MIRIntConst*>(mirConst)->GetValue();
+      int64 constVal = static_cast<MIRIntConst*>(mirConst)->GetExtValue();
       if (expr.GetOpCode() == OP_sub) {
         constVal = -constVal;
       } else {

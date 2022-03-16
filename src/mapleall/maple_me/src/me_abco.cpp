@@ -223,16 +223,16 @@ bool MeABC::BuildBrMeStmtInGraph(MeStmt &meStmt) {
     AddUseDef(*opOpnd1);
     AddUseDef(*opOpnd2);
   } else if (opOpnd1->GetMeOp() == kMeOpConst) {
-    brTargetOpnd1 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opOpnd1)->GetIntValue());
+    brTargetOpnd1 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opOpnd1)->GetExtIntValue());
     brTargetOpnd2 = inequalityGraph->GetOrCreateVarNode(*brTargetPiList[0]->GetLHS());
-    brFallThruOpnd1 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opOpnd1)->GetIntValue());
+    brFallThruOpnd1 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opOpnd1)->GetExtIntValue());
     brFallThruOpnd2 = inequalityGraph->GetOrCreateVarNode(*brFallThruPiList.at(0)->GetLHS());
     AddUseDef(*opOpnd2);
   } else if (opOpnd2->GetMeOp() == kMeOpConst) {
     brTargetOpnd1 = inequalityGraph->GetOrCreateVarNode(*brTargetPiList[0]->GetLHS());
-    brTargetOpnd2 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opOpnd2)->GetIntValue());
+    brTargetOpnd2 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opOpnd2)->GetExtIntValue());
     brFallThruOpnd1 = inequalityGraph->GetOrCreateVarNode(*brFallThruPiList.at(0)->GetLHS());
-    brFallThruOpnd2 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opOpnd2)->GetIntValue());
+    brFallThruOpnd2 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opOpnd2)->GetExtIntValue());
     AddUseDef(*opOpnd1);
   } else {
     CHECK_FATAL(false, "impossible");
@@ -365,7 +365,7 @@ bool MeABC::BuildAssignInGraph(const MeStmt &meStmt) {
           if (varExpr != nullptr) {
             CHECK_FATAL(varExpr->GetMeOp() == kMeOpConst, "must be");
             ESSAConstNode *constNode = inequalityGraph->GetOrCreateConstNode(
-                static_cast<ConstMeExpr*>(varExpr)->GetIntValue());
+                static_cast<ConstMeExpr*>(varExpr)->GetExtIntValue());
             AddEdgePair(*arrLength, *constNode, 0, EdgeType::kNone);
           } else {
             AddEdgePair(*arrLength, *rhsNode, 0, EdgeType::kNone);
@@ -373,7 +373,7 @@ bool MeABC::BuildAssignInGraph(const MeStmt &meStmt) {
         } else {
           CHECK_FATAL(opMeExpr->GetOpnd(0)->GetMeOp() == kMeOpConst, "must be");
           rhsNode = inequalityGraph->GetOrCreateConstNode(
-              static_cast<ConstMeExpr*>(opMeExpr->GetOpnd(0))->GetIntValue());
+              static_cast<ConstMeExpr*>(opMeExpr->GetOpnd(0))->GetExtIntValue());
           AddEdgePair(*arrLength, *rhsNode, 0, EdgeType::kNone);
         }
         return true;
@@ -400,9 +400,9 @@ bool MeABC::BuildAssignInGraph(const MeStmt &meStmt) {
             ESSABaseNode *rhsNode = GetOrCreateRHSNode(*opnd1);
             AddUseDef(*opnd1);
             AddEdgePair(*rhsNode, *lhsNode,
-                -static_cast<ConstMeExpr*>(opnd2)->GetIntValue(), EdgeType::kUpper);
+                -static_cast<ConstMeExpr*>(opnd2)->GetExtIntValue(), EdgeType::kUpper);
             AddEdgePair(*lhsNode, *rhsNode,
-                static_cast<ConstMeExpr*>(opnd2)->GetIntValue(), EdgeType::kLower);
+                static_cast<ConstMeExpr*>(opnd2)->GetExtIntValue(), EdgeType::kLower);
             return true;
           }else {
             // support this pattern later
@@ -422,9 +422,9 @@ bool MeABC::BuildAssignInGraph(const MeStmt &meStmt) {
           ESSABaseNode *rhsNode = GetOrCreateRHSNode(*opnd1);
           AddUseDef(*opnd1);
           AddEdgePair(*rhsNode, *lhsNode,
-              -static_cast<ConstMeExpr*>(opnd2)->GetIntValue(), EdgeType::kUpper);
+              -static_cast<ConstMeExpr*>(opnd2)->GetExtIntValue(), EdgeType::kUpper);
           AddEdgePair(*lhsNode, *rhsNode,
-              static_cast<ConstMeExpr*>(opnd2)->GetIntValue(), EdgeType::kLower);
+              static_cast<ConstMeExpr*>(opnd2)->GetExtIntValue(), EdgeType::kLower);
           return true;
         } else {
           // support this pattern later
@@ -457,9 +457,9 @@ bool MeABC::BuildAssignInGraph(const MeStmt &meStmt) {
             AddUseDef(*opnd1);
             ESSABaseNode *rhsNode = GetOrCreateRHSNode(*opnd1);
             AddEdgePair(*rhsNode, *lhsNode,
-                static_cast<ConstMeExpr*>(tmpVar)->GetIntValue(), EdgeType::kUpper);
+                static_cast<ConstMeExpr*>(tmpVar)->GetExtIntValue(), EdgeType::kUpper);
             AddEdgePair(*lhsNode, *rhsNode,
-                -static_cast<ConstMeExpr*>(tmpVar)->GetIntValue(), EdgeType::kLower);
+                -static_cast<ConstMeExpr*>(tmpVar)->GetExtIntValue(), EdgeType::kLower);
             return true;
           }
           visited.clear();
@@ -486,9 +486,9 @@ bool MeABC::BuildAssignInGraph(const MeStmt &meStmt) {
           ESSABaseNode *rhsNode = GetOrCreateRHSNode(*opnd1);
           AddUseDef(*opnd1);
           AddEdgePair(*rhsNode, *lhsNode,
-              static_cast<ConstMeExpr*>(opnd2)->GetIntValue(), EdgeType::kUpper);
+              static_cast<ConstMeExpr*>(opnd2)->GetExtIntValue(), EdgeType::kUpper);
           AddEdgePair(*lhsNode, *rhsNode,
-              -static_cast<ConstMeExpr*>(opnd2)->GetIntValue(), EdgeType::kLower);
+              -static_cast<ConstMeExpr*>(opnd2)->GetExtIntValue(), EdgeType::kLower);
           return true;
         } else {
           visited.clear();
@@ -498,9 +498,9 @@ bool MeABC::BuildAssignInGraph(const MeStmt &meStmt) {
           ESSABaseNode *rhsNode = GetOrCreateRHSNode(*opnd2);
           AddUseDef(*opnd2);
           AddEdgePair(*rhsNode, *lhsNode,
-              static_cast<ConstMeExpr*>(opnd1)->GetIntValue(), EdgeType::kUpper);
+              static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue(), EdgeType::kUpper);
           AddEdgePair(*lhsNode, *rhsNode,
-              -static_cast<ConstMeExpr*>(opnd1)->GetIntValue(), EdgeType::kLower);
+              -static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue(), EdgeType::kLower);
           return true;
         }
         CHECK_FATAL(false, "impossible");
@@ -518,14 +518,14 @@ bool MeABC::BuildAssignInGraph(const MeStmt &meStmt) {
         if (IsUnsignedInteger(opnd1->GetPrimType())) {
           AddUseDef(*opnd1);
           rhsNode1 = GetOrCreateRHSNode(*opnd1);
-        } else if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd1)->GetIntValue() >= 0) {
-          rhsNode1 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opnd1)->GetIntValue());
+        } else if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue() >= 0) {
+          rhsNode1 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue());
         }
         if (IsUnsignedInteger(opnd2->GetPrimType())) {
           AddUseDef(*opnd2);
           rhsNode2 = GetOrCreateRHSNode(*opnd2);
-        } else if (opnd2->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd2)->GetIntValue() >= 0) {
-          rhsNode2 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opnd2)->GetIntValue());
+        } else if (opnd2->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd2)->GetExtIntValue() >= 0) {
+          rhsNode2 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opnd2)->GetExtIntValue());
         }
         if (rhsNode1 == nullptr && rhsNode2 == nullptr) {
           return false;
@@ -550,7 +550,7 @@ bool MeABC::BuildAssignInGraph(const MeStmt &meStmt) {
           return false;
         }
         if (opnd2->GetMeOp() == kMeOpConst) {
-          if (static_cast<ConstMeExpr*>(opnd2)->GetIntValue() > 0) {
+          if (static_cast<ConstMeExpr*>(opnd2)->GetExtIntValue() > 0) {
             visited.clear();
             if (HasRelativeWithLength(*opnd1)) {
               unresolveEdge[std::make_pair(lhs, nullptr)] = opnd2;
@@ -563,7 +563,7 @@ bool MeABC::BuildAssignInGraph(const MeStmt &meStmt) {
         varExpr = TryToResolveVar(*varExpr, true);
         if (varExpr != nullptr) {
           CHECK_FATAL(varExpr->GetMeOp() == kMeOpConst, "must be");
-          if (static_cast<ConstMeExpr*>(varExpr)->GetIntValue() > 0) {
+          if (static_cast<ConstMeExpr*>(varExpr)->GetExtIntValue() > 0) {
             visited.clear();
             if (HasRelativeWithLength(*opnd1)) {
               unresolveEdge[std::make_pair(lhs, nullptr)] = opnd2;
@@ -613,7 +613,7 @@ bool MeABC::BuildAssignInGraph(const MeStmt &meStmt) {
       AddEdgePair(*rhsNode, *lhsNode, 0, EdgeType::kUpper);
       AddEdgePair(*lhsNode, *rhsNode, 0, EdgeType::kLower);
     } else {
-      ESSAConstNode *rhsNode = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(rhs)->GetIntValue());
+      ESSAConstNode *rhsNode = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(rhs)->GetExtIntValue());
       AddEdgePair(*rhsNode, *lhsNode, 0, EdgeType::kUpper);
       AddEdgePair(*lhsNode, *rhsNode, 0, EdgeType::kLower);
     }
@@ -964,7 +964,7 @@ void MeABC::InitNewStartPoint(MeStmt &meStmt, MeExpr &opnd1, MeExpr &opnd2, bool
     AddUseDef(opnd2);
   } else {
     CHECK_FATAL(opnd2.GetMeOp() == kMeOpConst, "must be");
-    (void)inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(&opnd2)->GetIntValue());
+    (void)inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(&opnd2)->GetExtIntValue());
   }
   BB *curBB = meStmt.GetBB();
   if (curBB->GetPiList().size()) {

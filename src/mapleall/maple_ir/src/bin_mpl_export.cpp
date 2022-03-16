@@ -24,6 +24,14 @@
 
 namespace {
 using namespace maple;
+/* Storage location of field  */
+constexpr uint32 kFirstField = 0;
+constexpr uint32 kSecondField = 1;
+constexpr uint32 kThirdField = 2;
+constexpr uint32 kFourthField = 3;
+constexpr int32 kFourthFieldInt = 3;
+constexpr uint32 kFifthField = 4;
+constexpr int32 kSixthFieldInt = 5;
 
 using OutputConstFactory = FunctionFactory<MIRConstKind, void, MIRConst&, BinaryMplExport&>;
 using OutputTypeFactory = FunctionFactory<MIRTypeKind, void, MIRType&, BinaryMplExport&>;
@@ -31,7 +39,7 @@ using OutputTypeFactory = FunctionFactory<MIRTypeKind, void, MIRType&, BinaryMpl
 void OutputConstInt(const MIRConst &constVal, BinaryMplExport &mplExport) {
   mplExport.WriteNum(kBinKindConstInt);
   mplExport.OutputConstBase(constVal);
-  mplExport.WriteNum(static_cast<const MIRIntConst&>(constVal).GetValue());
+  mplExport.WriteNum(static_cast<const MIRIntConst&>(constVal).GetExtValue());
 }
 
 void OutputConstAddrof(const MIRConst &constVal, BinaryMplExport &mplExport) {
@@ -1154,15 +1162,15 @@ void BinaryMplExport::WriteContentField4nonmplt(int fieldNum, uint64 *fieldStart
   WriteInt(fieldNum);  // size of Content item
 
   WriteNum(kBinHeaderStart);
-  fieldStartP[0] = buf.size();
+  fieldStartP[kFirstField] = buf.size();
   ExpandFourBuffSize();
 
   WriteNum(kBinSymStart);
-  fieldStartP[1] = buf.size();
+  fieldStartP[kSecondField] = buf.size();
   ExpandFourBuffSize();
 
   WriteNum(kBinFunctionBodyStart);
-  fieldStartP[2] = buf.size();
+  fieldStartP[kThirdField] = buf.size();
   ExpandFourBuffSize();
 
   Fixup(totalSizeIdx, buf.size() - totalSizeIdx);
@@ -1178,23 +1186,23 @@ void BinaryMplExport::WriteContentField4nonJava(int fieldNum, uint64 *fieldStart
   WriteInt(fieldNum);  // size of Content item
 
   WriteNum(kBinHeaderStart);
-  fieldStartP[0] = buf.size();
+  fieldStartP[kFirstField] = buf.size();
   ExpandFourBuffSize();
 
   WriteNum(kBinStrStart);
-  fieldStartP[1] = buf.size();
+  fieldStartP[kSecondField] = buf.size();
   ExpandFourBuffSize();
 
   WriteNum(kBinTypeStart);
-  fieldStartP[2] = buf.size();
+  fieldStartP[kThirdField] = buf.size();
   ExpandFourBuffSize();
 
   WriteNum(kBinSymStart);
-  fieldStartP[3] = buf.size();
+  fieldStartP[kFourthField] = buf.size();
   ExpandFourBuffSize();
 
   WriteNum(kBinFunctionBodyStart);
-  fieldStartP[4] = buf.size();
+  fieldStartP[kFifthField] = buf.size();
   ExpandFourBuffSize();
 
   Fixup(totalSizeIdx, buf.size() - totalSizeIdx);
@@ -1205,23 +1213,23 @@ void BinaryMplExport::Export(const std::string &fname, std::unordered_set<std::s
   uint64 fieldStartPoint[5];
   if (!not2mplt) {
     WriteInt(kMpltMagicNumber);
-    WriteContentField4mplt(3, fieldStartPoint);
-    WriteStrField(fieldStartPoint[0]);
-    WriteTypeField(fieldStartPoint[1]);
-    WriteCgField(fieldStartPoint[2], nullptr);
+    WriteContentField4mplt(kFourthFieldInt, fieldStartPoint);
+    WriteStrField(fieldStartPoint[kFirstField]);
+    WriteTypeField(fieldStartPoint[kSecondField]);
+    WriteCgField(fieldStartPoint[kThirdField], nullptr);
     importFileName = fname;
   } else {
     WriteInt(kMpltMagicNumber + 0x10);
     if (mod.IsJavaModule()) {
-      WriteContentField4nonmplt(3, fieldStartPoint);
-      WriteHeaderField(fieldStartPoint[0]);
-      WriteSymField(fieldStartPoint[1]);
-      WriteFunctionBodyField(fieldStartPoint[2], dumpFuncSet);
+      WriteContentField4nonmplt(kFourthFieldInt, fieldStartPoint);
+      WriteHeaderField(fieldStartPoint[kFirstField]);
+      WriteSymField(fieldStartPoint[kSecondField]);
+      WriteFunctionBodyField(fieldStartPoint[kThirdField], dumpFuncSet);
     } else {
-      WriteContentField4nonJava(5, fieldStartPoint);
-      WriteHeaderField(fieldStartPoint[0]);
-      WriteSymField(fieldStartPoint[3]);
-      WriteFunctionBodyField(fieldStartPoint[4], dumpFuncSet);
+      WriteContentField4nonJava(kSixthFieldInt, fieldStartPoint);
+      WriteHeaderField(fieldStartPoint[kFirstField]);
+      WriteSymField(fieldStartPoint[kFourthField]);
+      WriteFunctionBodyField(fieldStartPoint[kFifthField], dumpFuncSet);
     }
   }
   WriteNum(kBinFinish);

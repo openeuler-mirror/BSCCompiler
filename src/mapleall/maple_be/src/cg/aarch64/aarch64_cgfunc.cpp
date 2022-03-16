@@ -1239,7 +1239,7 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
         CHECK_FATAL(constNode.GetConstVal()->GetKind() == kConstInt, "expect MIRIntConst does not support float yet");
         MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(constNode.GetConstVal());
         CHECK_FATAL(mirIntConst != nullptr, "just checking");
-        int64 scale = mirIntConst->GetValue();
+        int64 scale = mirIntConst->GetExtValue();
         if (str.find("r") != std::string::npos) {
           bool isSigned = scale < 0;
           ImmOperand &immOpnd = CreateImmOperand(scale, k64BitSize, isSigned);
@@ -3431,7 +3431,7 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr,
 }
 
 Operand *AArch64CGFunc::SelectIntConst(MIRIntConst &intConst) {
-  return &CreateImmOperand(intConst.GetValue(), GetPrimTypeSize(intConst.GetType().GetPrimType()) * kBitsPerByte,
+  return &CreateImmOperand(intConst.GetExtValue(), GetPrimTypeSize(intConst.GetType().GetPrimType()) * kBitsPerByte,
                            false);
 }
 
@@ -4052,7 +4052,7 @@ Operand &AArch64CGFunc::SelectCGArrayElemAdd(BinaryNode &node, const BaseNode &p
       ConstvalNode *constvalNode = static_cast<ConstvalNode *>(opnd1);
       MIRConst *mirConst = constvalNode->GetConstVal();
       MIRIntConst *mirIntConst = static_cast<MIRIntConst *>(mirConst);
-      SelectAddrof(result, CreateStImmOperand(symbol, mirIntConst->GetValue(), 0));
+      SelectAddrof(result, CreateStImmOperand(symbol, mirIntConst->GetExtValue(), 0));
 
       return result;
     }
@@ -9292,11 +9292,11 @@ MemOperand *AArch64CGFunc::CheckAndCreateExtendMemOpnd(PrimType ptype, const Bas
       ASSERT(constOfstNode->GetConstVal()->GetKind() == kConstInt, "expect MIRIntConst");
       MIRIntConst *intOfst = safe_cast<MIRIntConst>(constOfstNode->GetConstVal());
       CHECK_FATAL(intOfst != nullptr, "just checking");
-     /* discard large offset and negative offset */
-      if (intOfst->GetValue() > INT32_MAX || intOfst->GetValue() < 0) {
+      /* discard large offset and negative offset */
+      if (intOfst->GetExtValue() > INT32_MAX || intOfst->IsNegative()) {
         return nullptr;
       }
-      uint32 scale = static_cast<uint32>(intOfst->GetValue());
+      uint32 scale = static_cast<uint32>(intOfst->GetExtValue());
       OfstOperand &ofstOpnd = GetOrCreateOfstOpnd(scale, k32BitSize);
       uint32 dsize = GetPrimTypeBitSize(ptype);
       MemOperand *memOpnd = &GetOrCreateMemOpnd(MemOperand::kAddrModeBOi, GetPrimTypeBitSize(ptype),
@@ -9344,7 +9344,7 @@ MemOperand *AArch64CGFunc::CheckAndCreateExtendMemOpnd(PrimType ptype, const Bas
   CHECK_FATAL(constValNode->GetConstVal()->GetKind() == kConstInt, "expect MIRIntConst");
   MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(constValNode->GetConstVal());
   CHECK_FATAL(mirIntConst != nullptr, "just checking");
-  int32 scale = mirIntConst->GetValue();
+  int32 scale = mirIntConst->GetExtValue();
   if (scale < 0) {
     return nullptr;
   }
@@ -9387,7 +9387,7 @@ MemOperand &AArch64CGFunc::CreateNonExtendMemOpnd(PrimType ptype, const BaseNode
     ASSERT(constOfstNode->GetConstVal()->GetKind() == kConstInt, "expect MIRIntConst");
     MIRIntConst *intOfst = safe_cast<MIRIntConst>(constOfstNode->GetConstVal());
     CHECK_FATAL(intOfst != nullptr, "just checking");
-    offset = (addrExpr.GetOpCode() == OP_add) ? offset + intOfst->GetSXTValue() : offset - intOfst->GetSXTValue();
+    offset = (addrExpr.GetOpCode() == OP_add) ? offset + intOfst->GetExtValue() : offset - intOfst->GetExtValue();
   } else {
     addrOpnd = HandleExpr(parent, addrExpr);
   }
@@ -10060,7 +10060,7 @@ void AArch64CGFunc::SelectMPLProfCounterInc(const IntrinsiccallNode &intrnNode) 
     ASSERT(mirConst != nullptr, "nullptr check");
     CHECK_FATAL(mirConst->GetKind() == kConstInt, "expect MIRIntConst type");
     MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(mirConst);
-    int64 offset = GetPrimTypeSize(PTY_u64) * mirIntConst->GetValue();
+    int64 offset = GetPrimTypeSize(PTY_u64) * mirIntConst->GetExtValue();
 
     if (!GetCG()->IsQuiet()) {
       maple::LogInfo::MapleLogger(kLlInfo) << "At counter table offset: " << offset << std::endl;
@@ -10093,7 +10093,7 @@ void AArch64CGFunc::SelectMPLProfCounterInc(const IntrinsiccallNode &intrnNode) 
   ASSERT(mirConst != nullptr, "nullptr check");
   CHECK_FATAL(mirConst->GetKind() == kConstInt, "expect MIRIntConst type");
   MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(mirConst);
-  int64 idx = GetPrimTypeSize(PTY_u32) * mirIntConst->GetValue();
+  int64 idx = GetPrimTypeSize(PTY_u32) * mirIntConst->GetExtValue();
   if (!GetCG()->IsQuiet()) {
     maple::LogInfo::MapleLogger(kLlErr) << "Id index " << idx << std::endl;
   }
@@ -10137,7 +10137,7 @@ void AArch64CGFunc::SelectMPLClinitCheck(const IntrinsiccallNode &intrnNode) {
     ASSERT(mirConst != nullptr, "nullptr check");
     CHECK_FATAL(mirConst->GetKind() == kConstInt, "expect MIRIntConst type");
     MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(mirConst);
-    stOpnd = &CreateStImmOperand(*symbol, mirIntConst->GetValue(), 0);
+    stOpnd = &CreateStImmOperand(*symbol, mirIntConst->GetExtValue(), 0);
   }
 
   regno_t vRegNO2 = NewVReg(GetRegTyFromPrimTy(PTY_a64), GetPrimTypeSize(PTY_a64));
@@ -10288,7 +10288,7 @@ void AArch64CGFunc::SelectCAtomicStoreN(const IntrinsiccallNode &intrinsiccallNo
   auto *value = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(1));
   auto *memOrderOpnd = intrinsiccallNode.Opnd(kInsnThirdOpnd);
   auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
-  auto memOrder = static_cast<std::memory_order>(memOrderConst->GetValue());
+  auto memOrder = static_cast<std::memory_order>(memOrderConst->GetExtValue());
   SelectAtomicStore(*value, *addr, primType, PickMemOrder(memOrder, false));
 }
 
@@ -10857,7 +10857,7 @@ Operand *AArch64CGFunc::SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) {
   auto *memOrderOpnd = intrinsicopNode.Opnd(1);
   auto primType = intrinsicopNode.GetPrimType();
   auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
-  auto memOrder = static_cast<std::memory_order>(memOrderConst->GetValue());
+  auto memOrder = static_cast<std::memory_order>(memOrderConst->GetExtValue());
   return SelectAtomicLoad(*addrOpnd, primType, PickMemOrder(memOrder, true));
 }
 
@@ -10879,7 +10879,7 @@ Operand *AArch64CGFunc::SelectCAtomicExchangeN(IntrinsicopNode &intrinsicopNode)
   auto *valueOpnd = HandleExpr(intrinsicopNode, *intrinsicopNode.Opnd(1));
   auto *memOrderOpnd = intrinsicopNode.Opnd(kInsnThirdOpnd);
   auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
-  auto memOrder = static_cast<std::memory_order>(memOrderConst->GetValue());
+  auto memOrder = static_cast<std::memory_order>(memOrderConst->GetExtValue());
   auto *result = SelectAtomicLoad(*addrOpnd, primType, PickMemOrder(memOrder, true));
   SelectAtomicStore(*valueOpnd, *addrOpnd, primType, PickMemOrder(memOrder, false));
   return result;
@@ -10908,7 +10908,7 @@ Operand *AArch64CGFunc::SelectCReturnAddress(IntrinsicopNode &intrinopNode) {
     ASSERT(constNode.GetConstVal()->GetKind() == kConstInt, "expect MIRIntConst does not support float yet");
     MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(constNode.GetConstVal());
     ASSERT(mirIntConst != nullptr, "nullptr checking");
-    int64 scale = mirIntConst->GetValue();
+    int64 scale = mirIntConst->GetExtValue();
     /*
      * Do not support getting return address with a nonzero argument
      * inline / tail call opt will destory this behavior

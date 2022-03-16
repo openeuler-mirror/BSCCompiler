@@ -1607,6 +1607,7 @@ ASTExpr *ASTParser::BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, con
     astBOExpr->SetOpcode(OP_mul);
     astBOExpr->SetLeftExpr(lhs);
     astBOExpr->SetRightExpr(rhs);
+
     return astBOExpr;
   }
   uint32 size = GetSizeFromQualType(qualType);

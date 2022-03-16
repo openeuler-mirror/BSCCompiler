@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -15,11 +15,6 @@
 #include "call_graph.h"
 #include "maple_phase.h"
 #include "maple_phase.h"
-#include <iostream>
-#include <fstream>
-#include <queue>
-#include <unordered_set>
-#include <algorithm>
 #include "option.h"
 #include "string_utils.h"
 #include "mir_function.h"
@@ -72,16 +67,23 @@ bool CollectIpaInfo::CheckImpExprStmt(const MeStmt &meStmt) {
   return IsConstKindValue(node->GetOpnd(0)) || IsConstKindValue(node->GetOpnd(1));
 }
 
-bool CollectIpaInfo::IsParameterOrUseParameter(const VarMeExpr *varExpr) {
+bool CollectIpaInfo::IsParameterOrUseParameter(const VarMeExpr *varExpr, uint32 &index) {
   OriginalSt *sym = varExpr->GetOst();
+  MIRSymbol *paramSym = sym->GetMIRSymbol();
   if (sym->IsFormal() && sym->GetIndirectLev() == 0 && varExpr->IsDefByNo() && !varExpr->IsVolatile()) {
-    return true;
+    for (uint32 i = 0; i < curFunc->GetFormalCount(); i++) {
+      MIRSymbol *formalSt = curFunc->GetFormal(i);
+      if (formalSt != nullptr && paramSym->GetNameStrIdx() == formalSt->GetNameStrIdx()) {
+        index = i;
+        return true;
+      }
+    }
   }
   return false;
 }
 
 // Now we just resolve two cases, we will collect more case in the future.
-bool CollectIpaInfo::CollectImportantExpression(const MeStmt &meStmt) {
+bool CollectIpaInfo::CollectImportantExpression(const MeStmt &meStmt, uint32 &index) {
   auto *opnd = meStmt.GetOpnd(0);
   if (opnd->GetOp() == OP_eq || opnd->GetOp() == OP_ne || opnd->GetOp() == OP_gt ||
       opnd->GetOp() == OP_ge || opnd->GetOp() == OP_lt || opnd->GetOp() == OP_le) {
@@ -90,33 +92,8 @@ bool CollectIpaInfo::CollectImportantExpression(const MeStmt &meStmt) {
       auto subOpnd1 = opnd->GetOpnd(1);
       MeExpr *expr = IsConstKindValue(subOpnd0) ? subOpnd1 : subOpnd0;
       if (expr->GetOp() == OP_dread) {
-        if (IsParameterOrUseParameter(static_cast<VarMeExpr*>(expr))) {
+        if (IsParameterOrUseParameter(static_cast<VarMeExpr*>(expr), index)) {
           return true;
-        }
-      } else if (expr->GetOp() == OP_iread) {
-        auto *ivarMeExpr = static_cast<IvarMeExpr*>(expr);
-        MeExpr *base = ivarMeExpr->GetBase();
-        if (base->GetMeOp() == kMeOpVar) {
-          VarMeExpr *varMeExpr = static_cast<VarMeExpr*>(base);
-          if (IsParameterOrUseParameter(static_cast<VarMeExpr*>(base))) {
-            return true;
-          }
-          if (varMeExpr->IsDefByPhi() && varMeExpr->GetOst()->GetIndirectLev() == 0) {
-            MePhiNode *phiMeNode = varMeExpr->GetMePhiDef();
-            for (auto *operand : phiMeNode->GetOpnds()) {
-              if (operand->IsDefByStmt()) {
-                MeStmt *opndStmt = operand->GetDefStmt();
-                if (opndStmt->GetOp() == OP_dassign) {
-                  auto *varMeStmt = static_cast<DassignMeStmt*>(opndStmt);
-                  if (varMeStmt->GetRHS()->GetMeOp() == kMeOpVar) {
-                    if (IsParameterOrUseParameter(static_cast<VarMeExpr*>(varMeStmt->GetRHS()))) {
-                      return true;
-                    }
-                  }
-                }
-              }
-            }
-          }
         }
       }
     }
@@ -127,8 +104,9 @@ bool CollectIpaInfo::CollectImportantExpression(const MeStmt &meStmt) {
 void CollectIpaInfo::TraversalMeStmt(MeStmt &meStmt) {
   Opcode op = meStmt.GetOp();
   if (meStmt.GetOp() == OP_brfalse || meStmt.GetOp() == OP_brtrue) {
-    if (CollectImportantExpression(meStmt)) {
-      ImpExpr imp(meStmt.GetOriginalId());
+    uint32 index = 0;
+    if (CollectImportantExpression(meStmt, index)) {
+      ImpExpr imp(meStmt.GetMeStmtId(), index);
       module.GetFuncImportantExpr()[curFunc->GetPuidx()].emplace_back(imp);
       return;
     }
@@ -138,10 +116,10 @@ void CollectIpaInfo::TraversalMeStmt(MeStmt &meStmt) {
   }
   auto *callMeStmt = static_cast<CallMeStmt*>(&meStmt);
   MIRFunction &called = callMeStmt->GetTargetFunction();
-  if (called.IsExtern() || called.IsEmpty() || called.IsVarargs()) {
+  if (called.IsExtern() || called.IsVarargs()) {
     return;
   }
-  for (uint32 i = 0; i < callMeStmt->NumMeStmtOpnds(); ++i) {
+  for (uint32 i = 0; i < callMeStmt->NumMeStmtOpnds() && i < called.GetFormalCount(); ++i) {
     if (callMeStmt->GetOpnd(i)->GetMeOp() == kMeOpConst) {
       ConstMeExpr* constExpr = static_cast<ConstMeExpr*>(callMeStmt->GetOpnd(i));
       MIRSymbol *formalSt = called.GetFormal(i);
@@ -151,19 +129,20 @@ void CollectIpaInfo::TraversalMeStmt(MeStmt &meStmt) {
       }
       if (constExpr->GetConstVal()->GetKind() == kConstInt) {
         if (IsPrimitiveInteger(formalSt->GetType()->GetPrimType())) {
-          CallerSummary summary(curFunc->GetPuidx(), callMeStmt->GetStmtID());
+          CallerSummary summary(curFunc->GetPuidx(), callMeStmt->GetMeStmtId());
           auto *intConst = safe_cast<MIRIntConst>(constExpr->GetConstVal());
-          UpdateCaleeParaAboutInt(meStmt, intConst->GetValue(), i, summary);
+          IntVal value = { intConst->GetValue(), formalSt->GetType()->GetPrimType() };
+          UpdateCaleeParaAboutInt(meStmt, value.GetExtValue(), i, summary);
         }
       } else if (constExpr->GetConstVal()->GetKind() == kConstFloatConst) {
         if (IsPrimitiveFloat(formalSt->GetType()->GetPrimType())) {
-          CallerSummary summary(curFunc->GetPuidx(), callMeStmt->GetStmtID());
+          CallerSummary summary(curFunc->GetPuidx(), callMeStmt->GetMeStmtId());
           auto *floatConst = safe_cast<MIRFloatConst>(constExpr->GetConstVal());
           UpdateCaleeParaAboutFloat(meStmt, floatConst->GetValue(), i, summary);
         }
       } else if (constExpr->GetConstVal()->GetKind() == kConstDoubleConst) {
         if (formalSt->GetType()->GetPrimType() == PTY_f64) {
-          CallerSummary summary(curFunc->GetPuidx(), callMeStmt->GetStmtID());
+          CallerSummary summary(curFunc->GetPuidx(), callMeStmt->GetMeStmtId());
           auto *doubleConst = safe_cast<MIRDoubleConst>(constExpr->GetConstVal());
           UpdateCaleeParaAboutDouble(meStmt, doubleConst->GetValue(), i, summary);
         }
@@ -188,12 +167,9 @@ void CollectIpaInfo::Perform(const MeFunction &func) {
   }
 }
 
-void CollectIpaInfo::runOnScc(maple::SCCNode &scc) {
-  for (auto *cgNode : scc.GetCGNodes()) {
+void CollectIpaInfo::runOnScc(maple::SCCNode<CGNode> &scc) {
+  for (auto *cgNode : scc.GetNodes()) {
     MIRFunction *func = cgNode->GetMIRFunction();
-    if (func->IsEmpty()) {
-      continue;
-    }
     curFunc = func;
     MeFunction *meFunc = func->GetMeFunc();
     Perform(*meFunc);
@@ -205,8 +181,8 @@ void SCCCollectIpaInfo::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.SetPreservedAll();
 }
 
-bool SCCCollectIpaInfo::PhaseRun(maple::SCCNode &scc) {
-  MIRModule *m = ((scc.GetCGNodes()[0])->GetMIRFunction())->GetModule();
+bool SCCCollectIpaInfo::PhaseRun(maple::SCCNode<CGNode> &scc) {
+  MIRModule *m = ((scc.GetNodes()[0])->GetMIRFunction())->GetModule();
   AnalysisDataManager *dataMap = GET_ANALYSIS(SCCPrepare, scc);
   CollectIpaInfo collect(*m, *dataMap);
   collect.runOnScc(scc);

@@ -220,6 +220,11 @@ class Emitter {
     return *this;
   }
 
+  Emitter &Emit(const IntVal& val) {
+    outStream << val.GetExtValue();
+    return *this;
+  }
+
   Emitter &Emit(const MapleString &str) {
     ASSERT(str.c_str() != nullptr, "nullptr check");
     outStream << str;

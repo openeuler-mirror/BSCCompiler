@@ -682,7 +682,7 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
           MIRConst *result = aggConst;
           for (size_t i = 1; i < arrayNode->GetNumOpnds(); ++i) {
             auto *konst = static_cast<ConstvalNode*>(arrayNode->GetNopndAt(i))->GetConstVal();
-            auto index = static_cast<MIRIntConst*>(konst)->GetValue();
+            auto index = static_cast<MIRIntConst*>(konst)->GetExtValue();
             if (result->GetKind() == kConstAggConst) {
               result = static_cast<MIRAggConst*>(result)->GetConstVecItem(index);
             }

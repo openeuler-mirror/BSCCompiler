@@ -399,7 +399,7 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
         Emit(4096);
       } else if (((kind == kTypeStruct) || (kind == kTypeClass) || (kind == kTypeArray) || (kind == kTypeUnion)) &&
                  ((storage == kScGlobal) || (storage == kScPstatic) || (storage == kScFstatic))) {
-        int32 align = Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex());
+        uint8 align = Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex());
         (void)Emit(std::to_string(align > kSizeOfPtr ? align : k8BitSize));
       } else {
         (void)Emit(std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex())));
@@ -418,13 +418,13 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
 #if TARGX86 || TARGX86_64
           return;
 #else
-          align = 3;
+          align = kAlignOfU8;
 #endif
         } else {
           align = Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirSymbol.GetType()->GetTypeIndex());
 #if TARGARM32 || TARGAARCH64 || TARGARK || TARGRISCV64
           if (CGOptions::IsArm64ilp32() && mirSymbol.GetType()->GetPrimType() == PTY_a32) {
-            align = 3;
+            align = kAlignOfU8;
           } else {
             align = static_cast<uint8>(log2(align));
           }
@@ -547,7 +547,7 @@ void Emitter::EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mir
   uint32 fieldSize = static_cast<MIRBitFieldType&>(mirType).GetFieldSize();
   MIRIntConst &fieldValue = static_cast<MIRIntConst&>(mirConst);
   /* Truncate the size of FieldValue to the bit field size. */
-  if (fieldSize < fieldValue.GetBitWidth()) {
+  if (fieldSize < fieldValue.GetActualBitWidth()) {
     fieldValue.Trunc(fieldSize);
   }
   /* Clear higher Bits for signed value  */
@@ -556,16 +556,15 @@ void Emitter::EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mir
                                            structEmitInfo.GetCombineBitFieldValue());
   }
   if (CGOptions::IsBigEndian()) {
-    uint64 beValue = static_cast<uint64>(fieldValue.GetValue());
-    if (fieldValue.GetValue() < 0) {
+    uint64 beValue = fieldValue.GetExtValue();
+    if (fieldValue.IsNegative()) {
       beValue = beValue - ((beValue >> fieldSize) << fieldSize);
     }
     structEmitInfo.SetCombineBitFieldValue(
         (structEmitInfo.GetCombineBitFieldValue() << fieldSize) + beValue);
   } else {
-    structEmitInfo.SetCombineBitFieldValue(
-        (static_cast<uint64>(fieldValue.GetValue()) << structEmitInfo.GetCombineBitFieldWidth()) +
-        structEmitInfo.GetCombineBitFieldValue());
+    structEmitInfo.SetCombineBitFieldValue((fieldValue.GetExtValue() << structEmitInfo.GetCombineBitFieldWidth()) +
+                                           structEmitInfo.GetCombineBitFieldValue());
   }
   structEmitInfo.IncreaseCombineBitFieldWidth(fieldSize);
   structEmitInfo.IncreaseNextFieldOffset(fieldSize);
@@ -696,7 +695,7 @@ void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32, 
     case kConstInt: {
       MIRIntConst &intCt = static_cast<MIRIntConst&>(mirConst);
       uint32 sizeInBits = GetPrimTypeBitSize(mirType.GetPrimType());
-      if (intCt.GetBitWidth() > sizeInBits) {
+      if (intCt.GetActualBitWidth() > sizeInBits) {
         intCt.Trunc(sizeInBits);
       }
       if (flag32) {
@@ -1228,7 +1227,7 @@ MIRAddroffuncConst *Emitter::GetAddroffuncConst(const MIRSymbol &mirSymbol, MIRA
           GlobalTables::GetStrTable().GetStrIdxFromName(funcDefTabName));
       MIRAggConst &funDefTabAggConst = static_cast<MIRAggConst&>(*funDefTabSy->GetKonst());
       MIRIntConst *funcAddrIndexConst = safe_cast<MIRIntConst>(funcAddrConst);
-      int64 indexDefTab = funcAddrIndexConst->GetValue();
+      uint64 indexDefTab = funcAddrIndexConst->GetExtValue();
       MIRAggConst *defTabAggConst = safe_cast<MIRAggConst>(funDefTabAggConst.GetConstVecItem(indexDefTab));
       MIRConst *funcConst = defTabAggConst->GetConstVecItem(0);
       if (funcConst->GetKind() == kConstAddrofFunc) {
@@ -1243,9 +1242,9 @@ MIRAddroffuncConst *Emitter::GetAddroffuncConst(const MIRSymbol &mirSymbol, MIRA
 
 int64 Emitter::GetFieldOffsetValue(const std::string &className, const MIRIntConst &intConst,
                                    const std::map<GStrIdx, MIRType*> &strIdx2Type) {
-  int64 idx = intConst.GetValue();
-  bool isDefTabIndex = static_cast<uint64>(idx) & 0x1;
-  int64 fieldIdx = static_cast<uint64>(idx) >> 1;
+  uint64 idx = intConst.GetExtValue();
+  bool isDefTabIndex = idx & 0x1;
+  int64 fieldIdx = idx >> 1;
   if (isDefTabIndex) {
     /* it's def table index. */
     return fieldIdx;
@@ -1338,7 +1337,7 @@ void Emitter::EmitIntConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst, ui
   if (isClassInfo || isMethodsInfo || isFieldsInfo || mirSymbol.IsRegJNITab() || isInOffsetTab ||
       isStaticStr || isConflictPerfix || isArrayClassCacheName || isMethodSignature) {
     /* compare with all 1s */
-    uint32 index = static_cast<uint32>((safe_cast<MIRIntConst>(elemConst))->GetValue()) & 0xFFFFFFFF;
+    uint32 index = static_cast<uint32>((safe_cast<MIRIntConst>(elemConst))->GetExtValue()) & 0xFFFFFFFF;
     bool isHotReflectStr = (index & 0x00000003) != 0;     /* use the last two bits of index in this expression */
     std::string hotStr;
     if (isHotReflectStr) {
@@ -1427,7 +1426,7 @@ void Emitter::EmitIntConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst, ui
     Emit("\t.quad\t");
     const int width = 8;
 #endif  /* USE_32BIT_REF */
-    uint32 muidDataTabAddr = static_cast<uint32>((safe_cast<MIRIntConst>(elemConst))->GetValue());
+    uint32 muidDataTabAddr = static_cast<uint32>((safe_cast<MIRIntConst>(elemConst))->GetExtValue());
     if (muidDataTabAddr != 0) {
       bool isDefTabIndex = (muidDataTabAddr & kFromDefIndexMask32Mod) == kFromDefIndexMask32Mod;
       std::string muidDataTabPrefix = isDefTabIndex ? kMuidDataDefTabPrefixStr : kMuidDataUndefTabPrefixStr;
@@ -1450,13 +1449,13 @@ void Emitter::EmitIntConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst, ui
     Emit("+" + strTabName + "\n");
 #endif
   } else if (mirSymbol.IsReflectionMethodAddrData()) {
-    int64 defTabIndex = intConst->GetValue();
 #ifdef USE_32BIT_REF
     Emit("\t.long\t");
 #else
     Emit("\t.quad\t");
 #endif  /* USE_32BIT_REF */
-    Emit(std::to_string(defTabIndex) + "\n");
+    Emit(intConst->GetValue());
+    Emit("\n");
   } else if (mirSymbol.IsReflectionFieldOffsetData()) {
     /* Figure out instance field offset now. */
     size_t prefixStrLen = strlen(kFieldOffsetDataPrefixStr);
@@ -1468,14 +1467,14 @@ void Emitter::EmitIntConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst, ui
     std::string widthFlag = ".quad";
 #endif  /* USE_32BIT_REF */
     int64 fieldOffset = GetFieldOffsetValue(typeName, *intConst, strIdx2Type);
-    int64 fieldIdx = intConst->GetValue();
-    bool isDefTabIndex = static_cast<uint64>(fieldIdx) & 0x1;
+    uint64 fieldIdx = intConst->GetExtValue();
+    bool isDefTabIndex = fieldIdx & 0x1;
     if (isDefTabIndex) {
       /* it's def table index. */
       Emit("\t//  " + typeName + " static field, data def table index " + std::to_string(fieldOffset) + "\n");
     } else {
       /* really offset. */
-      fieldIdx = static_cast<uint64>(fieldIdx) >> 1;
+      fieldIdx >>= 1;
       Emit("\t//  " + typeName + "\t field" + std::to_string(fieldIdx) + "\n");
     }
     Emit("\t" + widthFlag + "\t" + std::to_string(fieldOffset) + "\n");
@@ -1501,7 +1500,7 @@ void Emitter::EmitIntConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst, ui
       typeName = stName.substr(prefixStrLen);
       widthFlag = ".long";
     }
-    int64 fieldIdx = intConst->GetValue();
+    int64 fieldIdx = intConst->GetExtValue();
     MIRSymbol *pOffsetData = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
         GlobalTables::GetStrTable().GetStrIdxFromName(kFieldOffsetDataPrefixStr + typeName));
     if (pOffsetData != nullptr) {
@@ -1553,7 +1552,7 @@ void Emitter::EmitIntConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst, ui
     Emit("\t.short\t" + std::to_string(objSize) + comments + "\n");
   } else if (mirSymbol.IsMuidRangeTab()) {
     MIRIntConst *subIntCt = safe_cast<MIRIntConst>(elemConst);
-    int flag = subIntCt->GetValue();
+    int flag = subIntCt->GetExtValue();
     InitRangeIdx2PerfixStr();
     if (rangeIdx2PrefixStr.find(flag) == rangeIdx2PrefixStr.end()) {
       EmitScalarConstant(*elemConst, false);
@@ -1597,7 +1596,7 @@ void Emitter::EmitConstantTable(const MIRSymbol &mirSymbol, MIRConst &mirConst,
 #ifdef USE_32BIT_REF
       itabConflictIndex = static_cast<uint64>((safe_cast<MIRIntConst>(elemConst))->GetValue()) & 0xffff;
 #else
-      itabConflictIndex = static_cast<uint64>((safe_cast<MIRIntConst>(elemConst))->GetValue()) & 0xffffffff;
+      itabConflictIndex = safe_cast<MIRIntConst>(elemConst)->GetExtValue() & 0xffffffff;
 #endif
     }
     if (IsPrimitiveScalar(elemConst->GetType().GetPrimType())) {
@@ -2058,8 +2057,8 @@ void Emitter::MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec)
           static_cast<uint32>(tabConst->GetValue()) | 0X40000000, tabConst->GetType());
 #else
       /* #define COLD VTAB ITAB END FLAG  0X4000000000000000 */
-      tabConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-          static_cast<int64>(static_cast<uint64>(tabConst->GetValue()) | 0X4000000000000000), tabConst->GetType());
+      tabConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(tabConst->GetExtValue() | 0X4000000000000000,
+                                                                      tabConst->GetType());
 #endif
       aggConst->SetItem(static_cast<uint32>(size) - 1, tabConst, aggConst->GetFieldIdItem(size - 1));
     }
@@ -2171,9 +2170,9 @@ void Emitter::EmitGlobalVar(const MIRSymbol &globalVar) {
 
 void Emitter::EmitGlobalVars(std::vector<std::pair<MIRSymbol*, bool>> &globalVars) {
   if (GetCG()->IsLmbc() && GetCG()->GetGP() != nullptr) {
-    Emit(asmInfo->GetLocal()).Emit("\t").Emit(GetCG()->GetGP()->GetName()).Emit("\n");
-    Emit(asmInfo->GetComm()).Emit("\t").Emit(GetCG()->GetGP()->GetName());
-    Emit(", ").Emit(GetCG()->GetMIRModule()->GetGlobalMemSize()).Emit(", ").Emit("8\n");
+    (void)Emit(asmInfo->GetLocal()).Emit("\t").Emit(GetCG()->GetGP()->GetName()).Emit("\n");
+    (void)Emit(asmInfo->GetComm()).Emit("\t").Emit(GetCG()->GetGP()->GetName());
+    (void)Emit(", ").Emit(GetCG()->GetMIRModule()->GetGlobalMemSize()).Emit(", ").Emit("8\n");
   }
   /* load globalVars profile */
   if (globalVars.empty()) {

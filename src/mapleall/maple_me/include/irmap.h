@@ -115,6 +115,7 @@ class IRMap : public AnalysisResult {
   virtual void Dump() = 0;
   virtual void SetCurFunction(const BB&) {}
 
+  MeExpr *CreateIntConstMeExpr(const IntVal &value, PrimType pType);
   MeExpr *CreateIntConstMeExpr(int64, PrimType);
   MeExpr *CreateConstMeExpr(PrimType, MIRConst&);
   MeExpr *CreateMeExprUnary(Opcode, PrimType, MeExpr&);

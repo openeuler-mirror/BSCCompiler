@@ -112,7 +112,7 @@ Predictor MePrediction::ReturnPrediction(const MeExpr *val, Prediction &predicti
     return kPredNullReturn;
   } else if (IsPrimitiveInteger(retType)) {
     // Negative return values are often used to indicate errors.
-    if (constExpr->GetIntValue() < 0) {
+    if (constExpr->GetExtIntValue() < 0) {
       prediction = kNotTaken;
       return kPredNegativeReturn;
     }

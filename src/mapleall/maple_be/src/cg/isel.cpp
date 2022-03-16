@@ -611,7 +611,7 @@ void MPISel::SelectIassignoff(const IassignoffNode &stmt) {
 
 CGImmOperand *MPISel::SelectIntConst(MIRIntConst &intConst) {
   uint32 opndSz = GetPrimTypeSize(intConst.GetType().GetPrimType()) * kBitsPerByte;
-  return &cgFunc->GetOpndBuilder()->CreateImm(opndSz, intConst.GetValue());
+  return &cgFunc->GetOpndBuilder()->CreateImm(opndSz, intConst.GetExtValue());
 }
 
 Operand *MPISel::SelectShift(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
@@ -1092,6 +1092,7 @@ void MPISel::HandleFuncExit() {
   BlockNode *block = cgFunc->GetFunction().GetBody();
   ASSERT(block != nullptr, "get func body block failed in CGFunc::GenerateInstruction");
   cgFunc->GetCurBB()->SetLastStmt(*block->GetLast());
+  /* Set lastbb's frequency */
   cgFunc->SetLastBB(*cgFunc->GetCurBB());
   cgFunc->SetCleanupBB(*cgFunc->GetCurBB()->GetPrev());
 }

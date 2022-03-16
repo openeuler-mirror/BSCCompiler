@@ -336,7 +336,7 @@ bool ABCD::IsLessOrEqual(const MeExpr &arrayNode, const MeExpr &idx) {
     idxNode = &(inequalityGraph->GetNode(idx));
   } else {
     CHECK_FATAL(idx.GetMeOp() == kMeOpConst, "must be");
-    idxNode = &(inequalityGraph->GetNode(static_cast<const ConstMeExpr&>(idx).GetIntValue()));
+    idxNode = &(inequalityGraph->GetNode(static_cast<const ConstMeExpr&>(idx).GetExtIntValue()));
   }
   std::unique_ptr<InequalEdge> e = std::make_unique<InequalEdge>(kLowerBound, kUpper);
   active.clear();
@@ -351,7 +351,7 @@ bool ABCD::DemandProve(const MeExpr &arrayNode, const MeExpr &idx) {
     idxNode = &(inequalityGraph->GetNode(idx));
   } else {
     CHECK_FATAL(idx.GetMeOp() == kMeOpConst, "must be");
-    idxNode = &(inequalityGraph->GetNode(static_cast<const ConstMeExpr&>(idx).GetIntValue()));
+    idxNode = &(inequalityGraph->GetNode(static_cast<const ConstMeExpr&>(idx).GetExtIntValue()));
   }
   ESSABaseNode &zNode = inequalityGraph->GetNode(0);
   bool upperResult = ABCD::DemandProve(aNode, *idxNode, kUpper);

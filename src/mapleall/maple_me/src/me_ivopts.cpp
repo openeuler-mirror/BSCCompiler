@@ -786,7 +786,7 @@ OpMeExpr *IVOptimizer::TryCvtCmp(OpMeExpr &op, MeStmt &stmt) {
   if (opnd->GetMeOp() != kMeOpConst) {
     return &op;
   }
-  int64 cmpConst = static_cast<ConstMeExpr*>(opnd)->GetIntValue();
+  int64 cmpConst = static_cast<ConstMeExpr*>(opnd)->GetExtIntValue();
   if (GetPrimTypeSize(opnd->GetPrimType()) < kEightByte) {
     cmpConst = static_cast<int64>(static_cast<int32>(cmpConst));
   }
@@ -799,11 +799,11 @@ OpMeExpr *IVOptimizer::TryCvtCmp(OpMeExpr &op, MeStmt &stmt) {
     bb->SetSucc(1, tmp);
   }
 
-  int64 baseConst = static_cast<ConstMeExpr*>(iv->base)->GetIntValue();
+  int64 baseConst = static_cast<ConstMeExpr*>(iv->base)->GetExtIntValue();
   if (GetPrimTypeSize(iv->base->GetPrimType()) < kEightByte) {
     baseConst = static_cast<int64>(static_cast<int32>(baseConst));
   }
-  int64 stepConst = static_cast<ConstMeExpr*>(iv->step)->GetIntValue();
+  int64 stepConst = static_cast<ConstMeExpr*>(iv->step)->GetExtIntValue();
   if (GetPrimTypeSize(iv->step->GetPrimType()) < kEightByte) {
     stepConst = static_cast<int64>(static_cast<int32>(stepConst));
   }
@@ -1227,7 +1227,7 @@ MeExpr *IVOptimizer::StripConstantPart(MeExpr &expr, int64 &offset) {
       return nullptr;
     }
     case OP_constval: {
-      offset = static_cast<ConstMeExpr&>(expr).GetIntValue();
+      offset = static_cast<ConstMeExpr&>(expr).GetExtIntValue();
       return nullptr;
     }
     default: {
@@ -1453,7 +1453,7 @@ static void FindScalarFactor(MeExpr &expr, std::unordered_map<int32, std::pair<M
                              int64 multiplier) {
   switch (expr.GetMeOp()) {
     case kMeOpConst: {
-      int64 constVal = static_cast<ConstMeExpr&>(expr).GetIntValue();
+      int64 constVal = static_cast<ConstMeExpr&>(expr).GetExtIntValue();
       auto it = record.find(kInvalidExprID);
       if (it == record.end()) {
         record.emplace(kInvalidExprID, std::make_pair(nullptr, multiplier * constVal));
@@ -1488,9 +1488,9 @@ static void FindScalarFactor(MeExpr &expr, std::unordered_map<int32, std::pair<M
           return;
         }
         if (opnd0->GetMeOp() == kMeOpConst) {
-          FindScalarFactor(*op.GetOpnd(1), record, multiplier * static_cast<ConstMeExpr*>(opnd0)->GetIntValue());
+          FindScalarFactor(*op.GetOpnd(1), record, multiplier * static_cast<ConstMeExpr*>(opnd0)->GetExtIntValue());
         } else {
-          FindScalarFactor(*op.GetOpnd(0), record, multiplier * static_cast<ConstMeExpr*>(opnd1)->GetIntValue());
+          FindScalarFactor(*op.GetOpnd(0), record, multiplier * static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue());
         }
       } else if (op.GetOp() == OP_cvt) {
         FindScalarFactor(*op.GetOpnd(0), record, multiplier);
@@ -1508,8 +1508,8 @@ int64 IVOptimizer::ComputeRatioOfStep(MeExpr &candStep, MeExpr &groupStep) {
       // can not compute
       return 0;
     }
-    int64 candConst = static_cast<ConstMeExpr&>(candStep).GetIntValue();
-    int64 groupConst = static_cast<ConstMeExpr&>(groupStep).GetIntValue();
+    int64 candConst = static_cast<ConstMeExpr&>(candStep).GetExtIntValue();
+    int64 groupConst = static_cast<ConstMeExpr&>(groupStep).GetExtIntValue();
     if (candStep.GetPrimType() == PTY_u32 || groupStep.GetPrimType() == PTY_u32) {
       candConst = static_cast<int64>(static_cast<int32>(candConst));
       groupConst = static_cast<int64>(static_cast<int32>(groupConst));
@@ -1652,8 +1652,8 @@ static bool CheckOverflow(const MeExpr *opnd0, const MeExpr *opnd1, Opcode op, P
   if (opnd0->GetMeOp() != kMeOpConst || opnd1->GetMeOp() != kMeOpConst) {
     return true;
   }
-  int64 const0 = static_cast<const ConstMeExpr*>(opnd0)->GetIntValue();
-  int64 const1 = static_cast<const ConstMeExpr*>(opnd1)->GetIntValue();
+  int64 const0 = static_cast<const ConstMeExpr*>(opnd0)->GetExtIntValue();
+  int64 const1 = static_cast<const ConstMeExpr*>(opnd1)->GetExtIntValue();
   if (op == OP_add) {
     int64 res = static_cast<int64>(static_cast<uint64>(const0) + static_cast<uint64>(const1));
     if (IsUnsignedInteger(ptyp)) {

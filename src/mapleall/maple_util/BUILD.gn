@@ -26,6 +26,7 @@ src_libmplutil = [
   "src/string_utils.cpp",
   "src/error_code.cpp",
   "src/thread_env.cpp",
+  "src/mpl_int_val.cpp",
 ]
 
 src_libcommandline = [

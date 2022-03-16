@@ -110,27 +110,28 @@ void LoopTransPlan::GenerateBoundInfo(const DoloopNode *doloop, const DoloopInfo
   BaseNode *upNode = condNode->Opnd(1);
 
   MIRIntConst *newIncr = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-      vecFactor * incrConst->GetValue(), *typeInt);
+      vecFactor * incrConst->GetExtValue(), *typeInt);
   ConstvalNode *newIncrNode = codeMP->New<ConstvalNode>(PTY_i32, newIncr);
   PrimType newOpndtype = (static_cast<CompareNode *>(condNode))->GetOpndType() == PTY_ptr ? PTY_i64 : PTY_i32;
   if (initNode->IsConstval()) {
     ConstvalNode *lcn = static_cast<ConstvalNode *>(initNode);
     MIRIntConst *lowConst = static_cast<MIRIntConst *>(lcn->GetConstVal());
-    int64 lowvalue = lowConst->GetValue();
+    int64 lowvalue = lowConst->GetExtValue();
     // upNode is constant
     if (upNode->IsConstval()) {
       ConstvalNode *ucn = static_cast<ConstvalNode *>(upNode);
       MIRIntConst *upConst = static_cast<MIRIntConst *>(ucn->GetConstVal());
-      int64 upvalue = upConst->GetValue();
+      int64 upvalue = upConst->GetExtValue();
       if (condOpHasEqual) {
         upvalue += 1;
       }
-      if (((upvalue - lowvalue) % (newIncr->GetValue())) == 0) {
+      int64 newIncrVal = newIncr->GetExtValue();
+      if (((upvalue - lowvalue) % newIncrVal) == 0) {
         // early return, change vbound->stride only
         vBound = localMP->New<LoopBound>(nullptr, nullptr, newIncrNode);
       } else {
         // trip count is not vector lane aligned
-        int64 newupval = (upvalue - lowvalue) / (newIncr->GetValue()) * (newIncr->GetValue()) + lowvalue;
+        int64 newupval = (upvalue - lowvalue) / newIncrVal * newIncrVal + lowvalue;
         MIRIntConst *newUpConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(newupval, *typeInt);
         ConstvalNode *newUpNode = codeMP->New<ConstvalNode>(PTY_i32, newUpConst);
         vBound = localMP->New<LoopBound>(nullptr, newUpNode, newIncrNode);
@@ -234,16 +235,16 @@ bool LoopTransPlan::Generate(const DoloopNode *doloop, const DoloopInfo* li, boo
     if (initNode->IsConstval() && upNode->IsConstval() && incrNode->IsConstval()) {
       ConstvalNode *lcn = static_cast<ConstvalNode *>(initNode);
       MIRIntConst *lowConst = static_cast<MIRIntConst *>(lcn->GetConstVal());
-      int64 lowvalue = lowConst->GetValue();
+      int64 lowvalue = lowConst->GetExtValue();
       ConstvalNode *ucn = static_cast<ConstvalNode *>(upNode);
       MIRIntConst *upConst = static_cast<MIRIntConst *>(ucn->GetConstVal());
-      int64 upvalue = upConst->GetValue();
+      int64 upvalue = upConst->GetExtValue();
       ConstvalNode *icn = static_cast<ConstvalNode *>(incrNode);
       MIRIntConst *incrConst = static_cast<MIRIntConst *>(icn->GetConstVal());
       if (condOpHasEqual) {
         upvalue += 1;
       }
-      int64 tripCount = (upvalue - lowvalue) / (incrConst->GetValue());
+      int64 tripCount = (upvalue - lowvalue) / (incrConst->GetExtValue());
       if (static_cast<uint32>(tripCount) < vecLanes) {
         tripCount = (tripCount / 4 * 4); // get closest 2^n
         if (tripCount * vecInfo->smallestTypeSize < 64) {
@@ -1685,7 +1686,8 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
       if (GetPrimTypeSize(incrNode->GetPrimType()) != GetPrimTypeSize(elemType->GetPrimType())) {
         ConstvalNode *constnode = static_cast<ConstvalNode *>(incrNode);
         MIRIntConst *incrconst = static_cast<MIRIntConst *>(constnode->GetConstVal());
-        MIRIntConst *newConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(incrconst->GetValue(), *elemType);
+        MIRIntConst *newConst =
+            GlobalTables::GetIntConstTable().GetOrCreateIntConst(incrconst->GetExtValue(), *elemType);
         incrNode = codeMP->New<ConstvalNode>(elemType->GetPrimType(), newConst);
       }
       BaseNode *incrhs = codeMP->New<BinaryNode>(OP_add, vecType->GetPrimType(), regreadNode, incrNode);
@@ -1954,7 +1956,7 @@ bool LoopVectorization::CanConvert(uint32_t lshtypeSize, uint32_t rhstypeSize) c
 
 bool LoopVectorization::CanAdjustRhsConstType(PrimType targetType, ConstvalNode *rhs) {
   MIRIntConst *intConst = static_cast<MIRIntConst*>(rhs->GetConstVal());
-  int64 v = intConst->GetValue();
+  int64 v = intConst->GetExtValue();
   bool res = false;
   switch (targetType) {
     case PTY_i32: {

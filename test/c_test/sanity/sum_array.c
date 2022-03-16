@@ -15,6 +15,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 
 //int main(int argc, char *argv[])
 int main()
@@ -23,7 +24,7 @@ int main()
 
   for (i = 0; i < 10; i++) {
     b[i] = i << 2;
-    c[i] = i << b[i];
+    c[i] = i << (b[i] % (sizeof(int)*CHAR_BIT));
   }
 
   for (i = 0; i < 10; i++) {

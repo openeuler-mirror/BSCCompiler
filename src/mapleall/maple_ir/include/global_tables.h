@@ -380,6 +380,19 @@ class TypeTable {
     return typeTable.at(PTY_v2u64);
   }
 
+  MIRType *GetV2Float32() const {
+    ASSERT(PTY_v2f32 < typeTable.size(), "array index out of range");
+    return typeTable.at(PTY_v2f32);
+  }
+  MIRType *GetV4Float32() const {
+    ASSERT(PTY_v4f32 < typeTable.size(), "array index out of range");
+    return typeTable.at(PTY_v4f32);
+  }
+  MIRType *GetV2Float64() const {
+    ASSERT(PTY_v2f64 < typeTable.size(), "array index out of range");
+    return typeTable.at(PTY_v2f64);
+  }
+
   // Get or Create derived types.
   MIRType *GetOrCreatePointerType(const TyIdx &pointedTyIdx, PrimType primType = PTY_ptr,
                                   const TypeAttrs &attrs = TypeAttrs());
@@ -617,7 +630,7 @@ class IntConstTable {
   IntConstTable &operator=(const IntConstTable &p) = delete;
   ~IntConstTable();
 
-  MIRIntConst *GetOrCreateIntConst(int64 val, MIRType &type);
+  MIRIntConst *GetOrCreateIntConst(uint64 val, MIRType &type);
 
   static std::unique_ptr<IntConstTable> Create() {
     auto p = std::unique_ptr<IntConstTable>(new IntConstTable());
@@ -626,8 +639,8 @@ class IntConstTable {
 
  private:
   IntConstTable() = default;
-  MIRIntConst *DoGetOrCreateIntConst(int64 val, MIRType &type);
-  MIRIntConst *DoGetOrCreateIntConstTreadSafe(int64 val, MIRType &type);
+  MIRIntConst *DoGetOrCreateIntConst(uint64 val, MIRType &type);
+  MIRIntConst *DoGetOrCreateIntConstTreadSafe(uint64 val, MIRType &type);
   std::shared_timed_mutex mtx;
   std::unordered_map<IntConstKey, MIRIntConst*, IntConstHash, IntConstCmp> intConstTable;
 };

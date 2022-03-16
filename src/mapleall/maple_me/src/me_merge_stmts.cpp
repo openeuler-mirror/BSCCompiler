@@ -115,7 +115,7 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
       }
       IassignMeStmt *lastIassignMeStmt = static_cast<IassignMeStmt*>(iassignCandidates[firstIdx].second);
       ConstMeExpr *rhsLastIassignMeStmt = static_cast<ConstMeExpr*>(lastIassignMeStmt->GetOpnd(1));
-      uint64 fieldVal = static_cast<uint64>(rhsLastIassignMeStmt->GetIntValue());
+      uint64 fieldVal = static_cast<uint64>(rhsLastIassignMeStmt->GetExtIntValue());
       uint64 combinedVal = (fieldVal << (64 - fieldBitSize)) >> (64 - fieldBitSize);
 
       auto combineValue = [&](int stmtIdx) {
@@ -127,7 +127,7 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
           fieldBitSize = GetStructFieldBitSize(lhsStructType, fieldID);
         }
         fieldVal = static_cast<uint64>(static_cast<ConstMeExpr*>(
-            static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetOpnd(1))->GetIntValue());
+            static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetOpnd(1))->GetExtIntValue());
         fieldVal = (fieldVal << (64 - fieldBitSize)) >> (64 - fieldBitSize);
         combinedVal = combinedVal << fieldBitSize | fieldVal;
       };
@@ -226,7 +226,7 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
       int32 fieldBitSizeEndIdx = GetStructFieldBitSize(lhsStructTypeStart, fieldIDEndIdx);
 
       uint64 fieldValIdx = static_cast<uint64>(static_cast<ConstMeExpr*>(static_cast<IassignMeStmt*>(
-          dassignCandidates[firstIdx].second)->GetRHS())->GetIntValue());
+          dassignCandidates[firstIdx].second)->GetRHS())->GetExtIntValue());
 
       uint64 combinedVal = (fieldValIdx << (64 - fieldBitSizeEndIdx)) >> (64 - fieldBitSizeEndIdx);
 
@@ -235,7 +235,7 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
         FieldID fieldIDStmtIdx = lhsOrigStStmtIdx->GetFieldID();
         int32 fieldBitSizeStmtIdx = GetStructFieldBitSize(lhsStructTypeStart, fieldIDStmtIdx);
         uint64 fieldValStmtIdx = static_cast<uint64>(static_cast<ConstMeExpr *>(
-            static_cast<DassignMeStmt *>(dassignCandidates[stmtIdx].second)->GetRHS())->GetIntValue());
+            static_cast<DassignMeStmt *>(dassignCandidates[stmtIdx].second)->GetRHS())->GetExtIntValue());
         fieldValStmtIdx = (fieldValStmtIdx << (64 - fieldBitSizeStmtIdx)) >> (64 - fieldBitSizeStmtIdx);
         combinedVal = (combinedVal << fieldBitSizeStmtIdx) | fieldValStmtIdx;
       };
@@ -317,7 +317,7 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
       lengthExpr->GetConstVal()->GetKind() != kConstInt) {
     return;
   }
-  int32 copyLength = static_cast<int32>(lengthExpr->GetIntValue());
+  int32 copyLength = static_cast<int32>(lengthExpr->GetExtIntValue());
   if (copyLength <= 0 || copyLength > simdThreshold || copyLength % 8 != 0) {
     return;
   }
@@ -395,7 +395,7 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
       numExpr->GetConstVal()->GetKind() != kConstInt) {
     return;
   }
-  int32 setLength = static_cast<int32>(numExpr->GetIntValue());
+  int32 setLength = static_cast<int32>(numExpr->GetExtIntValue());
   // It seems unlikely that setLength is just a few bytes long
   if (setLength <= 0 || setLength > simdThreshold) {
     return;
