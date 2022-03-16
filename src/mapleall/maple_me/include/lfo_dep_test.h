@@ -29,9 +29,10 @@ class LfoDepInfo;
 class SubscriptDesc{
  public:
   MeExpr *subscriptX;
-  DreadNode *iv = nullptr;      // the variable
+  DreadNode *iv = nullptr;      // the induction variable
   int64 coeff = 1;              // coefficient of the variable
   int64 additiveConst = 0;
+  BaseNode *additiveLoopInvar = nullptr;
   bool tooMessy = false;;       // too complicated to analyze
   bool loopInvariant = false;   // loop invariant w.r.t. closest nesting loop
 
