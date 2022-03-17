@@ -72,6 +72,18 @@ class ASTDecl {
     return isParam;
   }
 
+  void SetIsMacro(bool flag) {
+    if (flag) {
+      isMacroID = FEUtils::GetSequentialNumber();
+    } else {
+      isMacroID = flag;
+    }
+  }
+
+  uint32 IsMacroID() const {
+    return isMacroID;
+  }
+
   void SetAlign(uint32 n) {
     if (n > align) {
       align = n;
@@ -167,6 +179,7 @@ class ASTDecl {
   Pos pos = { 0, 0 };
   uint32 srcFileIdx = 0;
   uint32 srcFileLineNum = 0;
+  uint32 isMacroID = false;
   DeclKind declKind = kASTDecl;
   BoundaryInfo boundary;
   std::string sectionAttr;

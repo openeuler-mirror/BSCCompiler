@@ -69,6 +69,7 @@ class LibAstFile {
   void CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access);
   void CheckUnsupportedVarAttrs(const clang::VarDecl &decl);
   void CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs &genAttrs, AccessKind access);
+  void CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl);
   void CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &genAttrs, AccessKind access);
   MIRType *CvtPrimType(const clang::QualType qualType) const;
   PrimType CvtPrimType(const clang::BuiltinType::Kind) const;

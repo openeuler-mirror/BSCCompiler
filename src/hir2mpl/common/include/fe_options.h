@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -285,12 +285,12 @@ class FEOptions {
     return isDumpJBCStmt;
   }
 
-  void SetIsDumpJBCBB(bool flag) {
-    isDumpJBCBB = flag;
+  void SetIsDumpFEIRBB(bool flag) {
+    isDumpBB = flag;
   }
 
-  bool IsDumpJBCBB() const {
-    return isDumpJBCBB;
+  bool IsDumpFEIRBB() const {
+    return isDumpBB;
   }
 
   void SetIsDumpFEIRCFGGraph(bool flag) {
@@ -472,6 +472,14 @@ class FEOptions {
     return funcInlineSize;
   }
 
+  void SetWPAA(bool flag) {
+    wpaa = flag;
+  }
+
+  bool GetWPAA() const {
+    return wpaa;
+  }
+
  private:
   static FEOptions options;
   // input control options
@@ -512,7 +520,6 @@ class FEOptions {
   bool isJBCUseImpreciseType = false;
   bool isJBCInfoUsePathName = false;
   bool isDumpJBCStmt = false;
-  bool isDumpJBCBB = false;
   bool isDumpJBCAll = false;
   bool isDumpJBCErrorOnly = false;
   std::set<std::string> dumpJBCFuncNames;
@@ -530,6 +537,7 @@ class FEOptions {
   bool isBigEndian = false;
 
   // general stmt/bb/cfg debug options
+  bool isDumpBB = false;
   bool isDumpGenCFGGraph = false;
   std::string genCFGGraphFileName = "";
 
@@ -549,6 +557,7 @@ class FEOptions {
   bool isEnableSafeRegion = false;
 
   uint32 funcInlineSize = 0;
+  bool wpaa = false;
 
   FEOptions();
   ~FEOptions() = default;

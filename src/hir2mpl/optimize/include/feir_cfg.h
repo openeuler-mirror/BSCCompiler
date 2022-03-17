@@ -32,6 +32,7 @@ class FEIRCFG {
   void Init();
   void BuildBB();
   bool BuildCFG();
+  void GenerateCFG();
   const FEIRBB *GetHeadBB();
   const FEIRBB *GetNextBB();
   void LabelStmtID();
@@ -51,10 +52,15 @@ class FEIRCFG {
     return std::make_unique<FEIRBB>();
   }
 
+  bool IsGeneratedCFG() const {
+    return isGeneratedCFG;
+  }
+
  LLT_PRIVATE:
   void AppendAuxStmt();
   FEIRBB *NewBBAppend();
 
+  bool isGeneratedCFG = false;
   FEIRStmt *stmtHead;
   FEIRStmt *stmtTail;
   FELinkListNode *currBBNode = nullptr;

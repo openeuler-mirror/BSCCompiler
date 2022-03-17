@@ -15,14 +15,38 @@
 
 #ifndef HIR2MPL_FEIR_LOWER_H
 #define HIR2MPL_FEIR_LOWER_H
-#include "fe_function.h"
+#include "feir_stmt.h"
 
 namespace maple {
+class FEFunction;
 class FEIRLower {
-public:
-  void LowerFunc(FEFunction *func);
+ public:
+  explicit FEIRLower(FEFunction &funcIn);
+  void LowerFunc();
+  void LowerStmt(FEIRStmt *stmt, FEIRStmt *ptrTail);
+  void LowerStmt(const std::list<UniqueFEIRStmt> &stmts, FEIRStmt *ptrTail);
 
-private:
+  FEIRStmt *GetlowerStmtHead() {
+    return lowerStmtHead;
+  }
+
+  FEIRStmt *GetlowerStmtTail() {
+    return lowerStmtTail;
+  }
+
+ private:
+  void Init();
+  void Clear();
+  FEIRStmt *CreateHeadAndTail();
+  FEIRStmt *RegisterAuxFEIRStmt(UniqueFEIRStmt stmt);
+  FEIRStmt *RegisterAndInsertFEIRStmt(UniqueFEIRStmt stmt, FEIRStmt *ptrTail, uint32 fileIdx = 0, uint32 fileLine = 0);
+  void LowerIfStmt(FEIRStmtIf &ifStmt, FEIRStmt *ptrTail);
+  void CreateAndInsertCondStmt(Opcode op, FEIRStmtIf &ifStmt, FEIRStmt *head, FEIRStmt *tail, FEIRStmt *ptrTail);
+
+  FEFunction &func;
+  FEIRStmt *lowerStmtHead;
+  FEIRStmt *lowerStmtTail;
+  std::list<UniqueFEIRStmt> auxFEIRStmtList;  // auxiliary feir stmt list
 };
 } // namespace maple
 #endif // HIR2MPL_FEIR_LOWER_H

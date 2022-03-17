@@ -1564,7 +1564,7 @@ UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> 
     } else {
       sizeType = std::make_unique<FEIRTypeNative>(*GlobalTables::GetTypeTable().GetPrimType(PTY_ptr));
       feIdxExpr = FEIRBuilder::CreateExprCvtPrim(std::move(feIdxExpr),
-                                                 GetSignedPrimType(GetRegPrimType(indexPty)), PTY_ptr);
+                                                 GetRegPrimType(indexPty), PTY_ptr);
     }
     if (mirType->GetSize() != 1) {
       auto typeSizeExpr = std::make_unique<FEIRExprConst>(mirType->GetSize(), sizeType->GetPrimType());

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -39,9 +39,10 @@ class FEUtils {
   static std::string GetBaseTypeName(const std::string &typeName);
   static PrimType GetPrimType(const GStrIdx &typeNameIdx);
   static uint32 GetSequentialNumber();
-  static std::string GetFileNameHashStr(const std::string &fileName);
+  static std::string GetFileNameHashStr(const std::string &fileName, uint32 seed = 211);
   static std::string GetSequentialName0(const std::string &prefix, uint32_t num);
   static std::string GetSequentialName(const std::string &prefix);
+  static std::string CreateLabelName();
   static FieldID GetStructFieldID(MIRStructType *base, const std::string &fieldName);
   static bool TraverseToNamedField(MIRStructType &structType, const GStrIdx &nameIdx, FieldID &fieldID,
                                    bool isTopLevel = true);
@@ -262,6 +263,7 @@ class FELinkListNode {
   void InsertAfter(FELinkListNode *ins);
   static void InsertBefore(FELinkListNode *ins, FELinkListNode *pos);
   static void InsertAfter(FELinkListNode *ins, FELinkListNode *pos);
+  static void SpliceNodes(FELinkListNode *head, FELinkListNode *tail, FELinkListNode *newTail);
   FELinkListNode *GetPrev() const {
     return prev;
   }

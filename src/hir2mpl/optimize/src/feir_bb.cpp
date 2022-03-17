@@ -89,6 +89,15 @@ void FEIRBB::Dump() const {
     std::cout << bb->GetID() << " ";
   }
   std::cout << "})" << std::endl;
+  FELinkListNode *nodeStmt = stmtHead;
+  while (nodeStmt != nullptr) {
+    FEIRStmt *stmt = static_cast<FEIRStmt*>(nodeStmt);
+    stmt->Dump("    ");
+    if (nodeStmt == stmtTail) {
+      return;
+    }
+    nodeStmt = nodeStmt->GetNext();
+  }
 }
 
 std::string FEIRBB::GetBBKindName() const {

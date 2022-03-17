@@ -108,7 +108,7 @@ std::string FEIRStmt::DumpDotStringImpl() const {
 }
 
 void FEIRStmt::DumpImpl(const std::string &prefix) const {
-  std::cout << prefix << "FEIRStmt" << id << "(kind=" << GetKind() << ")" << std::endl;
+  std::cout << prefix << "FEIRStmt" << id << "(kind=" << GetFEIRNodeKindDescription(kind) << ")\n";
 }
 
 // ---------- FEIRStmtCheckPoint ----------
@@ -224,7 +224,7 @@ std::string FEIRStmtCheckPoint::DumpDotStringImpl() const {
 
 // ---------- FEIRStmtNary ----------
 FEIRStmtNary::FEIRStmtNary(Opcode opIn, std::list<std::unique_ptr<FEIRExpr>> argExprsIn)
-    : FEIRStmt(kFEIRStmtNary), op(opIn), argExprs(std::move(argExprsIn)) {}
+    : FEIRStmt(kStmtNary), op(opIn), argExprs(std::move(argExprsIn)) {}
 
 std::list<StmtNode*> FEIRStmtNary::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   std::list<StmtNode*> stmts;
@@ -833,7 +833,9 @@ std::list<StmtNode*> FEIRStmtAssertBoundary::GenMIRStmtsImpl(MIRBuilder &mirBuil
 
 // ---------- FEIRStmtReturn ----------
 FEIRStmtReturn::FEIRStmtReturn(std::unique_ptr<FEIRExpr> argExpr)
-    : FEIRStmtUseOnly(FEIRNodeKind::kStmtReturn, OP_return, std::move(argExpr)) {}
+    : FEIRStmtUseOnly(FEIRNodeKind::kStmtReturn, OP_return, std::move(argExpr)) {
+      isFallThru = true;
+    }
 
 std::list<StmtNode*> FEIRStmtReturn::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   std::list<StmtNode*> ans;
@@ -1026,6 +1028,13 @@ bool FEIRStmtSwitch::CalculateDefs4AllUsesImpl(FEIRStmtCheckPoint &checkPoint, F
   return expr->CalculateDefs4AllUses(checkPoint, udChain);
 }
 
+bool FEIRStmtSwitch::IsFallThroughImpl() const {
+  WARN(kLncWarn, "%s:%d stmt[%s] need to be lowed when building bb",
+       FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+       GetFEIRNodeKindDescription(kind).c_str());
+  return false;
+}
+
 std::list<StmtNode*> FEIRStmtSwitch::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   std::list<StmtNode*> ans;
   CaseVector switchTable(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
@@ -1057,6 +1066,13 @@ FEIRStmtSwitch2::FEIRStmtSwitch2(uint32 outerIdxIn, UniqueFEIRExpr argExpr)
 
 FEIRStmtSwitch2::~FEIRStmtSwitch2() {
   defaultTarget = nullptr;
+}
+
+bool FEIRStmtSwitch2::IsFallThroughImpl() const {
+  WARN(kLncWarn, "%s:%d stmt[%s] need to be lowed when building bb",
+       FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+       GetFEIRNodeKindDescription(kind).c_str());
+  return false;
 }
 
 std::list<StmtNode*> FEIRStmtSwitch2::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
@@ -1099,6 +1115,13 @@ FEIRStmtIf::FEIRStmtIf(UniqueFEIRExpr argCondExpr,
     hasElse = true;
     SetElseStmts(argElseStmts);
   }
+}
+
+bool FEIRStmtIf::IsFallThroughImpl() const {
+  WARN(kLncWarn, "%s:%d stmt[%s] need to be lowed when building bb",
+       FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+       GetFEIRNodeKindDescription(kind).c_str());
+  return false;
 }
 
 std::list<StmtNode*> FEIRStmtIf::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
@@ -4144,6 +4167,13 @@ void FEIRStmtIAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRTyp
 }
 
 // ---------- FEIRStmtDoWhile ----------
+bool FEIRStmtDoWhile::IsFallThroughImpl() const {
+  WARN(kLncWarn, "%s:%d stmt[%s] need to be lowed when building bb",
+       FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+       GetFEIRNodeKindDescription(kind).c_str());
+  return false;
+}
+
 std::list<StmtNode*> FEIRStmtDoWhile::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   std::list<StmtNode*> stmts;
   auto *whileStmtNode = mirBuilder.GetCurrentFuncCodeMp()->New<WhileStmtNode>(opcode);

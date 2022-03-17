@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -327,5 +327,16 @@ std::string ASTUtil::AdjustFuncName(std::string funcName) {
 bool ASTUtil::InsertFuncSet(const GStrIdx &idx) {
   static std::set<GStrIdx> funcIdxSet;
   return funcIdxSet.insert(idx).second;
+}
+
+std::string ASTUtil::GetRecordLayoutString(const clang::ASTRecordLayout &recordLayout) {
+  std::string recordLayoutStr = "";
+  unsigned int fieldCount = recordLayout.getFieldCount();
+  uint64_t recordSize = static_cast<uint64_t>(recordLayout.getSize().getQuantity());
+  recordLayoutStr += (std::to_string(fieldCount) + std::to_string(recordSize));
+  for (unsigned int i = 0; i < fieldCount; ++i) {
+    recordLayoutStr += std::to_string(recordLayout.getFieldOffset(i));
+  }
+  return recordLayoutStr;
 }
 }  // namespace maple

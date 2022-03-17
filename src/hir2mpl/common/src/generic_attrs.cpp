@@ -105,11 +105,6 @@ FieldAttrs GenericAttrs::ConvertToFieldAttrs() {
         break;
     }
   }
-  for(auto iter = contentMap.begin(); iter != contentMap.end(); ++iter) {
-    if (iter->first == GENATTR_pack) {
-      attr.SetPack(static_cast<uint32>(std::get<int>(iter->second)));
-    }
-  }
   return attr;
 }
 }

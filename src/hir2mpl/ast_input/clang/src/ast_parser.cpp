@@ -2205,15 +2205,15 @@ bool ASTParser::PreProcessAST() {
   return true;
 }
 
-#define DECL_CASE(CLASS)                                                                           \
-  case clang::Decl::CLASS: {                                                                       \
+#define DECL_CASE(CLASS)                                                                                  \
+  case clang::Decl::CLASS: {                                                                              \
     ASTDecl *astDeclaration = ProcessDecl##CLASS##Decl(allocator, llvm::cast<clang::CLASS##Decl>(decl));  \
     if (astDeclaration != nullptr) {                                                                      \
       astDeclaration->SetDeclPos(astFile->GetDeclPosInfo(decl));                                          \
       astDeclaration->SetGlobal(decl.isDefinedOutsideFunctionOrMethod());                                 \
-      Pos loc = astFile->GetLOC(decl.getLocation());                                               \
+      Pos loc = astFile->GetLOC(decl.getLocation());                                                      \
       astDeclaration->SetSrcLOC(loc.first, loc.second);                                                   \
-    }                                                                                              \
+    }                                                                                                     \
     return astDeclaration;                                                                                \
   }
 ASTDecl *ASTParser::ProcessDecl(MapleAllocator &allocator, const clang::Decl &decl) {
@@ -2268,7 +2268,12 @@ ASTDecl *ASTParser::ProcessDeclRecordDecl(MapleAllocator &allocator, const clang
       structName = astFile->GetOrCreateMappedUnnamedName(id);
     }
   } else if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-    structName = structName + astFile->GetAstFileNameHashStr();
+    clang::SourceLocation srcLocation = recDecl.getLocation();
+    clang::PresumedLoc pLocation = astFile->GetContext()->getSourceManager().getPresumedLoc(srcLocation);
+    std::string recordLayoutStr = recDecl.getDefinition() == nullptr ? "" :
+        ASTUtil::GetRecordLayoutString(astFile->GetContext()->getASTRecordLayout(recDecl.getDefinition()));
+    structName = structName + (pLocation.isValid() ? FEUtils::GetFileNameHashStr(pLocation.getFilename() +
+        recordLayoutStr) : astFile->GetAstFileNameHashStr());
   }
   curStructOrUnion = ASTDeclsBuilder::ASTStructBuilder(
       allocator, fileName, structName, std::vector<MIRType*>{recType}, attrs, recDecl.getID());
@@ -2499,6 +2504,7 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   }
   astVar = ASTDeclsBuilder::ASTVarBuilder(
       allocator, fileName, varName, std::vector<MIRType*>{varType}, attrs, varDecl.getID());
+  astVar->SetIsMacro(varDecl.getLocation().isMacroID());
   clang::SectionAttr *sa = varDecl.getAttr<clang::SectionAttr>();
   if (sa != nullptr && !sa->isImplicit()) {
     astVar->SetSectionAttr(sa->getName().str());
@@ -2639,9 +2645,7 @@ ASTDecl *ASTParser::ProcessDeclLabelDecl(MapleAllocator &allocator, const clang:
     return astDecl;
   }
   std::string varName = astFile->GetMangledName(decl);
-  if (varName.empty()) {
-    return nullptr;
-  }
+  CHECK_FATAL(!varName.empty(), "label string is null");
   varName = FEUtils::GetSequentialName0(varName + "@", FEUtils::GetSequentialNumber());
   astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, fileName, varName, std::vector<MIRType*>{}, decl.getID());
   return astDecl;

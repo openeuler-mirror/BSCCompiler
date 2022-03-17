@@ -1370,7 +1370,7 @@ bool ENCChecker::IsConstantIndex(const UniqueFEIRExpr &expr) {
 void ENCChecker::PeelNestedBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &baseExpr) {
   std::list<UniqueFEIRStmt>::iterator i = stmts.begin();
   while (i != stmts.end()) {
-    bool flag = ((*i)->GetKind() == kFEIRStmtNary);
+    bool flag = ((*i)->GetKind() == kStmtNary);
     if (flag) {
       FEIRStmtNary *nary = static_cast<FEIRStmtNary*>((*i).get());
       flag = kOpcodeInfo.IsAssertBoundary(nary->GetOP()) &&
@@ -1967,7 +1967,7 @@ void ENCChecker::ReduceBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, const 
   }
   std::list<UniqueFEIRStmt>::iterator iter = stmts.begin();
   for (; iter != stmts.end(); ++iter) {
-    if ((*iter)->GetKind() != kFEIRStmtNary) {
+    if ((*iter)->GetKind() != kStmtNary) {
       continue;
     }
     FEIRStmtNary *nary = static_cast<FEIRStmtNary*>((*iter).get());
@@ -1977,7 +1977,7 @@ void ENCChecker::ReduceBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, const 
     }
     nary->SetOP(OP_calcassertge);
     std::list<UniqueFEIRStmt>::iterator nextedIter = std::next(iter, 1);
-    if (nextedIter != stmts.end() && (*nextedIter)->GetKind() == kFEIRStmtNary) {
+    if (nextedIter != stmts.end() && (*nextedIter)->GetKind() == kStmtNary) {
       FEIRStmtNary *nextedNary = static_cast<FEIRStmtNary*>((*nextedIter).get());
       if (nextedNary->GetOP() == OP_assertlt) {
         nextedNary->SetOP(OP_calcassertlt);

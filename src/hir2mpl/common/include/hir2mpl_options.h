@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -82,7 +82,6 @@ class HIR2MPLOptions : public maple::MapleDriverOptionBase {
   bool ProcessModeForJavaStaticFieldName(const mapleOption::Option &opt);
   bool ProcessJBCInfoUsePathName(const mapleOption::Option &opt);
   bool ProcessDumpJBCStmt(const mapleOption::Option &opt);
-  bool ProcessDumpJBCBB(const mapleOption::Option &opt);
   bool ProcessDumpJBCAll(const mapleOption::Option &opt);
   bool ProcessDumpJBCErrorOnly(const mapleOption::Option &opt);
   bool ProcessDumpJBCFuncName(const mapleOption::Option &opt);
@@ -95,12 +94,14 @@ class HIR2MPLOptions : public maple::MapleDriverOptionBase {
   bool ProcessSimplifyShortCircuit(const mapleOption::Option &opt);
   bool ProcessEnableVariableArray(const mapleOption::Option &opt);
   bool ProcessFuncInlineSize(const mapleOption::Option &opt);
+  bool ProcessWPAA(const mapleOption::Option &opt);
 
   // ast compiler options
   bool ProcessUseSignedChar(const mapleOption::Option &opt);
   bool ProcessBigEndian(const mapleOption::Option &opt);
 
-  // general stmt/bb/cfg debug options
+  // general stmt/bb/cfg options
+  bool ProcessDumpFEIRBB(const mapleOption::Option &opt);
   bool ProcessDumpFEIRCFGGraph(const mapleOption::Option &opt);
 
   // multi-thread control options
