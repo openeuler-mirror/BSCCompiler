@@ -208,8 +208,8 @@ SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
   Opcode op = subsX->GetOpCode();
   BaseNode *mainTerm = subsX;
   if (op == OP_add || op == OP_sub) {  // get addtiveConst
-    BinaryNode *binnode = static_cast<BinaryNode *>(subsX);
-    BaseNode *opnd1 = binnode->Opnd(1);
+    BinaryNode *binNode = static_cast<BinaryNode *>(subsX);
+    BaseNode *opnd1 = binNode->Opnd(1);
     if (opnd1->op == OP_constval) {
       MIRConst *mirconst = static_cast<ConstvalNode *>(opnd1)->GetConstVal();
       if (mirconst->GetKind() == kConstInt) {
@@ -217,21 +217,21 @@ SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
         if (op == OP_sub) {
           subsDesc->additiveConst = - subsDesc->additiveConst;
         }
-        mainTerm = binnode->Opnd(0);
+        mainTerm = binNode->Opnd(0);
       }
     }
   }
   // if main term is another add, see if it is addition to loop-invarant
   if (mainTerm->GetOpCode() == OP_add) {
-    BinaryNode *mtbinnode = static_cast<BinaryNode *>(mainTerm);
-    BaseNode *mtopnd0 = mtbinnode->Opnd(0);
-    BaseNode *mtopnd1 = mtbinnode->Opnd(1);
-    if (IsLoopInvariant2(mtopnd0)) {
-      subsDesc->additiveLoopInvar = mtopnd0;
-      mainTerm = mtopnd1;
-    } else if (IsLoopInvariant2(mtopnd1)) {
-      subsDesc->additiveLoopInvar = mtopnd1;
-      mainTerm = mtopnd0;
+    BinaryNode *mtBinNode = static_cast<BinaryNode *>(mainTerm);
+    BaseNode *mtOpnd0 = mtBinNode->Opnd(0);
+    BaseNode *mtOpnd1 = mtBinNode->Opnd(1);
+    if (IsLoopInvariant2(mtOpnd0)) {
+      subsDesc->additiveLoopInvar = mtOpnd0;
+      mainTerm = mtOpnd1;
+    } else if (IsLoopInvariant2(mtOpnd1)) {
+      subsDesc->additiveLoopInvar = mtOpnd1;
+      mainTerm = mtOpnd0;
     } else {
       subsDesc->tooMessy = true;
       return subsDesc;
