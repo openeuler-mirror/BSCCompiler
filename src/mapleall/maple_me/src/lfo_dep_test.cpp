@@ -206,27 +206,36 @@ SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
     return subsDesc;
   }
   Opcode op = subsX->GetOpCode();
-  BaseNode *mainTerm = nullptr;
-  if (op != OP_add && op != OP_sub) {
-    mainTerm = subsX;
-  } else {  // get addtiveConst
+  BaseNode *mainTerm = subsX;
+  if (op == OP_add || op == OP_sub) {  // get addtiveConst
     BinaryNode *binnode = static_cast<BinaryNode *>(subsX);
-    BaseNode *opnd0 = binnode->Opnd(0);
     BaseNode *opnd1 = binnode->Opnd(1);
-    if (opnd1->op != OP_constval) {
+    if (opnd1->op == OP_constval) {
+      MIRConst *mirconst = static_cast<ConstvalNode *>(opnd1)->GetConstVal();
+      if (mirconst->GetKind() == kConstInt) {
+        subsDesc->additiveConst = static_cast<MIRIntConst *>(mirconst)->GetValue();
+        if (op == OP_sub) {
+          subsDesc->additiveConst = - subsDesc->additiveConst;
+        }
+        mainTerm = binnode->Opnd(0);
+      }
+    }
+  }
+  // if main term is another add, see if it is addition to loop-invarant
+  if (mainTerm->GetOpCode() == OP_add) {
+    BinaryNode *mtbinnode = static_cast<BinaryNode *>(mainTerm);
+    BaseNode *mtopnd0 = mtbinnode->Opnd(0);
+    BaseNode *mtopnd1 = mtbinnode->Opnd(1);
+    if (IsLoopInvariant2(mtopnd0)) {
+      subsDesc->additiveLoopInvar = mtopnd0;
+      mainTerm = mtopnd1;
+    } else if (IsLoopInvariant2(mtopnd1)) {
+      subsDesc->additiveLoopInvar = mtopnd1;
+      mainTerm = mtopnd0;
+    } else {
       subsDesc->tooMessy = true;
       return subsDesc;
     }
-    MIRConst *mirconst = static_cast<ConstvalNode *>(opnd1)->GetConstVal();
-    if (mirconst->GetKind() != kConstInt) {
-      subsDesc->tooMessy = true;
-      return subsDesc;
-    }
-    subsDesc->additiveConst = static_cast<MIRIntConst *>(mirconst)->GetValue();
-    if (op == OP_sub) {
-      subsDesc->additiveConst = - subsDesc->additiveConst;
-    }
-    mainTerm = opnd0;
   }
   // process mainTerm
   BaseNode *varNode = nullptr;
@@ -251,10 +260,6 @@ SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
       return subsDesc;
     }
     subsDesc->coeff = static_cast<MIRIntConst *>(mirconst)->GetValue();
-    if (subsDesc->coeff < 0) {
-      subsDesc->tooMessy = true;
-      return subsDesc;
-    }
   }
   // process varNode
   if (varNode->GetOpCode() == OP_cvt) {
@@ -463,6 +468,15 @@ void DoloopInfo::TestDependences(MapleVector<DepTestPair> *depTestList, bool bot
         if (subs1->subscriptX == subs2->subscriptX) {
           continue;
         } else {
+          testPair->dependent = true;
+          testPair->unknownDist = true;
+          break;
+        }
+      }
+      if (subs1->additiveLoopInvar != nullptr || subs2->additiveLoopInvar != nullptr) {
+        if (subs1->additiveLoopInvar == nullptr ||
+            subs2->additiveLoopInvar == nullptr ||
+            !subs1->additiveLoopInvar->IsSameContent(subs2->additiveLoopInvar)) {
           testPair->dependent = true;
           testPair->unknownDist = true;
           break;
@@ -677,7 +691,11 @@ void LfoDepInfo::PerformDepTest() {
             LogInfo::MapleLogger() << " [" << subs->coeff << "*";
             ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(preEmit->GetMexpr(subs->iv));
             scalar->GetOst()->Dump();
-            LogInfo::MapleLogger() << "+" << subs->additiveConst << "]";
+            LogInfo::MapleLogger() << "+" << subs->additiveConst;
+            if (subs->additiveLoopInvar != nullptr) {
+              LogInfo::MapleLogger() << "+<loopinvar>";
+            }
+            LogInfo::MapleLogger() << "]";
           }
         }
         LogInfo::MapleLogger() << std::endl;
@@ -701,7 +719,11 @@ void LfoDepInfo::PerformDepTest() {
             LogInfo::MapleLogger() << " [" << subs->coeff << "*";
             ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(preEmit->GetMexpr(subs->iv));
             scalar->GetOst()->Dump();
-            LogInfo::MapleLogger() << "+" << subs->additiveConst << "]";
+            LogInfo::MapleLogger() << "+" << subs->additiveConst;
+            if (subs->additiveLoopInvar != nullptr) {
+              LogInfo::MapleLogger() << "+<loopinvar>";
+            }
+            LogInfo::MapleLogger() << "]";
           }
         }
         LogInfo::MapleLogger() << std::endl;
