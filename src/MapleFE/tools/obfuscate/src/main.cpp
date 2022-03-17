@@ -1,5 +1,6 @@
 /*
 * Copyright (C) [2022] Futurewei Technologies, Inc. All rights reverved.
+* Copyright (C) [2022] Tencent. All rights reverved.
 *
 * OpenArkFE is licensed under the Mulan PSL v2.
 * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -21,7 +22,7 @@
 #include "obfuscate.h"
 
 static void help() {
-  std::cout << "ast2cpp a.ast[,b.ast] [options]:" << std::endl;
+  std::cout << "obfuscate a.ast[,b.ast] [options]:" << std::endl;
   std::cout << "   --out=x.cpp      : cpp output file" << std::endl;
   std::cout << "   --help           : print this help" << std::endl;
   std::cout << "   --trace=n        : Emit trace with 4-bit combo levels 1...15" << std::endl;
