@@ -824,7 +824,10 @@ private:
   // This is common scenario. To implement, it requires a temporary
   // pointer to the located knob. This temp knob is used ONLY when
   // paired operations, PairedFindOrCreateKnob() and PairedAddElem()
-  Knob *mTempKnob;
+  struct {
+    Knob *mKnob;
+    K     mKey;
+  }mTempKnob;
 
 private:
   // Just try to find the Knob.
@@ -840,8 +843,10 @@ private:
   // Try to find the Knob. Create one if failed.
   Knob* FindOrCreateKnob(K key) {
     Knob *knob = FindKnob(key);
-    if (!knob)
+    if (!knob) {
       knob = NewKnob();
+      mKnobs.insert(std::make_pair(key, knob));
+    }
     return knob;
   }
 
@@ -970,7 +975,7 @@ private:
   }
 
 public:
-  GuamianFast() {}
+  GuamianFast() {mTempKnob.mKnob = NULL;}
   ~GuamianFast(){Release();}
 
   void AddElem(K key, E data) {
@@ -1024,43 +1029,45 @@ public:
   /////////////////////////////////////////////////////////
 
   void PairedFindOrCreateKnob(K key) {
-    mTempKnob = FindOrCreateKnob(key);
+    mTempKnob.mKnob = FindOrCreateKnob(key);
+    mTempKnob.mKey = key;
   }
 
   bool PairedFindKnob(K key) {
-    mTempKnob = FindKnob(key);
-    if (mTempKnob)
+    mTempKnob.mKnob = FindKnob(key);
+    mTempKnob.mKey = key;
+    if (mTempKnob.mKnob)
       return true;
     else
       return false;
   }
 
   void PairedAddElem(E data) {
-    AddElem(mTempKnob, data);
+    AddElem(mTempKnob.mKnob, data);
   }
 
   // If 'data' doesn't exist, it ends quietly
   void PairedRemoveElem(E data) {
-    RemoveElem(mTempKnob, data);
+    RemoveElem(mTempKnob.mKnob, data);
   }
 
   bool PairedFindElem(E data) {
-    return FindElem(mTempKnob, data);
+    return FindElem(mTempKnob.mKnob, data);
   }
 
   // If 'data' doesn't exist, it ends quietly.
   void PairedMoveElemToHead(E data) {
-    MoveElemToHead(mTempKnob, data);
+    MoveElemToHead(mTempKnob.mKnob, data);
   }
 
   E PairedFindFirstElem(bool &found) {
-    return FindFirstElem(mTempKnob, found);
+    return FindFirstElem(mTempKnob.mKnob, found);
   }
 
   // return num of elements in current temp knob.
   // It's caller's duty to assure knob is not NULL.
   unsigned PairedNumOfElem() {
-    return NumOfElem(mTempKnob);
+    return NumOfElem(mTempKnob.mKnob);
   }
 
   // Return the idx-th element in knob.
@@ -1068,25 +1075,25 @@ public:
   // It doesn't check validity here.
   // Index starts from 0.
   E PairedGetElemAtIndex(unsigned idx) {
-    return GetElemAtIndex(mTempKnob, idx);
+    return GetElemAtIndex(mTempKnob.mKnob, idx);
   }
 
   // Reduce the element at index exc_idx.
   // It's caller's duty to assure the element exists.
   void PairedReduceElems(unsigned exc_idx) {
-    ReduceElems(mTempKnob, exc_idx);
+    ReduceElems(mTempKnob.mKnob, exc_idx);
   }
 
   void PairedSetKnobData(D d) {
-    mTempKnob->mData = d;
+    mTempKnob.mKnob->mData = d;
   }
 
   D PairedGetKnobData() {
-    return mTempKnob->mData;
+    return mTempKnob.mKnob->mData;
   }
 
   K PairedGetKnobKey() {
-    return mTempKnob->mKey;
+    return mTempKnob.mKey;
   }
 
   /////////////////////////////////////////////////////////
@@ -1094,6 +1101,7 @@ public:
   /////////////////////////////////////////////////////////
 
   void Clear(){
+    mTempKnob.mKnob = NULL;
     mKnobs.clear();
     mMemPool.Clear();
   }
