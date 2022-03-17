@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -15,6 +15,7 @@
 #ifndef AST2MPL_INCLUDE_ASTUTIL_H
 #define AST2MPL_INCLUDE_ASTUTIL_H
 #include "clang/AST/AST.h"
+#include "clang/AST/RecordLayout.h"
 #include "mir_type.h"
 #include "ast_macros.h"
 
@@ -66,6 +67,7 @@ class ASTUtil {
     }
     return os.str();
   }
+  static std::string GetRecordLayoutString(const clang::ASTRecordLayout &recordLayout);
 };
 }  // namespace maple
 #endif  // AST2MPL_INCLUDE_ASTUTIL_H_

@@ -36,8 +36,8 @@ JBCFunction::~JBCFunction() {
 
 void JBCFunction::InitImpl() {
   FEFunction::InitImpl();
-  generalCFG = std::make_unique<FEIRCFG>(genStmtHead, genStmtTail);
-  generalCFG->Init();
+  feirCFG = std::make_unique<FEIRCFG>(feirStmtHead, feirStmtHead);
+  feirCFG->Init();
   pesudoBBCatchPred = RegisterFEIRBB(std::make_unique<JBCBBPesudoCatchPred>());
 }
 
@@ -80,8 +80,8 @@ void JBCFunction::FinishImpl() {
   if (FEOptions::GetInstance().IsDumpJBCStmt() && dumpFunc) {
     DumpGeneralStmts();
   }
-  if (FEOptions::GetInstance().IsDumpJBCBB() && dumpFunc) {
-    DumpFEIRBBs();
+  if (FEOptions::GetInstance().IsDumpFEIRBB() && dumpFunc) {
+    INFO(kLncInfo, "not implemented");
   }
   if (FEOptions::GetInstance().IsDumpFEIRCFGGraph() && dumpFunc) {
     DumpFEIRCFGGraph();

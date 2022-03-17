@@ -78,7 +78,6 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind) const {
       return PTY_i64;
     case clang::BuiltinType::Int128:
       return PTY_i128;
-    case clang::BuiltinType::Half:    // PTY_f16, NOTYETHANDLED
     case clang::BuiltinType::Float:
       return PTY_f32;
     case clang::BuiltinType::Double:
@@ -88,6 +87,10 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind) const {
       return PTY_f64;
     case clang::BuiltinType::NullPtr: // default 64-bit, need to update
       return PTY_a64;
+    case clang::BuiltinType::Half:    // PTY_f16, NOTYETHANDLED
+    case clang::BuiltinType::Float16:
+      CHECK_FATAL(false, "Float16 types not implemented yet");
+      return PTY_void;
     case clang::BuiltinType::Void:
     default:
       return PTY_void;
@@ -202,7 +205,12 @@ MIRType *LibAstFile::CvtRecordType(const clang::QualType srcType) {
     uint32_t id = recordType->getDecl()->getLocation().getRawEncoding();
     name = GetOrCreateMappedUnnamedName(id);
   } else if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-    name = name + GetAstFileNameHashStr();
+    clang::SourceLocation srcLocation = recordDecl->getLocation();
+    clang::PresumedLoc pLocation = astContext->getSourceManager().getPresumedLoc(srcLocation);
+    std::string recordLayoutStr = recordDecl->getDefinition() == nullptr ? "" :
+        ASTUtil::GetRecordLayoutString(astContext->getASTRecordLayout(recordDecl->getDefinition()));
+    name = name + (pLocation.isValid() ? FEUtils::GetFileNameHashStr(pLocation.getFilename() +
+        recordLayoutStr) : GetAstFileNameHashStr());
   }
   type = FEManager::GetTypeManager().GetOrCreateStructType(name);
   type->SetMIRTypeKind(srcType->isUnionType() ? kTypeUnion : kTypeStruct);

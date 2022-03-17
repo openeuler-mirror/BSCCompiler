@@ -49,7 +49,15 @@ std::string ASTDecl::GenerateUniqueVarName() const {
   if (isGlobalDecl || isParam) {
     return name;
   } else {
-    return name + "_" + std::to_string(pos.first) + "_" + std::to_string(pos.second);
+    std::stringstream os;
+    os << name;
+    if (isMacroID) {
+      // for macro expansion, variable names of same location need to be unique
+      os << "_" << std::to_string(isMacroID);
+    } else {
+      os << "_" << std::to_string(pos.first) << "_" << std::to_string(pos.second);
+    }
+    return os.str();
   }
 }
 

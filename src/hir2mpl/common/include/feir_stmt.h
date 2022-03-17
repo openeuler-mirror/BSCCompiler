@@ -138,15 +138,11 @@ class FEIRStmt : public FELinkListNode {
   }
 
   bool IsFallThru() const {
-    return isFallThru;
+    return IsFallThroughImpl();
   }
 
   void SetFallThru(bool arg) {
     isFallThru = arg;
-  }
-
-  bool IsFallThrough() const {
-    return IsFallThroughImpl();
   }
 
   bool IsBranch() const {
@@ -269,7 +265,7 @@ class FEIRStmt : public FELinkListNode {
   virtual std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const;
   virtual bool IsStmtInstImpl() const;
   virtual bool IsFallThroughImpl() const {
-    return true;
+    return isFallThru;
   }
 
   virtual bool IsBranchImpl() const {
@@ -305,7 +301,7 @@ class FEIRStmt : public FELinkListNode {
   uint32 srcFileLineNum = 0;
   uint32 hexPC = UINT32_MAX;
   bool isDummy = false;
-  bool isFallThru = false;
+  bool isFallThru = true;
   bool isAuxPre = false;
   bool isAuxPost = false;
   bool isThrowable = false;
@@ -2027,10 +2023,6 @@ class FEIRStmtCondGotoForC : public FEIRStmt {
   }
 
  protected:
-  bool IsFallThroughImpl() const override {
-    return false;
-  }
-
   bool IsBranchImpl() const override {
     return true;
   }
@@ -2144,14 +2136,11 @@ class FEIRStmtSwitch : public FEIRStmt {
   }
 
  protected:
-  bool IsFallThroughImpl() const override {
-    return true;
-  }
-
   bool IsBranchImpl() const override {
     return true;
   }
 
+  bool IsFallThroughImpl() const override;
   std::string DumpDotStringImpl() const override;
   void RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckPoint &checkPoint) override;
   bool CalculateDefs4AllUsesImpl(FEIRStmtCheckPoint &checkPoint, FEIRUseDefChain &udChain) override;
@@ -2208,14 +2197,11 @@ class FEIRStmtSwitch2 : public FEIRStmt {
   }
 
  protected:
-  bool IsFallThroughImpl() const override {
-    return true;
-  }
-
   bool IsBranchImpl() const override {
     return true;
   }
 
+  bool IsFallThroughImpl() const override;
   std::string DumpDotStringImpl() const override;
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
 
@@ -2695,6 +2681,10 @@ class FEIRStmtIf : public FEIRStmt {
     condExpr = std::move(argCondExpr);
   }
 
+  const UniqueFEIRExpr &GetCondExpr() const {
+    return condExpr;
+  }
+
   void SetHasElse(bool argHasElse) {
     hasElse = argHasElse;
   }
@@ -2718,10 +2708,7 @@ class FEIRStmtIf : public FEIRStmt {
  protected:
   std::string DumpDotStringImpl() const override;
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
-
-  bool IsFallThroughImpl() const override {
-    return true;
-  }
+  bool IsFallThroughImpl() const override;
 
   bool IsBranchImpl() const override {
     return true;
@@ -2748,6 +2735,7 @@ class FEIRStmtDoWhile : public FEIRStmt {
     return true;
   }
 
+  bool IsFallThroughImpl() const override;
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
 
  private:
@@ -2799,6 +2787,10 @@ class FEIRStmtLabel : public FEIRStmt {
  public:
   explicit FEIRStmtLabel(const std::string &name) : FEIRStmt(FEIRNodeKind::kStmtLabel), labelName(name) {}
   ~FEIRStmtLabel() = default;
+
+  const std::string &GetLabelName() const {
+    return labelName;
+  }
 
  protected:
   bool IsBranchImpl() const override {

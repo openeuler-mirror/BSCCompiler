@@ -76,6 +76,10 @@ bool ASTFunction::ProcessFEIRFunction() {
 }
 
 void ASTFunction::FinishImpl() {
+  if (FEOptions::GetInstance().IsDumpFEIRBB()) {
+    (void)LowerFunc("low feir func");
+    (void)DumpFEIRBBs("dump bb list");
+  }
   (void)EmitToMIR("finish/emit to mir");
   (void)GenerateAliasVars("finish/generate alias vars");
 }

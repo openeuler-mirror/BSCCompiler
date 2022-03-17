@@ -17,15 +17,24 @@
 
 namespace maple {
 FEIRCFG::FEIRCFG(FEIRStmt *argStmtHead, FEIRStmt *argStmtTail)
-    : stmtHead(argStmtHead), stmtTail(argStmtTail) {
-  (void)stmtTail;
-}
+    : stmtHead(argStmtHead), stmtTail(argStmtTail) {}
 
 void FEIRCFG::Init() {
   bbHead = std::make_unique<FEIRBB>(kBBKindPesudoHead);
   bbTail = std::make_unique<FEIRBB>(kBBKindPesudoTail);
   bbHead->SetNext(bbTail.get());
   bbTail->SetPrev(bbHead.get());
+}
+
+void FEIRCFG::GenerateCFG() {
+  if (isGeneratedCFG) {
+    return;
+  }
+  Init();
+  LabelStmtID();
+  BuildBB();
+  BuildCFG();
+  LabelBBID();
 }
 
 void FEIRCFG::BuildBB() {
@@ -132,7 +141,8 @@ bool FEIRCFG::BuildCFG() {
     }
     nodeBB = nodeBB->GetNext();
   }
-  return true;
+  isGeneratedCFG = true;
+  return isGeneratedCFG;
 }
 
 const FEIRBB *FEIRCFG::GetHeadBB() {

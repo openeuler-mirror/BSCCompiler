@@ -106,13 +106,27 @@ void FEFunction::DumpGeneralStmts() {
   }
 }
 
-void FEFunction::DumpFEIRBBs() {
-  FELinkListNode *nodeBB = genBBHead->GetNext();
-  while (nodeBB != nullptr && nodeBB != genBBTail) {
-    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
-    bb->Dump();
-    nodeBB = nodeBB->GetNext();
+bool FEFunction::LowerFunc(const std::string &phaseName) {
+  phaseResult.RegisterPhaseNameAndStart(phaseName);
+  if (feirLower == nullptr) {
+    feirLower = std::make_unique<FEIRLower>(*this);
+    feirLower->LowerFunc();
   }
+  feirStmtHead = feirLower->GetlowerStmtHead();
+  feirStmtTail = feirLower->GetlowerStmtTail();
+  return phaseResult.Finish();
+}
+
+bool FEFunction::DumpFEIRBBs(const std::string &phaseName) {
+  phaseResult.RegisterPhaseNameAndStart(phaseName);
+  if (feirCFG == nullptr) {
+    feirCFG = std::make_unique<FEIRCFG>(feirStmtHead, feirStmtTail);
+    feirCFG->GenerateCFG();
+  }
+  std::cout << "****** CFG built by FEIR for " << GetGeneralFuncName() << " *******\n";
+  feirCFG->DumpFEIRBBs();
+  std::cout << "****** END CFG built for " << GetGeneralFuncName() << " *******\n\n";
+  return phaseResult.Finish();
 }
 
 void FEFunction::DumpFEIRCFGGraph() {
@@ -504,7 +518,7 @@ bool FEFunction::IsBBEnd(const FEIRStmt &stmt) const {
 }
 
 bool FEFunction::MayBeBBEnd(const FEIRStmt &stmt) const {
-  return (stmt.IsBranch() || !stmt.IsFallThrough());
+  return (stmt.IsBranch() || !stmt.IsFallThru());
 }
 
 void FEFunction::LinkFallThroughBBAndItsNext(FEIRBB &bb) {

@@ -22,7 +22,7 @@ bool HIR2MPLUTRegx::Match(const std::string &str, const std::string &pattern) {
     return true;
   } else {
     std::cerr << "Pattern: " << pattern << std::endl;
-    std::cerr << "String:  " << str << std::endl;
+    std::cerr << "String: " << str << std::endl;
     return false;
   }
 }

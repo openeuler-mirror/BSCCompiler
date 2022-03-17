@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -191,16 +191,24 @@ uint32 FEUtils::GetSequentialNumber() {
   return unnamedSymbolIdx++;
 }
 
-std::string FEUtils::GetFileNameHashStr(const std::string &fileName) {
-  static const std::hash<std::string> hasher;
-  auto tmp = static_cast<uint32>(hasher(fileName));
-  uint32 result = tmp & 0x7fffff;    // The highest bit is always 0, so it can be converted to int32 safely
-  return "_" + std::to_string(static_cast<int32>(result));
+std::string FEUtils::GetFileNameHashStr(const std::string &fileName, uint32 seed) {
+  const char *name = fileName.c_str();
+  uint32 hash = 0;
+  while (*name) {
+    uint8_t uName = *name++;
+    hash = hash * seed + uName;
+  }
+  return kRenameKeyWord + std::to_string(hash);
 }
 
 std::string FEUtils::GetSequentialName(const std::string &prefix) {
   std::string name = GetSequentialName0(prefix, GetSequentialNumber());
   return name;
+}
+
+std::string FEUtils::CreateLabelName() {
+  static uint32 unnamedSymbolIdx = 1;
+  return "L." + std::to_string(unnamedSymbolIdx++);
 }
 
 bool FEUtils::TraverseToNamedField(MIRStructType &structType, const GStrIdx &nameIdx, FieldID &fieldID,
@@ -463,6 +471,16 @@ void FELinkListNode::InsertAfter(FELinkListNode *ins, FELinkListNode *pos) {
   posNext->prev = ins;
   ins->prev = pos;
   ins->next = posNext;
+}
+
+void FELinkListNode::SpliceNodes(FELinkListNode *head, FELinkListNode *tail, FELinkListNode *newTail) {
+  FELinkListNode *stmt = head->GetNext();
+  FELinkListNode *nextStmt = stmt;
+  do {
+    stmt = nextStmt;
+    nextStmt = stmt->GetNext();
+    newTail->InsertBefore(stmt);
+  } while (nextStmt != nullptr && nextStmt != tail);
 }
 
 uint32_t AstSwitchUtil::tempVarNo = 0;

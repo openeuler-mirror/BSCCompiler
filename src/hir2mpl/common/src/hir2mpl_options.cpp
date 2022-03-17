@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -56,7 +56,6 @@ enum OptionIndex : uint32 {
   kJavaStaticFieldName,
   kJBCInfoUsePathName,
   kDumpJBCStmt,
-  kDumpJBCBB,
   kDumpJBCAll,
   kDumpJBCErrorOnly,
   kDumpJBCFuncName,
@@ -65,6 +64,7 @@ enum OptionIndex : uint32 {
   kUseSignedChar,
   kFEBigEndian,
   // general stmt/bb/cfg debug options
+  kDumpFEIRBB,
   kDumpGenCFGGraph,
   // multi-thread control options
   kNThreads,
@@ -85,6 +85,7 @@ enum OptionIndex : uint32 {
   kSimplifyShortCircuit,
   kEnableVariableArray,
   kFuncInlineSize,
+  kWPAA,
 };
 
 const Descriptor kUsage[] = {
@@ -186,6 +187,9 @@ const Descriptor kUsage[] = {
     kBuildTypeAll, kArgCheckPolicyNone,
     "  -dump-phase-time-detail\n" \
     "                         : dump phase time for each method", "hir2mpl", {} },
+  { kDumpFEIRBB, 0, "", "dump-bb",
+    kBuildTypeAll, kArgCheckPolicyNone,
+    "  -dump-bb               : dump basic blocks info", "hir2mpl", {} },
 
   // bc bytecode compile options
   { kUnknown, 0, "", "",
@@ -222,6 +226,9 @@ const Descriptor kUsage[] = {
   { kFuncInlineSize, 0, "", "func-inline-size",
     kBuildTypeAll, kArgCheckPolicyRequired,
     "  -func-inline-size      : set func inline size", "hir2mpl", {} },
+  { kWPAA, 0, "", "wpaa",
+    kBuildTypeAll, kArgCheckPolicyNone,
+    "  -wpaa                  : enable whole program ailas analysis", "hir2mpl", {} },
 
   // multi-thread control
   { kUnknown, 0, "", "",
@@ -347,8 +354,6 @@ bool HIR2MPLOptions::InitFactory() {
                                                 &HIR2MPLOptions::ProcessJBCInfoUsePathName);
   RegisterFactoryFunction<OptionProcessFactory>(kDumpJBCStmt,
                                                 &HIR2MPLOptions::ProcessDumpJBCStmt);
-  RegisterFactoryFunction<OptionProcessFactory>(kDumpJBCBB,
-                                                &HIR2MPLOptions::ProcessDumpJBCBB);
   RegisterFactoryFunction<OptionProcessFactory>(kDumpJBCErrorOnly,
                                                 &HIR2MPLOptions::ProcessDumpJBCErrorOnly);
   RegisterFactoryFunction<OptionProcessFactory>(kDumpJBCFuncName,
@@ -357,6 +362,8 @@ bool HIR2MPLOptions::InitFactory() {
                                                 &HIR2MPLOptions::ProcessEmitJBCLocalVarInfo);
 
   // general stmt/bb/cfg debug options
+  RegisterFactoryFunction<OptionProcessFactory>(kDumpFEIRBB,
+                                                &HIR2MPLOptions::ProcessDumpFEIRBB);
   RegisterFactoryFunction<OptionProcessFactory>(kDumpGenCFGGraph,
                                                 &HIR2MPLOptions::ProcessDumpFEIRCFGGraph);
 
@@ -403,6 +410,8 @@ bool HIR2MPLOptions::InitFactory() {
                                                 &HIR2MPLOptions::ProcessEnableVariableArray);
   RegisterFactoryFunction<OptionProcessFactory>(kFuncInlineSize,
                                                 &HIR2MPLOptions::ProcessFuncInlineSize);
+  RegisterFactoryFunction<OptionProcessFactory>(kWPAA,
+                                                &HIR2MPLOptions::ProcessWPAA);
   return true;
 }
 
@@ -619,11 +628,6 @@ bool HIR2MPLOptions::ProcessDumpJBCStmt(const Option &opt) {
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpJBCBB(const Option &opt) {
-  FEOptions::GetInstance().SetIsDumpJBCBB(true);
-  return true;
-}
-
 bool HIR2MPLOptions::ProcessDumpJBCAll(const Option &opt) {
   FEOptions::GetInstance().SetIsDumpJBCAll(true);
   return true;
@@ -677,6 +681,11 @@ bool HIR2MPLOptions::ProcessBigEndian(const Option &opt) {
 }
 
 // general stmt/bb/cfg debug options
+bool HIR2MPLOptions::ProcessDumpFEIRBB(const Option &opt) {
+  FEOptions::GetInstance().SetIsDumpFEIRBB(true);
+  return true;
+}
+
 bool HIR2MPLOptions::ProcessDumpFEIRCFGGraph(const Option &opt) {
   FEOptions::GetInstance().SetIsDumpFEIRCFGGraph(true);
   FEOptions::GetInstance().SetFEIRCFGGraphFileName(opt.Args());
@@ -816,6 +825,12 @@ bool HIR2MPLOptions::ProcessFuncInlineSize(const mapleOption::Option &opt) {
   if (size > 0) {
     FEOptions::GetInstance().SetFuncInlineSize(static_cast<uint32>(size));
   }
+  return true;
+}
+
+bool HIR2MPLOptions::ProcessWPAA(const mapleOption::Option &opt) {
+  FEOptions::GetInstance().SetWPAA(true);
+  FEOptions::GetInstance().SetFuncInlineSize(UINT32_MAX);
   return true;
 }
 

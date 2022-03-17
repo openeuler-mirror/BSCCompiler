@@ -390,6 +390,19 @@ void LibAstFile::CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs 
     genAttrs.SetAttr(GENATTR_pack);
     genAttrs.InsertIntContentMap(GENATTR_pack, static_cast<uint32>(maxFieldAlignAttr->getAlignment() / 8));
   }
+  CheckUnsupportedTypeAttrs(decl);
+}
+
+void LibAstFile::CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl) {
+  std::string unsupportedTypeAttrs = "";
+  if (decl.hasAttr<clang::MSStructAttr>()) {
+    unsupportedTypeAttrs += " ms_struct";
+  }
+  CHECK_FATAL(unsupportedTypeAttrs.empty(), "%s:%d error: struct or union %s has unsupported type attribute(s): %s",
+              FEManager::GetModule().GetFileNameFromFileNum(GetLOC(decl.getLocation()).first).c_str(),
+              GetLOC(decl.getLocation()).second,
+              GetMangledName(decl).c_str(),
+              unsupportedTypeAttrs.c_str());
 }
 
 void LibAstFile::CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &genAttrs, AccessKind access) {
@@ -442,9 +455,6 @@ const std::string LibAstFile::GetOrCreateMappedUnnamedName(uint32_t id) {
   std::map<uint32_t, std::string>::iterator it = unnamedSymbolMap.find(id);
   if (it == unnamedSymbolMap.end()) {
     std::string name = FEUtils::GetSequentialName("unNamed");
-    if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-      name = name + GetAstFileNameHashStr();
-    }
     unnamedSymbolMap[id] = name;
   }
   return unnamedSymbolMap[id];
