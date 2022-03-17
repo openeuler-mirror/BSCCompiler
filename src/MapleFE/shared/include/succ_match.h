@@ -48,8 +48,8 @@ namespace maplefe {
 class AppealNode;
 class SuccMatch {
 private:
-  Guamian<unsigned, unsigned, AppealNode*> mNodes;
-  Guamian<unsigned, unsigned, unsigned> mMatches;
+  GuamianFast<unsigned, unsigned, AppealNode*> mNodes;
+  GuamianFast<unsigned, unsigned, unsigned> mMatches;
 
 public:
   SuccMatch(){}
