@@ -1696,6 +1696,9 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
         }
         return false;
       }
+      if (isArraySub) {
+        return false; // iread is not constant value and used in array subscript
+      }
       bool canVec = ExprVectorizable(doloopInfo, vecInfo, x->Opnd(0));
       if (canVec) {
         if (!vecInfo->UpdateRHSTypeSize(mirType->GetPrimType()) ||
