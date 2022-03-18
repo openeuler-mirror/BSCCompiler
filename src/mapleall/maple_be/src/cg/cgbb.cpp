@@ -78,6 +78,7 @@ void BB::ReplaceInsn(Insn &insn, Insn &newInsn) {
   } else if (newInsn.GetPrev() != nullptr) {
     newInsn.GetPrev()->SetNext(&newInsn);
   }
+  newInsn.SetComment(insn.GetComment());
   newInsn.SetBB(this);
 }
 
