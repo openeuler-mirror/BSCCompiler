@@ -23,7 +23,7 @@
 
 static void help() {
   std::cout << "obfuscate a.ast[,b.ast] [options]:" << std::endl;
-  std::cout << "   --out=x.cpp      : cpp output file" << std::endl;
+  std::cout << "   --out=x.ts       : ts output file" << std::endl;
   std::cout << "   --help           : print this help" << std::endl;
   std::cout << "   --trace=n        : Emit trace with 4-bit combo levels 1...15" << std::endl;
   std::cout << "           1        : Emit ast tree visits" << std::endl;
@@ -44,7 +44,7 @@ int main (int argc, char *argv[]) {
   unsigned flags;
   // one or more input .ast files separated by ','
   const char *inputname = argv[1];
-  // output .cpp file
+  // output .ast file
   const char *outputname = nullptr;
 
   // Parse the argument

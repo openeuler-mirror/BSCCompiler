@@ -1,5 +1,6 @@
 /*
 * Copyright (C) [2022] Futurewei Technologies, Inc. All rights reverved.
+* Copyright (C) [2022] Tencent. All rights reverved.
 *
 * OpenArkFE is licensed under the Mulan PSL v2.
 * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -151,7 +152,14 @@ int Obfuscate::ProcessAST() {
     std::cout << "============= Emitter ===========" << std::endl;
     maplefe::Emitter emitter(handler);
     std::string code = emitter.Emit("Convert AST to TypeScript code");
-    std::cout << code;
+
+    // Emit to file
+    std::string of_name(module->GetFilename());
+    of_name += ".obf";
+    std::ofstream ofs;
+    ofs.open(of_name.c_str(), std::ofstream::out);
+    ofs << code;
+    ofs.close();
   }
 
   return 0;
