@@ -50,6 +50,12 @@ void MeTopLevelSSA::InsertPhiNode() {
   }
 }
 
+void MeTopLevelSSA::CollectUseInfo() {
+  if (!vstUseInfo.IsUseInfoOfTopLevelValid()) {
+    vstUseInfo.CollectUseInfoInFunc(func, dom, kVstUseInfoTopLevelVst);
+  }
+}
+
 void METopLevelSSA::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEDominance>();
   aDep.AddRequired<MESSATab>();

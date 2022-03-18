@@ -23,20 +23,27 @@
 #include "me_dominance.h"
 #include "me_loop_analysis.h"
 #include "maple_phase_manager.h"
+#include "vst_use_info.h"
 namespace maple {
 class MeTopLevelSSA : public SSA, public AnalysisResult {
  public:
   MeTopLevelSSA(MeFunction &f, SSATab *stab, Dominance &dom, MemPool &memPool, bool enabledDebug = false)
       : SSA(memPool, *stab, f.GetCfg()->GetAllBBs(), &dom, kSSATopLevel),
         AnalysisResult(&memPool),
-        func(&f) {}
+        func(&f),
+        vstUseInfo(&memPool) {}
 
   ~MeTopLevelSSA() = default;
 
   void InsertPhiNode();
+  void CollectUseInfo();
+  VstUseInfo *GetVstUseInfo() {
+    return &vstUseInfo;
+  }
 
  private:
   MeFunction *func = nullptr;
+  VstUseInfo vstUseInfo;
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(METopLevelSSA, MeFunction)
