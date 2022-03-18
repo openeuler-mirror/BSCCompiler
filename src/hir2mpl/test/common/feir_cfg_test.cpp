@@ -545,7 +545,7 @@ TEST_F(FEIRCFGTest, CFGBuildForCFG_while) {
   ASSERT_EQ(resultCFG, true);
   demoCFG.LabelBBID();
   // Check BB
-  demoCFG.DumpFEIRBBs();
+  demoCFG.DumpBBs();
   FEIRBB *bb1 = static_cast<FEIRBB*>(demoCFG.GetDummyHead()->GetNext());
   ASSERT_NE(bb1, demoCFG.GetDummyTail());
   FEIRBB *bb2 = static_cast<FEIRBB*>(bb1->GetNext());

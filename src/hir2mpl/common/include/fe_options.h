@@ -293,20 +293,13 @@ class FEOptions {
     return isDumpBB;
   }
 
-  void SetIsDumpFEIRCFGGraph(bool flag) {
-    isDumpGenCFGGraph = flag;
+  void AddFuncNameForDumpCFGGraph(const std::string &funcName) {
+    funcNamesForDumpCFGGraph.insert(funcName);
   }
 
-  bool IsDumpFEIRCFGGraph() const {
-    return isDumpGenCFGGraph;
-  }
-
-  void SetFEIRCFGGraphFileName(const std::string &fileName) {
-    genCFGGraphFileName = fileName;
-  }
-
-  const std::string GetJBCCFGGraphFileName() const {
-    return genCFGGraphFileName;
+  bool IsDumpFEIRCFGGraph(const std::string &funcName) const {
+    return funcNamesForDumpCFGGraph.find(funcName) !=
+           funcNamesForDumpCFGGraph.end();
   }
 
   void SetIsDumpJBCAll(bool flag) {
@@ -538,8 +531,7 @@ class FEOptions {
 
   // general stmt/bb/cfg debug options
   bool isDumpBB = false;
-  bool isDumpGenCFGGraph = false;
-  std::string genCFGGraphFileName = "";
+  std::set<std::string> funcNamesForDumpCFGGraph;
 
   // parallel
   uint32 nthreads;

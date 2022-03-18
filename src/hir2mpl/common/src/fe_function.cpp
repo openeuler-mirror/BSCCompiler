@@ -111,79 +111,47 @@ bool FEFunction::LowerFunc(const std::string &phaseName) {
   if (feirLower == nullptr) {
     feirLower = std::make_unique<FEIRLower>(*this);
     feirLower->LowerFunc();
+    feirStmtHead = feirLower->GetlowerStmtHead();
+    feirStmtTail = feirLower->GetlowerStmtTail();
   }
-  feirStmtHead = feirLower->GetlowerStmtHead();
-  feirStmtTail = feirLower->GetlowerStmtTail();
   return phaseResult.Finish();
 }
 
 bool FEFunction::DumpFEIRBBs(const std::string &phaseName) {
+  HIR2MPL_PARALLEL_FORBIDDEN();
   phaseResult.RegisterPhaseNameAndStart(phaseName);
   if (feirCFG == nullptr) {
     feirCFG = std::make_unique<FEIRCFG>(feirStmtHead, feirStmtTail);
     feirCFG->GenerateCFG();
   }
   std::cout << "****** CFG built by FEIR for " << GetGeneralFuncName() << " *******\n";
-  feirCFG->DumpFEIRBBs();
+  feirCFG->DumpBBs();
   std::cout << "****** END CFG built for " << GetGeneralFuncName() << " *******\n\n";
   return phaseResult.Finish();
 }
 
-void FEFunction::DumpFEIRCFGGraph() {
+bool FEFunction::DumpFEIRCFGGraph(const std::string &phaseName) {
   HIR2MPL_PARALLEL_FORBIDDEN();
-  if (!FEOptions::GetInstance().IsDumpFEIRCFGGraph()) {
-    return;
+  phaseResult.RegisterPhaseNameAndStart(phaseName);
+  std::string outName = FEManager::GetModule().GetFileName();
+  size_t lastDot = outName.find_last_of(".");
+  if (lastDot != std::string::npos) {
+    outName = outName.substr(0, lastDot);
   }
-  std::string fileName = FEOptions::GetInstance().GetJBCCFGGraphFileName();
-  CHECK_FATAL(!fileName.empty(), "General CFG Graph FileName is empty");
+  CHECK_FATAL(!outName.empty(), "General CFG Graph FileName is empty");
+  std::string fileName = outName + "." + GetGeneralFuncName() + ".dot";
   std::ofstream file(fileName);
   CHECK_FATAL(file.is_open(), "Failed to open General CFG Graph FileName: %s", fileName.c_str());
+  if (feirCFG == nullptr) {
+    feirCFG = std::make_unique<FEIRCFG>(feirStmtHead, feirStmtTail);
+    feirCFG->GenerateCFG();
+  }
   file << "digraph {" << std::endl;
-  file << "  # /* " << GetGeneralFuncName() << " */" << std::endl;
-  FELinkListNode *nodeBB = genBBHead->GetNext();
-  while (nodeBB != nullptr && nodeBB != genBBTail) {
-    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
-    DumpFEIRCFGGraphForBB(file, *bb);
-    nodeBB = nodeBB->GetNext();
-  }
-  DumpFEIRCFGGraphForCFGEdge(file);
-  DumpFEIRCFGGraphForDFGEdge(file);
-  file << "}" << std::endl;
+  file << "  label=\"" << GetGeneralFuncName() << "\"\n";
+  file << "  labelloc=t\n";
+  feirCFG->DumpCFGGraph(file);
   file.close();
-}
-
-void FEFunction::DumpFEIRCFGGraphForBB(std::ofstream &file, const FEIRBB &bb) {
-  file << "  BB" << bb.GetID() << " [shape=record,label=\"{" << std::endl;
-  const FELinkListNode *nodeStmt = bb.GetStmtHead();
-  while (nodeStmt != nullptr) {
-    const FEIRStmt *stmt = static_cast<const FEIRStmt*>(nodeStmt);
-    file << "      " << stmt->DumpDotString();
-    if (nodeStmt == bb.GetStmtTail()) {
-      file << std::endl;
-      break;
-    } else {
-      file << " |" << std::endl;
-    }
-    nodeStmt = nodeStmt->GetNext();
-  }
-  file << "    }\"];" << std::endl;
-}
-
-void FEFunction::DumpFEIRCFGGraphForCFGEdge(std::ofstream &file) {
-  file << "  subgraph cfg_edges {" << std::endl;
-  file << "    edge [color=\"#000000\",weight=0.3,len=3];" << std::endl;
-  const FELinkListNode *nodeBB = genBBHead->GetNext();
-  while (nodeBB != nullptr && nodeBB != genBBTail) {
-    const FEIRBB *bb = static_cast<const FEIRBB*>(nodeBB);
-    const FEIRStmt *stmtS = bb->GetStmtTail();
-    for (FEIRBB *bbNext : bb->GetSuccBBs()) {
-      const FEIRStmt *stmtE = bbNext->GetStmtHead();
-      file << "    BB" << bb->GetID() << ":stmt" << stmtS->GetID() << " -> ";
-      file << "BB" << bbNext->GetID() << ":stmt" << stmtE->GetID() << std::endl;
-    }
-    nodeBB = nodeBB->GetNext();
-  }
-  file << "  }" << std::endl;
+  return phaseResult.Finish();
 }
 
 void FEFunction::DumpFEIRCFGGraphForDFGEdge(std::ofstream &file) {

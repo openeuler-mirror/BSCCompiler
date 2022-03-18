@@ -70,7 +70,7 @@ class HIR2MPLCompiler {
   std::string firstInputName;
   std::string outputPath;
   std::string outputName;
-  std::string outputInlineName;
+  std::string outNameWithoutType;
   std::list<std::unique_ptr<HIR2MPLCompilerComponent>> components;
   std::set<FEFunction*> compileFailedFEFunctions;
 };

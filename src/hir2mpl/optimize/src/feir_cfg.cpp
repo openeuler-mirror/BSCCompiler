@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "feir_cfg.h"
+#include <fstream>
 #include "mpl_logging.h"
 
 namespace maple {
@@ -195,12 +196,57 @@ bool FEIRCFG::HasDeadBB() const {
   return false;
 }
 
-void FEIRCFG::DumpFEIRBBs() {
+void FEIRCFG::DumpBBs() {
   FELinkListNode *nodeBB = bbHead->GetNext();
   while (nodeBB != nullptr && nodeBB != bbTail.get()) {
     FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
     bb->Dump();
     nodeBB = nodeBB->GetNext();
   }
+}
+
+void FEIRCFG::DumpCFGGraph(std::ofstream &file) {
+  FELinkListNode *nodeBB = bbHead->GetNext();
+  while (nodeBB != nullptr && nodeBB != bbTail.get()) {
+    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
+    DumpCFGGraphForBB(file, *bb);
+    nodeBB = nodeBB->GetNext();
+  }
+  DumpCFGGraphForEdge(file);
+  file << "}" << std::endl;
+}
+
+void FEIRCFG::DumpCFGGraphForBB(std::ofstream &file, const FEIRBB &bb) {
+  file << "  BB" << bb.GetID() << " [shape=record,label=\"{\n";
+  const FELinkListNode *nodeStmt = bb.GetStmtHead();
+  while (nodeStmt != nullptr) {
+    const FEIRStmt *stmt = static_cast<const FEIRStmt*>(nodeStmt);
+    file << "      " << stmt->DumpDotString();
+    if (nodeStmt == bb.GetStmtTail()) {
+      file << "\n";
+      break;
+    } else {
+      file << " |\n";
+    }
+    nodeStmt = nodeStmt->GetNext();
+  }
+  file << "    }\"];\n";
+}
+
+void FEIRCFG::DumpCFGGraphForEdge(std::ofstream &file) {
+  file << "  subgraph cfg_edges {\n";
+  file << "    edge [color=\"#000000\",weight=0.3,len=3];\n";
+  const FELinkListNode *nodeBB = bbHead->GetNext();
+  while (nodeBB != nullptr && nodeBB != bbTail.get()) {
+    const FEIRBB *bb = static_cast<const FEIRBB*>(nodeBB);
+    const FEIRStmt *stmtS = bb->GetStmtTail();
+    for (FEIRBB *bbNext : bb->GetSuccBBs()) {
+      const FEIRStmt *stmtE = bbNext->GetStmtHead();
+      file << "    BB" << bb->GetID() << ":stmt" << stmtS->GetID() << " -> ";
+      file << "BB" << bbNext->GetID() << ":stmt" << stmtE->GetID() << "\n";
+    }
+    nodeBB = nodeBB->GetNext();
+  }
+  file << "  }\n";
 }
 }  // namespace maple

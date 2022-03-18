@@ -122,6 +122,7 @@ class FEFunction {
   virtual bool UpdateRegNum2This(const std::string &phaseName);
   bool LowerFunc(const std::string &phaseName);
   bool DumpFEIRBBs(const std::string &phaseName);
+  bool DumpFEIRCFGGraph(const std::string &phaseName);
   bool BuildFEIRDFG(const std::string &phaseName);  // process fe ir check point, build fe ir DFG
   bool BuildFEIRUDDU(const std::string &phaseName);  // build fe ir UD DU chain
   bool TypeInfer(const std::string &phaseName);  // feir based Type Infer
@@ -145,14 +146,11 @@ class FEFunction {
   virtual bool VerifyGeneral() = 0;
   virtual void VerifyGeneralFailCallBack() = 0;
   virtual void DumpGeneralStmts();
-  virtual void DumpFEIRCFGGraph();
   virtual std::string GetGeneralFuncName() const;
   void EmitToMIRStmt();
 
   void PhaseTimerStart(FETimerNS &timer);
   void PhaseTimerStopAndDump(FETimerNS &timer, const std::string &label);
-  virtual void DumpFEIRCFGGraphForBB(std::ofstream &file, const FEIRBB &bb);
-  virtual void DumpFEIRCFGGraphForCFGEdge(std::ofstream &file);
   virtual void DumpFEIRCFGGraphForDFGEdge(std::ofstream &file);
   virtual bool HasThis() = 0;
   virtual bool IsNative() = 0;
