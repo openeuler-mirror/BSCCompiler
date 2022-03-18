@@ -1214,6 +1214,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
     case OP_shl:
     case OP_lshr:
     case OP_ashr:
+    case OP_bxor:
     // compare
     case OP_eq:
     case OP_ne:
@@ -1603,6 +1604,7 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
     // supported leaf ops
     case OP_constval:
     case OP_dread:
+    case OP_iaddrof:
     case OP_addrof: {
       if (isArraySub) {
         return true;
@@ -1627,6 +1629,7 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
     case OP_mul:
     case OP_band:
     case OP_bior:
+    case OP_bxor:
     case OP_shl:
     case OP_lshr:
     case OP_ashr:
@@ -1672,6 +1675,10 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
         return true;
       }
       return ExprVectorizable(doloopInfo, vecInfo, x->Opnd(0));
+    }
+    case OP_cvt: {
+      // skip cvt in array subscript
+      return isArraySub;
     }
     case OP_iread: {
       IreadNode* ireadnode = static_cast<IreadNode *>(x);
