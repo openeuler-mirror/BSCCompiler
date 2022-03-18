@@ -80,6 +80,10 @@ void ASTFunction::FinishImpl() {
     (void)LowerFunc("low feir func");
     (void)DumpFEIRBBs("dump bb list");
   }
+  if (FEOptions::GetInstance().IsDumpFEIRCFGGraph(GetGeneralFuncName())) {
+    (void)LowerFunc("low feir func");
+    (void)DumpFEIRCFGGraph("dump cfg graph");
+  }
   (void)EmitToMIR("finish/emit to mir");
   (void)GenerateAliasVars("finish/generate alias vars");
 }

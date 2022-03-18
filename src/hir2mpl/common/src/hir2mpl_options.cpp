@@ -65,7 +65,7 @@ enum OptionIndex : uint32 {
   kFEBigEndian,
   // general stmt/bb/cfg debug options
   kDumpFEIRBB,
-  kDumpGenCFGGraph,
+  kDumpFEIRCFGGraph,
   // multi-thread control options
   kNThreads,
   kDumpThreadTime,
@@ -190,6 +190,10 @@ const Descriptor kUsage[] = {
   { kDumpFEIRBB, 0, "", "dump-bb",
     kBuildTypeAll, kArgCheckPolicyNone,
     "  -dump-bb               : dump basic blocks info", "hir2mpl", {} },
+  { kDumpFEIRCFGGraph, 0, "", "dump-cfg",
+    kBuildTypeAll, kArgCheckPolicyRequired,
+    "  -dump-cfg funcname1,funcname2\n"\
+    "                         : dump cfg graph to dot file", "hir2mpl", {} },
 
   // bc bytecode compile options
   { kUnknown, 0, "", "",
@@ -364,7 +368,7 @@ bool HIR2MPLOptions::InitFactory() {
   // general stmt/bb/cfg debug options
   RegisterFactoryFunction<OptionProcessFactory>(kDumpFEIRBB,
                                                 &HIR2MPLOptions::ProcessDumpFEIRBB);
-  RegisterFactoryFunction<OptionProcessFactory>(kDumpGenCFGGraph,
+  RegisterFactoryFunction<OptionProcessFactory>(kDumpFEIRCFGGraph,
                                                 &HIR2MPLOptions::ProcessDumpFEIRCFGGraph);
 
   // multi-thread control options
@@ -687,8 +691,10 @@ bool HIR2MPLOptions::ProcessDumpFEIRBB(const Option &opt) {
 }
 
 bool HIR2MPLOptions::ProcessDumpFEIRCFGGraph(const Option &opt) {
-  FEOptions::GetInstance().SetIsDumpFEIRCFGGraph(true);
-  FEOptions::GetInstance().SetFEIRCFGGraphFileName(opt.Args());
+  std::list<std::string> funcNameList = SplitByComma(opt.Args());
+  for (const std::string &funcName : funcNameList) {
+    FEOptions::GetInstance().AddFuncNameForDumpCFGGraph(funcName);
+  }
   return true;
 }
 

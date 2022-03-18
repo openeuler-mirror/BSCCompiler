@@ -155,14 +155,12 @@ void HIR2MPLCompiler::SetupOutputPathAndName() {
   module.SetFileName(outName);
   // mapleall need outName with type, but mplt file no need
   size_t lastDot = outName.find_last_of(".");
-  std::string outNameWithoutType;
   if (lastDot == std::string::npos) {
     outNameWithoutType = outName;
   } else {
     outNameWithoutType = outName.substr(0, lastDot);
   }
   std::string mpltName = outNameWithoutType + ".mplt";
-  outputInlineName = outNameWithoutType + ".mplt_inline";
   if (srcLang != kSrcLangC) {
     GStrIdx strIdx = module.GetMIRBuilder()->GetOrCreateStringIndex(mpltName);
     module.GetImportFiles().push_back(strIdx);
@@ -217,7 +215,7 @@ void HIR2MPLCompiler::ExportMplFile() {
     }
     module.OutputAsciiMpl("", ".mpl", nullptr, emitStructureType, false);
     if (FEOptions::GetInstance().GetFuncInlineSize() != 0 && !FEOptions::GetInstance().GetWPAA()) {
-      module.DumpInlineCandidateToFile(outputInlineName);
+      module.DumpInlineCandidateToFile(outNameWithoutType + ".mplt_inline");
     }
     timer.StopAndDumpTimeMS("Output mpl");
   }

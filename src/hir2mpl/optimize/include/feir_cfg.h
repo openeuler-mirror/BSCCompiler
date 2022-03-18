@@ -38,7 +38,10 @@ class FEIRCFG {
   void LabelStmtID();
   void LabelBBID();
   bool HasDeadBB() const;
-  void DumpFEIRBBs();
+  void DumpBBs();
+  void DumpCFGGraph(std::ofstream &file);
+  void DumpCFGGraphForBB(std::ofstream &file, const FEIRBB &bb);
+  void DumpCFGGraphForEdge(std::ofstream &file);
 
   FEIRBB *GetDummyHead() const {
     return bbHead.get();

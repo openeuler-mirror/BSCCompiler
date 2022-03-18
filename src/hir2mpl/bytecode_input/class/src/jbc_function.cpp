@@ -83,8 +83,8 @@ void JBCFunction::FinishImpl() {
   if (FEOptions::GetInstance().IsDumpFEIRBB() && dumpFunc) {
     INFO(kLncInfo, "not implemented");
   }
-  if (FEOptions::GetInstance().IsDumpFEIRCFGGraph() && dumpFunc) {
-    DumpFEIRCFGGraph();
+  if (FEOptions::GetInstance().IsDumpFEIRCFGGraph(method.GetFullName())) {
+    (void)DumpFEIRCFGGraph("dump cfg graph");
   }
   (void)UpdateFormal("finish/update formal");
   // Not gen func body for abstract method
