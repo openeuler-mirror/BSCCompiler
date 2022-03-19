@@ -294,6 +294,7 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
       ScalarMeExpr *ptrVar = dynamic_cast<ScalarMeExpr *>(foundTerminal.second);
       MeExpr *newBase = nullptr;
       int32 offsetVal = 0;
+      bool dontRecurse = false;
       if ((ptrVar == nullptr || ptrVar->GetOst()->isPtrWithIncDec)) {
         // get offset value
         auto *mirConst = static_cast<ConstMeExpr*>(offsetNode)->GetConstVal();
@@ -307,6 +308,7 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
         newBase = base->GetOpnd(0);
         offsetVal = offset.val;
       } else {
+        dontRecurse = true;
         offsetVal = ivar->GetOffset();
         // reassociate the base expression such that the constant is added directly to ptrVar
         MeExpr *newAddSub = CreateMeExprBinary(base->GetOp(), ptrVar->GetPrimType(), *ptrVar, *offsetNode);
@@ -324,24 +326,31 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
         }
       }
       Opcode op = (offsetVal == 0) ? OP_iread : OP_ireadoff;
+      IvarMeExpr *formedIvar = nullptr;
       if (lhsIvar) {
-        auto *meDef = New<IvarMeExpr>(exprID++, ivar->GetPrimType(), ivar->GetTyIdx(), ivar->GetFieldID(), op);
-        meDef->SetBase(newBase);
-        meDef->SetOffset(offsetVal);
-        meDef->SetMuVal(ivar->GetMu());
-        meDef->SetVolatileFromBaseSymbol(ivar->GetVolatileFromBaseSymbol());
-        PutToBucket(meDef->GetHashIndex() % mapHashLength, *meDef);
-        meDef->simplifiedWithConstOffset = true;
-        return meDef;
+        formedIvar = New<IvarMeExpr>(exprID++, ivar->GetPrimType(), ivar->GetTyIdx(), ivar->GetFieldID(), op);
+        formedIvar->SetBase(newBase);
+        formedIvar->SetOffset(offsetVal);
+        formedIvar->SetMuVal(ivar->GetMu());
+        formedIvar->SetVolatileFromBaseSymbol(ivar->GetVolatileFromBaseSymbol());
+        PutToBucket(formedIvar->GetHashIndex() % mapHashLength, *formedIvar);
       } else {
         IvarMeExpr newIvar(kInvalidExprID, ivar->GetPrimType(), ivar->GetTyIdx(), ivar->GetFieldID(), op);
         newIvar.SetBase(newBase);
         newIvar.SetOffset(offsetVal);
         newIvar.SetMuVal(ivar->GetMu());
         newIvar.SetVolatileFromBaseSymbol(ivar->GetVolatileFromBaseSymbol());
-        IvarMeExpr *formedIvar = static_cast<IvarMeExpr *>(HashMeExpr(newIvar));
+        formedIvar = static_cast<IvarMeExpr *>(HashMeExpr(newIvar));
+      }
+      IvarMeExpr *nextSimplifiedIvar = nullptr;
+      if (!dontRecurse) {
+        nextSimplifiedIvar = static_cast<IvarMeExpr *>(SimplifyIvarWithConstOffset(formedIvar, lhsIvar));
+      }
+      if (nextSimplifiedIvar == nullptr) {
         formedIvar->simplifiedWithConstOffset = true;
         return formedIvar;
+      } else {
+        return nextSimplifiedIvar;
       }
     }
   }
@@ -771,10 +780,10 @@ AssignMeStmt *IRMap::CreateAssignMeStmt(ScalarMeExpr &lhs, MeExpr &rhs, BB &curr
 
 // get the false goto bb, if condgoto is brtrue, take the other bb of brture @lable
 // otherwise, take the bb of @lable
-BB *IRMap::GetFalseBrBB(const CondGotoMeStmt &condgoto) {
+const BB *IRMap::GetFalseBrBB(const CondGotoMeStmt &condgoto) {
   LabelIdx lblIdx = (LabelIdx)condgoto.GetOffset();
   BB *gotoBB = GetBBForLabIdx(lblIdx);
-  BB *bb = condgoto.GetBB();
+  const BB *bb = condgoto.GetBB();
   ASSERT(bb->GetSucc().size() == kBBVectorInitialSize, "array size error");
   if (condgoto.GetOp() == OP_brfalse) {
     return gotoBB;
@@ -1337,6 +1346,11 @@ MeExpr *IRMap::SimplifyMulExpr(const OpMeExpr *mulExpr) {
         }
         // (constA + a) * constB --> a * constB + (constA * constB)
         if (opnd1->GetMeOp() == kMeOpConst) {
+          if (GetPrimTypeSize(opnd0->GetPrimType()) < GetPrimTypeSize(opnd1->GetPrimType()) &&
+              IsUnsignedInteger(opnd0->GetPrimType())) {
+            // can not prove overflow wont happen
+            return nullptr;
+          }
           return CreateCanonicalizedMeExpr(
               mulExpr->GetPrimType(), OP_add, OP_mul, opndB, opnd1, OP_mul, opndA, opnd1);
         }
@@ -1345,6 +1359,11 @@ MeExpr *IRMap::SimplifyMulExpr(const OpMeExpr *mulExpr) {
 
       // (a + constA) * constB --> a * constB + (constA * constB)
       if (opndB->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
+        if (GetPrimTypeSize(opnd0->GetPrimType()) < GetPrimTypeSize(opnd1->GetPrimType()) &&
+            IsUnsignedInteger(opnd0->GetPrimType())) {
+          // can not prove overflow wont happen
+          return nullptr;
+        }
         return CreateCanonicalizedMeExpr(
             mulExpr->GetPrimType(), OP_add, OP_mul, opndA, opnd1, OP_mul, opndB, opnd1);
       }
