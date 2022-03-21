@@ -103,7 +103,7 @@ public:
   void SetId(TreeNode *n) {mId = n; SETPARENT(n);}
 
   unsigned  GetUnionInterTypesNum()                    {return mUnionInterTypes.GetNum();}
-  void      AddUnionInterType(TreeNode *n, bool front = false);
+  void      AddUnionInterType(TreeNode *n);
   TreeNode* GetUnionInterType(unsigned i)              {return mUnionInterTypes.ValueAtIndex(i);}
   void      SetUnionInterType(unsigned i, TreeNode* n) {*(mUnionInterTypes.RefAtIndex(i)) = n; SETPARENT(n);}
 
