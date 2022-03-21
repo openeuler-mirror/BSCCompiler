@@ -29,6 +29,7 @@ using namespace mapleOption;
 const std::string kMplcgVersion = "";
 
 bool CGOptions::timePhases = false;
+std::string CGOptions::targetArch = "";
 std::unordered_set<std::string> CGOptions::dumpPhases = {};
 std::unordered_set<std::string> CGOptions::skipPhases = {};
 std::unordered_map<std::string, std::vector<std::string>> CGOptions::cyclePatternMap = {};
@@ -111,9 +112,11 @@ bool CGOptions::fastMath = false;
 bool CGOptions::doAlignAnalysis = false;
 bool CGOptions::cgBigEndian = false;
 bool CGOptions::arm64ilp32 = false;
+bool CGOptions::noCommon = false;
 
 enum OptionIndex : uint64 {
   kCGQuiet = kCommonOptionEnd + 1,
+  kTargetMachine,
   kPie,
   kPic,
   kCGVerbose,
@@ -210,6 +213,7 @@ enum OptionIndex : uint64 {
   kSsuPreRestore,
   kArm64ilp32,
   kCGSSA,
+  kCommon,
 };
 
 const Descriptor kUsage[] = {
@@ -829,6 +833,15 @@ const Descriptor kUsage[] = {
     "  --dump-cfg\n",
     "mplcg",
     {} },
+  { kTargetMachine,
+    0,
+    "",
+    "target",
+    kBuildTypeProduct,
+    kArgCheckPolicyOptional,
+    "  --target=TARGETMACHINE \t generate code for TARGETMACHINE\n",
+    "mplcg",
+    {} },
   { kCGDumpPhases,
     0,
     "",
@@ -1152,6 +1165,16 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyBool,
     " --arm64-ilp32                 \tarm64 with a 32-bit ABI instead of a 64bit ABI\n"
     " --no-arm64-ilp32\n",
+    "mplcg",
+    {} },
+  { kCommon,
+    kEnable,
+    "",
+    "common",
+    kBuildTypeProduct,
+    kArgCheckPolicyBool,
+    " --common           \t \n"
+    " --no-common\n",
     "mplcg",
     {} },
 
@@ -1503,6 +1526,9 @@ bool CGOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
       case kCGDumpPhases:
         SplitPhases(opt.Args(), GetDumpPhases());
         break;
+      case kTargetMachine:
+        SetTargetMachine(opt.Args());
+        break;
       case kCGSkipPhases:
         SplitPhases(opt.Args(), GetSkipPhases());
         break;
@@ -1556,6 +1582,9 @@ bool CGOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
         break;
       case kCGSSA:
         (opt.Type() == kEnable) ? EnableCGSSA() : DisableCGSSA();
+        break;
+      case kCommon:
+        (opt.Type() == kEnable) ? EnableCommon() : DisableCommon();
         break;
       default:
         WARN(kLncWarn, "input invalid key for mplcg " + opt.OptionKey());
@@ -1639,6 +1668,7 @@ void CGOptions::SetDefaultOptions(const maple::MIRModule &mod) {
 void CGOptions::EnableO0() {
   optimizeLevel = kLevel0;
   doEBO = false;
+  doCGSSA = false;
   doCFGO = false;
   doICO = false;
   doPrePeephole = false;
@@ -1648,8 +1678,11 @@ void CGOptions::EnableO0() {
   doPreLSRAOpt = false;
   doLocalRefSpill = false;
   doCalleeToSpill = false;
+  doPreSchedule = false;
   doSchedule = false;
   doRegSavesOpt = false;
+  useSsaPreSave = false;
+  useSsuPreRestore = false;
   doWriteRefFieldOpt = false;
   doAlignAnalysis = false;
 #if ILP32
@@ -1705,6 +1738,15 @@ void CGOptions::EnableO2() {
   SetOption(kProEpilogueOpt);
   SetOption(kTailCallOpt);
 #endif
+}
+
+void CGOptions::SetTargetMachine(const std::string &str) {
+  if (str == "aarch64") {
+    targetArch = "aarch64";
+  } else if (str == "x86_64") {
+    targetArch = "x86_64";
+  }
+  CHECK_FATAL(false, "unknown target. not implement yet");
 }
 
 void CGOptions::SplitPhases(const std::string &str, std::unordered_set<std::string> &set) {

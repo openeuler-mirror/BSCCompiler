@@ -616,7 +616,7 @@ MeExpr *OpMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
 }
 
 bool OpMeExpr::StrengthReducible() {
-  if (MeOption::ivopts && MeOption::optLevel < 3) {
+  if (MeOption::ivopts) {
     return false;
   }
   if (!IsPrimitiveInteger(primType)) {
@@ -695,6 +695,15 @@ bool ConstMeExpr::IsZero() const {
     auto *doubleConst = safe_cast<MIRDoubleConst>(constVal);
     CHECK_NULL_FATAL(doubleConst);
     return (doubleConst->GetIntValue() == 0);
+  }
+  return false;
+}
+
+bool ConstMeExpr::IsIntZero() const {
+  if (constVal->GetKind() == kConstInt) {
+    auto *intConst = safe_cast<MIRIntConst>(constVal);
+    CHECK_NULL_FATAL(intConst);
+    return (intConst->GetValue() == 0);
   }
   return false;
 }
