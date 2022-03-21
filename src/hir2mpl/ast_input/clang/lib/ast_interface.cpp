@@ -317,27 +317,17 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs 
 }
 
 void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) {
+  if (!decl.hasAttrs()) {
+    return;
+  }
   std::string unsupportedFuncAttrs = "";
-  if (decl.hasAttr<clang::NoInstrumentFunctionAttr>()) {
-    unsupportedFuncAttrs += " no_instrument_function";
-  }
-  if (decl.hasAttr<clang::StdCallAttr>()) {
-    unsupportedFuncAttrs += " stdcall";
-  }
-  if (decl.hasAttr<clang::CDeclAttr>()) {
-    unsupportedFuncAttrs += " cdecl";
-  }
-  if (decl.hasAttr<clang::MipsLongCallAttr>()) {
-    unsupportedFuncAttrs += " long_call";
-  }
-  if (decl.hasAttr<clang::MipsShortCallAttr>()) {
-    unsupportedFuncAttrs += " short_call";
-  }
-  if(decl.hasAttr<clang::ARMInterruptAttr>() || decl.hasAttr<clang::AnyX86InterruptAttr>()) {
-    unsupportedFuncAttrs += " interrupt";
-  }
-  if (decl.hasAttr<clang::NakedAttr>()) {
-    unsupportedFuncAttrs += " naked";
+  const clang::AttrVec &funcAttrs = decl.getAttrs();
+  for (const auto *attr : funcAttrs) {
+    clang::attr::Kind attrKind = attr->getKind();
+    auto iterator = LibAstFile::unsupportedFuncAttrsMap.find(attrKind);
+    if (iterator != LibAstFile::unsupportedFuncAttrsMap.end()) {
+      unsupportedFuncAttrs += iterator->second + " ";
+    }
   }
   CHECK_FATAL(unsupportedFuncAttrs.empty(), "%s:%d error: The function %s has unsupported attribute(s): %s",
               FEManager::GetModule().GetFileNameFromFileNum(GetLOC(decl.getLocation()).first).c_str(),
@@ -362,15 +352,17 @@ void LibAstFile::CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAt
 }
 
 void LibAstFile::CheckUnsupportedVarAttrs(const clang::VarDecl &decl) {
+  if (!decl.hasAttrs()) {
+    return;
+  }
   std::string unsupportedVarAttrs = "";
-  if(decl.hasAttr<clang::ModeAttr>()) {
-    unsupportedVarAttrs += " mode";
-  }
-  if(decl.hasAttr<clang::NoCommonAttr>()) {
-    unsupportedVarAttrs += " nocommon";
-  }
-  if(decl.hasAttr<clang::TransparentUnionAttr>()) {
-    unsupportedVarAttrs += " transparent_union";
+  const clang::AttrVec &varAttrs = decl.getAttrs();
+  for (const auto *attr : varAttrs) {
+    clang::attr::Kind attrKind = attr->getKind();
+    auto iterator = LibAstFile::unsupportedVarAttrsMap.find(attrKind);
+    if (iterator != LibAstFile::unsupportedVarAttrsMap.end()) {
+      unsupportedVarAttrs += iterator->second + " ";
+    }
   }
   CHECK_FATAL(unsupportedVarAttrs.empty(), "%s:%d error: The variable %s has unsupported attribute(s): %s",
               FEManager::GetModule().GetFileNameFromFileNum(GetLOC(decl.getLocation()).first).c_str(),
@@ -394,9 +386,17 @@ void LibAstFile::CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs 
 }
 
 void LibAstFile::CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl) {
+  if (!decl.hasAttrs()) {
+    return;
+  }
   std::string unsupportedTypeAttrs = "";
-  if (decl.hasAttr<clang::MSStructAttr>()) {
-    unsupportedTypeAttrs += " ms_struct";
+  const clang::AttrVec &typeAttrs = decl.getAttrs();
+  for (const auto *attr : typeAttrs) {
+    clang::attr::Kind attrKind = attr->getKind();
+    auto iterator = LibAstFile::unsupportedTypeAttrsMap.find(attrKind);
+    if (iterator != LibAstFile::unsupportedTypeAttrsMap.end()) {
+      unsupportedTypeAttrs += iterator->second + " ";
+    }
   }
   CHECK_FATAL(unsupportedTypeAttrs.empty(), "%s:%d error: struct or union %s has unsupported type attribute(s): %s",
               FEManager::GetModule().GetFileNameFromFileNum(GetLOC(decl.getLocation()).first).c_str(),

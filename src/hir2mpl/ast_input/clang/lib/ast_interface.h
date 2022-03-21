@@ -21,6 +21,7 @@
 #include "mpl_logging.h"
 #include "generic_attrs.h"
 #include "fe_utils.h"
+#include "clang/Basic/AttrKinds.h"
 
 namespace maple {
 using Pos = std::pair<uint32, uint32>;
@@ -30,7 +31,7 @@ enum AccessKind {
   kPrivate,
   kNone
 };
-
+typedef std::unordered_map<clang::attr::Kind, std::string> AttributesMap;
 class LibAstFile {
  public:
   explicit LibAstFile(MapleList<clang::Decl*> &recordDeclesIn) : recordDecles(recordDeclesIn) {}
@@ -114,6 +115,38 @@ class LibAstFile {
   clang::TranslationUnitDecl *astUnitDecl = nullptr;
   clang::MangleContext *mangleContext = nullptr;
   std::string astFileName;
+  const AttributesMap unsupportedFuncAttrsMap = {
+    {clang::attr::NoInstrumentFunction, "no_instrument_function"},
+    {clang::attr::StdCall, "stdcall"},
+    {clang::attr::CDecl, "cdecl"},
+    {clang::attr::MipsLongCall, "mips_long_call"},
+    {clang::attr::MipsShortCall, "mips_short_call"},
+    {clang::attr::ARMInterrupt, "arm_interrupt"},
+    {clang::attr::AnyX86Interrupt, "x86_interrupt"},
+    {clang::attr::Naked, "naked"},
+    {clang::attr::AllocAlign, "alloc_align"},
+    {clang::attr::AssumeAligned, "assume_aligned"},
+    {clang::attr::Flatten, "flatten"},
+    {clang::attr::GNUInline, "gnu_inline"},
+    {clang::attr::Cold, "cold"},
+    {clang::attr::IFunc, "ifunc"},
+    {clang::attr::NoSanitize, "no_sanitize"},
+    {clang::attr::NoSplitStack, "no_split_stack"},
+    {clang::attr::PatchableFunctionEntry, "patchable_function_entry"},
+    {clang::attr::Target, "target"}
+  };
+  const AttributesMap unsupportedVarAttrsMap = {
+    {clang::attr::Mode, "mode"},
+    {clang::attr::NoCommon, "nocommon"},
+    {clang::attr::TransparentUnion, "transparent_union"},
+    {clang::attr::Alias, "alias"},
+    {clang::attr::Cleanup, "cleanup"},
+    {clang::attr::Common, "common"},
+    {clang::attr::Uninitialized, "uninitialized"}
+  };
+  const AttributesMap unsupportedTypeAttrsMap = {
+    {clang::attr::MSStruct, "ms_struct"}
+  };
 };
 } // namespace maple
 #endif // HIR2MPL_AST_FILE_INCLUDE_AST_INTERFACE_H
