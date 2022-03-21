@@ -445,7 +445,8 @@ void MustThrowExceptionExpr(MeExpr *expr, std::set<MeExpr*> &exceptionExpr) {
       exceptionExpr.emplace(static_cast<IvarMeExpr*>(expr)->GetBase());
       return;
     }
-  } else if ((expr->GetOp() == OP_div || expr->GetOp() == OP_rem) && expr->GetOpnd(1)->IsZero()) {
+  } else if ((expr->GetOp() == OP_div || expr->GetOp() == OP_rem) && expr->GetOpnd(1)->IsIntZero()) {
+    // for float or double zero, this is legal.
     exceptionExpr.emplace(expr->GetOpnd(1));
     return;
   } else if (expr->GetOp() == OP_select) {

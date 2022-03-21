@@ -112,6 +112,10 @@ class MeExpr {
     return false;
   }
 
+  virtual bool IsIntZero() const {
+    return false;
+  }
+
   virtual bool IsUseSameSymbol(const MeExpr &expr) const {
     return exprID == expr.exprID;
   }
@@ -531,6 +535,7 @@ class ConstMeExpr : public MeExpr {
   bool GeZero() const;
   bool GtZero() const;
   bool IsZero() const override;
+  bool IsIntZero() const override;
   bool IsOne() const;
   int64 GetIntValue() const;
 

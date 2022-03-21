@@ -118,6 +118,7 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
     uint32 countFuncId = 0;
     unsigned long rangeNum = 0;
 
+    auto userDefinedOptLevel = cgOptions->GetOptimizeLevel();
     cg->EnrollTargetPhases(this);
 
     auto admMempool = AllocateMemPoolInPhaseManager("cg phase manager's analysis data manager mempool");
@@ -127,6 +128,19 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
       MIRFunction *mirFunc = *it;
       if (mirFunc->GetBody() == nullptr) {
         continue;
+      }
+      if (userDefinedOptLevel == CGOptions::kLevel2 && m.HasPartO2List()) {
+        if (m.IsInPartO2List(mirFunc->GetNameStrIdx())) {
+          cgOptions->EnableO2();
+          ClearAllPhases();
+          cg->EnrollTargetPhases(this);
+        } else {
+          cgOptions->EnableO0();
+          ClearAllPhases();
+          cg->EnrollTargetPhases(this);
+        }
+        cg->UpdateCGOptions(*cgOptions);
+        Globals::GetInstance()->SetOptimLevel(cgOptions->GetOptimizeLevel());
       }
       if (!IsQuiet()) {
         LogInfo::MapleLogger() << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> Optimizing Function  < " << mirFunc->GetName()
