@@ -187,31 +187,64 @@ const char *StringPool::GetStringFromStrIdx(unsigned idx) {
 
 // This is the public interface to setup AltStrIdxMap used for obfuscation
 // a name is mapped to a fixed length random unused name.
-// two letters, [a-zA-Z] [a-zA-Z], which will cover over 2K names
+// starting from 2-letter names, [a-zA-Z] [a-zA-Z], which will cover over 2K names
 // AA Aa AB Ab, ...., zz
-#define LEN   2
-//
-#define KIND  52
-#define SIZE  KIND*KIND
+// if not enough will extend to use 3-letter or 4-letter for over 7 million names
 void StringPool::SetAltStrIdxMap() {
-  unsigned size = mAltStrIdxSet.size();
+  // starting from 2-letter names
+  unsigned len = 2;
   bool done = false;
-  char *A = (char*)malloc(LEN+1);
-  *(A+LEN) = 0;
+
+  // names use [A-Z] and [a-z] total 52 letters
+  int k = 52;
+
+  // total number of names can be handled for len = 4, 3, 2, 1 respectively
+  int Size[4] = {k*k*k*k, k*k*k, k*k, k};
+
+  // names, trailing '\0'
+  char A[5] = {0, 0, 0, 0, 0};
+
+  // names already encounted, either existing name or new names
+  std::unordered_set<unsigned> used;
+
   for (auto stridx : mAltStrIdxSet) {
     done = false;
     while (!done) {
-      int r = rand() % (SIZE);
-      int t = r/KIND;
-      int s = r%KIND;
+      unsigned offset = 4 - len;
+      int mod = Size[offset];
 
-      // first char, use upper case for odd number
-      bool odd = t%2;
-      *A = (odd ? 'A' : 'a') + t/2;
+      int n = rand();
+      int r = n % mod;
 
-      // second char, use upper case for odd number
-      odd = s%2;
-      *(A+1) = (odd ? 'A' : 'a') + s/2;
+      // check if already encounted
+      if (used.find(r) != used.end()) {
+        // expand to use one more leter if close to limit
+        if (used.size() > mod - Size[offset + 1]) {
+          len++;
+          MASSERT(len < 5 && "Need more names");
+        }
+        continue;
+      }
+
+      // have un-encounted name
+      used.insert(r);
+
+      int q;
+      bool odd;
+      int i = 0;
+      while (i < len - 1) {
+        mod = Size[offset + 1 + i];
+        q = r / mod;
+        r = r % mod;
+
+        // char, use upper case for odd number
+        odd = q%2;
+        A[i++] = (odd ? 'A' : 'a') + q/2;
+      }
+
+      // last char, use upper case for odd number
+      odd = r%2;
+      A[i] = (odd ? 'A' : 'a') + r/2;
 
       unsigned size = GetSize();
       unsigned alt = GetStrIdx(A);
@@ -222,8 +255,6 @@ void StringPool::SetAltStrIdxMap() {
       }
     }
   }
-
-  free(A);
 }
 
 void StringPool::Dump() {

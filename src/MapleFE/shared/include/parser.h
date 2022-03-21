@@ -1,7 +1,8 @@
 /*
 * Copyright (C) [2020-2022] Futurewei Technologies, Inc. All rights reverved.
+* Copyright 2022 Tencent. All rights reverved.
 *
-* OpenArkFE is licensed under the Mulan PSL v2.
+* MapleFE is licensed under the Mulan PSL v2.
 * You can use this software according to the terms and conditions of the Mulan PSL v2.
 * You may obtain a copy of Mulan PSL v2 at:
 *
