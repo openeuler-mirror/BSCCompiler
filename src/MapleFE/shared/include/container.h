@@ -1,5 +1,6 @@
 /*
 * Copyright (C) [2020] Futurewei Technologies, Inc. All rights reverved.
+* Copyright (C) 2022 Tencent. All rights reverved.
 *
 * OpenArkFE is licensed under the Mulan PSL v2.
 * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -33,6 +34,7 @@
 #define __CONTAINER_H__
 
 #include <type_traits>
+#include <unordered_map>
 #include "mempool.h"
 #include "massert.h"
 #include "macros.h"
@@ -774,6 +776,338 @@ public:
   void Release(){
     mMemPool.Release();
     mHeader = NULL;
+  }
+};
+
+////////////////////////////////////////////////////////////////////////
+// GuamianFast uses unordered map to store the Knob-s in order to
+// speed up the searching with big number of data.
+////////////////////////////////////////////////////////////////////////
+
+template <class K = unsigned, class D = unsigned, class E = unsigned> class GuamianFast {
+private:
+  struct Elem{
+    E     mData;
+    Elem *mNext;
+  };
+
+  // Sometimes people need save certain additional information to
+  // each knob. So we define mData.
+  struct Knob{
+    D        mData;
+    Elem    *mChildren; // pointing to the first child
+  };
+
+  MemPool mMemPool;
+  std::unordered_map<K, Knob*> mKnobs;
+
+  // allocate a new knob
+  Knob* NewKnob() {
+    Knob *knob = (Knob*)mMemPool.Alloc(sizeof(Knob));
+    knob->mData = 0;
+    knob->mChildren = NULL;
+    return knob;
+  }
+
+  // allocate a new element
+  Elem* NewElem() {
+    Elem *elem = (Elem*)mMemPool.Alloc(sizeof(Elem));
+    elem->mNext = NULL;
+    elem->mData = 0;
+    return elem;
+  }
+
+  // Sometimes people want to have a sequence of operations like,
+  //   Get the knob,
+  //   Add one element, on the knob
+  //   Add more elements, on the knob.
+  // This is common scenario. To implement, it requires a temporary
+  // pointer to the located knob. This temp knob is used ONLY when
+  // paired operations, PairedFindOrCreateKnob() and PairedAddElem()
+  struct {
+    Knob *mKnob;
+    K     mKey;
+  }mTempKnob;
+
+private:
+  // Just try to find the Knob.
+  // return NULL if fails.
+  Knob* FindKnob(K key) {
+    Knob *result = NULL;
+    auto search = mKnobs.find(key);
+    if (search != mKnobs.end())
+      result = search->second;
+    return result;
+  }
+
+  // Try to find the Knob. Create one if failed.
+  Knob* FindOrCreateKnob(K key) {
+    Knob *knob = FindKnob(key);
+    if (!knob) {
+      knob = NewKnob();
+      mKnobs.insert(std::make_pair(key, knob));
+    }
+    return knob;
+  }
+
+  // Add an element to knob. It's the caller's duty to assure
+  // knob is not NULL.
+  void AddElem(Knob *knob, E data) {
+    Elem *elem = knob->mChildren;
+    Elem *found = NULL;
+    while (elem) {
+      if (elem->mData == data) {
+        found = elem;
+        break;
+      }
+      elem = elem->mNext;
+    }
+
+    if (!found) {
+      Elem *e = NewElem();
+      e->mData = data;
+      e->mNext = knob->mChildren;
+      knob->mChildren = e;
+    }
+  }
+
+  // return true : if find the element
+  //       false : if fail
+  bool FindElem(Knob *knob, E data) {
+    Elem *elem = knob->mChildren;
+    while (elem) {
+      if (elem->mData == data)
+        return true;
+      elem = elem->mNext;
+    }
+    return false;
+  }
+
+  // Remove elem from the list. If elem doesn't exist, exit quietly.
+  // It's caller's duty to assure elem exists.
+  void RemoveElem(Knob *knob, E data) {
+    Elem *elem = knob->mChildren;
+    Elem *elem_prev = NULL;
+    Elem *target = NULL;
+    while (elem) {
+      if (elem->mData == data) {
+        target = elem;
+        break;
+      }
+      elem_prev = elem;
+      elem = elem->mNext;
+    }
+
+    if (target) {
+      if (target == knob->mChildren)
+        knob->mChildren = target->mNext;
+      else
+        elem_prev->mNext = target->mNext;
+    }
+  }
+
+  // Move the element to be the first child  of knob.
+  // It's the caller's duty to make sure 'data' does exist
+  // in knob's children.
+  void MoveElemToHead(Knob *knob, E data) {
+    Elem *target_elem = NULL;
+    Elem *elem = knob->mChildren;
+    Elem *elem_prev = NULL;
+    while (elem) {
+      if (elem->mData == data) {
+        target_elem = elem;
+        break;
+      }
+      elem_prev = elem;
+      elem = elem->mNext;
+    }
+
+    if (target_elem && (target_elem != knob->mChildren)) {
+      elem_prev->mNext = target_elem->mNext;
+      target_elem->mNext = knob->mChildren;
+      knob->mChildren = target_elem;
+    }
+  }
+
+  // Try to find the first child of Knob k. Return the data.
+  // found is set to false if fails, or true.
+  // [NOTE] It's the user's responsibilty to make sure the Knob
+  //        of 'key' exists.
+  E FindFirstElem(Knob *knob, bool &found) {
+    Elem *e = knob->mChildren;
+    if (!e) {
+      found = false;
+      return 0;
+    }
+    found = true;
+    return e->mData;
+  }
+
+  // return num of elements in knob.
+  // It's caller's duty to assure knob is not NULL.
+  unsigned NumOfElem(Knob *knob) {
+    Elem *e = knob->mChildren;
+    unsigned c = 0;
+    while(e) {
+      c++;
+      e = e->mNext;
+    }
+    return c;
+  }
+
+  // Return the idx-th element in knob.
+  // It's caller's duty to assure the validity of return value.
+  // It doesn't check validity here.
+  // Index starts from 0.
+  E GetElemAtIndex(Knob *knob, unsigned idx) {
+    Elem *e = knob->mChildren;
+    unsigned c = 0;
+    E data;
+    while(e) {
+      if (c == idx) {
+        data = e->mData;
+        break;
+      }
+      c++;
+      e = e->mNext;
+    }
+    return data;
+  }
+
+public:
+  GuamianFast() {mTempKnob.mKnob = NULL;}
+  ~GuamianFast(){Release();}
+
+  void AddElem(K key, E data) {
+    Knob *knob = FindOrCreateKnob(key);
+    AddElem(knob, data);
+  }
+
+  // If 'data' doesn't exist, it ends quietly
+  void RemoveElem(K key, E data) {
+    Knob *knob = FindOrCreateKnob(key);
+    RemoveElem(knob, data);
+  }
+
+  // Try to find the first child of Knob k. Return the data.
+  // found is set to false if fails, or true.
+  // [NOTE] It's the user's responsibilty to make sure the Knob
+  //        of 'key' exists.
+  E FindFirstElem(K key, bool &found) {
+    Knob *knob = FindKnob(key);
+    if (!knob) {
+      found = false;
+      return 0;   // return value doesn't matter when fails.
+    }
+    E data = FindFirstElem(knob, found);
+    return data;
+  }
+
+  // return true : if find the element
+  //       false : if fail
+  bool FindElem(K key, E data) {
+    Knob *knob = FindKnob(key);
+    if (!knob)
+      return false;
+    return FindElem(knob, data);
+  }
+
+  // Move element to be the header
+  // If 'data' doesn't exist, it ends quietly.
+  void MoveElemToHead(K key, E data) {
+    Knob *knob = FindKnob(key);
+    if (!knob)
+      return;
+    MoveElemToHead(knob, data);
+  }
+
+  /////////////////////////////////////////////////////////
+  // Paired operations start with finding a knob. It can
+  // be either PairedFindKnob() or PairedFindOrCreateKnob()
+  // Following that, there could be any number of operations
+  // like searching, adding, moving an element.
+  /////////////////////////////////////////////////////////
+
+  void PairedFindOrCreateKnob(K key) {
+    mTempKnob.mKnob = FindOrCreateKnob(key);
+    mTempKnob.mKey = key;
+  }
+
+  bool PairedFindKnob(K key) {
+    mTempKnob.mKnob = FindKnob(key);
+    mTempKnob.mKey = key;
+    if (mTempKnob.mKnob)
+      return true;
+    else
+      return false;
+  }
+
+  void PairedAddElem(E data) {
+    AddElem(mTempKnob.mKnob, data);
+  }
+
+  // If 'data' doesn't exist, it ends quietly
+  void PairedRemoveElem(E data) {
+    RemoveElem(mTempKnob.mKnob, data);
+  }
+
+  bool PairedFindElem(E data) {
+    return FindElem(mTempKnob.mKnob, data);
+  }
+
+  // If 'data' doesn't exist, it ends quietly.
+  void PairedMoveElemToHead(E data) {
+    MoveElemToHead(mTempKnob.mKnob, data);
+  }
+
+  E PairedFindFirstElem(bool &found) {
+    return FindFirstElem(mTempKnob.mKnob, found);
+  }
+
+  // return num of elements in current temp knob.
+  // It's caller's duty to assure knob is not NULL.
+  unsigned PairedNumOfElem() {
+    return NumOfElem(mTempKnob.mKnob);
+  }
+
+  // Return the idx-th element in knob.
+  // It's caller's duty to assure the validity of return value.
+  // It doesn't check validity here.
+  // Index starts from 0.
+  E PairedGetElemAtIndex(unsigned idx) {
+    return GetElemAtIndex(mTempKnob.mKnob, idx);
+  }
+
+  // Reduce the element at index exc_idx.
+  // It's caller's duty to assure the element exists.
+  void PairedReduceElems(unsigned exc_idx) {
+    ReduceElems(mTempKnob.mKnob, exc_idx);
+  }
+
+  void PairedSetKnobData(D d) {
+    mTempKnob.mKnob->mData = d;
+  }
+
+  D PairedGetKnobData() {
+    return mTempKnob.mKnob->mData;
+  }
+
+  K PairedGetKnobKey() {
+    return mTempKnob.mKey;
+  }
+
+  /////////////////////////////////////////////////////////
+  //                 Other functions
+  /////////////////////////////////////////////////////////
+
+  void Clear(){
+    mTempKnob.mKnob = NULL;
+    mKnobs.clear();
+    mMemPool.Clear();
+  }
+
+  void Release(){
+    mMemPool.Release();
   }
 };
 

@@ -3819,7 +3819,7 @@ TreeNode* ASTBuilder::BuildUnionUserType() {
       // assert, both children cannot be UnionUserType at the same time.
       MASSERT(!user_type);
       user_type = ut;
-      user_type->AddUnionInterType(child_a);
+      user_type->AddUnionInterType(child_a, true);
     }
   }
 
@@ -3865,7 +3865,7 @@ TreeNode* ASTBuilder::BuildInterUserType() {
       // assert, both children cannot be UnionUserType at the same time.
       MASSERT(!user_type);
       user_type = ut;
-      user_type->AddUnionInterType(child_a);
+      user_type->AddUnionInterType(child_a, true);
     }
   }
 
