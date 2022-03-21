@@ -1,6 +1,7 @@
 # Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+# Copyright 2022 Tencent. All rights reverved.
 #
-# OpenArkFE is licensed under the Mulan PSL v2.
+# MapleFE is licensed under the Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
 #
@@ -1165,9 +1166,9 @@ rule BreakStatement : ONEOF(
 ##  return ;
 ##  return [no LineTerminator here] Expression[In, ?Yield] ;
 rule ReturnStatement :ONEOF("return" + ZEROORONE(';'),
-                            "return" + Expression + ZEROORONE(';'))
+                            "return" + NoLineTerminator + Expression + ZEROORONE(';'))
   attr.action.%1 : BuildReturn()
-  attr.action.%2 : BuildReturn(%2)
+  attr.action.%2 : BuildReturn(%3)
 
 ##-----------------------------------
 ##rule WithStatement[Yield, Return] :
