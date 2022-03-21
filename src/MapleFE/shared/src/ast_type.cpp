@@ -27,7 +27,7 @@ namespace maplefe {
 //                           UserTypeNode                               //
 //////////////////////////////////////////////////////////////////////////
 
-void UserTypeNode::AddUnionInterType(TreeNode *args, bool front) {
+void UserTypeNode::AddUnionInterType(TreeNode *args) {
   if (args->IsIdentifier() ||
       args->IsPrimType() ||
       args->IsPrimArrayType() ||
@@ -45,11 +45,6 @@ void UserTypeNode::AddUnionInterType(TreeNode *args, bool front) {
       args->IsTemplateLiteral() ||
       args->IsStruct()) {
     mUnionInterTypes.PushBack(args);
-    if (front) {
-      for(unsigned i = mUnionInterTypes.GetNum() - 1; i > 0; --i)
-        mUnionInterTypes.SetElem(i, mUnionInterTypes.ValueAtIndex(i-1));
-      mUnionInterTypes.SetElem(0, args);
-    }
     SETPARENT(args);
   } else if (args->IsPass()) {
     PassNode *p = (PassNode*)args;
