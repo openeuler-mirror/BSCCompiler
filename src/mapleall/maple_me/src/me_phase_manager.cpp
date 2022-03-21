@@ -46,10 +46,6 @@ void MeFuncPM::DumpMEIR(const MeFunction &f, const std::string phaseName, bool i
 }
 
 bool MeFuncPM::SkipFuncForMe(const MIRModule &m, const MIRFunction &func, uint64 range) {
-  // when partO2 is set, skip func which not exists in partO2FuncList.
-  if (m.HasPartO2List() && !m.IsInPartO2List(func.GetNameStrIdx())) {
-    return true;
-  }
   if (func.IsEmpty() || (MeOption::useRange && (range < MeOption::range[0] || range > MeOption::range[1]))) {
     return true;
   }
@@ -69,12 +65,24 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
   if (MeFuncPM::timePhases) {
     InitTimeHandler();
   }
+  auto userDefinedOptLevel = MeOption::optLevel;
   DoPhasesPopulate(m);
   for (size_t i = 0; i < compFuncList.size(); ++i) {
     MIRFunction *func = compFuncList[i];
     ASSERT_NOT_NULL(func);
     if (SkipFuncForMe(m, *func, i)) {
       continue;
+    }
+    if (userDefinedOptLevel == 2 && m.HasPartO2List()) {
+      if (m.IsInPartO2List(func->GetNameStrIdx())) {
+        MeOption::optLevel = 2;
+        ClearAllPhases();
+        DoPhasesPopulate(m);
+      } else {
+        MeOption::optLevel = 0;
+        ClearAllPhases();
+        DoPhasesPopulate(m);
+      }
     }
     m.SetCurFunction(func);
     if (!IsQuiet()) {
@@ -165,6 +173,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEStorePre, storepre)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESubsumRC, subsumrc)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESSARename2Preg, rename2preg)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEMeProp, hprop)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESSAProp, ssaprop)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEMeSink, sink)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEIVOpts, ivopts)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESyncSelect, syncselect)

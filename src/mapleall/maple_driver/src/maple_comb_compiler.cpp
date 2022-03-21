@@ -25,11 +25,9 @@
 namespace maple {
 using namespace mapleOption;
 
-std::string MapleCombCompiler::GetInputFileName(const MplOptions &options, const Action &action) const {
-  if (!options.GetRunningExes().empty()) {
-    if (options.GetRunningExes()[0] == kBinNameMe || options.GetRunningExes()[0] == kBinNameMpl2mpl) {
-      return action.GetInputFile();
-    }
+std::string MapleCombCompiler::GetInputFileName(const MplOptions &, const Action &action) const {
+  if (action.IsItFirstRealAction()) {
+    return action.GetInputFile();
   }
   if (action.GetInputFileType() == InputFileType::kFileTypeVtableImplMpl) {
     return action.GetFullOutputName() + ".VtableImpl.mpl";
@@ -77,7 +75,8 @@ void MapleCombCompiler::PrintCommand(const MplOptions &options, const Action &ac
     auto it = options.GetExeOptions().find(kBinNameMe);
     for (const mapleOption::Option &opt : it->second) {
       connectSym = !opt.Args().empty() ? "=" : "";
-      optionStr << " --" << opt.OptionKey() << connectSym << opt.Args();
+      auto prefixStr = opt.GetPrefix();
+      optionStr << " " << prefixStr << opt.OptionKey() << connectSym << opt.Args();
     }
     firstComb = true;
   }
@@ -91,7 +90,8 @@ void MapleCombCompiler::PrintCommand(const MplOptions &options, const Action &ac
     auto it = options.GetExeOptions().find(kBinNameMpl2mpl);
     for (const mapleOption::Option &opt : it->second) {
       connectSym = !opt.Args().empty() ? "=" : "";
-      optionStr << " --" << opt.OptionKey() << connectSym << opt.Args();
+      auto prefixStr = opt.GetPrefix();
+      optionStr << " " << prefixStr << opt.OptionKey() << connectSym << opt.Args();
     }
   }
 
@@ -118,10 +118,11 @@ ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunn
     LogInfo::MapleLogger() << "Meet error me options\n";
     return kErrorCompileFail;
   }
-  meOption.generalRegOnly = options.HasSetGeneralRegOnly();
-  meOption.npeCheckMode = options.GetNpeCheckMode();
-  meOption.boundaryCheckMode = options.GetBoundaryCheckMode();
-  meOption.safeRegionMode = options.IsSafeRegion();
+  MeOption::generalRegOnly = options.HasSetGeneralRegOnly();
+  MeOption::npeCheckMode = options.GetNpeCheckMode();
+  MeOption::isNpeCheckAll = options.IsNpeCheckAll();
+  MeOption::boundaryCheckMode = options.GetBoundaryCheckMode();
+  MeOption::safeRegionMode = options.IsSafeRegion();
   // Set me options for driver runner
   runner.SetMeOptions(&MeOption::GetInstance());
   return kErrorNoError;
@@ -180,11 +181,16 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, const Action &action,
   DriverRunner runner(theModule.get(), options.GetSelectedExes(), action.GetInputFileType(), fileName,
                       fileName, fileName, options.WithDwarf(), fileParsed,
                       options.HasSetTimePhases(), options.HasSetGenVtableImpl(), options.HasSetGenMeMpl());
-  // Parse the input file
-  ErrorCode ret = runner.ParseInput();
+  ErrorCode ret = kErrorNoError;
+
+  MIRParser parser(*theModule);
+  MIRSrcLang srcLang = kSrcLangUnknown;
+  ret = runner.ParseSrcLang(srcLang);
   if (ret != kErrorNoError) {
     return ret;
   }
+  theModule->SetSrcLang(srcLang);
+
   // Add running phases and default options according to the srcLang (only for auto mode)
   ret = options.AppendCombOptions(theModule->GetSrcLang());
   if (ret != kErrorNoError) {
@@ -201,10 +207,15 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, const Action &action,
   }
   runner.SetPrintOutExe(DecideOutExe(options));
 
+  // Parse the input file
+  ret = runner.ParseInput();
+  if (ret != kErrorNoError) {
+    return ret;
+  }
+
   if (options.HasSetDebugFlag()) {
     PrintCommand(options, action);
   }
-
   ErrorCode nErr = runner.Run();
   return nErr;
 }
