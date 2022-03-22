@@ -393,7 +393,6 @@ rule MemberExpression : ONEOF(
   MemberExpression + '!',
   MemberExpression + "as" + "const",
   '<' + Type + '>' + MemberExpression,
-  PrimaryExpression + "as" + "const",
   MemberExpression + '.' + KeywordPropName)
   attr.action.%1 : AddAsType(%1, %2)
   attr.action.%2 : BuildArrayElement(%1, %3)
@@ -411,9 +410,7 @@ rule MemberExpression : ONEOF(
   attr.action.%11: SetIsNonNull(%1)
   attr.action.%12: SetIsConst(%1)
   attr.action.%13: BuildCast(%2, %4)
-  attr.action.%14: PassChild(%1)
-  attr.action.%14: SetIsConst()
-  attr.action.%15 : BuildField(%1, %3)
+  attr.action.%14 : BuildField(%1, %3)
 
 rule IsExpression: ONEOF(PrimaryExpression + "is" + Type,
                          ArrowFunction + "is" + Type)
