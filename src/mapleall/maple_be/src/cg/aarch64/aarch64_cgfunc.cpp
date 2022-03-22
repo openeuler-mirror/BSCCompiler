@@ -1418,8 +1418,11 @@ void AArch64CGFunc::SelectRegassign(RegassignNode &stmt, Operand &opnd0) {
   ASSERT(regOpnd != nullptr, "null ptr check!");
   SelectCopy(*regOpnd, dtype, opnd0, rhsType);
   if (GetCG()->GenerateVerboseCG()) {
-    GetCurBB()->GetLastInsn()->AppendComment(" regassign %" + std::to_string(pregIdx));
-    GetCurBB()->GetLastInsn()->AppendComment("; ");
+    if (GetCurBB()->GetLastInsn()) {
+      GetCurBB()->GetLastInsn()->AppendComment(" regassign %" + std::to_string(pregIdx) + "; ");
+    } else if (GetCurBB()->GetPrev()->GetLastInsn()) {
+      GetCurBB()->GetPrev()->GetLastInsn()->AppendComment(" regassign %" + std::to_string(pregIdx) + "; ");
+    }
   }
 
   if ((Globals::GetInstance()->GetOptimLevel() == 0) && (pregIdx >= 0)) {
