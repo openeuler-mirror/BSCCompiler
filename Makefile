@@ -127,7 +127,7 @@ java-core-def: install
 	cp -rp $(MAPLE_ROOT)/libjava-core/* $(LIB_CORE_PATH)/; \
 	cd $(LIB_CORE_PATH); \
 	ln -f -s $(MAPLE_ROOT)/build/core/libcore.mk ./makefile; \
-	$(MAKE) gen-def OPT=$(OPT) DEBUG=$(DEBUG) OPS_ANDROID=$(OPS_ANDROID)
+	$(MAKE) gen-def OPT=$(OPT) DEBUG=$(DEBUG)
 
 .PHONY: install
 install: maple dex2mpl_install irbuild hir2mpl
