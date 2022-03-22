@@ -182,10 +182,8 @@ MIRSymbol *ASTVar::Translate2MIRSymbol() const {
   MIRSymbol *mirSymbol = feirVar->GenerateMIRSymbol(FEManager::GetMIRBuilder());
   if (initExpr != nullptr && genAttrs.GetAttr(GENATTR_static)) {
     MIRConst *cst = initExpr->GenerateMIRConst();
-    if (cst->GetKind() != kConstLblConst) {
+    if (cst != nullptr && cst->GetKind() != kConstInvalid) {
       mirSymbol->SetKonst(cst);
-    } else {
-      mirSymbol->SetKonst(nullptr);
     }
   }
   if (!sectionAttr.empty()) {

@@ -334,6 +334,9 @@ MIRConst *ASTCastExpr::GenerateMIRConstImpl() const {
 
 MIRConst *ASTCastExpr::GenerateMIRDoubleConst() const {
   MIRConst *childConst = child->GenerateMIRConst();
+  if (childConst == nullptr) {
+    return nullptr;
+  }
   switch (childConst->GetKind()) {
     case kConstFloatConst: {
       return FEManager::GetModule().GetMemPool()->New<MIRDoubleConst>(
@@ -359,6 +362,9 @@ MIRConst *ASTCastExpr::GenerateMIRDoubleConst() const {
 
 MIRConst *ASTCastExpr::GenerateMIRFloatConst() const {
   MIRConst *childConst = child->GenerateMIRConst();
+  if (childConst == nullptr) {
+    return nullptr;
+  }
   switch (childConst->GetKind()) {
     case kConstDoubleConst: {
       return FEManager::GetModule().GetMemPool()->New<MIRFloatConst>(
@@ -379,6 +385,9 @@ MIRConst *ASTCastExpr::GenerateMIRFloatConst() const {
 
 MIRConst *ASTCastExpr::GenerateMIRIntConst() const {
   MIRConst *childConst = child->GenerateMIRConst();
+  if (childConst == nullptr) {
+    return nullptr;
+  }
   switch (childConst->GetKind()) {
     case kConstDoubleConst:
     case kConstInt: {
@@ -985,9 +994,8 @@ MIRConst *ASTInitListExpr::GenerateMIRConstForArray() const {
   CHECK_FATAL(initExprs.size() <= arrayMirType->GetSizeArrayItem(0), "InitExpr size must less or equal array size");
   for (size_t i = 0; i < initExprs.size(); ++i) {
     auto konst = initExprs[i]->GenerateMIRConst();
-    if (konst->GetKind() == kConstLblConst) {
-      // init by initListExpr, Only MIRConst kind is set here.
-      return konst;
+    if (konst == nullptr) {
+      return nullptr;
     }
     aggConst->AddItem(konst, 0);
   }
@@ -1740,8 +1748,8 @@ MIRConst *ASTBinaryOperatorExpr::GenerateMIRConstImpl() const {
   }
   rightConst = rightExpr->GenerateMIRConst();
   if (leftConst->GetKind() == kConstLblConst || rightConst->GetKind() == kConstLblConst) {
-    // init by initListExpr, Only MIRConst kind is set here.
-    return leftConst->GetKind() == kConstLblConst ? leftConst : rightConst;
+    // if left or right is label mirconst, not currently implemented
+    return nullptr;
   }
   if (opcode == OP_land || opcode == OP_cand) {
     if (leftConst->IsZero()) {
