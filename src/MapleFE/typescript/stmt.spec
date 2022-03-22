@@ -391,7 +391,7 @@ rule MemberExpression : ONEOF(
   IsExpression,
   MemberExpression + '[' + KeyOf + ']',
   MemberExpression + '!',
-  MemberExpression + '.' + JSIdentifier + "as" + "const",
+  MemberExpression + "as" + "const",
   '<' + Type + '>' + MemberExpression,
   PrimaryExpression + "as" + "const",
   MemberExpression + '.' + KeywordPropName)
@@ -409,8 +409,7 @@ rule MemberExpression : ONEOF(
   attr.action.%8 : AddAsType(%6)
   attr.action.%10: BuildArrayElement(%1, %3)
   attr.action.%11: SetIsNonNull(%1)
-  attr.action.%12: BuildField(%1, %3)
-  attr.action.%12: SetIsConst()
+  attr.action.%12: SetIsConst(%1)
   attr.action.%13: BuildCast(%2, %4)
   attr.action.%14: PassChild(%1)
   attr.action.%14: SetIsConst()

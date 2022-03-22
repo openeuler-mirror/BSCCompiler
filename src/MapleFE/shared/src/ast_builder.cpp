@@ -1040,6 +1040,8 @@ TreeNode* ASTBuilder::SetIsConst() {
   }
 
   treenode->SetIsConst();
+
+  mLastTreeNode = treenode;
   return mLastTreeNode;
 }
 
@@ -1672,9 +1674,9 @@ TreeNode* ASTBuilder::AddAsType() {
 
   if (tree_type) {
     node->AddAsTypes(tree_type);
-    mLastTreeNode = node;
   }
 
+  mLastTreeNode = node;
   return mLastTreeNode;
 }
 
