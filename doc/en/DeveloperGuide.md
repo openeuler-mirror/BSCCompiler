@@ -17,10 +17,11 @@ You can download the OpenArkCompiler source code in `Clone` or `Download` mode.
 ## Compiling Source Code
 
 
-Run the following command in the openarkcompiler directory to compile OpenArkCompiler. The output path is openarkcompiler/output/bin by default.
+Run the following command in the openarkcompiler directory to compile OpenArkCompiler. The output path is openarkcompiler/output/TYPE/bin, TYPE: aarch64-clang-release by default.
 
 ```
 source build/envsetup.sh
+make setup
 make
 ```
 Command description:
@@ -28,6 +29,19 @@ Command description:
 - `source build/envsetup.sh`: Initialize the environment and add the toolchain path openarkcompiler/output/bin of OpenArkCompiler to environment variables.
 - `make`: Compile the release version of OpenArkCompiler.
 - `make BUILD_TYPE=DEBUG`: Compile the debug version of OpenArkCompiler.
+
+Run the following command in the openarkcompiler directory to compile OpenArkCompiler and maple runtime. The output path is openarkcompiler/output/TYPE, TYPE: aarch64-clang-release by default.
+
+```
+source build/envsetup.sh arm release
+make setup
+make libcore
+```
+
+命令说明：
+
+- `make libcore` Compile the release version of OpenArkCompiler;
+- `make libcore BUILD_TYPE=DEBUG` Compile the debug version of OpenArkCompiler;
 
 In addition, the OpenArkCompiler also provides a shell script which contains the command to compile OpenArkCompiler. The developer can run the script in the openarkcompiler directory to compile OpenArkCompiler. The command to run the script:
 

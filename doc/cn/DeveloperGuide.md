@@ -27,17 +27,17 @@ make
 - `make` 编译OpenArkCompiler的Release版本；
 - `make BUILD_TYPE=DEBUG` 编译OpenArkCompiler的Debug版本。
 
-在openarkcompiler目录下执行以下命令，编译出OpenArkCompiler及maple runtime部分，默认输出路径 openarkcompiler/output/TYPE。
+在openarkcompiler目录下执行以下命令，编译出OpenArkCompiler及maple runtime部分，默认输出路径 openarkcompiler/output/TYPE, TYPE: aarch64-clang-release。
 
 ```
 source build/envsetup.sh arm release
+make setup
 make libcore
 ```
 
 命令说明：
 
 - `make libcore` 编译OpenArkCompiler及maple runtime部分的Release版本；
-- `make libcore OPS_ANDROID=1` 编译Android版本的OpenArkCompiler及maple runtime部分的Release版本；
 - `make libcore BUILD_TYPE=DEBUG` 编译OpenArkCompiler及maple runtime部分的Debug版本；
 
 此外，方舟编译器还提供了源码编译脚本，开发者也可以通过在openarkcompiler目录下执行该脚本，默认编译出OpenArkCompiler及maple runtime部分的Release版本。执行命令如下：
