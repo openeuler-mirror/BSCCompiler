@@ -222,6 +222,7 @@ class IVOptimizer {
   bool IsReplaceSameOst(const MeExpr *parent, ScalarMeExpr *target);
   MeStmt *GetIncPos();
   MeExpr *GetInvariant(MeExpr *expr);
+  MeExpr *ReplaceCompareOpnd(OpMeExpr &cmp, MeExpr *compared, MeExpr *replace);
   bool PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeStmt *incPos,
                          MeExpr *&extraExpr, MeExpr *&replace);
   MeExpr *GenerateRealReplace(int64 ratio, MeExpr *extraExpr, MeExpr *replace,
@@ -1059,13 +1060,32 @@ void IVOptimizer::CreateIVCandidateFromUse(IVUse &use) {
   auto *cand = data->CreateCandidate(tmp, use.iv->base, use.iv->step, inc);
   use.group->relatedCands.emplace(cand->GetID());
 
+  MeExpr *simplified = nullptr;
+  // try to find simpler candidate
+  if (use.iv->base->GetOp() == OP_add) {
+    for (uint32 i = 0; i < 2 /* add/sub has 2 opnds */; i++) {
+      if (use.iv->base->GetOpnd(i) == use.iv->step) {
+        tmp = irMap->CreateRegMeExpr(GetUnsignedPrimType(use.iv->expr->GetPrimType()));
+        inc = irMap->CreateRegMeExprVersion(*tmp);
+        cand = data->CreateCandidate(tmp, use.iv->base->GetOpnd(1 - i), use.iv->step, inc);
+        use.group->relatedCands.emplace(cand->GetID());
+      }
+    }
+  } else if (use.iv->base->GetOp() == OP_sub) {
+    if (use.iv->base->GetOpnd(1) == use.iv->step) {
+      tmp = irMap->CreateRegMeExpr(GetUnsignedPrimType(use.iv->expr->GetPrimType()));
+      inc = irMap->CreateRegMeExprVersion(*tmp);
+      cand = data->CreateCandidate(tmp, use.iv->base->GetOpnd(0), use.iv->step, inc);
+      use.group->relatedCands.emplace(cand->GetID());
+    }
+  }
   // strip constant part of base and create a candidate
   int64 offset = 0;
   auto *newBase = StripConstantPart(*use.iv->base, offset);
   if (newBase == nullptr) {
     return;
   }
-  auto simplified = irMap->SimplifyMeExpr(newBase);
+  simplified = irMap->SimplifyMeExpr(newBase);
   newBase = simplified == nullptr ? newBase : simplified;
   if (newBase != use.iv->base) {
     tmp = irMap->CreateRegMeExpr(GetUnsignedPrimType(use.iv->expr->GetPrimType()));
@@ -1483,10 +1503,10 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
                                        : irMap->CreateMeExprBinary(OP_add, ptyp, *extraExpr, *expr);
     }
   }
-  if (groupConst - candConst == 0) {
+  if (static_cast<uint64>(groupConst) - static_cast<uint64>(candConst) == 0) {
     return extraExpr;
   }
-  auto *constExpr = irMap->CreateIntConstMeExpr(groupConst - candConst, ptyp);
+  auto *constExpr = irMap->CreateIntConstMeExpr(static_cast<uint64>(groupConst) - static_cast<uint64>(candConst), ptyp);
   extraExpr = extraExpr == nullptr ? constExpr
                                    : irMap->CreateMeExprBinary(OP_add, ptyp, *extraExpr, *constExpr);
   return extraExpr;
@@ -1753,12 +1773,19 @@ bool IVOptimizer::OptimizeSet() {
   uint32 bestCost = set->cost;
   uint32 numIVs = set->NumIVs();
   std::unordered_map<IVGroup*, IVCand*> bestChange;
+  uint32 bestInitDepth = 0;
+  for (auto *cand : data->cands) {
+    if (set->candCount[cand->GetID()] != 0) {
+      bestInitDepth += cand->iv->base->GetDepth();
+    }
+  }
   for (auto *cand : data->cands) {
     if (set->candCount[cand->GetID()] != 0) {
       continue;
     }
     uint32 curCost = set->cost;
     std::unordered_map<IVGroup*, IVCand*> curChange;
+    uint32 curInitDepth = bestInitDepth;
     std::vector<uint32> tmpCandCount = set->candCount;
     bool replaced = false;
     for (auto *group : data->groups) {
@@ -1767,9 +1794,11 @@ bool IVOptimizer::OptimizeSet() {
         curCost = curCost - group->candCosts[chosenCand->GetID()] + group->candCosts[cand->GetID()];
         if (--tmpCandCount[chosenCand->GetID()] == 0) {
           curCost = curCost - kRegCost - chosenCand->cost;
+          curInitDepth = curInitDepth - chosenCand->iv->base->GetDepth();
         }
         if (++tmpCandCount[cand->GetID()] == 1) {
           curCost = curCost + kRegCost + cand->cost;
+          curInitDepth = curInitDepth + cand->iv->base->GetDepth();
         }
         curChange.emplace(group, cand);
         replaced = true;
@@ -1784,8 +1813,14 @@ bool IVOptimizer::OptimizeSet() {
       tmpSet.candCount = tmpCandCount;
       TryReplaceWithCand(tmpSet, *cand, curChange);
       curCost = tmpSet.cost;
+      curInitDepth = 0;
+      for (auto *tmpCand : data->cands) {
+        if (tmpSet.candCount[tmpCand->GetID()] != 0) {
+          bestInitDepth += tmpCand->iv->base->GetDepth();
+        }
+      }
     }
-    if (curCost < bestCost) {
+    if (curCost < bestCost || (curCost == bestCost && curInitDepth < bestInitDepth)) {
       bestCost = curCost;
       bestChange = curChange;
     }
@@ -1945,6 +1980,16 @@ MeExpr *IVOptimizer::GetInvariant(MeExpr *expr) {
   return expr;
 }
 
+MeExpr *IVOptimizer::ReplaceCompareOpnd(OpMeExpr &cmp, MeExpr *compared, MeExpr *replace) {
+  OpMeExpr newOpExpr(cmp, kInvalidExprID);
+  for (size_t i = 0; i < newOpExpr.GetNumOpnds(); i++) {
+    if (newOpExpr.GetOpnd(i) == compared) {
+      newOpExpr.SetOpnd(i, replace);
+    }
+  }
+  return irMap->HashMeExpr(newOpExpr);
+}
+
 bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeStmt *incPos,
                                     MeExpr *&extraExpr, MeExpr *&replace) {
   bool replaced = true;
@@ -2049,9 +2094,9 @@ bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeSt
           simplified = irMap->SimplifyMeExpr(extraExpr);
           if (simplified != nullptr) { extraExpr = simplified; }
         }
-        auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->comparedExpr, *extraExpr);
-        (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
-        use->expr = tmp;
+        auto *newCmp = ReplaceCompareOpnd(static_cast<OpMeExpr&>(*use->expr), use->comparedExpr, extraExpr);
+        (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *newCmp);
+        use->expr = newCmp;
         use->comparedExpr = extraExpr;
         extraExpr = nullptr;
       }
@@ -2060,9 +2105,9 @@ bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeSt
       auto *cvt = irMap->CreateMeExprTypeCvt(static_cast<OpMeExpr*>(use->expr)->GetOpndType(),
                                              use->comparedExpr->GetPrimType(), *use->comparedExpr);
       cvt = GetInvariant(cvt);
-      auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->comparedExpr, *cvt);
-      (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
-      use->expr = tmp;
+      auto *newCmp = ReplaceCompareOpnd(static_cast<OpMeExpr&>(*use->expr), use->comparedExpr, cvt);
+      (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *newCmp);
+      use->expr = newCmp;
       use->comparedExpr = cvt;
     }
   }
@@ -2180,8 +2225,8 @@ void IVOptimizer::UseReplace() {
       // do replace
       if (replaceCompare) {
         replace = GetInvariant(replace);
-        auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->comparedExpr, *replace);
-        (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
+        auto *newCmp = ReplaceCompareOpnd(static_cast<OpMeExpr&>(*use->expr), use->comparedExpr, replace);
+        (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *newCmp);
       } else {
         replace = use->expr == use->iv->expr ? replace :
             irMap->ReplaceMeExprExpr(*use->expr, *use->iv->expr, *replace);
@@ -2375,7 +2420,7 @@ void IVOptimizer::Run() {
       }
     }
   }
-  for (int32 i = static_cast<int32>(loops->GetMeLoops().size()) - 1; i >= 0; i--) {
+  for (int32 i = static_cast<int32>(loops->GetMeLoops().size()) - 1; i >= 0; --i) {
     auto *loop = loops->GetMeLoops()[i];
     if (loop->head == nullptr || loop->preheader == nullptr || loop->latch == nullptr) {
       // not canonicalized
@@ -2396,7 +2441,7 @@ void IVOptimizer::Run() {
       data->iterNum = tripCount;
       data->realIterNum = tripCount;
     }
-    if ((loops->GetMeLoops().size() - i) > MeOption::ivoptsLimit) {
+    if ((loops->GetMeLoops().size() - static_cast<size_t>(i)) > MeOption::ivoptsLimit) {
       break;
     }
     ApplyOptimize();
