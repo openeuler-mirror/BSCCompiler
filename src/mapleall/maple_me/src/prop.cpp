@@ -15,7 +15,6 @@
 #include "prop.h"
 #include "me_irmap.h"
 #include "dominance.h"
-#include "constantfold.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 
@@ -701,17 +700,17 @@ MeExpr &Prop::PropReg(RegMeExpr &regMeExpr, bool atParm, bool checkPhi) {
   }
   if (regMeExpr.GetDefBy() == kDefByStmt) {
     AssignMeStmt *defStmt = static_cast<AssignMeStmt*>(regMeExpr.GetDefStmt());
-    MeExpr &rhs = utils::ToRef(defStmt->GetRHS());
-    if (rhs.GetDepth() > kPropTreeLevel) {
+    MeExpr *rhs = defStmt->GetRHS();
+    if (rhs->GetDepth() > kPropTreeLevel) {
       return regMeExpr;
     }
-    Propagatability propagatable =  Propagatable(&rhs, defStmt->GetBB(), atParm, true, &regMeExpr);
+    Propagatability propagatable =  Propagatable(rhs, defStmt->GetBB(), atParm, true, &regMeExpr);
     if (propagatable != kPropNo) {
       if (propagatable == kPropOnlyWithInverse) {
-        rhs = *RehashUsingInverse(&rhs);
+        rhs = RehashUsingInverse(rhs);
       }
       propsPerformed++;
-      return rhs;
+      return *rhs;
     }
   } else if (checkPhi && regMeExpr.GetDefBy() == kDefByPhi && config.propagateAtPhi) {
     MePhiNode &defPhi = regMeExpr.GetDefPhi();
@@ -1085,6 +1084,8 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
                   irMap.CreateAssignMeStmt(*lhsVar, *ivarStmt.GetRHS(), *ivarStmt.GetBB());
               newDassign->GetChiList()->insert(ivarStmt.GetChiList()->begin(), ivarStmt.GetChiList()->end());
               newDassign->GetChiList()->erase(lhsVar->GetOstIdx());
+              ivarStmt.GetBB()->InsertMeStmtBefore(&ivarStmt, newDassign);
+              ivarStmt.GetBB()->RemoveMeStmt(&ivarStmt);
               for (auto &ostIdx2Chi : *newDassign->GetChiList()) {
                 auto chi = ostIdx2Chi.second;
                 chi->SetBase(newDassign);

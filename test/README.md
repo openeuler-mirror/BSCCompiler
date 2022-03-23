@@ -21,12 +21,9 @@ test
     ├── irbuild_test    irbuild测试套
     ├── ouroboros 	ouroboros测试套
     │	├──test.cfg		测试套配置文件
-    │	├──test_android.cfg		测试套手机执行配置文件
     │	└──testlist		测试内容
     ├──maple.py		用例编译脚本
-    ├──run.py	 用例执行脚本
-    ├──android_maple.py		Android用例编译脚本
-    └──android_run.py	 Android用例执行脚本
+    └──run.py	 用例执行脚本
 ```
 
 ## 运行要求
@@ -141,19 +138,15 @@ Log arguments:
 
 ## ouroboros 测试套
 
-ouroboros测试套是基于 `Java` 测试用例的测试套，当前ouroboros测试支持本地测试及系统版本为华为emui10的android手机测试。
+ouroboros测试套是基于 `Java` 测试用例的测试套。
 
 ### 测试环境准备
 
 * 本地测试前请首先执行完成`make libcore`。
 
-* android测试前请首先执行完成`make libcore OPS_ANDROID=1`。之后将`openarkcompiler/output/ops/host-x86_64-O2`中的`libcore-all.so`、`libmplandroid.so`和`libmplopenjdk.so`推送至测试手机的`/system/lib64/`下，文件名保持不变。将`openarkcompiler/output/ops/mplsh`推送至测试手机的`/system/bin/`下，并将文件重命名为`mplsh_arm64`。
-
 ### 运行测试套
 
-* 参数`--test_cfg`设定选择的测试套配置，默认使用`test.cfg`进行本地测试，使用`test_android.cfg`将进行android版本的测试。
-
-* 在运行android版本的测试前，需要在test_android.cfg中配置测试机所在服务器的ssh及测试机sn，并提前配置完成本地与服务器间的ssh互信。
+* 参数`--test_cfg`设定选择的测试套配置，默认使用`test.cfg`进行本地测试。
 
 批量运行ouroboros：参数 `-j20` 设定并行为20。
 
