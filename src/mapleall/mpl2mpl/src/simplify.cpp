@@ -1378,9 +1378,12 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
   StmtNode *memsetCallStmt = &stmt;
   if (memOpKind == MEM_OP_memset_s && !isLowLevel) {
     memsetCallStmt = PartiallyExpandMemsetS(stmt, block, srcSize, isSrcSizeConst);
-  }
-  if (!memsetCallStmt) {
-    return true;
+    if (!memsetCallStmt) {
+      return true;  // Expand memset_s completely, no extra memset is generated, so just return true
+    }
+    // Partally expand memset_s, reset opnd index for expanding memset further
+    srcOpndIdx = 1;
+    srcSizeOpndIdx = 2;
   }
 
   // memset's 'src size' must be a const value, otherwise we can not expand it
@@ -1537,4 +1540,3 @@ bool M2MSimplify::PhaseRun(maple::MIRModule &m) {
   return true;
 }
 }  // namespace maple
-
