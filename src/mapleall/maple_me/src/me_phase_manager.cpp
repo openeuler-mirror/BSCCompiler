@@ -13,12 +13,14 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_phase_manager.h"
+#include "bin_mplt.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 #define CLANG (mirModule.IsCModule())
 
 namespace maple {
 bool MeFuncPM::genMeMpl = false;
+bool MeFuncPM::genMapleBC = false;
 bool MeFuncPM::timePhases = false;
 
 void MeFuncPM::DumpMEIR(const MeFunction &f, const std::string phaseName, bool isBefore) {
@@ -67,10 +69,11 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
   }
   auto userDefinedOptLevel = MeOption::optLevel;
   DoPhasesPopulate(m);
-  for (size_t i = 0; i < compFuncList.size(); ++i) {
-    MIRFunction *func = compFuncList[i];
+  size_t i = 0;
+  for (auto func : compFuncList) {
+    ++i;
     ASSERT_NOT_NULL(func);
-    if (SkipFuncForMe(m, *func, i)) {
+    if (SkipFuncForMe(m, *func, i - 1)) {
       continue;
     }
     if (userDefinedOptLevel == 2 && m.HasPartO2List()) {
@@ -101,7 +104,7 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
     globalFunc = &meFunc;
 #endif
     if (!IsQuiet()) {
-      LogInfo::MapleLogger() << "---Preparing Function  < " << func->GetName() << " > [" << i << "] ---\n";
+      LogInfo::MapleLogger() << "---Preparing Function  < " << func->GetName() << " > [" << i - 1 << "] ---\n";
     }
     meFunc.Prepare();
     (void)FuncLevelRun(meFunc, *serialADM);
@@ -109,6 +112,15 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
   }
   if (genMeMpl) {
     m.Emit("comb.me.mpl");
+  }
+  if (genMapleBC) {
+    BinaryMplt binMplt(m);
+    std::string modFileName = m.GetFileName();
+    std::string::size_type lastdot = modFileName.find_last_of(".");
+
+    binMplt.GetBinExport().not2mplt = true;
+    std::string filestem = modFileName.substr(0, lastdot);
+    binMplt.Export(filestem + ".mbc", nullptr);
   }
   if (MeFuncPM::timePhases) {
     DumpPhaseTime();

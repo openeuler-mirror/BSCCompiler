@@ -36,6 +36,7 @@
 #include "me_hdse.h"
 #include "me_prop.h"
 #include "copy_prop.h"
+#include "me_ssa_prop.h"
 #include "me_rename2preg.h"
 #include "me_loop_unrolling.h"
 #include "me_cfg_opt.h"
@@ -100,6 +101,7 @@ class MeFuncPM : public FunctionPM {
   ~MeFuncPM() override {}
   static bool genMeMpl;
   static bool timePhases;
+  static bool genMapleBC;
 
   void SetMeInput(const std::string &str) {
     meInput = str;

@@ -57,12 +57,10 @@ const std::string &MplcgCompiler::GetBinName() const {
   return kBinNameMplcg;
 }
 
-std::string MplcgCompiler::GetInputFile(const MplOptions &options, const Action &action,
+std::string MplcgCompiler::GetInputFile(const MplOptions &, const Action &action,
                                         const MIRModule *md) const {
-  if (!options.GetRunningExes().empty()) {
-    if (options.GetRunningExes()[0] == kBinNameMplcg) {
-      return action.GetInputFile();
-    }
+  if (action.IsItFirstRealAction()) {
+    return action.GetInputFile();
   }
   // Get base file name
   auto idx = action.GetOutputName().find(".VtableImpl");
@@ -98,12 +96,16 @@ void MplcgCompiler::PrintMplcgCommand(const MplOptions &options, const Action &a
     }
     for (const mapleOption::Option &opt : it->second) {
       connectSym = !opt.Args().empty() ? "=" : "";
-      optionStr += (" --" + opt.OptionKey() + connectSym + opt.Args());
+      auto prefixStr = opt.GetPrefix();
+      optionStr += (" " + prefixStr + opt.OptionKey() + connectSym + opt.Args());
     }
   }
   optionStr += "\"";
-  LogInfo::MapleLogger() << "Starting:" << options.GetExeFolder() << "maple " << runStr << " " << optionStr
-                         << " --infile " << GetInputFile(options, action, &md) << '\n';
+
+  std::string driverOptions = options.GetCommonOptionsStr();
+
+  LogInfo::MapleLogger() << "Starting:" << options.GetExeFolder() << "maple " << runStr << " " << optionStr << " "
+                         << driverOptions << " --infile " << GetInputFile(options, action, &md) << '\n';
 }
 
 ErrorCode MplcgCompiler::MakeCGOptions(const MplOptions &options) {
@@ -182,7 +184,9 @@ ErrorCode MplcgCompiler::Compile(MplOptions &options, const Action &action,
     theModule->SetWithMe(
         std::find(options.GetRunningExes().begin(), options.GetRunningExes().end(),
                   kBinNameMe) != options.GetRunningExes().end());
-    if (action.GetInputFileType() != kFileTypeBpl) {
+    if (action.GetInputFileType() != kFileTypeBpl &&
+        action.GetInputFileType() != kFileTypeMbc &&
+        action.GetInputFileType() != kFileTypeLmbc) {
       std::unique_ptr<MIRParser> theParser;
       theParser.reset(new MIRParser(*theModule));
       bool parsed = theParser->ParseMIR(0, cgOption.GetParserOption());

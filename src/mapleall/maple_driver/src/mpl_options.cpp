@@ -189,12 +189,16 @@ ErrorCode MplOptions::HandleGeneralOptions() {
       case kGenMeMpl:
         genMeMpl = true;
         break;
+      case kGenMapleBC:
+        genMapleBC = true;
+        break;
       case kGenVtableImpl:
         genVtableImpl = true;
         break;
       case kSaveTemps:
         isSaveTmps = true;
         genMeMpl = true;
+        genMapleBC = true;
         genVtableImpl = true;
         StringUtils::Split(opt.Args(), saveFiles, ',');
         break;

@@ -180,7 +180,7 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, const Action &action,
   theModule->InitPartO2List(options.GetPartO2List());
   DriverRunner runner(theModule.get(), options.GetSelectedExes(), action.GetInputFileType(), fileName,
                       fileName, fileName, options.WithDwarf(), fileParsed,
-                      options.HasSetTimePhases(), options.HasSetGenVtableImpl(), options.HasSetGenMeMpl());
+                      options.HasSetTimePhases(), options.HasSetGenVtableImpl(), options.HasSetGenMeMpl(), options.HasSetGenMapleBC());
   ErrorCode ret = kErrorNoError;
 
   MIRParser parser(*theModule);

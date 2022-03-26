@@ -44,6 +44,8 @@ enum InputFileType {
   kFileTypeObj,
   kFileTypeBpl,
   kFileTypeMeMpl,
+  kFileTypeMbc,
+  kFileTypeLmbc,
 };
 
 enum OptimizationLevel {
@@ -118,6 +120,10 @@ public:
       fileType = InputFileType::kFileTypeS;
     } else if (extensionName == "o") {
       fileType = InputFileType::kFileTypeObj;
+    } else if (extensionName == "mbc") {
+      fileType = InputFileType::kFileTypeMbc;
+    } else if (extensionName == "lmbc") {
+      fileType = InputFileType::kFileTypeLmbc;
     }
 
     return fileType;
@@ -362,6 +368,10 @@ class MplOptions {
     return genMeMpl;
   }
 
+  bool HasSetGenMapleBC() const {
+    return genMapleBC;
+  }
+
   bool HasSetGenOnlyObj() const {
     return genObj;
   }
@@ -459,6 +469,7 @@ class MplOptions {
   bool timePhases = false;
   bool genObj = false;
   bool genMeMpl = false;
+  bool genMapleBC = false;
   bool runMaplePhaseOnly = true;
   bool genVtableImpl = false;
   bool hasPrinted = false;

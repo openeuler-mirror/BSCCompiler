@@ -62,6 +62,7 @@ class BinaryMplImport {
   }
 
   bool Import(const std::string &modid, bool readSymbols = false, bool readSe = false);
+  bool ImportForSrcLang(const std::string &modid, MIRSrcLang &srcLang);
   MIRSymbol *GetOrCreateSymbol(TyIdx tyIdx, GStrIdx strIdx, MIRSymKind mclass, MIRStorageClass sclass,
                                MIRFunction *func, uint8 scpID);
   int32 ReadInt();
@@ -132,7 +133,7 @@ class BinaryMplImport {
   void ImportFormalsStIdx(MIRFunction *func);
   void ImportAliasMap(MIRFunction *func);
   void ImportSrcPos(SrcPosition &pos);
-  void ImportBaseNode(Opcode &o, PrimType &typ, uint8 &numOpr);
+  void ImportBaseNode(Opcode &o, PrimType &typ);
   PUIdx ImportFuncViaSymName();
   BaseNode *ImportExpression(MIRFunction *func);
   void ImportReturnValues(MIRFunction *func, CallReturnVector *retv);
@@ -147,7 +148,7 @@ class BinaryMplImport {
   bool inCG = false;
   bool inIPA = false;
   bool imported = true;  // used only by irbuild to convert to ascii
-  bool importingFromMplt;  // decided based on magic number
+  bool importingFromMplt = false;  // decided based on magic number
   uint64 bufI = 0;
   std::vector<uint8> buf;
   std::map<int64, int32> content;
