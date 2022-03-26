@@ -2200,13 +2200,13 @@ UniqueFEIRExpr ASTConditionalOperator::Emit2FEExprImpl(std::list<UniqueFEIRStmt>
   std::list<UniqueFEIRStmt> falseStmts;
   UniqueFEIRExpr falseFEIRExpr = falseExpr->Emit2FEExpr(falseStmts);
   // when subExpr is void
-  if (trueFEIRExpr == nullptr || falseFEIRExpr == nullptr) {
+  if (trueFEIRExpr == nullptr || falseFEIRExpr == nullptr || mirType->GetPrimType() == PTY_void) {
     UniqueFEIRStmt stmtIf = FEIRBuilder::CreateStmtIf(std::move(condFEIRExpr), trueStmts, falseStmts);
     stmts.emplace_back(std::move(stmtIf));
     return nullptr;
   }
   // Otherwise, (e.g., a < 1 ? 1 : a++) create a temporary var to hold the return trueExpr or falseExpr value
-  MIRType *retType = trueFEIRExpr->GetType()->GenerateMIRTypeAuto();
+  MIRType *retType = mirType;
   if (retType->GetKind() == kTypeBitField) {
     retType = GlobalTables::GetTypeTable().GetPrimType(retType->GetPrimType());
   }
