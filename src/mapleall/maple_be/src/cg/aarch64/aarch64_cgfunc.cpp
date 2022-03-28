@@ -9127,6 +9127,26 @@ void AArch64CGFunc::SelectCVaStart(const IntrinsiccallNode &intrnNode) {
   return;
 }
 
+/*
+ * intrinsiccall C___Atomic_store_N(ptr, val, memorder))
+ * ====> *ptr = val
+ * let ptr -> x0
+ * let val -> x1
+ * implement to asm: str/stlr x1, [x0]
+ * a store-release would replace str if memorder is not 0
+ */
+void AArch64CGFunc::SelectCAtomicStoreN(const IntrinsiccallNode &intrinsiccallNode) {
+  auto primType = intrinsiccallNode.Opnd(1)->GetPrimType();
+  auto *addr = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(0));
+  auto *value = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(1));
+  auto *memOrderOpnd = intrinsiccallNode.Opnd(kInsnThirdOpnd);
+  auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
+  auto memOrder = (memOrderConst->GetValue() == 0) ? AArch64isa::kMoNone : AArch64isa::kMoRelease;
+  auto &memOpnd = CreateMemOpnd(LoadIntoRegister(*addr, PTY_a64), 0, k64BitSize);
+  auto mOp = PickStInsn(GetPrimTypeBitSize(primType), primType, memOrder);
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, LoadIntoRegister(*value, primType), memOpnd));
+}
+
 void AArch64CGFunc::SelectAddrofThreadLocal(Operand &result, StImmOperand &stImm) {
   if (CGOptions::IsPIC()) {
     SelectCTlsGlobalDesc(result, stImm);
@@ -9208,11 +9228,13 @@ void AArch64CGFunc::SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) {
       (intrinsic == INTRN_MPL_CLEANUP_NORETESCOBJS)) {
     return;
   }
-  if (intrinsic == INTRN_C_va_start) {
-    SelectCVaStart(intrinsiccallNode);
-    return;
-  }
   switch (intrinsic) {
+    case INTRN_C_va_start:
+      SelectCVaStart(intrinsiccallNode);
+      return;
+    case INTRN_C___atomic_store_n:
+      SelectCAtomicStoreN(intrinsiccallNode);
+      return;
     case INTRN_vector_zip_v8u8: case INTRN_vector_zip_v8i8:
     case INTRN_vector_zip_v4u16: case INTRN_vector_zip_v4i16:
     case INTRN_vector_zip_v2u32: case INTRN_vector_zip_v2i32:
@@ -9453,12 +9475,35 @@ Operand *AArch64CGFunc::SelectCisaligned(IntrinsicopNode &intrnNode) {
   return opnd0;
 }
 
-Operand *AArch64CGFunc::SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopNode,
-                                                PrimType pty, bool CalculBefore, bool isAdd) {
+void AArch64CGFunc::SelectArithmeticAndLogical(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType, Opcode op) {
+  switch(op) {
+    case OP_add:
+      SelectAdd(resOpnd, opnd0, opnd1, primType);
+      break;
+    case OP_sub:
+      SelectSub(resOpnd, opnd0, opnd1, primType);
+      break;
+    case OP_band:
+      SelectBand(resOpnd, opnd0, opnd1, primType);
+      break;
+    case OP_bior:
+      SelectBior(resOpnd, opnd0, opnd1, primType);
+      break;
+    case OP_bxor:
+      SelectBxor(resOpnd, opnd0, opnd1, primType);
+      break;
+    default:
+      CHECK_FATAL(false, "unconcerned opcode for arithmetical and logical insns");
+      break;
+  }
+}
+
+Operand *AArch64CGFunc::SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore) {
+  auto primType = intrinopNode.GetPrimType();
   Operand *addrOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnFirstOpnd));
-  Operand *calculateEndOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnSecondOpnd));
+  Operand *valueOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnSecondOpnd));
   addrOpnd = &LoadIntoRegister(*addrOpnd, intrinopNode.GetNopndAt(kInsnFirstOpnd)->GetPrimType());
-  calculateEndOpnd = &LoadIntoRegister(*calculateEndOpnd, intrinopNode.GetNopndAt(kInsnSecondOpnd)->GetPrimType());
+  valueOpnd = &LoadIntoRegister(*valueOpnd, intrinopNode.GetNopndAt(kInsnSecondOpnd)->GetPrimType());
 
   /* Create BB which includes atomic built_in function */
   LabelIdx atomicBBLabIdx = CreateLabel();
@@ -9469,36 +9514,32 @@ Operand *AArch64CGFunc::SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopN
   SetLab2BBMap(static_cast<int32>(atomicBBLabIdx), *atomicBB);
   GetCurBB()->AppendBB(*atomicBB);
   SetCurBB(*atomicBB);
-  uint32 typeByteSize = GetPrimTypeSize(pty);
-  auto stldColomu = static_cast<uint32>(IsPowerOf2(static_cast<int64>(typeByteSize)));
-  uint32 regOpndByteSize = typeByteSize == k8ByteSize ? k8ByteSize : k4ByteSize;
-  /* atomic load */
-  RegOperand *fetchVal = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, regOpndByteSize));
-  auto &memOpnd = CreateMemOpnd(*static_cast<RegOperand*>(addrOpnd), 0, GetPrimTypeBitSize(pty));
-  atomicBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(
-      PickLoadStoreExclInsn(stldColomu, false, true), *fetchVal, memOpnd));
-  /* select calculation */
-  Operand *addResult = CalculBefore ? fetchVal : &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, regOpndByteSize));
-  if (isAdd) {
-    SelectAdd(*addResult, *fetchVal, *calculateEndOpnd, pty);
-  } else {
-    SelectSub(*addResult, *fetchVal, *calculateEndOpnd, pty);
-  }
-  /* upload value in memory */
-  RegOperand *resVal = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, regOpndByteSize));
-  atomicBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(
-      PickLoadStoreExclInsn(stldColomu, true, true), *resVal, *addResult, memOpnd));
-  /* check the result of atomic store */
-  atomicBB->AppendInsn(
-      GetCG()->BuildInstruction<AArch64Insn>(MOP_wcbnz, *resVal, GetOrCreateLabelOperand(*atomicBB)));
+  /* load from pointed address */
+  auto primTypeP2Size = GetPrimTypeP2Size(primType);
+  auto *regLoaded = &CreateRegisterOperandOfType(primType);
+  auto &memOpnd = CreateMemOpnd(*static_cast<RegOperand*>(addrOpnd), 0, GetPrimTypeBitSize(primType));
+  auto mOpLoad = PickLoadStoreExclInsn(primTypeP2Size, false, false);
+  atomicBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpLoad, *regLoaded, memOpnd));
+  /* update loaded value */
+  auto *regOperated = &CreateRegisterOperandOfType(primType);
+  SelectArithmeticAndLogical(*regOperated, *regLoaded, *valueOpnd, primType, op);
+  /* store to pointed address */
+  auto *accessStatus = &CreateRegisterOperandOfType(PTY_u32);
+  auto mOpStore = PickLoadStoreExclInsn(primTypeP2Size, true, true);
+  atomicBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpStore, *accessStatus, *regOperated, memOpnd));
+  /* check the exclusive accsess status */
+  auto &atomicBBOpnd = GetOrCreateLabelOperand(*atomicBB);
+  atomicBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wcbnz, *accessStatus, atomicBBOpnd));
 
+  /* Data Memory Barrier */
   BB *nextBB = CreateNewBB();
   atomicBB->AppendBB(*nextBB);
   SetCurBB(*nextBB);
-  return CalculBefore ? addResult : fetchVal;
+  nextBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_dmb_ish));
+  return fetchBefore ? regLoaded : regOperated;
 }
 
-Operand *AArch64CGFunc::SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, PrimType pty, bool retBool) {
+Operand *AArch64CGFunc::SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, PrimType primType, bool retBool) {
   Operand *addrOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnFirstOpnd));
   Operand *oldVal = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnSecondOpnd));
   Operand *newVal = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnThirdOpnd));
@@ -9510,75 +9551,46 @@ Operand *AArch64CGFunc::SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, 
   SetLab2BBMap(static_cast<int32>(atomicBBLabIdx), *atomicBB);
   GetCurBB()->AppendBB(*atomicBB);
   SetCurBB(*atomicBB);
-  uint32 typeByteSize = GetPrimTypeSize(pty);
-  uint32 byteP2Size = typeByteSize == k8ByteSize ? k3ByteSize : k2ByteSize;
-  uint32 regOpndByteSize = typeByteSize == k8ByteSize ? k8ByteSize : k4ByteSize;
-  /* ldaxr */
-  RegOperand *fetchVal = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, regOpndByteSize));
-  auto &memOpnd = CreateMemOpnd(*static_cast<RegOperand*>(addrOpnd), 0, GetPrimTypeBitSize(pty));
-  atomicBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(
-      PickLoadStoreExclInsn(byteP2Size, false, true), *fetchVal, memOpnd));
+  uint32 primTypeP2Size = GetPrimTypeP2Size(primType);
+  /* ldxr */
+  auto *regLoaded = &CreateRegisterOperandOfType(primType);
+  auto &memOpnd = CreateMemOpnd(LoadIntoRegister(*addrOpnd, primType), 0, GetPrimTypeBitSize(primType));
+  auto mOpLoad = PickLoadStoreExclInsn(primTypeP2Size, false, false);
+  atomicBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpLoad, *regLoaded, memOpnd));
   /* cmp */
-  SelectAArch64Cmp(*fetchVal, *oldVal, true, oldVal->GetSize());
-  /* creat clrex; mov w0, wzr; ret */
-  LabelIdx clrexIdx = CreateLabel();
-  BB *atomicCleanBB = CreateNewBB();
-  atomicCleanBB->SetAtomicBuiltIn();
-  atomicCleanBB->AddLabel(clrexIdx);
-  SetLab2BBMap(static_cast<int32>(clrexIdx), *atomicCleanBB);
-  GetCurBB()->AppendBB(*atomicCleanBB);
-  atomicCleanBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_clrex));
-  if (retBool) {
-    Operand &zero = CreateImmOperand(0, k32BitSize,false);
-    Operand *operand0 = memPool->New<AArch64RegOperand>(R0, k32BitSize, kRegTyInt);
-    atomicCleanBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovri32, *operand0, zero));
-  }
-  BB *atomicRetBB = CreateNewBB();
-  atomicRetBB->SetKind(BB::kBBReturn);
-  atomicCleanBB->AppendBB(*atomicRetBB);
-  atomicRetBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xret));
-  GetExitBBsVec().emplace_back(atomicRetBB);
-  /* bne ret bb */
+  SelectAArch64Cmp(*regLoaded, *oldVal, true, oldVal->GetSize());
+  /* bne */
   Operand &rflag = GetOrCreateRflag();
-  LabelOperand &targetOpnd = GetOrCreateLabelOperand(clrexIdx);
-  atomicBB->AppendInsn(
-      GetCG()->BuildInstruction<AArch64Insn>(MOP_bne, rflag, targetOpnd));
-
-  LabelIdx atomicBBLabIdx2 = CreateLabel();
-  BB *atomicBB2 = CreateNewBB();
-  atomicBB2->SetKind(BB::kBBIf);
-  atomicBB2->SetAtomicBuiltIn();
-  atomicBB2->AddLabel(atomicBBLabIdx2);
-  SetLab2BBMap(static_cast<int32>(atomicBBLabIdx2), *atomicBB2);
-  GetCurBB()->AppendBB(*atomicBB2);
-  SetCurBB(*atomicBB2);
+  LabelIdx nextBBLableIdx = CreateLabel();
+  LabelOperand &targetOpnd = GetOrCreateLabelOperand(nextBBLableIdx);
+  atomicBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_bne, rflag, targetOpnd));
   /* stlxr */
-  RegOperand *resVal = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, regOpndByteSize));
-  RegOperand &newRegVal = LoadIntoRegister(*newVal, pty);
-  atomicBB2->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(
-      PickLoadStoreExclInsn(byteP2Size, true, true), *resVal, newRegVal, memOpnd));
-  atomicBB2->AppendInsn(
-      GetCG()->BuildInstruction<AArch64Insn>(MOP_wcbnz, *resVal, GetOrCreateLabelOperand(*atomicBB)));
+  auto *accessStatus = &CreateRegisterOperandOfType(PTY_u32);
+  auto &newRegVal = LoadIntoRegister(*newVal, primType);
+  auto mOpStore = PickLoadStoreExclInsn(primTypeP2Size, true, true);
+  atomicBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpStore, *accessStatus, newRegVal, memOpnd));
+  /* cbnz ==> check the exclusive accsess status */
+  auto &atomicBBOpnd = GetOrCreateLabelOperand(*atomicBB);
+  atomicBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wcbnz, *accessStatus, atomicBBOpnd));
+  /* Data Memory Barrier */
   BB *nextBB = CreateNewBB();
-  atomicRetBB->AppendBB(*nextBB);
+  nextBB->AddLabel(nextBBLableIdx);
+  nextBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_dmb_ish));
+  SetLab2BBMap(static_cast<int32>(nextBBLableIdx), *nextBB);
+  atomicBB->AppendBB(*nextBB);
   SetCurBB(*nextBB);
-  return fetchVal;
+  /* bool version return true if the comparison is successful and newval is written */
+  if (retBool) {
+    auto *retOpnd = &CreateRegisterOperandOfType(PTY_u32);
+    SelectAArch64CSet(*retOpnd, GetCondOperand(CC_EQ), false);
+    return retOpnd;
+  }
+  /* type version return the contents of *addrOpnd before the operation */
+  return regLoaded;
 }
 
-Operand *AArch64CGFunc::SelectCSyncAddFetch(maple::IntrinsicopNode &intrinopNode, PrimType pty) {
-  return SelectAArch64CSyncFetch(intrinopNode, pty, true, true);
-}
-
-Operand *AArch64CGFunc::SelectCSyncFetchAdd(IntrinsicopNode &intrinopNode, PrimType pty) {
-  return SelectAArch64CSyncFetch(intrinopNode, pty, false, true);
-}
-
-Operand *AArch64CGFunc::SelectCSyncSubFetch(IntrinsicopNode &intrinopNode, PrimType pty) {
-  return SelectAArch64CSyncFetch(intrinopNode, pty, true, false);
-}
-
-Operand *AArch64CGFunc::SelectCSyncFetchSub(IntrinsicopNode &intrinopNode, PrimType pty) {
-  return SelectAArch64CSyncFetch(intrinopNode, pty, false, false);
+Operand *AArch64CGFunc::SelectCSyncFetch(IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore) {
+  return SelectAArch64CSyncFetch(intrinopNode, op, fetchBefore);
 }
 
 Operand *AArch64CGFunc::SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) {
@@ -9613,6 +9625,27 @@ Operand *AArch64CGFunc::SelectCSyncLockRelease(IntrinsicopNode &intrinopNode, Pr
       (pty == PTY_u32) ? AArch64RegOperand::Get32bitZeroRegister() : AArch64RegOperand::Get64bitZeroRegister();
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, zero, *memOperand));
   return addrOpnd;
+}
+
+/*
+ * regassign %1 (intrinsicop C___Atomic_Load_N(ptr, memorder))
+ * ====> %1 = *ptr
+ * let %1 -> x0
+ * let ptr -> x1
+ * implement to asm: ldr/ldar x0, [x1]
+ * a load-acquire would replace ldr if memorder is not 0
+ */
+Operand *AArch64CGFunc::SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) {
+  auto *addrOpnd = HandleExpr(intrinsicopNode, *intrinsicopNode.Opnd(0));
+  auto *memOrderOpnd = intrinsicopNode.Opnd(1);
+  auto primType = intrinsicopNode.GetPrimType();
+  auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
+  auto memOrder = (memOrderConst->GetValue() == 0) ? AArch64isa::kMoNone : AArch64isa::kMoAcquire;
+  auto mOp = PickLdInsn(GetPrimTypeBitSize(primType), primType, memOrder);
+  auto &memOpnd = CreateMemOpnd(LoadIntoRegister(*addrOpnd, PTY_a64), 0, k64BitSize);
+  auto *resultOpnd = &CreateRegisterOperandOfType(primType);
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *resultOpnd, memOpnd));
+  return resultOpnd;
 }
 
 Operand *AArch64CGFunc::SelectCReturnAddress(IntrinsicopNode &intrinopNode) {
