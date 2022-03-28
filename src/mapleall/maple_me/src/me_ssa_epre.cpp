@@ -121,7 +121,7 @@ bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
     placeRC.preKind = MeSSUPre::kSecondDecrefPre;
     placeRC.ApplySSUPre();
   }
-  if (ssaPre.strengthReduction) { // for deleting redundant injury repairs
+  if (ssaPre.strengthReduction && !MeOption::ivopts) { // for deleting redundant injury repairs
     auto *aliasClass = FORCE_GET(MEAliasClass);
     MeHDSE hdse(f, *dom, *f.GetIRMap(), aliasClass, DEBUGFUNC_NEWPM(f));
     if (!MeOption::quiet) {
@@ -129,6 +129,9 @@ bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
     }
     hdse.hdseKeepRef = MeOption::dseKeepRef;
     hdse.DoHDSE();
+    if (hdse.NeedUNClean()) {
+      f.GetCfg()->UnreachCodeAnalysis(true);
+    }
   }
   ++puCount;
   return true;

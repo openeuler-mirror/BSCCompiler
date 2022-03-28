@@ -85,6 +85,9 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
         while (bb.GetSucc().size() != 1) {
           BB *succ = bb.GetSucc().back();
           succ->RemovePred(bb);
+          if (succ->GetPred().empty()) {
+            needUNClean = true;
+          }
         }
         bb.SetKind(kBBFallthru);
       }
@@ -114,6 +117,9 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
             // delete the conditional branch
             BB *succbb = bb.GetSucc().back();
             succbb->RemoveBBFromPred(bb, false);
+            if (succbb->GetPred().empty()) {
+              needUNClean = true;
+            }
             bb.GetSucc().pop_back();
             bb.SetKind(kBBFallthru);
             bb.RemoveMeStmt(mestmt);
@@ -121,6 +127,9 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
             // change to unconditional branch
             BB *succbb = bb.GetSucc().front();
             succbb->RemoveBBFromPred(bb, false);
+            if (succbb->GetPred().empty()) {
+              needUNClean = true;
+            }
             (void)bb.GetSucc().erase(bb.GetSucc().begin());
             bb.SetKind(kBBGoto);
             GotoMeStmt *gotomestmt = irMap.New<GotoMeStmt>(condbr->GetOffset());

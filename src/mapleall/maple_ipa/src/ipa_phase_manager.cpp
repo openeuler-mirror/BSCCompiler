@@ -113,6 +113,7 @@ bool SCCPrepare::PhaseRun(SCCNode<CGNode> &scc) {
   AddPhase("aliasclass", true);
   AddPhase("ssa", true);
   AddPhase("irmapbuild", true);
+  AddPhase("hprop", true);
 
   // Not like other phasemanager which use temp mempool to hold analysis results generated from the sub phases.
   // Here we use GetManagerMemPool which lives longer than this phase(manager) itself to hold all the analysis result.

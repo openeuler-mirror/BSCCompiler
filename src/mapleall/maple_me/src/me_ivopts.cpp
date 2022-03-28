@@ -2479,6 +2479,9 @@ bool MEIVOpts::PhaseRun(maple::MeFunction &f) {
       LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << hdse.PhaseName() << " ] ==\n";
     }
     hdse.DoHDSE();
+    if (hdse.NeedUNClean()) {
+      f.GetCfg()->UnreachCodeAnalysis(true);
+    }
   }
   return true;
 }

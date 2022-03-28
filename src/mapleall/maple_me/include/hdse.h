@@ -40,6 +40,9 @@ class HDSE {
 
   void DoHDSE();
   void InvokeHDSEUpdateLive();
+  bool NeedUNClean() {
+    return needUNClean;
+  }
 
   bool hdseDebug;
   bool hdseKeepRef = false;
@@ -122,6 +125,7 @@ class HDSE {
   // Or the meExpr is opnd of a same type meExpr
   static const uint8 kExprTypeNotNull = 2;
   bool decoupleStatic = false;
+  bool needUNClean = false;  // used to record if there's unreachable BB
   std::vector<uint32> verstUseCounts; // index is vstIdx
   std::forward_list<DassignMeStmt *> backSubsCands; // backward substitution candidates
 };

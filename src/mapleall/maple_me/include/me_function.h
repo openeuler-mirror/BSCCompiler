@@ -159,15 +159,14 @@ class MeFunction : public FuncEmit {
         laidOutBBVec(alloc.Adapter()),
         fileName(fileName, memPool),
         preMeFunc(nullptr),
-        preMeMp(nullptr) {
-          isLfo = (MeOption::optLevel == 3);
-        }
+        preMeMp(nullptr) {}
 
   ~MeFunction() override = default;
   void DumpFunction() const;
   void DumpFunctionNoSSA() const;
   void DumpMayDUFunction() const;
   void Dump(bool DumpSimpIr = false) const;
+  void IPAPrepare();
   virtual void Prepare();
   void Verify() const;
   const std::string &GetName() const {
@@ -182,6 +181,7 @@ class MeFunction : public FuncEmit {
   LabelIdx GetOrCreateBBLabel(BB &bb);
 
   bool IsEmpty() const { return mirFunc->IsEmpty(); }
+
   bool HasException() const {
     return hasEH;
   }
@@ -337,10 +337,12 @@ class MeFunction : public FuncEmit {
   }
   void SetPreMeFunc(PreMeFunction *lfoF) { preMeFunc = lfoF; }
   PreMeFunction *GetPreMeFunc() { return preMeFunc; }
-  void SetLfoMempool(MemPool *mp) { preMeMp = mp; }
-  MemPool *GetLfoMempool() { return preMeMp; }
+  void SetPmeMempool(MemPool *mp) { preMeMp = mp; }
+  MemPool *GetPmeMempool() { return preMeMp; }
   bool IsLfo() const { return isLfo; }
   void SetLfo(bool islfo) { isLfo = islfo; }
+  bool IsPme() const { return isPme; }
+  void SetPme(bool set) { isPme = set; }
   void CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCands = nullptr,
                       bool copyWithoutLastMe = false);
   bool IsTopLevelSSAValid() {
@@ -389,7 +391,9 @@ class MeFunction : public FuncEmit {
   IRProfileDesc *profileDesc = nullptr;
   uint32 frequency = 0;
   // lfo
-  bool isLfo;
+  bool isLfo = false;
+  // during pme processing
+  bool isPme = false;
   PreMeFunction *preMeFunc;
   MemPool *preMeMp; // used for lfo function
   uint8 state = 0;  // current state : ssa level and ir flavor

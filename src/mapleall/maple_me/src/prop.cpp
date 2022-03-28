@@ -855,7 +855,8 @@ MeExpr &Prop::PropMeExpr(MeExpr &meExpr, bool &isProped, bool atParm) {
         MeExpr *meExprProped = &PropMeExpr(*opnd, subProped, false);
         // If type is not equal, use cvt
         if (!IsNoCvtNeeded(opnd->GetPrimType(), meExprProped->GetPrimType())) {
-          CHECK_FATAL(IsPrimitiveInteger(opnd->GetPrimType()), "should be integer");
+          CHECK_FATAL(IsPrimitiveScalar(opnd->GetPrimType()), "should be scalar");
+          CHECK_FATAL(IsPrimitiveScalar(meExprProped->GetPrimType()), "should be scalar");
           meExprProped = irMap.CreateMeExprTypeCvt(opnd->GetPrimType(), meExprProped->GetPrimType(), *meExprProped);
           // Try simplify new generated cvt
           MeExpr *simplified = irMap.SimplifyMeExpr(meExprProped);
@@ -1075,8 +1076,9 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
         if (propedExpr == baseOfIvar || propedExpr->GetOp() == OP_constval) {
           subProped = false;
         } else {
-          ivarStmt.GetLHSVal()->SetBase(propedExpr);
-          auto *simplifiedIvar = irMap.SimplifyIvar(ivarStmt.GetLHSVal(), true);
+          IvarMeExpr *lhsExpr = ivarStmt.GetLHSVal();
+          lhsExpr->SetBase(propedExpr);
+          auto *simplifiedIvar = irMap.SimplifyIvar(lhsExpr, true);
           if (simplifiedIvar != nullptr) {
             if (simplifiedIvar->GetMeOp() == kMeOpVar) {
               auto *lhsVar = static_cast<ScalarMeExpr *>(simplifiedIvar);
@@ -1086,6 +1088,7 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
               newDassign->GetChiList()->erase(lhsVar->GetOstIdx());
               ivarStmt.GetBB()->InsertMeStmtBefore(&ivarStmt, newDassign);
               ivarStmt.GetBB()->RemoveMeStmt(&ivarStmt);
+              lhsExpr->SetDefStmt(nullptr);
               for (auto &ostIdx2Chi : *newDassign->GetChiList()) {
                 auto chi = ostIdx2Chi.second;
                 chi->SetBase(newDassign);
