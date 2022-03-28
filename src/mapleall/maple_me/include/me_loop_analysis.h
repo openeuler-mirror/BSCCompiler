@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -14,12 +14,12 @@
  */
 #ifndef MAPLE_ME_INCLUDE_MEIDENTLOOPS_H
 #define MAPLE_ME_INCLUDE_MEIDENTLOOPS_H
+#include <algorithm>
 #include "me_function.h"
 #include "bb.h"
-#include "me_phase.h"
 #include "dominance.h"
-#include <algorithm>
 #include "me_cfg.h"
+#include "maple_phase_manager.h"
 
 namespace maple {
 class IdentifyLoops;
@@ -103,6 +103,11 @@ struct LoopDesc {
   bool IsCanonicalLoop() const {
     return isCanonicalLoop;
   }
+
+  bool IsCanonicalAndOnlyHasOneExitBBLoop() const {
+    return IsCanonicalLoop() && inloopBB2exitBBs.size() == 1 && inloopBB2exitBBs.begin()->second != nullptr &&
+        inloopBB2exitBBs.begin()->second->size() == 1;
+  }
 };
 
 // IdentifyLoop records all the loops in a MeFunction.
@@ -124,20 +129,23 @@ class IdentifyLoops : public AnalysisResult {
     return meLoops;
   }
 
-  void SetMeLoop(size_t i, LoopDesc &desc) {
-    meLoops[i] = &desc;
+  MapleVector<LoopDesc*> &GetMeLoops() {
+    return meLoops;
+  }
+
+  LoopDesc *GetBBLoopParent(BBId bbID) const {
+    if (bbID >= bbLoopParent.size()) {
+      return nullptr;
+    }
+    return bbLoopParent.at(bbID);
   }
 
   LoopDesc *CreateLoopDesc(BB &hd, BB &tail);
   void SetLoopParent4BB(const BB &bb, LoopDesc &loopDesc);
   void SetExitBB(LoopDesc &loop);
-  void InsertExitBB(LoopDesc &loop);
   void ProcessBB(BB *bb);
-  void MarkBB();
   void Dump() const;
-  bool ProcessPreheaderAndLatch(LoopDesc &loop);
-  void SetTryBB();
-  void SetIGotoBB(); // check loop is constructed by igoto
+  void ProcessPreheaderAndLatch(LoopDesc &loop);
 
  private:
   MemPool *meLoopMemPool;
@@ -149,14 +157,12 @@ class IdentifyLoops : public AnalysisResult {
   MapleVector<LoopDesc*> bbLoopParent;  // gives closest nesting loop for each bb
 };
 
-class MeDoMeLoop : public MeFuncPhase {
- public:
-  explicit MeDoMeLoop(MePhaseID id) : MeFuncPhase(id) {}
-  virtual ~MeDoMeLoop() = default;
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) override;
-  std::string PhaseName() const override {
-    return "identloops";
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(MELoopAnalysis, MeFunction)
+  IdentifyLoops *GetResult() {
+    return identLoops;
   }
-};
+  IdentifyLoops *identLoops = nullptr;
+OVERRIDE_DEPENDENCE
+MAPLE_MODULE_PHASE_DECLARE_END
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_MEIDENTLOOPS_H

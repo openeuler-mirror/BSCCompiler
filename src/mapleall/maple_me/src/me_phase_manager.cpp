@@ -67,10 +67,11 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
   }
   auto userDefinedOptLevel = MeOption::optLevel;
   DoPhasesPopulate(m);
-  for (size_t i = 0; i < compFuncList.size(); ++i) {
-    MIRFunction *func = compFuncList[i];
+  size_t i = 0;
+  for (auto func : compFuncList) {
+    ++i;
     ASSERT_NOT_NULL(func);
-    if (SkipFuncForMe(m, *func, i)) {
+    if (SkipFuncForMe(m, *func, i - 1)) {
       continue;
     }
     if (userDefinedOptLevel == 2 && m.HasPartO2List()) {
@@ -101,7 +102,7 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
     globalFunc = &meFunc;
 #endif
     if (!IsQuiet()) {
-      LogInfo::MapleLogger() << "---Preparing Function  < " << func->GetName() << " > [" << i << "] ---\n";
+      LogInfo::MapleLogger() << "---Preparing Function  < " << func->GetName() << " > [" << i - 1 << "] ---\n";
     }
     meFunc.Prepare();
     (void)FuncLevelRun(meFunc, *serialADM);
@@ -198,7 +199,8 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MELfoInjectIV, injectiv)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MECopyProp, copyprop)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MERCLowering, rclowering)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESSALPre, lpre)
-MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MELoopCanaon, loopcanon)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MELoopCanon, loopcanon)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MELoopInversion, loopinversion)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEDelegateRC, delegaterc)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEFSAA, fsaa)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESplitCEdge, splitcriticaledge)

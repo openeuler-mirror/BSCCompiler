@@ -135,7 +135,7 @@ class MaplePhaseManager {
   }
 
   template <typename phaseT, typename IRTemplate>
-  void RunDependentAnalysisPhase(const MaplePhase &phase, AnalysisDataManager &adm, IRTemplate &irUnit, int lev = 0);
+  void RunDependentPhase(const MaplePhase &phase, AnalysisDataManager &adm, IRTemplate &irUnit, int lev = 0);
   template <typename phaseT, typename IRTemplate>
   bool RunTransformPhase(const MaplePhaseInfo &phaseInfo, AnalysisDataManager &adm, IRTemplate &irUnit, int lev = 0);
   template <typename phaseT, typename IRTemplate>
@@ -186,6 +186,11 @@ class AnalysisInfoHook {
       /* fill all required analysis phase at first time */
       AnalysisDep *anaDependence = bindingPM->FindAnalysisDep(p);
       for (auto requiredAnaPhase : anaDependence->GetRequiredPhase()) {
+        const MaplePhaseInfo *requiredPhase =
+            MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(requiredAnaPhase);
+        if (!requiredPhase->IsAnalysis()) {
+          continue;
+        }
         AddAnalysisData(phaseKey, requiredAnaPhase, adManager.GetVaildAnalysisPhase(phaseKey, requiredAnaPhase));
       }
       ASSERT(analysisPhasesData.find(AnalysisMemKey(phaseKey, id)) != analysisPhasesData.end(),

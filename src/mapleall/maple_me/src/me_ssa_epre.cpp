@@ -139,6 +139,7 @@ bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
 
 void MESSAEPre::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEIRMapBuild>();
+  aDep.AddRequired<MELoopCanon>();
   aDep.AddRequired<MEDominance>();
   aDep.AddRequired<MELoopAnalysis>();
   aDep.SetPreservedAll();

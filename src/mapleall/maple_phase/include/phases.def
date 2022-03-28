@@ -27,32 +27,48 @@ ADDMODULEPHASE("ConstantFold", JAVALANG)
 
 #ifdef ME_PHASE
 // me phases belong to MeFuncPM phase.
-ADDMAPLEMEPHASE("mecfgbuild", CLANG && MeOption::optLevel >= 3)
-ADDMAPLEMEPHASE("injectiv", CLANG && MeOption::optLevel >= 3)
-ADDMAPLEMEPHASE("ssatab", CLANG && MeOption::optLevel >= 3)
-ADDMAPLEMEPHASE("aliasclass", CLANG && MeOption::optLevel >= 3)
-ADDMAPLEMEPHASE("ssa", CLANG && MeOption::optLevel >= 3)
-ADDMAPLEMEPHASE("dse", CLANG && MeOption::optLevel >= 3)
-ADDMAPLEMEPHASE("irmapbuild", CLANG && MeOption::optLevel >= 3)
-ADDMAPLEMEPHASE("ivcanon", CLANG && MeOption::optLevel >= 3)
-ADDMAPLEMEPHASE("hprop", CLANG && MeOption::optLevel >= 3)
-ADDMAPLEMEPHASE("hdse", CLANG && MeOption::optLevel >= 3)
-ADDMAPLEMEPHASE("premeemit", CLANG && MeOption::optLevel >= 3)
-ADDMAPLEMEPHASE("deptest", CLANG && MeOption::optLevel >= 3)
-ADDMAPLEMEPHASE("autovec", CLANG && MeOption::optLevel >= 3)
-ADDMAPLEMEPHASE("lfounroll", CLANG && MeOption::optLevel >= 3)
+ADDMAPLEMEPHASE("mecfgbuild", CLANG && MeOption::optLevel >= 2 && MeOption::enableLFO &&
+                              MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
+ADDMAPLEMEPHASE("injectiv", CLANG && MeOption::optLevel >= 2 && MeOption::enableLFO &&
+                            MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
+ADDMAPLEMEPHASE("ssatab", CLANG && MeOption::optLevel >= 2 && MeOption::enableLFO &&
+                          MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
+ADDMAPLEMEPHASE("aliasclass", CLANG && MeOption::optLevel >= 2 && MeOption::enableLFO &&
+                              MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
+ADDMAPLEMEPHASE("ssa", CLANG && MeOption::optLevel >= 2 && MeOption::enableLFO &&
+                       MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
+ADDMAPLEMEPHASE("dse", CLANG && MeOption::optLevel >= 2 && MeOption::enableLFO &&
+                       MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
+ADDMAPLEMEPHASE("irmapbuild", CLANG && MeOption::optLevel >= 2 && MeOption::enableLFO &&
+                              MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
+ADDMAPLEMEPHASE("ivcanon", CLANG && MeOption::optLevel >= 2 && MeOption::enableLFO &&
+                           MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
+ADDMAPLEMEPHASE("hprop", CLANG && MeOption::optLevel >= 2 && MeOption::enableLFO &&
+                         MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
+ADDMAPLEMEPHASE("hdse", CLANG && MeOption::optLevel >= 2 && MeOption::enableLFO &&
+                        MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
+ADDMAPLEMEPHASE("premeemit", CLANG && MeOption::optLevel >= 2 && MeOption::enableLFO &&
+                             MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
+ADDMAPLEMEPHASE("deptest", CLANG && MeOption::optLevel >= 2 && MeOption::enableLFO &&
+                           MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
+ADDMAPLEMEPHASE("autovec", CLANG && MeOption::optLevel >= 3 && MeOption::enableLFO &&
+                           MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
+ADDMAPLEMEPHASE("lfounroll", CLANG && MeOption::optLevel >= 2 && MeOption::enableLFO &&
+                             MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
 ADDMAPLEMEPHASE("mecfgbuild", MeOption::optLevel >= 2 || JAVALANG)
 ADDMAPLEMEPHASE("simplifyCFGNoSSA", CLANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("bypatheh", JAVALANG && MeOption::optLevel >= 2)
-ADDMAPLEMEPHASE("loopcanon", MeOption::optLevel >= 2)
+ADDMAPLEMEPHASE("loopinversion", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("splitcriticaledge", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("ssatab", MeOption::optLevel >= 2 || JAVALANG)
 ADDMAPLEMEPHASE("toplevelssa", MeOption::optLevel >= 2 || JAVALANG)
+ADDMAPLEMEPHASE("ssaprop", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("aliasclass", MeOption::optLevel >= 2 || JAVALANG)
 ADDMAPLEMEPHASE("ssa", MeOption::optLevel >= 2 || JAVALANG)
 ADDMAPLEMEPHASE("dse", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("analyzector", JAVALANG)
-ADDMAPLEMEPHASE("abcopt", JAVALANG && MeOption::optLevel >= 2)
+ADDMAPLEMEPHASE("abcopt", false && JAVALANG && MeOption::optLevel >= 2)
+ADDMAPLEMEPHASE("loopcanon", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("loopunrolling", !JAVALANG && MeOption::optLevel == 2)
 ADDMAPLEMEPHASE("ssadevirt", JAVALANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("valueRangePropagation", CLANG && MeOption::optLevel >= 2)
@@ -68,7 +84,7 @@ ADDMAPLEMEPHASE("gclowering", JAVALANG && MeOption::gcOnly)
 ADDMAPLEMEPHASE("rename2preg", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("lpre", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("storepre", MeOption::optLevel >= 2)
-ADDMAPLEMEPHASE("ivopts", !JAVALANG && MeOption::optLevel == 2)
+ADDMAPLEMEPHASE("ivopts", !JAVALANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("simplifyCFG", CLANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("copyprop", MeOption::optLevel >= 2 && !JAVALANG)
 ADDMAPLEMEPHASE("valueRangePropagation", CLANG && MeOption::optLevel >= 2)

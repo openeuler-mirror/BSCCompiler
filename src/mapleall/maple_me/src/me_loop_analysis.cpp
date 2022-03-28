@@ -56,56 +56,27 @@ void IdentifyLoops::SetExitBB(LoopDesc& loop) {
   }
 }
 
-bool IdentifyLoops::InsertExitBB(LoopDesc &loop) {
-  std::set<BB*> traveledBBs;
-  std::queue<BB*> inLoopBBs;
-  inLoopBBs.push(loop.head);
-  CHECK_FATAL(loop.inloopBB2exitBBs.empty(), "inloopBB2exitBBs must be empty");
-  while (!inLoopBBs.empty()) {
-    BB *curBB = inLoopBBs.front();
-    inLoopBBs.pop();
-    if (curBB->GetKind() == kBBCondGoto) {
-      if (curBB->GetSucc().size() == 1) {
-        // When the size of succs is one, one of succs may be commonExitBB. Need insert to loopBB2exitBBs.
-        CHECK_FATAL(false, "return bb");
-      }
-    } else if (!curBB->GetStmtNodes().empty() && curBB->GetLast().GetOpCode() == OP_return) {
-      CHECK_FATAL(false, "return bb");
-    }
-    for (BB *succ : curBB->GetSucc()) {
-      if (traveledBBs.count(succ) != 0) {
-        continue;
-      }
-      if (loop.Has(*succ)) {
-        inLoopBBs.push(succ);
-        traveledBBs.insert(succ);
-      } else {
-        loop.InsertInloopBB2exitBBs(*curBB, *succ);
-      }
-    }
-  }
-  for (auto pair : loop.inloopBB2exitBBs) {
-    MapleVector<BB*> *succBB = pair.second;
-    for (auto it : *succBB) {
-      for (auto pred : it->GetPred()) {
-        if (!loop.Has(*pred)) {
-          return false;
-        }
-      }
-    }
-  }
-  return true;
-}
-
 // process each BB in preorder traversal of dominator tree
 void IdentifyLoops::ProcessBB(BB *bb) {
   if (bb == nullptr || bb == cfg->GetCommonExitBB()) {
     return;
   }
+  const MapleUnorderedSet<LabelIdx> &addrTakenLabels = func.GetMirFunc()->GetLabelTab()->GetAddrTakenLabels();
   for (BB *pred : bb->GetPred()) {
     if (dominance->Dominate(*bb, *pred)) {
       // create a loop with bb as loop head and pred as loop tail
       LoopDesc *loop = CreateLoopDesc(*bb, *pred);
+      // check try...catch
+      for (auto *pred : bb->GetPred()) {
+        if (pred->GetAttributes(kBBAttrIsTry)) {
+          loop->SetHasTryBB(true);
+          break;
+        }
+      }
+      // check igoto
+      if (addrTakenLabels.find(bb->GetBBLabel()) != addrTakenLabels.end()) {
+        loop->SetHasIGotoBB(true);
+      }
       std::list<BB*> bodyList;
       bodyList.push_back(pred);
       while (!bodyList.empty()) {
@@ -116,13 +87,22 @@ void IdentifyLoops::ProcessBB(BB *bb) {
           continue;
         }
         (void)loop->loopBBs.insert(curr->GetBBId());
+        curr->SetAttributes(kBBAttrIsInLoop);
+        // check try...catch
+        if (curr->GetAttributes(kBBAttrIsTry) || curr->GetAttributes(kBBAttrWontExit)) {
+          loop->SetHasTryBB(true);
+        }
         SetLoopParent4BB(*curr, *loop);
         for (BB *curPred : curr->GetPred()) {
           bodyList.push_back(curPred);
         }
       }
       (void)loop->loopBBs.insert(bb->GetBBId());
+      bb->SetAttributes(kBBAttrIsInLoop);
       SetLoopParent4BB(*bb, *loop);
+      if (!loop->HasTryBB() && !loop->HasIGotoBB()) {
+        ProcessPreheaderAndLatch(*loop);
+      }
       SetExitBB(*loop);
     }
   }
@@ -139,7 +119,6 @@ void IdentifyLoops::Dump() const {
     LogInfo::MapleLogger() << "nest depth: " << meLoop->nestDepth
                            << " loop head BB: " << meLoop->head->GetBBId()
                            << " HasTryBB: " << meLoop->HasTryBB()
-                           << " IsCanonicalLoop: " << meLoop->IsCanonicalLoop()
                            << " tail BB:" << meLoop->tail->GetBBId() << '\n';
     LogInfo::MapleLogger() << "loop body:";
     for (auto it = meLoop->loopBBs.begin(); it != meLoop->loopBBs.end(); ++it) {
@@ -150,62 +129,14 @@ void IdentifyLoops::Dump() const {
   }
 }
 
-void IdentifyLoops::MarkBB() {
-  for (LoopDesc *meLoop : meLoops) {
-    MarkLoopBBAttr(*meLoop, kBBAttrIsInLoopForEA);
-  }
-}
-
-void IdentifyLoops::MarkLoopBBAttr(LoopDesc &loop, BBAttr attr) {
-  for (BBId bbId : loop.loopBBs) {
-    if (cfg->GetAllBBs().at(bbId) == nullptr) {
-      continue;
-    }
-    cfg->GetAllBBs().at(bbId)->SetAttributes(attr);
-  }
-}
-
-void IdentifyLoops::SetTryBB() {
-  for (auto loop : meLoops) {
-    for (auto pred : loop->head->GetPred()) {
-      if (pred->GetAttributes(kBBAttrIsTry)) {
-        loop->SetHasTryBB(true);
-        break;
-      }
-    }
-    if (loop->HasTryBB()) {
-      continue;
-    }
-    for (auto bbId : loop->loopBBs) {
-      BB *bb = cfg->GetBBFromID(bbId);
-      if (bb->GetAttributes(kBBAttrIsTry) || bb->GetAttributes(kBBAttrWontExit)) {
-        loop->SetHasTryBB(true);
-        break;
-      }
-    }
-  }
-}
-
-// check loop is constructed by igoto
-void IdentifyLoops::SetIGotoBB() {
-  const MapleUnorderedSet<LabelIdx> &addrTakenLabels = func.GetMirFunc()->GetLabelTab()->GetAddrTakenLabels();
-  for (auto loop : meLoops) {
-    auto bb = loop->head;
-    ASSERT(bb->GetBBLabel() != 0, "loop header should has label");
-    if (addrTakenLabels.find(bb->GetBBLabel()) != addrTakenLabels.end()) {
-      loop->SetHasIGotoBB(true);
-    }
-  }
-}
-
-bool IdentifyLoops::ProcessPreheaderAndLatch(LoopDesc &loop) {
+void IdentifyLoops::ProcessPreheaderAndLatch(LoopDesc &loop) {
   // If predsize of head is one, it means that one is entry bb.
   if (loop.head->GetPred().size() == 1) {
     CHECK_FATAL(cfg->GetCommonEntryBB()->GetSucc(0) == loop.head, "succ of entry bb must be head");
     loop.preheader = cfg->GetCommonEntryBB();
     CHECK_FATAL(!loop.head->GetPred(0)->GetAttributes(kBBAttrIsTry), "must not be kBBAttrIsTry");
     loop.latch = loop.head->GetPred(0);
-    return true;
+    return;
   }
   /* for example: GetInstance.java : 152
    * There are two loop in identifyLoops, and one has no try no catch.
@@ -225,7 +156,7 @@ bool IdentifyLoops::ProcessPreheaderAndLatch(LoopDesc &loop) {
   if (loop.head->GetPred().size() != 2) { // Head must has two preds.
     loop.SetIsCanonicalLoop(false);
     loop.SetHasTryBB(true);
-    return false;
+    return;
   }
   if (!loop.Has(*loop.head->GetPred(0))) {
     loop.preheader = loop.head->GetPred(0);
@@ -233,7 +164,7 @@ bool IdentifyLoops::ProcessPreheaderAndLatch(LoopDesc &loop) {
     if ((loop.preheader->GetKind() != kBBFallthru) &&
         (loop.preheader->GetKind() != kBBGoto) ) {
       loop.SetIsCanonicalLoop(false);
-      return false;
+      return;
     }
     CHECK_FATAL(loop.preheader->GetKind() == kBBFallthru ||
                 loop.preheader->GetKind() == kBBGoto,
@@ -241,13 +172,11 @@ bool IdentifyLoops::ProcessPreheaderAndLatch(LoopDesc &loop) {
     CHECK_FATAL(loop.Has(*loop.head->GetPred(1)), "must be latch bb");
     loop.latch = loop.head->GetPred(1);
     CHECK_FATAL(!loop.latch->GetAttributes(kBBAttrIsTry), "must not be kBBAttrIsTry");
-    return true;
   } else {
     loop.latch = loop.head->GetPred(0);
     CHECK_FATAL(!loop.latch->GetAttributes(kBBAttrIsTry), "must not be kBBAttrIsTry");
     CHECK_FATAL(!loop.Has(*loop.head->GetPred(1)), "must be latch preheader bb");
     loop.preheader = loop.head->GetPred(1);
-    return true;
   }
 }
 
@@ -256,21 +185,6 @@ bool MELoopAnalysis::PhaseRun(maple::MeFunction &f) {
   ASSERT_NOT_NULL(dom);
   identLoops = GetPhaseAllocator()->New<IdentifyLoops>(GetPhaseMemPool(), f, dom);
   identLoops->ProcessBB(f.GetCfg()->GetCommonEntryBB());
-  identLoops->SetTryBB();
-  identLoops->SetIGotoBB();
-  for (auto *loop : identLoops->GetMeLoops()) {
-    if (!identLoops->InsertExitBB(*loop)) {
-      continue;
-    }
-    if (loop->HasTryBB() || loop->HasIGotoBB()) {
-      continue;
-    }
-    if (!identLoops->ProcessPreheaderAndLatch(*loop)) {
-      continue;
-    }
-    identLoops->MarkLoopBBAttr(*loop);
-    loop->SetIsCanonicalLoop(true);
-  }
   if (DEBUGFUNC_NEWPM(f)) {
     identLoops->Dump();
   }

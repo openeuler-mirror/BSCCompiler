@@ -4538,19 +4538,20 @@ void ValueRangePropagation::DumpCaches() {
 }
 
 void MEValueRangePropagation::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
-  aDep.AddRequired<MEDominance>();
   aDep.AddRequired<MEIRMapBuild>();
+  aDep.AddRequired<MELoopCanon>();
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MELoopAnalysis>();
   aDep.SetPreservedAll();
 }
 
 bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
   f.vrpRuns++;
-  auto *dom = GET_ANALYSIS(MEDominance, f);
-  CHECK_FATAL(dom != nullptr, "dominance phase has problem");
   auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_FATAL(irMap != nullptr, "irMap phase has problem");
-  GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);
-  auto *meLoop = FORCE_GET(MELoopAnalysis);
+  auto *dom = GET_ANALYSIS(MEDominance, f);
+  CHECK_FATAL(dom != nullptr, "dominance phase has problem");
+  auto *meLoop = GET_ANALYSIS(MELoopAnalysis, f);
   if (ValueRangePropagation::isDebug) {
     LogInfo::MapleLogger() << f.GetName() << "\n";
     f.Dump(false);
@@ -4594,10 +4595,15 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
       }
     }
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);
+    GetAnalysisInfoHook()->ForceRunTransFormPhase<meFuncOptTy, MeFunction>(&MELoopCanon::id, f);
   }
   // Run vrp twice when need check boundary and nullable pointer.
   if (MeOption::boundaryCheckMode != kNoCheck || MeOption::npeCheckMode != kNoCheck) {
-    meLoop = FORCE_GET(MELoopAnalysis);
+    auto *hook = GetAnalysisInfoHook();
+    dom = static_cast<MEDominance*>(
+        hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MEDominance::id, f))->GetResult();
+    meLoop = static_cast<MELoopAnalysis*>(
+        hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MELoopAnalysis::id, f))->GetResult();
     ValueRangePropagation valueRangePropagationWithOPTAssert(
         f, *irMap, *dom, meLoop, *valueRangeMemPool, cands, sa, true);
     SafetyCheckWithBoundaryError safetyCheckBoundaryError(f, valueRangePropagationWithOPTAssert);

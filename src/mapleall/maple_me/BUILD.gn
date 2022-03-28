@@ -51,6 +51,7 @@ src_libmplme = [
   "src/me_irmap_build.cpp",
   "src/me_analyzector.cpp",
   "src/me_loop_canon.cpp",
+  "src/me_loop_inversion.cpp",
   "src/me_scalar_analysis.cpp",
   "src/me_loop_unrolling.cpp",
   "src/me_option.cpp",

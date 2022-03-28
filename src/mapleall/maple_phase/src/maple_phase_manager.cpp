@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan PSL v1.
  * You can use this software according to the terms and conditions of the Mulan PSL v1.
@@ -89,7 +89,7 @@ void AnalysisDataManager::ClearInVaildAnalysisPhase(uint32 phaseKey, AnalysisDep
         if (it->first.first == phaseKey) {
           EraseAnalysisPhase(it);
         } else {
-          it++;
+          ++it;
         }
       }
     }
@@ -129,7 +129,30 @@ bool AnalysisDataManager::IsAnalysisPhaseAvailable(uint32 phaseKey, MaplePhaseID
   return it != availableAnalysisPhases.end();
 }
 
-void MaplePhaseManager::AddPhase(std::string phaseName, bool condition) {
+void AnalysisDataManager::Dump() {
+  LogInfo::MapleLogger() << "availableAnalysisPhases: \n";
+  for (auto &it : availableAnalysisPhases) {
+    LogInfo::MapleLogger() << "<"
+                           << it.first.first
+                           << ", "
+                           << MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(it.first.second)->PhaseName()
+                           << "> : "
+                           << it.second
+                           << "\n";
+  }
+  LogInfo::MapleLogger() << "analysisPhaseMemPool: \n";
+  for (auto &it : analysisPhaseMemPool) {
+    LogInfo::MapleLogger() << "<"
+                           << it.first.first
+                           << ", "
+                           << MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(it.first.second)->PhaseName()
+                           << "> : "
+                           << it.second
+                           << "\n";
+  }
+}
+
+void MaplePhaseManager::AddPhase(const std::string &phaseName, bool condition) {
   if (!condition) {
     return;
   }
@@ -226,18 +249,21 @@ std::unique_ptr<ThreadLocalMemPool> MaplePhaseManager::AllocateMemPoolInPhaseMan
 }
 
 template <typename phaseT, typename IRTemplate>
-void MaplePhaseManager::RunDependentAnalysisPhase(const MaplePhase &phase,
+void MaplePhaseManager::RunDependentPhase(const MaplePhase &phase,
                                                   AnalysisDataManager &adm,
                                                   IRTemplate &irUnit, int lev) {
   AnalysisDep *anaDependence = FindAnalysisDep(&phase);
   for (auto requiredAnaPhase : anaDependence->GetRequiredPhase()) {
     const MaplePhaseInfo *curPhase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(requiredAnaPhase);
-    CHECK_FATAL(curPhase->IsAnalysis(), "Must be analysis phase.");
     if (adm.IsAnalysisPhaseAvailable(irUnit.GetUniqueID(), curPhase->GetPhaseID())) {
       continue;
     }
     LogDependence(curPhase, lev);
-    RunAnalysisPhase<phaseT, IRTemplate>(*curPhase, adm, irUnit, lev);
+    if (curPhase->IsAnalysis()) {
+      (void)RunAnalysisPhase<phaseT, IRTemplate>(*curPhase, adm, irUnit, lev);
+    } else {
+      (void)RunTransformPhase<phaseT, IRTemplate>(*curPhase, adm, irUnit, lev);
+    }
   }
 }
 
@@ -248,8 +274,8 @@ bool MaplePhaseManager::RunTransformPhase(const MaplePhaseInfo &phaseInfo,
   bool result = false;
   auto transformPhaseMempool = AllocateMemPoolInPhaseManager(phaseInfo.PhaseName() + "'s mempool");
   auto *phase = static_cast<phaseT*>(phaseInfo.GetConstructor()(transformPhaseMempool.get()));
-  RunDependentAnalysisPhase<phaseT, IRTemplate>(*phase, adm, irUnit, lev + 1);
   phase->SetAnalysisInfoHook(transformPhaseMempool->New<AnalysisInfoHook>(*(transformPhaseMempool.get()), adm, this));
+  RunDependentPhase<phaseT, IRTemplate>(*phase, adm, irUnit, lev + 1);
   if (phaseTh != nullptr) {
     phaseTh->RunBeforePhase(phaseInfo);
     result = phase->PhaseRun(irUnit);
@@ -272,9 +298,9 @@ bool MaplePhaseManager::RunAnalysisPhase(
   }
   MemPool *anasPhaseMempool = adm.ApplyMemPoolForAnalysisPhase(irUnit.GetUniqueID(), phaseInfo);
   phase = static_cast<phaseT*>(phaseInfo.GetConstructor()(anasPhaseMempool));
-  RunDependentAnalysisPhase<phaseT, IRTemplate>(*phase, adm, irUnit, lev + 1);
   // change analysis info hook mempool from ADM Allocator to phase allocator?
   phase->SetAnalysisInfoHook(anasPhaseMempool->New<AnalysisInfoHook>(*anasPhaseMempool, adm, this));
+  RunDependentPhase<phaseT, IRTemplate>(*phase, adm, irUnit, lev + 1);
   if (phaseTh != nullptr) {
     phaseTh->RunBeforePhase(phaseInfo);
     result = phase->PhaseRun(irUnit);
@@ -290,8 +316,8 @@ bool MaplePhaseManager::RunAnalysisPhase(
 // declaration for functionPhase (template only)
 template bool MaplePhaseManager::RunTransformPhase<MapleModulePhase, MIRModule>(
     const MaplePhaseInfo &phaseInfo, AnalysisDataManager &adm, MIRModule &irUnit, int lev);
-template bool MaplePhaseManager::RunTransformPhase<MapleSccPhase<SCCNode>, SCCNode>(
-    const MaplePhaseInfo &phaseInfo, AnalysisDataManager &adm, SCCNode &irUnit, int lev);
+template bool MaplePhaseManager::RunTransformPhase<MapleSccPhase<SCCNode<CGNode>>, SCCNode<CGNode>>(
+    const MaplePhaseInfo &phaseInfo, AnalysisDataManager &adm, SCCNode<CGNode> &irUnit, int lev);
 template bool MaplePhaseManager::RunAnalysisPhase<MapleModulePhase, MIRModule>(
     const MaplePhaseInfo &phaseInfo, AnalysisDataManager &adm, MIRModule &irUnit, int lev);
 template bool MaplePhaseManager::RunTransformPhase<meFuncOptTy, MeFunction>(

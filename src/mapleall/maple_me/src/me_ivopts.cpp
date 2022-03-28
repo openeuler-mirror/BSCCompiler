@@ -2453,6 +2453,7 @@ void IVOptimizer::Run() {
 
 void MEIVOpts::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEMeCfg>();
+  aDep.AddRequired<MELoopCanon>();
   aDep.AddRequired<MELoopAnalysis>();
   aDep.AddRequired<MEDominance>();
   aDep.SetPreservedAll();

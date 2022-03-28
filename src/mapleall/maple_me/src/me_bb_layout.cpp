@@ -590,8 +590,8 @@ void BBLayout::OptimizeBranchTarget(BB &bb) {
   }
   do {
     ASSERT(!bb.GetSucc().empty(), "container check");
-    BB *brTargetBB = bb.GetKind() == kBBCondGoto ? bb.GetSucc().back() : bb.GetSucc().front();
-    CHECK_FATAL((bb.GetKind() != kBBCondGoto || bb.GetSucc().back() != bb.GetSucc().front()),
+    BB *brTargetBB = bb.GetKind() == kBBCondGoto ? bb.GetSucc(1) : bb.GetSucc().front();
+    CHECK_FATAL((bb.GetKind() != kBBCondGoto || bb.GetSucc(1) != bb.GetSucc().front()),
                 "target is same as fallthru");
     if (brTargetBB->GetAttributes(kBBAttrWontExit)) {
       return;
@@ -605,7 +605,7 @@ void BBLayout::OptimizeBranchTarget(BB &bb) {
     OptimizeBranchTarget(*brTargetBB);
     // optimize stmt
     BB *newTargetBB =
-        (brTargetBB->GetKind() == kBBCondGoto) ? brTargetBB->GetSucc().back() : brTargetBB->GetSucc().front();
+        (brTargetBB->GetKind() == kBBCondGoto) ? brTargetBB->GetSucc(1) : brTargetBB->GetSucc().front();
     if (newTargetBB == brTargetBB) {
       return;
     }
@@ -952,7 +952,8 @@ void BBLayout::OptimizeEmptyFallThruBB(BB &bb) {
   if (needDealWithTryBB) { return; }
   auto *fallthru = bb.GetSucc().front();
   while (fallthru && (fallthru->GetPred().size() == 1) &&
-         (BBEmptyAndFallthru(*fallthru) || BBContainsOnlyGoto(*fallthru))) {
+         (BBEmptyAndFallthru(*fallthru) || BBContainsOnlyGoto(*fallthru)) &&
+         !fallthru->GetAttributes(kBBAttrWontExit)) {
     BB *newFallthru = fallthru->GetSucc().front();
     if (newFallthru == bb.GetSucc().back()) {
       bb.ReplaceSucc(fallthru, newFallthru);

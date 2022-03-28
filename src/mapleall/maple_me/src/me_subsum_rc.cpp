@@ -61,10 +61,19 @@ void SubsumRC::SubsumeRC(MeStmt &stmt) {
       if (realOcc->GetVar() == lhs && !realOcc->GetRedundant()) {
         lhsFound = true;
         break;
-      } else if (realOcc->GetVar() == rhsVar && realOcc->GetRedundant()) {
-        // if there is a decref of rhs is just post-dominate that of the lhs,
-        // it can't do subsum either.
-        if (IsRhsPostDominateLhs(*realOcc, *lhs)) {
+      } else if (realOcc->GetVar() == rhsVar) {
+        bool redundantRHSDec = realOcc->GetRedundant();
+        bool rhsDecPdomLHS = IsRhsPostDominateLhs(*realOcc, *lhs);
+        bool rhsDecPdomStmt = dom->PostDominate(realOcc->GetBB(), *stmt.GetBB());
+        if (redundantRHSDec && (rhsDecPdomLHS || rhsDecPdomStmt)) {
+          // if there is a decref of rhs is just post-dominate that of the lhs,
+          // it can't do subsum either.
+          lhsFound = true;
+          break;
+        }
+        if (!redundantRHSDec && !rhsDecPdomLHS && rhsDecPdomStmt) {
+          // if there is a decref of rhs is just post-dominate that of the stmt,
+          // remove inc may cause early dec
           lhsFound = true;
           break;
         }
