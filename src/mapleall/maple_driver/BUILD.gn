@@ -1,16 +1,16 @@
 #
-# Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+#Copyright(c)[2020 - 2021] Huawei Technologies Co., Ltd.All rights reserved.
 #
-# OpenArkCompiler is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+#OpenArkCompiler is licensed under Mulan PSL v2.
+#You can use this software according to the terms and conditions of the Mulan PSL v2.
+#You may obtain a copy of Mulan PSL v2 at:
 #
-#     http://license.coscl.org.cn/MulanPSL2
+#http:  // license.coscl.org.cn/MulanPSL2
 #
-# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
-# FIT FOR A PARTICULAR PURPOSE.
-# See the Mulan PSL v2 for more details.
+#THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+#EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON - INFRINGEMENT, MERCHANTABILITY OR
+#FIT FOR A PARTICULAR PURPOSE.
+#See the Mulan PSL v2 for more details.
 #
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
 
@@ -29,8 +29,8 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_util/include",
   "${MAPLEALL_ROOT}/mpl2mpl/include",
   "${MAPLEALL_ROOT}/maple_me/include",
-  "${MAPLEALL_ROOT}/maplewpo/include",
   "${MAPLEALL_ROOT}/maple_ipa/include",
+  "${MAPLEALL_ROOT}/maple_ipa/include/old",
   "${MAPLEALL_ROOT}/maple_phase/include",
   "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/mempool/include",
@@ -89,7 +89,7 @@ static_library("libdriver_option") {
 }
 
 static_library("liboption_parser") {
-  sources = [ "src/option_parser.cpp" ]
+  sources = ["src/option_parser.cpp"]
 
   include_dirs = [
     "${MAPLEALL_ROOT}/maple_util/include",
@@ -97,6 +97,6 @@ static_library("liboption_parser") {
     "${MAPLEALL_ROOT}/maple_ir/include",
     "${MAPLEALL_ROOT}/mempool/include",
     "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
-  ]
-  output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
+  ] output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
 }
+
