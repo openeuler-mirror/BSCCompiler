@@ -13,12 +13,14 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_phase_manager.h"
+#include "bin_mplt.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 #define CLANG (mirModule.IsCModule())
 
 namespace maple {
 bool MeFuncPM::genMeMpl = false;
+bool MeFuncPM::genMapleBC = false;
 bool MeFuncPM::timePhases = false;
 
 void MeFuncPM::DumpMEIR(const MeFunction &f, const std::string phaseName, bool isBefore) {
@@ -110,6 +112,15 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
   }
   if (genMeMpl) {
     m.Emit("comb.me.mpl");
+  }
+  if (genMapleBC) {
+    BinaryMplt binMplt(m);
+    std::string modFileName = m.GetFileName();
+    std::string::size_type lastdot = modFileName.find_last_of(".");
+
+    binMplt.GetBinExport().not2mplt = true;
+    std::string filestem = modFileName.substr(0, lastdot);
+    binMplt.Export(filestem + ".mbc", nullptr);
   }
   if (MeFuncPM::timePhases) {
     DumpPhaseTime();

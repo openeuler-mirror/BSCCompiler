@@ -50,10 +50,9 @@ void BinaryMplImport::ImportFuncIdInfo(MIRFunction *func) {
   CHECK_FATAL(tag == ~kBinFuncIdInfoStart, "pattern mismatch in ImportFuncIdInfo()");
 }
 
-void BinaryMplImport::ImportBaseNode(Opcode &o, PrimType &typ, uint8 &numopr) {
+void BinaryMplImport::ImportBaseNode(Opcode &o, PrimType &typ) {
   o = (Opcode)ReadNum();
   typ = (PrimType)ReadNum();
-  numopr = static_cast<uint8>(ReadNum());
 }
 
 void BinaryMplImport::ImportLocalSymbol(MIRFunction *func) {
@@ -194,8 +193,7 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
   CHECK_FATAL(tag == kBinOpExpression, "kBinOpExpression expected");
   Opcode op;
   PrimType typ;
-  uint8 numOpr;
-  ImportBaseNode(op, typ, numOpr);
+  ImportBaseNode(op, typ);
   switch (op) {
     // leaf
     case OP_constval: {
@@ -282,7 +280,6 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     case OP_sqrt:
     case OP_alloca:
     case OP_malloc: {
-      CHECK_FATAL(numOpr == 1, "expected numOpnds to be 1");
       UnaryNode *unNode = mod.CurFuncCodeMemPool()->New<UnaryNode>(op, typ);
       unNode->SetOpnd(ImportExpression(func), 0);
       return unNode;
@@ -291,14 +288,12 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     case OP_cvt:
     case OP_floor:
     case OP_trunc: {
-      CHECK_FATAL(numOpr == 1, "expected numOpnds to be 1");
       TypeCvtNode *typecvtNode = mod.CurFuncCodeMemPool()->New<TypeCvtNode>(op, typ);
       typecvtNode->SetFromType((PrimType)ReadNum());
       typecvtNode->SetOpnd(ImportExpression(func), 0);
       return typecvtNode;
     }
     case OP_retype: {
-      CHECK_FATAL(numOpr == 1, "expected numOpnds to be 1");
       RetypeNode *retypeNode = mod.CurFuncCodeMemPool()->New<RetypeNode>(typ);
       retypeNode->SetTyIdx(ImportType());
       retypeNode->SetOpnd(ImportExpression(func), 0);
@@ -306,7 +301,6 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     }
     case OP_iread:
     case OP_iaddrof: {
-      CHECK_FATAL(numOpr == 1, "expected numOpnds to be 1");
       IreadNode *irNode = mod.CurFuncCodeMemPool()->New<IreadNode>(op, typ);
       irNode->SetTyIdx(ImportType());
       irNode->SetFieldID(static_cast<FieldID>(ReadNum()));
@@ -316,16 +310,14 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     case OP_sext:
     case OP_zext:
     case OP_extractbits: {
-      CHECK_FATAL(numOpr == 1, "expected numOpnds to be 1");
       ExtractbitsNode *extNode = mod.CurFuncCodeMemPool()->New<ExtractbitsNode>(op, typ);
-      extNode->SetBitsOffset(static_cast<uint32>(ReadNum()));
-      extNode->SetBitsSize(static_cast<uint32>(ReadNum()));
+      extNode->SetBitsOffset(static_cast<uint8>(ReadNum()));
+      extNode->SetBitsSize(static_cast<uint8>(ReadNum()));
       extNode->SetOpnd(ImportExpression(func), 0);
       return extNode;
     }
     case OP_gcmallocjarray:
     case OP_gcpermallocjarray: {
-      CHECK_FATAL(numOpr == 1, "expected numOpnds to be 1");
       JarrayMallocNode *gcNode = mod.CurFuncCodeMemPool()->New<JarrayMallocNode>(op, typ);
       gcNode->SetTyIdx(ImportType());
       gcNode->SetOpnd(ImportExpression(func), 0);
@@ -349,7 +341,6 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     case OP_land:
     case OP_lior:
     case OP_add: {
-      CHECK_FATAL(numOpr == 2, "expected numOpnds to be 2");
       BinaryNode *binNode = mod.CurFuncCodeMemPool()->New<BinaryNode>(op, typ);
       binNode->SetOpnd(ImportExpression(func), 0);
       binNode->SetOpnd(ImportExpression(func), 1);
@@ -364,7 +355,6 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     case OP_cmpg:
     case OP_cmpl:
     case OP_cmp: {
-      CHECK_FATAL(numOpr == 2, "expected numOpnds to be 2");
       CompareNode *cmpNode = mod.CurFuncCodeMemPool()->New<CompareNode>(op, typ);
       cmpNode->SetOpndType((PrimType)ReadNum());
       cmpNode->SetOpnd(ImportExpression(func), 0);
@@ -373,7 +363,6 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     }
     case OP_resolveinterfacefunc:
     case OP_resolvevirtualfunc: {
-      CHECK_FATAL(numOpr == 2, "expected numOpnds to be 2");
       ResolveFuncNode *rsNode = mod.CurFuncCodeMemPool()->New<ResolveFuncNode>(op, typ);
       rsNode->SetPUIdx(ImportFuncViaSymName());
       rsNode->SetOpnd(ImportExpression(func), 0);
@@ -382,7 +371,6 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     }
     // ternary
     case OP_select: {
-      CHECK_FATAL(numOpr == 3, "expected numOpnds to be 3");
       TernaryNode *tNode = mod.CurFuncCodeMemPool()->New<TernaryNode>(op, typ);
       tNode->SetOpnd(ImportExpression(func), 0);
       tNode->SetOpnd(ImportExpression(func), 1);
@@ -887,8 +875,8 @@ void BinaryMplImport::ReadFunctionBodyField() {
     fn->AllocLabelTab();
 
     ImportFuncIdInfo(fn);
-    ImportLocalSymTab(fn);
     ImportPregTab(fn);
+    ImportLocalSymTab(fn);
     ImportLabelTab(fn);
     ImportLocalTypeNameTable(fn->GetTypeNameTab());
     ImportFormalsStIdx(fn);

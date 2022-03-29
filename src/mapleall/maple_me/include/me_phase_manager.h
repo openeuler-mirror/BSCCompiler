@@ -102,6 +102,7 @@ class MeFuncPM : public FunctionPM {
   ~MeFuncPM() override {}
   static bool genMeMpl;
   static bool timePhases;
+  static bool genMapleBC;
 
   void SetMeInput(const std::string &str) {
     meInput = str;

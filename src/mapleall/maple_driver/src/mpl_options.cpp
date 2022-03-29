@@ -189,12 +189,16 @@ ErrorCode MplOptions::HandleGeneralOptions() {
       case kGenMeMpl:
         genMeMpl = true;
         break;
+      case kGenMapleBC:
+        genMapleBC = true;
+        break;
       case kGenVtableImpl:
         genVtableImpl = true;
         break;
       case kSaveTemps:
         isSaveTmps = true;
         genMeMpl = true;
+        genMapleBC = true;
         genVtableImpl = true;
         StringUtils::Split(opt.Args(), saveFiles, ',');
         break;
@@ -309,11 +313,15 @@ ErrorCode MplOptions::DecideRunType() {
         }
         break;
       case kOptimization2:
+      case kOptimizationS:
         if (runMode == RunMode::kCustomRun) {  // O0 and run should not appear at the same time
           runModeConflict = true;
         } else {
           runMode = RunMode::kAutoRun;
           optimizationLevel = kO2;
+        }
+        if (opt.Index() == kOptimizationS) {
+          optForSize = true;
         }
         break;
       case kWithIpa:
@@ -738,22 +746,35 @@ ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
     if (isWithIpa) {
       UpdateRunningExe(kBinNameMplipa);
     }
-    if (srcLang != kSrcLangC) {
-      ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2,
-                                 sizeof(kMeDefaultOptionsO2) / sizeof(MplOption));
+    if (optForSize) {
+      if (srcLang == kSrcLangJava) {
+        return kErrorNotImplement;
+      }
+      ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsOs,
+                                 sizeof(kMeDefaultOptionsOs) / sizeof(MplOption));
       if (ret != kErrorNoError) {
         return ret;
       }
-      ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2,
-                                 sizeof(kMpl2MplDefaultOptionsO2) / sizeof(MplOption));
+      ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsOs,
+                                 sizeof(kMpl2MplDefaultOptionsOs) / sizeof(MplOption));
     } else {
-      ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2ForC,
-                                 sizeof(kMeDefaultOptionsO2ForC) / sizeof(MplOption));
-      if (ret != kErrorNoError) {
-        return ret;
+      if (srcLang != kSrcLangC) {
+        ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2,
+                                   sizeof(kMeDefaultOptionsO2) / sizeof(MplOption));
+        if (ret != kErrorNoError) {
+          return ret;
+        }
+        ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2,
+                                   sizeof(kMpl2MplDefaultOptionsO2) / sizeof(MplOption));
+      } else {
+        ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2ForC,
+                                   sizeof(kMeDefaultOptionsO2ForC) / sizeof(MplOption));
+        if (ret != kErrorNoError) {
+          return ret;
+        }
+        ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2ForC,
+                                   sizeof(kMpl2MplDefaultOptionsO2ForC) / sizeof(MplOption));
       }
-      ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2ForC,
-                                 sizeof(kMpl2MplDefaultOptionsO2ForC) / sizeof(MplOption));
     }
     if (ret != kErrorNoError) {
       return ret;
@@ -777,12 +798,20 @@ ErrorCode MplOptions::AppendMplcgOptions(MIRSrcLang srcLang) {
                                  sizeof(kMplcgDefaultOptionsO0ForC) / sizeof(MplOption));
     }
   } else if (optimizationLevel == kO2) {
-    if (srcLang != kSrcLangC) {
-      ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO2,
-                                 sizeof(kMplcgDefaultOptionsO2) / sizeof(MplOption));
+    if (optForSize) {
+      if (srcLang == kSrcLangJava) {
+        return kErrorNotImplement;
+      }
+      ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsOs,
+                                 sizeof(kMplcgDefaultOptionsOs) / sizeof(MplOption));
     } else {
-      ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO2ForC,
-                                 sizeof(kMplcgDefaultOptionsO2ForC) / sizeof(MplOption));
+      if (srcLang != kSrcLangC) {
+        ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO2,
+                                   sizeof(kMplcgDefaultOptionsO2) / sizeof(MplOption));
+      } else {
+        ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO2ForC,
+                                   sizeof(kMplcgDefaultOptionsO2ForC) / sizeof(MplOption));
+      }
     }
   }
   if (ret != kErrorNoError) {
@@ -925,7 +954,11 @@ void MplOptions::PrintCommand(const Action * const action) {
     if (optimizationLevel == kO0) {
       optionStr << " -O0";
     } else if (optimizationLevel == kO2) {
-      optionStr << " -O2";
+      if (optForSize) {
+        optionStr << " -Os";
+      } else {
+        optionStr << " -O2";
+      }
     }
 
     std::string driverOptions = GetCommonOptionsStr();

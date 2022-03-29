@@ -46,7 +46,6 @@ void BinaryMplExport::OutputFuncIdInfo(MIRFunction *func) {
 void BinaryMplExport::OutputBaseNode(const BaseNode *b) {
   WriteNum(b->GetOpCode());
   WriteNum(b->GetPrimType());
-  WriteNum(b->GetNumOpnds());
 }
 
 void BinaryMplExport::OutputLocalSymbol(MIRSymbol *sym) {
@@ -107,6 +106,7 @@ void BinaryMplExport::OutputPregTab(const MIRFunction *func) {
     MIRPreg *mirpreg = func->GetPregTab()->PregFromPregIdx(static_cast<int32>(i));
     if (mirpreg == nullptr) {
       WriteNum(0);
+      size++;
       continue;
     }
     WriteNum(kBinPreg);
@@ -636,7 +636,7 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
         }
         // the inputs
         WriteNum(asmNode->NumOpnds());
-        for (int32 i = 0; i < asmNode->numOpnds; ++i) {
+        for (uint8 i = 0; i < asmNode->numOpnds; ++i) {
           OutputUsrStr(asmNode->inputConstraints[i]);
         }
         break;
@@ -690,8 +690,8 @@ void BinaryMplExport::WriteFunctionBodyField(uint64 contentIdx, std::unordered_s
       OutputFunction(func->GetPuidx());
       CHECK_FATAL(func->GetBody() != nullptr, "WriteFunctionBodyField: no function body");
       OutputFuncIdInfo(func);
-      OutputLocalSymTab(func);
       OutputPregTab(func);
+      OutputLocalSymTab(func);
       OutputLabelTab(func);
       OutputLocalTypeNameTab(func->GetTypeNameTab());
       OutputFormalsStIdx(func);

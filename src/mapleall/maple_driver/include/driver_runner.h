@@ -17,6 +17,7 @@
 
 #include <vector>
 #include <string>
+#include <cstdlib>
 #include "me_option.h"
 #include "module_phase_manager.h"
 #include "error_code.h"
@@ -36,7 +37,7 @@ class DriverRunner final {
   DriverRunner(MIRModule *theModule, const std::vector<std::string> &exeNames, InputFileType inpFileType,
                const std::string &mpl2mplInput, const std::string &meInput, const std::string &actualInput,
                bool dwarf, bool fileParsed = false, bool timePhases = false,
-               bool genVtableImpl = false, bool genMeMpl = false)
+               bool genVtableImpl = false, bool genMeMpl = false, bool genMapleBC = false)
       : theModule(theModule),
         exeNames(exeNames),
         mpl2mplInput(mpl2mplInput),
@@ -47,6 +48,7 @@ class DriverRunner final {
         timePhases(timePhases),
         genVtableImpl(genVtableImpl),
         genMeMpl(genMeMpl),
+        genMapleBC(genMapleBC),
         inputFileType(inpFileType) {
     auto lastDot = actualInput.find_last_of(".");
     baseName = (lastDot == std::string::npos) ? actualInput : actualInput.substr(0, lastDot);
@@ -54,9 +56,9 @@ class DriverRunner final {
 
   DriverRunner(MIRModule *theModule, const std::vector<std::string> &exeNames, InputFileType inpFileType,
                const std::string &actualInput, bool dwarf, bool fileParsed = false, bool timePhases = false,
-               bool genVtableImpl = false, bool genMeMpl = false)
+               bool genVtableImpl = false, bool genMeMpl = false, bool genMapleBC = false)
       : DriverRunner(theModule, exeNames, inpFileType, "", "", actualInput, dwarf,
-                     fileParsed, timePhases, genVtableImpl, genMeMpl) {
+                     fileParsed, timePhases, genVtableImpl, genMeMpl, genMapleBC) {
     auto lastDot = actualInput.find_last_of(".");
     baseName = (lastDot == std::string::npos) ? actualInput : actualInput.substr(0, lastDot);
   }
@@ -71,7 +73,9 @@ class DriverRunner final {
     this->cgInput = cgInput;
   }
   ErrorCode ParseInput() const;
-
+  ErrorCode ParseSrcLang(MIRSrcLang &srcLang) const;
+  void SolveCrossModuleInJava(MIRParser &parser) const;
+  void SolveCrossModuleInC(MIRParser &parser) const;
   void SetPrintOutExe (const std::string outExe) {
     printOutExe = outExe;
   }
@@ -102,6 +106,7 @@ class DriverRunner final {
   bool timePhases = false;
   bool genVtableImpl = false;
   bool genMeMpl = false;
+  bool genMapleBC = false;
   std::string printOutExe = "";
   std::string baseName;
   std::string outputFile;
