@@ -117,12 +117,16 @@ const PhiNode *BB::PhiofVerStInserted(const VersionSt &versionSt) const {
   return (phiIt != phiList.end()) ? &(phiIt->second) : nullptr;
 }
 
-void BB::InsertPhi(MapleAllocator *alloc, VersionSt *versionSt) {
+bool BB::InsertPhi(MapleAllocator *alloc, VersionSt *versionSt) {
   PhiNode phiNode(*alloc, *versionSt);
-  for (auto prevIt = pred.begin(); prevIt != pred.end(); ++prevIt) {
-    phiNode.GetPhiOpnds().push_back(versionSt);
+  auto status = phiList.emplace(std::make_pair(versionSt->GetOst()->GetIndex(), phiNode));
+  if (status.second){
+    status.first->second.GetPhiOpnds().resize(pred.size());
+    for (int idx = 0; idx < pred.size(); ++idx) {
+      status.first->second.SetPhiOpnd(idx, *versionSt);
+    }
   }
-  (void)phiList.insert(std::make_pair(versionSt->GetOst()->GetIndex(), phiNode));
+  return status.second;
 }
 
 bool BB::IsInList(const MapleVector<BB*> &bbList) const {

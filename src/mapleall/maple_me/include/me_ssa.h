@@ -38,6 +38,7 @@ class MeSSA : public SSA, public AnalysisResult {
   void VerifySSA() const;
   void InsertPhiNode();
   void InsertIdentifyAssignments(IdentifyLoops *identloops);
+  void InsertPhiForDefBB(BBId bbid, VersionSt *vst);
 
  private:
   void VerifySSAOpnd(const BaseNode &node) const;

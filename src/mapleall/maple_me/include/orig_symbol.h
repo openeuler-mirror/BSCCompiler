@@ -29,8 +29,15 @@ using OStIdx = utils::Index<OStTag, uint32>;
 
 constexpr int kInitVersion = 0;
 class VarMeExpr;  // circular dependency exists, no other choice
+class VersionSt;  // circular dependency exists, no other choice
 class OriginalSt {
  public:
+  struct OriginalStPtrComparator {
+    bool operator()(const OriginalSt *x, const OriginalSt *y) const {
+      return x->GetIndex() < y->GetIndex();
+    }
+  };
+
   OriginalSt(uint32 index, PregIdx rIdx, PUIdx pIdx, MapleAllocator &alloc)
       : OriginalSt(OStIdx(index), alloc, true, false, 0, pIdx, kPregOst, false, { .pregIdx = rIdx }) {}
 
@@ -213,6 +220,9 @@ class OriginalSt {
     addressTaken = addrTaken;
   }
 
+  // current ost can not be define by MayDef, or used by mayUse
+  bool IsTopLevelOst() const;
+
   bool IsEPreLocalRefVar() const {
     return epreLocalRefVar;
   }
@@ -246,34 +256,19 @@ class OriginalSt {
     return GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
   }
 
-  OriginalSt *GetPrevLevelOst() const {
+  const OriginalSt *GetPrevLevelOst() const {
     return prevLevOst;
   }
 
-  void SetPrevLevelOst(OriginalSt *prevLevelOst) {
-    ASSERT(this->prevLevOst == nullptr || this->prevLevOst == prevLevelOst, "wrong prev-level-ost");
-    this->prevLevOst = prevLevelOst;
+  OriginalSt *GetPrevLevelOst() {
+    return prevLevOst;
   }
 
-  const MapleVector<OriginalSt*> &GetNextLevelOsts() const {
-    return nextLevOsts;
+  size_t GetPointerVstIdx() const {
+    return pointerVstIdx;
   }
 
-  MapleVector<OriginalSt*> &GetNextLevelOsts() {
-    return nextLevOsts;
-  }
-
-  void AddNextLevelOst(OriginalSt *nextLevelOst, bool checkRedundant = false) {
-    ASSERT(nextLevelOst->GetPrevLevelOst() == this, "prev-level-ost of nextLevelOst should be this ost");
-    if (checkRedundant) {
-      for (auto *ost : nextLevOsts) {
-        if (ost->fieldID == nextLevelOst->fieldID) {
-          return;
-        }
-      }
-    }
-    nextLevOsts.push_back(nextLevelOst);
-  }
+  void SetPointerVst(const VersionSt *vst);
 
   uint32 NumSSAVersions() const {
     if (zeroVersionIndex == 0 || !IsPregOst()) {
@@ -303,17 +298,16 @@ class OriginalSt {
         isFormal(isFormal),
         ignoreRC(ignoreRC),
         symOrPreg(sysOrPreg),
-        puIdx(pIdx),
-        nextLevOsts(alloc.Adapter()) {}
+        puIdx(pIdx) {}
 
   OSTType ostType;
   OStIdx index;                       // index number in originalStVector
   MapleVector<size_t> versionsIndices;  // the i-th element refers the index of versionst in versionst table
   size_t zeroVersionIndex = 0;            // same as versionsIndices[0]
-  TyIdx tyIdx{ 0 };                        // type of this symbol at this level; 0 for unknown
+  TyIdx tyIdx{ 0 };             // type of this symbol at this level; 0 for unknown
   FieldID fieldID;                    // at each level of indirection
   OffsetType offset;                  // bit offset
-  int8 indirectLev = 0;                   // level of indirection; -1 for address, 0 for itself
+  int8 indirectLev = 0;               // level of indirection; -1 for address, 0 for itself
   bool isLocal;                       // get from defined stmt or use expr
   bool isFormal;  // it's from the formal parameters so the type must be kSymbolOst or kPregOst after rename2preg
   bool addressTaken = false;
@@ -327,8 +321,8 @@ class OriginalSt {
  private:
   SymOrPreg symOrPreg;
   PUIdx puIdx;
+  size_t pointerVstIdx = 0;
   OriginalSt *prevLevOst = nullptr;
-  MapleVector<OriginalSt*> nextLevOsts;
 };
 
 class SymbolFieldPair {
@@ -367,6 +361,11 @@ class OriginalStTable {
   OriginalStTable(MemPool &memPool, MIRModule &mod);
   ~OriginalStTable() = default;
 
+  using OriginalStContainer = MapleVector<OriginalSt*>;
+  using VstIdx2NextLevelOsts = MapleVector<OriginalStContainer*>;
+  using OriginalStIterator = OriginalStContainer::iterator;
+  using ConstOriginalStIterator = OriginalStContainer::const_iterator;
+
   OriginalSt *FindOrCreateSymbolOriginalSt(MIRSymbol &mirSt, PUIdx puIdx, FieldID fld);
   std::pair<OriginalSt*, bool> FindOrCreateSymbolOriginalSt(MIRSymbol &mirSt, PUIdx puIdx, FieldID fld,
       const TyIdx &tyIdx, const OffsetType &offset = OffsetType(kOffsetUnknown));
@@ -375,6 +374,8 @@ class OriginalStTable {
   OriginalSt *FindOrCreatePregOriginalSt(PregIdx pregIdx, PUIdx puIdx);
   OriginalSt *CreateSymbolOriginalSt(MIRSymbol &mirSt, PUIdx pidx, FieldID fld);
   OriginalSt *CreatePregOriginalSt(PregIdx pregIdx, PUIdx puIdx);
+  OriginalSt *FindSymbolOriginalSt(const MIRSymbol &mirSt, FieldID fld, const TyIdx &tyIdx,
+                                   const OffsetType &offset);
   OriginalSt *FindSymbolOriginalSt(const MIRSymbol &mirSt);
   const OriginalSt *GetOriginalStFromID(OStIdx id, bool checkFirst = false) const {
     if (checkFirst && id >= originalStVector.size()) {
@@ -431,17 +432,44 @@ class OriginalStTable {
     varOstMap[id] = originalStVector[id];
   }
 
-  void Dump();
 
+  ConstOriginalStIterator begin() const {
+    auto it = originalStVector.begin();
+    // self-inc resulting from the fact that the 1st element is reserved and set null.
+    ++it;
+    return it;
+  }
+
+  OriginalStIterator begin() {
+    auto it = originalStVector.begin();
+    // self-inc resulting from the fact that the 1st element is reserved and set null.
+    ++it;
+    return it;
+  }
+
+  ConstOriginalStIterator end() const {
+    return originalStVector.end();
+  }
+
+  OriginalStIterator end() {
+    return originalStVector.end();
+  }
+
+  void Dump();
   OriginalSt *FindOrCreateAddrofSymbolOriginalSt(OriginalSt *ost);
-  OriginalSt *FindOrCreateExtraLevOriginalSt(OriginalSt *ost, TyIdx ptyidx, FieldID fld,
+  OriginalSt *FindOrCreateExtraLevOriginalSt(const VersionSt *vst, TyIdx ptyidx, FieldID fld,
                                              const OffsetType &offset = OffsetType(kOffsetUnknown));
-  OriginalSt *FindOrCreateExtraLevSymOrRegOriginalSt(OriginalSt *ost, TyIdx tyIdx, FieldID fld,
+  OriginalSt *FindOrCreateExtraLevSymOrRegOriginalSt(const VersionSt *vst, TyIdx tyIdx, FieldID fld,
                                                      const OffsetType &offset = OffsetType(kOffsetUnknown),
                                                      const KlassHierarchy *klassHierarchy = nullptr);
   OriginalSt *FindExtraLevOriginalSt(const MapleVector<OriginalSt*> &nextLevelOsts, const MIRType *type, FieldID fld,
                                      const OffsetType &offset = OffsetType(kOffsetUnknown)) const;
-
+  OriginalSt *FindExtraLevOriginalSt(const VersionSt *vst, const MIRType *type, FieldID fld,
+                                     const OffsetType &offset = OffsetType(kOffsetUnknown)) const;
+  MapleVector<OriginalSt*> *GetNextLevelOstsOfVst(size_t vstIdx) const;
+  MapleVector<OriginalSt*> *GetNextLevelOstsOfVst(const VersionSt *vst) const;
+  void AddNextLevelOstOfVst(size_t vstIdx, OriginalSt *ost);
+  void AddNextLevelOstOfVst(const VersionSt *vst, OriginalSt *ost);
  private:
   MapleAllocator alloc;
   MIRModule &mirModule;
@@ -457,6 +485,7 @@ class OriginalStTable {
   // malloc info to virtual variables in original table. this only exists for no-original variables.
   MapleMap<std::pair<BaseNode*, uint32>, OStIdx> malloc2Ost;
   MapleMap<uint32, OStIdx> thisField2Ost;  // field of this_memory to virtual variables in original table.
+  VstIdx2NextLevelOsts nextLevelOstsOfVst; // index is VersionSt index.
   OStIdx virtuaLostUnkownMem{ 0 };
   OStIdx virtuaLostConstMem{ 0 };
 };

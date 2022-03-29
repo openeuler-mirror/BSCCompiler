@@ -48,6 +48,18 @@
 // returns from those recursive calls, we restores the stack of current SSA names to
 // the state that existed before the current block was visited.
 namespace maple {
+void MeSSA::InsertPhiForDefBB(BBId bbid, VersionSt *vst) {
+  for (BBId dfbbid : dom->GetDomFrontier(bbid)) {
+    BB *phiBB = bbVec[dfbbid];
+    CHECK_FATAL(phiBB != nullptr, "MeSSA::InsertPhiNode: non-existent BB for definition");
+    auto successTag = phiBB->InsertPhi(&func->GetMeSSATab()->GetVersAlloc(), vst);
+    if (!successTag) {
+      continue;
+    }
+    InsertPhiForDefBB(dfbbid, vst);
+  }
+}
+
 void MeSSA::InsertPhiNode() {
   for (size_t i = 1; i < ssaTab->GetOriginalStTable().Size(); ++i) {
     OriginalSt *ost = ssaTab->GetOriginalStFromID(OStIdx(i));
@@ -63,15 +75,9 @@ void MeSSA::InsertPhiNode() {
     if (!ShouldProcessOst(*ost)) {
       continue;
     }
-    std::set<BBId> phibbs;
-    for (BBId bbid : *ssaTab->GetDefBBs4Ost(ost->GetIndex())) {
-      phibbs.insert(dom->iterDomFrontier[bbid].begin(), dom->iterDomFrontier[bbid].end());
-    }
     VersionSt *vst = ssaTab->GetVersionStTable().GetZeroVersionSt(ost);
-    for (BBId bbid : phibbs) {
-      BB *phiBB = bbVec[bbid];
-      CHECK_FATAL(phiBB != nullptr, "MeSSA::InsertPhiNode: non-existent BB for definition");
-      phiBB->InsertPhi(&func->GetMeSSATab()->GetVersAlloc(), vst);
+    for (BBId bbid : *ssaTab->GetDefBBs4Ost(ost->GetIndex())) {
+      InsertPhiForDefBB(bbid, vst);
     }
   }
 }
@@ -139,7 +145,7 @@ void MeSSA::InsertIdentifyAssignments(IdentifyLoops *identloops) {
       continue;
     }
     // collect the symbols for inserting identity assignments
-    std::set<OriginalSt *> ostSet;
+    std::set<OriginalSt *, OriginalSt::OriginalStPtrComparator> ostSet;
     for (auto& mapEntry: (headbb->GetPhiList())) {
       OriginalSt *ost = func->GetMeSSATab()->GetOriginalStFromID(mapEntry.first);
       if (ost->IsIVCandidate()) {

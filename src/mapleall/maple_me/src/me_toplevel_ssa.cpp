@@ -22,6 +22,18 @@
 #include "mir_builder.h"
 #include "ssa_tab.h"
 namespace maple {
+void MeTopLevelSSA::InsertPhiForDefBB(BBId bbid, VersionSt *vst) {
+  for (BBId dfbbid : dom->GetDomFrontier(bbid)) {
+    BB *phiBB = bbVec[dfbbid];
+    CHECK_FATAL(phiBB != nullptr, "MeTopLevelSSA::InsertPhiNode: non-existent BB for definition");
+    auto successTag = phiBB->InsertPhi(&func->GetMeSSATab()->GetVersAlloc(), vst);
+    if (!successTag) {
+      continue;
+    }
+    InsertPhiForDefBB(dfbbid, vst);
+  }
+}
+
 void MeTopLevelSSA::InsertPhiNode() {
   for (size_t i = 1; i < ssaTab->GetOriginalStTable().Size(); ++i) {
     OriginalSt *ost = ssaTab->GetOriginalStFromID(OStIdx(i));
@@ -37,15 +49,9 @@ void MeTopLevelSSA::InsertPhiNode() {
     if (!ShouldProcessOst(*ost)) {
       continue;
     }
-    std::set<BBId> phiBBs;
-    for (BBId bbid : *ssaTab->GetDefBBs4Ost(OStIdx(i))) {
-      phiBBs.insert(dom->iterDomFrontier[bbid].begin(), dom->iterDomFrontier[bbid].end());
-    }
     VersionSt *vst = ssaTab->GetVersionStTable().GetZeroVersionSt(ost);
-    for (BBId bbid : phiBBs) {
-      BB *phiBB = bbVec[bbid];
-      CHECK_FATAL(phiBB != nullptr, "MeSSA::InsertPhiNode: non-existent BB for definition");
-      phiBB->InsertPhi(&func->GetMeSSATab()->GetVersAlloc(), vst);
+    for (BBId bbid : *ssaTab->GetDefBBs4Ost(ost->GetIndex())) {
+      InsertPhiForDefBB(bbid, vst);
     }
   }
 }

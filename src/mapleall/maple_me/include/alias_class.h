@@ -109,16 +109,16 @@ class AliasElem {
   MapleSet<unsigned int> *assignSet = nullptr;   // points to the set of members that have assignments among themselves
 };
 
-// this is only for use as return value of CreateAliasElemsExpr()
+// this is only for use as return value of CreateAliasInfoExpr()
 class AliasInfo {
  public:
-  AliasElem *ae;
+  VersionSt *vst;
   FieldID fieldID; // corresponds to fieldID in OP-addrof/OP_iaddrof
   OffsetType offset; // corresponds to offset of array-element and offset from add/sub
 
-  AliasInfo() : ae(nullptr), fieldID(0), offset(kOffsetUnknown) {}
-  AliasInfo(AliasElem *ae0, FieldID fld) : ae(ae0), fieldID(fld), offset(kOffsetUnknown) {}
-  AliasInfo(AliasElem *ae0, FieldID fld, OffsetType offset) : ae(ae0), fieldID(fld), offset(offset) {}
+  AliasInfo() : vst(nullptr), fieldID(0), offset(kOffsetUnknown) {}
+  AliasInfo(VersionSt *vst0, FieldID fld) : vst(vst0), fieldID(fld), offset(kOffsetUnknown) {}
+  AliasInfo(VersionSt *vst0, FieldID fld, OffsetType offset) : vst(vst0), fieldID(fld), offset(offset) {}
   ~AliasInfo() {}
 };
 
@@ -131,14 +131,15 @@ class AliasClass : public AnalysisResult {
         acMemPool(memPool),
         acAlloc(&memPool),
         ssaTab(ssaTabParam),
-        unionFind(memPool),
-        osym2Elem(ssaTabParam.GetOriginalStTableSize(), nullptr, acAlloc.Adapter()),
-        id2Elem(acAlloc.Adapter()),
-        notAllDefsSeenClassSetRoots(acAlloc.Adapter()),
-        globalsAffectedByCalls(std::less<unsigned int>(), acAlloc.Adapter()),
+        unionFind(memPool, ssaTabParam.GetVersionStTableSize()),
+        globalsAffectedByCalls(acAlloc.Adapter()),
         globalsMayAffectedByClinitCheck(acAlloc.Adapter()),
         aggsToUnion(acAlloc.Adapter()),
         nadsOsts(acAlloc.Adapter()),
+        assignSetOfVst(acAlloc.Adapter()),
+        aliasSetOfOst(acAlloc.Adapter()),
+        vstNextLevNotAllDefsSeen(acAlloc.Adapter()),
+        ostNotAllDefsSeen(acAlloc.Adapter()),
         lessThrowAlias(lessThrowAliasParam),
         ignoreIPA(ignoreIPA),
         calleeHasSideEffect(setCalleeHasSideEffect),
@@ -146,26 +147,19 @@ class AliasClass : public AnalysisResult {
 
   ~AliasClass() override = default;
 
-  const AliasElem *FindAliasElem(const OriginalSt &ost) const {
-    return osym2Elem.at(ost.GetIndex());
-  }
-  AliasElem *FindAliasElem(const OriginalSt &ost) {
-    return const_cast<AliasElem*>(const_cast<const AliasClass*>(this)->FindAliasElem(ost));
+  using AssignSet = MapleSet<unsigned>; // value is VersionSt index
+  using VstIdx2AssignSet = MapleVector<AssignSet*>; // index is VersionSt index
+  using AliasSet = MapleSet<unsigned>; // value is OStIdx
+  using OstIdx2AliasSet = MapleVector<AliasSet*>; // index is OStIdx
+  using Vst2AliasElem = MapleVector<AliasElem*>; // index is VersionSt index
+  using AliasAttrVec = MapleVector<bool>; // index is OStIdx/VersionSt index
+
+  void SetAnalyzedOstNum(size_t num) {
+    analyzedOstNum = num;
   }
 
-  size_t GetAliasElemCount() const {
-    return osym2Elem.size();
-  }
-
-  const AliasElem *FindID2Elem(size_t id) const {
-    return id2Elem.at(id);
-  }
-  AliasElem *FindID2Elem(size_t id) {
-    return id2Elem.at(id);
-  }
-
-  bool IsCreatedByElimRC(const OriginalSt &ost) const {
-    return ost.GetIndex() >= osym2Elem.size();
+  bool OstAnalyzed(const OStIdx &ostIdx) const {
+    return ostIdx < analyzedOstNum;
   }
 
   void ReinitUnionFind() {
@@ -176,22 +170,22 @@ class AliasClass : public AnalysisResult {
     return unionFind;
   }
 
+  void ApplyUnionForPhi(const PhiNode &phi);
   void ApplyUnionForCopies(StmtNode &stmt);
-  void ApplyUnionForFieldsInCopiedAgg(OriginalSt *lhsOst, OriginalSt *rhsOst);
   void ApplyUnionForFieldsInCopiedAgg();
-  void UnionAddrofOstOfUnionFields();
   bool IsGlobalOstTypeUnsafe(const OriginalSt &ost) const;
   void PropagateTypeUnsafe();
-  void PropagateTypeUnsafeVertically(const OriginalSt &ost);
-  void SetTypeUnsafeForAddrofUnion(const AliasElem *ae) const;
-  void SetTypeUnsafeForTypeConversion(const AliasElem *lhsAe, const AliasElem *rhsAe) const;
+  void PropagateTypeUnsafeVertically(const VersionSt &vst) const;
+  void SetTypeUnsafeForAddrofUnion(const VersionSt *vst) const;
+  void SetTypeUnsafeForTypeConversion(const VersionSt *lhsVst, const VersionSt *rhsVst) const;
   void SetTypeUnsafeForBaseTypeCvt(const TyIdx &accessTyIdx, const OriginalSt *baseOst) const;
   void CreateAssignSets();
   void DumpAssignSets();
-  void GetValueAliasSetOfOst(OriginalSt *ost, std::set<OriginalSt*> &result);
+  void GetValueAliasSetOfVst(size_t vstIdx, std::set<size_t> &result);
   void UnionAllPointedTos();
   void ApplyUnionForPointedTos();
-  void CollectRootIDOfNextLevelNodes(const OriginalSt &ost, std::set<unsigned int> &rootIDOfNADSs);
+  void CollectRootIDOfNextLevelNodes(const MapleVector<OriginalSt*> *nextLevelOsts,
+                                     std::set<unsigned int> &rootIDOfNADSs);
   void UnionForNotAllDefsSeen();
   void UnionForNotAllDefsSeenCLang();
   void ApplyUnionForStorageOverlaps();
@@ -210,11 +204,8 @@ class AliasClass : public AnalysisResult {
   bool MayAlias(const OriginalSt *ostA, const OriginalSt *ostB) const;
 
   static OffsetType OffsetInBitOfArrayElement(const ArrayNode *arrayNode);
-  static OriginalSt *FindOrCreateExtraLevOst(SSATab *ssaTab, OriginalSt *prevLevOst, const TyIdx &tyIdx,
+  static OriginalSt *FindOrCreateExtraLevOst(SSATab *ssaTab, const VersionSt *pointerVst, const TyIdx &tyIdx,
                                              FieldID fld, OffsetType offset);
-  const MapleVector<AliasElem*> &Id2AliasElem() const {
-    return id2Elem;
-  }
 
   MapleAllocator &GetMapleAllocator() {
     return acAlloc;
@@ -227,35 +218,54 @@ class AliasClass : public AnalysisResult {
     return false;
   }
 
+  AliasSet *GetAliasSet(OStIdx ostIdx) const {
+    if (ostIdx >= aliasSetOfOst.size()) {
+      return nullptr;
+    }
+    return aliasSetOfOst[ostIdx];
+  }
+
+  AliasSet *GetAliasSet(const OriginalSt &ost) const {
+    return GetAliasSet(ost.GetIndex());
+  }
+
  protected:
   virtual bool InConstructorLikeFunc() const {
     return true;
   }
+
+  void SetAliasSet(OStIdx ostIdx, AliasSet *aliasSet) {
+    if (aliasSetOfOst.size() <= ostIdx) {
+      constexpr size_t bufferSize = 10;
+      size_t incNum = ostIdx - aliasSetOfOst.size() + bufferSize;
+      (void)aliasSetOfOst.insert(aliasSetOfOst.end(), incNum, nullptr);
+    }
+    aliasSetOfOst[ostIdx] = aliasSet;
+  }
+
   MIRModule &mirModule;
 
  private:
   bool CallHasNoSideEffectOrPrivateDefEffect(const CallNode &stmt, FuncAttrKind attrKind) const;
   const FuncDesc &GetFuncDescFromCallStmt(const CallNode &stmt) const;
   bool CallHasNoPrivateDefEffect(StmtNode *stmt) const;
-  AliasElem *FindOrCreateAliasElem(OriginalSt &ost);
-  AliasElem *FindOrCreateExtraLevAliasElem(BaseNode &expr, const TyIdx &tyIdx, FieldID fieldId, bool typeHasBeenCasted);
-  AliasInfo CreateAliasElemsExpr(BaseNode &expr);
+  void RecordAliasAnalysisInfo(const VersionSt &vst);
+  VersionSt *FindOrCreateVstOfExtraLevOst(BaseNode &expr, const TyIdx &tyIdx, FieldID fieldId, bool typeHasBeenCasted);
+  AliasInfo CreateAliasInfoExpr(BaseNode &expr);
   void SetNotAllDefsSeenForMustDefs(const StmtNode &callas);
-  void SetPtrOpndNextLevNADS(const BaseNode &opnd, AliasElem *aliasElem, bool hasNoPrivateDefEffect);
+  void SetPtrOpndNextLevNADS(const BaseNode &opnd, VersionSt *vst, bool hasNoPrivateDefEffect);
   void SetPtrOpndsNextLevNADS(unsigned int start, unsigned int end, MapleVector<BaseNode*> &opnds,
                               bool hasNoPrivateDefEffect);
   void SetAggPtrFieldsNextLevNADS(const OriginalSt &ost);
-  void SetPtrFieldsOfAggNextLevNADS(const BaseNode *opnd, const AliasElem *aliasElem);
+  void SetPtrFieldsOfAggNextLevNADS(const BaseNode *opnd, const VersionSt *vst);
   void SetAggOpndPtrFieldsNextLevNADS(MapleVector<BaseNode*> &opnds);
-  void ApplyUnionForFieldsInAggCopy(const OriginalSt *lhsost, const OriginalSt *rhsost);
-  void ApplyUnionForDassignCopy(AliasElem &lhsAe, AliasElem *rhsAe, BaseNode &rhs);
-  bool SetNextLevNADSForEscapePtr(AliasElem &lhsAe, BaseNode &rhs);
-  void CreateMirroringAliasElems(const OriginalSt *ost1, OriginalSt *ost2);
-  void UnionNextLevelOfAliasOst(std::set<AliasElem *> &aesToUnionNextLev);
-  AliasElem *FindOrCreateDummyNADSAe();
-  AliasElem &FindOrCreateAliasElemOfAddrofOSt(OriginalSt &oSt);
+  void ApplyUnionForDassignCopy(VersionSt &lhsVst, VersionSt *rhsVst, BaseNode &rhs);
+  bool SetNextLevNADSForEscapePtr(VersionSt &lhsVst, BaseNode &rhs);
+  void UnionNextLevelOfAliasOst(std::set<OriginalSt*> &ostsToUnionNextLev);
+  VersionSt *FindOrCreateDummyNADSVst();
+  VersionSt &FindOrCreateVstOfAddrofOSt(OriginalSt &oSt);
   void CollectMayDefForMustDefs(const StmtNode &stmt, std::set<OriginalSt*> &mayDefOsts);
-  void CollectMayUseForNextLevel(const OriginalSt *ost, std::set<OriginalSt*> &mayUseOsts,
+  void CollectMayUseForNextLevel(const VersionSt &vst, std::set<OriginalSt*> &mayUseOsts,
                                  const StmtNode &stmt, bool isFirstOpnd);
   void CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<OriginalSt*> &mayUseOsts);
   void CollectMayDefUseForCallOpnd(const StmtNode &stmt, std::set<OriginalSt*> &mayDefOsts,
@@ -268,7 +278,7 @@ class AliasClass : public AnalysisResult {
   void CollectMayUseFromDefinedFinalField(std::set<OriginalSt*> &mayUseOsts);
   void InsertMayUseNode(std::set<OriginalSt*> &mayUseOsts, AccessSSANodes *ssaPart);
   void InsertMayUseReturn(const StmtNode &stmt);
-  void CollectPtsToOfReturnOpnd(const OriginalSt &ost, std::set<OriginalSt*> &mayUseOsts);
+  void CollectPtsToOfReturnOpnd(const VersionSt &vst, std::set<OriginalSt*> &mayUseOsts);
   void InsertReturnOpndMayUse(const StmtNode &stmt);
   void InsertMayUseAll(const StmtNode &stmt);
   void CollectMayDefForDassign(const StmtNode &stmt, std::set<OriginalSt*> &mayDefOsts);
@@ -289,22 +299,69 @@ class AliasClass : public AnalysisResult {
   int GetOffset(const Klass &super, const Klass &base) const;
   void UnionAllNodes(MapleVector<OriginalSt *> *nextLevOsts);
 
+  AssignSet *GetAssignSet(size_t vstIdx) {
+    if (vstIdx >= assignSetOfVst.size()) {
+      return nullptr;
+    }
+    return assignSetOfVst[vstIdx];
+  }
+
+  AssignSet *GetAssignSet(const VersionSt &vst) {
+    return GetAssignSet(vst.GetIndex());
+  }
+
+  bool IsNextLevNotAllDefsSeen(size_t vstIdx) {
+    if (vstIdx >= vstNextLevNotAllDefsSeen.size()) {
+      return false;
+    }
+    return vstNextLevNotAllDefsSeen[vstIdx];
+  }
+
+  void SetNextLevNotAllDefsSeen(size_t vstIdx) {
+    if (vstIdx >= vstNextLevNotAllDefsSeen.size()) {
+      size_t bufferSize = 5;
+      size_t incNum = vstIdx + bufferSize - vstNextLevNotAllDefsSeen.size();
+      vstNextLevNotAllDefsSeen.insert(vstNextLevNotAllDefsSeen.end(), incNum, false);
+    }
+    vstNextLevNotAllDefsSeen[vstIdx] = true;
+  }
+
+  bool IsNotAllDefsSeen(OStIdx ostIdx) {
+    if (ostIdx >= ostNotAllDefsSeen.size()) {
+      return false;
+    }
+    return ostNotAllDefsSeen[ostIdx];
+  }
+
+  void SetNotAllDefsSeen(OStIdx ostIdx) {
+    if (ostIdx >= ostNotAllDefsSeen.size()) {
+      size_t bufferSize = 5;
+      size_t incNum = ostIdx + bufferSize - ostNotAllDefsSeen.size();
+      ostNotAllDefsSeen.insert(ostNotAllDefsSeen.end(), incNum, false);
+    }
+    ostNotAllDefsSeen[ostIdx] = true;
+  }
+
   MemPool &acMemPool;
   MapleAllocator acAlloc;
   SSATab &ssaTab;
   UnionFind unionFind;
-  MapleVector<AliasElem*> osym2Elem;                    // index is OStIdx
-  MapleVector<AliasElem*> id2Elem;                      // index is the id
-  MapleVector<AliasElem*> notAllDefsSeenClassSetRoots;  // root of the not_all_defs_seen class sets
-  MapleSet<unsigned int> globalsAffectedByCalls;                // set of class ids of globals
+  // set of class ids of globals
+  MapleSet<OriginalSt*, OriginalSt::OriginalStPtrComparator> globalsAffectedByCalls;
   // aliased at calls; needed only when wholeProgramScope is true
   MapleSet<OStIdx> globalsMayAffectedByClinitCheck;
   MapleMap<OriginalSt*, OriginalSt*> aggsToUnion; // aggs are copied, their fields should be unioned
-  MapleSet<OriginalSt *> nadsOsts;
+  MapleSet<OriginalSt*, OriginalSt::OriginalStPtrComparator> nadsOsts;
+  VstIdx2AssignSet assignSetOfVst;
+  OstIdx2AliasSet aliasSetOfOst;
+  AliasAttrVec vstNextLevNotAllDefsSeen;
+  AliasAttrVec ostNotAllDefsSeen;
+
   bool lessThrowAlias;
   bool ignoreIPA;        // whether to ignore information provided by IPA
   bool calleeHasSideEffect;
   KlassHierarchy *klassHierarchy;
+  size_t analyzedOstNum = 0;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ALIAS_CLASS_H

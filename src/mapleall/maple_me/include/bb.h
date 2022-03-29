@@ -299,7 +299,7 @@ class BB {
   void FindReachableBBs(std::vector<bool> &visitedBBs) const;
   void FindWillExitBBs(std::vector<bool> &visitedBBs) const;
   const PhiNode *PhiofVerStInserted(const VersionSt &versionSt) const;
-  void InsertPhi(MapleAllocator *alloc, VersionSt *versionSt);
+  bool InsertPhi(MapleAllocator *alloc, VersionSt *versionSt);
   void PrependMeStmt(MeStmt *meStmt);
   void RemoveMeStmt(MeStmt *meStmt);
   void AddMeStmtFirst(MeStmt *meStmt);

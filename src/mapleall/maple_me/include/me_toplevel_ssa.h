@@ -36,6 +36,7 @@ class MeTopLevelSSA : public SSA, public AnalysisResult {
   ~MeTopLevelSSA() = default;
 
   void InsertPhiNode();
+  void InsertPhiForDefBB(BBId bbid, VersionSt *vst);
   void CollectUseInfo();
   VstUseInfo *GetVstUseInfo() {
     return &vstUseInfo;
