@@ -4370,11 +4370,18 @@ Operand *AArch64CGFunc::SelectShift(BinaryNode &node, Operand &opnd0, Operand &o
     isOneElemVector = symbol->GetAttr(ATTR_oneelem_simd);
   }
 
+  Operand *opd0 = &opnd0;
+  PrimType otyp0 = expr->GetPrimType();
+  if (IsPrimitiveVector(dtype) && opnd0.IsConstImmediate()) {
+    opd0 = SelectVectorFromScalar(dtype, opd0, node.Opnd(0)->GetPrimType());
+     otyp0 = dtype;
+  }
+
   if (IsPrimitiveVector(dtype) && opnd1.IsConstImmediate()) {
     int64 sConst = static_cast<ImmOperand&>(opnd1).GetValue();
-    resOpnd = SelectVectorShiftImm(dtype, &opnd0, &opnd1, static_cast<int32>(sConst), opcode);
+    resOpnd = SelectVectorShiftImm(dtype, opd0, &opnd1, static_cast<int32>(sConst), opcode);
   } else if ((IsPrimitiveVector(dtype) || isOneElemVector) && !opnd1.IsConstImmediate()) {
-    resOpnd = SelectVectorShift(dtype, &opnd0, expr->GetPrimType(), &opnd1, node.Opnd(1)->GetPrimType(), opcode);
+    resOpnd = SelectVectorShift(dtype, opd0, otyp0, &opnd1, node.Opnd(1)->GetPrimType(), opcode);
   } else {
     PrimType primType = isFloat ? dtype : (is64Bits ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32));
     resOpnd = &GetOrCreateResOperand(parent, primType);
@@ -9989,7 +9996,9 @@ RegOperand *AArch64CGFunc::SelectVectorImmMov(PrimType rType, Operand *src, Prim
   int64 val = static_cast<ImmOperand*>(src)->GetValue();
 
   /* copy the src imm operand to a reg if out of range */
-  if ((GetPrimTypeSize(sType) > k4ByteSize && val != 0) || val < kMinImmVal || val > kMaxImmVal) {
+  if ((GetVecEleSize(rType) >= k64BitSize) ||
+      (GetPrimTypeSize(sType) > k4ByteSize && val != 0) ||
+      (val < kMinImmVal || val > kMaxImmVal)) {
     Operand *reg = &CreateRegisterOperandOfType(sType);
     SelectCopy(*reg, sType, *src, sType);
     return SelectVectorRegMov(rType, reg, sType);
@@ -10271,7 +10280,7 @@ void AArch64CGFunc::PrepareVectorOperands(Operand **o1, PrimType &oty1, Operand 
   bool immOpnd = false;
   if (opd->IsConstImmediate()) {
     int64 val = static_cast<ImmOperand*>(opd)->GetValue();
-    if (val >= kMinImmVal && val <= kMaxImmVal) {
+    if (val >= kMinImmVal && val <= kMaxImmVal && GetVecEleSize(rType) < k64BitSize) {
       immOpnd = true;
     } else {
       RegOperand *regOpd = &CreateRegisterOperandOfType(origTyp);
