@@ -287,32 +287,36 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
     hasPtrAccess = true;
     return nullptr;
   }
-  // determine arryOst
+  // determine OStIdx for the array
   IvarMeExpr *ivarMeExpr = nullptr;
-  OriginalSt *arryOst = nullptr;
+  MapleSet<OStIdx> *arryOstIdxSet = nullptr;
   OpMeExpr *arrayMeExpr = static_cast<OpMeExpr *>(depInfo->preEmit->GetMexpr(arr));
   if (arrayMeExpr == nullptr || arrayMeExpr->GetOp() == OP_add) {  // the array is converted from add
   } else if (parentNode->op == OP_iread) {
     ivarMeExpr = static_cast<IvarMeExpr *>(depInfo->preEmit->GetMexpr(parentNode));
     CHECK_FATAL(ivarMeExpr->GetMu() != nullptr, "BuildOneArrayAccessDesc: no mu corresponding to iread");
-    arryOst = ivarMeExpr->GetMu()->GetOst();
+    arryOstIdxSet = alloc->GetMemPool()->New<MapleSet<OStIdx>>(alloc->Adapter());
+    arryOstIdxSet->insert(ivarMeExpr->GetMu()->GetOst()->GetIndex());
   } else if (parentNode->op == OP_iassign) {
     IassignMeStmt *iassMeStmt = static_cast<IassignMeStmt *>(depInfo->preEmit->
         GetMeStmt(static_cast<IassignNode *>(parentNode)->GetStmtID()));
     ivarMeExpr = iassMeStmt->GetLHSVal();
+    arryOstIdxSet = alloc->GetMemPool()->New<MapleSet<OStIdx>>(alloc->Adapter());
     if (ivarMeExpr->GetMu()) {
-      arryOst = ivarMeExpr->GetMu()->GetOst();
+      arryOstIdxSet->insert(ivarMeExpr->GetMu()->GetOst()->GetIndex());
     } else {
       MapleMap<OStIdx, ChiMeNode *> *chiList = iassMeStmt->GetChiList();
       CHECK_FATAL(!chiList->empty(), "BuildOneArrayAccessDesc: no chi corresponding to iassign");
-      arryOst = depInfo->preMeFunc->meFunc->GetMeSSATab()->GetOriginalStFromID(chiList->begin()->first);
+      for (std::pair<OStIdx, ChiMeNode*> mapIt : *chiList) {
+        arryOstIdxSet->insert(mapIt.first);
+      }
     }
   } else {
     hasPtrAccess = true;
     return nullptr;
   }
 
-  ArrayAccessDesc *arrDesc = alloc->GetMemPool()->New<ArrayAccessDesc>(alloc, arr, arryOst);
+  ArrayAccessDesc *arrDesc = alloc->GetMemPool()->New<ArrayAccessDesc>(alloc, arr, arryOstIdxSet);
   if (parentNode->op == OP_iassign) {
     lhsArrays.push_back(arrDesc);
   } else {
@@ -398,15 +402,26 @@ void DoloopInfo::CreateArrayAccessDesc(BlockNode *block) {
   }
 }
 
+static bool ArrayOstIdxSetIntersect(MapleSet<OStIdx> *set1, MapleSet<OStIdx> *set2) {
+  for (OStIdx oidx1 : *set1) {
+    for (OStIdx oidx2 : *set2) {
+      if (oidx1 == oidx2) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void DoloopInfo::CreateDepTestLists() {
   size_t i, j;
   for (i = 0; i < lhsArrays.size(); ++i) {
     for (j = i + 1; j < lhsArrays.size(); ++j) {
-      if (lhsArrays[i]->arrayOst != nullptr && lhsArrays[j]->arrayOst != nullptr) {
-        if (lhsArrays[i]->arrayOst->IsSameSymOrPreg(lhsArrays[j]->arrayOst)) {
+      if (lhsArrays[i]->arrayOstIdxSet != nullptr && lhsArrays[j]->arrayOstIdxSet != nullptr) {
+        if (ArrayOstIdxSetIntersect(lhsArrays[i]->arrayOstIdxSet, lhsArrays[j]->arrayOstIdxSet)) {
           (void)outputDepTestList.emplace_back(DepTestPair(i, j));
         }
-      } else if (lhsArrays[i]->arrayOst == nullptr && lhsArrays[j]->arrayOst == nullptr) {
+      } else if (lhsArrays[i]->arrayOstIdxSet == nullptr && lhsArrays[j]->arrayOstIdxSet == nullptr) {
         BaseNode *arry0 = lhsArrays[i]->theArray->Opnd(0);
         BaseNode *arry1 = lhsArrays[j]->theArray->Opnd(0);
         if (depInfo->preEmit->GetMexpr(arry0) == depInfo->preEmit->GetMexpr(arry1)) {
@@ -417,11 +432,11 @@ void DoloopInfo::CreateDepTestLists() {
   }
   for (i = 0; i < lhsArrays.size(); ++i) {
     for (j = 0; j < rhsArrays.size(); ++j) {
-      if (lhsArrays[i]->arrayOst != nullptr && rhsArrays[j]->arrayOst != nullptr) {
-        if (lhsArrays[i]->arrayOst->IsSameSymOrPreg(rhsArrays[j]->arrayOst)) {
+      if (lhsArrays[i]->arrayOstIdxSet != nullptr && rhsArrays[j]->arrayOstIdxSet != nullptr) {
+        if (ArrayOstIdxSetIntersect(lhsArrays[i]->arrayOstIdxSet, rhsArrays[j]->arrayOstIdxSet)) {
           (void)flowDepTestList.emplace_back(DepTestPair(i, j));
         }
-      } else if (lhsArrays[i]->arrayOst == nullptr && rhsArrays[j]->arrayOst == nullptr) {
+      } else if (lhsArrays[i]->arrayOstIdxSet == nullptr && rhsArrays[j]->arrayOstIdxSet == nullptr) {
         BaseNode *arry0 = lhsArrays[i]->theArray->Opnd(0);
         BaseNode *arry1 = rhsArrays[j]->theArray->Opnd(0);
         if (depInfo->preEmit->GetMexpr(arry0) == depInfo->preEmit->GetMexpr(arry1)) {
@@ -676,10 +691,14 @@ void LfoDepInfo::PerformDepTest() {
       for (i = 0; i < doloopInfo->lhsArrays.size(); ++i) {
         ArrayAccessDesc *arrAcc = doloopInfo->lhsArrays[i];
         LogInfo::MapleLogger() << "(L" << i << ") ";
-        if (arrAcc->arrayOst == nullptr) {
+        if (arrAcc->arrayOstIdxSet == nullptr) {
           arrAcc->theArray->Opnd(0)->Dump(0);
         } else {
-          arrAcc->arrayOst->Dump();
+          for (OStIdx oidx : *arrAcc->arrayOstIdxSet) {
+            OriginalSt *ost = preMeFunc->meFunc->GetMeSSATab()->GetOriginalStFromID(oidx);
+            ost->Dump();
+            LogInfo::MapleLogger() << "| ";
+          }
         }
         LogInfo::MapleLogger() << " subscripts:";
         for (SubscriptDesc *subs : arrAcc->subscriptVec) {
@@ -704,10 +723,13 @@ void LfoDepInfo::PerformDepTest() {
       for (i = 0; i < doloopInfo->rhsArrays.size(); ++i) {
         ArrayAccessDesc *arrAcc = doloopInfo->rhsArrays[i];
         LogInfo::MapleLogger() << "(R" << i << ") ";
-        if (arrAcc->arrayOst == nullptr) {
+        if (arrAcc->arrayOstIdxSet == nullptr) {
           arrAcc->theArray->Opnd(0)->Dump(0);
         } else {
-          arrAcc->arrayOst->Dump();
+          for (OStIdx oidx : *arrAcc->arrayOstIdxSet) {
+            OriginalSt *ost = preMeFunc->meFunc->GetMeSSATab()->GetOriginalStFromID(oidx);
+            ost->Dump();
+          }
         }
         LogInfo::MapleLogger() << " subscripts:";
         for (SubscriptDesc *subs : arrAcc->subscriptVec) {
