@@ -43,12 +43,12 @@ class SubscriptDesc{
 class ArrayAccessDesc {
  public:
   ArrayNode *theArray;
-  OriginalSt *arrayOst = nullptr;       // if null, array base is an invariant expression
+  MapleSet<OStIdx> *arrayOstIdxSet = nullptr; // if null, array base is an invariant expression
   MapleVector<SubscriptDesc *> subscriptVec;  // describe the subscript of each array dimension
 
-  ArrayAccessDesc(MapleAllocator *alloc, ArrayNode *arr, OriginalSt *arryOst)
+  ArrayAccessDesc(MapleAllocator *alloc, ArrayNode *arr, MapleSet<OStIdx> *arryOstSet)
       : theArray(arr),
-        arrayOst(arryOst),
+        arrayOstIdxSet(arryOstSet),
         subscriptVec(alloc->Adapter()) {}
   virtual ~ArrayAccessDesc() = default;
 };
