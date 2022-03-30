@@ -147,6 +147,20 @@ bool DoloopInfo::IsLoopInvariant2(BaseNode *x) {
   return true;
 }
 
+bool DoloopInfo::IsLoopIVNode(const BaseNode *x) const {
+  if (doloop->IsPreg()) {
+    if (x->GetOpCode() != OP_regread) {
+      return false;
+    }
+    return static_cast<const RegreadNode *>(x)->GetRegIdx() == doloop->GetDoVarPregIdx();
+  } else {
+    if (x->GetOpCode() != OP_dread) {
+      return false;
+    }
+    return static_cast<const AddrofNode *>(x)->GetStIdx() == doloop->GetDoVarStIdx();
+  }
+}
+
 // check if all the scalars contained in x are loop-invariant unless it is IV
 bool DoloopInfo::OnlyInvariantScalars(MeExpr *x) {
   if (x == nullptr) {

@@ -98,6 +98,7 @@ class DoloopInfo {
   ~DoloopInfo() = default;
   bool IsLoopInvariant(MeExpr *x);
   bool IsLoopInvariant2(BaseNode *x);
+  bool IsLoopIVNode(const BaseNode *) const;
   bool OnlyInvariantScalars(MeExpr *x);
   SubscriptDesc *BuildOneSubscriptDesc(BaseNode *subsX);
   ArrayAccessDesc *BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *parent);
