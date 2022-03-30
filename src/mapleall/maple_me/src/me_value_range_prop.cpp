@@ -1682,7 +1682,7 @@ bool ValueRangePropagation::AddOrSubWithConstant(
   if (ConstantFold::IntegerOpIsOverflow(op, primType, lhsConstant, rhsConstant)) {
     return false;
   }
-  if (primType == PTY_u64) {
+  if (IsPrimTypeUint64(primType)) {
     res = (op == OP_add) ?
         (static_cast<uint64>(lhsConstant) + static_cast<uint64>(rhsConstant)) :
         (static_cast<uint64>(lhsConstant) - static_cast<uint64>(rhsConstant));
