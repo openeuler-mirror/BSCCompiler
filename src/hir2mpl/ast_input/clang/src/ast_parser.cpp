@@ -2268,12 +2268,10 @@ ASTDecl *ASTParser::ProcessDeclRecordDecl(MapleAllocator &allocator, const clang
       structName = astFile->GetOrCreateMappedUnnamedName(id);
     }
   } else if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-    clang::SourceLocation srcLocation = recDecl.getLocation();
-    clang::PresumedLoc pLocation = astFile->GetContext()->getSourceManager().getPresumedLoc(srcLocation);
     std::string recordLayoutStr = recDecl.getDefinition() == nullptr ? "" :
         ASTUtil::GetRecordLayoutString(astFile->GetContext()->getASTRecordLayout(recDecl.getDefinition()));
-    structName = structName + (pLocation.isValid() ? FEUtils::GetFileNameHashStr(pLocation.getFilename() +
-        recordLayoutStr) : astFile->GetAstFileNameHashStr());
+    std::string filename = astFile->GetContext()->getSourceManager().getFilename(recDecl.getLocation()).str();
+    structName = structName + FEUtils::GetFileNameHashStr(filename + recordLayoutStr);
   }
   curStructOrUnion = ASTDeclsBuilder::ASTStructBuilder(
       allocator, fileName, structName, std::vector<MIRType*>{recType}, attrs, recDecl.getID());

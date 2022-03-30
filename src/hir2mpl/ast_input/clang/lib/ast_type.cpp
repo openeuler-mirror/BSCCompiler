@@ -205,12 +205,10 @@ MIRType *LibAstFile::CvtRecordType(const clang::QualType srcType) {
     uint32_t id = recordType->getDecl()->getLocation().getRawEncoding();
     name = GetOrCreateMappedUnnamedName(id);
   } else if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-    clang::SourceLocation srcLocation = recordDecl->getLocation();
-    clang::PresumedLoc pLocation = astContext->getSourceManager().getPresumedLoc(srcLocation);
     std::string recordLayoutStr = recordDecl->getDefinition() == nullptr ? "" :
         ASTUtil::GetRecordLayoutString(astContext->getASTRecordLayout(recordDecl->getDefinition()));
-    name = name + (pLocation.isValid() ? FEUtils::GetFileNameHashStr(pLocation.getFilename() +
-        recordLayoutStr) : GetAstFileNameHashStr());
+    std::string filename = astContext->getSourceManager().getFilename(recordDecl->getLocation()).str();
+    name = name + FEUtils::GetFileNameHashStr(filename + recordLayoutStr);
   }
   type = FEManager::GetTypeManager().GetOrCreateStructType(name);
   type->SetMIRTypeKind(srcType->isUnionType() ? kTypeUnion : kTypeStruct);
