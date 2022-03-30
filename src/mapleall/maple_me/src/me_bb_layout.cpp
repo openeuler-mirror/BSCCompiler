@@ -590,8 +590,10 @@ void BBLayout::OptimizeBranchTarget(BB &bb) {
   }
   do {
     ASSERT(!bb.GetSucc().empty(), "container check");
-    BB *brTargetBB = bb.GetKind() == kBBCondGoto ? bb.GetSucc(1) : bb.GetSucc().front();
-    CHECK_FATAL((bb.GetKind() != kBBCondGoto || bb.GetSucc(1) != bb.GetSucc().front()),
+    // condgoto's succ layout: [0] fallthru succ, [1] target succ, [2-...] eh succ/wontexit succ
+    // goto's succ layout: [0] target succ, [1-...] eh succ/wontexit succ
+    BB *brTargetBB = bb.GetKind() == kBBCondGoto ? bb.GetSucc(1) : bb.GetSucc(0);
+    CHECK_FATAL((bb.GetKind() != kBBCondGoto || bb.GetSucc(1) != bb.GetSucc(0)),
                 "target is same as fallthru");
     if (brTargetBB->GetAttributes(kBBAttrWontExit)) {
       return;
@@ -605,7 +607,7 @@ void BBLayout::OptimizeBranchTarget(BB &bb) {
     OptimizeBranchTarget(*brTargetBB);
     // optimize stmt
     BB *newTargetBB =
-        (brTargetBB->GetKind() == kBBCondGoto) ? brTargetBB->GetSucc(1) : brTargetBB->GetSucc().front();
+        (brTargetBB->GetKind() == kBBCondGoto) ? brTargetBB->GetSucc(1) : brTargetBB->GetSucc(0);
     if (newTargetBB == brTargetBB) {
       return;
     }

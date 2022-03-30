@@ -124,6 +124,21 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
     }
     UpdateTheOffsetOfStmtWhenTargetBBIsChange(*pred, *splittedBB, *mergedBB);
   }
+  // may introduce redundant phi node, clean it
+  for (auto phiIter = mergedBB->GetMePhiList().begin(); phiIter != mergedBB->GetMePhiList().end();) {
+    auto *phi = phiIter->second;
+    auto *phiOpnd0 = phi->GetOpnd(0);
+    auto foundDiff = std::find_if(phi->GetOpnds().begin(), phi->GetOpnds().end(),
+                                  [phiOpnd0](ScalarMeExpr *opnd) { return opnd != phiOpnd0; });
+    if (foundDiff == phi->GetOpnds().end()) {
+      auto &opnds = splittedBB->GetMePhiList()[phiIter->first]->GetOpnds();
+      // mergedBB is always the last pred of splittedBB
+      opnds[opnds.size() - 1] = phiOpnd0;
+      phiIter = mergedBB->GetMePhiList().erase(phiIter);
+    } else {
+      ++phiIter;
+    }
+  }
   splittedBB->AddPred(*mergedBB);
   isCFGChange = true;
 }

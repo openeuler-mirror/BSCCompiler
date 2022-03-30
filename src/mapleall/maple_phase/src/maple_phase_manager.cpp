@@ -249,12 +249,11 @@ std::unique_ptr<ThreadLocalMemPool> MaplePhaseManager::AllocateMemPoolInPhaseMan
 }
 
 template <typename phaseT, typename IRTemplate>
-void MaplePhaseManager::RunDependentPhase(const MaplePhase &phase,
-                                                  AnalysisDataManager &adm,
-                                                  IRTemplate &irUnit, int lev) {
+void MaplePhaseManager::RunDependentPhase(const MaplePhase &phase, AnalysisDataManager &adm,
+                                          IRTemplate &irUnit, int lev) {
   AnalysisDep *anaDependence = FindAnalysisDep(&phase);
-  for (auto requiredAnaPhase : anaDependence->GetRequiredPhase()) {
-    const MaplePhaseInfo *curPhase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(requiredAnaPhase);
+  for (auto requiredPhase : anaDependence->GetRequiredPhase()) {
+    const MaplePhaseInfo *curPhase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(requiredPhase);
     if (adm.IsAnalysisPhaseAvailable(irUnit.GetUniqueID(), curPhase->GetPhaseID())) {
       continue;
     }

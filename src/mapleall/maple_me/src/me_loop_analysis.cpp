@@ -67,11 +67,10 @@ void IdentifyLoops::ProcessBB(BB *bb) {
       // create a loop with bb as loop head and pred as loop tail
       LoopDesc *loop = CreateLoopDesc(*bb, *pred);
       // check try...catch
-      for (auto *pred : bb->GetPred()) {
-        if (pred->GetAttributes(kBBAttrIsTry)) {
-          loop->SetHasTryBB(true);
-          break;
-        }
+      auto found = std::find_if(bb->GetPred().begin(), bb->GetPred().end(),
+                                [](BB *pre) { return pre->GetAttributes(kBBAttrIsTry); });
+      if (found != bb->GetPred().end()) {
+        loop->SetHasTryBB(true);
       }
       // check igoto
       if (addrTakenLabels.find(bb->GetBBLabel()) != addrTakenLabels.end()) {
