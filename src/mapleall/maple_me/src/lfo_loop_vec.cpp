@@ -2054,9 +2054,10 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
 void LoopVectorization::GenConstVar(LoopVecInfo *vecInfo, uint8_t vecLanes) {
   // create zero node used in reduction stmt
   if ((!const0Node) && (!vecInfo->reductionStmts.empty())) {
-    MIRType &typeInt = *GlobalTables::GetTypeTable().GetPrimType(PTY_i32);
+    PrimType ptype = vecLanes == 4 ? PTY_i32 : (vecLanes == 2 ? PTY_i64 : PTY_i16);
+    MIRType &typeInt = *GlobalTables::GetTypeTable().GetPrimType(ptype);
     MIRIntConst *constZero = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, typeInt);
-    const0Node = codeMP->New<ConstvalNode>(PTY_i32, constZero);
+    const0Node = codeMP->New<ConstvalNode>(ptype, constZero);
   }
   MIRSymbol *ivconstSym = (vecLanes == 4) ? initIVv4Sym : (vecLanes == 8 ? initIVv8Sym : initIVv2Sym);
   if ((!ivconstSym) && (!vecInfo->ivNodes.empty())) {
