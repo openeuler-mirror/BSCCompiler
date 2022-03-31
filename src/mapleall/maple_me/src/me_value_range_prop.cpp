@@ -3817,7 +3817,8 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
       if (useListOfPredOpnd != nullptr && useListOfPredOpnd->size() == 1) {
         if (useListOfPredOpnd->front().IsUseByPhi() && useListOfPredOpnd->front().GetPhi() == phi) {
           auto *useListOfPhi = useInfo->GetUseSitesOfExpr(phi->GetLHS());
-          if (useListOfPhi != nullptr && useListOfPhi->size() == 1 && useListOfPhi->front().IsUseByStmt()) {
+          if (useListOfPhi != nullptr && useListOfPhi->size() == 1 && useListOfPhi->front().IsUseByStmt() &&
+              !useListOfPhi->front().GetStmt()->GetBB()->GetAttributes(kBBAttrIsInLoop)) {
             auto *useStmt = useListOfPhi->front().GetStmt();
             if (condGoto.GetKind() == kBBCondGoto && condGoto.GetLastMe()->IsCondBr() &&
                 condGoto.GetLastMe() == useStmt && predOpnd->IsScalar()) {
@@ -3863,13 +3864,8 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
           // PredOpnd is only used by condGoto stmt and phi, if the condGoto stmt can be deleted, need not update ssa
           // of predOpnd and the def point of predOpnd can be deleted.
           phiOpnds[indexOfOpnd - 1] = nullptr;
-          bool opndIsRemovedFromPhi = true;
-          for (auto &temp : phiOpnds) {
-            if (temp == updateSSAExceptTheScalarExpr) {
-              opndIsRemovedFromPhi = false;
-              break;
-            }
-          }
+          bool opndIsRemovedFromPhi =
+              (std::find(phiOpnds.begin(), phiOpnds.end(), updateSSAExceptTheScalarExpr) == phiOpnds.end());
           if (opndIsRemovedFromPhi) {
             updateSSAExceptTheScalarExpr->GetDefStmt()->GetBB()->RemoveMeStmt(
                 updateSSAExceptTheScalarExpr->GetDefStmt());
