@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -1180,23 +1180,69 @@ class ASTCallExpr : public ASTExpr {
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncAddAndFetch8);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncAddAndFetch4);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncAddAndFetch2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncAddAndFetch1);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncSubAndFetch8);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncSubAndFetch4);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncSubAndFetch2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncSubAndFetch1);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndSub8);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndSub4);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndSub2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndSub1);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndAdd8);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndAdd4);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndAdd2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndAdd1);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncBoolCompareAndSwap1);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncBoolCompareAndSwap2);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncBoolCompareAndSwap4);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncBoolCompareAndSwap8);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncLockTestAndSet8);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncLockTestAndSet4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncLockTestAndSet2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncLockTestAndSet1);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncValCompareAndSwap8);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncValCompareAndSwap4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncValCompareAndSwap2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncValCompareAndSwap1);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncLockRelease8);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncLockRelease4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncLockRelease2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncLockRelease1);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndAnd1);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndAnd2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndAnd4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndAnd8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndOr1);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndOr2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndOr4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndOr8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndXor1);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndXor2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndXor4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndXor8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndNand1);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndNand2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndNand4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndNand8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncAndAndFetch1);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncAndAndFetch2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncAndAndFetch4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncAndAndFetch8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncOrAndFetch1);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncOrAndFetch2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncOrAndFetch4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncOrAndFetch8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncXorAndFetch1);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncXorAndFetch2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncXorAndFetch4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncXorAndFetch8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncNandAndFetch1);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncNandAndFetch2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncNandAndFetch4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncNandAndFetch8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncSynchronize);
+
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ReturnAddress);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ExtractReturnAddr);
 
