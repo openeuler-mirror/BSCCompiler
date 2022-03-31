@@ -79,13 +79,11 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
     if (userDefinedOptLevel == 2 && m.HasPartO2List()) {
       if (m.IsInPartO2List(func->GetNameStrIdx())) {
         MeOption::optLevel = 2;
-        ClearAllPhases();
-        DoPhasesPopulate(m);
       } else {
         MeOption::optLevel = 0;
-        ClearAllPhases();
-        DoPhasesPopulate(m);
       }
+      ClearAllPhases();
+      DoPhasesPopulate(m);
     }
     m.SetCurFunction(func);
     if (!IsQuiet()) {
@@ -217,8 +215,8 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEFSAA, fsaa)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESplitCEdge, splitcriticaledge)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MECheckCastOpt, checkcastopt)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESSAEPre, epre)
-MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESimplifyCFGNoSSA, simplifyCFGNoSSA)
-MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESimplifyCFG, simplifyCFG)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEOptimizeCFGNoSSA, optimizeCFGNoSSA)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEOptimizeCFG, optimizeCFG)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEProfGen, profileGen)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEPlacementRC, placementrc)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEDse, dse)

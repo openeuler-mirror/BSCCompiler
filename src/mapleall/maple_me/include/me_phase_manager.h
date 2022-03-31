@@ -71,7 +71,7 @@
 #include "me_rc_lowering.h"
 #include "gen_check_cast.h"
 #include "me_fsaa.h"
-#include "simplifyCFG.h"
+#include "optimizeCFG.h"
 #include "me_ivopts.h"
 #if MIR_JAVA
 #include "sync_select.h"

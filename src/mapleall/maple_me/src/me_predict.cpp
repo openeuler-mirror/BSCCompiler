@@ -21,7 +21,7 @@
 #include "me_irmap_build.h"
 #include "me_irmap.h"
 #include "me_dominance.h"
-#include "simplifyCFG.h"
+#include "optimizeCFG.h"
 
 namespace {
 using namespace maple;

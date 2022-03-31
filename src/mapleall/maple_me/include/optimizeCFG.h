@@ -13,8 +13,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef MAPLE_ME_INCLUDE_SIMPLIFYCFG_H
-#define MAPLE_ME_INCLUDE_SIMPLIFYCFG_H
+#ifndef MAPLE_ME_INCLUDE_OPTIMIZECFG_H
+#define MAPLE_ME_INCLUDE_OPTIMIZECFG_H
 #include "me_function.h"
 #include "maple_phase.h"
 namespace maple {
@@ -48,8 +48,8 @@ BB *FindFirstRealSucc(BB *succ, const BB *stopBB = nullptr);
 // func will stop at first non-connecting BB or stopBB
 BB *FindFirstRealPred(BB *pred, const BB *stopBB = nullptr);
 
-int GetRealPredIdx(BB &succ, BB &realPred);
-int GetRealSuccIdx(BB &pred, BB &realSucc);
+int GetRealPredIdx(BB &succ, const BB &realPred);
+int GetRealSuccIdx(BB &pred, const BB &realSucc);
 // delete all empty bb used to connect its pred and succ, like: pred -- empty -- empty -- succ
 // the result after this will be : pred -- succ
 // if no empty exist, return;
@@ -64,9 +64,9 @@ inline void RemoveBBLable(BB &bb) {
 }
 
 // phase for MPLIR, without SSA info
-MAPLE_FUNC_PHASE_DECLARE(MESimplifyCFGNoSSA, MeFunction)
+MAPLE_FUNC_PHASE_DECLARE(MEOptimizeCFGNoSSA, MeFunction)
 // phase for MEIR, should maintain ssa info and split critical edge
-MAPLE_FUNC_PHASE_DECLARE(MESimplifyCFG, MeFunction)
+MAPLE_FUNC_PHASE_DECLARE(MEOptimizeCFG, MeFunction)
 
 } // namespace maple
-#endif //MAPLE_ME_INCLUDE_SIMPLIFYCFG_H
+#endif //MAPLE_ME_INCLUDE_OPTIMIZECFG_H

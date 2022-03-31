@@ -109,7 +109,7 @@ src_libmplme = [
   "src/lfo_loop_vec.cpp",
   "src/me_value_range_prop.cpp",
   "src/cfg_opt.cpp",
-  "src/simplifyCFG.cpp",
+  "src/optimizeCFG.cpp",
   "src/me_ivopts.cpp",
   "src/seqvec.cpp",
   "src/me_autovec.cpp",

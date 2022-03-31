@@ -12,8 +12,9 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "simplifyCFG.h"
+#include "optimizeCFG.h"
 #include "me_phase_manager.h"
+#include "factory.h"
 
 namespace maple {
 namespace {
@@ -44,8 +45,8 @@ std::pair<BB *, BB *> GetTrueFalseBrPair(BB *bb) {
   return { nullptr, nullptr };
 }
 
-// At most only one fallthru is allowed for a bb, but there may be more than one fallthru pred
-// temporarily during simplifying process.
+// Only one fallthru is allowed for a bb at most , but a bb may have be more than one fallthru pred
+// temporarily during optimizing process.
 size_t GetFallthruPredNum(const BB &bb) {
   size_t num = 0;
   for (BB *pred : bb.GetPred()) {
@@ -495,7 +496,7 @@ MeStmt *GetNoReturnStmt(BB *bb) {
   return nullptr;
 }
 
-bool SkipSimplifyCFG(const maple::MeFunction &f) {
+bool SkipOptimizeCFG(const maple::MeFunction &f) {
   for (auto bbIt = f.GetCfg()->valid_begin(); bbIt != f.GetCfg()->valid_end(); ++bbIt) {
     if ((*bbIt)->GetKind() == kBBIgoto || (*bbIt)->GetAttributes(kBBAttrIsTry)) {
       return true;
@@ -504,17 +505,11 @@ bool SkipSimplifyCFG(const maple::MeFunction &f) {
   return false;
 }
 
-bool RemoveUnreachableBB(const maple::MeFunction &f) {
+bool UnreachBBAnalysis(const maple::MeFunction &f) {
   if (f.GetCfg()->UnreachCodeAnalysis(true)) {
     DEBUG_LOG() << "Remove unreachable BB\n";
     return true;
   }
-  return false;
-}
-
-bool MergeEmptyReturnBB(const maple::MeFunction &f) {
-  // WORK TO BE DONE
-  (void)f;
   return false;
 }
 } // anonymous namespace
@@ -684,41 +679,43 @@ bool HasFallthruPred(const BB &bb) {
   return GetFallthruPredNum(bb) != 0;
 }
 
-// For BB Level simplification
-class SimplifyCFG {
+// For BB Level optimization
+class OptimizeBB {
  public:
-  SimplifyCFG(BB *bb, MeFunction &func, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *candidates)
+  OptimizeBB(BB *bb, MeFunction &func, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *candidates)
       : currBB(bb), f(func), cfg(func.GetCfg()), irmap(func.GetIRMap()),
         irBuilder(func.GetMIRModule().GetMIRBuilder()), isMeIR(irmap != nullptr), cands(candidates) {}
-  // run on each BB(currBB) until no more change for currBB
-  bool RunIterativelyOnBB();
+  // optimize each currBB until no change occur
+  bool OptBBIteratively();
+  // initial factory to create corresponding optimizer for currBB according to BBKind.
+  void InitBBOptFactory();
 
  private:
-  BB *currBB = nullptr;     // BB we currently perform simplification on
-  MeFunction &f;            // function we currently perform simplification on
-  MeCFG *cfg = nullptr;     // requiring cfg to find pattern to simplify
+  BB *currBB = nullptr;     // BB we currently perform optimization on
+  MeFunction &f;            // function we currently perform optimization on
+  MeCFG *cfg = nullptr;     // requiring cfg to find pattern to optimize current BB
   MeIRMap *irmap = nullptr; // used to create new MeExpr/MeStmt
   MIRBuilder *irBuilder = nullptr; // used to create new BaseNode(expr)/StmtNode
   bool isMeIR = false;
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *cands = nullptr; // candidates ost need to be updated ssa
   std::map<BBId, std::set<OStIdx>> candsOstInBB; // bb with ost needed to be updated
 
-  bool runOnSameBBAgain = false; // It will be always set false by RunIterativelyOnBB. If there is some optimization
-                                 // opportunity for currBB after a/some simplification, we should set it true.
-                                 // Otherwise it will stop after all simplification finished and continue to nextBB.
+  bool repeatOpt = false; // It will be always set false by OptBBIteratively. If there is some optimization
+                          // opportunity for currBB after a/some optimization, we should set it true.
+                          // Otherwise it will stop after all optimizations finished and continue to nextBB.
   enum BBErrStat {
     kBBNoErr,                 // BB is normal
     kBBErrNull,               // BB is nullptr
     kBBErrOOB,                // BB id is out-of-bound
-    kBBErrCommonEntryOrExit,  // BB is CommoneEntry or CommonExit
+    kBBErrCommonEntryOrExit,  // BB is CommonEntry or CommonExit
     kBBErrDel                 // BB has been deleted before
   };
 
+  // For BBChecker, if currBB has error state, do not opt it.
   BBErrStat bbErrStat = kBBNoErr;
 
-  // run once time on bb, some common cfg opt and peephole cfg opt
-  // will be performed on currBB
-  bool RunOnceOnBB();
+  // Optimize once time on bb, some common cfg opt and peephole cfg opt will be performed on currBB
+  bool OptBBOnce();
   // elminate BB that is unreachable:
   // 1.BB has no pred(expect then entry block)
   // 2.BB has itself as pred
@@ -726,26 +723,24 @@ class SimplifyCFG {
   // chang condition branch to unconditon branch if possible
   // 1.condition is a constant
   // 2.all branches of condition branch is the same BB
-  bool ChangeCondBr2UnCond();
+  bool OptimizeCondBB2UnCond();
   // disconnect predBB and currBB if predBB must cause error(e.g. null ptr deref)
   // If a expr is always cause error in predBB, predBB will never reach currBB
   bool RemoveSuccFromNoReturnBB();
   // currBB has only one pred, and pred has only one succ
   // try to merge two BB, return true if merged, return false otherwise.
   bool MergeDistinctBBPair();
-  // sink common code to their common succ BB, decrease the register pressure
-  bool SinkCommonCode();
   // Eliminate redundant philist in bb which has only one pred
   bool EliminateRedundantPhiList();
 
   // Following function check for BB pattern according to BB's Kind
-  bool SimplifyCondBB();
-  bool SimplifyUncondBB();
-  bool SimplifyFallthruBB();
-  bool SimplifyReturnBB();
-  bool SimplifySwitchBB();
+  bool OptimizeCondBB();
+  bool OptimizeUncondBB();
+  bool OptimizeFallthruBB();
+  bool OptimizeReturnBB();
+  bool OptimizeSwitchBB();
 
-  // for sub-pattern in SimplifyCondBB
+  // for sub-pattern in OptimizeCondBB
   MeExpr *TryToSimplifyCombinedCond(const MeExpr &expr);
   MeExpr *CombineCondByOffset(const MeExpr &expr);
   bool FoldBranchToCommonDest(BB *pred, BB *succ);
@@ -758,21 +753,20 @@ class SimplifyCFG {
   BB *MergeSuccIntoPred(BB *pred, BB *succ);
   bool CondBranchToSelect();
   bool IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeExpr *falseExpr);
-  // for SimplifyUncondBB
+  // for OptimizeUncondBB
   bool MergeGotoBBToPred(BB *gotoBB, BB *pred);
   // after moving pred from curr to curr's successor (i.e. succ), update the phiList of curr and succ
   // a phiOpnd will be removed from curr's philist, and a phiOpnd will be inserted to succ's philist
   // note: when replace pred's succ (i.e. curr) with succ, please DO NOT remove phiOpnd immediately,
   // otherwise we cannot get phiOpnd in this step
   void UpdatePhiForMovingPred(int predIdxForCurr, const BB *pred, BB *curr, BB *succ);
-  // for ChangeCondBr2UnCond
-  bool SimplifyBranchBBToUncondBB(BB &bb);
+  // for OptimizeCondBB2UnCond
+  bool BranchBB2UncondBB(BB &bb);
   // Get first return BB
   BB *GetFirstReturnBB();
   bool EliminateRedundantPhiList(BB *bb);
 
-  // Check before every simplification to avoid error induced by other optimization on currBB
-  // please use macro CHECK_CURR_BB instead
+  // Check if state of currBB is error.
   bool CheckCurrBB();
   // Insert ost of philist in bb to cand, and set ost start from newBB(newBB will be bb itself if not specified)
   void UpdateSSACandForBBPhiList(BB *bb, const BB *newBB = nullptr);
@@ -783,14 +777,14 @@ class SimplifyCFG {
   void DeleteBB(BB *bb);
 
   bool IsEmptyBB(BB &bb) {
-    return irmap == nullptr ? IsMplEmptyBB(bb) : IsMeEmptyBB(bb);
+    return isMeIR ? IsMeEmptyBB(bb) : IsMplEmptyBB(bb);
   }
 
   void SetBBRunAgain() {
-    runOnSameBBAgain = true;
+    repeatOpt = true;
   }
   void ResetBBRunAgain() {
-    runOnSameBBAgain = false;
+    repeatOpt = false;
   }
 #define CHECK_CURR_BB() \
 if (!CheckCurrBB()) {   \
@@ -803,7 +797,9 @@ if (!isMeIR) {          \
 }
 };
 
-bool SimplifyCFG::CheckCurrBB() {
+using OptBBFatory = FunctionFactory<BBKind, bool, OptimizeBB *>;
+
+bool OptimizeBB::CheckCurrBB() {
   if (bbErrStat != kBBNoErr) { // has been checked before
     return false;
   }
@@ -828,7 +824,7 @@ bool SimplifyCFG::CheckCurrBB() {
   return true;
 }
 
-void SimplifyCFG::UpdateBBIdInSSACand(const BBId &oldBBID, const BBId &newBBID) {
+void OptimizeBB::UpdateBBIdInSSACand(const BBId &oldBBID, const BBId &newBBID) {
   auto it = candsOstInBB.find(oldBBID);
   if (it == candsOstInBB.end()) {
     return; // no item to update
@@ -845,11 +841,11 @@ void SimplifyCFG::UpdateBBIdInSSACand(const BBId &oldBBID, const BBId &newBBID) 
   }
 }
 
-void SimplifyCFG::UpdateSSACandForOst(const OStIdx &ostIdx, const BB *bb) {
+void OptimizeBB::UpdateSSACandForOst(const OStIdx &ostIdx, const BB *bb) {
   MeSSAUpdate::InsertOstToSSACands(ostIdx, *bb, cands);
 }
 
-void SimplifyCFG::UpdateSSACandForBBPhiList(BB *bb, const BB *newBB) {
+void OptimizeBB::UpdateSSACandForBBPhiList(BB *bb, const BB *newBB) {
   if (!isMeIR || bb == nullptr || bb->GetMePhiList().empty()) {
     return;
   }
@@ -874,7 +870,7 @@ void SimplifyCFG::UpdateSSACandForBBPhiList(BB *bb, const BB *newBB) {
   }
 }
 
-void SimplifyCFG::DeleteBB(BB *bb) {
+void OptimizeBB::DeleteBB(BB *bb) {
   if (bb == nullptr) {
     return;
   }
@@ -886,7 +882,7 @@ void SimplifyCFG::DeleteBB(BB *bb) {
 // eliminate dead BB :
 // 1.BB has no pred(expect then entry block)
 // 2.BB has only itself as pred
-bool SimplifyCFG::EliminateDeadBB() {
+bool OptimizeBB::EliminateDeadBB() {
   CHECK_CURR_BB();
   if (currBB->IsSuccBB(*cfg->GetCommonEntryBB())) {
     return false;
@@ -904,14 +900,14 @@ bool SimplifyCFG::EliminateDeadBB() {
 }
 
 // Eliminate redundant philist in bb which has only one pred
-bool SimplifyCFG::EliminateRedundantPhiList() {
+bool OptimizeBB::EliminateRedundantPhiList() {
   CHECK_CURR_BB();
   ONLY_FOR_MEIR();
   return EliminateRedundantPhiList(currBB);
 }
 
 // Eliminate redundant philist in bb which has only one pred
-bool SimplifyCFG::EliminateRedundantPhiList(BB *bb) {
+bool OptimizeBB::EliminateRedundantPhiList(BB *bb) {
   if (bb->GetPred().size() != 1) {
     return false;
   }
@@ -927,7 +923,7 @@ bool SimplifyCFG::EliminateRedundantPhiList(BB *bb) {
 //  A   B   C  (ABC are empty)  ==>     |
 //   \  |  /                            |
 //    destBB                          destBB
-bool SimplifyCFG::SimplifyBranchBBToUncondBB(BB &bb) {
+bool OptimizeBB::BranchBB2UncondBB(BB &bb) {
   if (bb.GetKind() != kBBCondGoto && bb.GetKind() != kBBSwitch) {
     return false;
   }
@@ -939,7 +935,7 @@ bool SimplifyCFG::SimplifyBranchBBToUncondBB(BB &bb) {
     }
   }
 
-  DEBUG_LOG() << "SimplifyBranchBBToUncondBB : " << (bb.GetKind() == kBBCondGoto ? "Conditional " : "Switch ")
+  DEBUG_LOG() << "BranchBB2UncondBB : " << (bb.GetKind() == kBBCondGoto ? "Conditional " : "Switch ")
               << "BB" << LOG_BBID(&bb) << " to unconditional BB\n";
   // delete all empty bb between bb and destBB
   // note : bb and destBB will be connected after empty BB is deleted
@@ -978,14 +974,14 @@ bool SimplifyCFG::SimplifyBranchBBToUncondBB(BB &bb) {
 // chang condition branch to unconditon branch if possible
 // 1.condition is a constant
 // 2.all branches of condition branch is the same BB
-bool SimplifyCFG::ChangeCondBr2UnCond() {
+bool OptimizeBB::OptimizeCondBB2UnCond() {
   CHECK_CURR_BB();
   if (currBB->GetKind() != kBBCondGoto) {
     return false;
   }
   // case 2
   if (FindFirstRealSucc(currBB->GetSucc(0)) == FindFirstRealSucc(currBB->GetSucc(1))) {
-    if (SimplifyBranchBBToUncondBB(*currBB)) {
+    if (BranchBB2UncondBB(*currBB)) {
       SetBBRunAgain();
       return true;
     }
@@ -1038,7 +1034,7 @@ bool SimplifyCFG::ChangeCondBr2UnCond() {
 }
 
 // return first return bb
-BB *SimplifyCFG::GetFirstReturnBB() {
+BB *OptimizeBB::GetFirstReturnBB() {
   for (auto *bb : cfg->GetAllBBs()) {
     if (bb == nullptr) {
       continue;
@@ -1055,7 +1051,7 @@ BB *SimplifyCFG::GetFirstReturnBB() {
 // case 1: BB has stmt that must throw exception(e.g. deref nullptr, div/rem zero)
 // case 2: BB has call site of func with attribute FUNCATTR_noreturn
 // If a stmt in currBB is no return, currBB will never reach its successors
-bool SimplifyCFG::RemoveSuccFromNoReturnBB() {
+bool OptimizeBB::RemoveSuccFromNoReturnBB() {
   CHECK_CURR_BB();
   ONLY_FOR_MEIR();
   if (currBB->IsMeStmtEmpty() || currBB->GetSucc().empty()) {
@@ -1120,7 +1116,7 @@ bool SimplifyCFG::RemoveSuccFromNoReturnBB() {
 }
 
 // merge two bb, if merged, return combinedBB, Otherwise return nullptr
-BB *SimplifyCFG::MergeSuccIntoPred(BB *pred, BB *succ) {
+BB *OptimizeBB::MergeSuccIntoPred(BB *pred, BB *succ) {
   if (pred == cfg->GetCommonEntryBB() || succ == cfg->GetCommonExitBB()) {
     return nullptr;
   }
@@ -1197,7 +1193,7 @@ BB *SimplifyCFG::MergeSuccIntoPred(BB *pred, BB *succ) {
   return pred;
 }
 
-BB *SimplifyCFG::MergeDistinctBBPair(BB *pred, BB *succ) {
+BB *OptimizeBB::MergeDistinctBBPair(BB *pred, BB *succ) {
   if (pred == nullptr || succ == nullptr || succ == pred) {
     return nullptr;
   }
@@ -1213,7 +1209,7 @@ BB *SimplifyCFG::MergeDistinctBBPair(BB *pred, BB *succ) {
 
 // currBB has only one pred, and pred has only one succ
 // try to merge two BB, return true if merged, return false otherwise.
-bool SimplifyCFG::MergeDistinctBBPair() {
+bool OptimizeBB::MergeDistinctBBPair() {
   CHECK_CURR_BB();
   bool everChanged = false;
   BB *combineBB = MergeDistinctBBPair(currBB->GetUniquePred(), currBB);
@@ -1232,19 +1228,13 @@ bool SimplifyCFG::MergeDistinctBBPair() {
   return everChanged;
 }
 
-// sink common code to their common succ BB, decrease the register pressure
-bool SimplifyCFG::SinkCommonCode() {
-  CHECK_CURR_BB();
-  return false;
-}
-
-bool SimplifyCFG::IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeExpr *falseExpr) {
+bool OptimizeBB::IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeExpr *falseExpr) {
   if (trueExpr == falseExpr) {
     return true;
   }
   ASSERT(IsSafeExpr(trueExpr), "[FUNC: %s]Please check for safety first", funcName) ;
   ASSERT(IsSafeExpr(falseExpr), "[FUNC: %s]Please check for safety first", funcName) ;
-  // try to simplify
+  // try to simplify select expr
   MeExpr *selExpr = irmap->CreateMeExprSelect(trueExpr->GetPrimType(), *condExpr, *trueExpr, *falseExpr);
   MeExpr *simplifiedSel = irmap->SimplifyMeExpr(selExpr);
   if (simplifiedSel != selExpr) {
@@ -1280,12 +1270,12 @@ bool SimplifyCFG::IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, Me
  //   x<-   x<-      |     x<-
  //     \   /         \     /
  //     jointBB       jointBB
-bool SimplifyCFG::CondBranchToSelect() {
+bool OptimizeBB::CondBranchToSelect() {
   CHECK_CURR_BB();
   BB *ftBB = FindFirstRealSucc(currBB->GetSucc(0)); // fallthruBB
   BB *gtBB = FindFirstRealSucc(currBB->GetSucc(1)); // gotoBB
   if (ftBB == gtBB) {
-    (void)SimplifyBranchBBToUncondBB(*currBB);
+    (void)BranchBB2UncondBB(*currBB);
     return true;
   }
   // if ftBB or gtBB itself is jointBB, just return itself; otherwise return real succ
@@ -1406,16 +1396,16 @@ bool SimplifyCFG::CondBranchToSelect() {
   MeExpr *simplifiedSel = irmap->SimplifyMeExpr(selExpr);
   AssignMeStmt *newAssStmt = irmap->CreateAssignMeStmt(*resLHS, *simplifiedSel, *currBB);
   newAssStmt->SetSrcPos(currBB->GetLastMe()->GetSrcPosition());
-  // here we do not remove condStmt, because it will be delete in SimplifyBranchBBToUncondBB
+  // here we do not remove condStmt, because it will be delete in BranchBB2UncondBB
   currBB->InsertMeStmtBefore(condStmt, newAssStmt);
-  // we remove assign stmt in ftBB and gtBB to make it an empty BB, so that SimplifyBranchBBToUncondBB can simplify it.
+  // we remove assign stmt in ftBB and gtBB to make it an empty BB, so that BranchBB2UncondBB can simplify it.
   if (gtStmt != nullptr) {
     gtBB->RemoveMeStmt(gtStmt);
   }
   if (ftStmt != nullptr) {
     ftBB->RemoveMeStmt(ftStmt);
   }
-  (void)SimplifyBranchBBToUncondBB(*currBB);
+  (void)BranchBB2UncondBB(*currBB);
   // update phi
   if (jointBB->GetPred().size() == 1) { // jointBB has only currBB as its pred
     // just remove phinode
@@ -1631,12 +1621,12 @@ BranchResult InferSuccCondBrFromPredCond(const MeExpr *predCond, const MeExpr *s
 // Here we deal with two cases:
 // 1. pred's cond is the same as succ's
 // 2. pred's cond is opposite to succ's
-bool SimplifyCFG::SkipRedundantCond(BB &pred, BB &succ) {
+bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
   if (pred.GetKind() != kBBCondGoto || succ.GetKind() != kBBCondGoto || &pred == &succ) {
     return false;
   }
   // try to simplify succ first, if all successors of succ is the same, no need to check the condition
-  if (SimplifyBranchBBToUncondBB(succ)) {
+  if (BranchBB2UncondBB(succ)) {
     return true;
   }
   auto *predBr = static_cast<CondGotoMeStmt*>(pred.GetLastMe());
@@ -1733,7 +1723,7 @@ bool SimplifyCFG::SkipRedundantCond(BB &pred, BB &succ) {
   return false;
 }
 
-bool SimplifyCFG::SkipRedundantCond() {
+bool OptimizeBB::SkipRedundantCond() {
   CHECK_CURR_BB();
   if (currBB->GetKind() != kBBCondGoto) {
     return false;
@@ -1747,7 +1737,7 @@ bool SimplifyCFG::SkipRedundantCond() {
   return changed;
 }
 
-// CurrBB is Condition BB, we will look upward its predBB(s) to see if we can simplify
+// CurrBB is Condition BB, we will look upward its predBB(s) to see if it can be optimized.
 // 1. currBB is X == constVal, and predBB has checked for the same expr, the result is known for currBB's condition,
 //    so we can make currBB to be an uncondBB.
 // 2. currBB has only one stmt(conditional branch stmt), and the condition's value is calculated by all its predBB
@@ -1755,7 +1745,7 @@ bool SimplifyCFG::SkipRedundantCond() {
 // 3. predBB is CondBB, one of predBB's succBB is currBB, and another is one of currBB's successors(commonBB)
 //    we can merge currBB to predBB if currBB is simple enough(has only one stmt).
 // 4. condition branch to select
-bool SimplifyCFG::SimplifyCondBB() {
+bool OptimizeBB::OptimizeCondBB() {
   CHECK_CURR_BB();
   ONLY_FOR_MEIR();
   MeStmt *stmt = currBB->GetLastMe();
@@ -1795,7 +1785,7 @@ bool SimplifyCFG::SimplifyCondBB() {
 // 1.when replace pred's succ (i.e. curr) with succ, please DO NOT remove phiOpnd immediately,
 // otherwise we cannot get phiOpnd in this step
 // 2.predIdxForCurr should be get before disconnecting pred and curr
-void SimplifyCFG::UpdatePhiForMovingPred(int predIdxForCurr, const BB *pred, BB *curr, BB *succ) {
+void OptimizeBB::UpdatePhiForMovingPred(int predIdxForCurr, const BB *pred, BB *curr, BB *succ) {
   auto &succPhiList = succ->GetMePhiList();
   auto &currPhilist = curr->GetMePhiList();
   int predPredIdx = succ->GetPredIndex(*pred);
@@ -1867,7 +1857,7 @@ void SimplifyCFG::UpdatePhiForMovingPred(int predIdxForCurr, const BB *pred, BB 
 // 1. fallthrough BB
 // 2. have a goto stmt
 // 3. conditional branch, and succ must be pred's goto target in this case
-bool SimplifyCFG::MergeGotoBBToPred(BB *succ, BB *pred) {
+bool OptimizeBB::MergeGotoBBToPred(BB *succ, BB *pred) {
   if (pred == nullptr || succ == nullptr) {
     return false;
   }
@@ -1927,7 +1917,7 @@ bool SimplifyCFG::MergeGotoBBToPred(BB *succ, BB *pred) {
     DeleteBB(succ);
   }
   // if all branch destination of pred (condBB or switchBB) are the same, we should turn pred into uncond
-  (void) SimplifyBranchBBToUncondBB(*pred);
+  (void)BranchBB2UncondBB(*pred);
   return true;
 }
 
@@ -1940,7 +1930,7 @@ bool SimplifyCFG::MergeGotoBBToPred(BB *succ, BB *pred) {
 //            |     other pred
 //            |    /
 //         newTarget
-bool SimplifyCFG::SimplifyUncondBB() {
+bool OptimizeBB::OptimizeUncondBB() {
   CHECK_CURR_BB();
   ONLY_FOR_MEIR();
   if (currBB->GetAttributes(kBBAttrIsEntry) || currBB->IsMeStmtEmpty()) {
@@ -1984,7 +1974,7 @@ bool SimplifyCFG::SimplifyUncondBB() {
   return changed;
 }
 
-bool SimplifyCFG::SimplifyFallthruBB() {
+bool OptimizeBB::OptimizeFallthruBB() {
   CHECK_CURR_BB();
   ONLY_FOR_MEIR();
   if (MeSplitCEdge::IsCriticalEdgeBB(*currBB) || currBB->IsPredBB(*cfg->GetCommonExitBB())) {
@@ -2009,12 +1999,7 @@ bool SimplifyCFG::SimplifyFallthruBB() {
   return MergeGotoBBToPred(succ, currBB);
 }
 
-bool SimplifyCFG::SimplifyReturnBB() {
-  CHECK_CURR_BB();
-  return false;
-}
-
-bool SimplifyCFG::SimplifySwitchBB() {
+bool OptimizeBB::OptimizeSwitchBB() {
   CHECK_CURR_BB();
   ONLY_FOR_MEIR();
   auto *swStmt = static_cast<SwitchMeStmt*>(currBB->GetLastMe());
@@ -2059,7 +2044,7 @@ bool SimplifyCFG::SimplifySwitchBB() {
 // lior ( le/lt (sameExpr, intval1), ge/gt (sameExpr, intval2))
 // We use an offset(i.e. intval1) to make the little num overflow (wrap around)
 // (x < val1 || x > val2) <==> ((unsigned)(x - val1) > (val2 - val1))
-MeExpr *SimplifyCFG::CombineCondByOffset(const MeExpr &expr) {
+MeExpr *OptimizeBB::CombineCondByOffset(const MeExpr &expr) {
   if (expr.GetOp() != OP_lior) {
     return nullptr;
   }
@@ -2112,7 +2097,7 @@ MeExpr *SimplifyCFG::CombineCondByOffset(const MeExpr &expr) {
   return cmpExpr;
 }
 
-MeExpr *SimplifyCFG::TryToSimplifyCombinedCond(const MeExpr &expr) {
+MeExpr *OptimizeBB::TryToSimplifyCombinedCond(const MeExpr &expr) {
   Opcode op = expr.GetOp();
   if (op != OP_land && op != OP_lior) {
     return nullptr;
@@ -2149,13 +2134,13 @@ MeExpr *SimplifyCFG::TryToSimplifyCombinedCond(const MeExpr &expr) {
 //    commonBB       exitBB
 //
 // note: pred->commonBB and succ->commonBB are critical edge, they may be cut by an empty bb before
-bool SimplifyCFG::FoldBranchToCommonDest(BB *pred, BB *succ) {
+bool OptimizeBB::FoldBranchToCommonDest(BB *pred, BB *succ) {
   if (!HasOnlyMeCondGotoStmt(*succ)) {
     // not a simple condBB
     return false;
   }
   // try to simplify realSucc first, if all successors of realSucc is the same, no need to check the condition
-  if (SimplifyBranchBBToUncondBB(*succ)) {
+  if (BranchBB2UncondBB(*succ)) {
     return true;
   }
   if (succ->GetPred().size() != 1) {
@@ -2257,7 +2242,7 @@ bool SimplifyCFG::FoldBranchToCommonDest(BB *pred, BB *succ) {
 //    commonBB       exitBB
 //
 // note: curr->commonBB and succ->commonBB are critical edge, they may be cut by an empty bb before
-bool SimplifyCFG::FoldBranchToCommonDest() {
+bool OptimizeBB::FoldBranchToCommonDest() {
   CHECK_CURR_BB();
   if (currBB->GetKind() != kBBCondGoto) {
     return false;
@@ -2273,9 +2258,9 @@ bool SimplifyCFG::FoldBranchToCommonDest() {
   return change;
 }
 
-bool SimplifyCFG::RunOnceOnBB() {
+bool OptimizeBB::OptBBOnce() {
   CHECK_CURR_BB();
-  DEBUG_LOG() << "Try to simplify BB" << LOG_BBID(currBB) << "...\n";
+  DEBUG_LOG() << "Try to optimize BB" << LOG_BBID(currBB) << "...\n";
   bool everChanged = false;
   // eliminate dead BB :
   // 1.BB has no pred(expect then entry block)
@@ -2287,7 +2272,7 @@ bool SimplifyCFG::RunOnceOnBB() {
   // chang condition branch to unconditon branch if possible
   // 1.condition is a constant
   // 2.all branches of condition branch is the same BB
-  everChanged |= ChangeCondBr2UnCond();
+  everChanged |= OptimizeCondBB2UnCond();
 
   // disconnect predBB and currBB if predBB must cause error(e.g. null ptr deref)
   // If a expr is always cause error in predBB, predBB will never reach currBB
@@ -2299,75 +2284,57 @@ bool SimplifyCFG::RunOnceOnBB() {
   // merge currBB to predBB if currBB has only one predBB and predBB has only one succBB
   everChanged |= MergeDistinctBBPair();
 
-  // sink common code to their common succ BB, decrease the register pressure
-  everChanged |= SinkCommonCode();
-
   // Eliminate redundant philist in bb which has only one pred
   (void)EliminateRedundantPhiList();
 
-  switch (currBB->GetKind()) {
-    case kBBCondGoto: {
-      everChanged |= SimplifyCondBB();
-      break;
-    }
-    case kBBGoto: {
-      everChanged |= SimplifyUncondBB();
-      break;
-    }
-    case kBBFallthru: {
-      everChanged |= SimplifyFallthruBB();
-      break;
-    }
-    case kBBReturn: {
-      everChanged |= SimplifyReturnBB();
-      break;
-    }
-    case kBBSwitch: {
-      everChanged |= SimplifySwitchBB();
-      break;
-    }
-    default: {
-      // do nothing for the time being
-      break;
-    }
+  auto optimizer = CreateProductFunction<OptBBFatory>(currBB->GetKind());
+  if (optimizer != nullptr) {
+    everChanged |= optimizer(this);
   }
   return everChanged;
 }
 
+void OptimizeBB::InitBBOptFactory() {
+  RegisterFactoryFunction<OptBBFatory>(kBBCondGoto, &OptimizeBB::OptimizeCondBB);
+  RegisterFactoryFunction<OptBBFatory>(kBBGoto, &OptimizeBB::OptimizeUncondBB);
+  RegisterFactoryFunction<OptBBFatory>(kBBFallthru, &OptimizeBB::OptimizeFallthruBB);
+  RegisterFactoryFunction<OptBBFatory>(kBBSwitch, &OptimizeBB::OptimizeSwitchBB);
+}
+
 // run on each BB until no more change for currBB
-bool SimplifyCFG::RunIterativelyOnBB() {
+bool OptimizeBB::OptBBIteratively() {
   bool changed = false;
   do {
-    runOnSameBBAgain = false;
-    // run only once on currBB, if we should run simplify on the same BB, runOnSameBBAgain will be set by optimization
-    changed |= RunOnceOnBB();
-  } while (runOnSameBBAgain);
+    repeatOpt = false;
+    // optimize currBB only once, if we should reopt on this BB, repeatOpt will be set by optimization
+    changed |= OptBBOnce();
+  } while (repeatOpt);
   return changed;
 }
 
-// For function Level simplification
-class SimplifyFuntionCFG {
+// For function Level optimization
+class OptimizeFuntionCFG {
  public:
-  SimplifyFuntionCFG(maple::MeFunction &func, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *candidates)
+  OptimizeFuntionCFG(maple::MeFunction &func, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *candidates)
       : f(func), cands(candidates) {}
 
-  bool RunSimplifyOnFunc();
+  bool OptimizeOnFunc();
 
  private:
   MeFunction &f;
 
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *cands = nullptr; // candidates ost need to update ssa
-
-  bool RepeatSimplifyFunctionCFG();
-  bool SimplifyCFGForBB(BB *currBB);
+  bool OptimizeFuncCFGIteratively();
+  bool OptimizeCFGForBB(BB *currBB);
 };
 
-bool SimplifyFuntionCFG::SimplifyCFGForBB(BB *currBB) {
-  return SimplifyCFG(currBB, f, cands)
-      .RunIterativelyOnBB();
+bool OptimizeFuntionCFG::OptimizeCFGForBB(BB *currBB) {
+  OptimizeBB bbOptimizer(currBB, f, cands);
+  bbOptimizer.InitBBOptFactory();
+  return bbOptimizer.OptBBIteratively();
 }
 // run until no changes happened
-bool SimplifyFuntionCFG::RepeatSimplifyFunctionCFG() {
+bool OptimizeFuntionCFG::OptimizeFuncCFGIteratively() {
   bool everChanged = false;
   bool changed = true;
   while (changed) {
@@ -2379,54 +2346,53 @@ bool SimplifyFuntionCFG::RepeatSimplifyFunctionCFG() {
       if (currBB == nullptr) {
         continue;
       }
-      changed |= SimplifyCFGForBB(currBB);
+      changed |= OptimizeCFGForBB(currBB);
     }
     everChanged |= changed;
   }
   return everChanged;
 }
 
-bool SimplifyFuntionCFG::RunSimplifyOnFunc() {
-  bool everChanged = RemoveUnreachableBB(f);
-  everChanged |= MergeEmptyReturnBB(f);
-  everChanged |= RepeatSimplifyFunctionCFG();
+bool OptimizeFuntionCFG::OptimizeOnFunc() {
+  bool everChanged = UnreachBBAnalysis(f);
+  everChanged |= OptimizeFuncCFGIteratively();
   if (!everChanged) {
     return false;
   }
-  // RepeatSimplifyFunctionCFG may generate unreachable BB.
-  // So RemoveUnreachableBB should be called to check for and
-  // remove dead BB. And RemoveUnreachableBB may also generate
-  // other optimize opportunity for RepeatSimplifyFunctionCFG.
+  // OptimizeFuncCFGIteratively may generate unreachable BB.
+  // So UnreachBBAnalysis should be called to check for and
+  // remove dead BB. And UnreachBBAnalysis may also generate
+  // other optimize opportunity for OptimizeFuncCFGIteratively.
   // Hench we should iterate between these two optimizations.
-  // Here, we call RemoveUnreachableBB first to avoid running
-  // RepeatSimplifyFunctionCFG for no changed situation.
-  if (!RemoveUnreachableBB(f)) {
+  // Here, we call UnreachBBAnalysis first to avoid running
+  // OptimizeFuncCFGIteratively for no changed situation.
+  if (!UnreachBBAnalysis(f)) {
     return true;
   }
   do {
-    everChanged = RepeatSimplifyFunctionCFG();
-    everChanged |= RemoveUnreachableBB(f);
+    everChanged = OptimizeFuncCFGIteratively();
+    everChanged |= UnreachBBAnalysis(f);
   } while (everChanged);
   return true;
 }
 
-// An Interface for simplifying cfg for func with MeIR (INSTEAD OF MPLIR),
+// An Interface to optimizing cfg for func with MeIR (INSTEAD OF MPLIR),
 // so that if irmap is not built, this interface will do nothing.
 // ssaCand, mp, ma are used to collect ost whose version need to be updated for ssa-updater
-bool SimplifyMeFuncCFG(maple::MeFunction &f, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCand = nullptr) {
+bool OptimizeMeFuncCFG(maple::MeFunction &f, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCand = nullptr) {
   funcName = f.GetName().c_str();
-  if (SkipSimplifyCFG(f)) {
-    DEBUG_LOG() << "Skip SimplifyCFG phase because of igotoBB\n";
+  if (SkipOptimizeCFG(f)) {
+    DEBUG_LOG() << "Skip OptimizeBB phase because of igotoBB\n";
     return false;
   }
-  DEBUG_LOG() << "Start Simplifying Function : " << f.GetName() << "\n";
+  DEBUG_LOG() << "Start Optimizing Function : " << f.GetName() << "\n";
   if (debug) {
     f.GetCfg()->DumpToFile("Before_" + phaseName);
   }
   uint32 bbNumBefore = f.GetCfg()->ValidBBNum();
-  // simplify entry
-  bool change = SimplifyFuntionCFG(f, ssaCand)
-      .RunSimplifyOnFunc();
+  // optimization entry
+  bool change = OptimizeFuntionCFG(f, ssaCand)
+      .OptimizeOnFunc();
   if (change) {
     f.GetCfg()->WontExitAnalysis();
     if (debug) {
@@ -2445,31 +2411,31 @@ bool SimplifyMeFuncCFG(maple::MeFunction &f, std::map<OStIdx, std::unique_ptr<st
 }
 
 // phase for MPLIR, without SSA info
-void MESimplifyCFGNoSSA::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+void MEOptimizeCFGNoSSA::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEMeCfg>();
   aDep.SetPreservedAll();
 }
 
-bool MESimplifyCFGNoSSA::PhaseRun(MeFunction &f) {
+bool MEOptimizeCFGNoSSA::PhaseRun(MeFunction &f) {
   debug = DEBUGFUNC_NEWPM(f);
   phaseName = PhaseName();
-  bool change = SimplifyMeFuncCFG(f, nullptr);
+  bool change = OptimizeMeFuncCFG(f, nullptr);
   return change;
 }
 
 // phase for MEIR, should maintain ssa info and split critical edge
-void MESimplifyCFG::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+void MEOptimizeCFG::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEDominance>();
   aDep.AddRequired<MEIRMapBuild>();
   aDep.PreservedAllExcept<MELoopAnalysis>();
 }
 
-bool MESimplifyCFG::PhaseRun(maple::MeFunction &f) {
+bool MEOptimizeCFG::PhaseRun(maple::MeFunction &f) {
   debug = DEBUGFUNC_NEWPM(f);
-  // simplify entry
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> cands((std::less<OStIdx>()));
   phaseName = PhaseName();
-  bool change = SimplifyMeFuncCFG(f, &cands);
+  // optimization entry
+  bool change = OptimizeMeFuncCFG(f, &cands);
   if (change) {
     // split critical edges
     MeSplitCEdge(debug).SplitCriticalEdgeForMeFunc(f);

@@ -56,7 +56,7 @@ ADDMAPLEMEPHASE("autovec", CLANG && MeOption::optLevel >= 3 && MeOption::enableL
 ADDMAPLEMEPHASE("lfounroll", CLANG && MeOption::optLevel >= 2 && MeOption::enableLFO &&
                              MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
 ADDMAPLEMEPHASE("mecfgbuild", MeOption::optLevel >= 2 || JAVALANG)
-ADDMAPLEMEPHASE("simplifyCFGNoSSA", CLANG && MeOption::optLevel >= 2)
+ADDMAPLEMEPHASE("optimizeCFGNoSSA", CLANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("bypatheh", JAVALANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("loopinversion", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("splitcriticaledge", MeOption::optLevel >= 2)
@@ -85,7 +85,7 @@ ADDMAPLEMEPHASE("rename2preg", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("lpre", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("storepre", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("ivopts", !JAVALANG && MeOption::optLevel >= 2)
-ADDMAPLEMEPHASE("simplifyCFG", CLANG && MeOption::optLevel >= 2)
+ADDMAPLEMEPHASE("optimizeCFG", CLANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("copyprop", MeOption::optLevel >= 2 && !JAVALANG)
 ADDMAPLEMEPHASE("valueRangePropagation", CLANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("safetyWarning", CLANG && MeOption::optLevel >= 2 &&
