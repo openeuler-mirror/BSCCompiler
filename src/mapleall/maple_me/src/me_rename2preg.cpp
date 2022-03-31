@@ -54,7 +54,7 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
     }
     return varreg;
   } else {
-    if (ost->GetIndex() >= aliasclass->GetAliasElemCount()) {
+    if (!aliasclass->OstAnalyzed(ost->GetIndex())) {
       return nullptr;
     }
 
@@ -75,8 +75,8 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
 
     auto *aliasSet = GetAliasSet(ost);
     if (aliasSet != nullptr) {
-      for (auto aeId : *aliasSet) {
-        auto aliasedOst = aliasclass->FindID2Elem(aeId)->GetOst();
+      for (auto aliasedOstIdx : *aliasSet) {
+        auto aliasedOst = ssaTab->GetOriginalStFromID(OStIdx(aliasedOstIdx));
         if (aliasedOst == ost) {
           continue;
         }
@@ -203,7 +203,31 @@ void SSARename2Preg::Rename2PregLeafLHS(MeStmt *mestmt, const VarMeExpr *varmeex
     CHECK_FATAL(desop == OP_dassign || desop == OP_maydassign, "NYI");
     MeExpr *oldrhs = (desop == OP_dassign) ? (static_cast<DassignMeStmt *>(mestmt)->GetRHS())
                                            : (static_cast<MaydassignMeStmt *>(mestmt)->GetRHS());
-    if (GetPrimTypeSize(oldrhs->GetPrimType()) > GetPrimTypeSize(varreg->GetPrimType())) {
+    TyIdx lhsTyIdx = varmeexpr->GetOst()->GetTyIdx();
+    MIRType *lhsTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx);
+    if (lhsTy->GetKind() == kTypeBitField) {
+      MIRBitFieldType *bitfieldTy = static_cast<MIRBitFieldType *>(lhsTy);
+      if (GetPrimTypeBitSize(oldrhs->GetPrimType()) > bitfieldTy->GetFieldSize()) {
+        Opcode extOp = IsSignedInteger(lhsTy->GetPrimType()) ? OP_sext : OP_zext;
+        PrimType newPrimType = PTY_u32;
+        if (bitfieldTy->GetFieldSize() <= 32) {
+          if (IsSignedInteger(lhsTy->GetPrimType())) {
+            newPrimType = PTY_i32;
+          }
+        } else {
+          if (IsSignedInteger(lhsTy->GetPrimType())) {
+            newPrimType = PTY_i64;
+          } else {
+            newPrimType = PTY_u64;
+          }
+        }
+        OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
+        opmeexpr.SetBitsSize(bitfieldTy->GetFieldSize());
+        opmeexpr.SetOpnd(0, oldrhs);
+        auto *simplifiedExpr = meirmap->SimplifyOpMeExpr(&opmeexpr);
+        oldrhs = simplifiedExpr != nullptr ? simplifiedExpr : meirmap->HashMeExpr(opmeexpr);
+      }
+    } else if (GetPrimTypeSize(oldrhs->GetPrimType()) > GetPrimTypeSize(varreg->GetPrimType())) {
       // insert integer truncation
       if (GetPrimTypeSize(varreg->GetPrimType()) >= 4) {
         oldrhs = meirmap->CreateMeExprTypeCvt(varreg->GetPrimType(), oldrhs->GetPrimType(), *oldrhs);
@@ -352,9 +376,9 @@ void SSARename2Preg::CollectUsedOst(const MeExpr *meExpr) {
     auto ostIdx = static_cast<const AddrofMeExpr *>(meExpr)->GetOstIdx();
     auto *ost = func->GetMeSSATab()->GetOriginalStFromID(ostIdx);
     ost->SetAddressTaken(true);
-    auto *prevLevOst = ost->GetPrevLevelOst();
-    if (prevLevOst != nullptr) {
-      for (auto *siblingOst : prevLevOst->GetNextLevelOsts()) {
+    auto *siblingOsts = ssaTab->GetNextLevelOsts(ost->GetPointerVstIdx());
+    if (siblingOsts != nullptr) {
+      for (auto *siblingOst : *siblingOsts) {
         siblingOst->SetAddressTaken(true);
       }
     }
