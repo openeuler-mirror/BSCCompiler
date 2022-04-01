@@ -73,7 +73,9 @@ void ValueRangePropagation::Execute() {
     if (unreachableBBs.find(*bIt) != unreachableBBs.end()) {
       continue;
     }
+    dealWithPhi = true;
     DealWithPhi(**bIt);
+    dealWithPhi = false;
     for (auto it = (*bIt)->GetMeStmts().begin(); it != (*bIt)->GetMeStmts().end();) {
       bool deleteStmt = false;
       if (!onlyPropVR) {
@@ -2466,6 +2468,7 @@ void ValueRangePropagation::MergeValueRangeOfPhiOperands(const LoopDesc &loop, c
         Bound( nullptr, GetMaxNumber(pType), pType) : Bound( nullptr, GetMinNumber(pType), pType);
     bool vrCanBeComputed = true;
     index++;
+    bool isAccurateBound = false;
     for (size_t i = 0; i < mePhiNode->GetOpnds().size(); ++i) {
       if (i == indexOfInitExpr) {
         continue;
@@ -2480,6 +2483,8 @@ void ValueRangePropagation::MergeValueRangeOfPhiOperands(const LoopDesc &loop, c
         vrCanBeComputed = false;
         break;
       }
+      isAccurateBound = valueRange->IsAccurate() || valueRange->GetRangeType() == kEqual ||
+          valueRange->GetRangeType() == kNotEqual;
     }
     if (!vrCanBeComputed) {
       continue;
@@ -2492,7 +2497,7 @@ void ValueRangePropagation::MergeValueRangeOfPhiOperands(const LoopDesc &loop, c
         std::make_unique<ValueRange>(vrOfInitExpr->GetBound(), resBound, kLowerAndUpper) :
         std::make_unique<ValueRange>(resBound, vrOfInitExpr->GetBound(), kLowerAndUpper);
     if (!valueRangeOfPhi->IsConstantRange() || stride == 1) {
-      if (loop.IsCanonicalAndOnlyHasOneExitBBLoop()) {
+      if (loop.IsCanonicalAndOnlyHasOneExitBBLoop() && isAccurateBound) {
         valueRangeOfPhi->SetAccurate(true);
       }
     } else if (stride != 1) {
@@ -2522,7 +2527,7 @@ void ValueRangePropagation::MergeValueRangeOfPhiOperands(const LoopDesc &loop, c
             }
           }
         }
-        if (loop.IsCanonicalAndOnlyHasOneExitBBLoop() && isAccurate) {
+        if (loop.IsCanonicalAndOnlyHasOneExitBBLoop() && isAccurate && isAccurateBound) {
           valueRangeOfPhi->SetAccurate(true);
         }
       }
@@ -2990,15 +2995,15 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CombineTwoValueRange(
     if (rightRange.GetRangeType() == kOnlyHasLowerBound) {
       return std::make_unique<ValueRange>(rightRange.GetLower(),Max(leftRange.GetUpper(),
           Bound(GetMaxNumber(rightRange.GetUpper().GetPrimType()), rightRange.GetUpper().GetPrimType())),
-              kLowerAndUpper);
+              kLowerAndUpper, rightRange.IsAccurate());
     }
     if (rightRange.GetRangeType() == kOnlyHasUpperBound) {
       return std::make_unique<ValueRange>(Min(leftRange.GetLower(),
           Bound(GetMinNumber(rightRange.GetLower().GetPrimType()), rightRange.GetLower().GetPrimType())),
-              leftRange.GetUpper(), kLowerAndUpper);
+              leftRange.GetUpper(), kLowerAndUpper, rightRange.IsAccurate());
     }
     return std::make_unique<ValueRange>(Max(leftRange.GetLower(), rightRange.GetLower()),
-                                        Min(leftRange.GetUpper(), rightRange.GetUpper()), kLowerAndUpper);
+        Min(leftRange.GetUpper(), rightRange.GetUpper()), kLowerAndUpper, rightRange.IsAccurate());
   }
 }
 
@@ -3123,40 +3128,40 @@ void ValueRangePropagation::GetTrueAndFalseBranch(Opcode op, BB &bb, BB *&trueBr
 
 void ValueRangePropagation::CreateValueRangeForLeOrLt(
     const MeExpr &opnd, const ValueRange *leftRange, Bound newRightUpper, Bound newRightLower,
-    const BB &trueBranch, const BB &falseBranch) {
+    const BB &trueBranch, const BB &falseBranch, bool isAccurate) {
   CHECK_FATAL(IsEqualPrimType(newRightUpper.GetPrimType(), newRightLower.GetPrimType()), "must be equal");
   if (leftRange == nullptr) {
-    std::unique_ptr<ValueRange> newTrueBranchRange =
-        std::make_unique<ValueRange>(ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper, kLowerAndUpper);
+    std::unique_ptr<ValueRange> newTrueBranchRange = std::make_unique<ValueRange>(
+        ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper, kLowerAndUpper, isAccurate);
     (void)Insert2Caches(trueBranch.GetBBId(), opnd.GetExprID(), std::move(newTrueBranchRange));
-    std::unique_ptr<ValueRange> newFalseBranchRange =
-        std::make_unique<ValueRange>(newRightLower, ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper);
+    std::unique_ptr<ValueRange> newFalseBranchRange = std::make_unique<ValueRange>(newRightLower,
+        ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper, isAccurate);
     (void)Insert2Caches(falseBranch.GetBBId(), opnd.GetExprID(), std::move(newFalseBranchRange));
   } else if (leftRange->GetRangeType() == kOnlyHasLowerBound) {
     std::unique_ptr<ValueRange> newRightRange = std::make_unique<ValueRange>(
-        ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper, kLowerAndUpper);
+        ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper, kLowerAndUpper, isAccurate);
     std::unique_ptr<ValueRange> newLeftRange = std::make_unique<ValueRange>(leftRange->GetLower(),
-        ValueRange::MaxBound(leftRange->GetLower().GetPrimType()), kLowerAndUpper);
+        ValueRange::MaxBound(leftRange->GetLower().GetPrimType()), kLowerAndUpper, isAccurate);
     (void)Insert2Caches(trueBranch.GetBBId(), opnd.GetExprID(),
                         CombineTwoValueRange(*leftRange, *newRightRange));
     newRightRange = std::make_unique<ValueRange>(
-        newRightLower, ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper);
+        newRightLower, ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper, isAccurate);
   } else if (leftRange->GetRangeType() == kOnlyHasUpperBound) {
     std::unique_ptr<ValueRange> newRightRange = std::make_unique<ValueRange>(
-        ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper, kLowerAndUpper);
+        ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper, kLowerAndUpper, isAccurate);
     std::unique_ptr<ValueRange> newLeftRange = std::make_unique<ValueRange>(
-        ValueRange::MinBound(newRightUpper.GetPrimType()), leftRange->GetBound(), kLowerAndUpper);
+        ValueRange::MinBound(newRightUpper.GetPrimType()), leftRange->GetBound(), kLowerAndUpper, isAccurate);
     newRightRange = std::make_unique<ValueRange>(
-        newRightLower, ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper);
+        newRightLower, ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper, isAccurate);
     (void)Insert2Caches(falseBranch.GetBBId(), opnd.GetExprID(),
                         CombineTwoValueRange(*leftRange, *newRightRange));
   } else {
     std::unique_ptr<ValueRange> newRightRange = std::make_unique<ValueRange>(
-        ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper, kLowerAndUpper);
+        ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper, kLowerAndUpper, isAccurate);
     (void)Insert2Caches(trueBranch.GetBBId(), opnd.GetExprID(),
                         CombineTwoValueRange(*leftRange, *newRightRange));
     newRightRange = std::make_unique<ValueRange>(
-        newRightLower, ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper);
+        newRightLower, ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper, isAccurate);
     (void)Insert2Caches(falseBranch.GetBBId(), opnd.GetExprID(),
         CombineTwoValueRange(*leftRange, *newRightRange));
   }
@@ -3164,31 +3169,31 @@ void ValueRangePropagation::CreateValueRangeForLeOrLt(
 
 void ValueRangePropagation::CreateValueRangeForGeOrGt(
     const MeExpr &opnd, const ValueRange *leftRange, Bound newRightUpper, Bound newRightLower,
-    const BB &trueBranch, const BB &falseBranch) {
+    const BB &trueBranch, const BB &falseBranch, bool isAccurate) {
   CHECK_FATAL(IsEqualPrimType(newRightUpper.GetPrimType(), newRightLower.GetPrimType()), "must be equal");
   if (leftRange == nullptr) {
-    std::unique_ptr<ValueRange> newTrueBranchRange =
-        std::make_unique<ValueRange>(newRightLower, ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper);
+    std::unique_ptr<ValueRange> newTrueBranchRange = std::make_unique<ValueRange>(newRightLower,
+        ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper, isAccurate);
     (void)Insert2Caches(trueBranch.GetBBId(), opnd.GetExprID(), std::move(newTrueBranchRange));
-    std::unique_ptr<ValueRange> newFalseBranchRange =
-        std::make_unique<ValueRange>(ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper, kLowerAndUpper);
+    std::unique_ptr<ValueRange> newFalseBranchRange = std::make_unique<ValueRange>(
+        ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper, kLowerAndUpper, isAccurate);
     (void)Insert2Caches(falseBranch.GetBBId(), opnd.GetExprID(), std::move(newFalseBranchRange));
   } else if (leftRange->GetRangeType() == kOnlyHasLowerBound) {
     auto newRightRange = std::make_unique<ValueRange>(
-        ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper, kLowerAndUpper);
+        ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper, kLowerAndUpper, isAccurate);
     (void)Insert2Caches(falseBranch.GetBBId(), opnd.GetExprID(),
                         CombineTwoValueRange(*leftRange, *newRightRange));
   } else if (leftRange->GetRangeType() == kOnlyHasUpperBound) {
-    std::unique_ptr<ValueRange> newRightRange =
-        std::make_unique<ValueRange>(newRightLower, ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper);
+    std::unique_ptr<ValueRange> newRightRange = std::make_unique<ValueRange>(newRightLower,
+        ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper, isAccurate);
     (void)Insert2Caches(trueBranch.GetBBId(), opnd.GetExprID(),
                         CombineTwoValueRange(*leftRange, *newRightRange));
   } else {
-    std::unique_ptr<ValueRange> newRightRange =
-        std::make_unique<ValueRange>(newRightLower, ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper);
+    std::unique_ptr<ValueRange> newRightRange = std::make_unique<ValueRange>(newRightLower,
+        ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper, isAccurate);
     (void)Insert2Caches(trueBranch.GetBBId(), opnd.GetExprID(), CombineTwoValueRange(*leftRange, *newRightRange));
-    newRightRange = std::make_unique<ValueRange>(
-        ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper, kLowerAndUpper);
+    newRightRange = std::make_unique<ValueRange>(ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper,
+        kLowerAndUpper, isAccurate);
     (void)Insert2Caches(falseBranch.GetBBId(), opnd.GetExprID(),
                         CombineTwoValueRange(*leftRange, *newRightRange));
   }
@@ -3996,17 +4001,20 @@ void ValueRangePropagation::CreateValueRangeForCondGoto(const MeExpr &opnd, Opco
     }
     newRightLower = Bound(newRightLower.GetVar(), constant, newRightUpper.GetPrimType());
   }
+  bool isAccurate = dealWithPhi && (rightRange.GetRangeType() == kEqual || rightRange.IsAccurate());
   if (op == OP_lt || op == OP_le) {
     if (leftRange != nullptr && leftRange->GetRangeType() == kNotEqual) {
-      CreateValueRangeForLeOrLt(opnd, nullptr, newRightUpper, newRightLower, trueBranch, falseBranch);
+      CreateValueRangeForLeOrLt(
+          opnd, nullptr, newRightUpper, newRightLower, trueBranch, falseBranch, isAccurate);
     } else {
-      CreateValueRangeForLeOrLt(opnd, leftRange, newRightUpper, newRightLower, trueBranch, falseBranch);
+      CreateValueRangeForLeOrLt(opnd, leftRange, newRightUpper, newRightLower, trueBranch, falseBranch, isAccurate);
     }
   } else if (op == OP_gt || op == OP_ge) {
     if (leftRange != nullptr && leftRange->GetRangeType() == kNotEqual) {
-      CreateValueRangeForGeOrGt(opnd, nullptr, newRightUpper, newRightLower, trueBranch, falseBranch);
+      CreateValueRangeForGeOrGt(
+          opnd, nullptr, newRightUpper, newRightLower, trueBranch, falseBranch, isAccurate);
     } else {
-      CreateValueRangeForGeOrGt(opnd, leftRange, newRightUpper, newRightLower, trueBranch, falseBranch);
+      CreateValueRangeForGeOrGt(opnd, leftRange, newRightUpper, newRightLower, trueBranch, falseBranch, isAccurate);
     }
   }
 }
@@ -4145,7 +4153,7 @@ void ValueRangePropagation::DealWithCondGotoWhenRightRangeIsNotExist(
       if (valueRangeOfLeft != nullptr && valueRangeOfLeft->GetRangeType() == kOnlyHasLowerBound) {
         (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
                             std::make_unique<ValueRange>(valueRangeOfLeft->GetLower(),
-                                                         Bound(&opnd1, prim), kLowerAndUpper));
+                                                         Bound(&opnd1, prim), kLowerAndUpper, dealWithPhi));
       } else {
         (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
                             std::make_unique<ValueRange>(Bound(GetMinNumber(prim), prim),
@@ -4160,7 +4168,7 @@ void ValueRangePropagation::DealWithCondGotoWhenRightRangeIsNotExist(
       if (valueRangeOfLeft != nullptr && valueRangeOfLeft->GetRangeType() == kOnlyHasLowerBound) {
         (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
                             std::make_unique<ValueRange>(valueRangeOfLeft->GetLower(),
-                                                         Bound(&opnd1, -1, prim), kLowerAndUpper));
+                                                         Bound(&opnd1, -1, prim), kLowerAndUpper, dealWithPhi));
       } else {
         (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
                             std::make_unique<ValueRange>(Bound(GetMinNumber(prim), prim),
@@ -4172,8 +4180,8 @@ void ValueRangePropagation::DealWithCondGotoWhenRightRangeIsNotExist(
     }
     case OP_ge: {
       if (valueRangeOfLeft != nullptr && valueRangeOfLeft->GetRangeType() == kOnlyHasUpperBound) {
-        (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
-            std::make_unique<ValueRange>(Bound(&opnd1, prim), valueRangeOfLeft->GetBound(), kLowerAndUpper));
+        (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(), std::make_unique<ValueRange>(
+            Bound(&opnd1, prim), valueRangeOfLeft->GetBound(), kLowerAndUpper, dealWithPhi));
       } else {
         (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
             std::make_unique<ValueRange>(Bound(&opnd1, prim),
@@ -4186,8 +4194,8 @@ void ValueRangePropagation::DealWithCondGotoWhenRightRangeIsNotExist(
     }
     case OP_gt: {
       if (valueRangeOfLeft != nullptr && valueRangeOfLeft->GetRangeType() == kOnlyHasUpperBound) {
-        (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
-            std::make_unique<ValueRange>(Bound(&opnd1, 1, prim), valueRangeOfLeft->GetBound(), kLowerAndUpper));
+        (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(), std::make_unique<ValueRange>(
+            Bound(&opnd1, 1, prim), valueRangeOfLeft->GetBound(), kLowerAndUpper, dealWithPhi));
       } else {
         (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
             std::make_unique<ValueRange>(Bound(&opnd1, 1, prim), Bound(GetMaxNumber(prim), prim), kLowerAndUpper));

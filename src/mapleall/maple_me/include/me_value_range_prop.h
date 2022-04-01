@@ -73,6 +73,7 @@ int64 GetMinNumber(PrimType pType);
 int64 GetMaxNumber(PrimType pType);
 bool IsNeededPrimType(PrimType pType);
 int64 GetRealValue(int64 value, PrimType pType);
+bool IsPrimTypeUint64(PrimType pType);
 
 class Bound {
  public:
@@ -110,20 +111,44 @@ class Bound {
     primType = pType;
   }
 
-  static bool IsPrimTypeUint64(PrimType pType) {
-    if (pType == PTY_u64 || pType == PTY_a64 || ((pType == PTY_ref || pType == PTY_ptr) &&
-        GetPrimTypeSize(pType) == kEightByte)) {
-      return true;
-    }
-    return false;
-  }
-
   bool IsGreaterThan(Bound rightBound, PrimType pType) const {
     if (!IsNeededPrimType(pType)) {
       CHECK_FATAL(false, "must not be here");
     }
     return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) > static_cast<uint64>(rightBound.GetConstant()) :
         GetRealValue(constant, pType) > GetRealValue(rightBound.GetConstant(), pType);
+  }
+
+  bool IsLessThanOrEqualToMax(PrimType pType) const {
+    if (!IsNeededPrimType(pType)) {
+      CHECK_FATAL(false, "must not be here");
+    }
+    return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) <= static_cast<uint64>(GetMaxNumber(pType)) :
+        GetRealValue(constant, pType) <= GetRealValue(GetMaxNumber(pType), pType);
+  }
+
+  bool IsGreaterThanOrEqualToMin(PrimType pType) const {
+    if (!IsNeededPrimType(pType)) {
+      CHECK_FATAL(false, "must not be here");
+    }
+    return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) >= static_cast<uint64>(GetMinNumber(pType)):
+        GetRealValue(constant, pType) >= GetRealValue(GetMinNumber(pType), pType);
+  }
+
+  bool IsLessThanOrEqualTo(Bound rightBound, PrimType pType) const {
+    if (!IsNeededPrimType(pType)) {
+      CHECK_FATAL(false, "must not be here");
+    }
+    return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) <= static_cast<uint64>(rightBound.GetConstant()) :
+        GetRealValue(constant, pType) <= GetRealValue(rightBound.GetConstant(), pType);
+  }
+
+  bool IsGreaterThanOrEqualTo(Bound rightBound, PrimType pType) const {
+    if (!IsNeededPrimType(pType)) {
+      CHECK_FATAL(false, "must not be here");
+    }
+    return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) >= static_cast<uint64>(rightBound.GetConstant()):
+        GetRealValue(constant, pType) >= GetRealValue(rightBound.GetConstant(), pType);
   }
 
   bool IsEqual(Bound rightBound, PrimType pType) const {
@@ -187,6 +212,11 @@ class Bound {
   static Bound MaxBound(PrimType pType) {
     return Bound(nullptr, GetMaxNumber(pType), pType);
   }
+
+  bool IsConstantBound() const {
+    return var == nullptr;
+  }
+
  private:
   MeExpr *var = nullptr;
   int64 constant = 0;
@@ -436,7 +466,9 @@ class ValueRangePropagation {
         caches(meFunc.GetCfg()->GetAllBBs().size()), analysisedLowerBoundChecks(meFunc.GetCfg()->GetAllBBs().size()),
         analysisedUpperBoundChecks(meFunc.GetCfg()->GetAllBBs().size()),
         analysisedAssignBoundChecks(meFunc.GetCfg()->GetAllBBs().size()),
-        cands(candsTem), sa(currSA), dealWithCheck(dealWithAssert) {}
+        cands(candsTem), sa(currSA), onlyPropVR(dealWithAssert) {
+    onlyRecordValueRangeInTempCache.push(false);
+  }
   ~ValueRangePropagation() = default;
 
   void DumpCaches();
@@ -463,8 +495,6 @@ class ValueRangePropagation {
   bool TheValueOfOpndIsInvaliedInABCO(const BB &bb, const MeStmt *meStmt, MeExpr &boundOpnd, bool updateCaches = true);
 
  private:
-  bool IsBiggerThanMaxInt64(const ValueRange &valueRange) const;
-
   std::unique_ptr<ValueRange> CreateValueRangeOfNotEqualZero(PrimType pType) const {
     return std::make_unique<ValueRange>(Bound(nullptr, 0, pType), kNotEqual);
   }
@@ -484,6 +514,15 @@ class ValueRangePropagation {
     auto it = caches.at(bbID).find(exprID);
     if (it != caches.at(bbID).end()) {
       return it->second.get();
+    }
+    if (onlyRecordValueRangeInTempCache.top()) {
+      auto itOfTemp = tempCaches.find(bbID);
+      if (itOfTemp != tempCaches.end()) {
+        auto itOfVR = itOfTemp->second.find(exprID);
+        if (itOfVR != itOfTemp->second.end()) {
+          return itOfVR->second.get();
+        }
+      }
     }
     auto *domBB = dom.GetDom(bbID);
     return (domBB == nullptr || domBB->GetBBId() == 0) ? nullptr : FindValueRangeInCaches(domBB->GetBBId(), exprID);
@@ -561,7 +600,7 @@ class ValueRangePropagation {
   void JudgeEqual(MeExpr &expr, ValueRange &vrOfLHS, ValueRange &vrOfRHS, std::unique_ptr<ValueRange> &valueRangePtr);
   ValueRange *FindValueRangeWithCompareOp(const BB &bb, MeExpr &expr);
   ValueRange *FindValueRange(const BB &bb, MeExpr &expr);
-  void DealWithPhi(const BB &bb, MePhiNode &mePhiNode);
+  void DealWithPhi(const BB &bb);
   void DealWithCondGoto(BB &bb, MeStmt &stmt);
   void DealWithCondGotoWithOneOpnd(BB &bb, CondGotoMeStmt &brMeStmt);
   void InsertValueRangeOfCondExpr2Caches(BB &bb, const MeStmt &stmt);
@@ -574,6 +613,7 @@ class ValueRangePropagation {
       const ScalarMeExpr &lhsOfPhi);
   bool AddOrSubWithConstant(PrimType pType, Opcode op, int64 lhsConstant, int64 rhsConstant, int64 &res) const;
   std::unique_ptr<ValueRange> NegValueRange(const BB &bb, MeExpr &opnd);
+  bool AddOrSubWithBound(Bound oldBound, Bound &resBound, int64 rhsConstant, Opcode op);
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(Opcode op, ValueRange &valueRange, int64 rhsConstant);
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(
       Opcode op, ValueRange &valueRangeLeft, ValueRange &valueRangeRight);
@@ -600,9 +640,9 @@ class ValueRangePropagation {
       const LoopDesc &loop, BB &exitBB, const BB &bb, OpMeExpr &opMeExpr,
       MeExpr &opnd1, Bound &initBound, int64 stride);
   void CreateValueRangeForLeOrLt(const MeExpr &opnd, const ValueRange *leftRange, Bound newRightUpper,
-                                 Bound newRightLower, const BB &trueBranch, const BB &falseBranch);
+                                 Bound newRightLower, const BB &trueBranch, const BB &falseBranch, bool isAccurate);
   void CreateValueRangeForGeOrGt(const MeExpr &opnd, const ValueRange *leftRange, Bound newRightUpper,
-                                 Bound newRightLower, const BB &trueBranch, const BB &falseBranch);
+                                 Bound newRightLower, const BB &trueBranch, const BB &falseBranch, bool isAccurate);
   void CreateValueRangeForCondGoto(
       const MeExpr &opnd, Opcode op, ValueRange *leftRange,
       ValueRange &rightRange, const BB &trueBranch, const BB &falseBranch);
@@ -652,7 +692,7 @@ class ValueRangePropagation {
   bool RemoveTheEdgeOfPredBB(BB &pred, BB &bb, BB &trueBranch, ScalarMeExpr *updateSSAExceptTheScalarExpr,
                              std::map<OStIdx, std::set<BB*>> &ssaupdateCandsForCondExpr);
   void DealWithCondGotoWhenRightRangeIsNotExist(BB &bb, const MeExpr &opnd0, MeExpr &opnd1,
-                                                Opcode opOfBrStmt, Opcode conditionalOp);
+                                                Opcode opOfBrStmt, Opcode conditionalOp, ValueRange *valueRangeOfLeft);
   MeExpr *GetDefOfBase(const IvarMeExpr &ivar) const;
   void DealWithMeOp(const BB &bb, const MeStmt &stmt);
   void ReplaceOpndByDef(const BB &bb, MeExpr &currOpnd, MeExpr *&predOpnd, MePhiNode *&phi, bool &thePhiIsInBB);
@@ -720,6 +760,15 @@ class ValueRangePropagation {
   bool DealWithVariableRange(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
   std::unique_ptr<ValueRange> MergeValuerangeOfPhi(std::vector<std::unique_ptr<ValueRange>> &valueRangeOfPhi);
   std::unique_ptr<ValueRange> MakeMonotonicIncreaseOrDecreaseValueRangeForPhi(int stride, Bound &initBound) const;
+  void CreateVRForPhi(LoopDesc &loop, const BB &bb);
+  void TravelBBs(std::vector<BB *> &reversePostOrderOfLoopBBs);
+  std::unique_ptr<ValueRange> CreateInitVRForPhi(LoopDesc &loop, const BB &bb, ScalarMeExpr &init,
+      ScalarMeExpr &backedge, const ScalarMeExpr &lhsOfPhi);
+  void MergeValueRangeOfPhiOperands(const LoopDesc &loop, const BB &bb,
+      std::vector<std::unique_ptr<ValueRange>> &valueRangeOfInitExprs, size_t indexOfInitExpr);
+  std::unique_ptr<ValueRange> MakeMonotonicIncreaseOrDecreaseValueRangeForPhi(int64 stride, Bound &initBound) const;
+  bool MergeVrOrInitAndBackedge(MePhiNode &mePhiNode, ValueRange &vrOfInitExpr,
+      ValueRange &valueRange, Bound &resBound);
 
   MeFunction &func;
   MeIRMap &irMap;
@@ -728,6 +777,7 @@ class ValueRangePropagation {
   MapleAllocator mpAllocator;
   IdentifyLoops *loops;
   std::vector<std::map<int32, std::unique_ptr<ValueRange>>> caches;
+  std::map<BBId, std::map<int32, std::unique_ptr<ValueRange>>> tempCaches;
   std::set<MeExpr*> lengthSet;
   std::vector<std::map<MeExpr*, std::set<MeExpr*>>> analysisedLowerBoundChecks;
   std::vector<std::map<MeExpr*, std::set<MeExpr*>>> analysisedUpperBoundChecks;
@@ -750,8 +800,12 @@ class ValueRangePropagation {
   SafetyCheck *safetyCheckBoundary = nullptr;
   // The map collects the exprs which have the same valueRange in bbs.
   std::map<MeExpr*, std::map<BB*, std::set<MeExpr*>>> pairOfExprs;
-  bool dealWithCheck = false; // When need deal with check, do not opt cfg.
+  bool dealWithPhi = false;
+  bool onlyPropVR = false; // When need deal with check, do not opt cfg.
   MeExprUseInfo *useInfo = nullptr;
+  std::stack<bool> onlyPropVRStack;
+  std::stack<bool> onlyRecordValueRangeInTempCache;
+  MapleVector<BB*>::iterator currItOfTravelReversePostOrder;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(MEValueRangePropagation, MeFunction)
