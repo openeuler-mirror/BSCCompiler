@@ -158,12 +158,12 @@ class LoopVectorization {
   MIRIntrinsicID GenVectorAbsSublID(MIRIntrinsicID intrnID) const;
   static uint32_t vectorizedLoop;
  private:
-  RegreadNode* GenVectorReductionVar(StmtNode* , LoopTransPlan *);
+  RegreadNode *GenVectorReductionVar(StmtNode*, LoopTransPlan*);
   bool IassignIsReduction(IassignNode *iassign, LoopVecInfo* vecInfo);
   RegreadNode *GetorNewVectorReductionVar(StmtNode *stmt, LoopTransPlan *tp);
   MIRType *VectorizeIassignLhs(IassignNode *iassign, LoopTransPlan *tp);
   void VectorizeReductionStmt(StmtNode *stmt, LoopTransPlan *tp);
-  void GenConstVar(LoopVecInfo *, uint8_t);
+  void GenConstVar(LoopVecInfo*, uint8_t);
  private:
   MIRFunction *mirFunc;
   // point to PreMeStmtExtensionMap of PreMeEmitter, key is stmtID

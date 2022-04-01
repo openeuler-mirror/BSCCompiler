@@ -1481,7 +1481,8 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
       // Example: }
       //  sum = sum +/- intrinsic_op vec_sum(t1)
       StmtNode *dassign = static_cast<StmtNode *>(node);
-      ASSERT(tp->vecInfo->reductionStmts.find(dassign) != tp->vecInfo->reductionStmts.end(), "dassign should be reduction stmt");
+      ASSERT(tp->vecInfo->reductionStmts.find(dassign) != tp->vecInfo->reductionStmts.end(),
+             "dassign should be reduction stmt");
       VectorizeReductionStmt(dassign, tp);
       break;
     }
@@ -1556,9 +1557,9 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
     }
     if (!tp->vecInfo->ivNodes.empty()) {
       // initconst array -> [0, 1, 2... veclanes-1]
-      // vtype reg = iread array + initval
+      // vtype reg <- iread array + initval
       // {
-      //   reg = reg + veclanes;
+      //   reg <- reg + veclanes
       // }
       MIRType *elemType = static_cast<MIRArrayType *>(tp->vecInfo->ivConstArraySym->GetType())->GetElemType();
       MIRType *vecType = GenVecType(elemType->GetPrimType(), tp->vecLanes);
@@ -1569,7 +1570,8 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
                                                     ptvecType->GetTypeIndex(), 0, addr);
       BaseNode *rhs = ireadNode;
       if ((!doloop->GetStartExpr()->IsConstval()) ||
-          (static_cast<MIRIntConst *>(static_cast<ConstvalNode *>(doloop->GetStartExpr())->GetConstVal())->GetValue() != 0)) {
+          (static_cast<MIRIntConst *>(static_cast<ConstvalNode *>(doloop->GetStartExpr())->GetConstVal())
+              ->GetValue() != 0)) {
         rhs = codeMP->New<BinaryNode>(OP_add, vecType->GetPrimType(), rhs, doloop->GetStartExpr());
       }
       RegassignNode *ivInitStmt = codeMP->New<RegassignNode>(vecType->GetPrimType(), regIdx, rhs);
@@ -1872,7 +1874,8 @@ bool LoopVectorization::IassignIsReduction(IassignNode *iassign, LoopVecInfo* ve
     IvarMeExpr *ivarlhsExpr = iassMeStmt->GetLHSVal();
     auto *rhsOpnd0 = (*PreMeExprExtensionMap)[(static_cast<BinaryNode *>(iassign->GetRHS()))->GetBOpnd(0)];
     BaseNode *rhsOpnd1 = iassign->GetRHS()->Opnd(1);
-    PrimType lhsmirType = (static_cast<MIRPtrType*>(&GetTypeFromTyIdx(iassign->GetTyIdx())))->GetPointedType()->GetPrimType();
+    PrimType lhsmirType = (static_cast<MIRPtrType*>(&GetTypeFromTyIdx(iassign->GetTyIdx())))
+        ->GetPointedType()->GetPrimType();
     PrimType rhsOpnd1Type = rhsOpnd1->GetPrimType();
     if (ivarlhsExpr && rhsOpnd0 && rhsOpnd0->GetMeExpr() &&
         (rhsOpnd0->GetMeExpr()->GetMeOp() == maple::kMeOpIvar)) {

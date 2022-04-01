@@ -3482,7 +3482,8 @@ void AArch64CGFunc::SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
     return;
   }
 
-  if (immOpnd->IsInBitSize(kMaxImmVal24Bits, 0)) {
+  int64 higher12BitVal = static_cast<int64>(static_cast<uint64>(immOpnd->GetValue()) >> kMaxImmVal12Bits);
+  if (immOpnd->IsInBitSize(kMaxImmVal24Bits, 0) && higher12BitVal + 1 <= kMaxPimm8) {
     /*
      * SUB Wd|WSP, Wn|WSP, #imm{, shift} ; 32-bit general registers
      * SUB Xd|SP,  Xn|SP,  #imm{, shift} ; 64-bit general registers
@@ -3496,7 +3497,6 @@ void AArch64CGFunc::SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
     if (!(immOpnd->IsInBitSize(kMaxImmVal12Bits, 0) ||
           immOpnd->IsInBitSize(kMaxImmVal12Bits, kMaxImmVal12Bits))) {
       isSplitSub = true;
-      int64 higher12BitVal = static_cast<int64>(static_cast<uint64>(immOpnd->GetValue()) >> kMaxImmVal12Bits);
       /* process higher 12 bits */
       ImmOperand &immOpnd2 =
           CreateImmOperand(higher12BitVal + 1, immOpnd->GetSize(), immOpnd->IsSignedValue());
@@ -4375,7 +4375,7 @@ Operand *AArch64CGFunc::SelectShift(BinaryNode &node, Operand &opnd0, Operand &o
   PrimType otyp0 = expr->GetPrimType();
   if (IsPrimitiveVector(dtype) && opnd0.IsConstImmediate()) {
     opd0 = SelectVectorFromScalar(dtype, opd0, node.Opnd(0)->GetPrimType());
-     otyp0 = dtype;
+    otyp0 = dtype;
   }
 
   if (IsPrimitiveVector(dtype) && opnd1.IsConstImmediate()) {
