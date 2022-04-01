@@ -220,12 +220,6 @@ bool LoopTransPlan::Generate(const DoloopNode *doloop, const DoloopInfo* li, boo
       }
     }
   }
-  // create zero node
-  if (vecInfo->hasRedvar) {
-    MIRType &typeInt = *GlobalTables::GetTypeTable().GetPrimType(PTY_i32);
-    MIRIntConst *constZero = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, typeInt);
-    const0Node = codeMP->New<ConstvalNode>(PTY_i32, constZero);
-  }
   // generate bound information
   GenerateBoundInfo(doloop, li);
   return true;
@@ -1142,19 +1136,40 @@ IntrinsicopNode *LoopVectorization::GenVectorNarrowLowNode(BaseNode *opnd, PrimT
 }
 
 // create vectorized preg for reduction var and its init stmt vpreg = dup_scalar(0)
-RegreadNode *LoopVectorization::GenVectorRedVarInit(StIdx redStIdx, LoopTransPlan *tp) {
-  MIRSymbol *lhsSym = mirFunc->GetLocalOrGlobalSymbol(redStIdx);
-  MIRType &lhsType = GetTypeFromTyIdx(lhsSym->GetTyIdx());
-  uint32_t lhstypesize = GetPrimTypeSize(lhsType.GetPrimType()) * 8;
-  uint32_t lhsMaxLanes = ((MAX_VECTOR_LENGTH_SIZE / lhstypesize) < tp->vecFactor) ?
-                          (MAX_VECTOR_LENGTH_SIZE / lhstypesize) : tp->vecFactor;
-  MIRType *lhsvecType = GenVecType(lhsType.GetPrimType(), static_cast<uint8>(lhsMaxLanes));
+RegreadNode *LoopVectorization::GenVectorReductionVar(StmtNode *stmt, LoopTransPlan *tp) {
+  PrimType lhsType;
+  uint8 lhsLanes = tp->vecFactor;
+  if (stmt->GetOpCode() == OP_dassign) {
+    StIdx redStIdx = (static_cast<DassignNode *>(stmt))->GetStIdx();
+    MIRSymbol *lhsSym = mirFunc->GetLocalOrGlobalSymbol(redStIdx);
+    lhsType = GetTypeFromTyIdx(lhsSym->GetTyIdx()).GetPrimType();
+    uint32_t lhstypesize = GetPrimTypeSize(lhsType) * 8;
+    uint32_t lhsMaxLanes = ((MAX_VECTOR_LENGTH_SIZE / lhstypesize) < tp->vecFactor) ?
+                            (MAX_VECTOR_LENGTH_SIZE / lhstypesize) : tp->vecFactor;
+    lhsLanes = lhsMaxLanes;
+  } else {
+    IassignNode *iassign = static_cast<IassignNode *>(stmt);
+    MIRType &mirType = GetTypeFromTyIdx(iassign->GetTyIdx());
+    lhsType = (static_cast<MIRPtrType*>(&mirType))->GetPointedType()->GetPrimType();
+  }
+  MIRType *lhsvecType = GenVecType(lhsType, static_cast<uint8>(lhsLanes));
   PregIdx reglhsvec = mirFunc->GetPregTab()->CreatePreg(lhsvecType->GetPrimType());
-  IntrinsicopNode *lhsvecIntrn = GenDupScalarExpr(tp->const0Node, lhsvecType->GetPrimType());
+  IntrinsicopNode *lhsvecIntrn = GenDupScalarExpr(const0Node, lhsvecType->GetPrimType());
   RegassignNode *initlhsvec = codeMP->New<RegassignNode>(lhsvecType->GetPrimType(), reglhsvec, lhsvecIntrn);
   tp->vecInfo->beforeLoopStmts.push_back(initlhsvec);
   RegreadNode *regReadlhsvec = codeMP->New<RegreadNode>(lhsvecType->GetPrimType(), reglhsvec);
-  tp->vecInfo->redVecNodes[redStIdx] = regReadlhsvec;
+  tp->vecInfo->redVecNodes[stmt] = regReadlhsvec;
+  return regReadlhsvec;
+}
+
+// check vectorized preg is generated for current stmt
+RegreadNode *LoopVectorization::GetorNewVectorReductionVar(StmtNode *stmt, LoopTransPlan *tp) {
+  RegreadNode *regReadlhsvec;
+  if (tp->vecInfo->redVecNodes.find(stmt) != tp->vecInfo->redVecNodes.end()) {
+    regReadlhsvec = static_cast<RegreadNode *>(tp->vecInfo->redVecNodes[stmt]);
+  } else {
+    regReadlhsvec = GenVectorReductionVar(stmt, tp);
+  }
   return regReadlhsvec;
 }
 
@@ -1330,13 +1345,88 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
     }
     case OP_dread:
     case OP_constval: {
-      // donothing
-      vectorizedNode.push_back(node);
+      if (tp->vecInfo->ivNodes.find(node) != tp->vecInfo->ivNodes.end()) {
+        BaseNode *vecnode = tp->vecInfo->ivVecNodes[node];
+        vectorizedNode.push_back(vecnode);
+      } else {
+        // donothing
+        vectorizedNode.push_back(node);
+      }
       break;
     }
     default:
       ASSERT(0, "can't be vectorized");
   }
+  return;
+}
+
+// set lhs type to vector type and return lhs pointto type
+MIRType *LoopVectorization::VectorizeIassignLhs(IassignNode *iassign, LoopTransPlan *tp) {
+  MIRType &mirType = GetTypeFromTyIdx(iassign->GetTyIdx());
+  CHECK_FATAL(mirType.GetKind() == kTypePointer, "iassign must have pointer type");
+  MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
+  MIRType *lhsvecType = GenVecType(ptrType->GetPointedType()->GetPrimType(), tp->vecFactor);
+  ASSERT(lhsvecType != nullptr, "vector type should not be null");
+  tp->vecInfo->currentLHSTypeSize = GetPrimTypeSize(GetVecElemPrimType(lhsvecType->GetPrimType()));
+  MIRType *pvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*lhsvecType, PTY_ptr);
+  iassign->SetTyIdx(pvecType->GetTypeIndex());
+  return lhsvecType;
+}
+
+void LoopVectorization::VectorizeReductionStmt(StmtNode *stmt, LoopTransPlan *tp) {
+  MapleVector<BaseNode *> vecOpnd(localAlloc.Adapter());
+  PreMeMIRExtension *lfopart = (*PreMeStmtExtensionMap)[stmt->GetStmtID()];
+  BlockNode *doloopbody = static_cast<BlockNode *>(lfopart->GetParent());
+  RegreadNode *regReadlhsvec = GetorNewVectorReductionVar(stmt, tp);
+  tp->vecInfo->currentLHSTypeSize = GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType()));
+  // skip vectorizing uniform node
+  // rhsvecNode : vectorizable_expr
+  BaseNode *rhsvecNode = stmt->GetRHS()->Opnd(1);
+  if (tp->vecInfo->uniformNodes.find(rhsvecNode) == tp->vecInfo->uniformNodes.end()) {
+    VectorizeExpr(rhsvecNode, tp, vecOpnd, 0);
+  } else {
+    // rhs is uniform
+    vecOpnd.push_back(rhsvecNode);
+  }
+  // use widen intrinsic
+  if ((GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType())) * 8 * tp->vecFactor) >
+      MAX_VECTOR_LENGTH_SIZE) {
+    BaseNode *currVecNode = nullptr;
+    PrimType currVecType;
+    for (size_t i = 0; i < vecOpnd.size(); i++) {
+      currVecNode = vecOpnd[i];
+      currVecType = currVecNode->GetPrimType();
+      // need widen
+      if (GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType())) >
+          GetPrimTypeSize(GetVecElemPrimType(currVecType))) {
+        ASSERT(((GetVecEleSize(regReadlhsvec->GetPrimType())) / GetVecEleSize(currVecType) == 2) &&
+               (GetVecLanes(regReadlhsvec->GetPrimType()) * 2 ==  GetVecLanes(currVecType)) , "type check");
+        IntrinsicopNode *pairwiseWidenAddIntrn = GenVectorPairWiseAccumulate(regReadlhsvec,
+            currVecNode, currVecType);
+        RegassignNode *regassign3 = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(),
+            regReadlhsvec->GetRegIdx(), pairwiseWidenAddIntrn);
+        doloopbody->InsertBefore(stmt, regassign3);
+      } else {
+        BinaryNode *binaryNode = codeMP->New<BinaryNode>(OP_add, regReadlhsvec->GetPrimType(), regReadlhsvec,
+            currVecNode);
+        RegassignNode *regassign = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(),
+            regReadlhsvec->GetRegIdx(), binaryNode);
+        doloopbody->InsertBefore(stmt, regassign);
+      }
+    }
+  } else {
+    BinaryNode *binaryNode = codeMP->New<BinaryNode>(OP_add, regReadlhsvec->GetPrimType(), regReadlhsvec,
+        vecOpnd[0]);
+    RegassignNode *regassign1 = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(),
+        regReadlhsvec->GetRegIdx(), binaryNode);
+    doloopbody->InsertBefore(stmt, regassign1);
+  }
+  // red = red +/- sum_vec(redvec)
+  StmtNode *copyStmt = stmt->CloneTree(*codeMPAlloc);
+  IntrinsicopNode *intrnvecSum = GenSumVecStmt(regReadlhsvec, regReadlhsvec->GetPrimType());
+  copyStmt->GetRHS()->SetOpnd(intrnvecSum, 1);
+  tp->vecInfo->afterLoopStmts.push_back(copyStmt);
+  doloopbody->RemoveStmt(stmt);
   return;
 }
 
@@ -1351,42 +1441,38 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
   switch (node->GetOpCode()) {
     case OP_iassign: {
       IassignNode *iassign = static_cast<IassignNode *>(node);
-      // change lsh type to vector type
-      MIRType &mirType = GetTypeFromTyIdx(iassign->GetTyIdx());
-      CHECK_FATAL(mirType.GetKind() == kTypePointer, "iassign must have pointer type");
-      MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
-      MIRType *lhsvecType = GenVecType(ptrType->GetPointedType()->GetPrimType(), tp->vecFactor);
-      ASSERT(lhsvecType != nullptr, "vector type should not be null");
-      tp->vecInfo->currentLHSTypeSize = GetPrimTypeSize(GetVecElemPrimType(lhsvecType->GetPrimType()));
-      MIRType *pvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*lhsvecType, PTY_ptr);
-      // update lhs type
-      iassign->SetTyIdx(pvecType->GetTypeIndex());
-      // visit rsh
-      BaseNode *rhs = iassign->GetRHS();
-      BaseNode *newrhs;
-      if (tp->vecInfo->uniformVecNodes.find(rhs) != tp->vecInfo->uniformVecNodes.end()) {
-        // rhs replaced scalar node with vector node
-        newrhs = tp->vecInfo->uniformVecNodes[rhs];
-        if (GetPrimTypeSize(GetVecElemPrimType(newrhs->GetPrimType())) < tp->vecInfo->currentLHSTypeSize) {
-           newrhs = (BaseNode *)GenVectorWidenOpnd(newrhs, newrhs->GetPrimType(), false);
-        }
+      // node is reduction stmt
+      if (tp->vecInfo->reductionStmts.find(iassign) != tp->vecInfo->reductionStmts.end()) {
+        VectorizeReductionStmt(static_cast<StmtNode *>(node), tp);
       } else {
-        MapleVector<BaseNode *> vecRhs(localAlloc.Adapter());
-        VectorizeExpr(iassign->GetRHS(), tp, vecRhs, 0);
-        ASSERT(vecRhs.size() == 1, "iassign doesn't handle complex type cvt now");
-        // insert CVT if lsh type is not same as rhs type
-        newrhs = vecRhs[0];
+        MIRType *lhsptvecType = VectorizeIassignLhs(iassign, tp);
+        BaseNode *rhs = iassign->GetRHS();
+        BaseNode *newrhs;
+        if (tp->vecInfo->uniformVecNodes.find(rhs) != tp->vecInfo->uniformVecNodes.end()) {
+          // rhs replaced scalar node with vector node
+          newrhs = tp->vecInfo->uniformVecNodes[rhs];
+          if (GetPrimTypeSize(GetVecElemPrimType(newrhs->GetPrimType())) < tp->vecInfo->currentLHSTypeSize) {
+            newrhs = (BaseNode *)GenVectorWidenOpnd(newrhs, newrhs->GetPrimType(), false);
+          }
+        } else {
+          MapleVector<BaseNode *> vecRhs(localAlloc.Adapter());
+          VectorizeExpr(rhs, tp, vecRhs, 0);
+          ASSERT(vecRhs.size() == 1, "iassign doesn't handle complex type cvt now");
+          // insert CVT if lsh type is not same as rhs type
+          newrhs = vecRhs[0];
+        }
+        // if need cvt for sign/unsign
+        if ((IsSignedInteger(lhsptvecType->GetPrimType()) && IsUnsignedInteger(newrhs->GetPrimType())) ||
+            (IsUnsignedInteger(lhsptvecType->GetPrimType()) && IsUnsignedInteger(newrhs->GetPrimType()))) {
+          newrhs = ConvertNodeType(IsSignedInteger(lhsptvecType->GetPrimType()), newrhs);
+        }
+        iassign->SetRHS(newrhs);
       }
-      if ((IsSignedInteger(lhsvecType->GetPrimType()) && IsUnsignedInteger(newrhs->GetPrimType())) ||
-          (IsUnsignedInteger(lhsvecType->GetPrimType()) && IsUnsignedInteger(newrhs->GetPrimType()))) {
-        newrhs = ConvertNodeType(IsSignedInteger(lhsvecType->GetPrimType()), newrhs);
-      }
-      iassign->SetRHS(newrhs);
       break;
     }
     // scalar related: widen type directly or unroll instructions
     case OP_dassign: {
-      // now only support reduction scalar
+      // handle reduction stmt
       // sum = sum +/- vectorizable_expr
       // =>
       // Example: vec t1 = dup_scalar(0);
@@ -1394,63 +1480,9 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
       // Example:   t1 = t1 + vectorized_node;
       // Example: }
       //  sum = sum +/- intrinsic_op vec_sum(t1)
-      DassignNode *dassign = static_cast<DassignNode *>(node);
-      MapleVector<BaseNode *> vecOpnd(localAlloc.Adapter());
-      PreMeMIRExtension *lfopart = (*PreMeStmtExtensionMap)[dassign->GetStmtID()];
-      BlockNode *doloopbody = static_cast<BlockNode *>(lfopart->GetParent());
-      RegreadNode *regReadlhsvec;
-      if (tp->vecInfo->redVecNodes.find(dassign->GetStIdx()) != tp->vecInfo->redVecNodes.end()) {
-        regReadlhsvec = static_cast<RegreadNode *>(tp->vecInfo->redVecNodes[dassign->GetStIdx()]);
-      } else {
-        regReadlhsvec = GenVectorRedVarInit(dassign->GetStIdx(), tp);
-      }
-      tp->vecInfo->currentLHSTypeSize = GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType()));
-      // skip vectorizing uniform node
-      // rhsvecNode : vectorizable_expr
-      BaseNode *rhsvecNode = dassign->GetRHS()->Opnd(1);
-      if (tp->vecInfo->uniformNodes.find(rhsvecNode) == tp->vecInfo->uniformNodes.end()) {
-        VectorizeExpr(rhsvecNode, tp, vecOpnd, 0);
-      }
-      // use widen intrinsic
-      if ((GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType())) * 8 * tp->vecFactor) >
-          MAX_VECTOR_LENGTH_SIZE) {
-        BaseNode *currVecNode = nullptr;
-        PrimType currVecType;
-        for (size_t i = 0; i < vecOpnd.size(); i++) {
-          currVecNode = vecOpnd[i];
-          currVecType = currVecNode->GetPrimType();
-          // need widen
-          if (GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType())) >
-              GetPrimTypeSize(GetVecElemPrimType(currVecType))) {
-            ASSERT(((GetVecEleSize(regReadlhsvec->GetPrimType())) / GetVecEleSize(currVecType) == 2) &&
-                   (GetVecLanes(regReadlhsvec->GetPrimType()) * 2 ==  GetVecLanes(currVecType)) , "type check");
-            IntrinsicopNode *pairwiseWidenAddIntrn = GenVectorPairWiseAccumulate(regReadlhsvec,
-                currVecNode, currVecType);
-            RegassignNode *regassign3 = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(),
-                regReadlhsvec->GetRegIdx(), pairwiseWidenAddIntrn);
-            doloopbody->InsertBefore(dassign, regassign3);
-          } else {
-            BinaryNode *binaryNode = codeMP->New<BinaryNode>(OP_add, regReadlhsvec->GetPrimType(), regReadlhsvec,
-                currVecNode);
-            RegassignNode *regassign = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(),
-                regReadlhsvec->GetRegIdx(), binaryNode);
-            doloopbody->InsertBefore(dassign, regassign);
-          }
-        }
-      } else {
-        BinaryNode *binaryNode = codeMP->New<BinaryNode>(OP_add, regReadlhsvec->GetPrimType(), regReadlhsvec,
-            rhsvecNode);
-        RegassignNode *regassign1 = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(),
-            regReadlhsvec->GetRegIdx(), binaryNode);
-        doloopbody->InsertBefore(dassign, regassign1);
-      }
-      // red = red +/- sum_vec(redvec)
-      DassignNode *dassignCopy = dassign->CloneTree(*codeMPAlloc);
-      IntrinsicopNode *intrnvecSum = GenSumVecStmt(regReadlhsvec, regReadlhsvec->GetPrimType());
-      dassignCopy->GetRHS()->SetOpnd(intrnvecSum, 1);
-      tp->vecInfo->afterLoopStmts.push_back(dassignCopy);
-      doloopbody->RemoveStmt(dassign);
-
+      StmtNode *dassign = static_cast<StmtNode *>(node);
+      ASSERT(tp->vecInfo->reductionStmts.find(dassign) != tp->vecInfo->reductionStmts.end(), "dassign should be reduction stmt");
+      VectorizeReductionStmt(dassign, tp);
       break;
     }
     default:
@@ -1489,7 +1521,8 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
   widenDoloop(doloop, tp);
 
   // step 2: insert dup stmt before doloop
-  if (!tp->vecInfo->uniformNodes.empty()) {
+  if ((!tp->vecInfo->uniformNodes.empty()) ||
+      (!tp->vecInfo->ivNodes.empty())) {
     PreMeMIRExtension *lfopart = (*PreMeStmtExtensionMap)[doloop->GetStmtID()];
     BaseNode *parent = lfopart->GetParent();
     ASSERT(parent && (parent->GetOpCode() == OP_block), "nullptr check");
@@ -1521,6 +1554,42 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
         tp->vecInfo->uniformVecNodes[node] = regreadNode;
       }
     }
+    if (!tp->vecInfo->ivNodes.empty()) {
+      // initconst array -> [0, 1, 2... veclanes-1]
+      // vtype reg = iread array + initval
+      // {
+      //   reg = reg + veclanes;
+      // }
+      MIRType *elemType = static_cast<MIRArrayType *>(tp->vecInfo->ivConstArraySym->GetType())->GetElemType();
+      MIRType *vecType = GenVecType(elemType->GetPrimType(), tp->vecLanes);
+      MIRType *ptvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*vecType);
+      PregIdx regIdx = mirFunc->GetPregTab()->CreatePreg(vecType->GetPrimType());
+      BaseNode *addr = codeMP->New<AddrofNode>(OP_addrof, PTY_ptr, tp->vecInfo->ivConstArraySym->GetStIdx(), 0);
+      IreadNode *ireadNode = codeMP->New<IreadNode>(OP_iread, vecType->GetPrimType(),
+                                                    ptvecType->GetTypeIndex(), 0, addr);
+      BaseNode *rhs = ireadNode;
+      if ((!doloop->GetStartExpr()->IsConstval()) ||
+          (static_cast<MIRIntConst *>(static_cast<ConstvalNode *>(doloop->GetStartExpr())->GetConstVal())->GetValue() != 0)) {
+        rhs = codeMP->New<BinaryNode>(OP_add, vecType->GetPrimType(), rhs, doloop->GetStartExpr());
+      }
+      RegassignNode *ivInitStmt = codeMP->New<RegassignNode>(vecType->GetPrimType(), regIdx, rhs);
+      pblock->InsertBefore(doloop, ivInitStmt);
+      RegreadNode *regreadNode = codeMP->New<RegreadNode>(vecType->GetPrimType(), regIdx);
+      it = tp->vecInfo->ivNodes.begin();
+      for (; it != tp->vecInfo->ivNodes.end(); ++it) {
+        tp->vecInfo->ivVecNodes[*it] = regreadNode;
+      }
+      // new increment stmt
+      BaseNode *incrNode = tp->vBound->incrNode;
+      if (GetPrimTypeSize(incrNode->GetPrimType()) != GetPrimTypeSize(elemType->GetPrimType())) {
+        ConstvalNode *constnode = static_cast<ConstvalNode *>(incrNode);
+        MIRIntConst *incrconst = static_cast<MIRIntConst *>(constnode->GetConstVal());
+        MIRIntConst *newConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(incrconst->GetValue(), *elemType);
+        incrNode = codeMP->New<ConstvalNode>(elemType->GetPrimType(), newConst);
+      }
+      BaseNode *incrhs = codeMP->New<BinaryNode>(OP_add, vecType->GetPrimType(), regreadNode, incrNode);
+      tp->vecInfo->ivvecIncrStmt = codeMP->New<RegassignNode>(vecType->GetPrimType(), regIdx, incrhs);
+    }
   }
   // step 3: widen vectorizable stmt in doloop
   BlockNode *loopbody = doloop->GetDoBody();
@@ -1546,6 +1615,9 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
     for (auto *stmtNode : tp->vecInfo->afterLoopStmts) {
       pblock->InsertAfter(doloop, stmtNode);
     }
+  }
+  if (tp->vecInfo->ivvecIncrStmt) {
+    loopbody->InsertLast(tp->vecInfo->ivvecIncrStmt);
   }
 }
 
@@ -1621,6 +1693,12 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
         vecInfo->uniformNodes.insert(x);
         return true;
       }
+      // check scalar is induction variable
+      if (x->GetOpCode() == OP_dread &&
+          doloopInfo->IsLoopIVNode(x)) {
+        vecInfo->ivNodes.insert(x);
+        return true;
+      }
       return false;
     }
     // supported binary ops
@@ -1646,6 +1724,12 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
       bool r1Uniform = doloopInfo->IsLoopInvariant2(x->Opnd(1));
       bool isvectorizable = false;
       if (r0Uniform && r1Uniform) {
+        PreMeMIRExtension* lfopart = (*PreMeExprExtensionMap)[x];
+        CHECK_FATAL(lfopart, "nullptr check");
+        BaseNode *parent = lfopart->GetParent();
+        if (parent && parent->GetOpCode() == OP_array && x == parent->Opnd(0)) {
+          return true;
+        }
         vecInfo->uniformNodes.insert(x->Opnd(0));
         vecInfo->uniformNodes.insert(x->Opnd(1));
         return true;
@@ -1776,6 +1860,34 @@ bool LoopVectorization::CanAdjustRhsConstType(PrimType targetType, ConstvalNode 
   return res;
 }
 
+// handle iassign lhs ivar is constant and same as opnd0 of rhs
+// a[3] += vectorizable(opnd1)
+// a better way is to promote a[3] as a scalar before premeemit
+// scalar will be identified as reduction variable
+bool LoopVectorization::IassignIsReduction(IassignNode *iassign, LoopVecInfo* vecInfo) {
+  if (IsReductionOp(iassign->GetRHS()->GetOpCode()) &&
+      ((static_cast<BinaryNode *>(iassign->GetRHS()))->GetBOpnd(0)->GetOpCode() == OP_iread)) {
+    auto *stmtP = (*PreMeStmtExtensionMap)[iassign->GetStmtID()];
+    IassignMeStmt *iassMeStmt = static_cast<IassignMeStmt *>(stmtP->GetMeStmt());
+    IvarMeExpr *ivarlhsExpr = iassMeStmt->GetLHSVal();
+    auto *rhsOpnd0 = (*PreMeExprExtensionMap)[(static_cast<BinaryNode *>(iassign->GetRHS()))->GetBOpnd(0)];
+    BaseNode *rhsOpnd1 = iassign->GetRHS()->Opnd(1);
+    PrimType lhsmirType = (static_cast<MIRPtrType*>(&GetTypeFromTyIdx(iassign->GetTyIdx())))->GetPointedType()->GetPrimType();
+    PrimType rhsOpnd1Type = rhsOpnd1->GetPrimType();
+    if (ivarlhsExpr && rhsOpnd0 && rhsOpnd0->GetMeExpr() &&
+        (rhsOpnd0->GetMeExpr()->GetMeOp() == maple::kMeOpIvar)) {
+      IvarMeExpr *ivarrhs0Expr = static_cast<IvarMeExpr *>(rhsOpnd0->GetMeExpr());
+      if ((ivarlhsExpr->GetBase() == ivarrhs0Expr->GetBase()) &&
+          (lhsmirType == rhsOpnd1Type)) {
+        vecInfo->vecStmtIDs.insert((iassign)->GetStmtID());
+        vecInfo->reductionStmts.insert(iassign);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 // assumed to be inside innermost loop
 bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInfo, BlockNode *block) {
   StmtNode *stmt = block->GetFirst();
@@ -1793,6 +1905,7 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
         return Vectorizable(doloopInfo, vecInfo, static_cast<DoloopNode *>(stmt)->GetDoBody());
       case OP_iassign: {
         IassignNode *iassign = static_cast<IassignNode *>(stmt);
+        bool lhsUseAsScalar = false;
         // no vectorize lsh is complex or constant subscript
         if (iassign->addrExpr->GetOpCode() == OP_array) {
           ArrayNode *lhsArr = static_cast<ArrayNode *>(iassign->addrExpr);
@@ -1803,25 +1916,42 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
           // case like a[abs(i-1)] = 1; depth test will report it's parallelize
           // or a[4*i+1] =; address is not continous if coeff > 1
           if (accessDesc->subscriptVec[dim - 1]->tooMessy ||
-              accessDesc->subscriptVec[dim - 1]->loopInvariant ||
               accessDesc->subscriptVec[dim - 1]->coeff != 1) {
             if (enableDebug) {
               LogInfo::MapleLogger() << "NOT VECTORIZABLE because of complex array subscript\n";
             }
             return false;
+          } else if (accessDesc->subscriptVec[dim - 1]->loopInvariant) {
+            lhsUseAsScalar = true;
           }
         }
         // check rsh
         bool canVec = ExprVectorizable(doloopInfo, vecInfo, iassign->GetRHS());
-        if (canVec) {
-          if (iassign->GetFieldID() != 0) {  // check base of iassign
-            canVec = doloopInfo->IsLoopInvariant2(iassign->Opnd(0));
-            if ((!canVec) && enableDebug) {
+        if (!canVec) {
+          // early return
+          if (enableDebug) {
+            LogInfo::MapleLogger() << "NOT VECTORIZABLE because of RHS is not vectorizable\n";
+          }
+          return false;
+        }
+        if (iassign->GetFieldID() != 0) {  // check base of iassign
+          canVec = doloopInfo->IsLoopInvariant2(iassign->Opnd(0));
+          if (!canVec) {
+            if (enableDebug) {
               LogInfo::MapleLogger() << "NOT VECTORIZABLE because of baseaddress is not const with non-zero filedID\n";
             }
+            return false;
           }
         }
-        if (canVec) {
+        // check lhs is used like reduction variable
+        if (lhsUseAsScalar && (!IassignIsReduction(iassign, vecInfo))) {
+          if (enableDebug) {
+            LogInfo::MapleLogger() << "NOT VECTORIZABLE because of lhs is scalar\n";
+          }
+          return false;
+        }
+        // check type
+        {
           MIRType &mirType = GetTypeFromTyIdx(iassign->GetTyIdx());
           CHECK_FATAL(mirType.GetKind() == kTypePointer, "iassign must have pointer type");
           MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
@@ -1861,12 +1991,6 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
           if (lshtypesize < vecInfo->smallestTypeSize) {
             vecInfo->smallestTypeSize = lshtypesize;
           }
-        } else {
-          // early return
-          if (enableDebug) {
-            LogInfo::MapleLogger() << "NOT VECTORIZABLE because of RHS is not vectorizable\n";
-          }
-          return false;
         }
         break;
       }
@@ -1876,7 +2000,7 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
         MIRSymbol *lhsSym = mirFunc->GetLocalOrGlobalSymbol(lhsStIdx);
         MIRType &lhsType = GetTypeFromTyIdx(lhsSym->GetTyIdx());
         BaseNode *rhs = dassign->GetRHS();
-        uint32_t lshtypesize = GetPrimTypeSize(lhsType.GetPrimType()) * 8;
+        uint32_t lhstypesize = GetPrimTypeSize(lhsType.GetPrimType()) * 8;
         if (IsReductionOp(rhs->GetOpCode()) && doloopInfo->IsReductionVar(lhsStIdx)) {
           BaseNode *opnd0 = rhs->Opnd(0);
           BaseNode *opnd1 = rhs->Opnd(1);
@@ -1885,7 +2009,7 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
           if (ExprVectorizable(doloopInfo, vecInfo, opnd1)) {
             // there's iread in rhs
             if (vecInfo->currentRHSTypeSize != 0) {
-              if (lshtypesize < vecInfo->currentRHSTypeSize ||
+              if (lhstypesize < vecInfo->currentRHSTypeSize ||
                   vecInfo->currentRHSTypeSize < 8) { // rsh typs size is less than i8/u8
                 // narrow down the result, not handle now
                 if (enableDebug) {
@@ -1900,10 +2024,10 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
               }
               vecInfo->UpdateWidestTypeSize(vecInfo->currentRHSTypeSize);
             } else {
-              vecInfo->UpdateWidestTypeSize(lshtypesize);
+              vecInfo->UpdateWidestTypeSize(lhstypesize);
             }
             vecInfo->vecStmtIDs.insert((stmt)->GetStmtID());
-            vecInfo->hasRedvar = true;
+            vecInfo->reductionStmts.insert(stmt);
           } else {
             if (enableDebug) {
               LogInfo::MapleLogger() << "NOT VECTORIZABLE because of other opnd can't be vectorized\n";
@@ -1924,6 +2048,34 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
     stmt = stmt->GetNext();
   }
   return true;
+}
+
+// create constant node if need in vectorization
+void LoopVectorization::GenConstVar(LoopVecInfo *vecInfo, uint8_t vecLanes) {
+  // create zero node used in reduction stmt
+  if ((!const0Node) && (!vecInfo->reductionStmts.empty())) {
+    PrimType ptype = vecLanes == 4 ? PTY_i32 : (vecLanes == 2 ? PTY_i64 : PTY_i16);
+    MIRType &typeInt = *GlobalTables::GetTypeTable().GetPrimType(ptype);
+    MIRIntConst *constZero = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, typeInt);
+    const0Node = codeMP->New<ConstvalNode>(ptype, constZero);
+  }
+  MIRSymbol *ivconstSym = (vecLanes == 4) ? initIVv4Sym : (vecLanes == 8 ? initIVv8Sym : initIVv2Sym);
+  if ((!ivconstSym) && (!vecInfo->ivNodes.empty())) {
+    std::string ivVecName("__ivvec");
+    ivVecName.append(std::to_string(vecLanes));
+    PrimType type = (vecLanes == 4) ? PTY_i32 : ((vecLanes == 8) ? PTY_i16 : PTY_i64);
+    MIRType *elemType = GlobalTables::GetTypeTable().GetPrimType(type);
+    MIRArrayType *arrayType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*elemType, 0);
+    MIRModule *mirModule = mirFunc->GetModule();
+    MIRAggConst *constval = mirModule->GetMemPool()->New<MIRAggConst>((*mirModule), *arrayType);
+    for (uint32_t i = 0; i < vecLanes; i++) {
+      MIRIntConst *intconst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(i, *elemType);
+      constval->AddItem(intconst, 0);
+    }
+    ivconstSym = mirModule->GetMIRBuilder()->GetOrCreateGlobalDecl(ivVecName, *arrayType);
+    ivconstSym->SetKonst(constval);
+  }
+  vecInfo->ivConstArraySym = ivconstSym;
 }
 
 void LoopVectorization::Perform() {
@@ -1964,6 +2116,7 @@ void LoopVectorization::Perform() {
     LoopTransPlan *tplan = localMP->New<LoopTransPlan>(codeMP, localMP, vecInfo);
     if (tplan->Generate(mapit->first, mapit->second, enableDebug)) {
       vecPlans[mapit->first] = tplan;
+      GenConstVar(vecInfo, tplan->vecLanes);
     }
   }
   // step 3: do transform

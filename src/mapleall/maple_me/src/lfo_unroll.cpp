@@ -12,6 +12,7 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include <climits>
 #include "lfo_unroll.h"
 #include "me_loop_analysis.h"
 
@@ -19,27 +20,13 @@ namespace maple {
 uint32 LfoUnrollOneLoop::countOfLoopsUnrolled = 0;
 
 constexpr size_t unrolledSizeLimit = 12;  // unrolled loop body size to be < this value
-constexpr size_t unrollMax = 8;           // times to unroll never more than this
+constexpr size_t unrollMax = 10;          // times to unroll never more than this
 
 BaseNode *LfoUnrollOneLoop::CloneIVNode() {
   if (doloop->IsPreg()) {
     return mirBuilder->CreateExprRegread(ivPrimType, doloop->GetDoVarPregIdx());
   } else {
     return codeMP->New<AddrofNode>(OP_dread, ivPrimType, doloop->GetDoVarStIdx(), 0);
-  }
-}
-
-bool LfoUnrollOneLoop::IsIVNode(const BaseNode *x) const {
-  if (doloop->IsPreg()) {
-    if (x->GetOpCode() != OP_regread) {
-      return false;
-    }
-    return static_cast<const RegreadNode *>(x)->GetRegIdx() == doloop->GetDoVarPregIdx();
-  } else {
-    if (x->GetOpCode() != OP_dread) {
-      return false;
-    }
-    return static_cast<const AddrofNode *>(x)->GetStIdx() == doloop->GetDoVarStIdx();
   }
 }
 
@@ -55,7 +42,7 @@ void LfoUnrollOneLoop::ReplaceIV(BaseNode *x, BaseNode *repNode) {
     return;
   }
   for (size_t i = 0; i < x->NumOpnds(); i++) {
-    if (IsIVNode(x->Opnd(i))) {
+    if (doloopInfo->IsLoopIVNode(x->Opnd(i))) {
       x->SetOpnd(repNode, i);
     } else {
       ReplaceIV(x->Opnd(i), repNode);
@@ -213,7 +200,7 @@ void LfoUnrollOneLoop::Process() {
   if (condExpr->GetOpCode() == OP_eq) {
     return;
   }
-  if (!IsIVNode(condExpr->Opnd(0))) {
+  if (!doloopInfo->IsLoopIVNode(condExpr->Opnd(0))) {
     return;
   }
   BaseNode *endExpr = condExpr->Opnd(1);
@@ -236,6 +223,8 @@ void LfoUnrollOneLoop::Process() {
     if (condExpr->GetOpCode() == OP_ge || condExpr->GetOpCode() == OP_le) {
       tripCount++;
     }
+    auto invalidBits = sizeof(tripCount) * CHAR_BIT - GetPrimTypeBitSize(ivPrimType);
+    tripCount = (tripCount << invalidBits) >> invalidBits;  /* get the valid bits */
   }
   size_t unrollTimes = 1;
   size_t unrolledStmtCount = stmtCount;
@@ -248,7 +237,7 @@ void LfoUnrollOneLoop::Process() {
   if (fullUnroll) {
     unrolledBlk = DoFullUnroll(tripCount);
   } else {
-    if (unrollTimes == 1) {
+    if (MeOption::optLevel <= 2 || unrollTimes == 1) {
       return;
     }
     unrolledBlk = DoUnroll(unrollTimes, tripCount);

@@ -2457,7 +2457,8 @@ void ValueRangePropagation::MergeValueRangeOfPhiOperands(const LoopDesc &loop, c
     auto *vrOfInitExpr = valueRangeOfInitExprs.at(index).get();
     auto pType = it.second->GetLHS()->GetPrimType();
     if (vrOfInitExpr == nullptr ||
-        (vrOfInitExpr->GetRangeType() != kOnlyHasLowerBound && vrOfInitExpr->GetRangeType() != kOnlyHasUpperBound)) {
+        (vrOfInitExpr->GetRangeType() != kOnlyHasLowerBound && vrOfInitExpr->GetRangeType() != kOnlyHasUpperBound) ||
+        (GetVecLanes(pType) > 0)) {
       index++;
       continue;
     }

@@ -39,6 +39,9 @@ class LoopVecInfo {
         uniformVecNodes(alloc.Adapter()),
         constvalTypes(alloc.Adapter()),
         redVecNodes(alloc.Adapter()),
+        reductionStmts(alloc.Adapter()),
+        ivNodes(alloc.Adapter()),
+        ivVecNodes(alloc.Adapter()),
         beforeLoopStmts(alloc.Adapter()),
         afterLoopStmts(alloc.Adapter()) {
     largestTypeSize = 8; // type bit size
@@ -48,7 +51,8 @@ class LoopVecInfo {
     widenop = 0;
     minTrueDepDist = 0;
     maxAntiDepDist = 0;
-    hasRedvar = false;
+    ivConstArraySym = nullptr;
+    ivvecIncrStmt = nullptr;
   }
   virtual ~LoopVecInfo() = default;
   void UpdateWidestTypeSize(uint32_t);
@@ -61,16 +65,20 @@ class LoopVecInfo {
   uint32_t widenop;          // can't handle t * t which t need widen operation
   int16_t  minTrueDepDist;
   int16_t  maxAntiDepDist;   // negative value
-  bool     hasRedvar;                          // loop has reduction variable
   // list of vectorizable stmtnodes in current loop, others can't be vectorized
   MapleSet<uint32_t> vecStmtIDs;
   MapleSet<BaseNode *> uniformNodes; // loop invariable scalar set
   MapleMap<BaseNode *, BaseNode *> uniformVecNodes; // new generated vector node
   // constval node need to adjust with new PrimType
   MapleMap<BaseNode *, PrimType>  constvalTypes;
-  MapleMap<StIdx, BaseNode *> redVecNodes; // new generate vector node
+  MapleMap<StmtNode *, BaseNode *> redVecNodes; // new generate vector node
+  MapleSet<StmtNode *> reductionStmts; // loop invariable scalar set
+  MapleSet<BaseNode *> ivNodes; // induction variable used in stmt
+  MapleMap<BaseNode *, BaseNode *> ivVecNodes; // induction variable used in stmt
   MapleVector<StmtNode *> beforeLoopStmts;
   MapleVector<StmtNode *> afterLoopStmts;
+  MIRSymbol *ivConstArraySym;
+  StmtNode *ivvecIncrStmt;
 };
 
 // tranform plan for current loop
@@ -79,7 +87,6 @@ class LoopTransPlan {
   LoopTransPlan(MemPool *mp, MemPool *localmp, LoopVecInfo *info)
       : vBound(nullptr), eBound(nullptr), codeMP(mp), localMP(localmp), vecInfo(info) {
     vecFactor = 1;
-    const0Node = nullptr;
   }
   ~LoopTransPlan() = default;
   LoopBound *vBound = nullptr;   // bound of vectorized part
@@ -91,7 +98,6 @@ class LoopTransPlan {
   MemPool *codeMP = nullptr;     // use to generate new bound node
   MemPool *localMP = nullptr;    // use to generate local info
   LoopVecInfo *vecInfo = nullptr; // collect loop information
-  BaseNode *const0Node = nullptr;   // zero const used in reduction variable
   // function
   bool Generate(const DoloopNode *, const DoloopInfo *, bool);
   void GenerateBoundInfo(const DoloopNode *doloop, const DoloopInfo *li);
@@ -108,6 +114,10 @@ class LoopVectorization {
     codeMP = lfoEmit->GetCodeMP();
     codeMPAlloc = lfoEmit->GetCodeMPAlloc();
     localMP = localmp;
+    const0Node = nullptr;
+    initIVv4Sym = nullptr;
+    initIVv8Sym = nullptr;
+    initIVv2Sym = nullptr;
     isArraySub = false;
     enableDebug = debug;
   }
@@ -145,10 +155,15 @@ class LoopVectorization {
   IntrinsicopNode *GenVectorNarrowLowNode(BaseNode *, PrimType);
   void GenWidenBinaryExpr(Opcode, MapleVector<BaseNode *>&, MapleVector<BaseNode *>&, MapleVector<BaseNode *>&);
   BaseNode* ConvertNodeType(bool, BaseNode*);
-  RegreadNode* GenVectorRedVarInit(StIdx, LoopTransPlan *);
   MIRIntrinsicID GenVectorAbsSublID(MIRIntrinsicID intrnID) const;
-
   static uint32_t vectorizedLoop;
+ private:
+  RegreadNode* GenVectorReductionVar(StmtNode* , LoopTransPlan *);
+  bool IassignIsReduction(IassignNode *iassign, LoopVecInfo* vecInfo);
+  RegreadNode *GetorNewVectorReductionVar(StmtNode *stmt, LoopTransPlan *tp);
+  MIRType *VectorizeIassignLhs(IassignNode *iassign, LoopTransPlan *tp);
+  void VectorizeReductionStmt(StmtNode *stmt, LoopTransPlan *tp);
+  void GenConstVar(LoopVecInfo *, uint8_t);
  private:
   MIRFunction *mirFunc;
   // point to PreMeStmtExtensionMap of PreMeEmitter, key is stmtID
@@ -160,7 +175,11 @@ class LoopVectorization {
   MapleAllocator *codeMPAlloc;
   MemPool *localMP;   // local mempool
   MapleAllocator localAlloc;
-  MapleMap<DoloopNode *, LoopTransPlan *> vecPlans; // each vectoriable loopnode has its best vectorization plan
+  MapleMap<DoloopNode *, LoopTransPlan *> vecPlans; // each loopnode has its best vectorization plan
+  BaseNode *const0Node = nullptr;   // zero const used in reduction variable
+  MIRSymbol *initIVv4Sym = nullptr; // constant array symbol used by vectorizing induction variable
+  MIRSymbol *initIVv8Sym = nullptr;
+  MIRSymbol *initIVv2Sym = nullptr;
   bool isArraySub; // current expression is used in array subscript
   bool enableDebug;
 };
