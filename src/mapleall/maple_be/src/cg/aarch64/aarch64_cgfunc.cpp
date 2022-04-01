@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -17,6 +17,7 @@
 #include <vector>
 #include <cstdint>
 #include <sys/stat.h>
+#include <atomic>
 #include "cfi.h"
 #include "mpl_logging.h"
 #include "rt.h"
@@ -9141,10 +9142,15 @@ void AArch64CGFunc::SelectCAtomicStoreN(const IntrinsiccallNode &intrinsiccallNo
   auto *value = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(1));
   auto *memOrderOpnd = intrinsiccallNode.Opnd(kInsnThirdOpnd);
   auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
-  auto memOrder = (memOrderConst->GetValue() == 0) ? AArch64isa::kMoNone : AArch64isa::kMoRelease;
-  auto &memOpnd = CreateMemOpnd(LoadIntoRegister(*addr, PTY_a64), 0, k64BitSize);
+  auto memOrder = static_cast<std::memory_order>(memOrderConst->GetValue());
+  SelectAtomicStore(*value, *addr, primType, PickMemOrder(memOrder, false));
+}
+
+void AArch64CGFunc::SelectAtomicStore(
+    Operand &srcOpnd, Operand &addrOpnd, PrimType primType, AArch64isa::MemoryOrdering memOrder) {
+  auto &memOpnd = CreateMemOpnd(LoadIntoRegister(addrOpnd, PTY_a64), 0, k64BitSize);
   auto mOp = PickStInsn(GetPrimTypeBitSize(primType), primType, memOrder);
-  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, LoadIntoRegister(*value, primType), memOpnd));
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, LoadIntoRegister(srcOpnd, primType), memOpnd));
 }
 
 void AArch64CGFunc::SelectAddrofThreadLocal(Operand &result, StImmOperand &stImm) {
@@ -9627,6 +9633,30 @@ Operand *AArch64CGFunc::SelectCSyncLockRelease(IntrinsicopNode &intrinopNode, Pr
   return addrOpnd;
 }
 
+Operand *AArch64CGFunc::SelectCSyncSynchronize(IntrinsicopNode &intrinopNode) {
+  (void)intrinopNode;
+  CHECK_FATAL(false, "have not implement SelectCSyncSynchronize yet");
+  return nullptr;
+}
+
+AArch64isa::MemoryOrdering AArch64CGFunc::PickMemOrder(std::memory_order memOrder, bool isLdr) {
+  switch (memOrder) {
+    case std::memory_order_relaxed:
+      return AArch64isa::kMoNone;
+    case std::memory_order_consume:
+    case std::memory_order_acquire:
+      return isLdr ? AArch64isa::kMoAcquire : AArch64isa::kMoNone;
+    case std::memory_order_release:
+      return isLdr ? AArch64isa::kMoNone : AArch64isa::kMoRelease;
+    case std::memory_order_acq_rel:
+    case std::memory_order_seq_cst:
+      return isLdr ? AArch64isa::kMoAcquire : AArch64isa::kMoRelease;
+    default:
+      CHECK_FATAL(false, "unexpected memorder");
+      return AArch64isa::kMoNone;
+  }
+}
+
 /*
  * regassign %1 (intrinsicop C___Atomic_Load_N(ptr, memorder))
  * ====> %1 = *ptr
@@ -9640,9 +9670,37 @@ Operand *AArch64CGFunc::SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) {
   auto *memOrderOpnd = intrinsicopNode.Opnd(1);
   auto primType = intrinsicopNode.GetPrimType();
   auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
-  auto memOrder = (memOrderConst->GetValue() == 0) ? AArch64isa::kMoNone : AArch64isa::kMoAcquire;
+  auto memOrder = static_cast<std::memory_order>(memOrderConst->GetValue());
+  return SelectAtomicLoad(*addrOpnd, primType, PickMemOrder(memOrder, true));
+}
+
+/*
+ * regassign %1 (intrinsicop C___Atomic_exchange_n(ptr, val, memorder))
+ * ====> %1 = *ptr; *ptr = val;
+ * let %1 -> x0
+ * let ptr -> x1
+ * let val -> x2
+ * implement to asm:
+ * ldr/ldar x0, [x1]
+ * str/stlr x2, [x1]
+ * a load-acquire would replace ldr if acquire needed
+ * a store-relase would replace str if release needed
+ */
+Operand *AArch64CGFunc::SelectCAtomicExchangeN(IntrinsicopNode &intrinsicopNode) {
+  auto primType = intrinsicopNode.GetPrimType();
+  auto *addrOpnd = HandleExpr(intrinsicopNode, *intrinsicopNode.Opnd(0));
+  auto *valueOpnd = HandleExpr(intrinsicopNode, *intrinsicopNode.Opnd(1));
+  auto *memOrderOpnd = intrinsicopNode.Opnd(kInsnThirdOpnd);
+  auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
+  auto memOrder = static_cast<std::memory_order>(memOrderConst->GetValue());
+  auto *result = SelectAtomicLoad(*addrOpnd, primType, PickMemOrder(memOrder, true));
+  SelectAtomicStore(*valueOpnd, *addrOpnd, primType, PickMemOrder(memOrder, false));
+  return result;
+}
+
+Operand *AArch64CGFunc::SelectAtomicLoad(Operand &addrOpnd, PrimType primType, AArch64isa::MemoryOrdering memOrder) {
   auto mOp = PickLdInsn(GetPrimTypeBitSize(primType), primType, memOrder);
-  auto &memOpnd = CreateMemOpnd(LoadIntoRegister(*addrOpnd, PTY_a64), 0, k64BitSize);
+  auto &memOpnd = CreateMemOpnd(LoadIntoRegister(addrOpnd, PTY_a64), 0, k64BitSize);
   auto *resultOpnd = &CreateRegisterOperandOfType(primType);
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *resultOpnd, memOpnd));
   return resultOpnd;

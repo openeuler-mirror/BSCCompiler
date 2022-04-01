@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -124,25 +124,27 @@ class AArch64CGFunc : public CGFunc {
   void SelectCall(CallNode &callNode) override;
   void SelectIcall(IcallNode &icallNode, Operand &fptrOpnd) override;
   void SelectIntrinCall(IntrinsiccallNode &intrinsicCallNode) override;
-  Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrinopNode, std::string name) override;
-  Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinopNode, PrimType retType, std::string &name) override;
-  Operand *SelectCclz(IntrinsicopNode &intrinopNode) override;
-  Operand *SelectCctz(IntrinsicopNode &intrinopNode) override;
-  Operand *SelectCpopcount(IntrinsicopNode &intrinopNode) override;
-  Operand *SelectCparity(IntrinsicopNode &intrinopNode) override;
-  Operand *SelectCclrsb(IntrinsicopNode &intrinopNode) override;
-  Operand *SelectCisaligned(IntrinsicopNode &intrinopNode) override;
-  Operand *SelectCalignup(IntrinsicopNode &intrinopNode) override;
-  Operand *SelectCaligndown(IntrinsicopNode &intrinopNode) override;
-  Operand *SelectCSyncAddFetch(IntrinsicopNode &intrinopNode, PrimType pty) override;
-  Operand *SelectCSyncFetchAdd(IntrinsicopNode &intrinopNode, PrimType pty) override;
-  Operand *SelectCSyncSubFetch(IntrinsicopNode &intrinopNode, PrimType pty) override;
-  Operand *SelectCSyncFetchSub(IntrinsicopNode &intrinopNode, PrimType pty) override;
-  Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) override;
-  Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) override;
-  Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimType pty) override;
-  Operand *SelectCSyncLockRelease(IntrinsicopNode &intrinopNode, PrimType pty) override;
-  Operand *SelectCReturnAddress(IntrinsicopNode &intrinopNode) override;
+  Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrinsicopNode, std::string name) override;
+  Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinsicopNode, PrimType retType, std::string &name) override;
+  Operand *SelectCclz(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCctz(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCpopcount(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCparity(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCclrsb(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCisaligned(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCalignup(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCaligndown(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCSyncFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) override;
+  Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinsicopNode, PrimType pty) override;
+  Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinsicopNode, PrimType pty) override;
+  Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinsicopNode, PrimType pty) override;
+  Operand *SelectCSyncLockRelease(IntrinsicopNode &intrinsicopNode, PrimType pty) override;
+  Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinsicopNode) override;
+  AArch64isa::MemoryOrdering PickMemOrder(std::memory_order memOrder, bool isLdr);
+  Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCAtomicExchangeN(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectAtomicLoad(Operand &addrOpnd, PrimType primType, AArch64isa::MemoryOrdering memOrder);
+  Operand *SelectCReturnAddress(IntrinsicopNode &intrinsicopNode) override;
   void SelectMembar(StmtNode &membar) override;
   void SelectComment(CommentNode &comment) override;
 
@@ -152,7 +154,7 @@ class AArch64CGFunc : public CGFunc {
 
   void SelectAddrof(Operand &result, StImmOperand &stImm, FieldID field = 0);
   void SelectAddrof(Operand &result, AArch64MemOperand &memOpnd, FieldID field = 0);
-  Operand *SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, PrimType pty, bool retBool = false);
+  Operand *SelectCSyncCmpSwap(const IntrinsicopNode &intrinsicopNode, PrimType pty, bool retBool = false);
   Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent) override;
   Operand &SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) override;
   Operand &SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) override;
@@ -161,7 +163,7 @@ class AArch64CGFunc : public CGFunc {
 
   Operand *SelectIread(const BaseNode &parent, IreadNode &expr,
                        int extraOffset = 0, PrimType finalBitFieldDestType = kPtyInvalid) override;
-
+  Operand *SelectIreadoff(const BaseNode &parent, IreadoffNode &ireadoff) override;
   Operand *SelectIntConst(MIRIntConst &intConst) override;
   Operand *HandleFmovImm(PrimType stype, int64 val, MIRConst &mirConst, const BaseNode &parent);
   Operand *SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &parent) override;
@@ -398,6 +400,8 @@ class AArch64CGFunc : public CGFunc {
   MemOperand &GetOrCreateMemOpnd(const MIRSymbol &symbol, int64 offset, uint32 size, bool forLocalRef = false,
                                  bool needLow12 = false, AArch64RegOperand *regOp = nullptr);
 
+  AArch64MemOperand &HashMemOpnd(AArch64MemOperand &tMemOpnd);
+
   AArch64MemOperand &GetOrCreateMemOpnd(AArch64MemOperand::AArch64AddressingMode, uint32, RegOperand*, RegOperand*,
                                         OfstOperand*, const MIRSymbol*);
 
@@ -582,6 +586,7 @@ class AArch64CGFunc : public CGFunc {
   bool CheckIfSplitOffsetWithAdd(const AArch64MemOperand &memOpnd, uint32 bitLen);
   RegOperand *GetBaseRegForSplit(uint32 baseRegNum);
 
+  AArch64MemOperand &ConstraintOffsetToSafeRegion(uint32 bitLen, AArch64MemOperand &memOpnd);
   AArch64MemOperand &SplitOffsetWithAddInstruction(const AArch64MemOperand &memOpnd, uint32 bitLen,
                                                    uint32 baseRegNum = AArch64reg::kRinvalid, bool isDest = false,
                                                    Insn *insn = nullptr, bool forPair = false);
@@ -794,10 +799,16 @@ class AArch64CGFunc : public CGFunc {
                                           LabelOperand &targetOpnd, Operand &opnd0);
   void GenCVaStartIntrin(RegOperand &opnd, uint32 stkSize);
   void SelectCVaStart(const IntrinsiccallNode &intrnNode);
+  void SelectCAtomicStoreN(const IntrinsiccallNode &intrinsiccallNode);
+  void SelectAtomicStore(Operand &srcOpnd, Operand &addrOpnd, PrimType primType, AArch64isa::MemoryOrdering memOrder);
+  void SelectAddrofThreadLocal(Operand &result, StImmOperand &stImm);
+  void SelectCTlsLocalDesc(Operand &result, StImmOperand &stImm);
+  void SelectCTlsGlobalDesc(Operand &result, StImmOperand &stImm);
   void SelectMPLClinitCheck(const IntrinsiccallNode&);
   void SelectMPLProfCounterInc(const IntrinsiccallNode &intrnNode);
+  void SelectArithmeticAndLogical(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType, Opcode op);
 
-  Operand *SelectAArch64CSyncFetch(const maple::IntrinsicopNode &intrinopNode, PrimType pty, bool CalculBefore, bool isAdd);
+  Operand *SelectAArch64CSyncFetch(const maple::IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore);
   /* Helper functions for translating complex Maple IR instructions/inrinsics */
   void SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, Operand &opnd0);
   LabelIdx CreateLabeledBB(StmtNode &stmt);

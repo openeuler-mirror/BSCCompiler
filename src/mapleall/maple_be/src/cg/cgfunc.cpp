@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -196,6 +196,11 @@ Operand *HandleAddrofLabel(const BaseNode &parent, BaseNode &expr, CGFunc &cgFun
 Operand *HandleIread(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   auto &ireadNode = static_cast<IreadNode&>(expr);
   return cgFunc.SelectIread(parent, ireadNode);
+}
+
+Operand *HandleIreadoff(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
+  auto &ireadNode = static_cast<IreadoffNode&>(expr);
+  return cgFunc.SelectIreadoff(parent, ireadNode);
 }
 
 Operand *HandleSub(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
@@ -643,46 +648,94 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       return cgFunc.SelectCalignup(intrinsicopNode);
     case INTRN_C_aligndown:
       return cgFunc.SelectCaligndown(intrinsicopNode);
+    case INTRN_C___sync_add_and_fetch_1:
     case INTRN_C___sync_add_and_fetch_2:
-      return cgFunc.SelectCSyncAddFetch(intrinsicopNode, PTY_i16);
     case INTRN_C___sync_add_and_fetch_4:
-      return cgFunc.SelectCSyncAddFetch(intrinsicopNode, PTY_i32);
     case INTRN_C___sync_add_and_fetch_8:
-      return cgFunc.SelectCSyncAddFetch(intrinsicopNode, PTY_i64);
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_add, false);
+    case INTRN_C___sync_sub_and_fetch_1:
     case INTRN_C___sync_sub_and_fetch_2:
-      return cgFunc.SelectCSyncSubFetch(intrinsicopNode, PTY_i16);
     case INTRN_C___sync_sub_and_fetch_4:
-      return cgFunc.SelectCSyncSubFetch(intrinsicopNode, PTY_i32);
     case INTRN_C___sync_sub_and_fetch_8:
-      return cgFunc.SelectCSyncSubFetch(intrinsicopNode, PTY_i64);
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_sub, false);
+    case INTRN_C___sync_fetch_and_add_1:
     case INTRN_C___sync_fetch_and_add_2:
-      return cgFunc.SelectCSyncFetchAdd(intrinsicopNode, PTY_i16);
     case INTRN_C___sync_fetch_and_add_4:
-      return cgFunc.SelectCSyncFetchAdd(intrinsicopNode, PTY_i32);
     case INTRN_C___sync_fetch_and_add_8:
-      return cgFunc.SelectCSyncFetchAdd(intrinsicopNode, PTY_i64);
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_add, true);
+    case INTRN_C___sync_fetch_and_sub_1:
     case INTRN_C___sync_fetch_and_sub_2:
-      return cgFunc.SelectCSyncFetchSub(intrinsicopNode, PTY_i16);
     case INTRN_C___sync_fetch_and_sub_4:
-      return cgFunc.SelectCSyncFetchSub(intrinsicopNode, PTY_i32);
     case INTRN_C___sync_fetch_and_sub_8:
-      return cgFunc.SelectCSyncFetchSub(intrinsicopNode, PTY_i64);
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_sub, true);
+    case INTRN_C___sync_bool_compare_and_swap_1:
+      return cgFunc.SelectCSyncBoolCmpSwap(intrinsicopNode, PTY_i8);
+    case INTRN_C___sync_bool_compare_and_swap_2:
+      return cgFunc.SelectCSyncBoolCmpSwap(intrinsicopNode, PTY_i16);
     case INTRN_C___sync_bool_compare_and_swap_4:
       return cgFunc.SelectCSyncBoolCmpSwap(intrinsicopNode, PTY_i32);
     case INTRN_C___sync_bool_compare_and_swap_8:
       return cgFunc.SelectCSyncBoolCmpSwap(intrinsicopNode, PTY_i64);
+    case INTRN_C___sync_val_compare_and_swap_1:
+      return cgFunc.SelectCSyncValCmpSwap(intrinsicopNode, PTY_i8);
+    case INTRN_C___sync_val_compare_and_swap_2:
+      return cgFunc.SelectCSyncValCmpSwap(intrinsicopNode, PTY_i16);
     case INTRN_C___sync_val_compare_and_swap_4:
       return cgFunc.SelectCSyncValCmpSwap(intrinsicopNode, PTY_i32);
     case INTRN_C___sync_val_compare_and_swap_8:
       return cgFunc.SelectCSyncValCmpSwap(intrinsicopNode, PTY_i64);
+    case INTRN_C___sync_lock_test_and_set_1:
+      return cgFunc.SelectCSyncLockTestSet(intrinsicopNode, PTY_i8);
+    case INTRN_C___sync_lock_test_and_set_2:
+      return cgFunc.SelectCSyncLockTestSet(intrinsicopNode, PTY_i16);
     case INTRN_C___sync_lock_test_and_set_4:
       return cgFunc.SelectCSyncLockTestSet(intrinsicopNode, PTY_i32);
     case INTRN_C___sync_lock_test_and_set_8:
       return cgFunc.SelectCSyncLockTestSet(intrinsicopNode, PTY_i64);
+    case INTRN_C___sync_lock_release_1:
+      return cgFunc.SelectCSyncLockRelease(intrinsicopNode, PTY_i8);
+    case INTRN_C___sync_lock_release_2:
+      return cgFunc.SelectCSyncLockRelease(intrinsicopNode, PTY_i16);
     case INTRN_C___sync_lock_release_4:
       return cgFunc.SelectCSyncLockRelease(intrinsicopNode, PTY_i32);
     case INTRN_C___sync_lock_release_8:
       return cgFunc.SelectCSyncLockRelease(intrinsicopNode, PTY_i64);
+    case INTRN_C___sync_fetch_and_and_1:
+    case INTRN_C___sync_fetch_and_and_2:
+    case INTRN_C___sync_fetch_and_and_4:
+    case INTRN_C___sync_fetch_and_and_8:
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_band, true);
+    case INTRN_C___sync_and_and_fetch_1:
+    case INTRN_C___sync_and_and_fetch_2:
+    case INTRN_C___sync_and_and_fetch_4:
+    case INTRN_C___sync_and_and_fetch_8:
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_band, false);
+    case INTRN_C___sync_fetch_and_or_1:
+    case INTRN_C___sync_fetch_and_or_2:
+    case INTRN_C___sync_fetch_and_or_4:
+    case INTRN_C___sync_fetch_and_or_8:
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_bior, true);
+    case INTRN_C___sync_or_and_fetch_1:
+    case INTRN_C___sync_or_and_fetch_2:
+    case INTRN_C___sync_or_and_fetch_4:
+    case INTRN_C___sync_or_and_fetch_8:
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_bior, false);
+    case INTRN_C___sync_fetch_and_xor_1:
+    case INTRN_C___sync_fetch_and_xor_2:
+    case INTRN_C___sync_fetch_and_xor_4:
+    case INTRN_C___sync_fetch_and_xor_8:
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_bxor, true);
+    case INTRN_C___sync_xor_and_fetch_1:
+    case INTRN_C___sync_xor_and_fetch_2:
+    case INTRN_C___sync_xor_and_fetch_4:
+    case INTRN_C___sync_xor_and_fetch_8:
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_bxor, false);
+    case INTRN_C___sync_synchronize:
+      return cgFunc.SelectCSyncSynchronize(intrinsicopNode);
+    case INTRN_C___atomic_load_n:
+      return cgFunc.SelectCAtomicLoadN(intrinsicopNode);
+    case INTRN_C___atomic_exchange_n:
+      return cgFunc.SelectCAtomicExchangeN(intrinsicopNode);
     case INTRN_C__builtin_return_address:
     case INTRN_C__builtin_extract_return_addr:
       return cgFunc.SelectCReturnAddress(intrinsicopNode);
@@ -896,6 +949,7 @@ void InitHandleExprFactory() {
   RegisterFactoryFunction<HandleExprFactory>(OP_addroffunc, HandleAddroffunc);
   RegisterFactoryFunction<HandleExprFactory>(OP_addroflabel, HandleAddrofLabel);
   RegisterFactoryFunction<HandleExprFactory>(OP_iread, HandleIread);
+  RegisterFactoryFunction<HandleExprFactory>(OP_ireadoff, HandleIreadoff);
   RegisterFactoryFunction<HandleExprFactory>(OP_sub, HandleSub);
   RegisterFactoryFunction<HandleExprFactory>(OP_band, HandleBand);
   RegisterFactoryFunction<HandleExprFactory>(OP_bior, HandleBior);

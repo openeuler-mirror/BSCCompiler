@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -193,25 +193,25 @@ class CGFunc {
   virtual void SelectCall(CallNode &callNode) = 0;
   virtual void SelectIcall(IcallNode &icallNode, Operand &fptrOpnd) = 0;
   virtual void SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) = 0;
-  virtual Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrinopNode, std::string name) = 0;
-  virtual Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinopNode, PrimType retType, std::string &name) = 0;
-  virtual Operand *SelectCclz(IntrinsicopNode &intrinopNode) = 0;
-  virtual Operand *SelectCctz(IntrinsicopNode &intrinopNode) = 0;
-  virtual Operand *SelectCpopcount(IntrinsicopNode &intrinopNode) = 0;
-  virtual Operand *SelectCparity(IntrinsicopNode &intrinopNode) = 0;
-  virtual Operand *SelectCclrsb(IntrinsicopNode &intrinopNode) = 0;
-  virtual Operand *SelectCisaligned(IntrinsicopNode &intrinopNode) = 0;
-  virtual Operand *SelectCalignup(IntrinsicopNode &intrinopNode) = 0;
-  virtual Operand *SelectCaligndown(IntrinsicopNode &intrinopNode) = 0;
-  virtual Operand *SelectCSyncAddFetch(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
-  virtual Operand *SelectCSyncFetchAdd(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
-  virtual Operand *SelectCSyncSubFetch(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
-  virtual Operand *SelectCSyncFetchSub(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
-  virtual Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
-  virtual Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
-  virtual Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
-  virtual Operand *SelectCSyncLockRelease(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
-  virtual Operand *SelectCReturnAddress(IntrinsicopNode &intrinopNode) = 0;
+  virtual Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrinsicopNode, std::string name) = 0;
+  virtual Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinsicopNode, PrimType retType, std::string &name) = 0;
+  virtual Operand *SelectCclz(IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCctz(IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCpopcount(IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCparity(IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCclrsb(IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCisaligned(IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCalignup(IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCaligndown(IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCSyncFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) = 0;
+  virtual Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinsicopNode, PrimType pty) = 0;
+  virtual Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinsicopNode, PrimType pty) = 0;
+  virtual Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinsicopNode, PrimType pty) = 0;
+  virtual Operand *SelectCSyncLockRelease(IntrinsicopNode &intrinsicopNode, PrimType pty) = 0;
+  virtual Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCAtomicExchangeN(IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCReturnAddress(IntrinsicopNode &intrinsicopNode) = 0;
   virtual void SelectMembar(StmtNode &membar) = 0;
   virtual void SelectComment(CommentNode &comment) = 0;
   virtual void HandleCatch() = 0;
@@ -224,6 +224,7 @@ class CGFunc {
   virtual Operand &SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) = 0;
   virtual Operand *SelectIread(const BaseNode &parent, IreadNode &expr,
                                int extraOffset = 0, PrimType finalBitFieldDestType = kPtyInvalid) = 0;
+  virtual Operand *SelectIreadoff(const BaseNode &parent, IreadoffNode &ireadoff) = 0;
   virtual Operand *SelectIntConst(MIRIntConst &intConst) = 0;
   virtual Operand *SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &parent) = 0;
   virtual Operand *SelectDoubleConst(MIRDoubleConst &doubleConst, const BaseNode &parent) = 0;
