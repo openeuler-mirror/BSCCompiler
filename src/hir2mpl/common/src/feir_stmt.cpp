@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -3813,7 +3813,7 @@ BaseNode *FEIRExprAtomic::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
     {kAtomicOpStoreN, INTRN_C___atomic_store_n},
     {kAtomicOpStore, INTRN_C___atomic_store},
     {kAtomicOpExchangeN, INTRN_C___atomic_exchange_n},
-    {kAtomicOpExchange, INTRN_C___atomic_compare_exchange},
+    {kAtomicOpExchange, INTRN_C___atomic_exchange},
     {kAtomicOpAddFetch, INTRN_C___atomic_add_fetch},
     {kAtomicOpSubFetch, INTRN_C___atomic_sub_fetch},
     {kAtomicOpAndFetch, INTRN_C___atomic_and_fetch},
