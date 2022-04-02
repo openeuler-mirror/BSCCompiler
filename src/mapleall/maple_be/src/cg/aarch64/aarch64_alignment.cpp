@@ -16,6 +16,7 @@
 #include "insn.h"
 #include "loop.h"
 #include "aarch64_cg.h"
+#include "cg_option.h"
 #include <unordered_map>
 
 namespace maplebe {
@@ -69,7 +70,13 @@ bool AArch64AlignAnalysis::IsInSizeRange(BB &bb) {
     }
     curBB = curBB->GetNext();
   }
-  if (size <= kAlignMinBBSize || size >= kAlignMaxBBSize) {
+  AArch64AlignInfo targetInfo;
+  if (CGOptions::GetAlignMinBBSize() == 0 || CGOptions::GetAlignMaxBBSize() == 0) {
+    return false;
+  }
+  targetInfo.alignMinBBSize = CGOptions::GetAlignMinBBSize();
+  targetInfo.alignMaxBBSize = CGOptions::GetAlignMaxBBSize();
+  if (size <= targetInfo.alignMinBBSize || size >= targetInfo.alignMaxBBSize) {
     return false;
   }
   return true;
@@ -93,7 +100,11 @@ void AArch64AlignAnalysis::ComputeLoopAlign() {
       continue;
     }
     bb->SetNeedAlign(true);
-    AlignInfo targetInfo;
+    if (CGOptions::GetLoopAlignPow() == 0) {
+      return;
+    }
+    AArch64AlignInfo targetInfo;
+    targetInfo.loopAlign = CGOptions::GetLoopAlignPow();
     if (alignInfos.find(bb) == alignInfos.end()) {
       alignInfos[bb] = targetInfo.loopAlign;
     } else {
@@ -113,7 +124,11 @@ void AArch64AlignAnalysis::ComputeJumpAlign() {
       continue;
     }
     bb->SetNeedAlign(true);
-    AlignInfo targetInfo;
+    if (CGOptions::GetJumpAlignPow() == 0) {
+      return;
+    }
+    AArch64AlignInfo targetInfo;
+    targetInfo.jumpAlign = CGOptions::GetJumpAlignPow();
     if (alignInfos.find(bb) == alignInfos.end()) {
       alignInfos[bb] = targetInfo.jumpAlign;
     } else {

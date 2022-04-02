@@ -24,9 +24,9 @@
 namespace maplebe {
 class AlignAnalysis {
  public:
-  AlignAnalysis(CGFunc &func, MemPool &memPool)
+  AlignAnalysis(CGFunc &func, MemPool &memP)
       : cgFunc(&func),
-        alignAllocator(&memPool),
+        alignAllocator(&memP),
         loopHeaderBBs(alignAllocator.Adapter()),
         jumpTargetBBs(alignAllocator.Adapter()),
         alignInfos(alignAllocator.Adapter()),

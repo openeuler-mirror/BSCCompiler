@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -151,6 +151,79 @@ MOperator A64ConstProp::GetRegImmMOP(MOperator regregMop, bool withLeftShift) {
   return MOP_undef;
 }
 
+MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, Insn &arithInsn) {
+  MOperator arithMop = arithInsn.GetMachineOpcode();
+  MOperator newMop = MOP_undef;
+  switch(arithMop) {
+    case MOP_waddrrr:
+    case MOP_xaddrrr: {
+      newVal = constVal + constVal;
+      newMop = (arithMop == MOP_waddrrr) ? MOP_xmovri32 : MOP_xmovri64;
+      break;
+    }
+    case MOP_waddrrrs:
+    case MOP_xaddrrrs: {
+      auto &shiftOpnd = static_cast<BitShiftOperand&>(arithInsn.GetOperand(kInsnFourthOpnd));
+      uint32 amount = shiftOpnd.GetShiftAmount();
+      BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
+      switch(sOp) {
+        case BitShiftOperand::kLSL: {
+          newVal = constVal + ((unsigned)constVal << amount);
+          break;
+        }
+        case BitShiftOperand::kLSR: {
+          newVal = constVal + ((unsigned)constVal >> amount);
+          break;
+        }
+        case BitShiftOperand::kASR: {
+          newVal = constVal + (constVal >> amount);
+          break;
+        }
+        default:
+          CHECK_FATAL(false, "NYI");
+          break;
+      }
+      newMop = (arithMop == MOP_waddrrrs) ? MOP_xmovri32 : MOP_xmovri64;
+      break;
+    }
+    case MOP_wsubrrr:
+    case MOP_xsubrrr: {
+      newVal = 0;
+      newMop = (arithMop == MOP_wsubrrr) ? MOP_xmovri32 : MOP_xmovri64;
+      break;
+    }
+    case MOP_wsubrrrs:
+    case MOP_xsubrrrs: {
+      auto &shiftOpnd = static_cast<BitShiftOperand&>(arithInsn.GetOperand(kInsnFourthOpnd));
+      uint32 amount = shiftOpnd.GetShiftAmount();
+      BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
+      switch(sOp) {
+        case BitShiftOperand::kLSL: {
+          newVal = constVal - ((unsigned)constVal << amount);
+          break;
+        }
+        case BitShiftOperand::kLSR: {
+          newVal = constVal - ((unsigned)constVal >> amount);
+          break;
+        }
+        case BitShiftOperand::kASR: {
+          newVal = constVal - (constVal >> amount);
+          break;
+        }
+        default:
+          CHECK_FATAL(false, "NYI");
+          break;
+      }
+      newMop = (arithMop == MOP_wsubrrrs) ? MOP_xmovri32 : MOP_xmovri64;
+      break;
+    }
+    default:
+      ASSERT(false, "this case is not supported currently");
+      break;
+  }
+  return newMop;
+}
+
 void A64ConstProp::ReplaceInsnAndUpdateSSA(Insn &oriInsn, Insn &newInsn) {
   ssaInfo->ReplaceInsn(oriInsn, newInsn);
   oriInsn.GetBB()->ReplaceInsn(oriInsn, newInsn);
@@ -222,8 +295,22 @@ bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, AArch64ImmOpera
       return true;
     }
   } else if (useDUInfo.GetOperands().size() == 2) {
-    /* no case in SPEC 2017 */
-    ASSERT(false, "should be optimized by other phase");
+    /* only support add & sub now */
+    int64 newValue = 0;
+    MOperator newMop = GetFoldMopAndVal(newValue, constOpnd.GetValue(), *useInsn);
+    bool isSigned = (newValue < 0);
+    auto *tempImm = static_cast<ImmOperand*>(constOpnd.Clone(*constPropMp));
+    tempImm->SetValue(newValue);
+    tempImm->SetSigned(isSigned);
+    if (tempImm->IsSingleInstructionMovable()) {
+      auto *newImmOpnd = static_cast<ImmOperand*>(tempImm->Clone(*cgFunc->GetMemoryPool()));
+      auto &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+          newMop, useInsn->GetOperand(kInsnFirstOpnd), *newImmOpnd);
+      ReplaceInsnAndUpdateSSA(*useInsn, newInsn);
+      return true;
+    } else {
+      CHECK_FATAL(false, "invalid immediate");
+    }
   } else {
     ASSERT(false, "invalid instruction in ssa form");
   }
@@ -300,7 +387,6 @@ bool A64ConstProp::ConstProp(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd
     case MOP_waddrri12:
     case MOP_xaddrri12: {
       return ArithmeticConstFold(useDUInfo, constOpnd, kAArch64Add);
-
     }
     case MOP_xsubrri12:
     case MOP_wsubrri12: {
@@ -1530,6 +1616,9 @@ int64 FpSpConstProp::ArithmeticFold(int64 valInUse, ArithmeticType useAT) const 
 
 void FpSpConstProp::PropInMem(DUInsnInfo &useDUInfo, Insn &useInsn) {
   MOperator useMop = useInsn.GetMachineOpcode();
+  if (useInsn.IsAtomic()) {
+    return;
+  }
   if (useInsn.IsStore() || useInsn.IsLoad()) {
     if (useDUInfo.GetOperands().size() == 1) {
       auto useOpndIt = useDUInfo.GetOperands().begin();
@@ -1555,7 +1644,14 @@ void FpSpConstProp::PropInMem(DUInsnInfo &useDUInfo, Insn &useInsn) {
         }
       }
     } else {
-      CHECK_FATAL(false, "NYI");
+      /*
+       * case : store stack location on stack
+       * add x1, sp, #8
+       *  ...
+       * store x1 [x1, #16]
+       * not prop , not benefit to live range yet
+       */
+      return;
     }
   }
 }

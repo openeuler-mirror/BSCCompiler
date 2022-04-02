@@ -54,6 +54,12 @@ uint64 CGOptions::lsraBBOptSize = 150000;
 uint64 CGOptions::lsraInsnOptSize = 200000;
 uint64 CGOptions::overlapNum = 28;
 uint8 CGOptions::rematLevel = 2;
+bool CGOptions::optForSize = false;
+uint32 CGOptions::alignMinBBSize = 16;
+uint32 CGOptions::alignMaxBBSize = 96;
+uint32 CGOptions::loopAlignPow = 4;
+uint32 CGOptions::jumpAlignPow = 5;
+uint32 CGOptions::funcAlignPow = 5;
 #if TARGAARCH64 || TARGRISCV64
 bool CGOptions::useBarriersForVolatile = false;
 #else
@@ -110,6 +116,7 @@ bool CGOptions::replaceASM = false;
 bool CGOptions::generalRegOnly = false;
 bool CGOptions::fastMath = false;
 bool CGOptions::doAlignAnalysis = false;
+bool CGOptions::doCondBrAlign = false;
 bool CGOptions::cgBigEndian = false;
 bool CGOptions::arm64ilp32 = false;
 bool CGOptions::noCommon = false;
@@ -173,6 +180,7 @@ enum OptionIndex : uint64 {
   kCGO0,
   kCGO1,
   kCGO2,
+  kCGOs,  // optimize for size
   kProepilogue,
   kYieldPoing,
   kLocalRc,
@@ -208,12 +216,18 @@ enum OptionIndex : uint64 {
   kFastMath,
   kTailCall,
   kAlignAnalysis,
+  kCondBrAlign,
   kRegSaves,
   kSsaPreSave,
   kSsuPreRestore,
   kArm64ilp32,
   kCGSSA,
   kCommon,
+  kAlignMinBBSize,
+  kAlignMaxBBSize,
+  kLoopAlignPow,
+  kJumpAlignPow,
+  kFuncAlignPow,
 };
 
 const Descriptor kUsage[] = {
@@ -774,6 +788,15 @@ const Descriptor kUsage[] = {
     "  -O2                          \tDo some optimization.\n",
     "mplcg",
     {} },
+  { kCGOs,
+      0,
+      "Os",
+      "",
+      kBuildTypeProduct,
+      kArgCheckPolicyOptional,
+      "  -Os                          \tOptimize for size, based on O2.\n",
+      "mplcg",
+      {} },
   { kLSRABB,
     0,
     "",
@@ -1147,6 +1170,16 @@ const Descriptor kUsage[] = {
     "  --no-align-analysis\n",
     "mplcg",
     {} },
+  { kCondBrAlign,
+    kEnable,
+    "",
+    "condbr-align",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --condbr-align                   \tPerform condbr align\n"
+    "  --no-condbr-align\n",
+    "mplcg",
+    {} },
   { kCGSSA,
     kEnable,
     "",
@@ -1175,6 +1208,51 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyBool,
     " --common           \t \n"
     " --no-common\n",
+    "mplcg",
+    {} },
+  { kAlignMinBBSize,
+    0,
+    "",
+    "align-min-bb-size",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    " --align-min-bb-size=NUM           \tO2 Minimum bb size for alignment   unit:byte\n",
+    "mplcg",
+    {} },
+  { kAlignMaxBBSize,
+    0,
+    "",
+    "align-max-bb-size",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    " --align-max-bb-size=NUM           \tO2 Maximum bb size for alignment   unit:byte\n",
+    "mplcg",
+    {} },
+  { kLoopAlignPow,
+    0,
+    "",
+    "loop-align-pow",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    " --loop-align-pow=NUM           \tO2 loop bb align pow (NUM == 0, no loop-align)\n",
+    "mplcg",
+    {} },
+  { kJumpAlignPow,
+    0,
+    "",
+    "jump-align-pow",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    " --jump-align-pow=NUM           \tO2 jump bb align pow (NUM == 0, no jump-align)\n",
+    "mplcg",
+    {} },
+  { kFuncAlignPow,
+    0,
+    "",
+    "func-align-pow",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    " --func-align-pow=NUM           \tO2 func bb align pow (NUM == 0, no func-align)\n",
     "mplcg",
     {} },
 
@@ -1210,6 +1288,10 @@ void CGOptions::DecideMplcgRealLevel(const std::deque<mapleOption::Option> &inpu
         realLevel = CGOptions::kLevel1;
         break;
       case kCGO2:
+        realLevel = CGOptions::kLevel2;
+        break;
+      case kCGOs:
+        optForSize = true;
         realLevel = CGOptions::kLevel2;
         break;
       default:
@@ -1521,6 +1603,7 @@ bool CGOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
         // Already handled above in DecideMplcgRealLevel
         break;
       case kCGO2:
+      case kCGOs:
         // Already handled above in DecideMplcgRealLevel
         break;
       case kCGDumpPhases:
@@ -1574,6 +1657,9 @@ bool CGOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
       case kAlignAnalysis:
         (opt.Type() == kEnable) ? EnableAlignAnalysis() : DisableAlignAnalysis();
         break;
+      case kCondBrAlign:
+        (opt.Type() == kEnable) ? EnableCondBrAlign() : DisableCondBrAlign();
+        break;
       case kBigEndian:
         (opt.Type() == kEnable) ? EnableBigEndianInCG() : DisableBigEndianInCG();
         break;
@@ -1585,6 +1671,21 @@ bool CGOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
         break;
       case kCommon:
         (opt.Type() == kEnable) ? EnableCommon() : DisableCommon();
+        break;
+      case kAlignMinBBSize:
+        SetAlignMinBBSize(std::stoul(opt.Args(), nullptr));
+        break;
+      case kAlignMaxBBSize:
+        SetAlignMaxBBSize(std::stoul(opt.Args(), nullptr));
+        break;
+      case kLoopAlignPow:
+        SetLoopAlignPow(std::stoul(opt.Args(), nullptr));
+        break;
+      case kJumpAlignPow:
+        SetJumpAlignPow(std::stoul(opt.Args(), nullptr));
+        break;
+      case kFuncAlignPow:
+        SetFuncAlignPow(std::stoul(opt.Args(), nullptr));
         break;
       default:
         WARN(kLncWarn, "input invalid key for mplcg " + opt.OptionKey());
@@ -1685,6 +1786,7 @@ void CGOptions::EnableO0() {
   useSsuPreRestore = false;
   doWriteRefFieldOpt = false;
   doAlignAnalysis = false;
+  doCondBrAlign = false;
 #if ILP32
   ClearOption(kUseStackGuard);
 #else
@@ -1718,6 +1820,7 @@ void CGOptions::EnableO2() {
   doPreSchedule = true;
   doSchedule = true;
   doAlignAnalysis = true;
+  doCondBrAlign = true;
   SetOption(kConstFold);
   ClearOption(kUseStackGuard);
 #if TARGARM32

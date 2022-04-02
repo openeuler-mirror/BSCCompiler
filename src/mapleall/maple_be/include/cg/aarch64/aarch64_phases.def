@@ -27,7 +27,7 @@
  ADDTARGETPHASE("cgphielimination", CGOptions::DoCGSSA());
  ADDTARGETPHASE("cgregcoalesce", CGOptions::DoCGSSA());
  /* Normal OPT PHASES */
- ADDTARGETPHASE("cgprepeephole", true);
+ ADDTARGETPHASE("cgprepeephole", CGOptions::DoPrePeephole());
  ADDTARGETPHASE("ebo", CGOptions::DoEBO());
  ADDTARGETPHASE("prepeephole", CGOptions::DoPrePeephole())
  ADDTARGETPHASE("ico", CGOptions::DoICO())
@@ -54,11 +54,11 @@
  ADDTARGETPHASE("peephole0", CGOptions::DoPeephole())
  ADDTARGETPHASE("postebo", CGOptions::DoEBO());
  ADDTARGETPHASE("postcfgo", CGOptions::DoCFGO());
- ADDTARGETPHASE("cgpostpeephole", true)
+ ADDTARGETPHASE("cgpostpeephole", CGOptions::DoPeephole())
  ADDTARGETPHASE("peephole", CGOptions::DoPeephole())
  ADDTARGETPHASE("gencfi", !GetMIRModule()->IsCModule());
  ADDTARGETPHASE("yieldpoint", GetMIRModule()->IsJavaModule() && CGOptions::IsInsertYieldPoint());
  ADDTARGETPHASE("scheduling", CGOptions::DoSchedule());
- ADDTARGETPHASE("alignanalysis", GetMIRModule()->IsCModule() && CGOptions::DoAlignAnalysis());
+ ADDTARGETPHASE("alignanalysis", GetMIRModule()->IsCModule() && CGOptions::DoAlignAnalysis() && !CGOptions::OptimizeForSize());
  ADDTARGETPHASE("fixshortbranch", true);
  ADDTARGETPHASE("cgemit", true);

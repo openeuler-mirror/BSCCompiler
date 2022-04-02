@@ -642,6 +642,10 @@ class AArch64CGFunc : public CGFunc {
     return proEpilogSavedRegs;
   }
 
+  uint32 GetDefaultAlignPow() {
+    return alignPow;
+  }
+
  private:
   enum RelationOperator : uint8 {
     kAND,
@@ -707,6 +711,7 @@ class AArch64CGFunc : public CGFunc {
   bool usedStpSubPairToAllocateCallFrame = false;
   int32 splitStpldpBaseOffset = 0;
   regno_t methodHandleVreg = -1;
+  uint32 alignPow = 5; /* function align pow defaults to 5   i.e. 2^5*/
 
   void SelectLoadAcquire(Operand &dest, PrimType dtype, Operand &src, PrimType stype,
                          AArch64isa::MemoryOrdering memOrd, bool isDirect);

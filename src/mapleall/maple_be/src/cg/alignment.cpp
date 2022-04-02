@@ -13,10 +13,10 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "alignment.h"
-#if TARGAARCH64
-#include "aarch64_alignment.h"
-#endif
+#include "optimize_common.h"
 #include "cgfunc.h"
+#include "cg.h"
+#include "cg_option.h"
 
 namespace maplebe {
 #define ALIGN_ANALYZE_DUMP_NEWPW CG_DEBUG_FUNC(func)
@@ -26,7 +26,9 @@ void AlignAnalysis::AnalysisAlignment() {
   FindJumpTarget();
   ComputeLoopAlign();
   ComputeJumpAlign();
-  ComputeCondBranchAlign();
+  if (CGOptions::DoCondBrAlign()) {
+    ComputeCondBranchAlign();
+  }
 }
 
 void AlignAnalysis::Dump() {
@@ -77,7 +79,7 @@ void AlignAnalysis::Dump() {
   }
   LogInfo::MapleLogger() << "\n------ alignInfos: " << alignInfos.size() << " total ------\n";
   MapleUnorderedMap<BB*, uint32>::iterator iter;
-  for (iter = alignInfos.begin(); iter != alignInfos.end(); iter++) {
+  for (iter = alignInfos.begin(); iter != alignInfos.end(); ++iter) {
     BB *bb = iter->first;
     LogInfo::MapleLogger() << " === BB_" << bb->GetId() << " (" << std::hex << bb << ")"
                            << std::dec << " <" << bb->GetKindName();
@@ -93,12 +95,8 @@ bool CgAlignAnalysis::PhaseRun(maplebe::CGFunc &func) {
     DotGenerator::GenerateDot("alignanalysis", func, func.GetMirModule(), true, func.GetName());
   }
   MemPool *alignMemPool = GetPhaseMemPool();
-  AlignAnalysis *alignAnalysis = nullptr;
-#if TARGAARCH64 || TARGRISCV64
-  alignAnalysis = GetPhaseAllocator()->New<AArch64AlignAnalysis>(func, *alignMemPool);
-#elif
-  alignAnalysis = GetPhaseAllocator()->New<AlignAnalysis>(func, *alignMemPool)
-#endif
+  AlignAnalysis *alignAnalysis = func.GetCG()->CreateAlignAnalysis(*alignMemPool, func);
+
   CHECK_FATAL(alignAnalysis != nullptr, "AlignAnalysis instance create failure");
   alignAnalysis->AnalysisAlignment();
   if (ALIGN_ANALYZE_DUMP_NEWPW) {

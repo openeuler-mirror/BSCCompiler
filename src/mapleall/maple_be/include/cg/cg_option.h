@@ -276,6 +276,7 @@ class CGOptions : public MapleDriverOptionBase {
   static bool FuncFilter(const std::string &name);
   void SplitPhases(const std::string &str, std::unordered_set<std::string> &set);
   void SetRange(const std::string &str, const std::string&, Range&);
+  void SetTargetMachine(const std::string &str);
 
   int32 GetOptimizeLevel() const {
     return optimizeLevel;
@@ -546,6 +547,10 @@ class CGOptions : public MapleDriverOptionBase {
     return rematLevel;
   }
 
+  static bool OptimizeForSize() {
+    return optForSize;
+  }
+
   static void SetRematLevel(uint8 level) {
     rematLevel = level;
   }
@@ -728,6 +733,18 @@ class CGOptions : public MapleDriverOptionBase {
     return doAlignAnalysis;
   }
 
+  static void EnableCondBrAlign() {
+    doCondBrAlign = true;
+  }
+
+  static void DisableCondBrAlign() {
+    doCondBrAlign = false;
+  }
+
+  static bool DoCondBrAlign() {
+    return doCondBrAlign;
+  }
+
   static void EnableBigEndianInCG() {
     cgBigEndian = true;
   }
@@ -751,6 +768,10 @@ class CGOptions : public MapleDriverOptionBase {
   static bool IsArm64ilp32() {
     return arm64ilp32;
   }
+
+  static bool IsTargetX86_64() {
+    return targetArch == "x86_64";
+  };
 
   static void EnableVregRename() {
     doVregRename = true;
@@ -1190,6 +1211,58 @@ class CGOptions : public MapleDriverOptionBase {
     return fastMath;
   }
 
+  static void EnableCommon() {
+    noCommon = false;
+  }
+
+  static void DisableCommon() {
+    noCommon = true;
+  }
+
+  static bool IsNoCommon() {
+    return noCommon;
+  }
+
+  static void SetAlignMinBBSize(uint32 minBBSize) {
+    alignMinBBSize = minBBSize;
+  }
+
+  static uint32 GetAlignMinBBSize() {
+    return alignMinBBSize;
+  }
+
+  static void SetAlignMaxBBSize(uint32 maxBBSize) {
+    alignMaxBBSize = maxBBSize;
+  }
+
+  static uint32 GetAlignMaxBBSize() {
+    return alignMaxBBSize;
+  }
+
+  static void SetLoopAlignPow(uint32 loopPow) {
+    loopAlignPow = loopPow;
+  }
+
+  static uint32 GetLoopAlignPow() {
+    return loopAlignPow;
+  }
+
+  static void SetJumpAlignPow(uint32 jumpPow) {
+    jumpAlignPow = jumpPow;
+  }
+
+  static uint32 GetJumpAlignPow() {
+    return jumpAlignPow;
+  }
+
+  static void SetFuncAlignPow(uint32 funcPow) {
+    funcAlignPow = funcPow;
+  }
+
+  static uint32 GetFuncAlignPow() {
+    return funcAlignPow;
+  }
+
  private:
   std::vector<std::string> phaseSequence;
 
@@ -1210,6 +1283,7 @@ class CGOptions : public MapleDriverOptionBase {
   std::vector<std::string> ehExclusiveFunctionName;
 
   static bool quiet;
+  static std::string targetArch;
   static std::unordered_set<std::string> dumpPhases;
   static std::unordered_set<std::string> skipPhases;
   static std::unordered_map<std::string, std::vector<std::string>> cyclePatternMap;
@@ -1217,6 +1291,7 @@ class CGOptions : public MapleDriverOptionBase {
   static std::string skipAfter;
   static std::string dumpFunc;
   static std::string duplicateAsmFile;
+  static bool optForSize;
   static bool useBarriersForVolatile;
   static bool timePhases;
   static bool cgBigEndian;
@@ -1234,6 +1309,7 @@ class CGOptions : public MapleDriverOptionBase {
   static bool doRetMerge;
   static bool doSchedule;
   static bool doAlignAnalysis;
+  static bool doCondBrAlign;
   static bool doWriteRefFieldOpt;
   static bool doRegSavesOpt;
   static bool useSsaPreSave;
@@ -1289,6 +1365,12 @@ class CGOptions : public MapleDriverOptionBase {
   static bool generalRegOnly;
   static std::string literalProfile;
   static bool fastMath;
+  static bool noCommon;
+  static uint32 alignMinBBSize;
+  static uint32 alignMaxBBSize;
+  static uint32 loopAlignPow;
+  static uint32 jumpAlignPow;
+  static uint32 funcAlignPow;
 };
 }  /* namespace maplebe */
 

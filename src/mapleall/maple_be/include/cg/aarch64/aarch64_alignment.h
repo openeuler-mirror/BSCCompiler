@@ -20,19 +20,18 @@
 #include "aarch64_cgfunc.h"
 
 namespace maplebe {
-namespace {
-  /* if bb size in (16byte, 96byte) , the bb need align */
-  constexpr uint32 kAlignMinBBSize = 16;
-  constexpr uint32 kAlignMaxBBSize = 96;
-  constexpr uint32 kAlignRegionPower = 4;
-  constexpr uint32 kAlignInsnLength = 4;
-  constexpr uint32 kAlignMaxNopNum = 1;
-}
+constexpr uint32 kAlignRegionPower = 4;
+constexpr uint32 kAlignInsnLength = 4;
+constexpr uint32 kAlignMaxNopNum = 1;
 
-struct AlignInfo {
+struct AArch64AlignInfo {
+  /* if bb size in (16byte, 96byte) , the bb need align */
+  uint32 alignMinBBSize = 16;
+  uint32 alignMaxBBSize = 96;
   /* default loop & jump align power, related to the target machine.  eg. 2^5 */
   uint32 loopAlign = 4;
   uint32 jumpAlign = 5;
+  /* record func_align_power in CGFunc */
 };
 
 class AArch64AlignAnalysis : public AlignAnalysis {
@@ -51,16 +50,16 @@ class AArch64AlignAnalysis : public AlignAnalysis {
   bool MarkShortBranchSplit();
   void AddNopAfterMark();
   void UpdateInsnId();
-  uint32 GetAlignRange(uint32 alignedVal, uint32 addr);
+  uint32 GetAlignRange(uint32 alignedVal, uint32 addr) const;
 
   /* filter condition */
   bool IsIncludeCall(BB &bb) override;
   bool IsInSizeRange(BB &bb) override;
   bool HasFallthruEdge(BB &bb) override;
-  bool IsInSameAlignedRegion(uint32 addr1, uint32 addr2, uint32 alignedRegionSize);
+  bool IsInSameAlignedRegion(uint32 addr1, uint32 addr2, uint32 alignedRegionSize) const;
 
  private:
-  AArch64CGFunc *aarFunc;
+  AArch64CGFunc *aarFunc = nullptr;
 };
 } /* namespace maplebe */
 

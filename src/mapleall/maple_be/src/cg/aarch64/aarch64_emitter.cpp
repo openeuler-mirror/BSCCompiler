@@ -419,10 +419,14 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     (void)emitter.Emit("\t.section  " + sectionName).Emit(",\"ax\",@progbits\n");
   } else if (CGOptions::IsFunctionSections()) {
     (void)emitter.Emit("\t.section  .text.").Emit(cgFunc.GetName()).Emit(",\"ax\",@progbits\n");
+  } else if (cgFunc.GetFunction().GetAttr(FUNCATTR_constructor_priority)) {
+    (void)emitter.Emit("\t.section\t.text.startup").Emit(",\"ax\",@progbits\n");
   } else {
     (void)emitter.Emit("\t.text\n");
   }
-  (void)emitter.Emit("\t.align 5\n");
+  if (CGOptions::GetFuncAlignPow() != 0 && !CGOptions::OptimizeForSize()) {
+    (void)emitter.Emit("\t.align ").Emit(CGOptions::GetFuncAlignPow()).Emit("\n");
+  }
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(cgFunc.GetFunction().GetStIdx().Idx());
   const std::string &funcName = std::string(cgFunc.GetShortFuncName().c_str());
 
@@ -520,9 +524,16 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   }
   (void)emitter.Emit("\t.size\t" + funcStName + ", .-").Emit(funcStName + "\n");
 
+  auto constructorAttr = funcSt->GetFunction()->GetAttrs().GetConstructorPriority();
+  if (constructorAttr != -1) {
+    (void)emitter.Emit("\t.section\t.init_array." + std::to_string(constructorAttr) + ",\"aw\"\n");
+    (void)emitter.Emit("\t.align 3\n");
+    (void)emitter.Emit("\t.xword\t" + funcStName + "\n");
+  }
+
   EHFunc *ehFunc = cgFunc.GetEHFunc();
   /* emit LSDA */
-  if (ehFunc != nullptr) {
+  if (cgFunc.GetFunction().IsJava() && (ehFunc != nullptr)) {
     if (!cgFunc.GetHasProEpilogue()) {
       emitter.Emit("\t.word 0x55555555\n");
       emitter.IncreaseJavaInsnCount();
