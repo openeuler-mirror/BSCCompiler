@@ -71,6 +71,7 @@ class CgFuncPM : public FunctionPM {
   void EmitDebugInfo(const MIRModule &m) const;
   void EmitFastFuncs(const MIRModule &m) const;
   bool IsFramework(MIRModule &m) const;
+  void SweepUnusedStaticSymbol(MIRModule &m);
 
   CG *cg = nullptr;
   BECommon *beCommon = nullptr;

@@ -105,10 +105,148 @@ void CgFuncPM::PostOutPut(MIRModule &m) {
   EmitGlobalInfo(m);
 }
 
+void MarkUsedStaticSymbol(const StIdx &symbolIdx) {
+  MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(symbolIdx.Idx(), true);
+  if (symbol == nullptr) {
+    return;
+  }
+  symbol->ResetIsDeleted();
+  if (symbol->IsConst()) {
+    auto *konst = symbol->GetKonst();
+    switch (konst->GetKind()) {
+      case kConstAddrof: {
+        auto *addrofKonst = static_cast<MIRAddrofConst*>(konst);
+        MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(addrofKonst->GetSymbolIndex().Idx(), true);
+        if (sym != nullptr) {
+          MarkUsedStaticSymbol(sym->GetStIdx());
+        }
+        break;
+      }
+      case kConstAggConst: {
+        auto &constVec = static_cast<MIRAggConst*>(konst)->GetConstVec();
+        for (auto *cst : constVec) {
+          if (cst == nullptr) {
+            continue;
+          }
+          if (cst->GetKind() == kConstAddrof) {
+            auto *addrofKonst = static_cast<MIRAddrofConst*>(konst);
+            MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(addrofKonst->GetSymbolIndex().Idx(), true);
+            if (sym != nullptr) {
+              MarkUsedStaticSymbol(sym->GetStIdx());
+            }
+          }
+        }
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+  }
+  std::string syName = symbol->GetName();
+  /* when _PTR_C_STR_XXXX is used, mark _C_STR_XXXX as used too. */
+  if (StringUtils::StartsWith(syName, namemangler::kPtrPrefixStr)) {
+    GStrIdx gStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(syName.substr(strlen(namemangler::kPtrPrefixStr)));
+    MIRSymbol *anotherSymbol = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(gStrIdx);
+    anotherSymbol->ResetIsDeleted();
+  }
+}
+
+void RecursiveMarkUsedStaticSymbol(const BaseNode *baseNode) {
+  if (baseNode == nullptr) {
+    return;
+  }
+  Opcode op = baseNode->GetOpCode();
+  switch (op) {
+    case OP_block: {
+      const BlockNode *blk = static_cast<const BlockNode*>(baseNode);
+      for (auto &stmt : blk->GetStmtNodes()) {
+        RecursiveMarkUsedStaticSymbol(&stmt);
+      }
+      break;
+    }
+    case OP_dassign: {
+      const DassignNode *dassignNode = static_cast<const DassignNode*>(baseNode);
+      MarkUsedStaticSymbol(dassignNode->GetStIdx());
+      break;
+    }
+    case OP_addrof:
+    case OP_dread: {
+      const AddrofNode *dreadNode = static_cast<const AddrofNode*>(baseNode);
+      MarkUsedStaticSymbol(dreadNode->GetStIdx());
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+  for (size_t i = 0; i < baseNode->NumOpnds(); ++i) {
+    RecursiveMarkUsedStaticSymbol(baseNode->Opnd(i));
+  }
+}
+
+void CollectStaticSymbolInFunction(MIRFunction &func) {
+  RecursiveMarkUsedStaticSymbol(func.GetBody());
+}
+
+void CollectStaticSymbolInVar(MIRConst *mirConst) {
+  if (mirConst->GetKind() == kConstAddrof) {
+    auto *addrSymbol = static_cast<MIRAddrofConst*>(mirConst);
+    MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(addrSymbol->GetSymbolIndex().Idx(), true);
+    if (sym != nullptr) {
+      MarkUsedStaticSymbol(sym->GetStIdx());
+    }
+  } else if (mirConst->GetKind() == kConstAggConst) {
+    auto &constVec = static_cast<MIRAggConst*>(mirConst)->GetConstVec();
+    for (auto &cst : constVec) {
+      CollectStaticSymbolInVar(cst);
+    }
+  }
+}
+
+void CgFuncPM::SweepUnusedStaticSymbol(MIRModule &m) {
+  if (!m.IsCModule()) {
+    return;
+  }
+  size_t size = GlobalTables::GetGsymTable().GetSymbolTableSize();
+  for (size_t i = 0; i < size; ++i) {
+    MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(i);
+    if (mirSymbol != nullptr && (mirSymbol->GetSKind() == kStVar || mirSymbol->GetSKind() == kStConst) &&
+        (mirSymbol->GetStorageClass() == kScFstatic || mirSymbol->GetStorageClass() == kScPstatic)) {
+      mirSymbol->SetIsDeleted();
+    }
+  }
+
+  // Deal with function override, function in current module override functions from mplt.
+  // Don't need anymore as we rebuild candidate base on the latest CHA.
+  std::vector<MIRFunction*> &funcTable = GlobalTables::GetFunctionTable().GetFuncTable();
+  // don't optimize this loop to iterator or range-base loop
+  // because AddCallGraphNode(mirFunc) will change GlobalTables::GetFunctionTable().GetFuncTable()
+  for (size_t index = 0; index < funcTable.size(); ++index) {
+    MIRFunction *mirFunc = funcTable.at(index);
+    if (mirFunc == nullptr || mirFunc->GetBody() == nullptr) {
+      continue;
+    }
+    m.SetCurFunction(mirFunc);
+    CollectStaticSymbolInFunction(*mirFunc);
+  }
+
+  // collect addroffunc from global symbol
+  auto &symbolSet = m.GetSymbolSet();
+  for (auto sit = symbolSet.begin(); sit != symbolSet.end(); ++sit) {
+    MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx(sit->Idx());
+    if (s->IsConst()) {
+      MIRConst *mirConst = s->GetKonst();
+      CollectStaticSymbolInVar(mirConst);
+    }
+  }
+}
+
 /* =================== new phase manager ===================  */
 bool CgFuncPM::PhaseRun(MIRModule &m) {
   CreateCGAndBeCommon(m);
   bool changed = false;
+  SweepUnusedStaticSymbol(m);
   if (cgOptions->IsRunCG()) {
     GenerateOutPutFile(m);
 
@@ -132,13 +270,11 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
       if (userDefinedOptLevel == CGOptions::kLevel2 && m.HasPartO2List()) {
         if (m.IsInPartO2List(mirFunc->GetNameStrIdx())) {
           cgOptions->EnableO2();
-          ClearAllPhases();
-          cg->EnrollTargetPhases(this);
         } else {
           cgOptions->EnableO0();
-          ClearAllPhases();
-          cg->EnrollTargetPhases(this);
         }
+        ClearAllPhases();
+        cg->EnrollTargetPhases(this);
         cg->UpdateCGOptions(*cgOptions);
         Globals::GetInstance()->SetOptimLevel(cgOptions->GetOptimizeLevel());
       }
