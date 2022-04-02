@@ -1330,6 +1330,9 @@ ASTExpr *ASTParser::ProcessExprStringLiteral(MapleAllocator &allocator, const cl
     codeUnits.emplace_back(expr.getCodeUnit(i));
   }
   astStringLiteral->SetCodeUnits(codeUnits);
+  if (expr.isAscii()) {
+    astStringLiteral->SetStr(expr.getString().str());
+  }
   return astStringLiteral;
 }
 

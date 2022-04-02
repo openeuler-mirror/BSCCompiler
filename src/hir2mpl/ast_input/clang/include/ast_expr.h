@@ -776,6 +776,14 @@ class ASTStringLiteral : public ASTExpr {
     return codeUnits;
   }
 
+  void SetStr(const std::string &strIn) {
+    str = strIn;
+  }
+
+  const std::string &GetStr() const {
+    return str;
+  }
+
   void SetIsArrayToPointerDecay(bool argIsArrayToPointerDecay) {
     isArrayToPointerDecay = argIsArrayToPointerDecay;
   }
@@ -791,6 +799,7 @@ class ASTStringLiteral : public ASTExpr {
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   size_t length = 0;
   std::vector<uint32> codeUnits;
+  std::string str;  // Ascii string
   bool isArrayToPointerDecay = false;
 };
 

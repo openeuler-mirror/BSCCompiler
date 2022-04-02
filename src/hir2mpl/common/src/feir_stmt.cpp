@@ -2539,21 +2539,28 @@ BaseNode *FEIRExprIRead::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
 }
 
 // ---------- FEIRExprAddrofConstArray ----------
-FEIRExprAddrofConstArray::FEIRExprAddrofConstArray(const std::vector<uint32> &arrayIn, MIRType *typeIn)
+FEIRExprAddrofConstArray::FEIRExprAddrofConstArray(const std::vector<uint32> &arrayIn, MIRType *typeIn,
+                                                   const std::string &strIn)
     : FEIRExpr(FEIRNodeKind::kExprAddrof, FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
       arrayName(FEOptions::GetInstance().GetFuncInlineSize() != 0 ? FEUtils::GetSequentialName("const_array_") +
                 FEUtils::GetFileNameHashStr(FEManager::GetModule().GetFileName()) :
                 FEUtils::GetSequentialName("const_array_")),
-      elemType(typeIn) {
+      elemType(typeIn),
+      str(strIn) {
   std::copy(arrayIn.begin(), arrayIn.end(), std::back_inserter(array));
 }
 
 std::unique_ptr<FEIRExpr> FEIRExprAddrofConstArray::CloneImpl() const {
-  std::unique_ptr<FEIRExpr> expr = std::make_unique<FEIRExprAddrofConstArray>(arrayName, array, elemType);
+  std::unique_ptr<FEIRExpr> expr = std::make_unique<FEIRExprAddrofConstArray>(arrayName, array, elemType, str);
   return expr;
 }
 
 BaseNode *FEIRExprAddrofConstArray::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
+  if (!str.empty()) {
+    MIRModule &module = mirBuilder.GetMirModule();
+    UStrIdx StrIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(str);
+    return module.GetMemPool()->New<ConststrNode>(PTY_ptr, StrIdx);
+  }
   MIRType *arrayTypeWithSize = GlobalTables::GetTypeTable().GetOrCreateArrayType(
       *elemType,static_cast<uint32>(array.size()));
   MIRSymbol *arrayVar = mirBuilder.GetOrCreateGlobalDecl(arrayName, *arrayTypeWithSize);

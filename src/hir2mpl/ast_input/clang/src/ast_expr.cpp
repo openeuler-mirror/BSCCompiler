@@ -1451,7 +1451,7 @@ MIRConst *ASTStringLiteral::GenerateMIRConstImpl() const {
 UniqueFEIRExpr ASTStringLiteral::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   (void)stmts;
   MIRType *elemType = static_cast<MIRArrayType*>(mirType)->GetElemType();
-  UniqueFEIRExpr expr = std::make_unique<FEIRExprAddrofConstArray>(codeUnits, elemType);
+  UniqueFEIRExpr expr = std::make_unique<FEIRExprAddrofConstArray>(codeUnits, elemType, str);
   CHECK_NULL_FATAL(expr);
   return expr;
 }

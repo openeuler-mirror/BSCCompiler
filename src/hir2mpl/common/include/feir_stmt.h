@@ -657,12 +657,14 @@ class FEIRExprRegRead : public FEIRExpr {
 // ---------- FEIRExprAddrofConstArray ----------
 class FEIRExprAddrofConstArray : public FEIRExpr {
  public:
-  FEIRExprAddrofConstArray(const std::vector<uint32> &arrayIn, MIRType *typeIn);
-  FEIRExprAddrofConstArray(const std::string &arrayNameIn, const std::vector<uint32> &arrayIn, MIRType *typeIn)
+  FEIRExprAddrofConstArray(const std::vector<uint32> &arrayIn, MIRType *typeIn, const std::string &strIn);
+  FEIRExprAddrofConstArray(const std::string &arrayNameIn, const std::vector<uint32> &arrayIn, MIRType *typeIn,
+                           const std::string &strIn)
       : FEIRExpr(FEIRNodeKind::kExprAddrof,
                  FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
         arrayName(arrayNameIn),
-        elemType(typeIn) {
+        elemType(typeIn),
+        str(strIn) {
     std::copy(arrayIn.begin(), arrayIn.end(), std::back_inserter(array));
   }
 
@@ -700,6 +702,7 @@ class FEIRExprAddrofConstArray : public FEIRExpr {
   std::string arrayName;
   std::vector<uint32> array;
   MIRType *elemType = nullptr;
+  std::string str;
 };
 
 // ---------- FEIRExprAddrOfLabel ----------
