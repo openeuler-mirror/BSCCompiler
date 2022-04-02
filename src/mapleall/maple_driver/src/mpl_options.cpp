@@ -152,7 +152,12 @@ ErrorCode MplOptions::HandleGeneralOptions() {
         LogInfo::MapleLogger() << kMapleDriverVersion << "\n";
         return kErrorExitHelp;
       }
-
+      case kProfileGen: {
+        exeOptions[kBinNameMe].push_back(opt);
+        exeOptions[kBinNameMpl2mpl].push_back(opt);
+        //exeOptions[kBinNameMplcg].push_back(opt);
+        continue;
+      }
       case kDex2mplOpt:
         updatedOptToolName = &kBinNameDex2mpl;
         break;
@@ -198,7 +203,6 @@ ErrorCode MplOptions::HandleGeneralOptions() {
       case kSaveTemps:
         isSaveTmps = true;
         genMeMpl = true;
-        genMapleBC = true;
         genVtableImpl = true;
         StringUtils::Split(opt.Args(), saveFiles, ',');
         break;

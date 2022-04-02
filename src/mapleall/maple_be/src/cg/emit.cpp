@@ -1645,6 +1645,8 @@ void Emitter::EmitArrayConstant(MIRConst &mirConst) {
     } else if (elemConst->GetType().GetKind() == kTypeStruct || elemConst->GetType().GetKind() == kTypeClass ||
                elemConst->GetType().GetKind() == kTypeUnion) {
       EmitStructConstant(*elemConst);
+    } else if (elemConst->GetKind() == kConstAddrofFunc) {
+      EmitScalarConstant(*elemConst);
     } else {
       ASSERT(false, "should not run here");
     }
@@ -1697,6 +1699,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
   MIRType &mirType = mirConst.GetType();
   MIRAggConst &structCt = static_cast<MIRAggConst&>(mirConst);
   MIRStructType &structType = static_cast<MIRStructType&>(mirType);
+  auto structPack = static_cast<uint8>(structType.GetTypeAttrs().GetPack());
   /* all elements of struct. */
   uint8 num;
   if (structType.GetKind() == kTypeUnion) {
@@ -1764,6 +1767,8 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
     if (nextElemType != nullptr && kTypeBitField != nextElemType->GetKind()) {
       ASSERT(i < static_cast<uint32>(num - 1), "NYI");
       uint8 nextAlign = Globals::GetInstance()->GetBECommon()->GetTypeAlign(nextElemType->GetTypeIndex());
+      auto fieldAttr = structType.GetFields()[i + 1].second.second;
+      nextAlign = fieldAttr.IsPacked() ? 1 : std::min(nextAlign, structPack);
       ASSERT(nextAlign != 0, "expect non-zero");
       /* append size, append 0 when align need. */
       uint64 totalSize = sEmitInfo->GetTotalSize();
@@ -2177,12 +2182,13 @@ void Emitter::EmitGlobalVars(std::vector<std::pair<MIRSymbol*, bool>> &globalVar
   EmitBlockMarker("__MBlock_globalVars_cold_end", "", true, kStaticVarEndAdd);
 }
 
-void Emitter::EmitSymbolsWithPrefixSection(const MIRSymbol &symbol) {
-  const std::string &sectionName = GlobalTables::GetUStrTable().GetStringFromStrIdx(symbol.sectionAttr);
+void Emitter::EmitUninitializedSymbolsWithPrefixSection(const MIRSymbol &symbol, const std::string &sectionName) {
   EmitAsmLabel(symbol, kAsmType);
   Emit(asmInfo->GetSection());
-  Emit(sectionName).Emit(",\"aw\",");
-  if (sectionName == ".bss" || StringUtils::StartsWith(sectionName, ".bss.")) {
+  auto sectionConstrains = symbol.IsThreadLocal() ? ",\"awT\"," : ",\"aw\",";
+  Emit(sectionName).Emit(sectionConstrains);
+  if (sectionName == ".bss" || StringUtils::StartsWith(sectionName, ".bss.") ||
+      sectionName == ".tbss" || StringUtils::StartsWith(sectionName, ".tbss.")) {
     Emit("%nobits\n");
   } else {
     Emit("%progbits\n");
@@ -2376,7 +2382,14 @@ void Emitter::EmitGlobalVariable() {
         continue;
       }
       if (mirSymbol->sectionAttr != UStrIdx(0)) {
-        EmitSymbolsWithPrefixSection(*mirSymbol);
+        auto &sectionName = GlobalTables::GetUStrTable().GetStringFromStrIdx(mirSymbol->sectionAttr);
+        EmitUninitializedSymbolsWithPrefixSection(*mirSymbol, sectionName);
+        continue;
+      } else if (mirSymbol->IsThreadLocal()) {
+        EmitUninitializedSymbolsWithPrefixSection(*mirSymbol, ".tbss");
+        continue;
+      } else if (CGOptions::IsNoCommon()) {
+        EmitUninitializedSymbolsWithPrefixSection(*mirSymbol, ".bss");
         continue;
       }
       EmitAsmLabel(*mirSymbol, kAsmType);
@@ -2424,12 +2437,17 @@ void Emitter::EmitGlobalVariable() {
         secName.erase(0, 2);
         Emit("\t.section\t." + secName + ",\"a\",%progbits\n");
       } else {
-        if (mirSymbol->sectionAttr != UStrIdx(0)) {  /* inline assembly section */
-          const std::string &inlineAsmSecName = GlobalTables::GetUStrTable().GetStringFromStrIdx(
-              mirSymbol->sectionAttr);
-          (void)Emit("\t.section\t" + inlineAsmSecName + ",\"aw\", %progbits\n");
+        bool isThreadLocal = mirSymbol->IsThreadLocal();
+        if (cg->GetMIRModule()->IsJavaModule()) {
+          (void)Emit("\t.section\t." + std::string(kMapleGlobalVariable) + ",\"aw\", @progbits\n");
+        } else if (mirSymbol->sectionAttr != UStrIdx(0)) {
+          auto &sectionName = GlobalTables::GetUStrTable().GetStringFromStrIdx(mirSymbol->sectionAttr);
+          auto sectionConstrains = isThreadLocal ? ",\"awT\"," : ",\"aw\",";
+          (void)Emit("\t.section\t" + sectionName + sectionConstrains + "@progbits\n");
+        } else  if (isThreadLocal) {
+          (void)Emit("\t.section\t.tdata,\"awT\",@progbits\n");
         } else {
-          (void)Emit("\t.section\t." + std::string(kMapleGlobalVariable) + ",\"aw\", %progbits\n");
+          (void)Emit("\t.data\n");
         }
       }
       /* Emit size and align by type */

@@ -34,6 +34,7 @@ bool Options::regNativeFunc = false;
 bool Options::nativeWrapper = true;         // Enabled by default
 bool Options::inlineWithProfile = false;
 bool Options::useInline = true;             // Enabled by default
+bool Options::enableIPAClone = true;
 bool Options::useCrossModuleInline = true;  // Enabled by default
 std::string Options::noInlineFuncList = "";
 std::string Options::importFileList = "";
@@ -58,6 +59,9 @@ bool Options::emitVtableImpl = false;
 #if MIR_JAVA
 bool Options::skipVirtualMethod = false;
 #endif
+bool Options::profileGen = false;
+bool Options::profileUse = false;
+
 // Ready to be deleted.
 bool Options::noRC = false;
 bool Options::analyzeCtor = true;
@@ -66,6 +70,7 @@ bool Options::gcOnly = false;
 bool Options::bigEndian = false;
 bool Options::rcOpt1 = true;
 bool Options::nativeOpt = true;
+bool Options::optForSize = false;
 bool Options::O2 = false;
 bool Options::noDot = false;
 bool Options::genIRProfile = false;
@@ -108,6 +113,8 @@ bool Options::checkArrayStore = false;
 bool Options::noComment = false;
 bool Options::rmNoUseFunc = true; // default remove no-used static function
 bool Options::sideEffect = false;
+bool Options::dumpIPA = false;
+bool Options::wpaa = false;  // whole program alias analysis
 
 enum OptionIndex {
   kMpl2MplDumpPhase = kCommonOptionEnd + 1,
@@ -129,6 +136,7 @@ enum OptionIndex {
   kInlineWithProfile,
   kInlineWithoutProfile,
   kMpl2MplUseInline,
+  kMpl2MplEnableIPAClone,
   kMpl2MplNoInlineFuncList,
   kImportFileList,
   kMpl2MplUseCrossModuleInline,
@@ -151,6 +159,7 @@ enum OptionIndex {
   kMpl2MplNativeOpt,
   kMpl2MplOptL0,
   kMpl2MplOptL2,
+  kMpl2MplOptLs,  // optimize for size
   kMpl2MplNoDot,
   kGenIRProfile,
   kProfileTest,
@@ -181,7 +190,9 @@ enum OptionIndex {
   kInlineCache,
   kNoComment,
   kRmNoUseFunc,
-  kSideEffect
+  kSideEffect,
+  kDumpIPA,
+  kWPAA
 };
 
 const Descriptor kUsage[] = {
@@ -284,6 +295,16 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyBool,
     "  --inline                    \tEnable function inlining\n"
     "  --no-inline                 \tDisable function inlining\n",
+    "mpl2mpl",
+    {} },
+  { kMpl2MplEnableIPAClone,
+    kEnable,
+    "",
+    "ipa-clone",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --ipa-clone                 \tEnable ipa constant_prop and clone\n"
+    "  --no-ipa-clone              \tDisable ipa constant_prop and clone\n",
     "mpl2mpl",
     {} },
   { kMpl2MplNoInlineFuncList,
@@ -540,6 +561,15 @@ const Descriptor kUsage[] = {
     kBuildTypeProduct,
     kArgCheckPolicyOptional,
     "  -O2                         \tDo some optimization.\n",
+    "mpl2mpl",
+    {} },
+  { kMpl2MplOptLs,
+    0,
+    "Os",
+    "",
+    kBuildTypeProduct,
+    kArgCheckPolicyOptional,
+    "  -Os                         \tOptimize for size, based on O2.\n",
     "mpl2mpl",
     {} },
   { kCriticalnative,
@@ -858,6 +888,26 @@ const Descriptor kUsage[] = {
     "  --no-sideeffect          \n",
     "mpl2mpl",
     {} },
+  { kDumpIPA,
+    kEnable,
+    "",
+    "dump-ipa",
+    kBuildTypeProduct,
+    kArgCheckPolicyBool,
+    "  --dump-ipa      \tIPA: dump\n"
+    "  --no-dump-ipa          \n",
+    "mpl2mpl",
+    {} },
+  { kWPAA,
+    kEnable,
+    "",
+    "wpaa",
+    kBuildTypeProduct,
+    kArgCheckPolicyBool,
+    "  --wpaa      \tWhole Program Alias Analysis\n"
+    "  --no-wpaa          \n",
+    "mpl2mpl",
+    {} },
   { kUnknown,
     0,
     "",
@@ -886,6 +936,10 @@ void Options::DecideMpl2MplRealLevel(const std::deque<mapleOption::Option> &inpu
         realLevel = static_cast<int>(kLevelZero);
         break;
       case kMpl2MplOptL2:
+        realLevel = static_cast<int>(kLevelTwo);
+        break;
+      case kMpl2MplOptLs:
+        optForSize = true;
         realLevel = static_cast<int>(kLevelTwo);
         break;
       default:
@@ -951,6 +1005,9 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
         break;
       case kMpl2MplUseInline:
         useInline = (opt.Type() == kEnable);
+        break;
+      case kMpl2MplEnableIPAClone:
+        enableIPAClone = (opt.Type() == kEnable);
         break;
       case kMpl2MplNoInlineFuncList:
         noInlineFuncList = opt.Args();
@@ -1078,6 +1135,7 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
         nativeOpt = (opt.Type() == kEnable);
         break;
       case kMpl2MplOptL2:
+      case kMpl2MplOptLs:
         // Already handled above in DecideMpl2MplRealLevel
         break;
       case kCriticalnative:
@@ -1171,6 +1229,17 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
       case kProfilePath:
         profile = opt.Args();
         break;
+      case kProfileGen:
+        if (O2) {
+          LogInfo::MapleLogger(kLlErr) << "profileGen requires no optimization\n";
+          result = false;
+        } else {
+          profileGen = true;
+        }
+        break;
+      case kProfileUse:
+        profileUse = true;
+        break;
       case kAppPackageName:
         appPackageName = opt.Args();
         break;
@@ -1219,6 +1288,12 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
         break;
       case kSideEffect:
         sideEffect = (opt.Type() == kEnable);
+        break;
+      case kDumpIPA:
+        dumpIPA = (opt.Type() == kEnable);
+        break;
+      case kWPAA:
+        wpaa = (opt.Type() == kEnable);
         break;
       default:
         WARN(kLncWarn, "input invalid key for mpl2mpl " + opt.OptionKey());

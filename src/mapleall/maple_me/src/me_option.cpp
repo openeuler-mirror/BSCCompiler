@@ -37,6 +37,7 @@ bool MeOption::ddaa = true;
 uint8 MeOption::aliasAnalysisLevel = 3;
 bool MeOption::noDot = false;
 bool MeOption::stmtNum = false;
+bool MeOption::optForSize = false;
 uint8 MeOption::optLevel = 0;
 bool MeOption::ignoreIPA = true;
 bool MeOption::aggressiveABCO = false;
@@ -121,6 +122,7 @@ uint32 MeOption::sinkLimit = UINT32_MAX;
 uint32 MeOption::sinkPULimit = UINT32_MAX;
 bool MeOption::loopVec = true;
 bool MeOption::seqVec = true;
+bool MeOption::enableLFO = true;
 uint8 MeOption::rematLevel = 2;
 bool MeOption::layoutWithPredict = true;  // optimize output layout using branch prediction
 SafetyCheckMode MeOption::npeCheckMode = SafetyCheckMode::kNoCheck;
@@ -173,6 +175,7 @@ enum OptionIndex {
   kMeWarnLevel,
   kMeOptL1,
   kMeOptL2,
+  kMeOptLs, // optimize for size
   kMeOptL3,
   kRefUsedCheck,
   kMeRange,
@@ -256,6 +259,7 @@ enum OptionIndex {
   kSinkPULimit,
   kLoopVec,
   kSeqVec,
+  kEnableLFO,
   kRematLevel,
   kLayoutWithPredict,
   kvecLoops,
@@ -290,6 +294,15 @@ const Descriptor kUsage[] = {
     kBuildTypeProduct,
     kArgCheckPolicyOptional,
     "  -O2                         \tDo some optimization.\n",
+    "me",
+    {} },
+  { kMeOptLs,
+    0,
+    "Os",
+    "",
+    kBuildTypeProduct,
+    kArgCheckPolicyOptional,
+    "  -Os                         \tOptimize for size, based on O2.\n",
     "me",
     {} },
   { kMeOptL3,
@@ -1216,6 +1229,16 @@ const Descriptor kUsage[] = {
     "  --no-seqvec                \tDisable auto sequencial vectorization\n",
     "me",
     {} },
+  { kEnableLFO,
+    kEnable,
+    "",
+    "lfo",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --lfo                   \tEnable LFO framework\n"
+    "  --no-lfo                \tDisable LFO framework\n",
+    "me",
+    {} },
   { kLayoutWithPredict,
     kEnable,
     "",
@@ -1350,7 +1373,12 @@ void MeOption::DecideMeRealLevel(const std::deque<mapleOption::Option> &inputOpt
       case kMeOptL2:
         realLevel = static_cast<int>(kLevelTwo);
         break;
+      case kMeOptLs:
+        optForSize = true;
+        realLevel = static_cast<int>(kLevelTwo);
+        break;
       case kMeOptL3:
+        optForSize = false;
         realLevel = static_cast<int>(kLevelThree);
         break;
       default:
@@ -1391,12 +1419,10 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         SplitSkipPhases(opt.Args());
         break;
       case kMeOptL1:
-        // Already handled above in DecideMeRealLevel
-        break;
       case kMeOptL2:
-        // Already handled above in DecideMeRealLevel
-        break;
+      case kMeOptLs:
       case kMeOptL3:
+        // Already handled above in DecideMeRealLevel
         break;
       case kRefUsedCheck:
         SplitPhases(opt.Args(), checkRefUsedInFuncs);
@@ -1431,6 +1457,11 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         break;
       case kVerbose:
         quiet = (opt.Type() == kEnable) ? false : true;
+      case kProfileGen:
+        if (optLevel != kLevelZero) {
+          WARN(kLncWarn, "profileGen requires no optimization");
+          result = false;
+        }
         break;
       case kSetCalleeHasSideEffect:
         setCalleeHasSideEffect = (opt.Type() == kEnable);
@@ -1738,6 +1769,9 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         break;
       case kSeqVec:
         seqVec = (opt.Type() == kEnable);
+        break;
+      case kEnableLFO:
+        enableLFO = (opt.Type() == kEnable);
         break;
       case kRematLevel:
         rematLevel = static_cast<uint8>(std::stoul(opt.Args(), nullptr));

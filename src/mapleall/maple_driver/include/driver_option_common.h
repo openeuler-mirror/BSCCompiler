@@ -41,6 +41,8 @@ enum DriverOptionIndex {
   // DAI2.0
   kDecoupleInit,
   kProfilePath,
+  kProfileGen,
+  kProfileUse,
   kGCOnly,
   kBigEndian,
   kMplcgOpt,

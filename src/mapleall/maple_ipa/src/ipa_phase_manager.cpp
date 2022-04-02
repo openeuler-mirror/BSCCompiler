@@ -83,12 +83,16 @@ bool IpaSccPM::PhaseRun(MIRModule &m) {
 
 void IpaSccPM::DoPhasesPopulate(const MIRModule &mirModule) {
   (void)mirModule;
-  AddPhase("sccprepare", true);
-  AddPhase("prop_param_type",  MeOption::npeCheckMode != SafetyCheckMode::kNoCheck);
-  AddPhase("prop_return_attr",  MeOption::npeCheckMode != SafetyCheckMode::kNoCheck);
-  AddPhase("collect_ipa_info", true);
-  AddPhase("sccsideeffect", true);
-  AddPhase("sccemit", true);
+  if (Options::profileGen || Options::profileUse) {
+    AddPhase("sccprofile", true);
+  } else {
+    AddPhase("sccprepare", true);
+    AddPhase("prop_param_type",  MeOption::npeCheckMode != SafetyCheckMode::kNoCheck);
+    AddPhase("prop_return_attr",  MeOption::npeCheckMode != SafetyCheckMode::kNoCheck);
+    AddPhase("collect_ipa_info", true);
+    AddPhase("sccsideeffect", Options::sideEffect);
+    AddPhase("sccemit", true);
+  }
 }
 
 void IpaSccPM::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
@@ -183,7 +187,50 @@ void SCCEmit::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<SCCPrepare>();
 }
 
+bool SCCProfile::PhaseRun(SCCNode<CGNode> &scc) {
+  SetQuiet(true);
+  AddPhase("mecfgbuild", true);
+  if (Options::profileGen) {
+    AddPhase("ssatab", true);
+    AddPhase("aliasclass", true);
+    AddPhase("ssa", true);
+    AddPhase("irmapbuild", true);
+    //AddPhase("profileIntrusionPM", true); //ref: MEProfGen
+    AddPhase("profileGen", true);
+  } else {
+    AddPhase("profileUse", true);
+  }
+  AddPhase("emitforipa", true);
+  // Not like other phasemanager which use temp mempool to hold analysis results generated from the sub phases.
+  // Here we use GetManagerMemPool which lives longer than this phase(manager) itself to hold all the analysis result.
+  // So the following phase can access the result in this phase.
+  result = GetManagerMemPool()->New<AnalysisDataManager>(*GetPhaseMemPool());
+  for (auto *cgNode : scc.GetNodes()) {
+    MIRFunction *func = cgNode->GetMIRFunction();
+    if (func->IsEmpty()) {
+      continue;
+    }
+    MIRModule &m = *func->GetModule();
+    m.SetCurFunction(func);
+    MeFunction &meFunc = *func->GetMeFunc();
+    for (size_t i = 0; i < phasesSequence.size(); ++i) {
+      const MaplePhaseInfo *phase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(phasesSequence[i]);
+      if (!IsQuiet()) {
+        LogInfo::MapleLogger() << " >> Prepare " << (phase->IsAnalysis() ? "analysis" : "transform")
+                               << " Phase [ " << phase->PhaseName() << " ] <<\n";
+      }
+      if (phase->IsAnalysis()) {
+        (void)RunAnalysisPhase<meFuncOptTy, MeFunction>(*phase, *result, meFunc, 1);
+      } else {
+        (void)RunTransformPhase<meFuncOptTy, MeFunction>(*phase, *result, meFunc, 1);
+      }
+    }
+  }
+  return false;
+}
+
 MAPLE_ANALYSIS_PHASE_REGISTER(SCCPrepare, sccprepare)
+MAPLE_ANALYSIS_PHASE_REGISTER(SCCProfile, sccprofile)
 MAPLE_ANALYSIS_PHASE_REGISTER(SCCCollectIpaInfo, collect_ipa_info);
 MAPLE_ANALYSIS_PHASE_REGISTER(SCCPropReturnAttr, prop_return_attr);
 MAPLE_TRANSFORM_PHASE_REGISTER(SCCPropParamType, prop_param_type);

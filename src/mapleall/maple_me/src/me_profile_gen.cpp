@@ -19,6 +19,9 @@
 #include "me_function.h"
 #include "me_irmap_build.h"
 #include "mir_builder.h"
+#include "gen_profile.h"
+#include "itab_util.h"
+#include <algorithm>
 
 /*
  * This phase do CFG edge profile using a minimum spanning tree based
@@ -52,6 +55,9 @@ void MeProfGen::IncTotalFunc() {
 }
 
 void MeProfGen::Init() {
+  if (Options::profileGen) {
+    return;
+  }
   if (!firstRun) {
     return;
   }
@@ -97,6 +103,51 @@ void MeProfGen::InstrumentFunc() {
   FindInstrumentEdges();
   std::vector<BB*> instrumentBBs;
   GetInstrumentBBs(instrumentBBs);
+
+  if (Options::profileGen) {
+    counterIdx = 0;
+    MIRModule *mod = func->GetMirFunc()->GetModule();
+    uint32 nCtrs = instrumentBBs.size();
+    func->GetMirFunc()->SetNumCtrs(nCtrs);
+    if (nCtrs != 0) {
+      MIRType *arrOfInt64Ty = GlobalTables::GetTypeTable().GetOrCreateArrayType(
+         *GlobalTables::GetTypeTable().GetInt64(), nCtrs);
+
+      // Likely pathname is needed
+      std::string ctrTblName = namemangler::kprefixProfCtrTbl +
+                               func->GetMIRModule().GetFileName() + "_" +
+                               func->GetMirFunc()->GetName();
+      std::replace(ctrTblName.begin(), ctrTblName.end(), '.', '_');
+      std::replace(ctrTblName.begin(), ctrTblName.end(), '-', '_');
+      std::replace(ctrTblName.begin(), ctrTblName.end(), '/', '_');
+
+      MIRSymbol *ctrTblSym = mod->GetMIRBuilder()->CreateGlobalDecl(ctrTblName, *arrOfInt64Ty, kScFstatic);
+      func->GetMirFunc()->SetProfCtrTbl(ctrTblSym);
+
+    }
+    for (auto *bb : instrumentBBs) {
+      InstrumentBB(*bb);
+    }
+
+    // Checksums are relatively sensible to source changes
+    // Generate the function's lineno checksum
+    std::string fileName = func->GetMIRModule().GetFileName();
+    uint64 fileNameHash = DJBHash(fileName.c_str());
+    std::string lineNo = std::to_string(func->GetMirFunc()->GetSrcPosition().LineNum());
+    uint64 linenoHash = fileNameHash << 32 | DJBHash(lineNo.c_str());
+    func->GetMirFunc()->SetFileLineNoChksum(linenoHash);
+
+    // Generate The function's CFG checksum
+    uint64 cfgCheckSum = ComputeFuncHash();
+    func->GetMirFunc()->SetCFGChksum(cfgCheckSum);
+
+    if (dump) {
+      LogInfo::MapleLogger() << "******************after profileGen dump function******************\n";
+      func->Dump(true);
+    }
+    return;
+  }
+
   // record the current counter start, used in the function profile description
   uint32 counterStart = static_cast<uint32>(counterIdx);
   MIRAggConst *bbProfileTab = safe_cast<MIRAggConst>(bbCounterTabSym->GetKonst());

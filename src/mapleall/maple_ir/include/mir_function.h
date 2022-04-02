@@ -213,7 +213,7 @@ class MIRFunction {
 
   void SetAttrsFromSe(uint8 specialEffect);
 
-  FuncAttrs GetAttrs() const {
+  const FuncAttrs &GetAttrs() const {
     return funcAttrs;
   }
 
@@ -1007,6 +1007,66 @@ class MIRFunction {
     return genericLocalVar[str];
   }
 
+  StmtNode *FindStmtWithId(StmtNode *stmt, uint32 stmtId) {
+    while (stmt != nullptr) {
+      StmtNode *next = stmt->GetNext();
+      switch (stmt->GetOpCode()) {
+        case OP_dowhile:
+        case OP_while: {
+          WhileStmtNode *wnode = static_cast<WhileStmtNode*>(stmt);
+          if (wnode->GetBody() != nullptr && wnode->GetBody()->GetFirst() != nullptr) {
+            StmtNode *res = FindStmtWithId(wnode->GetBody()->GetFirst(), stmtId);
+            if (res != nullptr) {
+              return res;
+            }
+          }
+          break;
+        }
+        case OP_if: {
+          if (stmt->GetMeStmtID() == stmtId) {
+            return stmt;
+          }
+          IfStmtNode *inode = static_cast<IfStmtNode*>(stmt);
+          if (inode->GetThenPart() != nullptr && inode->GetThenPart()->GetFirst() != nullptr) {
+            StmtNode *res = FindStmtWithId(inode->GetThenPart()->GetFirst(), stmtId);
+            if (res != nullptr) {
+              return res;
+            }
+          }
+          if (inode->GetElsePart() != nullptr && inode->GetElsePart()->GetFirst() != nullptr) {
+            StmtNode *res = FindStmtWithId(inode->GetElsePart()->GetFirst(), stmtId);
+            if (res != nullptr) {
+              return res;
+            }
+          }
+          break;
+        }
+        case OP_callassigned:
+        case OP_call:
+        case OP_brtrue:
+        case OP_brfalse: {
+          if (stmt->GetMeStmtID() == stmtId) {
+            return stmt;
+          }
+          break;
+        }
+        default: {
+          break;
+        }
+      }
+      stmt = next;
+    }
+    return nullptr;
+  }
+
+  StmtNode *GetStmtNodeFromMeId(uint32 stmtId) {
+    if (GetBody() == nullptr) {
+      return nullptr;
+    }
+    StmtNode *stmt = GetBody()->GetFirst();
+    return FindStmtWithId(stmt, stmtId);
+  }
+
   MemPool *GetCodeMemPoolTmp() {
     if (codeMemPoolTmp == nullptr) {
       codeMemPoolTmp = new ThreadLocalMemPool(memPoolCtrler, "func code mempool");
@@ -1051,6 +1111,42 @@ class MIRFunction {
 
   void SetFuncDesc(const FuncDesc &value) {
     funcDesc = value;
+  }
+
+  void SetProfCtrTbl(MIRSymbol *pct) {
+    CHECK_FATAL(Options::profileGen, "This is only for profileGen");
+    profCtrTbl = pct;
+  }
+
+  MIRSymbol *GetProfCtrTbl() {
+    return profCtrTbl;
+  }
+
+  void SetNumCtrs(uint32 num) {
+    CHECK_FATAL(Options::profileGen, "This is only for profileGen");
+    nCtrs = num;
+  }
+
+  uint32 GetNumCtrs() {
+    return nCtrs;
+  }
+
+  void SetFileLineNoChksum(uint64 chksum) {
+    CHECK_FATAL(Options::profileGen, "This is only for profileGen");
+    fileLinenoChksum = chksum;
+  }
+
+  uint64 GetFileLineNoChksum() {
+    return fileLinenoChksum;
+  }
+
+  void SetCFGChksum(uint64 chksum) {
+    CHECK_FATAL(Options::profileGen, "This is only for profileGen");
+    cfgChksum = chksum;
+  }
+
+  uint64 GetCFGChksum() {
+    return cfgChksum;
   }
 
   void InitFuncDescToBest() {
@@ -1173,8 +1269,11 @@ class MIRFunction {
   bool useTmpMemPool = false;
   PointerAttr returnKind = PointerAttr::kPointerUndeiced;
   std::map<MIRSymbol*, PointerAttr> paramNonullTypeMap;
-  FuncDesc funcDesc;
-
+  FuncDesc funcDesc{};
+  MIRSymbol *profCtrTbl = nullptr;
+  uint32 nCtrs = 0; // number of counters
+  uint64 fileLinenoChksum = 0;
+  uint64 cfgChksum = 0;
   void DumpFlavorLoweredThanMmpl() const;
   MIRFuncType *ReconstructFormals(const std::vector<MIRSymbol*> &symbols, bool clearOldArgs);
 };

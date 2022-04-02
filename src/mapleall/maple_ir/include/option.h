@@ -16,12 +16,13 @@
 #define MAPLE_IR_INCLUDE_OPTION_H
 #include <string>
 #include <vector>
+
+#include "driver_option_common.h"
 #include "mempool.h"
 #include "mempool_allocator.h"
+#include "option_descriptor.h"
 #include "parser_opt.h"
 #include "types_def.h"
-#include "driver_option_common.h"
-#include "option_descriptor.h"
 
 namespace maple {
 class Options : public MapleDriverOptionBase {
@@ -87,6 +88,7 @@ class Options : public MapleDriverOptionBase {
   static bool nativeWrapper;
   static bool inlineWithProfile;
   static bool useInline;
+  static bool enableIPAClone;
   static std::string noInlineFuncList;
   static std::string importFileList;
   static bool useCrossModuleInline;
@@ -122,6 +124,7 @@ class Options : public MapleDriverOptionBase {
   static std::string fieldMetaProFile;
   static std::string reflectStringProFile;
   static bool nativeOpt;
+  static bool optForSize;
   static bool O2;
   static bool noDot;
   static bool decoupleStatic;
@@ -144,6 +147,8 @@ class Options : public MapleDriverOptionBase {
   static std::string readDevirtualList;
   static bool usePreloadedClass;
   static std::string profile;
+  static bool profileGen;
+  static bool profileUse;
   static std::string appPackageName;
   static std::string proFileData;
   static std::string proFileFuncData;
@@ -164,6 +169,9 @@ class Options : public MapleDriverOptionBase {
   static bool noComment;
   static bool rmNoUseFunc;
   static bool sideEffect;
+  static bool dumpIPA;
+  static bool wpaa;
+
  private:
   void DecideMpl2MplRealLevel(const std::deque<mapleOption::Option> &inputOptions) const;
   std::vector<std::string> phaseSeq;
