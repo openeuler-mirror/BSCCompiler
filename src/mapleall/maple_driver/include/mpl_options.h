@@ -372,6 +372,10 @@ class MplOptions {
     return genMapleBC;
   }
 
+  bool HasSetGenLMBC() const {
+    return genLMBC;
+  }
+
   bool HasSetGenOnlyObj() const {
     return genObj;
   }
@@ -471,6 +475,7 @@ class MplOptions {
   bool genObj = false;
   bool genMeMpl = false;
   bool genMapleBC = false;
+  bool genLMBC = false;
   bool runMaplePhaseOnly = true;
   bool genVtableImpl = false;
   bool hasPrinted = false;

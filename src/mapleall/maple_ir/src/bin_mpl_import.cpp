@@ -113,13 +113,18 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
       MIRSymbol *sym = InSymbol(func);
       CHECK_FATAL(sym != nullptr, "null ptr check");
       FieldID fi = ReadNum();
-      int32 ofst = ReadNum();
-      return memPool->New<MIRAddrofConst>(sym->GetStIdx(), fi, *type, ofst);
+      int32 ofst = static_cast<int32>(ReadNum());
+      // do not use "type"; instead, get exprTy from sym
+      TyIdx ptyIdx = sym->GetTyIdx();
+      MIRPtrType ptrType(ptyIdx, (mod.IsJavaModule() ? PTY_ref : GetExactPtrPrimType()));
+      ptyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&ptrType);
+      MIRType *exprTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptyIdx);
+      return memPool->New<MIRAddrofConst>(sym->GetStIdx(), fi, *exprTy, ofst);
     }
     case kBinKindConstAddrofLocal: {
-      uint32 fullidx = ReadNum();
-      FieldID fi = ReadNum();
-      int32 ofst = ReadNum();
+      uint32 fullidx = static_cast<uint32>(ReadNum());
+      FieldID fi = static_cast<FieldID>(ReadNum());
+      int32 ofst = static_cast<int32>(ReadNum());
       return memPool->New<MIRAddrofConst>(StIdx(fullidx), fi, *type, ofst);
     }
     case kBinKindConstAddrofFunc: {
@@ -127,7 +132,7 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
       return memPool->New<MIRAddroffuncConst>(puIdx, *type);
     }
     case kBinKindConstAddrofLabel: {
-      LabelIdx lidx = ReadNum();
+      LabelIdx lidx = static_cast<LabelIdx>(ReadNum());
       PUIdx puIdx = func->GetPuidx();
       MIRLblConst *lblConst = memPool->New<MIRLblConst>(lidx, puIdx, *type);
       (void)func->GetLabelTab()->addrTakenLabels.insert(lidx);
@@ -532,7 +537,7 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
   }
   if (tag < 0) {
     CHECK_FATAL(static_cast<size_t>(-tag) < typTab.size(), "index out of bounds");
-    return typTab.at(-tag);
+    return typTab.at(static_cast<uint64>(-tag));
   }
   if (tag == kBinKindTypeViaTypename) {
     GStrIdx typenameStrIdx = ImportStr();
@@ -674,6 +679,7 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
       type.SetNameIsLocal(nameIsLocal);
       auto &origType = static_cast<MIRStructType&>(InsertInTypeTables(type));
       typTab.push_back(origType.GetTypeIndex());
+      type.SetTypeAttrs(ImportTypeAttrs());
       if (kind != kTypeStructIncomplete) {
         if (forPointedType) {
           typeNeedsComplete = &origType;
@@ -727,7 +733,7 @@ TyIdx BinaryMplImport::ImportTypeNonJava() {
   }
   if (tag < 0) {
     CHECK_FATAL(static_cast<size_t>(-tag) < typTab.size(), "index out of bounds");
-    return typTab[-tag];
+    return typTab[static_cast<uint64>(-tag)];
   }
   if (tag == kBinKindTypeViaTypename) {
     GStrIdx typenameStrIdx = ImportStr();
@@ -846,6 +852,7 @@ TyIdx BinaryMplImport::ImportTypeNonJava() {
       auto kind = static_cast<MIRTypeKind>(ReadNum());
       MIRStructType type(kind, strIdx);
       type.SetNameIsLocal(nameIsLocal);
+      type.SetTypeAttrs(ImportTypeAttrs());
       if (kind != kTypeStructIncomplete) {
         ImportStructTypeData(type);
       }
@@ -974,12 +981,16 @@ MIRSymbol *BinaryMplImport::InSymbol(MIRFunction *func) {
     int64 scope = ReadNum();
     GStrIdx stridx = ImportStr();
     UStrIdx secAttr = ImportUsrStr();
+    UStrIdx asmAttr = ImportUsrStr();
     auto skind = static_cast<MIRSymKind>(ReadNum());
     auto sclass = static_cast<MIRStorageClass>(ReadNum());
     TyIdx tyTmp(0);
     MIRSymbol *sym = GetOrCreateSymbol(tyTmp, stridx, skind, sclass, func, scope);
     if (secAttr != 0) {
       sym->sectionAttr = secAttr;
+    }
+    if (asmAttr != 0) {
+      sym->SetAsmAttr(asmAttr);
     }
     symTab.push_back(sym);
     sym->SetAttrs(ImportTypeAttrs());
@@ -988,7 +999,7 @@ MIRSymbol *BinaryMplImport::InSymbol(MIRFunction *func) {
     uint32 thepregno = 0;
     if (skind == kStPreg) {
       CHECK_FATAL(scope == kScopeLocal && func != nullptr, "Expecting kScopeLocal");
-      thepregno = ReadNum();
+      thepregno = static_cast<uint32>(ReadNum());
     } else if (skind == kStConst || skind == kStVar) {
       sym->SetKonst(ImportConst(func));
     } else if (skind == kStFunc) {
@@ -1020,11 +1031,11 @@ PUIdx BinaryMplImport::ImportFunction() {
     mod.SetCurFunction(nullptr);
     return 0;
   } else if (tag < 0) {
-    CHECK_FATAL(-tag <= funcTab.size(), "index out of bounds");
-    if (-tag == funcTab.size()) { // function was exported before its symbol
+    CHECK_FATAL(static_cast<uint64>(-tag) <= funcTab.size(), "index out of bounds");
+    if (static_cast<uint64>(-tag) == funcTab.size()) { // function was exported before its symbol
       return (PUIdx)0;
     }
-    PUIdx puIdx =  funcTab[-tag]->GetPuidx();
+    PUIdx puIdx =  funcTab[static_cast<uint64>(-tag)]->GetPuidx();
     mod.SetCurFunction(GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx));
     return puIdx;
   }
@@ -1085,19 +1096,28 @@ PUIdx BinaryMplImport::ImportFunction() {
       func->SetFuncAttrs(tmp);
     }
   }
+
+  auto &attributes = func->GetFuncAttrs();
+  if (attributes.GetAttr(FUNCATTR_constructor_priority)) {
+    attributes.SetConstructorPriority(ReadNum());
+  }
+  if (attributes.GetAttr(FUNCATTR_destructor_priority)) {
+    attributes.SetDestructorPriority(ReadNum());
+  }
+
   func->SetFlag(ReadNum());
   if (mod.IsJavaModule()) {
     (void)ImportType();  // not set the field to mimic parser
   } else {
     (void)ImportTypeNonJava();  // not set the field to mimic parser
   }
-  size_t size = ReadNum();
+  size_t size = static_cast<size_t>(ReadNum());
   if (func->GetFormalDefVec().size() == 0) {
     for (size_t i = 0; i < size; i++) {
       GStrIdx strIdx = ImportStr();
       TyIdx tyIdx = mod.IsJavaModule() ? ImportType() : ImportTypeNonJava();
       FormalDef formalDef(strIdx, nullptr, tyIdx, TypeAttrs());
-      formalDef.formalAttrs.SetAttrFlag(ReadNum());
+      formalDef.formalAttrs.SetAttrFlag(static_cast<uint64>(ReadNum()));
       func->GetFormalDefVec().push_back(formalDef);
     }
   } else {
@@ -1105,7 +1125,7 @@ PUIdx BinaryMplImport::ImportFunction() {
     for (size_t i = 0; i < size; i++) {
       func->GetFormalDefVec()[i].formalStrIdx = ImportStr();
       func->GetFormalDefVec()[i].formalTyIdx = mod.IsJavaModule() ? ImportType() : ImportTypeNonJava();
-      func->GetFormalDefVec()[i].formalAttrs.SetAttrFlag(ReadNum());
+      func->GetFormalDefVec()[i].formalAttrs.SetAttrFlag(static_cast<uint64>(ReadNum()));
     }
   }
 
@@ -1134,22 +1154,25 @@ void BinaryMplImport::ReadHeaderField() {
   SkipTotalSize();
   mod.SetFlavor((MIRFlavor)ReadNum());
   mod.SetSrcLang((MIRSrcLang)ReadNum());
-  mod.SetID(ReadNum());
-  mod.SetNumFuncs(ReadNum());
+  mod.SetID(static_cast<uint16>(ReadNum()));
+  if (mod.GetFlavor() == kFlavorLmbc) {
+    mod.SetGlobalMemSize(ReadNum());
+  }
+  mod.SetNumFuncs(static_cast<uint32>(ReadNum()));
   std::string inStr;
   ReadAsciiStr(inStr);
   mod.SetEntryFuncName(inStr);
   ImportInfoVector(mod.GetFileInfo(), mod.GetFileInfoIsString());
 
-  int32 size = ReadNum();
+  int32 size = static_cast<int32>(ReadNum());
   MIRInfoPair infopair;
   for (int32 i = 0; i < size; i++) {
     infopair.first = ImportStr();
-    infopair.second = ReadNum();
+    infopair.second = static_cast<uint32>(ReadNum());
     mod.PushbackFileInfo(infopair);
   }
 
-  size = ReadNum();
+  size = static_cast<int32>(ReadNum());
   for (int32 i = 0; i < size; i++) {
     GStrIdx gStrIdx  = ImportStr();
     mod.GetImportFiles().push_back(gStrIdx);
@@ -1168,17 +1191,19 @@ void BinaryMplImport::ReadHeaderField() {
     if (i == 0) {
       binMplt->SetImportFileName(importfilename);
       mod.SetBinMplt(binMplt);
+    } else {
+      delete binMplt;
     }
   }
 
-  size = ReadNum();
+  size = static_cast<int32>(ReadNum());
   for (int32 i = 0; i < size; i++) {
     std::string str;
     ReadAsciiStr(str);
-    mod.GetAsmDecls().push_back(MapleString(str, mod.GetMemPool()));
+    mod.GetAsmDecls().emplace_back(MapleString(str, mod.GetMemPool()));
   }
 
-  int32 tag = ReadNum();
+  int32 tag = static_cast<int32>(ReadNum());
   CHECK_FATAL(tag == ~kBinHeaderStart, "pattern mismatch in Read Import");
   return;
 }
@@ -1524,6 +1549,34 @@ void BinaryMplImport::Jump2NextField() {
   uint32 totalSize = static_cast<uint32>(ReadInt());
   bufI += (totalSize - sizeof(uint32));
   ReadNum();  // skip end tag for this field
+}
+
+bool BinaryMplImport::ImportForSrcLang(const std::string &fname, MIRSrcLang &srcLang) {
+  Reset();
+  ReadFileAt(fname, 0);
+  int32 magic = ReadInt();
+  if (kMpltMagicNumber != magic && (kMpltMagicNumber + 0x10) != magic) {
+    buf.clear();
+    return false;
+  }
+  importingFromMplt = kMpltMagicNumber == magic;
+  int64 fieldID = ReadNum();
+  while (fieldID != kBinFinish) {
+    switch (fieldID) {
+      case kBinHeaderStart: {
+        SkipTotalSize();
+        (void)ReadNum();  // skip flavor
+        srcLang = (MIRSrcLang)ReadNum();
+        return true;
+      }
+      default: {
+        Jump2NextField();
+        break;
+      }
+    }
+    fieldID = ReadNum();
+  }
+  return false;
 }
 
 bool BinaryMplImport::Import(const std::string &fname, bool readSymbols, bool readSe) {

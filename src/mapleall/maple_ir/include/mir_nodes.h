@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -533,7 +533,7 @@ class IreadFPoffNode : public BaseNode {
  public:
   IreadFPoffNode() : BaseNode(OP_ireadfpoff) {}
 
-  IreadFPoffNode(PrimType ptyp, int32 ofst) : BaseNode(OP_ireadfpoff, ptyp), offset(ofst) {}
+  IreadFPoffNode(PrimType ptyp, int32 ofst) : BaseNode(OP_ireadfpoff, ptyp, 0), offset(ofst) {}
 
   virtual ~IreadFPoffNode() = default;
 
@@ -1435,6 +1435,7 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
   virtual StmtNode *CloneTree(MapleAllocator &allocator) const override {
     auto *s = allocator.GetMemPool()->New<StmtNode>(*this);
     s->SetStmtID(stmtIDNext++);
+    s->SetMeStmtID(meStmtID);
     return s;
   }
 
@@ -1474,6 +1475,14 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
     stmtOriginalID = id;
   }
 
+  uint32 GetMeStmtID() const {
+    return meStmtID;
+  }
+
+  void SetMeStmtID(uint32 id) {
+    meStmtID = id;
+  }
+
   StmtNode *GetRealNext() const;
 
   virtual BaseNode *GetRHS() const {
@@ -1510,6 +1519,7 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
  private:
   uint32 stmtID;  // a unique ID assigned to it
   uint32 stmtOriginalID; // first define id, no change when clone, need copy when emit from MeStmt
+  uint32 meStmtID = 0; // Need copy when emit from MeStmt, attention:this just for two stmt(if && call)
   mutable bool isLive = false;  // only used for dse to save compile time
                                 // mutable to keep const-ness at most situation
   StmtAttrs stmtAttrs;
@@ -2442,6 +2452,7 @@ class IfStmtNode : public UnaryStmtNode {
     if (elsePart != nullptr) {
       node->elsePart = elsePart->CloneTree(allocator);
     }
+    node->SetMeStmtID(GetMeStmtID());
     return node;
   }
 
@@ -3141,6 +3152,10 @@ class CallNode : public NaryStmtNode {
     return &returnValues;
   }
 
+  void SetCallReturnVector(const CallReturnVector &value) {
+    returnValues = value;
+  }
+
  private:
   PUIdx puIdx = 0;
   TyIdx tyIdx = TyIdx(0);
@@ -3175,6 +3190,7 @@ class IcallNode : public NaryStmtNode {
   virtual void Dump(int32 indent, bool newline) const;
   bool Verify() const override;
   MIRType *GetCallReturnType() override ;
+  const MIRSymbol *GetCallReturnSymbol(const MIRModule &mod) const;
   IcallNode *CloneTree(MapleAllocator &allocator) const override {
     auto *node = allocator.GetMemPool()->New<IcallNode>(allocator, *this);
     for (size_t i = 0; i < GetNopndSize(); ++i) {

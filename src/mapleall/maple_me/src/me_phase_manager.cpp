@@ -14,6 +14,10 @@
  */
 #include "me_phase_manager.h"
 #include "bin_mplt.h"
+#include "becommon.h"
+#include "lower.h"
+#include "lmbc_memlayout.h"
+#include "lmbc_lower.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 #define CLANG (mirModule.IsCModule())
@@ -21,6 +25,7 @@
 namespace maple {
 bool MeFuncPM::genMeMpl = false;
 bool MeFuncPM::genMapleBC = false;
+bool MeFuncPM::genLMBC = false;
 bool MeFuncPM::timePhases = false;
 
 void MeFuncPM::DumpMEIR(const MeFunction &f, const std::string phaseName, bool isBefore) {
@@ -112,6 +117,8 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
     m.Emit("comb.me.mpl");
   }
   if (genMapleBC) {
+    m.SetFlavor(kFlavorMbc);
+    // output .mbc
     BinaryMplt binMplt(m);
     std::string modFileName = m.GetFileName();
     std::string::size_type lastdot = modFileName.find_last_of(".");
@@ -119,6 +126,35 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
     binMplt.GetBinExport().not2mplt = true;
     std::string filestem = modFileName.substr(0, lastdot);
     binMplt.Export(filestem + ".mbc", nullptr);
+  }
+  if (genLMBC) {
+    m.SetFlavor(kFlavorLmbc);
+    maplebe::BECommon beCommon(m);
+    GlobalMemLayout globalMemLayout(beCommon, &m.GetMPAllocator());
+    maplebe::CGLowerer cgLower(m, beCommon, false, false);
+    cgLower.RegisterBuiltIns();
+    cgLower.RegisterExternalLibraryFunctions();
+    for (auto func : compFuncList) {
+      m.SetCurFunction(func);
+      cgLower.LowerFunc(*func);
+      MemPool *layoutMp = memPoolCtrler.NewMemPool("layout mempool", true);
+      MapleAllocator layoutAlloc(layoutMp);
+      LMBCMemLayout localMemLayout(beCommon, func, &layoutAlloc);
+      localMemLayout.LayoutStackFrame();
+      LMBCLowerer lmbcLowerer(&m, &beCommon, func, &globalMemLayout, &localMemLayout);
+      lmbcLowerer.LowerFunction();
+      func->SetFrameSize(localMemLayout.StackFrameSize());
+      func->SetUpFormalSize(localMemLayout.UpformalSize());
+      memPoolCtrler.DeleteMemPool(layoutMp);
+    }
+    // output .lmbc
+    BinaryMplt binMplt(m);
+    std::string modFileName = m.GetFileName();
+    std::string::size_type lastdot = modFileName.find_last_of(".");
+
+    binMplt.GetBinExport().not2mplt = true;
+    std::string filestem = modFileName.substr(0, lastdot);
+    binMplt.Export(filestem + ".lmbc", nullptr);
   }
   if (MeFuncPM::timePhases) {
     DumpPhaseTime();
@@ -217,6 +253,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MECheckCastOpt, checkcastopt)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESSAEPre, epre)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEOptimizeCFGNoSSA, optimizeCFGNoSSA)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEOptimizeCFG, optimizeCFG)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESLPVectorizer, slp)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEProfGen, profileGen)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEPlacementRC, placementrc)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEDse, dse)

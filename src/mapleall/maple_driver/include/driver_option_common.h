@@ -52,6 +52,7 @@ enum DriverOptionIndex {
   kTimePhases,
   kGenMeMpl,
   kGenMapleBC,
+  kGenLMBC,
   kGenVtableImpl,
   kVerbose,
   kAllDebug,

@@ -213,7 +213,7 @@ class MIRFunction {
 
   void SetAttrsFromSe(uint8 specialEffect);
 
-  FuncAttrs GetAttrs() const {
+  const FuncAttrs &GetAttrs() const {
     return funcAttrs;
   }
 
@@ -650,6 +650,10 @@ class MIRFunction {
   const FuncAttrs &GetFuncAttrs() const {
     return funcAttrs;
   }
+  FuncAttrs &GetFuncAttrs() {
+    return funcAttrs;
+  }
+
   void SetFuncAttrs(const FuncAttrs &attrs) {
     funcAttrs = attrs;
   }
@@ -806,7 +810,7 @@ class MIRFunction {
     ++tempCount;
   }
 
-  const uint8 *GetFormalWordsTypeTagged() const {
+  uint8 *GetFormalWordsTypeTagged() const {
     return formalWordsTypeTagged;
   }
   void SetFormalWordsTypeTagged(uint8 *tagged) {
@@ -816,7 +820,7 @@ class MIRFunction {
     return &formalWordsTypeTagged;
   }
 
-  const uint8 *GetLocalWordsTypeTagged() const {
+  uint8 *GetLocalWordsTypeTagged() const {
     return localWordsTypeTagged;
   }
   void SetLocalWordsTypeTagged(uint8 *tagged) {
@@ -826,7 +830,7 @@ class MIRFunction {
     return &localWordsTypeTagged;
   }
 
-  const uint8 *GetFormalWordsRefCounted() const {
+  uint8 *GetFormalWordsRefCounted() const {
     return formalWordsRefCounted;
   }
   void SetFormalWordsRefCounted(uint8 *counted) {
@@ -836,7 +840,7 @@ class MIRFunction {
     return &formalWordsRefCounted;
   }
 
-  const uint8 *GetLocalWordsRefCounted() const {
+  uint8 *GetLocalWordsRefCounted() const {
     return localWordsRefCounted;
   }
   void SetLocalWordsRefCounted(uint8 *counted) {
@@ -1007,6 +1011,66 @@ class MIRFunction {
     return genericLocalVar[str];
   }
 
+  StmtNode *FindStmtWithId(StmtNode *stmt, uint32 stmtId) {
+    while (stmt != nullptr) {
+      StmtNode *next = stmt->GetNext();
+      switch (stmt->GetOpCode()) {
+        case OP_dowhile:
+        case OP_while: {
+          WhileStmtNode *wnode = static_cast<WhileStmtNode*>(stmt);
+          if (wnode->GetBody() != nullptr && wnode->GetBody()->GetFirst() != nullptr) {
+            StmtNode *res = FindStmtWithId(wnode->GetBody()->GetFirst(), stmtId);
+            if (res != nullptr) {
+              return res;
+            }
+          }
+          break;
+        }
+        case OP_if: {
+          if (stmt->GetMeStmtID() == stmtId) {
+            return stmt;
+          }
+          IfStmtNode *inode = static_cast<IfStmtNode*>(stmt);
+          if (inode->GetThenPart() != nullptr && inode->GetThenPart()->GetFirst() != nullptr) {
+            StmtNode *res = FindStmtWithId(inode->GetThenPart()->GetFirst(), stmtId);
+            if (res != nullptr) {
+              return res;
+            }
+          }
+          if (inode->GetElsePart() != nullptr && inode->GetElsePart()->GetFirst() != nullptr) {
+            StmtNode *res = FindStmtWithId(inode->GetElsePart()->GetFirst(), stmtId);
+            if (res != nullptr) {
+              return res;
+            }
+          }
+          break;
+        }
+        case OP_callassigned:
+        case OP_call:
+        case OP_brtrue:
+        case OP_brfalse: {
+          if (stmt->GetMeStmtID() == stmtId) {
+            return stmt;
+          }
+          break;
+        }
+        default: {
+          break;
+        }
+      }
+      stmt = next;
+    }
+    return nullptr;
+  }
+
+  StmtNode *GetStmtNodeFromMeId(uint32 stmtId) {
+    if (GetBody() == nullptr) {
+      return nullptr;
+    }
+    StmtNode *stmt = GetBody()->GetFirst();
+    return FindStmtWithId(stmt, stmtId);
+  }
+
   MemPool *GetCodeMemPoolTmp() {
     if (codeMemPoolTmp == nullptr) {
       codeMemPoolTmp = new ThreadLocalMemPool(memPoolCtrler, "func code mempool");
@@ -1173,7 +1237,7 @@ class MIRFunction {
   bool useTmpMemPool = false;
   PointerAttr returnKind = PointerAttr::kPointerUndeiced;
   std::map<MIRSymbol*, PointerAttr> paramNonullTypeMap;
-  FuncDesc funcDesc;
+  FuncDesc funcDesc{};
 
   void DumpFlavorLoweredThanMmpl() const;
   MIRFuncType *ReconstructFormals(const std::vector<MIRSymbol*> &symbols, bool clearOldArgs);
