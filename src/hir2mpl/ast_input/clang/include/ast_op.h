@@ -112,7 +112,7 @@ enum ASTOp {
   kASTOpOpaqueValue,
   kASTOpBinaryConditionalOperator,
   kASTOpNoInitExpr,
-  kASTOpCompoundLiteralExp,
+  kASTOpCompoundLiteralExpr,
   kASTOpOffsetOfExpr,
   kASTOpGenericSelectionExpr,
   kASTOpInitListExpr,

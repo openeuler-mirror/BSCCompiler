@@ -319,6 +319,9 @@ MIRConst *ASTCastExpr::GenerateMIRConstImpl() const {
     MIRSymbol *mirSymbol = static_cast<ASTVar*>(astDecl)->Translate2MIRSymbol();
     return FEManager::GetModule().GetMemPool()->New<MIRAddrofConst>(mirSymbol->GetStIdx(), 0,
                                                                     *(astDecl->GetTypeDesc().front()));
+  } else if (isArrayToPointerDecay && child->GetASTOp() == kASTOpCompoundLiteralExpr) {
+    static_cast<ASTCompoundLiteralExpr*>(child)->SetAddrof(true);
+    return child->GenerateMIRConst();
   } else if (isNeededCvt) {
     if (dst->GetPrimType() == PTY_f64) {
       return GenerateMIRDoubleConst();
@@ -689,20 +692,9 @@ UniqueFEIRExpr ASTUOPreDecExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts
 
 MIRConst *ASTUOAddrOfExpr::GenerateMIRConstImpl() const {
   switch (expr->GetASTOp()) {
-    case kASTOpCompoundLiteralExp: {
-      auto astCompoundLiteralExpr = static_cast<ASTCompoundLiteralExpr*>(expr);
-      // CompoundLiteral Symbol
-      MIRSymbol *compoundLiteralMirSymbol = FEManager::GetMIRBuilder().GetOrCreateGlobalDecl(
-          astCompoundLiteralExpr->GetInitName(),
-          *astCompoundLiteralExpr->GetCompoundLiteralType());
-
-      auto child = static_cast<ASTCompoundLiteralExpr*>(expr)->GetASTExpr();
-      auto mirConst = child->GenerateMIRConst(); // InitListExpr in CompoundLiteral gen struct
-      compoundLiteralMirSymbol->SetKonst(mirConst);
-
-      MIRAddrofConst *mirAddrofConst = FEManager::GetModule().GetMemPool()->New<MIRAddrofConst>(
-          compoundLiteralMirSymbol->GetStIdx(), 0, *astCompoundLiteralExpr->GetCompoundLiteralType());
-      return mirAddrofConst;
+    case kASTOpCompoundLiteralExpr: {
+      static_cast<ASTCompoundLiteralExpr*>(expr)->SetAddrof(true);
+      return expr->GenerateMIRConst();
     }
     case kASTOpRef:
     case kASTSubscriptExpr:
@@ -945,7 +937,24 @@ UniqueFEIRExpr ASTCompoundLiteralExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt>
   return feirExpr;
 }
 
+MIRConst *ASTCompoundLiteralExpr::GenerateMIRPtrConst() const {
+  CHECK_NULL_FATAL(compoundLiteralType);
+  const std::string tmpName = FEUtils::GetSequentialName("cle.");
+  // If a var is pointer type, agg value cannot be directly assigned to it
+  // Create a temporary symbol for addrof agg value
+  MIRSymbol *cleSymbol = FEManager::GetMIRBuilder().GetOrCreateGlobalDecl(
+      tmpName, *compoundLiteralType);
+  auto mirConst = child->GenerateMIRConst(); // InitListExpr in CompoundLiteral gen struct
+  cleSymbol->SetKonst(mirConst);
+  MIRAddrofConst *mirAddrofConst = FEManager::GetModule().GetMemPool()->New<MIRAddrofConst>(
+  cleSymbol->GetStIdx(), 0, *compoundLiteralType);
+  return mirAddrofConst;
+}
+
 MIRConst *ASTCompoundLiteralExpr::GenerateMIRConstImpl() const {
+  if (isAddrof) {
+    return GenerateMIRPtrConst();
+  }
   return child->GenerateMIRConst();
 }
 

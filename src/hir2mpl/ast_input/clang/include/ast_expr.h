@@ -498,34 +498,22 @@ class ASTNoInitExpr : public ASTExpr {
 
 class ASTCompoundLiteralExpr : public ASTExpr {
  public:
-  ASTCompoundLiteralExpr() : ASTExpr(kASTOpCompoundLiteralExp) {}
+  ASTCompoundLiteralExpr() : ASTExpr(kASTOpCompoundLiteralExpr) {}
   ~ASTCompoundLiteralExpr() = default;
   void SetCompoundLiteralType(MIRType *clType);
-
-  MIRType *GetCompoundLiteralType() const {
-    return compoundLiteralType;
-  }
-
   void SetASTExpr(ASTExpr*);
 
-  const ASTExpr *GetASTExpr() const {
-    return child;
-  }
-
-  void SetInitName(const std::string &argInitName) {
-    initName = argInitName;
-  }
-
-  const std::string &GetInitName() const {
-    return initName;
+  void SetAddrof(bool flag) {
+    isAddrof = flag;
   }
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   MIRConst *GenerateMIRConstImpl() const override;
+  MIRConst *GenerateMIRPtrConst() const;
   ASTExpr *child = nullptr;
   MIRType *compoundLiteralType = nullptr;
-  std::string initName;
+  bool isAddrof = false;
 };
 
 class ASTOffsetOfExpr : public ASTExpr {

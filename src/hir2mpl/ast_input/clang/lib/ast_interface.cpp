@@ -460,15 +460,6 @@ const std::string LibAstFile::GetOrCreateMappedUnnamedName(uint32_t id) {
   return unnamedSymbolMap[id];
 }
 
-const std::string LibAstFile::GetOrCreateCompoundLiteralExprInitName(uint32_t id) {
-  std::map<uint32_t, std::string>::iterator it = CompoundLiteralExprInitSymbolMap.find(id);
-  if (it == CompoundLiteralExprInitSymbolMap.end()) {
-    const std::string name = FEUtils::GetSequentialName("unNamedInit");
-    CompoundLiteralExprInitSymbolMap[id] = name;
-  }
-  return CompoundLiteralExprInitSymbolMap[id];
-}
-
 void LibAstFile::EmitTypeName(const clang::RecordType &recoType, std::stringstream &ss) {
   clang::RecordDecl *recoDecl = recoType.getDecl();
   std::string str = recoType.desugar().getAsString();

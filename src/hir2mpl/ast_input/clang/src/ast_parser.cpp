@@ -1149,20 +1149,10 @@ ASTExpr *ASTParser::ProcessExprCompoundLiteralExpr(MapleAllocator &allocator,
   CHECK_FATAL(initExpr != nullptr, "initExpr is nullptr");
   clang::QualType qualType = initExpr->getType();
   astCompoundLiteralExpr->SetCompoundLiteralType(astFile->CvtType(qualType));
-
-  const auto *initListExpr = llvm::dyn_cast<clang::InitListExpr>(initExpr);
-  ASTExpr *astExpr = nullptr;
-  if (initListExpr != nullptr) {
-    astExpr = ProcessExpr(allocator, initListExpr);
-  } else {
-    astExpr = ProcessExpr(allocator, initExpr);
-  }
+  ASTExpr *astExpr = ProcessExpr(allocator, initExpr);
   if (astExpr == nullptr) {
     return nullptr;
   }
-  static uint32 unNamedCount = 0;
-  auto initListName = astFile->GetOrCreateCompoundLiteralExprInitName(unNamedCount++);
-  astCompoundLiteralExpr->SetInitName(initListName);
   astCompoundLiteralExpr->SetASTExpr(astExpr);
   return astCompoundLiteralExpr;
 }

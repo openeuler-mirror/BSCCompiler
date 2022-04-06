@@ -44,7 +44,6 @@ class LibAstFile {
   AstUnitDecl *GetAstUnitDecl();
   std::string GetMangledName(const clang::NamedDecl &decl);
   const std::string GetOrCreateMappedUnnamedName(uint32_t id);
-  const std::string GetOrCreateCompoundLiteralExprInitName(uint32_t id);
 
   void EmitTypeName(const clang::QualType qualType, std::stringstream &ss);
   void EmitTypeName(const clang::RecordType &qualType, std::stringstream &ss);
