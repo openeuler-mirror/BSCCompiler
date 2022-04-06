@@ -133,10 +133,10 @@ void IpaClone::CopyFuncInfo(MIRFunction &originalFunction, MIRFunction &newFunc)
   }
 }
 
-bool IpaClone::CheckConstModel(MIRFunction *newFunc, uint32 paramIndex, std::vector<int64_t> &calleeValue,
-                               uint32 impSize) {
-  if (impSize < kNumOfImpExprBound) {
-    return false;
+bool IpaClone::CheckCostModel(MIRFunction *newFunc, uint32 paramIndex, std::vector<int64_t> &calleeValue,
+                              uint32 impSize) {
+  if (impSize >= kNumOfImpExprHighBound) {
+    return true;
   }
   auto &calleeInfo = mirModule->GetCalleeParamAboutInt();
   CalleePair keyPair(curFunc->GetPuidx(), paramIndex);
@@ -144,7 +144,10 @@ bool IpaClone::CheckConstModel(MIRFunction *newFunc, uint32 paramIndex, std::vec
   for (auto &value : calleeValue) {
     callSiteSize += calleeInfo[keyPair][value].size();
   }
-  if (callSiteSize < kNumOfCallSiteBound) {
+  if (callSiteSize >= kNumOfCallSiteUpBound) {
+    return true;
+  }
+  if (callSiteSize < kNumOfCallSiteLowBound || impSize < kNumOfImpExprLowBound) {
     return false;
   }
   // Later: we will consider the body size
@@ -239,7 +242,7 @@ void IpaClone::DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramInd
   for (auto &eval : evalMap) {
     uint64_t evalValue = eval.first;
     std::vector<int64_t> calleeValue = eval.second;
-    if (!CheckConstModel(curFunc, paramIndex, calleeValue, result.size())) {
+    if (!CheckCostModel(curFunc, paramIndex, calleeValue, result.size())) {
       continue;
     }
     if (index > kNumOfCloneVersions) {
@@ -406,7 +409,7 @@ void IpaClone::DoIpaClone() {
       for (uint index = 0; index < func->GetFormalCount(); ++index) {
         CalleePair keyPair(func->GetPuidx(), index);
         if (calleeInfo.find(keyPair) != calleeInfo.end() && calleeInfo[keyPair].size() == 1 &&
-            (calleeInfo[keyPair].begin())->second.size() > 1) {
+            (calleeInfo[keyPair].begin())->second.size() > kNumOfConstpropValue) {
           CloneNoImportantExpressFunction(func, index);
           break;
         }
@@ -416,6 +419,8 @@ void IpaClone::DoIpaClone() {
 }
 
 void M2MIpaClone::GetAnalysisDependence(AnalysisDep &aDep) const {
+  aDep.AddRequired<M2MCallGraph>();
+  aDep.PreservedAllExcept<M2MCallGraph>();
 }
 
 bool M2MIpaClone::PhaseRun(maple::MIRModule &m) {
@@ -423,6 +428,7 @@ bool M2MIpaClone::PhaseRun(maple::MIRModule &m) {
   cl = GetPhaseAllocator()->New<IpaClone>(&m, GetPhaseMemPool(), dexMirBuilder);
   cl->DoIpaClone();
   GetAnalysisInfoHook()->ForceEraseAnalysisPhase(m.GetUniqueID(), &M2MCallGraph::id);
+  (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleModulePhase, MIRModule>(&M2MCallGraph::id, m);
   return true;
 }
 }  // namespace maple
