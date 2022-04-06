@@ -283,12 +283,12 @@ bool MESafetyWarning::IsStaticModeForOp(Opcode op) const {
 }
 
 SafetyWarningHandler *MESafetyWarning::FindHandler(Opcode op) {
-  auto handler = realNpeHandleMap.find(op);
-  if (handler != realNpeHandleMap.end()) {
+  auto handler = realNpeHandleMap->find(op);
+  if (handler != realNpeHandleMap->end()) {
     return &handler->second;
   }
-  handler = realBoundaryHandleMap.find(op);
-  if (handler != realBoundaryHandleMap.end()) {
+  handler = realBoundaryHandleMap->find(op);
+  if (handler != realBoundaryHandleMap->end()) {
     return &handler->second;
   }
   return nullptr;
@@ -297,8 +297,7 @@ SafetyWarningHandler *MESafetyWarning::FindHandler(Opcode op) {
 bool MESafetyWarning::PhaseRun(MeFunction &meFunction) {
   auto *dom = GET_ANALYSIS(MEDominance, meFunction);
   auto &mod = meFunction.GetMIRModule();
-  auto fileInfos = mod.GetSrcFileInfo();
-  MapleVector<const MeStmt*> removeStmts(mod.GetMPAllocator().Adapter());
+  MapleVector<MeStmt*> removeStmts(mod.GetMPAllocator().Adapter());
   for (auto *bb : dom->GetReversePostOrder()) {
     for (auto &stmt : bb->GetMeStmts()) {
       auto *handle = FindHandler(stmt.GetOp());

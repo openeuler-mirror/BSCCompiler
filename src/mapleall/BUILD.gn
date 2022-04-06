@@ -19,6 +19,15 @@ config("mapleallcompilecfg") {
     "-fno-common",
   ]
 
+  if (ASAN == 1) {
+    cflags_cc += [
+      "-fsanitize=address"
+    ]
+    libs = [
+      "${LLVMLIBDIR}/libclang_rt.asan-x86_64.so"
+    ]
+  }
+
   if (TARGET == "aarch64") {
     cflags_cc += [
       "-DTARGAARCH64",
