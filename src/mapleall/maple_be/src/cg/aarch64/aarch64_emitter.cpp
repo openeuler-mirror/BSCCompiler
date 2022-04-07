@@ -408,6 +408,14 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     (void)emitter.Emit("\t.section\t.init_array,\"aw\"\n");
     (void)emitter.Emit("\t.quad\t").Emit(cgFunc.GetName()).Emit("\n");
   }
+  if (cgFunc.GetFunction().GetAttr(FUNCATTR_initialization)) {
+    (void)emitter.Emit("\t.section\t.init_array,\"aw\"\n");
+    (void)emitter.Emit("\t.quad\t").Emit(cgFunc.GetName()).Emit("\n");
+  }
+  if (cgFunc.GetFunction().GetAttr(FUNCATTR_termination)) {
+    (void)emitter.Emit("\t.section\t.fini_array,\"aw\"\n");
+    (void)emitter.Emit("\t.quad\t").Emit(cgFunc.GetName()).Emit("\n");
+  }
   emitter.Emit("\n");
   EmitMethodDesc(funcEmitInfo, emitter);
   /* emit java code to the java section. */

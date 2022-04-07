@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan PSL v1.
  * You can use this software according to the terms and conditions of the Mulan PSL v1.
@@ -35,6 +35,7 @@
   ATTR(delete)
   ATTR(fast_native)
   ATTR(inline)
+  ATTR(noinline)
   ATTR(native)
   ATTR(strict)
   ATTR(varargs)
@@ -51,8 +52,10 @@
   ATTR(ipaseen)
   ATTR(rclocalunowned)
   ATTR(callersensitive)
-  ATTR(alias)
   ATTR(weakref)
+  ATTR(safed)
+  ATTR(unsafed)
+  ATTR(noreturn)
 #endif
 #if defined(FUNC_ATTR) || defined(TYPE_ATTR)
   ATTR(abstract)
@@ -71,6 +74,9 @@
   ATTR(volatile)
   ATTR(rcunowned)
   ATTR(rcweak)
+  ATTR(final_boundary_size)
+  ATTR(tls_static)
+  ATTR(tls_dynamic)
 #endif
 #ifdef TYPE_ATTR
   ATTR(annotation)
@@ -78,6 +84,8 @@
   ATTR(verified)
   ATTR(localrefvar)
   ATTR(rcunownedthis)
+  ATTR(incomplete_array)
+  ATTR(may_alias)
 #endif
 #ifdef FUNC_ATTR
   ATTR(firstarg_return)
@@ -90,3 +98,15 @@
   ATTR(nonnull)
   ATTR(section)
   ATTR(asmattr)
+#if defined(FUNC_ATTR) && !defined(NOCONTENT_ATTR)
+  ATTR(alias)
+  ATTR(constructor_priority)
+  ATTR(destructor_priority)
+#endif
+#if (defined(TYPE_ATTR) || defined(FIELD_ATTR)) && !defined(NOCONTENT_ATTR)
+  ATTR(pack)
+#endif
+#ifdef FUNC_ATTR
+  ATTR(initialization)
+  ATTR(termination)
+#endif

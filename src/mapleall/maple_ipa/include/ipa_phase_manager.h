@@ -21,9 +21,12 @@
 #include "mir_module.h"
 #include "mir_function.h"
 #include "me_phase_manager.h"
+#include "ipa_side_effect.h"
+#include "prop_return_null.h"
+#include "prop_parameter_type.h"
+#include "ipa_collect.h"
 
 namespace maple {
-
 /* ==== new phase manager ==== */
 class IpaSccPM : public SccPM {
  public:
@@ -37,13 +40,14 @@ class IpaSccPM : public SccPM {
   virtual void DoPhasesPopulate(const MIRModule &m);
 };
 
-class SCCPrepare : public MapleSccPhase<SCCNode>, public MaplePhaseManager {
+class SCCPrepare : public MapleSccPhase<SCCNode<CGNode>>, public MaplePhaseManager {
  public:
-  explicit SCCPrepare(MemPool *mp) : MapleSccPhase<SCCNode>(&id, mp), MaplePhaseManager(*mp) {}
+  explicit SCCPrepare(MemPool *mp) : MapleSccPhase<SCCNode<CGNode>>(&id, mp), MaplePhaseManager(*mp) {}
   ~SCCPrepare() override = default;
   std::string PhaseName() const override;
   PHASECONSTRUCTOR(SCCPrepare);
-  bool PhaseRun(SCCNode &f) override;
+  bool PhaseRun(SCCNode<CGNode> &f) override;
+  void Dump(MeFunction &f, const std::string phaseName);
   AnalysisDataManager *GetResult() {
     return result;
   }
@@ -51,15 +55,30 @@ class SCCPrepare : public MapleSccPhase<SCCNode>, public MaplePhaseManager {
   AnalysisDataManager *result = nullptr;
 };
 
-class SCCEmit : public MapleSccPhase<SCCNode>, public MaplePhaseManager {
+class SCCEmit : public MapleSccPhase<SCCNode<CGNode>>, public MaplePhaseManager {
  public:
-  explicit SCCEmit(MemPool *mp) : MapleSccPhase<SCCNode>(&id, mp), MaplePhaseManager(*mp) {}
+  explicit SCCEmit(MemPool *mp) : MapleSccPhase<SCCNode<CGNode>>(&id, mp), MaplePhaseManager(*mp) {}
   ~SCCEmit() override = default;
   std::string PhaseName() const override;
   PHASECONSTRUCTOR(SCCEmit);
-  bool PhaseRun(SCCNode &f) override;
+  bool PhaseRun(SCCNode<CGNode> &f) override;
+  void Dump(MeFunction &f, const std::string phaseName);
  private:
   void GetAnalysisDependence(maple::AnalysisDep &aDep) const override;
+};
+
+class SCCProfile : public MapleSccPhase<SCCNode<CGNode>>, public MaplePhaseManager {
+ public:
+  explicit SCCProfile(MemPool *mp) : MapleSccPhase<SCCNode<CGNode>>(&id, mp), MaplePhaseManager(*mp) {}
+  ~SCCProfile() override = default;
+  std::string PhaseName() const override;
+  PHASECONSTRUCTOR(SCCProfile);
+  bool PhaseRun(SCCNode<CGNode> &f) override;
+  AnalysisDataManager *GetResult() {
+    return result;
+  }
+ private:
+  AnalysisDataManager *result = nullptr;
 };
 }  // namespace maple
 #endif  // MAPLE_IPA_INCLUDE_IPA_PHASE_MANAGER_H

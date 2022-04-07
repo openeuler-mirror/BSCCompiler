@@ -28,6 +28,7 @@
 #include "metadata_layout.h"
 #include "emit.h"
 #include "simplify.h"
+#include <algorithm>
 
 namespace maplebe {
 using namespace maple;
@@ -8948,6 +8949,49 @@ bool AArch64CGFunc::IsDuplicateAsmList(const MIRSymbol &sym) const {
 }
 
 void AArch64CGFunc::SelectMPLProfCounterInc(const IntrinsiccallNode &intrnNode) {
+  if (Options::profileGen) {
+    ASSERT(intrnNode.NumOpnds() == 1, "must be 1 operand");
+    BaseNode *arg1 = intrnNode.Opnd(0);
+    ASSERT(arg1 != nullptr, "nullptr check");
+    regno_t vRegNO1 = NewVReg(GetRegTyFromPrimTy(PTY_a64), GetPrimTypeSize(PTY_a64));
+    RegOperand &vReg1 = CreateVirtualRegisterOperand(vRegNO1);
+    vReg1.SetRegNotBBLocal();
+    static const MIRSymbol *bbProfileTab = nullptr;
+
+    // Ref: MeProfGen::InstrumentFunc on ctrTbl naming
+    std::string ctrTblName = namemangler::kprefixProfCtrTbl +
+                             GetMirModule().GetFileName() + "_" + GetName();
+    std::replace(ctrTblName.begin(), ctrTblName.end(), '.', '_');
+    std::replace(ctrTblName.begin(), ctrTblName.end(), '-', '_');
+    std::replace(ctrTblName.begin(), ctrTblName.end(), '/', '_');
+
+    if (!bbProfileTab || bbProfileTab->GetName() != ctrTblName) {
+      bbProfileTab = GetMirModule().GetMIRBuilder()->GetGlobalDecl(ctrTblName);
+      CHECK_FATAL(bbProfileTab != nullptr, "expect counter table");
+    }
+
+    ConstvalNode *constvalNode = static_cast<ConstvalNode*>(arg1);
+    MIRConst *mirConst = constvalNode->GetConstVal();
+    ASSERT(mirConst != nullptr, "nullptr check");
+    CHECK_FATAL(mirConst->GetKind() == kConstInt, "expect MIRIntConst type");
+    MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(mirConst);
+    int64 offset = GetPrimTypeSize(PTY_u64) * mirIntConst->GetValue();
+
+    if (!GetCG()->IsQuiet()) {
+      maple::LogInfo::MapleLogger(kLlInfo) << "At counter table offset: " << offset << std::endl;
+    }
+    MemOperand *memOpnd = &GetOrCreateMemOpnd(*bbProfileTab, offset, k64BitSize);
+    AArch64MemOperand &ctrMemOpnd = *static_cast<AArch64MemOperand*>(memOpnd);
+    if (IsImmediateOffsetOutOfRange(ctrMemOpnd, k64BitSize)) {
+      memOpnd = &SplitOffsetWithAddInstruction(ctrMemOpnd, k64BitSize);
+    }
+    Operand *reg = &SelectCopy(*memOpnd, PTY_u64, PTY_u64);
+    AArch64ImmOperand &one = CreateImmOperand(1, k64BitSize, false);
+    SelectAdd(*reg, *reg, one, PTY_u64);
+    SelectCopy(*memOpnd, PTY_u64, *reg, PTY_u64);
+    return;
+  }
+
   ASSERT(intrnNode.NumOpnds() == 1, "must be 1 operand");
   BaseNode *arg1 = intrnNode.Opnd(0);
   ASSERT(arg1 != nullptr, "nullptr check");

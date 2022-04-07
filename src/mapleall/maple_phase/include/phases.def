@@ -14,8 +14,9 @@ ADDMODULEPHASE("callgraph", Options::O2 && Options::useInline)
 ADDMODULEPHASE("simplify", Options::O2)
 ADDMODULEPHASE("ConstantFold", Options::O2)
 // ipa phase manager
-ADDMODULEPHASE("IpaSccPM", CLANG && Options::O2)
+ADDMODULEPHASE("IpaSccPM", CLANG && (Options::O2 || Options::profileGen))
 ADDMODULEPHASE("ipaclone", CLANG && Options::O2 && Options::enableIPAClone)
+ADDMODULEPHASE("ProfileGenPM", CLANG && Options::profileGen)
 // me phase manager is also a phase itself.
 ADDMAPLEPHASE("meFuncPM", IsRunMe());
 ADDMODULEPHASE("clinit", JAVALANG)
@@ -84,6 +85,7 @@ ADDMAPLEMEPHASE("rclowering", JAVALANG && !MeOption::noRC && MeOption::rcLowerin
 ADDMAPLEMEPHASE("gclowering", JAVALANG && MeOption::gcOnly)
 ADDMAPLEMEPHASE("rename2preg", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("lpre", MeOption::optLevel >= 2)
+ADDMAPLEMEPHASE("slp", !JAVALANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("storepre", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("ivopts", !JAVALANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("optimizeCFG", CLANG && MeOption::optLevel >= 2)

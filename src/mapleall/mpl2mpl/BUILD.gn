@@ -16,6 +16,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/maple_me/include",
   "${MAPLEALL_ROOT}/maple_ipa/include",
+  "${MAPLEALL_ROOT}/maple_ipa/include/old",
   "${MAPLEALL_ROOT}/maple_phase/include",
   "${MAPLEALL_ROOT}/maple_util/include",
   "${MAPLEALL_ROOT}/maple_driver/include",
@@ -44,8 +45,15 @@ src_libmpl2mpl = [
   "src/ext_constantfold.cpp",
   "src/coderelayout.cpp",
   "src/annotation_analysis.cpp",
+  "src/gen_profile.cpp",
   "src/preme.cpp",
   "src/scalarreplacement.cpp",
+  "src/module_phase_manager.cpp",
+  "src/clone.cpp",
+  "src/retype.cpp",
+  "src/call_graph.cpp",
+  "src/inline.cpp",
+  "src/method_replace.cpp",
 ]
 
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
