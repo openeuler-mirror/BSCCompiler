@@ -13,41 +13,29 @@
 # See the Mulan PSL v2 for more details.
 #
 group("maple") {
-  deps = [
-    "${MAPLEALL_ROOT}:maple",
-  ]
+  deps = [ "${MAPLEALL_ROOT}:maple" ]
 }
 
 group("irbuild") {
-  deps = [
-    "${MAPLEALL_ROOT}:irbuild",
-  ]
+  deps = [ "${MAPLEALL_ROOT}:irbuild" ]
 }
 
 group("hir2mpl") {
-  deps = [
-    "${HIR2MPL_ROOT}:hir2mpl",
-  ]
+  deps = [ "${HIR2MPL_ROOT}:hir2mpl" ]
 }
 
 group("hir2mplUT") {
-  deps = [
-    "${HIR2MPL_ROOT}/test:hir2mplUT",
-  ]
+  deps = [ "${HIR2MPL_ROOT}/test:hir2mplUT" ]
 }
 
 group("maple-rt") {
-  deps = [
-    "${MAPLE_MRT_ROOT}:maple-rt",
-  ]
+  deps = [ "${MAPLE_MRT_ROOT}:maple-rt" ]
 }
 
 group("ast2mpl") {
   deps = []
   if (IS_AST2MPL_EXISTS == "1") {
-    deps = [
-      "${AST2MPL_ROOT}/src:ast2mpl",
-    ]
+    deps = [ "${AST2MPL_ROOT}/src:ast2mpl" ]
   }
 }
 
@@ -58,13 +46,23 @@ group("mapleallUT") {
 }
 
 group("maplegendef") {
-  exec_script("${MAPLEALL_ROOT}/maple_be/mdgen/gendef.py",
-              [
-                rebase_path("${GN_BINARY_OUTPUT_DIRECTORY}/maplegen",
-                            root_build_dir),
-                rebase_path("${MAPLEALL_ROOT}/maple_be/include/ad/cortex_a55",
-                            root_build_dir),
-                rebase_path("${MAPLE_BUILD_OUTPUT}/common/target",
-                            root_build_dir),
-              ])
+  exeTool = "-e" + rebase_path("${GN_BINARY_OUTPUT_DIRECTORY}/maplegen", root_build_dir)
+  mdDir = "-m" + rebase_path("${MAPLEALL_ROOT}/maple_be/include/ad/cortex_a55", root_build_dir)
+  outDir = "-o" + rebase_path("${MAPLE_BUILD_OUTPUT}/common/target", root_build_dir)
+  if (ASAN == 1) {
+    exec_script("${MAPLEALL_ROOT}/maple_be/mdgen/gendef.py",
+                [
+                  "-aLD_PRELOAD=${LLVMLIBDIR}/libclang_rt.asan-x86_64.so",
+                  exeTool,
+                  mdDir,
+                  outDir,
+                ])
+ } else {
+   exec_script("${MAPLEALL_ROOT}/maple_be/mdgen/gendef.py",
+               [
+                 exeTool,
+                 mdDir,
+                 outDir
+               ])
+ }
 }
