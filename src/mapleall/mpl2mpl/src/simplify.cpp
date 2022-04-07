@@ -1158,13 +1158,11 @@ StmtNode *MemEntry::GenMemopRetAssign(StmtNode &stmt, MIRFunction &func, bool is
     MIRConst *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(errorNumber, *constType);
     rhs = mirBuilder->CreateConstval(mirConst);
   }
-  StIdx stIdx = retVec[0].first;
-  if (stIdx.FullIdx() != 0) {
+  if (!retVec[0].second.IsReg()) {
     auto *retAssign = mirBuilder->CreateStmtDassign(retVec[0].first, 0, rhs);
     return retAssign;
-  }
-  PregIdx pregIdx = retVec[0].second.GetPregIdx();
-  if (pregIdx != 0) {
+  } else {
+    PregIdx pregIdx = retVec[0].second.GetPregIdx();
     auto pregType = func.GetPregTab()->GetPregTableItem(static_cast<uint32>(pregIdx))->GetPrimType();
     auto *retAssign = mirBuilder->CreateStmtRegassign(pregType, pregIdx, rhs);
     if (isLowLevel) {
