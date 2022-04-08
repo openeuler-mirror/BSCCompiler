@@ -2391,6 +2391,8 @@ BaseNode *FEIRExprConst::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
     case PTY_i16:
     case PTY_i32:
     case PTY_i64:
+    case PTY_i128:
+    case PTY_u128:
     case PTY_ref:
     case PTY_ptr:
       return mirBuilder.CreateIntConst(value.i64, primType);
