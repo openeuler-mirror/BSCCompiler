@@ -135,6 +135,9 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
     cgLower.RegisterBuiltIns();
     cgLower.RegisterExternalLibraryFunctions();
     for (auto func : compFuncList) {
+      if (func->GetBody() == nullptr) {
+        continue;
+      }
       m.SetCurFunction(func);
       cgLower.LowerFunc(*func);
       MemPool *layoutMp = memPoolCtrler.NewMemPool("layout mempool", true);
