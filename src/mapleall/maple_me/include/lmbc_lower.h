@@ -45,6 +45,7 @@ class LMBCLowerer {
   void LowerIassign(IassignNode *, BlockNode *);
   void LowerAggIassign(BlockNode *, IassignNode *);
   BlockNode *LowerBlock(BlockNode *);
+  void LoadFormalsAssignedToPregs();
   void LowerFunction();
 };
 

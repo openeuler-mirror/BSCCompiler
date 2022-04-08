@@ -554,10 +554,27 @@ BlockNode *LMBCLowerer::LowerBlock(BlockNode *block) {
   return newblk;
 }
 
+void LMBCLowerer::LoadFormalsAssignedToPregs() {
+  // go through each formals
+  for (int32 i = func->GetFormalDefVec().size()-1; i >= 0; i--) {
+    MIRSymbol *formalSt = func->GetFormalDefVec()[i].formalSym;
+    if (formalSt->GetSKind() != kStPreg) {
+      continue;
+    }
+    MIRPreg *preg = formalSt->GetPreg();
+    uint32 stindex = formalSt->GetStIndex();
+    PrimType pty = formalSt->GetType()->GetPrimType();
+    IreadFPoffNode *ireadfpoff = mirBuilder->CreateExprIreadFPoff(pty, memlayout->sym_alloc_table[stindex].offset);
+    RegassignNode *rass = mirBuilder->CreateStmtRegassign(pty, func->GetPregTab()->GetPregIdxFromPregno(preg->GetPregNo()), ireadfpoff);
+    func->GetBody()->InsertFirst(rass);
+  }
+}
+
 void LMBCLowerer::LowerFunction() {
   BlockNode *origbody = func->GetBody();
   BlockNode *newbody = LowerBlock(origbody);
   func->SetBody(newbody);
+  LoadFormalsAssignedToPregs();
 }
 
 }  // namespace maple
