@@ -130,7 +130,7 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
   if (genLMBC) {
     m.SetFlavor(kFlavorLmbc);
     maplebe::BECommon beCommon(m);
-    GlobalMemLayout globalMemLayout(beCommon, &m.GetMPAllocator());
+    GlobalMemLayout globalMemLayout(&beCommon, &m, &m.GetMPAllocator());
     maplebe::CGLowerer cgLower(m, beCommon, false, false);
     cgLower.RegisterBuiltIns();
     cgLower.RegisterExternalLibraryFunctions();
@@ -142,7 +142,7 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
       cgLower.LowerFunc(*func);
       MemPool *layoutMp = memPoolCtrler.NewMemPool("layout mempool", true);
       MapleAllocator layoutAlloc(layoutMp);
-      LMBCMemLayout localMemLayout(beCommon, func, &layoutAlloc);
+      LMBCMemLayout localMemLayout(func, &layoutAlloc);
       localMemLayout.LayoutStackFrame();
       LMBCLowerer lmbcLowerer(&m, &beCommon, func, &globalMemLayout, &localMemLayout);
       lmbcLowerer.LowerFunction();

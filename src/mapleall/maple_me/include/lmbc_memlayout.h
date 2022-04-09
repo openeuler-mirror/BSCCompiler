@@ -66,7 +66,6 @@ class MemSegment {
 
 class LMBCMemLayout {
  public:
-  maplebe::BECommon &be;
   MIRFunction *func;
   MemSegment seg_upformal;
   MemSegment seg_formal;
@@ -78,9 +77,8 @@ class LMBCMemLayout {
  public:
   uint32 FindLargestActualArea(void);
   uint32 FindLargestActualArea(StmtNode *, int &);
-  explicit LMBCMemLayout(maplebe::BECommon &b, MIRFunction *f, MapleAllocator *mallocator)
-    : be(b),
-      func(f),
+  explicit LMBCMemLayout(MIRFunction *f, MapleAllocator *mallocator)
+    : func(f),
       seg_upformal(MS_upformal),
       seg_formal(MS_formal),
       seg_actual(MS_actual),
@@ -107,10 +105,11 @@ class GlobalMemLayout {
   MemSegment seg_GPbased;
   MapleVector<SymbolAlloc> sym_alloc_table;  // index is StIdx
  private:
-  maplebe::BECommon &be_;
+  maplebe::BECommon *be;
+  MIRModule *mirModule;
 
  public:
-  GlobalMemLayout(maplebe::BECommon &be, MapleAllocator *mallocator);
+  GlobalMemLayout(maplebe::BECommon *b, MIRModule *mod, MapleAllocator *mallocator);
   ~GlobalMemLayout() {}
 
  private:
@@ -128,12 +127,11 @@ struct PLocInfo {
 // for processing an incoming or outgoing parameter list
 class ParmLocator {
  private:
-  maplebe::BECommon &be_;
-  int32 parm_num_;  // number of all types of parameters processed so far
-  int32 last_memoffset_;
+  int32 parmNum;  // number of all types of parameters processed so far
+  int32 lastMemOffset;
 
  public:
-  ParmLocator(maplebe::BECommon &b) : be_(b), parm_num_(0), last_memoffset_(0) {}
+  ParmLocator() : parmNum(0), lastMemOffset(0) {}
 
   ~ParmLocator() {}
 
@@ -146,7 +144,7 @@ class ReturnMechanism {
   bool fake_first_parm;  // whether returning in memory via fake first parameter
   PrimType ptype0;       // the primitive type stored in retval0
 
-  ReturnMechanism(const MIRType *retty, maplebe::BECommon &be);
+  ReturnMechanism(const MIRType *retty);
 };
 
 }  /* namespace maple */

@@ -56,7 +56,7 @@ uint32 LMBCMemLayout::FindLargestActualArea(StmtNode *stmt, int &maxActualSize) 
     case OP_call:
     case OP_icall:
     case OP_intrinsiccall: {
-      ParmLocator parmlocator(be);  // instantiate a parm locator
+      ParmLocator parmlocator;  // instantiate a parm locator
       NaryStmtNode *callstmt = static_cast<NaryStmtNode *>(stmt);
       for (uint32 i = 0; i < callstmt->NumOpnds(); i++) {
         BaseNode *opnd = callstmt->Opnd(i);
@@ -116,7 +116,7 @@ void LMBCMemLayout::LayoutStackFrame(void) {
   MIRSymbol *sym = nullptr;
   // StIdx stIdx;
   // go through formal parameters
-  ParmLocator parmlocator(be);  // instantiate a parm locator
+  ParmLocator parmlocator;  // instantiate a parm locator
   PLocInfo ploc;
   for (uint32 i = 0; i < func->GetFormalDefVec().size(); i++) {
     FormalDef formalDef = func->GetFormalDefAt(i);
@@ -126,9 +126,9 @@ void LMBCMemLayout::LayoutStackFrame(void) {
     uint32 stindex = sym->GetStIndex();
     // always passed in memory, so allocate in seg_upformal
     sym_alloc_table[stindex].mem_segment = &seg_upformal;
-    seg_upformal.size = maplebe::RoundUp(seg_upformal.size, be.GetTypeAlign(ty->GetTypeIndex()));
+    seg_upformal.size = maplebe::RoundUp(seg_upformal.size, ty->GetAlign());
     sym_alloc_table[stindex].offset = seg_upformal.size;
-    seg_upformal.size += be.GetTypeSize(ty->GetTypeIndex());
+    seg_upformal.size += ty->GetSize();
     seg_upformal.size = maplebe::RoundUp(seg_upformal.size, GetPrimTypeSize(PTY_ptr));
     // LogInfo::MapleLogger() << "LAYOUT: formal %" << GlobalTables::GetStringFromGstridx(sym->GetNameStridx());
     // LogInfo::MapleLogger() << " at seg_upformal offset " << sym_alloc_table[stindex].offset << " passed in memory\n";
@@ -158,8 +158,8 @@ void LMBCMemLayout::LayoutStackFrame(void) {
     }
     uint32 stindex = sym->GetStIndex();
     sym_alloc_table[stindex].mem_segment = &seg_FPbased;
-    seg_FPbased.size -= be.GetTypeSize(sym->GetTyIdx());
-    seg_FPbased.size = maplebe::RoundDown(seg_FPbased.size, be.GetTypeAlign(sym->GetTyIdx()));
+    seg_FPbased.size -= sym->GetType()->GetSize();
+    seg_FPbased.size = maplebe::RoundDown(seg_FPbased.size, sym->GetType()->GetAlign());
     sym_alloc_table[stindex].offset = seg_FPbased.size;
     // LogInfo::MapleLogger() << "LAYOUT: local %" << GlobalTables::GetStringFromGstridx(sym->GetNameStridx());
     // LogInfo::MapleLogger() << " at FPbased offset " << sym_alloc_table[stindex].offset << std::endl;
@@ -216,35 +216,35 @@ void GlobalMemLayout::FillScalarValueInMap(uint32 startaddress, PrimType pty, MI
     case PTY_u1:
     case PTY_u8:
     case PTY_i8: {
-      uint8 *p = &be_.GetMIRModule().GetGlobalBlockMap()[startaddress];
+      uint8 *p = &mirModule->GetGlobalBlockMap()[startaddress];
       *p = GetU8Const(c);
       break;
     }
     case PTY_u16:
     case PTY_i16: {
-      uint16 *p = (uint16 *)(&be_.GetMIRModule().GetGlobalBlockMap()[startaddress]);
+      uint16 *p = (uint16 *)(&mirModule->GetGlobalBlockMap()[startaddress]);
       *p = GetU16Const(c);
       break;
     }
     case PTY_u32:
     case PTY_i32: {
-      uint32 *p = (uint32 *)(&be_.GetMIRModule().GetGlobalBlockMap()[startaddress]);
+      uint32 *p = (uint32 *)(&mirModule->GetGlobalBlockMap()[startaddress]);
       *p = GetU32Const(c);
       break;
     }
     case PTY_u64:
     case PTY_i64: {
-      uint64 *p = (uint64 *)(&be_.GetMIRModule().GetGlobalBlockMap()[startaddress]);
+      uint64 *p = (uint64 *)(&mirModule->GetGlobalBlockMap()[startaddress]);
       *p = GetU64Const(c);
       break;
     }
     case PTY_f32: {
-      uint32 *p = (uint32 *)(&be_.GetMIRModule().GetGlobalBlockMap()[startaddress]);
+      uint32 *p = (uint32 *)(&mirModule->GetGlobalBlockMap()[startaddress]);
       *p = GetF32Const(c);
       break;
     }
     case PTY_f64: {
-      uint64 *p = (uint64 *)(&be_.GetMIRModule().GetGlobalBlockMap()[startaddress]);
+      uint64 *p = (uint64 *)(&mirModule->GetGlobalBlockMap()[startaddress]);
       *p = GetF64Const(c);
       break;
     }
@@ -281,7 +281,7 @@ void GlobalMemLayout::FillTypeValueInMap(uint32 startaddress, MIRType *ty, MIRCo
         uint32 fieldID = aggconst->GetFieldIdItem(i);
         FieldPair thepair = structty->TraverseToField(fieldID);
         MIRType *fieldty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
-        uint32 offset = be_.GetFieldOffset(*structty, fieldID).first;
+        uint32 offset = be->GetFieldOffset(*structty, fieldID).first;
         FillTypeValueInMap(startaddress + offset, fieldty, constvec[i]);
       }
       break;
@@ -295,7 +295,7 @@ void GlobalMemLayout::FillTypeValueInMap(uint32 startaddress, MIRType *ty, MIRCo
         uint32 fieldID = aggconst->GetFieldIdItem(i);
         FieldPair thepair = classty->TraverseToField(fieldID);
         MIRType *fieldty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
-        uint32 offset = be_.GetFieldOffset(*classty, fieldID).first;
+        uint32 offset = be->GetFieldOffset(*classty, fieldID).first;
         FillTypeValueInMap(startaddress + offset, fieldty, constvec[i]);
       }
       break;
@@ -316,8 +316,8 @@ void GlobalMemLayout::FillSymbolValueInMap(const MIRSymbol *sym) {
   return;
 }
 
-GlobalMemLayout::GlobalMemLayout(maplebe::BECommon &be, MapleAllocator *mallocator)
-  : seg_GPbased(MS_GPbased), sym_alloc_table(mallocator->Adapter()), be_(be) {
+GlobalMemLayout::GlobalMemLayout(maplebe::BECommon *b,  MIRModule *mod, MapleAllocator *mallocator)
+  : seg_GPbased(MS_GPbased), sym_alloc_table(mallocator->Adapter()), be(b), mirModule(mod) {
   uint32 symtabsize = GlobalTables::GetGsymTable().GetSymbolTableSize();
   sym_alloc_table.resize(symtabsize);
   MIRSymbol *sym = nullptr;
@@ -329,25 +329,25 @@ GlobalMemLayout::GlobalMemLayout(maplebe::BECommon &be, MapleAllocator *mallocat
       if (!sym) {
         continue;
       }
-      if (sym->GetStorageClass() != kScGlobal && sym->GetStorageClass() != kScFstatic) {
+      if (sym->GetStorageClass() != kScPstatic && sym->GetStorageClass() != kScFstatic) {
         continue;
       }
-      if (be.GetTypeAlign(sym->GetTyIdx()) != curalign) {
+      if (sym->GetType()->GetAlign() != curalign) {
         continue;
       }
       uint32 stindex = sym->GetStIndex();
       sym_alloc_table[stindex].mem_segment = &seg_GPbased;
-      seg_GPbased.size = maplebe::RoundUp(seg_GPbased.size, be.GetTypeAlign(sym->GetTyIdx()));
+      seg_GPbased.size = maplebe::RoundUp(seg_GPbased.size, sym->GetType()->GetAlign());
       sym_alloc_table[stindex].offset = seg_GPbased.size;
-      seg_GPbased.size += be.GetTypeSize(sym->GetTyIdx());
+      seg_GPbased.size += sym->GetType()->GetSize();
       // LogInfo::MapleLogger() << "LAYOUT: global %" << GlobalTables::GetStringFromGstridx(sym->GetNameStridx());
       // LogInfo::MapleLogger() << " at GPbased offset " << sym_alloc_table[stindex].offset << std::endl;
     }
   }
   seg_GPbased.size = maplebe::RoundUp(seg_GPbased.size, GetPrimTypeSize(PTY_ptr));
-  be.GetMIRModule().SetGlobalMemSize(seg_GPbased.size);
+  mirModule->SetGlobalMemSize(seg_GPbased.size);
   // allocate the memory map for the GP block
-  be.GetMIRModule().SetGlobalBlockMap(static_cast<uint8 *>(be.GetMIRModule().GetMemPool()->Calloc(seg_GPbased.size)));
+  mirModule->SetGlobalBlockMap(static_cast<uint8 *>(mirModule->GetMemPool()->Calloc(seg_GPbased.size)));
   // perform initialization on globalblkmap
   for (uint32 i = 0; i < symtabsize; i++) {
     sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(i);
@@ -365,11 +365,11 @@ GlobalMemLayout::GlobalMemLayout(maplebe::BECommon &be, MapleAllocator *mallocat
 // starting from the beginning, one call per parameter in sequence; it returns
 // the information on how each parameter is passed in ploc
 void ParmLocator::LocateNextParm(const MIRType *ty, PLocInfo &ploc) {
-  ploc.memoffset = last_memoffset_;
-  ploc.memsize = GetPrimTypeSize(ty->GetPrimType());
+  ploc.memoffset = lastMemOffset;
+  ploc.memsize = ty->GetSize();
 
   uint32 rightpad = 0;
-  parm_num_++;
+  parmNum++;
 
   switch (ty->GetPrimType()) {
     case PTY_u1:
@@ -414,7 +414,7 @@ void ParmLocator::LocateNextParm(const MIRType *ty, PLocInfo &ploc) {
       break;
 
     case PTY_agg: {
-      ploc.memsize = be_.GetTypeSize(ty->GetTypeIndex());
+      ploc.memsize = ty->GetSize();
       // compute rightpad
       int32 paddedSize = maplebe::RoundUp(ploc.memsize, 8);
       rightpad = paddedSize - ploc.memsize;
@@ -424,13 +424,13 @@ void ParmLocator::LocateNextParm(const MIRType *ty, PLocInfo &ploc) {
       CHECK_FATAL(false, "");
   }
 
-  last_memoffset_ = ploc.memoffset + ploc.memsize + rightpad;
+  lastMemOffset = ploc.memoffset + ploc.memsize + rightpad;
   return;
 }
 
 // instantiated with the type of the function return value, it describes how
 // the return value is to be passed back to the caller
-ReturnMechanism::ReturnMechanism(const MIRType *retty, maplebe::BECommon &be) : fake_first_parm(false) {
+ReturnMechanism::ReturnMechanism(const MIRType *retty) : fake_first_parm(false) {
   switch (retty->GetPrimType()) {
     case PTY_u1:
     case PTY_u8:
@@ -463,7 +463,7 @@ ReturnMechanism::ReturnMechanism(const MIRType *retty, maplebe::BECommon &be) : 
       return;
 
     case PTY_agg: {
-      uint32 size = be.GetTypeSize(retty->GetTypeIndex());
+      uint32 size = retty->GetSize();
       if (size > 4) {
         fake_first_parm = true;
         ptype0 = PTY_a32;
