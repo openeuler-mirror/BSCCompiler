@@ -134,6 +134,14 @@ class PGOInstrument {
     return (allEdgeSize << edgeSizeInfoShift) | hashCode;
   }
 
+  uint64 ComputeLinenoHash() {
+    const std::string& fileName = func->GetMIRModule().GetFileName();
+    uint64 fileNameHash = DJBHash(fileName.c_str());
+    std::string lineNo = std::to_string(func->GetMirFunc()->GetSrcPosition().LineNum());
+    uint64 linenoHash = fileNameHash << 32 | DJBHash(lineNo.c_str());
+    return linenoHash;
+  }
+
   void ClearBBGroupInfo() {
     auto eIt = func->GetCfg()->valid_end();
     for (auto bIt = func->GetCfg()->valid_begin(); bIt != eIt; ++bIt) {
@@ -141,6 +149,7 @@ class PGOInstrument {
       bb->ClearGroup();
     }
   }
+
  protected:
   bool dump;
  private:

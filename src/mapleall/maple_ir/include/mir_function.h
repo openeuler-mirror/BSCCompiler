@@ -1179,6 +1179,14 @@ class MIRFunction {
   void SetIsVisited() {
     isVisited = true;
   }
+
+  void SetFuncProfData(GcovFuncInfo *data) {
+    funcProfData = data;
+  }
+  GcovFuncInfo* GetFuncProfData() {
+    return funcProfData;
+  }
+
  private:
   MIRModule *module;     // the module that owns this function
   PUIdx puIdx = 0;           // the PU index of this function
@@ -1278,6 +1286,7 @@ class MIRFunction {
   uint32 nCtrs = 0; // number of counters
   uint64 fileLinenoChksum = 0;
   uint64 cfgChksum = 0;
+  GcovFuncInfo *funcProfData = nullptr;
   void DumpFlavorLoweredThanMmpl() const;
   MIRFuncType *ReconstructFormals(const std::vector<MIRSymbol*> &symbols, bool clearOldArgs);
 };

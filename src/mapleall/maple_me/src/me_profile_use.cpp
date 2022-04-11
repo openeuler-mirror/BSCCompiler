@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -161,7 +161,7 @@ void MeProfUse::SetEdgeCount(MapleVector<BBUseEdge*> &edges, uint64 value) {
   CHECK(false, "can't find unkown edge");
 }
 
-void MeProfUse::SetEdgeCount(BBUseEdge &e, uint32 value) {
+void MeProfUse::SetEdgeCount(BBUseEdge &e, size_t value) {
   // edge counter already valid skip
   if (e.GetStatus()) {
     return;
@@ -242,7 +242,7 @@ void MeProfUse::SetFuncEdgeInfo() {
   for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     auto *bbInfo = GetBBUseInfo(*bb);
-    bb->SetFrequency(bbInfo->GetCount());
+    bb->SetFrequency(static_cast<uint32>(bbInfo->GetCount()));
     if (bIt == cfg->common_entry() || bIt == cfg->common_exit()) {
       continue;
     }
@@ -258,7 +258,7 @@ void MeProfUse::SetFuncEdgeInfo() {
       bb->SetEdgeFreq(destBB, e->GetCount());
     }
   }
-  func->SetProfValid();
+  func->SetProfValid(true);
   func->SetFrequency(cfg->GetCommonEntryBB()->GetFrequency());
   if (Options::genPGOReport) {
     func->GetMIRModule().GetProfile().SetFuncStatus(func->GetName(), true);
@@ -294,16 +294,82 @@ bool MeProfUse::Run() {
   return true;
 }
 
-AnalysisResult *MeDoProfUse::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  (void)(m->GetAnalysisResult(MeFuncPhase_MECFG, func));
-  MemPool *tempMp = NewMemPool();
-  MeProfUse profUse(*func, *tempMp, DEBUGFUNC(func));
-  profUse.Run();
-  if (DEBUGFUNC(func) && profUse.IsSuccUseProf()) {
+bool MeProfUse::GcovRun() {
+  GcovProfileData* gcovData = func->GetMIRModule().GetGcovProfile();
+  if (!gcovData) return false;
+  GcovFuncInfo* funcData = gcovData->GetFuncProfile(func->GetUniqueID());
+  func->GetMirFunc()->SetFuncProfData(funcData);
+  if (!funcData) return false;
+  // early return if lineno fail
+  uint64 linenohash = ComputeLinenoHash();
+  uint32 lineNoChkSum = static_cast<uint32>((linenohash >> 32) ^ (linenohash & 0xffffffff));
+  if (lineNoChkSum != funcData->lineno_checksum) {
+    if (dump) {
+      LogInfo::MapleLogger() << func->GetName() << " lineno checksum doesn't match gcda value  "
+                             << funcData->lineno_checksum << " lineno real hash " << lineNoChkSum << '\n';
+    }
+    return false;
+  }
+  FindInstrumentEdges();
+  // early return if cfgchecksum fail
+  uint64 cfghash = ComputeFuncHash();
+  uint32 cfgChkSum = static_cast<uint32>((cfghash >> 32) ^ (cfghash & 0xffffffff));
+  if (cfgChkSum != funcData->cfg_checksum) {
+    if (dump) {
+      LogInfo::MapleLogger() << func->GetName() << " hash doesn't match profile hash "
+                             << funcData->cfg_checksum << " func real hash " << cfgChkSum << '\n';
+    }
+    return false;
+  }
+  std::vector<BB*> instrumentBBs;
+  GetInstrumentBBs(instrumentBBs);
+  if (dump) {
+    DumpEdgeInfo();
+  }
+  if (instrumentBBs.size() != funcData->num_counts) {
+    if (dump) {
+      LogInfo::MapleLogger() << func->GetName() << " counter doesn't match profile counter "
+                             << funcData->num_counts << " func real counter " <<  instrumentBBs.size() << '\n';
+    }
+    return false;
+  }
+  size_t i = 0;
+  for (auto *bb : instrumentBBs) {
+    auto *bbUseInfo = GetOrCreateBBUseInfo(*bb);
+    bbUseInfo->SetCount(funcData->counts[i]);
+    i++;
+  }
+  InitBBEdgeInfo();
+  ComputeEdgeFreq();
+  succCalcuAllEdgeFreq = true;
+  // save edge frequence to bb
+  SetFuncEdgeInfo();
+  func->GetCfg()->ConstructStmtFreq();
+  return true;
+}
+
+
+
+void MEProfUse::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEMeCfg>();
+  aDep.SetPreservedAll();
+}
+
+bool MEProfUse::PhaseRun(maple::MeFunction &f) {
+  MeProfUse profUse(f, *GetPhaseMemPool(), DEBUGFUNC_NEWPM(f));
+  bool result = true;
+  if (Options::profileUse) {
+    result = profUse.GcovRun();
+  } else {
+    profUse.Run();
+  }
+
+  //if (DEBUGFUNC_NEWPM(f) && profUse.IsSuccUseProf()) {
+  if (result) {
     LogInfo::MapleLogger() << "******************after profile use  dump function******************\n";
     profUse.DumpFuncCFGEdgeFreq();
-    func->GetCfg()->DumpToFile("afterProfileUse", false, true);
+    f.GetCfg()->DumpToFile("afterProfileUse", false, true);
   }
-  return nullptr;
+  return true;
 }
 }  // namespace maple

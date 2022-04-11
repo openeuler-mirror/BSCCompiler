@@ -238,7 +238,7 @@ const mapleOption::Descriptor kUsages[] = {
     kArgCheckPolicyBool,
     "  --profileUse                \tOptimize static languages with profile data\n",
     "driver",
-    { "me", "mpl2mpl", "mplcg" } },
+    { "mpl2mpl" } },
   { kGCOnly,
     kEnable,
     "",
