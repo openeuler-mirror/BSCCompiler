@@ -68,9 +68,9 @@ class ProfileGen {
 
   private:
     MIRModule &mod;
-    MIRSymbol *modProfDesc;
+    MIRSymbol *modProfDesc = nullptr;
     // Keep order of funcs visited
-    MIRSymbol *funcProfDescTbl;
+    MIRSymbol *funcProfDescTbl = nullptr;
     std::vector<MIRSymbol *> funcProfDescs;
     std::vector<MIRFunction *> validFuncs;
 };

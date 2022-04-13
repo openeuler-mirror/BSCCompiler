@@ -112,8 +112,7 @@ void MeProfGen::InstrumentFunc() {
     if (nCtrs != 0) {
       MIRType *arrOfInt64Ty = GlobalTables::GetTypeTable().GetOrCreateArrayType(
          *GlobalTables::GetTypeTable().GetInt64(), nCtrs);
-
-      // Likely pathname is needed
+      // flatten the counter table name
       std::string ctrTblName = namemangler::kprefixProfCtrTbl +
                                func->GetMIRModule().GetFileName() + "_" +
                                func->GetMirFunc()->GetName();
@@ -122,6 +121,7 @@ void MeProfGen::InstrumentFunc() {
       std::replace(ctrTblName.begin(), ctrTblName.end(), '/', '_');
 
       MIRSymbol *ctrTblSym = mod->GetMIRBuilder()->CreateGlobalDecl(ctrTblName, *arrOfInt64Ty, kScFstatic);
+      ctrTblSym->SetSKind(kStVar);
       func->GetMirFunc()->SetProfCtrTbl(ctrTblSym);
 
     }
@@ -129,7 +129,7 @@ void MeProfGen::InstrumentFunc() {
       InstrumentBB(*bb);
     }
 
-    // Checksums are relatively sensible to source changes
+    // Checksums are relatively sensitive to source changes
     // Generate the function's lineno checksum
     std::string fileName = func->GetMIRModule().GetFileName();
     uint64 fileNameHash = DJBHash(fileName.c_str());
