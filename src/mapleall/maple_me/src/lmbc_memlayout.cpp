@@ -170,6 +170,7 @@ void LMBCMemLayout::LayoutStackFrame(void) {
   // going over all outgoing calls and get the maximum space needed for the
   // actuals
   seg_actual.size = FindLargestActualArea();
+  func->SetOutParmSize(seg_actual.size);
 
   // allocate seg_actual in seg_SPbased
   seg_actual.how_alloc.mem_segment = &seg_SPbased;
@@ -329,7 +330,7 @@ GlobalMemLayout::GlobalMemLayout(maplebe::BECommon *b,  MIRModule *mod, MapleAll
       if (!sym) {
         continue;
       }
-      if (sym->GetStorageClass() != kScPstatic && sym->GetStorageClass() != kScFstatic) {
+      if (sym->GetStorageClass() != kScGlobal && sym->GetStorageClass() != kScFstatic) {
         continue;
       }
       if (sym->GetType()->GetAlign() != curalign) {

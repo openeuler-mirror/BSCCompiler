@@ -325,7 +325,7 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
     }
     PregIdx spcreg = GetSpecialRegFromSt(symbol);
     if (spcreg == -kSregFp) {
-      IassignFPoffNode *iassignoff = mirBuilder->CreateStmtIassignFPoff(
+      IassignFPoffNode *iassignoff = mirBuilder->CreateStmtIassignFPoff(OP_iassignfpoff,
         ptypused, memlayout->sym_alloc_table[symbol->GetStIndex()].offset + offset, dsnode->Opnd(0));
       newblk->AddStatement(iassignoff);
     } else {
@@ -519,6 +519,90 @@ void LMBCLowerer::LowerIassign(IassignNode *iassign, BlockNode *newblk) {
   }
 }
 
+// called only if the return has > 1 operand; assume prior lowering already
+// converted any return of structs to be via fake parameter
+void LMBCLowerer::LowerReturn(NaryStmtNode *retNode, BlockNode *newblk) {
+  CHECK_FATAL(retNode->NumOpnds() <= 2, "LMBCLowerer::LowerReturn: more than 2 return values NYI");
+  for (int i = 0; i < retNode->NumOpnds(); i++) {
+    CHECK_FATAL(retNode->Opnd(i)->GetPrimType() != PTY_agg, "LMBCLowerer::LowerReturn: return of aggregate needs to be handled first");
+    // insert regassign for the returned value
+    BaseNode *rhs = LowerExpr(retNode->Opnd(i));
+    RegassignNode *regasgn = mirBuilder->CreateStmtRegassign(rhs->GetPrimType(), i == 0 ? -kSregRetval0 : -kSregRetval1, rhs);
+    newblk->AddStatement(regasgn);
+  }
+  retNode->GetNopnd().clear();  // remove the return operands
+  retNode->SetNumOpnds(0);
+  newblk->AddStatement(retNode);
+}
+
+void LMBCLowerer::LowerCall(NaryStmtNode *naryStmt, BlockNode *newblk) {
+  // go through each parameter
+  uint32 i = 0;
+  if (naryStmt->GetOpCode() == OP_icall || naryStmt->GetOpCode() == OP_icallassigned) {
+    i = 1;
+  }
+  ParmLocator parmlocator;
+  for (; i < naryStmt->NumOpnds(); i++) {
+    BaseNode *opnd = naryStmt->Opnd(i);
+    MIRType *ty = nullptr;
+    // get ty for this parameter
+    if (opnd->GetPrimType() != PTY_agg) {
+      ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(opnd->GetPrimType()));
+    } else {
+      Opcode opnd_opcode = opnd->GetOpCode();
+      CHECK_FATAL(opnd_opcode == OP_dread || opnd_opcode == OP_iread, "");
+      if (opnd_opcode == OP_dread) {
+        AddrofNode *dread = static_cast<AddrofNode *>(opnd);
+        MIRSymbol *sym = func->GetLocalOrGlobalSymbol(dread->GetStIdx());
+        ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx());
+        if (dread->GetFieldID() != 0) {
+          CHECK_FATAL(ty->GetKind() == kTypeStruct || ty->GetKind() == kTypeClass, "");
+          FieldPair thepair = static_cast<MIRStructType *>(ty)->TraverseToField(dread->GetFieldID());
+          ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
+        }
+      } else {  // OP_iread
+        IreadNode *iread = static_cast<IreadNode *>(opnd);
+        ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iread->GetTyIdx());
+        CHECK_FATAL(ty->GetKind() == kTypePointer, "");
+        ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<MIRPtrType *>(ty)->GetPointedTyIdx());
+        if (iread->GetFieldID() != 0) {
+          CHECK_FATAL(ty->GetKind() == kTypeStruct || ty->GetKind() == kTypeClass, "");
+          FieldPair thepair = static_cast<MIRStructType *>(ty)->TraverseToField(iread->GetFieldID());
+          ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
+        }
+      }
+    }
+    PLocInfo ploc;
+    parmlocator.LocateNextParm(ty, ploc);
+    if (opnd->GetPrimType() != PTY_agg) {
+      IassignFPoffNode *iass = mirBuilder->CreateStmtIassignFPoff(OP_iassignspoff, opnd->GetPrimType(), ploc.memoffset, LowerExpr(opnd));
+      newblk->AddStatement(iass);
+    } else {
+      BlkassignoffNode *bass = mirModule->CurFuncCodeMemPool()->New<BlkassignoffNode>(ploc.memoffset, ploc.memsize);
+      bass->SetBOpnd(mirBuilder->CreateExprRegread(PTY_a64, -kSregSp), 0);
+      // the operand is either OP_dread or OP_iread; use its address instead
+      if (opnd->GetOpCode() == OP_dread) {
+        opnd->SetOpCode(OP_addrof);
+      } else {
+        opnd->SetOpCode(OP_iaddrof);
+      }
+      bass->SetBOpnd(opnd, 1);
+      newblk->AddStatement(bass);
+    }
+  }
+  BaseNode *opnd0 = nullptr;
+  if (naryStmt->GetOpCode() == OP_icall || naryStmt->GetOpCode() == OP_icallassigned) {
+    opnd0 = naryStmt->Opnd(0);
+    naryStmt->GetNopnd().clear();  // remove the call operands
+    naryStmt->GetNopnd().push_back(opnd0);
+    naryStmt->SetNumOpnds(1);
+  } else {
+    naryStmt->GetNopnd().clear();  // remove the call operands
+    naryStmt->SetNumOpnds(0);
+  }
+  newblk->AddStatement(naryStmt);
+}
+
 BlockNode *LMBCLowerer::LowerBlock(BlockNode *block) {
   BlockNode *newblk = mirModule->CurFuncCodeMemPool()->New<BlockNode>();
   if (!block->GetFirst()) {
@@ -540,6 +624,19 @@ BlockNode *LMBCLowerer::LowerBlock(BlockNode *block) {
     }
     case OP_iassign: {
       LowerIassign(static_cast<IassignNode*>(stmt), newblk);
+      break;
+    }
+    case OP_return: {
+      NaryStmtNode *retNode = static_cast<NaryStmtNode*>(stmt);
+      if (retNode->GetNopndSize() == 0) {
+        newblk->AddStatement(stmt);
+      } else {
+        LowerReturn(retNode, newblk);
+      }
+    }
+    case OP_call:
+    case OP_icall: {
+      LowerCall(static_cast<NaryStmtNode*>(stmt), newblk);
       break;
     }
     default: {

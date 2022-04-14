@@ -55,6 +55,7 @@
   // per-function declaration keywords
   KEYWORD(framesize)
   KEYWORD(upformalsize)
+  KEYWORD(outparmsize)
   KEYWORD(moduleid)
   KEYWORD(funcsize)
   KEYWORD(funcid)

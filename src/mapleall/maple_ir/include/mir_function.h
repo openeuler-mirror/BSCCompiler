@@ -789,6 +789,13 @@ class MIRFunction {
     upFormalSize = size;
   }
 
+  uint16 GetOutParmSize() const {
+    return outParmSize;
+  }
+  void SetOutParmSize(uint16 size) {
+    outParmSize = size;
+  }
+
   uint16 GetModuleId() const {
     return moduleID;
   }
@@ -1188,6 +1195,7 @@ class MIRFunction {
   uint8_t layoutType = kLayoutUnused;
   uint16 frameSize = 0;
   uint16 upFormalSize = 0;
+  uint16 outParmSize = 0;
   uint16 moduleID = 0;
   uint32 funcSize = 0;                         // size of code in words
   uint32 tempCount = 0;

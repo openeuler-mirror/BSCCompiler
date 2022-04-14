@@ -456,6 +456,11 @@ void MIRFunction::DumpFuncBody(int32 indent) {
     DumpFrame(indent);
   }
 
+  if (GetOutParmSize() > 0) {
+    PrintIndentation(indent + 1);
+    LogInfo::MapleLogger() << "outparmsize " << GetOutParmSize() << '\n';
+  }
+
   if (GetModuleId() > 0) {
     PrintIndentation(indent + 1);
     LogInfo::MapleLogger() << "moduleID " << static_cast<uint32>(GetModuleId()) << '\n';

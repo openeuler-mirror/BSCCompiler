@@ -43,6 +43,7 @@ void BinaryMplExport::OutputFuncIdInfo(MIRFunction *func) {
   if (mod.GetFlavor() == kFlavorLmbc) {
     WriteNum(func->GetUpFormalSize());
     WriteNum(func->GetFrameSize());
+    WriteNum(func->GetOutParmSize());
   }
   WriteNum(~kBinFuncIdInfoStart);
 }
@@ -441,10 +442,17 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
         WriteNum(iassoff->GetOffset());
         break;
       }
+      case OP_iassignspoff:
       case OP_iassignfpoff: {
         IassignFPoffNode *iassfpoff = static_cast<IassignFPoffNode *>(s);
         WriteNum(iassfpoff->GetPrimType());
         WriteNum(iassfpoff->GetOffset());
+        break;
+      }
+      case OP_blkassignoff: {
+        BlkassignoffNode *bass = static_cast<BlkassignoffNode *>(s);
+        WriteNum(bass->offset);
+        WriteNum(bass->blockSize);
         break;
       }
       case OP_call:

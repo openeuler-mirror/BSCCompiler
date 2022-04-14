@@ -49,6 +49,7 @@ void BinaryMplImport::ImportFuncIdInfo(MIRFunction *func) {
   if (mod.GetFlavor() == kFlavorLmbc) {
     func->SetUpFormalSize(ReadNum());
     func->SetFrameSize(ReadNum());
+    func->SetOutParmSize(ReadNum());
   }
   tag = ReadNum();
   CHECK_FATAL(tag == ~kBinFuncIdInfoStart, "pattern mismatch in ImportFuncIdInfo()");
@@ -547,11 +548,21 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         stmt = s;
         break;
       }
+      case OP_iassignspoff:
       case OP_iassignfpoff: {
-        IassignFPoffNode *s = func->GetCodeMemPool()->New<IassignFPoffNode>();
+        IassignFPoffNode *s = func->GetCodeMemPool()->New<IassignFPoffNode>(op);
         s->SetPrimType((PrimType)ReadNum());
         s->SetOffset(static_cast<int32>(ReadNum()));
         s->SetOpnd(ImportExpression(func), 0);
+        stmt = s;
+        break;
+      }
+      case OP_blkassignoff: {
+        BlkassignoffNode *s = func->GetCodeMemPool()->New<BlkassignoffNode>();
+        s->offset = static_cast<int32>(ReadNum());
+        s->blockSize = static_cast<int32>(ReadNum());
+        s->SetOpnd(ImportExpression(func), 0);
+        s->SetOpnd(ImportExpression(func), 1);
         stmt = s;
         break;
       }

@@ -464,6 +464,31 @@ MIRSymbol *MIRBuilder::CreateSymbol(TyIdx tyIdx, GStrIdx strIdx, MIRSymKind mCla
   return MIRSymbolBuilder::Instance().CreateSymbol(tyIdx, strIdx, mClass, sClass, func, scpID);
 }
 
+MIRSymbol *MIRBuilder::CreateConstStringSymbol(const std::string &symbolName, const std::string &content) {
+  auto elemPrimType = PTY_u8;
+  MIRType *type = GlobalTables::GetTypeTable().GetPrimType(elemPrimType);
+  uint32 sizeIn = static_cast<uint32>(content.length());
+  MIRType *arrayTypeWithSize = GlobalTables::GetTypeTable().GetOrCreateArrayType(
+      *GlobalTables::GetTypeTable().GetPrimType(elemPrimType), 1, &sizeIn);
+
+  if (GetLocalDecl(symbolName)) {
+    return GetLocalDecl(symbolName);
+  }
+  MIRSymbol *arrayVar = GetOrCreateGlobalDecl(symbolName, *arrayTypeWithSize);
+  arrayVar->SetAttr(ATTR_readonly);
+  arrayVar->SetStorageClass(kScFstatic);
+  MIRAggConst *val = mirModule->GetMemPool()->New<MIRAggConst>(*mirModule, *arrayTypeWithSize);
+  for (uint32 i = 0; i < sizeIn; ++i) {
+    MIRConst *cst = mirModule->GetMemPool()->New<MIRIntConst>(content[i], *type);
+    val->PushBack(cst);
+  }
+  // This interface is only for string literal, 0 is added to the end of the string.
+  MIRConst *cst0 = mirModule->GetMemPool()->New<MIRIntConst>(0, *type);
+  val->PushBack(cst0);
+  arrayVar->SetKonst(val);
+  return arrayVar;
+}
+
 MIRSymbol *MIRBuilder::CreatePregFormalSymbol(TyIdx tyIdx, PregIdx pRegIdx, MIRFunction &func) const {
   return MIRSymbolBuilder::Instance().CreatePregFormalSymbol(tyIdx, pRegIdx, func);
 }
@@ -582,10 +607,12 @@ AddroffuncNode *MIRBuilder::CreateExprAddroffunc(PUIdx puIdx, MemPool *memPool) 
 }
 
 AddrofNode *MIRBuilder::CreateExprDread(const MIRType &type, FieldID fieldID, const MIRSymbol &symbol) {
+  return CreateExprDread(type.GetPrimType(), fieldID, symbol);
+}
+
+AddrofNode *MIRBuilder::CreateExprDread(PrimType ptyp, FieldID fieldID, const MIRSymbol &symbol) {
   auto *node = GetCurrentFuncCodeMp()->New<AddrofNode>(OP_dread, kPtyInvalid, symbol.GetStIdx(), fieldID);
-  CHECK(type.GetTypeIndex() < GlobalTables::GetTypeTable().GetTypeTable().size(),
-        "index out of range in MIRBuilder::CreateExprDread");
-  node->SetPrimType(GetRegPrimType(type.GetPrimType()));
+  node->SetPrimType(GetRegPrimType(ptyp));
   return node;
 }
 
@@ -668,11 +695,25 @@ TypeCvtNode *MIRBuilder::CreateExprTypeCvt(Opcode o, const MIRType &type, const 
 
 ExtractbitsNode *MIRBuilder::CreateExprExtractbits(Opcode o, const MIRType &type, uint32 bOffset, uint32 bSize,
                                                    BaseNode *opnd) {
-  return GetCurrentFuncCodeMp()->New<ExtractbitsNode>(o, type.GetPrimType(), bOffset, bSize, opnd);
+  return CreateExprExtractbits(o, type.GetPrimType(), bOffset, bSize, opnd);
+}
+
+ExtractbitsNode *MIRBuilder::CreateExprExtractbits(Opcode o, PrimType type, uint32 bOffset, uint32 bSize,
+                                                   BaseNode *opnd) {
+  return GetCurrentFuncCodeMp()->New<ExtractbitsNode>(o, type, bOffset, bSize, opnd);
+}
+
+DepositbitsNode *MIRBuilder::CreateExprDepositbits(Opcode o, PrimType type, uint32 bOffset, uint32 bSize,
+                                                   BaseNode *leftOpnd, BaseNode* rightOpnd) {
+  return GetCurrentFuncCodeMp()->New<DepositbitsNode>(o, type, bOffset, bSize, leftOpnd, rightOpnd);
 }
 
 RetypeNode *MIRBuilder::CreateExprRetype(const MIRType &type, const MIRType &fromType, BaseNode *opnd) {
-  return GetCurrentFuncCodeMp()->New<RetypeNode>(type.GetPrimType(), fromType.GetPrimType(), type.GetTypeIndex(), opnd);
+  return CreateExprRetype(type, fromType.GetPrimType(), opnd);
+}
+
+RetypeNode *MIRBuilder::CreateExprRetype(const MIRType &type, PrimType fromType, BaseNode *opnd) {
+  return GetCurrentFuncCodeMp()->New<RetypeNode>(type.GetPrimType(), fromType, type.GetTypeIndex(), opnd);
 }
 
 BinaryNode *MIRBuilder::CreateExprBinary(Opcode opcode, const MIRType &type, BaseNode *opnd0, BaseNode *opnd1) {
@@ -718,21 +759,25 @@ ArrayNode *MIRBuilder::CreateExprArray(const MIRType &arrayType, std::vector<Bas
   auto *arrayNode = GetCurrentFuncCodeMp()->New<ArrayNode>(*GetCurrentFuncCodeMpAllocator(),
                                                            addrType->GetPrimType(), addrType->GetTypeIndex());
   arrayNode->GetNopnd().insert(arrayNode->GetNopnd().begin(), ops.begin(), ops.end());
-  arrayNode->SetNumOpnds(ops.size());
+  arrayNode->SetNumOpnds(static_cast<uint8>(ops.size()));
   return arrayNode;
+}
+
+IntrinsicopNode *MIRBuilder::CreateExprIntrinsicop(MIRIntrinsicID id, Opcode op, PrimType primType, TyIdx tyIdx,
+                                                   const MapleVector<BaseNode*> &ops) {
+  auto *expr = GetCurrentFuncCodeMp()->New<IntrinsicopNode>(*GetCurrentFuncCodeMpAllocator(), op, primType);
+  expr->SetIntrinsic(id);
+  expr->SetNOpnd(ops);
+  expr->SetNumOpnds(ops.size());
+  if (op == OP_intrinsicopwithtype) {
+    expr->SetTyIdx(tyIdx);
+  }
+  return expr;
 }
 
 IntrinsicopNode *MIRBuilder::CreateExprIntrinsicop(MIRIntrinsicID idx, Opcode opCode, const MIRType &type,
                                                    const MapleVector<BaseNode*> &ops) {
-  auto *expr =
-      GetCurrentFuncCodeMp()->New<IntrinsicopNode>(*GetCurrentFuncCodeMpAllocator(), opCode, type.GetPrimType());
-  expr->SetIntrinsic(idx);
-  expr->SetNOpnd(ops);
-  expr->SetNumOpnds(ops.size());
-  if (opCode == OP_intrinsicopwithtype) {
-    expr->SetTyIdx(type.GetTypeIndex());
-  }
-  return expr;
+  return CreateExprIntrinsicop(idx, opCode, type.GetPrimType(), type.GetTypeIndex(), ops);
 }
 
 DassignNode *MIRBuilder::CreateStmtDassign(const MIRSymbol &symbol, FieldID fieldID, BaseNode *src) {
@@ -755,8 +800,8 @@ IassignoffNode *MIRBuilder::CreateStmtIassignoff(PrimType pty, int32 offset, Bas
   return GetCurrentFuncCodeMp()->New<IassignoffNode>(pty, offset, addr, src);
 }
 
-IassignFPoffNode *MIRBuilder::CreateStmtIassignFPoff(PrimType pty, int32 offset, BaseNode *src) {
-  return GetCurrentFuncCodeMp()->New<IassignFPoffNode>(pty, offset, src);
+IassignFPoffNode *MIRBuilder::CreateStmtIassignFPoff(Opcode op, PrimType pty, int32 offset, BaseNode *src) {
+  return GetCurrentFuncCodeMp()->New<IassignFPoffNode>(op, pty, offset, src);
 }
 
 CallNode *MIRBuilder::CreateStmtCall(PUIdx puIdx, const MapleVector<BaseNode*> &args, Opcode opCode) {
@@ -788,7 +833,7 @@ IcallNode *MIRBuilder::CreateStmtIcallAssigned(const MapleVector<BaseNode*> &arg
   CHECK_FATAL((ret.GetStorageClass() == kScAuto || ret.GetStorageClass() == kScFormal ||
                ret.GetStorageClass() == kScExtern || ret.GetStorageClass() == kScGlobal),
               "unknown classtype! check it!");
-  nrets.push_back(CallReturnPair(ret.GetStIdx(), RegFieldPair(0, 0)));
+  nrets.emplace_back(CallReturnPair(ret.GetStIdx(), RegFieldPair(0, 0)));
   stmt->SetNumOpnds(args.size());
   stmt->GetNopnd().resize(stmt->GetNumOpnds());
   stmt->SetReturnVec(nrets);
@@ -914,10 +959,43 @@ NaryStmtNode *MIRBuilder::CreateStmtNary(Opcode op, const MapleVector<BaseNode*>
   return stmt;
 }
 
+CallAssertBoundaryStmtNode *MIRBuilder::CreateStmtCallAssertBoundary(Opcode op, const MapleVector<BaseNode*> &rVals,
+                                                                     GStrIdx funcNameIdx, size_t paramIndex,
+                                                                     GStrIdx stmtFuncNameIdx) {
+  auto *stmt = GetCurrentFuncCodeMp()->New<CallAssertBoundaryStmtNode>(*GetCurrentFuncCodeMpAllocator(), op,
+                                                                       funcNameIdx, paramIndex, stmtFuncNameIdx);
+  ASSERT(stmt != nullptr, "stmt is null");
+  stmt->SetOpnds(rVals);
+  return stmt;
+}
+
 NaryStmtNode *MIRBuilder::CreateStmtNary(Opcode op, BaseNode *rVal) {
   auto *stmt = GetCurrentFuncCodeMp()->New<NaryStmtNode>(*GetCurrentFuncCodeMpAllocator(), op);
   ASSERT(stmt != nullptr, "stmt is null");
   stmt->PushOpnd(rVal);
+  return stmt;
+}
+
+AssertNonnullStmtNode *MIRBuilder::CreateStmtAssertNonnull(Opcode op, BaseNode* rVal, GStrIdx funcNameIdx) {
+  auto *stmt = GetCurrentFuncCodeMp()->New<AssertNonnullStmtNode>(op, funcNameIdx);
+  ASSERT(stmt != nullptr, "stmt is null");
+  stmt->SetRHS(rVal);
+  return stmt;
+}
+
+AssertBoundaryStmtNode *MIRBuilder::CreateStmtAssertBoundary(Opcode op, const MapleVector<BaseNode*> &rVals,
+                                                             GStrIdx funcNameIdx) {
+  auto *stmt = GetCurrentFuncCodeMp()->New<AssertBoundaryStmtNode>(*GetCurrentFuncCodeMpAllocator(), op, funcNameIdx);
+  ASSERT(stmt != nullptr, "stmt is null");
+  stmt->SetOpnds(rVals);
+  return stmt;
+}
+
+CallAssertNonnullStmtNode *MIRBuilder::CreateStmtCallAssertNonnull(Opcode op, BaseNode* rVal, GStrIdx callFuncNameIdx,
+                                                                   size_t paramIndex, GStrIdx stmtFuncNameIdx) {
+  auto *stmt = GetCurrentFuncCodeMp()->New<CallAssertNonnullStmtNode>(op, callFuncNameIdx, paramIndex, stmtFuncNameIdx);
+  ASSERT(stmt != nullptr, "stmt is null");
+  stmt->SetRHS(rVal);
   return stmt;
 }
 

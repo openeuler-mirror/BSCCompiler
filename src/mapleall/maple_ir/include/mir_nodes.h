@@ -2794,13 +2794,14 @@ class IassignoffNode : public BinaryStmtNode {
   int32 offset = 0;
 };
 
+// for iassignfpoff, iassignspoff, iassignpcoff
 class IassignFPoffNode : public UnaryStmtNode {
  public:
-  IassignFPoffNode() : UnaryStmtNode(OP_iassignfpoff) {}
+  IassignFPoffNode(Opcode o) : UnaryStmtNode(o) {}
 
-  explicit IassignFPoffNode(int32 ofst) : UnaryStmtNode(OP_iassignfpoff), offset(ofst) {}
+  explicit IassignFPoffNode(Opcode o, int32 ofst) : UnaryStmtNode(o), offset(ofst) {}
 
-  IassignFPoffNode(PrimType primType, int32 offset, BaseNode *src) : IassignFPoffNode(offset) {
+  IassignFPoffNode(Opcode o, PrimType primType, int32 offset, BaseNode *src) : IassignFPoffNode(o, offset) {
     BaseNodeT::SetPrimType(primType);
     UnaryStmtNode::SetOpnd(src, 0);
   }
@@ -2830,6 +2831,31 @@ class IassignFPoffNode : public UnaryStmtNode {
 };
 
 typedef IassignFPoffNode IassignPCoffNode;
+
+class BlkassignoffNode : public BinaryStmtNode {
+ public:
+  BlkassignoffNode() : BinaryStmtNode(OP_blkassignoff) { ptyp = PTY_agg; }
+  explicit BlkassignoffNode(int32 ofst, int32 bsize) : BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) { ptyp = PTY_agg; }
+  explicit BlkassignoffNode(int32 ofst, int32 bsize, BaseNode *dest, BaseNode *src) : BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) {
+      ptyp = PTY_agg;
+      SetBOpnd(dest, 0);
+      SetBOpnd(src, 1);
+    }
+  ~BlkassignoffNode() = default;
+
+  void Dump(int32 indent) const override;
+
+  BlkassignoffNode *CloneTree(MapleAllocator &allocator) const override {
+    BlkassignoffNode *node = allocator.GetMemPool()->New<BlkassignoffNode>(offset, blockSize);
+    node->SetStmtID(stmtIDNext++);
+    node->SetBOpnd(GetBOpnd(0)->CloneTree(allocator), 0);
+    node->SetBOpnd(GetBOpnd(1)->CloneTree(allocator), 1);
+    return node;
+  }
+ public:
+  int32 offset = 0;
+  int32 blockSize = 0;
+};
 
 // used by return, syncenter, syncexit
 class NaryStmtNode : public StmtNode, public NaryOpnds {

@@ -215,12 +215,13 @@ bool MIRParser::ParseStmtIassignoff(StmtNodePtr &stmt) {
 }
 
 bool MIRParser::ParseStmtIassignFPoff(StmtNodePtr &stmt) {
+  Opcode op = lexer.GetTokenKind() == TK_iassignfpoff ? OP_iassignfpoff : OP_iassignspoff;
   if (!IsPrimitiveType(lexer.NextToken())) {
     Error("expect type parsing binary operator but get ");
     return false;
   }
   // iassignfpoff <prim-type> <offset> (<rhs-expr> )
-  auto *iAssignOff = mod.CurFuncCodeMemPool()->New<IassignFPoffNode>();
+  auto *iAssignOff = mod.CurFuncCodeMemPool()->New<IassignFPoffNode>(op);
   iAssignOff->SetPrimType(GetPrimitiveType(lexer.GetTokenKind()));
   if (lexer.NextToken() != TK_intconst) {
     Error("expect offset but get ");
@@ -235,6 +236,33 @@ bool MIRParser::ParseStmtIassignFPoff(StmtNodePtr &stmt) {
   iAssignOff->SetOpnd(expr, 0);
   lexer.NextToken();
   stmt = iAssignOff;
+  return true;
+}
+
+bool MIRParser::ParseStmtBlkassignoff(StmtNodePtr &stmt) {
+  // blkassignoff <dest-offset> <size> (<dest-addr-expr>, <src-addr-expr>)
+  BlkassignoffNode *bassignoff = mod.CurFuncCodeMemPool()->New<BlkassignoffNode>();
+  if (lexer.NextToken() != TK_intconst) {
+    Error("expect offset but get ");
+    return false;
+  }
+  bassignoff->offset = lexer.GetTheIntVal();
+  if (lexer.NextToken() != TK_intconst) {
+    Error("expect size but get ");
+    return false;
+  }
+  bassignoff->blockSize = lexer.GetTheIntVal();
+  lexer.NextToken();
+  BaseNode *destAddr = nullptr;
+  BaseNode *srcAddr = nullptr;
+  // parse 2 operands, the dest address followed by src address
+  if (!ParseExprTwoOperand(destAddr, srcAddr)) {
+    return false;
+  }
+  bassignoff->SetOpnd(destAddr, 0);
+  bassignoff->SetOpnd(srcAddr, 1);
+  lexer.NextToken();
+  stmt = bassignoff;
   return true;
 }
 
@@ -1960,6 +1988,18 @@ bool MIRParser::ParseStmtBlockForUpformalSize() {
   return true;
 }
 
+bool MIRParser::ParseStmtBlockForOutParmSize() {
+  MIRFunction *fn = paramCurrFuncForParseStmtBlock;
+  lexer.NextToken();
+  if (lexer.GetTokenKind() != TK_intconst) {
+    Error("expect integer after outparmsize but get ");
+    return false;
+  }
+  fn->SetOutParmSize(lexer.GetTheIntVal());
+  lexer.NextToken();
+  return true;
+}
+
 bool MIRParser::ParseStmtBlockForModuleID() {
   MIRFunction *fn = paramCurrFuncForParseStmtBlock;
   lexer.NextToken();
@@ -3314,6 +3354,8 @@ std::map<TokenKind, MIRParser::FuncPtrParseStmt> MIRParser::InitFuncPtrMapForPar
   funcPtrMap[TK_iassign] = &MIRParser::ParseStmtIassign;
   funcPtrMap[TK_iassignoff] = &MIRParser::ParseStmtIassignoff;
   funcPtrMap[TK_iassignfpoff] = &MIRParser::ParseStmtIassignFPoff;
+  funcPtrMap[TK_iassignspoff] = &MIRParser::ParseStmtIassignFPoff;
+  funcPtrMap[TK_blkassignoff] = &MIRParser::ParseStmtBlkassignoff;
   funcPtrMap[TK_regassign] = &MIRParser::ParseStmtRegassign;
   funcPtrMap[TK_doloop] = &MIRParser::ParseStmtDoloop;
   funcPtrMap[TK_foreachelem] = &MIRParser::ParseStmtForeachelem;
@@ -3411,6 +3453,7 @@ std::map<TokenKind, MIRParser::FuncPtrParseStmtBlock> MIRParser::InitFuncPtrMapF
   funcPtrMap[TK_type] = &MIRParser::ParseStmtBlockForType;
   funcPtrMap[TK_framesize] = &MIRParser::ParseStmtBlockForFrameSize;
   funcPtrMap[TK_upformalsize] = &MIRParser::ParseStmtBlockForUpformalSize;
+  funcPtrMap[TK_outparmsize] = &MIRParser::ParseStmtBlockForOutParmSize;
   funcPtrMap[TK_moduleid] = &MIRParser::ParseStmtBlockForModuleID;
   funcPtrMap[TK_funcsize] = &MIRParser::ParseStmtBlockForFuncSize;
   funcPtrMap[TK_funcid] = &MIRParser::ParseStmtBlockForFuncID;
