@@ -149,7 +149,7 @@ class CGFunc {
   virtual void GenerateCleanupCodeForExtEpilog(BB &bb) = 0;
 
   void CreateLmbcFormalParamInfo();
-  virtual uint32 FloatParamRegRequired(MIRStructType &structType, uint32 &fpSize) = 0;
+  virtual uint32 FloatParamRegRequired(MIRStructType *structType, uint32 &fpSize) = 0;
   virtual void AssignLmbcFormalParams() = 0;
   LmbcFormalParamInfo *GetLmbcFormalParamInfo(uint32 offset);
   void GenerateLoc(StmtNode *stmt, unsigned &lastSrcLoc, unsigned &lastMplLoc);
@@ -1075,7 +1075,7 @@ class CGFunc {
   virtual InsnVisitor *NewInsnModifier() = 0;
 
   bool GenCfi() const {
-    return (mirModule.GetSrcLang() != kSrcLangC);
+    return true;
   }
 
   MapleVector<DBGExprLoc*> &GetDbgCallFrameLocations() {
