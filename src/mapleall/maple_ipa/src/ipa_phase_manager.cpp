@@ -191,11 +191,6 @@ bool SCCProfile::PhaseRun(SCCNode<CGNode> &scc) {
   SetQuiet(true);
   AddPhase("mecfgbuild", true);
   if (Options::profileGen) {
-    AddPhase("ssatab", true);
-    AddPhase("aliasclass", true);
-    AddPhase("ssa", true);
-    AddPhase("irmapbuild", true);
-    //AddPhase("profileIntrusionPM", true); //ref: MEProfGen
     AddPhase("profileGen", true);
   } else {
     AddPhase("profileUse", true);

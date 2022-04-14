@@ -1457,6 +1457,7 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         break;
       case kVerbose:
         quiet = (opt.Type() == kEnable) ? false : true;
+        break;
       case kProfileGen:
         if (optLevel != kLevelZero) {
           WARN(kLncWarn, "profileGen requires no optimization");
