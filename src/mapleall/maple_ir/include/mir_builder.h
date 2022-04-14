@@ -189,6 +189,7 @@ class MIRBuilder {
   AddrofNode *CreateExprAddrof(FieldID fieldID, StIdx symbolStIdx, MemPool *memPool = nullptr);
   AddroffuncNode *CreateExprAddroffunc(PUIdx, MemPool *memPool = nullptr);
   AddrofNode *CreateExprDread(const MIRType &type, FieldID fieldID, const MIRSymbol &symbol);
+  AddrofNode *CreateExprDread(PrimType ptyp, FieldID fieldID, const MIRSymbol &symbol);
   virtual AddrofNode *CreateExprDread(MIRType &type, MIRSymbol &symbol);
   virtual AddrofNode *CreateExprDread(MIRSymbol &symbol);
   AddrofNode *CreateExprDread(PregIdx pregID, PrimType pty);
@@ -209,16 +210,29 @@ class MIRBuilder {
   TypeCvtNode *CreateExprTypeCvt(Opcode o, PrimType toPrimType, PrimType fromPrimType, BaseNode &opnd);
   TypeCvtNode *CreateExprTypeCvt(Opcode o, const MIRType &type, const MIRType &fromtype, BaseNode *opnd);
   ExtractbitsNode *CreateExprExtractbits(Opcode o, const MIRType &type, uint32 bOffset, uint32 bSize, BaseNode *opnd);
+  ExtractbitsNode *CreateExprExtractbits(Opcode o, PrimType type, uint32 bOffset, uint32 bSize, BaseNode *opnd);
+  DepositbitsNode *CreateExprDepositbits(Opcode o, PrimType type, uint32 bOffset, uint32 bSize,
+                                         BaseNode *leftOpnd, BaseNode* rightOpnd);
   RetypeNode *CreateExprRetype(const MIRType &type, const MIRType &fromType, BaseNode *opnd);
+  RetypeNode *CreateExprRetype(const MIRType &type, PrimType fromType, BaseNode *opnd);
   ArrayNode *CreateExprArray(const MIRType &arrayType);
   ArrayNode *CreateExprArray(const MIRType &arrayType, BaseNode *op);
   ArrayNode *CreateExprArray(const MIRType &arrayType, BaseNode *op1, BaseNode *op2);
+  ArrayNode *CreateExprArray(const MIRType &arrayType, std::vector<BaseNode *> ops);
+  IntrinsicopNode *CreateExprIntrinsicop(MIRIntrinsicID id, Opcode op, PrimType primType, TyIdx tyIdx,
+                                         const MapleVector<BaseNode*> &ops);
   IntrinsicopNode *CreateExprIntrinsicop(MIRIntrinsicID idx, Opcode opcode, const MIRType &type,
                                          const MapleVector<BaseNode*> &ops);
   // for creating Statement.
   NaryStmtNode *CreateStmtReturn(BaseNode *rVal);
   NaryStmtNode *CreateStmtNary(Opcode op, BaseNode *rVal);
   NaryStmtNode *CreateStmtNary(Opcode op, const MapleVector<BaseNode*> &rVals);
+  AssertNonnullStmtNode *CreateStmtAssertNonnull(Opcode op, BaseNode *rVal, GStrIdx funcNameIdx);
+  CallAssertNonnullStmtNode *CreateStmtCallAssertNonnull(Opcode op, BaseNode *rVal, GStrIdx callFuncNameIdx,
+                                                         size_t index, GStrIdx stmtFuncNameIdx);
+  CallAssertBoundaryStmtNode *CreateStmtCallAssertBoundary(Opcode op, const MapleVector<BaseNode*> &rVals,
+                                                           GStrIdx funcNameIdx, size_t index, GStrIdx stmtFuncNameIdx);
+  AssertBoundaryStmtNode *CreateStmtAssertBoundary(Opcode op, const MapleVector<BaseNode*> &rVals, GStrIdx funcNameIdx);
   UnaryStmtNode *CreateStmtUnary(Opcode op, BaseNode *rVal);
   UnaryStmtNode *CreateStmtThrow(BaseNode *rVal);
   DassignNode *CreateStmtDassign(const MIRSymbol &var, FieldID fieldID, BaseNode *src);
@@ -226,7 +240,7 @@ class MIRBuilder {
   RegassignNode *CreateStmtRegassign(PrimType pty, PregIdx regIdx, BaseNode *src);
   IassignNode *CreateStmtIassign(const MIRType &type, FieldID fieldID, BaseNode *addr, BaseNode *src);
   IassignoffNode *CreateStmtIassignoff(PrimType pty, int32 offset, BaseNode *opnd0, BaseNode *src);
-  IassignFPoffNode *CreateStmtIassignFPoff(PrimType pty, int32 offset, BaseNode *src);
+  IassignFPoffNode *CreateStmtIassignFPoff(Opcode op, PrimType pty, int32 offset, BaseNode *src);
   CallNode *CreateStmtCall(PUIdx puIdx, const MapleVector<BaseNode*> &args, Opcode opcode = OP_call);
   CallNode *CreateStmtCall(const std::string &name, const MapleVector<BaseNode*> &args);
   CallNode *CreateStmtVirtualCall(PUIdx puIdx, const MapleVector<BaseNode*> &args) {
@@ -281,6 +295,7 @@ class MIRBuilder {
   // for creating symbol
   MIRSymbol *CreateSymbol(TyIdx, const std::string&, MIRSymKind, MIRStorageClass, MIRFunction*, uint8) const;
   MIRSymbol *CreateSymbol(TyIdx, GStrIdx, MIRSymKind, MIRStorageClass, MIRFunction*, uint8) const;
+  MIRSymbol *CreateConstStringSymbol(const std::string &symbolName, const std::string &content);
   // for creating nodes
   AddrofNode *CreateAddrof(const MIRSymbol &st, PrimType pty = PTY_ptr);
   AddrofNode *CreateDread(const MIRSymbol &st, PrimType pty);

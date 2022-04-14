@@ -35,7 +35,6 @@ MIRModule::MIRModule(const std::string &fn)
       memPoolAllocator(memPool),
       pragmaMemPoolAllocator(pragmaMemPool),
       functionList(memPoolAllocator.Adapter()),
-      compilationList(memPoolAllocator.Adapter()),
       importedMplt(memPoolAllocator.Adapter()),
       typeDefOrder(memPoolAllocator.Adapter()),
       externStructTypeSet(std::less<TyIdx>(), memPoolAllocator.Adapter()),
@@ -52,9 +51,11 @@ MIRModule::MIRModule(const std::string &fn)
       asmDecls(memPoolAllocator.Adapter()),
       classList(memPoolAllocator.Adapter()),
       optimizedFuncs(memPoolAllocator.Adapter()),
+      optimizedFuncsType(memPoolAllocator.Adapter()),
       puIdxFieldInitializedMap(std::less<PUIdx>(), memPoolAllocator.Adapter()),
       inliningGlobals(memPoolAllocator.Adapter()),
-      partO2FuncList(memPoolAllocator.Adapter()) {
+      partO2FuncList(memPoolAllocator.Adapter()),
+      safetyWarningMap(memPoolAllocator.Adapter()) {
   GlobalTables::GetGsymTable().SetModule(this);
   typeNameTab = memPool->New<MIRTypeNameTable>(memPoolAllocator);
   mirBuilder = memPool->New<MIRBuilder>(this);
@@ -230,7 +231,7 @@ void MIRModule::DumpGlobals(bool emitStructureType) const {
     }
     LogInfo::MapleLogger() << std::dec;
   }
-  if (flavor < kMmpl) {
+  if (flavor < kMmpl || flavor == kFlavorLmbc) {
     for (auto it = typeDefOrder.begin(); it != typeDefOrder.end(); ++it) {
       TyIdx tyIdx = typeNameTab->GetTyIdxFromGStrIdx(*it);
       const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(*it);
@@ -382,7 +383,32 @@ void MIRModule::DumpToFile(const std::string &fileNameStr, bool emitStructureTyp
   file.close();
 }
 
-void MIRModule::DumpInlineCandidateToFile(const std::string &fileNameStr) const {
+void MIRModule::DumpDefType() {
+  for (auto it = typeDefOrder.begin(); it != typeDefOrder.end(); ++it) {
+    TyIdx tyIdx = typeNameTab->GetTyIdxFromGStrIdx(*it);
+    const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(*it);
+    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+    ASSERT(type != nullptr, "type should not be nullptr here");
+    bool isStructType = type->IsStructType();
+    if (isStructType) {
+      auto *structType = static_cast<MIRStructType*>(type);
+      if (structType->IsImported()) {
+        continue;
+      }
+    }
+    LogInfo::MapleLogger() << "type $" << name << " ";
+    if (type->GetKind() == kTypeByName) {
+      LogInfo::MapleLogger() << "void";
+    } else if (type->GetNameStrIdx() == *it) {
+      type->Dump(1, true);
+    } else {
+      type->Dump(1);
+    }
+    LogInfo::MapleLogger() << '\n';
+  }
+}
+
+void MIRModule::DumpInlineCandidateToFile(const std::string &fileNameStr) {
   if (optimizedFuncs.empty()) {
     return;
   }
@@ -391,6 +417,9 @@ void MIRModule::DumpInlineCandidateToFile(const std::string &fileNameStr) const 
   std::streambuf *backup = LogInfo::MapleLogger().rdbuf();
   LogInfo::MapleLogger().rdbuf(file.rdbuf());
   file.open(fileNameStr, std::ios::trunc);
+  if (IsCModule()) {
+    DumpDefType();
+  }
   // dump global variables needed for inlining file
   for (auto symbolIdx : inliningGlobals) {
     MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx(symbolIdx);
@@ -433,6 +462,7 @@ const std::string &MIRModule::GetFileNameFromFileNum(uint32 fileNum) const {
   for (auto &info : srcFileInfo) {
     if (info.second == fileNum) {
       nameIdx = info.first;
+      break;
     }
   }
   return GlobalTables::GetStrTable().GetStringFromStrIdx(nameIdx);
@@ -744,4 +774,18 @@ void MIRModule::InitPartO2List(const std::string &list) {
   infile.close();
 }
 
+bool MIRModule::HasNotWarned(uint32 position, uint32 stmtOriginalID) {
+  auto warnedOp = safetyWarningMap.find(position);
+  if (warnedOp == safetyWarningMap.end()) {
+    MapleSet<uint32> opSet(memPoolAllocator.Adapter());
+    opSet.emplace(stmtOriginalID);
+    safetyWarningMap.emplace(std::pair<uint32, MapleSet<uint32>>(position, std::move(opSet)));
+    return true;
+  }
+  if (warnedOp->second.find(stmtOriginalID) == warnedOp->second.end()) {
+     warnedOp->second.emplace(stmtOriginalID);
+     return true;
+  }
+  return false;
+}
 }  // namespace maple

@@ -673,6 +673,16 @@ void BinaryMplExport::OutputFunction(PUIdx puIdx) {
   OutputSymbol(funcSt);
   OutputTypeViaTypeName(func->GetMIRFuncType()->GetTypeIndex());
   WriteNum(func->GetFuncAttrs().GetAttrFlag());
+
+  auto &attributes = func->GetFuncAttrs();
+  if (attributes.GetAttr(FUNCATTR_constructor_priority)) {
+    WriteNum(attributes.GetConstructorPriority());
+  }
+
+  if (attributes.GetAttr(FUNCATTR_destructor_priority)) {
+    WriteNum(attributes.GetDestructorPriority());
+  }
+
   WriteNum(func->GetFlag());
   OutputTypeViaTypeName(func->GetClassTyIdx());
   // output formal parameter information
@@ -739,6 +749,9 @@ void BinaryMplExport::WriteHeaderField(uint64 contentIdx) {
   WriteNum(mod.GetFlavor());
   WriteNum(mod.GetSrcLang());
   WriteNum(mod.GetID());
+  if (mod.GetFlavor() == kFlavorLmbc) {
+    WriteNum(mod.GetGlobalMemSize());
+  }
   WriteNum(mod.GetNumFuncs());
   WriteAsciiStr(mod.GetEntryFuncName());
   OutputInfoVector(mod.GetFileInfo(), mod.GetFileInfoIsString());
@@ -1238,6 +1251,7 @@ void BinaryMplExport::OutputTypePairs(const MIRInstantVectorType &type) {
 void BinaryMplExport::OutputTypeAttrs(const TypeAttrs &ta) {
   WriteNum(ta.GetAttrFlag());
   WriteNum(ta.GetAlignValue());
+  WriteNum(ta.GetPack());
 }
 
 void BinaryMplExport::OutputType(TyIdx tyIdx, bool canUseTypename) {

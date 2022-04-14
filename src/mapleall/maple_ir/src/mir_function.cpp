@@ -18,10 +18,10 @@
 #include "mir_nodes.h"
 #include "printing.h"
 #include "string_utils.h"
+#include "ipa_side_effect.h"
 
 namespace {
 using namespace maple;
-
 enum FuncProp : uint32_t {
   kFuncPropHasCall = 1U,           // the function has call
   kFuncPropRetStruct = 1U << 1,    // the function returns struct
@@ -147,7 +147,7 @@ bool MIRFunction::IsReturnStruct() const {
 void MIRFunction::SetReturnStruct() {
   flag |= kFuncPropRetStruct;
 }
-void MIRFunction::SetReturnStruct(MIRType &retType) {
+void MIRFunction::SetReturnStruct(const MIRType &retType) {
   if (retType.IsStructType()) {
     flag |= kFuncPropRetStruct;
   }
@@ -196,7 +196,7 @@ void MIRFunction::SetHasSetjmp() {
 }
 
 bool MIRFunction::HasSetjmp() const {
-  return flag & kFuncPropHasSetjmp;
+  return ((flag & kFuncPropHasSetjmp) != kTypeflagZero);
 }
 
 void MIRFunction::SetHasAsm() {
@@ -204,7 +204,7 @@ void MIRFunction::SetHasAsm() {
 }
 
 bool MIRFunction::HasAsm() const {
-  return flag & kFuncPropHasAsm;
+  return ((flag & kFuncPropHasAsm) != kTypeflagZero);
 }
 
 void MIRFunction::SetAttrsFromSe(uint8 specialEffect) {
@@ -243,14 +243,28 @@ void MIRFunction::SetAttrsFromSe(uint8 specialEffect) {
 }
 
 void FuncAttrs::DumpAttributes() const {
+// parse no content of attr
 #define STRING(s) #s
 #define FUNC_ATTR
-#define ATTR(AT)              \
-  if (GetAttr(FUNCATTR_##AT)) \
-    LogInfo::MapleLogger() << " " << STRING(AT);
+#define NOCONTENT_ATTR
+#define ATTR(AT)                                                       \
+  if (GetAttr(FUNCATTR_##AT)) {                                        \
+    LogInfo::MapleLogger() << " " << STRING(AT);                       \
+  }
 #include "all_attributes.def"
 #undef ATTR
+#undef NOCONTENT_ATTR
 #undef FUNC_ATTR
+// parse content of attr
+  if (GetAttr(FUNCATTR_alias) && !GetAliasFuncName().empty()) {
+    LogInfo::MapleLogger() << " alias ( \"" << GetAliasFuncName() << "\" )";
+  }
+  if (GetAttr(FUNCATTR_constructor_priority) && GetConstructorPriority() != -1) {
+    LogInfo::MapleLogger() << " constructor_priority ( " << GetConstructorPriority() << " )";
+  }
+  if (GetAttr(FUNCATTR_destructor_priority) && GetDestructorPriority() != -1) {
+    LogInfo::MapleLogger() << " destructor_priority ( " << GetDestructorPriority() << " )";
+  }
 }
 
 void MIRFunction::DumpFlavorLoweredThanMmpl() const {
@@ -331,8 +345,25 @@ void MIRFunction::Dump(bool withoutBody) {
   theMIRModule = module;
   funcAttrs.DumpAttributes();
 
+  if (symbol->GetWeakrefAttr().first) {
+    LogInfo::MapleLogger() << " weakref";
+    if (symbol->GetWeakrefAttr().second != UStrIdx(0)) {
+      LogInfo::MapleLogger() << " (";
+      PrintString(GlobalTables::GetUStrTable().GetStringFromStrIdx(symbol->GetWeakrefAttr().second));
+      LogInfo::MapleLogger() << " )";
+    }
+  }
+
+  if (symbol->sectionAttr != UStrIdx(0)) {
+    LogInfo::MapleLogger() << " section (";
+    PrintString(GlobalTables::GetUStrTable().GetStringFromStrIdx(symbol->sectionAttr));
+    LogInfo::MapleLogger() << " )";
+  }
+
   if (module->GetFlavor() < kMmpl) {
     DumpFlavorLoweredThanMmpl();
+  } else {
+    LogInfo::MapleLogger() << " () void";
   }
 
   // codeMemPool is nullptr, means maple_ir has been released for memory's sake
@@ -353,7 +384,7 @@ void MIRFunction::Dump(bool withoutBody) {
 void MIRFunction::DumpUpFormal(int32 indent) const {
   PrintIndentation(indent + 1);
 
-  LogInfo::MapleLogger() << "upFormalSize " << GetUpFormalSize() << '\n';
+  LogInfo::MapleLogger() << "upformalsize " << GetUpFormalSize() << '\n';
   if (localWordsTypeTagged != nullptr) {
     PrintIndentation(indent + 1);
     LogInfo::MapleLogger() << "formalWordsTypeTagged = [ ";
@@ -382,7 +413,7 @@ void MIRFunction::DumpUpFormal(int32 indent) const {
 void MIRFunction::DumpFrame(int32 indent) const {
   PrintIndentation(indent + 1);
 
-  LogInfo::MapleLogger() << "frameSize " << static_cast<uint32>(GetFrameSize()) << '\n';
+  LogInfo::MapleLogger() << "framesize " << static_cast<uint32>(GetFrameSize()) << '\n';
   if (localWordsTypeTagged != nullptr) {
     PrintIndentation(indent + 1);
     LogInfo::MapleLogger() << "localWordsTypeTagged = [ ";
@@ -423,6 +454,11 @@ void MIRFunction::DumpFuncBody(int32 indent) {
 
   if (GetFrameSize() > 0) {
     DumpFrame(indent);
+  }
+
+  if (GetOutParmSize() > 0) {
+    PrintIndentation(indent + 1);
+    LogInfo::MapleLogger() << "outparmsize " << GetOutParmSize() << '\n';
   }
 
   if (GetModuleId() > 0) {
@@ -621,7 +657,7 @@ void MIRFunction::NewBody() {
   }
   if (oldPregTable != nullptr) {
     for (size_t i = 1; i < oldPregTable->Size(); ++i) {
-      (void)GetPregTab()->AddPreg(*oldPregTable->PregFromPregIdx(i));
+      (void)GetPregTab()->AddPreg(*oldPregTable->PregFromPregIdx(static_cast<PregIdx>(i)));
     }
   }
   if (oldTypeNameTable != nullptr) {

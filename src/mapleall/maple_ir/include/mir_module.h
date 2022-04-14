@@ -46,9 +46,11 @@ enum MIRFlavor {
   kFeProduced,
   kMeProduced,
   kBeLowered,
+  kFlavorMbc,
   kMmpl,
   kCmplV1,
-  kCmpl  // == CMPLv2
+  kCmpl, // == CMPLv2
+  kFlavorLmbc,
 };
 
 
@@ -60,6 +62,50 @@ enum MIRSrcLang {
   kSrcLangJava,
   kSrcLangChar,
   // SrcLangSwift : when clang adds support for Swift.
+};
+
+class CalleePair {
+ public:
+  CalleePair(PUIdx id, int32_t index)
+      : id(id), index(index) {}
+  bool operator < (const CalleePair &func) const {
+    if (id < func.id)
+      return true;
+    else if (id == func.id && index < func.index) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+ private:
+  PUIdx id;
+  int32_t index;
+};
+
+class CallerSummary {
+ public:
+  CallerSummary(PUIdx id, uint32 stmtId)
+      : id(id), stmtId(stmtId) {}
+  PUIdx GetPuidx() const { return id; };
+  uint32 GetStmtId() const { return stmtId; }
+
+ private:
+  PUIdx id;
+  uint32 stmtId;
+};
+
+// This data structure is for the ipa-cp. Important expresstion is about the condtion statement.
+class ImpExpr {
+ public:
+  ImpExpr(uint32 stmtId, uint32 paramIndex)
+      : stmtId(stmtId), paramIndex(paramIndex) {}
+  int32 GetStmtId() { return stmtId; }
+  uint32 GetParamIndex() { return paramIndex; }
+
+ private:
+  uint32 stmtId;
+  uint32 paramIndex;
 };
 
 // blksize gives the size of the memory block in bytes; there are (blksize+3)/4
@@ -130,10 +176,7 @@ class MIRModule {
   MIRModule &operator=(const MIRModule &module) = delete;
   ~MIRModule();
 
-  const MemPool *GetMemPool() const {
-    return memPool;
-  }
-  MemPool *GetMemPool() {
+  MemPool *GetMemPool() const {
     return memPool;
   }
   MemPool *GetPragmaMemPool() {
@@ -155,24 +198,11 @@ class MIRModule {
     return memPoolAllocator;
   }
 
-  const MapleVector<MIRFunction*> &GetFunctionList() const {
+  const auto &GetFunctionList() const {
     return functionList;
   }
-  MapleVector<MIRFunction*> &GetFunctionList() {
+  auto &GetFunctionList() {
     return functionList;
-  }
-
-  const MIRFunction *GetFunction(size_t cnt) const {
-    CHECK_FATAL(cnt < functionList.size(), "array index out of range");
-    return functionList[cnt];
-  }
-  MIRFunction *GetFunction(size_t cnt) {
-    CHECK_FATAL(cnt < functionList.size(), "array index out of range");
-    return functionList[cnt];
-  }
-
-  MapleVector<MIRFunction*> &GetCompilationList() {
-    return compilationList;
   }
 
   const MapleVector<std::string> &GetImportedMplt() const {
@@ -245,13 +275,13 @@ class MIRModule {
   void AddSymbol(const MIRSymbol *s);
   void AddFunction(MIRFunction *pf) {
     functionList.push_back(pf);
-    compilationList.push_back(pf);
   }
 
   void DumpGlobals(bool emitStructureType = true) const;
   void Dump(bool emitStructureType = true, const std::unordered_set<std::string> *dumpFuncSet = nullptr) const;
   void DumpToFile(const std::string &fileNameStr, bool emitStructureType = true) const;
-  void DumpInlineCandidateToFile(const std::string &fileNameStr) const;
+  void DumpInlineCandidateToFile(const std::string &fileNameStr);
+  void DumpDefType();
   const std::string &GetFileNameFromFileNum(uint32 fileNum) const;
 
   void DumpToHeaderFile(bool binaryMplt, const std::string &outputName = "");
@@ -326,11 +356,22 @@ class MIRModule {
   }
 
   void AddOptFuncs(MIRFunction *func) {
-    return optimizedFuncs.push_back(func);
+    optimizedFuncs.emplace(func);
   }
 
-  const MapleVector<MIRFunction*> &GetOptFuncs() const {
+  const MapleSet<MIRFunction*> &GetOptFuncs() const {
     return optimizedFuncs;
+  }
+
+  bool IsOptFunc(MIRFunction *func) const {
+    if (std::find(optimizedFuncs.begin(), optimizedFuncs.end(), func) != optimizedFuncs.end()) {
+      return true;
+    }
+    return false;
+  }
+
+  void AddOptFuncsType(MIRType *type) {
+    optimizedFuncsType.emplace(type);
   }
 
   const MapleMap<PUIdx, MapleSet<FieldID>*> &GetPuIdxFieldInitializedMap() const {
@@ -341,6 +382,23 @@ class MIRModule {
     std::unique_lock<std::shared_timed_mutex> lock(fieldMapMutex);
     puIdxFieldInitializedMap[puIdx] = fieldIDSet;
   }
+
+  std::map<CalleePair, std::map<int64_t, std::vector<CallerSummary>>> &GetCalleeParamAboutInt() {
+    return calleeParamAboutInt;
+  }
+
+  std::map<CalleePair, std::map<float, std::vector<CallerSummary>>> &GetCalleeParamAboutFloat() {
+    return calleeParamAboutFloat;
+  }
+
+  std::map<CalleePair, std::map<double, std::vector<CallerSummary>>> &GetCalleeParamAboutDouble() {
+    return calleeParamAboutDouble;
+  }
+
+  std::map<PUIdx, std::vector<ImpExpr>> &GetFuncImportantExpr() {
+    return funcImportantExpr;
+  }
+
   const auto &GetRealCaller() const {
     return realCaller;
   }
@@ -568,7 +626,7 @@ class MIRModule {
     return withDbgInfo;
   }
 
-  bool HasPartO2List() {
+  bool HasPartO2List() const {
     return hasPartO2List;
   }
 
@@ -577,7 +635,7 @@ class MIRModule {
   }
 
   void InitPartO2List(const std::string &list);
-  bool IsInPartO2List(GStrIdx idx) {
+  bool IsInPartO2List(const GStrIdx &idx) const {
     return partO2FuncList.count(idx) > 0;
   }
 
@@ -600,9 +658,11 @@ class MIRModule {
     return inputFileName;
   }
 
-  uint32 GetUniqueID() {
-    return -1;
+  uint32 GetUniqueID() const {
+    return UINT_MAX;
   }
+
+  bool HasNotWarned(uint32 postion, uint32 stmtOriginalID);
 
  private:
   void DumpTypeTreeToCxxHeaderFile(MIRType &ty, std::unordered_set<MIRType*> &dumpedClasses) const;
@@ -611,9 +671,8 @@ class MIRModule {
   MemPool *pragmaMemPool;
   MapleAllocator memPoolAllocator;
   MapleAllocator pragmaMemPoolAllocator;
-  MapleVector<MIRFunction*> functionList;  // function table in the order of the appearance of function bodies; it
+  MapleList<MIRFunction*> functionList;  // function table in the order of the appearance of function bodies; it
   // excludes prototype-only functions
-  MapleVector<MIRFunction*> compilationList;  // functions in the order of to be compiled.
   MapleVector<std::string> importedMplt;
   MIRTypeNameTable *typeNameTab;
   MapleVector<GStrIdx> typeDefOrder;
@@ -674,7 +733,8 @@ class MIRModule {
   std::map<std::thread::id, MIRFunction*> curFunctionMap;
   mutable std::mutex curFunctionMutex;
   MIRFunction *curFunction;
-  MapleVector<MIRFunction*> optimizedFuncs;
+  MapleSet<MIRFunction*> optimizedFuncs;
+  MapleSet<MIRType*> optimizedFuncsType;
   // Add the field for decouple optimization
   std::unordered_set<std::string> superCallSet;
   // record all the fields that are initialized in the constructor. module scope,
@@ -691,6 +751,11 @@ class MIRModule {
   std::string inputFileName = "";
   std::string baseName = "";
   std::string outputFileName = "";
+  MapleMap<uint32, MapleSet<uint32>> safetyWarningMap;  // <postion, stmt original id> indexed map for large module.
+  std::map<CalleePair, std::map<int64_t, std::vector<CallerSummary>>> calleeParamAboutInt;
+  std::map<CalleePair, std::map<double, std::vector<CallerSummary>>> calleeParamAboutDouble;
+  std::map<CalleePair, std::map<float, std::vector<CallerSummary>>> calleeParamAboutFloat;
+  std::map<PUIdx, std::vector<ImpExpr>> funcImportantExpr;
 };
 #endif  // MIR_FEATURE_FULL
 }  // namespace maple

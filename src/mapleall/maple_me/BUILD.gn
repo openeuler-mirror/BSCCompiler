@@ -23,6 +23,12 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_util/include",
   "${MAPLEALL_ROOT}/maple_driver/include",
   "${MAPLEALL_ROOT}/maple_phase/include",
+  "${MAPLEALL_ROOT}/maple_be/include/be",
+  "${MAPLEALL_ROOT}/maple_be/include/cg",
+  "${MAPLEALL_ROOT}/maple_be/include/ad",
+  "${MAPLEALL_ROOT}/maple_be/include/ad/target",
+  "${MAPLE_BUILD_OUTPUT}/common/target",
+  "${THIRD_PARTY_ROOT}/llvm_modified/llvm/include/llvm/BinaryFormat",
 ]
 
 src_libmplme = [
@@ -115,6 +121,9 @@ src_libmplme = [
   "src/me_autovec.cpp",
   "src/me_safety_warning.cpp",
   "src/lfo_unroll.cpp",
+  "src/me_slp.cpp",
+  "src/lmbc_memlayout.cpp",
+  "src/lmbc_lower.cpp",
 ]
 
 src_libmplmewpo = [

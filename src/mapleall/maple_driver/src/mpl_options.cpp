@@ -155,7 +155,6 @@ ErrorCode MplOptions::HandleGeneralOptions() {
       case kProfileGen: {
         exeOptions[kBinNameMe].push_back(opt);
         exeOptions[kBinNameMpl2mpl].push_back(opt);
-        //exeOptions[kBinNameMplcg].push_back(opt);
         continue;
       }
       case kDex2mplOpt:
@@ -196,6 +195,9 @@ ErrorCode MplOptions::HandleGeneralOptions() {
         break;
       case kGenMapleBC:
         genMapleBC = true;
+        break;
+      case kGenLMBC:
+        genLMBC = true;
         break;
       case kGenVtableImpl:
         genVtableImpl = true;
