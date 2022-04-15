@@ -46,7 +46,7 @@ MIRConst *ASTDecl::Translate2MIRConst() const {
 
 std::string ASTDecl::GenerateUniqueVarName() const {
   // add `_line_column` suffix for avoiding local var name conflict
-  if (isGlobalDecl || isParam) {
+  if (isGlobalDecl || isParam || isDbgFriendly) {
     return name;
   } else {
     std::stringstream os;

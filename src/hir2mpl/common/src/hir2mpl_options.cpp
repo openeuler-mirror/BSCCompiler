@@ -47,6 +47,7 @@ enum OptionIndex : uint32 {
   kDumpTime,
   kDumpComment,
   kDumpLOC,
+  kDbgFriendly,
   kDumpPhaseTime,
   kDumpPhaseTimeDetail,
   // bc bytecode compile options
@@ -164,6 +165,11 @@ const Descriptor kUsage[] = {
   { kUnknown, 0, "", "",
     kBuildTypeAll, kArgCheckPolicyUnknown,
     "\n====== Debug Info Control Options ======", "hir2mpl", {} },
+  { kDbgFriendly, 0, "", "g",
+    kBuildTypeAll, kArgCheckPolicyNone,
+    "  -g                     : emit debug friendly mpl, including\n"
+    "                           no variable renaming\n"
+    "                           gen LOC", "hir2mpl", {} },
   { kDumpLevel, 0, "d", "dump-level",
     kBuildTypeAll, kArgCheckPolicyNumeric,
     "  -d, -dump-level xx     : debug info dump level\n"
@@ -346,6 +352,8 @@ bool HIR2MPLOptions::InitFactory() {
                                                 &HIR2MPLOptions::ProcessDumpComment);
   RegisterFactoryFunction<OptionProcessFactory>(kDumpLOC,
                                                 &HIR2MPLOptions::ProcessDumpLOC);
+  RegisterFactoryFunction<OptionProcessFactory>(kDbgFriendly,
+                                                &HIR2MPLOptions::ProcessDbgFriendly);
   RegisterFactoryFunction<OptionProcessFactory>(kDumpPhaseTime,
                                                 &HIR2MPLOptions::ProcessDumpPhaseTime);
   RegisterFactoryFunction<OptionProcessFactory>(kDumpPhaseTimeDetail,
@@ -593,6 +601,11 @@ bool HIR2MPLOptions::ProcessDumpComment(const Option &opt) {
 
 bool HIR2MPLOptions::ProcessDumpLOC(const Option &opt) {
   FEOptions::GetInstance().SetIsDumpLOC(true);
+  return true;
+}
+
+bool HIR2MPLOptions::ProcessDbgFriendly(const Option &opt) {
+  FEOptions::GetInstance().SetDbgFriendly(true);
   return true;
 }
 

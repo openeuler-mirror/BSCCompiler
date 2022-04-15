@@ -236,6 +236,16 @@ class FEOptions {
     return isDumpLOC;
   }
 
+  void SetDbgFriendly(bool flag) {
+    isDbgFriendly = flag;
+    // set isDumpLOC if flag is true
+    isDumpLOC = flag ? flag : isDumpLOC;
+  }
+
+  bool IsDbgFriendly() const {
+    return isDbgFriendly;
+  }
+
   void SetIsDumpPhaseTime(bool flag) {
     isDumpPhaseTime = flag;
   }
@@ -505,6 +515,7 @@ class FEOptions {
   bool isDumpTime;
   bool isDumpComment = false;
   bool isDumpLOC = true;
+  bool isDbgFriendly = false;
   bool isDumpPhaseTime = false;
   bool isDumpPhaseTimeDetail = false;
 

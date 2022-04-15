@@ -75,6 +75,7 @@ class HIR2MPLOptions : public maple::MapleDriverOptionBase {
   bool ProcessDumpTime(const mapleOption::Option &opt);
   bool ProcessDumpComment(const mapleOption::Option &opt);
   bool ProcessDumpLOC(const mapleOption::Option &opt);
+  bool ProcessDbgFriendly(const mapleOption::Option &opt);
   bool ProcessDumpPhaseTime(const mapleOption::Option &opt);
   bool ProcessDumpPhaseTimeDetail(const mapleOption::Option &opt);
 
