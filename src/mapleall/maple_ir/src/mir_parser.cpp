@@ -248,6 +248,11 @@ bool MIRParser::ParseStmtBlkassignoff(StmtNodePtr &stmt) {
   }
   bassignoff->offset = lexer.GetTheIntVal();
   if (lexer.NextToken() != TK_intconst) {
+    Error("expect align but get ");
+    return false;
+  }
+  bassignoff->SetAlign(lexer.GetTheIntVal());
+  if (lexer.NextToken() != TK_intconst) {
     Error("expect size but get ");
     return false;
   }

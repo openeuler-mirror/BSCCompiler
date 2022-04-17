@@ -2353,12 +2353,12 @@ class BlockNode : public StmtNode {
   // insert all the stmts in inblock to the current block after stmt1
   void InsertBlockAfter(BlockNode &inblock, const StmtNode *stmt1);
   void Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable *thePregTab,
-            bool withInfo, bool isFuncbody) const;
+            bool withInfo, bool isFuncbody, MIRFlavor flavor) const;
   bool Verify() const override;
   bool Verify(VerifyResult &verifyResult) const override;
 
   void Dump(int32 indent) const override {
-    Dump(indent, nullptr, nullptr, false, false);
+    Dump(indent, nullptr, nullptr, false, false, kFlavorUnknown);
   }
 
   BlockNode *CloneTree(MapleAllocator &allocator) const override {
@@ -2834,10 +2834,11 @@ typedef IassignFPoffNode IassignPCoffNode;
 
 class BlkassignoffNode : public BinaryStmtNode {
  public:
-  BlkassignoffNode() : BinaryStmtNode(OP_blkassignoff) { ptyp = PTY_agg; }
-  explicit BlkassignoffNode(int32 ofst, int32 bsize) : BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) { ptyp = PTY_agg; }
+  BlkassignoffNode() : BinaryStmtNode(OP_blkassignoff) { ptyp = PTY_agg; alignLog2 = 0; offset = 0; }
+  explicit BlkassignoffNode(int32 ofst, int32 bsize) : BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) { ptyp = PTY_agg; alignLog2 = 0; }
   explicit BlkassignoffNode(int32 ofst, int32 bsize, BaseNode *dest, BaseNode *src) : BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) {
       ptyp = PTY_agg;
+      alignLog2 = 0;
       SetBOpnd(dest, 0);
       SetBOpnd(src, 1);
     }
@@ -2852,8 +2853,24 @@ class BlkassignoffNode : public BinaryStmtNode {
     node->SetBOpnd(GetBOpnd(1)->CloneTree(allocator), 1);
     return node;
   }
+  uint32 GetAlign() const {
+    uint32 res = 1;
+    for (uint32 i = 0; i < alignLog2; i++) {
+      res *= 2;
+    }
+    return res;
+  }
+  void SetAlign(uint32 x) {
+    ASSERT((~(x - 1) & x) == x, "SetAlign called with non power of 2");
+    uint32 res = 0;
+    while (x != 1) {
+      x >>= 1;
+      ++res;
+    }
+  }
  public:
-  int32 offset = 0;
+  uint32 alignLog2:4;            // alignment in bytes encoded in log2
+  int32 offset:28;
   int32 blockSize = 0;
 };
 

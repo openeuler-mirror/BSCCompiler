@@ -29,6 +29,12 @@ using namespace namemangler;
 
 uint32 MIRSymbol::lastPrintedLineNum = 0;
 
+bool MIRSymbol::NeedPIC() const {
+  return (storageClass == kScGlobal) ||
+         (storageClass == kScExtern) ||
+         (sKind == kStFunc && !GetFunction()->IsStatic());
+}
+
 bool MIRSymbol::IsTypeVolatile(int fieldID) const {
   const MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(GetTyIdx());
   return ty->IsVolatile(fieldID);
@@ -357,6 +363,11 @@ void MIRSymbol::Dump(bool isLocal, int32 indent, bool suppressInit, const MIRSym
     PrintString(GlobalTables::GetUStrTable().GetStringFromStrIdx(sectionAttr));
     LogInfo::MapleLogger() << " )";
   }
+  if (asmAttr != UStrIdx(0)) {
+    LogInfo::MapleLogger() << " asmattr (";
+    PrintString(GlobalTables::GetUStrTable().GetStringFromStrIdx(asmAttr));
+    LogInfo::MapleLogger() << " )";
+  }
   typeAttrs.DumpAttributes();
   if (sKind == kStJavaClass || sKind == kStJavaInterface || GetStorageClass() == kScTypeInfoName ||
       GetStorageClass() == kScTypeInfo || GetStorageClass() == kScTypeCxxAbi) {
@@ -382,7 +393,7 @@ const std::set<std::string> MIRSymbol::staticFinalBlackList{
     "Ljava_2Flang_2FSystem_3B_7Cin",
 };
 
-void MIRSymbolTable::Dump(bool isLocal, int32 indent, bool printDeleted) const {
+void MIRSymbolTable::Dump(bool isLocal, int32 indent, bool printDeleted, MIRFlavor flavor) const {
   size_t size = symbolTable.size();
   for (size_t i = 0; i < size; ++i) {
     MIRSymbol *symbol = symbolTable[i];
@@ -390,6 +401,9 @@ void MIRSymbolTable::Dump(bool isLocal, int32 indent, bool printDeleted) const {
       continue;
     }
     if (!printDeleted && symbol->IsDeleted()) {
+      continue;
+    }
+    if (flavor == kFlavorLmbc && symbol->LMBCAllocateOffSpecialReg()) {
       continue;
     }
     symbol->Dump(isLocal, indent, false /* suppressinit */, this);
@@ -412,7 +426,7 @@ const std::string &MIRLabelTable::GetName(LabelIdx labelIdx) const {
   return GlobalTables::GetStrTable().GetStringFromStrIdx(labelTable[labelIdx]);
 }
 
-bool MIRLabelTable::AddToStringLabelMap(LabelIdx labelIdx) {
+void MIRLabelTable::AddToStringLabelMap(LabelIdx labelIdx) {
   CHECK_FATAL(labelIdx < labelTable.size(), "index out of range in MIRLabelTable::AddToStringLabelMap");
   if (labelTable[labelIdx] == 0u) {
     // generate a label name based on lab_idx
@@ -423,6 +437,5 @@ bool MIRLabelTable::AddToStringLabelMap(LabelIdx labelIdx) {
   }
   GStrIdx strIdx = labelTable[labelIdx];
   strIdxToLabIdxMap[strIdx] = labelIdx;
-  return true;
 }
 }  // namespace maple

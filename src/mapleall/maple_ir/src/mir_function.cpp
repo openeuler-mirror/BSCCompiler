@@ -371,8 +371,9 @@ void MIRFunction::Dump(bool withoutBody) {
     LogInfo::MapleLogger() << '\n';
   } else if (GetBody() != nullptr && !withoutBody && symbol->GetStorageClass() != kScExtern) {
     ResetInfoPrinted();  // this ensures funcinfo will be printed
-    GetBody()->Dump(0, module->GetFlavor() < kMmpl ? GetSymTab() : nullptr,
-                    module->GetFlavor() < kMmpl ? GetPregTab() : nullptr, false, true);  // Dump body
+    GetBody()->Dump(0, module->GetFlavor() == kMmpl ? nullptr : GetSymTab(),
+                    module->GetFlavor() < kMmpl ? GetPregTab() : nullptr, false,
+                    true, module->GetFlavor());  // Dump body
   } else {
     LogInfo::MapleLogger() << '\n';
   }

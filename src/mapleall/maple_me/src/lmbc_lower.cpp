@@ -19,19 +19,6 @@ namespace maple {
 
 using namespace std;
 
-inline PrimType UnsignedPrimType(int32 bytesize) {
-  if (bytesize == 4) {
-    return PTY_u32;
-  }
-  if (bytesize == 2) {
-    return PTY_u16;
-  }
-  if (bytesize == 1) {
-    return PTY_u8;
-  }
-  return PTY_u32;
-}
-
 PregIdx LMBCLowerer::GetSpecialRegFromSt(const MIRSymbol *sym) {
   MIRStorageClass storageClass = sym->GetStorageClass();
   PregIdx specreg = 0;
@@ -55,29 +42,23 @@ PregIdx LMBCLowerer::GetSpecialRegFromSt(const MIRSymbol *sym) {
   return specreg;
 }
 
-BaseNode *LMBCLowerer::ReadregNodeForSymbol(MIRSymbol *sym) {
-  return mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, GetSpecialRegFromSt(sym));
-}
-
 BaseNode *LMBCLowerer::LowerAddrof(AddrofNode *expr) {
   MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(expr->GetStIdx());
-  if (symbol->GetStorageClass() == kScText) {
-    return expr;
-  }
   int32 offset = 0;
   if (expr->GetFieldID() != 0) {
     MIRStructType *structty = dynamic_cast<MIRStructType *>(symbol->GetType());
     CHECK_FATAL(structty, "LMBCLowerer::LowerAddrof: non-zero fieldID for non-structure");
     offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
   }
-  //BaseNode *rrn = ReadregNodeForSymbol(symbol);
   PrimType symty = (expr->GetPrimType() == PTY_simplestr || expr->GetPrimType() == PTY_simpleobj) ? expr->GetPrimType() : LOWERED_PTR_TYPE;
+  if (!symbol->LMBCAllocateOffSpecialReg()) {
+    return mirBuilder->CreateExprDreadoff(OP_addrofoff, LOWERED_PTR_TYPE, *symbol, offset);
+  }
   BaseNode *rrn = mirBuilder->CreateExprRegread(symty, GetSpecialRegFromSt(symbol));
   offset += symbol->IsLocal() ? memlayout->sym_alloc_table[symbol->GetStIndex()].offset
                               : globmemlayout->sym_alloc_table[symbol->GetStIndex()].offset;
   return (offset == 0) ? rrn
-                       : mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)expr->GetPrimType()), rrn,
-                                                                 mirBuilder->GetConstInt(offset));
+                       : mirBuilder->CreateExprBinary(OP_add, expr->GetPrimType(), rrn, mirBuilder->GetConstInt(offset));
 }
 
 BaseNode *LMBCLowerer::LowerDread(AddrofNode *expr) {
@@ -91,7 +72,11 @@ BaseNode *LMBCLowerer::LowerDread(AddrofNode *expr) {
     symty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first)->GetPrimType();
     offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
   }
-  // allow dread class reference
+  if (!symbol->LMBCAllocateOffSpecialReg()) {
+    BaseNode *base = mirBuilder->CreateExprDreadoff(OP_addrofoff, LOWERED_PTR_TYPE, *symbol, 0);
+    IreadoffNode *ireadoff = mirBuilder->CreateExprIreadoff(symty, offset, base);
+    return ireadoff;
+  }
   PregIdx spcreg = GetSpecialRegFromSt(symbol);
   if (spcreg == -kSregFp) {
     CHECK_FATAL(symbol->IsLocal(), "load from fp non local?");
@@ -103,6 +88,26 @@ BaseNode *LMBCLowerer::LowerDread(AddrofNode *expr) {
     SymbolAlloc &symalloc = symbol->IsLocal() ? memlayout->sym_alloc_table[symbol->GetStIndex()]
                                               : globmemlayout->sym_alloc_table[symbol->GetStIndex()];
     IreadoffNode *ireadoff = mirBuilder->CreateExprIreadoff(symty, symalloc.offset + offset, rrn);
+    return ireadoff;
+  }
+}
+
+BaseNode *LMBCLowerer::LowerDreadoff(DreadoffNode *dreadoff) {
+  MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dreadoff->stIdx);
+  if (!symbol->LMBCAllocateOffSpecialReg()) {
+    return dreadoff;
+  }
+  PregIdx spcreg = GetSpecialRegFromSt(symbol);
+  if (spcreg == -kSregFp) {
+    CHECK_FATAL(symbol->IsLocal(), "load from fp non local?");
+    IreadFPoffNode *ireadoff = mirBuilder->CreateExprIreadFPoff(
+      dreadoff->GetPrimType(), memlayout->sym_alloc_table[symbol->GetStIndex()].offset + dreadoff->offset);
+    return ireadoff;
+  } else {
+    BaseNode *rrn = mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, spcreg);
+    SymbolAlloc &symalloc = symbol->IsLocal() ? memlayout->sym_alloc_table[symbol->GetStIndex()]
+                                              : globmemlayout->sym_alloc_table[symbol->GetStIndex()];
+    IreadoffNode *ireadoff = mirBuilder->CreateExprIreadoff(dreadoff->GetPrimType(), symalloc.offset + dreadoff->offset, rrn);
     return ireadoff;
   }
 }
@@ -122,19 +127,13 @@ static MIRType *GetPointedToType(const MIRPtrType *pointerty) {
 
 BaseNode *LMBCLowerer::LowerIread(IreadNode *expr) {
   int32 offset = 0;
-  MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(expr->GetTyIdx());
-  MIRPtrType *pointerty = static_cast<MIRPtrType *>(type);
-  CHECK_FATAL(pointerty, "expect a pointer type at iread node");
   if (expr->GetFieldID() != 0) {
-    MIRStructType *structty = dynamic_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerty->GetPointedTyIdx()));
-    CHECK_FATAL(structty, "SelectIread: non-zero fieldID for non-structure");
-    FieldPair thepair = structty->TraverseToField(expr->GetFieldID());
-    type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
+    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(expr->GetTyIdx());
+    MIRStructType *structty = dynamic_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<MIRPtrType*>(type)->GetPointedTyIdx()));
+    CHECK_FATAL(structty, "LowerIread: non-zero fieldID for non-structure");
     offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
-  } else {
-    type = GetPointedToType(pointerty);
   }
-  BaseNode *ireadoff = mirBuilder->CreateExprIreadoff(type->GetPrimType(), offset, expr->Opnd(0));
+  BaseNode *ireadoff = mirBuilder->CreateExprIreadoff(expr->GetPrimType(), offset, expr->Opnd(0));
   return ireadoff;
 }
 
@@ -143,379 +142,156 @@ BaseNode *LMBCLowerer::LowerExpr(BaseNode *expr) {
     expr->SetOpnd(LowerExpr(expr->Opnd(i)), i);
   }
   switch (expr->GetOpCode()) {
-  case OP_dread: return LowerDread(static_cast<DreadNode *>(expr));
   case OP_addrof: return LowerAddrof(static_cast<AddrofNode *>(expr));
+  case OP_dread: return LowerDread(static_cast<DreadNode *>(expr));
+  case OP_dreadoff: return LowerDreadoff(static_cast<DreadoffNode *>(expr));
   case OP_iread: return LowerIread(static_cast<IreadNode *>(expr));
   default: ;
   }
   return expr;
 }
 
-void LMBCLowerer::LowerAggDassign(BlockNode *newblk, const DassignNode *dsnode) {
-  MIRSymbol *lhssymbol = func->GetLocalOrGlobalSymbol(dsnode->GetStIdx());
-  int32 lhsoffset = 0;
-  MIRType *lhsty = lhssymbol->GetType();
-  if (dsnode->GetFieldID() != 0) {
-    MIRStructType *structty = dynamic_cast<MIRStructType *>(lhssymbol->GetType());
-    CHECK_FATAL(structty, "LowerAggDassign: non-zero fieldID for non-structure");
-    FieldPair thepair = structty->TraverseToField(dsnode->GetFieldID());
-    lhsty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
-    lhsoffset = becommon->GetFieldOffset(*structty, dsnode->GetFieldID()).first;
+// lower using OP_blkassignoff
+void LMBCLowerer::LowerAggDassign(const DassignNode *dsnode, MIRType *lhsty, int32 offset, BlockNode *newblk) {
+  BaseNode *rhs = dsnode->Opnd(0);
+  CHECK_FATAL(rhs->GetOpCode() == OP_dread || rhs->GetOpCode() == OP_iread, "LowerAggDassign: rhs inconsistent");
+  // change rhs to address of rhs
+  if (rhs->GetOpCode() == OP_dread) {
+    rhs->SetOpCode(OP_addrof);
+  } else {  // OP_iread
+    rhs->SetOpCode(OP_iaddrof);
   }
-  uint32 lhsalign = becommon->GetTypeAlign(lhsty->GetTypeIndex());
-  uint32 lhssize = becommon->GetTypeSize(lhsty->GetTypeIndex());
-
-  uint32 rhsalign;
-  uint32 alignused;
-  int32 rhsoffset = 0;
-  BaseNode *loadnode = nullptr;
-  IassignoffNode *iassignoff = nullptr;
-  if (dsnode->Opnd(0)->GetOpCode() == OP_dread) {
-    AddrofNode *rhsdread = static_cast<AddrofNode *>(dsnode->Opnd(0));
-    MIRSymbol *rhssymbol = func->GetLocalOrGlobalSymbol(rhsdread->GetStIdx());
-    MIRType *rhsty = rhssymbol->GetType();
-    if (rhsdread->GetFieldID() != 0) {
-      MIRStructType *structty = dynamic_cast<MIRStructType *>(rhssymbol->GetType());
-      CHECK_FATAL(structty, "SelectDassign: non-zero fieldID for non-structure");
-      FieldPair thepair = structty->TraverseToField(rhsdread->GetFieldID());
-      rhsty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
-      rhsoffset = becommon->GetFieldOffset(*structty, rhsdread->GetFieldID()).first;
-    }
-    rhsalign = becommon->GetTypeAlign(rhsty->GetTypeIndex());
-    BaseNode *rRrn = ReadregNodeForSymbol(rhssymbol);
-    SymbolAlloc &rsymalloc = rhssymbol->IsLocal() ? memlayout->sym_alloc_table[rhssymbol->GetStIndex()]
-                                                  : globmemlayout->sym_alloc_table[rhssymbol->GetStIndex()];
-    BaseNode *lRrn = ReadregNodeForSymbol(lhssymbol);
-    SymbolAlloc &lsymalloc = lhssymbol->IsLocal() ? memlayout->sym_alloc_table[lhssymbol->GetStIndex()]
-                                                  : globmemlayout->sym_alloc_table[lhssymbol->GetStIndex()];
-
-    alignused = std::min(lhsalign, rhsalign);
-    alignused = std::min(alignused, 4u);  // max alignment is 32-bit
-    if (!alignused) {
-      alignused = 1u;
-    }
-    for (uint32 i = 0; i < (lhssize / alignused); i++) {
-      // generate the load
-      loadnode = mirBuilder->CreateExprIreadoff(UnsignedPrimType(alignused),
-                                                           rsymalloc.offset + rhsoffset + i * alignused, rRrn);
-      // generate the store
-      iassignoff = mirBuilder->CreateStmtIassignoff(
-        UnsignedPrimType(alignused), lsymalloc.offset + lhsoffset + i * alignused, lRrn, loadnode);
-      newblk->AddStatement(iassignoff);
-    }
-    // take care of extra content at the end less than the unit of alignused
-    uint32 lhssizeCovered = (lhssize / alignused) * alignused;
-    uint32 newalignused = alignused;
-    while (lhssizeCovered < lhssize) {
-      newalignused = newalignused >> 1;
-      if (lhssizeCovered + newalignused > lhssize) {
-        continue;
-      }
-      // generate the load
-      loadnode = mirBuilder->CreateExprIreadoff(UnsignedPrimType(newalignused),
-                                                           rsymalloc.offset + rhsoffset + lhssizeCovered, rRrn);
-      // generate the store
-      iassignoff = mirBuilder->CreateStmtIassignoff(
-        UnsignedPrimType(newalignused), lsymalloc.offset + lhsoffset + lhssizeCovered, lRrn, loadnode);
-      newblk->AddStatement(iassignoff);
-      lhssizeCovered += newalignused;
-    }
-  } else if (dsnode->Opnd(0)->GetOpCode() == OP_regread) {
-    RegreadNode *regread = static_cast<RegreadNode *>(dsnode->Opnd(0));
-    CHECK_FATAL(regread->GetRegIdx() == -kSregRetval0 && regread->GetPrimType() == PTY_agg, "");
-
-    BaseNode *lRrn = ReadregNodeForSymbol(lhssymbol);
-    SymbolAlloc &lsymalloc = lhssymbol->IsLocal() ? memlayout->sym_alloc_table[lhssymbol->GetStIndex()]
-                                                  : globmemlayout->sym_alloc_table[lhssymbol->GetStIndex()];
-
-    alignused = std::min(lhsalign, 4u);  // max alignment is 32-bit
-    PregIdx ridx = -kSregRetval0;
-    for (uint32 i = 0; i < (lhssize / alignused); i++) {
-      // generate the load
-      loadnode = mirBuilder->CreateExprRegread(UnsignedPrimType(alignused), ridx - i);
-      // generate the store
-      iassignoff = mirBuilder->CreateStmtIassignoff(
-        UnsignedPrimType(alignused), lsymalloc.offset + lhsoffset + i * alignused, lRrn, loadnode);
-      newblk->AddStatement(iassignoff);
-    }
-    // take care of extra content at the end less than the unit of alignused
-    uint32 lhssizeCovered = (lhssize / alignused) * alignused;
-    ridx = -kSregRetval0 - (lhssize / alignused);
-    uint32 newalignused = alignused;
-    while (lhssizeCovered < lhssize) {
-      newalignused = newalignused >> 1;
-      if (lhssizeCovered + newalignused > lhssize) {
-        continue;
-      }
-      // generate the load
-      loadnode = mirBuilder->CreateExprRegread(UnsignedPrimType(newalignused), ridx--);
-      // generate the store
-      iassignoff = mirBuilder->CreateStmtIassignoff(
-        UnsignedPrimType(newalignused), lsymalloc.offset + lhsoffset + lhssizeCovered, lRrn, loadnode);
-      newblk->AddStatement(iassignoff);
-      lhssizeCovered += newalignused;
-    }
-  } else {  // iread
-    IreadNode *rhsiread = static_cast<IreadNode *>(dsnode->Opnd(0));
-    CHECK_FATAL(rhsiread, "LowerAggDassign: illegal rhs for dassign node of structure type");
-    rhsiread->SetOpnd(LowerExpr(rhsiread->Opnd(0)), 0);
-    MIRType *rhsRdTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(rhsiread->GetTyIdx());
-    MIRPtrType *pointerty = static_cast<MIRPtrType *>(rhsRdTy);
-    CHECK_FATAL(pointerty, "LowerAggDassign: expect a pointer type at iread node");
-    if (rhsiread->GetFieldID() != 0) {
-      MIRStructType *structty = dynamic_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerty->GetPointedTyIdx()));
-      CHECK_FATAL(structty, "LowerAggDassign: non-zero fieldID for non-structure");
-      FieldPair thepair = structty->TraverseToField(rhsiread->GetFieldID());
-      rhsRdTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
-      rhsoffset = becommon->GetFieldOffset(*structty, rhsiread->GetFieldID()).first;
-    } else {
-      rhsRdTy = GetPointedToType(pointerty);
-    }
-    rhsalign = becommon->GetTypeAlign(rhsRdTy->GetTypeIndex());
-    BaseNode *lRrn = ReadregNodeForSymbol(lhssymbol);
-    CHECK(lhssymbol->GetStIndex() < memlayout->sym_alloc_table.size() &&
-            lhssymbol->GetStIndex() < globmemlayout->sym_alloc_table.size(),
-          "index oout of range in LMBCLowerer::LowerAggDassign");
-    SymbolAlloc &lsymalloc = lhssymbol->IsLocal() ? memlayout->sym_alloc_table[lhssymbol->GetStIndex()]
-                                                  : globmemlayout->sym_alloc_table[lhssymbol->GetStIndex()];
-
-    alignused = std::min(lhsalign, rhsalign);
-    alignused = std::min(alignused, 4u);  // max alignment is 32-bit
-    for (uint32 i = 0; i < (lhssize / alignused); i++) {
-      // generate the load
-      loadnode = mirBuilder->CreateExprIreadoff(UnsignedPrimType(alignused), rhsoffset + i * alignused,
-                                                           rhsiread->Opnd(0));
-      // generate the store
-      iassignoff = mirBuilder->CreateStmtIassignoff(
-        UnsignedPrimType(alignused), lsymalloc.offset + lhsoffset + i * alignused, lRrn, loadnode);
-      newblk->AddStatement(iassignoff);
-    }
-    // take care of extra content at the end less than the unit of alignused
-    uint32 lhssizeCovered = (lhssize / alignused) * alignused;
-    uint32 newalignused = alignused;
-    while (lhssizeCovered < lhssize) {
-      newalignused = newalignused >> 1;
-      if (lhssizeCovered + newalignused > lhssize) {
-        continue;
-      }
-      // generate the load
-      loadnode = mirBuilder->CreateExprIreadoff(UnsignedPrimType(newalignused), rhsoffset + lhssizeCovered,
-                                                           rhsiread->Opnd(0));
-      // generate the store
-      iassignoff = mirBuilder->CreateStmtIassignoff(
-        UnsignedPrimType(newalignused), lsymalloc.offset + lhsoffset + lhssizeCovered, lRrn, loadnode);
-      newblk->AddStatement(iassignoff);
-      lhssizeCovered += newalignused;
-    }
+  rhs->SetPrimType(LOWERED_PTR_TYPE);
+  // generate lhs address expression
+  BaseNode *lhs = nullptr;
+  MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dsnode->GetStIdx());
+  if (!symbol->LMBCAllocateOffSpecialReg()) {
+    lhs = mirBuilder->CreateExprDreadoff(OP_addrofoff, LOWERED_PTR_TYPE, *symbol, offset);
+  } else {
+    lhs = mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, GetSpecialRegFromSt(symbol));
+    SymbolAlloc &symalloc = symbol->IsLocal() ? memlayout->sym_alloc_table[symbol->GetStIndex()]
+                                              : globmemlayout->sym_alloc_table[symbol->GetStIndex()];
+    offset = symalloc.offset + offset;
   }
+  // generate the blkassignoff
+  BlkassignoffNode *bass = mirModule->CurFuncCodeMemPool()->New<BlkassignoffNode>(offset, lhsty->GetSize());
+  bass->SetAlign(lhsty->GetAlign());
+  bass->SetBOpnd(lhs, 0);
+  bass->SetBOpnd(LowerExpr(rhs), 1);
+  newblk->AddStatement(bass);
 }
 
 void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
+  MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dsnode->GetStIdx());
+  MIRType *symty = symbol->GetType();
+  int32 offset = 0;
+  if (dsnode->GetFieldID() != 0) {
+    MIRStructType *structty = dynamic_cast<MIRStructType *>(symbol->GetType());
+    CHECK_FATAL(structty, "LMBCLowerer::LowerDassign: non-zero fieldID for non-structure");
+    FieldPair thepair = structty->TraverseToField(dsnode->GetFieldID());
+    symty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
+    offset = becommon->GetFieldOffset(*structty, dsnode->GetFieldID()).first;
+  }
   if (dsnode->Opnd(0)->GetPrimType() != PTY_agg) {
-    dsnode->SetOpnd(LowerExpr(dsnode->Opnd(0)), 0);
-    MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dsnode->GetStIdx());
-    int32 offset = 0;
-    PrimType ptypused = symbol->GetType()->GetPrimType();
-    if (dsnode->GetFieldID() != 0) {
-      MIRStructType *structty = dynamic_cast<MIRStructType *>(symbol->GetType());
-      CHECK_FATAL(structty, "LMBCLowerer::LowerDassign: non-zero fieldID for non-structure");
-      offset = becommon->GetFieldOffset(*structty, dsnode->GetFieldID()).first;
-      TyIdx ftyidx = structty->TraverseToField(dsnode->GetFieldID()).second.first;
-      ptypused = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ftyidx)->GetPrimType();
+    if (!symbol->LMBCAllocateOffSpecialReg()) {
+      BaseNode *base = mirBuilder->CreateExprDreadoff(OP_addrofoff, LOWERED_PTR_TYPE, *symbol, 0);
+      IassignoffNode *iassignoff = mirBuilder->CreateStmtIassignoff(symty->GetPrimType(), offset, base, dsnode->Opnd(0));
+      newblk->AddStatement(iassignoff);
+      return;
     }
     PregIdx spcreg = GetSpecialRegFromSt(symbol);
     if (spcreg == -kSregFp) {
       IassignFPoffNode *iassignoff = mirBuilder->CreateStmtIassignFPoff(OP_iassignfpoff,
-        ptypused, memlayout->sym_alloc_table[symbol->GetStIndex()].offset + offset, dsnode->Opnd(0));
+        symty->GetPrimType(), memlayout->sym_alloc_table[symbol->GetStIndex()].offset + offset, dsnode->Opnd(0));
       newblk->AddStatement(iassignoff);
     } else {
-      BaseNode *rrn = ReadregNodeForSymbol(symbol);
+      BaseNode *rrn = mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, spcreg);
       SymbolAlloc &symalloc = symbol->IsLocal() ? memlayout->sym_alloc_table[symbol->GetStIndex()]
                                                 : globmemlayout->sym_alloc_table[symbol->GetStIndex()];
       IassignoffNode *iassignoff =
-        mirBuilder->CreateStmtIassignoff(ptypused, symalloc.offset + offset, rrn, dsnode->Opnd(0));
+        mirBuilder->CreateStmtIassignoff(symty->GetPrimType(), symalloc.offset + offset, rrn, dsnode->Opnd(0));
       newblk->AddStatement(iassignoff);
     }
   } else {
-    LowerAggDassign(newblk, dsnode);
+    LowerAggDassign(dsnode, symty, offset, newblk);
   }
 }
 
-void LMBCLowerer::LowerAggIassign(BlockNode *newblk, IassignNode *iassign) {
-  int32 lhsoffset = 0;
-  MIRType *lhsty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iassign->GetTyIdx());
-  MIRPtrType *pointerty = static_cast<MIRPtrType *>(lhsty);
-  if (pointerty->GetKind() != kTypePointer) {
-    TypeAttrs typeAttrs;
-    pointerty = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetOrCreatePointerType(*lhsty, GetExactPtrPrimType(), typeAttrs));
+void LMBCLowerer::LowerDassignoff(DassignoffNode *dsnode, BlockNode *newblk) {
+  MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dsnode->stIdx);
+  CHECK_FATAL(dsnode->Opnd(0)->GetPrimType() != PTY_agg, "LowerDassignoff: agg primitive type NYI");
+  if (!symbol->LMBCAllocateOffSpecialReg()) {
+    newblk->AddStatement(dsnode);
+    return;
   }
-  if (iassign->GetFieldID() != 0) {
-    MIRStructType *structty = dynamic_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerty->GetPointedTyIdx()));
-    CHECK_FATAL(structty, "LowerAggDassign: non-zero fieldID for non-structure");
-    FieldPair thepair = structty->TraverseToField(iassign->GetFieldID());
-    lhsty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
-    lhsoffset = becommon->GetFieldOffset(*structty, iassign->GetFieldID()).first;
+  PregIdx spcreg = GetSpecialRegFromSt(symbol);
+  if (spcreg == -kSregFp) {
+    IassignFPoffNode *iassignoff = mirBuilder->CreateStmtIassignFPoff(OP_iassignfpoff,
+      dsnode->GetPrimType(), memlayout->sym_alloc_table[symbol->GetStIndex()].offset + dsnode->offset, dsnode->Opnd(0));
+    newblk->AddStatement(iassignoff);
   } else {
-    lhsty = GetPointedToType(pointerty);
+    BaseNode *rrn = mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, spcreg);
+    SymbolAlloc &symalloc = symbol->IsLocal() ? memlayout->sym_alloc_table[symbol->GetStIndex()]
+                                              : globmemlayout->sym_alloc_table[symbol->GetStIndex()];
+    IassignoffNode *iassignoff =
+      mirBuilder->CreateStmtIassignoff(dsnode->GetPrimType(), symalloc.offset + dsnode->offset, rrn, dsnode->Opnd(0));
+    newblk->AddStatement(iassignoff);
   }
-  uint32 lhsalign = becommon->GetTypeAlign(lhsty->GetTypeIndex());
-  uint32 lhssize = becommon->GetTypeSize(lhsty->GetTypeIndex());
+}
 
-  uint32 rhsalign;
-  uint32 alignused;
-  int32 rhsoffset = 0;
-  BaseNode *loadnode = nullptr;
-  IassignoffNode *iassignoff = nullptr;
-  if (iassign->GetRHS()->GetOpCode() == OP_dread) {
-    AddrofNode *rhsdread = static_cast<AddrofNode *>(iassign->GetRHS());
-    MIRSymbol *rhssymbol = func->GetLocalOrGlobalSymbol(rhsdread->GetStIdx());
-    MIRType *rhsty = rhssymbol->GetType();
-    if (rhsdread->GetFieldID() != 0) {
-      MIRStructType *structty = dynamic_cast<MIRStructType *>(rhssymbol->GetType());
-      CHECK_FATAL(structty, "SelectDassign: non-zero fieldID for non-structure");
-      FieldPair thepair = structty->TraverseToField(rhsdread->GetFieldID());
-      rhsty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
-      rhsoffset = becommon->GetFieldOffset(*structty, rhsdread->GetFieldID()).first;
+// lower using OP_blkassignoff
+void LMBCLowerer::LowerAggIassign(IassignNode *iassign, MIRType *lhsty, int32 offset, BlockNode *newblk) {
+  BaseNode *rhs = iassign->rhs;
+  CHECK_FATAL(rhs->GetOpCode() == OP_dread || rhs->GetOpCode() == OP_iread || 
+              rhs->GetOpCode() == OP_ireadoff || rhs->GetOpCode() == OP_ireadfpoff, "LowerAggIassign: rhs inconsistent");
+  // change rhs to address of rhs
+  switch (rhs->GetOpCode()) {
+    case OP_dread: rhs->SetOpCode(OP_addrof); break;
+    case OP_iread: rhs->SetOpCode(OP_iaddrof); break;
+    case OP_ireadoff: {
+      IreadoffNode *ireadoff = static_cast<IreadoffNode*>(rhs);
+      rhs = mirBuilder->CreateExprBinary(OP_add, LOWERED_PTR_TYPE, rhs->Opnd(0), mirBuilder->GetConstInt(ireadoff->GetOffset()));
+      break;
     }
-    rhsalign = becommon->GetTypeAlign(rhsty->GetTypeIndex());
-    BaseNode *rRrn = ReadregNodeForSymbol(rhssymbol);
-    CHECK(rhssymbol->GetStIndex() < memlayout->sym_alloc_table.size() &&
-            rhssymbol->GetStIndex() < globmemlayout->sym_alloc_table.size(),
-          "index out of range in LMBCLowerer::LowerAggIassign");
-    SymbolAlloc &rsymalloc = rhssymbol->IsLocal() ? memlayout->sym_alloc_table[rhssymbol->GetStIndex()]
-                                                  : globmemlayout->sym_alloc_table[rhssymbol->GetStIndex()];
-
-    alignused = std::min(lhsalign, rhsalign);
-    alignused = std::min(alignused, 4u);  // max alignment is 32-bit
-    for (uint32 i = 0; i < (lhssize / alignused); i++) {
-      // generate the load
-      loadnode = mirBuilder->CreateExprIreadoff(UnsignedPrimType(alignused),
-                                                           rsymalloc.offset + rhsoffset + i * alignused, rRrn);
-      // generate the store
-      iassignoff = mirBuilder->CreateStmtIassignoff(UnsignedPrimType(alignused), lhsoffset + i * alignused,
-                                                               iassign->addrExpr, loadnode);
-      newblk->AddStatement(iassignoff);
+    case OP_ireadfpoff: {
+      IreadFPoffNode *ireadfpoff = static_cast<IreadFPoffNode*>(rhs);
+      rhs = mirBuilder->CreateExprBinary(OP_add, LOWERED_PTR_TYPE, mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, -kSregFp), mirBuilder->GetConstInt(ireadfpoff->GetOffset()));
+      break;
     }
-    // take care of extra content at the end less than the unit of alignused
-    uint32 lhssizeCovered = (lhssize / alignused) * alignused;
-    uint32 newalignused = alignused;
-    while (lhssizeCovered < lhssize) {
-      newalignused = newalignused >> 1;
-      if (lhssizeCovered + newalignused > lhssize) {
-        continue;
-      }
-      // generate the load
-      loadnode = mirBuilder->CreateExprIreadoff(UnsignedPrimType(newalignused),
-                                                           rsymalloc.offset + rhsoffset + lhssizeCovered, rRrn);
-      // generate the store
-      iassignoff = mirBuilder->CreateStmtIassignoff(UnsignedPrimType(newalignused),
-                                                               lhsoffset + lhssizeCovered, iassign->addrExpr, loadnode);
-      newblk->AddStatement(iassignoff);
-      lhssizeCovered += newalignused;
-    }
-  } else if (iassign->GetRHS()->GetOpCode() == OP_regread) {
-    RegreadNode *regread = static_cast<RegreadNode *>(iassign->GetRHS());
-    CHECK_FATAL(regread->GetRegIdx() == -kSregRetval0 && regread->GetPrimType() == PTY_agg, "");
-
-    alignused = std::min(lhsalign, 4u);  // max alignment is 32-bit
-    PregIdx ridx = -kSregRetval0;
-    for (uint32 i = 0; i < (lhssize / alignused); i++) {
-      // generate the load
-      loadnode = mirBuilder->CreateExprRegread(UnsignedPrimType(alignused), ridx - i);
-      // generate the store
-      iassignoff = mirBuilder->CreateStmtIassignoff(UnsignedPrimType(alignused), lhsoffset + i * alignused,
-                                                               iassign->addrExpr, loadnode);
-      newblk->AddStatement(iassignoff);
-    }
-    // take care of extra content at the end less than the unit of alignused
-    uint32 lhssizeCovered = (lhssize / alignused) * alignused;
-    ridx = -kSregRetval0 - (lhssize / alignused);
-    uint32 newalignused = alignused;
-    while (lhssizeCovered < lhssize) {
-      newalignused = newalignused >> 1;
-      if (lhssizeCovered + newalignused > lhssize) {
-        continue;
-      }
-      // generate the load
-      loadnode = mirBuilder->CreateExprRegread(UnsignedPrimType(newalignused), ridx--);
-      // generate the store
-      iassignoff = mirBuilder->CreateStmtIassignoff(UnsignedPrimType(newalignused),
-                                                               lhsoffset + lhssizeCovered, iassign->addrExpr, loadnode);
-      newblk->AddStatement(iassignoff);
-      lhssizeCovered += newalignused;
-    }
-  } else {  // iread
-    IreadNode *rhsiread = static_cast<IreadNode *>(iassign->GetRHS());
-    CHECK_FATAL(rhsiread, "LowerAggIassign: illegal rhs for dassign node of structure type");
-    rhsiread->SetOpnd(LowerExpr(rhsiread->Opnd(0)), 0);
-    MIRType *rhsRdTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(rhsiread->GetTyIdx());
-    MIRPtrType *pointerty = static_cast<MIRPtrType *>(rhsRdTy);
-    CHECK_FATAL(pointerty, "LowerAggIassign: expect a pointer type at iread node");
-    if (rhsiread->GetFieldID() != 0) {
-      MIRStructType *structty = dynamic_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerty->GetPointedTyIdx()));
-      CHECK_FATAL(structty, "LowerAggIassign: non-zero fieldID for non-structure");
-      FieldPair thepair = structty->TraverseToField(rhsiread->GetFieldID());
-      rhsRdTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
-      rhsoffset = becommon->GetFieldOffset(*structty, rhsiread->GetFieldID()).first;
-    } else {
-      rhsRdTy = GetPointedToType(pointerty);
-    }
-    rhsalign = becommon->GetTypeAlign(rhsRdTy->GetTypeIndex());
-
-    alignused = std::min(lhsalign, rhsalign);
-    alignused = std::min(alignused, 4u);  // max alignment is 32-bit
-    for (uint32 i = 0; i < (lhssize / alignused); i++) {
-      // generate the load
-      loadnode = mirBuilder->CreateExprIreadoff(UnsignedPrimType(alignused), rhsoffset + i * alignused,
-                                                           rhsiread->Opnd(0));
-      // generate the store
-      iassignoff = mirBuilder->CreateStmtIassignoff(UnsignedPrimType(alignused), lhsoffset + i * alignused,
-                                                               iassign->addrExpr, loadnode);
-      newblk->AddStatement(iassignoff);
-    }
-    // take care of extra content at the end less than the unit of alignused
-    uint32 lhssizeCovered = (lhssize / alignused) * alignused;
-    uint32 newalignused = alignused;
-    while (lhssizeCovered < lhssize) {
-      newalignused = newalignused >> 1;
-      if (lhssizeCovered + newalignused > lhssize) {
-        continue;
-      }
-      // generate the load
-      loadnode = mirBuilder->CreateExprIreadoff(UnsignedPrimType(newalignused), rhsoffset + lhssizeCovered,
-                                                           rhsiread->Opnd(0));
-      // generate the store
-      iassignoff = mirBuilder->CreateStmtIassignoff(UnsignedPrimType(newalignused),
-                                                               lhsoffset + lhssizeCovered, iassign->addrExpr, loadnode);
-      newblk->AddStatement(iassignoff);
-      lhssizeCovered += newalignused;
-    }
+    default: ;
   }
+  rhs->SetPrimType(LOWERED_PTR_TYPE);
+  // generate the blkassignoff
+  BlkassignoffNode *bass = mirModule->CurFuncCodeMemPool()->New<BlkassignoffNode>(offset, lhsty->GetSize());
+  bass->SetAlign(lhsty->GetAlign());
+  bass->SetBOpnd(iassign->addrExpr, 0);
+  bass->SetBOpnd(rhs, 1);
+  newblk->AddStatement(bass);
 }
 
 void LMBCLowerer::LowerIassign(IassignNode *iassign, BlockNode *newblk) {
   iassign->addrExpr = LowerExpr(iassign->Opnd(0));
+  iassign->rhs = LowerExpr(iassign->GetRHS());
+  int32 offset = 0;
+  MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iassign->GetTyIdx());
+  MIRPtrType *pointerty = static_cast<MIRPtrType *>(type);
+  CHECK_FATAL(pointerty, "LowerIassign::expect a pointer type at iassign node");
+  if (iassign->GetFieldID() != 0) {
+    MIRStructType *structty = dynamic_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerty->GetPointedTyIdx()));
+    CHECK_FATAL(structty, "LowerIassign: non-zero fieldID for non-structure");
+    offset = becommon->GetFieldOffset(*structty, iassign->GetFieldID()).first;
+    TyIdx ftyidx = structty->TraverseToField(iassign->GetFieldID()).second.first;
+    type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ftyidx);
+  } else {
+    type = GetPointedToType(pointerty);
+  }
   if (iassign->GetRHS()->GetPrimType() != PTY_agg) {
-    iassign->SetRHS(LowerExpr(iassign->GetRHS()));
-    int32 offset = 0;
-    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iassign->GetTyIdx());
-    MIRPtrType *pointerty = static_cast<MIRPtrType *>(type);
-    CHECK_FATAL(pointerty, "LowerIassign::expect a pointer type at iassign node");
-    if (iassign->GetFieldID() != 0) {
-      MIRStructType *structty = dynamic_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerty->GetPointedTyIdx()));
-      CHECK_FATAL(structty, "LowerAggIassign: non-zero fieldID for non-structure");
-      offset = becommon->GetFieldOffset(*structty, iassign->GetFieldID()).first;
-      TyIdx ftyidx = structty->TraverseToField(iassign->GetFieldID()).second.first;
-      type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ftyidx);
-    } else {
-      type = GetPointedToType(pointerty);
-    }
     PrimType ptypused = type->GetPrimType();
     IassignoffNode *iassignoff =
-      mirBuilder->CreateStmtIassignoff(ptypused, offset, iassign->addrExpr, iassign->GetRHS());
+      mirBuilder->CreateStmtIassignoff(ptypused, offset, iassign->addrExpr, iassign->rhs);
     newblk->AddStatement(iassignoff);
   } else {
-    LowerAggIassign(newblk, iassign);
+    LowerAggIassign(iassign, type, offset, newblk);
   }
 }
 
@@ -579,14 +355,16 @@ void LMBCLowerer::LowerCall(NaryStmtNode *naryStmt, BlockNode *newblk) {
       newblk->AddStatement(iass);
     } else {
       BlkassignoffNode *bass = mirModule->CurFuncCodeMemPool()->New<BlkassignoffNode>(ploc.memoffset, ploc.memsize);
-      bass->SetBOpnd(mirBuilder->CreateExprRegread(PTY_a64, -kSregSp), 0);
+      bass->SetAlign(std::min(ty->GetAlign(), 8u));
+      bass->SetBOpnd(mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, -kSregSp), 0);
       // the operand is either OP_dread or OP_iread; use its address instead
       if (opnd->GetOpCode() == OP_dread) {
         opnd->SetOpCode(OP_addrof);
       } else {
         opnd->SetOpCode(OP_iaddrof);
       }
-      bass->SetBOpnd(opnd, 1);
+      opnd->SetPrimType(LOWERED_PTR_TYPE);
+      bass->SetBOpnd(LowerExpr(opnd), 1);
       newblk->AddStatement(bass);
     }
   }
@@ -620,6 +398,10 @@ BlockNode *LMBCLowerer::LowerBlock(BlockNode *block) {
     switch (stmt->GetOpCode()) {
     case OP_dassign: {
       LowerDassign(static_cast<DassignNode*>(stmt), newblk);
+      break;
+    }
+    case OP_dassignoff: {
+      LowerDassignoff(static_cast<DassignoffNode*>(stmt), newblk);
       break;
     }
     case OP_iassign: {
