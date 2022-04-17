@@ -192,24 +192,25 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
     symty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
     offset = becommon->GetFieldOffset(*structty, dsnode->GetFieldID()).first;
   }
-  if (dsnode->Opnd(0)->GetPrimType() != PTY_agg) {
+  BaseNode *rhs = LowerExpr(dsnode->Opnd(0));
+  if (rhs->GetPrimType() != PTY_agg) {
     if (!symbol->LMBCAllocateOffSpecialReg()) {
       BaseNode *base = mirBuilder->CreateExprDreadoff(OP_addrofoff, LOWERED_PTR_TYPE, *symbol, 0);
-      IassignoffNode *iassignoff = mirBuilder->CreateStmtIassignoff(symty->GetPrimType(), offset, base, dsnode->Opnd(0));
+      IassignoffNode *iassignoff = mirBuilder->CreateStmtIassignoff(symty->GetPrimType(), offset, base, rhs);
       newblk->AddStatement(iassignoff);
       return;
     }
     PregIdx spcreg = GetSpecialRegFromSt(symbol);
     if (spcreg == -kSregFp) {
       IassignFPoffNode *iassignoff = mirBuilder->CreateStmtIassignFPoff(OP_iassignfpoff,
-        symty->GetPrimType(), memlayout->sym_alloc_table[symbol->GetStIndex()].offset + offset, dsnode->Opnd(0));
+        symty->GetPrimType(), memlayout->sym_alloc_table[symbol->GetStIndex()].offset + offset, rhs);
       newblk->AddStatement(iassignoff);
     } else {
       BaseNode *rrn = mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, spcreg);
       SymbolAlloc &symalloc = symbol->IsLocal() ? memlayout->sym_alloc_table[symbol->GetStIndex()]
                                                 : globmemlayout->sym_alloc_table[symbol->GetStIndex()];
       IassignoffNode *iassignoff =
-        mirBuilder->CreateStmtIassignoff(symty->GetPrimType(), symalloc.offset + offset, rrn, dsnode->Opnd(0));
+        mirBuilder->CreateStmtIassignoff(symty->GetPrimType(), symalloc.offset + offset, rrn, rhs);
       newblk->AddStatement(iassignoff);
     }
   } else {
@@ -220,6 +221,7 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
 void LMBCLowerer::LowerDassignoff(DassignoffNode *dsnode, BlockNode *newblk) {
   MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dsnode->stIdx);
   CHECK_FATAL(dsnode->Opnd(0)->GetPrimType() != PTY_agg, "LowerDassignoff: agg primitive type NYI");
+  BaseNode *rhs = LowerExpr(dsnode->Opnd(0));
   if (!symbol->LMBCAllocateOffSpecialReg()) {
     newblk->AddStatement(dsnode);
     return;
@@ -227,14 +229,14 @@ void LMBCLowerer::LowerDassignoff(DassignoffNode *dsnode, BlockNode *newblk) {
   PregIdx spcreg = GetSpecialRegFromSt(symbol);
   if (spcreg == -kSregFp) {
     IassignFPoffNode *iassignoff = mirBuilder->CreateStmtIassignFPoff(OP_iassignfpoff,
-      dsnode->GetPrimType(), memlayout->sym_alloc_table[symbol->GetStIndex()].offset + dsnode->offset, dsnode->Opnd(0));
+      dsnode->GetPrimType(), memlayout->sym_alloc_table[symbol->GetStIndex()].offset + dsnode->offset, rhs);
     newblk->AddStatement(iassignoff);
   } else {
     BaseNode *rrn = mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, spcreg);
     SymbolAlloc &symalloc = symbol->IsLocal() ? memlayout->sym_alloc_table[symbol->GetStIndex()]
                                               : globmemlayout->sym_alloc_table[symbol->GetStIndex()];
     IassignoffNode *iassignoff =
-      mirBuilder->CreateStmtIassignoff(dsnode->GetPrimType(), symalloc.offset + dsnode->offset, rrn, dsnode->Opnd(0));
+      mirBuilder->CreateStmtIassignoff(dsnode->GetPrimType(), symalloc.offset + dsnode->offset, rrn, rhs);
     newblk->AddStatement(iassignoff);
   }
 }
