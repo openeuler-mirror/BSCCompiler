@@ -1009,6 +1009,7 @@ IntrinsicopNode *LoopVectorization::GenVectorPairWiseAccumulate(BaseNode *oper0,
   return rhs;
 }
 
+// vaddl,opnd0 and opnd1 are same type, target type are widen
 IntrinsicopNode *LoopVectorization::GenVectorWidenIntrn(BaseNode *oper0,
     BaseNode *oper1, PrimType opndType, bool highPart, Opcode op) {
   if (op == OP_add) {
@@ -1154,7 +1155,12 @@ RegreadNode *LoopVectorization::GenVectorReductionVar(StmtNode *stmt, LoopTransP
   }
   MIRType *lhsvecType = GenVecType(lhsType, static_cast<uint8>(lhsLanes));
   PregIdx reglhsvec = mirFunc->GetPregTab()->CreatePreg(lhsvecType->GetPrimType());
-  IntrinsicopNode *lhsvecIntrn = GenDupScalarExpr(const0Node, lhsvecType->GetPrimType());
+  BaseNode *constZero = const0Node;
+  if (GetPrimTypeSize(const0Node->GetPrimType()) != GetPrimTypeSize(lhsType)) {
+    constZero = const0Node->CloneTree(*codeMPAlloc);
+    constZero->SetPrimType(lhsType);
+  }
+  IntrinsicopNode *lhsvecIntrn = GenDupScalarExpr(constZero, lhsvecType->GetPrimType());
   RegassignNode *initlhsvec = codeMP->New<RegassignNode>(lhsvecType->GetPrimType(), reglhsvec, lhsvecIntrn);
   tp->vecInfo->beforeLoopStmts.push_back(initlhsvec);
   RegreadNode *regReadlhsvec = codeMP->New<RegreadNode>(lhsvecType->GetPrimType(), reglhsvec);
@@ -1171,6 +1177,14 @@ RegreadNode *LoopVectorization::GetorNewVectorReductionVar(StmtNode *stmt, LoopT
     regReadlhsvec = GenVectorReductionVar(stmt, tp);
   }
   return regReadlhsvec;
+}
+
+static bool IsCompareNode(Opcode op) {
+  if (op == OP_eq || op == OP_ge || op == OP_gt || op == OP_le || op == OP_lt ||
+      op == OP_ne || op == OP_cmp || op == OP_cmpl || op == OP_cmpg) {
+    return true;
+  }
+  return false;
 }
 
 void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVector<BaseNode *>& vectorizedNode,
@@ -1280,7 +1294,26 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
             CHECK_FATAL(GetVecLanes(vecn2->GetPrimType()) > 0, "opnd2 should be vectype since opnd1 is scalar");
             newbin->SetPrimType(vecn2->GetPrimType()); // update primtype of binary op with opnd's type
           }
-          vectorizedNode.push_back(newbin);
+          // update opndtype
+          if (IsCompareNode(newbin->GetOpCode())) {
+            static_cast<CompareNode *>(newbin)->SetOpndType(newbin->GetPrimType());
+          }
+          if (tp->vecInfo->currentLHSTypeSize / GetPrimTypeSize(GetVecElemPrimType(newbin->GetPrimType())) > 2) {
+            if (GetPrimTypeSize(newbin->GetPrimType()) == 16) {
+              // widen vectorized node to low and high part if newbin is already 128-bit
+              IntrinsicopNode *getLowIntrn = GenVectorGetLow(newbin, newbin->GetPrimType());
+              IntrinsicopNode *lowNode = GenVectorWidenOpnd(getLowIntrn, getLowIntrn->GetPrimType(), false);
+              IntrinsicopNode *highNode = GenVectorWidenOpnd(newbin, getLowIntrn->GetPrimType(), true);
+              vectorizedNode.push_back(lowNode);
+              vectorizedNode.push_back(highNode);
+            } else {
+              // widen element type
+              IntrinsicopNode *widenop = GenVectorWidenOpnd(newbin, newbin->GetPrimType(), false);
+              vectorizedNode.push_back(widenop);
+            }
+          } else {
+            vectorizedNode.push_back(newbin);
+          }
         }
       }
       break;
