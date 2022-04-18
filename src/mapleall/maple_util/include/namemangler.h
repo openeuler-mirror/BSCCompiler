@@ -183,6 +183,7 @@ static constexpr const char kprefixProfExit[] = "__mpl_prof_exit_";
 static constexpr const char kGCCProfInit[] = "__gcov_init";
 static constexpr const char kGCCProfExit[] = "__gcov_exit";
 static constexpr const char kMplMergeFuncAdd[] = "__gcov_merge_add";
+static constexpr const char kProfFileNameExt[] = ".gcda";
 
 static constexpr const char kBindingProtectedRegionStr[] = "__BindingProtectRegion__";
 

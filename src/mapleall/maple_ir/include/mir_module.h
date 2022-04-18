@@ -21,6 +21,7 @@
 #include "mpl_logging.h"
 #include "muid.h"
 #include "profile.h"
+#include "namemangler.h"
 #if MIR_FEATURE_FULL
 #include <string>
 #include <unordered_set>
@@ -315,6 +316,15 @@ class MIRModule {
   std::string GetFileNameAsPostfix() const;
   void SetFileName(const std::string &name) {
     fileName = name;
+  }
+
+  std::string GetProfileDataFileName() const {
+    std::string profileDataFileName = fileName.substr(0, fileName.find_last_of("."));
+    std::replace(profileDataFileName.begin(), profileDataFileName.end(), '.', '_');
+    std::replace(profileDataFileName.begin(), profileDataFileName.end(), '-', '_');
+    std::replace(profileDataFileName.begin(), profileDataFileName.end(), '/', '_');
+    profileDataFileName = profileDataFileName + namemangler::kProfFileNameExt;
+    return profileDataFileName;
   }
 
   bool IsJavaModule() const {
