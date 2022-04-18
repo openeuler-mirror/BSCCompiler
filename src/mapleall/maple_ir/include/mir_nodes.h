@@ -2867,6 +2867,7 @@ class BlkassignoffNode : public BinaryStmtNode {
       x >>= 1;
       ++res;
     }
+    alignLog2 = res;
   }
  public:
   uint32 alignLog2:4;            // alignment in bytes encoded in log2
