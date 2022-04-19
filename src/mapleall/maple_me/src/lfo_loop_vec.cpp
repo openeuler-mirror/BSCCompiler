@@ -1009,6 +1009,7 @@ IntrinsicopNode *LoopVectorization::GenVectorPairWiseAccumulate(BaseNode *oper0,
   return rhs;
 }
 
+// vaddl,opnd0 and opnd1 are same type, target type are widen
 IntrinsicopNode *LoopVectorization::GenVectorWidenIntrn(BaseNode *oper0,
     BaseNode *oper1, PrimType opndType, bool highPart, Opcode op) {
   if (op == OP_add) {
@@ -1154,7 +1155,12 @@ RegreadNode *LoopVectorization::GenVectorReductionVar(StmtNode *stmt, LoopTransP
   }
   MIRType *lhsvecType = GenVecType(lhsType, static_cast<uint8>(lhsLanes));
   PregIdx reglhsvec = mirFunc->GetPregTab()->CreatePreg(lhsvecType->GetPrimType());
-  IntrinsicopNode *lhsvecIntrn = GenDupScalarExpr(const0Node, lhsvecType->GetPrimType());
+  BaseNode *constZero = const0Node;
+  if (GetPrimTypeSize(const0Node->GetPrimType()) != GetPrimTypeSize(lhsType)) {
+    constZero = const0Node->CloneTree(*codeMPAlloc);
+    constZero->SetPrimType(lhsType);
+  }
+  IntrinsicopNode *lhsvecIntrn = GenDupScalarExpr(constZero, lhsvecType->GetPrimType());
   RegassignNode *initlhsvec = codeMP->New<RegassignNode>(lhsvecType->GetPrimType(), reglhsvec, lhsvecIntrn);
   tp->vecInfo->beforeLoopStmts.push_back(initlhsvec);
   RegreadNode *regReadlhsvec = codeMP->New<RegreadNode>(lhsvecType->GetPrimType(), reglhsvec);
@@ -1171,6 +1177,14 @@ RegreadNode *LoopVectorization::GetorNewVectorReductionVar(StmtNode *stmt, LoopT
     regReadlhsvec = GenVectorReductionVar(stmt, tp);
   }
   return regReadlhsvec;
+}
+
+static bool IsCompareNode(Opcode op) {
+  if (op == OP_eq || op == OP_ge || op == OP_gt || op == OP_le || op == OP_lt ||
+      op == OP_ne || op == OP_cmp || op == OP_cmpl || op == OP_cmpg) {
+    return true;
+  }
+  return false;
 }
 
 void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVector<BaseNode *>& vectorizedNode,
@@ -1197,7 +1211,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
       if ((depth == 0) &&
           (tp->vecInfo->currentLHSTypeSize > GetPrimTypeSize(GetVecElemPrimType(vecType->GetPrimType()))) &&
           ((GetPrimTypeSize(optype) / GetPrimTypeSize(GetVecElemPrimType(vecType->GetPrimType()))) > 2)) {
-        // widen node type: split two nodes
+        // widen 128 bit node type : split two nodes
         if (GetPrimTypeSize(vecType->GetPrimType()) == 16) {
           IntrinsicopNode *getLowIntrn = GenVectorGetLow(node, vecType->GetPrimType());
           IntrinsicopNode *lowNode = GenVectorWidenOpnd(getLowIntrn, getLowIntrn->GetPrimType(), false);
@@ -1280,15 +1294,26 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
             CHECK_FATAL(GetVecLanes(vecn2->GetPrimType()) > 0, "opnd2 should be vectype since opnd1 is scalar");
             newbin->SetPrimType(vecn2->GetPrimType()); // update primtype of binary op with opnd's type
           }
-          vectorizedNode.push_back(newbin);
-        }
-      }
-      // insert cvt to change to sign or unsign
-      if (depth == 0 &&
-          ((IsSignedInteger(node->GetPrimType()) && IsUnsignedInteger(opnd0PrimType)) ||
-           (IsUnsignedInteger(node->GetPrimType()) && IsSignedInteger(opnd0PrimType)))) {
-        for (size_t i = 0; i < vectorizedNode.size(); i++) {
-          vectorizedNode[i] = ConvertNodeType(IsSignedInteger(node->GetPrimType()), vectorizedNode[i]);
+          // update opndtype
+          if (IsCompareNode(newbin->GetOpCode())) {
+            static_cast<CompareNode *>(newbin)->SetOpndType(newbin->GetPrimType());
+          }
+          if (tp->vecInfo->currentLHSTypeSize / GetPrimTypeSize(GetVecElemPrimType(newbin->GetPrimType())) > 2) {
+            if (GetPrimTypeSize(newbin->GetPrimType()) == 16) {
+              // widen vectorized node to low and high part if newbin is already 128-bit
+              IntrinsicopNode *getLowIntrn = GenVectorGetLow(newbin, newbin->GetPrimType());
+              IntrinsicopNode *lowNode = GenVectorWidenOpnd(getLowIntrn, getLowIntrn->GetPrimType(), false);
+              IntrinsicopNode *highNode = GenVectorWidenOpnd(newbin, getLowIntrn->GetPrimType(), true);
+              vectorizedNode.push_back(lowNode);
+              vectorizedNode.push_back(highNode);
+            } else {
+              // widen element type
+              IntrinsicopNode *widenop = GenVectorWidenOpnd(newbin, newbin->GetPrimType(), false);
+              vectorizedNode.push_back(widenop);
+            }
+          } else {
+            vectorizedNode.push_back(newbin);
+          }
         }
       }
       break;
@@ -1350,6 +1375,31 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
         vectorizedNode.push_back(vecnode);
       } else {
         // donothing
+        vectorizedNode.push_back(node);
+      }
+      break;
+    }
+    case OP_select: {
+      TernaryNode *tnode = static_cast<TernaryNode *>(node);
+      if (tp->vecInfo->uniformVecNodes.find(node) != tp->vecInfo->uniformVecNodes.end()) {
+        BaseNode *vecNode = tp->vecInfo->uniformVecNodes[node];
+        vectorizedNode.push_back(vecNode);
+      } else {
+        MapleVector<BaseNode *> vecopnd(localAlloc.Adapter());
+        for (int i = 0; i < 3; i++) {
+          BaseNode *opnd = tnode->Opnd(i);
+          if (tp->vecInfo->uniformVecNodes.find(opnd) != tp->vecInfo->uniformVecNodes.end()) {
+            vecopnd.push_back(tp->vecInfo->uniformVecNodes[opnd]);
+          } else {
+            VectorizeExpr(opnd, tp, vecopnd, depth+1);
+          }
+          ASSERT(vecopnd.size() == 1, "NYI::select opnd need expand");
+          tnode->SetOpnd(vecopnd[0], i);
+          vecopnd.clear();
+        }
+        // update node type
+        PrimType vecType = node->Opnd(1)->GetPrimType();
+        node->SetPrimType(vecType);
         vectorizedNode.push_back(node);
       }
       break;
@@ -1806,6 +1856,22 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
       }
       return true;
     }
+    // select
+    case OP_select : {
+      if (doloopInfo->IsLoopInvariant2(x)) {
+        vecInfo->uniformNodes.insert(x);
+      }
+      if (isArraySub) {
+        return false;
+      }
+      for (size_t i = 0; i < x->NumOpnds(); i++) {
+        if (!ExprVectorizable(doloopInfo, vecInfo, x->Opnd(i))) {
+          return false;
+        }
+      }
+      //TODO:: enable OP_select after cg support vector type in OP_select
+      return false;
+    }
     default: ;
   }
   return false;
@@ -2066,10 +2132,21 @@ void LoopVectorization::GenConstVar(LoopVecInfo *vecInfo, uint8_t vecLanes) {
   if ((!ivconstSym) && (!vecInfo->ivNodes.empty())) {
     std::string ivVecName("__ivvec");
     ivVecName.append(std::to_string(vecLanes));
+    // add file name in case new constant array created in multi modules
+    MIRModule *mirModule = mirFunc->GetModule();
+    const std::string fileName = mirModule->GetFileName();
+    std::string::size_type lastDot = fileName.find_last_of('.');
+    std::string::size_type lastSlash = fileName.find_last_of('/');
+    if (lastSlash != std::string::npos &&
+        lastDot != std::string::npos) {
+      ivVecName.append("_" + fileName.substr(lastSlash+1, lastDot));
+    } else if (lastSlash == std::string::npos) {
+      ivVecName.append("_" + fileName.substr(0, lastDot));
+    }
+    ivVecName.erase(std::remove(ivVecName.begin(), ivVecName.end(), '-'), ivVecName.end());
     PrimType type = (vecLanes == 4) ? PTY_i32 : ((vecLanes == 8) ? PTY_i16 : PTY_i64);
     MIRType *elemType = GlobalTables::GetTypeTable().GetPrimType(type);
     MIRArrayType *arrayType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*elemType, 0);
-    MIRModule *mirModule = mirFunc->GetModule();
     MIRAggConst *constval = mirModule->GetMemPool()->New<MIRAggConst>((*mirModule), *arrayType);
     for (uint32_t i = 0; i < vecLanes; i++) {
       MIRIntConst *intconst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(i, *elemType);
