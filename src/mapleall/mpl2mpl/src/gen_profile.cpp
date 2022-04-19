@@ -15,6 +15,7 @@
 #include <ctime>
 #include "gen_profile.h"
 #include "ipa_phase_manager.h"
+#include "namemangler.h"
 
 // namespace maple
 namespace maple {
@@ -102,7 +103,7 @@ void ProfileGen::CreateModProfDesc() {
   modProfDescSymMirConst->AddItem(checksumMirConst, 5);
 
   // Make the profile file name as fileName.gcda
-  std::string profFileName = flatenName(srcFN.substr(0,srcFN.find_last_of("."))) + kProfFileNameExt;
+  std::string profFileName = mod.GetProfileDataFileName();
   MIRStrConst *profileFNMirConst = modMP->New<MIRStrConst>(
       "./" + profFileName, *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64));
   modProfDescSymMirConst->AddItem(profileFNMirConst, 6);

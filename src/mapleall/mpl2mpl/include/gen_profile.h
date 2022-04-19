@@ -24,8 +24,7 @@
 namespace maple {
 static constexpr const uint32_t kMplModProfMergeFuncs = 9;  // gcov reserves 9 slots
 static constexpr const uint32_t kGCCVersion = 0x4137352A;   // gcc v7.5 under tools
-//static constexpr const uint32_t kGCCVersion = 0x4139342A; // GCC V9.3/9.4
-static constexpr const char kProfFileNameExt[] = ".gcda";
+// static constexpr const uint32_t kGCCVersion = 0x4139342A; // GCC V9.3/9.4
 // anything other than merge_add will be supported supported in future
 static constexpr const uint32_t kMplFuncProfCtrInfoNum = 1;
 
