@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -66,8 +66,10 @@ class MIRParser {
   bool ParseVarTypeAttrs(MIRSymbol &st);
   bool CheckAlignTk();
   bool ParseAlignAttrs(TypeAttrs &tA);
+  bool ParsePackAttrs();
   bool ParseFieldAttrs(FieldAttrs &tA);
   bool ParseFuncAttrs(FuncAttrs &tA);
+  void SetAttrContent(FuncAttrs &attrs, FuncAttrKind x, const MIRLexer &lexer);
   bool CheckPrimAndDerivedType(TokenKind tk, TyIdx &tyIdx);
   bool ParsePrimType(TyIdx &tyIdx);
   bool ParseFarrayType(TyIdx &tyIdx);
@@ -108,6 +110,7 @@ class MIRParser {
   bool ParseStmtIassign(StmtNodePtr &stmt);
   bool ParseStmtIassignoff(StmtNodePtr &stmt);
   bool ParseStmtIassignFPoff(StmtNodePtr &stmt);
+  bool ParseStmtBlkassignoff(StmtNodePtr &stmt);
   bool ParseStmtDoloop(StmtNodePtr&);
   bool ParseStmtForeachelem(StmtNodePtr&);
   bool ParseStmtDowhile(StmtNodePtr&);
@@ -134,8 +137,11 @@ class MIRParser {
   bool ParseCallReturnPair(CallReturnPair&);
   bool ParseCallReturns(CallReturnVector&);
   bool ParseBinaryStmt(StmtNodePtr&, Opcode op);
+  bool ParseNaryStmtAssert(StmtNodePtr&, Opcode op);
   bool ParseNaryStmtAssertGE(StmtNodePtr&);
   bool ParseNaryStmtAssertLT(StmtNodePtr&);
+  bool ParseNaryStmtCalcassertGE(StmtNodePtr &stmt);
+  bool ParseNaryStmtCalcassertLT(StmtNodePtr &stmt);
   bool ParseNaryStmtCallAssertLE(StmtNodePtr&);
   bool ParseNaryStmtReturnAssertLE(StmtNodePtr&);
   bool ParseNaryStmtAssignAssertLE(StmtNodePtr&);
@@ -154,6 +160,7 @@ class MIRParser {
   bool ParseUnaryStmtIGoto(StmtNodePtr&);
   bool ParseUnaryStmtEval(StmtNodePtr&);
   bool ParseUnaryStmtFree(StmtNodePtr&);
+  bool ParseUnaryStmtAssertNonNullCheck(Opcode op, StmtNodePtr&);
   bool ParseUnaryStmtAssertNonNull(StmtNodePtr&);
   bool ParseUnaryStmtCallAssertNonNull(StmtNodePtr&);
   bool ParseUnaryStmtAssignAssertNonNull(StmtNodePtr&);
@@ -198,8 +205,8 @@ class MIRParser {
   bool ParseNaryExpr(NaryStmtNode &stmtNode);
 
   // funcName and paramIndex is out parameter
-  bool ParseCallAssertInfo(std::string &funcName, int *paramIndex);
-
+  bool ParseCallAssertInfo(std::string &funcName, int *paramIndex, std::string &stmtFuncName);
+  bool ParseAssertInfo(std::string &funcName);
   bool ParseTypedef();
   bool ParseJavaClassInterface(MIRSymbol&, bool);
   bool ParseIntrinsicId(IntrinsicopNode&);
@@ -231,6 +238,9 @@ class MIRParser {
   using FuncPtrParseMIRForElem = bool (MIRParser::*)();
   static std::map<TokenKind, FuncPtrParseMIRForElem> funcPtrMapForParseMIR;
   static std::map<TokenKind, FuncPtrParseMIRForElem> InitFuncPtrMapForParseMIR();
+
+  bool TypeCompatible(TyIdx, TyIdx);
+  bool IsTypeIncomplete(MIRType*);
 
   // func for ParseMIR
   bool ParseMIRForFunc();
@@ -275,6 +285,7 @@ class MIRParser {
   bool ParseStmtBlockForType();
   bool ParseStmtBlockForFrameSize();
   bool ParseStmtBlockForUpformalSize();
+  bool ParseStmtBlockForOutParmSize();
   bool ParseStmtBlockForModuleID();
   bool ParseStmtBlockForFuncSize();
   bool ParseStmtBlockForFuncID();

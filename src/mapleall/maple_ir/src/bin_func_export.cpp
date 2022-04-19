@@ -40,6 +40,11 @@ void BinaryMplExport::OutputFuncIdInfo(MIRFunction *func) {
   WriteNum(kBinFuncIdInfoStart);
   WriteNum(func->GetPuidxOrigin());  // the funcid
   OutputInfoVector(func->GetInfoVector(), func->InfoIsString());
+  if (mod.GetFlavor() == kFlavorLmbc) {
+    WriteNum(func->GetUpFormalSize());
+    WriteNum(func->GetFrameSize());
+    WriteNum(func->GetOutParmSize());
+  }
   WriteNum(~kBinFuncIdInfoStart);
 }
 
@@ -255,12 +260,28 @@ void BinaryMplExport::OutputExpression(BaseNode *e) {
       WriteNum(irNode->GetFieldID());
       break;
     }
+    case OP_ireadoff: {
+      IreadoffNode *irNode = static_cast<IreadoffNode *>(e);
+      WriteNum(irNode->GetOffset());
+      break;
+    }
+    case OP_ireadfpoff: {
+      IreadFPoffNode *irNode = static_cast<IreadFPoffNode *>(e);
+      WriteNum(irNode->GetOffset());
+      break;
+    }
     case OP_sext:
     case OP_zext:
     case OP_extractbits: {
       ExtractbitsNode *extNode = static_cast<ExtractbitsNode *>(e);
       WriteNum(extNode->GetBitsOffset());
       WriteNum(extNode->GetBitsSize());
+      break;
+    }
+    case OP_depositbits: {
+      DepositbitsNode *dbNode = static_cast<DepositbitsNode *>(e);
+      WriteNum(dbNode->GetBitsOffset());
+      WriteNum(dbNode->GetBitsSize());
       break;
     }
     case OP_gcmallocjarray:
@@ -421,6 +442,19 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
         WriteNum(iassoff->GetOffset());
         break;
       }
+      case OP_iassignspoff:
+      case OP_iassignfpoff: {
+        IassignFPoffNode *iassfpoff = static_cast<IassignFPoffNode *>(s);
+        WriteNum(iassfpoff->GetPrimType());
+        WriteNum(iassfpoff->GetOffset());
+        break;
+      }
+      case OP_blkassignoff: {
+        BlkassignoffNode *bass = static_cast<BlkassignoffNode *>(s);
+        WriteNum(bass->offset);
+        WriteNum(bass->blockSize);
+        break;
+      }
       case OP_call:
       case OP_virtualcall:
       case OP_virtualicall:
@@ -551,6 +585,16 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
         WriteNum(swNode->GetDefaultLabel());
         WriteNum(static_cast<int64>(swNode->GetSwitchTable().size()));
         for (CasePair cpair : swNode->GetSwitchTable()) {
+          WriteNum(cpair.first);
+          WriteNum(cpair.second);
+        }
+        break;
+      }
+      case OP_rangegoto: {
+        RangeGotoNode *rgoto = static_cast<RangeGotoNode *>(s);
+        WriteNum(rgoto->GetTagOffset());
+        WriteNum(static_cast<int64>(rgoto->GetRangeGotoTable().size()));
+        for (SmallCasePair cpair : rgoto->GetRangeGotoTable()) {
           WriteNum(cpair.first);
           WriteNum(cpair.second);
         }
@@ -695,7 +739,9 @@ void BinaryMplExport::WriteFunctionBodyField(uint64 contentIdx, std::unordered_s
       OutputLabelTab(func);
       OutputLocalTypeNameTab(func->GetTypeNameTab());
       OutputFormalsStIdx(func);
-      OutputAliasMap(func->GetAliasVarMap());
+      if (mod.GetFlavor() < kMmpl) {
+        OutputAliasMap(func->GetAliasVarMap());
+      }
       lastOutputSrcPosition = SrcPosition();
       OutputBlockNode(func->GetBody());
       size++;

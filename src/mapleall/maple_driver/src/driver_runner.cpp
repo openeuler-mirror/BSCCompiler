@@ -267,6 +267,7 @@ void DriverRunner::RunNewPM(const std::string &output, const std::string &vtable
   }
   MeFuncPM::genMeMpl = genMeMpl;
   MeFuncPM::genMapleBC = genMapleBC;
+  MeFuncPM::genLMBC = genLMBC;
   MeFuncPM::timePhases = timePhases;
   MPLTimer timer;
   timer.Start();

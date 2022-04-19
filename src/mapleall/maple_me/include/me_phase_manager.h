@@ -73,6 +73,7 @@
 #include "me_fsaa.h"
 #include "optimizeCFG.h"
 #include "me_ivopts.h"
+#include "me_slp.h"
 #if MIR_JAVA
 #include "sync_select.h"
 #endif  // MIR_JAVA
@@ -103,6 +104,7 @@ class MeFuncPM : public FunctionPM {
   static bool genMeMpl;
   static bool timePhases;
   static bool genMapleBC;
+  static bool genLMBC;
 
   void SetMeInput(const std::string &str) {
     meInput = str;

@@ -106,8 +106,13 @@ class PGOInstrument {
       } else if (!edge->IsCritical()) {
         bbs.push_back(dest);
       } else {
-        func->GetCfg()->DumpToFile("profGenError", false);
-        CHECK_FATAL(false, "impossible critial edge %d -> %d", src->UintID(), dest->UintID());
+        if (func->GetMIRModule().IsCModule()) {
+          // If it is a c module, do not split the edge until the next PGO phase
+          bbs.push_back(dest);
+        } else {
+          func->GetCfg()->DumpToFile("profGenError", false);
+          CHECK_FATAL(false, "impossible critial edge %d -> %d", src->UintID(), dest->UintID());
+        }
       }
     }
   }

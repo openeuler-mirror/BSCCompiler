@@ -37,7 +37,7 @@ class DriverRunner final {
   DriverRunner(MIRModule *theModule, const std::vector<std::string> &exeNames, InputFileType inpFileType,
                const std::string &mpl2mplInput, const std::string &meInput, const std::string &actualInput,
                bool dwarf, bool fileParsed = false, bool timePhases = false,
-               bool genVtableImpl = false, bool genMeMpl = false, bool genMapleBC = false)
+               bool genVtableImpl = false, bool genMeMpl = false, bool genMapleBC = false, bool genLMBC = false)
       : theModule(theModule),
         exeNames(exeNames),
         mpl2mplInput(mpl2mplInput),
@@ -49,6 +49,7 @@ class DriverRunner final {
         genVtableImpl(genVtableImpl),
         genMeMpl(genMeMpl),
         genMapleBC(genMapleBC),
+        genLMBC(genLMBC),
         inputFileType(inpFileType) {
     auto lastDot = actualInput.find_last_of(".");
     baseName = (lastDot == std::string::npos) ? actualInput : actualInput.substr(0, lastDot);
@@ -56,9 +57,9 @@ class DriverRunner final {
 
   DriverRunner(MIRModule *theModule, const std::vector<std::string> &exeNames, InputFileType inpFileType,
                const std::string &actualInput, bool dwarf, bool fileParsed = false, bool timePhases = false,
-               bool genVtableImpl = false, bool genMeMpl = false, bool genMapleBC = false)
+               bool genVtableImpl = false, bool genMeMpl = false, bool genMapleBC = false, bool genLMBC = false)
       : DriverRunner(theModule, exeNames, inpFileType, "", "", actualInput, dwarf,
-                     fileParsed, timePhases, genVtableImpl, genMeMpl, genMapleBC) {
+                     fileParsed, timePhases, genVtableImpl, genMeMpl, genMapleBC, genLMBC) {
     auto lastDot = actualInput.find_last_of(".");
     baseName = (lastDot == std::string::npos) ? actualInput : actualInput.substr(0, lastDot);
   }
@@ -107,6 +108,7 @@ class DriverRunner final {
   bool genVtableImpl = false;
   bool genMeMpl = false;
   bool genMapleBC = false;
+  bool genLMBC = false;
   std::string printOutExe = "";
   std::string baseName;
   std::string outputFile;

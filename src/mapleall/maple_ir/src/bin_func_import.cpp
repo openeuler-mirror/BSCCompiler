@@ -46,6 +46,11 @@ void BinaryMplImport::ImportFuncIdInfo(MIRFunction *func) {
   CHECK_FATAL(tag == kBinFuncIdInfoStart, "kBinFuncIdInfoStart expected");
   func->SetPuidxOrigin(static_cast<PUIdx>(ReadNum()));
   ImportInfoVector(func->GetInfoVector(), func->InfoIsString());
+  if (mod.GetFlavor() == kFlavorLmbc) {
+    func->SetUpFormalSize(ReadNum());
+    func->SetFrameSize(ReadNum());
+    func->SetOutParmSize(ReadNum());
+  }
   tag = ReadNum();
   CHECK_FATAL(tag == ~kBinFuncIdInfoStart, "pattern mismatch in ImportFuncIdInfo()");
 }
@@ -307,6 +312,17 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
       irNode->SetOpnd(ImportExpression(func), 0);
       return irNode;
     }
+    case OP_ireadoff: {
+      int32 ofst = ReadNum();
+      IreadoffNode *irNode = mod.CurFuncCodeMemPool()->New<IreadoffNode>(typ, ofst);
+      irNode->SetOpnd(ImportExpression(func), 0);
+      return irNode;
+    }
+    case OP_ireadfpoff: {
+      int32 ofst = ReadNum();
+      IreadFPoffNode *irNode = mod.CurFuncCodeMemPool()->New<IreadFPoffNode>(typ, ofst);
+      return irNode;
+    }
     case OP_sext:
     case OP_zext:
     case OP_extractbits: {
@@ -315,6 +331,14 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
       extNode->SetBitsSize(static_cast<uint8>(ReadNum()));
       extNode->SetOpnd(ImportExpression(func), 0);
       return extNode;
+    }
+    case OP_depositbits: {
+      DepositbitsNode *dbNode = mod.CurFuncCodeMemPool()->New<DepositbitsNode>(op, typ);
+      dbNode->SetBitsOffset(static_cast<uint8>(ReadNum()));
+      dbNode->SetBitsSize(static_cast<uint8>(ReadNum()));
+      dbNode->SetOpnd(ImportExpression(func), 0);
+      dbNode->SetOpnd(ImportExpression(func), 1);
+      return dbNode;
     }
     case OP_gcmallocjarray:
     case OP_gcpermallocjarray: {
@@ -519,6 +543,24 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         IassignoffNode *s = func->GetCodeMemPool()->New<IassignoffNode>();
         s->SetPrimType((PrimType)ReadNum());
         s->SetOffset(static_cast<int32>(ReadNum()));
+        s->SetOpnd(ImportExpression(func), 0);
+        s->SetOpnd(ImportExpression(func), 1);
+        stmt = s;
+        break;
+      }
+      case OP_iassignspoff:
+      case OP_iassignfpoff: {
+        IassignFPoffNode *s = func->GetCodeMemPool()->New<IassignFPoffNode>(op);
+        s->SetPrimType((PrimType)ReadNum());
+        s->SetOffset(static_cast<int32>(ReadNum()));
+        s->SetOpnd(ImportExpression(func), 0);
+        stmt = s;
+        break;
+      }
+      case OP_blkassignoff: {
+        BlkassignoffNode *s = func->GetCodeMemPool()->New<BlkassignoffNode>();
+        s->offset = static_cast<int32>(ReadNum());
+        s->blockSize = static_cast<int32>(ReadNum());
         s->SetOpnd(ImportExpression(func), 0);
         s->SetOpnd(ImportExpression(func), 1);
         stmt = s;
@@ -746,6 +788,19 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         stmt = s;
         break;
       }
+      case OP_rangegoto: {
+        RangeGotoNode *s = mod.CurFuncCodeMemPool()->New<RangeGotoNode>(mod);
+        s->SetTagOffset(ReadNum());
+        uint32 tagSize = static_cast<uint32>(ReadNum());
+        for (uint32 i = 0; i < tagSize; ++i) {
+          uint16 casetag = ReadNum();
+          LabelIdx lidx(ReadNum());
+          s->AddRangeGoto(casetag, lidx);
+        }
+        s->SetOpnd(ImportExpression(func), 0);
+        stmt = s;
+        break;
+      }
       case OP_jstry: {
         JsTryNode *s = mod.CurFuncCodeMemPool()->New<JsTryNode>();
         s->SetCatchOffset(static_cast<uint32>(ReadNum()));
@@ -880,7 +935,9 @@ void BinaryMplImport::ReadFunctionBodyField() {
     ImportLabelTab(fn);
     ImportLocalTypeNameTable(fn->GetTypeNameTab());
     ImportFormalsStIdx(fn);
-    ImportAliasMap(fn);
+    if (mod.GetFlavor() < kMmpl) {
+      ImportAliasMap(fn);
+    }
     (void)ImportBlockNode(fn);
     mod.AddFunction(fn);
   }

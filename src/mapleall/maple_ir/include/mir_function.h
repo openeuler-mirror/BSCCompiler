@@ -789,6 +789,13 @@ class MIRFunction {
     upFormalSize = size;
   }
 
+  uint16 GetOutParmSize() const {
+    return outParmSize;
+  }
+  void SetOutParmSize(uint16 size) {
+    outParmSize = size;
+  }
+
   uint16 GetModuleId() const {
     return moduleID;
   }
@@ -810,7 +817,7 @@ class MIRFunction {
     ++tempCount;
   }
 
-  const uint8 *GetFormalWordsTypeTagged() const {
+  uint8 *GetFormalWordsTypeTagged() const {
     return formalWordsTypeTagged;
   }
   void SetFormalWordsTypeTagged(uint8 *tagged) {
@@ -820,7 +827,7 @@ class MIRFunction {
     return &formalWordsTypeTagged;
   }
 
-  const uint8 *GetLocalWordsTypeTagged() const {
+  uint8 *GetLocalWordsTypeTagged() const {
     return localWordsTypeTagged;
   }
   void SetLocalWordsTypeTagged(uint8 *tagged) {
@@ -830,7 +837,7 @@ class MIRFunction {
     return &localWordsTypeTagged;
   }
 
-  const uint8 *GetFormalWordsRefCounted() const {
+  uint8 *GetFormalWordsRefCounted() const {
     return formalWordsRefCounted;
   }
   void SetFormalWordsRefCounted(uint8 *counted) {
@@ -840,7 +847,7 @@ class MIRFunction {
     return &formalWordsRefCounted;
   }
 
-  const uint8 *GetLocalWordsRefCounted() const {
+  uint8 *GetLocalWordsRefCounted() const {
     return localWordsRefCounted;
   }
   void SetLocalWordsRefCounted(uint8 *counted) {
@@ -1232,6 +1239,7 @@ class MIRFunction {
   uint8_t layoutType = kLayoutUnused;
   uint16 frameSize = 0;
   uint16 upFormalSize = 0;
+  uint16 outParmSize = 0;
   uint16 moduleID = 0;
   uint32 funcSize = 0;                         // size of code in words
   uint32 tempCount = 0;

@@ -192,6 +192,19 @@ inline uint64 RoundUp(uint64 offset, uint64 align) {
   return RoundUpConst(offset, align);
 }
 
+inline int64 RoundDownConst(int64 offset, int64 align) {
+  return (-align) & offset;
+}
+
+// align must be a power of 2
+inline int64 RoundDown(int64 offset, int64 align) {
+  if (align == 0) {
+    return offset;
+  }
+  ASSERT(IsPowerOf2(align), "align must be power of 2!");
+  return RoundDownConst(offset, align);
+}
+
 inline bool IsAlignedTo(uint64 offset, uint64 align) {
   ASSERT(IsPowerOf2(align), "align must be power of 2!");
   return (offset & (align - 1)) == 0;

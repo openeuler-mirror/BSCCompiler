@@ -22,6 +22,7 @@
 #include "muid.h"
 #include "profile.h"
 #include "gcov_profile.h"
+#include "namemangler.h"
 #if MIR_FEATURE_FULL
 #include <string>
 #include <unordered_set>
@@ -47,9 +48,11 @@ enum MIRFlavor {
   kFeProduced,
   kMeProduced,
   kBeLowered,
+  kFlavorMbc,
   kMmpl,
   kCmplV1,
-  kCmpl  // == CMPLv2
+  kCmpl, // == CMPLv2
+  kFlavorLmbc,
 };
 
 
@@ -175,10 +178,7 @@ class MIRModule {
   MIRModule &operator=(const MIRModule &module) = delete;
   ~MIRModule();
 
-  const MemPool *GetMemPool() const {
-    return memPool;
-  }
-  MemPool *GetMemPool() {
+  MemPool *GetMemPool() const {
     return memPool;
   }
   MemPool *GetPragmaMemPool() {
@@ -324,6 +324,15 @@ class MIRModule {
   std::string GetFileNameAsPostfix() const;
   void SetFileName(const std::string &name) {
     fileName = name;
+  }
+
+  std::string GetProfileDataFileName() const {
+    std::string profileDataFileName = fileName.substr(0, fileName.find_last_of("."));
+    std::replace(profileDataFileName.begin(), profileDataFileName.end(), '.', '_');
+    std::replace(profileDataFileName.begin(), profileDataFileName.end(), '-', '_');
+    std::replace(profileDataFileName.begin(), profileDataFileName.end(), '/', '_');
+    profileDataFileName = profileDataFileName + namemangler::kProfFileNameExt;
+    return profileDataFileName;
   }
 
   bool IsJavaModule() const {

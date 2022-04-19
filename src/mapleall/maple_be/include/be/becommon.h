@@ -164,7 +164,7 @@ class BECommon {
     return 1;
   }
 
-  const MIRModule &GetMIRModule() const {
+  MIRModule &GetMIRModule() const {
     return mirModule;
   }
 
