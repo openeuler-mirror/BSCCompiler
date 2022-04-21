@@ -626,6 +626,19 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     // int
     case INTRN_C_ffs:
       return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "ffs");
+    // libc mem* and str* functions as intrinsicops
+    case INTRN_C_memcmp:
+      return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_i32, "memcmp");
+    case INTRN_C_strlen:
+      return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_u64, "strlen");
+    case INTRN_C_strcmp:
+      return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_i32, "strcmp");
+    case INTRN_C_strncmp:
+      return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_i32, "strncmp");
+    case INTRN_C_strchr:
+      return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_a64, "strchr");
+    case INTRN_C_strrchr:
+      return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_a64, "strrchr");
 
     case INTRN_C_clz32:
     case INTRN_C_clz64:

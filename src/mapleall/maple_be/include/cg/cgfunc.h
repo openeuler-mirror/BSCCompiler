@@ -194,7 +194,8 @@ class CGFunc {
   virtual void SelectIcall(IcallNode &icallNode, Operand &fptrOpnd) = 0;
   virtual void SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) = 0;
   virtual Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrinsicopNode, std::string name) = 0;
-  virtual Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinsicopNode, PrimType retType, std::string &name) = 0;
+  virtual Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinsicopNode, PrimType retType,
+                                                const std::string &name) = 0;
   virtual Operand *SelectCclz(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCctz(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCpopcount(IntrinsicopNode &intrinsicopNode) = 0;

@@ -665,7 +665,8 @@ Operand &X64CGFunc::CreateFPImmZero(PrimType primType) {
   Operand *a;
   return *a;
 }
-Operand *X64CGFunc::SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinopNode, PrimType retType, std::string &name) {
+Operand *X64CGFunc::SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinopNode, PrimType retType,
+                                                 const std::string &name) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }

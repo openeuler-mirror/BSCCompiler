@@ -209,7 +209,8 @@ class X64CGFunc : public CGFunc {
   RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) override;
   RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) override;
   RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) override;
-  Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinopNode, PrimType retType, std::string &name) override;
+  Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinopNode, PrimType retType,
+                                        const std::string &name) override;
   Operand &CreateFPImmZero(PrimType primType) override;
   void ProcessLazyBinding() override;
   void DBGFixCallFrameLocationOffsets() override;
