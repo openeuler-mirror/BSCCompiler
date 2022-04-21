@@ -125,7 +125,8 @@ class AArch64CGFunc : public CGFunc {
   void SelectIcall(IcallNode &icallNode, Operand &fptrOpnd) override;
   void SelectIntrinCall(IntrinsiccallNode &intrinsicCallNode) override;
   Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrinsicopNode, std::string name) override;
-  Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinsicopNode, PrimType retType, std::string &name) override;
+  Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinsicopNode, PrimType retType,
+                                        const std::string &name) override;
   Operand *SelectCclz(IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectCctz(IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectCpopcount(IntrinsicopNode &intrinsicopNode) override;

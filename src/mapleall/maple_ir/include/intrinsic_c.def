@@ -25,6 +25,10 @@ DEF_MIR_INTRINSIC(C_strncpy,\
                   "strncpy", 0, kArgTyVoid, kArgTyPtr, kArgTyPtr, kArgTyU64)
 DEF_MIR_INTRINSIC(C_strlen,\
                   "strlen", INTRNNOSIDEEFFECT | INTRNISPURE, kArgTyU64, kArgTyPtr)
+DEF_MIR_INTRINSIC(C_strchr,\
+                  "strchr", INTRNNOSIDEEFFECT | INTRNISPURE, kArgTyPtr, kArgTyPtr, kArgTyU32)
+DEF_MIR_INTRINSIC(C_strrchr,\
+                  "strrchr", INTRNNOSIDEEFFECT | INTRNISPURE, kArgTyPtr, kArgTyPtr, kArgTyU32)
 DEF_MIR_INTRINSIC(C_memcmp,\
                   "memcmp", INTRNNOSIDEEFFECT | INTRNISPURE, kArgTyI32, kArgTyPtr, kArgTyPtr, kArgTyU64)
 DEF_MIR_INTRINSIC(C_memcpy,\
@@ -76,14 +80,224 @@ DEF_MIR_INTRINSIC(C_sinh,\
 DEF_MIR_INTRINSIC(C_ffs,\
                   "ffs", INTRNISPURE, kArgTyI32, kArgTyI32)
 DEF_MIR_INTRINSIC(C_va_start,\
-                  "sinh"/*dummy*/, INTRNISPURE | INTRNISSPECIAL, kArgTyVoid, kArgTyPtr, kArgTyI32)
+                  "sinh", INTRNISPURE | INTRNISSPECIAL, kArgTyVoid, kArgTyPtr, kArgTyI32)
 DEF_MIR_INTRINSIC(C_constant_p,\
-                  "sinh"/*dummy*/, 0, kArgTyI32, kArgTyDynany)
+                  "sinh", 0, kArgTyI32, kArgTyDynany)
 DEF_MIR_INTRINSIC(C_clz32,\
-                  "sinh"/*dummy*/, INTRNISPURE, kArgTyI32, kArgTyU32)
+                  "sinh", INTRNISPURE, kArgTyI32, kArgTyU32)
 DEF_MIR_INTRINSIC(C_clz64,\
-                  "sinh"/*dummy*/, INTRNISPURE, kArgTyI32, kArgTyU64)
+                  "sinh", INTRNISPURE, kArgTyI32, kArgTyU64)
 DEF_MIR_INTRINSIC(C_ctz32,\
-                  "sinh"/*dummy*/, INTRNISPURE, kArgTyI32, kArgTyU32)
+                  "sinh", INTRNISPURE, kArgTyI32, kArgTyU32)
 DEF_MIR_INTRINSIC(C_ctz64,\
-                  "sinh"/*dummy*/, INTRNISPURE, kArgTyI32, kArgTyU64)
+                  "sinh", INTRNISPURE, kArgTyI32, kArgTyU64)
+DEF_MIR_INTRINSIC(C_popcount32,\
+                  "popcount32", INTRNISPURE, kArgTyI32, kArgTyU32)
+DEF_MIR_INTRINSIC(C_popcount64,\
+                  "popcount64", INTRNISPURE, kArgTyI32, kArgTyU64)
+DEF_MIR_INTRINSIC(C_parity32,\
+                  "parity32", INTRNISPURE, kArgTyI32, kArgTyU32)
+DEF_MIR_INTRINSIC(C_parity64,\
+                  "parity64", INTRNISPURE, kArgTyI32, kArgTyU64)
+DEF_MIR_INTRINSIC(C_clrsb32,\
+                  "clrsb32", INTRNISPURE, kArgTyI32, kArgTyU32)
+DEF_MIR_INTRINSIC(C_clrsb64,\
+                  "clrsb64", INTRNISPURE, kArgTyI32, kArgTyU64)
+DEF_MIR_INTRINSIC(C_isaligned,\
+                  "isaligned", INTRNISPURE, kArgTyU1, kArgTyPtr, kArgTyU64)
+DEF_MIR_INTRINSIC(C_alignup,\
+                  "alignup", INTRNISPURE, kArgTyU1, kArgTyPtr, kArgTyU64)
+DEF_MIR_INTRINSIC(C_aligndown,\
+                  "aligndown", INTRNISPURE, kArgTyU1, kArgTyPtr, kArgTyU64)
+// sync
+DEF_MIR_INTRINSIC(C___sync_add_and_fetch_1,\
+                  "__sync_add_and_fetch_1", INTRNISPURE, kArgTyU8, kArgTyPtr, kArgTyU8)
+DEF_MIR_INTRINSIC(C___sync_add_and_fetch_2,\
+                  "__sync_add_and_fetch_2", INTRNISPURE, kArgTyU16, kArgTyPtr, kArgTyU16)
+DEF_MIR_INTRINSIC(C___sync_add_and_fetch_4,\
+                  "__sync_add_and_fetch_4", INTRNISPURE, kArgTyU32, kArgTyPtr, kArgTyU32)
+DEF_MIR_INTRINSIC(C___sync_add_and_fetch_8,\
+                  "__sync_add_and_fetch_8", INTRNISPURE, kArgTyU64, kArgTyPtr, kArgTyU64)
+DEF_MIR_INTRINSIC(C___sync_sub_and_fetch_1,\
+                  "__sync_sub_and_fetch_1", INTRNISPURE, kArgTyU8, kArgTyPtr, kArgTyU8)
+DEF_MIR_INTRINSIC(C___sync_sub_and_fetch_2,\
+                  "__sync_sub_and_fetch_2", INTRNISPURE, kArgTyU16, kArgTyPtr, kArgTyU16)
+DEF_MIR_INTRINSIC(C___sync_sub_and_fetch_4,\
+                  "__sync_sub_and_fetch_4", INTRNISPURE, kArgTyU32, kArgTyPtr, kArgTyU32)
+DEF_MIR_INTRINSIC(C___sync_sub_and_fetch_8,\
+                  "__sync_sub_and_fetch_8", INTRNISPURE, kArgTyU64, kArgTyPtr, kArgTyU64)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_add_1,\
+                  "__sync_fetch_and_add_1", INTRNISPURE, kArgTyU8, kArgTyPtr, kArgTyU8)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_add_2,\
+                  "__sync_fetch_and_add_2", INTRNISPURE, kArgTyU16, kArgTyPtr, kArgTyU16)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_add_4,\
+                  "__sync_fetch_and_add_4", INTRNISPURE, kArgTyU32, kArgTyPtr, kArgTyU32)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_add_8,\
+                  "__sync_fetch_and_add_8", INTRNISPURE, kArgTyU64, kArgTyPtr, kArgTyU64)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_sub_1,\
+                  "__sync_fetch_and_sub_1", INTRNISPURE, kArgTyU8, kArgTyPtr, kArgTyU8)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_sub_2,\
+                  "__sync_fetch_and_sub_2", INTRNISPURE, kArgTyU16, kArgTyPtr, kArgTyU16)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_sub_4,\
+                  "__sync_fetch_and_sub_4", INTRNISPURE, kArgTyU32, kArgTyPtr, kArgTyU32)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_sub_8,\
+                  "__sync_fetch_and_sub_8", INTRNISPURE, kArgTyU64, kArgTyPtr, kArgTyU64)
+DEF_MIR_INTRINSIC(C___sync_bool_compare_and_swap_1,\
+                  "__sync_bool_compare_and_swap_1", INTRNISPURE, kArgTyU1, kArgTyPtr, kArgTyU8, kArgTyU8)
+DEF_MIR_INTRINSIC(C___sync_bool_compare_and_swap_2,\
+                  "__sync_bool_compare_and_swap_2", INTRNISPURE, kArgTyU1, kArgTyPtr, kArgTyU16, kArgTyU16)
+DEF_MIR_INTRINSIC(C___sync_bool_compare_and_swap_4,\
+                  "__sync_bool_compare_and_swap_4", INTRNISPURE, kArgTyU1, kArgTyPtr, kArgTyU32, kArgTyU32)
+DEF_MIR_INTRINSIC(C___sync_bool_compare_and_swap_8,\
+                  "__sync_bool_compare_and_swap_8", INTRNISPURE, kArgTyU1, kArgTyPtr, kArgTyU64, kArgTyU64)
+DEF_MIR_INTRINSIC(C___sync_val_compare_and_swap_1,\
+                  "__sync_val_compare_and_swap_1", INTRNISPURE, kArgTyU8, kArgTyPtr, kArgTyU8, kArgTyU8)
+DEF_MIR_INTRINSIC(C___sync_val_compare_and_swap_2,\
+                  "__sync_val_compare_and_swap_2", INTRNISPURE, kArgTyU16, kArgTyPtr, kArgTyU16, kArgTyU16)
+DEF_MIR_INTRINSIC(C___sync_val_compare_and_swap_4,\
+                  "__sync_val_compare_and_swap_4", INTRNISPURE, kArgTyU32, kArgTyPtr, kArgTyU32, kArgTyU32)
+DEF_MIR_INTRINSIC(C___sync_val_compare_and_swap_8,\
+                  "__sync_val_compare_and_swap_8", INTRNISPURE, kArgTyU64, kArgTyPtr, kArgTyU64, kArgTyU64)
+DEF_MIR_INTRINSIC(C___sync_lock_test_and_set_1,\
+                  "__sync_lock_test_and_set_1", INTRNISPURE, kArgTyU8, kArgTyPtr, kArgTyU8)
+DEF_MIR_INTRINSIC(C___sync_lock_test_and_set_2,\
+                  "__sync_lock_test_and_set_2", INTRNISPURE, kArgTyU16, kArgTyPtr, kArgTyU16)
+DEF_MIR_INTRINSIC(C___sync_lock_test_and_set_4,\
+                  "__sync_lock_test_and_set_4", INTRNISPURE, kArgTyU32, kArgTyPtr, kArgTyU32)
+DEF_MIR_INTRINSIC(C___sync_lock_test_and_set_8,\
+                  "__sync_lock_test_and_set_8", INTRNISPURE, kArgTyU64, kArgTyPtr, kArgTyU64)
+DEF_MIR_INTRINSIC(C___sync_lock_release_8,\
+                  "__sync_lock_release_8", INTRNISPURE, kArgTyVoid, kArgTyPtr)
+DEF_MIR_INTRINSIC(C___sync_lock_release_4,\
+                  "__sync_lock_release_4", INTRNISPURE, kArgTyVoid, kArgTyPtr)
+DEF_MIR_INTRINSIC(C___sync_lock_release_2,\
+                  "__sync_lock_release_2", INTRNISPURE, kArgTyVoid, kArgTyPtr)
+DEF_MIR_INTRINSIC(C___sync_lock_release_1,\
+                  "__sync_lock_release_1", INTRNISPURE, kArgTyVoid, kArgTyPtr)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_and_1,\
+                  "__sync_fetch_and_and_1", INTRNISPURE, kArgTyU8, kArgTyPtr, kArgTyU8)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_and_2,\
+                  "__sync_fetch_and_and_2", INTRNISPURE, kArgTyU16, kArgTyPtr, kArgTyU16)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_and_4,\
+                  "__sync_fetch_and_and_4", INTRNISPURE, kArgTyU32, kArgTyPtr, kArgTyU32)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_and_8,\
+                  "__sync_fetch_and_and_8", INTRNISPURE, kArgTyU64, kArgTyPtr, kArgTyU64)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_or_1,\
+                  "__sync_fetch_and_or_1", INTRNISPURE, kArgTyU8, kArgTyPtr, kArgTyU8)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_or_2,\
+                  "__sync_fetch_and_or_2", INTRNISPURE, kArgTyU16, kArgTyPtr, kArgTyU16)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_or_4,\
+                  "__sync_fetch_and_or_4", INTRNISPURE, kArgTyU32, kArgTyPtr, kArgTyU32)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_or_8,\
+                  "__sync_fetch_and_or_8", INTRNISPURE, kArgTyU64, kArgTyPtr, kArgTyU64)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_xor_1,\
+                  "__sync_fetch_and_xor_1", INTRNISPURE, kArgTyU8, kArgTyPtr, kArgTyU8)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_xor_2,\
+                  "__sync_fetch_and_xor_2", INTRNISPURE, kArgTyU16, kArgTyPtr, kArgTyU16)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_xor_4,\
+                  "__sync_fetch_and_xor_4", INTRNISPURE, kArgTyU32, kArgTyPtr, kArgTyU32)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_xor_8,\
+                  "__sync_fetch_and_xor_8", INTRNISPURE, kArgTyU64, kArgTyPtr, kArgTyU64)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_nand_1,\
+                  "__sync_fetch_and_nand_1", INTRNISPURE, kArgTyU8, kArgTyPtr, kArgTyU8)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_nand_2,\
+                  "__sync_fetch_and_nand_2", INTRNISPURE, kArgTyU16, kArgTyPtr, kArgTyU16)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_nand_4,\
+                  "__sync_fetch_and_nand_4", INTRNISPURE, kArgTyU32, kArgTyPtr, kArgTyU32)
+DEF_MIR_INTRINSIC(C___sync_fetch_and_nand_8,\
+                  "__sync_fetch_and_nand_8", INTRNISPURE, kArgTyU64, kArgTyPtr, kArgTyU64)
+DEF_MIR_INTRINSIC(C___sync_and_and_fetch_1,\
+                  "__sync_and_and_fetch_1", INTRNISPURE, kArgTyU8, kArgTyPtr, kArgTyU8)
+DEF_MIR_INTRINSIC(C___sync_and_and_fetch_2,\
+                  "__sync_and_and_fetch_2", INTRNISPURE, kArgTyU16, kArgTyPtr, kArgTyU16)
+DEF_MIR_INTRINSIC(C___sync_and_and_fetch_4,\
+                  "__sync_and_and_fetch_4", INTRNISPURE, kArgTyU32, kArgTyPtr, kArgTyU32)
+DEF_MIR_INTRINSIC(C___sync_and_and_fetch_8,\
+                  "__sync_and_and_fetch_8", INTRNISPURE, kArgTyU64, kArgTyPtr, kArgTyU64)
+DEF_MIR_INTRINSIC(C___sync_or_and_fetch_1,\
+                  "__sync_or_and_fetch_1", INTRNISPURE, kArgTyU8, kArgTyPtr, kArgTyU8)
+DEF_MIR_INTRINSIC(C___sync_or_and_fetch_2,\
+                  "__sync_or_and_fetch_2", INTRNISPURE, kArgTyU16, kArgTyPtr, kArgTyU16)
+DEF_MIR_INTRINSIC(C___sync_or_and_fetch_4,\
+                  "__sync_or_and_fetch_4", INTRNISPURE, kArgTyU32, kArgTyPtr, kArgTyU32)
+DEF_MIR_INTRINSIC(C___sync_or_and_fetch_8,\
+                  "__sync_or_and_fetch_8", INTRNISPURE, kArgTyU64, kArgTyPtr, kArgTyU64)
+DEF_MIR_INTRINSIC(C___sync_xor_and_fetch_1,\
+                  "__sync_xor_and_fetch_1", INTRNISPURE, kArgTyU8, kArgTyPtr, kArgTyU8)
+DEF_MIR_INTRINSIC(C___sync_xor_and_fetch_2,\
+                  "__sync_xor_and_fetch_2", INTRNISPURE, kArgTyU16, kArgTyPtr, kArgTyU16)
+DEF_MIR_INTRINSIC(C___sync_xor_and_fetch_4,\
+                  "__sync_xor_and_fetch_4", INTRNISPURE, kArgTyU32, kArgTyPtr, kArgTyU32)
+DEF_MIR_INTRINSIC(C___sync_xor_and_fetch_8,\
+                  "__sync_xor_and_fetch_8", INTRNISPURE, kArgTyU64, kArgTyPtr, kArgTyU64)
+DEF_MIR_INTRINSIC(C___sync_nand_and_fetch_1,\
+                  "__sync_nand_and_fetch_1", INTRNISPURE, kArgTyU8, kArgTyPtr, kArgTyU8)
+DEF_MIR_INTRINSIC(C___sync_nand_and_fetch_2,\
+                  "__sync_nand_and_fetch_2", INTRNISPURE, kArgTyU16, kArgTyPtr, kArgTyU16)
+DEF_MIR_INTRINSIC(C___sync_nand_and_fetch_4,\
+                  "__sync_nand_and_fetch_4", INTRNISPURE, kArgTyU32, kArgTyPtr, kArgTyU32)
+DEF_MIR_INTRINSIC(C___sync_nand_and_fetch_8,\
+                  "__sync_nand_and_fetch_8", INTRNISPURE, kArgTyU64, kArgTyPtr, kArgTyU64)
+DEF_MIR_INTRINSIC(C___sync_synchronize,\
+                  "__sync_synchronize", INTRNISPURE, kArgTyUndef)
+
+DEF_MIR_INTRINSIC(C__builtin_return_address,\
+                  "__builtin_return_address", INTRNISPURE, kArgTyPtr, kArgTyU32)
+DEF_MIR_INTRINSIC(C__builtin_extract_return_addr,\
+                  "__builtin_extract_return_addr", INTRNISPURE, kArgTyPtr, kArgTyPtr)
+DEF_MIR_INTRINSIC(C___builtin_expect,\
+                  "__builtin_expect", INTRNISPURE, kArgTyI32, kArgTyI32, kArgTyI32)
+
+// atomic
+DEF_MIR_INTRINSIC(C___atomic_load_n,\
+                  "__atomic_load_n", INTRNATOMIC, kArgTyDynany, kArgTyPtr, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_load,\
+                  "__atomic_load", INTRNATOMIC, kArgTyVoid, kArgTyPtr, kArgTyPtr, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_store_n,\
+                  "__atomic_store_n", INTRNATOMIC, kArgTyVoid, kArgTyPtr, kArgTyDynany, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_store,\
+                  "__atomic_store", INTRNATOMIC, kArgTyVoid, kArgTyPtr, kArgTyPtr, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_exchange_n,\
+                  "__atomic_exchange_n", INTRNATOMIC, kArgTyDynany, kArgTyPtr, kArgTyDynany, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_exchange,\
+                  "__atomic_exchange", INTRNATOMIC, kArgTyVoid, kArgTyPtr, kArgTyPtr, kArgTyPtr, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_add_fetch,\
+                  "__atomic_add_fetch", INTRNATOMIC, kArgTyDynany, kArgTyPtr, kArgTyDynany, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_sub_fetch,\
+                  "__atomic_sub_fetch", INTRNATOMIC, kArgTyDynany, kArgTyPtr, kArgTyDynany, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_and_fetch,\
+                  "__atomic_and_fetch", INTRNATOMIC, kArgTyDynany, kArgTyPtr, kArgTyDynany, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_xor_fetch,\
+                  "__atomic_xor_fetch", INTRNATOMIC, kArgTyDynany, kArgTyPtr, kArgTyDynany, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_or_fetch,\
+                  "__atomic_or_fetch", INTRNATOMIC, kArgTyDynany, kArgTyPtr, kArgTyDynany, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_nand_fetch,\
+                  "__atomic_nand_fetch", INTRNATOMIC, kArgTyDynany, kArgTyPtr, kArgTyDynany, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_fetch_add,\
+                  "__atomic_fetch_add", INTRNATOMIC, kArgTyDynany, kArgTyPtr, kArgTyDynany, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_fetch_sub,\
+                  "__atomic_fetch_sub", INTRNATOMIC, kArgTyDynany, kArgTyPtr, kArgTyDynany, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_fetch_and,\
+                  "__atomic_fetch_and", INTRNATOMIC, kArgTyDynany, kArgTyPtr, kArgTyDynany, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_fetch_xor,\
+                  "__atomic_fetch_xor", INTRNATOMIC, kArgTyDynany, kArgTyPtr, kArgTyDynany, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_fetch_or,\
+                  "__atomic_fetch_or", INTRNATOMIC, kArgTyDynany, kArgTyPtr, kArgTyDynany, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_fetch_nand,\
+                  "__atomic_fetch_nand", INTRNATOMIC, kArgTyDynany, kArgTyPtr, kArgTyDynany, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_test_and_set,\
+                  "__atomic_test_and_set", INTRNATOMIC, kArgTyU1, kArgTyPtr, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_clear,\
+                  "__atomic_clear", INTRNATOMIC, kArgTyVoid, kArgTyPtr, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_thread_fence,\
+                  "__atomic_thread_fence", INTRNATOMIC, kArgTyVoid, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_signal_fence,\
+                  "__atomic_signal_fence", INTRNATOMIC, kArgTyVoid, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_always_lock_free,\
+                  "__atomic_always_lock_free", INTRNATOMIC, kArgTyU1, kArgTyU64, kArgTyPtr)
+DEF_MIR_INTRINSIC(C___atomic_is_lock_free,\
+                  "__atomic_is_lock_free", INTRNATOMIC, kArgTyU1, kArgTyU64, kArgTyPtr)
+DEF_MIR_INTRINSIC(C___atomic_compare_exchange_n,\
+                  "__atomic_compare_exchange_n", INTRNATOMIC, kArgTyU1, kArgTyPtr, kArgTyPtr, kArgTyDynany, kArgTyU1, kArgTyI32, kArgTyI32)
+DEF_MIR_INTRINSIC(C___atomic_compare_exchange,\
+                  "__atomic_compare_exchange", INTRNATOMIC, kArgTyU1, kArgTyPtr, kArgTyPtr, kArgTyPtr, kArgTyU1, kArgTyI32, kArgTyI32)

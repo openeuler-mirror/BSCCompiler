@@ -4865,7 +4865,8 @@ Operand *AArch64CGFunc::SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode
   return dst;
 }
 
-Operand *AArch64CGFunc::SelectIntrinsicOpWithNParams(IntrinsicopNode &intrnNode, PrimType retType, std::string &name) {
+Operand *AArch64CGFunc::SelectIntrinsicOpWithNParams(IntrinsicopNode &intrnNode, PrimType retType,
+                                                     const std::string &name) {
   MapleVector<BaseNode*> argNodes = intrnNode.GetNopnd();
   std::vector<Operand*> opndVec;
   std::vector<PrimType> opndTypes;
