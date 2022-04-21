@@ -416,6 +416,9 @@ class MIRFunction {
   void SetHasAsm();
   bool HasAsm() const;
 
+  void SetStructReturnedInRegs();
+  bool StructReturnedInRegs() const;
+
   void SetReturnStruct(const MIRType *retType);
 
   bool IsEmpty() const;
