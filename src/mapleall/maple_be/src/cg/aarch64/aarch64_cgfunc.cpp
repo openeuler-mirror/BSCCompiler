@@ -9939,88 +9939,72 @@ MemOperand &AArch64CGFunc::LoadStructCopyBase(const MIRSymbol &symbol, int64 off
   return CreateMemOpnd(*vreg, offset, static_cast<uint32>(dataSize));
 }
 
-/* For long reach branch, insert a branch in between.
- * convert
- *     condbr target_label
- *     fallthruBB
- * to
- *     condbr pad_label         bb
- *     uncondbr bypass_label    brBB
- * pad_label                   padBB
- *     uncondbr target_label
- * bypass_label                bypassBB
- *     ...                     fallthruBB
- */
+ /* For long branch, insert an unconditional branch.
+  * From                      To
+  *   cond_br targe_label       reverse_cond_br fallthru_label
+  *   fallthruBB                unconditional br target_label
+  *                             fallthru_label:
+  *                             fallthruBB
+  */
 void AArch64CGFunc::InsertJumpPad(Insn *insn) {
   BB *bb = insn->GetBB();
   ASSERT(bb, "instruction has no bb");
-  ASSERT(bb->GetKind() == BB::kBBIf, "instruction is not in a if bb");
+  ASSERT(bb->GetKind() == BB::kBBIf || bb->GetKind() == BB::kBBGoto,
+         "instruction is in neither if bb nor goto bb");
+  if (bb->GetKind() == BB::kBBGoto) {
+    return;
+  }
+  ASSERT(bb->NumSuccs() == k2ByteSize, "if bb should have 2 successors");
 
-  LabelIdx padLabel = CreateLabel();
-  BB *brBB = CreateNewBB();
-  BB *padBB = CreateNewBB();
-  SetLab2BBMap(static_cast<int32>(padLabel), *padBB);
-  padBB->AddLabel(padLabel);
+  BB *longBrBB = CreateNewBB();
+
+  BB *fallthruBB = bb->GetNext();
+  LabelIdx fallthruLBL = fallthruBB->GetLabIdx();
+  if (fallthruLBL == 0) {
+    fallthruLBL = CreateLabel();
+    SetLab2BBMap(static_cast<int32>(fallthruLBL), *fallthruBB);
+    fallthruBB->AddLabel(fallthruLBL);
+  }
 
   BB *targetBB;
-  BB *fallthruBB = bb->GetNext();
-  ASSERT(bb->NumSuccs() == k2ByteSize, "if bb should have 2 successors");
   if (bb->GetSuccs().front() == fallthruBB) {
     targetBB = bb->GetSuccs().back();
   } else {
     targetBB = bb->GetSuccs().front();
   }
-  /* Regardless targetBB as is or an non-empty  successor, it needs to be removed */
+  LabelIdx targetLBL = targetBB->GetLabIdx();
+  if (targetLBL == 0) {
+    targetLBL = CreateLabel();
+    SetLab2BBMap(static_cast<int32>(targetLBL), *targetBB);
+    targetBB->AddLabel(targetLBL);
+  }
+
+  // Adjustment on br and CFG
   bb->RemoveSuccs(*targetBB);
-  targetBB->RemovePreds(*bb);
-  while (targetBB->GetKind() == BB::kBBFallthru && targetBB->NumInsn() == 0) {
-    targetBB = targetBB->GetNext();
-  }
-  bb->SetNext(brBB);
-  brBB->SetNext(padBB);
-  padBB->SetNext(fallthruBB);
-  brBB->SetPrev(bb);
-  padBB->SetPrev(brBB);
-  fallthruBB->SetPrev(padBB);
-  /* adjust bb branch preds succs for jump to padBB */
-  LabelOperand &padLabelOpnd = GetOrCreateLabelOperand(padLabel);
-  uint32 idx = insn->GetJumpTargetIdx();
-  insn->SetOperand(idx, padLabelOpnd);
-  bb->RemoveSuccs(*fallthruBB);
-  bb->PushBackSuccs(*brBB);   /* new fallthru */
-  bb->PushBackSuccs(*padBB);  /* new target */
+  bb->PushBackSuccs(*longBrBB);
+  bb->SetNext(longBrBB);
+  // reverse cond br targeting fallthruBB
+  uint32 targetIdx = insn->GetJumpTargetIdx();
+  MOperator mOp = insn->FlipConditionOp(insn->GetMachineOpcode(), targetIdx);
+  insn->SetMOP(mOp);
+  LabelOperand &fallthruBBLBLOpnd = GetOrCreateLabelOperand(fallthruLBL);
+  insn->SetOperand(targetIdx, fallthruBBLBLOpnd);
+
+  longBrBB->PushBackPreds(*bb);
+  longBrBB->PushBackSuccs(*targetBB);
+  LabelOperand &targetLBLOpnd = GetOrCreateLabelOperand(targetLBL);
+  longBrBB->AppendInsn(cg->BuildInstruction<AArch64Insn>(MOP_xuncond, targetLBLOpnd));
+  longBrBB->SetPrev(bb);
+  longBrBB->SetNext(fallthruBB);
+  longBrBB->SetKind(BB::kBBGoto);
+
+  fallthruBB->SetPrev(longBrBB);
 
   targetBB->RemovePreds(*bb);
-  targetBB->PushBackPreds(*padBB);
-
-  LabelIdx bypassLabel = fallthruBB->GetLabIdx();
-  if (bypassLabel == 0) {
-    bypassLabel = CreateLabel();
-    SetLab2BBMap(static_cast<int32>(bypassLabel), *fallthruBB);
-    fallthruBB->AddLabel(bypassLabel);
-  }
-  LabelOperand &bypassLabelOpnd = GetOrCreateLabelOperand(bypassLabel);
-  brBB->AppendInsn(cg->BuildInstruction<AArch64Insn>(MOP_xuncond, bypassLabelOpnd));
-  brBB->SetKind(BB::kBBGoto);
-  brBB->PushBackPreds(*bb);
-  brBB->PushBackSuccs(*fallthruBB);
-
-  RegOperand &targetAddr = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-  LabelIdx targetLabel = targetBB->GetLabIdx();
-  if (targetLabel == 0) {
-    targetLabel = CreateLabel();
-    SetLab2BBMap(static_cast<int32>(targetLabel), *targetBB);
-    targetBB->AddLabel(targetLabel);
-  }
-  ImmOperand &targetLabelOpnd = CreateImmOperand(targetLabel, k32BitSize, false);
-  padBB->AppendInsn(cg->BuildInstruction<AArch64Insn>(MOP_adrp_label, targetAddr, targetLabelOpnd));
-  padBB->AppendInsn(cg->BuildInstruction<AArch64Insn>(MOP_xbr, targetAddr, targetLabelOpnd));
-  padBB->SetKind(BB::kBBIgoto);
-  padBB->PushBackPreds(*bb);
-  padBB->PushBackSuccs(*targetBB);
-
-  fallthruBB->RemovePreds(*bb);
-  fallthruBB->PushBackPreds(*brBB);
+  //while (targetBB->GetKind() == BB::kBBFallthru && targetBB->NumInsn() == 0) {
+  //  targetBB = targetBB->GetNext();
+  //}
+  targetBB->PushBackPreds(*longBrBB);
 }
 
 RegOperand *AArch64CGFunc::AdjustOneElementVectorOperand(PrimType oType, RegOperand *opnd) {
