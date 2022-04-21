@@ -21,6 +21,7 @@
 #include "mpl_logging.h"
 #include "muid.h"
 #include "profile.h"
+#include "gcov_profile.h"
 #include "namemangler.h"
 #if MIR_FEATURE_FULL
 #include <string>
@@ -251,6 +252,13 @@ class MIRModule {
 
   Profile &GetProfile() {
     return profile;
+  }
+
+  GcovProfileData* GetGcovProfile() {
+    return gcovProfile;
+  }
+  void SetGcovProfile(GcovProfileData* info) {
+    gcovProfile = info;
   }
 
   void SetSomeSymbolNeedForDecl(bool s) {
@@ -691,6 +699,7 @@ class MIRModule {
   MapleSet<StIdx> symbolSet;
   MapleVector<StIdx> symbolDefOrder;
   Profile profile;
+  GcovProfileData* gcovProfile;
   bool someSymbolNeedForwDecl = false;  // some symbols' addressses used in initialization
 
   std::ostream &out;

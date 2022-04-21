@@ -1475,7 +1475,7 @@ void MeCFG::CreateBasicBlocks() {
       case OP_label: {
         auto *labelNode = static_cast<LabelNode*>(stmt);
         LabelIdx labelIdx = labelNode->GetLabelIdx();
-        if (func.IsLfo() && curBB == firstBB && curBB->IsEmpty()) {
+        if (func.IsPme() && curBB == firstBB && curBB->IsEmpty()) {
           // when function starts with a label, need to insert dummy BB as entry
           curBB = NewBasicBlock();
         }
@@ -1806,8 +1806,52 @@ void MeCFG::SwapBBId(BB &bb1, BB &bb2) {
   bb2.SetBBId(tmp);
 }
 
+// set bb frequency from stmt record
+void MeCFG::ConstructBBFreqFromStmtFreq() {
+  GcovProfileData* gcovData = func.GetMIRModule().GetGcovProfile();
+  if (!gcovData) return;
+  GcovFuncInfo* funcData = gcovData->GetFuncProfile(func.GetUniqueID());
+  if (!funcData) return;
+  auto eIt = valid_end();
+  for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
+    if ((*bIt)->IsEmpty()) continue;
+    StmtNode first = (*bIt)->GetFirst();
+    if (funcData->stmtFreqs.count(first.GetStmtID()) > 0) {
+      (*bIt)->SetFrequency(funcData->stmtFreqs[first.GetStmtID()]);
+    } else {
+      StmtNode last = (*bIt)->GetLast();
+      if (funcData->stmtFreqs.count(last.GetStmtID()) > 0) {
+        (*bIt)->SetFrequency(funcData->stmtFreqs[last.GetStmtID()]);
+      }
+    }
+  }
+}
+
+void MeCFG::ConstructStmtFreq() {
+  GcovFuncInfo* funcData = func.GetMirFunc()->GetFuncProfData();
+  if (!funcData) return;
+  auto eIt = valid_end();
+  // clear stmtFreqs
+  funcData->stmtFreqs.clear();
+  for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
+    auto *bb = *bIt;
+    if (bIt == common_entry()) {
+      funcData->entry_freq = bb->GetFrequency();
+    }
+    for (auto &stmt : bb->GetStmtNodes()) {
+      Opcode op = stmt.GetOpCode();
+      // record bb start/end stmt
+      if (stmt.GetStmtID() == bb->GetFirst().GetStmtID() ||
+          stmt.GetStmtID() == bb->GetLast().GetStmtID() ||
+          IsCallAssigned(op) || op == OP_call) {
+        funcData->stmtFreqs[stmt.GetStmtID()] = bb->GetFrequency();
+      }
+    }
+  }
+}
+
 bool MEMeCfg::PhaseRun(MeFunction &f) {
-  if (!f.IsLfo() && f.GetPreMeFunc() != nullptr) {
+  if (!f.IsPme() && f.GetPreMeFunc() != nullptr) {
     GetAnalysisInfoHook()->ForceEraseAllAnalysisPhase();
     f.SetMeSSATab(nullptr);
     f.SetIRMap(nullptr);
@@ -1836,6 +1880,10 @@ bool MEMeCfg::PhaseRun(MeFunction &f) {
   theCFG->WontExitAnalysis();
   if (!f.GetMIRModule().IsJavaModule() && MeOption::unifyRets) {
     theCFG->UnifyRetBBs();
+  }
+  // construct bb freq from stmt freq
+  if (Options::profileUse) {
+    theCFG->ConstructBBFreqFromStmtFreq();
   }
   theCFG->Verify();
   return false;

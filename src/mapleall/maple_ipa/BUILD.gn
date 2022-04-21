@@ -18,6 +18,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_util/include",
   "${MAPLEALL_ROOT}/maple_me/include",
   "${MAPLEALL_ROOT}/maple_ipa/include",
+  "${MAPLEALL_ROOT}/maple_ipa/include/old",
   "${MAPLEALL_ROOT}/mpl2mpl/include",
   "${MAPLEALL_ROOT}/maple_phase/include",
   "${MAPLEALL_ROOT}/maple_driver/include",
@@ -25,17 +26,17 @@ include_directories = [
 ]
 
 src_libmplipa = [
-  "src/interleaved_manager.cpp",
-  "src/module_phase_manager.cpp",
-  "src/clone.cpp",
-  "src/retype.cpp",
-  "src/call_graph.cpp",
-  "src/inline.cpp",
-  "src/method_replace.cpp",
-  "src/ipa_escape_analysis.cpp",
-  "src/do_ipa_escape_analysis.cpp",
-  "src/ea_connection_graph.cpp",
-  "src/ipa_option.cpp",
+  "src/old/ipa_escape_analysis.cpp",
+  "src/old/do_ipa_escape_analysis.cpp",
+  "src/old/ea_connection_graph.cpp",
+  "src/old/ipa_option.cpp",
+  "src/ipa_side_effect.cpp",
+  "src/ipa_phase_manager.cpp",
+  "src/prop_return_null.cpp",
+  "src/prop_parameter_type.cpp",
+  "src/ipa_collect.cpp",
+  "src/ipa_clone.cpp",
+  "src/ipa_gcovprofile.cpp",
 ]
 
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]

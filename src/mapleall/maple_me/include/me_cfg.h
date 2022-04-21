@@ -293,6 +293,8 @@ class MeCFG : public AnalysisResult {
   void BuildSCC();
   void UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, MeFunction &func);
   void SwapBBId(BB &bb1, BB &bb2);
+  void ConstructBBFreqFromStmtFreq();
+  void ConstructStmtFreq();
 
  private:
   void AddCatchHandlerForTryBB(BB &bb, MapleVector<BB*> &exitBlocks);
