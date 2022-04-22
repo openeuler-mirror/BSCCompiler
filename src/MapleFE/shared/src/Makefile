@@ -36,7 +36,7 @@ ASTSRCG:=$(wildcard ${GENASTDIR}/*.cpp)
 ASTOBJG:=$(patsubst %.cpp,%.o,$(ASTSRCG))
 ASTDEPG:=$(patsubst %.cpp,%.d,$(ASTSRCG))
 
-INCLUDES := -I $(MAPLEFE_ROOT)/shared/include -I ${GENASTDIR} -I ${GENDIR}
+INCLUDES := -I $(MAPLEFE_ROOT)/shared/include -I ${GENASTDIR} -I ${GENDIR} -I $(MAPLEFE_ROOT)/$(SRCLANG)/include
 
 SHAREDLIB := shared.a
 GENASTLIB := genast.a

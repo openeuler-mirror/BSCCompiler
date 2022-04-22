@@ -79,6 +79,7 @@ TreeNode *TypeTable::CreateBuiltinType(std::string name, TypeId tid) {
   id->SetParent(utype);
 
   mTypeId2TypeMap[tid] = utype;
+  mStrIdx2BuiltInTypeIdxMap[stridx] = tid;
   return utype;
 }
 
@@ -132,7 +133,37 @@ void TypeTable::AddPrimAndBuiltinTypes() {
 #include "supported_types.def"
 
   mPreBuildSize = size();
+
+  // add language builtin types
+  unsigned stridx = 0;
+#define BUILTIN(T) \
+  stridx = gStringPool.GetStrIdx(#T);\
+  if (mStrIdx2BuiltInTypeIdxMap.find(stridx) == mStrIdx2BuiltInTypeIdxMap.end()) {\
+    node = CreateBuiltinType(#T, TY_Class);\
+    AddType(node);\
+    mStrIdx2BuiltInTypeIdxMap[stridx] = node->GetTypeIdx();\
+  }
+#include "lang_builtin.def"
   return;
+}
+
+bool TypeTable::IsBuiltInType(TreeNode *node) {
+  return mStrIdx2BuiltInTypeIdxMap.find(node->GetStrIdx()) != mStrIdx2BuiltInTypeIdxMap.end();
+}
+
+unsigned TypeTable::GetBuiltInTypeIdx(unsigned stridx) {
+  if (mStrIdx2BuiltInTypeIdxMap.find(stridx) != mStrIdx2BuiltInTypeIdxMap.end()) {
+    return mStrIdx2BuiltInTypeIdxMap[stridx];
+  }
+  return 0;
+}
+
+unsigned TypeTable::GetBuiltInTypeIdx(TreeNode *node) {
+  unsigned stridx = node->GetStrIdx();
+  if (mStrIdx2BuiltInTypeIdxMap.find(stridx) != mStrIdx2BuiltInTypeIdxMap.end()) {
+    return GetBuiltInTypeIdx(stridx);
+  }
+  return 0;
 }
 
 TypeEntry *TypeTable::GetTypeEntryFromTypeIdx(unsigned tidx) {

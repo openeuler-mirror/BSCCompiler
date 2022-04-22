@@ -53,6 +53,7 @@ private:
   std::vector<TypeEntry *> mTypeTable;
   std::unordered_map<unsigned, unsigned> mNodeId2TypeIdxMap;
   std::unordered_map<TypeId, TreeNode*> mTypeId2TypeMap;
+  std::unordered_map<unsigned, unsigned> mStrIdx2BuiltInTypeIdxMap;
   std::unordered_set<TypeId> mPrimTypeId;
   std::unordered_set<unsigned> mFuncTypeIdx;
   unsigned mPrimSize;
@@ -73,6 +74,10 @@ public:
   void AddPrimTypeId(TypeId tid);
   void AddPrimAndBuiltinTypes();
   bool AddType(TreeNode *node);
+
+  bool IsBuiltInType(TreeNode *node);
+  unsigned GetBuiltInTypeIdx(unsigned stridx);
+  unsigned GetBuiltInTypeIdx(TreeNode *node);
 
   TypeEntry *GetTypeEntryFromTypeIdx(unsigned tidx);
   TreeNode  *GetTypeFromTypeIdx(unsigned tidx);
