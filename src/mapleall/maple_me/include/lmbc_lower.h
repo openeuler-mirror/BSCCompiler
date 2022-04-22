@@ -39,6 +39,7 @@ class LMBCLowerer {
   BaseNode *LowerDread(AddrofNode *);
   BaseNode *LowerDreadoff(DreadoffNode *);
   BaseNode *LowerIread(IreadNode *);
+  BaseNode *LowerIaddrof(IreadNode *);
   BaseNode *LowerExpr(BaseNode *expr);
   void LowerAggDassign(const DassignNode *, MIRType *lhsty, int32 offset, BlockNode *);
   void LowerDassign(DassignNode *, BlockNode *);

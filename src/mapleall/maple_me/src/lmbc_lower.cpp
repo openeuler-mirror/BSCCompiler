@@ -137,15 +137,35 @@ BaseNode *LMBCLowerer::LowerIread(IreadNode *expr) {
   return ireadoff;
 }
 
+BaseNode *LMBCLowerer::LowerIaddrof(IaddrofNode *expr) {
+  int32 offset = 0;
+  if (expr->GetFieldID() != 0) {
+    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(expr->GetTyIdx());
+    MIRStructType *structty = dynamic_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<MIRPtrType*>(type)->GetPointedTyIdx()));
+    CHECK_FATAL(structty, "LowerIread: non-zero fieldID for non-structure");
+    offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
+  }
+  if (offset == 0) {
+    return expr->Opnd(0);
+  }
+  return mirBuilder->CreateExprBinary(OP_add, expr->GetPrimType(), expr->Opnd(0), mirBuilder->CreateIntConst(offset, expr->GetPrimType()));
+}
+
 BaseNode *LMBCLowerer::LowerExpr(BaseNode *expr) {
   for (size_t i = 0; i < expr->NumOpnds(); ++i) {
     expr->SetOpnd(LowerExpr(expr->Opnd(i)), i);
   }
   switch (expr->GetOpCode()) {
   case OP_addrof: return LowerAddrof(static_cast<AddrofNode *>(expr));
+  case OP_addrofoff: {
+    MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(static_cast<AddrofoffNode*>(expr)->stIdx);
+    CHECK_FATAL(!symbol->LMBCAllocateOffSpecialReg(), "LMBCLowerer:: illegal addrofoff instruction");
+    return nullptr;
+  }
   case OP_dread: return LowerDread(static_cast<DreadNode *>(expr));
   case OP_dreadoff: return LowerDreadoff(static_cast<DreadoffNode *>(expr));
   case OP_iread: return LowerIread(static_cast<IreadNode *>(expr));
+  case OP_iaddrof: return LowerIaddrof(static_cast<IreadNode *>(expr));
   default: ;
   }
   return expr;
