@@ -451,7 +451,8 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
       }
       case OP_blkassignoff: {
         BlkassignoffNode *bass = static_cast<BlkassignoffNode *>(s);
-        WriteNum(bass->offset);
+        int32 offsetAlign = (bass->offset << 4) | bass->alignLog2;
+        WriteNum(offsetAlign);
         WriteNum(bass->blockSize);
         break;
       }

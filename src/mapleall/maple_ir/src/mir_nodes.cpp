@@ -766,7 +766,7 @@ void IassignFPoffNode::Dump(int32 indent) const {
 
 void BlkassignoffNode::Dump(int32 indent) const {
   StmtNode::DumpBase(indent);
-  LogInfo::MapleLogger() << " " << offset << " " << blockSize;
+  LogInfo::MapleLogger() << " " << offset << " " << GetAlign() << " " << blockSize;
   BinaryOpnds::Dump(indent);
   LogInfo::MapleLogger() << '\n';
 }
@@ -1201,8 +1201,8 @@ void CallinstantNode::Dump(int32 indent, bool newline) const {
   }
 }
 
-void BlockNode::Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable *thePregTab, bool withInfo,
-                     bool isFuncbody) const {
+void BlockNode::Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable *thePregTab,
+                     bool withInfo, bool isFuncbody, MIRFlavor flavor) const {
   if (!withInfo) {
     LogInfo::MapleLogger() << " {\n";
   }
@@ -1226,8 +1226,10 @@ void BlockNode::Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable
         }
       }
       // print the locally declared variables
-      theSymTab->Dump(true, indent + 1);
-      thePregTab->DumpPregsWithTypes(indent + 1);
+      theSymTab->Dump(true/*isLocal*/, indent + 1, false/*printDeleted*/, flavor);
+      if (thePregTab != nullptr) {
+        thePregTab->DumpPregsWithTypes(indent + 1);
+      }
     }
     LogInfo::MapleLogger() << '\n';
     if (theMIRModule->CurFunction()->NeedEmitAliasInfo()) {

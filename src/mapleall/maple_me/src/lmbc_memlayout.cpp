@@ -366,7 +366,7 @@ GlobalMemLayout::GlobalMemLayout(maplebe::BECommon *b,  MIRModule *mod, MapleAll
 // starting from the beginning, one call per parameter in sequence; it returns
 // the information on how each parameter is passed in ploc
 void ParmLocator::LocateNextParm(const MIRType *ty, PLocInfo &ploc) {
-  ploc.memoffset = lastMemOffset;
+  ploc.memoffset = maplebe::RoundUp(lastMemOffset, 8);
   ploc.memsize = ty->GetSize();
 
   uint32 rightpad = 0;

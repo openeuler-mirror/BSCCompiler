@@ -221,8 +221,16 @@ class MIRSymbol {
 
   bool NeedPIC() const;
 
+  bool IsThreadLocal() const {
+    return typeAttrs.GetAttr(ATTR_tls_static) || typeAttrs.GetAttr(ATTR_tls_dynamic);
+  }
+
   bool IsStatic() const {
     return typeAttrs.GetAttr(ATTR_static);
+  }
+
+  bool IsPUStatic() const {
+    return GetStorageClass() == kScPstatic;
   }
 
   bool IsFinal() const {
@@ -459,14 +467,6 @@ class MIRSymbol {
     return asmAttr;
   }
 
-  void SetAliasAttr(const UStrIdx &idx) {
-    aliasAttr = idx;
-  }
-
-  const UStrIdx &GetAliasAttr() const {
-    return aliasAttr;
-  }
-
   void SetWeakrefAttr(const std::pair<bool, UStrIdx> &idx) {
     weakrefAttr = idx;
   }
@@ -477,6 +477,19 @@ class MIRSymbol {
 
   bool IsFormal() const {
     return storageClass == kScFormal;
+  }
+
+  bool LMBCAllocateOffSpecialReg() {
+    if (isDeleted) {
+      return false;
+    }
+    switch (storageClass) {
+      case kScFormal:
+      case kScAuto:    return true;
+      case kScPstatic:
+      case kScFstatic: return value.konst == nullptr;
+      default:         return false;
+    }
   }
 
   // Please keep order of the fields, avoid paddings.
@@ -500,7 +513,6 @@ class MIRSymbol {
   StIdx stIdx { 0, 0 };
   TypeAttrs typeAttrs;
   GStrIdx nameStrIdx{ 0 };
-  UStrIdx aliasAttr { 0 };
   std::pair<bool, UStrIdx> weakrefAttr { false, 0 };
  public:
   UStrIdx asmAttr { 0 }; // if not 0, the string for the name in C's asm attribute
@@ -575,7 +587,7 @@ class MIRSymbolTable {
     return GetSymbolFromStIdx(GetStIdxFromStrIdx(idx).Idx(), checkFirst);
   }
 
-  void Dump(bool isLocal, int32 indent = 0, bool printDeleted = false) const;
+  void Dump(bool isLocal, int32 indent = 0, bool printDeleted = false, MIRFlavor flavor = kFlavorUnknown) const;
   size_t GetSymbolTableSize() const {
     return symbolTable.size();
   }

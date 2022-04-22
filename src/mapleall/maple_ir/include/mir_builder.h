@@ -193,7 +193,8 @@ class MIRBuilder {
   virtual AddrofNode *CreateExprDread(MIRType &type, MIRSymbol &symbol);
   virtual AddrofNode *CreateExprDread(MIRSymbol &symbol);
   AddrofNode *CreateExprDread(PregIdx pregID, PrimType pty);
-  AddrofNode *CreateExprDread(MIRSymbol&, uint16);
+  AddrofNode *CreateExprDread(MIRSymbol &symbol, uint16 fieldID);
+  DreadoffNode *CreateExprDreadoff(Opcode op, PrimType pty, MIRSymbol &symbol, int32 offset);
   RegreadNode *CreateExprRegread(PrimType pty, PregIdx regIdx);
   IreadNode *CreateExprIread(const MIRType &returnType, const MIRType &ptrType, FieldID fieldID, BaseNode *addr);
   IreadoffNode *CreateExprIreadoff(PrimType pty, int32 offset, BaseNode *opnd0);
@@ -201,6 +202,10 @@ class MIRBuilder {
   IaddrofNode *CreateExprIaddrof(const MIRType &returnType, const MIRType &ptrType, FieldID fieldID, BaseNode *addr);
   IaddrofNode *CreateExprIaddrof(PrimType returnTypePty, TyIdx ptrTypeIdx, FieldID fieldID, BaseNode *addr);
   BinaryNode *CreateExprBinary(Opcode opcode, const MIRType &type, BaseNode *opnd0, BaseNode *opnd1);
+  BinaryNode *CreateExprBinary(Opcode opcode, PrimType pty, BaseNode *opnd0, BaseNode *opnd1) {
+    MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)pty);
+    return CreateExprBinary(opcode, *ty, opnd0, opnd1);
+  }
   TernaryNode *CreateExprTernary(Opcode opcode, const MIRType &type, BaseNode *opnd0, BaseNode *opnd1, BaseNode *opnd2);
   CompareNode *CreateExprCompare(Opcode opcode, const MIRType &type, const MIRType &opndType, BaseNode *opnd0,
                                  BaseNode *opnd1);

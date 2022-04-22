@@ -642,6 +642,13 @@ AddrofNode *MIRBuilder::CreateExprDread(PregIdx pregID, PrimType pty) {
   return dread;
 }
 
+DreadoffNode *MIRBuilder::CreateExprDreadoff(Opcode op, PrimType pty, MIRSymbol &symbol, int32 offset) {
+  DreadoffNode *node = GetCurrentFuncCodeMp()->New<DreadoffNode>(op, pty);
+  node->stIdx = symbol.GetStIdx();
+  node->offset = offset;
+  return node;
+}
+
 IreadNode *MIRBuilder::CreateExprIread(const MIRType &returnType, const MIRType &ptrType, FieldID fieldID,
                                        BaseNode *addr) {
   TyIdx returnTypeIdx = returnType.GetTypeIndex();

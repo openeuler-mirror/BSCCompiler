@@ -559,7 +559,9 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       }
       case OP_blkassignoff: {
         BlkassignoffNode *s = func->GetCodeMemPool()->New<BlkassignoffNode>();
-        s->offset = static_cast<int32>(ReadNum());
+        int32 offsetAlign = ReadNum();
+        s->offset = offsetAlign >> 4;
+        s->alignLog2 = offsetAlign & 0xf;
         s->blockSize = static_cast<int32>(ReadNum());
         s->SetOpnd(ImportExpression(func), 0);
         s->SetOpnd(ImportExpression(func), 1);
