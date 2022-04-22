@@ -160,13 +160,13 @@ BaseNode *LMBCLowerer::LowerExpr(BaseNode *expr) {
   case OP_addrofoff: {
     MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(static_cast<AddrofoffNode*>(expr)->stIdx);
     CHECK_FATAL(!symbol->LMBCAllocateOffSpecialReg(), "LMBCLowerer:: illegal addrofoff instruction");
-    return nullptr;
+    break;
   }
   case OP_dread: return LowerDread(static_cast<DreadNode *>(expr));
   case OP_dreadoff: return LowerDreadoff(static_cast<DreadoffNode *>(expr));
   case OP_iread: return LowerIread(static_cast<IreadNode *>(expr));
   case OP_iaddrof: return LowerIaddrof(static_cast<IreadNode *>(expr));
-  default: ;
+  default: break;
   }
   return expr;
 }
@@ -213,7 +213,7 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
     offset = becommon->GetFieldOffset(*structty, dsnode->GetFieldID()).first;
   }
   BaseNode *rhs = LowerExpr(dsnode->Opnd(0));
-  if (rhs->GetPrimType() != PTY_agg) {
+  if (rhs->GetPrimType() != PTY_agg || rhs->GetOpCode() == OP_regread) {
     if (!symbol->LMBCAllocateOffSpecialReg()) {
       BaseNode *base = mirBuilder->CreateExprDreadoff(OP_addrofoff, LOWERED_PTR_TYPE, *symbol, 0);
       IassignoffNode *iassignoff = mirBuilder->CreateStmtIassignoff(symty->GetPrimType(), offset, base, rhs);
