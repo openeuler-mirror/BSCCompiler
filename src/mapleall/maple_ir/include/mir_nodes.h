@@ -2763,7 +2763,8 @@ class IassignoffNode : public BinaryStmtNode {
 
   explicit IassignoffNode(int32 ofst) : BinaryStmtNode(OP_iassignoff), offset(ofst) {}
 
-  IassignoffNode(PrimType primType, int32 offset, BaseNode *addrOpnd, BaseNode *srcOpnd) : IassignoffNode(offset) {
+  IassignoffNode(PrimType primType, int32 offset, BaseNode *addrOpnd, BaseNode *srcOpnd) :
+      IassignoffNode(offset) {
     BaseNodeT::SetPrimType(primType);
     SetBOpnd(addrOpnd, 0);
     SetBOpnd(srcOpnd, 1);
@@ -2801,7 +2802,8 @@ class IassignFPoffNode : public UnaryStmtNode {
 
   explicit IassignFPoffNode(Opcode o, int32 ofst) : UnaryStmtNode(o), offset(ofst) {}
 
-  IassignFPoffNode(Opcode o, PrimType primType, int32 offset, BaseNode *src) : IassignFPoffNode(o, offset) {
+  IassignFPoffNode(Opcode o, PrimType primType, int32 offset, BaseNode *src) :
+      IassignFPoffNode(o, offset) {
     BaseNodeT::SetPrimType(primType);
     UnaryStmtNode::SetOpnd(src, 0);
   }
@@ -2834,25 +2836,32 @@ typedef IassignFPoffNode IassignPCoffNode;
 
 class BlkassignoffNode : public BinaryStmtNode {
  public:
-  BlkassignoffNode() : BinaryStmtNode(OP_blkassignoff) { ptyp = PTY_agg; alignLog2 = 0; offset = 0; }
-  explicit BlkassignoffNode(int32 ofst, int32 bsize) : BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) { ptyp = PTY_agg; alignLog2 = 0; }
-  explicit BlkassignoffNode(int32 ofst, int32 bsize, BaseNode *dest, BaseNode *src) : BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) {
-      ptyp = PTY_agg;
-      alignLog2 = 0;
-      SetBOpnd(dest, 0);
-      SetBOpnd(src, 1);
-    }
+  BlkassignoffNode() : BinaryStmtNode(OP_blkassignoff) { ptyp = PTY_agg;
+                                                         ptyp = PTY_agg;
+                                                         alignLog2 = 0;
+                                                         offset = 0; }
+  explicit BlkassignoffNode(int32 ofst, int32 bsize) :
+      BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) { ptyp = PTY_agg;
+                                                                        alignLog2 = 0; }
+  explicit BlkassignoffNode(int32 ofst, int32 bsize, BaseNode *dest, BaseNode *src) :
+      BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) {
+    ptyp = PTY_agg;
+    alignLog2 = 0;
+    SetBOpnd(dest, 0);
+    SetBOpnd(src, 1);
+  }
   ~BlkassignoffNode() = default;
 
   void Dump(int32 indent) const override;
 
   BlkassignoffNode *CloneTree(MapleAllocator &allocator) const override {
-    BlkassignoffNode *node = allocator.GetMemPool()->New<BlkassignoffNode>(offset, blockSize);
+      BlkassignoffNode *node = allocator.GetMemPool()->New<BlkassignoffNode>(offset, blockSize);
     node->SetStmtID(stmtIDNext++);
     node->SetBOpnd(GetBOpnd(0)->CloneTree(allocator), 0);
     node->SetBOpnd(GetBOpnd(1)->CloneTree(allocator), 1);
     return node;
   }
+
   uint32 GetAlign() const {
     uint32 res = 1;
     for (uint32 i = 0; i < alignLog2; i++) {
@@ -2860,11 +2869,8 @@ class BlkassignoffNode : public BinaryStmtNode {
     }
     return res;
   }
+
   void SetAlign(uint32 x) {
-    if (x == 0) {
-      alignLog2 = 0;
-      return;
-    }
     ASSERT((~(x - 1) & x) == x, "SetAlign called with non power of 2");
     uint32 res = 0;
     while (x != 1) {
@@ -2873,9 +2879,9 @@ class BlkassignoffNode : public BinaryStmtNode {
     }
     alignLog2 = res;
   }
- public:
-  uint32 alignLog2:4;            // alignment in bytes encoded in log2
-  int32 offset:28;
+
+  uint32 alignLog2 : 4;
+  int32 offset : 28;
   int32 blockSize = 0;
 };
 
@@ -3210,6 +3216,7 @@ class CallNode : public NaryStmtNode {
   CallReturnVector returnValues;
 };
 
+// icall and icallproto
 class IcallNode : public NaryStmtNode {
  public:
   IcallNode(MapleAllocator &allocator, Opcode o)
@@ -3285,7 +3292,7 @@ class IcallNode : public NaryStmtNode {
   }
 
  private:
-  TyIdx retTyIdx;  // return type for callee
+  TyIdx retTyIdx;  // for icall: return type for callee; for icallproto: the prototye
   // the 0th operand is the function pointer
   CallReturnVector returnValues;
 };

@@ -125,9 +125,10 @@ class MIRParser {
   PUIdx EnterUndeclaredFunction(bool isMcount = false);  // for -pg in order to add "void _mcount()"
   bool ParseStmtCall(StmtNodePtr&);
   bool ParseStmtCallMcount(StmtNodePtr&);  // for -pg in order to add "void _mcount()" to all the functions
-  bool ParseStmtIcall(StmtNodePtr&, bool isAssigned);
+  bool ParseStmtIcall(StmtNodePtr&, Opcode op);
   bool ParseStmtIcall(StmtNodePtr&);
   bool ParseStmtIcallassigned(StmtNodePtr&);
+  bool ParseStmtIcallproto(StmtNodePtr&);
   bool ParseStmtIntrinsiccall(StmtNodePtr&, bool isAssigned);
   bool ParseStmtIntrinsiccall(StmtNodePtr&);
   bool ParseStmtIntrinsiccallassigned(StmtNodePtr&);
