@@ -493,6 +493,7 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
         WriteNum(static_cast<int64>(s->NumOpnds()));
         break;
       }
+      case OP_icallproto:
       case OP_icall: {
         IcallNode *icallnode = static_cast<IcallNode *>(s);
         OutputTypeViaTypeName(icallnode->GetRetTyIdx());

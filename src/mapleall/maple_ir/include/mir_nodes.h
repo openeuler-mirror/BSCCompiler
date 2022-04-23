@@ -3210,6 +3210,7 @@ class CallNode : public NaryStmtNode {
   CallReturnVector returnValues;
 };
 
+// icall and icallproto
 class IcallNode : public NaryStmtNode {
  public:
   IcallNode(MapleAllocator &allocator, Opcode o)
@@ -3285,7 +3286,7 @@ class IcallNode : public NaryStmtNode {
   }
 
  private:
-  TyIdx retTyIdx;  // return type for callee
+  TyIdx retTyIdx;  // for icall: return type for callee; for icallproto: the prototye
   // the 0th operand is the function pointer
   CallReturnVector returnValues;
 };

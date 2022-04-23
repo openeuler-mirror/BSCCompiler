@@ -817,7 +817,6 @@ TyIdx BinaryMplImport::ImportTypeNonJava() {
         type.GetParamAttrsList().push_back(ImportTypeAttrs());
       }
       GlobalTables::GetTypeTable().CreateMirTypeNodeAt(type, tyIdxUsed, &mod, false, false);
-      CHECK_FATAL(type.GetRetTyIdx() != TyIdx(0), "ImportTypeNonJava: retTyIdx cannot be 0");
       return tyIdxUsed;
     }
     case kBinKindTypeParam: {

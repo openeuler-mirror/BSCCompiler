@@ -220,3 +220,4 @@
   OPCODE(dassignoff, DassignoffNode, (OPCODEISSTMT | OPCODEHASSSADEF), 8)
   OPCODE(iassignspoff, IassignFPoffNode, OPCODEISSTMT, 8)
   OPCODE(blkassignoff, BlkassignoffNode, OPCODEISSTMT, 8)
+  OPCODE(icallproto, IcallNode, (OPCODEISSTMT | OPCODEISVARSIZE | OPCODEHASSSAUSE | OPCODEHASSSADEF | OPCODEISCALL), 8)

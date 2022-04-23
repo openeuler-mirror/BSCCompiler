@@ -1128,7 +1128,12 @@ void CallNode::Dump(int32 indent, bool newline) const {
 }
 
 MIRType *IcallNode::GetCallReturnType() {
-  return GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx);
+  if (op == OP_icall || op == OP_icallassigned) {
+    return GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx);
+  }
+  // icallproto
+  MIRFuncType *funcType = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx));
+  return GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetRetTyIdx());
 }
 
 const MIRSymbol *IcallNode::GetCallReturnSymbol(const MIRModule &mod) const {
@@ -1150,6 +1155,10 @@ const MIRSymbol *IcallNode::GetCallReturnSymbol(const MIRModule &mod) const {
 
 void IcallNode::Dump(int32 indent, bool newline) const {
   StmtNode::DumpBase(indent);
+  if (op == OP_icallproto) {
+    LogInfo::MapleLogger() << " ";
+    GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx)->Dump(indent + 1);
+  }
   NaryOpnds::Dump(indent);
   if (kOpcodeInfo.IsCallAssigned(GetOpCode())) {
     DumpCallReturns(*theMIRModule, this->returnValues, indent);

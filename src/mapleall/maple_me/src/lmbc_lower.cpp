@@ -333,6 +333,78 @@ void LMBCLowerer::LowerReturn(NaryStmtNode *retNode, BlockNode *newblk) {
   newblk->AddStatement(retNode);
 }
 
+MIRFuncType *LMBCLowerer::FuncTypeFromFuncPtrExpr(BaseNode *x) {
+  MIRFuncType *res = nullptr;
+  switch (x->GetOpCode()) {
+    case OP_regread: {
+      RegreadNode *regread = static_cast<RegreadNode *>(x);
+      // must be a formal promoted to preg
+      for (FormalDef &formalDef : func->GetFormalDefVec()) {
+        if (!formalDef.formalSym->IsPreg()) {
+          continue;
+        }
+        if (formalDef.formalSym->GetPreg() == func->GetPregTab()->PregFromPregIdx(regread->GetRegIdx())) {
+          MIRType *mirType = formalDef.formalSym->GetType();
+          if (mirType->GetKind() == kTypePointer) {
+            res = dynamic_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
+          } else {
+            res = dynamic_cast<MIRFuncType *>(mirType);
+          }
+          break;
+        }
+      }
+      break;
+    }
+    case OP_dread: {
+      DreadNode *dread = static_cast<DreadNode *>(x);
+      MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dread->GetStIdx());
+      MIRType *mirType = symbol->GetType();
+      if (dread->GetFieldID() != 0) {
+        MIRStructType *structty = dynamic_cast<MIRStructType *>(mirType);
+        CHECK_FATAL(structty, "LMBCLowerer::FuncTypeFromFuncPtrExpr: non-zero fieldID for non-structure");
+        FieldPair thepair = structty->TraverseToField(dread->GetFieldID());
+        mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
+      }
+      if (mirType->GetKind() == kTypePointer) {
+        res = dynamic_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
+      } else {
+        res = dynamic_cast<MIRFuncType *>(mirType);
+      }
+      break;
+    }
+    case OP_iread: {
+      IreadNode *iread = static_cast<IreadNode *>(x);
+      MIRPtrType *ptrType = dynamic_cast<MIRPtrType *>(iread->GetType());
+      MIRType *mirType = ptrType->GetPointedType();
+      if (iread->GetFieldID() != 0) {
+        MIRStructType *structty = dynamic_cast<MIRStructType *>(mirType);
+        CHECK_FATAL(structty, "LMBCLowerer::FuncTypeFromFuncPtrExpr: non-zero fieldID for non-structure");
+        FieldPair thepair = structty->TraverseToField(iread->GetFieldID());
+        mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
+      }
+      if (mirType->GetKind() == kTypePointer) {
+        res = dynamic_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
+      } else {
+        res = dynamic_cast<MIRFuncType *>(mirType);
+      }
+      break;
+    }
+    case OP_addroffunc: {
+      AddroffuncNode *addrofFunc = static_cast<AddroffuncNode *>(x);
+      PUIdx puIdx = addrofFunc->GetPUIdx();
+      MIRFunction *f = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx);
+      res = f->GetMIRFuncType();
+      break;
+    }
+    case OP_retype: {
+      res = FuncTypeFromFuncPtrExpr(x->Opnd(0));
+      break;
+    }
+    default: CHECK_FATAL(false, "LMBCLowerer::FuncTypeFromFuncPtrExpr: NYI");
+  }
+  return res;
+}
+
 void LMBCLowerer::LowerCall(NaryStmtNode *naryStmt, BlockNode *newblk) {
   // go through each parameter
   uint32 i = 0;
@@ -394,7 +466,12 @@ void LMBCLowerer::LowerCall(NaryStmtNode *naryStmt, BlockNode *newblk) {
   if (naryStmt->GetOpCode() == OP_icall || naryStmt->GetOpCode() == OP_icallassigned) {
     opnd0 = naryStmt->Opnd(0);
     naryStmt->GetNopnd().clear();  // remove the call operands
-    naryStmt->GetNopnd().push_back(opnd0);
+    // convert to OP_icallproto by finding the function prototype and record in stmt
+    naryStmt->SetOpCode(OP_icallproto);
+    MIRFuncType *funcType = FuncTypeFromFuncPtrExpr(opnd0);
+    static_cast<IcallNode *>(naryStmt)->SetRetTyIdx(funcType->GetTypeIndex());
+    // add back the function pointer operand
+    naryStmt->GetNopnd().push_back(LowerExpr(opnd0));
     naryStmt->SetNumOpnds(1);
   } else {
     naryStmt->GetNopnd().clear();  // remove the call operands
