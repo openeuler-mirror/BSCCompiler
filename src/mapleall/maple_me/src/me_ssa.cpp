@@ -48,40 +48,6 @@
 // returns from those recursive calls, we restores the stack of current SSA names to
 // the state that existed before the current block was visited.
 namespace maple {
-void MeSSA::InsertPhiForDefBB(BBId bbid, VersionSt *vst) {
-  for (BBId dfbbid : dom->GetDomFrontier(bbid)) {
-    BB *phiBB = bbVec[dfbbid];
-    CHECK_FATAL(phiBB != nullptr, "MeSSA::InsertPhiNode: non-existent BB for definition");
-    auto successTag = phiBB->InsertPhi(&func->GetMeSSATab()->GetVersAlloc(), vst);
-    if (!successTag) {
-      continue;
-    }
-    InsertPhiForDefBB(dfbbid, vst);
-  }
-}
-
-void MeSSA::InsertPhiNode() {
-  for (size_t i = 1; i < ssaTab->GetOriginalStTable().Size(); ++i) {
-    OriginalSt *ost = ssaTab->GetOriginalStFromID(OStIdx(i));
-    if (ost->GetIndirectLev() < 0) {
-      continue;
-    }
-    if (!ssaTab->HasDefBB(ost->GetIndex())) {
-      continue;
-    }
-    if (ost->IsVolatile()) { // volatile variables will not have ssa form.
-      continue;
-    }
-    if (!ShouldProcessOst(*ost)) {
-      continue;
-    }
-    VersionSt *vst = ssaTab->GetVersionStTable().GetZeroVersionSt(ost);
-    for (BBId bbid : *ssaTab->GetDefBBs4Ost(ost->GetIndex())) {
-      InsertPhiForDefBB(bbid, vst);
-    }
-  }
-}
-
 void MeSSA::VerifySSAOpnd(const BaseNode &node) const {
   Opcode op = node.GetOpCode();
   size_t vtableSize = func->GetMeSSATab()->GetVersionStTable().GetVersionStVectorSize();
@@ -213,14 +179,7 @@ bool MESSA::PhaseRun(maple::MeFunction &f) {
     CHECK_FATAL(identloops != nullptr, "identloops has problem");
     ssa->InsertIdentifyAssignments(identloops);
   }
-
-  ssa->InitRenameStack(ssaTab->GetOriginalStTable(), cfg->GetAllBBs().size(),
-                       ssaTab->GetVersionStTable());
-  // recurse down dominator tree in pre-order traversal
-  auto *children = &dom->domChildren[cfg->GetCommonEntryBB()->GetBBId()];
-  for (BBId child : *children) {
-    ssa->RenameBB(*cfg->GetBBFromID(child));
-  }
+  ssa->RenameAllBBs(cfg);
   ssa->VerifySSA();
   if (DEBUGFUNC_NEWPM(f)) {
     ssaTab->GetVersionStTable().Dump(&ssaTab->GetModule());

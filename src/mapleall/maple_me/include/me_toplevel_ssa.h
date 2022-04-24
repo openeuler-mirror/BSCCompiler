@@ -28,15 +28,13 @@ namespace maple {
 class MeTopLevelSSA : public SSA, public AnalysisResult {
  public:
   MeTopLevelSSA(MeFunction &f, SSATab *stab, Dominance &dom, MemPool &memPool, bool enabledDebug = false)
-      : SSA(memPool, *stab, f.GetCfg()->GetAllBBs(), &dom, kSSATopLevel),
+      : SSA(*stab, f.GetCfg()->GetAllBBs(), &dom, kSSATopLevel),
         AnalysisResult(&memPool),
         func(&f),
         vstUseInfo(&memPool) {}
 
   ~MeTopLevelSSA() = default;
 
-  void InsertPhiNode();
-  void InsertPhiForDefBB(BBId bbid, VersionSt *vst);
   void CollectUseInfo();
   VstUseInfo *GetVstUseInfo() {
     return &vstUseInfo;

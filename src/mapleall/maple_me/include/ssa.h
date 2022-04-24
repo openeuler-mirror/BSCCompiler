@@ -21,11 +21,13 @@
 
 namespace maple {
 class BB;  // circular dependency exists, no other choice
+class MeCFG;  // circular dependency exists, no other choice
 class VersionSt;  // circular dependency exists, no other choice
 class OriginalStTable;  // circular dependency exists, no other choice
 class VersionStTable;  // circular dependency exists, no other choice
 class SSATab;  // circular dependency exists, no other choice
 class Dominance;  // circular dependency exists, no other choice
+bool IsLocalTopLevelOst(const OriginalSt &ost);
 class PhiNode {
  public:
   PhiNode(MapleAllocator &alloc, VersionSt &vsym) : result(&vsym), phiOpnds(kNumOpnds, nullptr, alloc.Adapter()) {
@@ -81,21 +83,23 @@ class PhiNode {
 
 class SSA {
  public:
-  SSA(MemPool &memPool, SSATab &stab, MapleVector<BB *> &bbvec, Dominance *dm, SSALevel level = kSSAInvalid)
-      : ssaAlloc(&memPool),
-        vstStacks(ssaAlloc.Adapter()),
-        bbRenamed(ssaAlloc.Adapter()),
-        ssaTab(&stab),
+  SSA(SSATab &stab, MapleVector<BB *> &bbvec, Dominance *dm, SSALevel level = kSSAInvalid)
+      : ssaTab(&stab),
         bbVec(bbvec),
         dom(dm),
         targetLevel(level) {}
 
   virtual ~SSA() = default;
 
-  void InitRenameStack(const OriginalStTable&, size_t, const VersionStTable&);
+  virtual void InsertPhiNode();
+  void RenameAllBBs(MeCFG *cfg);
+
   void UpdateDom(Dominance *dm) {
     dom = dm;
   }
+ protected:
+  void InsertPhiForDefBB(size_t bbid, VersionSt *vst);
+  void InitRenameStack(const OriginalStTable&, const VersionStTable&, MapleAllocator &renameAlloc);
   VersionSt *CreateNewVersion(VersionSt &vSym, BB &defBB);
   void PushToRenameStack(VersionSt *vSym);
   void RenamePhi(BB &bb);
@@ -107,34 +111,16 @@ class SSA {
   void RenameMayUses(const BaseNode &node);
   void RenameBB(BB &bb);
 
-  MapleAllocator &GetSSAAlloc() {
-    return ssaAlloc;
-  }
-
   const MapleVector<MapleStack<VersionSt*>*> &GetVstStacks() const {
-    return vstStacks;
+    return *vstStacks;
   }
 
   const MapleStack<VersionSt*> *GetVstStack(size_t idx) const {
-    ASSERT(idx < vstStacks.size(), "out of range of vstStacks");
-    return vstStacks.at(idx);
+    ASSERT(idx < vstStacks->size(), "out of range of vstStacks");
+    return vstStacks->at(idx);
   }
   void PopVersionSt(size_t idx) {
-    vstStacks.at(idx)->pop();
-  }
-
-  MapleVector<bool> &GetBBRenamedVec() {
-    return bbRenamed;
-  }
-
-  bool GetBBRenamed(size_t idx) const {
-    ASSERT(idx < bbRenamed.size(), "BBId out of range");
-    return bbRenamed.at(idx);
-  }
-
-  void SetBBRenamed(size_t idx, bool isRenamed) {
-    ASSERT(idx < bbRenamed.size(), "BBId out of range");
-    bbRenamed[idx] = isRenamed;
+    vstStacks->at(idx)->pop();
   }
 
   SSATab *GetSSATab() {
@@ -156,12 +142,10 @@ class SSA {
   bool ShouldRenameVst(const VersionSt *vst) const;
 
  protected:
-  MapleAllocator ssaAlloc;
-  MapleVector<MapleStack<VersionSt*>*> vstStacks;    // rename stack for variable versions
-  MapleVector<bool> bbRenamed;                       // indicate bb is renamed or not
-  SSATab *ssaTab;
+  MapleVector<MapleStack<VersionSt*>*> *vstStacks = nullptr;    // rename stack for variable versions
+  SSATab *ssaTab = nullptr;
   MapleVector<BB *> &bbVec;
-  Dominance *dom;
+  Dominance *dom = nullptr;
   SSALevel targetLevel = kSSAInvalid;                // ssa level to build
 
  public:

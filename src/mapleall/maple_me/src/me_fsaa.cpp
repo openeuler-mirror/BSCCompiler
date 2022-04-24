@@ -354,15 +354,8 @@ bool MEFSAA::PhaseRun(MeFunction &f) {
 
   if (fsaa.needUpdateSSA) {
     ssa->runRenameOnly = true;
-
-    ssa->InitRenameStack(ssaTab->GetOriginalStTable(), cfg->GetAllBBs().size(), ssaTab->GetVersionStTable());
     ssa->UpdateDom(dom); // dom info may be set invalid in dse when cfg is modified
-    // recurse down dominator tree in pre-order traversal
-    auto *children = &dom->domChildren[cfg->GetCommonEntryBB()->GetBBId()];
-    for (BBId child : *children) {
-      ssa->RenameBB(*cfg->GetBBFromID(child));
-    }
-
+    ssa->RenameAllBBs(cfg);
     ssa->VerifySSA();
 
     if (DEBUGFUNC_NEWPM(f)) {

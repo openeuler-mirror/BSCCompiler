@@ -18,10 +18,13 @@
 #include "ssa_mir_nodes.h"
 #include "ver_symbol.h"
 #include "dominance.h"
+#include "me_cfg.h"
 
 namespace maple {
-namespace {
-inline bool IsLocalTopLevelOst(const OriginalSt &ost) {
+bool IsLocalTopLevelOst(const OriginalSt &ost) {
+  if (ost.IsVolatile()) {
+    return false;
+  }
   if (ost.IsSymbolOst()) {
     MIRSymbol *sym = ost.GetMIRSymbol();
     // global/local static ost can be modified whenever an assign to it appear.
@@ -32,25 +35,61 @@ inline bool IsLocalTopLevelOst(const OriginalSt &ost) {
     if (sym->GetType()->GetPrimType() == PTY_agg) {
       return false;
     }
+  } else {
+    ASSERT(ost.IsPregOst(), "OriginalSt can only be symbol or preg");
+    if (ost.GetPregIdx() < 0) {
+      return false;
+    }
   }
   return (ost.IsLocal() && !ost.IsAddressTaken() && ost.GetIndirectLev() == 0);
 }
+
+void SSA::InsertPhiForDefBB(size_t bbid, VersionSt *vst) {
+  for (BBId dfBBId : dom->GetDomFrontier(bbid)) {
+    BB *phiBB = bbVec[dfBBId];
+    CHECK_FATAL(phiBB != nullptr, "MeSSA::InsertPhiNode: non-existent BB for definition");
+    auto successTag = phiBB->InsertPhi(&ssaTab->GetVersAlloc(), vst);
+    if (!successTag) {
+      continue;
+    }
+    InsertPhiForDefBB(dfBBId, vst);
+  }
 }
 
-void SSA::InitRenameStack(const OriginalStTable &oTable, size_t bbSize, const VersionStTable &verStTab) {
-  vstStacks.clear();
-  vstStacks.resize(oTable.Size());
-  bbRenamed.clear();
-  bbRenamed.resize(bbSize, false);
+void SSA::InsertPhiNode() {
+  for (size_t i = 1; i < ssaTab->GetOriginalStTable().Size(); ++i) {
+    OriginalSt *ost = ssaTab->GetOriginalStFromID(OStIdx(i));
+    if (ost->GetIndirectLev() < 0) {
+      continue;
+    }
+    if (!ssaTab->HasDefBB(ost->GetIndex())) {
+      continue;
+    }
+    if (ost->IsVolatile()) { // volatile variables will not have ssa form.
+      continue;
+    }
+    if (!ShouldProcessOst(*ost)) {
+      continue;
+    }
+    VersionSt *vst = ssaTab->GetVersionStTable().GetZeroVersionSt(ost);
+    for (BBId bbid : *ssaTab->GetDefBBs4Ost(ost->GetIndex())) {
+      InsertPhiForDefBB(bbid, vst);
+    }
+  }
+}
+
+void SSA::InitRenameStack(const OriginalStTable &oTable, const VersionStTable &verStTab, MapleAllocator &alloc) {
+  vstStacks = alloc.New<MapleVector<MapleStack<VersionSt*>*>>(alloc.Adapter());
+  vstStacks->resize(oTable.Size());
   for (size_t i = 1; i < oTable.Size(); ++i) {
     const OriginalSt *ost = oTable.GetOriginalStFromID(OStIdx(i));
     if (ost->GetIndirectLev() < 0) {
       continue;
     }
-    MapleStack<VersionSt*> *vStack = ssaAlloc.GetMemPool()->New<MapleStack<VersionSt*>>(ssaAlloc.Adapter());
+    MapleStack<VersionSt*> *vStack = alloc.New<MapleStack<VersionSt*>>(alloc.Adapter());
     VersionSt *temp = verStTab.GetVersionStVectorItem(ost->GetZeroVersionIndex());
     vStack->push(temp);
-    vstStacks[i] = vStack;
+    (*vstStacks)[i] = vStack;
   }
 }
 
@@ -58,7 +97,7 @@ void SSA::PushToRenameStack(VersionSt *vSym) {
   if (vSym == nullptr || vSym->IsInitVersion()) {
     return;
   }
-  vstStacks[vSym->GetOrigIdx()]->push(vSym);
+  GetVstStacks()[vSym->GetOrigIdx()]->push(vSym);
 }
 
 VersionSt *SSA::CreateNewVersion(VersionSt &vSym, BB &defBB) {
@@ -73,7 +112,7 @@ VersionSt *SSA::CreateNewVersion(VersionSt &vSym, BB &defBB) {
   } else {
     newVersionSym = &vSym;
   }
-  vstStacks[vSym.GetOrigIdx()]->push(newVersionSym);
+  GetVstStacks()[vSym.GetOrigIdx()]->push(newVersionSym);
   newVersionSym->SetDefBB(&defBB);
   return newVersionSym;
 }
@@ -111,18 +150,18 @@ void SSA::RenameDefs(StmtNode &stmt, BB &defBB) {
     for (auto it = mayDefList.begin(); it != mayDefList.end(); ++it) {
       MayDefNode &mayDef = it->second;
       VersionSt *vSym = mayDef.GetResult();
-      CHECK_FATAL(vSym->GetOrigIdx() < vstStacks.size(), "index out of range in SSA::RenameMayDefs");
+      CHECK_FATAL(vSym->GetOrigIdx() < GetVstStacks().size(), "index out of range in SSA::RenameMayDefs");
       if (!ShouldRenameVst(vSym)) { // maydassign will insert maydefNode, if it is top-level, we should process it.
         PushToRenameStack(vSym);
         continue;
       }
-      mayDef.SetOpnd(vstStacks[vSym->GetOrigIdx()]->top());
+      mayDef.SetOpnd(GetVstStacks()[vSym->GetOrigIdx()]->top());
       VersionSt *newVersionSym = CreateNewVersion(*vSym, defBB);
       mayDef.SetResult(newVersionSym);
       newVersionSym->SetDefType(VersionSt::kMayDef);
       newVersionSym->SetMayDef(&mayDef);
       if (opcode == OP_iassign && mayDef.base != nullptr) {
-        mayDef.base = vstStacks[mayDef.base->GetOrigIdx()]->top();
+        mayDef.base = GetVstStacks()[mayDef.base->GetOrigIdx()]->top();
       }
     }
   }
@@ -152,8 +191,8 @@ void SSA::RenameMayUses(const BaseNode &node) {
   for (; it != mayUseList.end(); ++it) {
     MayUseNode &mayUse = it->second;
     VersionSt *vSym = mayUse.GetOpnd();
-    CHECK_FATAL(vSym->GetOrigIdx() < vstStacks.size(), "index out of range in SSA::RenameMayUses");
-    mayUse.SetOpnd(vstStacks.at(vSym->GetOrigIdx())->top());
+    CHECK_FATAL(vSym->GetOrigIdx() < GetVstStacks().size(), "index out of range in SSA::RenameMayUses");
+    mayUse.SetOpnd(GetVstStacks().at(vSym->GetOrigIdx())->top());
   }
 }
 
@@ -162,8 +201,8 @@ void SSA::RenameExpr(BaseNode &expr) {
     auto &ssaNode = static_cast<SSANode&>(expr);
     VersionSt *vSym = ssaNode.GetSSAVar();
     if (ShouldRenameVst(vSym)) {
-      CHECK_FATAL(vSym->GetOrigIdx() < vstStacks.size(), "index out of range in SSA::RenameExpr");
-      ssaNode.SetSSAVar(*vstStacks[vSym->GetOrigIdx()]->top());
+      CHECK_FATAL(vSym->GetOrigIdx() < GetVstStacks().size(), "index out of range in SSA::RenameExpr");
+      ssaNode.SetSSAVar(*GetVstStacks()[vSym->GetOrigIdx()]->top());
     }
   }
   for (size_t i = 0; i < expr.NumOpnds(); ++i) {
@@ -195,22 +234,29 @@ void SSA::RenamePhiUseInSucc(const BB &bb) {
     for (auto phiIt = succBB->GetPhiList().begin(); phiIt != succBB->GetPhiList().end(); ++phiIt) {
       PhiNode &phiNode = phiIt->second;
       VersionSt *vSym = phiNode.GetPhiOpnd(index);
-      CHECK_FATAL(vSym->GetOrigIdx() < vstStacks.size(), "out of range SSA::RenamePhiUseInSucc");
+      CHECK_FATAL(vSym->GetOrigIdx() < GetVstStacks().size(), "out of range SSA::RenamePhiUseInSucc");
       if (!ShouldRenameVst(vSym)) {
         continue;
       }
-      phiNode.SetPhiOpnd(index, *vstStacks.at(phiNode.GetPhiOpnd(index)->GetOrigIdx())->top());
+      phiNode.SetPhiOpnd(index, *GetVstStacks().at(phiNode.GetPhiOpnd(index)->GetOrigIdx())->top());
     }
   }
 }
 
-void SSA::RenameBB(BB &bb) {
-  if (GetBBRenamed(bb.GetBBId())) {
-    return;
+void SSA::RenameAllBBs(MeCFG *cfg) {
+  // renameMP is a tmp mempool, will be release after rename.
+  auto renameMP = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "ssa-rename-mempool");
+  MapleAllocator renameAlloc(renameMP.get());
+  InitRenameStack(ssaTab->GetOriginalStTable(), ssaTab->GetVersionStTable(), renameAlloc);
+  // recurse down dominator tree in pre-order traversal
+  auto *children = &dom->domChildren[cfg->GetCommonEntryBB()->GetBBId()];
+  for (BBId child : *children) {
+    RenameBB(*cfg->GetBBFromID(child));
   }
+  vstStacks = nullptr;
+}
 
-  SetBBRenamed(bb.GetBBId(), true);
-
+void SSA::RenameBB(BB &bb) {
   // record stack size for variable versions before processing rename. It is used for stack pop up.
   std::vector<uint32> oriStackSize(GetVstStacks().size());
   for (size_t i = 1; i < GetVstStacks().size(); ++i) {
@@ -244,6 +290,7 @@ void SSA::RenameBB(BB &bb) {
 
 // Check if ost should be processed according to target ssa level set before
 bool SSA::ShouldProcessOst(const OriginalSt &ost) const {
+  // for memory ssa, all ost should be processed
   if (BuildSSAAllLevel()) {
     return true;
   }
@@ -251,7 +298,7 @@ bool SSA::ShouldProcessOst(const OriginalSt &ost) const {
   if (BuildSSATopLevel()) {
     return IsLocalTopLevelOst(ost);
   }
-  // for memory ssa, check if ost is non-top-level
+  // for addr-taken ssa, check if ost is non local top-level
   if (BuildSSAAddrTaken()) {
     return !IsLocalTopLevelOst(ost);
   }

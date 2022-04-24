@@ -22,40 +22,6 @@
 #include "mir_builder.h"
 #include "ssa_tab.h"
 namespace maple {
-void MeTopLevelSSA::InsertPhiForDefBB(BBId bbid, VersionSt *vst) {
-  for (BBId dfbbid : dom->GetDomFrontier(bbid)) {
-    BB *phiBB = bbVec[dfbbid];
-    CHECK_FATAL(phiBB != nullptr, "MeTopLevelSSA::InsertPhiNode: non-existent BB for definition");
-    auto successTag = phiBB->InsertPhi(&func->GetMeSSATab()->GetVersAlloc(), vst);
-    if (!successTag) {
-      continue;
-    }
-    InsertPhiForDefBB(dfbbid, vst);
-  }
-}
-
-void MeTopLevelSSA::InsertPhiNode() {
-  for (size_t i = 1; i < ssaTab->GetOriginalStTable().Size(); ++i) {
-    OriginalSt *ost = ssaTab->GetOriginalStFromID(OStIdx(i));
-    if (ost->GetIndirectLev() < 0) {
-      continue;
-    }
-    if (!ssaTab->HasDefBB(ost->GetIndex())) {
-      continue;
-    }
-    if (ost->IsVolatile()) { // volatile variables will not have ssa form.
-      continue;
-    }
-    if (!ShouldProcessOst(*ost)) {
-      continue;
-    }
-    VersionSt *vst = ssaTab->GetVersionStTable().GetZeroVersionSt(ost);
-    for (BBId bbid : *ssaTab->GetDefBBs4Ost(ost->GetIndex())) {
-      InsertPhiForDefBB(bbid, vst);
-    }
-  }
-}
-
 void MeTopLevelSSA::CollectUseInfo() {
   if (!vstUseInfo.IsUseInfoOfTopLevelValid()) {
     vstUseInfo.CollectUseInfoInFunc(func, dom, kVstUseInfoTopLevelVst);
@@ -79,13 +45,7 @@ bool METopLevelSSA::PhaseRun(maple::MeFunction &f) {
     cfg->DumpToFile("ssalocal-");
   }
   ssa->InsertPhiNode();
-  ssa->InitRenameStack(ssaTab->GetOriginalStTable(), cfg->GetAllBBs().size(),
-                       ssaTab->GetVersionStTable());
-  // recurse down dominator tree in pre-order traversal
-  auto *children = &dom->domChildren[cfg->GetCommonEntryBB()->GetBBId()];
-  for (BBId child : *children) {
-    ssa->RenameBB(*cfg->GetBBFromID(child));
-  }
+  ssa->RenameAllBBs(cfg);
   if (DEBUGFUNC_NEWPM(f)) {
     ssaTab->GetVersionStTable().Dump(&ssaTab->GetModule());
   }

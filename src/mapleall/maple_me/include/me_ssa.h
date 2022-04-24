@@ -29,16 +29,14 @@ namespace maple {
 class MeSSA : public SSA, public AnalysisResult {
  public:
   MeSSA(MeFunction &func, SSATab *stab, Dominance &dom, MemPool &memPool, bool enabledDebug = false)
-      : SSA(memPool, *stab, func.GetCfg()->GetAllBBs(), &dom, func.IsTopLevelSSAValid() ? kSSAAddrTaken : kSSAMemory),
+      : SSA(*stab, func.GetCfg()->GetAllBBs(), &dom, func.IsTopLevelSSAValid() ? kSSAAddrTaken : kSSAMemory),
         AnalysisResult(&memPool),
         func(&func), eDebug(enabledDebug) {}
 
   ~MeSSA() = default;
 
   void VerifySSA() const;
-  void InsertPhiNode();
   void InsertIdentifyAssignments(IdentifyLoops *identloops);
-  void InsertPhiForDefBB(BBId bbid, VersionSt *vst);
 
  private:
   void VerifySSAOpnd(const BaseNode &node) const;
