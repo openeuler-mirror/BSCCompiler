@@ -1222,7 +1222,7 @@ ConstvalNode *ConstantFold::FoldCeil(const ConstvalNode &cst, PrimType fromType,
 
 template <class T>
 T ConstantFold::CalIntValueFromFloatValue(T value, const MIRType &resultType) const {
-  ASSERT(kByteSizeOfBit64 >= resultType.GetSize(), "unsurpported type");
+  ASSERT(kByteSizeOfBit64 >= resultType.GetSize(), "unsupported type");
   size_t shiftNum = (kByteSizeOfBit64 - resultType.GetSize()) * kBitSizePerByte;
   bool isSigned = IsSignedInteger(resultType.GetPrimType());
   int64 max = LONG_LONG_MAX >> shiftNum;
@@ -1576,7 +1576,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldIread(IreadNode *node) {
 }
 
 bool ConstantFold::IntegerOpIsOverflow(Opcode op, PrimType primType, int64 cstA, int64 cstB) {
-  switch (op ){
+  switch (op){
     case OP_add: {
       int64 res = static_cast<int64>(static_cast<uint64>(cstA) + static_cast<uint64>(cstB));
       if (IsUnsignedInteger(primType)) {
@@ -2227,8 +2227,10 @@ StmtNode *ConstantFold::SimplifyCondGoto(CondGotoNode *node) {
     ASSERT_NOT_NULL(intConst);
     if ((node->GetOpCode() == OP_brtrue && intConst->GetValueUnderType() != 0) ||
         (node->GetOpCode() == OP_brfalse && intConst->GetValueUnderType() == 0)) {
+      uint32 freq = mirModule->CurFunction()->GetFreqFromLastStmt(node->GetStmtID());
       GotoNode *gotoNode = mirModule->CurFuncCodeMemPool()->New<GotoNode>(OP_goto);
       gotoNode->SetOffset(node->GetOffset());
+      mirModule->CurFunction()->SetLastFreqMap(gotoNode->GetStmtID(), freq);
       return gotoNode;
     } else {
       return nullptr;

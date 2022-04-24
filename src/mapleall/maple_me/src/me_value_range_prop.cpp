@@ -519,13 +519,6 @@ std::unique_ptr<ValueRange> ValueRangePropagation::FindValueRangeInCurrBBOrDomin
   return nullptr;
 }
 
-std::unique_ptr<ValueRange> ValueRangePropagation::ComputeTheValueRangeOfIndex(
-    const std::unique_ptr<ValueRange> &valueRangeOfIndex,
-    std::unique_ptr<ValueRange> &valueRangOfOpnd, int64 constant) {
-  return (valueRangeOfIndex == nullptr) ?
-      std::move(valueRangOfOpnd) : AddOrSubWithValueRange(OP_add, *valueRangeOfIndex, constant);
-}
-
 void SafetyCheckWithBoundaryError::HandleAssignWithDeadBeef(
     const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd,
     MeExpr &boundOpnd) {
@@ -1782,8 +1775,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::AddOrSubWithValueRange(
 
 bool ValueRangePropagation::AddOrSubWithBound(Bound oldBound, Bound &resBound, int64 rhsConstant, Opcode op) {
   int64 res = 0;
-  if (!AddOrSubWithConstant(oldBound.GetPrimType(), op,
-                            oldBound.GetConstant(), rhsConstant, res)) {
+  if (!AddOrSubWithConstant(oldBound.GetPrimType(), op, oldBound.GetConstant(), rhsConstant, res)) {
     return false;
   }
   resBound = Bound(oldBound.GetVar(), res, oldBound.GetPrimType());
@@ -3158,12 +3150,25 @@ void ValueRangePropagation::CreateValueRangeForLeOrLt(
   } else {
     std::unique_ptr<ValueRange> newRightRange = std::make_unique<ValueRange>(
         ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper, kLowerAndUpper, isAccurate);
-    (void)Insert2Caches(trueBranch.GetBBId(), opnd.GetExprID(),
-                        CombineTwoValueRange(*leftRange, *newRightRange));
+    auto resTrueBranchVR = CombineTwoValueRange(*leftRange, *newRightRange);
+    (void)Insert2Caches(trueBranch.GetBBId(), opnd.GetExprID(), CopyValueRange(*resTrueBranchVR));
     newRightRange = std::make_unique<ValueRange>(
         newRightLower, ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper, isAccurate);
-    (void)Insert2Caches(falseBranch.GetBBId(), opnd.GetExprID(),
-        CombineTwoValueRange(*leftRange, *newRightRange));
+    auto resFalseBranchVR = CombineTwoValueRange(*leftRange, *newRightRange);
+    (void)Insert2Caches(falseBranch.GetBBId(), opnd.GetExprID(), CopyValueRange(*resFalseBranchVR));
+    // Deal with the case like:
+    // brtrue @@m357 (lt u1 i32 (zext u32 8 (regread u8 %102), constval i32 1))
+    // The vr of opnd in curr bb is leftRange and in true branch is resTrueBranchVR.
+    // If the op of opnd is zext, and the vr before and after zext is the same,
+    // after judgment, the vr of before zext is the same as the opnd in true or false branch.
+    if (opnd.GetOp() == OP_zext && leftRange->IsConstantLowerAndUpper()) {
+      auto &opMeExpr = static_cast<const OpMeExpr&>(opnd);
+      auto pTypeOfBitSize = GetIntegerPrimTypeBySizeAndSign(opMeExpr.GetBitsSize(), false);
+      if (pTypeOfBitSize == opMeExpr.GetOpnd(0)->GetPrimType()) {
+        (void)Insert2Caches(trueBranch.GetBBId(), opnd.GetOpnd(0)->GetExprID(), CopyValueRange(*resTrueBranchVR));
+        (void)Insert2Caches(falseBranch.GetBBId(), opnd.GetOpnd(0)->GetExprID(), CopyValueRange(*resFalseBranchVR));
+      }
+    }
   }
 }
 
@@ -3216,6 +3221,11 @@ void ValueRangePropagation::CreateValueRangeForNeOrEq(
   if (rightRange.GetRangeType() == kEqual) {
     std::unique_ptr<ValueRange> newTrueBranchRange =
         std::make_unique<ValueRange>(rightRange.GetBound(), kEqual);
+    auto &opMeExpr = static_cast<const OpMeExpr&>(opnd);
+    if (opMeExpr.GetOp() == OP_zext && rightRange.IsConstant() &&
+        opMeExpr.GetOpnd(0)->GetPrimType() == GetIntegerPrimTypeBySizeAndSign(opMeExpr.GetBitsSize(), false)) {
+      (void)Insert2Caches(trueBranch.GetBBId(), opnd.GetOpnd(0)->GetExprID(), CopyValueRange(*newTrueBranchRange));
+    }
     (void)Insert2Caches(trueBranch.GetBBId(), opnd.GetExprID(), std::move(newTrueBranchRange));
     if (leftRange == nullptr) {
       std::unique_ptr<ValueRange> newFalseBranchRange =
@@ -3487,7 +3497,8 @@ bool ValueRangePropagation::CodeSizeIsOverflowOrTheOpOfStmtIsNotSupported(const 
     }
     currBB = currBB->GetSucc(0);
   }
-  if (currCost > kCodeSizeLimit) {
+  auto codeSizeLimit = MeOption::optForSize ? 0 : kCodeSizeLimit;
+  if (currCost > codeSizeLimit) {
     if (ValueRangePropagation::isDebug) {
       LogInfo::MapleLogger() << "code size is overflow\n";
     }
@@ -3792,8 +3803,26 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
   bool thePhiIsInBB = false;
   MapleVector<ScalarMeExpr*> phiOpnds(mpAllocator.Adapter());
   MePhiNode *phi = nullptr;
+  MeExpr *realCurrOpnd = &currOpnd;
+  // Deal with the case like:
+  // if cvt(i64 u32(opnd)) != 1
+  // If the value ranges of opnd before cvt and after cvt are equal to each other, use the opnd to opt the if stmt.
+  if (realCurrOpnd->GetOp() == OP_cvt) {
+    auto *opMeExpr = static_cast<OpMeExpr*>(realCurrOpnd);
+    auto *opnd = opMeExpr->GetOpnd(0);
+    auto *valueRangeOfOpnd = FindValueRange(bb, *opnd);
+    if (valueRangeOfOpnd != nullptr && valueRangeOfOpnd->IsConstantLowerAndUpper()) {
+      auto toType = opMeExpr->GetPrimType();
+      auto fromType = opMeExpr->GetOpndType();
+      auto lower = valueRangeOfOpnd->GetLower();
+      auto upper = valueRangeOfOpnd->GetUpper();
+      if (lower.IsEqualAfterCVT(fromType, toType) && upper.IsEqualAfterCVT(fromType, toType)) {
+        realCurrOpnd = opnd;
+      }
+    }
+  }
   /* find the rhs of currOpnd, which is used as the currOpnd of pred */
-  ReplaceOpndByDef(bb, currOpnd, predOpnd, phi, thePhiIsInBB);
+  ReplaceOpndByDef(bb, *realCurrOpnd, predOpnd, phi, thePhiIsInBB);
   if (phi != nullptr) {
     phiOpnds = static_cast<ScalarMeExpr&>(*predOpnd).GetDefPhi().GetOpnds();
   }
@@ -3913,9 +3942,46 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
         exprOnlyUsedByCondMeStmt->SetDefBy(kDefByNo);
       }
     }
+    ReplaceUsePoints(phi);
   }
   ssaupdateCandsForCondExpr.clear();
   return opt;
+}
+
+// If the opnds of phi are the same, delete the phi node and replace use points of phi node with phi opnds.
+// mx13 = phi(mx12, mx12)
+// if mx13
+// ==>
+// if mx12
+void ValueRangePropagation::ReplaceUsePoints(MePhiNode *phi) {
+  if (phi == nullptr || phi->GetDefBB() == nullptr ||
+      phi->GetDefBB()->GetMePhiList().empty() || phi->GetOpnds().size() < 1) {
+    return;
+  }
+  auto *opnd = phi->GetOpnd(0);
+  for (size_t i = 1; i < phi->GetOpnds().size(); ++i) {
+    if (phi->GetOpnd(i) != opnd) {
+      return;
+    }
+  }
+  auto *lhs = phi->GetLHS();
+  phi->GetDefBB()->GetMePhiList().erase(lhs->GetOstIdx());
+  auto *replaceMeExpr = static_cast<ScalarMeExpr*>(opnd);
+  auto *useListOfPredOpnd = useInfo->GetUseSitesOfExpr(lhs);
+  for (auto &useItem : *useListOfPredOpnd) {
+    if (useItem.IsUseByPhi()) {
+      auto *phi = useItem.GetPhi();
+      for (size_t i = 0; i < useItem.GetPhi()->GetOpnds().size(); ++i) {
+        if (phi->GetOpnd(i) != lhs) {
+          continue;
+        }
+        phi->SetOpnd(i, replaceMeExpr);
+      }
+    } else {
+      auto *stmt = useItem.GetStmt();
+      irMap.ReplaceMeExprStmt(*stmt, *lhs, *replaceMeExpr);
+    }
+  }
 }
 
 void ValueRangePropagation::GetSizeOfUnreachableBBsAndReachableBB(BB &bb, size_t &unreachableBB, BB *&reachableBB) {
@@ -4231,11 +4297,14 @@ void ValueRangePropagation::GetValueRangeForUnsignedInt(const BB &bb, OpMeExpr &
 // ==>
 // Example: if (a != 0)
 bool ValueRangePropagation::DealWithSpecialCondGoto(
-    OpMeExpr &opMeExpr, const ValueRange &leftRange, ValueRange &rightRange, CondGotoMeStmt &brMeStmt) {
+    BB &bb, OpMeExpr &opMeExpr, const ValueRange &leftRange, ValueRange &rightRange, CondGotoMeStmt &brMeStmt) {
   if (onlyPropVR) {
     return false;
   }
   if (opMeExpr.GetOp() != OP_gt && opMeExpr.GetOp() != OP_lt) {
+    return false;
+  }
+  if (opMeExpr.GetNumOpnds() != kNumOperands) {
     return false;
   }
   if (rightRange.GetRangeType() != kEqual || !rightRange.IsConstant()) {
@@ -4248,14 +4317,36 @@ bool ValueRangePropagation::DealWithSpecialCondGoto(
       leftRange.GetLower().GetConstant() >= leftRange.GetUpper().GetConstant()) {
     return false;
   }
-  if (leftRange.GetLower().GetConstant() != rightRange.GetBound().GetConstant()) {
+  if (opMeExpr.GetOp() == OP_gt) {
+    if (leftRange.GetLower().GetConstant() != rightRange.GetBound().GetConstant()) {
+      return false;
+    }
+    auto *newExpr = irMap.CreateMeExprCompare(OP_ne, opMeExpr.GetPrimType(),
+                                              opMeExpr.GetOpndType(), *opMeExpr.GetOpnd(0), *opMeExpr.GetOpnd(1));
+    (void)irMap.ReplaceMeExprStmt(brMeStmt, opMeExpr, *newExpr);
+    return true;
+  }
+  auto *loop = loops->GetBBLoopParent(bb.GetBBId());
+  if (loop != nullptr && IsLoopVariable(*loop, *opMeExpr.GetOpnd(0))) {
     return false;
   }
-  if (opMeExpr.GetNumOpnds() != kNumOperands) {
+  // Deal with op lt like this case:
+  // if opnd0 < 1
+  // vr(opnd0) : 0, 255
+  // ==>
+  // if opnd0 == 0
+  if (!leftRange.GetUpper().IsGreaterThanOrEqualTo(rightRange.GetBound(), opMeExpr.GetOpndType())) {
     return false;
   }
-  auto *newExpr = irMap.CreateMeExprCompare(
-      OP_ne, opMeExpr.GetPrimType(), opMeExpr.GetOpndType(), *opMeExpr.GetOpnd(0), *opMeExpr.GetOpnd(1));
+  int64 res = 0;
+  if (AddOrSubWithConstant(leftRange.GetLower().GetPrimType(), OP_add, leftRange.GetLower().GetConstant(), 1, res)) {
+    if (!Bound(res, opMeExpr.GetOpndType()).IsEqual(rightRange.GetBound(), opMeExpr.GetOpndType())) {
+      return false;
+    }
+  }
+  auto *newConstExpr = irMap.CreateIntConstMeExpr(leftRange.GetLower().GetConstant(), opMeExpr.GetOpndType());
+  auto *newExpr = irMap.CreateMeExprCompare(OP_eq, opMeExpr.GetPrimType(),
+                                            opMeExpr.GetOpndType(), *opMeExpr.GetOpnd(0), *newConstExpr);
   (void)irMap.ReplaceMeExprStmt(brMeStmt, opMeExpr, *newExpr);
   return true;
 }
@@ -4475,10 +4566,10 @@ void ValueRangePropagation::DealWithCondGoto(BB &bb, MeStmt &stmt) {
     GetValueRangeForUnsignedInt(bb, *opMeExpr, *opnd0, leftRange, leftRangePtr);
   }
   if (leftRange != nullptr) {
-    if (opMeExpr->GetOp() == OP_gt && DealWithSpecialCondGoto(*opMeExpr, *leftRange, *rightRange, brMeStmt)) {
+    if (opMeExpr->GetOp() == OP_gt && DealWithSpecialCondGoto(bb, *opMeExpr, *leftRange, *rightRange, brMeStmt)) {
       return DealWithCondGoto(bb, stmt);
     }
-    if (opMeExpr->GetOp() == OP_lt && DealWithSpecialCondGoto(*opMeExpr, *rightRange, *leftRange, brMeStmt)) {
+    if (opMeExpr->GetOp() == OP_lt && DealWithSpecialCondGoto(bb, *opMeExpr, *leftRange, *rightRange, brMeStmt)) {
       return DealWithCondGoto(bb, stmt);
     }
   }
@@ -4551,6 +4642,7 @@ void MEValueRangePropagation::GetAnalysisDependence(maple::AnalysisDep &aDep) co
 }
 
 bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
+  ValueRangePropagation::isDebug = DEBUGFUNC_NEWPM(f);
   f.vrpRuns++;
   auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_FATAL(irMap != nullptr, "irMap phase has problem");
@@ -4576,7 +4668,7 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
   (void)f.GetCfg()->UnreachCodeAnalysis(true);
   f.GetCfg()->WontExitAnalysis();
   // split critical edges
-  MeSplitCEdge(false).SplitCriticalEdgeForMeFunc(f);
+  (void)MeSplitCEdge(false).SplitCriticalEdgeForMeFunc(f);
   if (valueRangePropagation.IsCFGChange()) {
     if (ValueRangePropagation::isDebug) {
       f.GetCfg()->DumpToFile("valuerange-after" + std::to_string(f.vrpRuns));
@@ -4625,15 +4717,11 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
     }
     valueRangePropagationWithOPTAssert.Execute();
     CHECK_FATAL(!valueRangePropagationWithOPTAssert.IsCFGChange(), "must not change the cfg!");
-  }
-  if (ValueRangePropagation::isDebug) {
-    LogInfo::MapleLogger() << "***************after value range prop***************" << "\n";
-    f.Dump(false);
-    f.GetCfg()->DumpToFile("valuerange-after");
-  }
-  if (DEBUGFUNC_NEWPM(f)) {
-    LogInfo::MapleLogger() << "\n============== After boundary check optimization  =============" << "\n";
-    irMap->Dump();
+    if (ValueRangePropagation::isDebug) {
+      LogInfo::MapleLogger() << "***************after check***************" << "\n";
+      f.Dump(false);
+      f.GetCfg()->DumpToFile("valuerange-after-safe" + std::to_string(f.vrpRuns));
+    }
   }
   return true;
 }

@@ -23,6 +23,11 @@
 #endif
 #include "cg_option.h"
 #include "mpl_logging.h"
+#if TARGX86_64
+#include "x64_cgfunc.h"
+#include "cg.h"
+#endif
+#include <cstdlib>
 
 namespace {
 using namespace maplebe;
@@ -181,6 +186,47 @@ void CGCFG::CheckCFG() {
   }
 }
 
+void CGCFG::CheckCFGFreq() {
+  auto verifyBBFreq = [this](BB *bb, uint32 succFreq) {
+    uint32 res = bb->GetFrequency();
+    if ((res != 0 && abs((int)(res - succFreq)) / res > 1.0) || (res == 0 && res != succFreq)) {
+      // Not included
+      if (bb->GetSuccs().size() > 1 && bb->GetPreds().size() > 1) {
+        return;
+      }
+      LogInfo::MapleLogger() << cgFunc->GetName() << " curBB: " << bb->GetId() << " freq: "
+                             << bb->GetFrequency() << std::endl;
+      CHECK_FATAL(false, "Verifyfreq failure BB frequency!");
+    }
+  };
+  FOR_ALL_BB(bb, cgFunc) {
+    if (bb->IsUnreachable() || bb->IsCleanup()) {
+      continue;
+    }
+    uint32 res = 0;
+    if (bb->GetSuccs().size() > 1) {
+      for (auto *succBB : bb->GetSuccs()) {
+        res += succBB->GetFrequency();
+        if (succBB->GetPreds().size() > 1) {
+          LogInfo::MapleLogger() << cgFunc->GetName() << " critical edges: curBB: " << bb->GetId() << std::endl;
+          CHECK_FATAL(false, "The CFG has critical edges!");
+        }
+      }
+      verifyBBFreq(bb, res);
+    } else if (bb->GetSuccs().size() == 1) {
+      auto *succBB = bb->GetSuccs().front();
+      if (succBB->GetPreds().size() == 1) {
+        verifyBBFreq(bb, succBB->GetFrequency());
+      } else if (succBB->GetPreds().size() > 1) {
+        for (auto *pred : succBB->GetPreds()) {
+          res += pred->GetFrequency();
+        }
+        verifyBBFreq(succBB, res);
+      }
+    }
+  }
+}
+
 InsnVisitor *CGCFG::insnVisitor;
 
 void CGCFG::InitInsnVisitor(CGFunc &func) {
@@ -261,6 +307,10 @@ void CGCFG::MergeBB(BB &merger, BB &mergee, CGFunc &func) {
       }
     }
     func.PushBackExitBBsVec(merger);
+  }
+  if (mergee.GetKind() == BB::kBBRangeGoto) {
+    func.AddEmitSt(merger.GetId(), *func.GetEmitSt(mergee.GetId()));
+    func.DeleteEmitSt(mergee.GetId());
   }
 }
 
@@ -507,6 +557,7 @@ BB *CGCFG::GetTargetSuc(BB &curBB, bool branchOnly, bool isGotoIf) {
     }
     case BB::kBBIgoto: {
       for (Insn *insn = curBB.GetLastInsn(); insn != nullptr; insn = insn->GetPrev()) {
+#if TARGAARCH64
         if (insn->GetMachineOpcode() == MOP_adrp_label) {
           int64 label = static_cast<ImmOperand&>(insn->GetOperand(1)).GetValue();
           for (BB *bb : curBB.GetSuccs()) {
@@ -515,6 +566,7 @@ BB *CGCFG::GetTargetSuc(BB &curBB, bool branchOnly, bool isGotoIf) {
             }
           }
         }
+#endif
       }
       /* can also be a MOP_xbr. */
       return nullptr;
@@ -790,6 +842,7 @@ void CGCFG::UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) {
   }
 }
 
+#if TARGAARCH64
 void CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
   LabelIdx newLblIdx = cgFunc->CreateLabel();
   BB *newBB = cgFunc->CreateNewBB(newLblIdx, false, BB::kBBGoto, pred.GetFrequency());
@@ -851,4 +904,5 @@ void CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
   /* update pred, succ */
   UpdatePredsSuccsAfterSplit(pred, succ, *newBB);
 }
+#endif
 }  /* namespace maplebe */

@@ -159,6 +159,22 @@ class Bound {
         GetRealValue(constant, pType) == GetRealValue(rightBound.GetConstant(), pType);
   }
 
+  bool IsEqualAfterCVT(PrimType fromType, PrimType toType) const {
+    if (!IsNeededPrimType(fromType) || !IsNeededPrimType(toType)) {
+      CHECK_FATAL(false, "must not be here");
+    }
+    if (fromType == toType) {
+      return true;
+    }
+    if (IsPrimTypeUint64(fromType)) {
+      return static_cast<uint64>(constant) == GetRealValue(constant, toType);
+    } else if (IsPrimTypeUint64(toType)) {
+      return static_cast<uint64>(constant) == GetRealValue(constant, fromType);
+    } else {
+      return GetRealValue(constant, fromType) == GetRealValue(constant, toType);
+    }
+  }
+
   bool IsEqualToMax(PrimType pType) const {
     if (!IsNeededPrimType(pType)) {
       CHECK_FATAL(false, "must not be here");
@@ -373,6 +389,13 @@ class ValueRange {
   void SetRangeType(RangeType type) {
     rangeType = type;
   }
+
+  void SetPrimType(PrimType pType) {
+    range.bound.SetPrimType(pType);
+    range.pair.upper.SetPrimType(pType);
+    range.pair.lower.SetPrimType(pType);
+  }
+
   bool IsZeroInRange() const {
     return IsConstantLowerAndUpper() && GetUpper().GetConstant() >= 0 &&
         GetLower().GetConstant() < GetUpper().GetConstant();
@@ -719,12 +742,6 @@ class ValueRangePropagation {
   bool IsLoopVariable(const LoopDesc &loop, const MeExpr &opnd) const;
   void CollectIndexOpndWithBoundInLoop(
       LoopDesc &loop, BB &bb, MeStmt &meStmt, MeExpr &opnd, std::map<MeExpr*, MeExpr*> &index2NewExpr);
-  std::unique_ptr<ValueRange> ComputeTheValueRangeOfIndex(
-      const std::unique_ptr<ValueRange> &valueRangeOfIndex, std::unique_ptr<ValueRange> &valueRangOfOpnd,
-      int64 constant);
-  std::unique_ptr<ValueRange> ComputeTheValueRangeOfIndex(
-      std::unique_ptr<ValueRange> &valueRangeOfIndex, std::unique_ptr<ValueRange> &valueRangOfOpnd,
-      ValueRange &constantValueRange);
   bool CompareConstantOfIndexAndLength(
       const MeStmt &meStmt, const ValueRange &valueRangeOfIndex, ValueRange &valueRangeOfLengthPtr, Opcode op);
   bool CompareIndexWithUpper(const BB &bb, const MeStmt &meStmt, const ValueRange &valueRangeOfIndex,
@@ -736,7 +753,7 @@ class ValueRangePropagation {
   void DealWithCVT(const BB &bb, OpMeExpr &opMeExpr);
   bool IfTheLowerOrUpperOfLeftRangeEqualToTheRightRange(
           const ValueRange &leftRange, ValueRange &rightRange, bool isLower) const;
-  bool DealWithSpecialCondGoto(OpMeExpr &opMeExpr, const ValueRange &leftRange, ValueRange &rightRange,
+  bool DealWithSpecialCondGoto(BB &bb, OpMeExpr &opMeExpr, const ValueRange &leftRange, ValueRange &rightRange,
                                CondGotoMeStmt &brMeStmt);
   void UpdateOrDeleteValueRange(const MeExpr &opnd, std::unique_ptr<ValueRange> valueRange, const BB &branch);
   void Insert2UnreachableBBs(BB &unreachableBB);
@@ -769,6 +786,7 @@ class ValueRangePropagation {
   std::unique_ptr<ValueRange> MakeMonotonicIncreaseOrDecreaseValueRangeForPhi(int64 stride, Bound &initBound) const;
   bool MergeVrOrInitAndBackedge(MePhiNode &mePhiNode, ValueRange &vrOfInitExpr,
       ValueRange &valueRange, Bound &resBound);
+  void ReplaceUsePoints(MePhiNode *phi);
 
   MeFunction &func;
   MeIRMap &irMap;

@@ -36,8 +36,8 @@
 #include "mempool_allocator.h"
 
 namespace maplebe {
-constexpr int32 kBBLimit = 10000;
-constexpr int32 kFreqBase = 10000;
+constexpr int32 kBBLimit = 100000;
+constexpr int32 kFreqBase = 100000;
 struct MemOpndCmp {
   bool operator()(const MemOperand *lhs, const MemOperand *rhs) const {
     CHECK_FATAL(lhs != nullptr, "null ptr check");
@@ -148,6 +148,7 @@ class CGFunc {
   virtual void GenerateCleanupCodeForExtEpilog(BB &bb) = 0;
 
   void GenerateLoc(StmtNode *stmt, unsigned &lastSrcLoc, unsigned &lastMplLoc);
+  int32 GetFreqFromStmt(uint32 stmtId);
   void GenerateInstruction();
   bool MemBarOpt(const StmtNode &membar);
   void UpdateCallBBFrequency();
@@ -262,6 +263,7 @@ class CGFunc {
   virtual void SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
   virtual Operand *SelectAbs(UnaryNode &node, Operand &opnd0) = 0;
   virtual Operand *SelectBnot(UnaryNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual Operand *SelectExtractbits(ExtractbitsNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual Operand *SelectDepositBits(DepositbitsNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual Operand *SelectRegularBitFieldLoad(ExtractbitsNode &node, const BaseNode &parent) = 0;
@@ -301,16 +303,24 @@ class CGFunc {
   virtual RegOperand &GetOrCreateFramePointerRegOperand() = 0;
   virtual RegOperand &GetOrCreateStackBaseRegOperand() = 0;
   virtual int32 GetBaseOffset(const SymbolAlloc &symbolAlloc) = 0;
-  virtual Operand &GetZeroOpnd(uint32 size) = 0;
+  virtual RegOperand &GetZeroOpnd(uint32 size) = 0;
   virtual Operand &CreateCfiRegOperand(uint32 reg, uint32 size) = 0;
   virtual Operand &GetTargetRetOperand(PrimType primType, int32 sReg) = 0;
   virtual Operand &CreateImmOperand(PrimType primType, int64 val) = 0;
-  virtual Operand *CreateZeroOperand(PrimType primType) = 0;
-  virtual void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn) = 0;
+  virtual void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn, regno_t destNO) = 0;
   virtual void CleanupDeadMov(bool dump = false) = 0;
   virtual void GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &realCallerSave) = 0;
 
   virtual bool IsFrameReg(const RegOperand &opnd) const = 0;
+  virtual bool IsSPOrFP(const RegOperand &opnd) const {
+    return false;
+  };
+  virtual bool IsReturnReg(const RegOperand &opnd) const {
+    return false;
+  };
+  virtual bool IsSaveReg(const RegOperand &reg, MIRType &mirType, BECommon &beCommon) const {
+    return false;
+  }
 
   /* For Neon intrinsics */
   virtual RegOperand *SelectVectorAddLong(PrimType rTy, Operand *o1, Operand *o2, PrimType oty, bool isLow) = 0;
@@ -540,6 +550,10 @@ class CGFunc {
     return cg;
   }
 
+  MIRModule &GetMirModule(){
+    return mirModule;
+  }
+
   const MIRModule &GetMirModule() const {
     return mirModule;
   }
@@ -736,6 +750,10 @@ class CGFunc {
     extendSet.insert(vregNum);
   }
 
+  void RemoveFromExtendSet(regno_t vregNum) {
+    extendSet.erase(vregNum);
+  }
+
   bool IsExitBB(const BB &currentBB) {
     for (BB *exitBB : exitBBVec) {
       if (exitBB == &currentBB) {
@@ -825,6 +843,10 @@ class CGFunc {
 
   void AddEmitSt(uint32 id, MIRSymbol &symbol) {
     emitStVec[id] = &symbol;
+  }
+
+  void DeleteEmitSt(uint32 id) {
+    emitStVec.erase(id);
   }
 
   MapleVector<CGFuncLoops*> &GetLoops() {
@@ -926,12 +948,12 @@ class CGFunc {
   }
 
   void UpdateFrequency(const StmtNode &stmt) {
-    bool withFreqInfo = func.HasFreqMap() && !func.GetFreqMap().empty();
+    bool withFreqInfo = func.HasFreqMap() && !func.GetLastFreqMap().empty();
     if (!withFreqInfo) {
       return;
     }
-    auto it = func.GetFreqMap().find(stmt.GetStmtID());
-    if (it != func.GetFreqMap().end()) {
+    auto it = func.GetLastFreqMap().find(stmt.GetStmtID());
+    if (it != func.GetLastFreqMap().end()) {
       frequency = it->second;
     }
   }
@@ -954,13 +976,6 @@ class CGFunc {
         curBB->AppendBB(*newBB);
       }
     }
-    /* used for handle function, frequency is the laststmt->frequency. */
-    if (curBB != nullptr) {
-      curBB->SetFrequency(frequency);
-    } else {
-      newBB->SetFrequency(frequency);
-    }
-    ASSERT(newBB->GetLastStmt() == nullptr, "newBB's lastStmt must be nullptr");
     return newBB;
   }
 
