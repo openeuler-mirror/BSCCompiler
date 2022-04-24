@@ -10127,9 +10127,6 @@ void AArch64CGFunc::InsertJumpPad(Insn *insn) {
   fallthruBB->SetPrev(longBrBB);
 
   targetBB->RemovePreds(*bb);
-  //while (targetBB->GetKind() == BB::kBBFallthru && targetBB->NumInsn() == 0) {
-  //  targetBB = targetBB->GetNext();
-  //}
   targetBB->PushBackPreds(*longBrBB);
 }
 
