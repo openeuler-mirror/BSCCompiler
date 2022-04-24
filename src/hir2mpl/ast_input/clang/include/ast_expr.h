@@ -51,6 +51,12 @@ enum ParentFlag {
   kStructParent
 };
 
+enum EvaluatedFlag : uint8 {
+  EvaluatedAsZero,
+  EvaluatedAsNonZero,
+  NotEvaluated
+};
+
 class ASTExpr {
  public:
   explicit ASTExpr(ASTOp o) : op(o) {}
@@ -108,6 +114,15 @@ class ASTExpr {
     return srcFileLineNum;
   }
 
+  void SetEvaluatedFlag(EvaluatedFlag flag) {
+    evaluatedflag = flag;
+    return;
+  }
+
+  EvaluatedFlag GetEvaluatedFlag() const {
+    return evaluatedflag;
+  }
+
   virtual void SetShortCircuitIdx(uint32 leftIdx, uint32 rightIdx) {}
 
  protected:
@@ -129,11 +144,12 @@ class ASTExpr {
 
   uint32 srcFileIdx = 0;
   uint32 srcFileLineNum = 0;
+  EvaluatedFlag evaluatedflag = NotEvaluated;
 };
 
 class ASTCastExpr : public ASTExpr {
  public:
-  ASTCastExpr() : ASTExpr(kASTOpCast) {}
+  explicit ASTCastExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpCast) {}
   ~ASTCastExpr() = default;
 
   void SetASTExpr(ASTExpr *expr) {
@@ -236,7 +252,7 @@ class ASTCastExpr : public ASTExpr {
 
 class ASTDeclRefExpr : public ASTExpr {
  public:
-  ASTDeclRefExpr() : ASTExpr(kASTOpRef) {}
+  explicit ASTDeclRefExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpRef) {}
   ~ASTDeclRefExpr() = default;
 
  protected:
@@ -247,6 +263,7 @@ class ASTDeclRefExpr : public ASTExpr {
 class ASTUnaryOperatorExpr : public ASTExpr {
  public:
   explicit ASTUnaryOperatorExpr(ASTOp o) : ASTExpr(o) {}
+  ASTUnaryOperatorExpr(MapleAllocator &allocatorIn, ASTOp o) : ASTExpr(o) {}
   virtual ~ASTUnaryOperatorExpr() = default;
   void SetUOExpr(ASTExpr*);
 
@@ -297,7 +314,7 @@ class ASTUnaryOperatorExpr : public ASTExpr {
 
 class ASTUOMinusExpr: public ASTUnaryOperatorExpr {
  public:
-  ASTUOMinusExpr() : ASTUnaryOperatorExpr(kASTOpMinus) {}
+  explicit ASTUOMinusExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpMinus) {}
   ~ASTUOMinusExpr() = default;
 
  private:
@@ -306,7 +323,7 @@ class ASTUOMinusExpr: public ASTUnaryOperatorExpr {
 
 class ASTUONotExpr: public ASTUnaryOperatorExpr {
  public:
-  ASTUONotExpr() : ASTUnaryOperatorExpr(kASTOpNot) {}
+  explicit ASTUONotExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpNot) {}
   ~ASTUONotExpr() = default;
 
  private:
@@ -315,7 +332,7 @@ class ASTUONotExpr: public ASTUnaryOperatorExpr {
 
 class ASTUOLNotExpr: public ASTUnaryOperatorExpr {
  public:
-  ASTUOLNotExpr() : ASTUnaryOperatorExpr(kASTOpLNot) {}
+  explicit ASTUOLNotExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpLNot) {}
   ~ASTUOLNotExpr() = default;
 
   void SetShortCircuitIdx(uint32 leftIdx, uint32 rightIdx) override {
@@ -331,7 +348,8 @@ class ASTUOLNotExpr: public ASTUnaryOperatorExpr {
 
 class ASTUOPostIncExpr: public ASTUnaryOperatorExpr {
  public:
-  ASTUOPostIncExpr() : ASTUnaryOperatorExpr(kASTOpPostInc), tempVarName(FEUtils::GetSequentialName("postinc_")) {}
+  explicit ASTUOPostIncExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpPostInc),
+      tempVarName(FEUtils::GetSequentialName("postinc_")) {}
   ~ASTUOPostIncExpr() = default;
 
  private:
@@ -341,7 +359,8 @@ class ASTUOPostIncExpr: public ASTUnaryOperatorExpr {
 
 class ASTUOPostDecExpr: public ASTUnaryOperatorExpr {
  public:
-  ASTUOPostDecExpr() : ASTUnaryOperatorExpr(kASTOpPostDec), tempVarName(FEUtils::GetSequentialName("postdec_")) {}
+  explicit ASTUOPostDecExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpPostDec),
+      tempVarName(FEUtils::GetSequentialName("postdec_")) {}
   ~ASTUOPostDecExpr() = default;
 
  private:
@@ -351,7 +370,7 @@ class ASTUOPostDecExpr: public ASTUnaryOperatorExpr {
 
 class ASTUOPreIncExpr: public ASTUnaryOperatorExpr {
  public:
-  ASTUOPreIncExpr() : ASTUnaryOperatorExpr(kASTOpPreInc) {}
+  explicit ASTUOPreIncExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpPreInc) {}
   ~ASTUOPreIncExpr() = default;
 
  private:
@@ -360,7 +379,7 @@ class ASTUOPreIncExpr: public ASTUnaryOperatorExpr {
 
 class ASTUOPreDecExpr: public ASTUnaryOperatorExpr {
  public:
-  ASTUOPreDecExpr() : ASTUnaryOperatorExpr(kASTOpPreDec) {}
+  explicit ASTUOPreDecExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpPreDec) {}
   ~ASTUOPreDecExpr() = default;
 
  private:
@@ -371,6 +390,7 @@ class ASTUOPreDecExpr: public ASTUnaryOperatorExpr {
 class ASTUOAddrOfExpr: public ASTUnaryOperatorExpr {
  public:
   ASTUOAddrOfExpr() : ASTUnaryOperatorExpr(kASTOpAddrOf) {}
+  explicit ASTUOAddrOfExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpAddrOf) {}
   ~ASTUOAddrOfExpr() = default;
 
  protected:
@@ -382,7 +402,7 @@ class ASTUOAddrOfExpr: public ASTUnaryOperatorExpr {
 
 class ASTUOAddrOfLabelExpr : public ASTUnaryOperatorExpr {
  public:
-  ASTUOAddrOfLabelExpr() : ASTUnaryOperatorExpr(kASTOpAddrOfLabel) {}
+  explicit ASTUOAddrOfLabelExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpAddrOfLabel) {}
   ~ASTUOAddrOfLabelExpr() = default;
 
   void SetLabelName(const std::string &name) {
@@ -399,7 +419,7 @@ class ASTUOAddrOfLabelExpr : public ASTUnaryOperatorExpr {
 
 class ASTUODerefExpr: public ASTUnaryOperatorExpr {
  public:
-  ASTUODerefExpr() : ASTUnaryOperatorExpr(kASTOpDeref) {}
+  explicit ASTUODerefExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpDeref) {}
   ~ASTUODerefExpr() = default;
 
  private:
@@ -410,7 +430,7 @@ class ASTUODerefExpr: public ASTUnaryOperatorExpr {
 
 class ASTUOPlusExpr: public ASTUnaryOperatorExpr {
  public:
-  ASTUOPlusExpr() : ASTUnaryOperatorExpr(kASTOpPlus) {}
+  explicit ASTUOPlusExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpPlus) {}
   ~ASTUOPlusExpr() = default;
 
  private:
@@ -419,7 +439,7 @@ class ASTUOPlusExpr: public ASTUnaryOperatorExpr {
 
 class ASTUORealExpr: public ASTUnaryOperatorExpr {
  public:
-  ASTUORealExpr() : ASTUnaryOperatorExpr(kASTOpReal) {}
+  explicit ASTUORealExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpReal) {}
   ~ASTUORealExpr() = default;
 
   void SetElementType(MIRType *type) {
@@ -433,7 +453,7 @@ class ASTUORealExpr: public ASTUnaryOperatorExpr {
 
 class ASTUOImagExpr: public ASTUnaryOperatorExpr {
  public:
-  ASTUOImagExpr() : ASTUnaryOperatorExpr(kASTOpImag) {}
+  explicit ASTUOImagExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpImag) {}
   ~ASTUOImagExpr() = default;
 
   void SetElementType(MIRType *type) {
@@ -447,7 +467,7 @@ class ASTUOImagExpr: public ASTUnaryOperatorExpr {
 
 class ASTUOExtensionExpr: public ASTUnaryOperatorExpr {
  public:
-  ASTUOExtensionExpr() : ASTUnaryOperatorExpr(kASTOpExtension) {}
+  explicit ASTUOExtensionExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpExtension) {}
   ~ASTUOExtensionExpr() = default;
 
  private:
@@ -456,7 +476,7 @@ class ASTUOExtensionExpr: public ASTUnaryOperatorExpr {
 
 class ASTUOCoawaitExpr: public ASTUnaryOperatorExpr {
  public:
-  ASTUOCoawaitExpr() : ASTUnaryOperatorExpr(kASTOpCoawait) {}
+  explicit ASTUOCoawaitExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpCoawait) {}
   ~ASTUOCoawaitExpr() = default;
 
  private:
@@ -465,7 +485,7 @@ class ASTUOCoawaitExpr: public ASTUnaryOperatorExpr {
 
 class ASTPredefinedExpr : public ASTExpr {
  public:
-  ASTPredefinedExpr() : ASTExpr(kASTOpPredefined) {}
+  explicit ASTPredefinedExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpPredefined) {}
   ~ASTPredefinedExpr() = default;
   void SetASTExpr(ASTExpr*);
 
@@ -476,7 +496,7 @@ class ASTPredefinedExpr : public ASTExpr {
 
 class ASTOpaqueValueExpr : public ASTExpr {
  public:
-  ASTOpaqueValueExpr() : ASTExpr(kASTOpOpaqueValue) {}
+  explicit ASTOpaqueValueExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpOpaqueValue) {}
   ~ASTOpaqueValueExpr() = default;
   void SetASTExpr(ASTExpr*);
 
@@ -487,7 +507,7 @@ class ASTOpaqueValueExpr : public ASTExpr {
 
 class ASTNoInitExpr : public ASTExpr {
  public:
-  ASTNoInitExpr() : ASTExpr(kASTOpNoInitExpr) {}
+  explicit ASTNoInitExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpNoInitExpr) {}
   ~ASTNoInitExpr() = default;
   void SetNoInitType(MIRType *type);
 
@@ -498,7 +518,7 @@ class ASTNoInitExpr : public ASTExpr {
 
 class ASTCompoundLiteralExpr : public ASTExpr {
  public:
-  ASTCompoundLiteralExpr() : ASTExpr(kASTOpCompoundLiteralExpr) {}
+  explicit ASTCompoundLiteralExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpCompoundLiteralExpr) {}
   ~ASTCompoundLiteralExpr() = default;
   void SetCompoundLiteralType(MIRType *clType);
   void SetASTExpr(ASTExpr*);
@@ -518,7 +538,7 @@ class ASTCompoundLiteralExpr : public ASTExpr {
 
 class ASTOffsetOfExpr : public ASTExpr {
  public:
-  ASTOffsetOfExpr() : ASTExpr(kASTOpOffsetOfExpr) {}
+  explicit ASTOffsetOfExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpOffsetOfExpr) {}
   ~ASTOffsetOfExpr() = default;
   void SetStructType(MIRType *stype);
   void SetFieldName(const std::string &fName);
@@ -536,7 +556,7 @@ class ASTOffsetOfExpr : public ASTExpr {
 
 class ASTInitListExpr : public ASTExpr {
  public:
-  ASTInitListExpr() : ASTExpr(kASTOpInitListExpr)  {}
+  explicit ASTInitListExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpInitListExpr)  {}
   ~ASTInitListExpr() = default;
   void SetInitExprs(ASTExpr *astExpr);
   void SetInitListType(MIRType *type);
@@ -630,11 +650,12 @@ class ASTInitListExpr : public ASTExpr {
   bool hasArrayFiller = false;
   bool isTransparent = false;
   bool hasVectorType = false;
+  mutable bool isGenerating = false;
 };
 
 class ASTBinaryConditionalOperator : public ASTExpr {
  public:
-  ASTBinaryConditionalOperator() : ASTExpr(kASTOpBinaryConditionalOperator) {}
+  explicit ASTBinaryConditionalOperator(MapleAllocator &allocatorIn) : ASTExpr(kASTOpBinaryConditionalOperator) {}
   ~ASTBinaryConditionalOperator() = default;
   void SetCondExpr(ASTExpr *expr);
   void SetFalseExpr(ASTExpr *expr);
@@ -647,8 +668,8 @@ class ASTBinaryConditionalOperator : public ASTExpr {
 
 class ASTBinaryOperatorExpr : public ASTExpr {
  public:
-  explicit ASTBinaryOperatorExpr(ASTOp o) : ASTExpr(o) {}
-  ASTBinaryOperatorExpr()
+  ASTBinaryOperatorExpr(MapleAllocator &allocatorIn, ASTOp o) : ASTExpr(o) {}
+  explicit ASTBinaryOperatorExpr(MapleAllocator &allocatorIn)
       : ASTExpr(kASTOpBO), varName(FEUtils::GetSequentialName("shortCircuit_")) {}
 
   ~ASTBinaryOperatorExpr() override = default;
@@ -733,7 +754,7 @@ class ASTBinaryOperatorExpr : public ASTExpr {
 
 class ASTImplicitValueInitExpr : public ASTExpr {
  public:
-  ASTImplicitValueInitExpr() : ASTExpr(kASTImplicitValueInitExpr) {}
+  explicit ASTImplicitValueInitExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTImplicitValueInitExpr) {}
   ~ASTImplicitValueInitExpr() = default;
 
  protected:
@@ -745,7 +766,8 @@ class ASTImplicitValueInitExpr : public ASTExpr {
 
 class ASTStringLiteral : public ASTExpr {
  public:
-  ASTStringLiteral() : ASTExpr(kASTStringLiteral) {}
+  explicit ASTStringLiteral(MapleAllocator &allocatorIn) : ASTExpr(kASTStringLiteral),
+      codeUnits(allocatorIn.Adapter()) {}
   ~ASTStringLiteral() = default;
 
   void SetLength(size_t len) {
@@ -756,11 +778,11 @@ class ASTStringLiteral : public ASTExpr {
     return length;
   }
 
-  void SetCodeUnits(std::vector<uint32> &units) {
+  void SetCodeUnits(MapleVector<uint32> &units) {
     codeUnits = std::move(units);
   }
 
-  const std::vector<uint32> &GetCodeUnits() const {
+  const MapleVector<uint32> &GetCodeUnits() const {
     return codeUnits;
   }
 
@@ -786,14 +808,14 @@ class ASTStringLiteral : public ASTExpr {
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   size_t length = 0;
-  std::vector<uint32> codeUnits;
+  MapleVector<uint32> codeUnits;
   std::string str;  // Ascii string
   bool isArrayToPointerDecay = false;
 };
 
 class ASTArraySubscriptExpr : public ASTExpr {
  public:
-  ASTArraySubscriptExpr() : ASTExpr(kASTSubscriptExpr) {}
+  explicit ASTArraySubscriptExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTSubscriptExpr) {}
   ~ASTArraySubscriptExpr() = default;
 
   void SetBaseExpr(ASTExpr *astExpr) {
@@ -844,7 +866,7 @@ class ASTArraySubscriptExpr : public ASTExpr {
 
 class ASTExprUnaryExprOrTypeTraitExpr : public ASTExpr {
  public:
-  ASTExprUnaryExprOrTypeTraitExpr() : ASTExpr(kASTExprUnaryExprOrTypeTraitExpr) {}
+  explicit ASTExprUnaryExprOrTypeTraitExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTExprUnaryExprOrTypeTraitExpr) {}
   ~ASTExprUnaryExprOrTypeTraitExpr() = default;
 
   void SetIsType(bool type) {
@@ -868,7 +890,7 @@ class ASTExprUnaryExprOrTypeTraitExpr : public ASTExpr {
 
 class ASTMemberExpr : public ASTExpr {
  public:
-  ASTMemberExpr() : ASTExpr(kASTMemberExpr) {}
+  explicit ASTMemberExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTMemberExpr) {}
   ~ASTMemberExpr() = default;
 
   void SetBaseExpr(ASTExpr *astExpr) {
@@ -935,7 +957,7 @@ class ASTMemberExpr : public ASTExpr {
 
 class ASTDesignatedInitUpdateExpr : public ASTExpr {
  public:
-  ASTDesignatedInitUpdateExpr() : ASTExpr(kASTASTDesignatedInitUpdateExpr) {}
+  explicit ASTDesignatedInitUpdateExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTASTDesignatedInitUpdateExpr) {}
   ~ASTDesignatedInitUpdateExpr() = default;
 
   void SetBaseExpr(ASTExpr *astExpr) {
@@ -981,7 +1003,8 @@ class ASTDesignatedInitUpdateExpr : public ASTExpr {
 
 class ASTAssignExpr : public ASTBinaryOperatorExpr {
  public:
-  ASTAssignExpr() : ASTBinaryOperatorExpr(kASTOpAssign), isCompoundAssign(false) {}
+  explicit ASTAssignExpr(MapleAllocator &allocatorIn) : ASTBinaryOperatorExpr(allocatorIn, kASTOpAssign),
+      isCompoundAssign(false) {}
   ~ASTAssignExpr() override = default;
 
   void SetIsCompoundAssign(bool argIsCompoundAssign) {
@@ -997,7 +1020,7 @@ class ASTAssignExpr : public ASTBinaryOperatorExpr {
 
 class ASTBOComma : public ASTBinaryOperatorExpr {
  public:
-  ASTBOComma() : ASTBinaryOperatorExpr(kASTOpComma) {}
+  explicit ASTBOComma(MapleAllocator &allocatorIn) : ASTBinaryOperatorExpr(allocatorIn, kASTOpComma) {}
   ~ASTBOComma() override = default;
 
  private:
@@ -1006,7 +1029,7 @@ class ASTBOComma : public ASTBinaryOperatorExpr {
 
 class ASTBOPtrMemExpr : public ASTBinaryOperatorExpr {
  public:
-  ASTBOPtrMemExpr() : ASTBinaryOperatorExpr(kASTOpPtrMemD) {}
+  ASTBOPtrMemExpr(MapleAllocator &allocatorIn) : ASTBinaryOperatorExpr(allocatorIn, kASTOpPtrMemD) {}
   ~ASTBOPtrMemExpr() override = default;
 
  private:
@@ -1015,7 +1038,8 @@ class ASTBOPtrMemExpr : public ASTBinaryOperatorExpr {
 
 class ASTCallExpr : public ASTExpr {
  public:
-  ASTCallExpr() : ASTExpr(kASTOpCall), varName(FEUtils::GetSequentialName("retVar_")) {}
+  explicit ASTCallExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpCall), args(allocatorIn.Adapter()),
+      varName(FEUtils::GetSequentialName("retVar_")) {}
   ~ASTCallExpr() = default;
   void SetCalleeExpr(ASTExpr *astExpr) {
     calleeExpr = astExpr;
@@ -1025,11 +1049,11 @@ class ASTCallExpr : public ASTExpr {
     return calleeExpr;
   }
 
-  void SetArgs(std::vector<ASTExpr*> &argsVector){
+  void SetArgs(MapleVector<ASTExpr*> &argsVector){
     args = std::move(argsVector);
   }
 
-  const std::vector<ASTExpr*> &GetArgsExpr() const {
+  const MapleVector<ASTExpr*> &GetArgsExpr() const {
     return args;
   }
 
@@ -1252,7 +1276,7 @@ UniqueFEIRExpr EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) const;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
 
   static std::unordered_map<std::string, FuncPtrBuiltinFunc> builtingFuncPtrMap;
-  std::vector<ASTExpr*> args;
+  MapleVector<ASTExpr*> args;
   ASTExpr *calleeExpr = nullptr;
   MIRType *retType = nullptr;
   std::string funcName;
@@ -1264,7 +1288,7 @@ UniqueFEIRExpr EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) const;
 
 class ASTParenExpr : public ASTExpr {
  public:
-  ASTParenExpr() : ASTExpr(kASTParen) {}
+  explicit ASTParenExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTParen) {}
   ~ASTParenExpr() = default;
 
   void SetASTExpr(ASTExpr *astExpr) {
@@ -1295,7 +1319,7 @@ class ASTParenExpr : public ASTExpr {
 
 class ASTIntegerLiteral : public ASTExpr {
  public:
-  ASTIntegerLiteral() : ASTExpr(kASTIntegerLiteral) {}
+  explicit ASTIntegerLiteral(MapleAllocator &allocatorIn) : ASTExpr(kASTIntegerLiteral) {}
   ~ASTIntegerLiteral() = default;
 
   int64 GetVal() const {
@@ -1322,7 +1346,7 @@ enum FloatKind {
 
 class ASTFloatingLiteral : public ASTExpr {
  public:
-  ASTFloatingLiteral() : ASTExpr(kASTFloatingLiteral) {}
+  explicit ASTFloatingLiteral(MapleAllocator &allocatorIn) : ASTExpr(kASTFloatingLiteral) {}
   ~ASTFloatingLiteral() = default;
 
   double GetVal() const {
@@ -1350,7 +1374,7 @@ class ASTFloatingLiteral : public ASTExpr {
 
 class ASTCharacterLiteral : public ASTExpr {
  public:
-  ASTCharacterLiteral() : ASTExpr(kASTCharacterLiteral) {}
+  explicit ASTCharacterLiteral(MapleAllocator &allocatorIn) : ASTExpr(kASTCharacterLiteral) {}
   ~ASTCharacterLiteral() = default;
 
   int64 GetVal() const {
@@ -1383,7 +1407,7 @@ struct VaArgInfo {
 
 class ASTVAArgExpr : public ASTExpr {
  public:
-  ASTVAArgExpr() : ASTExpr(kASTVAArgExpr) {}
+  explicit ASTVAArgExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTVAArgExpr) {}
   ~ASTVAArgExpr() = default;
 
   void SetASTExpr(ASTExpr *astExpr) {
@@ -1406,10 +1430,14 @@ class ASTVAArgExpr : public ASTExpr {
 
 class ASTConstantExpr : public ASTExpr {
  public:
-  ASTConstantExpr() : ASTExpr(kConstantExpr) {}
+  explicit ASTConstantExpr(MapleAllocator &allocatorIn) : ASTExpr(kConstantExpr) {}
   ~ASTConstantExpr() = default;
   void SetASTExpr(ASTExpr *astExpr) {
     child = astExpr;
+  }
+
+  ASTExpr *GetChild() {
+    return child;
   }
 
  protected:
@@ -1422,7 +1450,7 @@ class ASTConstantExpr : public ASTExpr {
 
 class ASTImaginaryLiteral : public ASTExpr {
  public:
-  ASTImaginaryLiteral() : ASTExpr(kASTImaginaryLiteral) {}
+  explicit ASTImaginaryLiteral(MapleAllocator &allocatorIn) : ASTExpr(kASTImaginaryLiteral) {}
   ~ASTImaginaryLiteral() = default;
   void SetASTExpr(ASTExpr *astExpr) {
     child = astExpr;
@@ -1445,7 +1473,7 @@ class ASTImaginaryLiteral : public ASTExpr {
 
 class ASTConditionalOperator : public ASTExpr {
  public:
-  ASTConditionalOperator() : ASTExpr(kASTConditionalOperator) {}
+  explicit ASTConditionalOperator(MapleAllocator &allocatorIn) : ASTExpr(kASTConditionalOperator) {}
   ~ASTConditionalOperator() = default;
 
   void SetCondExpr(ASTExpr *astExpr) {
@@ -1480,7 +1508,7 @@ class ASTConditionalOperator : public ASTExpr {
 
 class ASTArrayInitLoopExpr : public ASTExpr {
  public:
-  ASTArrayInitLoopExpr() : ASTExpr(kASTOpArrayInitLoop) {}
+  explicit ASTArrayInitLoopExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpArrayInitLoop) {}
   ~ASTArrayInitLoopExpr() = default;
 
   void SetCommonExpr(ASTExpr *expr) {
@@ -1498,7 +1526,7 @@ class ASTArrayInitLoopExpr : public ASTExpr {
 
 class ASTArrayInitIndexExpr : public ASTExpr {
  public:
-  ASTArrayInitIndexExpr() : ASTExpr(kASTOpArrayInitLoop) {}
+  explicit ASTArrayInitIndexExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpArrayInitLoop) {}
   ~ASTArrayInitIndexExpr() = default;
 
   void SetPrimType(MIRType *pType) {
@@ -1525,7 +1553,7 @@ class ASTArrayInitIndexExpr : public ASTExpr {
 
 class ASTExprWithCleanups : public ASTExpr {
  public:
-  ASTExprWithCleanups() : ASTExpr(kASTOpExprWithCleanups) {}
+  explicit ASTExprWithCleanups(MapleAllocator &allocatorIn) : ASTExpr(kASTOpExprWithCleanups) {}
   ~ASTExprWithCleanups() = default;
 
   void SetSubExpr(ASTExpr *sub) {
@@ -1543,7 +1571,7 @@ class ASTExprWithCleanups : public ASTExpr {
 
 class ASTMaterializeTemporaryExpr : public ASTExpr {
  public:
-  ASTMaterializeTemporaryExpr() : ASTExpr(kASTOpMaterializeTemporary) {}
+  explicit ASTMaterializeTemporaryExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpMaterializeTemporary) {}
   ~ASTMaterializeTemporaryExpr() = default;
 
  private:
@@ -1552,7 +1580,7 @@ class ASTMaterializeTemporaryExpr : public ASTExpr {
 
 class ASTSubstNonTypeTemplateParmExpr : public ASTExpr {
  public:
-  ASTSubstNonTypeTemplateParmExpr() : ASTExpr(kASTOpSubstNonTypeTemplateParm) {}
+  explicit ASTSubstNonTypeTemplateParmExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpSubstNonTypeTemplateParm) {}
   ~ASTSubstNonTypeTemplateParmExpr() = default;
 
  private:
@@ -1561,7 +1589,7 @@ class ASTSubstNonTypeTemplateParmExpr : public ASTExpr {
 
 class ASTDependentScopeDeclRefExpr : public ASTExpr {
  public:
-  ASTDependentScopeDeclRefExpr() : ASTExpr(kASTOpDependentScopeDeclRef) {}
+  explicit ASTDependentScopeDeclRefExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpDependentScopeDeclRef) {}
   ~ASTDependentScopeDeclRefExpr() = default;
 
  private:
@@ -1570,7 +1598,7 @@ class ASTDependentScopeDeclRefExpr : public ASTExpr {
 
 class ASTAtomicExpr : public ASTExpr {
  public:
-  ASTAtomicExpr() : ASTExpr(kASTOpAtomic) {}
+  explicit ASTAtomicExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpAtomic) {}
   ~ASTAtomicExpr() = default;
 
   void SetRefType(MIRType *ref) {
@@ -1652,7 +1680,7 @@ class ASTAtomicExpr : public ASTExpr {
 
 class ASTExprStmtExpr : public ASTExpr {
  public:
-  ASTExprStmtExpr() : ASTExpr(kASTOpStmtExpr) {}
+  explicit ASTExprStmtExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpStmtExpr) {}
   ~ASTExprStmtExpr() = default;
   void SetCompoundStmt(ASTStmt *sub) {
     cpdStmt = sub;

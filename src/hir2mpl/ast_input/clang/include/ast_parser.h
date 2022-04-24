@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,7 +32,8 @@ class ASTParser {
         globalFileScopeAsm(allocatorIn.Adapter()), astStructs(astStructsIn), astFuncs(astFuncsIn),
         astVars(astVarsIn), astFileScopeAsms(astFileScopeAsmsIn) {}
   virtual ~ASTParser() = default;
-  bool OpenFile();
+  bool OpenFile(MapleAllocator &allocator);
+
   bool Verify() const;
   bool PreProcessAST();
 
@@ -84,6 +85,8 @@ class ASTParser {
   ASTStmt *PROCESS_STMT(GCCAsmStmt);
   ASTStmt *PROCESS_STMT(OffsetOfExpr);
   ASTStmt *PROCESS_STMT(GenericSelectionExpr);
+  ASTStmt *PROCESS_STMT(DeclRefExpr);
+  ASTStmt *PROCESS_STMT(UnaryExprOrTypeTraitExpr);
   bool HasDefault(const clang::Stmt &stmt);
 
   // ProcessExpr
@@ -161,7 +164,7 @@ class ASTParser {
 
  private:
   void ProcessNonnullFuncAttrs(const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
-  void ProcessNonnullFuncPtrAttrs(const clang::ValueDecl &valueDecl, ASTDecl &astVar);
+  void ProcessNonnullFuncPtrAttrs(MapleAllocator &allocator, const clang::ValueDecl &valueDecl, ASTDecl &astVar);
   void ProcessBoundaryFuncAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
   void ProcessByteBoundaryFuncAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
   void ProcessBoundaryFuncAttrsByIndex(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
@@ -179,8 +182,8 @@ class ASTParser {
   template <typename T>
   bool ProcessBoundaryFuncPtrAttrsForRet(T *attr, MapleAllocator &allocator, const MIRFuncType &funcType,
                                          const clang::FunctionType &clangFuncType, TypeAttrs &retAttr);
-  void ProcessBoundaryFuncPtrAttrsByIndex(const clang::ValueDecl &valueDecl, ASTDecl &astDecl,
-                                          const MIRFuncType &funcType);
+  void ProcessBoundaryFuncPtrAttrsByIndex(MapleAllocator &allocator, const clang::ValueDecl &valueDecl,
+                                          ASTDecl &astDecl, const MIRFuncType &funcType);
   template <typename T>
   bool ProcessBoundaryFuncPtrAttrsByIndexForParams(T *attr, ASTDecl &astDecl, const MIRFuncType &funcType,
                                                    std::vector<TypeAttrs> &attrsVec);
@@ -239,7 +242,7 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
   static std::map<std::string, FuncPtrBuiltinFunc> builtingFuncPtrMap;
   uint32 fileIdx;
   const std::string fileName;
-  std::unique_ptr<LibAstFile> astFile;
+  LibAstFile *astFile = nullptr;
   AstUnitDecl *astUnitDecl = nullptr;
   MapleList<clang::Decl*> globalVarDecles;
   MapleList<clang::Decl*> funcDecles;

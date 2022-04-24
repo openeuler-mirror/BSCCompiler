@@ -18,11 +18,11 @@
 #include "namemangler.h"
 #include "feir_builder.h"
 #include "feir_var_name.h"
+#include "fe_utils_java.h"
 #include "fe_utils.h"
 #include "fe_manager.h"
-#include "jbc_util.h"
 #include "fe_options.h"
-#include "bc_util.h"
+
 
 namespace maple {
 // ---------- FEStructElemInfo ----------
@@ -300,7 +300,7 @@ void FEStructMethodInfo::LoadMethodType() {
 void FEStructMethodInfo::LoadMethodTypeJava() {
   std::string signatureJava =
       namemangler::DecodeName(GlobalTables::GetStrTable().GetStringFromStrIdx(structElemNameIdx.full));
-  std::vector<std::string> typeNames = jbc::JBCUtil::SolveMethodSignature(signatureJava);
+  std::vector<std::string> typeNames = FEUtilJava::SolveMethodSignature(signatureJava);
   CHECK_FATAL(typeNames.size() > 0, "invalid method signature: %s", signatureJava.c_str());
   // constructor check
   const std::string &funcName = GetElemName();

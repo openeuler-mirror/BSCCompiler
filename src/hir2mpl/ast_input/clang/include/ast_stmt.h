@@ -29,7 +29,7 @@ enum SafeSS {
 
 class ASTStmt {
  public:
-  explicit ASTStmt(ASTStmtOp o = kASTStmtNone) : op(o) {}
+  ASTStmt(MapleAllocator &allocatorIn, ASTStmtOp o = kASTStmtNone) : exprs(allocatorIn.Adapter()), op(o) {}
   virtual ~ASTStmt() = default;
   void SetASTExpr(ASTExpr* astExpr);
 
@@ -41,7 +41,7 @@ class ASTStmt {
     return op;
   }
 
-  const std::vector<ASTExpr*> &GetExprs() const {
+  const MapleVector<ASTExpr*> &GetExprs() const {
     return exprs;
   }
 
@@ -60,8 +60,8 @@ class ASTStmt {
 
  protected:
   virtual std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const = 0;
+  MapleVector<ASTExpr*> exprs;
   ASTStmtOp op;
-  std::vector<ASTExpr*> exprs;
 
   uint32 srcFileIdx = 0;
   uint32 srcFileLineNum = 0;
@@ -69,7 +69,7 @@ class ASTStmt {
 
 class ASTStmtDummy : public ASTStmt {
  public:
-  ASTStmtDummy() : ASTStmt(kASTStmtDummy) {}
+  explicit ASTStmtDummy(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtDummy) {}
   ~ASTStmtDummy() = default;
 
  private:
@@ -78,11 +78,12 @@ class ASTStmtDummy : public ASTStmt {
 
 class ASTCompoundStmt : public ASTStmt {
  public:
-  ASTCompoundStmt() : ASTStmt(kASTStmtCompound) {}
+  explicit ASTCompoundStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtCompound),
+      astStmts(allocatorIn.Adapter()){}
   ~ASTCompoundStmt() = default;
   void SetASTStmt(ASTStmt*);
   void InsertASTStmtsAtFront(const std::list<ASTStmt*> &stmts);
-  const std::list<ASTStmt*> &GetASTStmtList() const;
+  const MapleList<ASTStmt*> &GetASTStmtList() const;
 
   void SetSafeSS(SafeSS state) {
     safeSS = state;
@@ -94,14 +95,14 @@ class ASTCompoundStmt : public ASTStmt {
 
  private:
   SafeSS safeSS = kNoneSS;
-  std::list<ASTStmt*> astStmts; // stmts
+  MapleList<ASTStmt*> astStmts; // stmts
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
 };
 
 // Any other expressions or stmts should be extended here
 class ASTReturnStmt : public ASTStmt {
  public:
-  ASTReturnStmt() : ASTStmt(kASTStmtReturn) {}
+  explicit ASTReturnStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtReturn) {}
   ~ASTReturnStmt() = default;
 
  private:
@@ -110,7 +111,7 @@ class ASTReturnStmt : public ASTStmt {
 
 class ASTAttributedStmt : public ASTStmt {
  public:
-  ASTAttributedStmt() : ASTStmt(kASTStmtAttributed) {}
+  explicit ASTAttributedStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtAttributed) {}
   ~ASTAttributedStmt() override = default;
 
  private:
@@ -119,7 +120,7 @@ class ASTAttributedStmt : public ASTStmt {
 
 class ASTIfStmt : public ASTStmt {
  public:
-  ASTIfStmt() : ASTStmt(kASTStmtIf) {}
+  explicit ASTIfStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtIf) {}
   ~ASTIfStmt() override = default;
 
   void SetCondExpr(ASTExpr *astExpr) {
@@ -143,7 +144,7 @@ class ASTIfStmt : public ASTStmt {
 
 class ASTForStmt : public ASTStmt {
  public:
-  ASTForStmt() : ASTStmt(kASTStmtFor) {}
+  explicit ASTForStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtFor) {}
   ~ASTForStmt() override = default;
 
   void SetInitStmt(ASTStmt *astStmt) {
@@ -172,7 +173,7 @@ class ASTForStmt : public ASTStmt {
 
 class ASTWhileStmt : public ASTStmt {
  public:
-  ASTWhileStmt() : ASTStmt(kASTStmtWhile) {}
+  explicit ASTWhileStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtWhile) {}
   ~ASTWhileStmt() override = default;
 
   void SetCondExpr(ASTExpr *astExpr) {
@@ -191,7 +192,7 @@ class ASTWhileStmt : public ASTStmt {
 
 class ASTDoStmt : public ASTStmt {
  public:
-  ASTDoStmt() : ASTStmt(kASTStmtDo) {}
+  explicit ASTDoStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtDo) {}
   ~ASTDoStmt() override = default;
 
   void SetCondExpr(ASTExpr *astExpr) {
@@ -210,7 +211,7 @@ class ASTDoStmt : public ASTStmt {
 
 class ASTBreakStmt : public ASTStmt {
  public:
-  ASTBreakStmt() : ASTStmt(kASTStmtBreak) {}
+  explicit ASTBreakStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtBreak) {}
   ~ASTBreakStmt() override = default;
 
  private:
@@ -219,7 +220,7 @@ class ASTBreakStmt : public ASTStmt {
 
 class ASTLabelStmt : public ASTStmt {
  public:
-  ASTLabelStmt() : ASTStmt(kASTStmtLabel) {}
+  explicit ASTLabelStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtLabel) {}
   ~ASTLabelStmt() override = default;
 
   void SetSubStmt(ASTStmt *stmt) {
@@ -238,7 +239,7 @@ class ASTLabelStmt : public ASTStmt {
 
 class ASTContinueStmt : public ASTStmt {
  public:
-  ASTContinueStmt() : ASTStmt(kASTStmtContinue) {}
+  explicit ASTContinueStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtContinue) {}
   ~ASTContinueStmt() override = default;
 
  private:
@@ -247,7 +248,7 @@ class ASTContinueStmt : public ASTStmt {
 
 class ASTUnaryOperatorStmt : public ASTStmt {
  public:
-  ASTUnaryOperatorStmt() : ASTStmt(kASTStmtUO) {}
+  explicit ASTUnaryOperatorStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtUO) {}
   ~ASTUnaryOperatorStmt() = default;
 
  private:
@@ -256,7 +257,7 @@ class ASTUnaryOperatorStmt : public ASTStmt {
 
 class ASTBinaryOperatorStmt : public ASTStmt {
  public:
-  ASTBinaryOperatorStmt() : ASTStmt(kASTStmtBO) {}
+  explicit ASTBinaryOperatorStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtBO) {}
   ~ASTBinaryOperatorStmt() override = default;
 
  private:
@@ -265,7 +266,7 @@ class ASTBinaryOperatorStmt : public ASTStmt {
 
 class ASTGotoStmt : public ASTStmt {
  public:
-  ASTGotoStmt() : ASTStmt(kASTStmtGoto) {}
+  explicit ASTGotoStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtGoto) {}
   ~ASTGotoStmt() = default;
 
   std::string GetLabelName() const {
@@ -283,7 +284,7 @@ class ASTGotoStmt : public ASTStmt {
 
 class ASTIndirectGotoStmt : public ASTStmt {
  public:
-  ASTIndirectGotoStmt() : ASTStmt(kASTStmtIndirectGoto) {}
+  explicit ASTIndirectGotoStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtIndirectGoto) {}
   ~ASTIndirectGotoStmt() = default;
 
  protected:
@@ -292,7 +293,7 @@ class ASTIndirectGotoStmt : public ASTStmt {
 
 class ASTSwitchStmt : public ASTStmt {
  public:
-  ASTSwitchStmt() : ASTStmt(kASTStmtSwitch) {}
+  explicit ASTSwitchStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtSwitch) {}
   ~ASTSwitchStmt() = default;
 
   void SetCondStmt(ASTStmt *cond) {
@@ -342,7 +343,7 @@ class ASTSwitchStmt : public ASTStmt {
 
 class ASTCaseStmt : public ASTStmt {
  public:
-  ASTCaseStmt() : ASTStmt(kASTStmtCase) {}
+  explicit ASTCaseStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtCase) {}
   ~ASTCaseStmt() = default;
 
   void SetLHS(ASTExpr *l) {
@@ -396,7 +397,7 @@ class ASTCaseStmt : public ASTStmt {
 
 class ASTDefaultStmt : public ASTStmt {
  public:
-  ASTDefaultStmt() : ASTStmt(kASTStmtDefault) {}
+  explicit ASTDefaultStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtDefault) {}
   ~ASTDefaultStmt() = default;
 
   void SetChildStmt(ASTStmt* ch) {
@@ -414,7 +415,7 @@ class ASTDefaultStmt : public ASTStmt {
 
 class ASTNullStmt : public ASTStmt {
  public:
-  ASTNullStmt() : ASTStmt(kASTStmtNull) {}
+  explicit ASTNullStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtNull) {}
   ~ASTNullStmt() = default;
 
  private:
@@ -423,7 +424,7 @@ class ASTNullStmt : public ASTStmt {
 
 class ASTDeclStmt : public ASTStmt {
  public:
-  ASTDeclStmt() : ASTStmt(kASTStmtDecl) {}
+  explicit ASTDeclStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtDecl) {}
   ~ASTDeclStmt() = default;
 
   void SetSubDecl(ASTDecl *decl) {
@@ -443,7 +444,7 @@ class ASTDeclStmt : public ASTStmt {
 
 class ASTCompoundAssignOperatorStmt : public ASTStmt {
  public:
-  ASTCompoundAssignOperatorStmt() : ASTStmt(kASTStmtCAO) {}
+  explicit ASTCompoundAssignOperatorStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtCAO) {}
   ~ASTCompoundAssignOperatorStmt() override = default;
 
  private:
@@ -452,7 +453,7 @@ class ASTCompoundAssignOperatorStmt : public ASTStmt {
 
 class ASTImplicitCastExprStmt : public ASTStmt {
  public:
-  ASTImplicitCastExprStmt() : ASTStmt(kASTStmtImplicitCastExpr) {}
+  explicit ASTImplicitCastExprStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtImplicitCastExpr) {}
   ~ASTImplicitCastExprStmt() override = default;
 
  private:
@@ -461,7 +462,7 @@ class ASTImplicitCastExprStmt : public ASTStmt {
 
 class ASTParenExprStmt : public ASTStmt {
  public:
-  ASTParenExprStmt() : ASTStmt(kASTStmtParenExpr) {}
+  explicit ASTParenExprStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtParenExpr) {}
   ~ASTParenExprStmt() override = default;
 
  private:
@@ -470,7 +471,7 @@ class ASTParenExprStmt : public ASTStmt {
 
 class ASTIntegerLiteralStmt : public ASTStmt {
  public:
-  ASTIntegerLiteralStmt() : ASTStmt(kASTStmtIntegerLiteral) {}
+  explicit ASTIntegerLiteralStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtIntegerLiteral) {}
   ~ASTIntegerLiteralStmt() override = default;
 
  private:
@@ -479,7 +480,7 @@ class ASTIntegerLiteralStmt : public ASTStmt {
 
 class ASTFloatingLiteralStmt : public ASTStmt {
  public:
-  ASTFloatingLiteralStmt() : ASTStmt(kASTStmtFloatingLiteral) {}
+  explicit ASTFloatingLiteralStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtFloatingLiteral) {}
   ~ASTFloatingLiteralStmt() override = default;
 
  private:
@@ -488,7 +489,7 @@ class ASTFloatingLiteralStmt : public ASTStmt {
 
 class ASTVAArgExprStmt : public ASTStmt {
  public:
-  ASTVAArgExprStmt() : ASTStmt(kASTStmtVAArgExpr) {}
+  explicit ASTVAArgExprStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtVAArgExpr) {}
   ~ASTVAArgExprStmt() override = default;
 
  private:
@@ -497,7 +498,7 @@ class ASTVAArgExprStmt : public ASTStmt {
 
 class ASTConditionalOperatorStmt : public ASTStmt {
  public:
-  ASTConditionalOperatorStmt() : ASTStmt(kASTStmtConditionalOperator) {}
+  explicit ASTConditionalOperatorStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtConditionalOperator) {}
   ~ASTConditionalOperatorStmt() override = default;
 
  private:
@@ -506,7 +507,7 @@ class ASTConditionalOperatorStmt : public ASTStmt {
 
 class ASTCharacterLiteralStmt : public ASTStmt {
  public:
-  ASTCharacterLiteralStmt() : ASTStmt(kASTStmtCharacterLiteral) {}
+  explicit ASTCharacterLiteralStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtCharacterLiteral) {}
   ~ASTCharacterLiteralStmt() override = default;
 
  private:
@@ -515,7 +516,7 @@ class ASTCharacterLiteralStmt : public ASTStmt {
 
 class ASTStmtExprStmt : public ASTStmt {
  public:
-  ASTStmtExprStmt() : ASTStmt(kASTStmtStmtExpr) {}
+  explicit ASTStmtExprStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtStmtExpr) {}
   ~ASTStmtExprStmt() override = default;
 
   void SetBodyStmt(ASTStmt *stmt) {
@@ -534,7 +535,7 @@ class ASTStmtExprStmt : public ASTStmt {
 
 class ASTCStyleCastExprStmt : public ASTStmt {
  public:
-  ASTCStyleCastExprStmt() : ASTStmt(kASTStmtCStyleCastExpr) {}
+  explicit ASTCStyleCastExprStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtCStyleCastExpr) {}
   ~ASTCStyleCastExprStmt() override = default;
 
  private:
@@ -543,7 +544,8 @@ class ASTCStyleCastExprStmt : public ASTStmt {
 
 class ASTCallExprStmt : public ASTStmt {
  public:
-  ASTCallExprStmt() : ASTStmt(kASTStmtCallExpr), varName(FEUtils::GetSequentialName("retVar_")) {}
+  explicit ASTCallExprStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtCallExpr),
+      varName(FEUtils::GetSequentialName("retVar_")) {}
   ~ASTCallExprStmt() override = default;
 
  private:
@@ -556,7 +558,7 @@ class ASTCallExprStmt : public ASTStmt {
 
 class ASTAtomicExprStmt : public ASTStmt {
  public:
-  ASTAtomicExprStmt() : ASTStmt(kASTStmtAtomicExpr) {}
+  explicit ASTAtomicExprStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtAtomicExpr) {}
   ~ASTAtomicExprStmt() override = default;
 
  private:
@@ -565,7 +567,7 @@ class ASTAtomicExprStmt : public ASTStmt {
 
 class ASTGCCAsmStmt : public ASTStmt {
  public:
-  ASTGCCAsmStmt() : ASTStmt(kASTStmtGCCAsmStmt) {}
+  explicit ASTGCCAsmStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtGCCAsmStmt) {}
   ~ASTGCCAsmStmt() override = default;
 
   void SetAsmStr(const std::string &str) {
@@ -609,7 +611,7 @@ class ASTGCCAsmStmt : public ASTStmt {
 
 class ASTOffsetOfStmt : public ASTStmt {
  public:
-  ASTOffsetOfStmt() : ASTStmt(kASTOffsetOfStmt) {}
+  explicit ASTOffsetOfStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTOffsetOfStmt) {}
   ~ASTOffsetOfStmt() override = default;
 
  private:
@@ -618,8 +620,26 @@ class ASTOffsetOfStmt : public ASTStmt {
 
 class ASTGenericSelectionExprStmt : public ASTStmt {
  public:
-  ASTGenericSelectionExprStmt() : ASTStmt(kASTGenericSelectionExprStmt) {}
+  explicit ASTGenericSelectionExprStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTGenericSelectionExprStmt) {}
   ~ASTGenericSelectionExprStmt() override = default;
+
+ private:
+  std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
+};
+
+class ASTDeclRefExprStmt : public ASTStmt {
+ public:
+  explicit ASTDeclRefExprStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtDeclRefExpr) {}
+  ~ASTDeclRefExprStmt() override = default;
+
+ private:
+  std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
+};
+
+class ASTUnaryExprOrTypeTraitExprStmt : public ASTStmt {
+ public:
+  explicit ASTUnaryExprOrTypeTraitExprStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtDeclRefExpr) {}
+  ~ASTUnaryExprOrTypeTraitExprStmt() override = default;
 
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;

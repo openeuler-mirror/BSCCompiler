@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,11 +32,11 @@ const std::string &ASTDecl::GetName() const {
   return name;
 }
 
-const std::vector<MIRType*> &ASTDecl::GetTypeDesc() const {
+const MapleVector<MIRType*> &ASTDecl::GetTypeDesc() const {
   return typeDesc;
 }
 
-void ASTDecl::SetTypeDesc(const std::vector<MIRType*> &typeVecIn) {
+void ASTDecl::SetTypeDesc(const MapleVector<MIRType*> &typeVecIn) {
   typeDesc = typeVecIn;
 }
 
@@ -234,7 +234,7 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
     return stmts;
   }
   const ASTCompoundStmt *astCpdStmt = static_cast<const ASTCompoundStmt*>(astStmt);
-  const std::list<ASTStmt*> &astStmtList = astCpdStmt->GetASTStmtList();
+  const MapleList<ASTStmt*> &astStmtList = astCpdStmt->GetASTStmtList();
   for (auto stmtNode : astStmtList) {
     std::list<UniqueFEIRStmt> childStmts = stmtNode->Emit2FEStmt();
     for (auto &stmt : childStmts) {

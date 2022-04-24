@@ -289,7 +289,7 @@ const Descriptor kUsage[] = {
 };
 
 HIR2MPLOptions::HIR2MPLOptions() {
-  CreateUsages(kUsage);
+  CreateUsages(kUsage, sizeof(kUsage)/sizeof(kUsage[0]));
   Init();
 }
 

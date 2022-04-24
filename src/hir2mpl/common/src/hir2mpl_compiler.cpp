@@ -17,7 +17,9 @@
 #include "fe_manager.h"
 #include "fe_file_type.h"
 #include "fe_timer.h"
+#ifndef ONLY_C
 #include "rc_setter.h"
+#endif
 
 namespace maple {
 HIR2MPLCompiler::HIR2MPLCompiler(MIRModule &argModule)
@@ -34,9 +36,11 @@ void HIR2MPLCompiler::Init() {
   FEManager::Init(module);
   module.SetFlavor(maple::kFeProduced);
   module.GetImportFiles().clear();
+#ifndef ONLY_C
   if (FEOptions::GetInstance().IsRC()) {
     bc::RCSetter::InitRCSetter("");
   }
+#endif
 }
 
 void HIR2MPLCompiler::Release() {
@@ -61,11 +65,15 @@ int HIR2MPLCompiler::Run() {
   if (!FEOptions::GetInstance().IsGenMpltOnly()) {
     FETypeHierarchy::GetInstance().InitByGlobalTable();
     ProcessFunctions();
+#ifndef ONLY_C
     if (FEOptions::GetInstance().IsRC()) {
       bc::RCSetter::GetRCSetter().MarkRCAttributes();
     }
   }
   bc::RCSetter::ReleaseRCSetter();
+#else
+  }
+#endif
   FEManager::GetManager().ReleaseStructElemMempool();
   CHECK_FATAL(success, "Compile Error");
   ExportMpltFile();
@@ -306,6 +314,7 @@ void HIR2MPLCompiler::ProcessFunctions() {
 }
 
 void HIR2MPLCompiler::RegisterCompilerComponent() {
+#ifndef ONLY_C
   if (FEOptions::GetInstance().HasJBC()) {
     FEOptions::GetInstance().SetTypeInferKind(FEOptions::TypeInferKind::kNo);
     std::unique_ptr<HIR2MPLCompilerComponent> jbcCompilerComp = std::make_unique<JBCCompilerComponent>(module);
@@ -317,6 +326,7 @@ void HIR2MPLCompiler::RegisterCompilerComponent() {
         std::make_unique<bc::BCCompilerComponent<bc::DexReader>>(module);
     RegisterCompilerComponent(std::move(bcCompilerComp));
   }
+#endif
   if (FEOptions::GetInstance().GetInputASTFiles().size() != 0) {
     srcLang = kSrcLangC;
     std::unique_ptr<HIR2MPLCompilerComponent> astCompilerComp =

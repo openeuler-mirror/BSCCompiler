@@ -324,8 +324,8 @@ void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) {
   const clang::AttrVec &funcAttrs = decl.getAttrs();
   for (const auto *attr : funcAttrs) {
     clang::attr::Kind attrKind = attr->getKind();
-    auto iterator = LibAstFile::unsupportedFuncAttrsMap.find(attrKind);
-    if (iterator != LibAstFile::unsupportedFuncAttrsMap.end()) {
+    auto iterator = unsupportedFuncAttrsMap.find(attrKind);
+    if (iterator != unsupportedFuncAttrsMap.end()) {
       unsupportedFuncAttrs += iterator->second + " ";
     }
   }
@@ -359,8 +359,8 @@ void LibAstFile::CheckUnsupportedVarAttrs(const clang::VarDecl &decl) {
   const clang::AttrVec &varAttrs = decl.getAttrs();
   for (const auto *attr : varAttrs) {
     clang::attr::Kind attrKind = attr->getKind();
-    auto iterator = LibAstFile::unsupportedVarAttrsMap.find(attrKind);
-    if (iterator != LibAstFile::unsupportedVarAttrsMap.end()) {
+    auto iterator = unsupportedVarAttrsMap.find(attrKind);
+    if (iterator != unsupportedVarAttrsMap.end()) {
       unsupportedVarAttrs += iterator->second + " ";
     }
   }
@@ -393,8 +393,8 @@ void LibAstFile::CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl) {
   const clang::AttrVec &typeAttrs = decl.getAttrs();
   for (const auto *attr : typeAttrs) {
     clang::attr::Kind attrKind = attr->getKind();
-    auto iterator = LibAstFile::unsupportedTypeAttrsMap.find(attrKind);
-    if (iterator != LibAstFile::unsupportedTypeAttrsMap.end()) {
+    auto iterator = unsupportedTypeAttrsMap.find(attrKind);
+    if (iterator != unsupportedTypeAttrsMap.end()) {
       unsupportedTypeAttrs += iterator->second + " ";
     }
   }
