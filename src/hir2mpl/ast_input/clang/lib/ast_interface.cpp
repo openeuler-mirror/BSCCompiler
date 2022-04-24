@@ -282,6 +282,9 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs 
   } else if (decl.hasAttr<clang::NoInlineAttr>()) {
     genAttrs.SetAttr(GENATTR_noinline);
   }
+  if (decl.hasAttr<clang::AlwaysInlineAttr>()) {
+    genAttrs.SetAttr(GENATTR_always_inline);
+  }
   if (decl.isDefaulted()) {
     genAttrs.SetAttr(GENATTR_default);
   }
