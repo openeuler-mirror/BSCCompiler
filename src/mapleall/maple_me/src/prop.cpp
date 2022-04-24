@@ -20,7 +20,8 @@
 
 using namespace maple;
 
-const int kPropTreeLevel = 15;  // tree height threshold to increase to
+const uint32 kPropTreeLevel = 15;   // tree height threshold to increase to
+const uint32 kTreeNodeLimit = 5000; // tree node threshold to decide propagatable.
 
 namespace maple {
 #ifdef USE_ARM32_MACRO
@@ -218,7 +219,10 @@ bool Prop::IsFunctionOfCurVersion(ScalarMeExpr *scalar, const ScalarMeExpr *cur)
 // propagatingScalar is used only if checkInverse is true; it gives the
 // propagating scalar so we can avoid doing the checkInverse checking for it.
 Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool checkInverse,
-                                   ScalarMeExpr *propagatingScalar) {
+                                   ScalarMeExpr *propagatingScalar, uint32 treeNodeCount) {
+  if (treeNodeCount++ >= kTreeNodeLimit) {
+    return kPropNo;
+  }
   MeExprOp meOp = x->GetMeOp();
   switch (meOp) {
     case kMeOpAddrof:
@@ -236,7 +240,8 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
       NaryMeExpr *narymeexpr = static_cast<NaryMeExpr *>(x);
       Propagatability propmin = kPropYes;
       for (uint32 i = 0; i < narymeexpr->GetNumOpnds(); i++) {
-        Propagatability prop = Propagatable(narymeexpr->GetOpnd(i), fromBB, false, checkInverse, propagatingScalar);
+        Propagatability prop =
+            Propagatable(narymeexpr->GetOpnd(i), fromBB, false, checkInverse, propagatingScalar, treeNodeCount);
         if (prop == kPropNo) {
           return kPropNo;
         }
@@ -274,7 +279,10 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
       if (LocalToDifferentPU(st->GetStIdx(), *fromBB)) {
         return kPropNo;
       }
-      if (varMeExpr->GetDefBy() == kDefByMustDef && varMeExpr->GetType()->GetPrimType() == PTY_agg) {
+      // for <void *>, stop prop here, and back-substitution will use declared var to replace this return value.
+      // <void *> has no effective type, we will use the type as declared type var assigned by this return value.
+      if (varMeExpr->GetDefBy() == kDefByMustDef && (varMeExpr->GetType()->GetPrimType() == PTY_agg ||
+                                                     varMeExpr->GetType()->IsVoidPointer())) {
         return kPropNo;  // keep temps for storing call return values single use
       }
       // get the current definition version
@@ -307,7 +315,7 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
       if (ivarMeExpr->IsVolatile() || ivarMeExpr->IsRCWeak()) {
         return kPropNo;
       }
-      Propagatability prop0 = Propagatable(ivarMeExpr->GetBase(), fromBB, false, false, nullptr);
+      Propagatability prop0 = Propagatable(ivarMeExpr->GetBase(), fromBB, false, false, nullptr, treeNodeCount);
       if (prop0 == kPropNo) {
         return kPropNo;
       }
@@ -325,7 +333,7 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
       }
       OpMeExpr *meopexpr = static_cast<OpMeExpr *>(x);
       MeExpr *opnd0 = meopexpr->GetOpnd(0);
-      Propagatability prop0 = Propagatable(opnd0, fromBB, false, checkInverse, propagatingScalar);
+      Propagatability prop0 = Propagatable(opnd0, fromBB, false, checkInverse, propagatingScalar, treeNodeCount);
       if (prop0 == kPropNo) {
         return kPropNo;
       }
@@ -333,7 +341,7 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
       if (opnd1 == nullptr) {
         return prop0;
       }
-      Propagatability prop1 = Propagatable(opnd1, fromBB, false, checkInverse, propagatingScalar);
+      Propagatability prop1 = Propagatable(opnd1, fromBB, false, checkInverse, propagatingScalar, treeNodeCount);
       if (prop1 == kPropNo) {
         return kPropNo;
       }
@@ -342,7 +350,7 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
       if (opnd2 == nullptr) {
         return prop1;
       }
-      Propagatability prop2 = Propagatable(opnd2, fromBB, false, checkInverse, propagatingScalar);
+      Propagatability prop2 = Propagatable(opnd2, fromBB, false, checkInverse, propagatingScalar, treeNodeCount);
       return std::min(prop1, prop2);
     }
     case kMeOpConststr:
@@ -638,6 +646,12 @@ MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
   if (st->IsInstrumented() || varMeExpr.IsVolatile() || varMeExpr.GetOst()->HasOneElemSimdAttr() ||
       propsPerformed >= propLimit) {
     return varMeExpr;
+  }
+  if (st->GetType() && st->GetType()->GetKind() == kTypePointer) {
+    MIRPtrType *ptrType = static_cast<MIRPtrType *>(st->GetType());
+    if (ptrType->GetPointedType()->GetKind() == kTypeFunction) {
+      return varMeExpr;
+    }
   }
 
   if (varMeExpr.GetDefBy() == kDefByStmt) {
@@ -1082,8 +1096,7 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
           if (simplifiedIvar != nullptr) {
             if (simplifiedIvar->GetMeOp() == kMeOpVar) {
               auto *lhsVar = static_cast<ScalarMeExpr *>(simplifiedIvar);
-              auto newDassign =
-                  irMap.CreateAssignMeStmt(*lhsVar, *ivarStmt.GetRHS(), *ivarStmt.GetBB());
+              auto newDassign = irMap.CreateAssignMeStmt(*lhsVar, *ivarStmt.GetRHS(), *ivarStmt.GetBB());
               newDassign->GetChiList()->insert(ivarStmt.GetChiList()->begin(), ivarStmt.GetChiList()->end());
               newDassign->GetChiList()->erase(lhsVar->GetOstIdx());
               ivarStmt.GetBB()->InsertMeStmtBefore(&ivarStmt, newDassign);

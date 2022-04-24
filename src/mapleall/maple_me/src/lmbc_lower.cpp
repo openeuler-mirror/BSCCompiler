@@ -345,12 +345,26 @@ MIRFuncType *LMBCLowerer::FuncTypeFromFuncPtrExpr(BaseNode *x) {
   switch (x->GetOpCode()) {
     case OP_regread: {
       RegreadNode *regread = static_cast<RegreadNode *>(x);
-      // must be a formal promoted to preg
+      MIRPreg *preg = func->GetPregTab()->PregFromPregIdx(regread->GetRegIdx());
+      // see if it is promoted from a symbol
+      if (preg->GetOp() == OP_dread) {
+        const MIRSymbol *symbol = preg->rematInfo.sym;
+        MIRType *mirType = symbol->GetType();
+        if (mirType->GetKind() == kTypePointer) {
+          res = dynamic_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
+        } else {
+          res = dynamic_cast<MIRFuncType *>(mirType);
+        }
+        if (res != nullptr) {
+          break;
+        }
+      }
+      // check if a formal promoted to preg
       for (FormalDef &formalDef : func->GetFormalDefVec()) {
         if (!formalDef.formalSym->IsPreg()) {
           continue;
         }
-        if (formalDef.formalSym->GetPreg() == func->GetPregTab()->PregFromPregIdx(regread->GetRegIdx())) {
+        if (formalDef.formalSym->GetPreg() == preg) {
           MIRType *mirType = formalDef.formalSym->GetType();
           if (mirType->GetKind() == kTypePointer) {
             res = dynamic_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
@@ -383,12 +397,6 @@ MIRFuncType *LMBCLowerer::FuncTypeFromFuncPtrExpr(BaseNode *x) {
       IreadNode *iread = static_cast<IreadNode *>(x);
       MIRPtrType *ptrType = dynamic_cast<MIRPtrType *>(iread->GetType());
       MIRType *mirType = ptrType->GetPointedType();
-      if (iread->GetFieldID() != 0) {
-        MIRStructType *structty = dynamic_cast<MIRStructType *>(mirType);
-        CHECK_FATAL(structty, "LMBCLowerer::FuncTypeFromFuncPtrExpr: non-zero fieldID for non-structure");
-        FieldPair thepair = structty->TraverseToField(iread->GetFieldID());
-        mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
-      }
       if (mirType->GetKind() == kTypePointer) {
         res = dynamic_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
       } else {
@@ -404,7 +412,22 @@ MIRFuncType *LMBCLowerer::FuncTypeFromFuncPtrExpr(BaseNode *x) {
       break;
     }
     case OP_retype: {
-      res = FuncTypeFromFuncPtrExpr(x->Opnd(0));
+      MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<RetypeNode*>(x)->GetTyIdx());
+      if (mirType->GetKind() == kTypePointer) {
+        res = dynamic_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
+      } else {
+        res = dynamic_cast<MIRFuncType *>(mirType);
+      }
+      if (res == nullptr) {
+        res = FuncTypeFromFuncPtrExpr(x->Opnd(0));
+      }
+      break;
+    }
+    case OP_select: {
+      res = FuncTypeFromFuncPtrExpr(x->Opnd(1));
+      if (res == nullptr) {
+        res = FuncTypeFromFuncPtrExpr(x->Opnd(2));
+      }
       break;
     }
     default: CHECK_FATAL(false, "LMBCLowerer::FuncTypeFromFuncPtrExpr: NYI");
@@ -481,6 +504,7 @@ void LMBCLowerer::LowerCall(NaryStmtNode *naryStmt, BlockNode *newblk) {
     // convert to OP_icallproto by finding the function prototype and record in stmt
     naryStmt->SetOpCode(OP_icallproto);
     MIRFuncType *funcType = FuncTypeFromFuncPtrExpr(opnd0);
+    CHECK_FATAL(funcType != nullptr, "LMBCLowerer::LowerCall: cannot find prototype for icall");
     static_cast<IcallNode *>(naryStmt)->SetRetTyIdx(funcType->GetTypeIndex());
     // add back the function pointer operand
     naryStmt->GetNopnd().push_back(LowerExpr(opnd0));

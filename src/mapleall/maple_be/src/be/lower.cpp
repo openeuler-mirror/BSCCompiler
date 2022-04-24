@@ -238,29 +238,47 @@ BaseNode *CGLowerer::SplitTernaryNodeResult(TernaryNode &tNode, BaseNode &parent
  * functionality or performance reason so we need to lower it to if-then-else.
  */
 bool CGLowerer::IsComplexSelect(const TernaryNode &tNode) const {
-    if (tNode.GetPrimType() == PTY_agg) {
-      return true;
-    }
+  if (tNode.GetPrimType() == PTY_agg) {
+    return true;
+  }
+  /* Iread may have side effect which may cause correctness issue. */
+  if (HasIreadExpr(tNode.Opnd(1)) || HasIreadExpr(tNode.Opnd(2))) {
+    return true;
+  }
+  // it will be generated many insn for complex expr, leading to
+  // worse performance than punishment of branch prediction error
+  constexpr size_t maxDepth = 3;
+  if (MaxDepth(tNode.Opnd(1)) > maxDepth || MaxDepth(tNode.Opnd(1)) > maxDepth) {
+    return true;
+  }
+  return false;
+}
 
-    /* Iread may have side effect which may cause correctness issue. */
-    if (HasIreadExpr(tNode.Opnd(1)) || HasIreadExpr(tNode.Opnd(2))) {
-      return true;
+int32 CGLowerer::FindTheCurrentStmtFreq(StmtNode *stmt) const {
+  while (stmt != nullptr) {
+    int32 freq = mirModule.CurFunction()->GetFreqFromLastStmt(stmt->GetStmtID());
+    if (freq != -1) {
+      return freq;
     }
-
-    // it will be generated many insn for complex expr, leading to
-    // worse performance than punishment of branch prediction error
-    constexpr size_t maxDepth = 3;
-    if (MaxDepth(tNode.Opnd(1)) > maxDepth || MaxDepth(tNode.Opnd(1)) > maxDepth) {
-      return true;
-    }
-    return false;
+    stmt = stmt->GetPrev();
+  }
+  return -1;
 }
 
 /* Lower agg select node back to if-then-else stmt. */
+/*
+  0(brfalse)
+  |  \
+  1   2
+   \  |
+    \ |
+     3
+*/
 BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode) {
   MIRBuilder *mirbuilder = mirModule.GetMIRBuilder();
 
   MIRType *resultTy = 0;
+  MIRFunction *func = mirModule.CurFunction();
   if (tNode.GetPrimType() == PTY_agg) {
     if (tNode.Opnd(1)->op == OP_dread) {
       DreadNode *trueNode = static_cast<DreadNode *>(tNode.Opnd(1));
@@ -286,22 +304,34 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
   LabelIdx targetIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
   mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(targetIdx);
   brTargetStmt->SetOffset(targetIdx);
+  // Update the current stmt frequence
+  int32 currentStmtFreq = 0;
+  if (kOpcodeInfo.IsStmt(parent.GetOpCode())) {
+    currentStmtFreq = FindTheCurrentStmtFreq(static_cast<StmtNode*>(&parent));
+  }
+  currentStmtFreq = currentStmtFreq == -1 ? 0 : currentStmtFreq;
+  func->SetLastFreqMap(brTargetStmt->GetStmtID(), currentStmtFreq);
   blkNode.InsertAfter(blkNode.GetLast(), brTargetStmt);
   union {
     MIRSymbol *resSym;
     PregIdx resPreg;
   } cplxSelRes; // complex select result
+  uint32 fallthruStmtFreq = (currentStmtFreq + 1) / 2;
   if (tNode.GetPrimType() == PTY_agg) {
     static uint32 val = 0;
     std::string name("ComplexSelectTmp");
     name.append(std::to_string(val++));
     cplxSelRes.resSym = mirbuilder->GetOrCreateLocalDecl(const_cast<std::string&>(name), *resultTy);
     DassignNode *dassignTrue = mirbuilder->CreateStmtDassign(*cplxSelRes.resSym, 0, tNode.Opnd(1));
+    // Fallthru: update the frequence 1
+    func->SetFirstFreqMap(dassignTrue->GetStmtID(), fallthruStmtFreq);
     blkNode.InsertAfter(blkNode.GetLast(), dassignTrue);
   } else {
     cplxSelRes.resPreg = mirbuilder->GetCurrentFunction()->GetPregTab()->CreatePreg(tNode.GetPrimType());
     RegassignNode *regassignTrue =
         mirbuilder->CreateStmtRegassign(tNode.GetPrimType(), cplxSelRes.resPreg, tNode.Opnd(1));
+    // Update the frequence first opnd
+    func->SetFirstFreqMap(regassignTrue->GetStmtID(), fallthruStmtFreq);
     blkNode.InsertAfter(blkNode.GetLast(), regassignTrue);
   }
 
@@ -309,23 +339,33 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
   LabelIdx EndIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
   mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(EndIdx);
   gotoStmt->SetOffset(EndIdx);
+  // Update the frequence first opnd
+  func->SetLastFreqMap(gotoStmt->GetStmtID(), fallthruStmtFreq);
   blkNode.InsertAfter(blkNode.GetLast(), gotoStmt);
 
+  uint32 targetStmtFreq = currentStmtFreq / 2;
   LabelNode *lableStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   lableStmt->SetLabelIdx(targetIdx);
+  func->SetFirstFreqMap(lableStmt->GetStmtID(), targetStmtFreq);
   blkNode.InsertAfter(blkNode.GetLast(), lableStmt);
 
   if (tNode.GetPrimType() == PTY_agg) {
     DassignNode *dassignFalse = mirbuilder->CreateStmtDassign(*cplxSelRes.resSym, 0, tNode.Opnd(2));
+    // Update the frequence second opnd
+    func->SetLastFreqMap(dassignFalse->GetStmtID(), targetStmtFreq);
     blkNode.InsertAfter(blkNode.GetLast(), dassignFalse);
   } else {
     RegassignNode *regassignFalse =
         mirbuilder->CreateStmtRegassign(tNode.GetPrimType(), cplxSelRes.resPreg, tNode.Opnd(2));
+    // Update the frequence 2
+    func->SetLastFreqMap(regassignFalse->GetStmtID(), targetStmtFreq);
     blkNode.InsertAfter(blkNode.GetLast(), regassignFalse);
   }
 
   lableStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   lableStmt->SetLabelIdx(EndIdx);
+  // Update the frequence third opnd
+  func->SetFirstFreqMap(lableStmt->GetStmtID(), currentStmtFreq);
   blkNode.InsertAfter(blkNode.GetLast(), lableStmt);
 
   BaseNode *exprNode = (tNode.GetPrimType() == PTY_agg) ?
@@ -697,23 +737,24 @@ StmtNode *CGLowerer::WriteBitField(std::pair<int32, int32> byteBitOffsets, MIRBi
   auto byteOffset = byteBitOffsets.first;
   auto bitOffset = byteBitOffsets.second;
 
-  if (CGOptions::IsBigEndian()) {
-    bitOffset = beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte - bitOffset - bitSize;
-  }
-
   auto *builder = mirModule.GetMIRBuilder();
   auto *bitField = builder->CreateExprIreadoff(primType, byteOffset, baseAddr);
   auto primTypeBitSize = GetPrimTypeBitSize(primType);
 
   if ((bitOffset + bitSize) <= primTypeBitSize) {
+    if (CGOptions::IsBigEndian()) {
+        bitOffset = beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte - bitOffset - bitSize;
+    }
     auto depositBits = builder->CreateExprDepositbits(OP_depositbits, primType, bitOffset, bitSize, bitField, rhs);
     return builder->CreateStmtIassignoff(primType, byteOffset, baseAddr, depositBits);
   }
 
   // if space not enough in the unit with size of primType, we would make an extra assignment from next bound
-  // ToDo: BigEndian support needed
   auto bitsRemained = (bitOffset + bitSize) - primTypeBitSize;
   auto bitsExtracted = primTypeBitSize - bitOffset;
+  if(CGOptions::IsBigEndian()) {
+    bitOffset = 0;
+  }
   auto *depositedLowerBits =
       builder->CreateExprDepositbits(OP_depositbits, primType, bitOffset, bitsExtracted, bitField, rhs);
   auto *assignedLowerBits = builder->CreateStmtIassignoff(primType, byteOffset, baseAddr, depositedLowerBits);
@@ -735,25 +776,26 @@ BaseNode *CGLowerer::ReadBitField(std::pair<int32, int32> byteBitOffsets, MIRBit
   auto byteOffset = byteBitOffsets.first;
   auto bitOffset = byteBitOffsets.second;
 
-  if (CGOptions::IsBigEndian()) {
-    bitOffset = beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte - bitOffset - bitSize;
-  }
-
   auto *builder = mirModule.GetMIRBuilder();
   auto *bitField = builder->CreateExprIreadoff(primType, byteOffset, baseAddr);
   auto primTypeBitSize = GetPrimTypeBitSize(primType);
 
   if ((bitOffset + bitSize) <= primTypeBitSize) {
+    if (CGOptions::IsBigEndian()) {
+      bitOffset = beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte - bitOffset - bitSize;
+    }
     return builder->CreateExprExtractbits(OP_extractbits, primType, bitOffset, bitSize, bitField);
   }
 
   // if space not enough in the unit with size of primType, the result would be binding of two exprs of load
-  // ToDo: BigEndian support needed
   auto bitsRemained = (bitOffset + bitSize) - primTypeBitSize;
+  if (CGOptions::IsBigEndian()) {
+    bitOffset = 0;
+  }
   auto *extractedLowerBits =
-      builder->CreateExprExtractbits(OP_extractbits, primType, bitOffset, primTypeBitSize - bitOffset, bitField);
+      builder->CreateExprExtractbits(OP_extractbits, primType, bitOffset, bitSize - bitsRemained, bitField);
   auto *bitFieldRemained = builder->CreateExprIreadoff(primType, byteOffset + GetPrimTypeSize(primType), baseAddr);
-  auto *result = builder->CreateExprDepositbits(OP_depositbits, primType, primTypeBitSize - bitOffset, bitsRemained,
+  auto *result = builder->CreateExprDepositbits(OP_depositbits, primType, bitSize - bitsRemained, bitsRemained,
       extractedLowerBits, bitFieldRemained);
   return result;
 }
@@ -991,7 +1033,7 @@ void CGLowerer::LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk) {
 DassignNode *CGLowerer::SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID) {
   MIRSymbol *var;
   if (stIdx.IsGlobal()) {
-    var = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx());
+    var = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx(), true);
   } else {
     var = GetCurrentFunc()->GetSymbolTabItem(stIdx.Idx());
   }
@@ -1138,7 +1180,7 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
       MIRSymbol *sym = nullptr;
       StIdx stIdx = p2nRets[0].first;
       if (stIdx.IsGlobal()) {
-        sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx());
+        sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx(), true);
       } else {
         sym = GetCurrentFunc()->GetSymbolTabItem(stIdx.Idx());
       }
@@ -1286,6 +1328,8 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt, bool uselvar) {
       newCall = GenCallNode(stmt, funcCalled, origCall);
       p2nRets = &origCall.GetReturnVec();
       static_cast<CallNode *>(newCall)->SetReturnVec(*p2nRets);
+      MIRFunction *curFunc = mirModule.CurFunction();
+      curFunc->SetLastFreqMap(newCall->GetStmtID(), curFunc->GetFreqFromLastStmt(stmt.GetStmtID()));
       break;
     }
     case OP_intrinsiccallassigned:
@@ -1563,6 +1607,7 @@ void CGLowerer::LowerSwitchOpnd(StmtNode &stmt, BlockNode &newBlk) {
     PregIdx pIdx = GetCurrentFunc()->GetPregTab()->CreatePreg(ptyp);
     RegassignNode *regAss = mirBuilder->CreateStmtRegassign(ptyp, pIdx, opnd);
     newBlk.AddStatement(regAss);
+    GetCurrentFunc()->SetLastFreqMap(regAss->GetStmtID(), GetCurrentFunc()->GetFreqFromLastStmt(stmt.GetStmtID()));
     stmt.SetOpnd(mirBuilder->CreateExprRegread(ptyp, pIdx), 0);
   } else {
     stmt.SetOpnd(LowerExpr(stmt, *stmt.Opnd(0), newBlk), 0);
@@ -1691,7 +1736,7 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
       case OP_intrinsiccall:
       case OP_call:
       case OP_icall:
-#if TARGARM32 || TARGAARCH64 || TARGRISCV64
+#if TARGARM32 || TARGAARCH64 || TARGRISCV64 || TARGX86_64
         LowerCallStmt(*stmt, nextStmt, *newBlk);
 #else
         LowerStmt(*stmt, *newBlk);
@@ -2480,8 +2525,10 @@ BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkN
     case OP_select:
       if (IsComplexSelect(static_cast<TernaryNode&>(expr))) {
         return LowerComplexSelect(static_cast<TernaryNode&>(expr), parent, blkNode);
-      } else {
+      } else if (mirModule.GetFlavor() != kFlavorLmbc) {
         return SplitTernaryNodeResult(static_cast<TernaryNode&>(expr), parent, blkNode);
+      } else {
+        return &expr;
       }
 
     case OP_sizeoftype: {
@@ -2571,17 +2618,18 @@ BaseNode *CGLowerer::ExtractSymbolAddress(StIdx &stIdx, BlockNode &block) {
 }
 
 BaseNode *CGLowerer::LowerDreadToThreadLocal(BaseNode &expr, BlockNode &block) {
+  uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   auto *result = &expr;
   if (expr.GetOpCode() != maple::OP_dread) {
     return result;
   }
-  uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   auto dread = static_cast<DreadNode&>(expr);
   StIdx stIdx = dread.GetStIdx();
   if (!stIdx.IsGlobal()) {
     return result;
   }
-  MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx());
+  MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx(), true);
+
   if (symbol->IsThreadLocal()) {
     //  iread <* u32> 0 (regread u64 %addr)
     auto addr = ExtractSymbolAddress(stIdx, block);
@@ -2597,17 +2645,17 @@ BaseNode *CGLowerer::LowerDreadToThreadLocal(BaseNode &expr, BlockNode &block) {
 }
 
 StmtNode *CGLowerer::LowerDassignToThreadLocal(StmtNode &stmt, BlockNode &block) {
+  uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   StmtNode *result = &stmt;
   if (stmt.GetOpCode() != maple::OP_dassign) {
     return result;
   }
-  uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   auto dAssign = static_cast<DassignNode&>(stmt);
   StIdx stIdx = dAssign.GetStIdx();
   if (!stIdx.IsGlobal()) {
     return result;
   }
-  MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx());
+  MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx(), true);
   if (symbol->IsThreadLocal()) {
     //  iassign <* u32> 0 (regread u64 %addr, dread u32 $x)
     auto addr = ExtractSymbolAddress(stIdx, block);
@@ -3754,7 +3802,12 @@ bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) const
   case INTRN_C_strcmp:
   case INTRN_C_strncmp:
   case INTRN_C_strchr:
-  case INTRN_C_strrchr:
+  case INTRN_C_strrchr:  
+  case INTRN_C_rev32:
+  case INTRN_C_rev64:
+
+
+
     return true;
 #endif
   default:
