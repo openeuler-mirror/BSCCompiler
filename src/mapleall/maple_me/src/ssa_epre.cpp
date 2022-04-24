@@ -73,7 +73,7 @@ void SSAEPre::GenerateSaveLHSRealocc(MeRealOcc &realOcc, ScalarMeExpr &regOrVar)
           newPrimType = PTY_i32;
         }
         OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
-        opmeexpr.SetBitsSize(static_cast<uint8>(GetPrimTypeSize(lhsPrimType)) * 8);
+        opmeexpr.SetBitsSize(static_cast<uint8>(GetPrimTypeSize(lhsPrimType) * 8));
         opmeexpr.SetOpnd(0, savedRHS);
         savedRHS = irMap->HashMeExpr(opmeexpr);
       }
@@ -368,7 +368,8 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
       if (!epreIncludeRef && meOpExpr->GetPrimType() == PTY_ref) {
         break;
       }
-      if (meOpExpr->GetOp() == OP_gcmallocjarray || meOpExpr->GetOp() == OP_gcmalloc) {
+      if (meOpExpr->GetOp() == OP_gcmallocjarray || meOpExpr->GetOp() == OP_gcmalloc ||
+          meOpExpr->GetOp() == OP_retype) {
         break;
       }
       if (isRebuild && !hasTempVarAs1Opnd) {

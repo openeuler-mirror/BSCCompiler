@@ -2480,8 +2480,10 @@ BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkN
     case OP_select:
       if (IsComplexSelect(static_cast<TernaryNode&>(expr))) {
         return LowerComplexSelect(static_cast<TernaryNode&>(expr), parent, blkNode);
-      } else {
+      } else if (mirModule.GetFlavor() != kFlavorLmbc) {
         return SplitTernaryNodeResult(static_cast<TernaryNode&>(expr), parent, blkNode);
+      } else {
+        return &expr;
       }
 
     case OP_sizeoftype: {

@@ -274,7 +274,10 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
       if (LocalToDifferentPU(st->GetStIdx(), *fromBB)) {
         return kPropNo;
       }
-      if (varMeExpr->GetDefBy() == kDefByMustDef && varMeExpr->GetType()->GetPrimType() == PTY_agg) {
+      // for <void *>, stop prop here, and back-substitution will use declared var to replace this return value.
+      // <void *> has no effective type, we will use the type as declared type var assigned by this return value.
+      if (varMeExpr->GetDefBy() == kDefByMustDef && (varMeExpr->GetType()->GetPrimType() == PTY_agg ||
+                                                     varMeExpr->GetType()->IsVoidPointer())) {
         return kPropNo;  // keep temps for storing call return values single use
       }
       // get the current definition version
@@ -638,6 +641,12 @@ MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
   if (st->IsInstrumented() || varMeExpr.IsVolatile() || varMeExpr.GetOst()->HasOneElemSimdAttr() ||
       propsPerformed >= propLimit) {
     return varMeExpr;
+  }
+  if (st->GetType() && st->GetType()->GetKind() == kTypePointer) {
+    MIRPtrType *ptrType = static_cast<MIRPtrType *>(st->GetType());
+    if (ptrType->GetPointedType()->GetKind() == kTypeFunction) {
+      return varMeExpr;
+    }
   }
 
   if (varMeExpr.GetDefBy() == kDefByStmt) {
