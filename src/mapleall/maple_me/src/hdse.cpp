@@ -69,6 +69,154 @@ void HDSE::CheckBackSubsCandidacy(DassignMeStmt *dass) {
   backSubsCands.push_front(dass);
 }
 
+// STMT is going to be deleted, need to update the use of chi lhs defined by STMT
+// This is used to fix `ResolveContinuousRedefine()`
+void HDSE::UpdateChiUse(MeStmt *stmt) {
+  if (!stmt->GetChiList() || stmt->GetChiList()->empty()) {
+    return;
+  }
+  auto &chiList = *stmt->GetChiList();
+  auto *nextStmt = stmt->GetNext();
+  while (nextStmt) {
+    if (!nextStmt->GetChiList() || nextStmt->GetChiList()->empty()) {
+      nextStmt = nextStmt->GetNext();
+      continue;
+    }
+    for (auto &pair : *nextStmt->GetChiList()) {
+      auto *useChi = pair.second;
+      if (chiList.count(pair.first) != 0 && useChi->GetRHS() == chiList[pair.first]->GetLHS()) {
+        useChi->SetRHS(chiList[pair.first]->GetRHS());
+      }
+    }
+    // only need to update the first found chilist, no other uses
+    break;
+  }
+}
+
+// If EXPR is defined by the same assign with ASSIGN, that means the previous
+// assign can not be removed because that's a real use.
+bool HDSE::RealUse(MeExpr &expr, MeStmt &assign) {
+  switch (expr.GetMeOp()) {
+    case kMeOpVar: {
+      auto *defStmt = static_cast<VarMeExpr&>(expr).GetDefByMeStmt();
+      if (!defStmt || defStmt->GetBB() != assign.GetBB()) {
+        return false;
+      }
+      // handle dassign
+      if (defStmt->GetOp() == OP_dassign && assign.GetOp() == OP_dassign) {
+        if (defStmt->GetLHS()->IsUseSameSymbol(*assign.GetLHS())) {
+          return true;
+        }
+      }
+      // handle iassign
+      if (defStmt->GetOp() == OP_iassign && assign.GetOp() == OP_iassign) {
+        auto *prevIvar = static_cast<IassignMeStmt*>(defStmt)->GetLHSVal();
+        auto *postIvar = static_cast<IassignMeStmt&>(assign).GetLHSVal();
+        if (prevIvar->IsUseSameSymbol(*postIvar) && prevIvar->GetBase() == postIvar->GetBase()) {
+          return true;
+        }
+      }
+      return false;
+    }
+    case kMeOpIvar: {
+      auto *defStmt = static_cast<IvarMeExpr&>(expr).GetDefStmt();
+      // handle iassign
+      if (defStmt && defStmt->GetOp() == OP_iassign && assign.GetOp() == OP_iassign) {
+        auto *prevIvar = static_cast<IassignMeStmt*>(defStmt)->GetLHSVal();
+        auto *postIvar = static_cast<IassignMeStmt&>(assign).GetLHSVal();
+        if (prevIvar->IsUseSameSymbol(*postIvar) && prevIvar->GetBase() == postIvar->GetBase()) {
+          return true;
+        }
+      }
+      auto &ivar = static_cast<IvarMeExpr&>(expr);
+      return RealUse(*ivar.GetBase(), assign) ||
+             (ivar.GetMu() && RealUse(*ivar.GetMu(), assign));
+    }
+    default:
+      break;
+  }
+  for (uint32 i = 0; i < expr.GetNumOpnds(); ++i) {
+    if (RealUse(*expr.GetOpnd(i), assign)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Search up for the same memory assign from ASSIGN, if there're no other uses
+// between these two assigns, kill the redundant first assign.
+// e.g.
+// dassign %a 2 (xxx)  ---- stmt1
+// ... (no other use of %a.field2 or any chi lhs def by stmt1)
+// dassign %a 2 (xxx)  ---- assign
+// we can remove `stmt1` because `assign` must define all that needs to be defined
+void HDSE::ResolveReassign(MeStmt &assign) {
+  if (assign.GetOp() != OP_dassign && assign.GetOp() != OP_iassign) {
+    return;
+  }
+  if (assign.GetChiList()->empty() || RealUse(*assign.GetRHS(), assign)) {
+    return;
+  }
+  MeStmt *prev = assign.GetPrev();
+  while (prev) {
+    MeStmt *cur = prev;
+    prev = prev->GetPrev();
+    if (!cur->GetIsLive()) {
+      continue;
+    }
+    if (cur->GetOp() == OP_dassign && assign.GetOp() == OP_dassign) {
+      DassignMeStmt *curDassign = static_cast<DassignMeStmt*>(cur);
+      if (curDassign->GetLHS()->IsUseSameSymbol(*assign.GetLHS())) {
+        curDassign->SetIsLive(false);
+        continue;
+      }
+    }
+    if (cur->GetOp() == OP_iassign && assign.GetOp() == OP_iassign) {
+      auto *prevIvar = static_cast<IassignMeStmt*>(cur)->GetLHSVal();
+      auto *postIvar = static_cast<IassignMeStmt&>(assign).GetLHSVal();
+      if (prevIvar->IsUseSameSymbol(*postIvar) && prevIvar->GetBase() == postIvar->GetBase()) {
+        cur->SetIsLive(false);
+        continue;
+      }
+    }
+    // we do not want to traverse chi list, it's expensive to check every chi
+    if (cur->GetChiList() && !cur->GetChiList()->empty()) {
+      return;
+    }
+    // traverse every expr in the stmt
+    for (uint32 i = 0; i < cur->NumMeStmtOpnds(); ++i) {
+      if (RealUse(*cur->GetOpnd(i), assign)) {
+        return;
+      }
+    }
+    if (cur->GetMuList()) {
+      for (auto &pair : *cur->GetMuList()) {
+        if (RealUse(*pair.second, assign)) {
+          return;
+        }
+      }
+    }
+  }
+}
+
+// Check if there are redundant assigns to the same memory. Used to pick up
+// those redundant assigns marked live by chi list live prop.
+void HDSE::ResolveContinuousRedefine() {
+  for (auto *bb : bbVec) {
+    if (bb == nullptr) {
+      continue;
+    }
+    auto &meStmtNodes = bb->GetMeStmts();
+    for (auto itStmt = meStmtNodes.rbegin(); itStmt != meStmtNodes.rend(); ++itStmt) {
+      MeStmt *pStmt = to_ptr(itStmt);
+      if (!pStmt->GetIsLive()) {
+        continue;
+      }
+      ResolveReassign(*pStmt);
+    }
+  }
+}
+
 void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
   MeStmt *mestmt = &bb.GetMeStmts().front();
   MeStmt *nextstmt = nullptr;
@@ -104,6 +252,9 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
             notNullExpr2Stmt[meExpr].push_back(nullCheck);
           }
         }
+      }
+      if (removeRedefine) {
+        UpdateChiUse(mestmt);
       }
       bb.RemoveMeStmt(mestmt);
     } else {
@@ -244,10 +395,8 @@ void HDSE::MarkVarDefByStmt(VarMeExpr &varExpr) {
       break;
     }
     case kDefByChi: {
-      auto *defChi = &varExpr.GetDefChi();
-      if (defChi != nullptr) {
-        MarkChiNodeRequired(*defChi);
-      }
+      auto &defChi = varExpr.GetDefChi();
+      MarkChiNodeRequired(defChi);
       break;
     }
     case kDefByMustDef: {
@@ -288,10 +437,8 @@ void HDSE::MarkRegDefByStmt(RegMeExpr &regMeExpr) {
     case kDefByChi: {
       ASSERT(regMeExpr.GetOst()->GetIndirectLev() > 0,
              "MarkRegDefByStmt: preg cannot be defined by chi");
-      auto *defChi = &regMeExpr.GetDefChi();
-      if (defChi != nullptr) {
-        MarkChiNodeRequired(*defChi);
-      }
+      auto &defChi = regMeExpr.GetDefChi();
+      MarkChiNodeRequired(defChi);
       break;
     }
     case kDefByMustDef: {
@@ -695,6 +842,9 @@ void HDSE::DoHDSE() {
   DseInit();
   MarkSpecialStmtRequired();
   PropagateLive();
+  if (removeRedefine) {
+    ResolveContinuousRedefine();
+  }
   RemoveNotRequiredStmts();
 }
 } // namespace maple

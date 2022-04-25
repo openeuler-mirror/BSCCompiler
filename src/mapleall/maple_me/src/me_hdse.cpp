@@ -56,7 +56,7 @@ void MeHDSE::ProcessWhileInfos() {
     return;
   }
   MapleMap<LabelIdx, PreMeWhileInfo *>::iterator it = preMeFunc->label2WhileInfo.begin();
-  for (; it != preMeFunc->label2WhileInfo.end(); it++) {
+  for (; it != preMeFunc->label2WhileInfo.end(); ++it) {
     if (it->second->initExpr != nullptr &&
         (it->second->initExpr->GetMeOp() == maple::kMeOpVar || it->second->initExpr->GetMeOp() == maple::kMeOpReg)) {
       workList.push_front(it->second->initExpr);
@@ -191,6 +191,9 @@ bool MEHdse::PhaseRun(maple::MeFunction &f) {
   MemPool *memPool = GetPhaseMemPool();
   auto *hdse = memPool->New<MeHDSE>(f, *dom, *hMap, aliasClass, DEBUGFUNC_NEWPM(f));
   hdse->hdseKeepRef = MeOption::dseKeepRef;
+  if (f.hdseRuns > 2) {
+    hdse->SetRemoveRedefine(true);
+  }
   hdse->DoHDSE();
   hdse->BackwardSubstitution();
   MakeEmptyTrysUnreachable(f);

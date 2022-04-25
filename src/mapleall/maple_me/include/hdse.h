@@ -43,6 +43,10 @@ class HDSE {
   bool NeedUNClean() {
     return needUNClean;
   }
+  void SetRemoveRedefine(bool val) {
+    removeRedefine = val;
+  }
+
 
   bool hdseDebug;
   bool hdseKeepRef = false;
@@ -53,11 +57,13 @@ class HDSE {
   void PropagateUseLive(MeExpr &meExpr);
   void DetermineUseCounts(MeExpr *x);
   void CheckBackSubsCandidacy(DassignMeStmt *dass);
+  void UpdateChiUse(MeStmt *stmt);
   void RemoveNotRequiredStmtsInBB(BB &bb);
   template <class VarOrRegPhiNode>
   void MarkPhiRequired(VarOrRegPhiNode &mePhiNode);
   void MarkMuListRequired(MapleMap<OStIdx, ScalarMeExpr*>&);
   void MarkChiNodeRequired(ChiMeNode &chiNode);
+  void TraverseChiNodeKilled(ChiMeNode &chiNode);
   bool ExprHasSideEffect(const MeExpr &meExpr) const;
   bool ExprNonDeletable(const MeExpr &expr) const;
   bool StmtMustRequired(const MeStmt &stmt, const BB &bb) const;
@@ -71,6 +77,9 @@ class HDSE {
   void MarkLastBranchStmtInPredBBRequired(const BB &bb);
   void MarkVarDefByStmt(VarMeExpr &varMeExpr);
   void MarkRegDefByStmt(RegMeExpr &regMeExpr);
+  bool RealUse(MeExpr &expr, MeStmt &assign);
+  void ResolveReassign(MeStmt &assign);
+  void ResolveContinuousRedefine();
   void CollectNotNullExpr(MeStmt &stmt);
   // NotNullExpr means it is impossible value of the expr is nullptr after go through this stmt.
   // exprType must be one kind of NODE_TYPE_NORMAL、NODE_TYPE_IVAR、NODE_TYPE_NOTNULL
@@ -126,6 +135,7 @@ class HDSE {
   static const uint8 kExprTypeNotNull = 2;
   bool decoupleStatic = false;
   bool needUNClean = false;  // used to record if there's unreachable BB
+  bool removeRedefine = false;  // used to control if run ResolveContinuousRedefine()
   std::vector<uint32> verstUseCounts; // index is vstIdx
   std::forward_list<DassignMeStmt *> backSubsCands; // backward substitution candidates
 };
