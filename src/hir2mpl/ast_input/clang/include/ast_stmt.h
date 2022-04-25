@@ -29,7 +29,7 @@ enum SafeSS {
 
 class ASTStmt {
  public:
-  ASTStmt(MapleAllocator &allocatorIn, ASTStmtOp o = kASTStmtNone) : exprs(allocatorIn.Adapter()), op(o) {}
+  explicit ASTStmt(MapleAllocator &allocatorIn, ASTStmtOp o = kASTStmtNone) : exprs(allocatorIn.Adapter()), op(o) {}
   virtual ~ASTStmt() = default;
   void SetASTExpr(ASTExpr* astExpr);
 

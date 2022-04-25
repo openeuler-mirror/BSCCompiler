@@ -4258,7 +4258,7 @@ bool FEIRStmtGCCAsm::HandleConstraintPlusQm(MIRBuilder &mirBuilder, AsmNode *asm
   }
   FieldID fieldID = outputsExprs[index]->GetFieldID();
   MIRSymbol *sym = outputsExprs[index]->GetVarUses().front()->GenerateMIRSymbol(mirBuilder);
-  UniqueFEIRVar asmOut =outputsExprs[index]->GetVarUses().front()->Clone();
+  UniqueFEIRVar asmOut = outputsExprs[index]->GetVarUses().front()->Clone();
   MIRSymbol *localSym = nullptr;
   UniqueFEIRVar localAsmOut = nullptr;
   BaseNode *node;

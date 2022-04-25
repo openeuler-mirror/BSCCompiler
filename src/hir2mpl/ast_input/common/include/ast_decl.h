@@ -45,13 +45,13 @@ struct BoundaryInfo {
 
 class ASTDecl {
  public:
-  ASTDecl(const std::string &srcFile, const std::string &nameIn, const MapleVector<MIRType*> &typeDescIn)
+  ASTDecl(const std::string &srcFile, const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn)
       : isGlobalDecl(false), srcFileName(srcFile), name(nameIn), typeDesc(typeDescIn) {
         isDbgFriendly = FEOptions::GetInstance().IsDbgFriendly();
       }
   virtual ~ASTDecl() = default;
   const std::string &GetSrcFileName() const;
-  const std::string &GetName() const;
+  const std::string GetName() const;
   const MapleVector<MIRType*> &GetTypeDesc() const;
   void SetTypeDesc(const MapleVector<MIRType*> &typeVecIn);
   GenericAttrs GetGenericAttrs() const {
@@ -177,7 +177,7 @@ class ASTDecl {
   uint32 align = 1; // in byte
   const std::string srcFileName;
 
-  std::string name;
+  MapleString name;
   MapleVector<MIRType*> typeDesc;
   GenericAttrs genAttrs;
   Pos pos = { 0, 0 };
@@ -191,7 +191,7 @@ class ASTDecl {
 
 class ASTField : public ASTDecl {
  public:
-  ASTField(const std::string &srcFile, const std::string &nameIn, const MapleVector<MIRType*> &typeDescIn,
+  ASTField(const std::string &srcFile, const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn,
            const GenericAttrs &genAttrsIn, bool isAnonymous = false)
       : ASTDecl(srcFile, nameIn, typeDescIn), isAnonymousField(isAnonymous) {
     genAttrs = genAttrsIn;
@@ -208,7 +208,7 @@ class ASTField : public ASTDecl {
 
 class ASTFunc : public ASTDecl {
  public:
-  ASTFunc(const std::string &srcFile, const std::string &nameIn, const MapleVector<MIRType*> &typeDescIn,
+  ASTFunc(const std::string &srcFile, const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn,
           const GenericAttrs &genAttrsIn, const MapleVector<ASTDecl*> &paramDeclsIn)
       : ASTDecl(srcFile, nameIn, typeDescIn), compound(nullptr), paramDecls(paramDeclsIn) {
     genAttrs = genAttrsIn;
@@ -254,7 +254,7 @@ class ASTFunc : public ASTDecl {
 
 class ASTStruct : public ASTDecl {
  public:
-  ASTStruct(MapleAllocator &allocatorIn, const std::string &srcFile, const std::string &nameIn,
+  ASTStruct(MapleAllocator &allocatorIn, const std::string &srcFile, const MapleString &nameIn,
             const MapleVector<MIRType*> &typeDescIn, const GenericAttrs &genAttrsIn)
       : ASTDecl(srcFile, nameIn, typeDescIn),
         isUnion(false), fields(allocatorIn.Adapter()), methods(allocatorIn.Adapter()) {
@@ -289,7 +289,7 @@ class ASTStruct : public ASTDecl {
 
 class ASTVar : public ASTDecl {
  public:
-  ASTVar(const std::string &srcFile, const std::string &nameIn, const MapleVector<MIRType*> &typeDescIn,
+  ASTVar(const std::string &srcFile, const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn,
          const GenericAttrs &genAttrsIn)
       : ASTDecl(srcFile, nameIn, typeDescIn) {
     genAttrs = genAttrsIn;
@@ -333,7 +333,7 @@ class ASTVar : public ASTDecl {
 class ASTFileScopeAsm : public ASTDecl {
  public:
   ASTFileScopeAsm(MapleAllocator &allocatorIn, const std::string &srcFile)
-      : ASTDecl(srcFile, "", MapleVector<MIRType*>(allocatorIn.Adapter())) {
+      : ASTDecl(srcFile, MapleString("", allocatorIn.GetMemPool()), MapleVector<MIRType*>(allocatorIn.Adapter())) {
     declKind = kASTFileScopeAsm;
   }
   ~ASTFileScopeAsm() = default;
@@ -352,8 +352,8 @@ class ASTFileScopeAsm : public ASTDecl {
 
 class ASTEnumConstant : public ASTDecl {
  public:
-  ASTEnumConstant(const std::string &srcFile, const std::string &nameIn, const MapleVector<MIRType*> &typeDescIn,
-         const GenericAttrs &genAttrsIn)
+  ASTEnumConstant(const std::string &srcFile, const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn,
+                  const GenericAttrs &genAttrsIn)
       : ASTDecl(srcFile, nameIn, typeDescIn) {
     genAttrs = genAttrsIn;
     declKind = kASTEnumConstant;
@@ -371,8 +371,8 @@ class ASTEnumConstant : public ASTDecl {
 // only process local `EnumDecl` here
 class ASTEnumDecl : public ASTDecl {
  public:
-  ASTEnumDecl(const std::string &srcFile, const std::string &nameIn, const MapleVector<MIRType*> &typeDescIn,
-          const GenericAttrs &genAttrsIn)
+  ASTEnumDecl(const std::string &srcFile, const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn,
+              const GenericAttrs &genAttrsIn)
       : ASTDecl(srcFile, nameIn, typeDescIn) {
     genAttrs = genAttrsIn;
     declKind = kASTEnumDecl;

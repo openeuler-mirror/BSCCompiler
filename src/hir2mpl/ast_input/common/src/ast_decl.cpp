@@ -28,8 +28,8 @@ const std::string &ASTDecl::GetSrcFileName() const {
   return srcFileName;
 }
 
-const std::string &ASTDecl::GetName() const {
-  return name;
+const std::string ASTDecl::GetName() const {
+  return name.c_str();
 }
 
 const MapleVector<MIRType*> &ASTDecl::GetTypeDesc() const {
@@ -47,10 +47,10 @@ MIRConst *ASTDecl::Translate2MIRConst() const {
 std::string ASTDecl::GenerateUniqueVarName() const {
   // add `_line_column` suffix for avoiding local var name conflict
   if (isGlobalDecl || isParam || isDbgFriendly) {
-    return name;
+    return GetName();
   } else {
     std::stringstream os;
-    os << name;
+    os << GetName();
     if (isMacroID) {
       // for macro expansion, variable names of same location need to be unique
       os << "_" << std::to_string(isMacroID);
@@ -261,6 +261,6 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
 
 // ---------- ASTStruct ----------
 std::string ASTStruct::GetStructName(bool mapled) const {
-  return mapled ? namemangler::EncodeName(name) : name;
+  return mapled ? namemangler::EncodeName(GetName()) : GetName();
 }
 }  // namespace maple
