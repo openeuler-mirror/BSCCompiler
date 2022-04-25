@@ -27,6 +27,7 @@ BUILD_VERSION := $(MAPLE_BUILD_VERSION)
 GIT_REVISION := $(shell  git log --pretty=format:"%H" -1)
 MAST := 0
 ASAN := 0
+ONLY_C := 0
 ifeq ($(DEBUG),0)
   BUILD_TYPE := RELEASE
 else
@@ -56,7 +57,8 @@ GN_OPTIONS := \
   BUILD_VERSION="$(BUILD_VERSION)" \
   GIT_REVISION="$(GIT_REVISION)" \
   MAST=$(MAST) \
-  ASAN=$(ASAN)
+  ASAN=$(ASAN) \
+  ONLY_C=$(ONLY_C)
 
 .PHONY: default
 default: install

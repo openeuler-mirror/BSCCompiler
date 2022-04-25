@@ -32,6 +32,7 @@ declare_args() {
   GIT_REVISION = ""
   MAST = 0
   ASAN = 0
+  ONLY_C = 0
 }
 
 # Define global args
