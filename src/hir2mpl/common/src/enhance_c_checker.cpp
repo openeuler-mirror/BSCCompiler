@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -22,7 +22,8 @@
 #include "fe_macros.h"
 
 namespace maple {
-void ASTParser::ProcessNonnullFuncPtrAttrs(const clang::ValueDecl &valueDecl, ASTDecl &astVar) {
+void ASTParser::ProcessNonnullFuncPtrAttrs(MapleAllocator &allocator, const clang::ValueDecl &valueDecl,
+                                           ASTDecl &astVar) {
   const MIRFuncType *funcType = FEUtils::GetFuncPtrType(*astVar.GetTypeDesc().front());
   if (funcType == nullptr) {
     return;
@@ -48,8 +49,8 @@ void ASTParser::ProcessNonnullFuncPtrAttrs(const clang::ValueDecl &valueDecl, AS
   }
   MIRType *newFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(
       funcType->GetRetTyIdx(), funcType->GetParamTypeList(), attrsVec, funcType->IsVarargs(), retAttr);
-  astVar.SetTypeDesc(std::vector<MIRType*>{GlobalTables::GetTypeTable().GetOrCreatePointerType(
-      *GlobalTables::GetTypeTable().GetOrCreatePointerType(*newFuncType))});
+  astVar.SetTypeDesc(MapleVector<MIRType*>({GlobalTables::GetTypeTable().GetOrCreatePointerType(
+      *GlobalTables::GetTypeTable().GetOrCreatePointerType(*newFuncType))}, allocator.Adapter()));
 }
 
 bool ENCChecker::HasNonnullAttrInExpr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr, bool isNested) {
@@ -552,10 +553,10 @@ void ASTParser::ProcessBoundaryFuncPtrAttrs(MapleAllocator &allocator, const cla
   if (isUpdated) {
     MIRType *newFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(
         funcType->GetRetTyIdx(), funcType->GetParamTypeList(), attrsVec, funcType->IsVarargs(), retAttr);
-    astDecl.SetTypeDesc(std::vector<MIRType*>{GlobalTables::GetTypeTable().GetOrCreatePointerType(
-        *GlobalTables::GetTypeTable().GetOrCreatePointerType(*newFuncType))});
+    astDecl.SetTypeDesc(MapleVector<MIRType*>({GlobalTables::GetTypeTable().GetOrCreatePointerType(
+        *GlobalTables::GetTypeTable().GetOrCreatePointerType(*newFuncType))}, allocator.Adapter()));
   }
-  ProcessBoundaryFuncPtrAttrsByIndex(valueDecl, astDecl, *funcType);
+  ProcessBoundaryFuncPtrAttrsByIndex(allocator, valueDecl, astDecl, *funcType);
 }
 
 template <typename T>
@@ -576,7 +577,7 @@ bool ASTParser::ProcessBoundaryFuncPtrAttrsForParams(T *attr, MapleAllocator &al
     }
     MIRType *ptrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(typesVec[idx]);
     ASTVar *tmpDecl = ASTDeclsBuilder::ASTVarBuilder(
-        allocator, "", "tmpVar", std::vector<MIRType*>{ptrType}, GenericAttrs());
+        allocator, "", "tmpVar", MapleVector<MIRType*>({ptrType}, allocator.Adapter()), GenericAttrs());
     bool isByte = std::is_same<typename std::decay<T>::type, clang::ByteCountAttr>::value;
     ProcessBoundaryLenExprInVar(allocator, *tmpDecl, proto.getParamType(idx), lenExpr, !isByte);
     ENCChecker::InsertBoundaryInAtts(attrsVec[idx], tmpDecl->GetBoundaryInfo());
@@ -595,15 +596,15 @@ bool ASTParser::ProcessBoundaryFuncPtrAttrsForRet(T *attr, MapleAllocator &alloc
   }
   MIRType *ptrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType.GetRetTyIdx());
   ASTVar *tmpRetDecl = ASTDeclsBuilder::ASTVarBuilder(
-      allocator, "", "tmpRetVar", std::vector<MIRType*>{ptrType}, GenericAttrs());
+      allocator, "", "tmpRetVar", MapleVector<MIRType*>({ptrType}, allocator.Adapter()), GenericAttrs());
   bool isByte = std::is_same<typename std::decay<T>::type, clang::ReturnsByteCountAttr>::value;
   ProcessBoundaryLenExprInVar(allocator, *tmpRetDecl, clangFuncType.getReturnType(), lenExpr, !isByte);
   ENCChecker::InsertBoundaryInAtts(retAttr, tmpRetDecl->GetBoundaryInfo());
   return true;
 }
 
-void ASTParser::ProcessBoundaryFuncPtrAttrsByIndex(const clang::ValueDecl &valueDecl, ASTDecl &astDecl,
-                                                   const MIRFuncType &funcType) {
+void ASTParser::ProcessBoundaryFuncPtrAttrsByIndex(MapleAllocator &allocator, const clang::ValueDecl &valueDecl,
+                                                   ASTDecl &astDecl, const MIRFuncType &funcType) {
   std::vector<TypeAttrs> attrsVec = funcType.GetParamAttrsList();
   TypeAttrs retAttr = funcType.GetRetAttrs();
   bool isUpdated = false;
@@ -631,8 +632,8 @@ void ASTParser::ProcessBoundaryFuncPtrAttrsByIndex(const clang::ValueDecl &value
   if (isUpdated) {
     MIRType *newFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(
         funcType.GetRetTyIdx(), funcType.GetParamTypeList(), attrsVec, funcType.IsVarargs(), retAttr);
-    astDecl.SetTypeDesc(std::vector<MIRType*>{GlobalTables::GetTypeTable().GetOrCreatePointerType(
-        *GlobalTables::GetTypeTable().GetOrCreatePointerType(*newFuncType))});
+    astDecl.SetTypeDesc(MapleVector<MIRType*>({GlobalTables::GetTypeTable().GetOrCreatePointerType(
+        *GlobalTables::GetTypeTable().GetOrCreatePointerType(*newFuncType))}, allocator.Adapter()));
   }
 }
 
@@ -1196,7 +1197,7 @@ void ENCChecker::AssignUndefVal(MIRBuilder &mirBuilder, MIRSymbol &sym) {
   }
 }
 
-void ENCChecker::InitBoundaryVarFromASTDecl(const MapleAllocator &allocator, ASTDecl *ptrDecl, ASTExpr *lenExpr,
+void ENCChecker::InitBoundaryVarFromASTDecl(MapleAllocator &allocator, ASTDecl *ptrDecl, ASTExpr *lenExpr,
                                             std::list<ASTStmt*> &stmts) {
   MIRType *ptrType = ptrDecl->GetTypeDesc().front();
   // insert lower boundary stmt
@@ -1204,7 +1205,7 @@ void ENCChecker::InitBoundaryVarFromASTDecl(const MapleAllocator &allocator, AST
   lowerRefExpr->SetASTDecl(ptrDecl);
   std::string lowerVarName = "_boundary." + ptrDecl->GetName() + ".lower";
   ASTVar *lowerDecl = ASTDeclsBuilder::ASTVarBuilder(
-      allocator, "", lowerVarName, std::vector<MIRType*>{ptrType}, GenericAttrs());
+      allocator, "", lowerVarName, MapleVector<MIRType*>({ptrType}, allocator.Adapter()), GenericAttrs());
   lowerDecl->SetIsParam(true);
   lowerDecl->SetInitExpr(lowerRefExpr);
   ASTDeclStmt *lowerStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTDeclStmt>(allocator);
@@ -1220,7 +1221,7 @@ void ENCChecker::InitBoundaryVarFromASTDecl(const MapleAllocator &allocator, AST
   upperBinExpr->SetCvtNeeded(true);
   std::string upperVarName = "_boundary." + ptrDecl->GetName() + ".upper";
   ASTVar *upperDecl = ASTDeclsBuilder::ASTVarBuilder(
-      allocator, "", upperVarName, std::vector<MIRType*>{ptrType}, GenericAttrs());
+      allocator, "", upperVarName, MapleVector<MIRType*>({ptrType}, allocator.Adapter()), GenericAttrs());
   upperDecl->SetIsParam(true);
   upperDecl->SetInitExpr(upperBinExpr);
   ASTDeclStmt *upperStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTDeclStmt>(allocator);

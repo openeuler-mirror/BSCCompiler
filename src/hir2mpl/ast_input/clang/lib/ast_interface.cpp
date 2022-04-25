@@ -282,6 +282,9 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs 
   } else if (decl.hasAttr<clang::NoInlineAttr>()) {
     genAttrs.SetAttr(GENATTR_noinline);
   }
+  if (decl.hasAttr<clang::AlwaysInlineAttr>()) {
+    genAttrs.SetAttr(GENATTR_always_inline);
+  }
   if (decl.isDefaulted()) {
     genAttrs.SetAttr(GENATTR_default);
   }
@@ -324,8 +327,8 @@ void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) {
   const clang::AttrVec &funcAttrs = decl.getAttrs();
   for (const auto *attr : funcAttrs) {
     clang::attr::Kind attrKind = attr->getKind();
-    auto iterator = LibAstFile::unsupportedFuncAttrsMap.find(attrKind);
-    if (iterator != LibAstFile::unsupportedFuncAttrsMap.end()) {
+    auto iterator = unsupportedFuncAttrsMap.find(attrKind);
+    if (iterator != unsupportedFuncAttrsMap.end()) {
       unsupportedFuncAttrs += iterator->second + " ";
     }
   }
@@ -359,8 +362,8 @@ void LibAstFile::CheckUnsupportedVarAttrs(const clang::VarDecl &decl) {
   const clang::AttrVec &varAttrs = decl.getAttrs();
   for (const auto *attr : varAttrs) {
     clang::attr::Kind attrKind = attr->getKind();
-    auto iterator = LibAstFile::unsupportedVarAttrsMap.find(attrKind);
-    if (iterator != LibAstFile::unsupportedVarAttrsMap.end()) {
+    auto iterator = unsupportedVarAttrsMap.find(attrKind);
+    if (iterator != unsupportedVarAttrsMap.end()) {
       unsupportedVarAttrs += iterator->second + " ";
     }
   }
@@ -393,8 +396,8 @@ void LibAstFile::CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl) {
   const clang::AttrVec &typeAttrs = decl.getAttrs();
   for (const auto *attr : typeAttrs) {
     clang::attr::Kind attrKind = attr->getKind();
-    auto iterator = LibAstFile::unsupportedTypeAttrsMap.find(attrKind);
-    if (iterator != LibAstFile::unsupportedTypeAttrsMap.end()) {
+    auto iterator = unsupportedTypeAttrsMap.find(attrKind);
+    if (iterator != unsupportedTypeAttrsMap.end()) {
       unsupportedTypeAttrs += iterator->second + " ";
     }
   }

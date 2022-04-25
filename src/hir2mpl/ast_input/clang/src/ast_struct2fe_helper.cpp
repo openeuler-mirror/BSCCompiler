@@ -248,10 +248,10 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
     }
     funSym->SetWeakrefAttr(std::pair<bool, UStrIdx> { true, idx });
   }
-  std::vector<ASTDecl*> paramDecls = func.GetParamDecls();
+  MapleVector<ASTDecl*> paramDecls = func.GetParamDecls();
   if (firstArgRet) {
     ASTDecl *returnParamVar = ASTDeclsBuilder::ASTVarBuilder(
-        allocator, "", "first_arg_return", std::vector<MIRType*>{}, GenericAttrs());
+        allocator, "", "first_arg_return", MapleVector<MIRType*>({}, allocator.Adapter()), GenericAttrs());
     returnParamVar->SetIsParam(true);
     paramDecls.insert(paramDecls.begin(), returnParamVar);
   }
@@ -279,7 +279,7 @@ const std::string &ASTFunc2FEHelper::GetSrcFileName() const {
 
 void ASTFunc2FEHelper::SolveReturnAndArgTypesImpl(MapleAllocator &allocator) {
   (void)allocator;
-  const std::vector<MIRType*> &returnAndArgTypeNames = func.GetTypeDesc();
+  const MapleVector<MIRType*> &returnAndArgTypeNames = func.GetTypeDesc();
   retMIRType = returnAndArgTypeNames[1];
   // skip funcType and returnType
   argMIRTypes.insert(argMIRTypes.begin(), returnAndArgTypeNames.begin() + 2, returnAndArgTypeNames.end());

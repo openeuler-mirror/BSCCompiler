@@ -24,7 +24,7 @@ config("mapleallcompilecfg") {
       "-fsanitize=address"
     ]
     libs = [
-      "${LLVMLIBDIR}/libclang_rt.asan-x86_64.so"
+      "${LLVMLIBDIR}/libclang_rt.asan-x86_64.a"
     ]
   }
 
@@ -80,6 +80,10 @@ config("mapleallcompilecfg") {
       "-Wl,-z,noexecstack",
       "-pie",
     ]
+  }
+
+  if (ASAN == 1) {
+    ldflags += ["-ldl"]
   }
 
   if (MAJOR_VERSION != "") {

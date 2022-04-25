@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -34,7 +34,8 @@ TEST_F(FEIRVarNameTest, FEIRVarInAST) {
   GenericAttrs attrs;
   attrs.SetAttr(GENATTR_const);
   MIRType *type = GlobalTables::GetTypeTable().GetInt32();
-  auto astVar = ASTDeclsBuilder::ASTVarBuilder(allocator, "foo.c", "a", std::vector<MIRType*>{type}, attrs);
+  auto astVar = ASTDeclsBuilder::ASTVarBuilder(allocator, "foo.c", "a",
+      MapleVector<MIRType*>({type}, allocator.Adapter()), attrs);
   astVar->SetGlobal(false);
   auto feirVar = astVar->Translate2FEIRVar();
   EXPECT_EQ(feirVar->GetKind(), kFEIRVarName);
@@ -55,7 +56,8 @@ TEST_F(FEIRVarNameTest, FEIRVarInAST) {
   RestoreCout();
 
   MIRType *type1 = GlobalTables::GetTypeTable().GetInt32();
-  auto astVar1 = ASTDeclsBuilder::ASTVarBuilder(allocator, "foo.c", "a", std::vector<MIRType*>{type1}, attrs);
+  auto astVar1 = ASTDeclsBuilder::ASTVarBuilder(allocator, "foo.c", "a",
+      MapleVector<MIRType*>({type1}, allocator.Adapter()), attrs);
   astVar1->SetGlobal(false);
   auto feirVar1 = astVar1->Translate2FEIRVar();
   EXPECT_EQ(feirVar1->EqualsTo(feirVar), true);
@@ -66,7 +68,8 @@ TEST_F(FEIRVarNameTest, FEIRVarInAST) {
   // array type
   uint32 arraySize[3] = {3, 4, 5};
   MIRType *arrayType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*type, 3, arraySize);
-  auto astArrVar = ASTDeclsBuilder::ASTVarBuilder(allocator, "foo.c", "array", std::vector<MIRType*>{arrayType}, attrs);
+  auto astArrVar = ASTDeclsBuilder::ASTVarBuilder(allocator, "foo.c", "array",
+      MapleVector<MIRType*>({arrayType}, allocator.Adapter()), attrs);
   astArrVar->SetGlobal(true);
   auto feirArrVar = astArrVar->Translate2FEIRVar();
   EXPECT_EQ(feirArrVar->GetType()->IsArray(), true);

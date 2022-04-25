@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -66,14 +66,14 @@ TEST_F(AstExprTest, IntegerLiteral) {
 TEST_F(AstExprTest, ImaginaryLiteral) {
   MIRType *elemType = FEManager::GetTypeManager().GetOrCreateTypeFromName("I", FETypeFlag::kSrcUnknown, false);
   MIRType *complexType = FEManager::GetTypeManager().GetOrCreateComplexStructType(*elemType);
-  std::unique_ptr<ASTImaginaryLiteral> astExpr = std::make_unique<ASTImaginaryLiteral>();
+  ASTImaginaryLiteral *astExpr = ASTDeclsBuilder::ASTExprBuilder<ASTImaginaryLiteral>(allocator);
   astExpr->SetComplexType(complexType);
   astExpr->SetElemType(elemType);
   // create child expr
-  std::unique_ptr<ASTIntegerLiteral> childExpr = std::make_unique<ASTIntegerLiteral>();
+  ASTIntegerLiteral *childExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
   childExpr->SetVal(2);
   childExpr->SetType(GlobalTables::GetTypeTable().GetInt32());
-  astExpr->SetASTExpr(childExpr.get());
+  astExpr->SetASTExpr(childExpr);
 
   std::list<UniqueFEIRStmt> stmts;
   UniqueFEIRExpr feExpr = astExpr->Emit2FEExpr(stmts);
@@ -109,7 +109,8 @@ TEST_F(AstExprTest, ASTUnaryOperatorExpr_1) {
   PrimType ouPrimType = PTY_i32;
   MIRType *ouType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ouPrimType);
   ASTDeclRefExpr *astRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar", std::vector<MIRType*>{subType});
+  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar",
+      MapleVector<MIRType*>({subType}, allocator.Adapter()));
   astRefExpr->SetASTDecl(astDecl);
 
   // ASTUOMinusExpr
@@ -164,7 +165,8 @@ TEST_F(AstExprTest, ASTUnaryOperatorExpr_2) {
   PrimType primType = PTY_i32;
   MIRType *subType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(primType);
   ASTDeclRefExpr *astRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar", std::vector<MIRType*>{subType});
+  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar",
+      MapleVector<MIRType*>({subType}, allocator.Adapter()));
   astRefExpr->SetASTDecl(astDecl);
 
   // ASTUOPostIncExpr
@@ -244,7 +246,8 @@ TEST_F(AstExprTest, ASTUnaryOperatorExpr_3) {
   PrimType primType = PTY_i32;
   MIRType *subType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(primType);
   ASTDeclRefExpr *astRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar", std::vector<MIRType*>{subType});
+  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar",
+      MapleVector<MIRType*>({subType}, allocator.Adapter()));
   astRefExpr->SetASTDecl(astDecl);
 
   // ASTUOAddrOfExpr
@@ -262,7 +265,8 @@ TEST_F(AstExprTest, ASTUnaryOperatorExpr_3) {
   MIRType *uoType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_i32);
   subType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*uoType, PTY_ptr);
   astRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar", std::vector<MIRType*>{subType});
+  astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar",
+      MapleVector<MIRType*>({subType}, allocator.Adapter()));
   astRefExpr->SetASTDecl(astDecl);
   astUODerefExpr->SetUOType(uoType);
   astUODerefExpr->SetSubType(subType);
@@ -278,7 +282,7 @@ TEST_F(AstExprTest, ASTUnaryOperatorExpr_3) {
 TEST_F(AstExprTest, ASTCharacterLiteral) {
   RedirectCout();
   std::list<UniqueFEIRStmt> stmts;
-  std::unique_ptr<ASTCharacterLiteral> astExpr = std::make_unique<ASTCharacterLiteral>();
+  ASTCharacterLiteral *astExpr = ASTDeclsBuilder::ASTExprBuilder<ASTCharacterLiteral>(allocator);
   astExpr->SetVal('a');
   astExpr->SetPrimType(PTY_i32);
   UniqueFEIRExpr feExpr = astExpr->Emit2FEExpr(stmts);
@@ -309,10 +313,12 @@ TEST_F(AstExprTest, ASTBinaryOperatorExpr_1) {
   PrimType primType = PTY_i32;
   MIRType *subType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(primType);
   ASTDeclRefExpr *astRefExpr1 = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl1 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar", std::vector<MIRType*>{subType});
+  ASTDecl *astDecl1 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar",
+      MapleVector<MIRType*>({subType}, allocator.Adapter()));
   astRefExpr1->SetASTDecl(astDecl1);
   ASTDeclRefExpr *astRefExpr2 = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl2 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "bVar", std::vector<MIRType*>{subType});
+  ASTDecl *astDecl2 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "bVar",
+      MapleVector<MIRType*>({subType}, allocator.Adapter()));
   astRefExpr2->SetASTDecl(astDecl2);
 
   ASTBinaryOperatorExpr *astBinaryOperatorExpr1 = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
@@ -343,10 +349,12 @@ TEST_F(AstExprTest, ASTBinaryOperatorExpr_2) {
   PrimType primType = PTY_i32;
   MIRType *subType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(primType);
   ASTDeclRefExpr *astRefExpr1 = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl1 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar", std::vector<MIRType*>{subType});
+  ASTDecl *astDecl1 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar",
+      MapleVector<MIRType*>({subType}, allocator.Adapter()));
   astRefExpr1->SetASTDecl(astDecl1);
   ASTDeclRefExpr *astRefExpr2 = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl2 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "bVar", std::vector<MIRType*>{subType});
+  ASTDecl *astDecl2 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "bVar",
+      MapleVector<MIRType*>({subType}, allocator.Adapter()));
   astRefExpr2->SetASTDecl(astDecl2);
 
   ASTAssignExpr *astAssignExpr = ASTDeclsBuilder::ASTExprBuilder<ASTAssignExpr>(allocator);
@@ -371,10 +379,12 @@ TEST_F(AstExprTest, ConditionalOperator) {
   // create ast cond expr
   MIRType *subType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_i32);
   ASTDeclRefExpr *astRefExpr1 = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl1 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar", std::vector<MIRType*>{ subType });
+  ASTDecl *astDecl1 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar",
+      MapleVector<MIRType*>({ subType }, allocator.Adapter()));
   astRefExpr1->SetASTDecl(astDecl1);
   ASTDeclRefExpr *astRefExpr2 = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl2 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "bVar", std::vector<MIRType*>{ subType });
+  ASTDecl *astDecl2 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "bVar",
+      MapleVector<MIRType*>({ subType }, allocator.Adapter()));
   astRefExpr2->SetASTDecl(astDecl2);
   ASTBinaryOperatorExpr *astBinaryOperatorExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
   astBinaryOperatorExpr->SetLeftExpr(astRefExpr1);
@@ -410,10 +420,12 @@ TEST_F(AstExprTest, ConditionalOperator_NestedExpr) {
   // create ast cond expr
   MIRType *subType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_i32);
   ASTDeclRefExpr *astRefExpr1 = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl1 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar", std::vector<MIRType*>{ subType });
+  ASTDecl *astDecl1 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar",
+      MapleVector<MIRType*>({ subType }, allocator.Adapter()));
   astRefExpr1->SetASTDecl(astDecl1);
   ASTDeclRefExpr *astRefExpr2 = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl2 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "bVar", std::vector<MIRType*>{ subType });
+  ASTDecl *astDecl2 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "bVar",
+      MapleVector<MIRType*>({ subType }, allocator.Adapter()));
   astRefExpr2->SetASTDecl(astDecl2);
   ASTBinaryOperatorExpr *astBinaryOperatorExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
   astBinaryOperatorExpr->SetLeftExpr(astRefExpr1);
@@ -454,7 +466,8 @@ TEST_F(AstExprTest, ConditionalOperator_Noncomparative) {
   // create ast cond expr
   MIRType *subType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_f64);
   ASTDeclRefExpr *astRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar", std::vector<MIRType*>{ subType });
+  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar",
+      MapleVector<MIRType*>({ subType }, allocator.Adapter()));
   astRefExpr->SetASTDecl(astDecl);
    // create true expr
   ASTIntegerLiteral *trueAstExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
@@ -495,10 +508,12 @@ TEST_F(AstExprTest, BinaryConditionalOperator) {
   // create ast cond expr
   MIRType *subType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_i32);
   ASTDeclRefExpr *astRefExpr1 = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl1 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar", std::vector<MIRType*>{ subType });
+  ASTDecl *astDecl1 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar",
+      MapleVector<MIRType*>({ subType }, allocator.Adapter()));
   astRefExpr1->SetASTDecl(astDecl1);
   ASTDeclRefExpr *astRefExpr2 = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl2 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "bVar", std::vector<MIRType*>{ subType });
+  ASTDecl *astDecl2 = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "bVar",
+      MapleVector<MIRType*>({ subType },allocator.Adapter()));
   astRefExpr2->SetASTDecl(astDecl2);
   ASTBinaryOperatorExpr *astBinaryOperatorExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
   astBinaryOperatorExpr->SetLeftExpr(astRefExpr1);
@@ -537,7 +552,8 @@ TEST_F(AstExprTest, BinaryConditionalOperator_Noncomparative) {
   // create ast cond expr
   MIRType *subType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_i32);
   ASTDeclRefExpr *astRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar", std::vector<MIRType*>{ subType });
+  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "aVar",
+      MapleVector<MIRType*>({ subType }, allocator.Adapter()));
   astRefExpr->SetASTDecl(astDecl);
   // create false expr
   ASTIntegerLiteral *falseAstExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
@@ -567,7 +583,8 @@ TEST_F(AstExprTest, ASTCstyleCastExpr) {
   PrimType srcPrimType = PTY_f32;
   MIRType *srcType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(srcPrimType);
   ASTDeclRefExpr *astRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "a", std::vector<MIRType*>{srcType});
+  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, "", "a",
+      MapleVector<MIRType*>({srcType}, allocator.Adapter()));
   astRefExpr->SetASTDecl(astDecl);
   ASTCastExpr *imCastExpr = ASTDeclsBuilder::ASTExprBuilder<ASTCastExpr>(allocator);
   imCastExpr->SetASTExpr(astRefExpr);
@@ -593,7 +610,8 @@ TEST_F(AstExprTest, ASTArraySubscriptExpr) {
   const std::string &refName = "arr";
   MIRArrayType *arrayType = static_cast<MIRArrayType*>(
       GlobalTables::GetTypeTable().GetOrCreateArrayType(*GlobalTables::GetTypeTable().GetDouble(), 10));
-  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, fileName, refName, std::vector<MIRType*>{arrayType});
+  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, fileName, refName,
+      MapleVector<MIRType*>({arrayType}, allocator.Adapter()));
 
   ASTDeclRefExpr *astRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
   astRefExpr->SetASTDecl(astDecl); // astDecl is var
@@ -641,7 +659,8 @@ TEST_F(AstExprTest, InitListExpr_Array) {
   const std::string &refName = "arr";
   MIRArrayType *arrayType = static_cast<MIRArrayType*>(
       GlobalTables::GetTypeTable().GetOrCreateArrayType(*GlobalTables::GetTypeTable().GetDouble(), 4));
-  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, fileName, refName, std::vector<MIRType*>{arrayType});
+  ASTDecl *astDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, fileName, refName,
+      MapleVector<MIRType*>({arrayType}, allocator.Adapter()));
 
   ASTDeclRefExpr *astRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
   astRefExpr->SetASTDecl(astDecl); // astDecl is var
@@ -686,7 +705,7 @@ TEST_F(AstExprTest, InitListExpr_Array) {
   MIRArrayType *arrayMulDimType = static_cast<MIRArrayType*>(
       GlobalTables::GetTypeTable().GetOrCreateArrayType(*GlobalTables::GetTypeTable().GetDouble(), 2, arraySize));
   ASTDecl *astMulDimDecl = ASTDeclsBuilder::ASTDeclBuilder(allocator, fileName, "xxx",
-                                                           std::vector<MIRType*>{arrayMulDimType});
+      MapleVector<MIRType*>({arrayMulDimType}, allocator.Adapter()));
   ASTDeclRefExpr *astMulDimRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
   astMulDimRefExpr->SetASTDecl(astMulDimDecl); // astDecl is var
   astMulDimRefExpr->SetType(arrayMulDimType);

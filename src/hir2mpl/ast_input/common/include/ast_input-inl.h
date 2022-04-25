@@ -27,7 +27,7 @@ template<class T>
 bool ASTInput<T>::ReadASTFile(MapleAllocator &allocatorIn, uint32 index, const std::string &fileName) {
   T *parser = allocator.GetMemPool()->New<T>(allocator, index, fileName,
                                              astStructs, astFuncs, astVars, astFileScopeAsms);
-  TRY_DO(parser->OpenFile());
+  TRY_DO(parser->OpenFile(allocatorIn));
   TRY_DO(parser->Verify());
   TRY_DO(parser->PreProcessAST());
   // Some implicit record decl would be retrieved in func body at use,

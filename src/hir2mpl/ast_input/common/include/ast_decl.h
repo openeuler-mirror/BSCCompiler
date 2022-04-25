@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -45,15 +45,15 @@ struct BoundaryInfo {
 
 class ASTDecl {
  public:
-  ASTDecl(const std::string &srcFile, const std::string &nameIn, const std::vector<MIRType*> &typeDescIn)
+  ASTDecl(const std::string &srcFile, const std::string &nameIn, const MapleVector<MIRType*> &typeDescIn)
       : isGlobalDecl(false), srcFileName(srcFile), name(nameIn), typeDesc(typeDescIn) {
         isDbgFriendly = FEOptions::GetInstance().IsDbgFriendly();
       }
   virtual ~ASTDecl() = default;
   const std::string &GetSrcFileName() const;
   const std::string &GetName() const;
-  const std::vector<MIRType*> &GetTypeDesc() const;
-  void SetTypeDesc(const std::vector<MIRType*> &typeVecIn);
+  const MapleVector<MIRType*> &GetTypeDesc() const;
+  void SetTypeDesc(const MapleVector<MIRType*> &typeVecIn);
   GenericAttrs GetGenericAttrs() const {
     return genAttrs;
   }
@@ -176,8 +176,9 @@ class ASTDecl {
   bool isDbgFriendly = false;
   uint32 align = 1; // in byte
   const std::string srcFileName;
+
   std::string name;
-  std::vector<MIRType*> typeDesc;
+  MapleVector<MIRType*> typeDesc;
   GenericAttrs genAttrs;
   Pos pos = { 0, 0 };
   uint32 srcFileIdx = 0;
@@ -190,7 +191,7 @@ class ASTDecl {
 
 class ASTField : public ASTDecl {
  public:
-  ASTField(const std::string &srcFile, const std::string &nameIn, const std::vector<MIRType*> &typeDescIn,
+  ASTField(const std::string &srcFile, const std::string &nameIn, const MapleVector<MIRType*> &typeDescIn,
            const GenericAttrs &genAttrsIn, bool isAnonymous = false)
       : ASTDecl(srcFile, nameIn, typeDescIn), isAnonymousField(isAnonymous) {
     genAttrs = genAttrsIn;
@@ -207,8 +208,8 @@ class ASTField : public ASTDecl {
 
 class ASTFunc : public ASTDecl {
  public:
-  ASTFunc(const std::string &srcFile, const std::string &nameIn, const std::vector<MIRType*> &typeDescIn,
-          const GenericAttrs &genAttrsIn, const std::vector<ASTDecl*> &paramDeclsIn)
+  ASTFunc(const std::string &srcFile, const std::string &nameIn, const MapleVector<MIRType*> &typeDescIn,
+          const GenericAttrs &genAttrsIn, const MapleVector<ASTDecl*> &paramDeclsIn)
       : ASTDecl(srcFile, nameIn, typeDescIn), compound(nullptr), paramDecls(paramDeclsIn) {
     genAttrs = genAttrsIn;
     declKind = kASTFunc;
@@ -219,7 +220,7 @@ class ASTFunc : public ASTDecl {
   void SetCompoundStmt(ASTStmt*);
   void InsertStmtsIntoCompoundStmtAtFront(const std::list<ASTStmt*> &stmts);
   const ASTStmt *GetCompoundStmt() const;
-  const std::vector<ASTDecl*> &GetParamDecls() const {
+  const MapleVector<ASTDecl*> &GetParamDecls() const {
     return paramDecls;
   }
   std::vector<std::unique_ptr<FEIRVar>> GenArgVarList() const;
@@ -246,16 +247,17 @@ class ASTFunc : public ASTDecl {
  private:
   // typeDesc format: [funcType, retType, arg0, arg1 ... argN]
   ASTStmt *compound = nullptr;  // func body
-  std::vector<ASTDecl*> paramDecls;
+  MapleVector<ASTDecl*> paramDecls;
   std::pair<bool, std::string> weakrefAttr;
   uint32 bodySize = 0;
 };
 
 class ASTStruct : public ASTDecl {
  public:
-  ASTStruct(const std::string &srcFile, const std::string &nameIn, const std::vector<MIRType*> &typeDescIn,
-            const GenericAttrs &genAttrsIn)
-      : ASTDecl(srcFile, nameIn, typeDescIn), isUnion(false) {
+  ASTStruct(MapleAllocator &allocatorIn, const std::string &srcFile, const std::string &nameIn,
+            const MapleVector<MIRType*> &typeDescIn, const GenericAttrs &genAttrsIn)
+      : ASTDecl(srcFile, nameIn, typeDescIn),
+        isUnion(false), fields(allocatorIn.Adapter()), methods(allocatorIn.Adapter()) {
     genAttrs = genAttrsIn;
     declKind = kASTStruct;
   }
@@ -267,7 +269,7 @@ class ASTStruct : public ASTDecl {
     fields.emplace_back(f);
   }
 
-  const std::list<ASTField*> &GetFields() const {
+  const MapleList<ASTField*> &GetFields() const {
     return fields;
   }
 
@@ -281,13 +283,13 @@ class ASTStruct : public ASTDecl {
 
  private:
   bool isUnion = false;
-  std::list<ASTField*> fields;
-  std::list<ASTFunc*> methods;
+  MapleList<ASTField*> fields;
+  MapleList<ASTFunc*> methods;
 };
 
 class ASTVar : public ASTDecl {
  public:
-  ASTVar(const std::string &srcFile, const std::string &nameIn, const std::vector<MIRType*> &typeDescIn,
+  ASTVar(const std::string &srcFile, const std::string &nameIn, const MapleVector<MIRType*> &typeDescIn,
          const GenericAttrs &genAttrsIn)
       : ASTDecl(srcFile, nameIn, typeDescIn) {
     genAttrs = genAttrsIn;
@@ -330,8 +332,8 @@ class ASTVar : public ASTDecl {
 
 class ASTFileScopeAsm : public ASTDecl {
  public:
-  ASTFileScopeAsm(const std::string &srcFile)
-      : ASTDecl(srcFile, "", std::vector<MIRType*>{}) {
+  ASTFileScopeAsm(MapleAllocator &allocatorIn, const std::string &srcFile)
+      : ASTDecl(srcFile, "", MapleVector<MIRType*>(allocatorIn.Adapter())) {
     declKind = kASTFileScopeAsm;
   }
   ~ASTFileScopeAsm() = default;
@@ -350,7 +352,7 @@ class ASTFileScopeAsm : public ASTDecl {
 
 class ASTEnumConstant : public ASTDecl {
  public:
-  ASTEnumConstant(const std::string &srcFile, const std::string &nameIn, const std::vector<MIRType*> &typeDescIn,
+  ASTEnumConstant(const std::string &srcFile, const std::string &nameIn, const MapleVector<MIRType*> &typeDescIn,
          const GenericAttrs &genAttrsIn)
       : ASTDecl(srcFile, nameIn, typeDescIn) {
     genAttrs = genAttrsIn;
@@ -369,7 +371,7 @@ class ASTEnumConstant : public ASTDecl {
 // only process local `EnumDecl` here
 class ASTEnumDecl : public ASTDecl {
  public:
-  ASTEnumDecl(const std::string &srcFile, const std::string &nameIn, const std::vector<MIRType*> &typeDescIn,
+  ASTEnumDecl(const std::string &srcFile, const std::string &nameIn, const MapleVector<MIRType*> &typeDescIn,
           const GenericAttrs &genAttrsIn)
       : ASTDecl(srcFile, nameIn, typeDescIn) {
     genAttrs = genAttrsIn;

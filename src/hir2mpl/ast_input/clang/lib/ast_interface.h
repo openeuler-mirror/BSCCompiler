@@ -31,10 +31,45 @@ enum AccessKind {
   kPrivate,
   kNone
 };
-typedef std::unordered_map<clang::attr::Kind, std::string> AttributesMap;
+const std::unordered_map<clang::attr::Kind, std::string> unsupportedFuncAttrsMap = {
+  {clang::attr::NoInstrumentFunction, "no_instrument_function"},
+  {clang::attr::StdCall, "stdcall"},
+  {clang::attr::CDecl, "cdecl"},
+  {clang::attr::MipsLongCall, "mips_long_call"},
+  {clang::attr::MipsShortCall, "mips_short_call"},
+  {clang::attr::ARMInterrupt, "arm_interrupt"},
+  {clang::attr::AnyX86Interrupt, "x86_interrupt"},
+  {clang::attr::Naked, "naked"},
+  {clang::attr::AllocAlign, "alloc_align"},
+  {clang::attr::AssumeAligned, "assume_aligned"},
+  {clang::attr::Flatten, "flatten"},
+  {clang::attr::GNUInline, "gnu_inline"},
+  {clang::attr::Cold, "cold"},
+  {clang::attr::IFunc, "ifunc"},
+  {clang::attr::NoSanitize, "no_sanitize"},
+  {clang::attr::NoSplitStack, "no_split_stack"},
+  {clang::attr::PatchableFunctionEntry, "patchable_function_entry"},
+  {clang::attr::Target, "target"}
+};
+const std::unordered_map<clang::attr::Kind, std::string> unsupportedVarAttrsMap = {
+  {clang::attr::Mode, "mode"},
+  {clang::attr::NoCommon, "nocommon"},
+  {clang::attr::TransparentUnion, "transparent_union"},
+  {clang::attr::Alias, "alias"},
+  {clang::attr::Cleanup, "cleanup"},
+  {clang::attr::Common, "common"},
+  {clang::attr::Uninitialized, "uninitialized"}
+};
+const std::unordered_map<clang::attr::Kind, std::string> unsupportedTypeAttrsMap = {
+  {clang::attr::MSStruct, "ms_struct"}
+};
+
 class LibAstFile {
  public:
-  explicit LibAstFile(MapleList<clang::Decl*> &recordDeclesIn) : recordDecles(recordDeclesIn) {}
+  explicit LibAstFile(MapleAllocator &allocatorIn, MapleList<clang::Decl*> &recordDeclesIn)
+      : recordDeclMap(allocatorIn.Adapter()), recordDeclSet(allocatorIn.Adapter()),
+        unnamedSymbolMap(allocatorIn.Adapter()), CompoundLiteralExprInitSymbolMap(allocatorIn.Adapter()),
+        recordDecles(recordDeclesIn) {}
   ~LibAstFile() = default;
 
   bool Open(const std::string &fileName,
@@ -101,11 +136,11 @@ class LibAstFile {
   uint32 RetrieveAggTypeAlign(const clang::Type *ty) const;
 
  private:
-  using RecordDeclMap = std::map<TyIdx, const clang::RecordDecl*>;
+  using RecordDeclMap = MapleMap<TyIdx, const clang::RecordDecl*>;
   RecordDeclMap recordDeclMap;
-  std::set<const clang::RecordDecl*> recordDeclSet;
-  std::map<uint32_t, std::string> unnamedSymbolMap;
-  std::map<uint32_t, std::string> CompoundLiteralExprInitSymbolMap;
+  MapleSet<const clang::RecordDecl*> recordDeclSet;
+  MapleMap<uint32_t, std::string> unnamedSymbolMap;
+  MapleMap<uint32_t, std::string> CompoundLiteralExprInitSymbolMap;
   MIRModule *module = nullptr;
 
   MapleList<clang::Decl*> &recordDecles;
@@ -114,38 +149,6 @@ class LibAstFile {
   clang::TranslationUnitDecl *astUnitDecl = nullptr;
   clang::MangleContext *mangleContext = nullptr;
   std::string astFileName;
-  const AttributesMap unsupportedFuncAttrsMap = {
-    {clang::attr::NoInstrumentFunction, "no_instrument_function"},
-    {clang::attr::StdCall, "stdcall"},
-    {clang::attr::CDecl, "cdecl"},
-    {clang::attr::MipsLongCall, "mips_long_call"},
-    {clang::attr::MipsShortCall, "mips_short_call"},
-    {clang::attr::ARMInterrupt, "arm_interrupt"},
-    {clang::attr::AnyX86Interrupt, "x86_interrupt"},
-    {clang::attr::Naked, "naked"},
-    {clang::attr::AllocAlign, "alloc_align"},
-    {clang::attr::AssumeAligned, "assume_aligned"},
-    {clang::attr::Flatten, "flatten"},
-    {clang::attr::GNUInline, "gnu_inline"},
-    {clang::attr::Cold, "cold"},
-    {clang::attr::IFunc, "ifunc"},
-    {clang::attr::NoSanitize, "no_sanitize"},
-    {clang::attr::NoSplitStack, "no_split_stack"},
-    {clang::attr::PatchableFunctionEntry, "patchable_function_entry"},
-    {clang::attr::Target, "target"}
-  };
-  const AttributesMap unsupportedVarAttrsMap = {
-    {clang::attr::Mode, "mode"},
-    {clang::attr::NoCommon, "nocommon"},
-    {clang::attr::TransparentUnion, "transparent_union"},
-    {clang::attr::Alias, "alias"},
-    {clang::attr::Cleanup, "cleanup"},
-    {clang::attr::Common, "common"},
-    {clang::attr::Uninitialized, "uninitialized"}
-  };
-  const AttributesMap unsupportedTypeAttrsMap = {
-    {clang::attr::MSStruct, "ms_struct"}
-  };
 };
 } // namespace maple
 #endif // HIR2MPL_AST_FILE_INCLUDE_AST_INTERFACE_H

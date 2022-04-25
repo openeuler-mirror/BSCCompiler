@@ -48,7 +48,7 @@ void ASTCompoundStmt::InsertASTStmtsAtFront(const std::list<ASTStmt*> &stmts) {
   astStmts.insert(astStmts.begin(), stmts.begin(), stmts.end());
 }
 
-const std::list<ASTStmt*> &ASTCompoundStmt::GetASTStmtList() const {
+const MapleList<ASTStmt*> &ASTCompoundStmt::GetASTStmtList() const {
   return astStmts;
 }
 
@@ -578,6 +578,22 @@ std::list<UniqueFEIRStmt> ASTGenericSelectionExprStmt::Emit2FEStmtImpl() const {
     auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
     stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
+  }
+  return stmts;
+}
+
+std::list<UniqueFEIRStmt> ASTDeclRefExprStmt::Emit2FEStmtImpl() const {
+  std::list<UniqueFEIRStmt> stmts;
+  for (auto expr : exprs) {
+    (void)expr->Emit2FEExpr(stmts);
+  }
+  return stmts;
+}
+
+std::list<UniqueFEIRStmt> ASTUnaryExprOrTypeTraitExprStmt::Emit2FEStmtImpl() const {
+  std::list<UniqueFEIRStmt> stmts;
+  for (auto expr : exprs) {
+    (void)expr->Emit2FEExpr(stmts);
   }
   return stmts;
 }

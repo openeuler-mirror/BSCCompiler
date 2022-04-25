@@ -23,6 +23,13 @@ cflags += [
   "-DJAVA_OBJ_IN_MFILE=1",
 ]
 
+if (ONLY_C == 1) {
+  cflags += [
+    "-w",
+    "-DONLY_C",
+  ]
+}
+
 if (MAST == 1) {
   cflags += [
     "-w",
@@ -151,10 +158,7 @@ executable("hir2mpl") {
   deps = [
     ":lib_hir2mpl_ast_input_clang",
     ":lib_hir2mpl_ast_input_common",
-    ":lib_hir2mpl_bytecode_input_common",
-    ":lib_hir2mpl_bytecode_input_dex",
     ":lib_hir2mpl_input_helper",
-    ":lib_hir2mpl_bytecode_input_class",
     ":lib_hir2mpl_common",
     ":lib_hir2mpl_optimize",
     "${MAPLEALL_ROOT}/maple_driver:libdriver_option",
@@ -164,6 +168,15 @@ executable("hir2mpl") {
     "${MAPLEALL_ROOT}/mpl2mpl:libmpl2mpl",
     "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
   ]
+
+  if (ONLY_C != 1) {
+    deps += [
+      ":lib_hir2mpl_bytecode_input_common",
+      ":lib_hir2mpl_bytecode_input_dex",
+      ":lib_hir2mpl_bytecode_input_class",
+    ]
+  }
+
   if (MAST == 1) {
     deps += [
       ":lib_hir2mpl_ast_input_maple",
@@ -218,96 +231,98 @@ static_library("lib_hir2mpl_bytecode_input_class") {
   output_dir = "${root_out_dir}/ar"
 }
 
-include_bytecode_input_common_directories = [
-  "${HIR2MPL_ROOT}/common/include",
-  "${HIR2MPL_ROOT}/optimize/include",
-  "${HIR2MPL_ROOT}/bytecode_input/common/include",
-  "${HIR2MPL_ROOT}/bytecode_input/dex/include",
-  "${MAPLEALL_ROOT}/maple_ir/include",
-  "${MAPLEALL_ROOT}/maple_util/include",
-  "${MAPLEALL_ROOT}/maple_driver/include",
-  "${MAPLEALL_ROOT}/mempool/include",
-  "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
-]
-
-static_library("lib_hir2mpl_bytecode_input_common") {
-  sources = [
-    "${HIR2MPL_ROOT}/bytecode_input/common/src/ark_annotation_map.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/common/src/ark_annotation_processor.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_class.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_class2fe_helper.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_function.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_instruction.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_io.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_parser_base.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_pragma.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_util.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/common/src/rc_setter.cpp",
-  ]
-  include_dirs = include_bytecode_input_common_directories
-  output_dir = "${root_out_dir}/ar"
-}
-
-include_bytecode_input_dex_directories = [
-  "${HIR2MPL_ROOT}/common/include",
-  "${HIR2MPL_ROOT}/optimize/include",
-  "${HIR2MPL_ROOT}/bytecode_input/common/include",
-  "${HIR2MPL_ROOT}/bytecode_input/dex/include",
-  "${MAPLEALL_ROOT}/maple_ir/include",
-  "${MAPLEALL_ROOT}/maple_util/include",
-  "${MAPLEALL_ROOT}/maple_driver/include",
-  "${MAPLEALL_ROOT}/mempool/include",
-  "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
-]
-
-static_library("lib_hir2mpl_bytecode_input_dex") {
-  sources = [
-    "${HIR2MPL_ROOT}/bytecode_input/dex/src/class_linker.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/dex/src/class_loader_context.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_class.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_class2fe_helper.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_encode_value.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_file_util.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_op.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_pragma.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_strfac.cpp",
+if (ONLY_C != 1) {
+  include_bytecode_input_common_directories = [
+    "${HIR2MPL_ROOT}/common/include",
+    "${HIR2MPL_ROOT}/optimize/include",
+    "${HIR2MPL_ROOT}/bytecode_input/common/include",
+    "${HIR2MPL_ROOT}/bytecode_input/dex/include",
+    "${MAPLEALL_ROOT}/maple_ir/include",
+    "${MAPLEALL_ROOT}/maple_util/include",
+    "${MAPLEALL_ROOT}/maple_driver/include",
+    "${MAPLEALL_ROOT}/mempool/include",
+    "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
   ]
 
-  # for libdexfile
-  include_dirs_dex = [ "${THIRD_PARTY_ROOT}/aosp_modified/system/core/include" ]
-  include_dirs_libdexfile = [
-    #for libdexfile -start
-    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/liblog/include",
-    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/libutils/include",
-    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/base/include",
-    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/libziparchive/include",
-    "${THIRD_PARTY_ROOT}/aosp_modified/art/libartpalette/include",
-    "${THIRD_PARTY_ROOT}/aosp_modified/art/libartbase",
-    "${THIRD_PARTY_ROOT}/aosp_modified/art/libdexfile",
-    "${THIRD_PARTY_ROOT}/aosp_modified/include",
-    "${THIRD_PARTY_ROOT}/aosp_modified/libnativehelper/include_jni",
+  static_library("lib_hir2mpl_bytecode_input_common") {
+    sources = [
+      "${HIR2MPL_ROOT}/bytecode_input/common/src/ark_annotation_map.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/common/src/ark_annotation_processor.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_class.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_class2fe_helper.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_function.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_instruction.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_io.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_parser_base.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_pragma.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_util.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/common/src/rc_setter.cpp",
+    ]
+    include_dirs = include_bytecode_input_common_directories
+    output_dir = "${root_out_dir}/ar"
+  }
 
-    #for libdexfile -end
+  include_bytecode_input_dex_directories = [
+    "${HIR2MPL_ROOT}/common/include",
+    "${HIR2MPL_ROOT}/optimize/include",
+    "${HIR2MPL_ROOT}/bytecode_input/common/include",
+    "${HIR2MPL_ROOT}/bytecode_input/dex/include",
+    "${MAPLEALL_ROOT}/maple_ir/include",
+    "${MAPLEALL_ROOT}/maple_util/include",
+    "${MAPLEALL_ROOT}/maple_driver/include",
+    "${MAPLEALL_ROOT}/mempool/include",
+    "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
   ]
 
-  sources += [
-    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_parser.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_reader.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dexfile_factory.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dexfile_interface.cpp",
-    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dexfile_libdexfile.cpp",
-  ]
-  deps_libdexfile = [
-    "${THIRD_PARTY_ROOT}/aosp_modified/art/libdexfile:libdexfile",
-    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/libziparchive:libziparchive",
-    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/base:libbase",
-  ]
-  lib_dex = [ "${THIRD_PARTY_ROOT}/aosp_modified/system/core/liblog/liblog.a" ]
-  deps = deps_libdexfile
-  libs = lib_dex
-  include_dirs =
-      include_bytecode_input_dex_directories + include_dirs_libdexfile + include_dirs_dex
-  output_dir = "${root_out_dir}/ar"
+  static_library("lib_hir2mpl_bytecode_input_dex") {
+    sources = [
+      "${HIR2MPL_ROOT}/bytecode_input/dex/src/class_linker.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/dex/src/class_loader_context.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_class.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_class2fe_helper.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_encode_value.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_file_util.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_op.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_pragma.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_strfac.cpp",
+    ]
+
+    # for libdexfile
+    include_dirs_dex = [ "${THIRD_PARTY_ROOT}/aosp_modified/system/core/include" ]
+    include_dirs_libdexfile = [
+      #for libdexfile -start
+      "${THIRD_PARTY_ROOT}/aosp_modified/system/core/liblog/include",
+      "${THIRD_PARTY_ROOT}/aosp_modified/system/core/libutils/include",
+      "${THIRD_PARTY_ROOT}/aosp_modified/system/core/base/include",
+      "${THIRD_PARTY_ROOT}/aosp_modified/system/core/libziparchive/include",
+      "${THIRD_PARTY_ROOT}/aosp_modified/art/libartpalette/include",
+      "${THIRD_PARTY_ROOT}/aosp_modified/art/libartbase",
+      "${THIRD_PARTY_ROOT}/aosp_modified/art/libdexfile",
+      "${THIRD_PARTY_ROOT}/aosp_modified/include",
+      "${THIRD_PARTY_ROOT}/aosp_modified/libnativehelper/include_jni",
+
+      #for libdexfile -end
+    ]
+
+    sources += [
+      "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_parser.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_reader.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/dex/src/dexfile_factory.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/dex/src/dexfile_interface.cpp",
+      "${HIR2MPL_ROOT}/bytecode_input/dex/src/dexfile_libdexfile.cpp",
+    ]
+    deps_libdexfile = [
+      "${THIRD_PARTY_ROOT}/aosp_modified/art/libdexfile:libdexfile",
+      "${THIRD_PARTY_ROOT}/aosp_modified/system/core/libziparchive:libziparchive",
+      "${THIRD_PARTY_ROOT}/aosp_modified/system/core/base:libbase",
+    ]
+    lib_dex = [ "${THIRD_PARTY_ROOT}/aosp_modified/system/core/liblog/liblog.a" ]
+    deps = deps_libdexfile
+    libs = lib_dex
+    include_dirs =
+        include_bytecode_input_dex_directories + include_dirs_libdexfile + include_dirs_dex
+    output_dir = "${root_out_dir}/ar"
+  }
 }
 
 static_library("lib_hir2mpl_ast_input_clang_lib") {

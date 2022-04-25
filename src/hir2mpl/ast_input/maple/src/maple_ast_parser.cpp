@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -97,7 +97,7 @@ ASTDecl *MapleASTParser::ProcessDeclIdentifierNode(MapleAllocator &allocator, ma
   }
   GenericAttrs attrs;
   astVar = ASTDeclsBuilder::ASTVarBuilder(
-      allocator, fileName, varName, std::vector<MIRType*>{varType}, attrs, identifierDecl->GetNodeId());
+      allocator, fileName, varName, MapleVector<MIRType*>{varType}, attrs, identifierDecl->GetNodeId());
 
   if (identifierDecl->GetInit() != nullptr) {
     auto astInitExpr = ProcessExpr(allocator, identifierDecl->GetInit());
@@ -129,7 +129,7 @@ ASTDecl *MapleASTParser::ProcessDeclFunctionNode(MapleAllocator &allocator, mapl
     return nullptr;
   }
 
-  std::vector<MIRType*> typeDescIn;
+  MapleVector<MIRType*> typeDescIn;
   typeDescIn.push_back(nullptr); // mirFuncType
   MIRType *retType = astFile->MapType(funcDecl->GetType());
   if (retType == nullptr) {
@@ -137,7 +137,7 @@ ASTDecl *MapleASTParser::ProcessDeclFunctionNode(MapleAllocator &allocator, mapl
   }
   typeDescIn.push_back(retType);
 
-  std::vector<ASTDecl*> paramDecls;
+  MapleVector<ASTDecl*> paramDecls;
   uint32 numParam = funcDecl->GetParamsNum();
   for (uint32 i = 0; i < numParam; ++i) {
     maplefe::TreeNode *param = funcDecl->GetParam(i);

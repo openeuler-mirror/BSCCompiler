@@ -62,12 +62,17 @@ executable("hir2mplUT") {
     "${MAPLEALL_ROOT}/mpl2mpl:libmpl2mpl",
     "${HIR2MPL_ROOT}:lib_hir2mpl_ast_input_clang",
     "${HIR2MPL_ROOT}:lib_hir2mpl_ast_input_common",
-    "${HIR2MPL_ROOT}:lib_hir2mpl_bytecode_input_common",
     "${HIR2MPL_ROOT}:lib_hir2mpl_common",
     "${HIR2MPL_ROOT}:lib_hir2mpl_optimize",
-    "${HIR2MPL_ROOT}:lib_hir2mpl_bytecode_input_dex",
-    "${HIR2MPL_ROOT}:lib_hir2mpl_bytecode_input_class",
   ]
+
+  if (ONLY_C != 1) {
+    deps += [
+      "${HIR2MPL_ROOT}:lib_hir2mpl_bytecode_input_dex",
+      "${HIR2MPL_ROOT}:lib_hir2mpl_bytecode_input_common",
+      "${HIR2MPL_ROOT}:lib_hir2mpl_bytecode_input_class",
+    ]
+  }
 
   ldflags = [
     "-rdynamic",

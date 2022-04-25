@@ -17,12 +17,44 @@
 #include <string>
 #include <vector>
 #include "feir_type.h"
+#include "global_tables.h"
+#include "types_def.h"
 
 namespace maple {
 class FEUtilJava {
  public:
   static std::vector<std::string> SolveMethodSignature(const std::string &signature);
   static std::string SolveParamNameInJavaFormat(const std::string &signature);
+
+  static GStrIdx &GetMultiANewArrayClassIdx() {
+    static GStrIdx multiANewArrayClassIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
+        namemangler::EncodeName("Ljava/lang/reflect/Array;"));
+    return multiANewArrayClassIdx;
+  }
+
+  static GStrIdx &GetMultiANewArrayElemIdx() {
+    static GStrIdx multiANewArrayElemIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
+        namemangler::EncodeName("newInstance"));
+    return multiANewArrayElemIdx;
+  }
+
+  static GStrIdx &GetMultiANewArrayTypeIdx() {
+    static GStrIdx multiANewArrayTypeIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
+        namemangler::EncodeName("(Ljava/lang/Class;[I)Ljava/lang/Object;"));
+    return multiANewArrayTypeIdx;
+  }
+
+  static GStrIdx &GetMultiANewArrayFullIdx() {
+    static GStrIdx multiANewArrayFullIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
+        namemangler::EncodeName("Ljava/lang/reflect/Array;|newInstance|(Ljava/lang/Class;[I)Ljava/lang/Object;"));
+    return multiANewArrayFullIdx;
+  }
+
+  static GStrIdx &GetJavaThrowableNameMplIdx() {
+    static GStrIdx javaThrowableNameMplIdx =
+        GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(namemangler::EncodeName( "Ljava/lang/Throwable;"));
+    return javaThrowableNameMplIdx;
+  }
 
  private:
   FEUtilJava() = default;
