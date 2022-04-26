@@ -79,6 +79,13 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
     ++i;
     ASSERT_NOT_NULL(func);
     if (SkipFuncForMe(m, *func, i - 1)) {
+      if (!func->IsEmpty()) {
+        // mir cg lower should not be skipped
+        MIRLower mirLower(m, func);
+        mirLower.SetLowerCG();
+        mirLower.SetMirFunc(func);
+        mirLower.LowerFunc(*func);
+      }
       continue;
     }
     if (userDefinedOptLevel == 2 && m.HasPartO2List()) {
