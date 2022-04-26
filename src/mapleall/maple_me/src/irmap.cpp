@@ -19,6 +19,8 @@
 #include "constantfold.h"
 #include "cast_opt.h"
 
+#include <optional>
+
 namespace maple {
 void IRMap::UpdateIncDecAttr(MeStmt &meStmt) {
   if (!kOpcodeInfo.AssignActualVar(meStmt.GetOp())) {
@@ -1698,6 +1700,175 @@ MeExpr *IRMap::SimplifyCmpExpr(OpMeExpr *cmpExpr) {
   return nullptr;
 }
 
+class BitPart {
+ public:
+  BitPart(MeExpr *p, uint32 bitwidth) : provider(p) {
+    provenance.resize(bitwidth);
+  }
+  MeExpr *provider;
+  std::vector<int8> provenance;
+
+  static constexpr int kUnset = -1;
+};
+
+static constexpr uint32 kBitPartRecursionMaxDepth = 64;
+
+const std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::optional<BitPart>> &bps,
+                                              int depth) {
+  auto iter = bps.find(expr);
+  if (iter != bps.end()) {
+    return iter->second;
+  }
+
+  std::optional<BitPart> &result = bps[expr];
+  if (depth > kBitPartRecursionMaxDepth) {
+    return result;
+  }
+  auto bitwidth = GetPrimTypeBitSize(expr->GetPrimType());
+  if (bitwidth % 16 != 0) {
+    return result;
+  }
+
+  auto opcode = expr->GetOp();
+  if (opcode == OP_bior) {
+    auto &res0 = CollectBitparts(expr->GetOpnd(0), bps, depth + 1);
+    auto &res1 = CollectBitparts(expr->GetOpnd(1), bps, depth + 1);
+    if (!res0 || !res1) {
+      return result;
+    }
+
+    if (!res0->provider || res0->provider != res1->provider) {
+      return result;
+    }
+
+    result = BitPart(res0->provider, bitwidth);
+    for (uint32 i = 0; i < res0->provenance.size(); ++i) {
+      if (res0->provenance[i] != BitPart::kUnset && res1->provenance[i] != BitPart::kUnset &&
+          res0->provenance[i] != res1->provenance[i]) {
+        return result = std::nullopt;
+      }
+
+      if (res0->provenance[i] == BitPart::kUnset) {
+        result->provenance[i] = res1->provenance[i];
+      } else {
+        result->provenance[i] = res0->provenance[i];
+      }
+    }
+
+    return result;
+  }
+
+  if (opcode == OP_band && expr->GetOpnd(1)->GetMeOp() == kMeOpConst) {
+    auto andMask = static_cast<ConstMeExpr *>(expr->GetOpnd(1))->GetIntValue();
+    if (__builtin_popcountll(andMask) % 8 != 0) {
+      return result;
+    }
+    auto &res = CollectBitparts(expr->GetOpnd(0), bps, depth + 1);
+    if (!res) {
+      return result;
+    }
+    result = res;
+
+    uint64 bit = 1;
+    for (uint8 i = 0; i < bitwidth; ++i, bit <<= 1) {
+      if ((andMask & bit) == 0) {
+        result->provenance[i] = BitPart::kUnset;
+      }
+    }
+
+    return result;
+  }
+  if (IsLogicalShift(opcode) && expr->GetOpnd(1)->GetMeOp() == kMeOpConst) {
+    auto bitShift = static_cast<ConstMeExpr *>(expr->GetOpnd(1))->GetIntValue();
+    if (bitShift > bitwidth) {
+      return result;
+    }
+
+    auto &res = CollectBitparts(expr->GetOpnd(0), bps, depth + 1);
+    if (!res) {
+      return result;
+    }
+    result = res;
+
+    auto &bitProvenance = result->provenance;
+    if (expr->GetOp() == OP_shl) {
+      bitProvenance.erase(std::prev(bitProvenance.end(), bitShift), bitProvenance.end());
+      bitProvenance.insert(bitProvenance.begin(), bitShift, BitPart::kUnset);
+    } else {
+      bitProvenance.erase(bitProvenance.begin(), std::next(bitProvenance.begin(), bitShift));
+      bitProvenance.insert(bitProvenance.end(), bitShift, BitPart::kUnset);
+    }
+
+    return result;
+  }
+
+  result = BitPart(expr, bitwidth);
+  for (uint8 i = 0; i < bitwidth; ++i) {
+    result->provenance[i] = i;
+  }
+  return result;
+}
+
+static bool bitMapIsValidForReverse(uint32 from, uint32 to, uint8 bitwidth) {
+  if (from % 8 != to % 8) {
+    return false;
+  }
+  from >>= 3;
+  to >>= 3;
+  bitwidth >>= 3;
+  return from == bitwidth - to - 1;
+}
+
+MeExpr *IRMap::SimplifyOrMeExpr(OpMeExpr *opmeexpr) {
+  Opcode opcode = opmeexpr->GetOp();
+  if (opcode != OP_bior) {
+    return nullptr;
+  }
+  auto bitwidth = GetPrimTypeBitSize(opmeexpr->GetPrimType());
+  MeExpr *opnd0 = opmeexpr->GetOpnd(0);
+  MeExpr *opnd1 = opmeexpr->GetOpnd(1);
+  Opcode opcode0 = opnd0->GetOp();
+  Opcode opcode1 = opnd1->GetOp();
+  bool OrOfOrs = (opcode0 == OP_bior) || (opcode1 == OP_bior);
+  bool OrOfShifts = IsLogicalShift(opcode0) && IsLogicalShift(opcode1);
+  bool OrOfAnds = (opcode0 == OP_band) && (opcode1 == OP_band);
+  bool OrOfAndAndsh =
+      (opcode0 == OP_band && IsLogicalShift(opcode1)) || (IsLogicalShift(opcode0) && opcode1 == OP_band);
+
+  if (!OrOfOrs && !OrOfShifts && !OrOfAnds && !OrOfAndAndsh) {
+    return nullptr;
+  }
+  std::map<MeExpr *, std::optional<BitPart>> bps;
+  auto res = CollectBitparts(opmeexpr, bps, 0);
+  if (!res) {
+    return nullptr;
+  }
+
+  auto &bitProvenance = res->provenance;
+
+  for (uint8 i = 0; i < bitwidth; ++i) {
+    if (!bitMapIsValidForReverse(i, bitProvenance[i], bitwidth)) {
+      return nullptr;
+    }
+  }
+
+  std::vector<MeExpr *> opnds;
+  opnds.push_back(res->provider);
+  std::unique_ptr<NaryMeExpr> revExpr;
+  if (opmeexpr->GetPrimType() == PTY_u32) {
+    revExpr.reset(
+        new NaryMeExpr(&irMapAlloc, kInvalidExprID, OP_intrinsicop, PTY_u32, 1, TyIdx(0), INTRN_C_rev32, false));
+    revExpr->PushOpnd(res->provider);
+  }
+  if (opmeexpr->GetPrimType() == PTY_u64) {
+    revExpr.reset(
+        new NaryMeExpr(&irMapAlloc, kInvalidExprID, OP_intrinsicop, PTY_u64, 1, TyIdx(0), INTRN_C_rev64, false));
+    revExpr->PushOpnd(res->provider);
+  }
+  auto result = CreateNaryMeExpr(*revExpr);
+  return result;
+}
+
 MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
   if (IsPrimitiveVector(opmeexpr->GetPrimType())) {
     return nullptr;
@@ -1819,7 +1990,12 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
     case OP_max:
     case OP_min:
     case OP_band:
-    case OP_bior:
+    case OP_bior: {
+      MeExpr *revexp = SimplifyOrMeExpr(opmeexpr);
+      if (revexp != nullptr) {
+        return revexp;
+      }
+    }
     case OP_bxor:
     case OP_cand:
     case OP_land:
