@@ -102,9 +102,7 @@ class ForwardPropPattern : public OptimizePattern {
  */
 class BackPropPattern : public OptimizePattern {
  public:
-  explicit BackPropPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {
-    globalProp = cgFunc.GetMirModule().IsCModule() && !cgFunc.IsAfterRegAlloc();
-  }
+  explicit BackPropPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
   ~BackPropPattern() override = default;
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;

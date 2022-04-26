@@ -22,8 +22,8 @@
 namespace maplebe{
 class AArch64Prop : public CGProp {
  public:
-  AArch64Prop(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo)
-      : CGProp(mp, f, sInfo){}
+  AArch64Prop(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo, LiveIntervalAnalysis &ll)
+      : CGProp(mp, f, sInfo, ll){}
   ~AArch64Prop() override = default;
 
   /* do not extend life range */
@@ -52,19 +52,19 @@ class A64StrLdrProp {
         cgDce(&dce) {}
   void DoOpt();
  private:
-  AArch64MemOperand *StrLdrPropPreCheck(const Insn &insn, MemPropMode prevMod = kUndef);
-  static MemPropMode SelectStrLdrPropMode(const  AArch64MemOperand &currMemOpnd);
-  bool ReplaceMemOpnd(const AArch64MemOperand &currMemOpnd, const Insn *defInsn);
-  AArch64MemOperand *SelectReplaceMem(const Insn &defInsn, const AArch64MemOperand &currMemOpnd);
-  AArch64RegOperand *GetReplaceReg(AArch64RegOperand &a64Reg);
-  AArch64MemOperand *HandleArithImmDef(AArch64RegOperand &replace, Operand *oldOffset, int64 defVal, uint32 memSize);
-  AArch64MemOperand *SelectReplaceExt(const Insn &defInsn, RegOperand &base, uint32 amount,
-                                      bool isSigned, uint32 memSize);
-  bool CheckNewMemOffset(const Insn &insn, AArch64MemOperand *newMemOpnd, uint32 opndIdx);
-  void DoMemReplace(const RegOperand &replacedReg, AArch64MemOperand &newMem, Insn &useInsn);
-  uint32 GetMemOpndIdx(AArch64MemOperand *newMemOpnd, const Insn &insn);
+  MemOperand *StrLdrPropPreCheck(const Insn &insn, MemPropMode prevMod = kUndef);
+  static MemPropMode SelectStrLdrPropMode(const  MemOperand &currMemOpnd);
+  bool ReplaceMemOpnd(const MemOperand &currMemOpnd, const Insn *defInsn);
+  MemOperand *SelectReplaceMem(const Insn &defInsn, const MemOperand &currMemOpnd);
+  RegOperand *GetReplaceReg(RegOperand &a64Reg);
+  MemOperand *HandleArithImmDef(RegOperand &replace, Operand *oldOffset, int64 defVal, uint32 memSize);
+  MemOperand *SelectReplaceExt(const Insn &defInsn, RegOperand &base, uint32 amount,
+                               bool isSigned, uint32 memSize);
+  bool CheckNewMemOffset(const Insn &insn, MemOperand *newMemOpnd, uint32 opndIdx);
+  void DoMemReplace(const RegOperand &replacedReg, MemOperand &newMem, Insn &useInsn);
+  uint32 GetMemOpndIdx(MemOperand *newMemOpnd, const Insn &insn);
 
-  bool CheckSameReplace(const RegOperand &replacedReg, const AArch64MemOperand *memOpnd);
+  bool CheckSameReplace(const RegOperand &replacedReg, const MemOperand *memOpnd);
 
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;
@@ -97,20 +97,20 @@ class A64ConstProp {
   static MOperator GetFoldMopAndVal(int64 &newVal, int64 constVal, Insn &arithInsn);
 
  private:
-  bool ConstProp(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd);
+  bool ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd);
   /* use xzr/wzr in aarch64 to shrink register live range */
   void ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg);
 
   /* replace old Insn with new Insn, update ssa info automatically */
   void ReplaceInsnAndUpdateSSA(Insn &oriInsn, Insn &newInsn);
-  AArch64ImmOperand *CanDoConstFold(const AArch64ImmOperand &value1, const AArch64ImmOperand &value2,
+  ImmOperand *CanDoConstFold(const ImmOperand &value1, const ImmOperand &value2,
                                     ArithmeticType aT, bool is64Bit);
 
   /* optimization */
-  bool MovConstReplace(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd);
-  bool ArithmeticConstReplace(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd, ArithmeticType aT);
-  bool ArithmeticConstFold(DUInsnInfo &useDUInfo, const AArch64ImmOperand &constOpnd, ArithmeticType aT);
-  bool ShiftConstReplace(DUInsnInfo &useDUInfo, const AArch64ImmOperand &constOpnd);
+  bool MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd);
+  bool ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT);
+  bool ArithmeticConstFold(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd, ArithmeticType aT);
+  bool ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd);
 
   MemPool *constPropMp;
   CGFunc *cgFunc;
@@ -120,7 +120,8 @@ class A64ConstProp {
 
 class CopyRegProp : public PropOptimizePattern {
  public:
-  CopyRegProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
+  CopyRegProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo, LiveIntervalAnalysis *ll)
+      : PropOptimizePattern(cgFunc, cgssaInfo, ll) {}
   ~CopyRegProp() override = default;
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
@@ -203,7 +204,7 @@ class FpSpConstProp : public PropOptimizePattern {
   int64 ArithmeticFold(int64 valInUse, ArithmeticType useAT) const;
 
   RegOperand *fpSpBase = nullptr;
-  AArch64ImmOperand *shiftOpnd = nullptr;
+  ImmOperand *shiftOpnd = nullptr;
   ArithmeticType aT = kUndefArith;
   VRegVersion *replaced = nullptr;
 };

@@ -44,7 +44,11 @@ class Insn {
   static constexpr uint8 kMaxStackOffsetSize = 2;
 
   Insn(MemPool &memPool, MOperator opc)
-      : mOp(opc), localAlloc(&memPool), opnds(localAlloc.Adapter()), comment(&memPool) {}
+      : mOp(opc),
+        localAlloc(&memPool),
+        opnds(localAlloc.Adapter()),
+        registerBinding(localAlloc.Adapter()),
+        comment(&memPool) {}
   Insn(MemPool &memPool, MOperator opc, Operand &opnd0) : Insn(memPool, opc) { opnds.emplace_back(&opnd0); }
   Insn(MemPool &memPool, MOperator opc, Operand &opnd0, Operand &opnd1) : Insn(memPool, opc) {
     opnds.emplace_back(&opnd0);
@@ -149,10 +153,6 @@ class Insn {
     return false;
   }
 
-  virtual bool IsUseSpecReg() const {
-    return false;
-  }
-
   virtual bool IsEffectiveCopy() const {
     return false;
   }
@@ -208,9 +208,7 @@ class Insn {
     return false;
   }
 
-  virtual bool IsCall() const {
-    return false;
-  }
+  virtual bool IsCall() const;
 
   virtual bool IsAsmInsn() const {
     return false;
@@ -268,9 +266,7 @@ class Insn {
     return false;
   }
 
-  virtual bool IsCondBranch() const {
-    return false;
-  }
+  virtual bool IsCondBranch() const;
 
   virtual bool IsUnCondBranch() const {
     return false;
@@ -284,6 +280,10 @@ class Insn {
 
   virtual bool IsBasicOp() const;
 
+  virtual bool IsUnaryOp() const;
+
+  virtual bool IsShift() const;
+
   virtual bool IsPhi() const{
     return false;
   }
@@ -291,6 +291,8 @@ class Insn {
   virtual bool IsLoad() const;
 
   virtual bool IsStore() const;
+
+  virtual bool IsConversion() const;
 
   virtual bool IsLoadPair() const {
     return false;
@@ -451,8 +453,6 @@ class Insn {
   }
 
 #if TARGAARCH64 || TARGRISCV64
-  virtual void Emit(const CG&, Emitter&) const = 0;
-
   virtual void Dump() const = 0;
 #else
   virtual void Dump() const;
@@ -744,6 +744,14 @@ class Insn {
     return md;
   }
 
+  void AddRegBinding(uint32 regA, uint32 regB) {
+    registerBinding.emplace(regA, regB);
+  }
+
+  const MapleMap<uint32, uint32>& GetRegBinding() const {
+    return registerBinding;
+  }
+
  protected:
   MOperator mOp;
   MapleAllocator localAlloc;
@@ -755,6 +763,7 @@ class Insn {
   bool isPhiMovInsn = false;
 
  private:
+  MapleMap<uint32, uint32> registerBinding; /* used for inline asm only */
   enum OpKind : uint32 {
     kOpUnknown = 0,
     kOpCondDef = 0x1,
@@ -793,6 +802,7 @@ struct InsnIdCmp {
   }
 };
 using InsnSet = std::set<Insn*, InsnIdCmp>;
+using InsnMapleSet = MapleSet<Insn*, InsnIdCmp>;
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_INSN_H */

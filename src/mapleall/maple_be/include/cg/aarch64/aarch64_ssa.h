@@ -25,15 +25,18 @@ class AArch64CGSSAInfo : public CGSSAInfo {
   ~AArch64CGSSAInfo() override = default;
   void DumpInsnInSSAForm(const Insn &insn) const override;
   RegOperand *GetRenamedOperand(RegOperand &vRegOpnd, bool isDef, Insn &curInsn, uint32 idx) override;
-  AArch64MemOperand *CreateMemOperand(AArch64MemOperand &memOpnd, bool isOnSSA /* false = on cgfunc */);
+  MemOperand *CreateMemOperand(MemOperand &memOpnd, bool isOnSSA /* false = on cgfunc */);
   void ReplaceInsn(Insn &oriInsn, Insn &newInsn) override;
   void ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *newVersion) override;
   void CreateNewInsnSSAInfo(Insn &newInsn) override;
+  void SetValidBits(Insn &insn) override;
+  bool SetPhiValidBits(Insn &insn) override;
 
  private:
   void RenameInsn(Insn &insn) override;
   VRegVersion *RenamedOperandSpecialCase(RegOperand &vRegOpnd, Insn &curInsn, uint32 idx);
   RegOperand *CreateSSAOperand(RegOperand &virtualOpnd) override;
+  void CheckAsmDUbinding(Insn &insn, VRegVersion *toBeReplaced, VRegVersion *newVersion);
 };
 
 class A64SSAOperandRenameVisitor : public SSAOperandVisitor {

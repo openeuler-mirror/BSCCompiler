@@ -24,6 +24,7 @@
 #include "aarch64_live.h"
 #include "aarch64_args.h"
 #include "aarch64_alignment.h"
+#include "aarch64_reg_coalesce.h"
 
 namespace maplebe {
 constexpr int64 kShortBRDistance = (8 * 1024);
@@ -166,11 +167,14 @@ class AArch64CG : public CG {
   CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const override {
     return mp.New<AArch64CGSSAInfo>(f, da, mp, tmp);
   }
+  LiveIntervalAnalysis *CreateLLAnalysis(MemPool &mp, CGFunc &f) const override {
+    return mp.New<AArch64LiveIntervalAnalysis>(f, mp);
+  };
   PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
     return mp.New<AArch64PhiEliminate>(f, ssaInfo, mp);
   }
-  CGProp *CreateCGProp(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
-    return mp.New<AArch64Prop>(mp, f, ssaInfo);
+  CGProp *CreateCGProp(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo, LiveIntervalAnalysis &ll) const override {
+    return mp.New<AArch64Prop>(mp, f, ssaInfo, ll);
   }
   CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
     return mp.New<AArch64Dce>(mp, f, ssaInfo);

@@ -55,6 +55,7 @@ void PhiEliminate::TranslateTSSAToCSSA() {
     }
   }
   UpdateRematInfo();
+  cgFunc->SetSSAvRegCount(0);
 }
 
 void PhiEliminate::UpdateRematInfo() {

@@ -41,11 +41,13 @@ void CGSSAInfo::ConstructSSA() {
     }
   }
 #endif
+  RectifyValidBitNum();
+  cgFunc->SetSSAvRegCount(GetAllSSAOperands().size() + SSARegNObase + 1);
 }
 
 void CGSSAInfo::MarkInsnsInSSA(Insn &insn) {
   CHECK_FATAL(insn.GetId() == 0, "insn is not clean !!"); /* change to assert*/
-  insnCount++;
+  insnCount += 2;
   insn.SetId(static_cast<uint32>(insnCount));
 }
 
@@ -89,7 +91,17 @@ void CGSSAInfo::PrunedPhiInsertion(const BB &bb, RegOperand &virtualOpnd) {
       }
       Insn &phiInsn = codeGen->BuildPhiInsn(virtualOpnd, phiList);
       MarkInsnsInSSA(phiInsn);
-      phiBB->InsertInsnBegin(phiInsn);
+      bool insertSuccess = false;
+      FOR_BB_INSNS(insn, phiBB) {
+        if (insn->IsMachineInstruction()) {
+          phiBB->InsertInsnBefore(*insn, phiInsn);
+          insertSuccess = true;
+          break;
+        }
+      }
+      if (!insertSuccess) {
+       phiBB->InsertInsnBegin(phiInsn);
+      }
       phiBB->AddPhiInsn(vRegNO, phiInsn);
       PrunedPhiInsertion(*phiBB, virtualOpnd);
     }
@@ -216,6 +228,52 @@ VRegVersion *CGSSAInfo::FindSSAVersion(regno_t ssaRegNO) {
   return it != allSSAOperands.end() ? it->second : nullptr;
 }
 
+void CGSSAInfo::RectifyValidBitNum() {
+  FOR_ALL_BB(bb, cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      SetValidBits(*insn);
+    }
+  }
+  bool iterate;
+  /* Use inverse postorder to converge with minimal iterations */
+  MapleVector<BB*> &reversePostOrder = domInfo->GetReversePostOrder();
+  do {
+    iterate = false;
+    for (auto *bb : reversePostOrder) {
+      FOR_BB_INSNS(insn, bb) {
+        if (!insn->IsPhi()) {
+          continue;
+        }
+        bool change = SetPhiValidBits(*insn);
+        if (change) {
+          /* if vb changes once, iterate. */
+          iterate = true;
+        }
+      }
+    }
+  } while (iterate);
+}
+
+uint32 CGSSAInfo::GetImmValidBit(int64 value, uint32 size) const {
+  if (value < 0) {
+    return size;
+  }
+  if (value == 0) {
+    return k1BitSize;
+  }
+  uint32 pos = 0;
+  constexpr int64 mask = 1;
+  for (uint32 i = 0; i <= k8BitSize * sizeof(int); ++i, value >>= 1) {
+    if ((value & mask) == mask) {
+      pos = i + 1;
+    }
+  }
+  return pos;
+}
+
 void CGSSAInfo::DumpFuncCGIRinSSAForm() const {
   LogInfo::MapleLogger() << "\n******  SSA CGIR for " << cgFunc->GetName() << " *******\n";
   FOR_ALL_BB_CONST(bb, cgFunc) {
@@ -254,7 +312,6 @@ void CGSSAInfo::DumpFuncCGIRinSSAForm() const {
       if (insn->IsCfiInsn() && insn->IsDbgInsn()) {
         insn->Dump();
       } else {
-        CHECK_FATAL(!insn->IsDMBInsn(), "NYI");
         DumpInsnInSSAForm(*insn);
       }
     }
@@ -306,6 +363,7 @@ bool CgSSAConstruct::PhaseRun(maplebe::CGFunc &f) {
   liveInfo = GET_ANALYSIS(CgLiveAnalysis, f);
   ssaInfo = f.GetCG()->CreateCGSSAInfo(*ssaMemPool, f, *domInfo, *ssaTempMp);
   ssaInfo->ConstructSSA();
+
   if (CG_DEBUG_FUNC(f)) {
     LogInfo::MapleLogger() << "******** CG IR After ssaconstruct in ssaForm: *********" << "\n";
     ssaInfo->DumpFuncCGIRinSSAForm();
@@ -313,6 +371,8 @@ bool CgSSAConstruct::PhaseRun(maplebe::CGFunc &f) {
   if (liveInfo != nullptr) {
     liveInfo->ClearInOutDataInfo();
   }
+  /* due to change of register number */
+  GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLiveAnalysis::id);
   return true;
 }
 MAPLE_ANALYSIS_PHASE_REGISTER(CgSSAConstruct, cgssaconstruct) /* both transform & analysis */

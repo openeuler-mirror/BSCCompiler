@@ -20,15 +20,17 @@
 #include "cg_ssa.h"
 #include "cg_dce.h"
 #include "cg.h"
+#include "reg_coalesce.h"
 
 namespace maplebe {
 class CGProp {
  public:
-  CGProp(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo)
+  CGProp(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo, LiveIntervalAnalysis &ll)
       : memPool(&mp),
         cgFunc(&f),
         propAlloc(&mp),
-        ssaInfo(&sInfo) {
+        ssaInfo(&sInfo),
+        regll(&ll) {
     cgDce = f.GetCG()->CreateCGDce(mp, f, sInfo);
   }
   virtual ~CGProp() = default;
@@ -46,6 +48,9 @@ class CGProp {
   CGDce *GetDce() {
     return cgDce;
   }
+  LiveIntervalAnalysis *GetRegll() {
+    return regll;
+  }
 
  private:
   virtual void CopyProp() = 0;
@@ -53,26 +58,31 @@ class CGProp {
   virtual void PropPatternOpt() = 0;
   CGSSAInfo *ssaInfo;
   CGDce *cgDce = nullptr;
+  LiveIntervalAnalysis *regll;
 };
 
 class PropOptimizeManager {
  public:
-  PropOptimizeManager(CGFunc &cgFunc, CGSSAInfo *cgssaInfo)
-      : cgFunc(cgFunc),
-        optSsaInfo(cgssaInfo) {}
   ~PropOptimizeManager() = default;
   template<typename PropOptimizePattern>
-  void Optimize() {
-    PropOptimizePattern optPattern(cgFunc, optSsaInfo);
+  void Optimize(CGFunc &cgFunc, CGSSAInfo *cgssaInfo, LiveIntervalAnalysis *ll) {
+    PropOptimizePattern optPattern(cgFunc, cgssaInfo, ll);
     optPattern.Run();
   }
- private:
-  CGFunc &cgFunc;
-  CGSSAInfo *optSsaInfo;
+  template<typename PropOptimizePattern>
+  void Optimize(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) {
+    PropOptimizePattern optPattern(cgFunc, cgssaInfo);
+    optPattern.Run();
+  }
 };
 
 class PropOptimizePattern {
  public:
+  PropOptimizePattern(CGFunc &cgFunc, CGSSAInfo *cgssaInfo, LiveIntervalAnalysis *ll)
+      : cgFunc(cgFunc),
+        optSsaInfo(cgssaInfo),
+        regll(ll) {}
+
   PropOptimizePattern(CGFunc &cgFunc, CGSSAInfo *cgssaInfo)
       : cgFunc(cgFunc),
         optSsaInfo(cgssaInfo) {}
@@ -87,6 +97,7 @@ class PropOptimizePattern {
   virtual void Init() = 0;
   CGFunc &cgFunc;
   CGSSAInfo *optSsaInfo = nullptr;
+  LiveIntervalAnalysis *regll = nullptr;
 };
 
 class ReplaceRegOpndVisitor : public OperandVisitorBase,

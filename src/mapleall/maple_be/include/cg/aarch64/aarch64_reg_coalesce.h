@@ -19,28 +19,27 @@
 #include "live.h"
 
 namespace maplebe {
-class AArch64RegisterCoalesce : public RegisterCoalesce {
+class AArch64LiveIntervalAnalysis : public LiveIntervalAnalysis {
  public:
-  AArch64RegisterCoalesce(CGFunc &func, MemPool &memPool)
-      : RegisterCoalesce(func, memPool),
+  AArch64LiveIntervalAnalysis(CGFunc &func, MemPool &memPool)
+      : LiveIntervalAnalysis(func, memPool),
         vregLive(alloc.Adapter()),
         candidates(alloc.Adapter()) {}
 
-  ~AArch64RegisterCoalesce() override = default;
+  ~AArch64LiveIntervalAnalysis() override = default;
 
   void ComputeLiveIntervals() override;
   bool IsUnconcernedReg(const RegOperand &regOpnd) const;
   LiveInterval *GetOrCreateLiveInterval(regno_t regNO);
-  void UpdateCallInfo(uint32 bbId, uint32 currPoint);
+  void UpdateCallInfo();
   void SetupLiveIntervalByOp(Operand &op, Insn &insn, bool isDef);
   void ComputeLiveIntervalsForEachDefOperand(Insn &insn);
   void ComputeLiveIntervalsForEachUseOperand(Insn &insn);
-  void SetupLiveIntervalInLiveOut(regno_t liveOut, BB &bb, uint32 currPoint);
-  bool IsSimpleMov(Insn &insn);
+  void SetupLiveIntervalInLiveOut(regno_t liveOut, const BB &bb, uint32 currPoint);
   void CoalesceRegPair(RegOperand &regDest, RegOperand &regSrc);
   void CoalesceRegisters() override;
   void CollectMoveForEachBB(BB &bb, std::vector<Insn*> &movInsns);
-  void CoalesceMoves(std::vector<Insn*> &movInsns);
+  void CoalesceMoves(std::vector<Insn*> &movInsns, bool phiOnly);
   void CheckInterference(LiveInterval &li1, LiveInterval &li2);
   void CollectCandidate();
   std::string PhaseName() const {

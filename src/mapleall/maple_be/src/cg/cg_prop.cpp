@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "loop.h"
 #include "cg_prop.h"
 
 namespace maplebe {
@@ -40,24 +41,30 @@ void CGProp::DoTargetProp() {
 
 bool CgCopyProp::PhaseRun(maplebe::CGFunc &f) {
   CGSSAInfo *ssaInfo = GET_ANALYSIS(CgSSAConstruct, f);
-  CGProp *cgProp = f.GetCG()->CreateCGProp(*GetPhaseMemPool(),f, *ssaInfo);
+  LiveIntervalAnalysis *ll = GET_ANALYSIS(CGliveIntervalAnalysis, f);
+  CGProp *cgProp = f.GetCG()->CreateCGProp(*GetPhaseMemPool(),f, *ssaInfo, *ll);
   cgProp->DoCopyProp();
+  ll->ClearBFS();
   return false;
 }
 void CgCopyProp::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgSSAConstruct>();
+  aDep.AddRequired<CGliveIntervalAnalysis>();
   aDep.AddPreserved<CgSSAConstruct>();
 }
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgCopyProp, cgcopyprop)
 
 bool CgTargetProp::PhaseRun(maplebe::CGFunc &f) {
   CGSSAInfo *ssaInfo = GET_ANALYSIS(CgSSAConstruct, f);
-  CGProp *cgProp = f.GetCG()->CreateCGProp(*GetPhaseMemPool(),f, *ssaInfo);
+  LiveIntervalAnalysis *ll = GET_ANALYSIS(CGliveIntervalAnalysis, f);
+  CGProp *cgProp = f.GetCG()->CreateCGProp(*GetPhaseMemPool(),f, *ssaInfo, *ll);
   cgProp->DoTargetProp();
+  ll->ClearBFS();
   return false;
 }
 void CgTargetProp::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgSSAConstruct>();
+  aDep.AddRequired<CGliveIntervalAnalysis>();
   aDep.AddPreserved<CgSSAConstruct>();
 }
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgTargetProp, cgtargetprop)

@@ -44,6 +44,7 @@ class AlignAnalysis;
 class MoveRegArgs;
 class MPISel;
 class Standardize;
+class LiveIntervalAnalysis;
 
 class Globals {
  public:
@@ -130,9 +131,6 @@ class CG {
 
   /* enroll all code generator phases for target machine */
   virtual void EnrollTargetPhases(MaplePhaseManager *pm) const = 0;
-  virtual const InsnDescription *GetTargetInsnDecription(MOperator opCode) const {
-    return nullptr;
-  };
 
   void GenExtraTypeMetadata(const std::string &classListFileName, const std::string &outputBaseName);
   void GenPrimordialObjectList(const std::string &outputBaseName);
@@ -399,10 +397,13 @@ class CG {
   virtual CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const {
     return nullptr;
   };
+  virtual LiveIntervalAnalysis *CreateLLAnalysis(MemPool &mp, CGFunc &f) const {
+    return nullptr;
+  };
   virtual PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const {
     return nullptr;
   };
-  virtual CGProp *CreateCGProp(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const {
+  virtual CGProp *CreateCGProp(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo, LiveIntervalAnalysis &ll) const {
     return nullptr;
   };
   virtual CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const {

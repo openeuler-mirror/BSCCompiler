@@ -122,11 +122,11 @@ public:
     }
   }
 
-  MapleSet<Insn*> &GetDefPoint() {
+  InsnMapleSet &GetDefPoint() {
     return defPoints;
   }
 
-  MapleSet<Insn*> &GetUsePoint() {
+  InsnMapleSet &GetUsePoint() {
     return usePoints;
   }
 
@@ -151,7 +151,7 @@ public:
   }
 
   void Dump() {
-    std::cout << "R" << regno << ":";
+    std::cout << "R" << regno << ": ";
     for (auto range : ranges) {
       uint32 bbid = range.first;
       std::cout << "BB" << bbid <<  ": < " ;
@@ -162,32 +162,50 @@ public:
     }
     std::cout << "\n";
   }
+  void DumpDefs() {
+    std::cout << "R" << regno << ": ";
+    for (auto def : defPoints) {
+      def->Dump();
+    }
+    std::cout << "\n";
+  }
+  void DumpUses() {
+    std::cout << "R" << regno << ": ";
+    for (auto def : usePoints) {
+      def->Dump();
+    }
+    std::cout << "\n";
+  }
 
 private:
   MapleMap<uint32, MapleVector<posPair>> ranges;
   MapleSet<uint32> conflict;
-  MapleSet<Insn*> defPoints;
-  MapleSet<Insn*> usePoints;
+  InsnMapleSet defPoints;
+  InsnMapleSet usePoints;
   uint32 numCall = 0;
   RegType regType = kRegTyUndef;
   regno_t regno = 0;
   MapleAllocator &alloc;
 };
 
-class RegisterCoalesce {
+class LiveIntervalAnalysis {
  public:
-  RegisterCoalesce(CGFunc &func, MemPool &memPool)
+  LiveIntervalAnalysis(CGFunc &func, MemPool &memPool)
       : cgFunc(&func),
         memPool(&memPool),
         alloc(&memPool),
         vregIntervals(alloc.Adapter()) {}
 
-  virtual ~RegisterCoalesce() = default;
+  virtual ~LiveIntervalAnalysis() = default;
 
   virtual void ComputeLiveIntervals() = 0;
   virtual void CoalesceRegisters() = 0;
   void Run();
+  void Analysis();
+  void DoAnalysis();
+  void ClearBFS();
   void Dump();
+  void CoalesceLiveIntervals(LiveInterval &lrDest, LiveInterval &lrSrc);
   LiveInterval *GetLiveInterval(regno_t regno) {
     auto it = vregIntervals.find(regno);
     if (it == vregIntervals.end()) {
@@ -203,10 +221,18 @@ class RegisterCoalesce {
   MapleAllocator alloc;
   MapleMap<regno_t, LiveInterval*> vregIntervals;
   Bfs *bfs = nullptr;
+  bool runAnalysis = false;
 };
 
 
 MAPLE_FUNC_PHASE_DECLARE(CgRegCoalesce, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CGliveIntervalAnalysis, maplebe::CGFunc)
+  LiveIntervalAnalysis *GetResult() {
+    return liveInterval;
+  }
+  LiveIntervalAnalysis *liveInterval = nullptr;
+  OVERRIDE_DEPENDENCE
+MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_REGCOALESCE_H */

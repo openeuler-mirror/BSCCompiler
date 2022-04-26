@@ -477,6 +477,14 @@ class CGFunc {
     return vRegCount;
   }
 
+  uint32 GetSSAvRegCount() const {
+    return ssaVRegCount;
+  }
+
+  void SetSSAvRegCount(uint32 count) {
+    ssaVRegCount = count;
+  }
+
   uint32 GetVRegSize(regno_t vregNum) {
     CHECK(vregNum < vRegTable.size(), "index out of range in GetVRegSize");
     return GetOrCreateVirtualRegisterOperand(vregNum).GetSize() / kBitsPerByte;
@@ -742,7 +750,6 @@ class CGFunc {
   }
 
   bool IsExtendReg(regno_t vregNum) {
-    CHECK(vregNum < vRegTable.size(), "index out of range in GetVRegSize");
     return extendSet.find(vregNum) != extendSet.end();
   }
 
@@ -1062,6 +1069,7 @@ class CGFunc {
   uint32 firstMapleIrVRegNO = 200;        /* positioned after physical regs */
   uint32 firstNonPregVRegNO;
   uint32 vRegCount;                       /* for assigning a number for each CG virtual register */
+  uint32 ssaVRegCount = 0;                /* vreg  count in ssa */
   uint32 maxRegCount;                     /* for the current virtual register number limit */
   size_t lSymSize;                        /* size of local symbol table imported */
   MapleVector<VirtualRegNode> vRegTable;  /* table of CG's virtual registers indexed by v_reg no */

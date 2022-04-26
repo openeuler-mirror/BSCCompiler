@@ -17,7 +17,7 @@
 
 namespace maplebe {
 RegOperand &AArch64PhiEliminate::CreateTempRegForCSSA(RegOperand &oriOpnd) {
-  return *phiEliAlloc.New<AArch64RegOperand>(GetAndIncreaseTempRegNO(), oriOpnd.GetSize(), oriOpnd.GetRegisterType());
+  return *phiEliAlloc.New<RegOperand>(GetAndIncreaseTempRegNO(), oriOpnd.GetSize(), oriOpnd.GetRegisterType());
 }
 
 Insn &AArch64PhiEliminate::CreateMov(RegOperand &destOpnd, RegOperand &fromOpnd) {
@@ -36,6 +36,13 @@ Insn &AArch64PhiEliminate::CreateMov(RegOperand &destOpnd, RegOperand &fromOpnd)
     insn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
         is64bit ? isFloat ? MOP_xvmovd : MOP_xmovrr : isFloat ? MOP_xvmovs : MOP_wmovrr, destOpnd, fromOpnd);
   }
+  /* restore validBitNum */
+  if (destOpnd.GetValidBitsNum() != k64BitSize && destOpnd.GetValidBitsNum() != k32BitSize) {
+    destOpnd.SetValidBitsNum(destOpnd.GetSize());
+  }
+  if (fromOpnd.GetValidBitsNum() != k64BitSize && fromOpnd.GetValidBitsNum() != k32BitSize) {
+    fromOpnd.SetValidBitsNum(fromOpnd.GetSize());
+  }
   /* copy remat info */
   MaintainRematInfo(destOpnd, fromOpnd, true);
   ASSERT(insn != nullptr, "create move insn failed");
@@ -48,7 +55,11 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, const 
   ASSERT(ssaVersion != nullptr, "find ssaVersion failed");
   ASSERT(!ssaVersion->IsDeleted(), "ssaVersion has been deleted");
   RegOperand *regForRecreate = &ssaOpnd;
-  if (curInsn.GetMachineOpcode() != MOP_asm && !curInsn.IsVectorOp() && ssaVersion->GetAllUseInsns().empty()) {
+  if (curInsn.GetMachineOpcode() != MOP_asm &&
+      !curInsn.IsVectorOp() &&
+      !curInsn.IsSpecialIntrinsic() &&
+      ssaVersion->GetAllUseInsns().empty() &&
+      !curInsn.IsAtomic()) {
     CHECK_FATAL(false, "plz delete dead version");
   }
   if (GetSSAInfo()->IsNoDefVReg(ssaOpnd.GetRegisterNumber())) {
@@ -89,6 +100,12 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, const 
       }
       if (LastVersion != nullptr) {
         newReg.SetRegisterNumber(LastVersion->GetSSAvRegOpnd()->GetRegisterNumber());
+      } else {
+        const MapleMap<uint32, uint32>& bindingMap = defInsn->GetRegBinding();
+        auto pairIt = bindingMap.find(ssaVersion->GetOriginalRegNO());
+        if (pairIt != bindingMap.end()) {
+          newReg.SetRegisterNumber(pairIt->second);
+        }
       }
     }
     /* case 3 */
@@ -98,7 +115,10 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, const 
   } else {
     newReg.SetRegisterNumber(ssaVersion->GetOriginalRegNO());
   }
-
+  /* restore validBitNum */
+  if (newReg.GetValidBitsNum() != k64BitSize && newReg.GetValidBitsNum() != k32BitSize) {
+    newReg.SetValidBitsNum(newReg.GetSize());
+  }
   MaintainRematInfo(newReg, ssaOpnd, true);
   newReg.SetOpndOutOfSSAForm();
   return newReg;
@@ -161,10 +181,9 @@ void AArch64PhiEliminate::ReCreateRegOperand(Insn &insn) {
 }
 
 void A64OperandPhiElmVisitor::Visit(RegOperand *v) {
-  auto *a64RegOpnd = static_cast<AArch64RegOperand*>(v);
-  if (a64RegOpnd->IsSSAForm()) {
-    ASSERT(a64RegOpnd->GetRegisterNumber() != kRFLAG, "both condi and reg");
-    insn->SetOperand(idx, a64PhiEliminator->GetCGVirtualOpearnd(*a64RegOpnd, *insn));
+  if (v->IsSSAForm()) {
+    ASSERT(v->GetRegisterNumber() != kRFLAG, "both condi and reg");
+    insn->SetOperand(idx, a64PhiEliminator->GetCGVirtualOpearnd(*v, *insn));
   }
 }
 
@@ -187,15 +206,13 @@ void A64OperandPhiElmVisitor::Visit(ListOperand *v) {
   v->GetOperands().assign(tempRegStore.begin(), tempRegStore.end());
 }
 
-void A64OperandPhiElmVisitor::Visit(MemOperand *v) {
-  auto *a64MemOpnd = static_cast<AArch64MemOperand*>(v);
+void A64OperandPhiElmVisitor::Visit(MemOperand *a64MemOpnd) {
   RegOperand *baseRegOpnd = a64MemOpnd->GetBaseRegister();
   RegOperand *indexRegOpnd = a64MemOpnd->GetIndexRegister();
   if ((baseRegOpnd != nullptr && baseRegOpnd->IsSSAForm()) ||
       (indexRegOpnd != nullptr && indexRegOpnd->IsSSAForm())) {
     if (baseRegOpnd != nullptr && baseRegOpnd->IsSSAForm()) {
-      a64MemOpnd->SetBaseRegister(
-          static_cast<AArch64RegOperand&>(a64PhiEliminator->GetCGVirtualOpearnd(*baseRegOpnd, *insn)));
+      a64MemOpnd->SetBaseRegister(a64PhiEliminator->GetCGVirtualOpearnd(*baseRegOpnd, *insn));
     }
     if (indexRegOpnd != nullptr && indexRegOpnd->IsSSAForm()) {
       a64MemOpnd->SetIndexRegister(a64PhiEliminator->GetCGVirtualOpearnd(*indexRegOpnd, *insn));

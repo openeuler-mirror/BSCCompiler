@@ -39,6 +39,7 @@ static constexpr uint32 kRelaxThresholdForInlineHint = 3;
 static constexpr uint32 kRelaxThresholdForCalledOnce = 5;
 static constexpr uint32 kInlineSmallFunctionThresholdForJava = 15;
 static constexpr uint32 kInlineHotFunctionThresholdForJava = 30;
+static constexpr uint32 kThresholdForOs = 10;
 
 static uint32 GetNumStmtsOfFunc(const MIRFunction &func) {
   if (func.GetBody() == nullptr) {
@@ -75,7 +76,11 @@ void MInline::InitParams() {
   dumpFunc = Options::dumpFunc;
   inlineFuncList = MeOption::inlineFuncList;
   noInlineFuncList = Options::noInlineFuncList;
-  smallFuncThreshold = Options::inlineSmallFunctionThreshold;
+  if (Options::optForSize) {
+    smallFuncThreshold = kThresholdForOs;
+  } else {
+    smallFuncThreshold = Options::inlineSmallFunctionThreshold;
+  }
   hotFuncThreshold = Options::inlineHotFunctionThreshold;
   recursiveFuncThreshold = Options::inlineRecursiveFunctionThreshold;
   inlineWithProfile = Options::inlineWithProfile;
@@ -529,7 +534,7 @@ GotoNode *MInline::UpdateReturnStmts(const MIRFunction &caller, BlockNode &newBo
         ++retCount;
         GotoNode *gotoNode = builder.CreateStmtGoto(OP_goto, retLabIdx);
         lastGoto = gotoNode;
-        if (callReturnVector.size() == 1) {
+        if (callReturnVector.size() == 1 && stmt.GetNumOpnds() == 1) {
           BaseNode *currBaseNode = static_cast<NaryStmtNode&>(stmt).Opnd(0);
           StmtNode *dStmt = nullptr;
           if (!callReturnVector.at(0).second.IsReg()) {
@@ -1179,8 +1184,8 @@ bool MInline::HasAccessStatic(const BaseNode &baseNode) const {
 }
 
 static void MarkParent(const CGNode &node) {
-  for (auto it = node.CallerBegin(); it != node.CallerEnd(); ++it) {
-    CGNode *parent = *it;
+  for (auto &pair : node.GetCaller()) {
+    CGNode *parent = pair.first;
     parent->SetMustNotBeInlined();
   }
 }

@@ -27,20 +27,29 @@
  */
 namespace maplebe {
 
-void RegisterCoalesce::Run() {
-
-  Bfs localBfs(*cgFunc, *memPool);
-  bfs = &localBfs;
-  bfs->ComputeBlockOrder();
-
-  ComputeLiveIntervals();
-
+void LiveIntervalAnalysis::Run() {
+  Analysis();
   CoalesceRegisters();
-
-  bfs = nullptr; /*bfs is not utilized outside the function. */
+  ClearBFS();
 }
 
-void RegisterCoalesce::Dump() {
+void LiveIntervalAnalysis::DoAnalysis() {
+  runAnalysis = true;
+  Analysis();
+}
+
+void LiveIntervalAnalysis::Analysis() {
+  bfs = memPool->New<Bfs>(*cgFunc, *memPool);
+  bfs->ComputeBlockOrder();
+  ComputeLiveIntervals();
+}
+
+/*bfs is not utilized outside the function. */
+void LiveIntervalAnalysis::ClearBFS() {
+  bfs = nullptr;
+}
+
+void LiveIntervalAnalysis::Dump() {
   for (auto it : vregIntervals) {
     LiveInterval *li = it.second;
     li->Dump();
@@ -49,25 +58,58 @@ void RegisterCoalesce::Dump() {
   }
 }
 
+void LiveIntervalAnalysis::CoalesceLiveIntervals(LiveInterval &lrDest, LiveInterval &lrSrc) {
+  if (cgFunc->IsExtendReg(lrDest.GetRegNO())) {
+    cgFunc->InsertExtendSet(lrSrc.GetRegNO());
+  }
+  cgFunc->RemoveFromExtendSet(lrDest.GetRegNO());
+  /* merge destlr to srclr */
+  lrSrc.MergeRanges(lrDest);
+  /* update conflicts */
+  lrSrc.MergeConflict(lrDest);
+  for (auto reg : lrDest.GetConflict()) {
+    LiveInterval *conf = GetLiveInterval(reg);
+    if (conf) {
+      conf->AddConflict(lrSrc.GetRegNO());
+    }
+  }
+  /* merge refpoints */
+  lrSrc.MergeRefPoints(lrDest);
+  vregIntervals.erase(lrDest.GetRegNO());
+}
+
+bool CGliveIntervalAnalysis::PhaseRun(maplebe::CGFunc &f) {
+  LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
+  live->ResetLiveSet();
+  MemPool *memPool = GetPhaseMemPool();
+  liveInterval = f.GetCG()->CreateLLAnalysis(*memPool, f);
+  liveInterval->DoAnalysis();
+  return false;
+}
+void CGliveIntervalAnalysis::GetAnalysisDependence(AnalysisDep &aDep) const {
+  aDep.AddRequired<CgLiveAnalysis>();
+  aDep.AddRequired<CgLoopAnalysis>();
+}
+MAPLE_ANALYSIS_PHASE_REGISTER_CANSKIP(CGliveIntervalAnalysis, cgliveintervalananlysis)
+
 bool CgRegCoalesce::PhaseRun(maplebe::CGFunc &f) {
   LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
   live->ResetLiveSet();
   MemPool *memPool = GetPhaseMemPool();
-  RegisterCoalesce *regCoal = nullptr;
-#if TARGAARCH64 || TARGRISCV64
-  regCoal = memPool->New<AArch64RegisterCoalesce>(f, *memPool);
-#endif
-  regCoal->Run();
+  LiveIntervalAnalysis *ll = f.GetCG()->CreateLLAnalysis(*memPool, f);
+  ll->Run();
   /* the live range info may changed, so invalid the info. */
   if (live != nullptr) {
     live->ClearInOutDataInfo();
   }
   return false;
 }
+
 void CgRegCoalesce::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgLiveAnalysis>();
   aDep.AddRequired<CgLoopAnalysis>();
   aDep.PreservedAllExcept<CgLiveAnalysis>();
 }
 MAPLE_TRANSFORM_PHASE_REGISTER(CgRegCoalesce, cgregcoalesce)
+
 }  /* namespace maplebe */

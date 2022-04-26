@@ -266,7 +266,8 @@ void LiveAnalysis::InitBB(BB &bb) {
   bb.SetInsertUse(false);
   bb.ClearLiveInRegNO();
   bb.ClearLiveOutRegNO();
-  const uint32 maxRegCount = cgFunc->GetMaxVReg();
+  const uint32 maxRegCount = cgFunc->GetSSAvRegCount() > cgFunc->GetMaxVReg() ?
+      cgFunc->GetSSAvRegCount() : cgFunc->GetMaxVReg();
   bb.SetLiveIn(*NewLiveIn(maxRegCount));
   bb.SetLiveOut(*NewLiveOut(maxRegCount));
   bb.SetDef(*NewDef(maxRegCount));

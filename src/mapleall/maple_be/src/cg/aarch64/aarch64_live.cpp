@@ -68,19 +68,19 @@ void AArch64LiveAnalysis::GetBBDefUse(BB &bb) {
   bb.UseResetAllBit();
 
   FOR_BB_INSNS_REV(insn, &bb) {
-    if (!insn->IsMachineInstruction()) {
+    if (!insn->IsMachineInstruction() && !insn->IsPhi()) {
       continue;
     }
 
-    bool isAsm = (insn->GetMachineOpcode() == MOP_asm);
+    bool isAsm = insn->IsAsmInsn();
     const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
-    if (insn->IsCall() && isAsm == false) {
-      ProcessCallInsnParam(bb);
+    if (insn->IsCall() || insn->IsTailCall()) {
+      ProcessCallInsnParam(bb, *insn);
     }
     uint32 opndNum = insn->GetOperandSize();
     for (uint32 i = 0; i < opndNum; ++i) {
       Operand &opnd = insn->GetOperand(i);
-      AArch64OpndProp *regProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+      OpndProp *regProp = md->operand[i];
       bool isDef = regProp->IsRegDef();
       bool isUse = regProp->IsRegUse();
       if (opnd.IsList()) {
@@ -93,6 +93,11 @@ void AArch64LiveAnalysis::GetBBDefUse(BB &bb) {
         ProcessMemOpnd(bb, opnd);
       } else if (opnd.IsConditionCode()) {
         ProcessCondOpnd(bb);
+      } else if (opnd.IsPhi()) {
+        auto &phiOpnd = static_cast<PhiOperand&>(opnd);
+        for (auto opIt : phiOpnd.GetOperands()) {
+          CollectLiveInfo(bb, *opIt.second, false, true);
+        }
       } else {
         CollectLiveInfo(bb, opnd, isDef, isUse);
       }
@@ -122,9 +127,28 @@ void AArch64LiveAnalysis::GenerateReturnBBDefUse(BB &bb) const {
   }
 }
 
-void AArch64LiveAnalysis::ProcessCallInsnParam(BB &bb) const {
+void AArch64LiveAnalysis::ProcessCallInsnParam(BB &bb, const Insn &insn) const {
   /* R0 ~ R7（R0 + 0  ~ R0 + 7） and V0 ~ V7 (V0 + 0 ~ V0 + 7) is parameter register */
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  auto *targetOpnd = insn.GetCallTargetOperand();
+  CHECK_FATAL(targetOpnd != nullptr, "target is null in AArch64Insn::IsCallToFunctionThatNeverReturns");
+  if (CGOptions::DoIPARA() && targetOpnd->IsFuncNameOpnd()) {
+    FuncNameOperand *target = static_cast<FuncNameOperand*>(targetOpnd);
+    const MIRSymbol *funcSt = target->GetFunctionSymbol();
+    ASSERT(funcSt->GetSKind() == kStFunc, "funcst must be a function name symbol");
+    MIRFunction *func = funcSt->GetFunction();
+    if (func != nullptr && func->IsReferedRegsValid()) {
+      for (auto preg : func->GetReferedRegs()) {
+        if (AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(preg))) {
+          continue;
+        }
+        RegOperand *opnd = &aarchCGFunc->GetOrCreatePhysicalRegisterOperand((AArch64reg)preg, k64BitSize,
+            AArch64isa::IsFPSIMDRegister((AArch64reg)preg) ? kRegTyFloat : kRegTyInt);
+        CollectLiveInfo(bb, *opnd, true, false);
+      }
+      return;
+    }
+  }
   for (uint32 i = 0; i < 8; ++i) {
     Operand &phyOpndR =
         aarchCGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R0 + i), k64BitSize, kRegTyInt);
@@ -165,7 +189,7 @@ void AArch64LiveAnalysis::ProcessListOpnd(BB &bb, Operand &opnd) const {
 }
 
 void AArch64LiveAnalysis::ProcessMemOpnd(BB &bb, Operand &opnd) const {
-  auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+  auto &memOpnd = static_cast<MemOperand&>(opnd);
   Operand *base = memOpnd.GetBaseRegister();
   Operand *offset = memOpnd.GetIndexRegister();
   if (base != nullptr) {

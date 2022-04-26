@@ -28,12 +28,12 @@ namespace maplebe {
 
 #define REGCOAL_DUMP CG_DEBUG_FUNC(*cgFunc)
 
-bool AArch64RegisterCoalesce::IsUnconcernedReg(const RegOperand &regOpnd) const {
+bool AArch64LiveIntervalAnalysis::IsUnconcernedReg(const RegOperand &regOpnd) const {
   RegType regType = regOpnd.GetRegisterType();
   if (regType == kRegTyCc || regType == kRegTyVary) {
     return true;
   }
-  if (regOpnd.IsConstReg()) {
+  if (regOpnd.GetRegisterNumber() == RZR) {
     return true;
   }
   if (!regOpnd.IsVirtualRegister()) {
@@ -42,7 +42,7 @@ bool AArch64RegisterCoalesce::IsUnconcernedReg(const RegOperand &regOpnd) const 
   return false;
 }
 
-LiveInterval *AArch64RegisterCoalesce::GetOrCreateLiveInterval(regno_t regNO) {
+LiveInterval *AArch64LiveIntervalAnalysis::GetOrCreateLiveInterval(regno_t regNO) {
   LiveInterval *lr = GetLiveInterval(regNO);
   if (lr == nullptr) {
     lr = memPool->New<LiveInterval>(alloc);
@@ -52,14 +52,14 @@ LiveInterval *AArch64RegisterCoalesce::GetOrCreateLiveInterval(regno_t regNO) {
   return lr;
 }
 
-void AArch64RegisterCoalesce::UpdateCallInfo() {
+void AArch64LiveIntervalAnalysis::UpdateCallInfo() {
   for (auto vregNO : vregLive) {
     LiveInterval *lr = GetLiveInterval(vregNO);
     lr->IncNumCall();
   }
 }
 
-void AArch64RegisterCoalesce::SetupLiveIntervalByOp(Operand &op, Insn &insn, bool isDef) {
+void AArch64LiveIntervalAnalysis::SetupLiveIntervalByOp(Operand &op, Insn &insn, bool isDef) {
   if (!op.IsRegister()) {
     return;
   }
@@ -84,7 +84,7 @@ void AArch64RegisterCoalesce::SetupLiveIntervalByOp(Operand &op, Insn &insn, boo
   }
 }
 
-void AArch64RegisterCoalesce::ComputeLiveIntervalsForEachDefOperand(Insn &insn) {
+void AArch64LiveIntervalAnalysis::ComputeLiveIntervalsForEachDefOperand(Insn &insn) {
   const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn&>(insn).GetMachineOpcode()];
   uint32 opndNum = insn.GetOperandSize();
   for (uint32 i = 0; i < opndNum; ++i) {
@@ -96,7 +96,7 @@ void AArch64RegisterCoalesce::ComputeLiveIntervalsForEachDefOperand(Insn &insn) 
     }
     Operand &opnd = insn.GetOperand(i);
     if (opnd.IsMemoryAccessOperand()) {
-      auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+      auto &memOpnd = static_cast<MemOperand&>(opnd);
       if (!memOpnd.IsIntactIndexed()) {
         SetupLiveIntervalByOp(opnd, insn, true);
       }
@@ -108,7 +108,7 @@ void AArch64RegisterCoalesce::ComputeLiveIntervalsForEachDefOperand(Insn &insn) 
   }
 }
 
-void AArch64RegisterCoalesce::ComputeLiveIntervalsForEachUseOperand(Insn &insn) {
+void AArch64LiveIntervalAnalysis::ComputeLiveIntervalsForEachUseOperand(Insn &insn) {
   const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn&>(insn).GetMachineOpcode()];
   uint32 opndNum = insn.GetOperandSize();
   for (uint32 i = 0; i < opndNum; ++i) {
@@ -128,7 +128,7 @@ void AArch64RegisterCoalesce::ComputeLiveIntervalsForEachUseOperand(Insn &insn) 
         SetupLiveIntervalByOp(*op, insn, false);
       }
     } else if (opnd.IsMemoryAccessOperand()) {
-      auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+      auto &memOpnd = static_cast<MemOperand&>(opnd);
       Operand *base = memOpnd.GetBaseRegister();
       Operand *offset = memOpnd.GetIndexRegister();
       if (base != nullptr) {
@@ -137,6 +137,11 @@ void AArch64RegisterCoalesce::ComputeLiveIntervalsForEachUseOperand(Insn &insn) 
       if (offset != nullptr) {
         SetupLiveIntervalByOp(*offset, insn, false);
       }
+    } else if (opnd.IsPhi()) {
+      auto &phiOpnd = static_cast<PhiOperand&>(opnd);
+      for (auto opIt : phiOpnd.GetOperands()) {
+        SetupLiveIntervalByOp(*opIt.second, insn, false);
+      }
     } else {
       SetupLiveIntervalByOp(opnd, insn, false);
     }
@@ -144,7 +149,7 @@ void AArch64RegisterCoalesce::ComputeLiveIntervalsForEachUseOperand(Insn &insn) 
 }
 
 /* handle live range for bb->live_out */
-void AArch64RegisterCoalesce::SetupLiveIntervalInLiveOut(regno_t liveOut, const BB &bb, uint32 currPoint) {
+void AArch64LiveIntervalAnalysis::SetupLiveIntervalInLiveOut(regno_t liveOut, const BB &bb, uint32 currPoint) {
   --currPoint;
 
   if (liveOut >= kAllRegNum) {
@@ -155,7 +160,7 @@ void AArch64RegisterCoalesce::SetupLiveIntervalInLiveOut(regno_t liveOut, const 
   }
 }
 
-void AArch64RegisterCoalesce::CollectCandidate() {
+void AArch64LiveIntervalAnalysis::CollectCandidate() {
   for (size_t bbIdx = bfs->sortedBBs.size(); bbIdx > 0; --bbIdx) {
     BB *bb = bfs->sortedBBs[bbIdx - 1];
 
@@ -180,7 +185,7 @@ void AArch64RegisterCoalesce::CollectCandidate() {
   }
 }
 
-void AArch64RegisterCoalesce::ComputeLiveIntervals() {
+void AArch64LiveIntervalAnalysis::ComputeLiveIntervals() {
   /* colloct refpoints and build interfere only for cands. */
   CollectCandidate();
 
@@ -203,8 +208,10 @@ void AArch64RegisterCoalesce::ComputeLiveIntervals() {
     }
 
     FOR_BB_INSNS_REV_SAFE(insn, bb, ninsn) {
-      insn->SetId(currPoint);
-      if (!insn->IsMachineInstruction()) {
+      if (!runAnalysis) {
+        insn->SetId(currPoint);
+      }
+      if (!insn->IsMachineInstruction() && !insn->IsPhi()) {
         --currPoint;
         if (ninsn != nullptr && ninsn->IsCall()) {
           UpdateCallInfo();
@@ -240,7 +247,7 @@ void AArch64RegisterCoalesce::ComputeLiveIntervals() {
   }
 }
 
-void AArch64RegisterCoalesce::CheckInterference(LiveInterval &li1, LiveInterval &li2) {
+void AArch64LiveIntervalAnalysis::CheckInterference(LiveInterval &li1, LiveInterval &li2) {
   auto ranges1 = li1.GetRanges();
   auto ranges2 = li2.GetRanges();
   bool conflict = false;
@@ -272,45 +279,37 @@ void AArch64RegisterCoalesce::CheckInterference(LiveInterval &li1, LiveInterval 
 }
 
 /* replace regDest with regSrc. */
-void AArch64RegisterCoalesce::CoalesceRegPair(RegOperand &regDest, RegOperand &regSrc) {
+void AArch64LiveIntervalAnalysis::CoalesceRegPair(RegOperand &regDest, RegOperand &regSrc) {
   LiveInterval *lrDest = GetLiveInterval(regDest.GetRegisterNumber());
   LiveInterval *lrSrc = GetLiveInterval(regSrc.GetRegisterNumber());
   /* replace dest with src */
+  if (regDest.GetSize() != regSrc.GetSize()) {
+    CHECK_FATAL(cgFunc->IsExtendReg(regDest.GetRegisterNumber()) ||
+        cgFunc->IsExtendReg(regSrc.GetRegisterNumber()), "expect equal size in reg coalesce");
+    cgFunc->InsertExtendSet(regSrc.GetRegisterNumber());
+  }
 
+  regno_t destNO = regDest.GetRegisterNumber();
   /* replace all refPoints */
   for (auto insn : lrDest->GetDefPoint()) {
-    cgFunc->ReplaceOpndInInsn(regDest, regSrc, *insn);
+    cgFunc->ReplaceOpndInInsn(regDest, regSrc, *insn, destNO);
   }
   for (auto insn : lrDest->GetUsePoint()) {
-    cgFunc->ReplaceOpndInInsn(regDest, regSrc, *insn);
+    cgFunc->ReplaceOpndInInsn(regDest, regSrc, *insn, destNO);
   }
 
-  /* merge destlr to srclr */
-  lrSrc->MergeRanges(*lrDest);
-
-  /* update conflicts */
-  lrSrc->MergeConflict(*lrDest);
-  for (auto reg : lrDest->GetConflict()) {
-    LiveInterval *conf = GetLiveInterval(reg);
-    if (conf) {
-      conf->AddConflict(lrSrc->GetRegNO());
-    }
-  }
-
-  /* merge refpoints */
-  lrSrc->MergeRefPoints(*lrDest);
-
-  vregIntervals.erase(lrDest->GetRegNO());
+  ASSERT(lrDest && lrSrc, "get live interval failed");
+  CoalesceLiveIntervals(*lrDest, *lrSrc);
 }
 
-void AArch64RegisterCoalesce::CollectMoveForEachBB(BB &bb, std::vector<Insn*> &movInsns) {
+void AArch64LiveIntervalAnalysis::CollectMoveForEachBB(BB &bb, std::vector<Insn*> &movInsns) {
   FOR_BB_INSNS_SAFE(insn, &bb, ninsn) {
     if (!insn->IsMachineInstruction()) {
       continue;
     }
     if (insn->IsMoveRegReg()) {
-      RegOperand &regDest = static_cast<RegOperand &>(insn->GetOperand(kInsnFirstOpnd));
-      RegOperand &regSrc = static_cast<RegOperand &>(insn->GetOperand(kInsnSecondOpnd));
+      auto &regDest = static_cast<RegOperand&>(insn->GetOperand(kInsnFirstOpnd));
+      auto &regSrc = static_cast<RegOperand&>(insn->GetOperand(kInsnSecondOpnd));
       if (!regSrc.IsVirtualRegister() || !regDest.IsVirtualRegister()) {
         continue;
       }
@@ -322,7 +321,7 @@ void AArch64RegisterCoalesce::CollectMoveForEachBB(BB &bb, std::vector<Insn*> &m
   }
 }
 
-void AArch64RegisterCoalesce::CoalesceMoves(std::vector<Insn*> &movInsns, bool phiOnly) {
+void AArch64LiveIntervalAnalysis::CoalesceMoves(std::vector<Insn*> &movInsns, bool phiOnly) {
   AArch64CGFunc *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   bool changed = false;
   do {
@@ -374,7 +373,7 @@ void AArch64RegisterCoalesce::CoalesceMoves(std::vector<Insn*> &movInsns, bool p
   } while (changed);
 }
 
-void AArch64RegisterCoalesce::CoalesceRegisters() {
+void AArch64LiveIntervalAnalysis::CoalesceRegisters() {
   std::vector<Insn*> movInsns;
   AArch64CGFunc *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   if (REGCOAL_DUMP) {
@@ -392,7 +391,7 @@ void AArch64RegisterCoalesce::CoalesceRegisters() {
   for (size_t bbIdx = bfs->sortedBBs.size(); bbIdx > 0; --bbIdx) {
     BB *bb = bfs->sortedBBs[bbIdx - 1];
 
-    if (bb->GetCritical() == true) {
+    if (bb->GetCritical()) {
       continue;
     }
     CollectMoveForEachBB(*bb, movInsns);
