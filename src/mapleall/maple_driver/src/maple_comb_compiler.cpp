@@ -102,6 +102,43 @@ void MapleCombCompiler::PrintCommand(const MplOptions &options, const Action &ac
                          << driverOptions << " " << GetInputFileName(options, action) << '\n';
 }
 
+std::string MapleCombCompiler::GetStringOfSafetyOption() const {
+  std::string safetyOptionStr = "";
+  if (MeOption::safeRegionMode == true) {
+    safetyOptionStr += "safe-region ";
+  }
+  if (MeOption::isNpeCheckAll == true) {
+    safetyOptionStr += "npe-check-dynamic-all ";
+  }
+  switch (MeOption::npeCheckMode) {
+    case kStaticCheck:
+      safetyOptionStr += "npe-check-static ";
+      break;
+    case kDynamicCheck:
+      safetyOptionStr += "npe-check-dynamic ";
+      break;
+    case kDynamicCheckSilent:
+      safetyOptionStr += "npe-check-dynamic-silent ";
+      break;
+    default:
+      break;
+  }
+  switch (MeOption::boundaryCheckMode) {
+    case kStaticCheck:
+      safetyOptionStr += "boundary-check-static ";
+      break;
+    case kDynamicCheck:
+      safetyOptionStr += "boundary-check-dynamic ";
+      break;
+    case kDynamicCheckSilent:
+      safetyOptionStr += "boundary-check-dynamic-silent ";
+      break;
+    default:
+      break;
+  }
+  return safetyOptionStr;
+}
+
 ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunner &runner) {
   auto it = std::find(options.GetRunningExes().begin(), options.GetRunningExes().end(), kBinNameMe);
   if (it == options.GetRunningExes().end()) {
@@ -123,6 +160,13 @@ ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunn
   MeOption::isNpeCheckAll = options.IsNpeCheckAll();
   MeOption::boundaryCheckMode = options.GetBoundaryCheckMode();
   MeOption::safeRegionMode = options.IsSafeRegion();
+  if (MeOption::optLevel == 0) {
+    std::string safetyOptionStr = GetStringOfSafetyOption();
+    if (!safetyOptionStr.empty()) {
+      safetyOptionStr.erase(safetyOptionStr.end() - 1);
+      WARN(kLncWarn, "warning: The safety option %s must be used in conjunction with O2 mode", safetyOptionStr.c_str());
+    }
+  }
   // Set me options for driver runner
   runner.SetMeOptions(&MeOption::GetInstance());
   return kErrorNoError;

@@ -218,6 +218,7 @@ class MapleCombCompiler : public Compiler {
   ErrorCode MakeMeOptions(const MplOptions &options, DriverRunner &runner);
   ErrorCode MakeMpl2MplOptions(const MplOptions &options, DriverRunner &runner);
   std::string DecideOutExe(const MplOptions &options);
+  std::string GetStringOfSafetyOption() const;
 };
 
 class MplcgCompiler : public Compiler {
