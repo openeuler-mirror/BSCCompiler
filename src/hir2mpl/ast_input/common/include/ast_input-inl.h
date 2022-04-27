@@ -36,6 +36,7 @@ bool ASTInput<T>::ReadASTFile(MapleAllocator &allocatorIn, uint32 index, const s
   TRY_DO(parser->RetrieveStructs(allocatorIn));
   TRY_DO(parser->RetrieveGlobalVars(allocatorIn));
   TRY_DO(parser->RetrieveFileScopeAsms(allocatorIn));
+  TRY_DO(parser->Release());
   parserMap.emplace(fileName, parser);
   return true;
 }

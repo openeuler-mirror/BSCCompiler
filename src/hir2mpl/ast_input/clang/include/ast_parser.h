@@ -33,6 +33,7 @@ class ASTParser {
         astVars(astVarsIn), astFileScopeAsms(astFileScopeAsmsIn) {}
   virtual ~ASTParser() = default;
   bool OpenFile(MapleAllocator &allocator);
+  bool Release();
 
   bool Verify() const;
   bool PreProcessAST();

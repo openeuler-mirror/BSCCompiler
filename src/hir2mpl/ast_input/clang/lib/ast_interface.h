@@ -74,6 +74,7 @@ class LibAstFile {
 
   bool Open(const std::string &fileName,
             int excludeDeclFromPCH, int displayDiagnostics);
+  void DisposeTranslationUnit();
   const AstASTContext *GetAstContext() const;
   AstASTContext *GetNonConstAstContext() const;
   AstUnitDecl *GetAstUnitDecl();
@@ -148,6 +149,8 @@ class LibAstFile {
   clang::ASTContext *astContext = nullptr;
   clang::TranslationUnitDecl *astUnitDecl = nullptr;
   clang::MangleContext *mangleContext = nullptr;
+  CXTranslationUnit translationUnit = nullptr;
+  CXIndex index = nullptr;
   std::string astFileName;
 };
 } // namespace maple

@@ -38,6 +38,11 @@ bool ASTParser::OpenFile(MapleAllocator &allocator) {
   return true;
 }
 
+bool ASTParser::Release() {
+  astFile->DisposeTranslationUnit();
+  return true;
+}
+
 bool ASTParser::Verify() const {
   return true;
 }

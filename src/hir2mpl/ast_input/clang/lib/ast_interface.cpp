@@ -22,8 +22,8 @@ namespace maple {
 bool LibAstFile::Open(const std::string &fileName,
                       int excludeDeclFromPCH, int displayDiagnostics) {
   astFileName = fileName;
-  CXIndex index = clang_createIndex(excludeDeclFromPCH, displayDiagnostics);
-  CXTranslationUnit translationUnit = clang_createTranslationUnit(index, fileName.c_str());
+  index = clang_createIndex(excludeDeclFromPCH, displayDiagnostics);
+  translationUnit = clang_createTranslationUnit(index, fileName.c_str());
   if (translationUnit == nullptr) {
     return false;
   }
@@ -44,6 +44,13 @@ bool LibAstFile::Open(const std::string &fileName,
     return false;
   }
   return true;
+}
+
+void LibAstFile::DisposeTranslationUnit() {
+    clang_disposeIndex(index);
+    clang_disposeTranslationUnit(translationUnit);
+    translationUnit = nullptr;
+    index = nullptr;
 }
 
 const AstASTContext *LibAstFile::GetAstContext() const {
