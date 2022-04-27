@@ -42,6 +42,9 @@ class AArch64CallConvImpl {
 
   void InitCCLocInfo(CCLocInfo &pLoc) const;
 
+  /* for lmbc */
+  uint32 FloatParamRegRequired(MIRStructType &structType, uint32 &fpSize);
+
   /*  return value related  */
   void InitReturnInfo(MIRType &retTy, CCLocInfo &pLoc);
 

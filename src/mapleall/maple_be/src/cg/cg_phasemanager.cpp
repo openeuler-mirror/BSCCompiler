@@ -32,6 +32,7 @@
 #elif TARGX86_64
 #include "x64_cg.h"
 #include "x64_emitter.h"
+#include "string_utils.h"
 #endif
 
 namespace maplebe {
@@ -105,6 +106,23 @@ void CgFuncPM::PostOutPut(MIRModule &m) {
   EmitGlobalInfo(m);
 }
 
+void MarkUsedStaticSymbol(const StIdx &symbolIdx);
+
+void CollectStaticSymbolInVar(MIRConst *mirConst) {
+  if (mirConst->GetKind() == kConstAddrof) {
+    auto *addrSymbol = static_cast<MIRAddrofConst*>(mirConst);
+    MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(addrSymbol->GetSymbolIndex().Idx(), true);
+    if (sym != nullptr) {
+      MarkUsedStaticSymbol(sym->GetStIdx());
+    }
+  } else if (mirConst->GetKind() == kConstAggConst) {
+    auto &constVec = static_cast<MIRAggConst*>(mirConst)->GetConstVec();
+    for (auto &cst : constVec) {
+      CollectStaticSymbolInVar(cst);
+    }
+  }
+}
+
 void MarkUsedStaticSymbol(const StIdx &symbolIdx) {
   MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(symbolIdx.Idx(), true);
   if (symbol == nullptr) {
@@ -113,42 +131,7 @@ void MarkUsedStaticSymbol(const StIdx &symbolIdx) {
   symbol->ResetIsDeleted();
   if (symbol->IsConst()) {
     auto *konst = symbol->GetKonst();
-    switch (konst->GetKind()) {
-      case kConstAddrof: {
-        auto *addrofKonst = static_cast<MIRAddrofConst*>(konst);
-        MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(addrofKonst->GetSymbolIndex().Idx(), true);
-        if (sym != nullptr) {
-          MarkUsedStaticSymbol(sym->GetStIdx());
-        }
-        break;
-      }
-      case kConstAggConst: {
-        auto &constVec = static_cast<MIRAggConst*>(konst)->GetConstVec();
-        for (auto *cst : constVec) {
-          if (cst == nullptr) {
-            continue;
-          }
-          if (cst->GetKind() == kConstAddrof) {
-            auto *addrofKonst = static_cast<MIRAddrofConst*>(konst);
-            MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(addrofKonst->GetSymbolIndex().Idx(), true);
-            if (sym != nullptr) {
-              MarkUsedStaticSymbol(sym->GetStIdx());
-            }
-          }
-        }
-        break;
-      }
-      default: {
-        break;
-      }
-    }
-  }
-  std::string syName = symbol->GetName();
-  /* when _PTR_C_STR_XXXX is used, mark _C_STR_XXXX as used too. */
-  if (StringUtils::StartsWith(syName, namemangler::kPtrPrefixStr)) {
-    GStrIdx gStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(syName.substr(strlen(namemangler::kPtrPrefixStr)));
-    MIRSymbol *anotherSymbol = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(gStrIdx);
-    anotherSymbol->ResetIsDeleted();
+    CollectStaticSymbolInVar(konst);
   }
 }
 
@@ -189,39 +172,24 @@ void CollectStaticSymbolInFunction(MIRFunction &func) {
   RecursiveMarkUsedStaticSymbol(func.GetBody());
 }
 
-void CollectStaticSymbolInVar(MIRConst *mirConst) {
-  if (mirConst->GetKind() == kConstAddrof) {
-    auto *addrSymbol = static_cast<MIRAddrofConst*>(mirConst);
-    MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(addrSymbol->GetSymbolIndex().Idx(), true);
-    if (sym != nullptr) {
-      MarkUsedStaticSymbol(sym->GetStIdx());
-    }
-  } else if (mirConst->GetKind() == kConstAggConst) {
-    auto &constVec = static_cast<MIRAggConst*>(mirConst)->GetConstVec();
-    for (auto &cst : constVec) {
-      CollectStaticSymbolInVar(cst);
-    }
-  }
-}
-
 void CgFuncPM::SweepUnusedStaticSymbol(MIRModule &m) {
   if (!m.IsCModule()) {
     return;
   }
   size_t size = GlobalTables::GetGsymTable().GetSymbolTableSize();
   for (size_t i = 0; i < size; ++i) {
-    MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(i);
+    MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(i, true);
     if (mirSymbol != nullptr && (mirSymbol->GetSKind() == kStVar || mirSymbol->GetSKind() == kStConst) &&
         (mirSymbol->GetStorageClass() == kScFstatic || mirSymbol->GetStorageClass() == kScPstatic)) {
       mirSymbol->SetIsDeleted();
     }
   }
 
-  // Deal with function override, function in current module override functions from mplt.
-  // Don't need anymore as we rebuild candidate base on the latest CHA.
+  /* scan all funtions  */
   std::vector<MIRFunction*> &funcTable = GlobalTables::GetFunctionTable().GetFuncTable();
-  // don't optimize this loop to iterator or range-base loop
-  // because AddCallGraphNode(mirFunc) will change GlobalTables::GetFunctionTable().GetFuncTable()
+  /* don't optimize this loop to iterator or range-base loop
+   * because AddCallGraphNode(mirFunc) will change GlobalTables::GetFunctionTable().GetFuncTable()
+   */
   for (size_t index = 0; index < funcTable.size(); ++index) {
     MIRFunction *mirFunc = funcTable.at(index);
     if (mirFunc == nullptr || mirFunc->GetBody() == nullptr) {
@@ -231,10 +199,11 @@ void CgFuncPM::SweepUnusedStaticSymbol(MIRModule &m) {
     CollectStaticSymbolInFunction(*mirFunc);
   }
 
-  // collect addroffunc from global symbol
+  /* scan global symbol declaration
+   * find addrof static const */
   auto &symbolSet = m.GetSymbolSet();
   for (auto sit = symbolSet.begin(); sit != symbolSet.end(); ++sit) {
-    MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx(sit->Idx());
+    MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx(sit->Idx(), true);
     if (s->IsConst()) {
       MIRConst *mirConst = s->GetKonst();
       CollectStaticSymbolInVar(mirConst);
@@ -290,7 +259,9 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
         (void)cf.Simplify(mirFunc->GetBody());
       }
 
-      DoFuncCGLower(m, *mirFunc);
+      if (m.GetFlavor() != MIRFlavor::kFlavorLmbc) {
+        DoFuncCGLower(m, *mirFunc);
+      }
       /* create CGFunc */
       MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(mirFunc->GetStIdx().Idx());
       auto funcMp = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, funcSt->GetName());

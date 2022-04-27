@@ -27,6 +27,19 @@
 #include "aarch64_call_conv.h"
 
 namespace maplebe {
+class LmbcArgInfo {
+ public:
+  LmbcArgInfo(MapleAllocator &mallocator)
+    : lmbcCallArgs(mallocator.Adapter()),
+      lmbcCallArgTypes(mallocator.Adapter()),
+      lmbcCallArgOffsets(mallocator.Adapter()),
+      lmbcCallArgNumOfRegs(mallocator.Adapter()) {}
+  MapleVector<RegOperand*> lmbcCallArgs;
+  MapleVector<PrimType> lmbcCallArgTypes;
+  MapleVector<int32> lmbcCallArgOffsets;
+  MapleVector<int32> lmbcCallArgNumOfRegs; // # of regs needed to complete struct
+};
+
 class AArch64CGFunc : public CGFunc {
  public:
   AArch64CGFunc(MIRModule &mod, CG &c, MIRFunction &f, BECommon &b,
@@ -51,7 +64,7 @@ class AArch64CGFunc : public CGFunc {
     if (f.GetAttr(FUNCATTR_varargs) || f.HasVlaOrAlloca()) {
       SetHasVLAOrAlloca(true);
     }
-    SetUseFP(CGOptions::UseFramePointer() || HasVLAOrAlloca() || !f.GetModule()->IsCModule());
+    SetUseFP(CGOptions::UseFramePointer() || HasVLAOrAlloca() || !f.GetModule()->IsCModule() || f.GetModule()->GetFlavor() == MIRFlavor::kFlavorLmbc);
   }
 
   ~AArch64CGFunc() override = default;
@@ -86,12 +99,13 @@ class AArch64CGFunc : public CGFunc {
     return kRFLAG;
   }
 
+  MIRType *GetAggTyFromCallSite(StmtNode *stmt);
   RegOperand &GetOrCreateResOperand(const BaseNode &parent, PrimType primType);
 
-  void IntrinsifyGetAndAddInt(AArch64ListOperand &srcOpnds, PrimType pty);
-  void IntrinsifyGetAndSetInt(AArch64ListOperand &srcOpnds, PrimType pty);
-  void IntrinsifyCompareAndSwapInt(AArch64ListOperand &srcOpnds, PrimType pty);
-  void IntrinsifyStringIndexOf(AArch64ListOperand &srcOpnds, const MIRSymbol &funcSym);
+  void IntrinsifyGetAndAddInt(ListOperand &srcOpnds, PrimType pty);
+  void IntrinsifyGetAndSetInt(ListOperand &srcOpnds, PrimType pty);
+  void IntrinsifyCompareAndSwapInt(ListOperand &srcOpnds, PrimType pty);
+  void IntrinsifyStringIndexOf(ListOperand &srcOpnds, const MIRSymbol &funcSym);
   void GenSaveMethodInfoCode(BB &bb) override;
   void DetermineReturnTypeofCall() override;
   void HandleRCCall(bool begin, const MIRSymbol *retRef = nullptr) override;
@@ -105,13 +119,17 @@ class AArch64CGFunc : public CGFunc {
   void SelectAbort() override;
   void SelectAssertNull(UnaryStmtNode &stmt) override;
   void SelectAsm(AsmNode &stmt) override;
-  AArch64MemOperand *GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 alignUsed, int64 offset,
-                                              bool needLow12 = false);
-  AArch64MemOperand *FixLargeMemOpnd(MemOperand &memOpnd, uint32 align);
-  AArch64MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
+  MemOperand *GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 alignUsed, int64 offset,
+                                       bool needLow12 = false);
+  MemOperand *FixLargeMemOpnd(MemOperand &memOpnd, uint32 align);
+  MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
+  void LmbcSelectParmList(ListOperand *srcOpnds);
   void SelectAggDassign(DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
   void SelectIassignoff(IassignoffNode &stmt) override;
+  void SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) override;
+  void SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd) override;
+  void SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) override;
   void SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) override;
   void SelectReturn(Operand *opnd0) override;
   void SelectIgoto(Operand *opnd0) override;
@@ -154,9 +172,10 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectRegread(RegreadNode &expr) override;
 
   void SelectAddrof(Operand &result, StImmOperand &stImm, FieldID field = 0);
-  void SelectAddrof(Operand &result, AArch64MemOperand &memOpnd, FieldID field = 0);
-  Operand *SelectCSyncCmpSwap(const IntrinsicopNode &intrinsicopNode, PrimType pty, bool retBool = false);
-  Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent) override;
+  void SelectAddrof(Operand &result, MemOperand &memOpnd, FieldID field = 0);
+  Operand *SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, PrimType pty, bool retBool = false);
+  Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent, bool isAddrofoff = false) override;
+  Operand *SelectAddrofoff(AddrofoffNode &expr, const BaseNode &parent) override;
   Operand &SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) override;
   Operand &SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) override;
 
@@ -165,6 +184,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectIread(const BaseNode &parent, IreadNode &expr,
                        int extraOffset = 0, PrimType finalBitFieldDestType = kPtyInvalid) override;
   Operand *SelectIreadoff(const BaseNode &parent, IreadoffNode &ireadoff) override;
+  Operand *SelectIreadfpoff(const BaseNode &parent, IreadFPoffNode &ireadoff) override;
   Operand *SelectIntConst(MIRIntConst &intConst) override;
   Operand *HandleFmovImm(PrimType stype, int64 val, MIRConst &mirConst, const BaseNode &parent);
   Operand *SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &parent) override;
@@ -215,7 +235,7 @@ class AArch64CGFunc : public CGFunc {
   MemOperand *AdjustMemOperandIfOffsetOutOfRange(MemOperand *memOpnd, regno_t regNO, bool isDest, Insn &insn,
                                                  AArch64reg regNum, bool &isOutOfRange);
   void SelectAddAfterInsn(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType, bool isDest, Insn &insn);
-  bool IsImmediateOffsetOutOfRange(const AArch64MemOperand &memOpnd, uint32 bitLen);
+  bool IsImmediateOffsetOutOfRange(const MemOperand &memOpnd, uint32 bitLen);
   bool IsOperandImmValid(MOperator mOp, Operand *o, uint32 opndIdx);
   Operand *SelectRem(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
   void SelectDiv(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
@@ -223,6 +243,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectAbsSub(Insn &lastInsn, const UnaryNode &node, Operand &newOpnd0);
   Operand *SelectAbs(UnaryNode &node, Operand &opnd0) override;
   Operand *SelectBnot(UnaryNode &node, Operand &opnd0, const BaseNode &parent) override;
+  Operand *SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectExtractbits(ExtractbitsNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectRegularBitFieldLoad(ExtractbitsNode &node, const BaseNode &parent) override;
   Operand *SelectDepositBits(DepositbitsNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
@@ -262,7 +283,7 @@ class AArch64CGFunc : public CGFunc {
   bool IsRegRematCand(const RegOperand &reg);
   void ClearRegRematInfo(const RegOperand &reg);
   bool IsRegSameRematInfo(const RegOperand &regDest, const RegOperand &regSrc);
-  void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn) override;
+  void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn, regno_t destNO) override;
   void CleanupDeadMov(bool dump = false) override;
   void GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &realSaveRegs) override;
   Operand &GetTargetRetOperand(PrimType primType, int32 sReg) override;
@@ -272,18 +293,18 @@ class AArch64CGFunc : public CGFunc {
   RegOperand &CreateRegisterOperandOfType(PrimType primType);
   RegOperand &CreateRegisterOperandOfType(RegType regType, uint32 byteLen);
   RegOperand &CreateRflagOperand();
-  RegOperand &GetOrCreateSpecialRegisterOperand(PregIdx sregIdx, PrimType primType = PTY_i64);
+  RegOperand &GetOrCreateSpecialRegisterOperand(PregIdx sregIdx, PrimType primType);
   MemOperand *GetOrCreatSpillMem(regno_t vrNum);
   void FreeSpillRegMem(regno_t vrNum);
-  AArch64RegOperand &GetOrCreatePhysicalRegisterOperand(AArch64reg regNO, uint32 size, RegType type, uint32 flag = 0);
-  AArch64RegOperand &GetOrCreatePhysicalRegisterOperand(std::string &asmAttr);
+  RegOperand &GetOrCreatePhysicalRegisterOperand(AArch64reg regNO, uint32 size, RegType type, uint32 flag = 0);
+  RegOperand &GetOrCreatePhysicalRegisterOperand(std::string &asmAttr);
+  RegOperand *CreateVirtualRegisterOperand(regno_t vRegNO, uint32 size, RegType kind, uint32 flg = 0);
   RegOperand &CreateVirtualRegisterOperand(regno_t vregNO) override;
   RegOperand &GetOrCreateVirtualRegisterOperand(regno_t vregNO) override;
   RegOperand &GetOrCreateVirtualRegisterOperand(RegOperand &regOpnd) override;
   const LabelOperand *GetLabelOperand(LabelIdx labIdx) const override;
   LabelOperand &GetOrCreateLabelOperand(LabelIdx labIdx) override;
   LabelOperand &GetOrCreateLabelOperand(BB &bb) override;
-  LabelOperand &CreateFuncLabelOperand(const MIRSymbol &func);
   uint32 GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment) const;
 
   RegOperand *SelectVectorAddLong(PrimType rTy, Operand *o1, Operand *o2, PrimType oty, bool isLow) override;
@@ -339,14 +360,8 @@ class AArch64CGFunc : public CGFunc {
     return nType;
   }
 
-  AArch64ImmOperand &CreateImmOperand(PrimType ptyp, int64 val) override {
+  ImmOperand &CreateImmOperand(PrimType ptyp, int64 val) override {
     return CreateImmOperand(val, GetPrimTypeBitSize(ptyp), IsSignedInteger(ptyp));
-  }
-
-  Operand *CreateZeroOperand(PrimType ptyp) override {
-    (void)ptyp;
-    ASSERT(false, "NYI");
-    return nullptr;
   }
 
   Operand &CreateFPImmZero(PrimType ptyp) override {
@@ -357,27 +372,31 @@ class AArch64CGFunc : public CGFunc {
     return nullptr;
   }
   /* create an integer immediate operand */
-  AArch64ImmOperand &CreateImmOperand(int64 val, uint32 size, bool isSigned, VaryType varyType = kNotVary,
+  ImmOperand &CreateImmOperand(int64 val, uint32 size, bool isSigned, VaryType varyType = kNotVary,
                                       bool isFmov = false) {
-    return *memPool->New<AArch64ImmOperand>(val, size, isSigned, varyType, isFmov);
+    return *memPool->New<ImmOperand>(val, size, isSigned, varyType, isFmov);
+  }
+
+  ListOperand *CreateListOpnd(MapleAllocator &allocator) {
+    return memPool->New<ListOperand>(allocator);
   }
 
   ImmFPZeroOperand &GetOrCreateFpZeroOperand(uint8 size) {
     return *ImmFPZeroOperand::allocate(size);
   }
 
-  AArch64OfstOperand &GetOrCreateOfstOpnd(uint64 offset, uint32 size);
+  OfstOperand &GetOrCreateOfstOpnd(uint64 offset, uint32 size);
 
-  AArch64OfstOperand &CreateOfstOpnd(uint64 offset, uint32 size) {
-    return *memPool->New<AArch64OfstOperand>(offset, size);
+  OfstOperand &CreateOfstOpnd(uint64 offset, uint32 size) {
+    return *memPool->New<OfstOperand>(offset, size);
   }
 
-  AArch64OfstOperand &CreateOfstOpnd(const MIRSymbol &mirSymbol, int32 relocs) {
-    return *memPool->New<AArch64OfstOperand>(mirSymbol, 0, relocs);
+  OfstOperand &CreateOfstOpnd(const MIRSymbol &mirSymbol, int32 relocs) {
+    return *memPool->New<OfstOperand>(mirSymbol, 0, relocs);
   }
 
-  AArch64OfstOperand &CreateOfstOpnd(const MIRSymbol &mirSymbol, int64 offset, int32 relocs) {
-    return *memPool->New<AArch64OfstOperand>(mirSymbol, 0, offset, relocs);
+  OfstOperand &CreateOfstOpnd(const MIRSymbol &mirSymbol, int64 offset, int32 relocs) {
+    return *memPool->New<OfstOperand>(mirSymbol, 0, offset, relocs);
   }
 
   StImmOperand &CreateStImmOperand(const MIRSymbol &mirSymbol, int64 offset, int32 relocs) {
@@ -389,30 +408,36 @@ class AArch64CGFunc : public CGFunc {
   }
 
   RegOperand &GetOrCreateStackBaseRegOperand() override {
-    return GetOrCreatePhysicalRegisterOperand(RFP, kSizeOfPtr * kBitsPerByte, kRegTyInt);
+    AArch64reg reg;
+    if (GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
+      reg = RSP;
+    } else {
+      reg = RFP;
+    }
+    return GetOrCreatePhysicalRegisterOperand(reg, kSizeOfPtr * kBitsPerByte, kRegTyInt);
   }
 
   RegOperand &GenStructParamIndex(RegOperand &base, const BaseNode &indexExpr, int shift, PrimType baseType,
                                   PrimType targetType);
   void SelectAddrofAfterRa(Operand &result, StImmOperand &stImm, std::vector<Insn *>& rematInsns);
   MemOperand &GetOrCreateMemOpndAfterRa(const MIRSymbol &symbol, int32 offset, uint32 size,
-      bool needLow12, AArch64RegOperand *regOp, std::vector<Insn *>& rematInsns);
+      bool needLow12, RegOperand *regOp, std::vector<Insn *>& rematInsns);
 
   MemOperand &GetOrCreateMemOpnd(const MIRSymbol &symbol, int64 offset, uint32 size, bool forLocalRef = false,
-                                 bool needLow12 = false, AArch64RegOperand *regOp = nullptr);
+                                 bool needLow12 = false, RegOperand *regOp = nullptr);
 
-  AArch64MemOperand &HashMemOpnd(AArch64MemOperand &tMemOpnd);
+  MemOperand &HashMemOpnd(MemOperand &tMemOpnd);
 
-  AArch64MemOperand &GetOrCreateMemOpnd(AArch64MemOperand::AArch64AddressingMode, uint32, RegOperand*, RegOperand*,
-                                        OfstOperand*, const MIRSymbol*);
+  MemOperand &GetOrCreateMemOpnd(MemOperand::AArch64AddressingMode, uint32, RegOperand*, RegOperand*,
+                                 ImmOperand*, const MIRSymbol*);
 
-  AArch64MemOperand &GetOrCreateMemOpnd(AArch64MemOperand::AArch64AddressingMode, uint32 size, RegOperand *base,
-                                        RegOperand *index, int32 shift, bool isSigned = false);
+  MemOperand &GetOrCreateMemOpnd(MemOperand::AArch64AddressingMode, uint32 size, RegOperand *base,
+                                 RegOperand *index, int32 shift, bool isSigned = false);
 
-  AArch64MemOperand &GetOrCreateMemOpnd(AArch64MemOperand &oldMem);
+  MemOperand &GetOrCreateMemOpnd(MemOperand &oldMem);
 
   MemOperand &CreateMemOpnd(AArch64reg reg, int64 offset, uint32 size) {
-    AArch64RegOperand &baseOpnd = GetOrCreatePhysicalRegisterOperand(reg, kSizeOfPtr * kBitsPerByte, kRegTyInt);
+    RegOperand &baseOpnd = GetOrCreatePhysicalRegisterOperand(reg, kSizeOfPtr * kBitsPerByte, kRegTyInt);
     return CreateMemOpnd(baseOpnd, offset, size);
   }
 
@@ -454,6 +479,9 @@ class AArch64CGFunc : public CGFunc {
   void GenerateCleanupCode(BB &bb) override;
   bool NeedCleanup() override;
   void GenerateCleanupCodeForExtEpilog(BB &bb) override;
+  uint32 FloatParamRegRequired(MIRStructType &structType, uint32 &fpSize) override;
+  void AssignLmbcFormalParams() override;
+  RegOperand *GenLmbcParamLoad(int32 offset, uint32 byteSize, RegType regType, PrimType primType);
   Operand *GetBaseReg(const AArch64SymbolAlloc &symAlloc);
   int32 GetBaseOffset(const SymbolAlloc &symAlloc) override;
 
@@ -533,13 +561,21 @@ class AArch64CGFunc : public CGFunc {
     return cleanEANode;
   }
 
-  AArch64MemOperand &CreateStkTopOpnd(uint32 offset, uint32 size);
+  MemOperand &CreateStkTopOpnd(uint32 offset, uint32 size);
+  MemOperand *CreateStackMemOpnd(regno_t preg, int32 offset, uint32 size);
+  MemOperand *CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 size,
+      RegOperand &base, RegOperand *index, ImmOperand *offset, const MIRSymbol *symbol);
+  MemOperand *CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 size,
+      RegOperand &base, RegOperand &index, ImmOperand *offset, const MIRSymbol &symbol, bool noExtend);
+  MemOperand *CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 dSize,
+      RegOperand &base, RegOperand &indexOpnd, uint32 shift, bool isSigned = false);
+  MemOperand *CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 dSize, const MIRSymbol &sym);
 
   /* if offset < 0, allocation; otherwise, deallocation */
-  AArch64MemOperand &CreateCallFrameOperand(int32 offset, int32 size);
+  MemOperand &CreateCallFrameOperand(int32 offset, int32 size);
 
   void AppendCall(const MIRSymbol &func);
-  Insn &AppendCall(const MIRSymbol &func, AArch64ListOperand &srcOpnds, bool isCleanCall = false);
+  Insn &AppendCall(const MIRSymbol &func, ListOperand &srcOpnds, bool isCleanCall = false);
 
   static constexpr uint32 kDwarfScalarRegBegin = 0;
   static constexpr uint32 kDwarfFpRegBegin = 64;
@@ -584,14 +620,14 @@ class AArch64CGFunc : public CGFunc {
                        AArch64isa::MemoryOrdering memOrd = AArch64isa::kMoNone) const;
   MOperator PickExtInsn(PrimType dtype, PrimType stype) const;
 
-  bool CheckIfSplitOffsetWithAdd(const AArch64MemOperand &memOpnd, uint32 bitLen);
+  bool CheckIfSplitOffsetWithAdd(const MemOperand &memOpnd, uint32 bitLen);
   RegOperand *GetBaseRegForSplit(uint32 baseRegNum);
 
-  AArch64MemOperand &ConstraintOffsetToSafeRegion(uint32 bitLen, AArch64MemOperand &memOpnd);
-  AArch64MemOperand &SplitOffsetWithAddInstruction(const AArch64MemOperand &memOpnd, uint32 bitLen,
-                                                   uint32 baseRegNum = AArch64reg::kRinvalid, bool isDest = false,
-                                                   Insn *insn = nullptr, bool forPair = false);
-  AArch64MemOperand &CreateReplacementMemOperand(uint32 bitLen, RegOperand &baseReg, int64 offset);
+  MemOperand &ConstraintOffsetToSafeRegion(uint32 bitLen, MemOperand &memOpnd);
+  MemOperand &SplitOffsetWithAddInstruction(const MemOperand &memOpnd, uint32 bitLen,
+                                            uint32 baseRegNum = AArch64reg::kRinvalid, bool isDest = false,
+                                            Insn *insn = nullptr, bool forPair = false);
+  MemOperand &CreateReplacementMemOperand(uint32 bitLen, RegOperand &baseReg, int64 offset);
 
   bool HasStackLoadStore();
 
@@ -647,6 +683,44 @@ class AArch64CGFunc : public CGFunc {
     return alignPow;
   }
 
+  LmbcArgInfo *GetLmbcArgInfo() {
+    return lmbcArgInfo;
+  }
+
+  void SetLmbcArgInfo(LmbcArgInfo *p) {
+    lmbcArgInfo = p;
+  }
+
+  void SetLmbcArgInfo(RegOperand *reg, PrimType pTy, int32 ofst, int32 regs) {
+    GetLmbcCallArgs().emplace_back(reg);
+    GetLmbcCallArgTypes().emplace_back(pTy);
+    GetLmbcCallArgOffsets().emplace_back(ofst);
+    GetLmbcCallArgNumOfRegs().emplace_back(regs);
+  }
+
+  void ResetLmbcArgInfo() {
+    GetLmbcCallArgs().clear();
+    GetLmbcCallArgTypes().clear();
+    GetLmbcCallArgOffsets().clear();
+    GetLmbcCallArgNumOfRegs().clear();
+  }
+
+  MapleVector<RegOperand*> &GetLmbcCallArgs() {
+    return lmbcArgInfo->lmbcCallArgs;
+  }
+
+  MapleVector<PrimType> &GetLmbcCallArgTypes() {
+    return lmbcArgInfo->lmbcCallArgTypes;
+  }
+
+  MapleVector<int32> &GetLmbcCallArgOffsets() {
+    return lmbcArgInfo->lmbcCallArgOffsets;
+  }
+
+  MapleVector<int32> &GetLmbcCallArgNumOfRegs() {
+    return lmbcArgInfo->lmbcCallArgNumOfRegs;
+  }
+
  private:
   enum RelationOperator : uint8 {
     kAND,
@@ -676,18 +750,18 @@ class AArch64CGFunc : public CGFunc {
   Insn *yieldPointInsn = nullptr;   /* The insn of yield point at the entry of the func. */
   IntrinsiccallNode *cleanEANode = nullptr;
 
-  MapleUnorderedMap<phyRegIdx, AArch64RegOperand*> phyRegOperandTable;  /* machine register operand table */
+  MapleUnorderedMap<phyRegIdx, RegOperand*> phyRegOperandTable;  /* machine register operand table */
   MapleUnorderedMap<LabelIdx, LabelOperand*> hashLabelOpndTable;
-  MapleUnorderedMap<OfstRegIdx, AArch64OfstOperand*> hashOfstOpndTable;
-  MapleUnorderedMap<AArch64MemOperand, AArch64MemOperand*> hashMemOpndTable;
+  MapleUnorderedMap<OfstRegIdx, OfstOperand*> hashOfstOpndTable;
+  MapleUnorderedMap<MemOperand, MemOperand*> hashMemOpndTable;
   /*
    * Local variables, formal parameters that are passed via registers
    * need offset adjustment after callee-saved registers are known.
    */
-  MapleUnorderedMap<StIdx, AArch64MemOperand*> memOpndsRequiringOffsetAdjustment;
-  MapleUnorderedMap<StIdx, AArch64MemOperand*> memOpndsForStkPassedArguments;
-  MapleUnorderedMap<AArch64SymbolAlloc*, AArch64ImmOperand*> immOpndsRequiringOffsetAdjustment;
-  MapleUnorderedMap<AArch64SymbolAlloc*, AArch64ImmOperand*> immOpndsRequiringOffsetAdjustmentForRefloc;
+  MapleUnorderedMap<StIdx, MemOperand*> memOpndsRequiringOffsetAdjustment;
+  MapleUnorderedMap<StIdx, MemOperand*> memOpndsForStkPassedArguments;
+  MapleUnorderedMap<AArch64SymbolAlloc*, ImmOperand*> immOpndsRequiringOffsetAdjustment;
+  MapleUnorderedMap<AArch64SymbolAlloc*, ImmOperand*> immOpndsRequiringOffsetAdjustmentForRefloc;
   union {
     regno_t regNOCatch;  /* For O2. */
     Operand *opndCatch;  /* For O0-O1. */
@@ -713,15 +787,19 @@ class AArch64CGFunc : public CGFunc {
   int32 splitStpldpBaseOffset = 0;
   regno_t methodHandleVreg = -1;
   uint32 alignPow = 5; /* function align pow defaults to 5   i.e. 2^5*/
+  LmbcArgInfo *lmbcArgInfo = nullptr;
 
   void SelectLoadAcquire(Operand &dest, PrimType dtype, Operand &src, PrimType stype,
                          AArch64isa::MemoryOrdering memOrd, bool isDirect);
   void SelectStoreRelease(Operand &dest, PrimType dtype, Operand &src, PrimType stype,
                           AArch64isa::MemoryOrdering memOrd, bool isDirect);
   MOperator PickJmpInsn(Opcode brOp, Opcode cmpOp, bool isFloat, bool isSigned) const;
-  Operand &GetZeroOpnd(uint32 size) override;
   bool IsFrameReg(const RegOperand &opnd) const override;
+  bool IsSPOrFP(const RegOperand &opnd) const override;
+  bool IsReturnReg(const RegOperand &opnd) const override;
+  bool IsSaveReg(const RegOperand &reg, MIRType &mirType, BECommon &beCommon) const override;
 
+  RegOperand &GetZeroOpnd(uint32 size) override;
   PrimType GetOperandTy(bool isIntty, uint32 dsize, bool isSigned) const {
     ASSERT(!isSigned || isIntty, "");
     return (isIntty ? ((dsize == k64BitSize) ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32))
@@ -748,34 +826,34 @@ class AArch64CGFunc : public CGFunc {
   }
 
   void CreateCallStructParamPassByStack(int32 symSize, const MIRSymbol *sym, RegOperand *addrOpnd, int32 baseOffset);
-  AArch64RegOperand *SelectParmListDreadAccessField(const MIRSymbol &sym, FieldID fieldID, const CCLocInfo &ploc,
-                                                    int32 offset, uint32 parmNum);
-  void CreateCallStructParamPassByReg(regno_t reg, MemOperand &memOpnd, AArch64ListOperand &srcOpnds,
+  RegOperand *SelectParmListDreadAccessField(const MIRSymbol &sym, FieldID fieldID, const CCLocInfo &ploc,
+                                             int32 offset, uint32 parmNum);
+  void CreateCallStructParamPassByReg(regno_t reg, MemOperand &memOpnd, ListOperand &srcOpnds,
                                       fpParamState state);
   void CreateCallStructParamMemcpy(const MIRSymbol *sym, RegOperand *addropnd,
                                    uint32 structSize, int32 copyOffset, int32 fromOffset);
-  AArch64RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, const MIRSymbol *sym, RegOperand *addrOpd,
-                                                      int32 copyOffset, int32 fromOffset, const CCLocInfo &ploc);
+  RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, const MIRSymbol *sym, RegOperand *addrOpd,
+                                               int32 copyOffset, int32 fromOffset, const CCLocInfo &ploc);
   void SelectParmListDreadSmallAggregate(const MIRSymbol &sym, MIRType &structType,
-                                         AArch64ListOperand &srcOpnds,
+                                         ListOperand &srcOpnds,
                                          int32 offset, AArch64CallConvImpl &parmLocator, FieldID fieldID);
-  void SelectParmListIreadSmallAggregate(const IreadNode &iread, MIRType &structType, AArch64ListOperand &srcOpnds,
+  void SelectParmListIreadSmallAggregate(const IreadNode &iread, MIRType &structType, ListOperand &srcOpnds,
                                          int32 offset, AArch64CallConvImpl &parmLocator);
   void SelectParmListDreadLargeAggregate(const MIRSymbol &sym, MIRType &structType,
-                                         AArch64ListOperand &srcOpnds,
+                                         ListOperand &srcOpnds,
                                          AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, int32 fromOffset);
-  void SelectParmListIreadLargeAggregate(const IreadNode &iread, MIRType &structType, AArch64ListOperand &srcOpnds,
+  void SelectParmListIreadLargeAggregate(const IreadNode &iread, MIRType &structType, ListOperand &srcOpnds,
                                          AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, int32 fromOffset);
   void CreateCallStructMemcpyToParamReg(MIRType &structType, int32 structCopyOffset, AArch64CallConvImpl &parmLocator,
-                                        AArch64ListOperand &srcOpnds);
-  void SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOperand &srcOpnds, AArch64CallConvImpl &parmLocator,
+                                        ListOperand &srcOpnds);
+  void SelectParmListForAggregate(BaseNode &argExpr, ListOperand &srcOpnds, AArch64CallConvImpl &parmLocator,
                                   int32 &structCopyOffset);
   size_t SelectParmListGetStructReturnSize(StmtNode &naryNode);
   void SelectParmListPreprocessLargeStruct(BaseNode &argExpr, int32 &structCopyOffset);
   void SelectParmListPreprocess(const StmtNode &naryNode, size_t start);
-  void SelectParmList(StmtNode &naryNode, AArch64ListOperand &srcOpnds, bool isCallNative = false);
+  void SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bool isCallNative = false);
   Operand *SelectClearStackCallParam(const AddrofNode &expr, int64 &offsetValue);
-  void SelectClearStackCallParmList(const StmtNode &naryNode, AArch64ListOperand &srcOpnds,
+  void SelectClearStackCallParmList(const StmtNode &naryNode, ListOperand &srcOpnds,
                                     std::vector<int64> &stackPostion);
   void SelectRem(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType, bool isSigned, bool is64Bits);
   void SelectCvtInt2Int(const BaseNode *parent, Operand *&resOpnd, Operand *opnd0, PrimType fromType, PrimType toType);
@@ -823,8 +901,8 @@ class AArch64CGFunc : public CGFunc {
   /* Translation for load-link store-conditional, and atomic RMW operations. */
   MemOrd OperandToMemOrd(Operand &opnd) const;
   MOperator PickLoadStoreExclInsn(uint32 byteP2Size, bool store, bool acqRel) const;
-  RegOperand *SelectLoadExcl(PrimType valPrimType, AArch64MemOperand &loc, bool acquire);
-  RegOperand *SelectStoreExcl(PrimType valPty, AArch64MemOperand &loc, RegOperand &newVal, bool release);
+  RegOperand *SelectLoadExcl(PrimType valPrimType, MemOperand &loc, bool acquire);
+  RegOperand *SelectStoreExcl(PrimType valPty, MemOperand &loc, RegOperand &newVal, bool release);
 
   MemOperand *GetPseudoRegisterSpillMemoryOperand(PregIdx i) override;
   void ProcessLazyBinding() override;
@@ -834,9 +912,9 @@ class AArch64CGFunc : public CGFunc {
   bool IsStoreMop(MOperator mOp) const;
   bool IsImmediateValueInRange(MOperator mOp, int64 immVal, bool is64Bits,
                                bool isIntactIndexed, bool isPostIndexed, bool isPreIndexed) const;
-  Insn &GenerateGlobalLongCallAfterInsn(const MIRSymbol &func, AArch64ListOperand &srcOpnds,
+  Insn &GenerateGlobalLongCallAfterInsn(const MIRSymbol &func, ListOperand &srcOpnds,
                                         bool isCleanCall = false);
-  Insn &GenerateLocalLongCallAfterInsn(const MIRSymbol &func, AArch64ListOperand &srcOpnds,
+  Insn &GenerateLocalLongCallAfterInsn(const MIRSymbol &func, ListOperand &srcOpnds,
                                        bool isCleanCall = false);
   bool IsDuplicateAsmList(const MIRSymbol &sym) const;
   RegOperand *CheckStringIsCompressed(BB &bb, RegOperand &str, int32 countOffset, PrimType countPty,

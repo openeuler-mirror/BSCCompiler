@@ -76,6 +76,72 @@ class SpillMemOperandSet {
   MapleSet<MemOperand*, MemOpndCmp> reuseSpillLocMem;
 };
 
+class LmbcFormalParamInfo {
+ public:
+  explicit LmbcFormalParamInfo(PrimType pType, uint32 ofst, uint32 sz) :
+      primType(pType), offset(ofst), size(sz), regNO(0), vregNO(0), numRegs(0), fpSize(0), isPureFloat(false) {}
+
+  virtual ~LmbcFormalParamInfo() = default;
+
+  PrimType GetPrimType() {
+    return primType;
+  }
+  void SetPrimType(PrimType pType) {
+    primType = pType;
+  }
+  uint32 GetOffset() {
+    return offset;
+  }
+  void SetOffset(uint32 ofs) {
+    offset = ofs;
+  }
+  uint32 GetSize() {
+    return size;
+  }
+  void SetSize(uint32 sz) {
+    size = sz;
+  }
+  regno_t GetRegNO() {
+    return regNO;
+  }
+  void SetRegNO(regno_t reg) {
+    regNO = reg;
+  }
+  regno_t GetVregNO() {
+    return vregNO;
+  }
+  void SetVregNO(regno_t reg) {
+    vregNO = reg;
+  }
+  uint32 GetNumRegs() {
+    return numRegs;
+  }
+  void SetNumRegs(uint32 num) {
+    numRegs = num;
+  }
+  uint32 GetFpSize() {
+    return fpSize;
+  }
+  void SetFpSize(uint32 sz) {
+    fpSize = sz;
+  }
+  bool IsPureFloat() {
+    return isPureFloat;
+  }
+  void SetIsPureFloat() {
+    isPureFloat = true;
+  }
+ private:
+  PrimType primType;
+  uint32 offset;
+  uint32 size;    /* size primtype or struct */
+  regno_t regNO;  /* param reg num or starting reg num if numRegs > 0 */
+  regno_t vregNO; /* if no explicit regassing from IR, create move from param reg */
+  uint32 numRegs; /* number of regs for struct param */
+  uint32 fpSize;  /* size of fp param if isPureFloat */
+  bool isPureFloat;
+};
+
 #if TARGARM32
 class LiveRange;
 #endif  /* TARGARM32 */
@@ -147,6 +213,10 @@ class CGFunc {
   virtual bool NeedCleanup() = 0;
   virtual void GenerateCleanupCodeForExtEpilog(BB &bb) = 0;
 
+  void CreateLmbcFormalParamInfo();
+  virtual uint32 FloatParamRegRequired(MIRStructType &structType, uint32 &fpSize) = 0;
+  virtual void AssignLmbcFormalParams() = 0;
+  LmbcFormalParamInfo *GetLmbcFormalParamInfo(uint32 offset);
   void GenerateLoc(StmtNode *stmt, unsigned &lastSrcLoc, unsigned &lastMplLoc);
   int32 GetFreqFromStmt(uint32 stmtId);
   void GenerateInstruction();
@@ -184,6 +254,9 @@ class CGFunc {
   virtual void SelectAggDassign(DassignNode &stmt) = 0;
   virtual void SelectIassign(IassignNode &stmt) = 0;
   virtual void SelectIassignoff(IassignoffNode &stmt) = 0;
+  virtual void SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) = 0;
+  virtual void SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd) = 0;
+  virtual void SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) = 0;
   virtual void SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) = 0;
   virtual void SelectReturn(Operand *opnd) = 0;
   virtual void SelectIgoto(Operand *opnd0) = 0;
@@ -221,12 +294,14 @@ class CGFunc {
   /* select expr */
   virtual Operand *SelectDread(const BaseNode &parent, AddrofNode &expr) = 0;
   virtual RegOperand *SelectRegread(RegreadNode &expr) = 0;
-  virtual Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent) = 0;
+  virtual Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent, bool isAddrofoff = false) = 0;
+  virtual Operand *SelectAddrofoff(AddrofoffNode &expr, const BaseNode &parent) = 0;
   virtual Operand &SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) = 0;
   virtual Operand &SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) = 0;
   virtual Operand *SelectIread(const BaseNode &parent, IreadNode &expr,
                                int extraOffset = 0, PrimType finalBitFieldDestType = kPtyInvalid) = 0;
   virtual Operand *SelectIreadoff(const BaseNode &parent, IreadoffNode &ireadoff) = 0;
+  virtual Operand *SelectIreadfpoff(const BaseNode &parent, IreadFPoffNode &ireadoff) = 0;
   virtual Operand *SelectIntConst(MIRIntConst &intConst) = 0;
   virtual Operand *SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &parent) = 0;
   virtual Operand *SelectDoubleConst(MIRDoubleConst &doubleConst, const BaseNode &parent) = 0;
@@ -868,6 +943,39 @@ class CGFunc {
     loops.emplace_back(&loop);
   }
 
+  MapleVector<LmbcFormalParamInfo*> &GetLmbcParamVec() {
+    return lmbcParamVec;
+  }
+
+  void IncLmbcArgsInRegs(RegType ty) {
+    if (ty == kRegTyInt) {
+      lmbcIntArgs++;
+    } else {
+      lmbcFpArgs++;
+    }
+  }
+
+  int16 GetLmbcArgsInRegs(RegType ty) {
+    return ty == kRegTyInt ? lmbcIntArgs : lmbcFpArgs;
+  }
+
+  void ResetLmbcArgsInRegs() {
+    lmbcIntArgs = 0;
+    lmbcFpArgs = 0;
+  }
+
+  void IncLmbcTotalArgs() {
+    lmbcTotalArgs++;
+  }
+
+  int16 GetLmbcTotalArgs() {
+    return lmbcTotalArgs;
+  }
+
+  void ResetLmbcTotalArgs() {
+    lmbcTotalArgs = 0;
+  }
+
   MapleVector<BB*> &GetAllBBs() {
     return bbVec;
   }
@@ -1205,6 +1313,10 @@ class CGFunc {
   MapleVector<LiveRange*> lrVec;
 #endif  /* TARGARM32 */
   MapleVector<CGFuncLoops*> loops;
+  MapleVector<LmbcFormalParamInfo*> lmbcParamVec;
+  int32 lmbcIntArgs = 0;
+  int32 lmbcFpArgs = 0;
+  int32 lmbcTotalArgs = 0;
   CGCFG *theCFG = nullptr;
   uint32 nextSpillLocation = 0;
 

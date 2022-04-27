@@ -22,6 +22,7 @@
 #include "mir_builder.h"
 #include "factory.h"
 #include "debug_info.h"
+#include "optimize_common.h"
 
 namespace maplebe {
 using namespace maple;
@@ -183,6 +184,11 @@ Operand *HandleAddrof(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   return cgFunc.SelectAddrof(addrofNode, parent);
 }
 
+Operand *HandleAddrofoff(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
+  auto &addrofoffNode = static_cast<AddrofoffNode&>(expr);
+  return cgFunc.SelectAddrofoff(addrofoffNode, parent);
+}
+
 Operand *HandleAddroffunc(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   auto &addroffuncNode = static_cast<AddroffuncNode&>(expr);
   return &cgFunc.SelectAddrofFunc(addroffuncNode, parent);
@@ -201,6 +207,11 @@ Operand *HandleIread(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
 Operand *HandleIreadoff(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   auto &ireadNode = static_cast<IreadoffNode&>(expr);
   return cgFunc.SelectIreadoff(parent, ireadNode);
+}
+
+Operand *HandleIreadfpoff(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
+  auto &ireadNode = static_cast<IreadFPoffNode&>(expr);
+  return cgFunc.SelectIreadfpoff(parent, ireadNode);
 }
 
 Operand *HandleSub(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
@@ -639,6 +650,10 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_a64, "strchr");
     case INTRN_C_strrchr:
       return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_a64, "strrchr");
+    case INTRN_C_rev32:
+    case INTRN_C_rev64:
+      return cgFunc.SelectBswap(intrinsicopNode, *cgFunc.HandleExpr(expr, *expr.Opnd(0)), parent);
+
 
     case INTRN_C_clz32:
     case INTRN_C_clz64:
@@ -959,10 +974,12 @@ void InitHandleExprFactory() {
   RegisterFactoryFunction<HandleExprFactory>(OP_div, HandleDiv);
   RegisterFactoryFunction<HandleExprFactory>(OP_rem, HandleRem);
   RegisterFactoryFunction<HandleExprFactory>(OP_addrof, HandleAddrof);
+  RegisterFactoryFunction<HandleExprFactory>(OP_addrofoff, HandleAddrofoff);
   RegisterFactoryFunction<HandleExprFactory>(OP_addroffunc, HandleAddroffunc);
   RegisterFactoryFunction<HandleExprFactory>(OP_addroflabel, HandleAddrofLabel);
   RegisterFactoryFunction<HandleExprFactory>(OP_iread, HandleIread);
   RegisterFactoryFunction<HandleExprFactory>(OP_ireadoff, HandleIreadoff);
+  RegisterFactoryFunction<HandleExprFactory>(OP_ireadfpoff, HandleIreadfpoff);
   RegisterFactoryFunction<HandleExprFactory>(OP_sub, HandleSub);
   RegisterFactoryFunction<HandleExprFactory>(OP_band, HandleBand);
   RegisterFactoryFunction<HandleExprFactory>(OP_bior, HandleBior);
@@ -1011,6 +1028,9 @@ void HandleLabel(StmtNode &stmt, CGFunc &cgFunc) {
   auto &label = static_cast<LabelNode&>(stmt);
   BB *newBB = cgFunc.StartNewBBImpl(false, label);
   newBB->AddLabel(label.GetLabelIdx());
+  if (newBB->GetId() == 1) {
+    newBB->SetFrequency(kFreqBase);
+  }
   cgFunc.SetLab2BBMap(newBB->GetLabIdx(), *newBB);
   cgFunc.SetCurBB(*newBB);
 }
@@ -1235,6 +1255,28 @@ void HandleIassignoff(StmtNode &stmt, CGFunc &cgFunc) {
   cgFunc.SelectIassignoff(iassignoffNode);
 }
 
+void HandleIassignfpoff(StmtNode &stmt, CGFunc &cgFunc) {
+  ASSERT(stmt.GetOpCode() == OP_iassignfpoff, "expect iassignfpoff");
+  auto &iassignfpoffNode = static_cast<IassignFPoffNode&>(stmt);
+  cgFunc.SelectIassignfpoff(iassignfpoffNode, *cgFunc.HandleExpr(stmt, *stmt.Opnd(0)));
+}
+
+void HandleIassignspoff(StmtNode &stmt, CGFunc &cgFunc) {
+  ASSERT(stmt.GetOpCode() == OP_iassignspoff, "expect iassignspoff");
+  auto &baseNode = static_cast<IassignFPoffNode&>(stmt); /* same as FP */
+  BaseNode *rhs = baseNode.GetRHS();
+  ASSERT(rhs != nullptr, "get rhs of iassignspoffNode failed");
+  Operand *opnd0 = cgFunc.HandleExpr(baseNode, *rhs);
+  cgFunc.SelectIassignspoff(baseNode.GetPrimType(), baseNode.GetOffset(), *opnd0);
+}
+
+void HandleBlkassignoff(StmtNode &stmt, CGFunc &cgFunc) {
+  ASSERT(stmt.GetOpCode() == OP_blkassignoff, "expect blkassignoff");
+  auto &baseNode = static_cast<BlkassignoffNode&>(stmt);
+  Operand *src = cgFunc.HandleExpr(baseNode, *baseNode.Opnd(1));
+  cgFunc.SelectBlkassignoff(baseNode, src);
+}
+
 void HandleEval(const StmtNode &stmt, CGFunc &cgFunc) {
   (void)cgFunc.HandleExpr(stmt, *static_cast<const UnaryStmtNode&>(stmt).Opnd(0));
 }
@@ -1306,6 +1348,7 @@ void InitHandleStmtFactory() {
   RegisterFactoryFunction<HandleStmtFactory>(OP_return, HandleReturn);
   RegisterFactoryFunction<HandleStmtFactory>(OP_call, HandleCall);
   RegisterFactoryFunction<HandleStmtFactory>(OP_icall, HandleICall);
+  RegisterFactoryFunction<HandleStmtFactory>(OP_icallproto, HandleICall);
   RegisterFactoryFunction<HandleStmtFactory>(OP_intrinsiccall, HandleIntrinCall);
   RegisterFactoryFunction<HandleStmtFactory>(OP_intrinsiccallassigned, HandleIntrinCall);
   RegisterFactoryFunction<HandleStmtFactory>(OP_intrinsiccallwithtype, HandleIntrinCall);
@@ -1315,6 +1358,9 @@ void InitHandleStmtFactory() {
   RegisterFactoryFunction<HandleStmtFactory>(OP_regassign, HandleRegassign);
   RegisterFactoryFunction<HandleStmtFactory>(OP_iassign, HandleIassign);
   RegisterFactoryFunction<HandleStmtFactory>(OP_iassignoff, HandleIassignoff);
+  RegisterFactoryFunction<HandleStmtFactory>(OP_iassignfpoff, HandleIassignfpoff);
+  RegisterFactoryFunction<HandleStmtFactory>(OP_iassignspoff, HandleIassignspoff);
+  RegisterFactoryFunction<HandleStmtFactory>(OP_blkassignoff, HandleBlkassignoff);
   RegisterFactoryFunction<HandleStmtFactory>(OP_eval, HandleEval);
   RegisterFactoryFunction<HandleStmtFactory>(OP_rangegoto, HandleRangeGoto);
   RegisterFactoryFunction<HandleStmtFactory>(OP_membarrelease, HandleMembar);
@@ -1359,6 +1405,7 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
       lrVec(allocator.Adapter()),
 #endif  /* TARGARM32 */
       loops(allocator.Adapter()),
+      lmbcParamVec(allocator.Adapter()),
       shortFuncName(cg.ExtractFuncName(mirFunc.GetName()) + "." + std::to_string(funcId), &memPool) {
   mirModule.SetCurFunction(&func);
   dummyBB = CreateNewBB();
@@ -1405,13 +1452,13 @@ StmtNode *CGFunc::HandleFirstStmt() {
   BlockNode *block = func.GetBody();
 
   ASSERT(block != nullptr, "get func body block failed in CGFunc::GenerateInstruction");
-  bool withFreqInfo = func.HasFreqMap() && !func.GetFreqMap().empty();
-  if (withFreqInfo) {
-    frequency = kFreqBase;
-  }
   StmtNode *stmt = block->GetFirst();
   if (stmt == nullptr) {
     return nullptr;
+  }
+  bool withFreqInfo = func.HasFreqMap() && !func.GetLastFreqMap().empty();
+  if (withFreqInfo) {
+    frequency = kFreqBase;
   }
   ASSERT(stmt->GetOpCode() == OP_label, "The first statement should be a label");
   HandleLabel(*stmt, *this);
@@ -1483,15 +1530,112 @@ void CGFunc::GenerateLoc(StmtNode *stmt, unsigned &lastSrcLoc, unsigned &lastMpl
   }
 }
 
+int32 CGFunc::GetFreqFromStmt(uint32 stmtId) {
+  int32 freq = GetFunction().GetFreqFromLastStmt(stmtId);
+  if (freq != -1) {
+    return freq;
+  }
+  return GetFunction().GetFreqFromFirstStmt(stmtId);
+}
+
+LmbcFormalParamInfo *CGFunc::GetLmbcFormalParamInfo(uint32 offset) {
+  MapleVector<LmbcFormalParamInfo*> &paramVec = GetLmbcParamVec();
+  for (auto *param : paramVec) {
+    uint32 paramOffset = param->GetOffset();
+    uint32 paramSize = param->GetSize();
+    if (paramOffset <= offset && offset < (paramOffset + paramSize)) {
+      return param;
+    }
+  }
+  return nullptr;
+}
+
+/*
+ * For formals of lmbc, the formal list is deleted if there is no
+ * passing of aggregate by value.
+ */
+void CGFunc::CreateLmbcFormalParamInfo() {
+  if (GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
+    return;
+  }
+  PrimType primType;
+  uint32 offset;
+  uint32 typeSize;
+  MIRFunction &func = GetFunction();
+  if (func.GetParamSize() > 0) {
+    int stackOffset = 0;
+    for (size_t idx = 0; idx < func.GetParamSize(); ++idx) {
+      MIRSymbol *sym = func.GetFormal(idx);
+      MIRType *type;
+      TyIdx tyIdx;
+      if (sym) {
+        tyIdx = func.GetNthParamTyIdx(idx);
+        type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+      } else {
+        FormalDef vec = const_cast<MIRFunction *>(GetBecommon().GetMIRModule().CurFunction())->GetFormalDefAt(idx);
+        tyIdx = vec.formalTyIdx;
+        type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+      }
+      primType = type->GetPrimType();
+      offset = stackOffset;
+      typeSize = GetBecommon().GetTypeSize(tyIdx);
+      stackOffset += (typeSize + 7) & (-8);
+      LmbcFormalParamInfo *info = GetMemoryPool()->New<LmbcFormalParamInfo>(primType, offset, typeSize);
+      lmbcParamVec.push_back(info);
+      if (type->GetKind() == kTypeStruct) {
+        MIRStructType &structType = static_cast<MIRStructType&>(*type);
+        uint32 fpSize;
+        uint32 numFpRegs = FloatParamRegRequired(structType, fpSize);
+        if (numFpRegs > 0) {
+          info->SetIsPureFloat();
+          info->SetNumRegs(numFpRegs);
+          info->SetFpSize(fpSize);
+        }
+      }
+    }
+  } else {
+    /* No aggregate pass by value here */
+    for (StmtNode *stmt = func.GetBody()->GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
+      if (stmt == nullptr) {
+        break;
+      }
+      if (stmt->GetOpCode() == OP_label) {
+        continue;
+      }
+      if (stmt->GetOpCode() != OP_regassign) {
+        break;
+      }
+      RegassignNode *regAssignNode = static_cast<RegassignNode *>(stmt);
+      BaseNode *operand = regAssignNode->Opnd(0);
+      if (operand->GetOpCode() != OP_ireadfpoff) {
+        break;
+      }
+      IreadFPoffNode *ireadNode = static_cast<IreadFPoffNode *>(operand);
+      primType = ireadNode->GetPrimType();
+      offset = ireadNode->GetOffset();
+      typeSize = GetPrimTypeSize(primType); CHECK_FATAL((offset % k8ByteSize) == 0, "");  // scalar only, no struct for now
+      LmbcFormalParamInfo *info = GetMemoryPool()->New<LmbcFormalParamInfo>(primType, offset, typeSize);
+      lmbcParamVec.push_back(info);
+    }
+  }
+  std::sort(lmbcParamVec.begin(), lmbcParamVec.end(),
+                [] (LmbcFormalParamInfo *x, LmbcFormalParamInfo *y)
+                    { return x->GetOffset() < y->GetOffset(); }
+           );
+  AssignLmbcFormalParams();
+}
+
 void CGFunc::GenerateInstruction() {
   InitHandleExprFactory();
   InitHandleStmtFactory();
   StmtNode *secondStmt = HandleFirstStmt();
 
+  CreateLmbcFormalParamInfo();
   /* First Pass: Creates the doubly-linked list of BBs (next,prev) */
   volReleaseInsn = nullptr;
   unsigned lastSrcLoc = 0;
   unsigned lastMplLoc = 0;
+  std::set<uint32> bbFreqSet;
   for (StmtNode *stmt = secondStmt; stmt != nullptr; stmt = stmt->GetNext()) {
     /* insert Insn for .loc before cg for the stmt */
     GenerateLoc(stmt, lastSrcLoc, lastMplLoc);
@@ -1501,14 +1645,28 @@ void CGFunc::GenerateInstruction() {
       continue;
     }
     bool tempLoad = isVolLoad;
-
     auto function = CreateProductFunction<HandleStmtFactory>(stmt->GetOpCode());
     CHECK_FATAL(function != nullptr, "unsupported opCode or has been lowered before");
     function(*stmt, *this);
-
     /* skip the membar acquire if it is just after the iread. ldr + membaraquire->ldar */
     if (tempLoad && !isVolLoad) {
       stmt = stmt->GetNext();
+    }
+    int32 freq = GetFreqFromStmt(stmt->GetStmtID());
+    if (freq != -1) {
+      if (tmpBB != curBB) {
+        if (curBB->GetFirstInsn() == nullptr && curBB->GetLabIdx() == 0 && bbFreqSet.count(tmpBB->GetId()) == 0) {
+          tmpBB->SetFrequency(freq);
+          bbFreqSet.insert(tmpBB->GetId());
+        } else if ((curBB->GetFirstInsn() != nullptr  || curBB->GetLabIdx() != 0) &&
+                   bbFreqSet.count(curBB->GetId()) == 0) {
+          curBB->SetFrequency(freq);
+          bbFreqSet.insert(tmpBB->GetId());
+        }
+      } else if (bbFreqSet.count(curBB->GetId()) == 0) {
+        curBB->SetFrequency(freq);
+        bbFreqSet.insert(curBB->GetId());
+      }
     }
 
     /*
@@ -1818,7 +1976,7 @@ void CGFunc::AddCommonExitBB() {
 }
 
 void CGFunc::UpdateCallBBFrequency() {
-  if (!func.HasFreqMap() || func.GetFreqMap().empty()) {
+  if (!func.HasFreqMap() || func.GetLastFreqMap().empty()) {
     return;
   }
   FOR_ALL_BB(bb, this) {
@@ -1836,7 +1994,7 @@ void CGFunc::HandleFunction() {
   /* select instruction */
   GenerateInstruction();
   /* merge multi return */
-  if (!func.GetModule()->IsCModule() || CGOptions::DoRetMerge()) {
+  if (!func.GetModule()->IsCModule() || CGOptions::DoRetMerge() || CGOptions::OptimizeForSize()) {
     MergeReturn();
   }
   if (func.IsJava()) {
@@ -1854,7 +2012,6 @@ void CGFunc::HandleFunction() {
   theCFG = memPool->New<CGCFG>(*this);
   theCFG->BuildCFG();
   AddCommonExitBB();
-  UpdateCallBBFrequency();
   if (mirModule.GetSrcLang() != kSrcLangC) {
     MarkCatchBBs();
   }

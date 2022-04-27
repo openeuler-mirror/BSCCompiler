@@ -141,6 +141,7 @@ uint32 ProcessStructWhenClassifyAggregate(const BECommon &be, MIRStructType &str
     }
   }
   if (isF32 || isF64) {
+    CHECK_FATAL(numRegs <=classesLength, "ClassifyAggregate: num regs exceed limit");
     for (uint32 i = 0; i < numRegs; ++i) {
       classes[i] = kAArch64FloatClass;
     }
@@ -202,6 +203,28 @@ int32 ClassifyAggregate(const BECommon &be, MIRType &mirType, AArch64ArgumentCla
   }
   return sizeOfTyInDwords;
 }
+}
+
+/* external interface to look for pure float struct */
+uint32 AArch64CallConvImpl::FloatParamRegRequired(MIRStructType &structType, uint32 &fpSize) {
+  if (structType.GetSize() > k32ByteSize) {
+    return 0;
+  }
+  AArch64ArgumentClass classes[kMaxRegCount];
+  uint32 numRegs = ProcessStructWhenClassifyAggregate(beCommon, structType, classes, kMaxRegCount, fpSize);
+  if (numRegs) {
+    bool isPure = true;
+    for (uint i = 0; i < numRegs; ++i) {
+      if (classes[i] != kAArch64FloatClass) {
+        isPure = false;
+        break;
+      }
+    }
+    if (isPure) {
+      return numRegs;
+    }
+  }
+  return 0;
 }
 
 void AArch64CallConvImpl::InitCCLocInfo(CCLocInfo &pLoc) const {
