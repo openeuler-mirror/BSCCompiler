@@ -375,6 +375,9 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       if (!MeOption::lpre4Address) {
         break;
       }
+      if (func->genLMBC) {
+        break;
+      }
       CreateRealOcc(meStmt, seqStmt, meExpr, false);
       break;
     }

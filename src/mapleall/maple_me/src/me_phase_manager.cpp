@@ -100,6 +100,9 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
     auto meFuncStackMP = std::make_unique<StackMemPool>(memPoolCtrler, "");
     MemPool *versMP = new ThreadLocalMemPool(memPoolCtrler, "first verst mempool");
     MeFunction &meFunc = *(meFuncMP->New<MeFunction>(&m, func, meFuncMP.get(), *meFuncStackMP, versMP, meInput));
+    if (genLMBC) {
+      meFunc.genLMBC = true;
+    }
     func->SetMeFunc(&meFunc);
     meFunc.PartialInit();
 #if DEBUG

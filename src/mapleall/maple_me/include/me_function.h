@@ -402,6 +402,7 @@ class MeFunction : public FuncEmit {
   uint32 hdseRuns = 0;  // number of times hdse phase has been run
   uint32 hpropRuns = 0; // number of times hprop phase has been run
   uint32 vrpRuns = 0; // number of times vrp phase has been run
+  bool genLMBC = false; // whether outputing lmbc (low maple bytecode)
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_FUNCTION_H
