@@ -369,6 +369,31 @@ class AndCbzToTbzPattern : public CGPeepPattern {
   Insn *prevInsn = nullptr;
 };
 
+/*
+ * ldrb    w9, [x8]
+ * ...
+ * and     w4, w9, #255
+ * ====>
+ * ldrb    w9, [x8]
+ * ...
+ * mov     w4, w9
+ */
+class ValidBitOpt : public CGPeepPattern {
+ public:
+  ValidBitOpt(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~ValidBitOpt() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "ValidBitOpt";
+  }
+
+ private:
+  MOperator newMop = MOP_undef;
+  RegOperand *desReg = nullptr;
+  RegOperand *srcReg = nullptr;
+};
 
 /*
  * Specific Extension Elimination, includes sxt[b|h|w] & uxt[b|h|w]. There are  scenes:
@@ -470,7 +495,6 @@ class ElimSpecificExtensionPattern : public CGPeepPattern {
  protected:
   enum SpecificExtType : uint8 {
     EXTUNDEF = 0,
-    AND,
     SXTB,
     SXTH,
     SXTW,
@@ -494,7 +518,6 @@ class ElimSpecificExtensionPattern : public CGPeepPattern {
   uint64 extValueRangeTable[SpecificExtTypeSize][kValueTypeNum] = {
       /* {minValue, maxValue} */
       {kInvalidValue, kInvalidValue},          /* UNDEF */
-      {kInvalidValue, kInvalidValue},          /* AND */
       {0xFFFFFFFFFFFFFF80, 0x7F},              /* SXTB */
       {0xFFFFFFFFFFFF8000, 0x7FFF},            /* SXTH */
       {0xFFFFFFFF80000000, kInvalidValue},     /* SXTW */
@@ -506,8 +529,6 @@ class ElimSpecificExtensionPattern : public CGPeepPattern {
       /* {prevOrigMop, prevNewMop} */
       {{MOP_undef, MOP_undef},   {MOP_undef, MOP_undef},      {MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},
        {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* UNDEF */
-      {{MOP_wldrb, MOP_wldrb},   {MOP_undef, MOP_undef},      {MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},
-       {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* AND */
       {{MOP_wldrb, MOP_wldrsb},  {MOP_wldrsb, MOP_wldrsb},    {MOP_wldr, MOP_wldrsb},     {MOP_undef, MOP_undef},
        {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* SXTB */
       {{MOP_wldrh, MOP_wldrsh},  {MOP_wldrb, MOP_wldrb},      {MOP_wldrsb, MOP_wldrsb},   {MOP_wldrsh, MOP_wldrsh},
@@ -525,8 +546,6 @@ class ElimSpecificExtensionPattern : public CGPeepPattern {
       /* {prevMop, currMop} */
       {{MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},
        {MOP_undef, MOP_undef}},       /* UNDEF */
-      {{MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},
-       {MOP_undef, MOP_undef}},       /* AND */
       {{MOP_xsxtb32, MOP_xsxtb32}, {MOP_xsxtb64, MOP_xsxtb64}, {MOP_undef, MOP_undef},
        {MOP_undef, MOP_undef}},       /* SXTB */
       {{MOP_xsxtb32, MOP_xsxth32}, {MOP_xsxtb64, MOP_xsxth64}, {MOP_xsxth32, MOP_xsxth32},
@@ -783,7 +802,7 @@ class OrrToMovPattern : public CGPeepPattern {
 
  private:
   MOperator newMop = MOP_undef;
-  AArch64RegOperand *reg2 = nullptr;
+  RegOperand *reg2 = nullptr;
 };
 
 /*
@@ -902,9 +921,9 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
   bool IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore, int64 baseOfst);
   void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn);
   MOperator GetMopHigherByte(MOperator mop) const;
-  bool SplitOfstWithAddToCombine(Insn &insn, const AArch64MemOperand &memOpnd);
+  bool SplitOfstWithAddToCombine(Insn &insn, const MemOperand &memOpnd);
   bool doAggressiveCombine = false;
-  AArch64MemOperand *memOpnd = nullptr;
+  MemOperand *memOpnd = nullptr;
 };
 
 /*
@@ -969,6 +988,28 @@ class FmovRegPattern : public CGPeepPattern {
  private:
   Insn *prevInsn = nullptr;
   Insn *nextInsn = nullptr;
+};
+
+/* sbfx ireg1, ireg2, 0, 32
+ * use  ireg1.32
+ * =>
+ * sbfx ireg1, ireg2, 0, 32
+ * use  ireg2.32
+ */
+class SbfxOptPattern : public CGPeepPattern {
+public:
+  SbfxOptPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~SbfxOptPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "SbfxOptPattern";
+  }
+
+private:
+  Insn *nextInsn = nullptr;
+  bool toRemove = false;
+  std::vector<uint32> cands;
 };
 
 /* cbnz x0, labelA
@@ -1041,11 +1082,19 @@ class ContiLDRorSTRToSameMEMPattern : public CGPeepPattern {
  *  mov     x1, x0
  *  bl      MCC_IncDecRef_NaiveRCFast
  */
-class RemoveIncDecRefAArch64 : public PeepPattern {
+class RemoveIncDecRefPattern : public CGPeepPattern {
  public:
-  explicit RemoveIncDecRefAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~RemoveIncDecRefAArch64() override = default;
+  RemoveIncDecRefPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~RemoveIncDecRefPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "RemoveIncDecRefPattern";
+  }
+
+ private:
+  Insn *prevInsn = nullptr;
 };
 
 /*
@@ -1072,11 +1121,16 @@ class RemoveIncDecRefAArch64 : public PeepPattern {
  *   ldr w0, [x1]
  *   ret
  */
-class InlineReadBarriersAArch64 : public PeepPattern {
+class InlineReadBarriersPattern : public CGPeepPattern {
  public:
-  explicit InlineReadBarriersAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~InlineReadBarriersAArch64() override = default;
+  InlineReadBarriersPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~InlineReadBarriersPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "InlineReadBarriersPattern";
+  }
 };
 
 /*
@@ -1393,11 +1447,20 @@ class ReplaceCmpToCmnAArch64 : public PeepPattern {
  *   mov x1, XX
  *    bl  MCC_IncDecRef_NaiveRCFast
  */
-class RemoveIncRefAArch64 : public PeepPattern {
+class RemoveIncRefPattern : public CGPeepPattern {
  public:
-  explicit RemoveIncRefAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~RemoveIncRefAArch64() override = default;
+  RemoveIncRefPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~RemoveIncRefPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "RemoveIncRefPattern";
+  }
+
+ private:
+  Insn *insnMov2 = nullptr;
+  Insn *insnMov1 = nullptr;
 };
 
 /*
@@ -1490,7 +1553,7 @@ class ComplexMemOperandLabelAArch64 : public PeepPattern {
  * mov R1, vreg4
  * mov R2, vreg5
  */
-class WriteFieldCallAArch64 : public PeepPattern {
+class WriteFieldCallPattern : public CGPeepPattern {
  public:
   struct WriteRefFieldParam {
     Operand *objOpnd = nullptr;
@@ -1498,18 +1561,22 @@ class WriteFieldCallAArch64 : public PeepPattern {
     int64 fieldOffset = 0;
     Operand *fieldValue = nullptr;
   };
-  explicit WriteFieldCallAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~WriteFieldCallAArch64() override = default;
+  WriteFieldCallPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~WriteFieldCallPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
-  void Reset() {
-    hasWriteFieldCall = false;
-    prevCallInsn = nullptr;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "WriteFieldCallPattern";
   }
 
  private:
   bool hasWriteFieldCall = false;
   Insn *prevCallInsn = nullptr;
+  Insn *nextInsn = nullptr;
   WriteRefFieldParam firstCallParam;
+  WriteRefFieldParam currentCallParam;
+  std::vector<Insn*> paramDefInsns;
   bool WriteFieldCallOptPatternMatch(const Insn &writeFieldCallInsn, WriteRefFieldParam &param,
                                      std::vector<Insn*> &paramDefInsns);
   bool IsWriteRefFieldCallInsn(const Insn &insn);
@@ -1520,11 +1587,19 @@ class WriteFieldCallAArch64 : public PeepPattern {
  *     mov     x0, xzr/#0
  *     bl      MCC_DecRef_NaiveRCFast
  */
-class RemoveDecRefAArch64 : public PeepPattern {
+class RemoveDecRefPattern : public CGPeepPattern {
  public:
-  explicit RemoveDecRefAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~RemoveDecRefAArch64() override = default;
+  RemoveDecRefPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~RemoveDecRefPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "RemoveDecRefPattern";
+  }
+
+ private:
+  Insn *prevInsn = nullptr;
 };
 
 /*
@@ -1549,11 +1624,20 @@ class OneHoleBranchesAArch64 : public PeepPattern {
  * =>
  * bl MCC_IncRef_NaiveRCFast
  */
-class ReplaceIncDecWithIncAArch64 : public PeepPattern {
+class ReplaceIncDecWithIncPattern : public CGPeepPattern {
  public:
-  explicit ReplaceIncDecWithIncAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~ReplaceIncDecWithIncAArch64() override = default;
+  ReplaceIncDecWithIncPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~ReplaceIncDecWithIncPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "ReplaceIncDecWithIncPattern";
+  }
+
+ private:
+  Insn *prevInsn = nullptr;
+  FuncNameOperand *target = nullptr;
 };
 
 /*
