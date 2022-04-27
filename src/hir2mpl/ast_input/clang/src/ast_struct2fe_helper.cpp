@@ -167,6 +167,7 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   ENCChecker::InsertBoundaryInAtts(typeAttrs, astVar.GetBoundaryInfo());
   // do not allow extern var override global var
   if (mirSymbol->GetAttrs().GetAttrFlag() != 0 && typeAttrs.GetAttr(ATTR_extern)) {
+    mirSymbol->AddAttrs(typeAttrs);
     ASTExpr *initExpr = astVar.GetInitExpr();
     if (initExpr == nullptr) {
       return true;
@@ -184,7 +185,7 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
     mirSymbol->SetStorageClass(MIRStorageClass::kScGlobal);
   }
   typeAttrs.SetAlign(astVar.GetAlign());
-  mirSymbol->SetAttrs(typeAttrs);
+  mirSymbol->AddAttrs(typeAttrs);
   if (!astVar.GetSectionAttr().empty()) {
     mirSymbol->sectionAttr = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(astVar.GetSectionAttr());
   }

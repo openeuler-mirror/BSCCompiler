@@ -1032,6 +1032,11 @@ class FEIRExprIRead : public FEIRExpr {
     return type->Clone();
   }
 
+  void SetClonedOpnd(UniqueFEIRExpr argOpnd) {
+    CHECK_FATAL(argOpnd != nullptr, "opnd is nullptr");
+    subExpr = std::move(argOpnd);
+  }
+
   UniqueFEIRExpr GetClonedOpnd() const {
     return subExpr->Clone();
   }

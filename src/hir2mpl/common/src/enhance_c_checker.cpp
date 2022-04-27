@@ -746,8 +746,29 @@ void ASTParser::ProcessBoundaryLenExpr(MapleAllocator &allocator, ASTDecl &ptrDe
     }
     lenExpr = GetAddrShiftExpr(allocator, lenExpr, lenSize);
   }
+  ENCChecker::CheckLenExpr(*lenExpr);
   ptrDecl.SetBoundaryLenExpr(lenExpr);
   ptrDecl.SetIsBytedLen(!isSize);
+}
+
+void ENCChecker::CheckLenExpr(const ASTExpr &lenExpr) {
+  std::list<UniqueFEIRStmt> nullstmts;
+  (void)lenExpr.Emit2FEExpr(nullstmts);
+  for (const auto &stmt : nullstmts) {
+    bool isAssertStmt = false;
+    if (stmt->GetKind() == kStmtNary) {
+      FEIRStmtNary *nary = static_cast<FEIRStmtNary*>(stmt.get());
+      if (kOpcodeInfo.IsAssertBoundary(nary->GetOP()) || kOpcodeInfo.IsAssertNonnull(nary->GetOP())) {
+        isAssertStmt = true;
+      }
+    }
+    if (!isAssertStmt) {
+      FE_ERR(kLncErr, "%s:%d error: The boundary length expr containing statement is invalid",
+             FEManager::GetModule().GetFileNameFromFileNum(lenExpr.GetSrcFileIdx()).c_str(),
+             lenExpr.GetSrcFileLineNum());
+      break;
+    }
+  }
 }
 
 void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
@@ -1429,6 +1450,15 @@ UniqueFEIRExpr ENCChecker::GetRealBoundaryLenExprInFunc(const UniqueFEIRExpr &le
     UniqueFEIRExpr subExpr = GetRealBoundaryLenExprInFunc(cvtExpr->GetOpnd(), astFunc, astCallExpr);
     if (subExpr != nullptr) {
       cvtExpr->SetOpnd(std::move(subExpr));
+    } else {
+      return nullptr;
+    }
+  }
+  if (lenExpr->GetKind() == kExprIRead) {
+    FEIRExprIRead *ireadExpr = static_cast<FEIRExprIRead*>(lenExpr.get());
+    UniqueFEIRExpr subExpr = GetRealBoundaryLenExprInFunc(ireadExpr->GetClonedOpnd(), astFunc, astCallExpr);
+    if (subExpr != nullptr) {
+      ireadExpr->SetClonedOpnd(std::move(subExpr));
     } else {
       return nullptr;
     }

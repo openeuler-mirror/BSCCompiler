@@ -1482,6 +1482,7 @@ ASTExpr *ASTParser::GetAddrShiftExpr(MapleAllocator &allocator, ASTExpr *expr, u
   shiftExpr->SetOpcode(OP_mul);
   shiftExpr->SetRetType(retType);
   shiftExpr->SetCvtNeeded(true);
+  shiftExpr->SetSrcLOC(expr->GetSrcFileIdx(), expr->GetSrcFileLineNum());
   return shiftExpr;
 }
 
