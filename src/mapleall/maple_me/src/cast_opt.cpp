@@ -453,6 +453,11 @@ MeExpr *MeCastOpt::SimplifyCastPair(IRMap &irMap, const MeExprCastInfo &firstCas
   // Example: retype u32 <u32> (dread u32 %x)  ==>  dread u32 %x
   // Example: retype ptr <* <$Foo>> (dread ptr %p)  ==>  dread ptr %p
   if (resultCastKind == CAST_retype && srcType == dstType) {
+    if (toCastExpr->GetPrimType() != dstType) {
+      // Wrong example: retype i16 i16 (regread i32 %1)  =[x]=> regread i32 %1
+      //       instead: ==> cvt i16 i32 (regread i32 %1)
+      return irMap.CreateMeExprTypeCvt(dstType, toCastExpr->GetPrimType(), *toCastExpr);
+    }
     return toCastExpr;
   }
 
@@ -538,6 +543,11 @@ void MeCastOpt::SimplifyCastForAssign(MeStmt *assignStmt) {
     castInfo.expr = cur;
     ComputeCastInfo(castInfo);
     if (castInfo.kind == CAST_intTrunc) {
+      if (GetPrimTypeActualBitSize(expectedType) > GetPrimTypeActualBitSize(castInfo.dstType)) {
+        // Implicit extension for assign is not expected, we can not optimize it
+        // Wrong example: regassign i32 %1 (cvt i8 u64 (regread u64 %2))  =[x]=>  regassign i32 %1 (regread u64 %2)
+        break;
+      }
       // Example: dassign u8 %a (cvt u8 u32 <expr>)  ==>  dassign u8 %a <expr>
       cur = cur->GetOpnd(0);
     } else if ((castInfo.kind == CAST_zext || castInfo.kind == CAST_sext) &&
@@ -707,6 +717,11 @@ BaseNode *MapleCastOpt::SimplifyCastPair(MIRBuilder &mirBuidler, const BaseNodeC
   // Example: retype u32 <u32> (dread u32 %x)  ==>  dread u32 %x
   // Example: retype ptr <* <$Foo>> (dread ptr %p)  ==>  dread ptr %p
   if (resultCastKind == CAST_retype && srcType == dstType) {
+    if (toCastExpr->GetPrimType() != dstType) {
+      // Wrong example: retype i16 i16 (regread i32 %1)  =[x]=> regread i32 %1
+      //       instead: ==> cvt i16 i32 (regread i32 %1)
+      return mirBuidler.CreateExprTypeCvt(OP_cvt, dstType, toCastExpr->GetPrimType(), *toCastExpr);
+    }
     return toCastExpr;
   }
 
