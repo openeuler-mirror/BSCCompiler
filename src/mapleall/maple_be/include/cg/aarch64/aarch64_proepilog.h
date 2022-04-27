@@ -29,15 +29,19 @@ class AArch64GenProEpilog : public GenProEpilog {
  public:
   explicit AArch64GenProEpilog(CGFunc &func) : GenProEpilog(func) {
     useFP = func.UseFP();
-    stackBaseReg = useFP ? R29 : RSP;
+    if (func.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
+      stackBaseReg = RFP;
+    } else {
+      stackBaseReg = useFP ? R29 : RSP;
+    }
     exitBB2CallSitesMap.clear();
   }
   ~AArch64GenProEpilog() override = default;
 
   bool TailCallOpt() override;
   bool NeedProEpilog() override;
-  static AArch64MemOperand *SplitStpLdpOffsetForCalleeSavedWithAddInstruction(
-    CGFunc &cgFunc, const AArch64MemOperand &mo, uint32 bitLen, AArch64reg baseReg = AArch64reg::kRinvalid);
+  static MemOperand *SplitStpLdpOffsetForCalleeSavedWithAddInstruction(
+      CGFunc &cgFunc, const MemOperand &mo, uint32 bitLen, AArch64reg baseReg = AArch64reg::kRinvalid);
   static void AppendInstructionPushPair(CGFunc &cgFunc, AArch64reg reg0, AArch64reg reg1, RegType rty, int offset);
   static void AppendInstructionPushSingle(CGFunc &cgFunc, AArch64reg reg, RegType rty, int offset);
   static void AppendInstructionPopSingle(CGFunc &cgFunc, AArch64reg reg, RegType rty, int offset);
