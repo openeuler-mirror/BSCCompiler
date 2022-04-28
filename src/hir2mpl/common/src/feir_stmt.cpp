@@ -2175,24 +2175,7 @@ std::list<StmtNode*> FEIRStmtIntrinsicCallAssign::GenMIRStmtsImpl(MIRBuilder &mi
     } else {
       stmtCall = mirBuilder.CreateStmtIntrinsicCall(intrinsicId, std::move(args), TyIdx(0));
     }
-  } else if (intrinsicId == INTRN_C_memset || intrinsicId == INTRN_C_memmove ||
-             intrinsicId == INTRN_C_strcpy || intrinsicId == INTRN_C_strncpy ||
-             intrinsicId == INTRN_C_memcpy) {
-    MapleVector<BaseNode*> args(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
-    if (exprList != nullptr) {
-      for (const auto &expr : *exprList) {
-        BaseNode *node = expr->GenMIRNode(mirBuilder);
-        args.push_back(node);
-      }
-    }
-    MIRSymbol *retVarSym = nullptr;
-    if (var != nullptr) {
-      retVarSym = var->GenerateLocalMIRSymbol(mirBuilder);
-      stmtCall = mirBuilder.CreateStmtIntrinsicCallAssigned(intrinsicId, std::move(args), retVarSym);
-    } else {
-      stmtCall = mirBuilder.CreateStmtIntrinsicCall(intrinsicId, std::move(args), TyIdx(0));
-    }
-  } else if (intrinsicId >= INTRN_vector_zip_v2i32 && intrinsicId <= INTRN_vector_zip_v2f32) {
+  } else {
     MapleVector<BaseNode*> args(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
     if (exprList != nullptr) {
       for (const auto &expr : *exprList) {
@@ -2203,8 +2186,10 @@ std::list<StmtNode*> FEIRStmtIntrinsicCallAssign::GenMIRStmtsImpl(MIRBuilder &mi
     MIRSymbol *retVarSym = nullptr;
     if ((var != nullptr) && (var.get() != nullptr)) {
       retVarSym = var->GenerateLocalMIRSymbol(mirBuilder);
+      stmtCall = mirBuilder.CreateStmtIntrinsicCallAssigned(intrinsicId, std::move(args), retVarSym);
+    } else {
+      stmtCall = mirBuilder.CreateStmtIntrinsicCall(intrinsicId, std::move(args), TyIdx(0));
     }
-    stmtCall = mirBuilder.CreateStmtIntrinsicCallAssigned(intrinsicId, std::move(args), retVarSym);
   }
   // other intrinsic call should be implemented
   ans.emplace_back(stmtCall);
