@@ -71,6 +71,7 @@ void AArch64GlobalOpt::Run() {
   OptimizeManager optManager(cgFunc);
   bool hasSpillBarrier = (cgFunc.NumBBs() > kMaxBBNum) || (cgFunc.GetRD()->GetMaxInsnNO() > kMaxInsnNum);
   if (cgFunc.IsAfterRegAlloc()) {
+    optManager.Optimize<SameRHSPropPattern>();
     optManager.Optimize<BackPropPattern>();
     return;
   }
@@ -561,6 +562,13 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsns(Insn &insn) {
   if (cgFunc.IsAfterRegAlloc() && findFinish && srcOpndUseInsnSet.size() > 1) {
     /* use later before killed. */
     return false;
+  }
+  if (cgFunc.IsAfterRegAlloc()) {
+    for (auto *usePoint : srcOpndUseInsnSet) {
+      if (usePoint->IsCall()) {
+        return false;
+      }
+    }
   }
   return true;
 }
@@ -2112,7 +2120,8 @@ void AndCbzPattern::Run() {
 
 void SameRHSPropPattern::Init() {
   prevInsn = nullptr;
-  candidates = {MOP_waddrri12, MOP_xaddrri12, MOP_wsubrri12, MOP_xsubrri12, MOP_xmovri32, MOP_xmovri64};
+  candidates = {MOP_waddrri12, MOP_xaddrri12, MOP_wsubrri12, MOP_xsubrri12,
+                MOP_xmovri32, MOP_xmovri64, MOP_wmovrr, MOP_xmovrr};
 }
 
 bool SameRHSPropPattern::IsSameOperand(Operand *opnd1, Operand *opnd2) const {
@@ -2141,9 +2150,6 @@ bool SameRHSPropPattern::FindSameRHSInsnInBB(Insn &insn) {
     }
     Operand &opnd = insn.GetOperand(i);
     if (opnd.IsRegister()) {
-      if (!cgFunc.IsSPOrFP(static_cast<RegOperand&>(opnd)) && !static_cast<RegOperand&>(opnd).IsVirtualRegister()) {
-        return false;
-      }
       curRegOpnd = &opnd;
     } else if (opnd.IsImmediate()) {
       auto &immOpnd = static_cast<ImmOperand&>(opnd);
@@ -2161,7 +2167,7 @@ bool SameRHSPropPattern::FindSameRHSInsnInBB(Insn &insn) {
     if (!cursor->IsMachineInstruction()) {
       continue;
     }
-    if (cursor->IsCall()) {
+    if (cursor->IsCall() && !cgFunc.IsAfterRegAlloc()) {
       return false;
     }
     if (cursor->GetMachineOpcode() != insn.GetMachineOpcode()) {
@@ -2176,9 +2182,6 @@ bool SameRHSPropPattern::FindSameRHSInsnInBB(Insn &insn) {
         continue;
       }
       if (opnd.IsRegister()) {
-        if (!cgFunc.IsSPOrFP(static_cast<RegOperand&>(opnd)) && !static_cast<RegOperand&>(opnd).IsVirtualRegister()) {
-          return false;
-        }
         candRegOpnd = &opnd;
       } else if (opnd.IsImmediate()) {
         auto &immOpnd = static_cast<ImmOperand&>(opnd);

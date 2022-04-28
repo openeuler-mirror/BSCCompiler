@@ -2641,6 +2641,10 @@ std::vector<Insn*> CombineContiLoadAndStorePattern::FindPrevStrLdr(Insn &insn, r
         memBaseRegNO != stackBaseRegNO)) {
       return prevContiInsns;
     }
+    /*store opt should not cross call due to stack args */
+    if (curInsn->IsCall() && isStr) {
+      return prevContiInsns;
+    }
     if (curInsn->GetMachineOpcode() == MOP_asm) {
       return prevContiInsns;
     }
@@ -2657,6 +2661,9 @@ bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(Insn &insn, cons
   CHECK_FATAL(insn.GetOperand(kInsnFirstOpnd).GetSize() == insn.GetOperand(kInsnSecondOpnd).GetSize(),
               "the size must equal");
   Insn *splitAdd = nullptr;
+  if (baseRegOpnd->GetRegisterNumber() == R16) {
+    return false;
+  }
   for (Insn *cursor = insn.GetPrev(); cursor != nullptr; cursor = cursor->GetPrev()) {
     if (!cursor->IsMachineInstruction()) {
       continue;
