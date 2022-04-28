@@ -443,12 +443,12 @@ void MustThrowExceptionExpr(MeExpr *expr, std::set<MeExpr*> &exceptionExpr) {
   if (expr->GetMeOp() == kMeOpIvar) {
     // deref nullptr
     if (static_cast<IvarMeExpr*>(expr)->GetBase()->IsZero()) {
-      exceptionExpr.emplace(static_cast<IvarMeExpr*>(expr)->GetBase());
+      exceptionExpr.emplace(static_cast<IvarMeExpr*>(expr));
       return;
     }
   } else if ((expr->GetOp() == OP_div || expr->GetOp() == OP_rem) && expr->GetOpnd(1)->IsIntZero()) {
     // for float or double zero, this is legal.
-    exceptionExpr.emplace(expr->GetOpnd(1));
+    exceptionExpr.emplace(expr);
     return;
   } else if (expr->GetOp() == OP_select) {
     MustThrowExceptionExpr(expr->GetOpnd(0), exceptionExpr);
@@ -1093,7 +1093,6 @@ bool OptimizeBB::RemoveSuccFromNoReturnBB() {
     currBB->SetAttributes(kBBAttrWontExit);
     BB *retBB = GetFirstReturnBB();
     if (retBB != currBB) {
-      (void)EliminateRedundantPhiList(retBB);
       DEBUG_LOG() << "Connect BB" << LOG_BBID(currBB) << " to return BB" << LOG_BBID(retBB) << "\n";
       currBB->AddSucc(*retBB);
       auto *gotoStmt = irmap->CreateGotoMeStmt(f.GetOrCreateBBLabel(*retBB), currBB);
@@ -1102,12 +1101,13 @@ bool OptimizeBB::RemoveSuccFromNoReturnBB() {
       if (!retBB->GetMePhiList().empty()) {
         for (auto &phi : retBB->GetMePhiList()) {
           MePhiNode *phiNode = phi.second;
-          if (phiNode->GetOpnds().size() <= 1) {
+          if (phiNode->GetOpnds().size() < 1) {
             break;
           }
           phiNode->GetOpnds().push_back(phiNode->GetOpnd(0)); // to maintain opnd num and predNum
         }
       }
+      (void)EliminateRedundantPhiList(retBB);
       ResetBBRunAgain();
     }
     return true;
@@ -1678,6 +1678,9 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
     DEBUG_LOG() << "Remove succ BB" << LOG_BBID(rmBB) << " of pred BB" << LOG_BBID(&succ) << "\n";
     return true;
   } else {
+    if (MeOption::optForSize) {
+      return false;
+    }
     BB *newBB = cfg->NewBasicBlock();
     // if succ has only last stmt, no need to copy
     if (!HasOnlyMeCondGotoStmt(succ)) {
@@ -2085,7 +2088,8 @@ MeExpr *OptimizeBB::CombineCondByOffset(const MeExpr &expr) {
     // e.g. x < 3 || x > 2 <==> true
     return irmap->CreateIntConstMeExpr(1, PTY_u1);
   } else if (leVal == newGeVal) { // e.g. x < 3 || x > 3 <==> x != 3
-    return irmap->CreateMeExprBinary(OP_ne, PTY_u1, *sameExpr, *irmap->CreateIntConstMeExpr(newGeVal, lePtyp));
+    return irmap->CreateMeExprCompare(
+        OP_ne, PTY_u1, opndPtyp, *sameExpr, *irmap->CreateIntConstMeExpr(newGeVal, lePtyp));
   }
   // (x < val1 || x > val2) <==> ((unsigned)(x - val1) > (val2 - val1))
   MeExpr *newLeConst = irmap->CreateIntConstMeExpr(leVal, opndPtyp);
@@ -2438,7 +2442,7 @@ bool MEOptimizeCFG::PhaseRun(maple::MeFunction &f) {
   bool change = OptimizeMeFuncCFG(f, &cands);
   if (change) {
     // split critical edges
-    MeSplitCEdge(debug).SplitCriticalEdgeForMeFunc(f);
+    (void)MeSplitCEdge(debug).SplitCriticalEdgeForMeFunc(f);
     FORCE_INVALID(MEDominance, f);
     Dominance *dom = FORCE_GET(MEDominance);
     if (!cands.empty()) {
@@ -2450,4 +2454,3 @@ bool MEOptimizeCFG::PhaseRun(maple::MeFunction &f) {
   return change;
 }
 } // namespace maple
-

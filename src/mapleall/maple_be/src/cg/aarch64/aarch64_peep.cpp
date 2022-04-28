@@ -629,7 +629,7 @@ void CselToCsetPattern::Run(BB &bb, Insn &insn) {
   Operand &dstOpnd = insn.GetOperand(kInsnFirstOpnd);
   MOperator newMop = (dstOpnd.GetSize() == k64BitSize ? MOP_xcsetrc : MOP_wcsetrc);
   Operand &condOpnd = insn.GetOperand(kInsnFourthOpnd);
-  Operand &rflag = cgFunc->GetOrCreateRflag();
+  Operand &rflag = insn.GetOperand(kInsnFifthOpnd);
   Insn *newInsn = nullptr;
   if (IsOpndDefByOne(*prevMovInsn1) && IsOpndDefByZero(*prevMovInsn2)) {
     newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, dstOpnd, condOpnd, rflag));
@@ -3494,12 +3494,6 @@ void CselZeroOneToCsetOpt::Run(BB &bb, Insn &insn) {
         CHECK_FATAL(false, "check this case in ssa opt");
       }
       insn.GetBB()->ReplaceInsn(insn, csetInsn);
-      if (trueMovInsn != nullptr) {
-        insn.GetBB()->RemoveInsn(*trueMovInsn);
-      }
-      if (falseMovInsn != nullptr) {
-        insn.GetBB()->RemoveInsn(*falseMovInsn);
-      }
     }
   }
 }
