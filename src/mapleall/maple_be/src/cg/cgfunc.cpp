@@ -22,6 +22,7 @@
 #include "mir_builder.h"
 #include "factory.h"
 #include "debug_info.h"
+#include "optimize_common.h"
 
 namespace maplebe {
 using namespace maple;
@@ -639,6 +640,10 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_a64, "strchr");
     case INTRN_C_strrchr:
       return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_a64, "strrchr");
+    case INTRN_C_rev32:
+    case INTRN_C_rev64:
+      return cgFunc.SelectBswap(intrinsicopNode, *cgFunc.HandleExpr(expr, *expr.Opnd(0)), parent);
+
 
     case INTRN_C_clz32:
     case INTRN_C_clz64:
@@ -705,14 +710,6 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       return cgFunc.SelectCSyncLockTestSet(intrinsicopNode, PTY_i32);
     case INTRN_C___sync_lock_test_and_set_8:
       return cgFunc.SelectCSyncLockTestSet(intrinsicopNode, PTY_i64);
-    case INTRN_C___sync_lock_release_1:
-      return cgFunc.SelectCSyncLockRelease(intrinsicopNode, PTY_i8);
-    case INTRN_C___sync_lock_release_2:
-      return cgFunc.SelectCSyncLockRelease(intrinsicopNode, PTY_i16);
-    case INTRN_C___sync_lock_release_4:
-      return cgFunc.SelectCSyncLockRelease(intrinsicopNode, PTY_i32);
-    case INTRN_C___sync_lock_release_8:
-      return cgFunc.SelectCSyncLockRelease(intrinsicopNode, PTY_i64);
     case INTRN_C___sync_fetch_and_and_1:
     case INTRN_C___sync_fetch_and_and_2:
     case INTRN_C___sync_fetch_and_and_4:
@@ -1011,6 +1008,9 @@ void HandleLabel(StmtNode &stmt, CGFunc &cgFunc) {
   auto &label = static_cast<LabelNode&>(stmt);
   BB *newBB = cgFunc.StartNewBBImpl(false, label);
   newBB->AddLabel(label.GetLabelIdx());
+  if (newBB->GetId() == 1) {
+    newBB->SetFrequency(kFreqBase);
+  }
   cgFunc.SetLab2BBMap(newBB->GetLabIdx(), *newBB);
   cgFunc.SetCurBB(*newBB);
 }
@@ -1405,13 +1405,13 @@ StmtNode *CGFunc::HandleFirstStmt() {
   BlockNode *block = func.GetBody();
 
   ASSERT(block != nullptr, "get func body block failed in CGFunc::GenerateInstruction");
-  bool withFreqInfo = func.HasFreqMap() && !func.GetFreqMap().empty();
-  if (withFreqInfo) {
-    frequency = kFreqBase;
-  }
   StmtNode *stmt = block->GetFirst();
   if (stmt == nullptr) {
     return nullptr;
+  }
+  bool withFreqInfo = func.HasFreqMap() && !func.GetLastFreqMap().empty();
+  if (withFreqInfo) {
+    frequency = kFreqBase;
   }
   ASSERT(stmt->GetOpCode() == OP_label, "The first statement should be a label");
   HandleLabel(*stmt, *this);
@@ -1483,6 +1483,14 @@ void CGFunc::GenerateLoc(StmtNode *stmt, unsigned &lastSrcLoc, unsigned &lastMpl
   }
 }
 
+int32 CGFunc::GetFreqFromStmt(uint32 stmtId) {
+  int32 freq = GetFunction().GetFreqFromLastStmt(stmtId);
+  if (freq != -1) {
+    return freq;
+  }
+  return GetFunction().GetFreqFromFirstStmt(stmtId);
+}
+
 void CGFunc::GenerateInstruction() {
   InitHandleExprFactory();
   InitHandleStmtFactory();
@@ -1492,6 +1500,7 @@ void CGFunc::GenerateInstruction() {
   volReleaseInsn = nullptr;
   unsigned lastSrcLoc = 0;
   unsigned lastMplLoc = 0;
+  std::set<uint32> bbFreqSet;
   for (StmtNode *stmt = secondStmt; stmt != nullptr; stmt = stmt->GetNext()) {
     /* insert Insn for .loc before cg for the stmt */
     GenerateLoc(stmt, lastSrcLoc, lastMplLoc);
@@ -1501,14 +1510,28 @@ void CGFunc::GenerateInstruction() {
       continue;
     }
     bool tempLoad = isVolLoad;
-
     auto function = CreateProductFunction<HandleStmtFactory>(stmt->GetOpCode());
     CHECK_FATAL(function != nullptr, "unsupported opCode or has been lowered before");
     function(*stmt, *this);
-
     /* skip the membar acquire if it is just after the iread. ldr + membaraquire->ldar */
     if (tempLoad && !isVolLoad) {
       stmt = stmt->GetNext();
+    }
+    int32 freq = GetFreqFromStmt(stmt->GetStmtID());
+    if (freq != -1) {
+      if (tmpBB != curBB) {
+        if (curBB->GetFirstInsn() == nullptr && curBB->GetLabIdx() == 0 && bbFreqSet.count(tmpBB->GetId()) == 0) {
+          tmpBB->SetFrequency(freq);
+          bbFreqSet.insert(tmpBB->GetId());
+        } else if ((curBB->GetFirstInsn() != nullptr  || curBB->GetLabIdx() != 0) &&
+                   bbFreqSet.count(curBB->GetId()) == 0) {
+          curBB->SetFrequency(freq);
+          bbFreqSet.insert(tmpBB->GetId());
+        }
+      } else if (bbFreqSet.count(curBB->GetId()) == 0) {
+        curBB->SetFrequency(freq);
+        bbFreqSet.insert(curBB->GetId());
+      }
     }
 
     /*
@@ -1818,7 +1841,7 @@ void CGFunc::AddCommonExitBB() {
 }
 
 void CGFunc::UpdateCallBBFrequency() {
-  if (!func.HasFreqMap() || func.GetFreqMap().empty()) {
+  if (!func.HasFreqMap() || func.GetLastFreqMap().empty()) {
     return;
   }
   FOR_ALL_BB(bb, this) {
@@ -1836,7 +1859,7 @@ void CGFunc::HandleFunction() {
   /* select instruction */
   GenerateInstruction();
   /* merge multi return */
-  if (!func.GetModule()->IsCModule() || CGOptions::DoRetMerge()) {
+  if (!func.GetModule()->IsCModule() || CGOptions::DoRetMerge() || CGOptions::OptimizeForSize()) {
     MergeReturn();
   }
   if (func.IsJava()) {
@@ -1854,7 +1877,6 @@ void CGFunc::HandleFunction() {
   theCFG = memPool->New<CGCFG>(*this);
   theCFG->BuildCFG();
   AddCommonExitBB();
-  UpdateCallBBFrequency();
   if (mirModule.GetSrcLang() != kSrcLangC) {
     MarkCatchBBs();
   }
@@ -1870,6 +1892,9 @@ void CGFunc::HandleFunction() {
   }
   if (GetCG()->DoPatchLongBranch()) {
     PatchLongBranch();
+  }
+  if (CGOptions::DoEnableHotColdSplit()) {
+    theCFG->CheckCFGFreq();
   }
 }
 

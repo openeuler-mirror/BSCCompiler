@@ -29,8 +29,6 @@ class AArch64CGSSAInfo : public CGSSAInfo {
   void ReplaceInsn(Insn &oriInsn, Insn &newInsn) override;
   void ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *newVersion) override;
   void CreateNewInsnSSAInfo(Insn &newInsn) override;
-  void SetValidBits(Insn &insn) override;
-  bool SetPhiValidBits(Insn &insn) override;
 
  private:
   void RenameInsn(Insn &insn) override;

@@ -111,7 +111,9 @@ class ContinuousCmpCsetPattern : public CGPeepPattern {
   ~ContinuousCmpCsetPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
-  std::string GetPatternName() override;
+  std::string GetPatternName() override {
+    return "ContinuousCmpCsetPattern";
+  }
 
  private:
   bool CheckCondCode(const CondOperand &condOpnd) const;
@@ -145,7 +147,9 @@ class CselToCsetPattern : public CGPeepPattern {
   ~CselToCsetPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
-  std::string GetPatternName() override;
+  std::string GetPatternName() override {
+    return "CselToCsetPattern";
+  }
 
  private:
   bool IsOpndDefByZero(const Insn &insn);
@@ -176,7 +180,9 @@ class CsetCbzToBeqPattern : public CGPeepPattern {
   CsetCbzToBeqPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
       CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~CsetCbzToBeqPattern() override = default;
-  std::string GetPatternName() override;
+  std::string GetPatternName() override {
+    return "CsetCbzToBeqPattern";
+  }
   bool CheckCondition(Insn &insn) override;
   void Run(BB &bb, Insn &insn) override;
 
@@ -207,7 +213,9 @@ class NegCmpToCmnPattern : public CGPeepPattern {
   ~NegCmpToCmnPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
-  std::string GetPatternName() override;
+  std::string GetPatternName() override {
+    return "NegCmpToCmnPattern";
+  }
 
  private:
   Insn *prevInsn = nullptr;
@@ -226,7 +234,9 @@ class ExtLslToBitFieldInsertPattern : public CGPeepPattern {
   ExtLslToBitFieldInsertPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
       : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~ExtLslToBitFieldInsertPattern() override = default;
-  std::string GetPatternName() override;
+  std::string GetPatternName() override {
+    return "ExtLslToBitFieldInsertPattern";
+  }
   bool CheckCondition(Insn &insn) override;
   void Run(BB &bb, Insn &insn) override;
 
@@ -273,7 +283,9 @@ class AndCmpBranchesToTbzPattern : public CGPeepPattern {
   ~AndCmpBranchesToTbzPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
-  std::string GetPatternName() override;
+  std::string GetPatternName() override {
+    return "AndCmpBranchesToTbzPattern";
+  }
 
  private:
   bool CheckAndSelectPattern(const Insn &currInsn);
@@ -313,7 +325,9 @@ class ZeroCmpBranchesToTbzPattern : public CGPeepPattern {
   ~ZeroCmpBranchesToTbzPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
-  std::string GetPatternName() override;
+  std::string GetPatternName() override {
+    return "ZeroCmpBranchesToTbzPattern";
+  }
 
  private:
   bool CheckAndSelectPattern(const Insn &currInsn);
@@ -336,7 +350,9 @@ class MvnAndToBicPattern : public CGPeepPattern {
   ~MvnAndToBicPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
-  std::string GetPatternName() override;
+  std::string GetPatternName() override {
+    return "MvnAndToBicPattern";
+  }
 
  private:
   Insn *prevInsn1 = nullptr;
@@ -363,36 +379,12 @@ class AndCbzToTbzPattern : public CGPeepPattern {
   ~AndCbzToTbzPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
-  std::string GetPatternName() override;
-
- private:
-  Insn *prevInsn = nullptr;
-};
-
-/*
- * ldrb    w9, [x8]
- * ...
- * and     w4, w9, #255
- * ====>
- * ldrb    w9, [x8]
- * ...
- * mov     w4, w9
- */
-class ValidBitOpt : public CGPeepPattern {
- public:
-  ValidBitOpt(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
-  ~ValidBitOpt() override = default;
-  void Run(BB &bb, Insn &insn) override;
-  bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
-    return "ValidBitOpt";
+    return "AndCbzToTbzPattern";
   }
 
  private:
-  MOperator newMop = MOP_undef;
-  RegOperand *desReg = nullptr;
-  RegOperand *srcReg = nullptr;
+  Insn *prevInsn = nullptr;
 };
 
 /*
@@ -490,7 +482,9 @@ class ElimSpecificExtensionPattern : public CGPeepPattern {
   ~ElimSpecificExtensionPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
-  std::string GetPatternName() override;
+  std::string GetPatternName() override {
+    return "ElimSpecificExtensionPattern";
+  }
 
  protected:
   enum SpecificExtType : uint8 {
@@ -606,48 +600,6 @@ class OneHoleBranchPattern : public CGPeepPattern {
 };
 
 /*
- *  cmp  w0, #0
- *  cset w1, NE --> mov w1, w0
- *
- *  cmp  w0, #0
- *  cset w1, EQ --> eor w1, w0, 1
- *
- *  cmp  w0, #1
- *  cset w1, NE --> eor w1, w0, 1
- *
- *  cmp  w0, #1
- *  cset w1, EQ --> mov w1, w0
- *
- *  cmp w0,  #0
- *  cset w0, NE -->null
- *
- *  cmp w0, #1
- *  cset w0, EQ -->null
- *
- *  condition:
- *    1. the first operand of cmp instruction must has only one valid bit
- *    2. the second operand of cmp instruction must be 0 or 1
- *    3. flag register of cmp isntruction must not be used later
- */
-class CmpCsetOpt : public CGPeepPattern {
- public:
-  CmpCsetOpt(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
-      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
-  ~CmpCsetOpt() override = default;
-  void Run(BB &bb, Insn &csetInsn) override;
-  bool CheckCondition(Insn &csetInsn) override;
-  std::string GetPatternName() override {
-    return "CmpCsetOpt Pattern";
-  };
-
- private:
-  bool IsContinuousCmpCset(const Insn &curInsn);
-  bool OpndDefByOneValidBit(const Insn &defInsn);
-  Insn *cmpInsn = nullptr;
-  int64 cmpConstVal = -1;
-};
-
-/*
  * Combine logical shift and orr to [extr wd, wn, wm, #lsb  /  extr xd, xn, xm, #lsb]
  * Example 1)
  *  lsr w5, w6, #16
@@ -678,7 +630,9 @@ class LogicShiftAndOrrToExtrPattern : public CGPeepPattern {
   ~LogicShiftAndOrrToExtrPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
-  std::string GetPatternName() override;
+  std::string GetPatternName() override {
+    return "LogicShiftAndOrrToExtrPattern";
+  }
 
  private:
   Insn *prevLsrInsn = nullptr;
@@ -726,7 +680,9 @@ class SimplifyMulArithmeticPattern : public CGPeepPattern {
   ~SimplifyMulArithmeticPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
-  std::string GetPatternName() override;
+  std::string GetPatternName() override {
+    return "SimplifyMulArithmeticPattern";
+  }
 
  protected:
   enum ArithmeticType : uint8 {
@@ -778,7 +734,9 @@ class LsrAndToUbfxPattern : public CGPeepPattern {
   ~LsrAndToUbfxPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
-  std::string GetPatternName() override;
+  std::string GetPatternName() override {
+    return "LsrAndToUbfxPattern";
+  }
 
  private:
   Insn *prevInsn = nullptr;

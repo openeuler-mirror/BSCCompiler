@@ -41,8 +41,9 @@ void CGSSAInfo::ConstructSSA() {
     }
   }
 #endif
-  RectifyValidBitNum();
   cgFunc->SetSSAvRegCount(GetAllSSAOperands().size() + SSARegNObase + 1);
+  /* save reversePostOrder of bbs for rectify validbit */
+  SetReversePostOrder();
 }
 
 void CGSSAInfo::MarkInsnsInSSA(Insn &insn) {
@@ -228,50 +229,13 @@ VRegVersion *CGSSAInfo::FindSSAVersion(regno_t ssaRegNO) {
   return it != allSSAOperands.end() ? it->second : nullptr;
 }
 
-void CGSSAInfo::RectifyValidBitNum() {
-  FOR_ALL_BB(bb, cgFunc) {
-    FOR_BB_INSNS(insn, bb) {
-      if (!insn->IsMachineInstruction()) {
-        continue;
-      }
-      SetValidBits(*insn);
+void CGSSAInfo::SetReversePostOrder() {
+  MapleVector<BB*> &reverse = domInfo->GetReversePostOrder();
+  for (auto *bb : reverse) {
+    if (bb != nullptr) {
+      reversePostOrder.emplace_back(bb->GetId());
     }
   }
-  bool iterate;
-  /* Use inverse postorder to converge with minimal iterations */
-  MapleVector<BB*> &reversePostOrder = domInfo->GetReversePostOrder();
-  do {
-    iterate = false;
-    for (auto *bb : reversePostOrder) {
-      FOR_BB_INSNS(insn, bb) {
-        if (!insn->IsPhi()) {
-          continue;
-        }
-        bool change = SetPhiValidBits(*insn);
-        if (change) {
-          /* if vb changes once, iterate. */
-          iterate = true;
-        }
-      }
-    }
-  } while (iterate);
-}
-
-uint32 CGSSAInfo::GetImmValidBit(int64 value, uint32 size) const {
-  if (value < 0) {
-    return size;
-  }
-  if (value == 0) {
-    return k1BitSize;
-  }
-  uint32 pos = 0;
-  constexpr int64 mask = 1;
-  for (uint32 i = 0; i <= k8BitSize * sizeof(int); ++i, value >>= 1) {
-    if ((value & mask) == mask) {
-      pos = i + 1;
-    }
-  }
-  return pos;
 }
 
 void CGSSAInfo::DumpFuncCGIRinSSAForm() const {

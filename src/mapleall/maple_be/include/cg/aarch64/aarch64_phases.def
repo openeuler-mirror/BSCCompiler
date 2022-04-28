@@ -21,6 +21,7 @@
  ADDTARGETPHASE("cgssaconstruct", CGOptions::DoCGSSA());
  ADDTARGETPHASE("cgcopyprop", CGOptions::DoCGSSA());
  ADDTARGETPHASE("cgpeephole", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgvalidbitopt", CGOptions::DoCGSSA());
  ADDTARGETPHASE("cgtargetprop", CGOptions::DoCGSSA());
  ADDTARGETPHASE("cgdeadcodeelimination", CGOptions::DoCGSSA());
  ADDTARGETPHASE("cgsplitcriticaledge", CGOptions::DoCGSSA());
@@ -59,6 +60,6 @@
  ADDTARGETPHASE("gencfi", !GetMIRModule()->IsCModule());
  ADDTARGETPHASE("yieldpoint", GetMIRModule()->IsJavaModule() && CGOptions::IsInsertYieldPoint());
  ADDTARGETPHASE("scheduling", CGOptions::DoSchedule());
- ADDTARGETPHASE("alignanalysis", GetMIRModule()->IsCModule() && CGOptions::DoAlignAnalysis() && !CGOptions::OptimizeForSize());
+ ADDTARGETPHASE("alignanalysis", GetMIRModule()->IsCModule() && CGOptions::DoAlignAnalysis());
  ADDTARGETPHASE("fixshortbranch", true);
  ADDTARGETPHASE("cgemit", true);

@@ -717,6 +717,18 @@ class CGOptions : public MapleDriverOptionBase {
     doGlobalOpt = false;
   }
 
+  static void EnableHotColdSplit() {
+    enableHotColdSplit = true;
+  }
+
+  static void DisableHotColdSplit() {
+    enableHotColdSplit = false;
+  }
+
+  static bool DoEnableHotColdSplit() {
+    return enableHotColdSplit;
+  }
+
   static bool DoGlobalOpt() {
     return doGlobalOpt;
   }
@@ -1292,6 +1304,7 @@ class CGOptions : public MapleDriverOptionBase {
   static std::string dumpFunc;
   static std::string duplicateAsmFile;
   static bool optForSize;
+  static bool enableHotColdSplit;
   static bool useBarriersForVolatile;
   static bool timePhases;
   static bool cgBigEndian;

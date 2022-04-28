@@ -24,6 +24,7 @@
 #include "aarch64_live.h"
 #include "aarch64_args.h"
 #include "aarch64_alignment.h"
+#include "aarch64_validbit_opt.h"
 #include "aarch64_reg_coalesce.h"
 
 namespace maplebe {
@@ -178,6 +179,9 @@ class AArch64CG : public CG {
   }
   CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
     return mp.New<AArch64Dce>(mp, f, ssaInfo);
+  }
+  ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
+    return mp.New<AArch64ValidBitOpt>(f, ssaInfo);
   }
 
   static const AArch64MD kMd[kMopLast];

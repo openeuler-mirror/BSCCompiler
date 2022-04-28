@@ -4602,9 +4602,11 @@ Operand *AArch64CGFunc::SelectExtractbits(ExtractbitsNode &node, Operand &srcOpn
     } else {
       MOperator mOp = MOP_undef;
       if (bitSize == k8BitSize) {
-        mOp = is64Bits ? (isSigned ? MOP_xsxtb64 : MOP_xuxtb32) : (isSigned ? MOP_xsxtb32 : MOP_xuxtb32);
+        mOp = is64Bits ? (isSigned ? MOP_xsxtb64 : MOP_undef) :
+                         (isSigned ? MOP_xsxtb32 : (opnd0.GetSize() == k32BitSize ? MOP_xuxtb32 : MOP_undef));
       } else if (bitSize == k16BitSize) {
-        mOp = is64Bits ? (isSigned ? MOP_xsxth64 : MOP_xuxth32) : (isSigned ? MOP_xsxth32 : MOP_xuxth32);
+        mOp = is64Bits ? (isSigned ? MOP_xsxth64 : MOP_undef) :
+                         (isSigned ? MOP_xsxth32 : (opnd0.GetSize() == k32BitSize ? MOP_xuxth32 : MOP_undef));
       } else if (bitSize == k32BitSize) {
         mOp = is64Bits ? (isSigned ? MOP_xsxtw64 : MOP_xuxtw64) : MOP_wmovrr;
       }
@@ -9394,6 +9396,18 @@ void AArch64CGFunc::SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) {
     case INTRN_C_va_start:
       SelectCVaStart(intrinsiccallNode);
       return;
+    case INTRN_C___sync_lock_release_1:
+      SelectCSyncLockRelease(intrinsiccallNode, PTY_u8);
+      return;
+    case INTRN_C___sync_lock_release_2:
+      SelectCSyncLockRelease(intrinsiccallNode, PTY_u16);
+      return;
+    case INTRN_C___sync_lock_release_4:
+      SelectCSyncLockRelease(intrinsiccallNode, PTY_u32);
+      return;
+    case INTRN_C___sync_lock_release_8:
+      SelectCSyncLockRelease(intrinsiccallNode, PTY_u64);
+      return;
     case INTRN_C___atomic_store_n:
       SelectCAtomicStoreN(intrinsiccallNode);
       return;
@@ -9801,14 +9815,13 @@ Operand *AArch64CGFunc::SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, Pr
   return regLoaded;
 }
 
-Operand *AArch64CGFunc::SelectCSyncLockRelease(IntrinsicopNode &intrinopNode, PrimType pty) {
-  Operand *addrOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnFirstOpnd));
-  MOperator mOp = (pty == PTY_u32) ? MOP_wstlr : MOP_xstlr;
-  MemOperand *memOperand = CreateStackMemOpnd(R0, 0, k64BitSize);
-  uint32 size = (pty == PTY_u32) ? k32BitSize : k64BitSize;
-  RegOperand &zero = GetZeroOpnd(size);
-  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, zero, *memOperand));
-  return addrOpnd;
+void AArch64CGFunc::SelectCSyncLockRelease(const IntrinsiccallNode &intrinsiccall, PrimType primType) {
+  auto *addrOpnd = HandleExpr(intrinsiccall, *intrinsiccall.GetNopndAt(kInsnFirstOpnd));
+  auto primTypeBitSize = GetPrimTypeBitSize(primType);
+  auto mOp = PickStInsn(primTypeBitSize, primType, AArch64isa::kMoRelease);
+  auto &zero = GetZeroOpnd(primTypeBitSize);
+  auto &memOpnd = CreateMemOpnd(LoadIntoRegister(*addrOpnd, primType), 0, primTypeBitSize);
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, zero, memOpnd));
 }
 
 Operand *AArch64CGFunc::SelectCSyncSynchronize(IntrinsicopNode &intrinopNode) {

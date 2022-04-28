@@ -55,6 +55,7 @@ uint64 CGOptions::lsraInsnOptSize = 200000;
 uint64 CGOptions::overlapNum = 28;
 uint8 CGOptions::rematLevel = 2;
 bool CGOptions::optForSize = false;
+bool CGOptions::enableHotColdSplit = false;
 uint32 CGOptions::alignMinBBSize = 16;
 uint32 CGOptions::alignMaxBBSize = 96;
 uint32 CGOptions::loopAlignPow = 4;
@@ -135,6 +136,7 @@ enum OptionIndex : uint64 {
   kIco,
   kSlo,
   kGo,
+  kEnableHotColdSplit,
   kPreLSRAOpt,
   kLocalrefSpill,
   kOptCallee,
@@ -388,6 +390,16 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyBool,
     "  --globalopt                 \tPerform global optimization\n"
     "  --no-globalopt\n",
+    "mplcg",
+    {} },
+  { kEnableHotColdSplit,
+    kEnable,
+    "",
+    "hotcoldsplit",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --enableHotColdSplit        \tPerform HotColdSplit optimization\n"
+    "  --no-enableHotColdSplit\n",
     "mplcg",
     {} },
   { kPreLSRAOpt,
@@ -1255,7 +1267,6 @@ const Descriptor kUsage[] = {
     " --func-align-pow=NUM           \tO2 func bb align pow (NUM == 0, no func-align)\n",
     "mplcg",
     {} },
-
 // End
   { kUnknown,
     0,
@@ -1521,6 +1532,9 @@ bool CGOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
         break;
       case kGo:
         (opt.Type() == kEnable) ? EnableGlobalOpt() : DisableGlobalOpt();
+        break;
+      case kEnableHotColdSplit:
+        (opt.Type() == kEnable) ? EnableHotColdSplit() : DisableHotColdSplit();
         break;
       case kPreLSRAOpt:
         (opt.Type() == kEnable) ? EnablePreLSRAOpt() : DisablePreLSRAOpt();

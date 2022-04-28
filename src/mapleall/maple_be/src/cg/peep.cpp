@@ -81,7 +81,6 @@ InsnSet CGPeepPattern::GetAllUseInsn(const RegOperand &defReg) {
 }
 
 Insn *CGPeepPattern::GetDefInsn(const RegOperand &useReg) {
-  ASSERT(useReg.IsRegister(), "must be regOpnd");
   if (!useReg.IsSSAForm()) {
     return nullptr;
   }
@@ -94,7 +93,6 @@ Insn *CGPeepPattern::GetDefInsn(const RegOperand &useReg) {
 }
 
 void CGPeepPattern::DumpAfterPattern(std::vector<Insn*> &prevInsns, const Insn *replacedInsn, const Insn *newInsn) {
-  auto *aarCGSSAInfo = static_cast<AArch64CGSSAInfo*>(ssaInfo);
   LogInfo::MapleLogger() << ">>>>>>> In " << GetPatternName() << " : <<<<<<<\n";
   if (!prevInsns.empty()) {
     if ((replacedInsn == nullptr) && (newInsn == nullptr)) {
@@ -108,7 +106,7 @@ void CGPeepPattern::DumpAfterPattern(std::vector<Insn*> &prevInsns, const Insn *
         prevInsn->Dump();
         if (ssaInfo != nullptr) {
           LogInfo::MapleLogger() << "[ssa form] ";
-          aarCGSSAInfo->DumpInsnInSSAForm(*prevInsn);
+          ssaInfo->DumpInsnInSSAForm(*prevInsn);
         }
       }
     }
@@ -120,7 +118,7 @@ void CGPeepPattern::DumpAfterPattern(std::vector<Insn*> &prevInsns, const Insn *
     replacedInsn->Dump();
     if (ssaInfo != nullptr) {
       LogInfo::MapleLogger() << "[ssa form] ";
-      aarCGSSAInfo->DumpInsnInSSAForm(*replacedInsn);
+      ssaInfo->DumpInsnInSSAForm(*replacedInsn);
     }
   }
   if (newInsn != nullptr) {
@@ -129,7 +127,7 @@ void CGPeepPattern::DumpAfterPattern(std::vector<Insn*> &prevInsns, const Insn *
     newInsn->Dump();
     if (ssaInfo != nullptr) {
       LogInfo::MapleLogger() << "[ssa form] ";
-      aarCGSSAInfo->DumpInsnInSSAForm(*newInsn);
+      ssaInfo->DumpInsnInSSAForm(*newInsn);
     }
   }
 }
@@ -171,7 +169,7 @@ bool CGPeepPattern::IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &in
       }
 #if TARGAARCH64 || TARGRISCV64
       const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(nextInsn)->GetMachineOpcode()];
-      auto *regProp = static_cast<AArch64OpndProp*>(md->operand[static_cast<uint64>(i)]);
+      auto *regProp = (md->operand[static_cast<uint64>(i)]);
 #endif
 #if TARGARM32
       const Arm32MD *md = &Arm32CG::kMd[static_cast<Arm32Insn*>(nextInsn)->GetMachineOpcode()];
@@ -287,7 +285,7 @@ ReturnType CGPeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb
     for (int32 i = lastOpndId; i >= 0; --i) {
       Operand &opnd = insn->GetOperand(static_cast<uint32>(i));
 #if TARGAARCH64 || TARGRISCV64
-      auto *regProp = static_cast<AArch64OpndProp*>(md->operand[static_cast<uint64>(i)]);
+      auto *regProp = (md->operand[static_cast<uint64>(i)]);
 #endif
 #if TARGARM32
       auto *regProp = static_cast<Arm32OpndProp*>(md->operand[i]);
@@ -396,7 +394,7 @@ bool PeepPattern::IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &insn
       }
 #if TARGAARCH64 || TARGRISCV64
       const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(nextInsn)->GetMachineOpcode()];
-      auto *regProp = static_cast<AArch64OpndProp*>(md->operand[static_cast<uint64>(i)]);
+      auto *regProp = (md->operand[static_cast<uint64>(i)]);
 #endif
 #if TARGARM32
       const Arm32MD *md = &Arm32CG::kMd[static_cast<Arm32Insn*>(nextInsn)->GetMachineOpcode()];
@@ -512,7 +510,7 @@ ReturnType PeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) 
     for (int32 i = lastOpndId; i >= 0; --i) {
       Operand &opnd = insn->GetOperand(static_cast<uint32>(i));
 #if TARGAARCH64 || TARGRISCV64
-      auto *regProp = static_cast<AArch64OpndProp*>(md->operand[static_cast<uint64>(i)]);
+      auto *regProp = (md->operand[static_cast<uint64>(i)]);
 #endif
 #if TARGARM32
       auto *regProp = static_cast<Arm32OpndProp*>(md->operand[i]);
@@ -583,10 +581,10 @@ ReturnType PeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) 
 bool PeepPattern::IsMemOperandOptPattern(const Insn &insn, Insn &nextInsn) {
   /* Check if base register of nextInsn and the dest operand of insn are identical. */
 #if TARGAARCH64 || TARGRISCV64
-  AArch64MemOperand *memOpnd = static_cast<AArch64MemOperand*>(nextInsn.GetMemOpnd());
+  MemOperand *memOpnd = static_cast<MemOperand*>(nextInsn.GetMemOpnd());
   ASSERT(memOpnd != nullptr, "null ptr check");
   /* Only for AddrMode_B_OI addressing mode. */
-  if (memOpnd->GetAddrMode() != AArch64MemOperand::kAddrModeBOi) {
+  if (memOpnd->GetAddrMode() != MemOperand::kAddrModeBOi) {
     return false;
   }
 #endif

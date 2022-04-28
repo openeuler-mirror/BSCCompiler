@@ -156,7 +156,8 @@ class CGSSAInfo {
       vRegDefCount(ssaAlloc.Adapter()),
       vRegStk(ssaAlloc.Adapter()),
       allSSAOperands(ssaAlloc.Adapter()),
-      noDefVRegs(ssaAlloc.Adapter()) {}
+      noDefVRegs(ssaAlloc.Adapter()),
+      reversePostOrder(ssaAlloc.Adapter()) {}
   virtual ~CGSSAInfo() = default;
   void ConstructSSA();
   VRegVersion *FindSSAVersion(regno_t ssaRegNO); /* Get specific ssa info */
@@ -168,7 +169,6 @@ class CGSSAInfo {
   DUInsnInfo *CreateDUInsnInfo(Insn *cInsn, uint32 idx) {
     return memPool->New<DUInsnInfo>(cInsn, idx, ssaAlloc);
   }
-
   const MapleUnorderedMap<regno_t, VRegVersion*> &GetAllSSAOperands() const {
     return allSSAOperands;
   }
@@ -182,7 +182,11 @@ class CGSSAInfo {
     ASSERT(false, " original vreg is not existed");
     return 0;
   }
+  MapleVector<uint32> &GetReversePostOrder() {
+    return reversePostOrder;
+  }
   void DumpFuncCGIRinSSAForm() const;
+  virtual void DumpInsnInSSAForm(const Insn &insn) const = 0;
   static uint32 SSARegNObase;
 
  protected:
@@ -214,7 +218,6 @@ class CGSSAInfo {
   virtual RegOperand *GetRenamedOperand(RegOperand &vRegOpnd, bool isDef, Insn &curInsn, uint32 idx) = 0;
   void RenameSuccPhiUse(const BB &bb);
   void PrunedPhiInsertion(const BB &bb, RegOperand &virtualOpnd);
-  virtual void DumpInsnInSSAForm(const Insn &insn) const = 0;
 
   void AddRenamedBB(uint32 bbID) {
     ASSERT(!renamedBBs.count(bbID), "cgbb has been renamed already");
@@ -223,6 +226,7 @@ class CGSSAInfo {
   bool IsBBRenamed(uint32 bbID) const {
     return renamedBBs.count(bbID);
   }
+  void SetReversePostOrder();
 
   DomAnalysis *domInfo = nullptr;
   MapleSet<uint32> renamedBBs;
@@ -234,6 +238,8 @@ class CGSSAInfo {
   MapleUnorderedMap<regno_t, VRegVersion*> allSSAOperands;
   /* For virtual registers which do not have definition */
   MapleSet<regno_t> noDefVRegs;
+  /* only save bb_id to reduce space */
+  MapleVector<uint32> reversePostOrder;
   int32 insnCount = 0;
 };
 

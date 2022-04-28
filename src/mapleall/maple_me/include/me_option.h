@@ -112,6 +112,7 @@ class MeOption : public MapleDriverOptionBase {
   static bool regNativeFunc;
   static bool warnNativeFunc;
   static bool lazyDecouple;
+  static bool optForSize;
   static uint8 optLevel;
   static uint32 stmtprePULimit;
   static uint32 epreLimit;
@@ -129,6 +130,7 @@ class MeOption : public MapleDriverOptionBase {
   static uint32 profileBBHotRate;
   static uint32 profileBBColdRate;
   static bool ignoreIPA;
+  static bool enableHotColdSplit;
   static bool aggressiveABCO;
   static bool commonABCO;
   static bool conservativeABCO;
@@ -182,6 +184,7 @@ class MeOption : public MapleDriverOptionBase {
   static uint32 ivoptsLimit;
   static bool loopVec;
   static bool seqVec;
+  static bool enableLFO;
   static uint8 rematLevel;
   static bool layoutWithPredict;
   static bool unifyRets;

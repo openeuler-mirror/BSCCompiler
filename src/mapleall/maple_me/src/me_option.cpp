@@ -38,6 +38,7 @@ uint8 MeOption::aliasAnalysisLevel = 3;
 bool MeOption::noDot = false;
 bool MeOption::stmtNum = false;
 bool MeOption::optForSize = false;
+bool MeOption::enableHotColdSplit = false;
 uint8 MeOption::optLevel = 0;
 bool MeOption::ignoreIPA = true;
 bool MeOption::aggressiveABCO = false;
@@ -192,6 +193,7 @@ enum OptionIndex {
   kProfileBBHotRate,
   kProfileBBColdRate,
   kIgnoreIpa,
+  kEnableHotColdSplit,
   kAggressiveABCO,
   kCommonABCO,
   kConservativeABCO,
@@ -693,6 +695,16 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyBool,
     "  --ignoreipa                 \tIgnore information provided by interprocedural analysis\n"
     "  --no-ignoreipa              \tDon't ignore information provided by interprocedural analysis\n",
+    "me",
+    {} },
+  { kEnableHotColdSplit,
+    kEnable,
+    "",
+    "enableHotColdSplit",
+    kBuildTypeProduct,
+    kArgCheckPolicyBool,
+    "  --enableHotColdSplit        \tEnable the HotCold function split\n"
+    "  --no---enableHotColdSplit   \tDisable the HotCold function split\n",
     "me",
     {} },
   { kAggressiveABCO,
@@ -1592,6 +1604,9 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         break;
       case kIgnoreIpa:
         ignoreIPA = (opt.Type() == kEnable);
+        break;
+      case kEnableHotColdSplit:
+        enableHotColdSplit = (opt.Type() == kEnable);
         break;
       case kAggressiveABCO:
         aggressiveABCO = (opt.Type() == kEnable);

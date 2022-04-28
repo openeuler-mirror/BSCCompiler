@@ -96,7 +96,6 @@ src_libcgaarch64 = [
   "src/cg/aarch64/aarch64_fixshortbranch.cpp",
   "src/cg/aarch64/aarch64_global.cpp",
   "src/cg/aarch64/aarch64_proepilog.cpp",
-  "src/cg/aarch64/aarch64_immediate.cpp",
   "src/cg/aarch64/aarch64_operand.cpp",
   "src/cg/aarch64/aarch64_color_ra.cpp",
   "src/cg/aarch64/aarch64_reg_info.cpp",
@@ -124,6 +123,7 @@ src_libcgaarch64 = [
   "src/cg/aarch64/aarch64_regsaves.cpp",
   "src/cg/aarch64/aarch64_utils.cpp",
   "src/cg/aarch64/aarch64_cg.cpp",
+  "src/cg/aarch64/aarch64_validbit_opt.cpp",
 ]
 
 src_libcgx8664 = [
@@ -138,6 +138,7 @@ src_libcgx8664 = [
   "src/cg/x86_64/x64_standardize.cpp",
   "src/cg/x86_64/x64_reg_info.cpp",
   "src/cg/x86_64/x64_proepilog.cpp",
+  "src/cg/x86_64/x64_args.cpp",
 ]
 
 src_libcgriscv64 = [
@@ -197,6 +198,8 @@ src_libcgphases = [
   "src/cg/cg_ssa_pre.cpp",
   "src/cg/regsaves.cpp",
   "src/cg/cg_critical_edge.cpp",
+  "src/cg/alignment.cpp",
+  "src/cg/cg_validbit_opt.cpp",
 ]
 
 src_libcg = [
@@ -204,6 +207,7 @@ src_libcg = [
   "src/cg/cg_irbuilder.cpp",
   "src/cg/cfi.cpp",
   "src/cg/cgbb.cpp",
+  "src/cg/operand.cpp",
   "src/cg/cgfunc.cpp",
   "src/cg/cg_cfg.cpp",
   "src/cg/cg_option.cpp",
@@ -222,7 +226,6 @@ src_libcg = [
   "src/cg/reg_alloc.cpp",
   "src/cg/reg_alloc_basic.cpp",
   "src/cg/proepilog.cpp",
-  "src/cg/alignment.cpp",
   "src/cg/cg.cpp",
   "src/cg/isa.cpp",
   "src/cg/insn.cpp",

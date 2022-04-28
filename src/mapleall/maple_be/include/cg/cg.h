@@ -45,6 +45,7 @@ class MoveRegArgs;
 class MPISel;
 class Standardize;
 class LiveIntervalAnalysis;
+class ValidBitOpt;
 
 class Globals {
  public:
@@ -390,6 +391,9 @@ class CG {
     return nullptr;
   }
   virtual Standardize *CreateStandardize(MemPool &mp, CGFunc &f) const {
+    return nullptr;
+  }
+  virtual ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const {
     return nullptr;
   }
 

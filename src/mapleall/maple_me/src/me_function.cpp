@@ -73,9 +73,6 @@ void MeFunction::DumpFunction() const {
 }
 
 void MeFunction::DumpFunctionNoSSA() const {
-  if (isLfo) {
-    return;
-  }
   if (theCFG == nullptr) {
     LogInfo::MapleLogger()  << "Warning: no cfg analysis, just dump ir" << '\n';
     mirFunc->Dump();
@@ -137,11 +134,24 @@ void MeFunction::Dump(bool DumpSimpIr) const {
   }
 }
 
+void MeFunction::IPAPrepare() {
+  MemPool* pmemp = memPoolCtrler.NewMemPool("ipapme", true);
+  SetPreMeFunc(pmemp->New<PreMeFunction>(pmemp, this));
+  SetPmeMempool(pmemp);
+  isPme = true;
+  PreMeMIRLower pmemirlowerer(mirModule, this);
+  pmemirlowerer.LowerFunc(*CurFunction());
+}
+
 void MeFunction::Prepare() {
-  if (MeOption::optLevel >= 3) {
+  // the restriction need to be removed after opt enhanced
+  bool lfoRestricted = MeOption::boundaryCheckMode != SafetyCheckMode::kNoCheck;
+  if (MeOption::enableLFO && mirModule.IsCModule() && !lfoRestricted) {
     MemPool* pmemp = memPoolCtrler.NewMemPool("lfo", true);
     SetPreMeFunc(pmemp->New<PreMeFunction>(pmemp, this));
-    SetLfoMempool(pmemp);
+    SetPmeMempool(pmemp);
+    isPme = true;
+    isLfo = true;
     PreMeMIRLower pmemirlowerer(mirModule, this);
     pmemirlowerer.LowerFunc(*CurFunction());
   } else {
@@ -272,6 +282,7 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
       }
       case OP_intrinsiccall:
       case OP_intrinsiccallassigned:
+      case OP_intrinsiccallwithtypeassigned:
       case OP_intrinsiccallwithtype: {
         auto *intrnStmt = static_cast<IntrinsiccallMeStmt*>(&stmt);
         newStmt =
@@ -307,6 +318,7 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
       case OP_callassigned:
       case OP_virtualcallassigned:
       case OP_virtualicallassigned:
+      case OP_interfacecallassigned:
       case OP_interfaceicallassigned: {
         auto *callStmt = static_cast<CallMeStmt*>(&stmt);
         newStmt =
@@ -341,6 +353,19 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
       }
       case OP_eval: {
         newStmt = irmap->New<UnaryMeStmt>(static_cast<UnaryMeStmt&>(stmt));
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_incref:
+      case OP_decref:
+      case OP_decrefreset: {
+        auto &unaryStmt = static_cast<UnaryMeStmt&>(stmt);
+        newStmt = irmap->New<UnaryMeStmt>(static_cast<UnaryMeStmt&>(stmt));
+        if (unaryStmt.GetMuList() != nullptr) {
+          for (auto &mu : *unaryStmt.GetMuList()) {
+            newStmt->GetMuList()->emplace(mu.first, mu.second);
+          }
+        }
         destBB.AddMeStmtLast(newStmt);
         break;
       }
