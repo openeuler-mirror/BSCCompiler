@@ -432,7 +432,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   } else {
     (void)emitter.Emit("\t.text\n");
   }
-  if (CGOptions::GetFuncAlignPow() != 0 && !CGOptions::OptimizeForSize()) {
+  if (CGOptions::GetFuncAlignPow() != 0) {
     (void)emitter.Emit("\t.align ").Emit(CGOptions::GetFuncAlignPow()).Emit("\n");
   }
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(cgFunc.GetFunction().GetStIdx().Idx());
