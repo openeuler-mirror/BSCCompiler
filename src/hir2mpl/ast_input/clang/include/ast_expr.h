@@ -1122,6 +1122,7 @@ class ASTCallExpr : public ASTExpr {
   static std::unordered_map<std::string, FuncPtrBuiltinFunc> InitBuiltinFuncPtrMap();
   UniqueFEIRExpr CreateIntrinsicopForC(std::list<UniqueFEIRStmt> &stmts, MIRIntrinsicID argIntrinsicID,
                                        bool genTempVar = true) const;
+  UniqueFEIRExpr CreateIntrinsicCallAssignedForC(std::list<UniqueFEIRStmt> &stmts, MIRIntrinsicID argIntrinsicID) const;
   UniqueFEIRExpr CreateBinaryExpr(std::list<UniqueFEIRStmt> &stmts, Opcode op) const;
   UniqueFEIRExpr EmitBuiltinFunc(std::list<UniqueFEIRStmt> &stmts) const;
   UniqueFEIRExpr EmitBuiltinVectorZip(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
