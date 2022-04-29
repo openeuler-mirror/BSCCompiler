@@ -527,7 +527,6 @@ UniqueFEIRExpr ASTCastExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) co
     }
     UniqueFEIRType dstType = std::make_unique<FEIRTypeNative>(*dst);
     if (dst->GetKind() == kTypePointer) {
-      CheckNonnullFieldInStruct();
       return subExpr;
     } else {
       return std::make_unique<FEIRExprTypeCvt>(std::move(dstType), OP_retype, std::move(subExpr));
@@ -1505,7 +1504,7 @@ UniqueFEIRExpr ASTStringLiteral::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmt
   MIRType *elemType = static_cast<MIRArrayType*>(mirType)->GetElemType();
   std::vector<uint32> codeUnitsVec;
   codeUnitsVec.insert(codeUnitsVec.end(), codeUnits.begin(), codeUnits.end());
-  UniqueFEIRExpr expr = std::make_unique<FEIRExprAddrofConstArray>(codeUnitsVec, elemType, str);
+  UniqueFEIRExpr expr = std::make_unique<FEIRExprAddrofConstArray>(codeUnitsVec, elemType, GetStr());
   CHECK_NULL_FATAL(expr);
   return expr;
 }

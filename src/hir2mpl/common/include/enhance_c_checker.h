@@ -39,6 +39,7 @@ class ENCChecker {
                                                uint32 fileNum, uint32 fileLine);
   static bool HasNonnullFieldInStruct(const MIRType &mirType);
   static bool HasNonnullFieldInPtrStruct(const MIRType &mirType);
+  static void CheckNonnullFieldInStruct(const MIRType &src, const MIRType &dst, uint32 fileIdx, uint32 fileLine);
   static bool IsSameBoundary(const AttrBoundary &arg1, const AttrBoundary &arg2);
   static void CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
                                                 uint32 fileNum, uint32 fileLine);

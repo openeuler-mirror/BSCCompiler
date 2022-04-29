@@ -337,19 +337,23 @@ void FEIRStmtDAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRSym
   if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
     return;
   }
+  MIRType *srcType = expr->GetType()->GenerateMIRTypeAuto();
   if (fieldID == 0) {
+    ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstSym.GetType(), srcFileIndex,srcFileLineNum);
     if (!dstSym.GetAttr(ATTR_nonnull)) {
       return;
     }
   } else {
     FieldID tmpID = fieldID;
     FieldPair fieldPair = static_cast<MIRStructType*>(dstSym.GetType())->TraverseToFieldRef(tmpID);
+    MIRType *dstType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
+    ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, srcFileIndex,srcFileLineNum);
     if (!fieldPair.second.second.GetAttr(FLDATTR_nonnull)) {
       return;
     }
   }
   if (ENCChecker::HasNullExpr(expr)) {
-    FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull pointer",
+    FE_ERR(kLncErr, "%s:%d errorz: null assignment of nonnull pointer",
            FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
     return;
   }
@@ -867,6 +871,9 @@ void FEIRStmtReturn::InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<Stm
   if (!FEOptions::GetInstance().IsNpeCheckDynamic() || expr == nullptr) {
     return;
   }
+  MIRType *srcType = expr->GetType()->GenerateMIRTypeAuto();
+  MIRType *dstType = mirBuilder.GetCurrentFunction()->GetReturnType();
+  ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, srcFileIndex, srcFileLineNum);
   if (!mirBuilder.GetCurrentFunction()->GetAttrs().GetAttr(FUNCATTR_nonnull)) {
     return;
   }
@@ -1889,6 +1896,9 @@ void FEIRStmtCallAssign::InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr,
   if (index >= methodInfo.GetMirFunc()->GetParamSize()) {  // Skip variable parameter
     return;
   }
+  MIRType *srcType = expr->GetType()->GenerateMIRTypeAuto();
+  MIRType *dstType = methodInfo.GetMirFunc()->GetNthParamType(index);
+  ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, srcFileIndex, srcFileLineNum);
   if (!methodInfo.GetMirFunc()->GetNthParamAttr(index).GetAttr(ATTR_nonnull)) {
     return;
   }
@@ -2003,7 +2013,13 @@ void FEIRStmtICallAssign::InsertNonnullCheckingInArgs(MIRBuilder &mirBuilder, st
   size_t size = funcType->GetParamAttrsList().size();
   for (const auto &expr : exprArgs) {
     ++idx;
-    if (idx < 0 || idx >= static_cast<int>(size) || !funcType->GetNthParamAttrs(idx).GetAttr(ATTR_nonnull)) {
+    if (idx < 0 || idx >= static_cast<int>(size)) {
+      continue;
+    }
+    MIRType *srcType = expr->GetType()->GenerateMIRTypeAuto();
+    MIRType *dstType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetNthParamType(idx));
+    ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, srcFileIndex, srcFileLineNum);
+    if (!funcType->GetNthParamAttrs(idx).GetAttr(ATTR_nonnull)) {
       continue;
     }
     if (ENCChecker::HasNullExpr(expr)) {
@@ -4166,6 +4182,9 @@ void FEIRStmtIAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRTyp
   }
   FieldID tmpID = fieldID;
   FieldPair fieldPair = static_cast<const MIRStructType&>(baseType).TraverseToFieldRef(tmpID);
+  MIRType *srcType = baseExpr->GetType()->GenerateMIRTypeAuto();
+  MIRType *dstType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
+  ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, srcFileIndex, srcFileLineNum);
   if (fieldPair.second.second.GetAttr(FLDATTR_nonnull)) {
     if (ENCChecker::HasNullExpr(baseExpr)) {
       FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull pointer",

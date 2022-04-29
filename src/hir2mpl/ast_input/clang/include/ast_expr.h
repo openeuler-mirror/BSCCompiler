@@ -235,7 +235,6 @@ class ASTCastExpr : public ASTExpr {
   MIRConst *GenerateMIRFloatConst() const;
   MIRConst *GenerateMIRIntConst() const;
   UniqueFEIRExpr EmitExprVdupVector(PrimType primtype, UniqueFEIRExpr &subExpr) const;
-  void CheckNonnullFieldInStruct() const;
 
   ASTExpr *child = nullptr;
   MIRType *src = nullptr;
@@ -767,7 +766,7 @@ class ASTImplicitValueInitExpr : public ASTExpr {
 class ASTStringLiteral : public ASTExpr {
  public:
   explicit ASTStringLiteral(MapleAllocator &allocatorIn) : ASTExpr(kASTStringLiteral),
-      codeUnits(allocatorIn.Adapter()) {}
+      codeUnits(allocatorIn.Adapter()), str(allocatorIn.Adapter()) {}
   ~ASTStringLiteral() = default;
 
   void SetLength(size_t len) {
@@ -787,11 +786,15 @@ class ASTStringLiteral : public ASTExpr {
   }
 
   void SetStr(const std::string &strIn) {
-    str = strIn;
+    if (str.size() > 0) {
+      str.clear();
+      str.shrink_to_fit();
+    }
+    str.insert(str.end(), strIn.begin(), strIn.end());
   }
 
-  const std::string &GetStr() const {
-    return str;
+  const std::string GetStr() const {
+    return std::string(str.begin(), str.end());
   }
 
   void SetIsArrayToPointerDecay(bool argIsArrayToPointerDecay) {
@@ -809,7 +812,7 @@ class ASTStringLiteral : public ASTExpr {
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   size_t length = 0;
   MapleVector<uint32> codeUnits;
-  std::string str;  // Ascii string
+  MapleVector<char> str;  // Ascii string
   bool isArrayToPointerDecay = false;
 };
 
