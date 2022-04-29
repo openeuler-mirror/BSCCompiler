@@ -297,13 +297,16 @@ void ASTCallExpr::CheckNonnullFieldInStruct() const {
   }
 }
 
-void ASTCastExpr::CheckNonnullFieldInStruct() const {
-  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || dst->GetTypeIndex() == src->GetTypeIndex()) {
+void ENCChecker::CheckNonnullFieldInStruct(const MIRType &src, const MIRType &dst,
+                                           uint32 fileIdx, uint32 fileLine) {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() ||
+      !dst.IsMIRPtrType() || !src.IsMIRPtrType() ||
+      dst.GetTypeIndex() == src.GetTypeIndex()) {
     return;
   }
-  if (ENCChecker::HasNonnullFieldInPtrStruct(*dst)) {
+  if (ENCChecker::HasNonnullFieldInPtrStruct(dst)) {
     FE_ERR(kLncErr, "%s:%d error: null assignment risk of nonnull field pointer",
-           FEManager::GetModule().GetFileNameFromFileNum(srcFileIdx).c_str(), srcFileLineNum);
+           FEManager::GetModule().GetFileNameFromFileNum(fileIdx).c_str(), fileLine);
   }
 }
 

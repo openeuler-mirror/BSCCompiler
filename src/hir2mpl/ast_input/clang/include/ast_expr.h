@@ -235,7 +235,6 @@ class ASTCastExpr : public ASTExpr {
   MIRConst *GenerateMIRFloatConst() const;
   MIRConst *GenerateMIRIntConst() const;
   UniqueFEIRExpr EmitExprVdupVector(PrimType primtype, UniqueFEIRExpr &subExpr) const;
-  void CheckNonnullFieldInStruct() const;
 
   ASTExpr *child = nullptr;
   MIRType *src = nullptr;

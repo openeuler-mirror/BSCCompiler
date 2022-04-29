@@ -527,7 +527,6 @@ UniqueFEIRExpr ASTCastExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) co
     }
     UniqueFEIRType dstType = std::make_unique<FEIRTypeNative>(*dst);
     if (dst->GetKind() == kTypePointer) {
-      CheckNonnullFieldInStruct();
       return subExpr;
     } else {
       return std::make_unique<FEIRExprTypeCvt>(std::move(dstType), OP_retype, std::move(subExpr));
