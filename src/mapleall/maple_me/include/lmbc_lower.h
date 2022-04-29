@@ -22,24 +22,16 @@ namespace maple {
 
 class LMBCLowerer {
  public:
-  MIRModule *mirModule;
-  MIRFunction *func;
-  maplebe::BECommon *becommon;
-  MIRBuilder *mirBuilder;
-  GlobalMemLayout *globmemlayout;
-  LMBCMemLayout *memlayout;
-
- public:
-  explicit LMBCLowerer(MIRModule *mod, maplebe::BECommon *becmmn, MIRFunction *f, GlobalMemLayout *gmemlayout, LMBCMemLayout *lmemlayout) :
-        mirModule(mod), func(f), becommon(becmmn), mirBuilder(mod->GetMIRBuilder()),
-        globmemlayout(gmemlayout), memlayout(lmemlayout) {}
+  explicit LMBCLowerer(MIRModule *mod, maplebe::BECommon *becmmn, MIRFunction *f,
+                       GlobalMemLayout *gmemlayout, LMBCMemLayout *lmemlayout) :
+      mirModule(mod), func(f), becommon(becmmn), mirBuilder(mod->GetMIRBuilder()),
+      globmemlayout(gmemlayout), memlayout(lmemlayout) {}
 
   PregIdx GetSpecialRegFromSt(const MIRSymbol *);
   BaseNode *LowerAddrof(AddrofNode *);
   BaseNode *LowerDread(AddrofNode *);
   BaseNode *LowerDreadoff(DreadoffNode *);
   BaseNode *LowerIread(IreadNode *);
-  BaseNode *LowerIaddrof(IreadNode *);
   BaseNode *LowerExpr(BaseNode *expr);
   void LowerAggDassign(const DassignNode *, MIRType *lhsty, int32 offset, BlockNode *);
   void LowerDassign(DassignNode *, BlockNode *);
@@ -47,10 +39,18 @@ class LMBCLowerer {
   void LowerIassign(IassignNode *, BlockNode *);
   void LowerAggIassign(IassignNode *, MIRType *type, int32 offset, BlockNode *);
   void LowerReturn(NaryStmtNode *retNode, BlockNode *newblk);
+  MIRFuncType *FuncTypeFromFuncPtrExpr(BaseNode *x);
   void LowerCall(NaryStmtNode *callNode, BlockNode *newblk);
   BlockNode *LowerBlock(BlockNode *);
   void LoadFormalsAssignedToPregs();
   void LowerFunction();
+
+  MIRModule *mirModule;
+  MIRFunction *func;
+  maplebe::BECommon *becommon;
+  MIRBuilder *mirBuilder;
+  GlobalMemLayout *globmemlayout;
+  LMBCMemLayout *memlayout;
 };
 
 }  // namespace maple

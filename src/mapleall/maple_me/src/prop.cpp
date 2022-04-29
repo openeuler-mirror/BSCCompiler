@@ -20,7 +20,8 @@
 
 using namespace maple;
 
-const int kPropTreeLevel = 15;  // tree height threshold to increase to
+const uint32 kPropTreeLevel = 15;   // tree height threshold to increase to
+const uint32 kTreeNodeLimit = 5000; // tree node threshold to decide propagatable.
 
 namespace maple {
 #ifdef USE_ARM32_MACRO
@@ -211,6 +212,13 @@ bool Prop::IsFunctionOfCurVersion(ScalarMeExpr *scalar, const ScalarMeExpr *cur)
   return InvertibleOccurrences(scalar, ass->GetRHS()) == 1;
 }
 
+static void Calc(MeExpr *x, uint32 &count) {
+  count++;
+  for (uint32 i = 0; i < x->GetNumOpnds(); i++) {
+    Calc(x->GetOpnd(i), count);
+  }
+}
+
 // check if the expression x can legally forward-substitute the variable that it
 // was assigned to; x is from bb; if checkInverse is true and there is live range
 // overlap for a scalar within x, do the additional check of whether the scalar's
@@ -219,6 +227,11 @@ bool Prop::IsFunctionOfCurVersion(ScalarMeExpr *scalar, const ScalarMeExpr *cur)
 // propagating scalar so we can avoid doing the checkInverse checking for it.
 Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool checkInverse,
                                    ScalarMeExpr *propagatingScalar) {
+  uint32 count = 0;
+  Calc(x, count);
+  if (count > kTreeNodeLimit) {
+    return kPropNo;
+  }
   MeExprOp meOp = x->GetMeOp();
   switch (meOp) {
     case kMeOpAddrof:
@@ -274,7 +287,10 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
       if (LocalToDifferentPU(st->GetStIdx(), *fromBB)) {
         return kPropNo;
       }
-      if (varMeExpr->GetDefBy() == kDefByMustDef && varMeExpr->GetType()->GetPrimType() == PTY_agg) {
+      // for <void *>, stop prop here, and back-substitution will use declared var to replace this return value.
+      // <void *> has no effective type, we will use the type as declared type var assigned by this return value.
+      if (varMeExpr->GetDefBy() == kDefByMustDef && (varMeExpr->GetType()->GetPrimType() == PTY_agg ||
+                                                     varMeExpr->GetType()->IsVoidPointer())) {
         return kPropNo;  // keep temps for storing call return values single use
       }
       // get the current definition version
@@ -638,6 +654,12 @@ MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
   if (st->IsInstrumented() || varMeExpr.IsVolatile() || varMeExpr.GetOst()->HasOneElemSimdAttr() ||
       propsPerformed >= propLimit) {
     return varMeExpr;
+  }
+  if (st->GetType() && st->GetType()->GetKind() == kTypePointer) {
+    MIRPtrType *ptrType = static_cast<MIRPtrType *>(st->GetType());
+    if (ptrType->GetPointedType()->GetKind() == kTypeFunction) {
+      return varMeExpr;
+    }
   }
 
   if (varMeExpr.GetDefBy() == kDefByStmt) {
@@ -1082,8 +1104,7 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
           if (simplifiedIvar != nullptr) {
             if (simplifiedIvar->GetMeOp() == kMeOpVar) {
               auto *lhsVar = static_cast<ScalarMeExpr *>(simplifiedIvar);
-              auto newDassign =
-                  irMap.CreateAssignMeStmt(*lhsVar, *ivarStmt.GetRHS(), *ivarStmt.GetBB());
+              auto newDassign = irMap.CreateAssignMeStmt(*lhsVar, *ivarStmt.GetRHS(), *ivarStmt.GetBB());
               newDassign->GetChiList()->insert(ivarStmt.GetChiList()->begin(), ivarStmt.GetChiList()->end());
               newDassign->GetChiList()->erase(lhsVar->GetOstIdx());
               ivarStmt.GetBB()->InsertMeStmtBefore(&ivarStmt, newDassign);

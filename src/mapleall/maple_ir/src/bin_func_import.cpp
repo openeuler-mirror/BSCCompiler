@@ -632,6 +632,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         stmt = s;
         break;
       }
+      case OP_icallproto:
       case OP_icall: {
         IcallNode *s = func->GetCodeMemPool()->New<IcallNode>(mod, op);
         s->SetRetTyIdx(ImportType());

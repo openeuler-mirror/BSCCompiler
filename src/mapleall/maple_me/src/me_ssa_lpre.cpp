@@ -124,6 +124,10 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
 MeExpr *MeSSALPre::GetTruncExpr(const VarMeExpr &theLHS, MeExpr &savedRHS) {
   MIRType *lhsType = theLHS.GetType();
   if (theLHS.GetType()->GetKind() != kTypeBitField) {
+    if (GetPrimTypeSize(theLHS.GetPrimType()) < GetPrimTypeSize(savedRHS.GetPrimType())) {
+      // regassign can not take implicit truncation
+      return irMap->CreateMeExprTypeCvt(theLHS.GetPrimType(), savedRHS.GetPrimType(), savedRHS);
+    }
     return &savedRHS;
   }
   MIRBitFieldType *bitfieldTy = static_cast<MIRBitFieldType *>(lhsType);
@@ -373,6 +377,9 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
         break;
       }
       if (!MeOption::lpre4Address) {
+        break;
+      }
+      if (func->genLMBC) {
         break;
       }
       CreateRealOcc(meStmt, seqStmt, meExpr, false);

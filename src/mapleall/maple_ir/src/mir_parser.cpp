@@ -922,22 +922,31 @@ bool MIRParser::ParseStmtCall(StmtNodePtr &stmt) {
   return true;
 }
 
-bool MIRParser::ParseStmtIcall(StmtNodePtr &stmt, bool isAssigned) {
+bool MIRParser::ParseStmtIcall(StmtNodePtr &stmt, Opcode op) {
   // syntax: icall (<PU-ptr>, <opnd0>, ..., <opndn>)
   //         icallassigned <PU-ptr> (<opnd0>, ..., <opndn>) {
   //              dassign <var-name0> <field-id0>
   //              dassign <var-name1> <field-id1>
   //               . . .
   //              dassign <var-namen> <field-idn> }
-  auto *iCallStmt = mod.CurFuncCodeMemPool()->New<IcallNode>(mod, !isAssigned ? OP_icall : OP_icallassigned);
+  //         icallproto <funcType> (<PU-ptr>, <opnd0>, ..., <opndn>)
+  IcallNode *iCallStmt = mod.CurFuncCodeMemPool()->New<IcallNode>(mod, op);
   lexer.NextToken();
+  if (op == OP_icallproto) {
+    TyIdx tyIdx(0);
+    if (!ParseDerivedType(tyIdx)) {
+      Error("error parsing type in ParseStmtIcall for icallproto at ");
+      return false;
+    }
+    iCallStmt->SetRetTyIdx(tyIdx);
+  }
   MapleVector<BaseNode*> opndsVec(mod.CurFuncCodeMemPoolAllocator()->Adapter());
   if (!ParseExprNaryOperand(opndsVec)) {
     return false;
   }
   iCallStmt->SetNOpnd(opndsVec);
   iCallStmt->SetNumOpnds(opndsVec.size());
-  if (isAssigned) {
+  if (op == OP_icallassigned) {
     CallReturnVector retsVec(mod.CurFuncCodeMemPoolAllocator()->Adapter());
     if (!ParseCallReturns(retsVec)) {
       return false;
@@ -950,11 +959,15 @@ bool MIRParser::ParseStmtIcall(StmtNodePtr &stmt, bool isAssigned) {
 }
 
 bool MIRParser::ParseStmtIcall(StmtNodePtr &stmt) {
-  return ParseStmtIcall(stmt, false);
+  return ParseStmtIcall(stmt, OP_icall);
 }
 
 bool MIRParser::ParseStmtIcallassigned(StmtNodePtr &stmt) {
-  return ParseStmtIcall(stmt, true);
+  return ParseStmtIcall(stmt, OP_icallassigned);
+}
+
+bool MIRParser::ParseStmtIcallproto(StmtNodePtr &stmt) {
+  return ParseStmtIcall(stmt, OP_icallproto);
 }
 
 bool MIRParser::ParseStmtIntrinsiccall(StmtNodePtr &stmt, bool isAssigned) {
@@ -2201,21 +2214,16 @@ bool MIRParser::ParseExprNaryOperand(MapleVector<BaseNode*> &opndVec) {
 bool MIRParser::ParseDeclaredSt(StIdx &stidx) {
   TokenKind varTk = lexer.GetTokenKind();
   stidx.SetFullIdx(0);
-  GStrIdx stridx = GlobalTables::GetStrTable().GetStrIdxFromName(lexer.GetName());
-  if (stridx == 0u) {
-    GStrIdx newStridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
-    MIRSymbol *st = GlobalTables::GetGsymTable().CreateSymbol(kScopeGlobal);
-    st->SetNameStrIdx(newStridx);
-    st->SetSKind(kStVar);
-    (void)GlobalTables::GetGsymTable().AddToStringSymbolMap(*st);
-    stidx = GlobalTables::GetGsymTable().GetStIdxFromStrIdx(newStridx);
-    return true;
-  }
+  GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
   if (varTk == TK_gname) {
     stidx = GlobalTables::GetGsymTable().GetStIdxFromStrIdx(stridx);
     if (stidx.FullIdx() == 0) {
-      Error("global symbol not declared ");
-      return false;
+      MIRSymbol *st = GlobalTables::GetGsymTable().CreateSymbol(kScopeGlobal);
+      st->SetNameStrIdx(stridx);
+      st->SetSKind(kStVar);
+      (void)GlobalTables::GetGsymTable().AddToStringSymbolMap(*st);
+      stidx = GlobalTables::GetGsymTable().GetStIdxFromStrIdx(stridx);
+      return true;
     }
   } else if (varTk == TK_lname) {
     stidx = mod.CurFunction()->GetSymTab()->GetStIdxFromStrIdx(stridx);
@@ -2682,10 +2690,6 @@ bool MIRParser::ParseExprIreadFPoff(BaseNodePtr &expr) {
     return false;
   }
   iReadOff->SetPrimType(GlobalTables::GetTypeTable().GetPrimTypeFromTyIdx(tyidx));
-  //if (!IsPrimitiveScalar(iReadOff->GetPrimType())) {
-  //  Error("only scalar types allowed for ireadoff");
-  //  return false;
-  //}
   if (lexer.GetTokenKind() != TK_intconst) {
     Error("expect offset but get ");
     return false;
@@ -3399,6 +3403,7 @@ std::map<TokenKind, MIRParser::FuncPtrParseStmt> MIRParser::InitFuncPtrMapForPar
   funcPtrMap[TK_interfacecallinstantassigned] = &MIRParser::ParseStmtCall;
   funcPtrMap[TK_icall] = &MIRParser::ParseStmtIcall;
   funcPtrMap[TK_icallassigned] = &MIRParser::ParseStmtIcallassigned;
+  funcPtrMap[TK_icallproto] = &MIRParser::ParseStmtIcallproto;
   funcPtrMap[TK_intrinsiccall] = &MIRParser::ParseStmtIntrinsiccall;
   funcPtrMap[TK_intrinsiccallassigned] = &MIRParser::ParseStmtIntrinsiccallassigned;
   funcPtrMap[TK_xintrinsiccall] = &MIRParser::ParseStmtIntrinsiccall;

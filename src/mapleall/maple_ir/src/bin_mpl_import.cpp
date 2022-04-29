@@ -129,6 +129,7 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
     }
     case kBinKindConstAddrofFunc: {
       PUIdx puIdx = ImportFunction();
+      mod.SetCurFunction(func);
       return memPool->New<MIRAddroffuncConst>(puIdx, *type);
     }
     case kBinKindConstAddrofLabel: {
@@ -817,7 +818,6 @@ TyIdx BinaryMplImport::ImportTypeNonJava() {
         type.GetParamAttrsList().push_back(ImportTypeAttrs());
       }
       GlobalTables::GetTypeTable().CreateMirTypeNodeAt(type, tyIdxUsed, &mod, false, false);
-      CHECK_FATAL(type.GetRetTyIdx() != TyIdx(0), "ImportTypeNonJava: retTyIdx cannot be 0");
       return tyIdxUsed;
     }
     case kBinKindTypeParam: {
@@ -1005,6 +1005,7 @@ MIRSymbol *BinaryMplImport::InSymbol(MIRFunction *func) {
       sym->SetKonst(ImportConst(func));
     } else if (skind == kStFunc) {
       PUIdx puidx = ImportFunction();
+      mod.SetCurFunction(func);
       if (puidx != 0) {
         sym->SetFunction(GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puidx));
       }
