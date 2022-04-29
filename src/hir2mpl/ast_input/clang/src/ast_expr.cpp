@@ -1505,7 +1505,7 @@ UniqueFEIRExpr ASTStringLiteral::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmt
   MIRType *elemType = static_cast<MIRArrayType*>(mirType)->GetElemType();
   std::vector<uint32> codeUnitsVec;
   codeUnitsVec.insert(codeUnitsVec.end(), codeUnits.begin(), codeUnits.end());
-  UniqueFEIRExpr expr = std::make_unique<FEIRExprAddrofConstArray>(codeUnitsVec, elemType, str);
+  UniqueFEIRExpr expr = std::make_unique<FEIRExprAddrofConstArray>(codeUnitsVec, elemType, GetStr());
   CHECK_NULL_FATAL(expr);
   return expr;
 }
