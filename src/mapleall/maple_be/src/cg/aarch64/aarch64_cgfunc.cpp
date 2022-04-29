@@ -4541,11 +4541,11 @@ Operand *AArch64CGFunc::SelectBnot(UnaryNode &node, Operand &opnd0, const BaseNo
 
 Operand *AArch64CGFunc::SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) {
   PrimType dtype = node.GetPrimType();
-  bool is64Bits = (GetPrimTypeBitSize(dtype) == k64BitSize);
+  auto bitWidth = (GetPrimTypeBitSize(dtype));
   RegOperand *resOpnd = nullptr;
   resOpnd = &GetOrCreateResOperand(parent, dtype);
   Operand &newOpnd0 = LoadIntoRegister(opnd0, dtype);
-  uint32 mopBswap = is64Bits ? MOP_xrevrr : MOP_wrevrr;
+  uint32 mopBswap = bitWidth == 64 ? MOP_xrevrr : (bitWidth == 32 ? MOP_wrevrr : MOP_wrevrr16);
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mopBswap, *resOpnd, newOpnd0));
   return resOpnd;
 }
@@ -7235,6 +7235,8 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
   AArch64CallConvImpl parmLocator(GetBecommon());
   CCLocInfo ploc;
   int32 structCopyOffset = GetMaxParamStackSize() - GetStructCopySize();
+  std::vector<Insn*> insnForStackArgs;
+  uint32 stackArgsCount = 0;
   for (uint32 pnum = 0; i < naryNode.NumOpnds(); ++i, ++pnum) {
     bool is64x1vec = false;
     MIRType *ty = nullptr;
@@ -7336,12 +7338,22 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
           ploc.memOffset = ploc.memOffset + static_cast<int32>(k4BitSize);
         }
       }
-      Operand &actMemOpnd = CreateMemOpnd(RSP, ploc.memOffset, GetPrimTypeBitSize(primType));
-      GetCurBB()->AppendInsn(
+      MemOperand &actMemOpnd = CreateMemOpnd(RSP, ploc.memOffset, GetPrimTypeBitSize(primType));
+      Insn &strInsn =
           GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(GetPrimTypeBitSize(primType), primType), *expRegOpnd,
-                                                 actMemOpnd));
+                                                 actMemOpnd);
+      actMemOpnd.SetStackArgMem(true);
+      if (Globals::GetInstance()->GetOptimLevel() == 2 && stackArgsCount < kShiftAmount12) {
+        insnForStackArgs.emplace_back(&strInsn);
+        stackArgsCount++;
+      } else {
+        GetCurBB()->AppendInsn(strInsn);
+      }
     }
     ASSERT(ploc.reg1 == 0, "SelectCall NYI");
+  }
+  for (auto &strInsn : insnForStackArgs) {
+    GetCurBB()->AppendInsn(*strInsn);
   }
 }
 

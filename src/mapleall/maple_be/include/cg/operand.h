@@ -31,9 +31,11 @@ namespace maplebe {
 class OpndProp;
 class Emitter;
 
-namespace {
-constexpr int32 kOffsetImmediateOpndSpace = 4; /* offset and immediate operand space is 4 */
-};
+bool IsBitSizeImmediate(maple::uint64 val, maple::uint32 bitLen, maple::uint32 nLowerZeroBits);
+bool IsBitmaskImmediate(maple::uint64 val, maple::uint32 bitLen);
+bool IsMoveWidableImmediate(maple::uint64 val, maple::uint32 bitLen);
+bool BetterUseMOVZ(maple::uint64 val);
+
 using regno_t = uint32_t;
 using MOperator = uint32;
 enum RegType : maple::uint8 {
@@ -121,21 +123,6 @@ class Operand {
     return opndKind == kOpdMem;
   }
 
-  bool IsConstant() const {
-    return IsConstImmediate() || IsConstReg();
-  }
-
-  bool IsConstReg() const {
-    if (!IsRegister()) {
-      return false;
-    }
-    return IsZeroRegister();
-  };
-
-  virtual bool IsZeroRegister() const {
-    return false;
-  };
-
   bool IsLabel() const {
     return opndKind == kOpdBBAddress;
   }
@@ -217,18 +204,21 @@ class OperandVisitable : public Operand {
   }
 };
 
-
-
 class RegOperand : public OperandVisitable<RegOperand> {
  public:
-  RegOperand(regno_t regNum, uint32 size, RegType type)
+  RegOperand(regno_t regNum, uint32 size, RegType type, uint32 flg = 0)
       : OperandVisitable(kOpdRegister, size),
         regNO(regNum),
         regType(type),
-        validBitsNum(size) {}
+        validBitsNum(size),
+        flag(flg) {}
 
   ~RegOperand() override = default;
   using OperandVisitable<RegOperand>::OperandVisitable;
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<RegOperand>(*this);
+  }
 
   void SetValidBitsNum(uint32 validNum) {
     validBitsNum = validNum;
@@ -262,11 +252,7 @@ class RegOperand : public OperandVisitable<RegOperand> {
     regType = newTy;
   }
 
-  virtual bool IsVirtualRegister() const {
-    return false;
-  }
-
-  virtual bool IsBBLocalVReg() const {
+  virtual bool IsBBLocalReg() const {
     return isBBLocal;
   }
 
@@ -282,12 +268,12 @@ class RegOperand : public OperandVisitable<RegOperand> {
     regNO = regNum;
   }
 
-  virtual bool IsInvalidRegister() const = 0;
-  virtual bool IsSaveReg(MIRType &mirType, BECommon &beCommon) const = 0;
-  virtual bool IsPhysicalRegister() const = 0;
-  virtual bool IsSPOrFP() const = 0;
-  void Emit(Emitter &emitter, const OpndProp *opndProp) const override = 0;
-  void Dump() const override = 0;
+  void Emit(Emitter &emitter, const OpndProp *opndProp) const override {
+    CHECK_FATAL(false, "do not run here");
+  };
+  void Dump() const override {
+    CHECK_FATAL(false, "do not run here");
+  };
 
   bool Less(const Operand &right) const override {
     if (&right == this) {
@@ -326,7 +312,7 @@ class RegOperand : public OperandVisitable<RegOperand> {
       return true;
     }
     return (BasicEquals(op) && regNO == op.GetRegisterNumber() && regType == op.GetRegisterType() &&
-            IsBBLocalVReg() == op.IsBBLocalVReg());
+            IsBBLocalReg() == op.IsBBLocalReg());
   }
 
   static bool IsSameRegNO(const Operand &firstOpnd, const Operand &secondOpnd) {
@@ -344,15 +330,70 @@ class RegOperand : public OperandVisitable<RegOperand> {
     }
     return IsSameRegNO(firstOpnd, secondOpnd);
   }
+
   void SetOpndSSAForm() {
     isSSAForm = true;
   }
+
   void SetOpndOutOfSSAForm() {
     isSSAForm = false;
   }
+
   bool IsSSAForm() const {
     return isSSAForm;
   }
+
+  void SetRefField(bool newIsRefField) {
+    isRefField = newIsRefField;
+  }
+
+  bool IsPhysicalRegister() const {
+    return GetRegisterNumber() < 100 && !IsOfCC();
+  }
+
+  bool IsVirtualRegister() const {
+    return !IsPhysicalRegister();
+  }
+
+  bool IsBBLocalVReg() const {
+    return IsVirtualRegister() && IsBBLocalReg();
+  }
+
+  void SetIF64Vec() {
+    if64Vec = true;
+  }
+
+  bool GetIF64Vec() const {
+    return if64Vec;
+  }
+
+  void SetVecLanePosition(int32 pos) {
+    vecLane = static_cast<int16>(pos);
+  }
+
+  int32 GetVecLanePosition() const {
+    return vecLane;
+  }
+
+  void SetVecLaneSize(uint32 size) {
+    vecLaneSize = static_cast<uint16>(size);
+  }
+
+  uint32 GetVecLaneSize() const {
+    return vecLaneSize;
+  }
+
+  void SetVecElementSize(uint32 size) {
+    vecElementSize = size;
+  }
+
+  uint64 GetVecElementSize() const {
+    return vecElementSize;
+  }
+
+  bool operator==(const RegOperand &opnd) const;
+
+  bool operator<(const RegOperand &opnd) const;
 
  protected:
   regno_t regNO;
@@ -367,6 +408,12 @@ class RegOperand : public OperandVisitable<RegOperand> {
   uint32 validBitsNum;
   /* use for SSA analysis */
   bool isSSAForm = false;
+  bool isRefField = false;
+  uint32 flag = 0;
+  int16 vecLane = -1;     /* -1 for whole reg, 0 to 15 to specify each lane one at a time */
+  uint16 vecLaneSize = 0; /* Number of lanes */
+  uint64 vecElementSize = 0;  /* size of vector element in each lane */
+  bool if64Vec = false;   /* operand returning 64x1's int value in FP/Simd register */
 }; /* class RegOperand */
 
 enum VaryType : uint8 {
@@ -377,16 +424,45 @@ enum VaryType : uint8 {
 
 class ImmOperand : public OperandVisitable<ImmOperand> {
  public:
-  ImmOperand(int64 val, uint32 size, bool isSigned, VaryType isVar = kNotVary)
-      : OperandVisitable(kOpdImmediate, size), value(val), isSigned(isSigned), isVary(isVar) {}
-  ImmOperand(OperandType type, int64 val, uint32 size, bool isSigned, VaryType isVar = kNotVary)
-      : OperandVisitable(type, size), value(val), isSigned(isSigned), isVary(isVar) {}
+  ImmOperand(int64 val, uint32 size, bool isSigned, VaryType isVar = kNotVary, bool isFloat = false)
+      : OperandVisitable(kOpdImmediate, size), value(val), isSigned(isSigned), isVary(isVar), isFmov(isFloat) {}
+  ImmOperand(OperandType type, int64 val, uint32 size, bool isSigned, VaryType isVar = kNotVary, bool isFloat = false)
+      : OperandVisitable(type, size), value(val), isSigned(isSigned), isVary(isVar), isFmov(isFloat) {}
 
   ~ImmOperand() override = default;
   using OperandVisitable<ImmOperand>::OperandVisitable;
 
-  virtual bool IsSingleInstructionMovable() const = 0;
-  virtual bool IsInBitSize(uint8 size, uint8 nLowerZeroBits) const = 0;
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<ImmOperand>(*this);
+  }
+
+  bool IsInBitSize(uint8 size, uint8 nLowerZeroBits) const {
+    return maplebe::IsBitSizeImmediate(static_cast<uint64>(value), size, nLowerZeroBits);
+  }
+
+  bool IsBitmaskImmediate() const {
+    ASSERT(!IsZero(), " 0 is reserved for bitmask immediate");
+    ASSERT(!IsAllOnes(), " -1 is reserved for bitmask immediate");
+    return maplebe::IsBitmaskImmediate(static_cast<uint64>(value), static_cast<uint32>(size));
+  }
+
+  bool IsBitmaskImmediate(uint32 destSize) const {
+    ASSERT(!IsZero(), " 0 is reserved for bitmask immediate");
+    ASSERT(!IsAllOnes(), " -1 is reserved for bitmask immediate");
+    return maplebe::IsBitmaskImmediate(static_cast<uint64>(value), static_cast<uint32>(destSize));
+  }
+
+  bool IsSingleInstructionMovable() const {
+    return (IsMoveWidableImmediate(static_cast<uint64>(value), static_cast<uint32>(size)) ||
+            IsMoveWidableImmediate(~static_cast<uint64>(value), static_cast<uint32>(size)) ||
+            IsBitmaskImmediate());
+  }
+
+  bool IsSingleInstructionMovable(uint32 destSize) const {
+    return (IsMoveWidableImmediate(static_cast<uint64>(value), static_cast<uint32>(destSize)) ||
+            IsMoveWidableImmediate(~static_cast<uint64>(value), static_cast<uint32>(destSize)) ||
+            IsBitmaskImmediate(destSize));
+  }
 
   int64 GetValue() const {
     return value;
@@ -503,7 +579,9 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
     return (value == iOpnd.value && isSigned == iOpnd.isSigned && size == iOpnd.GetSize());
   }
 
-  void Emit(Emitter &emitter, const OpndProp *prop) const override = 0;
+  void Emit(Emitter &emitter, const OpndProp *prop) const override {
+    CHECK_FATAL(false, "do not run here");
+  }
 
   void Dump() const override;
 
@@ -548,17 +626,302 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
     }
     return (value == op.GetValue() && isSigned == op.IsSignedValue());
   }
+  bool IsFmov() {
+    return isFmov;
+  }
 
  protected:
   int64 value;
   bool isSigned;
   VaryType isVary;
+  bool isFmov = false;
 };
 
-using OfstOperand = ImmOperand;
+class OfstOperand : public ImmOperand {
+ public:
+  enum OfstType : uint8 {
+    kSymbolOffset,
+    kImmediateOffset,
+    kSymbolImmediateOffset,
+  };
 
+  /* only for symbol offset */
+  OfstOperand(const MIRSymbol &mirSymbol, uint32 size, int32 relocs)
+      : ImmOperand(kOpdOffset, 0, size, true, kNotVary, false),
+        offsetType(kSymbolOffset), symbol(&mirSymbol), relocs(relocs) {}
+  /* only for Immediate offset */
+  OfstOperand(int64 val, uint32 size, VaryType isVar = kNotVary)
+      : ImmOperand(kOpdOffset, static_cast<int64>(val), size, true, isVar, false),
+        offsetType(kImmediateOffset), symbol(nullptr), relocs(0) {}
+  /* for symbol and Immediate offset */
+  OfstOperand(const MIRSymbol &mirSymbol, int64 val, uint32 size, int32 relocs, VaryType isVar = kNotVary)
+      : ImmOperand(kOpdOffset, val, size, true, isVar, false),
+        offsetType(kSymbolImmediateOffset),
+        symbol(&mirSymbol),
+        relocs(relocs) {}
+
+  ~OfstOperand() override = default;
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<OfstOperand>(*this);
+  }
+
+  bool IsSymOffset() const {
+    return offsetType == kSymbolOffset;
+  }
+  bool IsImmOffset() const {
+    return offsetType == kImmediateOffset;
+  }
+  bool IsSymAndImmOffset() const {
+    return offsetType == kSymbolImmediateOffset;
+  }
+
+  const MIRSymbol *GetSymbol() const {
+    return symbol;
+  }
+
+  const std::string &GetSymbolName() const {
+    return symbol->GetName();
+  }
+
+  int64 GetOffsetValue() const {
+    return GetValue();
+  }
+
+  void SetOffsetValue(int32 offVal) {
+    SetValue(static_cast<int64>(offVal));
+  }
+
+  void AdjustOffset(int32 delta) {
+    Add(static_cast<int64>(delta));
+  }
+
+  bool operator==(const OfstOperand &opnd) const {
+    return (offsetType == opnd.offsetType && symbol == opnd.symbol &&
+            ImmOperand::operator==(opnd) && relocs == opnd.relocs);
+  }
+
+  bool operator<(const OfstOperand &opnd) const {
+    return (offsetType < opnd.offsetType ||
+            (offsetType == opnd.offsetType && symbol < opnd.symbol) ||
+            (offsetType == opnd.offsetType && symbol == opnd.symbol && GetValue() < opnd.GetValue()));
+  }
+
+  void Emit(Emitter &emitter, const OpndProp *prop) const override {
+    CHECK_FATAL(false, "dont run here");
+  };
+
+  void Dump() const override {
+    if (IsImmOffset()) {
+      LogInfo::MapleLogger() << "ofst:" << GetValue();
+    } else {
+      LogInfo::MapleLogger() << GetSymbolName();
+      LogInfo::MapleLogger() << "+offset:" << GetValue();
+    }
+  }
+
+ private:
+  OfstType offsetType;
+  const MIRSymbol *symbol;
+  int32 relocs;
+};
+
+/*
+ * Table C1-6 A64 Load/Store addressing modes
+ * |         Offset
+ * Addressing Mode    | Immediate     | Register             | Extended Register
+ *
+ * Base register only | [base{,#0}]   | -                    | -
+ * (no offset)        | B_OI_NONE     |                      |
+ *                   imm=0
+ *
+ * Base plus offset   | [base{,#imm}] | [base,Xm{,LSL #imm}] | [base,Wm,(S|U)XTW {#imm}]
+ *                  B_OI_NONE     | B_OR_X               | B_OR_X
+ *                                   imm=0,1 (0,3)        | imm=00,01,10,11 (0/2,s/u)
+ *
+ * Pre-indexed        | [base, #imm]! | -                    | -
+ *
+ * Post-indexed       | [base], #imm  | [base], Xm(a)        | -
+ *
+ * Literal            | label         | -                    | -
+ * (PC-relative)
+ *
+ * a) The post-indexed by register offset mode can be used with the SIMD Load/Store
+ * structure instructions described in Load/Store Vector on page C3-154. Otherwise
+ * the post-indexed by register offset mode is not available.
+ */
 class MemOperand : public OperandVisitable<MemOperand> {
  public:
+  enum AArch64AddressingMode : uint8 {
+    kAddrModeUndef,
+    /* AddrMode_BO, base, offset. EA = [base] + offset; */
+    kAddrModeBOi,  /* INTACT: EA = [base]+immediate */
+    /*
+     * PRE: base += immediate, EA = [base]
+     * POST: EA = [base], base += immediate
+     */
+    kAddrModeBOrX,  /* EA = [base]+Extend([offreg/idxreg]), OR=Wn/Xn */
+    kAddrModeLiteral,  /* AArch64 insruction LDR takes literal and */
+    /*
+     * "calculates an address from the PC value and an immediate offset,
+     * loads a word from memory, and writes it to a register."
+     */
+    kAddrModeLo12Li  // EA = [base] + #:lo12:Label+immediate. (Example: [x0, #:lo12:__Label300+456]
+  };
+  /*
+   * ARMv8-A A64 ISA Overview by Matteo Franchin @ ARM
+   * (presented at 64-bit Android on ARM. Sep. 2015) p.14
+   * o Address to load from/store to is a 64-bit base register + an optional offset
+   *   LDR X0, [X1] ; Load from address held in X1
+   *   STR X0, [X1] ; Store to address held in X1
+   *
+   * o Offset can be an immediate or a register
+   *   LDR X0, [X1, #8]  ; Load from address [X1 + 8 bytes]
+   *   LDR X0, [X1, #-8] ; Load with negative offset
+   *   LDR X0, [X1, X2]  ; Load from address [X1 + X2]
+   *
+   * o A Wn register offset needs to be extended to 64 bits
+   *  LDR X0, [X1, W2, SXTW] ; Sign-extend offset in W2
+   *   LDR X0, [X1, W2, UXTW] ; Zero-extend offset in W2
+   *
+   * o Both Xn and Wn register offsets can include an optional left-shift
+   *   LDR X0, [X1, W2, UXTW #2] ; Zero-extend offset in W2 & left-shift by 2
+   *   LDR X0, [X1, X2, LSL #2]  ; Left-shift offset in X2 by 2
+   *
+   * p.15
+   * Addressing Modes                       Analogous C Code
+   *                                       int *intptr = ... // X1
+   *                                       int out; // W0
+   * o Simple: X1 is not changed
+   *   LDR W0, [X1]                        out = *intptr;
+   * o Offset: X1 is not changed
+   *   LDR W0, [X1, #4]                    out = intptr[1];
+   * o Pre-indexed: X1 changed before load
+   *   LDR W0, [X1, #4]! =|ADD X1,X1,#4    out = *(++intptr);
+   * |LDR W0,[X1]
+   * o Post-indexed: X1 changed after load
+   *   LDR W0, [X1], #4  =|LDR W0,[X1]     out = *(intptr++);
+   * |ADD X1,X1,#4
+   */
+  enum ExtendInfo : uint8 {
+    kShiftZero = 0x1,
+    kShiftOne = 0x2,
+    kShiftTwo = 0x4,
+    kShiftThree = 0x8,
+    kUnsignedExtend = 0x10,
+    kSignExtend = 0x20
+  };
+
+  enum IndexingOption : uint8 {
+    kIntact,     /* base register stays the same */
+    kPreIndex,   /* base register gets changed before load */
+    kPostIndex,  /* base register gets changed after load */
+  };
+
+  MemOperand(uint32 size, const MIRSymbol &mirSymbol) :
+      OperandVisitable(Operand::kOpdMem, size), symbol(&mirSymbol) {}
+
+  MemOperand(uint32 size, RegOperand *baseOp, RegOperand *indexOp, ImmOperand *ofstOp, const MIRSymbol *mirSymbol,
+             Operand *scaleOp = nullptr)
+      : OperandVisitable(Operand::kOpdMem, size),
+        baseOpnd(baseOp),
+        indexOpnd(indexOp),
+        offsetOpnd(ofstOp),
+        scaleOpnd(scaleOp),
+        symbol(mirSymbol) {}
+
+  MemOperand(RegOperand *base, OfstOperand *offset, uint32 size, IndexingOption idxOpt = kIntact)
+      : OperandVisitable(Operand::kOpdMem, size),
+        baseOpnd(base),
+        indexOpnd(nullptr),
+        offsetOpnd(offset),
+        addrMode(kAddrModeBOi),
+        extend(0),
+        idxOpt(idxOpt),
+        noExtend(false),
+        isStackMem(false) {}
+
+  MemOperand(AArch64AddressingMode mode, uint32 size, RegOperand &base, RegOperand *index,
+             ImmOperand *offset, const MIRSymbol *sym)
+      : OperandVisitable(Operand::kOpdMem, size),
+        baseOpnd(&base),
+        indexOpnd(index),
+        offsetOpnd(offset),
+        symbol(sym),
+        addrMode(mode),
+        extend(0),
+        idxOpt(kIntact),
+        noExtend(false),
+        isStackMem(false) {}
+
+  MemOperand(AArch64AddressingMode mode, uint32 size, RegOperand &base, RegOperand &index,
+             ImmOperand *offset, const MIRSymbol &sym, bool noExtend)
+      : OperandVisitable(Operand::kOpdMem, size),
+        baseOpnd(&base),
+        indexOpnd(&index),
+        offsetOpnd(offset),
+        symbol(&sym),
+        addrMode(mode),
+        extend(0),
+        idxOpt(kIntact),
+        noExtend(noExtend),
+        isStackMem(false) {}
+
+  MemOperand(AArch64AddressingMode mode, uint32 dSize, RegOperand &baseOpnd, RegOperand &indexOpnd,
+             uint32 shift, bool isSigned = false)
+      : OperandVisitable(Operand::kOpdMem, dSize),
+        baseOpnd(&baseOpnd),
+        indexOpnd(&indexOpnd),
+        offsetOpnd(nullptr),
+        symbol(nullptr),
+        addrMode(mode),
+        extend((isSigned ? kSignExtend : kUnsignedExtend) | (1U << shift)),
+        idxOpt(kIntact),
+        noExtend(false),
+        isStackMem(false) {}
+
+  MemOperand(AArch64AddressingMode mode, uint32 dSize, const MIRSymbol &sym)
+      : OperandVisitable(Operand::kOpdMem, dSize),
+        baseOpnd(nullptr),
+        indexOpnd(nullptr),
+        offsetOpnd(nullptr),
+        symbol(&sym),
+        addrMode(mode),
+        extend(0),
+        idxOpt(kIntact),
+        noExtend(false),
+        isStackMem(false) {
+    ASSERT(mode == kAddrModeLiteral, "This constructor version is supposed to be used with AddrMode_Literal only");
+  }
+
+  /* Copy constructor */
+  MemOperand(const MemOperand &memOpnd)
+      : OperandVisitable(Operand::kOpdMem, memOpnd.GetSize()),
+        baseOpnd(memOpnd.baseOpnd),
+        indexOpnd(memOpnd.indexOpnd),
+        offsetOpnd(memOpnd.offsetOpnd),
+        scaleOpnd(memOpnd.scaleOpnd),
+        symbol(memOpnd.symbol),
+        memoryOrder(memOpnd.memoryOrder),
+        addrMode(memOpnd.addrMode),
+        extend(memOpnd.extend),
+        idxOpt(memOpnd.idxOpt),
+        noExtend(memOpnd.noExtend),
+        isStackMem(memOpnd.isStackMem),
+        isStackArgMem(memOpnd.isStackArgMem){}
+
+  MemOperand &operator=(const MemOperand &memOpnd) = default;
+
+  ~MemOperand() override = default;
+  using OperandVisitable<MemOperand>::OperandVisitable;
+
+  MemOperand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<MemOperand>(*this);
+  }
+
+  void Emit(Emitter &emitter, const OpndProp *opndProp) const override {};
+  void Dump() const override {};
+
   RegOperand *GetBaseRegister() const {
     return baseOpnd;
   }
@@ -575,11 +938,11 @@ class MemOperand : public OperandVisitable<MemOperand> {
     indexOpnd = &regOpnd;
   }
 
-  OfstOperand *GetOffsetOperand() const {
+  ImmOperand *GetOffsetOperand() const {
     return offsetOpnd;
   }
 
-  void SetOffsetOperand(OfstOperand &oftOpnd) {
+  void SetOffsetOperand(ImmOperand &oftOpnd) {
     offsetOpnd = &oftOpnd;
   }
 
@@ -591,34 +954,12 @@ class MemOperand : public OperandVisitable<MemOperand> {
     return symbol;
   }
 
-  bool Equals(Operand &operand) const override {
-    if (!operand.IsMemoryAccessOperand()) {
-      return false;
-    }
-    auto &op = static_cast<MemOperand&>(operand);
-    if (&op == this) {
-      return true;
-    }
-    CHECK_FATAL(baseOpnd != nullptr, "baseOpnd is null in Equals");
-    CHECK_FATAL(indexOpnd != nullptr, "indexOpnd is null in Equals");
-    ASSERT(op.GetBaseRegister() != nullptr, "nullptr check");
-    return (baseOpnd->Equals(*op.GetBaseRegister()) && indexOpnd->Equals(*op.GetIndexRegister()));
-  }
-
   void SetMemoryOrdering(uint32 memOrder) {
     memoryOrder |= memOrder;
   }
 
   bool HasMemoryOrdering(uint32 memOrder) const {
     return (memoryOrder & memOrder) != 0;
-  }
-
-  virtual Operand *GetOffset() const {
-    return nullptr;
-  }
-
-  virtual VaryType GetMemVaryType() {
-    return kNotVary;
   }
 
   void SetAccessSize(uint8 size) {
@@ -629,43 +970,228 @@ class MemOperand : public OperandVisitable<MemOperand> {
     return accessSize;
   }
 
-  bool Less(const Operand &right) const override = 0;
+  AArch64AddressingMode GetAddrMode() const {
+    return addrMode;
+  }
 
-  MemOperand(uint32 size, const MIRSymbol &mirSymbol) :
-      OperandVisitable(Operand::kOpdMem, size), symbol(&mirSymbol) {}
+  const std::string &GetSymbolName() const {
+    return GetSymbol()->GetName();
+  }
 
-  MemOperand(uint32 size, RegOperand *baseOp, RegOperand *indexOp, OfstOperand *ofstOp, const MIRSymbol *mirSymbol,
-             Operand *scaleOp = nullptr)
-      : OperandVisitable(Operand::kOpdMem, size),
-        baseOpnd(baseOp),
-        indexOpnd(indexOp),
-        offsetOpnd(ofstOp),
-        scaleOpnd(scaleOp),
-        symbol(mirSymbol) {}
+  bool IsStackMem() const {
+    return isStackMem;
+  }
 
-  /* Copy constructor */
-  MemOperand(const MemOperand &memOpnd)
-      : OperandVisitable(Operand::kOpdMem, memOpnd.GetSize()),
-        baseOpnd(memOpnd.baseOpnd),
-        indexOpnd(memOpnd.indexOpnd),
-        offsetOpnd(memOpnd.offsetOpnd),
-        scaleOpnd(memOpnd.scaleOpnd),
-        symbol(memOpnd.symbol),
-        memoryOrder(memOpnd.memoryOrder) {}
+  void SetStackMem(bool isStack) {
+    isStackMem = isStack;
+  }
 
-  MemOperand &operator=(const MemOperand &memOpnd) = default;
+  bool IsStackArgMem() const {
+    return isStackArgMem;
+  }
 
-  ~MemOperand() override = default;
-  using OperandVisitable<MemOperand>::OperandVisitable;
+  void SetStackArgMem(bool isStackArg) {
+    isStackArgMem = isStackArg;
+  }
+
+  Operand *GetOffset() const;
+
+  OfstOperand *GetOffsetImmediate() const {
+    return static_cast<OfstOperand*>(GetOffsetOperand());
+  }
+
+  /* Returns N where alignment == 2^N */
+  static int32 GetImmediateOffsetAlignment(uint32 dSize) {
+    ASSERT(dSize >= k8BitSize, "error val:dSize");
+    ASSERT(dSize <= k128BitSize, "error val:dSize");
+    ASSERT((dSize & (dSize - 1)) == 0, "error val:dSize");
+    /* dSize==8: 0, dSize==16 : 1, dSize==32: 2, dSize==64: 3 */
+    return __builtin_ctz(dSize) - static_cast<int32>(kBaseOffsetAlignment);
+  }
+
+  static int32 GetMaxPIMM(uint32 dSize) {
+    dSize = dSize > k64BitSize ? k64BitSize : dSize;
+    ASSERT(dSize >= k8BitSize, "error val:dSize");
+    ASSERT(dSize <= k128BitSize, "error val:dSize");
+    ASSERT((dSize & (dSize - 1)) == 0, "error val:dSize");
+    int32 alignment = GetImmediateOffsetAlignment(dSize);
+    /* alignment is between kAlignmentOf8Bit and kAlignmentOf64Bit */
+    ASSERT(alignment >= kOffsetAlignmentOf8Bit, "error val:alignment");
+    ASSERT(alignment <= kOffsetAlignmentOf128Bit, "error val:alignment");
+    return (kMaxPimm[alignment]);
+  }
+
+  static int32 GetMaxPairPIMM(uint32 dSize) {
+    ASSERT(dSize >= k32BitSize, "error val:dSize");
+    ASSERT(dSize <= k128BitSize, "error val:dSize");
+    ASSERT((dSize & (dSize - 1)) == 0, "error val:dSize");
+    int32 alignment = GetImmediateOffsetAlignment(dSize);
+    /* alignment is between kAlignmentOf8Bit and kAlignmentOf64Bit */
+    ASSERT(alignment >= kOffsetAlignmentOf32Bit, "error val:alignment");
+    ASSERT(alignment <= kOffsetAlignmentOf128Bit, "error val:alignment");
+    return (kMaxPairPimm[static_cast<uint32>(alignment) - k2BitSize]);
+  }
+
+  bool IsOffsetMisaligned(uint32 dSize) const {
+    ASSERT(dSize >= k8BitSize, "error val:dSize");
+    ASSERT(dSize <= k128BitSize, "error val:dSize");
+    ASSERT((dSize & (dSize - 1)) == 0, "error val:dSize");
+    if (dSize == k8BitSize || addrMode != kAddrModeBOi) {
+      return false;
+    }
+    OfstOperand *ofstOpnd = GetOffsetImmediate();
+    return ((static_cast<uint32>(ofstOpnd->GetOffsetValue()) &
+             static_cast<uint32>((1U << static_cast<uint32>(GetImmediateOffsetAlignment(dSize))) - 1)) != 0);
+  }
+
+  static bool IsSIMMOffsetOutOfRange(int64 offset, bool is64bit, bool isLDSTPair) {
+    if (!isLDSTPair) {
+      return (offset < kMinSimm32 || offset > kMaxSimm32);
+    }
+    if (is64bit) {
+      return (offset < kMinSimm64 || offset > kMaxSimm64Pair) || (static_cast<uint64>(offset) & k7BitSize) ;
+    }
+    return (offset < kMinSimm32 || offset > kMaxSimm32Pair) || (static_cast<uint64>(offset) & k3BitSize);
+  }
+
+  static bool IsPIMMOffsetOutOfRange(int32 offset, uint32 dSize) {
+    ASSERT(dSize >= k8BitSize, "error val:dSize");
+    ASSERT(dSize <= k128BitSize, "error val:dSize");
+    ASSERT((dSize & (dSize - 1)) == 0, "error val:dSize");
+    return (offset < 0 || offset > GetMaxPIMM(dSize));
+  }
+
+  bool operator<(const MemOperand &opnd) const {
+    return addrMode < opnd.addrMode ||
+           (addrMode == opnd.addrMode && GetBaseRegister() < opnd.GetBaseRegister()) ||
+           (addrMode == opnd.addrMode && GetBaseRegister() == opnd.GetBaseRegister() &&
+            GetIndexRegister() < opnd.GetIndexRegister()) ||
+           (addrMode == opnd.addrMode && GetBaseRegister() == opnd.GetBaseRegister() &&
+            GetIndexRegister() == opnd.GetIndexRegister() && GetOffsetOperand() < opnd.GetOffsetOperand()) ||
+           (addrMode == opnd.addrMode && GetBaseRegister() == opnd.GetBaseRegister() &&
+            GetIndexRegister() == opnd.GetIndexRegister() && GetOffsetOperand() == opnd.GetOffsetOperand() &&
+            GetSymbol() < opnd.GetSymbol()) ||
+           (addrMode == opnd.addrMode && GetBaseRegister() == opnd.GetBaseRegister() &&
+            GetIndexRegister() == opnd.GetIndexRegister() && GetOffsetOperand() == opnd.GetOffsetOperand() &&
+            GetSymbol() == opnd.GetSymbol() && GetSize() < opnd.GetSize()) ||
+           (addrMode == opnd.addrMode && GetBaseRegister() == opnd.GetBaseRegister() &&
+            GetIndexRegister() == opnd.GetIndexRegister() && GetOffsetOperand() == opnd.GetOffsetOperand() &&
+            GetSymbol() == opnd.GetSymbol() && GetSize() == opnd.GetSize() && extend < opnd.extend);
+  }
+
+  bool operator==(const MemOperand &opnd) const {
+    return  (GetSize() == opnd.GetSize()) && (addrMode == opnd.addrMode) && (extend == opnd.extend) &&
+            (GetBaseRegister() == opnd.GetBaseRegister()) &&
+            (GetIndexRegister() == opnd.GetIndexRegister()) &&
+            (GetSymbol() == opnd.GetSymbol()) &&
+            (GetOffsetOperand() == opnd.GetOffsetOperand()) ;
+  }
+
+  VaryType GetMemVaryType() {
+    Operand *ofstOpnd = GetOffsetOperand();
+    if (ofstOpnd != nullptr) {
+      auto *opnd = static_cast<OfstOperand*>(ofstOpnd);
+      return opnd->GetVary();
+    }
+    return kNotVary;
+  }
+
+  AArch64AddressingMode GetAddrMode() {
+    return addrMode;
+  }
+
+  void SetAddrMode(AArch64AddressingMode val) {
+    addrMode = val;
+  }
+
+  bool IsExtendedRegisterMode() const {
+    return addrMode == kAddrModeBOrX;
+  }
+
+  void UpdateExtend(ExtendInfo flag) {
+    extend = flag | (1U << ShiftAmount());
+  }
+
+  bool SignedExtend() const {
+    return IsExtendedRegisterMode() && ((extend & kSignExtend) != 0);
+  }
+
+  bool UnsignedExtend() const {
+    return IsExtendedRegisterMode() && !SignedExtend();
+  }
+
+  uint32 ShiftAmount() const {
+    uint32 scale = extend & 0xF;
+    /* 8 is 1 << 3, 4 is 1 << 2, 2 is 1 << 1, 1 is 1 << 0; */
+    return (scale == 8) ? 3 : ((scale == 4) ? 2 : ((scale == 2) ? 1 : 0));
+  }
+
+  bool ShouldEmitExtend() const {
+    return !noExtend && ((extend & 0x3F) != 0);
+  }
+
+  IndexingOption GetIndexOpt() const {
+    return idxOpt;
+  }
+
+  void SetIndexOpt(IndexingOption newidxOpt) {
+    idxOpt = newidxOpt;
+  }
+
+  bool GetNoExtend() const {
+    return noExtend;
+  }
+
+  void SetNoExtend(bool val) {
+    noExtend = val;
+  }
+
+  uint32 GetExtend() const {
+    return extend;
+  }
+
+  void SetExtend(uint32 val) {
+    extend = val;
+  }
+
+  bool IsIntactIndexed() const {
+    return idxOpt == kIntact;
+  }
+
+  bool IsPostIndexed() const {
+    return idxOpt == kPostIndex;
+  }
+
+  bool IsPreIndexed() const {
+    return idxOpt == kPreIndex;
+  }
+
+  std::string GetExtendAsString() const {
+    if (GetIndexRegister()->GetSize() == k64BitSize) {
+      return std::string("LSL");
+    }
+    return ((extend & kSignExtend) != 0) ? std::string("SXTW") : std::string("UXTW");
+  }
+
+  /* Return true if given operand has the same base reg and offset with this. */
+  bool Equals(Operand &opnd) const override;
+  bool Equals(const MemOperand &opnd) const;
+  bool Less(const Operand &right) const override;
 
  private:
   RegOperand *baseOpnd = nullptr;    /* base register */
   RegOperand *indexOpnd = nullptr;   /* index register */
-  OfstOperand *offsetOpnd = nullptr; /* offset immediate */
+  ImmOperand *offsetOpnd = nullptr; /* offset immediate */
   Operand *scaleOpnd = nullptr;
   const MIRSymbol *symbol; /* AddrMode_Literal */
   uint32 memoryOrder = 0;
   uint8 accessSize = 0; /* temp, must be set right before use everytime. */
+  AArch64AddressingMode addrMode = kAddrModeBOi;
+  uint32 extend = false;        /* used with offset register ; AddrMode_B_OR_X */
+  IndexingOption idxOpt = kIntact;  /* used with offset immediate ; AddrMode_B_OI */
+  bool noExtend = false;
+  bool isStackMem = false;
+  bool isStackArgMem = false;
 };
 
 class LabelOperand : public OperandVisitable<LabelOperand> {
@@ -700,7 +1226,9 @@ class LabelOperand : public OperandVisitable<LabelOperand> {
     orderID = idx;
   }
 
-  void Emit(Emitter &emitter, const OpndProp *opndProp) const override;
+  void Emit(Emitter &emitter, const OpndProp *opndProp) const override {
+    CHECK_FATAL(false, "do not run here");
+  }
 
   void Dump() const override;
 
@@ -751,6 +1279,10 @@ class ListOperand : public OperandVisitable<ListOperand> {
 
   using OperandVisitable<ListOperand>::OperandVisitable;
 
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<ListOperand>(*this);
+  }
+
   void PushOpnd(RegOperand &opnd) {
     opndList.push_back(&opnd);
   }
@@ -759,7 +1291,9 @@ class ListOperand : public OperandVisitable<ListOperand> {
     return opndList;
   }
 
-  void Emit(Emitter &emitter, const OpndProp *opndProp) const override = 0;
+  void Emit(Emitter &emitter, const OpndProp *opndProp) const override {
+    CHECK_FATAL(false, "do not run here");
+  }
 
   void Dump() const override {
     for (auto it = opndList.begin(); it != opndList.end();) {
@@ -800,9 +1334,17 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
   ~PhiOperand() override = default;
   using OperandVisitable<PhiOperand>::OperandVisitable;
 
-  void Emit(Emitter &emitter, const OpndProp *opndProp) const override = 0;
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<PhiOperand>(*this);
+  }
 
-  void Dump() const override = 0;
+  void Emit(Emitter &emitter, const OpndProp *opndProp) const override  {
+    CHECK_FATAL(false, "a CPU support phi?");
+  }
+
+  void Dump() const override {
+    CHECK_FATAL(false, "NIY");
+  }
 
   void InsertOpnd(uint32 bbId, RegOperand &phiParam) {
     ASSERT(!phiList.count(bbId), "cannot insert duplicate operand");
@@ -920,12 +1462,24 @@ class CGRegOperand : public OperandVisitable<CGRegOperand> {
 class CGImmOperand : public OperandVisitable<CGImmOperand> {
  public:
   CGImmOperand(uint32 sz, int64 value) : OperandVisitable(kOpdImmediate, sz), val(value) {}
+  CGImmOperand(const MIRSymbol &symbol, int64 value, int32 relocs)
+      : OperandVisitable(kOpdStImmediate, 0), val(value), symbol(&symbol), relocs(relocs) {}
   ~CGImmOperand() override = default;
   using OperandVisitable<CGImmOperand>::OperandVisitable;
 
   int64 GetValue() const {
     return val;
   }
+  const MIRSymbol *GetSymbol() const {
+    return symbol;
+  }
+  const std::string &GetName() const {
+    return symbol->GetName();
+  }
+  int32 GetRelocs() const {
+    return relocs;
+  }
+
   Operand *Clone(MemPool &memPool) const override {
     return memPool.New<CGImmOperand>(*this);
   }
@@ -937,12 +1491,19 @@ class CGImmOperand : public OperandVisitable<CGImmOperand> {
   void Emit(Emitter&, const OpndProp*) const override {}
 
   void Dump() const override {
-    LogInfo::MapleLogger() << "imm ";
-    LogInfo::MapleLogger() << "size : " << GetSize();
-    LogInfo::MapleLogger() << " value : " << GetValue();
+    if (GetSymbol() != nullptr && GetSize() == 0) {
+      /* for symbol form */
+      LogInfo::MapleLogger() << "symbol : " << GetName();
+    } else {
+      LogInfo::MapleLogger() << "imm ";
+      LogInfo::MapleLogger() << "size : " << GetSize();
+      LogInfo::MapleLogger() << " value : " << GetValue();
+    }
   }
  private:
   int64 val;
+  const MIRSymbol *symbol; /* for Immediate in symbol form */
+  int32 relocs;
 };
 
 class CGMemOperand : public OperandVisitable<CGMemOperand> {
@@ -990,17 +1551,26 @@ class CGMemOperand : public OperandVisitable<CGMemOperand> {
     baseOfst = &newOfst;
   }
 
+  CGImmOperand *GetScaleFactor() const {
+    return scaleFactor;
+  }
+
+  void SetScaleFactor(CGImmOperand &scale) {
+    scaleFactor = &scale;
+  }
+
  private:
   CGRegOperand *baseReg = nullptr;
   CGRegOperand *indexReg = nullptr;
   CGImmOperand *baseOfst = nullptr;
+  CGImmOperand *scaleFactor = nullptr;
 };
 
 class CGListOperand : public OperandVisitable<CGListOperand> {
-public:
+ public:
   explicit CGListOperand(MapleAllocator &allocator) :
-          OperandVisitable(Operand::kOpdList, 0),
-          opndList(allocator.Adapter()) {}
+      OperandVisitable(Operand::kOpdList, 0),
+      opndList(allocator.Adapter()) {}
 
   ~CGListOperand() override = default;
 
@@ -1031,8 +1601,101 @@ public:
     }
   }
 
-protected:
+ protected:
   MapleList<CGRegOperand*> opndList;
+};
+
+class CGFuncNameOperand : public OperandVisitable<CGFuncNameOperand> {
+ public:
+  explicit CGFuncNameOperand(const MIRSymbol &fsym) : OperandVisitable(kOpdBBAddress, 0),
+      symbol(&fsym) {}
+
+  ~CGFuncNameOperand() override = default;
+  using OperandVisitable<CGFuncNameOperand>::OperandVisitable;
+
+  const std::string &GetName() const {
+    return symbol->GetName();
+  }
+
+  const MIRSymbol *GetFunctionSymbol() const {
+    return symbol;
+  }
+
+  void SetFunctionSymbol(const MIRSymbol &fsym) {
+    symbol = &fsym;
+  }
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.New<CGFuncNameOperand>(*this);
+  }
+
+  bool Less(const Operand &right) const override {
+    return GetKind() < right.GetKind();
+  }
+
+  /* delete soon */
+  void Emit(Emitter&, const OpndProp*) const override {}
+
+  void Dump() const override {
+    LogInfo::MapleLogger() << GetName();
+  }
+
+ private:
+  const MIRSymbol *symbol;
+};
+
+class CGLabelOperand : public OperandVisitable<CGLabelOperand> {
+ public:
+  CGLabelOperand(const char *parent, LabelIdx labIdx)
+      : OperandVisitable(kOpdBBAddress, 0), labelIndex(labIdx), parentFunc(parent) {}
+
+  ~CGLabelOperand() override = default;
+  using OperandVisitable<CGLabelOperand>::OperandVisitable;
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<CGLabelOperand>(*this);
+  }
+
+  LabelIdx GetLabelIndex() const {
+    return labelIndex;
+  }
+
+  const std::string &GetParentFunc() const {
+    return parentFunc;
+  }
+
+  void Emit(Emitter &emitter, const OpndProp *opndProp) const override {}
+
+  void Dump() const override {
+    LogInfo::MapleLogger() << "label ";
+    LogInfo::MapleLogger() << "name : " << GetParentFunc();
+    LogInfo::MapleLogger() << " Idx: " << GetLabelIndex();
+  }
+
+  bool Less(const Operand &right) const override {
+    if (&right == this) {
+      return false;
+    }
+
+    /* For different type. */
+    if (opndKind != right.GetKind()) {
+      return opndKind < right.GetKind();
+    }
+
+    auto *rightOpnd = static_cast<const CGLabelOperand*>(&right);
+
+    int32 nRes = strcmp(parentFunc.c_str(), rightOpnd->parentFunc.c_str());
+    if (nRes == 0) {
+      return labelIndex < rightOpnd->labelIndex;
+    } else {
+      return nRes < 0;
+    }
+  }
+
+ protected:
+  LabelIdx labelIndex;
+  const std::string parentFunc;
+
 };
 
 namespace operand {
@@ -1048,6 +1711,8 @@ enum CommOpndDescProp : maple::uint64 {
 enum RegOpndDescProp : maple::uint64 {
   kInt = (1ULL << 8),
   kFloat = (1ULL << 9),
+  kRegTyCc = (1ULL << 10),
+  kRegTyVary = (1ULL << 11),
 };
 
 /* bit 16-23 for imm */
@@ -1068,8 +1733,6 @@ class OpndDescription {
  public:
   OpndDescription(Operand::OperandType t, maple::uint64 p, maple::uint32 s) :
       opndType(t), property(p), size(s) {}
-  OpndDescription(Operand::OperandType t, maple::uint64 p, maple::uint32 s,
-      std::function<bool(int64)> f) : opndType(t), property(p), size(s), validFunc(f) {}
   virtual ~OpndDescription() = default;
 
   Operand::OperandType GetOperandType() const {
@@ -1080,8 +1743,16 @@ class OpndDescription {
     return size;
   }
 
+  bool IsImm() const {
+    return opndType == Operand::kOpdImmediate;
+  }
+
   bool IsRegister() const {
     return opndType == Operand::kOpdRegister;
+  }
+
+  bool IsMem() const {
+    return opndType == Operand::kOpdMem;
   }
 
   bool IsRegDef() const {
@@ -1100,6 +1771,18 @@ class OpndDescription {
     return (property & operand::kIsUse);
   }
 
+  bool IsMemLow12() const {
+    return IsMem() && (property & operand::kMemLow12);
+  }
+
+  bool IsLiteralLow12() const {
+    return opndType == Operand::kOpdStImmediate && (property & operand::kLiteralLow12);
+  }
+
+  bool IsLoadLiteral() const {
+    return property & operand::kIsLoadLiteral;
+  }
+
 #define DEFINE_MOP(op, ...) static const OpndDescription op;
 #include "operand.def"
 #undef DEFINE_MOP
@@ -1108,11 +1791,15 @@ class OpndDescription {
   Operand::OperandType opndType;
   maple::uint64 property;
   maple::uint32 size;
-  std::function<bool(int64)> validFunc = nullptr;
 };
 
 class OpndDumpVisitor : public OperandVisitorBase,
-                        public OperandVisitors<CGRegOperand, CGImmOperand, CGMemOperand> {
+                        public OperandVisitors<CGRegOperand,
+                                               CGImmOperand,
+                                               CGMemOperand,
+                                               CGFuncNameOperand,
+                                               CGListOperand,
+                                               CGLabelOperand> {
  public:
   explicit OpndDumpVisitor(const OpndDescription &operandDesc) : opndDesc(&operandDesc) {}
   virtual ~OpndDumpVisitor() = default;

@@ -1101,8 +1101,8 @@ bool LogicShiftAndOrrToExtrPattern::CheckCondition(Insn &insn) {
     if (prevImm + static_cast<int64>(shiftAmount) < 0) {
       return false;
     }
-    if ((is64Bits && (prevImm + static_cast<int64>(shiftAmount)) >= k64BitSize) ||
-        (!is64Bits && (prevImm + static_cast<int64>(shiftAmount)) >= k32BitSize)) {
+    if ((is64Bits && (prevImm + static_cast<int64>(shiftAmount)) != k64BitSize) ||
+        (!is64Bits && (prevImm + static_cast<int64>(shiftAmount)) != k32BitSize)) {
       return false;
     }
   } else {
@@ -2503,16 +2503,42 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
     auto &prevDestOpnd = static_cast<RegOperand&>(prevContiInsn->GetOperand(kInsnFirstOpnd));
     uint32 memSize = static_cast<const AArch64Insn&>(insn).GetLoadStoreSize();
     uint32 prevMemSize = static_cast<const AArch64Insn&>(*prevContiInsn).GetLoadStoreSize();
-    if (memSize != prevMemSize || prevDestOpnd.GetRegisterType() != destOpnd.GetRegisterType() ||
-        thisMop != prevContiInsn->GetMachineOpcode() || prevDestOpnd.GetSize() != destOpnd.GetSize()) {
+    if (prevDestOpnd.GetRegisterType() != destOpnd.GetRegisterType()) {
       continue;
     }
     int64 offsetVal = offsetOpnd->GetOffsetValue();
     int64 prevOffsetVal = prevOffsetOpnd->GetOffsetValue();
     auto diffVal = std::abs(offsetVal - prevOffsetVal);
+    regno_t destRegNO = destOpnd.GetRegisterNumber();
+    regno_t prevDestRegNO = prevDestOpnd.GetRegisterNumber();
+    if (insn.IsStore() && memOpnd->IsStackArgMem() && prevMemOpnd->IsStackArgMem() &&
+        (memSize == k4ByteSize || memSize == k8ByteSize) && diffVal == k8BitSize &&
+        (prevMemSize == k4ByteSize || prevMemSize == k8ByteSize) &&
+        (destOpnd.GetValidBitsNum() == memSize * k8BitSize) &&
+        (prevDestOpnd.GetValidBitsNum() == prevMemSize * k8BitSize)) {
+      RegOperand &newDest = static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(
+              static_cast<AArch64reg>(destRegNO), k64BitSize, destOpnd.GetRegisterType());
+      RegOperand &newPrevDest = static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(
+              static_cast<AArch64reg>(prevDestRegNO), k64BitSize, prevDestOpnd.GetRegisterType());
+      MemOperand *combineMemOpnd = (offsetVal < prevOffsetVal) ? memOpnd : prevMemOpnd;
+      CG *cg = cgFunc->GetCG();
+      MOperator mopPair = (destOpnd.GetRegisterType() == kRegTyInt) ? MOP_xstp : MOP_dstp;
+      if ((static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(mopPair, combineMemOpnd, kInsnThirdOpnd))) {
+        Insn &combineInsn = (offsetVal < prevOffsetVal) ?
+                            cg->BuildInstruction<AArch64Insn>(mopPair, newDest, newPrevDest, *combineMemOpnd) :
+                            cg->BuildInstruction<AArch64Insn>(mopPair, newPrevDest, newDest, *combineMemOpnd);
+        bb.InsertInsnAfter(*prevContiInsn, combineInsn);
+        RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
+        return;
+      }
+    }
+    if (memSize != prevMemSize  ||
+        thisMop != prevContiInsn->GetMachineOpcode() || prevDestOpnd.GetSize() != destOpnd.GetSize()) {
+      continue;
+    }
     /* do combination str/ldr -> stp/ldp */
-    if ((insn.IsStore() || destOpnd.GetRegisterNumber() != prevDestOpnd.GetRegisterNumber()) ||
-        (destOpnd.GetRegisterNumber() == RZR && prevDestOpnd.GetRegisterNumber() == RZR)) {
+    if ((insn.IsStore() || destRegNO != prevDestRegNO) ||
+        (destRegNO == RZR && prevDestRegNO == RZR)) {
       if ((memSize == k8ByteSize && diffVal == k8BitSize) ||
           (memSize == k4ByteSize && diffVal == k4BitSize) ||
           (memSize == k16ByteSize && diffVal == k16BitSize)) {
@@ -2533,8 +2559,8 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
       }
     }
     /* do combination strb/ldrb -> strh/ldrh -> str/ldr */
-    if (destOpnd.GetRegisterNumber() == prevDestOpnd.GetRegisterNumber() &&
-        destOpnd.GetRegisterNumber() == RZR && prevDestOpnd.GetRegisterNumber() == RZR) {
+    if (destRegNO == prevDestRegNO &&
+        destRegNO == RZR && prevDestRegNO == RZR) {
       if ((memSize == k1ByteSize && diffVal == k1BitSize) ||  (memSize == k2ByteSize && diffVal == k2ByteSize)) {
         CG *cg = cgFunc->GetCG();
         MOperator mopPair = GetMopHigherByte(thisMop);

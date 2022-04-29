@@ -1161,7 +1161,7 @@ void A64OpndDumpVisitor::Visit(ImmOperand *v) {
 void A64OpndDumpVisitor::Visit(MemOperand *a64v) {
   LogInfo::MapleLogger() << "Mem:";
   LogInfo::MapleLogger() << " size:" << a64v->GetSize() << " ";
-  LogInfo::MapleLogger() << " isStack:" << a64v->IsStackMem() << " ";
+  LogInfo::MapleLogger() << " isStack:" << a64v->IsStackMem() << "-" << a64v->IsStackArgMem() << " ";
   switch (a64v->GetAddrMode()) {
     case MemOperand::kAddrModeBOi: {
       LogInfo::MapleLogger() << "base:";
