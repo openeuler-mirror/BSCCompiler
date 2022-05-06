@@ -227,7 +227,7 @@ std::list<UniqueFEIRStmt> ASTBreakStmt::Emit2FEStmtImpl() const {
 
 std::list<UniqueFEIRStmt> ASTLabelStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
-  auto feStmt = std::make_unique<FEIRStmtLabel>(labelName);
+  auto feStmt = std::make_unique<FEIRStmtLabel>(GetLabelName());
   feStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(feStmt));
   stmts.splice(stmts.end(), subStmt->Emit2FEStmt());
@@ -264,7 +264,7 @@ std::list<UniqueFEIRStmt> ASTUnaryOperatorStmt::Emit2FEStmtImpl() const {
 // ---------- ASTGotoStmt ----------
 std::list<UniqueFEIRStmt> ASTGotoStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
-  UniqueFEIRStmt stmt = FEIRBuilder::CreateStmtGoto(labelName);
+  UniqueFEIRStmt stmt = FEIRBuilder::CreateStmtGoto(GetLabelName());
   stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(stmt));
   return stmts;
@@ -529,13 +529,15 @@ std::list<UniqueFEIRStmt> ASTGCCAsmStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   std::vector<UniqueFEIRExpr> outputsExprs;
   std::vector<UniqueFEIRExpr> inputsExprs;
-  std::unique_ptr<FEIRStmtGCCAsm> stmt = std::make_unique<FEIRStmtGCCAsm>(asmStr, isGoto, isVolatile);
-  stmt->SetOutputs(outputs);
+  std::unique_ptr<FEIRStmtGCCAsm> stmt = std::make_unique<FEIRStmtGCCAsm>(GetAsmStr(), isGoto, isVolatile);
+  std::vector<std::tuple<std::string, std::string, bool>> outputsVec(outputs.begin(), outputs.end());
+  stmt->SetOutputs(outputsVec);
   for (uint32 i = 0; i < outputs.size(); ++i) {
     outputsExprs.emplace_back(exprs[i]->Emit2FEExpr(stmts));
   }
   stmt->SetOutputsExpr(outputsExprs);
-  stmt->SetInputs(inputs);
+  std::vector<std::pair<std::string, std::string>> inputsVec(inputs.begin(), inputs.end());
+  stmt->SetInputs(inputsVec);
   for (uint32 i = 0; i < inputs.size(); ++i) {
     UniqueFEIRExpr expr;
     if (inputs[i].second == "m") {
@@ -548,8 +550,10 @@ std::list<UniqueFEIRStmt> ASTGCCAsmStmt::Emit2FEStmtImpl() const {
     inputsExprs.emplace_back(std::move(expr));
   }
   stmt->SetInputsExpr(inputsExprs);
-  stmt->SetClobbers(clobbers);
-  stmt->SetLabels(labels);
+  std::vector<std::string> clobbersVec(clobbers.begin(), clobbers.end());
+  stmt->SetClobbers(clobbersVec);
+  std::vector<std::string> labelsVec(labels.begin(), labels.end());
+  stmt->SetLabels(labelsVec);
   stmts.emplace_back(std::move(stmt));
   return stmts;
 }

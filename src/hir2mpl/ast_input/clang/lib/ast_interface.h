@@ -69,10 +69,10 @@ class LibAstFile {
   explicit LibAstFile(MapleAllocator &allocatorIn, MapleList<clang::Decl*> &recordDeclesIn)
       : recordDeclMap(allocatorIn.Adapter()), recordDeclSet(allocatorIn.Adapter()),
         unnamedSymbolMap(allocatorIn.Adapter()), CompoundLiteralExprInitSymbolMap(allocatorIn.Adapter()),
-        recordDecles(recordDeclesIn) {}
+        recordDecles(recordDeclesIn), astFileName("", allocatorIn.GetMemPool()) {}
   ~LibAstFile() = default;
 
-  bool Open(const std::string &fileName,
+  bool Open(const MapleString &fileName,
             int excludeDeclFromPCH, int displayDiagnostics);
   void DisposeTranslationUnit();
   const AstASTContext *GetAstContext() const;
@@ -126,7 +126,8 @@ class LibAstFile {
   }
 
   const std::string GetAstFileNameHashStr() const {
-    return FEUtils::GetFileNameHashStr(astFileName);
+    std::string fileName = (astFileName.c_str() == nullptr ? "" : astFileName.c_str());
+    return FEUtils::GetFileNameHashStr(fileName);
   }
 
   Pos GetDeclPosInfo(const clang::Decl &decl) const;
@@ -151,7 +152,7 @@ class LibAstFile {
   clang::MangleContext *mangleContext = nullptr;
   CXTranslationUnit translationUnit = nullptr;
   CXIndex index = nullptr;
-  std::string astFileName;
+  MapleString astFileName;
 };
 } // namespace maple
 #endif // HIR2MPL_AST_FILE_INCLUDE_AST_INTERFACE_H

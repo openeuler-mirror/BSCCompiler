@@ -86,7 +86,7 @@ UniqueFEIRExpr ASTCallExpr::CreateIntrinsicCallAssignedForC(std::list<UniqueFEIR
     stmts.emplace_back(std::move(stmt));
     return nullptr;
   }
-  UniqueFEIRVar retVar = FEIRBuilder::CreateVarNameForC(varName, *retType, false);
+  UniqueFEIRVar retVar = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *retType, false);
   auto stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(argIntrinsicID, nullptr, retVar->Clone(),
                                                             std::move(argExprList));
   stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
@@ -105,7 +105,7 @@ UniqueFEIRExpr ASTCallExpr::CreateBinaryExpr(std::list<UniqueFEIRStmt> &stmts, O
 UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const {
   // process a kind of builtinFunc
   std::string prefix = "__builtin_mpl_vector_load";
-  if (funcName.compare(0, prefix.size(), prefix) == 0) {
+  if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
     auto argExpr = args[0]->Emit2FEExpr(stmts);
     UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*mirType);
     UniqueFEIRType ptrType = FEIRTypeHelper::CreateTypeNative(
@@ -114,7 +114,7 @@ UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts,
     return FEIRBuilder::CreateExprIRead(std::move(type), std::move(ptrType), std::move(argExpr));
   }
   prefix = "__builtin_mpl_vector_store";
-  if (funcName.compare(0, prefix.size(), prefix) == 0) {
+  if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
     auto arg1Expr = args[0]->Emit2FEExpr(stmts);
     auto arg2Expr = args[1]->Emit2FEExpr(stmts);
     UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(
@@ -126,11 +126,11 @@ UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts,
     return nullptr;
   }
   prefix = "__builtin_mpl_vector_zip";
-  if (funcName.compare(0, prefix.size(), prefix) == 0) {
+  if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
     return EmitBuiltinVectorZip(stmts, isFinish);
   }
   prefix = "__builtin_mpl_vector_shli";
-  if (funcName.compare(0, prefix.size(), prefix) == 0) {
+  if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
     isFinish = true;
     UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
     auto arg1Expr = args[0]->Emit2FEExpr(stmts);
@@ -138,7 +138,7 @@ UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts,
     return FEIRBuilder::CreateExprBinary(std::move(type), OP_shl, std::move(arg1Expr), std::move(arg2Expr));
   }
   prefix = "__builtin_mpl_vector_shri";
-  if (funcName.compare(0, prefix.size(), prefix) == 0) {
+  if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
     isFinish = true;
     UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
     auto arg1Expr = args[0]->Emit2FEExpr(stmts);
@@ -146,7 +146,7 @@ UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts,
     return FEIRBuilder::CreateExprBinary(std::move(type), OP_ashr, std::move(arg1Expr), std::move(arg2Expr));
   }
   prefix = "__builtin_mpl_vector_shru";
-  if (funcName.compare(0, prefix.size(), prefix) == 0) {
+  if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
     isFinish = true;
     UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
     auto arg1Expr = args[0]->Emit2FEExpr(stmts);
@@ -154,7 +154,7 @@ UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts,
     return FEIRBuilder::CreateExprBinary(std::move(type), OP_lshr, std::move(arg1Expr), std::move(arg2Expr));
   }
   // process a single builtinFunc
-  auto ptrFunc = builtingFuncPtrMap.find(funcName);
+  auto ptrFunc = builtingFuncPtrMap.find(GetFuncName());
   if (ptrFunc != builtingFuncPtrMap.end()) {
     isFinish = true;
     return EmitBuiltinFunc(stmts);
@@ -162,17 +162,17 @@ UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts,
   isFinish = false;
   if (FEOptions::GetInstance().GetDumpLevel() >= FEOptions::kDumpLevelInfo) {
     prefix = "__builtin";
-    if (funcName.compare(0, prefix.size(), prefix) == 0) {
+    if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
       FE_INFO_LEVEL(FEOptions::kDumpLevelInfo, "%s:%d BuiltinFunc (%s) has not been implemented",
                     FEManager::GetModule().GetFileNameFromFileNum(GetSrcFileIdx()).c_str(), GetSrcFileLineNum(),
-                    funcName.c_str());
+                    GetFuncName().c_str());
     }
   }
   return nullptr;
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinFunc(std::list<UniqueFEIRStmt> &stmts) const {
-  return (this->*(builtingFuncPtrMap[funcName]))(stmts);
+  return (this->*(builtingFuncPtrMap[GetFuncName()]))(stmts);
 }
 
 #define DEF_MIR_INTRINSIC(STR, NAME, INTRN_CLASS, RETURN_TYPE, ...)                                \
@@ -198,7 +198,7 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorZip(std::list<UniqueFEIRStmt> &stmt
   UniqueFEIRVar retVar = FEIRBuilder::CreateVarNameForC(retName, *retType);
 
 #define VECTOR_INTRINSICCALL_TYPE(OP_NAME, VECTY)                                                \
-  if (FEUtils::EndsWith(funcName, #VECTY)) {                                                     \
+  if (FEUtils::EndsWith(GetFuncName(), #VECTY)) {                                                     \
     stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(                                        \
         INTRN_vector_##OP_NAME##_##VECTY, nullptr, retVar->Clone(), std::move(argExprList));     \
     }

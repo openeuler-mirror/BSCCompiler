@@ -251,8 +251,8 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   }
   MapleVector<ASTDecl*> paramDecls = func.GetParamDecls();
   if (firstArgRet) {
-    ASTDecl *returnParamVar = ASTDeclsBuilder::ASTVarBuilder(
-        allocator, "", "first_arg_return", MapleVector<MIRType*>({}, allocator.Adapter()), GenericAttrs());
+    ASTDecl *returnParamVar = ASTDeclsBuilder::ASTVarBuilder(allocator, MapleString("", allocator.GetMemPool()),
+        "first_arg_return", MapleVector<MIRType*>({}, allocator.Adapter()), GenericAttrs());
     returnParamVar->SetIsParam(true);
     paramDecls.insert(paramDecls.begin(), returnParamVar);
   }
@@ -274,7 +274,7 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   return true;
 }
 
-const std::string &ASTFunc2FEHelper::GetSrcFileName() const {
+const std::string ASTFunc2FEHelper::GetSrcFileName() const {
   return func.GetSrcFileName();
 }
 

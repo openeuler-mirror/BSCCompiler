@@ -29,7 +29,7 @@ class ENCChecker {
   static bool HasNonnullAttrInExpr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr, bool isNested = false);
   static bool HasNullExpr(const UniqueFEIRExpr &expr);
   static void CheckNonnullGlobalVarInit(const MIRSymbol &sym, const MIRConst *cst);
-  static void CheckNullFieldInGlobalStruct(MIRType &type, MIRAggConst &cst, const std::vector<ASTExpr*> &initExprs);
+  static void CheckNullFieldInGlobalStruct(MIRType &type, MIRAggConst &cst, const MapleVector<ASTExpr*> &initExprs);
   static void CheckNonnullLocalVarInit(const MIRSymbol &sym, const ASTExpr *initExpr);
   static void CheckNonnullLocalVarInit(const MIRSymbol &sym, const UniqueFEIRExpr &initFEExpr,
                                        std::list<UniqueFEIRStmt> &stmts);

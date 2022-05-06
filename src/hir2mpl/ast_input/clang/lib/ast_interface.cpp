@@ -19,7 +19,7 @@
 #include "fe_manager.h"
 
 namespace maple {
-bool LibAstFile::Open(const std::string &fileName,
+bool LibAstFile::Open(const MapleString &fileName,
                       int excludeDeclFromPCH, int displayDiagnostics) {
   astFileName = fileName;
   index = clang_createIndex(excludeDeclFromPCH, displayDiagnostics);

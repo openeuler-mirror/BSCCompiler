@@ -93,7 +93,7 @@ class ASTFunc2FEHelper : public FEInputMethodHelper {
     return func;
   }
 
-  const std::string &GetSrcFileName() const;
+  const std::string GetSrcFileName() const;
 
  protected:
   bool ProcessDeclImpl(MapleAllocator &allocator) override;

@@ -401,11 +401,16 @@ class ASTUOAddrOfExpr: public ASTUnaryOperatorExpr {
 
 class ASTUOAddrOfLabelExpr : public ASTUnaryOperatorExpr {
  public:
-  explicit ASTUOAddrOfLabelExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpAddrOfLabel) {}
+  explicit ASTUOAddrOfLabelExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpAddrOfLabel),
+      labelName("", allocatorIn.GetMemPool()) {}
   ~ASTUOAddrOfLabelExpr() = default;
 
   void SetLabelName(const std::string &name) {
     labelName = name;
+  }
+
+  const std::string GetLabelName() const {
+    return labelName.c_str() == nullptr ? "" : labelName.c_str();
   }
 
  protected:
@@ -413,7 +418,7 @@ class ASTUOAddrOfLabelExpr : public ASTUnaryOperatorExpr {
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
-  std::string labelName;
+  MapleString labelName;
 };
 
 class ASTUODerefExpr: public ASTUnaryOperatorExpr {
@@ -555,7 +560,8 @@ class ASTOffsetOfExpr : public ASTExpr {
 
 class ASTInitListExpr : public ASTExpr {
  public:
-  explicit ASTInitListExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpInitListExpr)  {}
+  explicit ASTInitListExpr(MapleAllocator &allocatorIn)
+      : ASTExpr(kASTOpInitListExpr), initExprs(allocatorIn.Adapter()), varName("", allocatorIn.GetMemPool()) {}
   ~ASTInitListExpr() = default;
   void SetInitExprs(ASTExpr *astExpr);
   void SetInitListType(MIRType *type);
@@ -564,7 +570,7 @@ class ASTInitListExpr : public ASTExpr {
     return initListType;
   }
 
-  std::vector<ASTExpr*> GetInitExprs() const {
+  MapleVector<ASTExpr*> GetInitExprs() const {
     return initExprs;
   }
 
@@ -572,8 +578,8 @@ class ASTInitListExpr : public ASTExpr {
     varName = argVarName;
   }
 
-  const std::string &GetInitListVarName() const {
-    return varName;
+  const std::string GetInitListVarName() const {
+    return varName.c_str() == nullptr ? "" : varName.c_str();
   }
 
   void SetParentFlag(ParentFlag argParentFlag) {
@@ -640,10 +646,10 @@ class ASTInitListExpr : public ASTExpr {
                            std::list<UniqueFEIRStmt> &stmts) const;
   MIRConst *GenerateMIRConstForArray() const;
   MIRConst *GenerateMIRConstForStruct() const;
-  std::vector<ASTExpr*> initExprs;
+  MapleVector<ASTExpr*> initExprs;
   ASTExpr *arrayFillerExpr = nullptr;
   MIRType *initListType = nullptr;
-  std::string varName;
+  MapleString varName;
   ParentFlag parentFlag = kNoParent;
   uint32 unionInitFieldIdx = UINT32_MAX;
   bool hasArrayFiller = false;
@@ -893,7 +899,8 @@ class ASTExprUnaryExprOrTypeTraitExpr : public ASTExpr {
 
 class ASTMemberExpr : public ASTExpr {
  public:
-  explicit ASTMemberExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTMemberExpr) {}
+  explicit ASTMemberExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTMemberExpr),
+      memberName("", allocatorIn.GetMemPool()) {}
   ~ASTMemberExpr() = default;
 
   void SetBaseExpr(ASTExpr *astExpr) {
@@ -909,7 +916,7 @@ class ASTMemberExpr : public ASTExpr {
   }
 
   std::string GetMemberName() const {
-    return memberName;
+    return memberName.c_str() == nullptr ? "" : memberName.c_str();
   }
 
   void SetMemberType(MIRType *type) {
@@ -951,7 +958,7 @@ class ASTMemberExpr : public ASTExpr {
   void InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr baseFEExpr) const;
 
   ASTExpr *baseExpr = nullptr;
-  std::string memberName;
+  MapleString memberName;
   MIRType *memberType = nullptr;
   MIRType *baseType = nullptr;
   bool isArrow = false;
@@ -1042,7 +1049,7 @@ class ASTBOPtrMemExpr : public ASTBinaryOperatorExpr {
 class ASTCallExpr : public ASTExpr {
  public:
   explicit ASTCallExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpCall), args(allocatorIn.Adapter()),
-      varName(FEUtils::GetSequentialName("retVar_")) {}
+      funcName("", allocatorIn.GetMemPool()), varName(FEUtils::GetSequentialName("retVar_"), allocatorIn.GetMemPool()) {}
   ~ASTCallExpr() = default;
   void SetCalleeExpr(ASTExpr *astExpr) {
     calleeExpr = astExpr;
@@ -1068,16 +1075,16 @@ class ASTCallExpr : public ASTExpr {
     return retType;
   }
 
-  const std::string &GetRetVarName() const {
-    return varName;
+  const std::string GetRetVarName() const {
+    return varName.c_str() == nullptr ? "" : varName.c_str();
   }
 
   void SetFuncName(const std::string &name) {
     funcName = name;
   }
 
-  const std::string &GetFuncName() const {
-    return funcName;
+  const std::string GetFuncName() const {
+    return funcName.c_str() == nullptr ? "" : funcName.c_str();
   }
 
   void SetFuncAttrs(const FuncAttrs &attrs) {
@@ -1283,10 +1290,10 @@ UniqueFEIRExpr EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) const;
   MapleVector<ASTExpr*> args;
   ASTExpr *calleeExpr = nullptr;
   MIRType *retType = nullptr;
-  std::string funcName;
+  MapleString funcName;
   FuncAttrs funcAttrs;
   bool isIcall = false;
-  std::string varName;
+  MapleString varName;
   ASTFunc *funcDecl = nullptr;
 };
 

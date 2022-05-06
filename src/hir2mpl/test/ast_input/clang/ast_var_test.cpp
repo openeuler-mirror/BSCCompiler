@@ -34,7 +34,7 @@ TEST_F(FEIRVarNameTest, FEIRVarInAST) {
   GenericAttrs attrs;
   attrs.SetAttr(GENATTR_const);
   MIRType *type = GlobalTables::GetTypeTable().GetInt32();
-  auto astVar = ASTDeclsBuilder::ASTVarBuilder(allocator, "foo.c", "a",
+  auto astVar = ASTDeclsBuilder::ASTVarBuilder(allocator, MapleString("foo.c", mp), "a",
       MapleVector<MIRType*>({type}, allocator.Adapter()), attrs);
   astVar->SetGlobal(false);
   auto feirVar = astVar->Translate2FEIRVar();
@@ -56,7 +56,7 @@ TEST_F(FEIRVarNameTest, FEIRVarInAST) {
   RestoreCout();
 
   MIRType *type1 = GlobalTables::GetTypeTable().GetInt32();
-  auto astVar1 = ASTDeclsBuilder::ASTVarBuilder(allocator, "foo.c", "a",
+  auto astVar1 = ASTDeclsBuilder::ASTVarBuilder(allocator, MapleString("foo.c", mp), "a",
       MapleVector<MIRType*>({type1}, allocator.Adapter()), attrs);
   astVar1->SetGlobal(false);
   auto feirVar1 = astVar1->Translate2FEIRVar();
@@ -68,7 +68,7 @@ TEST_F(FEIRVarNameTest, FEIRVarInAST) {
   // array type
   uint32 arraySize[3] = {3, 4, 5};
   MIRType *arrayType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*type, 3, arraySize);
-  auto astArrVar = ASTDeclsBuilder::ASTVarBuilder(allocator, "foo.c", "array",
+  auto astArrVar = ASTDeclsBuilder::ASTVarBuilder(allocator, MapleString("foo.c", mp), "array",
       MapleVector<MIRType*>({arrayType}, allocator.Adapter()), attrs);
   astArrVar->SetGlobal(true);
   auto feirArrVar = astArrVar->Translate2FEIRVar();

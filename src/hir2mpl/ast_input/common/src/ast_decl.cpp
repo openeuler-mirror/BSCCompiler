@@ -24,12 +24,12 @@
 
 namespace maple {
 // ---------- ASTDecl ---------
-const std::string &ASTDecl::GetSrcFileName() const {
-  return srcFileName;
+const std::string ASTDecl::GetSrcFileName() const {
+  return srcFileName.c_str() == nullptr ? "" : srcFileName.c_str();
 }
 
 const std::string ASTDecl::GetName() const {
-  return name.c_str();
+  return name.c_str() == nullptr ? "" : name.c_str();
 }
 
 const MapleVector<MIRType*> &ASTDecl::GetTypeDesc() const {

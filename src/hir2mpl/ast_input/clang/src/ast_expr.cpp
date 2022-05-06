@@ -226,7 +226,7 @@ void ASTCallExpr::AddArgsExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt, s
     callStmt->AddExprArgReverse(std::move(expr));
   }
   if (IsFirstArgRet()) {
-    UniqueFEIRVar var = FEIRBuilder::CreateVarNameForC(varName, *retType, false, false);
+    UniqueFEIRVar var = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *retType, false, false);
     UniqueFEIRExpr expr = FEIRBuilder::CreateExprAddrofVar(var->Clone());
     callStmt->AddExprArgReverse(std::move(expr));
   }
@@ -250,7 +250,7 @@ void ASTCallExpr::InsertNonnullCheckingForIcall(const UniqueFEIRExpr &expr, std:
 }
 
 UniqueFEIRExpr ASTCallExpr::AddRetExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt) const {
-  UniqueFEIRVar var = FEIRBuilder::CreateVarNameForC(varName, *retType, false, false);
+  UniqueFEIRVar var = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *retType, false, false);
   UniqueFEIRVar dreadVar = var->Clone();
   if (!IsFirstArgRet()) {
     callStmt->SetVar(var->Clone());
@@ -264,7 +264,7 @@ std::unique_ptr<FEIRStmtAssign> ASTCallExpr::GenCallStmt() const {
   if (isIcall) {
     callStmt = std::make_unique<FEIRStmtICallAssign>();
   } else {
-    StructElemNameIdx *nameIdx = mp->New<StructElemNameIdx>(funcName);
+    StructElemNameIdx *nameIdx = mp->New<StructElemNameIdx>(GetFuncName());
     FEStructMethodInfo *info = static_cast<FEStructMethodInfo*>(
         FEManager::GetTypeManager().RegisterStructMethodInfo(*nameIdx, kSrcLangC, false));
     info->SetFuncAttrs(funcAttrs);
@@ -746,14 +746,14 @@ UniqueFEIRExpr ASTUOAddrOfExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts
 // ---------- ASTUOAddrOfLabelExpr ---------
 MIRConst *ASTUOAddrOfLabelExpr::GenerateMIRConstImpl() const {
   return FEManager::GetMIRBuilder().GetCurrentFuncCodeMp()->New<MIRLblConst>(
-      FEManager::GetMIRBuilder().GetOrCreateMIRLabel(labelName),
+      FEManager::GetMIRBuilder().GetOrCreateMIRLabel(GetLabelName()),
       FEManager::GetMIRBuilder().GetCurrentFunction()->GetPuidx(),  // GetCurrentFunction need to be optimized
       *GlobalTables::GetTypeTable().GetVoidPtr());                  // when parallel features
 }
 
 UniqueFEIRExpr ASTUOAddrOfLabelExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   (void)stmts;
-  return FEIRBuilder::CreateExprAddrofLabel(labelName, std::make_unique<FEIRTypeNative>(*uoType));
+  return FEIRBuilder::CreateExprAddrofLabel(GetLabelName(), std::make_unique<FEIRTypeNative>(*uoType));
 }
 
 UniqueFEIRExpr ASTUODerefExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
@@ -1070,7 +1070,7 @@ MIRConst *ASTInitListExpr::GenerateMIRConstForStruct() const {
 }
 
 UniqueFEIRExpr ASTInitListExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
-  UniqueFEIRVar feirVar = FEIRBuilder::CreateVarNameForC(varName, *initListType);
+  UniqueFEIRVar feirVar = FEIRBuilder::CreateVarNameForC(GetInitListVarName(), *initListType);
   if (initListType->GetKind() == MIRTypeKind::kTypeArray) {
     UniqueFEIRExpr arrayExpr = FEIRBuilder::CreateExprAddrofVar(feirVar->Clone());
     auto base = std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr>(arrayExpr->Clone());
@@ -1691,7 +1691,7 @@ MIRConst *ASTMemberExpr::GenerateMIRConstImpl() const {
 
 const ASTMemberExpr *ASTMemberExpr::FindFinalMember(const ASTMemberExpr *startExpr,
                                                     std::list<std::string> &memberNames) const {
-  memberNames.emplace_back(startExpr->memberName);
+  memberNames.emplace_back(startExpr->GetMemberName());
   if (startExpr->isArrow || startExpr->baseExpr->GetASTOp() != kASTMemberExpr) {
     return startExpr;
   }
@@ -1711,12 +1711,12 @@ void ASTMemberExpr::InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, Uniq
 
 UniqueFEIRExpr ASTMemberExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   UniqueFEIRExpr baseFEExpr;
-  std::string fieldName = memberName;
+  std::string fieldName = GetMemberName();
   bool tmpIsArrow = this->isArrow;
   MIRType *tmpBaseType = this->baseType;
   if (baseExpr->GetASTOp() == kASTMemberExpr) {
     std::list<std::string> memberNameList;
-    memberNameList.emplace_back(memberName);
+    memberNameList.emplace_back(GetMemberName());
     const ASTMemberExpr *finalMember = FindFinalMember(static_cast<ASTMemberExpr*>(baseExpr), memberNameList);
     baseFEExpr = finalMember->baseExpr->Emit2FEExpr(stmts);
     tmpIsArrow = finalMember->isArrow;

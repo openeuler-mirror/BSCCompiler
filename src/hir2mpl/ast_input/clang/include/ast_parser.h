@@ -26,7 +26,7 @@ class ASTParser {
   ASTParser(MapleAllocator &allocatorIn, uint32 fileIdxIn, const std::string &fileNameIn,
             MapleList<ASTStruct*> &astStructsIn, MapleList<ASTFunc*> &astFuncsIn, MapleList<ASTVar*> &astVarsIn,
             MapleList<ASTFileScopeAsm*> &astFileScopeAsmsIn)
-      : fileIdx(fileIdxIn), fileName(fileNameIn), globalVarDecles(allocatorIn.Adapter()),
+      : fileIdx(fileIdxIn), fileName(fileNameIn, allocatorIn.GetMemPool()), globalVarDecles(allocatorIn.Adapter()),
         funcDecles(allocatorIn.Adapter()), recordDecles(allocatorIn.Adapter()),
         globalEnumDecles(allocatorIn.Adapter()), globalTypeDefDecles(allocatorIn.Adapter()),
         globalFileScopeAsm(allocatorIn.Adapter()), astStructs(astStructsIn), astFuncs(astFuncsIn),
@@ -45,7 +45,7 @@ class ASTParser {
 
   bool ProcessGlobalTypeDef(MapleAllocator &allocator);
 
-  const std::string &GetSourceFileName() const;
+  const std::string GetSourceFileName() const;
   const uint32 GetFileIdx() const;
 
   // ProcessStmt
@@ -242,7 +242,7 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
 
   static std::map<std::string, FuncPtrBuiltinFunc> builtingFuncPtrMap;
   uint32 fileIdx;
-  const std::string fileName;
+  const MapleString fileName;
   LibAstFile *astFile = nullptr;
   AstUnitDecl *astUnitDecl = nullptr;
   MapleList<clang::Decl*> globalVarDecles;

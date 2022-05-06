@@ -220,7 +220,8 @@ class ASTBreakStmt : public ASTStmt {
 
 class ASTLabelStmt : public ASTStmt {
  public:
-  explicit ASTLabelStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtLabel) {}
+  explicit ASTLabelStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtLabel),
+      labelName("", allocatorIn.GetMemPool()) {}
   ~ASTLabelStmt() override = default;
 
   void SetSubStmt(ASTStmt *stmt) {
@@ -231,9 +232,13 @@ class ASTLabelStmt : public ASTStmt {
     labelName = name;
   }
 
+  const std::string GetLabelName() const {
+    return labelName.c_str() == nullptr ? "" : labelName.c_str();
+  }
+
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
-  std::string labelName;
+  MapleString labelName;
   ASTStmt *subStmt = nullptr;
 };
 
@@ -266,11 +271,12 @@ class ASTBinaryOperatorStmt : public ASTStmt {
 
 class ASTGotoStmt : public ASTStmt {
  public:
-  explicit ASTGotoStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtGoto) {}
+  explicit ASTGotoStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtGoto),
+      labelName("", allocatorIn.GetMemPool()) {}
   ~ASTGotoStmt() = default;
 
   std::string GetLabelName() const {
-    return labelName;
+    return labelName.c_str() == nullptr ? "" : labelName.c_str();
   }
 
   void SetLabelName(const std::string &name) {
@@ -279,7 +285,7 @@ class ASTGotoStmt : public ASTStmt {
 
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
-  std::string labelName;
+  MapleString labelName;
 };
 
 class ASTIndirectGotoStmt : public ASTStmt {
@@ -568,11 +574,17 @@ class ASTAtomicExprStmt : public ASTStmt {
 
 class ASTGCCAsmStmt : public ASTStmt {
  public:
-  explicit ASTGCCAsmStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtGCCAsmStmt) {}
+  explicit ASTGCCAsmStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtGCCAsmStmt),
+      asmStr("", allocatorIn.GetMemPool()), outputs(allocatorIn.Adapter()), inputs(allocatorIn.Adapter()),
+      clobbers(allocatorIn.Adapter()), labels(allocatorIn.Adapter()) {}
   ~ASTGCCAsmStmt() override = default;
 
   void SetAsmStr(const std::string &str) {
     asmStr = str;
+  }
+
+  const std::string GetAsmStr() const {
+    return asmStr.c_str() == nullptr ? "" : asmStr.c_str();
   }
 
   void InsertOutput(std::tuple<std::string, std::string, bool> &&output) {
@@ -601,11 +613,11 @@ class ASTGCCAsmStmt : public ASTStmt {
 
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
-  std::string asmStr;
-  std::vector<std::tuple<std::string, std::string, bool>> outputs;
-  std::vector<std::pair<std::string, std::string>> inputs;
-  std::vector<std::string> clobbers;
-  std::vector<std::string> labels;
+  MapleString asmStr;
+  MapleVector<std::tuple<std::string, std::string, bool>> outputs;
+  MapleVector<std::pair<std::string, std::string>> inputs;
+  MapleVector<std::string> clobbers;
+  MapleVector<std::string> labels;
   bool isGoto = false;
   bool isVolatile = false;
 };

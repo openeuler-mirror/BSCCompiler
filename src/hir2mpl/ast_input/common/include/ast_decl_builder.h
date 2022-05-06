@@ -25,7 +25,7 @@ class ASTDeclsBuilder {
     return decl;
   }
 
-  static ASTDecl *ASTDeclBuilder(const MapleAllocator &allocator, const std::string &srcFile,
+  static ASTDecl *ASTDeclBuilder(const MapleAllocator &allocator, const MapleString &srcFile,
       const std::string &nameIn, const MapleVector<MIRType*> &typeDescIn, int64 id = INT64_MAX) {
     MapleString nameStr(nameIn, allocator.GetMemPool());
     if (id == INT64_MAX) {
@@ -36,7 +36,7 @@ class ASTDeclsBuilder {
     return declesTable[id];
   }
 
-  static ASTVar *ASTVarBuilder(const MapleAllocator &allocator, const std::string &srcFile, const std::string &varName,
+  static ASTVar *ASTVarBuilder(const MapleAllocator &allocator, const MapleString &srcFile, const std::string &varName,
       const MapleVector<MIRType*> &desc, const GenericAttrs &genAttrsIn, int64 id = INT64_MAX) {
     MapleString varNameStr(varName, allocator.GetMemPool());
     if (id == INT64_MAX) {
@@ -47,7 +47,7 @@ class ASTDeclsBuilder {
     return static_cast<ASTVar*>(declesTable[id]);
   }
 
-  static ASTEnumConstant *ASTEnumConstBuilder(const MapleAllocator &allocator, const std::string &srcFile,
+  static ASTEnumConstant *ASTEnumConstBuilder(const MapleAllocator &allocator, const MapleString &srcFile,
       const std::string &varName, const MapleVector<MIRType*> &desc,
       const GenericAttrs &genAttrsIn, int64 id = INT64_MAX) {
     MapleString varNameStr(varName, allocator.GetMemPool());
@@ -59,19 +59,19 @@ class ASTDeclsBuilder {
     return static_cast<ASTEnumConstant*>(declesTable[id]);
   }
 
-  static ASTEnumDecl *ASTLocalEnumDeclBuilder(const MapleAllocator &allocator, const std::string &srcFile,
+  static ASTEnumDecl *ASTLocalEnumDeclBuilder(MapleAllocator &allocator, const MapleString &srcFile,
       const std::string &varName, const MapleVector<MIRType*> &desc, const GenericAttrs &genAttrsIn,
       int64 id = INT64_MAX) {
     MapleString varNameStr(varName, allocator.GetMemPool());
     if (id == INT64_MAX) {
-      return allocator.GetMemPool()->New<ASTEnumDecl>(srcFile, varNameStr, desc, genAttrsIn);
+      return allocator.GetMemPool()->New<ASTEnumDecl>(allocator, srcFile, varNameStr, desc, genAttrsIn);
     } else if (declesTable[id] == nullptr) {
-      declesTable[id] = allocator.GetMemPool()->New<ASTEnumDecl>(srcFile, varNameStr, desc, genAttrsIn);
+      declesTable[id] = allocator.GetMemPool()->New<ASTEnumDecl>(allocator, srcFile, varNameStr, desc, genAttrsIn);
     }
     return static_cast<ASTEnumDecl*>(declesTable[id]);
   }
 
-  static ASTFunc *ASTFuncBuilder(const MapleAllocator &allocator, const std::string &srcFile, const std::string &nameIn,
+  static ASTFunc *ASTFuncBuilder(const MapleAllocator &allocator, const MapleString &srcFile, const std::string &nameIn,
                                  const MapleVector<MIRType*> &typeDescIn, const GenericAttrs &genAttrsIn,
                                  MapleVector<ASTDecl*> &paramDeclsIn, int64 id = INT64_MAX) {
     MapleString funcNameStr(nameIn, allocator.GetMemPool());
@@ -94,7 +94,7 @@ class ASTDeclsBuilder {
     return allocator.GetMemPool()->New<T>(allocator);
   }
 
-  static ASTStruct *ASTStructBuilder(MapleAllocator &allocator, const std::string &srcFile,
+  static ASTStruct *ASTStructBuilder(MapleAllocator &allocator, const MapleString &srcFile,
                                      const std::string &nameIn, const MapleVector<MIRType*> &typeDescIn,
                                      const GenericAttrs &genAttrsIn, int64 id = INT64_MAX) {
     MapleString structNameStr(nameIn, allocator.GetMemPool());
@@ -107,7 +107,7 @@ class ASTDeclsBuilder {
     return static_cast<ASTStruct*>(declesTable[id]);
   }
 
-  static ASTField *ASTFieldBuilder(const MapleAllocator &allocator, const std::string &srcFile,
+  static ASTField * ASTFieldBuilder(const MapleAllocator &allocator, const MapleString &srcFile,
                                    const std::string &varName, const MapleVector<MIRType*> &desc,
                                    const GenericAttrs &genAttrsIn, int64 id = INT64_MAX,
                                    bool isAnonymous = false) {

@@ -2799,8 +2799,8 @@ bool ASTParser::ProcessGlobalTypeDef(MapleAllocator &allocator) {
   return true;
 }
 
-const std::string &ASTParser::GetSourceFileName() const {
-  return fileName;
+const std::string ASTParser::GetSourceFileName() const {
+  return fileName.c_str() == nullptr ? "" : fileName.c_str();
 }
 
 const uint32 ASTParser::GetFileIdx() const {
