@@ -19,6 +19,7 @@
 #include "me_dominance.h"
 #include "me_function.h"
 #include "me_loop_analysis.h"
+#include "me_irmap.h"
 
 // This phase finds critical edges and split them into two, because their
 // presence would restrict the optimizations performed by SSAPRE-based phases.
@@ -34,7 +35,7 @@
 // The bblayout phase will determine the final layout order of the bbs.
 namespace maple {
 // This function is used to find the eh edge when predBB is tryBB.
-void MeSplitCEdge::UpdateNewBBInTry(MeFunction &func, BB &newBB, const BB &pred) const {
+void MeSplitCEdge::UpdateNewBBInTry(const MeFunction &func, BB &newBB, const BB &pred) const {
   auto tryBB = &pred;
   newBB.SetAttributes(kBBAttrIsTry);
   // The bb which is returnBB and only have return stmt would not have eh edge,
@@ -97,7 +98,7 @@ void MeSplitCEdge::UpdateCaseLabel(BB &newBB, MeFunction &func, BB &pred, BB &su
   }
 }
 
-void MeSplitCEdge::DealWithTryBB(MeFunction &func, BB &pred, BB &succ, BB *&newBB, bool &isInsertAfterPred) const {
+void MeSplitCEdge::DealWithTryBB(const MeFunction &func, BB &pred, BB &succ, BB *&newBB, bool &isInsertAfterPred) const {
   if ((!succ.GetStmtNodes().empty() && succ.GetStmtNodes().front().GetOpCode() == OP_try) ||
       (!succ.IsMeStmtEmpty() && succ.GetFirstMe()->GetOp() == OP_try)) {
     newBB = &func.GetCfg()->InsertNewBasicBlock(pred, false);
@@ -175,6 +176,23 @@ void MeSplitCEdge::BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) const
       UpdateCaseLabel(*newBB, func, pred, succ);
     }
   }
+  // profileGen invokes MESplitCEdge to remove critical edges without going through ME completely
+  // newBB needs to be materialized
+  if (Options::profileGen) {
+    LabelIdx succLabel = succ.GetBBLabel();
+    ASSERT(succLabel != 0, "succ's label missed");
+    if (func.GetIRMap() != nullptr) {
+      GotoNode stmt(OP_goto);
+      GotoMeStmt *gotoSucc = func.GetIRMap()->New<GotoMeStmt>(&stmt);
+      gotoSucc->SetOffset(succLabel);
+      newBB->AddMeStmtLast(gotoSucc);
+    } else {
+      GotoNode *gotoSucc = func.GetMirFunc()->GetCodeMempool()->New<GotoNode>(OP_goto);
+      gotoSucc->SetOffset(succLabel);
+      newBB->AddStmtNode(gotoSucc);
+    }
+    newBB->SetKind(kBBGoto);
+  }
 }
 
 // Is a critical edge is cut by bb
@@ -210,7 +228,7 @@ bool MeSplitCEdge::SplitCriticalEdgeForBB(MeFunction &func, BB &bb) const {
   return split;
 }
 
-void ScanEdgeInFunc(MeCFG &cfg, std::vector<std::pair<BB*, BB*>> &criticalEdge) {
+void ScanEdgeInFunc(const MeCFG &cfg, std::vector<std::pair<BB*, BB*>> &criticalEdge) {
   auto eIt = cfg.valid_end();
   for (auto bIt = cfg.valid_begin(); bIt != eIt; ++bIt) {
     if (bIt == cfg.common_exit()) {
@@ -241,10 +259,12 @@ void ScanEdgeInFunc(MeCFG &cfg, std::vector<std::pair<BB*, BB*>> &criticalEdge) 
   }
 }
 
-void MeSplitCEdge::SplitCriticalEdgeForMeFunc(MeFunction &func) const {
+bool MeSplitCEdge::SplitCriticalEdgeForMeFunc(MeFunction &func) const {
   std::vector<std::pair<BB*, BB*>> criticalEdge;
   ScanEdgeInFunc(*func.GetCfg(), criticalEdge);
+  bool split = false;
   if (!criticalEdge.empty()) {
+    split = true;
     if (isDebugFunc) {
       LogInfo::MapleLogger() << "*******************before break dump function*****************\n";
       func.DumpFunctionNoSSA();
@@ -259,6 +279,7 @@ void MeSplitCEdge::SplitCriticalEdgeForMeFunc(MeFunction &func) const {
       func.GetCfg()->DumpToFile("cfgafterbreak");
     }
   }
+  return split;
 }
 
 void MESplitCEdge::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
@@ -268,10 +289,9 @@ void MESplitCEdge::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MESplitCEdge::PhaseRun(maple::MeFunction &f) {
-  std::vector<std::pair<BB*, BB*>> criticalEdge;
   bool enableDebug = DEBUGFUNC_NEWPM(f);
   MeSplitCEdge mscedge = MeSplitCEdge(enableDebug);
-  mscedge.SplitCriticalEdgeForMeFunc(f);
+  (void)mscedge.SplitCriticalEdgeForMeFunc(f);
   return false;
 }
 }  // namespace maple

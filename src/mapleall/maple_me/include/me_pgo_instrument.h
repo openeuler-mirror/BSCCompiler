@@ -93,6 +93,8 @@ class PGOInstrument {
   void GetInstrumentBBs(std::vector<BB*> &bbs) const {
     std::vector<Edge*> instrumentEdges;
     mst.GetInstrumentEdges(instrumentEdges);
+    std::unordered_set<BB*> visitedBBs;
+
     for (auto &edge : instrumentEdges) {
       BB *src = edge->GetSrcBB();
       BB *dest = edge->GetDestBB();
@@ -107,8 +109,16 @@ class PGOInstrument {
         bbs.push_back(dest);
       } else {
         if (func->GetMIRModule().IsCModule()) {
-          // If it is a c module, do not split the edge until the next PGO phase
-          bbs.push_back(dest);
+          if (src->GetKind() == kBBIgoto) {
+            if (visitedBBs.find(dest) == visitedBBs.end()) {
+              // In this case, we have to instrument it anyway
+              bbs.push_back(dest);
+              visitedBBs.insert(dest);
+            }
+          } else {
+            func->GetCfg()->DumpToFile("profGenErrorForCModule", false);
+            CHECK_FATAL(false, "Unexpected case %d -> %d", src->UintID(), dest->UintID());
+          }
         } else {
           func->GetCfg()->DumpToFile("profGenError", false);
           CHECK_FATAL(false, "impossible critial edge %d -> %d", src->UintID(), dest->UintID());
