@@ -48,8 +48,7 @@ BaseNode *LMBCLowerer::LowerAddrof(AddrofNode *expr) {
   MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(expr->GetStIdx());
   int32 offset = 0;
   if (expr->GetFieldID() != 0) {
-    MIRStructType *structty = dynamic_cast<MIRStructType *>(symbol->GetType());
-    CHECK_FATAL(structty, "LMBCLowerer::LowerAddrof: non-zero fieldID for non-structure");
+    MIRStructType *structty = static_cast<MIRStructType *>(symbol->GetType());
     offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
   }
   PrimType symty = (expr->GetPrimType() == PTY_simplestr ||
@@ -70,8 +69,7 @@ BaseNode *LMBCLowerer::LowerDread(AddrofNode *expr) {
   PrimType symty = symbol->GetType()->GetPrimType();
   int32 offset = 0;
   if (expr->GetFieldID() != 0) {
-    MIRStructType *structty = dynamic_cast<MIRStructType *>(symbol->GetType());
-    CHECK_FATAL(structty, "LMBCLowerer::LowerDread: non-zero fieldID for non-structure");
+    MIRStructType *structty = static_cast<MIRStructType *>(symbol->GetType());
     FieldPair thepair = structty->TraverseToField(expr->GetFieldID());
     symty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first)->GetPrimType();
     offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
@@ -134,13 +132,28 @@ BaseNode *LMBCLowerer::LowerIread(IreadNode *expr) {
   if (expr->GetFieldID() != 0) {
     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(expr->GetTyIdx());
     MIRStructType *structty =
-        dynamic_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(
+        static_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(
         static_cast<MIRPtrType*>(type)->GetPointedTyIdx()));
-    CHECK_FATAL(structty, "LowerIread: non-zero fieldID for non-structure");
     offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
   }
   BaseNode *ireadoff = mirBuilder->CreateExprIreadoff(expr->GetPrimType(), offset, expr->Opnd(0));
   return ireadoff;
+}
+
+BaseNode *LMBCLowerer::LowerIaddrof(IaddrofNode *expr) {
+  int32 offset = 0;
+  if (expr->GetFieldID() != 0) {
+    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(expr->GetTyIdx());
+    MIRStructType *structty = static_cast<MIRStructType *>(
+        GlobalTables::GetTypeTable().GetTypeFromTyIdx(
+        static_cast<MIRPtrType*>(type)->GetPointedTyIdx()));
+    offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
+  }
+  if (offset == 0) {
+    return expr->Opnd(0);
+  }
+  return mirBuilder->CreateExprBinary(OP_add, expr->GetPrimType(), expr->Opnd(0),
+                                      mirBuilder->CreateIntConst(offset, expr->GetPrimType()));
 }
 
 BaseNode *LMBCLowerer::LowerExpr(BaseNode *expr) {
@@ -148,11 +161,24 @@ BaseNode *LMBCLowerer::LowerExpr(BaseNode *expr) {
     expr->SetOpnd(LowerExpr(expr->Opnd(i)), i);
   }
   switch (expr->GetOpCode()) {
-  case OP_addrof: return LowerAddrof(static_cast<AddrofNode *>(expr));
-  case OP_dread: return LowerDread(static_cast<DreadNode *>(expr));
-  case OP_dreadoff: return LowerDreadoff(static_cast<DreadoffNode *>(expr));
-  case OP_iread: return LowerIread(static_cast<IreadNode *>(expr));
-  default: ;
+    case OP_addrof:
+      return LowerAddrof(static_cast<AddrofNode *>(expr));
+    case OP_addrofoff: {
+      MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(static_cast<AddrofoffNode*>(expr)->stIdx);
+      CHECK_FATAL(!symbol->LMBCAllocateOffSpecialReg(),
+                  "LMBCLowerer:: illegal addrofoff instruction");
+      break;
+    }
+    case OP_dread:
+      return LowerDread(static_cast<DreadNode *>(expr));
+    case OP_dreadoff:
+      return LowerDreadoff(static_cast<DreadoffNode *>(expr));
+    case OP_iread:
+      return LowerIread(static_cast<IreadNode *>(expr));
+    case OP_iaddrof:
+      return LowerIaddrof(static_cast<IreadNode *>(expr));
+    default:
+      break;
   }
   return expr;
 }
@@ -195,14 +221,13 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
   MIRType *symty = symbol->GetType();
   int32 offset = 0;
   if (dsnode->GetFieldID() != 0) {
-    MIRStructType *structty = dynamic_cast<MIRStructType *>(symbol->GetType());
-    CHECK_FATAL(structty, "LMBCLowerer::LowerDassign: non-zero fieldID for non-structure");
+    MIRStructType *structty = static_cast<MIRStructType *>(symbol->GetType());
     FieldPair thepair = structty->TraverseToField(dsnode->GetFieldID());
     symty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
     offset = becommon->GetFieldOffset(*structty, dsnode->GetFieldID()).first;
   }
   BaseNode *rhs = LowerExpr(dsnode->Opnd(0));
-  if (rhs->GetPrimType() != PTY_agg) {
+  if (rhs->GetPrimType() != PTY_agg || rhs->GetOpCode() == OP_regread) {
     if (!symbol->LMBCAllocateOffSpecialReg()) {
       BaseNode *base = mirBuilder->CreateExprDreadoff(OP_addrofoff, LOWERED_PTR_TYPE, *symbol, 0);
       IassignoffNode *iassignoff = mirBuilder->CreateStmtIassignoff(symty->GetPrimType(),
@@ -298,11 +323,9 @@ void LMBCLowerer::LowerIassign(IassignNode *iassign, BlockNode *newblk) {
   int32 offset = 0;
   MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iassign->GetTyIdx());
   MIRPtrType *pointerty = static_cast<MIRPtrType *>(type);
-  CHECK_FATAL(pointerty, "LowerIassign::expect a pointer type at iassign node");
   if (iassign->GetFieldID() != 0) {
-    MIRStructType *structty = dynamic_cast<MIRStructType *>(
+    MIRStructType *structty = static_cast<MIRStructType *>(
         GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerty->GetPointedTyIdx()));
-    CHECK_FATAL(structty, "LowerIassign: non-zero fieldID for non-structure");
     offset = becommon->GetFieldOffset(*structty, iassign->GetFieldID()).first;
     TyIdx ftyidx = structty->TraverseToField(iassign->GetFieldID()).second.first;
     type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ftyidx);
@@ -351,9 +374,9 @@ MIRFuncType *LMBCLowerer::FuncTypeFromFuncPtrExpr(BaseNode *x) {
         const MIRSymbol *symbol = preg->rematInfo.sym;
         MIRType *mirType = symbol->GetType();
         if (mirType->GetKind() == kTypePointer) {
-          res = dynamic_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
+          res = static_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
         } else {
-          res = dynamic_cast<MIRFuncType *>(mirType);
+          res = static_cast<MIRFuncType *>(mirType);
         }
         if (res != nullptr) {
           break;
@@ -367,9 +390,9 @@ MIRFuncType *LMBCLowerer::FuncTypeFromFuncPtrExpr(BaseNode *x) {
         if (formalDef.formalSym->GetPreg() == preg) {
           MIRType *mirType = formalDef.formalSym->GetType();
           if (mirType->GetKind() == kTypePointer) {
-            res = dynamic_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
+            res = static_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
           } else {
-            res = dynamic_cast<MIRFuncType *>(mirType);
+            res = static_cast<MIRFuncType *>(mirType);
           }
           break;
         }
@@ -381,26 +404,25 @@ MIRFuncType *LMBCLowerer::FuncTypeFromFuncPtrExpr(BaseNode *x) {
       MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dread->GetStIdx());
       MIRType *mirType = symbol->GetType();
       if (dread->GetFieldID() != 0) {
-        MIRStructType *structty = dynamic_cast<MIRStructType *>(mirType);
-        CHECK_FATAL(structty, "LMBCLowerer::FuncTypeFromFuncPtrExpr: non-zero fieldID for non-structure");
+        MIRStructType *structty = static_cast<MIRStructType *>(mirType);
         FieldPair thepair = structty->TraverseToField(dread->GetFieldID());
         mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
       }
       if (mirType->GetKind() == kTypePointer) {
-        res = dynamic_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
+        res = static_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
       } else {
-        res = dynamic_cast<MIRFuncType *>(mirType);
+        res = static_cast<MIRFuncType *>(mirType);
       }
       break;
     }
     case OP_iread: {
       IreadNode *iread = static_cast<IreadNode *>(x);
-      MIRPtrType *ptrType = dynamic_cast<MIRPtrType *>(iread->GetType());
+      MIRPtrType *ptrType = static_cast<MIRPtrType *>(iread->GetType());
       MIRType *mirType = ptrType->GetPointedType();
       if (mirType->GetKind() == kTypePointer) {
-        res = dynamic_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
+        res = static_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
       } else {
-        res = dynamic_cast<MIRFuncType *>(mirType);
+        res = static_cast<MIRFuncType *>(mirType);
       }
       break;
     }
@@ -412,11 +434,12 @@ MIRFuncType *LMBCLowerer::FuncTypeFromFuncPtrExpr(BaseNode *x) {
       break;
     }
     case OP_retype: {
-      MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<RetypeNode*>(x)->GetTyIdx());
+      MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
+          static_cast<RetypeNode*>(x)->GetTyIdx());
       if (mirType->GetKind() == kTypePointer) {
-        res = dynamic_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
+        res = static_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
       } else {
-        res = dynamic_cast<MIRFuncType *>(mirType);
+        res = static_cast<MIRFuncType *>(mirType);
       }
       if (res == nullptr) {
         res = FuncTypeFromFuncPtrExpr(x->Opnd(0));
@@ -456,7 +479,7 @@ void LMBCLowerer::LowerCall(NaryStmtNode *naryStmt, BlockNode *newblk) {
         MIRSymbol *sym = func->GetLocalOrGlobalSymbol(dread->GetStIdx());
         ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx());
         if (dread->GetFieldID() != 0) {
-          CHECK_FATAL(ty->GetKind() == kTypeStruct || ty->GetKind() == kTypeClass, "");
+          CHECK_FATAL(ty->GetKind() == kTypeStruct || ty->GetKind() == kTypeClass || ty->GetKind() == kTypeUnion, "");
           FieldPair thepair = static_cast<MIRStructType *>(ty)->TraverseToField(dread->GetFieldID());
           ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
         }
@@ -467,7 +490,7 @@ void LMBCLowerer::LowerCall(NaryStmtNode *naryStmt, BlockNode *newblk) {
         ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
             static_cast<MIRPtrType *>(ty)->GetPointedTyIdx());
         if (iread->GetFieldID() != 0) {
-          CHECK_FATAL(ty->GetKind() == kTypeStruct || ty->GetKind() == kTypeClass, "");
+          CHECK_FATAL(ty->GetKind() == kTypeStruct || ty->GetKind() == kTypeClass || ty->GetKind() == kTypeUnion, "");
           FieldPair thepair = static_cast<MIRStructType *>(ty)->TraverseToField(iread->GetFieldID());
           ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
         }
