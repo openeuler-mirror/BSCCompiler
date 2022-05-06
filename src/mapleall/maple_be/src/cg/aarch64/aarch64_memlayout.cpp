@@ -14,7 +14,6 @@
  */
 #include "aarch64_memlayout.h"
 #include "aarch64_cgfunc.h"
-#include "aarch64_rt.h"
 #include "becommon.h"
 #include "mir_nodes.h"
 
@@ -190,6 +189,16 @@ void AArch64MemLayout::LayoutVarargParams() {
 }
 
 void AArch64MemLayout::LayoutFormalParams() {
+  if (be.GetMIRModule().GetFlavor() == kFlavorLmbc && mirFunction->GetFormalCount() == 0) {
+    /*
+     * lmbc : upformalsize - size of formals passed from caller's frame into current function
+     *        framesize - total frame size of current function used by Maple IR
+     *        outparmsize - portion of frame size of current function used by call parameters
+     */
+    segArgsStkPassed.SetSize(mirFunction->GetOutParmSize());
+    return;
+  }
+
   AArch64CallConvImpl parmLocator(be);
   CCLocInfo ploc;
   for (size_t i = 0; i < mirFunction->GetFormalCount(); ++i) {
@@ -275,6 +284,11 @@ void AArch64MemLayout::LayoutFormalParams() {
 }
 
 void AArch64MemLayout::LayoutLocalVariables(std::vector<MIRSymbol*> &tempVar, std::vector<MIRSymbol*> &returnDelays) {
+  if (be.GetMIRModule().GetFlavor() == kFlavorLmbc && mirFunction->GetFormalCount() == 0) {
+    segLocals.SetSize(mirFunction->GetFrameSize()/* - mirFunction->GetOutParmSize()*/);
+    return;
+  }
+
   uint32 symTabSize = mirFunction->GetSymTab()->GetSymbolTableSize();
   for (uint32 i = 0; i < symTabSize; ++i) {
     MIRSymbol *sym = mirFunction->GetSymTab()->GetSymbolFromStIdx(i);
@@ -478,10 +492,10 @@ void AArch64MemLayout::AssignSpillLocationsToPseudoRegisters() {
   RegOperand &baseOpnd = aarchCGFunc->GetOrCreateStackBaseRegOperand();
   int32 offset = static_cast<int32>(segLocals.GetSize());
 
-  AArch64OfstOperand *offsetOpnd =
-      aarchCGFunc->GetMemoryPool()->New<AArch64OfstOperand>(offset + k16BitSize, k64BitSize);
-  AArch64MemOperand *throwMem = aarchCGFunc->GetMemoryPool()->New<AArch64MemOperand>(
-      AArch64MemOperand::kAddrModeBOi, k64BitSize, baseOpnd, static_cast<AArch64RegOperand*>(nullptr), offsetOpnd,
+  OfstOperand *offsetOpnd =
+      &aarchCGFunc->CreateOfstOpnd(offset + k16BitSize, k64BitSize);
+  MemOperand *throwMem = aarchCGFunc->CreateMemOperand(
+      MemOperand::kAddrModeBOi, k64BitSize, baseOpnd, static_cast<RegOperand*>(nullptr), offsetOpnd,
       nullptr);
   aarchCGFunc->SetCatchOpnd(*throwMem);
   if (CGOptions::IsArm64ilp32()) {
@@ -494,7 +508,7 @@ void AArch64MemLayout::AssignSpillLocationsToPseudoRegisters() {
 SymbolAlloc *AArch64MemLayout::AssignLocationToSpillReg(regno_t vrNum) {
   AArch64SymbolAlloc *symLoc = memAllocator->GetMemPool()->New<AArch64SymbolAlloc>();
   symLoc->SetMemSegment(segSpillReg);
-  uint32 regSize = cgFunc->IsExtendReg(vrNum) ? k64BitSize : cgFunc->GetVRegSize(vrNum);
+  uint32 regSize = cgFunc->IsExtendReg(vrNum) ? k8ByteSize : cgFunc->GetVRegSize(vrNum);
   segSpillReg.SetSize(RoundUp(segSpillReg.GetSize(), regSize));
   symLoc->SetOffset(segSpillReg.GetSize());
   segSpillReg.SetSize(segSpillReg.GetSize() + regSize);

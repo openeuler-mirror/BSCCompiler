@@ -22,6 +22,11 @@ void AArch64FPLROffsetAdjustment::Run() {
 }
 
 void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGFunc &aarchCGFunc) {
+  if (aarchCGFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
+    /* TODO: Need to handle */
+    AdjustmentStackPointer(insn, aarchCGFunc);
+    return;
+  }
   uint32 opndNum = insn.GetOperandSize();
   MemLayout *memLayout = aarchCGFunc.GetMemlayout();
   bool stackBaseOpnd = false;
@@ -38,27 +43,27 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGF
         stackBaseOpnd = true;
       }
     } else if (opnd.IsMemoryAccessOperand()) {
-      auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
-      if (((memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi) ||
-           (memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOrX)) &&
+      auto &memOpnd = static_cast<MemOperand&>(opnd);
+      if (((memOpnd.GetAddrMode() == MemOperand::kAddrModeBOi) ||
+           (memOpnd.GetAddrMode() == MemOperand::kAddrModeBOrX)) &&
           memOpnd.GetBaseRegister() != nullptr) {
         if (memOpnd.GetBaseRegister()->IsOfVary()) {
-          memOpnd.SetBaseRegister(static_cast<AArch64RegOperand&>(aarchCGFunc.GetOrCreateStackBaseRegOperand()));
+          memOpnd.SetBaseRegister(static_cast<RegOperand&>(aarchCGFunc.GetOrCreateStackBaseRegOperand()));
         }
         RegOperand *memBaseReg = memOpnd.GetBaseRegister();
         if (memBaseReg->GetRegisterNumber() == RFP) {
           RegOperand &newBaseOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(stackBaseReg, k64BitSize, kRegTyInt);
-          AArch64MemOperand &newMemOpnd = aarchCGFunc.GetOrCreateMemOpnd(
-              AArch64MemOperand::kAddrModeBOi, memOpnd.GetSize(), &newBaseOpnd, memOpnd.GetIndexRegister(),
+          MemOperand &newMemOpnd = aarchCGFunc.GetOrCreateMemOpnd(
+              MemOperand::kAddrModeBOi, memOpnd.GetSize(), &newBaseOpnd, memOpnd.GetIndexRegister(),
               memOpnd.GetOffsetImmediate(), memOpnd.GetSymbol());
           insn.SetOperand(i, newMemOpnd);
           stackBaseOpnd = true;
         }
       }
-      if ((memOpnd.GetAddrMode() != AArch64MemOperand::kAddrModeBOi) || !memOpnd.IsIntactIndexed()) {
+      if ((memOpnd.GetAddrMode() != MemOperand::kAddrModeBOi) || !memOpnd.IsIntactIndexed()) {
         continue;
       }
-      AArch64OfstOperand *ofstOpnd = memOpnd.GetOffsetImmediate();
+      OfstOperand *ofstOpnd = memOpnd.GetOffsetImmediate();
       if (ofstOpnd == nullptr) {
         continue;
       }
@@ -70,7 +75,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGF
       if (!stackBaseOpnd && (ofstOpnd->GetVary() == kAdjustVary || ofstOpnd->GetVary() == kNotVary)) {
         bool condition = aarchCGFunc.IsOperandImmValid(insn.GetMachineOpcode(), &memOpnd, i);
         if (!condition) {
-          AArch64MemOperand &newMemOpnd = aarchCGFunc.SplitOffsetWithAddInstruction(
+          MemOperand &newMemOpnd = aarchCGFunc.SplitOffsetWithAddInstruction(
               memOpnd, memOpnd.GetSize(), static_cast<AArch64reg>(R16), false, &insn);
           insn.SetOperand(i, newMemOpnd);
         }
@@ -104,13 +109,13 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
       PrimType destTy =
           static_cast<RegOperand &>(insn.GetOperand(kInsnFirstOpnd)).GetSize() == k64BitSize ? PTY_i64 : PTY_i32;
       RegOperand *resOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-      AArch64ImmOperand &copyImmOpnd = aarchCGFunc.CreateImmOperand(
+      ImmOperand &copyImmOpnd = aarchCGFunc.CreateImmOperand(
           immOpnd.GetValue(), immOpnd.GetSize(), immOpnd.IsSignedValue());
       aarchCGFunc.SelectAddAfterInsn(*resOpnd, insn.GetOperand(kInsnSecondOpnd), copyImmOpnd, destTy, false, insn);
       insn.GetBB()->RemoveInsn(insn);
     } else if (insn.GetMachineOpcode() == MOP_xsubrri12 || insn.GetMachineOpcode() == MOP_wsubrri12) {
       if (immOpnd.IsSingleInstructionMovable()) {
-        AArch64RegOperand &tempReg = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
+        RegOperand &tempReg = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
         bool is64bit = insn.GetOperand(kInsnFirstOpnd).GetSize() == k64BitSize;
         MOperator tempMovOp = is64bit ? MOP_xmovri64 : MOP_xmovri32;
         Insn &tempMov = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(tempMovOp, tempReg, immOpnd);
@@ -136,25 +141,25 @@ void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn, AArch64CGFu
     for (uint32 i = 0; i < opndNum; ++i) {
       Operand &opnd = insn.GetOperand(i);
       if (opnd.IsMemoryAccessOperand()) {
-        auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+        auto &memOpnd = static_cast<MemOperand&>(opnd);
         ASSERT(memOpnd.GetBaseRegister() != nullptr, "Unexpect, need check");
         CHECK_FATAL(memOpnd.IsIntactIndexed(), "unsupport yet");
-        if (memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi) {
-          OfstOperand *ofstOpnd = memOpnd.GetOffsetOperand();
-          OfstOperand *newOfstOpnd = &aarchCGFunc.GetOrCreateOfstOpnd(
+        if (memOpnd.GetAddrMode() == MemOperand::kAddrModeBOi) {
+          ImmOperand *ofstOpnd = memOpnd.GetOffsetOperand();
+          ImmOperand *newOfstOpnd = &aarchCGFunc.GetOrCreateOfstOpnd(
               static_cast<uint64>(ofstOpnd->GetValue() + offset), ofstOpnd->GetSize());
-          AArch64MemOperand &newOfstMemOpnd = aarchCGFunc.GetOrCreateMemOpnd(
-              AArch64MemOperand::kAddrModeBOi, memOpnd.GetSize(), memOpnd.GetBaseRegister(), memOpnd.GetIndexRegister(),
+          MemOperand &newOfstMemOpnd = aarchCGFunc.GetOrCreateMemOpnd(
+              MemOperand::kAddrModeBOi, memOpnd.GetSize(), memOpnd.GetBaseRegister(), memOpnd.GetIndexRegister(),
               newOfstOpnd, memOpnd.GetSymbol());
           insn.SetOperand(i, newOfstMemOpnd);
           if (!aarchCGFunc.IsOperandImmValid(insn.GetMachineOpcode(), &newOfstMemOpnd, i)) {
             bool isPair = (i == kInsnThirdOpnd);
-            AArch64MemOperand &newMemOpnd = aarchCGFunc.SplitOffsetWithAddInstruction(
+            MemOperand &newMemOpnd = aarchCGFunc.SplitOffsetWithAddInstruction(
                 newOfstMemOpnd, newOfstMemOpnd.GetSize(), static_cast<AArch64reg>(R16), false, &insn, isPair);
             insn.SetOperand(i, newMemOpnd);
           }
           continue;
-        } else if (memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOrX) {
+        } else if (memOpnd.GetAddrMode() == MemOperand::kAddrModeBOrX) {
           CHECK_FATAL(false, "Unexpect adjust insn");
         } else {
           insn.Dump();
@@ -175,8 +180,8 @@ void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn, AArch64CGFu
       case MOP_xaddrri24: {
         ASSERT(static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == RSP,
             "regNumber should be changed in AdjustmentOffsetForOpnd");
-        AArch64RegOperand &tempReg = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
-        AArch64ImmOperand &offsetReg = aarchCGFunc.CreateImmOperand(offset, k64BitSize, false);
+        RegOperand &tempReg = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
+        ImmOperand &offsetReg = aarchCGFunc.CreateImmOperand(offset, k64BitSize, false);
         aarchCGFunc.SelectAddAfterInsn(tempReg, insn.GetOperand(kInsnSecondOpnd), offsetReg, PTY_i64, false, insn);
         insn.SetOperand(kInsnSecondOpnd, tempReg);
         break;
@@ -191,10 +196,23 @@ void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn, AArch64CGFu
       case MOP_xsubrri24: {
         ASSERT(static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == RSP,
             "regNumber should be changed in AdjustmentOffsetForOpnd");
-        AArch64RegOperand &tempReg = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
-        AArch64ImmOperand &offsetReg = aarchCGFunc.CreateImmOperand(offset, k64BitSize, false);
+        RegOperand &tempReg = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
+        ImmOperand &offsetReg = aarchCGFunc.CreateImmOperand(offset, k64BitSize, false);
         aarchCGFunc.SelectAddAfterInsn(tempReg, insn.GetOperand(kInsnSecondOpnd), offsetReg, PTY_i64, false, insn);
         insn.SetOperand(kInsnSecondOpnd, tempReg);
+        break;
+      }
+      case MOP_waddrri12: {
+        if(!CGOptions::IsArm64ilp32()) {
+          insn.Dump();
+          CHECK_FATAL(false, "Unexpect offset adjustment insn");
+        } else {
+          ASSERT(static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == RSP,
+              "regNumber should be changed in AdjustmentOffsetForOpnd");
+          ImmOperand &addend = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+          addend.SetValue(addend.GetValue() + offset);
+          AdjustmentOffsetForImmOpnd(insn, kInsnThirdOpnd, aarchCGFunc); /* legalize imm opnd */
+        }
         break;
       }
       default:

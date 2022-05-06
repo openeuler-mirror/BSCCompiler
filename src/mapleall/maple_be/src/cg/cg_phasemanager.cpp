@@ -266,7 +266,9 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
         (void)cf.Simplify(mirFunc->GetBody());
       }
 
-      DoFuncCGLower(m, *mirFunc);
+      if (m.GetFlavor() != MIRFlavor::kFlavorLmbc) {
+        DoFuncCGLower(m, *mirFunc);
+      }
       /* create CGFunc */
       MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(mirFunc->GetStIdx().Idx());
       auto funcMp = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, funcSt->GetName());

@@ -20,6 +20,9 @@ namespace maplebe {
 using namespace maple;
 
 void AArch64MoveRegArgs::Run() {
+  if (cgFunc->GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
+    return;
+  }
   MoveVRegisterArgs();
   MoveRegisterArgs();
 }
@@ -172,7 +175,7 @@ bool AArch64MoveRegArgs::IsInSameSegment(const ArgInfo &firstArgInfo, const ArgI
 
 void AArch64MoveRegArgs::GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgInfo &secondArgInfo) {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
-  AArch64RegOperand *baseOpnd = static_cast<AArch64RegOperand*>(aarchCGFunc->GetBaseReg(*firstArgInfo.symLoc));
+  RegOperand *baseOpnd = static_cast<RegOperand*>(aarchCGFunc->GetBaseReg(*firstArgInfo.symLoc));
   RegOperand &regOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(firstArgInfo.reg,
                                                                         firstArgInfo.stkSize * kBitsPerByte,
                                                                         firstArgInfo.regType);
@@ -193,27 +196,27 @@ void AArch64MoveRegArgs::GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgI
   MemOperand *memOpnd = nullptr;
   if (stOffset > limit || baseReg != nullptr) {
     if (baseReg == nullptr || lastSegment != firstArgInfo.symLoc->GetMemSegment()) {
-      AArch64ImmOperand &immOpnd =
+      ImmOperand &immOpnd =
           aarchCGFunc->CreateImmOperand(stOffset - firstArgInfo.symLoc->GetOffset(), k64BitSize, false);
       baseReg = &aarchCGFunc->CreateRegisterOperandOfType(kRegTyInt, k8ByteSize);
       lastSegment = firstArgInfo.symLoc->GetMemSegment();
       aarchCGFunc->SelectAdd(*baseReg, *baseOpnd, immOpnd, LOWERED_PTR_TYPE);
     }
-    AArch64OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(firstArgInfo.symLoc->GetOffset(), k32BitSize);
+    OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(firstArgInfo.symLoc->GetOffset(), k32BitSize);
     if (firstArgInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
       offsetOpnd.SetVary(kUnAdjustVary);
     }
-    memOpnd = aarchCGFunc->GetMemoryPool()->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi,
-                                                                   firstArgInfo.stkSize * kBitsPerByte,
-                                                                   *baseReg, nullptr, &offsetOpnd, firstArgInfo.sym);
+    memOpnd = aarchCGFunc->CreateMemOperand(MemOperand::kAddrModeBOi,
+                                            firstArgInfo.stkSize * kBitsPerByte,
+                                            *baseReg, nullptr, &offsetOpnd, firstArgInfo.sym);
   } else {
-    AArch64OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(stOffset, k32BitSize);
+    OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(stOffset, k32BitSize);
     if (firstArgInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
       offsetOpnd.SetVary(kUnAdjustVary);
     }
-    memOpnd = aarchCGFunc->GetMemoryPool()->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi,
-                                                                   firstArgInfo.stkSize * kBitsPerByte,
-                                                                   *baseOpnd, nullptr, &offsetOpnd, firstArgInfo.sym);
+    memOpnd = aarchCGFunc->CreateMemOperand(MemOperand::kAddrModeBOi,
+                                            firstArgInfo.stkSize * kBitsPerByte,
+                                            *baseOpnd, nullptr, &offsetOpnd, firstArgInfo.sym);
   }
   Insn &pushInsn = aarchCGFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd, *regOpnd2, *memOpnd);
   if (aarchCGFunc->GetCG()->GenerateVerboseCG()) {
@@ -223,18 +226,18 @@ void AArch64MoveRegArgs::GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgI
   aarchCGFunc->GetCurBB()->AppendInsn(pushInsn);
 }
 
-void AArch64MoveRegArgs::GenOneInsn(ArgInfo &argInfo, AArch64RegOperand &baseOpnd, uint32 stBitSize, AArch64reg dest,
+void AArch64MoveRegArgs::GenOneInsn(ArgInfo &argInfo, RegOperand &baseOpnd, uint32 stBitSize, AArch64reg dest,
                                     int32 offset) {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   MOperator mOp = aarchCGFunc->PickStInsn(stBitSize, argInfo.mirTy->GetPrimType());
   RegOperand &regOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(dest, stBitSize, argInfo.regType);
 
-  AArch64OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(static_cast<uint64>(offset), k32BitSize);
+  OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(static_cast<uint64>(offset), k32BitSize);
   if (argInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
     offsetOpnd.SetVary(kUnAdjustVary);
   }
-  MemOperand *memOpnd = aarchCGFunc->GetMemoryPool()->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi,
-                         stBitSize, baseOpnd, nullptr, &offsetOpnd, argInfo.sym);
+  MemOperand *memOpnd = aarchCGFunc->CreateMemOperand(MemOperand::kAddrModeBOi,
+                        stBitSize, baseOpnd, nullptr, &offsetOpnd, argInfo.sym);
   Insn &insn = aarchCGFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd, *memOpnd);
   if (aarchCGFunc->GetCG()->GenerateVerboseCG()) {
     insn.SetComment(std::string("store param: ").append(argInfo.sym->GetName()));
@@ -245,34 +248,34 @@ void AArch64MoveRegArgs::GenOneInsn(ArgInfo &argInfo, AArch64RegOperand &baseOpn
 void AArch64MoveRegArgs::GenerateStrInsn(ArgInfo &argInfo, AArch64reg reg2, uint32 numFpRegs, uint32 fpSize) {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   int32 stOffset = aarchCGFunc->GetBaseOffset(*argInfo.symLoc);
-  AArch64RegOperand *baseOpnd = static_cast<AArch64RegOperand*>(aarchCGFunc->GetBaseReg(*argInfo.symLoc));
+  RegOperand *baseOpnd = static_cast<RegOperand*>(aarchCGFunc->GetBaseReg(*argInfo.symLoc));
   RegOperand &regOpnd =
       aarchCGFunc->GetOrCreatePhysicalRegisterOperand(argInfo.reg, argInfo.stkSize * kBitsPerByte, argInfo.regType);
   MemOperand *memOpnd = nullptr;
-  if (AArch64MemOperand::IsPIMMOffsetOutOfRange(stOffset, argInfo.symSize * kBitsPerByte) ||
+  if (MemOperand::IsPIMMOffsetOutOfRange(stOffset, argInfo.symSize * kBitsPerByte) ||
       (baseReg != nullptr && (lastSegment == argInfo.symLoc->GetMemSegment()))) {
     if (baseReg == nullptr || lastSegment != argInfo.symLoc->GetMemSegment()) {
-      AArch64ImmOperand &immOpnd = aarchCGFunc->CreateImmOperand(stOffset - argInfo.symLoc->GetOffset(), k64BitSize,
-                                                                 false);
+      ImmOperand &immOpnd = aarchCGFunc->CreateImmOperand(stOffset - argInfo.symLoc->GetOffset(), k64BitSize,
+                                                          false);
       baseReg = &aarchCGFunc->CreateRegisterOperandOfType(kRegTyInt, k8ByteSize);
       lastSegment = argInfo.symLoc->GetMemSegment();
       aarchCGFunc->SelectAdd(*baseReg, *baseOpnd, immOpnd, PTY_a64);
     }
-    AArch64OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(argInfo.symLoc->GetOffset(), k32BitSize);
+    OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(argInfo.symLoc->GetOffset(), k32BitSize);
     if (argInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
       offsetOpnd.SetVary(kUnAdjustVary);
     }
-    memOpnd = aarchCGFunc->GetMemoryPool()->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi,
-                                                                   argInfo.symSize * kBitsPerByte, *baseReg,
-                                                                   nullptr, &offsetOpnd, argInfo.sym);
+    memOpnd = aarchCGFunc->CreateMemOperand(MemOperand::kAddrModeBOi,
+                                            argInfo.symSize * kBitsPerByte, *baseReg,
+                                            nullptr, &offsetOpnd, argInfo.sym);
   } else {
-    AArch64OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(stOffset, k32BitSize);
+    OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(stOffset, k32BitSize);
     if (argInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
       offsetOpnd.SetVary(kUnAdjustVary);
     }
-    memOpnd = aarchCGFunc->GetMemoryPool()->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi,
-                                                                   argInfo.symSize * kBitsPerByte, *baseOpnd,
-                                                                   nullptr, &offsetOpnd, argInfo.sym);
+    memOpnd = aarchCGFunc->CreateMemOperand(MemOperand::kAddrModeBOi,
+                                            argInfo.symSize * kBitsPerByte, *baseOpnd,
+                                            nullptr, &offsetOpnd, argInfo.sym);
   }
 
   MOperator mOp = aarchCGFunc->PickStInsn(argInfo.symSize * kBitsPerByte, argInfo.mirTy->GetPrimType());

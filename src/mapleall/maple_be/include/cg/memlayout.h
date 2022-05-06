@@ -221,7 +221,7 @@ class MemLayout {
     return segArgsRegPassed;
   }
 
-  const MemSegment &GetSegArgsStkPass() const {
+  const MemSegment &GetSegArgsToStkPass() const {
     return segArgsToStkPass;
   }
 
