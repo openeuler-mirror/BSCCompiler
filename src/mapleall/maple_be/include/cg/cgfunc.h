@@ -27,6 +27,7 @@
 #include "reaching.h"
 #include "cg_cfg.h"
 #include "cg_irbuilder.h"
+#include "call_conv.h"
 /* MapleIR headers. */
 #include "mir_parser.h"
 #include "mir_function.h"
@@ -74,72 +75,6 @@ class SpillMemOperandSet {
 
  private:
   MapleSet<MemOperand*, MemOpndCmp> reuseSpillLocMem;
-};
-
-class LmbcFormalParamInfo {
- public:
-  explicit LmbcFormalParamInfo(PrimType pType, uint32 ofst, uint32 sz) :
-      primType(pType), offset(ofst), size(sz), regNO(0), vregNO(0), numRegs(0), fpSize(0), isPureFloat(false) {}
-
-  virtual ~LmbcFormalParamInfo() = default;
-
-  PrimType GetPrimType() {
-    return primType;
-  }
-  void SetPrimType(PrimType pType) {
-    primType = pType;
-  }
-  uint32 GetOffset() {
-    return offset;
-  }
-  void SetOffset(uint32 ofs) {
-    offset = ofs;
-  }
-  uint32 GetSize() {
-    return size;
-  }
-  void SetSize(uint32 sz) {
-    size = sz;
-  }
-  regno_t GetRegNO() {
-    return regNO;
-  }
-  void SetRegNO(regno_t reg) {
-    regNO = reg;
-  }
-  regno_t GetVregNO() {
-    return vregNO;
-  }
-  void SetVregNO(regno_t reg) {
-    vregNO = reg;
-  }
-  uint32 GetNumRegs() {
-    return numRegs;
-  }
-  void SetNumRegs(uint32 num) {
-    numRegs = num;
-  }
-  uint32 GetFpSize() {
-    return fpSize;
-  }
-  void SetFpSize(uint32 sz) {
-    fpSize = sz;
-  }
-  bool IsPureFloat() {
-    return isPureFloat;
-  }
-  void SetIsPureFloat() {
-    isPureFloat = true;
-  }
- private:
-  PrimType primType;
-  uint32 offset;
-  uint32 size;    /* size primtype or struct */
-  regno_t regNO;  /* param reg num or starting reg num if numRegs > 0 */
-  regno_t vregNO; /* if no explicit regassing from IR, create move from param reg */
-  uint32 numRegs; /* number of regs for struct param */
-  uint32 fpSize;  /* size of fp param if isPureFloat */
-  bool isPureFloat;
 };
 
 #if TARGARM32

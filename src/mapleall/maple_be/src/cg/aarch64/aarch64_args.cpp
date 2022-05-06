@@ -20,9 +20,6 @@ namespace maplebe {
 using namespace maple;
 
 void AArch64MoveRegArgs::Run() {
-  if (cgFunc->GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
-    return;
-  }
   MoveVRegisterArgs();
   MoveRegisterArgs();
 }

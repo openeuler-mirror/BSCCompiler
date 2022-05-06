@@ -64,7 +64,8 @@ class AArch64CGFunc : public CGFunc {
     if (f.GetAttr(FUNCATTR_varargs) || f.HasVlaOrAlloca()) {
       SetHasVLAOrAlloca(true);
     }
-    SetUseFP(CGOptions::UseFramePointer() || HasVLAOrAlloca() || !f.GetModule()->IsCModule() || f.GetModule()->GetFlavor() == MIRFlavor::kFlavorLmbc);
+    SetUseFP(CGOptions::UseFramePointer() || HasVLAOrAlloca() || !f.GetModule()->IsCModule() ||
+             f.GetModule()->GetFlavor() == MIRFlavor::kFlavorLmbc);
   }
 
   ~AArch64CGFunc() override = default;

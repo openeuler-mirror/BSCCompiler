@@ -1607,7 +1607,8 @@ void CGFunc::CreateLmbcFormalParamInfo() {
       IreadFPoffNode *ireadNode = static_cast<IreadFPoffNode *>(operand);
       primType = ireadNode->GetPrimType();
       offset = ireadNode->GetOffset();
-      typeSize = GetPrimTypeSize(primType); CHECK_FATAL((offset % k8ByteSize) == 0, "");  // scalar only, no struct for now
+      typeSize = GetPrimTypeSize(primType);
+      CHECK_FATAL((offset % k8ByteSize) == 0, "");  /* scalar only, no struct for now */
       LmbcFormalParamInfo *info = GetMemoryPool()->New<LmbcFormalParamInfo>(primType, offset, typeSize);
       lmbcParamVec.push_back(info);
     }

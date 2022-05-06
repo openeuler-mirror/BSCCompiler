@@ -149,8 +149,7 @@ MOperator PickLdStInsn(bool isLoad, uint32 bitSize, PrimType primType, AArch64is
 }
 }
 
-bool IsBlkassignForPush(BlkassignoffNode &bNode)
-{
+bool IsBlkassignForPush(BlkassignoffNode &bNode) {
   BaseNode *dest = bNode.Opnd(0);
   bool spBased = false;
   if (dest->GetOpCode() == OP_regread) {
@@ -1933,7 +1932,6 @@ void AArch64CGFunc::SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) {
   MOperator mOp = PickStInsn(bitlen, primType);
   Insn &store = GetCG()->BuildInstruction<AArch64Insn>(mOp, srcOpnd, memOpnd);
   GetCurBB()->AppendInsn(store);
-  //std::cout << "=======================>SelectIassignfpoff offset " << offset << "\n";
 }
 
 void AArch64CGFunc::SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd) {
@@ -1954,14 +1952,13 @@ void AArch64CGFunc::SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd
     /* Move into allocated space */
     Operand &memOpd = CreateMemOpnd(RSP, offset, byteLen);
     Operand &reg = LoadIntoRegister(opnd, pTy);
-    GetCurBB()->AppendInsn(
-      GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(bitLen, pTy), reg, memOpd));
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(bitLen, pTy), reg, memOpd));
   }
   IncLmbcArgsInRegs(regTy);  /* num of args in registers */
   IncLmbcTotalArgs();        /* num of args */
 }
 
-// Search for CALL/ICALL node, must be called from a blkassignoff node
+/* Search for CALL/ICALL node, must be called from a blkassignoff node */
 MIRType *AArch64CGFunc::GetAggTyFromCallSite(StmtNode *stmt) {
   for ( ; stmt != nullptr; stmt = stmt->GetNext()) {
     if (stmt->GetOpCode() == OP_call || stmt->GetOpCode() == OP_icallproto) {
@@ -6197,7 +6194,8 @@ void AArch64CGFunc::AssignLmbcFormalParams() {
           }
           regno_t vreg = NewVReg(rType, rSize);
           RegOperand &dest = GetOrCreateVirtualRegisterOperand(vreg);
-          RegOperand &src = GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(param->GetRegNO() + i), rSize * kBitsPerByte, rType);
+          RegOperand &src = GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(param->GetRegNO() + i),
+                                                               rSize * kBitsPerByte, rType);
           SelectCopy(dest, pType, src, pType);
           if (param->GetVregNO() == 0) {
             param->SetVregNO(vreg);
@@ -8081,8 +8079,7 @@ void AArch64CGFunc::LmbcSelectParmList(ListOperand *srcOpnds) {
       int32 pSize = GetPrimTypeSize(pTy);
       Operand &memOpd = CreateMemOpnd(RSP, offsets[i], pSize);
       GetCurBB()->AppendInsn(
-        GetCG()->BuildInstruction<AArch64Insn>(
-          PickStInsn(pSize * kBitsPerByte, pTy), *args[i], memOpd));
+          GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(pSize * kBitsPerByte, pTy), *args[i], memOpd));
     }
   }
   ResetLmbcArgInfo();     /* reset */

@@ -141,7 +141,7 @@ uint32 ProcessStructWhenClassifyAggregate(const BECommon &be, MIRStructType &str
     }
   }
   if (isF32 || isF64) {
-    CHECK_FATAL(numRegs <=classesLength, "ClassifyAggregate: num regs exceed limit");
+    CHECK_FATAL(numRegs <= classesLength, "ClassifyAggregate: num regs exceed limit");
     for (uint32 i = 0; i < numRegs; ++i) {
       classes[i] = kAArch64FloatClass;
     }
@@ -212,17 +212,19 @@ uint32 AArch64CallConvImpl::FloatParamRegRequired(MIRStructType &structType, uin
   }
   AArch64ArgumentClass classes[kMaxRegCount];
   uint32 numRegs = ProcessStructWhenClassifyAggregate(beCommon, structType, classes, kMaxRegCount, fpSize);
-  if (numRegs) {
-    bool isPure = true;
-    for (uint i = 0; i < numRegs; ++i) {
-      if (classes[i] != kAArch64FloatClass) {
-        isPure = false;
-        break;
-      }
+  if (numRegs == 0) {
+    return 0;
+  }
+
+  bool isPure = true;
+  for (uint i = 0; i < numRegs; ++i) {
+    if (classes[i] != kAArch64FloatClass) {
+      isPure = false;
+      break;
     }
-    if (isPure) {
-      return numRegs;
-    }
+  }
+  if (isPure) {
+    return numRegs;
   }
   return 0;
 }
