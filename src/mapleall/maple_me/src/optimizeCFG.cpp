@@ -207,9 +207,13 @@ bool IsAllOpndsNotDefByCurrBB(const MeExpr &expr, const BB &currBB, std::set<con
     }
     case kMeOpIvar: {
       auto &ivar = static_cast<const IvarMeExpr &>(expr);
-      if (!IsAllOpndsNotDefByCurrBB(*ivar.GetBase(), currBB, infLoopCheck) ||
-          !IsAllOpndsNotDefByCurrBB(*ivar.GetMu(), currBB, infLoopCheck)) {
+      if (!IsAllOpndsNotDefByCurrBB(*ivar.GetBase(), currBB, infLoopCheck)) {
         return false;
+      }
+      for (auto *mu : ivar.GetMuList()) {
+        if (!IsAllOpndsNotDefByCurrBB(*mu, currBB, infLoopCheck)) {
+          return false;
+        }
       }
       return true;
     }

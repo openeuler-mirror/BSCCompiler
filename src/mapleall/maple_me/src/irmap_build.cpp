@@ -227,7 +227,7 @@ MeExpr *IRMapBuild::BuildFieldsDistMeExpr(const BaseNode &mirNode) const {
 
 MeExpr *IRMapBuild::BuildIvarMeExpr(const BaseNode &mirNode) const {
   auto &ireadSSANode = static_cast<const IreadSSANode&>(mirNode);
-  auto meExpr = new IvarMeExpr(kInvalidExprID, mirNode.GetPrimType(), ireadSSANode.GetTyIdx(),
+  auto meExpr = new IvarMeExpr(&irMap->GetIRMapAlloc(), kInvalidExprID, mirNode.GetPrimType(), ireadSSANode.GetTyIdx(),
                                ireadSSANode.GetFieldID());
   return meExpr;
 }
@@ -381,7 +381,7 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode, bool atParm, bool noProp) {
     VersionSt *verSt = iReadSSANode.GetSSAVar();
     if (verSt != nullptr) {
       VarMeExpr *varMeExpr = GetOrCreateVarFromVerSt(*verSt);
-      ivarMeExpr->SetMuVal(varMeExpr);
+      ivarMeExpr->SetMuItem(0, varMeExpr);
       if (verSt->GetOst()->IsVolatile()) {
         ivarMeExpr->SetVolatileFromBaseSymbol(true);
       }
@@ -389,7 +389,8 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode, bool atParm, bool noProp) {
 
     IvarMeExpr *canIvar = static_cast<IvarMeExpr *>(irMap->HashMeExpr(*ivarMeExpr));
     delete ivarMeExpr;
-    ASSERT(static_cast<IvarMeExpr*>(canIvar)->GetMu() != nullptr, "BuildExpr: ivar node cannot have mu == nullptr");
+    ASSERT(static_cast<IvarMeExpr*>(canIvar)->GetUniqueMu() != nullptr,
+        "BuildExpr: ivar node cannot have mu == nullptr");
     MeExpr *retmeexpr;
     if (propagater && !noProp) {
       MeExpr *propedMeExpr = &propagater->PropIvar(*canIvar);
@@ -685,8 +686,9 @@ MeStmt *IRMapBuild::BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
         CHECK_FATAL(static_cast<uint32>(fldId) <= type->NumberOfFieldIDs(), "field id out of range");
         auto fieldType = static_cast<MIRStructType*>(type)->GetFieldType(fldId);
         OffsetType offset(static_cast<MIRStructType*>(type)->GetBitOffsetFromBaseAddr(fldId));
+        auto *siblingOsts = ssaTab.GetNextLevelOsts(ost->GetPointerVstIdx());
         auto fieldOst = ssaTab.GetOriginalStTable().FindExtraLevOriginalSt(
-            ost->GetPrevLevelOst()->GetNextLevelOsts(), fieldType, fldId, offset);
+            *siblingOsts, fieldType, fldId, offset);
         if (fieldOst != nullptr) {
           ostIdx = fieldOst->GetIndex();
         }

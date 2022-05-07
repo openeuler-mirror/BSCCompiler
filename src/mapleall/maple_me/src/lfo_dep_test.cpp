@@ -106,10 +106,13 @@ bool DoloopInfo::IsLoopInvariant(MeExpr *x) {
     }
     case kMeOpIvar: {
       IvarMeExpr *ivar = static_cast<IvarMeExpr *>(x);
+      if (ivar->HasMultipleMu()) {
+        return false;
+      }
       if (!IsLoopInvariant(ivar->GetBase())) {
         return false;
       }
-      BB *defBB = ivar->GetMu()->DefByBB();
+      BB *defBB = ivar->GetUniqueMu()->DefByBB();
       return defBB == nullptr || (defBB != doloopBB && depInfo->dom->Dominate(*defBB, *doloopBB));
     }
     case kMeOpOp: {
@@ -294,8 +297,10 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
   MIRType *atype =  arr->GetArrayType(GlobalTables::GetTypeTable());
   ASSERT(atype->GetKind() == kTypeArray, "type was wrong");
   MIRArrayType *arryty = static_cast<MIRArrayType *>(atype);
-  size_t dim = arryty->GetDim();
-  CHECK_FATAL(dim >= arr->NumOpnds() - 1, "BuildOneArrayAccessDesc: inconsistent array dimension");
+  if (!arryty->IsIncompleteArray()) {
+    size_t dim = arryty->GetDim();
+    CHECK_FATAL(dim >= arr->NumOpnds() - 1, "BuildOneArrayAccessDesc: inconsistent array dimension");
+  }
   // ensure array base is loop invariant
   if (!IsLoopInvariant2(arr->Opnd(0))) {
     hasPtrAccess = true;
@@ -308,16 +313,24 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
   if (arrayMeExpr == nullptr || arrayMeExpr->GetOp() == OP_add) {  // the array is converted from add
   } else if (parentNode->op == OP_iread) {
     ivarMeExpr = static_cast<IvarMeExpr *>(depInfo->preEmit->GetMexpr(parentNode));
-    CHECK_FATAL(ivarMeExpr->GetMu() != nullptr, "BuildOneArrayAccessDesc: no mu corresponding to iread");
+    if (ivarMeExpr->HasMultipleMu()) {
+      return nullptr;
+    }
+    auto *mu = ivarMeExpr->GetUniqueMu();
+    CHECK_FATAL(mu != nullptr, "BuildOneArrayAccessDesc: no mu corresponding to iread");
     arryOstIdxSet = alloc->GetMemPool()->New<MapleSet<OStIdx>>(alloc->Adapter());
-    arryOstIdxSet->insert(ivarMeExpr->GetMu()->GetOst()->GetIndex());
+    arryOstIdxSet->insert(mu->GetOst()->GetIndex());
   } else if (parentNode->op == OP_iassign) {
     IassignMeStmt *iassMeStmt = static_cast<IassignMeStmt *>(depInfo->preEmit->
         GetMeStmt(static_cast<IassignNode *>(parentNode)->GetStmtID()));
     ivarMeExpr = iassMeStmt->GetLHSVal();
+    if (ivarMeExpr->HasMultipleMu()) {
+      return nullptr;
+    }
     arryOstIdxSet = alloc->GetMemPool()->New<MapleSet<OStIdx>>(alloc->Adapter());
-    if (ivarMeExpr->GetMu()) {
-      arryOstIdxSet->insert(ivarMeExpr->GetMu()->GetOst()->GetIndex());
+    auto *mu = ivarMeExpr->GetUniqueMu();
+    if (mu != nullptr) {
+      arryOstIdxSet->insert(mu->GetOst()->GetIndex());
     } else {
       MapleMap<OStIdx, ChiMeNode *> *chiList = iassMeStmt->GetChiList();
       CHECK_FATAL(!chiList->empty(), "BuildOneArrayAccessDesc: no chi corresponding to iassign");

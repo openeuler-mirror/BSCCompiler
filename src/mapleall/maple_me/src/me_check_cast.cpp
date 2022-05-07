@@ -579,8 +579,8 @@ ProveRes CheckCast::TraverseBackProve(MeExpr &expr, MIRType &targetType, std::se
     CHECK_FATAL(static_cast<ConstMeExpr*>(&expr)->IsZero(), "must be");
     return ProveRes::kT;
   }
-  if (expr.GetMeOp() == kMeOpIvar) {
-    return TraverseBackProve(*(static_cast<IvarMeExpr&>(expr).GetMu()), targetType, visitedPhi);
+  if (expr.GetMeOp() == kMeOpIvar && !static_cast<IvarMeExpr&>(expr).HasMultipleMu()) {
+    return TraverseBackProve(*(static_cast<IvarMeExpr&>(expr).GetUniqueMu()), targetType, visitedPhi);
   }
   if (expr.GetMeOp() != kMeOpVar) {
     return ProveRes::kF;

@@ -94,12 +94,8 @@ RCItem *AnalyzeRC::FindOrCreateRCItem(OriginalSt &ost) {
   }
   RCItem *rcItem = analyzeRCMp->New<RCItem>(ost, analyzeRCAllocator);
   rcItemsMap[ost.GetIndex()] = rcItem;
-  if (ost.GetIndex() >= aliasClass.GetAliasElemCount()) {
-    rcItem->noAlias = true;
-  } else {
-    AliasElem *ae = aliasClass.FindAliasElem(ost);
-    rcItem->noAlias = ae->GetClassSet() == nullptr;
-  }
+  auto *aliasSet = aliasClass.GetAliasSet(ost);
+  rcItem->noAlias = aliasSet == nullptr;
   rcItem->nonLocal = ost.GetIndirectLev() > 0 || ost.GetMIRSymbol()->IsGlobal();
   if (!rcItem->nonLocal) {
     rcItem->isFormal = ost.GetMIRSymbol()->GetStorageClass() == kScFormal;
@@ -114,8 +110,8 @@ OriginalSt *AnalyzeRC::GetOriginalSt(const MeExpr &refLHS) const {
   }
   ASSERT(refLHS.GetMeOp() == kMeOpIvar, "GetOriginalSt: unexpected node type");
   auto &ivarMeExpr = static_cast<const IvarMeExpr&>(refLHS);
-  if (ivarMeExpr.GetMu() != nullptr) {
-    return ivarMeExpr.GetMu()->GetOst();
+  if (ivarMeExpr.GetUniqueMu() != nullptr) {
+    return ivarMeExpr.GetUniqueMu()->GetOst();
   }
   ASSERT(ivarMeExpr.GetDefStmt() != nullptr, "GetOriginalSt: ivar with mu==nullptr has no defStmt");
   IassignMeStmt *iass = ivarMeExpr.GetDefStmt();
@@ -164,7 +160,8 @@ void AnalyzeRC::IdentifyRCStmts() {
           auto *lhsIvar = static_cast<IvarMeExpr*>(lhsRef);
           {
             // insert a decref statement
-            IvarMeExpr ivarMeExpr(-1, lhsIvar->GetPrimType(), lhsIvar->GetTyIdx(), lhsIvar->GetFieldID());
+            IvarMeExpr ivarMeExpr(&irMap.GetIRMapAlloc(), -1, lhsIvar->GetPrimType(),
+                lhsIvar->GetTyIdx(), lhsIvar->GetFieldID());
             ivarMeExpr.SetBase(lhsIvar->GetBase());
             // form mu from chiList
             auto &iass = static_cast<IassignMeStmt&>(stmt);
@@ -172,7 +169,8 @@ void AnalyzeRC::IdentifyRCStmts() {
             for (; xit != iass.GetChiList()->end(); ++xit) {
               ChiMeNode *chi = xit->second;
               if (chi->GetRHS()->GetOst() == ost) {
-                ivarMeExpr.SetMuVal(chi->GetRHS());
+                CHECK_FATAL(!ivarMeExpr.HasMultipleMu(), "NYI");
+                ivarMeExpr.SetMuItem(0, chi->GetRHS());
                 break;
               }
             }
@@ -371,10 +369,16 @@ bool AnalyzeRC::NeedDecRef(IvarMeExpr &ivar) const {
   }
   // check the ivar's mu is zero version
   OriginalSt *ost = GetOriginalSt(ivar);
-  if (ivar.GetMu() == nullptr) {
+  for (auto *mu : ivar.GetMuList()) {
+    if (mu == nullptr) {
+      return false;
+    }
+    if (mu->GetVstIdx() != ost->GetZeroVersionIndex() && mu->GetDefBy() != kDefByNo) {
+      continue;
+    }
     return false;
   }
-  return ivar.GetMu()->GetVstIdx() != ost->GetZeroVersionIndex() && ivar.GetMu()->GetDefBy() != kDefByNo;
+  return true;
 }
 
 bool AnalyzeRC::NeedDecRef(const VarMeExpr &var) const {

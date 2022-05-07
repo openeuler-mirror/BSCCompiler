@@ -419,35 +419,57 @@ bool IvarMeExpr::IsIdentical(IvarMeExpr &expr, bool inConstructor) const {
     }
   }
 
-  // check the two mu being identical
-  if (mu != expr.mu) {
-    if (mu != nullptr && expr.mu != nullptr) {
-      if (mu->GetDefByMeStmt() == expr.mu->GetDefByMeStmt() && mu->GetDefByMeStmt() == nullptr) {
-        if (mu->GetDefBy() == kDefByPhi && expr.mu->GetDefBy() == kDefByPhi) {
-          return (mu->GetDefPhi().GetDefBB() == expr.mu->GetDefPhi().GetDefBB());
+  return IsMuListIdentical(expr);
+}
+
+bool IvarMeExpr::IsMuListIdentical(IvarMeExpr &expr) const {
+  if (muList.size() != expr.muList.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < muList.size(); ++i) {
+    auto *mu = muList[i];
+    auto *rhsMu = expr.muList[i];
+    if (mu == rhsMu) {
+      continue;
+    }
+    // Two different mu may be regarded as identical
+    if (mu != nullptr && rhsMu != nullptr) {
+      if (mu->GetDefByMeStmt() == rhsMu->GetDefByMeStmt() && mu->GetDefByMeStmt() == nullptr) {
+        if (mu->GetDefBy() == kDefByPhi && rhsMu->GetDefBy() == kDefByPhi) {
+          if (mu->GetDefPhi().GetDefBB() == rhsMu->GetDefPhi().GetDefBB()) {
+            continue;  // check next mu
+          }
+          return false;
         }
 
-        if (mu->GetDefBy() == kDefByNo && expr.mu->GetDefBy() == kDefByNo) {
-          return true;
+        if (mu->GetDefBy() == kDefByNo && rhsMu->GetDefBy() == kDefByNo) {
+          continue;  // check next mu
         }
         return false;
       }
-
-      return mu->GetDefByMeStmt() == expr.mu->GetDefByMeStmt();
+      if (mu->GetDefByMeStmt() == rhsMu->GetDefByMeStmt()) {
+        continue;  // check next mu
+      }
+      return false;
     }
 
-    if (mu != nullptr && expr.mu == nullptr && expr.GetDefStmt() != nullptr) {
+    if (mu != nullptr && rhsMu == nullptr && expr.GetDefStmt() != nullptr) {
       IassignMeStmt *iass = expr.GetDefStmt();
       if (iass->GetOp() != OP_iassign) {
         // this can happen due to use of placement new
         return false;
       }
+      bool foundMu = false;
       for (auto xit = iass->GetChiList()->begin(); xit != iass->GetChiList()->end(); ++xit) {
         ChiMeNode *chi = xit->second;
         if (chi->GetLHS()->GetExprID() == mu->GetExprID()) {
-          expr.SetMuVal(mu);
-          return true;
+          expr.SetMuItem(i, mu);
+          foundMu = true;
+          break;
         }
+      }
+      if (foundMu) {
+        continue;  // check next mu
       }
     }
     return false;
@@ -1021,8 +1043,15 @@ void IvarMeExpr::Dump(const IRMap *irMap, int32 indent) const {
   LogInfo::MapleLogger() << '\n';
   PrintIndentation(indent + 1);
   LogInfo::MapleLogger() << "- MU: {";
-  if (mu != nullptr) {
-    mu->Dump(irMap);
+  bool firstMu = true;
+  for (auto *mu : muList) {
+    if (mu != nullptr) {
+      if (!firstMu) {
+        LogInfo::MapleLogger() << ", ";
+      }
+      mu->Dump(irMap);
+      firstMu = false;
+    }
   }
   LogInfo::MapleLogger() << "}";
 }

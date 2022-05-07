@@ -67,10 +67,13 @@ static bool PropagatableBaseOfIvar(const IvarMeExpr *ivar, const MeExpr *newExpr
       }
     }
   }
+  if (newExpr->GetOp() == OP_iaddrof) {
+    return PropagatableByCopyProp(newExpr->GetOpnd(0));
+  }
   return false;
 }
 
-static bool PropagatableOpndOfOperator(const MeExpr *meExpr, Opcode op, uint32 opndId) {
+static bool PropagatableOpndOfOperator(const MeExpr *meExpr, Opcode op, size_t opndId) {
   if (PropagatableByCopyProp(meExpr)) {
     return true;
   }
@@ -127,7 +130,10 @@ MeExpr &CopyProp::PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm) {
     }
     case kMeOpIvar: {
       auto *ivarMeExpr = static_cast<IvarMeExpr*>(&meExpr);
-      ASSERT(ivarMeExpr->GetMu() != nullptr, "PropMeExpr: ivar has mu == nullptr");
+      if (ivarMeExpr->HasMultipleMu()) {
+        return meExpr;
+      }
+      ASSERT(ivarMeExpr->GetUniqueMu() != nullptr, "PropMeExpr: ivar has mu == nullptr");
       auto *base = ivarMeExpr->GetBase();
       MeExpr *propedExpr = &PropMeExpr(utils::ToRef(base), subProped, false);
       if (propedExpr == base) {
@@ -137,10 +143,13 @@ MeExpr &CopyProp::PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm) {
       if (!(base->GetMeOp() == kMeOpVar || base->GetMeOp() == kMeOpReg) ||
           PropagatableBaseOfIvar(ivarMeExpr, propedExpr)) {
         isproped = true;
-        IvarMeExpr newMeExpr(-1, *ivarMeExpr);
+        IvarMeExpr newMeExpr(&irMap.GetIRMapAlloc(), -1, *ivarMeExpr);
         newMeExpr.SetBase(propedExpr);
         newMeExpr.SetDefStmt(nullptr);
         ivarMeExpr = static_cast<IvarMeExpr*>(irMap.HashMeExpr(newMeExpr));
+        auto *simplified = irMap.SimplifyIvar(ivarMeExpr, false);
+        ivarMeExpr = (simplified != nullptr && simplified->GetMeOp() == kMeOpIvar) ?
+            static_cast<IvarMeExpr*>(simplified) : ivarMeExpr;
       }
 
       auto &propedIvar = PropIvar(*ivarMeExpr);

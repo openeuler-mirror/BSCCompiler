@@ -92,8 +92,10 @@ void Prop::CollectSubVarMeExpr(const MeExpr &meExpr, std::vector<const MeExpr*> 
       break;
     case kMeOpIvar: {
       auto &ivarMeExpr = static_cast<const IvarMeExpr&>(meExpr);
-      if (ivarMeExpr.GetMu() != nullptr) {
-        varVec.push_back(ivarMeExpr.GetMu());
+      for (auto *mu : ivarMeExpr.GetMuList()) {
+        if (mu != nullptr) {
+          varVec.push_back(mu);
+        }
       }
       break;
     }
@@ -464,10 +466,10 @@ MeExpr *Prop::RehashUsingInverse(MeExpr *x) {
       IvarMeExpr *ivarx = static_cast<IvarMeExpr *>(x);
       MeExpr *result = RehashUsingInverse(ivarx->GetBase());
       if (result != nullptr) {
-        IvarMeExpr newivarx(-1, ivarx->GetPrimType(), ivarx->GetTyIdx(), ivarx->GetFieldID());
+        IvarMeExpr newivarx(&irMap.GetIRMapAlloc(), -1, ivarx->GetPrimType(), ivarx->GetTyIdx(), ivarx->GetFieldID());
         newivarx.SetOffset(ivarx->GetOffset());
         newivarx.SetBase(result);
-        newivarx.SetMuVal(ivarx->GetMu());
+        newivarx.SetMuList(ivarx->GetMuList());
         return irMap.HashMeExpr(newivarx);
       }
       return nullptr;
@@ -825,7 +827,10 @@ MeExpr &Prop::PropMeExpr(MeExpr &meExpr, bool &isProped, bool atParm) {
     }
     case kMeOpIvar: {
       auto *ivarMeExpr = static_cast<IvarMeExpr*>(&meExpr);
-      ASSERT(ivarMeExpr->GetMu() != nullptr, "PropMeExpr: ivar has mu == nullptr");
+      if (ivarMeExpr->HasMultipleMu()) {
+        return meExpr;
+      }
+      ASSERT(ivarMeExpr->GetUniqueMu() != nullptr, "PropMeExpr: ivar has mu == nullptr");
       bool baseProped = false;
       MeExpr *base = nullptr;
       if (ivarMeExpr->GetBase()->GetMeOp() != kMeOpVar || config.propagateBase) {
@@ -834,7 +839,7 @@ MeExpr &Prop::PropMeExpr(MeExpr &meExpr, bool &isProped, bool atParm) {
 
       if (baseProped) {
         isProped = true;
-        IvarMeExpr newMeExpr(-1, *ivarMeExpr);
+        IvarMeExpr newMeExpr(&irMap.GetIRMapAlloc(), -1, *ivarMeExpr);
         newMeExpr.SetBase(base);
         newMeExpr.SetDefStmt(nullptr);
         ivarMeExpr = static_cast<IvarMeExpr*>(irMap.HashMeExpr(newMeExpr));

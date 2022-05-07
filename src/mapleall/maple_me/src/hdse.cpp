@@ -129,8 +129,15 @@ bool HDSE::RealUse(MeExpr &expr, MeStmt &assign) {
         }
       }
       auto &ivar = static_cast<IvarMeExpr&>(expr);
-      return RealUse(*ivar.GetBase(), assign) ||
-             (ivar.GetMu() && RealUse(*ivar.GetMu(), assign));
+      if (RealUse(*ivar.GetBase(), assign)) {
+        return true;
+      }
+      for (auto *mu : ivar.GetMuList()) {
+        if (mu != nullptr && RealUse(*mu, assign)) {
+          return true;
+        }
+      }
+      return false;
     }
     default:
       break;
@@ -703,8 +710,12 @@ void HDSE::MarkSingleUseLive(MeExpr &meExpr) {
     case kMeOpIvar: {
       auto *base = static_cast<IvarMeExpr&>(meExpr).GetBase();
       MarkSingleUseLive(*base);
-      ScalarMeExpr *mu = static_cast<IvarMeExpr&>(meExpr).GetMu();
-      workList.push_front(mu);
+      auto &muList = static_cast<IvarMeExpr&>(meExpr).GetMuList();
+      for (auto *mu : muList) {
+        if (mu != nullptr) {
+          workList.push_front(mu);
+        }
+      }
       break;
     }
     default:

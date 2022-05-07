@@ -452,9 +452,10 @@ bool SeqVectorize::IsExprDataIndependent(const MeExpr *expr, const IassignMeStmt
     if (iass == defStmt) {
       return false;
     }
-    auto *mu = static_cast<const IvarMeExpr *>(expr)->GetMu();
-    if (!IsExprDataIndependent(mu, defStmt)) {
-      return false;
+    for (auto *mu : static_cast<const IvarMeExpr *>(expr)->GetMuList()) {
+      if (!IsExprDataIndependent(mu, defStmt)) {
+        return false;
+      }
     }
   }
   for (size_t i = 0; i < expr->GetNumOpnds(); ++i) {

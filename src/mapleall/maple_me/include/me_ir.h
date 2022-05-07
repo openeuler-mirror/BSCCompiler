@@ -811,14 +811,14 @@ class OpMeExpr : public MeExpr {
   // unary
   OpMeExpr(int32 exprID, Opcode o, PrimType t, MeExpr *opnd0)
       : MeExpr(exprID, kMeOpOp, o, t, 1), tyIdx(TyIdx(0)) {
-    opnds[0] = opnd0;
+    SetOpnd(0, opnd0);
   }
 
   // binary
   OpMeExpr(int32 exprID, Opcode o, PrimType t, MeExpr *opnd0, MeExpr *opnd1)
       : MeExpr(exprID, kMeOpOp, o, t, 2), tyIdx(TyIdx(0)) {
-    opnds[0] = opnd0;
-    opnds[1] = opnd1;
+    SetOpnd(0, opnd0);
+    SetOpnd(1, opnd1);
     hasAddressValue = opnd0->HasAddressValue() || opnd1->HasAddressValue();
   }
 
@@ -961,22 +961,23 @@ class OpMeExpr : public MeExpr {
 
 class IvarMeExpr : public MeExpr {
  public:
-  IvarMeExpr(int32 exprid, PrimType t, TyIdx tidx, FieldID fid, Opcode op)
-      : MeExpr(exprid, kMeOpIvar, op, t, 1), tyIdx(tidx), fieldID(fid) {}
+  IvarMeExpr(MapleAllocator *alloc, int32 exprid, PrimType t, TyIdx tidx, FieldID fid, Opcode op)
+      : MeExpr(exprid, kMeOpIvar, op, t, 1), tyIdx(tidx), fieldID(fid), muList(1, nullptr, alloc->Adapter()) {}
 
-  IvarMeExpr(int32 exprid, PrimType t, TyIdx tidx, FieldID fid)
-      : IvarMeExpr(exprid, t, tidx, fid, OP_iread) {}
+  IvarMeExpr(MapleAllocator *alloc, int32 exprid, PrimType t, TyIdx tidx, FieldID fid)
+      : IvarMeExpr(alloc, exprid, t, tidx, fid, OP_iread) {}
 
-  IvarMeExpr(int32 exprid, const IvarMeExpr &ivarme)
+  IvarMeExpr(MapleAllocator *alloc, int32 exprid, const IvarMeExpr &ivarme)
       : MeExpr(exprid, kMeOpIvar, ivarme.op, ivarme.GetPrimType(), 1),
         defStmt(ivarme.defStmt),
         base(ivarme.base),
         tyIdx(ivarme.tyIdx),
         fieldID(ivarme.fieldID),
         offset(ivarme.offset),
-        volatileFromBaseSymbol(ivarme.volatileFromBaseSymbol) {
-    mu = ivarme.mu;
-  }
+        volatileFromBaseSymbol(ivarme.volatileFromBaseSymbol),
+        muList(ivarme.muList, alloc->Adapter()) {}
+
+  IvarMeExpr() = delete;  // Disable default ctor
 
   ~IvarMeExpr() = default;
 
@@ -990,6 +991,7 @@ class IvarMeExpr : public MeExpr {
   bool IsRCWeak() const;
   bool IsUseSameSymbol(const MeExpr&) const override;
   bool IsIdentical(IvarMeExpr &expr, bool inConstructor) const;
+  bool IsMuListIdentical(IvarMeExpr &expr) const;
   MeExpr *GetIdenticalExpr(MeExpr &expr, bool inConstructor) const override;
   MeExpr *GetOpnd(size_t) const override {
     return base;
@@ -1063,14 +1065,55 @@ class IvarMeExpr : public MeExpr {
     volatileFromBaseSymbol = value;
   }
 
-  ScalarMeExpr *GetMu() {
-    return mu;
+  MapleVector<ScalarMeExpr*> &GetMuList() {
+    return muList;
   }
-  const ScalarMeExpr *GetMu() const {
-    return mu;
+
+  const MapleVector<ScalarMeExpr*> &GetMuList() const {
+    return muList;
   }
-  void SetMuVal(ScalarMeExpr *muVal) {
-    mu = muVal;
+
+  ScalarMeExpr *GetUniqueMu() {
+    CHECK_FATAL(muList.size() == 1, "scalar ivar should has only 1 mu");
+    return muList[0];
+  }
+
+  const ScalarMeExpr *GetUniqueMu() const {
+    CHECK_FATAL(muList.size() == 1, "scalar ivar should has only 1 mu");
+    return muList[0];
+  }
+
+  void SetMuItem(size_t i, ScalarMeExpr *muVal) {
+    CHECK_FATAL(i < muList.size(), "container check");
+    muList[i] = muVal;
+  }
+
+  void SetMuList(const MapleVector<ScalarMeExpr*> &inputMuList) {
+    size_t len = inputMuList.size();
+    if (muList.size() != len) {
+      muList.resize(len, nullptr);
+    }
+    for (size_t i = 0; i < len; ++i) {
+      muList[i] = inputMuList[i];
+    }
+  }
+
+  void SetMuList(const std::vector<ScalarMeExpr*> &inputMuList) {
+    size_t len = inputMuList.size();
+    if (muList.size() != len) {
+      muList.resize(len, nullptr);
+    }
+    for (size_t i = 0; i < len; ++i) {
+      muList[i] = inputMuList[i];
+    }
+  }
+
+  uint32 GetMuCount() const {
+    return muList.size();
+  }
+
+  bool HasMultipleMu() const {
+    return muList.size() > 1;
   }
 
   uint32 GetHashIndex() const override {
@@ -1101,7 +1144,8 @@ class IvarMeExpr : public MeExpr {
  public:
   bool simplifiedWithConstOffset = false;
  private:
-  ScalarMeExpr *mu = nullptr;   // use of mu, only one for IvarMeExpr
+  // muList size must be >= 1, can not be empty
+  MapleVector<ScalarMeExpr*> muList;  // vector type ivar may have multiple mu, non-vector type ivar has only 1 mu
 };
 
 // for array, intrinsicop and intrinsicopwithtype

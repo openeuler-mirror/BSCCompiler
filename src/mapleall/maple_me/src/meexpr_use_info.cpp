@@ -35,18 +35,10 @@ void MeExprUseInfo::AddUseSiteOfExpr(MeExpr *expr, T *useSite) {
     (*useSites)[uintExprID] = {expr, newList};
     return;
   }
-  if (!(*useSites)[uintExprID].second->front().SameUseItem(useSite)) {
-    (*useSites)[uintExprID].second->emplace_front(UseItem(useSite));
+  UseItem use(useSite);
+  if ((*useSites)[uintExprID].second->front() != use) {
+    (*useSites)[uintExprID].second->emplace_front(use);
   }
-}
-
-template<class T>
-void MeExprUseInfo::RemoveUseSiteOfExpr(const MeExpr *expr, T *useSite) {
-  auto *useSitesOfExpr = GetUseSitesOfExpr(expr);
-  if (useSitesOfExpr == nullptr) {
-    return;
-  }
-  useSitesOfExpr->remove(UseItem(useSite));
 }
 
 MapleList<UseItem> *MeExprUseInfo::GetUseSitesOfExpr(const MeExpr *expr) const {
@@ -81,8 +73,9 @@ void MeExprUseInfo::CollectUseInfoInExpr(MeExpr *expr, MeStmt *stmt) {
   }
 
   if (expr->GetMeOp() == kMeOpIvar) {
-    auto *mu = static_cast<IvarMeExpr *>(expr)->GetMu();
-    AddUseSiteOfExpr(mu, stmt);
+    for (auto *mu : static_cast<IvarMeExpr*>(expr)->GetMuList()) {
+      AddUseSiteOfExpr(mu, stmt);
+    }
   }
 
   for (size_t opndId = 0; opndId < expr->GetNumOpnds(); ++opndId) {
@@ -154,38 +147,49 @@ void MeExprUseInfo::CollectUseInfoInFunc(IRMap *irMap, Dominance *domTree, MeExp
 
 bool MeExprUseInfo::ReplaceScalar(IRMap *irMap, const ScalarMeExpr *scalarA, ScalarMeExpr *scalarB) {
   auto *useList = GetUseSitesOfExpr(scalarA);
-  if (useList == nullptr || useList->empty()) {
+
+  if (!useList || useList->empty()) {
     return true;
   }
 
   bool replacedAll = true;
-  for (auto &useSite : *useList) {
+
+  auto end = useList->end();
+  decltype(end) next;
+
+  for (auto it = useList->begin(); it != end; it = next) {
+    next = std::next(it);
+    auto &useSite = *it;
+
     if (useSite.IsUseByStmt()) {
       auto *useStmt = useSite.GetStmt();
-      auto replaced = irMap->ReplaceMeExprStmt(*useStmt, *scalarA, *scalarB);
-      if (replaced) {
-        AddUseSiteOfExpr(scalarB, useStmt);
-        RemoveUseSiteOfExpr(scalarA, useStmt);
-      }
-      continue;
-    }
 
-    if (useSite.IsUseByPhi()) {
+      if (irMap->ReplaceMeExprStmt(*useStmt, *scalarA, *scalarB)) {
+        AddUseSiteOfExpr(scalarB, useStmt);
+        useList->erase(it);
+      }
+    } else {
+      ASSERT(useSite.IsUseByPhi(), "Invalid use type!");
+
       if (scalarA->GetOst() != scalarB->GetOst()) {
         replacedAll = false;
         continue;
       }
+
       auto *phi = useSite.GetPhi();
+
       for (size_t id = 0; id < phi->GetOpnds().size(); ++id) {
         if (phi->GetOpnd(id) != scalarA) {
           continue;
         }
+
         phi->GetOpnds()[id] = scalarB;
         AddUseSiteOfExpr(scalarB, phi);
-        RemoveUseSiteOfExpr(scalarA, phi);
+        useList->erase(it);
       }
     }
   }
+
   return replacedAll;
 }
 } // namespace maple

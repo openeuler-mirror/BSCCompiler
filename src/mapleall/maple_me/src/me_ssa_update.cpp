@@ -181,15 +181,19 @@ MeExpr *MeSSAUpdate::RenameExpr(MeExpr &meExpr, bool &changed) {
     case kMeOpIvar: {
       auto &ivarMeExpr = static_cast<IvarMeExpr&>(meExpr);
       MeExpr *newbase = RenameExpr(*ivarMeExpr.GetBase(), needRehash);
-      MeExpr *newMU = nullptr;
-      if (ivarMeExpr.GetMu() != nullptr) {
-        newMU = RenameExpr(*ivarMeExpr.GetMu(), needRehash);
+      std::vector<ScalarMeExpr*> newMuList;
+      for (auto *mu : ivarMeExpr.GetMuList()) {
+        if (mu == nullptr) {
+          continue;
+        }
+        auto *newMu = RenameExpr(*mu, needRehash);
+        newMuList.push_back(static_cast<ScalarMeExpr*>(newMu));
       }
       if (needRehash) {
         changed = true;
-        IvarMeExpr newMeExpr(kInvalidExprID, ivarMeExpr);
+        IvarMeExpr newMeExpr(&irMap.GetIRMapAlloc(), kInvalidExprID, ivarMeExpr);
         newMeExpr.SetBase(newbase);
-        newMeExpr.SetMuVal(static_cast<ScalarMeExpr*>(newMU));
+        newMeExpr.SetMuList(newMuList);
         newMeExpr.SetDefStmt(nullptr);
         return irMap.HashMeExpr(newMeExpr);
       }

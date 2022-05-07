@@ -648,12 +648,13 @@ bool MeSink::OpndOfExprRedefined(const MeExpr *expr) const {
       return currentVersion != scalar;
     }
     case kMeOpIvar: {
-      auto *mu = static_cast<const IvarMeExpr *>(expr)->GetMu();
-      if (mu == nullptr) {
-        return true;
-      }
-      if (OpndOfExprRedefined(mu)) {
-        return true;
+      for (auto *mu : static_cast<const IvarMeExpr *>(expr)->GetMuList()) {
+        if (mu == nullptr) {
+          return true;
+        }
+        if (OpndOfExprRedefined(mu)) {
+          return true;
+        }
       }
       break;
     }
@@ -715,17 +716,21 @@ MeExpr *MeSink::ConstructExpr(MeExpr *expr, const BB *predBB, const BB *phiBB) {
       return nullptr;
     }
     case kMeOpIvar: {
-      IvarMeExpr newIvar(kInvalidExprID, *static_cast<IvarMeExpr *>(expr));
+      IvarMeExpr newIvar(&irMap->GetIRMapAlloc(), kInvalidExprID, *static_cast<IvarMeExpr *>(expr));
       auto *newBase = ConstructExpr(newIvar.GetBase(), predBB, phiBB);
       if (newBase == nullptr) {
         return nullptr;
       }
       newIvar.SetBase(newBase);
-      auto *newMu = ConstructExpr(newIvar.GetMu(), predBB, phiBB);
-      if (newMu == nullptr) {
-        return nullptr;
+      std::vector<ScalarMeExpr*> newMuList;
+      for (auto *mu : newIvar.GetMuList()) {
+        auto *newMu = ConstructExpr(mu, predBB, phiBB);
+        if (newMu == nullptr) {
+          return nullptr;
+        }
+        newMuList.push_back(static_cast<ScalarMeExpr*>(newMu));
       }
-      newIvar.SetMuVal(static_cast<ScalarMeExpr *>(newMu));
+      newIvar.SetMuList(newMuList);
       return irMap->HashMeExpr(newIvar);
     }
     case kMeOpOp: {
@@ -807,7 +812,9 @@ static void ResetLiveStateOfDefPhi(MeExpr *expr) {
     return;
   }
   if (expr->GetMeOp() == kMeOpIvar) {
-    ResetLiveStateOfDefPhi(static_cast<IvarMeExpr *>(expr)->GetMu());
+    for (auto *mu : static_cast<IvarMeExpr*>(expr)->GetMuList()) {
+      ResetLiveStateOfDefPhi(mu);
+    }
   }
 
   for (size_t opndId = 0; opndId < expr->GetNumOpnds(); ++opndId) {
@@ -977,8 +984,9 @@ static void CollectUsedScalar(MeExpr *expr, ScalarVec &scalarVec) {
       break;
     }
     case kMeOpIvar: {
-      auto *mu = static_cast<IvarMeExpr *>(expr)->GetMu();
-      (void)scalarVec.insert(mu);
+      for (auto *mu : static_cast<IvarMeExpr *>(expr)->GetMuList()) {
+        (void)scalarVec.insert(mu);
+      }
       break;
     }
     default: {

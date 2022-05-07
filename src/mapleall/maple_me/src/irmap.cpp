@@ -19,8 +19,6 @@
 #include "constantfold.h"
 #include "cast_opt.h"
 
-#include <optional>
-
 namespace maple {
 void IRMap::UpdateIncDecAttr(MeStmt &meStmt) {
   if (!kOpcodeInfo.AssignActualVar(meStmt.GetOp())) {
@@ -122,9 +120,9 @@ MeExpr *IRMap::CreateIaddrofMeExpr(FieldID fieldId, TyIdx tyIdx, MeExpr *base) {
 MeExpr *IRMap::CreateIvarMeExpr(MeExpr &expr, TyIdx tyIdx, MeExpr &base) {
   ASSERT(expr.GetMeOp() == kMeOpVar, "expecting IVarMeExpr");
   auto &varMeExpr = static_cast<VarMeExpr&>(expr);
-  IvarMeExpr ivarMeExpr(-1, varMeExpr.GetPrimType(), tyIdx, varMeExpr.GetOst()->GetFieldID());
+  IvarMeExpr ivarMeExpr(&irMapAlloc, -1, varMeExpr.GetPrimType(), tyIdx, varMeExpr.GetOst()->GetFieldID());
   ivarMeExpr.SetBase(&base);
-  ivarMeExpr.SetMuVal(&varMeExpr);
+  ivarMeExpr.SetMuItem(0, &varMeExpr);
   return HashMeExpr(ivarMeExpr);
 }
 
@@ -265,7 +263,7 @@ VarMeExpr *IRMap::GetOrCreateZeroVersionVarMeExpr(OriginalSt &ost) {
 }
 
 IvarMeExpr *IRMap::BuildLHSIvar(MeExpr &baseAddr, PrimType primType, const TyIdx &tyIdx, FieldID fieldID) {
-  auto *meDef = New<IvarMeExpr>(exprID++, primType, tyIdx, fieldID);
+  auto *meDef = New<IvarMeExpr>(&irMapAlloc, exprID++, primType, tyIdx, fieldID);
   meDef->SetBase(&baseAddr);
   PutToBucket(meDef->GetHashIndex() % mapHashLength, *meDef);
   return meDef;
@@ -330,17 +328,18 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
       Opcode op = (offsetVal == 0) ? OP_iread : OP_ireadoff;
       IvarMeExpr *formedIvar = nullptr;
       if (lhsIvar) {
-        formedIvar = New<IvarMeExpr>(exprID++, ivar->GetPrimType(), ivar->GetTyIdx(), ivar->GetFieldID(), op);
+        formedIvar =
+            New<IvarMeExpr>(&irMapAlloc, exprID++, ivar->GetPrimType(), ivar->GetTyIdx(), ivar->GetFieldID(), op);
         formedIvar->SetBase(newBase);
         formedIvar->SetOffset(offsetVal);
-        formedIvar->SetMuVal(ivar->GetMu());
+        formedIvar->SetMuList(ivar->GetMuList());
         formedIvar->SetVolatileFromBaseSymbol(ivar->GetVolatileFromBaseSymbol());
         PutToBucket(formedIvar->GetHashIndex() % mapHashLength, *formedIvar);
       } else {
-        IvarMeExpr newIvar(kInvalidExprID, ivar->GetPrimType(), ivar->GetTyIdx(), ivar->GetFieldID(), op);
+        IvarMeExpr newIvar(&irMapAlloc, kInvalidExprID, ivar->GetPrimType(), ivar->GetTyIdx(), ivar->GetFieldID(), op);
         newIvar.SetBase(newBase);
         newIvar.SetOffset(offsetVal);
-        newIvar.SetMuVal(ivar->GetMu());
+        newIvar.SetMuList(ivar->GetMuList());
         newIvar.SetVolatileFromBaseSymbol(ivar->GetVolatileFromBaseSymbol());
         formedIvar = static_cast<IvarMeExpr *>(HashMeExpr(newIvar));
       }
@@ -360,6 +359,9 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
 }
 
 MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
+  if (ivar->HasMultipleMu()) {
+    return nullptr;
+  }
   auto *base = ivar->GetBase();
   if (base->GetOp() != OP_addrof) {
     return nullptr;
@@ -385,8 +387,9 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
     //  simplify to ===>
     //  dassign u64 %b 0 (dread u64 %x)
     //  dassign u32 %c 0 (extractbits u32 8 8 (dread u64 %b))
-    if (ivar->GetMu() != nullptr && ivar->GetMu()->GetOst() == ost) {
-      MeStmt *meStmt = ivar->GetMu()->GetDefByMeStmt();
+    auto *mu = ivar->GetUniqueMu();
+    if (mu != nullptr && mu->GetOst() == ost) {
+      MeStmt *meStmt = mu->GetDefByMeStmt();
       if (meStmt == nullptr || !IsPrimitiveInteger(meStmt->GetVarLHS()->GetPrimType()) ||
           !IsPrimitiveInteger(ivar->GetPrimType())) {
         return nullptr;
@@ -425,7 +428,7 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
   }
   auto ostIdx = fieldOst->GetIndex();
 
-  auto mu = ivar->GetMu();
+  auto mu = ivar->GetUniqueMu();
   if (mu == nullptr) {
     return nullptr;
   }
@@ -433,7 +436,7 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
     return static_cast<VarMeExpr*>(mu);
   }
 
-  MeStmt *meStmt = ivar->GetMu()->GetDefByMeStmt();
+  MeStmt *meStmt = mu->GetDefByMeStmt();
   if (meStmt != nullptr) {
     auto lhs = meStmt->GetVarLHS();
     if (lhs != nullptr && lhs->GetOstIdx() == ostIdx) {
@@ -443,15 +446,15 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
     if (chiList->find(ostIdx) != chiList->end()) {
       return static_cast<VarMeExpr *>(chiList->at(ostIdx)->GetLHS());
     }
-  } else if (ivar->GetMu()->GetDefBy() == kDefByPhi) {
-    auto *defBBOfPhi = ivar->GetMu()->GetDefPhi().GetDefBB();
+  } else if (mu->GetDefBy() == kDefByPhi) {
+    auto *defBBOfPhi = mu->GetDefPhi().GetDefBB();
     if (defBBOfPhi == nullptr) {
       return nullptr;
     }
     const auto &phiList = defBBOfPhi->GetMePhiList();
     auto it = phiList.find(ostIdx);
     return (it != phiList.end()) ? it->second->GetLHS() : nullptr;
-  } else if (ivar->GetMu()->GetDefBy() == kDefByNo) {
+  } else if (mu->GetDefBy() == kDefByNo) {
     return GetOrCreateZeroVersionVarMeExpr(*fieldOst);
   }
   return nullptr;
@@ -484,9 +487,9 @@ MeExpr *IRMap::SimplifyIvarWithIaddrofBase(IvarMeExpr *ivar, bool lhsIvar) {
   if (lhsIvar) {
     return BuildLHSIvar(*baseAddr, ivar->GetPrimType(), iaddrofExpr->GetTyIdx(), newFieldId);
   } else {
-    IvarMeExpr newIvar(kInvalidExprID, ivar->GetPrimType(), iaddrofExpr->GetTyIdx(), newFieldId);
+    IvarMeExpr newIvar(&irMapAlloc, kInvalidExprID, ivar->GetPrimType(), iaddrofExpr->GetTyIdx(), newFieldId);
     newIvar.SetBase(baseAddr);
-    newIvar.SetMuVal(ivar->GetMu());
+    newIvar.SetMuList(ivar->GetMuList());
     newIvar.SetVolatileFromBaseSymbol(ivar->GetVolatileFromBaseSymbol());
     auto *retExpr = HashMeExpr(newIvar);
     return retExpr;
@@ -527,7 +530,7 @@ IvarMeExpr *IRMap::BuildLHSIvar(MeExpr &baseAddr, IassignMeStmt &iassignMeStmt, 
     }
     primType = ty->GetPrimType();
   }
-  auto *meDef = New<IvarMeExpr>(exprID++, primType, iassignMeStmt.GetTyIdx(), fieldID);
+  auto *meDef = New<IvarMeExpr>(&irMapAlloc, exprID++, primType, iassignMeStmt.GetTyIdx(), fieldID);
   if (iassignMeStmt.GetLHSVal() != nullptr && iassignMeStmt.GetLHSVal()->GetOffset() != 0) {
     meDef->SetOp(OP_ireadoff);
     meDef->SetOffset(iassignMeStmt.GetLHSVal()->GetOffset());
@@ -565,7 +568,7 @@ MeExpr *IRMap::HashMeExpr(MeExpr &meExpr) {
   if (resultExpr == nullptr) {
     switch (meExpr.GetMeOp()) {
       case kMeOpIvar:
-        resultExpr = New<IvarMeExpr>(exprID, static_cast<IvarMeExpr&>(meExpr));
+        resultExpr = New<IvarMeExpr>(&irMapAlloc, exprID, static_cast<IvarMeExpr&>(meExpr));
         break;
       case kMeOpOp:
         resultExpr = New<OpMeExpr>(static_cast<OpMeExpr&>(meExpr), exprID);
@@ -670,7 +673,7 @@ MeExpr *IRMap::ReplaceMeExprExpr(MeExpr &origExpr, const MeExpr &meExpr, MeExpr 
     }
     case kMeOpIvar: {
       auto &ivarExpr = static_cast<IvarMeExpr&>(origExpr);
-      IvarMeExpr newMeExpr(kInvalidExprID, ivarExpr);
+      IvarMeExpr newMeExpr(&irMapAlloc, kInvalidExprID, ivarExpr);
       bool needRehash = false;
       if (ivarExpr.GetBase() == &meExpr) {
         newMeExpr.SetBase(&repExpr);
@@ -1705,7 +1708,9 @@ class BitPart {
   BitPart(MeExpr *p, uint32 bitwidth) : provider(p) {
     provenance.resize(bitwidth);
   }
+  // the source oprand.
   MeExpr *provider;
+  // provenance[A] = B means that bit A in Provider becomes bit B in the result of expression.
   std::vector<int8> provenance;
 
   static constexpr int kUnset = -1;
@@ -1713,7 +1718,24 @@ class BitPart {
 
 static constexpr uint32 kBitPartRecursionMaxDepth = 64;
 
-const std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::optional<BitPart>> &bps,
+// used when there are implicit cast between parent and oprand. used to expand the size of
+// bitpart.provenance to dstBitWidth.
+static inline void ImplicitBitPartConvert(uint64 dstBitWidth, BitPart &bitpart) {
+  auto srcBitWidth = bitpart.provenance.size();
+  if (dstBitWidth == srcBitWidth) {
+    return;
+  }
+  bitpart.provenance.resize(dstBitWidth);
+  if (dstBitWidth > srcBitWidth) {
+    for (int i = srcBitWidth; i < dstBitWidth; ++i) {
+      bitpart.provenance[i] = BitPart::kUnset;
+    }
+  }
+}
+
+// collect expr's BitPart recursively to check if it's possible for bytewise reverse.
+// we can get the BitPart of a expr if the opcode is bit operation related.
+std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::optional<BitPart>> &bps,
                                               int depth) {
   auto iter = bps.find(expr);
   if (iter != bps.end()) {
@@ -1725,6 +1747,7 @@ const std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, s
     return result;
   }
   auto bitwidth = GetPrimTypeBitSize(expr->GetPrimType());
+  // if bitwidth is not a multiple of double bytes, it can't be a bytewise reverse.
   if (bitwidth % 16 != 0) {
     return result;
   }
@@ -1741,8 +1764,13 @@ const std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, s
       return result;
     }
 
+    if (bitwidth > res0->provenance.size()) {
+      return result;
+    }
+
     result = BitPart(res0->provider, bitwidth);
-    for (uint32 i = 0; i < res0->provenance.size(); ++i) {
+    // merge the two bit provenances together.
+    for (uint32 i = 0; i < bitwidth; ++i) {
       if (res0->provenance[i] != BitPart::kUnset && res1->provenance[i] != BitPart::kUnset &&
           res0->provenance[i] != res1->provenance[i]) {
         return result = std::nullopt;
@@ -1769,8 +1797,13 @@ const std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, s
     }
     result = res;
 
+    if (bitwidth > res->provenance.size()) {
+      ImplicitBitPartConvert(bitwidth, *res);
+    }
+
     uint64 bit = 1;
     for (uint8 i = 0; i < bitwidth; ++i, bit <<= 1) {
+      // clear the bit if andMask is zero for this bit.
       if ((andMask & bit) == 0) {
         result->provenance[i] = BitPart::kUnset;
       }
@@ -1780,16 +1813,18 @@ const std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, s
   }
   if (IsLogicalShift(opcode) && expr->GetOpnd(1)->GetMeOp() == kMeOpConst) {
     auto bitShift = static_cast<ConstMeExpr *>(expr->GetOpnd(1))->GetIntValue();
-    if (bitShift > bitwidth) {
+    if (bitShift < 0 || bitShift > bitwidth) {
       return result;
     }
 
     auto &res = CollectBitparts(expr->GetOpnd(0), bps, depth + 1);
-    if (!res) {
+    if (!res || bitShift > res->provenance.size()) {
       return result;
     }
+
     result = res;
 
+    // clear the bit that is discarded, and do the same shift of the rest bits.
     auto &bitProvenance = result->provenance;
     if (expr->GetOp() == OP_shl) {
       bitProvenance.erase(std::prev(bitProvenance.end(), bitShift), bitProvenance.end());
@@ -1802,6 +1837,34 @@ const std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, s
     return result;
   }
 
+  if (opcode == OP_zext || opcode == OP_extractbits) {
+    if (!GetPrimitiveTypeProperty(expr->GetPrimType()).isUnsigned) {
+      return result;
+    }
+    auto srcBitWidth = GetPrimTypeBitSize(expr->GetOpnd(0)->GetPrimType());
+    auto bitOffset = static_cast<OpMeExpr *>(expr)->GetBitsOffSet();
+    auto bitSize = static_cast<OpMeExpr *>(expr)->GetBitsSize();
+
+    if (bitOffset + bitSize > srcBitWidth) {
+      return result;
+    }
+
+    auto &res = CollectBitparts(expr->GetOpnd(0), bps, depth + 1);
+    if (!res) {
+      return result;
+    }
+
+    // do extractbits for provenance.
+    result = BitPart(res->provider, bitwidth);
+    for (uint32 i = 0; i < bitSize; ++i) {
+      result->provenance[i] = res->provenance[bitOffset + i];
+    }
+    for (uint32 i = bitSize; i < bitwidth; ++i) {
+      result->provenance[i] = BitPart::kUnset;
+    }
+    return result;
+  }
+
   result = BitPart(expr, bitwidth);
   for (uint8 i = 0; i < bitwidth; ++i) {
     result->provenance[i] = i;
@@ -1809,6 +1872,7 @@ const std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, s
   return result;
 }
 
+// check if the bit map of (from -> to) is symmetry about bitwidth
 static bool bitMapIsValidForReverse(uint32 from, uint32 to, uint8 bitwidth) {
   if (from % 8 != to % 8) {
     return false;
@@ -1819,54 +1883,144 @@ static bool bitMapIsValidForReverse(uint32 from, uint32 to, uint8 bitwidth) {
   return from == bitwidth - to - 1;
 }
 
+// match OR bit operations for bytewise reverse, replace with intrinsic rev
 MeExpr *IRMap::SimplifyOrMeExpr(OpMeExpr *opmeexpr) {
   Opcode opcode = opmeexpr->GetOp();
   if (opcode != OP_bior) {
     return nullptr;
   }
+
   auto bitwidth = GetPrimTypeBitSize(opmeexpr->GetPrimType());
   MeExpr *opnd0 = opmeexpr->GetOpnd(0);
   MeExpr *opnd1 = opmeexpr->GetOpnd(1);
   Opcode opcode0 = opnd0->GetOp();
   Opcode opcode1 = opnd1->GetOp();
+
+  // (A | B) | C
   bool OrOfOrs = (opcode0 == OP_bior) || (opcode1 == OP_bior);
+  // (A >> B) | (C << D)
   bool OrOfShifts = IsLogicalShift(opcode0) && IsLogicalShift(opcode1);
+  // (A & B) | (C & D)
   bool OrOfAnds = (opcode0 == OP_band) && (opcode1 == OP_band);
+  // (A & B) | (C << D)
   bool OrOfAndAndsh =
       (opcode0 == OP_band && IsLogicalShift(opcode1)) || (IsLogicalShift(opcode0) && opcode1 == OP_band);
+  // extractbits(A) | (B << C)
+  // hapens when a (M & N) >> X is omit to a extractbits operation
+  bool OrOfExtrAndsh =
+      (opcode0 == OP_extractbits && IsLogicalShift(opcode1)) || (IsLogicalShift(opcode0) && opcode1 == OP_extractbits);
+  // extractbits(A) | (B & C)
+  // hapens when a (M >> X) & N is omit to a extractbits operation
+  bool OrOfExtrAndAnd =
+      (opcode0 == OP_extractbits && opcode1 == OP_band) || (opcode0 == OP_band && opcode1 == OP_extractbits);
 
-  if (!OrOfOrs && !OrOfShifts && !OrOfAnds && !OrOfAndAndsh) {
+  // if not match patterns above, we can't do bytewise reverse
+  if (!OrOfOrs && !OrOfShifts && !OrOfAnds && !OrOfAndAndsh && !OrOfExtrAndsh && !OrOfExtrAndAnd) {
     return nullptr;
   }
   std::map<MeExpr *, std::optional<BitPart>> bps;
-  auto res = CollectBitparts(opmeexpr, bps, 0);
+  auto &res = CollectBitparts(opmeexpr, bps, 0);
   if (!res) {
     return nullptr;
   }
 
   auto &bitProvenance = res->provenance;
 
-  for (uint8 i = 0; i < bitwidth; ++i) {
-    if (!bitMapIsValidForReverse(i, bitProvenance[i], bitwidth)) {
+  auto demandBitWidth = bitwidth;
+
+  if (bitProvenance.back() == BitPart::kUnset) {
+    while (!bitProvenance.empty() && bitProvenance.back() == BitPart::kUnset) {
+      bitProvenance.pop_back();
+    }
+    if (bitProvenance.empty()) {
+      return nullptr;
+    }
+    demandBitWidth = bitProvenance.size();
+  }
+
+  for (uint8 i = 0; i < demandBitWidth; ++i) {
+    if (!bitMapIsValidForReverse(i, bitProvenance[i], demandBitWidth)) {
       return nullptr;
     }
   }
 
-  std::vector<MeExpr *> opnds;
-  opnds.push_back(res->provider);
-  std::unique_ptr<NaryMeExpr> revExpr;
-  if (opmeexpr->GetPrimType() == PTY_u32) {
-    revExpr.reset(
-        new NaryMeExpr(&irMapAlloc, kInvalidExprID, OP_intrinsicop, PTY_u32, 1, TyIdx(0), INTRN_C_rev32, false));
-    revExpr->PushOpnd(res->provider);
+  MIRIntrinsicID intrin;
+  PrimType demandType;
+  if (demandBitWidth == 16) {
+    intrin = INTRN_C_rev16_2;
+    demandType = PTY_u16;
+  } else if (demandBitWidth == 32) {
+    intrin = INTRN_C_rev_4;
+    demandType = PTY_u32;
+  } else if (demandBitWidth == 64) {
+    intrin = INTRN_C_rev_8;
+    demandType = PTY_u64;
+  } else {
+    return nullptr;
   }
-  if (opmeexpr->GetPrimType() == PTY_u64) {
-    revExpr.reset(
-        new NaryMeExpr(&irMapAlloc, kInvalidExprID, OP_intrinsicop, PTY_u64, 1, TyIdx(0), INTRN_C_rev64, false));
-    revExpr->PushOpnd(res->provider);
-  }
-  auto result = CreateNaryMeExpr(*revExpr);
+
+  auto provider = res->provider;
+  NaryMeExpr revExpr(&irMapAlloc, kInvalidExprID, OP_intrinsicop, demandType, 1, TyIdx(0), intrin, false);
+  revExpr.PushOpnd(provider);
+  auto result = CreateNaryMeExpr(revExpr);
   return result;
+}
+
+static bool IsSignBitZero(MeExpr *opnd, uint64 signBit, uint64 shiftAmt) {
+  Opcode opcode = opnd->GetOp();
+  uint64 knownZeroBits = 0;
+  auto bitWidth = GetPrimTypeBitSize(opnd->GetPrimType());
+  switch (opcode) {
+    case OP_zext: {
+      auto srcBitWidth = static_cast<OpMeExpr*>(opnd)->GetBitsSize();
+      if (srcBitWidth < bitWidth) {
+        knownZeroBits |= UINT64_MAX << (bitWidth - srcBitWidth);
+      }
+    } break;
+    case OP_band: {
+      auto opnd1 = opnd->GetOpnd(1);
+      if (opnd1->GetMeOp() != kMeOpConst) {
+        return false;
+      }
+      auto andValue = static_cast<ConstMeExpr *>(opnd1)->GetIntValue();
+      knownZeroBits |= ~andValue;
+      break;
+    }
+    default:
+      break;
+  }
+  knownZeroBits >>= shiftAmt;
+  if (knownZeroBits & signBit) {
+    return true;
+  }
+  return false;
+}
+
+MeExpr *IRMap::SimplifyAshrMeExpr(OpMeExpr *opmeexpr) {
+  Opcode opcode = opmeexpr->GetOp();
+  if (opcode != OP_ashr) {
+    return nullptr;
+  }
+  auto opnd0 = opmeexpr->GetOpnd(0);
+  auto opnd1 = opmeexpr->GetOpnd(1);
+  if (opnd1->GetMeOp() != kMeOpConst) {
+    return nullptr;
+  }
+  auto shiftAmt = static_cast<ConstMeExpr*>(opnd1)->GetIntValue();
+  auto bitWidth = GetPrimTypeBitSize(opmeexpr->GetPrimType());
+
+  if (shiftAmt >= bitWidth) {
+    return nullptr;
+  }
+
+  uint64 signBit = 1 << (bitWidth - shiftAmt - 1);
+  bool isSignBitZero = IsSignBitZero(opnd0, signBit, shiftAmt);
+  // sign bit is known to be zero, we can replace ashr with lshr
+  if (isSignBitZero) {
+    auto lshrExpr = CreateMeExprBinary(OP_lshr, opmeexpr->GetPrimType(), *opnd0, *opnd1);
+    return lshrExpr;
+  }
+  return nullptr;
 }
 
 MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
@@ -1900,7 +2054,7 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
         IvarMeExpr *ivar = static_cast<IvarMeExpr*>(opnd0);
         auto resultPrimType = ivar->GetType()->GetPrimType();
         if (IsPrimitiveInteger(resultPrimType)) {
-          IvarMeExpr newIvar(kInvalidExprID, *ivar);
+          IvarMeExpr newIvar(&irMapAlloc, kInvalidExprID, *ivar);
           newIvar.SetPtyp(cvtmeexpr->GetPrimType());
           return HashMeExpr(newIvar);
         }
@@ -1984,7 +2138,12 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
     case OP_sub:
     case OP_div:
     case OP_rem:
-    case OP_ashr:
+    case OP_ashr: {
+      MeExpr *shrexp = SimplifyAshrMeExpr(opmeexpr);
+      if (shrexp != nullptr) {
+        return shrexp;
+      }
+    }
     case OP_lshr:
     case OP_shl:
     case OP_max:

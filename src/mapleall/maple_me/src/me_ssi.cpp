@@ -154,7 +154,7 @@ uint8_t MeSSI::AnalysisBranch(MeStmt &meStmt) {
   return result;
 }
 
-void MeSSI::AddNullPointerInfoForVar() {
+void MeSSI::AddNullPointerInfoForVar() const {
   CHECK_FATAL(false, "NYI");
 }
 
@@ -174,7 +174,8 @@ void MeSSI::InsertPiNodes() {
         MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(instanceofType->GetTyIdx());
         MeExpr *opnd = instanceofType->GetOpnd(0);
         if (opnd->GetMeOp() == kMeOpIvar) {
-          opnd = static_cast<IvarMeExpr*>(opnd)->GetMu();
+          CHECK_FATAL(!static_cast<IvarMeExpr*>(opnd)->HasMultipleMu(), "NYI");
+          opnd = static_cast<IvarMeExpr*>(opnd)->GetUniqueMu();
         }
         VarMeExpr *brTargetNewOpnd = CreateNewPiExpr(*opnd);
         bool isToken = (brMeStmt->GetOp() == OP_brtrue);
@@ -211,7 +212,7 @@ void MeSSI::InsertPiNodes() {
   }
 }
 
-bool MeSSI::ExistedPhiNode(BB &bb, VarMeExpr &rhs) {
+bool MeSSI::ExistedPhiNode(BB &bb, const VarMeExpr &rhs) {
   return bb.GetMePhiList().find(rhs.GetOstIdx()) != bb.GetMePhiList().end();
 }
 
@@ -400,7 +401,7 @@ MeExpr *MeSSI::NewMeExpr(MeExpr &meExpr) {
   switch (meExpr.GetMeOp()) {
     case kMeOpIvar: {
       auto &ivarMeExpr = static_cast<IvarMeExpr&>(meExpr);
-      IvarMeExpr *newIvarExpr = GetMemPool()->New<IvarMeExpr>(irMap->GetExprID(), ivarMeExpr);
+      IvarMeExpr *newIvarExpr = GetMemPool()->New<IvarMeExpr>(&irMap->GetIRMapAlloc(), irMap->GetExprID(), ivarMeExpr);
       irMap->SetExprID(irMap->GetExprID() + 1);
       return newIvarExpr;
     }
@@ -467,7 +468,7 @@ MeExpr *MeSSI::ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &meExpr, MeExpr &repEx
     }
     case kMeOpIvar: {
       auto &ivarExpr = static_cast<IvarMeExpr&>(origExpr);
-      IvarMeExpr newMeExpr(kInvalidExprID, ivarExpr);
+      IvarMeExpr newMeExpr(&irMap->GetIRMapAlloc(), kInvalidExprID, ivarExpr);
       bool needRehash = false;
       if (ivarExpr.GetBase() == &meExpr) {
         newMeExpr.SetBase(&repExpr);
@@ -478,10 +479,14 @@ MeExpr *MeSSI::ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &meExpr, MeExpr &repEx
           needRehash = true;
         }
       }
-      if (ivarExpr.GetMu() == &meExpr) {
-        CHECK_FATAL(repExpr.GetMeOp() == kMeOpVar, "must be");
-        newMeExpr.SetMuVal(static_cast<VarMeExpr*>(&repExpr));
-        needRehash = true;
+      size_t i = 0;
+      for (auto *mu : ivarExpr.GetMuList()) {
+        if (mu == &meExpr) {
+          CHECK_FATAL(repExpr.GetMeOp() == kMeOpVar, "must be");
+          newMeExpr.SetMuItem(i, static_cast<VarMeExpr*>(&repExpr));
+          needRehash = true;
+        }
+        ++i;
       }
       return needRehash ? NewMeExpr(newMeExpr) : &origExpr;
     }

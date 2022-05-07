@@ -40,7 +40,8 @@ bool IVCanon::ResolveExprValue(MeExpr *x, ScalarMeExpr *phiLHS) {
       return true;
     }
     ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
-    if (!scalar->GetOst()->IsLocal() || scalar->GetOst()->IsAddressTaken()) {
+    if (!scalar->GetOst()->IsLocal() || scalar->GetOst()->IsAddressTaken() ||
+        scalar->GetOstIdx() != phiLHS->GetOstIdx()) {
       return false;
     }
     if (scalar->GetDefBy() != kDefByStmt) {
@@ -202,10 +203,13 @@ bool IVCanon::IsLoopInvariant(MeExpr *x) {
     }
     case kMeOpIvar: {
       IvarMeExpr *ivar = static_cast<IvarMeExpr *>(x);
+      if (ivar->HasMultipleMu()) {
+        return false;
+      }
       if (!IsLoopInvariant(ivar->GetBase())) {
         return false;
       }
-      BB *defBB = ivar->GetMu()->DefByBB();
+      BB *defBB = ivar->GetUniqueMu()->DefByBB();
       return defBB == nullptr || (defBB != aloop->head && dominance->Dominate(*defBB, *aloop->head));
     }
     case kMeOpOp: {
@@ -234,10 +238,12 @@ bool IVCanon::IsLoopInvariant(MeExpr *x) {
 // IV.  Return true if change has taken place.
 bool IVCanon::CheckPostIncDecFixUp(CondGotoMeStmt *condbr) {
   OpMeExpr *testExpr = static_cast<OpMeExpr *>(condbr->GetOpnd());
-  ScalarMeExpr *scalar = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0));
+  ScalarMeExpr *scalar = testExpr->GetOpnd(0)->IsScalar() ? static_cast<ScalarMeExpr *>(testExpr->GetOpnd(0))
+                                                          : nullptr;
   bool cvtOnScalar = false;
   if (scalar == nullptr && testExpr->GetOpnd(0)->GetOp() == OP_cvt) {
-    scalar = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0)->GetOpnd(0));
+    scalar = testExpr->GetOpnd(0)->GetOpnd(0)->IsScalar() ?
+        static_cast<ScalarMeExpr *>(testExpr->GetOpnd(0)->GetOpnd(0)) : nullptr;
     cvtOnScalar = true;
   }
   if (scalar == nullptr) {
@@ -256,8 +262,14 @@ bool IVCanon::CheckPostIncDecFixUp(CondGotoMeStmt *condbr) {
   }
   AssignMeStmt *defStmt0 = static_cast<AssignMeStmt *>(phiOpnds[0]->GetDefStmt());
   AssignMeStmt *defStmt1 = static_cast<AssignMeStmt *>(phiOpnds[1]->GetDefStmt());
-  ScalarMeExpr *rhsScalar0 = dynamic_cast<ScalarMeExpr *>( defStmt0->GetRHS());
-  ScalarMeExpr *rhsScalar1 = dynamic_cast<ScalarMeExpr *>( defStmt1->GetRHS());
+  ScalarMeExpr *rhsScalar0 = nullptr;
+  ScalarMeExpr *rhsScalar1 = nullptr;
+  if (defStmt0->GetRHS()->IsScalar()) {
+    rhsScalar0 = static_cast<ScalarMeExpr *>(defStmt0->GetRHS());
+  }
+  if (defStmt1->GetRHS()->IsScalar()) {
+    rhsScalar1 = static_cast<ScalarMeExpr *>(defStmt1->GetRHS());
+  }
   if (rhsScalar0 == nullptr || rhsScalar1 == nullptr) {
     return false;
   }
@@ -265,7 +277,7 @@ bool IVCanon::CheckPostIncDecFixUp(CondGotoMeStmt *condbr) {
     return false;
   }
   OriginalSt *ivOst = rhsScalar0->GetOst();
-  // find the phi for ivOst 
+  // find the phi for ivOst
   BB *bb = condbr->GetBB();
   MapleMap<OStIdx, MePhiNode*> &mePhiList = bb->GetMePhiList();
   MePhiNode *ivPhiNode =  mePhiList[ivOst->GetIndex()];
@@ -327,7 +339,7 @@ void IVCanon::ComputeTripCount() {
     return;
   }
   CondGotoMeStmt *condbr = static_cast<CondGotoMeStmt *>(aloop->head->GetLastMe());
-  if (!kOpcodeInfo.IsCompare(condbr->GetOpnd()->GetOp())) {
+  if (!kOpcodeInfo.IsCompare(condbr->GetOpnd()->GetOp()) || condbr->GetOpnd()->GetOp() == OP_eq) {
     return;
   }
   bool tryAgain = false;
@@ -338,10 +350,12 @@ void IVCanon::ComputeTripCount() {
     trialsCount++;
     testExpr = static_cast<OpMeExpr *>(condbr->GetOpnd());
     // check left operand
-    ScalarMeExpr *iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0));
+    ScalarMeExpr *iv = testExpr->GetOpnd(0)->IsScalar() ? static_cast<ScalarMeExpr *>(testExpr->GetOpnd(0))
+                                                        : nullptr;
     bool cvtDetected = false;
     if (iv == nullptr && testExpr->GetOpnd(0)->GetOp() == OP_cvt) {
-      iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0)->GetOpnd(0));
+      iv = testExpr->GetOpnd(0)->GetOpnd(0)->IsScalar() ?
+          static_cast<ScalarMeExpr *>(testExpr->GetOpnd(0)->GetOpnd(0)) : nullptr;
       cvtDetected = true;
     }
     if (iv) {
@@ -357,9 +371,10 @@ void IVCanon::ComputeTripCount() {
     }
     if (ivdesc == nullptr) { // check second operand
       cvtDetected = false;
-      iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(1));
+      iv = testExpr->GetOpnd(1)->IsScalar() ? static_cast<ScalarMeExpr *>(testExpr->GetOpnd(1)) : nullptr;
       if (iv == nullptr && testExpr->GetOpnd(1)->GetOp() == OP_cvt) {
-        iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(1)->GetOpnd(0));
+        iv = testExpr->GetOpnd(1)->GetOpnd(0)->IsScalar() ?
+            static_cast<ScalarMeExpr *>(testExpr->GetOpnd(1)->GetOpnd(0)) : nullptr;
         cvtDetected = true;
       }
       if (iv) {

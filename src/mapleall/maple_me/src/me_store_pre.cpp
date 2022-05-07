@@ -75,7 +75,7 @@ RegMeExpr *MeStorePre::EnsureRHSInCurTemp(BB &bb) {
       MapleVector<MustDefMeNode> *mustDefList = itStmt->GetMustDefList();
       CHECK_NULL_FATAL(mustDefList);
       MapleVector<MustDefMeNode>::iterator it = mustDefList->begin();
-      for (; it != mustDefList->end(); it++) {
+      for (; it != mustDefList->end(); ++it) {
         MeExpr *mdLHS = (*it).GetLHS();
         if (mdLHS->GetMeOp() != kMeOpVar) {
           continue;
@@ -200,11 +200,11 @@ void MeStorePre::CodeMotion() {
 // create a new real occurrence for the store of meStmt of symbol oidx
 void MeStorePre::CreateRealOcc(const OStIdx &ostIdx, MeStmt &meStmt) {
   // skip vars with alias until we can deal with chi
-  if (ostIdx >= aliasClass->GetAliasElemCount()) {
+  if (!aliasClass->OstAnalyzed(ostIdx)) {
     return;
   }
-  AliasElem *ae = aliasClass->FindAliasElem(*ssaTab->GetSymbolOriginalStFromID(ostIdx));
-  if (ae->GetClassSet() != nullptr) {
+  auto *aliasSet = aliasClass->GetAliasSet(ostIdx);
+  if (aliasSet != nullptr) {
     return;
   }
 
@@ -269,7 +269,7 @@ void MeStorePre::CreateUseOcc(const OStIdx &ostIdx, BB &bb) {
 
 // create use occurs for all the symbols that alias with muost
 void MeStorePre::CreateSpreUseOccsThruAliasing(const OriginalSt &muOst, BB &bb) {
-  if (muOst.GetIndex() >= aliasClass->GetAliasElemCount()) {
+  if (!aliasClass->OstAnalyzed(muOst.GetIndex())) {
     return;
   }
   CreateUseOcc(muOst.GetIndex(), bb);
@@ -292,8 +292,10 @@ void MeStorePre::FindAndCreateSpreUseOccs(const MeExpr &meExpr, BB &bb) {
   }
   if (meExpr.GetMeOp() == kMeOpIvar) {
     auto *ivarMeExpr = static_cast<const IvarMeExpr*>(&meExpr);
-    if (ivarMeExpr->GetMu() != nullptr) {
-      CreateSpreUseOccsThruAliasing(*ivarMeExpr->GetMu()->GetOst(), bb);
+    for (auto *mu : ivarMeExpr->GetMuList()) {
+      if (mu != nullptr) {
+        CreateSpreUseOccsThruAliasing(*mu->GetOst(), bb);
+      }
     }
   }
 }

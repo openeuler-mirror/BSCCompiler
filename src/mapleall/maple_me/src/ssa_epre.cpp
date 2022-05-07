@@ -254,14 +254,17 @@ MeExpr *SSAEPre::PhiOpndFromRes(MeRealOcc &realZ, size_t j) const {
       return irMap->HashMeExpr(naryMeExpr);
     }
     case kMeOpIvar: {
-      IvarMeExpr ivarMeExpr(-1, *static_cast<IvarMeExpr*>(realZ.GetMeExpr()));
+      IvarMeExpr ivarMeExpr(&irMap->GetIRMapAlloc(), -1, *static_cast<IvarMeExpr*>(realZ.GetMeExpr()));
       MeExpr *retOpnd = GetReplaceMeExpr(*ivarMeExpr.GetBase(), *ePhiBB, j);
       if (retOpnd != nullptr) {
         ivarMeExpr.SetBase(retOpnd);
       }
-      MeExpr *muOpnd = GetReplaceMeExpr(*ivarMeExpr.GetMu(), *ePhiBB, j);
-      if (muOpnd != nullptr) {
-        ivarMeExpr.SetMuVal(static_cast<VarMeExpr*>(muOpnd));
+      for (size_t i = 0; i < ivarMeExpr.GetMuList().size(); ++i) {
+        auto *mu = ivarMeExpr.GetMuList()[i];
+        MeExpr *muOpnd = GetReplaceMeExpr(*mu, *ePhiBB, j);
+        if (muOpnd != nullptr) {
+          ivarMeExpr.SetMuItem(i, static_cast<VarMeExpr*>(muOpnd));
+        }
       }
       return irMap->HashMeExpr(ivarMeExpr);
     }
@@ -317,8 +320,10 @@ void SSAEPre::ComputeVarAndDfPhis() {
     }
     // for ivar, compute mu's phi too
     if (meExpr->GetMeOp() == kMeOpIvar) {
-      auto *mu = static_cast<IvarMeExpr*>(meExpr)->GetMu();
-      if (mu != nullptr) {
+      for (auto *mu : static_cast<IvarMeExpr*>(meExpr)->GetMuList()) {
+        if (mu == nullptr) {
+          continue;
+        }
         SetVarPhis(mu);
       }
     }
@@ -521,7 +526,9 @@ void SSAEPre::CollectVarForMeExpr(MeExpr &meExpr, std::vector<MeExpr*> &varVec) 
     }
   }
   if (meExpr.GetMeOp() == kMeOpIvar) {
-    varVec.push_back(static_cast<IvarMeExpr &>(meExpr).GetMu());
+    for (auto *mu : static_cast<IvarMeExpr&>(meExpr).GetMuList()) {
+      varVec.push_back(mu);
+    }
   }
 }
 

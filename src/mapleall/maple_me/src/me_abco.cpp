@@ -125,11 +125,11 @@ void MeABC::BuildSoloPiInGraph(const PiassignMeStmt &piMeStmt) {
 
 bool MeABC::PiExecuteBeforeCurrentCheck(const PiassignMeStmt &piMeStmt) {
   BB *currentCheckBB = currentCheck->GetBB();
-  BB *piBB = piMeStmt.GetBB();
+  const BB *piBB = piMeStmt.GetBB();
   if (currentCheckBB != piBB) {
     return dom->Dominate(*piBB, *currentCheckBB);
   }
-  MeStmt *lastMeStmt = piBB->GetLastMe();
+  const MeStmt *lastMeStmt = piBB->GetLastMe();
   CHECK_FATAL(lastMeStmt->GetNextMeStmt() == nullptr, "must be");
   MeStmt *tmpMeStmt = piMeStmt.GetNextMeStmt();
   while (tmpMeStmt != nullptr) {
@@ -898,7 +898,7 @@ MeExpr *MeABC::ReplaceArrayExpr(MeExpr &rhs, MeExpr &naryMeExpr, MeStmt *ivarStm
   MeExpr *newIvarExpr = nullptr;
   if (ivarStmt == nullptr) {
     auto *oldIvarExpr = static_cast<IvarMeExpr*>(&rhs);
-    IvarMeExpr tmpIvarMeExpr(kInvalidExprID, *oldIvarExpr);
+    IvarMeExpr tmpIvarMeExpr(&irMap->GetIRMapAlloc(), kInvalidExprID, *oldIvarExpr);
     tmpIvarMeExpr.SetBase(newBase);
     newIvarExpr = irMap->HashMeExpr(tmpIvarMeExpr);
   } else {
@@ -981,8 +981,9 @@ void MeABC::ProcessCallParameters(CallMeStmt &callNode) {
       callFunc->GetBaseFuncName().compare("arraycopy") == 0) {
     MeExpr *opnd1 = callNode.GetOpnd(1); // The 1th parameter.
     MeExpr *opnd3 = callNode.GetOpnd(3); // The 3th parameter.
-    CHECK_FATAL(opnd1->GetOp() == OP_dread, "must be");
-    CHECK_FATAL(opnd3->GetOp() == OP_dread, "must be");
+    if (opnd1->GetOp() != OP_dread || opnd3->GetOp() != OP_dread) {
+      return;
+    }
     ConstMeExpr *constOpnd1 = nullptr;
     ConstMeExpr *constOpnd3 = nullptr;
     VarMeExpr *varOpnd1 = static_cast<VarMeExpr*>(opnd1);
@@ -1056,7 +1057,6 @@ void MeABC::ProcessCallParameters(CallMeStmt &callNode) {
 }
 
 void MeABC::ExecuteABCO() {
-  MeABC::isDebug = false;
   if (CollectABC()) {
     ssi->ConvertToSSI();
     CollectCareInsns();
@@ -1093,6 +1093,7 @@ bool MEABCOpt::PhaseRun(maple::MeFunction &f) {
   auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   ASSERT(irMap != nullptr, "irMap phase has problem");
   MeABC meABC(f, *dom, *irMap, *GetPhaseMemPool());
+  MeABC::isDebug = DEBUGFUNC_NEWPM(f);
   meABC.ExecuteABCO();
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== After boundary check optimization  =============" << std::endl;

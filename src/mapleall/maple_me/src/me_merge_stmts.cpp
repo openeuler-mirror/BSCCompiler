@@ -298,7 +298,8 @@ void MergeStmts::genShortSet(MeExpr *dstMeExpr, uint32 offset, const MIRType *uX
                              const MapleMap<OStIdx, ChiMeNode *> &memsetCallStmtChi) {
 
     MIRType *uXTgtPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*uXTgtMirType, PTY_ptr);
-    IvarMeExpr iVarBase(kInvalidExprID, uXTgtMirType->GetPrimType(), uXTgtPtrType->GetTypeIndex(), 0);
+    IvarMeExpr iVarBase(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, uXTgtMirType->GetPrimType(),
+        uXTgtPtrType->GetTypeIndex(), 0);
     iVarBase.SetBase(dstMeExpr);
     IassignMeStmt *xIassignStmt = genSimdIassign(offset, iVarBase, *srcRegMeExpr, memsetCallStmtChi,
                                                  uXTgtPtrType->GetTypeIndex());
@@ -338,7 +339,7 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
   MIRType *v16uint8MirType = GlobalTables::GetTypeTable().GetV16UInt8();
   MIRType *v16uint8PtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*v16uint8MirType, PTY_ptr);
 
-  IvarMeExpr tmpIvar1(kInvalidExprID, PTY_v16u8, v16uint8PtrType->GetTypeIndex(), 0);
+  IvarMeExpr tmpIvar1(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, PTY_v16u8, v16uint8PtrType->GetTypeIndex(), 0);
   if (dstMeExpr->GetOp() != OP_regread) {
     RegMeExpr *addrRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_a64);
     MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
@@ -348,7 +349,7 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
     dstMeExpr = addrRegMeExpr;
   }
   tmpIvar1.SetBase(dstMeExpr);
-  IvarMeExpr tmpIvar2(kInvalidExprID, PTY_v16u8, v16uint8PtrType->GetTypeIndex(), 0);
+  IvarMeExpr tmpIvar2(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, PTY_v16u8, v16uint8PtrType->GetTypeIndex(), 0);
   if (srcMeExpr->GetOp() != OP_regread) {
     RegMeExpr *addrRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_a64);
     MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
@@ -369,9 +370,9 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
   if (numOf8Byte != 0) {
     MIRType *v8uint8MirType = GlobalTables::GetTypeTable().GetV8UInt8();
     MIRType *v8uint8PtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*v8uint8MirType, PTY_ptr);
-    IvarMeExpr tmpIvar3(kInvalidExprID, PTY_v8u8, v8uint8PtrType->GetTypeIndex(), 0);
+    IvarMeExpr tmpIvar3(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, PTY_v8u8, v8uint8PtrType->GetTypeIndex(), 0);
     tmpIvar3.SetBase(dstMeExpr);
-    IvarMeExpr tmpIvar4(kInvalidExprID, PTY_v8u8, v8uint8PtrType->GetTypeIndex(), 0);
+    IvarMeExpr tmpIvar4(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, PTY_v8u8, v8uint8PtrType->GetTypeIndex(), 0);
     tmpIvar4.SetBase(srcMeExpr);
     IassignMeStmt *xIassignStmt = genSimdIassign(offset8Byte, tmpIvar3, tmpIvar4, *memcpyCallStmtChi,
                                                  v8uint8PtrType->GetTypeIndex());
@@ -414,7 +415,7 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
   MIRType *v16u8MirType = GlobalTables::GetTypeTable().GetV16UInt8();
   MIRType *v16u8PtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*v16u8MirType, PTY_ptr);
 
-  IvarMeExpr tmpIvar(kInvalidExprID, PTY_v16u8, v16u8PtrType->GetTypeIndex(), 0);
+  IvarMeExpr tmpIvar(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, PTY_v16u8, v16u8PtrType->GetTypeIndex(), 0);
   if (dstMeExpr->GetOp() != OP_regread) {
     RegMeExpr *addrRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_a64);
     MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
