@@ -124,6 +124,30 @@ class CmpCsetVBPattern : public ValidBitPattern {
   Insn *cmpInsn = nullptr;
   int64 cmpConstVal = -1;
 };
+
+/*
+ * cmp w0[16], #32768
+ * bge label           ===>   tbnz w0, #15, label
+ *
+ * bge / blt
+ */
+class CmpBranchesPattern : public ValidBitPattern {
+ public:
+  CmpBranchesPattern(CGFunc &cgFunc, CGSSAInfo &info) : ValidBitPattern(cgFunc, info) {}
+  ~CmpBranchesPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "CmpBranchesPattern";
+  };
+
+ private:
+  void SelectNewMop(MOperator mop);
+  Insn *prevCmpInsn = nullptr;
+  int64 newImmVal = -1;
+  MOperator newMop = MOP_undef;
+  bool is64Bit = false;
+};
 } /* namespace maplebe */
 #endif  /* MAPLEBE_INCLUDE_CG_AARCH64_VALIDBIT_OPT_H */
 

@@ -35,6 +35,11 @@ void AArch64ValidBitOpt::DoOpt(BB &bb, Insn &insn) {
       Optimize<CmpCsetVBPattern>(bb, insn);
       break;
     }
+    case MOP_bge:
+    case MOP_blt: {
+      Optimize<CmpBranchesPattern>(bb, insn);
+      break;
+    }
     default:
       break;
   }
@@ -444,7 +449,7 @@ bool CmpCsetVBPattern::CheckCondition(Insn &csetInsn) {
           OpndDefByOneValidBit(*defInsn));
 }
 
-void CmpCsetVBPattern::Run(BB &bb, Insn &csetInsn)  {
+void CmpCsetVBPattern::Run(BB &bb, Insn &csetInsn) {
   if (!CheckCondition(csetInsn)) {
     return;
   }
@@ -473,6 +478,70 @@ void CmpCsetVBPattern::Run(BB &bb, Insn &csetInsn)  {
     prevInsns.emplace_back(cmpInsn);
     prevInsns.emplace_back(&csetInsn);
     DumpAfterPattern(prevInsns, newInsn, nullptr);
+  }
+}
+
+void CmpBranchesPattern::SelectNewMop(MOperator mop) {
+  switch (mop) {
+    case MOP_bge: {
+      newMop = is64Bit ? MOP_xtbnz : MOP_wtbnz;
+      break;
+    }
+    case MOP_blt: {
+      newMop = is64Bit ? MOP_xtbz : MOP_wtbz;
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+bool CmpBranchesPattern::CheckCondition(Insn &insn) {
+  MOperator curMop = insn.GetMachineOpcode();
+  if (curMop != MOP_bge && curMop != MOP_blt) {
+    return false;
+  }
+  auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  prevCmpInsn = GetDefInsn(ccReg);
+  if (prevCmpInsn == nullptr) {
+    return false;
+  }
+  MOperator cmpMop = prevCmpInsn->GetMachineOpcode();
+  if (cmpMop != MOP_wcmpri && cmpMop != MOP_xcmpri) {
+    return false;
+  }
+  is64Bit = (cmpMop == MOP_xcmpri);
+  auto &cmpUseOpnd = static_cast<RegOperand&>(prevCmpInsn->GetOperand(kInsnSecondOpnd));
+  auto &cmpImmOpnd = static_cast<ImmOperand&>(prevCmpInsn->GetOperand(kInsnThirdOpnd));
+  int64 cmpImmVal = cmpImmOpnd.GetValue();
+  newImmVal = ValidBitOpt::GetLogValueAtBase2(cmpImmVal);
+  if (newImmVal < 0 || cmpUseOpnd.GetValidBitsNum() != (newImmVal + 1)) {
+    return false;
+  }
+  SelectNewMop(curMop);
+  if (newMop == MOP_undef) {
+    return false;
+  }
+  return true;
+}
+
+void CmpBranchesPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  auto &labelOpnd = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  ImmOperand &newImmOpnd = aarFunc->CreateImmOperand(newImmVal, k8BitSize, false);
+  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, prevCmpInsn->GetOperand(kInsnSecondOpnd),
+                                                                 newImmOpnd, labelOpnd);
+  bb.ReplaceInsn(insn, newInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(insn, newInsn);
+  /* dump pattern info */
+  if (CG_VALIDBIT_OPT_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(prevCmpInsn);
+    DumpAfterPattern(prevs, &insn, &newInsn);
   }
 }
 } /* namespace maplebe */

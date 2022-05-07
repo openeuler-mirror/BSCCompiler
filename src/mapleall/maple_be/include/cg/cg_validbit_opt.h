@@ -65,6 +65,10 @@ class ValidBitOpt {
     return pos;
   }
 
+  static int64 GetLogValueAtBase2(int64 val) {
+    return (__builtin_popcountll(static_cast<uint64>(val)) == 1) ? (__builtin_ffsll(val) - 1) : -1;
+  }
+
  protected:
   template<typename VBOpt>
   void Optimize(BB &bb, Insn &insn) {
