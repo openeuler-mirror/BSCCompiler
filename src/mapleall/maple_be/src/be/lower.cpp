@@ -879,11 +879,10 @@ BlockNode *CGLowerer::LowerReturnStruct(NaryStmtNode &retNode) {
   MIRSymbol *retSt = curFunc->GetFormal(0);
   MIRPtrType *retTy = static_cast<MIRPtrType*>(retSt->GetType());
   IassignNode *iassign = mirModule.CurFuncCodeMemPool()->New<IassignNode>();
-  if ((beCommon.GetTypeSize(retTy->GetPointedTyIdx().GetIdx()) > k16ByteSize) || (opnd0->GetPrimType() != PTY_agg)) {
-    iassign->SetTyIdx(retTy->GetTypeIndex());
-  } else {
+  iassign->SetTyIdx(retTy->GetTypeIndex());
+  if ((beCommon.GetTypeSize(retTy->GetPointedTyIdx().GetIdx()) <= k16ByteSize) && (opnd0->GetPrimType() == PTY_agg)) {
     /* struct goes into register. */
-    iassign->SetTyIdx(retTy->GetPointedTyIdx());
+    curFunc->SetStructReturnedInRegs();
   }
   iassign->SetFieldID(0);
   iassign->SetRHS(opnd0);

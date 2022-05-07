@@ -2069,16 +2069,15 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
   Operand &lhsAddrOpnd = LoadIntoRegister(AddrOpnd, stmt.Opnd(0)->GetPrimType());
   uint32 lhsOffset = 0;
   MIRType *stmtType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(stmt.GetTyIdx());
-  MIRSymbol *addrSym = nullptr;
-  MIRPtrType *lhsPointerType = nullptr;
-  if (stmtType->GetPrimType() == PTY_agg) {
-    /* Move into regs */
-    AddrofNode &addrofnode = static_cast<AddrofNode&>(stmt.GetAddrExprBase());
-    addrSym = mirModule.CurFunction()->GetLocalOrGlobalSymbol(addrofnode.GetStIdx());
-    MIRType *addrty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(addrSym->GetTyIdx());
-    lhsPointerType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(addrty->GetTypeIndex()));
-  } else {
-    lhsPointerType = static_cast<MIRPtrType*>(stmtType);
+  MIRPtrType *lhsPointerType = static_cast<MIRPtrType*>(stmtType);
+  bool loadToRegs4StructReturn = false;
+  if (mirModule.CurFunction()->StructReturnedInRegs()) {
+    MIRSymbol *retSt = mirModule.CurFunction()->GetFormal(0);
+    if (stmt.Opnd(0)->GetOpCode() == OP_dread) {
+      DreadNode *dread = static_cast<DreadNode *>(stmt.Opnd(0));
+      MIRSymbol *addrSym = mirModule.CurFunction()->GetLocalOrGlobalSymbol(dread->GetStIdx());
+      loadToRegs4StructReturn = (retSt == addrSym);
+    }
   }
   MIRType *lhsType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsPointerType->GetPointedTyIdx());
   if (stmt.GetFieldID() != 0) {
@@ -2123,18 +2122,12 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       rhsType = structType->GetFieldType(rhsDread->GetFieldID());
       rhsOffset = static_cast<uint32>(GetBecommon().GetFieldOffset(*structType, rhsDread->GetFieldID()).first);
     }
-    if (stmtType->GetPrimType() == PTY_agg) {
+    if (loadToRegs4StructReturn) {
       /* generate move to regs for agg return */
       CHECK_FATAL(lhsSize <= k16ByteSize, "SelectAggIassign: illegal struct size");
       AArch64CallConvImpl parmlocator(GetBecommon());
       CCLocInfo pLoc;
-      MIRSymbol *retSt = GetBecommon().GetMIRModule().CurFunction()->GetFormal(0);
-      if (retSt == addrSym) {
-        /* return value */
-        parmlocator.LocateNextParm(*lhsType, pLoc, true, GetBecommon().GetMIRModule().CurFunction());
-      } else {
-        parmlocator.InitCCLocInfo(pLoc);
-      }
+      parmlocator.LocateNextParm(*lhsType, pLoc, true, GetBecommon().GetMIRModule().CurFunction());
       /* aggregates are 8 byte aligned. */
       Operand *rhsmemopnd = nullptr;
       RegOperand *result[kFourRegister]; /* up to 2 int or 4 fp */
@@ -2330,7 +2323,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       rhsOffset = static_cast<uint32>(GetBecommon().GetFieldOffset(*rhsStructType, rhsIread->GetFieldID()).first);
       isRefField = GetBecommon().IsRefField(*rhsStructType, rhsIread->GetFieldID());
     }
-    if (stmtType->GetPrimType() == PTY_agg) {
+    if (loadToRegs4StructReturn) {
       /* generate move to regs. */
       CHECK_FATAL(lhsSize <= k16ByteSize, "SelectAggIassign: illegal struct size");
       RegOperand *result[kTwoRegister]; /* maximum 16 bytes, 2 registers */
