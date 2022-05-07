@@ -92,6 +92,12 @@ class Options : public MapleDriverOptionBase {
   static std::string noInlineFuncList;
   static std::string importFileList;
   static bool useCrossModuleInline;
+  static uint32 numOfCloneVersions;
+  static uint32 numOfImpExprLowBound;
+  static uint32 numOfImpExprHighBound;
+  static uint32 numOfCallSiteLowBound;
+  static uint32 numOfCallSiteUpBound;
+  static uint32 numOfConstpropValue;
   static uint32 inlineSmallFunctionThreshold;
   static uint32 inlineHotFunctionThreshold;
   static uint32 inlineRecursiveFunctionThreshold;
@@ -171,6 +177,7 @@ class Options : public MapleDriverOptionBase {
   static bool sideEffect;
   static bool dumpIPA;
   static bool wpaa;
+  static bool genLMBC;
 
  private:
   void DecideMpl2MplRealLevel(const std::deque<mapleOption::Option> &inputOptions) const;

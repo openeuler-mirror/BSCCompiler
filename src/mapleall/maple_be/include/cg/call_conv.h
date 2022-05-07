@@ -62,10 +62,17 @@ struct CCLocInfo {
 
 class LmbcFormalParamInfo {
  public:
-  LmbcFormalParamInfo(PrimType pType, uint32 ofst, uint32 sz) : primType(pType), offset(ofst), size(sz) {}
+  LmbcFormalParamInfo(PrimType pType, uint32 ofst, uint32 sz) :
+      type(nullptr), primType(pType), offset(ofst), size(sz), regNO(0), vregNO(0), numRegs(0), fpSize(0), isReturn(false), isPureFloat(false), isOnStack(false) {}
 
   ~LmbcFormalParamInfo() = default;
 
+  MIRStructType *GetType() {
+    return type;
+  }
+  void SetType(MIRStructType *ty) {
+    type = ty;
+  }
   PrimType GetPrimType() {
     return primType;
   }
@@ -108,13 +115,29 @@ class LmbcFormalParamInfo {
   void SetFpSize(uint32 sz) {
     fpSize = sz;
   }
+  bool IsReturn() {
+    return isReturn;
+  }
+  void SetIsReturn() {
+    isReturn = true;
+  }
   bool IsPureFloat() {
     return isPureFloat;
   }
   void SetIsPureFloat() {
     isPureFloat = true;
   }
+  bool IsInReg() {
+    return (isOnStack == false);
+  }
+  bool IsOnStack() {
+    return isOnStack;
+  }
+  void SetIsOnStack() {
+    isOnStack = true;
+  }
  private:
+  MIRStructType *type;
   PrimType primType;
   uint32 offset;
   uint32 size;        /* size primtype or struct */
@@ -122,7 +145,9 @@ class LmbcFormalParamInfo {
   regno_t vregNO = 0; /* if no explicit regassing from IR, create move from param reg */
   uint32 numRegs = 0; /* number of regs for struct param */
   uint32 fpSize = 0;  /* size of fp param if isPureFloat */
+  bool isReturn;
   bool isPureFloat = false;
+  bool isOnStack; /* small struct with arrays need to be saved onto stack */
 };
 }  /* namespace maplebe */
 

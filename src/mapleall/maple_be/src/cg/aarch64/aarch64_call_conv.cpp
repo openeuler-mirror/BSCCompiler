@@ -303,8 +303,9 @@ int32 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, boo
 
   if (isFirst) {
     MIRFunction *func = tFunc != nullptr ? tFunc : const_cast<MIRFunction *>(beCommon.GetMIRModule().CurFunction());
-    if (beCommon.HasFuncReturnType(*func)) {
-      size_t size = beCommon.GetTypeSize(beCommon.GetFuncReturnType(*func));
+    if (func->IsReturnStruct()) {
+      TyIdx tyIdx = func->GetFuncRetStructTyIdx();
+      size_t size = beCommon.GetTypeSize(tyIdx);
       if (size == 0) {
         /* For return struct size 0 there is no return value. */
         return 0;
@@ -667,7 +668,7 @@ void AArch64CallConvImpl::InitReturnInfo(MIRType &retTy, CCLocInfo &ccLocInfo) {
             ccLocInfo.primTypeOfReg0 = PTY_i64;
           }
         } else {
-          ASSERT(ccLocInfo.regCount == kMaxRegCount, "reg count from ClassifyAggregate() should be 0, 1, or 2");
+          ASSERT(ccLocInfo.regCount <= k2ByteSize, "reg count from ClassifyAggregate() should be 0, 1, or 2");
           ASSERT(classes[0] == kAArch64IntegerClass, "error val :classes[0]");
           ASSERT(classes[1] == kAArch64IntegerClass, "error val :classes[1]");
           ccLocInfo.reg0 = AArch64Abi::intReturnRegs[0];

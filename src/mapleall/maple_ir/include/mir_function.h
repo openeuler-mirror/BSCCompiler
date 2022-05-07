@@ -22,6 +22,7 @@
 #include "intrinsics.h"
 #include "file_layout.h"
 #include "mir_nodes.h"
+#include "mir_type.h"
 #include "profile.h"
 #include "func_desc.h"
 
@@ -243,6 +244,10 @@ class MIRFunction {
 
   bool IsStatic() const {
     return funcAttrs.GetAttr(FUNCATTR_static);
+  }
+
+  bool IsInline() const {
+    return funcAttrs.GetAttr(FUNCATTR_inline);
   }
 
   bool IsExtern() const {
@@ -524,6 +529,17 @@ class MIRFunction {
     return codeMemPoolAllocator;
   }
 
+  TyIdx GetFuncRetStructTyIdx() {
+    TyIdx tyIdx = GetFormalDefAt(0).formalTyIdx;
+    MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+    CHECK_FATAL(ty->GetKind() == kTypePointer, "Fake param not a pointer");
+    MIRPtrType *pType = static_cast<MIRPtrType*>(ty);
+    tyIdx = pType->GetPointedTyIdx();
+    CHECK_FATAL(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->IsStructType(),
+                "Must be struct return type");
+    return tyIdx;
+  }
+
   void EnterFormals();
   void NewBody();
 
@@ -727,17 +743,55 @@ class MIRFunction {
     hasVlaOrAlloca = has;
   }
 
+  // Default freq is the lastStmtFreq
   bool HasFreqMap() const {
-    return freqMap != nullptr;
+    return freqLastMap != nullptr;
   }
-  const MapleMap<uint32, uint32> &GetFreqMap() const {
-    return *freqMap;
+
+  bool HasFirstFreqMap() const {
+    return freqFirstMap != nullptr;
   }
-  void SetFreqMap(uint32 stmtID, uint32 freq) {
-    if (freqMap == nullptr) {
-      freqMap = module->GetMemPool()->New<MapleMap<uint32, uint32>>(module->GetMPAllocator().Adapter());
+
+  const MapleMap<uint32, uint32> &GetFirstFreqMap() const {
+    return *freqFirstMap;
+  }
+
+  void SetFirstFreqMap(uint32 stmtID, uint32 freq) {
+    if (freqFirstMap == nullptr) {
+      freqFirstMap = module->GetMemPool()->New<MapleMap<uint32, uint32>>(module->GetMPAllocator().Adapter());
     }
-    (*freqMap)[stmtID] = freq;
+    (*freqFirstMap)[stmtID] = freq;
+  }
+
+  const MapleMap<uint32, uint32> &GetLastFreqMap() const {
+    return *freqLastMap;
+  }
+
+  int32 GetFreqFromLastStmt(uint32 stmtId) {
+    if (freqLastMap == nullptr) {
+      return -1;
+    }
+    if ((*freqLastMap).find(stmtId) == (*freqLastMap).end()) {
+      return -1;
+    }
+    return (*freqLastMap)[stmtId];
+  }
+
+  int32 GetFreqFromFirstStmt(uint32 stmtId) {
+    if (freqFirstMap == nullptr) {
+      return -1;
+    }
+    if ((*freqFirstMap).find(stmtId) == (*freqFirstMap).end()) {
+      return -1;
+    }
+    return (*freqFirstMap)[stmtId];
+  }
+
+  void SetLastFreqMap(uint32 stmtID, uint32 freq) {
+    if (freqLastMap == nullptr) {
+      freqLastMap = module->GetMemPool()->New<MapleMap<uint32, uint32>>(module->GetMPAllocator().Adapter());
+    }
+    (*freqLastMap)[stmtID] = freq;
   }
 
   bool WithLocInfo() const {
@@ -1228,7 +1282,8 @@ class MIRFunction {
   MapleVector<bool> infoIsString{module->GetMPAllocator().Adapter()};  // tells if an entry has string value
   MapleMap<GStrIdx, MIRAliasVars> *aliasVarMap = nullptr;  // source code alias variables
                                                                                     // for debuginfo
-  MapleMap<uint32, uint32> *freqMap = nullptr;  // save bb frequency in its last_stmt, key is stmtId
+  MapleMap<uint32, uint32> *freqFirstMap = nullptr;  // save bb frequency in its first_stmt, key is stmtId
+  MapleMap<uint32, uint32> *freqLastMap = nullptr;  // save bb frequency in its last_stmt, key is stmtId
   MapleSet<uint32> referedPregs{module->GetMPAllocator().Adapter()};
   bool referedRegsValid = false;
   bool hasVlaOrAlloca = false;

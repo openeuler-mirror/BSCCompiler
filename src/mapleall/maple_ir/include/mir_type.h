@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -26,6 +26,7 @@
 
 namespace maple {
 constexpr uint32 kTypeHashLength = 12289;  // hash length for mirtype, ref: planetmath.org/goodhashtableprimes
+const std::string kRenameKeyWord = "_MNO";  // A static symbol name will be renamed as oriname_MNOxxx.
 
 class FieldAttrs;  // circular dependency exists, no other choice
 using TyIdxFieldAttrPair = std::pair<TyIdx, FieldAttrs>;
@@ -33,8 +34,10 @@ using FieldPair = std::pair<GStrIdx, TyIdxFieldAttrPair>;
 using FieldVector = std::vector<FieldPair>;
 using MIRTypePtr = MIRType*;
 
-constexpr size_t kMaxArrayDim = 10;
+constexpr size_t kMaxArrayDim = 20;
 const std::string kJstrTypeName = "constStr";
+constexpr uint32 kInvalidFieldNum = UINT32_MAX;
+constexpr size_t kInvalidSize = UINT64_MAX;
 #if MIR_FEATURE_FULL
 extern bool VerifyPrimType(PrimType primType1, PrimType primType2);       // verify if primType1 and primType2 match
 extern PrimType GetExactPtrPrimType();  // return either PTY_a64 or PTY_a32
@@ -155,6 +158,7 @@ inline bool IsPrimitiveUnSignedVector(const PrimitiveType &primitiveType) {
 }
 
 bool IsNoCvtNeeded(PrimType toType, PrimType fromType);
+bool NeedCvtOrRetype(PrimType origin, PrimType compared);
 
 inline bool IsRefOrPtrAssign(PrimType toType, PrimType fromType) {
   return (toType == PTY_ref && fromType == PTY_ptr) || (toType == PTY_ptr && fromType == PTY_ref);
@@ -207,7 +211,8 @@ class AttrBoundary {
   }
 
   bool operator<(const AttrBoundary &tA) const {
-    return lenExprHash < tA.lenExprHash && lenParamIdx < tA.lenParamIdx && isBytedLen < tA.isBytedLen;
+    return lenExprHash < tA.lenExprHash && lenParamIdx < tA.lenParamIdx &&
+        static_cast<int>(isBytedLen) < static_cast<int>(tA.isBytedLen);
   }
 
   void SetLenExprHash(uint32 val) {
@@ -241,9 +246,9 @@ class AttrBoundary {
   }
 
  private:
-  uint32 lenExprHash = 0;
-  int8 lenParamIdx = -1;
   bool isBytedLen = false;
+  int8 lenParamIdx = -1;
+  uint32 lenExprHash = 0;
 };
 
 class TypeAttrs {
@@ -333,9 +338,22 @@ class TypeAttrs {
     }
   }
 
+  void SetPack(uint32 pack) {
+    attrPack = pack;
+  }
+
+  uint32 GetPack() const {
+    return attrPack;
+  }
+
+  bool IsPacked() const {
+    return GetAttr(ATTR_pack);
+  }
+
  private:
   uint64 attrFlag = 0;
   uint8 attrAlign = 0;  // alignment in bytes is 2 to the power of attrAlign
+  uint32 attrPack = -1;  // -1 means inactive
   AttrBoundary attrBoundary;  // boundary attr for EnhanceC
 };
 
@@ -388,16 +406,7 @@ class FieldAttrs {
   }
 
   uint32 GetAlign() const {
-    if (attrAlign == 0) {
-      return 1;
-    }
-    uint32 res = 1;
-    uint32 exp = attrAlign;
-    do {
-      --exp;
-      res *= 2;
-    } while (exp != 0);
-    return res;
+    return 1U << attrAlign;
   }
 
   bool operator==(const FieldAttrs &tA) const {
@@ -429,9 +438,13 @@ class FieldAttrs {
     return attrBoundary;
   }
 
+  bool IsPacked() const {
+    return GetAttr(FLDATTR_pack);
+  }
+
  private:
-  uint32 attrFlag = 0;
   uint8 attrAlign = 0;  // alignment in bytes is 2 to the power of attrAlign
+  uint32 attrFlag = 0;
   AttrBoundary attrBoundary;
 };
 
@@ -503,23 +516,16 @@ class FuncAttrs {
     }
   }
 
-  void SetAttrContentName(FuncAttrKind x, const std::string &name) {
-    switch (x) {
-      case FUNCATTR_alias: {
-        aliasFuncName = name;
-        break;
-      }
-      case FUNCATTR_section: {
-        prefixSectionName = name;
-        break;
-      }
-      default:
-        break;
-    }
+  void SetAliasFuncName(const std::string &name) {
+    aliasFuncName = name;
   }
 
   const std::string &GetAliasFuncName() const {
     return aliasFuncName;
+  }
+
+  void SetPrefixSectionName(const std::string &name) {
+    prefixSectionName = name;
   }
 
   const std::string &GetPrefixSectionName() const {
@@ -556,11 +562,29 @@ class FuncAttrs {
     return attrBoundary;
   }
 
+  void SetConstructorPriority(int priority) {
+    constructorPriority = priority;
+  }
+
+  int GetConstructorPriority() const {
+    return constructorPriority;
+  }
+
+  void SetDestructorPriority(int priority) {
+    destructorPriority = priority;
+  }
+
+  int GetDestructorPriority() const {
+    return destructorPriority;
+  }
+
  private:
   uint64 attrFlag = 0;
   std::string aliasFuncName;
   std::string prefixSectionName;
   AttrBoundary attrBoundary;  // ret boundary for EnhanceC
+  int constructorPriority = -1;  // 0~65535, -1 means inactive
+  int destructorPriority = -1;  // 0~65535, -1 means inactive
 };
 
 #if MIR_FEATURE_FULL
@@ -642,6 +666,7 @@ struct OffsetType {
 };
 
 class MIRStructType; // circular dependency exists, no other choice
+class MIRFuncType;
 
 class MIRType {
  public:
@@ -732,6 +757,10 @@ class MIRType {
     return (typeKind == kTypeStruct) || (typeKind == kTypeStructIncomplete);
   }
 
+  bool IsMIRUnionType() const {
+    return typeKind == kTypeUnion;
+  }
+
   bool IsMIRClassType() const {
     return (typeKind == kTypeClass) || (typeKind == kTypeClassIncomplete);
   }
@@ -748,6 +777,10 @@ class MIRType {
     return typeKind == kTypeJArray;
   }
 
+  bool IsMIRArrayType() const {
+    return typeKind == kTypeArray;
+  }
+
   bool IsMIRFuncType() const {
     return typeKind == kTypeFunction;
   }
@@ -758,6 +791,13 @@ class MIRType {
 
   bool IsMIRTypeByName() const {
     return typeKind == kTypeByName;
+  }
+
+  virtual bool IsUnsafeType() const {
+    return false;
+  }
+  virtual bool IsVoidPointer() const {
+    return false;
   }
 
   bool ValidateClassOrInterface(const std::string &className, bool noWarning) const;
@@ -773,7 +813,7 @@ class MIRType {
 
   virtual bool HasFields() const { return false; }
   // total number of field IDs the type is consisted of, excluding its own field ID
-  virtual size_t NumberOfFieldIDs() const { return 0; }
+  virtual uint32 NumberOfFieldIDs() const { return 0; }
   // return any struct type directly embedded in this type
   virtual MIRStructType *EmbeddedStructType() { return nullptr; }
 
@@ -829,6 +869,8 @@ class MIRPtrType : public MIRType {
 
   bool HasTypeParam() const override;
   bool IsPointedTypeVolatile(int fieldID) const;
+  bool IsUnsafeType() const override;
+  bool IsVoidPointer() const override;
 
   void Dump(int indent, bool dontUseName = false) const override;
   size_t GetSize() const override;
@@ -842,6 +884,19 @@ class MIRPtrType : public MIRType {
     hIdx += (typeAttrs.GetAttrFlag() << attrShift) + typeAttrs.GetAlignValue();
     return hIdx % kTypeHashLength;
   }
+  bool IsFunctionPtr() {
+    MIRType *pointedType = GetPointedType();
+    if (pointedType->GetKind() == kTypeFunction) {
+      return true;
+    }
+    if (pointedType->GetKind() == kTypePointer) {
+      MIRPtrType *pointedPtrType = static_cast<MIRPtrType *>(pointedType);
+      return pointedPtrType->GetPointedType()->GetKind() == kTypeFunction;
+    }
+    return false;
+  }
+
+  MIRFuncType *GetPointedFuncType();
 
   bool PointsToConstString() const override;
 
@@ -885,6 +940,10 @@ class MIRArrayType : public MIRType {
   void SetSizeArrayItem(uint32 idx, uint32 value) {
     CHECK_FATAL((idx >= 0 && idx < kMaxArrayDim), "out of bound of array!");
     sizeArray[idx] = value;
+  }
+
+  bool IsIncompleteArray() {
+    return typeAttrs.GetAttr(ATTR_incomplete_array);
   }
 
   bool EqualTo(const MIRType &type) const override;
@@ -944,7 +1003,7 @@ class MIRArrayType : public MIRType {
   std::string GetMplTypeName() const override;
   std::string GetCompactMplTypeName() const override;
   bool HasFields() const override;
-  size_t NumberOfFieldIDs() const override;
+  uint32 NumberOfFieldIDs() const override;
   MIRStructType *EmbeddedStructType() override;
   size_t ElemNumber();
 
@@ -953,6 +1012,8 @@ class MIRArrayType : public MIRType {
   uint16 dim = 0;
   std::array<uint32, kMaxArrayDim> sizeArray{ {0} };
   TypeAttrs typeAttrs;
+  mutable uint32 fieldsNum = kInvalidFieldNum;
+  mutable size_t size = kInvalidSize;
 };
 
 // flexible array type, must be last field of a top-level struct
@@ -995,7 +1056,7 @@ class MIRFarrayType : public MIRType {
   std::string GetCompactMplTypeName() const override;
 
   bool HasFields() const override;
-  size_t NumberOfFieldIDs() const override;
+  uint32 NumberOfFieldIDs() const override;
   MIRStructType *EmbeddedStructType() override;
 
   int64 GetBitOffsetFromBaseAddr(FieldID fieldID) override {
@@ -1007,6 +1068,7 @@ class MIRFarrayType : public MIRType {
 
  private:
   TyIdx elemTyIdx;
+  mutable uint32 fieldsNum = kInvalidFieldNum;
 };
 
 using TyidxFuncAttrPair = std::pair<TyIdx, FuncAttrs>;
@@ -1386,7 +1448,7 @@ class MIRStructType : public MIRType {
   }
 
   bool HasFields() const override { return true; }
-  size_t NumberOfFieldIDs() const override;
+  uint32 NumberOfFieldIDs() const override;
   MIRStructType *EmbeddedStructType() override { return this; }
 
   virtual FieldPair TraverseToFieldRef(FieldID &fieldID) const;
@@ -1418,6 +1480,8 @@ class MIRStructType : public MIRType {
   std::map<GStrIdx, AnnotationType*> fieldGenericDeclare;
   std::vector<GenericType*> inheritanceGeneric;
   TypeAttrs typeAttrs;
+  mutable uint32 fieldsNum = kInvalidFieldNum;
+  mutable size_t size = kInvalidSize;
 
  private:
   FieldPair TraverseToField(GStrIdx fieldStrIdx) const ;
@@ -1614,7 +1678,7 @@ class MIRClassType : public MIRStructType {
            kTypeHashLength;
   }
 
-  size_t NumberOfFieldIDs() const override;
+  uint32 NumberOfFieldIDs() const override;
 
  private:
   TyIdx parentTyIdx{ 0 };
@@ -1731,7 +1795,7 @@ class MIRInterfaceType : public MIRStructType {
   }
 
   bool HasFields() const override { return false; }
-  size_t NumberOfFieldIDs() const override { return 0; }
+  uint32 NumberOfFieldIDs() const override { return 0; }
   MIRStructType *EmbeddedStructType() override { return nullptr; }
 
  private:
@@ -1799,6 +1863,7 @@ class MIRFuncType : public MIRType {
   ~MIRFuncType() override = default;
 
   bool EqualTo(const MIRType &type) const override;
+  bool CompatibleWith(const MIRType &type) const;
   MIRType *CopyMIRTypeNode() const override {
     return new MIRFuncType(*this);
   }
@@ -2041,6 +2106,8 @@ class MIRGenericInstantType : public MIRInstantVectorType {
  private:
   TyIdx genericTyIdx;  // the generic type to be instantiated
 };
+
+MIRType *GetElemType(const MIRType &arrayType);
 #endif  // MIR_FEATURE_FULL
 }  // namespace maple
 

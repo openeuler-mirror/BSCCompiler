@@ -374,9 +374,7 @@ MIRFuncType *LMBCLowerer::FuncTypeFromFuncPtrExpr(BaseNode *x) {
         const MIRSymbol *symbol = preg->rematInfo.sym;
         MIRType *mirType = symbol->GetType();
         if (mirType->GetKind() == kTypePointer) {
-          res = static_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
-        } else {
-          res = static_cast<MIRFuncType *>(mirType);
+          res = static_cast<MIRPtrType *>(mirType)->GetPointedFuncType();
         }
         if (res != nullptr) {
           break;
@@ -390,9 +388,7 @@ MIRFuncType *LMBCLowerer::FuncTypeFromFuncPtrExpr(BaseNode *x) {
         if (formalDef.formalSym->GetPreg() == preg) {
           MIRType *mirType = formalDef.formalSym->GetType();
           if (mirType->GetKind() == kTypePointer) {
-            res = static_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
-          } else {
-            res = static_cast<MIRFuncType *>(mirType);
+            res = static_cast<MIRPtrType *>(mirType)->GetPointedFuncType();
           }
           break;
         }
@@ -409,9 +405,7 @@ MIRFuncType *LMBCLowerer::FuncTypeFromFuncPtrExpr(BaseNode *x) {
         mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
       }
       if (mirType->GetKind() == kTypePointer) {
-        res = static_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
-      } else {
-        res = static_cast<MIRFuncType *>(mirType);
+        res = static_cast<MIRPtrType *>(mirType)->GetPointedFuncType();
       }
       break;
     }
@@ -420,9 +414,7 @@ MIRFuncType *LMBCLowerer::FuncTypeFromFuncPtrExpr(BaseNode *x) {
       MIRPtrType *ptrType = static_cast<MIRPtrType *>(iread->GetType());
       MIRType *mirType = ptrType->GetPointedType();
       if (mirType->GetKind() == kTypePointer) {
-        res = static_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
-      } else {
-        res = static_cast<MIRFuncType *>(mirType);
+        res = static_cast<MIRPtrType *>(mirType)->GetPointedFuncType();
       }
       break;
     }
@@ -437,9 +429,7 @@ MIRFuncType *LMBCLowerer::FuncTypeFromFuncPtrExpr(BaseNode *x) {
       MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
           static_cast<RetypeNode*>(x)->GetTyIdx());
       if (mirType->GetKind() == kTypePointer) {
-        res = static_cast<MIRFuncType *>(static_cast<MIRPtrType*>(mirType)->GetPointedType());
-      } else {
-        res = static_cast<MIRFuncType *>(mirType);
+        res = static_cast<MIRPtrType *>(mirType)->GetPointedFuncType();
       }
       if (res == nullptr) {
         res = FuncTypeFromFuncPtrExpr(x->Opnd(0));
