@@ -91,8 +91,8 @@ class IRMap : public AnalysisResult {
   MeExpr *GetMeExpr(size_t index) {
     ASSERT(index < verst2MeExprTable.size(), "index out of range");
     MeExpr *meExpr = verst2MeExprTable.at(index);
-    if (meExpr != nullptr) {
-      ASSERT(meExpr->GetMeOp() == kMeOpVar || meExpr->GetMeOp() == kMeOpReg, "opcode error");
+    if (meExpr == nullptr || !meExpr->IsScalar()) {
+      return nullptr;
     }
     return meExpr;
   }
@@ -138,10 +138,15 @@ class IRMap : public AnalysisResult {
   MeExpr *CreateCanonicalizedMeExpr(PrimType primType, Opcode opA, Opcode opB, MeExpr *opndA, MeExpr *opndB,
                                     Opcode opC, MeExpr *opndC, MeExpr *opndD);
   MeExpr *FoldConstExpr(PrimType primType, Opcode op, ConstMeExpr *opndA, ConstMeExpr *opndB);
+  MeExpr *SimplifyBandExpr(const OpMeExpr *bandExpr);
+  MeExpr *SimplifyLshrExpr(const OpMeExpr *shrExpr);
+  MeExpr *SimplifySubExpr(const OpMeExpr *subExpr);
   MeExpr *SimplifyAddExpr(const OpMeExpr *addExpr);
   MeExpr *SimplifyMulExpr(const OpMeExpr *mulExpr);
   MeExpr *SimplifyCmpExpr(OpMeExpr *cmpExpr);
   MeExpr *SimplifyOpMeExpr(OpMeExpr *opmeexpr);
+  MeExpr *SimplifyOrMeExpr(OpMeExpr *opmeexpr);
+  MeExpr *SimplifyAshrMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyMeExpr(MeExpr *x);
   void SimplifyCastForAssign(MeStmt *assignStmt);
   void SimplifyAssign(AssignMeStmt *assignStmt);
@@ -195,7 +200,14 @@ class IRMap : public AnalysisResult {
   }
 
   MeExpr *GetVerst2MeExprTableItem(uint32 i) {
+    if (i >= verst2MeExprTable.size()) {
+      return nullptr;
+    }
     return verst2MeExprTable[i];
+  }
+
+  void SetVerst2MeExprTableItem(uint32 i, MeExpr *expr) {
+    verst2MeExprTable[i] = expr;
   }
 
   MapleUnorderedMap<OStIdx, RegMeExpr*>::iterator GetLpreTmpsEnd() {
@@ -266,7 +278,7 @@ class IRMap : public AnalysisResult {
 
   bool ReplaceMeExprStmtOpnd(uint32, MeStmt&, const MeExpr&, MeExpr&);
   void PutToBucket(uint32, MeExpr&);
-  BB *GetFalseBrBB(const CondGotoMeStmt&);
+  const BB *GetFalseBrBB(const CondGotoMeStmt&);
   MeExpr *ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &newExpr, size_t opndsSize, const MeExpr &meExpr, MeExpr &repExpr);
   MeExpr *SimplifyCompareSameExpr(OpMeExpr *opmeexpr);
   bool IfMeExprIsU1Type(const MeExpr *expr) const;

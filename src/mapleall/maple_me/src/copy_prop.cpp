@@ -98,6 +98,22 @@ static bool PropagatableOpndOfOperator(const MeExpr *meExpr, Opcode op, size_t o
   return true;
 }
 
+static bool ExpectedPropedExpr(MeExpr &expr) {
+  auto meop = expr.GetMeOp();
+  if (meop == kMeOpReg || meop == kMeOpConst) {
+    return true;
+  }
+  if (meop == kMeOpOp) {
+    for (size_t i = 0; i < expr.GetNumOpnds(); ++i) {
+      if (!ExpectedPropedExpr(*expr.GetOpnd(i))) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
 MeExpr &CopyProp::PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm) {
   MeExprOp meOp = meExpr.GetMeOp();
 
@@ -161,19 +177,28 @@ MeExpr &CopyProp::PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm) {
     case kMeOpOp: {
       auto &meOpExpr = static_cast<OpMeExpr&>(meExpr);
       OpMeExpr newMeExpr(meOpExpr, -1);
+      MeExpr *simplifyExpr = nullptr;
 
       for (size_t i = 0; i < newMeExpr.GetNumOpnds(); ++i) {
         auto opnd = meOpExpr.GetOpnd(i);
         auto &propedExpr = PropMeExpr(utils::ToRef(opnd), subProped, false);
         if ((opnd->GetMeOp() == kMeOpVar || opnd->GetMeOp() == kMeOpReg) &&
             !PropagatableOpndOfOperator(&propedExpr, meExpr.GetOp(), i)) {
-          continue;
+          if (!ExpectedPropedExpr(propedExpr)) {
+            continue;
+          }
+          newMeExpr.SetOpnd(i, &propedExpr);
+          simplifyExpr = irMap.SimplifyOpMeExpr(&newMeExpr);
+          if (!simplifyExpr || simplifyExpr->GetDepth() >= newMeExpr.GetDepth()) {
+            newMeExpr.SetOpnd(i, opnd);
+            continue;
+          }
         }
 
         newMeExpr.SetOpnd(i, &propedExpr);
         isproped = true;
       }
-      MeExpr *simplifyExpr = irMap.SimplifyOpMeExpr(&newMeExpr);
+      simplifyExpr = irMap.SimplifyOpMeExpr(&newMeExpr);
       return simplifyExpr != nullptr ? *simplifyExpr : utils::ToRef(irMap.HashMeExpr(newMeExpr));
     }
     case kMeOpNary: {
