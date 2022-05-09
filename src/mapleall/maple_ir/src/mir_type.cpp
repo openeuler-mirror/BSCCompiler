@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -21,6 +21,7 @@
 #include "global_tables.h"
 #include "mir_builder.h"
 #include "cfg_primitive_types.h"
+#include "string_utils.h"
 #if MIR_FEATURE_FULL
 
 namespace maple {
@@ -548,30 +549,44 @@ void StmtAttrs::DumpAttributes() const {
 }
 
 void TypeAttrs::DumpAttributes() const {
+// dump attr without content
 #define TYPE_ATTR
+#define NOCONTENT_ATTR
 #define STRING(s) #s
 #define ATTR(AT)          \
   if (GetAttr(ATTR_##AT)) \
     LogInfo::MapleLogger() << " " << STRING(AT);
 #include "all_attributes.def"
 #undef ATTR
+#undef NOCONTENT_ATTR
 #undef TYPE_ATTR
+// dump attr with content
   if (attrAlign) {
     LogInfo::MapleLogger() << " align(" << GetAlign() << ")";
+  }
+  if(GetAttr(ATTR_pack) && GetPack() != 0) {
+    LogInfo::MapleLogger() << " pack(" << GetPack() << ")";
   }
 }
 
 void FieldAttrs::DumpAttributes() const {
+// dump attr without content
 #define FIELD_ATTR
+#define NOCONTENT_ATTR
 #define STRING(s) #s
 #define ATTR(AT)             \
   if (GetAttr(FLDATTR_##AT)) \
     LogInfo::MapleLogger() << " " << STRING(AT);
 #include "all_attributes.def"
 #undef ATTR
+#undef NOCONTENT_ATTR
 #undef FIELD_ATTR
+// dump attr with content
   if (attrAlign) {
     LogInfo::MapleLogger() << " align(" << GetAlign() << ")";
+  }
+  if(IsPacked()) {
+    LogInfo::MapleLogger() << " pack(1)";
   }
 }
 
@@ -1308,7 +1323,7 @@ uint32 MIRStructType::GetAlign() const {
       maxAlign = algn;
     }
   }
-  return maxAlign;
+  return std::min(maxAlign, GetTypeAttrs().GetPack());
 }
 
 void MIRStructType::DumpFieldsAndMethods(int indent, bool hasMethod) const {
@@ -1651,6 +1666,62 @@ bool MIRFuncType::EqualTo(const MIRType &type) const {
           pType.retAttrs == retAttrs);
 }
 
+static bool TypeCompatible(TyIdx typeIdx1, TyIdx typeIdx2) {
+  if (typeIdx1 == typeIdx2) {
+    return true;
+  }
+  MIRType *type1 = GlobalTables::GetTypeTable().GetTypeFromTyIdx(typeIdx1);
+  MIRType *type2 = GlobalTables::GetTypeTable().GetTypeFromTyIdx(typeIdx2);
+  if (type1 == nullptr || type2 == nullptr) {
+    // this means we saw the use of this symbol before def.
+    return false;
+  }
+  while (type1->IsMIRPtrType() || type1->IsMIRArrayType()) {
+    if (type1->IsMIRPtrType()) {
+      if (!type2->IsMIRPtrType()) {
+        return false;
+      }
+      type1 = static_cast<MIRPtrType *>(type1)->GetPointedType();
+      type2 = static_cast<MIRPtrType *>(type2)->GetPointedType();
+    } else {
+      if (!type2->IsMIRArrayType()) {
+        return false;
+      }
+      type1 = static_cast<MIRArrayType *>(type1)->GetElemType();
+      type2 = static_cast<MIRArrayType *>(type2)->GetElemType();
+    }
+  }
+  if (type1 == type2) {
+    return true;
+  }
+  if (type1->GetPrimType() == PTY_void || type2->GetPrimType() == PTY_void) {
+    return true;
+  }
+  if (type1->IsIncomplete() || type2->IsIncomplete()) {
+    return true;
+  }
+  return false;
+}
+
+bool MIRFuncType::CompatibleWith(const MIRType &type) const {
+  if (type.GetKind() != typeKind) {
+    return false;
+  }
+  const auto &pType = static_cast<const MIRFuncType&>(type);
+  if (!TypeCompatible(pType.retTyIdx, retTyIdx)) {
+    return false;
+  }
+  if (pType.paramTypeList.size() != paramTypeList.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < paramTypeList.size(); i++) {
+    if (!TypeCompatible(pType.GetNthParamType(i), GetNthParamType(i))) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool MIRBitFieldType::EqualTo(const MIRType &type) const {
   if (type.GetKind() != typeKind || type.GetPrimType() != primType) {
     return false;
@@ -1917,18 +1988,23 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
   constexpr uint32 bitsPerByte = 8; // 8 bits per byte
   FieldVector fieldPairs = GetFields();
   // process the struct fields
-  // There are 4 possible kinds of field in a MIRStructureType:
+  // There are 3 possible kinds of field in a MIRStructureType:
   //  case 1 : bitfield (including zero-width bitfield);
-  //  case 2 : empty structure(struct/union) field;
-  //  case 3 : normal (not empty) structure(struct/union) field;
-  //  case 4 : primtive field;
+  //  case 2 : primtive field;
+  //  case 3 : normal (empty/non-empty) structure(struct/union) field;
   for (FieldPair field : fieldPairs) {
     TyIdx fieldTyIdx = field.second.first;
+    auto fieldAttr = field.second.second;
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
+    uint32 fieldBitSize = static_cast<MIRBitFieldType*>(fieldType)->GetFieldSize();
+    size_t fieldTypeSize = fieldType->GetSize();
+    uint32 fieldTypeSizeBits = static_cast<uint32>(fieldTypeSize) * bitsPerByte;
+    auto originAlign = fieldType->GetAlign();
+    uint32 fieldAlign = fieldAttr.IsPacked() ? 1 : std::min(GetTypeAttrs().GetPack(), originAlign);
+    auto fieldAlignBits = fieldAlign * bitsPerByte;
     // case 1 : bitfield (including zero-width bitfield);
     if (fieldType->GetKind() == kTypeBitField) {
-      uint32 fieldBitSize = static_cast<MIRBitFieldType*>(fieldType)->GetFieldSize();
-      uint32 fieldAlign = GetPrimTypeSize(fieldType->GetPrimType());
+      fieldTypeSizeBits = static_cast<uint32>(GetPrimTypeSize(fieldType->GetPrimType())) * bitsPerByte;
       // Is this field is crossing the align boundary of its base type?
       // for example:
       // struct Expamle {
@@ -1949,12 +2025,12 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
       //     int32      : 0; // force the next field to be aligned on int32 align boundary
       //     int32 fld3 : 4;
       // }
-      if (((allocedBitSize / (fieldAlign * bitsPerByte)) !=
-          ((allocedBitSize + fieldBitSize - 1u) / (fieldAlign * bitsPerByte))) ||
+      if ((!GetTypeAttrs().IsPacked() && ((allocedBitSize / fieldTypeSizeBits) !=
+          ((allocedBitSize + fieldBitSize - 1u) / fieldTypeSizeBits))) ||
           fieldBitSize == 0) {
         // the field is crossing the align boundary of its base type;
         // align alloced_size_in_bits to fieldAlign
-        allocedBitSize = RoundUp(allocedBitSize, fieldAlign * bitsPerByte);
+        allocedBitSize = RoundUp(allocedBitSize, fieldTypeSizeBits);
       }
 
       // target field id is found
@@ -1964,25 +2040,11 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
         ++curFieldID;
       }
       allocedBitSize += fieldBitSize;
-      allocedSize = std::max(allocedSize, RoundUp(allocedBitSize, fieldAlign * bitsPerByte) / bitsPerByte);
+      fieldAlignBits = (fieldAlignBits) != 0 ? fieldAlignBits : fieldTypeSizeBits;
+      allocedSize = std::max(allocedSize, RoundUp(allocedBitSize, fieldAlignBits) / bitsPerByte);
       continue;
     } // case 1 end
 
-    size_t fieldTypeSize = fieldType->GetSize();
-    uint32 fieldAlign = fieldType->GetAlign();
-    uint64 fieldAlignBits = fieldAlign * bitsPerByte;
-
-    // case 2 : empty structure(struct/union) field;
-    // if fieldTypeSize is 0, no extra space will be allocated, just return or continue to next field
-    if (fieldTypeSize == 0) {
-      if (curFieldID == fieldID) {
-        return static_cast<int64>(allocedBitSize);
-      }
-      ++curFieldID;
-      continue;
-    } // case 2 end
-
-    uint32 fldSizeInBits = static_cast<uint32>(fieldTypeSize) * bitsPerByte;
     bool leftOverBits = false;
     uint64 offset = 0;
     // no bit field before current field
@@ -1991,7 +2053,7 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
       offset = allocedSize;
     } else {
       // still some leftover bits on allocated words, we calculate things based on bits then.
-      if (allocedBitSize / fieldAlignBits != (allocedBitSize + fldSizeInBits - 1) / fieldAlignBits) {
+      if (allocedBitSize / fieldAlignBits != (allocedBitSize + fieldTypeSizeBits - 1) / fieldAlignBits) {
         // the field is crossing the align boundary of its base type
         allocedBitSize = RoundUp(allocedBitSize, static_cast<uint32>(fieldAlignBits));
       }
@@ -2003,12 +2065,12 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
     if (curFieldID == fieldID) {
       return static_cast<int64>(offset * bitsPerByte);
     }
-    // case 4 : primtive field;
     MIRStructType *subStructType = fieldType->EmbeddedStructType();
+    // case 2 : primtive field;
     if (subStructType == nullptr) {
       ++curFieldID;
     } else {
-      // case 3 : normal (not empty) structure(struct/union) field;
+      // case 3 : normal (empty/non-empty) structure(struct/union) field;
       // if target field id is in the embedded structure, we should go into it by recursively call
       // otherwise, just add the field-id number of the embedded structure, and continue to next field
       if ((curFieldID + static_cast<FieldID>(subStructType->NumberOfFieldIDs())) < fieldID) {
@@ -2020,7 +2082,7 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
     }
 
     if (leftOverBits) {
-      allocedBitSize += fldSizeInBits;
+      allocedBitSize += fieldTypeSizeBits;
       allocedSize = std::max(allocedSize, RoundUp(allocedBitSize, static_cast<uint32>(fieldAlignBits)) / bitsPerByte);
     } else {
       allocedSize += fieldTypeSize;
@@ -2182,6 +2244,10 @@ bool MIRPtrType::IsUnsafeType() const {
   return (pointedType->GetPrimType() == PTY_void || pointedType->GetSize() == 1);
 }
 
+bool MIRPtrType::IsVoidPointer() const {
+  return GlobalTables::GetTypeTable().GetVoidPtr() == this;
+}
+
 size_t MIRPtrType::GetSize() const { return POINTER_SIZE; }
 uint32 MIRPtrType::GetAlign() const { return POINTER_SIZE; }
 
@@ -2216,6 +2282,20 @@ std::string MIRPtrType::GetCompactMplTypeName() const {
   MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointedTyIdx);
   CHECK_FATAL(pointedType != nullptr, "invalid ptr type");
   return pointedType->GetCompactMplTypeName();
+}
+
+MIRFuncType *MIRPtrType::GetPointedFuncType() {
+  MIRType *pointedType = GetPointedType();
+  if (pointedType->GetKind() == kTypeFunction) {
+    return static_cast<MIRFuncType *>(pointedType);
+  }
+  if (pointedType->GetKind() == kTypePointer) {
+    MIRPtrType *pointedPtrType = static_cast<MIRPtrType *>(pointedType);
+    if (pointedPtrType->GetPointedType()->GetKind() == kTypeFunction) {
+      return static_cast<MIRFuncType *>(pointedPtrType->GetPointedType());
+    }
+  }
+  return nullptr;
 }
 
 uint32 MIRStructType::NumberOfFieldIDs() const {

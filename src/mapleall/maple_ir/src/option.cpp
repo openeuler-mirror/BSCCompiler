@@ -46,6 +46,12 @@ uint32 Options::inlineModuleGrowth = 10;
 uint32 Options::inlineColdFunctionThreshold = 3;
 uint32 Options::profileHotCount = 1000;
 uint32 Options::profileColdCount = 10;
+uint32 Options::numOfCloneVersions = 2;
+uint32 Options::numOfImpExprLowBound = 2;
+uint32 Options::numOfImpExprHighBound = 5;
+uint32 Options::numOfCallSiteLowBound = 2;
+uint32 Options::numOfCallSiteUpBound = 10;
+uint32 Options::numOfConstpropValue = 2;
 bool Options::profileHotCountSeted = false;
 bool Options::profileColdCountSeted = false;
 uint32 Options::profileHotRate = 500000;
@@ -61,6 +67,7 @@ bool Options::skipVirtualMethod = false;
 #endif
 bool Options::profileGen = false;
 bool Options::profileUse = false;
+bool Options::genLMBC = false;
 
 // Ready to be deleted.
 bool Options::noRC = false;
@@ -112,7 +119,7 @@ uint32 Options::inlineCache = 0;
 bool Options::checkArrayStore = false;
 bool Options::noComment = false;
 bool Options::rmNoUseFunc = true; // default remove no-used static function
-bool Options::sideEffect = false;
+bool Options::sideEffect = true;
 bool Options::dumpIPA = false;
 bool Options::wpaa = false;  // whole program alias analysis
 
@@ -150,6 +157,13 @@ enum OptionIndex {
   kProfileColdCount,
   kProfileHotRate,
   kProfileColdRate,
+  // For Clone
+  kNumOfCloneVersions,
+  kNumOfImpExprLowBound,
+  kNumOfImpExprHighBound,
+  kNumOfCallSiteLowBound,
+  kNumOfCallSiteUpBound,
+  kNumOfConstpropValue,
   // Ready to be deleted.
   kMpl2MplUseRc,
   kMpl2MplStrictNaiveRc,
@@ -323,6 +337,60 @@ const Descriptor kUsage[] = {
     kBuildTypeExperimental,
     kArgCheckPolicyRequired,
     "  --importfilelist=list    \tImport there files to do cross module analysis\n",
+    "mpl2mpl",
+    {} },
+  { kNumOfCloneVersions,
+    0,
+    "",
+    "num-of-clone-versions",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --num-of-clone-versions=3        \tnum of clone versions\n",
+    "mpl2mpl",
+    {} },
+  { kNumOfImpExprLowBound,
+    0,
+    "",
+    "num-of-ImpExpr-LowBound",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --num-of-ImpExpr-LowBound=3        \tnum of ImpExpr LowBound\n",
+    "mpl2mpl",
+    {} },
+  { kNumOfImpExprHighBound,
+    0,
+    "",
+    "num-of-ImpExpr-HighBound",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --num-of-ImpExpr-HighBound=3        \tnum of ImpExpr HighBound\n",
+    "mpl2mpl",
+    {} },
+  { kNumOfCallSiteLowBound,
+    0,
+    "",
+    "num-of-CallSite-LowBound",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --num-of-CallSite-LowBound=3        \tnum of CallSite LowBound\n",
+    "mpl2mpl",
+    {} },
+  { kNumOfCallSiteUpBound,
+    0,
+    "",
+    "num-of-CallSite-HighBound",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --num-of-CallSite-HighBound=3        \tnum of CallSite HighBound\n",
+    "mpl2mpl",
+    {} },
+  { kNumOfConstpropValue,
+    0,
+    "",
+    "num-of-ConstProp-value",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --num-of-ConstProp-Value=3        \tnum of const prop value\n",
     "mpl2mpl",
     {} },
   { kMpl2MplUseCrossModuleInline,
@@ -1015,6 +1083,54 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
       case kImportFileList:
         importFileList = opt.Args();
         break;
+      case kNumOfCloneVersions:
+        if (opt.Args().empty()) {
+          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --Clone\n";
+          result = false;
+        } else {
+          numOfCloneVersions = static_cast<uint32>(std::stoul(opt.Args()));
+        }
+        break;
+      case kNumOfImpExprLowBound:
+        if (opt.Args().empty()) {
+          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --Clone\n";
+          result = false;
+        } else {
+          numOfImpExprLowBound = static_cast<uint32>(std::stoul(opt.Args()));
+        }
+        break;
+      case kNumOfImpExprHighBound:
+        if (opt.Args().empty()) {
+          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --Clone\n";
+          result = false;
+        } else {
+          numOfImpExprHighBound = static_cast<uint32>(std::stoul(opt.Args()));
+        }
+        break;
+      case kNumOfCallSiteLowBound:
+        if (opt.Args().empty()) {
+          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --Clone\n";
+          result = false;
+        } else {
+          numOfCallSiteLowBound = static_cast<uint32>(std::stoul(opt.Args()));
+        }
+        break;
+      case kNumOfCallSiteUpBound:
+        if (opt.Args().empty()) {
+          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --Clone\n";
+          result = false;
+        } else {
+          numOfCallSiteUpBound = static_cast<uint32>(std::stoul(opt.Args()));
+        }
+        break;
+      case kNumOfConstpropValue:
+        if (opt.Args().empty()) {
+          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --Clone\n";
+          result = false;
+        } else {
+          numOfConstpropValue = static_cast<uint32>(std::stoul(opt.Args()));
+        }
+        break;
       case kMpl2MplUseCrossModuleInline:
         useCrossModuleInline = (opt.Type() == kEnable);
         break;
@@ -1239,6 +1355,9 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
         break;
       case kProfileUse:
         profileUse = true;
+        break;
+      case kGenLMBC:
+        genLMBC = true;
         break;
       case kAppPackageName:
         appPackageName = opt.Args();

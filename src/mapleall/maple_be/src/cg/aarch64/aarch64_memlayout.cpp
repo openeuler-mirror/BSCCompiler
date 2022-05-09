@@ -133,9 +133,9 @@ void AArch64MemLayout::LayoutVarargParams() {
   if (be.GetMIRModule().IsCModule() && func->GetAttr(FUNCATTR_varargs)) {
     for (uint32 i = 0; i < func->GetFormalCount(); i++) {
       if (i == 0) {
-        if (be.HasFuncReturnType(*func)) {
-          TyIdx tidx = be.GetFuncReturnType(*func);
-          if (be.GetTypeSize(tidx.GetIdx()) <= k16ByteSize) {
+        if (func->IsReturnStruct()) {
+          TyIdx tyIdx = func->GetFuncRetStructTyIdx();
+          if (be.GetTypeSize(tyIdx.GetIdx()) <= k16ByteSize) {
             continue;
           }
         }
@@ -189,13 +189,15 @@ void AArch64MemLayout::LayoutVarargParams() {
 }
 
 void AArch64MemLayout::LayoutFormalParams() {
-  if (be.GetMIRModule().GetFlavor() == kFlavorLmbc && mirFunction->GetFormalCount() == 0) {
+  bool isLmbc = (be.GetMIRModule().GetFlavor() == kFlavorLmbc);
+  if (isLmbc && mirFunction->GetFormalCount() == 0) {
     /*
      * lmbc : upformalsize - size of formals passed from caller's frame into current function
      *        framesize - total frame size of current function used by Maple IR
      *        outparmsize - portion of frame size of current function used by call parameters
      */
     segArgsStkPassed.SetSize(mirFunction->GetOutParmSize());
+    segArgsRegPassed.SetSize(mirFunction->GetOutParmSize() + kTwoRegister * k8ByteSize);
     return;
   }
 
@@ -207,11 +209,11 @@ void AArch64MemLayout::LayoutFormalParams() {
     AArch64SymbolAlloc *symLoc = memAllocator->GetMemPool()->New<AArch64SymbolAlloc>();
     SetSymAllocInfo(stIndex, *symLoc);
     if (i == 0) {
-      if (be.HasFuncReturnType(*mirFunction)) {
+      if (mirFunction->IsReturnStruct()) {
         symLoc->SetMemSegment(GetSegArgsRegPassed());
         symLoc->SetOffset(GetSegArgsRegPassed().GetSize());
-        TyIdx tidx = be.GetFuncReturnType(*mirFunction);
-        if (be.GetTypeSize(tidx.GetIdx()) > k16ByteSize) {
+        TyIdx tyIdx = mirFunction->GetFuncRetStructTyIdx();
+        if (be.GetTypeSize(tyIdx.GetIdx()) > k16ByteSize) {
           if (CGOptions::IsArm64ilp32()) {
             segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + k8ByteSize);
           } else {
@@ -253,6 +255,8 @@ void AArch64MemLayout::LayoutFormalParams() {
         segArgsRegPassed.SetSize(static_cast<uint32>(RoundUp(segArgsRegPassed.GetSize(), align)));
         symLoc->SetOffset(segArgsRegPassed.GetSize());
         segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + size);
+      } else if (isLmbc) {
+        segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + k8ByteSize);
       }
       noStackPara = true;
     } else {  /* stack */
@@ -285,7 +289,7 @@ void AArch64MemLayout::LayoutFormalParams() {
 
 void AArch64MemLayout::LayoutLocalVariables(std::vector<MIRSymbol*> &tempVar, std::vector<MIRSymbol*> &returnDelays) {
   if (be.GetMIRModule().GetFlavor() == kFlavorLmbc && mirFunction->GetFormalCount() == 0) {
-    segLocals.SetSize(mirFunction->GetFrameSize());
+    segLocals.SetSize(mirFunction->GetFrameSize() - mirFunction->GetOutParmSize());
     return;
   }
 
@@ -368,7 +372,11 @@ void AArch64MemLayout::LayoutReturnRef(std::vector<MIRSymbol*> &returnDelays,
     symLoc->SetOffset(segRefLocals.GetSize());
     segRefLocals.SetSize(segRefLocals.GetSize() + be.GetTypeSize(tyIdx));
   }
-  segArgsToStkPass.SetSize(FindLargestActualArea(structCopySize));
+  if (be.GetMIRModule().GetFlavor() == kFlavorLmbc) {
+    segArgsToStkPass.SetSize(mirFunction->GetOutParmSize());
+  } else {
+    segArgsToStkPass.SetSize(FindLargestActualArea(structCopySize));
+  }
   maxParmStackSize = static_cast<int32>(segArgsToStkPass.GetSize());
   if (Globals::GetInstance()->GetOptimLevel() == 0) {
     AssignSpillLocationsToPseudoRegisters();
@@ -388,7 +396,7 @@ void AArch64MemLayout::LayoutReturnRef(std::vector<MIRSymbol*> &returnDelays,
 void AArch64MemLayout::LayoutActualParams() {
   for (size_t i = 0; i < mirFunction->GetFormalCount(); ++i) {
     if (i == 0) {
-      if (be.HasFuncReturnType(*mirFunction)) {
+      if (mirFunction->IsReturnStruct()) {
         continue;
       }
     }

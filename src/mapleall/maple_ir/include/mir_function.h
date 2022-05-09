@@ -532,6 +532,17 @@ class MIRFunction {
     return codeMemPoolAllocator;
   }
 
+  TyIdx GetFuncRetStructTyIdx() {
+    TyIdx tyIdx = GetFormalDefAt(0).formalTyIdx;
+    MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+    CHECK_FATAL(ty->GetKind() == kTypePointer, "Fake param not a pointer");
+    MIRPtrType *pType = static_cast<MIRPtrType*>(ty);
+    tyIdx = pType->GetPointedTyIdx();
+    CHECK_FATAL(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->IsStructType(),
+                "Must be struct return type");
+    return tyIdx;
+  }
+
   void EnterFormals();
   void NewBody();
 

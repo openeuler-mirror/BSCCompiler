@@ -356,7 +356,7 @@ const mapleOption::Descriptor kUsages[] = {
     kArgCheckPolicyNone,
     "  --genlmbc                   \tGenerate .lmbc file\n",
     "driver",
-    {} },
+    { "mpl2mpl" } },
   { kGenObj,
     kEnable,
     "c",
