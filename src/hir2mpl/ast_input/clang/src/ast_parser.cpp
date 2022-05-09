@@ -729,6 +729,13 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
         case PTY_i128:
           astValue->val.i64 = static_cast<int64>(result.Val.getInt().getSExtValue());
           astValue->pty = PTY_i128;
+          static bool i128Warning = true;
+          if (i128Warning) {
+            WARN(kLncWarn, "%s:%d PTY_i128 is not fully supported",
+                 FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*expr).first).c_str(),
+                 astFile->GetExprLOC(*expr).second);
+            i128Warning = false;
+          }
           break;
         case PTY_u8:
           astValue->val.u8 = static_cast<uint8>(result.Val.getInt().getExtValue());
@@ -753,6 +760,13 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
         case PTY_u128:
           astValue->val.u64 = static_cast<uint64>(result.Val.getInt().getZExtValue());
           astValue->pty = PTY_u128;
+          static bool u128Warning = true;
+          if (u128Warning) {
+            WARN(kLncWarn, "%s:%d PTY_u128 is not fully supported",
+                 FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*expr).first).c_str(),
+                 astFile->GetExprLOC(*expr).second);
+            u128Warning = false;
+          }
           break;
         case PTY_u1:
           astValue->val.u8 = (result.Val.getInt().getExtValue() == 0 ? 0 : 1);
@@ -776,7 +790,16 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
           break;
         case llvm::APFloat::S_IEEEquad:
         case llvm::APFloat::S_PPCDoubleDouble:
-        case llvm::APFloat::S_x87DoubleExtended:
+        case llvm::APFloat::S_x87DoubleExtended: {
+          auto ty = expr->getType().getCanonicalType();
+          static bool f128Warning = true;
+          if (f128Warning && (ty->isFloat128Type() ||
+              (ty->isRealFloatingType() && astFile->GetAstContext()->getTypeSize(ty) == 128))) {
+            WARN(kLncWarn, "%s:%d PTY_f128 is not fully supported",
+                 FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*expr).first).c_str(),
+                 astFile->GetExprLOC(*expr).second);
+            f128Warning = false;
+          }
           bool LosesInfo;
           if (constMirType->GetPrimType() == PTY_f64) {
             (void)fValue.convert(llvm::APFloat::IEEEdouble(),
@@ -790,6 +813,7 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
             astValue->val.f32 = fValue.convertToFloat();
           }
           break;
+        }
         default:
           CHECK_FATAL(false, "unsupported semantics");
       }
@@ -828,6 +852,13 @@ ASTValue *ASTParser::TranslateLValue2ASTValue(
         const clang::StringLiteral &strExpr = llvm::cast<const clang::StringLiteral>(*lvExpr);
         std::string str = "";
         if (strExpr.isWide() || strExpr.isUTF16() || strExpr.isUTF32()) {
+          static bool wcharWarning = true;
+          if (wcharWarning && strExpr.isWide()) {
+            WARN(kLncWarn, "%s:%d wchar is not fully supported",
+                 FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*lvExpr).first).c_str(),
+                 astFile->GetExprLOC(*lvExpr).second);
+            wcharWarning = false;
+          }
           str = strExpr.getBytes().str();
         } else {
           str = strExpr.getString().str();

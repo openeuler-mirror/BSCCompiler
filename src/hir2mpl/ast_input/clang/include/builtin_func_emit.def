@@ -173,5 +173,10 @@ BUILTIN_FUNC_EMIT("__sync_nand_and_fetch_4", &ASTCallExpr::EmitBuiltinSyncNandAn
 BUILTIN_FUNC_EMIT("__sync_nand_and_fetch_8", &ASTCallExpr::EmitBuiltinSyncNandAndFetch8)
 BUILTIN_FUNC_EMIT("__sync_synchronize", &ASTCallExpr::EmitBuiltinSyncSynchronize)
 
+BUILTIN_FUNC_EMIT("__atomic_exchange_1", &ASTCallExpr::EmitBuiltinAtomicExchangeN)
+BUILTIN_FUNC_EMIT("__atomic_exchange_2", &ASTCallExpr::EmitBuiltinAtomicExchangeN)
+BUILTIN_FUNC_EMIT("__atomic_exchange_4", &ASTCallExpr::EmitBuiltinAtomicExchangeN)
+BUILTIN_FUNC_EMIT("__atomic_exchange_8", &ASTCallExpr::EmitBuiltinAtomicExchangeN)
+
 BUILTIN_FUNC_EMIT("__builtin_return_address", &ASTCallExpr::EmitBuiltinReturnAddress)
 BUILTIN_FUNC_EMIT("__builtin_extract_return_addr", &ASTCallExpr::EmitBuiltinExtractReturnAddr)

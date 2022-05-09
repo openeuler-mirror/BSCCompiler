@@ -617,6 +617,10 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinSyncSynchronize(std::list<UniqueFEIRStmt>
   return CreateIntrinsicCallAssignedForC(stmts, INTRN_C___sync_synchronize);
 }
 
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinAtomicExchangeN(std::list<UniqueFEIRStmt> &stmts) const {
+  return CreateIntrinsicCallAssignedForC(stmts, INTRN_C___atomic_exchange_n);
+}
+
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinReturnAddress(std::list<UniqueFEIRStmt> &stmts) const {
   return CreateIntrinsicopForC(stmts, INTRN_C__builtin_return_address);
 }

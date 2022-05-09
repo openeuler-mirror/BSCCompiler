@@ -1275,6 +1275,8 @@ class ASTCallExpr : public ASTExpr {
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncNandAndFetch8);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncSynchronize);
 
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(AtomicExchangeN);
+
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ReturnAddress);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ExtractReturnAddr);
 
