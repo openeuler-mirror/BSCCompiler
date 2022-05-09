@@ -2284,20 +2284,6 @@ std::string MIRPtrType::GetCompactMplTypeName() const {
   return pointedType->GetCompactMplTypeName();
 }
 
-MIRFuncType *MIRPtrType::GetPointedFuncType() {
-  MIRType *pointedType = GetPointedType();
-  if (pointedType->GetKind() == kTypeFunction) {
-    return static_cast<MIRFuncType *>(pointedType);
-  }
-  if (pointedType->GetKind() == kTypePointer) {
-    MIRPtrType *pointedPtrType = static_cast<MIRPtrType *>(pointedType);
-    if (pointedPtrType->GetPointedType()->GetKind() == kTypeFunction) {
-      return static_cast<MIRFuncType *>(pointedPtrType->GetPointedType());
-    }
-  }
-  return nullptr;
-}
-
 uint32 MIRStructType::NumberOfFieldIDs() const {
   if (fieldsNum != kInvalidFieldNum) {
     return fieldsNum;

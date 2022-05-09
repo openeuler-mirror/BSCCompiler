@@ -1576,12 +1576,8 @@ void CGFunc::CreateLmbcFormalParamInfo() {
       stackOffset += (typeSize + 7) & (-8);
       LmbcFormalParamInfo *info = GetMemoryPool()->New<LmbcFormalParamInfo>(primType, offset, typeSize);
       lmbcParamVec.push_back(info);
-      if (idx == 0 && func.IsFirstArgReturn()) {
-        info->SetIsReturn();
-      }
       if (type->GetKind() == kTypeStruct) {
-        MIRStructType *structType = static_cast<MIRStructType *>(type);
-        info->SetType(structType);
+        MIRStructType &structType = static_cast<MIRStructType&>(*type);
         uint32 fpSize;
         uint32 numFpRegs = FloatParamRegRequired(structType, fpSize);
         if (numFpRegs > 0) {

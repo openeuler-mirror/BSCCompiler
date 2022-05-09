@@ -250,13 +250,19 @@ void A64SSAOperandRenameVisitor::Visit(ListOperand *v) {
 
 void A64OpndSSAUpdateVsitor::Visit(RegOperand *regOpnd) {
   if (regOpnd->IsSSAForm()) {
-    CHECK_FATAL(!(opndProp->IsRegDef() && opndProp->IsRegUse()), "do not support yet");
-    if (opndProp->IsRegDef()){
-     UpdateRegDef(regOpnd->GetRegisterNumber());
-    } else if (opndProp->IsRegUse()) {
+    if (opndProp->IsRegDef() && opndProp->IsRegUse()) {
       UpdateRegUse(regOpnd->GetRegisterNumber());
+      UpdateRegDef(regOpnd->GetRegisterNumber());
     } else {
-      ASSERT(false, "invalid opnd");
+      if (opndProp->IsRegDef()){
+        UpdateRegDef(regOpnd->GetRegisterNumber());
+      } else if (opndProp->IsRegUse()) {
+        UpdateRegUse(regOpnd->GetRegisterNumber());
+      } else if (IsPhi()) {
+        UpdateRegUse(regOpnd->GetRegisterNumber());
+      } else {
+        ASSERT(false, "invalid opnd");
+      }
     }
   }
 }
@@ -274,6 +280,14 @@ void A64OpndSSAUpdateVsitor::Visit(maplebe::MemOperand *a64MemOpnd) {
   if (index != nullptr && index->IsSSAForm()) {
     UpdateRegUse(index->GetRegisterNumber());
   }
+}
+
+void A64OpndSSAUpdateVsitor::Visit(PhiOperand *phiOpnd) {
+  SetPhi(true);
+  for (auto phiListIt = phiOpnd->GetOperands().begin(); phiListIt != phiOpnd->GetOperands().end(); ++phiListIt) {
+    Visit(phiListIt->second);
+  }
+  SetPhi(false);
 }
 
 void A64OpndSSAUpdateVsitor::Visit(ListOperand *v) {

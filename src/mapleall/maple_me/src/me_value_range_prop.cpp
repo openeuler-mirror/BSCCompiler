@@ -3588,8 +3588,10 @@ bool ValueRangePropagation::CopyFallthruBBAndRemoveUnreachableEdge(
           pred, bb, trueBranch, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
     }
   } while (tmpPred->GetKind() != kBBCondGoto);
+  if (GetRealPredSize(bb) != 1) {
+    return false;
+  }
   // step2
-  CHECK_FATAL(GetRealPredSize(bb) == 1, "must have one succ");
   auto *currBB = &bb;
   while (currBB->GetKind() != kBBCondGoto) {
     currBB = currBB->GetSucc(0);

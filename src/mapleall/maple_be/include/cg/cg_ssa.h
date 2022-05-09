@@ -165,6 +165,7 @@ class CGSSAInfo {
   virtual void ReplaceInsn(Insn &oriInsn, Insn &newInsn) = 0;
   virtual void ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *newVersion) = 0;
   virtual void CreateNewInsnSSAInfo(Insn &newInsn) = 0;
+  PhiOperand &CreatePhiOperand();
 
   DUInsnInfo *CreateDUInsnInfo(Insn *cInsn, uint32 idx) {
     return memPool->New<DUInsnInfo>(cInsn, idx, ssaAlloc);

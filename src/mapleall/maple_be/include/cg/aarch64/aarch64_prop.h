@@ -103,14 +103,14 @@ class A64ConstProp {
 
   /* replace old Insn with new Insn, update ssa info automatically */
   void ReplaceInsnAndUpdateSSA(Insn &oriInsn, Insn &newInsn);
-  ImmOperand *CanDoConstFold(const ImmOperand &value1, const ImmOperand &value2,
-                                    ArithmeticType aT, bool is64Bit);
+  ImmOperand *CanDoConstFold(const ImmOperand &value1, const ImmOperand &value2, ArithmeticType aT, bool is64Bit);
 
   /* optimization */
   bool MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd);
   bool ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT);
   bool ArithmeticConstFold(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd, ArithmeticType aT);
   bool ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd);
+  bool BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd);
 
   MemPool *constPropMp;
   CGFunc *cgFunc;
@@ -298,7 +298,6 @@ private:
   void ReplaceUseInsn(Insn &use, const Insn &def, uint32 amount);
   void SetExMOpType(const Insn &use);
   void SetLsMOpType(const Insn &use);
-  Insn *FindDefInsn(VRegVersion *useVersion);
 
   MOperator replaceOp;
   uint32 replaceIdx;
@@ -309,6 +308,42 @@ private:
   bool optSuccess;
   ExMOpType exMOpType;
   LsMOpType lsMOpType;
+};
+
+/*
+ * optimization for call convention
+ */
+class A64PregCopyPattern : public PropOptimizePattern {
+ public:
+  A64PregCopyPattern(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
+  ~A64PregCopyPattern() override = default;
+  bool CheckCondition(Insn &insn) override;
+  void Optimize(Insn &insn) override;
+  void Run() override;
+
+ protected:
+  void Init() override {
+    validDefInsns.clear();
+    firstPhiInsn = nullptr;
+    differIdx = -1;
+    differOrigNO = 0;
+    isCrossPhi = false;
+  }
+
+ private:
+  bool CheckValidDefInsn(Insn *defInsn);
+  bool CheckMultiUsePoints(VRegVersion *version);
+  bool CheckPhiCaseCondition(Insn &curInsn, Insn &defInsn);
+  bool DFSFindValidDefInsns(Insn *curDefInsn, std::unordered_map<uint32, bool> &visited);
+  Insn &CreateNewPhiInsn(std::unordered_map<uint32, RegOperand*> &newPhiList, Insn *curInsn);
+  RegOperand &DFSBuildPhiInsn(Insn *curInsn, std::unordered_map<uint32, RegOperand*> &visited);
+  std::unordered_map<uint32, RegOperand*> FindDifferPhiDefOpnds();
+  RegOperand *GetDifferPhiDef();
+  std::vector<Insn*> validDefInsns;
+  Insn *firstPhiInsn = nullptr;
+  int differIdx = -1;
+  regno_t differOrigNO = 0;
+  bool isCrossPhi = false;
 };
 
 class A64ReplaceRegOpndVisitor : public ReplaceRegOpndVisitor {

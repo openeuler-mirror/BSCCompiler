@@ -22,11 +22,15 @@ void AArch64FPLROffsetAdjustment::Run() {
 }
 
 void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGFunc &aarchCGFunc) {
-  bool isLmbc = (aarchCGFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc);
+  if (aarchCGFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
+    /* TODO: Need to handle */
+    AdjustmentStackPointer(insn, aarchCGFunc);
+    return;
+  }
   uint32 opndNum = insn.GetOperandSize();
   MemLayout *memLayout = aarchCGFunc.GetMemlayout();
   bool stackBaseOpnd = false;
-  AArch64reg stackBaseReg = isLmbc ? R29 : (aarchCGFunc.UseFP() ? R29 : RSP);
+  AArch64reg stackBaseReg = aarchCGFunc.UseFP() ? R29 : RSP;
   for (uint32 i = 0; i < opndNum; ++i) {
     Operand &opnd = insn.GetOperand(i);
     if (opnd.IsRegister()) {

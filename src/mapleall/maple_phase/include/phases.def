@@ -11,7 +11,7 @@ ADDMODULEPHASE("callgraph", !Options::profileUse)
 ADDMODULEPHASE("inline", Options::O2 && Options::useInline && !Options::profileUse)
 // run callgraph again to delete fully inlined static function
 ADDMODULEPHASE("callgraph", Options::O2 && Options::useInline && !Options::profileUse)
-ADDMODULEPHASE("simplify", Options::O2 && !Options::genLMBC)
+ADDMODULEPHASE("simplify", Options::O2)
 ADDMODULEPHASE("ConstantFold", Options::O2)
 // ipa phase manager
 ADDMODULEPHASE("ipaprofile", CLANG && Options::profileUse)

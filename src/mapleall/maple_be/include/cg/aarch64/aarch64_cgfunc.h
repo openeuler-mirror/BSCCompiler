@@ -124,9 +124,7 @@ class AArch64CGFunc : public CGFunc {
                                        bool needLow12 = false);
   MemOperand *FixLargeMemOpnd(MemOperand &memOpnd, uint32 align);
   MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
-  void LmbcSelectParmList(ListOperand *srcOpnds, bool isArgReturn);
-  bool LmbcSmallAggForRet(BlkassignoffNode &bNode, Operand *src);
-  bool LmbcSmallAggForCall(BlkassignoffNode &bNode, Operand *src);
+  void LmbcSelectParmList(ListOperand *srcOpnds);
   void SelectAggDassign(DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
   void SelectIassignoff(IassignoffNode &stmt) override;
@@ -481,7 +479,7 @@ class AArch64CGFunc : public CGFunc {
   void GenerateCleanupCode(BB &bb) override;
   bool NeedCleanup() override;
   void GenerateCleanupCodeForExtEpilog(BB &bb) override;
-  uint32 FloatParamRegRequired(MIRStructType *structType, uint32 &fpSize) override;
+  uint32 FloatParamRegRequired(MIRStructType &structType, uint32 &fpSize) override;
   void AssignLmbcFormalParams() override;
   RegOperand *GenLmbcParamLoad(int32 offset, uint32 byteSize, RegType regType, PrimType primType);
   Operand *GetBaseReg(const AArch64SymbolAlloc &symAlloc);

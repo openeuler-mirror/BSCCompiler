@@ -177,7 +177,6 @@ class Options : public MapleDriverOptionBase {
   static bool sideEffect;
   static bool dumpIPA;
   static bool wpaa;
-  static bool genLMBC;
 
  private:
   void DecideMpl2MplRealLevel(const std::deque<mapleOption::Option> &inputOptions) const;

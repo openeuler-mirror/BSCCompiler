@@ -39,6 +39,17 @@ void CGProp::DoTargetProp() {
   }
 }
 
+Insn *PropOptimizePattern::FindDefInsn(VRegVersion *useVersion) {
+  if (!useVersion) {
+    return nullptr;
+  }
+  DUInsnInfo *defInfo = useVersion->GetDefInsnInfo();
+  if (!defInfo) {
+    return nullptr;
+  }
+  return defInfo->GetInsn();
+}
+
 bool CgCopyProp::PhaseRun(maplebe::CGFunc &f) {
   CGSSAInfo *ssaInfo = GET_ANALYSIS(CgSSAConstruct, f);
   LiveIntervalAnalysis *ll = GET_ANALYSIS(CGliveIntervalAnalysis, f);

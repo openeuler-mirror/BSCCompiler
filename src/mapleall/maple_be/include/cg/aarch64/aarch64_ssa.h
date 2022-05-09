@@ -50,7 +50,8 @@ class A64SSAOperandRenameVisitor : public SSAOperandVisitor {
   AArch64CGSSAInfo *ssaInfo;
 };
 
-class A64OpndSSAUpdateVsitor : public SSAOperandVisitor {
+class A64OpndSSAUpdateVsitor : public SSAOperandVisitor,
+                               public OperandVisitor<PhiOperand> {
  public:
   explicit A64OpndSSAUpdateVsitor(AArch64CGSSAInfo &cssaInfo) : ssaInfo(&cssaInfo) {}
   ~A64OpndSSAUpdateVsitor() override = default;
@@ -66,6 +67,15 @@ class A64OpndSSAUpdateVsitor : public SSAOperandVisitor {
   void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;
   void Visit(MemOperand *v) final;
+  void Visit(PhiOperand *v) final;
+
+  bool IsPhi() {
+    return isPhi;
+  }
+
+  void SetPhi(bool flag) {
+    isPhi = flag;
+  }
 
  private:
   void UpdateRegUse(uint32 ssaIdx);
@@ -73,6 +83,7 @@ class A64OpndSSAUpdateVsitor : public SSAOperandVisitor {
   AArch64CGSSAInfo *ssaInfo;
   bool isDecrease = false;
   std::set<regno_t> deletedDef;
+  bool isPhi = false;
 };
 
 class A64SSAOperandDumpVisitor : public SSAOperandDumpVisitor {

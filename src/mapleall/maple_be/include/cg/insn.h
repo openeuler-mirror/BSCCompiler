@@ -104,13 +104,20 @@ class Insn {
   void PopBackOperand() {
     opnds.pop_back();
   }
+
   Operand &GetOperand(uint32 index) const {
     ASSERT(index < opnds.size(), "index out of range");
     return *opnds[index];
   }
+
+  void ResizeOpnds(uint32 newSize) {
+    opnds.resize(static_cast<std::size_t>(newSize));
+  }
+
   uint32 GetOperandSize() const {
     return static_cast<uint32>(opnds.size());
   }
+
   void SetOperand(uint32 index, Operand &opnd) {
     ASSERT(index <= opnds.size(), "index out of range");
     opnds[index] = &opnd;

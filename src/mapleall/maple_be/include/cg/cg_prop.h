@@ -90,11 +90,14 @@ class PropOptimizePattern {
   virtual bool CheckCondition(Insn &insn) = 0;
   virtual void Optimize(Insn &insn) = 0;
   virtual void Run() = 0;
+
  protected:
   std::string PhaseName() const {
     return "propopt";
   }
   virtual void Init() = 0;
+  Insn *FindDefInsn(VRegVersion *useVersion);
+
   CGFunc &cgFunc;
   CGSSAInfo *optSsaInfo = nullptr;
   LiveIntervalAnalysis *regll = nullptr;

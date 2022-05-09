@@ -115,10 +115,6 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, const 
   } else {
     newReg.SetRegisterNumber(ssaVersion->GetOriginalRegNO());
   }
-  /* restore validBitNum */
-  if (newReg.GetValidBitsNum() != k64BitSize && newReg.GetValidBitsNum() != k32BitSize) {
-    newReg.SetValidBitsNum(newReg.GetSize());
-  }
   MaintainRematInfo(newReg, ssaOpnd, true);
   newReg.SetOpndOutOfSSAForm();
   return newReg;

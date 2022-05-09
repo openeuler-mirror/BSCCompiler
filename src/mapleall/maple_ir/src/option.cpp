@@ -67,7 +67,6 @@ bool Options::skipVirtualMethod = false;
 #endif
 bool Options::profileGen = false;
 bool Options::profileUse = false;
-bool Options::genLMBC = false;
 
 // Ready to be deleted.
 bool Options::noRC = false;
@@ -1355,9 +1354,6 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
         break;
       case kProfileUse:
         profileUse = true;
-        break;
-      case kGenLMBC:
-        genLMBC = true;
         break;
       case kAppPackageName:
         appPackageName = opt.Args();

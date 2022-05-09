@@ -74,7 +74,7 @@ void A64ConstProp::ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) 
   auto *useInsn = static_cast<AArch64Insn*>(useDUInfo.GetInsn());
   const AArch64MD *md = &AArch64CG::kMd[(useInsn->GetMachineOpcode())];
   /* special case */
-  bool isSpecficCase = useInsn->GetMachineOpcode() == MPO_wbfirri5i5 || useInsn->GetMachineOpcode() == MPO_xbfirri6i6;
+  bool isSpecficCase = useInsn->GetMachineOpcode() == MOP_wbfirri5i5 || useInsn->GetMachineOpcode() == MOP_xbfirri6i6;
   isSpecficCase &= (useDUInfo.GetOperands().size() == 1) && (useDUInfo.GetOperands().begin()->first == kInsnSecondOpnd);
   if (useInsn->IsStore() || md->IsCondDef() || isSpecficCase)  {
     RegOperand &zeroOpnd = cgFunc->GetZeroOpnd(toReplaceReg.GetSize());
@@ -135,8 +135,10 @@ MOperator A64ConstProp::GetRegImmMOP(MOperator regregMop, bool withLeftShift) {
     case MOP_weorrrrs:
       return MOP_weorrri12;
     case MOP_xiorrrrs:
+    case MOP_xbfirri6i6:
       return MOP_xiorrri13;
     case MOP_wiorrrrs:
+    case MOP_wbfirri5i5:
       return MOP_wiorrri12;
     case MOP_xmovrr: {
       return MOP_xmovri64;
@@ -404,8 +406,42 @@ bool A64ConstProp::ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) {
     case MOP_xsubrrrs: {
      return ShiftConstReplace(useDUInfo, constOpnd);
     }
+    case MOP_wbfirri5i5:
+    case MOP_xbfirri6i6: {
+      return BitInsertReplace(useDUInfo, constOpnd);
+    }
     default:
       break;
+  }
+  return false;
+}
+
+bool A64ConstProp::BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) {
+  Insn *useInsn = useDUInfo.GetInsn();
+  MOperator curMop = useInsn->GetMachineOpcode();
+  if (useDUInfo.GetOperands().size() == 1) {
+    auto useOpndInfoIt = useDUInfo.GetOperands().begin();
+    uint32 useOpndIdx = useOpndInfoIt->first;
+    if (useOpndIdx == kInsnSecondOpnd) {
+      auto &lsbOpnd = static_cast<ImmOperand&>(useInsn->GetOperand(kInsnThirdOpnd));
+      auto &widthOpnd = static_cast<ImmOperand&>(useInsn->GetOperand(kInsnFourthOpnd));
+      auto val = static_cast<uint64>(constOpnd.GetValue());
+      /* bfi width in the range [1 -64] */
+      auto width = static_cast<uint64>(widthOpnd.GetValue());
+      /*  bit number of the lsb of the destination bitfield */
+      auto lsb = static_cast<uint64>(lsbOpnd.GetValue());
+      val = val & ((1U << width) - 1U);
+      if (__builtin_popcountl(val) == width) {
+        val = val << lsb;
+        MOperator newMop = GetRegImmMOP(curMop, false);
+        Operand &newOpnd = cgFunc->CreateImmOperand(PTY_i64, val);
+        if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, &newOpnd, kInsnThirdOpnd)) {
+          Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, useInsn->GetOperand(kInsnFirstOpnd), useInsn->GetOperand(kInsnFirstOpnd), newOpnd);
+          ReplaceInsnAndUpdateSSA(*useInsn, newInsn);
+          return true;
+        }
+      }
+    }
   }
   return false;
 }
@@ -809,6 +845,7 @@ void AArch64Prop::PropPatternOpt() {
   optManager.Optimize<ExtendMovPattern>(*cgFunc, GetSSAInfo());
   optManager.Optimize<ExtendShiftPattern>(*cgFunc, GetSSAInfo());
   optManager.Optimize<FpSpConstProp>(*cgFunc, GetSSAInfo());
+  optManager.Optimize<A64PregCopyPattern>(*cgFunc, GetSSAInfo());
 }
 
 void ExtendShiftPattern::SetExMOpType(const Insn &use) {
@@ -1147,17 +1184,6 @@ void ExtendShiftPattern::DoExtendShiftOpt(Insn &insn) {
   if (optSuccess) {
     DoExtendShiftOpt(*newInsn);
   }
-}
-
-Insn *ExtendShiftPattern::FindDefInsn(VRegVersion *useVersion) {
-  if (!useVersion) {
-    return nullptr;
-  }
-  DUInsnInfo *defInfo = useVersion->GetDefInsnInfo();
-  if (!defInfo) {
-    return nullptr;
-  }
-  return defInfo->GetInsn();
 }
 
 /* check and set:
@@ -1746,6 +1772,317 @@ void FpSpConstProp::Optimize(Insn &insn) {
         break;
     }
   }
+}
+
+bool A64PregCopyPattern::DFSFindValidDefInsns(Insn *curDefInsn, std::unordered_map<uint32, bool> &visited) {
+  if (curDefInsn == nullptr) {
+    return false;
+  }
+  if (visited[curDefInsn->GetId()]) {
+    return true;
+  }
+  visited[curDefInsn->GetId()] = true;
+  if (!curDefInsn->IsPhi()) {
+    CHECK_FATAL(curDefInsn->IsMachineInstruction(), "expect valid insn");
+    validDefInsns.emplace_back(curDefInsn);
+    return true;
+  }
+  auto &phiOpnd = static_cast<PhiOperand&>(curDefInsn->GetOperand(kInsnSecondOpnd));
+  for (auto &phiListIt : phiOpnd.GetOperands()) {
+    auto &useOpnd = static_cast<RegOperand&>(*phiListIt.second);
+    VRegVersion *useVersion = optSsaInfo->FindSSAVersion(useOpnd.GetRegisterNumber());
+    Insn *defInsn = FindDefInsn(useVersion);
+    if (!DFSFindValidDefInsns(defInsn, visited)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool A64PregCopyPattern::CheckMultiUsePoints(VRegVersion *version) {
+  for (auto &useInfoIt : version->GetAllUseInsns()) {
+    DUInsnInfo *useInfo = useInfoIt.second;
+    CHECK_FATAL(useInfo, "get useDUInfo failed");
+    Insn *useInsn = useInfo->GetInsn();
+    if (!useInsn->IsPhi() && useInsn->GetMachineOpcode() != MOP_wmovrr && useInsn->GetMachineOpcode() != MOP_xmovrr) {
+      return false;
+    }
+    if ((useInsn->GetMachineOpcode() == MOP_wmovrr || useInsn->GetMachineOpcode() == MOP_xmovrr) &&
+         !static_cast<RegOperand&>(useInsn->GetOperand(kInsnFirstOpnd)).IsPhysicalRegister()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &curInsn, Insn &defInsn) {
+  std::unordered_map<uint32, bool> visited;
+  if (!DFSFindValidDefInsns(&defInsn, visited)) {
+    return false;
+  }
+  if (!CheckValidDefInsn(validDefInsns[0])) {
+    return false;
+  }
+  MOperator defMop = validDefInsns[0]->GetMachineOpcode();
+  uint32 defOpndNum = validDefInsns[0]->GetOperandSize();
+  for (int i = 1; i < validDefInsns.size(); ++i) {
+    if (defMop != validDefInsns[i]->GetMachineOpcode()) {
+      return false;
+    }
+    Operand &dstOpnd = validDefInsns[i]->GetOperand(kInsnFirstOpnd);
+    CHECK_FATAL(dstOpnd.IsRegister(), "dstOpnd must be register");
+    VRegVersion *defVersion = optSsaInfo->FindSSAVersion(static_cast<RegOperand&>(dstOpnd).GetRegisterNumber());
+    /* use: (phi) or (mov preg) */
+    if (defVersion->GetAllUseInsns().size() > 1 && !CheckMultiUsePoints(defVersion)) {
+      return false;
+    }
+    for (uint32 idx = 0; idx < defOpndNum; ++idx) {
+      if (validDefInsns[0]->OpndIsDef(idx) && validDefInsns[i]->OpndIsDef(idx)) {
+        continue;
+      }
+      Operand &opnd1 = validDefInsns[0]->GetOperand(idx);
+      Operand &opnd2 = validDefInsns[i]->GetOperand(idx);
+      if (!opnd1.Equals(opnd2) && differIdx == -1) {
+        differIdx = static_cast<int>(idx);
+        if (!validDefInsns[0]->GetOperand(static_cast<uint32>(differIdx)).IsRegister() ||
+            !validDefInsns[i]->GetOperand(static_cast<uint32>(differIdx)).IsRegister()) {
+          return false;
+        }
+        auto &differOpnd1 = static_cast<RegOperand&>(validDefInsns[0]->GetOperand(static_cast<uint32>(differIdx)));
+        auto &differOpnd2 = static_cast<RegOperand&>(validDefInsns[1]->GetOperand(static_cast<uint32>(differIdx)));
+        /* avoid cc reg */
+        if (!differOpnd1.IsOfIntClass() || !differOpnd2.IsOfIntClass() ||
+            differOpnd1.IsPhysicalRegister() || differOpnd2.IsPhysicalRegister()) {
+          return false;
+        }
+        VRegVersion *differVersion1 = optSsaInfo->FindSSAVersion(differOpnd1.GetRegisterNumber());
+        VRegVersion *differVersion2 = optSsaInfo->FindSSAVersion(differOpnd2.GetRegisterNumber());
+        if (!differVersion1 || !differVersion2) {
+          return false;
+        }
+        if (differVersion1->GetOriginalRegNO() != differVersion2->GetOriginalRegNO()) {
+          return false;
+        }
+        differOrigNO = differVersion1->GetOriginalRegNO();
+      } else if (!opnd1.Equals(opnd2) && idx != differIdx) {
+        return false;
+      }
+    }
+    if (differIdx <= 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool A64PregCopyPattern::CheckValidDefInsn(Insn *defInsn) {
+  const AArch64MD *md = &AArch64CG::kMd[defInsn->GetMachineOpcode()];
+  CHECK_FATAL(md != nullptr, "expect valid AArch64MD");
+  /* this pattern applies to all basicOps */
+  if (md->IsMove() || md->IsStore() || md->IsLoad() || md->IsLoadStorePair() || md->IsLoadAddress() || md->IsCall() ||
+      md->IsDMB() || md->IsVectorOp() || md->IsCondDef() || md->IsCondBranch() || md->IsUnCondBranch()) {
+    return false;
+  }
+  uint32 opndNum = defInsn->GetOperandSize();
+  for (uint32 i = 0; i < opndNum; ++i) {
+    Operand &opnd = defInsn->GetOperand(i);
+    if (!opnd.IsRegister() && !opnd.IsImmediate() && !opnd.IsOpdShift() && !opnd.IsOpdExtend()) {
+      return false;
+    }
+    if (opnd.IsRegister()) {
+      auto &regOpnd = static_cast<RegOperand&>(opnd);
+      if (cgFunc.IsSPOrFP(regOpnd) || regOpnd.IsPhysicalRegister() ||
+          (!regOpnd.IsOfIntClass() && !regOpnd.IsOfFloatOrSIMDClass())) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool A64PregCopyPattern::CheckCondition(Insn &insn) {
+  MOperator curMop = insn.GetMachineOpcode();
+  if (curMop != MOP_xmovrr && curMop != MOP_wmovrr) {
+    return false;
+  }
+  auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  if (!dstOpnd.IsPhysicalRegister()) {
+    return false;
+  }
+  regno_t useRegNO = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber();
+  VRegVersion *useVersion = optSsaInfo->FindSSAVersion(useRegNO);
+  Insn *defInsn = FindDefInsn(useVersion);
+  if (defInsn == nullptr) {
+    return false;
+  }
+  Operand &defDstOpnd = defInsn->GetOperand(kInsnFirstOpnd);
+  /* avoid inline-asm */
+  if (!defDstOpnd.IsRegister()) {
+    return false;
+  }
+  VRegVersion *defVersion = optSsaInfo->FindSSAVersion(static_cast<RegOperand&>(defDstOpnd).GetRegisterNumber());
+  /* use: (phi) or (mov preg) */
+  if (defVersion->GetAllUseInsns().size() > 1 && !CheckMultiUsePoints(defVersion)) {
+    return false;
+  }
+  if (defInsn->IsPhi()) {
+    isCrossPhi = true;
+    firstPhiInsn = defInsn;
+    return CheckPhiCaseCondition(insn, *defInsn);
+  } else {
+    if (!CheckValidDefInsn(defInsn)) {
+      return false;
+    }
+    validDefInsns.emplace_back(defInsn);
+  }
+  return true;
+}
+
+Insn &A64PregCopyPattern::CreateNewPhiInsn(std::unordered_map<uint32, RegOperand*> &newPhiList, Insn *curInsn) {
+  CHECK_FATAL(!newPhiList.empty(), "empty newPhiList");
+  RegOperand *differOrigOpnd = cgFunc.GetVirtualRegisterOperand(differOrigNO);
+  CHECK_FATAL(differOrigOpnd != nullptr, "get original opnd default");
+  PhiOperand &phiList = optSsaInfo->CreatePhiOperand();
+  for (auto &it : newPhiList) {
+    phiList.InsertOpnd(it.first, *it.second);
+  }
+  Insn &phiInsn = cgFunc.GetCG()->BuildPhiInsn(*differOrigOpnd, phiList);
+  optSsaInfo->CreateNewInsnSSAInfo(phiInsn);
+  BB *bb = curInsn->GetBB();
+  bb->InsertInsnBefore(*curInsn, phiInsn);
+  bb->AddPhiInsn(differOrigOpnd->GetRegisterNumber(), phiInsn);
+  return phiInsn;
+}
+
+RegOperand &A64PregCopyPattern::DFSBuildPhiInsn(Insn *curInsn, std::unordered_map<uint32, RegOperand*> &visited) {
+  CHECK_FATAL(curInsn, "curInsn must not be null");
+  if (visited[curInsn->GetId()] != nullptr) {
+    return *visited[curInsn->GetId()];
+  }
+  if (!curInsn->IsPhi()) {
+    return static_cast<RegOperand&>(curInsn->GetOperand(static_cast<uint32>(differIdx)));
+  }
+  std::unordered_map<uint32, RegOperand*> differPhiList;
+  auto &phiOpnd = static_cast<PhiOperand&>(curInsn->GetOperand(kInsnSecondOpnd));
+  for (auto &phiListIt : phiOpnd.GetOperands()) {
+    auto &useOpnd = static_cast<RegOperand&>(*phiListIt.second);
+    VRegVersion *useVersion = optSsaInfo->FindSSAVersion(useOpnd.GetRegisterNumber());
+    Insn *defInsn = FindDefInsn(useVersion);
+    CHECK_FATAL(defInsn != nullptr, "get defInsn failed");
+    RegOperand &phiDefOpnd = DFSBuildPhiInsn(defInsn, visited);
+    differPhiList.emplace(phiListIt.first, &phiDefOpnd);
+  }
+  Insn &phiInsn = CreateNewPhiInsn(differPhiList, curInsn);
+  visited[curInsn->GetId()] = &static_cast<RegOperand&>(phiInsn.GetOperand(kInsnFirstOpnd));
+  return static_cast<RegOperand&>(phiInsn.GetOperand(kInsnFirstOpnd));
+}
+
+/*
+ * Find if the new phi insn has been created at preds
+ */
+std::unordered_map<uint32, RegOperand*> A64PregCopyPattern::FindDifferPhiDefOpnds() {
+  std::unordered_map<uint32, RegOperand*> differPhiOpnds;
+  auto &phiOpnd = static_cast<PhiOperand&>(firstPhiInsn->GetOperand(kInsnSecondOpnd));
+  for (auto &phiListIt : phiOpnd.GetOperands()) {
+    auto &useOpnd = static_cast<RegOperand&>(*phiListIt.second);
+    VRegVersion *useVersion = optSsaInfo->FindSSAVersion(useOpnd.GetRegisterNumber());
+    Insn *defInsn = FindDefInsn(useVersion);
+    CHECK_FATAL(defInsn != nullptr, "get defInsn failed");
+    if (defInsn->IsPhi()) {
+      MapleMap<regno_t, Insn*> &phiInsns = defInsn->GetBB()->GetPhiInsns();
+      for (auto &phiIt : phiInsns) {
+        auto &def = static_cast<RegOperand&>(phiIt.second->GetOperand(kInsnFirstOpnd));
+        VRegVersion *defVersion = optSsaInfo->FindSSAVersion(def.GetRegisterNumber());
+        if (defVersion->GetOriginalRegNO() == differOrigNO) {
+          differPhiOpnds.emplace(phiIt.second->GetBB()->GetId(), &def);
+        }
+      }
+    } else {
+      differPhiOpnds.emplace(defInsn->GetBB()->GetId(),
+                             &static_cast<RegOperand&>(defInsn->GetOperand(static_cast<uint32>(differIdx))));
+    }
+  }
+  return differPhiOpnds;
+}
+
+RegOperand *A64PregCopyPattern::GetDifferPhiDef() {
+  MapleMap<regno_t, Insn*> &phiInsns = firstPhiInsn->GetBB()->GetPhiInsns();
+  for (auto &phiIt : phiInsns) {
+    auto &def = static_cast<RegOperand&>(phiIt.second->GetOperand(kInsnFirstOpnd));
+    VRegVersion *defVersion = optSsaInfo->FindSSAVersion(def.GetRegisterNumber());
+    if (defVersion->GetOriginalRegNO() == differOrigNO) {
+      return &static_cast<RegOperand&>(phiIt.second->GetOperand(kInsnFirstOpnd));
+    }
+  }
+  std::unordered_map<uint32, RegOperand*> differPhiOpnds = FindDifferPhiDefOpnds();
+  auto &firstPhiOpnd = static_cast<PhiOperand&>(firstPhiInsn->GetOperand(kInsnSecondOpnd));
+  if (differPhiOpnds.size() == firstPhiOpnd.GetOperands().size()) {
+    Insn &phiInsn = CreateNewPhiInsn(differPhiOpnds, firstPhiInsn);
+    return &static_cast<RegOperand&>(phiInsn.GetOperand(kInsnFirstOpnd));
+  }
+  return nullptr;
+}
+
+void A64PregCopyPattern::Optimize(Insn &insn) {
+  Insn *defInsn = *validDefInsns.begin();
+  MOperator newMop = defInsn->GetMachineOpcode();
+  Operand &dstOpnd = insn.GetOperand(kInsnFirstOpnd);
+  Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newMop);
+  uint32 opndNum = defInsn->GetOperandSize();
+  newInsn.ResizeOpnds(opndNum);
+  if (!isCrossPhi) {
+    for (uint32 i = 0; i < opndNum; ++i) {
+      if (defInsn->OpndIsDef(i)) {
+        newInsn.SetOperand(i, dstOpnd);
+      } else {
+        newInsn.SetOperand(i, defInsn->GetOperand(i));
+      }
+    }
+  } else {
+    RegOperand *differPhiDefOpnd = GetDifferPhiDef();
+    if (differPhiDefOpnd == nullptr) {
+      std::unordered_map<uint32, RegOperand*> visited;
+      differPhiDefOpnd = &DFSBuildPhiInsn(firstPhiInsn, visited);
+    }
+    CHECK_FATAL(differPhiDefOpnd, "get differPhiDefOpnd failed");
+    for (uint32 i = 0; i< opndNum; ++i) {
+      if (defInsn->OpndIsDef(i)) {
+        newInsn.SetOperand(i, dstOpnd);
+      } else if (i == static_cast<uint32>(differIdx)) {
+        newInsn.SetOperand(i, *differPhiDefOpnd);
+      } else {
+        newInsn.SetOperand(i, defInsn->GetOperand(i));
+      }
+    }
+  }
+  insn.GetBB()->ReplaceInsn(insn, newInsn);
+  /* update ssa info */
+  optSsaInfo->ReplaceInsn(insn, newInsn);
+
+  if (PROP_DUMP) {
+    LogInfo::MapleLogger() << ">>>>>>> In A64PregCopyPattern : <<<<<<<\n";
+    LogInfo::MapleLogger() << "======= ReplaceInsn :\n";
+    insn.Dump();
+    LogInfo::MapleLogger() << "======= NewInsn :\n";
+    newInsn.Dump();
+  }
+}
+
+void A64PregCopyPattern::Run() {
+  FOR_ALL_BB(bb, &cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      Init();
+      if (!CheckCondition(*insn)) {
+        continue;
+      }
+      Optimize(*insn);
+    }
+  }
+  validDefInsns.clear();
+  validDefInsns.shrink_to_fit();
 }
 
 void A64ReplaceRegOpndVisitor::Visit(RegOperand *v) {

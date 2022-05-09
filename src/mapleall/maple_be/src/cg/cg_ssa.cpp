@@ -229,6 +229,10 @@ VRegVersion *CGSSAInfo::FindSSAVersion(regno_t ssaRegNO) {
   return it != allSSAOperands.end() ? it->second : nullptr;
 }
 
+PhiOperand &CGSSAInfo::CreatePhiOperand() {
+  return cgFunc->GetCG()->CreatePhiOperand(*memPool, ssaAlloc);
+}
+
 void CGSSAInfo::SetReversePostOrder() {
   MapleVector<BB*> &reverse = domInfo->GetReversePostOrder();
   for (auto *bb : reverse) {

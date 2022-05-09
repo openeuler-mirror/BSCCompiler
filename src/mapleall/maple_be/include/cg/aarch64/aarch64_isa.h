@@ -152,141 +152,6 @@ enum MemoryOrdering : uint32 {
 };
 } /* namespace AArch64isa */
 
-enum RegPropState : uint32 {
-  kRegPropUndef = 0,
-  kRegPropDef = 0x1,
-  kRegPropUse = 0x2
-};
-enum RegAddress : uint32 {
-  kRegHigh = 0x4,
-  kRegLow = 0x8
-};
-constexpr uint32 kMemLow12 = 0x10;
-constexpr uint32 kLiteralLow12 = kMemLow12;
-constexpr uint32 kPreInc = 0x20;
-constexpr uint32 kPostInc = 0x40;
-constexpr uint32 kLoadLiteral = 0x80;
-constexpr uint32 kVector = 0x100;
-
-class RegProp {
- public:
-  RegProp(RegType t, AArch64reg r, uint32 d) : regType(t), physicalReg(r), defUse(d) {}
-  virtual ~RegProp() = default;
-  const RegType &GetRegType() const {
-    return regType;
-  }
-  const AArch64reg &GetPhysicalReg() const {
-    return physicalReg;
-  }
-  uint32 GetDefUse() const {
-    return defUse;
-  }
-
- private:
-  RegType regType;
-  AArch64reg physicalReg;
-  uint32 defUse; /* used for register use/define and other properties of other operand */
-};
-
-class AArch64OpndProp : public OpndProp {
- public:
-  AArch64OpndProp(Operand::OperandType t, RegProp p, uint8 s) : opndType(t), regProp(p), size(s) {}
-  virtual ~AArch64OpndProp() = default;
-  Operand::OperandType GetOperandType() const {
-    return opndType;
-  }
-
-  const RegProp &GetRegProp() const {
-    return regProp;
-  }
-
-  bool IsPhysicalRegister() const {
-    return opndType == Operand::kOpdRegister && regProp.GetPhysicalReg() < kMaxRegNum;
-  }
-
-  bool IsRegister() const {
-    return opndType == Operand::kOpdRegister;
-  }
-
-  bool IsRegDef() const {
-    return opndType == Operand::kOpdRegister && (regProp.GetDefUse() & kRegPropDef);
-  }
-
-  bool IsRegUse() const {
-    return opndType == Operand::kOpdRegister && (regProp.GetDefUse() & kRegPropUse);
-  }
-
-  bool IsMemLow12() const {
-    return opndType == Operand::kOpdMem && (regProp.GetDefUse() & kMemLow12);
-  }
-
-  bool IsLiteralLow12() const {
-    return opndType == Operand::kOpdStImmediate && (regProp.GetDefUse() & kLiteralLow12);
-  }
-
-  bool IsDef() const {
-    return regProp.GetDefUse() & kRegPropDef;
-  }
-
-  bool IsUse() const {
-    return regProp.GetDefUse() & kRegPropUse;
-  }
-
-  bool IsLoadLiteral() const {
-    return regProp.GetDefUse() & kLoadLiteral;
-  }
-
-  uint8 GetSize() const {
-    return size;
-  }
-
-  uint32 GetOperandSize() const {
-    return static_cast<uint32>(size);
-  }
-
-  bool IsVectorOperand() const {
-    return regProp.GetDefUse() & kVector;
-  }
-
-  void SetContainImm() {
-    isContainImm = true;
-  }
-
-  bool IsContainImm() const {
-    return isContainImm;
-  }
-
- protected:
-  bool isContainImm = false;
-
- private:
-  Operand::OperandType opndType;
-  RegProp regProp;
-  uint8 size;
-};
-
-/*
- * Operand which might include immediate value.
- * function ptr returns whether a immediate is legal in specific target
- */
-class AArch64ImmOpndProp : public AArch64OpndProp {
- public:
-  AArch64ImmOpndProp(Operand::OperandType t, const RegProp &p, uint8 s, const std::function<bool(int64)> f)
-      : AArch64OpndProp(t, p, s),
-        validFunc(f) {
-    SetContainImm();
-  }
-  virtual ~AArch64ImmOpndProp() = default;
-
-  bool IsValidImmOpnd(int64 value) const {
-    CHECK_FATAL(validFunc, " Have not set valid function yet in AArch64ImmOpndProp");
-    return validFunc(value);
-  }
-
- private:
-  std::function<bool(int64)> validFunc;
-};
-
 struct AArch64MD {
   MOperator opc;
   std::vector<OpndProp*> operand;
@@ -295,10 +160,6 @@ struct AArch64MD {
   const std::string &name;
   const std::string &format;
   uint32 atomicNum; /* indicate how many asm instructions it will emit. */
-
-  bool UseSpecReg() const {
-    return properties & USESPECREG;
-  }
 
   uint32 GetAtomicNum() const {
     return atomicNum;
@@ -320,9 +181,9 @@ struct AArch64MD {
     return properties & CANTHROW;
   }
 
-  AArch64OpndProp *GetOperand(int nth) const {
+  OpndProp *GetOperand(int nth) const {
     ASSERT(nth < operand.size(), "index of Operand should not be bigger than MaxOperandNum");
-    return static_cast<AArch64OpndProp*>(operand[nth]);
+    return operand[nth];
   }
 
   uint32 GetOperandSize() const {
@@ -408,6 +269,10 @@ struct AArch64MD {
 
   bool IsVectorOp() const {
     return properties & ISVECTOR;
+  }
+
+  bool IsNop() const {
+    return properties & ISNOP;
   }
 
   uint32 GetLatencyType() const {
