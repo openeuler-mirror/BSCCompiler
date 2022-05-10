@@ -583,6 +583,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
     case OP_brtrue: {
       CondGotoNode *CondNode = codeMP->New<CondGotoNode>(mestmt->GetOp());
       CondGotoMeStmt *condMeStmt = static_cast<CondGotoMeStmt *> (mestmt);
+      CondNode->SetBranchProb(condMeStmt->GetBranchProb());
       CondNode->SetOffset(condMeStmt->GetOffset());
       CondNode->SetSrcPos(mestmt->GetSrcPosition());
       CondNode->SetOpnd(EmitPreMeExpr(condMeStmt->GetOpnd(), CondNode), 0);
@@ -720,6 +721,16 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
       PreMeStmtExtensionMap[assertBoundaryNode->GetStmtID()] = pmeExt;
       return assertBoundaryNode;
     }
+    case OP_syncenter:
+    case OP_syncexit: {
+      auto naryMeStmt = static_cast<NaryMeStmt *>(mestmt);
+      auto syncStmt = codeMP->New<NaryStmtNode>(*codeMPAlloc, mestmt->GetOp());
+      for (uint32 i = 0; i < naryMeStmt->GetOpnds().size(); i++) {
+        syncStmt->GetNopnd().push_back(EmitPreMeExpr(naryMeStmt->GetOpnd(i), syncStmt));
+      }
+      syncStmt->SetNumOpnds(syncStmt->GetNopndSize());
+      return syncStmt;
+    }
     default:
       CHECK_FATAL(false, "nyi");
   }
@@ -818,30 +829,30 @@ uint32 PreMeEmitter::Raise2PreMeWhile(uint32 curj, BlockNode *curblk) {
   CHECK_FATAL(laststmt->GetOp() == OP_brfalse, "Riase2While: NYI");
   CondGotoMeStmt *condgotomestmt = static_cast<CondGotoMeStmt *>(laststmt);
   BB *endlblbb = condgotomestmt->GetOffset() == suc1->GetBBLabel() ? suc1 : suc0;
-  BlockNode *Dobody = nullptr;
+  BlockNode *dobody = nullptr;
   if (whileInfo->canConvertDoloop) {  // emit doloop
     DoloopNode *doloopnode = EmitPreMeDoloop(curbb, curblk, whileInfo);
     ++curj;
-    Dobody = static_cast<BlockNode *>(doloopnode->GetDoBody());
+    dobody = static_cast<BlockNode *>(doloopnode->GetDoBody());
   } else { // emit while loop
     WhileStmtNode *whileNode = EmitPreMeWhile(curbb, curblk);
     ++curj;
-    Dobody = static_cast<BlockNode *> (whileNode->GetBody());
+    dobody = static_cast<BlockNode *> (whileNode->GetBody());
   }
   // emit loop body
   while (bbvec[curj]->GetBBId() != endlblbb->GetBBId()) {
-    curj = EmitPreMeBB(curj, Dobody);
+    curj = EmitPreMeBB(curj, dobody);
     while (bbvec[curj] == nullptr) {
       curj++;
     }
   }
   if (whileInfo->canConvertDoloop) {  // delete the increment statement
-    StmtNode *bodylaststmt = Dobody->GetLast();
+    StmtNode *bodylaststmt = dobody->GetLast();
     CHECK_FATAL(bodylaststmt->GetOpCode() == OP_dassign, "Raise2PreMeWhile: cannot find increment stmt");
     DassignNode *dassnode = static_cast<DassignNode *>(bodylaststmt);
     CHECK_FATAL(dassnode->GetStIdx() == whileInfo->ivOst->GetMIRSymbol()->GetStIdx(),
                 "Raise2PreMeWhile: cannot find IV increment");
-    Dobody->RemoveStmt(dassnode);
+    dobody->RemoveStmt(dassnode);
   }
   return curj;
 }
@@ -875,6 +886,22 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curj, BlockNode *curblk) {
   PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curblk);
   PreMeStmtExtensionMap[IfstmtNode->GetStmtID()] = pmeExt;
   BaseNode *condnode = EmitPreMeExpr(condgoto->GetOpnd(), IfstmtNode);
+  if (condgoto->IsBranchProbValid()) {
+    IntrinsicopNode *expectNode = codeMP->New<IntrinsicopNode>(*mirFunc->GetModule(), OP_intrinsicop, PTY_i64);
+    expectNode->SetIntrinsic(INTRN_C___builtin_expect);
+    expectNode->GetNopnd().push_back(condnode);
+    MIRType *type = GlobalTables::GetTypeTable().GetPrimType(PTY_i64);
+    int32 val = condgoto->GetBranchProb() == kProbLikely ? 1 : 0;
+    MIRIntConst *constVal = GlobalTables::GetIntConstTable().GetOrCreateIntConst(val, *type);
+    ConstvalNode *constNode = codeMP->New<ConstvalNode>(constVal->GetType().GetPrimType(), constVal);
+    expectNode->GetNopnd().push_back(constNode);
+    expectNode->SetNumOpnds(expectNode->GetNopnd().size());
+    MIRIntConst *constZeroVal = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *type);
+    ConstvalNode *constZeroNode = codeMP->New<ConstvalNode>(constVal->GetType().GetPrimType(), constZeroVal);
+    CompareNode *cmpNode =
+        codeMP->New<CompareNode>(OP_ne, PTY_i32, PTY_i32, expectNode, constZeroNode);
+    condnode = cmpNode;
+  }
   IfstmtNode->SetOpnd(condnode, 0);
   IfstmtNode->SetMeStmtID(condgoto->GetMeStmtId());
   curblk->AddStatement(IfstmtNode);
@@ -957,6 +984,7 @@ uint32 PreMeEmitter::EmitPreMeBB(uint32 curj, BlockNode *curblk) {
 bool MEPreMeEmission::PhaseRun(MeFunction &f) {
   if (f.GetCfg()->NumBBs() == 0) {
     f.SetLfo(false);
+    f.SetPme(false);
     return false;
   }
   MeIRMap *hmap = GET_ANALYSIS(MEIRMapBuild, f);
@@ -977,7 +1005,7 @@ bool MEPreMeEmission::PhaseRun(MeFunction &f) {
   }
 
   f.SetLfo(false);
-
+  f.SetPme(false);
   ConstantFold cf(f.GetMIRModule());
   (void)cf.Simplify(mirfunction->GetBody());
 

@@ -22,13 +22,12 @@
 #include "me_irmap.h"
 #include "me_dominance.h"
 #include "optimizeCFG.h"
+#include "mir_lower.h"
 
 namespace {
 using namespace maple;
 // The base value for branch probability notes and edge probabilities.
 constexpr int kProbBase = 10000;
-constexpr int kProbLikely = 9000;
-constexpr int kProbUnlikely = kProbBase - kProbLikely;
 // The base value for BB frequency.
 constexpr int kFreqBase = 100000;
 constexpr uint32 kScaleDownFactor = 2;
@@ -226,7 +225,7 @@ void MePrediction::BBLevelPredictions() {
       }
     }
 
-    if (i == phiNumArgs) {
+    if (i == phiNumArgs && firstPred != kPredNoPrediction) {
       // all phi of return opnd has same predictor
       PredictForPostDomFrontier(*bb, firstPred, firstDirection);
       continue;
@@ -242,6 +241,9 @@ void MePrediction::BBLevelPredictions() {
       }
       Prediction direction;
       Predictor pred = ReturnPrediction(defPhi.GetOpnd(k), direction);
+      if (pred == kPredNoPrediction) {
+        continue;
+      }
       PredictForPostDomFrontier(*currBB, pred, direction);
     }
   }
@@ -773,7 +775,7 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
         bestEdge = edge;
       }
     }
-    edge->frequency = bb.GetFrequency() * edge->probability / kProbBase;
+    edge->frequency = bb.GetFrequency() * 1.0 * edge->probability / kProbBase;
     total += edge->frequency;
     bool isBackEdge = headers != nullptr ? std::find(headers->begin(), headers->end(), &edge->dest) != headers->end() :
                                            &edge->dest == head;

@@ -19,6 +19,10 @@
 #include "opcodes.h"
 
 namespace maple {
+// The base value for branch probability notes and edge probabilities.
+static constexpr int32 kProbAll = 10000;
+static constexpr int32 kProbLikely = 9000;
+static constexpr int32 kProbUnlikely = kProbAll - kProbLikely;
 enum MirLowerPhase : uint8 {
   kLowerUnder,
   kLowerMe,
@@ -102,7 +106,7 @@ class MIRLower {
     lowerPhase |= kShiftLowerCG;
   }
 
-  uint8 GetOptLevel() {
+  uint8 GetOptLevel() const {
     return optLevel;
   }
 
