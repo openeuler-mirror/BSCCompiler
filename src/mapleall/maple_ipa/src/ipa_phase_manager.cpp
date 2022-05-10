@@ -179,7 +179,10 @@ bool SCCEmit::PhaseRun(SCCNode<CGNode> &scc) {
     }
     (void)RunAnalysisPhase<meFuncOptTy, MeFunction>(*phase, *serialADM, *func->GetMeFunc());
     Dump(*func->GetMeFunc(), phase->PhaseName());
+    delete func->GetMeFunc()->GetPmeMempool();
+    func->GetMeFunc()->SetPmeMempool(nullptr);
   }
+  serialADM->EraseAllAnalysisPhase();
   return false;
 }
 
@@ -191,6 +194,7 @@ bool SCCProfile::PhaseRun(SCCNode<CGNode> &scc) {
   SetQuiet(true);
   AddPhase("mecfgbuild", true);
   if (Options::profileGen) {
+    AddPhase("splitcriticaledge", true);
     AddPhase("profileGen", true);
   } else {
     AddPhase("profileUse", true);
