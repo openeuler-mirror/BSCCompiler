@@ -694,7 +694,7 @@ bool IVOptimizer::CreateIVFromCvt(OpMeExpr &op, MeStmt &stmt) {
     data->CreateGroup(stmt, *iv, kUseGeneral, &op);
     return false;
   }
-  auto *initValue = irMap->CreateMeExprTypeCvt(op.GetPrimType(), op.GetOpndType(), *iv->base);
+  auto *initValue = irMap->CreateMeExprTypeCvt(op.GetPrimType(), GetSignedPrimType(op.GetOpndType()), *iv->base);
   auto *simplified = irMap->SimplifyMeExpr(initValue);
   if (simplified != nullptr) {
     initValue = simplified;
@@ -2208,6 +2208,17 @@ void IVOptimizer::UseReplace() {
       if ((IsCompareHasReverseOp(use->expr->GetOp()) || use->expr->GetOp() == OP_retype) &&
           static_cast<OpMeExpr*>(use->expr)->GetOpndType() != kPtyInvalid) {
         realUseType = static_cast<OpMeExpr*>(use->expr)->GetOpndType();
+      } else if (GetPrimTypeSize(realUseType) > GetPrimTypeSize(use->iv->expr->GetPrimType())) {
+        realUseType = use->iv->expr->GetPrimType();
+      }
+      // Update real use type for vector intrinsicop
+      if (use->expr->GetOp() == OP_intrinsicop) {
+        auto *naryExpr = static_cast<NaryMeExpr*>(use->expr);
+        MIRIntrinsicID intrnID = naryExpr->GetIntrinsic();
+        IntrinDesc &intrinDesc = IntrinDesc::intrinTable[intrnID];
+        if (intrinDesc.IsVectorOp()) {
+          realUseType = use->iv->expr->GetPrimType();
+        }
       }
       if (extraExpr != nullptr) {
         if (NeedCvtOrRetype(extraExpr->GetPrimType(), realUseType)) {

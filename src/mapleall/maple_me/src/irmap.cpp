@@ -1400,6 +1400,11 @@ MeExpr *IRMap::SimplifyAddExpr(const OpMeExpr *addExpr) {
     if (opndB->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opndB)->GetIntValue() != INT_MIN) {
       // (a - constA) + constB --> a + (constB - constA)
       if (opnd1->GetMeOp() == kMeOpConst) {
+        auto constA = static_cast<ConstMeExpr*>(opnd1)->GetIntValue();
+        auto constB = static_cast<ConstMeExpr*>(opndB)->GetIntValue();
+        if (ConstantFold::IntegerOpIsOverflow(OP_sub, opndA->GetPrimType(), constA, constB)) {
+          return nullptr;
+        }
         retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opndA,
                                                                         OP_sub, opnd1, opndB));
         if (addExpr->hasAddressValue) {
