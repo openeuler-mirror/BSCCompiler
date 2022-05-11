@@ -353,7 +353,7 @@ void FEIRStmtDAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRSym
     }
   }
   if (ENCChecker::HasNullExpr(expr)) {
-    FE_ERR(kLncErr, "%s:%d errorz: null assignment of nonnull pointer",
+    FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull pointer",
            FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
     return;
   }

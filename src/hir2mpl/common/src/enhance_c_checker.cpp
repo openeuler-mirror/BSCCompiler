@@ -1932,9 +1932,7 @@ bool ASTArraySubscriptExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &st
     return false;
   }
   if (arrayType->GetKind() == MIRTypeKind::kTypeArray) {
-    if (ENCChecker::IsConstantIndex(indexExpr)) {
-      return false;  // skip checking when all indexes are constants
-    }
+    // checking all type of indexes, including constant indexes
     while (baseAddrFEExpr != nullptr && baseAddrFEExpr->GetKind() == kExprAddrofArray) {
       baseAddrFEExpr = static_cast<FEIRExprAddrofArray*>(baseAddrFEExpr.get())->GetExprArray()->Clone();
     }
