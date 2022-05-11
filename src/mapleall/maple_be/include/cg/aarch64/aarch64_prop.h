@@ -312,6 +312,42 @@ private:
 
 /*
  * optimization for call convention
+ * example:
+ *                              [BB26]                      [BB43]
+ *                        sub R287, R101, R275        sub R279, R101, R275
+ *                                            \      /
+ *                                             \    /
+ *                                             [BB27]
+ *                                                <---- insert new phi: R403, (R275 <26>, R275 <43>)
+ *                                       old phi: R297, (R287 <26>, R279 <43>)
+ *                                               /          \
+ *                                              /            \
+ *                                           [BB28]           \
+ *                                       sub R310, R101, R309  \
+ *                                             |                \
+ *                                             |                 \
+ *            [BB17]                         [BB29]            [BB44]
+ *        sub R314, R101, R275                 |              /
+ *                                \            |             /
+ *                                 \           |            /
+ *                                  \          |           /
+ *                                   \         |          /
+ *                                           [BB18]
+ *                                               <---- insert new phi: R404, (R275 <17>, R309 <29>, R403 <44>)
+ *                                       old phi: R318, (R314 <17>, R310 <29>, R297 <44>)
+ *                                       mov R1, R318    ====>    sub R1, R101, R404
+ *                                          /                   \
+ *                                         /                     \
+ *                                        /                       \
+ *                                     [BB19]                   [BB34]
+ *                              sub R336, R101, R335           /
+ *                                               \            /
+ *                                                \          /
+ *                                                 \        /
+ *                                                   [BB20]
+ *                                                      <---- insert new phi: R405, (R335 <19>, R404<34>)
+ *                                                old phi: R340, (R336 <19>, R318 <34>)
+ *                                                mov R1, R340      ====>     sub R1, R101, R405
  */
 class A64PregCopyPattern : public PropOptimizePattern {
  public:
