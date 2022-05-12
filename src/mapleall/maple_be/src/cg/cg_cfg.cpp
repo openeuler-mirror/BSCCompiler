@@ -244,8 +244,8 @@ RegOperand *CGCFG::CreateVregFromReg(const RegOperand &pReg) {
 
 /*
  * return true if:
- * mergee has only one predecessor which is merger, or mergee has
- * other comments only predecessors.
+ * mergee has only one predecessor which is merger,
+ * or mergee has other comments only predecessors & merger is soloGoto
  * mergee can't have cfi instruction when postcfgo.
  */
 bool CGCFG::BBJudge(const BB &first, const BB &second) const {
@@ -263,7 +263,7 @@ bool CGCFG::BBJudge(const BB &first, const BB &second) const {
       return false;
     }
   }
-  return true;
+  return first.IsSoloGoto();
 }
 
 /*
