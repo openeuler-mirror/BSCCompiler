@@ -18,6 +18,7 @@
 #include "aarch64_operand.h"
 #include "aarch64_insn.h"
 #include "aarch64_abi.h"
+#include "aarch64_cgfunc.h"
 #include "loop.h"
 #include "cg_dominance.h"
 #include "cg_pre.h"
@@ -216,11 +217,12 @@ enum refType : uint8 {
 class LiveRange {
  public:
   explicit LiveRange(MapleAllocator &allocator)
-      : pregveto(allocator.Adapter()),
+      : lrAlloca(&allocator),
+        pregveto(allocator.Adapter()),
         callDef(allocator.Adapter()),
         forbidden(allocator.Adapter()),
         prefs(allocator.Adapter()),
-        refMap(std::less<uint32>(), allocator.Adapter()),
+        refMap(allocator.Adapter()),
         luMap(allocator.Adapter()) {}
 
   ~LiveRange() = default;
@@ -491,12 +493,29 @@ class LiveRange {
     (void)prefs.insert(regNO);
   }
 
-  const MapleMap<uint32, std::map<uint32, uint32>> GetRefs() const {
+  const MapleMap<uint32, MapleMap<uint32, uint32>*> GetRefs() const {
     return refMap;
   }
 
+  const MapleMap<uint32, uint32> GetRefs(uint32 bbId) const {
+    return *(refMap.find(bbId)->second);
+  }
+
   void AddRef(uint32 bbId, uint32 pos, uint32 mark) {
-    (refMap[bbId])[pos] = (refMap[bbId])[pos] | mark;
+    if (refMap.find(bbId) == refMap.end()) {
+      auto point = lrAlloca->New<MapleMap<uint32, uint32>>(lrAlloca->Adapter());
+      point->insert(std::pair<uint32, uint32>(pos, mark));
+      refMap.insert(std::pair<uint32, MapleMap<uint32, uint32>*>(bbId, point));
+    } else {
+      auto &bbPoint = (refMap.find(bbId))->second;
+      if (bbPoint->find(pos) == bbPoint->end()) {
+        bbPoint->insert(std::pair<uint32, uint32>(pos, mark));
+      } else {
+        auto posVal = bbPoint->find(pos)->second;
+        bbPoint->erase(bbPoint->find(pos));
+        bbPoint->insert(std::pair<uint32, uint32>(pos, posVal | mark));
+      }
+    }
   }
 
   const MapleMap<uint32, LiveUnit*> &GetLuMap() const {
@@ -672,9 +691,10 @@ class LiveRange {
   }
 
   bool IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLevel) const;
-  std::vector<Insn *> Rematerialize(AArch64CGFunc *cgFunc, AArch64RegOperand &regOp);
+  std::vector<Insn *> Rematerialize(AArch64CGFunc *cgFunc, RegOperand &regOp);
 
  private:
+  MapleAllocator *lrAlloca;
   regno_t regNO = 0;
   uint32 id = 0;                      /* for priority tie breaker */
   regno_t assignedRegNO = 0;          /* color assigned */
@@ -699,7 +719,7 @@ class LiveRange {
   uint64 *bbConflict = nullptr;       /* vreg interference from graph neighbors (bit) */
   uint64 *oldConflict = nullptr;
   MapleSet<regno_t> prefs;            /* pregs that prefer */
-  MapleMap<uint32, std::map<uint32, uint32>> refMap;
+  MapleMap<uint32, MapleMap<uint32, uint32>*> refMap;
   MapleMap<uint32, LiveUnit*> luMap;  /* info for each bb */
   LiveRange *splitLr = nullptr;       /* The 1st part of the split */
 #ifdef OPTIMIZE_FOR_PROLOG
@@ -1272,7 +1292,7 @@ class GraphColorRegAllocator : public RegAllocator {
   const MapleMap<regno_t, LiveRange*> &GetLrMap() const {
     return lrMap;
   }
-  Insn *SpillOperand(Insn &insn, const Operand &opnd, bool isDef, AArch64RegOperand &phyOpnd, bool forCall = false);
+  Insn *SpillOperand(Insn &insn, const Operand &opnd, bool isDef, RegOperand &phyOpnd, bool forCall = false);
  private:
   struct SetLiveRangeCmpFunc {
     bool operator()(const LiveRange *lhs, const LiveRange *rhs) const {
@@ -1366,7 +1386,7 @@ class GraphColorRegAllocator : public RegAllocator {
   MemOperand *GetSpillOrReuseMem(LiveRange &lr, uint32 regSize, bool &isOutOfRange, Insn &insn, bool isDef);
   void SpillOperandForSpillPre(Insn &insn, const Operand &opnd, RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
   void SpillOperandForSpillPost(Insn &insn, const Operand &opnd,
-      AArch64RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
+      RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
   MemOperand *GetConsistentReuseMem(const uint64 *conflict, const std::set<MemOperand*> &usedMemOpnd, uint32 size,
                                     RegType regType);
   MemOperand *GetCommonReuseMem(const uint64 *conflict, const std::set<MemOperand*> &usedMemOpnd, uint32 size,

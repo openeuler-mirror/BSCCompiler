@@ -18,6 +18,7 @@
 #include <algorithm>
 #include "mir_symbol.h"
 #include "func_desc.h"
+#include "inline.h"
 
 // For some funcs, when we can ignore their return-values, we clone a new func of
 // them without return-values. We configure a list to save these funcs and clone
@@ -25,6 +26,24 @@
 // This mainly contains the clone of funcbody(include labels, symbols, arguments,
 // etc.) and the update of the new func infomation.
 namespace maple {
+void IpaClone::InitParams() {
+  if (Options::optForSize) {
+    numOfCloneVersions = 2;
+    numOfImpExprLowBound = 2;
+    numOfImpExprHighBound = 5;
+    numOfCallSiteLowBound = 2;
+    numOfCallSiteUpBound = 10;
+    numOfConstpropValue = 2;
+  } else {
+    numOfCloneVersions = Options::numOfCloneVersions;
+    numOfImpExprLowBound = Options::numOfImpExprLowBound;
+    numOfImpExprHighBound = Options::numOfImpExprHighBound;
+    numOfCallSiteLowBound = Options::numOfCallSiteLowBound;
+    numOfCallSiteUpBound = Options::numOfCallSiteUpBound;
+    numOfConstpropValue = Options::numOfConstpropValue;
+  }
+}
+
 MIRSymbol *IpaClone::IpaCloneLocalSymbol(const MIRSymbol &oldSym, const MIRFunction &newFunc) {
   MemPool *newMP = newFunc.GetDataMemPool();
   MIRSymbol *newSym = newMP->New<MIRSymbol>(oldSym);
@@ -99,6 +118,8 @@ MIRFunction *IpaClone::IpaCloneFunction(MIRFunction &originalFunction, const std
     IpaClonePregTable(*newFunc, originalFunction);
   }
   newFunc->SetFuncDesc(originalFunction.GetFuncDesc());
+  // All the cloned functions cannot be accessed from other transform unit.
+  newFunc->SetAttr(FUNCATTR_static);
   return newFunc;
 }
 
@@ -135,7 +156,7 @@ void IpaClone::CopyFuncInfo(MIRFunction &originalFunction, MIRFunction &newFunc)
 
 bool IpaClone::CheckCostModel(MIRFunction *newFunc, uint32 paramIndex, std::vector<int64_t> &calleeValue,
                               uint32 impSize) {
-  if (impSize >= kNumOfImpExprHighBound) {
+  if (impSize >= numOfImpExprHighBound) {
     return true;
   }
   auto &calleeInfo = mirModule->GetCalleeParamAboutInt();
@@ -144,10 +165,10 @@ bool IpaClone::CheckCostModel(MIRFunction *newFunc, uint32 paramIndex, std::vect
   for (auto &value : calleeValue) {
     callSiteSize += calleeInfo[keyPair][value].size();
   }
-  if (callSiteSize >= kNumOfCallSiteUpBound) {
+  if (callSiteSize >= numOfCallSiteUpBound) {
     return true;
   }
-  if (callSiteSize < kNumOfCallSiteLowBound || impSize < kNumOfImpExprLowBound) {
+  if (callSiteSize < numOfCallSiteLowBound || impSize < numOfImpExprLowBound) {
     return false;
   }
   // Later: we will consider the body size
@@ -245,10 +266,11 @@ void IpaClone::DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramInd
     if (!CheckCostModel(curFunc, paramIndex, calleeValue, result.size())) {
       continue;
     }
-    if (index > kNumOfCloneVersions) {
+    if (index > numOfCloneVersions) {
       break;
     }
     std::string newFuncName = curFunc->GetName() + ".clone." + std::to_string(index++);
+    MInline::ConvertPStaticToFStatic(*curFunc);
     MIRFunction *newFunc = IpaCloneFunction(*curFunc, newFuncName);
     ReplaceIfCondtion(newFunc, result, evalValue);
     for (auto &value: calleeValue) {
@@ -358,7 +380,7 @@ void IpaClone::EvalImportantExpression(MIRFunction *func, std::vector<ImpExpr> &
       for (auto &expr : result) {
         if (expr.GetParamIndex() == index && func->GetStmtNodeFromMeId(expr.GetStmtId()) != nullptr) {
           filterRes.emplace_back(expr);
-          // Resolve most kNumOfImpExprUpper important expression
+          // Resolve most numOfImpExprUpper important expression
           if (filterRes.size() > kNumOfImpExprUpper) {
             break;
           }
@@ -375,6 +397,7 @@ void IpaClone::CloneNoImportantExpressFunction(MIRFunction *func, uint32 paramIn
   CalleePair keyPair(puidx, paramIndex);
   auto &calleeInfo = mirModule->GetCalleeParamAboutInt();
   std::string newFuncName = func->GetName() + ".constprop." + std::to_string(paramIndex);
+  MInline::ConvertPStaticToFStatic(*func);
   MIRFunction *newFunc = IpaCloneFunction(*func, newFuncName);
   int64_t value = calleeInfo[keyPair].begin()->first;
   RemoveUnneedParameter(newFunc, paramIndex, value);
@@ -395,6 +418,7 @@ void IpaClone::CloneNoImportantExpressFunction(MIRFunction *func, uint32 paramIn
 }
 
 void IpaClone::DoIpaClone() {
+  InitParams();
   for (uint32 i = 0; i < GlobalTables::GetFunctionTable().GetFuncTable().size(); ++i) {
     MIRFunction *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(i);
     if (func == nullptr) {
@@ -409,7 +433,7 @@ void IpaClone::DoIpaClone() {
       for (uint index = 0; index < func->GetFormalCount(); ++index) {
         CalleePair keyPair(func->GetPuidx(), index);
         if (calleeInfo.find(keyPair) != calleeInfo.end() && calleeInfo[keyPair].size() == 1 &&
-            (calleeInfo[keyPair].begin())->second.size() > kNumOfConstpropValue) {
+            (calleeInfo[keyPair].begin())->second.size() > numOfConstpropValue) {
           CloneNoImportantExpressFunction(func, index);
           break;
         }

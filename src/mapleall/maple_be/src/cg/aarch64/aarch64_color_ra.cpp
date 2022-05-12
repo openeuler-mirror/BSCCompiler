@@ -3445,8 +3445,8 @@ bool GraphColorRegAllocator::EncountPrevRef(const BB &pred, LiveRange &lr, bool 
   if (visitedMap[pred.GetId()] == false && lr.FindInLuMap(pred.GetId()) != lr.EndOfLuMap()) {
     LiveUnit *lu = lr.GetLiveUnitFromLuMap(pred.GetId());
     if (lu->GetDefNum() || lu->GetUseNum() || lu->HasCall()) {
-      MapleMap<uint32, std::map<uint32, uint32>> refs = lr.GetRefs();
-      auto it = refs[pred.GetId()].rbegin();
+      MapleMap<uint32, uint32> refs = lr.GetRefs(pred.GetId());
+      auto it = refs.rbegin();
       bool findPrevRef = (it->second & kIsCall) == 0;
       return findPrevRef;
     }
@@ -3480,10 +3480,10 @@ bool GraphColorRegAllocator::FoundPrevBeforeCall(Insn &insn, LiveRange &lr, bool
 bool GraphColorRegAllocator::EncountNextRef(const BB &succ, LiveRange &lr, bool isDef, std::vector<bool>& visitedMap) {
   if (lr.FindInLuMap(succ.GetId()) != lr.EndOfLuMap()) {
     LiveUnit *lu = lr.GetLiveUnitFromLuMap(succ.GetId());
-    MapleMap<uint32, std::map<uint32, uint32>> refs = lr.GetRefs();
     bool findNextDef = false;
     if (lu->GetDefNum() || lu->HasCall()) {
-      for (auto it = refs[succ.GetId()].begin(); it != refs[succ.GetId()].end(); ++it) {
+      MapleMap<uint32, uint32> refs = lr.GetRefs(succ.GetId());
+      for (auto it = refs.begin(); it != refs.end(); ++it) {
         if ((it->second & kIsDef) != 0) {
           findNextDef = true;
           break;
@@ -3530,8 +3530,8 @@ bool GraphColorRegAllocator::HavePrevRefInCurBB(Insn &insn, LiveRange &lr, bool 
   LiveUnit *lu = lr.GetLiveUnitFromLuMap(insn.GetBB()->GetId());
   bool findPrevRef = false;
   if (lu->GetDefNum() || lu->GetUseNum() || lu->HasCall()) {
-    MapleMap<uint32, std::map<uint32, uint32>> refs = lr.GetRefs();
-    for (auto it = refs[insn.GetBB()->GetId()].rbegin(); it != refs[insn.GetBB()->GetId()].rend(); ++it) {
+    MapleMap<uint32, uint32> refs = lr.GetRefs(insn.GetBB()->GetId());
+    for (auto it = refs.rbegin(); it != refs.rend(); ++it) {
       if (it->first >= insn.GetId()) {
         continue;
       }
@@ -3553,8 +3553,8 @@ bool GraphColorRegAllocator::HaveNextDefInCurBB(Insn &insn, LiveRange &lr, bool 
   LiveUnit *lu = lr.GetLiveUnitFromLuMap(insn.GetBB()->GetId());
   bool findNextDef = false;
   if (lu->GetDefNum() || lu->GetUseNum() || lu->HasCall()) {
-    MapleMap<uint32, std::map<uint32, uint32>> refs = lr.GetRefs();
-    for (auto it = refs[insn.GetBB()->GetId()].begin(); it != refs[insn.GetBB()->GetId()].end(); ++it) {
+    MapleMap<uint32, uint32> refs = lr.GetRefs(insn.GetBB()->GetId());
+    for (auto it = refs.begin(); it != refs.end(); ++it) {
       if (it->first <= insn.GetId()) {
         continue;
       }
@@ -4461,9 +4461,9 @@ void CallerSavePre::BuildWorkList() {
     for (auto lr: callSaveLrs) {
       LiveUnit *lu = lr->GetLiveUnitFromLuMap(bb->GetId());
       RegOperand &opnd = func->GetOrCreateVirtualRegisterOperand(lr->GetRegNO());
-      if (lu != nullptr) {
-        MapleMap<uint32, std::map<uint32, uint32>> refs = lr->GetRefs();
-        for (auto it = refs[bb->GetId()].begin(); it != refs[bb->GetId()].end(); ++it) {
+      if (lu != nullptr && (lu->GetDefNum() || lu->GetUseNum() || lu->HasCall())) {
+        MapleMap<uint32, uint32> refs = lr->GetRefs(bb->GetId());
+        for (auto it = refs.begin(); it != refs.end(); ++it) {
           if (it->second & kIsUse) {
             (void)CreateRealOcc(*insnMap[it->first], opnd, kOccUse);
           }

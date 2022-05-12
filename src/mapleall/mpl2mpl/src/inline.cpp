@@ -267,7 +267,7 @@ static StIdx UpdateIdx(const StIdx &stIdx, uint32 stIdxOff, const std::vector<ui
 }
 
 void MInline::ReplaceSymbols(BaseNode *baseNode, uint32 stIdxOff,
-                             const std::vector<uint32> *oldStIdx2New) const {
+                             const std::vector<uint32> *oldStIdx2New) {
   if (baseNode == nullptr) {
     return;
   }
@@ -623,7 +623,7 @@ void MInline::RecordRealCaller(MIRFunction &caller, const MIRFunction &callee) {
   }
 }
 
-void MInline::ConvertPStaticToFStatic(MIRFunction &func) const {
+void MInline::ConvertPStaticToFStatic(MIRFunction &func) {
   bool hasPStatic = false;
   for (size_t i = 0; i < func.GetSymbolTabSize(); ++i) {
     MIRSymbol *sym = func.GetSymbolTabItem(static_cast<uint32>(i));
