@@ -1139,11 +1139,23 @@ std::pair<BaseNode*, int64> ConstantFold::FoldUnary(UnaryNode *node) {
     // As a workaround, we exclude u1 opnd type
     if (isInt && node->GetOpCode() == OP_neg && p.first->GetPrimType() != PTY_u1) {
       result = NegateTree(p.first);
-      if (result->GetOpCode() == OP_neg && result->GetPrimType() == node->GetPrimType() &&
-          static_cast<UnaryNode*>(result)->Opnd(0) == node->Opnd(0)) {
-        // NegateTree returned an UnaryNode quivalent to `n`, so keep the
-        // original UnaryNode to preserve identity
-        result = node;
+      if (result->GetOpCode() == OP_neg){
+        PrimType origPtyp = node->GetPrimType();
+        PrimType newPtyp = result->GetPrimType();
+        if (newPtyp == origPtyp) {
+          if (static_cast<UnaryNode*>(result)->Opnd(0) == node->Opnd(0)) {
+            // NegateTree returned an UnaryNode quivalent to `n`, so keep the
+            // original UnaryNode to preserve identity
+            result = node;
+          }
+        } else {
+          if (GetPrimTypeSize(newPtyp) != GetPrimTypeSize(origPtyp)) {
+            // do not fold explicit cvt
+            return std::make_pair(node, 0);
+          } else {
+            result->SetPrimType(origPtyp);
+          }
+        }
       }
       sum = -p.second;
     } else {
