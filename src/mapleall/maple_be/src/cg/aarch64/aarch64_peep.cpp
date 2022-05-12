@@ -440,6 +440,8 @@ MOperator CsetCbzToBeqPattern::SelectNewMop(AArch64CC_t condCode, bool inverse) 
       return inverse ? MOP_bgt : MOP_ble;
     case CC_GT:
       return inverse ? MOP_ble : MOP_bgt;
+    case CC_CS:
+      return inverse ? MOP_bcc : MOP_bcs;
     default:
       return MOP_undef;
   }
@@ -454,6 +456,7 @@ void CsetCbzToBeqPattern::Run(BB &bb, Insn &insn) {
   auto &labelOpnd = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
   auto &condOpnd = static_cast<CondOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
   MOperator newMop = SelectNewMop(condOpnd.GetCode(), reverse);
+  ASSERT(newMop != MOP_undef, "unknown condition code");
   Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, prevInsn->GetOperand(kInsnThirdOpnd),
                                                                  labelOpnd);
   bb.ReplaceInsn(insn, newInsn);
@@ -4761,19 +4764,20 @@ void ComplexMemOperandPreAddAArch64::Run(BB &bb, Insn &insn) {
     }
     MemOperand *memOpnd = static_cast<MemOperand*>(nextInsn->GetMemOpnd());
     auto &newBaseOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-    auto &newIndexOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
     if (newBaseOpnd.GetSize() != k64BitSize) {
       return;
     }
+    auto &newIndexOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
     if (newIndexOpnd.GetSize() <= k32BitSize) {
       MemOperand &newMemOpnd =
           aarch64CGFunc->GetOrCreateMemOpnd(MemOperand::kAddrModeBOrX, memOpnd->GetSize(), &newBaseOpnd,
                                             &newIndexOpnd, 0, false);
       nextInsn->SetOperand(kInsnSecondOpnd, newMemOpnd);
     } else {
+      auto *newOfstOpnd = &aarch64CGFunc->GetOrCreateOfstOpnd(0, k32BitSize);
       MemOperand &newMemOpnd =
           aarch64CGFunc->GetOrCreateMemOpnd(MemOperand::kAddrModeBOrX, memOpnd->GetSize(), &newBaseOpnd,
-                                            &newIndexOpnd, nullptr, nullptr);
+                                            &newIndexOpnd, newOfstOpnd, nullptr);
       nextInsn->SetOperand(kInsnSecondOpnd, newMemOpnd);
     }
     bb.RemoveInsn(insn);

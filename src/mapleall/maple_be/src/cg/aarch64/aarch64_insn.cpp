@@ -641,6 +641,8 @@ uint32 AArch64Insn::GetJumpTargetIdxFromMOp(MOperator mOp) const {
     case MOP_bgt:
     case MOP_bge:
     case MOP_bne:
+    case MOP_bcc:
+    case MOP_bcs:
     case MOP_wcbz:
     case MOP_xcbz:
     case MOP_wcbnz:

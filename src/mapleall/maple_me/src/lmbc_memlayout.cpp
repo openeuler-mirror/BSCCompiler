@@ -74,8 +74,7 @@ uint32 LMBCMemLayout::FindLargestActualArea(StmtNode *stmt, int &maxActualSize) 
             MIRSymbol *sym = func->GetLocalOrGlobalSymbol(dread->GetStIdx());
             ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx());
             if (dread->GetFieldID() != 0) {
-              CHECK_FATAL(ty->GetKind() == kTypeStruct || ty->GetKind() == kTypeClass || ty->GetKind() == kTypeUnion,
-                          "expect struct or class or union");
+              CHECK_FATAL(ty->IsStructType(), "expect struct or class or union");
               FieldPair thepair =
                   static_cast<MIRStructType *>(ty)->TraverseToField(dread->GetFieldID());
               ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
@@ -87,8 +86,7 @@ uint32 LMBCMemLayout::FindLargestActualArea(StmtNode *stmt, int &maxActualSize) 
             ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
                 static_cast<MIRPtrType *>(ty)->GetPointedTyIdx());
             if (iread->GetFieldID() != 0) {
-              CHECK_FATAL(ty->GetKind() == kTypeStruct || ty->GetKind() == kTypeClass || ty->GetKind() == kTypeUnion,
-                          "expect struct or class or union");
+              CHECK_FATAL(ty->IsStructType(), "expect struct or class or union");
               FieldPair thepair =
                   static_cast<MIRStructType *>(ty)->TraverseToField(iread->GetFieldID());
               ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);

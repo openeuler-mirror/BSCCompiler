@@ -331,6 +331,10 @@ void IpaClone::EvalCompareResult(std::vector<ImpExpr> &result, std::map<uint32, 
       runFlag = true;
       IfStmtNode* ifStmt = static_cast<IfStmtNode*>(stmt);
       CompareNode *cond = static_cast<CompareNode*>(ifStmt->Opnd(0));
+      if (cond->Opnd(0)->GetOpCode() == OP_intrinsicop &&
+          static_cast<IntrinsicopNode*>(cond->Opnd(0))->GetIntrinsic() == INTRN_C___builtin_expect) {
+        cond = static_cast<CompareNode*>(static_cast<IntrinsicopNode*>(cond->Opnd(0))->Opnd(0));
+      }
       PrimType primType = cond->GetOpndType();
       BaseNode *opnd1 = cond->Opnd(1);
       ConstvalNode *constNode = static_cast<ConstvalNode*>(opnd1);

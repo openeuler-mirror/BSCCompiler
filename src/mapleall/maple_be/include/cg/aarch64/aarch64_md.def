@@ -596,6 +596,10 @@ DEFINE_MOP(MOP_vsqrtd, {mopdReg64FD,mopdReg64FS},CANTHROW,kLtAdvsimdDivD,"fsqrt"
 /* # Non Definitions */
 /* # As far as register allocation is concerned, the instructions below are non-definitions. */
 
+/* MOP_bcs */
+DEFINE_MOP(MOP_bcs, {mopdRegCCS,mopdLabel},ISCONDBRANCH,kLtBranch,"bcs","1",1)
+/* MOP_bcc */
+DEFINE_MOP(MOP_bcc, {mopdRegCCS,mopdLabel},ISCONDBRANCH,kLtBranch,"bcc","1",1)
 /* MOP_beq */
 DEFINE_MOP(MOP_beq, {mopdRegCCS,mopdLabel},ISCONDBRANCH,kLtBranch,"beq","1",1)
 /* MOP_bne */

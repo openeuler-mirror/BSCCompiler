@@ -886,7 +886,8 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curj, BlockNode *curblk) {
   PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curblk);
   PreMeStmtExtensionMap[IfstmtNode->GetStmtID()] = pmeExt;
   BaseNode *condnode = EmitPreMeExpr(condgoto->GetOpnd(), IfstmtNode);
-  if (condgoto->IsBranchProbValid()) {
+  if (condgoto->IsBranchProbValid() && (condgoto->GetBranchProb() == kProbLikely ||
+                                        condgoto->GetBranchProb() == kProbUnlikely)) {
     IntrinsicopNode *expectNode = codeMP->New<IntrinsicopNode>(*mirFunc->GetModule(), OP_intrinsicop, PTY_i64);
     expectNode->SetIntrinsic(INTRN_C___builtin_expect);
     expectNode->GetNopnd().push_back(condnode);
