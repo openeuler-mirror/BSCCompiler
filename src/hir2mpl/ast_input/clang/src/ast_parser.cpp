@@ -2607,6 +2607,8 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
     // '-npe-check-dynamic' cannot work as expected.
     if (FEOptions::GetInstance().IsNpeCheckDynamic() || !isStaticStorageVar || flag != EvaluatedAsZero) {
       astVar->SetInitExpr(astInitExpr);
+    } else {
+      astVar->SetAttr(GENATTR_static_init_zero); // used to distinguish with uninitialized vars
     }
   }
   if (llvm::isa<clang::VariableArrayType>(varDecl.getType())) {
