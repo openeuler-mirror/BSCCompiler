@@ -317,6 +317,14 @@ class ASTVar : public ASTDecl {
     variableArrayExpr = expr;
   }
 
+  void SetPromotedType(PrimType primType) {
+    promotedType = primType;
+  }
+
+  PrimType GetPromotedType() const {
+    return promotedType;
+  }
+
   std::unique_ptr<FEIRVar> Translate2FEIRVar() const;
   MIRSymbol *Translate2MIRSymbol() const;
 
@@ -328,6 +336,7 @@ class ASTVar : public ASTDecl {
   ASTExpr *initExpr = nullptr;
   std::string asmAttr;
   ASTExpr *variableArrayExpr = nullptr;
+  PrimType promotedType = PTY_void;
 };
 
 class ASTFileScopeAsm : public ASTDecl {

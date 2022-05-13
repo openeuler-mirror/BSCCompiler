@@ -2593,7 +2593,7 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
     astVar->SetAsmAttr(ala->getLabel().str());
   }
   if (varDecl.hasInit()) {
-    bool isStaticStorageVar = (varDecl.getStorageDuration() == clang::SD_Static);
+    bool isStaticStorageVar = (varDecl.getStorageDuration() == clang::SD_Static || attrs.GetAttr(GENATTR_tls_static));
     astVar->SetDeclPos(astFile->GetDeclPosInfo(varDecl));
     auto initExpr = varDecl.getInit();
     auto astInitExpr = ProcessExpr(allocator, initExpr);
@@ -2659,6 +2659,17 @@ ASTDecl *ASTParser::ProcessDeclParmVarDecl(MapleAllocator &allocator, const clan
   if (paramType == nullptr) {
     return nullptr;
   }
+  // C99 6.5.2.2.
+  // If the expression that denotes the called function has a type
+  // that does not include a prototype, the integer promotions are
+  // performed on each argument, and arguments that have type float
+  // are promoted to double.
+  PrimType promotedType = PTY_void;
+  if (parmVarDecl.isKNRPromoted()) {
+    promotedType = paramType->GetPrimType();
+    paramType = FEUtils::IsInteger(paramType->GetPrimType()) ?
+        GlobalTables::GetTypeTable().GetInt32() : GlobalTables::GetTypeTable().GetDouble();
+  }
   GenericAttrs attrs;
   astFile->CollectAttrs(parmVarDecl, attrs, kNone);
   if (LibAstFile::IsOneElementVector(parmQualType)) {
@@ -2671,6 +2682,7 @@ ASTDecl *ASTParser::ProcessDeclParmVarDecl(MapleAllocator &allocator, const clan
                                            attrs,
                                            parmVarDecl.getID());
   parmVar->SetIsParam(true);
+  parmVar->SetPromotedType(promotedType);
   const auto *valueDecl = llvm::dyn_cast<clang::ValueDecl>(&parmVarDecl);
   if (valueDecl != nullptr) {
     ProcessNonnullFuncPtrAttrs(allocator, *valueDecl, *parmVar);

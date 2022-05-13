@@ -198,6 +198,12 @@ UniqueFEIRExpr ASTDeclRefExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts)
       feirRefExpr = FEIRBuilder::CreateExprDRead(std::move(feirVar));
     }
   }
+  if (refedDecl->IsParam() && refedDecl->GetDeclKind() == kASTVar) {
+    PrimType promoted = static_cast<ASTVar*>(refedDecl)->GetPromotedType();
+    if (promoted != PTY_void) {
+      feirRefExpr = FEIRBuilder::CreateExprCastPrim(std::move(feirRefExpr), promoted);
+    }
+  }
   return feirRefExpr;
 }
 
