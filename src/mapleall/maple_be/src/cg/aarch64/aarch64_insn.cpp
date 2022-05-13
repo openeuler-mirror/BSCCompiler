@@ -1287,4 +1287,11 @@ void A64OpndDumpVisitor::Visit(PhiOperand *v) {
     LogInfo::MapleLogger() << (++it == phiList.end() ? "" : " ,");
   }
 }
+void A64OpndDumpVisitor::Visit(ListOperand *v) {
+  auto &opndList = v->GetOperands();
+  for (auto it = opndList.begin(); it != opndList.end();) {
+    Visit(*it);
+    LogInfo::MapleLogger() << (++it == opndList.end() ? "" : " ,");
+  }
+}
 }  /* namespace maplebe */

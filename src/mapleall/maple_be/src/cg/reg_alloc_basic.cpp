@@ -94,7 +94,7 @@ Operand *DefaultO0RegAllocator::AllocDestOpnd(Operand &opnd, const Insn &insn) {
   if (!regInfo->IsVirtualRegister(regOpnd)) {
     auto reg = regOpnd.GetRegisterNumber();
     availRegSet[reg] = true;
-    uint32 id = GetRegLivenessId(&regOpnd);
+    uint32 id = GetRegLivenessId(regOpnd.GetRegisterNumber());
     if (id != 0 && id <= insn.GetId()) {
       ReleaseReg(reg);
     }
@@ -105,7 +105,7 @@ Operand *DefaultO0RegAllocator::AllocDestOpnd(Operand &opnd, const Insn &insn) {
   if (regMapIt != regMap.end()) {
     regno_t reg = regMapIt->second;
     if (!insn.IsCondDef()) {
-      uint32 id = GetRegLivenessId(&regOpnd);
+      uint32 id = GetRegLivenessId(regOpnd.GetRegisterNumber());
       if (id != 0 && id <= insn.GetId()) {
         ReleaseReg(reg);
       }
@@ -115,7 +115,7 @@ Operand *DefaultO0RegAllocator::AllocDestOpnd(Operand &opnd, const Insn &insn) {
     if (AllocatePhysicalRegister(regOpnd)) {
       regMapIt = regMap.find(regOpnd.GetRegisterNumber());
       if (!insn.IsCondDef()) {
-        uint32 id = GetRegLivenessId(&regOpnd);
+        uint32 id = GetRegLivenessId(regOpnd.GetRegisterNumber());
         if (id && (id <= insn.GetId())) {
           ReleaseReg(regMapIt->second);
         }
@@ -175,13 +175,23 @@ void DefaultO0RegAllocator::ReleaseReg(regno_t reg) {
 /* trying to allocate a physical register to opnd. return true if success */
 bool DefaultO0RegAllocator::AllocatePhysicalRegister(const CGRegOperand &opnd) {
   RegType regType = opnd.GetRegisterType();
+  regno_t regNo = opnd.GetRegisterNumber();
   uint8 regStart = 0;
   uint8 regEnd = 0;
   GetPhysicalRegisterBank(regType, regStart, regEnd);
 
+  auto opndRegIt = regLiveness.find(regNo);
   for (uint8 reg = regStart; reg <= regEnd; ++reg) {
     if (!availRegSet[reg]) {
       continue;
+    }
+    if (opndRegIt != regLiveness.end()) {
+      auto regIt = regLiveness.find(reg);
+      if (regIt != regLiveness.end() &&
+          !(opndRegIt->second.first >= regIt->second.second ||
+          opndRegIt->second.second <= regIt->second.first)) {
+        continue;
+      }
     }
 
     regMap[opnd.GetRegisterNumber()] = reg;
@@ -206,11 +216,6 @@ void DefaultO0RegAllocator::SaveCalleeSavedReg(const CGRegOperand &regOpnd) {
   }
 }
 
-uint32 DefaultO0RegAllocator::GetRegLivenessId(Operand *opnd) {
-  auto regIt = regLiveness.find(opnd);
-  return ((regIt == regLiveness.end()) ? 0 : regIt->second);
-}
-
 void DefaultO0RegAllocator::SetupRegLiveness(BB *bb) {
   regLiveness.clear();
 
@@ -222,13 +227,22 @@ void DefaultO0RegAllocator::SetupRegLiveness(BB *bb) {
     insn->SetId(id);
     id++;
     uint32 opndNum = insn->GetOperandSize();
+    const InsnDescription *curMd = insn->GetInsnDescrption();
     for (uint32 i = 0; i < opndNum; i++) {
       Operand &opnd = insn->GetOperand(i);
-      if (!insn->OpndIsDef(i)) {
+      const OpndDescription* opndDesc = curMd->GetOpndDes(i);
+      if (!(opnd.IsRegister() && opndDesc->IsDef()) && ((!insn->IsAsmInsn()) || i != kAsmOutputListOpnd)) {
         continue;
       }
       if (opnd.IsRegister()) {
-        regLiveness[&opnd] = insn->GetId();
+        auto &regOpnd = static_cast<CGRegOperand&>(opnd);
+        auto &regLivenessRange = regLiveness[regOpnd.GetRegisterNumber()];
+        if (regLivenessRange.first == 0) {
+          regLivenessRange.first = insn->GetId();
+          regLivenessRange.second = insn->GetId();
+        } else {
+          regLivenessRange.second = insn->GetId();
+        }
       }
     }
   }
@@ -272,7 +286,7 @@ void DefaultO0RegAllocator::AllocHandleDest(Insn &insn, Operand &opnd, uint32 id
       regno_t regNO = regOpnd.GetRegisterNumber();
       rememberRegs.push_back(regInfo->IsVirtualRegister(regOpnd) ? regMap[regNO] : regNO);
     } else if (!insn.IsCondDef()) {
-      uint32 id = GetRegLivenessId(&regOpnd);
+      uint32 id = GetRegLivenessId(regOpnd.GetRegisterNumber());
       if (id != 0 && id <= insn.GetId()) {
         ReleaseReg(regOpnd);
       }
@@ -342,7 +356,7 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
         continue;
       }
       uint32 opndNum = insn->GetOperandSize();
-      const InsnDescription *curMd = cgFunc->GetCG()->GetTargetInsnDecription(insn->GetMachineOpcode());
+      const InsnDescription *curMd = insn->GetInsnDescrption();
       for (uint32 i = 0; i < opndNum; ++i) {  /* the dest registers */
         Operand &opnd = insn->GetOperand(i);
         const OpndDescription* opndDesc = curMd->GetOpndDes(i);
@@ -360,8 +374,8 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
       for (uint32 i = 0; i < opndNum; ++i) {  /* the src registers */
         Operand &opnd = insn->GetOperand(i);
         const OpndDescription* opndDesc = curMd->GetOpndDes(i);
-        if (!((opnd.IsRegister() && opndDesc->IsUse()) || opnd.GetKind() == Operand::kOpdMem) &&
-            ((!insn->IsAsmInsn()) || i != kAsmInputListOpnd)) {
+        if (!((opnd.IsRegister() && opndDesc->IsUse()) || opnd.GetKind() == Operand::kOpdMem ||
+            opnd.IsList()) && ((!insn->IsAsmInsn()) || i != kAsmInputListOpnd)) {
           continue;
         }
         if (opnd.IsList()) {
@@ -468,7 +482,7 @@ Operand *DefaultO0RegAllocator::AllocDestOpnd(Operand &opnd, const Insn &insn) {
   if (!regOpnd.IsVirtualRegister()) {
     auto reg = regOpnd.GetRegisterNumber();
     availRegSet[reg] = true;
-    uint32 id = GetRegLivenessId(&regOpnd);
+    uint32 id = GetRegLivenessId(regOpnd.GetRegisterNumber());
     if (id != 0 && id <= insn.GetId()) {
       ReleaseReg(reg);
     }
@@ -479,7 +493,7 @@ Operand *DefaultO0RegAllocator::AllocDestOpnd(Operand &opnd, const Insn &insn) {
   if (regMapIt != regMap.end()) {
     regno_t reg = regMapIt->second;
     if (!insn.IsCondDef()) {
-      uint32 id = GetRegLivenessId(&regOpnd);
+      uint32 id = GetRegLivenessId(regOpnd.GetRegisterNumber());
       if (id != 0 && id <= insn.GetId()) {
         ReleaseReg(reg);
       }
@@ -489,7 +503,7 @@ Operand *DefaultO0RegAllocator::AllocDestOpnd(Operand &opnd, const Insn &insn) {
     if (AllocatePhysicalRegister(regOpnd)) {
       regMapIt = regMap.find(regOpnd.GetRegisterNumber());
       if (!insn.IsCondDef()) {
-        uint32 id = GetRegLivenessId(&regOpnd);
+        uint32 id = GetRegLivenessId(regOpnd.GetRegisterNumber());
         if (id && (id <= insn.GetId())) {
           ReleaseReg(regMapIt->second);
         }
@@ -582,13 +596,23 @@ void DefaultO0RegAllocator::ReleaseReg(regno_t reg) {
 /* trying to allocate a physical register to opnd. return true if success */
 bool DefaultO0RegAllocator::AllocatePhysicalRegister(const RegOperand &opnd) {
   RegType regType = opnd.GetRegisterType();
+  regno_t regNo = opnd.GetRegisterNumber();
   uint8 regStart = 0;
   uint8 regEnd = 0;
   GetPhysicalRegisterBank(regType, regStart, regEnd);
 
+  auto opndRegIt = regLiveness.find(regNo);
   for (uint8 reg = regStart; reg <= regEnd; ++reg) {
     if (!availRegSet[reg]) {
       continue;
+    }
+    if (opndRegIt != regLiveness.end()) {
+      auto regIt = regLiveness.find(reg);
+      if (regIt != regLiveness.end() &&
+          (std::max(opndRegIt->second.first, regIt->second.first) <=
+          std::min(opndRegIt->second.second, regIt->second.second))) {
+        continue;
+      }
     }
 
     regMap[opnd.GetRegisterNumber()] = reg;
@@ -613,14 +637,13 @@ void DefaultO0RegAllocator::SaveCalleeSavedReg(const RegOperand &regOpnd) {
   }
 }
 
-uint32 DefaultO0RegAllocator::GetRegLivenessId(Operand *opnd) {
-  auto regIt = regLiveness.find(opnd);
-  return ((regIt == regLiveness.end()) ? 0 : regIt->second);
+uint32 DefaultO0RegAllocator::GetRegLivenessId(regno_t regNo) {
+  auto regIt = regLiveness.find(regNo);
+  return ((regIt == regLiveness.end()) ? 0 : regIt->second.second);
 }
 
 void DefaultO0RegAllocator::SetupRegLiveness(BB *bb) {
   regLiveness.clear();
-
   uint32 id = 1;
   FOR_BB_INSNS_REV(insn, bb) {
     if (!insn->IsMachineInstruction()) {
@@ -634,8 +657,14 @@ void DefaultO0RegAllocator::SetupRegLiveness(BB *bb) {
       if (!insn->OpndIsDef(i)) {
         continue;
       }
+      if (insn->IsAsmInsn() && (i == kAsmClobberListOpnd || i == kAsmOutputListOpnd)) {
+        for (auto &regOpnd : static_cast<ListOperand&>(opnd).GetOperands()) {
+          UpdateRegLiveness(regOpnd->GetRegisterNumber(), insn->GetId());
+        }
+      }
       if (opnd.IsRegister()) {
-        regLiveness[&opnd] = insn->GetId();
+        auto &regOpnd = static_cast<RegOperand&>(opnd);
+        UpdateRegLiveness(regOpnd.GetRegisterNumber(), insn->GetId());
       }
     }
   }
@@ -665,7 +694,10 @@ void DefaultO0RegAllocator::AllocHandleDestList(Insn &insn, Operand &opnd, uint3
   }
   insn.SetOperand(idx, *listOpndsNew);
   for (auto *dstOpnd : listOpndsNew->GetOperands()) {
-    ReleaseReg(*dstOpnd);
+    uint32 id = GetRegLivenessId(dstOpnd->GetRegisterNumber());
+    if (id != 0 && id <= insn.GetId()) {
+      ReleaseReg(*dstOpnd);
+    }
   }
 }
 
@@ -679,7 +711,7 @@ void DefaultO0RegAllocator::AllocHandleDest(Insn &insn, Operand &opnd, uint32 id
       regno_t regNO = regOpnd.GetRegisterNumber();
       rememberRegs.push_back(regOpnd.IsVirtualRegister() ? regMap[regNO] : regNO);
     } else if (!insn.IsCondDef()) {
-      uint32 id = GetRegLivenessId(&regOpnd);
+      uint32 id = GetRegLivenessId(regOpnd.GetRegisterNumber());
       if (id != 0 && id <= insn.GetId()) {
         ReleaseReg(regOpnd);
       }
@@ -754,10 +786,17 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
       }
 
       uint32 opndNum = insn->GetOperandSize();
-      for (uint32 i = 0; i < opndNum; ++i) {  /* the dest registers */
+
+      /* handle inline assembly first due to specific def&use order */
+      if (insn->IsAsmInsn()) {
+        AllocHandleDestList(*insn, insn->GetOperand(kAsmClobberListOpnd), kAsmClobberListOpnd);
+        AllocHandleDestList(*insn, insn->GetOperand(kAsmOutputListOpnd), kAsmOutputListOpnd);
+        AllocHandleSrcList(*insn, insn->GetOperand(kAsmInputListOpnd), kAsmInputListOpnd);
+      }
+
+      for (uint32 i = 0; i < opndNum && !insn->IsAsmInsn(); ++i) {  /* the dest registers */
         Operand &opnd = insn->GetOperand(i);
-        if (!(opnd.IsRegister() && insn->OpndIsDef(i)) &&
-            ((!insn->IsAsmInsn()) || i != kAsmOutputListOpnd)) {
+        if (!(opnd.IsRegister() && insn->OpndIsDef(i))) {
           continue;
         }
         if (opnd.IsList()) {
@@ -767,10 +806,9 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
         }
       }
 
-      for (uint32 i = 0; i < opndNum; ++i) {  /* the src registers */
+      for (uint32 i = 0; i < opndNum && !insn->IsAsmInsn(); ++i) {  /* the src registers */
         Operand &opnd = insn->GetOperand(i);
-        if (!((opnd.IsRegister() && insn->OpndIsUse(i)) || opnd.GetKind() == Operand::kOpdMem) &&
-            ((!insn->IsAsmInsn()) || i != kAsmInputListOpnd)) {
+        if (!((opnd.IsRegister() && insn->OpndIsUse(i)) || opnd.GetKind() == Operand::kOpdMem)) {
           continue;
         }
         if (opnd.IsList()) {
@@ -795,6 +833,16 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
   regInfo->Fini();
   regInfo->SaveCalleeSavedReg(calleeSaveUsed);
   return true;
+}
+
+void DefaultO0RegAllocator::UpdateRegLiveness(regno_t regNo, uint32 insnId) {
+  auto &regLivenessRange = regLiveness[regNo];
+  if (regLivenessRange.first == 0) {
+    regLivenessRange.first = insnId;
+    regLivenessRange.second = insnId;
+  } else {
+    regLivenessRange.second = insnId;
+  }
 }
 #endif
 }  /* namespace maplebe */

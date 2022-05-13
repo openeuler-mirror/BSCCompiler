@@ -65,8 +65,6 @@ class AArch64Insn : public Insn {
     return (mOp == MOP_pseudo_ret_int || mOp == MOP_pseudo_ret_float);
   }
 
-  bool IsUseSpecReg() const override;
-
   bool OpndIsDef(uint32 id) const override;
   bool OpndIsUse(uint32 id) const override;
   bool IsEffectiveCopy() const override {
@@ -152,9 +150,7 @@ class AArch64Insn : public Insn {
 
   bool IsDMBInsn() const override;
 
-  void PrepareVectorOperand(AArch64RegOperand *regOpnd, uint32 &compositeOpnds) const;
-
-  void Emit(const CG&, Emitter&) const override;
+  void PrepareVectorOperand(RegOperand *regOpnd, uint32 &compositeOpnds) const;
 
   void Dump() const override;
 
@@ -174,8 +170,6 @@ class AArch64Insn : public Insn {
 
   MOperator FlipConditionOp(MOperator flippedOp, uint32 &targetIdx) override;
 
-  bool CheckRefField(size_t opndIndex, bool isEmit) const;
-
   uint8 GetLoadStoreSize() const;
 
   bool IsRegDefined(regno_t regNO) const override;
@@ -188,21 +182,6 @@ class AArch64Insn : public Insn {
 
  private:
   void CheckOpnd(const Operand &opnd, const OpndProp &mopd) const;
-  void EmitClinit(const CG&, Emitter&) const;
-  void EmitAdrpLdr(const CG&, Emitter&) const;
-  void EmitLazyBindingRoutine(Emitter&) const;
-  void EmitClinitTail(Emitter&) const;
-  void EmitAdrpLabel(Emitter&) const;
-  void EmitLazyLoad(Emitter&) const;
-  void EmitLazyLoadStatic(Emitter&) const;
-  void EmitArrayClassCacheLoad(Emitter&) const;
-  void EmitCheckThrowPendingException(const CG&, Emitter&) const;
-  void EmitGetAndAddInt(Emitter &emitter) const;
-  void EmitGetAndSetInt(Emitter &emitter) const;
-  void EmitCompareAndSwapInt(Emitter &emitter) const;
-  void EmitStringIndexOf(Emitter &emitter) const;
-  void EmitCounter(const CG&, Emitter&) const;
-  void EmitInlineAsm(const CG&, Emitter&) const;
 };
 
 struct VectorRegSpec {
@@ -292,6 +271,95 @@ class AArch64cleancallInsn : public AArch64Insn {
  private:
   int32 refSkipIndex;
 };
+
+class OpndEmitVisitor : public OperandVisitorBase,
+                        public OperandVisitors<RegOperand,
+                                               ImmOperand,
+                                               MemOperand,
+                                               OfstOperand,
+                                               ListOperand,
+                                               LabelOperand,
+                                               FuncNameOperand,
+                                               StImmOperand,
+                                               CondOperand,
+                                               BitShiftOperand,
+                                               ExtendShiftOperand,
+                                               LogicalShiftLeftOperand,
+                                               CommentOperand> {
+ public:
+  OpndEmitVisitor(Emitter &asmEmitter): emitter(asmEmitter) {}
+  virtual ~OpndEmitVisitor() = default;
+ protected:
+  Emitter &emitter;
+};
+
+class A64OpndEmitVisitor : public OpndEmitVisitor {
+ public:
+  A64OpndEmitVisitor(Emitter &emitter, const OpndProp *operandProp)
+      : OpndEmitVisitor(emitter),
+        opndProp(operandProp) {}
+  ~A64OpndEmitVisitor() override = default;
+
+ private:
+  void Visit(RegOperand *v) final;
+  void Visit(ImmOperand *v) final;
+  void Visit(MemOperand *v) final;
+  void Visit(CondOperand *v) final;
+  void Visit(StImmOperand *v) final;
+  void Visit(BitShiftOperand *v) final;
+  void Visit(ExtendShiftOperand *v) final;
+  void Visit(LabelOperand *v) final;
+  void Visit(FuncNameOperand *v) final;
+  void Visit(LogicalShiftLeftOperand *v) final;
+  void Visit(CommentOperand *v) final;
+  void Visit(OfstOperand *v) final;
+  void Visit(ListOperand *v) final;
+
+  void EmitVectorOperand(RegOperand &v);
+  void EmitIntReg(RegOperand &v, uint8 opndSz = kMaxSimm32);
+
+  const OpndProp *opndProp;
+};
+
+/*TODO : Delete */
+class OpndTmpDumpVisitor : public OperandVisitorBase,
+                           public OperandVisitors<RegOperand,
+                                                  ImmOperand,
+                                                  MemOperand,
+                                                  LabelOperand,
+                                                  FuncNameOperand,
+                                                  StImmOperand,
+                                                  CondOperand,
+                                                  BitShiftOperand,
+                                                  ExtendShiftOperand,
+                                                  PhiOperand,
+                                                  ListOperand,
+                                                  LogicalShiftLeftOperand> {
+ public:
+  OpndTmpDumpVisitor() {}
+  virtual ~OpndTmpDumpVisitor() = default;
+};
+
+class A64OpndDumpVisitor : public OpndTmpDumpVisitor {
+ public:
+  A64OpndDumpVisitor() : OpndTmpDumpVisitor() {}
+  ~A64OpndDumpVisitor() override = default;
+
+ private:
+  void Visit(RegOperand *v) final;
+  void Visit(ImmOperand *v) final;
+  void Visit(MemOperand *v) final;
+  void Visit(CondOperand *v) final;
+  void Visit(StImmOperand *v) final;
+  void Visit(BitShiftOperand *v) final;
+  void Visit(ExtendShiftOperand *v) final;
+  void Visit(LabelOperand *v) final;
+  void Visit(FuncNameOperand *v) final;
+  void Visit(LogicalShiftLeftOperand *v) final;
+  void Visit(PhiOperand *v) final;
+  void Visit(ListOperand *v) final;
+};
+
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_INSN_H */

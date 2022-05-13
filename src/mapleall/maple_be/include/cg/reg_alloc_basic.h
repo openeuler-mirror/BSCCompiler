@@ -28,7 +28,7 @@ class DefaultO0RegAllocator : public RegAllocator {
         regMap(std::less<uint32>(), alloc.Adapter()),
         liveReg(std::less<uint8>(), alloc.Adapter()),
         allocatedSet(std::less<Operand*>(), alloc.Adapter()),
-        regLiveness(std::less<Operand*>(), alloc.Adapter()),
+        regLiveness(alloc.Adapter()),
         rememberRegs(alloc.Adapter()) {
     regInfo = cgFunc.GetTargetRegInfo();
     availRegSet.resize(regInfo->GetAllRegNum(), false);
@@ -71,8 +71,7 @@ class DefaultO0RegAllocator : public RegAllocator {
   Operand *HandleMemOpnd(Operand &opnd);
   Operand *AllocSrcOpnd(Operand &opnd);
   Operand *AllocDestOpnd(Operand &opnd, const Insn &insn);
-
-  uint32 GetRegLivenessId(Operand *opnd);
+  uint32 GetRegLivenessId(regno_t regNo);
   void SetupRegLiveness(BB *bb);
 
   RegisterInfo *regInfo = nullptr;
@@ -81,8 +80,11 @@ class DefaultO0RegAllocator : public RegAllocator {
   MapleMap<uint32, regno_t> regMap;  /* virtual-register-to-physical-register map */
   MapleSet<uint8> liveReg;              /* a set of currently live physical registers */
   MapleSet<Operand*> allocatedSet;      /* already allocated */
-  MapleMap<Operand*, uint32> regLiveness;
+  MapleMap<regno_t, std::pair<uint32, uint32>> regLiveness;
   MapleVector<regno_t> rememberRegs;
+
+ private:
+  void UpdateRegLiveness(regno_t regNo, uint32 insnId);
 };
 }  /* namespace maplebe */
 
