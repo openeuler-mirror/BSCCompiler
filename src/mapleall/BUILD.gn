@@ -85,6 +85,13 @@ config("mapleallcompilecfg") {
   if (ASAN == 1) {
     ldflags += ["-ldl"]
   }
+  if (COV == 1) {
+    ldflags += ["--coverage"]
+    cflags_cc += [
+      "-fprofile-arcs",
+      "-ftest-coverage"
+    ]
+  }
 
   if (MAJOR_VERSION != "") {
     cflags_cc += [ "-DMAJOR_VERSION=${MAJOR_VERSION}", ]

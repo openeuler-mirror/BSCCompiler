@@ -194,6 +194,13 @@ executable("hir2mpl") {
       "-L${MAPLE_PARSER_PATH}/output/c/ast_gen/shared",
     ]
   }
+  if (COV == 1) {
+    ldflags += ["--coverage"]
+    cflags_cc += [
+      "-fprofile-arcs",
+      "-ftest-coverage"
+    ]
+  }
 }
 
 include_bytecode_input_jbc_directories = [
