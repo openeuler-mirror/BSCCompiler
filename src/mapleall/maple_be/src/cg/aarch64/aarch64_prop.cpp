@@ -22,6 +22,36 @@ namespace maplebe {
 
 #define PROP_DUMP CG_DEBUG_FUNC(cgFunc)
 
+bool MayOverflow(const ImmOperand &value1, const ImmOperand &value2, bool is64Bit, bool isAdd, bool isSigned) {
+  if (value1.GetVary() || value2.GetVary()) {
+    return false;
+  }
+  int64 cstA = value1.GetValue();
+  int64 cstB = value2.GetValue();
+  if (isAdd) {
+    int64 res = static_cast<int64>(static_cast<uint64>(cstA) + static_cast<uint64>(cstB));
+    if (!isSigned) {
+      return static_cast<uint64>(res) < static_cast<uint64>(cstA);
+    }
+    auto rightShiftNumToGetSignFlag = (is64Bit ? 64 : 32) - 1;
+    return (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
+            static_cast<uint64>(cstA) >> rightShiftNumToGetSignFlag) &&
+           (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
+            static_cast<uint64>(cstB) >> rightShiftNumToGetSignFlag );
+  } else {
+    /* sub */
+    if (!isSigned) {
+      return cstA < cstB;
+    }
+    int64 res = static_cast<int64>(static_cast<uint64>(cstA) - static_cast<uint64>(cstB));
+    auto rightShiftNumToGetSignFlag = (is64Bit ? 64 : 32) - 1;
+    return (static_cast<uint64>(cstA) >> rightShiftNumToGetSignFlag !=
+            static_cast<uint64>(cstB) >> rightShiftNumToGetSignFlag) &&
+           (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
+            static_cast<uint64>(cstA) >> rightShiftNumToGetSignFlag);
+  }
+}
+
 bool AArch64Prop::IsInLimitCopyRange(VRegVersion *toBeReplaced) {
   uint32 baseID = toBeReplaced->GetDefInsnInfo()->GetInsn()->GetId();
   MapleUnorderedMap<uint32, DUInsnInfo*> &useList = toBeReplaced->GetAllUseInsns();
@@ -280,6 +310,12 @@ bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &con
           CGOptions::GetInstance().GetOptimizeLevel() < 0) {
         ASSERT(false, "NIY");
       }
+      auto *zeroImm = &(static_cast<AArch64CGFunc*>(cgFunc)->CreateImmOperand(
+          0, constOpnd.GetSize(), true));
+      /* value in immOpnd is signed */
+      if (MayOverflow(*zeroImm, constOpnd, constOpnd.GetSize() == 64, false, true)) {
+        return false;
+      }
       /* Addition and subtraction reversal */
       tempImm->SetValue(-constOpnd.GetValue());
       newMop = GetReversalMOP(newMop);
@@ -450,6 +486,13 @@ ImmOperand *A64ConstProp::CanDoConstFold(
     const ImmOperand &value1, const ImmOperand &value2, ArithmeticType aT, bool is64Bit) {
   auto *tempImm = static_cast<ImmOperand*>(value1.Clone(*constPropMp));
   int64 newVal = 0;
+  bool isSigned = value1.IsSignedValue();
+  if (value1.IsSignedValue() != value2.IsSignedValue()) {
+    isSigned = false;
+  }
+  if (MayOverflow(value1, value2, is64Bit, aT == kAArch64Add, isSigned)) {
+    return nullptr;
+  }
   switch (aT) {
     case kAArch64Add : {
       newVal = value1.GetValue() + value2.GetValue();
@@ -462,7 +505,10 @@ ImmOperand *A64ConstProp::CanDoConstFold(
     default:
       return nullptr;
   }
-  if (!is64Bit && newVal > INT_MAX) {
+  if (!is64Bit && isSigned && (newVal > INT_MAX || newVal < INT_MIN)) {
+    return nullptr;
+  }
+  if (!is64Bit && !isSigned && (newVal > UINT_MAX || newVal < 0)) {
     return nullptr;
   }
   if (newVal < 0) {
