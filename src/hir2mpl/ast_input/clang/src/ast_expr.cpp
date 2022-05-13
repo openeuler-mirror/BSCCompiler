@@ -1206,6 +1206,31 @@ void ASTInitListExpr::ProcessDesignatedInitUpdater(
   ProcessInitList(base, static_cast<ASTInitListExpr*>(updaterExpr), stmts);
 }
 
+void ASTInitListExpr::InitializeStructFieldsWithMemset(std::list<UniqueFEIRStmt> &stmtsIn,
+    std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &baseIn,
+    UniqueFEIRVar &varIn, uint32 initSizeIn, uint32 fieldIDIn, uint32 sizeIn) const {
+  UniqueFEIRExpr addrOfExpr;
+  if (std::holds_alternative<UniqueFEIRExpr>(baseIn)) {
+    UniqueFEIRExpr offsetExpr = FEIRBuilder::CreateExprConstU32(initSizeIn);
+    addrOfExpr = FEIRBuilder::CreateExprBinary(OP_add, std::get<UniqueFEIRExpr>(baseIn)->Clone(),
+                                               std::move(offsetExpr));
+  } else {
+    addrOfExpr = std::make_unique<FEIRExprAddrofVar>(varIn->Clone(), fieldIDIn);
+  }
+  ProcessImplicitInit(addrOfExpr->Clone(), 0, sizeIn, 1, stmtsIn);
+}
+
+std::tuple<uint32, uint32, MIRType*> ASTInitListExpr::GetStructFieldInfo(uint32 fieldIndex,
+                                                                         uint32 baseFieldID,
+                                                                         MIRStructType &structMirType) const {
+  FieldID curFieldID = 0;
+  FEUtils::TraverseToNamedField(structMirType, structMirType.GetElemStrIdx(fieldIndex), curFieldID);
+  uint32 fieldID = static_cast<uint32>(baseFieldID + curFieldID);
+  MIRType *fieldMirType = structMirType.GetFieldType(curFieldID);
+  uint32 fieldTypeSize = static_cast<uint32>(fieldMirType->GetSize());
+  return std::make_tuple(fieldID, fieldTypeSize, fieldMirType);
+}
+
 void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                                             ASTInitListExpr *initList,
                                             std::list<UniqueFEIRStmt> &stmts) const {
@@ -1234,10 +1259,25 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
     baseFieldID = std::get<std::pair<UniqueFEIRVar, FieldID>>(base).second;
   }
 
-  if (initList->initExprs.size() == 0 || (!FEOptions::GetInstance().IsNpeCheckDynamic() &&
-      initList->GetEvaluatedFlag() == EvaluatedAsZero)) {
+  if (initList->initExprs.size() == 0) {
     UniqueFEIRExpr addrOfExpr = std::make_unique<FEIRExprAddrofVar>(var->Clone(), 0);
     ProcessImplicitInit(addrOfExpr->Clone(), 0, curStructMirType->GetSize(), 1, stmts);
+    return;
+  }
+
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() && initList->GetEvaluatedFlag() == EvaluatedAsZero) {
+    if (baseStructMirType->GetKind() == kTypeStruct) {
+      std::tuple<uint32, uint32, MIRType*> fieldInfo = GetStructFieldInfo(0, baseFieldID, *curStructMirType);
+      uint32 fieldID = std::get<0>(fieldInfo);
+      // Use 'fieldID - 1' (start address of the nested struct or union) instead of 'fieldID' (start address of the
+      // first field in the nested struct or union), because even though these two addresses have the same value,
+      // they have different pointer type.
+      UniqueFEIRExpr addrOfExpr = std::make_unique<FEIRExprAddrofVar>(var->Clone(), fieldID - 1);
+      ProcessImplicitInit(addrOfExpr->Clone(), 0, curStructMirType->GetSize(), 1, stmts);
+    } else { // kTypeUnion
+      UniqueFEIRExpr addrOfExpr = std::make_unique<FEIRExprAddrofVar>(var->Clone(), 0);
+      ProcessImplicitInit(addrOfExpr->Clone(), 0, baseStructMirType->GetSize(), 1, stmts);
+    }
     return;
   }
 
@@ -1248,24 +1288,54 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
       continue; // skip anonymous field
     }
 
-    FieldID curFieldID = 0;
     uint32 fieldIdx = (curStructMirType->GetKind() == kTypeUnion) ? initList->GetUnionInitFieldIdx() : i;
-    FEUtils::TraverseToNamedField(*curStructMirType, curStructMirType->GetElemStrIdx(fieldIdx), curFieldID);
-    uint32 fieldID = static_cast<uint32>(baseFieldID + curFieldID);
-    MIRType *fieldMirType = curStructMirType->GetFieldType(curFieldID);
-    curFieldTypeSize = static_cast<uint32>(fieldMirType->GetSize());
+    std::tuple<uint32, uint32, MIRType*> fieldInfo = GetStructFieldInfo(fieldIdx, baseFieldID, *curStructMirType);
+    uint32 fieldID = std::get<0>(fieldInfo);
+    curFieldTypeSize = std::get<1>(fieldInfo);
+    MIRType *fieldMirType = std::get<2>(fieldInfo);
     offset += curFieldTypeSize;
+    // use one instrinsic call memset to initialize zero for partial continuous fields of struct to need reduce code
+    // size need to follow these three rules: (1) offset from the start address of the continuous fields to the start
+    // addresss of struct should be an integer multiples of 4 bytes (2) size of the continuous fields should be an
+    // integer multiples of 4 bytes (3) the continuous fields count should be two at least
+    if (!FEOptions::GetInstance().IsNpeCheckDynamic() &&
+        curStructMirType->GetKind() == kTypeStruct &&
+        fieldMirType->GetKind() != kTypeBitField && // skip bitfield type field because it not follows byte alignment
+        initList->initExprs[i]->GetEvaluatedFlag() == EvaluatedAsZero &&
+        (baseStructMirType->GetBitOffsetFromBaseAddr(fieldID) / 8) % 4 == 0) {
+      uint32 fieldsCount = 0;
+      int64 initBitSize = baseStructMirType->GetBitOffsetFromBaseAddr(fieldID); // in bit
+      uint32 fieldSizeOfLastZero = 0; // in byte
+      uint32 fieldIdOfLastZero = fieldID;
+      while (i < initList->initExprs.size() &&
+             initList->initExprs[i] != nullptr &&
+             initList->initExprs[i]->GetEvaluatedFlag() == EvaluatedAsZero) {
+        fieldInfo = GetStructFieldInfo(i, baseFieldID, *curStructMirType);
+        curFieldTypeSize = std::get<1>(fieldInfo);
+        fieldMirType = std::get<2>(fieldInfo);
+        if (fieldMirType->GetKind() == kTypeBitField) {
+          break;
+        }
+        fieldSizeOfLastZero = curFieldTypeSize;
+        fieldIdOfLastZero = std::get<0>(fieldInfo);
+        ++fieldsCount;
+        ++i;
+      }
+      // consider struct alignment
+      int64 fieldsBitSize = (baseStructMirType->GetBitOffsetFromBaseAddr(fieldIdOfLastZero) +
+          fieldSizeOfLastZero * 8) - initBitSize;
+      if (fieldsCount >= 2 && fieldsBitSize % 8 == 0 && (fieldsBitSize / 8) % 4 == 0) {
+        InitializeStructFieldsWithMemset(stmts, base, var, static_cast<uint32>(initBitSize / 8), fieldID,
+                                         static_cast<uint32>(fieldsBitSize / 8));
+        --i;
+        continue;
+      } else {
+        i -= fieldsCount;
+      }
+    }
 
     if (initList->initExprs[i]->GetASTOp() == kASTImplicitValueInitExpr && fieldMirType->GetPrimType() == PTY_agg) {
-      UniqueFEIRExpr addrOfExpr;
-      if (std::holds_alternative<UniqueFEIRExpr>(base)) {
-        UniqueFEIRExpr offsetExpr = FEIRBuilder::CreateExprConstU32(offset - curFieldTypeSize);
-        addrOfExpr = FEIRBuilder::CreateExprBinary(OP_add, std::get<UniqueFEIRExpr>(base)->Clone(),
-                                                   std::move(offsetExpr));
-      } else {
-        addrOfExpr = std::make_unique<FEIRExprAddrofVar>(var->Clone(), fieldID);
-      }
-      ProcessImplicitInit(addrOfExpr->Clone(), 0, fieldMirType->GetSize(), 1, stmts);
+      InitializeStructFieldsWithMemset(stmts, base, var, offset - curFieldTypeSize, fieldID, fieldMirType->GetSize());
       continue;
     }
 

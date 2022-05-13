@@ -635,6 +635,12 @@ class ASTInitListExpr : public ASTExpr {
                             std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                              ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
+  std::tuple<uint32, uint32, MIRType*> GetStructFieldInfo(uint32 fieldIndex, uint32 baseFieldID,
+                                                          MIRStructType &structMirType) const;
+  void InitializeStructFieldsWithMemset(std::list<UniqueFEIRStmt> &stmtsIn,
+                                        std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &baseIn,
+                                        UniqueFEIRVar &varIn,
+                                        uint32 initSizeIn, uint32 fieldIDIn, uint32 sizeIn) const;
   void ProcessVectorInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                              ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
   MIRIntrinsicID SetVectorSetLane(const MIRType &type) const;
