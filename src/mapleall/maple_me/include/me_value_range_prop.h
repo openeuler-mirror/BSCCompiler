@@ -161,7 +161,7 @@ class Bound {
 
   bool IsEqualAfterCVT(PrimType fromType, PrimType toType) const {
     if (!IsNeededPrimType(fromType) || !IsNeededPrimType(toType)) {
-      CHECK_FATAL(false, "must not be here");
+      return false;
     }
     if (fromType == toType) {
       return true;
@@ -396,6 +396,22 @@ class ValueRange {
     range.pair.lower.SetPrimType(pType);
   }
 
+  PrimType GetPrimType() const {
+    switch (rangeType) {
+      case kLowerAndUpper:
+      case kSpecialLowerForLoop:
+      case kSpecialUpperForLoop:
+        return range.pair.lower.GetPrimType();
+      case kEqual:
+      case kNotEqual:
+      case kOnlyHasLowerBound:
+      case kOnlyHasUpperBound:
+        return range.bound.GetPrimType();
+      default:
+        CHECK_FATAL(false, "can not be here");
+    }
+  }
+
   bool IsZeroInRange() const {
     return IsConstantLowerAndUpper() && GetUpper().GetConstant() >= 0 &&
         GetLower().GetConstant() < GetUpper().GetConstant();
@@ -461,6 +477,13 @@ class ValueRange {
 
   void SetAccurate(bool argAccurate) {
     isAccurate = argAccurate;
+  }
+
+  bool IsEqualAfterCVT(PrimType fromType, PrimType toType) const {
+    if (fromType == toType) {
+      return true;
+    }
+    return GetLower().IsEqualAfterCVT(fromType, toType) && GetUpper().IsEqualAfterCVT(fromType, toType);
   }
 
   bool IsEqual(ValueRange *valueRangeRight) const;
@@ -717,7 +740,7 @@ class ValueRangePropagation {
   void DealWithCondGotoWhenRightRangeIsNotExist(BB &bb, const MeExpr &opnd0, MeExpr &opnd1,
                                                 Opcode opOfBrStmt, Opcode conditionalOp, ValueRange *valueRangeOfLeft);
   MeExpr *GetDefOfBase(const IvarMeExpr &ivar) const;
-  void DealWithMeOp(const BB &bb, const MeStmt &stmt);
+  std::unique_ptr<ValueRange> DealWithMeOp(const BB &bb, const MeStmt &stmt);
   void ReplaceOpndByDef(const BB &bb, MeExpr &currOpnd, MeExpr *&predOpnd, MePhiNode *&phi, bool &thePhiIsInBB);
   bool AnalysisValueRangeInPredsOfCondGotoBB(BB &bb, MeExpr &opnd0, MeExpr &currOpnd,
       ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op, BB &condGoto);
@@ -787,6 +810,7 @@ class ValueRangePropagation {
   bool MergeVrOrInitAndBackedge(MePhiNode &mePhiNode, ValueRange &vrOfInitExpr,
       ValueRange &valueRange, Bound &resBound);
   void ReplaceUsePoints(MePhiNode *phi);
+  void CreateVRWithBitsSize(const BB &bb, OpMeExpr &opMeExpr);
 
   MeFunction &func;
   MeIRMap &irMap;
