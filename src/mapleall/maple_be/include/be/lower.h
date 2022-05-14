@@ -98,7 +98,7 @@ class CGLowerer {
 
   BaseNode *LowerExpr(BaseNode&, BaseNode&, BlockNode&);
 
-  BaseNode *LowerDread(DreadNode &dread);
+  BaseNode *LowerDread(DreadNode &dread, BlockNode& block);
 
   BaseNode *LowerIread(IreadNode &iread) {
     /* use PTY_u8 for boolean type in dread/iread */
@@ -108,9 +108,11 @@ class CGLowerer {
     return (iread.GetFieldID() == 0 ? &iread : LowerIreadBitfield(iread));
   }
 
-  BaseNode *LowerIreadBitfield(IreadNode &iread);
-
   BaseNode *LowerCastExpr(BaseNode &expr);
+
+  BaseNode *ExtractSymbolAddress(StIdx &stIdx, BlockNode &block);
+  BaseNode *LowerDreadToThreadLocal(BaseNode &expr, BlockNode &block);
+  StmtNode *LowerDassignToThreadLocal(StmtNode &stmt, BlockNode &block);
 
   void LowerDassign(DassignNode &dassign, BlockNode &block);
 
@@ -138,6 +140,7 @@ class CGLowerer {
   BaseNode *SplitBinaryNodeOpnd1(BinaryNode &bNode, BlockNode &blkNode);
   BaseNode *SplitTernaryNodeResult(TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode);
   bool IsComplexSelect(const TernaryNode &tNode) const;
+  int32 FindTheCurrentStmtFreq(StmtNode *stmt) const;
   BaseNode *LowerComplexSelect(const TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode);
   BaseNode *LowerFarray(ArrayNode &array);
   BaseNode *LowerArrayDim(ArrayNode &array, int32 dim);
@@ -148,8 +151,9 @@ class CGLowerer {
   DassignNode *SaveReturnValueInLocal(StIdx, uint16);
   void LowerCallStmt(StmtNode&, StmtNode*&, BlockNode&, MIRType *retty = nullptr, bool uselvar = false,
                      bool isIntrinAssign = false);
+  BlockNode *LowerIntrinsiccallAassignedToAssignStmt(IntrinsiccallNode &intrinsicCall);
   BlockNode *LowerCallAssignedStmt(StmtNode &stmt, bool uselvar = false);
-  bool LowerStructReturn(BlockNode &blk, StmtNode *stmt, StmtNode *nextStmt, bool &lvar);
+  bool LowerStructReturn(BlockNode &blk, StmtNode *stmt, StmtNode *&nextStmt, bool &lvar, BlockNode *oldblk);
   BlockNode *LowerMemop(StmtNode&);
 
   BaseNode *LowerRem(BaseNode &rem, BlockNode &block);
@@ -182,8 +186,12 @@ class CGLowerer {
 
   void LowerTypePtr(BaseNode &expr) const;
 
+  BaseNode *GetBitField(int32 byteOffset, BaseNode *baseAddr, PrimType fieldPrimType);
+  StmtNode *WriteBitField(std::pair<int32, int32> byteBitOffsets, MIRBitFieldType *fieldType, BaseNode *baseAddr,
+      BaseNode *rhs, BlockNode *block);
+  BaseNode *ReadBitField(std::pair<int32, int32> byteBitOffsets, MIRBitFieldType *fieldType, BaseNode *baseAddr);
   BaseNode *LowerDreadBitfield(DreadNode &dread);
-
+  BaseNode *LowerIreadBitfield(IreadNode &iread);
   StmtNode *LowerDassignBitfield(DassignNode &dassign, BlockNode &block);
   StmtNode *LowerIassignBitfield(IassignNode &iassign, BlockNode &block);
 
@@ -223,6 +231,7 @@ class CGLowerer {
   int64 seed = 0;
   SimplifyMemOp simplifyMemOp;
   static const std::string kIntrnRetValPrefix;
+  static const std::string kUserRetValPrefix;
 
   static constexpr PUIdx kFuncNotFound = PUIdx(-1);
   static constexpr int kThreeDimArray = 3;

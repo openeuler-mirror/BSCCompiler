@@ -79,6 +79,7 @@ std::vector<std::pair<ExtFuncT, PUIdx>> extFuncs;
 }
 
 const std::string CGLowerer::kIntrnRetValPrefix = "__iret";
+const std::string CGLowerer::kUserRetValPrefix = "__uret";
 
 MIRSymbol *CGLowerer::CreateNewRetVar(const MIRType &ty, const std::string &prefix) {
   const uint32 bufSize = 257;
@@ -1407,10 +1408,36 @@ static PrimType IsStructElementSame(MIRType *ty) {
 }
 #endif
 
-bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *nextStmt, bool &lvar) {
-  if (!nextStmt || nextStmt->op != OP_dassign) {
+// return true if successfully lowered; nextStmt is in/out
+bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *&nextStmt, bool &lvar, BlockNode *oldBlk) {
+  if (!nextStmt) {
     return false;
   }
+  CallReturnVector *p2nrets = stmt->GetCallReturnVector();
+  if (p2nrets->size() == 0) {
+    return false;
+  }
+  CallReturnPair retPair = (*p2nrets)[0];
+  if (retPair.second.IsReg()) {
+    return false;
+  }
+  MIRSymbol *retSym = mirModule.CurFunction()->GetLocalOrGlobalSymbol(retPair.first);
+  if (retSym->GetType()->GetPrimType() != PTY_agg) {
+    return false;
+  }
+  if (nextStmt->op != OP_dassign) {
+    // introduce a temporary and insert a dassign whose rhs is this temporary
+    // and whose lhs is retSym
+    MIRSymbol *temp = CreateNewRetVar(*retSym->GetType(), kUserRetValPrefix);
+    BaseNode *rhs = mirModule.GetMIRBuilder()->CreateExprDread(*temp->GetType(), 0, *temp);
+    DassignNode *dass = mirModule.GetMIRBuilder()->CreateStmtDassign(retPair.first, retPair.second.GetFieldID(), rhs);
+    oldBlk->InsertBefore(nextStmt, dass);
+    nextStmt = dass;
+    // update CallReturnVector to the new temporary
+    (*p2nrets)[0].first = temp->GetStIdx();
+    (*p2nrets)[0].second.SetFieldID(0);
+  }
+  // now, it is certain that nextStmt is a dassign
   BaseNode *bnode = static_cast<DassignNode*>(nextStmt)->GetRHS();
   if (bnode->GetOpCode() != OP_dread) {
     return false;
@@ -1424,17 +1451,6 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *n
   }
 #endif
   if (dnode->GetPrimType() != PTY_agg) {
-    return false;
-  }
-  CallReturnVector *p2nrets = nullptr;
-  if (stmt->GetOpCode() == OP_callassigned) {
-    auto *callNode = static_cast<CallNode*>(stmt);
-    p2nrets = &callNode->GetReturnVec();
-  } else if (stmt->GetOpCode() == OP_icallassigned) {
-    auto *icallNode = static_cast<IcallNode*>(stmt);
-    p2nrets = &icallNode->GetReturnVec();
-  }
-  if (!p2nrets || p2nrets->size() != 1) {
     return false;
   }
   CallReturnPair pair = (*p2nrets)[0];
@@ -1760,7 +1776,7 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
       case OP_icallassigned: {
         // pass the addr of lvar if this is a struct call assignment
         bool lvar = false;
-        if (LowerStructReturn(*newBlk, stmt, nextStmt, lvar)) {
+        if (LowerStructReturn(*newBlk, stmt, nextStmt, lvar, &block)) {
           nextStmt = nextStmt->GetNext(); // skip dassign
         } else {
           newBlk->AppendStatementsFromBlock(*LowerCallAssignedStmt(*stmt, lvar));

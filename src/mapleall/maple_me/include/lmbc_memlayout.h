@@ -15,6 +15,7 @@
 #ifndef MAPLEME_INCLUDE_LMBC_MEMLAYOUT_H
 #define MAPLEME_INCLUDE_LMBC_MEMLAYOUT_H
 
+#include "mir_module.h"
 #include "mir_type.h"
 #include "mir_const.h"
 #include "mir_symbol.h"
@@ -39,50 +40,38 @@ class MemSegment;
 // describes where a symbol is allocated
 class SymbolAlloc {
  public:
-  MemSegment *mem_segment;
-  int32 offset;
-
- public:
   SymbolAlloc() : mem_segment(nullptr), offset(0) {}
 
   ~SymbolAlloc() {}
 
+  MemSegment *mem_segment;
+  int32 offset;
 };  // class SymbolAlloc
 
 // keeps track of the allocation of a memory segment
 class MemSegment {
  public:
-  MemSegmentKind kind;
-  int32 size;             // size is negative if allocated offsets are negative
-  SymbolAlloc how_alloc;  // this segment may be allocated inside another segment
- public:
-  MemSegment(MemSegmentKind k) : kind(k), size(0) {}
+  explicit MemSegment(MemSegmentKind k) : kind(k), size(0) {}
 
   MemSegment(MemSegmentKind k, int32 sz) : kind(k), size(sz) {}
 
   ~MemSegment() {}
 
+  MemSegmentKind kind;
+  int32 size;             // size is negative if allocated offsets are negative
+  SymbolAlloc how_alloc;  // this segment may be allocated inside another segment
 };  // class MemSegment
 
 class LMBCMemLayout {
  public:
-  MIRFunction *func;
-  MemSegment seg_upformal;
-  MemSegment seg_formal;
-  MemSegment seg_actual;
-  MemSegment seg_FPbased;
-  MemSegment seg_SPbased;
-  MapleVector<SymbolAlloc> sym_alloc_table;  // index is StIdx
-
- public:
   uint32 FindLargestActualArea(void);
   uint32 FindLargestActualArea(StmtNode *, int &);
-  explicit LMBCMemLayout(MIRFunction *f, MapleAllocator *mallocator)
+  LMBCMemLayout(MIRFunction *f, MapleAllocator *mallocator)
     : func(f),
       seg_upformal(MS_upformal),
       seg_formal(MS_formal),
       seg_actual(MS_actual),
-      seg_FPbased(MS_FPbased, -GetPrimTypeSize(PTY_ptr)),
+      seg_FPbased(MS_FPbased),
       seg_SPbased(MS_SPbased),
       sym_alloc_table(mallocator->Adapter()) {
     sym_alloc_table.resize(f->GetSymTab()->GetSymbolTableSize());
@@ -98,24 +87,31 @@ class LMBCMemLayout {
   int32 UpformalSize(void) const {
     return seg_upformal.size;
   }
+
+  MIRFunction *func;
+  MemSegment seg_upformal;
+  MemSegment seg_formal;
+  MemSegment seg_actual;
+  MemSegment seg_FPbased;
+  MemSegment seg_SPbased;
+  MapleVector<SymbolAlloc> sym_alloc_table;  // index is StIdx
 };
 
 class GlobalMemLayout {
  public:
-  MemSegment seg_GPbased;
-  MapleVector<SymbolAlloc> sym_alloc_table;  // index is StIdx
- private:
-  maplebe::BECommon *be;
-  MIRModule *mirModule;
-
- public:
   GlobalMemLayout(maplebe::BECommon *b, MIRModule *mod, MapleAllocator *mallocator);
   ~GlobalMemLayout() {}
+
+  MemSegment seg_GPbased;
+  MapleVector<SymbolAlloc> sym_alloc_table;  // index is StIdx
 
  private:
   void FillScalarValueInMap(uint32 startaddress, PrimType pty, MIRConst *c);
   void FillTypeValueInMap(uint32 startaddress, MIRType *ty, MIRConst *c);
   void FillSymbolValueInMap(const MIRSymbol *sym);
+
+  maplebe::BECommon *be;
+  MIRModule *mirModule;
 };
 
 // for specifying how a parameter is passed
@@ -126,25 +122,24 @@ struct PLocInfo {
 
 // for processing an incoming or outgoing parameter list
 class ParmLocator {
- private:
-  int32 parmNum;  // number of all types of parameters processed so far
-  int32 lastMemOffset;
-
  public:
-  ParmLocator() : parmNum(0), lastMemOffset(0) {}
+  explicit ParmLocator() : parmNum(0), lastMemOffset(0) {}
 
   ~ParmLocator() {}
 
   void LocateNextParm(const MIRType *ty, PLocInfo &ploc);
+
+ private:
+  int32 parmNum;  // number of all types of parameters processed so far
+  int32 lastMemOffset;
 };
 
 // given the type of the return value, determines the return mechanism
 class ReturnMechanism {
  public:
+  ReturnMechanism(const MIRType *retty);
   bool fake_first_parm;  // whether returning in memory via fake first parameter
   PrimType ptype0;       // the primitive type stored in retval0
-
-  ReturnMechanism(const MIRType *retty);
 };
 
 }  /* namespace maple */
