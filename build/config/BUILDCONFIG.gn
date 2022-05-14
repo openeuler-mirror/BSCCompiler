@@ -33,6 +33,7 @@ declare_args() {
   MAST = 0
   ASAN = 0
   ONLY_C = 0
+  COV = 0
 }
 
 # Define global args

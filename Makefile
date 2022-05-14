@@ -28,6 +28,7 @@ GIT_REVISION := $(shell  git log --pretty=format:"%H" -1)
 MAST := 0
 ASAN := 0
 ONLY_C := 0
+COV := 0
 ifeq ($(DEBUG),0)
   BUILD_TYPE := RELEASE
 else
@@ -58,7 +59,8 @@ GN_OPTIONS := \
   GIT_REVISION="$(GIT_REVISION)" \
   MAST=$(MAST) \
   ASAN=$(ASAN) \
-  ONLY_C=$(ONLY_C)
+  ONLY_C=$(ONLY_C) \
+  COV=$(COV)
 
 .PHONY: default
 default: install
