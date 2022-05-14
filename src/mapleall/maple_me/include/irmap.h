@@ -144,6 +144,7 @@ class IRMap : public AnalysisResult {
   MeExpr *SimplifyAddExpr(const OpMeExpr *addExpr);
   MeExpr *SimplifyMulExpr(const OpMeExpr *mulExpr);
   MeExpr *SimplifyCmpExpr(OpMeExpr *cmpExpr);
+  MeExpr *SimplifySelExpr(OpMeExpr *selExpr);
   MeExpr *SimplifyOpMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyOrMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyAshrMeExpr(OpMeExpr *opmeexpr);

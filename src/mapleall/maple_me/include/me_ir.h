@@ -815,10 +815,15 @@ class OpMeExpr : public MeExpr {
   }
 
   // binary
-  OpMeExpr(int32 exprID, Opcode o, PrimType t, MeExpr *opnd0, MeExpr *opnd1)
+  OpMeExpr(int32 exprID, Opcode o, PrimType t, MeExpr *opnd0, MeExpr *opnd1, bool order = true)
       : MeExpr(exprID, kMeOpOp, o, t, 2), tyIdx(TyIdx(0)) {
-    SetOpnd(0, opnd0);
-    SetOpnd(1, opnd1);
+    if (order == true) {
+      SetOpnd(0, opnd0);
+      SetOpnd(1, opnd1);
+    } else {
+      SetOpnd(0, opnd1);
+      SetOpnd(1, opnd0);
+    }
     hasAddressValue = opnd0->HasAddressValue() || opnd1->HasAddressValue();
   }
 

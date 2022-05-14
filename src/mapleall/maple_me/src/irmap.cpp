@@ -391,7 +391,8 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
     auto *mu = ivar->GetUniqueMu();
     if (mu != nullptr && mu->GetOst() == ost) {
       MeStmt *meStmt = mu->GetDefByMeStmt();
-      if (meStmt == nullptr || !IsPrimitiveInteger(meStmt->GetVarLHS()->GetPrimType()) ||
+      if (meStmt == nullptr ||  meStmt->GetVarLHS() == nullptr ||
+          !IsPrimitiveInteger(meStmt->GetVarLHS()->GetPrimType()) ||
           !IsPrimitiveInteger(ivar->GetPrimType())) {
         return nullptr;
       }
@@ -1652,13 +1653,17 @@ MeExpr *IRMap::SimplifyCmpExpr(OpMeExpr *cmpExpr) {
     auto *opnd3 = selectExpr == opnd0 ? opnd1 : opnd0;
     auto *selectOpnd1 = selectExpr->GetOpnd(1);
     auto *selectOpnd2 = selectExpr->GetOpnd(2);
-    OpMeExpr newOpnd1(kInvalidExprID, cmpop, cmpExpr->GetPrimType(), selectOpnd1, opnd3);
+    bool isSelectFirst = false;
+    if (selectExpr == opnd0) {
+      isSelectFirst = true;
+    }
+    OpMeExpr newOpnd1(kInvalidExprID, cmpop, cmpExpr->GetPrimType(), selectOpnd1, opnd3, isSelectFirst);
     newOpnd1.SetOpndType(cmpExpr->GetOpndType());
     auto *simplifiedOpnd1 = SimplifyCmpExpr(&newOpnd1);
     if (simplifiedOpnd1 == nullptr || !simplifiedOpnd1->IsLeaf()) {
       return nullptr;
     }
-    OpMeExpr newOpnd2(kInvalidExprID, cmpop, cmpExpr->GetPrimType(), selectOpnd2, opnd3);
+    OpMeExpr newOpnd2(kInvalidExprID, cmpop, cmpExpr->GetPrimType(), selectOpnd2, opnd3, isSelectFirst);
     newOpnd2.SetOpndType(cmpExpr->GetOpndType());
     auto *simplifiedOpnd2 = SimplifyCmpExpr(&newOpnd2);
     if (simplifiedOpnd2 == nullptr || !simplifiedOpnd2->IsLeaf()) {
@@ -1836,6 +1841,18 @@ MeExpr *IRMap::SimplifyCmpExpr(OpMeExpr *cmpExpr) {
       break;
   }
   return nullptr;
+}
+
+MeExpr *IRMap::SimplifySelExpr(OpMeExpr *selExpr) {
+  if (selExpr->GetOp() != OP_select) {
+    return nullptr;
+  }
+  MeExpr *cond = selExpr->GetOpnd(0);
+  if (cond->GetMeOp() != kMeOpConst) {
+    return nullptr;
+  }
+  auto *constCond = static_cast<ConstMeExpr *>(cond);
+  return constCond->IsZero() ? selExpr->GetOpnd(2) : selExpr->GetOpnd(1);
 }
 
 class BitPart {
@@ -2382,6 +2399,8 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
       }
       return nullptr;
     }
+    case OP_select:
+      return SimplifySelExpr(opmeexpr);
     default:
       return nullptr;
   }

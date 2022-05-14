@@ -265,7 +265,9 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
       }
       bb.RemoveMeStmt(mestmt);
     } else {
-      if (mestmt->IsCondBr()) { // see if foldable to unconditional branch
+      // skip fold conditional branch because it may break recorded IfInfo.
+      bool isPme = mirModule.CurFunction()->GetMeFunc()->GetPreMeFunc() != nullptr;
+      if (mestmt->IsCondBr() && !isPme) { // see if foldable to unconditional branch
         CondGotoMeStmt *condbr = static_cast<CondGotoMeStmt *>(mestmt);
         if (!mirModule.IsJavaModule() && condbr->GetOpnd()->GetMeOp() == kMeOpConst) {
           CHECK_FATAL(IsPrimitiveInteger(condbr->GetOpnd()->GetPrimType()),

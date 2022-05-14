@@ -187,7 +187,7 @@ class IVOptimizer {
   // step1: find basic iv (the minimal inc uint)
   MeExpr *ReplacePhiLhs(OpMeExpr *op, ScalarMeExpr *phiLhs, MeExpr *replace);
   MeExpr *ResolveBasicIV(const ScalarMeExpr *backValue, ScalarMeExpr *phiLhs, MeExpr *replace);
-  bool CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs);
+  bool CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs, int &meet);
   bool FindBasicIVs();
   // step2: find all ivs that is the affine form of basic iv, collect iv uses the same time
   bool CreateIVFromAdd(OpMeExpr &op, MeStmt &stmt);
@@ -477,7 +477,7 @@ MeExpr *IVOptimizer::ResolveBasicIV(const ScalarMeExpr *backValue, ScalarMeExpr 
 }
 
 // find if there are basic ivs
-bool IVOptimizer::CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs) {
+bool IVOptimizer::CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs, int &meet) {
   switch (solve->GetMeOp()) {
     case kMeOpVar:
     case kMeOpReg: {
@@ -485,6 +485,7 @@ bool IVOptimizer::CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs) {
         return false;
       }
       if (solve == phiLhs) {
+        ++meet;
         return true;
       }
       auto *scalar = static_cast<ScalarMeExpr*>(solve);
@@ -497,20 +498,20 @@ bool IVOptimizer::CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs) {
       if (scalar->GetDefBy() != kDefByStmt) {
         return false;
       }
-      return CheckBasicIV(scalar->GetDefStmt()->GetRHS(), phiLhs);
+      return CheckBasicIV(scalar->GetDefStmt()->GetRHS(), phiLhs, meet);
     }
     case kMeOpConst:
       return IsPrimitiveInteger(solve->GetPrimType());
     case kMeOpOp: {
       if (solve->GetOp() == OP_add) {
         auto *opMeExpr = static_cast<OpMeExpr*>(solve);
-        return CheckBasicIV(opMeExpr->GetOpnd(0), phiLhs) &&
-               CheckBasicIV(opMeExpr->GetOpnd(1), phiLhs);
+        return CheckBasicIV(opMeExpr->GetOpnd(0), phiLhs, meet) &&
+               CheckBasicIV(opMeExpr->GetOpnd(1), phiLhs, meet);
       }
       if (solve->GetOp() == OP_sub) {
         auto *opMeExpr = static_cast<OpMeExpr*>(solve);
-        return CheckBasicIV(opMeExpr->GetOpnd(0), phiLhs) &&
-               CheckBasicIV(opMeExpr->GetOpnd(1), nullptr);
+        return CheckBasicIV(opMeExpr->GetOpnd(0), phiLhs, meet) &&
+               CheckBasicIV(opMeExpr->GetOpnd(1), nullptr, meet);
       }
       return false;
     }
@@ -540,7 +541,8 @@ bool IVOptimizer::FindBasicIVs() {
       initValue = phi.second->GetOpnd(1);
       backValue = phi.second->GetOpnd(0);
     }
-    if (!CheckBasicIV(backValue, phiLhs)) {
+    int meet = 0;
+    if (!CheckBasicIV(backValue, phiLhs, meet) || meet != 1) {
       continue;
     }
     auto *step = ResolveBasicIV(backValue, phiLhs, irMap->CreateIntConstMeExpr(0, phiLhs->GetPrimType()));
