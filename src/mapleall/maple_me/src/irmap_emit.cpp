@@ -714,6 +714,10 @@ void BB::EmitBB(SSATab &ssaTab, BlockNode &curblk, bool needAnotherPass) {
       bbFirstStmt = stmt;
     }
     bbLastStmt = stmt;
+    if (Options::profileUse && ssaTab.GetModule().CurFunction()->GetFuncProfData() &&
+        (IsCallAssigned(stmt->GetOpCode()) || stmt->GetOpCode() == OP_call)) {
+      ssaTab.GetModule().CurFunction()->GetFuncProfData()->SetStmtFreq(stmt->GetStmtID(), frequency);
+    }
   }
   if (GetAttributes(kBBAttrIsTryEnd)) {
     // generate op_endtry
@@ -726,5 +730,22 @@ void BB::EmitBB(SSATab &ssaTab, BlockNode &curblk, bool needAnotherPass) {
   }
   stmtNodeList.set_first(bbFirstStmt);
   stmtNodeList.set_last(bbLastStmt);
+  // set stmt freq
+  if (Options::profileUse && ssaTab.GetModule().CurFunction()->GetFuncProfData()) {
+    if (bbFirstStmt) {
+      ssaTab.GetModule().CurFunction()->GetFuncProfData()->SetStmtFreq(bbFirstStmt->GetStmtID(), frequency);
+    }
+    if (bbLastStmt && (bbFirstStmt != bbLastStmt)) {
+      ssaTab.GetModule().CurFunction()->GetFuncProfData()->SetStmtFreq(bbLastStmt->GetStmtID(), frequency);
+    }
+    if (stmtNodeList.empty()) {
+      auto *commentNode = ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<CommentNode>(ssaTab.GetModule());
+      commentNode->SetComment("profileStmt");
+      ssaTab.GetModule().CurFunction()->GetFuncProfData()->SetStmtFreq(commentNode->GetStmtID(), frequency);
+      curblk.AddStatement(commentNode);
+      stmtNodeList.set_first(commentNode);
+      stmtNodeList.set_last(commentNode);
+    }
+  }
 }
 }  // namespace maple

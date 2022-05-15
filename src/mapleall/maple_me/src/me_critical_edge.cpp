@@ -178,7 +178,8 @@ void MeSplitCEdge::BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) const
   }
   // profileGen invokes MESplitCEdge to remove critical edges without going through ME completely
   // newBB needs to be materialized
-  if (Options::profileGen) {
+  if (Options::profileGen ||
+      (Options::profileUse && (func.IsPme() || func.IsLfo()))) {
     LabelIdx succLabel = succ.GetBBLabel();
     ASSERT(succLabel != 0, "succ's label missed");
     if (func.GetIRMap() != nullptr) {
@@ -291,7 +292,14 @@ void MESplitCEdge::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 bool MESplitCEdge::PhaseRun(maple::MeFunction &f) {
   bool enableDebug = DEBUGFUNC_NEWPM(f);
   MeSplitCEdge mscedge = MeSplitCEdge(enableDebug);
-  (void)mscedge.SplitCriticalEdgeForMeFunc(f);
+  bool split = mscedge.SplitCriticalEdgeForMeFunc(f);
+  if (split && Options::profileUse && (f.IsPme() || f.IsLfo()) && f.GetPreMeFunc()) {
+    // new inserted BB will break while/if label information and IR layout
+    f.GetPreMeFunc()->label2IfInfo.clear();
+    f.GetPreMeFunc()->label2WhileInfo.clear();
+    f.GetPreMeFunc()->pmeCreatedIfLabelSet.clear();
+    f.GetPreMeFunc()->pmeCreatedWhileLabelSet.clear();
+  }
   return false;
 }
 }  // namespace maple

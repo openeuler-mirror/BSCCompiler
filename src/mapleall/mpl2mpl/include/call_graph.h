@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -14,11 +14,11 @@
  */
 #ifndef MPL2MPL_INCLUDE_CALL_GRAPH_H
 #define MPL2MPL_INCLUDE_CALL_GRAPH_H
-#include "mir_nodes.h"
 #include "class_hierarchy_phase.h"
 #include "mir_builder.h"
+#include "mir_nodes.h"
+#include "scc.h"
 namespace maple {
-class SCCNode;
 enum CallType {
   kCallTypeInvalid,
   kCallTypeCall,
@@ -34,15 +34,13 @@ enum CallType {
   kCallTypeFakeThreadStartRun
 };
 
-constexpr uint32 kShiftSccUniqueIDNum = 16;
-
 struct NodeComparator {
   bool operator()(const MIRFunction *lhs, const MIRFunction *rhs) const {
     return lhs->GetPuidx() < rhs->GetPuidx();
   }
 };
 
-template<typename T>
+template <typename T>
 struct Comparator {
   bool operator()(const T *lhs, const T *rhs) const {
     return lhs->GetID() < rhs->GetID();
@@ -74,6 +72,13 @@ class CallInfo {
   const StmtNode *GetCallStmt() const {
     return callStmt;
   }
+  StmtNode *GetCallStmt() {
+    return callStmt;
+  }
+
+  void SetCallStmt(StmtNode *value) {
+    callStmt = value;
+  }
 
   MIRFunction *GetFunc() {
     return mirFunc;
@@ -89,15 +94,23 @@ class CallInfo {
 
  private:
   bool areAllArgsLocal;
-  CallType cType;       // Call type
-  MIRFunction *mirFunc; // Used to get signature
-  StmtNode *callStmt;   // Call statement
+  CallType cType;        // Call type
+  MIRFunction *mirFunc;  // Used to get signature
+  StmtNode *callStmt;    // Call statement
   uint32 loopDepth;
   uint32 id;
 };
 
+class BaseGraphNode {
+ public:
+  virtual void GetOutNodes(std::vector<BaseGraphNode*> &outNodes) = 0;
+  virtual void GetInNodes(std::vector<BaseGraphNode*> &outNodes) = 0;
+  virtual const std::string GetIdentity() = 0;
+  virtual uint32 GetID() const = 0;
+};
+
 // Node in callgraph
-class CGNode {
+class CGNode : public BaseGraphNode {
  public:
   void AddNumRefs() {
     ++numReferences;
@@ -122,7 +135,7 @@ class CGNode {
         icallCandidates(alloc->Adapter()),
         isIcallCandidatesValid(false),
         numReferences(0),
-        callerSet(alloc->Adapter()),
+        callers(alloc->Adapter()),
         stmtCount(0),
         nodeCount(0),
         mustNotBeInlined(false),
@@ -141,20 +154,20 @@ class CGNode {
   void AddCallsite(CallInfo*, MapleSet<CGNode*, Comparator<CGNode>>*);
   void RemoveCallsite(const CallInfo*, CGNode*);
 
-  uint32 GetID() const {
+  uint32 GetID() const override {
     return id;
   }
 
-  SCCNode *GetSCCNode() {
+  SCCNode<CGNode> *GetSCCNode() {
     return sccNode;
   }
 
-  void SetSCCNode(SCCNode *node) {
+  void SetSCCNode(SCCNode<CGNode> *node) {
     sccNode = node;
   }
 
   int32 GetPuIdx() const {
-    return (mirFunc != nullptr) ? static_cast<int32>(mirFunc->GetPuidx()) : -1; // -1 is invalid idx
+    return (mirFunc != nullptr) ? static_cast<int32>(mirFunc->GetPuidx()) : -1;  // -1 is invalid idx
   }
 
   const std::string &GetMIRFuncName() const {
@@ -176,12 +189,18 @@ class CGNode {
   }
 
   // add caller to CGNode
-  void AddCaller(CGNode *caller) {
-    (void)callerSet.insert(caller);
+  void AddCaller(CGNode *caller, StmtNode *stmt) {
+    if (callers.find(caller) == callers.end()) {
+      auto *callStmts = alloc->New<MapleSet<StmtNode*>>(alloc->Adapter());
+      callers.emplace(caller, callStmts);
+    }
+    callers[caller]->emplace(stmt);
   }
 
   void DelCaller(CGNode *caller) {
-    (void)callerSet.erase(caller);
+    if (callers.find(caller) != callers.end()) {
+      callers.erase(caller);
+    }
   }
 
   void DelCallee(CallInfo *callInfo, CGNode *callee) {
@@ -189,11 +208,11 @@ class CGNode {
   }
 
   bool HasCaller() const {
-    return (!callerSet.empty());
+    return (!callers.empty());
   }
 
   uint32 NumberOfUses() const {
-    return static_cast<uint32>(callerSet.size());
+    return static_cast<uint32>(callers.size());
   }
 
   bool IsCalleeOf(CGNode *func) const;
@@ -233,16 +252,16 @@ class CGNode {
     return callees;
   }
 
-  const SCCNode *GetSCCNode() const {
+  const MapleMap<CGNode*, MapleSet<StmtNode*>*, Comparator<CGNode>> &GetCaller() const {
+    return callers;
+  }
+
+  MapleMap<CGNode*, MapleSet<StmtNode*>*, Comparator<CGNode>> &GetCaller() {
+    return callers;
+  }
+
+  const SCCNode<CGNode> *GetSCCNode() const {
     return sccNode;
-  }
-
-  MapleSet<CGNode*, Comparator<CGNode>>::iterator CallerBegin() const {
-    return callerSet.begin();
-  }
-
-  MapleSet<CGNode*, Comparator<CGNode>>::iterator CallerEnd() const {
-    return callerSet.end();
   }
 
   bool IsMustNotBeInlined() const {
@@ -293,12 +312,40 @@ class CGNode {
     addrTaken = true;
   }
 
+  void GetOutNodes(std::vector<BaseGraphNode*> &outNodes) override {
+    for (auto &callSite : GetCallee()) {
+      for (auto &cgIt : *callSite.second) {
+        CGNode *calleeNode = cgIt;
+        outNodes.emplace_back(calleeNode);
+      }
+    }
+  }
+
+  void GetInNodes(std::vector<BaseGraphNode*> &inNodes) override {
+    for (auto pair : GetCaller()) {
+      CGNode *callerNode = pair.first;
+      inNodes.emplace_back(callerNode);
+    }
+  }
+
+  const std::string GetIdentity() override {
+    std::string sccIdentity;
+    if (GetMIRFunction() != nullptr) {
+      sccIdentity = "function(" + std::to_string(GetMIRFunction()->GetPuidx()) + "): " + GetMIRFunction()->GetName();
+    } else {
+      sccIdentity = "function: external";
+    }
+    return sccIdentity;
+  }
+  // check frequency
+  int64_t GetFuncFrequency() const;
+  int64_t GetCallsiteFrequency(const StmtNode *callstmt) const;
  private:
   // mirFunc is generated from callStmt's puIdx from mpl instruction
-  // mirFunc will be nullptr if CGNode represents a external/intrinsic call
+  // mirFunc will be nullptr if CGNode represents an external/intrinsic call
   MapleAllocator *alloc;
   uint32 id;
-  SCCNode *sccNode;  // the id of the scc where this cgnode belongs to
+  SCCNode<CGNode> *sccNode;  // the id of the scc where this cgnode belongs to
   MIRFunction *mirFunc;
   // Each callsite corresponds to one element
   MapleMap<CallInfo*, MapleSet<CGNode*, Comparator<CGNode>>*, Comparator<CallInfo>> callees;
@@ -306,11 +353,11 @@ class CGNode {
   bool isVcallCandidatesValid;
   MapleSet<CGNode*, Comparator<CGNode>> icallCandidates;  // icall candidates of mirFunc
   bool isIcallCandidatesValid;
-  uint32 numReferences;          // The number of the node in this or other CGNode's callees
+  uint32 numReferences;  // The number of the node in this or other CGNode's callees
   // function candidate for virtual call
   // now the candidates would be same function name from base class to subclass
   // with type inference, the candidates would be reduced
-  MapleSet<CGNode*, Comparator<CGNode>> callerSet;
+  MapleMap<CGNode*, MapleSet<StmtNode *>*, Comparator<CGNode>> callers;
   uint32 stmtCount;  // count number of statements in the function, reuse this as callsite id
   uint32 nodeCount;  // count number of MIR nodes in the function/
   // this flag is used to mark the function which will read the current method invocation stack or something else,
@@ -318,73 +365,16 @@ class CGNode {
   bool mustNotBeInlined;
   MapleVector<MIRFunction*> vcallCands;
 
-  bool addrTaken = false; // whether this function is taken address
+  bool addrTaken = false;  // whether this function is taken address
 };
 
 using Callsite = std::pair<CallInfo*, MapleSet<CGNode*, Comparator<CGNode>>*>;
 using CalleeIt = MapleMap<CallInfo*, MapleSet<CGNode*, Comparator<CGNode>>*, Comparator<CallInfo>>::iterator;
-
-class SCCNode {
- public:
-  SCCNode(uint32 index, MapleAllocator &alloc)
-      : id(index),
-        cgNodes(alloc.Adapter()),
-        callerScc(alloc.Adapter()),
-        calleeScc(alloc.Adapter()) {}
-
-  ~SCCNode() = default;
-
-  void AddCGNode(CGNode *node) {
-    cgNodes.push_back(node);
-  }
-
-  void Dump() const;
-  void DumpCycle() const;
-  void Verify() const;
-  void Setup();
-  const MapleVector<CGNode*> &GetCGNodes() const {
-    return cgNodes;
-  }
-
-  MapleVector<CGNode*> &GetCGNodes() {
-    return cgNodes;
-  }
-
-  const MapleSet<SCCNode*, Comparator<SCCNode>> &GetCalleeScc() const {
-    return calleeScc;
-  }
-
-  const MapleSet<SCCNode*, Comparator<SCCNode>> &GetCallerScc() const {
-    return callerScc;
-  }
-
-  void RemoveCallerScc(SCCNode *const sccNode) {
-    callerScc.erase(sccNode);
-  }
-
-  bool HasRecursion() const;
-  bool HasSelfRecursion() const;
-  bool HasCaller() const {
-    return (!callerScc.empty());
-  }
-
-  uint32 GetID() const {
-    return id;
-  }
-
-  uint32 GetUniqueID() const {
-    return GetID() << kShiftSccUniqueIDNum;
-  }
- private:
-  uint32 id;
-  MapleVector<CGNode*> cgNodes;
-  MapleSet<SCCNode*, Comparator<SCCNode>> callerScc;
-  MapleSet<SCCNode*, Comparator<SCCNode>> calleeScc;
-};
+using Caller2Cands = std::pair<PUIdx, Callsite>;
 
 class CallGraph : public AnalysisResult {
  public:
-  CallGraph(MIRModule &m, MemPool &memPool, KlassHierarchy &kh, const std::string &fn);
+  CallGraph(MIRModule &m, MemPool &memPool, MemPool &tempPool, KlassHierarchy &kh, const std::string &fn);
   ~CallGraph() = default;
 
   void InitCallExternal() {
@@ -408,7 +398,7 @@ class CallGraph : public AnalysisResult {
     return klassh;
   }
 
-  const MapleVector<SCCNode*> &GetSCCTopVec() const {
+  const MapleVector<SCCNode<CGNode>*> &GetSCCTopVec() const {
     return sccTopologicalVec;
   }
 
@@ -417,6 +407,12 @@ class CallGraph : public AnalysisResult {
   }
 
   void HandleBody(MIRFunction&, BlockNode&, CGNode&, uint32);
+  void HandleCall(CGNode&, StmtNode*, uint32);
+  void HandleICall(BlockNode&, CGNode&, StmtNode*, uint32);
+  MIRType *GetFuncTypeFromFuncAddr(const BaseNode*);
+  void RecordLocalConstValue(const StmtNode *stmt);
+  CallNode *ReplaceIcallToCall(BlockNode &body, IcallNode *icall, PUIdx newPUIdx);
+  void CollectAddroffuncFromExpr(const BaseNode *expr);
   void CollectAddroffuncFromStmt(const StmtNode *stmt);
   void CollectAddroffuncFromConst(MIRConst *mirConst);
   void AddCallGraphNode(MIRFunction&);
@@ -424,7 +420,9 @@ class CallGraph : public AnalysisResult {
   void Dump() const;
   CGNode *GetCGNode(MIRFunction *func) const;
   CGNode *GetCGNode(PUIdx puIdx) const;
-  SCCNode *GetSCCNode(MIRFunction *func) const;
+  void UpdateCaleeCandidate(PUIdx callerPuIdx, IcallNode *icall, PUIdx calleePuidx, CallNode *call);
+  void UpdateCaleeCandidate(PUIdx callerPuIdx, IcallNode *icall, std::set<PUIdx> &candidate);
+  SCCNode<CGNode> *GetSCCNode(MIRFunction *func) const;
   bool IsRootNode(MIRFunction *func) const;
   void UpdateCallGraphNode(CGNode &node);
   void RecomputeSCC();
@@ -455,23 +453,31 @@ class CallGraph : public AnalysisResult {
   }
 
   void DelNode(CGNode &node);
-  void BuildSCC();
-  void VerifySCC() const;
-  void BuildSCCDFS(CGNode &caller, uint32 &visitIndex, std::vector<SCCNode*> &sccNodes,
-                   std::vector<CGNode*> &cgNodes, std::vector<uint32> &visitedOrder);
+  void ClearFunctionList();
 
   void SetDebugFlag(bool flag) {
     debugFlag = flag;
   }
 
+  void GetNodes(std::vector<CGNode*> &nodes) {
+    for (auto const &it : nodesMap) {
+      CGNode *node = it.second;
+      nodes.emplace_back(node);
+    }
+  }
+
  private:
   void GenCallGraph();
+  void ReadCallGraphFromMplt();
+  void GenCallGraphFromFunctionBody();
+  void FixIcallCallee();
+  void GetMatchedCGNode(TyIdx idx, std::vector<CGNode*> &result);
+
   CGNode *GetOrGenCGNode(PUIdx puIdx, bool isVcall = false, bool isIcall = false);
   CallType GetCallType(Opcode op) const;
   void FindRootNodes();
-  void RemoveFileStaticRootNodes(); // file static root nodes can be removed
-  void RemoveFileStaticSCC();       // SCC can be removed if it has no caller and all its nodes is file static
-  void SCCTopologicalSort(const std::vector<SCCNode*> &sccNodes);
+  void RemoveFileStaticRootNodes();  // file static and inline but not extern root nodes can be removed
+  void RemoveFileStaticSCC();        // SCC can be removed if it has no caller and all its nodes is file static
   void SetCompilationFunclist() const;
   void IncrNodesCount(CGNode *cgNode, BaseNode *bn);
 
@@ -480,23 +486,23 @@ class CallGraph : public AnalysisResult {
   }
 
   bool debugFlag = false;
-  bool debugScc = false;
   MIRModule *mirModule;
   MapleAllocator cgAlloc;
+  MapleAllocator tempAlloc;
   MIRBuilder *mirBuilder;
   CGNode *entryNode;  // For main function, nullptr if there is multiple entries
   MapleVector<CGNode*> rootNodes;
-  std::string fileName; // used for output dot file
+  MapleString fileName;  // used for output dot file
   KlassHierarchy *klassh;
   MapleMap<MIRFunction*, CGNode*, NodeComparator> nodesMap;
-  MapleVector<SCCNode*> sccTopologicalVec;
-  CGNode *callExternal = nullptr; // Auxiliary node used in icall/intrinsic call
+  MapleVector<SCCNode<CGNode>*> sccTopologicalVec;
+  MapleMap<StIdx, BaseNode*> localConstValueMap;  // used to record the local constant value
+  MapleMap<TyIdx, MapleSet<Caller2Cands>*> icallToFix;
+  MapleSet<PUIdx> addressTakenPuidxs;
+  CGNode *callExternal = nullptr;  // Auxiliary node used in icall/intrinsic call
   uint32 numOfNodes;
   uint32 numOfSccs;
   std::unordered_set<uint64> callsiteHash;
-  MapleVector<uint32> lowestOrder;
-  MapleVector<bool> inStack;
-  MapleVector<uint32> visitStack;
 };
 
 class IPODevirtulize {
@@ -520,10 +526,10 @@ class IPODevirtulize {
 };
 
 MAPLE_MODULE_PHASE_DECLARE_BEGIN(M2MCallGraph)
-  CallGraph *GetResult() {
-    return cg;
-  }
-  CallGraph *cg = nullptr;
+CallGraph *GetResult() {
+  return cg;
+}
+CallGraph *cg = nullptr;
 OVERRIDE_DEPENDENCE
 MAPLE_MODULE_PHASE_DECLARE_END
 MAPLE_MODULE_PHASE_DECLARE(M2MIPODevirtualize)

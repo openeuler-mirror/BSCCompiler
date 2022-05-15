@@ -14,6 +14,7 @@
  */
 #include "me_emit.h"
 #include <mutex>
+#include "mir_function.h"
 #include "thread_env.h"
 #include "me_bb_layout.h"
 #include "me_irmap.h"
@@ -25,6 +26,38 @@ namespace maple {
 void MEEmit::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEBBLayout>();
   aDep.SetPreservedAll();
+}
+
+static void ResetDependentedSymbolLive(MIRConst *mirConst) {
+  if (mirConst == nullptr) {
+    return;
+  }
+
+  if (mirConst->GetKind() == kConstAddrof) {
+    auto stIdx = static_cast<MIRAddrofConst*>(mirConst)->GetSymbolIndex();
+    auto *usedSymbol = theMIRModule->GetMIRBuilder()->GetSymbolFromEnclosingScope(stIdx);
+    if (usedSymbol->IsDeleted()) {
+      usedSymbol->ResetIsDeleted();
+      if (usedSymbol->IsConst()) {
+        auto preConst = usedSymbol->GetKonst();
+        ResetDependentedSymbolLive(preConst);
+      }
+    }
+  } else if (mirConst->GetKind() == kConstAggConst) {
+    for (auto *fldCst : static_cast<MIRAggConst*>(mirConst)->GetConstVec()) {
+      ResetDependentedSymbolLive(fldCst);
+    }
+  }
+}
+
+void ResetDependentedSymbolLive(MIRFunction *func) {
+  for (size_t k = 1; k < func->GetSymTab()->GetSymbolTableSize(); ++k) {
+    MIRSymbol *sym = func->GetSymTab()->GetSymbolFromStIdx(k);
+    if (!sym->IsConst()) {
+      continue;
+    }
+    ResetDependentedSymbolLive(sym->GetKonst());
+  }
 }
 
 // emit IR to specified file
@@ -45,6 +78,10 @@ bool MEEmit::PhaseRun(maple::MeFunction &f) {
       mirFunction->ReleaseCodeMemory();
       mirFunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR from IRMap::Emit()"));
       mirFunction->SetBody(mirFunction->GetCodeMempool()->New<BlockNode>());
+      if (Options::profileUse && mirFunction->GetFuncProfData()) {
+        mirFunction->GetFuncProfData()->SetStmtFreq(mirFunction->GetBody()->GetStmtID(),
+            mirFunction->GetFuncProfData()->entry_freq);
+      }
       // initialize is_deleted field to true; will reset when emitting Maple IR
       for (size_t k = 1; k < mirFunction->GetSymTab()->GetSymbolTableSize(); ++k) {
         MIRSymbol *sym = mirFunction->GetSymTab()->GetSymbolFromStIdx(k);
@@ -52,13 +89,29 @@ bool MEEmit::PhaseRun(maple::MeFunction &f) {
           sym->SetIsDeleted();
         }
       }
+      // the formal symbol should be reserved for mplbc mode
+      for (FormalDef formalDef : mirFunction->GetFormalDefVec()) {
+        if (formalDef.formalSym != nullptr) {
+          // in case of __built_va_start functions, whose formalSym are nullptr
+          formalDef.formalSym->ResetIsDeleted();
+        }
+      }
       for (BB *bb : layoutBBs) {
         ASSERT(bb != nullptr, "Check bblayout phase");
         bb->EmitBB(*f.GetMeSSATab(), *mirFunction->GetBody(), false);
+        if (bb->IsEmpty()) {
+          continue;
+        }
+        auto &lastStmt = bb->GetStmtNodes().back();
+        auto &firstStmt = bb->GetStmtNodes().front();
+        f.GetMirFunc()->SetFirstFreqMap(firstStmt.GetStmtID(), bb->GetFrequency());
+        f.GetMirFunc()->SetLastFreqMap(lastStmt.GetStmtID(), bb->GetFrequency());
       }
+      ResetDependentedSymbolLive(mirFunction);
+
       bool dumpFreq = MeOption::dumpFunc == f.GetName();
       if (dumpFreq && f.GetMirFunc()->HasFreqMap()) {
-        auto &freqMap = f.GetMirFunc()->GetFreqMap();
+        auto &freqMap = f.GetMirFunc()->GetLastFreqMap();
         LogInfo::MapleLogger() << "Dump freqMap:" << std::endl;
         for (BB *bb : layoutBBs) {
           if (!bb->GetStmtNodes().empty()) {
@@ -78,7 +131,7 @@ bool MEEmit::PhaseRun(maple::MeFunction &f) {
       // constantfolding does not update BB's stmtNodeList, which breaks MirCFG::DumpToFile();
       // constantfolding also cannot work on SSANode's
       ConstantFold cf(f.GetMIRModule());
-      cf.Simplify(f.GetMirFunc()->GetBody());
+      (void)cf.Simplify(f.GetMirFunc()->GetBody());
     }
     if (DEBUGFUNC_NEWPM(f)) {
       LogInfo::MapleLogger() << "\n==============after meemit =============" << '\n';
@@ -87,6 +140,10 @@ bool MEEmit::PhaseRun(maple::MeFunction &f) {
     if (DEBUGFUNC_NEWPM(f)) {
       f.GetCfg()->DumpToFile("meemit", true);
     }
+  }
+  // TODO:: set funcProfData null, enable only after cglower could update stmtFreqs
+  if (Options::profileUse && f.GetMirFunc()->GetFuncProfData()) {
+    f.GetMirFunc()->SetFuncProfData(nullptr);
   }
   return false;
 }
@@ -119,6 +176,7 @@ bool EmitForIPA::PhaseRun(maple::MeFunction &f) {
         }
         bb->EmitBB(*f.GetMeSSATab(), *mirFunction->GetBody(), false);
       }
+      ResetDependentedSymbolLive(mirFunction);
     } else {
       // emit from mir function body
       f.EmitBeforeHSSA((*(f.GetMirFunc())), f.GetLaidOutBBs());

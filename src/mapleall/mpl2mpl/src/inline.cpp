@@ -87,6 +87,10 @@ void MInline::InitParams() {
 }
 
 void MInline::InitProfile() const {
+  // gcov use different profile data, return
+  if (Options::profileUse) {
+    return;
+  }
   uint32 dexNameIdx = module.GetFileinfo(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName("INFO_filename"));
   const std::string &dexName = GlobalTables::GetStrTable().GetStringFromStrIdx(GStrIdx(dexNameIdx));
   bool deCompressSucc = module.GetProfile().DeCompress(Options::profile, dexName);
@@ -546,9 +550,18 @@ GotoNode *MInline::UpdateReturnStmts(const MIRFunction &caller, BlockNode &newBo
             dStmt = builder.CreateStmtRegassign(mirPreg->GetPrimType(), pregIdx, currBaseNode);
           }
           dStmt->SetSrcPos(stmt.GetSrcPos());
+          if (Options::profileUse) {
+            caller.GetFuncProfData()->CopyStmtFreq(dStmt->GetStmtID(), stmt.GetStmtID());
+            caller.GetFuncProfData()->CopyStmtFreq(gotoNode->GetStmtID(), stmt.GetStmtID());
+            caller.GetFuncProfData()->EraseStmtFreq(stmt.GetStmtID());
+          }
           newBody.ReplaceStmt1WithStmt2(&stmt, dStmt);
           newBody.InsertAfter(dStmt, gotoNode);
         } else {
+          if (Options::profileUse) {
+            caller.GetFuncProfData()->CopyStmtFreq(gotoNode->GetStmtID(), stmt.GetStmtID());
+            caller.GetFuncProfData()->EraseStmtFreq(stmt.GetStmtID());
+          }
           newBody.ReplaceStmt1WithStmt2(&stmt, gotoNode);
         }
         break;
@@ -716,11 +729,26 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
   // multiple definition for these static symbols
   ConvertPStaticToFStatic(callee);
   // Step 1: Clone CALLEE's body.
-  auto getBody = [callee, this] (BlockNode* funcBody) {
+  auto getBody = [caller, callee, this] (BlockNode* funcBody, CallNode &callStmt) {
     if (callee.IsFromMpltInline()) {
       return funcBody->CloneTree(module.GetCurFuncCodeMPAllocator());
     }
-    return funcBody->CloneTreeWithSrcPosition(module);
+    if (Options::profileUse) {
+      auto *callerProfData = caller.GetFuncProfData();
+      auto *calleeProfData = callee.GetFuncProfData();
+      ASSERT(callerProfData && calleeProfData, "nullptr check");
+      int64_t callsiteFreq = callerProfData->GetStmtFreq(callStmt.GetStmtID());
+      int64_t calleeEntryFreq = calleeProfData->GetFuncFrequency();
+      auto *blockNode = funcBody->CloneTreeWithFreqs(module.GetCurFuncCodeMPAllocator(),
+                            callerProfData->GetStmtFreqs(),
+                            calleeProfData->GetStmtFreqs(),
+                            callsiteFreq, calleeEntryFreq, (kUpdateOrigFreq | kUpdateInlinedFreq));
+      // update func Frequency
+      calleeProfData->SetFuncFrequency(calleeEntryFreq - callsiteFreq);
+      return blockNode;
+    } else {
+      return funcBody->CloneTreeWithSrcPosition(module);
+    }
   };
 
   BlockNode *newBody = nullptr;
@@ -736,7 +764,7 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
     }
     if (currFuncBody == nullptr) {
       // For Inline recursive, we save the original function body before first inline.
-      currFuncBody = getBody(callee.GetBody());
+      currFuncBody = getBody(callee.GetBody(), callStmt);
       // update inlining levels
       if (recursiveFuncToInlineLevel.find(&callee) != recursiveFuncToInlineLevel.end()) {
         recursiveFuncToInlineLevel[&callee]++;
@@ -744,10 +772,11 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
         recursiveFuncToInlineLevel[&callee] = 1;
       }
     }
-    newBody = getBody(currFuncBody);
+    newBody = getBody(currFuncBody, callStmt);
   } else {
-    newBody = getBody(callee.GetBody());
+    newBody = getBody(callee.GetBody(), callStmt);
   }
+
   // Step 2: Rename symbols, labels, pregs
   uint32 stIdxOff = RenameSymbols(caller, callee, inlinedTimes);
   uint32 labIdxOff = RenameLabels(caller, callee, inlinedTimes);
@@ -804,6 +833,9 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
       DassignNode *stmt = builder.CreateStmtDassign(*newFormal, 0, currBaseNode);
       newBody->InsertBefore(newBody->GetFirst(), stmt);
     }
+    if (Options::profileUse) {
+      caller.GetFuncProfData()->CopyStmtFreq(newBody->GetFirst()->GetStmtID(), callStmt.GetStmtID());
+    }
   }
   // Step 5: Insert the callee'return jump dest label.
   // For caller: a = foo() ==>
@@ -819,6 +851,9 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
     retLabIdx = CreateReturnLabel(caller, callee, inlinedTimes);
     labelStmt = builder.CreateStmtLabel(retLabIdx);
     newBody->AddStatement(labelStmt);
+    if (Options::profileUse) {
+      caller.GetFuncProfData()->CopyStmtFreq(labelStmt->GetStmtID(), callStmt.GetStmtID());
+    }
   }
   // Step 6: Handle return values.
   // Find the rval of call-stmt
@@ -860,6 +895,11 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
       }
     }
   }
+  if (Options::profileUse && (labelStmt != nullptr) &&
+      (newBody->GetLast() == labelStmt)) {
+    caller.GetFuncProfData()->CopyStmtFreq(labelStmt->GetStmtID(), callStmt.GetStmtID());
+  }
+
   // Step 7: Replace the call-stmt with new CALLEE'body.
   // begin inlining function
   if (!Options::noComment) {
@@ -870,7 +910,11 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
       (void)beginCmt.append(kSecondInlineBeginComment);
     }
     beginCmt.append(callee.GetName());
-    enclosingBlk.InsertBefore(&callStmt, builder.CreateStmtComment(beginCmt.c_str()));
+    StmtNode *commNode = builder.CreateStmtComment(beginCmt.c_str());
+    enclosingBlk.InsertBefore(&callStmt, commNode);
+    if (Options::profileUse) {
+      caller.GetFuncProfData()->CopyStmtFreq(commNode->GetStmtID(), callStmt.GetStmtID());
+    }
     // end inlining function
     MapleString endCmt(module.CurFuncCodeMemPool());
     if (module.firstInline) {
@@ -882,7 +926,11 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
     if (enclosingBlk.GetLast() != nullptr && &callStmt != enclosingBlk.GetLast()) {
       CHECK_FATAL(callStmt.GetNext() != nullptr, "null ptr check");
     }
-    enclosingBlk.InsertAfter(&callStmt, builder.CreateStmtComment(endCmt.c_str()));
+    commNode = builder.CreateStmtComment(endCmt.c_str());
+    enclosingBlk.InsertAfter(&callStmt, commNode);
+    if (Options::profileUse) {
+      caller.GetFuncProfData()->CopyStmtFreq(commNode->GetStmtID(), callStmt.GetStmtID());
+    }
     CHECK_FATAL(callStmt.GetNext() != nullptr, "null ptr check");
   }
   if (newBody->IsEmpty()) {
@@ -1194,6 +1242,10 @@ bool MInline::IsHotCallSite(const MIRFunction &caller, const MIRFunction &callee
   if (dumpDetail) {
     LogInfo::MapleLogger() << "[CHECK_HOT] " << callee.GetName() << " to " << caller.GetName() <<
         " op " << callStmt.GetOpCode() << '\n';
+  }
+  // use gcov profile
+  if (Options::profileUse) {
+    return caller.GetFuncProfData()->IsHotCallSite(callStmt.GetStmtID());
   }
   return module.GetProfile().CheckFuncHot(caller.GetName());
 }

@@ -243,6 +243,66 @@ void BlockNode::InsertBlockAfter(BlockNode &inblock, const StmtNode *stmt1) {
   stmtNodeList.splice(stmt1, inblock.GetStmtNodes());
 }
 
+BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
+    std::unordered_map<uint32_t, uint64_t>& toFreqs,
+    std::unordered_map<uint32_t, uint64_t>& fromFreqs,
+    uint64_t numer, uint64_t denom, uint32_t updateOp) {
+  auto *nnode = allocator.GetMemPool()->New<BlockNode>();
+  nnode->SetStmtID(stmtIDNext++);
+  if (fromFreqs.count(GetStmtID()) > 0) {
+    int64_t oldFreq = fromFreqs[GetStmtID()];
+    int64_t newFreq;
+    if (updateOp & kUpdateUnrollRemainderFreq) {
+      newFreq = denom > 0 ? (oldFreq * numer % denom) : oldFreq;
+    } else {
+      newFreq = denom > 0 ? (oldFreq * numer / denom) : oldFreq;
+    }
+    toFreqs[nnode->GetStmtID()] = (newFreq > 0 || (oldFreq == 0)) ? newFreq : 1;
+    if (updateOp & kUpdateOrigFreq) { // upateOp & 1 : update from
+      int64_t left = ((oldFreq - newFreq) > 0 || (oldFreq == 0)) ? (oldFreq - newFreq) : 1;
+      fromFreqs[GetStmtID()] = left;
+    }
+  }
+  for (auto &stmt : stmtNodeList) {
+    StmtNode *newStmt;
+    if (stmt.GetOpCode() == OP_block) {
+      newStmt = static_cast<StmtNode *>((static_cast<BlockNode *>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs,
+        fromFreqs, numer, denom, updateOp));
+    } else if (stmt.GetOpCode() == OP_if) {
+      newStmt = static_cast<StmtNode *>((static_cast<IfStmtNode *>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs,
+        fromFreqs, numer, denom, updateOp));
+    } else if (stmt.GetOpCode() == OP_while) {
+      newStmt = static_cast<StmtNode *>((static_cast<WhileStmtNode *>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs,
+        fromFreqs, numer, denom, updateOp));
+    } else if (stmt.GetOpCode() == OP_doloop) {
+      newStmt = static_cast<StmtNode *>((static_cast<DoloopNode *>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs,
+        fromFreqs, numer, denom, updateOp));
+    } else {
+      newStmt = static_cast<StmtNode*>(stmt.CloneTree(allocator));
+      if (fromFreqs.count(stmt.GetStmtID()) > 0) {
+        int64_t oldFreq = fromFreqs[stmt.GetStmtID()];
+        int64_t newFreq;
+        if (updateOp & kUpdateUnrollRemainderFreq) {
+          newFreq = denom > 0 ? (oldFreq * numer % denom) : oldFreq;
+        } else {
+          newFreq = denom > 0 ? (oldFreq * numer / denom) : oldFreq;
+        }
+        toFreqs[newStmt->GetStmtID()] = (newFreq > 0 || oldFreq == 0) ? newFreq : 1;
+        if (updateOp & kUpdateOrigFreq) {
+          int64_t left = ((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1;
+          fromFreqs[stmt.GetStmtID()] = left;
+        }
+      }
+    }
+    ASSERT(newStmt != nullptr, "null ptr check");
+    newStmt->SetSrcPos(stmt.GetSrcPos());
+    newStmt->SetPrev(nullptr);
+    newStmt->SetNext(nullptr);
+    nnode->AddStatement(newStmt);
+  }
+  return nnode;
+}
+
 void BaseNode::DumpBase(int32 indent) const {
   PrintIndentation(indent);
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOpCode()).name << " " << GetPrimTypeName(GetPrimType());
@@ -621,6 +681,11 @@ void StmtNode::DumpBase(int32 indent) const {
       theMIRModule->CurFunction()->WithLocInfo()) {
     LogInfo::MapleLogger() << "LOC " << srcPosition.FileNum() << " " << srcPosition.LineNum() << '\n';
     lastPrintedLineNum = srcPosition.LineNum();
+  }
+  // dump stmtFreqs
+  if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData() &&
+      theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) >= 0) {
+    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq " << theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
   }
   PrintIndentation(indent);
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOpCode()).name;
@@ -1116,7 +1181,8 @@ void CallNode::Dump(int32 indent, bool newline) const {
     LogInfo::MapleLogger() << " ";
     GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->Dump(indent + 1);
   }
-  CHECK(puIdx < GlobalTables::GetFunctionTable().GetFuncTable().size(), "index out of range in CallNode::Dump");
+  CHECK(puIdx < GlobalTables::GetFunctionTable().GetFuncTable().size(),
+        "index out of range in CallNode::Dump");
   MIRFunction *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx);
   LogInfo::MapleLogger() << " &" << func->GetName();
   NaryOpnds::Dump(indent);
@@ -1132,7 +1198,8 @@ MIRType *IcallNode::GetCallReturnType() {
     return GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx);
   }
   // icallproto
-  MIRFuncType *funcType = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx));
+  MIRFuncType *funcType = static_cast<MIRFuncType*>(
+      GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx));
   return GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetRetTyIdx());
 }
 
@@ -1259,6 +1326,10 @@ void BlockNode::Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable
     LogInfo::MapleLogger() << "LOC " << srcPosition.FileNum() << " " << srcPosition.LineNum() << '\n';
     lastPrintedLineNum = srcPosition.LineNum();
   }
+  // dump stmtFreqs
+  if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
+    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  <<  theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
+  }
   for (auto &stmt : GetStmtNodes()) {
     stmt.Dump(indent + 1);
   }
@@ -1271,6 +1342,10 @@ void LabelNode::Dump(int32) const {
       theMIRModule->CurFunction()->WithLocInfo()) {
     LogInfo::MapleLogger() << "LOC " << srcPosition.FileNum() << " " << srcPosition.LineNum() << '\n';
     lastPrintedLineNum = srcPosition.LineNum();
+  }
+  // dump stmtFreqs
+  if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
+    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  <<  theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
   }
   LogInfo::MapleLogger() << "@" << theMIRModule->CurFunction()->GetLabelName(labelIdx) << " ";
 }
@@ -2460,6 +2535,22 @@ bool ConstvalNode::IsSameContent(const BaseNode *node) const {
   } else {
     return false;
   }
+}
+
+bool ConststrNode::IsSameContent(const BaseNode *node) const {
+  if (node->GetOpCode() != OP_conststr) {
+    return false;
+  }
+  auto *cstrNode = static_cast<const ConststrNode*>(node);
+  return strIdx == cstrNode->strIdx;
+}
+
+bool Conststr16Node::IsSameContent(const BaseNode *node) const {
+  if (node->GetOpCode() != OP_conststr16) {
+    return false;
+  }
+  auto *cstr16Node = static_cast<const Conststr16Node*>(node);
+  return strIdx == cstr16Node->strIdx;
 }
 
 bool AddrofNode::IsSameContent(const BaseNode *node) const {

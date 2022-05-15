@@ -58,6 +58,8 @@ class LoopVecInfo {
   void UpdateWidestTypeSize(uint32_t);
   void ResetStmtRHSTypeSize() { currentRHSTypeSize = 0; }
   bool UpdateRHSTypeSize(PrimType); // record rhs node typesize
+  // used when profileUse is true
+  void UpdateDoloopProfData(MIRFunction *, DoloopNode *, int32_t, bool isRemainder = false);
   uint32_t largestTypeSize;  // largest size type in vectorizable stmtnodes
   uint32_t smallestTypeSize;  // smallest size type in vectorizable stmtnodes
   uint32_t currentRHSTypeSize; // largest size of current stmt's RHS, this is temp value and update for each stmt

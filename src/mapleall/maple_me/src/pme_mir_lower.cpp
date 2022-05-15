@@ -41,11 +41,20 @@ BlockNode *PreMeMIRLower::LowerWhileStmt(WhileStmtNode &whilestmt) {
   brfalsestmt->SetSrcPos(whilestmt.GetSrcPos());
   // add jump label target later
   blk->AddStatement(brfalsestmt);
-
+  // update frequency
+  if (GetFuncProfData()) {
+    ASSERT(GetFuncProfData()->GetStmtFreq(whilestmt.GetStmtID()) >= 0, "while stmt should has freq");
+    GetFuncProfData()->CopyStmtFreq(whilelblstmt->GetStmtID(), whilestmt.GetStmtID());
+    GetFuncProfData()->CopyStmtFreq(brfalsestmt->GetStmtID(), whilestmt.GetStmtID());
+  }
   // create body
   CHECK_FATAL(whilestmt.GetBody(), "null ptr check");
   blk->AppendStatementsFromBlock(*whilestmt.GetBody());
   GotoNode *whilegotonode = mirbuilder->CreateStmtGoto(OP_goto, whilelblidx);
+  if (GetFuncProfData() && blk->GetLast()) {
+    ASSERT(GetFuncProfData()->GetStmtFreq(blk->GetLast()->GetStmtID()) >= 0, "last stmt of while body should has freq");
+    GetFuncProfData()->CopyStmtFreq(whilegotonode->GetStmtID(), blk->GetLast()->GetStmtID());
+  }
   blk->AddStatement(whilegotonode);
   // create endlabel
   LabelIdx endlblidx = mirModule.CurFunction()->GetLabelTab()->CreateLabelWithPrefix('w');
@@ -55,6 +64,12 @@ BlockNode *PreMeMIRLower::LowerWhileStmt(WhileStmtNode &whilestmt) {
   endlblstmt->SetLabelIdx(endlblidx);
   brfalsestmt->SetOffset(endlblidx);
   blk->AddStatement(endlblstmt);
+  if (GetFuncProfData()) {
+    int64_t freq = GetFuncProfData()->GetStmtFreq(whilestmt.GetStmtID()) -
+                   GetFuncProfData()->GetStmtFreq(whilegotonode->GetStmtID());
+    ASSERT(freq >= 0, "sanity check");
+    GetFuncProfData()->SetStmtFreq(endlblstmt->GetStmtID(), freq);
+  }
   return blk;
 }
 
@@ -97,6 +112,9 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     evalstmt->SetOpnd(ifstmt.Opnd(), 0);
     evalstmt->SetSrcPos(ifstmt.GetSrcPos());
     blk->AddStatement(evalstmt);
+    if (GetFuncProfData()) {
+      GetFuncProfData()->CopyStmtFreq(evalstmt->GetStmtID(), ifstmt.GetStmtID());
+    }
   } else if (elseempty) {
     // brfalse <cond> <endlabel>
     // <thenPart>
@@ -112,7 +130,10 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     PreMeIfInfo *ifInfo = preMeFunc->pmemp->New<PreMeIfInfo>();
     brfalsestmt->SetOffset(endlabelidx);
     blk->AddStatement(brfalsestmt);
-
+    // set stmtfreqs
+    if (GetFuncProfData()) {
+      GetFuncProfData()->CopyStmtFreq(brfalsestmt->GetStmtID(), ifstmt.GetStmtID());
+    }
     blk->AppendStatementsFromBlock(*ifstmt.GetThenPart());
 
     LabelNode *labstmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
@@ -122,6 +143,13 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
       preMeFunc->label2IfInfo.insert(std::make_pair(endlabelidx, ifInfo));
     }
     blk->AddStatement(labstmt);
+    // set stmtfreqs
+    if (GetFuncProfData()) {
+      ASSERT(GetFuncProfData()->GetStmtFreq(ifstmt.GetThenPart()->GetStmtID()) >= 0, "sanity check");
+      int64_t freq = GetFuncProfData()->GetStmtFreq(ifstmt.GetStmtID()) -
+                        GetFuncProfData()->GetStmtFreq(ifstmt.GetThenPart()->GetStmtID());
+      GetFuncProfData()->SetStmtFreq(labstmt->GetStmtID(), freq);
+    }
   } else if (thenempty) {
     // brtrue <cond> <endlabel>
     // <elsePart>
@@ -138,6 +166,10 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     brtruestmt->SetOffset(endlabelidx);
     blk->AddStatement(brtruestmt);
 
+    // set stmtfreqs
+    if (GetFuncProfData()) {
+      GetFuncProfData()->CopyStmtFreq(brtruestmt->GetStmtID(), ifstmt.GetStmtID());
+    }
     blk->AppendStatementsFromBlock(*ifstmt.GetElsePart());
     LabelNode *labstmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
     labstmt->SetLabelIdx(endlabelidx);
@@ -146,6 +178,13 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
       preMeFunc->label2IfInfo.insert(std::make_pair(endlabelidx, ifInfo));
     }
     blk->AddStatement(labstmt);
+    // set stmtfreqs
+    if (GetFuncProfData()) {
+      ASSERT(GetFuncProfData()->GetStmtFreq(ifstmt.GetElsePart()->GetStmtID()) > 0, "sanity check");
+      int64_t freq = GetFuncProfData()->GetStmtFreq(ifstmt.GetStmtID()) -
+                        GetFuncProfData()->GetStmtFreq(ifstmt.GetElsePart()->GetStmtID());
+      GetFuncProfData()->SetStmtFreq(labstmt->GetStmtID(), freq);
+    }
   } else {
     // brfalse <cond> <elselabel>
     // <thenPart>
@@ -156,6 +195,10 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     CondGotoNode *brfalsestmt = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(OP_brfalse);
     brfalsestmt->SetOpnd(ifstmt.Opnd(), 0);
     brfalsestmt->SetSrcPos(ifstmt.GetSrcPos());
+   // set stmtfreqs
+    if (GetFuncProfData()) {
+      GetFuncProfData()->CopyStmtFreq(brfalsestmt->GetStmtID(), ifstmt.GetStmtID());
+    }
     LabelIdx elselabelidx = mirFunc->GetLabelTab()->CreateLabelWithPrefix('s');
     mirFunc->GetLabelTab()->AddToStringLabelMap(elselabelidx);
     if (canRaiseBack) {
@@ -182,6 +225,10 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
       }
       gotostmt->SetOffset(endlabelidx);
       blk->AddStatement(gotostmt);
+      // set stmtfreqs
+      if (GetFuncProfData()) {
+        GetFuncProfData()->CopyStmtFreq(gotostmt->GetStmtID(), ifstmt.GetThenPart()->GetStmtID());
+      }
     }
 
     LabelNode *labstmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
@@ -194,6 +241,10 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
       labstmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
       labstmt->SetLabelIdx(endlabelidx);
       blk->AddStatement(labstmt);
+      // set stmtfreqs
+      if (GetFuncProfData()) {
+        GetFuncProfData()->CopyStmtFreq(labstmt->GetStmtID(), ifstmt.GetElsePart()->GetStmtID());
+      }
     }
     if (endlabelidx == 0) {  // create end label
       endlabelidx = mirFunc->GetLabelTab()->CreateLabelWithPrefix('e');
@@ -202,6 +253,10 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
       }
       LabelNode *endlabelnode = mirbuilder->CreateStmtLabel(endlabelidx);
       blk->AddStatement(endlabelnode);
+      // set stmtfreqs
+      if (GetFuncProfData()) {
+        GetFuncProfData()->CopyStmtFreq(endlabelnode->GetStmtID(), ifstmt.GetStmtID());
+      }
     }
     ifInfo->endLabel = endlabelidx;
   }

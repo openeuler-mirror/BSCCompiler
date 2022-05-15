@@ -1033,6 +1033,7 @@ class ConststrNode : public BaseNode {
   virtual ~ConststrNode() = default;
 
   void Dump(int32 indent) const override;
+  bool IsSameContent(const BaseNode *node) const override;
 
   ConststrNode *CloneTree(MapleAllocator &allocator) const override {
     return allocator.GetMemPool()->New<ConststrNode>(*this);
@@ -1061,6 +1062,7 @@ class Conststr16Node : public BaseNode {
   virtual ~Conststr16Node() = default;
 
   void Dump(int32 indent) const override;
+  bool IsSameContent(const BaseNode *node) const override;
 
   Conststr16Node *CloneTree(MapleAllocator &allocator) const override {
     return allocator.GetMemPool()->New<Conststr16Node>(*this);
@@ -2389,6 +2391,11 @@ class BlockNode : public StmtNode {
     return blk;
   }
 
+  BlockNode *CloneTreeWithFreqs(MapleAllocator &allocator,
+      std::unordered_map<uint32_t, uint64_t>& toFreqs,
+      std::unordered_map<uint32_t, uint64_t>& fromFreqs,
+      uint64_t numer, uint64_t denom, uint32_t updateOp);
+
   bool IsEmpty() const {
     return stmtNodeList.empty();
   }
@@ -2456,6 +2463,30 @@ class IfStmtNode : public UnaryStmtNode {
     return node;
   }
 
+  IfStmtNode *CloneTreeWithFreqs(MapleAllocator &allocator,
+      std::unordered_map<uint32_t, uint64_t>& toFreqs,
+      std::unordered_map<uint32_t, uint64_t>& fromFreqs,
+      uint64_t numer, uint64_t denom, uint32_t updateOp) {
+    auto *node = allocator.GetMemPool()->New<IfStmtNode>(*this);
+    node->SetStmtID(stmtIDNext++);
+    node->SetOpnd(Opnd()->CloneTree(allocator), 0);
+    if (fromFreqs.count(GetStmtID()) > 0) {
+      int64_t oldFreq = fromFreqs[GetStmtID()];
+      int64_t newFreq = denom > 0 ? (oldFreq * numer / denom) : oldFreq;
+      toFreqs[node->GetStmtID()] = newFreq > 0 ? newFreq : 1;
+      if (updateOp & kUpdateOrigFreq) {
+        int64_t left = (oldFreq - newFreq) > 0 ? (oldFreq - newFreq) : 1;
+        fromFreqs[GetStmtID()] = left;
+      }
+    }
+    node->thenPart = thenPart->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp);
+    if (elsePart != nullptr) {
+      node->elsePart = elsePart->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp);
+    }
+    node->SetMeStmtID(GetMeStmtID());
+    return node;
+  }
+
   BaseNode *Opnd(size_t i = 0) const override {
     if (i == 0) {
       return UnaryStmtNode::Opnd(0);
@@ -2518,6 +2549,26 @@ class WhileStmtNode : public UnaryStmtNode {
     return node;
   }
 
+  WhileStmtNode *CloneTreeWithFreqs(MapleAllocator &allocator,
+      std::unordered_map<uint32_t, uint64_t>& toFreqs,
+      std::unordered_map<uint32_t, uint64_t>& fromFreqs,
+      uint64_t numer, uint64_t denom, uint32_t updateOp) {
+    auto *node = allocator.GetMemPool()->New<WhileStmtNode>(*this);
+    node->SetStmtID(stmtIDNext++);
+    if (fromFreqs.count(GetStmtID()) > 0) {
+      int64_t oldFreq = fromFreqs[GetStmtID()];
+      int64_t newFreq = denom > 0 ? (oldFreq * numer / denom) : oldFreq;
+      toFreqs[node->GetStmtID()] = newFreq > 0 ? newFreq : 1;
+      if (updateOp & kUpdateOrigFreq) {
+        int64_t left = (oldFreq - newFreq) > 0 ? (oldFreq - newFreq) : 1;
+        fromFreqs[GetStmtID()] = left;
+      }
+    }
+    node->SetOpnd(Opnd(0)->CloneTree(allocator), 0);
+    node->body = body->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp);
+    return node;
+  }
+
   void SetBody(BlockNode *node) {
     body = node;
   }
@@ -2566,6 +2617,38 @@ class DoloopNode : public StmtNode {
     node->SetContExpr(GetCondExpr()->CloneTree(allocator));
     node->SetIncrExpr(GetIncrExpr()->CloneTree(allocator));
     node->SetDoBody(GetDoBody()->CloneTree(allocator));
+    return node;
+  }
+
+  DoloopNode *CloneTreeWithFreqs(MapleAllocator &allocator,
+      std::unordered_map<uint32_t, uint64_t>& toFreqs,
+      std::unordered_map<uint32_t, uint64_t>& fromFreqs,
+      uint64_t numer, uint64_t denom, uint32_t updateOp) {
+    auto *node = allocator.GetMemPool()->New<DoloopNode>(*this);
+    node->SetStmtID(stmtIDNext++);
+   if (fromFreqs.count(GetStmtID()) > 0) {
+      int64_t oldFreq = fromFreqs[GetStmtID()];
+      int64_t newFreq = oldFreq;
+      if (updateOp & kUpdateInlinedFreq) { // used in inline
+        newFreq = denom > 0 ? (oldFreq * numer / denom) : oldFreq;
+      } else if (updateOp & kUpdateUnrolledFreq) {  // used in unrolled part
+        int64_t bodyFreq = fromFreqs[GetDoBody()->GetStmtID()];
+        newFreq = denom > 0 ? (bodyFreq * numer / denom + (oldFreq - bodyFreq)) : oldFreq;
+      } else if (updateOp & kUpdateUnrollRemainderFreq) {  // used in unrolled remainder
+        int64_t bodyFreq = fromFreqs[GetDoBody()->GetStmtID()];
+        newFreq = denom > 0 ? (((bodyFreq * numer) % denom) + (oldFreq - bodyFreq)) : oldFreq;
+      }
+      toFreqs[node->GetStmtID()] = newFreq;
+      ASSERT(oldFreq >= newFreq, "sanity check");
+      if (updateOp & kUpdateOrigFreq) {
+        int64_t left = oldFreq - newFreq;
+        fromFreqs[GetStmtID()] = left;
+      }
+    }
+    node->SetStartExpr(startExpr->CloneTree(allocator));
+    node->SetContExpr(GetCondExpr()->CloneTree(allocator));
+    node->SetIncrExpr(GetIncrExpr()->CloneTree(allocator));
+    node->SetDoBody(GetDoBody()->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp));
     return node;
   }
 
@@ -2871,6 +2954,10 @@ class BlkassignoffNode : public BinaryStmtNode {
   }
 
   void SetAlign(uint32 x) {
+    if (x == 0) {
+      alignLog2 = 0;
+      return;
+    }
     ASSERT((~(x - 1) & x) == x, "SetAlign called with non power of 2");
     uint32 res = 0;
     while (x != 1) {

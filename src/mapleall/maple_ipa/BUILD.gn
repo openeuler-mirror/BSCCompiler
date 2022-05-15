@@ -36,7 +36,6 @@ src_libmplipa = [
   "src/prop_parameter_type.cpp",
   "src/ipa_collect.cpp",
   "src/ipa_clone.cpp",
-  "src/ipa_gcovprofile.cpp",
 ]
 
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
