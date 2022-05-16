@@ -332,6 +332,8 @@ class MeFunction : public FuncEmit {
 
   void PartialInit();
 
+  void Release();
+
   MIRFunction *CurFunction() const {
     return mirModule.CurFunction();
   }

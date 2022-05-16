@@ -121,6 +121,7 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
     }
     meFunc.Prepare();
     (void)FuncLevelRun(meFunc, *serialADM);
+    meFunc.Release();
     serialADM->EraseAllAnalysisPhase();
   }
   if (genMeMpl) {
@@ -235,6 +236,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEMeProp, hprop)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESSAProp, ssaprop)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEMeSink, sink)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEIVOpts, ivopts)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MECodeFactoring, codefactoring)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESyncSelect, syncselect)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEMay2Dassign, may2dassign)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MECondBasedRC, condbasedrc)

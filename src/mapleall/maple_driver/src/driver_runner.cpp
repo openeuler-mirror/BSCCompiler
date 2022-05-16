@@ -346,6 +346,7 @@ void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &
     cgfuncPhaseManager->DumpPhaseTime();
   }
   timer.Stop();
+  theMIRModule->ReleasePragmaMemPool();
   LogInfo::MapleLogger() << "Mplcg consumed " << timer.ElapsedMilliseconds() << "ms" << '\n';
 }
 

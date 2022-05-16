@@ -49,6 +49,12 @@ void MeFunction::PartialInit() {
   }
 }
 
+void MeFunction::Release() {
+  if (preMeMp) {
+    memPoolCtrler.DeleteMemPool(preMeMp);
+  }
+}
+
 void MeFunction::DumpFunction() const {
   if (theCFG == nullptr) {
     mirFunc->Dump(false);

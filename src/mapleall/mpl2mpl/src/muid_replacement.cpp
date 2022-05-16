@@ -1909,7 +1909,6 @@ void MUIDReplacement::ReleasePragmaMemPool() {
     mirStruct->GetPragmaVec().clear();
     mirStruct->GetPragmaVec().shrink_to_fit();
   }
-  delete GetMIRModule().GetPragmaMemPool();
 }
 
 void MUIDReplacement::GenerateTables() {

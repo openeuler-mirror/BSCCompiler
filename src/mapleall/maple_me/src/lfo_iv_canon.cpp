@@ -124,8 +124,9 @@ void IVCanon::CharacterizeIV(ScalarMeExpr *initversion, ScalarMeExpr *loopbackve
     AssignMeStmt *defStmt = static_cast<AssignMeStmt*>(initversion->GetDefStmt());
     if (defStmt->GetRHS()->GetMeOp() == kMeOpConst ||
         defStmt->GetRHS()->GetMeOp() == kMeOpAddrof ||
-        defStmt->GetRHS()->GetMeOp() == kMeOpConststr ||
-        defStmt->GetRHS()->GetMeOp() == kMeOpConststr16) {
+        ((defStmt->GetRHS()->GetMeOp() == kMeOpConststr ||
+          defStmt->GetRHS()->GetMeOp() == kMeOpConststr16) &&
+         !func->GetMIRModule().IsCModule())) {
       ivdesc->initExpr = defStmt->GetRHS();
     } else {
       ivdesc->initExpr = initversion;

@@ -21,8 +21,8 @@
 #include "mpl_logging.h"
 #include "muid.h"
 #include "profile.h"
-#include "gcov_profile.h"
 #include "namemangler.h"
+#include "gcov_profile.h"
 #if MIR_FEATURE_FULL
 #include <string>
 #include <unordered_set>
@@ -191,9 +191,10 @@ class MIRModule {
     return memPoolAllocator;
   }
 
-  void ChangePragmaMemPool(MemPool *newPragma) {
-    pragmaMemPool = newPragma;
-    pragmaMemPoolAllocator.SetMemPool(newPragma);
+  void ReleasePragmaMemPool() {
+    if (pragmaMemPool) {
+      memPoolCtrler.DeleteMemPool(pragmaMemPool);
+    }
   }
 
   MapleAllocator &GetMPAllocator() {
