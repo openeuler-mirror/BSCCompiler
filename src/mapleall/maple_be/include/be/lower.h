@@ -19,6 +19,8 @@
 #include <unordered_map>
 #include <utility>
 #include <cstddef>
+#include <cstdarg>
+#include <regex>
 #include "intrinsics.h"  /* For IntrinDesc. This includes 'intrinsic_op.h' as well */
 #include "becommon.h"
 #include "cg.h"
@@ -40,7 +42,12 @@ class CGLowerer {
 
   using BuiltinFunctionID = uint32;
   using OptionFlag = uint64;
-
+  const std::string kOpAssertge = "OP_assertge";
+  const std::string kOpAssertlt = "OP_assertlt";
+  const std::string kOpCallAssertle = "OP_callassertle";
+  const std::string kOpReturnAssertle = "OP_returnassertle";
+  const std::string kOpAssignAssertle = "OP_assignassertle";
+  const std::string kFileSymbolNamePrefix = "symname";
  public:
   CGLowerer(MIRModule &mod, BECommon &common, MIRFunction *func = nullptr)
       : mirModule(mod),
@@ -98,7 +105,7 @@ class CGLowerer {
 
   BaseNode *LowerExpr(BaseNode&, BaseNode&, BlockNode&);
 
-  BaseNode *LowerDread(DreadNode &dread);
+  BaseNode *LowerDread(DreadNode &dread, BlockNode& block);
 
   BaseNode *LowerIread(IreadNode &iread) {
     /* use PTY_u8 for boolean type in dread/iread */
@@ -108,9 +115,11 @@ class CGLowerer {
     return (iread.GetFieldID() == 0 ? &iread : LowerIreadBitfield(iread));
   }
 
-  BaseNode *LowerIreadBitfield(IreadNode &iread);
-
   BaseNode *LowerCastExpr(BaseNode &expr);
+
+  BaseNode *ExtractSymbolAddress(StIdx &stIdx, BlockNode &block);
+  BaseNode *LowerDreadToThreadLocal(BaseNode &expr, BlockNode &block);
+  StmtNode *LowerDassignToThreadLocal(StmtNode &stmt, BlockNode &block);
 
   void LowerDassign(DassignNode &dassign, BlockNode &block);
 
@@ -119,6 +128,19 @@ class CGLowerer {
   void LowerIassign(IassignNode &iassign, BlockNode &block);
 
   void LowerRegassign(RegassignNode &regAssign, BlockNode &block);
+
+  void AddElemToPrintf(MapleVector<BaseNode*> &argsPrintf, int num, ...);
+
+  std::string AssertBoundaryGetFileName(StmtNode &stmt) {
+    int pos = mirModule.GetFileNameFromFileNum(stmt.GetSrcPos().FileNum()).rfind('/');
+    return mirModule.GetFileNameFromFileNum(stmt.GetSrcPos().FileNum()).substr(pos + 1);
+  }
+
+  std::string GetFileNameSymbolName(const std::string &fileName) {
+    return kFileSymbolNamePrefix + std::regex_replace(fileName, std::regex("-"), "_");
+  }
+
+  void SwitchAssertBoundary(StmtNode &stmt, MapleVector<BaseNode*> &argsPrintf);
 
   void LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode &newBlk, std::vector<StmtNode *> &abortNode);
 
@@ -138,6 +160,7 @@ class CGLowerer {
   BaseNode *SplitBinaryNodeOpnd1(BinaryNode &bNode, BlockNode &blkNode);
   BaseNode *SplitTernaryNodeResult(TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode);
   bool IsComplexSelect(const TernaryNode &tNode) const;
+  int32 FindTheCurrentStmtFreq(StmtNode *stmt) const;
   BaseNode *LowerComplexSelect(const TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode);
   BaseNode *LowerFarray(ArrayNode &array);
   BaseNode *LowerArrayDim(ArrayNode &array, int32 dim);
@@ -148,6 +171,7 @@ class CGLowerer {
   DassignNode *SaveReturnValueInLocal(StIdx, uint16);
   void LowerCallStmt(StmtNode&, StmtNode*&, BlockNode&, MIRType *retty = nullptr, bool uselvar = false,
                      bool isIntrinAssign = false);
+  BlockNode *LowerIntrinsiccallAassignedToAssignStmt(IntrinsiccallNode &intrinsicCall);
   BlockNode *LowerCallAssignedStmt(StmtNode &stmt, bool uselvar = false);
   bool LowerStructReturn(BlockNode &blk, StmtNode *stmt, StmtNode *nextStmt, bool &lvar);
   BlockNode *LowerMemop(StmtNode&);
@@ -182,8 +206,12 @@ class CGLowerer {
 
   void LowerTypePtr(BaseNode &expr) const;
 
+  BaseNode *GetBitField(int32 byteOffset, BaseNode *baseAddr, PrimType fieldPrimType);
+  StmtNode *WriteBitField(std::pair<int32, int32> byteBitOffsets, MIRBitFieldType *fieldType, BaseNode *baseAddr,
+      BaseNode *rhs, BlockNode *block);
+  BaseNode *ReadBitField(std::pair<int32, int32> byteBitOffsets, MIRBitFieldType *fieldType, BaseNode *baseAddr);
   BaseNode *LowerDreadBitfield(DreadNode &dread);
-
+  BaseNode *LowerIreadBitfield(IreadNode &iread);
   StmtNode *LowerDassignBitfield(DassignNode &dassign, BlockNode &block);
   StmtNode *LowerIassignBitfield(IassignNode &iassign, BlockNode &block);
 

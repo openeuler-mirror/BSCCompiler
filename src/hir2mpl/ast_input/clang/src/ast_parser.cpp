@@ -2051,6 +2051,8 @@ ASTExpr *ASTParser::ProcessExprBinaryOperator(MapleAllocator &allocator, const c
   astBinOpExpr->SetRetType(astFile->CvtType(boType));
   if (bo.isCompoundAssignmentOp()) {
     clangOpCode = clang::BinaryOperator::getOpForCompoundAssignment(clangOpCode);
+    clang::QualType res = llvm::cast<clang::CompoundAssignOperator>(bo).getComputationLHSType().getCanonicalType();
+    astBinOpExpr->SetRetType(astFile->CvtType(res));
   }
   if ((boType->isAnyComplexType() &&
        (clang::BinaryOperator::isAdditiveOp(clangOpCode) || clang::BinaryOperator::isMultiplicativeOp(clangOpCode))) ||

@@ -29,6 +29,7 @@
 #include "string_utils.h"
 #include "cast_opt.h"
 #include "simplify.h"
+#include "me_safety_warning.h"
 
 namespace maplebe {
 namespace arrayNameForLower {
@@ -1656,15 +1657,76 @@ void CGLowerer::LowerSwitchOpnd(StmtNode &stmt, BlockNode &newBlk) {
   }
 }
 
+void CGLowerer::AddElemToPrintf(MapleVector<BaseNode*> &argsPrintf, int num, ...) {
+  va_list arg_ptr;
+  va_start(arg_ptr, num);
+  for (int i = 0; i < num; ++i) {
+    argsPrintf.push_back(va_arg(arg_ptr, BaseNode*));
+  }
+  va_end(arg_ptr);
+}
+
+void CGLowerer::SwitchAssertBoundary(StmtNode &stmt, MapleVector<BaseNode *> &argsPrintf) {
+  MIRSymbol *errMsg;
+  MIRSymbol *fileNameSym;
+  ConstvalNode *lineNum;
+  fileNameSym = mirBuilder->CreateConstStringSymbol(GetFileNameSymbolName(AssertBoundaryGetFileName(stmt)),
+      AssertBoundaryGetFileName(stmt));
+  lineNum = mirBuilder->CreateIntConst(stmt.GetSrcPos().LineNum(), PTY_u32);
+  if (kOpcodeInfo.IsAssertLowerBoundary(stmt.GetOpCode())) {
+    errMsg = mirBuilder->CreateConstStringSymbol(kOpAssertge,
+        "%s:%d error: the pointer < the lower bounds when accessing the memory!\n");
+    AddElemToPrintf(argsPrintf, 3, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
+                    mirBuilder->CreateAddrof(*fileNameSym, PTY_a64), lineNum);
+  } else {
+    if (kOpcodeInfo.IsAssertLeBoundary(stmt.GetOpCode())) {
+      if (stmt.GetOpCode() == OP_callassertle) {
+        auto &callStmt = static_cast<CallAssertBoundaryStmtNode&>(stmt);
+        std::string param;
+        MIRSymbol *funcName;
+        MIRSymbol *paramNum;
+        param = maple::GetNthStr(callStmt.GetParamIndex());
+        errMsg = mirBuilder->CreateConstStringSymbol(kOpCallAssertle,
+            "%s:%d error: the pointer's bounds does not match the function %s declaration for the %s argument!\n");
+        funcName = mirBuilder->CreateConstStringSymbol(callStmt.GetFuncName() + kOpCallAssertle,
+                                                       callStmt.GetFuncName());
+        paramNum = mirBuilder->CreateConstStringSymbol(kOpCallAssertle + param, param);
+        AddElemToPrintf(argsPrintf, 5, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
+                        mirBuilder->CreateAddrof(*fileNameSym, PTY_a64), lineNum,
+                        mirBuilder->CreateAddrof(*funcName, PTY_a64),
+                        mirBuilder->CreateAddrof(*paramNum, PTY_a64));
+      } else if (stmt.GetOpCode() == OP_returnassertle) {
+        auto &callStmt = static_cast<CallAssertBoundaryStmtNode&>(stmt);
+        MIRSymbol *funcName;
+        errMsg = mirBuilder->CreateConstStringSymbol(kOpReturnAssertle,
+            "%s:%d error: return value's bounds does not match the function declaration for %s\n");
+        funcName = mirBuilder->CreateConstStringSymbol(callStmt.GetFuncName() + kOpReturnAssertle,
+                                                       callStmt.GetFuncName());
+        AddElemToPrintf(argsPrintf, 4, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
+                        mirBuilder->CreateAddrof(*fileNameSym, PTY_a64), lineNum,
+                        mirBuilder->CreateAddrof(*funcName, PTY_a64));
+      } else {
+        errMsg = mirBuilder->CreateConstStringSymbol(kOpAssignAssertle,
+            "%s:%d error: l-value boundary should not be larger than r-value boundary!\n");
+        AddElemToPrintf(argsPrintf, 3, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
+                        mirBuilder->CreateAddrof(*fileNameSym, PTY_a64), lineNum);
+      }
+    } else {
+      errMsg = mirBuilder->CreateConstStringSymbol(kOpAssertlt,
+          "%s:%d error: the pointer >= the upper bounds when accessing the memory!\n");
+      AddElemToPrintf(argsPrintf, 3, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
+                      mirBuilder->CreateAddrof(*fileNameSym, PTY_a64), lineNum);
+    }
+  }
+}
+
 void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode &newBlk,
                                     std::vector<StmtNode *> &abortNode) {
   MIRFunction *curFunc = mirModule.CurFunction();
   BaseNode *op0 = LowerExpr(stmt, *stmt.Opnd(0), block);
   BaseNode *op1 = LowerExpr(stmt, *stmt.Opnd(1), block);
-  MIRSymbol *errMsg;
   LabelIdx labIdx = GetLabelIdx(*curFunc);
   LabelNode *labelBC = mirBuilder->CreateStmtLabel(labIdx);
-
   Opcode op = OP_ge;
   if (kOpcodeInfo.IsAssertUpperBoundary(stmt.GetOpCode())) {
     op = (kOpcodeInfo.IsAssertLeBoundary(stmt.GetOpCode())) ? OP_le : OP_lt;
@@ -1678,18 +1740,11 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
   beCommon.UpdateTypeTable(*printf->GetMIRFuncType());
   MapleVector<BaseNode*> argsPrintf(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
   uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
-  if (kOpcodeInfo.IsAssertLowerBoundary(stmt.GetOpCode())) {
-    errMsg = mirBuilder->CreateConstStringSymbol("c_enhanced_errmsg_lower_out",
-                                                 "error:lower bound is out of range!\n");
-  } else {
-    errMsg = mirBuilder->CreateConstStringSymbol("c_enhanced_errmsg_upper_out",
-                                                 "error:upper bound is out of range!\n");
-  }
+  SwitchAssertBoundary(stmt, argsPrintf);
   uint32 newTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   if (newTypeTableSize != oldTypeTableSize) {
     beCommon.AddNewTypeAfterBecommon(oldTypeTableSize, newTypeTableSize);
   }
-  argsPrintf.push_back(mirBuilder->CreateAddrof(*errMsg, PTY_a64));
   StmtNode *callPrintf = mirBuilder->CreateStmtCall(printf->GetPuidx(), argsPrintf);
   UnaryStmtNode *abortModeNode = mirBuilder->CreateStmtUnary(OP_abort, nullptr);
 
