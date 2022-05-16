@@ -1409,7 +1409,8 @@ static PrimType IsStructElementSame(MIRType *ty) {
 }
 #endif
 
-// return true if successfully lowered; nextStmt is in/out
+// return true if successfully lowered; nextStmt is in/out, and is made to point
+// to its following statement if lowering of the struct return is successful
 bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
                                   StmtNode *&nextStmt, bool &lvar, BlockNode *oldBlk) {
   if (!nextStmt) {
@@ -1650,6 +1651,7 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
       newBlk.AddStatement(aStmt);
     }
   }
+  nextStmt = nextStmt->GetNext();  // skip the dassign
   return true;
 }
 
@@ -1833,9 +1835,8 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
       case OP_icallassigned: {
         // pass the addr of lvar if this is a struct call assignment
         bool lvar = false;
-        if (LowerStructReturn(*newBlk, stmt, nextStmt, lvar, &block)) {
-          nextStmt = nextStmt->GetNext(); // skip dassign
-        } else {
+        // nextStmt could be changed by the call to LowerStructReturn
+        if (!LowerStructReturn(*newBlk, stmt, nextStmt, lvar, &block)) {
           newBlk->AppendStatementsFromBlock(*LowerCallAssignedStmt(*stmt, lvar));
         }
         break;
@@ -1852,6 +1853,7 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
       case OP_call:
       case OP_icall:
 #if TARGARM32 || TARGAARCH64 || TARGRISCV64 || TARGX86_64
+        // nextStmt could be changed by the call to LowerStructReturn
         LowerCallStmt(*stmt, nextStmt, *newBlk);
 #else
         LowerStmt(*stmt, *newBlk);
