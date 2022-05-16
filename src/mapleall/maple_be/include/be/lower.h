@@ -173,7 +173,7 @@ class CGLowerer {
                      bool isIntrinAssign = false);
   BlockNode *LowerIntrinsiccallAassignedToAssignStmt(IntrinsiccallNode &intrinsicCall);
   BlockNode *LowerCallAssignedStmt(StmtNode &stmt, bool uselvar = false);
-  bool LowerStructReturn(BlockNode &blk, StmtNode *stmt, StmtNode *nextStmt, bool &lvar);
+  bool LowerStructReturn(BlockNode &blk, StmtNode *stmt, StmtNode *&nextStmt, bool &lvar, BlockNode *oldblk);
   BlockNode *LowerMemop(StmtNode&);
 
   BaseNode *LowerRem(BaseNode &rem, BlockNode &block);
@@ -251,6 +251,7 @@ class CGLowerer {
   int64 seed = 0;
   SimplifyMemOp simplifyMemOp;
   static const std::string kIntrnRetValPrefix;
+  static const std::string kUserRetValPrefix;
 
   static constexpr PUIdx kFuncNotFound = PUIdx(-1);
   static constexpr int kThreeDimArray = 3;
