@@ -1410,7 +1410,8 @@ static PrimType IsStructElementSame(MIRType *ty) {
 #endif
 
 // return true if successfully lowered; nextStmt is in/out
-bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *&nextStmt, bool &lvar, BlockNode *oldBlk) {
+bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
+                                  StmtNode *&nextStmt, bool &lvar, BlockNode *oldBlk) {
   if (!nextStmt) {
     return false;
   }
@@ -1431,7 +1432,8 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *&
     // and whose lhs is retSym
     MIRSymbol *temp = CreateNewRetVar(*retSym->GetType(), kUserRetValPrefix);
     BaseNode *rhs = mirModule.GetMIRBuilder()->CreateExprDread(*temp->GetType(), 0, *temp);
-    DassignNode *dass = mirModule.GetMIRBuilder()->CreateStmtDassign(retPair.first, retPair.second.GetFieldID(), rhs);
+    DassignNode *dass = mirModule.GetMIRBuilder()->CreateStmtDassign(
+        retPair.first, retPair.second.GetFieldID(), rhs);
     oldBlk->InsertBefore(nextStmt, dass);
     nextStmt = dass;
     // update CallReturnVector to the new temporary
