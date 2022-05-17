@@ -1367,6 +1367,9 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
       }
     } else {
       auto elemExpr = initList->initExprs[i]->Emit2FEExpr(stmts);
+      if (elemExpr == nullptr) {
+        continue;
+      }
       if (std::holds_alternative<UniqueFEIRExpr>(base)) {
         if (fieldMirType->GetKind() == kTypeArray && initList->initExprs[i]->GetASTOp() == kASTStringLiteral) {
           auto addrOfElement = std::make_unique<FEIRExprIAddrof>(baseStructFEPtrType->Clone(), fieldID,
