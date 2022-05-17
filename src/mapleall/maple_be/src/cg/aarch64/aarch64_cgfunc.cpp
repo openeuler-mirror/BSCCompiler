@@ -10225,27 +10225,35 @@ Operand *AArch64CGFunc::SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, 
   auto &memOpnd = CreateMemOpnd(LoadIntoRegister(*addrOpnd, primType), 0, GetPrimTypeBitSize(primType));
   auto mOpLoad = PickLoadStoreExclInsn(primTypeP2Size, false, false);
   atomicBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpLoad, *regLoaded, memOpnd));
+  Operand *regExtend = &CreateRegisterOperandOfType(primType);
+  PrimType targetType = (oldVal->GetSize() <= k32BitSize) ?
+      (IsSignedInteger(primType) ? PTY_i32 : PTY_u32) : (IsSignedInteger(primType) ? PTY_i64 : PTY_u64);
+  SelectCvtInt2Int(nullptr, regExtend, regLoaded, primType, targetType);
   /* cmp */
-  SelectAArch64Cmp(*regLoaded, *oldVal, true, oldVal->GetSize());
+  SelectAArch64Cmp(*regExtend, *oldVal, true, oldVal->GetSize());
   /* bne */
   Operand &rflag = GetOrCreateRflag();
   LabelIdx nextBBLableIdx = CreateLabel();
   LabelOperand &targetOpnd = GetOrCreateLabelOperand(nextBBLableIdx);
   atomicBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_bne, rflag, targetOpnd));
   /* stlxr */
+  BB *stlxrBB = CreateNewBB();
+  stlxrBB->SetKind(BB::kBBIf);
+  atomicBB->AppendBB(*stlxrBB);
+  SetCurBB(*stlxrBB);
   auto *accessStatus = &CreateRegisterOperandOfType(PTY_u32);
   auto &newRegVal = LoadIntoRegister(*newVal, primType);
   auto mOpStore = PickLoadStoreExclInsn(primTypeP2Size, true, true);
-  atomicBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpStore, *accessStatus, newRegVal, memOpnd));
+  stlxrBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpStore, *accessStatus, newRegVal, memOpnd));
   /* cbnz ==> check the exclusive accsess status */
   auto &atomicBBOpnd = GetOrCreateLabelOperand(*atomicBB);
-  atomicBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wcbnz, *accessStatus, atomicBBOpnd));
+  stlxrBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wcbnz, *accessStatus, atomicBBOpnd));
   /* Data Memory Barrier */
   BB *nextBB = CreateNewBB();
   nextBB->AddLabel(nextBBLableIdx);
   nextBB->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_dmb_ish));
   SetLab2BBMap(static_cast<int32>(nextBBLableIdx), *nextBB);
-  atomicBB->AppendBB(*nextBB);
+  stlxrBB->AppendBB(*nextBB);
   SetCurBB(*nextBB);
   /* bool version return true if the comparison is successful and newval is written */
   if (retBool) {
@@ -10964,7 +10972,14 @@ RegOperand *AArch64CGFunc::SelectVectorReverse(PrimType rType, Operand *src, Pri
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
   VectorRegSpec *vecSpecSrc = GetMemoryPool()->New<VectorRegSpec>(sType);       /* vector operand */
 
-  MOperator mOp = size >= k64BitSize ? MOP_vrev64vv : (size >= k32BitSize ? MOP_vrev32vv : MOP_vrev16vv);
+  MOperator mOp;
+  if (GetPrimTypeBitSize(rType) == k128BitSize) {
+    mOp = size >= k64BitSize ? MOP_vrev64qq : (size >= k32BitSize ? MOP_vrev32qq : MOP_vrev16qq);
+  } else if (GetPrimTypeBitSize(rType) == k64BitSize) {
+    mOp = size >= k64BitSize ? MOP_vrev64dd : (size >= k32BitSize ? MOP_vrev32dd : MOP_vrev16dd);
+  } else {
+    CHECK_FATAL(false, "should not be here");
+  }
   Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *src);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecSrc);
