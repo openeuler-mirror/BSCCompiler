@@ -46,7 +46,6 @@ executable("maple") {
     "src/compiler_selector.cpp",
     "src/dex2mpl_compiler.cpp",
     "src/driver_runner.cpp",
-    "src/file_utils.cpp",
     "src/ipa_compiler.cpp",
     "src/jbc2mpl_compiler.cpp",
     "src/cpp2mpl_compiler.cpp",
@@ -74,6 +73,7 @@ executable("maple") {
     "${MAPLEALL_ROOT}/maple_phase:libmplphase",
     "${MAPLEALL_ROOT}/maple_phase:libmplphase",
     "${MAPLEALL_ROOT}/maple_util:libmplutil",
+    "${MAPLEALL_ROOT}/maple_util:libcommandline",
     "${MAPLEALL_ROOT}/mempool:libmempool",
     "${MAPLEALL_ROOT}/mpl2mpl:libmpl2mpl",
     "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
@@ -81,9 +81,12 @@ executable("maple") {
 }
 
 static_library("libdriver_option") {
-  sources = [ "src/driver_option_common.cpp" ]
+  sources = [ "src/driver_options.cpp",
+              "src/driver_option_common.cpp" ]
 
-  include_dirs = [ "${MAPLEALL_ROOT}/maple_driver/include" ]
+  include_dirs = [ "${MAPLEALL_ROOT}/maple_driver/include",
+                   "${MAPLEALL_ROOT}/maple_util/include"
+                 ]
 
   output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
 }

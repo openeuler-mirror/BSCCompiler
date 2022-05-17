@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <cstring>
 #include <climits>
+#include <fstream>
 #include <unistd.h>
 #include "file_utils.h"
 #include "string_utils.h"
@@ -133,6 +134,11 @@ std::string FileUtils::GetFileFolder(const std::string &filePath) {
 
 int FileUtils::Remove(const std::string &filePath) {
   return remove(filePath.c_str());
+}
+
+bool FileUtils::IsFileExists(const std::string &filePath) {
+  std::ifstream f(filePath);
+  return f.good();
 }
 
 std::string FileUtils::AppendMapleRootIfNeeded(bool needRootPath, const std::string &path,

@@ -18,6 +18,7 @@ src_libmplutil = [
   "src/namemangler.cpp",
   "src/literalstrname.cpp",
   "src/file_layout.cpp",
+  "src/file_utils.cpp",
   "src/mpl_scheduler.cpp",
   "src/itab_util.cpp",
   "src/mpl_timer.cpp",
