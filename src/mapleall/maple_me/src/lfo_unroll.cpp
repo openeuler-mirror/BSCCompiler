@@ -295,7 +295,7 @@ void LfoUnrollOneLoop::Process() {
   if (fullUnroll) {
     unrolledBlk = DoFullUnroll(tripCount);
   } else {
-    if (MeOption::optLevel < 2 || unrollTimes == 1) { // changeback linma
+    if (MeOption::optLevel <= 2 || unrollTimes == 1) { // changeback linma
       return;
     }
     unrolledBlk = DoUnroll(unrollTimes, tripCount);
