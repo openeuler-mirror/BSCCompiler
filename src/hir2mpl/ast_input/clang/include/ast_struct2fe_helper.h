@@ -21,7 +21,7 @@
 namespace maple {
 class ASTStruct2FEHelper : public FEInputStructHelper {
  public:
-  ASTStruct2FEHelper(MapleAllocator &allocator, const ASTStruct &structIn);
+  ASTStruct2FEHelper(MapleAllocator &allocator, ASTStruct &structIn);
   ~ASTStruct2FEHelper() = default;
 
  protected:
@@ -40,7 +40,7 @@ class ASTStruct2FEHelper : public FEInputStructHelper {
   virtual bool IsMultiDefImpl() const override;
   std::string GetSrcFileNameImpl() const override;
 
-  const ASTStruct &astStruct;
+  ASTStruct &astStruct;
 };
 
 class ASTGlobalVar2FEHelper : public FEInputGlobalVarHelper {
@@ -69,7 +69,7 @@ class ASTFileScopeAsm2FEHelper : public FEInputFileScopeAsmHelper {
 
 class ASTStructField2FEHelper : public FEInputFieldHelper {
  public:
-  ASTStructField2FEHelper(MapleAllocator &allocator, const ASTField &fieldIn, const MIRType &structTypeIn)
+  ASTStructField2FEHelper(MapleAllocator &allocator, ASTField &fieldIn, const MIRType &structTypeIn)
       : FEInputFieldHelper(allocator),
         field(fieldIn), structType(structTypeIn) {}
   ~ASTStructField2FEHelper() = default;
@@ -77,7 +77,7 @@ class ASTStructField2FEHelper : public FEInputFieldHelper {
  protected:
   bool ProcessDeclImpl(MapleAllocator &allocator) override;
   bool ProcessDeclWithContainerImpl(MapleAllocator &allocator) override;
-  const ASTField &field;
+  ASTField &field;
   const MIRType &structType;
 };
 

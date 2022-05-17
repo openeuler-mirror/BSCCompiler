@@ -165,6 +165,10 @@ class ASTDecl {
     return boundary.isBytedLen;
   }
 
+  void ClearGenericAttrsContentMap() {
+    genAttrs.ClearContentMap();
+  }
+
  protected:
   virtual MIRConst *Translate2MIRConstImpl() const {
     CHECK_FATAL(false, "Maybe implemented for other ASTDecls");

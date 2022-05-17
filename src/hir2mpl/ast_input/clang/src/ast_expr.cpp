@@ -1064,6 +1064,9 @@ MIRConst *ASTInitListExpr::GenerateMIRConstForStruct() const {
       continue;
     }
     auto konst = initExprs[i]->GenerateMIRConst();
+    if (konst == nullptr) {
+      continue;
+    }
     if (konst->GetKind() == kConstLblConst) {
       // init by initListExpr, Only MIRConst kind is set here.
       return konst;

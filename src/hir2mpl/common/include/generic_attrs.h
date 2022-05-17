@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,6 +32,7 @@ enum GenericAttrKind {
 #undef TYPE_ATTR
 #undef FIELD_ATTR
 };
+#define MAX_ATTR_NUM 128
 
 class GenericAttrs {
  public:
@@ -56,12 +57,38 @@ class GenericAttrs {
     return !(*this == tA);
   }
 
+  void InitContentMap() {
+    contentMap.resize(MAX_ATTR_NUM);
+    isInit = true;
+  }
+
+  bool GetContentFlag(GenericAttrKind key) {
+    return contentFlag[key];
+  }
+
   void InsertIntContentMap(GenericAttrKind key, int val) {
-    contentMap.insert(std::make_pair(key, val));
+    if (!isInit) {
+      InitContentMap();
+    }
+    if (!contentFlag[key]) {
+      contentMap[key] = val;
+      contentFlag.set(key);
+    }
   }
 
   void InsertStrIdxContentMap(GenericAttrKind key, GStrIdx nameIdx) {
-    contentMap.insert(std::make_pair(key, nameIdx));
+    if (!isInit) {
+      InitContentMap();
+    }
+    if (!contentFlag[key]) {
+      contentMap[key] = nameIdx;
+      contentFlag.set(key);
+    }
+  }
+
+  void ClearContentMap() {
+    contentMap.clear();
+    contentMap.shrink_to_fit();
   }
 
   FieldAttrs ConvertToFieldAttrs();
@@ -69,8 +96,10 @@ class GenericAttrs {
   FuncAttrs ConvertToFuncAttrs();
 
  private:
-  std::bitset<128> attrFlag = 0;
-  std::map<GenericAttrKind, AttrContent> contentMap;
+  std::bitset<MAX_ATTR_NUM> attrFlag = 0;
+  std::bitset<MAX_ATTR_NUM> contentFlag = 0;
+  std::vector<AttrContent> contentMap;
+  bool isInit = false;
 };
 }
 #endif // GENERIC_ATTRS_H

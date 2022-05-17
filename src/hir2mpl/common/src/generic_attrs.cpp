@@ -18,8 +18,7 @@
 namespace maple {
 TypeAttrs GenericAttrs::ConvertToTypeAttrs() {
   TypeAttrs attr;
-  constexpr uint32 maxAttrNum = 128;
-  for (uint32 i = 0; i < maxAttrNum; ++i) {
+  for (uint32 i = 0; i < MAX_ATTR_NUM; ++i) {
     if (attrFlag[i] == 0) {
       continue;
     }
@@ -38,18 +37,15 @@ TypeAttrs GenericAttrs::ConvertToTypeAttrs() {
         break;
     }
   }
-  for(auto iter = contentMap.begin(); iter != contentMap.end(); ++iter) {
-    if (iter->first == GENATTR_pack) {
-      attr.SetPack(static_cast<uint32>(std::get<int>(iter->second)));
-    }
+  if (GetContentFlag(GENATTR_pack)) {
+    attr.SetPack(static_cast<uint32>(std::get<int>(contentMap[GENATTR_pack])));
   }
   return attr;
 }
 
 FuncAttrs GenericAttrs::ConvertToFuncAttrs() {
   FuncAttrs attr;
-  constexpr uint32 maxAttrNum = 128;
-  for (uint32 i = 0; i < maxAttrNum; ++i) {
+  for (uint32 i = 0; i < MAX_ATTR_NUM; ++i) {
     if (attrFlag[i] == 0) {
       continue;
     }
@@ -68,18 +64,16 @@ FuncAttrs GenericAttrs::ConvertToFuncAttrs() {
         break;
     }
   }
-  for(auto iter = contentMap.begin(); iter != contentMap.end(); ++iter) {
-    if (iter->first == GENATTR_alias) {
-      std::string name = GlobalTables::GetStrTable().GetStringFromStrIdx(std::get<GStrIdx>(iter->second));
+  if (GetContentFlag(GENATTR_alias)) {
+      std::string name = GlobalTables::GetStrTable().GetStringFromStrIdx(std::get<GStrIdx>(contentMap[GENATTR_alias]));
       attr.SetAliasFuncName(name);
     }
-    if (iter->first == GENATTR_constructor_priority) {
-      attr.SetConstructorPriority(std::get<int>(iter->second));
+    if (GetContentFlag(GENATTR_constructor_priority)) {
+      attr.SetConstructorPriority(std::get<int>(contentMap[GENATTR_constructor_priority]));
     }
-    if (iter->first == GENATTR_destructor_priority) {
-      attr.SetDestructorPriority(std::get<int>(iter->second));
+    if (GetContentFlag(GENATTR_destructor_priority)) {
+      attr.SetDestructorPriority(std::get<int>(contentMap[GENATTR_destructor_priority]));
     }
-  }
   return attr;
 }
 

@@ -24,9 +24,11 @@ namespace maple {
 // ---------- ASTStruct2FEHelper ----------
 bool ASTStruct2FEHelper::ProcessDeclImpl() {
   if (isSkipped) {
+    astStruct.ClearGenericAttrsContentMap();
     return true;
   }
   if (mirStructType == nullptr) {
+    astStruct.ClearGenericAttrsContentMap();
     return false;
   }
   mirStructType->SetTypeAttrs(GetStructAttributeFromInput());
@@ -36,13 +38,14 @@ bool ASTStruct2FEHelper::ProcessDeclImpl() {
   // Process Methods
   InitMethodHelpers();
   ProcessMethodDef();
+  astStruct.ClearGenericAttrsContentMap();
   return true;
 }
 
 void ASTStruct2FEHelper::InitFieldHelpersImpl() {
   MemPool *mp = allocator.GetMemPool();
   ASSERT(mp != nullptr, "mem pool is nullptr");
-  for (const ASTField *field : astStruct.GetFields()) {
+  for (ASTField *field : astStruct.GetFields()) {
     ASSERT(field != nullptr, "field is nullptr");
     ASTStructField2FEHelper *fieldHelper = mp->New<ASTStructField2FEHelper>(
         allocator, *field, *astStruct.GetTypeDesc().front());
@@ -58,7 +61,7 @@ TypeAttrs ASTStruct2FEHelper::GetStructAttributeFromInputImpl() const {
   return attrs.ConvertToTypeAttrs();
 }
 
-ASTStruct2FEHelper::ASTStruct2FEHelper(MapleAllocator &allocator, const ASTStruct &structIn)
+ASTStruct2FEHelper::ASTStruct2FEHelper(MapleAllocator &allocator, ASTStruct &structIn)
     : FEInputStructHelper(allocator), astStruct(structIn) {
   srcLang = kSrcLangC;
 }
@@ -144,6 +147,7 @@ bool ASTStructField2FEHelper::ProcessDeclWithContainerImpl(MapleAllocator &alloc
   mirFieldPair.first = idx;
   mirFieldPair.second.first = fieldType->GetTypeIndex();
   mirFieldPair.second.second = attrs;
+  field.ClearGenericAttrsContentMap();
   return true;
 }
 
@@ -219,6 +223,7 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   }
   methodNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(methodShortName);
   if (!ASTUtil::InsertFuncSet(methodNameIdx)) {
+    func.ClearGenericAttrsContentMap();
     return true;
   }
   SolveReturnAndArgTypes(allocator);
@@ -271,6 +276,7 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   ENCChecker::InsertBoundaryInAtts(attrs, func.GetBoundaryInfo());
   mirMethodPair.second.second = attrs;
   mirFunc->SetFuncAttrs(attrs);
+  func.ClearGenericAttrsContentMap();
   return true;
 }
 
