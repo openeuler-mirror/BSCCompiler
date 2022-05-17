@@ -1856,6 +1856,10 @@ std::unique_ptr<ValueRange> ValueRangePropagation::RemWithRhsValueRange(
   int64 res = 0;
   int64 upperRes = 0;
   int64 lowerRes = 0;
+  auto pType = opMeExpr.GetOpnd(1)->GetPrimType();
+  if (pType == PTY_i64 && rhsConstant == GetMinNumber(PTY_i64)) { // var % x, if var is negative unlimited
+    return nullptr;
+  }
   if (rhsConstant > 0) {
     if (AddOrSubWithConstant(opMeExpr.GetPrimType(), OP_sub, 1, rhsConstant, res)) {
       lowerRes = res;
@@ -1898,6 +1902,9 @@ std::unique_ptr<ValueRange> ValueRangePropagation::RemWithValueRange(const BB &b
   if (!valueRange->IsConstantLowerAndUpper()) {
     return remValueRange;
   } else if (valueRange->GetRangeType() == kEqual) {
+    if (valueRange->GetBound().IsEqualToMin(opMeExpr.GetPrimType())) {
+      return nullptr;
+    }
     int64 res = Bound::GetRemResult(valueRange->GetBound().GetConstant(), rhsConstant, opMeExpr.GetPrimType());
     Bound bound = Bound(nullptr, res, valueRange->GetBound().GetPrimType());
     return std::make_unique<ValueRange>(bound, valueRange->GetRangeType());
@@ -1935,6 +1942,9 @@ std::unique_ptr<ValueRange> ValueRangePropagation::DealWithRem(
   }
   std::unique_ptr<ValueRange> newValueRange;
   if (lhsIsConstant && rhsIsConstant) {
+    if (Bound(lhsConstant, opMeExpr.GetPrimType()).IsEqualToMin(opMeExpr.GetPrimType())) {
+      return nullptr;
+    }
     int64 res = Bound::GetRemResult(lhsConstant, rhsConstant, opMeExpr.GetPrimType());
     newValueRange = std::make_unique<ValueRange>(Bound(res, opMeExpr.GetPrimType()), kEqual);
   } else if (rhsIsConstant) {
