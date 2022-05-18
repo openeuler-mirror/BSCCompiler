@@ -78,6 +78,7 @@ class PreMeEmitter : public AnalysisResult {
   MapleAllocator* GetCodeMPAlloc() { return codeMPAlloc; }
   MapleMap<uint32_t, PreMeMIRExtension *> *GetPreMeStmtExtensionMap() { return &PreMeStmtExtensionMap; }
   MapleMap<BaseNode *, PreMeMIRExtension *> *GetPreMeExprExtensionMap() { return &PreMeExprExtensionMap; }
+  GcovFuncInfo *GetFuncProfData() { return mirFunc->GetFuncProfData(); }
 
  private:
   ArrayNode *ConvertToArray(BaseNode *x, TyIdx ptrTyIdx);

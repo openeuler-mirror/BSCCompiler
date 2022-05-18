@@ -14,6 +14,7 @@
  */
 #include "ipa_phase_manager.h"
 #include "pme_emit.h"
+#include "gcov_parser.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 #define CLANG (mirModule.IsCModule())
@@ -83,7 +84,7 @@ bool IpaSccPM::PhaseRun(MIRModule &m) {
 
 void IpaSccPM::DoPhasesPopulate(const MIRModule &mirModule) {
   (void)mirModule;
-  if (Options::profileGen || Options::profileUse) {
+  if (Options::profileGen) {
     AddPhase("sccprofile", true);
   } else {
     AddPhase("sccprepare", true);
@@ -100,6 +101,10 @@ void IpaSccPM::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<M2MKlassHierarchy>();
   aDep.AddPreserved<M2MCallGraph>();
   aDep.AddPreserved<M2MKlassHierarchy>();
+  if (Options::profileUse) {
+    aDep.AddRequired<M2MGcovParser>();
+    aDep.AddPreserved<M2MGcovParser>();
+  }
 }
 
 void SCCPrepare::Dump(MeFunction &f, const std::string phaseName) {
@@ -113,6 +118,10 @@ void SCCPrepare::Dump(MeFunction &f, const std::string phaseName) {
 bool SCCPrepare::PhaseRun(SCCNode<CGNode> &scc) {
   SetQuiet(true);
   AddPhase("mecfgbuild", true);
+  if (Options::profileUse) {
+    AddPhase("splitcriticaledge", true);
+    AddPhase("profileUse", true);
+  }
   AddPhase("ssatab", true);
   AddPhase("aliasclass", true);
   AddPhase("ssa", true);
@@ -174,7 +183,7 @@ bool SCCEmit::PhaseRun(SCCNode<CGNode> &scc) {
     m.SetCurFunction(func);
     const MaplePhaseInfo *phase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(&MEPreMeEmission::id);
     if (!IsQuiet()) {
-      LogInfo::MapleLogger() << "---Run " << (phase->IsAnalysis() ? "analysis" : "transform")
+      LogInfo::MapleLogger() << "  ---call " << (phase->IsAnalysis() ? "analysis" : "transform")
                              << " Phase [ " << phase->PhaseName() << " ]---\n";
     }
     (void)RunAnalysisPhase<meFuncOptTy, MeFunction>(*phase, *serialADM, *func->GetMeFunc());
@@ -196,8 +205,6 @@ bool SCCProfile::PhaseRun(SCCNode<CGNode> &scc) {
   if (Options::profileGen) {
     AddPhase("splitcriticaledge", true);
     AddPhase("profileGen", true);
-  } else {
-    AddPhase("profileUse", true);
   }
   AddPhase("emitforipa", true);
   // Not like other phasemanager which use temp mempool to hold analysis results generated from the sub phases.

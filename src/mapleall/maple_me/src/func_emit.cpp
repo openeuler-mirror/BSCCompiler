@@ -21,6 +21,10 @@ void FuncEmit::EmitLabelForBB(MIRFunction &func, BB &bb) const {
   ASSERT(bb.GetBBLabel() != 0, "Should have a label");
   // create labelnode
   LabelNode *label = func.GetCodeMempool()->New<LabelNode>();
+  // add freq for new added stmt node
+  if (Options::profileUse) {
+    func.SetStmtFreq(label->GetStmtID(), bb.GetFrequency());
+  }
   label->SetLabelIdx(bb.GetBBLabel());
   if (bb.IsEmpty()) {
     bb.SetFirst(label);
@@ -62,7 +66,7 @@ static BaseNode *ConvertSSANode(BaseNode *node) {
 
 static void ConvertStmt(BB &bb) {
   for (auto &stmt : bb.GetStmtNodes()) {
-    ConvertSSANode(&stmt);
+    (void)ConvertSSANode(&stmt);
     if (stmt.GetOpCode() == OP_maydassign) {
       stmt.SetOpCode(OP_dassign);
     }

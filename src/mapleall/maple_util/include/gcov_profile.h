@@ -10,36 +10,60 @@ typedef unsigned gcov_unsigned_t;
 typedef int64_t  gcov_type;
 typedef uint64_t gcov_type_unsigned;
 typedef unsigned  location_t;
+#define HOTCALLSITEFREQ 100
+
+enum UpdateFreqOp {
+  kKeepOrigFreq = 0,
+  kUpdateOrigFreq = 0x1,
+  kUpdateInlinedFreq = 0x2,
+  kUpdateUnrolledFreq = 0x4,
+  kUpdateUnrollRemainderFreq = 0x8,
+};
 
 class GcovFuncInfo {
 public:
   GcovFuncInfo(MapleAllocator* alloc, unsigned funcIdent, unsigned lineno_cs, unsigned cfg_cs) :
       ident(funcIdent), lineno_checksum(lineno_cs), cfg_checksum(cfg_cs), counts(alloc->Adapter()) {};
+  ~GcovFuncInfo() = default;
+
   int64_t GetFuncFrequency() const { return entry_freq; }
-  void SetStmtFreq(uint32_t stmtID, int64_t freq) {
-    stmtFreqs[stmtID] = freq;
+  void SetFuncFrequency(int64_t freq) { entry_freq = freq; }
+
+  std::unordered_map<uint32_t, uint64_t>& GetStmtFreqs() {
+    return stmtFreqs;
   }
   int64_t GetStmtFreq(uint32_t stmtID) {
     if (stmtFreqs.count(stmtID) > 0) {
       return stmtFreqs[stmtID];
     }
-    return 0;
+    return -1; // unstored
   }
-
-  /* Name of function.  */
-  char *name;
+  void SetStmtFreq(uint32_t stmtID, int64_t freq) {
+    stmtFreqs[stmtID] = freq;
+  }
+  void EraseStmtFreq(uint32_t stmtID) {
+    stmtFreqs.erase(stmtID);
+  }
+  void CopyStmtFreq(uint32_t newStmtID, uint32_t origStmtId, bool deleteOld = false) {
+    ASSERT(GetStmtFreq(origStmtId) >= 0, "origStmtId no freq record");
+    SetStmtFreq(newStmtID, GetStmtFreq(origStmtId));
+    if (deleteOld) {
+      EraseStmtFreq(origStmtId);
+    }
+  }
+  bool IsHotCallSite(uint32_t stmtID) {
+    if (stmtFreqs.count(stmtID) > 0) {
+       uint64 freq = stmtFreqs[stmtID];
+       return (freq >= HOTCALLSITEFREQ);
+    }
+    ASSERT(0, "should not be here");
+    return false;
+  }
   unsigned ident;
   unsigned lineno_checksum;
   unsigned cfg_checksum;
 
-  /* Array of basic blocks.  Like in GCC, the entry block is
-     at blocks[0] and the exit block is at blocks[1].  */
-#if 0
-  block_t *blocks;
-  unsigned num_blocks;
-  unsigned blocks_executed;
-#endif
-  /* Raw arc coverage counts.  */
+  // Raw arc coverage counts.
   unsigned num_counts;
   MapleVector<gcov_type> counts;
   int64_t entry_freq; // record entry bb frequence

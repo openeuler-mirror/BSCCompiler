@@ -23,6 +23,44 @@
 #define MAX_VECTOR_LENGTH_SIZE 128
 
 namespace maple {
+
+void LoopVecInfo::UpdateDoloopProfData(MIRFunction *mirFunc,
+    DoloopNode *doloop, int32_t vecLanes, bool isRemainder) {
+  auto *profData = mirFunc->GetFuncProfData();
+  if (!profData) return;
+  int64_t doloopFreq = profData->GetStmtFreq(doloop->GetStmtID());
+  int64_t tempFreq;
+  BlockNode *body = doloop->GetDoBody();
+  int64_t bodyFreq = profData->GetStmtFreq(body->GetStmtID());
+  if (isRemainder) {
+    // update doloop node in remainder
+    tempFreq = (bodyFreq % vecLanes) + (doloopFreq - bodyFreq);
+    profData->SetStmtFreq(doloop->GetStmtID(), tempFreq);
+    // update doloop body freq in remainder
+    profData->SetStmtFreq(body->GetStmtID(), (bodyFreq % vecLanes));
+    // update stmtlist in doloopbody
+    if (body->GetFirst()) {
+      profData->SetStmtFreq(body->GetFirst()->GetStmtID(), (bodyFreq % vecLanes));
+    }
+    if (body->GetLast() && (body->GetFirst() != body->GetLast())) {
+      profData->SetStmtFreq(body->GetLast()->GetStmtID(), (bodyFreq % vecLanes));
+    }
+  } else {
+    // vectorized doloop
+    tempFreq = (bodyFreq / vecLanes) + (doloopFreq - bodyFreq);
+    profData->SetStmtFreq(doloop->GetStmtID(), tempFreq);
+    // update doloop body freq
+    profData->SetStmtFreq(body->GetStmtID(), (bodyFreq / vecLanes));
+    // update stmtlist in doloopbody
+    if (body->GetFirst()) {
+      profData->SetStmtFreq(body->GetFirst()->GetStmtID(), (tempFreq / vecLanes));
+    }
+    if (body->GetLast() && (body->GetFirst() != body->GetLast())) {
+      profData->SetStmtFreq(body->GetLast()->GetStmtID(), (tempFreq / vecLanes));
+    }
+  }
+}
+
 uint32_t LoopVectorization::vectorizedLoop = 0;
 
 void LoopVecInfo::UpdateWidestTypeSize(uint32_t newtypesize) {

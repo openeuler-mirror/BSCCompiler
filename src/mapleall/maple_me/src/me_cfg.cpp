@@ -1812,19 +1812,71 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
   if (!gcovData) return;
   GcovFuncInfo* funcData = gcovData->GetFuncProfile(func.GetUniqueID());
   if (!funcData) return;
+  if (funcData->stmtFreqs.size() == 0) return;
   auto eIt = valid_end();
   for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
     if ((*bIt)->IsEmpty()) continue;
-    StmtNode first = (*bIt)->GetFirst();
+    StmtNode& first = (*bIt)->GetFirst();
     if (funcData->stmtFreqs.count(first.GetStmtID()) > 0) {
       (*bIt)->SetFrequency(funcData->stmtFreqs[first.GetStmtID()]);
+    } else if (funcData->stmtFreqs.count((*bIt)->GetLast().GetStmtID()) > 0) {
+      (*bIt)->SetFrequency(funcData->stmtFreqs[(*bIt)->GetLast().GetStmtID()]);
     } else {
-      StmtNode last = (*bIt)->GetLast();
-      if (funcData->stmtFreqs.count(last.GetStmtID()) > 0) {
-        (*bIt)->SetFrequency(funcData->stmtFreqs[last.GetStmtID()]);
+      LogInfo::MapleLogger() << "ERROR::  bb " << (*bIt)->GetBBId() << "frequency is not set" << "\n";
+      ASSERT(0, "no freq set");
+    }
+  }
+  // add common entry and common exit
+  auto *bb = *common_entry();
+  uint64_t freq = 0;
+  for (int i = 0; i < bb->GetSucc().size(); i++) {
+    freq += bb->GetSucc(i)->GetFrequency();
+  }
+  bb->SetFrequency(freq);
+  bb = *common_exit();
+  freq = 0;
+  for (int i = 0; i < bb->GetPred().size(); i++) {
+    freq += bb->GetPred(i)->GetFrequency();
+  }
+  bb->SetFrequency(freq);
+  // set succfreqs
+  for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
+    auto *bb = *bIt;
+    if (!bb) continue;
+    int64_t succSum = 0; // verify only
+    if (bb->GetSucc().size() == 1) {
+      bb->PushBackSuccFreq(bb->GetFrequency());
+    } else if (bb->GetSucc().size() == 2) {
+      auto *fallthru = bb->GetSucc(0);
+      auto *targetBB = bb->GetSucc(1);
+      if (targetBB->GetFrequency() >= bb->GetFrequency()) {
+        // fixup frequency of target bb
+        uint32_t fallthruFreq = fallthru->GetFrequency();
+        for (int i = 0; i < fallthru->GetPred().size(); i++) {
+          auto *pred = fallthru->GetPred(i);
+          if (pred->GetSucc().size() == 1 && (pred != bb)) {
+            fallthruFreq -= pred->GetFrequency();
+          }
+        }
+        bb->PushBackSuccFreq(fallthruFreq);
+        bb->PushBackSuccFreq(bb->GetFrequency() - fallthruFreq);
+      } else {
+        bb->PushBackSuccFreq(fallthru->GetFrequency());
+        bb->PushBackSuccFreq(targetBB->GetFrequency());
+      }
+    } else if (bb->GetSucc().size() > 2) {
+      // switch case
+      for (int i = 0; i < bb->GetSucc().size(); i++) {
+        bb->PushBackSuccFreq(bb->GetSucc(i)->GetFrequency());
+        succSum += bb->GetSucc(i)->GetFrequency();
+      }
+      if (succSum != bb->GetFrequency()) {
+         LogInfo::MapleLogger() << "ERROR::  bb " << bb->GetBBId() << "frequency inconsistent with sum of succs" << "\n";
       }
     }
   }
+  // clear stmtFreqs since cfg frequency is create
+  funcData->stmtFreqs.clear();
 }
 
 void MeCFG::ConstructStmtFreq() {

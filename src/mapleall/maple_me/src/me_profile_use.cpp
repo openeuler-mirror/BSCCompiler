@@ -298,8 +298,8 @@ bool MeProfUse::GcovRun() {
   GcovProfileData* gcovData = func->GetMIRModule().GetGcovProfile();
   if (!gcovData) return false;
   GcovFuncInfo* funcData = gcovData->GetFuncProfile(func->GetUniqueID());
-  func->GetMirFunc()->SetFuncProfData(funcData);
   if (!funcData) return false;
+  func->GetMirFunc()->SetFuncProfData(funcData);
   // early return if lineno fail
   uint64 linenohash = ComputeLinenoHash();
   uint32 lineNoChkSum = static_cast<uint32>((linenohash >> 32) ^ (linenohash & 0xffffffff));
@@ -308,6 +308,7 @@ bool MeProfUse::GcovRun() {
       LogInfo::MapleLogger() << func->GetName() << " lineno checksum doesn't match gcda value  "
                              << funcData->lineno_checksum << " lineno real hash " << lineNoChkSum << '\n';
     }
+    func->GetMirFunc()->SetFuncProfData(nullptr); // clear func profile data
     return false;
   }
   FindInstrumentEdges();
@@ -331,6 +332,7 @@ bool MeProfUse::GcovRun() {
       LogInfo::MapleLogger() << func->GetName() << " counter doesn't match profile counter "
                              << funcData->num_counts << " func real counter " <<  instrumentBBs.size() << '\n';
     }
+    func->GetMirFunc()->SetFuncProfData(nullptr); // clear func profile data
     return false;
   }
   size_t i = 0;
@@ -364,7 +366,6 @@ bool MEProfUse::PhaseRun(maple::MeFunction &f) {
     profUse.Run();
   }
 
-  //if (DEBUGFUNC_NEWPM(f) && profUse.IsSuccUseProf()) {
   if (result) {
     LogInfo::MapleLogger() << "******************after profile use  dump function******************\n";
     profUse.DumpFuncCFGEdgeFreq();

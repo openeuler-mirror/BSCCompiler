@@ -532,6 +532,17 @@ class MIRFunction {
     return codeMemPoolAllocator;
   }
 
+  TyIdx GetFuncRetStructTyIdx() {
+    TyIdx tyIdx = GetFormalDefAt(0).formalTyIdx;
+    MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+    CHECK_FATAL(ty->GetKind() == kTypePointer, "Fake param not a pointer");
+    MIRPtrType *pType = static_cast<MIRPtrType*>(ty);
+    tyIdx = pType->GetPointedTyIdx();
+    CHECK_FATAL(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->IsStructType(),
+                "Must be struct return type");
+    return tyIdx;
+  }
+
   void EnterFormals();
   void NewBody();
 
@@ -1239,7 +1250,13 @@ class MIRFunction {
   GcovFuncInfo* GetFuncProfData() {
     return funcProfData;
   }
-
+  GcovFuncInfo* GetFuncProfData() const {
+    return funcProfData;
+  }
+  void SetStmtFreq(uint32_t stmtID, uint64_t freq) {
+    ASSERT((funcProfData != nullptr && freq > 0), "nullptr check");
+    funcProfData->SetStmtFreq(stmtID, freq);
+  }
  private:
   MIRModule *module;     // the module that owns this function
   PUIdx puIdx = 0;           // the PU index of this function

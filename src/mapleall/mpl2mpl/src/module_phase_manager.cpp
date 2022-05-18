@@ -16,7 +16,7 @@
 #include "me_phase_manager.h"
 #include "ipa_phase_manager.h"
 #include "ipa_side_effect.h"
-#include "ipa_gcovprofile.h"
+#include "gcov_parser.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 #define CLANG (mirModule.IsCModule())
@@ -91,6 +91,7 @@ void MEBETopLevelManager::Run(maple::MIRModule &mod) {
     }
     DumpModule(mod, curPhase->PhaseName(), false);
   }
+  serialADM->EraseAllAnalysisPhase();
 }
 
 void MEBETopLevelManager::DoPhasesPopulate(const maple::MIRModule &mirModule) {
@@ -109,7 +110,6 @@ MAPLE_ANALYSIS_PHASE_REGISTER(M2MKlassHierarchy, classhierarchy)
 MAPLE_ANALYSIS_PHASE_REGISTER(M2MAnnotationAnalysis, annotationanalysis)
 MAPLE_ANALYSIS_PHASE_REGISTER(ProfileGenPM, ProfileGenPM)
 MAPLE_ANALYSIS_PHASE_REGISTER(M2MGcovParser, gcovparser)
-MAPLE_ANALYSIS_PHASE_REGISTER(IpaProfile, ipaprofile)
 
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MInline, inline)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MIPODevirtualize, ipodevirtulize)

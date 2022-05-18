@@ -80,6 +80,9 @@ void BB::DumpBBAttribute(const MIRModule *mod) const {
 void BB::DumpHeader(const MIRModule *mod) const {
   mod->GetOut() << "============BB id:" << GetBBId() << " " << StrAttribute() << " [";
   DumpBBAttribute(mod);
+  if (Options::profileUse && frequency >= 0) {
+    mod->GetOut() << "  freq: " << frequency  << " ";
+  }
   mod->GetOut() << "]===============\n";
   mod->GetOut() << "preds: ";
   for (const auto &predElement : pred) {
@@ -88,6 +91,14 @@ void BB::DumpHeader(const MIRModule *mod) const {
   mod->GetOut() << "\nsuccs: ";
   for (const auto &succElement : succ) {
     mod->GetOut() << succElement->GetBBId() << " ";
+  }
+  // dump edge frequency
+  if (Options::profileUse && succFreq.size() > 0) {
+    mod->GetOut() << "      succFreq [ ";
+    for (const auto &succFreq : succFreq) {
+      mod->GetOut() << succFreq << " ";
+    }
+    mod->GetOut() << " ]";
   }
   mod->GetOut() << '\n';
   if (bbLabel != 0) {
