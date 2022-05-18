@@ -115,6 +115,24 @@ bool LiveRange::IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLev) const 
          (cgFunc.GetBecommon().GetTypeSize(symbol->GetType()->GetTypeIndex().GetIdx()) > k16ByteSize))) {
       return false;
     }
+    if (!addrUpper && CGOptions::IsPIC() &&
+        ((symbol->GetStorageClass() == kScGlobal) ||
+         (symbol->GetStorageClass() == kScExtern))) {
+      /* check if in loop  */
+      bool useInLoop = false;
+      bool defOutLoop = false;
+      for (auto luIt: luMap) {
+        BB *bb = cgFunc.GetBBFromID(luIt.first);
+        LiveUnit *curLu = luIt.second;
+        if (bb->GetLoop() != nullptr && curLu->GetUseNum() != 0) {
+          useInLoop = true;
+        }
+        if (bb->GetLoop() == nullptr && curLu->GetDefNum() != 0) {
+          defOutLoop = true;
+        }
+      }
+      return !(useInLoop && defOutLoop);
+    }
     return true;
   }
   case OP_dread: {
