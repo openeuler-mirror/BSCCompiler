@@ -367,8 +367,9 @@ class A64PregCopyPattern : public PropOptimizePattern {
   }
 
  private:
+  bool CheckUselessDefInsn(Insn *defInsn);
   bool CheckValidDefInsn(Insn *defInsn);
-  bool CheckMultiUsePoints(VRegVersion *version);
+  bool CheckMultiUsePoints(Insn *defInsn);
   bool CheckPhiCaseCondition(Insn &curInsn, Insn &defInsn);
   bool DFSFindValidDefInsns(Insn *curDefInsn, std::unordered_map<uint32, bool> &visited);
   Insn &CreateNewPhiInsn(std::unordered_map<uint32, RegOperand*> &newPhiList, Insn *curInsn);

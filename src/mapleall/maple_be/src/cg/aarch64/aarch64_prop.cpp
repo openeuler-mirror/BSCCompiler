@@ -1511,8 +1511,11 @@ bool CopyRegProp::CheckCondition(Insn &insn) {
         if (destReg.GetValidBitsNum() >= srcReg.GetValidBitsNum()) {
           destReg.SetValidBitsNum(srcReg.GetValidBitsNum());
         } else {
-          CHECK_FATAL(false, "do not support explicit extract bit in mov");
-          return false;
+          MapleVector<uint32> &propInsns = optSsaInfo->GetSafePropInsns();
+          if (std::find(propInsns.begin(), propInsns.end(), insn.GetId()) == propInsns.end()) {
+            CHECK_FATAL(false, "do not support explicit extract bit in mov");
+            return false;
+          }
         }
         destVersion = optSsaInfo->FindSSAVersion(destReg.GetRegisterNumber());
         ASSERT(destVersion != nullptr, "find Version failed");
@@ -1845,11 +1848,16 @@ bool A64PregCopyPattern::DFSFindValidDefInsns(Insn *curDefInsn, std::unordered_m
   return true;
 }
 
-bool A64PregCopyPattern::CheckMultiUsePoints(VRegVersion *version) {
-  for (auto &useInfoIt : version->GetAllUseInsns()) {
+bool A64PregCopyPattern::CheckMultiUsePoints(Insn *defInsn) {
+  Operand &dstOpnd = defInsn->GetOperand(kInsnFirstOpnd);
+  CHECK_FATAL(dstOpnd.IsRegister(), "dstOpnd must be register");
+  VRegVersion *defVersion = optSsaInfo->FindSSAVersion(static_cast<RegOperand&>(dstOpnd).GetRegisterNumber());
+  /* use: (phi) or (mov preg) */
+  for (auto &useInfoIt : defVersion->GetAllUseInsns()) {
     DUInsnInfo *useInfo = useInfoIt.second;
     CHECK_FATAL(useInfo, "get useDUInfo failed");
     Insn *useInsn = useInfo->GetInsn();
+    CHECK_FATAL(useInsn, "get useInsn failed");
     if (!useInsn->IsPhi() && useInsn->GetMachineOpcode() != MOP_wmovrr && useInsn->GetMachineOpcode() != MOP_xmovrr) {
       return false;
     }
@@ -1875,11 +1883,7 @@ bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &curInsn, Insn &defInsn) {
     if (defMop != validDefInsns[i]->GetMachineOpcode()) {
       return false;
     }
-    Operand &dstOpnd = validDefInsns[i]->GetOperand(kInsnFirstOpnd);
-    CHECK_FATAL(dstOpnd.IsRegister(), "dstOpnd must be register");
-    VRegVersion *defVersion = optSsaInfo->FindSSAVersion(static_cast<RegOperand&>(dstOpnd).GetRegisterNumber());
-    /* use: (phi) or (mov preg) */
-    if (defVersion->GetAllUseInsns().size() > 1 && !CheckMultiUsePoints(defVersion)) {
+    if (!CheckMultiUsePoints(validDefInsns[i])) {
       return false;
     }
     for (uint32 idx = 0; idx < defOpndNum; ++idx) {
@@ -1916,6 +1920,50 @@ bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &curInsn, Insn &defInsn) {
     }
     if (differIdx <= 0) {
       return false;
+    }
+  }
+  return true;
+}
+
+bool A64PregCopyPattern::CheckUselessDefInsn(Insn *defInsn) {
+  Operand &dstOpnd = defInsn->GetOperand(kInsnFirstOpnd);
+  CHECK_FATAL(dstOpnd.IsRegister(), "dstOpnd must be register");
+  VRegVersion *defVersion = optSsaInfo->FindSSAVersion(static_cast<RegOperand&>(dstOpnd).GetRegisterNumber());
+  if (defVersion->GetAllUseInsns().size() == 1) {
+    return true;
+  }
+  /*
+   * avoid the case as following
+   * In a loop:
+   *                      [BB43]
+   *            phi: R356, (R345<42>, R377<63>)
+   *                     /           \
+   *                    /             \
+   *                 [BB44]            \
+   *             add R377, R356, #1    /
+   *             mov R1, R377         /
+   *                  bl             /
+   *                     \          /
+   *                      \        /
+   *                        [BB63]
+   */
+  for (auto &useInfoIt : defVersion->GetAllUseInsns()) {
+    DUInsnInfo *useInfo = useInfoIt.second;
+    CHECK_FATAL(useInfo, "get useDUInfo failed");
+    Insn *useInsn = useInfo->GetInsn();
+    CHECK_FATAL(useInsn, "get useInsn failed");
+    if (useInsn->IsPhi()) {
+      auto &phiDefOpnd = static_cast<RegOperand&>(useInsn->GetOperand(kInsnFirstOpnd));
+      uint32 opndNum = defInsn->GetOperandSize();
+      for (uint32 i = 0; i < opndNum; ++i) {
+        if (defInsn->OpndIsDef(i)) {
+          continue;
+        }
+        Operand &opnd = defInsn->GetOperand(i);
+        if (opnd.IsRegister() && static_cast<RegOperand&>(opnd).GetRegisterNumber() == phiDefOpnd.GetRegisterNumber()) {
+          return false;
+        }
+      }
     }
   }
   return true;
@@ -1966,9 +2014,7 @@ bool A64PregCopyPattern::CheckCondition(Insn &insn) {
   if (!defDstOpnd.IsRegister()) {
     return false;
   }
-  VRegVersion *defVersion = optSsaInfo->FindSSAVersion(static_cast<RegOperand&>(defDstOpnd).GetRegisterNumber());
-  /* use: (phi) or (mov preg) */
-  if (defVersion->GetAllUseInsns().size() > 1 && !CheckMultiUsePoints(defVersion)) {
+  if (!CheckMultiUsePoints(defInsn)) {
     return false;
   }
   if (defInsn->IsPhi()) {
@@ -1977,6 +2023,9 @@ bool A64PregCopyPattern::CheckCondition(Insn &insn) {
     return CheckPhiCaseCondition(insn, *defInsn);
   } else {
     if (!CheckValidDefInsn(defInsn)) {
+      return false;
+    }
+    if (!CheckUselessDefInsn(defInsn)) {
       return false;
     }
     validDefInsns.emplace_back(defInsn);
