@@ -12,290 +12,29 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "hir2mpl_options.h"
-#include <iostream>
-#include <sstream>
+#include "driver_options.h"
+#include "file_utils.h"
 #include "fe_options.h"
 #include "fe_macros.h"
+#include "fe_file_type.h"
+#include "hir2mpl_option.h"
+#include "hir2mpl_options.h"
 #include "option_parser.h"
 #include "parser_opt.h"
-#include "fe_file_type.h"
+#include "types_def.h"
 #include "version.h"
+
+#include <cstdint>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <unordered_set>
 
 namespace maple {
 using namespace mapleOption;
 
-enum OptionIndex : uint32 {
-  kHir2mplHelp = kCommonOptionEnd + 1,
-  // input control options
-  kMpltSys,
-  kMpltApk,
-  kInClass,
-  kInJar,
-  kInDex,
-  kInAST,
-  kInMAST,
-  // output control options
-  kOutputPath,
-  kOutputName,
-  kGenMpltOnly,
-  kGenAsciiMplt,
-  kDumpInstComment,
-  kNoMplFile,
-  // debug info control options
-  kDumpLevel,
-  kDumpTime,
-  kDumpComment,
-  kDumpLOC,
-  kDbgFriendly,
-  kDumpPhaseTime,
-  kDumpPhaseTimeDetail,
-  // bc bytecode compile options
-  kRC,
-  kNoBarrier,
-  // java bytecode compile options
-  kJavaStaticFieldName,
-  kJBCInfoUsePathName,
-  kDumpJBCStmt,
-  kDumpJBCAll,
-  kDumpJBCErrorOnly,
-  kDumpJBCFuncName,
-  kEmitJBCLocalVarInfo,
-  // ast compiler options
-  kUseSignedChar,
-  kFEBigEndian,
-  // general stmt/bb/cfg debug options
-  kDumpFEIRBB,
-  kDumpFEIRCFGGraph,
-  // multi-thread control options
-  kNThreads,
-  kDumpThreadTime,
-  // type-infer
-  kTypeInfer,
-  // On Demand Type Creation
-  kXBootClassPath,
-  kClassLoaderContext,
-  kInputFile,
-  kCollectDepTypes,
-  kDepSameNamePolicy,
-  // EnhanceC
-  kNpeCheckDynamic,
-  kBoundaryCheckDynamic,
-  kSafeRegion,
-  kO2,
-  kSimplifyShortCircuit,
-  kEnableVariableArray,
-  kFuncInlineSize,
-  kWPAA,
-};
-
-const Descriptor kUsage[] = {
-  { kUnknown, 0, "", "",
-    kBuildTypeAll, kArgCheckPolicyUnknown,
-    "\n====== Usage: hir2mpl [options] input1 input2 input3 ======\n"
-    " options:", "hir2mpl", {} },
-  { kHir2mplHelp, 0, "h", "help",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -h, -help              : print usage and exit", "hir2mpl", {} },
-  { kVersion, 0, "v", "version",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -v, -version           : print version and exit", "hir2mpl", {} },
-
-  // input control options
-  { kUnknown, 0, "", "",
-    kBuildTypeAll, kArgCheckPolicyUnknown,
-    "\n====== Input Control Options ======", "hir2mpl", {} },
-  { kMpltSys, 0, "", "mplt-sys",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -mplt-sys sys1.mplt,sys2.mplt\n"
-    "                         : input sys mplt files", "hir2mpl", {} },
-  { kMpltApk, 0, "", "mplt-apk",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -mplt-apk apk1.mplt,apk2.mplt\n"
-    "                         : input apk mplt files", "hir2mpl", {} },
-  { kInMplt, 0, "", "mplt",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -mplt lib1.mplt,lib2.mplt\n"
-    "                         : input mplt files", "hir2mpl", {} },
-  { kInClass, 0, "", "in-class",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -in-class file1.jar,file2.jar\n"
-    "                         : input class files", "hir2mpl", {} },
-  { kInJar, 0, "", "in-jar",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -in-jar file1.jar,file2.jar\n"
-    "                         : input jar files", "hir2mpl", {} },
-  { kInDex, 0, "", "in-dex",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -in-dex file1.dex,file2.dex\n"
-    "                         : input dex files", "hir2mpl", {} },
-  { kInAST, 0, "", "in-ast",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -in-ast file1.ast,file2.ast\n"
-    "                         : input ast files", "hir2mpl", {} },
-  { kInMAST, 0, "", "in-mast",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -in-mast file1.mast,file2.mast\n"
-    "                         : input mast files", "hir2mpl", {} },
-
-  // output control options
-  { kUnknown, 0, "", "",
-    kBuildTypeAll, kArgCheckPolicyUnknown,
-    "\n====== Output Control Options ======", "hir2mpl", {} },
-  { kOutputPath, 0, "p", "output",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -p, -output            : output path", "hir2mpl", {} },
-  { kOutputName, 0, "o", "output-name",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -o, -output-name       : output name", "hir2mpl", {} },
-  { kGenMpltOnly, 0, "t", "",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -t                     : generate mplt only", "hir2mpl", {} },
-  { kGenAsciiMplt, 0, "", "asciimplt",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -asciimplt             : generate mplt in ascii format", "hir2mpl", {} },
-  { kDumpInstComment, 0, "", "dump-inst-comment",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -dump-inst-comment     : dump instruction comment", "hir2mpl", {} },
-  { kNoMplFile, 0, "", "no-mpl-file",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -no-mpl-file           : disable dump mpl file", "hir2mpl", {} },
-
-  // debug info control options
-  { kUnknown, 0, "", "",
-    kBuildTypeAll, kArgCheckPolicyUnknown,
-    "\n====== Debug Info Control Options ======", "hir2mpl", {} },
-  { kDbgFriendly, 0, "", "g",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -g                     : emit debug friendly mpl, including\n"
-    "                           no variable renaming\n"
-    "                           gen LOC", "hir2mpl", {} },
-  { kDumpLevel, 0, "d", "dump-level",
-    kBuildTypeAll, kArgCheckPolicyNumeric,
-    "  -d, -dump-level xx     : debug info dump level\n"
-    "                           [0] disable\n"
-    "                           [1] dump simple info\n"
-    "                           [2] dump detail info\n"
-    "                           [3] dump debug info", "hir2mpl", {} },
-  { kDumpTime, 0, "", "dump-time",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -dump-time             : dump time", "hir2mpl", {} },
-  { kDumpComment, 0, "", "dump-comment",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -dump-comment          : gen comment stmt", "hir2mpl", {} },
-  { kDumpLOC, 0, "", "dump-LOC",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -dump-LOC              : gen LOC", "hir2mpl", {} },
-  { kDumpPhaseTime, 0, "", "dump-phase-time",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -dump-phase-time       : dump total phase time", "hir2mpl", {} },
-  { kDumpPhaseTimeDetail, 0, "", "dump-phase-time-detail",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -dump-phase-time-detail\n" \
-    "                         : dump phase time for each method", "hir2mpl", {} },
-  { kDumpFEIRBB, 0, "", "dump-bb",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -dump-bb               : dump basic blocks info", "hir2mpl", {} },
-  { kDumpFEIRCFGGraph, 0, "", "dump-cfg",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -dump-cfg funcname1,funcname2\n"\
-    "                         : dump cfg graph to dot file", "hir2mpl", {} },
-
-  // bc bytecode compile options
-  { kUnknown, 0, "", "",
-    kBuildTypeAll, kArgCheckPolicyUnknown,
-    "\n====== BC Bytecode Compile Options ======", "hir2mpl", {} },
-  { kRC, 0, "", "rc",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -rc                    : enable rc", "hir2mpl", {} },
-  { kNoBarrier, 0, "", "nobarrier",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -nobarrier             : no barrier", "hir2mpl", {} },
-
-  // ast compiler options
-  { kUnknown, 0, "", "",
-    kBuildTypeAll, kArgCheckPolicyUnknown,
-    "\n====== ast Compile Options ======", "hir2mpl", {} },
-  { kUseSignedChar, 0, "", "usesignedchar",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -usesignedchar         : use signed char", "hir2mpl", {} },
-  { kFEBigEndian, 0, "", "be",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -be                    : enable big endian", "hir2mpl", {} },
-      { kO2, 0, "O2", "",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -O2                    : enable hir2mpl O2 optimize", "hir2mpl", {} },
-  { kSimplifyShortCircuit, 0, "", "simplify-short-circuit",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -simplify-short-circuit\n" \
-    "                         : enable simplify short circuit", "hir2mpl", {} },
-  { kEnableVariableArray, 0, "", "enable-variable-array",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -enable-variable-array\n" \
-    "                         : enable variable array", "hir2mpl", {} },
-  { kFuncInlineSize, 0, "", "func-inline-size",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -func-inline-size      : set func inline size", "hir2mpl", {} },
-  { kWPAA, 0, "", "wpaa",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -wpaa                  : enable whole program ailas analysis", "hir2mpl", {} },
-
-  // multi-thread control
-  { kUnknown, 0, "", "",
-    kBuildTypeAll, kArgCheckPolicyUnknown,
-    "\n====== Multi-Thread Control Options ======", "hir2mpl", {} },
-  { kNThreads, 0, "", "np",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -np num                : number of threads", "hir2mpl", {} },
-  { kDumpThreadTime, 0, "", "dump-thread-time",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -dump-thread-time      : dump thread time in mpl schedular", "hir2mpl", {} },
-
-  // On Demand Type Creation
-  { kUnknown, 0, "", "",
-    kBuildTypeAll, kArgCheckPolicyUnknown,
-    "\n====== On Demand Type Creation ======", "hir2mpl", {} },
-  { kXBootClassPath, 0, "", "Xbootclasspath",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -Xbootclasspath=bootclasspath\n"\
-    "                         : boot class path list", "hir2mpl", {} },
-  { kClassLoaderContext, 0, "", "classloadercontext",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -classloadercontext=pcl\n"\
-    "                         : class loader context \n"\
-    "                         : path class loader", "hir2mpl", {} },
-  { kCollectDepTypes, 0, "", "dep",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -dep=all or func\n"\
-    "                         : [all]  collect all dependent types\n"\
-    "                         : [func] collect dependent types in function", "hir2mpl", {} },
-  { kDepSameNamePolicy, 0, "", "depsamename",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -DepSameNamePolicy=sys or src\n"\
-    "                         : [sys] load type from sys when on-demand load same name type\n"\
-    "                         : [src] load type from src when on-demand load same name type", "hir2mpl", {} },
-
-  // security check
-  { kUnknown, 0, "", "",
-    kBuildTypeAll, kArgCheckPolicyUnknown,
-    "\n====== Security Check ======", "hir2mpl", {} },
-  { kNpeCheckDynamic, 0, "", "npe-check-dynamic",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -npe-check-dynamic     : Nonnull pointr dynamic checking", "hir2mpl", {} },
-  { kBoundaryCheckDynamic, 0, "", "boundary-check-dynamic",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -boundary-check-dynamic\n" \
-    "                         : Boundary dynamic checking", "hir2mpl", {} },
-  { kSafeRegion, 0, "", "safe-region",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -safe-region           : Enable safe region", "hir2mpl", {} },
-  { kUnknown, 0, "", "",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "\n", "hir2mpl", {} }
-};
-
 HIR2MPLOptions::HIR2MPLOptions() {
-  CreateUsages(kUsage, sizeof(kUsage)/sizeof(kUsage[0]));
   Init();
 }
 
@@ -306,322 +45,330 @@ void HIR2MPLOptions::Init() {
 }
 
 bool HIR2MPLOptions::InitFactory() {
-  RegisterFactoryFunction<OptionProcessFactory>(kHir2mplHelp,
-                                                &HIR2MPLOptions::ProcessHelp);
-  RegisterFactoryFunction<OptionProcessFactory>(kVersion,
-                                                &HIR2MPLOptions::ProcessVersion);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::help,
+                                         &HIR2MPLOptions::ProcessHelp);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::version,
+                                         &HIR2MPLOptions::ProcessVersion);
 
   // input control options
-  RegisterFactoryFunction<OptionProcessFactory>(kMpltSys,
-                                                &HIR2MPLOptions::ProcessInputMpltFromSys);
-  RegisterFactoryFunction<OptionProcessFactory>(kMpltApk,
-                                                &HIR2MPLOptions::ProcessInputMpltFromApk);
-  RegisterFactoryFunction<OptionProcessFactory>(kInMplt,
-                                                &HIR2MPLOptions::ProcessInputMplt);
-  RegisterFactoryFunction<OptionProcessFactory>(kInClass,
-                                                &HIR2MPLOptions::ProcessInClass);
-  RegisterFactoryFunction<OptionProcessFactory>(kInJar,
-                                                &HIR2MPLOptions::ProcessInJar);
-  RegisterFactoryFunction<OptionProcessFactory>(kInDex,
-                                                &HIR2MPLOptions::ProcessInDex);
-  RegisterFactoryFunction<OptionProcessFactory>(kInAST,
-                                                &HIR2MPLOptions::ProcessInAST);
-  RegisterFactoryFunction<OptionProcessFactory>(kInMAST,
-                                                &HIR2MPLOptions::ProcessInMAST);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::mpltSys,
+                                         &HIR2MPLOptions::ProcessInputMpltFromSys);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::mpltApk,
+                                         &HIR2MPLOptions::ProcessInputMpltFromApk);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::mplt,
+                                         &HIR2MPLOptions::ProcessInputMplt);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::inClass,
+                                         &HIR2MPLOptions::ProcessInClass);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::inJar,
+                                         &HIR2MPLOptions::ProcessInJar);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::inDex,
+                                         &HIR2MPLOptions::ProcessInDex);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::inAst,
+                                         &HIR2MPLOptions::ProcessInAST);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::inMast,
+                                         &HIR2MPLOptions::ProcessInMAST);
 
   // output control options
-  RegisterFactoryFunction<OptionProcessFactory>(kOutputPath,
-                                                &HIR2MPLOptions::ProcessOutputPath);
-  RegisterFactoryFunction<OptionProcessFactory>(kOutputName,
-                                                &HIR2MPLOptions::ProcessOutputName);
-  RegisterFactoryFunction<OptionProcessFactory>(kGenMpltOnly,
-                                                &HIR2MPLOptions::ProcessGenMpltOnly);
-  RegisterFactoryFunction<OptionProcessFactory>(kGenAsciiMplt,
-                                                &HIR2MPLOptions::ProcessGenAsciiMplt);
-  RegisterFactoryFunction<OptionProcessFactory>(kDumpInstComment,
-                                                &HIR2MPLOptions::ProcessDumpInstComment);
-  RegisterFactoryFunction<OptionProcessFactory>(kNoMplFile,
-                                                &HIR2MPLOptions::ProcessNoMplFile);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::output,
+                                         &HIR2MPLOptions::ProcessOutputPath);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::outputName,
+                                         &HIR2MPLOptions::ProcessOutputName);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::mpltOnly,
+                                         &HIR2MPLOptions::ProcessGenMpltOnly);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::asciimplt,
+                                         &HIR2MPLOptions::ProcessGenAsciiMplt);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpInstComment,
+                                         &HIR2MPLOptions::ProcessDumpInstComment);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::noMplFile,
+                                         &HIR2MPLOptions::ProcessNoMplFile);
 
   // debug info control options
-  RegisterFactoryFunction<OptionProcessFactory>(kDumpLevel,
-                                                &HIR2MPLOptions::ProcessDumpLevel);
-  RegisterFactoryFunction<OptionProcessFactory>(kDumpTime,
-                                                &HIR2MPLOptions::ProcessDumpTime);
-  RegisterFactoryFunction<OptionProcessFactory>(kDumpComment,
-                                                &HIR2MPLOptions::ProcessDumpComment);
-  RegisterFactoryFunction<OptionProcessFactory>(kDumpLOC,
-                                                &HIR2MPLOptions::ProcessDumpLOC);
-  RegisterFactoryFunction<OptionProcessFactory>(kDbgFriendly,
-                                                &HIR2MPLOptions::ProcessDbgFriendly);
-  RegisterFactoryFunction<OptionProcessFactory>(kDumpPhaseTime,
-                                                &HIR2MPLOptions::ProcessDumpPhaseTime);
-  RegisterFactoryFunction<OptionProcessFactory>(kDumpPhaseTimeDetail,
-                                                &HIR2MPLOptions::ProcessDumpPhaseTimeDetail);
-
-  // java bytecode compile options
-  RegisterFactoryFunction<OptionProcessFactory>(kJavaStaticFieldName,
-                                                &HIR2MPLOptions::ProcessModeForJavaStaticFieldName);
-  RegisterFactoryFunction<OptionProcessFactory>(kJBCInfoUsePathName,
-                                                &HIR2MPLOptions::ProcessJBCInfoUsePathName);
-  RegisterFactoryFunction<OptionProcessFactory>(kDumpJBCStmt,
-                                                &HIR2MPLOptions::ProcessDumpJBCStmt);
-  RegisterFactoryFunction<OptionProcessFactory>(kDumpJBCErrorOnly,
-                                                &HIR2MPLOptions::ProcessDumpJBCErrorOnly);
-  RegisterFactoryFunction<OptionProcessFactory>(kDumpJBCFuncName,
-                                                &HIR2MPLOptions::ProcessDumpJBCFuncName);
-  RegisterFactoryFunction<OptionProcessFactory>(kEmitJBCLocalVarInfo,
-                                                &HIR2MPLOptions::ProcessEmitJBCLocalVarInfo);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpLevel,
+                                         &HIR2MPLOptions::ProcessDumpLevel);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpTime,
+                                         &HIR2MPLOptions::ProcessDumpTime);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpComment,
+                                         &HIR2MPLOptions::ProcessDumpComment);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpLOC,
+                                         &HIR2MPLOptions::ProcessDumpLOC);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dbgFriendly,
+                                         &HIR2MPLOptions::ProcessDbgFriendly);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpPhaseTime,
+                                         &HIR2MPLOptions::ProcessDumpPhaseTime);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpPhaseTimeDetail,
+                                         &HIR2MPLOptions::ProcessDumpPhaseTimeDetail);
 
   // general stmt/bb/cfg debug options
-  RegisterFactoryFunction<OptionProcessFactory>(kDumpFEIRBB,
-                                                &HIR2MPLOptions::ProcessDumpFEIRBB);
-  RegisterFactoryFunction<OptionProcessFactory>(kDumpFEIRCFGGraph,
-                                                &HIR2MPLOptions::ProcessDumpFEIRCFGGraph);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpFEIRBB,
+                                         &HIR2MPLOptions::ProcessDumpFEIRBB);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpFEIRCFGGraph,
+                                         &HIR2MPLOptions::ProcessDumpFEIRCFGGraph);
 
   // multi-thread control options
-  RegisterFactoryFunction<OptionProcessFactory>(kNThreads,
-                                                &HIR2MPLOptions::ProcessNThreads);
-  RegisterFactoryFunction<OptionProcessFactory>(kDumpThreadTime,
-                                                &HIR2MPLOptions::ProcessDumpThreadTime);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::np,
+                                         &HIR2MPLOptions::ProcessNThreads);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpThreadTime,
+                                         &HIR2MPLOptions::ProcessDumpThreadTime);
 
-  RegisterFactoryFunction<OptionProcessFactory>(kRC,
-                                                &HIR2MPLOptions::ProcessRC);
-  RegisterFactoryFunction<OptionProcessFactory>(kNoBarrier,
-                                                &HIR2MPLOptions::ProcessNoBarrier);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::rc,
+                                         &HIR2MPLOptions::ProcessRC);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::nobarrier,
+                                         &HIR2MPLOptions::ProcessNoBarrier);
 
   // ast compiler options
-  RegisterFactoryFunction<OptionProcessFactory>(kUseSignedChar,
-                                                &HIR2MPLOptions::ProcessUseSignedChar);
-  RegisterFactoryFunction<OptionProcessFactory>(kFEBigEndian,
-                                                &HIR2MPLOptions::ProcessBigEndian);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::usesignedchar,
+                                         &HIR2MPLOptions::ProcessUseSignedChar);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::be,
+                                         &HIR2MPLOptions::ProcessBigEndian);
   // On Demand Type Creation
-  RegisterFactoryFunction<OptionProcessFactory>(kXBootClassPath,
-                                                &HIR2MPLOptions::ProcessXbootclasspath);
-  RegisterFactoryFunction<OptionProcessFactory>(kClassLoaderContext,
-                                                &HIR2MPLOptions::ProcessClassLoaderContext);
-  RegisterFactoryFunction<OptionProcessFactory>(kInputFile,
-                                                &HIR2MPLOptions::ProcessCompilefile);
-  RegisterFactoryFunction<OptionProcessFactory>(kCollectDepTypes,
-                                                &HIR2MPLOptions::ProcessCollectDepTypes);
-  RegisterFactoryFunction<OptionProcessFactory>(kDepSameNamePolicy,
-                                                &HIR2MPLOptions::ProcessDepSameNamePolicy);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::xbootclasspath,
+                                         &HIR2MPLOptions::ProcessXbootclasspath);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::classloadercontext,
+                                         &HIR2MPLOptions::ProcessClassLoaderContext);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dep,
+                                         &HIR2MPLOptions::ProcessCollectDepTypes);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::depsamename,
+                                         &HIR2MPLOptions::ProcessDepSameNamePolicy);
   // EnhanceC
-  RegisterFactoryFunction<OptionProcessFactory>(kNpeCheckDynamic,
-                                                &HIR2MPLOptions::ProcessNpeCheckDynamic);
-  RegisterFactoryFunction<OptionProcessFactory>(kBoundaryCheckDynamic,
-                                                &HIR2MPLOptions::ProcessBoundaryCheckDynamic);
-  RegisterFactoryFunction<OptionProcessFactory>(kSafeRegion,
-                                                &HIR2MPLOptions::ProcessSafeRegion);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::npeCheckDynamic,
+                                         &HIR2MPLOptions::ProcessNpeCheckDynamic);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::boundaryCheckDynamic,
+                                         &HIR2MPLOptions::ProcessBoundaryCheckDynamic);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::safeRegion,
+                                         &HIR2MPLOptions::ProcessSafeRegion);
 
-  RegisterFactoryFunction<OptionProcessFactory>(kO2,
-                                                &HIR2MPLOptions::ProcessO2);
-  RegisterFactoryFunction<OptionProcessFactory>(kSimplifyShortCircuit,
-                                                &HIR2MPLOptions::ProcessSimplifyShortCircuit);
-  RegisterFactoryFunction<OptionProcessFactory>(kEnableVariableArray,
-                                                &HIR2MPLOptions::ProcessEnableVariableArray);
-  RegisterFactoryFunction<OptionProcessFactory>(kFuncInlineSize,
-                                                &HIR2MPLOptions::ProcessFuncInlineSize);
-  RegisterFactoryFunction<OptionProcessFactory>(kWPAA,
-                                                &HIR2MPLOptions::ProcessWPAA);
+#ifdef FIXME
+  // O2 does not work, because it generates OP_ror instruction but this instruction is not supported in me
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::o2,
+                                         &HIR2MPLOptions::ProcessO2);
+#endif
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::simplifyShortCircuit,
+                                         &HIR2MPLOptions::ProcessSimplifyShortCircuit);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::enableVariableArray,
+                                         &HIR2MPLOptions::ProcessEnableVariableArray);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::funcInliceSize,
+                                         &HIR2MPLOptions::ProcessFuncInlineSize);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::wpaa,
+                                         &HIR2MPLOptions::ProcessWPAA);
+
   return true;
 }
 
-bool HIR2MPLOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
-  for (const Option &opt : opts) {
+bool HIR2MPLOptions::SolveOptions(bool isDebug) {
+
+  for (const auto &opt : hir2mplCategory.GetEnabledOptions()) {
+    std::string printOpt;
     if (isDebug) {
-      LogInfo::MapleLogger() << "hir2mpl options: " << opt.Index() << " " << opt.OptionKey() << " " <<
-                                opt.Args() << '\n';
+      for (const auto &val : opt->GetRawValues()) {
+        printOpt += opt->GetName() + " " + val + " ";
+      }
+      LogInfo::MapleLogger() << "hir2mpl options: " << printOpt << '\n';
     }
-    auto func = CreateProductFunction<OptionProcessFactory>(opt.Index());
+
+    auto func = CreateProductFunction<OptionFactory>(opt);
     if (func != nullptr) {
-      if (!func(this, opt)) {
+      if (!func(this, *opt)) {
         return false;
       }
     }
   }
+
   return true;
 }
 
 bool HIR2MPLOptions::SolveArgs(int argc, char **argv) {
-  OptionParser optionParser;
-  optionParser.RegisteUsages(DriverOptionCommon::GetInstance());
-  optionParser.RegisteUsages(HIR2MPLOptions::GetInstance());
-  if (argc == 1) {
-    DumpUsage();
-    return false;
-  }
-  ErrorCode ret = optionParser.Parse(argc, argv, "hir2mpl");
-  if (ret != ErrorCode::kErrorNoError) {
-    DumpUsage();
-    return false;
-  }
 
-  bool result = SolveOptions(optionParser.GetOptions(), false);
+  cl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, hir2mplCategory);
+  bool result = SolveOptions(opts::hir2mpl::debug);
   if (!result) {
     return result;
   }
 
-  if (optionParser.GetNonOptionsCount() >= 1) {
-    const std::vector<std::string> &inputs = optionParser.GetNonOptions();
-    ProcessInputFiles(inputs);
+  std::vector<std::string> inputs;
+  for (auto &arg : cl::CommandLine::GetCommandLine().badCLArgs) {
+    if (FileUtils::IsFileExists(arg.first)) {
+      inputs.push_back(arg.first);
+    } else {
+      ERR(kLncErr, "Unknown Option: %s\n", arg.first.c_str());
+      DumpUsage();
+      return result;
+    }
   }
+
+  if (inputs.size() >= 1) {
+    ProcessInputFiles(inputs);
+    return true;
+  } else {
+    ERR(kLncErr, "Input File is not specified\n");
+    DumpUsage();
+    return false;
+  }
+
   return true;
 }
 
 void HIR2MPLOptions::DumpUsage() const {
-  for (unsigned int i = 0; kUsage[i].help != ""; i++) {
-    std::cout << kUsage[i].help << std::endl;
-  }
+  std::cout << "\n====== Usage: hir2mpl [options] input1 input2 input3 ======\n";
+  cl::CommandLine::GetCommandLine().HelpPrinter(hir2mplCategory);
 }
 
 void HIR2MPLOptions::DumpVersion() const {
   std::cout << "Maple FE Version : " << Version::GetVersionStr() << std::endl;
 }
 
-bool HIR2MPLOptions::ProcessHelp(const Option &opt) {
+bool HIR2MPLOptions::ProcessHelp(const cl::OptionInterface &) {
   DumpUsage();
   return false;
 }
 
-bool HIR2MPLOptions::ProcessVersion(const Option &opt) {
+bool HIR2MPLOptions::ProcessVersion(const cl::OptionInterface &) {
   DumpVersion();
   return false;
 }
 
-bool HIR2MPLOptions::ProcessInClass(const Option &opt) {
-  std::list<std::string> listFiles = SplitByComma(opt.Args());
+bool HIR2MPLOptions::ProcessInClass(const cl::OptionInterface &inClass) {
+  std::string arg = inClass.GetCommonValue();
+  std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
     FEOptions::GetInstance().AddInputClassFile(fileName);
   }
   return true;
 }
 
-bool HIR2MPLOptions::ProcessInJar(const Option &opt) {
-  std::list<std::string> listFiles = SplitByComma(opt.Args());
+bool HIR2MPLOptions::ProcessInJar(const cl::OptionInterface &inJar) {
+  std::string arg = inJar.GetCommonValue();
+  std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
     FEOptions::GetInstance().AddInputJarFile(fileName);
   }
   return true;
 }
 
-bool HIR2MPLOptions::ProcessInDex(const Option &opt) {
-  std::list<std::string> listFiles = SplitByComma(opt.Args());
+bool HIR2MPLOptions::ProcessInDex(const cl::OptionInterface &inDex) {
+  std::string arg = inDex.GetCommonValue();
+  std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
     FEOptions::GetInstance().AddInputDexFile(fileName);
   }
   return true;
 }
 
-bool HIR2MPLOptions::ProcessInAST(const Option &opt) {
-  std::list<std::string> listFiles = SplitByComma(opt.Args());
+bool HIR2MPLOptions::ProcessInAST(const cl::OptionInterface &inAst) {
+  std::string arg = inAst.GetCommonValue();
+  std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
     FEOptions::GetInstance().AddInputASTFile(fileName);
   }
   return true;
 }
 
-bool HIR2MPLOptions::ProcessInMAST(const Option &opt) {
-  std::list<std::string> listFiles = SplitByComma(opt.Args());
+bool HIR2MPLOptions::ProcessInMAST(const cl::OptionInterface &inMast) {
+  std::string arg = inMast.GetCommonValue();
+  std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
     FEOptions::GetInstance().AddInputMASTFile(fileName);
   }
   return true;
 }
 
-bool HIR2MPLOptions::ProcessInputMplt(const Option &opt) {
-  std::list<std::string> listFiles = SplitByComma(opt.Args());
+bool HIR2MPLOptions::ProcessInputMplt(const cl::OptionInterface &mplt) {
+  std::string arg = mplt.GetCommonValue();
+  std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
     FEOptions::GetInstance().AddInputMpltFile(fileName);
   }
   return true;
 }
 
-bool HIR2MPLOptions::ProcessInputMpltFromSys(const Option &opt) {
-  std::list<std::string> listFiles = SplitByComma(opt.Args());
+bool HIR2MPLOptions::ProcessInputMpltFromSys(const cl::OptionInterface &mpltSys) {
+  std::string arg = mpltSys.GetCommonValue();
+  std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
     FEOptions::GetInstance().AddInputMpltFileFromSys(fileName);
   }
   return true;
 }
 
-bool HIR2MPLOptions::ProcessInputMpltFromApk(const Option &opt) {
-  std::list<std::string> listFiles = SplitByComma(opt.Args());
+bool HIR2MPLOptions::ProcessInputMpltFromApk(const cl::OptionInterface &mpltApk) {
+  std::string arg = mpltApk.GetCommonValue();;
+  std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
     FEOptions::GetInstance().AddInputMpltFileFromApk(fileName);
   }
   return true;
 }
 
-bool HIR2MPLOptions::ProcessOutputPath(const Option &opt) {
-  FEOptions::GetInstance().SetOutputPath(opt.Args());
+bool HIR2MPLOptions::ProcessOutputPath(const cl::OptionInterface &output) {
+  std::string arg = output.GetCommonValue();
+  FEOptions::GetInstance().SetOutputPath(arg);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessOutputName(const Option &opt) {
-  FEOptions::GetInstance().SetOutputName(opt.Args());
+bool HIR2MPLOptions::ProcessOutputName(const cl::OptionInterface &outputName) {
+  std::string arg = outputName.GetCommonValue();
+  FEOptions::GetInstance().SetOutputName(arg);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessGenMpltOnly(const Option &opt) {
+bool HIR2MPLOptions::ProcessGenMpltOnly(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetIsGenMpltOnly(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessGenAsciiMplt(const Option &opt) {
+bool HIR2MPLOptions::ProcessGenAsciiMplt(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetIsGenAsciiMplt(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpInstComment(const Option &opt) {
+bool HIR2MPLOptions::ProcessDumpInstComment(const cl::OptionInterface &) {
   FEOptions::GetInstance().EnableDumpInstComment();
   return true;
 }
 
-bool HIR2MPLOptions::ProcessNoMplFile(const Option &opt) {
-  (void)opt;
+bool HIR2MPLOptions::ProcessNoMplFile(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetNoMplFile();
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpLevel(const Option &opt) {
-  FEOptions::GetInstance().SetDumpLevel(std::stoi(opt.Args()));
+bool HIR2MPLOptions::ProcessDumpLevel(const cl::OptionInterface &outputName) {
+  uint32_t arg = outputName.GetCommonValue();
+  FEOptions::GetInstance().SetDumpLevel(arg);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpTime(const Option &opt) {
+bool HIR2MPLOptions::ProcessDumpTime(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpTime(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpComment(const Option &opt) {
+bool HIR2MPLOptions::ProcessDumpComment(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpComment(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpLOC(const Option &opt) {
+bool HIR2MPLOptions::ProcessDumpLOC(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpLOC(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDbgFriendly(const Option &opt) {
+bool HIR2MPLOptions::ProcessDbgFriendly(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetDbgFriendly(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpPhaseTime(const Option &opt) {
+bool HIR2MPLOptions::ProcessDumpPhaseTime(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpPhaseTime(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpPhaseTimeDetail(const Option &opt) {
+bool HIR2MPLOptions::ProcessDumpPhaseTimeDetail(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpPhaseTimeDetail(true);
   return true;
 }
 
 // java compiler options
-bool HIR2MPLOptions::ProcessModeForJavaStaticFieldName(const Option &opt) {
-  std::string arg = opt.Args();
+bool HIR2MPLOptions::ProcessModeForJavaStaticFieldName(const cl::OptionInterface &opt) {
+  const std::string &arg = opt.GetCommonValue();
   if (arg.compare("notype") == 0) {
     FEOptions::GetInstance().SetModeJavaStaticFieldName(FEOptions::ModeJavaStaticFieldName::kNoType);
   } else if (arg.compare("alltype") == 0) {
@@ -635,28 +382,28 @@ bool HIR2MPLOptions::ProcessModeForJavaStaticFieldName(const Option &opt) {
   return true;
 }
 
-bool HIR2MPLOptions::ProcessJBCInfoUsePathName(const Option &opt) {
+bool HIR2MPLOptions::ProcessJBCInfoUsePathName(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetIsJBCInfoUsePathName(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpJBCStmt(const Option &opt) {
+bool HIR2MPLOptions::ProcessDumpJBCStmt(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpJBCStmt(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpJBCAll(const Option &opt) {
+bool HIR2MPLOptions::ProcessDumpJBCAll(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpJBCAll(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpJBCErrorOnly(const Option &opt) {
+bool HIR2MPLOptions::ProcessDumpJBCErrorOnly(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpJBCErrorOnly(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpJBCFuncName(const Option &opt) {
-  std::string arg = opt.Args();
+bool HIR2MPLOptions::ProcessDumpJBCFuncName(const cl::OptionInterface &opt) {
+  std::string arg = opt.GetCommonValue();
   while (!arg.empty()) {
     size_t pos = arg.find(",");
     if (pos != std::string::npos) {
@@ -670,41 +417,42 @@ bool HIR2MPLOptions::ProcessDumpJBCFuncName(const Option &opt) {
   return true;
 }
 
-bool HIR2MPLOptions::ProcessEmitJBCLocalVarInfo(const Option &opt) {
+bool HIR2MPLOptions::ProcessEmitJBCLocalVarInfo(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetIsEmitJBCLocalVarInfo(true);
   return true;
 }
 
 // bc compiler options
-bool HIR2MPLOptions::ProcessRC(const Option &opt) {
+bool HIR2MPLOptions::ProcessRC(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetRC(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessNoBarrier(const Option &opt) {
+bool HIR2MPLOptions::ProcessNoBarrier(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetNoBarrier(true);
   return true;
 }
 
 // ast compiler options
-bool HIR2MPLOptions::ProcessUseSignedChar(const Option &opt) {
+bool HIR2MPLOptions::ProcessUseSignedChar(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetUseSignedChar(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessBigEndian(const Option &opt) {
+bool HIR2MPLOptions::ProcessBigEndian(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetBigEndian(true);
   return true;
 }
 
 // general stmt/bb/cfg debug options
-bool HIR2MPLOptions::ProcessDumpFEIRBB(const Option &opt) {
+bool HIR2MPLOptions::ProcessDumpFEIRBB(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpFEIRBB(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpFEIRCFGGraph(const Option &opt) {
-  std::list<std::string> funcNameList = SplitByComma(opt.Args());
+bool HIR2MPLOptions::ProcessDumpFEIRCFGGraph(const cl::OptionInterface &opt) {
+  std::string arg = opt.GetCommonValue();
+  std::list<std::string> funcNameList = SplitByComma(arg);
   for (const std::string &funcName : funcNameList) {
     FEOptions::GetInstance().AddFuncNameForDumpCFGGraph(funcName);
   }
@@ -712,16 +460,13 @@ bool HIR2MPLOptions::ProcessDumpFEIRCFGGraph(const Option &opt) {
 }
 
 // multi-thread control options
-bool HIR2MPLOptions::ProcessNThreads(const Option &opt) {
-  std::string arg = opt.Args();
-  int np = std::stoi(arg);
-  if (np > 0) {
-    FEOptions::GetInstance().SetNThreads(static_cast<uint32>(np));
-  }
+bool HIR2MPLOptions::ProcessNThreads(const cl::OptionInterface &numThreads) {
+  uint32_t num = numThreads.GetCommonValue();
+  FEOptions::GetInstance().SetNThreads(num);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpThreadTime(const Option &opt) {
+bool HIR2MPLOptions::ProcessDumpThreadTime(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetDumpThreadTime(true);
   return true;
 }
@@ -759,26 +504,22 @@ void HIR2MPLOptions::ProcessInputFiles(const std::vector<std::string> &inputs) {
 }
 
 // Xbootclasspath
-bool HIR2MPLOptions::ProcessXbootclasspath(const Option &opt) {
-  FEOptions::GetInstance().SetXBootClassPath(opt.Args());
+bool HIR2MPLOptions::ProcessXbootclasspath(const cl::OptionInterface &xbootclasspath) {
+  std::string arg = xbootclasspath.GetCommonValue();
+  FEOptions::GetInstance().SetXBootClassPath(arg);
   return true;
 }
 
 // PCL
-bool HIR2MPLOptions::ProcessClassLoaderContext(const Option &opt) {
-  FEOptions::GetInstance().SetClassLoaderContext(opt.Args());
-  return true;
-}
-
-// CompileFile
-bool HIR2MPLOptions::ProcessCompilefile(const Option &opt) {
-  FEOptions::GetInstance().SetCompileFileName(opt.Args());
+bool HIR2MPLOptions::ProcessClassLoaderContext(const cl::OptionInterface &classloadercontext) {
+  std::string arg = classloadercontext.GetCommonValue();
+  FEOptions::GetInstance().SetClassLoaderContext(arg);
   return true;
 }
 
 // Dep
-bool HIR2MPLOptions::ProcessCollectDepTypes(const Option &opt) {
-  std::string arg = opt.Args();
+bool HIR2MPLOptions::ProcessCollectDepTypes(const cl::OptionInterface &dep) {
+  const std::string arg = dep.GetCommonValue();
   if (arg.compare("all") == 0) {
     FEOptions::GetInstance().SetModeCollectDepTypes(FEOptions::ModeCollectDepTypes::kAll);
   } else if (arg.compare("func") == 0) {
@@ -791,8 +532,8 @@ bool HIR2MPLOptions::ProcessCollectDepTypes(const Option &opt) {
 }
 
 // SameNamePolicy
-bool HIR2MPLOptions::ProcessDepSameNamePolicy(const Option &opt) {
-  std::string arg = opt.Args();
+bool HIR2MPLOptions::ProcessDepSameNamePolicy(const cl::OptionInterface &depsamename) {
+  const std::string arg = depsamename.GetCommonValue();
   if (arg.compare("sys") == 0) {
     FEOptions::GetInstance().SetModeDepSameNamePolicy(FEOptions::ModeDepSameNamePolicy::kSys);
   } else if (arg.compare("src") == 0) {
@@ -805,17 +546,17 @@ bool HIR2MPLOptions::ProcessDepSameNamePolicy(const Option &opt) {
 }
 
 // EnhanceC
-bool HIR2MPLOptions::ProcessNpeCheckDynamic(const mapleOption::Option &opt) {
+bool HIR2MPLOptions::ProcessNpeCheckDynamic(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetNpeCheckDynamic(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessBoundaryCheckDynamic(const mapleOption::Option &opt) {
+bool HIR2MPLOptions::ProcessBoundaryCheckDynamic(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetBoundaryCheckDynamic(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessSafeRegion(const mapleOption::Option &opt) {
+bool HIR2MPLOptions::ProcessSafeRegion(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetSafeRegion(true);
   // boundary and npe checking options will be opened, if safe region option is opened
   FEOptions::GetInstance().SetNpeCheckDynamic(true);
@@ -823,38 +564,35 @@ bool HIR2MPLOptions::ProcessSafeRegion(const mapleOption::Option &opt) {
   return true;
 }
 
-bool HIR2MPLOptions::ProcessO2(const mapleOption::Option &opt) {
+bool HIR2MPLOptions::ProcessO2(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetO2(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessSimplifyShortCircuit(const mapleOption::Option &opt) {
+bool HIR2MPLOptions::ProcessSimplifyShortCircuit(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetSimplifyShortCircuit(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessEnableVariableArray(const mapleOption::Option &opt) {
+bool HIR2MPLOptions::ProcessEnableVariableArray(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetEnableVariableArray(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessFuncInlineSize(const mapleOption::Option &opt) {
-  std::string arg = opt.Args();
-  int size = std::stoi(arg);
-  if (size > 0) {
-    FEOptions::GetInstance().SetFuncInlineSize(static_cast<uint32>(size));
-  }
+bool HIR2MPLOptions::ProcessFuncInlineSize(const cl::OptionInterface &funcInliceSize) {
+  uint32_t size = funcInliceSize.GetCommonValue();
+  FEOptions::GetInstance().SetFuncInlineSize(size);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessWPAA(const mapleOption::Option &opt) {
+bool HIR2MPLOptions::ProcessWPAA(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetWPAA(true);
   FEOptions::GetInstance().SetFuncInlineSize(UINT32_MAX);
   return true;
 }
 
 // AOT
-bool HIR2MPLOptions::ProcessAOT(const Option &opt) {
+bool HIR2MPLOptions::ProcessAOT(const cl::OptionInterface &) {
   FEOptions::GetInstance().SetIsAOT(true);
   return true;
 }

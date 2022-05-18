@@ -104,6 +104,7 @@ static_library("lib_hir2mpl_common") {
     "${HIR2MPL_ROOT}/common/src/hir2mpl_compiler_component.cpp",
     "${HIR2MPL_ROOT}/common/src/hir2mpl_env.cpp",
     "${HIR2MPL_ROOT}/common/src/hir2mpl_options.cpp",
+    "${HIR2MPL_ROOT}/common/src/hir2mpl_option.cpp",
     "${HIR2MPL_ROOT}/common/src/simple_xml.cpp",
     "${HIR2MPL_ROOT}/common/src/simple_zip.cpp",
     "${HIR2MPL_ROOT}/common/src/generic_attrs.cpp",

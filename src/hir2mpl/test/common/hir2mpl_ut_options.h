@@ -16,10 +16,9 @@
 #define HIR2MPL_INCLUDE_HIR2MPL_UT_OPTIONS_H
 #include <string>
 #include <list>
-#include "driver_option_common.h"
 
 namespace maple {
-class HIR2MPLUTOptions : public maple::MapleDriverOptionBase {
+class HIR2MPLUTOptions {
  public:
   HIR2MPLUTOptions();
   ~HIR2MPLUTOptions() = default;

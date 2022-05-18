@@ -17,7 +17,6 @@
 #include <list>
 #include <memory>
 #include "mir_module.h"
-#include "hir2mpl_options.h"
 #include "fe_function.h"
 #include "fe_input.h"
 #include "fe_input_helper.h"

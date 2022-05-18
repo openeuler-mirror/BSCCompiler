@@ -12,59 +12,54 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "cl_option.h"
 #include "hir2mpl_ut_options.h"
 #include <iostream>
 #include "mpl_logging.h"
-#include "option_parser.h"
 #include "parser_opt.h"
 
 namespace maple {
-using namespace mapleOption;
 
-enum OptionIndex {
-  kHir2mplUTHelp = kCommonOptionEnd + 1,   // -h
-  kGenBase64,                            // -genBase64
-  kInClass,                              // -in-class
-  kInJar,                                // -in-jar
-  kMplt,                                 // -mplt
-};
+namespace opts::hir2mplut {
 
-const Descriptor kUsage[] = {
-  { kUnknown, 0, "", "", kBuildTypeAll, kArgCheckPolicyUnknown,
-    "========================================\n"
-    " Run gtest: hir2mplUT\n"
-    " Run gtest: hir2mplUT test [ options for gtest ]\n"
-    " Run ext mode: hir2mplUT ext [ options ]\n"
-    "========= options for ext mode =========" },
-  { kHelp, 0, "h", "help", kBuildTypeAll, kArgCheckPolicyNone,
-    "  -h, --help                : print usage and exit", "hir2mplUT", {} },
-  { kGenBase64, 0, "", "gen-base64", kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -gen-base64 file.xx       : generate base64 string for file.xx", "hir2mplUT", {} },
-  { kInClass, 0, "", "in-class", kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -in-class file1.class,file2.class\n"
-    "                            : input class files", "hir2mplUT", {} },
-  { kInJar, 0, "", "in-jar", kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -in-jar file1.jar,file2.jar\n"
-    "                            : input jar files", "hir2mplUT", {} },
-  { kMplt, 0, "", "mplt", kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -mplt lib1.mplt,lib2.mplt\n"
-    "                            : input mplt files", "hir2mplUT", {} },
-  { kUnknown, 0, "", "", kBuildTypeAll, kArgCheckPolicyNone, "", "hir2mplUT", {} }
-};
+static cl::OptionCategory hir2mplUTCategory;
+
+cl::Option<bool> help({"--help", "-h"},
+                      "  -h, -help              : print usage and exit",
+                      {hir2mplUTCategory});
+cl::Option<std::string> genBase64({"--gen-base64", "-gen-base64"},
+                                  "  -gen-base64 file.xx       : generate base64 string for file.xx",
+                                  {hir2mplUTCategory});
+cl::Option<std::string> mplt({"--mplt", "-mplt"},
+                             "  -mplt lib1.mplt,lib2.mplt\n"
+                             "                         : input mplt files",
+                             {hir2mplUTCategory});
+
+cl::Option<std::string> inClass({"--in-class", "-in-class"},
+                                "  -in-class file1.jar,file2.jar\n"
+                                "                         : input class files",
+                                {hir2mplUTCategory});
+
+cl::Option<std::string> inJar({"--in-jar", "-in-jar"},
+                              "  -in-jar file1.jar,file2.jar\n"
+                              "                         : input jar files",
+                              {hir2mplUTCategory});
+}
 
 HIR2MPLUTOptions::HIR2MPLUTOptions()
     : runAll(false),
       runAllWithCore(false),
       genBase64(false),
       base64SrcFileName(""),
-      coreMpltName("") {
-        CreateUsages(kUsage, sizeof(kUsage)/sizeof(kUsage[0]));
-      }
+      coreMpltName("") {}
 
 void HIR2MPLUTOptions::DumpUsage() const {
-  for (unsigned int i = 0; !kUsage[i].help.empty(); i++) {
-    std::cout << kUsage[i].help << std::endl;
-  }
+  std::cout << "========================================\n"
+            << " Run gtest: hir2mplUT\n"
+            << " Run gtest: hir2mplUT test [ options for gtest ]\n"
+            << " Run ext mode: hir2mplUT ext [ options ]\n"
+            << "========= options for ext mode =========\n";
+  cl::CommandLine::GetCommandLine().HelpPrinter(opts::hir2mplut::hir2mplUTCategory);
   exit(1);
 }
 
@@ -88,40 +83,30 @@ bool HIR2MPLUTOptions::SolveArgs(int argc, char **argv) {
     return false;
   }
   runAll = false;
-  OptionParser optionParser;
-  optionParser.RegisteUsages(DriverOptionCommon::GetInstance());
-  optionParser.RegisteUsages(HIR2MPLUTOptions::GetInstance());
 
-  ErrorCode ret = optionParser.Parse(argc, argv, "hir2mplUT");
-  if (ret != ErrorCode::kErrorNoError) {
+  cl::CommandLine::GetCommandLine().Parse(argc, (char **)argv,
+                                          opts::hir2mplut::hir2mplUTCategory);
+  if (opts::hir2mplut::help) {
     DumpUsage();
     return false;
   }
 
-  for (auto opt : optionParser.GetOptions()) {
-    switch (opt.Index()) {
-      case kHir2mplUTHelp:
-        DumpUsage();
-        return false;
-      case kGenBase64:
-        base64SrcFileName = opt.Args();
-        genBase64 = true;
-        break;
-      case kInClass:
-        Split(opt.Args(), ',', std::back_inserter(classFileList));
-        break;
-      case kInJar:
-        Split(opt.Args(), ',', std::back_inserter(jarFileList));
-        break;
-      case kMplt:
-        Split(opt.Args(), ',', std::back_inserter(mpltFileList));
-        break;
-      default:
-        FATAL(kLncFatal, "Unsupport option %s", opt.OptionKey().c_str());
-        DumpUsage();
-        return false;
-    }
+  if (opts::hir2mplut::genBase64.IsEnabledByUser()) {
+    base64SrcFileName = opts::hir2mplut::genBase64;
   }
+
+  if (opts::hir2mplut::inClass.IsEnabledByUser()) {
+    Split(opts::hir2mplut::inClass, ',', std::back_inserter(classFileList));
+  }
+
+  if (opts::hir2mplut::inJar.IsEnabledByUser()) {
+    Split(opts::hir2mplut::inJar, ',', std::back_inserter(jarFileList));
+  }
+
+  if (opts::hir2mplut::mplt.IsEnabledByUser()) {
+    Split(opts::hir2mplut::mplt, ',', std::back_inserter(mpltFileList));
+  }
+
   return true;
 }
 
