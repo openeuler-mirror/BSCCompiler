@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "orig_symbol.h"
+#include "ver_symbol.h"
 #include "class_hierarchy.h"
 
 namespace maple {
@@ -28,12 +29,53 @@ bool OriginalSt::Equal(const OriginalSt &ost) const {
   return false;
 }
 
+// current ost can not be define by MayDef, or used by mayUse
+bool OriginalSt::IsTopLevelOst() const {
+  // 1. pregs, exclude special-pregs, are top-level.
+  if (IsPregOst()) {
+    if (IsSpecialPreg()) {
+      return false;
+    }
+    return true;
+  }
+  // 2. address taken symbols, may be defined via dereference, are not top-level.
+  if (addressTaken) {
+    return false;
+  }
+  // 3. global symbols, can be defined by callees, are not top-level.
+  if (!isLocal) {
+    return false;
+  }
+  // 4. local static symbols, can be defined by recursive callees, are not top-level.
+  if (GetMIRSymbol()->IsPUStatic()) {
+    return false;
+  }
+  return true;
+}
+
+void OriginalSt::SetPointerVst(const VersionSt *vst) {
+  ASSERT(pointerVstIdx == 0 || pointerVstIdx == vst->GetIndex(), "wrong pointee");
+  pointerVstIdx = vst->GetIndex();
+  prevLevOst = vst->GetOst();
+}
+
 void OriginalSt::Dump() const {
+  if (indirectLev > 0) {
+    GetPrevLevelOst()->Dump();
+    LogInfo::MapleLogger() << "(vstIdx:" << pointerVstIdx << ")";
+    LogInfo::MapleLogger() << "->" << "{" << fieldID << "/" << offset.val << "}" << "[idx:" << GetIndex() <<"]";
+    if (IsFinal()) {
+      LogInfo::MapleLogger() << "F";
+    }
+    if (IsPrivate()) {
+      LogInfo::MapleLogger() << "P";
+    }
+    return;
+  }
+
   if (IsSymbolOst()) {
     LogInfo::MapleLogger() << (symOrPreg.mirSt->IsGlobal() ? "$" : "%") << symOrPreg.mirSt->GetName();
-    if (!offset.IsInvalid()) {
-      LogInfo::MapleLogger() << "{" << "offset:" << offset.val << "}";
-    }
+    LogInfo::MapleLogger() << "{" << "offset:" << (offset.IsInvalid() ? "UND" : std::to_string(offset.val)) << "}";
     if (fieldID != 0) {
       LogInfo::MapleLogger() << "{" << fieldID << "}";
     }
@@ -60,7 +102,8 @@ OriginalStTable::OriginalStTable(MemPool &memPool, MIRModule &mod)
       preg2Ost(alloc.Adapter()),
       pType2Ost(std::less<TyIdx>(), alloc.Adapter()),
       malloc2Ost(alloc.Adapter()),
-      thisField2Ost(std::less<uint32>(), alloc.Adapter()) {}
+      thisField2Ost(std::less<uint32>(), alloc.Adapter()),
+      nextLevelOstsOfVst(alloc.Adapter()) {}
 
 void OriginalStTable::Dump() {
   mirModule.GetOut() << "==========original st table===========\n";
@@ -155,13 +198,17 @@ OriginalSt *OriginalStTable::CreatePregOriginalSt(PregIdx regidx, PUIdx pidx) {
   return ost;
 }
 
-OriginalSt *OriginalStTable::FindSymbolOriginalSt(const MIRSymbol &mirst) {
-  auto it = mirSt2Ost.find(SymbolFieldPair(mirst.GetStIdx(), 0, mirst.GetTyIdx(), OffsetType(0)));
+OriginalSt *OriginalStTable::FindSymbolOriginalSt(const MIRSymbol &mirst, FieldID fld, const TyIdx &tyIdx,
+                                                  const OffsetType &offset) {
+  const auto it = mirSt2Ost.find(SymbolFieldPair(mirst.GetStIdx(), fld, tyIdx, offset));
   if (it == mirSt2Ost.end()) {
     return nullptr;
   }
-  CHECK_FATAL(it->second < originalStVector.size(), "index out of range in OriginalStTable::FindSymbolOriginalSt");
-  return originalStVector[it->second];
+  return GetOriginalStFromID(it->second);
+}
+
+OriginalSt *OriginalStTable::FindSymbolOriginalSt(const MIRSymbol &mirst) {
+  return FindSymbolOriginalSt(mirst, 0, mirst.GetTyIdx(), OffsetType(0));
 }
 
 OriginalSt *OriginalStTable::FindOrCreateAddrofSymbolOriginalSt(OriginalSt *ost) {
@@ -185,15 +232,14 @@ OriginalSt *OriginalStTable::FindOrCreateAddrofSymbolOriginalSt(OriginalSt *ost)
     prevLevelOst->SetFieldID(0);
     addrofSt2Ost[ost->GetMIRSymbol()->GetStIdx()] = prevLevelOst->GetIndex();
   }
-  ost->SetPrevLevelOst(prevLevelOst);
-  prevLevelOst->AddNextLevelOst(ost);
   return prevLevelOst;
 }
 
-OriginalSt *OriginalStTable::FindOrCreateExtraLevSymOrRegOriginalSt(OriginalSt *ost, TyIdx tyIdx,
+OriginalSt *OriginalStTable::FindOrCreateExtraLevSymOrRegOriginalSt(const VersionSt *vst, TyIdx tyIdx,
     FieldID fld, const OffsetType &offset, const KlassHierarchy *klassHierarchy) {
   MIRType *typeOfExtraLevOst = GlobalTables::GetTypeTable().GetVoid();
   OffsetType offsetOfNextLevOst(kOffsetUnknown);
+  auto ost = vst->GetOst();
   tyIdx = (tyIdx == 0u) ? ost->GetTyIdx() : tyIdx;
   if (tyIdx != 0u) {
     // use the tyIdx info from the instruction
@@ -222,7 +268,7 @@ OriginalSt *OriginalStTable::FindOrCreateExtraLevSymOrRegOriginalSt(OriginalSt *
     }
   }
   OriginalSt *nextLevOst =
-      FindExtraLevOriginalSt(ost->GetNextLevelOsts(), typeOfExtraLevOst, fldIDInOst, offsetOfNextLevOst);
+      FindExtraLevOriginalSt(vst, typeOfExtraLevOst, fldIDInOst, offsetOfNextLevOst);
   if (nextLevOst != nullptr) {
     return nextLevOst;
   }
@@ -239,7 +285,7 @@ OriginalSt *OriginalStTable::FindOrCreateExtraLevSymOrRegOriginalSt(OriginalSt *
   originalStVector.push_back(nextLevOst);
   CHECK_FATAL(ost->GetIndirectLev() < INT8_MAX, "boundary check");
   nextLevOst->SetIndirectLev(ost->GetIndirectLev() + 1);
-  nextLevOst->SetPrevLevelOst(ost);
+  nextLevOst->SetPointerVst(vst);
   nextLevOst->SetOffset(offsetOfNextLevOst);
   nextLevOst->SetAddressTaken(true);
   tyIdx = (tyIdx == 0u) ? ost->GetTyIdx() : tyIdx;
@@ -258,14 +304,14 @@ OriginalSt *OriginalStTable::FindOrCreateExtraLevSymOrRegOriginalSt(OriginalSt *
   if (GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx())->PointsToConstString()) {
     nextLevOst->SetIsFinal(true);
   }
-  ost->AddNextLevelOst(nextLevOst);
+  AddNextLevelOstOfVst(vst, nextLevOst);
   return nextLevOst;
 }
 
-OriginalSt *OriginalStTable::FindOrCreateExtraLevOriginalSt(OriginalSt *ost, TyIdx ptyIdx, FieldID fld,
+OriginalSt *OriginalStTable::FindOrCreateExtraLevOriginalSt(const VersionSt *vst, TyIdx ptyIdx, FieldID fld,
                                                             const OffsetType &offset) {
-  if (ost->IsSymbolOst() || ost->IsPregOst()) {
-    return FindOrCreateExtraLevSymOrRegOriginalSt(ost, ptyIdx, fld, offset);
+  if (vst->GetOst()->IsSymbolOst() || vst->GetOst()->IsPregOst()) {
+    return FindOrCreateExtraLevSymOrRegOriginalSt(vst, ptyIdx, fld, offset);
   }
   return nullptr;
 }
@@ -280,5 +326,42 @@ OriginalSt *OriginalStTable::FindExtraLevOriginalSt(const MapleVector<OriginalSt
     }
   }
   return nullptr;
+}
+
+void OriginalStTable::AddNextLevelOstOfVst(size_t vstIdx, OriginalSt *ost) {
+  if (vstIdx >= nextLevelOstsOfVst.size()) {
+    size_t bufferSize = 10;
+    size_t incNum = vstIdx - nextLevelOstsOfVst.size() + bufferSize;
+    nextLevelOstsOfVst.insert(nextLevelOstsOfVst.end(), incNum, nullptr);
+  }
+  if (nextLevelOstsOfVst[vstIdx] == nullptr) {
+    nextLevelOstsOfVst[vstIdx] = alloc.New<MapleVector<OriginalSt*>>(alloc.Adapter());
+  }
+  nextLevelOstsOfVst[vstIdx]->push_back(ost);
+}
+
+void OriginalStTable::AddNextLevelOstOfVst(const VersionSt *vst, OriginalSt *ost) {
+  AddNextLevelOstOfVst(vst->GetIndex(), ost);
+}
+
+MapleVector<OriginalSt*> *OriginalStTable::GetNextLevelOstsOfVst(size_t vstIdx) const {
+  if (vstIdx >= nextLevelOstsOfVst.size()) {
+    return nullptr;
+  }
+  return nextLevelOstsOfVst[vstIdx];
+}
+
+MapleVector<OriginalSt*> *OriginalStTable::GetNextLevelOstsOfVst(const VersionSt *vst) const {
+  return GetNextLevelOstsOfVst(vst->GetIndex());
+}
+
+OriginalSt *OriginalStTable::FindExtraLevOriginalSt(const VersionSt *vst, const MIRType *type, FieldID fld,
+                                                    const OffsetType &offset) const {
+  auto *nextLevelOsts = GetNextLevelOstsOfVst(vst);
+  if (nextLevelOsts == nullptr) {
+    return nullptr;
+  }
+
+  return FindExtraLevOriginalSt(*nextLevelOsts, type, fld, offset);
 }
 }  // namespace maple

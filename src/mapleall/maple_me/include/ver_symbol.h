@@ -27,6 +27,7 @@ class MustDefNode;  // circular dependency exists, no other choice
 class VersionStTable;  // circular dependency exists, no other choice
 class OriginalSt;  // circular dependency exists, no other choice
 
+constexpr size_t kInvalidVstIdx = 0;
 class VersionSt {
  public:
   enum DefType {
@@ -137,7 +138,7 @@ class VersionSt {
     if (!omitName) {
       ost->Dump();
     }
-    LogInfo::MapleLogger() << "(" << version << ")";
+    LogInfo::MapleLogger() << "(vno" << version << "|vstIdx:" << index << ")";
   }
 
   bool DefByMayDef() const {
@@ -167,11 +168,16 @@ class VersionStTable {
     versionStVector.push_back(static_cast<VersionSt*>(nullptr));
   }
 
+  using VersionStContainer = MapleVector<VersionSt*>;
+  using VersionStIterator = VersionStContainer::iterator;
+  using ConstVersionStIterator = VersionStContainer::const_iterator;
+
   ~VersionStTable() = default;
 
   VersionSt *CreateNextVersionSt(OriginalSt *ost);
 
   void CreateZeroVersionSt(OriginalSt *ost);
+  VersionSt *GetOrCreateZeroVersionSt(OriginalSt &ost);
 
   VersionSt *GetZeroVersionSt(const OriginalSt *ost) const {
     CHECK_FATAL(ost->GetVersionsIndices().size() != 0, "GetZeroVersionSt:: zero version has not been created");
@@ -197,6 +203,28 @@ class VersionStTable {
   }
 
   void Dump(const MIRModule *mod) const;
+
+  ConstVersionStIterator begin() const {
+    auto it = versionStVector.begin();
+    // first element in versionStVector is null.
+    ++it;
+    return it;
+  }
+
+  VersionStIterator begin() {
+    auto it = versionStVector.begin();
+    // first element in versionStVector is null.
+    ++it;
+    return it;
+  }
+
+  ConstVersionStIterator end() const {
+    return versionStVector.end();
+  }
+
+  VersionStIterator end() {
+    return versionStVector.end();
+  }
 
  private:
   MapleAllocator vstAlloc;                   // this stores versionStVector
