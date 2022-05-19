@@ -2738,6 +2738,18 @@ class FEIRStmtDoWhile : public FEIRStmt {
         bodyStmts(std::move(argBodyStmts)) {}
   ~FEIRStmtDoWhile() = default;
 
+  const std::list<UniqueFEIRStmt> &GetBodyStmts() const {
+   return bodyStmts;
+  }
+
+  const UniqueFEIRExpr &GetCondExpr() const {
+    return condExpr;
+  }
+
+  const Opcode GetOpcode() const {
+    return opcode;
+  }
+
  protected:
   bool IsBranchImpl() const override {
     return true;

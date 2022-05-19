@@ -681,7 +681,7 @@ class ASTBinaryOperatorExpr : public ASTExpr {
  public:
   ASTBinaryOperatorExpr(MapleAllocator &allocatorIn, ASTOp o) : ASTExpr(o) {}
   explicit ASTBinaryOperatorExpr(MapleAllocator &allocatorIn)
-      : ASTExpr(kASTOpBO), varName(FEUtils::GetSequentialName("shortCircuit_")) {}
+      : ASTExpr(kASTOpBO), varName(FEUtils::GetSequentialName("shortCircuit_"), allocatorIn.GetMemPool()) {}
 
   ~ASTBinaryOperatorExpr() override = default;
 
@@ -738,6 +738,10 @@ class ASTBinaryOperatorExpr : public ASTExpr {
     falseIdx = rightIdx;
   }
 
+  std::string GetVarName() const {
+    return varName.c_str() == nullptr ? "" : varName.c_str();
+  }
+
   UniqueFEIRType SelectBinaryOperatorType(UniqueFEIRExpr &left, UniqueFEIRExpr &right) const;
 
  protected:
@@ -758,7 +762,7 @@ class ASTBinaryOperatorExpr : public ASTExpr {
   ASTExpr *rightRealExpr = nullptr;
   ASTExpr *rightImagExpr = nullptr;
   bool cvtNeeded = false;
-  std::string varName;
+  MapleString varName;
   uint32 trueIdx = 0;
   uint32 falseIdx = 0;
 };

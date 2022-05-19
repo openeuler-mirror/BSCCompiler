@@ -65,7 +65,8 @@ class FEFunctionDemo : public FEFunction {
   }
 
   void LoadGenStmtDemo1();
-
+  void LoadGenStmtDemo2();
+  void LoadGenStmtDemo3();
 };
 
 class FEIRLowerTest : public FEIRTestBase {
@@ -101,6 +102,42 @@ void FEFunctionDemo::LoadGenStmtDemo1() {
   AppendFEIRStmts(stmts);
 }
 
+// whileStmt/forStmt
+void FEFunctionDemo::LoadGenStmtDemo2() {
+  // conditionExpr: val > 10
+  UniqueFEIRVar varReg = FEIRBuilder::CreateVarReg(0, PTY_i32);
+  UniqueFEIRExpr exprDRead = FEIRBuilder::CreateExprDRead(varReg->Clone());
+  UniqueFEIRExpr exprConst = FEIRBuilder::CreateExprConstI32(10);
+  UniqueFEIRExpr conditionExpr = FEIRBuilder::CreateExprBinary(OP_gt, exprDRead->Clone(), exprConst->Clone());
+  // bodyStmts : --val
+  UniqueFEIRExpr exprConst2 = FEIRBuilder::CreateExprConstI32(1);
+  UniqueFEIRExpr subExpr = FEIRBuilder::CreateExprBinary(OP_sub, exprDRead->Clone(), exprConst2->Clone());
+  UniqueFEIRStmt bodyStmt = FEIRBuilder::CreateStmtDAssign(varReg->Clone(), subExpr->Clone());
+  std::list<UniqueFEIRStmt> bodayStmts;
+  bodayStmts.emplace_back(std::move(bodyStmt));
+  std::list<UniqueFEIRStmt> stmts;
+  stmts.emplace_back(std::make_unique<FEIRStmtDoWhile>(OP_while, std::move(conditionExpr), std::move(bodayStmts)));
+  AppendFEIRStmts(stmts);
+}
+
+// doWhileStmt
+void FEFunctionDemo::LoadGenStmtDemo3() {
+  // bodayStmts --val
+  UniqueFEIRVar varReg = FEIRBuilder::CreateVarReg(0, PTY_i32);
+  UniqueFEIRExpr exprDRead = FEIRBuilder::CreateExprDRead(varReg->Clone());
+  UniqueFEIRExpr exprConst = FEIRBuilder::CreateExprConstI32(1);
+  UniqueFEIRExpr subExpr = FEIRBuilder::CreateExprBinary(OP_sub, exprDRead->Clone(), exprConst->Clone());
+  UniqueFEIRStmt bodyStmt = FEIRBuilder::CreateStmtDAssign(varReg->Clone(), subExpr->Clone());
+  std::list<UniqueFEIRStmt> bodayStmts;
+  bodayStmts.emplace_back(std::move(bodyStmt));
+  // conditionExpr: val > 10
+  UniqueFEIRExpr exprConst2 = FEIRBuilder::CreateExprConstI32(10);
+  UniqueFEIRExpr conditionExpr = FEIRBuilder::CreateExprBinary(OP_gt, exprDRead->Clone(), exprConst2->Clone());
+  std::list<UniqueFEIRStmt> stmts;
+  stmts.emplace_back(std::make_unique<FEIRStmtDoWhile>(OP_dowhile, std::move(conditionExpr), std::move(bodayStmts)));
+  AppendFEIRStmts(stmts);
+}
+
 TEST_F(FEIRLowerTest, IfStmtLower) {
   feFunc.LoadGenStmtDemo1();
   bool res = feFunc.LowerFunc("fert lower");
@@ -125,6 +162,54 @@ TEST_F(FEIRLowerTest, IfStmtLower) {
             static_cast<FEIRStmtLabel*>(feFunc.GetFEIRStmtTail()->GetPrev()->GetPrev()->GetPrev())->GetLabelName());
   ASSERT_EQ(static_cast<FEIRStmtGotoForC*>(head->GetNext()->GetNext()->GetNext())->GetLabelName(),
             static_cast<FEIRStmtLabel*>(feFunc.GetFEIRStmtTail()->GetPrev())->GetLabelName());
+  RestoreCout();
+}
+
+TEST_F(FEIRLowerTest, WhileAndForStmtLower) {
+  feFunc.LoadGenStmtDemo2();
+  bool res = feFunc.LowerFunc("fert lower");
+  ASSERT_EQ(res, true);
+  RedirectCout();
+  const FEIRStmt *head = feFunc.GetFEIRStmtHead();
+  FEIRStmt *stmt = static_cast<FEIRStmt*>(head->GetNext());
+  while (stmt != nullptr && stmt->GetKind() != kStmtPesudoFuncEnd) {
+    std::list<StmtNode*> baseNodes = stmt->GenMIRStmts(mirBuilder);
+    baseNodes.front()->Dump();
+    stmt = static_cast<FEIRStmt*>(stmt->GetNext());
+  }
+  std::string pattern =
+      "@.*\n"
+      "brfalse @.* \\(gt u1 i32 \\(dread i32 %Reg0_I, constval i32 10\\)\\)\n\n"\
+      "dassign %Reg0_I 0 \\(sub i32 \\(dread i32 %Reg0_I, constval i32 1\\)\\)\n\n"\
+      "goto @.*\n\n"\
+      "@.*\n";
+  ASSERT_EQ(HIR2MPLUTRegx::Match(GetBufferString(), pattern), true);
+  ASSERT_EQ(static_cast<FEIRStmtCondGotoForC*>(head->GetNext()->GetNext())->GetLabelName(),
+            static_cast<FEIRStmtLabel*>(feFunc.GetFEIRStmtTail()->GetPrev())->GetLabelName());
+  ASSERT_EQ(static_cast<FEIRStmtGotoForC*>(feFunc.GetFEIRStmtTail()->GetPrev()->GetPrev())->GetLabelName(),
+            static_cast<FEIRStmtLabel*>(head->GetNext())->GetLabelName());
+  RestoreCout();
+}
+
+TEST_F(FEIRLowerTest, DoWhileStmtLower) {
+  feFunc.LoadGenStmtDemo3();
+  bool res = feFunc.LowerFunc("fert lower");
+  ASSERT_EQ(res, true);
+  RedirectCout();
+  const FEIRStmt *head = feFunc.GetFEIRStmtHead();
+  FEIRStmt *stmt = static_cast<FEIRStmt*>(head->GetNext());
+  while (stmt != nullptr && stmt->GetKind() != kStmtPesudoFuncEnd) {
+    std::list<StmtNode*> baseNodes = stmt->GenMIRStmts(mirBuilder);
+    baseNodes.front()->Dump();
+    stmt = static_cast<FEIRStmt*>(stmt->GetNext());
+  }
+  std::string pattern =
+      "@.*\n"
+      "dassign %Reg0_I 0 \\(sub i32 \\(dread i32 %Reg0_I, constval i32 1\\)\\)\n\n"\
+      "brtrue @.* \\(gt u1 i32 \\(dread i32 %Reg0_I, constval i32 10\\)\\)\n\n";
+  ASSERT_EQ(HIR2MPLUTRegx::Match(GetBufferString(), pattern), true);
+  ASSERT_EQ(static_cast<FEIRStmtCondGotoForC*>(feFunc.GetFEIRStmtTail()->GetPrev())->GetLabelName(),
+            static_cast<FEIRStmtLabel*>(head->GetNext())->GetLabelName());
   RestoreCout();
 }
 }  // namespace maple

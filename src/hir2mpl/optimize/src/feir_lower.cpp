@@ -79,6 +79,9 @@ void FEIRLower::LowerStmt(FEIRStmt *stmt, FEIRStmt *ptrTail) {
       case kStmtIf:
         LowerIfStmt(*static_cast<FEIRStmtIf*>(stmt), ptrTail);
         break;
+      case kStmtDoWhile:
+        ProcessLoopStmt(*static_cast<FEIRStmtDoWhile*>(stmt), ptrTail);
+        break;
       case kStmtPesudoTail:
       case kStmtPesudoFuncEnd:
         return;
@@ -150,6 +153,86 @@ void FEIRLower::LowerIfStmt(FEIRStmtIf &ifStmt, FEIRStmt *ptrTail) {
     gotoStmt->AddExtraSucc(*endLabelStmt);
     endLabelStmt->AddExtraPred(*gotoStmt);
   }
+}
+
+// for/dowhile/while stmts
+void FEIRLower::ProcessLoopStmt(FEIRStmtDoWhile &stmt, FEIRStmt *ptrTail) {
+  FEIRStmt *bodyHead = nullptr;
+  FEIRStmt *bodyTail = nullptr;
+  if (!stmt.GetBodyStmts().empty()) {
+    bodyHead = CreateHeadAndTail();
+    bodyTail = static_cast<FEIRStmt*>(bodyHead->GetNext());
+    LowerStmt(stmt.GetBodyStmts(), bodyTail);
+  }
+  // for/while
+  if (stmt.GetOpcode() == OP_while) {
+    return LowerWhileStmt(stmt, bodyHead, bodyTail, ptrTail);
+  }
+  // dowhile
+  if (stmt.GetOpcode() == OP_dowhile) {
+    return LowerDoWhileStmt(stmt, bodyHead, bodyTail, ptrTail);
+  }
+}
+
+/*
+ * while <cond> <body>
+ * is lowered to :
+ * label <whilelabel>
+ * brfalse <cond> <endlabel>
+ * <body>
+ * goto <whilelabel>
+ * label <endlabel>
+ */
+void FEIRLower::LowerWhileStmt(FEIRStmtDoWhile &whileStmt, FEIRStmt *bodyHead,
+                               FEIRStmt *bodyTail, FEIRStmt *ptrTail) {
+  std::string whileLabelName = FEUtils::CreateLabelName();
+  // label <whilelabel>
+  auto whileLabelStmt = RegisterAndInsertFEIRStmt(std::make_unique<FEIRStmtLabel>(whileLabelName), ptrTail);
+  std::string endLabelName = FEUtils::CreateLabelName();
+  // brfalse <cond> <endlabel>
+  UniqueFEIRStmt condFEStmt = std::make_unique<FEIRStmtCondGotoForC>(
+      whileStmt.GetCondExpr()->Clone(), OP_brfalse, endLabelName);
+  auto condStmt = RegisterAndInsertFEIRStmt(
+      std::move(condFEStmt), ptrTail, whileStmt.GetSrcFileIdx(), whileStmt.GetSrcFileLineNum());
+  if (bodyHead != nullptr && bodyTail != nullptr) {
+    // <body>
+    FELinkListNode::SpliceNodes(bodyHead, bodyTail, ptrTail);
+  }
+  // goto <whilelabel>
+  auto gotoStmt = RegisterAndInsertFEIRStmt(FEIRBuilder::CreateStmtGoto(whileLabelName), ptrTail);
+  // label <endlabel>
+  auto endLabelStmt = RegisterAndInsertFEIRStmt(std::make_unique<FEIRStmtLabel>(endLabelName), ptrTail);
+  // link bb
+  condStmt->AddExtraSucc(*endLabelStmt);
+  endLabelStmt->AddExtraPred(*condStmt);
+  gotoStmt->AddExtraSucc(*whileLabelStmt);
+  whileLabelStmt->AddExtraPred(*gotoStmt);
+}
+
+/*
+ * dowhile <body> <cond>
+ * is lowered to:
+ * label <bodylabel>
+ * <body>
+ * brtrue <cond> <bodylabel>
+ */
+void FEIRLower::LowerDoWhileStmt(FEIRStmtDoWhile &doWhileStmt, FEIRStmt *bodyHead,
+                                 FEIRStmt *bodyTail, FEIRStmt *ptrTail) {
+  std::string bodyLabelName = FEUtils::CreateLabelName();
+  // label <bodylabel>
+  auto bodyLabelStmt = RegisterAndInsertFEIRStmt(std::make_unique<FEIRStmtLabel>(bodyLabelName), ptrTail);
+  if (bodyHead != nullptr && bodyTail != nullptr) {
+    // <body>
+    FELinkListNode::SpliceNodes(bodyHead, bodyTail, ptrTail);
+  }
+  // brtrue <cond> <bodylabel>
+  UniqueFEIRStmt condFEStmt = std::make_unique<FEIRStmtCondGotoForC>(
+      doWhileStmt.GetCondExpr()->Clone(), OP_brtrue, bodyLabelName);
+  auto condStmt = RegisterAndInsertFEIRStmt(
+      std::move(condFEStmt), ptrTail, doWhileStmt.GetSrcFileIdx(), doWhileStmt.GetSrcFileLineNum());
+  // link bb
+  condStmt->AddExtraSucc(*bodyLabelStmt);
+  bodyLabelStmt->AddExtraPred(*condStmt);
 }
 
 void FEIRLower::CreateAndInsertCondStmt(Opcode op, FEIRStmtIf &ifStmt,

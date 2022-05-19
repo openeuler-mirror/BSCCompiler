@@ -41,6 +41,9 @@ class FEIRLower {
   FEIRStmt *RegisterAuxFEIRStmt(UniqueFEIRStmt stmt);
   FEIRStmt *RegisterAndInsertFEIRStmt(UniqueFEIRStmt stmt, FEIRStmt *ptrTail, uint32 fileIdx = 0, uint32 fileLine = 0);
   void LowerIfStmt(FEIRStmtIf &ifStmt, FEIRStmt *ptrTail);
+  void ProcessLoopStmt(FEIRStmtDoWhile &stmt, FEIRStmt *ptrTail);
+  void LowerWhileStmt(FEIRStmtDoWhile &whileStmt, FEIRStmt *bodyHead, FEIRStmt *bodyTail, FEIRStmt *ptrTail);
+  void LowerDoWhileStmt(FEIRStmtDoWhile &doWhileStmt, FEIRStmt *bodyHead, FEIRStmt *bodyTail, FEIRStmt *ptrTail);
   void CreateAndInsertCondStmt(Opcode op, FEIRStmtIf &ifStmt, FEIRStmt *head, FEIRStmt *tail, FEIRStmt *ptrTail);
 
   FEFunction &func;

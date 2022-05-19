@@ -49,6 +49,8 @@ bool LibAstFile::Open(const MapleString &fileName,
 void LibAstFile::DisposeTranslationUnit() {
     clang_disposeIndex(index);
     clang_disposeTranslationUnit(translationUnit);
+    delete mangleContext;
+    mangleContext = nullptr;
     translationUnit = nullptr;
     index = nullptr;
 }
