@@ -10171,11 +10171,6 @@ void AArch64CGFunc::SelectArithmeticAndLogical(Operand &resOpnd, Operand &opnd0,
 
 Operand *AArch64CGFunc::SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore) {
   auto primType = intrinopNode.GetPrimType();
-  Operand *addrOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnFirstOpnd));
-  Operand *valueOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnSecondOpnd));
-  addrOpnd = &LoadIntoRegister(*addrOpnd, intrinopNode.GetNopndAt(kInsnFirstOpnd)->GetPrimType());
-  valueOpnd = &LoadIntoRegister(*valueOpnd, intrinopNode.GetNopndAt(kInsnSecondOpnd)->GetPrimType());
-
   /* Create BB which includes atomic built_in function */
   LabelIdx atomicBBLabIdx = CreateLabel();
   BB *atomicBB = CreateNewBB();
@@ -10184,7 +10179,18 @@ Operand *AArch64CGFunc::SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopN
   atomicBB->AddLabel(atomicBBLabIdx);
   SetLab2BBMap(static_cast<int32>(atomicBBLabIdx), *atomicBB);
   GetCurBB()->AppendBB(*atomicBB);
-  SetCurBB(*atomicBB);
+  /* keep variables inside same BB */
+  if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0) {
+    SetCurBB(*atomicBB);
+  }
+  /* handle built_in args */
+  Operand *addrOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnFirstOpnd));
+  Operand *valueOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnSecondOpnd));
+  addrOpnd = &LoadIntoRegister(*addrOpnd, intrinopNode.GetNopndAt(kInsnFirstOpnd)->GetPrimType());
+  valueOpnd = &LoadIntoRegister(*valueOpnd, intrinopNode.GetNopndAt(kInsnSecondOpnd)->GetPrimType());
+  if (GetCG()->GetOptimizeLevel() != CGOptions::kLevel0) {
+    SetCurBB(*atomicBB);
+  }
   /* load from pointed address */
   auto primTypeP2Size = GetPrimTypeP2Size(primType);
   auto *regLoaded = &CreateRegisterOperandOfType(primType);
@@ -10211,9 +10217,6 @@ Operand *AArch64CGFunc::SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopN
 }
 
 Operand *AArch64CGFunc::SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, PrimType primType, bool retBool) {
-  Operand *addrOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnFirstOpnd));
-  Operand *oldVal = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnSecondOpnd));
-  Operand *newVal = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnThirdOpnd));
   LabelIdx atomicBBLabIdx = CreateLabel();
   BB *atomicBB = CreateNewBB();
   atomicBB->SetKind(BB::kBBIf);
@@ -10221,7 +10224,17 @@ Operand *AArch64CGFunc::SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, 
   atomicBB->AddLabel(atomicBBLabIdx);
   SetLab2BBMap(static_cast<int32>(atomicBBLabIdx), *atomicBB);
   GetCurBB()->AppendBB(*atomicBB);
-  SetCurBB(*atomicBB);
+  if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0) {
+    SetCurBB(*atomicBB);
+  }
+  /* handle built_in args */
+  Operand *addrOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnFirstOpnd));
+  Operand *oldVal = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnSecondOpnd));
+  Operand *newVal = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnThirdOpnd));
+  if (GetCG()->GetOptimizeLevel() != CGOptions::kLevel0) {
+    SetCurBB(*atomicBB);
+  }
+
   uint32 primTypeP2Size = GetPrimTypeP2Size(primType);
   /* ldxr */
   auto *regLoaded = &CreateRegisterOperandOfType(primType);
