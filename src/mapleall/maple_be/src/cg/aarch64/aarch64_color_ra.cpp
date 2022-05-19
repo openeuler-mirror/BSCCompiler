@@ -1756,8 +1756,9 @@ bool GraphColorRegAllocator::AssignColorToLr(LiveRange &lr, bool isDelayed) {
   regno_t reg = FindColorForLr(lr);
   if (lr.GetNumCall() != 0 && lr.GetCrossCall() == false) {
     callerSaveReg = TryToAssignCallerSave(lr);
-    if (callerSaveReg != 0 && AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(reg)) &&
-        intCalleeUsed.find(reg) == intCalleeUsed.end() && fpCalleeUsed.find(reg) == fpCalleeUsed.end()) {
+    bool prefCaller = AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(reg)) &&
+                      intCalleeUsed.find(reg) == intCalleeUsed.end() && fpCalleeUsed.find(reg) == fpCalleeUsed.end();
+    if (callerSaveReg != 0 && (prefCaller || !AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(reg)))) {
       reg = callerSaveReg;
       lr.SetNumCall(0);
     }
@@ -4091,6 +4092,19 @@ static bool ReloadAtCallee(CgOccur *occ) {
   return static_cast<CgStoreOcc *>(defOcc)->Reload();
 }
 
+void CallerSavePre::DumpWorkCandAndOcc() {
+  if (workCand->GetTheOperand()->IsRegister()) {
+    LogInfo::MapleLogger() << "Cand R";
+    LogInfo::MapleLogger() << static_cast<RegOperand*>(workCand->GetTheOperand())->GetRegisterNumber() << '\n';
+  } else {
+    LogInfo::MapleLogger() << "Cand Index" << workCand->GetIndex() << '\n';
+  }
+  for (CgOccur *occ : allOccs) {
+    occ->Dump();
+    LogInfo::MapleLogger() << '\n';
+  }
+}
+
 void CallerSavePre::CodeMotion() {
   constexpr uint32 limitNum = UINT32_MAX;
   uint32 cnt = 0;
@@ -4135,12 +4149,8 @@ void CallerSavePre::CodeMotion() {
   }
   if (dump) {
     PreWorkCand *curCand = workCand;
-    LogInfo::MapleLogger() << "========ssapre candidate " << curCand->GetIndex() << " after codemotion==============\n";
-    workCand->GetTheOperand()->Dump();
-    for (CgOccur *occ : allOccs) {
-      occ->Dump();
-      LogInfo::MapleLogger() << '\n';
-    }
+    LogInfo::MapleLogger() << "========ssapre candidate " << curCand->GetIndex() << " after codemotion ===========\n";
+    DumpWorkCandAndOcc();
     func->DumpCFGToDot("raCodeMotion-");
   }
 }
@@ -4284,12 +4294,7 @@ void CallerSavePre::CalLoadSites() {
     PreWorkCand *curCand = workCand;
     LogInfo::MapleLogger() << "========ssapre candidate " << curCand->GetIndex()
         << " after CalLoadSite===================\n";
-    workCand->GetTheOperand()->Dump();
-    LogInfo::MapleLogger() << '\n';
-    for (CgOccur *occ : allOccs) {
-      occ->Dump();
-      LogInfo::MapleLogger() << '\n';
-    }
+    DumpWorkCandAndOcc();
     LogInfo::MapleLogger() << "\n";
   }
 }
@@ -4439,11 +4444,7 @@ void CallerSavePre::Rename1() {
   if (dump) {
     PreWorkCand *curCand = workCand;
     LogInfo::MapleLogger() << "========ssapre candidate " << curCand->GetIndex() << " after rename1============\n";
-    workCand->GetTheOperand()->Dump();
-    for (CgOccur *occ : allOccs) {
-      occ->Dump();
-      LogInfo::MapleLogger() << '\n';
-    }
+    DumpWorkCandAndOcc();
   }
 }
 

@@ -1544,6 +1544,7 @@ class CallerSavePre: public CGPre {
   void Rename1();
   void ComputeVarAndDfPhis() override;
   void BuildWorkList() override;
+  void DumpWorkCandAndOcc();
 
   BB *GetBB(uint32 id) const override {
     return func->GetBBFromID(id);
