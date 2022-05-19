@@ -195,6 +195,7 @@ class IVOptimizer {
   bool CreateIVFromSub(OpMeExpr &op, MeStmt &stmt);
   bool CreateIVFromCvt(OpMeExpr &op, MeStmt &stmt);
   bool CreateIVFromIaddrof(OpMeExpr &op, MeStmt &stmt);
+  OpMeExpr *TryCvtCmp(OpMeExpr &op, MeStmt &stmt);
   bool FindGeneralIVInExpr(MeStmt &stmt, MeExpr &expr, bool useInAddress = false);
   bool LHSEscape(const ScalarMeExpr *lhs);
   void FindGeneralIVInStmt(MeStmt &stmt);
@@ -729,6 +730,128 @@ bool IVOptimizer::CreateIVFromIaddrof(OpMeExpr &op, MeStmt &stmt) {
   return true;
 }
 
+// try to cvt condition OP in condition stmt STMT to ne because it's better for optimization
+OpMeExpr *IVOptimizer::TryCvtCmp(OpMeExpr &op, MeStmt &stmt) {
+  if (data->currLoop->inloopBB2exitBBs.size() != 1 ||  // do not handle multi-exit loop
+      (stmt.GetOp() != OP_brfalse && stmt.GetOp() != OP_brtrue) ||
+      cfg->GetBBFromID(data->currLoop->inloopBB2exitBBs.begin()->first)->GetLastMe() != &stmt) {
+    return &op;
+  }
+  auto *bb = stmt.GetBB();
+  if (!dom->Dominate(*bb, *data->currLoop->latch)) {
+    return &op;
+  }
+  auto &condbr = static_cast<CondGotoMeStmt&>(stmt);
+  bool fallthruInLoop = data->currLoop->loopBBs.count(bb->GetSucc(0)->GetBBId()) != 0;
+  bool targetInLoop = data->currLoop->loopBBs.count(bb->GetSucc(1)->GetBBId()) != 0;
+  CHECK_FATAL(fallthruInLoop != targetInLoop, "TryCvtCmp: check loop form.");
+  IV *iv = nullptr;
+  MeExpr *opnd = nullptr;
+  auto *iv0 = data->GetIV(*op.GetOpnd(0));
+  auto *iv1 = data->GetIV(*op.GetOpnd(1));
+  auto *opnd0 = op.GetOpnd(0);
+  auto *opnd1 = op.GetOpnd(1);
+  OpMeExpr newOp(op, kInvalidExprID);
+  // prefer iv in left, if not, swap them
+  if (iv0 != nullptr && data->IsLoopInvariant(*opnd1)) {
+    iv = iv0;
+    opnd = opnd1;
+  } else if (iv1 != nullptr && data->IsLoopInvariant(*opnd0)) {
+    auto condop = newOp.GetOp();
+    condop = condop == OP_ge ? OP_le
+                             : condop == OP_le ? OP_ge
+                                               : condop == OP_lt ? OP_gt
+                                                                 : condop == OP_gt ? OP_lt : condop;
+    newOp.SetOp(condop);
+    newOp.SetOpnd(0, opnd1);
+    newOp.SetOpnd(1, opnd0);
+    iv = iv1;
+    opnd = opnd0;
+  } else {
+    return &op;
+  }
+  if (iv->base->GetMeOp() != kMeOpConst || iv->step->GetMeOp() != kMeOpConst) {
+    // do not handle range-unknown iv
+    return &op;
+  }
+  if (opnd->GetMeOp() != kMeOpConst) {
+    return &op;
+  }
+  int64 cmpConst = static_cast<ConstMeExpr*>(opnd)->GetIntValue();
+  if (GetPrimTypeSize(opnd->GetPrimType()) < kEightByte) {
+    cmpConst = static_cast<int64>(static_cast<int32>(cmpConst));
+  }
+  // prefer target in loop, if not, swap them
+  if (fallthruInLoop) {
+    condbr.SetOp(condbr.GetOp() == OP_brtrue ? OP_brfalse : OP_brtrue);
+    condbr.SetOffset(func.GetOrCreateBBLabel(*bb->GetSucc(0)));
+    auto *tmp = bb->GetSucc(0);
+    bb->SetSucc(0, bb->GetSucc(1));
+    bb->SetSucc(1, tmp);
+  }
+
+  int64 baseConst = static_cast<ConstMeExpr*>(iv->base)->GetIntValue();
+  if (GetPrimTypeSize(iv->base->GetPrimType()) < kEightByte) {
+    baseConst = static_cast<int64>(static_cast<int32>(baseConst));
+  }
+  int64 stepConst = static_cast<ConstMeExpr*>(iv->step)->GetIntValue();
+  if (GetPrimTypeSize(iv->step->GetPrimType()) < kEightByte) {
+    stepConst = static_cast<int64>(static_cast<int32>(stepConst));
+  }
+
+  if ((newOp.GetOp() == OP_lt && condbr.GetOp() == OP_brtrue && stepConst == 1) ||
+      (newOp.GetOp() == OP_ge && condbr.GetOp() == OP_brfalse && stepConst == 1)) {
+    // case1: i < 8, i++  ===>  i != 8, i++
+    bool firstCheck = IsSignedInteger(newOp.GetOpndType()) ? baseConst <= cmpConst :
+        static_cast<uint64>(baseConst) <= static_cast<uint64>(cmpConst);
+    if (!firstCheck) {
+      return &op;
+    }
+  } else if ((newOp.GetOp() == OP_gt && condbr.GetOp() == OP_brtrue && stepConst == -1) ||
+             (newOp.GetOp() == OP_le && condbr.GetOp() == OP_brfalse && stepConst == -1)) {
+    // case2: i > 8, i--  ===>  i != 8, i--
+    bool firstCheck = IsSignedInteger(newOp.GetOpndType()) ? baseConst >= cmpConst :
+        static_cast<uint64>(baseConst) >= static_cast<uint64>(cmpConst);
+    if (!firstCheck) {
+      return &op;
+    }
+  } else if ((newOp.GetOp() == OP_le && condbr.GetOp() == OP_brtrue && stepConst == 1) ||
+             (newOp.GetOp() == OP_gt && condbr.GetOp() == OP_brfalse && stepConst == 1)) {
+    // case3: i <= 8, i++  ===>  i < 9, i++  ===>  i != 9, i++
+    bool overflow = IsSignedInteger(newOp.GetOpndType()) ? cmpConst == INT64_MAX : cmpConst == UINT64_MAX;
+    if (overflow) {
+      return &op;
+    }
+    cmpConst = cmpConst + stepConst;
+    bool firstCheck = IsSignedInteger(newOp.GetOpndType()) ? baseConst <= cmpConst :
+        static_cast<uint64>(baseConst) <= static_cast<uint64>(cmpConst);
+    if (!firstCheck) {
+      return &op;
+    }
+    newOp.SetOpnd(1, irMap->CreateIntConstMeExpr(cmpConst, opnd->GetPrimType()));
+  } else if ((newOp.GetOp() == OP_ge && condbr.GetOp() == OP_brtrue && stepConst == -1) ||
+             (newOp.GetOp() == OP_lt && condbr.GetOp() == OP_brfalse && stepConst == -1)) {
+    // case4: i >= 8, i--  ===>  i > 7, i--  ===>  i != 7, i--
+    bool underflow = IsSignedInteger(newOp.GetOpndType()) ? cmpConst == INT64_MIN : cmpConst == 0;
+    if (underflow) {
+      return &op;
+    }
+    cmpConst = cmpConst + stepConst;
+    bool firstCheck = IsSignedInteger(newOp.GetOpndType()) ? baseConst >= cmpConst :
+        static_cast<uint64>(baseConst) >= static_cast<uint64>(cmpConst);
+    if (!firstCheck) {
+      return &op;
+    }
+    newOp.SetOpnd(1, irMap->CreateIntConstMeExpr(cmpConst, opnd->GetPrimType()));
+  } else {
+    return &op;
+  }
+  newOp.SetOp(condbr.GetOp() == OP_brtrue ? OP_ne : OP_eq);
+  auto *hashed = irMap->HashMeExpr(newOp);
+  irMap->ReplaceMeExprStmt(stmt, op, *hashed);
+  return static_cast<OpMeExpr*>(hashed);
+}
+
 // find other ivs that is the affine transform of other ivs
 bool IVOptimizer::FindGeneralIVInExpr(MeStmt &stmt, MeExpr &expr, bool useInAddress) {
   switch (expr.GetMeOp()) {
@@ -762,20 +885,21 @@ bool IVOptimizer::FindGeneralIVInExpr(MeStmt &stmt, MeExpr &expr, bool useInAddr
         return CreateIVFromIaddrof(op, stmt);
       }
       if (IsCompareHasReverseOp(op.GetOp())) {  // record compare use
-        auto *iv = data->GetIV(*op.GetOpnd(0));
-        if (iv != nullptr && data->IsLoopInvariant(*op.GetOpnd(1))) {
-          data->CreateGroup(stmt, *iv, kUseCompare, &op);
-          (*data->groups.rbegin())->uses[0]->comparedExpr = op.GetOpnd(1);
+        auto *cmp = TryCvtCmp(op, stmt);
+        auto *iv = data->GetIV(*cmp->GetOpnd(0));
+        if (iv != nullptr && data->IsLoopInvariant(*cmp->GetOpnd(1))) {
+          data->CreateGroup(stmt, *iv, kUseCompare, cmp);
+          (*data->groups.rbegin())->uses[0]->comparedExpr = cmp->GetOpnd(1);
           return false;
         }
-        iv = data->GetIV(*op.GetOpnd(1));
-        if (iv != nullptr && data->IsLoopInvariant(*op.GetOpnd(0))) {
-          data->CreateGroup(stmt, *iv, kUseCompare, &op);
-          (*data->groups.rbegin())->uses[0]->comparedExpr = op.GetOpnd(0);
+        iv = data->GetIV(*cmp->GetOpnd(1));
+        if (iv != nullptr && data->IsLoopInvariant(*cmp->GetOpnd(0))) {
+          data->CreateGroup(stmt, *iv, kUseCompare, cmp);
+          (*data->groups.rbegin())->uses[0]->comparedExpr = cmp->GetOpnd(0);
           return false;
         }
-        iv = iv == nullptr ? data->GetIV(*op.GetOpnd(0)) : iv;
-        data->CreateGroup(stmt, *iv, kUseGeneral, &op);
+        iv = iv == nullptr ? data->GetIV(*cmp->GetOpnd(0)) : iv;
+        data->CreateGroup(stmt, *iv, kUseGeneral, cmp);
         return false;
       }
       for (uint8 j = 0; j < op.GetNumOpnds(); ++j) {
@@ -2471,6 +2595,7 @@ void MEIVOpts::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MELoopCanon>();
   aDep.AddRequired<MELoopAnalysis>();
   aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MEAliasClass>();
   aDep.SetPreservedAll();
 }
 
@@ -2481,6 +2606,11 @@ bool MEIVOpts::PhaseRun(maple::MeFunction &f) {
   MeCFG *cfg = GET_ANALYSIS(MEMeCfg, f);
   IdentifyLoops *meLoop = GET_ANALYSIS(MELoopAnalysis, f);
   auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
+  auto *hdse = GetPhaseAllocator()->New<MeHDSE>(f, *dom, *f.GetIRMap(), aliasClass, DEBUGFUNC_NEWPM(f));
+  // invoke hdse to update isLive only
+  hdse->InvokeHDSEUpdateLive();
+
   auto *ivOptimizer = GetPhaseAllocator()->New<IVOptimizer>(*GetPhaseMemPool(), f, DEBUGFUNC_NEWPM(f), meLoop, dom);
   if (DEBUGFUNC_NEWPM(f)) {
     cfg->DumpToFile("beforeIVOpts", false);
