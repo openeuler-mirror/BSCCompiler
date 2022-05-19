@@ -172,6 +172,7 @@ bool AArch64CGPeepHole::DoSSAOptimize(BB &bb, Insn &insn) {
     }
     case MOP_xlslrri6: {
       manager->Optimize<ExtLslToBitFieldInsertPattern>();
+      manager->Optimize<CombineSameArithmeticPattern>(true);
       break;
     }
     case MOP_xsxtb32:
@@ -184,6 +185,17 @@ bool AArch64CGPeepHole::DoSSAOptimize(BB &bb, Insn &insn) {
     case MOP_xuxtw64: {
       manager->Optimize<ElimSpecificExtensionPattern>(true);
       break;
+    }
+    case MOP_wlsrrri5:
+    case MOP_xlsrrri6:
+    case MOP_wasrrri5:
+    case MOP_xasrrri6:
+    case MOP_wlslrri5:
+    case MOP_waddrri12:
+    case MOP_xaddrri12:
+    case MOP_wsubrri12:
+    case MOP_xsubrri12: {
+      manager->Optimize<CombineSameArithmeticPattern>(true);
     }
     default:
       break;
@@ -1035,6 +1047,88 @@ void AndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
     /* update ssa info */
     ssaInfo->ReplaceInsn(insn, newInsn);
   }
+  optSuccess = true;
+  SetCurrInsn(&newInsn);
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(prevInsn);
+    DumpAfterPattern(prevs, &insn, &newInsn);
+  }
+}
+
+bool CombineSameArithmeticPattern::CheckCondition(Insn &insn) {
+  MOperator curMop = insn.GetMachineOpcode();
+  if (std::find(validMops.begin(), validMops.end(), curMop) == validMops.end()) {
+    return false;
+  }
+  Operand &useOpnd = insn.GetOperand(kInsnSecondOpnd);
+  CHECK_FATAL(useOpnd.IsRegister(), "expect regOpnd");
+  prevInsn = GetDefInsn(static_cast<RegOperand&>(useOpnd));
+  if (prevInsn == nullptr) {
+    return false;
+  }
+  if (prevInsn->GetMachineOpcode() != curMop) {
+    return false;
+  }
+  auto &prevDefOpnd = prevInsn->GetOperand(kInsnFirstOpnd);
+  CHECK_FATAL(prevDefOpnd.IsRegister(), "expect regOpnd");
+  InsnSet useInsns = GetAllUseInsn(static_cast<RegOperand&>(prevDefOpnd));
+  if (useInsns.size() > 1) {
+    return false;
+  }
+  auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  CHECK_FATAL(prevInsn->GetOperand(kInsnThirdOpnd).IsIntImmediate(), "expect immOpnd");
+  CHECK_FATAL(insn.GetOperand(kInsnThirdOpnd).IsIntImmediate(), "expect immOpnd");
+  auto &prevImmOpnd = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
+  auto &curImmOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  int64 prevImm = prevImmOpnd.GetValue();
+  int64 curImm = curImmOpnd.GetValue();
+  newImmOpnd = &aarFunc->CreateImmOperand(prevImmOpnd.GetValue() + curImmOpnd.GetValue(),
+                                          curImmOpnd.GetSize(), curImmOpnd.IsSignedValue());
+  switch (curMop) {
+    case MOP_wlsrrri5:
+    case MOP_wasrrri5:
+    case MOP_wlslrri5: {
+      if ((prevImm + curImm) < k0BitSize || (prevImm + curImm) >= k32BitSize) {
+        return false;
+      }
+      break;
+    }
+    case MOP_xlsrrri6:
+    case MOP_xasrrri6:
+    case MOP_xlslrri6: {
+      if ((prevImm + curImm) < k0BitSize || (prevImm + curImm) >= k64BitSize) {
+        return false;
+      }
+      break;
+    }
+    case MOP_waddrri12:
+    case MOP_xaddrri12:
+    case MOP_wsubrri12:
+    case MOP_xsubrri12: {
+      if (!newImmOpnd->IsSingleInstructionMovable()) {
+        return false;
+      }
+      break;
+    }
+    default:
+      return false;
+  }
+  return true;
+}
+
+void CombineSameArithmeticPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(insn.GetMachineOpcode(),
+                                                                 insn.GetOperand(kInsnFirstOpnd),
+                                                                 prevInsn->GetOperand(kInsnSecondOpnd),
+                                                                 *newImmOpnd);
+  bb.ReplaceInsn(insn, newInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(insn, newInsn);
   optSuccess = true;
   SetCurrInsn(&newInsn);
   /* dump pattern info */

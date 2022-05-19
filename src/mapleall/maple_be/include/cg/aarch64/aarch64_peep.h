@@ -375,7 +375,9 @@ class MvnAndToBicPattern : public CGPeepPattern {
 class AndCbzToTbzPattern : public CGPeepPattern {
  public:
   AndCbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-                CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  AndCbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) :
+      CGPeepPattern(cgFunc, currBB, currInsn) {}
   ~AndCbzToTbzPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -385,6 +387,24 @@ class AndCbzToTbzPattern : public CGPeepPattern {
 
  private:
   Insn *prevInsn = nullptr;
+};
+
+class CombineSameArithmeticPattern : public CGPeepPattern {
+ public:
+  CombineSameArithmeticPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~CombineSameArithmeticPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "CombineSameArithmeticPattern";
+  }
+
+ private:
+  std::vector<MOperator> validMops = {MOP_wlsrrri5, MOP_xlsrrri6, MOP_wasrrri5, MOP_xasrrri6, MOP_wlslrri5,
+                                      MOP_xlslrri6, MOP_waddrri12, MOP_xaddrri12, MOP_wsubrri12, MOP_xsubrri12};
+  Insn *prevInsn = nullptr;
+  ImmOperand *newImmOpnd = nullptr;
 };
 
 /*
