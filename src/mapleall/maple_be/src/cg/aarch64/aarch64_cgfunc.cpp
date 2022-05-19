@@ -3296,7 +3296,7 @@ static int32 GetTail0BitNum(int64 val) {
  * If the input integer is power of 2, return log2(input)
  * else return -1
  */
-static inline int32 IsPowerOf2(int64 val) {
+static inline int32 GetLog2(uint64 val) {
   if (__builtin_popcountll(val) == 1) {
     return __builtin_ffsll(val) - 1;
   }
@@ -4101,9 +4101,11 @@ void AArch64CGFunc::SelectRem(Operand &resOpnd, Operand &lhsOpnd, Operand &rhsOp
       imm = static_cast<ImmOperand*>(&opnd1);
     }
     /* positive or negative do not have effect on the result */
-    const int64 dividor = (imm != nullptr) ? ((imm->GetValue() >= 0) ? imm->GetValue() : ((-1) * imm->GetValue()))
-                                           : 0; /* not an immReg */
-    const int64 Log2OfDividor = IsPowerOf2(dividor);
+    uint64 dividor = 0;
+    if (imm && (imm->GetValue() != LONG_MIN)) {
+      dividor = abs(imm->GetValue());
+    }
+    const int64 Log2OfDividor = GetLog2(dividor);
     if ((dividor != 0) && (Log2OfDividor > 0)) {
       if (is64Bits) {
         CHECK_FATAL(Log2OfDividor < k64BitSize, "imm out of bound");
@@ -4122,11 +4124,12 @@ void AArch64CGFunc::SelectRem(Operand &resOpnd, Operand &lhsOpnd, Operand &rhsOp
           ImmOperand &remBits = CreateImmOperand(dividor - 1, k64BitSize, isSigned);
           GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xandrri13, resOpnd, resOpnd, remBits));
           GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xsubrrr, resOpnd, resOpnd, temp));
-        } else {
+          return;
+        } else if (imm->GetValue() > 0) {
           ImmOperand &remBits = CreateImmOperand(dividor - 1, k64BitSize, isSigned);
           GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xandrri13, resOpnd, opnd0, remBits));
+          return;
         }
-        return;
       } else {
         CHECK_FATAL(Log2OfDividor < k32BitSize, "imm out of bound");
         if (isSigned) {
@@ -4146,12 +4149,12 @@ void AArch64CGFunc::SelectRem(Operand &resOpnd, Operand &lhsOpnd, Operand &rhsOp
           GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wandrri12, resOpnd, resOpnd, remBits));
 
           GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wsubrrr, resOpnd, resOpnd, temp));
-        } else {
+          return;
+        } else if (imm->GetValue() > 0) {
           ImmOperand &remBits = CreateImmOperand(dividor - 1, k32BitSize, isSigned);
           GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wandrri12, resOpnd, opnd0, remBits));
+          return;
         }
-
-        return;
       }
     }
   }

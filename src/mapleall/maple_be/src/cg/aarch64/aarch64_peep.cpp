@@ -983,12 +983,15 @@ bool AndCbzToTbzPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  prevInsn = GetDefInsn(useReg);
+  prevInsn = ssaInfo ? GetDefInsn(useReg) : insn.GetPreviousMachineInsn();
   if (prevInsn == nullptr) {
     return false;
   }
   MOperator prevMop = prevInsn->GetMachineOpcode();
   if (prevMop != MOP_wandrri12 && prevMop != MOP_xandrri13) {
+    return false;
+  }
+  if (!ssaInfo && (&(prevInsn->GetOperand(kInsnFirstOpnd)) != &(insn.GetOperand(kInsnFirstOpnd)))) {
     return false;
   }
   return true;
@@ -1028,8 +1031,10 @@ void AndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
   Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, prevInsn->GetOperand(kInsnSecondOpnd),
                                                                  tbzImm, labelOpnd);
   bb.ReplaceInsn(insn, newInsn);
-  /* update ssa info */
-  ssaInfo->ReplaceInsn(insn, newInsn);
+  if (ssaInfo) {
+    /* update ssa info */
+    ssaInfo->ReplaceInsn(insn, newInsn);
+  }
   optSuccess = true;
   SetCurrInsn(&newInsn);
   /* dump pattern info */
@@ -1813,8 +1818,11 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
       manager->NormalPatternOpt<SbfxOptPattern>(cgFunc->IsAfterRegAlloc());
       break;
     }
+    case MOP_wcbz:
+    case MOP_xcbz:
     case MOP_wcbnz:
     case MOP_xcbnz: {
+      manager->NormalPatternOpt<AndCbzToTbzPattern>(!cgFunc->IsAfterRegAlloc());
       manager->NormalPatternOpt<CbnzToCbzPattern>(cgFunc->IsAfterRegAlloc());
       break;
     }
@@ -2913,6 +2921,10 @@ void SbfxOptPattern::Run(BB &bb, Insn &insn) {
 }
 
 bool CbnzToCbzPattern::CheckCondition(Insn &insn) {
+  MOperator curMop = insn.GetMachineOpcode();
+  if (curMop != MOP_wcbnz && curMop != MOP_xcbnz) {
+    return false;
+  }
   /* reg has to be R0, since return value is in R0 */
   auto &regOpnd0 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   if (regOpnd0.GetRegisterNumber() != R0) {
@@ -3049,6 +3061,7 @@ void CsetCbzToBeqOptAArch64::Run(BB &bb, Insn &insn) {
   auto &label = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
   auto &cond = static_cast<CondOperand&>(insn1->GetOperand(kInsnSecondOpnd));
   MOperator jmpOperator = SelectMOperator(cond.GetCode(), reverse);
+  CHECK_FATAL((jmpOperator != MOP_undef), "unknown condition code");
   Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(jmpOperator, rflag, label);
   bb.RemoveInsn(*insn1);
   bb.ReplaceInsn(insn, newInsn);
@@ -3084,6 +3097,8 @@ MOperator CsetCbzToBeqOptAArch64::SelectMOperator(AArch64CC_t condCode, bool inv
       return inverse ? MOP_bgt : MOP_ble;
     case CC_GT:
       return inverse ? MOP_ble : MOP_bgt;
+    case CC_CS:
+      return inverse ? MOP_bcc : MOP_bcs;
     default:
       return MOP_undef;
   }
@@ -3673,6 +3688,11 @@ void AndCbzBranchesToTstAArch64::Run(BB &bb, Insn &insn) {
   }
   Operand &rflag = static_cast<AArch64CGFunc*>(&cgFunc)->GetOrCreateRflag();
   Insn &newInsnTst = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newTstOp, rflag, andRegOp2, andOpnd3);
+  if (andOpnd3.IsImmediate()) {
+    if (!static_cast<ImmOperand&>(andOpnd3).IsBitmaskImmediate(andRegOp2.GetSize())) {
+      return;
+    }
+  }
   /* build beq insn */
   MOperator opCode = nextInsn->GetMachineOpcode();
   bool reverse = (opCode == MOP_xcbz || opCode == MOP_wcbz);
