@@ -392,7 +392,7 @@ void CgFuncPM::PrepareLower(MIRModule &m) {
   }
   cgLower->RegisterExternalLibraryFunctions();
   cgLower->SetCheckLoadStore(CGOptions::IsCheckArrayStore());
-  if (cg->AddStackGuard() || m.HasPartO2List()) {
+  if (cg->IsStackProtectorStrong() || cg->IsStackProtectorAll() || m.HasPartO2List()) {
     cg->AddStackGuardvar();
   }
 }

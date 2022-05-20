@@ -266,8 +266,12 @@ class CG {
     return true;
   }
 
-  bool AddStackGuard() const {
-    return cgOption.AddStackGuard();
+  bool IsStackProtectorStrong() const {
+    return cgOption.IsStackProtectorStrong();
+  }
+
+  bool IsStackProtectorAll() const {
+    return cgOption.IsStackProtectorAll();
   }
 
   bool NeedInsertInstrumentationFunction() const {

@@ -547,7 +547,7 @@ uint64 AArch64MemLayout::StackFrameSize() const {
 
 uint32 AArch64MemLayout::RealStackFrameSize() {
   auto size = StackFrameSize();
-  if (cgFunc->GetCG()->AddStackGuard()) {
+  if (cgFunc->GetCG()->IsStackProtectorStrong() || cgFunc->GetCG()->IsStackProtectorAll()) {
     size += static_cast<uint32>(kAarch64StackPtrAlignment);
   }
   return static_cast<uint32>(size);

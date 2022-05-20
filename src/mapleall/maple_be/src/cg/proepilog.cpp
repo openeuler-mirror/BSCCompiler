@@ -44,6 +44,77 @@ Insn *GenProEpilog::InsertCFIDefCfaOffset(int32 &cfiOffset, Insn &insertAfter) {
   return newIPoint;
 }
 
+/* there are two stack protector:
+ * 1. stack protector all: for all function
+ * 2. stack protector strong: for some functon that
+ *   <1> invoke alloca functon;
+ *   <2> use stack address;
+ *   <3> callee use return stack slot;
+ *   <4> local symbol is vector type;
+ * */
+void GenProEpilog::NeedStackProtect() {
+  ASSERT(stackProtect == false, "no stack protect default");
+  CG *currCG = cgFunc.GetCG();
+  if (currCG->IsStackProtectorAll()) {
+    stackProtect = true;
+    return;
+  }
+
+  if (!currCG->IsStackProtectorStrong()) {
+    return;
+  }
+
+  if (cgFunc.HasVLAOrAlloca()) {
+    stackProtect = true;
+    return;
+  }
+
+  /* check if function use stack address or callee function return stack slot */
+  auto stackProtectInfo = cgFunc.GetStackProtectInfo();
+  if ((stackProtectInfo & kAddrofStack) != 0 || (stackProtectInfo & kRetureStackSlot) != 0) {
+    stackProtect = true;
+    return;
+  }
+
+  /* check if local symbol is vector type */
+  auto &mirFunction = cgFunc.GetFunction();
+  uint32 symTabSize = mirFunction.GetSymTab()->GetSymbolTableSize();
+  for (uint32 i = 0; i < symTabSize; ++i) {
+    MIRSymbol *symbol = mirFunction.GetSymTab()->GetSymbolFromStIdx(i);
+    if (symbol == nullptr || symbol->GetStorageClass() != kScAuto || symbol->IsDeleted()) {
+      continue;
+    }
+    TyIdx tyIdx = symbol->GetTyIdx();
+    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+    if (type->GetKind() == kTypeArray) {
+      stackProtect = true;
+      return;
+    }
+
+    if (type->IsStructType() && IncludeArray(*type)) {
+      stackProtect = true;
+      return;
+    }
+  }
+}
+
+bool GenProEpilog::IncludeArray(const MIRType &type) const {
+  ASSERT(type.IsStructType(), "agg must be one of class/struct/union");
+  auto &structType = static_cast<const MIRStructType&>(type);
+  /* all elements of struct. */
+  auto num = static_cast<uint8>(structType.GetFieldsSize());
+  for (uint32 i = 0; i < num; ++i) {
+    MIRType *elemType = structType.GetElemType(i);
+    if (elemType->GetKind() == kTypeArray) {
+      return true;
+    }
+    if (elemType->IsStructType() && IncludeArray(*elemType)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool CgGenProEpiLog::PhaseRun(maplebe::CGFunc &f) {
   GenProEpilog *genPE = nullptr;
 #if TARGAARCH64 || TARGRISCV64

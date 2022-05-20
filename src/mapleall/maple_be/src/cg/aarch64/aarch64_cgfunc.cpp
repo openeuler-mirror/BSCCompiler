@@ -2653,6 +2653,9 @@ RegOperand *AArch64CGFunc::SelectRegread(RegreadNode &expr) {
 
 void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm, FieldID field) {
   const MIRSymbol *symbol = stImm.GetSymbol();
+  if (symbol->GetStorageClass() == kScAuto) {
+    SetStackProtectInfo(kAddrofStack);
+  }
   if ((symbol->GetStorageClass() == kScAuto) || (symbol->GetStorageClass() == kScFormal)) {
     if (!GetCG()->IsQuiet()) {
       maple::LogInfo::MapleLogger(kLlErr) <<
@@ -2746,6 +2749,7 @@ void AArch64CGFunc::SelectAddrof(Operand &result, MemOperand &memOpnd, FieldID f
     Operand &immOpnd = CreateImmOperand(offsetOpnd->GetOffsetValue(), PTY_u32, false);
     ASSERT(memOpnd.GetBaseRegister() != nullptr, "nullptr check");
     SelectAdd(result, *memOpnd.GetBaseRegister(), immOpnd, PTY_u32);
+    SetStackProtectInfo(kAddrofStack);
   } else if (!IsAfterRegAlloc()){
     // Create a new vreg/preg for the upper bits of the address
     PregIdx pregIdx = GetFunction().GetPregTab()->CreatePreg(PTY_a64);
@@ -8231,6 +8235,11 @@ void AArch64CGFunc::SelectCall(CallNode &callNode) {
     callInsn.SetIsCallReturnUnsigned(IsUnsignedInteger(retType->GetPrimType()));
   }
 
+  /* check if this call use stack slot to return */
+  if (fn->IsFirstArgReturn()) {
+    SetStackProtectInfo(kRetureStackSlot);
+  }
+
   GetFunction().SetHasCall();
   if (GetMirModule().IsCModule()) { /* do not mark abort BB in C at present */
     return;
@@ -8271,6 +8280,16 @@ void AArch64CGFunc::SelectIcall(IcallNode &icallNode, Operand &srcOpnd) {
   if (retType != nullptr) {
     callInsn.SetRetSize(static_cast<uint32>(retType->GetSize()));
     callInsn.SetIsCallReturnUnsigned(IsUnsignedInteger(retType->GetPrimType()));
+  }
+
+  /* check if this icall use stack slot to return */
+  CallReturnVector *p2nrets = &icallNode.GetReturnVec();
+  if (p2nrets->size() == k1ByteSize) {
+    StIdx stIdx = (*p2nrets)[0].first;
+    MIRSymbol *sym = GetBecommon().GetMIRModule().CurFunction()->GetSymTab()->GetSymbolFromStIdx(stIdx.Idx());
+    if (sym != nullptr && (GetBecommon().GetTypeSize(sym->GetTyIdx().GetIdx()) > k16ByteSize)) {
+      SetStackProtectInfo(kRetureStackSlot);
+    }
   }
 
   GetCurBB()->AppendInsn(callInsn);

@@ -149,7 +149,7 @@ class CGFunc {
   virtual void GenerateCleanupCodeForExtEpilog(BB &bb) = 0;
 
   void CreateLmbcFormalParamInfo();
-  virtual uint32 FloatParamRegRequired(MIRStructType &structType, uint32 &fpSize) = 0;
+  virtual uint32 FloatParamRegRequired(MIRStructType *structType, uint32 &fpSize) = 0;
   virtual void AssignLmbcFormalParams() = 0;
   LmbcFormalParamInfo *GetLmbcFormalParamInfo(uint32 offset);
   void GenerateLoc(StmtNode *stmt, unsigned &lastSrcLoc, unsigned &lastMplLoc);
@@ -1107,6 +1107,14 @@ class CGFunc {
     return firstMapleIrVRegNO;
   }
 
+  void SetStackProtectInfo(StackProtectKind kind) {
+    stackProtectInfo |= kind;
+  }
+
+  uint8 GetStackProtectInfo() const {
+    return stackProtectInfo;
+  }
+
  protected:
   uint32 firstMapleIrVRegNO = 200;        /* positioned after physical regs */
   uint32 firstNonPregVRegNO;
@@ -1257,6 +1265,9 @@ class CGFunc {
   const MapleString shortFuncName;
   bool hasAsm = false;
   bool useFP = true;
+
+  /* save stack protect kinds which can trigger stack protect */
+  uint8 stackProtectInfo = 0;
 };  /* class CGFunc */
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLayoutFrame, maplebe::CGFunc)

@@ -70,6 +70,13 @@ enum MemSegmentKind : uint8 {
   kMsRedZone,
 };
 
+enum StackProtectKind : uint8 {
+  kNone = 0,
+  kAddrofStack = 0x1,
+  /* if a callee has return agg type which size over 16bytes */
+  kRetureStackSlot = 0x2,
+};
+
 class CGFunc;
 
 /* keeps track of the allocation of a memory segment */

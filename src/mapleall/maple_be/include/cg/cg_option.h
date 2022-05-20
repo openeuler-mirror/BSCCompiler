@@ -20,7 +20,6 @@
 #include "mempool_allocator.h"
 #include "mir_module.h"
 #include "types_def.h"
-#include "driver_option_common.h"
 
 namespace maplebe {
 using namespace maple;
@@ -30,7 +29,7 @@ struct Range {
   uint64 end;
 };
 
-class CGOptions : public MapleDriverOptionBase {
+class CGOptions {
  public:
   enum OptionEnum : uint64 {
     kUndefined = 0ULL,
@@ -54,11 +53,12 @@ class CGOptions : public MapleDriverOptionBase {
     kWithSrc = 1ULL << 24,
     kWithAsm = 1ULL << 25,
     kWithProfileCode = 1ULL << 30,
-    kUseStackGuard = 1ULL << 31,
-    kSoeCheckInsert = 1ULL << 32,
-    kAddFuncProfile = 1ULL << 33,
-    kPatchLongBranch = 1ULL << 34,
-    kTailCallOpt = 1ULL << 35,
+    kUseStackProtectorStrong = 1ULL << 31,
+    kUseStackProtectorAll = 1ULL << 32,
+    kSoeCheckInsert = 1ULL << 33,
+    kAddFuncProfile = 1ULL << 34,
+    kPatchLongBranch = 1ULL << 35,
+    kTailCallOpt = 1ULL << 36,
     /* undocumented */
     kDumpCFG = 1ULL << 61,
     kDumpCgir = 1ULL << 62,
@@ -126,10 +126,9 @@ class CGOptions : public MapleDriverOptionBase {
 
  public:
   static CGOptions &GetInstance();
-  CGOptions();
   virtual ~CGOptions() = default;
-  bool SolveOptions(const std::deque<mapleOption::Option> &opts, bool isDebug);
-  void DecideMplcgRealLevel(const std::deque<mapleOption::Option> &inputOptions, bool isDebug);
+  bool SolveOptions(bool isDebug);
+  void DecideMplcgRealLevel(bool isDebug);
 
   void DumpOptions();
   std::vector<std::string> &GetSequence() {
@@ -215,8 +214,12 @@ class CGOptions : public MapleDriverOptionBase {
     return (options & kProEpilogueOpt) != 0;
   }
 
-  bool AddStackGuard() const {
-    return (options & kUseStackGuard) != 0;
+  bool IsStackProtectorStrong() const {
+    return (options & kUseStackProtectorStrong) != 0;
+  }
+
+  bool IsStackProtectorAll() const {
+    return (options & kUseStackProtectorAll) != 0;
   }
 
   bool WithLoc() const {
