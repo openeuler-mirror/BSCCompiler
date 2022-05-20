@@ -17,6 +17,7 @@
 #include "me_cfg.h"
 #include "me_irmap.h"
 #include "me_dominance.h"
+#include "common_utils.h"
 
 #define SLP_DEBUG(X) \
 do { if (debug) { LogInfo::MapleLogger() << "[SLP] "; X; } } while (false)
@@ -31,8 +32,25 @@ do { if (debug) { LogInfo::MapleLogger() << "[SLP GATHER] "; X; } } while (false
 do { if (debug) { LogInfo::MapleLogger() << "[SLP FAILURE] "; X; } } while (false)
 
 namespace {
+using namespace maple;
 constexpr maple::int32 kHugeCost = 10000;  // Used for impossible vectorized node
+
+const std::vector<Opcode> supportedOps = {
+  OP_iread, OP_ireadoff, OP_add, OP_sub, OP_constval, OP_bxor, OP_band, OP_mul,
+  OP_intrinsicop
+};
+
+const std::vector<MIRIntrinsicID> supportedIntrns = {
+  INTRN_C_rev_4, INTRN_C_rev_8, INTRN_C_rev16_2
+};
+
+std::vector<int32> *localSymOffsetTab = nullptr;
 }  // anonymous namespace
+
+namespace maple {
+using namespace maplebe;
+#include "immvalid.def"
+}
 
 namespace maple {
 // A wrapper class of meExpr with its defStmt, this can avoid repeated searches for use-def chains
@@ -101,17 +119,17 @@ static bool IsPointerType(PrimType type) {
 }
 
 // Only support add, sub, constval, iaddrof, pointer cvt for now, we can support more op if more scenes are found
-void MemoryHelper::ExtractAddendOffset(const MeExpr &expr, bool isNeg, MemLoc &memLoc) {
+void MemoryHelper::ExtractAddendOffset(MapleAllocator &alloc, const MeExpr &expr, bool isNeg, MemLoc &memLoc) {
   Opcode op = expr.GetOp();
   switch (op) {
     case OP_add: {
-      ExtractAddendOffset(*expr.GetOpnd(0), isNeg, memLoc);
-      ExtractAddendOffset(*expr.GetOpnd(1), isNeg, memLoc);
+      ExtractAddendOffset(alloc, *expr.GetOpnd(0), isNeg, memLoc);
+      ExtractAddendOffset(alloc, *expr.GetOpnd(1), isNeg, memLoc);
       break;
     }
     case OP_sub: {
-      ExtractAddendOffset(*expr.GetOpnd(0), isNeg, memLoc);
-      ExtractAddendOffset(*expr.GetOpnd(1), !isNeg, memLoc);
+      ExtractAddendOffset(alloc, *expr.GetOpnd(0), isNeg, memLoc);
+      ExtractAddendOffset(alloc, *expr.GetOpnd(1), !isNeg, memLoc);
       break;
     }
     case OP_iaddrof: {
@@ -124,7 +142,7 @@ void MemoryHelper::ExtractAddendOffset(const MeExpr &expr, bool isNeg, MemLoc &m
         auto bitOffset = static_cast<MIRStructType*>(pointedType)->GetBitOffsetFromBaseAddr(fieldId);
         memLoc.offset += (bitOffset / 8);
       }
-      ExtractAddendOffset(*expr.GetOpnd(0), isNeg, memLoc);
+      ExtractAddendOffset(alloc, *expr.GetOpnd(0), isNeg, memLoc);
       break;
     }
     case OP_constval: {
@@ -138,7 +156,7 @@ void MemoryHelper::ExtractAddendOffset(const MeExpr &expr, bool isNeg, MemLoc &m
       PrimType fromType = opExpr.GetOpndType();
       PrimType toType = opExpr.GetPrimType();
       if (IsPointerType(fromType) && IsPointerType(toType)) {
-        ExtractAddendOffset(*opExpr.GetOpnd(0), isNeg, memLoc);
+        ExtractAddendOffset(alloc, *opExpr.GetOpnd(0), isNeg, memLoc);
         break;
       }
     }
@@ -147,7 +165,7 @@ void MemoryHelper::ExtractAddendOffset(const MeExpr &expr, bool isNeg, MemLoc &m
       if (memLoc.base == nullptr) {
         memLoc.base = alloc.GetMemPool()->New<MemBasePtr>();
       }
-      memLoc.base->PushAddendExpr(expr, isNeg);
+      memLoc.base->PushAddendExpr(alloc, expr, isNeg);
       break;
     }
   }
@@ -156,7 +174,7 @@ void MemoryHelper::ExtractAddendOffset(const MeExpr &expr, bool isNeg, MemLoc &m
 void MemoryHelper::UniqueMemLocBase(MemLoc &memLoc) {
   // must be sorted first
   memLoc.base->Sort();
-  auto key = memLoc.base->GetSum();
+  auto key = memLoc.base->GetHashKey();
   auto it = basePtrSet.find(key);
   if (it != basePtrSet.end()) {
     auto &vec = it->second;
@@ -179,6 +197,31 @@ void MemoryHelper::UniqueMemLocBase(MemLoc &memLoc) {
   }
 }
 
+MemLoc *MemoryHelper::GetMemLoc(VarMeExpr &var) {
+  auto *ost = var.GetOst();
+  auto *prevLevOst = ost->GetPrevLevelOst();
+  CHECK_NULL_FATAL(prevLevOst);
+  // find memLoc from cache first
+  auto it = cache.find(&var);
+  if (it != cache.end()) {
+    return it->second;
+  }
+  auto *memLocPtr = alloc.GetMemPool()->New<MemLoc>();
+  MemLoc &memLoc = *memLocPtr;
+  memLoc.rawExpr = &var;
+  memLoc.offset = ost->GetOffset().val / 8;
+  memLoc.type = ost->GetType();
+  memLoc.base = alloc.GetMemPool()->New<MemBasePtr>();
+  memLoc.base->SetBaseOstIdx(prevLevOst->GetIndex().get());
+
+  // unique memLoc base
+  UniqueMemLocBase(memLoc);
+
+  // update cache
+  cache.emplace(&var, &memLoc);
+  return &memLoc;
+}
+
 MemLoc *MemoryHelper::GetMemLoc(IvarMeExpr &ivar) {
   // find memLoc from cache first
   auto it = cache.find(&ivar);
@@ -195,11 +238,11 @@ MemLoc *MemoryHelper::GetMemLoc(IvarMeExpr &ivar) {
     ExprWithDef exprWithDef(ivarBase);
     realBase = exprWithDef.GetRealExpr();
   }
-  ExtractAddendOffset(*realBase, false, memLoc);
+  ExtractAddendOffset(alloc, *realBase, false, memLoc);
   // bugfix for constval ivar.base
   if (memLoc.base == nullptr) {
     memLoc.base = alloc.GetMemPool()->New<MemBasePtr>();
-    memLoc.base->PushAddendExpr(*ivar.GetBase(), false);
+    memLoc.base->PushAddendExpr(alloc, *ivar.GetBase(), false);
   }
   // unique memLoc base
   UniqueMemLocBase(memLoc);
@@ -300,6 +343,101 @@ bool MemoryHelper::IsAllIvarConsecutive(const std::vector<MeExpr*> &ivarVec, boo
   return true;
 }
 
+int32 GetLocalSymApproximateOffset(MIRSymbol *sym, MeFunction &func) {
+  if (localSymOffsetTab == nullptr) {
+    localSymOffsetTab = new std::vector<int32>();
+  }
+  auto &offsetTab = *localSymOffsetTab;
+  uint32 symIdx = sym->GetStIndex();
+  if (symIdx < offsetTab.size()) {
+    return offsetTab[symIdx];
+  }
+  for (uint32 i = offsetTab.size(); i <= symIdx; ++i) {
+    if (i == 0) {
+      offsetTab.push_back(0);
+      continue;
+    }
+    auto *lastSym = func.GetMirFunc()->GetSymbolTabItem(i - 1);
+    if (lastSym == nullptr || lastSym->GetStorageClass() != kScAuto || lastSym->IsDeleted()) {
+      offsetTab.push_back(offsetTab[i - 1]);
+      continue;
+    }
+    // align 8 bytes
+    auto sizeAfterAlign = (lastSym->GetType()->GetSize() + 7) & -8;
+    offsetTab.push_back(offsetTab[i - 1] + sizeAfterAlign);
+  }
+  return offsetTab[symIdx];
+}
+
+std::optional<int32> EstimateStackOffsetOfMemLoc(MemLoc *memLoc, MeFunction &func) {
+  if (memLoc->rawExpr->GetMeOp() != kMeOpIvar) {
+    return {};
+  }
+  auto *ivarBase = static_cast<IvarMeExpr*>(memLoc->rawExpr)->GetBase();
+  if (ivarBase->GetOp() != OP_regread) {
+    return {};
+  }
+  auto *baseRegExpr = static_cast<RegMeExpr*>(ivarBase);
+  if (baseRegExpr->GetDefBy() != kDefByStmt) {
+    return {};
+  }
+  auto *defStmt = baseRegExpr->GetDefStmt();
+  if (defStmt != nullptr && defStmt->GetOp() == OP_regassign) {
+    auto *rhs = static_cast<AssignMeStmt*>(defStmt)->GetRHS();
+    if (rhs->GetOp() == OP_addrof) {
+      auto ostIdx = static_cast<AddrofMeExpr*>(rhs)->GetOstIdx();
+      auto ost = func.GetMeSSATab()->GetOriginalStFromID(ostIdx);
+      if (ost->IsLocal()) {
+        return GetLocalSymApproximateOffset(ost->GetMIRSymbol(), func);
+      }
+    }
+  }
+  return {};
+}
+
+// This is target-dependent function for armv8, maybe we need abstract it TargetInfo
+bool IsIntStpLdpOffsetValid(uint32 typeBitSize, int32 offset) {
+  switch (typeBitSize) {
+    case 32: {
+      return StrLdr32PairImmValid(offset);
+    }
+    case 64: {
+      return StrLdr64PairImmValid(offset);
+    }
+    default: {
+      CHECK_FATAL(false, "should be here");
+      break;
+    }
+  }
+  return false;
+}
+
+// This is target-dependent function for armv8, maybe we need abstract it TargetInfo
+bool IsVecStrLdrOffsetValid(uint32 typeBitSize, int32 offset) {
+  switch (typeBitSize) {
+    case 8: {
+      return StrLdr8ImmValid(offset);
+    }
+    case 16: {
+      return StrLdr16ImmValid(offset);
+    }
+    case 32: {
+      return StrLdr32ImmValid(offset);
+    }
+    case 64: {
+      return StrLdr64ImmValid(offset);
+    }
+    case 128: {
+      return StrLdr128ImmValid(offset);
+    }
+    default: {
+      CHECK_FATAL(false, "should be here");
+      break;
+    }
+  }
+  return false;
+}
+
 // ------------------- //
 //  Assign Stmt Split  //
 // ------------------- //
@@ -318,9 +456,10 @@ AssignMeStmt *CreateAndInsertRegassign(MeExpr &rhsExpr, MeStmt &anchorStmt, MeFu
 // Support custom exit conditions if needed
 void TrySplitMeStmt(MeStmt &stmt, MeFunction &func, bool &changed) {
   Opcode op = stmt.GetOp();
-  if (op == OP_iassign) {
-    // DO NOT split iassign with agg type
-    auto lhsType = static_cast<IassignMeStmt&>(stmt).GetLHSVal()->GetPrimType();
+  if (op == OP_iassign || op == OP_dassign) {
+    // DO NOT split iassign/dassign with agg type
+    auto lhsType = op == OP_iassign ? static_cast<IassignMeStmt&>(stmt).GetLHSVal()->GetPrimType() :
+        static_cast<DassignMeStmt&>(stmt).GetLHS()->GetPrimType();
     if (lhsType == PTY_agg || stmt.GetRHS()->GetPrimType() == PTY_agg) {
       return;
     }
@@ -360,10 +499,10 @@ void TrySplitMeStmt(MeStmt &stmt, MeFunction &func, bool &changed) {
 
 // A wrapper class of iassign stmt with it's store memLoc, this can avoid repeated memLoc calculations
 struct StoreWrapper {
-  StoreWrapper(IassignMeStmt *iassign, MemLoc *memLoc)
-      : stmt(iassign), storeMem(memLoc) {}
+  StoreWrapper(MeStmt *meStmt, MemLoc *memLoc)
+      : stmt(meStmt), storeMem(memLoc) {}
 
-  IassignMeStmt *stmt = nullptr;
+  MeStmt *stmt = nullptr;  // IassignMeStmt or DassignMeStmt
   MemLoc *storeMem = nullptr;
 };
 
@@ -511,19 +650,27 @@ class TreeNode {
       stmts.push_back(stmt);
     }
     auto *firstStmt = stmts[0];
-    if (firstStmt->GetOp() == OP_iassign) {
-      op = OP_iassign;
-    } else if (firstStmt->GetOp() == OP_regassign) {
+    auto firstOp = firstStmt->GetOp();
+    if (firstOp == OP_iassign || firstOp == OP_dassign) {
+      op = firstOp;
+    } else if (firstOp == OP_regassign) {
       op = firstStmt->GetRHS()->GetOp();
     } else {
       CHECK_FATAL(false, "NYI");
     }
     // Init memLocs
-    if (op == OP_iassign) {
+    if (op == OP_iassign || op == OP_dassign) {
       // Init store memLoc
       for (auto *stmt : stmts) {
-        auto *ivar = static_cast<IassignMeStmt*>(stmt)->GetLHSVal();
-        auto *memLoc = memoryHelper.GetMemLoc(*ivar);
+        MemLoc *memLoc = nullptr;
+        if (op == OP_iassign) {
+          auto *ivar = static_cast<IassignMeStmt*>(stmt)->GetLHSVal();
+          memLoc = memoryHelper.GetMemLoc(*ivar);
+        } else {
+          MeExpr *var = static_cast<DassignMeStmt*>(stmt)->GetLHS();
+          CHECK_FATAL(var->GetOp() == OP_dread, "unexpected stmt");
+          memLoc = memoryHelper.GetMemLoc(*static_cast<VarMeExpr*>(var));
+        }
         memLocs.push_back(memLoc);
       }
       auto *minMemLoc = GetMinMemLoc();
@@ -630,6 +777,14 @@ class TreeNode {
 
   int32 GetCost() const;
 
+  int32 GetExternalUserCost() const;
+
+  // Only valid for load/store treeNode for now
+  int32 GetScalarCost() const;
+
+  // Only valid for load/store treeNode for now
+  int32 GetVectorCost() const;
+
   const StmtVec &GetStmts() const {
     return stmts;
   }
@@ -671,6 +826,21 @@ class TreeNode {
     return op == OP_iassign;
   }
 
+  bool CanNodeUseLoadStorePair() const {
+    if (!IsLoad() && !IsStore()) {
+      return false;
+    }
+    if (IsLoad() && stmts[0] == nullptr) {
+      // iread with agg primType won't be splited, it's treeNode has no valid stmts
+      return false;
+    }
+    auto typeBitSize = GetPrimTypeBitSize(GetType());
+    if (GetLane() == 2 && (typeBitSize == 32 || typeBitSize == 64)) {
+      return true;
+    }
+    return false;
+  }
+
   bool IsLeaf() const {
     return children.empty();
   }
@@ -691,7 +861,7 @@ class TreeNode {
   }
 
   // Get memLoc with min offset, only valid for store/load treeNode
-  MemLoc *GetMinMemLoc() {
+  MemLoc *GetMinMemLoc() const {
     CHECK_FATAL(!memLocs.empty(), "memLocs is empty, make sure this tree node is a load or store");
     MemLoc *minMem = memLocs[0];
     int32 minOffset = memLocs[0]->offset;
@@ -758,6 +928,23 @@ class TreeNode {
     LogInfo::MapleLogger() << "op: " << GetOpName(op) << std::endl;
     LogInfo::MapleLogger() << "lane: " << GetLane() << std::endl;
     LogInfo::MapleLogger() << "cost: " << GetCost() << std::endl;
+    if (IsLoad()) {
+      int32 externalUserCost = GetExternalUserCost();
+      if (externalUserCost != 0) {
+        LogInfo::MapleLogger() << "externalUserCost: " << externalUserCost << std::endl;
+      }
+    }
+    if (IsLoad() || IsStore()) {
+      LogInfo::MapleLogger() << "CanNodeUseLoadStorePair: " << (CanNodeUseLoadStorePair() ? "yes" : "no") << std::endl;
+      LogInfo::MapleLogger() << "scalar cost: " << GetScalarCost() << std::endl;
+      LogInfo::MapleLogger() << "vector cost: " << GetVectorCost() << std::endl;
+      if (GetMinMemLoc()->offset == 0) {
+        auto stackOffset = EstimateStackOffsetOfMemLoc(GetMinMemLoc(), func);
+        if (stackOffset) {
+          LogInfo::MapleLogger() << "must in stack, offset: " << stackOffset.value() << std::endl;
+        }
+      }
+    }
     LogInfo::MapleLogger() << "parent: " << (parent == nullptr ? "NULL" : std::to_string(parent->id)) << std::endl;
     LogInfo::MapleLogger() << "children: ";
     for (auto *child : children) {
@@ -812,10 +999,11 @@ class TreeNode {
   bool canVectorized = false;      // whether the tree node can be vectorized or must be gathered
 };
 
+struct BlockScheduling;
 class SLPTree {
  public:
-  SLPTree(MapleAllocator &allocator, MemoryHelper &memHelper)
-      : alloc(allocator), memoryHelper(memHelper), treeNodeVec(alloc.Adapter()) {}
+  SLPTree(MapleAllocator &allocator, MemoryHelper &memHelper, MeFunction &f, BlockScheduling &bs)
+      : alloc(allocator), memoryHelper(memHelper), func(f), blockScheduling(bs), treeNodeVec(alloc.Adapter()) {}
 
   MapleVector<TreeNode*> &GetNodes() {
     return treeNodeVec;
@@ -837,6 +1025,12 @@ class SLPTree {
   size_t GetLane() const {
     return treeNodeVec[0]->GetLane();
   }
+
+  MeFunction &GetFunc() {
+    return func;
+  }
+
+  MeExprUseInfo &GetUseInfo();
 
   int32 GetCost() const;
 
@@ -883,6 +1077,14 @@ class SLPTree {
       return false;
     }
     auto *secondTreeNode = treeNodeVec[1];
+    if (secondTreeNode->IsLoad()) {
+      if (secondTreeNode->GetStmts()[0] == nullptr) {
+        return false;  // iread with agg primType won't be splited, it's treeNode has no valid stmts
+      }
+      if (secondTreeNode->GetLane() == 2) {
+        return true;
+      }
+    }
     return secondTreeNode->ConstOrNeedGather();
   }
 
@@ -898,6 +1100,8 @@ class SLPTree {
  private:
   MapleAllocator &alloc;
   MemoryHelper &memoryHelper;
+  MeFunction &func;
+  BlockScheduling &blockScheduling;
   MapleVector<TreeNode*> treeNodeVec;  // the first node is always root
 };
 
@@ -924,19 +1128,116 @@ uint32 TreeNode::GetBundleSize() const {
   return GetLane() * GetPrimTypeBitSize(tree.GetType());
 }
 
-int32 TreeNode::GetCost() const {
-  if (!CanVectorized()) {
-    if (IsPrimitiveFloat(GetType())) {
-      // Currently CodeGen can not support set_element/get_element for float type.
-      // So return a huge cost that prevent slp tree from being vectorized
-      return kHugeCost;
+// Only valid for load/store treeNode for now
+int32 TreeNode::GetScalarCost() const {
+  ASSERT(IsLoad() || IsStore(), "must be");
+  int32 cost = GetLane();
+  if (CanNodeUseLoadStorePair()) {
+    cost /= 2;
+    auto *minMemLoc = GetMinMemLoc();
+    int32 offset = minMemLoc->offset;
+    if (offset == 0) {
+      auto stackOffset = EstimateStackOffsetOfMemLoc(minMemLoc, tree.GetFunc());
+      if (stackOffset) {
+        offset = stackOffset.value();
+      }
     }
+    // If stp/ldp for stack memory, we think that an extra insn is always needed for preparing offset
+    bool offsetValid = IsIntStpLdpOffsetValid(GetPrimTypeBitSize(GetType()), offset);
+    if (!offsetValid) {
+      cost += 1;  // invalid offset, an extra instruction is needed to prepare offset const
+      if (IsStore()) {
+        bool canReuseOffsetPrepareInsn = tree.GetSize() == 2 && tree.GetNodes()[1]->IsLoad() &&
+            minMemLoc->base == tree.GetNodes()[1]->GetMinMemLoc()->base;
+        if (canReuseOffsetPrepareInsn) {
+          // If ldp and stp have same base, only 1 extra insn is needed to prepare offset const
+          cost -= 1;
+        }
+      }
+    }
+  }
+  return cost;
+}
+
+// Only valid for load/store treeNode for now
+int32 TreeNode::GetVectorCost() const {
+  ASSERT(IsLoad() || IsStore(), "must be");
+  ASSERT(CanVectorized(), "must be");
+  int32 cost = 1;
+  int32 offset = GetMinMemLoc()->offset;
+  if (!IsVecStrLdrOffsetValid(GetBundleSize(), offset)) {
+    cost += 1;
+  }
+  return cost;
+}
+
+int32 TreeNode::GetExternalUserCost() const {
+  int32 externalUserCost = 0;
+  auto &exprUseInfo = tree.GetUseInfo();
+  for (auto *scalarStmt : GetStmts()) {
+    auto *lhs = scalarStmt->GetLHS();
+    auto *useItems = exprUseInfo.GetUseSitesOfExpr(lhs);
+    if (useItems == nullptr) {
+      continue;
+    }
+    for (auto &use : *useItems) {
+      if (!use.IsUseByStmt()) {
+        externalUserCost += 1;
+        continue;
+      }
+      auto &internalUseStmts = GetParent()->GetStmts();
+      if (std::find(internalUseStmts.begin(), internalUseStmts.end(), use.GetStmt()) == internalUseStmts.end()) {
+        // Found external user in current BB, we can delete the scalar stmt, extra cost should be considered.
+        externalUserCost += 1;
+      }
+    }
+  }
+  return externalUserCost;
+}
+
+// Wether the constval is in the range of insn's imm field
+static bool IsConstvalInRangeOfInsnImm(ConstMeExpr *constExpr, Opcode op, uint32 typeBitSize) {
+  if (constExpr->GetConstVal()->GetKind() != kConstInt) {
+    return false;
+  }
+  auto val = constExpr->GetIntValue();
+  switch (op) {
+    case OP_add:
+    case OP_sub:
+      return Imm12BitValid(val);
+    case OP_band:
+    case OP_bior:
+    case OP_bxor: {
+      if (typeBitSize == 32) {
+        return Imm12BitMaskValid(val);
+      } else if (typeBitSize == 64) {
+        return Imm13BitMaskValid(val);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return false;
+}
+
+int32 TreeNode::GetCost() const {
+  bool isLoadOrStore = IsLoad() || IsStore();
+  if (IsPrimitiveFloat(GetType()) && !isLoadOrStore) {
+    // Currently CodeGen can not support set_element/get_element for float type.
+    // So return a huge cost that prevent slp tree from being vectorized.
+    // It is OK for float type to load/store.
+    return kHugeCost;
+  }
+  if (!CanVectorized()) {
     return GetLane();
   }
   if (op == OP_constval) {
-    if (tree.CanTreeUseStp()) {
-      return 0;
-    } else if (SameExpr()) {
+    if (SameExpr()) {
+      auto typeBitSize = GetPrimTypeBitSize(GetType());
+      if (IsConstvalInRangeOfInsnImm(static_cast<ConstMeExpr*>(exprs[0]), GetParent()->GetOp(), typeBitSize)) {
+        return 2;  // no extra constval assign insn is needed, for example, sub x1, x1, #1
+      }
       return 1;
     } else {
       return GetLane();
@@ -947,10 +1248,28 @@ int32 TreeNode::GetCost() const {
     // aarch64 only vector shl(register), lowering vector shr will introduce an extra vector neg instruction.
     cost += 1;
   }
+  if (isLoadOrStore) {
+    int32 vectorCost = GetVectorCost();
+    int32 scalarCost = GetScalarCost();
+    cost = vectorCost - scalarCost;
+    if (IsLoad()) {  // only consider load treeNode's external user cost for now
+      int32 externalUserCost = GetExternalUserCost();
+      if (externalUserCost != 0) {
+        cost += externalUserCost;
+      }
+    }
+  }
   return cost;
 }
 
 int32 SLPTree::GetCost() const {
+  // Special case for store 0, stp wzr/xzr is better because no need to prepare zero vector register
+  if (GetSize() == 2 && treeNodeVec[1]->GetOp() == OP_constval && treeNodeVec[1]->SameExpr()) {
+    auto *constVal = static_cast<ConstMeExpr*>(treeNodeVec[1]->GetExprs()[0])->GetConstVal();
+    if (constVal->GetKind() == kConstInt && static_cast<MIRIntConst*>(constVal)->GetValue() == 0) {
+      return kHugeCost;
+    }
+  }
   int32 cost = 0;
   for (auto *treeNode : treeNodeVec) {
     cost += treeNode->GetCost();
@@ -996,6 +1315,7 @@ struct BlockScheduling {
   std::vector<MeStmt*> stmtVec;      // map position to stmt
   std::ostream &os;
   MeExprUseInfo *exprUseInfo = nullptr;
+  bool extendUseInfo = false;
   bool debug = false;
 
   std::vector<MeStmt*> &GetStmtVec() {
@@ -1083,7 +1403,13 @@ struct BlockScheduling {
   // Collect use info from `begin` to `end` (not include `end`) in current BB
   // These use info are needed by dependency analysis and stmt scheduling
   void RebuildUseInfo(MeStmt *begin, MeStmt *end, MapleAllocator &alloc);
+  void ExtendUseInfo();
 };
+
+MeExprUseInfo &SLPTree::GetUseInfo() {
+  blockScheduling.ExtendUseInfo();
+  return *blockScheduling.exprUseInfo;
+}
 
 void BlockScheduling::DumpStmtVec() const {
   LogInfo::MapleLogger() << "--- [ DumpStmtVec ] ---" << std::endl;
@@ -1198,6 +1524,17 @@ void BlockScheduling::RebuildUseInfo(MeStmt *begin, MeStmt *end, MapleAllocator 
     stmt = stmt->GetNext();
   }
   exprUseInfo->SetState(kUseInfoOfScalar);
+}
+
+void BlockScheduling::ExtendUseInfo() {
+  if (extendUseInfo) {
+    return;
+  }
+  ASSERT_NOT_NULL(exprUseInfo);
+  for (auto *succ : bb->GetSucc()) {
+    exprUseInfo->CollectUseInfoInBB(succ);
+  }
+  extendUseInfo = true;
 }
 
 bool BlockScheduling::IsOstUsedByStmt(OriginalSt *ost, MeStmt *stmt) {
@@ -1410,26 +1747,38 @@ MIRType* GenVecType(PrimType sPrimType, uint8 lanes) {
     break;                                             \
   }
 
-#define GET_VECTOR_INTRN(OP)                           \
-  VECTOR_INTRN_CASE(OP, v4i32)                         \
-  VECTOR_INTRN_CASE(OP, v2i32)                         \
-  VECTOR_INTRN_CASE(OP, v4u32)                         \
-  VECTOR_INTRN_CASE(OP, v2u32)                         \
-  VECTOR_INTRN_CASE(OP, v8i16)                         \
-  VECTOR_INTRN_CASE(OP, v8u16)                         \
-  VECTOR_INTRN_CASE(OP, v4i16)                         \
-  VECTOR_INTRN_CASE(OP, v4u16)                         \
+#define GET_VECTOR_INTRN_8BIT(OP)                      \
   VECTOR_INTRN_CASE(OP, v16i8)                         \
   VECTOR_INTRN_CASE(OP, v16u8)                         \
   VECTOR_INTRN_CASE(OP, v8i8)                          \
-  VECTOR_INTRN_CASE(OP, v8u8)                          \
+  VECTOR_INTRN_CASE(OP, v8u8)
+
+#define GET_VECTOR_INTRN_16BIT(OP)                     \
+  VECTOR_INTRN_CASE(OP, v8i16)                         \
+  VECTOR_INTRN_CASE(OP, v8u16)                         \
+  VECTOR_INTRN_CASE(OP, v4i16)                         \
+  VECTOR_INTRN_CASE(OP, v4u16)
+
+#define GET_VECTOR_INTRN_32BIT(OP)                     \
+  VECTOR_INTRN_CASE(OP, v4i32)                         \
+  VECTOR_INTRN_CASE(OP, v2i32)                         \
+  VECTOR_INTRN_CASE(OP, v4u32)                         \
+  VECTOR_INTRN_CASE(OP, v2u32)
+
+#define GET_VECTOR_INTRN_NYI                           \
+  default:                                             \
+    CHECK_FATAL(false, "NYI");
+
+#define GET_VECTOR_INTRN(OP)                           \
+  GET_VECTOR_INTRN_32BIT(OP)                           \
+  GET_VECTOR_INTRN_16BIT(OP)                           \
+  GET_VECTOR_INTRN_8BIT(OP)                            \
   VECTOR_INTRN_CASE(OP, v2i64)                         \
   VECTOR_INTRN_CASE(OP, v2u64)                         \
   VECTOR_INTRN_CASE(OP, v2f32)                         \
   VECTOR_INTRN_CASE(OP, v4f32)                         \
   VECTOR_INTRN_CASE(OP, v2f64)                         \
-  default:                                             \
-    CHECK_FATAL(false, "NYI");
+  GET_VECTOR_INTRN_NYI
 
 MIRIntrinsicID GetVectorSetElementIntrnId(PrimType type) {
   MIRIntrinsicID intrinsic;
@@ -1443,6 +1792,34 @@ MIRIntrinsicID GetVectorFromScalarIntrnId(PrimType type) {
   MIRIntrinsicID intrinsic;
   switch (type) {
     GET_VECTOR_INTRN(vector_from_scalar);
+  }
+  return intrinsic;
+}
+
+MIRIntrinsicID GetVectorReverse32IntrnId(PrimType type) {
+  MIRIntrinsicID intrinsic;
+  switch (type) {
+    GET_VECTOR_INTRN(vector_reverse);
+  }
+  return intrinsic;
+}
+
+MIRIntrinsicID GetVectorReverse16IntrnId(PrimType type) {
+  MIRIntrinsicID intrinsic;
+  switch (type) {
+    GET_VECTOR_INTRN_8BIT(vector_reverse16)
+    GET_VECTOR_INTRN_NYI
+  }
+  return intrinsic;
+}
+
+MIRIntrinsicID GetVectorReverse64IntrnId(PrimType type) {
+  MIRIntrinsicID intrinsic;
+  switch (type) {
+    GET_VECTOR_INTRN_32BIT(vector_reverse64)
+    GET_VECTOR_INTRN_16BIT(vector_reverse64)
+    GET_VECTOR_INTRN_8BIT(vector_reverse64)
+    GET_VECTOR_INTRN_NYI
   }
   return intrinsic;
 }
@@ -1468,6 +1845,7 @@ class SLPVectorizer {
   void Run();
   void ProcessBB(BB &bb);
   void CollectSeedStmts();
+  void AddSeedStore(MeStmt *stmt, MemLoc *memLoc);
   void FilterAndSortSeedStmts();
   bool TrySplitSeedStmts();
 
@@ -1485,6 +1863,8 @@ class SLPVectorizer {
   bool DoVectTreeNodeIvar(TreeNode *treeNode);
   bool DoVectTreeNodeConstval(TreeNode *treeNode);
   bool DoVectTreeNodeBinary(TreeNode *treeNode);
+  bool DoVectTreeNodeNary(TreeNode *treeNode);
+  bool DoVectTreeNodeNaryReverse(TreeNode *treeNode, MIRIntrinsicID intrnId);
   bool DoVectTreeNodeIassign(TreeNode *treeNode);
   bool DoVectTreeNodeGatherNeeded(TreeNode *treeNode);
   bool VectorizeSLPTree();
@@ -1494,7 +1874,8 @@ class SLPVectorizer {
   void MarkStmtsVectorizedInTree();
   void ReplaceStmts(const std::vector<MeStmt*> &origStmtVec, std::list<MeStmt*> &newStmtList);
   void CodeMotionVectorize();
-  void CodeMotionReorder();
+  void CodeMotionReorderStoresAndLoads();
+  void CodeMotionSaveSchedulingResult();
 
  private:
   MapleAllocator alloc;
@@ -1503,7 +1884,7 @@ class SLPVectorizer {
   MeFunction &func;
   IRMap &irMap;
   Dominance &dom;
-  std::unordered_map<MemBasePtr*, StoreVec> storeVecMap;  // key is base point part of store lhs ivar
+  std::map<MemBasePtr*, StoreVec, MemBasePtrCmp> storeVecMap;  // key is base point part of store lhs ivar
   std::unordered_set<MeStmt*> vectorizedStmts;  // Vectorized stmts in current BB, to avoid vectorize a stmt twice
   BlockScheduling *blockScheduling = nullptr;
   BB *currBB = nullptr;
@@ -1518,6 +1899,10 @@ void SLPVectorizer::Run() {
   const auto &rpo = dom.GetReversePostOrder();
   for (BB *bb : rpo) {
     ProcessBB(*bb);
+  }
+  if (localSymOffsetTab != nullptr) {
+    delete localSymOffsetTab;
+    localSymOffsetTab = nullptr;
   }
   SLP_DEBUG(os << "After processing func " << func.GetName() << std::endl);
 }
@@ -1712,13 +2097,38 @@ bool SLPVectorizer::DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, ui
 
   bool vectorized = VectorizeSLPTree();
   // If we can use stp instruction, don't need to replace scalar stmts with vector stmts
-  if (vectorized && !tree->CanTreeUseStp()) {
+  if (vectorized) {
+    SLP_DEBUG(os << "CodeMotionVectorize" << std::endl;);
     MarkStmtsVectorizedInTree();
     CodeMotionVectorize();
-  } else {
-    CodeMotionReorder();
+  } else if (tree->CanTreeUseStp()) {
+    SLP_DEBUG(os << "CodeMotionReorderStoresAndLoads" << std::endl;);
+    CodeMotionReorderStoresAndLoads();
+  } else if (tree->GetSize() > 2) {
+    bool hasLoadStorePair = false;
+    for (auto *treeNode : tree->GetNodes()) {
+      if (treeNode->CanNodeUseLoadStorePair()) {
+        hasLoadStorePair = true;
+        break;
+      }
+    }
+    if (hasLoadStorePair) {
+      SLP_DEBUG(os << "CodeMotionSaveSchedulingResult" << std::endl;);
+      CodeMotionSaveSchedulingResult();  // Save scheduling result to put load/store pair together
+    }
   }
   return vectorized;
+}
+
+void SLPVectorizer::CodeMotionSaveSchedulingResult() {
+  // We should call RecoverStmtIds before any real code motion
+  RecoverStmtIds(*currBB, blockScheduling->stmtIdBuffer);
+  currBB->GetMeStmts().clear();
+  for (auto *stmt : blockScheduling->GetStmtVec()) {
+    stmt->SetPrev(nullptr);
+    stmt->SetNext(nullptr);
+    currBB->AddMeStmtLast(stmt);
+  }
 }
 
 void SLPVectorizer::CodeMotionVectorize() {
@@ -1787,7 +2197,7 @@ void SLPVectorizer::ReplaceStmts(const std::vector<MeStmt*> &origStmtVec, std::l
   }
 }
 
-void SLPVectorizer::CodeMotionReorder() {
+void SLPVectorizer::CodeMotionReorderStoresAndLoads() {
   if (tree->GetSize() == 0) {
     return;
   }
@@ -1809,6 +2219,17 @@ void SLPVectorizer::CodeMotionReorder() {
     return GetOrderId(a) < GetOrderId(b);
   });
 
+  bool isRhsLoad = root->GetChildren()[0]->IsLoad();
+  std::vector<MeStmt*> loadStmts;
+  if (isRhsLoad) {
+    for (auto *stmt : root->GetChildren()[0]->GetStmts()) {
+      loadStmts.push_back(stmt);
+    }
+    std::sort(loadStmts.begin(), loadStmts.end(), [](MeStmt *a, MeStmt *b) {
+      return GetOrderId(a) < GetOrderId(b);
+    });
+  }
+
   // We should call RecoverStmtIds before any real code motion
   RecoverStmtIds(*currBB, blockScheduling->stmtIdBuffer);
 
@@ -1817,6 +2238,19 @@ void SLPVectorizer::CodeMotionReorder() {
     auto *currStmt = storeStmts[i];
     currBB->RemoveMeStmt(currStmt);
     currBB->InsertMeStmtBefore(storeStmts.back(), currStmt);
+  }
+
+  if (isRhsLoad) {
+    // Do scheduling loads
+    // To improve: If we can identify that all loads have been scheduled together before,
+    // we can skip the following code to save build time.
+    MeStmt *anchor = loadStmts[0];
+    for (size_t i = 1; i < lane; ++i) {
+      auto *currStmt = loadStmts[i];
+      currBB->RemoveMeStmt(currStmt);
+      currBB->InsertMeStmtAfter(anchor, currStmt);
+      anchor = currStmt;
+    }
   }
 }
 
@@ -1839,6 +2273,17 @@ bool SLPVectorizer::TrySplitSeedStmts() {
   return changed;
 }
 
+void SLPVectorizer::AddSeedStore(MeStmt *stmt, MemLoc *memLoc) {
+  MemBasePtr *key = memLoc->base;
+  auto *storeWrapper = alloc.GetMemPool()->New<StoreWrapper>(stmt, memLoc);
+  auto it = storeVecMap.find(key);
+  if (it != storeVecMap.end()) {
+    it->second.push_back(storeWrapper);
+  } else {
+    storeVecMap[key].push_back(storeWrapper);
+  }
+}
+
 // Currently we only collect store, it may be enhanced in the future.
 void SLPVectorizer::CollectSeedStmts() {
   // Clear old seed stmts first
@@ -1857,14 +2302,22 @@ void SLPVectorizer::CollectSeedStmts() {
         continue;
       }
       MemLoc *memLoc = memoryHelper.GetMemLoc(*lhsIvar);
-      MemBasePtr *key = memLoc->base;
-      auto *storeWrapper = alloc.GetMemPool()->New<StoreWrapper>(static_cast<IassignMeStmt*>(stmt), memLoc);
-      auto it = storeVecMap.find(key);
-      if (it != storeVecMap.end()) {
-        it->second.push_back(storeWrapper);
-      } else {
-        storeVecMap[key].push_back(storeWrapper);
+      AddSeedStore(stmt, memLoc);
+    } else if (stmt->GetOp() == OP_dassign) {
+      auto *lhs = static_cast<DassignMeStmt*>(stmt)->GetLHS();
+      if (lhs->GetOp() != OP_dread || lhs->IsVolatile() || PrimitiveType(lhs->GetPrimType()).IsVector() ||
+          lhs->GetPrimType() == PTY_agg) {
+        stmt = next;
+        continue;
       }
+      auto *lhsVar = static_cast<VarMeExpr*>(lhs);
+      auto *lhsVarType = lhsVar->GetType();
+      if (lhsVarType->GetKind() == kTypeBitField || lhsVar->GetFieldID() == 0) {  // only consider agg field dassign
+        stmt = next;
+        continue;
+      }
+      MemLoc *memLoc = memoryHelper.GetMemLoc(*lhsVar);
+      AddSeedStore(stmt, memLoc);
     }
     stmt = next;
   }
@@ -1908,7 +2361,7 @@ bool SLPVectorizer::TryScheduleTogehter(const std::vector<MeStmt*> &stmts) {
 // Building SLP tree
 // input: sorted stmts by memLoc offset
 bool SLPVectorizer::BuildTree(std::vector<MeStmt*> &stmts) {
-  tree = tmpAlloc->New<SLPTree>(*tmpAlloc, memoryHelper);
+  tree = tmpAlloc->New<SLPTree>(*tmpAlloc, memoryHelper, func, *blockScheduling);
   SLP_DEBUG(os << "Build tree node for " << GetOpName(stmts[0]->GetOp()) << std::endl);
   CHECK_FATAL(stmts.size() >= 2, "must be");
 
@@ -1962,17 +2415,28 @@ TreeNode *SLPVectorizer::BuildTreeRec(std::vector<ExprWithDef*> &exprVec, uint32
   }
 
   // Now all the exprs are compatible
-  // (2) Supported ops
-  static const std::vector<Opcode> supportedOps = {
-    OP_iread, OP_ireadoff, OP_add, OP_sub, OP_constval, OP_bxor, OP_band, OP_mul,
-  };
+  // (2) Supported ops/intrinsicops
   if (std::find(supportedOps.begin(), supportedOps.end(), currOp) == supportedOps.end()) {
     SLP_GATHER_DEBUG(os << "unsupported expr op: " << GetOpName(currOp) << std::endl);
     return tree->CreateTreeNodeByExprs(exprVec, parentNode, false);
   }
+  if (currOp == OP_intrinsicop) {
+    auto intrnId = static_cast<NaryMeExpr*>(firstRealExpr)->GetIntrinsic();
+    if (std::find(supportedIntrns.begin(), supportedIntrns.end(), intrnId) == supportedIntrns.end()) {
+      SLP_GATHER_DEBUG(os << "unsupported intrinsicop: " << intrnId << std::endl);
+      return tree->CreateTreeNodeByExprs(exprVec, parentNode, false);
+    }
+  }
 
   if (currOp == OP_constval) {
     return tree->CreateTreeNodeByExprs(exprVec, parentNode, true);
+  }
+
+  // mul v2u64 and mul v2i64 are not supported by armv8
+  // This is target-dependent configuration, maybe we need abstract it TargetInfo
+  if (currOp == OP_mul && exprVec.size() == 2 && GetPrimTypeBitSize(firstRealExpr->GetPrimType()) == 64) {
+    SLP_GATHER_DEBUG(os << "Unsupported vector mul pattern" << std::endl);
+    return tree->CreateTreeNodeByExprs(exprVec, parentNode, false);
   }
 
   // (3) [CHECK LOAD] Check load/store size and check bit field load
@@ -2118,9 +2582,6 @@ bool SLPVectorizer::DoVectTreeNodeConstval(TreeNode *treeNode) {
     SLP_FAILURE_DEBUG(os << "float point vectorization has not been supported by cg handlefunc" << std::endl);
     return false;
   }
-  if (tree->CanTreeUseStp()) {
-    return true;
-  }
   PrimType elemType = tree->GetType();
   auto *vecType = GenVecType(tree->GetType(), treeNode->GetLane());
   CHECK_NULL_FATAL(vecType);
@@ -2166,34 +2627,14 @@ bool SLPVectorizer::DoVectTreeNodeConstval(TreeNode *treeNode) {
   return true;
 }
 
-ScalarMeExpr *FindStructExprByFieldExprs(IRMap &irMap, OriginalSt &structOst,
-    const std::vector<ScalarMeExpr*> &fieldExprs) {
-  // Find struct vst
-  bool isAllScalarIvarZeroVersion = true;
-  MeStmt *latestDefStmt = nullptr;
-  ScalarMeExpr *latestStructVstExpr = nullptr;
-  for (ScalarMeExpr *fieldExpr  : fieldExprs) {
-    auto defBy = fieldExpr->GetDefBy();
-    if (defBy != kDefByNo) {
-      isAllScalarIvarZeroVersion = false;
-    }
-    if (defBy == kDefByChi) {
-      auto *defStmt = fieldExpr->GetDefByMeStmt();
-      if (latestDefStmt != nullptr && GetOrderId(latestDefStmt) >= GetOrderId(defStmt)) {
-        continue;
-      }
-      latestDefStmt = defStmt;
-      auto *chiList = defStmt->GetChiList();
-      CHECK_NULL_FATAL(chiList);
-      auto it = chiList->find(structOst.GetIndex());
-      CHECK_FATAL(it != chiList->end(), "chiList misses structOst chi");
-      latestStructVstExpr = it->second->GetLHS();
-    }
+void SetMuListForVectorIvar(IvarMeExpr &ivar, TreeNode *treeNode, IRMap &irMap) {
+  auto &order = treeNode->GetOrder();
+  ivar.GetMuList().resize(order.size(), nullptr);
+  for (size_t i = 0; i < order.size(); ++i) {
+    uint32 orderIdx = order[i];
+    auto *mu = static_cast<IvarMeExpr*>(treeNode->GetMemLocs()[i]->Emit(irMap))->GetUniqueMu();
+    ivar.SetMuItem(orderIdx, mu);
   }
-  if (isAllScalarIvarZeroVersion) {
-    latestStructVstExpr = static_cast<ScalarMeExpr*>(irMap.GetMeExprByVerID(structOst.GetZeroVersionIndex()));
-  }
-  return latestStructVstExpr;
 }
 
 bool SLPVectorizer::DoVectTreeNodeIvar(TreeNode *treeNode) {
@@ -2216,54 +2657,18 @@ bool SLPVectorizer::DoVectTreeNodeIvar(TreeNode *treeNode) {
   auto *vecPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*vecType);
   auto *addrExpr = minMem->Emit(irMap);
   auto *ivarExpr = static_cast<IvarMeExpr*>(addrExpr);
-  if (ivarExpr->GetFieldID() == 0) {
-    SLP_FAILURE_DEBUG(os << "We need ivar.muList" << std::endl);
-    return false;
-  } else {  // filedId != 0
-    auto *newBase = ivarExpr->GetBase();
-    if (minMem->extraOffset != 0) {
-      auto *extraOffsetExpr = irMap.CreateIntConstMeExpr(minMem->extraOffset, PTY_u64);
-      newBase = irMap.CreateMeExprBinary(OP_add, PTY_u64,
-          *newBase, *extraOffsetExpr);
-    }
-    IvarMeExpr newIvar(&irMap.GetIRMapAlloc(), -1, vecType->GetPrimType(), TyIdx(PTY_u64), 0);
-    newIvar.SetTyIdx(vecPtrType->GetTypeIndex());
-    newIvar.SetPtyp(vecType->GetPrimType());
-    newIvar.SetBase(newBase);
-    // set mu
-    auto prevLevelVstIdx = ivarExpr->GetUniqueMu()->GetOst()->GetPointerVstIdx();
-    auto *sameLevelOstsPtr = func.GetMeSSATab()->GetOriginalStTable().GetNextLevelOstsOfVst(prevLevelVstIdx);
-    if (sameLevelOstsPtr == nullptr) {
-      SLP_FAILURE_DEBUG(os << "can not find sameLevelOstsPtr, is dereferencing a null pointer?");
-      return false;
-    }
-    auto &sameLevelOsts = *sameLevelOstsPtr;
-    // Find struct ost, sometimes we can't find it
-    OriginalSt *structOst = nullptr;
-    for (auto *ost : sameLevelOsts) {
-      if (ost->GetFieldID() == 0) {
-        structOst = ost;
-        break;
-      }
-    }
-    // Use check fatal after fixing whole struct ost problem or supporting ivar.muList
-    if (structOst == nullptr) {
-      SLP_FAILURE_DEBUG(os << "can not find structOst when updating mu for vector ivar" << std::endl);
-      return false;
-    }
-    std::vector<ScalarMeExpr*> fieldExprs;
-    for (auto *stmt : treeNode->GetStmts()) {
-      fieldExprs.push_back(static_cast<IvarMeExpr*>(stmt->GetRHS())->GetUniqueMu());
-    }
-    ScalarMeExpr *latestStructVstExpr = FindStructExprByFieldExprs(irMap, *structOst, fieldExprs);
-    if (latestStructVstExpr != nullptr) {
-      newIvar.SetMuItem(0, latestStructVstExpr);
-    } else {
-      SLP_FAILURE_DEBUG(os << "can not find structVst when updating mu for vector ivar" << std::endl);
-      return false;
-    }
-    addrExpr = irMap.HashMeExpr(newIvar);
+  auto *newBase = ivarExpr->GetBase();
+  if (minMem->extraOffset != 0) {
+    auto *extraOffsetExpr = irMap.CreateIntConstMeExpr(minMem->extraOffset, PTY_u64);
+    newBase = irMap.CreateMeExprBinary(OP_add, PTY_u64, *newBase, *extraOffsetExpr);
   }
+  IvarMeExpr newIvar(&irMap.GetIRMapAlloc(), -1, vecType->GetPrimType(), TyIdx(PTY_u64), 0);
+  newIvar.SetTyIdx(vecPtrType->GetTypeIndex());
+  newIvar.SetPtyp(vecType->GetPrimType());
+  newIvar.SetBase(newBase);
+  SetMuListForVectorIvar(newIvar, treeNode, irMap);
+  addrExpr = irMap.HashMeExpr(newIvar);
+
   CHECK_FATAL(addrExpr->GetMeOp() == kMeOpIvar, "only iread memLoc is supported for now");
   auto *lhsReg = irMap.CreateRegMeExpr(*vecType);
   auto *vecRegassign = irMap.CreateAssignMeStmt(*lhsReg, *addrExpr, *currBB);
@@ -2305,15 +2710,102 @@ bool SLPVectorizer::DoVectTreeNodeBinary(TreeNode *treeNode) {
   return true;
 }
 
+void GetRevInfoFromScalarRevIntrnId(MIRIntrinsicID intrnId, uint32 &rangeBitSize, uint32 &elementBitSize) {
+  switch (intrnId) {
+    case INTRN_C_rev_4:
+      rangeBitSize = 32;
+      elementBitSize = 8;
+      break;
+    case INTRN_C_rev_8:
+      rangeBitSize = 64;
+      elementBitSize = 8;
+      break;
+    case INTRN_C_rev16_2:
+      rangeBitSize = 16;
+      elementBitSize = 8;
+      break;
+    default:
+      CHECK_FATAL(false, "NYI");
+      break;
+  }
+}
+
+bool SLPVectorizer::DoVectTreeNodeNary(TreeNode *treeNode) {
+  CHECK_FATAL(treeNode->GetOp() == OP_intrinsicop, "only support intrinsicop for now");
+  CHECK_FATAL(treeNode->GetChildren().size() == 1, "must be");
+  CHECK_FATAL(!treeNode->GetStmts().empty(), "treeNode need gather?");
+  auto *firstRealExpr = treeNode->GetStmts()[0]->GetRHS();
+  CHECK_FATAL(firstRealExpr->GetOp() == OP_intrinsicop, "must be");
+  auto intrnId = static_cast<NaryMeExpr*>(firstRealExpr)->GetIntrinsic();
+  if (std::find(supportedIntrns.begin(), supportedIntrns.end(), intrnId) == supportedIntrns.end()) {
+    SLP_FAILURE_DEBUG(os << "unsupported intrinsic" << std::endl);
+    return false;
+  }
+  switch (intrnId) {
+    case INTRN_C_rev_4:
+    case INTRN_C_rev_8:
+    case INTRN_C_rev16_2:
+      return DoVectTreeNodeNaryReverse(treeNode, intrnId);
+    default:
+      CHECK_FATAL(false, "NYI");
+  }
+  return false;
+}
+
+bool SLPVectorizer::DoVectTreeNodeNaryReverse(TreeNode *treeNode, MIRIntrinsicID intrnId) {
+  uint32 rangeBitSize = 0;
+  uint32 elementBitSize = 0;
+  GetRevInfoFromScalarRevIntrnId(intrnId, rangeBitSize, elementBitSize);
+  uint32 opndBitSize = GetPrimTypeBitSize(treeNode->GetType());
+  uint32 vecOpndBitSize = opndBitSize * treeNode->GetLane();
+  if (vecOpndBitSize != 64 && vecOpndBitSize != 128) {
+    SLP_FAILURE_DEBUG(
+        os << "only v64 and v128 are allowed as vector reverse operand, but get " << vecOpndBitSize << std::endl);
+    return false;
+  }
+  auto *vecType = GenVecType(tree->GetType(), treeNode->GetLane());
+  CHECK_NULL_FATAL(vecType);
+  uint32 newNumLane = vecOpndBitSize / elementBitSize;
+  auto isSign = !PrimitiveType(treeNode->GetType()).IsUnsigned();
+  // TODO get new vector type
+  auto newElementType = GetIntegerPrimTypeBySizeAndSign(elementBitSize, isSign);
+  auto revVecType = GenVecType(newElementType, newNumLane);
+  MIRIntrinsicID vecIntrnId;
+  switch (rangeBitSize) {
+    case 16:
+      vecIntrnId = GetVectorReverse16IntrnId(revVecType->GetPrimType());
+      break;
+    case 32:
+      vecIntrnId = GetVectorReverse32IntrnId(revVecType->GetPrimType());
+      break;
+    case 64:
+      vecIntrnId = GetVectorReverse64IntrnId(revVecType->GetPrimType());
+      break;
+    default:
+      CHECK_FATAL(false, "should not be here");
+      break;
+  }
+  NaryMeExpr naryExpr(&irMap.GetIRMapAlloc(), kInvalidExprID, treeNode->GetOp(),
+      vecType->GetPrimType(), 1, TyIdx(0), vecIntrnId, false);
+  for (auto *child : treeNode->GetChildren()) {
+    auto *defStmt = child->GetOutStmts().back();
+    auto *opnd = defStmt->GetLHS();
+    CHECK_NULL_FATAL(opnd);
+    naryExpr.PushOpnd(opnd);
+  }
+  auto *vecExpr = irMap.HashMeExpr(naryExpr);
+  auto *lhsReg = irMap.CreateRegMeExpr(*vecType);
+  auto *assign = irMap.CreateAssignMeStmt(*lhsReg, *vecExpr, *currBB);
+  assign->SetSrcPos(treeNode->GetStmts()[0]->GetSrcPosition());
+  treeNode->PushOutStmt(assign);
+  if (debug) {
+    treeNode->DumpVecStmts(irMap);
+  }
+  return true;
+}
+
 bool SLPVectorizer::DoVectTreeNodeIassign(TreeNode *treeNode) {
   CHECK_FATAL(treeNode->GetChildren().size() == 1, "must be");
-  if (tree->CanTreeUseStp()) {
-    for (auto *stmt : treeNode->GetStmts()) {
-      CHECK_NULL_FATAL(stmt);
-      treeNode->PushOutStmt(stmt);
-    }
-    return true;
-  }
   auto *minMem = treeNode->GetMinMemLoc();
   CHECK_NULL_FATAL(minMem);
   auto *vecType = GenVecType(tree->GetType(), treeNode->GetLane());
@@ -2377,9 +2869,6 @@ bool SLPVectorizer::DoVectTreeNodeIassign(TreeNode *treeNode) {
 }
 
 bool SLPVectorizer::DoVectTreeNodeGatherNeeded(TreeNode *treeNode) {
-  if (tree->CanTreeUseStp()) {
-    return true;
-  }
   auto elemType = tree->GetType();
   auto *vecType = GenVecType(elemType, treeNode->GetLane());
   CHECK_NULL_FATAL(vecType);
@@ -2443,6 +2932,9 @@ bool SLPVectorizer::VectorizeTreeNode(TreeNode *treeNode) {
     case OP_mul:
     case OP_sub: {
       return DoVectTreeNodeBinary(treeNode);
+    }
+    case OP_intrinsicop: {
+      return DoVectTreeNodeNary(treeNode);
     }
     case OP_constval: {
       return DoVectTreeNodeConstval(treeNode);

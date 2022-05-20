@@ -633,7 +633,7 @@ void A64StrLdrProp::DoMemReplace(const RegOperand &replacedReg, MemOperand &newM
 MemOperand *A64StrLdrProp::StrLdrPropPreCheck(const Insn &insn, MemPropMode prevMod) {
   memPropMode = kUndef;
   if (insn.IsLoad() || insn.IsStore()) {
-    if (insn.IsAtomic() || insn.GetOperand(0).GetSize() == k128BitSize) {
+    if (insn.IsAtomic()) {
       return nullptr;
     }
     auto *currMemOpnd = static_cast<MemOperand*>(insn.GetMemOpnd());
@@ -752,6 +752,10 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const MemOpera
     }
     case MOP_xadrpl12: {
       if (memPropMode == kPropBase) {
+        if (currMemOpnd.GetSize() >= 128) {
+          // We can not be sure that the page offset is 16-byte aligned
+          break;
+        }
         auto *ofstOpnd = static_cast<ImmOperand*>(offset);
         CHECK_FATAL(ofstOpnd != nullptr, "oldOffset is null!");
         int64 val = ofstOpnd->GetValue();
