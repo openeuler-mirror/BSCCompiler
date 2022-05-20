@@ -3668,8 +3668,9 @@ void AArch64CGFunc::SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
       uint32 bytelen = GetPrimTypeSize(primType);
       regOpnd = GetOrCreatePhysicalRegisterOperand((AArch64reg)(R16), bytelen, regty);
     }
-
-    if (bitNum <= k16ValidBit) {
+    regno_t regNO0 = static_cast<RegOperand&>(opnd0).GetRegisterNumber();
+    /* addrrrs do not support sp */
+    if (bitNum <= k16ValidBit && regNO0 != RSP) {
       int64 newImm = (static_cast<uint64>(immVal) >> static_cast<uint32>(tail0bitNum)) & 0xFFFF;
       ImmOperand &immOpnd1 = CreateImmOperand(newImm, k16BitSize, false);
       SelectCopyImm(regOpnd, immOpnd1, primType);
