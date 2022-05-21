@@ -4607,10 +4607,12 @@ void ReplaceCmpToCmnAArch64::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   MOperator nextMop = MOP_undef;
   MOperator newMop = MOP_undef;
+  uint64 negOne = -1;
   switch (thisMop) {
     case MOP_xmovri32: {
       nextMop = MOP_wcmprr;
       newMop = MOP_wcmnri;
+      negOne = UINT32_MAX;
       break;
     }
     case MOP_xmovri64: {
@@ -4626,7 +4628,7 @@ void ReplaceCmpToCmnAArch64::Run(BB &bb, Insn &insn) {
   if (opnd2OfMov->IsIntImmediate()) {
     ImmOperand *immOpnd = static_cast<ImmOperand*>(opnd2OfMov);
     int64 iVal = immOpnd->GetValue();
-    if (kNegativeImmLowerLimit <= iVal && iVal < 0) {
+    if ((kNegativeImmLowerLimit <= iVal && iVal < 0) || iVal == negOne) {
       Insn *nextInsn = insn.GetNextMachineInsn();  /* get the next insn to judge if it is a cmp instruction. */
       if (nextInsn != nullptr) {
         if (nextInsn->GetMachineOpcode() == nextMop) {
@@ -4634,6 +4636,9 @@ void ReplaceCmpToCmnAArch64::Run(BB &bb, Insn &insn) {
           Operand *opndCmp3 = &(nextInsn->GetOperand(kInsnThirdOpnd));  /* get the third operand of cmp */
           /* if the first operand of mov equals the third operand of cmp, match the pattern. */
           if (opnd1OfMov == opndCmp3) {
+            if (iVal == negOne) {
+              iVal = -1;
+            }
             ImmOperand &newOpnd = aarch64CGFunc->CreateImmOperand(iVal * (-1), immOpnd->GetSize(), false);
             Operand &regFlag = nextInsn->GetOperand(kInsnFirstOpnd);
             bb.ReplaceInsn(*nextInsn, cgFunc.GetCG()->BuildInstruction<AArch64Insn>(MOperator(newMop), regFlag,
