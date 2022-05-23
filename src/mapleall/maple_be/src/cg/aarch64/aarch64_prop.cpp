@@ -295,10 +295,12 @@ bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &con
     CHECK_FATAL(useOpndIdx == kInsnSecondOpnd || useOpndIdx == kInsnThirdOpnd, "check this insn");
     Insn *newInsn = nullptr;
     if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, &constOpnd, kInsnThirdOpnd)) {
-      newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
-          newMop, useInsn->GetOperand(kInsnFirstOpnd), useInsn->GetOperand(kInsnSecondOpnd), constOpnd);
-      if (useOpndIdx == kInsnSecondOpnd) { /* swap operand due to legality in aarch */
-        newInsn->SetOperand(kInsnSecondOpnd, useInsn->GetOperand(kInsnThirdOpnd));
+      if (useOpndIdx == kInsnThirdOpnd) {
+        newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+            newMop, useInsn->GetOperand(kInsnFirstOpnd), useInsn->GetOperand(kInsnSecondOpnd), constOpnd);
+      } else if (useOpndIdx == kInsnSecondOpnd && aT == kAArch64Add) { /* swap operand due to legality in aarch */
+        newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+            newMop, useInsn->GetOperand(kInsnFirstOpnd), useInsn->GetOperand(kInsnThirdOpnd), constOpnd);
       }
     }
     /* try aggressive opt in aarch64 add and sub */
@@ -416,7 +418,7 @@ bool A64ConstProp::ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) {
     }
     case MOP_xsubrrr:
     case MOP_wsubrrr: {
-      break;
+      return ArithmeticConstReplace(useDUInfo, constOpnd, kAArch64Sub);
     }
     case MOP_xaddrrr:
     case MOP_waddrrr: {
