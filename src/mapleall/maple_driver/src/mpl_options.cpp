@@ -39,10 +39,28 @@
 #include "me_option.h"
 #include "option.h"
 #include "cg_option.h"
+#include "driver_options.h"
+
 
 namespace maple {
 using namespace mapleOption;
 using namespace maplebe;
+
+/* tool -> OptionCategory map: ld -> ldCategory, me -> meCategory and etc... */
+static std::unordered_map<std::string, cl::OptionCategory *> exeCategories =
+  {
+   {"maple", &driverCategory},
+   {maple::kBinNameClang, &clangCategory},
+   {maple::kBinNameCpp2mpl, &hir2mplCategory},
+   {maple::kBinNameMpl2mpl, &mpl2mplCategory},
+   {maple::kBinNameMe, &meCategory},
+   {maple::kBinNameMplcg, &cgCategory},
+   {maple::kAsFlag, &asCategory},
+   {maple::kLdFlag, &ldCategory},
+   {maple::kBinNameDex2mpl, &dex2mplCategory},
+   {maple::kBinNameJbc2mpl, &jbc2mplCategory},
+   {maple::kBinNameMplipa, &ipaCategory}
+  };
 
 #ifdef ANDROID
 const std::string kMapleDriverVersion = "MapleDriver " + std::to_string(Version::GetMajorVersion()) + "." +
@@ -55,45 +73,18 @@ const std::vector<std::string> kMapleCompilers = { "jbc2mpl", "hir2mpl",
     "dex2mpl", "mplipa", "as", "ld",
     "me", "mpl2mpl", "mplcg", "clang"};
 
-int MplOptions::Parse(int argc, char **argv) {
-  optionParser.reset(new OptionParser());
-  optionParser->RegisteUsages(DriverOptionCommon::GetInstance());
-#ifdef INTERGRATE_DRIVER
-  optionParser->RegisteUsages(Dex2mplOptions::GetInstance());
-#else
-  optionParser->RegisteUsages(dex2mplUsage);
-#endif
-  optionParser->RegisteUsages(IpaOption::GetInstance());
-  optionParser->RegisteUsages(jbcUsage);
-  optionParser->RegisteUsages(cppUsage);
-  optionParser->RegisteUsages(ldUsage);
-  optionParser->RegisteUsages(asUsage);
-  optionParser->RegisteUsages(Options::GetInstance());
-  optionParser->RegisteUsages(MeOption::GetInstance());
-  optionParser->RegisteUsages(CGOptions::GetInstance());
+ErrorCode MplOptions::Parse(int argc, char **argv) {
+  cl::CommandLine::GetCommandLine().Parse(argc, argv);
   exeFolder = FileUtils::GetFileFolder(FileUtils::GetExecutable());
-  int ret = optionParser->Parse(argc, argv);
-  if (ret != kErrorNoError) {
-    return ret;
-  }
+
   // We should recognize O0, O2 and run options firstly to decide the real options
-  ret = DecideRunType();
+  ErrorCode ret = HandleEarlyOptions();
   if (ret != kErrorNoError) {
     return ret;
   }
 
-  // Set default as O0
-  if (runMode == RunMode::kUnkownRun) {
-    optimizationLevel = kO0;
-    runMode = RunMode::kAutoRun;
-  }
-  // Make sure in Auto mode
-  if (runMode != RunMode::kCustomRun) {
-    setDefaultLevel = true;
-  }
-
-  // Check whether the input files were valid
-  ret = CheckInputFileValidity();
+  /* Check whether the input files were valid */
+  ret = CheckInputFiles();
   if (ret != kErrorNoError) {
     return ret;
   }
@@ -110,261 +101,184 @@ int MplOptions::Parse(int argc, char **argv) {
      * DecideRunningPhases(runningExes) creates ActionsTree in kCustomRun mode.
      * Maybe we can create Actions tree in DecideRunType in order to not use runningExes?
     */
-    ret = static_cast<int>(DecideRunningPhases(runningExes));
+    ret = DecideRunningPhases(runningExes);
     if (ret != kErrorNoError) {
       return ret;
     }
   }
 
-  // Handle other options
-  ret = HandleGeneralOptions();
+  ret = HandleOptions();
   if (ret != kErrorNoError) {
     return ret;
-  }
-  // Check whether the file was readable
-  ret = CheckFileExits();
-
-  if (isDriverPhasesDumpCmd) {
-    DumpActionTree();
-    return static_cast<int>(kErrorExitHelp);
   }
 
   return ret;
 }
 
-ErrorCode MplOptions::HandleGeneralOptions() {
-  ErrorCode ret = kErrorNoError;
+ErrorCode MplOptions::HandleOptions() {
+  if (opts::output.IsEnabledByUser() && GetActions().size() > 1) {
+    LogInfo::MapleLogger(kLlErr) << "Cannot specify -o when generating multiple output\n";
+    return kErrorInvalidParameter;
+  }
 
-  const std::string *updatedOptToolName = nullptr;
-  for (auto opt : optionParser->GetOptions()) {
-    switch (opt.Index()) {
-      case kHelp: {
-        if (!opt.Args().empty()) {
-          if (std::find(kMapleCompilers.begin(), kMapleCompilers.end(), opt.Args()) != kMapleCompilers.end()) {
-            optionParser->PrintUsage(opt.Args(), helpLevel);
-            return kErrorExitHelp;
-          }
-        }
-        optionParser->PrintUsage("driver", helpLevel);
-        return kErrorExitHelp;
-      }
-      case kVersion: {
-        LogInfo::MapleLogger() << kMapleDriverVersion << "\n";
-        return kErrorExitHelp;
-      }
-      case kProfileGen: {
-        exeOptions[kBinNameMe].push_back(opt);
-        exeOptions[kBinNameMpl2mpl].push_back(opt);
-        continue;
-      }
-      case kDex2mplOpt:
-        updatedOptToolName = &kBinNameDex2mpl;
-        break;
-      case kAsOpt:
-        updatedOptToolName = &kBinNameAs;
-        break;
-      case kCpp2mplOpt:
-        updatedOptToolName = &kBinNameCpp2mpl;
-        break;
-      case kJbc2mplOpt:
-        updatedOptToolName = &kBinNameJbc2mpl;
-        break;
-      case kMplipaOpt:
-        updatedOptToolName = &kBinNameMplipa;
-        break;
-      case kMeOpt:
-        updatedOptToolName = &kBinNameMe;
-        printExtraOptStr << " --me-opt=" << "\"" << opt.Args() << "\"";
-        break;
-      case kMpl2MplOpt:
-        updatedOptToolName = &kBinNameMpl2mpl;
-        printExtraOptStr << " --mpl2mpl-opt=" << "\"" << opt.Args() << "\"";
-        break;
-      case kMplcgOpt:
-        updatedOptToolName = &kBinNameMplcg;
-        printExtraOptStr << " --mplcg-opt=" << "\"" << opt.Args() << "\"";
-        break;
-      case kLdOpt:
-        updatedOptToolName = &kLdFlag;
-        break;
-      case kTimePhases:
-        timePhases = true;
-        break;
-      case kGenMeMpl:
-        genMeMpl = true;
-        break;
-      case kGenMapleBC:
-        genMapleBC = true;
-        break;
-      case kGenLMBC:
-        genLMBC = true;
-        break;
-      case kGenVtableImpl:
-        genVtableImpl = true;
-        break;
-      case kSaveTemps:
-        isSaveTmps = true;
-        genMeMpl = true;
-        genVtableImpl = true;
-        StringUtils::Split(opt.Args(), saveFiles, ',');
-        break;
-      case kOption:
-        if (UpdateExtraOptionOpt(opt.Args()) != kErrorNoError) {
-          return kErrorInvalidParameter;
-        }
-        break;
-      case kInMplt:
-        mpltFile = opt.Args();
-        break;
-      case kAllDebug:
-        debugFlag = true;
-        break;
-      case kMaplePrintPhases:
-        isDriverPhasesDumpCmd = true;
-        break;
-      case kWithDwarf:
-        withDwarf = true;
-        break;
-      case kPartO2:
-        partO2List = opt.Args();
-        break;
-      case kNpeNoCheck:
-        if (!safeRegion) {
-          npeCheckMode = SafetyCheckMode::kNoCheck;
-        }
-        break;
-      case kNpeStaticCheck:
-        if (!safeRegion) {
-          npeCheckMode = SafetyCheckMode::kStaticCheck;
-        }
-        break;
-      case kNpeDynamicCheck:
-        npeCheckMode = SafetyCheckMode::kDynamicCheck;
-        break;
-      case kNpeDynamicCheckSilent:
-        npeCheckMode = SafetyCheckMode::kDynamicCheckSilent;
-        break;
-      case kNpeDynamicCheckAll:
-        isNpeCheckAll = true;
-        break;
-      case kBoundaryNoCheck:
-        if (!safeRegion) {
-          boundaryCheckMode = SafetyCheckMode::kNoCheck;
-        }
-        break;
-      case kBoundaryStaticCheck:
-        if (!safeRegion) {
-          boundaryCheckMode = SafetyCheckMode::kStaticCheck;
-        }
-        break;
-      case kBoundaryDynamicCheck:
-        boundaryCheckMode = SafetyCheckMode::kDynamicCheck;
-        break;
-      case kBoundaryDynamicCheckSilent:
-        boundaryCheckMode = SafetyCheckMode::kDynamicCheckSilent;
-        break;
-      case kSafeRegionOption:
-        safeRegion = true;
-        npeCheckMode = SafetyCheckMode::kDynamicCheck;
-        boundaryCheckMode = SafetyCheckMode::kDynamicCheck;
-        break;
-      case kMapleOut:
-        CHECK_FATAL(!(rootActions[0]->GetTool().empty()),
-                    "rootActions must be set as last compilation step\n");
-        /* Add -o <out> option to last compilation step */
-        exeOptions[rootActions[0]->GetTool()].push_back(opt);
-        break;
-      default:
-        // I do not care
-        break;
+  if (opts::saveTempOpt.IsEnabledByUser()) {
+    opts::genMeMpl.SetValue(true);
+    opts::genVtable.SetValue(true);
+    StringUtils::Split(opts::saveTempOpt, saveFiles, ',');
+  }
+
+  if (!opts::safeRegionOption) {
+    if (opts::npeNoCheck) {
+      npeCheckMode = SafetyCheckMode::kNoCheck;
     }
 
-    if (updatedOptToolName != nullptr) {
-      ret = UpdatePhaseOption(opt.Args(), *updatedOptToolName);
-      if (ret != kErrorNoError) {
-        return ret;
-      }
-      updatedOptToolName = nullptr;
+    if (opts::npeStaticCheck) {
+      npeCheckMode = SafetyCheckMode::kStaticCheck;
     }
 
-    ret = AddOption(opt);
+    if (opts::boundaryNoCheck) {
+      boundaryCheckMode = SafetyCheckMode::kNoCheck;
+    }
+
+    if (opts::boundaryStaticCheck) {
+      boundaryCheckMode = SafetyCheckMode::kStaticCheck;
+    }
+  } else { /* safeRegionOption is eanbled */
+    npeCheckMode = SafetyCheckMode::kDynamicCheck;
+    boundaryCheckMode = SafetyCheckMode::kDynamicCheck;
+  }
+
+  if (opts::npeDynamicCheck) {
+    npeCheckMode = SafetyCheckMode::kDynamicCheck;
+  }
+
+  if (opts::npeDynamicCheckSilent) {
+    npeCheckMode = SafetyCheckMode::kDynamicCheckSilent;
+  }
+
+  if (opts::boundaryDynamicCheck) {
+    boundaryCheckMode = SafetyCheckMode::kDynamicCheck;
+  }
+
+  if (opts::boundaryDynamicCheckSilent) {
+    boundaryCheckMode = SafetyCheckMode::kDynamicCheckSilent;
+  }
+
+  HandleExtraOptions();
+
+  return kErrorNoError;
+}
+
+ErrorCode MplOptions::HandleEarlyOptions() {
+  if (opts::version) {
+    LogInfo::MapleLogger() << kMapleDriverVersion << "\n";
+    return kErrorExitHelp;
+  }
+
+  if (opts::printDriverPhases) {
+    DumpActionTree();
+    return kErrorExitHelp;
+  }
+
+  if (opts::help.IsEnabledByUser()) {
+    if (auto it = exeCategories.find(opts::help.GetValue()); it != exeCategories.end()) {
+      cl::CommandLine::GetCommandLine().HelpPrinter(*it->second);
+    } else {
+      maple::LogInfo::MapleLogger() << "USAGE: maple [options]\n\n"
+        "  Example 1: <Maple bin path>/maple --run=me:mpl2mpl:mplcg "
+        "--option=\"[MEOPT]:[MPL2MPLOPT]:[MPLCGOPT]\"\n"
+        "                                    --mplt=MPLTPATH inputFile.mpl\n"
+        "  Example 2: <Maple bin path>/maple -O2 --mplt=mpltPath inputFile.dex\n\n"
+        "==============================\n"
+        "  Options:\n";
+      cl::CommandLine::GetCommandLine().HelpPrinter();
+    }
+    return kErrorExitHelp;
+  }
+
+  if (opts::o0.IsEnabledByUser() ||
+      opts::o1.IsEnabledByUser() ||
+      opts::o2.IsEnabledByUser() ||
+      opts::os.IsEnabledByUser()) {
+
+    if (opts::run.IsEnabledByUser()) {
+      /* -Ox and --run should not appear at the same time */
+      LogInfo::MapleLogger(kLlErr) << "Cannot set auto mode and run mode at the same time!\n";
+      return kErrorInvalidParameter;
+    } else {
+      runMode = RunMode::kAutoRun;
+    }
+  } else if (opts::run.IsEnabledByUser()) {
+    runMode = RunMode::kCustomRun;
+
+    UpdateRunningExe(opts::run);
+    if (!opts::optionOpt.GetValue().empty()) {
+      if (UpdateExeOptions(opts::optionOpt) != kErrorNoError) {
+        return kErrorInvalidParameter;
+      }
+    }
+  } else {
+    runMode = RunMode::kAutoRun;
+    opts::o0.SetValue(true); // enable default -O0
+  }
+
+  return kErrorNoError;
+}
+
+void MplOptions::HandleExtraOptions() {
+  for (const auto &val : opts::clangOpt.GetValues()) {
+    UpdateExeOptions(val, kBinNameClang);
+  }
+
+  for (const auto &val : opts::hir2mplOpt.GetValues()) {
+    UpdateExeOptions(val, kBinNameCpp2mpl);
+  }
+
+  for (const auto &val : opts::mpl2mplOpt.GetValues()) {
+    UpdateExeOptions(val, kBinNameMpl2mpl);
+    printExtraOptStr << " --mpl2mpl-opt=" << "\"" << val << "\"";
+  }
+
+  for (const auto &val : opts::meOpt.GetValues()) {
+    UpdateExeOptions(val, kBinNameMe);
+    printExtraOptStr << " --me-opt=" << "\"" << val << "\"";
+  }
+
+  for (const auto &val : opts::mplcgOpt.GetValues()) {
+    UpdateExeOptions(val, kBinNameMplcg);
+    printExtraOptStr << " --mplcg-opt=" << "\"" << val << "\"";
+  }
+
+  for (const auto &val : opts::asOpt.GetValues()) {
+    UpdateExeOptions(val, kAsFlag);
+  }
+
+  for (const auto &val : opts::ldOpt.GetValues()) {
+    UpdateExeOptions(val, kLdFlag);
+  }
+
+  for (const auto &val : opts::dex2mplOpt.GetValues()) {
+    UpdateExeOptions(val, kBinNameDex2mpl);
+  }
+
+  for (const auto &val : opts::jbc2mplOpt.GetValues()) {
+    UpdateExeOptions(val, kBinNameJbc2mpl);
+  }
+
+  for (const auto &val : opts::mplipaOpt.GetValues()) {
+    UpdateExeOptions(val, kBinNameMplipa);
   }
 
   // A workaround to pass --general-reg-only from the cg options to global options
-  auto it = exeOptions.find("mplcg");
+  auto it = exeOptions.find(kBinNameMplcg);
   if (it != exeOptions.end()) {
-    std::string regOnlyOpt("general-reg-only");
     for (const auto &opt : it->second) {
-      if (opt.OptionKey() == regOnlyOpt) {
+      if (opt == "--general-reg-only") {
         generalRegOnly = true;
         break;
       }
     }
   }
-
-  return ret;
-}
-
-ErrorCode MplOptions::DecideRunType() {
-  ErrorCode ret = kErrorNoError;
-  bool runModeConflict = false;
-  for (auto opt : optionParser->GetOptions()) {
-    switch (opt.Index()) {
-      case kOptimization0:
-        if (runMode == RunMode::kCustomRun) {  // O0 and run should not appear at the same time
-          runModeConflict = true;
-        } else {
-          runMode = RunMode::kAutoRun;
-          optimizationLevel = kO0;
-        }
-        break;
-      case kOptimization2:
-      case kOptimizationS:
-        if (runMode == RunMode::kCustomRun) {  // O0 and run should not appear at the same time
-          runModeConflict = true;
-        } else {
-          runMode = RunMode::kAutoRun;
-          optimizationLevel = kO2;
-        }
-        if (opt.Index() == kOptimizationS) {
-          optForSize = true;
-        }
-        break;
-      case kWithIpa:
-        isWithIpa = (opt.Type() == kEnable);
-        break;
-      case kGenObj:
-        genObj = true;
-        break;
-      case kMaplePhaseOnly:
-        runMaplePhaseOnly = (opt.Type() == kEnable) ? true : false;
-        break;
-      case kRun:
-        if (runMode == RunMode::kAutoRun) {    // O0 and run should not appear at the same time
-          runModeConflict = true;
-        } else {
-          runMode = RunMode::kCustomRun;
-          UpdateRunningExe(opt.Args());
-        }
-        break;
-      case kInFile: {
-        if (!Init(opt.Args())) {
-          return kErrorInitFail;
-        }
-        break;
-      }
-      case kHelpLevel:
-        helpLevel = static_cast<unsigned int>(std::stoul(opt.Args()));
-        break;
-      default:
-        break;
-    }
-  }
-  if (runModeConflict) {
-    LogInfo::MapleLogger(kLlErr) << "Cannot set auto mode and run mode at the same time!\n";
-    ret = kErrorInvalidParameter;
-  }
-  return ret;
 }
 
 std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *const inputInfo,
@@ -427,7 +341,7 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
       break;
   }
 
-  if (runMaplePhaseOnly == true) {
+  if (opts::maplePhase == true) {
     isNeedAs = false;
   }
 
@@ -455,7 +369,7 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
     currentAction = std::move(newAction);
   }
 
-  if (!HasSetGenOnlyObj()) {
+  if (!opts::compileWOLink) {
     UpdateRunningExe(kLdFlag);
     /* "Linking step" Action can have several inputActions.
      * Each inputAction links to previous Actions to create the action tree.
@@ -486,7 +400,7 @@ ErrorCode MplOptions::DecideRunningPhases() {
     CHECK_FATAL(lastAction != nullptr, "Incorrect input file type: %s",
                 inputInfo->GetInputFile().c_str());
 
-    if ((lastAction->GetTool() == kAsFlag && !HasSetGenOnlyObj()) ||
+    if ((lastAction->GetTool() == kAsFlag && !opts::compileWOLink) ||
         lastAction->GetTool() == kInputPhase) {
       /* 1. For linking step, inputActions are all assembly actions;
        * 2. If we try to link with maple driver, inputActions are all kInputPhase objects;
@@ -613,88 +527,23 @@ void MplOptions::DumpActionTree(const Action &action, int indents) const {
   }
 }
 
-ErrorCode MplOptions::CheckInputFileValidity() {
-  // Get input fileName
-  if (optionParser->GetNonOptionsCount() <= 0) {
-    return kErrorNoError;
-  }
-  std::ostringstream optionString;
-  const std::vector<std::string> &inputs = optionParser->GetNonOptions();
-  for (size_t i = 0; i < inputs.size(); ++i) {
-    if (i == 0) {
-      optionString << inputs[i];
-    } else {
-      optionString <<  "," << inputs[i];
-    }
-  }
-  if (!Init(optionString.str())) {
-    return kErrorInitFail;
-  }
-  return kErrorNoError;
-}
-
-ErrorCode MplOptions::CheckFileExits() {
-  ErrorCode ret = kErrorNoError;
-  if (inputFiles == "") {
-    LogInfo::MapleLogger(kLlErr) << "Forgot to input files?\n";
-    return ErrorCode::kErrorInitFail;
-  }
-  for (auto fileName : splitsInputFiles) {
-    std::ifstream infile;
-    infile.open(fileName);
-    if (infile.fail()) {
-      LogInfo::MapleLogger(kLlErr) << "Cannot open input file " << fileName << '\n';
-      ret = kErrorFileNotFound;
-      infile.close();
-      return ret;
-    }
-    infile.close();
-  }
-  return ret;
-}
-
-ErrorCode MplOptions::AddOption(const mapleOption::Option &option) {
-  if (!option.HasExtra()) {
-    if (option.GetExeName() == "driver") {
-      /* If it doesn't have extra options and it's a common option for driver,
-       * set this option in exeOptions as "driver"" to use this info in debug print.
-       */
-      exeOptions[option.GetExeName()].push_back(option);
-    }
-    return kErrorNoError;
-  }
-
-  for (const auto &exeName : option.GetExtras()) {
-
-    /* extras field in Descriptor allows to register an option in additional tool.
-     * If extras exeName == driver name ("driver"), it means that this option
-     * is registered outside the driver, but this option can be used by the driver.
-     * In this case the tool is set in Descriptor.exeName (not in Descriptor.extras).
-     * And Descriptor.extras=="driver" shows only that this option can be handled by the driver.
-     */
-    const std::string &exe = (exeName == "driver") ? option.GetExeName() : exeName;
-
-    auto iter = std::find(runningExes.begin(), runningExes.end(), exe);
-    if (iter == runningExes.end()) {
-      continue;
-    }
-    // For compilers, such as me, mpl2mpl
-    exeOptions[exe].push_back(option);
-  }
-  return kErrorNoError;
-}
-
 std::string MplOptions::GetCommonOptionsStr() const {
-  static DriverOptionIndex exclude[] = { kRun, kOption, kInFile, kMeOpt, kMpl2MplOpt, kMplcgOpt };
-
   std::string driverOptions;
-  auto it = exeOptions.find("driver");
-  if (it != exeOptions.end()) {
-    for (const mapleOption::Option &opt : it->second) {
-      if (!(std::find(std::begin(exclude), std::end(exclude), opt.Index()) != std::end(exclude))) {
-        std::string prefix = opt.GetPrefix();
-        auto connectSym = !opt.Args().empty() ? "=" : "";
-        driverOptions += " " + prefix + opt.OptionKey() + connectSym + opt.Args();
+  static const std::vector<cl::OptionInterface *> extraExclude = { &opts::run,
+                                                                   &opts::optionOpt,
+                                                                   &opts::infile,
+                                                                   &opts::mpl2mplOpt,
+                                                                   &opts::meOpt,
+                                                                   &opts::mplcgOpt };
+
+  for (auto const &opt : driverCategory.GetEnabledOptions()) {
+    if (!(std::find(std::begin(extraExclude), std::end(extraExclude), opt) != std::end(extraExclude))) {
+      for (const auto &val : opt->GetRawValues()) {
+        if (!val.empty()) {
+          driverOptions += opt->GetName() + " " + val + " ";
+        } else {
+          driverOptions += opt->GetName() + " ";
+        }
       }
     }
   }
@@ -712,19 +561,46 @@ InputInfo *MplOptions::AllocateInputInfo(const std::string &inputFile) {
   return ret;
 }
 
-bool MplOptions::Init(const std::string &inputFile) {
-  if (StringUtils::Trim(inputFile).empty()) {
-    return false;
-  }
-  inputFiles = inputFile;
-  StringUtils::Split(inputFile, splitsInputFiles, ',');
+ErrorCode MplOptions::CheckInputFiles() {
+  auto &badArgs = cl::CommandLine::GetCommandLine().badCLArgs;
 
-  /* inputInfo describes each input file for driver */
-  for (auto &inFile : splitsInputFiles) {
-    inputInfos.push_back(std::make_unique<InputInfo>(inFile));
+  /* Set input files with --infile="file1 file2" option */
+  if (opts::infile.IsEnabledByUser()) {
+    if (StringUtils::Trim(opts::infile).empty()) {
+      return kErrorFileNotFound;
+    }
+
+    std::vector<std::string> splitsInputFiles;
+    StringUtils::Split(opts::infile, splitsInputFiles, ',');
+
+    /* inputInfo describes each input file for driver */
+    for (auto &inFile : splitsInputFiles) {
+      if (FileUtils::IsFileExists(inFile)) {
+        inputFiles.push_back(inFile);
+        inputInfos.push_back(std::make_unique<InputInfo>(inFile));
+      } else {
+        LogInfo::MapleLogger(kLlErr) << "File does not exist: " << inFile << "\n";
+        return kErrorFileNotFound;
+      }
+    }
   }
 
-  return true;
+  /* Set input files directly: maple file1 file2 */
+  for (auto &arg : badArgs) {
+    if (FileUtils::IsFileExists(arg.first)) {
+      inputFiles.push_back(arg.first);
+      inputInfos.push_back(std::make_unique<InputInfo>(arg.first));
+    } else {
+      LogInfo::MapleLogger(kLlErr) << "Unknown option or non-existent input file: " << arg.first << "\n";
+      return kErrorInvalidParameter;
+    }
+  }
+
+  if (inputFiles.empty()) {
+    return kErrorFileNotFound;
+  }
+
+  return kErrorNoError;
 }
 
 ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
@@ -732,7 +608,8 @@ ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
   if (runMode == RunMode::kCustomRun) {
     return ret;
   }
-  if (optimizationLevel == kO0) {
+
+  if (opts::o0) {
     ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO0, sizeof(kMeDefaultOptionsO0) / sizeof(MplOption));
     if (ret != kErrorNoError) {
       return ret;
@@ -744,47 +621,42 @@ ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
       ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO0ForC,
                                  sizeof(kMpl2MplDefaultOptionsO0ForC) / sizeof(MplOption));
     }
-
-    if (ret != kErrorNoError) {
-      return ret;
-    }
-  } else if (optimizationLevel == kO2) {
-    if (isWithIpa) {
+  } else if (opts::o2) {
+    if (opts::withIpa) {
       UpdateRunningExe(kBinNameMplipa);
     }
-    if (optForSize) {
-      if (srcLang == kSrcLangJava) {
-        return kErrorNotImplement;
-      }
-      ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsOs,
-                                 sizeof(kMeDefaultOptionsOs) / sizeof(MplOption));
+    if (srcLang != kSrcLangC) {
+      ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2,
+                                 sizeof(kMeDefaultOptionsO2) / sizeof(MplOption));
       if (ret != kErrorNoError) {
         return ret;
       }
-      ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsOs,
-                                 sizeof(kMpl2MplDefaultOptionsOs) / sizeof(MplOption));
+      ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2,
+                                 sizeof(kMpl2MplDefaultOptionsO2) / sizeof(MplOption));
     } else {
-      if (srcLang != kSrcLangC) {
-        ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2,
-                                   sizeof(kMeDefaultOptionsO2) / sizeof(MplOption));
-        if (ret != kErrorNoError) {
-          return ret;
-        }
-        ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2,
-                                   sizeof(kMpl2MplDefaultOptionsO2) / sizeof(MplOption));
-      } else {
-        ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2ForC,
-                                   sizeof(kMeDefaultOptionsO2ForC) / sizeof(MplOption));
-        if (ret != kErrorNoError) {
-          return ret;
-        }
-        ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2ForC,
-                                   sizeof(kMpl2MplDefaultOptionsO2ForC) / sizeof(MplOption));
+      ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2ForC,
+                                 sizeof(kMeDefaultOptionsO2ForC) / sizeof(MplOption));
+      if (ret != kErrorNoError) {
+        return ret;
       }
+      ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2ForC,
+                                 sizeof(kMpl2MplDefaultOptionsO2ForC) / sizeof(MplOption));
     }
+  } else if (opts::os) {
+    if (srcLang == kSrcLangJava) {
+      return kErrorNotImplement;
+    }
+    ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsOs,
+                               sizeof(kMeDefaultOptionsOs) / sizeof(MplOption));
     if (ret != kErrorNoError) {
       return ret;
     }
+    ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsOs,
+                               sizeof(kMpl2MplDefaultOptionsOs) / sizeof(MplOption));
+  }
+
+  if (ret != kErrorNoError) {
+    return ret;
   }
 
   return ret;
@@ -795,7 +667,7 @@ ErrorCode MplOptions::AppendMplcgOptions(MIRSrcLang srcLang) {
   if (runMode == RunMode::kCustomRun) {
     return ret;
   }
-  if (optimizationLevel == kO0) {
+  if (opts::o0) {
     if (srcLang != kSrcLangC) {
       ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO0,
                                  sizeof(kMplcgDefaultOptionsO0) / sizeof(MplOption));
@@ -803,23 +675,22 @@ ErrorCode MplOptions::AppendMplcgOptions(MIRSrcLang srcLang) {
       ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO0ForC,
                                  sizeof(kMplcgDefaultOptionsO0ForC) / sizeof(MplOption));
     }
-  } else if (optimizationLevel == kO2) {
-    if (optForSize) {
+  } else if (opts::o2) {
+    if (srcLang != kSrcLangC) {
+      ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO2,
+                                 sizeof(kMplcgDefaultOptionsO2) / sizeof(MplOption));
+    } else {
+      ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO2ForC,
+                                 sizeof(kMplcgDefaultOptionsO2ForC) / sizeof(MplOption));
+    }
+  } else if (opts::os) {
       if (srcLang == kSrcLangJava) {
         return kErrorNotImplement;
       }
       ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsOs,
                                  sizeof(kMplcgDefaultOptionsOs) / sizeof(MplOption));
-    } else {
-      if (srcLang != kSrcLangC) {
-        ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO2,
-                                   sizeof(kMplcgDefaultOptionsO2) / sizeof(MplOption));
-      } else {
-        ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO2ForC,
-                                   sizeof(kMplcgDefaultOptionsO2ForC) / sizeof(MplOption));
-      }
-    }
   }
+
   if (ret != kErrorNoError) {
     return ret;
   }
@@ -836,30 +707,37 @@ void MplOptions::DumpAppendedOptions(const std::string &exeName,
   }
   LogInfo::MapleLogger() << "\n";
 
-  auto &exeOption = exeOptions.at(exeName);
   LogInfo::MapleLogger() << exeName << " Extra Options: ";
-  for (auto &opt : exeOption) {
-    LogInfo::MapleLogger() << opt.OptionKey() << " "
-                           << opt.Args() << " ";
+  auto it = exeOptions.find(exeName);
+  if (it != exeOptions.end()) {
+    for (auto &opt : it->second) {
+      LogInfo::MapleLogger() << opt << " ";
+    }
   }
+
   LogInfo::MapleLogger() << "\n";
 }
 
-ErrorCode MplOptions::AppendDefaultOptions(const std::string &exeName, MplOption mplOptions[], unsigned int length) {
-  auto &exeOption = exeOptions[exeName];
-
-  if (HasSetDebugFlag()) {
+ErrorCode MplOptions::AppendDefaultOptions(const std::string &exeName,
+                                           MplOption mplOptions[], unsigned int length) {
+  if (opts::debug) {
     DumpAppendedOptions(exeName, mplOptions, length);
   }
 
-  for (size_t i = 0; i < length; ++i) {
-    mplOptions[i].SetValue(FileUtils::AppendMapleRootIfNeeded(mplOptions[i].GetNeedRootPath(), mplOptions[i].GetValue(),
-                                                              exeFolder));
-    bool ret = optionParser->SetOption(mplOptions[i].GetKey(), mplOptions[i].GetValue(), exeName, exeOption);
-    if (!ret) {
-      return kErrorInvalidParameter;
+  for (unsigned int i = 0; i < length; ++i) {
+    mplOptions[i].SetValue(FileUtils::AppendMapleRootIfNeeded(mplOptions[i].GetNeedRootPath(),
+                                                              mplOptions[i].GetValue(), GetExeFolder()));
+    auto &key = mplOptions[i].GetKey();
+    auto &val = mplOptions[i].GetValue();
+
+    if (!val.empty()) {
+      exeOptions[exeName].push_front(val);
+    }
+    if (!key.empty()) {
+      exeOptions[exeName].push_front(key);
     }
   }
+
   auto iter = std::find(runningExes.begin(), runningExes.end(), exeName);
   if (iter == runningExes.end()) {
     runningExes.push_back(exeName);
@@ -867,55 +745,45 @@ ErrorCode MplOptions::AppendDefaultOptions(const std::string &exeName, MplOption
   return kErrorNoError;
 }
 
-ErrorCode MplOptions::UpdatePhaseOption(const std::string &args, const std::string &exeName) {
+void MplOptions::UpdateExeOptions(const std::string &options, const std::string &tool) {
+  std::vector<std::string> splittedOptions;
+  StringUtils::Split(options, splittedOptions, ' ');
 
-  const std::string *exe = &exeName;
-  /* TODO: maplecomb combines mpl2mpl and me tools, this if-hack to detect them. Fix it. */
-  if (exeName == kBinNameMe || exeName == kBinNameMpl2mpl) {
-    exe = (inputInfos.size() > 1) ? &kBinNameMapleCombWrp : &kBinNameMapleComb;
+  auto &toolOptions = exeOptions[tool]; // generate empty entry, if it does not exist
+  for (auto &opt : splittedOptions) {
+    if (!opt.empty()) {
+      toolOptions.push_back(opt);
+    }
   }
-
-  auto iter = std::find(selectedExes.begin(), selectedExes.end(), *exe);
-  if (iter == runningExes.end()) {
-    LogInfo::MapleLogger(kLlErr) << "Cannot find phase " << exeName << '\n';
-    return kErrorExit;
-  }
-
-  std::vector<Arg> inputArgs;
-  StringUtils::SplitSV(args, inputArgs, ' ');
-
-  auto &exeOption = exeOptions[exeName];
-  ErrorCode ret = optionParser->HandleInputArgs(inputArgs, exeName, exeOption);
-  if (ret != kErrorNoError) {
-    return ret;
-  }
-  return ret;
 }
 
-ErrorCode MplOptions::UpdateExtraOptionOpt(const std::string &args) {
-  std::vector<std::string> temp;
-#ifdef _WIN32
-  // Paths on windows may contain such string like "C:/", then it would be confused with the split symbol ":"
-  StringUtils::Split(args, temp, ';');
-#else
-  StringUtils::Split(args, temp, ':');
-#endif
-  if (temp.size() != runningExes.size()) {
-    // parameter not match ignore
+ErrorCode MplOptions::UpdateExeOptions(const std::string &args) {
+  std::vector<std::string> options;
+  StringUtils::Split(args, options, ':');
+
+  /* The number of a tools and options for them must be the same */
+  if (options.size() != runningExes.size()) {
     LogInfo::MapleLogger(kLlErr) << "The --run and --option are not matched, please check them."
-                                 << "(Too many or too few ':'?)"
-                                 << '\n';
+                                 << "(Too many or too few)\n";
     return kErrorInvalidParameter;
   }
-  auto settingExe = runningExes.begin();
-  for (const auto &tempIt : temp) {
-    ErrorCode ret = UpdatePhaseOption(tempIt, *settingExe);
-    if (ret != kErrorNoError) {
-      return ret;
-    }
-    ++settingExe;
+
+  auto tool = runningExes.begin();
+  for (auto &opt : options) {
+    UpdateExeOptions(opt, *tool);
+    ++tool;
   }
+
   return kErrorNoError;
+}
+
+cl::OptionCategory *MplOptions::GetCategory(const std::string &tool) const {
+  auto it = exeCategories.find(tool);
+  if (it == exeCategories.end()) {
+    return nullptr;
+  }
+
+  return it->second;
 }
 
 void MplOptions::UpdateRunningExe(const std::string &args) {
@@ -931,15 +799,24 @@ void MplOptions::UpdateRunningExe(const std::string &args) {
 }
 
 std::string MplOptions::GetInputFileNameForPrint(const Action * const action) const {
+
+  auto genInputs = [](const auto &container) {
+    std::string inputs;
+    for (const auto &in : container) {
+      inputs += " " + in;
+    }
+    return inputs;
+  };
+
   if (!runningExes.empty()) {
-    if (runningExes[0] == kBinNameMe || runningExes[0] == kBinNameMpl2mpl
-        || runningExes[0] == kBinNameMplcg) {
-      return inputFiles;
+    if (runningExes[0] == kBinNameMe || runningExes[0] == kBinNameMpl2mpl ||
+        runningExes[0] == kBinNameMplcg) {
+      return genInputs(GetInputFiles());
     }
   }
 
   if (action == nullptr) {
-    return GetInputFiles();
+    return genInputs(GetInputFiles());
   }
 
   if (action->GetInputFileType() == InputFileType::kFileTypeVtableImplMpl) {
@@ -955,23 +832,23 @@ void MplOptions::PrintCommand(const Action * const action) {
   if (hasPrinted) {
     return;
   }
+
   std::ostringstream optionStr;
   if (runMode == RunMode::kAutoRun) {
-    if (optimizationLevel == kO0) {
+    if (opts::o0) {
       optionStr << " -O0";
-    } else if (optimizationLevel == kO2) {
-      if (optForSize) {
-        optionStr << " -Os";
-      } else {
-        optionStr << " -O2";
-      }
+    } else if (opts::o1) {
+      optionStr << " -O1";
+    } else if (opts::o2) {
+      optionStr << " -O2";
+    } else if (opts::os) {
+      optionStr << " -Os";
     }
 
     std::string driverOptions = GetCommonOptionsStr();
-    auto inputs = (action == nullptr) ? GetInputFiles() : GetInputFileNameForPrint(action);
-
-    LogInfo::MapleLogger() << "Starting:" << exeFolder << "maple " << optionStr.str() << " "
-                           << printExtraOptStr.str() << driverOptions << " " << inputs << '\n';
+    auto inputs = GetInputFileNameForPrint(action);
+    LogInfo::MapleLogger() << "Starting:" << exeFolder << "maple" << optionStr.str()
+                           << printExtraOptStr.str() << " " << driverOptions << inputs << '\n';
   }
   if (runMode == RunMode::kCustomRun) {
     PrintDetailCommand(action, true);
@@ -991,10 +868,8 @@ void MplOptions::connectOptStr(std::string &optionStr, const std::string &exeNam
       firstComb = false;
     }
     auto it = exeOptions.find(exeName);
-    for (const mapleOption::Option &opt : it->second) {
-      connectSym = !opt.Args().empty() ? "=" : "";
-      auto prefixStr = opt.GetPrefix();
-      optionStr += (" " + prefixStr + opt.OptionKey() + connectSym + opt.Args());
+    for (const auto &opt : it->second) {
+      optionStr += (" " + opt);
     }
   }
 }
@@ -1014,14 +889,14 @@ void MplOptions::PrintDetailCommand(const Action * const action, bool isBeforePa
   optionStr += "\"";
 
   std::string driverOptions = GetCommonOptionsStr();
-  auto inputs = (action == nullptr) ? GetInputFiles() : GetInputFileNameForPrint(action);
+  auto inputs = GetInputFileNameForPrint(action);
 
   if (isBeforeParse) {
     LogInfo::MapleLogger() << "Starting:" << exeFolder << "maple " << runStr << " " << optionStr << " "
-                           << printExtraOptStr.str() << driverOptions << " " << inputs << '\n';
+                           << printExtraOptStr.str() << " " << driverOptions << inputs << '\n';
   } else {
     LogInfo::MapleLogger() << "Finished:" << exeFolder << "maple " << runStr << " " << optionStr << " "
-                           << driverOptions << " " << inputs << '\n';
+                           << driverOptions << inputs << '\n';
   }
 }
 } // namespace maple
