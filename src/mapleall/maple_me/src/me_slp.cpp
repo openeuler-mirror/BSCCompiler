@@ -583,6 +583,36 @@ MapleMap<OStIdx, ChiMeNode*> *MergeChiList(const std::vector<MapleMap<OStIdx, Ch
   return &mergedChiList;
 }
 
+bool SwapChiForSameOstIfNeeded(IassignMeStmt &iassign1, IassignMeStmt &iassign2) {
+  bool swapped = false;
+  auto *chiList1 = iassign1.GetChiList();
+  auto *chiList2 = iassign2.GetChiList();
+  CHECK_NULL_FATAL(chiList1);
+  CHECK_NULL_FATAL(chiList2);
+  auto p = chiList1->begin();
+  auto q = chiList2->begin();
+  while (p != chiList1->end() && q != chiList2->end()) {
+    if (p->first == q->first) {
+      if (p->second->GetRHS() == q->second->GetLHS()) {
+        auto *tmp = p->second;
+        p->second = q->second;
+        q->second = tmp;
+        // Update defStmt
+        p->second->SetBase(&iassign1);
+        q->second->SetBase(&iassign2);
+        swapped = true;
+      }
+      ++p;
+      ++q;
+    } else if (p->first < q->first) {
+      ++p;
+    } else {
+      ++q;
+    }
+  }
+  return swapped;
+}
+
 // ------------------------ //
 //  Block Level Scheduling  //
 // ------------------------ //
@@ -1307,7 +1337,8 @@ void PrintTreeInDotFormat(TreeNode *root, MeFunction &func) {
 }
 
 struct BlockScheduling {
-  BlockScheduling(MeFunction &f, BB *block, bool dbg) : func(f), bb(block), os(LogInfo::MapleLogger()), debug(dbg) {}
+  BlockScheduling(MeFunction &f, BB *block, MemoryHelper &memHelper, bool dbg)
+      : func(f), bb(block), os(LogInfo::MapleLogger()), memoryHelper(memHelper), debug(dbg) {}
 
   MeFunction &func;
   BB *bb = nullptr;
@@ -1315,7 +1346,9 @@ struct BlockScheduling {
   std::vector<MeStmt*> stmtVec;      // map position to stmt
   std::ostream &os;
   MeExprUseInfo *exprUseInfo = nullptr;
+  MemoryHelper &memoryHelper;
   bool extendUseInfo = false;
+  bool irModified = false;  // If IR is modified when scheduled, we must save scheduling result
   bool debug = false;
 
   std::vector<MeStmt*> &GetStmtVec() {
@@ -1387,19 +1420,31 @@ struct BlockScheduling {
 
   bool IsOstUsedByStmt(OriginalSt *ost, MeStmt *stmt);
 
-  void ScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor) {
+  void ScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor, bool needRectifyIassignChiList = false) {
     CHECK_FATAL(stmt->GetBB() == anchor->GetBB(), "must belong to same BB");
     int32 stmtOrderId = GetOrderId(stmt);
     int32 anchorOrderId = GetOrderId(anchor);
     CHECK_FATAL(anchorOrderId < stmtOrderId, "anchor must be before stmt");
+    if (needRectifyIassignChiList) {
+      CHECK_FATAL(stmt->GetOp() == OP_iassign, "must be");
+      CHECK_FATAL(anchor->GetOp() == OP_iassign, "must be");
+      auto *iassignStmt = static_cast<IassignMeStmt*>(stmt);
+      auto *iassignAnchor = static_cast<IassignMeStmt*>(anchor);
+      irModified = SwapChiForSameOstIfNeeded(*iassignStmt, *iassignAnchor);
+    }
     // should use signed id
     for (int32 id = stmtOrderId - 1; id >= anchorOrderId; --id) {
       SwapStmts(stmt, stmtVec[id]);
     }
+    if (debug) {
+      VerifyScheduleResult(GetOrderId(stmt), GetOrderId(anchor));
+    }
   }
 
   bool CanScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor);
+  bool CanScheduleIassignStmtWithoutOverlapBefore(MeStmt *stmt, MeStmt *anchor);
   bool TryScheduleTwoStmtsTogether(MeStmt *first, MeStmt *second);
+  void VerifyScheduleResult(uint32 firstOrderId, uint32 lastOrderId);
   // Collect use info from `begin` to `end` (not include `end`) in current BB
   // These use info are needed by dependency analysis and stmt scheduling
   void RebuildUseInfo(MeStmt *begin, MeStmt *end, MapleAllocator &alloc);
@@ -1417,6 +1462,7 @@ void BlockScheduling::DumpStmtVec() const {
     if (stmt == nullptr) {
       continue;
     }
+    os << "  <" << GetOrderId(stmt) << "> LOC " << stmt->GetSrcPosition().LineNum();
     stmt->Dump(func.GetIRMap());
   }
   LogInfo::MapleLogger() << "--- [ DumpStmtVec ] ---" << std::endl;
@@ -1456,14 +1502,24 @@ void GetDependencyStmts(MeStmt *stmt, std::vector<MeStmt*> &dependencies) {
     GetDependencyStmts(opnd, dependencies);
   }
   auto *chiList = stmt->GetChiList();
-  if (chiList == nullptr) {
-    return;
+  if (chiList != nullptr) {
+    for (auto &chiNodePair : *chiList) {
+      auto *chiNode = chiNodePair.second;
+      auto *defStmt = chiNode->GetRHS()->GetDefByMeStmt();
+      if (defStmt != nullptr) {
+        dependencies.push_back(defStmt);
+      }
+    }
   }
-  for (auto &chiNodePair : *chiList) {
-    auto *chiNode = chiNodePair.second;
-    auto *defStmt = chiNode->GetRHS()->GetDefByMeStmt();
-    if (defStmt != nullptr) {
-      dependencies.push_back(defStmt);
+
+  auto *muList = stmt->GetMuList();
+  if (muList != nullptr) {
+    for (auto &muPair : *muList) {
+      auto *mu = muPair.second;
+      auto *defStmt = mu->GetDefByMeStmt();
+      if (defStmt != nullptr) {
+        dependencies.push_back(defStmt);
+      }
     }
   }
 }
@@ -1508,6 +1564,29 @@ void GetUseStmtsOfChiRhs(MeExprUseInfo &useInfo, MeStmt *stmt, std::vector<MeStm
         auto *useStmt = useItem.GetStmt();
         useStmts.push_back(useStmt);
       }
+    }
+  }
+}
+
+void BlockScheduling::VerifyScheduleResult(uint32 firstOrderId, uint32 lastOrderId) {
+  for (auto orderId = firstOrderId; orderId <= lastOrderId; ++orderId) {
+    auto *stmt = stmtVec[orderId];
+    // Only check iassign chiList for now
+    if (stmt->GetOp() == OP_iassign) {
+      continue;
+    }
+    auto *chiList = static_cast<IassignMeStmt*>(stmt)->GetChiList();
+    if (chiList == nullptr) {
+      continue;
+    }
+    for (auto chiPair : *chiList) {
+      auto *chi = chiPair.second;
+      CHECK_FATAL(chi->GetBase() == stmt, "chi base mismatch");
+      auto *defStmt = chi->GetRHS()->GetDefByMeStmt();
+      if (defStmt == nullptr || defStmt->GetBB() != stmt->GetBB()) {
+        continue;
+      }
+      CHECK_FATAL(GetOrderId(defStmt) < GetOrderId(stmt), "def first, use second");
     }
   }
 }
@@ -1583,6 +1662,37 @@ bool BlockScheduling::CanScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor) {
   return true;
 }
 
+// Both `anchor` and `stmt` must be iassign stmt and must be adjacent
+bool BlockScheduling::CanScheduleIassignStmtWithoutOverlapBefore(MeStmt *stmt, MeStmt *anchor) {
+  if (stmt->GetOp() != OP_iassign || anchor->GetOp() != OP_iassign) {
+    return false;
+  }
+  CHECK_FATAL(stmt->GetBB() == anchor->GetBB(), "must belong to same BB");
+  auto stmtOrderId = GetOrderId(stmt);
+  auto anchorOrderId = GetOrderId(anchor);
+  // Two iassign stmts must be adjacent:
+  //   id     : anchor
+  //   id + 1 : stmt
+  if (stmtOrderId - 1 != anchorOrderId) {
+    return false;
+  }
+  auto *iassignAnchor = static_cast<IassignMeStmt*>(anchor);
+  auto *iassignStmt = static_cast<IassignMeStmt*>(stmt);
+  auto *lhsIvarAnchor = iassignAnchor->GetLHSVal();
+  auto *lhsIvarStmt = iassignStmt->GetLHSVal();
+  if (PrimitiveType(lhsIvarAnchor->GetPrimType()).IsVector() ||
+      PrimitiveType(lhsIvarStmt->GetPrimType()).IsVector()) {
+    return false;
+  }
+  auto *firstMemLoc = memoryHelper.GetMemLoc(*lhsIvarAnchor);
+  auto *secondMemLoc = memoryHelper.GetMemLoc(*lhsIvarStmt);
+  if (!memoryHelper.HaveSameBase(*firstMemLoc, *secondMemLoc) ||
+      !memoryHelper.MustHaveNoOverlap(*firstMemLoc, *secondMemLoc)) {
+    return false;
+  }
+  return true;
+}
+
 bool BlockScheduling::TryScheduleTwoStmtsTogether(MeStmt *first, MeStmt *second) {
   CHECK_FATAL(first->GetBB() == second->GetBB(), "must belong to same BB");
   auto firstOrderId = GetOrderId(first);
@@ -1598,6 +1708,19 @@ bool BlockScheduling::TryScheduleTwoStmtsTogether(MeStmt *first, MeStmt *second)
           os << "  <" << i << "> LOC " << stmtVec[i]->GetSrcPosition().LineNum();
           stmtVec[i]->Dump(func.GetIRMap());
         }
+      }
+      // Try schedule iassign stmts without overlap
+      if (CanScheduleIassignStmtWithoutOverlapBefore(stmt, first)) {
+        ScheduleStmtBefore(stmt, first, true);
+        if (debug) {
+          os << "Schedule iassign stmts without overlap successfully\nAfter scheduled:" << std::endl;
+          // orderIds have been swapped now
+          for (auto i = GetOrderId(stmt); i <= GetOrderId(first); ++i) {
+            os << "  <" << i << "> LOC " << stmtVec[i]->GetSrcPosition().LineNum();
+            stmtVec[i]->Dump(func.GetIRMap());
+          }
+        }
+        continue;
       }
       return false;
     }
@@ -2075,7 +2198,7 @@ bool SLPVectorizer::DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, ui
   uint32 vf = end - begin;
   SLP_DEBUG(os << "====== DoVectorizeSlicedStores [" << begin << ", " << end << ") vf = " << vf << std::endl);
   // Init blockScheduling if needed
-  auto bsPtr = std::make_unique<BlockScheduling>(func, currBB, debug);
+  auto bsPtr = std::make_unique<BlockScheduling>(func, currBB, memoryHelper, debug);
   blockScheduling = bsPtr.get();
   SLP_DEBUG(os << "Init BlockScheduling for BB" << currBB->GetBBId() << std::endl);
   blockScheduling->Init();
@@ -2101,6 +2224,10 @@ bool SLPVectorizer::DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, ui
     SLP_DEBUG(os << "CodeMotionVectorize" << std::endl;);
     MarkStmtsVectorizedInTree();
     CodeMotionVectorize();
+  } else if (blockScheduling->irModified) {
+    // If IR have been modified after scheduling (such as chiList), scheduling result must be saved
+    SLP_DEBUG(os << "CodeMotionSaveSchedulingResult" << std::endl;);
+    CodeMotionSaveSchedulingResult();
   } else if (tree->CanTreeUseStp()) {
     SLP_DEBUG(os << "CodeMotionReorderStoresAndLoads" << std::endl;);
     CodeMotionReorderStoresAndLoads();

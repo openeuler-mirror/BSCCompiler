@@ -2431,7 +2431,7 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
         return true;
       }
     } else if (opnd.IsRegister()) {
-      if (static_cast<RegOperand&>(opnd).GetRegisterNumber() == regNO) {
+      if (!isStore && static_cast<RegOperand&>(opnd).GetRegisterNumber() == regNO) {
         return true;
       }
     }
