@@ -19,7 +19,6 @@
 #include "fe_file_type.h"
 #include "hir2mpl_option.h"
 #include "hir2mpl_options.h"
-#include "option_parser.h"
 #include "parser_opt.h"
 #include "types_def.h"
 #include "version.h"
@@ -32,7 +31,6 @@
 #include <unordered_set>
 
 namespace maple {
-using namespace mapleOption;
 
 HIR2MPLOptions::HIR2MPLOptions() {
   Init();
