@@ -7547,8 +7547,11 @@ void AArch64CGFunc::SelectParmListForAggregate(BaseNode &argExpr, ListOperand &s
       RegOperand *ireadOpnd = static_cast<RegOperand*>(HandleExpr(iread, *(iread.Opnd(0))));
       RegOperand *addrOpnd = &LoadIntoRegister(*ireadOpnd, iread.Opnd(0)->GetPrimType());
       if (rhsOffset > 0) {
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *addrOpnd, *addrOpnd,
+        regno_t vRegNO = NewVReg(kRegTyInt, k8ByteSize);
+        RegOperand *result = &CreateVirtualRegisterOperand(vRegNO);
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *result, *addrOpnd,
                                                                       CreateImmOperand(rhsOffset, k64BitSize, false)));
+        addrOpnd = result;
       }
 
       CreateCallStructMemcpyToParamReg(*ty, structCopyOffset, parmLocator, srcOpnds);
@@ -7620,8 +7623,11 @@ void AArch64CGFunc::SelectParmListPreprocessLargeStruct(BaseNode &argExpr, int32
       RegOperand *ireadOpnd = static_cast<RegOperand*>(HandleExpr(iread, *(iread.Opnd(0))));
       RegOperand *addrOpnd = &LoadIntoRegister(*ireadOpnd, iread.Opnd(0)->GetPrimType());
       if (rhsOffset > 0) {
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *addrOpnd, *addrOpnd,
+        regno_t vRegNO = NewVReg(kRegTyInt, k8ByteSize);
+        RegOperand *result = &CreateVirtualRegisterOperand(vRegNO);
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *result, *addrOpnd,
                                                                       CreateImmOperand(rhsOffset, k64BitSize, false)));
+        addrOpnd = result;
       }
 
       CreateCallStructParamMemcpy(nullptr, addrOpnd, static_cast<uint32>(symSize), structCopyOffset, rhsOffset);

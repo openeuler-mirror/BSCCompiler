@@ -1149,8 +1149,6 @@ MeExpr *IRMap::SimplifyLshrExpr(const OpMeExpr *shrExpr) {
   };
   if (opnd0->GetOp() == OP_band && opnd1->GetMeOp() == kMeOpConst) {
     return trySimplifyToExtractbits(opnd0, static_cast<ConstMeExpr*>(opnd1));
-  } else if (opnd1->GetOp() == OP_band && opnd0->GetMeOp() == kMeOpConst) {
-    return trySimplifyToExtractbits(opnd1, static_cast<ConstMeExpr*>(opnd0));
   }
   return nullptr;
 }
