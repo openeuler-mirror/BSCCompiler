@@ -21,21 +21,9 @@
 #include "compiler_factory.h"
 #include "file_utils.h"
 #include "mpl_logging.h"
-#include "option_parser.h"
 #include "string_utils.h"
 #include "version.h"
 #include "default_options.def"
-#include "driver_option_common.h"
-#ifdef INTERGRATE_DRIVER
-#include "dex2mpl_options.h"
-#else
-#include "maple_dex2mpl_option.h"
-#endif
-#include "ipa_option.h"
-#include "jbc2mpl_option.h"
-#include "as_option.h"
-#include "ld_option.h"
-#include "cpp2mpl_option.h"
 #include "me_option.h"
 #include "option.h"
 #include "cg_option.h"
@@ -43,11 +31,10 @@
 
 
 namespace maple {
-using namespace mapleOption;
 using namespace maplebe;
 
 /* tool -> OptionCategory map: ld -> ldCategory, me -> meCategory and etc... */
-static std::unordered_map<std::string, cl::OptionCategory *> exeCategories =
+static std::unordered_map<std::string, maplecl::OptionCategory *> exeCategories =
   {
    {"maple", &driverCategory},
    {maple::kBinNameClang, &clangCategory},
@@ -74,7 +61,7 @@ const std::vector<std::string> kMapleCompilers = { "jbc2mpl", "hir2mpl",
     "me", "mpl2mpl", "mplcg", "clang"};
 
 ErrorCode MplOptions::Parse(int argc, char **argv) {
-  cl::CommandLine::GetCommandLine().Parse(argc, argv);
+  maplecl::CommandLine::GetCommandLine().Parse(argc, argv);
   exeFolder = FileUtils::GetFileFolder(FileUtils::GetExecutable());
 
   // We should recognize O0, O2 and run options firstly to decide the real options
@@ -182,7 +169,7 @@ ErrorCode MplOptions::HandleEarlyOptions() {
 
   if (opts::help.IsEnabledByUser()) {
     if (auto it = exeCategories.find(opts::help.GetValue()); it != exeCategories.end()) {
-      cl::CommandLine::GetCommandLine().HelpPrinter(*it->second);
+      maplecl::CommandLine::GetCommandLine().HelpPrinter(*it->second);
     } else {
       maple::LogInfo::MapleLogger() << "USAGE: maple [options]\n\n"
         "  Example 1: <Maple bin path>/maple --run=me:mpl2mpl:mplcg "
@@ -191,7 +178,7 @@ ErrorCode MplOptions::HandleEarlyOptions() {
         "  Example 2: <Maple bin path>/maple -O2 --mplt=mpltPath inputFile.dex\n\n"
         "==============================\n"
         "  Options:\n";
-      cl::CommandLine::GetCommandLine().HelpPrinter();
+      maplecl::CommandLine::GetCommandLine().HelpPrinter();
     }
     return kErrorExitHelp;
   }
@@ -529,7 +516,7 @@ void MplOptions::DumpActionTree(const Action &action, int indents) const {
 
 std::string MplOptions::GetCommonOptionsStr() const {
   std::string driverOptions;
-  static const std::vector<cl::OptionInterface *> extraExclude = { &opts::run,
+  static const std::vector<maplecl::OptionInterface *> extraExclude = { &opts::run,
                                                                    &opts::optionOpt,
                                                                    &opts::infile,
                                                                    &opts::mpl2mplOpt,
@@ -562,7 +549,7 @@ InputInfo *MplOptions::AllocateInputInfo(const std::string &inputFile) {
 }
 
 ErrorCode MplOptions::CheckInputFiles() {
-  auto &badArgs = cl::CommandLine::GetCommandLine().badCLArgs;
+  auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
 
   /* Set input files with --infile="file1 file2" option */
   if (opts::infile.IsEnabledByUser()) {
@@ -777,7 +764,7 @@ ErrorCode MplOptions::UpdateExeOptions(const std::string &args) {
   return kErrorNoError;
 }
 
-cl::OptionCategory *MplOptions::GetCategory(const std::string &tool) const {
+maplecl::OptionCategory *MplOptions::GetCategory(const std::string &tool) const {
   auto it = exeCategories.find(tool);
   if (it == exeCategories.end()) {
     return nullptr;

@@ -15,13 +15,16 @@
 #ifndef MAPLE_UTIL_INCLUDE_PARSER_H
 #define MAPLE_UTIL_INCLUDE_PARSER_H
 
+#include <algorithm>
 #include <map>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
+#include <deque>
 
-namespace cl {
+namespace maplecl {
 
 enum class RetCode {
   noError,
@@ -52,6 +55,29 @@ struct KeyArg {
 struct OptionCategory {
   OptionsMapType options;
   OptionsMapType joinedOptions;
+  std::vector<OptionInterface *> registredOptions;
+
+  void AddEnabledOption(OptionInterface *opt) {
+    if (enabledOptionsSet.find(opt) == enabledOptionsSet.end()) {
+      enabledOptionsSet.insert(opt);
+      enabledOptions.push_back(opt);
+    }
+  }
+
+  const std::vector<OptionInterface *> &GetEnabledOptions() {
+    return enabledOptions;
+  }
+
+  void Remove(OptionInterface *opt) {
+    enabledOptionsSet.erase(opt);
+    auto it = std::find(enabledOptions.begin(), enabledOptions.end(), opt);
+    if (it != enabledOptions.end()) {
+      enabledOptions.erase(it);
+    }
+  }
+
+ private:
+  std::unordered_set<OptionInterface *> enabledOptionsSet;
   std::vector<OptionInterface *> enabledOptions;
 };
 
@@ -69,31 +95,61 @@ class CommandLine {
     return Parse(argc, argv, defaultCategory);
   }
 
-  RetCode HandleInputArgs(const std::vector<std::string_view> &args,
+  RetCode HandleInputArgs(const std::deque<std::string_view> &args,
                           OptionCategory &optCategory);
   void Register(const std::vector<std::string> &optNames, OptionInterface &opt,
                 OptionCategory &optCategory);
 
+  void Clear(OptionCategory &optCategory);
+  void Clear() {
+    return Clear(defaultCategory);
+  }
+
+  void BashCompletionPrinter(const OptionCategory &optCategory) const;
+  void BashCompletionPrinter() const {
+    return BashCompletionPrinter(defaultCategory);
+  }
+
+  void HelpPrinter(const OptionCategory &optCategory) const;
+  void HelpPrinter() const {
+    return HelpPrinter(defaultCategory);
+  }
+
   std::vector<std::pair<std::string, RetCode>> badCLArgs;
   OptionCategory defaultCategory;
+
+  /* NOTE: categories must be constructed before options.
+   * It's the reason why they are inside CommandLine.
+   * Looks like ugly architecture, but we need it */
+  OptionCategory clangCategory;
+  OptionCategory hir2mplCategory;
+  OptionCategory mpl2mplCategory;
+  OptionCategory meCategory;
+  OptionCategory cgCategory;
+  OptionCategory asCategory;
+  OptionCategory ldCategory;
+
+  OptionCategory dex2mplCategory;
+  OptionCategory jbc2mplCategory;
+  OptionCategory ipaCategory;
 
  private:
   CommandLine() = default;
 
   OptionInterface *CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory);
   RetCode ParseJoinedOption(ssize_t &argsIndex,
-                            const std::vector<std::string_view> &args,
+                            const std::deque<std::string_view> &args,
                             KeyArg &keyArg, OptionCategory &optCategory);
   RetCode ParseOption(ssize_t &argsIndex,
-                      const std::vector<std::string_view> &args,
+                      const std::deque<std::string_view> &args,
                       KeyArg &keyArg, OptionCategory &optCategory,
                       OptionInterface *opt);
   RetCode ParseEqualOption(ssize_t &argsIndex,
-                           const std::vector<std::string_view> &args,
+                           const std::deque<std::string_view> &args,
                            KeyArg &keyArg, OptionCategory &optCategory,
                            const OptionsMapType &optMap, ssize_t pos);
   RetCode ParseSimpleOption(ssize_t &argsIndex,
-                            const std::vector<std::string_view> &args,
+                            const std::deque<std::string_view> &args,
                             KeyArg &keyArg, OptionCategory &optCategory,
                             const OptionsMapType &optMap);
 };

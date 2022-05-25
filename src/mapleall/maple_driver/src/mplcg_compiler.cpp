@@ -14,6 +14,7 @@
  */
 #include <cstdlib>
 #include "compiler.h"
+#include "driver_options.h"
 #include "default_options.def"
 #include "mpl_logging.h"
 #include "mpl_timer.h"
@@ -21,16 +22,15 @@
 
 namespace maple {
 using namespace maplebe;
-using namespace mapleOption;
 
 DefaultOption MplcgCompiler::GetDefaultOptions(const MplOptions &options, const Action&) const {
   uint32_t len = 0;
   MplOption *kMplcgDefaultOptions = nullptr;
 
-  if (options.GetOptimizationLevel() == kO0 && options.HasSetDefaultLevel()) {
+  if (opts::o0) {
     len = sizeof(kMplcgDefaultOptionsO0) / sizeof(MplOption);
     kMplcgDefaultOptions = kMplcgDefaultOptionsO0;
-  } else if (options.GetOptimizationLevel() == kO2 && options.HasSetDefaultLevel()) {
+  } else if (opts::o2) {
     len = sizeof(kMplcgDefaultOptionsO2) / sizeof(MplOption);
     kMplcgDefaultOptions = kMplcgDefaultOptionsO2;
   }
@@ -94,10 +94,8 @@ void MplcgCompiler::PrintMplcgCommand(const MplOptions &options, const Action &a
     if (it == options.GetExeOptions().end()) {
       return;
     }
-    for (const mapleOption::Option &opt : it->second) {
-      connectSym = !opt.Args().empty() ? "=" : "";
-      auto prefixStr = opt.GetPrefix();
-      optionStr += (" " + prefixStr + opt.OptionKey() + connectSym + opt.Args());
+    for (auto &opt : it->second) {
+      optionStr += (" " + opt);
     }
   }
   optionStr += "\"";
@@ -105,7 +103,7 @@ void MplcgCompiler::PrintMplcgCommand(const MplOptions &options, const Action &a
   std::string driverOptions = options.GetCommonOptionsStr();
 
   LogInfo::MapleLogger() << "Starting:" << options.GetExeFolder() << "maple " << runStr << " " << optionStr << " "
-                         << driverOptions << " --infile " << GetInputFile(options, action, &md) << '\n';
+                         << driverOptions << "--infile " << GetInputFile(options, action, &md) << '\n';
 }
 
 ErrorCode MplcgCompiler::MakeCGOptions(const MplOptions &options) {
@@ -120,16 +118,19 @@ ErrorCode MplcgCompiler::MakeCGOptions(const MplOptions &options) {
   cgOption.SetOption(CGOptions::kWithLoc);
 #endif
   /* use maple flags to set cg flags */
-  if (options.WithDwarf()) {
+  if (opts::withDwarf) {
     cgOption.SetOption(CGOptions::kWithDwarf);
   }
   cgOption.SetGenerateFlags(CGOptions::kDefaultGflags);
+
   auto itOpt = options.GetExeOptions().find(kBinNameMplcg);
-  if (itOpt == options.GetExeOptions().end()) {
-    LogInfo::MapleLogger() << "no mplcg input options\n";
-    return kErrorCompileFail;
+  if (itOpt != options.GetExeOptions().end()) {
+    const auto &cgExeOpts = itOpt->second;
+    const std::deque<std::string_view> strCgOptions(cgExeOpts.begin(), cgExeOpts.end());
+    maplecl::CommandLine::GetCommandLine().HandleInputArgs(strCgOptions, cgCategory);
   }
-  bool result = cgOption.SolveOptions(itOpt->second, options.HasSetDebugFlag());
+
+  bool result = cgOption.SolveOptions(opts::debug);
   if (result == false) {
     LogInfo::MapleLogger() << "Meet error mplcg options\n";
     return kErrorCompileFail;
@@ -216,8 +217,8 @@ ErrorCode MplcgCompiler::Compile(MplOptions &options, const Action &action,
   theModule->SetInputFileName(fileName);
   LogInfo::MapleLogger() << "Starting mplcg\n";
   DriverRunner runner(theModule.get(), options.GetSelectedExes(), action.GetInputFileType(), fileName,
-                      options.WithDwarf(), fileRead, options.HasSetTimePhases());
-  if (options.HasSetDebugFlag()) {
+                      opts::withDwarf, fileRead, opts::timePhase);
+  if (opts::debug) {
     PrintMplcgCommand(options, action, *theModule);
   }
   runner.SetPrintOutExe(kBinNameMplcg);

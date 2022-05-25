@@ -17,13 +17,12 @@
 
 #include "mpl_logging.h"
 
-#include <charconv>
 #include <climits>
 #include <cstdint>
 #include <ostream>
 #include <string>
 
-using namespace cl;
+using namespace maplecl;
 
 /* ################################################################
  * Utility Fuctions
@@ -44,7 +43,7 @@ bool IsPrefixDetected(std::string_view opt) {
 /* NOTE: Returning ssize_t parameter is used to show how many command line arguments
  * handled with this key. argsIndex must be incremented with this parameter outside of ExtractValue. */
 std::pair<RetCode, ssize_t> ExtractValue(ssize_t argsIndex,
-                                         const std::vector<std::string_view> &args,
+                                         const std::deque<std::string_view> &args,
                                          const OptionInterface &opt, KeyArg &keyArg) {
   /* The option like "--key= " does not contain a value after equal symbol */
   if (keyArg.isEqualOpt == true && keyArg.val.empty()) {
@@ -63,7 +62,9 @@ std::pair<RetCode, ssize_t> ExtractValue(ssize_t argsIndex,
 
   /* Need to parse second command line argument to check options value */
   else {
-    if (opt.ExpectedVal() == ValueExpectedType::kValueDisallowed) {
+    /* Optional value can be set only with "=" like this --key=value  */
+    if (opt.ExpectedVal() == ValueExpectedType::kValueDisallowed ||
+        opt.ExpectedVal() == ValueExpectedType::kValueOptional) {
       return {RetCode::noError, 0};
     }
 
@@ -89,7 +90,7 @@ std::pair<RetCode, ssize_t> ExtractValue(ssize_t argsIndex,
  * ################################################################ */
 
 template <> RetCode Option<bool>::ParseBool(ssize_t &argsIndex,
-                                            const std::vector<std::string_view> &args) {
+                                            const std::deque<std::string_view> &args) {
   /* DisabledName should set it to false, like --fno-omit-framepointer vs --fomit-framepointer */
   SetValue(GetDisabledName() != args[argsIndex]);
 
@@ -99,7 +100,7 @@ template <> RetCode Option<bool>::ParseBool(ssize_t &argsIndex,
 
 /* NOTE: argsIndex must be incremented only if option is handled successfully */
 template <> RetCode Option<std::string>::ParseString(ssize_t &argsIndex,
-                                                     const std::vector<std::string_view> &args,
+                                                     const std::deque<std::string_view> &args,
                                                      KeyArg &keyArg) {
   RetCode err = RetCode::noError;
   ssize_t indexIncCnt = 0;
@@ -121,7 +122,7 @@ template <> RetCode Option<std::string>::ParseString(ssize_t &argsIndex,
     return RetCode::unnecessaryValue;
   }
 
-  if (IsPrefixDetected(keyArg.val)) {
+  if (!keyArg.isEqualOpt && IsPrefixDetected(keyArg.val)) {
     if (ExpectedVal() == ValueExpectedType::kValueRequired) {
       return RetCode::valueEmpty;
     }
@@ -129,7 +130,6 @@ template <> RetCode Option<std::string>::ParseString(ssize_t &argsIndex,
     return RetCode::noError;
   }
 
-  rawValues.emplace_back(keyArg.val);
   SetValue(std::string(keyArg.val));
 
   argsIndex += 1 + indexIncCnt; // 1 for key, indexIncCnt for Key Value from ExtractValue
@@ -139,13 +139,9 @@ template <> RetCode Option<std::string>::ParseString(ssize_t &argsIndex,
 /* NOTE: argsIndex must be incremented only if option is handled successfully */
 template <typename T>
 RetCode Option<T>::ParseDigit(ssize_t &argsIndex,
-                              const std::vector<std::string_view> &args,
+                              const std::deque<std::string_view> &args,
                               KeyArg &keyArg) {
-  constexpr bool u64Type = std::is_same<T, uint64_t>::value;
-  constexpr bool u32Type = std::is_same<T, uint32_t>::value;
-  constexpr bool i64Type = std::is_same<T, int64_t>::value;
-  constexpr bool i32Type = std::is_same<T, int32_t>::value;
-  static_assert(u64Type || u32Type || i64Type || i32Type, "Expected (u)intXX types");
+  static_assert(digitalCheck<T>, "Expected (u)intXX types");
 
   RetCode err = RetCode::noError;
   ssize_t indexIncCnt = 0;
@@ -167,25 +163,78 @@ RetCode Option<T>::ParseDigit(ssize_t &argsIndex,
     return RetCode::unnecessaryValue;
   }
 
-  /* NOTE: We must have null terminated string */
-  T dig;
-  auto [ptr, ec] = std::from_chars(keyArg.val.data(),
-                                   keyArg.val.data() + keyArg.val.size(), dig);
-  if (ec == std::errc::result_out_of_range) {
-    return RetCode::outOfRange;
-  } else if (ec != std::errc() || *ptr != '\0') {
+  T resDig = 0;
+  uint64_t udig = 0;
+  int64_t dig = 0;
+  char *endStrPtr;
+  errno = 0;
+  if constexpr(std::is_same_v<uint64_t, T> ||
+               std::is_same_v<uint32_t, T> ||
+               std::is_same_v<uint16_t, T> ||
+               std::is_same_v<uint8_t, T>) {
+    if (keyArg.val.data()[0] == '-') {
+      return RetCode::incorrectValue;
+    }
+
+    udig = std::strtoull(keyArg.val.data(), &endStrPtr, 0);
+    resDig = static_cast<T>(udig);
+  } else {
+    dig = std::strtoll(keyArg.val.data(), &endStrPtr, 0);
+    resDig = static_cast<T>(dig);
+  }
+
+  bool u32Type = std::is_same<T, uint32_t>::value;
+  bool i32Type = std::is_same<T, int32_t>::value;
+  bool u16Type = std::is_same<T, uint16_t>::value;
+  bool u8Type = std::is_same<T, uint8_t>::value;
+  bool i16Type = std::is_same<T, int16_t>::value;
+  bool i8Type = std::is_same<T, int8_t>::value;
+
+
+  if (*endStrPtr != '\0') {
     return RetCode::incorrectValue;
   }
 
-  rawValues.emplace_back(keyArg.val);
-  SetValue(dig);
+  if (errno != 0) {
+    return RetCode::outOfRange;
+  }
+
+  if (u32Type && udig > UINT32_MAX) {
+    return RetCode::outOfRange;
+  }
+
+  if (i32Type && (dig > INT32_MAX || dig < INT32_MIN)) {
+    return RetCode::outOfRange;
+  }
+
+  if (u16Type && udig > UINT16_MAX) {
+    return RetCode::outOfRange;
+  }
+
+  if (i16Type && (dig > INT16_MAX || dig < INT16_MIN)) {
+    return RetCode::outOfRange;
+  }
+
+  if (u8Type && udig > UINT8_MAX) {
+    return RetCode::outOfRange;
+  }
+
+  if (i8Type && (dig > INT8_MAX || dig < INT8_MIN)) {
+    return RetCode::outOfRange;
+  }
+
+  SetValue(resDig);
 
   argsIndex += 1 + indexIncCnt; // 1 for key, indexIncCnt for Key Value from ExtractValue
   return RetCode::noError;
 }
 
 /* Needed to describe OptionType<>::Parse template in this .cpp file */
-template class cl::Option<uint32_t>;
-template class cl::Option<uint64_t>;
-template class cl::Option<int32_t>;
-template class cl::Option<int64_t>;
+template class maplecl::Option<uint8_t>;
+template class maplecl::Option<uint16_t>;
+template class maplecl::Option<uint32_t>;
+template class maplecl::Option<uint64_t>;
+template class maplecl::Option<int8_t>;
+template class maplecl::Option<int16_t>;
+template class maplecl::Option<int32_t>;
+template class maplecl::Option<int64_t>;

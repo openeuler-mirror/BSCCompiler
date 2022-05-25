@@ -17,15 +17,28 @@
 
 #include "cl_parser.h"
 
+#include <any>
 #include <cassert>
 #include <cstdint>
+#include <deque>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
 #include <iostream>
 
-namespace cl {
+namespace maplecl {
+
+template <typename T>
+constexpr inline bool digitalCheck = (std::is_same_v<std::uint8_t, T> ||
+                                      std::is_same_v<std::uint16_t, T> ||
+                                      std::is_same_v<std::uint32_t, T> ||
+                                      std::is_same_v<std::uint64_t, T> ||
+                                      std::is_same_v<std::int64_t, T> ||
+                                      std::is_same_v<std::int32_t, T> ||
+                                      std::is_same_v<std::int16_t, T> ||
+                                      std::is_same_v<std::int8_t, T>);
 
 /* is key VALUE needed ? */
 enum class ValueExpectedType {
@@ -40,16 +53,24 @@ enum class ValueJoinedType {
   kValueJoined,      /* joined option (like -DMACRO) is allowed */
 };
 
+/* is option visible from Help ? */
+enum class OptionVisibilityType {
+  kVisibleOption, /* an Option will be visible in Help */
+  kHidedOption    /* an Option will be NOT visible in Help */
+};
+
 /* These constexpr are needed to use short name in option description, like this:
- * cl::Option<int32_t> option({"--option"}, "Description", optionalValue);
+ * maplecl::Option<int32_t> option({"--option"}, "Description", optionalValue);
  * instead of:
- * cl::Option<int32_t> option({"--option"}, "Description", ValueExpectedType::kValueOptional);
+ * maplecl::Option<int32_t> option({"--option"}, "Description", ValueExpectedType::kValueOptional);
  */
 constexpr ValueExpectedType optionalValue = ValueExpectedType::kValueOptional;
 constexpr ValueExpectedType requiredValue = ValueExpectedType::kValueRequired;
 constexpr ValueExpectedType disallowedValue = ValueExpectedType::kValueDisallowed;
 constexpr ValueJoinedType joinedValue = ValueJoinedType::kValueJoined;
 constexpr ValueJoinedType separatedValue = ValueJoinedType::kValueSeparated;
+constexpr OptionVisibilityType visible = OptionVisibilityType::kVisibleOption;
+constexpr OptionVisibilityType hide = OptionVisibilityType::kHidedOption;
 
 /* Initializer is used to set default value for an option */
 template <typename T> struct Init {
@@ -66,17 +87,37 @@ struct DisableWith {
   explicit DisableWith(const std::string &val) : disableWith(val) {}
 };
 
+using OptionCategoryRefWrp = std::reference_wrapper<OptionCategory>;
+
+class OptionWrp {
+ public:
+  template <typename T>
+  /* implicit */ OptionWrp(T v) : val(v) {}
+
+  template <typename T>
+  operator T() {
+    T *pval = std::any_cast<T>(&val);
+    assert(pval);
+    return *pval;
+  }
+
+  std::any val;
+};
+
 /* Interface for templated Option class */
 class OptionInterface {
  public:
   virtual ~OptionInterface() = default;
 
   virtual RetCode Parse(ssize_t &argsIndex,
-                        const std::vector<std::string_view> &args, KeyArg &keyArg) = 0;
+                        const std::deque<std::string_view> &args, KeyArg &keyArg) = 0;
+  virtual void Clear() = 0;
+  virtual std::vector<std::string> GetRawValues() = 0;
+  virtual OptionWrp GetCommonValue() const = 0;
 
   void FinalizeInitialization(const std::vector<std::string> &optnames,
                               const std::string &descr,
-                              const std::vector<OptionCategory *> &optionCategories);
+                              const std::vector<OptionCategoryRefWrp> &optionCategories);
 
   bool IsEnabledByUser() const {
     return isEnabledByUser;
@@ -90,15 +131,25 @@ class OptionInterface {
     return (valueJoined == ValueJoinedType::kValueJoined);
   }
 
+  bool IsVisibleOption() const {
+    return (visibleOption == OptionVisibilityType::kVisibleOption);
+  }
+
   const std::string &GetDisabledName() const {
     return disableWith;
+  }
+
+  virtual std::string GetName() const {
+    assert(names.size() > 0);
+    return names[0];
   }
 
   const std::string &GetDescription() const {
     return optDescription;
   }
 
-  std::vector<std::string> rawValues; // Value not converted to template T type
+  std::string rawKey;
+  std::vector<OptionCategory *> optCategories; // The option is registred in these categories
 
  protected:
   std::vector<std::string> names; // names of the option
@@ -109,6 +160,7 @@ class OptionInterface {
 
   ValueExpectedType valueExpected = ValueExpectedType::kValueRequired;  // whether the value is expected
   ValueJoinedType valueJoined = ValueJoinedType::kValueSeparated;     // Joined option like -DMACRO
+  OptionVisibilityType visibleOption = OptionVisibilityType::kVisibleOption; // Visible in Help
 };
 
 /* Option class describes command line option */
@@ -131,7 +183,7 @@ class Option : public OptionInterface {
   template <typename... ArgsT>
   explicit Option(const std::vector<std::string> &optnames,
                   const std::string &descr,
-                  const std::vector<OptionCategory *> &optionCategories,
+                  const std::vector<OptionCategoryRefWrp> &optionCategories,
                   const ArgsT &... args) {
     /* It's needed to avoid empty Apply() */
     if constexpr (sizeof...(ArgsT) > 0) {
@@ -152,13 +204,11 @@ class Option : public OptionInterface {
     return GetValue();
   }
 
-  RetCode Parse(ssize_t &argsIndex, const std::vector<std::string_view> &args,
+  RetCode Parse(ssize_t &argsIndex, const std::deque<std::string_view> &args,
                 KeyArg &keyArg) override {
     RetCode err = RetCode::noError;
-    if constexpr(std::is_same_v<std::uint32_t, T> ||
-                 std::is_same_v<std::uint64_t, T> ||
-                 std::is_same_v<std::int32_t, T> ||
-                 std::is_same_v<std::int64_t, T>) {
+    auto &key = args[argsIndex];
+    if constexpr(digitalCheck<T>) {
       err = ParseDigit(argsIndex, args, keyArg);
     } else if constexpr(std::is_same_v<std::string, T>) {
       err = ParseString(argsIndex, args, keyArg);
@@ -171,17 +221,83 @@ class Option : public OptionInterface {
 
     if (err == RetCode::noError) {
       isEnabledByUser = true;
+      rawKey = key;
     }
     return err;
+  }
+
+  void Clear() override {
+    if (defaultValue.isSet) {
+      value = defaultValue.defaultValue;
+    } else {
+      if constexpr(digitalCheck<T>) {
+        value = 0;
+      } else if constexpr(std::is_same_v<std::string, T>) {
+        value = "";
+      } else if constexpr(std::is_same_v<bool, T>) {
+        value = false;
+      } else {
+        /* Type dependent static_assert. Simple static_assert(false") does not work */
+        static_assert(false && sizeof(T), "T not supported");
+      }
+    }
+
+    for (auto &category : optCategories) {
+      category->Remove(this);
+    }
+
+    isEnabledByUser = false;
+  }
+
+  std::vector<std::string> GetRawValues() override {
+    std::vector<std::string> rawVals;
+    FillVal(value, rawVals);
+    return rawVals;
+  }
+
+  std::string GetName() const override {
+    if constexpr (std::is_same_v<bool, T>) {
+      assert(names.size() > 0);
+      return ((value == true) ? names[0] : this->GetDisabledName());
+    } else {
+      return OptionInterface::GetName();
+    }
   }
 
   const T &GetValue() const {
     return value;
   }
 
-  void SetValue(const T &val) {
+  OptionWrp GetCommonValue() const override {
+    return value;
+  }
+
+  virtual void SetValue(const T &val) {
     value = val;
   }
+
+ protected:
+  RetCode ParseDigit(ssize_t &argsIndex, const std::deque<std::string_view> &args, KeyArg &keyArg);
+  RetCode ParseString(ssize_t &argsIndex, const std::deque<std::string_view> &args, KeyArg &keyArg);
+  RetCode ParseBool(ssize_t &argsIndex, const std::deque<std::string_view> &args);
+
+  void FillVal(const T &val, std::vector<std::string> &vals) {
+    if constexpr(digitalCheck<T>) {
+      vals.emplace_back(std::to_string(val));
+    } else if constexpr (std::is_same_v<std::string, T>) {
+      vals.emplace_back(val);
+    } else if constexpr (std::is_same_v<bool, T>) {
+      vals.emplace_back("");
+    } else {
+      /* Type dependent static_assert. Simple static_assert(false") does not work */
+      static_assert(false && sizeof(T), "T not supported");
+    }
+  }
+
+  struct DefaultValue {
+    T defaultValue;
+    bool isSet = false;
+  } defaultValue;
 
  private:
   /* To apply input arguments in any order */
@@ -191,6 +307,8 @@ class Option : public OptionInterface {
       SetExpectingAttribute(arg);
     } else if constexpr (std::is_same_v<ValueJoinedType, ArgT>) {
       SetJoinAttribute(arg);
+    } else if constexpr (std::is_same_v<OptionVisibilityType, ArgT>) {
+      SetVisibilityAttribute(arg);
     } else if constexpr (std::is_same_v<DisableWith, ArgT>) {
       SetDisablingAttribute(arg);
     } else {
@@ -203,13 +321,11 @@ class Option : public OptionInterface {
     }
   }
 
-  RetCode ParseDigit(ssize_t &argsIndex, const std::vector<std::string_view> &args, KeyArg &keyArg);
-  RetCode ParseString(ssize_t &argsIndex, const std::vector<std::string_view> &args, KeyArg &keyArg);
-  RetCode ParseBool(ssize_t &argsIndex, const std::vector<std::string_view> &args);
-
   template <typename InitT>
   void SetDefaultAttribute(const Init<InitT> &initializer) {
-    value = initializer.defaultVal;
+    SetValue(initializer.defaultVal);
+    defaultValue.isSet = true;
+    defaultValue.defaultValue = value;
   }
 
   void SetExpectingAttribute(ValueExpectedType value) {
@@ -218,6 +334,10 @@ class Option : public OptionInterface {
 
   void SetJoinAttribute(ValueJoinedType value) {
     valueJoined = value;
+  }
+
+  void SetVisibilityAttribute(OptionVisibilityType value) {
+    visibleOption = value;
   }
 
   void SetDisablingAttribute(const DisableWith &value) {
@@ -248,6 +368,77 @@ template <typename T>
 bool operator==(const char *arg, Option<T>& opt) {
   return opt == arg;
 }
+
+template <typename T>
+void CopyIfEnabled(T &dst, maplecl::Option<T> &src) {
+  if (src.IsEnabledByUser()) {
+    dst = src;
+  }
+}
+
+template <typename T>
+void CopyIfEnabled(T &dst, const T &src, OptionInterface &opt) {
+  if (opt.IsEnabledByUser()) {
+    dst = src;
+  }
+}
+
+template <typename T>
+class List : public Option<T> {
+ public:
+  // options must not be copyable and assignment
+  List(const List &) = delete;
+  List &operator=(const List &) = delete;
+
+  /* variadic template is used to apply any number of options parameters in any order */
+  template <typename... ArgsT>
+  explicit List(const std::vector<std::string> &optnames,
+                const std::string &descr,
+                const ArgsT &... args) : Option<T>(optnames, descr, args...) {};
+
+  template <typename... ArgsT>
+  explicit List(const std::vector<std::string> &optnames,
+                const std::string &descr,
+                const std::vector<OptionCategoryRefWrp> &optionCategories,
+                const ArgsT &... args) : Option<T>(optnames, descr, optionCategories, args...) {};
+
+  void Clear() override {
+    values.clear();
+    if (this->defaultValue.isSet) {
+      SetValue(this->defaultValue.defaultValue);
+    }
+    this->isEnabledByUser = false;
+
+    for (auto &category : this->optCategories) {
+      category->Remove(this);
+    }
+  }
+
+  void SetValue(const T &val) override {
+    values.push_back(val);
+  }
+
+  const T &GetValue() const {
+    static_assert(false && sizeof(T), "GetValue must be not used for List");
+    return T();
+  }
+
+  const std::vector<T> &GetValues() const {
+    return values;
+  }
+
+  std::vector<std::string> GetRawValues() override {
+    std::vector<std::string> rawVals;
+    for (const auto &val : values) {
+      this->FillVal(val, rawVals);
+    }
+
+    return rawVals;
+  }
+
+ private:
+  std::vector<T> values;
+};
 
 }
 

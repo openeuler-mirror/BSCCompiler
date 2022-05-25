@@ -14,12 +14,12 @@
  */
 #include "compiler.h"
 #include <cstdlib>
+#include "driver_options.h"
 #include "file_utils.h"
 #include "safe_exe.h"
 #include "mpl_timer.h"
 
 namespace maple {
-using namespace mapleOption;
 
 int Compiler::Exe(const MplOptions &mplOptions,
                   const std::vector<MplOption> &options) const {
@@ -67,8 +67,8 @@ std::vector<MplOption> Compiler::MakeOption(const MplOptions &options,
   std::vector<MplOption> defaultOptions = MakeDefaultOptions(options, action);
 
   AppendInputsAsOptions(finalOptions, options, action);
-  AppendDefaultOptions(finalOptions, defaultOptions, options.HasSetDebugFlag());
-  AppendExtraOptions(finalOptions, options, options.HasSetDebugFlag());
+  AppendDefaultOptions(finalOptions, defaultOptions, opts::debug);
+  AppendExtraOptions(finalOptions, options, opts::debug, action);
 
   return finalOptions;
 }
@@ -90,39 +90,51 @@ void Compiler::AppendDefaultOptions(std::vector<MplOption> &finalOptions,
   }
 }
 
-void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions,
-                                  const MplOptions &options, bool isDebug) const {
+void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const MplOptions &options,
+                                  bool isDebug, const Action &action) const {
   const std::string &binName = GetTool();
-  auto exeOption = options.GetExeOptions().find(binName);
-  if (exeOption == options.GetExeOptions().end()) {
-    return;
+
+  if (isDebug) {
+    LogInfo::MapleLogger() << Compiler::GetName() << " Extra Options: ";
   }
 
-  for (const Option &opt : exeOption->second) {
-    std::string prefix = opt.GetPrefix();
-    const std::string &baseKey = opt.OptionKey();
-    const std::string key = prefix + baseKey;
-    const std::string &value  = opt.Args();
+  /* Append options setting by: --run=binName --option="-opt1 -opt2" */
+  auto &exeOptions = options.GetExeOptions();
+  auto it = exeOptions.find(binName);
+  if (it != exeOptions.end()) {
+    for (auto &opt : it->second) {
+      finalOptions.emplace_back(opt, "");
+      if (isDebug) {
+        LogInfo::MapleLogger() << opt << " ";
+      }
+    }
+  }
 
-    /* Default behaviour: extra options do not replace default options,
-     * because it can be some additional option with the same key.
-     * For example: we can have some default -isystem SYSTEM pathes option.
-     * And if some additional -isystem SYSTEM pathes is added, it's not correct
-     * to replace them (SYSTEM pathes msut be extended (not replaced)).
-     * If you need to replace some special option, check and replace it here */
-    if (baseKey == "o") {
-      ReplaceOrInsertOption(finalOptions, key, value);
-    } else {
-      (void)finalOptions.emplace_back(MplOption(key, value));
+  maplecl::OptionCategory *category = options.GetCategory(binName);
+  ASSERT(category != nullptr, "Undefined tool: %s", binName.data());
+
+  /* Append options setting directly for special category. Example: --verbose */
+  for (const auto &opt : category->GetEnabledOptions()) {
+    for (const auto &val : opt->GetRawValues()) {
+      finalOptions.emplace_back(opt->GetName(), val);
+      if (isDebug) {
+        LogInfo::MapleLogger() << opt->GetName() << " " << val << " ";
+      }
+    }
+  }
+
+  /* output file can not be specified for several last actions. As exaple:
+   * If last actions are assembly tool for 2 files (to get file1.o, file2.o),
+   * we can not have one output name for them. */
+  if (opts::output.IsEnabledByUser() && options.GetActions().size() == 1) {
+    /* Set output file for last compilation tool */
+    if (&action == options.GetActions()[0].get()) {
+      /* the tool may not support "-o" for output option */
+      AppendOutputOption(finalOptions, opts::output.GetValue());
     }
   }
 
   if (isDebug) {
-    LogInfo::MapleLogger() << Compiler::GetName() << " Extra Options: ";
-    for (const Option &opt : exeOption->second) {
-      LogInfo::MapleLogger() << opt.OptionKey() << " "
-                             << opt.Args();
-    }
     LogInfo::MapleLogger() << '\n';
   }
 }
