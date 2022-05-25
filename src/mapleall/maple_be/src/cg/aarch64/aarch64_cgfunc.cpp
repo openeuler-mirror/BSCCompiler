@@ -10236,7 +10236,9 @@ Operand *AArch64CGFunc::SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopN
   return fetchBefore ? regLoaded : regOperated;
 }
 
-Operand *AArch64CGFunc::SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, PrimType primType, bool retBool) {
+Operand *AArch64CGFunc::SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, bool retBool) {
+  PrimType primType = intrinopNode.GetNopndAt(kInsnSecondOpnd)->GetPrimType();
+  ASSERT(primType == intrinopNode.GetNopndAt(kInsnThirdOpnd)->GetPrimType(),"gcc built_in rule");
   LabelIdx atomicBBLabIdx = CreateLabel();
   BB *atomicBB = CreateNewBB();
   atomicBB->SetKind(BB::kBBIf);
@@ -10305,12 +10307,12 @@ Operand *AArch64CGFunc::SelectCSyncFetch(IntrinsicopNode &intrinopNode, Opcode o
   return SelectAArch64CSyncFetch(intrinopNode, op, fetchBefore);
 }
 
-Operand *AArch64CGFunc::SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) {
-  return SelectCSyncCmpSwap(intrinopNode, pty, true);
+Operand *AArch64CGFunc::SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode) {
+  return SelectCSyncCmpSwap(intrinopNode, true);
 }
 
-Operand *AArch64CGFunc::SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) {
-  return SelectCSyncCmpSwap(intrinopNode, pty);
+Operand *AArch64CGFunc::SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode) {
+  return SelectCSyncCmpSwap(intrinopNode);
 }
 
 Operand *AArch64CGFunc::SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimType pty) {

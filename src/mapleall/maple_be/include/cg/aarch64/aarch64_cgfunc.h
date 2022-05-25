@@ -158,8 +158,8 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectCalignup(IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectCaligndown(IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectCSyncFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) override;
-  Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinsicopNode, PrimType pty) override;
-  Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinsicopNode, PrimType pty) override;
+  Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinsicopNode, PrimType pty) override;
   Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinsicopNode) override;
   AArch64isa::MemoryOrdering PickMemOrder(std::memory_order memOrder, bool isLdr);
@@ -176,7 +176,7 @@ class AArch64CGFunc : public CGFunc {
 
   void SelectAddrof(Operand &result, StImmOperand &stImm, FieldID field = 0);
   void SelectAddrof(Operand &result, MemOperand &memOpnd, FieldID field = 0);
-  Operand *SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, PrimType pty, bool retBool = false);
+  Operand *SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, bool retBool = false);
   Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent, bool isAddrofoff = false) override;
   Operand *SelectAddrofoff(AddrofoffNode &expr, const BaseNode &parent) override;
   Operand &SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) override;

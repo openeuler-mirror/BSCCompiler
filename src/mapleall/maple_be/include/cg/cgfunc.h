@@ -222,8 +222,8 @@ class CGFunc {
   virtual Operand *SelectCalignup(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCaligndown(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCSyncFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) = 0;
-  virtual Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinsicopNode, PrimType pty) = 0;
-  virtual Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinsicopNode, PrimType pty) = 0;
+  virtual Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinsicopNode, PrimType pty) = 0;
   virtual Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) = 0;

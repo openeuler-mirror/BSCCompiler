@@ -493,9 +493,9 @@ Operand *HandleVectorSetElement(const IntrinsicopNode &intrnNode, CGFunc &cgFunc
 
 Operand *HandleVectorReverse(const IntrinsicopNode &intrnNode, CGFunc &cgFunc, uint32 size) {
   BaseNode *argExpr = intrnNode.Opnd(0);                               /* src operand */
-  PrimType sType = argExpr->GetPrimType();
   Operand *src = cgFunc.HandleExpr(intrnNode, *argExpr);
-  return cgFunc.SelectVectorReverse(intrnNode.GetPrimType(), src, sType, size);
+  auto revVecType = intrnNode.GetIntrinDesc().GetReturnType()->GetPrimType();
+  return cgFunc.SelectVectorReverse(revVecType, src, revVecType, size);
 }
 
 Operand *HandleVectorShiftNarrow(const IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool isLow) {
@@ -699,21 +699,15 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_C___sync_fetch_and_sub_8:
       return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_sub, true);
     case INTRN_C___sync_bool_compare_and_swap_1:
-      return cgFunc.SelectCSyncBoolCmpSwap(intrinsicopNode, PTY_i8);
     case INTRN_C___sync_bool_compare_and_swap_2:
-      return cgFunc.SelectCSyncBoolCmpSwap(intrinsicopNode, PTY_i16);
     case INTRN_C___sync_bool_compare_and_swap_4:
-      return cgFunc.SelectCSyncBoolCmpSwap(intrinsicopNode, PTY_i32);
     case INTRN_C___sync_bool_compare_and_swap_8:
-      return cgFunc.SelectCSyncBoolCmpSwap(intrinsicopNode, PTY_i64);
+      return cgFunc.SelectCSyncBoolCmpSwap(intrinsicopNode);
     case INTRN_C___sync_val_compare_and_swap_1:
-      return cgFunc.SelectCSyncValCmpSwap(intrinsicopNode, PTY_i8);
     case INTRN_C___sync_val_compare_and_swap_2:
-      return cgFunc.SelectCSyncValCmpSwap(intrinsicopNode, PTY_i16);
     case INTRN_C___sync_val_compare_and_swap_4:
-      return cgFunc.SelectCSyncValCmpSwap(intrinsicopNode, PTY_i32);
     case INTRN_C___sync_val_compare_and_swap_8:
-      return cgFunc.SelectCSyncValCmpSwap(intrinsicopNode, PTY_i64);
+      return cgFunc.SelectCSyncValCmpSwap(intrinsicopNode);
     case INTRN_C___sync_lock_test_and_set_1:
       return cgFunc.SelectCSyncLockTestSet(intrinsicopNode, PTY_i8);
     case INTRN_C___sync_lock_test_and_set_2:
@@ -905,6 +899,18 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_reverse_v16u8: case INTRN_vector_reverse_v16i8:
     case INTRN_vector_reverse_v8u16: case INTRN_vector_reverse_v8i16:
       return HandleVectorReverse(intrinsicopNode, cgFunc, k32BitSize);
+
+    case INTRN_vector_reverse16_v16u8: case INTRN_vector_reverse16_v16i8:
+    case INTRN_vector_reverse16_v8u8: case INTRN_vector_reverse16_v8i8:
+      return HandleVectorReverse(intrinsicopNode, cgFunc, k16BitSize);
+
+    case INTRN_vector_reverse64_v16u8: case INTRN_vector_reverse64_v16i8:
+    case INTRN_vector_reverse64_v8u8: case INTRN_vector_reverse64_v8i8:
+    case INTRN_vector_reverse64_v8u16: case INTRN_vector_reverse64_v8i16:
+    case INTRN_vector_reverse64_v4u16: case INTRN_vector_reverse64_v4i16:
+    case INTRN_vector_reverse64_v4u32: case INTRN_vector_reverse64_v4i32:
+    case INTRN_vector_reverse64_v2u32: case INTRN_vector_reverse64_v2i32:
+      return HandleVectorReverse(intrinsicopNode, cgFunc, k64BitSize);
 
     case INTRN_vector_shr_narrow_low_v8u16: case INTRN_vector_shr_narrow_low_v8i16:
     case INTRN_vector_shr_narrow_low_v4u32: case INTRN_vector_shr_narrow_low_v4i32:
@@ -1576,8 +1582,12 @@ void CGFunc::CreateLmbcFormalParamInfo() {
       stackOffset += (typeSize + 7) & (-8);
       LmbcFormalParamInfo *info = GetMemoryPool()->New<LmbcFormalParamInfo>(primType, offset, typeSize);
       lmbcParamVec.push_back(info);
+      if (idx == 0 && func.IsFirstArgReturn()) {
+        info->SetIsReturn();
+      }
       if (type->GetKind() == kTypeStruct) {
-        MIRStructType &structType = static_cast<MIRStructType&>(*type);
+        MIRStructType *structType = static_cast<MIRStructType *>(type);
+        info->SetType(structType);
         uint32 fpSize;
         uint32 numFpRegs = FloatParamRegRequired(structType, fpSize);
         if (numFpRegs > 0) {
