@@ -210,9 +210,10 @@ void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const 
       }
     }
     if (!errIdxs.empty()) {
-      FE_ERR(kLncErr, "%s:%d error: function pointer and target function's nonnull attributes are mismatched "
-             "for the %s argument", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine,
-             PrintParamIdx(errIdxs).c_str());
+      FE_ERR(kLncErr, "%s:%d error: function pointer and assigned function %s are mismatched "
+             "for the %s argument of nonnull attributes",
+             FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine,
+             srcFunc->GetName().c_str(), PrintParamIdx(errIdxs).c_str());
     }
     if (srcFunc->GetFuncAttrs().GetAttr(FUNCATTR_nonnull) != funcType->GetRetAttrs().GetAttr(ATTR_nonnull)) {
       FE_ERR(kLncErr, "%s:%d error: function pointer and target function's nonnull attributes are mismatched for"
