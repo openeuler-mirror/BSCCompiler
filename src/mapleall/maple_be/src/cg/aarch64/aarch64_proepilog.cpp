@@ -90,7 +90,7 @@ bool AArch64GenProEpilog::HasLoop() {
  *  Remove redundant mov and mark optimizable bl/blr insn in the BB.
  *  Return value: true to call this modified block again.
  */
-bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns, const BB &exitBB) {
+bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &exitBB) {
   if (bb.NumInsn() == 1 &&
       (bb.GetLastInsn()->GetMachineOpcode() != MOP_xbr &&
        bb.GetLastInsn()->GetMachineOpcode() != MOP_xblr &&
@@ -160,7 +160,7 @@ bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns, con
 }
 
 /* Recursively invoke this function for all predecessors of exitBB */
-void AArch64GenProEpilog::TailCallBBOpt(BB &bb, std::set<Insn*> &callInsns, BB &exitBB) {
+void AArch64GenProEpilog::TailCallBBOpt(BB &bb, MapleSet<Insn*> &callInsns, BB &exitBB) {
   /* callsite also in the return block as in "if () return; else foo();"
      call in the exit block */
   if (!bb.IsEmpty() && !OptimizeTailBB(bb, callInsns, exitBB)) {
@@ -231,11 +231,11 @@ bool AArch64GenProEpilog::TailCallOpt() {
   uint32 i = 1;
   size_t optCount = 0;
   do {
-    std::set<Insn*> callInsns;
+    MapleSet<Insn*> callInsns(tmpAlloc.Adapter());
     TailCallBBOpt(*exitBB, callInsns, *exitBB);
     if (callInsns.size() != 0) {
       optCount += callInsns.size();
-      exitBB2CallSitesMap[exitBB] = callInsns;
+      exitBB2CallSitesMap.emplace(exitBB, callInsns);
     }
     if (i < exitBBSize) {
       exitBB = cgFunc.GetExitBBsVec()[i];
@@ -1880,7 +1880,7 @@ void AArch64GenProEpilog::GenerateEpilogForCleanup(BB &bb) {
 }
 
 
-void AArch64GenProEpilog::ConvertToTailCalls(std::set<Insn*> &callInsnsMap) {
+void AArch64GenProEpilog::ConvertToTailCalls(MapleSet<Insn*> &callInsnsMap) {
   BB *exitBB = GetCurTailcallExitBB();
 
   /* ExitBB is filled only by now. If exitBB has restore of SP indicating extra stack space has
@@ -2008,7 +2008,7 @@ void AArch64GenProEpilog::Run() {
     cgFunc.GetTheCFG()->InitInsnVisitor(cgFunc);
     for (auto pair : exitBB2CallSitesMap) {
       BB *curExitBB = pair.first;
-      std::set<Insn*>& callInsnsMap = pair.second;
+      MapleSet<Insn*>& callInsnsMap = pair.second;
       SetCurTailcallExitBB(curExitBB);
       ConvertToTailCalls(callInsnsMap);
     }

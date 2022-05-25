@@ -30,8 +30,8 @@ inline static bool IsAlloc(const BaseNode *x) {
 }
 
 void PEGNode::Dump() {
-  LogInfo::MapleLogger() << "PEGNode: idx(" << ost->GetIndex() << ")";
-  ost->Dump();
+  LogInfo::MapleLogger() << "PEGNode: idx(" << vst->GetIndex() << ")";
+  vst->Dump();
   if (attr[kAliasAttrNotAllDefsSeen]) {
     LogInfo::MapleLogger() << " NADS";
   }
@@ -53,16 +53,18 @@ void PEGNode::Dump() {
   LogInfo::MapleLogger() << std::endl;
 }
 
-PEGNode *ProgramExprGraph::GetOrCreateNodeOf(OriginalSt *ost) {
-  uint32 nodeId = static_cast<uint32>(allNodes.size());
-  const auto &itPair = idOfVal2IdOfNode.insert(std::make_pair(ost->GetIndex(), nodeId));
-  // insert op fail, PEGNode of ost has created
-  if (!itPair.second) {
-    return allNodes[itPair.first->second];
+PEGNode *ProgramExprGraph::GetOrCreateNodeOf(const VersionSt *vst) {
+  if (allNodes.size() > vst->GetIndex() && allNodes[vst->GetIndex()] != nullptr) {
+    return allNodes[vst->GetIndex()].get();
   }
 
-  auto *newNode = memPool->New<PEGNode>(ost);
-  allNodes.emplace_back(newNode);
+  if (vst->GetIndex() >= allNodes.size()) {
+    constexpr uint32 buffer = 10;
+    auto newSize = vst->GetIndex() + buffer;
+    allNodes.resize(newSize);
+  }
+  auto newNode = std::make_unique<PEGNode>(vst);
+  auto *ost = vst->GetOst();
   if (ost->GetIndirectLev() == 0) {
     if (ost->IsFormal()) {
       newNode->attr[kAliasAttrFormal] = true;
@@ -70,16 +72,23 @@ PEGNode *ProgramExprGraph::GetOrCreateNodeOf(OriginalSt *ost) {
       newNode->attr[kAliasAttrGlobal] = true;
     }
   }
-  return newNode;
+  allNodes[vst->GetIndex()] = std::move(newNode);
+  return allNodes[vst->GetIndex()].get();
+}
+
+PEGNode *ProgramExprGraph::GetNodeOf(const VersionSt *vst) const {
+  if (vst->GetIndex() < allNodes.size()) {
+    return allNodes[vst->GetIndex()].get();
+  }
+  return nullptr;
 }
 
 PEGNode *ProgramExprGraph::GetNodeOf(const OriginalSt *ost) const {
-  const auto &it = idOfVal2IdOfNode.find(ost->GetIndex());
-  if (it == idOfVal2IdOfNode.end()) {
-    return nullptr;
+  CHECK_FATAL(ost->GetVersionsIndices().size() == 1, "ost must only has zero version");
+  if (ost->GetZeroVersionIndex() < allNodes.size()) {
+    return allNodes[ost->GetZeroVersionIndex()].get();
   }
-  CHECK_FATAL(allNodes.size() > it->second, "out of range");
-  return allNodes[it->second];
+  return nullptr;
 }
 
 void ProgramExprGraph::Dump() const {
@@ -94,9 +103,13 @@ void ProgramExprGraph::Dump() const {
     }
   };
 
-  for (auto &node : allNodes) {
-    node->ost->Dump();
-    LogInfo::MapleLogger() << " idx(" << node->ost->GetIndex() << ")";
+  for (auto &nodePtr : allNodes) {
+    auto node = nodePtr.get();
+    if (node == nullptr) {
+      continue;
+    }
+    node->vst->Dump();
+    LogInfo::MapleLogger() << " idx(" << node->vst->GetIndex() << ")";
     if (node->attr[kAliasAttrNotAllDefsSeen]) {
       LogInfo::MapleLogger() << " NADS";
     }
@@ -118,25 +131,23 @@ void ProgramExprGraph::Dump() const {
 
     LogInfo::MapleLogger() << std::endl << ">>>assign from : ";
     for (const auto &assignFrom : node->assignFrom) {
-      assignFrom.pegNode->ost->Dump();
+      assignFrom.pegNode->vst->Dump();
       dumpOffset(assignFrom.offset);
     }
 
     LogInfo::MapleLogger() << std::endl << ">>>assign to : ";
     for (const auto &assignTo : node->assignTo) {
-      assignTo.pegNode->ost->Dump();
-      dumpOffset(assignTo.offset);
+      assignTo.pegNode->vst->Dump();
     }
 
     LogInfo::MapleLogger() << std::endl << ">>>prevLevNode : ";
     if (node->prevLevNode != nullptr) {
-      node->prevLevNode->ost->Dump();
-      dumpOffset(node->ost->GetOffset());
+      node->prevLevNode->vst->Dump();
     }
 
     LogInfo::MapleLogger() << std::endl << ">>>nextLevNodes : ";
     for (const auto *nextLevNode : node->nextLevNodes) {
-      nextLevNode->ost->Dump();
+      nextLevNode->vst->Dump();
       LogInfo::MapleLogger() << " ";
     }
     LogInfo::MapleLogger() << std::endl << std::endl;
@@ -145,25 +156,26 @@ void ProgramExprGraph::Dump() const {
 
 PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfDread(const AddrofSSANode *dread) {
   auto *dreadNode = static_cast<const AddrofSSANode *>(dread);
-  auto *ost = dreadNode->GetSSAVar()->GetOst();
-  PEGNode *pegNode = peg->GetOrCreateNodeOf(ost);
+  auto *vst = dreadNode->GetSSAVar();
+  auto *ost = vst->GetOst();
+  PEGNode *pegNode = peg->GetOrCreateNodeOf(vst);
   if (dreadNode->GetMIRSymbol().GetType()->IsStructType() && pegNode->prevLevNode == nullptr) {
-    auto *prevLevOst = ost->GetPrevLevelOst();
-    if (prevLevOst != nullptr) {
-      auto pegNodeOfPrevLevOSt = peg->GetOrCreateNodeOf(prevLevOst);
-      pegNodeOfPrevLevOSt->AddNextLevelNode(pegNode);
-      pegNode->prevLevNode = pegNodeOfPrevLevOSt;
+    auto *prevLevPointer = ssaTab->GetVerSt(ost->GetPointerVstIdx());
+    if (prevLevPointer != nullptr) {
+      auto pegNodeOfPointer = peg->GetOrCreateNodeOf(prevLevPointer);
+      pegNodeOfPointer->AddNextLevelNode(pegNode);
+      pegNode->prevLevNode = pegNodeOfPointer;
     }
   }
   return PtrValueRecorder(pegNode, 0, OffsetType(0));
 }
 
 PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfRegread(const RegreadSSANode *regread) {
-  auto *ost = regread->GetSSAVar()->GetOst();
-  if (ost->IsSpecialPreg()) {
+  auto *vst = regread->GetSSAVar();
+  if (vst->GetOst()->IsSpecialPreg()) {
     return PtrValueRecorder(nullptr, 0, OffsetType(0));
   }
-  return PtrValueRecorder(peg->GetOrCreateNodeOf(ost), 0, OffsetType(0));
+  return PtrValueRecorder(peg->GetOrCreateNodeOf(vst), 0, OffsetType(0));
 }
 
 PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfIread(const IreadSSANode *iread) {
@@ -173,7 +185,7 @@ PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfIread(const IreadSSANode 
   }
 
   MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iread->GetTyIdx());
-  CHECK_FATAL(mirType->GetKind() == kTypePointer, "CreateAliasElemsExpr: ptr type expected in iread");
+  CHECK_FATAL(mirType->GetKind() == kTypePointer, "CreateAliasInfoExpr: ptr type expected in iread");
   auto *pointedType = static_cast<MIRPtrType*>(mirType)->GetPointedType();
   if (iread->GetFieldID() > 0) {
     pointedType = static_cast<MIRStructType *>(pointedType)->GetFieldType(iread->GetFieldID());
@@ -181,11 +193,12 @@ PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfIread(const IreadSSANode 
   bool typeHasBeenCasted =
       AliasClass::IreadedMemInconsistentWithPointedType(iread->GetPrimType(), pointedType->GetPrimType());
   OffsetType offset = typeHasBeenCasted ? OffsetType::InvalidOffset() : ptrNode.offset;
-  auto *ostOfBase = ptrNode.pegNode->ost;
+  auto *vstOfBase = ptrNode.pegNode->vst;
   auto *mayUsedOst =
-      AliasClass::FindOrCreateExtraLevOst(ssaTab, ostOfBase, iread->GetTyIdx(), iread->GetFieldID(), offset);
+      AliasClass::FindOrCreateExtraLevOst(ssaTab, vstOfBase, iread->GetTyIdx(), iread->GetFieldID(), offset);
+  auto *zeroVersionOfMayUsedOst = ssaTab->GetVersionStTable().GetZeroVersionSt(mayUsedOst);
   // build prevLev-nextLev relationship
-  auto *pegNodeOfMayUsedOSt = peg->GetOrCreateNodeOf(mayUsedOst);
+  auto *pegNodeOfMayUsedOSt = peg->GetOrCreateNodeOf(zeroVersionOfMayUsedOst);
 
   ptrNode.pegNode->AddNextLevelNode(pegNodeOfMayUsedOSt);
   pegNodeOfMayUsedOSt->SetPrevLevelNode(ptrNode.pegNode);
@@ -194,15 +207,12 @@ PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfIread(const IreadSSANode 
 }
 
 PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfAddrof(const maple::AddrofSSANode *addrof) {
-  auto *ost = addrof->AddrofSSANode::GetSSAVar()->GetOst();
+  auto *vst = addrof->AddrofSSANode::GetSSAVar();
+  auto *ost = vst->GetOst();
   auto *addrofOst = ost->GetPrevLevelOst();
   if (addrofOst == nullptr) {
-    auto *ostOfAgg = ssaTab->FindOrCreateSymbolOriginalSt(*ost->GetMIRSymbol(), ost->GetPuIdx(), 0);
+    auto *ostOfAgg = ssaTab->GetOriginalStTable().FindSymbolOriginalSt(*ost->GetMIRSymbol());
     addrofOst = ssaTab->FindOrCreateAddrofSymbolOriginalSt(ostOfAgg);
-    if (ost->GetFieldID() != 0) {
-      ost->SetPrevLevelOst(addrofOst);
-      addrofOst->AddNextLevelOst(ost);
-    }
   }
 
   OffsetType offset(0);
@@ -210,8 +220,9 @@ PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfAddrof(const maple::Addro
     offset.Set(ost->GetMIRSymbol()->GetType()->GetBitOffsetFromBaseAddr(ost->GetFieldID()));
   }
 
-  auto *pegNodeOfAddrof = peg->GetOrCreateNodeOf(addrofOst);
-  auto *pegNodeOfOst = peg->GetOrCreateNodeOf(ost);
+  auto *vstOfAddrofOst = ssaTab->GetVerSt(addrofOst->GetZeroVersionIndex());
+  auto *pegNodeOfAddrof = peg->GetOrCreateNodeOf(vstOfAddrofOst);
+  auto *pegNodeOfOst = peg->GetOrCreateNodeOf(vst);
   pegNodeOfAddrof->AddNextLevelNode(pegNodeOfOst);
   pegNodeOfOst->SetPrevLevelNode(pegNodeOfAddrof);
 
@@ -360,15 +371,16 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
   if (lhsNode == rhsNode && offset.val == 0) {
     return;
   }
+
   if (lhsNode == nullptr) {
-    bool rhsIsAddress = MaybeAddress(rhsNode->ost->GetTyIdx());
+    bool rhsIsAddress = MaybeAddress(rhsNode->vst->GetOst()->GetTyIdx());
     if (rhsIsAddress) {
       rhsNode->attr[kAliasAttrEscaped] = true;
     }
     return;
   }
 
-  bool lhsIsAddress = MaybeAddress(lhsNode->ost->GetTyIdx());
+  bool lhsIsAddress = MaybeAddress(lhsNode->vst->GetOst()->GetTyIdx());
   if (rhsNode == nullptr) {
     if (!lhsIsAddress) {
       return;
@@ -380,9 +392,13 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
     return;
   }
 
-  bool rhsIsAddress = MaybeAddress(rhsNode->ost->GetTyIdx());
+  auto lhsOst = lhsNode->vst->GetOst();
+  auto rhsOst = rhsNode->vst->GetOst();
+  bool rhsIsAddress = MaybeAddress(rhsOst->GetTyIdx());
   if (lhsIsAddress) {
-    if (lhsNode->ost->IsFormal()) {
+    // formal has init value at function entry,
+    // redefining makes formal be multi-defined.
+    if (lhsOst->IsFormal()) {
       lhsNode->SetMultiDefined();
     }
 
@@ -395,21 +411,18 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
   } else if (rhsIsAddress) {
     rhsNode->attr[kAliasAttrEscaped] = true;
   } else {
-    auto lhsOst = lhsNode->ost;
     auto *lhsType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsOst->GetTyIdx());
-    auto rhsOst = rhsNode->ost;
     auto *rhsType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(rhsOst->GetTyIdx());
-
     if (lhsType != rhsType) {
       return;
     }
 
     if (lhsType->IsStructType()) {
-      auto *preLevOfLHSOst = lhsOst->GetPrevLevelOst();
+      auto *preLevOfLHSOst = ssaTab->GetVerSt(lhsOst->GetPointerVstIdx());
       if (preLevOfLHSOst == nullptr) {
         return;
       }
-      auto *preLevOfRHSOst = rhsOst->GetPrevLevelOst();
+      auto preLevOfRHSOst = ssaTab->GetVerSt(rhsOst->GetPointerVstIdx());
       if (preLevOfRHSOst == nullptr) {
         return;
       }
@@ -421,13 +434,13 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
         }
         OffsetType bitOffset(structType->GetBitOffsetFromBaseAddr(fieldId));
 
-        const auto &nextLevOstsOfLHS = preLevOfLHSOst->GetNextLevelOsts();
-        auto fieldOstLHS =
-            ssaTab->GetOriginalStTable().FindExtraLevOriginalSt(nextLevOstsOfLHS, fieldType, fieldId, bitOffset);
+        const auto *nextLevOstsOfLHS = ssaTab->GetNextLevelOsts(*preLevOfLHSOst);
+        auto fieldOstLHS = (nextLevOstsOfLHS == nullptr) ? nullptr :
+            ssaTab->GetOriginalStTable().FindExtraLevOriginalSt(*nextLevOstsOfLHS, fieldType, fieldId, bitOffset);
 
-        const auto &nextLevOstsOfRHS = preLevOfRHSOst->GetNextLevelOsts();
-        auto fieldOstRHS =
-            ssaTab->GetOriginalStTable().FindExtraLevOriginalSt(nextLevOstsOfRHS, fieldType, fieldId, bitOffset);
+        const auto *nextLevOstsOfRHS = ssaTab->GetNextLevelOsts(*preLevOfRHSOst);
+        auto fieldOstRHS = (nextLevOstsOfRHS == nullptr) ? nullptr :
+            ssaTab->GetOriginalStTable().FindExtraLevOriginalSt(*nextLevOstsOfRHS, fieldType, fieldId, bitOffset);
 
         if (fieldOstLHS == nullptr && fieldOstRHS == nullptr) {
           continue;
@@ -437,23 +450,25 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
         if (fieldOstLHS == nullptr) {
           auto *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(lhsOst->GetTyIdx());
           fieldOstLHS = ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(
-              preLevOfLHSOst, ptrType->GetTypeIndex(), fieldId, bitOffset);
+            preLevOfLHSOst, ptrType->GetTypeIndex(), fieldId, bitOffset);
         }
 
         if (fieldOstRHS == nullptr) {
           auto *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(rhsOst->GetTyIdx());
           fieldOstRHS = ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(
-              preLevOfRHSOst, ptrType->GetTypeIndex(), fieldId, bitOffset);
+            preLevOfRHSOst, ptrType->GetTypeIndex(), fieldId, bitOffset);
         }
 
-        auto pegNodeOfLhsField = peg->GetOrCreateNodeOf(fieldOstLHS);
+        auto *zeroVersionOfFieldOstLHS = ssaTab->GetVersionStTable().GetOrCreateZeroVersionSt(*fieldOstLHS);
+        auto pegNodeOfLhsField = peg->GetOrCreateNodeOf(zeroVersionOfFieldOstLHS);
         auto *prevLevNodeLhs = lhsNode->prevLevNode;
         if (prevLevNodeLhs != nullptr) {
           prevLevNodeLhs->AddNextLevelNode(pegNodeOfLhsField);
           pegNodeOfLhsField->SetPrevLevelNode(prevLevNodeLhs);
         }
 
-        auto pegNodeOfRhsField = peg->GetOrCreateNodeOf(fieldOstRHS);
+        auto *zeroVersionOfFieldOstRHS = ssaTab->GetVersionStTable().GetOrCreateZeroVersionSt(*fieldOstRHS);
+        auto pegNodeOfRhsField = peg->GetOrCreateNodeOf(zeroVersionOfFieldOstRHS);
         auto *prevLevNodeRhs = rhsNode->prevLevNode;
         if (prevLevNodeRhs != nullptr) {
           prevLevNodeRhs->AddNextLevelNode(pegNodeOfRhsField);
@@ -467,21 +482,24 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
 }
 
 void PEGBuilder::BuildPEGNodeInAssign(const StmtNode *stmt) {
-  OriginalSt *ost = ssaTab->GetStmtsSSAPart().SSAPartOf(*stmt)->GetSSAVar()->GetOst();
-  PEGNode *lhsNode = peg->GetOrCreateNodeOf(ost);
+  VersionSt *vst = ssaTab->GetStmtsSSAPart().SSAPartOf(*stmt)->GetSSAVar();
+  OriginalSt *ost = vst->GetOst();
+  PEGNode *lhsNode = peg->GetOrCreateNodeOf(vst);
   CHECK_FATAL(lhsNode != nullptr, "failed in create PEGNode");
 
-  if (lhsNode->prevLevNode == nullptr && ost->IsSymbolOst() && ost->GetMIRSymbol()->GetType()->IsStructType()) {
-    auto *prevLevOst = ost->GetPrevLevelOst();
-    if (prevLevOst == nullptr) {
+  if (ost->IsSymbolOst() && ost->GetMIRSymbol()->GetType()->IsStructType() &&
+      lhsNode->prevLevNode == nullptr) {
+    auto prevLevOfLhsOst = ssaTab->GetVerSt(ost->GetPointerVstIdx());
+    if (prevLevOfLhsOst == nullptr) {
       auto *ostOfAgg = ssaTab->FindOrCreateSymbolOriginalSt(*ost->GetMIRSymbol(), ost->GetPuIdx(), 0);
-      prevLevOst = ssaTab->FindOrCreateAddrofSymbolOriginalSt(ostOfAgg);
+      auto *prevLevOst = ssaTab->FindOrCreateAddrofSymbolOriginalSt(ostOfAgg);
+      prevLevOfLhsOst = ssaTab->GetVerSt(prevLevOst->GetZeroVersionIndex());
       if (ost->GetFieldID() != 0) {
-        ost->SetPrevLevelOst(prevLevOst);
-        prevLevOst->AddNextLevelOst(ost);
+        ost->SetPointerVst(prevLevOfLhsOst);
+        ssaTab->GetOriginalStTable().AddNextLevelOstOfVst(prevLevOfLhsOst, ost);
       }
     }
-    auto pegNodeOfPrevLevOSt = peg->GetOrCreateNodeOf(prevLevOst);
+    auto pegNodeOfPrevLevOSt = peg->GetOrCreateNodeOf(prevLevOfLhsOst);
     pegNodeOfPrevLevOSt->AddNextLevelNode(lhsNode);
     lhsNode->SetPrevLevelNode(pegNodeOfPrevLevOSt);
   }
@@ -511,10 +529,11 @@ void PEGBuilder::BuildPEGNodeInIassign(const IassignNode *iassign) {
     return;
   }
 
-  auto *ostOfBase = baseAddrValNode.pegNode->ost;
+  auto *vstOfBase = baseAddrValNode.pegNode->vst;
   OriginalSt *defedOst = AliasClass::FindOrCreateExtraLevOst(
-      ssaTab, ostOfBase, iassign->GetTyIdx(), iassign->GetFieldID(), baseAddrValNode.offset);
-  PEGNode *lhsNode = peg->GetOrCreateNodeOf(defedOst);
+      ssaTab, vstOfBase, iassign->GetTyIdx(), iassign->GetFieldID(), baseAddrValNode.offset);
+  auto zeroVersionSt = ssaTab->GetVerSt(defedOst->GetZeroVersionIndex());
+  PEGNode *lhsNode = peg->GetOrCreateNodeOf(zeroVersionSt);
 
   // build prevLev-nextLev relation
   baseAddrValNode.pegNode->AddNextLevelNode(lhsNode);
@@ -641,10 +660,11 @@ void PEGBuilder::BuildPEGNodeInStmt(const StmtNode *stmt) {
   if (kOpcodeInfo.IsCallAssigned(stmt->GetOpCode())) {
     auto &mustDefNodes = ssaTab->GetStmtsSSAPart().SSAPartOf(*stmt)->GetMustDefNodes();
     if (!mustDefNodes.empty()) {
-      auto *mustDefedOst = mustDefNodes.front().GetResult()->GetOst();
+      auto *mustDefedVst = mustDefNodes.front().GetResult();
+      auto *mustDefedOst = mustDefedVst->GetOst();
       auto *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(mustDefedOst->GetTyIdx());
       if (IsAddress(mirType->GetPrimType())) {
-        auto *pegNode = peg->GetOrCreateNodeOf(mustDefedOst);
+        auto *pegNode = peg->GetOrCreateNodeOf(mustDefedVst);
         if (stmt->GetOpCode() == OP_callassigned) {
           auto *callStmt = static_cast<const CallNode*>(stmt);
           auto *mirFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt->GetPUIdx());
@@ -655,6 +675,15 @@ void PEGBuilder::BuildPEGNodeInStmt(const StmtNode *stmt) {
         pegNode->attr[kAliasAttrNextLevNotAllDefsSeen] = true;
       }
     }
+  }
+}
+
+void PEGBuilder::BuildPEGNodeInPhi(const PhiNode &phi) {
+  auto *lhs = phi.GetResult();
+  auto *pegNodeLHS = peg->GetOrCreateNodeOf(lhs);
+  for (auto *opnd : phi.GetPhiOpnds()) {
+    auto *pegNodeOpnd = peg->GetOrCreateNodeOf(opnd);
+    peg->AddAssignEdge(pegNodeLHS, pegNodeOpnd, OffsetType(0));
   }
 }
 
@@ -693,22 +722,27 @@ void PEGBuilder::UpdateAttributes() {
   // L2: def/use *(ptr + 1) = 1;
   // L3: ptr = array + 1;
   // L4: use *ptr; <=== *ptr alias with L2: *(ptr+1)
-  for (auto *node : peg->GetAllNodes()) {
-    if (node->ost->GetIndirectLev() <= 0) {
-      if (node->ost->IsSymbolOst() && node->ost->GetMIRSymbol()->IsGlobal()) {
+  for (auto &nodePtr : peg->GetAllNodes()) {
+    auto node = nodePtr.get();
+    if (node == nullptr) {
+      continue;
+    }
+    auto ostOfNode = node->vst->GetOst();
+    if (ostOfNode->GetIndirectLev() <= 0) {
+      if (ostOfNode->IsSymbolOst() && ostOfNode->GetMIRSymbol()->IsGlobal()) {
         std::set<PEGNode*> processed;
-        PropGlobalAndFormalAttr(node, kAliasAttrGlobal, node->ost->GetIndirectLev(), processed);
+        PropGlobalAndFormalAttr(node, kAliasAttrGlobal, ostOfNode->GetIndirectLev(), processed);
         continue;
       }
-      if (node->ost->IsFormal()) {
+      if (ostOfNode->IsFormal()) {
         std::set<PEGNode*> processed;
-        PropGlobalAndFormalAttr(node, kAliasAttrFormal, node->ost->GetIndirectLev(), processed);
+        PropGlobalAndFormalAttr(node, kAliasAttrFormal, ostOfNode->GetIndirectLev(), processed);
       }
     }
 
-    if (node->ost->GetIndirectLev() > 0 || node->assignFrom.size() > 1 ||
-        (node->ost->IsFormal() && node->assignFrom.size() > 0) ||
-        (node->ost->IsSymbolOst() && node->ost->GetMIRSymbol()->IsStatic())) {
+    if (ostOfNode->GetIndirectLev() > 0 || node->assignFrom.size() > 1 ||
+        (ostOfNode->IsFormal() && node->assignFrom.size() > 0) ||
+        (ostOfNode->IsSymbolOst() && ostOfNode->GetMIRSymbol()->IsStatic())) {
       node->SetMultiDefined();
     }
   }
@@ -717,7 +751,11 @@ void PEGBuilder::UpdateAttributes() {
   bool changed = true;
   while (changed) {
     changed = false;
-    for (auto *node : peg->GetAllNodes()) {
+    for (auto &nodePtr : peg->GetAllNodes()) {
+      auto node = nodePtr.get();
+      if (node == nullptr) {
+        continue;
+      }
       if (node->attr[kAliasAttrNotAllDefsSeen]) {
         for (auto *nextLevNode : node->nextLevNodes) {
           auto &attr = nextLevNode->attr;
@@ -807,7 +845,16 @@ void PEGBuilder::UpdateAttributes() {
 
 void PEGBuilder::BuildPEG() {
   for (const auto bb : func->GetCfg()->GetAllBBs()) {
-    if (bb == nullptr || bb->IsEmpty()) {
+    if (bb == nullptr) {
+      continue;
+    }
+
+    auto &phiList = bb->GetPhiList();
+    for (auto &ost2phi : phiList) {
+      BuildPEGNodeInPhi(ost2phi.second);
+    }
+
+    if (bb->IsEmpty()) {
       continue;
     }
     for (const auto &stmt : bb->GetStmtNodes()) {
@@ -854,9 +901,9 @@ void DemandDrivenAliasAnalysis::Propagate(WorkListType &workList, PEGNode *to, c
     to->CopyAttrFromValueAliasedNode(reachItem.src);
     if (enableDebug) {
       LogInfo::MapleLogger() << "===New candidate: ";
-      reachItem.src->ost->Dump();
+      reachItem.src->vst->Dump();
       LogInfo::MapleLogger() << " + " << offset.val << " => ";
-      to->ost->Dump();
+      to->vst->Dump();
       LogInfo::MapleLogger() << std::endl << std::endl;
     }
   }
@@ -913,7 +960,7 @@ inline static bool MemOverlapAccordingOffset(OffsetType startA, OffsetType endA,
 }
 
 inline static OffsetType OffsetFromPrevLevNode(const PEGNode *pegNode) {
-  return pegNode->ost->GetOffset();
+  return pegNode->vst->GetOst()->GetOffset();
 }
 
 void DemandDrivenAliasAnalysis::UpdateAliasInfoOfPegNode(PEGNode *pegNode) {
@@ -933,16 +980,18 @@ void DemandDrivenAliasAnalysis::UpdateAliasInfoOfPegNode(PEGNode *pegNode) {
     // toNode->ost value alias with srcNode->ost, the nextLevOsts may memory alias with each other
     for (auto *nextLevNodeOfTo : toNode->nextLevNodes) {
       constexpr int kBitNumInOneByte = 8;
+      auto *nextLevOstOfTo = nextLevNodeOfTo->vst->GetOst();
       OffsetType offsetStartA = OffsetFromPrevLevNode(nextLevNodeOfTo) + offset;
       OffsetType offsetEndA = static_cast<OffsetType>(offsetStartA +
-          nextLevNodeOfTo->ost->GetType()->GetSize() * kBitNumInOneByte);
+          nextLevOstOfTo->GetType()->GetSize() * kBitNumInOneByte);
       for (auto *nextLevNodeOfSrc : srcNode->nextLevNodes) {
+        auto *nextLevOstOfSrc = nextLevNodeOfSrc->vst->GetOst();
         OffsetType offsetStartB = OffsetFromPrevLevNode(nextLevNodeOfSrc);
         OffsetType offsetEndB = static_cast<OffsetType>(offsetStartB +
-            nextLevNodeOfSrc->ost->GetType()->GetSize() * kBitNumInOneByte);
+            nextLevOstOfSrc->GetType()->GetSize() * kBitNumInOneByte);
 
         if (MemOverlapAccordingOffset(offsetStartA, offsetEndA, offsetStartB, offsetEndB)) {
-          AddAlias(nextLevNodeOfTo->ost, nextLevNodeOfSrc->ost);
+          AddAlias(nextLevOstOfTo, nextLevOstOfSrc);
           for (const auto &reachItem : *ReachSetOf(nextLevNodeOfSrc)) {
             switch (reachItem->state) {
               case S1: {
@@ -966,7 +1015,7 @@ void DemandDrivenAliasAnalysis::UpdateAliasInfoOfPegNode(PEGNode *pegNode) {
         for (const auto &readNode : toNode->assignFrom) {
           Propagate(workList, readNode.pegNode, {srcNode, S1, offset + readNode.offset});
         }
-        for (auto *aliasOst : *AliasSetOf(toNode->ost)) {
+        for (auto *aliasOst : *AliasSetOf(toNode->vst->GetOst())) {
           auto *aliasNode = peg.GetNodeOf(aliasOst);
           Propagate(workList, aliasNode, {srcNode, S2, offset});
         }
@@ -988,7 +1037,7 @@ void DemandDrivenAliasAnalysis::UpdateAliasInfoOfPegNode(PEGNode *pegNode) {
         for (const auto &writeNode : toNode->assignTo) {
           Propagate(workList, writeNode.pegNode, {srcNode, S3, writeNode.offset + offset});
         }
-        for (auto *aliasOst : *AliasSetOf(toNode->ost)) {
+        for (auto *aliasOst : *AliasSetOf(toNode->vst->GetOst())) {
           auto *aliasNode = peg.GetNodeOf(aliasOst);
           Propagate(workList, aliasNode, {srcNode, S4, offset});
         }
@@ -1021,8 +1070,8 @@ bool DemandDrivenAliasAnalysis::MayAlias(PEGNode *to, PEGNode *src) {
   if (to == src) {
     return true;
   }
-  auto *ostOfTo = to->ost;
-  auto *ostOfSrc = src->ost;
+  auto *ostOfTo = to->vst->GetOst();
+  auto *ostOfSrc = src->vst->GetOst();
   // alias based on AliasAttr
   auto *nodeOfPrevLevOfTo = to->prevLevNode;
   auto *nodeOfPrevLevOfSrc = src->prevLevNode;
@@ -1053,7 +1102,7 @@ bool DemandDrivenAliasAnalysis::MayAlias(PEGNode *to, PEGNode *src) {
   if (nodeOfPrevLevOfTo != nodeOfPrevLevOfSrc) {
     bool aliasAccordingAttr = AliasBasedOnAliasAttr(to, src);
     if (aliasAccordingAttr) {
-      AddAlias(to->ost, src->ost);
+      AddAlias(ostOfTo, ostOfSrc);
     }
     return aliasAccordingAttr;
   }

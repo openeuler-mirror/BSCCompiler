@@ -27,7 +27,10 @@ using namespace maple;
 
 class AArch64GenProEpilog : public GenProEpilog {
  public:
-  explicit AArch64GenProEpilog(CGFunc &func) : GenProEpilog(func) {
+  AArch64GenProEpilog(CGFunc &func, MemPool &memPool) :
+      GenProEpilog(func),
+      tmpAlloc(&memPool),
+      exitBB2CallSitesMap(tmpAlloc.Adapter()) {
     useFP = func.UseFP();
     if (func.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
       stackBaseReg = RFP;
@@ -51,8 +54,8 @@ class AArch64GenProEpilog : public GenProEpilog {
   void GenStackGuard(BB&);
   BB &GenStackGuardCheckInsn(BB&);
   bool HasLoop();
-  bool OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns, const BB &exitBB);
-  void TailCallBBOpt(BB &bb, std::set<Insn*> &callInsns, BB &exitBB);
+  bool OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &exitBB);
+  void TailCallBBOpt(BB &bb, MapleSet<Insn*> &callInsns, BB &exitBB);
   bool InsertOpndRegs(Operand &opnd, std::set<regno_t> &vecRegs);
   bool InsertInsnRegs(Insn &insn, bool insetSource, std::set<regno_t> &vecSourceRegs,
                       bool insertTarget, std::set<regno_t> &vecTargetRegs);
@@ -75,12 +78,12 @@ class AArch64GenProEpilog : public GenProEpilog {
   void AppendJump(const MIRSymbol &func);
   void GenerateEpilog(BB&);
   void GenerateEpilogForCleanup(BB&);
-  void ConvertToTailCalls(std::set<Insn*> &callInsnsMap);
+  void ConvertToTailCalls(MapleSet<Insn*> &callInsnsMap);
   Insn &CreateAndAppendInstructionForAllocateCallFrame(int64 argsToStkPassSize, AArch64reg reg0, AArch64reg reg1,
                                                        RegType rty);
   Insn &AppendInstructionForAllocateOrDeallocateCallFrame(int64 argsToStkPassSize, AArch64reg reg0, AArch64reg reg1,
                                                           RegType rty, bool isAllocate);
-  std::map<BB*, std::set<Insn*>> &GetExitBB2CallSitesMap() {
+  MapleMap<BB*, MapleSet<Insn*>> &GetExitBB2CallSitesMap() {
     return exitBB2CallSitesMap;
   }
   void SetCurTailcallExitBB(BB *bb) {
@@ -89,9 +92,10 @@ class AArch64GenProEpilog : public GenProEpilog {
   BB *GetCurTailcallExitBB() {
     return curTailcallExitBB;
   }
+  MapleAllocator tmpAlloc;
   static constexpr const int32 kOffset8MemPos = 8;
   static constexpr const int32 kOffset16MemPos = 16;
-  std::map<BB*, std::set<Insn*>> exitBB2CallSitesMap;
+  MapleMap<BB*, MapleSet<Insn*>> exitBB2CallSitesMap;
   BB* curTailcallExitBB = nullptr;
   bool useFP = true;
   /* frame pointer(x29) is available as a general-purpose register if useFP is set as false */

@@ -51,8 +51,8 @@ class PtrValueNode {
 using AliasAttr = std::bitset<kEndOfAliasAttr>;
 class PEGNode {
  public:
-  explicit PEGNode(OriginalSt *ost) : ost(ost) {
-    if (ost->GetPrevLevelOst() != nullptr) {
+  explicit PEGNode(const VersionSt *vst) : vst(vst) {
+    if (vst->GetOst()->GetPrevLevelOst() != nullptr) {
       multiDefed = true;
     }
   }
@@ -97,7 +97,7 @@ class PEGNode {
 
   void Dump();
 
-  OriginalSt *ost = nullptr;
+  const VersionSt *vst;
   AliasAttr attr = {0};
   std::vector<PtrValueNode> assignFrom;
   std::vector<PtrValueNode> assignTo;
@@ -109,30 +109,27 @@ class PEGNode {
 
 class ProgramExprGraph {
  public:
-  explicit ProgramExprGraph(MemPool *memPool) : memPool(memPool) {}
+  ProgramExprGraph() = default;
   ~ProgramExprGraph() {
     allNodes.clear();
   }
 
   void AddAssignEdge(PEGNode *lhs, PEGNode *rhs, OffsetType offset) {
-    ASSERT(idOfVal2IdOfNode.find(lhs->ost->GetIndex()) != idOfVal2IdOfNode.end(), "");
-    ASSERT(idOfVal2IdOfNode.find(rhs->ost->GetIndex()) != idOfVal2IdOfNode.end(), "");
     lhs->AddAssignFromNode(rhs, offset);
     rhs->AddAssignToNode(lhs, offset);
   }
 
-  std::vector<PEGNode*> &GetAllNodes() {
+  std::vector<std::unique_ptr<PEGNode>> &GetAllNodes() {
     return allNodes;
   }
 
-  PEGNode *GetOrCreateNodeOf(OriginalSt *ost);
+  PEGNode *GetOrCreateNodeOf(const VersionSt *vst);
+  PEGNode *GetNodeOf(const VersionSt *vst) const;
   PEGNode *GetNodeOf(const OriginalSt *ost) const;
   void Dump() const;
 
  private:
-  MemPool *memPool;
-  std::vector<PEGNode*> allNodes; // index is id of PEGNode
-  std::map<OStIdx, uint32> idOfVal2IdOfNode;
+  std::vector<std::unique_ptr<PEGNode>> allNodes; // index is VersionSt index
 };
 
 class PEGBuilder {
@@ -156,6 +153,7 @@ class PEGBuilder {
   PtrValueRecorder BuildPEGNodeOfExpr(const BaseNode *expr);
   void AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *rhsNode, OffsetType offset);
   void BuildPEGNodeInStmt(const StmtNode *stmt);
+  void BuildPEGNodeInPhi(const PhiNode &phi);
   void BuildPEG();
 
  private:
@@ -209,9 +207,9 @@ class ReachItem {
 
 struct ReachItemComparator {
   bool operator()(const ReachItem *itemA, const ReachItem *itemB) const {
-    if (itemA->src->ost->GetIndex() < itemB->src->ost->GetIndex()) {
+    if (itemA->src->vst->GetIndex() < itemB->src->vst->GetIndex()) {
       return true;
-    } else if (itemA->src->ost->GetIndex() > itemB->src->ost->GetIndex()) {
+    } else if (itemA->src->vst->GetIndex() > itemB->src->vst->GetIndex()) {
       return false;
     }
     return (itemA->state < itemB->state);
@@ -236,7 +234,6 @@ class DemandDrivenAliasAnalysis {
         tmpAlloc(tmpMP),
         reachNodes(tmpAlloc.Adapter()),
         aliasSets(tmpAlloc.Adapter()),
-        peg(tmpMP),
         enableDebug(debugDDAA) {
     BuildPEG();
   }

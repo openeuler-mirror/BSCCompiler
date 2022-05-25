@@ -118,7 +118,7 @@ bool GenProEpilog::IncludeArray(const MIRType &type) const {
 bool CgGenProEpiLog::PhaseRun(maplebe::CGFunc &f) {
   GenProEpilog *genPE = nullptr;
 #if TARGAARCH64 || TARGRISCV64
-  genPE = GetPhaseAllocator()->New<AArch64GenProEpilog>(f);
+  genPE = GetPhaseAllocator()->New<AArch64GenProEpilog>(f, *ApplyTempMemPool());
 #endif
 #if TARGARM32
   genPE = GetPhaseAllocator()->New<Arm32GenProEpilog>(f);
