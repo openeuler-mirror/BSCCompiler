@@ -27,9 +27,6 @@ int main(int argc, char **argv) {
   MIRModule module;
   HIR2MPLCompiler compiler(module);
   int res = compiler.Run();
-  // The MIRModule destructor does not release the pragma memory, add releasing for front-end debugging.
-  MemPool *pragmaMemPoolPtr = module.GetPragmaMemPool();
-  FEUtils::DeleteMempoolPtr(pragmaMemPoolPtr);
   timer.Stop();
   if (FEOptions::GetInstance().IsDumpTime()) {
     INFO(kLncInfo, "hir2mpl time: %.2lfms", timer.ElapsedMilliseconds() / 1.0);
