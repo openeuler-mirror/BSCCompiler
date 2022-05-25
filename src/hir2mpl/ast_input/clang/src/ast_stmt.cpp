@@ -601,4 +601,19 @@ std::list<UniqueFEIRStmt> ASTUnaryExprOrTypeTraitExprStmt::Emit2FEStmtImpl() con
   }
   return stmts;
 }
+
+std::list<UniqueFEIRStmt> ASTUOAddrOfLabelExprStmt::Emit2FEStmtImpl() const {
+  CHECK_FATAL(exprs.size() == 1, "ASTUOAddrOfLabelExprStmt must contain only one expr!");
+  CHECK_FATAL(exprs.front() != nullptr, "child expr must not be nullptr!");
+  std::list<UniqueFEIRStmt> stmts;
+  std::list<UniqueFEIRExpr> feExprs;
+  UniqueFEIRExpr feExpr = exprs.front()->Emit2FEExpr(stmts);
+  if (feExpr != nullptr) {
+    feExprs.emplace_back(std::move(feExpr));
+    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
+    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+    stmts.emplace_back(std::move(stmt));
+  }
+  return stmts;
+}
 } // namespace maple

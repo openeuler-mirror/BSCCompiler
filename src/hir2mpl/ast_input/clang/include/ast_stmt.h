@@ -228,6 +228,10 @@ class ASTLabelStmt : public ASTStmt {
     subStmt = stmt;
   }
 
+  ASTStmt* GetSubStmt() const {
+    return subStmt;
+  }
+
   void SetLabelName(const std::string &name) {
     labelName = name;
   }
@@ -653,6 +657,15 @@ class ASTUnaryExprOrTypeTraitExprStmt : public ASTStmt {
  public:
   explicit ASTUnaryExprOrTypeTraitExprStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtDeclRefExpr) {}
   ~ASTUnaryExprOrTypeTraitExprStmt() override = default;
+
+ private:
+  std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
+};
+
+class ASTUOAddrOfLabelExprStmt : public ASTStmt {
+ public:
+  explicit ASTUOAddrOfLabelExprStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtAddrOfLabelExpr) {}
+  ~ASTUOAddrOfLabelExprStmt() override = default;
 
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;

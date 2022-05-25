@@ -88,6 +88,7 @@ class ASTParser {
   ASTStmt *PROCESS_STMT(GenericSelectionExpr);
   ASTStmt *PROCESS_STMT(DeclRefExpr);
   ASTStmt *PROCESS_STMT(UnaryExprOrTypeTraitExpr);
+  ASTStmt *PROCESS_STMT(AddrLabelExpr);
   bool HasDefault(const clang::Stmt &stmt);
 
   // ProcessExpr
