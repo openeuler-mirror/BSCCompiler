@@ -64,7 +64,7 @@ void GenProEpilog::NeedStackProtect() {
     return;
   }
 
-  if (cgFunc.HasVLAOrAlloca()) {
+  if (cgFunc.HasAlloca()) {
     stackProtect = true;
     return;
   }

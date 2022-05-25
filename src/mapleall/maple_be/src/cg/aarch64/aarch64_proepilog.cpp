@@ -296,7 +296,7 @@ bool AArch64GenProEpilog::NeedProEpilog() {
     return true;
   }
   bool funcHasCalls = false;
-  if (cgFunc.GetCG()->DoTailCall() && !IsStackAddrTaken(cgFunc)) {
+  if (cgFunc.GetCG()->DoTailCall() && !IsStackAddrTaken(cgFunc) && !stackProtect) {
     funcHasCalls = !TailCallOpt(); // return value == "no call instr/only or 1 tailcall"
   } else {
     FOR_ALL_BB(bb, &cgFunc) {
@@ -381,6 +381,7 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   if (!stackProtect) {
     return bb;
   }
+
   CG *currCG = cgFunc.GetCG();
   BB *formerCurBB = cgFunc.GetCurBB();
   cgFunc.GetDummyBB()->ClearInsns();
@@ -435,23 +436,31 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   aarchCGFunc.SelectCondGoto(aarchCGFunc.GetOrCreateLabelOperand(failLable), OP_brtrue, OP_eq,
                              stAddrOpnd, aarchCGFunc.CreateImmOperand(0, k64BitSize, false), PTY_u64, false);
 
+  bb.AppendBBInsns(*(cgFunc.GetCurBB()));
+
+  LabelIdx nextBBLableIdx = aarchCGFunc.CreateLabel();
+  BB *nextBB = aarchCGFunc.CreateNewBB(nextBBLableIdx, bb.IsUnreachable(), BB::kBBFallthru, bb.GetFrequency());
+  bb.AppendBB(*nextBB);
+  bb.PushBackSuccs(*nextBB);
+  nextBB->PushBackPreds(bb);
+  cgFunc.SetCurBB(*nextBB);
   MIRSymbol *failFunc = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
       GlobalTables::GetStrTable().GetStrIdxFromName(std::string("__stack_chk_fail")));
   ListOperand *srcOpnds = aarchCGFunc.CreateListOpnd(*cgFunc.GetFuncScopeAllocator());
   Insn &callInsn = aarchCGFunc.AppendCall(*failFunc, *srcOpnds);
   callInsn.SetDoNotRemove(true);
 
-  bb.AppendBBInsns(*(cgFunc.GetCurBB()));
-
   BB *newBB = cgFunc.CreateNewBB(failLable, bb.IsUnreachable(), bb.GetKind(), bb.GetFrequency());
-  bb.AppendBB(*newBB);
+  nextBB->AppendBB(*newBB);
   if (cgFunc.GetLastBB() == &bb) {
     cgFunc.SetLastBB(*newBB);
   }
-  bb.SetKind(BB::kBBFallthru);
   bb.PushBackSuccs(*newBB);
+  nextBB->PushBackSuccs(*newBB);
+  newBB->PushBackPreds(*nextBB);
   newBB->PushBackPreds(bb);
 
+  bb.SetKind(BB::kBBIf);
   cgFunc.SetCurBB(*formerCurBB);
   return *newBB;
 }
@@ -1246,6 +1255,10 @@ void AArch64GenProEpilog::GeneratePushRegs() {
       (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* for FP/LR */) -
       cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
 
+  if (cgFunc.GetCG()->IsStackProtectorStrong() || cgFunc.GetCG()->IsStackProtectorAll()) {
+    offset -= static_cast<uint32>(kAarch64StackPtrAlignment);
+  }
+
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
     /* GR/VR save areas are above the callee save area */
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
@@ -1718,6 +1731,10 @@ void AArch64GenProEpilog::GeneratePopRegs() {
   int32 offset = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
                  (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* for FP/LR */) -
                  cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
+
+  if (cgFunc.GetCG()->IsStackProtectorStrong() || cgFunc.GetCG()->IsStackProtectorAll()) {
+    offset -= static_cast<uint32>(kAarch64StackPtrAlignment);
+  }
 
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
     /* GR/VR save areas are above the callee save area */

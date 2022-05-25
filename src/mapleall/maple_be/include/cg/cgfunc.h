@@ -123,6 +123,14 @@ class CGFunc {
     hasVLAOrAlloca = val;
   }
 
+  bool HasAlloca() const {
+    return hasAlloca;
+  }
+
+  void SetHasAlloca(bool val) {
+    hasAlloca = val;
+  }
+
   void SetRD(ReachingDefinition *paramRd) {
     reachingDef = paramRd;
   }
@@ -1139,7 +1147,8 @@ class CGFunc {
   int32 maxParamStackSize;
   static constexpr int kRegIncrStepLen = 80; /* reg number increate step length */
 
-  bool hasVLAOrAlloca;
+  bool hasVLAOrAlloca = false;
+  bool hasAlloca = false;
   bool hasProEpilogue = false;
   bool isVolLoad = false;
   bool isVolStore = false;
