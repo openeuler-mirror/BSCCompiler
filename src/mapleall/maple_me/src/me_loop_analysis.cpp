@@ -39,20 +39,18 @@ void IdentifyLoops::SetLoopParent4BB(const BB &bb, LoopDesc &loopDesc) {
   bbLoopParent[bb.GetBBId()] = &loopDesc;
 }
 
-void IdentifyLoops::SetExitBB(LoopDesc& loop) {
-  BB *headBB = loop.head;
-  // the exit BB is the succeessor of headBB that does not belong to the loop
-  if (headBB->GetSucc().size() != 2) {
-    return;
-  }
-  if (loop.loopBBs.count(headBB->GetSucc()[0]->GetBBId()) != 1) {
-    loop.exitBB = headBB->GetSucc()[0];
-  } else {
-    loop.exitBB = headBB->GetSucc()[1];
-  }
-  // if it does not post-dominate headBB, do not set it
-  if (!dominance->PostDominate(*loop.exitBB, *headBB)) {
-    loop.exitBB = nullptr;
+void IdentifyLoops::SetExitBB(LoopDesc &loop) {
+  for (auto bbId : loop.loopBBs) {
+    auto *bb = cfg->GetBBFromID(bbId);
+    for (auto *succ : bb->GetSucc()) {
+      if (loop.loopBBs.count(succ->GetBBId()) == 0) {
+        if (loop.exitBB && loop.exitBB != succ) {
+          loop.exitBB = nullptr;
+          return;
+        }
+        loop.exitBB = succ;
+      }
+    }
   }
 }
 

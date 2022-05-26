@@ -47,7 +47,7 @@ bool MELfoInjectIV::PhaseRun(MeFunction &f) {
     PreMeWhileInfo *whileInfo = it->second;
     // find the entry BB as the predecessor of headbb that dominates headbb
     MapleVector<BB*>::iterator predit = headbb->GetPred().begin();
-    for (; predit != headbb->GetPred().end(); predit++) {
+    for (; predit != headbb->GetPred().end(); ++predit) {
       if (dom->Dominate(**predit, *headbb))
         break;
     }
@@ -84,8 +84,8 @@ bool MELfoInjectIV::PhaseRun(MeFunction &f) {
     BinaryNode *addnode = mirbuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetInt64(),
                                                        dread, mirbuilder->CreateIntConst(1, PTY_i64));
     dass = mirbuilder->CreateStmtDassign(*st, 0, addnode);
-    laststmt = &tailbb->GetLast();
-    tailbb->InsertStmtBefore(laststmt, dass);
+    laststmt = tailbb->IsEmpty() ? nullptr : &tailbb->GetLast();
+    laststmt ? tailbb->InsertStmtBefore(laststmt, dass) : tailbb->AddStmtNode(dass);
   }
   return true;
 }

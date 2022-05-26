@@ -277,7 +277,26 @@ void MeSSUPre::Rename() {
         if (!occStack.empty()) {
           SOcc *topOcc = occStack.top();
           if (topOcc->GetOccTy() == kSOccLambda) {
-            static_cast<SLambdaOcc*>(topOcc)->SetIsUpsafe(false);
+            // make sure this lambda is dominated by at least one kill occurrence
+            if (preKind == kDecrefPre || preKind == kSecondDecrefPre) {
+              for (SOcc *realOcc : workCand->GetRealOccs()) {
+                if (realOcc->GetOccTy() == kSOccUse || realOcc->GetOccTy() == kSOccPhi) {
+                  continue;
+                }
+                CHECK_FATAL(realOcc->GetOccTy() == kSOccReal, "just check");
+                if (!static_cast<SRealOcc *>(realOcc)->GetRealFromDef()) {
+                  continue;
+                }
+                CHECK_NULL_FATAL(dom);
+                if (!dom->Dominate(realOcc->GetBB(), topOcc->GetBB())) {
+                  continue;
+                }
+                static_cast<SLambdaOcc *>(topOcc)->SetIsUpsafe(false);
+                break;
+              }
+            } else {
+              static_cast<SLambdaOcc *>(topOcc)->SetIsUpsafe(false);
+            }
           }
         }
         break;
@@ -320,6 +339,11 @@ void MeSSUPre::Rename() {
         }
         ASSERT(topOcc->GetOccTy() == kSOccLambda || topOcc->GetOccTy() == kSOccReal,
                "Rename: unexpected top-of-stack occ");
+        if (occ->GetBB().GetAttributes(kBBAttrArtificial) &&
+            occ->GetBB().GetAttributes(kBBAttrIsExit)) {
+          // do not consider fake BBs created due to infinite loops
+          break;
+        }
         occ->SetUse(*topOcc);
         occ->SetClassId(topOcc->GetClassId());
         if (topOcc->GetOccTy() == kSOccReal) {
