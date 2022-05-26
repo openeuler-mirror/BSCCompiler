@@ -750,14 +750,11 @@ void ASTParser::ProcessBoundaryLenExpr(MapleAllocator &allocator, ASTDecl &ptrDe
     }
     lenExpr = GetAddrShiftExpr(allocator, lenExpr, lenSize);
   }
-  ENCChecker::CheckLenExpr(*lenExpr);
   ptrDecl.SetBoundaryLenExpr(lenExpr);
   ptrDecl.SetIsBytedLen(!isSize);
 }
 
-void ENCChecker::CheckLenExpr(const ASTExpr &lenExpr) {
-  std::list<UniqueFEIRStmt> nullstmts;
-  (void)lenExpr.Emit2FEExpr(nullstmts);
+void ENCChecker::CheckLenExpr(const ASTExpr &lenExpr, const std::list<UniqueFEIRStmt> &nullstmts) {
   for (const auto &stmt : nullstmts) {
     bool isAssertStmt = false;
     if (stmt->GetKind() == kStmtNary) {
@@ -979,7 +976,7 @@ MIRType *ENCChecker::GetArrayTypeFromExpr(const UniqueFEIRExpr &expr) {
     auto *constArr = static_cast<FEIRExprAddrofConstArray*>(expr.get());
     return GlobalTables::GetTypeTable().GetOrCreateArrayType(
         *constArr->GetElemType(), constArr->GetStringLiteralSize() + 1);  // including the end character with string
-  } else if (expr->GetKind() == kExprDRead || expr->GetKind() == kExprIRead) {  // global char* value size
+  } else if (expr->GetKind() == kExprDRead || expr->GetKind() == kExprIRead) {  // global const char* value size
     MIRType *type = expr->GetType()->GenerateMIRTypeAuto();
     if (type->IsMIRPtrType() && static_cast<MIRPtrType*>(type)->GetPointedType()->GetPrimType() == PTY_u8) {
       MIRConst *cst = GetMIRConstFromExpr(expr);
@@ -1000,7 +997,7 @@ MIRConst *ENCChecker::GetMIRConstFromExpr(const UniqueFEIRExpr &expr) {
     return nullptr;
   }
   MIRSymbol *sym = expr->GetVarUses().front()->GenerateMIRSymbol(FEManager::GetMIRBuilder());
-  if (!sym->IsGlobal() || sym->GetKonst() == nullptr) {
+  if (!sym->IsGlobal() || !sym->GetAttr(ATTR_const) || sym->GetKonst() == nullptr) {  // const global
     return nullptr;
   }
   if (expr->GetKind() == kExprDRead || expr->GetKind() == kExprAddrofVar) {
@@ -1660,6 +1657,7 @@ void ENCChecker::InsertBoundaryInAtts(TypeAttrs &attr, const BoundaryInfo &bound
   }
   std::list<UniqueFEIRStmt> nullStmts;
   UniqueFEIRExpr lenExpr = boundary.lenExpr->Emit2FEExpr(nullStmts);
+  CheckLenExpr(*boundary.lenExpr, nullStmts);
   InsertBoundaryLenExprInAtts(attr, lenExpr);
 }
 
