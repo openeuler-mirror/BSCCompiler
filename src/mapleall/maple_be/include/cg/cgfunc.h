@@ -1075,7 +1075,7 @@ class CGFunc {
   virtual InsnVisitor *NewInsnModifier() = 0;
 
   bool GenCfi() const {
-    return true;
+    return (mirModule.GetSrcLang() != kSrcLangC) || mirModule.IsWithDbgInfo();
   }
 
   MapleVector<DBGExprLoc*> &GetDbgCallFrameLocations() {
