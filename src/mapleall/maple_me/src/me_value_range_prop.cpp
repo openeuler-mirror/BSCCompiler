@@ -3833,6 +3833,68 @@ void ValueRangePropagation::ReplaceOpndByDef(const BB &bb, MeExpr &currOpnd, MeE
   }
 }
 
+// Find the version expr(a2) of a3 in pred bb.
+// If find failed, return expr a3.
+//   pred1(a1) pred(a2)
+//         \  /
+//        succ0(a3 = phi(a1,a2))
+//          |
+//        succ1
+//          |
+//          bb if (a3)
+MeExpr &ValueRangePropagation::GetVersionOfOpndInPred(const BB &pred, const BB &bb, MeExpr &expr) const {
+  if (!expr.IsScalar()) {
+    return expr;
+  }
+  auto &scalar = static_cast<ScalarMeExpr&>(expr);
+  MeStmt *defStmt = nullptr;
+  auto *defBB = scalar.GetDefByBBMeStmt(dom, defStmt);
+  if (dom.Dominate(*defBB, pred)) {
+    return expr;
+  }
+  auto ostIndex = scalar.GetOstIdx();
+  auto *curPred = &pred;
+  while (curPred->GetSucc().size() == 1) {
+    auto *succ = curPred->GetSucc(0);
+    if (!succ->GetMePhiList().empty()) {
+      auto it = succ->GetMePhiList().find(ostIndex);
+      if (it != succ->GetMePhiList().end()) {
+        int sizeOfPred = succ->GetPredIndex(*curPred);
+        CHECK_FATAL(sizeOfPred != -1, "must find");
+        return *(it->second->GetOpnd(sizeOfPred));
+      }
+    }
+    if (succ == &bb) {
+      break;
+    }
+  }
+  return expr;
+}
+
+// If expr a2 is assigned with b2 in pred bb, the valueRange of expr (a2 - b2) in pred bb is (0, kEqual).
+//   pred1  pred(a2 = b2)
+//        \  /
+//       succ0(a3 = phi(a1,a2), b3 = phi(b1, b2))
+//         |
+//       succ1
+//         |
+//       bb if (a3 - b3 > constant)
+std::unique_ptr<ValueRange> ValueRangePropagation::GetValueRangeOfLHS(BB &pred, const BB &bb, MeExpr &expr) const {
+  if (expr.GetMeOp() != kMeOpOp || expr.GetOp() != OP_sub) {
+    return nullptr;
+  }
+  auto &opMeExpr = static_cast<OpMeExpr&>(expr);
+  auto *opnd0 = opMeExpr.GetOpnd(0);
+  auto *opnd1 = opMeExpr.GetOpnd(1);
+  auto &versionOpnd0InPred = GetVersionOfOpndInPred(pred, bb, *opnd0);
+  auto &versionOpnd1InPred = GetVersionOfOpndInPred(pred, bb, *opnd1);
+  // If the vr of versionOpnd0InPred is equal to the vr of versionOpnd1InPred in pred.
+  if (FindPairOfExprs(versionOpnd0InPred, versionOpnd1InPred, pred)) {
+    return CreateValueRangeOfEqualZero(PTY_u1);
+  }
+  return nullptr;
+}
+
 bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
     BB &bb, MeExpr &opnd0, MeExpr &currOpnd, ValueRange &rightRange,
     BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op, BB &condGoto) {
@@ -3868,7 +3930,7 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
   std::map<OStIdx, std::set<BB*>> ssaupdateCandsForCondExpr;
   if (!thePhiIsInBB) {
     auto *useListOfPredOpnd = useInfo->GetUseSitesOfExpr(predOpnd);
-    if (useListOfPredOpnd != nullptr &&  useListOfPredOpnd->size() == 1 && useListOfPredOpnd->front().IsUseByStmt()) {
+    if (useListOfPredOpnd != nullptr && useListOfPredOpnd->size() == 1 && useListOfPredOpnd->front().IsUseByStmt()) {
       auto *useStmt = useListOfPredOpnd->front().GetStmt();
       if (condGoto.GetKind() == kBBCondGoto && condGoto.GetLastMe()->IsCondBr() && condGoto.GetLastMe() == useStmt &&
           predOpnd->IsScalar()) {
@@ -3929,6 +3991,11 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
       }
     }
     auto *valueRangeInPred = FindValueRange(*pred, *predOpnd);
+    std::unique_ptr<ValueRange> valueRangeInPredPtr = nullptr;
+    if (valueRangeInPred == nullptr) {
+      valueRangeInPredPtr = GetValueRangeOfLHS(*pred, bb, *predOpnd);
+      valueRangeInPred = valueRangeInPredPtr.get();
+    }
     if (ConditionEdgeCanBeDeleted(*pred, bb, valueRangeInPred, rightRange, falseBranch, trueBranch, opndType, op,
         updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr)) {
       if (updateSSAExceptTheScalarExpr != nullptr && phi != nullptr) {

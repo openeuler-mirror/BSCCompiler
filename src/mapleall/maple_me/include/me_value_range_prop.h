@@ -643,6 +643,27 @@ class ValueRangePropagation {
     }
   }
 
+  // If the vr of lhs is equal to the vr of rhs in bb.
+  bool FindPairOfExprs(MeExpr &lhs, MeExpr &rhs, BB &bb) const {
+    auto it = pairOfExprs.find(&lhs);
+    if (it == pairOfExprs.end()) {
+      return false;
+    }
+    for (auto itOfValueMap = it->second.begin(); itOfValueMap != it->second.end(); ++itOfValueMap) {
+      auto bbOfPair = itOfValueMap->first;
+      auto exprs = itOfValueMap->second;
+      if (!dom.Dominate(*bbOfPair, bb)) {
+        continue;
+      }
+      for (auto itOfExprs = exprs.begin(); itOfExprs != exprs.end(); ++itOfExprs) {
+        if (*itOfExprs == &rhs && (*itOfExprs)->GetPrimType() == rhs.GetPrimType()) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   void JudgeEqual(MeExpr &expr, ValueRange &vrOfLHS, ValueRange &vrOfRHS, std::unique_ptr<ValueRange> &valueRangePtr);
   ValueRange *FindValueRangeWithCompareOp(const BB &bb, MeExpr &expr);
   ValueRange *FindValueRange(const BB &bb, MeExpr &expr);
@@ -811,6 +832,8 @@ class ValueRangePropagation {
       ValueRange &valueRange, Bound &resBound);
   void ReplaceUsePoints(MePhiNode *phi);
   void CreateVRWithBitsSize(const BB &bb, OpMeExpr &opMeExpr);
+  MeExpr &GetVersionOfOpndInPred(const BB &pred, const BB &bb, MeExpr &expr) const;
+  std::unique_ptr<ValueRange> GetValueRangeOfLHS(BB &pred, const BB &bb, MeExpr &expr) const;
 
   MeFunction &func;
   MeIRMap &irMap;
