@@ -2871,6 +2871,9 @@ class FEIRStmtGCCAsm : public FEIRStmt {
                                                                  const FieldID fieldID,
                                                                  std::list<StmtNode*> &stmts,
                                                                  MIRBuilder &mirBuilder) const;
+  std::pair<MIRSymbol*, UniqueFEIRVar> HandleAsmOutOperandWithPtrType(const FEIRExprIRead *ireadExpr,
+                                                                      std::list<StmtNode*> &stmts,
+                                                                      MIRBuilder &mirBuilder) const;
 
  private:
   std::vector<std::tuple<std::string, std::string, bool>> outputs;

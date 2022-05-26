@@ -4287,6 +4287,10 @@ bool FEIRStmtGCCAsm::HandleConstraintPlusQm(MIRBuilder &mirBuilder, AsmNode *asm
                                                           iread->GetClonedOpnd());
       node = addrOfExpr->GenMIRNode(mirBuilder);
     }
+    auto pair = HandleAsmOutOperandWithPtrType(iread, stmts, mirBuilder);
+    localSym = pair.first;
+    localAsmOut = pair.second->Clone();
+    fieldID = 0;
   } else {
     CHECK_FATAL(false, "FEIRStmtGCCAsm NYI.");
   }
@@ -4299,6 +4303,20 @@ bool FEIRStmtGCCAsm::HandleConstraintPlusQm(MIRBuilder &mirBuilder, AsmNode *asm
   asmNode->asmOutputs.emplace_back(retPair);
   asmNode->outputConstraints.emplace_back(strIdx);
   return true;
+}
+
+std::pair<MIRSymbol*, UniqueFEIRVar> FEIRStmtGCCAsm::HandleAsmOutOperandWithPtrType(const FEIRExprIRead *ireadExpr,
+                                                                                    std::list<StmtNode*> &stmts,
+                                                                                    MIRBuilder &mirBuilder) const {
+  UniqueFEIRVar localAsmOut = FEIRBuilder::CreateVarNameForC(FEUtils::GetSequentialName("asm_out_"),
+                                                             ireadExpr->GetClonedRetType());
+  MIRSymbol *localSym = localAsmOut->GenerateLocalMIRSymbol(mirBuilder);
+  UniqueFEIRExpr srcExpr = FEIRBuilder::CreateExprDRead(localAsmOut->Clone());
+  auto stmt = FEIRBuilder::CreateStmtIAssign(ireadExpr->GetClonedPtrType(), ireadExpr->GetClonedOpnd(),
+                                             std::move(srcExpr), ireadExpr->GetFieldID());
+  std::list<StmtNode*> node = stmt->GenMIRStmts(mirBuilder);
+  stmts.splice(stmts.end(), node);
+  return std::make_pair(localSym, localAsmOut->Clone());
 }
 
 std::pair<MIRSymbol*, UniqueFEIRVar> FEIRStmtGCCAsm::HandleGlobalAsmOutOperand(const UniqueFEIRVar &asmOut,
@@ -4361,18 +4379,10 @@ std::list<StmtNode*> FEIRStmtGCCAsm::GenMIRStmtsImpl(MIRBuilder &mirBuilder) con
     } else if (outputsExprs[i]->GetKind() == kExprIRead) {
       FEIRExprIRead *iread = static_cast<FEIRExprIRead*>(outputsExprs[i].get());
       fieldID = iread->GetFieldID();
-      asmOut = FEIRBuilder::CreateVarNameForC(FEUtils::GetSequentialName("asm_out_"), iread->GetClonedRetType());
-      sym = asmOut->GenerateLocalMIRSymbol(mirBuilder);
-      UniqueFEIRExpr srcExpr = FEIRBuilder::CreateExprDRead(asmOut->Clone());
-      auto stmt = FEIRBuilder::CreateStmtIAssign(iread->GetClonedPtrType(), iread->GetClonedOpnd(),
-                                                 std::move(srcExpr), fieldID);
-      std::list<StmtNode*> node = stmt->GenMIRStmts(mirBuilder);
-      stmts.splice(stmts.end(), node);
-
-      // The field ID is set to zero when a temporary variable is created for iread and sym is not a struct or union.
-      if (!sym->GetType()->IsStructType()) {
-        fieldID = 0;
-      }
+      auto pair = HandleAsmOutOperandWithPtrType(iread, stmts, mirBuilder);
+      localSym = pair.first;
+      localAsmOut = pair.second->Clone();
+      fieldID = 0;
     } else {
       CHECK_FATAL(false, "FEIRStmtGCCAsm NYI.");
     }
