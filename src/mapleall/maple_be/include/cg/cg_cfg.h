@@ -58,6 +58,7 @@ class InsnVisitor {
   virtual LabelIdx GetJumpLabel(const Insn &insn) const = 0;
   virtual bool IsCompareInsn(const Insn &insn) const = 0;
   virtual bool IsCompareAndBranchInsn(const Insn &insn) const = 0;
+  virtual bool IsAddOrSubInsn(const Insn &insn) const = 0;
 
  private:
   CGFunc *cgFunc;
@@ -71,6 +72,7 @@ class CGCFG {
 
   void BuildCFG();
   void CheckCFG();
+  void CheckCFGFreq();
 
   void InitInsnVisitor(CGFunc &func);
   InsnVisitor *GetInsnModifier() const {
@@ -102,6 +104,7 @@ class CGCFG {
   Insn *CloneInsn(Insn &originalInsn);
   static BB *GetTargetSuc(BB &curBB, bool branchOnly = false, bool isGotoIf = false);
   bool IsCompareAndBranchInsn(const Insn &insn) const;
+  bool IsAddOrSubInsn(const Insn &insn) const;
 
   Insn *FindLastCondBrInsn(BB &bb) const;
   static void FindAndMarkUnreachable(CGFunc &func);

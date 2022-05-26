@@ -45,7 +45,7 @@ Insn *AArch64ICOPattern::BuildCcmpInsn(AArch64CC_t ccCode, const Insn *cmpInsn) 
   if (nzcv == k16BitSize) {
     return nullptr;
   }
-  AArch64ImmOperand &opnd3 = func->CreateImmOperand(PTY_u8, nzcv);
+  ImmOperand &opnd3 = func->CreateImmOperand(PTY_u8, nzcv);
   CondOperand &cond = static_cast<AArch64CGFunc *>(cgFunc)->GetCondOperand(ccCode);
   uint32 dSize = opnd1.GetSize();
   bool isIntTy = opnd2.IsIntImmediate();
@@ -97,15 +97,17 @@ Insn *AArch64ICOPattern::BuildCmpInsn(const Insn &condBr) {
   return &cmpInsn;
 }
 
-bool AArch64ICOPattern::IsSetInsn(const Insn &insn, Operand *&dest, Operand *&src) const {
+bool AArch64ICOPattern::IsSetInsn(const Insn &insn, Operand *&dest, std::vector<Operand*> &src) const {
   MOperator mOpCode = insn.GetMachineOpcode();
-  if (mOpCode >= MOP_xmovrr && mOpCode <= MOP_xvmovd) {
+  if ((mOpCode >= MOP_xmovrr && mOpCode <= MOP_xvmovd) || cgFunc->GetTheCFG()->IsAddOrSubInsn(insn)) {
     dest = &(insn.GetOperand(0));
-    src = &(insn.GetOperand(1));
+    for (int i = 1; i < insn.GetOperandSize(); ++i) {
+      src.emplace_back(&(insn.GetOperand(i)));
+    }
     return true;
   }
   dest = nullptr;
-  src = nullptr;
+  src.clear();
   return false;
 }
 
@@ -196,7 +198,7 @@ void AArch64ICOIfThenElsePattern::GenerateInsnForImm(const Insn &branchInsn, Ope
                     ((destReg.GetSize() == k64BitSize ? MOP_xdfmovri : MOP_wsfmovri));
     RegOperand *tempTarIf = nullptr;
     if (imm1.IsZero()) {
-      tempTarIf = isD64 ? &AArch64RegOperand::Get64bitZeroRegister() : &AArch64RegOperand::Get32bitZeroRegister();
+      tempTarIf = &cgFunc->GetZeroOpnd(dSize);
     } else {
       tempTarIf = cgFunc->GetTheCFG()->CreateVregFromReg(destReg);
       Insn &tempInsnIf = cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(
@@ -206,7 +208,7 @@ void AArch64ICOIfThenElsePattern::GenerateInsnForImm(const Insn &branchInsn, Ope
 
     RegOperand *tempTarElse = nullptr;
     if (imm2.IsZero()) {
-      tempTarElse = isD64 ? &AArch64RegOperand::Get64bitZeroRegister() : &AArch64RegOperand::Get32bitZeroRegister();
+      tempTarElse = &cgFunc->GetZeroOpnd(dSize);
     } else {
       tempTarElse = cgFunc->GetTheCFG()->CreateVregFromReg(destReg);
       Insn &tempInsnElse = cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(
@@ -233,7 +235,7 @@ RegOperand *AArch64ICOIfThenElsePattern::GenerateRegAndTempInsn(Operand &dest, c
     reg = cgFunc->GetTheCFG()->CreateVregFromReg(destReg);
     ImmOperand &tempSrcElse = static_cast<ImmOperand&>(dest);
     if (tempSrcElse.IsZero()) {
-      return isDest64 ? &AArch64RegOperand::Get64bitZeroRegister() : &AArch64RegOperand::Get32bitZeroRegister();
+      return &cgFunc->GetZeroOpnd(destReg.GetSize());
     }
     Insn &tempInsn = cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(
         mOp, *reg, tempSrcElse);
@@ -275,7 +277,7 @@ void AArch64ICOIfThenElsePattern::GenerateInsnForReg(const Insn &branchInsn, Ope
   }
 }
 
-Operand *AArch64ICOIfThenElsePattern::GetDestReg(const std::map<Operand*, Operand*> &destSrcMap,
+Operand *AArch64ICOIfThenElsePattern::GetDestReg(const std::map<Operand*, std::vector<Operand*>> &destSrcMap,
                                                  const RegOperand &destReg) const {
   Operand *dest = nullptr;
   for (const auto &destSrcPair : destSrcMap) {
@@ -283,7 +285,11 @@ Operand *AArch64ICOIfThenElsePattern::GetDestReg(const std::map<Operand*, Operan
     RegOperand *destRegInMap = static_cast<RegOperand*>(destSrcPair.first);
     ASSERT(destRegInMap != nullptr, "nullptr check");
     if (destRegInMap->GetRegisterNumber() == destReg.GetRegisterNumber()) {
-      dest = destSrcPair.second;
+      if (destSrcPair.second.size() > 1) {
+        dest = destSrcPair.first;
+      } else {
+        dest = destSrcPair.second[0];
+      }
       break;
     }
   }
@@ -291,8 +297,8 @@ Operand *AArch64ICOIfThenElsePattern::GetDestReg(const std::map<Operand*, Operan
 }
 
 bool AArch64ICOIfThenElsePattern::BuildCondMovInsn(BB &cmpBB, const BB &bb,
-                                                   const std::map<Operand*, Operand*> &ifDestSrcMap,
-                                                   const std::map<Operand*, Operand*> &elseDestSrcMap,
+                                                   const std::map<Operand*, std::vector<Operand*>> &ifDestSrcMap,
+                                                   const std::map<Operand*, std::vector<Operand*>> &elseDestSrcMap,
                                                    bool elseBBIsProcessed,
                                                    std::vector<Insn*> &generateInsn) {
   Insn *branchInsn = cgFunc->GetTheCFG()->FindLastCondBrInsn(cmpBB);
@@ -301,7 +307,7 @@ bool AArch64ICOIfThenElsePattern::BuildCondMovInsn(BB &cmpBB, const BB &bb,
       continue;
     }
     Operand *dest = nullptr;
-    Operand *src = nullptr;
+    std::vector<Operand*> src;
 
     if (!IsSetInsn(*insn, dest, src)) {
       ASSERT(false, "insn check");
@@ -349,16 +355,39 @@ bool AArch64ICOIfThenElsePattern::BuildCondMovInsn(BB &cmpBB, const BB &bb,
   return true;
 }
 
-bool AArch64ICOIfThenElsePattern::CheckModifiedRegister(Insn &insn, std::map<Operand*, Operand*> &destSrcMap,
-                                                        Operand &src, Operand &dest) const {
-/* src was modified in this blcok earlier */
-  if (src.IsRegister()) {
-    RegOperand &srcReg = static_cast<RegOperand&>(src);
-    for (const auto &destSrcPair : destSrcMap) {
-      ASSERT(destSrcPair.first->IsRegister(), "opnd must be register");
-      RegOperand *mapSrcReg = static_cast<RegOperand*>(destSrcPair.first);
-      if (mapSrcReg->GetRegisterNumber() == srcReg.GetRegisterNumber()) {
+bool AArch64ICOIfThenElsePattern::CheckHasSameDest(std::vector<Insn*> &lInsn, std::vector<Insn*> &rInsn) {
+  for (int i = 0; i < lInsn.size(); ++i) {
+    if (cgFunc->GetTheCFG()->IsAddOrSubInsn(*lInsn[i])) {
+      bool hasSameDest = false;
+      for (int j = 0; j < rInsn.size(); ++j) {
+        RegOperand *rDestReg = static_cast<RegOperand*>(&rInsn[j]->GetOperand(0));
+        RegOperand *lDestReg = static_cast<RegOperand*>(&lInsn[i]->GetOperand(0));
+        if (lDestReg->GetRegisterNumber() == rDestReg->GetRegisterNumber()) {
+          hasSameDest = true;
+          break;
+        }
+      }
+      if (!hasSameDest) {
         return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool AArch64ICOIfThenElsePattern::CheckModifiedRegister(Insn &insn, std::map<Operand*,
+                                                        std::vector<Operand*>> &destSrcMap, std::vector<Operand*> &src,
+                                                        Operand &dest, Insn *cmpInsn, Operand *flagOpnd) const {
+/* src was modified in this blcok earlier */
+  for (auto srcOpnd : src) {
+    if (srcOpnd->IsRegister()) {
+      RegOperand &srcReg = static_cast<RegOperand&>(*srcOpnd);
+      for (const auto &destSrcPair : destSrcMap) {
+        ASSERT(destSrcPair.first->IsRegister(), "opnd must be register");
+        RegOperand *mapSrcReg = static_cast<RegOperand*>(destSrcPair.first);
+        if (mapSrcReg->GetRegisterNumber() == srcReg.GetRegisterNumber()) {
+          return false;
+        }
       }
     }
   }
@@ -375,18 +404,44 @@ bool AArch64ICOIfThenElsePattern::CheckModifiedRegister(Insn &insn, std::map<Ope
   }
 
   /* src register is modified later in this block, will not be processed */
-  if (src.IsRegister()) {
-    RegOperand &srcReg = static_cast<RegOperand&>(src);
-    if (destReg.IsOfFloatOrSIMDClass() && srcReg.IsZeroRegister()) {
-      return false;
+  for (auto srcOpnd : src) {
+    if (srcOpnd->IsRegister()) {
+      RegOperand &srcReg = static_cast<RegOperand&>(*srcOpnd);
+      if (destReg.IsOfFloatOrSIMDClass() && srcReg.GetRegisterNumber() == RZR) {
+        return false;
+      }
+      for (Insn *tmpInsn = &insn; tmpInsn != nullptr; tmpInsn = tmpInsn->GetNext()) {
+        Operand *tmpDest = nullptr;
+        std::vector<Operand*> tmpSrc;
+        if (IsSetInsn(*tmpInsn, tmpDest, tmpSrc) && tmpDest->Equals(*srcOpnd)) {
+          ASSERT(tmpDest->IsRegister(), "opnd must be register");
+          RegOperand *tmpDestReg = static_cast<RegOperand*>(tmpDest);
+          if (srcReg.GetRegisterNumber() == tmpDestReg->GetRegisterNumber()) {
+            return false;
+          }
+        }
+      }
     }
-    for (Insn *tmpInsn = &insn; tmpInsn != nullptr; tmpInsn = tmpInsn->GetNext()) {
-      Operand *tmpDest = nullptr;
-      Operand *tmpSrc = nullptr;
-      if (IsSetInsn(*tmpInsn, tmpDest, tmpSrc) && tmpDest->Equals(src)) {
-        ASSERT(tmpDest->IsRegister(), "opnd must be register");
-        RegOperand *tmpDestReg = static_cast<RegOperand*>(tmpDest);
-        if (srcReg.GetRegisterNumber() == tmpDestReg->GetRegisterNumber()) {
+  }
+
+  /* add/sub insn's dest register does not exist in cmp insn. */
+  if (cgFunc->GetTheCFG()->IsAddOrSubInsn(insn)) {
+    RegOperand &insnDestReg = static_cast<RegOperand&>(insn.GetOperand(0));
+    if (flagOpnd) {
+      RegOperand &cmpReg = static_cast<RegOperand&>(cmpInsn->GetOperand(0));
+      if (insnDestReg.GetRegisterNumber() == cmpReg.GetRegisterNumber()) {
+        return false;
+      }
+    } else {
+      RegOperand &cmpReg1 = static_cast<RegOperand&>(cmpInsn->GetOperand(1));
+      if (cmpInsn->GetOperand(2).IsRegister()) {
+        RegOperand &cmpReg2 = static_cast<RegOperand&>(cmpInsn->GetOperand(2));
+        if (insnDestReg.GetRegisterNumber() == cmpReg1.GetRegisterNumber() ||
+          insnDestReg.GetRegisterNumber() == cmpReg2.GetRegisterNumber()) {
+          return false;
+        }
+      } else {
+        if (insnDestReg.GetRegisterNumber() == cmpReg1.GetRegisterNumber()) {
           return false;
         }
       }
@@ -395,8 +450,9 @@ bool AArch64ICOIfThenElsePattern::CheckModifiedRegister(Insn &insn, std::map<Ope
   return true;
 }
 
-bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, Operand*> &destSrcMap,
-                                                  std::vector<Operand*> &destRegs, Operand *flagOpnd) const {
+bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, std::vector<Operand*>> &destSrcMap,
+                                                  std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn,
+                                                  Operand *flagOpnd, Insn *cmpInsn) const {
   if (bb == nullptr) {
     return false;
   }
@@ -405,21 +461,24 @@ bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, Ope
       continue;
     }
     Operand *dest = nullptr;
-    Operand *src = nullptr;
+    std::vector<Operand*> src;
 
     if (!IsSetInsn(*insn, dest, src)) {
       return false;
     }
     ASSERT(dest != nullptr, "null ptr check");
-    ASSERT(src != nullptr, "null ptr check");
+    ASSERT(src.size() != 0, "null ptr check");
 
     if (!dest->IsRegister()) {
       return false;
     }
 
-    if (!src->IsConstant() && !src->IsRegister()) {
-      return false;
+    for (auto srcOpnd : src) {
+      if (!(srcOpnd->IsConstImmediate()) && !srcOpnd->IsRegister()) {
+        return false;
+      }
     }
+
 
     if (flagOpnd != nullptr) {
       RegOperand *flagReg = static_cast<RegOperand*>(flagOpnd);
@@ -429,12 +488,13 @@ bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, Ope
       }
     }
 
-    if (!CheckModifiedRegister(*insn, destSrcMap, *src, *dest)) {
+    if (!CheckModifiedRegister(*insn, destSrcMap, src, *dest, cmpInsn, flagOpnd)) {
       return false;
     }
 
     (void)destSrcMap.insert(std::make_pair(dest, src));
     destRegs.emplace_back(dest);
+    setInsn.emplace_back(insn);
   }
   return true;
 }
@@ -447,11 +507,12 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joi
   Operand *flagOpnd = nullptr;
   /* for cbnz and cbz institution */
   if (cgFunc->GetTheCFG()->IsCompareAndBranchInsn(*condBr)) {
-    if (condBr->GetOperand(0).IsZeroRegister()) {
+    Operand &opnd0 = condBr->GetOperand(0);
+    if (opnd0.IsRegister() && static_cast<RegOperand&>(opnd0).GetRegisterNumber() == RZR) {
       return false;
     }
     cmpInsn = condBr;
-    flagOpnd = &(condBr->GetOperand(0));
+    flagOpnd = &(opnd0);
   }
 
   /* tbz will not be optimized */
@@ -464,24 +525,34 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joi
   }
 
   std::vector<Operand*> ifDestRegs;
+  std::vector<Insn*> ifSetInsn;
   std::vector<Operand*> elseDestRegs;
+  std::vector<Insn*> elseSetInsn;
 
-  std::map<Operand*, Operand*> ifDestSrcMap;
-  std::map<Operand*, Operand*> elseDestSrcMap;
+  std::map<Operand*, std::vector<Operand*>> ifDestSrcMap;
+  std::map<Operand*, std::vector<Operand*>> elseDestSrcMap;
 
-  if (!CheckCondMoveBB(elseBB, elseDestSrcMap, elseDestRegs, flagOpnd) ||
-      (ifBB != nullptr && !CheckCondMoveBB(ifBB, ifDestSrcMap, ifDestRegs, flagOpnd))) {
+  if (!CheckCondMoveBB(elseBB, elseDestSrcMap, elseDestRegs, elseSetInsn, flagOpnd, cmpInsn) ||
+      (ifBB != nullptr && !CheckCondMoveBB(ifBB, ifDestSrcMap, ifDestRegs, ifSetInsn, flagOpnd, cmpInsn))) {
+    return false;
+  }
+
+  if (!CheckHasSameDest(ifSetInsn, elseSetInsn) || !CheckHasSameDest(elseSetInsn, ifSetInsn)) {
     return false;
   }
 
   size_t count = elseDestRegs.size();
 
-  for (auto *itr : ifDestRegs) {
+  for (int i = 0; i < ifDestRegs.size(); ++i) {
     bool foundInElse = false;
-    for (auto *elseItr : elseDestRegs) {
-      RegOperand *elseDestReg = static_cast<RegOperand*>(elseItr);
-      RegOperand *ifDestReg = static_cast<RegOperand*>(itr);
+    for (int j = 0; j < elseDestRegs.size(); ++j) {
+      RegOperand *elseDestReg = static_cast<RegOperand*>(elseDestRegs[j]);
+      RegOperand *ifDestReg = static_cast<RegOperand*>(ifDestRegs[i]);
       if (ifDestReg->GetRegisterNumber() == elseDestReg->GetRegisterNumber()) {
+        if (cgFunc->GetTheCFG()->IsAddOrSubInsn(*ifSetInsn[i]) &&
+            cgFunc->GetTheCFG()->IsAddOrSubInsn(*elseSetInsn[j])) {
+          return false;
+        }
         foundInElse = true;
         break;
       }
@@ -523,6 +594,19 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joi
   } else {
     cmpBB.SetKind(ifBB->GetKind());
   }
+
+  for (auto setInsn : ifSetInsn) {
+    if (cgFunc->GetTheCFG()->IsAddOrSubInsn(*setInsn)) {
+      cmpBB.InsertInsnBefore(*cmpInsn, *setInsn);
+    }
+  }
+
+  for (auto setInsn : elseSetInsn) {
+    if (cgFunc->GetTheCFG()->IsAddOrSubInsn(*setInsn)) {
+      cmpBB.InsertInsnBefore(*cmpInsn, *setInsn);
+    }
+  }
+
   /* delete condBr */
   cmpBB.RemoveInsn(*condBr);
   /* Insert goto insn after csel insn. */

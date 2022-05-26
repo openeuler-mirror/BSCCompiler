@@ -36,6 +36,7 @@ class AArch64InsnVisitor : public InsnVisitor {
   LabelIdx GetJumpLabel(const Insn &insn) const override;
   bool IsCompareInsn(const Insn &insn) const override;
   bool IsCompareAndBranchInsn(const Insn &insn) const override;
+  bool IsAddOrSubInsn(const Insn &insn) const override;
   RegOperand *CreateVregFromReg(const RegOperand &pReg) override;
 };
 }  /* namespace maplebe */

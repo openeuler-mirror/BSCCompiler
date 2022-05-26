@@ -127,6 +127,22 @@ bool AArch64InsnVisitor::IsCompareAndBranchInsn(const Insn &insn) const {
   }
 }
 
+bool AArch64InsnVisitor::IsAddOrSubInsn(const Insn &insn) const {
+  switch (insn.GetMachineOpcode()) {
+    case MOP_xaddrrr:
+    case MOP_xaddrri12:
+    case MOP_waddrrr:
+    case MOP_waddrri12:
+    case MOP_xsubrrr:
+    case MOP_xsubrri12:
+    case MOP_wsubrrr:
+    case MOP_wsubrri12:
+      return true;
+    default:
+      return false;
+  }
+}
+
 RegOperand *AArch64InsnVisitor::CreateVregFromReg(const RegOperand &pReg) {
   return &static_cast<AArch64CGFunc*>(GetCGFunc())->CreateRegisterOperandOfType(
       pReg.GetRegisterType(), pReg.GetSize() / k8BitSize);

@@ -616,6 +616,10 @@ bool CGCFG::IsCompareAndBranchInsn(const Insn &insn) const {
   return insnVisitor->IsCompareAndBranchInsn(insn);
 }
 
+bool CGCFG::IsAddOrSubInsn(const Insn &insn) const {
+  return insnVisitor->IsAddOrSubInsn(insn);
+}
+
 Insn *CGCFG::FindLastCondBrInsn(BB &bb) const {
   if (bb.GetKind() != BB::kBBIf) {
     return nullptr;
