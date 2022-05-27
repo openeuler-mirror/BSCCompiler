@@ -98,6 +98,7 @@ class ASTParser {
   ASTValue *AllocASTValue(const MapleAllocator &allocator) const;
   ASTValue *TranslateExprEval(MapleAllocator &allocator, const clang::Expr *expr) const;
   ASTExpr *EvaluateExprAsConst(MapleAllocator &allocator, const clang::Expr *expr);
+  bool HasLabelStmt(const clang::Stmt *expr);
   ASTExpr *ProcessExpr(MapleAllocator &allocator, const clang::Expr *expr);
   ASTExpr *ProcessExprInType(MapleAllocator &allocator, const clang::QualType &qualType);
   ASTBinaryOperatorExpr *AllocBinaryOperatorExpr(MapleAllocator &allocator, const clang::BinaryOperator &bo);

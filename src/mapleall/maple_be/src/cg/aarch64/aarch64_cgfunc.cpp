@@ -8248,6 +8248,10 @@ void AArch64CGFunc::SelectCall(CallNode &callNode) {
 
   GetFunction().SetHasCall();
   if (GetMirModule().IsCModule()) { /* do not mark abort BB in C at present */
+    if (fsym->GetName() == "__builtin_unreachable") {
+      GetCurBB()->ClearInsns();
+      GetCurBB()->SetUnreachable(true);
+    }
     return;
   }
   if ((fsym->GetName() == "MCC_ThrowException") || (fsym->GetName() == "MCC_RethrowException") ||

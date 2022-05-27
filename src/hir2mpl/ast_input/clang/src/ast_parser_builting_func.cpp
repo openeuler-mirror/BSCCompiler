@@ -641,14 +641,6 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinExpect(std::list<UniqueFEIRStmt> &stmts) 
   return CreateIntrinsicopForC(stmts, INTRN_C___builtin_expect, false);
 }
 
-UniqueFEIRExpr ASTCallExpr::EmitBuiltinUnreachable(std::list<UniqueFEIRStmt> &stmts) const {
-  UniqueFEIRExpr feExpr = nullptr;
-  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtReturn>(std::move(feExpr));
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
-  stmts.emplace_back(std::move(stmt));
-  return nullptr;
-}
-
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinAbs(std::list<UniqueFEIRStmt> &stmts) const {
   auto arg = args[0]->Emit2FEExpr(stmts);
   CHECK_NULL_FATAL(mirType);

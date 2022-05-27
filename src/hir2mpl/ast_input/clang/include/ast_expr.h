@@ -1179,7 +1179,6 @@ class ASTCallExpr : public ASTExpr {
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(VaEnd);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(VaCopy);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Prefetch);
-  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Unreachable);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Abs);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ACos);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ACosf);

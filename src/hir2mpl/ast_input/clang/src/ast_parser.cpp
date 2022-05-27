@@ -937,6 +937,13 @@ ASTExpr *ASTParser::EvaluateExprAsConst(MapleAllocator &allocator, const clang::
     return nullptr;
   }
 
+  // Supplement SideEffects for EvaluateAsConstantExpr,
+  // If the expression contains a LabelStmt, the expression is unfoldable
+  // e.g. int x = 0 && ({ a : 1; }); goto a;
+  if (HasLabelStmt(expr)) {
+    return nullptr;
+  }
+
   clang::APValue constVal = constResult.Val;
   if (constVal.isInt()) {
     ASTIntegerLiteral *intExpr = allocator.New<ASTIntegerLiteral>(allocator);
@@ -980,6 +987,21 @@ ASTExpr *ASTParser::EvaluateExprAsConst(MapleAllocator &allocator, const clang::
     return floatExpr;
   }
   return nullptr;
+}
+
+bool ASTParser::HasLabelStmt(const clang::Stmt *expr) {
+  if (expr->getStmtClass() == clang::Stmt::LabelStmtClass) {
+    return true;
+  }
+  for (const clang::Stmt *subStmt : expr->children()) {
+    if (subStmt == nullptr) {
+      continue;
+    }
+    if (HasLabelStmt(subStmt)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 ASTExpr *ASTParser::ProcessExpr(MapleAllocator &allocator, const clang::Expr *expr) {

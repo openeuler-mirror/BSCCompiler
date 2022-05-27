@@ -747,7 +747,7 @@ void MeCFG::WontExitAnalysis() {
     if (!MeOption::quiet) {
       LogInfo::MapleLogger() << "#### BB " << idx << " wont exit\n";
     }
-    if (bb->GetKind() == kBBGoto) {
+    if (bb->GetKind() == kBBGoto || bb->GetKind() == kBBIgoto) {
       // create artificial BB to transition to common_exit_bb
       BB *newBB = NewBasicBlock();
       // update bIt & eIt
@@ -1871,7 +1871,8 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
         succSum += bb->GetSucc(i)->GetFrequency();
       }
       if (succSum != bb->GetFrequency()) {
-         LogInfo::MapleLogger() << "ERROR::  bb " << bb->GetBBId() << "frequency inconsistent with sum of succs" << "\n";
+         LogInfo::MapleLogger() << "ERROR::  bb " << bb->GetBBId() <<
+             "frequency inconsistent with sum of succs" << "\n";
       }
     }
   }
@@ -1923,7 +1924,7 @@ bool MEMeCfg::PhaseRun(MeFunction &f) {
     return theCFG;
   }
   theCFG->BuildMirCFG();
-  if (MeOption::optLevel > mapleOption::kLevelZero) {
+  if (MeOption::optLevel > kLevelZero) {
     theCFG->FixMirCFG();
   }
   theCFG->ReplaceWithAssertnonnull();
