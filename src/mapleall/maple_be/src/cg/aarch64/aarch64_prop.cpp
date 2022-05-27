@@ -318,6 +318,10 @@ bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &con
       if (MayOverflow(*zeroImm, constOpnd, constOpnd.GetSize() == 64, false, true)) {
         return false;
       }
+      /* (constA - var) can not reversal to (var + (-constA)) */
+      if (useOpndIdx == kInsnSecondOpnd && aT == kAArch64Sub) {
+        return false;
+      }
       /* Addition and subtraction reversal */
       tempImm->SetValue(-constOpnd.GetValue());
       newMop = GetReversalMOP(newMop);
