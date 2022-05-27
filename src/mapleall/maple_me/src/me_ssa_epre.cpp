@@ -112,8 +112,7 @@ bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
   }
   ssaPre.ApplySSAPRE();
   if (!ssaPre.GetCandsForSSAUpdate().empty()) {
-    MemPool *tmp = ApplyTempMemPool();
-    MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, ssaPre.GetCandsForSSAUpdate(), *tmp);
+    MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, ssaPre.GetCandsForSSAUpdate());
     ssaUpdate.Run();
   }
   if ((f.GetHints() & kPlacementRCed) && ssaPre.GetAddedNewLocalRefVars()) {

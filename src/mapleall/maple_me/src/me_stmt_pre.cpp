@@ -1194,7 +1194,7 @@ bool MEStmtPre::PhaseRun(maple::MeFunction &f) {
   }
   ssaPre.ApplySSAPRE();
   if (!ssaPre.GetCandsForSSAUpdate().empty()) {
-    MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, ssaPre.GetCandsForSSAUpdate(), *ApplyTempMemPool());
+    MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, ssaPre.GetCandsForSSAUpdate());
     ssaUpdate.Run();
   }
   if (DEBUGFUNC_NEWPM(f)) {

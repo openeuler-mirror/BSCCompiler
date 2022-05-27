@@ -86,7 +86,7 @@ class IVGroup {
   }
 
  private:
-  std::vector<IVUse*> uses;  // the uses that the group holds
+  std::vector<std::unique_ptr<IVUse>> uses;  // the uses that the group holds
   IVUseType type = kUseGeneral;  // the type of the group, same of all uses
   IVGroupID id = IVGroupID(-1);  // the id of the group
   std::set<uint32> relatedCands;  // record the IVCand.id of every related IVCand
@@ -107,7 +107,7 @@ class IVCand {
   friend class IVOptData;
   friend class IVOptimizer;
   using IVCandID = utils::Index<IVCand>;
-  IVCand(IV *i, MeExpr *inc) : iv(i), incVersion(inc) {}
+  IVCand(std::unique_ptr<IV> i, MeExpr *inc) : iv(std::move(i)), incVersion(inc) {}
   void SetID(uint32 idx) {
     id = IVCandID(idx);
   }
@@ -117,7 +117,7 @@ class IVCand {
 
  private:
   IVCandID id = IVCandID(-1);  // the id of the candidate
-  IV *iv = nullptr;  // the iv that the candidate holds
+  std::unique_ptr<IV> iv = nullptr;  // the iv that the candidate holds
   IncPos incPos = kBeforeExitTest;  // where the iv increase
   MeExpr *incVersion = nullptr;  // record the ssa version after inc
   MeExpr *originTmp = nullptr;  // use tmp to record the before-inc version of iv
@@ -133,7 +133,7 @@ class CandSet;
 class IVOptData {
  public:
   friend class IVOptimizer;
-  IVOptData(MemPool *m) : mp(m) {}
+  IVOptData() = default;
   void CreateIV(MeExpr *expr, MeExpr *base, MeExpr *step, bool isBasicIV);
   void CreateFakeGroup(MeStmt &stmt, IV &iv, IVUseType type, MeExpr *expr);
   void CreateGroup(MeStmt &stmt, IV &iv, IVUseType type, MeExpr *expr);
@@ -141,18 +141,18 @@ class IVOptData {
   IV *GetIV(const MeExpr &expr);
   bool IsLoopInvariant(const MeExpr &expr);
  private:
-  MemPool *mp;
-  std::vector<IVGroup*> groups;  // record all groups in this loop, use IVGroup.id as index
-  std::vector<IVGroup*> fakeGroups;  // record the groups that extracted by pre and no need to compute the cost
-  std::vector<IVCand*> cands;  // record all candidates in this loop, use IVCand.id as index
+  std::vector<std::unique_ptr<IVGroup>> groups;  // record all groups in this loop, use IVGroup.id as index
+  std::vector<std::unique_ptr<IVGroup>> fakeGroups;  // record the groups that extracted by pre
+                                                     // and no need to compute the cost
+  std::vector<std::unique_ptr<IVCand>> cands;  // record all candidates in this loop, use IVCand.id as index
   std::unordered_map<int32, std::vector<IVCand*>> candRecord;  // record candidates with same base,
                                                                // use base.exprID as key
-  std::unordered_map<int32, IV*> ivs;  // record all ivs, use exprID as key
+  std::unordered_map<int32, std::unique_ptr<IV>> ivs;  // record all ivs, use exprID as key
   LoopDesc *currLoop = nullptr;  // currently optimized loop
   uint64 iterNum = kDefaultEstimatedLoopIterNum;  // the iterations of current loop
   uint64 realIterNum = -1;  // record the real iternum if we can compute
   bool considerAll = false;  // true if we consider all candidates for every use
-  CandSet *set = nullptr;  // used to record set
+  std::unique_ptr<CandSet> set = nullptr;  // used to record set
 };
 
 class CandSet {
@@ -168,9 +168,8 @@ class CandSet {
 
 class IVOptimizer {
  public:
-  IVOptimizer(MemPool &memPool, MeFunction &f, bool enabledDebug, IdentifyLoops *meLoops, Dominance *d)
+  IVOptimizer(MeFunction &f, bool enabledDebug, IdentifyLoops *meLoops, Dominance *d)
       : func(f),
-        ivoptMP(&memPool),
         irMap(f.GetIRMap()),
         dumpDetail(enabledDebug),
         cfg(f.GetCfg()),
@@ -234,7 +233,6 @@ class IVOptimizer {
 
  private:
   MeFunction &func;
-  MemPool *ivoptMP;
   MeIRMap *irMap;
   bool dumpDetail;  // dump the detail of the optimization
   MeCFG *cfg;
@@ -242,7 +240,7 @@ class IVOptimizer {
   Dominance *dom;
   MeExprUseInfo *useInfo = nullptr;
   bool optimized = false;
-  IVOptData *data = nullptr;  // used to record the messages when processing the loop
+  std::unique_ptr<IVOptData> data = nullptr;  // used to record the messages when processing the loop
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> ssaupdateCands;
   std::unordered_map<int32, MeExpr*> invariables;  // used to record the newly added invariables
 };
@@ -280,7 +278,7 @@ void IVOptimizer::DumpGroup(const IVGroup &group) {
   }
   // dump uses
   for (uint32 i = 0; i < group.uses.size(); ++i) {
-    auto *use = group.uses[i];
+    auto *use = group.uses[i].get();
     LogInfo::MapleLogger() << "  Use" << i << ":\n"
                            << "    At Stmt:\n";
     use->stmt->Dump(irMap);
@@ -347,30 +345,29 @@ void IVOptData::CreateIV(MeExpr *expr, MeExpr *base, MeExpr *step, bool isBasicI
   if (ivs.find(expr->GetExprID()) != ivs.end()) {
     return;
   }
-  IV *iv = mp->New<IV>(expr, base, step, isBasicIV);
-  ivs.emplace(expr->GetExprID(), iv);
+  ivs.emplace(expr->GetExprID(), std::make_unique<IV>(expr, base, step, isBasicIV));
 }
 
 void IVOptData::CreateFakeGroup(MeStmt &stmt, IV &iv, IVUseType type, MeExpr *expr) {
-  IVGroup *group = mp->New<IVGroup>();
+  auto group = std::make_unique<IVGroup>();
   group->SetID(static_cast<uint32>(fakeGroups.size()));
-  IVUse *use = mp->New<IVUse>(&stmt, &iv);
-  group->uses.emplace_back(use);
-  group->type = type;
-  use->group = group;
+  auto use = std::make_unique<IVUse>(&stmt, &iv);
+  use->group = group.get();
   use->expr = expr;
-  fakeGroups.emplace_back(group);
+  group->uses.emplace_back(std::move(use));
+  group->type = type;
+  fakeGroups.emplace_back(std::move(group));
 }
 
 void IVOptData::CreateGroup(MeStmt &stmt, IV &iv, IVUseType type, MeExpr *expr) {
-  IVGroup *group = mp->New<IVGroup>();
+  auto group = std::make_unique<IVGroup>();
   group->SetID(static_cast<uint32>(groups.size()));
-  IVUse *use = mp->New<IVUse>(&stmt, &iv);
-  group->uses.emplace_back(use);
-  group->type = type;
-  use->group = group;
+  auto use = std::make_unique<IVUse>(&stmt, &iv);
+  use->group = group.get();
   use->expr = expr;
-  groups.emplace_back(group);
+  group->uses.emplace_back(std::move(use));
+  group->type = type;
+  groups.emplace_back(std::move(group));
 }
 
 IVCand *IVOptData::CreateCandidate(MeExpr *ivTmp, MeExpr *base, MeExpr *step, MeExpr *inc) {
@@ -384,17 +381,18 @@ IVCand *IVOptData::CreateCandidate(MeExpr *ivTmp, MeExpr *base, MeExpr *step, Me
     }
   }
 
-  IV *iv = mp->New<IV>(ivTmp, base, step, false);
-  auto *cand = mp->New<IVCand>(iv, inc);
+  auto iv = std::make_unique<IV>(ivTmp, base, step, false);
+  auto cand = std::make_unique<IVCand>(std::move(iv), inc);
   cand->SetID(static_cast<uint32>(cands.size()));
-  cands.emplace_back(cand);
-  candRecord[base->GetExprID()].emplace_back(cand);
-  return cand;
+  auto canPtr = cand.get();
+  cands.emplace_back(std::move(cand));
+  candRecord[base->GetExprID()].emplace_back(canPtr);
+  return canPtr;
 }
 
 IV *IVOptData::GetIV(const MeExpr &expr) {
   auto iter = ivs.find(expr.GetExprID());
-  return iter == ivs.end() ? nullptr : iter->second;
+  return iter == ivs.end() ? nullptr : iter->second.get();
 }
 
 bool IVOptData::IsLoopInvariant(const MeExpr &expr) {
@@ -697,7 +695,7 @@ bool IVOptimizer::CreateIVFromCvt(OpMeExpr &op, MeStmt &stmt) {
     data->CreateGroup(stmt, *iv, kUseGeneral, &op);
     return false;
   }
-  auto *initValue = irMap->CreateMeExprTypeCvt(op.GetPrimType(), GetSignedPrimType(op.GetOpndType()), *iv->base);
+  auto *initValue = irMap->CreateMeExprTypeCvt(op.GetPrimType(), op.GetOpndType(), *iv->base);
   auto *simplified = irMap->SimplifyMeExpr(initValue);
   if (simplified != nullptr) {
     initValue = simplified;
@@ -1238,22 +1236,22 @@ void IVOptimizer::CreateIVCandidate() {
   newCand->important = true;
   // create candidate from basic IV
   for (auto &itIV : data->ivs) {
-    auto *iv = itIV.second;
+    auto *iv = itIV.second.get();
     if (iv->isBasicIV) {
       CreateIVCandidateFromBasicIV(*iv);
     }
   }
 
   // add all candidate created from basic iv to all groups
-  for (auto *group : data->groups) {
-    for (auto *cand : data->cands) {
+  for (auto &group : data->groups) {
+    for (auto &cand : data->cands) {
       group->relatedCands.emplace(cand->GetID());
     }
   }
 
   std::map<MeExpr*, std::vector<IVUse*>> offsetCount;
   // create candidate from use
-  for (auto *group : data->groups) {
+  for (auto &group : data->groups) {
     // just need to consider the first use
     CreateIVCandidateFromUse(*group->uses[0]);
 
@@ -1269,7 +1267,7 @@ void IVOptimizer::CreateIVCandidate() {
       }
       if (aparted != nullptr) {
         offsetCount.try_emplace(aparted, std::vector<IVUse*>());
-        offsetCount[aparted].emplace_back(group->uses[0]);
+        offsetCount[aparted].emplace_back(group->uses[0].get());
       }
     }
   }
@@ -1289,7 +1287,7 @@ void IVOptimizer::CreateIVCandidate() {
   }
 
   // create candidate from fakeGroup
-  for (auto *group : data->fakeGroups) {
+  for (auto &group : data->fakeGroups) {
     // just need to consider the first use
     CreateIVCandidateFromUse(*group->uses[0]);
   }
@@ -1416,7 +1414,7 @@ static uint32 ComputeAddressCost(MeExpr *expr, int64 ratio, bool hasField) {
 }
 
 void IVOptimizer::ComputeCandCost() {
-  for (auto *cand : data->cands) {
+  for (auto &cand : data->cands) {
     uint32 baseCost = ComputeExprCost(*cand->iv->base);
     if (baseCost == 0) {
       // reg generally need a copy
@@ -1744,8 +1742,8 @@ uint32 IVOptimizer::ComputeCandCostForGroup(const IVCand &cand, IVGroup &group) 
 }
 
 void IVOptimizer::ComputeGroupCost() {
-  for (auto *group : data->groups) {
-    for (auto *cand : data->cands) {
+  for (auto &group : data->groups) {
+    for (auto &cand : data->cands) {
       uint32 cost = ComputeCandCostForGroup(*cand, *group);
       group->candCosts.emplace_back(cost);
     }
@@ -1767,16 +1765,16 @@ uint32 IVOptimizer::ComputeSetCost(CandSet &set) {
 }
 
 void IVOptimizer::InitSet(bool originFirst) {
-  auto *init = data->mp->New<CandSet>();
+  auto init = std::make_unique<CandSet>();
   init->chosenCands.resize(data->groups.size(), nullptr);
   init->candCount.resize(data->cands.size(), 0);
-  for (auto *group : data->groups) {
-    for (auto *cand : data->cands) {
+  for (auto &group : data->groups) {
+    for (auto &cand : data->cands) {
       if (group->candCosts[cand->GetID()] == kInfinityCost) {
         continue;
       }
       if (init->chosenCands[group->GetID()] == nullptr) {
-        init->chosenCands[group->GetID()] = cand;
+        init->chosenCands[group->GetID()] = cand.get();
         ++init->candCount[cand->GetID()];
         continue;
       }
@@ -1785,7 +1783,7 @@ void IVOptimizer::InitSet(bool originFirst) {
           if (init->chosenCands[group->GetID()]->incPos != kOriginal) {
             ++init->candCount[cand->GetID()];
             --init->candCount[init->chosenCands[group->GetID()]->GetID()];
-            init->chosenCands[group->GetID()] = cand;
+            init->chosenCands[group->GetID()] = cand.get();
             continue;
           }
         } else if (cand->origIV != nullptr) {
@@ -1795,7 +1793,7 @@ void IVOptimizer::InitSet(bool originFirst) {
           } else {
             ++init->candCount[cand->GetID()];
             --init->candCount[init->chosenCands[group->GetID()]->GetID()];
-            init->chosenCands[group->GetID()] = cand;
+            init->chosenCands[group->GetID()] = cand.get();
             continue;
           }
         } else {
@@ -1810,7 +1808,7 @@ void IVOptimizer::InitSet(bool originFirst) {
       if (candCost < curCost) {
         ++init->candCount[cand->GetID()];
         --init->candCount[init->chosenCands[group->GetID()]->GetID()];
-        init->chosenCands[group->GetID()] = cand;
+        init->chosenCands[group->GetID()] = cand.get();
       }
     }
     if (init->chosenCands[group->GetID()] == nullptr ||
@@ -1822,7 +1820,7 @@ void IVOptimizer::InitSet(bool originFirst) {
     }
   }
   // try eliminate cand by replacing it with other used cands
-  for (auto *cand : data->cands) {
+  for (auto &cand : data->cands) {
     if (init->candCount[cand->GetID()] >= 1) {
       auto tmpSet = *init;
       std::unordered_map<IVGroup*, IVCand*> tmpChange;
@@ -1837,7 +1835,7 @@ void IVOptimizer::InitSet(bool originFirst) {
     }
   }
   init->cost = ComputeSetCost(*init);
-  data->set = init;
+  data->set = std::move(init);
 }
 
 uint32 CandSet::NumIVs() {
@@ -1854,7 +1852,7 @@ uint32 CandSet::NumIVs() {
 void IVOptimizer::TryReplaceWithCand(CandSet &set, IVCand &cand, std::unordered_map<IVGroup*, IVCand*> &change) {
   std::vector<bool> visitedCands(set.candCount.size(), false);
   for (uint32 i = 0; i < set.chosenCands.size(); ++i) {
-    auto *group = data->groups[i];
+    auto *group = data->groups[i].get();
     auto *chosenCand = set.chosenCands[i];
     if (chosenCand == &cand || visitedCands[chosenCand->GetID()]) {
       continue;
@@ -1873,7 +1871,7 @@ void IVOptimizer::TryReplaceWithCand(CandSet &set, IVCand &cand, std::unordered_
     std::unordered_map<IVGroup*, IVCand*> tmpChange;
     bool allReplaced = true;
     for (uint32 j = i; j < set.chosenCands.size(); ++j) {
-      auto *anotherGroup = data->groups[j];
+      auto *anotherGroup = data->groups[j].get();
       auto *anotherCand = set.chosenCands[j];
       if (anotherCand != chosenCand) {
         continue;
@@ -1897,17 +1895,17 @@ void IVOptimizer::TryReplaceWithCand(CandSet &set, IVCand &cand, std::unordered_
 }
 
 bool IVOptimizer::OptimizeSet() {
-  auto *set = data->set;
+  auto *set = data->set.get();
   uint32 bestCost = set->cost;
   uint32 numIVs = set->NumIVs();
   std::unordered_map<IVGroup*, IVCand*> bestChange;
   uint32 bestInitDepth = 0;
-  for (auto *cand : data->cands) {
+  for (auto &cand : data->cands) {
     if (set->candCount[cand->GetID()] != 0) {
       bestInitDepth += cand->iv->base->GetDepth();
     }
   }
-  for (auto *cand : data->cands) {
+  for (auto &cand : data->cands) {
     if (set->candCount[cand->GetID()] != 0) {
       continue;
     }
@@ -1916,7 +1914,7 @@ bool IVOptimizer::OptimizeSet() {
     uint32 curInitDepth = bestInitDepth;
     std::vector<uint32> tmpCandCount = set->candCount;
     bool replaced = false;
-    for (auto *group : data->groups) {
+    for (auto &group : data->groups) {
       auto chosenCand = set->chosenCands[group->GetID()];
       if (group->candCosts[cand->GetID()] <= group->candCosts[chosenCand->GetID()]) {
         curCost = curCost - group->candCosts[chosenCand->GetID()] + group->candCosts[cand->GetID()];
@@ -1928,7 +1926,7 @@ bool IVOptimizer::OptimizeSet() {
           curCost = curCost + kRegCost + cand->cost;
           curInitDepth = curInitDepth + cand->iv->base->GetDepth();
         }
-        curChange.emplace(group, cand);
+        curChange.emplace(group.get(), cand.get());
         replaced = true;
       }
     }
@@ -1942,7 +1940,7 @@ bool IVOptimizer::OptimizeSet() {
       TryReplaceWithCand(tmpSet, *cand, curChange);
       curCost = tmpSet.cost;
       curInitDepth = 0;
-      for (auto *tmpCand : data->cands) {
+      for (auto &tmpCand : data->cands) {
         if (tmpSet.candCount[tmpCand->GetID()] != 0) {
           bestInitDepth += tmpCand->iv->base->GetDepth();
         }
@@ -1979,7 +1977,7 @@ void IVOptimizer::TryOptimize(bool originFirst) {
       }
     }
     // try eliminate cand by replacing it with other used cands
-    for (auto *cand : data->cands) {
+    for (auto &cand : data->cands) {
       if (data->set->candCount[cand->GetID()] >= 1) {
         auto tmpSet = *data->set;
         std::unordered_map<IVGroup*, IVCand*> tmpChange;
@@ -2003,22 +2001,22 @@ void IVOptimizer::TryOptimize(bool originFirst) {
 void IVOptimizer::FindCandSet() {
   // first time start from origin iv
   TryOptimize(true);
-  auto *firstSet = data->set;
+  auto firstSet = std::move(data->set);
 
   // second time start from chosen iv
   TryOptimize(false);
-  auto *secondSet = data->set;
+  auto secondSet = std::move(data->set);
 
   if (firstSet == nullptr && secondSet == nullptr) {
   } else if (firstSet == nullptr) {
-    data->set = secondSet;
+    data->set = std::move(secondSet);
   } else if (secondSet == nullptr) {
-    data->set = firstSet;
+    data->set = std::move(firstSet);
   } else {
     if (firstSet->cost > secondSet->cost) {
-      data->set = secondSet;
+      data->set = std::move(secondSet);
     } else {
-      data->set = firstSet;
+      data->set = std::move(firstSet);
     }
   }
 }
@@ -2282,7 +2280,7 @@ void IVOptimizer::UseReplace() {
   auto *incPos = GetIncPos();
 
   for (size_t i = 0; i < data->groups.size(); ++i) {
-    auto *group = data->groups[i];
+    auto *group = data->groups[i].get();
     auto *cand = data->set->chosenCands[i];
     if (cand->incPos == kOriginal && cand->originTmp == nullptr) {
       cand->originTmp = irMap->CreateRegMeExpr(cand->iv->expr->GetPrimType());
@@ -2291,7 +2289,7 @@ void IVOptimizer::UseReplace() {
       data->currLoop->head->AddMeStmtFirst(tmpAssign);
     }
     // replace use
-    for (auto *use : group->uses) {
+    for (auto &use : group->uses) {
       MeExpr *replace = cand->iv->expr;
       if (cand->incPos == kOriginal) {
         if (IsReplaceSameOst(use->expr, static_cast<ScalarMeExpr*>(cand->iv->expr)) &&
@@ -2306,7 +2304,7 @@ void IVOptimizer::UseReplace() {
       MeExpr *extraExpr = nullptr;
       // preprocess use
       if (group->type == kUseCompare) {
-        replaceCompare = PrepareCompareUse(ratio, use, cand, incPos, extraExpr, replace);
+        replaceCompare = PrepareCompareUse(ratio, use.get(), cand, incPos, extraExpr, replace);
       } else {
         bool replaced = true;
         ratio = ComputeRatioOfStep(*cand->iv->step, *use->iv->step);
@@ -2379,7 +2377,7 @@ void IVOptimizer::UseReplace() {
     preheaderLast = preheaderLast->GetPrev();
   }
 
-  for (auto *cand : data->cands) {
+  for (auto &cand : data->cands) {
     if (data->set->candCount[cand->GetID()] == 0 || cand->incPos == kOriginal) {
       continue;
     }
@@ -2471,7 +2469,7 @@ void IVOptimizer::ApplyOptimize() {
     LogInfo::MapleLogger() << std::endl;
 
     LogInfo::MapleLogger() << "||||Groups||||" << std::endl;
-    for (auto *group : data->groups) {
+    for (auto &group : data->groups) {
       DumpGroup(*group);
     }
     LogInfo::MapleLogger() << std::endl;
@@ -2481,19 +2479,19 @@ void IVOptimizer::ApplyOptimize() {
   data->considerAll = data->cands.size() <= kMaxCandidatesPerGroup;
   if (dumpDetail) {
     LogInfo::MapleLogger() << "||||Candidates||||" << std::endl;
-    for (auto *cand : data->cands) {
+    for (auto &cand : data->cands) {
       DumpCand(*cand);
     }
     LogInfo::MapleLogger() << std::endl;
     LogInfo::MapleLogger() << "Important Candidate:  ";
-    for (auto *cand : data->cands) {
+    for (auto &cand : data->cands) {
       if (cand->important) {
         LogInfo::MapleLogger() << cand->GetID() << ", ";
       }
     }
     LogInfo::MapleLogger() << std::endl << std::endl;
     LogInfo::MapleLogger() << "Group , Related Cand :\n";
-    for (auto *group : data->groups) {
+    for (auto &group : data->groups) {
       LogInfo::MapleLogger() << "  Group " << group->GetID() << ":\t";
       for (auto candID : group->relatedCands) {
         LogInfo::MapleLogger() << candID << ", ";
@@ -2509,12 +2507,12 @@ void IVOptimizer::ApplyOptimize() {
   if (dumpDetail) {
     LogInfo::MapleLogger() << "||||Cand Cost||||" << std::endl;
     LogInfo::MapleLogger() << "  cand  cost" << std::endl;
-    for (auto *cand : data->cands) {
+    for (auto &cand : data->cands) {
       LogInfo::MapleLogger() << "  " << cand->GetID() << "    " << cand->cost << std::endl;
     }
     LogInfo::MapleLogger() << std::endl;
     LogInfo::MapleLogger() << "||||Group-Candidate Cost||||" << std::endl;
-    for (auto *group : data->groups) {
+    for (auto &group : data->groups) {
       LogInfo::MapleLogger() << "Group" << group->GetID() << ":\n";
       LogInfo::MapleLogger() << "  cand  cost" << std::endl;
       for (uint32 i = 0; i < group->candCosts.size(); ++i) {
@@ -2569,7 +2567,7 @@ void IVOptimizer::Run() {
       // just skip now because we can hardly get register pressure
       continue;
     }
-    data = new IVOptData(ivoptMP);
+    data = std::make_unique<IVOptData>();
     data->currLoop = loop;
     LoopScalarAnalysisResult sa(*irMap, data->currLoop);
     uint64 tripCount = 0;
@@ -2586,7 +2584,7 @@ void IVOptimizer::Run() {
     ApplyOptimize();
   }
   useInfo->InvalidUseInfo();
-  MeSSAUpdate ssaUpdate(func, *func.GetMeSSATab(), *dom, ssaupdateCands, *ivoptMP);
+  MeSSAUpdate ssaUpdate(func, *func.GetMeSSATab(), *dom, ssaupdateCands);
   ssaUpdate.Run();
 }
 
@@ -2607,17 +2605,17 @@ bool MEIVOpts::PhaseRun(maple::MeFunction &f) {
   IdentifyLoops *meLoop = GET_ANALYSIS(MELoopAnalysis, f);
   auto *dom = GET_ANALYSIS(MEDominance, f);
   auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
-  auto *hdse = GetPhaseAllocator()->New<MeHDSE>(f, *dom, *f.GetIRMap(), aliasClass, DEBUGFUNC_NEWPM(f));
+  MeHDSE hdse(f, *dom, *f.GetIRMap(), aliasClass, DEBUGFUNC_NEWPM(f));
   // invoke hdse to update isLive only
-  hdse->InvokeHDSEUpdateLive();
+  hdse.InvokeHDSEUpdateLive();
 
-  auto *ivOptimizer = GetPhaseAllocator()->New<IVOptimizer>(*GetPhaseMemPool(), f, DEBUGFUNC_NEWPM(f), meLoop, dom);
+  IVOptimizer ivOptimizer(f, DEBUGFUNC_NEWPM(f), meLoop, dom);
   if (DEBUGFUNC_NEWPM(f)) {
     cfg->DumpToFile("beforeIVOpts", false);
     f.Dump();
   }
-  ivOptimizer->Run();
-  if (ivOptimizer->LoopOptimized()) {
+  ivOptimizer.Run();
+  if (ivOptimizer.LoopOptimized()) {
     // run hdse to remove unused exprs
     auto *aliasClass = FORCE_GET(MEAliasClass);
     MeHDSE hdse(f, *dom, *f.GetIRMap(), aliasClass, DEBUGFUNC_NEWPM(f));

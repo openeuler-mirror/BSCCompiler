@@ -497,6 +497,9 @@ LoopUnrolling::ReturnKindOfFullyUnroll LoopUnrolling::LoopFullyUnroll(int64 trip
     // quickly return if iteration is large enough
     return kCanNotFullyUnroll;
   }
+  if (MeOption::optForSize) {
+    return kCanNotFullyUnroll;
+  }
   uint32 costResult = 0;
   for (auto bbId : loop->loopBBs) {
     BB *bb = cfg->GetBBFromID(bbId);
@@ -1229,7 +1232,7 @@ bool MELoopUnrolling::PhaseRun(maple::MeFunction &f) {
   if (loopUnrollingExe.IsCFGChange()) {
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
     auto dom = FORCE_GET(MEDominance);
-    MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands, *loopunrollMemPool);
+    MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands);
     ssaUpdate.Run();
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);
   }

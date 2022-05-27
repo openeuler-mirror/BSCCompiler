@@ -464,7 +464,7 @@ void SSARename2Preg::RunSelf() {
   UpdateMirFunctionFormal();
 
   if (!candsForSSAUpdate.empty()) {
-    MeSSAUpdate ssaUpdate(*func, *func->GetMeSSATab(), *dom, candsForSSAUpdate, *alloc.GetMemPool());
+    MeSSAUpdate ssaUpdate(*func, *func->GetMeSSATab(), *dom, candsForSSAUpdate);
     ssaUpdate.Run();
   }
 }

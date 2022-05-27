@@ -49,31 +49,32 @@ class IRMapBuild {
   void BuildPhiMeNode(BB&);
   void SetMeExprOpnds(MeExpr &meExpr, BaseNode &mirNode, bool atparm, bool noProp);
 
-  OpMeExpr *BuildOpMeExpr(const BaseNode &mirNode) const {
-    auto meExpr = new OpMeExpr(kInvalidExprID, mirNode.GetOpCode(), mirNode.GetPrimType(), mirNode.GetNumOpnds());
+  std::unique_ptr<OpMeExpr> BuildOpMeExpr(const BaseNode &mirNode) const {
+    auto meExpr = std::make_unique<OpMeExpr>(kInvalidExprID, mirNode.GetOpCode(),
+                                             mirNode.GetPrimType(), mirNode.GetNumOpnds());
     return meExpr;
   }
 
-  MeExpr *BuildAddrofMeExpr(const BaseNode &mirNode) const;
-  MeExpr *BuildAddroffuncMeExpr(const BaseNode &mirNode) const;
-  MeExpr *BuildAddroflabelMeExpr(const BaseNode &mirNode) const;
-  MeExpr *BuildGCMallocMeExpr(const BaseNode &mirNode) const;
-  MeExpr *BuildSizeoftypeMeExpr(const BaseNode &mirNode) const;
-  MeExpr *BuildFieldsDistMeExpr(const BaseNode &mirNode) const;
-  MeExpr *BuildIvarMeExpr(const BaseNode &mirNode) const;
-  MeExpr *BuildConstMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildConststrMeExpr(const BaseNode &mirNode) const;
-  MeExpr *BuildConststr16MeExpr(const BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForCompare(const BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForTypeCvt(const BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForRetype(const BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForIread(const BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForExtractbits(const BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForJarrayMalloc(const BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForResolveFunc(const BaseNode &mirNode) const;
-  MeExpr *BuildNaryMeExprForArray(const BaseNode &mirNode) const;
-  MeExpr *BuildNaryMeExprForIntrinsicop(const BaseNode &mirNode) const;
-  MeExpr *BuildNaryMeExprForIntrinsicWithType(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildAddrofMeExpr(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildAddroffuncMeExpr(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildAddroflabelMeExpr(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildGCMallocMeExpr(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildSizeoftypeMeExpr(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildFieldsDistMeExpr(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildIvarMeExpr(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildConstMeExpr(BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildConststrMeExpr(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildConststr16MeExpr(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildOpMeExprForCompare(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildOpMeExprForTypeCvt(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildOpMeExprForRetype(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildOpMeExprForIread(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildOpMeExprForExtractbits(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildOpMeExprForJarrayMalloc(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildOpMeExprForResolveFunc(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildNaryMeExprForArray(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildNaryMeExprForIntrinsicop(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildNaryMeExprForIntrinsicWithType(const BaseNode &mirNode) const;
   MeExpr *BuildExpr(BaseNode&, bool atParm, bool noProp);
   static void InitMeExprBuildFactory();
 

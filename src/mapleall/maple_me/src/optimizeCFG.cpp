@@ -2450,8 +2450,7 @@ bool MEOptimizeCFG::PhaseRun(maple::MeFunction &f) {
     FORCE_INVALID(MEDominance, f);
     Dominance *dom = FORCE_GET(MEDominance);
     if (!cands.empty()) {
-      auto *MP = GetPhaseMemPool();
-      MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands, *MP);
+      MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands);
       ssaUpdate.Run();
     }
   }

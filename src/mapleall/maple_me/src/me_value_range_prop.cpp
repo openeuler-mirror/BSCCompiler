@@ -1402,7 +1402,9 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
           return;
         }
         case OP_cvt: {
-          DealWithCVT(bb, static_cast<OpMeExpr&>(meExpr));
+          if (DealWithCVT(bb, stmt, static_cast<OpMeExpr&>(meExpr))) {
+            return;
+          }
           break;
         }
         case OP_zext: {
@@ -1454,7 +1456,7 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
         }
         case OP_add:
         case OP_sub: {
-          (void)Insert2Caches(bb.GetBBId(), opMeExpr.GetExprID(), DealWithAddOrSub(bb, opMeExpr, opMeExpr));
+          (void)Insert2Caches(bb.GetBBId(), opMeExpr.GetExprID(), DealWithAddOrSub(bb, opMeExpr));
           break;
         }
         default:
@@ -1487,20 +1489,49 @@ void ValueRangePropagation::DealWithNeg(const BB &bb, const OpMeExpr &opMeExpr) 
 }
 
 // If the value of opnd of cvt would not overflow or underflow after convert, delete the cvt.
-void ValueRangePropagation::DealWithCVT(const BB &bb, OpMeExpr &opMeExpr) {
+bool ValueRangePropagation::DealWithCVT(const BB &bb, MeStmt &stmt, OpMeExpr &opMeExpr) {
   CHECK_FATAL(opMeExpr.GetNumOpnds() == 1, "must have one opnd");
   auto toType = opMeExpr.GetPrimType();
   auto fromType = opMeExpr.GetOpndType();
+  auto *opnd = opMeExpr.GetOpnd(0);
+  if (opnd->GetOp() == OP_add || opnd->GetOp() == OP_sub) {
+    auto *addOrSubExpr = static_cast<OpMeExpr*>(opnd);
+    auto *opnd0 = addOrSubExpr->GetOpnd(0);
+    auto *opnd1 = addOrSubExpr->GetOpnd(1);
+    if (opnd0->GetMeOp() == kMeOpConst || opnd1->GetMeOp() == kMeOpConst) {
+      // If the op of opnd is OP_add or OP_sub and the vr before and after cvt is the same, then fold cvt:
+      // rhs = OP cvt i64 i32 mx4
+      //   opnd[0] = OP add i32 kPtyInvalid mx3
+      //     opnd[0] = REGINDX:7 %7 mx1
+      //     opnd[1] = CONST 1 mx2
+      // =>
+      // rhs = OP add i64 kPtyInvalid mx7
+      //     opnd[0] = cvt i64 i32 mx6
+      //       opnd[0] = REGINDX:7 %7 mx1
+      //     opnd[1] = cvt i64 i32 mx5
+      //       opnd[1] = CONST 1 mx2
+      auto valueRange = DealWithAddOrSub(bb, *addOrSubExpr);
+      if (valueRange != nullptr && valueRange->IsEqualAfterCVT(fromType, toType)) {
+        auto *cvtOfOpnd0 = irMap.CreateMeExprTypeCvt(toType, fromType, *opnd0);
+        auto *cvtOfOpnd1 = irMap.CreateMeExprTypeCvt(toType, fromType, *opnd1);
+        auto *newOpMeExpr = irMap.CreateMeExprBinary(opnd->GetOp(), toType, *cvtOfOpnd0, *cvtOfOpnd1);
+        (void)irMap.ReplaceMeExprStmt(stmt, opMeExpr, *newOpMeExpr);
+        return true;
+      }
+    }
+  }
+
   if ((fromType == PTY_u1 || fromType == PTY_u8 || fromType == PTY_u16 || fromType == PTY_u32 || fromType == PTY_a32 ||
       ((fromType == PTY_ref || fromType == PTY_ptr) && GetPrimTypeSize(fromType) == 4)) &&
       GetPrimTypeBitSize(toType) > GetPrimTypeBitSize(fromType)) {
     auto *valueRange = FindValueRange(bb, opMeExpr);
     if (valueRange != nullptr) {
-      return;
+      return false;
     }
     (void)Insert2Caches(bb.GetBBId(), opMeExpr.GetExprID(), std::make_unique<ValueRange>(
         Bound(nullptr, 0, fromType), Bound(GetMaxNumber(fromType), fromType), kLowerAndUpper));
   }
+  return false;
 }
 
 // When unreachable bb has trystmt or endtry attribute, need update try and endtry bbs.
@@ -1961,8 +1992,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::DealWithRem(
 }
 
 // Create valueRange when deal with OP_add or OP_sub.
-std::unique_ptr<ValueRange> ValueRangePropagation::DealWithAddOrSub(
-    const BB &bb, const MeExpr &lhsVar, const OpMeExpr &opMeExpr) {
+std::unique_ptr<ValueRange> ValueRangePropagation::DealWithAddOrSub(const BB &bb, const OpMeExpr &opMeExpr) {
   auto *opnd0 = opMeExpr.GetOpnd(0);
   auto *opnd1 = opMeExpr.GetOpnd(1);
   int64 lhsConstant = 0;
@@ -2115,7 +2145,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::DealWithMeOp(const BB &bb, co
   switch (rhs->GetOp()) {
     case OP_add:
     case OP_sub: {
-      return DealWithAddOrSub(bb, *lhs, *opMeExpr);
+      return DealWithAddOrSub(bb, *opMeExpr);
     }
     case OP_gcmallocjarray: {
       DealWithArrayLength(bb, *lhs, *opMeExpr->GetOpnd(0));
@@ -2248,7 +2278,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForMonotonicI
       return std::make_unique<ValueRange>(initBound, upperBound, kLowerAndUpper);
     }
   } else if (opnd1.GetOp() == OP_add || opnd1.GetOp() == OP_sub) {
-    auto valueRangeOfUpper = DealWithAddOrSub(bb, opnd1, static_cast<OpMeExpr&>(opnd1));
+    auto valueRangeOfUpper = DealWithAddOrSub(bb, static_cast<OpMeExpr&>(opnd1));
     if (valueRangeOfUpper != nullptr) {
       int64 res = 0;
       if (AddOrSubWithConstant(opnd1.GetPrimType(), OP_add, valueRangeOfUpper->GetUpper().GetConstant(),
@@ -4780,7 +4810,7 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
     dom = FORCE_GET(MEDominance);
     if (valueRangePropagation.NeedUpdateSSA()) {
-      MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands, *valueRangeMemPool);
+      MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands);
       MPLTimer timer;
       timer.Start();
       if (ValueRangePropagation::isDebug) {

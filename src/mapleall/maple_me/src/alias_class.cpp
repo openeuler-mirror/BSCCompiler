@@ -1511,7 +1511,7 @@ void AliasClass::UnionForAggAndFields() {
     if (ostsWithSameSymbol.size() <= 1) {
       continue;
     }
-    for (const auto &idA : ostsWithSameSymbol) {
+    for (const auto idA : ostsWithSameSymbol) {
       auto *ostA = ssaTab.GetOriginalStFromID(idA);
       if (ostA->GetFieldID() == 0) {
         (void)ostsWithSameSymbol.erase(idA);

@@ -26,7 +26,7 @@ static constexpr uint32 kMaxRegParamNum = 4;
 static constexpr uint32 kMaxRegParamNum = 8;
 #endif
 
-using MeExprBuildFactory = FunctionFactory<Opcode, MeExpr*, const IRMapBuild*, BaseNode&>;
+using MeExprBuildFactory = FunctionFactory<Opcode, std::unique_ptr<MeExpr>, const IRMapBuild*, BaseNode&>;
 using MeStmtFactory = FunctionFactory<Opcode, MeStmt*, IRMapBuild*, StmtNode&, AccessSSANodes&>;
 
 VarMeExpr *IRMapBuild::GetOrCreateVarFromVerSt(const VersionSt &vst) {
@@ -188,136 +188,147 @@ void IRMapBuild::SetMeExprOpnds(MeExpr &meExpr, BaseNode &mirNode, bool atParm, 
   }
 }
 
-MeExpr *IRMapBuild::BuildAddrofMeExpr(const BaseNode &mirNode) const {
+std::unique_ptr<MeExpr> IRMapBuild::BuildAddrofMeExpr(const BaseNode &mirNode) const {
   auto &addrofNode = static_cast<const AddrofSSANode&>(mirNode);
-  auto meExpr = new AddrofMeExpr(kInvalidExprID, addrofNode.GetPrimType(),
-                                 addrofNode.GetSSAVar()->GetOst()->GetIndex());
+  auto meExpr = std::make_unique<AddrofMeExpr>(kInvalidExprID, addrofNode.GetPrimType(),
+                                               addrofNode.GetSSAVar()->GetOst()->GetIndex());
   meExpr->SetFieldID(addrofNode.GetFieldID());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildAddroffuncMeExpr(const BaseNode &mirNode) const {
-  auto meExpr = new AddroffuncMeExpr(kInvalidExprID, static_cast<const AddroffuncNode&>(mirNode).GetPUIdx());
+std::unique_ptr<MeExpr> IRMapBuild::BuildAddroffuncMeExpr(const BaseNode &mirNode) const {
+  auto meExpr = std::make_unique<AddroffuncMeExpr>(kInvalidExprID,
+                                                   static_cast<const AddroffuncNode&>(mirNode).GetPUIdx());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildAddroflabelMeExpr(const BaseNode &mirNode) const {
-  auto meExpr = new AddroflabelMeExpr(kInvalidExprID, static_cast<const AddroflabelNode&>(mirNode).GetOffset());
+std::unique_ptr<MeExpr> IRMapBuild::BuildAddroflabelMeExpr(const BaseNode &mirNode) const {
+  auto meExpr = std::make_unique<AddroflabelMeExpr>(kInvalidExprID,
+                                                    static_cast<const AddroflabelNode&>(mirNode).GetOffset());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildGCMallocMeExpr(const BaseNode &mirNode) const {
-  auto meExpr = new GcmallocMeExpr(kInvalidExprID, mirNode.GetOpCode(), mirNode.GetPrimType(),
-                                   static_cast<const GCMallocNode&>(mirNode).GetTyIdx());
+std::unique_ptr<MeExpr> IRMapBuild::BuildGCMallocMeExpr(const BaseNode &mirNode) const {
+  auto meExpr = std::make_unique<GcmallocMeExpr>(kInvalidExprID, mirNode.GetOpCode(),
+                                                 mirNode.GetPrimType(),
+                                                 static_cast<const GCMallocNode&>(mirNode).GetTyIdx());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildSizeoftypeMeExpr(const BaseNode &mirNode) const {
-  auto meExpr = new SizeoftypeMeExpr(kInvalidExprID, mirNode.GetPrimType(),
-                                     static_cast<const SizeoftypeNode&>(mirNode).GetTyIdx());
+std::unique_ptr<MeExpr> IRMapBuild::BuildSizeoftypeMeExpr(const BaseNode &mirNode) const {
+  auto meExpr = std::make_unique<SizeoftypeMeExpr>(kInvalidExprID, mirNode.GetPrimType(),
+                                                   static_cast<const SizeoftypeNode&>(mirNode).GetTyIdx());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildFieldsDistMeExpr(const BaseNode &mirNode) const {
+std::unique_ptr<MeExpr> IRMapBuild::BuildFieldsDistMeExpr(const BaseNode &mirNode) const {
   auto &fieldsDistNode = static_cast<const FieldsDistNode&>(mirNode);
-  auto meExpr = new FieldsDistMeExpr(kInvalidExprID, mirNode.GetPrimType(), fieldsDistNode.GetTyIdx(),
-                                     fieldsDistNode.GetFiledID1(), fieldsDistNode.GetFiledID2());
+  auto meExpr = std::make_unique<FieldsDistMeExpr>(kInvalidExprID, mirNode.GetPrimType(),
+                                                   fieldsDistNode.GetTyIdx(),
+                                                   fieldsDistNode.GetFiledID1(), fieldsDistNode.GetFiledID2());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildIvarMeExpr(const BaseNode &mirNode) const {
+std::unique_ptr<MeExpr> IRMapBuild::BuildIvarMeExpr(const BaseNode &mirNode) const {
   auto &ireadSSANode = static_cast<const IreadSSANode&>(mirNode);
-  auto meExpr = new IvarMeExpr(&irMap->GetIRMapAlloc(), kInvalidExprID, mirNode.GetPrimType(), ireadSSANode.GetTyIdx(),
-                               ireadSSANode.GetFieldID());
+  auto meExpr = std::make_unique<IvarMeExpr>(&irMap->GetIRMapAlloc(), kInvalidExprID,
+                                             mirNode.GetPrimType(), ireadSSANode.GetTyIdx(),
+                                             ireadSSANode.GetFieldID());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildConstMeExpr(BaseNode &mirNode) const {
+std::unique_ptr<MeExpr> IRMapBuild::BuildConstMeExpr(BaseNode &mirNode) const {
   auto &constvalNode = static_cast<ConstvalNode&>(mirNode);
-  auto meExpr = new ConstMeExpr(kInvalidExprID, constvalNode.GetConstVal(), mirNode.GetPrimType());
+  auto meExpr = std::make_unique<ConstMeExpr>(kInvalidExprID, constvalNode.GetConstVal(),
+                                              mirNode.GetPrimType());
   meExpr->SetOp(OP_constval);
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildConststrMeExpr(const BaseNode &mirNode) const {
-  auto meExpr = new ConststrMeExpr(kInvalidExprID, static_cast<const ConststrNode&>(mirNode).GetStrIdx(),
-                                   mirNode.GetPrimType());
+std::unique_ptr<MeExpr> IRMapBuild::BuildConststrMeExpr(const BaseNode &mirNode) const {
+  auto meExpr = std::make_unique<ConststrMeExpr>(kInvalidExprID,
+                                                 static_cast<const ConststrNode&>(mirNode).GetStrIdx(),
+                                                 mirNode.GetPrimType());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildConststr16MeExpr(const BaseNode &mirNode) const {
-  auto meExpr = new Conststr16MeExpr(kInvalidExprID, static_cast<const Conststr16Node&>(mirNode).GetStrIdx(),
-                                     mirNode.GetPrimType());
+std::unique_ptr<MeExpr> IRMapBuild::BuildConststr16MeExpr(const BaseNode &mirNode) const {
+  auto meExpr = std::make_unique<Conststr16MeExpr>(kInvalidExprID,
+                                                   static_cast<const Conststr16Node&>(mirNode).GetStrIdx(),
+                                                   mirNode.GetPrimType());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildOpMeExprForCompare(const BaseNode &mirNode) const {
-  OpMeExpr *meExpr = BuildOpMeExpr(mirNode);
+std::unique_ptr<MeExpr> IRMapBuild::BuildOpMeExprForCompare(const BaseNode &mirNode) const {
+  auto meExpr = BuildOpMeExpr(mirNode);
   meExpr->SetOpndType(static_cast<const CompareNode&>(mirNode).GetOpndType());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildOpMeExprForTypeCvt(const BaseNode &mirNode) const {
-  OpMeExpr *meExpr = BuildOpMeExpr(mirNode);
+std::unique_ptr<MeExpr> IRMapBuild::BuildOpMeExprForTypeCvt(const BaseNode &mirNode) const {
+  auto meExpr = BuildOpMeExpr(mirNode);
   meExpr->SetOpndType(static_cast<const TypeCvtNode&>(mirNode).FromType());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildOpMeExprForRetype(const BaseNode &mirNode) const {
-  OpMeExpr *meExpr = BuildOpMeExpr(mirNode);
+std::unique_ptr<MeExpr> IRMapBuild::BuildOpMeExprForRetype(const BaseNode &mirNode) const {
+  auto meExpr = BuildOpMeExpr(mirNode);
   auto &retypeNode = static_cast<const RetypeNode&>(mirNode);
   meExpr->SetOpndType(retypeNode.FromType());
   meExpr->SetTyIdx(retypeNode.GetTyIdx());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildOpMeExprForIread(const BaseNode &mirNode) const {
-  OpMeExpr *meExpr = BuildOpMeExpr(mirNode);
+std::unique_ptr<MeExpr> IRMapBuild::BuildOpMeExprForIread(const BaseNode &mirNode) const {
+  auto meExpr = BuildOpMeExpr(mirNode);
   auto &ireadNode = static_cast<const IreadNode&>(mirNode);
   meExpr->SetTyIdx(ireadNode.GetTyIdx());
   meExpr->SetFieldID(ireadNode.GetFieldID());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildOpMeExprForExtractbits(const BaseNode &mirNode) const {
-  OpMeExpr *meExpr = BuildOpMeExpr(mirNode);
+std::unique_ptr<MeExpr> IRMapBuild::BuildOpMeExprForExtractbits(const BaseNode &mirNode) const {
+  auto meExpr = BuildOpMeExpr(mirNode);
   auto &extractbitsNode = static_cast<const ExtractbitsNode&>(mirNode);
   meExpr->SetBitsOffSet(extractbitsNode.GetBitsOffset());
   meExpr->SetBitsSize(extractbitsNode.GetBitsSize());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildOpMeExprForJarrayMalloc(const BaseNode &mirNode) const {
-  OpMeExpr *meExpr = BuildOpMeExpr(mirNode);
+std::unique_ptr<MeExpr> IRMapBuild::BuildOpMeExprForJarrayMalloc(const BaseNode &mirNode) const {
+  auto meExpr = BuildOpMeExpr(mirNode);
   meExpr->SetTyIdx(static_cast<const JarrayMallocNode&>(mirNode).GetTyIdx());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildOpMeExprForResolveFunc(const BaseNode &mirNode) const {
-  OpMeExpr *meExpr = BuildOpMeExpr(mirNode);
+std::unique_ptr<MeExpr> IRMapBuild::BuildOpMeExprForResolveFunc(const BaseNode &mirNode) const {
+  auto meExpr = BuildOpMeExpr(mirNode);
   meExpr->SetFieldID(static_cast<FieldID>(static_cast<const ResolveFuncNode&>(mirNode).GetPuIdx()));
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildNaryMeExprForArray(const BaseNode &mirNode) const {
+std::unique_ptr<MeExpr> IRMapBuild::BuildNaryMeExprForArray(const BaseNode &mirNode) const {
   auto &arrayNode = static_cast<const ArrayNode&>(mirNode);
-  auto meExpr = new NaryMeExpr(&irMap->irMapAlloc, kInvalidExprID, mirNode.GetOpCode(), mirNode.GetPrimType(),
-                               mirNode.GetNumOpnds(), arrayNode.GetTyIdx(), INTRN_UNDEFINED,
-                               arrayNode.GetBoundsCheck());
+  auto meExpr = std::make_unique<NaryMeExpr>(&irMap->irMapAlloc, kInvalidExprID, mirNode.GetOpCode(),
+                                             mirNode.GetPrimType(), mirNode.GetNumOpnds(),
+                                             arrayNode.GetTyIdx(), INTRN_UNDEFINED,
+                                             arrayNode.GetBoundsCheck());
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildNaryMeExprForIntrinsicop(const BaseNode &mirNode) const {
-  auto meExpr = new NaryMeExpr(&irMap->irMapAlloc, kInvalidExprID, mirNode.GetOpCode(), mirNode.GetPrimType(),
-                               mirNode.GetNumOpnds(), TyIdx(0),
-                               static_cast<const IntrinsicopNode&>(mirNode).GetIntrinsic(), false);
+std::unique_ptr<MeExpr> IRMapBuild::BuildNaryMeExprForIntrinsicop(const BaseNode &mirNode) const {
+  auto meExpr = std::make_unique<NaryMeExpr>(&irMap->irMapAlloc, kInvalidExprID, mirNode.GetOpCode(),
+                                             mirNode.GetPrimType(), mirNode.GetNumOpnds(), TyIdx(0),
+                                             static_cast<const IntrinsicopNode&>(mirNode).GetIntrinsic(),
+                                             false);
   return meExpr;
 }
 
-MeExpr *IRMapBuild::BuildNaryMeExprForIntrinsicWithType(const BaseNode &mirNode) const {
+std::unique_ptr<MeExpr> IRMapBuild::BuildNaryMeExprForIntrinsicWithType(const BaseNode &mirNode) const {
   auto &intrinNode = static_cast<const IntrinsicopNode&>(mirNode);
-  NaryMeExpr *meExpr = new NaryMeExpr(&irMap->irMapAlloc, kInvalidExprID, mirNode.GetOpCode(), mirNode.GetPrimType(),
-                                      mirNode.GetNumOpnds(), intrinNode.GetTyIdx(), intrinNode.GetIntrinsic(), false);
+  auto meExpr = std::make_unique<NaryMeExpr>(&irMap->irMapAlloc, kInvalidExprID, mirNode.GetOpCode(),
+                                             mirNode.GetPrimType(), mirNode.GetNumOpnds(),
+                                             intrinNode.GetTyIdx(), intrinNode.GetIntrinsic(), false);
   return meExpr;
 }
 
@@ -371,11 +382,11 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode, bool atParm, bool noProp) {
 
   auto func = CreateProductFunction<MeExprBuildFactory>(mirNode.GetOpCode());
   ASSERT(func != nullptr, "NIY BuildExpe");
-  MeExpr *meExpr = func(this, mirNode);
+  auto meExpr = func(this, mirNode);
   SetMeExprOpnds(*meExpr, mirNode, atParm, noProp);
 
   if (op == OP_iread) {
-    IvarMeExpr *ivarMeExpr = static_cast<IvarMeExpr*>(meExpr);
+    IvarMeExpr *ivarMeExpr = static_cast<IvarMeExpr*>(meExpr.get());
     IreadSSANode &iReadSSANode = static_cast<IreadSSANode&>(mirNode);
     ivarMeExpr->SetBase(BuildExpr(*iReadSSANode.Opnd(0), atParm, false));
     VersionSt *verSt = iReadSSANode.GetSSAVar();
@@ -388,7 +399,6 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode, bool atParm, bool noProp) {
     }
 
     IvarMeExpr *canIvar = static_cast<IvarMeExpr *>(irMap->HashMeExpr(*ivarMeExpr));
-    delete ivarMeExpr;
     ASSERT(static_cast<IvarMeExpr*>(canIvar)->GetUniqueMu() != nullptr,
         "BuildExpr: ivar node cannot have mu == nullptr");
     MeExpr *retmeexpr;
@@ -422,14 +432,14 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode, bool atParm, bool noProp) {
   }
 
   if (meExpr->IsOpMeExpr()) {
-    auto *simplifiedMeExpr = irMap->SimplifyOpMeExpr(static_cast<OpMeExpr*>(meExpr));
+    auto *simplifiedMeExpr = irMap->SimplifyOpMeExpr(static_cast<OpMeExpr*>(meExpr.get()));
     if (simplifiedMeExpr != nullptr) {
       return simplifiedMeExpr;
     }
   }
 
   if (op == OP_mul) {
-    OpMeExpr *opMeExpr = static_cast<OpMeExpr *>(meExpr);
+    OpMeExpr *opMeExpr = static_cast<OpMeExpr *>(meExpr.get());
     if (opMeExpr->GetOpnd(0)->GetMeOp() == kMeOpConst) {
       // canonicalize constant operand to be operand 1
       MeExpr *savedOpnd = opMeExpr->GetOpnd(0);
@@ -439,7 +449,6 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode, bool atParm, bool noProp) {
   }
 
   MeExpr *retMeExpr = irMap->HashMeExpr(*meExpr);
-  delete meExpr;
 
   return retMeExpr;
 }

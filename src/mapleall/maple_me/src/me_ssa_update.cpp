@@ -21,16 +21,16 @@
 // delete useless phi's, and these useless phi's may end up having identical
 // phi operands.
 namespace maple {
-MapleStack<ScalarMeExpr*> *VectorVersionStacks::GetRenameStack(OStIdx idx) {
-  return renameWithVectorStacks.at(idx);
+std::stack<ScalarMeExpr*> *VectorVersionStacks::GetRenameStack(OStIdx idx) {
+  return renameWithVectorStacks.at(idx).get();
 }
 
-MapleStack<ScalarMeExpr*> *MapVersionStacks::GetRenameStack(OStIdx idx) {
+std::stack<ScalarMeExpr*> *MapVersionStacks::GetRenameStack(OStIdx idx) {
   auto it = renameWithMapStacks.find(idx);
   if (it == renameWithMapStacks.end()) {
     return nullptr;
   }
-  return it->second;
+  return it->second.get();
 }
 
 void VectorVersionStacks::InsertZeroVersion2RenameStack(SSATab &ssaTab, IRMap &irMap) {
@@ -41,27 +41,27 @@ void VectorVersionStacks::InsertZeroVersion2RenameStack(SSATab &ssaTab, IRMap &i
     OriginalSt *ost = ssaTab.GetOriginalStFromID(OStIdx(i));
     ScalarMeExpr *zeroVersScalar =
         (ost->IsSymbolOst()) ? irMap.GetOrCreateZeroVersionVarMeExpr(*ost) : irMap.CreateRegMeExprVersion(*ost);
-    MapleStack<ScalarMeExpr*> *renameStack = renameWithVectorStacks.at(i);
+    auto renameStack = renameWithVectorStacks.at(i).get();
     renameStack->push(zeroVersScalar);
   }
 }
 
 void MapVersionStacks::InsertZeroVersion2RenameStack(SSATab &ssaTab, IRMap &irMap) {
-  for (auto it = renameWithMapStacks.begin(); it != renameWithMapStacks.end(); ++it) {
-    OriginalSt *ost = ssaTab.GetOriginalStFromID(it->first);
+  for (auto &renameWithMapStack : renameWithMapStacks) {
+    OriginalSt *ost = ssaTab.GetOriginalStFromID(renameWithMapStack.first);
     ScalarMeExpr *zeroVersScalar =
         (ost->IsSymbolOst()) ? irMap.GetOrCreateZeroVersionVarMeExpr(*ost) : irMap.CreateRegMeExprVersion(*ost);
-    MapleStack<ScalarMeExpr*> *renameStack = it->second;
+    auto renameStack = renameWithMapStack.second.get();
     renameStack->push(zeroVersScalar);
   }
 }
 
 void VectorVersionStacks::InitRenameStack(OStIdx idx) {
-  renameWithVectorStacks[idx] = ssaUpdateMp.New<MapleStack<ScalarMeExpr*>>(ssaUpdateAlloc.Adapter());
+  renameWithVectorStacks[idx] = std::make_unique<std::stack<ScalarMeExpr*>>();
 }
 
 void MapVersionStacks::InitRenameStack(OStIdx idx) {
-  renameWithMapStacks[idx] = ssaUpdateMp.New<MapleStack<ScalarMeExpr*>>(ssaUpdateAlloc.Adapter());
+  renameWithMapStacks[idx] = std::make_unique<std::stack<ScalarMeExpr*>>();
 }
 
 void VectorVersionStacks::RecordCurrentStackSize(std::vector<std::pair<uint32, OStIdx >> &origStackSize) {
@@ -110,7 +110,7 @@ void MapVersionStacks::RecoverStackSize(std::vector<std::pair<uint32, OStIdx >> 
 
 void MeSSAUpdate::InsertPhis() {
   auto it = updateCands.begin();
-  MapleSet<BBId> dfSet(ssaUpdateAlloc.Adapter());
+  std::set<BBId> dfSet;
   auto cfg = func.GetCfg();
   for (; it != updateCands.end(); ++it) {
     const OriginalSt *ost = ssaTab.GetOriginalStFromID(it->first);
@@ -387,8 +387,8 @@ void MeSSAUpdate::InsertDefPointsOfBBToSSACands(
 }
 
 void MeSSAUpdate::Run() {
-  VectorVersionStacks renameWithVectorStack(ssaUpdateMp);
-  MapVersionStacks renameWithMapStack(ssaUpdateMp);
+  VectorVersionStacks renameWithVectorStack;
+  MapVersionStacks renameWithMapStack;
   // When the number of osts is greater than kOstLimitSize or greater than half of the size of original ost table,
   // use the RenameWithVectorStack object to update the ssa, otherwise,
   // use the RenameWithMapStack object to update the ssa.

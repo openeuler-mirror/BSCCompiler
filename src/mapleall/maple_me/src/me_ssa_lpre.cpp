@@ -362,7 +362,7 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       if (!MeOption::lpre4Address) {
         break;
       }
-      if (!(mirModule->IsCModule()) || MeOption::rematLevel < mapleOption::kLevelTwo) {
+      if (!(mirModule->IsCModule()) || MeOption::rematLevel < kLevelTwo) {
         auto *addrOfMeExpr = static_cast<AddrofMeExpr *>(&meExpr);
         const OriginalSt *ost = ssaTab->GetOriginalStFromID(addrOfMeExpr->GetOstIdx());
         if (ost->IsLocal()) {  // skip lpre for stack addresses as they are cheap and need keep for rc
@@ -511,8 +511,7 @@ bool MESSALPre::PhaseRun(maple::MeFunction &f) {
 
     auto &candsForSSAUpdate = ssaLpre.GetCandsForSSAUpdate();
     if (!candsForSSAUpdate.empty()) {
-      MemPool *memPool = ApplyTempMemPool();
-      MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, candsForSSAUpdate, *memPool);
+      MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, candsForSSAUpdate);
       ssaUpdate.Run();
     }
   }

@@ -25,10 +25,10 @@ constexpr size_t kOstLimitSize = 5000;
 
 class VersionStacks {
  public:
-  explicit VersionStacks(MemPool &mp) : ssaUpdateMp(mp), ssaUpdateAlloc(&mp) {}
+  VersionStacks() = default;
   virtual ~VersionStacks() = default;
 
-  virtual MapleStack<ScalarMeExpr*> *GetRenameStack(OStIdx idx) {
+  virtual std::stack<ScalarMeExpr*> *GetRenameStack(OStIdx idx) {
     ASSERT(false, "can not be here");
     return nullptr;
   }
@@ -48,18 +48,14 @@ class VersionStacks {
   virtual void RecoverStackSize(std::vector<std::pair<uint32, OStIdx >> &origStackSize) {
     ASSERT(false, "can not be here");
   }
-
- protected:
-  MemPool &ssaUpdateMp;
-  MapleAllocator ssaUpdateAlloc;
 };
 
 class VectorVersionStacks : public VersionStacks {
  public:
-  explicit VectorVersionStacks(MemPool &mp) : VersionStacks(mp), renameWithVectorStacks(ssaUpdateAlloc.Adapter()) {}
+  VectorVersionStacks() = default;
   virtual ~VectorVersionStacks() = default;
 
-  MapleStack<ScalarMeExpr*> *GetRenameStack(OStIdx idx) override;
+  std::stack<ScalarMeExpr*> *GetRenameStack(OStIdx idx) override;
   void InsertZeroVersion2RenameStack(SSATab &ssaTab, IRMap &irMap) override;
   void InitRenameStack(OStIdx idx) override;
   void RecordCurrentStackSize(std::vector<std::pair<uint32, OStIdx >> &origStackSize) override;
@@ -70,35 +66,33 @@ class VectorVersionStacks : public VersionStacks {
   }
 
  private:
-  MapleVector<MapleStack<ScalarMeExpr*>*> renameWithVectorStacks;
+  std::vector<std::unique_ptr<std::stack<ScalarMeExpr*>>> renameWithVectorStacks;
 };
 
 class MapVersionStacks : public VersionStacks {
  public:
-  explicit MapVersionStacks(MemPool &mp)
-      : VersionStacks(mp), renameWithMapStacks(std::less<OStIdx>(), ssaUpdateAlloc.Adapter()) {}
+  MapVersionStacks()
+      : renameWithMapStacks(std::less<OStIdx>()) {}
   virtual ~MapVersionStacks() = default;
 
-  MapleStack<ScalarMeExpr*> *GetRenameStack(OStIdx idx) override;
+  std::stack<ScalarMeExpr*> *GetRenameStack(OStIdx idx) override;
   void InsertZeroVersion2RenameStack(SSATab &ssaTab, IRMap &irMap) override;
   void InitRenameStack(OStIdx idx) override;
   void RecordCurrentStackSize(std::vector<std::pair<uint32, OStIdx >> &origStackSize) override;
   void RecoverStackSize(std::vector<std::pair<uint32, OStIdx >> &origStackSize) override;
 
  private:
-  MapleMap<OStIdx, MapleStack<ScalarMeExpr*>*> renameWithMapStacks;
+  std::map<OStIdx, std::unique_ptr<std::stack<ScalarMeExpr*>>> renameWithMapStacks;
 };
 
 class MeSSAUpdate {
  public:
   MeSSAUpdate(MeFunction &f, SSATab &stab, Dominance &d,
-              std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands, MemPool &mp)
+              std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands)
       : func(f),
         irMap(*f.GetIRMap()),
         ssaTab(stab),
         dom(d),
-        ssaUpdateMp(mp),
-        ssaUpdateAlloc(&mp),
         updateCands(cands) {}
 
   ~MeSSAUpdate() = default;
@@ -122,8 +116,6 @@ class MeSSAUpdate {
   IRMap &irMap;
   SSATab &ssaTab;
   Dominance &dom;
-  MemPool &ssaUpdateMp;
-  MapleAllocator ssaUpdateAlloc;
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &updateCands;
   VersionStacks *rename = nullptr;
 };

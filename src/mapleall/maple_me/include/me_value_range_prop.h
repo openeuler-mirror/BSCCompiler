@@ -483,6 +483,12 @@ class ValueRange {
     if (fromType == toType) {
       return true;
     }
+    if (rangeType != kEqual && rangeType != kLowerAndUpper) {
+      return false;
+    }
+    if (!IsConstantLowerAndUpper()) {
+      return false;
+    }
     return GetLower().IsEqualAfterCVT(fromType, toType) && GetUpper().IsEqualAfterCVT(fromType, toType);
   }
 
@@ -684,7 +690,7 @@ class ValueRangePropagation {
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(Opcode op, ValueRange &valueRange, int64 rhsConstant);
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(
       Opcode op, ValueRange &valueRangeLeft, ValueRange &valueRangeRight);
-  std::unique_ptr<ValueRange> DealWithAddOrSub(const BB &bb, const MeExpr &lhsVar, const OpMeExpr &opMeExpr);
+  std::unique_ptr<ValueRange> DealWithAddOrSub(const BB &bb, const OpMeExpr &opMeExpr);
   bool CanComputeLoopIndVar(const MeExpr &phiLHS, MeExpr &expr, int64 &constant);
   std::unique_ptr<ValueRange> RemWithValueRange(const BB &bb, const OpMeExpr &opMeExpr, int64 rhsConstant);
   std::unique_ptr<ValueRange> RemWithRhsValueRange(const OpMeExpr &opMeExpr, int64 rhsConstant) const;
@@ -794,7 +800,7 @@ class ValueRangePropagation {
   void DealWithCVT(const BB &bb, MeStmt &stmt, MeExpr *operand, size_t i, bool dealWithStmt = false);
   std::unique_ptr<ValueRange> ZeroIsInRange(const ValueRange &valueRange);
   void DealWithNeg(const BB &bb, const OpMeExpr &opMeExpr);
-  void DealWithCVT(const BB &bb, OpMeExpr &opMeExpr);
+  bool DealWithCVT(const BB &bb, MeStmt &stmt, OpMeExpr &opMeExpr);
   bool IfTheLowerOrUpperOfLeftRangeEqualToTheRightRange(
           const ValueRange &leftRange, ValueRange &rightRange, bool isLower) const;
   bool DealWithSpecialCondGoto(BB &bb, OpMeExpr &opMeExpr, const ValueRange &leftRange, ValueRange &rightRange,

@@ -395,8 +395,7 @@ bool MEStorePre::PhaseRun(maple::MeFunction &f) {
 
   auto &candsForSSAUpdate = storePre.CandsForSSAUpdate();
   if (!candsForSSAUpdate.empty()) {
-    MemPool *tmp = GetPhaseMemPool();
-    MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, candsForSSAUpdate, *tmp);
+    MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, candsForSSAUpdate);
     ssaUpdate.Run();
   }
 

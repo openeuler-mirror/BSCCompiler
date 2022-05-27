@@ -74,8 +74,7 @@ bool MEMeProp::PhaseRun(maple::MeFunction &f) {
   }
 
   if (!meProp.CandsForSSAUpdate().empty()) {
-    MemPool *tmp = ApplyTempMemPool();
-    MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, meProp.CandsForSSAUpdate(), *tmp);
+    MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, meProp.CandsForSSAUpdate());
     ssaUpdate.Run();
   }
   return true;
