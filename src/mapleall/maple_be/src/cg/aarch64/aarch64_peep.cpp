@@ -3774,11 +3774,12 @@ void AndCbzBranchesToTstAArch64::Run(BB &bb, Insn &insn) {
   /* build tst insn */
   Operand &andOpnd3 = insn.GetOperand(kInsnThirdOpnd);
   auto &andRegOp2 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  auto &andRegOp3 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
   MOperator newTstOp = MOP_undef;
   if (andOpnd3.IsRegister()) {
-    newTstOp = (andRegOp2.GetSize() <= k32BitSize) ? MOP_wtstrr : MOP_xtstrr;
+    newTstOp = (andRegOp2.GetSize() <= k32BitSize && andRegOp3.GetSize() <= k32BitSize) ? MOP_wtstrr : MOP_xtstrr;
   } else {
-    newTstOp = (andRegOp2.GetSize() <= k32BitSize) ? MOP_wtstri32 : MOP_xtstri64;
+    newTstOp = (andRegOp2.GetSize() <= k32BitSize && andRegOp3.GetSize() <= k32BitSize) ? MOP_wtstri32 : MOP_xtstri64;
   }
   Operand &rflag = static_cast<AArch64CGFunc*>(&cgFunc)->GetOrCreateRflag();
   Insn &newInsnTst = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newTstOp, rflag, andRegOp2, andOpnd3);
