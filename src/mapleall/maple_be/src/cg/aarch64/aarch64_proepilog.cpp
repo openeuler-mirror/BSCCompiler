@@ -1960,7 +1960,7 @@ void AArch64GenProEpilog::ConvertToTailCalls(MapleSet<Insn*> &callInsnsMap) {
       CHECK_FATAL(0, "Tailcall in incorrect block");
     }
     FOR_BB_INSNS_SAFE(insn, fromBB, next) {
-      if (insn->IsMachineInstruction() && insn->GetMachineOpcode() != MOP_xret) {
+      if (insn->IsCfiInsn() || (insn->IsMachineInstruction() && insn->GetMachineOpcode() != MOP_xret)) {
         Insn *newInsn = cgFunc.GetTheCFG()->CloneInsn(*insn);
         newInsn->SetDoNotRemove(true);
         toBB->InsertInsnBefore(*callInsn, *newInsn);

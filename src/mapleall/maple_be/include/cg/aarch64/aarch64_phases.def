@@ -63,7 +63,7 @@
  ADDTARGETPHASE("postcfgo", CGOptions::DoCFGO());
  ADDTARGETPHASE("cgpostpeephole", CGOptions::DoPeephole())
  ADDTARGETPHASE("peephole", CGOptions::DoPeephole())
- ADDTARGETPHASE("gencfi", !GetMIRModule()->IsCModule());
+ ADDTARGETPHASE("gencfi", !GetMIRModule()->IsCModule() || GetMIRModule()->IsWithDbgInfo());
  ADDTARGETPHASE("yieldpoint", GetMIRModule()->IsJavaModule() && CGOptions::IsInsertYieldPoint());
  ADDTARGETPHASE("scheduling", CGOptions::DoSchedule());
  ADDTARGETPHASE("alignanalysis", GetMIRModule()->IsCModule() && CGOptions::DoAlignAnalysis());
