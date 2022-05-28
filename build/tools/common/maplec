@@ -180,7 +180,7 @@ function hir2mpl() {
   excecute $TOOLS_BIN/clang $CLANG_FLAGS $option $src_file_path -o $file_name.ast
   # generate .mpl
   color_print "Starting hir2mpl for $src_file_path:"
-  excecute $MAPLE_BIN/hir2mpl $file_name.ast
+  excecute $MAPLE_BIN/hir2mpl $file_name.ast --enable-variable-array
 }
 
 function clangfe() {
