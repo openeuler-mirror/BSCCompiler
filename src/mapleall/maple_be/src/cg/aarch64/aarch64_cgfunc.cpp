@@ -1085,7 +1085,8 @@ void AArch64CGFunc::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPTyp
   }
 
   memOpnd = memOpnd->IsOffsetMisaligned(dataSize) ? &ConstraintOffsetToSafeRegion(dataSize, *memOpnd) : memOpnd;
-  if (symbol->GetAsmAttr() != UStrIdx(0)) {
+  if (symbol->GetAsmAttr() != UStrIdx(0) &&
+      symbol->GetStorageClass() != kScPstatic && symbol->GetStorageClass() != kScFstatic) {
     std::string regDesp = GlobalTables::GetUStrTable().GetStringFromStrIdx(symbol->GetAsmAttr());
     RegOperand &specifiedOpnd = GetOrCreatePhysicalRegisterOperand(regDesp);
     SelectCopy(specifiedOpnd, type->GetPrimType(), opnd0, rhsPType);
@@ -1318,10 +1319,10 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
         destType = IsSignedInteger(destType) ? PTY_i32 : PTY_u32;
       }
       RegType rtype = GetRegTyFromPrimTy(srcType);
-      RegOperand *opnd0 = isOutputTempNode ?
-          &GetOrCreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx)) :
-          &CreateVirtualRegisterOperand(NewVReg(rtype, GetPrimTypeSize(srcType)));
-      SelectCopy(*opnd0, destType, *outOpnd, srcType);
+      RegOperand &opnd0 = isOutputTempNode ?
+                          GetOrCreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx)) :
+                          CreateVirtualRegisterOperand(NewVReg(rtype, GetPrimTypeSize(srcType)));
+      SelectCopy(opnd0, destType, *outOpnd, srcType);
       if (!isOutputTempNode) {
         listOutputOpnd->PushOpnd(static_cast<RegOperand&>(*outOpnd));
         listOutRegPrefix->stringList.push_back(static_cast<StringOperand*>(
@@ -2621,14 +2622,16 @@ Operand *AArch64CGFunc::SelectDread(const BaseNode &parent, DreadNode &expr) {
       IsImmediateOffsetOutOfRange(*memOpnd, dataSize)) {
     memOpnd = &SplitOffsetWithAddInstruction(*memOpnd, dataSize);
   }
+
+  PrimType resultType = expr.GetPrimType();
+  RegOperand &resOpnd = GetOrCreateResOperand(parent, symType);
   /* a local register variable defined with a specified register  */
-  if (symbol->GetAsmAttr() != UStrIdx(0)) {
+  if (symbol->GetAsmAttr() != UStrIdx(0) &&
+      symbol->GetStorageClass() != kScPstatic && symbol->GetStorageClass() != kScFstatic) {
     std::string regDesp = GlobalTables::GetUStrTable().GetStringFromStrIdx(symbol->GetAsmAttr());
     RegOperand &specifiedOpnd = GetOrCreatePhysicalRegisterOperand(regDesp);
     return &specifiedOpnd;
   }
-  PrimType resultType = expr.GetPrimType();
-  RegOperand &resOpnd = GetOrCreateResOperand(parent, symType);
   memOpnd = memOpnd->IsOffsetMisaligned(dataSize) ? &ConstraintOffsetToSafeRegion(dataSize, *memOpnd) : memOpnd;
   SelectCopy(resOpnd, resultType, *memOpnd, symType);
   return &resOpnd;
@@ -5603,18 +5606,12 @@ Operand *AArch64CGFunc::SelectSelect(TernaryNode &expr, Operand &cond, Operand &
   PrimType dtype = expr.GetPrimType();
   PrimType ctype = expr.Opnd(0)->GetPrimType();
 
+  RegOperand &resOpnd = GetOrCreateResOperand(parent, dtype);
   AArch64CC_t cc = CC_NE;
   Opcode opcode = expr.Opnd(0)->GetOpCode();
   PrimType cmpType = static_cast<CompareNode *>(expr.Opnd(0))->GetOpndType();
-  bool isFloat = false;
-  bool unsignedIntegerComparison = false;
-  if (!IsPrimitiveVector(cmpType)) {
-    isFloat = IsPrimitiveFloat(cmpType);
-    unsignedIntegerComparison = !isFloat && !IsSignedInteger(cmpType);
-  } else {
-    isFloat = IsPrimitiveVectorFloat(cmpType);
-    unsignedIntegerComparison = !isFloat && IsPrimitiveUnSignedVector(cmpType);
-  }
+  bool isFloat = IsPrimitiveFloat(cmpType);
+  bool unsignedIntegerComparison = !isFloat && !IsSignedInteger(cmpType);
   switch (opcode) {
     case OP_eq:
       cc = CC_EQ;
@@ -5638,13 +5635,8 @@ Operand *AArch64CGFunc::SelectSelect(TernaryNode &expr, Operand &cond, Operand &
       hasCompare = true;
       break;
   }
-  if (!IsPrimitiveVector(dtype)) {
-    RegOperand &resOpnd = GetOrCreateResOperand(parent, dtype);
-    SelectSelect(resOpnd, cond, trueOpnd, falseOpnd, dtype, ctype, hasCompare, cc);
-    return &resOpnd;
-  } else {
-    return SelectVectorSelect(cond, dtype, trueOpnd, falseOpnd);
-  }
+  SelectSelect(resOpnd, cond, trueOpnd, falseOpnd, dtype, ctype, hasCompare, cc);
+  return &resOpnd;
 }
 
 /*
@@ -8480,6 +8472,8 @@ RegOperand &AArch64CGFunc::GetOrCreatePhysicalRegisterOperand(std::string &asmAt
       LogInfo::MapleLogger() << "Unsupport asm string : " << asmAttr << "\n";
       CHECK_FATAL(false, "have not support this kind of register ");
     }
+  } else if (numberChar == 0) {
+    return CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
   } else {
     CHECK_FATAL(false, "Unexpect input in GetOrCreatePhysicalRegisterOperand");
   }
@@ -11506,26 +11500,6 @@ RegOperand *AArch64CGFunc::SelectVectorNeg(PrimType rType, Operand *o1) {
   Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec1);
-  GetCurBB()->AppendInsn(*insn);
-  return res;
-}
-
-/*
- * Called internally for auto-vec, no intrinsics for now
- */
-RegOperand *AArch64CGFunc::SelectVectorSelect(Operand &cond, PrimType rType, Operand &o0, Operand &o1) {
-  rType = GetPrimTypeSize(rType) > k8ByteSize ? PTY_v16u8 : PTY_v8u8;
-  RegOperand *res = &CreateRegisterOperandOfType(rType);
-  SelectCopy(*res, rType, cond, rType);
-  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
-  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(rType);
-  VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(rType);
-
-  uint32 mOp = GetPrimTypeBitSize(rType) > k64BitSize ? MOP_vbslvvv : MOP_vbsluuu;
-  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, o0, o1);
-  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
-  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec1);
-  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(*insn);
   return res;
 }

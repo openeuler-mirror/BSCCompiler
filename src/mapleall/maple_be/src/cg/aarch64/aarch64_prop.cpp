@@ -1833,9 +1833,69 @@ void FpSpConstProp::Optimize(Insn &insn) {
   }
 }
 
-bool A64PregCopyPattern::DFSFindValidDefInsns(Insn *curDefInsn, std::unordered_map<uint32, bool> &visited) {
+bool A64PregCopyPattern::DFSFindValidDefInsns(Insn *curDefInsn, RegOperand *lastPhiDef,
+                                              std::unordered_map<uint32, bool> &visited) {
   if (curDefInsn == nullptr) {
     return false;
+  }
+  /*
+   * avoid the case as following:
+   * R113 and R117 define each other.
+   *                               [BB5]     ----------------------------
+   *                    phi: R113, (R111<4>, R117<9>)                   |
+   *                              /     \                               |
+   *                             /       \                              |
+   *                        [BB6]  ----  [BB7]                          |
+   *            add R116, R113, #4     phi: R117, (R113<5>, R116<6>)    |
+   *                                     /   \                          |
+   *                                    /     \                         |
+   *                                 [BB8]    [BB28]                    |
+   *                                   /                                |
+   *                                  /                                 |
+   *                                 [BB9] ------ [BB5]                 |
+   *                             mov R1, R117  --------------------------
+   *
+   * but the cases as following is right:
+   * (1)
+   *                              [BB124]
+   *                       add R339, R336, #345      --------  is found twice
+   *                              /    \
+   *                             /      \
+   *                            /     [BB125]
+   *                            \        /
+   *                             \      /
+   *                              [BB56]
+   *                       phi: R370, (R339<124>, R339<125>)
+   *                                |
+   *                                |
+   *                             [BB61]
+   *                           mov R0, R370
+   * (2)
+   *                                [BB17]
+   *                       phi: R242, (R241<14>, R218<53>)    ------- is found twice
+   *                              /          \
+   *                             /            \
+   *                            /           [BB26]     [BB32]
+   *                            \               \      /
+   *                             \               [BB27]
+   *                              \      phi: R273, (R242<26>, R320<32>)
+   *                           [BB25]           /
+   *                                \        [BB42]
+   *                                 \       /
+   *                                  [BB43]
+   *                        phi: R321, (R242<25>, R273<42>)
+   *                                    |
+   *                                  [BB47]
+   *                               mov R0, R321
+   */
+  if (visited[curDefInsn->GetId()] && curDefInsn->IsPhi() && lastPhiDef != nullptr) {
+    auto &curPhiOpnd = static_cast<PhiOperand&>(curDefInsn->GetOperand(kInsnSecondOpnd));
+    for (auto &curPhiListIt : curPhiOpnd.GetOperands()) {
+      auto &curUseOpnd = static_cast<RegOperand&>(*curPhiListIt.second);
+      if (&curUseOpnd == lastPhiDef) {
+        return false;
+      }
+    }
   }
   if (visited[curDefInsn->GetId()]) {
     return true;
@@ -1851,7 +1911,11 @@ bool A64PregCopyPattern::DFSFindValidDefInsns(Insn *curDefInsn, std::unordered_m
     auto &useOpnd = static_cast<RegOperand&>(*phiListIt.second);
     VRegVersion *useVersion = optSsaInfo->FindSSAVersion(useOpnd.GetRegisterNumber());
     Insn *defInsn = FindDefInsn(useVersion);
-    if (!DFSFindValidDefInsns(defInsn, visited)) {
+    if (defInsn == nullptr) {
+      return false;
+    }
+    lastPhiDef = &static_cast<RegOperand&>(curDefInsn->GetOperand(kInsnFirstOpnd));
+    if (!DFSFindValidDefInsns(defInsn, lastPhiDef, visited)) {
       return false;
     }
   }
@@ -1881,7 +1945,8 @@ bool A64PregCopyPattern::CheckMultiUsePoints(Insn *defInsn) {
 
 bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &curInsn, Insn &defInsn) {
   std::unordered_map<uint32, bool> visited;
-  if (!DFSFindValidDefInsns(&defInsn, visited)) {
+  RegOperand *lastPhiDef = (defInsn.IsPhi() ? &static_cast<RegOperand&>(defInsn.GetOperand(kInsnFirstOpnd)) : nullptr);
+  if (!DFSFindValidDefInsns(&defInsn, lastPhiDef, visited)) {
     return false;
   }
   if (!CheckValidDefInsn(validDefInsns[0])) {
@@ -2055,8 +2120,50 @@ Insn &A64PregCopyPattern::CreateNewPhiInsn(std::unordered_map<uint32, RegOperand
   optSsaInfo->CreateNewInsnSSAInfo(phiInsn);
   BB *bb = curInsn->GetBB();
   bb->InsertInsnBefore(*curInsn, phiInsn);
-  bb->AddPhiInsn(differOrigOpnd->GetRegisterNumber(), phiInsn);
+  /* <phiDef-ssaRegNO, phiInsn> */
+  bb->AddPhiInsn(static_cast<RegOperand&>(phiInsn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber(), phiInsn);
   return phiInsn;
+}
+
+/*
+ * Check whether the required phi is available, do not insert phi repeatedly.
+ */
+RegOperand *A64PregCopyPattern::CheckAndGetExistPhiDef(Insn &phiInsn, std::vector<regno_t> &validDifferRegNOs) {
+  MapleMap<regno_t, Insn*> &phiInsns = phiInsn.GetBB()->GetPhiInsns();
+  for (auto &phiIt : phiInsns) {
+    auto &def = static_cast<RegOperand&>(phiIt.second->GetOperand(kInsnFirstOpnd));
+    VRegVersion *defVersion = optSsaInfo->FindSSAVersion(def.GetRegisterNumber());
+    /*
+     * if the phi of the change point has been created (according to original regNO), return the phiDefOpnd.
+     * But, there is a problem: the phiDefOpnd of the same original regNO is not the required phi.
+     * For example: (in parentheses is the original regNO)
+     *           add R110(R80), R106(R80), #1              add R122(R80), R118(R80), #1
+     *                                       \            /
+     *                                        \          /
+     *                              (1) phi: R123(R80), [R110, R122]
+     *                                  mov R0, R123
+     *           It will return R123 of phi(1) because the differOrigNO is 80, but that's not what we want,
+     *           we need to create a new phi(2): R140(R80), [R106, R118].
+     *           so we need to check whether all phiOpnds have correct ssaRegNO.
+     */
+    if (defVersion->GetOriginalRegNO() == differOrigNO) {
+      auto &phiOpnd = static_cast<PhiOperand&>(phiIt.second->GetOperand(kInsnSecondOpnd));
+      if (phiOpnd.GetOperands().size() == validDifferRegNOs.size()) {
+        bool exist = true;
+        for (auto &phiListIt : phiOpnd.GetOperands()) {
+          if (std::find(validDifferRegNOs.begin(), validDifferRegNOs.end(),
+                        static_cast<RegOperand*>(phiListIt.second)->GetRegisterNumber()) == validDifferRegNOs.end()) {
+            exist = false;
+            break;
+          }
+        }
+        if (exist) {
+          return &static_cast<RegOperand&>(phiIt.second->GetOperand(kInsnFirstOpnd));
+        }
+      }
+    }
+  }
+  return nullptr;
 }
 
 RegOperand &A64PregCopyPattern::DFSBuildPhiInsn(Insn *curInsn, std::unordered_map<uint32, RegOperand*> &visited) {
@@ -2068,6 +2175,7 @@ RegOperand &A64PregCopyPattern::DFSBuildPhiInsn(Insn *curInsn, std::unordered_ma
     return static_cast<RegOperand&>(curInsn->GetOperand(static_cast<uint32>(differIdx)));
   }
   std::unordered_map<uint32, RegOperand*> differPhiList;
+  std::vector<regno_t> validDifferRegNOs;
   auto &phiOpnd = static_cast<PhiOperand&>(curInsn->GetOperand(kInsnSecondOpnd));
   for (auto &phiListIt : phiOpnd.GetOperands()) {
     auto &useOpnd = static_cast<RegOperand&>(*phiListIt.second);
@@ -2076,56 +2184,36 @@ RegOperand &A64PregCopyPattern::DFSBuildPhiInsn(Insn *curInsn, std::unordered_ma
     CHECK_FATAL(defInsn != nullptr, "get defInsn failed");
     RegOperand &phiDefOpnd = DFSBuildPhiInsn(defInsn, visited);
     differPhiList.emplace(phiListIt.first, &phiDefOpnd);
+    validDifferRegNOs.emplace_back(phiDefOpnd.GetRegisterNumber());
   }
-  Insn &phiInsn = CreateNewPhiInsn(differPhiList, curInsn);
-  visited[curInsn->GetId()] = &static_cast<RegOperand&>(phiInsn.GetOperand(kInsnFirstOpnd));
-  return static_cast<RegOperand&>(phiInsn.GetOperand(kInsnFirstOpnd));
-}
-
-/*
- * Find if the new phi insn has been created at preds
- */
-std::unordered_map<uint32, RegOperand*> A64PregCopyPattern::FindDifferPhiDefOpnds() {
-  std::unordered_map<uint32, RegOperand*> differPhiOpnds;
-  auto &phiOpnd = static_cast<PhiOperand&>(firstPhiInsn->GetOperand(kInsnSecondOpnd));
-  for (auto &phiListIt : phiOpnd.GetOperands()) {
-    auto &useOpnd = static_cast<RegOperand&>(*phiListIt.second);
-    VRegVersion *useVersion = optSsaInfo->FindSSAVersion(useOpnd.GetRegisterNumber());
-    Insn *defInsn = FindDefInsn(useVersion);
-    CHECK_FATAL(defInsn != nullptr, "get defInsn failed");
-    if (defInsn->IsPhi()) {
-      MapleMap<regno_t, Insn*> &phiInsns = defInsn->GetBB()->GetPhiInsns();
-      for (auto &phiIt : phiInsns) {
-        auto &def = static_cast<RegOperand&>(phiIt.second->GetOperand(kInsnFirstOpnd));
-        VRegVersion *defVersion = optSsaInfo->FindSSAVersion(def.GetRegisterNumber());
-        if (defVersion->GetOriginalRegNO() == differOrigNO) {
-          differPhiOpnds.emplace(phiIt.second->GetBB()->GetId(), &def);
-        }
-      }
-    } else {
-      differPhiOpnds.emplace(defInsn->GetBB()->GetId(),
-                             &static_cast<RegOperand&>(defInsn->GetOperand(static_cast<uint32>(differIdx))));
-    }
+  /*
+   * The phi in control flow may already exists.
+   * For example:
+   *                              [BB26]                         [BB45]
+   *                          add R191, R103, R187           add R166, R103, R164
+   *                                              \         /
+   *                                               \       /
+   *                                                [BB27]
+   *                                      phi: R192, (R191<26>, R166<45>)  ------ curInsn
+   *                                      phi: R194, (R187<26>, R164<45>)  ------ the phi witch we need already exists
+   *                                                 /                            validDifferRegNOs : [187, 164]
+   *                                                /
+   *                   [BB28]                    [BB46]
+   *              add R215, R103, R211           /
+   *                                  \         /
+   *                                   \       /
+   *                                    [BB29]
+   *                            phi: R216, (R215<28>, R192<46>)
+   *                            phi: R218, (R211<28>, R194<46>)  ------ the phi witch we need already exists
+   *                            mov R0, R216                            validDifferRegNOs : [211, 194]
+   */
+  RegOperand *existPhiDef = CheckAndGetExistPhiDef(*curInsn, validDifferRegNOs);
+  if (existPhiDef == nullptr) {
+    Insn &phiInsn = CreateNewPhiInsn(differPhiList, curInsn);
+    visited[curInsn->GetId()] = &static_cast<RegOperand&>(phiInsn.GetOperand(kInsnFirstOpnd));
+    existPhiDef = &static_cast<RegOperand&>(phiInsn.GetOperand(kInsnFirstOpnd));
   }
-  return differPhiOpnds;
-}
-
-RegOperand *A64PregCopyPattern::GetDifferPhiDef() {
-  MapleMap<regno_t, Insn*> &phiInsns = firstPhiInsn->GetBB()->GetPhiInsns();
-  for (auto &phiIt : phiInsns) {
-    auto &def = static_cast<RegOperand&>(phiIt.second->GetOperand(kInsnFirstOpnd));
-    VRegVersion *defVersion = optSsaInfo->FindSSAVersion(def.GetRegisterNumber());
-    if (defVersion->GetOriginalRegNO() == differOrigNO) {
-      return &static_cast<RegOperand&>(phiIt.second->GetOperand(kInsnFirstOpnd));
-    }
-  }
-  std::unordered_map<uint32, RegOperand*> differPhiOpnds = FindDifferPhiDefOpnds();
-  auto &firstPhiOpnd = static_cast<PhiOperand&>(firstPhiInsn->GetOperand(kInsnSecondOpnd));
-  if (differPhiOpnds.size() == firstPhiOpnd.GetOperands().size()) {
-    Insn &phiInsn = CreateNewPhiInsn(differPhiOpnds, firstPhiInsn);
-    return &static_cast<RegOperand&>(phiInsn.GetOperand(kInsnFirstOpnd));
-  }
-  return nullptr;
+  return *existPhiDef;
 }
 
 void A64PregCopyPattern::Optimize(Insn &insn) {
@@ -2144,7 +2232,12 @@ void A64PregCopyPattern::Optimize(Insn &insn) {
       }
     }
   } else {
-    RegOperand *differPhiDefOpnd = GetDifferPhiDef();
+    std::vector<regno_t> validDifferRegNOs;
+    for (Insn *vdInsn : validDefInsns) {
+      auto &vdOpnd = static_cast<RegOperand&>(vdInsn->GetOperand(static_cast<uint32>(differIdx)));
+      validDifferRegNOs.emplace_back(vdOpnd.GetRegisterNumber());
+    }
+    RegOperand *differPhiDefOpnd = CheckAndGetExistPhiDef(*firstPhiInsn, validDifferRegNOs);
     if (differPhiDefOpnd == nullptr) {
       std::unordered_map<uint32, RegOperand*> visited;
       differPhiDefOpnd = &DFSBuildPhiInsn(firstPhiInsn, visited);

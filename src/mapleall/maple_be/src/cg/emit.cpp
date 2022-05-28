@@ -118,8 +118,10 @@ using namespace cfi;
 
 void Emitter::EmitLabelRef(LabelIdx labIdx) {
   PUIdx pIdx = GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
-  const char *idx = strdup(std::to_string(pIdx).c_str());
+  char *idx = strdup(std::to_string(pIdx).c_str());
   outStream << ".L." << idx << "__" << labIdx;
+  free(idx);
+  idx = nullptr;
 }
 
 void Emitter::EmitStmtLabel(LabelIdx labIdx) {
@@ -289,6 +291,10 @@ void Emitter::EmitAsmLabel(AsmLabel label) {
       Emit("\n");
       return;
     }
+    case kAsmType: {
+      Emit(asmInfo->GetType());
+      return;
+    }
     case kAsmByte: {
       Emit(asmInfo->GetByte());
       return;
@@ -327,7 +333,11 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
   } else {
     symName = mirSymbol.GetName();
   }
-
+  if (mirSymbol.GetAsmAttr() != UStrIdx(0) &&
+      (mirSymbol.GetStorageClass() == kScPstatic || mirSymbol.GetStorageClass() == kScPstatic)) {
+    std::string asmSection = GlobalTables::GetUStrTable().GetStringFromStrIdx(mirSymbol.GetAsmAttr());
+    symName = asmSection;
+  }
   if (Globals::GetInstance()->GetBECommon()->IsEmptyOfTypeAlignTable()) {
     ASSERT(false, "container empty check");
   }
@@ -411,11 +421,19 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
             mirSymbol.GetType()->GetKind() == kTypeClass ||
             mirSymbol.GetType()->GetKind() == kTypeArray ||
             mirSymbol.GetType()->GetKind() == kTypeUnion) {
+#if TARGX86 || TARGX86_64
+          return;
+#else
           align = 3;
+#endif
         } else {
           align = Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirSymbol.GetType()->GetTypeIndex());
 #if TARGARM32 || TARGAARCH64 || TARGARK || TARGRISCV64
-          align = static_cast<uint8>(log2(align));
+          if (CGOptions::IsArm64ilp32() && mirSymbol.GetType()->GetPrimType() == PTY_a32) {
+            align = 3;
+          } else {
+            align = static_cast<uint8>(log2(align));
+          }
 #endif
         }
       }
@@ -430,6 +448,13 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       return;
     }
     case kAsmSize: {
+      Emit(asmInfo->GetSize());
+      Emit(symName);
+      Emit(", ");
+#if TARGX86 || TARGX86_64
+      Emit(".-");
+      Emit(symName);
+#else
       std::string size;
       if (isFlexibleArray) {
           size = std::to_string(
@@ -437,10 +462,8 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       } else {
           size = std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()));
       }
-      Emit(asmInfo->GetSize());
-      Emit(symName);
-      Emit(", ");
       Emit(size);
+#endif
       Emit("\n");
       return;
     }
@@ -767,7 +790,11 @@ void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32, 
     }
     case kConstLblConst: {
       MIRLblConst &lbl = static_cast<MIRLblConst&>(mirConst);
-      Emit("\t.dword\t");
+      if (CGOptions::IsArm64ilp32()) {
+        Emit("\t.word\t");
+      } else {
+        Emit("\t.dword\t");
+      }
       EmitLabelRef(lbl.GetValue());
       break;
     }
@@ -2388,7 +2415,7 @@ void Emitter::EmitGlobalVariable() {
       } else if (mirSymbol->IsThreadLocal()) {
         EmitUninitializedSymbolsWithPrefixSection(*mirSymbol, ".tbss");
         continue;
-      } else if (CGOptions::IsNoCommon()) {
+      } else if (CGOptions::IsNoCommon() || (!CGOptions::IsNoCommon() && mirSymbol->GetAttr(ATTR_static_init_zero))) {
         EmitUninitializedSymbolsWithPrefixSection(*mirSymbol, ".bss");
         continue;
       }
@@ -3525,11 +3552,6 @@ void Emitter::EmitHugeSoRoutines(bool lastRoutine) {
 
 void ImmOperand::Dump() const {
   LogInfo::MapleLogger() << "imm:" << value;
-}
-
-void LabelOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
-  (void)opndProp;
-  emitter.EmitLabelRef(labelIndex);
 }
 
 void LabelOperand::Dump() const {

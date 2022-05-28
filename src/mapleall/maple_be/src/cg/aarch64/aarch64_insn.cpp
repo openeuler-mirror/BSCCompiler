@@ -964,11 +964,17 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
     ASSERT(offset != nullptr, "nullptr check");
 
     emitter.Emit(", #:lo12:");
-    if (v->GetSymbol()->GetStorageClass() == kScPstatic && v->GetSymbol()->IsLocal()) {
-      PUIdx pIdx = emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
-      emitter.Emit(a64v->GetSymbolName() + std::to_string(pIdx));
+    if (v->GetSymbol()->GetAsmAttr() != UStrIdx(0) &&
+        (v->GetSymbol()->GetStorageClass() == kScPstatic || v->GetSymbol()->GetStorageClass() == kScPstatic)) {
+      std::string asmSection = GlobalTables::GetUStrTable().GetStringFromStrIdx(v->GetSymbol()->GetAsmAttr());
+      emitter.Emit(asmSection);
     } else {
-      emitter.Emit(a64v->GetSymbolName());
+      if (v->GetSymbol()->GetStorageClass() == kScPstatic && v->GetSymbol()->IsLocal()) {
+        PUIdx pIdx = emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
+        emitter.Emit(a64v->GetSymbolName() + std::to_string(pIdx));
+      } else {
+        emitter.Emit(a64v->GetSymbolName());
+      }
     }
     if (!offset->IsZero()) {
       emitter.Emit("+");
@@ -1056,10 +1062,16 @@ void A64OpndEmitVisitor::Visit(StImmOperand *v) {
   if (hasPrefix) {
     emitter.Emit(":");
   }
-  if (symbol->GetStorageClass() == kScPstatic && symbol->GetSKind() != kStConst && symbol->IsLocal()) {
-    emitter.Emit(symbol->GetName() + std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()));
+  if (symbol->GetAsmAttr() != UStrIdx(0) &&
+      (symbol->GetStorageClass() == kScPstatic || symbol->GetStorageClass() == kScPstatic)) {
+    std::string asmSection = GlobalTables::GetUStrTable().GetStringFromStrIdx(symbol->GetAsmAttr());
+    emitter.Emit(asmSection);
   } else {
-    emitter.Emit(v->GetName());
+    if (symbol->GetStorageClass() == kScPstatic && symbol->GetSKind() != kStConst && symbol->IsLocal()) {
+      emitter.Emit(symbol->GetName() + std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()));
+    } else {
+      emitter.Emit(v->GetName());
+    }
   }
   if (!hasGotEntry && v->GetOffset() != 0) {
     emitter.Emit("+" + std::to_string(v->GetOffset()));

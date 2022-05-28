@@ -371,11 +371,10 @@ class A64PregCopyPattern : public PropOptimizePattern {
   bool CheckValidDefInsn(Insn *defInsn);
   bool CheckMultiUsePoints(Insn *defInsn);
   bool CheckPhiCaseCondition(Insn &curInsn, Insn &defInsn);
-  bool DFSFindValidDefInsns(Insn *curDefInsn, std::unordered_map<uint32, bool> &visited);
+  bool DFSFindValidDefInsns(Insn *curDefInsn, RegOperand *lastPhiDef, std::unordered_map<uint32, bool> &visited);
   Insn &CreateNewPhiInsn(std::unordered_map<uint32, RegOperand*> &newPhiList, Insn *curInsn);
   RegOperand &DFSBuildPhiInsn(Insn *curInsn, std::unordered_map<uint32, RegOperand*> &visited);
-  std::unordered_map<uint32, RegOperand*> FindDifferPhiDefOpnds();
-  RegOperand *GetDifferPhiDef();
+  RegOperand *CheckAndGetExistPhiDef(Insn &phiInsn, std::vector<regno_t> &validDifferRegNOs);
   std::vector<Insn*> validDefInsns;
   Insn *firstPhiInsn = nullptr;
   int differIdx = -1;
