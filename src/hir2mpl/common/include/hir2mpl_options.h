@@ -43,86 +43,86 @@ class HIR2MPLOptions {
 
  private:
   template <typename T>
-  using OptionProcessFactory = FunctionFactory<cl::OptionInterface *, bool, HIR2MPLOptions*, const T &>;
-  using OptionFactory = OptionProcessFactory<cl::OptionInterface>;
+  using OptionProcessFactory = FunctionFactory<maplecl::OptionInterface *, bool, HIR2MPLOptions*, const T &>;
+  using OptionFactory = OptionProcessFactory<maplecl::OptionInterface>;
 
   HIR2MPLOptions();
   ~HIR2MPLOptions() = default;
 
   // option process
-  bool ProcessHelp(const cl::OptionInterface &opt);
-  bool ProcessVersion(const cl::OptionInterface &opt);
+  bool ProcessHelp(const maplecl::OptionInterface &opt);
+  bool ProcessVersion(const maplecl::OptionInterface &opt);
 
   // input control options
-  bool ProcessInClass(const cl::OptionInterface &mpltSys);
-  bool ProcessInJar(const cl::OptionInterface &mpltApk);
-  bool ProcessInDex(const cl::OptionInterface &inDex);
-  bool ProcessInAST(const cl::OptionInterface &inAst);
-  bool ProcessInMAST(const cl::OptionInterface &inMast);
-  bool ProcessInputMplt(const cl::OptionInterface &mplt);
-  bool ProcessInputMpltFromSys(const cl::OptionInterface &mpltSys);
-  bool ProcessInputMpltFromApk(const cl::OptionInterface &mpltApk);
+  bool ProcessInClass(const maplecl::OptionInterface &mpltSys);
+  bool ProcessInJar(const maplecl::OptionInterface &mpltApk);
+  bool ProcessInDex(const maplecl::OptionInterface &inDex);
+  bool ProcessInAST(const maplecl::OptionInterface &inAst);
+  bool ProcessInMAST(const maplecl::OptionInterface &inMast);
+  bool ProcessInputMplt(const maplecl::OptionInterface &mplt);
+  bool ProcessInputMpltFromSys(const maplecl::OptionInterface &mpltSys);
+  bool ProcessInputMpltFromApk(const maplecl::OptionInterface &mpltApk);
 
   // output control options
-  bool ProcessOutputPath(const cl::OptionInterface &output);
-  bool ProcessOutputName(const cl::OptionInterface &outputName);
-  bool ProcessGenMpltOnly(const cl::OptionInterface &opt);
-  bool ProcessGenAsciiMplt(const cl::OptionInterface &opt);
-  bool ProcessDumpInstComment(const cl::OptionInterface &opt);
-  bool ProcessNoMplFile(const cl::OptionInterface &opt);
+  bool ProcessOutputPath(const maplecl::OptionInterface &output);
+  bool ProcessOutputName(const maplecl::OptionInterface &outputName);
+  bool ProcessGenMpltOnly(const maplecl::OptionInterface &opt);
+  bool ProcessGenAsciiMplt(const maplecl::OptionInterface &opt);
+  bool ProcessDumpInstComment(const maplecl::OptionInterface &opt);
+  bool ProcessNoMplFile(const maplecl::OptionInterface &opt);
 
   // debug info control options
-  bool ProcessDumpLevel(const cl::OptionInterface &outputName);
-  bool ProcessDumpTime(const cl::OptionInterface &opt);
-  bool ProcessDumpComment(const cl::OptionInterface &opt);
-  bool ProcessDumpLOC(const cl::OptionInterface &opt);
-  bool ProcessDbgFriendly(const cl::OptionInterface &);
-  bool ProcessDumpPhaseTime(const cl::OptionInterface &opt);
-  bool ProcessDumpPhaseTimeDetail(const cl::OptionInterface &opt);
+  bool ProcessDumpLevel(const maplecl::OptionInterface &outputName);
+  bool ProcessDumpTime(const maplecl::OptionInterface &opt);
+  bool ProcessDumpComment(const maplecl::OptionInterface &opt);
+  bool ProcessDumpLOC(const maplecl::OptionInterface &opt);
+  bool ProcessDbgFriendly(const maplecl::OptionInterface &);
+  bool ProcessDumpPhaseTime(const maplecl::OptionInterface &opt);
+  bool ProcessDumpPhaseTimeDetail(const maplecl::OptionInterface &opt);
 
   // java compiler options
-  bool ProcessModeForJavaStaticFieldName(const cl::OptionInterface &opt);
-  bool ProcessJBCInfoUsePathName(const cl::OptionInterface &opt);
-  bool ProcessDumpJBCStmt(const cl::OptionInterface &opt);
-  bool ProcessDumpJBCAll(const cl::OptionInterface &opt);
-  bool ProcessDumpJBCErrorOnly(const cl::OptionInterface &opt);
-  bool ProcessDumpJBCFuncName(const cl::OptionInterface &opt);
-  bool ProcessEmitJBCLocalVarInfo(const cl::OptionInterface &opt);
+  bool ProcessModeForJavaStaticFieldName(const maplecl::OptionInterface &opt);
+  bool ProcessJBCInfoUsePathName(const maplecl::OptionInterface &opt);
+  bool ProcessDumpJBCStmt(const maplecl::OptionInterface &opt);
+  bool ProcessDumpJBCAll(const maplecl::OptionInterface &opt);
+  bool ProcessDumpJBCErrorOnly(const maplecl::OptionInterface &opt);
+  bool ProcessDumpJBCFuncName(const maplecl::OptionInterface &opt);
+  bool ProcessEmitJBCLocalVarInfo(const maplecl::OptionInterface &opt);
 
   // bc compiler options
-  bool ProcessRC(const cl::OptionInterface &opt);
-  bool ProcessNoBarrier(const cl::OptionInterface &opt);
-  bool ProcessO2(const cl::OptionInterface &opt);
-  bool ProcessSimplifyShortCircuit(const cl::OptionInterface &opt);
-  bool ProcessEnableVariableArray(const cl::OptionInterface &opt);
-  bool ProcessFuncInlineSize(const cl::OptionInterface &funcInliceSize);
-  bool ProcessWPAA(const cl::OptionInterface &opt);
+  bool ProcessRC(const maplecl::OptionInterface &opt);
+  bool ProcessNoBarrier(const maplecl::OptionInterface &opt);
+  bool ProcessO2(const maplecl::OptionInterface &opt);
+  bool ProcessSimplifyShortCircuit(const maplecl::OptionInterface &opt);
+  bool ProcessEnableVariableArray(const maplecl::OptionInterface &opt);
+  bool ProcessFuncInlineSize(const maplecl::OptionInterface &funcInliceSize);
+  bool ProcessWPAA(const maplecl::OptionInterface &opt);
 
   // ast compiler options
-  bool ProcessUseSignedChar(const cl::OptionInterface &opt);
-  bool ProcessBigEndian(const cl::OptionInterface &opt);
+  bool ProcessUseSignedChar(const maplecl::OptionInterface &opt);
+  bool ProcessBigEndian(const maplecl::OptionInterface &opt);
 
   // general stmt/bb/cfg options
-  bool ProcessDumpFEIRBB(const cl::OptionInterface &opt);
-  bool ProcessDumpFEIRCFGGraph(const cl::OptionInterface &opt);
+  bool ProcessDumpFEIRBB(const maplecl::OptionInterface &opt);
+  bool ProcessDumpFEIRCFGGraph(const maplecl::OptionInterface &opt);
 
   // multi-thread control options
-  bool ProcessNThreads(const cl::OptionInterface &numThreads);
-  bool ProcessDumpThreadTime(const cl::OptionInterface &opt);
+  bool ProcessNThreads(const maplecl::OptionInterface &numThreads);
+  bool ProcessDumpThreadTime(const maplecl::OptionInterface &opt);
 
   // On Demand Type Creation
-  bool ProcessXbootclasspath(const cl::OptionInterface &xbootclasspath);
-  bool ProcessClassLoaderContext(const cl::OptionInterface &classloadercontext);
-  bool ProcessCollectDepTypes(const cl::OptionInterface &dep);
-  bool ProcessDepSameNamePolicy(const cl::OptionInterface &depsamename);
+  bool ProcessXbootclasspath(const maplecl::OptionInterface &xbootclasspath);
+  bool ProcessClassLoaderContext(const maplecl::OptionInterface &classloadercontext);
+  bool ProcessCollectDepTypes(const maplecl::OptionInterface &dep);
+  bool ProcessDepSameNamePolicy(const maplecl::OptionInterface &depsamename);
 
   // EnhanceC
-  bool ProcessNpeCheckDynamic(const cl::OptionInterface &opt);
-  bool ProcessBoundaryCheckDynamic(const cl::OptionInterface &opt);
-  bool ProcessSafeRegion(const cl::OptionInterface &opt);
+  bool ProcessNpeCheckDynamic(const maplecl::OptionInterface &opt);
+  bool ProcessBoundaryCheckDynamic(const maplecl::OptionInterface &opt);
+  bool ProcessSafeRegion(const maplecl::OptionInterface &opt);
 
   // symbol resolve
-  bool ProcessAOT(const cl::OptionInterface &opt);
+  bool ProcessAOT(const maplecl::OptionInterface &opt);
 };  // class HIR2MPLOptions
 }  // namespace maple
 #endif  // HIR2MPL_INCLUDE_COMMON_HIR2MPL_OPTIONS_H

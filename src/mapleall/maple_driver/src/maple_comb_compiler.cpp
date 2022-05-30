@@ -15,6 +15,7 @@
 #include <iterator>
 #include <algorithm>
 #include "compiler.h"
+#include "driver_options.h"
 #include "string_utils.h"
 #include "mpl_logging.h"
 #include "driver_runner.h"
@@ -23,7 +24,6 @@
 #include "constantfold.h"
 
 namespace maple {
-using namespace mapleOption;
 
 std::string MapleCombCompiler::GetInputFileName(const MplOptions &, const Action &action) const {
   if (action.IsItFirstRealAction()) {
@@ -73,10 +73,8 @@ void MapleCombCompiler::PrintCommand(const MplOptions &options, const Action &ac
   if (options.GetExeOptions().find(kBinNameMe) != options.GetExeOptions().end()) {
     runStr += "me";
     auto it = options.GetExeOptions().find(kBinNameMe);
-    for (const mapleOption::Option &opt : it->second) {
-      connectSym = !opt.Args().empty() ? "=" : "";
-      auto prefixStr = opt.GetPrefix();
-      optionStr << " " << prefixStr << opt.OptionKey() << connectSym << opt.Args();
+    for (auto &opt : it->second) {
+      optionStr << " " << opt;
     }
     firstComb = true;
   }
@@ -88,18 +86,16 @@ void MapleCombCompiler::PrintCommand(const MplOptions &options, const Action &ac
       runStr += "mpl2mpl";
     }
     auto it = options.GetExeOptions().find(kBinNameMpl2mpl);
-    for (const mapleOption::Option &opt : it->second) {
-      connectSym = !opt.Args().empty() ? "=" : "";
-      auto prefixStr = opt.GetPrefix();
-      optionStr << " " << prefixStr << opt.OptionKey() << connectSym << opt.Args();
+    for (auto &opt : it->second) {
+      optionStr << " " << opt;
     }
   }
 
   std::string driverOptions = options.GetCommonOptionsStr();
 
   optionStr << "\"";
-  LogInfo::MapleLogger() << "Starting:" << options.GetExeFolder() << "maple " << runStr << " " << optionStr.str() << " "
-                         << driverOptions << " " << GetInputFileName(options, action) << '\n';
+  LogInfo::MapleLogger() << "Starting:" << options.GetExeFolder() << "maple " << runStr << " "
+                         << optionStr.str() << " " << driverOptions << GetInputFileName(options, action) << '\n';
 }
 
 std::string MapleCombCompiler::GetStringOfSafetyOption() const {
@@ -144,29 +140,33 @@ ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunn
   if (it == options.GetRunningExes().end()) {
     return kErrorNoError;
   }
-  MeOption &meOption = MeOption::GetInstance();
+
   auto itOpt = options.GetExeOptions().find(kBinNameMe);
-  if (itOpt == options.GetExeOptions().end()) {
-    LogInfo::MapleLogger() << "no me input options\n";
-    return kErrorCompileFail;
+  if (itOpt != options.GetExeOptions().end()) {
+    const auto &meExeOpts = itOpt->second;
+    const std::deque<std::string_view> strMeOptions(meExeOpts.begin(), meExeOpts.end());
+    maplecl::CommandLine::GetCommandLine().HandleInputArgs(strMeOptions, meCategory);
   }
-  bool result = meOption.SolveOptions(itOpt->second, options.HasSetDebugFlag());
+
+  bool result = MeOption::GetInstance().SolveOptions(opts::debug);
   if (result == false) {
     LogInfo::MapleLogger() << "Meet error me options\n";
     return kErrorCompileFail;
   }
   MeOption::generalRegOnly = options.HasSetGeneralRegOnly();
   MeOption::npeCheckMode = options.GetNpeCheckMode();
-  MeOption::isNpeCheckAll = options.IsNpeCheckAll();
+  MeOption::isNpeCheckAll = opts::npeDynamicCheckAll;
   MeOption::boundaryCheckMode = options.GetBoundaryCheckMode();
-  MeOption::safeRegionMode = options.IsSafeRegion();
+  MeOption::safeRegionMode = opts::safeRegionOption;
   if (MeOption::optLevel == 0) {
     std::string safetyOptionStr = GetStringOfSafetyOption();
     if (!safetyOptionStr.empty()) {
       safetyOptionStr.erase(safetyOptionStr.end() - 1);
-      WARN(kLncWarn, "warning: The safety option %s must be used in conjunction with O2 mode", safetyOptionStr.c_str());
+      WARN(kLncWarn, "warning: The safety option %s must be used in conjunction with O2 mode",
+           safetyOptionStr.c_str());
     }
   }
+
   // Set me options for driver runner
   runner.SetMeOptions(&MeOption::GetInstance());
   return kErrorNoError;
@@ -177,13 +177,16 @@ ErrorCode MapleCombCompiler::MakeMpl2MplOptions(const MplOptions &options, Drive
   if (it == options.GetRunningExes().end()) {
     return kErrorNoError;
   }
-  auto &mpl2mplOption = Options::GetInstance();
-  auto itOption = options.GetExeOptions().find(kBinNameMpl2mpl);
-  if (itOption == options.GetExeOptions().end()) {
-    LogInfo::MapleLogger() << "no mpl2mpl input options\n";
-    return kErrorCompileFail;
+
+  auto itOpt = options.GetExeOptions().find(kBinNameMpl2mpl);
+  if (itOpt != options.GetExeOptions().end()) {
+    const auto &mpl2mplExeOpts = itOpt->second;
+    const std::deque<std::string_view> strMpl2mplOptions(mpl2mplExeOpts.begin(), mpl2mplExeOpts.end());
+    maplecl::CommandLine::GetCommandLine().HandleInputArgs(strMpl2mplOptions, mpl2mplCategory);
   }
-  bool result = mpl2mplOption.SolveOptions(itOption->second, options.HasSetDebugFlag());
+
+  auto &mpl2mplOption = Options::GetInstance();
+  bool result = mpl2mplOption.SolveOptions(opts::debug);
   if (result == false) {
     LogInfo::MapleLogger() << "Meet error mpl2mpl options\n";
     return kErrorCompileFail;
@@ -221,12 +224,12 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, const Action &action,
   }
   options.PrintCommand(&action);
   LogInfo::MapleLogger() << "Starting maplecomb\n";
-  theModule->InitPartO2List(options.GetPartO2List());
+  theModule->InitPartO2List(opts::partO2);
   DriverRunner runner(theModule.get(), options.GetSelectedExes(), action.GetInputFileType(), fileName,
-                      fileName, fileName, options.WithDwarf(), fileParsed,
-                      options.HasSetTimePhases(), options.HasSetGenVtableImpl(),
-                      options.HasSetGenMeMpl(), options.HasSetGenMapleBC(),
-                      options.HasSetGenLMBC());
+                      fileName, fileName, opts::withDwarf, fileParsed,
+                      opts::timePhase, opts::genVtable,
+                      opts::genMeMpl, opts::genMapleBC,
+                      opts::genLMBC);
   ErrorCode ret = kErrorNoError;
 
   MIRParser parser(*theModule);
@@ -259,7 +262,7 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, const Action &action,
     return ret;
   }
 
-  if (options.HasSetDebugFlag()) {
+  if (opts::debug) {
     PrintCommand(options, action);
   }
   ErrorCode nErr = runner.Run();

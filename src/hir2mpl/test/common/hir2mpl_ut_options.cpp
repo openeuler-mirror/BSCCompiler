@@ -22,25 +22,25 @@ namespace maple {
 
 namespace opts::hir2mplut {
 
-static cl::OptionCategory hir2mplUTCategory;
+static maplecl::OptionCategory hir2mplUTCategory;
 
-cl::Option<bool> help({"--help", "-h"},
+maplecl::Option<bool> help({"--help", "-h"},
                       "  -h, -help              : print usage and exit",
                       {hir2mplUTCategory});
-cl::Option<std::string> genBase64({"--gen-base64", "-gen-base64"},
+maplecl::Option<std::string> genBase64({"--gen-base64", "-gen-base64"},
                                   "  -gen-base64 file.xx       : generate base64 string for file.xx",
                                   {hir2mplUTCategory});
-cl::Option<std::string> mplt({"--mplt", "-mplt"},
+maplecl::Option<std::string> mplt({"--mplt", "-mplt"},
                              "  -mplt lib1.mplt,lib2.mplt\n"
                              "                         : input mplt files",
                              {hir2mplUTCategory});
 
-cl::Option<std::string> inClass({"--in-class", "-in-class"},
+maplecl::Option<std::string> inClass({"--in-class", "-in-class"},
                                 "  -in-class file1.jar,file2.jar\n"
                                 "                         : input class files",
                                 {hir2mplUTCategory});
 
-cl::Option<std::string> inJar({"--in-jar", "-in-jar"},
+maplecl::Option<std::string> inJar({"--in-jar", "-in-jar"},
                               "  -in-jar file1.jar,file2.jar\n"
                               "                         : input jar files",
                               {hir2mplUTCategory});
@@ -59,7 +59,7 @@ void HIR2MPLUTOptions::DumpUsage() const {
             << " Run gtest: hir2mplUT test [ options for gtest ]\n"
             << " Run ext mode: hir2mplUT ext [ options ]\n"
             << "========= options for ext mode =========\n";
-  cl::CommandLine::GetCommandLine().HelpPrinter(opts::hir2mplut::hir2mplUTCategory);
+  maplecl::CommandLine::GetCommandLine().HelpPrinter(opts::hir2mplut::hir2mplUTCategory);
   exit(1);
 }
 
@@ -84,7 +84,7 @@ bool HIR2MPLUTOptions::SolveArgs(int argc, char **argv) {
   }
   runAll = false;
 
-  cl::CommandLine::GetCommandLine().Parse(argc, (char **)argv,
+  maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv,
                                           opts::hir2mplut::hir2mplUTCategory);
   if (opts::hir2mplut::help) {
     DumpUsage();

@@ -24,8 +24,9 @@
 #include <memory>
 #include <unordered_set>
 #include <unordered_map>
+#include "driver_options.h"
+#include "error_code.h"
 #include "file_utils.h"
-#include "option_parser.h"
 #include "mpl_logging.h"
 #include "mir_module.h"
 
@@ -293,18 +294,20 @@ struct DefaultOption {
 
 class MplOptions {
  public:
+  using ExeOptMapType = std::unordered_map<std::string, std::deque<std::string>>;
+
   MplOptions() = default;
   MplOptions(const MplOptions &options) = delete;
   MplOptions &operator=(const MplOptions &options) = delete;
   ~MplOptions() = default;
 
-  int Parse(int argc, char **argv);
+  ErrorCode Parse(int argc, char **argv);
 
-  const std::map<std::string, std::deque<mapleOption::Option>> &GetExeOptions() const {
+  const ExeOptMapType &GetExeOptions() const {
     return exeOptions;
   }
 
-  const std::string &GetInputFiles() const {
+  const std::vector<std::string> &GetInputFiles() const {
     return inputFiles;
   }
 
@@ -312,36 +315,12 @@ class MplOptions {
     return exeFolder;
   }
 
-  const OptimizationLevel &GetOptimizationLevel() const {
-    return optimizationLevel;
-  }
-
-  const std::string &GetMpltFile() const {
-    return mpltFile;
-  }
-
-  const std::string &GetPartO2List() const {
-    return partO2List;
-  }
-
   const RunMode &GetRunMode() const {
     return runMode;
   }
 
-  bool HasSetDefaultLevel() const {
-    return setDefaultLevel;
-  }
-
-  bool HasSetSaveTmps() const {
-    return isSaveTmps;
-  }
-
   const std::vector<std::string> &GetSaveFiles() const {
     return saveFiles;
-  }
-
-  const std::vector<std::string> &GetSplitsInputFiles() const {
-    return splitsInputFiles;
   }
 
   const std::vector<std::string> &GetRunningExes() const {
@@ -352,52 +331,12 @@ class MplOptions {
     return selectedExes;
   }
 
-  bool HasSetDebugFlag() const {
-    return debugFlag;
-  }
-
-  bool WithDwarf() const {
-    return withDwarf;
-  }
-
-  bool HasSetTimePhases() const {
-    return timePhases;
-  }
-
-  bool HasSetGenMeMpl() const {
-    return genMeMpl;
-  }
-
-  bool HasSetGenMapleBC() const {
-    return genMapleBC;
-  }
-
-  bool HasSetGenLMBC() const {
-    return genLMBC;
-  }
-
-  bool HasSetGenOnlyObj() const {
-    return genObj;
-  }
-
-  bool HasSetRunMaplePhase() const {
-    return runMaplePhaseOnly;
-  }
-
-  bool HasSetGenVtableImpl() const {
-    return genVtableImpl;
-  }
-
   bool HasSetGeneralRegOnly() const {
     return generalRegOnly;
   }
 
   SafetyCheckMode GetNpeCheckMode() const {
     return npeCheckMode;
-  }
-
-  bool IsNpeCheckAll() const {
-    return isNpeCheckAll;
   }
 
   SafetyCheckMode GetBoundaryCheckMode() const {
@@ -408,14 +347,7 @@ class MplOptions {
     return rootActions;
   }
 
-  const std::deque<mapleOption::Option> &GetOptions() const {
-    return optionParser->GetOptions();
-  }
-
-  bool IsSafeRegion() const {
-    return safeRegion;
-  }
-
+  maplecl::OptionCategory *GetCategory(const std::string &tool) const;
   ErrorCode AppendCombOptions(MIRSrcLang srcLang);
   ErrorCode AppendMplcgOptions(MIRSrcLang srcLang);
   std::string GetInputFileNameForPrint(const Action * const action) const;
@@ -426,10 +358,12 @@ class MplOptions {
   inline void PrintDetailCommand(bool isBeforeParse) {
     PrintDetailCommand(nullptr, isBeforeParse);
   }
+
  private:
-  bool Init(const std::string &inputFile);
-  ErrorCode HandleGeneralOptions();
-  ErrorCode DecideRunType();
+  ErrorCode CheckInputFiles();
+  ErrorCode HandleOptions();
+  void HandleExtraOptions();
+  ErrorCode HandleEarlyOptions();
   ErrorCode DecideRunningPhases();
   ErrorCode DecideRunningPhases(const std::vector<std::string> &runExes);
   std::unique_ptr<Action> DecideRunningPhasesByType(const InputInfo *const inputInfo, bool isMultipleFiles);
@@ -437,59 +371,44 @@ class MplOptions {
                                 const InputInfo *const inputInfo, bool &wasWrpCombCompilerCreated);
   ErrorCode SFCreateActionByExe(const std::string &exe, std::unique_ptr<Action> &currentAction,
                                 const InputInfo *const inputInfo, bool &isCombCompiler);
-  ErrorCode CheckInputFileValidity();
-  ErrorCode CheckFileExits();
-  ErrorCode AddOption(const mapleOption::Option &option);
   InputInfo *AllocateInputInfo(const std::string &inputFile);
-  ErrorCode UpdatePhaseOption(const std::string &args, const std::string &exeName);
-  ErrorCode UpdateExtraOptionOpt(const std::string &args);
   ErrorCode AppendDefaultOptions(const std::string &exeName, MplOption mplOptions[], unsigned int length);
-  void DumpAppendedOptions(const std::string &exeName, const MplOption mplOptions[],
-                           unsigned int length) const;
+  void DumpAppendedOptions(const std::string &exeName,
+                           const MplOption mplOptions[], unsigned int length) const;
   void UpdateRunningExe(const std::string &args);
+  void UpdateExeOptions(const std::string &options, const std::string &tool);
+  ErrorCode UpdateExeOptions(const std::string &args);
   void DumpActionTree(const Action &action, int idents) const;
   void DumpActionTree() const;
-  std::unique_ptr<mapleOption::OptionParser> optionParser = nullptr;
-  std::map<std::string, std::vector<mapleOption::Option>> options = {};
-  std::map<std::string, std::deque<mapleOption::Option>> exeOptions = {};
-  std::string inputFiles = "";
-  std::string exeFolder = "";
-  std::string mpltFile = "";
-  std::string meOptArgs = "";
-  std::string mpl2mplOptArgs = "";
-  std::string mplcgOptArgs = "";
-  OptimizationLevel optimizationLevel = OptimizationLevel::kO0;
+
+  std::vector<std::string> inputFiles;
+  std::string exeFolder;
   RunMode runMode = RunMode::kUnkownRun;
-  bool setDefaultLevel = false;
-  bool isSaveTmps = false;
   std::vector<std::string> saveFiles = {};
-  std::vector<std::string> splitsInputFiles = {};
   std::vector<std::string> runningExes = {};
   std::vector<std::string> selectedExes = {};
-  bool optForSize = false;
-  bool isWithIpa = false;
   std::ostringstream printExtraOptStr;
-  bool debugFlag = false;
-  bool withDwarf = false;
-  bool timePhases = false;
-  bool genObj = false;
-  bool genMeMpl = false;
-  bool genMapleBC = false;
-  bool genLMBC = false;
-  bool runMaplePhaseOnly = true;
-  bool genVtableImpl = false;
+
+  /* exeOptions is used to forward options to necessary tool.
+   * As example: --ld-opt="opt1 opt2" will be forwarded to linker */
+  ExeOptMapType exeOptions;
+
   bool hasPrinted = false;
   bool generalRegOnly = false;
-  bool isDriverPhasesDumpCmd = false;
-  unsigned int helpLevel = mapleOption::kBuildTypeDefault;
-  std::string partO2List = "";
   SafetyCheckMode npeCheckMode = SafetyCheckMode::kNoCheck;
-  bool isNpeCheckAll = false;
   SafetyCheckMode boundaryCheckMode = SafetyCheckMode::kNoCheck;
-  bool safeRegion = false;
 
   std::vector<std::unique_ptr<InputInfo>> inputInfos;
   std::vector<std::unique_ptr<Action>> rootActions;
 };
+
+enum Level {
+  kLevelZero = 0,
+  kLevelOne = 1,
+  kLevelTwo = 2,
+  kLevelThree = 3,
+  kLevelFour = 4
+};
+
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_MPL_OPTIONS_H

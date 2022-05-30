@@ -17,11 +17,11 @@
 #include <algorithm>
 #include <iterator>
 
-using namespace cl;
+using namespace maplecl;
 
 void OptionInterface::FinalizeInitialization(const std::vector<std::string> &optnames,
                                              const std::string &descr,
-                                             const std::vector<OptionCategory *> &optionCategories) {
+                                             const std::vector<OptionCategoryRefWrp> &optionCategories) {
   optDescription = descr;
   auto &cl = CommandLine::GetCommandLine();
 
@@ -31,7 +31,7 @@ void OptionInterface::FinalizeInitialization(const std::vector<std::string> &opt
     cl.Register(optnames, *this, cl.defaultCategory);
   } else {
     for (auto &cat : optionCategories) {
-      cl.Register(optnames, *this, *cat);
+      cl.Register(optnames, *this, cat.get());
     }
   }
 }

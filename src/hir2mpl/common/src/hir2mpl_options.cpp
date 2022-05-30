@@ -176,14 +176,14 @@ bool HIR2MPLOptions::SolveOptions(bool isDebug) {
 
 bool HIR2MPLOptions::SolveArgs(int argc, char **argv) {
 
-  cl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, hir2mplCategory);
+  maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, hir2mplCategory);
   bool result = SolveOptions(opts::hir2mpl::debug);
   if (!result) {
     return result;
   }
 
   std::vector<std::string> inputs;
-  for (auto &arg : cl::CommandLine::GetCommandLine().badCLArgs) {
+  for (auto &arg : maplecl::CommandLine::GetCommandLine().badCLArgs) {
     if (FileUtils::IsFileExists(arg.first)) {
       inputs.push_back(arg.first);
     } else {
@@ -207,24 +207,24 @@ bool HIR2MPLOptions::SolveArgs(int argc, char **argv) {
 
 void HIR2MPLOptions::DumpUsage() const {
   std::cout << "\n====== Usage: hir2mpl [options] input1 input2 input3 ======\n";
-  cl::CommandLine::GetCommandLine().HelpPrinter(hir2mplCategory);
+  maplecl::CommandLine::GetCommandLine().HelpPrinter(hir2mplCategory);
 }
 
 void HIR2MPLOptions::DumpVersion() const {
   std::cout << "Maple FE Version : " << Version::GetVersionStr() << std::endl;
 }
 
-bool HIR2MPLOptions::ProcessHelp(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessHelp(const maplecl::OptionInterface &) {
   DumpUsage();
   return false;
 }
 
-bool HIR2MPLOptions::ProcessVersion(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessVersion(const maplecl::OptionInterface &) {
   DumpVersion();
   return false;
 }
 
-bool HIR2MPLOptions::ProcessInClass(const cl::OptionInterface &inClass) {
+bool HIR2MPLOptions::ProcessInClass(const maplecl::OptionInterface &inClass) {
   std::string arg = inClass.GetCommonValue();
   std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
@@ -233,7 +233,7 @@ bool HIR2MPLOptions::ProcessInClass(const cl::OptionInterface &inClass) {
   return true;
 }
 
-bool HIR2MPLOptions::ProcessInJar(const cl::OptionInterface &inJar) {
+bool HIR2MPLOptions::ProcessInJar(const maplecl::OptionInterface &inJar) {
   std::string arg = inJar.GetCommonValue();
   std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
@@ -242,7 +242,7 @@ bool HIR2MPLOptions::ProcessInJar(const cl::OptionInterface &inJar) {
   return true;
 }
 
-bool HIR2MPLOptions::ProcessInDex(const cl::OptionInterface &inDex) {
+bool HIR2MPLOptions::ProcessInDex(const maplecl::OptionInterface &inDex) {
   std::string arg = inDex.GetCommonValue();
   std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
@@ -251,7 +251,7 @@ bool HIR2MPLOptions::ProcessInDex(const cl::OptionInterface &inDex) {
   return true;
 }
 
-bool HIR2MPLOptions::ProcessInAST(const cl::OptionInterface &inAst) {
+bool HIR2MPLOptions::ProcessInAST(const maplecl::OptionInterface &inAst) {
   std::string arg = inAst.GetCommonValue();
   std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
@@ -260,7 +260,7 @@ bool HIR2MPLOptions::ProcessInAST(const cl::OptionInterface &inAst) {
   return true;
 }
 
-bool HIR2MPLOptions::ProcessInMAST(const cl::OptionInterface &inMast) {
+bool HIR2MPLOptions::ProcessInMAST(const maplecl::OptionInterface &inMast) {
   std::string arg = inMast.GetCommonValue();
   std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
@@ -269,7 +269,7 @@ bool HIR2MPLOptions::ProcessInMAST(const cl::OptionInterface &inMast) {
   return true;
 }
 
-bool HIR2MPLOptions::ProcessInputMplt(const cl::OptionInterface &mplt) {
+bool HIR2MPLOptions::ProcessInputMplt(const maplecl::OptionInterface &mplt) {
   std::string arg = mplt.GetCommonValue();
   std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
@@ -278,7 +278,7 @@ bool HIR2MPLOptions::ProcessInputMplt(const cl::OptionInterface &mplt) {
   return true;
 }
 
-bool HIR2MPLOptions::ProcessInputMpltFromSys(const cl::OptionInterface &mpltSys) {
+bool HIR2MPLOptions::ProcessInputMpltFromSys(const maplecl::OptionInterface &mpltSys) {
   std::string arg = mpltSys.GetCommonValue();
   std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
@@ -287,7 +287,7 @@ bool HIR2MPLOptions::ProcessInputMpltFromSys(const cl::OptionInterface &mpltSys)
   return true;
 }
 
-bool HIR2MPLOptions::ProcessInputMpltFromApk(const cl::OptionInterface &mpltApk) {
+bool HIR2MPLOptions::ProcessInputMpltFromApk(const maplecl::OptionInterface &mpltApk) {
   std::string arg = mpltApk.GetCommonValue();;
   std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
@@ -296,76 +296,76 @@ bool HIR2MPLOptions::ProcessInputMpltFromApk(const cl::OptionInterface &mpltApk)
   return true;
 }
 
-bool HIR2MPLOptions::ProcessOutputPath(const cl::OptionInterface &output) {
+bool HIR2MPLOptions::ProcessOutputPath(const maplecl::OptionInterface &output) {
   std::string arg = output.GetCommonValue();
   FEOptions::GetInstance().SetOutputPath(arg);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessOutputName(const cl::OptionInterface &outputName) {
+bool HIR2MPLOptions::ProcessOutputName(const maplecl::OptionInterface &outputName) {
   std::string arg = outputName.GetCommonValue();
   FEOptions::GetInstance().SetOutputName(arg);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessGenMpltOnly(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessGenMpltOnly(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetIsGenMpltOnly(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessGenAsciiMplt(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessGenAsciiMplt(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetIsGenAsciiMplt(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpInstComment(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessDumpInstComment(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().EnableDumpInstComment();
   return true;
 }
 
-bool HIR2MPLOptions::ProcessNoMplFile(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessNoMplFile(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetNoMplFile();
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpLevel(const cl::OptionInterface &outputName) {
+bool HIR2MPLOptions::ProcessDumpLevel(const maplecl::OptionInterface &outputName) {
   uint32_t arg = outputName.GetCommonValue();
   FEOptions::GetInstance().SetDumpLevel(arg);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpTime(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessDumpTime(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpTime(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpComment(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessDumpComment(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpComment(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpLOC(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessDumpLOC(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpLOC(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDbgFriendly(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessDbgFriendly(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetDbgFriendly(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpPhaseTime(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessDumpPhaseTime(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpPhaseTime(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpPhaseTimeDetail(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessDumpPhaseTimeDetail(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpPhaseTimeDetail(true);
   return true;
 }
 
 // java compiler options
-bool HIR2MPLOptions::ProcessModeForJavaStaticFieldName(const cl::OptionInterface &opt) {
+bool HIR2MPLOptions::ProcessModeForJavaStaticFieldName(const maplecl::OptionInterface &opt) {
   const std::string &arg = opt.GetCommonValue();
   if (arg.compare("notype") == 0) {
     FEOptions::GetInstance().SetModeJavaStaticFieldName(FEOptions::ModeJavaStaticFieldName::kNoType);
@@ -380,27 +380,27 @@ bool HIR2MPLOptions::ProcessModeForJavaStaticFieldName(const cl::OptionInterface
   return true;
 }
 
-bool HIR2MPLOptions::ProcessJBCInfoUsePathName(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessJBCInfoUsePathName(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetIsJBCInfoUsePathName(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpJBCStmt(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessDumpJBCStmt(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpJBCStmt(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpJBCAll(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessDumpJBCAll(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpJBCAll(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpJBCErrorOnly(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessDumpJBCErrorOnly(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpJBCErrorOnly(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpJBCFuncName(const cl::OptionInterface &opt) {
+bool HIR2MPLOptions::ProcessDumpJBCFuncName(const maplecl::OptionInterface &opt) {
   std::string arg = opt.GetCommonValue();
   while (!arg.empty()) {
     size_t pos = arg.find(",");
@@ -415,40 +415,40 @@ bool HIR2MPLOptions::ProcessDumpJBCFuncName(const cl::OptionInterface &opt) {
   return true;
 }
 
-bool HIR2MPLOptions::ProcessEmitJBCLocalVarInfo(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessEmitJBCLocalVarInfo(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetIsEmitJBCLocalVarInfo(true);
   return true;
 }
 
 // bc compiler options
-bool HIR2MPLOptions::ProcessRC(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessRC(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetRC(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessNoBarrier(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessNoBarrier(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetNoBarrier(true);
   return true;
 }
 
 // ast compiler options
-bool HIR2MPLOptions::ProcessUseSignedChar(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessUseSignedChar(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetUseSignedChar(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessBigEndian(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessBigEndian(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetBigEndian(true);
   return true;
 }
 
 // general stmt/bb/cfg debug options
-bool HIR2MPLOptions::ProcessDumpFEIRBB(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessDumpFEIRBB(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetIsDumpFEIRBB(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpFEIRCFGGraph(const cl::OptionInterface &opt) {
+bool HIR2MPLOptions::ProcessDumpFEIRCFGGraph(const maplecl::OptionInterface &opt) {
   std::string arg = opt.GetCommonValue();
   std::list<std::string> funcNameList = SplitByComma(arg);
   for (const std::string &funcName : funcNameList) {
@@ -458,13 +458,13 @@ bool HIR2MPLOptions::ProcessDumpFEIRCFGGraph(const cl::OptionInterface &opt) {
 }
 
 // multi-thread control options
-bool HIR2MPLOptions::ProcessNThreads(const cl::OptionInterface &numThreads) {
+bool HIR2MPLOptions::ProcessNThreads(const maplecl::OptionInterface &numThreads) {
   uint32_t num = numThreads.GetCommonValue();
   FEOptions::GetInstance().SetNThreads(num);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessDumpThreadTime(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessDumpThreadTime(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetDumpThreadTime(true);
   return true;
 }
@@ -502,21 +502,21 @@ void HIR2MPLOptions::ProcessInputFiles(const std::vector<std::string> &inputs) {
 }
 
 // Xbootclasspath
-bool HIR2MPLOptions::ProcessXbootclasspath(const cl::OptionInterface &xbootclasspath) {
+bool HIR2MPLOptions::ProcessXbootclasspath(const maplecl::OptionInterface &xbootclasspath) {
   std::string arg = xbootclasspath.GetCommonValue();
   FEOptions::GetInstance().SetXBootClassPath(arg);
   return true;
 }
 
 // PCL
-bool HIR2MPLOptions::ProcessClassLoaderContext(const cl::OptionInterface &classloadercontext) {
+bool HIR2MPLOptions::ProcessClassLoaderContext(const maplecl::OptionInterface &classloadercontext) {
   std::string arg = classloadercontext.GetCommonValue();
   FEOptions::GetInstance().SetClassLoaderContext(arg);
   return true;
 }
 
 // Dep
-bool HIR2MPLOptions::ProcessCollectDepTypes(const cl::OptionInterface &dep) {
+bool HIR2MPLOptions::ProcessCollectDepTypes(const maplecl::OptionInterface &dep) {
   const std::string arg = dep.GetCommonValue();
   if (arg.compare("all") == 0) {
     FEOptions::GetInstance().SetModeCollectDepTypes(FEOptions::ModeCollectDepTypes::kAll);
@@ -530,7 +530,7 @@ bool HIR2MPLOptions::ProcessCollectDepTypes(const cl::OptionInterface &dep) {
 }
 
 // SameNamePolicy
-bool HIR2MPLOptions::ProcessDepSameNamePolicy(const cl::OptionInterface &depsamename) {
+bool HIR2MPLOptions::ProcessDepSameNamePolicy(const maplecl::OptionInterface &depsamename) {
   const std::string arg = depsamename.GetCommonValue();
   if (arg.compare("sys") == 0) {
     FEOptions::GetInstance().SetModeDepSameNamePolicy(FEOptions::ModeDepSameNamePolicy::kSys);
@@ -544,17 +544,17 @@ bool HIR2MPLOptions::ProcessDepSameNamePolicy(const cl::OptionInterface &depsame
 }
 
 // EnhanceC
-bool HIR2MPLOptions::ProcessNpeCheckDynamic(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessNpeCheckDynamic(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetNpeCheckDynamic(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessBoundaryCheckDynamic(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessBoundaryCheckDynamic(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetBoundaryCheckDynamic(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessSafeRegion(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessSafeRegion(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetSafeRegion(true);
   // boundary and npe checking options will be opened, if safe region option is opened
   FEOptions::GetInstance().SetNpeCheckDynamic(true);
@@ -562,35 +562,35 @@ bool HIR2MPLOptions::ProcessSafeRegion(const cl::OptionInterface &) {
   return true;
 }
 
-bool HIR2MPLOptions::ProcessO2(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessO2(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetO2(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessSimplifyShortCircuit(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessSimplifyShortCircuit(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetSimplifyShortCircuit(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessEnableVariableArray(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessEnableVariableArray(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetEnableVariableArray(true);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessFuncInlineSize(const cl::OptionInterface &funcInliceSize) {
+bool HIR2MPLOptions::ProcessFuncInlineSize(const maplecl::OptionInterface &funcInliceSize) {
   uint32_t size = funcInliceSize.GetCommonValue();
   FEOptions::GetInstance().SetFuncInlineSize(size);
   return true;
 }
 
-bool HIR2MPLOptions::ProcessWPAA(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessWPAA(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetWPAA(true);
   FEOptions::GetInstance().SetFuncInlineSize(UINT32_MAX);
   return true;
 }
 
 // AOT
-bool HIR2MPLOptions::ProcessAOT(const cl::OptionInterface &) {
+bool HIR2MPLOptions::ProcessAOT(const maplecl::OptionInterface &) {
   FEOptions::GetInstance().SetIsAOT(true);
   return true;
 }

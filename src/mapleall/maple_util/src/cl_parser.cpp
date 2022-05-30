@@ -18,12 +18,13 @@
 #include "mpl_logging.h"
 
 #include <cstddef>
+#include <deque>
 #include <iostream>
 #include <string>
 #include <string_view>
 #include <set>
 
-using namespace cl;
+using namespace maplecl;
 
 CommandLine &CommandLine::GetCommandLine() {
   static CommandLine cl;
@@ -48,7 +49,7 @@ OptionInterface *CommandLine::CheckJoinedOption(KeyArg &keyArg, OptionCategory &
 }
 
 RetCode CommandLine::ParseJoinedOption(ssize_t &argsIndex,
-                                       const std::vector<std::string_view> &args,
+                                       const std::deque<std::string_view> &args,
                                        KeyArg &keyArg, OptionCategory &optCategory) {
   OptionInterface *option = CheckJoinedOption(keyArg, optCategory);
   if (option != nullptr) {
@@ -56,7 +57,11 @@ RetCode CommandLine::ParseJoinedOption(ssize_t &argsIndex,
     if (err != RetCode::noError) {
       return err;
     }
-    optCategory.enabledOptions.push_back(option);
+
+    /* Set Option in all categories registering for this option */
+    for (auto &category : option->optCategories) {
+      category->AddEnabledOption(option);
+    }
   } else {
     return RetCode::notRegistered;
   }
@@ -65,20 +70,24 @@ RetCode CommandLine::ParseJoinedOption(ssize_t &argsIndex,
 }
 
 RetCode CommandLine::ParseOption(ssize_t &argsIndex,
-                                 const std::vector<std::string_view> &args,
+                                 const std::deque<std::string_view> &args,
                                  KeyArg &keyArg, OptionCategory &optCategory,
                                  OptionInterface *opt) {
   RetCode err = opt->Parse(argsIndex, args, keyArg);
   if (err != RetCode::noError) {
     return err;
   }
-  optCategory.enabledOptions.push_back(opt);
+
+  /* Set Option in all categories registering for this option */
+  for (auto &category : opt->optCategories) {
+    category->AddEnabledOption(opt);
+  }
 
   return RetCode::noError;
 }
 
 RetCode CommandLine::ParseEqualOption(ssize_t &argsIndex,
-                                      const std::vector<std::string_view> &args,
+                                      const std::deque<std::string_view> &args,
                                       KeyArg &keyArg, OptionCategory &optCategory,
                                       const OptionsMapType &optMap, ssize_t pos) {
   keyArg.isEqualOpt = true;
@@ -102,7 +111,7 @@ RetCode CommandLine::ParseEqualOption(ssize_t &argsIndex,
 }
 
 RetCode CommandLine::ParseSimpleOption(ssize_t &argsIndex,
-                                       const std::vector<std::string_view> &args,
+                                       const std::deque<std::string_view> &args,
                                        KeyArg &keyArg, OptionCategory &optCategory,
                                        const OptionsMapType &optMap) {
   keyArg.isEqualOpt = false;
@@ -118,7 +127,7 @@ RetCode CommandLine::ParseSimpleOption(ssize_t &argsIndex,
   }
 }
 
-RetCode CommandLine::HandleInputArgs(const std::vector<std::string_view> &args,
+RetCode CommandLine::HandleInputArgs(const std::deque<std::string_view> &args,
                                      OptionCategory &optCategory) {
   RetCode err = RetCode::noError;
 
@@ -181,7 +190,7 @@ RetCode CommandLine::Parse(int argc, char **argv, OptionCategory &optCategory) {
     return RetCode::noError;
   }
 
-  std::vector<std::string_view> args;
+  std::deque<std::string_view> args;
   while (argc != 0 && *argv != nullptr) {
     args.emplace_back(*argv);
     ++argv;
@@ -198,7 +207,7 @@ void CommandLine::Register(const std::vector<std::string> &optNames,
       continue;
     }
 
-    ASSERT(optCategory.options.count(optName) == 0, "Duplicated options name");
+    ASSERT(optCategory.options.count(optName) == 0, "Duplicated options name %s", optName.data());
     optCategory.options.emplace(optName, &opt);
 
     if (opt.IsJoinedValPermitted()) {
@@ -208,7 +217,30 @@ void CommandLine::Register(const std::vector<std::string> &optNames,
 
   auto disabledWith = opt.GetDisabledName();
   if (!disabledWith.empty()) {
-    ASSERT(optCategory.options.count(disabledWith) == 0, "Duplicated options name");
+    ASSERT(optCategory.options.count(disabledWith) == 0, "Duplicated options name %s", disabledWith.data());
     optCategory.options.emplace(disabledWith, &opt);
+  }
+
+  optCategory.registredOptions.push_back(&opt);
+  opt.optCategories.push_back(&optCategory);
+}
+
+void CommandLine::Clear(OptionCategory &optCategory) {
+  for (auto &opt : optCategory.registredOptions) {
+    opt->Clear();
+  }
+}
+
+void CommandLine::BashCompletionPrinter(const OptionCategory &optCategory) const {
+  for (auto &opt : optCategory.options) {
+    maple::LogInfo::MapleLogger() << opt.first << '\n';
+  }
+}
+
+void CommandLine::HelpPrinter(const OptionCategory &optCategory) const {
+  for (auto &opt : optCategory.registredOptions) {
+    if (opt->IsVisibleOption()) {
+      maple::LogInfo::MapleLogger() << opt->GetDescription() << '\n';
+    }
   }
 }

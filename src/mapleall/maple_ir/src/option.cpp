@@ -16,11 +16,12 @@
 #include <iostream>
 #include <cstring>
 #include <cctype>
+#include "driver_options.h"
+#include "file_utils.h"
 #include "mpl_logging.h"
-#include "option_parser.h"
+#include "mpl2mpl_options.h"
 
 namespace maple {
-using namespace mapleOption;
 
 bool Options::dumpBefore = false;
 bool Options::dumpAfter = false;
@@ -67,6 +68,7 @@ bool Options::skipVirtualMethod = false;
 #endif
 bool Options::profileGen = false;
 bool Options::profileUse = false;
+bool Options::genLMBC = false;
 
 // Ready to be deleted.
 bool Options::noRC = false;
@@ -122,1329 +124,234 @@ bool Options::sideEffect = true;
 bool Options::dumpIPA = false;
 bool Options::wpaa = false;  // whole program alias analysis
 
-enum OptionIndex {
-  kMpl2MplDumpPhase = kCommonOptionEnd + 1,
-  kMpl2MplSkipPhase,
-  kMpl2MplSkipFrom,
-  kMpl2MplSkipAfter,
-  kMpl2MplDumpFunc,
-  kMpl2MplQuiet,
-  kMpl2MplStubJniFunc,
-  kMpl2MplSkipVirtual,
-  kRegNativeDynamicOnly,
-  kRegNativeStaticBindingList,
-  kNativeWrapper,
-  kMpl2MplDumpBefore,
-  kMpl2MplDumpAfter,
-  kMpl2MplMapleLinker,
-  kMplnkDumpMuid,
-  kEmitVtableImpl,
-  kInlineWithProfile,
-  kInlineWithoutProfile,
-  kMpl2MplUseInline,
-  kMpl2MplEnableIPAClone,
-  kMpl2MplNoInlineFuncList,
-  kImportFileList,
-  kMpl2MplUseCrossModuleInline,
-  kInlineSmallFunctionThreshold,
-  kInlineHotFunctionThreshold,
-  kInlineRecursiveFunctionThreshold,
-  kInlineDepth,
-  kInlineModuleGrowth,
-  kInlineColdFunctionThreshold,
-  kProfileHotCount,
-  kProfileColdCount,
-  kProfileHotRate,
-  kProfileColdRate,
-  // For Clone
-  kNumOfCloneVersions,
-  kNumOfImpExprLowBound,
-  kNumOfImpExprHighBound,
-  kNumOfCallSiteLowBound,
-  kNumOfCallSiteUpBound,
-  kNumOfConstpropValue,
-  // Ready to be deleted.
-  kMpl2MplUseRc,
-  kMpl2MplStrictNaiveRc,
-  kRcOpt1,
-  kMpl2MplNoReflec,  // not used
-  kMpl2MplStubFunc,  // not used
-  kMpl2MplNativeOpt,
-  kMpl2MplOptL0,
-  kMpl2MplOptL2,
-  kMpl2MplOptLs,  // optimize for size
-  kMpl2MplNoDot,
-  kGenIRProfile,
-  kProfileTest,
-  kCriticalnative,
-  kFastnative,
-  kMpl2MplBarrier,
-  kNativeFuncPropertyFile,
-  kMplnkNoLocal,
-  kBuildApp,
-  kPartialAot,
-  kSourceMuid,
-  kDeferredVisit,
-  kDeferredVisit2,
-  kDecoupleSuper,
-  kGenVtabAndItabForDecouple,
-  kProfileFunc,
-  kDumpDevirtual,
-  kReadDevirtual,
-  kPreloadedClass,
-  kAppPackageName,
-  kCheckClInvocation,
-  kDumpClInvocation,
-  kMpl2MplWarnLevel,
-  kMpl2MplLazyBinding,
-  kMpl2MplHotFix,
-  kMpl2MplCompactMeta,
-  kGenPGOReport,
-  kInlineCache,
-  kNoComment,
-  kRmNoUseFunc,
-  kSideEffect,
-  kDumpIPA,
-  kWPAA
-};
-
-const Descriptor kUsage[] = {
-  { kMpl2MplDumpPhase,
-    0,
-    "",
-    "dump-phase",
-    kBuildTypeDebug,
-    kArgCheckPolicyRequired,
-    "  --dump-phase                \tEnable debug trace for specified phase (can only specify once)\n"
-    "                              \t--dump-phase=PHASENAME\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplSkipPhase,
-    0,
-    "",
-    "skip-phase",
-    kBuildTypeProduct,
-    kArgCheckPolicyRequired,
-    "  --skip-phase                \tSkip the phase when adding it to phase manager\n"
-    "                              \t--skip-phase=PHASENAME\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplSkipFrom,
-    0,
-    "",
-    "skip-from",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --skip-from                 \tSkip all remaining phases including PHASENAME\n"
-    "                              \t--skip-from=PHASENAME\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplSkipAfter,
-    0,
-    "",
-    "skip-after",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --skip-after                \tSkip all remaining phases after PHASENAME\n"
-    "                              \t--skip-after=PHASENAME\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplDumpFunc,
-    0,
-    "",
-    "dump-func",
-    kBuildTypeDebug,
-    kArgCheckPolicyRequired,
-    "  --dump-func                 \tDump/trace only for functions whose names contain FUNCNAME as substring\n"
-    "                              \t(can only specify once)\n"
-    "                              \t--dump-func=FUNCNAME\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplQuiet,
-    kEnable,
-    "",
-    "quiet",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --quiet                     \tDisable brief trace messages with phase/function names\n"
-    "  --no-quiet                  \tEnable brief trace messages with phase/function names\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplMapleLinker,
-    kEnable,
-    "",
-    "maplelinker",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --maplelinker               \tGenerate MUID symbol tables and references\n"
-    "  --no-maplelinker            \tDon't Generate MUID symbol tables and references\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplStubJniFunc,
-    kEnable,
-    "",
-    "regnativefunc",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --regnativefunc             \tGenerate native stub function to support JNI registration and calling\n"
-    "  --no-regnativefunc          \tDisable regnativefunc\n",
-    "mpl2mpl",
-    {} },
-  { kInlineWithProfile,
-    kEnable,
-    "",
-    "inline-with-profile",
-    kBuildTypeExperimental,
-    kArgCheckPolicyBool,
-    "  --inline-with-profile       \tEnable profile-based inlining\n"
-    "  --no-inline-with-profile    \tDisable profile-based inlining\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplUseInline,
-    kEnable,
-    "",
-    "inline",
-    kBuildTypeExperimental,
-    kArgCheckPolicyBool,
-    "  --inline                    \tEnable function inlining\n"
-    "  --no-inline                 \tDisable function inlining\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplEnableIPAClone,
-    kEnable,
-    "",
-    "ipa-clone",
-    kBuildTypeExperimental,
-    kArgCheckPolicyBool,
-    "  --ipa-clone                 \tEnable ipa constant_prop and clone\n"
-    "  --no-ipa-clone              \tDisable ipa constant_prop and clone\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplNoInlineFuncList,
-    0,
-    "",
-    "no-inlinefunclist",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --no-inlinefunclist=list    \tDo not inline function in this list\n",
-    "mpl2mpl",
-    {} },
-  { kImportFileList,
-    0,
-    "",
-    "importfilelist",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --importfilelist=list    \tImport there files to do cross module analysis\n",
-    "mpl2mpl",
-    {} },
-  { kNumOfCloneVersions,
-    0,
-    "",
-    "num-of-clone-versions",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --num-of-clone-versions=3        \tnum of clone versions\n",
-    "mpl2mpl",
-    {} },
-  { kNumOfImpExprLowBound,
-    0,
-    "",
-    "num-of-ImpExpr-LowBound",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --num-of-ImpExpr-LowBound=3        \tnum of ImpExpr LowBound\n",
-    "mpl2mpl",
-    {} },
-  { kNumOfImpExprHighBound,
-    0,
-    "",
-    "num-of-ImpExpr-HighBound",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --num-of-ImpExpr-HighBound=3        \tnum of ImpExpr HighBound\n",
-    "mpl2mpl",
-    {} },
-  { kNumOfCallSiteLowBound,
-    0,
-    "",
-    "num-of-CallSite-LowBound",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --num-of-CallSite-LowBound=3        \tnum of CallSite LowBound\n",
-    "mpl2mpl",
-    {} },
-  { kNumOfCallSiteUpBound,
-    0,
-    "",
-    "num-of-CallSite-HighBound",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --num-of-CallSite-HighBound=3        \tnum of CallSite HighBound\n",
-    "mpl2mpl",
-    {} },
-  { kNumOfConstpropValue,
-    0,
-    "",
-    "num-of-ConstProp-value",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --num-of-ConstProp-Value=3        \tnum of const prop value\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplUseCrossModuleInline,
-    kEnable,
-    "",
-    "cross-module-inline",
-    kBuildTypeExperimental,
-    kArgCheckPolicyBool,
-    "  --cross-module-inline       \tEnable cross-module inlining\n"
-    "  --no-cross-module-inline    \tDisable cross-module inlining\n",
-    "mpl2mpl",
-    {} },
-  { kInlineSmallFunctionThreshold,
-    0,
-    "",
-    "inline-small-function-threshold",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --inline-small-function-threshold=15            \tThreshold for inlining small function\n",
-    "mpl2mpl",
-    {} },
-  { kInlineHotFunctionThreshold,
-    0,
-    "",
-    "inline-hot-function-threshold",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --inline-hot-function-threshold=30              \tThreshold for inlining hot function\n",
-    "mpl2mpl",
-    {} },
-  { kInlineRecursiveFunctionThreshold,
-    0,
-    "",
-    "inline-recursive-function-threshold",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --inline-recursive-function-threshold=15              \tThreshold for inlining recursive function\n",
-    "mpl2mpl",
-    {} },
-  { kInlineDepth,
-    0,
-    "",
-    "inline-depth",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --inline-depth=8              \tMax call graph depth for inlining\n",
-    "mpl2mpl",
-    {} },
-  { kInlineModuleGrowth,
-    0,
-    "",
-    "inline-module-growth",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --inline-module-growth=100000                   \tThreshold for maxmium code size growth rate (10%)\n",
-    "mpl2mpl",
-    {} },
-  { kInlineColdFunctionThreshold,
-    0,
-    "",
-    "inline-cold-function-threshold",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --inline-cold-function-threshold=3              \tThreshold for inlining hot function\n",
-    "mpl2mpl",
-    {} },
-  { kProfileHotCount,
-    0,
-    "",
-    "profile-hot-count",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --profile-hot-count=1000    \tA count is regarded as hot if it exceeds this number\n",
-    "mpl2mpl",
-    {} },
-  { kProfileColdCount,
-    0,
-    "",
-    "profile-cold-count",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --profile-cold-count=10     \tA count is regarded as cold if it is below this number\n",
-    "mpl2mpl",
-    {} },
-  { kProfileHotRate,
-    0,
-    "",
-    "profile-hot-rate",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --profile-hot-rate=500000   \tA count is regarded as hot if it is in the largest 50%\n",
-    "mpl2mpl",
-    {} },
-  { kProfileColdRate,
-    0,
-    "",
-    "profile-cold-rate",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --profile-cold-rate=900000  \tA count is regarded as cold if it is in the smallest 10%\n",
-    "mpl2mpl",
-    {} },
-  { kNativeWrapper,
-    kEnable,
-    "",
-    "nativewrapper",
-    kBuildTypeExperimental,
-    kArgCheckPolicyBool,
-    "  --nativewrapper             \tGenerate native wrappers [default]\n",
-    "mpl2mpl",
-    {} },
-  { kRegNativeDynamicOnly,
-    kEnable,
-    "",
-    "regnative-dynamic-only",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --regnative-dynamic-only    \tOnly Generate dynamic register code, Report Fatal Msg if no implemented\n"
-    "  --no-regnative-dynamic-only \tDisable regnative-dynamic-only\n",
-    "mpl2mpl",
-    {} },
-  { kRegNativeStaticBindingList,
-    0,
-    "",
-    "static-binding-list",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --static-bindig-list        \tOnly Generate static binding function in file configure list\n"
-    "                              \t--static-bindig-list=file\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplDumpBefore,
-    kEnable,
-    "",
-    "dump-before",
-    kBuildTypeDebug,
-    kArgCheckPolicyBool,
-    "  --dump-before               \tDo extra IR dump before the specified phase\n"
-    "  --no-dump-before            \tDon't extra IR dump before the specified phase\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplDumpAfter,
-    kEnable,
-    "",
-    "dump-after",
-    kBuildTypeDebug,
-    kArgCheckPolicyBool,
-    "  --dump-after                \tDo extra IR dump after the specified phase\n"
-    "  --no-dump-after             \tDon't extra IR dump after the specified phase\n",
-    "mpl2mpl",
-    {} },
-  { kMplnkDumpMuid,
-    kEnable,
-    "",
-    "dump-muid",
-    kBuildTypeDebug,
-    kArgCheckPolicyBool,
-    "  --dump-muid                 \tDump MUID def information into a .muid file\n"
-    "  --no-dump-muid              \tDon't dump MUID def information into a .muid file\n",
-    "mpl2mpl",
-    {} },
-  { kEmitVtableImpl,
-    kEnable,
-    "",
-    "emitVtableImpl",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --emitVtableImpl            \tgenerate VtableImpl file\n"
-    "  --no-emitVtableImpl         \tDon't generate VtableImpl file\n",
-    "mpl2mpl",
-    {} },
-#if MIR_JAVA
-  { kMpl2MplSkipVirtual,
-    kEnable,
-    "",
-    "skipvirtual",
-    kBuildTypeExperimental,
-    kArgCheckPolicyBool,
-    "  --skipvirtual\n"
-    "  --no-skipvirtual\n",
-    "mpl2mpl",
-    {} },
-#endif
-  { kMpl2MplUseRc,
-    kEnable,
-    "",
-    "userc",
-    kBuildTypeExperimental,
-    kArgCheckPolicyBool,
-    "  --userc                     \tEnable reference counting [default]\n"
-    "  --no-userc                  \tDisable reference counting [default]\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplStrictNaiveRc,
-    kEnable,
-    "",
-    "strict-naiverc",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --strict-naiverc            \tStrict Naive RC mode, assume no unsafe multi-thread read/write racing\n"
-    "  --no-strict-naiverc         \tDisable strict-naiverc\n",
-    "mpl2mpl",
-    {} },
-  { kRcOpt1,
-    kEnable,
-    "",
-    "rc-opt1",
-    kBuildTypeExperimental,
-    kArgCheckPolicyNone,
-    "  --rc-opt1                   \tEnable RC optimization1 [default]\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplNativeOpt,
-    kEnable,
-    "",
-    "nativeopt",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --nativeopt                 \tEnable native opt\n"
-    "  --no-nativeopt              \tDisable native opt\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplOptL0,
-    0,
-    "O0",
-    "",
-    kBuildTypeProduct,
-    kArgCheckPolicyOptional,
-    "  -O0                         \tDo some optimization.\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplOptL2,
-    0,
-    "O2",
-    "",
-    kBuildTypeProduct,
-    kArgCheckPolicyOptional,
-    "  -O2                         \tDo some optimization.\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplOptLs,
-    0,
-    "Os",
-    "",
-    kBuildTypeProduct,
-    kArgCheckPolicyOptional,
-    "  -Os                         \tOptimize for size, based on O2.\n",
-    "mpl2mpl",
-    {} },
-  { kCriticalnative,
-    0,
-    "",
-    "CriticalNative",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --CriticalNative            \tFor CriticalNative optimization\n"
-    "                              \t--CriticalNative=list_file\n",
-    "mpl2mpl",
-    {} },
-  { kFastnative,
-    0,
-    "",
-    "FastNative",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --FastNative                \tFor FastNative optimization\n"
-    "                              \t--FastNative=list_file\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplNoDot,
-    kEnable,
-    "",
-    "nodot",
-    kBuildTypeExperimental,
-    kArgCheckPolicyBool,
-    "  --nodot                     \tDisable dot file generation from cfg\n"
-    "  --no-nodot                  \tEnable dot file generation from cfg\n",
-    "mpl2mpl",
-    {} },
-  { kGenIRProfile,
-    kEnable,
-    "",
-    "ir-profile-gen",
-    mapleOption::BuildType::kBuildTypeExperimental,
-    mapleOption::ArgCheckPolicy::kArgCheckPolicyBool,
-    "  --ir-profile-gen              \tGen IR level Profile\n"
-    "  --no-ir-profile-gen           \tDisable Gen IR level Profile\n",
-    "mpl2mpl",
-    {} },
-  { kProfileTest,
-    kEnable,
-    "",
-    "profile-test",
-    mapleOption::BuildType::kBuildTypeExperimental,
-    mapleOption::ArgCheckPolicy::kArgCheckPolicyBool,
-    "  --profile-test              \tprofile test\n"
-    "  --no-profile-test           \tDisable profile test\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplBarrier,
-    kEnable,
-    "",
-    "barrier",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --barrier                   \tEnable barrier insertion instead of RC insertion\n"
-    "  --no-barrier                \tDisable barrier insertion instead of RC insertion\n",
-    "mpl2mpl",
-    {} },
-  { kNativeFuncPropertyFile,
-    0,
-    "",
-    "nativefunc-property-list",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --nativefunc-property-list  \tGenerate native binding function stub\n"
-    "                              \t--nativefunc-property-list=file\n",
-    "mpl2mpl",
-    {} },
-  { kMplnkNoLocal,
-    kEnable,
-    "",
-    "maplelinker-nolocal",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --maplelinker-nolocal       \tDo not turn functions into local when maple linker is on\n"
-    "  --no-maplelinker-nolocal\n",
-    "mpl2mpl",
-    {} },
-  { kBuildApp,
-    0,
-    "",
-    "build-app",
-    kBuildTypeProduct,
-    kArgCheckPolicyOptional,
-    "  --build-app[=0,1,2]         \tbuild the app dex 0:off, 1:method1, 2:method2, ignore:method1\n",
-    "mpl2mpl",
-    {} },
-  { kPartialAot,
-    0,
-    "",
-    "partialAot",
-    kBuildTypeProduct,
-    kArgCheckPolicyOptional,
-    "  --partialAot               \tenerate the detailed information for the partialAot\n",
-    "mpl2mpl",
-    {} },
-  { kDecoupleInit,
-    0,
-    "",
-    "decouple-init",
-    kBuildTypeProduct,
-    kArgCheckPolicyOptional,
-    "  --decouple-init          \tdecouple the constructor method\n",
-    "mpl2mpl",
-    {} },
-  { kSourceMuid,
-    0,
-    "",
-    "source-muid",
-    kBuildTypeProduct,
-    kArgCheckPolicyOptional,
-    "  --source-muid=""            \tWrite the source file muid into the mpl file\n",
-    "mpl2mpl",
-    {} },
-  { kDeferredVisit,
-    kEnable,
-    "",
-    "deferred-visit",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --deferred-visit            \tGenerate deferred MCC call for undefined type\n"
-    "  --no-deferred-visit         \tDont't generate deferred MCC call for undefined type\n",
-    "mpl2mpl",
-    {} },
-  { kDeferredVisit2,
-    kEnable,
-    "",
-    "deferred-visit2",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --deferred-visit2           \tGenerate deferred MCC call(DAI2.0) for undefined type\n"
-    "  --no-deferred-visit2        \tDon't generate deferred MCC call(DAI2.0) for undefined type\n",
-    "mpl2mpl",
-    {} },
-  { kDecoupleSuper,
-    kEnable,
-    "",
-    "decouple-super",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --decouple-super            \tGenerate deferred MCC call for undefined type\n"
-    "  --no-decouple-super         \tDon't generate deferred MCC call for undefined type\n",
-    "mpl2mpl",
-    {} },
-  { kGenVtabAndItabForDecouple,
-    kEnable,
-    "",
-    "gen-decouple-vtab",
-    kBuildTypeExperimental,
-    kArgCheckPolicyBool,
-    "  --gen-decouple-vtab         \tGenerate the whole and complete vtab and itab\n"
-    "  --no-gen-decouple-vtab      \tDon't generate the whole and complete vtab and itab\n",
-    "mpl2mpl",
-    {} },
-  { kProfileFunc,
-    kEnable,
-    "",
-    "profile-func",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --profile-func              \tProfile function usage\n"
-    "  --no-profile-func           \tDisable profile function usage\n",
-    "mpl2mpl",
-    {} },
-  { kDumpDevirtual,
-    0,
-    "",
-    "dump-devirtual-list",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --dump-devirtual-list       \tDump candidates of devirtualization into a specified file\n"
-    "                              \t--dump-devirtual-list=\n",
-    "mpl2mpl",
-    {} },
-  { kReadDevirtual,
-    0,
-    "",
-    "read-devirtual-list",
-    kBuildTypeExperimental,
-    kArgCheckPolicyRequired,
-    "  --read-devirtual-list       \tRead in candidates of devirtualization from\n"
-    "                              \t a specified file and perform devirtualization\n"
-    "                              \t--read-devirtual-list=\n",
-    "mpl2mpl",
-    {} },
-  { kPreloadedClass,
-    kEnable,
-    "",
-    "usewhiteclass",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --usewhiteclass             \tEnable use preloaded class list to reducing clinit check\n"
-    "  --no-usewhiteclass          \tDisable use preloaded class list to reducing clinit check\n",
-    "mpl2mpl",
-    {} },
-  { kAppPackageName,
-    0,
-    "",
-    "app-package-name",
-    kBuildTypeExperimental,
-    kArgCheckPolicyOptional,
-    "  --app-package-name          \tSet APP package name\n"
-    "                              \t--app-package-name=package_name\n",
-    "mpl2mpl",
-    {} },
-  { kCheckClInvocation,
-    0,
-    "",
-    "check_cl_invocation",
-    kBuildTypeProduct,
-    kArgCheckPolicyRequired,
-    "  --check_cl_invocation       \tFor classloader invocation checking\n"
-    "                              \t--check_cl_invocation=list_file\n",
-    "mpl2mpl",
-    {} },
-  { kDumpClInvocation,
-    kEnable,
-    "",
-    "dump_cl_invocation",
-    kBuildTypeExperimental,
-    kArgCheckPolicyBool,
-    "  --dump_cl_invocation        \tFor classloader invocation dumping.\n"
-    "                              \tWork only if already set --check_cl_invocation\n"
-    "  --no-dump_cl_invocation     \tDisable dump_cl_invocation\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplWarnLevel,
-    0,
-    "",
-    "warning",
-    kBuildTypeExperimental,
-    kArgCheckPolicyNumeric,
-    "  --warning=level             \t--warning=level\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplLazyBinding,
-    kEnable,
-    "",
-    "lazy-binding",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --lazy-binding              \tBind class symbols lazily[default off]\n"
-    "  --no-lazy-binding           \tDon't bind class symbols lazily\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplHotFix,
-    kEnable,
-    "",
-    "hot-fix",
-    kBuildTypeExperimental,
-    kArgCheckPolicyBool,
-    "  --hot-fix                   \tOpen for App hot fix[default off]\n"
-    "  --no-hot-fix                \tDon't open for App hot fix\n",
-    "mpl2mpl",
-    {} },
-  { kMpl2MplCompactMeta,
-    kEnable,
-    "",
-    "compact-meta",
-    kBuildTypeExperimental,
-    kArgCheckPolicyBool,
-    "  --compact-meta              \tEnable compact method and field meta\n"
-    "  --no-compact-meta           \tDisable compact method and field meta\n",
-    "mpl2mpl",
-    {} },
-  { kGenPGOReport,
-    kEnable,
-    "",
-    "gen-pgo-report",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --gen-pgo-report            \tDisplay pgo report\n"
-    "  --no-gen-pgo-report\n",
-    "mpl2mpl",
-    {} },
-  { kInlineCache,
-    0,
-    "",
-    "inlineCache",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --inlineCache            \tbuild inlineCache 0:off, 1:open\n"
-    "  --no-inlineCache\n",
-    "mpl2mpl",
-    {} },
-  { kNoComment,
-    0,
-    "",
-    "no-comment",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --no-comment             \tbuild inlineCache 0:off, 1:open\n",
-    "mpl2mpl",
-    {} },
-  { kRmNoUseFunc,
-    kEnable,
-    "",
-    "rmnousefunc",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --rmnousefunc            \tEnable remove no-used file-static function\n"
-    "  --no-rmnousefunc         \tDisable remove no-used file-static function\n",
-    "mpl2mpl",
-    {} },
-  { kSideEffect,
-    kEnable,
-    "",
-    "sideeffect",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --sideeffect      \tIPA: analysis sideeffect\n"
-    "  --no-sideeffect          \n",
-    "mpl2mpl",
-    {} },
-  { kDumpIPA,
-    kEnable,
-    "",
-    "dump-ipa",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --dump-ipa      \tIPA: dump\n"
-    "  --no-dump-ipa          \n",
-    "mpl2mpl",
-    {} },
-  { kWPAA,
-    kEnable,
-    "",
-    "wpaa",
-    kBuildTypeProduct,
-    kArgCheckPolicyBool,
-    "  --wpaa      \tWhole Program Alias Analysis\n"
-    "  --no-wpaa          \n",
-    "mpl2mpl",
-    {} },
-  { kUnknown,
-    0,
-    "",
-    "",
-    kBuildTypeAll,
-    kArgCheckPolicyNone,
-    "",
-    "mpl2mpl",
-    {} }
-};
-
 Options &Options::GetInstance() {
   static Options instance;
   return instance;
 }
 
-Options::Options() {
-  CreateUsages(kUsage);
-}
-
-void Options::DecideMpl2MplRealLevel(const std::deque<mapleOption::Option> &inputOptions) const {
-  int realLevel = -1;
-  for (const mapleOption::Option &opt : inputOptions) {
-    switch (opt.Index()) {
-      case kMpl2MplOptL0:
-        realLevel = static_cast<int>(kLevelZero);
-        break;
-      case kMpl2MplOptL2:
-        realLevel = static_cast<int>(kLevelTwo);
-        break;
-      case kMpl2MplOptLs:
-        optForSize = true;
-        realLevel = static_cast<int>(kLevelTwo);
-        break;
-      default:
-        break;
+void Options::DecideMpl2MplRealLevel() const {
+  if (opts::mpl2mpl::o2 || opts::mpl2mpl::os) {
+    if (opts::mpl2mpl::os) {
+      optForSize = true;
     }
-  }
-  if (realLevel == kLevelTwo) {
     O2 = true;
     usePreg = true;
   }
 }
 
-bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
-  DecideMpl2MplRealLevel(opts);
-  bool result = true;
-  for (const mapleOption::Option &opt : opts) {
+bool Options::SolveOptions(bool isDebug) const {
+  DecideMpl2MplRealLevel();
+
+  for (const auto &opt : mpl2mplCategory.GetEnabledOptions()) {
+    std::string printOpt;
     if (isDebug) {
-      LogInfo::MapleLogger() << "mpl2mpl options: " << opt.Index() << " " << opt.OptionKey() << " " <<
-                                opt.Args() << '\n';
-    }
-    switch (opt.Index()) {
-      case kMpl2MplDumpBefore:
-        dumpBefore = (opt.Type() == kEnable);
-        break;
-      case kMpl2MplDumpAfter:
-        dumpAfter = (opt.Type() == kEnable);
-        break;
-      case kMpl2MplDumpFunc:
-        dumpFunc = opt.Args();
-        break;
-      case kMpl2MplQuiet:
-        quiet = (opt.Type() == kEnable);
-        break;
-      case kVerbose:
-        quiet = (opt.Type() == kEnable) ? false : true;
-        break;
-      case kMpl2MplDumpPhase:
-        dumpPhase = opt.Args();
-        break;
-      case kMpl2MplSkipPhase:
-        skipPhase = opt.Args();
-        break;
-      case kMpl2MplSkipFrom:
-        skipFrom = opt.Args();
-        break;
-      case kMpl2MplSkipAfter:
-        skipAfter = opt.Args();
-        break;
-      case kRegNativeDynamicOnly:
-        regNativeDynamicOnly = (opt.Type() == kEnable);
-        break;
-      case kRegNativeStaticBindingList:
-        staticBindingList = opt.Args();
-        break;
-      case kMpl2MplStubJniFunc:
-        regNativeFunc = (opt.Type() == kEnable);
-        break;
-      case kNativeWrapper:
-        nativeWrapper = (opt.Type() == kEnable);
-        break;
-      case kInlineWithProfile:
-        inlineWithProfile = (opt.Type() == kEnable);
-        break;
-      case kMpl2MplUseInline:
-        useInline = (opt.Type() == kEnable);
-        break;
-      case kMpl2MplEnableIPAClone:
-        enableIPAClone = (opt.Type() == kEnable);
-        break;
-      case kMpl2MplNoInlineFuncList:
-        noInlineFuncList = opt.Args();
-        break;
-      case kImportFileList:
-        importFileList = opt.Args();
-        break;
-      case kNumOfCloneVersions:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --Clone\n";
-          result = false;
-        } else {
-          numOfCloneVersions = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kNumOfImpExprLowBound:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --Clone\n";
-          result = false;
-        } else {
-          numOfImpExprLowBound = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kNumOfImpExprHighBound:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --Clone\n";
-          result = false;
-        } else {
-          numOfImpExprHighBound = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kNumOfCallSiteLowBound:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --Clone\n";
-          result = false;
-        } else {
-          numOfCallSiteLowBound = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kNumOfCallSiteUpBound:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --Clone\n";
-          result = false;
-        } else {
-          numOfCallSiteUpBound = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kNumOfConstpropValue:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --Clone\n";
-          result = false;
-        } else {
-          numOfConstpropValue = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kMpl2MplUseCrossModuleInline:
-        useCrossModuleInline = (opt.Type() == kEnable);
-        break;
-      case kInlineSmallFunctionThreshold:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --inline-small-function-threshold\n";
-          result = false;
-        } else {
-          inlineSmallFunctionThreshold = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kInlineHotFunctionThreshold:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --inline-hot-function-threshold\n";
-          result = false;
-        } else {
-          inlineHotFunctionThreshold = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kInlineRecursiveFunctionThreshold:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --inline-recursive-function-threshold\n";
-          result = false;
-        } else {
-          inlineRecursiveFunctionThreshold = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kInlineDepth:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --inline-depth\n";
-          result = false;
-        } else {
-          inlineDepth = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kInlineModuleGrowth:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --inline-module-growth\n";
-          result = false;
-        } else {
-          inlineModuleGrowth = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kInlineColdFunctionThreshold:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --inline-cold-function-threshold\n";
-          result = false;
-        } else {
-          inlineColdFunctionThreshold = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kProfileHotCount:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --profile-hot-count\n";
-          result = false;
-        } else {
-          profileHotCount = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kProfileColdCount:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --profile-cold-count\n";
-          result = false;
-        } else {
-          profileColdCount = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kProfileHotRate:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --profile-hot-rate\n";
-          result = false;
-        } else {
-          profileHotRate = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kProfileColdRate:
-        if (opt.Args().empty()) {
-          LogInfo::MapleLogger(kLlErr) << "expecting not empty for --profile-cold-rate\n";
-          result = false;
-        } else {
-          profileColdRate = static_cast<uint32>(std::stoul(opt.Args()));
-        }
-        break;
-      case kMpl2MplMapleLinker:
-        mapleLinker = (opt.Type() == kEnable);
-        dumpMuidFile = (opt.Type() == kEnable);
-        if (isDebug) {
-          LogInfo::MapleLogger() << "--sub options: dumpMuidFile " << dumpMuidFile << '\n';
-        }
-        break;
-      case kMplnkDumpMuid:
-        dumpMuidFile = (opt.Type() == kEnable);
-        break;
-      case kEmitVtableImpl:
-        emitVtableImpl = (opt.Type() == kEnable);
-        break;
-#if MIR_JAVA
-      case kMpl2MplSkipVirtual:
-        skipVirtualMethod = (opt.Type() == kEnable);
-        break;
-#endif
-      case kMpl2MplUseRc:
-        noRC = (opt.Type() == kDisable);
-        break;
-      case kMpl2MplStrictNaiveRc:
-        strictNaiveRC = (opt.Type() == kEnable);
-        break;
-      case kGCOnly:
-        gcOnly = (opt.Type() == kEnable);
-        break;
-      case kBigEndian:
-        bigEndian = (opt.Type() == kEnable);
-        break;
-      case kRcOpt1:
-        rcOpt1 = (opt.Type() == kEnable);
-        break;
-      case kMpl2MplNativeOpt:
-        nativeOpt = (opt.Type() == kEnable);
-        break;
-      case kMpl2MplOptL2:
-      case kMpl2MplOptLs:
-        // Already handled above in DecideMpl2MplRealLevel
-        break;
-      case kCriticalnative:
-        criticalNativeFile = opt.Args();
-        break;
-      case kFastnative:
-        fastNativeFile = opt.Args();
-        break;
-      case kMpl2MplNoDot:
-        noDot = (opt.Type() == kEnable);
-        break;
-      case kGenIRProfile:
-        genIRProfile = (opt.Type() == kEnable);
-        break;
-      case kProfileTest:
-        profileTest = (opt.Type() == kEnable);
-        break;
-      case kMpl2MplBarrier:
-        barrier =  (opt.Type() == kEnable);
-        break;
-      case kNativeFuncPropertyFile:
-        nativeFuncPropertyFile = opt.Args();
-        break;
-      case kMplnkNoLocal:
-        mapleLinkerTransformLocal = (opt.Type() == kDisable);
-        break;
-      case kDeferredVisit:
-        deferredVisit =  (opt.Type() == kEnable);
-        break;
-      case kDeferredVisit2:
-        deferredVisit = (opt.Type() == kEnable);
-        deferredVisit2 = (opt.Type() == kEnable);
-        if (isDebug) {
-          LogInfo::MapleLogger() << "--sub options: deferredVisit " << deferredVisit << '\n';
-          LogInfo::MapleLogger() << "--sub options: deferredVisit2 " << deferredVisit2 << '\n';
-        }
-        break;
-      case kDecoupleSuper:
-        decoupleSuper = (opt.Type() == kEnable);
-        break;
-      case kBuildApp:
-        if (opt.Args().empty()) {
-          buildApp = 1;
-        } else if (opt.Args().size() == 1 &&
-                   (opt.Args()[0] == '0' || opt.Args()[0] == '1' || opt.Args()[0] == '2')) {
-          buildApp = static_cast<uint32>(std::stoul(opt.Args()));
-        } else {
-          LogInfo::MapleLogger(kLlErr) << "expecting 0,1,2 or empty for --build-app\n";
-          result = false;
-        }
-        break;
-      case kSourceMuid:
-        sourceMuid = opt.Args();
-        break;
-      case kDecoupleStatic:
-        decoupleStatic = (opt.Type() == kEnable);
-        (opt.Type() == kEnable) ? (buildApp = 1) : (buildApp = 0);
-        break;
-      case kPartialAot:
-        partialAot = (opt.Type() == kEnable);
-        break;
-      case kDecoupleInit:
-        if (opt.Args().empty()) {
-          decoupleInit = Options::kConservativeDecouple;
-          decoupleStatic = true;
-          buildApp = Options::kConservativeDecouple;
-        } else if (opt.Args().size() == 1 && (opt.Args()[0] == '0' || opt.Args()[0] == '1' || opt.Args()[0] == '2')) {
-          decoupleInit = static_cast<uint32>(std::stoi(opt.Args()));
-          decoupleStatic = true;
-          buildApp = Options::kConservativeDecouple;
-        } else {
-          std::cerr << "expecting 0,1,2 or empty for --decouple-init\n";
-          result = false;
-        }
-        break;
-      case kGenVtabAndItabForDecouple:
-        genVtabAndItabForDecouple = (opt.Type() == kEnable);
-        break;
-      case kProfileFunc:
-        profileFunc = (opt.Type() == kEnable);
-        break;
-      case kDumpDevirtual:
-        dumpDevirtualList = opt.Args();
-        break;
-      case kReadDevirtual:
-        readDevirtualList = opt.Args();
-        break;
-      case kPreloadedClass:
-        usePreloadedClass = (opt.Type() == kEnable);
-        break;
-      case kProfilePath:
-        profile = opt.Args();
-        break;
-      case kProfileGen:
-        if (O2) {
-          LogInfo::MapleLogger(kLlErr) << "profileGen requires no optimization\n";
-          result = false;
-        } else {
-          profileGen = true;
-        }
-        break;
-      case kProfileUse:
-        profileUse = true;
-        break;
-      case kAppPackageName:
-        appPackageName = opt.Args();
-        break;
-      case kCheckClInvocation:
-        classLoaderInvocationList = opt.Args();
-        break;
-      case kDumpClInvocation:
-        dumpClassLoaderInvocation = (opt.Type() == kEnable);
-        break;
-      case kMpl2MplWarnLevel:
-        warningLevel = static_cast<uint32>(std::stoul(opt.Args()));
-        break;
-      case kMpl2MplLazyBinding:
-        lazyBinding = (opt.Type() == kEnable);
-        break;
-      case kMpl2MplHotFix:
-        hotFix = (opt.Type() == kEnable);
-        break;
-      case kMpl2MplCompactMeta:
-        compactMeta = (opt.Type() == kEnable);
-        break;
-      case kGenPGOReport:
-        genPGOReport = (opt.Type() == kEnable);
-        break;
-      case kVerify:
-        verify = (opt.Type() == kEnable);
-        break;
-      case kInlineCache:
-        if (opt.Args().empty()) {
-          inlineCache = 0;
-        } else if (opt.Args().size() == 1 && (opt.Args()[0] == '0' ||
-                                              opt.Args()[0] == '1' ||
-                                              opt.Args()[0] == '2' ||
-                                              opt.Args()[0] == '3')) {
-          inlineCache = static_cast<uint32>(std::stoi(opt.Args()));
-        } else {
-          LogInfo::MapleLogger(kLlErr) << "expecting 0,1,2,3 or empty for --inlineCache\n";
-          result = false;
-        }
-        break;
-      case kNoComment:
-        noComment = true;
-        break;
-      case kRmNoUseFunc:
-        rmNoUseFunc = (opt.Type() == kEnable);
-        break;
-      case kSideEffect:
-        sideEffect = (opt.Type() == kEnable);
-        break;
-      case kDumpIPA:
-        dumpIPA = (opt.Type() == kEnable);
-        break;
-      case kWPAA:
-        wpaa = (opt.Type() == kEnable);
-        break;
-      default:
-        WARN(kLncWarn, "input invalid key for mpl2mpl " + opt.OptionKey());
-        break;
+      for (const auto &val : opt->GetRawValues()) {
+        printOpt += opt->GetName() + " " + val + " ";
+      }
+      LogInfo::MapleLogger() << "mpl2mpl options: " << printOpt << '\n';
     }
   }
-  return result;
+
+  maplecl::CopyIfEnabled(dumpBefore, opts::mpl2mpl::dumpBefore);
+  maplecl::CopyIfEnabled(dumpAfter, opts::mpl2mpl::dumpAfter);
+  maplecl::CopyIfEnabled(dumpFunc, opts::mpl2mpl::dumpFunc);
+
+  // quiet can be set by verbose option in driver
+  maplecl::CopyIfEnabled(quiet, !opts::verbose, opts::verbose);
+  maplecl::CopyIfEnabled(quiet, opts::mpl2mpl::quiet);
+
+  maplecl::CopyIfEnabled(dumpPhase, opts::mpl2mpl::dumpPhase);
+  maplecl::CopyIfEnabled(skipPhase, opts::mpl2mpl::skipPhase);
+  maplecl::CopyIfEnabled(skipFrom, opts::mpl2mpl::skipFrom);
+  maplecl::CopyIfEnabled(skipAfter, opts::mpl2mpl::skipAfter);
+  maplecl::CopyIfEnabled(regNativeDynamicOnly, opts::mpl2mpl::regnativeDynamicOnly);
+  maplecl::CopyIfEnabled(staticBindingList, opts::mpl2mpl::staticBindingList);
+  maplecl::CopyIfEnabled(regNativeFunc, opts::mpl2mpl::regnativefunc);
+  maplecl::CopyIfEnabled(nativeWrapper, opts::mpl2mpl::nativewrapper);
+  maplecl::CopyIfEnabled(inlineWithProfile, opts::mpl2mpl::inlineWithProfile);
+  maplecl::CopyIfEnabled(useInline, opts::mpl2mpl::inlineOpt);
+  maplecl::CopyIfEnabled(enableIPAClone, opts::mpl2mpl::ipaClone);
+  maplecl::CopyIfEnabled(noInlineFuncList, opts::mpl2mpl::noInlineFunc);
+  maplecl::CopyIfEnabled(importFileList, opts::mpl2mpl::importFileList);
+  maplecl::CopyIfEnabled(numOfCloneVersions, opts::mpl2mpl::numOfCloneVersions);
+  maplecl::CopyIfEnabled(numOfImpExprLowBound, opts::mpl2mpl::numOfImpExprLowBound);
+  maplecl::CopyIfEnabled(numOfImpExprHighBound, opts::mpl2mpl::numOfImpExprHighBound);
+  maplecl::CopyIfEnabled(numOfCallSiteLowBound, opts::mpl2mpl::numOfCallSiteLowBound);
+  maplecl::CopyIfEnabled(numOfCallSiteUpBound, opts::mpl2mpl::numOfCallSiteUpBound);
+  maplecl::CopyIfEnabled(numOfConstpropValue, opts::mpl2mpl::numOfConstpropValue);
+  maplecl::CopyIfEnabled(useCrossModuleInline, opts::mpl2mpl::crossModuleInline);
+  maplecl::CopyIfEnabled(inlineSmallFunctionThreshold, opts::mpl2mpl::inlineSmallFunctionThreshold);
+  maplecl::CopyIfEnabled(inlineHotFunctionThreshold, opts::mpl2mpl::inlineHotFunctionThreshold);
+  maplecl::CopyIfEnabled(inlineRecursiveFunctionThreshold, opts::mpl2mpl::inlineRecursiveFunctionThreshold);
+  maplecl::CopyIfEnabled(inlineDepth, opts::mpl2mpl::inlineDepth);
+  maplecl::CopyIfEnabled(inlineModuleGrowth, opts::mpl2mpl::inlineModuleGrow);
+  maplecl::CopyIfEnabled(inlineColdFunctionThreshold, opts::mpl2mpl::inlineColdFuncThresh);
+  maplecl::CopyIfEnabled(profileHotCount, opts::mpl2mpl::profileHotCount);
+  maplecl::CopyIfEnabled(profileColdCount, opts::mpl2mpl::profileColdCount);
+  maplecl::CopyIfEnabled(profileHotRate, opts::mpl2mpl::profileHotRate);
+  maplecl::CopyIfEnabled(profileColdRate, opts::mpl2mpl::profileColdRate);
+
+  if (opts::mpl2mpl::maplelinker) {
+    mapleLinker = opts::mpl2mpl::maplelinker;
+    dumpMuidFile = mapleLinker; // quiet is overwrited by maplelinker option
+    if (isDebug) {
+      LogInfo::MapleLogger() << "--sub options: dumpMuidFile " << dumpMuidFile << '\n';
+    }
+  }
+
+  maplecl::CopyIfEnabled(dumpMuidFile, opts::mpl2mpl::dumpMuid);
+  maplecl::CopyIfEnabled(emitVtableImpl, opts::mpl2mpl::emitVtableImpl);
+
+#if MIR_JAVA
+  maplecl::CopyIfEnabled(skipVirtualMethod, opts::mpl2mpl::skipvirtual);
+#endif
+
+  maplecl::CopyIfEnabled(noRC, !opts::mpl2mpl::userc, opts::mpl2mpl::userc);
+  maplecl::CopyIfEnabled(strictNaiveRC, opts::mpl2mpl::strictNaiveRc);
+  maplecl::CopyIfEnabled(gcOnly, opts::gconly);
+  maplecl::CopyIfEnabled(bigEndian, opts::bigendian);
+  maplecl::CopyIfEnabled(rcOpt1, opts::mpl2mpl::rcOpt1);
+  maplecl::CopyIfEnabled(nativeOpt, opts::mpl2mpl::nativeopt);
+  maplecl::CopyIfEnabled(criticalNativeFile, opts::mpl2mpl::criticalNative);
+  maplecl::CopyIfEnabled(fastNativeFile, opts::mpl2mpl::fastNative);
+  maplecl::CopyIfEnabled(noDot, opts::mpl2mpl::nodot);
+  maplecl::CopyIfEnabled(genIRProfile, opts::mpl2mpl::genIrProfile);
+  maplecl::CopyIfEnabled(profileTest, opts::mpl2mpl::profileTest);
+  maplecl::CopyIfEnabled(barrier, opts::mpl2mpl::barrier);
+  maplecl::CopyIfEnabled(nativeFuncPropertyFile, opts::mpl2mpl::nativeFuncPropertyFile);
+
+  maplecl::CopyIfEnabled(mapleLinkerTransformLocal, !opts::mpl2mpl::maplelinkerNolocal, opts::mpl2mpl::maplelinkerNolocal);
+  maplecl::CopyIfEnabled(deferredVisit, opts::mpl2mpl::deferredVisit);
+
+  if (opts::mpl2mpl::deferredVisit.IsEnabledByUser()) {
+    deferredVisit = true;
+    deferredVisit2 = true;
+    if (isDebug) {
+      LogInfo::MapleLogger() << "--sub options: deferredVisit " << deferredVisit << '\n';
+      LogInfo::MapleLogger() << "--sub options: deferredVisit2 " << deferredVisit2 << '\n';
+    }
+  }
+
+  maplecl::CopyIfEnabled(decoupleSuper, opts::mpl2mpl::decoupleSuper);
+
+  if (opts::mpl2mpl::buildApp.IsEnabledByUser()) {
+    if (opts::mpl2mpl::buildApp != 0 &&
+        opts::mpl2mpl::buildApp != 1 &&
+        opts::mpl2mpl::buildApp != 2) {
+      LogInfo::MapleLogger(kLlErr) << "expecting 0,1,2 or empty for --build-app\n";
+      return false;
+    }
+    /* Default buildApp value is 1, so if an User does not select buildApp (with --buildApp=2), it will be 1 */
+    buildApp = opts::mpl2mpl::buildApp;
+  }
+
+  maplecl::CopyIfEnabled(sourceMuid, opts::mpl2mpl::sourceMuid);
+  if (opts::decoupleStatic.IsEnabledByUser()) {
+    decoupleStatic = opts::decoupleStatic;
+    buildApp = (opts::decoupleStatic == true) ? 1 : 0;
+  }
+
+  maplecl::CopyIfEnabled(partialAot, opts::mpl2mpl::partialAot);
+
+  if (opts::mpl2mpl::decoupleInit.IsEnabledByUser()) {
+    if (opts::mpl2mpl::decoupleInit != 0 &&
+        opts::mpl2mpl::decoupleInit != 1 &&
+        opts::mpl2mpl::decoupleInit != 2) {
+      std::cerr << "expecting 0,1,2 or empty for --decouple-init\n";
+      return false;
+    }
+
+    /* Default opts::mpl2mpl::decoupleInit value is Options::kConservativeDecouple==1
+     * so if an User does not select buildApp (with --decouple-init=2), it will be 1.
+     */
+    decoupleInit = opts::mpl2mpl::decoupleInit;
+    decoupleStatic = true;
+    buildApp = Options::kConservativeDecouple;
+  }
+
+  maplecl::CopyIfEnabled(genVtabAndItabForDecouple, opts::mpl2mpl::genDecoupleVtab);
+  maplecl::CopyIfEnabled(profileFunc, opts::mpl2mpl::profileFunc);
+  maplecl::CopyIfEnabled(dumpDevirtualList, opts::mpl2mpl::dumpDevirtual);
+  maplecl::CopyIfEnabled(readDevirtualList, opts::mpl2mpl::readDevirtual);
+  maplecl::CopyIfEnabled(usePreloadedClass, opts::mpl2mpl::usewhiteclass);
+  maplecl::CopyIfEnabled(profile, opts::profile);
+
+  if (opts::profileGen.IsEnabledByUser()) {
+    if (O2) {
+      LogInfo::MapleLogger(kLlErr) << "profileGen requires no optimization\n";
+      return false;
+    } else {
+      profileGen = true;
+    }
+  }
+
+  maplecl::CopyIfEnabled(profileUse, opts::profileUse);
+  maplecl::CopyIfEnabled(genLMBC, opts::genLMBC);
+  maplecl::CopyIfEnabled(appPackageName, opts::mpl2mpl::appPackageName);
+  maplecl::CopyIfEnabled(classLoaderInvocationList, opts::mpl2mpl::checkClInvocation);
+  maplecl::CopyIfEnabled(dumpClassLoaderInvocation, opts::mpl2mpl::dumpClInvocation);
+  maplecl::CopyIfEnabled(warningLevel, opts::mpl2mpl::warning);
+  maplecl::CopyIfEnabled(lazyBinding, opts::mpl2mpl::lazyBinding);
+  maplecl::CopyIfEnabled(hotFix, opts::mpl2mpl::hotFix);
+  maplecl::CopyIfEnabled(compactMeta, opts::mpl2mpl::compactMeta);
+  maplecl::CopyIfEnabled(genPGOReport, opts::mpl2mpl::genPGOReport);
+  maplecl::CopyIfEnabled(verify, opts::verify);
+
+  if (opts::mpl2mpl::inlineCache.IsEnabledByUser()) {
+    if (opts::mpl2mpl::inlineCache != 0 &&
+        opts::mpl2mpl::inlineCache != 1 &&
+        opts::mpl2mpl::inlineCache != 2 &&
+        opts::mpl2mpl::inlineCache != 3) {
+      LogInfo::MapleLogger(kLlErr) << "expecting 0,1,2,3 or empty for --inlineCache\n";
+      return false;
+    }
+
+    inlineCache = opts::mpl2mpl::inlineCache;
+  }
+
+  maplecl::CopyIfEnabled(noComment, opts::mpl2mpl::noComment);
+  maplecl::CopyIfEnabled(rmNoUseFunc, opts::mpl2mpl::rmnousefunc);
+  maplecl::CopyIfEnabled(sideEffect, opts::mpl2mpl::sideeffect);
+  maplecl::CopyIfEnabled(dumpIPA, opts::mpl2mpl::dumpIPA);
+  maplecl::CopyIfEnabled(wpaa, opts::mpl2mpl::wpaa);
+
+  return true;
 }
 
 bool Options::ParseOptions(int argc, char **argv, std::string &fileName) const {
-  OptionParser optionParser;
-  optionParser.RegisteUsages(DriverOptionCommon::GetInstance());
-  optionParser.RegisteUsages(Options::GetInstance());
-  int ret = optionParser.Parse(argc, argv, "mpl2mpl");
-  CHECK_FATAL(ret == kErrorNoError, "option parser error");
-  bool result = SolveOptions(optionParser.GetOptions(), false);
+  maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, mpl2mplCategory);
+  bool result = SolveOptions(false);
   if (!result) {
     return result;
   }
-  if (optionParser.GetNonOptionsCount() != 1) {
-    LogInfo::MapleLogger(kLlErr) << "expecting one .mpl file as last argument, found: ";
-    for (const auto &optionArg : optionParser.GetNonOptions()) {
-      LogInfo::MapleLogger(kLlErr) << optionArg << " ";
+
+  auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
+  int inputFileCount = 0;
+  for (auto &arg : badArgs) {
+    if (FileUtils::IsFileExists(arg.first)) {
+      inputFileCount++;
+      fileName = arg.first;
+    } else {
+      LogInfo::MapleLogger(kLlErr) << "Unknown Option: " << arg.first;
+      return false;
     }
-    LogInfo::MapleLogger(kLlErr) << "\n";
-    result = false;
   }
 
-  if (result) {
-    fileName = optionParser.GetNonOptions().front();
+  if (inputFileCount != 1) {
+    LogInfo::MapleLogger(kLlErr) << "expecting one .mpl file as last argument, found: ";
+    for (const auto &optionArg : badArgs) {
+      LogInfo::MapleLogger(kLlErr) << optionArg.first << " ";
+    }
+    LogInfo::MapleLogger(kLlErr) << "\n";
+    return false;
+  }
+
 #ifdef DEBUG_OPTION
     LogInfo::MapleLogger() << "mpl file : " << fileName << "\t";
     DumpOptions();
 #endif
-  }
-  return result;
+
+  return true;
 }
 
 void Options::DumpOptions() const {
