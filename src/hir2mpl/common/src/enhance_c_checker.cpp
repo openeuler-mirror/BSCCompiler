@@ -288,13 +288,19 @@ void ASTCallExpr::CheckNonnullFieldInStruct() const {
              FEIRBuilder::IsZeroConstExpr(args[1]->Emit2FEExpr(nullStmts))) {
     baseExpr = args[0]->Emit2FEExpr(nullStmts);
   }
-  if (baseExpr != nullptr && (baseExpr->GetKind() == kExprDRead || baseExpr->GetKind() == kExprIRead) &&
-      baseExpr->GetType() != nullptr) {
-    MIRType *mirType = baseExpr->GetType()->GenerateMIRTypeAuto();
-    if (ENCChecker::HasNonnullFieldInPtrStruct(*mirType)) {
+  if (baseExpr == nullptr) {
+    return;
+  }
+  MIRType *mirType = ENCChecker::GetTypeFromAddrExpr(baseExpr);  // check addrof or iaddrof
+  if (mirType != nullptr) {
+    mirType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirType);
+  } else if ((baseExpr->GetKind() == kExprDRead || baseExpr->GetKind() == kExprIRead) &&
+              baseExpr->GetType() != nullptr) {
+    mirType = baseExpr->GetType()->GenerateMIRTypeAuto();
+  }
+  if (mirType != nullptr && ENCChecker::HasNonnullFieldInPtrStruct(*mirType)) {
       FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull structure field pointer in %s",
              FEManager::GetModule().GetFileNameFromFileNum(srcFileIdx).c_str(), srcFileLineNum, GetFuncName().c_str());
-    }
   }
 }
 

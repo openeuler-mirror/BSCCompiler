@@ -1068,7 +1068,8 @@ void AArch64CGFunc::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPTyp
   /* In bpl mode, a func symbol's type is represented as a MIRFuncType instead of a MIRPtrType (pointing to
    * MIRFuncType), so we allow `kTypeFunction` to appear here */
   ASSERT(((type->GetKind() == kTypeScalar) || (type->GetKind() == kTypePointer) || (type->GetKind() == kTypeFunction) ||
-          (type->GetKind() == kTypeStruct) || (type->GetKind() == kTypeArray)), "NYI dassign type");
+          (type->GetKind() == kTypeStruct) || (type->GetKind() == kTypeUnion)|| (type->GetKind() == kTypeArray)),
+         "NYI dassign type");
   PrimType ptyp = type->GetPrimType();
   if (ptyp == PTY_agg) {
     ptyp = PTY_a64;
