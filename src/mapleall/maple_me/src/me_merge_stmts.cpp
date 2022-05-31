@@ -415,7 +415,8 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
   MIRType *v16u8MirType = GlobalTables::GetTypeTable().GetV16UInt8();
   MIRType *v16u8PtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*v16u8MirType, PTY_ptr);
 
-  IvarMeExpr tmpIvar(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, PTY_v16u8, v16u8PtrType->GetTypeIndex(), 0);
+  auto alloc = func.GetIRMap()->GetIRMapAlloc();
+  IvarMeExpr tmpIvar(&alloc, kInvalidExprID, PTY_v16u8, v16u8PtrType->GetTypeIndex(), 0);
   if (dstMeExpr->GetOp() != OP_regread) {
     RegMeExpr *addrRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_a64);
     MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
@@ -427,10 +428,10 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
   tmpIvar.SetBase(dstMeExpr);
 
   RegMeExpr *dupRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_v16u8);
-  NaryMeExpr *dupValMeExpr = new NaryMeExpr(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID,
-                                            OP_intrinsicop, PTY_v16u8,
-                                         1, TyIdx(0), INTRN_vector_from_scalar_v16u8, false);
-  dupValMeExpr->PushOpnd(fillValMeExpr);
+  NaryMeExpr expr(&alloc, kInvalidExprID, OP_intrinsicop, PTY_v16u8, 1, TyIdx(0), INTRN_vector_from_scalar_v16u8,
+                  false);
+  expr.PushOpnd(fillValMeExpr);
+  auto dupValMeExpr = func.GetIRMap()->CreateNaryMeExpr(expr);
   MeStmt *dupRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
       *dupRegMeExpr, *dupValMeExpr, *memsetCallStmt->GetBB());
   memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, dupRegAssignMeStmt);
