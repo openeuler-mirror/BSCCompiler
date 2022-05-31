@@ -300,6 +300,7 @@ void AArch64AsmEmitter::EmitBBHeaderLabel(FuncEmitInfo &funcEmitInfo, const std:
   } else {
     emitter.Emit(".L.").Emit(puIdx).Emit("__").Emit(labIdx).Emit(":\n");
   }
+  delete puIdx;
 }
 
 void AArch64AsmEmitter::EmitJavaInsnAddr(FuncEmitInfo &funcEmitInfo) {
@@ -758,7 +759,8 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) {
       EmitStringIndexOf(emitter, insn);
       return;
     }
-    case MOP_pseudo_none: {
+    case MOP_pseudo_none:
+    case MOP_pseduo_tls_release: {
       return;
     }
     case MOP_tls_desc_call: {
@@ -1907,12 +1909,21 @@ void AArch64AsmEmitter::EmitCTlsDescRel(Emitter &emitter, Insn &insn) const {
 void AArch64AsmEmitter::EmitCTlsDescCall(Emitter &emitter, Insn &insn) const {
   const AArch64MD *md = &AArch64CG::kMd[MOP_tls_desc_call];
   Operand *func = &insn.GetOperand(kInsnFirstOpnd);
-  Operand *symbol = &insn.GetOperand(kInsnSecondOpnd);
-  OpndProp *prop = md->operand[0];
+  Operand *symbol = &insn.GetOperand(kInsnThirdOpnd);
+  OpndProp *prop = md->operand[kInsnFirstOpnd];
   auto stImmOpnd = static_cast<StImmOperand*>(symbol);
+  const std::string &symName = stImmOpnd->GetName();
   A64OpndEmitVisitor funcVisitor(emitter, prop);
+  /*  adrp    x0, :tlsdesc:symbol */
+  emitter.Emit("\t").Emit("adrp\tx0, :tlsdesc:").Emit(symName).Emit("\n");
+  /*  ldr x1, [x0, #tlsdesc_lo12:symbol] */
+  emitter.Emit("\t").Emit("ldr").Emit("\t");
+  func->Accept(funcVisitor);
+  emitter.Emit(", [x0, #:tlsdesc_lo12:").Emit(symName).Emit("]\n");
+  /*  add x0 ,#tlsdesc_lo12:symbol */
+  emitter.Emit("\t").Emit("add\tx0, x0, :tlsdesc_lo12:").Emit(symName).Emit("\n");
   /* .tlsdesccall <symbolName> */
-  emitter.Emit("\t").Emit(".tlsdesccall").Emit("\t").Emit(stImmOpnd->GetName()).Emit("\n");
+  emitter.Emit("\t").Emit(".tlsdesccall").Emit("\t").Emit(symName).Emit("\n");
   /* blr xd*/
   emitter.Emit("\t").Emit("blr").Emit("\t");
   func->Accept(funcVisitor);

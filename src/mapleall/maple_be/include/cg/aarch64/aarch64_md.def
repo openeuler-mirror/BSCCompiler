@@ -468,10 +468,18 @@ DEFINE_MOP(MOP_xblr, {mopdReg64IS,mopdLISTS},ISCALL|CANTHROW,kLtBranch,"blr","0"
 DEFINE_MOP(MOP_tls_desc_rel, {mopdReg64ID,mopdReg64IS,mopdLiteral},0,kLtAlu,"tlsdescrel","0,1",2)
 
 /*
+ * adrp x0, , :tlsdesc:symbol
+ * ldr x1, [x0, #tlsdesc_lo12:symbol]]
+ * add x0, #tlsdesc_lo12:symbol
  * .tlsdesccall symbol
- * blr x0
+ * blr x1
  */
-DEFINE_MOP(MOP_tls_desc_call, {mopdReg64IS,mopdLiteral,mopdLISTS},ISCALL|CANTHROW,kLtBranch,"tlsdesccall","0",2)
+DEFINE_MOP(MOP_tls_desc_call, {mopdReg64ID,mopdReg64ID,mopdLiteral},CANTHROW,kLtBranch,"tlsdesccall","0",4)
+
+/*
+ *  release registers occupied by MOP_tls_desc_call
+ */
+DEFINE_MOP(MOP_pseduo_tls_release, {mopdReg64IS}, 0,kLtUndef,"pseudo_tls_release","0",0)
 
 /* System register access */
 /* MOP_mrs */

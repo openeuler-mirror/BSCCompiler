@@ -853,8 +853,9 @@ class AArch64CGFunc : public CGFunc {
   void SelectParmListForAggregate(BaseNode &argExpr, ListOperand &srcOpnds, AArch64CallConvImpl &parmLocator,
                                   int32 &structCopyOffset);
   size_t SelectParmListGetStructReturnSize(StmtNode &naryNode);
+  bool MarkParmListCall(BaseNode &expr);
   void SelectParmListPreprocessLargeStruct(BaseNode &argExpr, int32 &structCopyOffset);
-  void SelectParmListPreprocess(const StmtNode &naryNode, size_t start);
+  void SelectParmListPreprocess(const StmtNode &naryNode, size_t start, std::set<size_t> &specialArgs);
   void SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bool isCallNative = false);
   Operand *SelectClearStackCallParam(const AddrofNode &expr, int64 &offsetValue);
   void SelectClearStackCallParmList(const StmtNode &naryNode, ListOperand &srcOpnds,

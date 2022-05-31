@@ -7654,12 +7654,43 @@ void AArch64CGFunc::SelectParmListPreprocessLargeStruct(BaseNode &argExpr, int32
   }
 }
 
-void AArch64CGFunc::SelectParmListPreprocess(const StmtNode &naryNode, size_t start) {
+/* preprocess call in parmlist */
+bool AArch64CGFunc::MarkParmListCall(BaseNode &expr) {
+  if (!CGOptions::IsPIC()) {
+    return false;
+  }
+  switch(expr.GetOpCode()) {
+    case OP_addrof: {
+      auto &addrNode = static_cast<AddrofNode&>(expr);
+      MIRSymbol *symbol = GetFunction().GetLocalOrGlobalSymbol(addrNode.GetStIdx());
+      if (symbol->IsThreadLocal()) {
+        return true;
+      }
+      break;
+    }
+    default: {
+      for (auto i = 0; i < expr.GetNumOpnds(); i++) {
+        if(expr.Opnd(i)) {
+          if (MarkParmListCall(*expr.Opnd(i))) {
+            return true;
+          }
+        }
+      }
+      break;
+    }
+  }
+  return false;
+}
+
+void AArch64CGFunc::SelectParmListPreprocess(const StmtNode &naryNode, size_t start, std::set<size_t> &specialArgs) {
   size_t i = start;
   int32 structCopyOffset = GetMaxParamStackSize() - GetStructCopySize();
   for (; i < naryNode.NumOpnds(); ++i) {
     BaseNode *argExpr = naryNode.Opnd(i);
     PrimType primType = argExpr->GetPrimType();
+    if (MarkParmListCall(*argExpr)) {
+      specialArgs.emplace(i);
+    }
     ASSERT(primType != PTY_void, "primType should not be void");
     if (primType != PTY_agg) {
       continue;
@@ -7679,13 +7710,25 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
   if ((naryNode.GetOpCode() == OP_icall) || isCallNative) {
     i++;
   }
-  SelectParmListPreprocess(naryNode, i);
+  std::set<size_t> specialArgs;
+  SelectParmListPreprocess(naryNode, i, specialArgs);
+  bool specialArg = false;
+  BB *curBBrecord = GetCurBB();
+  BB *tmpBB = nullptr;
+  if (!specialArgs.empty()) {
+    tmpBB = CreateNewBB();
+    specialArg = true;
+  }
   AArch64CallConvImpl parmLocator(GetBecommon());
   CCLocInfo ploc;
   int32 structCopyOffset = GetMaxParamStackSize() - GetStructCopySize();
   std::vector<Insn*> insnForStackArgs;
   uint32 stackArgsCount = 0;
   for (uint32 pnum = 0; i < naryNode.NumOpnds(); ++i, ++pnum) {
+    if (specialArg) {
+      ASSERT(tmpBB, "need temp bb for lower priority args");
+      SetCurBB(specialArgs.count(i) ? *curBBrecord : *tmpBB);
+    }
     bool is64x1vec = false;
     MIRType *ty = nullptr;
     BaseNode *argExpr = naryNode.Opnd(i);
@@ -7701,7 +7744,7 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
         DreadNode *dNode = static_cast<DreadNode *>(argExpr);
         MIRSymbol *symbol = GetFunction().GetLocalOrGlobalSymbol(dNode->GetStIdx());
         if (dNode->GetFieldID() != 0) {
-          MIRStructType *structType = static_cast<MIRStructType *>(symbol->GetType());
+          MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
           ASSERT(structType != nullptr, "SelectParmList: non-zero fieldID for non-structure");
           FieldAttrs fa = structType->GetFieldAttrs(dNode->GetFieldID());
           is64x1vec = fa.GetAttr(FLDATTR_oneelem_simd);
@@ -7799,6 +7842,10 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
       }
     }
     ASSERT(ploc.reg1 == 0, "SelectCall NYI");
+  }
+  if (specialArg) {
+    curBBrecord->InsertAtEnd(*tmpBB);
+    SetCurBB(*curBBrecord);
   }
   for (auto &strInsn : insnForStackArgs) {
     GetCurBB()->AppendInsn(*strInsn);
@@ -9872,38 +9919,18 @@ void AArch64CGFunc::SelectCTlsLocalDesc(Operand &result, StImmOperand &stImm) {
 }
 
 void AArch64CGFunc::SelectCTlsGlobalDesc(Operand &result, StImmOperand &stImm) {
-  AArch64CallConvImpl parmLocator(GetBecommon());
-  CCLocInfo ploc;
-  //  adrp    x0, :tlsdesc:symbol
-  auto symbol = stImm.GetSymbol();
-  RegOperand *specialFuncPtr = &CreateRegisterOperandOfType(PTY_u64);
+  /* according to AArch64 Machine Directives */
+  auto &r0opnd = GetOrCreatePhysicalRegisterOperand (R0, k64BitSize,GetRegTyFromPrimTy(PTY_u64));
+  RegOperand *tlsAddr = &CreateRegisterOperandOfType(PTY_u64);
   RegOperand *specialFunc = &CreateRegisterOperandOfType(PTY_u64);
-  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrp, *specialFuncPtr, stImm));
-  //  ldr x1, [x0, #tlsdesc_lo12:symbol]
-  //  add x0 ,#tlsdesc_lo12:symbol
-  auto &offset = CreateOfstOpnd(*symbol, 0, 0);
-  MemOperand &memOpnd = GetOrCreateMemOpnd(MemOperand::kAddrModeBOi, kSizeOfPtr * kBitsPerByte,
-      static_cast<RegOperand*>(specialFuncPtr), nullptr, &offset, nullptr);
-  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xldr, *specialFunc, memOpnd));
-  //  .tlsdesccall $symbol
-  //  blr x1
-  auto ptrType = *GlobalTables::GetTypeTable().GetPtr();
-  parmLocator.InitCCLocInfo(ploc);
-  parmLocator.LocateNextParm(ptrType, ploc);
-  auto &parmRegOpnd = GetOrCreatePhysicalRegisterOperand(
-      static_cast<AArch64reg>(ploc.reg0), specialFuncPtr->GetSize(), GetRegTyFromPrimTy(PTY_u64));
-  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrpl12, *specialFuncPtr, *specialFuncPtr, stImm));
-  SelectCopy(parmRegOpnd, PTY_u64, *specialFuncPtr, PTY_u64);
-  ListOperand *srcOpnds = memPool->New<ListOperand>(*GetFuncScopeAllocator());
-  srcOpnds->PushOpnd(parmRegOpnd);
-  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_tls_desc_call, *specialFunc, stImm, *srcOpnds));
-  auto retRegOpnd = &GetOrCreateSpecialRegisterOperand(kSregRetval0 ,PTY_u64);
-  //  mrs x1, tpidr_el0
-  //  add x0, x0, x1
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_tls_desc_call, r0opnd, *tlsAddr, stImm));
+  /* release tls address */
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_pseduo_tls_release, *tlsAddr));
+  //  mrs xn, tpidr_el0
+  //  add x0, x0, xn
   auto tpidr = &CreateCommentOperand("tpidr_el0");
-  RegOperand *readSystem = &CreateRegisterOperandOfType(PTY_u64);
-  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_mrs, *readSystem, *tpidr));
-  SelectAdd(result, *retRegOpnd, *readSystem, PTY_u64);
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_mrs, *specialFunc, *tpidr));
+  SelectAdd(result, r0opnd, *specialFunc, PTY_u64);
 }
 
 void AArch64CGFunc::SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) {

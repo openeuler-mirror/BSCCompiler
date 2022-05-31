@@ -377,8 +377,7 @@ bool AArch64Insn::IsSpecialIntrinsic() const {
     case MOP_lazy_ldr:
     case MOP_get_and_setI:
     case MOP_get_and_setL:
-    case MOP_tls_desc_rel:
-    case MOP_tls_desc_call: {
+    case MOP_tls_desc_rel: {
       return true;
     }
     default: {

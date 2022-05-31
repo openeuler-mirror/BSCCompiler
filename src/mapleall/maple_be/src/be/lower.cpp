@@ -2734,14 +2734,9 @@ void CGLowerer::LowerRegassign(RegassignNode &regNode, BlockNode &newBlk) {
   }
 }
 
-BaseNode *CGLowerer::ExtractSymbolAddress(StIdx &stIdx, BlockNode &block) {
+BaseNode *CGLowerer::ExtractSymbolAddress(StIdx &stIdx) {
   auto builder = mirModule.GetMIRBuilder();
-  auto regIdx = mirModule.CurFunction()->GetPregTab()->CreatePreg(PTY_a64);
-  auto regAssign = builder->CreateStmtRegassign(PTY_a64, regIdx, builder->CreateExprAddrof(0, stIdx));
-  block.AddStatement(regAssign);
-  //  iassign <* u32> 0 (regread u64 %addr, dread u32 $x)
-  auto addr = builder->CreateExprRegread(PTY_a64, regIdx);
-  return addr;
+  return builder->CreateExprAddrof(0, stIdx);
 }
 
 BaseNode *CGLowerer::LowerDreadToThreadLocal(BaseNode &expr, BlockNode &block) {
@@ -2759,7 +2754,7 @@ BaseNode *CGLowerer::LowerDreadToThreadLocal(BaseNode &expr, BlockNode &block) {
 
   if (symbol->IsThreadLocal()) {
     //  iread <* u32> 0 (regread u64 %addr)
-    auto addr = ExtractSymbolAddress(stIdx, block);
+    auto addr = ExtractSymbolAddress(stIdx);
     auto ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*symbol->GetType());
     auto iread = mirModule.GetMIRBuilder()->CreateExprIread(*symbol->GetType(), *ptrType, dread.GetFieldID(), addr);
     result = iread;
@@ -2785,7 +2780,7 @@ StmtNode *CGLowerer::LowerDassignToThreadLocal(StmtNode &stmt, BlockNode &block)
   MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx(), true);
   if (symbol->IsThreadLocal()) {
     //  iassign <* u32> 0 (regread u64 %addr, dread u32 $x)
-    auto addr = ExtractSymbolAddress(stIdx, block);
+    auto addr = ExtractSymbolAddress(stIdx);
     auto ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*symbol->GetType());
     auto iassign = mirModule.GetMIRBuilder()->CreateStmtIassign(*ptrType, dAssign.GetFieldID(), addr, dAssign.GetRHS());
     result = iassign;

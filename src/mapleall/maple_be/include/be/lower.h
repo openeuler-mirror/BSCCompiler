@@ -42,12 +42,6 @@ class CGLowerer {
 
   using BuiltinFunctionID = uint32;
   using OptionFlag = uint64;
-  const std::string kOpAssertge = "OP_assertge";
-  const std::string kOpAssertlt = "OP_assertlt";
-  const std::string kOpCallAssertle = "OP_callassertle";
-  const std::string kOpReturnAssertle = "OP_returnassertle";
-  const std::string kOpAssignAssertle = "OP_assignassertle";
-  const std::string kFileSymbolNamePrefix = "symname";
  public:
   CGLowerer(MIRModule &mod, BECommon &common, MIRFunction *func = nullptr)
       : mirModule(mod),
@@ -117,7 +111,7 @@ class CGLowerer {
 
   BaseNode *LowerCastExpr(BaseNode &expr);
 
-  BaseNode *ExtractSymbolAddress(StIdx &stIdx, BlockNode &block);
+  BaseNode *ExtractSymbolAddress(StIdx &stIdx);
   BaseNode *LowerDreadToThreadLocal(BaseNode &expr, BlockNode &block);
   StmtNode *LowerDassignToThreadLocal(StmtNode &stmt, BlockNode &block);
 
@@ -136,9 +130,7 @@ class CGLowerer {
     return mirModule.GetFileNameFromFileNum(stmt.GetSrcPos().FileNum()).substr(pos + 1);
   }
 
-  std::string GetFileNameSymbolName(const std::string &fileName) {
-    return kFileSymbolNamePrefix + std::regex_replace(fileName, std::regex("-"), "_");
-  }
+  std::string GetFileNameSymbolName(const std::string &fileName);
 
   void SwitchAssertBoundary(StmtNode &stmt, MapleVector<BaseNode*> &argsPrintf);
 
