@@ -1418,7 +1418,7 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
 UniqueFEIRExpr ASTInitListExpr::GetAddrofArrayFEExprByStructArrayField(MIRType *fieldType,
                                                                        UniqueFEIRExpr addrOfArrayField) const {
   CHECK_FATAL(fieldType->GetKind() == kTypeArray, "invalid field type");
-  auto arrayFEType = FEIRTypeHelper::CreateTypeNative(*(static_cast<MIRArrayType*>(fieldType)));
+  auto arrayFEType = FEIRTypeHelper::CreateTypeNative(*fieldType);
   std::list<UniqueFEIRExpr> indexExprs;
   auto indexExpr = FEIRBuilder::CreateExprConstI32(0);
   indexExprs.emplace_back(std::move(indexExpr));
@@ -1476,9 +1476,13 @@ void ASTInitListExpr::ProcessArrayInitList(const UniqueFEIRExpr &addrOfArray, AS
       }
     } else {
       UniqueFEIRExpr elemExpr = subExpr->Emit2FEExpr(stmts);
-      if (elementType->GetKind() == kTypeArray && subExpr->GetASTOp() == kASTStringLiteral) {
+      if ((elementType->GetKind() == kTypeArray || arrayMirType->GetDim() == 1) &&
+          subExpr->GetASTOp() == kASTStringLiteral) {
         ProcessStringLiteralInitList(addrOfElemExpr->Clone(), elemExpr->Clone(),
                                      static_cast<ASTStringLiteral*>(subExpr)->GetLength(), stmts);
+        if (arrayMirType->GetDim() == 1) {
+          return;
+        }
       } else {
         auto stmt = FEIRBuilder::CreateStmtIAssign(elementPtrFEType->Clone(), addrOfElemExpr->Clone(),
                                                    elemExpr->Clone(),
