@@ -133,6 +133,16 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
   BB *latchBB = func.GetCfg()->NewBasicBlock();
   latchBB->SetAttributes(kBBAttrArtificial);
   latchBB->SetAttributes(kBBAttrIsInLoop); // latchBB is inloop
+  // update newBB frequency : copy predBB succFreq as latch frequency
+  if (Options::profileUse && func.GetMirFunc()->GetFuncProfData()) {
+    int idx = pred.GetSuccIndex(bb);
+    ASSERT(idx >= 0 && idx < pred.GetSucc().size(), "sanity check");
+    uint64_t freq = pred.GetEdgeFreq(idx);
+    latchBB->SetFrequency(freq);
+    // update bb frequency: remove pred frequency since pred is deleted
+    ASSERT(bb.GetFrequency() >= freq, "sanity check");
+    bb.SetFrequency(bb.GetFrequency() - freq);
+  }
   // update pred bb
   pred.ReplaceSucc(&bb, latchBB); // replace pred.succ with latchBB and set pred of latchBB
   // update pred stmt if needed
@@ -183,6 +193,45 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
     latchBB->AddSucc(*succ);
   }
   latchBB->SetKind(bb.GetKind());
+  // update succFreq
+  if (Options::profileUse && func.GetMirFunc()->GetFuncProfData()) {
+    int succFreqSize = bb.GetSuccFreq().size();
+    ASSERT(latchBB->GetSucc().size() == succFreqSize, "sanity check");
+    // copy bb succFreq as latch frequency
+    for (int i = 0; i < succFreqSize; i++) {
+      latchBB->PushBackSuccFreq(bb.GetSuccFreq()[i]);
+    }
+    if (bb.GetFrequency() > 0) {
+      // swap frequency and fixed the frequency value
+      if (swapSuccOfLatch) {
+        ASSERT(latchBB->GetKind() == kBBCondGoto, "impossible");
+        int64_t newftFreq = (latchBB->GetFrequency() == 0 || bb.GetSuccFreq()[1] == 0) ? 0 : 1;
+        int64_t newtgFreq= latchBB->GetFrequency() == 0 ? 0  : (latchBB->GetFrequency() - newftFreq);
+        latchBB->SetSuccFreq(0, newftFreq);
+        latchBB->SetSuccFreq(1, newtgFreq); // loop is changed to do-while format
+        int64_t bbsucc0Freq = bb.GetSucc(0)->GetFrequency() - newtgFreq;
+        int64_t bbsucc1Freq = bb.GetFrequency() - bbsucc0Freq;
+        bb.SetSuccFreq(0, bbsucc0Freq);
+        bb.SetSuccFreq(1, bbsucc1Freq);
+      } else if (latchBB->GetKind() == kBBCondGoto) {
+        int64_t newftFreq = (latchBB->GetFrequency() == 0 || bb.GetSuccFreq()[0] == 0) ? 0 : 1;
+        int64_t newtgFreq = latchBB->GetFrequency() == 0 ? 0 : (latchBB->GetFrequency() - newftFreq);
+        latchBB->SetSuccFreq(0, newftFreq);  // freq to exit BB
+        latchBB->SetSuccFreq(1, newtgFreq); // loop is changed to do-while format
+        // update bb succ frequency
+        int64_t bbsucc0Freq = bb.GetSucc(0)->GetFrequency() - newftFreq;
+        int64_t bbsucc1Freq = bb.GetFrequency() - bbsucc0Freq;
+        bb.SetSuccFreq(0, bbsucc0Freq);
+        bb.SetSuccFreq(1, bbsucc1Freq);
+      } else if (latchBB->GetKind() == kBBFallthru || latchBB->GetKind() == kBBGoto) {
+        int64_t newsuccFreq = (latchBB->GetFrequency() == 0) ? 0 : latchBB->GetSuccFreq()[0] - 1;
+        latchBB->SetSuccFreq(0, newsuccFreq); // loop is changed to do-while format
+        bb.SetSuccFreq(0, bb.GetFrequency());
+      } else {
+        ASSERT(0, "NYI:: unexpected bb type");
+      }
+    }
+  }
   // swap latchBB's succ if needed
   if (swapSuccOfLatch) {
     // modify condBr stmt

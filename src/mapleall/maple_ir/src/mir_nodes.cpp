@@ -255,9 +255,9 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
     if (updateOp & kUpdateUnrollRemainderFreq) {
       newFreq = denom > 0 ? (oldFreq * numer % denom) : oldFreq;
     } else {
-      newFreq = denom > 0 ? (oldFreq * numer / denom) : oldFreq;
+      newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
     }
-    toFreqs[nnode->GetStmtID()] = (newFreq > 0 || (oldFreq == 0)) ? newFreq : 1;
+    toFreqs[nnode->GetStmtID()] = (newFreq > 0 || (numer == 0)) ? newFreq : 1;
     if (updateOp & kUpdateOrigFreq) { // upateOp & 1 : update from
       int64_t left = ((oldFreq - newFreq) > 0 || (oldFreq == 0)) ? (oldFreq - newFreq) : 1;
       fromFreqs[GetStmtID()] = left;
@@ -285,9 +285,9 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
         if (updateOp & kUpdateUnrollRemainderFreq) {
           newFreq = denom > 0 ? (oldFreq * numer % denom) : oldFreq;
         } else {
-          newFreq = denom > 0 ? (oldFreq * numer / denom) : oldFreq;
+          newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
         }
-        toFreqs[newStmt->GetStmtID()] = (newFreq > 0 || oldFreq == 0) ? newFreq : 1;
+        toFreqs[newStmt->GetStmtID()] = (newFreq > 0 || oldFreq == 0 || numer == 0) ? newFreq : 1;
         if (updateOp & kUpdateOrigFreq) {
           int64_t left = ((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1;
           fromFreqs[stmt.GetStmtID()] = left;
@@ -637,8 +637,8 @@ void DreadoffNode::Dump(int32) const {
 void RegreadNode::Dump(int32) const {
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOpCode()).name << " " << GetPrimTypeName(GetPrimType());
   if (regIdx >= 0) {
-    LogInfo::MapleLogger()
-        << " %" << theMIRModule->CurFunction()->GetPregTab()->PregFromPregIdx(static_cast<uint32>(regIdx))->GetPregNo();
+    LogInfo::MapleLogger() << " %" << theMIRModule->CurFunction()->GetPregTab()->PregFromPregIdx(
+        static_cast<uint32>(regIdx))->GetPregNo();
     return;
   }
   LogInfo::MapleLogger() << " %%";
@@ -685,7 +685,8 @@ void StmtNode::DumpBase(int32 indent) const {
   // dump stmtFreqs
   if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData() &&
       theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) >= 0) {
-    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq " << theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
+    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq " <<
+        theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
   }
   PrintIndentation(indent);
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOpCode()).name;
@@ -761,8 +762,8 @@ void RegassignNode::Dump(int32 indent) const {
   StmtNode::DumpBase(indent);
   LogInfo::MapleLogger() << " " << GetPrimTypeName(GetPrimType());
   if (regIdx >= 0) {
-    LogInfo::MapleLogger()
-        << " %" << theMIRModule->CurFunction()->GetPregTab()->PregFromPregIdx(static_cast<uint32>(regIdx))->GetPregNo();
+    LogInfo::MapleLogger() << " %" << theMIRModule->CurFunction()->GetPregTab()->PregFromPregIdx(
+        static_cast<uint32>(regIdx))->GetPregNo();
   } else {
     LogInfo::MapleLogger() << " %%";
     switch (regIdx) {
@@ -1328,7 +1329,8 @@ void BlockNode::Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable
   }
   // dump stmtFreqs
   if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
-    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  <<  theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
+    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  <<
+        theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
   }
   for (auto &stmt : GetStmtNodes()) {
     stmt.Dump(indent + 1);
@@ -1345,7 +1347,8 @@ void LabelNode::Dump(int32) const {
   }
   // dump stmtFreqs
   if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
-    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  <<  theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
+    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  <<
+        theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
   }
   LogInfo::MapleLogger() << "@" << theMIRModule->CurFunction()->GetLabelName(labelIdx) << " ";
 }
@@ -1772,7 +1775,8 @@ inline bool BinaryStrictSignVerify0(const BaseNode *bOpnd0, const BaseNode *bOpn
   ASSERT(bOpnd0 != nullptr, "bOpnd0 is null");
   ASSERT(bOpnd1 != nullptr, "bOpnd1 is null");
   bool isDynany = (bOpnd0->GetPrimType() == PTY_dynany || bOpnd1->GetPrimType() == PTY_dynany);
-  return isDynany || (IsSignedType(bOpnd0) && IsSignedType(bOpnd1)) || (!IsSignedType(bOpnd0) && !IsSignedType(bOpnd1));
+  return isDynany || (IsSignedType(bOpnd0) && IsSignedType(bOpnd1)) ||
+      (!IsSignedType(bOpnd0) && !IsSignedType(bOpnd1));
 }
 
 bool BinaryStrictSignVerify1(const BaseNode *bOpnd0, const BaseNode *bOpnd1, const BaseNode *res) {

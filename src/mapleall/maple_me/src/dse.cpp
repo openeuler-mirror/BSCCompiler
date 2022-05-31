@@ -172,26 +172,57 @@ void DSE::DumpStmt(const StmtNode &stmt, const std::string &msg) const {
   }
 }
 
+bool DSE::IsCallReturnRemovable(StmtNode &stmt) {
+  if (!kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
+    return false;
+  }
+  if (stmt.GetOpCode() == OP_asm) {
+    return false;
+  }
+  if (stmt.GetOpCode() == OP_intrinsiccallassigned) {
+    auto intrinsicID = static_cast<IntrinsiccallNode&>(stmt).GetIntrinsic();
+    return !IntrinDesc::intrinTable[intrinsicID].IsAtomic();
+  }
+  return true;
+}
+
 void DSE::CheckRemoveCallAssignedReturn(StmtNode &stmt) {
-  if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode()) && stmt.GetOpCode() != OP_asm) {
-    MapleVector<MustDefNode> &mustDefs = ssaTab.GetStmtMustDefNodes(stmt);
-    for (auto &node : mustDefs) {
-      if (IsSymbolLived(ToRef(node.GetResult()))) {
-        continue;
-      }
-      DumpStmt(stmt, "**** DSE1 deleting return value assignment in: ");
-      CallReturnVector *rets = stmt.GetCallReturnVector();
-      CHECK_FATAL(rets != nullptr, "null ptr check");
-      rets->clear();
-      mustDefs.clear();
-      break;
+  if (!IsCallReturnRemovable(stmt)) {
+    return;
+  }
+  MapleVector<MustDefNode> &mustDefs = ssaTab.GetStmtMustDefNodes(stmt);
+  for (auto &node : mustDefs) {
+    if (IsSymbolLived(ToRef(node.GetResult()))) {
+      continue;
     }
+    DumpStmt(stmt, "**** DSE1 deleting return value assignment in: ");
+    CallReturnVector *rets = stmt.GetCallReturnVector();
+    CHECK_FATAL(rets != nullptr, "null ptr check");
+    rets->clear();
+    mustDefs.clear();
+    break;
   }
 }
 
 void DSE::OnRemoveBranchStmt(BB &bb, const StmtNode &stmt) {
-  // switch is special, which can not be set to kBBFallthru
-  if (IsBranch(stmt.GetOpCode()) && stmt.GetOpCode() != OP_switch) {
+  if (stmt.GetOpCode() == OP_switch) {
+    // update CFG
+    while (bb.GetSucc().size() != 1) {
+      BB *succ = bb.GetSucc().back();
+      succ->RemovePred(bb);
+    }
+    bb.SetKind(kBBFallthru);
+    if (Options::profileUse && !bb.GetSuccFreq().empty()) {
+      int64_t succ0Freq = bb.GetSuccFreq()[0];
+      bb.GetSuccFreq().resize(1);
+      bb.SetSuccFreq(0, bb.GetFrequency());
+      ASSERT(bb.GetFrequency() >= succ0Freq, "sanity check");
+      bb.GetSucc(0)->SetFrequency(bb.GetSucc(0)->GetFrequency() + (bb.GetFrequency() - succ0Freq));
+    }
+    cfgUpdated = true;
+    return;
+  }
+  if (IsBranch(stmt.GetOpCode())) {
     // update BB pred/succ
     bb.SetKind(kBBFallthru);
     cfgUpdated = true;  // tag cfg is changed
@@ -203,6 +234,14 @@ void DSE::OnRemoveBranchStmt(BB &bb, const StmtNode &stmt) {
         bb.RemoveSucc(*succBB);
         break;
       }
+    }
+    // merge all frequency of condition goto bb to fallthru succ
+    if (Options::profileUse && !bb.GetSuccFreq().empty()) {
+      int64_t succ0Freq = bb.GetSuccFreq()[0];
+      bb.GetSuccFreq().resize(1);
+      bb.SetSuccFreq(0, bb.GetFrequency());
+      ASSERT(bb.GetFrequency() >= succ0Freq, "sanity check");
+      bb.GetSucc(0)->SetFrequency(bb.GetSucc(0)->GetFrequency() + (bb.GetFrequency() - succ0Freq));
     }
   }
 }
@@ -224,6 +263,9 @@ void DSE::RemoveNotRequiredStmtsInBB(BB &bb) {
           }
         }
       }
+      if (&stmt == &bb.GetLast() ) {
+        bb.SetKind(kBBFallthru);
+      }
       bb.RemoveStmtNode(&stmt);
       continue;
     }
@@ -236,6 +278,16 @@ void DSE::RemoveNotRequiredStmtsInBB(BB &bb) {
 // Only make sure throw NPE in same BB
 // If must make sure throw at first stmt, much more not null stmt will be inserted
 bool DSE::NeedNotNullCheck(BaseNode &node, const BB &bb) {
+  if (theMIRModule->IsCModule()) {
+    return false;
+  }
+  if (node.GetOpCode() == OP_addrof) {
+    return false;
+  }
+  if (node.GetOpCode() == OP_iaddrof && static_cast<IreadNode &>(node).GetFieldID() > 0) {
+    return false;
+  }
+
   for (auto item : notNullExpr2Stmt[&node]) {
     if (!IsStmtRequired(*(item.first))) {
       continue;
@@ -291,7 +343,7 @@ void DSE::PropagateUseLive(const VersionSt &vst) {
   }
 }
 
-void DSE::MarkLastGotoInPredBBRequired(const BB &bb) {
+void DSE::MarkLastBranchStmtInPredBBRequired(const BB &bb) {
   for (auto predIt = bb.GetPred().begin(); predIt != bb.GetPred().end(); ++predIt) {
     const BB *predBB = *predIt;
     CHECK_NULL_FATAL(predBB);
@@ -299,7 +351,7 @@ void DSE::MarkLastGotoInPredBBRequired(const BB &bb) {
       continue;
     }
     const StmtNode &lastStmt = predBB->GetLast();
-    if (lastStmt.GetOpCode() == OP_goto) {
+    if (IsBranch(lastStmt.GetOpCode())) {
       MarkStmtRequired(lastStmt, ToRef(predBB));
     }
   }
@@ -340,7 +392,7 @@ void DSE::MarkControlDependenceLive(const BB &bb) {
 
   MarkLastBranchStmtInBBRequired(bb);
   MarkLastBranchStmtInPDomBBRequired(bb);
-  MarkLastGotoInPredBBRequired(bb);
+  MarkLastBranchStmtInPredBBRequired(bb);
 }
 
 void DSE::MarkSingleUseLive(const BaseNode &mirNode) {
@@ -414,8 +466,8 @@ void DSE::MarkSpecialStmtRequired() {
       StmtNode &stmt = *itStmt;
       if (StmtMustRequired(stmt, *bb)) {
         MarkStmtRequired(stmt, *bb);
+        CollectNotNullNode(stmt, *bb);
       }
-      CollectNotNullNode(stmt, *bb);
     }
   }
 }
@@ -485,7 +537,7 @@ void DSE::CollectNotNullNode(StmtNode &stmt, BaseNode &node, BB &bb, uint8 nodeT
         }
       } else {
         // Ref expr used array or assertnotnull
-        bool notNull = op == OP_array || op == OP_assertnonnull;
+        bool notNull = op == OP_array || kOpcodeInfo.IsAssertNonnull(op);
         nodeType = notNull ? kNodeTypeNotNull : kNodeTypeNormal;
       }
       for (size_t i = 0; i < node.GetNumOpnds(); ++i) {

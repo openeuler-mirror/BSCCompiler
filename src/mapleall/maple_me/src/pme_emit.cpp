@@ -740,6 +740,7 @@ void PreMeEmitter::EmitBB(BB *bb, BlockNode *curblk) {
   CHECK_FATAL(curblk != nullptr, "null ptr check");
   bool setFirstFreq = (GetFuncProfData() != nullptr);
   bool setLastFreq = false;
+  bool bbIsEmpty = bb->GetMeStmts().empty();
   // emit head. label
   LabelIdx labidx = bb->GetBBLabel();
   if (labidx != 0 && !preMeFunc->WhileLabelCreatedByPreMe(labidx) && !preMeFunc->IfLabelCreatedByPreMe(labidx)) {
@@ -760,7 +761,7 @@ void PreMeEmitter::EmitBB(BB *bb, BlockNode *curblk) {
     curblk->AddStatement(stmt);
     // add <stmtID, freq> for first stmt in bb in curblk
     if (GetFuncProfData() != nullptr) {
-      if (setFirstFreq || (stmt->GetOpCode() == OP_call) || (stmt->GetOpCode() == OP_callassigned)) {
+      if (setFirstFreq || (stmt->GetOpCode() == OP_call) || IsCallAssigned(stmt->GetOpCode())) {
         GetFuncProfData()->SetStmtFreq(stmt->GetStmtID(), bb->GetFrequency());
         setFirstFreq = false;
       } else {
@@ -780,8 +781,12 @@ void PreMeEmitter::EmitBB(BB *bb, BlockNode *curblk) {
   if (GetFuncProfData()) {
     if (setLastFreq) {
       GetFuncProfData()->SetStmtFreq(curblk->GetLast()->GetStmtID(), bb->GetFrequency());
-    } else {
-      LogInfo::MapleLogger() << " bb " << bb->GetBBId() << "no stmt used to add frequency\n";
+    } else if (bbIsEmpty) {
+      LogInfo::MapleLogger() << " bb " << bb->GetBBId() << "no stmt used to add frequency, add commentnode\n";
+      CommentNode *commentNode = codeMP->New<CommentNode>(*(mirFunc->GetModule()));
+      commentNode->SetComment("freqStmt"+std::to_string(commentNode->GetStmtID()));
+      GetFuncProfData()->SetStmtFreq(commentNode->GetStmtID(), bb->GetFrequency());
+      curblk->AddStatement(commentNode);
     }
   }
 }
@@ -910,8 +915,9 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curj, BlockNode *curblk) {
   while (mestmt->GetOp() != OP_brfalse && mestmt->GetOp() != OP_brtrue) {
     StmtNode *stmt = EmitPreMeStmt(mestmt, curblk);
     curblk->AddStatement(stmt);
-    if (setFirstFreq) {
-      // add frequency of first stmt of curbb
+    if (GetFuncProfData() &&
+        (setFirstFreq || (stmt->GetOpCode() == OP_call) || IsCallAssigned(stmt->GetOpCode()))) {
+      // add frequency of first/call stmt of curbb
       GetFuncProfData()->SetStmtFreq(stmt->GetStmtID(), curbb->GetFrequency());
       setFirstFreq = false;
     }
@@ -934,7 +940,11 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curj, BlockNode *curblk) {
     expectNode->SetIntrinsic(INTRN_C___builtin_expect);
     expectNode->GetNopnd().push_back(condnode);
     MIRType *type = GlobalTables::GetTypeTable().GetPrimType(PTY_i64);
-    int32 val = condgoto->GetBranchProb() == kProbLikely ? 1 : 0;
+    // | op\jmpProp | likelyJump (1) | unlikelyJump(0) |
+    // +-----------------------------------------------+
+    // | brtrue (1) | expectTrue (1) | expectFalse (0) |
+    // | brfalse(0) | expectFalse(0) | expectTrue  (1) |
+    int32 val = !((mestmt->GetOp() == OP_brtrue) ^ (condgoto->GetBranchProb() == kProbLikely));  // XNOR
     MIRIntConst *constVal = GlobalTables::GetIntConstTable().GetOrCreateIntConst(val, *type);
     ConstvalNode *constNode = codeMP->New<ConstvalNode>(constVal->GetType().GetPrimType(), constVal);
     expectNode->GetNopnd().push_back(constNode);

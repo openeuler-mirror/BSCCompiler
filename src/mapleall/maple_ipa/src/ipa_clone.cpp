@@ -123,6 +123,47 @@ MIRFunction *IpaClone::IpaCloneFunction(MIRFunction &originalFunction, const std
   return newFunc;
 }
 
+MIRFunction *IpaClone::IpaCloneFunctionWithFreq(MIRFunction &originalFunction,
+                                                 const std::string &fullName, int64_t callsitefreq) const {
+  MapleAllocator cgAlloc(originalFunction.GetDataMemPool());
+  ArgVector argument(cgAlloc.Adapter());
+  IpaCloneArgument(originalFunction, argument);
+  MIRType *retType = originalFunction.GetReturnType();
+  MIRFunction *newFunc =
+      mirBuilder.CreateFunction(fullName, *retType, argument, false, originalFunction.GetBody() != nullptr);
+  CHECK_FATAL(newFunc != nullptr, "create cloned function failed");
+  mirBuilder.GetMirModule().AddFunction(newFunc);
+  newFunc->SetFlag(originalFunction.GetFlag());
+  newFunc->SetSrcPosition(originalFunction.GetSrcPosition());
+  newFunc->SetFuncAttrs(originalFunction.GetFuncAttrs());
+  newFunc->SetBaseClassFuncNames(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fullName));
+  GcovFuncInfo *origProfData = originalFunction.GetFuncProfData();
+  auto *moduleMp = mirBuilder.GetMirModule().GetMemPool();
+  GcovFuncInfo *newProfData = moduleMp->New<GcovFuncInfo>(&mirBuilder.GetMirModule().GetMPAllocator(),
+                                  newFunc->GetPuidx(), 0, 0); // skip checksum information
+  newFunc->SetFuncProfData(newProfData);
+  newProfData->SetFuncFrequency(callsitefreq);
+  newProfData->SetFuncRealFrequency(callsitefreq);
+  // TODO:: original function need to update frequency by real entry value
+  // update real left frequency
+  origProfData->SetFuncRealFrequency(origProfData->GetFuncRealFrequency() - callsitefreq);
+  if (originalFunction.GetBody() != nullptr) {
+    CopyFuncInfo(originalFunction, *newFunc);
+    BlockNode *newbody = originalFunction.GetBody()->CloneTreeWithFreqs(newFunc->GetCodeMempoolAllocator(),
+                             newProfData->GetStmtFreqs(), origProfData->GetStmtFreqs(),
+                             callsitefreq /*numer*/, origProfData->GetFuncFrequency() /*denom*/,
+                             (kKeepOrigFreq | kUpdateFreqbyScale));
+    newFunc->SetBody(newbody);
+    IpaCloneSymbols(*newFunc, originalFunction);
+    IpaCloneLabels(*newFunc, originalFunction);
+    IpaClonePregTable(*newFunc, originalFunction);
+  }
+  newFunc->SetFuncDesc(originalFunction.GetFuncDesc());
+  // All the cloned functions cannot be accessed from other transform unit.
+  newFunc->SetAttr(FUNCATTR_static);
+  return newFunc;
+}
+
 void IpaClone::IpaCloneArgument(MIRFunction &originalFunction, ArgVector &argument) const {
   for (size_t i = 0; i < originalFunction.GetFormalCount(); ++i) {
     auto &formalName = originalFunction.GetFormalName(i);
@@ -271,7 +312,26 @@ void IpaClone::DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramInd
     }
     std::string newFuncName = curFunc->GetName() + ".clone." + std::to_string(index++);
     MInline::ConvertPStaticToFStatic(*curFunc);
-    MIRFunction *newFunc = IpaCloneFunction(*curFunc, newFuncName);
+    MIRFunction *newFunc = nullptr;
+    if (Options::profileUse && curFunc->GetFuncProfData()) {
+      int clonedSiteFreqs = 0;
+      for (auto &value: calleeValue) {
+        for (auto &callSite : calleeInfo[keyPair][value]) {
+          MIRFunction *callerFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callSite.GetPuidx());
+          uint32 stmtId = callSite.GetStmtId();
+          CallNode *oldCallNode = static_cast<CallNode*>(callerFunc->GetStmtNodeFromMeId(stmtId));
+          if (oldCallNode == nullptr) {
+            continue;
+          }
+          int64_t callsiteFreq = callerFunc->GetFuncProfData()->GetStmtFreq(stmtId);
+          CHECK_FATAL(callsiteFreq >= 0, "sanity check");
+          clonedSiteFreqs += callsiteFreq;
+        }
+      }
+      newFunc = IpaCloneFunctionWithFreq(*curFunc, newFuncName, clonedSiteFreqs);
+    } else {
+      newFunc = IpaCloneFunction(*curFunc, newFuncName);
+    }
     ReplaceIfCondtion(newFunc, result, evalValue);
     for (auto &value: calleeValue) {
       bool optCallerParam = false;
@@ -402,7 +462,25 @@ void IpaClone::CloneNoImportantExpressFunction(MIRFunction *func, uint32 paramIn
   auto &calleeInfo = mirModule->GetCalleeParamAboutInt();
   std::string newFuncName = func->GetName() + ".constprop." + std::to_string(paramIndex);
   MInline::ConvertPStaticToFStatic(*func);
-  MIRFunction *newFunc = IpaCloneFunction(*func, newFuncName);
+  MIRFunction *newFunc = nullptr;
+  if (Options::profileUse && func->GetFuncProfData()) {
+    int clonedSiteFreqs = 0;
+    int64_t value = calleeInfo[keyPair].begin()->first;
+    for (auto &callSite : calleeInfo[keyPair][value]) {
+      MIRFunction *callerFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callSite.GetPuidx());
+      uint32 stmtId = callSite.GetStmtId();
+      CallNode *oldCallNode = static_cast<CallNode*>(callerFunc->GetStmtNodeFromMeId(stmtId));
+      if (oldCallNode == nullptr) {
+        continue;
+      }
+      int64_t callsiteFreq = callerFunc->GetFuncProfData()->GetStmtFreq(stmtId);
+      CHECK_FATAL(callsiteFreq >= 0, "sanity check");
+      clonedSiteFreqs += callsiteFreq;
+    }
+    newFunc = IpaCloneFunctionWithFreq(*func, newFuncName, clonedSiteFreqs);
+  } else {
+    newFunc = IpaCloneFunction(*func, newFuncName);
+  }
   int64_t value = calleeInfo[keyPair].begin()->first;
   RemoveUnneedParameter(newFunc, paramIndex, value);
   for (auto &callSite : calleeInfo[keyPair][value]) {

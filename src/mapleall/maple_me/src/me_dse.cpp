@@ -45,11 +45,10 @@ void MeDSE::RunDSE() {
   if (enableDebug) {
     func.Dump(true);
   }
-
   DoDSE();
 
   // remove unreached BB
-  cfg->UnreachCodeAnalysis(true);
+  (void)cfg->UnreachCodeAnalysis(true);
   VerifyPhi();
   if (enableDebug) {
     func.Dump(true);
@@ -71,6 +70,9 @@ bool MEDse::PhaseRun(maple::MeFunction &f) {
     f.Verify();
     // cfg change , invalid results in MeFuncResultMgr
     if (dse.UpdatedCfg()) {
+      if (Options::profileUse && f.GetMirFunc()->GetFuncProfData()) {
+        f.GetCfg()->UpdateEdgeFreqWithNewBBFreq();
+      }
       GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
     }
   }

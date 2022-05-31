@@ -2472,10 +2472,10 @@ class IfStmtNode : public UnaryStmtNode {
     node->SetOpnd(Opnd()->CloneTree(allocator), 0);
     if (fromFreqs.count(GetStmtID()) > 0) {
       int64_t oldFreq = fromFreqs[GetStmtID()];
-      int64_t newFreq = denom > 0 ? (oldFreq * numer / denom) : oldFreq;
-      toFreqs[node->GetStmtID()] = newFreq > 0 ? newFreq : 1;
+      int64_t newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
+      toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? newFreq : 1;
       if (updateOp & kUpdateOrigFreq) {
-        int64_t left = (oldFreq - newFreq) > 0 ? (oldFreq - newFreq) : 1;
+        int64_t left = ((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1;
         fromFreqs[GetStmtID()] = left;
       }
     }
@@ -2557,8 +2557,8 @@ class WhileStmtNode : public UnaryStmtNode {
     node->SetStmtID(stmtIDNext++);
     if (fromFreqs.count(GetStmtID()) > 0) {
       int64_t oldFreq = fromFreqs[GetStmtID()];
-      int64_t newFreq = denom > 0 ? (oldFreq * numer / denom) : oldFreq;
-      toFreqs[node->GetStmtID()] = newFreq > 0 ? newFreq : 1;
+      int64_t newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
+      toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? newFreq : 1;
       if (updateOp & kUpdateOrigFreq) {
         int64_t left = (oldFreq - newFreq) > 0 ? (oldFreq - newFreq) : 1;
         fromFreqs[GetStmtID()] = left;
@@ -2629,8 +2629,8 @@ class DoloopNode : public StmtNode {
    if (fromFreqs.count(GetStmtID()) > 0) {
       int64_t oldFreq = fromFreqs[GetStmtID()];
       int64_t newFreq = oldFreq;
-      if (updateOp & kUpdateInlinedFreq) { // used in inline
-        newFreq = denom > 0 ? (oldFreq * numer / denom) : oldFreq;
+      if (updateOp & kUpdateFreqbyScale) { // used in inline/clone
+        newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
       } else if (updateOp & kUpdateUnrolledFreq) {  // used in unrolled part
         int64_t bodyFreq = fromFreqs[GetDoBody()->GetStmtID()];
         newFreq = denom > 0 ? (bodyFreq * numer / denom + (oldFreq - bodyFreq)) : oldFreq;
