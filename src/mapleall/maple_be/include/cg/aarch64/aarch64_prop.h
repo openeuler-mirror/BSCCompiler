@@ -246,6 +246,9 @@ class ExtendShiftPattern : public PropOptimizePattern {
 public:
   ExtendShiftPattern(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
   ~ExtendShiftPattern() override = default;
+  bool IsSwapInsn(const Insn &insn) const;
+  void SwapOpnd(Insn &insn);
+  bool CheckAllOpndCondition(Insn &insn);
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
@@ -305,6 +308,7 @@ private:
   BitShiftOperand::ShiftOp shiftOp;
   Insn *defInsn;
   Insn *newInsn;
+  Insn *curInsn = nullptr;
   bool optSuccess;
   ExMOpType exMOpType;
   LsMOpType lsMOpType;

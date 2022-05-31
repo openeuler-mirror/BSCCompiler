@@ -904,6 +904,19 @@ void AArch64Prop::PropPatternOpt() {
   optManager.Optimize<A64PregCopyPattern>(*cgFunc, GetSSAInfo());
 }
 
+bool ExtendShiftPattern::IsSwapInsn(const Insn &insn) const {
+  MOperator op = insn.GetMachineOpcode();
+  switch(op) {
+    case MOP_xaddrrr:
+    case MOP_waddrrr:
+    case MOP_xiorrrr:
+    case MOP_wiorrrr:
+      return true;
+    default:
+      return false;
+  }
+}
+
 void ExtendShiftPattern::SetExMOpType(const Insn &use) {
   MOperator op = use.GetMachineOpcode();
   switch (op) {
@@ -1232,22 +1245,53 @@ void ExtendShiftPattern::Optimize(Insn &insn) {
 }
 
 void ExtendShiftPattern::DoExtendShiftOpt(Insn &insn) {
-  Init();
-  if (!CheckCondition(insn)) {
+  if (!CheckAllOpndCondition(insn)) {
     return;
   }
-  Optimize(insn);
+  Optimize(*curInsn);
   if (optSuccess) {
     DoExtendShiftOpt(*newInsn);
   }
+}
+
+void ExtendShiftPattern::SwapOpnd(Insn &insn) {
+  Insn *swapInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(insn.GetMachineOpcode(),
+                                                                  insn.GetOperand(kInsnFirstOpnd),
+                                                                  insn.GetOperand(kInsnThirdOpnd),
+                                                                  insn.GetOperand(kInsnSecondOpnd));
+  insn.GetBB()->ReplaceInsn(insn, *swapInsn);
+  optSsaInfo->ReplaceInsn(insn, *swapInsn);
+  curInsn = swapInsn;
+  replaceIdx = kInsnThirdOpnd;
+}
+
+bool ExtendShiftPattern::CheckAllOpndCondition(Insn &insn) {
+  Init();
+  SetLsMOpType(insn);
+  SetExMOpType(insn);
+  curInsn = &insn;
+  if (IsSwapInsn(insn)) {
+    if (CheckCondition(insn)) {
+      return true;
+    }
+    Init();
+    SetLsMOpType(insn);
+    SetExMOpType(insn);
+    replaceIdx = kInsnSecondOpnd;
+    if (CheckCondition(insn)) {
+      SwapOpnd(insn);
+      return true;
+    }
+  } else {
+    return CheckCondition(insn);
+  }
+  return false;
 }
 
 /* check and set:
  * exMOpType, lsMOpType, extendOp, shiftOp, defInsn
  */
 bool ExtendShiftPattern::CheckCondition(Insn &insn) {
-  SetLsMOpType(insn);
-  SetExMOpType(insn);
   if ((exMOpType == kExUndef) && (lsMOpType == kLsUndef)) {
     return false;
   }
