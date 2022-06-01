@@ -235,7 +235,7 @@ bool AArch64GenProEpilog::TailCallOpt() {
     TailCallBBOpt(*exitBB, callInsns, *exitBB);
     if (callInsns.size() != 0) {
       optCount += callInsns.size();
-      exitBB2CallSitesMap.emplace(exitBB, callInsns);
+      (void)exitBB2CallSitesMap.emplace(exitBB, callInsns);
     }
     if (i < exitBBSize) {
       exitBB = cgFunc.GetExitBBsVec()[i];

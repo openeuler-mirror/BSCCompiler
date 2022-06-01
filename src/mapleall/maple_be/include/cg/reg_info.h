@@ -37,19 +37,19 @@ class RegisterInfo {
   virtual uint32 GetAllRegNum() = 0;
   virtual uint32 GetInvalidReg() = 0;
   void AddToAllRegs(regno_t regNo) {
-    allregs.insert(regNo);
+    (void)allregs.insert(regNo);
   }
   const MapleSet<regno_t> &GetAllRegs() const {
     return allregs;
   }
   void AddToIntRegs(regno_t regNo) {
-    allIntRegs.insert(regNo);
+    (void)allIntRegs.insert(regNo);
   }
   const MapleSet<regno_t> &GetIntRegs() const {
     return allIntRegs;
   }
   void AddToFpRegs(regno_t regNo) {
-    allFpRegs.insert(regNo);
+    (void)allFpRegs.insert(regNo);
   }
   const MapleSet<regno_t> &GetFpRegs() const {
     return allFpRegs;

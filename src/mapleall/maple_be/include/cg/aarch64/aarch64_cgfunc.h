@@ -696,10 +696,10 @@ class AArch64CGFunc : public CGFunc {
   }
 
   void SetLmbcArgInfo(RegOperand *reg, PrimType pTy, int32 ofst, int32 regs) {
-    GetLmbcCallArgs().emplace_back(reg);
-    GetLmbcCallArgTypes().emplace_back(pTy);
-    GetLmbcCallArgOffsets().emplace_back(ofst);
-    GetLmbcCallArgNumOfRegs().emplace_back(regs);
+    (void)GetLmbcCallArgs().emplace_back(reg);
+    (void)GetLmbcCallArgTypes().emplace_back(pTy);
+    (void)GetLmbcCallArgOffsets().emplace_back(ofst);
+    (void)GetLmbcCallArgNumOfRegs().emplace_back(regs);
   }
 
   void ResetLmbcArgInfo() {

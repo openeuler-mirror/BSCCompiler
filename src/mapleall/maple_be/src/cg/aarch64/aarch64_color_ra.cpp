@@ -4593,12 +4593,12 @@ void GraphColorRegAllocator::SplitVregAroundLoop(const CGFuncLoops &loop, const 
       Insn *headerCom = &(static_cast<AArch64CGFunc*>(cgFunc)->CreateCommentInsn("split around loop begin"));
       headerPred.AppendInsn(*headerCom);
       Insn *last = headerPred.GetLastInsn();
-      SpillOperand(*last, *ropnd, true, static_cast<RegOperand&>(phyOpnd));
+      (void)SpillOperand(*last, *ropnd, true, static_cast<RegOperand&>(phyOpnd));
 
       Insn *exitCom = &(static_cast<AArch64CGFunc*>(cgFunc)->CreateCommentInsn("split around loop end"));
       exitSucc.InsertInsnBegin(*exitCom);
       Insn *first = exitSucc.GetFirstInsn();
-      SpillOperand(*first, *ropnd, false, static_cast<RegOperand&>(phyOpnd));
+      (void)SpillOperand(*first, *ropnd, false, static_cast<RegOperand&>(phyOpnd));
 
       LiveRange *replacedLr = lrMap[*it];
       replacedLr->SetAssignedRegNO(lr->GetAssignedRegNO());

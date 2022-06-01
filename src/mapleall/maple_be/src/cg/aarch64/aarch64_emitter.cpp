@@ -56,7 +56,7 @@ void AArch64AsmEmitter::EmitRefToMethodDesc(FuncEmitInfo &funcEmitInfo, Emitter 
   }
   std::string methodDescLabel;
   GetMethodLabel(cgFunc.GetFunction().GetName(), methodDescLabel);
-  emitter.Emit("\t.word " + methodDescLabel + "-.\n");
+  (void)emitter.Emit("\t.word " + methodDescLabel + "-.\n");
   emitter.IncreaseJavaInsnCount();
 }
 
@@ -64,7 +64,7 @@ void AArch64AsmEmitter::EmitRefToMethodInfo(FuncEmitInfo &funcEmitInfo, Emitter 
   CGFunc &cgFunc = funcEmitInfo.GetCGFunc();
   if (cgFunc.GetFunction().GetModule()->IsJavaModule()) {
     std::string labelName = ".Label.name." + cgFunc.GetFunction().GetName();
-    emitter.Emit("\t.word " + labelName + " - .\n");
+    (void)emitter.Emit("\t.word " + labelName + " - .\n");
   }
 }
 
@@ -77,11 +77,11 @@ void AArch64AsmEmitter::EmitMethodDesc(FuncEmitInfo &funcEmitInfo, Emitter &emit
   if (!cgFunc.GetFunction().IsJava()) {
     return;
   }
-  emitter.Emit("\t.section\t.rodata\n");
-  emitter.Emit("\t.align\t2\n");
+  (void)emitter.Emit("\t.section\t.rodata\n");
+  (void)emitter.Emit("\t.align\t2\n");
   std::string methodInfoLabel;
   GetMethodLabel(cgFunc.GetFunction().GetName(), methodInfoLabel);
-  emitter.Emit(methodInfoLabel + ":\n");
+  (void)emitter.Emit(methodInfoLabel + ":\n");
   EmitRefToMethodInfo(funcEmitInfo, emitter);
   /* local reference area */
   AArch64MemLayout *memLayout = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout());
@@ -94,8 +94,8 @@ void AArch64AsmEmitter::EmitMethodDesc(FuncEmitInfo &funcEmitInfo, Emitter &emit
     refNum += static_cast<uint32>(cleanEANode->NumOpnds());
     refOffset -= static_cast<int32>(cleanEANode->NumOpnds() * kIntregBytelen);
   }
-  emitter.Emit("\t.short ").Emit(refOffset).Emit("\n");
-  emitter.Emit("\t.short ").Emit(refNum).Emit("\n");
+  (void)emitter.Emit("\t.short ").Emit(refOffset).Emit("\n");
+  (void)emitter.Emit("\t.short ").Emit(refNum).Emit("\n");
 }
 
 /* the fast_exception_handling lsda */
@@ -290,15 +290,15 @@ void AArch64AsmEmitter::EmitBBHeaderLabel(FuncEmitInfo &funcEmitInfo, const std:
   char *puIdx = strdup(std::to_string(pIdx).c_str());
   const std::string &labelName = cgFunc.GetFunction().GetLabelTab()->GetName(labIdx);
   if (currCG->GenerateVerboseCG()) {
-    emitter.Emit(".L.").Emit(puIdx).Emit("__").Emit(labIdx).Emit(":\t//label order ").Emit(label.GetLabelOrder());
+    (void)emitter.Emit(".L.").Emit(puIdx).Emit("__").Emit(labIdx).Emit(":\t//label order ").Emit(label.GetLabelOrder());
     if (!labelName.empty() && labelName.at(0) != '@') {
       /* If label name has @ as its first char, it is not from MIR */
-      emitter.Emit(", MIR: @").Emit(labelName).Emit("\n");
+      (void)emitter.Emit(", MIR: @").Emit(labelName).Emit("\n");
     } else {
-      emitter.Emit("\n");
+      (void)emitter.Emit("\n");
     }
   } else {
-    emitter.Emit(".L.").Emit(puIdx).Emit("__").Emit(labIdx).Emit(":\n");
+    (void)emitter.Emit(".L.").Emit(puIdx).Emit("__").Emit(labIdx).Emit(":\n");
   }
   free(puIdx);
   puIdx = nullptr;
@@ -418,7 +418,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     (void)emitter.Emit("\t.section\t.fini_array,\"aw\"\n");
     (void)emitter.Emit("\t.quad\t").Emit(cgFunc.GetName()).Emit("\n");
   }
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   EmitMethodDesc(funcEmitInfo, emitter);
   /* emit java code to the java section. */
   if (cgFunc.GetFunction().IsJava()) {
@@ -454,7 +454,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
         } else {
           std::string contend;
           while (getline(codetricksFd, contend)) {
-            emitter.Emit(contend + "\n");
+            (void)emitter.Emit(contend + "\n");
           }
         }
       }
@@ -513,13 +513,13 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
       continue;
     }
     if (currCG->GenerateVerboseCG()) {
-      emitter.Emit("#    freq:").Emit(bb->GetFrequency()).Emit("\n");
+      (void)emitter.Emit("#    freq:").Emit(bb->GetFrequency()).Emit("\n");
     }
     /* emit bb headers */
     if (bb->GetLabIdx() != MIRLabelTable::GetDummyLabel()) {
       if (aarchCGFunc.GetMirModule().IsCModule() && bb->IsBBNeedAlign() && bb->GetAlignNopNum() != kAlignMovedFlag) {
         uint32 power = bb->GetAlignPower();
-        emitter.Emit("\t.p2align ").Emit(power).Emit("\n");
+        (void)emitter.Emit("\t.p2align ").Emit(power).Emit("\n");
       }
       EmitBBHeaderLabel(funcEmitInfo, funcName, bb->GetLabIdx());
     }
@@ -551,7 +551,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   /* emit LSDA */
   if (cgFunc.GetFunction().IsJava() && (ehFunc != nullptr)) {
     if (!cgFunc.GetHasProEpilogue()) {
-      emitter.Emit("\t.word 0x55555555\n");
+      (void)emitter.Emit("\t.word 0x55555555\n");
       emitter.IncreaseJavaInsnCount();
     } else if (ehFunc->NeedFullLSDA()) {
       LSDAHeader *lsdaHeader = ehFunc->GetLSDAHeader();
@@ -574,31 +574,31 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     MIRStorageClass storageClass = st->GetStorageClass();
     MIRSymKind symKind = st->GetSKind();
     if (storageClass == kScPstatic && symKind == kStConst) {
-      emitter.Emit("\t.align 3\n");
-      emitter.Emit(st->GetName() + ":\n");
+      (void)emitter.Emit("\t.align 3\n");
+      (void)emitter.Emit(st->GetName() + ":\n");
       if (st->GetKonst()->GetKind() == kConstStr16Const) {
         MIRStr16Const *str16Const = safe_cast<MIRStr16Const>(st->GetKonst());
         emitter.EmitStr16Constant(*str16Const);
-        emitter.Emit("\n");
+        (void)emitter.Emit("\n");
         continue;
       }
       if (st->GetKonst()->GetKind() == kConstStrConst) {
         MIRStrConst *strConst = safe_cast<MIRStrConst>(st->GetKonst());
         emitter.EmitStrConstant(*strConst);
-        emitter.Emit("\n");
+        (void)emitter.Emit("\n");
         continue;
       }
 
       switch (st->GetKonst()->GetType().GetPrimType()) {
         case PTY_u32: {
           MIRIntConst *intConst = safe_cast<MIRIntConst>(st->GetKonst());
-          emitter.Emit("\t.long ").Emit(static_cast<uint32>(intConst->GetValue())).Emit("\n");
+          (void)emitter.Emit("\t.long ").Emit(static_cast<uint32>(intConst->GetValue())).Emit("\n");
           emitter.IncreaseJavaInsnCount();
           break;
         }
         case PTY_f32: {
           MIRFloatConst *floatConst = safe_cast<MIRFloatConst>(st->GetKonst());
-          emitter.Emit("\t.word ").Emit(static_cast<uint32>(floatConst->GetIntValue())).Emit("\n");
+          (void)emitter.Emit("\t.word ").Emit(static_cast<uint32>(floatConst->GetIntValue())).Emit("\n");
           emitter.IncreaseJavaInsnCount();
           break;
         }
@@ -628,10 +628,10 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     /* emit switch table only here */
     MIRSymbol *st = it.second;
     ASSERT(st->IsReadOnly(), "NYI");
-    emitter.Emit("\n");
-    emitter.Emit("\t.align 3\n");
+    (void)emitter.Emit("\n");
+    (void)emitter.Emit("\t.align 3\n");
     emitter.IncreaseJavaInsnCount(0, true); /* just aligned */
-    emitter.Emit(st->GetName() + ":\n");
+    (void)emitter.Emit(st->GetName() + ":\n");
     MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
     CHECK_FATAL(arrayConst != nullptr, "null ptr check");
     PUIdx pIdx = cgFunc.GetMirModule().CurFunction()->GetPuidx();
@@ -657,7 +657,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
       } else {
         std::string contend;
         while (getline(binarySearchFileFD, contend)) {
-          emitter.Emit(contend + "\n");
+          (void)emitter.Emit(contend + "\n");
         }
       }
     }
@@ -668,8 +668,8 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     LabelOperand &labelOpnd = aarchCGFunc.GetOrCreateLabelOperand(mpPair.first);
     A64OpndEmitVisitor visitor(emitter, nullptr);
     labelOpnd.Accept(visitor);
-    emitter.Emit(":\n");
-    emitter.Emit("\t.quad ").Emit(mpPair.second).Emit("\n");
+    (void)emitter.Emit(":\n");
+    (void)emitter.Emit("\t.quad ").Emit(mpPair.second).Emit("\n");
     emitter.IncreaseJavaInsnCount(kQuadInsnCount);
   }
 
@@ -794,7 +794,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) {
   }
 
   std::string format(md->format);
-  emitter.Emit("\t").Emit(md->name).Emit("\t");
+  (void)emitter.Emit("\t").Emit(md->name).Emit("\t");
   size_t opndSize = insn.GetOperandSize();
   std::vector<int32> seq(opndSize, -1);
   std::vector<std::string> prefix(opndSize);  /* used for print prefix like "*" in icall *rax */
@@ -820,7 +820,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) {
       continue;
     }
     if (prefix[i].length() > 0) {
-      emitter.Emit(prefix[i]);
+      (void)emitter.Emit(prefix[i]);
     }
     if (emitter.NeedToDealWithHugeSo() && (mOp ==  MOP_xbl || mOp == MOP_tail_call_opt_xbl)) {
       auto *nameOpnd = static_cast<FuncNameOperand*>(&insn.GetOperand(kInsnFirstOpnd));
@@ -831,7 +831,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) {
        * call to the target function.
        */
       emitter.InsertHugeSoTarget(nameOpnd->GetName());
-      emitter.Emit(nameOpnd->GetName() + emitter.HugeSoPostFix());
+      (void)emitter.Emit(nameOpnd->GetName() + emitter.HugeSoPostFix());
       break;
     }
     auto *opnd = &insn.GetOperand(static_cast<uint32>(seq[i]));
@@ -844,7 +844,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) {
         if (insn.IsVectorOp()) {
           PrepareVectorOperand(regOpnd, compositeOpnds, insn);
           if (compositeOpnds != 0) {
-            emitter.Emit("{");
+            (void)emitter.Emit("{");
           }
         }
       }
@@ -853,7 +853,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) {
 
     insn.GetOperand(seq[i]).Accept(visitor);
     if (compositeOpnds == 1) {
-      emitter.Emit("}");
+      (void)emitter.Emit("}");
     }
     if (compositeOpnds > 0) {
       --compositeOpnds;
@@ -864,7 +864,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) {
     }
     /* Temporary comment the label:.Label.debug.callee */
     if (i != (commaNum - 1)) {
-      emitter.Emit(", ");
+      (void)emitter.Emit(", ");
     }
     const uint32 commaNumForEmitLazy = 2;
     if (!CGOptions::IsLazyBinding() || GetCG()->IsLibcore() || (mOp != MOP_wldr && mOp != MOP_xldr) ||
@@ -882,7 +882,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) {
     const MIRSymbol *sym = memOpnd->GetSymbol();
     if (sym->IsMuidFuncDefTab() || sym->IsMuidFuncUndefTab() ||
         sym->IsMuidDataDefTab() || sym->IsMuidDataUndefTab()) {
-      emitter.Emit("\n");
+      (void)emitter.Emit("\n");
       EmitLazyBindingRoutine(emitter, insn);
       emitter.IncreaseJavaInsnCount(1);
     }
@@ -894,7 +894,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) {
     }
   }
 
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
 }
 
 void AArch64AsmEmitter::EmitClinit(Emitter &emitter, Insn &insn) const {
@@ -918,61 +918,61 @@ void AArch64AsmEmitter::EmitClinit(Emitter &emitter, Insn &insn) const {
   CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Insn::EmitClinit");
   /* emit nop for breakpoint */
   if (GetCG()->GetCGOptions().WithDwarf()) {
-    emitter.Emit("\t").Emit("nop").Emit("\n");
+    (void)emitter.Emit("\t").Emit("nop").Emit("\n");
   }
 
   if (stImmOpnd->GetSymbol()->IsMuidDataUndefTab()) {
     /* emit adrp */
-    emitter.Emit("\t").Emit("adrp").Emit("\t");
+    (void)emitter.Emit("\t").Emit("adrp").Emit("\t");
     opnd0->Accept(visitor);
-    emitter.Emit(",");
-    emitter.Emit(stImmOpnd->GetName());
-    emitter.Emit("+").Emit(stImmOpnd->GetOffset());
-    emitter.Emit("\n");
+    (void)emitter.Emit(",");
+    (void)emitter.Emit(stImmOpnd->GetName());
+    (void)emitter.Emit("+").Emit(stImmOpnd->GetOffset());
+    (void)emitter.Emit("\n");
     /* emit ldr */
-    emitter.Emit("\t").Emit("ldr").Emit("\t");
+    (void)emitter.Emit("\t").Emit("ldr").Emit("\t");
     opnd0->Accept(visitor);
-    emitter.Emit(",");
-    emitter.Emit("[");
+    (void)emitter.Emit(",");
+    (void)emitter.Emit("[");
     opnd0->Accept(visitor);
-    emitter.Emit(",");
-    emitter.Emit("#");
-    emitter.Emit(":lo12:").Emit(stImmOpnd->GetName());
-    emitter.Emit("+").Emit(stImmOpnd->GetOffset());
-    emitter.Emit("]");
-    emitter.Emit("\n");
+    (void)emitter.Emit(",");
+    (void)emitter.Emit("#");
+    (void)emitter.Emit(":lo12:").Emit(stImmOpnd->GetName());
+    (void)emitter.Emit("+").Emit(stImmOpnd->GetOffset());
+    (void)emitter.Emit("]");
+    (void)emitter.Emit("\n");
   } else {
     /* adrp    x3, _PTR__cinf_Ljava_2Futil_2Fconcurrent_2Fatomic_2FAtomicInteger_3B */
-    emitter.Emit("\tadrp\t");
+    (void)emitter.Emit("\tadrp\t");
     opnd0->Accept(visitor);
-    emitter.Emit(",");
+    (void)emitter.Emit(",");
     (void)emitter.Emit(namemangler::kPtrPrefixStr + stImmOpnd->GetName());
-    emitter.Emit("\n");
+    (void)emitter.Emit("\n");
 
     /* ldr     x3, [x3, #:lo12:_PTR__cinf_Ljava_2Futil_2Fconcurrent_2Fatomic_2FAtomicInteger_3B] */
-    emitter.Emit("\tldr\t");
+    (void)emitter.Emit("\tldr\t");
     opnd0->Accept(visitor);
-    emitter.Emit(", [");
+    (void)emitter.Emit(", [");
     opnd0->Accept(visitor);
-    emitter.Emit(", #:lo12:");
+    (void)emitter.Emit(", #:lo12:");
     (void)emitter.Emit(namemangler::kPtrPrefixStr + stImmOpnd->GetName());
-    emitter.Emit("]\n");
+    (void)emitter.Emit("]\n");
   }
   /* emit "ldr  x0,[x0,#48]" */
-  emitter.Emit("\t").Emit("ldr").Emit("\t");
+  (void)emitter.Emit("\t").Emit("ldr").Emit("\t");
   opnd0->Accept(visitor);
-  emitter.Emit(",");
-  emitter.Emit("[");
+  (void)emitter.Emit(",");
+  (void)emitter.Emit("[");
   opnd0->Accept(visitor);
-  emitter.Emit(",#");
-  emitter.Emit(static_cast<uint32>(ClassMetadata::OffsetOfInitState()));
-  emitter.Emit("]");
-  emitter.Emit("\n");
+  (void)emitter.Emit(",#");
+  (void)emitter.Emit(static_cast<uint32>(ClassMetadata::OffsetOfInitState()));
+  (void)emitter.Emit("]");
+  (void)emitter.Emit("\n");
 
   /* emit "ldr  xzr, [x0]" */
-  emitter.Emit("\t").Emit("ldr\txzr, [");
+  (void)emitter.Emit("\t").Emit("ldr\txzr, [");
   opnd0->Accept(visitor);
-  emitter.Emit("]\n");
+  (void)emitter.Emit("]\n");
 }
 
 static void AsmStringOutputRegNum(
@@ -992,7 +992,7 @@ static void AsmStringOutputRegNum(
 }
 
 void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, Insn &insn) const {
-  emitter.Emit("\t//Inline asm begin\n\t");
+  (void)emitter.Emit("\t//Inline asm begin\n\t");
   auto &list1 = static_cast<ListOperand&>(insn.GetOperand(kAsmOutputListOpnd));
   std::vector<RegOperand *> outOpnds;
   for (auto *regOpnd : list1.GetOperands()) {
@@ -1099,8 +1099,8 @@ void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, Insn &insn) const {
         sidx++;
     }
   }
-  emitter.Emit(stringToEmit);
-  emitter.Emit("\n\t//Inline asm end\n");
+  (void)emitter.Emit(stringToEmit);
+  (void)emitter.Emit("\n\t//Inline asm end\n");
 }
 
 void AArch64AsmEmitter::EmitClinitTail(Emitter &emitter, Insn &insn) const {
@@ -1116,15 +1116,15 @@ void AArch64AsmEmitter::EmitClinitTail(Emitter &emitter, Insn &insn) const {
   A64OpndEmitVisitor visitor(emitter, prop0);
 
   /* emit "ldr  x17,[xs,#112]" */
-  emitter.Emit("\t").Emit("ldr").Emit("\tx17, [");
+  (void)emitter.Emit("\t").Emit("ldr").Emit("\tx17, [");
   opnd0->Accept(visitor);
-  emitter.Emit(", #");
-  emitter.Emit(static_cast<uint32>(ClassMetadata::OffsetOfInitState()));
-  emitter.Emit("]");
-  emitter.Emit("\n");
+  (void)emitter.Emit(", #");
+  (void)emitter.Emit(static_cast<uint32>(ClassMetadata::OffsetOfInitState()));
+  (void)emitter.Emit("]");
+  (void)emitter.Emit("\n");
 
   /* emit "ldr  xzr, [x17]" */
-  emitter.Emit("\t").Emit("ldr\txzr, [x17]\n");
+  (void)emitter.Emit("\t").Emit("ldr\txzr, [x17]\n");
 }
 
 void AArch64AsmEmitter::EmitLazyLoad(Emitter &emitter, Insn &insn) const {
@@ -1140,22 +1140,22 @@ void AArch64AsmEmitter::EmitLazyLoad(Emitter &emitter, Insn &insn) const {
   OpndProp *prop1 = md->operand[1];
 
   /* emit  "ldr wd, [xs]" */
-  emitter.Emit("\t").Emit("ldr\t");
+  (void)emitter.Emit("\t").Emit("ldr\t");
 #ifdef USE_32BIT_REF
   opnd0->Emit(emitter, prop0);
 #else
   opnd0->Emit(emitter, prop1);
 #endif
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   opnd1->Emit(emitter, prop1);
-  emitter.Emit("]\t// lazy load.\n");
+  (void)emitter.Emit("]\t// lazy load.\n");
 
   /* emit "ldr wd, [xd]" */
-  emitter.Emit("\t").Emit("ldr\t");
+  (void)emitter.Emit("\t").Emit("ldr\t");
   opnd0->Emit(emitter, prop0);
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   opnd0->Emit(emitter, prop1);
-  emitter.Emit("]\t// lazy load.\n");
+  (void)emitter.Emit("]\t// lazy load.\n");
 }
 
 void AArch64AsmEmitter::EmitCounter(Emitter &emitter, Insn &insn) const {
@@ -1175,37 +1175,37 @@ void AArch64AsmEmitter::EmitCounter(Emitter &emitter, Insn &insn) const {
   CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Insn::EmitCounter");
   /* emit nop for breakpoint */
   if (GetCG()->GetCGOptions().WithDwarf()) {
-    emitter.Emit("\t").Emit("nop").Emit("\n");
+    (void)emitter.Emit("\t").Emit("nop").Emit("\n");
   }
 
   /* emit adrp */
-  emitter.Emit("\t").Emit("adrp").Emit("\t");
+  (void)emitter.Emit("\t").Emit("adrp").Emit("\t");
   opnd0->Accept(visitor);
-  emitter.Emit(",");
-  emitter.Emit(stImmOpnd->GetName());
-  emitter.Emit("+").Emit(stImmOpnd->GetOffset());
-  emitter.Emit("\n");
+  (void)emitter.Emit(",");
+  (void)emitter.Emit(stImmOpnd->GetName());
+  (void)emitter.Emit("+").Emit(stImmOpnd->GetOffset());
+  (void)emitter.Emit("\n");
   /* emit ldr */
-  emitter.Emit("\t").Emit("ldr").Emit("\tw17, [");
+  (void)emitter.Emit("\t").Emit("ldr").Emit("\tw17, [");
   opnd0->Accept(visitor);
-  emitter.Emit(",");
-  emitter.Emit("#");
-  emitter.Emit(":lo12:").Emit(stImmOpnd->GetName());
-  emitter.Emit("+").Emit(stImmOpnd->GetOffset());
-  emitter.Emit("]");
-  emitter.Emit("\n");
+  (void)emitter.Emit(",");
+  (void)emitter.Emit("#");
+  (void)emitter.Emit(":lo12:").Emit(stImmOpnd->GetName());
+  (void)emitter.Emit("+").Emit(stImmOpnd->GetOffset());
+  (void)emitter.Emit("]");
+  (void)emitter.Emit("\n");
   /* emit add */
-  emitter.Emit("\t").Emit("add").Emit("\tw17, w17, #1");
-  emitter.Emit("\n");
+  (void)emitter.Emit("\t").Emit("add").Emit("\tw17, w17, #1");
+  (void)emitter.Emit("\n");
   /* emit str */
-  emitter.Emit("\t").Emit("str").Emit("\tw17, [");
+  (void)emitter.Emit("\t").Emit("str").Emit("\tw17, [");
   opnd0->Accept(visitor);
-  emitter.Emit(",");
-  emitter.Emit("#");
-  emitter.Emit(":lo12:").Emit(stImmOpnd->GetName());
-  emitter.Emit("+").Emit(stImmOpnd->GetOffset());
-  emitter.Emit("]");
-  emitter.Emit("\n");
+  (void)emitter.Emit(",");
+  (void)emitter.Emit("#");
+  (void)emitter.Emit(":lo12:").Emit(stImmOpnd->GetName());
+  (void)emitter.Emit("+").Emit(stImmOpnd->GetOffset());
+  (void)emitter.Emit("]");
+  (void)emitter.Emit("\n");
 }
 
 void AArch64AsmEmitter::EmitAdrpLabel(Emitter &emitter, Insn &insn) const {
@@ -1221,21 +1221,21 @@ void AArch64AsmEmitter::EmitAdrpLabel(Emitter &emitter, Insn &insn) const {
   auto lidx = static_cast<ImmOperand *>(opnd1)->GetValue();
 
   /* adrp    xd, label */
-  emitter.Emit("\t").Emit("adrp").Emit("\t");
+  (void)emitter.Emit("\t").Emit("adrp").Emit("\t");
   opnd0->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   char *idx;
   idx = strdup(std::to_string(Globals::GetInstance()->GetBECommon()->GetMIRModule().CurFunction()->GetPuidx()).c_str());
-  emitter.Emit(".L.").Emit(idx).Emit("__").Emit(lidx).Emit("\n");
+  (void)emitter.Emit(".L.").Emit(idx).Emit("__").Emit(lidx).Emit("\n");
 
   /* add     xd, xd, #lo12:label */
-  emitter.Emit("\tadd\t");
+  (void)emitter.Emit("\tadd\t");
   opnd0->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   opnd0->Accept(visitor);
-  emitter.Emit(", ");
-  emitter.Emit(":lo12:").Emit(".L.").Emit(idx).Emit("__").Emit(lidx).Emit("\n");
-  emitter.Emit("\n");
+  (void)emitter.Emit(", ");
+  (void)emitter.Emit(":lo12:").Emit(".L.").Emit(idx).Emit("__").Emit(lidx).Emit("\n");
+  (void)emitter.Emit("\n");
   free(idx);
   idx = nullptr;
 }
@@ -1254,34 +1254,34 @@ void AArch64AsmEmitter::EmitAdrpLdr(Emitter &emitter, Insn &insn) const {
   CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Insn::EmitAdrpLdr");
   /* emit nop for breakpoint */
   if (GetCG()->GetCGOptions().WithDwarf()) {
-    emitter.Emit("\t").Emit("nop").Emit("\n");
+    (void)emitter.Emit("\t").Emit("nop").Emit("\n");
   }
 
   /* adrp    xd, _PTR__cinf_Ljava_2Futil_2Fconcurrent_2Fatomic_2FAtomicInteger_3B */
-  emitter.Emit("\t").Emit("adrp").Emit("\t");
+  (void)emitter.Emit("\t").Emit("adrp").Emit("\t");
   opnd0->Accept(visitor);
-  emitter.Emit(", ");
-  emitter.Emit(stImmOpnd->GetName());
+  (void)emitter.Emit(", ");
+  (void)emitter.Emit(stImmOpnd->GetName());
   if (stImmOpnd->GetOffset() != 0) {
-    emitter.Emit("+").Emit(stImmOpnd->GetOffset());
+    (void)emitter.Emit("+").Emit(stImmOpnd->GetOffset());
   }
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
 
   /* ldr     xd, [xd, #:lo12:_PTR__cinf_Ljava_2Futil_2Fconcurrent_2Fatomic_2FAtomicInteger_3B] */
-  emitter.Emit("\tldr\t");
+  (void)emitter.Emit("\tldr\t");
   static_cast<RegOperand*>(opnd0)->SetRefField(true);
   opnd0->Accept(visitor);
   static_cast<RegOperand*>(opnd0)->SetRefField(false);
-  emitter.Emit(", ");
-  emitter.Emit("[");
+  (void)emitter.Emit(", ");
+  (void)emitter.Emit("[");
   opnd0->Accept(visitor);
-  emitter.Emit(",");
-  emitter.Emit("#");
-  emitter.Emit(":lo12:").Emit(stImmOpnd->GetName());
+  (void)emitter.Emit(",");
+  (void)emitter.Emit("#");
+  (void)emitter.Emit(":lo12:").Emit(stImmOpnd->GetName());
   if (stImmOpnd->GetOffset() != 0) {
-    emitter.Emit("+").Emit(stImmOpnd->GetOffset());
+    (void)emitter.Emit("+").Emit(stImmOpnd->GetOffset());
   }
-  emitter.Emit("]\n");
+  (void)emitter.Emit("]\n");
 }
 
 void AArch64AsmEmitter::EmitLazyLoadStatic(Emitter &emitter, Insn &insn) const {
@@ -1298,17 +1298,17 @@ void AArch64AsmEmitter::EmitLazyLoadStatic(Emitter &emitter, Insn &insn) const {
   CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Insn::EmitLazyLoadStatic");
 
   /* emit "adrp xd, :got:__staticDecoupleValueOffset$$xxx+offset" */
-  emitter.Emit("\t").Emit("adrp").Emit("\t");
+  (void)emitter.Emit("\t").Emit("adrp").Emit("\t");
   opnd0->Emit(emitter, prop0);
-  emitter.Emit(", ");
-  emitter.Emit(stImmOpnd->GetName());
+  (void)emitter.Emit(", ");
+  (void)emitter.Emit(stImmOpnd->GetName());
   if (stImmOpnd->GetOffset() != 0) {
-    emitter.Emit("+").Emit(stImmOpnd->GetOffset());
+    (void)emitter.Emit("+").Emit(stImmOpnd->GetOffset());
   }
-  emitter.Emit("\t// lazy load static.\n");
+  (void)emitter.Emit("\t// lazy load static.\n");
 
   /* emit "ldr wd, [xd, #:got_lo12:__staticDecoupleValueOffset$$xxx+offset]" */
-  emitter.Emit("\tldr\t");
+  (void)emitter.Emit("\tldr\t");
   static_cast<RegOperand*>(opnd0)->SetRefField(true);
 #ifdef USE_32BIT_REF
   OpndProp prop2(prop0->GetOperandType(), prop0->GetRegProp(), prop0->GetSize() / 2);
@@ -1317,21 +1317,21 @@ void AArch64AsmEmitter::EmitLazyLoadStatic(Emitter &emitter, Insn &insn) const {
   opnd0->Emit(emitter, prop0);  /* ldr xd, ... for qemu */
 #endif /* USE_32BIT_REF */
   static_cast<RegOperand*>(opnd0)->SetRefField(false);
-  emitter.Emit(", ");
-  emitter.Emit("[");
+  (void)emitter.Emit(", ");
+  (void)emitter.Emit("[");
   opnd0->Emit(emitter, prop0);
-  emitter.Emit(",");
-  emitter.Emit("#");
-  emitter.Emit(":lo12:").Emit(stImmOpnd->GetName());
+  (void)emitter.Emit(",");
+  (void)emitter.Emit("#");
+  (void)emitter.Emit(":lo12:").Emit(stImmOpnd->GetName());
   if (stImmOpnd->GetOffset() != 0) {
-    emitter.Emit("+").Emit(stImmOpnd->GetOffset());
+    (void)emitter.Emit("+").Emit(stImmOpnd->GetOffset());
   }
-  emitter.Emit("]\t// lazy load static.\n");
+  (void)emitter.Emit("]\t// lazy load static.\n");
 
   /* emit "ldr wzr, [xd]" */
-  emitter.Emit("\t").Emit("ldr\twzr, [");
+  (void)emitter.Emit("\t").Emit("ldr\twzr, [");
   opnd0->Emit(emitter, prop0);
-  emitter.Emit("]\t// lazy load static.\n");
+  (void)emitter.Emit("]\t// lazy load static.\n");
 }
 
 void AArch64AsmEmitter::EmitArrayClassCacheLoad(Emitter &emitter, Insn &insn) const {
@@ -1348,17 +1348,17 @@ void AArch64AsmEmitter::EmitArrayClassCacheLoad(Emitter &emitter, Insn &insn) co
   CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Insn::EmitLazyLoadStatic");
 
   /* emit "adrp xd, :got:__arrayClassCacheTable$$xxx+offset" */
-  emitter.Emit("\t").Emit("adrp").Emit("\t");
+  (void)emitter.Emit("\t").Emit("adrp").Emit("\t");
   opnd0->Accept(visitor);
-  emitter.Emit(", ");
-  emitter.Emit(stImmOpnd->GetName());
+  (void)emitter.Emit(", ");
+  (void)emitter.Emit(stImmOpnd->GetName());
   if (stImmOpnd->GetOffset() != 0) {
-    emitter.Emit("+").Emit(stImmOpnd->GetOffset());
+    (void)emitter.Emit("+").Emit(stImmOpnd->GetOffset());
   }
-  emitter.Emit("\t// load array class.\n");
+  (void)emitter.Emit("\t// load array class.\n");
 
   /* emit "ldr wd, [xd, #:got_lo12:__arrayClassCacheTable$$xxx+offset]" */
-  emitter.Emit("\tldr\t");
+  (void)emitter.Emit("\tldr\t");
   static_cast<RegOperand*>(opnd0)->SetRefField(true);
 #ifdef USE_32BIT_REF
   OpndProp prop2(prop0->GetOperandType(), prop0->GetRegProp(), prop0->GetSize() / 2);
@@ -1368,21 +1368,21 @@ void AArch64AsmEmitter::EmitArrayClassCacheLoad(Emitter &emitter, Insn &insn) co
   opnd0->Accept(visitor);  /* ldr xd, ... for qemu */
 #endif /* USE_32BIT_REF */
   static_cast<RegOperand*>(opnd0)->SetRefField(false);
-  emitter.Emit(", ");
-  emitter.Emit("[");
+  (void)emitter.Emit(", ");
+  (void)emitter.Emit("[");
   opnd0->Accept(visitor);
-  emitter.Emit(",");
-  emitter.Emit("#");
-  emitter.Emit(":lo12:").Emit(stImmOpnd->GetName());
+  (void)emitter.Emit(",");
+  (void)emitter.Emit("#");
+  (void)emitter.Emit(":lo12:").Emit(stImmOpnd->GetName());
   if (stImmOpnd->GetOffset() != 0) {
-    emitter.Emit("+").Emit(stImmOpnd->GetOffset());
+    (void)emitter.Emit("+").Emit(stImmOpnd->GetOffset());
   }
-  emitter.Emit("]\t// load array class.\n");
+  (void)emitter.Emit("]\t// load array class.\n");
 
   /* emit "ldr wzr, [xd]" */
-  emitter.Emit("\t").Emit("ldr\twzr, [");
+  (void)emitter.Emit("\t").Emit("ldr\twzr, [");
   opnd0->Accept(visitor);
-  emitter.Emit("]\t// check resolve array class.\n");
+  (void)emitter.Emit("]\t// check resolve array class.\n");
 }
 
 /*
@@ -1396,7 +1396,7 @@ void AArch64AsmEmitter::EmitArrayClassCacheLoad(Emitter &emitter, Insn &insn) co
  */
 void AArch64AsmEmitter::EmitGetAndAddInt(Emitter &emitter, Insn &insn) const {
   ASSERT(insn.GetOperandSize() > kInsnEighthOpnd, "ensure the oprands number");
-  emitter.Emit("\t//\tstart of Unsafe.getAndAddInt.\n");
+  (void)emitter.Emit("\t//\tstart of Unsafe.getAndAddInt.\n");
   Operand *tempOpnd0 = &insn.GetOperand(kInsnSecondOpnd);
   Operand *tempOpnd1 = &insn.GetOperand(kInsnThirdOpnd);
   Operand *tempOpnd2 = &insn.GetOperand(kInsnFourthOpnd);
@@ -1406,50 +1406,50 @@ void AArch64AsmEmitter::EmitGetAndAddInt(Emitter &emitter, Insn &insn) const {
   Operand *labelOpnd = &insn.GetOperand(kInsnEighthOpnd);
   A64OpndEmitVisitor visitor(emitter, nullptr);
   /* emit add. */
-  emitter.Emit("\t").Emit("add").Emit("\t");
+  (void)emitter.Emit("\t").Emit("add").Emit("\t");
   tempOpnd0->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   objOpnd->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   offsetOpnd->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* emit label. */
   labelOpnd->Accept(visitor);
-  emitter.Emit(":\n");
+  (void)emitter.Emit(":\n");
   Operand *retVal = &insn.GetOperand(kInsnFirstOpnd);
   const MOperator mOp = insn.GetMachineOpcode();
   const AArch64MD *md = &AArch64CG::kMd[mOp];
   OpndProp *retProp = md->operand[kInsnFirstOpnd];
   A64OpndEmitVisitor retVisitor(emitter, retProp);
   /* emit ldaxr */
-  emitter.Emit("\t").Emit("ldaxr").Emit("\t");
+  (void)emitter.Emit("\t").Emit("ldaxr").Emit("\t");
   retVal->Accept(retVisitor);
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   tempOpnd0->Accept(visitor);
-  emitter.Emit("]\n");
+  (void)emitter.Emit("]\n");
   /* emit add. */
-  emitter.Emit("\t").Emit("add").Emit("\t");
+  (void)emitter.Emit("\t").Emit("add").Emit("\t");
   tempOpnd1->Accept(retVisitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   retVal->Accept(retVisitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   deltaOpnd->Accept(retVisitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* emit stlxr. */
-  emitter.Emit("\t").Emit("stlxr").Emit("\t");
+  (void)emitter.Emit("\t").Emit("stlxr").Emit("\t");
   tempOpnd2->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   tempOpnd1->Accept(retVisitor);
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   tempOpnd0->Accept(visitor);
-  emitter.Emit("]\n");
+  (void)emitter.Emit("]\n");
   /* emit cbnz. */
-  emitter.Emit("\t").Emit("cbnz").Emit("\t");
+  (void)emitter.Emit("\t").Emit("cbnz").Emit("\t");
   tempOpnd2->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   labelOpnd->Accept(visitor);
-  emitter.Emit("\n");
-  emitter.Emit("\t//\tend of Unsafe.getAndAddInt.\n");
+  (void)emitter.Emit("\n");
+  (void)emitter.Emit("\t//\tend of Unsafe.getAndAddInt.\n");
 }
 
 /*
@@ -1469,39 +1469,39 @@ void AArch64AsmEmitter::EmitGetAndSetInt(Emitter &emitter, Insn &insn) const {
   Operand *offsetOpnd = &insn.GetOperand(kInsnFifthOpnd);
   A64OpndEmitVisitor visitor(emitter, nullptr);
   /* add    x1, x1, x2 */
-  emitter.Emit("\tadd\t");
+  (void)emitter.Emit("\tadd\t");
   tempOpnd0->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   objOpnd->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   offsetOpnd->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   Operand *labelOpnd = &insn.GetOperand(kInsnSeventhOpnd);
   /* label: */
   labelOpnd->Accept(visitor);
-  emitter.Emit(":\n");
+  (void)emitter.Emit(":\n");
   Operand *retVal = &insn.GetOperand(kInsnFirstOpnd);
   /* ldaxr  w0, [xt] */
-  emitter.Emit("\tldaxr\t");
+  (void)emitter.Emit("\tldaxr\t");
   retVal->Accept(visitor);
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   tempOpnd0->Accept(visitor);
-  emitter.Emit("]\n");
+  (void)emitter.Emit("]\n");
   Operand *newValueOpnd = &insn.GetOperand(kInsnSixthOpnd);
   /* stlxr  ws, w3, [xt] */
-  emitter.Emit("\tstlxr\t");
+  (void)emitter.Emit("\tstlxr\t");
   tempOpnd1->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   newValueOpnd->Accept(visitor);
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   tempOpnd0->Accept(visitor);
-  emitter.Emit("]\n");
+  (void)emitter.Emit("]\n");
   /* cbnz   w2, label */
-  emitter.Emit("\tcbnz\t");
+  (void)emitter.Emit("\tcbnz\t");
   tempOpnd1->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   labelOpnd->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
 }
 
 /*
@@ -1563,254 +1563,254 @@ void AArch64AsmEmitter::EmitStringIndexOf(Emitter &emitter, Insn &insn) const {
       AArch64CG::intRegNames[AArch64CG::kR64List][static_cast<RegOperand*>(srcLengthOpnd)->GetRegisterNumber()];
   A64OpndEmitVisitor visitor(emitter, nullptr);
   /* cmp       w4, w2 */
-  emitter.Emit("\tcmp\t");
+  (void)emitter.Emit("\tcmp\t");
   patternLengthOpnd->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   srcLengthOpnd->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* the 16th operand of MOP_string_indexof is Label.NOMATCH */
   Operand *labelNoMatch = &insn.GetOperand(16);
   /* b.gt      Label.NOMATCH */
-  emitter.Emit("\tb.gt\t");
+  (void)emitter.Emit("\tb.gt\t");
   labelNoMatch->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* sub       w2, w2, w4 */
-  emitter.Emit("\tsub\t");
+  (void)emitter.Emit("\tsub\t");
   srcLengthOpnd->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   srcLengthOpnd->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   patternLengthOpnd->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* sub       w4, w4, #8 */
-  emitter.Emit("\tsub\t");
+  (void)emitter.Emit("\tsub\t");
   patternLengthOpnd->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   patternLengthOpnd->Accept(visitor);
-  emitter.Emit(", #8\n");
+  (void)emitter.Emit(", #8\n");
   /* the 10th operand of MOP_string_indexof is w10 */
   Operand *resultTmp = &insn.GetOperand(10);
   /* mov       w10, w2 */
-  emitter.Emit("\tmov\t");
+  (void)emitter.Emit("\tmov\t");
   resultTmp->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   srcLengthOpnd->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* uxtw      x4, w4 */
-  emitter.Emit("\tuxtw\t").Emit(patternLengthReg);
-  emitter.Emit(", ");
+  (void)emitter.Emit("\tuxtw\t").Emit(patternLengthReg);
+  (void)emitter.Emit(", ");
   patternLengthOpnd->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* uxtw      x2, w2 */
-  emitter.Emit("\tuxtw\t").Emit(srcLengthReg);
-  emitter.Emit(", ");
+  (void)emitter.Emit("\tuxtw\t").Emit(srcLengthReg);
+  (void)emitter.Emit(", ");
   srcLengthOpnd->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   Operand *patternStringBaseOpnd = &insn.GetOperand(kInsnFourthOpnd);
   /* add       x3, x3, x4 */
-  emitter.Emit("\tadd\t");
+  (void)emitter.Emit("\tadd\t");
   patternStringBaseOpnd->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   patternStringBaseOpnd->Accept(visitor);
-  emitter.Emit(", ").Emit(patternLengthReg);
-  emitter.Emit("\n");
+  (void)emitter.Emit(", ").Emit(patternLengthReg);
+  (void)emitter.Emit("\n");
   Operand *srcStringBaseOpnd = &insn.GetOperand(kInsnSecondOpnd);
   /* add       x1, x1, x2 */
-  emitter.Emit("\tadd\t");
+  (void)emitter.Emit("\tadd\t");
   srcStringBaseOpnd->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   srcStringBaseOpnd->Accept(visitor);
-  emitter.Emit(", ").Emit(srcLengthReg);
-  emitter.Emit("\n");
+  (void)emitter.Emit(", ").Emit(srcLengthReg);
+  (void)emitter.Emit("\n");
   /* neg       x4, x4 */
-  emitter.Emit("\tneg\t").Emit(patternLengthReg);
-  emitter.Emit(", ").Emit(patternLengthReg);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\tneg\t").Emit(patternLengthReg);
+  (void)emitter.Emit(", ").Emit(patternLengthReg);
+  (void)emitter.Emit("\n");
   /* neg       x2, x2 */
-  emitter.Emit("\tneg\t").Emit(srcLengthReg);
-  emitter.Emit(", ").Emit(srcLengthReg);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\tneg\t").Emit(srcLengthReg);
+  (void)emitter.Emit(", ").Emit(srcLengthReg);
+  (void)emitter.Emit("\n");
   Operand *first = &insn.GetOperand(kInsnSixthOpnd);
   /* ldr       x5, [x3,x4] */
-  emitter.Emit("\tldr\t");
+  (void)emitter.Emit("\tldr\t");
   first->Accept(visitor);
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   patternStringBaseOpnd->Accept(visitor);
-  emitter.Emit(",").Emit(patternLengthReg);
-  emitter.Emit("]\n");
+  (void)emitter.Emit(",").Emit(patternLengthReg);
+  (void)emitter.Emit("]\n");
   /* the 11th operand of MOP_string_indexof is Label.FIRST_LOOP */
   Operand *labelFirstLoop = &insn.GetOperand(11);
   /* .Label.FIRST_LOOP: */
   labelFirstLoop->Accept(visitor);
-  emitter.Emit(":\n");
+  (void)emitter.Emit(":\n");
   /* the 7th operand of MOP_string_indexof is x7 */
   Operand *ch2 = &insn.GetOperand(7);
   /* ldr       x7, [x1,x2] */
-  emitter.Emit("\tldr\t");
+  (void)emitter.Emit("\tldr\t");
   ch2->Accept(visitor);
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   srcStringBaseOpnd->Accept(visitor);
-  emitter.Emit(",").Emit(srcLengthReg);
-  emitter.Emit("]\n");
+  (void)emitter.Emit(",").Emit(srcLengthReg);
+  (void)emitter.Emit("]\n");
   /* cmp       x5, x7 */
-  emitter.Emit("\tcmp\t");
+  (void)emitter.Emit("\tcmp\t");
   first->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   ch2->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* the 13th operand of MOP_string_indexof is Label.STR1_LOOP */
   Operand *labelStr1Loop = &insn.GetOperand(13);
   /* b.eq      .Label.STR1_LOOP */
-  emitter.Emit("\tb.eq\t");
+  (void)emitter.Emit("\tb.eq\t");
   labelStr1Loop->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* the 12th operand of MOP_string_indexof is Label.STR2_NEXT */
   Operand *labelStr2Next = &insn.GetOperand(12);
   /* .Label.STR2_NEXT: */
   labelStr2Next->Accept(visitor);
-  emitter.Emit(":\n");
+  (void)emitter.Emit(":\n");
   /* adds      x2, x2, #1 */
-  emitter.Emit("\tadds\t").Emit(srcLengthReg);
-  emitter.Emit(", ").Emit(srcLengthReg);
-  emitter.Emit(", #1\n");
+  (void)emitter.Emit("\tadds\t").Emit(srcLengthReg);
+  (void)emitter.Emit(", ").Emit(srcLengthReg);
+  (void)emitter.Emit(", #1\n");
   /* b.le      .Label.FIRST_LOOP */
-  emitter.Emit("\tb.le\t");
+  (void)emitter.Emit("\tb.le\t");
   labelFirstLoop->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* b         .Label.NOMATCH */
-  emitter.Emit("\tb\t");
+  (void)emitter.Emit("\tb\t");
   labelNoMatch->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* .Label.STR1_LOOP: */
   labelStr1Loop->Accept(visitor);
-  emitter.Emit(":\n");
+  (void)emitter.Emit(":\n");
   /* the 8th operand of MOP_string_indexof is x8 */
   Operand *tmp1 = &insn.GetOperand(kInsnEighthOpnd);
   /* adds      x8, x4, #8 */
-  emitter.Emit("\tadds\t");
+  (void)emitter.Emit("\tadds\t");
   tmp1->Accept(visitor);
-  emitter.Emit(", ").Emit(patternLengthReg);
-  emitter.Emit(", #8\n");
+  (void)emitter.Emit(", ").Emit(patternLengthReg);
+  (void)emitter.Emit(", #8\n");
   /* the 9th operand of MOP_string_indexof is x9 */
   Operand *tmp2 = &insn.GetOperand(9);
   /* add       x9, x2, #8 */
-  emitter.Emit("\tadd\t");
+  (void)emitter.Emit("\tadd\t");
   tmp2->Accept(visitor);
-  emitter.Emit(", ").Emit(srcLengthReg);
-  emitter.Emit(", #8\n");
+  (void)emitter.Emit(", ").Emit(srcLengthReg);
+  (void)emitter.Emit(", #8\n");
   /* the 15th operand of MOP_string_indexof is Label.LAST_WORD */
   Operand *labelLastWord = &insn.GetOperand(15);
   /* b.ge      .Label.LAST_WORD */
-  emitter.Emit("\tb.ge\t");
+  (void)emitter.Emit("\tb.ge\t");
   labelLastWord->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* the 14th operand of MOP_string_indexof is Label.STR1_NEXT */
   Operand *labelStr1Next = &insn.GetOperand(14);
   /* .Label.STR1_NEXT: */
   labelStr1Next->Accept(visitor);
-  emitter.Emit(":\n");
+  (void)emitter.Emit(":\n");
   /* the 6th operand of MOP_string_indexof is x6 */
   Operand *ch1 = &insn.GetOperand(6);
   /* ldr       x6, [x3,x8] */
-  emitter.Emit("\tldr\t");
+  (void)emitter.Emit("\tldr\t");
   ch1->Accept(visitor);
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   patternStringBaseOpnd->Accept(visitor);
-  emitter.Emit(",");
+  (void)emitter.Emit(",");
   tmp1->Accept(visitor);
-  emitter.Emit("]\n");
+  (void)emitter.Emit("]\n");
   /* ldr       x7, [x1,x9] */
-  emitter.Emit("\tldr\t");
+  (void)emitter.Emit("\tldr\t");
   ch2->Accept(visitor);
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   srcStringBaseOpnd->Accept(visitor);
-  emitter.Emit(",");
+  (void)emitter.Emit(",");
   tmp2->Accept(visitor);
-  emitter.Emit("]\n");
+  (void)emitter.Emit("]\n");
   /* cmp       x6, x7 */
-  emitter.Emit("\tcmp\t");
+  (void)emitter.Emit("\tcmp\t");
   ch1->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   ch2->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* b.ne      .Label.STR2_NEXT */
-  emitter.Emit("\tb.ne\t");
+  (void)emitter.Emit("\tb.ne\t");
   labelStr2Next->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* adds      x8, x8, #8 */
-  emitter.Emit("\tadds\t");
+  (void)emitter.Emit("\tadds\t");
   tmp1->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   tmp1->Accept(visitor);
-  emitter.Emit(", #8\n");
+  (void)emitter.Emit(", #8\n");
   /* add       x9, x9, #8 */
-  emitter.Emit("\tadd\t");
+  (void)emitter.Emit("\tadd\t");
   tmp2->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   tmp2->Accept(visitor);
-  emitter.Emit(", #8\n");
+  (void)emitter.Emit(", #8\n");
   /* b.lt      .Label.STR1_NEXT */
-  emitter.Emit("\tb.lt\t");
+  (void)emitter.Emit("\tb.lt\t");
   labelStr1Next->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* .Label.LAST_WORD: */
   labelLastWord->Accept(visitor);
-  emitter.Emit(":\n");
+  (void)emitter.Emit(":\n");
   /* ldr       x6, [x3] */
-  emitter.Emit("\tldr\t");
+  (void)emitter.Emit("\tldr\t");
   ch1->Accept(visitor);
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   patternStringBaseOpnd->Accept(visitor);
-  emitter.Emit("]\n");
+  (void)emitter.Emit("]\n");
   /* sub       x9, x1, x4 */
-  emitter.Emit("\tsub\t");
+  (void)emitter.Emit("\tsub\t");
   tmp2->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   srcStringBaseOpnd->Accept(visitor);
-  emitter.Emit(", ").Emit(patternLengthReg);
-  emitter.Emit("\n");
+  (void)emitter.Emit(", ").Emit(patternLengthReg);
+  (void)emitter.Emit("\n");
   /* ldr       x7, [x9,x2] */
-  emitter.Emit("\tldr\t");
+  (void)emitter.Emit("\tldr\t");
   ch2->Accept(visitor);
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   tmp2->Accept(visitor);
-  emitter.Emit(", ").Emit(srcLengthReg);
-  emitter.Emit("]\n");
+  (void)emitter.Emit(", ").Emit(srcLengthReg);
+  (void)emitter.Emit("]\n");
   /* cmp       x6, x7 */
-  emitter.Emit("\tcmp\t");
+  (void)emitter.Emit("\tcmp\t");
   ch1->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   ch2->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* b.ne      .Label.STR2_NEXT */
-  emitter.Emit("\tb.ne\t");
+  (void)emitter.Emit("\tb.ne\t");
   labelStr2Next->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   Operand *retVal = &insn.GetOperand(kInsnFirstOpnd);
   /* add       w0, w10, w2 */
-  emitter.Emit("\tadd\t");
+  (void)emitter.Emit("\tadd\t");
   retVal->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   resultTmp->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   srcLengthOpnd->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* the 17th operand of MOP_string_indexof Label.ret */
   Operand *labelRet = &insn.GetOperand(17);
   /* b         .Label.ret */
-  emitter.Emit("\tb\t");
+  (void)emitter.Emit("\tb\t");
   labelRet->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* .Label.NOMATCH: */
   labelNoMatch->Accept(visitor);
-  emitter.Emit(":\n");
+  (void)emitter.Emit(":\n");
   /* mov       w0, #-1 */
-  emitter.Emit("\tmov\t");
+  (void)emitter.Emit("\tmov\t");
   retVal->Accept(visitor);
-  emitter.Emit(", #-1\n");
+  (void)emitter.Emit(", #-1\n");
   /* .Label.ret: */
   labelRet->Accept(visitor);
-  emitter.Emit(":\n");
+  (void)emitter.Emit(":\n");
 }
 
 /*
@@ -1836,61 +1836,61 @@ void AArch64AsmEmitter::EmitCompareAndSwapInt(Emitter &emitter, Insn &insn) cons
   Operand *offset = &insn.GetOperand(kInsnFifthOpnd);
   A64OpndEmitVisitor visitor(emitter, nullptr);
   /* add       xt, x1, x2 */
-  emitter.Emit("\tadd\t");
+  (void)emitter.Emit("\tadd\t");
   temp0->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   obj->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   offset->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   Operand *label1 = &insn.GetOperand(kInsnEighthOpnd);
   /* label1: */
   label1->Accept(visitor);
-  emitter.Emit(":\n");
+  (void)emitter.Emit(":\n");
   /* ldaxr     ws, [xt] */
-  emitter.Emit("\tldaxr\t");
+  (void)emitter.Emit("\tldaxr\t");
   temp1->Accept(visitor);
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   temp0->Accept(visitor);
-  emitter.Emit("]\n");
+  (void)emitter.Emit("]\n");
   Operand *expectedValue = &insn.GetOperand(kInsnSixthOpnd);
   OpndProp *expectedValueProp = md->operand[kInsnSixthOpnd];
   /* cmp       ws, w3 */
-  emitter.Emit("\tcmp\t");
+  (void)emitter.Emit("\tcmp\t");
   temp1->Accept(visitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   A64OpndEmitVisitor visitorExpect(emitter, expectedValueProp);
   expectedValue->Accept(visitorExpect);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   constexpr uint32 kInsnNinethOpnd = 8;
   Operand *label2 = &insn.GetOperand(kInsnNinethOpnd);
   /* b.ne      label2 */
-  emitter.Emit("\tbne\t");
+  (void)emitter.Emit("\tbne\t");
   label2->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   Operand *newValue = &insn.GetOperand(kInsnSeventhOpnd);
   /* stlxr     ws, w4, [xt] */
-  emitter.Emit("\tstlxr\t");
-  emitter.Emit(AArch64CG::intRegNames[AArch64CG::kR32List][static_cast<RegOperand*>(temp1)->GetRegisterNumber()]);
-  emitter.Emit(", ");
+  (void)emitter.Emit("\tstlxr\t");
+  (void)emitter.Emit(AArch64CG::intRegNames[AArch64CG::kR32List][static_cast<RegOperand*>(temp1)->GetRegisterNumber()]);
+  (void)emitter.Emit(", ");
   newValue->Accept(visitor);
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   temp0->Accept(visitor);
-  emitter.Emit("]\n");
+  (void)emitter.Emit("]\n");
   /* cbnz      ws, label1 */
-  emitter.Emit("\tcbnz\t");
-  emitter.Emit(AArch64CG::intRegNames[AArch64CG::kR32List][static_cast<RegOperand*>(temp1)->GetRegisterNumber()]);
-  emitter.Emit(", ");
+  (void)emitter.Emit("\tcbnz\t");
+  (void)emitter.Emit(AArch64CG::intRegNames[AArch64CG::kR32List][static_cast<RegOperand*>(temp1)->GetRegisterNumber()]);
+  (void)emitter.Emit(", ");
   label1->Accept(visitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* label2: */
   label2->Accept(visitor);
-  emitter.Emit(":\n");
+  (void)emitter.Emit(":\n");
   Operand *retVal = &insn.GetOperand(kInsnFirstOpnd);
   /* cset      x0, eq */
-  emitter.Emit("\tcset\t");
+  (void)emitter.Emit("\tcset\t");
   retVal->Accept(visitor);
-  emitter.Emit(", EQ\n");
+  (void)emitter.Emit(", EQ\n");
 }
 
 void AArch64AsmEmitter::EmitCTlsDescRel(Emitter &emitter, Insn &insn) const {
@@ -1901,16 +1901,16 @@ void AArch64AsmEmitter::EmitCTlsDescRel(Emitter &emitter, Insn &insn) const {
   auto stImmOpnd = static_cast<StImmOperand*>(symbol);
   A64OpndEmitVisitor resultVisitor(emitter, md->operand[0]);
   A64OpndEmitVisitor srcVisitor(emitter, md->operand[1]);
-  emitter.Emit("\t").Emit("add").Emit("\t");
+  (void)emitter.Emit("\t").Emit("add").Emit("\t");
   result->Accept(resultVisitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   src->Accept(srcVisitor);
-  emitter.Emit(", #:tprel_hi12:").Emit(stImmOpnd->GetName()).Emit(", lsl #12\n");
-  emitter.Emit("\t").Emit("add").Emit("\t");
+  (void)emitter.Emit(", #:tprel_hi12:").Emit(stImmOpnd->GetName()).Emit(", lsl #12\n");
+  (void)emitter.Emit("\t").Emit("add").Emit("\t");
   result->Accept(resultVisitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   result->Accept(resultVisitor);
-  emitter.Emit(", #:tprel_lo12_nc:").Emit(stImmOpnd->GetName()).Emit("\n");
+  (void)emitter.Emit(", #:tprel_lo12_nc:").Emit(stImmOpnd->GetName()).Emit("\n");
 }
 void AArch64AsmEmitter::EmitCTlsDescCall(Emitter &emitter, Insn &insn) const {
   const AArch64MD *md = &AArch64CG::kMd[MOP_tls_desc_call];
@@ -1929,11 +1929,11 @@ void AArch64AsmEmitter::EmitCTlsDescCall(Emitter &emitter, Insn &insn) const {
   /*  add x0 ,#tlsdesc_lo12:symbol */
   emitter.Emit("\t").Emit("add\tx0, x0, :tlsdesc_lo12:").Emit(symName).Emit("\n");
   /* .tlsdesccall <symbolName> */
-  emitter.Emit("\t").Emit(".tlsdesccall").Emit("\t").Emit(symName).Emit("\n");
+  (void)emitter.Emit("\t").Emit(".tlsdesccall").Emit("\t").Emit(symName).Emit("\n");
   /* blr xd*/
-  emitter.Emit("\t").Emit("blr").Emit("\t");
+  (void)emitter.Emit("\t").Emit("blr").Emit("\t");
   func->Accept(funcVisitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
 }
 void AArch64AsmEmitter::EmitSyncLockTestSet(Emitter &emitter, Insn &insn) const {
   const AArch64MD *md = &AArch64CG::kMd[insn.GetMachineOpcode()];
@@ -1949,29 +1949,29 @@ void AArch64AsmEmitter::EmitSyncLockTestSet(Emitter &emitter, Insn &insn) const 
   A64OpndEmitVisitor labelVisitor(emitter, md->operand[kInsnFifthOpnd]);
   /* label: */
   label->Accept(labelVisitor);
-  emitter.Emit(":\n");
+  (void)emitter.Emit(":\n");
   /* ldxr x0, [x2] */
-  emitter.Emit("\t").Emit("ldxr").Emit("\t");
+  (void)emitter.Emit("\t").Emit("ldxr").Emit("\t");
   result->Accept(resultVisitor);
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   addr->Accept(addrVisitor);
-  emitter.Emit("]\n");
+  (void)emitter.Emit("]\n");
   /* stxr w1, x3, [x2]*/
-  emitter.Emit("\t").Emit("stxr").Emit("\t");
+  (void)emitter.Emit("\t").Emit("stxr").Emit("\t");
   temp->Accept(tempVisitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   value->Accept(valueVisitor);
-  emitter.Emit(", [");
+  (void)emitter.Emit(", [");
   addr->Accept(addrVisitor);
-  emitter.Emit("]\n");
+  (void)emitter.Emit("]\n");
   /* cbnz w1, label */
-  emitter.Emit("\t").Emit("cbnz").Emit("\t");
+  (void)emitter.Emit("\t").Emit("cbnz").Emit("\t");
   temp->Accept(tempVisitor);
-  emitter.Emit(", ");
+  (void)emitter.Emit(", ");
   label->Accept(labelVisitor);
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
   /* dmb ish*/
-  emitter.Emit("\t").Emit("dmb").Emit("\t").Emit("ish").Emit("\n");
+  (void)emitter.Emit("\t").Emit("dmb").Emit("\t").Emit("ish").Emit("\n");
 }
 
 void AArch64AsmEmitter::EmitCheckThrowPendingException(Emitter &emitter, Insn &insn) const {
@@ -1983,18 +1983,18 @@ void AArch64AsmEmitter::EmitCheckThrowPendingException(Emitter &emitter, Insn &i
    * bl MCC_ThrowPendingException
    * .lnoexception:
    */
-  emitter.Emit("\t").Emit("mrs").Emit("\tx16, TPIDR_EL0");
-  emitter.Emit("\n");
-  emitter.Emit("\t").Emit("ldr").Emit("\tx16, [x16, #64]");
-  emitter.Emit("\n");
-  emitter.Emit("\t").Emit("ldr").Emit("\tx16, [x16, #8]");
-  emitter.Emit("\n");
-  emitter.Emit("\t").Emit("cbz").Emit("\tx16, .lnoeh.").Emit(GetCG()->GetCurCGFunc()->GetName());
-  emitter.Emit("\n");
-  emitter.Emit("\t").Emit("bl").Emit("\tMCC_ThrowPendingException");
-  emitter.Emit("\n");
-  emitter.Emit(".lnoeh.").Emit(GetCG()->GetCurCGFunc()->GetName()).Emit(":");
-  emitter.Emit("\n");
+  (void)emitter.Emit("\t").Emit("mrs").Emit("\tx16, TPIDR_EL0");
+  (void)emitter.Emit("\n");
+  (void)emitter.Emit("\t").Emit("ldr").Emit("\tx16, [x16, #64]");
+  (void)emitter.Emit("\n");
+  (void)emitter.Emit("\t").Emit("ldr").Emit("\tx16, [x16, #8]");
+  (void)emitter.Emit("\n");
+  (void)emitter.Emit("\t").Emit("cbz").Emit("\tx16, .lnoeh.").Emit(GetCG()->GetCurCGFunc()->GetName());
+  (void)emitter.Emit("\n");
+  (void)emitter.Emit("\t").Emit("bl").Emit("\tMCC_ThrowPendingException");
+  (void)emitter.Emit("\n");
+  (void)emitter.Emit(".lnoeh.").Emit(GetCG()->GetCurCGFunc()->GetName()).Emit(":");
+  (void)emitter.Emit("\n");
 }
 
 void AArch64AsmEmitter::EmitLazyBindingRoutine(Emitter &emitter, Insn &insn) const {
@@ -2006,13 +2006,13 @@ void AArch64AsmEmitter::EmitLazyBindingRoutine(Emitter &emitter, Insn &insn) con
 
   /* emit "ldr  xzr,[xs]" */
 #ifdef USE_32BIT_REF
-  emitter.Emit("\t").Emit("ldr").Emit("\twzr, [");
+  (void)emitter.Emit("\t").Emit("ldr").Emit("\twzr, [");
 #else
-  emitter.Emit("\t").Emit("ldr").Emit("\txzr, [");
+  (void)emitter.Emit("\t").Emit("ldr").Emit("\txzr, [");
 #endif /* USE_32BIT_REF */
   opnd0->Emit(emitter, prop0);
-  emitter.Emit("]");
-  emitter.Emit("\t// Lazy binding\n");
+  (void)emitter.Emit("]");
+  (void)emitter.Emit("\t// Lazy binding\n");
 }
 
 void AArch64AsmEmitter::PrepareVectorOperand(RegOperand *regOpnd, uint32 &compositeOpnds, Insn &insn) const {
@@ -2067,16 +2067,16 @@ static CfiDescr cfiDescrTable[cfi::kOpCfiLast + 1] = {
 void AArch64AsmEmitter::EmitAArch64CfiInsn(Emitter &emitter, Insn &insn) {
   MOperator mOp = insn.GetMachineOpcode();
   CfiDescr &cfiDescr = cfiDescrTable[mOp];
-  emitter.Emit("\t").Emit(cfiDescr.name);
+  (void)emitter.Emit("\t").Emit(cfiDescr.name);
   for (uint32 i = 0; i < cfiDescr.opndCount; ++i) {
-    emitter.Emit(" ");
+    (void)emitter.Emit(" ");
     Operand &curOperand = insn.GetOperand(i);
     curOperand.Emit(emitter, nullptr);
     if (i < (cfiDescr.opndCount - 1)) {
-      emitter.Emit(",");
+      (void)emitter.Emit(",");
     }
   }
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
 }
 
 struct DbgDescr {
@@ -2097,13 +2097,13 @@ static DbgDescr dbgDescrTable[mpldbg::kOpDbgLast + 1] = {
 void AArch64AsmEmitter::EmitAArch64DbgInsn(Emitter &emitter, Insn &insn) {
   MOperator mOp = insn.GetMachineOpcode();
   DbgDescr &dbgDescr = dbgDescrTable[mOp];
-  emitter.Emit("\t.").Emit(dbgDescr.name);
+  (void)emitter.Emit("\t.").Emit(dbgDescr.name);
   for (uint32 i = 0; i < dbgDescr.opndCount; ++i) {
-    emitter.Emit(" ");
+    (void)emitter.Emit(" ");
     Operand &curOperand = insn.GetOperand(i);
     curOperand.Emit(emitter, nullptr);
   }
-  emitter.Emit("\n");
+  (void)emitter.Emit("\n");
 }
 
 bool AArch64AsmEmitter::CheckInsnRefField(Insn &insn, size_t opndIndex) const {

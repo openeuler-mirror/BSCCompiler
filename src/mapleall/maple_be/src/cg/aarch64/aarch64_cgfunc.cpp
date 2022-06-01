@@ -7830,7 +7830,7 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
                                                  actMemOpnd);
       actMemOpnd.SetStackArgMem(true);
       if (Globals::GetInstance()->GetOptimLevel() == 2 && stackArgsCount < kShiftAmount12) {
-        insnForStackArgs.emplace_back(&strInsn);
+        (void)insnForStackArgs.emplace_back(&strInsn);
         stackArgsCount++;
       } else {
         GetCurBB()->AppendInsn(strInsn);
@@ -9095,7 +9095,7 @@ void AArch64CGFunc::SelectLibCallNArg(const std::string &funcName, std::vector<O
   std::vector<TyIdx> vec;
   std::vector<TypeAttrs> vecAt;
   for (size_t i = 1; i < opndVec.size(); ++i) {
-    vec.emplace_back(GlobalTables::GetTypeTable().GetTypeTable()[static_cast<size_t>(pt[i])]->GetTypeIndex());
+    (void)vec.emplace_back(GlobalTables::GetTypeTable().GetTypeTable()[static_cast<size_t>(pt[i])]->GetTypeIndex());
     vecAt.emplace_back(TypeAttrs());
   }
 
@@ -9272,11 +9272,11 @@ void AArch64CGFunc::SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand
     mOpCode = is64Bits ? MOP_xaddrrr : MOP_waddrrr;
     Insn &newInsn = GetCG()->BuildInstruction<AArch64Insn>(mOpCode, resOpnd, opnd0, movOpnd);
     if (isDest) {
-      insn.GetBB()->InsertInsnAfter(insn, newInsn);
-      insn.GetBB()->InsertInsnAfter(insn, movInsn);
+      (void)insn.GetBB()->InsertInsnAfter(insn, newInsn);
+      (void)insn.GetBB()->InsertInsnAfter(insn, movInsn);
     } else {
-      insn.GetBB()->InsertInsnBefore(insn, movInsn);
-      insn.GetBB()->InsertInsnBefore(insn, newInsn);
+      (void)insn.GetBB()->InsertInsnBefore(insn, movInsn);
+      (void)insn.GetBB()->InsertInsnBefore(insn, newInsn);
     }
   }
 }

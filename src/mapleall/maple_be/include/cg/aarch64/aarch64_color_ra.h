@@ -504,16 +504,16 @@ class LiveRange {
   void AddRef(uint32 bbId, uint32 pos, uint32 mark) {
     if (refMap.find(bbId) == refMap.end()) {
       auto point = lrAlloca->New<MapleMap<uint32, uint32>>(lrAlloca->Adapter());
-      point->insert(std::pair<uint32, uint32>(pos, mark));
-      refMap.insert(std::pair<uint32, MapleMap<uint32, uint32>*>(bbId, point));
+      (void)point->insert(std::pair<uint32, uint32>(pos, mark));
+      (void)refMap.insert(std::pair<uint32, MapleMap<uint32, uint32>*>(bbId, point));
     } else {
       auto &bbPoint = (refMap.find(bbId))->second;
       if (bbPoint->find(pos) == bbPoint->end()) {
-        bbPoint->insert(std::pair<uint32, uint32>(pos, mark));
+        (void)bbPoint->insert(std::pair<uint32, uint32>(pos, mark));
       } else {
         auto posVal = bbPoint->find(pos)->second;
-        bbPoint->erase(bbPoint->find(pos));
-        bbPoint->insert(std::pair<uint32, uint32>(pos, posVal | mark));
+        (void)bbPoint->erase(bbPoint->find(pos));
+        (void)bbPoint->insert(std::pair<uint32, uint32>(pos, posVal | mark));
       }
     }
   }
