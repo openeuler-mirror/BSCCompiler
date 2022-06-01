@@ -771,6 +771,10 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const MemOpera
         OfstOperand *newOfsetOpnd = &static_cast<AArch64CGFunc*>(cgFunc)->CreateOfstOpnd(val, k32BitSize);
         CHECK_FATAL(newOfsetOpnd != nullptr, "newOfsetOpnd is null!");
         const MIRSymbol *addr = offset1->GetSymbol();
+        /* do not guarantee rodata alignment at Os */
+        if (CGOptions::OptimizeForSize() && addr->IsReadOnly()) {
+          break;
+        }
         RegOperand *replace = GetReplaceReg(
             static_cast<RegOperand&>(defInsn.GetOperand(kInsnSecondOpnd)));
         if (replace != nullptr) {

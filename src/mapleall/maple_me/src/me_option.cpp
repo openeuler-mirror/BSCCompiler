@@ -371,6 +371,13 @@ bool MeOption::SolveOptions(bool isDebug) {
   maplecl::CopyIfEnabled(srForAdd, opts::me::sradd);
   maplecl::CopyIfEnabled(doLFTR, opts::me::lftr);
   maplecl::CopyIfEnabled(ivopts, opts::me::ivopts);
+
+  // must have processed opts::strengthReduction
+  if (ivopts) {
+    // disable strengthReduction when ivopts is on
+    strengthReduction = false;
+  }
+
   maplecl::CopyIfEnabled(inlineFuncList, opts::me::inlinefunclist);
   maplecl::CopyIfEnabled(decoupleStatic, opts::decoupleStatic);
   maplecl::CopyIfEnabled(threads, opts::me::threads);

@@ -138,8 +138,10 @@ void Emitter::EmitLabelPair(const LabelPair &pairLabel) {
 }
 
 void Emitter::EmitLabelForFunc(const MIRFunction *func, LabelIdx labidx) {
-  const std::string idx = static_cast<const std::string>(strdup(std::to_string(func->GetPuidx()).c_str()));
+  char *idx = strdup(std::to_string(func->GetPuidx()).c_str());
   outStream << ".L." << idx << "__" << labidx;
+  free(idx);
+  idx = nullptr;
 }
 
 AsmLabel Emitter::GetTypeAsmInfoName(PrimType primType) const {
@@ -646,13 +648,14 @@ void Emitter::EmitStr(const std::string& mplStr, bool emitAscii, bool emitNewlin
 void Emitter::EmitStrConstant(const MIRStrConst &mirStrConst, bool isIndirect) {
   if (isIndirect) {
     uint32 strId = mirStrConst.GetValue().GetIdx();
-    if (stringPtr[strId] == 0) {
-      stringPtr[strId] = mirStrConst.GetValue();
+
+    if (stringPtr.find(mirStrConst.GetValue()) == stringPtr.end()) {
+      stringPtr.insert(mirStrConst.GetValue());
     }
     if (CGOptions::IsArm64ilp32()) {
       (void)Emit("\t.word\t").Emit(".LSTR__").Emit(std::to_string(strId).c_str());
     } else {
-      (void)Emit("\t.dword\t").Emit(".LSTR__").Emit(std::to_string(strId).c_str());
+      (void)Emit("\t.xword\t").Emit(".LSTR__").Emit(std::to_string(strId).c_str());
     }
     return;
   }
@@ -2071,14 +2074,34 @@ void Emitter::MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec)
 }
 
 void Emitter::EmitStringPointers() {
-  Emit(asmInfo->GetSection()).Emit(asmInfo->GetData()).Emit("\n");
+  if (CGOptions::OptimizeForSize()) {
+    Emit(asmInfo->GetSection()).Emit(".rodata,\"aMS\",@progbits,1").Emit("\n");
+    Emit("\t.align 3\n");
+  } else {
+    Emit(asmInfo->GetSection()).Emit(".rodata").Emit("\n");
+  }
+  for (auto idx: localStrPtr) {
+    if (idx == 0) {
+      continue;
+    }
+    if (!CGOptions::OptimizeForSize()) {
+      Emit("\t.align 3\n");
+    }
+    uint32 strId = idx.GetIdx();
+    std::string str = GlobalTables::GetUStrTable().GetStringFromStrIdx(idx);
+    Emit(".LUstr_").Emit(strId).Emit(":\n");
+    std::string mplstr(str);
+    EmitStr(mplstr, false, true);
+  }
   for (auto idx: stringPtr) {
     if (idx == 0) {
       continue;
     }
+    if (!CGOptions::OptimizeForSize()) {
+      Emit("\t.align 3\n");
+    }
     uint32 strId = idx.GetIdx();
     std::string str = GlobalTables::GetUStrTable().GetStringFromStrIdx(idx);
-    Emit("\t.align 3\n");
     Emit(".LSTR__").Emit(strId).Emit(":\n");
     std::string mplstr(str);
     EmitStr(mplstr, false, true);
@@ -2424,11 +2447,11 @@ void Emitter::EmitGlobalVariable() {
       continue;
     }
 
-    EmitAsmLabel(*mirSymbol, kAsmType);
     /* emit initialized global/static variables. */
     if (mirSymbol->GetStorageClass() == kScGlobal ||
         (mirSymbol->GetStorageClass() == kScFstatic && !mirSymbol->IsReadOnly())) {
       /* Emit section */
+      EmitAsmLabel(*mirSymbol, kAsmType);
       if (mirSymbol->IsReflectionStrTab()) {
         std::string sectionName = ".reflection_strtab";
         if (mirSymbol->GetName().find(kReflectionStartHotStrtabPrefixStr) == 0) {
@@ -2532,15 +2555,21 @@ void Emitter::EmitGlobalVariable() {
       EmitAsmLabel(*mirSymbol, kAsmSize);
       /* emit constant float/double */
     } else if (mirSymbol->IsReadOnly()) {
-      /* emit .section */
-      Emit(asmInfo->GetSection());
-      Emit(asmInfo->GetRodata());
-      Emit("\n");
-      EmitAsmLabel(*mirSymbol, kAsmAlign);
-      EmitAsmLabel(*mirSymbol, kAsmSyname);
       MIRConst *mirConst = mirSymbol->GetKonst();
-      EmitScalarConstant(*mirConst);
+      if (mirConst->GetKind() == maple::kConstStrConst) {
+        auto strCt = static_cast<MIRStrConst*>(mirConst);
+        localStrPtr.push_back(strCt->GetValue());
+      } else {
+        EmitAsmLabel(*mirSymbol, kAsmType);
+        Emit(asmInfo->GetSection()).Emit(asmInfo->GetRodata()).Emit("\n");
+        if (!CGOptions::OptimizeForSize()) {
+          EmitAsmLabel(*mirSymbol, kAsmAlign);
+        }
+        EmitAsmLabel(*mirSymbol, kAsmSyname);
+        EmitScalarConstant(*mirConst);
+      }
     } else if (mirSymbol->GetStorageClass() == kScPstatic) {
+      EmitAsmLabel(*mirSymbol, kAsmType);
       Emit(asmInfo->GetSection());
       Emit(asmInfo->GetData());
       Emit("\n");

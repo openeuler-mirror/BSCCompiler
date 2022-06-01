@@ -4839,6 +4839,11 @@ void ComplexMemOperandAArch64::Run(BB &bb, Insn &insn) {
     OfstOperand &offOpnd = aarch64CGFunc->GetOrCreateOfstOpnd(
         stImmOpnd.GetOffset() + memOpnd->GetOffsetImmediate()->GetOffsetValue(), k32BitSize);
 
+    /* do not guarantee rodata alignment at Os */
+    if (CGOptions::OptimizeForSize() && stImmOpnd.GetSymbol()->IsReadOnly()) {
+      return;
+    }
+
     /* avoid relocation */
     if ((offOpnd.GetValue() % kBitsPerByte) != 0) {
       return;

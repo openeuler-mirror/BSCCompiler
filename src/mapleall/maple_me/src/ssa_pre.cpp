@@ -264,6 +264,10 @@ void SSAPre::CodeMotion() {
         if (realOcc->IsSave()) {
           CHECK_FATAL(!(realOcc->IsReload()), "reload failed");
           GenerateSaveRealOcc(*realOcc);
+          if (realOcc->IsHoisted()) {
+            // remove fake stmt
+            realOcc->GetMeStmt()->GetBB()->RemoveMeStmt(realOcc->GetMeStmt());
+          }
         } else if (realOcc->IsReload()) {
           if (!workCand->isSRCand) {
             GenerateReloadRealOcc(*realOcc);
@@ -1074,6 +1078,7 @@ void SSAPre::Rename2() {
         if (!hasSameVersion) {
           phiOpnd->SetDef(nullptr);
           phiOpnd->SetHasRealUse(false);
+          phiOpnd->SetClassID(classCount++);
         }
       } else if (defX->GetOccType() == kOccPhiocc) {
         std::vector<MeExpr*> varVecY;
@@ -1103,6 +1108,7 @@ void SSAPre::Rename2() {
           workCand->GetRealOccs().push_back(occY);
           occY->SetDef(defX);
           occY->SetClassID(defX->GetClassID());
+          occY->SetBB(*phiOpnd->GetBB());  // used for AddRealOccSorted
           (void)rename2Set.insert(occY->GetPosition());
           if (GetSSAPreDebug()) {
             mirModule->GetOut() << "--- rename2 adds to rename2Set manufactured ";
@@ -1341,7 +1347,7 @@ bool SSAPre::DefVarDominateOcc(const MeExpr *meExpr, const MeOccur &meOcc) const
       if (meStmt == nullptr) {
         return true;  // it's a original variable dominate everything
       }
-      BB *defBB = meStmt->GetBB();
+      const BB *defBB = meStmt->GetBB();
       if (occBB == defBB) {
         return false;
       }
@@ -1767,6 +1773,10 @@ void SSAPre::ApplySSAPRE() {
   }
   ConstructUseOccurMap();
   uint32 cnt = 0;
+  if (MeOption::optForSize && !workList.empty()) {
+    // prepare expr hoist
+    ExprHoistPrepare();
+  }
   while (!workList.empty()) {
     ++cnt;
     if (cnt > preLimit) {
@@ -1775,8 +1785,8 @@ void SSAPre::ApplySSAPRE() {
     workCand = workList.front();
     workCand->SetIndex(static_cast<int32>(cnt));
     workList.pop_front();
-    workCand->deletedFromWorkList = true;
     if (workCand->GetRealOccs().empty()) {
+      workCand->deletedFromWorkList = true;
       continue;
     }
     if ((preKind == kExprPre && workCand->GetTheMeExpr()->GetMeOp() == kMeOpIvar) || (preKind == kLoadPre)) {
@@ -1789,6 +1799,7 @@ void SSAPre::ApplySSAPRE() {
         }
       }
       if (!hasNonLHS) {
+        workCand->deletedFromWorkList = true;
         continue;
       }
     }
@@ -1810,6 +1821,7 @@ void SSAPre::ApplySSAPRE() {
     ComputeVarAndDfPhis();
     CreateSortedOccs();
     if (workCand->GetRealOccs().empty()) {
+      workCand->deletedFromWorkList = true;
       continue;
     }
     // set the position field in the MeRealOcc nodes
@@ -1826,6 +1838,10 @@ void SSAPre::ApplySSAPRE() {
       // #4 WillBeAvail
       ComputeCanBeAvail();
       ComputeLater();
+    }
+    if (MeOption::optForSize) {
+      // do epxr hoist
+      HoistExpr();
     }
     // #5 Finalize
     Finalize1();
@@ -1846,6 +1862,7 @@ void SSAPre::ApplySSAPRE() {
       Finalize1();
     }
     Finalize2();
+    workCand->deletedFromWorkList = true;
     // #6 CodeMotion and recompute worklist based on newly occurrence
     CodeMotion();
     if (preKind == kStmtPre && (workCand->GetRealOccs().front()->GetOpcodeOfMeStmt() == OP_dassign ||
@@ -1854,6 +1871,9 @@ void SSAPre::ApplySSAPRE() {
       DoSSAFRE();
     }
     perCandMemPool->ReleaseContainingMem();
+  }
+  if (MeOption::optForSize) {
+    HoistClean();
   }
 }
 }  // namespace maple

@@ -1654,8 +1654,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       MemOperand::AArch64AddressingMode addrMode =
           rhsIsLo12 ? MemOperand::kAddrModeLo12Li : MemOperand::kAddrModeBOi;
       MIRSymbol *sym = rhsIsLo12 ? rhsSymbol : nullptr;
-      OfstOperand &rhsOfstOpnd = GetOrCreateOfstOpnd(lhsSizeCovered + static_cast<uint64>(rhsOffsetVal),
-                                                            k32BitSize);
+      OfstOperand &rhsOfstOpnd = GetOrCreateOfstOpnd(lhsSizeCovered + static_cast<uint64>(rhsOffsetVal), k32BitSize);
       rhsMemOpnd = &GetOrCreateMemOpnd(addrMode, newAlignUsed * k8BitSize, rhsBaseReg, nullptr, &rhsOfstOpnd, sym);
       rhsMemOpnd = FixLargeMemOpnd(*rhsMemOpnd, newAlignUsed);
       regno_t vRegNO = NewVReg(kRegTyInt, std::max(4u, newAlignUsed));
@@ -1665,8 +1664,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       /* generate the store */
       addrMode = lhsIsLo12 ? MemOperand::kAddrModeLo12Li : MemOperand::kAddrModeBOi;
       sym = lhsIsLo12 ? lhsSymbol : nullptr;
-      OfstOperand &lhsOfstOpnd = GetOrCreateOfstOpnd(lhsSizeCovered + static_cast<uint64>(lhsOffsetVal),
-                                                            k32BitSize);
+      OfstOperand &lhsOfstOpnd = GetOrCreateOfstOpnd(lhsSizeCovered + static_cast<uint64>(lhsOffsetVal), k32BitSize);
       MemOperand *lhsMemOpnd;
       lhsMemOpnd = &GetOrCreateMemOpnd(addrMode, newAlignUsed * k8BitSize, lhsBaseReg, nullptr, &lhsOfstOpnd, sym);
       lhsMemOpnd = FixLargeMemOpnd(*lhsMemOpnd, newAlignUsed);
@@ -1779,8 +1777,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       MemOperand::AArch64AddressingMode addrMode =
           lhsIsLo12 ? MemOperand::kAddrModeLo12Li : MemOperand::kAddrModeBOi;
       MIRSymbol *sym = lhsIsLo12 ? lhsSymbol : nullptr;
-      OfstOperand &lhsOfstOpnd = GetOrCreateOfstOpnd(lhsSizeCovered + static_cast<uint64>(lhsOffsetVal),
-                                                            k32BitSize);
+      OfstOperand &lhsOfstOpnd = GetOrCreateOfstOpnd(lhsSizeCovered + static_cast<uint64>(lhsOffsetVal), k32BitSize);
       MemOperand *lhsMemOpnd;
       lhsMemOpnd = &GetOrCreateMemOpnd(addrMode, newAlignUsed * k8BitSize, lhsBaseReg, nullptr, &lhsOfstOpnd, sym);
       lhsMemOpnd = FixLargeMemOpnd(*lhsMemOpnd, newAlignUsed);
@@ -2394,8 +2391,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       MemOperand::AArch64AddressingMode addrMode =
           rhsIsLo12 ? MemOperand::kAddrModeLo12Li : MemOperand::kAddrModeBOi;
       MIRSymbol *sym = rhsIsLo12 ? rhsSymbol : nullptr;
-      OfstOperand &rhsOfstOpnd = GetOrCreateOfstOpnd(lhsSizeCovered + static_cast<uint64>(rhsOffsetVal),
-                                                            k32BitSize);
+      OfstOperand &rhsOfstOpnd = GetOrCreateOfstOpnd(lhsSizeCovered + static_cast<uint64>(rhsOffsetVal), k32BitSize);
       MemOperand *rhsMemOpnd =
           &GetOrCreateMemOpnd(addrMode, newAlignUsed * k8BitSize, rhsBaseReg, nullptr, &rhsOfstOpnd, sym);
       /* generate the load */

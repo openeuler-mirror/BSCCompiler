@@ -82,7 +82,7 @@ class MeOccur {
   void SetDef(MeOccur *define) {
     def = define;
   }
-  MeExpr *GetSavedExpr();
+  virtual MeExpr *GetSavedExpr();
 
  private:
   OccType occTy;  // kinds of occ
@@ -110,7 +110,7 @@ class MeRealOcc : public MeOccur {
   }
 
   ~MeRealOcc() = default;
-  void Dump(const IRMap&) const;
+  void Dump(const IRMap&) const override;
   const MeStmt *GetMeStmt() const {
     return meStmt;
   }
@@ -144,7 +144,7 @@ class MeRealOcc : public MeOccur {
     return savedExpr;
   }
 
-  MeExpr *GetSavedExpr() {
+  MeExpr *GetSavedExpr() override {
     return savedExpr;
   }
 
@@ -200,6 +200,14 @@ class MeRealOcc : public MeOccur {
     isFormalAtEntry = isFormal;
   }
 
+  bool IsHoisted() {
+    return isHoisted;
+  }
+
+  void SetIsHoisted(bool val) {
+    isHoisted = val;
+  }
+
  private:
   MeStmt *meStmt;     // the stmt that has this occ
   MeExpr *meExpr;     // the expr it's corresponding to
@@ -210,6 +218,7 @@ class MeRealOcc : public MeOccur {
   bool isSave;
   bool isLHS;
   bool isFormalAtEntry;  // the fake lhs occurrence at entry for formals
+  bool isHoisted = false;  // the hoisted occ used for hoisting
 };
 
 class MeInsertedOcc : public MeOccur {
@@ -218,7 +227,7 @@ class MeInsertedOcc : public MeOccur {
       : MeOccur(kOccInserted, 0, bb, nullptr), meExpr(expr), meStmt(stmt), savedExpr(nullptr) {}
 
   ~MeInsertedOcc() = default;
-  void Dump(const IRMap&) const;
+  void Dump(const IRMap&) const override;
   const MeStmt *GetMeStmt() const {
     return meStmt;
   }
@@ -252,7 +261,7 @@ class MeInsertedOcc : public MeOccur {
     return savedExpr;
   }
 
-  MeExpr *GetSavedExpr() {
+  MeExpr *GetSavedExpr() override {
     return savedExpr;
   }
 

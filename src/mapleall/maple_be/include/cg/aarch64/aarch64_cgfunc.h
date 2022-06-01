@@ -377,7 +377,7 @@ class AArch64CGFunc : public CGFunc {
   }
   /* create an integer immediate operand */
   ImmOperand &CreateImmOperand(int64 val, uint32 size, bool isSigned, VaryType varyType = kNotVary,
-                                      bool isFmov = false) {
+                               bool isFmov = false) {
     return *memPool->New<ImmOperand>(val, size, isSigned, varyType, isFmov);
   }
 

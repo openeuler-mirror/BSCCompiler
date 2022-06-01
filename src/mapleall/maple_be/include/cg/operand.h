@@ -896,7 +896,7 @@ class MemOperand : public OperandVisitable<MemOperand> {
   }
 
   /* Copy constructor */
-  MemOperand(const MemOperand &memOpnd)
+  explicit MemOperand(const MemOperand &memOpnd)
       : OperandVisitable(Operand::kOpdMem, memOpnd.GetSize()),
         baseOpnd(memOpnd.baseOpnd),
         indexOpnd(memOpnd.indexOpnd),

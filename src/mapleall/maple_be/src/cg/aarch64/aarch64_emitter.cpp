@@ -287,7 +287,7 @@ void AArch64AsmEmitter::EmitBBHeaderLabel(FuncEmitInfo &funcEmitInfo, const std:
     currCG->IncreaseLabelOrderCnt();
   }
   PUIdx pIdx = currCG->GetMIRModule()->CurFunction()->GetPuidx();
-  const char *puIdx = strdup(std::to_string(pIdx).c_str());
+  char *puIdx = strdup(std::to_string(pIdx).c_str());
   const std::string &labelName = cgFunc.GetFunction().GetLabelTab()->GetName(labIdx);
   if (currCG->GenerateVerboseCG()) {
     emitter.Emit(".L.").Emit(puIdx).Emit("__").Emit(labIdx).Emit(":\t//label order ").Emit(label.GetLabelOrder());
@@ -300,7 +300,8 @@ void AArch64AsmEmitter::EmitBBHeaderLabel(FuncEmitInfo &funcEmitInfo, const std:
   } else {
     emitter.Emit(".L.").Emit(puIdx).Emit("__").Emit(labIdx).Emit(":\n");
   }
-  delete puIdx;
+  free(puIdx);
+  puIdx = nullptr;
 }
 
 void AArch64AsmEmitter::EmitJavaInsnAddr(FuncEmitInfo &funcEmitInfo) {
@@ -573,7 +574,8 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     MIRStorageClass storageClass = st->GetStorageClass();
     MIRSymKind symKind = st->GetSKind();
     if (storageClass == kScPstatic && symKind == kStConst) {
-      emitter.Emit("\t.align 3\n" + st->GetName() + ":\n");
+      emitter.Emit("\t.align 3\n");
+      emitter.Emit(st->GetName() + ":\n");
       if (st->GetKonst()->GetKind() == kConstStr16Const) {
         MIRStr16Const *str16Const = safe_cast<MIRStr16Const>(st->GetKonst());
         emitter.EmitStr16Constant(*str16Const);
@@ -633,14 +635,16 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
     CHECK_FATAL(arrayConst != nullptr, "null ptr check");
     PUIdx pIdx = cgFunc.GetMirModule().CurFunction()->GetPuidx();
-    const std::string &idx = strdup(std::to_string(pIdx).c_str());
+    char *idx = strdup(std::to_string(pIdx).c_str());
     for (size_t i = 0; i < arrayConst->GetConstVec().size(); i++) {
       MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
       CHECK_FATAL(lblConst != nullptr, "null ptr check");
-      (void)emitter.Emit("\t.quad\t.L." + idx).Emit("__").Emit(lblConst->GetValue());
+      (void)emitter.Emit("\t.quad\t.L.").Emit(idx).Emit("__").Emit(lblConst->GetValue());
       (void)emitter.Emit(" - " + st->GetName() + "\n");
       emitter.IncreaseJavaInsnCount(kQuadInsnCount);
     }
+    free(idx);
+    idx = nullptr;
   }
   /* insert manually optimized assembly language */
   if (funcSt->GetName() == "Landroid_2Futil_2FContainerHelpers_3B_7C_3Cinit_3E_7C_28_29V") {
@@ -1220,7 +1224,7 @@ void AArch64AsmEmitter::EmitAdrpLabel(Emitter &emitter, Insn &insn) const {
   emitter.Emit("\t").Emit("adrp").Emit("\t");
   opnd0->Accept(visitor);
   emitter.Emit(", ");
-  const char *idx;
+  char *idx;
   idx = strdup(std::to_string(Globals::GetInstance()->GetBECommon()->GetMIRModule().CurFunction()->GetPuidx()).c_str());
   emitter.Emit(".L.").Emit(idx).Emit("__").Emit(lidx).Emit("\n");
 
@@ -1232,6 +1236,8 @@ void AArch64AsmEmitter::EmitAdrpLabel(Emitter &emitter, Insn &insn) const {
   emitter.Emit(", ");
   emitter.Emit(":lo12:").Emit(".L.").Emit(idx).Emit("__").Emit(lidx).Emit("\n");
   emitter.Emit("\n");
+  free(idx);
+  idx = nullptr;
 }
 
 void AArch64AsmEmitter::EmitAdrpLdr(Emitter &emitter, Insn &insn) const {
