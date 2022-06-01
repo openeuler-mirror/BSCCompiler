@@ -41,7 +41,7 @@ bool IsBitmaskImmediate(uint64 val, uint32 bitLen) {
   }
 
   /* get the least significant bit set and add it to 'val' */
-  uint64 tmpVal = val + (val & static_cast<uint64>(-val));
+  uint64 tmpVal = val + (val & static_cast<uint64>(UINT64_MAX - val + 1));
 
   /* now check if tmp is a power of 2 or tmpVal==0. */
   tmpVal = tmpVal & (tmpVal - 1);

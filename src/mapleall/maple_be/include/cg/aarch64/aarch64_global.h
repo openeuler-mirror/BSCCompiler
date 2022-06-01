@@ -391,8 +391,8 @@ class SameDefPattern : public OptimizePattern {
   bool SrcRegIsRedefined(regno_t regNo);
   bool IsSameOperand(Operand &opnd0, Operand &opnd1);
 
-  Insn *currInsn;
-  Insn *sameInsn;
+  Insn *currInsn = nullptr;
+  Insn *sameInsn = nullptr;
 };
 
 /*

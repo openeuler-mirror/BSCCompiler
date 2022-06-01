@@ -33,10 +33,6 @@ class InsnBuilder {
     Insn *a = nullptr;
     return *a;
   }
-  Insn &BuildInsn(MOperator opCode) {
-    Insn *a = nullptr;
-    return *a;
-  }
 #endif
  protected:
   MemPool *mp;
@@ -49,10 +45,15 @@ class OperandBuilder {
 
   /* create an operand in cgfunc when no mempool is supplied */
   CGImmOperand &CreateImm(uint32 size, int64 value, MemPool *mp = nullptr);
+  CGImmOperand &CreateImm(const MIRSymbol &symbol, int64 offset, int32 relocs, MemPool *mp = nullptr);
   CGMemOperand &CreateMem(uint32 size, MemPool *mp = nullptr);
+  CGMemOperand &CreateMem(CGRegOperand &baseOpnd, int64 offset, uint32 size);
   CGRegOperand &CreateVReg(uint32 size, RegType type, MemPool *mp = nullptr);
+  CGRegOperand &CreateVReg(regno_t vRegNO, uint32 size, RegType type, MemPool *mp = nullptr);
   CGRegOperand &CreatePReg(regno_t pRegNO, uint32 size, RegType type, MemPool *mp = nullptr);
   CGListOperand &CreateList(MemPool *mp = nullptr);
+  CGFuncNameOperand &CreateFuncNameOpnd(MIRSymbol &symbol, MemPool *mp = nullptr);
+  CGLabelOperand &CreateLabel(const char *parent, LabelIdx idx, MemPool *mp = nullptr);
 
  protected:
   MapleAllocator alloc;

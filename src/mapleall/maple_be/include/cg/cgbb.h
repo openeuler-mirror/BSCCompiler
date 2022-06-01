@@ -176,7 +176,7 @@ class BB {
   }
 
   void AppendInsn(Insn &insn) {
-    if (firstInsn != nullptr) {
+    if (firstInsn != nullptr && lastInsn != nullptr) {
       InsertInsnAfter(*lastInsn, insn);
     } else {
       firstInsn = lastInsn = &insn;

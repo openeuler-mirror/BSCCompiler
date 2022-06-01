@@ -891,7 +891,7 @@ MemOperand &AArch64CGFunc::ConstraintOffsetToSafeRegion(uint32 bitLen, MemOperan
     hashMemOpndTable.erase(memOpnd);
   }
   int32 offsetValue = static_cast<int32>(memOpnd.GetOffsetImmediate()->GetOffsetValue());
-  int32 multiplier = (offsetValue / k512BitSize) + (offsetValue % k512BitSize > k256BitSize);
+  int32 multiplier = (offsetValue / k512BitSize) + static_cast<int32>(offsetValue % k512BitSize > k256BitSize);
   int32 addMount = multiplier * k512BitSize;
   int32 newOffset = offsetValue - addMount;
   RegOperand *baseReg = memOpnd.GetBaseRegister();
@@ -7560,13 +7560,12 @@ void AArch64CGFunc::SelectParmListForAggregate(BaseNode &argExpr, ListOperand &s
       SelectParmListIreadSmallAggregate(iread, *ty, srcOpnds, rhsOffset, parmLocator);
     } else if (symSize > kParmMemcpySize) {
       RegOperand *ireadOpnd = static_cast<RegOperand*>(HandleExpr(iread, *(iread.Opnd(0))));
-      RegOperand *addrOpnd = &LoadIntoRegister(*ireadOpnd, iread.Opnd(0)->GetPrimType());
       if (rhsOffset > 0) {
+        RegOperand *addrOpnd = &LoadIntoRegister(*ireadOpnd, iread.Opnd(0)->GetPrimType());
         regno_t vRegNO = NewVReg(kRegTyInt, k8ByteSize);
         RegOperand *result = &CreateVirtualRegisterOperand(vRegNO);
         GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *result, *addrOpnd,
                                                                       CreateImmOperand(rhsOffset, k64BitSize, false)));
-        addrOpnd = result;
       }
 
       CreateCallStructMemcpyToParamReg(*ty, structCopyOffset, parmLocator, srcOpnds);
