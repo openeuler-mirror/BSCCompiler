@@ -29,23 +29,29 @@ class VersionStacks {
   virtual ~VersionStacks() = default;
 
   virtual std::stack<ScalarMeExpr*> *GetRenameStack(OStIdx idx) {
+    (void)idx;
     ASSERT(false, "can not be here");
     return nullptr;
   }
 
   virtual void InsertZeroVersion2RenameStack(SSATab &ssaTab, IRMap &irMap) {
+    (void)ssaTab;
+    (void)irMap;
     ASSERT(false, "can not be here");
   }
 
   virtual void InitRenameStack(OStIdx idx) {
+    (void)idx;
     ASSERT(false, "can not be here");
   }
 
   virtual void RecordCurrentStackSize(std::vector<std::pair<uint32, OStIdx >> &origStackSize) {
+    (void)origStackSize;
     ASSERT(false, "can not be here");
   }
 
   virtual void RecoverStackSize(std::vector<std::pair<uint32, OStIdx >> &origStackSize) {
+    (void)origStackSize;
     ASSERT(false, "can not be here");
   }
 };

@@ -27,7 +27,7 @@
 namespace maple {
 class MeTopLevelSSA : public SSA, public AnalysisResult {
  public:
-  MeTopLevelSSA(MeFunction &f, SSATab *stab, Dominance &dom, MemPool &memPool, bool enabledDebug = false)
+  MeTopLevelSSA(MeFunction &f, SSATab *stab, Dominance &dom, MemPool &memPool)
       : SSA(*stab, f.GetCfg()->GetAllBBs(), &dom, kSSATopLevel),
         AnalysisResult(&memPool),
         func(&f),

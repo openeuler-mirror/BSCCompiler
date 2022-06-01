@@ -22,7 +22,7 @@ namespace maple {
 class MeLoopInversion {
  public:
   MeLoopInversion(bool enableDebugFunc, MemPool &givenMp) : isDebugFunc(enableDebugFunc), innerMp(&givenMp) {}
-  virtual ~MeLoopInversion() = default;
+  ~MeLoopInversion() = default;
   void ExecuteLoopInversion(MeFunction &func, Dominance &dom);
 
   bool IsCFGChange() const {

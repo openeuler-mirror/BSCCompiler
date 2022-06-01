@@ -111,50 +111,38 @@ class Bound {
     primType = pType;
   }
 
-  bool IsGreaterThan(Bound rightBound, PrimType pType) const {
-    if (!IsNeededPrimType(pType)) {
-      CHECK_FATAL(false, "must not be here");
-    }
+  bool IsGreaterThan(const Bound rightBound, PrimType pType) const {
+    CHECK_FATAL(IsNeededPrimType(pType), "must not be here");
     return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) > static_cast<uint64>(rightBound.GetConstant()) :
         GetRealValue(constant, pType) > GetRealValue(rightBound.GetConstant(), pType);
   }
 
   bool IsLessThanOrEqualToMax(PrimType pType) const {
-    if (!IsNeededPrimType(pType)) {
-      CHECK_FATAL(false, "must not be here");
-    }
+    CHECK_FATAL(IsNeededPrimType(pType), "must not be here");
     return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) <= static_cast<uint64>(GetMaxNumber(pType)) :
         GetRealValue(constant, pType) <= GetRealValue(GetMaxNumber(pType), pType);
   }
 
   bool IsGreaterThanOrEqualToMin(PrimType pType) const {
-    if (!IsNeededPrimType(pType)) {
-      CHECK_FATAL(false, "must not be here");
-    }
+    CHECK_FATAL(IsNeededPrimType(pType), "must not be here");
     return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) >= static_cast<uint64>(GetMinNumber(pType)):
         GetRealValue(constant, pType) >= GetRealValue(GetMinNumber(pType), pType);
   }
 
-  bool IsLessThanOrEqualTo(Bound rightBound, PrimType pType) const {
-    if (!IsNeededPrimType(pType)) {
-      CHECK_FATAL(false, "must not be here");
-    }
+  bool IsLessThanOrEqualTo(const Bound rightBound, PrimType pType) const {
+    CHECK_FATAL(IsNeededPrimType(pType), "must not be here");
     return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) <= static_cast<uint64>(rightBound.GetConstant()) :
         GetRealValue(constant, pType) <= GetRealValue(rightBound.GetConstant(), pType);
   }
 
-  bool IsGreaterThanOrEqualTo(Bound rightBound, PrimType pType) const {
-    if (!IsNeededPrimType(pType)) {
-      CHECK_FATAL(false, "must not be here");
-    }
+  bool IsGreaterThanOrEqualTo(const Bound rightBound, PrimType pType) const {
+    CHECK_FATAL(IsNeededPrimType(pType), "must not be here");
     return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) >= static_cast<uint64>(rightBound.GetConstant()):
         GetRealValue(constant, pType) >= GetRealValue(rightBound.GetConstant(), pType);
   }
 
-  bool IsEqual(Bound rightBound, PrimType pType) const {
-    if (!IsNeededPrimType(pType)) {
-      CHECK_FATAL(false, "must not be here");
-    }
+  bool IsEqual(const Bound rightBound, PrimType pType) const {
+    CHECK_FATAL(IsNeededPrimType(pType), "must not be here");
     return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) == static_cast<uint64>(rightBound.GetConstant()) :
         GetRealValue(constant, pType) == GetRealValue(rightBound.GetConstant(), pType);
   }
@@ -176,25 +164,19 @@ class Bound {
   }
 
   bool IsEqualToMax(PrimType pType) const {
-    if (!IsNeededPrimType(pType)) {
-      CHECK_FATAL(false, "must not be here");
-    }
+    CHECK_FATAL(IsNeededPrimType(pType), "must not be here");
     return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) == static_cast<uint64>(GetMaxNumber(pType)) :
         GetRealValue(constant, pType) == GetRealValue(GetMaxNumber(pType), pType);
   }
 
   bool IsEqualToMin(PrimType pType) const {
-    if (!IsNeededPrimType(pType)) {
-      CHECK_FATAL(false, "must not be here");
-    }
+    CHECK_FATAL(IsNeededPrimType(pType), "must not be here");
     return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) == static_cast<uint64>(GetMinNumber(pType)) :
         GetRealValue(constant, pType) == GetRealValue(GetMinNumber(pType), pType);
   }
 
   static int64 GetRemResult(int64 lhsConstant, int64 rhsConstant, PrimType pType) {
-    if (!IsNeededPrimType(pType)) {
-      CHECK_FATAL(false, "must not be here");
-    }
+    CHECK_FATAL(IsNeededPrimType(pType), "must not be here");
     return IsPrimTypeUint64(pType) ? static_cast<uint64>(lhsConstant) % static_cast<uint64>(rhsConstant) :
         GetRealValue(lhsConstant, pType) % GetRealValue(rhsConstant, pType);
   }
@@ -650,7 +632,7 @@ class ValueRangePropagation {
   }
 
   // If the vr of lhs is equal to the vr of rhs in bb.
-  bool FindPairOfExprs(MeExpr &lhs, MeExpr &rhs, BB &bb) const {
+  bool FindPairOfExprs(MeExpr &lhs, MeExpr &rhs, const BB &bb) const {
     auto it = pairOfExprs.find(&lhs);
     if (it == pairOfExprs.end()) {
       return false;
