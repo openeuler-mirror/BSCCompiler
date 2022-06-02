@@ -15,7 +15,6 @@
 
 #include "loop.h"
 #include "aarch64_ra_opt.h"
-#include <iostream>
 
 namespace maplebe {
 using namespace std;
@@ -54,7 +53,7 @@ bool RaX0Opt::PropagateRenameReg(Insn *nInsn, const X0OptInfo &optVal) {
         memopnd.SetIndexRegister(*renameOpnd);
       }
     } else if (opnd.IsRegister()) {
-      bool isdef = static_cast<AArch64OpndProp*>(md->GetOperand(i))->IsRegDef();
+      bool isdef = (md->GetOperand(i))->IsRegDef();
       RegOperand &regopnd = static_cast<RegOperand&>(opnd);
       regno_t regCandidate = regopnd.GetRegisterNumber();
       if (isdef) {
@@ -91,7 +90,7 @@ bool RaX0Opt::PropagateX0DetectX0(const Insn *insn, X0OptInfo &optVal) {
 
 bool RaX0Opt::PropagateX0DetectRedefine(const AArch64MD *md, const Insn *ninsn, const X0OptInfo &optVal,
                                         uint32 index) {
-  bool isdef = static_cast<AArch64OpndProp*>(md->GetOperand(static_cast<int>(index)))->IsRegDef();
+  bool isdef = (md->GetOperand(static_cast<int>(index)))->IsRegDef();
   if (isdef) {
     RegOperand &opnd = static_cast<RegOperand&>(ninsn->GetOperand(index));
     if (opnd.GetRegisterNumber() == optVal.GetReplaceReg()) {
@@ -487,7 +486,7 @@ void VregRename::RenameGetFuncVregInfo() {
           }
         } else if (opnd->IsRegister() && static_cast<RegOperand *>(opnd)->IsVirtualRegister() &&
                    static_cast<RegOperand *>(opnd)->GetRegisterNumber() != ccRegno) {
-          bool isdef = static_cast<AArch64OpndProp *>(md->operand[i])->IsRegDef();
+          bool isdef = (md->operand[i])->IsRegDef();
           regno_t vreg = static_cast<RegOperand *>(opnd)->GetRegisterNumber();
           UpdateVregInfo(vreg, bb, isInner, isdef);
         }

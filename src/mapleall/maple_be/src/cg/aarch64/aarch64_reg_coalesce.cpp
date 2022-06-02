@@ -55,6 +55,9 @@ LiveInterval *AArch64LiveIntervalAnalysis::GetOrCreateLiveInterval(regno_t regNO
 void AArch64LiveIntervalAnalysis::UpdateCallInfo() {
   for (auto vregNO : vregLive) {
     LiveInterval *lr = GetLiveInterval(vregNO);
+    if (lr == nullptr) {
+      return;
+    }
     lr->IncNumCall();
   }
 }
@@ -69,6 +72,9 @@ void AArch64LiveIntervalAnalysis::SetupLiveIntervalByOp(Operand &op, Insn &insn,
     return;
   }
   LiveInterval *lr = GetOrCreateLiveInterval(regNO);
+  if (lr == nullptr) {
+    return;
+  }
   uint32 point = isDef ? insn.GetId() : (insn.GetId() - 1);
   lr->AddRange(insn.GetBB()->GetId(), point, vregLive.find(regNO) != vregLive.end());
   if (lr->GetRegType() == kRegTyUndef) {
@@ -155,6 +161,9 @@ void AArch64LiveIntervalAnalysis::SetupLiveIntervalInLiveOut(regno_t liveOut, co
   if (liveOut >= kAllRegNum) {
     (void)vregLive.insert(liveOut);
     LiveInterval *lr = GetOrCreateLiveInterval(liveOut);
+    if (lr == nullptr) {
+      return;
+    }
     lr->AddRange(bb.GetId(), currPoint, false);
     return;
   }
@@ -281,6 +290,9 @@ void AArch64LiveIntervalAnalysis::CheckInterference(LiveInterval &li1, LiveInter
 /* replace regDest with regSrc. */
 void AArch64LiveIntervalAnalysis::CoalesceRegPair(RegOperand &regDest, RegOperand &regSrc) {
   LiveInterval *lrDest = GetLiveInterval(regDest.GetRegisterNumber());
+  if (lrDest == nullptr) {
+    return;
+  }
   LiveInterval *lrSrc = GetLiveInterval(regSrc.GetRegisterNumber());
   /* replace dest with src */
   if (regDest.GetSize() != regSrc.GetSize()) {
@@ -354,6 +366,9 @@ void AArch64LiveIntervalAnalysis::CoalesceMoves(std::vector<Insn*> &movInsns, bo
       }
       LiveInterval *li1 = GetLiveInterval(regDest.GetRegisterNumber());
       LiveInterval *li2 = GetLiveInterval(regSrc.GetRegisterNumber());
+      if (li1 == nullptr || li2 == nullptr) {
+        return;
+      }
       CheckInterference(*li1, *li2);
       if (!li1->IsConflictWith(regSrc.GetRegisterNumber()) ||
           (li1->GetDefPoint().size() == 1 && li2->GetDefPoint().size() == 1)) {

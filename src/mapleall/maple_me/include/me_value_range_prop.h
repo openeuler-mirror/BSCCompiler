@@ -419,18 +419,11 @@ class ValueRange {
             range.pair.upper.GetVar() == nullptr);
   }
 
-  bool IsBiggerThanZero() const {
-    return (IsConstantLowerAndUpper() && GetLower().GetConstant() >= 0 && GetUpper().GetConstant() >= 0 &&
-        GetLower().GetConstant() <= GetUpper().GetConstant()) ||
-        (rangeType == kSpecialUpperForLoop && GetLower().GetConstant() >= 0 && GetLower().GetVar() == nullptr) ||
-        (rangeType == kOnlyHasLowerBound && GetLower().GetConstant() >= 0 && GetLower().GetVar() == nullptr);
-  }
-
-  bool IsLessThanZero() const {
-    return (IsConstantLowerAndUpper() && GetLower().GetConstant() <= GetUpper().GetConstant() &&
-            GetUpper().GetConstant() < 0) ||
-           (rangeType == kSpecialLowerForLoop && GetUpper().GetConstant() < 0 && GetUpper().GetVar() == nullptr) ||
-           (rangeType == kOnlyHasUpperBound && GetUpper().GetConstant() < 0 && GetUpper().GetVar() == nullptr);
+  bool IsGreaterThanOrEqualToZero() const {
+    auto pType = GetPrimType();
+    Bound zeroBound(nullptr, 0, pType);
+    return GetLower().IsGreaterThanOrEqualTo(zeroBound, pType) &&
+      GetUpper().IsGreaterThanOrEqualTo(zeroBound, pType);
   }
 
   bool IsNotConstantVR() const {
