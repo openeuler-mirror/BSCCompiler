@@ -910,10 +910,6 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
           std::string gotEntry = offset->GetSymbol()->IsThreadLocal() ? ", #:tlsdesc_lo12:" : ", #:got_lo12:";
           (void)emitter.Emit(gotEntry + offset->GetSymbolName());
         } else {
-          uint32 dsize = v->GetSize();
-          if (v->GetSize() > k8BitSize) {
-            dsize = static_cast<uint32>(RoundUp(v->GetSize(), k8BitSize));
-          }
           if (!offset->IsZero()) {
             (void)emitter.Emit(",");
             Visit(offset);

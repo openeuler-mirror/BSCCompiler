@@ -224,7 +224,6 @@ void AArch64MemLayout::LayoutFormalParams() {
         continue;
       }
     }
-    bool noStackPara = false;
     MIRType *ty = mirFunction->GetNthParamType(i);
     uint32 ptyIdx = ty->GetTypeIndex();
     parmLocator.LocateNextParm(*ty, ploc, i == 0, mirFunction);
@@ -259,7 +258,6 @@ void AArch64MemLayout::LayoutFormalParams() {
       } else if (isLmbc) {
         segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + k8ByteSize);
       }
-      noStackPara = true;
     } else {  /* stack */
       uint32 size;
       uint32 align;

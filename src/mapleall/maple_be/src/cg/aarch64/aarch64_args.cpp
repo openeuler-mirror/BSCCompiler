@@ -38,8 +38,8 @@ void AArch64MoveRegArgs::CollectRegisterArgs(std::map<uint32, AArch64reg> &argsL
   uint32 start = 0;
   if (numFormal) {
     MIRFunction *func = const_cast<MIRFunction *>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
-    if (aarchCGFunc->GetBecommon().HasFuncReturnType(*func)) {
-      TyIdx tyIdx = aarchCGFunc->GetBecommon().GetFuncReturnType(*func);
+    if (func->IsReturnStruct()) {
+      TyIdx tyIdx = func->GetFuncRetStructTyIdx();
       if (aarchCGFunc->GetBecommon().GetTypeSize(tyIdx) <= k16ByteSize) {
         start = 1;
       }
@@ -229,7 +229,7 @@ void AArch64MoveRegArgs::GenOneInsn(ArgInfo &argInfo, RegOperand &baseOpnd, uint
   MOperator mOp = aarchCGFunc->PickStInsn(stBitSize, argInfo.mirTy->GetPrimType());
   RegOperand &regOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(dest, stBitSize, argInfo.regType);
 
-  OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(static_cast<uint64>(offset), k32BitSize);
+  OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(static_cast<uint64>(static_cast<int64>(offset)), k32BitSize);
   if (argInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
     offsetOpnd.SetVary(kUnAdjustVary);
   }
@@ -436,9 +436,9 @@ void AArch64MoveRegArgs::MoveVRegisterArgs() {
   uint32 start = 0;
   if (formalCount) {
     MIRFunction *func = const_cast<MIRFunction*>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
-    if (aarchCGFunc->GetBecommon().HasFuncReturnType(*func)) {
-      TyIdx idx = aarchCGFunc->GetBecommon().GetFuncReturnType(*func);
-      if (aarchCGFunc->GetBecommon().GetTypeSize(idx) <= k16BitSize) {
+    if (func->IsReturnStruct()) {
+      TyIdx tyIdx = func->GetFuncRetStructTyIdx();
+      if (aarchCGFunc->GetBecommon().GetTypeSize(tyIdx) <= k16BitSize) {
         start = 1;
       }
     }

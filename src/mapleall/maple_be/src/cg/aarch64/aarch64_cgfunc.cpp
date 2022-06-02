@@ -7173,7 +7173,7 @@ void AArch64CGFunc::SelectParmListIreadSmallAggregate(const IreadNode &iread, MI
       default:
         break;
     }
-    OfstOperand *offOpnd0 = &GetOrCreateOfstOpnd(static_cast<uint64>(offset), k32BitSize);
+    OfstOperand *offOpnd0 = &GetOrCreateOfstOpnd(static_cast<uint64>(static_cast<int64>(offset)), k32BitSize);
     MemOperand *mopnd =
         &GetOrCreateMemOpnd(MemOperand::kAddrModeBOi, memSize, addrOpnd1, nullptr, offOpnd0, nullptr);
     CreateCallStructParamPassByReg(ploc.reg0, *mopnd, srcOpnds, state);

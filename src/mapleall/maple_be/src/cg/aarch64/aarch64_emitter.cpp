@@ -474,9 +474,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   } else if (funcSt->GetFunction() && (funcSt->GetFunction()->IsJava() == false) && funcSt->GetFunction()->IsStatic()) {
     // nothing
   } else {
-    bool isExternFunction = false;
   /* should refer to function attribute */
-    isExternFunction = kJniNativeFuncList.find(funcStName) != kJniNativeFuncList.end();
     (void)emitter.Emit("\t.globl\t").Emit(funcSt->GetName()).Emit("\n");
     if (!currCG->GetMIRModule()->IsCModule()) {
       (void)emitter.Emit("\t.hidden\t").Emit(funcSt->GetName()).Emit("\n");

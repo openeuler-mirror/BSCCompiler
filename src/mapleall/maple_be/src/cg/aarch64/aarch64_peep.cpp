@@ -4608,7 +4608,7 @@ void ReplaceCmpToCmnAArch64::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   MOperator nextMop = MOP_undef;
   MOperator newMop = MOP_undef;
-  uint64 negOne = -1;
+  uint64 negOne = UINT64_MAX;
   switch (thisMop) {
     case MOP_xmovri32: {
       nextMop = MOP_wcmprr;
