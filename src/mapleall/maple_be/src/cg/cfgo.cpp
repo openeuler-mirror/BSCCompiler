@@ -37,7 +37,11 @@ using namespace maple;
 
 void CFGOptimizer::InitOptimizePatterns() {
   /* Initialize cfg optimization patterns */
-//  diffPassPatterns.emplace_back(memPool->New<ChainingPattern>(*cgFunc));
+
+  // disable the pass that conflicts with cfi
+  if (!cgFunc->GenCfi()) {
+    diffPassPatterns.emplace_back(memPool->New<ChainingPattern>(*cgFunc));
+  }
   diffPassPatterns.emplace_back(memPool->New<SequentialJumpPattern>(*cgFunc));
   diffPassPatterns.emplace_back(memPool->New<FlipBRPattern>(*cgFunc));
   diffPassPatterns.emplace_back(memPool->New<DuplicateBBPattern>(*cgFunc));
