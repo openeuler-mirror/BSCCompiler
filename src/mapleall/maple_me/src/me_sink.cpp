@@ -890,7 +890,7 @@ bool MeSink::MergePhiWithPrevAssign(MePhiNode *phi, BB *bb) {
   for (size_t opndId = 0; opndId < opnds.size(); ++opndId) {
     auto *opnd = opnds[opndId];
     if (opnd->GetDefBy() != kDefByStmt) {
-       return false;
+      return false;
     }
     if (!ScalarHasValidDefStmt(opnd)) {
       return false;

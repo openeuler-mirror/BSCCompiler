@@ -56,15 +56,15 @@ class SavedRegInfo {
   }
 
   void InsertSaveReg(regno_t r) {
-    saveSet.insert(r);
+    (void)saveSet.insert(r);
   }
 
   void InsertEntryReg(regno_t r) {
-    restoreEntrySet.insert(r);
+    (void)restoreEntrySet.insert(r);
   }
 
   void InsertExitReg(regno_t r) {
-    restoreExitSet.insert(r);
+    (void)restoreExitSet.insert(r);
   }
 
   MapleSet<regno_t> &GetSaveSet() {
@@ -80,7 +80,7 @@ class SavedRegInfo {
   }
 
   void RemoveSaveReg(regno_t r) {
-    saveSet.erase(r);
+    (void)saveSet.erase(r);
   }
 
  private:
@@ -98,11 +98,11 @@ class SavedBBInfo {
   }
 
   void InsertBB(BB *bb) {
-    bbList.insert(bb);
+    (void)bbList.insert(bb);
   }
 
   void RemoveBB(BB *bb) {
-    bbList.erase(bb);
+    (void)bbList.erase(bb);
   }
 
  private:
@@ -134,12 +134,12 @@ class AArch64RegSavesOpt : public RegSavesOpt {
 
   void InitData();
   void CollectLiveInfo(const BB &bb, const Operand &opnd, bool isDef, bool isUse);
-  void GenerateReturnBBDefUse(BB &bb);
+  void GenerateReturnBBDefUse(const BB &bb);
   void ProcessCallInsnParam(BB &bb);
-  void ProcessAsmListOpnd(BB &bb, Operand &opnd, uint32 idx);
-  void ProcessListOpnd(BB &bb, Operand &opnd);
-  void ProcessMemOpnd(BB &bb, Operand &opnd);
-  void ProcessCondOpnd(BB &bb);
+  void ProcessAsmListOpnd(const BB &bb, Operand &opnd, uint32 idx);
+  void ProcessListOpnd(const BB &bb, Operand &opnd);
+  void ProcessMemOpnd(const BB &bb, Operand &opnd);
+  void ProcessCondOpnd(const BB &bb);
   void GetLocalDefUse();
   void PrintBBs() const;
   int CheckCriteria(BB *bb, regno_t reg) const;

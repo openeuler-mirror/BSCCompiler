@@ -33,6 +33,7 @@
 #include "muid_replacement.h"
 #include "namemangler.h"
 #include "debug_info.h"
+#include "alignment.h"
 
 namespace maple {
 const char *GetDwTagName(unsigned n);
@@ -161,17 +162,13 @@ class Emitter {
     currentMop = mOp;
   }
 
-  std::vector<UStrIdx> &GetStringPtr() {
-    return stringPtr;
-  }
-
   void EmitAsmLabel(AsmLabel label);
   void EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label);
   void EmitFileInfo(const std::string &fileName);
   /* a symbol start/end a block */
   void EmitBlockMarker(const std::string &markerName, const std::string &sectionName,
                        bool withAddr, const std::string &addrName = "");
-  void EmitNullConstant(uint32 size);
+  void EmitNullConstant(uint64 size);
   void EmitCombineBfldValue(StructEmitInfo &structEmitInfo);
   void EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mirConst, const MIRType *nextType,
                             uint64 fieldOffset);
@@ -210,6 +207,7 @@ class Emitter {
   void EmitStructConstant(MIRConst &mirConst);
   void EmitVectorConstant(MIRConst &mirConst);
   void EmitLocalVariable(const CGFunc &cgFunc);
+  void EmitUninitializedSymbolsWithPrefixSection(const MIRSymbol &symbol, const std::string &sectionName);
   void EmitGlobalVariable();
   void EmitGlobalRootList(const MIRSymbol &mirSymbol);
   void EmitMuidTable(const std::vector<MIRSymbol*> &vec, const std::map<GStrIdx, MIRType*> &strIdx2Type,
@@ -333,6 +331,8 @@ class Emitter {
         rangeIdx2PrefixStr(cg.GetMIRModule()->GetMPAllocator().Adapter()),
         arraySize(0),
         isFlexibleArray(false),
+        stringPtr(cg.GetMIRModule()->GetMPAllocator().Adapter()),
+        localStrPtr(cg.GetMIRModule()->GetMPAllocator().Adapter()),
         hugeSoTargets(cg.GetMIRModule()->GetMPAllocator().Adapter()),
         labdie2labidxTable(std::less<DBGDie*>(), cg.GetMIRModule()->GetMPAllocator().Adapter()),
         fileMap(std::less<uint32_t>(), cg.GetMIRModule()->GetMPAllocator().Adapter()) {
@@ -340,7 +340,6 @@ class Emitter {
     MIRModule &mirModule = *cg.GetMIRModule();
     memPool = mirModule.GetMemPool();
     asmInfo = memPool->New<AsmInfo>(*memPool);
-    stringPtr.resize(GlobalTables::GetUStrTable().StringTableSize());
   }
 
   ~Emitter() = default;
@@ -350,6 +349,7 @@ class Emitter {
   void EmitDWRef(const std::string &name);
   void InitRangeIdx2PerfixStr();
   void EmitAddressString(const std::string &address);
+  void EmitAliasAndRef(const MIRSymbol &sym); /* handle function symbol which has alias and weak ref */
 
   CG *cg;
   MOperator currentMop = UINT_MAX;
@@ -359,7 +359,8 @@ class Emitter {
   MemPool *memPool;
   uint32 arraySize;
   bool isFlexibleArray;
-  std::vector<UStrIdx> stringPtr;
+  MapleSet<UStrIdx> stringPtr;
+  MapleVector<UStrIdx> localStrPtr;
 #if 1/* REQUIRE TO SEPERATE TARGAARCH64 TARGARM32 */
 /* Following code is under TARGAARCH64 condition */
   uint64 javaInsnCount = 0;

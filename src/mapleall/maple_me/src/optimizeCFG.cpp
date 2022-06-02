@@ -2256,7 +2256,7 @@ bool OptimizeBB::FoldBranchToCommonDest(BB *pred, BB *succ) {
   } else if (isPredTrueToCommon && !isSuccTrueToCommon) { // case 3
     invertSuccCond = true;
     combinedCondOp = OP_lior;
-  } else if (!isPredTrueToCommon && isSuccTrueToCommon){ // case 4
+  } else if (!isPredTrueToCommon && isSuccTrueToCommon) { // case 4
     invertSuccCond = true;
     combinedCondOp = OP_land;
   } else {

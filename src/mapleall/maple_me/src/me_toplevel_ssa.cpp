@@ -39,7 +39,7 @@ bool METopLevelSSA::PhaseRun(maple::MeFunction &f) {
   CHECK_FATAL(dom != nullptr, "dominance phase has problem");
   auto *ssaTab = GET_ANALYSIS(MESSATab, f);
   CHECK_FATAL(ssaTab != nullptr, "ssaTab phase has problem");
-  ssa = GetPhaseAllocator()->New<MeTopLevelSSA>(f, ssaTab, *dom, *GetPhaseMemPool(), DEBUGFUNC_NEWPM(f));
+  ssa = GetPhaseAllocator()->New<MeTopLevelSSA>(f, ssaTab, *dom, *GetPhaseMemPool());
   auto cfg = f.GetCfg();
   if (DEBUGFUNC_NEWPM(f)) {
     cfg->DumpToFile("ssalocal-");

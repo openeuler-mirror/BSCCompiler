@@ -1320,7 +1320,7 @@ void ValueRangePropagation::CollectMeExpr(
       valueRangeOfOperand->GetRangeType() != kNotEqual && stmt.GetOp() != OP_asm) {
     auto rangeType = valueRangeOfOperand->GetRangeType();
     int64 value = (rangeType == kEqual) ? valueRangeOfOperand->GetBound().GetConstant() :
-         valueRangeOfOperand->GetLower().GetConstant();
+        valueRangeOfOperand->GetLower().GetConstant();
     PrimType pType = (rangeType == kEqual) ? valueRangeOfOperand->GetBound().GetPrimType() :
         valueRangeOfOperand->GetLower().GetPrimType();
     expr2ConstantValue[&meExpr] = std::make_pair(value, pType);
@@ -1412,7 +1412,8 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
           auto *opnd = opMeExpr.GetOpnd(0);
           auto pTypeOpnd = opnd->GetPrimType();
           auto *valueRange = FindValueRange(bb, *opnd);
-          if (valueRange != nullptr && valueRange->GetRangeType() != kNotEqual && IsPrimitiveUnsigned(pTypeOpnd)) {
+          if (valueRange != nullptr && valueRange->GetRangeType() != kNotEqual &&
+              (IsPrimitiveUnsigned(pTypeOpnd) || valueRange->IsGreaterThanOrEqualToZero())) {
             auto bSize = opMeExpr.GetBitsSize();
             if (bSize >= 0 && bSize < 64) {
               uint64 maxNumber = (1ULL << bSize) - 1;
@@ -3948,6 +3949,25 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
       if (valueRangeOfOpnd->IsEqualAfterCVT(fromType, toType)) {
         realCurrOpnd = opnd;
       }
+    }
+  }
+  // If the value ranges of opnd before zext and after zext are equal to each other, use the opnd to opt the if stmt.
+  // The case like:
+  // VAR:%_160__levVar_116_0{offset:0}<0>[idx:5] mx341 = MEPHI{mx340,mx339}
+  // ||MEIR|| brfalse
+  //     cond:  @@s44OP ne u1 u32 mx343
+  //       opnd[0] = OP zext u32 kPtyInvalid mx342
+  //         opnd[0] = VAR %_160__levVar_116_0{offset:0}<0>[idx:5] (field)0 mx341
+  //     opnd[1] = CONST 0 mx96
+  // The realCurrOpnd is mx341 not mx342.
+  if (realCurrOpnd->GetOp() == OP_zext) {
+    auto *opMeExpr = static_cast<OpMeExpr*>(realCurrOpnd);
+    auto *opnd = opMeExpr->GetOpnd(0);
+    auto *valueRangeOfOpnd = FindValueRange(bb, *opnd);
+    auto *valueRangeOfOpMeExpr = FindValueRange(bb, *opMeExpr);
+    if (valueRangeOfOpnd != nullptr && valueRangeOfOpMeExpr != nullptr &&
+        valueRangeOfOpnd->IsEqual(valueRangeOfOpMeExpr)) {
+      realCurrOpnd = opnd;
     }
   }
   /* find the rhs of currOpnd, which is used as the currOpnd of pred */

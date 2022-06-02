@@ -65,7 +65,7 @@ BaseNode *SSAProp::SimplifyIreadAddrof(IreadSSANode *ireadSSA) const {
 
 BaseNode *SSAProp::SimplifyExpr(BaseNode *expr) const {
   for (size_t i = 0; i < expr->NumOpnds(); ++i) {
-     expr->SetOpnd(SimplifyExpr(expr->Opnd(i)), i);
+    expr->SetOpnd(SimplifyExpr(expr->Opnd(i)), i);
   }
   // iread fld1 (addrof fld2 a)
   BaseNode *result = expr;

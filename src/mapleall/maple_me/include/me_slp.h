@@ -61,7 +61,7 @@ class MemBasePtr {
 
   // Make sure `addends` is sorted before calling operator==
   bool operator==(const MemBasePtr &rhs) const {
-    if (IsFromIvar() ^ rhs.IsFromIvar()) {
+    if (static_cast<uint32>(IsFromIvar()) ^ static_cast<uint32>(rhs.IsFromIvar())) {
       return false;
     }
     if (IsFromIvar()) {

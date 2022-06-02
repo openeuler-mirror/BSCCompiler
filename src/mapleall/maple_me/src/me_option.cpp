@@ -227,28 +227,32 @@ bool MeOption::SolveOptions(bool isDebug) {
     }
 
     switch (aliasAnalysisLevel) {
-    case kLevelThree:
-      setCalleeHasSideEffect = false;
-      unionBasedAA = true;
-      tbaa = true;
-      break;
-    case kLevelZero:
-      setCalleeHasSideEffect = true;
-      unionBasedAA = false;
-      tbaa = false;
-      break;
-    case kLevelOne:
-      setCalleeHasSideEffect = false;
-      unionBasedAA = true;
-      tbaa = false;
-      break;
-    case kLevelTwo:
-      setCalleeHasSideEffect = false;
-      unionBasedAA = false;
-      tbaa = true;
-      break;
-    default:
-      break;
+      case kLevelThree: {
+        setCalleeHasSideEffect = false;
+        unionBasedAA = true;
+        tbaa = true;
+        break;
+      }
+      case kLevelZero: {
+        setCalleeHasSideEffect = true;
+        unionBasedAA = false;
+        tbaa = false;
+        break;
+      }
+      case kLevelOne: {
+        setCalleeHasSideEffect = false;
+        unionBasedAA = true;
+        tbaa = false;
+        break;
+      }
+      case kLevelTwo: {
+        setCalleeHasSideEffect = false;
+        unionBasedAA = false;
+        tbaa = true;
+        break;
+      }
+      default:
+        break;
     }
 
     if (isDebug) {
@@ -371,6 +375,13 @@ bool MeOption::SolveOptions(bool isDebug) {
   maplecl::CopyIfEnabled(srForAdd, opts::me::sradd);
   maplecl::CopyIfEnabled(doLFTR, opts::me::lftr);
   maplecl::CopyIfEnabled(ivopts, opts::me::ivopts);
+
+  // must have processed opts::strengthReduction
+  if (ivopts) {
+    // disable strengthReduction when ivopts is on
+    strengthReduction = false;
+  }
+
   maplecl::CopyIfEnabled(inlineFuncList, opts::me::inlinefunclist);
   maplecl::CopyIfEnabled(decoupleStatic, opts::decoupleStatic);
   maplecl::CopyIfEnabled(threads, opts::me::threads);

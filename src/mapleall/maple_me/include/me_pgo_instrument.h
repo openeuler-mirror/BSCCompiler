@@ -113,7 +113,7 @@ class PGOInstrument {
             if (visitedBBs.find(dest) == visitedBBs.end()) {
               // In this case, we have to instrument it anyway
               bbs.push_back(dest);
-              visitedBBs.insert(dest);
+              (void)visitedBBs.insert(dest);
             }
           } else {
             func->GetCfg()->DumpToFile("profGenErrorForCModule", false);

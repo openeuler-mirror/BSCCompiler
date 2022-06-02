@@ -771,11 +771,11 @@ class CGFunc {
   }
 
   void InsertExtendSet(regno_t vregNum) {
-    extendSet.insert(vregNum);
+    (void)extendSet.insert(vregNum);
   }
 
   void RemoveFromExtendSet(regno_t vregNum) {
-    extendSet.erase(vregNum);
+    (void)extendSet.erase(vregNum);
   }
 
   bool IsExitBB(const BB &currentBB) {
@@ -870,7 +870,7 @@ class CGFunc {
   }
 
   void DeleteEmitSt(uint32 id) {
-    emitStVec.erase(id);
+    (void)emitStVec.erase(id);
   }
 
   MapleVector<CGFuncLoops*> &GetLoops() {

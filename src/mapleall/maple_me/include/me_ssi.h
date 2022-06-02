@@ -159,12 +159,12 @@ class SSIType {
     optType = t;
   }
 
-  uint8_t GetOptType() {
+  uint8_t GetOptType() const {
     return optType;
   }
 
   bool GetOptKindType(SSIOptType x) const {
-    return (optType & x) != 0;
+    return (optType & static_cast<uint32>(x)) != 0;
   }
 
   void DumpOptType() const;
@@ -176,7 +176,7 @@ class SSIType {
 class MeSSI {
  public:
   static bool isDebug;
-  MeSSI(MeFunction &meFunction, Dominance &dom, MeIRMap &map, MemPool &pool,
+  MeSSI(const MeFunction &meFunction, Dominance &dom, MeIRMap &map, MemPool &pool,
         std::map<MeStmt*, NaryMeExpr*>* acs = nullptr,
         std::map<BB*, std::vector<MeStmt*>>* cBB = nullptr)
       : cfg(meFunction.GetCfg()),
@@ -196,11 +196,11 @@ class MeSSI {
  private:
   NaryMeExpr *GetInstanceOfType(MeExpr &e);
   void AddPiForABCOpt(BB &bb);
-  void AddNullPointerInfoForVar();
+  void AddNullPointerInfoForVar() const;
   uint8_t AnalysisBranch(MeStmt &meStmt);
   void RemoveExtraNodes();
   void InsertPiNodes();
-  bool ExistedPhiNode(BB &bb, VarMeExpr &rhs);
+  bool ExistedPhiNode(BB &bb, const VarMeExpr &rhs);
   void InsertPhiNodes();
   void Rename();
   void RenameStartPiBr(DefPoint &newDefPoint);

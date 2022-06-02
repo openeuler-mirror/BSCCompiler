@@ -263,7 +263,8 @@ std::vector<Insn *> LiveRange::Rematerialize(AArch64CGFunc *cgFunc,
         insn = &cg->BuildInstruction<AArch64Insn>(ldOp, regOp, memOpnd);
         insns.push_back(insn);
         if (offset > 0) {
-          OfstOperand &ofstOpnd = cgFunc->GetOrCreateOfstOpnd(static_cast<uint64>(offset), k32BitSize);
+          OfstOperand &ofstOpnd = cgFunc->GetOrCreateOfstOpnd(static_cast<uint64>(static_cast<int64>(offset)),
+                                                              k32BitSize);
           insns.push_back(&cg->BuildInstruction<AArch64Insn>(
               MOP_xaddrri12, regOp, regOp, ofstOpnd));
         }
@@ -4593,12 +4594,12 @@ void GraphColorRegAllocator::SplitVregAroundLoop(const CGFuncLoops &loop, const 
       Insn *headerCom = &(static_cast<AArch64CGFunc*>(cgFunc)->CreateCommentInsn("split around loop begin"));
       headerPred.AppendInsn(*headerCom);
       Insn *last = headerPred.GetLastInsn();
-      SpillOperand(*last, *ropnd, true, static_cast<RegOperand&>(phyOpnd));
+      (void)SpillOperand(*last, *ropnd, true, static_cast<RegOperand&>(phyOpnd));
 
       Insn *exitCom = &(static_cast<AArch64CGFunc*>(cgFunc)->CreateCommentInsn("split around loop end"));
       exitSucc.InsertInsnBegin(*exitCom);
       Insn *first = exitSucc.GetFirstInsn();
-      SpillOperand(*first, *ropnd, false, static_cast<RegOperand&>(phyOpnd));
+      (void)SpillOperand(*first, *ropnd, false, static_cast<RegOperand&>(phyOpnd));
 
       LiveRange *replacedLr = lrMap[*it];
       replacedLr->SetAssignedRegNO(lr->GetAssignedRegNO());

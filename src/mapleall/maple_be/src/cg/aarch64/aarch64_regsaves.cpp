@@ -82,7 +82,7 @@ void AArch64RegSavesOpt::CollectLiveInfo(const BB &bb, const Operand &opnd, bool
   }
 }
 
-void AArch64RegSavesOpt::GenerateReturnBBDefUse(BB &bb) {
+void AArch64RegSavesOpt::GenerateReturnBBDefUse(const BB &bb) {
   PrimType returnType = cgFunc->GetFunction().GetReturnType()->GetPrimType();
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   if (IsPrimitiveFloat(returnType)) {
@@ -96,7 +96,7 @@ void AArch64RegSavesOpt::GenerateReturnBBDefUse(BB &bb) {
   }
 }
 
-void AArch64RegSavesOpt::ProcessAsmListOpnd(BB &bb, Operand &opnd, uint32 idx) {
+void AArch64RegSavesOpt::ProcessAsmListOpnd(const BB &bb, Operand &opnd, uint32 idx) {
   bool isDef = false;
   bool isUse = false;
   switch (idx) {
@@ -118,15 +118,15 @@ void AArch64RegSavesOpt::ProcessAsmListOpnd(BB &bb, Operand &opnd, uint32 idx) {
   }
 }
 
-void AArch64RegSavesOpt::ProcessListOpnd(BB &bb, Operand &opnd) {
+void AArch64RegSavesOpt::ProcessListOpnd(const BB &bb, Operand &opnd) {
   ListOperand &listOpnd = static_cast<ListOperand&>(opnd);
   for (auto op : listOpnd.GetOperands()) {
     CollectLiveInfo(bb, *op, false, true);
   }
 }
 
-void AArch64RegSavesOpt::ProcessMemOpnd(BB &bb, Operand &opnd) {
-  auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+void AArch64RegSavesOpt::ProcessMemOpnd(const BB &bb, Operand &opnd) {
+  auto &memOpnd = static_cast<MemOperand&>(opnd);
   Operand *base = memOpnd.GetBaseRegister();
   Operand *offset = memOpnd.GetIndexRegister();
   if (base != nullptr) {
@@ -137,7 +137,7 @@ void AArch64RegSavesOpt::ProcessMemOpnd(BB &bb, Operand &opnd) {
   }
 }
 
-void AArch64RegSavesOpt::ProcessCondOpnd(BB &bb) {
+void AArch64RegSavesOpt::ProcessCondOpnd(const BB &bb) {
   Operand &rflag = cgFunc->GetOrCreateRflag();
   CollectLiveInfo(bb, rflag, false, true);
 }
@@ -164,7 +164,7 @@ void AArch64RegSavesOpt::GetLocalDefUse() {
       uint32 opndNum = insn->GetOperandSize();
       for (uint32 i = 0; i < opndNum; ++i) {
         Operand &opnd = insn->GetOperand(i);
-        AArch64OpndProp *regProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+        OpndProp *regProp = md->operand[i];
         bool isDef = regProp->IsRegDef();
         bool isUse = regProp->IsRegUse();
         if (opnd.IsList()) {
@@ -185,7 +185,7 @@ void AArch64RegSavesOpt::GetLocalDefUse() {
   } /* for all sortedBBs */
 
   if (RS_DUMP) {
-    for (int i=0; i<cgFunc->NumBBs(); i++) {
+    for (uint32 i=0; i<cgFunc->NumBBs(); ++i) {
       mLog << i << " : " << calleeBitsDef[i] << " " << calleeBitsUse[i] << "\n";;
     }
   }
@@ -278,7 +278,7 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
       continue;
     }
     CalleeBitsType mask = 1;
-    for (int i=0; i<(sizeof(CalleeBitsType)<<3); i++) {
+    for (uint32 i=0; i < (sizeof(CalleeBitsType)<<3); ++i) {
       if ((c & mask) != 0) {
         MapleSet<regno_t> &liveIn = bb->GetLiveInRegNO();
         regno_t reg = ReverseRegBitMap(i);
@@ -315,14 +315,12 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
           if (sp == nullptr) {
             regSavedBBs[creg] = memPool->New<SavedBBInfo>(alloc);
           } else {
-            bool found = false;
             for (BB *sbb : sp->GetBBList()) {
               for (BB *abb = sbb; !abb->GetPreds().empty(); ) {
                 if (abb->GetId() == bbDom->GetId()) {
                   /* Found! Don't plan to save in abb */
                   sp->RemoveBB(sbb);
                   bbSavedRegs[sbb->GetId()]->RemoveSaveReg(reg);
-                  found = true;
                   if (RS_DUMP) {
                     mLog << " --R" << reg-1 << " save removed from BB" << sbb->GetId() << "\n";
                   }
@@ -371,7 +369,7 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsPre() {
     }
 
     SsaPreWorkCand wkCand(&sprealloc);
-    for (int bid = 1; bid < bbSavedRegs.size(); bid++) {
+    for (uint32 bid = 1; bid < static_cast<uint32>(bbSavedRegs.size()); ++bid) {
       /* Set the BB occurrences of this callee-saved register */
       if (IsCalleeBitSet(GetCalleeBitsDef(), bid, reg) ||
           IsCalleeBitSet(GetCalleeBitsUse(), bid, reg)) {
@@ -429,7 +427,7 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
     }
 
     SPreWorkCand wkCand(&sprealloc);
-    for (int bid = 1; bid < bbSavedRegs.size(); bid++) {
+    for (uint32 bid = 1; bid < static_cast<uint32>(bbSavedRegs.size()); ++bid) {
       /* Set the saved BB locations of this callee-saved register */
       SavedRegInfo *sp = bbSavedRegs[bid];
       if (sp != nullptr) {
@@ -457,8 +455,8 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
       BB *bb = GetId2bb(bbid);
       if (bb->GetKind() == BB::kBBGoto && bb->NumInsn() == 1) {
         aarchCGFunc->GetProEpilogSavedRegs().clear();
-        const MapleVector<AArch64reg> &callees = aarchCGFunc->GetCalleeSavedRegs();
-        for (auto areg : callees) {
+        const MapleVector<AArch64reg> &calleesNew = aarchCGFunc->GetCalleeSavedRegs();
+        for (auto areg : calleesNew) {
           aarchCGFunc->GetProEpilogSavedRegs().push_back(areg);
         }
         return false;
@@ -530,24 +528,23 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
 }
 
 int32 AArch64RegSavesOpt::FindNextOffsetForCalleeSave() {
-  int32 offset =
+  int32 offset = static_cast<int32>(
       static_cast<AArch64MemLayout*>(cgFunc->GetMemlayout())->RealStackFrameSize() -
-      (static_cast<AArch64CGFunc*>(cgFunc)->SizeOfCalleeSaved() -
-       (kDivide2 * kIntregBytelen) /* FP/LR */) -
-      cgFunc->GetMemlayout()->SizeOfArgsToStackPass();
+      (static_cast<AArch64CGFunc*>(cgFunc)->SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* FP/LR */) -
+      cgFunc->GetMemlayout()->SizeOfArgsToStackPass());
 
   if (cgFunc->GetFunction().GetAttr(FUNCATTR_varargs)) {
     /* GR/VR save areas are above the callee save area */
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc->GetMemlayout());
-    int saveareasize = RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
-                       RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize);
+    int saveareasize = static_cast<int>(RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
+        RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize));
     offset -= saveareasize;
   }
   return offset;
 }
 
 void AArch64RegSavesOpt::InsertCalleeSaveCode() {
-  int bid = 0;
+  uint32 bid = 0;
   BB *saveBB = cgFunc->GetCurBB();
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
 
@@ -555,7 +552,7 @@ void AArch64RegSavesOpt::InsertCalleeSaveCode() {
     mLog << "Inserting Save: \n";
   }
   int32 offset = FindNextOffsetForCalleeSave();
-  offset += (aarchCGFunc->GetProEpilogSavedRegs().size() - 2) << 3;  // 2 for R29,RLR 3 for 8 bytes
+  offset += static_cast<int32>((aarchCGFunc->GetProEpilogSavedRegs().size() - 2) << 3);  // 2 for R29,RLR 3 for 8 bytes
   for (BB *bb : bfs->sortedBBs) {
     bid = bb->GetId();
     aarchCGFunc->SetSplitBaseOffset(0);
@@ -571,26 +568,30 @@ void AArch64RegSavesOpt::InsertCalleeSaveCode() {
         std::string r = reg <= R28 ? "R" : "V";
         /* If reg not seen before, record offset and then update */
         if (regOffset.find(areg) == regOffset.end()) {
-          regOffset[areg] = offset;
-          offset += kIntregBytelen;
+          regOffset[areg] = static_cast<uint32>(offset);
+          offset += static_cast<int32>(kIntregBytelen);
         }
         if (firstHalf == kRinvalid) {
           /* 1st half in reg pair */
           firstHalf = reg;
-          if (RS_DUMP) {
+          if (RS_DUMP && reg > 0) {
             mLog << r << reg - 1 << " save in BB" << bid << "  Offset = " << regOffset[reg]<< "\n";
           }
         } else {
           if (regOffset[reg] == (regOffset[firstHalf] + k8ByteSize)) {
             /* firstHalf & reg consecutive, make regpair */
-            AArch64GenProEpilog::AppendInstructionPushPair(*cgFunc, firstHalf, reg, regType, regOffset[firstHalf]);
+            AArch64GenProEpilog::AppendInstructionPushPair(*cgFunc, firstHalf, reg, regType,
+                                                           static_cast<int32>(regOffset[firstHalf]));
           } else if (regOffset[firstHalf] == (regOffset[reg] + k8ByteSize)) {
             /* reg & firstHalf consecutive, make regpair */
-            AArch64GenProEpilog::AppendInstructionPushPair(*cgFunc, reg, firstHalf, regType, regOffset[reg]);
+            AArch64GenProEpilog::AppendInstructionPushPair(*cgFunc, reg, firstHalf, regType,
+                                                           static_cast<int32>(regOffset[reg]));
           } else {
             /* regs cannot be paired */
-            AArch64GenProEpilog::AppendInstructionPushSingle(*cgFunc, firstHalf, regType, regOffset[firstHalf]);
-            AArch64GenProEpilog::AppendInstructionPushSingle(*cgFunc, reg, regType, regOffset[reg]);
+            AArch64GenProEpilog::AppendInstructionPushSingle(*cgFunc, firstHalf, regType,
+                                                             static_cast<int32>(regOffset[firstHalf]));
+            AArch64GenProEpilog::AppendInstructionPushSingle(*cgFunc, reg, regType,
+                                                             static_cast<int32>(regOffset[reg]));
           }
           firstHalf = kRinvalid;
           if (RS_DUMP) {
@@ -601,12 +602,12 @@ void AArch64RegSavesOpt::InsertCalleeSaveCode() {
 
       if (intRegFirstHalf != kRinvalid) {
         AArch64GenProEpilog::AppendInstructionPushSingle(*cgFunc,
-            intRegFirstHalf, kRegTyInt, regOffset[intRegFirstHalf]);
+            intRegFirstHalf, kRegTyInt, static_cast<int32>(regOffset[intRegFirstHalf]));
       }
 
       if(fpRegFirstHalf != kRinvalid) {
         AArch64GenProEpilog::AppendInstructionPushSingle(*cgFunc,
-            fpRegFirstHalf, kRegTyFloat, regOffset[fpRegFirstHalf]);
+            fpRegFirstHalf, kRegTyFloat, static_cast<int32>(regOffset[fpRegFirstHalf]));
       }
       bb->InsertAtBeginning(*aarchCGFunc->GetDummyBB());
     }
@@ -698,7 +699,7 @@ void AArch64RegSavesOpt::Verify(regno_t reg, BB *bb, std::set<BB*, BBIdCmp> *vis
 }
 
 void AArch64RegSavesOpt::InsertCalleeRestoreCode() {
-  int bid = 0;
+  uint32 bid = 0;
   BB *saveBB = cgFunc->GetCurBB();
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
 
@@ -719,13 +720,13 @@ void AArch64RegSavesOpt::InsertCalleeRestoreCode() {
       cgFunc->SetCurBB(*aarchCGFunc->GetDummyBB());
       for (auto areg : sp->GetEntrySet()) {
         AArch64reg reg = static_cast<AArch64reg>(areg);
-        offset = regOffset[areg];
+        offset = static_cast<int32>(regOffset[areg]);
         if (RS_DUMP) {
           std::string r = reg <= R28 ? "R" : "V";
           mLog << r << reg-1 << " entry restore in BB " << bid << "  Saved Offset = " << offset << "\n";
           if (RS_EXTRA) {
             mLog << "  for save @BB [ ";
-            for (int b = 1; b < bbSavedRegs.size(); b++) {
+            for (size_t b = 1; b < bbSavedRegs.size(); ++b) {
               if (bbSavedRegs[b] != nullptr && bbSavedRegs[b]->ContainSaveReg(reg)) {
                 mLog << b << " ";
               }
@@ -747,12 +748,12 @@ void AArch64RegSavesOpt::InsertCalleeRestoreCode() {
       cgFunc->SetCurBB(*aarchCGFunc->GetDummyBB());
       for (auto areg : sp->GetExitSet()) {
         AArch64reg reg = static_cast<AArch64reg>(areg);
-        offset = regOffset[areg];
+        offset = static_cast<int32>(regOffset[areg]);
         if (RS_DUMP) {
           std::string r = reg <= R28 ? "R" : "V";
           mLog << r << reg - 1 << " exit restore in BB " << bid << " Offset = " << offset << "\n";
           mLog << "  for save @BB [ ";
-          for (int b = 1; b < bbSavedRegs.size(); b++) {
+          for (size_t b = 1; b < bbSavedRegs.size(); ++b) {
             if (bbSavedRegs[b] != nullptr && bbSavedRegs[b]->ContainSaveReg(reg)) {
                 mLog << b << " ";
             }

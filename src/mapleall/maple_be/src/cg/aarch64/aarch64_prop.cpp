@@ -771,6 +771,10 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const MemOpera
         OfstOperand *newOfsetOpnd = &static_cast<AArch64CGFunc*>(cgFunc)->CreateOfstOpnd(val, k32BitSize);
         CHECK_FATAL(newOfsetOpnd != nullptr, "newOfsetOpnd is null!");
         const MIRSymbol *addr = offset1->GetSymbol();
+        /* do not guarantee rodata alignment at Os */
+        if (CGOptions::OptimizeForSize() && addr->IsReadOnly()) {
+          break;
+        }
         RegOperand *replace = GetReplaceReg(
             static_cast<RegOperand&>(defInsn.GetOperand(kInsnSecondOpnd)));
         if (replace != nullptr) {
@@ -1947,7 +1951,7 @@ bool A64PregCopyPattern::DFSFindValidDefInsns(Insn *curDefInsn, RegOperand *last
   visited[curDefInsn->GetId()] = true;
   if (!curDefInsn->IsPhi()) {
     CHECK_FATAL(curDefInsn->IsMachineInstruction(), "expect valid insn");
-    validDefInsns.emplace_back(curDefInsn);
+    (void)validDefInsns.emplace_back(curDefInsn);
     return true;
   }
   auto &phiOpnd = static_cast<PhiOperand&>(curDefInsn->GetOperand(kInsnSecondOpnd));
@@ -2147,7 +2151,7 @@ bool A64PregCopyPattern::CheckCondition(Insn &insn) {
     if (!CheckUselessDefInsn(defInsn)) {
       return false;
     }
-    validDefInsns.emplace_back(defInsn);
+    (void)validDefInsns.emplace_back(defInsn);
   }
   return true;
 }
@@ -2163,7 +2167,7 @@ Insn &A64PregCopyPattern::CreateNewPhiInsn(std::unordered_map<uint32, RegOperand
   Insn &phiInsn = cgFunc.GetCG()->BuildPhiInsn(*differOrigOpnd, phiList);
   optSsaInfo->CreateNewInsnSSAInfo(phiInsn);
   BB *bb = curInsn->GetBB();
-  bb->InsertInsnBefore(*curInsn, phiInsn);
+  (void)bb->InsertInsnBefore(*curInsn, phiInsn);
   /* <phiDef-ssaRegNO, phiInsn> */
   bb->AddPhiInsn(static_cast<RegOperand&>(phiInsn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber(), phiInsn);
   return phiInsn;
@@ -2227,8 +2231,8 @@ RegOperand &A64PregCopyPattern::DFSBuildPhiInsn(Insn *curInsn, std::unordered_ma
     Insn *defInsn = FindDefInsn(useVersion);
     CHECK_FATAL(defInsn != nullptr, "get defInsn failed");
     RegOperand &phiDefOpnd = DFSBuildPhiInsn(defInsn, visited);
-    differPhiList.emplace(phiListIt.first, &phiDefOpnd);
-    validDifferRegNOs.emplace_back(phiDefOpnd.GetRegisterNumber());
+    (void)differPhiList.emplace(phiListIt.first, &phiDefOpnd);
+    (void)validDifferRegNOs.emplace_back(phiDefOpnd.GetRegisterNumber());
   }
   /*
    * The phi in control flow may already exists.
@@ -2279,7 +2283,7 @@ void A64PregCopyPattern::Optimize(Insn &insn) {
     std::vector<regno_t> validDifferRegNOs;
     for (Insn *vdInsn : validDefInsns) {
       auto &vdOpnd = static_cast<RegOperand&>(vdInsn->GetOperand(static_cast<uint32>(differIdx)));
-      validDifferRegNOs.emplace_back(vdOpnd.GetRegisterNumber());
+      (void)validDifferRegNOs.emplace_back(vdOpnd.GetRegisterNumber());
     }
     RegOperand *differPhiDefOpnd = CheckAndGetExistPhiDef(*firstPhiInsn, validDifferRegNOs);
     if (differPhiDefOpnd == nullptr) {

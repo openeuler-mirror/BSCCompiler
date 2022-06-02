@@ -377,7 +377,7 @@ class AArch64CGFunc : public CGFunc {
   }
   /* create an integer immediate operand */
   ImmOperand &CreateImmOperand(int64 val, uint32 size, bool isSigned, VaryType varyType = kNotVary,
-                                      bool isFmov = false) {
+                               bool isFmov = false) {
     return *memPool->New<ImmOperand>(val, size, isSigned, varyType, isFmov);
   }
 
@@ -696,10 +696,10 @@ class AArch64CGFunc : public CGFunc {
   }
 
   void SetLmbcArgInfo(RegOperand *reg, PrimType pTy, int32 ofst, int32 regs) {
-    GetLmbcCallArgs().emplace_back(reg);
-    GetLmbcCallArgTypes().emplace_back(pTy);
-    GetLmbcCallArgOffsets().emplace_back(ofst);
-    GetLmbcCallArgNumOfRegs().emplace_back(regs);
+    (void)GetLmbcCallArgs().emplace_back(reg);
+    (void)GetLmbcCallArgTypes().emplace_back(pTy);
+    (void)GetLmbcCallArgOffsets().emplace_back(ofst);
+    (void)GetLmbcCallArgNumOfRegs().emplace_back(regs);
   }
 
   void ResetLmbcArgInfo() {

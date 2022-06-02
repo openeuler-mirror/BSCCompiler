@@ -184,7 +184,7 @@ void CgFuncPM::SweepUnusedStaticSymbol(MIRModule &m) {
   }
   size_t size = GlobalTables::GetGsymTable().GetSymbolTableSize();
   for (size_t i = 0; i < size; ++i) {
-    MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(i, true);
+    MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(i);
     if (mirSymbol != nullptr && (mirSymbol->GetSKind() == kStVar || mirSymbol->GetSKind() == kStConst) &&
         (mirSymbol->GetStorageClass() == kScFstatic || mirSymbol->GetStorageClass() == kScPstatic)) {
       mirSymbol->SetIsDeleted();
@@ -210,7 +210,7 @@ void CgFuncPM::SweepUnusedStaticSymbol(MIRModule &m) {
    * find addrof static const */
   auto &symbolSet = m.GetSymbolSet();
   for (auto sit = symbolSet.begin(); sit != symbolSet.end(); ++sit) {
-    MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx(sit->Idx(), true);
+    MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx(sit->Idx());
     if (s->IsConst()) {
       MIRConst *mirConst = s->GetKonst();
       CollectStaticSymbolInVar(mirConst);

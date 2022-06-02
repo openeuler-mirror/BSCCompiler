@@ -102,7 +102,7 @@ bool AArch64ICOPattern::IsSetInsn(const Insn &insn, Operand *&dest, std::vector<
   if ((mOpCode >= MOP_xmovrr && mOpCode <= MOP_xvmovd) || cgFunc->GetTheCFG()->IsAddOrSubInsn(insn)) {
     dest = &(insn.GetOperand(0));
     for (int i = 1; i < insn.GetOperandSize(); ++i) {
-      src.emplace_back(&(insn.GetOperand(i)));
+      (void)src.emplace_back(&(insn.GetOperand(i)));
     }
     return true;
   }
@@ -494,7 +494,7 @@ bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, std
 
     (void)destSrcMap.insert(std::make_pair(dest, src));
     destRegs.emplace_back(dest);
-    setInsn.emplace_back(insn);
+    (void)setInsn.emplace_back(insn);
   }
   return true;
 }
@@ -597,13 +597,13 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joi
 
   for (auto setInsn : ifSetInsn) {
     if (cgFunc->GetTheCFG()->IsAddOrSubInsn(*setInsn)) {
-      cmpBB.InsertInsnBefore(*cmpInsn, *setInsn);
+      (void)cmpBB.InsertInsnBefore(*cmpInsn, *setInsn);
     }
   }
 
   for (auto setInsn : elseSetInsn) {
     if (cgFunc->GetTheCFG()->IsAddOrSubInsn(*setInsn)) {
-      cmpBB.InsertInsnBefore(*cmpInsn, *setInsn);
+      (void)cmpBB.InsertInsnBefore(*cmpInsn, *setInsn);
     }
   }
 
@@ -612,18 +612,18 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joi
   /* Insert goto insn after csel insn. */
   if (cmpBB.GetKind() == BB::kBBGoto || cmpBB.GetKind() == BB::kBBIf) {
     if (elseBB != nullptr) {
-      cmpBB.InsertInsnAfter(*cmpBB.GetLastInsn(), *elseBB->GetLastInsn());
+      (void)cmpBB.InsertInsnAfter(*cmpBB.GetLastInsn(), *elseBB->GetLastInsn());
     } else {
-      cmpBB.InsertInsnAfter(*cmpBB.GetLastInsn(), *ifBB->GetLastInsn());
+      (void)cmpBB.InsertInsnAfter(*cmpBB.GetLastInsn(), *ifBB->GetLastInsn());
     }
   }
 
   /* Insert instructions in branches after cmpInsn */
   for (auto itr = elseGenerateInsn.rbegin(); itr != elseGenerateInsn.rend(); ++itr) {
-    cmpBB.InsertInsnAfter(*cmpInsn, **itr);
+    (void)cmpBB.InsertInsnAfter(*cmpInsn, **itr);
   }
   for (auto itr = ifGenerateInsn.rbegin(); itr != ifGenerateInsn.rend(); ++itr) {
-    cmpBB.InsertInsnAfter(*cmpInsn, **itr);
+    (void)cmpBB.InsertInsnAfter(*cmpInsn, **itr);
   }
 
   /* Remove branches and merge join */

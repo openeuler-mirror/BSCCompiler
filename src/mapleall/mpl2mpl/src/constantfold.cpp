@@ -1438,53 +1438,194 @@ ConstvalNode *ConstantFold::FoldTypeCvt(const ConstvalNode &cst, PrimType fromTy
   return toConst;
 }
 
+// return a primType with bit size >= bitSize (and the nearest one),
+// and its signed/float type is the same as ptyp
+PrimType GetNearestSizePtyp(uint8 bitSize, PrimType ptyp) {
+  bool isSigned = IsSignedInteger(ptyp);
+  bool isFloat = IsPrimitiveFloat(ptyp);
+  if (bitSize == 1) {
+    return PTY_u1;
+  }
+  if (bitSize <= 8) {
+    return isSigned ? PTY_i8 : PTY_u8;
+  }
+  if (bitSize <= 16) {
+    return isSigned ? PTY_i16 : PTY_u16;
+  }
+  if (bitSize <= 32) {
+    return isFloat ? PTY_f32
+                   : (isSigned ? PTY_i32 : PTY_u32);
+  }
+  if (bitSize <= 64) {
+    return isFloat ? PTY_f64
+                   : (isSigned ? PTY_i64 : PTY_u64);
+  }
+  if (bitSize <= 128) {
+    return isFloat ? PTY_f128
+                   : (isSigned ? PTY_i128 : PTY_u128);
+  }
+  return ptyp;
+}
+
+size_t GetIntPrimTypeMax(PrimType ptyp) {
+  switch (ptyp) {
+    case PTY_u1:
+      return 1;
+    case PTY_u8:
+      return UINT8_MAX;
+    case PTY_i8:
+      return INT8_MAX;
+    case PTY_u16:
+      return UINT16_MAX;
+    case PTY_i16:
+      return INT16_MAX;
+    case PTY_u32:
+      return UINT32_MAX;
+    case PTY_i32:
+      return INT32_MAX;
+    case PTY_u64:
+      return UINT64_MAX;
+    case PTY_i64:
+      return INT64_MAX;
+    default:
+      CHECK_FATAL(false, "NYI");
+  }
+}
+
+ssize_t GetIntPrimTypeMin(PrimType ptyp) {
+  if (IsUnsignedInteger(ptyp)) {
+    return 0;
+  }
+  switch (ptyp) {
+    case PTY_i8:
+      return INT8_MIN;
+    case PTY_i16:
+      return INT16_MIN;
+    case PTY_i32:
+      return INT32_MIN;
+    case PTY_i64:
+      return INT64_MIN;
+    default:
+      CHECK_FATAL(false, "NYI");
+  }
+}
+
+// return a primtype to represent value range of expr
+PrimType GetExprValueRangePtyp(BaseNode *expr) {
+  PrimType ptyp = expr->GetPrimType();
+  Opcode op = expr->GetOpCode();
+  if (expr->IsLeaf()) {
+    return ptyp;
+  }
+  if(kOpcodeInfo.IsTypeCvt(op)) {
+    auto *node = static_cast<TypeCvtNode *>(expr);
+    if (GetPrimTypeSize(node->FromType()) < GetPrimTypeSize(node->GetPrimType())) {
+      return GetExprValueRangePtyp(expr->Opnd(0));
+    }
+    return ptyp;
+  }
+  if (op == OP_sext || op == OP_zext || op == OP_extractbits) {
+    auto *node = static_cast<ExtractbitsNode *>(expr);
+    uint8 size = node->GetBitsSize();
+    return GetNearestSizePtyp(size, expr->GetPrimType());
+  }
+  // find max size primtype of opnds.
+  size_t maxTypeSize = 1;
+  size_t ptypSize = GetPrimTypeSize(ptyp);
+  for (size_t i = 0; i < expr->GetNumOpnds(); ++i) {
+    PrimType opndPtyp = GetExprValueRangePtyp(expr->Opnd(i));
+    size_t opndSize = GetPrimTypeSize(opndPtyp);
+    if (ptypSize <= opndSize) {
+      return ptyp;
+    }
+    if (maxTypeSize < opndSize) {
+      maxTypeSize = opndSize;
+      constexpr size_t intMaxSize = 8;
+      if (maxTypeSize == intMaxSize) {
+        break;
+      }
+    }
+  }
+  return GetNearestSizePtyp(maxTypeSize, ptyp);
+}
+
 std::pair<BaseNode*, int64> ConstantFold::FoldTypeCvt(TypeCvtNode *node) {
   CHECK_NULL_FATAL(node);
   BaseNode *result = nullptr;
   std::pair<BaseNode*, int64> p = DispatchFold(node->Opnd(0));
   ConstvalNode *cst = safe_cast<ConstvalNode>(p.first);
+  PrimType destPtyp = node->GetPrimType();
+  PrimType fromPtyp = node->FromType();
   if (cst != nullptr) {
     switch (node->GetOpCode()) {
       case OP_ceil: {
-        result = FoldCeil(*cst, node->FromType(), node->GetPrimType());
+        result = FoldCeil(*cst, fromPtyp, destPtyp);
         break;
       }
       case OP_cvt: {
-        result = FoldTypeCvt(*cst, node->FromType(), node->GetPrimType());
+        result = FoldTypeCvt(*cst, fromPtyp, destPtyp);
         break;
       }
       case OP_floor: {
-        result = FoldFloor(*cst, node->FromType(), node->GetPrimType());
+        result = FoldFloor(*cst, fromPtyp, destPtyp);
         break;
       }
       case OP_round: {
-        result = FoldRound(*cst, node->FromType(), node->GetPrimType());
+        result = FoldRound(*cst, fromPtyp, destPtyp);
         break;
       }
       case OP_trunc: {
-        result = FoldTrunk(*cst, node->FromType(), node->GetPrimType());
+        result = FoldTrunk(*cst, fromPtyp, destPtyp);
         break;
       }
       default:
-        result = nullptr;
         ASSERT(false, "Unexpected opcode in TypeCvtNodeConstFold");
         break;
     }
-  } else if (node->GetOpCode() == OP_cvt && GetPrimTypeSize(node->FromType()) == GetPrimTypeSize(node->GetPrimType())) {
-    if ((IsPossible64BitAddress(node->FromType()) && IsPossible64BitAddress(node->GetPrimType())) ||
-        (IsPossible32BitAddress(node->FromType()) && IsPossible32BitAddress(node->GetPrimType())) ||
-         (IsPrimitivePureScalar(node->FromType()) && IsPrimitivePureScalar(node->GetPrimType()) &&
-          GetPrimTypeSize(node->FromType()) == GetPrimTypeSize(node->GetPrimType()))) {
+  } else if (node->GetOpCode() == OP_cvt && GetPrimTypeSize(fromPtyp) == GetPrimTypeSize(destPtyp)) {
+    if ((IsPossible64BitAddress(fromPtyp) && IsPossible64BitAddress(destPtyp)) ||
+        (IsPossible32BitAddress(fromPtyp) && IsPossible32BitAddress(destPtyp)) ||
+         (IsPrimitivePureScalar(fromPtyp) && IsPrimitivePureScalar(destPtyp) &&
+          GetPrimTypeSize(fromPtyp) == GetPrimTypeSize(destPtyp))) {
       return p; // the cvt is redundant
     }
   } else if (node->GetOpCode() == OP_cvt && p.second != 0 && p.second < INT_MAX && (p.second > -kMaxOffset) &&
              IsPrimitiveInteger(node->GetPrimType()) && IsSignedInteger(node->FromType()) &&
              GetPrimTypeSize(node->GetPrimType()) > GetPrimTypeSize(node->FromType())) {
-    result = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, node->GetPrimType(), node->FromType(), p.first);
-    if (IsUnsignedInteger(p.first->GetPrimType())) {
-      p.second = static_cast<int32>(p.second);
+    bool simplifyCvt = false;
+    // Integer values must not be allowd to wrap, for pointer arithmetic, including array indexing
+    // Therefore, if dest-type of cvt expr is pointer type, like : cvt ptr/ref/a64 (op (expr, constval))
+    // we assume that result of cvt opnd will never wrap
+    if (IsPossible64BitAddress(node->GetPrimType()) && node->GetPrimType() != PTY_u64) {
+      simplifyCvt = true;
+    } else {
+      // Ensure : op(expr, constval) is not overflow
+      // Example :
+      // given a expr like : r = (i + constVal), and its mplIR may be:
+      // cvt i64 i32 (add i32 (cvt i32 i16 (dread i16 i), constval i32 constVal))
+      // expr primtype(i32) range : |I32_MIN--------------------0--------------------I32_MAX|
+      // expr value range(i16)    :               |I16_MIN------0------I16_MAX|
+      // value range difference   : |-------------|                           |-------------|
+      // constVal value range     : [I32_MIN - I16MIN, I32_MAX - I16_MAX], (i + constVal) will never pos/neg overflow.
+      PrimType valuePtyp = GetExprValueRangePtyp(p.first);
+      PrimType exprPtyp = p.first->GetPrimType();
+      int64 constVal = p.second;
+      // cannot only check (min <= constval && constval <= max) here.
+      // If constval = -1, it will be SIZE_T_MAX when converted to size_t
+      if ((constVal < 0 && constVal >= GetIntPrimTypeMin(exprPtyp) - GetIntPrimTypeMin(valuePtyp)) ||
+          (constVal > 0 && static_cast<size_t>(constVal) <= GetIntPrimTypeMax(exprPtyp) -
+                                                            GetIntPrimTypeMax(valuePtyp))) {
+        simplifyCvt = true;
+      }
     }
-    return std::make_pair(result, p.second);
+    if (simplifyCvt) {
+      result = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, node->GetPrimType(),
+                                                                 node->FromType(), p.first);
+      if (IsUnsignedInteger(p.first->GetPrimType())) {
+        p.second = static_cast<int32>(p.second);
+      }
+      return std::make_pair(result, p.second);
+    }
   }
   if (result == nullptr) {
     BaseNode *e = PairToExpr(node->Opnd(0)->GetPrimType(), p);

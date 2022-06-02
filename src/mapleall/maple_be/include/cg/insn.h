@@ -752,7 +752,7 @@ class Insn {
   }
 
   void AddRegBinding(uint32 regA, uint32 regB) {
-    registerBinding.emplace(regA, regB);
+    (void)registerBinding.emplace(regA, regB);
   }
 
   const MapleMap<uint32, uint32>& GetRegBinding() const {

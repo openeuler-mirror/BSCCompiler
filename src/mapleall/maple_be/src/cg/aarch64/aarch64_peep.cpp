@@ -307,7 +307,7 @@ void ContinuousCmpCsetPattern::Run(BB &bb, Insn &insn) {
     newCsetInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
         prevCsetMop, *tmpDefOpnd, newCondOpnd, prevCsetInsn1->GetOperand(kInsnThirdOpnd));
     BB *prevCsetBB = prevCsetInsn1->GetBB();
-    prevCsetBB->InsertInsnAfter(*prevCsetInsn1, *newCsetInsn);
+    (void)prevCsetBB->InsertInsnAfter(*prevCsetInsn1, *newCsetInsn);
     /* update ssa info */
     auto *a64SSAInfo = static_cast<AArch64CGSSAInfo*>(ssaInfo);
     a64SSAInfo->CreateNewInsnSSAInfo(*newCsetInsn);
@@ -342,9 +342,9 @@ void ContinuousCmpCsetPattern::Run(BB &bb, Insn &insn) {
     prevs.emplace_back(prevCmpInsn1);
     prevs.emplace_back(prevCsetInsn1);
     if (newCsetInsn == nullptr) {
-      prevs.emplace_back(prevCmpInsn);
+      (void)prevs.emplace_back(prevCmpInsn);
     } else {
-      prevs.emplace_back(newCsetInsn);
+      (void)prevs.emplace_back(newCsetInsn);
     }
     DumpAfterPattern(prevs, &insn, newInsn);
   }
@@ -1134,7 +1134,7 @@ void CombineSameArithmeticPattern::Run(BB &bb, Insn &insn) {
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
-    prevs.emplace_back(prevInsn);
+    (void)prevs.emplace_back(prevInsn);
     DumpAfterPattern(prevs, &insn, &newInsn);
   }
 }
@@ -2990,7 +2990,7 @@ bool SbfxOptPattern::CheckCondition(Insn &insn) {
         if (regProp->IsDef()) {
           toRemove = true;
         } else {
-          cands.emplace_back(opndIdx);
+          (void)cands.emplace_back(opndIdx);
         }
       }
     }
@@ -4608,7 +4608,7 @@ void ReplaceCmpToCmnAArch64::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   MOperator nextMop = MOP_undef;
   MOperator newMop = MOP_undef;
-  uint64 negOne = -1;
+  uint64 negOne = UINT64_MAX;
   switch (thisMop) {
     case MOP_xmovri32: {
       nextMop = MOP_wcmprr;
@@ -4705,7 +4705,7 @@ bool LongIntCompareWithZPattern::FindLondIntCmpWithZ(std::vector<Insn*> &optInsn
   if (thisMop != MOP_wcmpri) {
     return false;
   }
-  optInsn.emplace_back(&insn);
+  (void)optInsn.emplace_back(&insn);
 
   /* third */
   Insn *preInsn1 = insn.GetPreviousMachineInsn();
@@ -4716,7 +4716,7 @@ bool LongIntCompareWithZPattern::FindLondIntCmpWithZ(std::vector<Insn*> &optInsn
   if (preMop1 != MOP_wcsincrrrc) {
     return false;
   }
-  optInsn.emplace_back(preInsn1);
+  (void)optInsn.emplace_back(preInsn1);
 
   /* second */
   Insn *preInsn2 = preInsn1->GetPreviousMachineInsn();
@@ -4727,7 +4727,7 @@ bool LongIntCompareWithZPattern::FindLondIntCmpWithZ(std::vector<Insn*> &optInsn
   if (preMop2 != MOP_wcsinvrrrc) {
     return false;
   }
-  optInsn.emplace_back(preInsn2);
+  (void)optInsn.emplace_back(preInsn2);
 
   /* first */
   Insn *preInsn3 = preInsn2->GetPreviousMachineInsn();
@@ -4738,7 +4738,7 @@ bool LongIntCompareWithZPattern::FindLondIntCmpWithZ(std::vector<Insn*> &optInsn
   if (preMop3 != MOP_xcmpri) {
     return false;
   }
-  optInsn.emplace_back(preInsn3);
+  (void)optInsn.emplace_back(preInsn3);
   return true;
 }
 
@@ -4838,6 +4838,11 @@ void ComplexMemOperandAArch64::Run(BB &bb, Insn &insn) {
     auto &stImmOpnd = static_cast<StImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
     OfstOperand &offOpnd = aarch64CGFunc->GetOrCreateOfstOpnd(
         stImmOpnd.GetOffset() + memOpnd->GetOffsetImmediate()->GetOffsetValue(), k32BitSize);
+
+    /* do not guarantee rodata alignment at Os */
+    if (CGOptions::OptimizeForSize() && stImmOpnd.GetSymbol()->IsReadOnly()) {
+      return;
+    }
 
     /* avoid relocation */
     if ((offOpnd.GetValue() % kBitsPerByte) != 0) {

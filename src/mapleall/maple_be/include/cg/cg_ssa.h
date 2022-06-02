@@ -157,7 +157,8 @@ class CGSSAInfo {
       vRegStk(ssaAlloc.Adapter()),
       allSSAOperands(ssaAlloc.Adapter()),
       noDefVRegs(ssaAlloc.Adapter()),
-      reversePostOrder(ssaAlloc.Adapter()) {}
+      reversePostOrder(ssaAlloc.Adapter()),
+      safePropInsns(ssaAlloc.Adapter()) {}
   virtual ~CGSSAInfo() = default;
   void ConstructSSA();
   VRegVersion *FindSSAVersion(regno_t ssaRegNO); /* Get specific ssa info */
@@ -185,6 +186,12 @@ class CGSSAInfo {
   }
   MapleVector<uint32> &GetReversePostOrder() {
     return reversePostOrder;
+  }
+  void InsertSafePropInsn(uint32 insnId) {
+    (void)safePropInsns.emplace_back(insnId);
+  }
+  MapleVector<uint32> &GetSafePropInsns() {
+    return safePropInsns;
   }
   void DumpFuncCGIRinSSAForm() const;
   virtual void DumpInsnInSSAForm(const Insn &insn) const = 0;
@@ -241,6 +248,8 @@ class CGSSAInfo {
   MapleSet<regno_t> noDefVRegs;
   /* only save bb_id to reduce space */
   MapleVector<uint32> reversePostOrder;
+  /* destSize < srcSize but can be propagated */
+  MapleVector<uint32> safePropInsns;
   int32 insnCount = 0;
 };
 

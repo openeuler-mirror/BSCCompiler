@@ -26,8 +26,12 @@ enum PreKind {
   kAddrPre
 };
 
+class ExprHoist;
+class HoistSummary;
+
 class SSAPre {
  public:
+  friend class ExprHoist;
   SSAPre(IRMap &hMap, Dominance &currDom, MemPool &memPool, MemPool &mp2, PreKind kind, uint32 limit)
       : irMap(&hMap),
         ssaTab(&hMap.GetSSATab()),
@@ -151,6 +155,10 @@ class SSAPre {
   void SetSave(MeOccur &defX);
   void SetReplacement(MePhiOcc &occ, MeOccur &repDef);
   virtual void Finalize2();
+  // hoist methods
+  void HoistExpr();
+  void ExprHoistPrepare();
+  static void HoistClean();
   // step 4 willbevail methods
   void ComputeCanBeAvail() const;
   void ResetCanBeAvail(MePhiOcc &occ) const;
@@ -241,6 +249,7 @@ class SSAPre {
   MapleAllocator perCandAllocator;
   MapleList<PreWorkCand*> workList;
   PreWorkCand *workCand = nullptr;  // the current PreWorkCand
+  ExprHoist *eh;
   PreKind preKind;
 
   uint32 curTreeId = 0;  // based on number of rooted trees processed in collecting

@@ -109,8 +109,7 @@ void AArch64ReachingDefinition::InitStartGen() {
         uint32 firstSymSize = cgFunc->GetBecommon().GetTypeSize(firstType->GetTypeIndex());
         uint32 firstStackSize = firstSymSize < k4ByteSize ? k4ByteSize : firstSymSize;
 
-        AArch64MemOperand *memOpnd = cgFunc->GetMemoryPool()->New<AArch64MemOperand>(RFP, stOffset,
-                                                                                     firstStackSize * kBitsPerByte);
+        MemOperand *memOpnd = aarchCGFunc->CreateStackMemOpnd(RFP, stOffset, firstStackSize * kBitsPerByte);
         MOperator mopTemp = firstStackSize <= k4ByteSize ? MOP_pseudo_param_store_w : MOP_pseudo_param_store_x;
         Insn &pseudoInsnTemp = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mopTemp, *memOpnd);
         bb->InsertInsnBegin(pseudoInsnTemp);
@@ -123,8 +122,8 @@ void AArch64ReachingDefinition::InitStartGen() {
   AArch64CGFunc *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
 
   for (uint32 i = 0; i < a64CGFunc->GetRefCount(); ++i) {
-    AArch64MemOperand *memOpnd = cgFunc->GetMemoryPool()->New<AArch64MemOperand>(
-        RFP, a64CGFunc->GetBeginOffset() + i * k8BitSize, k64BitSize);
+    MemOperand *memOpnd = a64CGFunc->CreateStackMemOpnd(
+        RFP, static_cast<int32>(a64CGFunc->GetBeginOffset() + i * k8BitSize), k64BitSize);
     Insn &pseudoInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_pseudo_ref_init_x, *memOpnd);
 
     bb->InsertInsnBegin(pseudoInsn);
@@ -189,13 +188,13 @@ void AArch64ReachingDefinition::AddRetPseudoInsns() {
 }
 
 void AArch64ReachingDefinition::GenAllAsmDefRegs(BB &bb, Insn &insn, uint32 index) {
-  for (auto reg : static_cast<AArch64ListOperand&>(insn.GetOperand(index)).GetOperands()) {
+  for (auto reg : static_cast<ListOperand&>(insn.GetOperand(index)).GetOperands()) {
     regGen[bb.GetId()]->SetBit(static_cast<RegOperand *>(reg)->GetRegisterNumber());
   }
 }
 
 void AArch64ReachingDefinition::GenAllAsmUseRegs(BB &bb, Insn &insn, uint32 index) {
-  for (auto reg : static_cast<AArch64ListOperand&>(insn.GetOperand(index)).GetOperands()) {
+  for (auto reg : static_cast<ListOperand&>(insn.GetOperand(index)).GetOperands()) {
     regUse[bb.GetId()]->SetBit(static_cast<RegOperand *>(reg)->GetRegisterNumber());
   }
 }
@@ -244,7 +243,7 @@ bool AArch64ReachingDefinition::KilledByCallBetweenInsnInSameBB(const Insn &star
 }
 
 static bool SetDefInsnVecForAsm(Insn *insn, uint32 index, uint32 regNO, std::vector<Insn *> &defInsnVec) {
-  for (auto reg : static_cast<AArch64ListOperand&>(insn->GetOperand(index)).GetOperands()) {
+  for (auto reg : static_cast<ListOperand&>(insn->GetOperand(index)).GetOperands()) {
     if (static_cast<RegOperand *>(reg)->GetRegisterNumber() == regNO) {
       defInsnVec.emplace_back(insn);
       return true;
@@ -358,7 +357,7 @@ std::vector<Insn*> AArch64ReachingDefinition::FindRegDefBetweenInsn(
 }
 
 static bool IsRegInAsmList(Insn *insn, uint32 index, uint32 regNO, InsnSet &insnSet) {
-  for (auto reg : static_cast<AArch64ListOperand&>(insn->GetOperand(index)).GetOperands()) {
+  for (auto reg : static_cast<ListOperand&>(insn->GetOperand(index)).GetOperands()) {
     if (static_cast<RegOperand *>(reg)->GetRegisterNumber() == regNO) {
       insnSet.insert(insn);
       return true;
@@ -451,7 +450,7 @@ std::vector<Insn*> AArch64ReachingDefinition::FindMemDefBetweenInsn(
       Operand &opnd = insn->GetOperand(i);
 
       if (opnd.IsMemoryAccessOperand()) {
-        auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+        auto &memOpnd = static_cast<MemOperand&>(opnd);
         RegOperand *base = memOpnd.GetBaseRegister();
         RegOperand *index = memOpnd.GetIndexRegister();
 
@@ -507,7 +506,7 @@ void AArch64ReachingDefinition::FindMemDefInBB(uint32 offset, BB &bb, InsnSet &d
     for (uint32 i = 0; i < opndNum; ++i) {
       Operand &opnd = insn->GetOperand(i);
       if (opnd.IsMemoryAccessOperand()) {
-        auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+        auto &memOpnd = static_cast<MemOperand&>(opnd);
         RegOperand *base = memOpnd.GetBaseRegister();
         RegOperand *index = memOpnd.GetIndexRegister();
 
@@ -838,13 +837,13 @@ bool AArch64ReachingDefinition::FindRegUsingBetweenInsn(uint32 regNO, Insn *star
         continue;
       }
 
-      AArch64OpndProp *regProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+      OpndProp *regProp = md->operand[i];
       if (!regProp->IsUse() && !opnd.IsMemoryAccessOperand()) {
         continue;
       }
 
       if (opnd.IsMemoryAccessOperand()) {
-        auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+        auto &memOpnd = static_cast<MemOperand&>(opnd);
         RegOperand *base = memOpnd.GetBaseRegister();
         RegOperand *index = memOpnd.GetIndexRegister();
         if ((base != nullptr && base->GetRegisterNumber() == regNO) ||
@@ -908,17 +907,17 @@ bool AArch64ReachingDefinition::FindRegUseBetweenInsn(uint32 regNO, Insn *startI
         }
         continue;
       } else if (opnd.IsMemoryAccessOperand()) {
-        auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+        auto &memOpnd = static_cast<MemOperand&>(opnd);
         RegOperand *baseOpnd = memOpnd.GetBaseRegister();
         if (baseOpnd != nullptr &&
-            (memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi) &&
+            (memOpnd.GetAddrMode() == MemOperand::kAddrModeBOi) &&
             (memOpnd.IsPostIndexed() || memOpnd.IsPreIndexed()) &&
             baseOpnd->GetRegisterNumber() == regNO) {
           findFinish = true;
         }
       }
 
-      AArch64OpndProp *regProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+      OpndProp *regProp = md->operand[i];
       if (regProp->IsDef() &&
           (opnd.IsConditionCode() || opnd.IsRegister()) &&
           (static_cast<RegOperand&>(opnd).GetRegisterNumber() == regNO)) {
@@ -930,7 +929,7 @@ bool AArch64ReachingDefinition::FindRegUseBetweenInsn(uint32 regNO, Insn *startI
       }
 
       if (opnd.IsMemoryAccessOperand()) {
-        auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+        auto &memOpnd = static_cast<MemOperand&>(opnd);
         RegOperand *base = memOpnd.GetBaseRegister();
         RegOperand *index = memOpnd.GetIndexRegister();
         if ((base != nullptr && base->GetRegisterNumber() == regNO) ||
@@ -993,7 +992,7 @@ bool AArch64ReachingDefinition::FindMemUseBetweenInsn(uint32 offset, Insn *start
         continue;
       }
 
-      auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+      auto &memOpnd = static_cast<MemOperand&>(opnd);
       RegOperand *base = memOpnd.GetBaseRegister();
       if (base == nullptr || !IsFrameReg(*base)) {
         continue;
@@ -1014,7 +1013,7 @@ bool AArch64ReachingDefinition::FindMemUseBetweenInsn(uint32 offset, Insn *start
         }
       }
 
-      AArch64OpndProp *regProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+      OpndProp *regProp = md->operand[i];
       bool isUse = regProp->IsUse();
       if (!isUse) {
         continue;
@@ -1042,7 +1041,7 @@ InsnSet AArch64ReachingDefinition::FindDefForMemOpnd(Insn &insn, uint32 indexOrO
     Operand &opnd = insn.GetOperand(indexOrOffset);
     ASSERT(opnd.IsMemoryAccessOperand(), "opnd must be MemOperand");
 
-    auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+    auto &memOpnd = static_cast<MemOperand&>(opnd);
     RegOperand *base = memOpnd.GetBaseRegister();
     RegOperand *indexReg = memOpnd.GetIndexRegister();
 
@@ -1091,7 +1090,7 @@ InsnSet AArch64ReachingDefinition::FindDefForMemOpnd(Insn &insn, uint32 indexOrO
 InsnSet AArch64ReachingDefinition::FindUseForMemOpnd(Insn &insn, uint8 index, bool secondMem) const {
   Operand &opnd = insn.GetOperand(index);
   ASSERT(opnd.IsMemoryAccessOperand(), "opnd must be MemOperand");
-  auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+  auto &memOpnd = static_cast<MemOperand&>(opnd);
   RegOperand *base = memOpnd.GetBaseRegister();
 
   InsnSet useInsnSet;
@@ -1167,7 +1166,7 @@ void AArch64ReachingDefinition::InitGenUse(BB &bb, bool firstTime) {
     uint32 opndNum = insn->GetOperandSize();
     for (uint32 i = 0; i < opndNum; ++i) {
       Operand &opnd = insn->GetOperand(i);
-      AArch64OpndProp *regProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+      OpndProp *regProp = md->operand[i];
       if (opnd.IsList() && (mode & kRDRegAnalysis)) {
         ASSERT(regProp->IsUse(), "ListOperand is used in insn");
         InitInfoForListOpnd(bb, opnd);
@@ -1200,7 +1199,7 @@ void AArch64ReachingDefinition::InitMemInfoForClearStackCall(Insn &callInsn) {
 
 void AArch64ReachingDefinition::InitInfoForMemOperand(Insn &insn, Operand &opnd, bool isDef) {
   ASSERT(opnd.IsMemoryAccessOperand(), "opnd must be MemOperand");
-  AArch64MemOperand &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+  MemOperand &memOpnd = static_cast<MemOperand&>(opnd);
   RegOperand *base = memOpnd.GetBaseRegister();
   RegOperand *index = memOpnd.GetIndexRegister();
 
@@ -1234,12 +1233,12 @@ void AArch64ReachingDefinition::InitInfoForMemOperand(Insn &insn, Operand &opnd,
     }
   }
 
-  if (mode & kRDRegAnalysis) {
+  if ((mode & kRDRegAnalysis) != 0) {
     regUse[insn.GetBB()->GetId()]->SetBit(base->GetRegisterNumber());
     if (index != nullptr) {
       regUse[insn.GetBB()->GetId()]->SetBit(index->GetRegisterNumber());
     }
-    if (memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi &&
+    if (memOpnd.GetAddrMode() == MemOperand::kAddrModeBOi &&
         (memOpnd.IsPostIndexed() || memOpnd.IsPreIndexed())) {
       /* Base operand has changed. */
       regGen[insn.GetBB()->GetId()]->SetBit(base->GetRegisterNumber());

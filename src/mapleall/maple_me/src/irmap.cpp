@@ -1132,7 +1132,8 @@ MeExpr *IRMap::SimplifyLshrExpr(const OpMeExpr *shrExpr) {
       opnd0 = opnd1;
       opnd1 = band->GetOpnd(0);
     }
-    auto bitOneCount = countr_one(static_cast<ConstMeExpr*>(opnd0)->GetIntValue() >> shrOffset);
+    auto bitOneCount = countr_one(static_cast<uint64>(static_cast<ConstMeExpr*>(opnd0)->GetIntValue()) >>
+                                  static_cast<uint64>(shrOffset));
     if (bitOneCount == -1) {
       return nullptr;
     } else if (bitOneCount == 0) {
@@ -1269,6 +1270,12 @@ MeExpr *IRMap::SimplifyAddExpr(const OpMeExpr *addExpr) {
     // reassociation effects sign extension
     if ((IsSignedInteger(cvtExpr->GetOpndType()) != IsSignedInteger(opnd0->GetOpnd(0)->GetPrimType())) &&
         (GetPrimTypeSize(cvtExpr->GetOpndType()) < GetPrimTypeSize(cvtExpr->GetPrimType()))) {
+      return nullptr;
+    }
+    // unsigned overflow is allowed, so we can do noting to
+    //   e.g. (cvt u64 u32 (a + b)) + c  when we dont know the value range
+    if (!IsSignedInteger(cvtExpr->GetOpndType()) &&
+        GetPrimTypeSize(cvtExpr->GetOpndType()) < GetPrimTypeSize(cvtExpr->GetPrimType())) {
       return nullptr;
     }
     opnd0 = opnd0->GetOpnd(0);

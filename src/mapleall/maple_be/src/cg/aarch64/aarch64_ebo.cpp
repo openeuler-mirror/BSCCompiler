@@ -126,7 +126,7 @@ bool AArch64Ebo::IsGlobalNeeded(Insn &insn) const {
 
   Operand *opnd = insn.GetResult(0);
   if ((opnd != nullptr) &&
-    (IsZeroRegister(*opnd) || (opnd->IsRegister() && cgFunc->IsSPOrFP(static_cast<RegOperand&>(*opnd))))) {
+      (IsZeroRegister(*opnd) || (opnd->IsRegister() && cgFunc->IsSPOrFP(static_cast<RegOperand&>(*opnd))))) {
     return true;
   }
   return false;

@@ -211,7 +211,7 @@ class RegOperand : public OperandVisitable<RegOperand> {
         regNO(regNum),
         regType(type),
         validBitsNum(size),
-        flag(flg) {}
+        regFlag(flg) {}
 
   ~RegOperand() override = default;
   using OperandVisitable<RegOperand>::OperandVisitable;
@@ -409,7 +409,7 @@ class RegOperand : public OperandVisitable<RegOperand> {
   /* use for SSA analysis */
   bool isSSAForm = false;
   bool isRefField = false;
-  uint32 flag = 0;
+  uint32 regFlag = 0;
   int16 vecLane = -1;     /* -1 for whole reg, 0 to 15 to specify each lane one at a time */
   uint16 vecLaneSize = 0; /* Number of lanes */
   uint64 vecElementSize = 0;  /* size of vector element in each lane */
@@ -835,6 +835,7 @@ class MemOperand : public OperandVisitable<MemOperand> {
         baseOpnd(base),
         indexOpnd(nullptr),
         offsetOpnd(offset),
+        symbol(nullptr),
         addrMode(kAddrModeBOi),
         extend(0),
         idxOpt(idxOpt),
@@ -895,7 +896,7 @@ class MemOperand : public OperandVisitable<MemOperand> {
   }
 
   /* Copy constructor */
-  MemOperand(const MemOperand &memOpnd)
+  explicit MemOperand(const MemOperand &memOpnd)
       : OperandVisitable(Operand::kOpdMem, memOpnd.GetSize()),
         baseOpnd(memOpnd.baseOpnd),
         indexOpnd(memOpnd.indexOpnd),
@@ -1040,6 +1041,9 @@ class MemOperand : public OperandVisitable<MemOperand> {
       return false;
     }
     OfstOperand *ofstOpnd = GetOffsetImmediate();
+    if (ofstOpnd->GetOffsetValue() >= -256 && ofstOpnd->GetOffsetValue() <= 255) {
+      return false;
+    }
     return ((static_cast<uint32>(ofstOpnd->GetOffsetValue()) &
              static_cast<uint32>((1U << static_cast<uint32>(GetImmediateOffsetAlignment(dSize))) - 1)) != 0);
   }
@@ -1461,7 +1465,7 @@ class CGRegOperand : public OperandVisitable<CGRegOperand> {
 
 class CGImmOperand : public OperandVisitable<CGImmOperand> {
  public:
-  CGImmOperand(uint32 sz, int64 value) : OperandVisitable(kOpdImmediate, sz), val(value) {}
+  CGImmOperand(uint32 sz, int64 value) : OperandVisitable(kOpdImmediate, sz), val(value), symbol(nullptr) {}
   CGImmOperand(const MIRSymbol &symbol, int64 value, int32 relocs)
       : OperandVisitable(kOpdStImmediate, 0), val(value), symbol(&symbol), relocs(relocs) {}
   ~CGImmOperand() override = default;

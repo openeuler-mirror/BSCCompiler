@@ -654,8 +654,8 @@ void RCLowering::HandleAssignMeStmtIvarLHS(MeStmt &stmt) {
     }
     CheckRemove(next, OP_membarstoreload);
   }
-  std::vector<MeExpr*> opnds =
-      { &lhsInner->GetBase()->GetAddrExprBase(), irMap.CreateAddrofMeExpr(*lhsInner), rhsInner };
+  std::vector<MeExpr*> opnds = {
+      &lhsInner->GetBase()->GetAddrExprBase(), irMap.CreateAddrofMeExpr(*lhsInner), rhsInner };
   IntrinsiccallMeStmt *writeRefCall = CreateRCIntrinsic(intrinsicID, stmt, opnds);
   stmt.GetBB()->ReplaceMeStmt(&stmt, writeRefCall);
   CheckArrayStore(*writeRefCall);

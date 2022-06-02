@@ -1104,7 +1104,7 @@ bool MeCFG::UnifyRetBBs() {
   auto eIt = theCFG->valid_end();
   for (auto bIt = theCFG->valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
-    if (bb->IsReturnBB()){
+    if (bb->IsReturnBB()) {
       retBBs.push_back(bb);
     }
   }

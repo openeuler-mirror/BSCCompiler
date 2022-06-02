@@ -206,7 +206,7 @@ void LMBCLowerer::LowerAggDassign(const DassignNode *dsnode, MIRType *lhsty,
     SymbolAlloc &symalloc = symbol->IsLocal() ? memlayout->sym_alloc_table[symbol->GetStIndex()]
                                               : globmemlayout->sym_alloc_table[symbol->GetStIndex()];
     offset = symalloc.offset + offset;
-   }
+  }
   // generate the blkassignoff
   BlkassignoffNode *bass = mirModule->CurFuncCodeMemPool()->New<BlkassignoffNode>(offset,
                                                                                   lhsty->GetSize());
@@ -550,38 +550,38 @@ BlockNode *LMBCLowerer::LowerBlock(BlockNode *block) {
     }
     stmt->SetNext(nullptr);
     switch (stmt->GetOpCode()) {
-    case OP_dassign: {
-      LowerDassign(static_cast<DassignNode*>(stmt), newblk);
-      break;
-    }
-    case OP_dassignoff: {
-      LowerDassignoff(static_cast<DassignoffNode*>(stmt), newblk);
-      break;
-    }
-    case OP_iassign: {
-      LowerIassign(static_cast<IassignNode*>(stmt), newblk);
-      break;
-    }
-    case OP_return: {
-      NaryStmtNode *retNode = static_cast<NaryStmtNode*>(stmt);
-      if (retNode->GetNopndSize() == 0) {
+      case OP_dassign: {
+        LowerDassign(static_cast<DassignNode*>(stmt), newblk);
+        break;
+      }
+      case OP_dassignoff: {
+        LowerDassignoff(static_cast<DassignoffNode*>(stmt), newblk);
+        break;
+      }
+      case OP_iassign: {
+        LowerIassign(static_cast<IassignNode*>(stmt), newblk);
+        break;
+      }
+      case OP_return: {
+        NaryStmtNode *retNode = static_cast<NaryStmtNode*>(stmt);
+        if (retNode->GetNopndSize() == 0) {
+          newblk->AddStatement(stmt);
+        } else {
+          LowerReturn(retNode, newblk);
+        }
+      }
+      case OP_call:
+      case OP_icall: {
+        LowerCall(static_cast<NaryStmtNode*>(stmt), newblk);
+        break;
+      }
+      default: {
+        for (size_t i = 0; i < stmt->NumOpnds(); ++i) {
+          stmt->SetOpnd(LowerExpr(stmt->Opnd(i)), i);
+        }
         newblk->AddStatement(stmt);
-      } else {
-        LowerReturn(retNode, newblk);
+        break;
       }
-    }
-    case OP_call:
-    case OP_icall: {
-      LowerCall(static_cast<NaryStmtNode*>(stmt), newblk);
-      break;
-    }
-    default: {
-      for (size_t i = 0; i < stmt->NumOpnds(); ++i) {
-        stmt->SetOpnd(LowerExpr(stmt->Opnd(i)), i);
-      }
-      newblk->AddStatement(stmt);
-      break;
-    }
     }
   } while (nextstmt != nullptr);
   return newblk;

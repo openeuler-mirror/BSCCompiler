@@ -235,7 +235,7 @@ bool AArch64GenProEpilog::TailCallOpt() {
     TailCallBBOpt(*exitBB, callInsns, *exitBB);
     if (callInsns.size() != 0) {
       optCount += callInsns.size();
-      exitBB2CallSitesMap.emplace(exitBB, callInsns);
+      (void)exitBB2CallSitesMap.emplace(exitBB, callInsns);
     }
     if (i < exitBBSize) {
       exitBB = cgFunc.GetExitBBsVec()[i];
@@ -391,8 +391,7 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   const MIRSymbol *stkGuardSym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
       GlobalTables::GetStrTable().GetStrIdxFromName(std::string("__stack_chk_guard")));
   StImmOperand &stOpnd = aarchCGFunc.CreateStImmOperand(*stkGuardSym, 0, 0);
-  RegOperand &stAddrOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, kSizeOfPtr * kBitsPerByte,
-                                                                                 kRegTyInt);
+  RegOperand &stAddrOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, kSizeOfPtr * kBitsPerByte, kRegTyInt);
   aarchCGFunc.SelectAddrof(stAddrOpnd, stOpnd);
 
   MemOperand *guardMemOp = aarchCGFunc.CreateMemOperand(MemOperand::kAddrModeBOi,
