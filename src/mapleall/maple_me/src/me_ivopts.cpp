@@ -271,7 +271,7 @@ void IVOptimizer::DumpGroup(const IVGroup &group) {
                          << "  Type: ";
   if (group.type == kUseGeneral) {
     LogInfo::MapleLogger() << "General\n";
-  } else if (group.type == kUseAddress){
+  } else if (group.type == kUseAddress) {
     LogInfo::MapleLogger() << "Address\n";
   } else {
     LogInfo::MapleLogger() << "Compare\n";

@@ -30,37 +30,36 @@ using namespace std;
 // philhs
 bool IVCanon::ResolveExprValue(MeExpr *x, ScalarMeExpr *phiLHS) {
   switch (x->GetMeOp()) {
-  case kMeOpConst: return IsPrimitiveInteger(x->GetPrimType());
-  case kMeOpVar:
-  case kMeOpReg:{
-    if (x->IsVolatile()) {
-      return false;
+    case kMeOpConst: return IsPrimitiveInteger(x->GetPrimType());
+    case kMeOpVar:
+    case kMeOpReg: {
+      if (x->IsVolatile()) {
+        return false;
+      }
+      if (x == phiLHS) {
+        return true;
+      }
+      ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
+      if (!scalar->GetOst()->IsLocal() || scalar->GetOst()->IsAddressTaken() ||
+          scalar->GetOstIdx() != phiLHS->GetOstIdx()) {
+        return false;
+      }
+      if (scalar->GetDefBy() != kDefByStmt) {
+        return false;
+      }
+      AssignMeStmt *defStmt = static_cast<AssignMeStmt*>(scalar->GetDefStmt());
+      return ResolveExprValue(defStmt->GetRHS(), phiLHS);
     }
-    if (x == phiLHS) {
-      return true;
+    case kMeOpOp: {  // restricting to only + and - for now
+      if (x->GetOp() != OP_add && x->GetOp() != OP_sub) {
+        return false;
+      }
+      OpMeExpr *opExpr = static_cast<OpMeExpr *>(x);
+      return ResolveExprValue(opExpr->GetOpnd(0), phiLHS) &&
+             ResolveExprValue(opExpr->GetOpnd(1), phiLHS);
     }
-    ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
-    if (!scalar->GetOst()->IsLocal() || scalar->GetOst()->IsAddressTaken() ||
-        scalar->GetOstIdx() != phiLHS->GetOstIdx()) {
-      return false;
-    }
-    if (scalar->GetDefBy() != kDefByStmt) {
-      return false;
-    }
-    AssignMeStmt *defStmt = static_cast<AssignMeStmt*>(scalar->GetDefStmt());
-    return ResolveExprValue(defStmt->GetRHS(), phiLHS);
+    default: return false;
   }
-  case kMeOpOp: {  // restricting to only + and - for now
-    if (x->GetOp() != OP_add && x->GetOp() != OP_sub) {
-      return false;
-    }
-    OpMeExpr *opExpr = static_cast<OpMeExpr *>(x);
-    return ResolveExprValue(opExpr->GetOpnd(0), phiLHS) &&
-           ResolveExprValue(opExpr->GetOpnd(1), phiLHS);
-  }
-  default: ;
-  }
-  return false;
 }
 
 // appearances accumulates the number of appearances of the induction variable;

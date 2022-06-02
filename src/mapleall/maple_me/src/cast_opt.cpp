@@ -226,132 +226,132 @@ int CastOpt::IsEliminableCastPair(CastKind firstCastKind, CastKind secondCastKin
   uint32 dstSize = GetPrimTypeActualBitSize(dstType);
 
   switch (castCase) {
-  case 0: {
-    // Not allowed
-    return -1;
-  }
-  case 1: {
-    // first intTrunc, then intTrunc
-    // Example: cvt u16 u32 (cvt u32 u64)  ==>  cvt u16 u64
-    // first retype, then retype
-    // Example: retype i64 u64 (retype u64 ptr)  ==>  retype i64 ptr
-    return firstCastKind;
-  }
-  case 2: {
-    // first fpExt, then fpExt
-    // Example: cvt f128 f64 (cvt f64 f32)  ==>  cvt f128 f32
-    // first fpExt, then fp2int
-    // Example: cvt i64 f64 (cvt f64 f32)  ==>  cvt i64 f32
-    return secondCastKind;
-  }
-  case 3: {
-    if (IsPrimitiveInteger(dstType)) {
+    case 0: {
+      // Not allowed
+      return -1;
+    }
+    case 1: {
+      // first intTrunc, then intTrunc
+      // Example: cvt u16 u32 (cvt u32 u64)  ==>  cvt u16 u64
+      // first retype, then retype
+      // Example: retype i64 u64 (retype u64 ptr)  ==>  retype i64 ptr
       return firstCastKind;
     }
-    return -1;
-  }
-  case 4: {
-    if (IsPrimitiveFloat(dstType)) {
-      return firstCastKind;
-    }
-    return -1;
-  }
-  case 5: {
-    if (IsPrimitiveInteger(srcType)) {
+    case 2: {
+      // first fpExt, then fpExt
+      // Example: cvt f128 f64 (cvt f64 f32)  ==>  cvt f128 f32
+      // first fpExt, then fp2int
+      // Example: cvt i64 f64 (cvt f64 f32)  ==>  cvt i64 f32
       return secondCastKind;
     }
-    return -1;
-  }
-  case 6: {
-    if (IsPrimitiveFloat(srcType)) {
-      return secondCastKind;
-    }
-    return -1;
-  }
-  case 7: {
-    // first integer retype, then sext/zext
-    if (IsPrimitiveInteger(srcType) && dstSize >= midSize1) {
-      CHECK_FATAL(srcSize == midSize1, "must be");
-      if (midSize2 >= srcSize) {
-        return secondCastKind;
-      }
-      // Example: zext u64 8 (retype u32 i32)  ==>  zext u64 8
-      srcType = midType2;
-      return secondCastKind;
-    }
-    return -1;
-  }
-  case 8: {
-    if (srcSize == dstSize) {
-      return CAST_retype;
-    } else if (srcSize < dstSize) {
-      return firstCastKind;
-    } else {
-      return secondCastKind;
-    }
-  }
-    // For integer extension pair
-  case 9: {
-    // first zext, then sext
-    // Extreme example: sext i32 16 (zext u64 8)  ==> zext i32 8
-    if (firstCastKind != secondCastKind && midSize2 <= midSize1) {
-      if (midSize2 > srcSize) {
-        // The first extension works. After the first zext, the most significant bit must be 0, so the second sext
-        // is actually a zext.
-        // Example: sext i64 16 (zext u32 8)  ==> zext i64 8
+    case 3: {
+      if (IsPrimitiveInteger(dstType)) {
         return firstCastKind;
       }
-      // midSize2 <= srcSize
-      // The first extension didn't work
-      // Example: sext i64 8 (zext u32 16)  ==> sext i64 8
-      // Example: sext i16 8 (zext u32 16)  ==> sext i16 8
-      srcType = midType2;
-      return secondCastKind;
+      return -1;
     }
-
-    // first zext, then zext
-    // first sext, then sext
-    // Example: sext i32 8 (sext i32 8)  ==>  sext i32 8
-    // Example: zext u16 1 (zext u32 8)  ==>  zext u16 1    it's ok
-    // midSize2 < srcSize:
-    // Example: zext u64 8 (zext u32 16)  ==> zext u64 8
-    // Example: sext i64 8 (sext i32 16)  ==> sext i64 8
-    // Example: zext i32 1 (zext u32 8)  ==> zext i32 1
-    // Wrong example (midSize2 > midSize1): zext u64 32 (zext u16 8)  =[x]=>  zext u64 8
-    if (firstCastKind == secondCastKind && midSize2 <= midSize1) {
-      if (midSize2 < srcSize) {
+    case 4: {
+      if (IsPrimitiveFloat(dstType)) {
+        return firstCastKind;
+      }
+      return -1;
+    }
+    case 5: {
+      if (IsPrimitiveInteger(srcType)) {
+        return secondCastKind;
+      }
+      return -1;
+    }
+    case 6: {
+      if (IsPrimitiveFloat(srcType)) {
+        return secondCastKind;
+      }
+      return -1;
+    }
+    case 7: {
+      // first integer retype, then sext/zext
+      if (IsPrimitiveInteger(srcType) && dstSize >= midSize1) {
+        CHECK_FATAL(srcSize == midSize1, "must be");
+        if (midSize2 >= srcSize) {
+          return secondCastKind;
+        }
+        // Example: zext u64 8 (retype u32 i32)  ==>  zext u64 8
         srcType = midType2;
+        return secondCastKind;
       }
-      return secondCastKind;
+      return -1;
     }
-    return -1;
-  }
-  case 10: {
-    // first zext, then int2fp
-    if (IsSignedInteger(midType2)) {
-      return secondCastKind;
-    }
-    // To improved: consider unsigned
-    return -1;
-  }
-  case 11: {
-    // first retype, then int2fp
-    if (IsPrimitiveInteger(srcType)) {
-      if (IsSignedInteger(srcType) != IsSignedInteger(midType1)) {
-        // If sign diffs, use toType of retype
-        // Example: cvt f64 i64 (retype i64 u64)  ==>  cvt f64 i64
-        srcType = midType1;
+    case 8: {
+      if (srcSize == dstSize) {
+        return CAST_retype;
+      } else if (srcSize < dstSize) {
+        return firstCastKind;
+      } else {
+        return secondCastKind;
       }
-      return secondCastKind;
     }
-    return -1;
-  }
-  case 99: {
-    CHECK_FATAL(false, "invalid cast pair");
-  }
-  default: {
-    CHECK_FATAL(false, "can not be here, is castMatrix wrong?");
-  }
+      // For integer extension pair
+    case 9: {
+      // first zext, then sext
+      // Extreme example: sext i32 16 (zext u64 8)  ==> zext i32 8
+      if (firstCastKind != secondCastKind && midSize2 <= midSize1) {
+        if (midSize2 > srcSize) {
+          // The first extension works. After the first zext, the most significant bit must be 0, so the second sext
+          // is actually a zext.
+          // Example: sext i64 16 (zext u32 8)  ==> zext i64 8
+          return firstCastKind;
+        }
+        // midSize2 <= srcSize
+        // The first extension didn't work
+        // Example: sext i64 8 (zext u32 16)  ==> sext i64 8
+        // Example: sext i16 8 (zext u32 16)  ==> sext i16 8
+        srcType = midType2;
+        return secondCastKind;
+      }
+
+      // first zext, then zext
+      // first sext, then sext
+      // Example: sext i32 8 (sext i32 8)  ==>  sext i32 8
+      // Example: zext u16 1 (zext u32 8)  ==>  zext u16 1    it's ok
+      // midSize2 < srcSize:
+      // Example: zext u64 8 (zext u32 16)  ==> zext u64 8
+      // Example: sext i64 8 (sext i32 16)  ==> sext i64 8
+      // Example: zext i32 1 (zext u32 8)  ==> zext i32 1
+      // Wrong example (midSize2 > midSize1): zext u64 32 (zext u16 8)  =[x]=>  zext u64 8
+      if (firstCastKind == secondCastKind && midSize2 <= midSize1) {
+        if (midSize2 < srcSize) {
+          srcType = midType2;
+        }
+        return secondCastKind;
+      }
+      return -1;
+    }
+    case 10: {
+      // first zext, then int2fp
+      if (IsSignedInteger(midType2)) {
+        return secondCastKind;
+      }
+      // To improved: consider unsigned
+      return -1;
+    }
+    case 11: {
+      // first retype, then int2fp
+      if (IsPrimitiveInteger(srcType)) {
+        if (IsSignedInteger(srcType) != IsSignedInteger(midType1)) {
+          // If sign diffs, use toType of retype
+          // Example: cvt f64 i64 (retype i64 u64)  ==>  cvt f64 i64
+          srcType = midType1;
+        }
+        return secondCastKind;
+      }
+      return -1;
+    }
+    case 99: {
+      CHECK_FATAL(false, "invalid cast pair");
+    }
+    default: {
+      CHECK_FATAL(false, "can not be here, is castMatrix wrong?");
+    }
   }
 }
 

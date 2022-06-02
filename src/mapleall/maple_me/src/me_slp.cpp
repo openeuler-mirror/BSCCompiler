@@ -2992,7 +2992,7 @@ bool SLPVectorizer::DoVectTreeNodeIassign(TreeNode *treeNode) {
   if (debug) {
     treeNode->DumpVecStmts(irMap);
   }
- return true;
+  return true;
 }
 
 bool SLPVectorizer::DoVectTreeNodeGatherNeeded(TreeNode *treeNode) {

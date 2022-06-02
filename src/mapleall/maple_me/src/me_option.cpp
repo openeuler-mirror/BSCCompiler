@@ -227,28 +227,32 @@ bool MeOption::SolveOptions(bool isDebug) {
     }
 
     switch (aliasAnalysisLevel) {
-    case kLevelThree:
-      setCalleeHasSideEffect = false;
-      unionBasedAA = true;
-      tbaa = true;
-      break;
-    case kLevelZero:
-      setCalleeHasSideEffect = true;
-      unionBasedAA = false;
-      tbaa = false;
-      break;
-    case kLevelOne:
-      setCalleeHasSideEffect = false;
-      unionBasedAA = true;
-      tbaa = false;
-      break;
-    case kLevelTwo:
-      setCalleeHasSideEffect = false;
-      unionBasedAA = false;
-      tbaa = true;
-      break;
-    default:
-      break;
+      case kLevelThree: {
+        setCalleeHasSideEffect = false;
+        unionBasedAA = true;
+        tbaa = true;
+        break;
+      }
+      case kLevelZero: {
+        setCalleeHasSideEffect = true;
+        unionBasedAA = false;
+        tbaa = false;
+        break;
+      }
+      case kLevelOne: {
+        setCalleeHasSideEffect = false;
+        unionBasedAA = true;
+        tbaa = false;
+        break;
+      }
+      case kLevelTwo: {
+        setCalleeHasSideEffect = false;
+        unionBasedAA = false;
+        tbaa = true;
+        break;
+      }
+      default:
+        break;
     }
 
     if (isDebug) {

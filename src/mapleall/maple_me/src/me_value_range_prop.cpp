@@ -1320,7 +1320,7 @@ void ValueRangePropagation::CollectMeExpr(
       valueRangeOfOperand->GetRangeType() != kNotEqual && stmt.GetOp() != OP_asm) {
     auto rangeType = valueRangeOfOperand->GetRangeType();
     int64 value = (rangeType == kEqual) ? valueRangeOfOperand->GetBound().GetConstant() :
-         valueRangeOfOperand->GetLower().GetConstant();
+        valueRangeOfOperand->GetLower().GetConstant();
     PrimType pType = (rangeType == kEqual) ? valueRangeOfOperand->GetBound().GetPrimType() :
         valueRangeOfOperand->GetLower().GetPrimType();
     expr2ConstantValue[&meExpr] = std::make_pair(value, pType);

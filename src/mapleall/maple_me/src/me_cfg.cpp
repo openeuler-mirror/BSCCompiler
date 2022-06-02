@@ -1104,7 +1104,7 @@ bool MeCFG::UnifyRetBBs() {
   auto eIt = theCFG->valid_end();
   for (auto bIt = theCFG->valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
-    if (bb->IsReturnBB()){
+    if (bb->IsReturnBB()) {
       retBBs.push_back(bb);
     }
   }
@@ -1871,8 +1871,7 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
         succSum += bb->GetSucc(i)->GetFrequency();
       }
       if (succSum != bb->GetFrequency()) {
-         LogInfo::MapleLogger() << "ERROR::  bb " << bb->GetBBId() <<
-             "frequency inconsistent with sum of succs" << "\n";
+        LogInfo::MapleLogger() << "ERROR::  bb " << bb->GetBBId() << "frequency inconsistent with sum of succs" << "\n";
       }
     }
   }
