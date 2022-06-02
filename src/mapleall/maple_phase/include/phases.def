@@ -7,7 +7,7 @@ ADDMODULEPHASE("reflectionanalysis", JAVALANG)
 ADDMODULEPHASE("GenNativeStubFunc", JAVALANG)
 ADDMODULEPHASE("gencheckcast", JAVALANG)
 ADDMODULEPHASE("javaintrnlowering", JAVALANG)
-ADDMODULEPHASE("callgraph", !Options::profileUse)
+ADDMODULEPHASE("callgraph", Options::O2 && !Options::profileUse)
 ADDMODULEPHASE("inline", Options::O2 && Options::useInline && !Options::profileUse)
 // run callgraph again to delete fully inlined static function
 ADDMODULEPHASE("callgraph", Options::O2 && Options::useInline && !Options::profileUse)
