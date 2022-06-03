@@ -449,6 +449,10 @@ void MIRFunction::DumpFrame(int32 indent) const {
   }
 }
 
+void MIRFunction::DumpScope() {
+  scope->Dump(0);
+}
+
 void MIRFunction::DumpFuncBody(int32 indent) {
   LogInfo::MapleLogger() << "  funcid " << GetPuidxOrigin() << '\n';
 

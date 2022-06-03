@@ -20,6 +20,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/mempool/include",
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
   "${MAPLEALL_ROOT}/maple_ipa/include",
+  "${MAPLEALL_ROOT}/maple_ipa/include/old",
   "${MAPLEALL_ROOT}/maple_me/include",
   "${MAPLEALL_ROOT}/maple_phase/include",
   "${THIRD_PARTY_ROOT}/llvm_modified/llvm/include/llvm/BinaryFormat",
@@ -32,6 +33,7 @@ src_libmplir = [
   "src/mir_symbol_builder.cpp",
   "src/mir_builder.cpp",
   "src/mir_const.cpp",
+  "src/mir_scope.cpp",
   "src/mir_function.cpp",
   "src/mir_lower.cpp",
   "src/mir_module.cpp",
@@ -43,6 +45,7 @@ src_libmplir = [
   "src/mir_type.cpp",
   "src/opcode_info.cpp",
   "src/option.cpp",
+  "src/mpl2mpl_options.cpp",
   "src/parser.cpp",
   "src/mir_parser.cpp",
   "src/mir_pragma.cpp",
@@ -53,7 +56,7 @@ src_libmplir = [
   "src/bin_mpl_export.cpp",
   "src/debug_info.cpp",
   "src/debug_info_util.cpp",
-  "${MAPLEALL_ROOT}/maple_ipa/src/ea_connection_graph.cpp",
+  "${MAPLEALL_ROOT}/maple_ipa/src/old/ea_connection_graph.cpp",
 ]
 
 src_irbuild = [ "src/driver.cpp" ]
@@ -68,9 +71,9 @@ static_library("libmplir") {
   output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
   deps = [
     "${MAPLEALL_ROOT}/maple_driver:libdriver_option",
-    "${MAPLEALL_ROOT}/maple_driver:liboption_parser",
     "${MAPLEALL_ROOT}/maple_phase:libmplphase",
     "${MAPLEALL_ROOT}/maple_util:libmplutil",
+    "${MAPLEALL_ROOT}/maple_util:libcommandline"
   ]
 }
 
@@ -79,10 +82,10 @@ executable("irbuild") {
   include_dirs = include_directories
   deps = [
     ":libmplir",
-    "${MAPLEALL_ROOT}/maple_driver:liboption_parser",
     "${MAPLEALL_ROOT}/maple_phase:libmplphase",
     "${MAPLEALL_ROOT}/maple_phase:libmplphase",
     "${MAPLEALL_ROOT}/maple_util:libmplutil",
+    "${MAPLEALL_ROOT}/maple_util:libcommandline",
     "${MAPLEALL_ROOT}/mempool:libmempool",
     "${MAPLEALL_ROOT}/mpl2mpl:libmpl2mpl",
     "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
@@ -96,9 +99,9 @@ executable("mpldbg") {
   include_dirs = include_directories
   deps = [
     ":libmplir",
-    "${MAPLEALL_ROOT}/maple_driver:liboption_parser",
     "${MAPLEALL_ROOT}/maple_phase:libmplphase",
     "${MAPLEALL_ROOT}/maple_util:libmplutil",
+    "${MAPLEALL_ROOT}/maple_util:libcommandline",
     "${MAPLEALL_ROOT}/mempool:libmempool",
     "${MAPLEALL_ROOT}/mpl2mpl:libmpl2mpl",
     "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
