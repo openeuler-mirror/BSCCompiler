@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -17,6 +17,7 @@
 #include <sstream>
 #include <fstream>
 #include "mir_parser.h"
+#include "mir_scope.h"
 #include "mir_function.h"
 #include "namemangler.h"
 #include "opcode_info.h"
@@ -122,7 +123,7 @@ static bool IsClassInterfaceTypeName(const std::string &nameStr) {
 }
 
 bool MIRParser::IsStatement(TokenKind tk) const {
-  if (tk == TK_LOC || tk == TK_ALIAS) {
+  if (tk == TK_LOC || tk == TK_ALIAS || tk == TK_SCOPE) {
     return true;
   }
   Opcode op = GetOpFromToken(tk);
@@ -132,9 +133,13 @@ bool MIRParser::IsStatement(TokenKind tk) const {
 PrimType MIRParser::GetPrimitiveType(TokenKind tk) const {
 #define LOAD_ALGO_PRIMARY_TYPE
   switch (tk) {
-#define PRIMTYPE(P) \
-    case TK_##P:      \
-      return PTY_##P;
+#define PRIMTYPE(P)                      \
+    case TK_##P: {                       \
+      if (tk == TK_ptr) {                \
+        return GetExactPtrPrimType();    \
+      }                                  \
+      return PTY_##P;                    \
+    }
 #include "prim_types.def"
 #undef PRIMTYPE
     default:
@@ -970,12 +975,25 @@ bool MIRParser::ParseAlignAttrs(TypeAttrs &tA) {
   return true;
 }
 
+bool MIRParser::ParsePackAttrs() {
+  if (lexer.GetTokenKind() != TK_pack) {
+    Error("wrong TK kind taken from file");
+    return false;
+  }
+  if (!CheckAlignTk()) {
+    return false;
+  }
+  return true;
+}
+
 // for variable declaration type attribute specification
 // it has also storage-class qualifier.
 bool MIRParser::ParseVarTypeAttrs(MIRSymbol &st) {
   do {
     switch (lexer.GetTokenKind()) {
+// parse attr without no content
 #define TYPE_ATTR
+#define NOCONTENT_ATTR
 #define ATTR(X)            \
       case TK_##X:             \
         st.SetAttr(ATTR_##X); \
@@ -983,6 +1001,8 @@ bool MIRParser::ParseVarTypeAttrs(MIRSymbol &st) {
 #include "all_attributes.def"
 #undef ATTR
 #undef TYPE_ATTR
+#undef NOCONTENT_ATTR
+// parse attr with no content
       case TK_align: {
         if (!ParseAlignAttrs(st.GetAttrs())) {
           return false;
@@ -1000,7 +1020,9 @@ bool MIRParser::ParseVarTypeAttrs(MIRSymbol &st) {
 bool MIRParser::ParseTypeAttrs(TypeAttrs &attrs) {
   do {
     switch (lexer.GetTokenKind()) {
+// parse attr without no content
 #define TYPE_ATTR
+#define NOCONTENT_ATTR
 #define ATTR(X)            \
       case TK_##X:             \
         attrs.SetAttr(ATTR_##X); \
@@ -1008,10 +1030,20 @@ bool MIRParser::ParseTypeAttrs(TypeAttrs &attrs) {
 #include "all_attributes.def"
 #undef ATTR
 #undef TYPE_ATTR
+#undef NOCONTENT_ATTR
+// parse attr with no content
       case TK_align: {
         if (!ParseAlignAttrs(attrs)) {
           return false;
         }
+        break;
+      }
+      case TK_pack: {
+        attrs.SetAttr(ATTR_pack);
+        if (!ParsePackAttrs()) {
+          return false;
+        }
+        attrs.SetPack(static_cast<uint32>(lexer.GetTheIntVal()));
         break;
       }
       default:
@@ -1024,19 +1056,30 @@ bool MIRParser::ParseTypeAttrs(TypeAttrs &attrs) {
 bool MIRParser::ParseFieldAttrs(FieldAttrs &attrs) {
   do {
     switch (lexer.GetTokenKind()) {
+// parse attr without no content
 #define FIELD_ATTR
+#define NOCONTENT_ATTR
 #define ATTR(X)               \
       case TK_##X:                \
         attrs.SetAttr(FLDATTR_##X); \
         break;
 #include "all_attributes.def"
 #undef ATTR
+#undef NOCONTENT_ATTR
 #undef FIELD_ATTR
+// parse attr with no content
       case TK_align: {
         if (!CheckAlignTk()) {
           return false;
         }
         attrs.SetAlign(lexer.GetTheIntVal());
+        break;
+      }
+      case TK_pack: {
+        attrs.SetAttr(FLDATTR_pack);
+        if (!ParsePackAttrs()) {
+          return false;
+        }
         break;
       }
       default:
@@ -1064,19 +1107,44 @@ bool MIRParser::ParseFuncAttrs(FuncAttrs &attrs) {
       default:
         return true;
     }  // switch
-    if (currentToken != TK_alias && currentToken != TK_section) {
+    if (currentToken != TK_alias && currentToken != TK_section &&
+        currentToken != TK_constructor_priority && currentToken != TK_destructor_priority) {
       lexer.NextToken();
       continue;
     }
-    if (lexer.NextToken() != TK_lparen || lexer.NextToken() != TK_string) {
+    if (lexer.NextToken() != TK_lparen) {
       return false;
     }
-    attrs.SetAttrContentName(attrKind, lexer.GetName());
+    lexer.NextToken();
+    SetAttrContent(attrs, attrKind, lexer);
     if (lexer.NextToken() != TK_rparen) {
       return false;
     }
     lexer.NextToken();
   } while (true);
+}
+
+void MIRParser::SetAttrContent(FuncAttrs &attrs, FuncAttrKind x, const MIRLexer &lexer) {
+  switch (x) {
+    case FUNCATTR_alias: {
+      attrs.SetAliasFuncName(lexer.GetName());
+      break;
+    }
+    case FUNCATTR_section: {
+      attrs.SetPrefixSectionName(lexer.GetName());
+      break;
+    }
+    case FUNCATTR_constructor_priority: {
+      attrs.SetConstructorPriority(lexer.GetTheIntVal());
+      break;
+    }
+    case FUNCATTR_destructor_priority: {
+      attrs.SetDestructorPriority(lexer.GetTheIntVal());
+      break;
+    }
+    default:
+      break;
+  }
 }
 
 bool MIRParser::ParsePrimType(TyIdx &tyIdx) {
@@ -2285,13 +2353,155 @@ bool MIRParser::ParseFuncInfo() {
   return false;
 }
 
-bool MIRParser::ParseAlias(StmtNodePtr&) {
+bool MIRParser::ParsePosition(SrcPosition &pos) {
   TokenKind nameTk = lexer.NextToken();
+  if (nameTk != TK_lparen) {
+    Error("expect ( in SrcPos but get ");
+    return false;
+  }
+  nameTk = lexer.NextToken();
+  if (nameTk != TK_intconst) {
+    Error("expect int in SrcPos but get ");
+    return false;
+  }
+  int i = static_cast<uint32>(lexer.GetTheIntVal());
+  pos.SetFileNum(i);
+  nameTk = lexer.NextToken();
+  if (nameTk != TK_coma) {
+    Error("expect comma in SrcPos but get ");
+    return false;
+  }
+
+  nameTk = lexer.NextToken();
+  if (nameTk != TK_intconst) {
+    Error("expect int in SrcPos but get ");
+    return false;
+  }
+  i = static_cast<uint32>(lexer.GetTheIntVal());
+  pos.SetLineNum(i);
+  nameTk = lexer.NextToken();
+  if (nameTk != TK_coma) {
+    Error("expect comma in SrcPos but get ");
+    return false;
+  }
+
+  nameTk = lexer.NextToken();
+  if (nameTk != TK_intconst) {
+    Error("expect int in SrcPos but get ");
+    return false;
+  }
+  i = static_cast<uint32>(lexer.GetTheIntVal());
+  pos.SetColumn(i);
+  nameTk = lexer.NextToken();
+  if (nameTk != TK_rparen) {
+    Error("expect ) in SrcPos but get ");
+    return false;
+  }
+
+  return true;
+}
+
+bool MIRParser::ParseOneScope(MIRScope &scope) {
+  TokenKind nameTk = lexer.GetTokenKind();
+  if (nameTk != TK_SCOPE) {
+    Error("expect SCOPE but get ");
+    return false;
+  }
+  nameTk = lexer.NextToken();
+  if (nameTk != TK_langle) {
+    Error("expect < in SCOPE but get ");
+    return false;
+  }
+  SrcPosition low;
+  if (!ParsePosition(low)) {
+    Error("parsePosition low failed when parsing SCOPE ");
+    return false;
+  }
+  nameTk = lexer.NextToken();
+  if (nameTk != TK_coma) {
+    Error("expect comma in SCOPE but get ");
+    return false;
+  }
+  SrcPosition high;
+  if (!ParsePosition(high)) {
+    Error("parsePosition high failed when parsing SCOPE ");
+    return false;
+  }
+  nameTk = lexer.NextToken();
+  if (nameTk != TK_rangle) {
+    Error("expect > in SCOPE but get ");
+    return false;
+  }
+  nameTk = lexer.NextToken();
+  if (nameTk != TK_lbrace) {
+    Error("expect { in SCOPE but get ");
+    return false;
+  }
+  scope.SetRange(low, high);
+  nameTk = lexer.NextToken();
+  while (1) {
+    bool status = false;
+    switch (lexer.GetTokenKind()) {
+      case TK_ALIAS: {
+        GStrIdx strIdx;
+        MIRAliasVars aliasVar;
+        status = ParseOneAlias(strIdx, aliasVar);
+        if (status) {
+          scope.SetAliasVarMap(strIdx, aliasVar);
+        }
+        break;
+      }
+      case TK_SCOPE: {
+        // initial level 1
+        MIRScope *scp = mod.GetMemPool()->New<MIRScope>(&mod, 1);
+        status = ParseOneScope(*scp);
+        if (status) {
+          scope.AddScope(scp);
+        } else {
+          delete scp;
+        }
+        break;
+      }
+      default:
+        break;
+    }
+    if (!status) {
+      break;
+    }
+  }
+  nameTk = lexer.GetTokenKind();
+  if (nameTk != TK_rbrace) {
+    Error("expect } in SCOPE but get ");
+    return false;
+  }
+  lexer.NextToken();
+  return true;
+}
+
+bool MIRParser::ParseScope(StmtNodePtr &) {
+  // initial level 1
+  MIRScope *scp = mod.GetMemPool()->New<MIRScope>(&mod, 1);
+  bool status = ParseOneScope(*scp);
+  if (status) {
+    mod.CurFunction()->GetScope()->AddScope(scp);
+  } else {
+    delete scp;
+  }
+  return true;
+}
+
+bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
+  TokenKind nameTk = lexer.GetTokenKind();
+  if (nameTk != TK_ALIAS) {
+    Error("expect ALIAS but get ");
+    return false;
+  }
+  nameTk = lexer.NextToken();
   if (nameTk != TK_lname) {
     Error("expect local in ALIAS but get ");
     return false;
   }
-  GStrIdx srcStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
+  strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
   nameTk = lexer.NextToken();
   if (nameTk != TK_lname) {
     Error("expect local in ALIAS but get ");
@@ -2309,11 +2519,19 @@ bool MIRParser::ParseAlias(StmtNodePtr&) {
     signStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
     lexer.NextToken();
   }
-  MIRAliasVars aliasVar;
   aliasVar.memPoolStrIdx = mplStrIdx;
   aliasVar.tyIdx = tyIdx;
   aliasVar.sigStrIdx = signStrIdx;
-  mod.CurFunction()->SetAliasVarMap(srcStrIdx, aliasVar);
+  return true;
+}
+
+bool MIRParser::ParseAlias(StmtNodePtr &) {
+  GStrIdx strIdx;
+  MIRAliasVars aliasVar;
+
+  ParseOneAlias(strIdx, aliasVar);
+
+  mod.CurFunction()->SetAliasVarMap(strIdx, aliasVar);
   return true;
 }
 
@@ -2520,6 +2738,59 @@ bool MIRParser::ParseMIRForFunc() {
   return true;
 }
 
+bool MIRParser::TypeCompatible(TyIdx typeIdx1, TyIdx typeIdx2) {
+  if (typeIdx1 == typeIdx2) {
+    return true;
+  }
+  MIRType *type1 = GlobalTables::GetTypeTable().GetTypeFromTyIdx(typeIdx1);
+  MIRType *type2 = GlobalTables::GetTypeTable().GetTypeFromTyIdx(typeIdx2);
+  if (type1 == nullptr || type2 == nullptr) {
+    // this means we saw the use of this symbol before def.
+    return false;
+  }
+  while (type1->IsMIRPtrType() || type1->IsMIRArrayType()) {
+    if (type1->IsMIRPtrType()) {
+      CHECK_FATAL(type2->IsMIRPtrType(), "Error");
+      type1 = static_cast<MIRPtrType *>(type1)->GetPointedType();
+      type2 = static_cast<MIRPtrType *>(type2)->GetPointedType();
+    } else {
+      CHECK_FATAL(type2->IsMIRArrayType(), "Error");
+      auto *arrayType1 = static_cast<MIRArrayType *>(type1);
+      auto *arrayType2 = static_cast<MIRArrayType *>(type2);
+      if (arrayType1->IsIncompleteArray() || arrayType2->IsIncompleteArray()) {
+        return true;
+      }
+      type1 = static_cast<MIRArrayType *>(type1)->GetElemType();
+      type2 = static_cast<MIRArrayType *>(type2)->GetElemType();
+    }
+  }
+  if (type1 == type2) {
+    return true;
+  }
+  if (type1->IsIncomplete() || type2->IsIncomplete()) {
+    return true;
+  }
+  return false;
+}
+
+bool MIRParser::IsTypeIncomplete(MIRType *type) {
+  if (type->IsIncomplete()) {
+    return true;
+  }
+  while (type->IsMIRPtrType() || type->IsMIRArrayType()) {
+    if (type->IsMIRPtrType()) {
+      type = static_cast<MIRPtrType *>(type)->GetPointedType();
+    } else {
+      auto *arrayType = static_cast<MIRArrayType *>(type);
+      if (arrayType->IsIncompleteArray()) {
+        return true;
+      }
+      type = static_cast<MIRArrayType *>(type)->GetElemType();
+    }
+  }
+  return type->IsIncomplete();
+}
+
 bool MIRParser::ParseMIRForVar() {
   MIRSymbol st(0, kScopeGlobal);
   st.SetStorageClass(kScGlobal);
@@ -2532,7 +2803,17 @@ bool MIRParser::ParseMIRForVar() {
   }
   MIRSymbol *prevSt = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(st.GetNameStrIdx());
   if (prevSt != nullptr) {
-    if (prevSt->GetTyIdx() == st.GetTyIdx() &&
+    bool ret = TypeCompatible(prevSt->GetTyIdx(), st.GetTyIdx());
+#ifdef DEBUG
+    if (!ret) {
+      LogInfo::MapleLogger() << "\n=====prevSymbol===== \n";
+      prevSt->Dump(false, 0);
+      LogInfo::MapleLogger() << "\n=====curSymbol===== \n";
+      st.Dump(false, 0);
+      LogInfo::MapleLogger() << "\n=====   end   ===== \n";
+    }
+#endif
+    if (ret &&
         (prevSt->GetStorageClass() == st.GetStorageClass() || prevSt->GetStorageClass() == kScExtern ||
          st.GetStorageClass() == kScExtern) &&
         prevSt->GetSKind() == st.GetSKind() && (prevSt->GetKonst() == nullptr || st.GetKonst() == nullptr)) {
@@ -2546,6 +2827,9 @@ bool MIRParser::ParseMIRForVar() {
       }
       if (prevSt->sectionAttr == UStrIdx(0)) {
         prevSt->sectionAttr = st.sectionAttr;
+      }
+      if (IsTypeIncomplete(prevSt->GetType())) {
+        prevSt->SetTyIdx(st.GetTyIdx());
       }
     } else if (prevSt->GetSKind() == maple::kStVar && prevSt->GetStorageClass() ==  maple::kScInvalid) {
       prevSt->SetStorageClass(kScGlobal);
@@ -2575,6 +2859,9 @@ bool MIRParser::ParseMIRForVar() {
     if (!ParseDeclareVarInitValue(*newst)) {
       return false;
     }
+  }
+  if (mod.CurFunction() && mod.GetFunctionList().empty()) {
+    mod.CurFunction()->ReleaseCodeMemory();
   }
   return true;
 }

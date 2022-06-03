@@ -95,7 +95,8 @@
   KEYWORD(importpath)
   // source position information
   KEYWORD(LOC)
-  // debug info source var and mpl var mapping
+  // scope and source var to mpl var mapping
+  KEYWORD(SCOPE)
   KEYWORD(ALIAS)
   // storage class
   KEYWORD(pstatic)

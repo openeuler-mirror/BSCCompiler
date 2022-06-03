@@ -18,6 +18,7 @@
 #include "lexer.h"
 #include "mir_nodes.h"
 #include "mir_preg.h"
+#include "mir_scope.h"
 #include "parser_opt.h"
 
 namespace maple {
@@ -45,6 +46,10 @@ class MIRParser {
 
   bool ParseLoc();
   bool ParseLocStmt(StmtNodePtr &stmt);
+  bool ParsePosition(SrcPosition &pos);
+  bool ParseOneScope(MIRScope &scope);
+  bool ParseScope(StmtNodePtr &stmt);
+  bool ParseOneAlias(GStrIdx &stridx, MIRAliasVars &var);
   bool ParseAlias(StmtNodePtr &stmt);
   uint8 *ParseWordsInfo(uint32 size);
   bool ParseSwitchCase(int64&, LabelIdx&);

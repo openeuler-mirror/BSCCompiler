@@ -3446,6 +3446,7 @@ std::map<TokenKind, MIRParser::FuncPtrParseStmt> MIRParser::InitFuncPtrMapForPar
   funcPtrMap[TK_assignassertle] = &MIRParser::ParseNaryStmtAssignAssertLE;
   funcPtrMap[TK_label] = &MIRParser::ParseStmtLabel;
   funcPtrMap[TK_LOC] = &MIRParser::ParseLocStmt;
+  funcPtrMap[TK_SCOPE] = &MIRParser::ParseScope;
   funcPtrMap[TK_ALIAS] = &MIRParser::ParseAlias;
   funcPtrMap[TK_asm] = &MIRParser::ParseStmtAsm;
   funcPtrMap[TK_safe] = &MIRParser::ParseStmtSafeRegion;
