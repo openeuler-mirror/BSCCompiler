@@ -248,6 +248,13 @@ class ASTFunc : public ASTDecl {
     bodySize = size;
   }
 
+  bool HasCode() const {
+    if (compound == nullptr) {
+      return false;
+    }
+    return true;
+  }
+
  private:
   // typeDesc format: [funcType, retType, arg0, arg1 ... argN]
   ASTStmt *compound = nullptr;  // func body

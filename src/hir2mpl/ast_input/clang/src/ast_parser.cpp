@@ -40,6 +40,7 @@ bool ASTParser::OpenFile(MapleAllocator &allocator) {
 
 bool ASTParser::Release() {
   astFile->DisposeTranslationUnit();
+  ASTDeclsBuilder::Clear();
   return true;
 }
 

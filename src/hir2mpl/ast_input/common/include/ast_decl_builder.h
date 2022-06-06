@@ -25,6 +25,10 @@ class ASTDeclsBuilder {
     return decl;
   }
 
+  static void Clear() {
+    declesTable.clear();
+  }
+
   static ASTDecl *ASTDeclBuilder(const MapleAllocator &allocator, const MapleString &srcFile,
       const std::string &nameIn, const MapleVector<MIRType*> &typeDescIn, int64 id = INT64_MAX) {
     MapleString nameStr(nameIn, allocator.GetMemPool());

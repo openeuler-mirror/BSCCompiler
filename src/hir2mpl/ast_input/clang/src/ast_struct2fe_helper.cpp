@@ -339,9 +339,6 @@ bool ASTFunc2FEHelper::IsNativeImpl() const {
 }
 
 bool ASTFunc2FEHelper::HasCodeImpl() const {
-  if (func.GetCompoundStmt() == nullptr) {
-    return false;
-  }
-  return true;
+  return func.HasCode();
 }
 }  // namespace maple
