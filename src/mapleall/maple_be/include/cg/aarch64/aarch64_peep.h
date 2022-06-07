@@ -928,7 +928,7 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
   bool IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore, int64 baseOfst);
   void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn);
   MOperator GetMopHigherByte(MOperator mop) const;
-  bool SplitOfstWithAddToCombine(Insn &insn, const MemOperand &memOpnd);
+  bool SplitOfstWithAddToCombine(Insn &insn, const MemOperand &memOperand);
   bool doAggressiveCombine = false;
   MemOperand *memOpnd = nullptr;
 };
@@ -1419,7 +1419,7 @@ class LoadFloatPointPattern : public CGPeepPattern {
   }
  private:
   bool FindLoadFloatPoint(std::vector<Insn*> &optInsn, Insn &insn);
-  bool IsPatternMatch(const std::vector<Insn*> &optInsn);
+  bool IsPatternMatch();
   std::vector<Insn*> optInsn;
 };
 
@@ -1491,8 +1491,8 @@ class LongIntCompareWithZPattern : public CGPeepPattern {
   }
 
  private:
-  bool FindLondIntCmpWithZ(std::vector<Insn*> &optInsn, Insn &insn);
-  bool IsPatternMatch(const std::vector<Insn*> &optInsn);
+  bool FindLondIntCmpWithZ(Insn &insn);
+  bool IsPatternMatch();
   std::vector<Insn*> optInsn;
 };
 
@@ -1584,8 +1584,7 @@ class WriteFieldCallPattern : public CGPeepPattern {
   WriteRefFieldParam firstCallParam;
   WriteRefFieldParam currentCallParam;
   std::vector<Insn*> paramDefInsns;
-  bool WriteFieldCallOptPatternMatch(const Insn &writeFieldCallInsn, WriteRefFieldParam &param,
-                                     std::vector<Insn*> &paramDefInsns);
+  bool WriteFieldCallOptPatternMatch(const Insn &writeFieldCallInsn, WriteRefFieldParam &param);
   bool IsWriteRefFieldCallInsn(const Insn &insn);
 };
 

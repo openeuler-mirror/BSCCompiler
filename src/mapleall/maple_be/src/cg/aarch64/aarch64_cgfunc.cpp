@@ -1953,7 +1953,7 @@ void AArch64CGFunc::SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd
   uint32 bitLen = byteLen * kBitsPerByte;
   RegType regTy = GetRegTyFromPrimTy(pTy);
   int32 curRegArgs = GetLmbcArgsInRegs(regTy);
-  if (curRegArgs < k8ByteSize) {
+  if (curRegArgs < static_cast<int32>(k8ByteSize)) {
     RegOperand *res = &CreateVirtualRegisterOperand(NewVReg(regTy, byteLen));
     SelectCopy(*res, pTy, opnd, pTy);
     SetLmbcArgInfo(res, pTy, offset, 1);
@@ -2016,7 +2016,7 @@ bool AArch64CGFunc::LmbcSmallAggForRet(BlkassignoffNode &bNode, Operand *src) {
   if (func->IsReturnStruct()) {
     /* This blkassignoff is for struct return? */
     int32 loadSize;
-    int32 numRegs = 0;
+    uint32 numRegs = 0;
     if (bNode.GetNext()->GetOpCode() == OP_return) {
       MIRStructType *ty = static_cast<MIRStructType*>(
           GlobalTables::GetTypeTable().GetTypeFromTyIdx(func->GetFuncRetStructTyIdx()));
@@ -2056,10 +2056,10 @@ bool AArch64CGFunc::LmbcSmallAggForRet(BlkassignoffNode &bNode, Operand *src) {
         MemOperand &mem = CreateMemOpnd(regno, 0, size * kBitsPerByte);
         RegOperand *res = &GetOrCreatePhysicalRegisterOperand(R0, loadSize, kRegTyInt);
         SelectCopy(*res, pTy, mem, pTy);
-        if (bNode.blockSize > k8ByteSize) {
-          MemOperand &mem = CreateMemOpnd(regno, k8ByteSize, size * kBitsPerByte);
+        if (bNode.blockSize > static_cast<int32>(k8ByteSize)) {
+          MemOperand &newMem = CreateMemOpnd(regno, k8ByteSize, size * kBitsPerByte);
           res = &GetOrCreatePhysicalRegisterOperand(R1, loadSize, kRegTyInt);
-          SelectCopy(*res, pTy, mem, pTy);
+          SelectCopy(*res, pTy, newMem, pTy);
         }
       }
       bool intReg = fpregs == 0;
@@ -2098,7 +2098,7 @@ bool AArch64CGFunc::LmbcSmallAggForCall(BlkassignoffNode &bNode, Operand *src) {
       }
       IncLmbcTotalArgs();
       return true;
-    } else if (bNode.blockSize <= k16ByteSize) {
+    } else if (bNode.blockSize <= static_cast<int32>(k16ByteSize)) {
       /* integer/mixed types in register/s */
       size = k4ByteSize;
       switch (bNode.blockSize) {
@@ -2118,13 +2118,13 @@ bool AArch64CGFunc::LmbcSmallAggForCall(BlkassignoffNode &bNode, Operand *src) {
       MemOperand &mem = CreateMemOpnd(regno, 0, size * kBitsPerByte);
       RegOperand *res = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, size));
       SelectCopy(*res, pTy, mem, pTy);
-      SetLmbcArgInfo(res, pTy, bNode.offset, bNode.blockSize > k8ByteSize ? 2 : 1);
+      SetLmbcArgInfo(res, pTy, bNode.offset, bNode.blockSize > static_cast<int32>(k8ByteSize) ? 2 : 1);
       IncLmbcArgsInRegs(kRegTyInt);
-      if (bNode.blockSize > k8ByteSize) {
-        MemOperand &mem = CreateMemOpnd(regno, k8ByteSize, size * kBitsPerByte);
-        RegOperand *res = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, size));
-        SelectCopy(*res, pTy, mem, pTy);
-        SetLmbcArgInfo(res, pTy, bNode.offset + k8ByteSize, 2);
+      if (bNode.blockSize > static_cast<int32>(k8ByteSize)) {
+        MemOperand &newMem = CreateMemOpnd(regno, k8ByteSize, size * kBitsPerByte);
+        RegOperand *newRes = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, size));
+        SelectCopy(*newRes, pTy, newMem, pTy);
+        SetLmbcArgInfo(newRes, pTy, bNode.offset + k8ByteSize, 2);
         IncLmbcArgsInRegs(kRegTyInt);
       }
       IncLmbcTotalArgs();
@@ -6049,8 +6049,8 @@ bool AArch64CGFunc::IsFrameReg(const RegOperand &opnd) const {
   }
 }
 
-bool AArch64CGFunc::IsSaveReg(const RegOperand &reg, MIRType &mirType, BECommon &beCommon) const {
-  AArch64CallConvImpl retLocator(beCommon);
+bool AArch64CGFunc::IsSaveReg(const RegOperand &reg, MIRType &mirType, BECommon &cgBeCommon) const {
+  AArch64CallConvImpl retLocator(cgBeCommon);
   CCLocInfo retMechanism;
   retLocator.InitReturnInfo(mirType, retMechanism);
   if (retMechanism.GetRegCount() > 0) {
@@ -6262,7 +6262,7 @@ void AArch64CGFunc::AssignLmbcFormalParams() {
         }
       }
       if (param->GetRegNO() != 0) {
-        for (int i = 0; i < param->GetNumRegs(); ++i) {
+        for (uint32 i = 0; i < param->GetNumRegs(); ++i) {
           PrimType pType = PTY_i64;
           RegType rType = kRegTyInt;
           uint32 rSize = k8ByteSize;
@@ -8202,17 +8202,17 @@ void AArch64CGFunc::LmbcSelectParmList(ListOperand *srcOpnds, bool isArgReturn) 
   MapleVector<int32> &regs = GetLmbcCallArgNumOfRegs();
   int iCnt = 0;
   int fCnt = 0;
-  for (int i = isArgReturn ? 1 : 0; i < args.size(); i++) {
+  for (size_t i = isArgReturn ? 1 : 0; i < args.size(); i++) {
     RegType ty = args[i]->GetRegisterType();
     PrimType pTy = types[i];
     AArch64reg reg;
-    if (args[i]->IsOfIntClass() && (iCnt + regs[i]) <= k8ByteSize) {
+    if (args[i]->IsOfIntClass() && (iCnt + regs[i]) <= static_cast<int32>(k8ByteSize)) {
       reg = static_cast<AArch64reg>(R0 + iCnt++);
       RegOperand *res = &GetOrCreatePhysicalRegisterOperand(
           reg, GetPrimTypeSize(pTy) * kBitsPerByte, ty);
       SelectCopy(*res, pTy, *args[i], pTy);
       srcOpnds->PushOpnd(*res);
-    } else if (!args[i]->IsOfIntClass() && (fCnt + regs[i]) <= k8ByteSize) {
+    } else if (!args[i]->IsOfIntClass() && (fCnt + regs[i]) <= static_cast<int32>(k8ByteSize)) {
       reg = static_cast<AArch64reg>(V0 + fCnt++);
       RegOperand *res = &GetOrCreatePhysicalRegisterOperand(
           reg, GetPrimTypeSize(pTy) * kBitsPerByte, ty);

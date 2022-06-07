@@ -2395,17 +2395,17 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
         }
       }
     } else if (opnd.IsMemoryAccessOperand()) {
-      auto &memOpnd = static_cast<MemOperand&>(opnd);
-      RegOperand *base = memOpnd.GetBaseRegister();
+      auto &memOperand = static_cast<MemOperand&>(opnd);
+      RegOperand *base = memOperand.GetBaseRegister();
       /* need check offset as well */
       regno_t stackBaseRegNO = cgFunc->UseFP() ? R29 : RSP;
       if (!sameMemAccess && base != nullptr) {
         regno_t curBaseRegNO = base->GetRegisterNumber();
         int64 memBarrierRange = static_cast<int64>(insn.IsLoadStorePair() ? k16BitSize : k8BitSize);
-        if (!(curBaseRegNO == regNO && memOpnd.GetAddrMode() == MemOperand::kAddrModeBOi &&
-            memOpnd.GetOffsetImmediate() != nullptr &&
-            (memOpnd.GetOffsetImmediate()->GetOffsetValue() <= (baseOfst - memBarrierRange) ||
-            memOpnd.GetOffsetImmediate()->GetOffsetValue() >= (baseOfst + memBarrierRange)))) {
+        if (!(curBaseRegNO == regNO && memOperand.GetAddrMode() == MemOperand::kAddrModeBOi &&
+            memOperand.GetOffsetImmediate() != nullptr &&
+            (memOperand.GetOffsetImmediate()->GetOffsetValue() <= (baseOfst - memBarrierRange) ||
+            memOperand.GetOffsetImmediate()->GetOffsetValue() >= (baseOfst + memBarrierRange)))) {
           return true;
         }
       }
@@ -2419,14 +2419,14 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
         return true;
       }
       if (isStore && base != nullptr && base->GetRegisterNumber() == regNO) {
-        if (memOpnd.GetAddrMode() == MemOperand::kAddrModeBOi && memOpnd.GetOffsetImmediate() != nullptr) {
-          int64 curOffset = memOpnd.GetOffsetImmediate()->GetOffsetValue();
-          if (memOpnd.GetSize() == k64BitSize) {
+        if (memOperand.GetAddrMode() == MemOperand::kAddrModeBOi && memOperand.GetOffsetImmediate() != nullptr) {
+          int64 curOffset = memOperand.GetOffsetImmediate()->GetOffsetValue();
+          if (memOperand.GetSize() == k64BitSize) {
             uint32 memBarrierRange = insn.IsLoadStorePair() ? k16BitSize : k8BitSize;
             if (curOffset < baseOfst + memBarrierRange && curOffset > baseOfst - memBarrierRange) {
               return true;
             }
-          } else if (memOpnd.GetSize() == k32BitSize) {
+          } else if (memOperand.GetSize() == k32BitSize) {
             uint32 memBarrierRange = insn.IsLoadStorePair() ? k8BitSize : k4BitSize;
             if (curOffset < baseOfst + memBarrierRange && curOffset > baseOfst - memBarrierRange) {
               return true;
@@ -2477,13 +2477,13 @@ std::vector<Insn*> CombineContiLoadAndStorePattern::FindPrevStrLdr(Insn &insn, r
     }
     /* return continuous STD/LDR insn */
     if (((isStr && curInsn->IsStore()) || (!isStr && curInsn->IsLoad())) && !curInsn->IsLoadStorePair()) {
-      auto *memOpnd = static_cast<MemOperand*>(curInsn->GetMemOpnd());
+      auto *memOperand = static_cast<MemOperand*>(curInsn->GetMemOpnd());
       /* do not combine ldr r0, label */
-      if (memOpnd != nullptr) {
-        auto *BaseRegOpnd = static_cast<RegOperand*>(memOpnd->GetBaseRegister());
+      if (memOperand != nullptr) {
+        auto *BaseRegOpnd = static_cast<RegOperand*>(memOperand->GetBaseRegister());
         ASSERT(BaseRegOpnd == nullptr || !BaseRegOpnd->IsVirtualRegister(),
             "physical register has not been allocated?");
-        if (memOpnd->GetAddrMode() == MemOperand::kAddrModeBOi &&
+        if (memOperand->GetAddrMode() == MemOperand::kAddrModeBOi &&
             BaseRegOpnd->GetRegisterNumber() == memBaseRegNO) {
           prevContiInsns.emplace_back(curInsn);
         }
@@ -2514,9 +2514,9 @@ std::vector<Insn*> CombineContiLoadAndStorePattern::FindPrevStrLdr(Insn &insn, r
   return prevContiInsns;
 }
 
-bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(Insn &insn, const MemOperand &memOpnd) {
-  auto *baseRegOpnd = static_cast<RegOperand*>(memOpnd.GetBaseRegister());
-  auto *ofstOpnd = static_cast<OfstOperand*>(memOpnd.GetOffsetImmediate());
+bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(Insn &insn, const MemOperand &memOperand) {
+  auto *baseRegOpnd = static_cast<RegOperand*>(memOperand.GetBaseRegister());
+  auto *ofstOpnd = static_cast<OfstOperand*>(memOperand.GetOffsetImmediate());
   CHECK_FATAL(insn.GetOperand(kInsnFirstOpnd).GetSize() == insn.GetOperand(kInsnSecondOpnd).GetSize(),
               "the size must equal");
   Insn *splitAdd = nullptr;
@@ -2560,7 +2560,7 @@ bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(Insn &insn, cons
       }
     }
     regno_t pregNO = R16;
-    MemOperand &newMemOpnd = aarFunc.SplitOffsetWithAddInstruction(memOpnd, opndProp->GetSize(),
+    MemOperand &newMemOpnd = aarFunc.SplitOffsetWithAddInstruction(memOperand, opndProp->GetSize(),
         static_cast<AArch64reg>(pregNO), false, &insn, true);
     insn.SetOperand(kInsnThirdOpnd, newMemOpnd);
     return true;
@@ -2570,7 +2570,7 @@ bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(Insn &insn, cons
     auto *newOfstOpnd = &aarFunc.CreateOfstOpnd(
         (ofstOpnd->GetOffsetValue() - addImmOpnd.GetValue()), ofstOpnd->GetSize());
     auto *newMemOpnd = aarFunc.CreateMemOperand(
-        MemOperand::kAddrModeBOi, opndProp->GetSize(), newBaseReg, nullptr, newOfstOpnd, memOpnd.GetSymbol());
+        MemOperand::kAddrModeBOi, opndProp->GetSize(), newBaseReg, nullptr, newOfstOpnd, memOperand.GetSymbol());
     if (!(static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(
         insn.GetMachineOpcode(), newMemOpnd, kInsnThirdOpnd))) {
       return false;
@@ -3056,11 +3056,11 @@ bool CbnzToCbzPattern::CheckCondition(Insn &insn) {
   if (movImm.GetValue() != 0) {
     return false;
   }
-  Insn *brInsn = movInsn->GetNextMachineInsn();
-  if (brInsn == nullptr) {
+  Insn *nextBrInsn = movInsn->GetNextMachineInsn();
+  if (nextBrInsn == nullptr) {
     return false;
   }
-  if (brInsn->GetMachineOpcode() != MOP_xuncond) {
+  if (nextBrInsn->GetMachineOpcode() != MOP_xuncond) {
     return false;
   }
   /* Is nextBB branch to the return-bb? */
@@ -4514,7 +4514,7 @@ bool LoadFloatPointPattern::FindLoadFloatPoint(std::vector<Insn*> &optInsn, Insn
   return true;
 }
 
-bool LoadFloatPointPattern::IsPatternMatch(const std::vector<Insn*> &optInsn) {
+bool LoadFloatPointPattern::IsPatternMatch() {
   int insnNum = 0;
   Insn *insn1 = optInsn[insnNum];
   Insn *insn2 = optInsn[++insnNum];
@@ -4541,7 +4541,7 @@ bool LoadFloatPointPattern::IsPatternMatch(const std::vector<Insn*> &optInsn) {
 }
 
 bool LoadFloatPointPattern::CheckCondition(Insn &insn) {
-  if (FindLoadFloatPoint(optInsn, insn) && IsPatternMatch(optInsn)) {
+  if (FindLoadFloatPoint(optInsn, insn) && IsPatternMatch()) {
     return true;
   }
   return false;
@@ -4708,7 +4708,7 @@ void RemoveIncRefPattern::Run(BB &bb, Insn &insn) {
   bb.RemoveInsn(*insnMov1);
 }
 
-bool LongIntCompareWithZPattern::FindLondIntCmpWithZ(std::vector<Insn*> &optInsn, Insn &insn) {
+bool LongIntCompareWithZPattern::FindLondIntCmpWithZ(Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   optInsn.clear();
   /* forth */
@@ -4752,7 +4752,7 @@ bool LongIntCompareWithZPattern::FindLondIntCmpWithZ(std::vector<Insn*> &optInsn
   return true;
 }
 
-bool LongIntCompareWithZPattern::IsPatternMatch(const std::vector<Insn*> &optInsn) {
+bool LongIntCompareWithZPattern::IsPatternMatch() {
   constexpr int insnLen = 4;
   if (optInsn.size() != insnLen) {
     return false;
@@ -4776,7 +4776,7 @@ bool LongIntCompareWithZPattern::IsPatternMatch(const std::vector<Insn*> &optIns
 }
 
 bool LongIntCompareWithZPattern::CheckCondition(Insn &insn) {
-  if (FindLondIntCmpWithZ(optInsn, insn) && IsPatternMatch(optInsn)) {
+  if (FindLondIntCmpWithZ(insn) && IsPatternMatch()) {
     return true;
   }
   return false;
@@ -5049,8 +5049,7 @@ static bool MayThrowBetweenInsn(const Insn &prevCallInsn, const Insn &currCallIn
  * mov R1, vreg2           -> fieldParamDefInsn
  * mov R2, vreg3           -> fieldValueDefInsn
  */
-bool WriteFieldCallPattern::WriteFieldCallOptPatternMatch(const Insn &writeFieldCallInsn, WriteRefFieldParam &param,
-                                                          std::vector<Insn*> &paramDefInsns) {
+bool WriteFieldCallPattern::WriteFieldCallOptPatternMatch(const Insn &writeFieldCallInsn, WriteRefFieldParam &param) {
   Insn *fieldValueDefInsn = writeFieldCallInsn.GetPreviousMachineInsn();
   if (fieldValueDefInsn == nullptr || fieldValueDefInsn->GetMachineOpcode() != MOP_xmovrr) {
     return false;
@@ -5130,14 +5129,14 @@ bool WriteFieldCallPattern::CheckCondition(Insn &insn) {
     return false;
   }
   if (!hasWriteFieldCall) {
-    if (!WriteFieldCallOptPatternMatch(insn, firstCallParam, paramDefInsns)) {
+    if (!WriteFieldCallOptPatternMatch(insn, firstCallParam)) {
       return false;
     }
     prevCallInsn = &insn;
     hasWriteFieldCall = true;
     return false;
   }
-  if (!WriteFieldCallOptPatternMatch(insn, currentCallParam, paramDefInsns)) {
+  if (!WriteFieldCallOptPatternMatch(insn, currentCallParam)) {
     return false;
   }
   if (prevCallInsn == nullptr || MayThrowBetweenInsn(*prevCallInsn, insn)) {

@@ -91,7 +91,7 @@ class CGOptions {
   enum EmitFileType : uint8 {
     kAsm,
     kObj,
-    kNone,
+    kEmitNone,
   };
   /*
    * The default CG option values are:
@@ -1147,7 +1147,7 @@ class CGOptions {
     } else if (type == "obj") {
       emitFileType = kObj;
     } else if (type == "null") {
-      emitFileType = kNone;
+      emitFileType = kEmitNone;
       CHECK_FATAL(false, "null is not supported Currently.");
     } else {
       CHECK_FATAL(false, "unexpected file-type, only asm, obj, and null are supported");

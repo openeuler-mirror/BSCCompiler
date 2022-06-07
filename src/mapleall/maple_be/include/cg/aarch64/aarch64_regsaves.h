@@ -121,10 +121,10 @@ class AArch64RegSavesOpt : public RegSavesOpt {
         id2bb(alloc.Adapter()) {
     bbSavedRegs.resize(func.NumBBs());
     regSavedBBs.resize(sizeof(CalleeBitsType)<<3);
-    for (int i = 0; i < bbSavedRegs.size(); ++i) {
+    for (size_t i = 0; i < bbSavedRegs.size(); ++i) {
       bbSavedRegs[i] = nullptr;
     }
-    for (int i = 0; i < regSavedBBs.size(); ++i) {
+    for (size_t i = 0; i < regSavedBBs.size(); ++i) {
       regSavedBBs[i] = nullptr;
     }
   }

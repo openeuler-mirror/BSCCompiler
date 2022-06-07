@@ -753,7 +753,7 @@ StmtNode *CGLowerer::WriteBitField(std::pair<int32, int32> byteBitOffsets, MIRBi
   auto *bitField = builder->CreateExprIreadoff(primType, byteOffset, baseAddr);
   auto primTypeBitSize = GetPrimTypeBitSize(primType);
 
-  if ((bitOffset + bitSize) <= primTypeBitSize) {
+  if ((static_cast<uint32>(bitOffset) + bitSize) <= primTypeBitSize) {
     if (CGOptions::IsBigEndian()) {
         bitOffset = beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte - bitOffset - bitSize;
     }
@@ -792,7 +792,7 @@ BaseNode *CGLowerer::ReadBitField(std::pair<int32, int32> byteBitOffsets, MIRBit
   auto *bitField = builder->CreateExprIreadoff(primType, byteOffset, baseAddr);
   auto primTypeBitSize = GetPrimTypeBitSize(primType);
 
-  if ((bitOffset + bitSize) <= primTypeBitSize) {
+  if ((static_cast<uint32>(bitOffset) + bitSize) <= primTypeBitSize) {
     if (CGOptions::IsBigEndian()) {
       bitOffset = beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte - bitOffset - bitSize;
     }

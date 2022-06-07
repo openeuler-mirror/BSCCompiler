@@ -335,7 +335,7 @@ class CGFunc {
   virtual bool IsReturnReg(const RegOperand &opnd) const {
     return false;
   };
-  virtual bool IsSaveReg(const RegOperand &reg, MIRType &mirType, BECommon &beCommon) const {
+  virtual bool IsSaveReg(const RegOperand &reg, MIRType &mirType, BECommon &cgBeCommon) const {
     return false;
   }
 

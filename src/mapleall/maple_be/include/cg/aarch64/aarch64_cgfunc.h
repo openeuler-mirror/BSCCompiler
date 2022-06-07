@@ -801,7 +801,7 @@ class AArch64CGFunc : public CGFunc {
   bool IsFrameReg(const RegOperand &opnd) const override;
   bool IsSPOrFP(const RegOperand &opnd) const override;
   bool IsReturnReg(const RegOperand &opnd) const override;
-  bool IsSaveReg(const RegOperand &reg, MIRType &mirType, BECommon &beCommon) const override;
+  bool IsSaveReg(const RegOperand &reg, MIRType &mirType, BECommon &cgBeCommon) const override;
 
   RegOperand &GetZeroOpnd(uint32 size) override;
   PrimType GetOperandTy(bool isIntty, uint32 dsize, bool isSigned) const {

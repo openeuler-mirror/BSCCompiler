@@ -101,7 +101,7 @@ bool AArch64ICOPattern::IsSetInsn(const Insn &insn, Operand *&dest, std::vector<
   MOperator mOpCode = insn.GetMachineOpcode();
   if ((mOpCode >= MOP_xmovrr && mOpCode <= MOP_xvmovd) || cgFunc->GetTheCFG()->IsAddOrSubInsn(insn)) {
     dest = &(insn.GetOperand(0));
-    for (int i = 1; i < insn.GetOperandSize(); ++i) {
+    for (uint32 i = 1; i < insn.GetOperandSize(); ++i) {
       (void)src.emplace_back(&(insn.GetOperand(i)));
     }
     return true;
@@ -356,10 +356,10 @@ bool AArch64ICOIfThenElsePattern::BuildCondMovInsn(BB &cmpBB, const BB &bb,
 }
 
 bool AArch64ICOIfThenElsePattern::CheckHasSameDest(std::vector<Insn*> &lInsn, std::vector<Insn*> &rInsn) {
-  for (int i = 0; i < lInsn.size(); ++i) {
+  for (size_t i = 0; i < lInsn.size(); ++i) {
     if (cgFunc->GetTheCFG()->IsAddOrSubInsn(*lInsn[i])) {
       bool hasSameDest = false;
-      for (int j = 0; j < rInsn.size(); ++j) {
+      for (size_t j = 0; j < rInsn.size(); ++j) {
         RegOperand *rDestReg = static_cast<RegOperand*>(&rInsn[j]->GetOperand(0));
         RegOperand *lDestReg = static_cast<RegOperand*>(&lInsn[i]->GetOperand(0));
         if (lDestReg->GetRegisterNumber() == rDestReg->GetRegisterNumber()) {
@@ -543,9 +543,9 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joi
 
   size_t count = elseDestRegs.size();
 
-  for (int i = 0; i < ifDestRegs.size(); ++i) {
+  for (size_t i = 0; i < ifDestRegs.size(); ++i) {
     bool foundInElse = false;
-    for (int j = 0; j < elseDestRegs.size(); ++j) {
+    for (size_t j = 0; j < elseDestRegs.size(); ++j) {
       RegOperand *elseDestReg = static_cast<RegOperand*>(elseDestRegs[j]);
       RegOperand *ifDestReg = static_cast<RegOperand*>(ifDestRegs[i]);
       if (ifDestReg->GetRegisterNumber() == elseDestReg->GetRegisterNumber()) {

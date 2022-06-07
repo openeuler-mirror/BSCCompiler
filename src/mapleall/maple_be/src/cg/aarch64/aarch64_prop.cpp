@@ -2002,7 +2002,7 @@ bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &curInsn, Insn &defInsn) {
   }
   MOperator defMop = validDefInsns[0]->GetMachineOpcode();
   uint32 defOpndNum = validDefInsns[0]->GetOperandSize();
-  for (int i = 1; i < validDefInsns.size(); ++i) {
+  for (size_t i = 1; i < validDefInsns.size(); ++i) {
     if (defMop != validDefInsns[i]->GetMachineOpcode()) {
       return false;
     }
