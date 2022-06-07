@@ -541,7 +541,7 @@ BB *CGCFG::GetTargetSuc(BB &curBB, bool branchOnly, bool isGotoIf) {
     case BB::kBBGoto:
     case BB::kBBIntrinsic:
     case BB::kBBIf: {
-      const Insn* origLastInsn = curBB.GetLastInsn();
+      const Insn* origLastInsn = curBB.GetLastMachineInsn();
       if (isGotoIf && (curBB.GetPrev() != nullptr) &&
           (curBB.GetKind() == BB::kBBGoto || curBB.GetKind() == BB::kBBIf) &&
           (curBB.GetPrev()->GetKind() == BB::kBBGoto || curBB.GetPrev()->GetKind() == BB::kBBIf)) {

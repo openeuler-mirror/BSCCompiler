@@ -801,6 +801,35 @@ class UbfxToUxtwPattern : public CGPeepPattern {
 };
 
 /*
+ * Optimize the following patterns:
+ * ubfx  w0, w0, #2, #1
+ * cbz   w0, .L.3434__292    ====>    tbz w0, #2, .L.3434__292
+ * -------------------------------
+ * ubfx  w0, w0, #2, #1
+ * cnbz   w0, .L.3434__292    ====>    tbnz w0, #2, .L.3434__292
+ * -------------------------------
+ * ubfx  x0, x0, #2, #1
+ * cbz   x0, .L.3434__292    ====>    tbz x0, #2, .L.3434__292
+ * -------------------------------
+ * ubfx  x0, x0, #2, #1
+ * cnbz  x0, .L.3434__292    ====>    tbnz x0, #2, .L.3434__292
+ */
+class UbfxAndCbzToTbzPattern : public CGPeepPattern {
+ public:
+  UbfxAndCbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+  CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~UbfxAndCbzToTbzPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "UbfxAndCbzToTbzPattern";
+  }
+ private:
+  Insn *useInsn = nullptr;
+  MOperator newMop = MOP_undef;
+};
+
+/*
  * Looking for identical mem insn to eliminate.
  * If two back-to-back is:
  * 1. str + str

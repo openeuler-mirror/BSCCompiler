@@ -196,6 +196,12 @@ bool AArch64CGPeepHole::DoSSAOptimize(BB &bb, Insn &insn) {
     case MOP_wsubrri12:
     case MOP_xsubrri12: {
       manager->Optimize<CombineSameArithmeticPattern>(true);
+      break;
+    }
+    case MOP_wubfxrri5i5:
+    case MOP_xubfxrri6i6: {
+      manager->Optimize<UbfxAndCbzToTbzPattern>(true);
+      break;
     }
     default:
       break;
@@ -5475,6 +5481,70 @@ bool UbfxToUxtwPattern::CheckCondition(Insn &insn) {
     return false;
   }
   return true;
+}
+
+void UbfxAndCbzToTbzPattern::Run(BB &bb , Insn &insn) {
+  Operand &opnd2 = static_cast<Operand&>(insn.GetOperand(kInsnSecondOpnd));
+  ImmOperand &imm3 = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  auto &label = static_cast<LabelOperand&>(useInsn->GetOperand(kInsnSecondOpnd));
+  MOperator nextMop = useInsn->GetMachineOpcode();
+  switch (nextMop) {
+    case MOP_wcbz:
+      newMop = MOP_wtbz;
+      break;
+    case MOP_xcbz:
+      newMop = MOP_xtbz;
+      break;
+    case MOP_wcbnz:
+      newMop = MOP_wtbnz;
+      break;
+    case MOP_xcbnz:
+      newMop = MOP_xtbnz;
+      break;
+    default:
+      return;
+  }
+  if (newMop == MOP_undef) {
+    return;
+  }
+  Insn *newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, opnd2, imm3, label);
+  bb.ReplaceInsn(*useInsn, *newInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(*useInsn, *newInsn);
+  optSuccess = true;
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(useInsn);
+    DumpAfterPattern(prevs, newInsn, nullptr);
+  }
+}
+
+bool UbfxAndCbzToTbzPattern::CheckCondition(Insn &insn) {
+  ImmOperand &imm4 = static_cast<ImmOperand&>(insn.GetOperand(kInsnFourthOpnd));
+  RegOperand &opnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  InsnSet useInsns = GetAllUseInsn(opnd1);
+  if (useInsns.size() != 1) {
+    return false;
+  }
+  useInsn = *useInsns.begin();
+  if (useInsn == nullptr || useInsn->GetBB() != insn.GetBB()) {
+    return false;
+  }
+  if (imm4.GetValue() == 1) {
+    switch (useInsn->GetMachineOpcode()) {
+      case MOP_wcbz:
+      case MOP_xcbz:
+      case MOP_wcbnz:
+      case MOP_xcbnz:
+        return true;
+      default:
+        break;
+    }
+  }
+  return false;
 }
 
 void ComplexExtendWordLslAArch64::Run(BB &bb , Insn &insn) {
