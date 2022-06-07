@@ -1332,6 +1332,10 @@ void SimplifyMulArithmeticPattern::DoOptimize(BB &currBB, Insn &currInsn) {
   Operand &opndMulOpnd1 = prevInsn->GetOperand(kInsnSecondOpnd);
   Operand &opndMulOpnd2 = prevInsn->GetOperand(kInsnThirdOpnd);
   bool is64Bits = (static_cast<RegOperand&>(resOpnd).GetSize() == k64BitSize);
+  /* may overflow */
+  if ((prevInsn->GetOperand(kInsnFirstOpnd).GetSize() == k32BitSize) && is64Bits) {
+    return;
+  }
   MOperator newMop = is64Bits ? curMop2NewMopTable[arithType][1] : curMop2NewMopTable[arithType][0];
   Insn *newInsn = nullptr;
   if (arithType == kNeg || arithType == kFNeg) {

@@ -920,6 +920,10 @@ bool AArch64Ebo::CombineMultiplyAdd(Insn *insn, const Insn *prevInsn, InsnInfo *
   Operand &res = insn->GetOperand(kInsnFirstOpnd);
   Operand &opnd1 = prevInsn->GetOperand(kInsnSecondOpnd);
   Operand &opnd2 = prevInsn->GetOperand(kInsnThirdOpnd);
+  /* may overflow */
+  if ((prevInsn->GetOperand(kInsnFirstOpnd).GetSize() == k32BitSize) && is64bits) {
+    return false;
+  }
   MOperator mOp = isFp ? (is64bits ? MOP_dmadd : MOP_smadd) : (is64bits ? MOP_xmaddrrrr : MOP_wmaddrrrr);
   insn->GetBB()->ReplaceInsn(*insn, cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, res, opnd1, opnd2, *addOpnd));
   return true;
