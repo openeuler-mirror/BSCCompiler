@@ -49,7 +49,7 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind) const {
     case clang::BuiltinType::UInt:
       return PTY_u32;
     case clang::BuiltinType::ULong:
-#if ILP32
+#if defined(ILP32) && ILP32
       return PTY_u32;
 #else
       return PTY_u64;
@@ -69,7 +69,7 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind) const {
     case clang::BuiltinType::Int:
       return PTY_i32;
     case clang::BuiltinType::Long:
-#if ILP32
+#if defined(ILP32) && ILP32
       return PTY_i32;
 #else
       return PTY_i64;
@@ -236,6 +236,7 @@ MIRType *LibAstFile::CvtArrayType(const clang::QualType srcType) {
     CollectBaseEltTypeAndDimFromVariaArrayDecl(srcType, elemType, elemAttrs, dim);
   } else if (srcType->isDependentSizedArrayType()) {
     CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(srcType, elemType, elemAttrs, operands);
+    ASSERT(operands.size() < kMaxArrayDim, "The max array dimension is kMaxArrayDim");
     dim = static_cast<uint8_t>(operands.size());
   } else {
     NOTYETHANDLED(srcType.getAsString().c_str());

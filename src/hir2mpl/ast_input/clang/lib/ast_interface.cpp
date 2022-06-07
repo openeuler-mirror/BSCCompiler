@@ -521,7 +521,7 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recoType, std::stringstre
 }
 
 // get TypedefDecl name for the unnamed struct, e.g. typedef struct {} foo;
-std::string LibAstFile::GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl) {
+std::string LibAstFile::GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl) const {
   auto *defnameDcel = recoDecl.getTypedefNameForAnonDecl();
   if (defnameDcel != nullptr) {
     return defnameDcel->getQualifiedNameAsString();

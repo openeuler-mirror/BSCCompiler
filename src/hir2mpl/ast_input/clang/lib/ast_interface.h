@@ -84,7 +84,7 @@ class LibAstFile {
   void EmitTypeName(const clang::QualType qualType, std::stringstream &ss);
   void EmitTypeName(const clang::RecordType &qualType, std::stringstream &ss);
   void EmitQualifierName(const clang::QualType qualType, std::stringstream &ss);
-  std::string GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl);
+  std::string GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl) const;
   void CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualType &qualType, MIRType *&elemType,
                                                     TypeAttrs &elemAttr, std::vector<uint32_t> &operands);
 

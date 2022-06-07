@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -195,18 +195,18 @@ class ASTDoStmt : public ASTStmt {
   explicit ASTDoStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtDo) {}
   ~ASTDoStmt() override = default;
 
-  void SetCondExpr(ASTExpr *astExpr) {
-    condExpr = astExpr;
-  }
-
   void SetBodyStmt(ASTStmt *astStmt) {
     bodyStmt = astStmt;
   }
 
+  void SetCondExpr(ASTExpr *astExpr) {
+    condExpr = astExpr;
+  }
+
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
-  ASTExpr *condExpr = nullptr;
   ASTStmt *bodyStmt = nullptr;
+  ASTExpr *condExpr = nullptr;
 };
 
 class ASTBreakStmt : public ASTStmt {
@@ -228,7 +228,7 @@ class ASTLabelStmt : public ASTStmt {
     subStmt = stmt;
   }
 
-  ASTStmt* GetSubStmt() const {
+  const ASTStmt* GetSubStmt() const {
     return subStmt;
   }
 
@@ -534,7 +534,7 @@ class ASTStmtExprStmt : public ASTStmt {
     cpdStmt = stmt;
   }
 
-  ASTStmt *GetBodyStmt() {
+  const ASTStmt *GetBodyStmt() const {
     return cpdStmt;
   }
 

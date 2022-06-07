@@ -1946,6 +1946,7 @@ ASTExpr *ASTParser::ProcessExprCastExpr(MapleAllocator &allocator, const clang::
     case clang::CK_ToVoid:
     case clang::CK_FunctionToPointerDecay:
     case clang::CK_LValueToRValue:
+      astCastExpr->SetRValue(true);
       break;
     case clang::CK_BitCast:
       astCastExpr->SetBitCast(true);
@@ -2009,6 +2010,7 @@ ASTExpr *ASTParser::ProcessExprCastExpr(MapleAllocator &allocator, const clang::
   if (astExpr == nullptr) {
     return nullptr;
   }
+  astExpr->SetRValue(astCastExpr->IsRValue());
   astCastExpr->SetEvaluatedFlag(astExpr->GetEvaluatedFlag());
   astCastExpr->SetASTExpr(astExpr);
   return astCastExpr;
