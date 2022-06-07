@@ -23,14 +23,7 @@
 #include "me_ir.h"
 #include "maple_phase_manager.h"
 namespace maple {
-constexpr uint32 kNumOfCloneVersions = 2;
-constexpr uint32 kNumOfImpExprLowBound = 2;
-constexpr uint32 kNumOfImpExprHighBound = 5;
-constexpr uint32 kNumOfCallSiteLowBound = 2;
-constexpr uint32 kNumOfCallSiteUpBound = 10;
-constexpr uint32 kNumOfConstpropValue = 2;
 constexpr uint32 kNumOfImpExprUpper = 64;
-
 class IpaClone : public AnalysisResult {
  public:
   IpaClone(MIRModule *mod, MemPool *memPool, MIRBuilder &builder)
@@ -42,7 +35,9 @@ class IpaClone : public AnalysisResult {
   static void IpaCloneLabels(MIRFunction &newFunc, const MIRFunction &oldFunc);
   static void IpaClonePregTable(MIRFunction &newFunc, const MIRFunction &oldFunc);
   MIRFunction *IpaCloneFunction(MIRFunction &originalFunction, const std::string &newBaseFuncName) const;
+  MIRFunction *IpaCloneFunctionWithFreq(MIRFunction &originalFunction, const std::string &newBaseFuncName, int64_t) const;
   void DoIpaClone();
+  void InitParams();
   void CopyFuncInfo(MIRFunction &originalFunction, MIRFunction &newFunc) const;
   void IpaCloneArgument(MIRFunction &originalFunction, ArgVector &argument) const;
   void RemoveUnneedParameter(MIRFunction *func, uint32 paramIndex, int64_t value);
@@ -63,6 +58,12 @@ class IpaClone : public AnalysisResult {
   MapleAllocator allocator;
   MIRBuilder &mirBuilder;
   MIRFunction *curFunc;
+  uint32 numOfCloneVersions = 0;
+  uint32 numOfImpExprLowBound = 0;
+  uint32 numOfImpExprHighBound = 0;
+  uint32 numOfCallSiteLowBound = 0;
+  uint32 numOfCallSiteUpBound = 0;
+  uint32 numOfConstpropValue = 0;
 };
 MAPLE_MODULE_PHASE_DECLARE_BEGIN(M2MIpaClone)
   IpaClone *GetResult() {

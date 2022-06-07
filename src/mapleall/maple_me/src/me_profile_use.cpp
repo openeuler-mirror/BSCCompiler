@@ -362,6 +362,7 @@ bool MEProfUse::PhaseRun(maple::MeFunction &f) {
   bool result = true;
   if (Options::profileUse) {
     result = profUse.GcovRun();
+    f.GetCfg()->VerifyBBFreq();
   } else {
     profUse.Run();
   }

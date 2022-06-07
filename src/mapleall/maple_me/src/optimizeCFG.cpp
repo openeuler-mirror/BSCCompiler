@@ -1,4 +1,5 @@
 /*
+        }
  * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
@@ -881,6 +882,7 @@ void OptimizeBB::DeleteBB(BB *bb) {
   bb->GetSucc().clear();
   bb->GetPred().clear();
   cfg->DeleteBasicBlock(*bb);
+  bb->GetSuccFreq().clear();
 }
 
 // eliminate dead BB :
@@ -950,6 +952,10 @@ bool OptimizeBB::BranchBB2UncondBB(BB &bb) {
     ASSERT(bb.GetSucc().back() == destBB, "[FUNC: %s]Goto BB%d has different destination", funcName, LOG_BBID(&bb));
     bb.RemoveSucc(*bb.GetSucc().back());
   }
+  if (Options::profileUse && !bb.GetSuccFreq().empty()) {
+    ASSERT(bb.GetSuccFreq().size() == bb.GetSucc().size(), "sanity check");
+    bb.SetSuccFreq(0, bb.GetFrequency());
+  }
   // bb must be one of fallthru pred of destBB, if there is another one,
   // we should add gotoStmt to avoid duplicate fallthru pred
   if (GetFallthruPredNum(*destBB) > 1) {
@@ -994,6 +1000,7 @@ bool OptimizeBB::OptimizeCondBB2UnCond() {
   // case 1
   BB *ftBB = currBB->GetSucc(0);
   BB *gtBB = currBB->GetSucc(1);
+  uint64_t removedSuccFreq = 0;
   if (isMeIR) {
     MeStmt *brStmt = currBB->GetLastMe();
     MeExpr *condExpr = brStmt->GetOpnd(0);
@@ -1003,12 +1010,28 @@ bool OptimizeBB::OptimizeCondBB2UnCond() {
       if (isCondTrue ^ isBrtrue) { // goto fallthru BB
         currBB->RemoveLastMeStmt();
         currBB->SetKind(kBBFallthru);
+        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+          removedSuccFreq = currBB->GetSuccFreq()[1];
+        }
         currBB->RemoveSucc(*gtBB, true);
+        // update frequency
+        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+          currBB->SetSuccFreq(0, currBB->GetFrequency());
+          ftBB->SetFrequency(ftBB->GetFrequency() + removedSuccFreq);
+        }
       } else {
         MeStmt *gotoStmt = irmap->CreateGotoMeStmt(f.GetOrCreateBBLabel(*gtBB), currBB, &brStmt->GetSrcPosition());
         currBB->ReplaceMeStmt(brStmt, gotoStmt);
         currBB->SetKind(kBBGoto);
+        // update frequency
+        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+          removedSuccFreq = currBB->GetSuccFreq()[0];
+        }
         currBB->RemoveSucc(*ftBB, true);
+        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+          currBB->SetSuccFreq(0, currBB->GetFrequency());
+          gtBB->SetFrequency(gtBB->GetFrequency() + removedSuccFreq);
+        }
       }
       SetBBRunAgain();
       return true;
@@ -1023,12 +1046,26 @@ bool OptimizeBB::OptimizeCondBB2UnCond() {
       if (isCondTrue ^ isBrTrue) {
         currBB->RemoveLastStmt();
         currBB->SetKind(kBBFallthru);
+        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+          removedSuccFreq = currBB->GetSuccFreq()[1];
+        }
         currBB->RemoveSucc(*gtBB);
+        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+          currBB->SetSuccFreq(0, currBB->GetFrequency());
+          ftBB->SetFrequency(ftBB->GetFrequency() + removedSuccFreq);
+        }
       } else {
         StmtNode *gotoStmt = irBuilder->CreateStmtGoto(OP_goto, f.GetOrCreateBBLabel(*gtBB));
         currBB->ReplaceStmt(&brStmt, gotoStmt);
         currBB->SetKind(kBBGoto);
+        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+          removedSuccFreq = currBB->GetSuccFreq()[0];
+        }
         currBB->RemoveSucc(*ftBB);
+        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+          currBB->SetSuccFreq(0, currBB->GetFrequency());
+          gtBB->SetFrequency(gtBB->GetFrequency() + removedSuccFreq);
+        }
       }
       SetBBRunAgain();
       return true;
@@ -1163,9 +1200,16 @@ BB *OptimizeBB::MergeSuccIntoPred(BB *pred, BB *succ) {
       }
     }
   }
+  // update succFreqs before update succs
+  if (Options::profileUse && f.GetMirFunc()->GetFuncProfData() &&
+      !succ->GetSuccFreq().empty()) {
+    // copy succFreqs of succ to pred
+    for (int i = 0; i < succ->GetSuccFreq().size(); i++) {
+      pred->PushBackSuccFreq(succ->GetSuccFreq()[i]);
+    }
+  }
   succ->MoveAllSuccToPred(pred, cfg->GetCommonExitBB());
   pred->RemoveSucc(*succ, false); // philist will not be associated with pred BB, no need to update phi here.
-
   if (!isSuccEmpty) {
     // only when we move stmt from succ to pred should we set attr and kind here
     pred->SetAttributes(succ->GetAttributes());
@@ -1725,6 +1769,19 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
     }
     newTarget->AddPred(*newBB);
     UpdatePhiForMovingPred(predPredIdx, newBB, &succ, newTarget);
+    // update newBB frequency : copy predBB succFreq as newBB frequency
+    if (Options::profileUse && f.GetMirFunc()->GetFuncProfData()) {
+      int idx = pred.GetSuccIndex(*newBB);
+      ASSERT(idx >= 0 && idx < pred.GetSucc().size(), "sanity check");
+      uint64_t freq = pred.GetEdgeFreq(idx);
+      newBB->SetFrequency(freq);
+      newBB->PushBackSuccFreq(freq);
+      // update frequency of succ because one of its pred is removed
+      // frequency of
+      uint32_t freqOfSucc = succ.GetFrequency();
+      ASSERT(freqOfSucc >= freq, "sanity check");
+      succ.SetFrequency(freqOfSucc - freq);
+    }
     return true;
   }
   return false;
@@ -2353,6 +2410,10 @@ bool OptimizeFuntionCFG::OptimizeFuncCFGIteratively() {
       BB *currBB = bbVec[idx];
       if (currBB == nullptr) {
         continue;
+      }
+      // bb frequency may be updated, make bb frequency and succs frequency consistent
+      if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+        currBB->UpdateEdgeFreqs();
       }
       changed |= OptimizeCFGForBB(currBB);
     }

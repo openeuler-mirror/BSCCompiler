@@ -402,6 +402,12 @@ class BB {
   MapleVector<uint64> &GetSuccFreq() {
     return succFreq;
   }
+  void SetSuccFreq(int idx, uint64 freq) {
+    ASSERT(idx >= 0 && idx <= succFreq.size(), "sanity check");
+    succFreq[idx] = freq;
+  }
+  // update edge frequency
+  void UpdateEdgeFreqs();
 
   const MapleVector<BB*> &GetSucc() const {
     return succ;

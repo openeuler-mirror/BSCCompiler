@@ -158,6 +158,16 @@ void MeSplitCEdge::BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) const
   newBB->SetKind(kBBFallthru);  // default kind
   newBB->SetAttributes(kBBAttrArtificial);
 
+  // update newBB frequency : copy predBB succFreq as newBB frequency
+  if (Options::profileUse && func.GetMirFunc()->GetFuncProfData() &&
+      (!(func.IsPme() || func.IsLfo()))) {
+    int idx = pred.GetSuccIndex(*newBB);
+    ASSERT(idx >= 0 && idx < pred.GetSucc().size(), "sanity check");
+    uint64_t freq = pred.GetEdgeFreq(idx);
+    newBB->SetFrequency(freq);
+    newBB->PushBackSuccFreq(freq);
+  }
+
   if (needUpdateTryAttr && isInsertAfterPred && pred.GetAttributes(kBBAttrIsTry)) {
     UpdateNewBBInTry(func, *newBB, pred);
   }
@@ -292,13 +302,15 @@ void MESplitCEdge::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 bool MESplitCEdge::PhaseRun(maple::MeFunction &f) {
   bool enableDebug = DEBUGFUNC_NEWPM(f);
   MeSplitCEdge mscedge = MeSplitCEdge(enableDebug);
-  bool split = mscedge.SplitCriticalEdgeForMeFunc(f);
-  if (split && Options::profileUse && (f.IsPme() || f.IsLfo()) && f.GetPreMeFunc()) {
-    // new inserted BB will break while/if label information and IR layout
-    f.GetPreMeFunc()->label2IfInfo.clear();
-    f.GetPreMeFunc()->label2WhileInfo.clear();
-    f.GetPreMeFunc()->pmeCreatedIfLabelSet.clear();
-    f.GetPreMeFunc()->pmeCreatedWhileLabelSet.clear();
+  mscedge.SplitCriticalEdgeForMeFunc(f);
+  if (Options::profileUse) {
+    if ((f.IsPme() || f.IsLfo()) && f.GetPreMeFunc()) {
+      // new inserted BB will break while/if label information and IR layout
+      f.GetPreMeFunc()->label2IfInfo.clear();
+      f.GetPreMeFunc()->label2WhileInfo.clear();
+      f.GetPreMeFunc()->pmeCreatedIfLabelSet.clear();
+      f.GetPreMeFunc()->pmeCreatedWhileLabelSet.clear();
+    }
   }
   return false;
 }

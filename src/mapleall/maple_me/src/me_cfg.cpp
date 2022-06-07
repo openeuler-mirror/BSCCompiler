@@ -1522,6 +1522,13 @@ void MeCFG::CreateBasicBlocks() {
         }
         labelBBIdMap[labelIdx] = curBB;
         curBB->SetBBLabel(labelIdx);
+        // label node is not real node in bb, get frequency information to bb
+        if (Options::profileUse && func.GetMirFunc()->GetFuncProfData()) {
+          auto freq = func.GetMirFunc()->GetFuncProfData()->GetStmtFreq(stmt->GetStmtID());
+          if (freq >= 0) {
+            curBB->SetFrequency(freq);
+          }
+        }
         break;
       }
       case OP_jscatch: {
@@ -1806,11 +1813,45 @@ void MeCFG::SwapBBId(BB &bb1, BB &bb2) {
   bb2.SetBBId(tmp);
 }
 
+// set bb succ frequency from bb freq
+// no critical edge is expected
+void MeCFG::ConstructEdgeFreqFromBBFreq() {
+  // set succfreqs
+  auto eIt = valid_end();
+  for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
+    auto *bb = *bIt;
+    if (!bb) continue;
+    if (bb->GetSucc().size() == 1) {
+      bb->PushBackSuccFreq(bb->GetFrequency());
+    } else if (bb->GetSucc().size() == 2) {
+      auto *fallthru = bb->GetSucc(0);
+      auto *targetBB = bb->GetSucc(1);
+      if (fallthru->GetPred().size() == 1) {
+        auto succ0Freq = fallthru->GetFrequency();
+        bb->PushBackSuccFreq(succ0Freq);
+        ASSERT(bb->GetFrequency() >= succ0Freq, "sanity check");
+        bb->PushBackSuccFreq(bb->GetFrequency() - succ0Freq);
+      } else if (targetBB->GetPred().size() == 1) {
+        auto succ1Freq = targetBB->GetFrequency();
+        ASSERT(bb->GetFrequency() >= succ1Freq, "sanity check");
+        bb->PushBackSuccFreq(bb->GetFrequency() - succ1Freq);
+        bb->PushBackSuccFreq(succ1Freq);
+      } else {
+        CHECK_FATAL(false, "ConstructEdgeFreqFromBBFreq::NYI critical edge");
+      }
+    } else if (bb->GetSucc().size() > 2) {
+      // switch case, no critical edge is supposted
+      for (int i = 0; i < bb->GetSucc().size(); i++) {
+        bb->PushBackSuccFreq(bb->GetSucc(i)->GetFrequency());
+      }
+    }
+  }
+  return;
+}
+
 // set bb frequency from stmt record
 void MeCFG::ConstructBBFreqFromStmtFreq() {
-  GcovProfileData* gcovData = func.GetMIRModule().GetGcovProfile();
-  if (!gcovData) return;
-  GcovFuncInfo* funcData = gcovData->GetFuncProfile(func.GetUniqueID());
+  GcovFuncInfo* funcData = func.GetMirFunc()->GetFuncProfData();
   if (!funcData) return;
   if (funcData->stmtFreqs.size() == 0) return;
   auto eIt = valid_end();
@@ -1840,41 +1881,7 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
   }
   bb->SetFrequency(freq);
   // set succfreqs
-  for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
-    auto *bb = *bIt;
-    if (!bb) continue;
-    int64_t succSum = 0; // verify only
-    if (bb->GetSucc().size() == 1) {
-      bb->PushBackSuccFreq(bb->GetFrequency());
-    } else if (bb->GetSucc().size() == 2) {
-      auto *fallthru = bb->GetSucc(0);
-      auto *targetBB = bb->GetSucc(1);
-      if (targetBB->GetFrequency() >= bb->GetFrequency()) {
-        // fixup frequency of target bb
-        uint32_t fallthruFreq = fallthru->GetFrequency();
-        for (int i = 0; i < fallthru->GetPred().size(); i++) {
-          auto *pred = fallthru->GetPred(i);
-          if (pred->GetSucc().size() == 1 && (pred != bb)) {
-            fallthruFreq -= pred->GetFrequency();
-          }
-        }
-        bb->PushBackSuccFreq(fallthruFreq);
-        bb->PushBackSuccFreq(bb->GetFrequency() - fallthruFreq);
-      } else {
-        bb->PushBackSuccFreq(fallthru->GetFrequency());
-        bb->PushBackSuccFreq(targetBB->GetFrequency());
-      }
-    } else if (bb->GetSucc().size() > 2) {
-      // switch case
-      for (int i = 0; i < bb->GetSucc().size(); i++) {
-        bb->PushBackSuccFreq(bb->GetSucc(i)->GetFrequency());
-        succSum += bb->GetSucc(i)->GetFrequency();
-      }
-      if (succSum != bb->GetFrequency()) {
-        LogInfo::MapleLogger() << "ERROR::  bb " << bb->GetBBId() << "frequency inconsistent with sum of succs" << "\n";
-      }
-    }
-  }
+  ConstructEdgeFreqFromBBFreq();
   // clear stmtFreqs since cfg frequency is create
   funcData->stmtFreqs.clear();
 }
@@ -1889,6 +1896,7 @@ void MeCFG::ConstructStmtFreq() {
     auto *bb = *bIt;
     if (bIt == common_entry()) {
       funcData->entry_freq = bb->GetFrequency();
+      funcData->real_entryfreq = funcData->entry_freq;
     }
     for (auto &stmt : bb->GetStmtNodes()) {
       Opcode op = stmt.GetOpCode();
@@ -1898,6 +1906,43 @@ void MeCFG::ConstructStmtFreq() {
           IsCallAssigned(op) || op == OP_call) {
         funcData->stmtFreqs[stmt.GetStmtID()] = bb->GetFrequency();
       }
+    }
+  }
+}
+
+// bb frequency may be changed in transform phase,
+// update edgeFreq with new BB frequency by scale
+void MeCFG::UpdateEdgeFreqWithNewBBFreq() {
+  for (size_t idx = 0; idx < bbVec.size(); ++idx) {
+    BB *currBB = bbVec[idx];
+    if (currBB == nullptr || currBB->GetSucc().empty()) {
+      continue;
+    }
+    // make bb frequency and succs frequency consistent
+    currBB->UpdateEdgeFreqs();
+  }
+}
+
+void MeCFG::VerifyBBFreq() {
+  for (size_t i = 2; i < bbVec.size(); ++i) {  // skip common entry and common exit
+    auto *bb = bbVec[i];
+    if (bb == nullptr || bb->GetAttributes(kBBAttrIsEntry) || bb->GetAttributes(kBBAttrIsExit)) {
+      continue;
+    }
+    // wontexit bb may has wrong succ, skip it
+    if (bb->GetSuccFreq().size() != bb->GetSucc().size() && !bb->GetAttributes(kBBAttrWontExit)) {
+      CHECK_FATAL(false, "VerifyBBFreq: succFreq size != succ size");
+    }
+    // bb freq == sum(out edge freq)
+    uint64 succSumFreq = 0;
+    for (auto succFreq : bb->GetSuccFreq()) {
+      succSumFreq += succFreq;
+    }
+    if (succSumFreq != bb->GetFrequency()) {
+      LogInfo::MapleLogger() << "[VerifyFreq failure] BB" << bb->GetBBId() << " freq: " <<
+          bb->GetFrequency() << ", all succ edge freq sum: " << succSumFreq << std::endl;
+      LogInfo::MapleLogger() << func.GetName() << std::endl;
+      CHECK_FATAL(false, "VerifyFreq failure: bb freq != succ freq sum");
     }
   }
 }
@@ -1934,10 +1979,31 @@ bool MEMeCfg::PhaseRun(MeFunction &f) {
     theCFG->UnifyRetBBs();
   }
   // construct bb freq from stmt freq
-  if (Options::profileUse) {
+  if (Options::profileUse && f.GetMirFunc()->GetFuncProfData()) {
     theCFG->ConstructBBFreqFromStmtFreq();
   }
   theCFG->Verify();
+  return false;
+}
+
+bool MECfgVerifyFrequency::PhaseRun(MeFunction &f) {
+  if (Options::profileUse && f.GetMirFunc()->GetFuncProfData()) {
+    f.GetCfg()->VerifyBBFreq();
+  }
+  // hack code here: no use profile data after verifycation pass since
+  // following tranform phases related of cfg change are not touched
+  // TODO::following code will be deleted
+  f.GetMirFunc()->SetFuncProfData(nullptr);
+  auto &bbVec = f.GetCfg()->GetAllBBs();
+  for (size_t i = 0; i < bbVec.size(); ++i) {  // skip common entry and common exit
+    auto *bb = bbVec[i];
+    if (bb == nullptr) {
+      continue;
+    }
+    bb->SetFrequency(0);
+    bb->GetSuccFreq().clear();
+  }
+
   return false;
 }
 }  // namespace maple

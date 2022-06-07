@@ -729,7 +729,7 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
   // multiple definition for these static symbols
   ConvertPStaticToFStatic(callee);
   // Step 1: Clone CALLEE's body.
-  auto getBody = [caller, callee, this] (BlockNode* funcBody, CallNode &callStmt) {
+  auto getBody = [caller, callee, this] (BlockNode* funcBody, CallNode &callStmt, bool recursiveFirstClone) {
     if (callee.IsFromMpltInline()) {
       return funcBody->CloneTree(module.GetCurFuncCodeMPAllocator());
     }
@@ -739,12 +739,22 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
       ASSERT(callerProfData && calleeProfData, "nullptr check");
       int64_t callsiteFreq = callerProfData->GetStmtFreq(callStmt.GetStmtID());
       int64_t calleeEntryFreq = calleeProfData->GetFuncFrequency();
-      auto *blockNode = funcBody->CloneTreeWithFreqs(module.GetCurFuncCodeMPAllocator(),
+      uint32_t updateOp = (kKeepOrigFreq | kUpdateFreqbyScale);
+      BlockNode *blockNode;
+      if (recursiveFirstClone) {
+        blockNode = funcBody->CloneTreeWithFreqs(module.GetCurFuncCodeMPAllocator(),
                             callerProfData->GetStmtFreqs(),
                             calleeProfData->GetStmtFreqs(),
-                            callsiteFreq, calleeEntryFreq, (kUpdateOrigFreq | kUpdateInlinedFreq));
-      // update func Frequency
-      calleeProfData->SetFuncFrequency(calleeEntryFreq - callsiteFreq);
+                            1, 1, updateOp);
+      } else {
+        blockNode = funcBody->CloneTreeWithFreqs(module.GetCurFuncCodeMPAllocator(),
+                            callerProfData->GetStmtFreqs(),
+                            calleeProfData->GetStmtFreqs(),
+                            callsiteFreq, calleeEntryFreq, updateOp);
+        // update callee left entry Frequency
+        int calleeFreq = calleeProfData->GetFuncRealFrequency();
+        calleeProfData->SetFuncRealFrequency(calleeFreq - callsiteFreq);
+      }
       return blockNode;
     } else {
       return funcBody->CloneTreeWithSrcPosition(module);
@@ -764,7 +774,7 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
     }
     if (currFuncBody == nullptr) {
       // For Inline recursive, we save the original function body before first inline.
-      currFuncBody = getBody(callee.GetBody(), callStmt);
+      currFuncBody = getBody(callee.GetBody(), callStmt, true);
       // update inlining levels
       if (recursiveFuncToInlineLevel.find(&callee) != recursiveFuncToInlineLevel.end()) {
         recursiveFuncToInlineLevel[&callee]++;
@@ -772,9 +782,9 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
         recursiveFuncToInlineLevel[&callee] = 1;
       }
     }
-    newBody = getBody(currFuncBody, callStmt);
+    newBody = getBody(currFuncBody, callStmt, false);
   } else {
-    newBody = getBody(callee.GetBody(), callStmt);
+    newBody = getBody(callee.GetBody(), callStmt, false);
   }
 
   // Step 2: Rename symbols, labels, pregs

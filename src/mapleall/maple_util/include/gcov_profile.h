@@ -15,7 +15,7 @@ typedef unsigned  location_t;
 enum UpdateFreqOp {
   kKeepOrigFreq = 0,
   kUpdateOrigFreq = 0x1,
-  kUpdateInlinedFreq = 0x2,
+  kUpdateFreqbyScale = 0x2,
   kUpdateUnrolledFreq = 0x4,
   kUpdateUnrollRemainderFreq = 0x8,
 };
@@ -28,6 +28,9 @@ public:
 
   int64_t GetFuncFrequency() const { return entry_freq; }
   void SetFuncFrequency(int64_t freq) { entry_freq = freq; }
+
+  int64_t GetFuncRealFrequency() const { return real_entryfreq; }
+  void SetFuncRealFrequency(int64_t freq)  { real_entryfreq = freq; }
 
   std::unordered_map<uint32_t, uint64_t>& GetStmtFreqs() {
     return stmtFreqs;
@@ -68,6 +71,7 @@ public:
   MapleVector<gcov_type> counts;
   int64_t entry_freq; // record entry bb frequence
   std::unordered_map<uint32_t, uint64_t> stmtFreqs; // stmt_id is key, counter value
+  int64_t real_entryfreq; // function prof data may be modified after clone/inline
 };
 
 class GcovProfileData {
@@ -80,7 +84,10 @@ public:
     }
     return nullptr;
   }
-
+  void AddFuncProfile(unsigned puidx, GcovFuncInfo *funcData) {
+    ASSERT(funcsCounter.count(puidx) == 0, "sanity check");
+    funcsCounter[puidx] = funcData;
+  }
   MapleUnorderedMap<unsigned, GcovFuncInfo*> funcsCounter; // use puidx as key
 };
 

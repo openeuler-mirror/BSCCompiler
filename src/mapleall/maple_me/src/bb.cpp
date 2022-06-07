@@ -187,7 +187,7 @@ void BB::RemoveBBFromPred(const BB &bb, bool updatePhi) {
 
 void BB::RemoveBBFromSucc(const BB &bb) {
   int ret = bb.RemoveBBFromVector(succ);
-  if (ret != -1 && frequency != 0 && !succFreq.empty()) {
+  if (ret != -1 && !succFreq.empty() && (Options::profileUse || frequency != 0)) {
     succFreq.erase(succFreq.cbegin() + ret);
   }
 }
@@ -473,6 +473,25 @@ void BB::DumpMePhiList(const IRMap *irMap) {
       break;
     }
     ASSERT(count >= 0, "mePhiList too large");
+  }
+}
+
+// bb frequency is changed in tranform phase
+// update its succ frequency by scaled value
+void BB::UpdateEdgeFreqs() {
+  int len = GetSucc().size();
+  ASSERT(len == GetSuccFreq().size(), "sanity check");
+  int64_t succFreqs = 0;
+  for (int i = 0; i < len; i++) {
+    succFreqs += GetSuccFreq()[i];
+  }
+  // early return if frequency is consistent
+  if (len == 0 || succFreqs == GetFrequency()) return;
+  for (int i = 0; i < len; i++) {
+    int64_t sfreq = GetSuccFreq()[i];
+    int64_t scalefreq = (succFreqs == 0 ?
+                            (frequency / len) : (sfreq * frequency / succFreqs));
+    SetSuccFreq(i, scalefreq);
   }
 }
 

@@ -295,7 +295,9 @@ class MeCFG : public AnalysisResult {
   void SwapBBId(BB &bb1, BB &bb2);
   void ConstructBBFreqFromStmtFreq();
   void ConstructStmtFreq();
-
+  void ConstructEdgeFreqFromBBFreq();
+  void UpdateEdgeFreqWithNewBBFreq();
+  void VerifyBBFreq();
  private:
   void AddCatchHandlerForTryBB(BB &bb, MapleVector<BB*> &exitBlocks);
   std::string ConstructFileNameToDump(const std::string &prefix) const;
@@ -334,5 +336,7 @@ MAPLE_FUNC_PHASE_DECLARE_BEGIN(MEMeCfg, MeFunction)
   }
   MeCFG *theCFG = nullptr;
 MAPLE_MODULE_PHASE_DECLARE_END
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(MECfgVerifyFrequency, MeFunction)
+MAPLE_FUNC_PHASE_DECLARE_END
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_CFG_H
