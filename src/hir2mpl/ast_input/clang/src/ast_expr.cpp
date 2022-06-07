@@ -89,9 +89,12 @@ MIRConst *ASTValue::Translate2MIRConst() const {
 // ---------- ASTExpr ----------
 UniqueFEIRExpr ASTExpr::Emit2FEExpr(std::list<UniqueFEIRStmt> &stmts) const {
   auto feirExpr = Emit2FEExprImpl(stmts);
+  if (feirExpr != nullptr) {
+    feirExpr->SetLoc(loc);
+  }
   for (auto &stmt : stmts) {
     if (!stmt->HasSetLOCInfo()) {
-      stmt->SetSrcFileInfo(srcFileIdx, srcFileLineNum);
+      stmt->SetSrcLoc(loc);
     }
   }
   return feirExpr;
@@ -251,7 +254,6 @@ void ASTCallExpr::InsertNonnullCheckingForIcall(const UniqueFEIRExpr &expr, std:
     return;
   }
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assertnonnull, expr->Clone());
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(stmt));
 }
 
@@ -289,7 +291,6 @@ std::unique_ptr<FEIRStmtAssign> ASTCallExpr::GenCallStmt() const {
     }
     callStmt = std::make_unique<FEIRStmtCallAssign>(*info, op, nullptr, false);
   }
-  callStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   return callStmt;
 }
 
@@ -792,7 +793,6 @@ void ASTUODerefExpr::InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, Uni
   }
   if (baseExpr->GetPrimType() == PTY_ptr) {
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assertnonnull, std::move(baseExpr));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }
 }
@@ -1389,7 +1389,7 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
                                                         std::get<UniqueFEIRExpr>(base)->Clone(),
                                                         elemExpr->Clone(),
                                                         fieldID);
-          stmt->SetSrcFileInfo(initList->initExprs[i]->GetSrcFileIdx(), initList->initExprs[i]->GetSrcFileLineNum());
+          stmt->SetSrcLoc(initList->initExprs[i]->GetSrcLoc());
           stmts.emplace_back(std::move(stmt));
         }
       } else {
@@ -1402,7 +1402,7 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
                                        static_cast<ASTStringLiteral *>(initList->initExprs[i])->GetLength(), stmts);
         } else {
           auto stmt = std::make_unique<FEIRStmtDAssign>(subVar->Clone(), elemExpr->Clone(), fieldID);
-          stmt->SetSrcFileInfo(initList->initExprs[i]->GetSrcFileIdx(), initList->initExprs[i]->GetSrcFileLineNum());
+          stmt->SetSrcLoc(initList->initExprs[i]->GetSrcLoc());
           stmts.emplace_back(std::move(stmt));
         }
       }
@@ -1670,7 +1670,7 @@ void ASTArraySubscriptExpr::InsertNonnullChecking(std::list<UniqueFEIRStmt> &stm
   }
   if (FEIRBuilder::IsZeroConstExpr(indexExpr)) {  // insert nonnull checking when ptr[0]
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assertnonnull, baseAddrExpr->Clone());
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+    stmt->SetSrcLoc(loc);
     stmts.emplace_back(std::move(stmt));
   }
 }
@@ -1811,7 +1811,7 @@ void ASTMemberExpr::InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, Uniq
   }
   if (baseFEExpr->GetPrimType() == PTY_ptr) {
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assertnonnull, std::move(baseFEExpr));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+    stmt->SetSrcLoc(loc);
     stmts.emplace_back(std::move(stmt));
   }
 }
@@ -2110,7 +2110,6 @@ UniqueFEIRExpr ASTBinaryOperatorExpr::Emit2FEExprLogicOperate(std::list<UniqueFE
   }
 
   auto rightCondlabelStmt = std::make_unique<FEIRStmtLabel>(rightCondLabel);
-  rightCondlabelStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(rightCondlabelStmt));
 
   // brfalse/brtrue label (rightCond)
@@ -2135,8 +2134,6 @@ UniqueFEIRExpr ASTBinaryOperatorExpr::Emit2FEExprLogicOperate(std::list<UniqueFE
     auto labelFallthrouStmt = std::make_unique<FEIRStmtLabel>(fallthrouLabel);
     auto labelJumpToStmt = std::make_unique<FEIRStmtLabel>(jumpToLabel);
     auto labelNextStmt = std::make_unique<FEIRStmtLabel>(nextLabel);
-    labelJumpToStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
-    labelNextStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(labelFallthrouStmt));
     stmts.emplace_back(op == OP_brtrue ? std::move(falseCircuit) : std::move(trueCircuit));
     stmts.emplace_back(std::move(goStmt));
@@ -2174,7 +2171,6 @@ UniqueFEIRExpr ASTBinaryOperatorExpr::Emit2FEExprLogicOperateSimplify(std::list<
   auto rightStmt = std::make_unique<FEIRStmtDAssign>(shortCircuit->Clone(), rightFEExpr->Clone(), 0);
   rStmts.emplace_back(std::move(rightStmt));
   auto labelStmt = std::make_unique<FEIRStmtLabel>(labelName);
-  labelStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   rStmts.emplace_back(std::move(labelStmt));
   stmts.splice(stmts.end(), lStmts);
   stmts.splice(stmts.end(), cStmts);
@@ -2374,10 +2370,8 @@ UniqueFEIRExpr ASTConditionalOperator::Emit2FEExprImpl(std::list<UniqueFEIRStmt>
   UniqueFEIRVar tempVarCloned1 = tempVar->Clone();
   UniqueFEIRVar tempVarCloned2 = tempVar->Clone();
   UniqueFEIRStmt retTrueStmt = FEIRBuilder::CreateStmtDAssign(std::move(tempVar), std::move(trueFEIRExpr));
-  retTrueStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   trueStmts.emplace_back(std::move(retTrueStmt));
   UniqueFEIRStmt retFalseStmt = FEIRBuilder::CreateStmtDAssign(std::move(tempVarCloned1), std::move(falseFEIRExpr));
-  retFalseStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   falseStmts.emplace_back(std::move(retFalseStmt));
   UniqueFEIRStmt stmtIf = FEIRBuilder::CreateStmtIf(std::move(condFEIRExpr), trueStmts, falseStmts);
   stmts.emplace_back(std::move(stmtIf));

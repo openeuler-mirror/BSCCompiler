@@ -116,17 +116,20 @@ class ASTDecl {
     pos = p;
   }
 
-  void SetSrcLOC(uint32 fileIdx, uint32 lineNum) {
-    srcFileIdx = fileIdx;
-    srcFileLineNum = lineNum;
+  void SetSrcLoc(const Loc &l) {
+    loc = l;
   }
 
   uint32 GetSrcFileIdx() const {
-    return srcFileIdx;
+    return loc.fileIdx;
   }
 
   uint32 GetSrcFileLineNum() const {
-    return srcFileLineNum;
+    return loc.line;
+  }
+
+  uint32 GetSrcFileColumn() const {
+    return loc.column;
   }
 
   DeclKind GetDeclKind() const {
@@ -184,9 +187,8 @@ class ASTDecl {
   MapleString name;
   MapleVector<MIRType*> typeDesc;
   GenericAttrs genAttrs;
-  Pos pos = { 0, 0 };
-  uint32 srcFileIdx = 0;
-  uint32 srcFileLineNum = 0;
+  Loc loc = { 0, 0, 0 };
+  Pos pos = {0 , 0};
   uint32 isMacroID = false;
   DeclKind declKind = kASTDecl;
   BoundaryInfo boundary;

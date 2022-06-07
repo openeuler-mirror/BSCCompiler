@@ -79,6 +79,7 @@ ASTStmt *ASTParser::ProcessFunctionBody(MapleAllocator &allocator, const clang::
 ASTStmt *ASTParser::ProcessStmtCompoundStmt(MapleAllocator &allocator, const clang::CompoundStmt &cpdStmt) {
   ASTCompoundStmt *astCompoundStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTCompoundStmt>(allocator);
   CHECK_FATAL(astCompoundStmt != nullptr, "astCompoundStmt is nullptr");
+  astCompoundStmt->SetEndLoc(astFile->GetLOC(cpdStmt.getEndLoc()));
   clang::CompoundStmt::const_body_iterator it;
   ASTStmt *childStmt = nullptr;
   for (it = cpdStmt.body_begin(); it != cpdStmt.body_end(); ++it) {
@@ -110,8 +111,8 @@ ASTStmt *ASTParser::ProcessStmtCompoundStmt(MapleAllocator &allocator, const cla
 #define STMT_CASE(CLASS)                                                              \
   case clang::Stmt::CLASS##Class: {                                                   \
     ASTStmt *astStmt = ProcessStmt##CLASS(allocator, llvm::cast<clang::CLASS>(stmt)); \
-    Pos loc = astFile->GetStmtLOC(stmt);                                              \
-    astStmt->SetSrcLOC(loc.first, loc.second);                                        \
+    Loc loc = astFile->GetStmtLOC(stmt);                                              \
+    astStmt->SetSrcLoc(loc);                                                          \
     return astStmt;                                                                   \
   }
 
@@ -746,8 +747,8 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
           static bool i128Warning = true;
           if (i128Warning) {
             WARN(kLncWarn, "%s:%d PTY_i128 is not fully supported",
-                 FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*expr).first).c_str(),
-                 astFile->GetExprLOC(*expr).second);
+                 FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*expr).fileIdx).c_str(),
+                 astFile->GetExprLOC(*expr).line);
             i128Warning = false;
           }
           break;
@@ -777,8 +778,8 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
           static bool u128Warning = true;
           if (u128Warning) {
             WARN(kLncWarn, "%s:%d PTY_u128 is not fully supported",
-                 FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*expr).first).c_str(),
-                 astFile->GetExprLOC(*expr).second);
+                 FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*expr).fileIdx).c_str(),
+                 astFile->GetExprLOC(*expr).line);
             u128Warning = false;
           }
           break;
@@ -810,8 +811,8 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
           if (f128Warning && (ty->isFloat128Type() ||
               (ty->isRealFloatingType() && astFile->GetAstContext()->getTypeSize(ty) == 128))) {
             WARN(kLncWarn, "%s:%d PTY_f128 is not fully supported",
-                 FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*expr).first).c_str(),
-                 astFile->GetExprLOC(*expr).second);
+                 FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*expr).fileIdx).c_str(),
+                 astFile->GetExprLOC(*expr).line);
             f128Warning = false;
           }
           bool LosesInfo;
@@ -869,8 +870,8 @@ ASTValue *ASTParser::TranslateLValue2ASTValue(
           static bool wcharWarning = true;
           if (wcharWarning && strExpr.isWide()) {
             WARN(kLncWarn, "%s:%d wchar is not fully supported",
-                 FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*lvExpr).first).c_str(),
-                 astFile->GetExprLOC(*lvExpr).second);
+                 FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*lvExpr).fileIdx).c_str(),
+                 astFile->GetExprLOC(*lvExpr).line);
             wcharWarning = false;
           }
           str = strExpr.getBytes().str();
@@ -927,8 +928,8 @@ ASTValue *ASTParser::TranslateExprEval(MapleAllocator &allocator, const clang::E
     if (expr->isConstantInitializer(*astFile->GetNonConstAstContext(), false, nullptr)) {       \
       astExpr->SetConstantValue(TranslateExprEval(allocator, expr));                            \
     }                                                                                           \
-    Pos loc = astFile->GetExprLOC(*expr);                                                       \
-    astExpr->SetSrcLOC(loc.first, loc.second);                                                  \
+    Loc loc = astFile->GetExprLOC(*expr);                                                       \
+    astExpr->SetSrcLoc(loc);                                                                    \
     return astExpr;                                                                             \
   }
 
@@ -1554,7 +1555,7 @@ ASTExpr *ASTParser::GetAddrShiftExpr(MapleAllocator &allocator, ASTExpr *expr, u
   shiftExpr->SetOpcode(OP_mul);
   shiftExpr->SetRetType(retType);
   shiftExpr->SetCvtNeeded(true);
-  shiftExpr->SetSrcLOC(expr->GetSrcFileIdx(), expr->GetSrcFileLineNum());
+  shiftExpr->SetSrcLoc(expr->GetSrcLoc());
   return shiftExpr;
 }
 
@@ -2328,8 +2329,8 @@ bool ASTParser::PreProcessAST() {
     if (astDeclaration != nullptr) {                                                                      \
       astDeclaration->SetDeclPos(astFile->GetDeclPosInfo(decl));                                          \
       astDeclaration->SetGlobal(decl.isDefinedOutsideFunctionOrMethod());                                 \
-      Pos loc = astFile->GetLOC(decl.getLocation());                                                      \
-      astDeclaration->SetSrcLOC(loc.first, loc.second);                                                   \
+      Loc loc = astFile->GetLOC(decl.getLocation());                                                      \
+      astDeclaration->SetSrcLoc(loc);                                                                     \
     }                                                                                                     \
     return astDeclaration;                                                                                \
   }
@@ -2512,9 +2513,9 @@ ASTDecl *ASTParser::ProcessDeclFunctionDecl(MapleAllocator &allocator, const cla
       return nullptr;
     }
 #ifndef STMTS_AS_BODY_SIZE
-    Pos startLoc = astFile->GetLOC(llvm::cast<clang::CompoundStmt>(funcDecl.getBody())->getBeginLoc());
-    Pos endLoc = astFile->GetLOC(llvm::cast<clang::CompoundStmt>(funcDecl.getBody())->getEndLoc());
-    astFunc->SetSize(static_cast<uint32>(endLoc.second - startLoc.second));
+    Loc startLoc = astFile->GetLOC(llvm::cast<clang::CompoundStmt>(funcDecl.getBody())->getBeginLoc());
+    Loc endLoc = astFile->GetLOC(llvm::cast<clang::CompoundStmt>(funcDecl.getBody())->getEndLoc());
+    astFunc->SetSize(static_cast<uint32>(endLoc.line - startLoc.line));
 #else
     astFunc->SetSize(static_cast<uint32>(static_cast<ASTCompoundStmt*>(astCompoundStmt)->GetASTStmtList().size()));
 #endif
@@ -2831,9 +2832,9 @@ bool ASTParser::RetrieveFuncs(MapleAllocator &allocator) {
       if (funcDecl->getSafeSpecifier() != spec) {
         if (funcDecl->getSafeSpecifier() != clang::SS_None && spec != clang::SS_None) {
           std::string funcName = astFile->GetMangledName(*funcDecl);
-          Pos loc = astFile->GetLOC(funcDecl->getLocation());
+          Loc loc = astFile->GetLOC(funcDecl->getLocation());
           FE_ERR(kLncWarn, "%s:%d error: The function %s declaration and definition security attributes "
-                 "are inconsistent.", FEManager::GetModule().GetFileNameFromFileNum(loc.first).c_str(), loc.second,
+                 "are inconsistent.", FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
                  funcName.c_str());
         } else {
           if (funcDecl->getSafeSpecifier() == clang::SS_None) {

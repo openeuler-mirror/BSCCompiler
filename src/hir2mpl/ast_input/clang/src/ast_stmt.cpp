@@ -58,10 +58,17 @@ std::list<UniqueFEIRStmt> ASTCompoundStmt::Emit2FEStmtImpl() const {
     if (!FEOptions::GetInstance().IsEnableSafeRegion()) {
       return;
     }
+    UniqueFEIRStmt stmt;
     if (safeSS == kSafeSS) {
-      stmts.emplace_back(std::make_unique<FEIRStmtPesudoSafe>(flag));
+      stmt = std::make_unique<FEIRStmtPesudoSafe>(flag);
     } else if (safeSS == kUnsafeSS) {
-      stmts.emplace_back(std::make_unique<FEIRStmtPesudoUnsafe>(flag));
+      stmt = std::make_unique<FEIRStmtPesudoUnsafe>(flag);
+    }
+    if (stmt != nullptr) {
+      if (flag) {
+        stmt->SetSrcLoc(endLoc);
+      }
+      stmts.emplace_back(std::move(stmt));
     }
   };
   insertStmt(false);
@@ -81,7 +88,7 @@ std::list<UniqueFEIRStmt> ASTReturnStmt::Emit2FEStmtImpl() const {
     return stmts;
   }
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtReturn>(std::move(feExpr));
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+  stmt->SetSrcLoc(loc);
   stmts.emplace_back(std::move(stmt));
   return stmts;
 }
@@ -101,7 +108,7 @@ std::list<UniqueFEIRStmt> ASTIfStmt::Emit2FEStmtImpl() const {
   condFEExpr = FEIRBuilder::CreateExprZeroCompare(OP_ne, std::move(condFEExpr));
   UniqueFEIRStmt ifStmt;
   ifStmt = FEIRBuilder::CreateStmtIf(std::move(condFEExpr), thenStmts, elseStmts);
-  ifStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+  ifStmt->SetSrcLoc(loc);
   stmts.emplace_back(std::move(ifStmt));
   return stmts;
 }
@@ -143,7 +150,7 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
   }
   condFEExpr = FEIRBuilder::CreateExprZeroCompare(OP_ne, std::move(condFEExpr));
   UniqueFEIRStmt whileStmt = std::make_unique<FEIRStmtDoWhile>(OP_while, std::move(condFEExpr), std::move(bodyFEStmts));
-  whileStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+  whileStmt->SetSrcLoc(loc);
   stmts.emplace_back(std::move(whileStmt));
   if (AstLoopUtil::Instance().IsCurrentBreakLabelUsed()) {
     stmts.emplace_back(std::move(labelLoopEndStmt));
@@ -172,7 +179,7 @@ std::list<UniqueFEIRStmt> ASTWhileStmt::Emit2FEStmtImpl() const {
   bodyFEStmts.splice(bodyFEStmts.end(), condPreStmts);
   condFEExpr = FEIRBuilder::CreateExprZeroCompare(OP_ne, std::move(condFEExpr));
   auto whileStmt = std::make_unique<FEIRStmtDoWhile>(OP_while, std::move(condFEExpr), std::move(bodyFEStmts));
-  whileStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+  whileStmt->SetSrcLoc(loc);
   stmts.splice(stmts.end(), condStmts);
   stmts.emplace_back(std::move(whileStmt));
   if (AstLoopUtil::Instance().IsCurrentBreakLabelUsed()) {
@@ -204,7 +211,7 @@ std::list<UniqueFEIRStmt> ASTDoStmt::Emit2FEStmtImpl() const {
   condFEExpr = FEIRBuilder::CreateExprZeroCompare(OP_ne, std::move(condFEExpr));
   UniqueFEIRStmt whileStmt = std::make_unique<FEIRStmtDoWhile>(OP_dowhile, std::move(condFEExpr),
                                                                std::move(bodyFEStmts));
-  whileStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+  whileStmt->SetSrcLoc(loc);
   stmts.emplace_back(std::move(whileStmt));
   if (AstLoopUtil::Instance().IsCurrentBreakLabelUsed()) {
     stmts.emplace_back(std::move(labelLoopEndStmt));
@@ -220,7 +227,7 @@ std::list<UniqueFEIRStmt> ASTBreakStmt::Emit2FEStmtImpl() const {
   if (!AstLoopUtil::Instance().IsBreakLabelsEmpty()) {
     stmt->SetBreakLabelName(AstLoopUtil::Instance().GetCurrentBreak());
   }
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+  stmt->SetSrcLoc(loc);
   stmts.emplace_back(std::move(stmt));
   return stmts;
 }
@@ -228,7 +235,7 @@ std::list<UniqueFEIRStmt> ASTBreakStmt::Emit2FEStmtImpl() const {
 std::list<UniqueFEIRStmt> ASTLabelStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   auto feStmt = std::make_unique<FEIRStmtLabel>(GetLabelName());
-  feStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+  feStmt->SetSrcLoc(loc);
   stmts.emplace_back(std::move(feStmt));
   stmts.splice(stmts.end(), subStmt->Emit2FEStmt());
   return stmts;
@@ -237,7 +244,6 @@ std::list<UniqueFEIRStmt> ASTLabelStmt::Emit2FEStmtImpl() const {
 std::list<UniqueFEIRStmt> ASTContinueStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   auto stmt = std::make_unique<FEIRStmtContinue>();
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmt->SetLabelName(AstLoopUtil::Instance().GetCurrentContinue());
   stmts.emplace_back(std::move(stmt));
   return stmts;
@@ -255,7 +261,6 @@ std::list<UniqueFEIRStmt> ASTUnaryOperatorStmt::Emit2FEStmtImpl() const {
     }
     feExprs.emplace_back(std::move(feExpr));
     auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }
   return stmts;
@@ -265,7 +270,6 @@ std::list<UniqueFEIRStmt> ASTUnaryOperatorStmt::Emit2FEStmtImpl() const {
 std::list<UniqueFEIRStmt> ASTGotoStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   UniqueFEIRStmt stmt = FEIRBuilder::CreateStmtGoto(GetLabelName());
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(stmt));
   return stmts;
 }
@@ -291,7 +295,6 @@ std::list<UniqueFEIRStmt> ASTSwitchStmt::Emit2FEStmtImpl() const {
   auto dread = FEIRBuilder::CreateExprDRead(tmpVar->Clone());
   auto switchStmt = std::make_unique<FEIRStmtSwitchForC>(std::move(dread), hasDefualt);
   switchStmt->SetBreakLabelName(exitName);
-  switchStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   for (auto &s : bodyStmt->Emit2FEStmt()) {
     switchStmt.get()->AddFeirStmt(std::move(s));
   }
@@ -304,7 +307,6 @@ std::list<UniqueFEIRStmt> ASTSwitchStmt::Emit2FEStmtImpl() const {
 std::list<UniqueFEIRStmt> ASTCaseStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   auto caseStmt = std::make_unique<FEIRStmtCaseForC>(lCaseTag);
-  caseStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   caseStmt.get()->AddCaseTag2CaseVec(lCaseTag, rCaseTag);
   for (auto &s : subStmt->Emit2FEStmt()) {
     caseStmt.get()->AddFeirStmt(std::move(s));
@@ -317,7 +319,6 @@ std::list<UniqueFEIRStmt> ASTCaseStmt::Emit2FEStmtImpl() const {
 std::list<UniqueFEIRStmt> ASTDefaultStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   auto defaultStmt = std::make_unique<FEIRStmtDefaultForC>();
-  defaultStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   for (auto &s : child->Emit2FEStmt()) {
     defaultStmt.get()->AddFeirStmt(std::move(s));
   }
@@ -368,7 +369,6 @@ std::list<UniqueFEIRStmt> ASTCallExprStmt::Emit2FEStmtImpl() const {
     }
   }
   std::unique_ptr<FEIRStmtAssign> callStmt = callExpr->GenCallStmt();
-  callStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   callExpr->AddArgsExpr(callStmt, stmts);
   if (callExpr->IsNeedRetExpr()) {
     UniqueFEIRVar var = FEIRBuilder::CreateVarNameForC(varName, *callExpr->GetRetType(), false, false);
@@ -387,7 +387,6 @@ std::list<UniqueFEIRStmt> ASTImplicitCastExprStmt::Emit2FEStmtImpl() const {
     std::list<UniqueFEIRExpr> feirExprs;
     feirExprs.emplace_back(std::move(feirExpr));
     auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feirExprs));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }
   return stmts;
@@ -408,7 +407,6 @@ std::list<UniqueFEIRStmt> ASTIntegerLiteralStmt::Emit2FEStmtImpl() const {
   if (feExpr != nullptr) {
     feExprs.emplace_back(std::move(feExpr));
     auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }
   return stmts;
@@ -422,7 +420,6 @@ std::list<UniqueFEIRStmt> ASTFloatingLiteralStmt::Emit2FEStmtImpl() const {
   if (feExpr != nullptr) {
     feExprs.emplace_back(std::move(feExpr));
     auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }
   return stmts;
@@ -443,7 +440,6 @@ std::list<UniqueFEIRStmt> ASTConditionalOperatorStmt::Emit2FEStmtImpl() const {
   if (feExpr != nullptr) {
     feExprs.emplace_back(std::move(feExpr));
     auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }
   return stmts;
@@ -457,7 +453,6 @@ std::list<UniqueFEIRStmt> ASTCharacterLiteralStmt::Emit2FEStmtImpl() const {
   if (feExpr != nullptr) {
     feExprs.emplace_back(std::move(feExpr));
     auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }
   return stmts;
@@ -477,7 +472,6 @@ std::list<UniqueFEIRStmt> ASTCStyleCastExprStmt::Emit2FEStmtImpl() const {
   if (feExpr != nullptr) {
     feExprs.emplace_back(std::move(feExpr));
     auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }
   return stmts;
@@ -502,7 +496,6 @@ std::list<UniqueFEIRStmt> ASTBinaryOperatorStmt::Emit2FEStmtImpl() const {
       std::list<UniqueFEIRExpr> exprs;
       exprs.emplace_back(std::move(boFEExpr));
       auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(exprs));
-      stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
       stmts.emplace_back(std::move(stmt));
     }
   } else {
@@ -519,7 +512,6 @@ std::list<UniqueFEIRStmt> ASTAtomicExprStmt::Emit2FEStmtImpl() const {
   auto astExpr = exprs.front();
   UniqueFEIRExpr feExpr = astExpr->Emit2FEExpr(stmts);
   auto stmt = std::make_unique<FEIRStmtAtomic>(std::move(feExpr));
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(stmt));
   return stmts;
 }
@@ -566,7 +558,6 @@ std::list<UniqueFEIRStmt> ASTOffsetOfStmt::Emit2FEStmtImpl() const {
   if (feExpr != nullptr) {
     feExprs.emplace_back(std::move(feExpr));
     auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }
   return stmts;
@@ -580,7 +571,6 @@ std::list<UniqueFEIRStmt> ASTGenericSelectionExprStmt::Emit2FEStmtImpl() const {
   if (feExpr != nullptr) {
     feExprs.emplace_back(std::move(feExpr));
     auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }
   return stmts;
@@ -611,7 +601,6 @@ std::list<UniqueFEIRStmt> ASTUOAddrOfLabelExprStmt::Emit2FEStmtImpl() const {
   if (feExpr != nullptr) {
     feExprs.emplace_back(std::move(feExpr));
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }
   return stmts;

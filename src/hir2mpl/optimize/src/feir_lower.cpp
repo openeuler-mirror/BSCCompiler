@@ -45,9 +45,8 @@ FEIRStmt *FEIRLower::CreateHeadAndTail() {
   return head;
 }
 
-FEIRStmt *FEIRLower::RegisterAndInsertFEIRStmt(UniqueFEIRStmt stmt, FEIRStmt *ptrTail,
-                                               uint32 fileIdx, uint32 fileLine) {
-  stmt->SetSrcFileInfo(fileIdx, fileLine);
+FEIRStmt *FEIRLower::RegisterAndInsertFEIRStmt(UniqueFEIRStmt stmt, FEIRStmt *ptrTail, Loc loc) {
+  stmt->SetSrcLoc(loc);
   FEIRStmt *prtStmt = func.RegisterFEIRStmt(std::move(stmt));
   ptrTail->InsertBefore(prtStmt);
   return prtStmt;
@@ -112,8 +111,7 @@ void FEIRLower::LowerIfStmt(FEIRStmtIf &ifStmt, FEIRStmt *ptrTail) {
     std::list<UniqueFEIRExpr> feExprs;
     feExprs.emplace_back(ifStmt.GetCondExpr()->Clone());
     (void)RegisterAndInsertFEIRStmt(
-        std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs)),
-        ptrTail, ifStmt.GetSrcFileIdx(), ifStmt.GetSrcFileLineNum());
+        std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs)), ptrTail, ifStmt.GetSrcLoc());
   } else if (ifStmt.GetElseStmt().empty()) {
     // brfalse <cond> <endlabel>
     // <thenPart>
@@ -134,8 +132,7 @@ void FEIRLower::LowerIfStmt(FEIRStmtIf &ifStmt, FEIRStmt *ptrTail) {
     std::string elseName = FEUtils::CreateLabelName();
     UniqueFEIRStmt condFEStmt = std::make_unique<FEIRStmtCondGotoForC>(
         ifStmt.GetCondExpr()->Clone(), OP_brfalse, elseName);
-    auto condStmt = RegisterAndInsertFEIRStmt(
-        std::move(condFEStmt), ptrTail, ifStmt.GetSrcFileIdx(), ifStmt.GetSrcFileLineNum());
+    auto condStmt = RegisterAndInsertFEIRStmt(std::move(condFEStmt), ptrTail, ifStmt.GetSrcLoc());
     // <thenPart>
     FELinkListNode::SpliceNodes(thenHead, thenTail, ptrTail);
     // goto <endlabel>
@@ -192,8 +189,7 @@ void FEIRLower::LowerWhileStmt(FEIRStmtDoWhile &whileStmt, FEIRStmt *bodyHead,
   // brfalse <cond> <endlabel>
   UniqueFEIRStmt condFEStmt = std::make_unique<FEIRStmtCondGotoForC>(
       whileStmt.GetCondExpr()->Clone(), OP_brfalse, endLabelName);
-  auto condStmt = RegisterAndInsertFEIRStmt(
-      std::move(condFEStmt), ptrTail, whileStmt.GetSrcFileIdx(), whileStmt.GetSrcFileLineNum());
+  auto condStmt = RegisterAndInsertFEIRStmt(std::move(condFEStmt), ptrTail, whileStmt.GetSrcLoc());
   if (bodyHead != nullptr && bodyTail != nullptr) {
     // <body>
     FELinkListNode::SpliceNodes(bodyHead, bodyTail, ptrTail);
@@ -228,8 +224,7 @@ void FEIRLower::LowerDoWhileStmt(FEIRStmtDoWhile &doWhileStmt, FEIRStmt *bodyHea
   // brtrue <cond> <bodylabel>
   UniqueFEIRStmt condFEStmt = std::make_unique<FEIRStmtCondGotoForC>(
       doWhileStmt.GetCondExpr()->Clone(), OP_brtrue, bodyLabelName);
-  auto condStmt = RegisterAndInsertFEIRStmt(
-      std::move(condFEStmt), ptrTail, doWhileStmt.GetSrcFileIdx(), doWhileStmt.GetSrcFileLineNum());
+  auto condStmt = RegisterAndInsertFEIRStmt(std::move(condFEStmt), ptrTail, doWhileStmt.GetSrcLoc());
   // link bb
   condStmt->AddExtraSucc(*bodyLabelStmt);
   bodyLabelStmt->AddExtraPred(*condStmt);
@@ -239,8 +234,7 @@ void FEIRLower::CreateAndInsertCondStmt(Opcode op, FEIRStmtIf &ifStmt,
                                         FEIRStmt *head, FEIRStmt *tail, FEIRStmt *ptrTail) {
   std::string labelName = FEUtils::CreateLabelName();
   UniqueFEIRStmt condFEStmt = std::make_unique<FEIRStmtCondGotoForC>(ifStmt.GetCondExpr()->Clone(), op, labelName);
-  FEIRStmt *condStmt = RegisterAndInsertFEIRStmt(
-      std::move(condFEStmt), ptrTail, ifStmt.GetSrcFileIdx(), ifStmt.GetSrcFileLineNum());
+  FEIRStmt *condStmt = RegisterAndInsertFEIRStmt(std::move(condFEStmt), ptrTail, ifStmt.GetSrcLoc());
   FELinkListNode::SpliceNodes(head, tail, ptrTail);
   FEIRStmt *labelStmt = RegisterAndInsertFEIRStmt(std::make_unique<FEIRStmtLabel>(labelName), ptrTail);
   // link bb

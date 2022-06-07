@@ -39,7 +39,7 @@ class FEIRLower {
   void Clear();
   FEIRStmt *CreateHeadAndTail();
   FEIRStmt *RegisterAuxFEIRStmt(UniqueFEIRStmt stmt);
-  FEIRStmt *RegisterAndInsertFEIRStmt(UniqueFEIRStmt stmt, FEIRStmt *ptrTail, uint32 fileIdx = 0, uint32 fileLine = 0);
+  FEIRStmt *RegisterAndInsertFEIRStmt(UniqueFEIRStmt stmt, FEIRStmt *ptrTail, Loc loc = {0, 0, 0});
   void LowerIfStmt(FEIRStmtIf &ifStmt, FEIRStmt *ptrTail);
   void ProcessLoopStmt(FEIRStmtDoWhile &stmt, FEIRStmt *ptrTail);
   void LowerWhileStmt(FEIRStmtDoWhile &whileStmt, FEIRStmt *bodyHead, FEIRStmt *bodyTail, FEIRStmt *ptrTail);

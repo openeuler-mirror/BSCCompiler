@@ -60,7 +60,7 @@ bool ConditionalOptimize::DeleteRedundantTmpVar(const UniqueFEIRExpr &expr, std:
     }
 
     auto stmt = std::make_unique<FEIRStmtDAssign>(var->Clone(), srcExpr->Clone(), fieldID);
-    stmt->SetSrcFileInfo(srcStmt.GetSrcFileIdx(), srcStmt.GetSrcFileLineNum());
+    stmt->SetSrcLoc(srcStmt.GetSrcLoc());
     stmts.pop_back();
     stmts.emplace_back(std::move(stmt));
   };
@@ -79,7 +79,7 @@ bool ConditionalOptimize::DeleteRedundantTmpVar(const UniqueFEIRExpr &expr, std:
   auto ReplaceBackStmt = [&](std::list<UniqueFEIRStmt> &stmts, const FEIRStmt &srcStmt) {
     auto dassignStmt = static_cast<FEIRStmtDAssign*>(stmts.back().get());
     auto stmt = std::make_unique<FEIRStmtReturn>(dassignStmt->GetExpr()->Clone());
-    stmt->SetSrcFileInfo(srcStmt.GetSrcFileIdx(), srcStmt.GetSrcFileLineNum());
+    stmt->SetSrcLoc(srcStmt.GetSrcLoc());
     stmts.pop_back();
     stmts.emplace_back(std::move(stmt));
   };

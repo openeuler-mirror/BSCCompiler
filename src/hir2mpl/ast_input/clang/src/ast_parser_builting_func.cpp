@@ -56,7 +56,6 @@ UniqueFEIRExpr ASTCallExpr::CreateIntrinsicopForC(std::list<UniqueFEIRStmt> &stm
     std::list<UniqueFEIRExpr> feExprs;
     feExprs.emplace_back(std::move(feExpr));
     UniqueFEIRStmt evalStmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
-    evalStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(evalStmt));
     return nullptr;
   } else {
@@ -66,7 +65,6 @@ UniqueFEIRExpr ASTCallExpr::CreateIntrinsicopForC(std::list<UniqueFEIRStmt> &stm
     std::string tmpName = FEUtils::GetSequentialName("intrinsicop_var_");
     UniqueFEIRVar tmpVar = FEIRBuilder::CreateVarNameForC(tmpName, *mirType);
     UniqueFEIRStmt dAssign = std::make_unique<FEIRStmtDAssign>(tmpVar->Clone(), std::move(feExpr), 0);
-    dAssign->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(dAssign));
     auto dread = FEIRBuilder::CreateExprDRead(tmpVar->Clone());
     return dread;
@@ -82,14 +80,12 @@ UniqueFEIRExpr ASTCallExpr::CreateIntrinsicCallAssignedForC(std::list<UniqueFEIR
   if (!IsNeedRetExpr()) {
     auto stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(argIntrinsicID, nullptr, nullptr,
                                                               std::move(argExprList));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
     return nullptr;
   }
   UniqueFEIRVar retVar = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *retType, false);
   auto stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(argIntrinsicID, nullptr, retVar->Clone(),
                                                             std::move(argExprList));
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(stmt));
   UniqueFEIRExpr dread = FEIRBuilder::CreateExprDRead(std::move(retVar));
   return dread;
@@ -120,7 +116,6 @@ UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts,
     UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(
         *GlobalTables::GetTypeTable().GetOrCreatePointerType(*args[1]->GetType()));
     auto stmt = FEIRBuilder::CreateStmtIAssign(std::move(type), std::move(arg1Expr), std::move(arg2Expr));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
     isFinish = true;
     return nullptr;
@@ -212,7 +207,6 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorZip(std::list<UniqueFEIRStmt> &stmt
   else VECTOR_INTRINSICCALL_TYPE(zip, v8u8)
   else VECTOR_INTRINSICCALL_TYPE(zip, v2f32)
 
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(stmt));
   isFinish = true;
   return FEIRBuilder::CreateExprDRead(std::move(retVar));
@@ -229,7 +223,6 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinVaStart(std::list<UniqueFEIRStmt> &stmts)
   exprArgList->front()->SetAddrof(true);
   std::unique_ptr<FEIRStmtIntrinsicCallAssign> stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(
       INTRN_C_va_start, nullptr /* type */, nullptr /* retVar */, std::move(exprArgList));
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(stmt));
   return nullptr;
 }
@@ -245,7 +238,6 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinVaEnd(std::list<UniqueFEIRStmt> &stmts) c
     exprArgList.emplace_back(std::move(expr));
   }
   auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(exprArgList));
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(stmt));
   return nullptr;
 }
@@ -268,7 +260,6 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinVaCopy(std::list<UniqueFEIRStmt> &stmts) 
   exprArgList->emplace_back(std::move(sizeExpr));
   std::unique_ptr<FEIRStmtIntrinsicCallAssign> stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(
       INTRN_C_memcpy, nullptr /* type */, nullptr /* retVar */, std::move(exprArgList));
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(stmt));
   return nullptr;
 }

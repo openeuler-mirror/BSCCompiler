@@ -68,7 +68,7 @@ std::unique_ptr<FEIRVar> ASTVar::Translate2FEIRVar() const {
       std::make_unique<FEIRVarName>(GenerateUniqueVarName(), std::make_unique<FEIRTypeNative>(*(typeDesc[0])));
   feirVar->SetGlobal(isGlobalDecl);
   feirVar->SetAttrs(const_cast<GenericAttrs&>(genAttrs));
-  feirVar->SetSrcLOC(srcFileIdx, srcFileLineNum);
+  feirVar->SetSrcLoc(loc);
   feirVar->SetSectionAttr(sectionAttr);
   if (boundary.lenExpr != nullptr) {
     std::list<UniqueFEIRStmt> nullStmts;
@@ -143,6 +143,7 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
     UniqueFEIRExpr allocaExpr = std::make_unique<FEIRExprUnary>(std::move(feType), OP_alloca,
                                                                 std::move(variableArrayFEIRExpr));
     UniqueFEIRStmt stmt = FEIRBuilder::CreateStmtDAssign(feirVar->Clone(), std::move(allocaExpr));
+    stmt->SetSrcLoc(feirVar->GetSrcLoc());
     stmts.emplace_back(std::move(stmt));
     return;
   }
@@ -169,11 +170,11 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   UniqueFEIRStmt stmt;
   if (srcPrimType != feirVar->GetType()->GetPrimType() && srcPrimType != PTY_agg && srcPrimType != PTY_void) {
     auto castExpr = FEIRBuilder::CreateExprCastPrim(std::move(initFeirExpr), feirVar->GetType()->GetPrimType());
-    stmt = FEIRBuilder::CreateStmtDAssign(std::move(feirVar), std::move(castExpr));
+    stmt = FEIRBuilder::CreateStmtDAssign(feirVar->Clone(), std::move(castExpr));
   } else {
-    stmt = FEIRBuilder::CreateStmtDAssign(std::move(feirVar), std::move(initFeirExpr));
+    stmt = FEIRBuilder::CreateStmtDAssign(feirVar->Clone(), std::move(initFeirExpr));
   }
-  stmt->SetSrcFileInfo(initExpr->GetSrcFileIdx(), initExpr->GetSrcFileLineNum());
+  stmt->SetSrcLoc(feirVar->GetSrcLoc());
   stmts.emplace_back(std::move(stmt));
 }
 

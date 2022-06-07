@@ -157,7 +157,8 @@ void ENCChecker::CheckNonnullLocalVarInit(const MIRSymbol &sym, const UniqueFEIR
   }
   if (initFEExpr->GetPrimType() == PTY_ptr) {
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assignassertnonnull, initFEExpr->Clone());
-    stmt->SetSrcFileInfo(sym.GetSrcPosition().FileNum(), sym.GetSrcPosition().LineNum());
+    Loc loc = {sym.GetSrcPosition().FileNum(), sym.GetSrcPosition().LineNum(), sym.GetSrcPosition().Column()};
+    stmt->SetSrcLoc(loc);
     stmts.emplace_back(std::move(stmt));
   }
 }
@@ -189,8 +190,7 @@ std::string ENCChecker::PrintParamIdx(const std::list<size_t> &idxs) {
   return os.str();
 }
 
-void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
-                                                  uint32 fileNum, uint32 fileLine) {
+void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr, Loc loc) {
   if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
     return;
   }
@@ -212,12 +212,12 @@ void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const 
     if (!errIdxs.empty()) {
       FE_ERR(kLncErr, "%s:%d error: function pointer and assigned function %s are mismatched "
              "for the %s argument of nonnull attributes",
-             FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine,
+             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
              srcFunc->GetName().c_str(), PrintParamIdx(errIdxs).c_str());
     }
     if (srcFunc->GetFuncAttrs().GetAttr(FUNCATTR_nonnull) != funcType->GetRetAttrs().GetAttr(ATTR_nonnull)) {
       FE_ERR(kLncErr, "%s:%d error: function pointer and target function's nonnull attributes are mismatched for"
-             " the return value", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine);
+             " the return value", FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
     }
   }
   const MIRFuncType *srcFuncType = FEUtils::GetFuncPtrType(*srcExpr->GetType()->GenerateMIRTypeAuto());
@@ -231,11 +231,12 @@ void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const 
     }
     if (!errIdxs.empty()) {
       FE_ERR(kLncErr, "%s:%d error: function pointer's nonnull attributes are mismatched for the %s argument",
-             FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine, PrintParamIdx(errIdxs).c_str());
+             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
+             PrintParamIdx(errIdxs).c_str());
     }
     if (srcFuncType->GetRetAttrs().GetAttr(ATTR_nonnull) != funcType->GetRetAttrs().GetAttr(ATTR_nonnull)) {
       FE_ERR(kLncErr, "%s:%d error: function pointer's nonnull attributes are mismatched for the return value",
-             FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine);
+             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
     }
   }
 }
@@ -248,7 +249,7 @@ void FEIRStmtDAssign::CheckNonnullArgsAndRetForFuncPtr(const MIRBuilder &mirBuil
   if (fieldID != 0) {
     baseType = FEUtils::GetStructFieldType(static_cast<MIRStructType*>(baseType), fieldID);
   }
-  ENCChecker::CheckNonnullArgsAndRetForFuncPtr(*baseType, expr, srcFileIndex, srcFileLineNum);
+  ENCChecker::CheckNonnullArgsAndRetForFuncPtr(*baseType, expr, loc);
 }
 
 void FEIRStmtIAssign::CheckNonnullArgsAndRetForFuncPtr(const MIRBuilder &mirBuilder, const MIRType &baseType) const {
@@ -256,7 +257,7 @@ void FEIRStmtIAssign::CheckNonnullArgsAndRetForFuncPtr(const MIRBuilder &mirBuil
     return;
   }
   MIRType *fieldType = FEUtils::GetStructFieldType(static_cast<const MIRStructType*>(&baseType), fieldID);
-  ENCChecker::CheckNonnullArgsAndRetForFuncPtr(*fieldType, baseExpr, srcFileIndex, srcFileLineNum);
+  ENCChecker::CheckNonnullArgsAndRetForFuncPtr(*fieldType, baseExpr, loc);
 }
 
 bool ENCChecker::HasNonnullFieldInStruct(const MIRType &mirType) {
@@ -300,12 +301,11 @@ void ASTCallExpr::CheckNonnullFieldInStruct() const {
   }
   if (mirType != nullptr && ENCChecker::HasNonnullFieldInPtrStruct(*mirType)) {
       FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull structure field pointer in %s",
-             FEManager::GetModule().GetFileNameFromFileNum(srcFileIdx).c_str(), srcFileLineNum, GetFuncName().c_str());
+             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line, GetFuncName().c_str());
   }
 }
 
-void ENCChecker::CheckNonnullFieldInStruct(const MIRType &src, const MIRType &dst,
-                                           uint32 fileIdx, uint32 fileLine) {
+void ENCChecker::CheckNonnullFieldInStruct(const MIRType &src, const MIRType &dst, Loc loc) {
   if (!FEOptions::GetInstance().IsNpeCheckDynamic() ||
       !dst.IsMIRPtrType() || !src.IsMIRPtrType() ||
       dst.GetTypeIndex() == src.GetTypeIndex()) {
@@ -313,7 +313,7 @@ void ENCChecker::CheckNonnullFieldInStruct(const MIRType &src, const MIRType &ds
   }
   if (ENCChecker::HasNonnullFieldInPtrStruct(dst)) {
     FE_ERR(kLncErr, "%s:%d error: null assignment risk of nonnull field pointer",
-           FEManager::GetModule().GetFileNameFromFileNum(fileIdx).c_str(), fileLine);
+           FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
   }
 }
 
@@ -1273,8 +1273,9 @@ void ENCChecker::InitBoundaryVar(MIRFunction &curFunction, const ASTDecl &ptrDec
   UniqueFEIRVar upperVar = FEIRBuilder::CreateVarNameForC(upperVarName, *ptrType);
   UniqueFEIRStmt upperStmt = FEIRBuilder::CreateStmtDAssign(std::move(upperVar), std::move(binExpr));
   if (ptrDecl.GetSrcFileLineNum() != 0) {
-    lowerStmt->SetSrcFileInfo(ptrDecl.GetSrcFileIdx(), ptrDecl.GetSrcFileLineNum());
-    upperStmt->SetSrcFileInfo(ptrDecl.GetSrcFileIdx(), ptrDecl.GetSrcFileLineNum());
+    Loc loc = {ptrDecl.GetSrcFileIdx(), ptrDecl.GetSrcFileLineNum(), ptrDecl.GetSrcFileColumn()};
+    lowerStmt->SetSrcLoc(loc);
+    upperStmt->SetSrcLoc(loc);
   }
   stmts.emplace_back(std::move(lowerStmt));
   stmts.emplace_back(std::move(upperStmt));
@@ -1584,12 +1585,12 @@ void ASTFunc::InsertBoundaryCheckingInRet(std::list<UniqueFEIRStmt> &stmts) cons
   exprs.emplace_back(std::move(lenExpr));
   exprs.emplace_back(std::move(baseExpr));
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertBoundary>(OP_returnassertle, std::move(exprs));
-  stmt->SetSrcFileInfo(stmts.back()->GetSrcFileIdx(), stmts.back()->GetSrcFileLineNum());
+  stmt->SetSrcLoc(stmts.back()->GetSrcLoc());
   stmts.insert(--stmts.end(), std::move(stmt));
 }
 
 void ENCChecker::InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans,
-                                              const UniqueFEIRExpr &srcExpr, uint32 fileIdx, uint32 fileLine) {
+                                              const UniqueFEIRExpr &srcExpr, Loc loc) {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || srcExpr == nullptr || srcExpr->GetPrimType() != PTY_ptr ||
       srcExpr->GetKind() != kExprBinary) {  // pointer computed assignment
     return;
@@ -1607,7 +1608,7 @@ void ENCChecker::InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<
   lowerExprs.emplace_back(srcExpr->Clone());
   lowerExprs.emplace_back(baseExpr->Clone());
   UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_calcassertge, std::move(lowerExprs));
-  lowerStmt->SetSrcFileInfo(fileIdx, fileLine);
+  lowerStmt->SetSrcLoc(loc);
   std::list<StmtNode*> lowerStmts = lowerStmt->GenMIRStmts(mirBuilder);
   ans.splice(ans.end(), lowerStmts);
   // insert l-value upper boundary chencking
@@ -1615,7 +1616,7 @@ void ENCChecker::InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<
   upperExprs.emplace_back(srcExpr->Clone());
   upperExprs.emplace_back(baseExpr->Clone());
   UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_calcassertlt, std::move(upperExprs));
-  upperStmt->SetSrcFileInfo(fileIdx, fileLine);
+  upperStmt->SetSrcLoc(loc);
   std::list<StmtNode*> upperStmts = upperStmt->GenMIRStmts(mirBuilder);
   ans.splice(ans.end(), upperStmts);
 }
@@ -1718,7 +1719,7 @@ void FEIRStmtDAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
     return;
   }
   // insert assign boundary checking for computed r-value
-  ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, expr, srcFileIndex, srcFileLineNum);
+  ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, expr, loc);
 
   UniqueFEIRExpr dstExpr = nullptr;
   UniqueFEIRExpr lenExpr = nullptr;
@@ -1747,7 +1748,7 @@ void FEIRStmtDAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
   if (lenExpr != nullptr) {
     UniqueFEIRStmt stmt = ENCChecker::InsertBoundaryLEChecking(lenExpr->Clone(), expr, dstExpr);
     if (stmt != nullptr) {
-      stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+      stmt->SetSrcLoc(loc);
       std::list<StmtNode*> stmtnodes = stmt->GenMIRStmts(mirBuilder);
       ans.insert(ans.end(), stmtnodes.begin(), stmtnodes.end());
     }
@@ -1760,7 +1761,7 @@ void FEIRStmtIAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
     return;
   }
   // insert assign boundary checking for computed r-value
-  ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, baseExpr, srcFileIndex, srcFileLineNum);
+  ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, baseExpr, loc);
 
   MIRType *baseType = static_cast<MIRPtrType*>(addrType->GenerateMIRTypeAuto())->GetPointedType();
   FieldID tmpID = fieldID;
@@ -1778,7 +1779,7 @@ void FEIRStmtIAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
     }
     UniqueFEIRStmt stmt = ENCChecker::InsertBoundaryLEChecking(lenExpr->Clone(), baseExpr, dstExpr);
     if (stmt != nullptr) {
-      stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+      stmt->SetSrcLoc(loc);
       std::list<StmtNode*> stmtnodes = stmt->GenMIRStmts(mirBuilder);
       ans.insert(ans.end(), stmtnodes.begin(), stmtnodes.end());
     }
@@ -1787,7 +1788,7 @@ void FEIRStmtIAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
 }
 
 void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRVar &var, FieldID fieldID,
-                                             uint32 fileIdx, uint32 fileLine) {
+                                             Loc loc) {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || !FEOptions::GetInstance().IsEnableSafeRegion()) {
     return;
   }
@@ -1803,7 +1804,7 @@ void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const Uniqu
     if (dstSym->GetAttr(ATTR_final_boundary_size)) {
       WARN(kLncWarn, "%s:%d warning: this var specified as the global or field boundary length is "
            "assigned or token address. [Use __Unsafe__ to eliminate the warning]",
-           FEManager::GetModule().GetFileNameFromFileNum(fileIdx).c_str(), fileLine);
+           FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
     }
   } else {
     FieldID tmpID = fieldID;
@@ -1812,13 +1813,13 @@ void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const Uniqu
     if (fieldPair.second.second.GetAttr(FLDATTR_final_boundary_size)) {
       WARN(kLncWarn, "%s:%d warning: this field specified as the global or field boundary length is "
            "assigned or token address. [Use __Unsafe__ to eliminate the warning]",
-           FEManager::GetModule().GetFileNameFromFileNum(fileIdx).c_str(), fileLine);
+           FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
     }
   }
 }
 
 void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRType &addrType, FieldID fieldID,
-                                             uint32 fileIdx, uint32 fileLine) {
+                                             Loc loc) {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || !FEOptions::GetInstance().IsEnableSafeRegion() ||
       fieldID == 0) {
     return;
@@ -1836,21 +1837,20 @@ void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const Uniqu
   if (fieldPair.second.second.GetAttr(FLDATTR_final_boundary_size)) {
     WARN(kLncWarn, "%s:%d warning: this field specified as the global or field boundary length is "
          "assigned or token address. [Use __Unsafe__ to eliminate the warning]",
-         FEManager::GetModule().GetFileNameFromFileNum(fileIdx).c_str(), fileLine);
+         FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
   }
 }
 
-void ENCChecker::CheckBoundaryLenFinalAddr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr,
-                                           uint32 fileIdx, uint32 fileLine) {
+void ENCChecker::CheckBoundaryLenFinalAddr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr, Loc loc) {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || !FEOptions::GetInstance().IsEnableSafeRegion()) {
     return;
   }
   if (expr->GetKind() == kExprAddrofVar) {
     UniqueFEIRVar var = expr->GetVarUses().front()->Clone();
-    CheckBoundaryLenFinalAssign(mirBuilder, var, expr->GetFieldID(), fileIdx, fileLine);
+    CheckBoundaryLenFinalAssign(mirBuilder, var, expr->GetFieldID(), loc);
   } else if (expr->GetKind() == kExprIAddrof) {
     auto *iaddrof = static_cast<FEIRExprIAddrof*>(expr.get());
-    CheckBoundaryLenFinalAssign(mirBuilder, iaddrof->GetClonedPtrType(), expr->GetFieldID(), fileIdx, fileLine);
+    CheckBoundaryLenFinalAssign(mirBuilder, iaddrof->GetClonedPtrType(), expr->GetFieldID(), loc);
   }
 }
 
@@ -1955,7 +1955,7 @@ bool ASTArraySubscriptExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &st
   lowerExprs.emplace_back(baseAddrFEExpr->Clone());
   auto lowerStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertge, std::move(lowerExprs));
   lowerStmt->SetIsComputable(true);
-  lowerStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+  lowerStmt->SetSrcLoc(loc);
   stmts.emplace_back(std::move(lowerStmt));
   // insert upper boundary chencking, baseExpr will be replace by upper boundary var when FEIRStmtNary GenMIRStmts
   std::list<UniqueFEIRExpr> upperExprs;
@@ -1963,7 +1963,7 @@ bool ASTArraySubscriptExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &st
   upperExprs.emplace_back(std::move(baseAddrFEExpr));
   auto upperStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertlt, std::move(upperExprs));
   upperStmt->SetIsComputable(true);
-  upperStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+  upperStmt->SetSrcLoc(loc);
   stmts.emplace_back(std::move(upperStmt));
   return true;
 }
@@ -1984,7 +1984,7 @@ bool ASTUODerefExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, Un
   lowerExprs.emplace_back(baseExpr->Clone());
   auto lowerStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertge, std::move(lowerExprs));
   lowerStmt->SetIsComputable(expr->GetKind() == kExprBinary);
-  lowerStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+  lowerStmt->SetSrcLoc(loc);
   stmts.emplace_back(std::move(lowerStmt));
   // insert upper boundary chencking, baseExpr will be replace by upper boundary var when FEIRStmtNary GenMIRStmts
   std::list<UniqueFEIRExpr> upperExprs;
@@ -1992,7 +1992,7 @@ bool ASTUODerefExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, Un
   upperExprs.emplace_back(std::move(baseExpr));
   auto upperStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertlt, std::move(upperExprs));
   upperStmt->SetIsComputable(expr->GetKind() == kExprBinary);
-  upperStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+  upperStmt->SetSrcLoc(loc);
   stmts.emplace_back(std::move(upperStmt));
   return true;
 }
@@ -2054,7 +2054,7 @@ void ASTCallExpr::InsertBoundaryCheckingInArgs(std::list<UniqueFEIRStmt> &stmts)
     exprs.emplace_back(std::move(baseExpr));
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtCallAssertBoundary>(OP_callassertle, std::move(exprs),
                                                                        GetFuncName(), i);
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+    stmt->SetSrcLoc(loc);
     stmts.emplace_back(std::move(stmt));
   }
 }
@@ -2088,7 +2088,7 @@ void ASTCallExpr::InsertBoundaryCheckingInArgsForICall(std::list<UniqueFEIRStmt>
     exprs.emplace_back(std::move(baseExpr));
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtCallAssertBoundary>(
         OP_callassertle, std::move(exprs), "function_pointer", i);
-    stmt->SetSrcFileInfo(srcFileIdx, srcFileLineNum);
+    stmt->SetSrcLoc(loc);
     stmts.emplace_back(std::move(stmt));
   }
 }
@@ -2136,8 +2136,7 @@ bool ENCChecker::IsSameBoundary(const AttrBoundary &arg1, const AttrBoundary &ar
   return false;
 }
 
-void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
-                                                   uint32 fileNum, uint32 fileLine) {
+void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr, Loc loc) {
   const MIRFuncType *funcType = FEUtils::GetFuncPtrType(dstType);
   if (funcType == nullptr) {
     return;
@@ -2156,12 +2155,12 @@ void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const
     }
     if (!errIdxs.empty()) {
       FE_ERR(kLncErr, "%s:%d error: function pointer and target function's boundary attributes are mismatched "
-             "for the %s argument", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine,
+             "for the %s argument", FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
              PrintParamIdx(errIdxs).c_str());
     }
     if (!IsSameBoundary(srcFunc->GetFuncAttrs().GetAttrBoundary(), funcType->GetRetAttrs().GetAttrBoundary())) {
       FE_ERR(kLncErr, "%s:%d error: function pointer and target function's boundary attributes are mismatched "
-             "for the return value", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine);
+             "for the return value", FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
     }
   }
   const MIRFuncType *srcFuncType = FEUtils::GetFuncPtrType(*srcExpr->GetType()->GenerateMIRTypeAuto());
@@ -2175,11 +2174,12 @@ void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const
     }
     if (!errIdxs.empty()) {
       FE_ERR(kLncErr, "%s:%d error: function pointer's boundary attributes are mismatched for the %s argument",
-             FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine, PrintParamIdx(errIdxs).c_str());
+             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
+             PrintParamIdx(errIdxs).c_str());
     }
     if (!IsSameBoundary(srcFuncType->GetRetAttrs().GetAttrBoundary(), funcType->GetRetAttrs().GetAttrBoundary())) {
       FE_ERR(kLncErr, "%s:%d error: function pointer's boundary attributes are mismatched for the return value",
-             FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine);
+             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
     }
   }
 }
@@ -2192,7 +2192,7 @@ void FEIRStmtDAssign::CheckBoundaryArgsAndRetForFuncPtr(const MIRBuilder &mirBui
   if (fieldID != 0) {
     baseType = FEUtils::GetStructFieldType(static_cast<MIRStructType*>(baseType), fieldID);
   }
-  ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(*baseType, expr, srcFileIndex, srcFileLineNum);
+  ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(*baseType, expr, loc);
 }
 
 void FEIRStmtIAssign::CheckBoundaryArgsAndRetForFuncPtr(const MIRBuilder &mirBuilder, const MIRType &baseType) const {
@@ -2200,7 +2200,7 @@ void FEIRStmtIAssign::CheckBoundaryArgsAndRetForFuncPtr(const MIRBuilder &mirBui
     return;
   }
   MIRType *fieldType = FEUtils::GetStructFieldType(static_cast<const MIRStructType*>(&baseType), fieldID);
-  ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(*fieldType, baseExpr, srcFileIndex, srcFileLineNum);
+  ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(*fieldType, baseExpr, loc);
 }
 
 // ---------------------------

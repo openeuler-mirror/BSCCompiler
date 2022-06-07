@@ -101,17 +101,24 @@ class ASTExpr {
     return GenerateMIRConstImpl();
   }
 
-  void SetSrcLOC(uint32 fileIdx, uint32 lineNum) {
-    srcFileIdx = fileIdx;
-    srcFileLineNum = lineNum;
+  void SetSrcLoc(const Loc &l) {
+    loc = l;
+  }
+
+  Loc GetSrcLoc() const {
+    return loc;
   }
 
   uint32 GetSrcFileIdx() const {
-    return srcFileIdx;
+    return loc.fileIdx;
   }
 
   uint32 GetSrcFileLineNum() const {
-    return srcFileLineNum;
+    return loc.line;
+  }
+
+  uint32 GetSrcFileColumn() const {
+    return loc.column;
   }
 
   void SetEvaluatedFlag(EvaluatedFlag flag) {
@@ -149,9 +156,7 @@ class ASTExpr {
   ASTDecl *refedDecl = nullptr;
   bool isConstantFolded = false;
   ASTValue *value = nullptr;
-
-  uint32 srcFileIdx = 0;
-  uint32 srcFileLineNum = 0;
+  Loc loc = {0, 0, 0};
   EvaluatedFlag evaluatedflag = NotEvaluated;
   bool isRValue = false;
 };

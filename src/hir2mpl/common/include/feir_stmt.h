@@ -216,21 +216,24 @@ class FEIRStmt : public FELinkListNode {
   bool IsStmtInstComment() const;
   bool ShouldHaveLOC() const;
   BaseNode *ReplaceAddrOfNode(BaseNode *node) const;
-  void SetSrcFileInfo(uint32 srcFileIdxIn, uint32 srcFileLineNumIn) {
-    srcFileIndex = srcFileIdxIn;
-    srcFileLineNum = srcFileLineNumIn;
+  void SetSrcLoc(Loc l) {
+    loc = l;
+  }
+
+  Loc GetSrcLoc() const {
+    return loc;
   }
 
   uint32 GetSrcFileIdx() const {
-    return srcFileIndex;
+    return loc.fileIdx;
   }
 
   uint32 GetSrcFileLineNum() const {
-    return srcFileLineNum;
+    return loc.line;
   }
 
   bool HasSetLOCInfo() const {
-    return (srcFileLineNum != 0 || srcFileIndex != 0);
+    return (loc.fileIdx != 0 || loc.line != 0);
   }
 
   bool IsDummy() const {
@@ -290,15 +293,15 @@ class FEIRStmt : public FELinkListNode {
 
   void SetMIRStmtSrcPos(std::list<StmtNode*> &stmts) const {
     if (FEOptions::GetInstance().IsDumpLOC() && !stmts.empty()) {
-      (*stmts.begin())->GetSrcPos().SetFileNum(static_cast<uint16>(srcFileIndex));
-      (*stmts.begin())->GetSrcPos().SetLineNum(srcFileLineNum);
+      (*stmts.begin())->GetSrcPos().SetFileNum(static_cast<uint16>(loc.fileIdx));
+      (*stmts.begin())->GetSrcPos().SetLineNum(loc.line);
+      (*stmts.begin())->GetSrcPos().SetColumn(static_cast<uint16>(loc.column));
     }
   }
 
   FEIRNodeKind kind;
   uint32 id = 0;
-  uint32 srcFileIndex = 0;
-  uint32 srcFileLineNum = 0;
+  Loc loc = {0, 0, 0};
   uint32 hexPC = UINT32_MAX;
   bool isDummy = false;
   bool isFallThru = true;
@@ -446,6 +449,18 @@ class FEIRExpr {
     return HashImpl();
   }
 
+  void SetLoc(const Loc &locIn) {
+    loc = locIn;
+  }
+
+  const Loc GetLoc() const {
+    return loc;
+  }
+
+  std::string Dump() {
+    return GetFEIRNodeKindDescription(kind);
+  }
+
  protected:
   virtual std::unique_ptr<FEIRExpr> CloneImpl() const = 0;
   virtual BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const = 0;
@@ -501,6 +516,7 @@ class FEIRExpr {
   bool hasException : 1;
   bool isBoundaryChecking : 1;
   std::unique_ptr<FEIRType> type;
+  Loc loc = {0, 0, 0};
 };  // class FEIRExpr
 
 using UniqueFEIRExpr = std::unique_ptr<FEIRExpr>;

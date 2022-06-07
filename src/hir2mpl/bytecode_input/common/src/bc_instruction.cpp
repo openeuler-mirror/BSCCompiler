@@ -104,7 +104,8 @@ std::list<UniqueFEIRStmt> BCInstruction::EmitToFEIRStmts() {
 void BCInstruction::SetSrcFileInfo(std::list<UniqueFEIRStmt> &stmts) const {
 #ifdef DEBUG
   if (FEOptions::GetInstance().IsDumpLOC() && !stmts.empty()) {
-    (*stmts.begin())->SetSrcFileInfo(srcFileIdx, srcFileLineNum);
+    Loc loc = {srcFileIdx, srcFileLineNum, 0};
+    (*stmts.begin())->SetSrcLoc(loc);
   }
 #else
   (void) stmts;

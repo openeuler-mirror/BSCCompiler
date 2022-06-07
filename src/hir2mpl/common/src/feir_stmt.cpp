@@ -327,8 +327,8 @@ std::list<StmtNode*> FEIRStmtDAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder) co
   CheckBoundaryArgsAndRetForFuncPtr(mirBuilder);
   StmtNode *mirStmt = mirBuilder.CreateStmtDassign(*dstSym, fieldID, srcNode);
   ans.push_back(mirStmt);
-  ENCChecker::CheckBoundaryLenFinalAssign(mirBuilder, var, fieldID, srcFileIndex, srcFileLineNum);
-  ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, expr, srcFileIndex, srcFileLineNum);
+  ENCChecker::CheckBoundaryLenFinalAssign(mirBuilder, var, fieldID, loc);
+  ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, expr, loc);
   return ans;
 }
 
@@ -339,7 +339,7 @@ void FEIRStmtDAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRSym
   }
   MIRType *srcType = expr->GetType()->GenerateMIRTypeAuto();
   if (fieldID == 0) {
-    ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstSym.GetType(), srcFileIndex,srcFileLineNum);
+    ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstSym.GetType(), loc);
     if (!dstSym.GetAttr(ATTR_nonnull)) {
       return;
     }
@@ -347,14 +347,14 @@ void FEIRStmtDAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRSym
     FieldID tmpID = fieldID;
     FieldPair fieldPair = static_cast<MIRStructType*>(dstSym.GetType())->TraverseToFieldRef(tmpID);
     MIRType *dstType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
-    ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, srcFileIndex,srcFileLineNum);
+    ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, loc);
     if (!fieldPair.second.second.GetAttr(FLDATTR_nonnull)) {
       return;
     }
   }
   if (ENCChecker::HasNullExpr(expr)) {
     FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull pointer",
-           FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
+           FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
     return;
   }
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assignassertnonnull, expr->Clone());
@@ -858,8 +858,8 @@ std::list<StmtNode*> FEIRStmtReturn::GenMIRStmtsImpl(MIRBuilder &mirBuilder) con
       mirStmt = mirBuilder.CreateStmtReturn(nullptr);
     } else {
       InsertNonnullChecking(mirBuilder, ans);
-      ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, expr, srcFileIndex, srcFileLineNum);
-      ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, expr, srcFileIndex, srcFileLineNum);
+      ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, expr, loc);
+      ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, expr, loc);
       mirStmt = mirBuilder.CreateStmtReturn(srcNode);
     }
   }
@@ -873,13 +873,13 @@ void FEIRStmtReturn::InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<Stm
   }
   MIRType *srcType = expr->GetType()->GenerateMIRTypeAuto();
   MIRType *dstType = mirBuilder.GetCurrentFunction()->GetReturnType();
-  ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, srcFileIndex, srcFileLineNum);
+  ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, loc);
   if (!mirBuilder.GetCurrentFunction()->GetAttrs().GetAttr(FUNCATTR_nonnull)) {
     return;
   }
   if (ENCChecker::HasNullExpr(expr)) {
     FE_ERR(kLncErr, "%s:%d error: %s return nonnull but got null pointer",
-           FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+           FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
            mirBuilder.GetCurrentFunction()->GetName().c_str());
     return;
   }
@@ -1039,7 +1039,7 @@ bool FEIRStmtSwitch::CalculateDefs4AllUsesImpl(FEIRStmtCheckPoint &checkPoint, F
 
 bool FEIRStmtSwitch::IsFallThroughImpl() const {
   WARN(kLncWarn, "%s:%d stmt[%s] need to be lowed when building bb",
-       FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+       FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
        GetFEIRNodeKindDescription(kind).c_str());
   return false;
 }
@@ -1079,7 +1079,7 @@ FEIRStmtSwitch2::~FEIRStmtSwitch2() {
 
 bool FEIRStmtSwitch2::IsFallThroughImpl() const {
   WARN(kLncWarn, "%s:%d stmt[%s] need to be lowed when building bb",
-       FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+       FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
        GetFEIRNodeKindDescription(kind).c_str());
   return false;
 }
@@ -1128,7 +1128,7 @@ FEIRStmtIf::FEIRStmtIf(UniqueFEIRExpr argCondExpr,
 
 bool FEIRStmtIf::IsFallThroughImpl() const {
   WARN(kLncWarn, "%s:%d stmt[%s] need to be lowed when building bb",
-       FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+       FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
        GetFEIRNodeKindDescription(kind).c_str());
   return false;
 }
@@ -1854,8 +1854,8 @@ std::list<StmtNode*> FEIRStmtCallAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder)
   const std::string funcName = methodInfo.GetMirFunc()->GetName();
   for (const UniqueFEIRExpr &exprArg : exprArgs) {
     InsertNonnullCheckingInArgs(exprArg, index++, mirBuilder, ans, funcName);
-    ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, exprArg, srcFileIndex, srcFileLineNum);
-    ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, exprArg, srcFileIndex, srcFileLineNum);
+    ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, exprArg, loc);
+    ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, exprArg, loc);
     BaseNode *node = exprArg->GenMIRNode(mirBuilder);
     args.push_back(node);
   }
@@ -1898,13 +1898,13 @@ void FEIRStmtCallAssign::InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr,
   }
   MIRType *srcType = expr->GetType()->GenerateMIRTypeAuto();
   MIRType *dstType = methodInfo.GetMirFunc()->GetNthParamType(index);
-  ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, srcFileIndex, srcFileLineNum);
+  ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, loc);
   if (!methodInfo.GetMirFunc()->GetNthParamAttr(index).GetAttr(ATTR_nonnull)) {
     return;
   }
   if (ENCChecker::HasNullExpr(expr)) {
     FE_ERR(kLncErr, "%s:%d error: null passed to a callee that requires a nonnull argument[the %s argument]",
-           FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+           FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
            ENCChecker::GetNthStr(index).c_str());
     return;
   }
@@ -2018,13 +2018,13 @@ void FEIRStmtICallAssign::InsertNonnullCheckingInArgs(MIRBuilder &mirBuilder, st
     }
     MIRType *srcType = expr->GetType()->GenerateMIRTypeAuto();
     MIRType *dstType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetNthParamType(idx));
-    ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, srcFileIndex, srcFileLineNum);
+    ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, loc);
     if (!funcType->GetNthParamAttrs(idx).GetAttr(ATTR_nonnull)) {
       continue;
     }
     if (ENCChecker::HasNullExpr(expr)) {
       FE_ERR(kLncErr, "%s:%d error: null passed to a callee that requires a nonnull argument[the %s argument]",
-             FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
              ENCChecker::GetNthStr(idx).c_str());
       continue;
     }
@@ -2059,8 +2059,8 @@ std::list<StmtNode*> FEIRStmtICallAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder
   args.reserve(exprArgs.size());
   for (const UniqueFEIRExpr &exprArg : exprArgs) {
     BaseNode *node = exprArg->GenMIRNode(mirBuilder);
-    ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, exprArg, srcFileIndex, srcFileLineNum);
-    ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, exprArg, srcFileIndex, srcFileLineNum);
+    ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, exprArg, loc);
+    ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, exprArg, loc);
     args.push_back(node);
   }
   InsertNonnullCheckingInArgs(mirBuilder, ans);
@@ -2307,6 +2307,7 @@ std::unique_ptr<FEIRExpr> FEIRExpr::Clone() {
   expr->isAddrof = IsAddrof();
   expr->hasException = HasException();
   expr->isBoundaryChecking = IsBoundaryChecking();
+  expr->SetLoc(loc);
   return expr;
 }
 
@@ -3914,7 +3915,8 @@ std::list<StmtNode*> FEIRStmtPesudoLabel2::GenMIRStmtsImpl(MIRBuilder &mirBuilde
 FEIRStmtPesudoLOC::FEIRStmtPesudoLOC(uint32 argSrcFileIdx, uint32 argLineNumber)
     : FEIRStmt(kStmtPesudoLOC) {
   isAuxPre = true;
-  SetSrcFileInfo(argSrcFileIdx, argLineNumber);
+  Loc loc = {argSrcFileIdx, argLineNumber, 0};
+  SetSrcLoc(loc);
 }
 
 std::list<StmtNode*> FEIRStmtPesudoLOC::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
@@ -4170,8 +4172,8 @@ std::list<StmtNode*> FEIRStmtIAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder) co
   AssignBoundaryVarAndChecking(mirBuilder, ans);
   IassignNode *iAssignNode = mirBuilder.CreateStmtIassign(*mirType, fieldID, addrNode, baseNode);
   ans.emplace_back(iAssignNode);
-  ENCChecker::CheckBoundaryLenFinalAssign(mirBuilder, addrType, fieldID, srcFileIndex, srcFileLineNum);
-  ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, addrExpr, srcFileIndex, srcFileLineNum);
+  ENCChecker::CheckBoundaryLenFinalAssign(mirBuilder, addrType, fieldID, loc);
+  ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, addrExpr, loc);
   return ans;
 }
 
@@ -4184,11 +4186,11 @@ void FEIRStmtIAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRTyp
   FieldPair fieldPair = static_cast<const MIRStructType&>(baseType).TraverseToFieldRef(tmpID);
   MIRType *srcType = baseExpr->GetType()->GenerateMIRTypeAuto();
   MIRType *dstType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
-  ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, srcFileIndex, srcFileLineNum);
+  ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, loc);
   if (fieldPair.second.second.GetAttr(FLDATTR_nonnull)) {
     if (ENCChecker::HasNullExpr(baseExpr)) {
       FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull pointer",
-             FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
+             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
       return;
     }
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assignassertnonnull, baseExpr->Clone());
@@ -4200,7 +4202,7 @@ void FEIRStmtIAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRTyp
 // ---------- FEIRStmtDoWhile ----------
 bool FEIRStmtDoWhile::IsFallThroughImpl() const {
   WARN(kLncWarn, "%s:%d stmt[%s] need to be lowed when building bb",
-       FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+       FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
        GetFEIRNodeKindDescription(kind).c_str());
   return false;
 }

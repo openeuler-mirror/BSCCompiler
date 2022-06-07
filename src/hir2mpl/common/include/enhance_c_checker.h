@@ -35,14 +35,12 @@ class ENCChecker {
                                        std::list<UniqueFEIRStmt> &stmts);
   static std::string GetNthStr(size_t index);
   static std::string PrintParamIdx(const std::list<size_t> &idxs);
-  static void CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
-                                               uint32 fileNum, uint32 fileLine);
+  static void CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr, Loc loc);
   static bool HasNonnullFieldInStruct(const MIRType &mirType);
   static bool HasNonnullFieldInPtrStruct(const MIRType &mirType);
-  static void CheckNonnullFieldInStruct(const MIRType &src, const MIRType &dst, uint32 fileIdx, uint32 fileLine);
+  static void CheckNonnullFieldInStruct(const MIRType &src, const MIRType &dst, Loc loc);
   static bool IsSameBoundary(const AttrBoundary &arg1, const AttrBoundary &arg2);
-  static void CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
-                                                uint32 fileNum, uint32 fileLine);
+  static void CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr, Loc loc);
   static UniqueFEIRExpr FindBaseExprInPointerOperation(const UniqueFEIRExpr &expr, bool isIncludingAddrof = false);
   static MIRType *GetTypeFromAddrExpr(const UniqueFEIRExpr &expr);
   static MIRType *GetArrayTypeFromExpr(const UniqueFEIRExpr &expr);
@@ -72,15 +70,13 @@ class ENCChecker {
                                                  UniqueFEIRExpr lenExpr, std::list<UniqueFEIRStmt> &stmts);
   static UniqueFEIRExpr GetGlobalOrFieldLenExprInExpr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr);
   static void InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans,
-                                           const UniqueFEIRExpr &srcExpr, uint32 fileIdx, uint32 fileLine);
+                                           const UniqueFEIRExpr &srcExpr, Loc loc);
   static UniqueFEIRStmt InsertBoundaryLEChecking(UniqueFEIRExpr lenExpr, const UniqueFEIRExpr &srcExpr,
                                                  const UniqueFEIRExpr &dstExpr);
-  static void CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRVar &var, FieldID fieldID,
-                                          uint32 fileIdx, uint32 fileLine);
+  static void CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRVar &var, FieldID fieldID, Loc loc);
   static void CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRType &addrType, FieldID fieldID,
-                                          uint32 fileIdx, uint32 fileLine);
-  static void CheckBoundaryLenFinalAddr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr,
-                                        uint32 fileIdx, uint32 fileLine);
+                                          Loc loc);
+  static void CheckBoundaryLenFinalAddr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr, Loc loc);
   static MapleVector<BaseNode*> ReplaceBoundaryChecking(MIRBuilder &mirBuilder, const FEIRStmtNary *stmt);
   static UniqueFEIRExpr GetBoundaryLenExprCache(uint32 hash);
   static UniqueFEIRExpr GetBoundaryLenExprCache(const TypeAttrs &attr);

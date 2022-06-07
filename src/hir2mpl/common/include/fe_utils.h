@@ -25,6 +25,12 @@
 #include "mir_nodes.h"
 
 namespace maple {
+struct Loc {
+  uint32 fileIdx;
+  uint32 line;
+  uint32 column;
+};
+
 class FEUtils {
  public:
   FEUtils() = default;

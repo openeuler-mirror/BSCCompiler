@@ -93,38 +93,38 @@ Pos LibAstFile::GetDeclPosInfo(const clang::Decl &decl) const {
                         static_cast<uint32>(fullLocation.getSpellingColumnNumber()));
 }
 
-Pos LibAstFile::GetStmtLOC(const clang::Stmt &stmt) const {
+Loc LibAstFile::GetStmtLOC(const clang::Stmt &stmt) const {
   return GetLOC(stmt.getBeginLoc());
 }
 
-Pos LibAstFile::GetExprLOC(const clang::Expr &expr) const {
+Loc LibAstFile::GetExprLOC(const clang::Expr &expr) const {
   return GetLOC(expr.getExprLoc());
 }
 
-Pos LibAstFile::GetLOC(const clang::SourceLocation &srcLoc) const {
+Loc LibAstFile::GetLOC(const clang::SourceLocation &srcLoc) const {
   if (srcLoc.isInvalid()) {
-    return std::make_pair(0, 0);
+    return {0, 0, 0};
   }
   if (srcLoc.isFileID()) {
     clang::PresumedLoc pLOC = astContext->getSourceManager().getPresumedLoc(srcLoc);
     if (pLOC.isInvalid()) {
-      return std::make_pair(0, 0);
+      return {0, 0, 0};
     }
     std::string fileName = pLOC.getFilename();
     GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fileName);
     for (const auto &info : FEManager::GetModule().GetSrcFileInfo()) {
       if (info.first == strIdx) {
-        return std::make_pair(info.second, static_cast<uint32>(pLOC.getLine()));
+        return {info.second, static_cast<uint32>(pLOC.getLine()), static_cast<uint32>(pLOC.getColumn())};
       }
     }
     if (FEManager::GetModule().GetSrcFileInfo().empty()) {
       // src files start from 2, 1 is mpl file
       FEManager::GetModule().PushbackFileInfo(MIRInfoPair(strIdx, 2));
-      return std::make_pair(2, static_cast<uint32>(pLOC.getLine()));
+      return {2, static_cast<uint32>(pLOC.getLine()), static_cast<uint32>(pLOC.getColumn())};
     } else {
       auto last = FEManager::GetModule().GetSrcFileInfo().rbegin();
       FEManager::GetModule().PushbackFileInfo(MIRInfoPair(strIdx, last->second + 1));
-      return std::make_pair(last->second + 1, static_cast<uint32>(pLOC.getLine()));
+      return {last->second + 1, static_cast<uint32>(pLOC.getLine()), static_cast<uint32>(pLOC.getColumn())};
     }
   }
 
@@ -342,8 +342,8 @@ void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) {
     }
   }
   CHECK_FATAL(unsupportedFuncAttrs.empty(), "%s:%d error: The function %s has unsupported attribute(s): %s",
-              FEManager::GetModule().GetFileNameFromFileNum(GetLOC(decl.getLocation()).first).c_str(),
-              GetLOC(decl.getLocation()).second,
+              FEManager::GetModule().GetFileNameFromFileNum(GetLOC(decl.getLocation()).fileIdx).c_str(),
+              GetLOC(decl.getLocation()).line,
               GetMangledName(decl).c_str(),
               unsupportedFuncAttrs.c_str());
 }
@@ -377,8 +377,8 @@ void LibAstFile::CheckUnsupportedVarAttrs(const clang::VarDecl &decl) {
     }
   }
   CHECK_FATAL(unsupportedVarAttrs.empty(), "%s:%d error: The variable %s has unsupported attribute(s): %s",
-              FEManager::GetModule().GetFileNameFromFileNum(GetLOC(decl.getLocation()).first).c_str(),
-              GetLOC(decl.getLocation()).second,
+              FEManager::GetModule().GetFileNameFromFileNum(GetLOC(decl.getLocation()).fileIdx).c_str(),
+              GetLOC(decl.getLocation()).line,
               GetMangledName(decl).c_str(),
               unsupportedVarAttrs.c_str());
 }
@@ -411,8 +411,8 @@ void LibAstFile::CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl) {
     }
   }
   CHECK_FATAL(unsupportedTypeAttrs.empty(), "%s:%d error: struct or union %s has unsupported type attribute(s): %s",
-              FEManager::GetModule().GetFileNameFromFileNum(GetLOC(decl.getLocation()).first).c_str(),
-              GetLOC(decl.getLocation()).second,
+              FEManager::GetModule().GetFileNameFromFileNum(GetLOC(decl.getLocation()).fileIdx).c_str(),
+              GetLOC(decl.getLocation()).line,
               GetMangledName(decl).c_str(),
               unsupportedTypeAttrs.c_str());
 }

@@ -20,6 +20,7 @@
 #include "mir_module.h"
 #include "mir_builder.h"
 #include "feir_type.h"
+#include "fe_utils.h"
 #include "generic_attrs.h"
 
 namespace maple {
@@ -122,16 +123,18 @@ class FEIRVar {
 
   MIRSymbol *GenerateGlobalMIRSymbol(MIRBuilder &builder) const {
     MIRSymbol *mirSym = GenerateGlobalMIRSymbolImpl(builder);
-    mirSym->GetSrcPosition().SetFileNum(static_cast<uint16>(srcFileIdx));
-    mirSym->GetSrcPosition().SetLineNum(srcFileLineNum);
+    mirSym->GetSrcPosition().SetFileNum(static_cast<uint16>(loc.fileIdx));
+    mirSym->GetSrcPosition().SetLineNum(loc.line);
+    mirSym->GetSrcPosition().SetColumn(static_cast<uint16>(loc.column));
     builder.GetMirModule().InsertInlineGlobal(mirSym->GetStIdx().Idx());
     return mirSym;
   }
 
   MIRSymbol *GenerateLocalMIRSymbol(MIRBuilder &builder) const {
     MIRSymbol *mirSym = GenerateLocalMIRSymbolImpl(builder);
-    mirSym->GetSrcPosition().SetFileNum(static_cast<uint16>(srcFileIdx));
-    mirSym->GetSrcPosition().SetLineNum(srcFileLineNum);
+    mirSym->GetSrcPosition().SetFileNum(static_cast<uint16>(loc.fileIdx));
+    mirSym->GetSrcPosition().SetLineNum(loc.line);
+    mirSym->GetSrcPosition().SetColumn(static_cast<uint16>(loc.column));
     return mirSym;
   }
 
@@ -167,17 +170,20 @@ class FEIRVar {
     sectionAttr = str;
   }
 
-  void SetSrcLOC(uint32 fileIdx, uint32 lineNum) {
-    srcFileIdx = fileIdx;
-    srcFileLineNum = lineNum;
+  void SetSrcLoc(Loc l) {
+    loc = l;
+  }
+
+  Loc GetSrcLoc() const {
+    return loc;
   }
 
   uint32 GetSrcFileIdx() const {
-    return srcFileIdx;
+    return loc.fileIdx;
   }
 
   uint32 GetSrcFileLineNum() const {
-    return srcFileLineNum;
+    return loc.line;
   }
 
   void SetBoundaryLenExpr(std::unique_ptr<FEIRExpr> expr);
@@ -199,8 +205,7 @@ class FEIRVar {
   UniqueFEIRType type;
   UniqueFEIRVarTrans trans;
   GenericAttrs genAttrs;
-  uint32 srcFileIdx = 0;
-  uint32 srcFileLineNum = 0;
+  Loc loc = {0, 0, 0};
   std::string sectionAttr;
   std::unique_ptr<FEIRExpr> boundaryLenExpr;
 };
