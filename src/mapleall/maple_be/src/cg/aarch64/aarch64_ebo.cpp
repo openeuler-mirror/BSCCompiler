@@ -658,6 +658,10 @@ bool AArch64Ebo::SimplifyConstOperand(Insn &insn, const MapleVector<Operand*> &o
       if (prevInfo0->redefined) {
         return result;
       }
+     /* Implicit conversion */
+      if (insn.GetOperand(kInsnFirstOpnd).GetSize() != insn.GetOperand(kInsnSecondOpnd).GetSize()) {
+        return result;
+      }
       Operand &prevOpnd0 = prev->GetOperand(kInsnSecondOpnd);
       ImmOperand &imm0 = static_cast<ImmOperand&>(prev->GetOperand(kInsnThirdOpnd));
       int64_t val = imm0.GetValue() + immOpnd->GetValue();
