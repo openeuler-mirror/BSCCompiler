@@ -2297,14 +2297,6 @@ void Emitter::EmitGlobalVariable() {
     if (mirSymbol == nullptr || mirSymbol->IsDeleted() || mirSymbol->GetStorageClass() == kScUnused) {
       continue;
     }
-    if (GetCG()->GetMIRModule()->IsCModule() && mirSymbol->GetStorageClass() == kScExtern) {
-      /* only emit weak extern at present */
-      if (mirSymbol->IsWeak()) {
-        EmitAsmLabel(*mirSymbol, kAsmWeak);
-      } else {
-        continue;
-      }
-    }
     if (mirSymbol->GetSKind() == kStFunc) {
       EmitAliasAndRef(*mirSymbol);
     }
@@ -2416,7 +2408,14 @@ void Emitter::EmitGlobalVariable() {
     if (mirType == nullptr) {
       continue;
     }
-
+    if (GetCG()->GetMIRModule()->IsCModule() && mirSymbol->GetStorageClass() == kScExtern) {
+      /* only emit weak & initialized extern at present */
+      if (mirSymbol->IsWeak() || mirSymbol->IsConst()) {
+        EmitAsmLabel(*mirSymbol, kAsmWeak);
+      } else {
+        continue;
+      }
+    }
     /*
      * emit uninitialized global/static variables.
      * these variables store in .comm section.
@@ -2449,6 +2448,7 @@ void Emitter::EmitGlobalVariable() {
 
     /* emit initialized global/static variables. */
     if (mirSymbol->GetStorageClass() == kScGlobal ||
+        (mirSymbol->GetStorageClass() == kScExtern && GetCG()->GetMIRModule()->IsCModule()) ||
         (mirSymbol->GetStorageClass() == kScFstatic && !mirSymbol->IsReadOnly())) {
       /* Emit section */
       EmitAsmLabel(*mirSymbol, kAsmType);

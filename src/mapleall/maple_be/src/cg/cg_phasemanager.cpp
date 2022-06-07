@@ -204,8 +204,20 @@ void CgFuncPM::SweepUnusedStaticSymbol(MIRModule &m) {
     }
     m.SetCurFunction(mirFunc);
     CollectStaticSymbolInFunction(*mirFunc);
+    /* scan function symbol declaration
+     * find addrof static const */
+    MIRSymbolTable *funcSymTab = mirFunc->GetSymTab();
+    if (funcSymTab) {
+      size_t localSymSize = funcSymTab->GetSymbolTableSize();
+      for (uint32 i = 0; i < localSymSize; ++i) {
+        MIRSymbol *st = funcSymTab->GetSymbolFromStIdx(i);
+        if (st && st->IsConst()) {
+          MIRConst *mirConst = st->GetKonst();
+          CollectStaticSymbolInVar(mirConst);
+        }
+      }
+    }
   }
-
   /* scan global symbol declaration
    * find addrof static const */
   auto &symbolSet = m.GetSymbolSet();
