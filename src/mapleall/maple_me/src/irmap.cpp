@@ -1132,8 +1132,11 @@ MeExpr *IRMap::SimplifyLshrExpr(const OpMeExpr *shrExpr) {
       opnd0 = opnd1;
       opnd1 = band->GetOpnd(0);
     }
-    auto bitOneCount = countr_one(static_cast<uint64>(static_cast<ConstMeExpr*>(opnd0)->GetIntValue()) >>
-                                  static_cast<uint64>(shrOffset));
+    int64 const0 = static_cast<ConstMeExpr*>(opnd0)->GetIntValue();
+    if (GetPrimTypeSize(opnd0->GetPrimType()) < GetPrimTypeSize(PTY_u64)) {
+      const0 = static_cast<int64>(static_cast<uint32>(const0));
+    }
+    auto bitOneCount = countr_one(static_cast<uint64>(const0) >> static_cast<uint64>(shrOffset));
     if (bitOneCount == -1) {
       return nullptr;
     } else if (bitOneCount == 0) {
