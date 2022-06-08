@@ -185,9 +185,6 @@ void AArch64GenProEpilog::TailCallBBOpt(BB &bb, MapleSet<Insn*> &callInsns, BB &
  *  Return value: true if function do not need Prologue/Epilogue. false otherwise.
  */
 bool AArch64GenProEpilog::TailCallOpt() {
-  if (cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
-    return false;
-  }
   /* Count how many call insns in the whole function. */
   uint32 nCount = 0;
   bool hasGetStackClass = false;
@@ -1229,7 +1226,9 @@ void AArch64GenProEpilog::GeneratePushRegs() {
       } else {
         immOpnd = &aarchCGFunc.CreateImmOperand(argsToStkPassSize, k32BitSize, true);
       }
-      aarchCGFunc.SelectAdd(fpOpnd, spOpnd, *immOpnd, PTY_u64);
+      if (isLmbc == false || cgFunc.SeenFP() || cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
+        aarchCGFunc.SelectAdd(fpOpnd, spOpnd, *immOpnd, PTY_u64);
+      }
       cgFunc.GetCurBB()->GetLastInsn()->SetFrameDef(true);
       if (cgFunc.GenCfi()) {
         cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiDefCfaInsn(stackBaseReg,
