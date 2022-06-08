@@ -979,6 +979,10 @@ bool AArch64Ebo::CombineMultiplySub(Insn *insn, OpndInfo *opndInfo, bool is64bit
     Operand &res = insn->GetOperand(kInsnFirstOpnd);
     Operand &opnd1 = insn1->GetOperand(kInsnSecondOpnd);
     Operand &opnd2 = insn1->GetOperand(kInsnThirdOpnd);
+    /* may overflow */
+    if ((insn1->GetOperand(kInsnFirstOpnd).GetSize() == k32BitSize) && is64bits) {
+      return false;
+    }
     MOperator mOp = isFp ? (is64bits ? MOP_dmsub : MOP_smsub) : (is64bits ? MOP_xmsubrrrr : MOP_wmsubrrrr);
     insn->GetBB()->ReplaceInsn(*insn, cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, res, opnd1, opnd2, subOpnd));
     return true;

@@ -1674,6 +1674,16 @@ bool ValidBitNumberProp::CheckCondition(Insn &insn) {
       if (useInsn->GetMachineOpcode() == MOP_xuxtw64) {
         return false;
       }
+      /* if srcOpnd upper 32 bits are valid, it can not prop to mop_x */
+      if (srcOpnd->GetSize() == k64BitSize && destOpnd->GetSize() == k64BitSize) {
+        const AArch64MD *useMD = &AArch64CG::kMd[useInsn->GetMachineOpcode()];
+        for (auto opndUseIt : destUseIt.second->GetOperands()) {
+          OpndProp *useProp = useMD->operand[opndUseIt.first];
+          if (useProp->GetSize() == k64BitSize) {
+            return false;
+          }
+        }
+      }
     }
     srcVersion->SetImplicitCvt();
     return true;
