@@ -8095,11 +8095,6 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
     BaseNode *argExpr = naryNode.Opnd(i);
     PrimType primType = argExpr->GetPrimType();
     ASSERT(primType != PTY_void, "primType should not be void");
-    MIRFunction *callee = nullptr;
-    if (dynamic_cast<CallNode*>(&naryNode) != nullptr) {
-      auto calleePuIdx = static_cast<CallNode&>(naryNode).GetPUIdx();
-      callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(calleePuIdx);
-    }
     if (callee != nullptr && pnum < callee->GetFormalCount() && callee->GetFormal(pnum) != nullptr) {
       is64x1vec = callee->GetFormal(pnum)->GetAttr(ATTR_oneelem_simd);
     }
