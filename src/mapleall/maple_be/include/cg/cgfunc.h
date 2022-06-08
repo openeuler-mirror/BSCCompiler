@@ -1107,6 +1107,14 @@ class CGFunc {
     return useFP;
   }
 
+  void UnsetSeenFP() {
+    seenFP = false;
+  }
+
+  bool SeenFP() const {
+    return seenFP;
+  }
+
   void UpdateAllRegisterVregMapping(MapleMap<regno_t, PregIdx> &newMap);
 
   void RegisterVregMapping(regno_t vRegNum, PregIdx pidx) {
@@ -1276,6 +1284,7 @@ class CGFunc {
   const MapleString shortFuncName;
   bool hasAsm = false;
   bool useFP = true;
+  bool seenFP = true;
 
   /* save stack protect kinds which can trigger stack protect */
   uint8 stackProtectInfo = 0;
