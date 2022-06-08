@@ -296,16 +296,15 @@ void DriverRunner::RunNewPM(const std::string &output, const std::string &vtable
 void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &output, const std::string &vtableImplFile) {
   CHECK_MODULE();
   theMIRModule = theModule;
-  if (withDwarf && !theModule->IsWithDbgInfo()) {
-    std::cout << "set up debug info " << std::endl;
-    theMIRModule->GetDbgInfo()->BuildDebugInfo();
-  }
   if (mpl2mplOptions != nullptr || meOptions != nullptr) {
     // multi-thread is not supported for now.
     MeOption::threads = 1;
     // main entry of newpm for me&mpl2mpl
     RunNewPM(output, vtableImplFile);
-    return;
+  }
+  if (withDwarf && !theModule->IsWithDbgInfo()) {
+    std::cout << "set up debug info " << std::endl;
+    theMIRModule->GetDbgInfo()->BuildDebugInfo();
   }
 }
 
