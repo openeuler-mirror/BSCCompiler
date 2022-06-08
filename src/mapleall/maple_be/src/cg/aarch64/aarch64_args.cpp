@@ -38,7 +38,7 @@ void AArch64MoveRegArgs::CollectRegisterArgs(std::map<uint32, AArch64reg> &argsL
   uint32 start = 0;
   if (numFormal) {
     MIRFunction *func = const_cast<MIRFunction *>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
-    if (func->IsFirstArgReturn()) {
+    if (func->IsReturnStruct() && func->IsFirstArgReturn()) {
       TyIdx tyIdx = func->GetFuncRetStructTyIdx();
       if (aarchCGFunc->GetBecommon().GetTypeSize(tyIdx) <= k16ByteSize) {
         start = 1;
@@ -436,7 +436,7 @@ void AArch64MoveRegArgs::MoveVRegisterArgs() {
   uint32 start = 0;
   if (formalCount) {
     MIRFunction *func = const_cast<MIRFunction*>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
-    if (func->IsFirstArgReturn()) {
+    if (func->IsReturnStruct() && func->IsFirstArgReturn()) {
       TyIdx tyIdx = func->GetFuncRetStructTyIdx();
       if (aarchCGFunc->GetBecommon().GetTypeSize(tyIdx) <= k16BitSize) {
         start = 1;
