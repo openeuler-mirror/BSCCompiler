@@ -210,7 +210,7 @@ void AArch64MemLayout::LayoutFormalParams() {
     AArch64SymbolAlloc *symLoc = memAllocator->GetMemPool()->New<AArch64SymbolAlloc>();
     SetSymAllocInfo(stIndex, *symLoc);
     if (i == 0) {
-      if (mirFunction->IsFirstArgReturn()) {
+      if (mirFunction->IsReturnStruct() && mirFunction->IsFirstArgReturn()) {
         symLoc->SetMemSegment(GetSegArgsRegPassed());
         symLoc->SetOffset(GetSegArgsRegPassed().GetSize());
         TyIdx tyIdx = mirFunction->GetFuncRetStructTyIdx();
@@ -395,7 +395,7 @@ void AArch64MemLayout::LayoutReturnRef(std::vector<MIRSymbol*> &returnDelays,
 void AArch64MemLayout::LayoutActualParams() {
   for (size_t i = 0; i < mirFunction->GetFormalCount(); ++i) {
     if (i == 0) {
-      if (mirFunction->IsReturnStruct()) {
+      if (mirFunction->IsReturnStruct() && mirFunction->IsFirstArgReturn()) {
         continue;
       }
     }
