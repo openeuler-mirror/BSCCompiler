@@ -2686,10 +2686,13 @@ std::unique_ptr<ValueRange> ValueRangePropagation::NegValueRange(const BB &bb, M
   return valueRangePtr;
 }
 
-ValueRange *ValueRangePropagation::FindValueRangeWithCompareOp(const BB &bb, MeExpr &expr) {
+ValueRange *ValueRangePropagation::FindValueRangeWithCompareOp(const BB &bb, MeExpr &expr, MeExpr *preExpr) {
   auto op = expr.GetOp();
   if (op == OP_neg) {
     auto *opnd = expr.GetOpnd(0);
+    if (opnd == preExpr) {
+      return nullptr;
+    }
     auto valueRangePtr = NegValueRange(bb, *opnd);
     auto *resValueRange = valueRangePtr.get();
     (void)Insert2Caches(bb.GetBBId(), expr.GetExprID(), std::move(valueRangePtr));
@@ -2773,7 +2776,7 @@ ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr) {
       if (valueRange != nullptr && valueRange->IsEqualAfterCVT(expr.GetPrimType(), (*itOfExprs)->GetPrimType())) {
         return valueRange;
       }
-      valueRange = FindValueRangeWithCompareOp(bb, **itOfExprs);
+      valueRange = FindValueRangeWithCompareOp(bb, **itOfExprs, &expr);
       if (valueRange != nullptr) {
         return valueRange;
       }

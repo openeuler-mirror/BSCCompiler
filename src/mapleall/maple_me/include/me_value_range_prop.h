@@ -646,7 +646,10 @@ class ValueRangePropagation {
   }
 
   void JudgeEqual(MeExpr &expr, ValueRange &vrOfLHS, ValueRange &vrOfRHS, std::unique_ptr<ValueRange> &valueRangePtr);
-  ValueRange *FindValueRangeWithCompareOp(const BB &bb, MeExpr &expr);
+
+  // The pairOfExprs map collects the exprs which have the same valueRange in bbs,
+  // the pair of expr and preExpr is element of pairOfExprs.
+  ValueRange *FindValueRangeWithCompareOp(const BB &bb, MeExpr &expr, MeExpr *preExpr = nullptr);
   ValueRange *FindValueRange(const BB &bb, MeExpr &expr);
   void DealWithPhi(const BB &bb);
   void DealWithCondGoto(BB &bb, MeStmt &stmt);
