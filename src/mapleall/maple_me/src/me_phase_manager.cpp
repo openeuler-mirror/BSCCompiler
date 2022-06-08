@@ -140,8 +140,8 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
   }
   if (genLMBC) {
     m.SetFlavor(kFlavorLmbc);
+    GlobalMemLayout globalMemLayout(&m, &m.GetMPAllocator());
     maplebe::BECommon beCommon(m);
-    GlobalMemLayout globalMemLayout(&beCommon, &m, &m.GetMPAllocator());
     maplebe::CGLowerer cgLower(m, beCommon, false, false);
     cgLower.RegisterBuiltIns();
     cgLower.RegisterExternalLibraryFunctions();
@@ -153,14 +153,15 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
       cgLower.LowerFunc(*func);
       MemPool *layoutMp = memPoolCtrler.NewMemPool("layout mempool", true);
       MapleAllocator layoutAlloc(layoutMp);
-      LMBCMemLayout localMemLayout(func, &layoutAlloc);
+      LMBCMemLayout localMemLayout(func, &globalMemLayout.seg_GPbased, &layoutAlloc);
       localMemLayout.LayoutStackFrame();
       LMBCLowerer lmbcLowerer(&m, &beCommon, func, &globalMemLayout, &localMemLayout);
       lmbcLowerer.LowerFunction();
       func->SetFrameSize(localMemLayout.StackFrameSize());
-      func->SetUpFormalSize(localMemLayout.UpformalSize());
       memPoolCtrler.DeleteMemPool(layoutMp);
     }
+    globalMemLayout.seg_GPbased.size = maplebe::RoundUp(globalMemLayout.seg_GPbased.size, GetPrimTypeSize(PTY_ptr));
+    m.SetGlobalMemSize(globalMemLayout.seg_GPbased.size);
     // output .lmbc
     BinaryMplt binMplt(m);
     std::string modFileName = m.GetFileName();

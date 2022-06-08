@@ -1017,7 +1017,9 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
     }
     case OP_asm:
     case OP_icall:
-    case OP_icallassigned: {
+    case OP_icallassigned:
+    case OP_icallproto:
+    case OP_icallprotoassigned: {
       for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
         const AliasInfo &ainfo = CreateAliasInfoExpr(*stmt.Opnd(i));
         if (stmt.GetOpCode() != OP_asm && i == 0) {
@@ -2563,6 +2565,7 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
     case OP_customcallassigned:
     case OP_polymorphiccallassigned:
     case OP_icallassigned:
+    case OP_icallprotoassigned:
     case OP_virtualcall:
     case OP_virtualicall:
     case OP_superclasscall:
@@ -2570,7 +2573,8 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
     case OP_interfaceicall:
     case OP_customcall:
     case OP_polymorphiccall:
-    case OP_icall: {
+    case OP_icall:
+    case OP_icallproto: {
       InsertMayDefUseCall(stmt, bbID, false);
       return;
     }

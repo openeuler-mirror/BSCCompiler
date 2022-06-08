@@ -229,9 +229,7 @@ bool MIRParser::ParsePseudoReg(PrimType primType, PregIdx &pRegIdx) {
   MIRPreg *preg = curfunc->GetPregTab()->PregFromPregIdx(pRegIdx);
   if (primType != kPtyInvalid) {
     if (preg->GetPrimType() != primType) {
-      if ((primType == PTY_ref || primType == PTY_ptr) &&
-          (preg->GetPrimType() == PTY_ref || preg->GetPrimType() == PTY_ptr)) {
-        ;  // PTY_ref and PTY_ptr are compatible with each other
+      if (IsAddress(preg->GetPrimType()) && IsAddress(primType)) {
       } else {
         Error("inconsistent preg primitive type at ");
         return false;
@@ -1299,6 +1297,15 @@ bool MIRParser::ParsePointType(TyIdx &tyIdx) {
 // in function pointer specification and member function prototypes inside
 // structs and classes
 bool MIRParser::ParseFuncType(TyIdx &tyIdx) {
+  // parse function attributes
+  FuncAttrs fAttrs;
+  if (lexer.GetTokenKind() != TK_lparen) {
+    if (!ParseFuncAttrs(fAttrs)) {
+      Error("bad function attribute specification in function type at ");
+      return false;
+    }
+  }
+
   // parse parameters
   if (lexer.GetTokenKind() != TK_lparen) {
     Error("expect ( parse function type parameters but get ");
@@ -1359,7 +1366,10 @@ bool MIRParser::ParseFuncType(TyIdx &tyIdx) {
     return false;
   }
   MIRFuncType functype(retTyIdx, vecTyIdx, vecAttrs, retTypeAttrs);
-  functype.SetVarArgs(varargs);
+  functype.funcAttrs = fAttrs;
+  if (varargs) {
+    functype.SetVarArgs();
+  }
   tyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&functype);
   return true;
 }
@@ -2116,6 +2126,7 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
     // to avoid carrying over info from previous function
     firstLineNum = 0;
     lastLineNum = 0;
+    lastColumnNum = 0;
     func->NewBody();
     BlockNode *block = nullptr;
     safeRegionFlag.push(curFunc->IsSafe());
@@ -2131,6 +2142,7 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
     // set source file number for function
     func->GetSrcPosition().SetLineNum(firstLineNum);
     func->GetSrcPosition().SetFileNum(lastFileNum);
+    func->GetSrcPosition().SetColumn(lastColumnNum);
     // check if any local type name is undefined
     for (auto it : func->GetGStrIdxToTyIdxMap()) {
       MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(it.second);

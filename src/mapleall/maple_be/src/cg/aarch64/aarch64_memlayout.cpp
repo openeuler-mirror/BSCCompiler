@@ -134,7 +134,7 @@ void AArch64MemLayout::LayoutVarargParams() {
   if (be.GetMIRModule().IsCModule() && func->GetAttr(FUNCATTR_varargs)) {
     for (uint32 i = 0; i < func->GetFormalCount(); i++) {
       if (i == 0) {
-        if (func->IsReturnStruct()) {
+        if (func->IsFirstArgReturn() && func->GetReturnType()->GetPrimType() != PTY_void) {
           TyIdx tyIdx = func->GetFuncRetStructTyIdx();
           if (be.GetTypeSize(tyIdx.GetIdx()) <= k16ByteSize) {
             continue;
@@ -198,7 +198,7 @@ void AArch64MemLayout::LayoutFormalParams() {
      *        outparmsize - portion of frame size of current function used by call parameters
      */
     segArgsStkPassed.SetSize(mirFunction->GetOutParmSize());
-    segArgsRegPassed.SetSize(mirFunction->GetOutParmSize() + kTwoRegister * k8ByteSize);
+    segArgsRegPassed.SetSize(mirFunction->GetOutParmSize());
     return;
   }
 
@@ -210,7 +210,7 @@ void AArch64MemLayout::LayoutFormalParams() {
     AArch64SymbolAlloc *symLoc = memAllocator->GetMemPool()->New<AArch64SymbolAlloc>();
     SetSymAllocInfo(stIndex, *symLoc);
     if (i == 0) {
-      if (mirFunction->IsReturnStruct()) {
+      if (mirFunction->IsFirstArgReturn()) {
         symLoc->SetMemSegment(GetSegArgsRegPassed());
         symLoc->SetOffset(GetSegArgsRegPassed().GetSize());
         TyIdx tyIdx = mirFunction->GetFuncRetStructTyIdx();
@@ -224,13 +224,13 @@ void AArch64MemLayout::LayoutFormalParams() {
         continue;
       }
     }
-    MIRType *ty = mirFunction->GetNthParamType(i);
+    MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(mirFunction->GetFormalDefVec()[i].formalTyIdx);
     uint32 ptyIdx = ty->GetTypeIndex();
     parmLocator.LocateNextParm(*ty, ploc, i == 0, mirFunction);
     if (ploc.reg0 != kRinvalid) {  /* register */
       symLoc->SetRegisters(static_cast<AArch64reg>(ploc.reg0), static_cast<AArch64reg>(ploc.reg1),
                            static_cast<AArch64reg>(ploc.reg2), static_cast<AArch64reg>(ploc.reg3));
-      if (mirFunction->GetNthParamAttr(i).GetAttr(ATTR_localrefvar)) {
+      if (mirFunction->GetFormalDefVec()[i].formalAttrs.GetAttr(ATTR_localrefvar)) {
         symLoc->SetMemSegment(segRefLocals);
         SetSegmentSize(*symLoc, segRefLocals, ptyIdx);
       } else if (!sym->IsPreg()) {
@@ -272,7 +272,7 @@ void AArch64MemLayout::LayoutFormalParams() {
       } else {
         segArgsStkPassed.SetSize(static_cast<uint32>(RoundUp(segArgsStkPassed.GetSize(), kSizeOfPtr)));
       }
-      if (mirFunction->GetNthParamAttr(i).GetAttr(ATTR_localrefvar)) {
+      if (mirFunction->GetFormalDefVec()[i].formalAttrs.GetAttr(ATTR_localrefvar)) {
         SetLocalRegLocInfo(sym->GetStIdx(), *symLoc);
         AArch64SymbolAlloc *symLoc1 = memAllocator->GetMemPool()->New<AArch64SymbolAlloc>();
         symLoc1->SetMemSegment(segRefLocals);
@@ -287,7 +287,7 @@ void AArch64MemLayout::LayoutFormalParams() {
 }
 
 void AArch64MemLayout::LayoutLocalVariables(std::vector<MIRSymbol*> &tempVar, std::vector<MIRSymbol*> &returnDelays) {
-  if (be.GetMIRModule().GetFlavor() == kFlavorLmbc && mirFunction->GetFormalCount() == 0) {
+  if (be.GetMIRModule().GetFlavor() == kFlavorLmbc) {
     segLocals.SetSize(mirFunction->GetFrameSize() - mirFunction->GetOutParmSize());
     return;
   }
@@ -372,7 +372,7 @@ void AArch64MemLayout::LayoutReturnRef(std::vector<MIRSymbol*> &returnDelays,
     segRefLocals.SetSize(segRefLocals.GetSize() + be.GetTypeSize(tyIdx));
   }
   if (be.GetMIRModule().GetFlavor() == kFlavorLmbc) {
-    segArgsToStkPass.SetSize(mirFunction->GetOutParmSize());
+    segArgsToStkPass.SetSize(mirFunction->GetOutParmSize() + kDivide2 * k8ByteSize);
   } else {
     segArgsToStkPass.SetSize(FindLargestActualArea(structCopySize));
   }
@@ -423,7 +423,7 @@ void AArch64MemLayout::LayoutActualParams() {
        *  variables get assigned their respecitve storage, i.e.
        *  CallFrameSize (discounting callee-saved and FP/LR) is known.
        */
-      MIRType *ty = mirFunction->GetNthParamType(i);
+      MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(mirFunction->GetFormalDefVec()[i].formalTyIdx);
       uint32 ptyIdx = ty->GetTypeIndex();
       static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreateMemOpnd(*sym, 0, be.GetTypeAlign(ptyIdx) * kBitsPerByte);
     }
@@ -440,7 +440,7 @@ void AArch64MemLayout::LayoutStackFrame(int32 &structCopySize, int32 &maxParmSta
    */
   if (CGOptions::IsArm64ilp32()) {
     segArgsRegPassed.SetSize(RoundUp(segArgsRegPassed.GetSize(), k8ByteSize));
-  /* we do need this as SP has to be aligned at a 16-bytes bounardy */
+    /* we do need this as SP has to be aligned at a 16-bytes bounardy */
     segArgsStkPassed.SetSize(RoundUp(segArgsStkPassed.GetSize(), k8ByteSize + k8ByteSize));
   } else {
     segArgsRegPassed.SetSize(RoundUp(segArgsRegPassed.GetSize(), kSizeOfPtr));
@@ -527,11 +527,13 @@ uint64 AArch64MemLayout::StackFrameSize() const {
   uint64 total = segArgsRegPassed.GetSize() + static_cast<AArch64CGFunc*>(cgFunc)->SizeOfCalleeSaved() +
                  GetSizeOfRefLocals() + locals().GetSize() + GetSizeOfSpillReg();
 
-  if (GetSizeOfGRSaveArea() > 0) {
-    total += RoundUp(GetSizeOfGRSaveArea(), kAarch64StackPtrAlignment);
-  }
-  if (GetSizeOfVRSaveArea() > 0) {
-    total += RoundUp(GetSizeOfVRSaveArea(), kAarch64StackPtrAlignment);
+  if (cgFunc->GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
+    if (GetSizeOfGRSaveArea() > 0) {
+      total += RoundUp(GetSizeOfGRSaveArea(), kAarch64StackPtrAlignment);
+    }
+    if (GetSizeOfVRSaveArea() > 0) {
+      total += RoundUp(GetSizeOfVRSaveArea(), kAarch64StackPtrAlignment);
+    }
   }
 
   /*

@@ -967,7 +967,9 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
         break;
       }
       case OP_icall:
-      case OP_icallassigned: {
+      case OP_icallassigned:
+      case OP_icallproto:
+      case OP_icallprotoassigned: {
         auto &icallMeStmt = static_cast<IcallMeStmt&>(stmt);
         VersionStackChiListUpdate(*icallMeStmt.GetChiList());
         break;

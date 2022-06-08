@@ -317,6 +317,7 @@ void SSARename2Preg::Rename2PregStmt(MeStmt *stmt) {
     case OP_customcallassigned:
     case OP_polymorphiccallassigned:
     case OP_icallassigned:
+    case OP_icallprotoassigned:
     case OP_intrinsiccallassigned:
     case OP_xintrinsiccallassigned:
     case OP_intrinsiccallwithtypeassigned: {

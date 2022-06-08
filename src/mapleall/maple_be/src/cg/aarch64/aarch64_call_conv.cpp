@@ -300,7 +300,7 @@ int32 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, boo
 
   if (isFirst) {
     MIRFunction *func = tFunc != nullptr ? tFunc : const_cast<MIRFunction *>(beCommon.GetMIRModule().CurFunction());
-    if (func->IsReturnStruct()) {
+    if (func->IsFirstArgReturn()) {
       TyIdx tyIdx = func->GetFuncRetStructTyIdx();
       size_t size = beCommon.GetTypeSize(tyIdx);
       if (size == 0) {

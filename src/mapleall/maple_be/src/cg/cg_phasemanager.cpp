@@ -160,6 +160,7 @@ void RecursiveMarkUsedStaticSymbol(const BaseNode *baseNode) {
       break;
     }
     case OP_addrof:
+    case OP_addrofoff:
     case OP_dread: {
       const AddrofNode *dreadNode = static_cast<const AddrofNode*>(baseNode);
       MarkUsedStaticSymbol(dreadNode->GetStIdx());

@@ -26,19 +26,20 @@ enum Opcode : uint8 {
   OP_last,
 };
 
-#define CASE_OP_ASSERT_NONNULL     \
+#define CASE_OP_ASSERT_NONNULL \
   case OP_assertnonnull:       \
   case OP_assignassertnonnull: \
   case OP_callassertnonnull:   \
   case OP_returnassertnonnull:
 
-#define CASE_OP_ASSERT_BOUNDARY    \
+#define CASE_OP_ASSERT_BOUNDARY \
   case OP_assertge:            \
-  case OP_assignassertge:      \
   case OP_assertlt:            \
-  case OP_assignassertlt:      \
+  case OP_calcassertge:        \
+  case OP_calcassertlt:        \
   case OP_callassertle:        \
-  case OP_returnassertle:
+  case OP_returnassertle:      \
+  case OP_assignassertle:
 
 inline constexpr bool IsDAssign(Opcode code) {
   return (code == OP_dassign || code == OP_maydassign);
@@ -49,13 +50,17 @@ inline constexpr bool IsCallAssigned(Opcode code) {
           code == OP_virtualicallassigned || code == OP_superclasscallassigned ||
           code == OP_interfacecallassigned || code == OP_interfaceicallassigned ||
           code == OP_customcallassigned || code == OP_polymorphiccallassigned ||
-          code == OP_icallassigned || code == OP_intrinsiccallassigned ||
+          code == OP_icallassigned || code == OP_icallprotoassigned || code == OP_intrinsiccallassigned ||
           code == OP_xintrinsiccallassigned || code == OP_intrinsiccallwithtypeassigned);
 }
 
 inline constexpr bool IsBranch(Opcode opcode) {
   return (opcode == OP_goto || opcode == OP_brtrue || opcode == OP_brfalse || opcode == OP_switch ||
           opcode == OP_igoto);
+}
+
+inline constexpr bool IsLogicalShift(Opcode opcode) {
+  return (opcode == OP_lshr || opcode == OP_shl);
 }
 
 constexpr bool IsCommutative(Opcode opcode) {
@@ -108,6 +113,8 @@ constexpr bool IsStmtMustRequire(Opcode opcode) {
     case OP_polymorphiccallassigned:
     case OP_icall:
     case OP_icallassigned:
+    case OP_icallproto:
+    case OP_icallprotoassigned:
     case OP_intrinsiccall:
     case OP_xintrinsiccall:
     case OP_intrinsiccallassigned:
@@ -141,6 +148,26 @@ constexpr bool IsCompareHasReverseOp(Opcode op) {
     return true;
   }
   return false;
+}
+
+constexpr Opcode GetSwapCmpOp(Opcode op) {
+  switch (op) {
+    case OP_eq:
+      return OP_eq;
+    case OP_ne:
+      return OP_ne;
+    case OP_ge:
+      return OP_le;
+    case OP_gt:
+      return OP_lt;
+    case OP_le:
+      return OP_ge;
+    case OP_lt:
+      return OP_gt;
+    default:
+      CHECK_FATAL(false, "can't swap op");
+      return op;
+  }
 }
 
 constexpr Opcode GetReverseCmpOp(Opcode op) {
