@@ -754,6 +754,22 @@ class AArch64CGFunc : public CGFunc {
 
   RegOperand &GetZeroOpnd(uint32 size) override;
 
+  int32 GetLmbcTotalStkUsed() {
+    return lmbcArgInfo->lmbcTotalStkUsed;
+  }
+
+  void SetLmbcTotalStkUsed(int32 offset) {
+    lmbcArgInfo->lmbcTotalStkUsed = offset;
+  }
+
+  void SetLmbcCallReturnType(MIRType *ty) {
+    lmbcCallReturnType = ty;
+  }
+
+  MIRType *GetLmbcCallReturnType() {
+    return lmbcCallReturnType;
+  }
+
  private:
   enum RelationOperator : uint8 {
     kAND,
