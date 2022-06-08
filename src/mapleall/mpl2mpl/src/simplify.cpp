@@ -1380,9 +1380,16 @@ bool SimplifyMemOp::AutoSimplify(StmtNode &stmt, BlockNode &block, bool isLowLev
 
 // expand memset_s call statement, return pointer of memset call statement node to be expanded in the next step, return
 // nullptr if memset_s is expanded completely.
-StmtNode *SimplifyMemOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block, int64 &srcSize,
-                                                bool isSrcSizeConst) const {
+StmtNode *SimplifyMemOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block) const {
   ErrorNumber errNum = ERRNO_OK;
+
+  int64 srcSize = 0;
+  bool isSrcSizeConst = false;
+  BaseNode *foldSrcSizeExpr = FoldIntConst(stmt.Opnd(kMemsetSSrcSizeOpndIdx), srcSize, isSrcSizeConst);
+  if (foldSrcSizeExpr != nullptr) {
+    stmt.SetOpnd(foldSrcSizeExpr, kMemsetSDstSizeOpndIdx);
+  }
+
   int64 dstSize = 0;
   bool isDstSizeConst = false;
   BaseNode *foldDstSizeExpr = FoldIntConst(stmt.Opnd(kMemsetSDstSizeOpndIdx), dstSize, isDstSizeConst);
@@ -1482,20 +1489,25 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
   uint32 srcOpndIdx = 1;
   uint32 srcSizeOpndIdx = 2;
   bool isSafeVersion = memOpKind == MEM_OP_memset_s;
-  if (isSafeVersion) {
-    srcOpndIdx = 2;
-    srcSizeOpndIdx = 3;
-  }
   if (debug) {
     LogInfo::MapleLogger() << "[funcName] " << func->GetName() << std::endl;
     stmt.Dump(0);
   }
 
+
+  StmtNode *memsetCallStmt = &stmt;
+  if (memOpKind == MEM_OP_memset_s && !isLowLevel) {
+    memsetCallStmt = PartiallyExpandMemsetS(stmt, block);
+    if (!memsetCallStmt) {
+      return true;  // Expand memset_s completely, no extra memset is generated, so just return true
+    }
+  }
+
   int64 srcSize = 0;
   bool isSrcSizeConst = false;
-  BaseNode *foldSrcSizeExpr = FoldIntConst(stmt.Opnd(srcSizeOpndIdx), srcSize, isSrcSizeConst);
+  BaseNode *foldSrcSizeExpr = FoldIntConst(memsetCallStmt->Opnd(srcSizeOpndIdx), srcSize, isSrcSizeConst);
   if (foldSrcSizeExpr != nullptr) {
-    stmt.SetOpnd(foldSrcSizeExpr, srcSizeOpndIdx);
+    memsetCallStmt->SetOpnd(foldSrcSizeExpr, srcSizeOpndIdx);
   }
 
   if (isSrcSizeConst) {
@@ -1506,20 +1518,13 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
       return false;
     }
     if (srcSize == 0) {
-      MayPrintLog(debug, false, memOpKind, "memset with size 0");
+      if (memOpKind == MEM_OP_memset) {
+        auto *retAssign = MemEntry::GenMemopRetAssign(*memsetCallStmt, *func, isLowLevel, memOpKind);
+        InsertAndMayPrintStmt(block, *memsetCallStmt, debug, retAssign);
+      }
+      block.RemoveStmt(memsetCallStmt);
       return false;
     }
-  }
-
-  StmtNode *memsetCallStmt = &stmt;
-  if (memOpKind == MEM_OP_memset_s && !isLowLevel) {
-    memsetCallStmt = PartiallyExpandMemsetS(stmt, block, srcSize, isSrcSizeConst);
-    if (!memsetCallStmt) {
-      return true;  // Expand memset_s completely, no extra memset is generated, so just return true
-    }
-    // Partally expand memset_s, reset opnd index for expanding memset further
-    srcOpndIdx = 1;
-    srcSizeOpndIdx = 2;
   }
 
   // memset's 'src size' must be a const value, otherwise we can not expand it

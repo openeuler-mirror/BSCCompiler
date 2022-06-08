@@ -102,7 +102,7 @@ class SimplifyMemOp {
   bool SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowLevel) const;
   bool SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLevel) const;
  private:
-  StmtNode *PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block, int64 &srcSize, bool isSrcSizeConst) const;
+  StmtNode *PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block) const;
 
   static const uint32 thresholdMemsetExpand;
   static const uint32 thresholdMemsetSExpand;
@@ -123,8 +123,7 @@ class Simplify : public FuncOptimizeImpl {
     CHECK_FATAL(false, "Simplify has pointer, should not be Cloned");
   }
 
-  void ProcessFunc(MIRFunction *func) override;
-  void ProcessFuncStmt(MIRFunction &func, StmtNode *stmt = nullptr, BlockNode *block = nullptr);
+  void ProcessStmt(StmtNode &stmt) override;
   void Finish() override;
 
  private:
@@ -134,9 +133,14 @@ class Simplify : public FuncOptimizeImpl {
   bool IsMathAbs(const std::string funcName);
   bool IsMathMin(const std::string funcName);
   bool IsMathMax(const std::string funcName);
+  bool IsSymbolReplaceableWithConst(const MIRSymbol &symbol);
+  bool IsConstRepalceable(const MIRConst &mirConst);
   bool SimplifyMathMethod(const StmtNode &stmt, BlockNode &block);
   void SimplifyCallAssigned(StmtNode &stmt, BlockNode &block);
   StmtNode *SimplifyToSelect(MIRFunction *func, IfStmtNode *ifNode, BlockNode *block);
+  BaseNode *SimplifyExpr(BaseNode &expr);
+  BaseNode *ReplaceExprWithConst(DreadNode &dread);
+  MIRConst *GetElementConstFromFieldId(FieldID fieldId, MIRConst *mirConst);
 };
 
 MAPLE_MODULE_PHASE_DECLARE(M2MSimplify)
