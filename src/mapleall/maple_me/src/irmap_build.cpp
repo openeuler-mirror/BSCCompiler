@@ -806,7 +806,7 @@ MeStmt *IRMapBuild::BuildCallMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
 
 MeStmt *IRMapBuild::BuildNaryMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
   Opcode op = stmt.GetOpCode();
-  NaryMeStmt *naryMeStmt = (op == OP_icall || op == OP_icallassigned)
+  NaryMeStmt *naryMeStmt = (op == OP_icall || op == OP_icallassigned || op == OP_icallproto || op == OP_icallprotoassigned)
                            ? static_cast<NaryMeStmt*>(irMap->NewInPool<IcallMeStmt>(&stmt))
                            : static_cast<NaryMeStmt*>(irMap->NewInPool<IntrinsiccallMeStmt>(&stmt));
   auto &naryStmtNode = static_cast<NaryStmtNode&>(stmt);
@@ -820,6 +820,9 @@ MeStmt *IRMapBuild::BuildNaryMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
   BuildChiList(*naryMeStmt, ssaPart.GetMayDefNodes(), *(naryMeStmt->GetChiList()));
   if (propagater) {
     propagater->PropUpdateChiListDef(*naryMeStmt->GetChiList());
+  }
+  if (op == OP_icallproto || op == OP_icallprotoassigned) {
+    static_cast<IcallMeStmt *>(naryMeStmt)->SetRetTyIdx(static_cast<IcallNode&>(stmt).GetRetTyIdx());
   }
   return naryMeStmt;
 }
@@ -921,6 +924,8 @@ void IRMapBuild::InitMeStmtFactory() {
   RegisterFactoryFunction<MeStmtFactory>(OP_polymorphiccallassigned, &IRMapBuild::BuildCallMeStmt);
   RegisterFactoryFunction<MeStmtFactory>(OP_icall, &IRMapBuild::BuildNaryMeStmt);
   RegisterFactoryFunction<MeStmtFactory>(OP_icallassigned, &IRMapBuild::BuildNaryMeStmt);
+  RegisterFactoryFunction<MeStmtFactory>(OP_icallproto, &IRMapBuild::BuildNaryMeStmt);
+  RegisterFactoryFunction<MeStmtFactory>(OP_icallprotoassigned, &IRMapBuild::BuildNaryMeStmt);
   RegisterFactoryFunction<MeStmtFactory>(OP_intrinsiccall, &IRMapBuild::BuildNaryMeStmt);
   RegisterFactoryFunction<MeStmtFactory>(OP_xintrinsiccall, &IRMapBuild::BuildNaryMeStmt);
   RegisterFactoryFunction<MeStmtFactory>(OP_intrinsiccallwithtype, &IRMapBuild::BuildNaryMeStmt);

@@ -50,9 +50,11 @@ void MeFunction::PartialInit() {
 }
 
 void MeFunction::Release() {
+  ReleaseVersMemory();
   if (preMeMp) {
     memPoolCtrler.DeleteMemPool(preMeMp);
   }
+  preMeMp = nullptr;
 }
 
 void MeFunction::DumpFunction() const {
@@ -301,7 +303,9 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
         break;
       }
       case OP_icall:
-      case OP_icallassigned: {
+      case OP_icallassigned:
+      case OP_icallproto:
+      case OP_icallprotoassigned: {
         auto *icallStmt = static_cast<IcallMeStmt*>(&stmt);
         newStmt = irmap->NewInPool<IcallMeStmt>(static_cast<NaryMeStmt*>(icallStmt),
                                                 icallStmt->GetRetTyIdx(), icallStmt->GetStmtID());

@@ -412,7 +412,7 @@ MIRFunction &CallMeStmt::GetTargetFunction() {
 }
 
 StmtNode &CallMeStmt::EmitStmt(SSATab &ssaTab) {
-  if (GetOp() != OP_icall && GetOp() != OP_icallassigned) {
+  if (GetOp() != OP_icall && GetOp() != OP_icallassigned && GetOp() != OP_icallproto && GetOp() != OP_icallprotoassigned) {
     auto *callNode =
         ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<CallNode>(ssaTab.GetModule(), Opcode(GetOp()));
     callNode->SetPUIdx(puIdx);
@@ -495,6 +495,9 @@ StmtNode &IcallMeStmt::EmitStmt(SSATab &ssaTab) {
         icallNode->SetRetTyIdx(TyIdx(preg->GetPrimType()));
       }
     }
+  }
+  if (GetOp() == OP_icallproto || GetOp() == OP_icallprotoassigned) {
+    icallNode->SetRetTyIdx(retTyIdx);
   }
   return *icallNode;
 }

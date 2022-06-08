@@ -187,7 +187,7 @@ class CGLowerer {
   void LowerTryCatchBlocks(BlockNode &body);
 
 #if TARGARM32 || TARGAARCH64 || TARGRISCV64
-  BlockNode *LowerReturnStruct(NaryStmtNode &retNode);
+  BlockNode *LowerReturnStructUsingFakeParm(NaryStmtNode &retNode);
 #endif
   virtual BlockNode *LowerReturn(NaryStmtNode &retNode);
   void LowerEntry(MIRFunction &func);

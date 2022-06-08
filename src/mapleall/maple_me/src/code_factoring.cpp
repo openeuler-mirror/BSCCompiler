@@ -122,7 +122,9 @@ bool FactoringOptimizer::IsIdenticalStmt(StmtNode *stmt1, StmtNode *stmt2) {
       break;
     }
     case OP_icall:
-    case OP_icallassigned: {
+    case OP_icallassigned:
+    case OP_icallproto:
+    case OP_icallprotoassigned: {
       auto *icall1 = static_cast<IcallNode*>(stmt1);
       auto *icall2 = static_cast<IcallNode*>(stmt2);
       if (icall1->GetRetTyIdx() != icall2->GetRetTyIdx() ||
