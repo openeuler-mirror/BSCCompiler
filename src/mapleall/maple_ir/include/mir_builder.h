@@ -203,7 +203,7 @@ class MIRBuilder {
   IaddrofNode *CreateExprIaddrof(PrimType returnTypePty, TyIdx ptrTypeIdx, FieldID fieldID, BaseNode *addr);
   BinaryNode *CreateExprBinary(Opcode opcode, const MIRType &type, BaseNode *opnd0, BaseNode *opnd1);
   BinaryNode *CreateExprBinary(Opcode opcode, PrimType pty, BaseNode *opnd0, BaseNode *opnd1) {
-    MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)pty);
+    MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(pty));
     return CreateExprBinary(opcode, *ty, opnd0, opnd1);
   }
   TernaryNode *CreateExprTernary(Opcode opcode, const MIRType &type, BaseNode *opnd0, BaseNode *opnd1, BaseNode *opnd2);
@@ -262,6 +262,8 @@ class MIRBuilder {
 
   IcallNode *CreateStmtIcall(const MapleVector<BaseNode*> &args);
   IcallNode *CreateStmtIcallAssigned(const MapleVector<BaseNode*> &args, const MIRSymbol &ret);
+  IcallNode *CreateStmtIcallproto(const MapleVector<BaseNode*> &args);
+  IcallNode *CreateStmtIcallprotoAssigned(const MapleVector<BaseNode*> &args, const MIRSymbol &ret);
   // For Call, VirtualCall, SuperclassCall, InterfaceCall
   IntrinsiccallNode *CreateStmtIntrinsicCall(MIRIntrinsicID idx, const MapleVector<BaseNode*> &arguments,
                                              TyIdx tyIdx = TyIdx());

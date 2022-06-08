@@ -678,7 +678,7 @@ void AddroffuncNode::Dump(int32) const {
 
 void AddroflabelNode::Dump(int32) const {
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOpCode()).name << " " << GetPrimTypeName(GetPrimType());
-  LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName((LabelIdx)offset);
+  LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName(static_cast<LabelIdx>(offset));
 }
 
 void StmtNode::DumpBase(int32 indent) const {
@@ -845,7 +845,8 @@ void GotoNode::Dump(int32 indent) const {
   if (offset == 0) {
     LogInfo::MapleLogger() << '\n';
   } else {
-    LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName((LabelIdx)offset) << '\n';
+    LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName(
+        static_cast<LabelIdx>(offset)) << '\n';
   }
 }
 
@@ -854,12 +855,13 @@ void JsTryNode::Dump(int32 indent) const {
   if (catchOffset == 0) {
     LogInfo::MapleLogger() << " 0";
   } else {
-    LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName((LabelIdx)catchOffset);
+    LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName(static_cast<LabelIdx>(catchOffset));
   }
   if (finallyOffset == 0) {
     LogInfo::MapleLogger() << " 0\n";
   } else {
-    LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName((LabelIdx)finallyOffset) << '\n';
+    LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName(
+        static_cast<LabelIdx>(finallyOffset)) << '\n';
   }
 }
 
@@ -875,7 +877,7 @@ void TryNode::Dump(int32 indent) const {
 
 void CondGotoNode::Dump(int32 indent) const {
   StmtNode::DumpBase(indent);
-  LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName((LabelIdx)offset);
+  LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName(static_cast<LabelIdx>(offset));
   LogInfo::MapleLogger() << " (";
   Opnd(0)->Dump(indent);
   LogInfo::MapleLogger() << ")\n";
@@ -1201,7 +1203,7 @@ MIRType *IcallNode::GetCallReturnType() {
   if (op == OP_icall || op == OP_icallassigned) {
     return GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx);
   }
-  // icallproto
+  // icallproto or icallprotoassigned
   MIRFuncType *funcType = static_cast<MIRFuncType*>(
       GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx));
   return GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetRetTyIdx());
@@ -1226,7 +1228,7 @@ const MIRSymbol *IcallNode::GetCallReturnSymbol(const MIRModule &mod) const {
 
 void IcallNode::Dump(int32 indent, bool newline) const {
   StmtNode::DumpBase(indent);
-  if (op == OP_icallproto) {
+  if (op == OP_icallproto || op == OP_icallprotoassigned) {
     LogInfo::MapleLogger() << " ";
     GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx)->Dump(indent + 1);
   }

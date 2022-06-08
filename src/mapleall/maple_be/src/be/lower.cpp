@@ -121,6 +121,7 @@ void CGLowerer::RegisterExternalLibraryFunctions() {
     func->AllocSymTab();
     MIRSymbol *funcSym = func->GetFuncSymbol();
     funcSym->SetStorageClass(kScExtern);
+    funcSym->SetAppearsInCode(true);
     /* return type */
     MIRType *retTy = GlobalTables::GetTypeTable().GetPrimType(extFnDescrs[i].retType);
 
@@ -875,7 +876,7 @@ void CGLowerer::LowerTypePtr(BaseNode &node) const {
 
 
 #if TARGARM32 || TARGAARCH64 || TARGRISCV64
-BlockNode *CGLowerer::LowerReturnStruct(NaryStmtNode &retNode) {
+BlockNode *CGLowerer::LowerReturnStructUsingFakeParm(NaryStmtNode &retNode) {
   BlockNode *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   for (size_t i = 0; i < retNode.GetNopndSize(); ++i) {
     retNode.SetOpnd(LowerExpr(retNode, *retNode.GetNopndAt(i), *blk), i);
@@ -1100,7 +1101,7 @@ void CGLowerer::LowerCallStmt(StmtNode &stmt, StmtNode *&nextStmt, BlockNode &ne
     return;
   }
 
-  if ((newStmt->GetOpCode() == OP_call) || (newStmt->GetOpCode() == OP_icall)) {
+  if (newStmt->GetOpCode() == OP_call || newStmt->GetOpCode() == OP_icall || newStmt->GetOpCode() == OP_icallproto) {
     newStmt = LowerCall(static_cast<CallNode&>(*newStmt), nextStmt, newBlk, retty, uselvar);
   }
   newStmt->SetSrcPos(stmt.GetSrcPos());
@@ -1171,7 +1172,12 @@ StmtNode *CGLowerer::GenIntrinsiccallNode(const StmtNode &stmt, PUIdx &funcCalle
 
 StmtNode *CGLowerer::GenIcallNode(PUIdx &funcCalled, IcallNode &origCall) {
   StmtNode *newCall = nullptr;
-  newCall = mirModule.GetMIRBuilder()->CreateStmtIcall(origCall.GetNopnd());
+  if (origCall.GetOpCode() == OP_icallassigned) {
+    newCall = mirModule.GetMIRBuilder()->CreateStmtIcall(origCall.GetNopnd());
+  } else {
+    newCall = mirModule.GetMIRBuilder()->CreateStmtIcallproto(origCall.GetNopnd());
+    static_cast<IcallNode *>(newCall)->SetRetTyIdx(static_cast<IcallNode&>(origCall).GetRetTyIdx());
+  }
   newCall->SetSrcPos(origCall.GetSrcPos());
   CHECK_FATAL(newCall != nullptr, "nullptr is not expected");
   funcCalled = kFuncNotFound;
@@ -1373,6 +1379,7 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt, bool uselvar) {
       static_cast<IntrinsiccallNode *>(newCall)->SetReturnVec(*p2nRets);
       break;
     }
+    case OP_icallprotoassigned:
     case OP_icallassigned: {
       auto &origCall = static_cast<IcallNode&>(stmt);
       newCall = GenIcallNode(funcCalled, origCall);
@@ -1480,6 +1487,15 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
     (*p2nrets)[0].first = dnodeStmt->GetStIdx();
     (*p2nrets)[0].second.SetFieldID(dnodeStmt->GetFieldID());
     lvar = true;
+    // set ATTR_firstarg_return for callee
+    if (stmt->GetOpCode() == OP_callassigned) {
+      CallNode *callNode = static_cast<CallNode*>(stmt);
+      MIRFunction *f = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode->GetPUIdx());
+      f->SetFirstArgReturn();
+      f->GetMIRFuncType()->SetFirstArgReturn();
+    } else {
+      // for icall, front-end already set ATTR_firstarg_return
+    }
   } else { /* struct <= 16 passed in regs lowered into
                           call &foo
                           regassign u64 %1 (regread u64 %%retval0)
@@ -1497,13 +1513,19 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
       CallNode *callStmt = mirModule.GetMIRBuilder()->CreateStmtCall(callNode->GetPUIdx(), callNode->GetNopnd());
       callStmt->SetSrcPos(callNode->GetSrcPos());
       newBlk.AddStatement(callStmt);
-    } else if (stmt->GetOpCode() == OP_icallassigned) {
+    } else if (stmt->GetOpCode() == OP_icallassigned || stmt->GetOpCode() == OP_icallprotoassigned) {
       auto *icallNode = static_cast<IcallNode*>(stmt);
       for (size_t i = 0; i < icallNode->GetNopndSize(); ++i) {
         BaseNode *newOpnd = LowerExpr(*icallNode, *icallNode->GetNopndAt(i), newBlk);
         icallNode->SetOpnd(newOpnd, i);
       }
-      IcallNode *icallStmt = mirModule.GetMIRBuilder()->CreateStmtIcall(icallNode->GetNopnd());
+      IcallNode *icallStmt = nullptr;
+      if (stmt->GetOpCode() == OP_icallassigned) {
+        icallStmt = mirModule.GetMIRBuilder()->CreateStmtIcall(icallNode->GetNopnd());
+      } else {
+        icallStmt = mirModule.GetMIRBuilder()->CreateStmtIcallproto(icallNode->GetNopnd());
+        icallStmt->SetRetTyIdx(icallNode->GetRetTyIdx());
+      }
       icallStmt->SetSrcPos(icallNode->GetSrcPos());
       newBlk.AddStatement(icallStmt);
     } else {
@@ -1769,6 +1791,7 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
   CondGotoNode *brFalseNode = mirBuilder->CreateStmtCondGoto(cond, OP_brfalse, labIdx);
 
   MIRFunction *printf = mirBuilder->GetOrCreateFunction("printf", TyIdx(PTY_i32));
+  printf->GetFuncSymbol()->SetAppearsInCode(true);
   beCommon.UpdateTypeTable(*printf->GetMIRFuncType());
   MapleVector<BaseNode*> argsPrintf(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
   uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
@@ -1843,7 +1866,8 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
         break;
       }
       case OP_callassigned:
-      case OP_icallassigned: {
+      case OP_icallassigned:
+      case OP_icallprotoassigned: {
         // pass the addr of lvar if this is a struct call assignment
         bool lvar = false;
         // nextStmt could be changed by the call to LowerStructReturn
@@ -1863,6 +1887,7 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
       case OP_intrinsiccall:
       case OP_call:
       case OP_icall:
+      case OP_icallproto:
 #if TARGARM32 || TARGAARCH64 || TARGRISCV64 || TARGX86_64
         // nextStmt could be changed by the call to LowerStructReturn
         LowerCallStmt(*stmt, nextStmt, *newBlk);
@@ -1872,8 +1897,8 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
         break;
       case OP_return: {
 #if TARGARM32 || TARGAARCH64 || TARGRISCV64
-        if (GetCurrentFunc()->IsReturnStruct()) {
-          newBlk->AppendStatementsFromBlock(*LowerReturnStruct(static_cast<NaryStmtNode&>(*stmt)));
+        if (GetCurrentFunc()->IsFirstArgReturn() && stmt->NumOpnds() > 0) {
+          newBlk->AppendStatementsFromBlock(*LowerReturnStructUsingFakeParm(static_cast<NaryStmtNode&>(*stmt)));
         } else {
 #endif
         NaryStmtNode *retNode = static_cast<NaryStmtNode*>(stmt);
@@ -1971,7 +1996,9 @@ void CGLowerer::SimplifyBlock(BlockNode &block) {
         }
         auto *newFunc = theMIRModule->GetMIRBuilder()->GetOrCreateFunction(asmMap.at(oldFunc->GetName()),
                                                                            callStmt->GetTyIdx());
-        newFunc->GetFuncSymbol()->SetStorageClass(kScExtern);
+        MIRSymbol *funcSym = newFunc->GetFuncSymbol();
+        funcSym->SetStorageClass(kScExtern);
+        funcSym->SetAppearsInCode(true);
         callStmt->SetPUIdx(newFunc->GetPuidx());
         break;
       }
@@ -2081,6 +2108,7 @@ StmtNode *CGLowerer::LowerCall(
 
     if (needCheckStore) {
       MIRFunction *fn = mirModule.GetMIRBuilder()->GetOrCreateFunction("MCC_Reflect_Check_Arraystore", TyIdx(PTY_void));
+      fn->GetFuncSymbol()->SetAppearsInCode(true);
       beCommon.UpdateTypeTable(*fn->GetMIRFuncType());
       fn->AllocSymTab();
       MapleVector<BaseNode*> args(mirModule.GetMIRBuilder()->GetCurrentFuncCodeMpAllocator()->Adapter());
@@ -2107,7 +2135,7 @@ StmtNode *CGLowerer::LowerCall(
   }
 
   MIRType *retType = nullptr;
-  if (callNode.op == OP_icall) {
+  if (callNode.op == OP_icall || callNode.op == OP_icallproto) {
     if (retTy == nullptr) {
       return &callNode;
     } else {
@@ -2153,7 +2181,7 @@ StmtNode *CGLowerer::LowerCall(
   addrofNode->SetStIdx(dsgnSt->GetStIdx());
   addrofNode->SetFieldID(0);
 
-  if (callNode.op == OP_icall) {
+  if (callNode.op == OP_icall || callNode.op == OP_icallproto) {
     auto ond = callNode.GetNopnd().begin();
     newNopnd.emplace_back(*ond);
     newNopnd.emplace_back(addrofNode);
@@ -2175,7 +2203,27 @@ StmtNode *CGLowerer::LowerCall(
 }
 
 void CGLowerer::LowerEntry(MIRFunction &func) {
+  // determine if needed to insert fake parameter to return struct for current function
   if (func.IsReturnStruct()) {
+    MIRType *retType = func.GetReturnType();
+#if TARGAARCH64
+    PrimType pty = IsStructElementSame(retType);
+    if (pty == PTY_f32 || pty == PTY_f64 || IsPrimitiveVector(pty)) {
+      func.SetStructReturnedInRegs();
+      return;
+    }
+#endif
+    if (retType->GetPrimType() != PTY_agg) {
+      return;
+    }
+    if (retType->GetSize() > k16ByteSize) {
+      func.SetFirstArgReturn();
+      func.GetMIRFuncType()->SetFirstArgReturn();
+    } else {
+      func.SetStructReturnedInRegs();
+    }
+  }
+  if (func.IsFirstArgReturn() && func.GetReturnType()->GetPrimType() != PTY_void) {
     MIRSymbol *retSt = func.GetSymTab()->CreateSymbol(kScopeLocal);
     retSt->SetStorageClass(kScFormal);
     retSt->SetSKind(kStVar);
@@ -2192,12 +2240,14 @@ void CGLowerer::LowerEntry(MIRFunction &func) {
       auto formal = func.GetFormal(i);
       formals.emplace_back(formal);
     }
+    func.SetFirstArgReturn();
 
     beCommon.AddElementToFuncReturnType(func, func.GetReturnTyIdx());
 
     func.UpdateFuncTypeAndFormalsAndReturnType(formals, TyIdx(PTY_void), true);
     auto *funcType = func.GetMIRFuncType();
     ASSERT(funcType != nullptr, "null ptr check");
+    funcType->SetFirstArgReturn();
     beCommon.AddTypeSizeAndAlign(funcType->GetTypeIndex(), GetPrimTypeSize(funcType->GetPrimType()));
   }
 }
@@ -2375,6 +2425,7 @@ MIRFunction *CGLowerer::RegisterFunctionVoidStarToVoid(BuiltinFunctionID id, con
   func->AllocSymTab();
   MIRSymbol *funcSym = func->GetFuncSymbol();
   funcSym->SetStorageClass(kScExtern);
+  funcSym->SetAppearsInCode(true);
   MIRType *argTy = GlobalTables::GetTypeTable().GetPtr();
   MIRSymbol *argSt = func->GetSymTab()->CreateSymbol(kScopeLocal);
   argSt->SetNameStrIdx(mirBuilder->GetOrCreateStringIndex(paramName));
@@ -2416,6 +2467,7 @@ void CGLowerer::RegisterBuiltIns() {
     func->AllocSymTab();
     MIRSymbol *funcSym = func->GetFuncSymbol();
     funcSym->SetStorageClass(kScExtern);
+    funcSym->SetAppearsInCode(true);
     /* return type */
     MIRType *retTy = desc.GetReturnType();
     CHECK_FATAL(retTy != nullptr, "retTy should not be nullptr");
@@ -2571,6 +2623,7 @@ void CGLowerer::ProcessArrayExpr(BaseNode &expr, BlockNode &blkNode) {
                                                    arrayNode.GetNopndAt(1), lenRegreadNode);
     CondGotoNode *brFalseNode = mirBuilder->CreateStmtCondGoto(cond, OP_brfalse, labIdx);
     MIRFunction *fn = mirBuilder->GetOrCreateFunction("MCC_Array_Boundary_Check", TyIdx(PTY_void));
+    fn->GetFuncSymbol()->SetAppearsInCode(true);
     beCommon.UpdateTypeTable(*fn->GetMIRFuncType());
     fn->AllocSymTab();
     MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
@@ -3102,6 +3155,7 @@ BaseNode *CGLowerer::LowerIntrinJavaArrayLength(const BaseNode &parent, Intrinsi
     MIRFunction *newFunc =
         mirBuilder->GetOrCreateFunction("MCC_ThrowNullArrayNullPointerException",
                                         GlobalTables::GetTypeTable().GetVoid()->GetTypeIndex());
+    newFunc->GetFuncSymbol()->SetAppearsInCode(true);
     beCommon.UpdateTypeTable(*newFunc->GetMIRFuncType());
     newFunc->AllocSymTab();
     MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
@@ -3473,6 +3527,7 @@ StmtNode *CGLowerer::LowerIntrinsicRCCall(const IntrinsiccallNode &intrincall) {
   if (intrinFuncIDs.find(intrinDesc) == intrinFuncIDs.end()) {
     /* add funcid into map */
     MIRFunction *fn = mirBuilder->GetOrCreateFunction(intrinDesc->name, TyIdx(PTY_void));
+    fn->GetFuncSymbol()->SetAppearsInCode(true);
     beCommon.UpdateTypeTable(*fn->GetMIRFuncType());
     fn->AllocSymTab();
     intrinFuncIDs[intrinDesc] = fn->GetPuidx();
@@ -3501,6 +3556,7 @@ void CGLowerer::LowerArrayStore(const IntrinsiccallNode &intrincall, BlockNode &
 
   if (needCheckStore) {
     MIRFunction *fn = mirBuilder->GetOrCreateFunction("MCC_Reflect_Check_Arraystore", TyIdx(PTY_void));
+    fn->GetFuncSymbol()->SetAppearsInCode(true);
     beCommon.UpdateTypeTable(*fn->GetMIRFuncType());
     fn->AllocSymTab();
     MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
@@ -3590,6 +3646,7 @@ StmtNode *CGLowerer::LowerIntrinsiccall(IntrinsiccallNode &intrincall, BlockNode
   beCommon.UpdateTypeTable(*fn->GetMIRFuncType());
   fn->AllocSymTab();
   st->SetFunction(fn);
+  st->SetAppearsInCode(true);
   return LowerDefaultIntrinsicCall(intrincall, *st, *fn);
 }
 
@@ -3660,6 +3717,7 @@ PUIdx CGLowerer::GetBuiltinToUse(BuiltinFunctionID id) const {
 void CGLowerer::LowerGCMalloc(const BaseNode &node, const GCMallocNode &gcmalloc, BlockNode &blkNode, bool perm) {
   MIRFunction *func = mirBuilder->GetOrCreateFunction((perm ? "MCC_NewPermanentObject" : "MCC_NewObj_fixed_class"),
                                                       (TyIdx)(LOWERED_PTR_TYPE));
+  func->GetFuncSymbol()->SetAppearsInCode(true);
   beCommon.UpdateTypeTable(*func->GetMIRFuncType());
   func->AllocSymTab();
   /* Get the classinfo */
@@ -3678,6 +3736,7 @@ void CGLowerer::LowerGCMalloc(const BaseNode &node, const GCMallocNode &gcmalloc
   if (classSym->GetAttr(ATTR_abstract) || classSym->GetAttr(ATTR_interface)) {
     MIRFunction *funcSecond = mirBuilder->GetOrCreateFunction("MCC_Reflect_ThrowInstantiationError",
                                                               (TyIdx)(LOWERED_PTR_TYPE));
+    funcSecond->GetFuncSymbol()->SetAppearsInCode(true);
     beCommon.UpdateTypeTable(*funcSecond->GetMIRFuncType());
     funcSecond->AllocSymTab();
     BaseNode *arg = mirBuilder->CreateExprAddrof(0, *classSym);
@@ -3796,6 +3855,7 @@ void CGLowerer::LowerJarrayMalloc(const StmtNode &stmt, const JarrayMallocNode &
     args.emplace_back(mirBuilder->CreateIntConst(0, PTY_u32));
   }
   MIRFunction *func = mirBuilder->GetOrCreateFunction(funcName, (TyIdx)(LOWERED_PTR_TYPE));
+  func->GetFuncSymbol()->SetAppearsInCode(true);
   beCommon.UpdateTypeTable(*func->GetMIRFuncType());
   func->AllocSymTab();
   CallNode *callAssign = nullptr;

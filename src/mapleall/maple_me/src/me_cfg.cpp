@@ -261,6 +261,7 @@ bool MeCFG::FindUse(const StmtNode &stmt, StIdx stIdx) const {
     case OP_customcall:
     case OP_polymorphiccall:
     case OP_icall:
+    case OP_icallproto:
     case OP_intrinsiccall:
     case OP_xintrinsiccall:
     case OP_intrinsiccallwithtype:
@@ -273,6 +274,7 @@ bool MeCFG::FindUse(const StmtNode &stmt, StIdx stIdx) const {
     case OP_customcallassigned:
     case OP_polymorphiccallassigned:
     case OP_icallassigned:
+    case OP_icallprotoassigned:
     case OP_intrinsiccallassigned:
     case OP_xintrinsiccallassigned:
     case OP_intrinsiccallwithtypeassigned:

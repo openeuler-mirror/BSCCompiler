@@ -160,6 +160,7 @@ class CGFunc {
   virtual uint32 FloatParamRegRequired(MIRStructType *structType, uint32 &fpSize) = 0;
   virtual void AssignLmbcFormalParams() = 0;
   LmbcFormalParamInfo *GetLmbcFormalParamInfo(uint32 offset);
+  virtual void LmbcGenSaveSpForAlloca() = 0;
   void GenerateLoc(StmtNode *stmt, unsigned &lastSrcLoc, unsigned &lastMplLoc);
   int32 GetFreqFromStmt(uint32 stmtId);
   void GenerateInstruction();
@@ -201,6 +202,7 @@ class CGFunc {
   virtual void SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd) = 0;
   virtual void SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) = 0;
   virtual void SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) = 0;
+  virtual void SelectReturnSendOfStructInRegs(BaseNode *x) = 0;
   virtual void SelectReturn(Operand *opnd) = 0;
   virtual void SelectIgoto(Operand *opnd0) = 0;
   virtual void SelectCondGoto(CondGotoNode &stmt, Operand &opnd0, Operand &opnd1) = 0;
