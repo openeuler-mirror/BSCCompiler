@@ -306,18 +306,18 @@ int32 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, boo
       if (size == 0) {
         /* For return struct size 0 there is no return value. */
         return 0;
-      } else if (size > k16ByteSize) {
-        /* For return struct size > 16 bytes the pointer returns in x8. */
-        pLoc.reg0 = R8;
-        return kSizeOfPtr;
       }
+      /* For return struct size > 16 bytes the pointer returns in x8. */
+      pLoc.reg0 = R8;
+      return kSizeOfPtr;
+#if 0
       /* For return struct size less or equal to 16 bytes, the values
        * are returned in register pairs.
        * Check for pure float struct.
        */
       AArch64ArgumentClass classes[kMaxRegCount] = { kAArch64NoClass };
       uint32 fpSize;
-      MIRType *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(beCommon.GetFuncReturnType(*func));
+      MIRType *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
       uint32 numRegs = static_cast<uint32>(ClassifyAggregate(beCommon, *retType, classes, sizeof(classes), fpSize));
       if (classes[0] == kAArch64FloatClass) {
         CHECK_FATAL(numRegs <= kMaxRegCount, "LocateNextParm: illegal number of regs");
@@ -334,6 +334,7 @@ int32 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, boo
         }
         return 0;
       }
+#endif
     }
   }
   uint64 typeSize = beCommon.GetTypeSize(mirType.GetTypeIndex());
