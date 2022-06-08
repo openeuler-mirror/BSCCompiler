@@ -2271,7 +2271,7 @@ void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src)
   opndVec.push_back(regResult);                              /* result */
   opndVec.push_back(PrepareMemcpyParamOpnd(offset, *dest));  /* param 0 */
   opndVec.push_back(src);                                    /* param 1 */
-  opndVec.push_back(PrepareMemcpyParamOpnd(static_cast<uint64>(static_cast<int64>(bNode.blockSize))));/* param 2 */
+  opndVec.push_back(PrepareMemcpyParamOpnd(bNode.blockSize));/* param 2 */
   SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
 }
 

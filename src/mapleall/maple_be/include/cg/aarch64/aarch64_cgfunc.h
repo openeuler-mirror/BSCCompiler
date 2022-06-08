@@ -129,7 +129,7 @@ class AArch64CGFunc : public CGFunc {
   uint32 LmbcFindTotalStkUsed(std::vector<TyIdx>* paramList);
   uint32 LmbcTotalRegsUsed();
   void LmbcSelectParmList(ListOperand *srcOpnds, bool isArgReturn);
-  bool LmbcSmallAggForRet(const BlkassignoffNode &bNode, Operand *src);
+  bool LmbcSmallAggForRet(BlkassignoffNode &bNode, Operand *src);
   bool LmbcSmallAggForCall(BlkassignoffNode &bNode, Operand *src, std::vector<TyIdx> **parmList);
   void SelectAggDassign(DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
