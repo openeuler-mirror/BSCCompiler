@@ -740,7 +740,9 @@ void MIRFuncType::Dump(int indent, bool dontUseName) const {
   if (!dontUseName && CheckAndDumpTypeName(nameStrIdx, nameIsLocal)) {
     return;
   }
-  LogInfo::MapleLogger() << "<func(";
+  LogInfo::MapleLogger() << "<func";
+  funcAttrs.DumpAttributes();
+  LogInfo::MapleLogger() << " (";
   size_t size = paramTypeList.size();
   for (size_t i = 0; i < size; ++i) {
     GlobalTables::GetTypeTable().GetTypeFromTyIdx(paramTypeList[i])->Dump(indent + 1);
@@ -751,7 +753,7 @@ void MIRFuncType::Dump(int indent, bool dontUseName) const {
       LogInfo::MapleLogger() << ",";
     }
   }
-  if (isVarArgs) {
+  if (IsVarargs()) {
     LogInfo::MapleLogger() << ", ...";
   }
   LogInfo::MapleLogger() << ") ";
@@ -1662,7 +1664,7 @@ bool MIRFuncType::EqualTo(const MIRType &type) const {
   }
   const auto &pType = static_cast<const MIRFuncType&>(type);
   return (pType.retTyIdx == retTyIdx && pType.paramTypeList == paramTypeList &&
-          pType.isVarArgs == isVarArgs && pType.paramAttrsList == paramAttrsList &&
+          pType.funcAttrs == funcAttrs && pType.paramAttrsList == paramAttrsList &&
           pType.retAttrs == retAttrs);
 }
 
@@ -2282,6 +2284,20 @@ std::string MIRPtrType::GetCompactMplTypeName() const {
   MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointedTyIdx);
   CHECK_FATAL(pointedType != nullptr, "invalid ptr type");
   return pointedType->GetCompactMplTypeName();
+}
+
+MIRFuncType *MIRPtrType::GetPointedFuncType() {
+  MIRType *pointedType = GetPointedType();
+  if (pointedType->GetKind() == kTypeFunction) {
+    return static_cast<MIRFuncType *>(pointedType);
+  }
+  if (pointedType->GetKind() == kTypePointer) {
+    MIRPtrType *pointedPtrType = static_cast<MIRPtrType *>(pointedType);
+    if (pointedPtrType->GetPointedType()->GetKind() == kTypeFunction) {
+      return static_cast<MIRFuncType *>(pointedPtrType->GetPointedType());
+    }
+  }
+  return nullptr;
 }
 
 uint32 MIRStructType::NumberOfFieldIDs() const {

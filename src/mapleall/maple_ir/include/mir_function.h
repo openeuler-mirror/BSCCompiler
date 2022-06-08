@@ -69,8 +69,8 @@ class MIRFunction {
   MIRFunction(MIRModule *mod, StIdx idx)
       : module(mod),
         symbolTableIdx(idx) {
-          scope = module->GetMemPool()->New<MIRScope>(mod);
-        }
+    scope = module->GetMemPool()->New<MIRScope>(mod);
+  }
 
   ~MIRFunction() = default;
 
@@ -728,7 +728,7 @@ class MIRFunction {
   }
 
   MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {
-    return scope->aliasVarMap;
+    return scope->GetAliasVarMap();
   }
   void SetAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
     scope->SetAliasVarMap(idx, vars);
@@ -827,24 +827,24 @@ class MIRFunction {
     callTimes = times;
   }
 
-  uint16 GetFrameSize() const {
+  uint32 GetFrameSize() const {
     return frameSize;
   }
-  void SetFrameSize(uint16 size) {
+  void SetFrameSize(uint32 size) {
     frameSize = size;
   }
 
-  uint16 GetUpFormalSize() const {
+  uint32 GetUpFormalSize() const {
     return upFormalSize;
   }
-  void SetUpFormalSize(uint16 size) {
+  void SetUpFormalSize(uint32 size) {
     upFormalSize = size;
   }
 
-  uint16 GetOutParmSize() const {
+  uint32 GetOutParmSize() const {
     return outParmSize;
   }
-  void SetOutParmSize(uint16 size) {
+  void SetOutParmSize(uint32 size) {
     outParmSize = size;
   }
 
@@ -1295,9 +1295,9 @@ class MIRFunction {
   bool isDirty = false;
   bool fromMpltInline = false;  // Whether this function is imported from mplt_inline file or not.
   uint8_t layoutType = kLayoutUnused;
-  uint16 frameSize = 0;
-  uint16 upFormalSize = 0;
-  uint16 outParmSize = 0;
+  uint32 frameSize = 0;
+  uint32 upFormalSize = 0;
+  uint32 outParmSize = 0;
   uint16 moduleID = 0;
   uint32 funcSize = 0;                         // size of code in words
   uint32 tempCount = 0;

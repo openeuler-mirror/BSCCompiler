@@ -185,7 +185,12 @@ void MeLowerGlobals::Run() {
         MeExpr *addroffuncExpr = irMap->CreateAddroffuncMeExpr(callee.GetPuidx());
         auto insertpos = callStmt.GetOpnds().begin();
         callStmt.InsertOpnds(insertpos, addroffuncExpr);
-        IcallMeStmt *icallStmt = irMap->NewInPool<IcallMeStmt>(stmt.GetOp() == OP_call ? OP_icall : OP_icallassigned);
+        IcallMeStmt *icallStmt = nullptr;
+        if (func.GetMIRModule().IsCModule()) {
+          icallStmt = irMap->NewInPool<IcallMeStmt>(stmt.GetOp() == OP_call ? OP_icallproto : OP_icallprotoassigned);
+        } else {
+          icallStmt = irMap->NewInPool<IcallMeStmt>(stmt.GetOp() == OP_call ? OP_icall : OP_icallassigned);
+        }
         icallStmt->SetIsLive(callStmt.GetIsLive());
         icallStmt->SetSrcPos(callStmt.GetSrcPosition());
         for (MeExpr *o : callStmt.GetOpnds()) {
@@ -193,7 +198,11 @@ void MeLowerGlobals::Run() {
         }
         icallStmt->GetMuList()->insert(callStmt.GetMuList()->begin(), callStmt.GetMuList()->end());
         icallStmt->GetChiList()->insert(callStmt.GetChiList()->begin(), callStmt.GetChiList()->end());
-        icallStmt->SetRetTyIdx(callee.GetReturnTyIdx());
+        if (func.GetMIRModule().IsCModule()) {
+          icallStmt->SetRetTyIdx(callee.GetMIRFuncType()->GetTypeIndex());
+        } else {
+          icallStmt->SetRetTyIdx(callee.GetReturnTyIdx());
+        }
         if (stmt.GetOp() != OP_call) {
           if (callStmt.NeedDecref()) {
             icallStmt->EnableNeedDecref();

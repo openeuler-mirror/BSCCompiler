@@ -16,8 +16,8 @@
  ADDTARGETPHASE("createstartendlabel", true);
  ADDTARGETPHASE("buildehfunc", true);
  ADDTARGETPHASE("handlefunction", true);
+ ADDTARGETPHASE("moveargs", true);
  if (GetMIRModule()->GetFlavor() != MIRFlavor::kFlavorLmbc) {
-   ADDTARGETPHASE("moveargs", true);
    /* SSA PHASES */
    ADDTARGETPHASE("cgssaconstruct", CGOptions::DoCGSSA());
    ADDTARGETPHASE("cgcopyprop", CGOptions::DoCGSSA());

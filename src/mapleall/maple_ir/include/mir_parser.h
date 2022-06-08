@@ -134,6 +134,7 @@ class MIRParser {
   bool ParseStmtIcall(StmtNodePtr&);
   bool ParseStmtIcallassigned(StmtNodePtr&);
   bool ParseStmtIcallproto(StmtNodePtr&);
+  bool ParseStmtIcallprotoassigned(StmtNodePtr&);
   bool ParseStmtIntrinsiccall(StmtNodePtr&, bool isAssigned);
   bool ParseStmtIntrinsiccall(StmtNodePtr&);
   bool ParseStmtIntrinsiccallassigned(StmtNodePtr&);
@@ -291,7 +292,6 @@ class MIRParser {
   bool ParseStmtBlockForType();
   bool ParseStmtBlockForFrameSize();
   bool ParseStmtBlockForUpformalSize();
-  bool ParseStmtBlockForOutParmSize();
   bool ParseStmtBlockForModuleID();
   bool ParseStmtBlockForFuncSize();
   bool ParseStmtBlockForFuncID();

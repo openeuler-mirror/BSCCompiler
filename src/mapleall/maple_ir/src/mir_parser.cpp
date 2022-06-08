@@ -894,6 +894,7 @@ bool MIRParser::ParseStmtCall(StmtNodePtr &stmt) {
   callStmt->SetPUIdx(pIdx);
 
   MIRFunction *callee = GlobalTables::GetFunctionTable().GetFuncTable()[pIdx];
+  callee->GetFuncSymbol()->SetAppearsInCode(true);
   if (callee->GetName() == "setjmp") {
     mod.CurFunction()->SetHasSetjmp();
   }
@@ -930,9 +931,14 @@ bool MIRParser::ParseStmtIcall(StmtNodePtr &stmt, Opcode op) {
   //               . . .
   //              dassign <var-namen> <field-idn> }
   //         icallproto <funcType> (<PU-ptr>, <opnd0>, ..., <opndn>)
+  //         icallprotoassigned <funcType> (<PU-ptr>, <opnd0>, ..., <opndn>) {
+  //              dassign <var-name0> <field-id0>
+  //              dassign <var-name1> <field-id1>
+  //               . . .
+  //              dassign <var-namen> <field-idn> }
   IcallNode *iCallStmt = mod.CurFuncCodeMemPool()->New<IcallNode>(mod, op);
   lexer.NextToken();
-  if (op == OP_icallproto) {
+  if (op == OP_icallproto || op == OP_icallprotoassigned) {
     TyIdx tyIdx(0);
     if (!ParseDerivedType(tyIdx)) {
       Error("error parsing type in ParseStmtIcall for icallproto at ");
@@ -946,7 +952,7 @@ bool MIRParser::ParseStmtIcall(StmtNodePtr &stmt, Opcode op) {
   }
   iCallStmt->SetNOpnd(opndsVec);
   iCallStmt->SetNumOpnds(opndsVec.size());
-  if (op == OP_icallassigned) {
+  if (op == OP_icallassigned || op == OP_icallprotoassigned) {
     CallReturnVector retsVec(mod.CurFuncCodeMemPoolAllocator()->Adapter());
     if (!ParseCallReturns(retsVec)) {
       return false;
@@ -968,6 +974,10 @@ bool MIRParser::ParseStmtIcallassigned(StmtNodePtr &stmt) {
 
 bool MIRParser::ParseStmtIcallproto(StmtNodePtr &stmt) {
   return ParseStmtIcall(stmt, OP_icallproto);
+}
+
+bool MIRParser::ParseStmtIcallprotoassigned(StmtNodePtr &stmt) {
+  return ParseStmtIcall(stmt, OP_icallprotoassigned);
 }
 
 bool MIRParser::ParseStmtIntrinsiccall(StmtNodePtr &stmt, bool isAssigned) {
@@ -2002,18 +2012,6 @@ bool MIRParser::ParseStmtBlockForUpformalSize() {
     return false;
   }
   fn->SetUpFormalSize(lexer.GetTheIntVal());
-  lexer.NextToken();
-  return true;
-}
-
-bool MIRParser::ParseStmtBlockForOutParmSize() {
-  MIRFunction *fn = paramCurrFuncForParseStmtBlock;
-  lexer.NextToken();
-  if (lexer.GetTokenKind() != TK_intconst) {
-    Error("expect integer after outparmsize but get ");
-    return false;
-  }
-  fn->SetOutParmSize(static_cast<uint16>(lexer.GetTheIntVal()));
   lexer.NextToken();
   return true;
 }
@@ -3230,7 +3228,8 @@ bool MIRParser::ParseConstAddrLeafExpr(MIRConstPtr &cexpr) {
   } else if (expr->GetOpCode() == OP_addroffunc) {
     auto *aof = static_cast<AddroffuncNode*>(expr);
     MIRFunction *f = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(aof->GetPUIdx());
-    const MIRSymbol *fName = f->GetFuncSymbol();
+    MIRSymbol *fName = f->GetFuncSymbol();
+    fName->SetAppearsInCode(true);
     TyIdx ptyIdx = fName->GetTyIdx();
     MIRPtrType ptrType(ptyIdx);
     ptyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&ptrType);
@@ -3404,6 +3403,7 @@ std::map<TokenKind, MIRParser::FuncPtrParseStmt> MIRParser::InitFuncPtrMapForPar
   funcPtrMap[TK_icall] = &MIRParser::ParseStmtIcall;
   funcPtrMap[TK_icallassigned] = &MIRParser::ParseStmtIcallassigned;
   funcPtrMap[TK_icallproto] = &MIRParser::ParseStmtIcallproto;
+  funcPtrMap[TK_icallprotoassigned] = &MIRParser::ParseStmtIcallprotoassigned;
   funcPtrMap[TK_intrinsiccall] = &MIRParser::ParseStmtIntrinsiccall;
   funcPtrMap[TK_intrinsiccallassigned] = &MIRParser::ParseStmtIntrinsiccallassigned;
   funcPtrMap[TK_xintrinsiccall] = &MIRParser::ParseStmtIntrinsiccall;
@@ -3464,7 +3464,6 @@ std::map<TokenKind, MIRParser::FuncPtrParseStmtBlock> MIRParser::InitFuncPtrMapF
   funcPtrMap[TK_type] = &MIRParser::ParseStmtBlockForType;
   funcPtrMap[TK_framesize] = &MIRParser::ParseStmtBlockForFrameSize;
   funcPtrMap[TK_upformalsize] = &MIRParser::ParseStmtBlockForUpformalSize;
-  funcPtrMap[TK_outparmsize] = &MIRParser::ParseStmtBlockForOutParmSize;
   funcPtrMap[TK_moduleid] = &MIRParser::ParseStmtBlockForModuleID;
   funcPtrMap[TK_funcsize] = &MIRParser::ParseStmtBlockForFuncSize;
   funcPtrMap[TK_funcid] = &MIRParser::ParseStmtBlockForFuncID;

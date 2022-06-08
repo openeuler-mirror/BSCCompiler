@@ -381,11 +381,7 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       } else {
         size = std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()));
       }
-      Emit(asmInfo->GetComm());
-      Emit(symName);
-      Emit(", ");
-      Emit(size);
-      Emit(", ");
+      Emit(asmInfo->GetComm()).Emit(symName).Emit(", ").Emit(size).Emit(", ");
 #if PECOFF
 #if TARGARM || TARGAARCH64 || TARGARK || TARGRISCV64
       std::string align = std::to_string(
@@ -404,11 +400,7 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       } else if (((kind == kTypeStruct) || (kind == kTypeClass) || (kind == kTypeArray) || (kind == kTypeUnion)) &&
                  ((storage == kScGlobal) || (storage == kScPstatic) || (storage == kScFstatic))) {
         int32 align = Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex());
-        if (kSizeOfPtr < align) {
-          Emit(std::to_string(align));
-        } else {
-          Emit(std::to_string(k8ByteSize));
-        }
+        Emit(std::to_string(align > kSizeOfPtr ? align : k8BitSize));
       } else {
         Emit(std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex())));
       }
@@ -2177,6 +2169,11 @@ void Emitter::EmitGlobalVar(const MIRSymbol &globalVar) {
 }
 
 void Emitter::EmitGlobalVars(std::vector<std::pair<MIRSymbol*, bool>> &globalVars) {
+  if (GetCG()->IsLmbc() && GetCG()->GetGP() != nullptr) {
+    Emit(asmInfo->GetLocal()).Emit("\t").Emit(GetCG()->GetGP()->GetName()).Emit("\n");
+    Emit(asmInfo->GetComm()).Emit("\t").Emit(GetCG()->GetGP()->GetName());
+    Emit(", ").Emit(GetCG()->GetMIRModule()->GetGlobalMemSize()).Emit(", ").Emit("8\n");
+  }
   /* load globalVars profile */
   if (globalVars.empty()) {
     return;

@@ -1199,7 +1199,7 @@ MIRType *IcallNode::GetCallReturnType() {
   if (op == OP_icall || op == OP_icallassigned) {
     return GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx);
   }
-  // icallproto
+  // icallproto or icallprotoassigned
   MIRFuncType *funcType = static_cast<MIRFuncType*>(
       GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx));
   return GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetRetTyIdx());
@@ -1224,7 +1224,7 @@ const MIRSymbol *IcallNode::GetCallReturnSymbol(const MIRModule &mod) const {
 
 void IcallNode::Dump(int32 indent, bool newline) const {
   StmtNode::DumpBase(indent);
-  if (op == OP_icallproto) {
+  if (op == OP_icallproto || op == OP_icallprotoassigned) {
     LogInfo::MapleLogger() << " ";
     GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx)->Dump(indent + 1);
   }

@@ -484,11 +484,13 @@ class MIRSymbol {
       return false;
     }
     switch (storageClass) {
-      case kScFormal:
-      case kScAuto:    return true;
+      case kScAuto:
+        return true;
       case kScPstatic:
-      case kScFstatic: return value.konst == nullptr;
-      default:         return false;
+      case kScFstatic:
+        return value.konst == nullptr && !hasPotentialAssignment;
+      default:
+        return false;
     }
   }
 
@@ -587,7 +589,8 @@ class MIRSymbolTable {
     return GetSymbolFromStIdx(GetStIdxFromStrIdx(idx).Idx(), checkFirst);
   }
 
-  void Dump(bool isLocal, int32 indent = 0, bool printDeleted = false, MIRFlavor flavor = kFlavorUnknown) const;
+  void Dump(bool isLocal, int32 indent = 0, bool printDeleted = false,
+            MIRFlavor flavor = kFlavorUnknown) const;
   size_t GetSymbolTableSize() const {
     return symbolTable.size();
   }
@@ -633,7 +636,8 @@ class MIRLabelTable {
 
   LabelIdx CreateLabel() {
     LabelIdx labelIdx = labelTable.size();
-    labelTable.push_back(GStrIdx(0));  // insert dummy global string index for anonymous label
+    GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(std::to_string(labelIdx));
+    labelTable.push_back(strIdx);
     return labelIdx;
   }
 

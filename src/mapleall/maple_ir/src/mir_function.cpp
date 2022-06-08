@@ -369,10 +369,8 @@ void MIRFunction::Dump(bool withoutBody) {
     LogInfo::MapleLogger() << " )";
   }
 
-  if (module->GetFlavor() < kMmpl) {
+  if (module->GetFlavor() != kMmpl) {
     DumpFlavorLoweredThanMmpl();
-  } else {
-    LogInfo::MapleLogger() << " () void";
   }
 
   // codeMemPool is nullptr, means maple_ir has been released for memory's sake

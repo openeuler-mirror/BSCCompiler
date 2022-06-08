@@ -47,29 +47,27 @@ void BinaryMplImport::ImportFuncIdInfo(MIRFunction *func) {
   func->SetPuidxOrigin(static_cast<PUIdx>(ReadNum()));
   ImportInfoVector(func->GetInfoVector(), func->InfoIsString());
   if (mod.GetFlavor() == kFlavorLmbc) {
-    func->SetUpFormalSize(ReadNum());
-    func->SetFrameSize(ReadNum());
-    func->SetOutParmSize(ReadNum());
+    func->SetFrameSize(static_cast<uint16>(ReadNum()));
   }
-  tag = ReadNum();
-  CHECK_FATAL(tag == ~kBinFuncIdInfoStart, "pattern mismatch in ImportFuncIdInfo()");
 }
 
 void BinaryMplImport::ImportBaseNode(Opcode &o, PrimType &typ) {
-  o = (Opcode)ReadNum();
-  typ = (PrimType)ReadNum();
+  o = (Opcode)Read();
+  typ = (PrimType)Read();
 }
 
-void BinaryMplImport::ImportLocalSymbol(MIRFunction *func) {
+MIRSymbol *BinaryMplImport::ImportLocalSymbol(MIRFunction *func) {
   int64 tag = ReadNum();
   if (tag == 0) {
-    func->GetSymTab()->PushNullSymbol();
-    return;
+    return nullptr;
   }
+  if (tag < 0) {
+    CHECK_FATAL(static_cast<size_t>(-tag) < localSymTab.size(), "index out of bounds");
+    return localSymTab.at(-tag);
+   }
   CHECK_FATAL(tag == kBinSymbol, "expecting kBinSymbol in ImportLocalSymbol()");
-  auto indx = static_cast<uint32>(ReadNum());
-  CHECK_FATAL(indx == func->GetSymTab()->GetSymbolTableSize(), "inconsistant local stIdx");
   MIRSymbol *sym = func->GetSymTab()->CreateSymbol(kScopeLocal);
+  localSymTab.push_back(sym);
   sym->SetNameStrIdx(ImportStr());
   (void)func->GetSymTab()->AddToStringSymbolMap(*sym);
   sym->SetSKind((MIRSymKind)ReadNum());
@@ -81,66 +79,52 @@ void BinaryMplImport::ImportLocalSymbol(MIRFunction *func) {
   }
   sym->SetTyIdx(ImportType());
   if (sym->GetSKind() == kStPreg) {
-    auto thepregno = static_cast<uint32>(ReadNum());
-    MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx());
-    PregIdx pregidx = func->GetPregTab()->EnterPregNo(thepregno, mirType->GetPrimType(), mirType);
-    MIRPregTable *pregTab = func->GetPregTab();
-    MIRPreg *preg = pregTab->PregFromPregIdx(pregidx);
-    preg->SetPrimType(mirType->GetPrimType());
+    PregIdx pregidx = ImportPreg(func);
+    MIRPreg *preg = func->GetPregTab()->PregFromPregIdx(pregidx);
     sym->SetPreg(preg);
   } else if (sym->GetSKind() == kStConst || sym->GetSKind() == kStVar) {
     sym->SetKonst(ImportConst(func));
   } else if (sym->GetSKind() == kStFunc) {
-    PUIdx puIdx = ImportFuncViaSymName();
-    TyIdx tyIdx = ImportType();
-    sym->SetTyIdx(tyIdx);
+    PUIdx puIdx = ImportFuncViaSym(func);
     sym->SetFunction(GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx));
   }
+  return sym;
 }
 
-void BinaryMplImport::ImportLocalSymTab(MIRFunction *func) {
+PregIdx BinaryMplImport::ImportPreg(MIRFunction *func) {
   int64 tag = ReadNum();
-  CHECK_FATAL(tag == kBinSymStart, "kBinSymStart expected in ImportLocalSymTab()");
-  int32 size = ReadInt();
-  for (int64 i = 0; i < size; ++i) {
-    ImportLocalSymbol(func);
+  if (tag == 0) {
+    return 0;
   }
-  tag = ReadNum();
-  CHECK_FATAL(tag == ~kBinSymStart, "pattern mismatch in ImportLocalSymTab()");
+  if (tag == kBinSpecialReg) {
+    return -Read();
+  }
+  if (tag < 0) {
+    CHECK_FATAL(static_cast<size_t>(-tag) < localPregTab.size(), "index out of bounds");
+    return localPregTab.at(-tag);
+  }
+  CHECK_FATAL(tag == kBinPreg, "expecting kBinPreg in ImportPreg()");
+
+  PrimType primType = (PrimType)Read();
+  PregIdx pidx = func->GetPregTab()->CreatePreg(primType);
+  localPregTab.push_back(pidx);
+  return pidx;
 }
 
-void BinaryMplImport::ImportPregTab(const MIRFunction *func) {
+LabelIdx BinaryMplImport::ImportLabel(MIRFunction *func) {
   int64 tag = ReadNum();
-  CHECK_FATAL(tag == kBinPregStart, "kBinPregStart expected in ImportPregTab()");
-  int32 size = ReadInt();
-  for (int64 i = 0; i < size; ++i) {
-    int64 nextTag = ReadNum();
-    if (nextTag == 0) {
-      func->GetPregTab()->GetPregTable().push_back(nullptr);
-      continue;
-    }
-    CHECK_FATAL(nextTag == kBinPreg, "expecting kBinPreg in ImportPregTab()");
-    auto pregNo = static_cast<uint32>(ReadNum());
-    TyIdx tyIdx = ImportType();
-    MIRType *ty = (tyIdx == 0) ? nullptr : GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
-    PrimType primType = (PrimType)ReadNum();
-    CHECK_FATAL(ty == nullptr || primType == ty->GetPrimType(), "ImportPregTab: inconsistent primitive type");
-    (void)func->GetPregTab()->EnterPregNo(pregNo, primType, ty);
+  if (tag == 0) {
+    return 0;
   }
-  tag = ReadNum();
-  CHECK_FATAL(tag == ~kBinPregStart, "pattern mismatch in ImportPregTab()");
-}
+  if (tag < 0) {
+    CHECK_FATAL(static_cast<size_t>(-tag) < localLabelTab.size(), "index out of bounds");
+    return localLabelTab.at(-tag);
+  }
+  CHECK_FATAL(tag == kBinLabel, "kBinLabel expected in ImportLabel()");
 
-void BinaryMplImport::ImportLabelTab(MIRFunction *func) {
-  int64 tag = ReadNum();
-  CHECK_FATAL(tag == kBinLabelStart, "kBinLabelStart expected in ImportLabelTab()");
-  int64 size = ReadNum();
-  for (int64 i = 0; i < size; ++i) {
-    GStrIdx gStrIdx = ImportStr();
-    (void)func->GetLabelTab()->AddLabel(gStrIdx);
-  }
-  tag = ReadNum();
-  CHECK_FATAL(tag == ~kBinLabelStart, "pattern mismatch in ImportLabelTab()");
+  LabelIdx lidx = func->GetLabelTab()->CreateLabel();
+  localLabelTab.push_back(lidx);
+  return lidx;
 }
 
 void BinaryMplImport::ImportLocalTypeNameTable(MIRTypeNameTable *typeNameTab) {
@@ -152,8 +136,6 @@ void BinaryMplImport::ImportLocalTypeNameTable(MIRTypeNameTable *typeNameTab) {
     TyIdx tyIdx = ImportType();
     typeNameTab->SetGStrIdxToTyIdx(strIdx, tyIdx);
   }
-  tag = ReadNum();
-  CHECK_FATAL(tag == ~kBinTypenameStart, "pattern mismatch in ImportTypenametab()");
 }
 
 void BinaryMplImport::ImportFormalsStIdx(MIRFunction *func) {
@@ -161,11 +143,8 @@ void BinaryMplImport::ImportFormalsStIdx(MIRFunction *func) {
   CHECK_FATAL(tag == kBinFormalStart, "kBinFormalStart expected in ImportFormalsStIdx()");
   auto size = ReadNum();
   for (int64 i = 0; i < size; ++i) {
-    uint32 indx = static_cast<uint32>(ReadNum());
-    func->GetFormalDefVec()[static_cast<uint64>(i)].formalSym = func->GetSymTab()->GetSymbolFromStIdx(indx);
+    func->GetFormalDefVec()[static_cast<uint64>(i)].formalSym = ImportLocalSymbol(func);
   }
-  tag = ReadNum();
-  CHECK_FATAL(tag == ~kBinFormalStart, "pattern mismatch in ImportFormalsStIdx()");
 }
 
 void BinaryMplImport::ImportAliasMap(MIRFunction *func) {
@@ -180,22 +159,15 @@ void BinaryMplImport::ImportAliasMap(MIRFunction *func) {
     (void)ImportStr();  // not assigning to mimic parser
     func->GetAliasVarMap()[strIdx] = aliasvars;
   }
-  tag = ReadNum();
-  CHECK_FATAL(tag == ~kBinAliasMapStart, "pattern mismatch in ImportAliasMap()");
 }
 
-PUIdx BinaryMplImport::ImportFuncViaSymName() {
-  int64 tag = ReadNum();
-  CHECK_FATAL(tag == kBinKindFuncViaSymname, "kBinKindFuncViaSymname expected");
-  GStrIdx strIdx = ImportStr();
-  MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx);
-  MIRFunction *func = sym->GetFunction();
-  return func->GetPuidx();
+PUIdx BinaryMplImport::ImportFuncViaSym(MIRFunction *func) {
+  MIRSymbol *sym = InSymbol(func);
+  MIRFunction *f = sym->GetFunction();
+  return f->GetPuidx();
 }
 
 BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
-  int64 tag = ReadNum();
-  CHECK_FATAL(tag == kBinOpExpression, "kBinOpExpression expected");
   Opcode op;
   PrimType typ;
   ImportBaseNode(op, typ);
@@ -215,13 +187,15 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     }
     case OP_addroflabel: {
       AddroflabelNode *alabNode = mod.CurFuncCodeMemPool()->New<AddroflabelNode>();
-      alabNode->SetOffset(static_cast<uint32>(ReadNum()));
+      alabNode->SetOffset(ImportLabel(func));
       alabNode->SetPrimType(typ);
       (void)func->GetLabelTab()->addrTakenLabels.insert(alabNode->GetOffset());
       return alabNode;
     }
     case OP_addroffunc: {
-      PUIdx puIdx = ImportFuncViaSymName();
+      PUIdx puIdx = ImportFuncViaSym(func);
+      MIRFunction *f = GlobalTables::GetFunctionTable().GetFuncTable()[puIdx];
+      f->GetFuncSymbol()->SetAppearsInCode(true);
       AddroffuncNode *addrNode = mod.CurFuncCodeMemPool()->New<AddroffuncNode>(typ, puIdx);
       return addrNode;
     }
@@ -237,18 +211,18 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
       int32 num = static_cast<int32>(ReadNum());
       StIdx stIdx;
       stIdx.SetScope(static_cast<uint32>(ReadNum()));
+      MIRSymbol *sym = nullptr;
       if (stIdx.Islocal()) {
-        stIdx.SetIdx(static_cast<uint32>(ReadNum()));
+        sym = ImportLocalSymbol(func);
+        CHECK_FATAL(sym != nullptr, "null ptr check");
       } else {
-        int32 stag = static_cast<int32>(ReadNum());
-        CHECK_FATAL(stag == kBinKindSymViaSymname, "kBinKindSymViaSymname expected");
-        GStrIdx strIdx = ImportStr();
-        MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx);
+        sym = InSymbol(func);
+        CHECK_FATAL(sym != nullptr, "null ptr check");
         if (op == OP_addrof) {
           sym->SetHasPotentialAssignment();
         }
-        stIdx.SetIdx(sym->GetStIdx().Idx());
       }
+      stIdx.SetIdx(sym->GetStIdx().Idx());
       if (op == OP_addrof || op == OP_dread) {
         AddrofNode *drNode = mod.CurFuncCodeMemPool()->New<AddrofNode>(op);
         drNode->SetPrimType(typ);
@@ -265,7 +239,7 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     }
     case OP_regread: {
       RegreadNode *regreadNode = mod.CurFuncCodeMemPool()->New<RegreadNode>();
-      regreadNode->SetRegIdx(static_cast<PregIdx>(ReadNum()));
+      regreadNode->SetRegIdx(ImportPreg(func));
       regreadNode->SetPrimType(typ);
       return regreadNode;
     }
@@ -294,7 +268,7 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     case OP_floor:
     case OP_trunc: {
       TypeCvtNode *typecvtNode = mod.CurFuncCodeMemPool()->New<TypeCvtNode>(op, typ);
-      typecvtNode->SetFromType((PrimType)ReadNum());
+      typecvtNode->SetFromType((PrimType)Read());
       typecvtNode->SetOpnd(ImportExpression(func), 0);
       return typecvtNode;
     }
@@ -327,15 +301,15 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     case OP_zext:
     case OP_extractbits: {
       ExtractbitsNode *extNode = mod.CurFuncCodeMemPool()->New<ExtractbitsNode>(op, typ);
-      extNode->SetBitsOffset(static_cast<uint8>(ReadNum()));
-      extNode->SetBitsSize(static_cast<uint8>(ReadNum()));
+      extNode->SetBitsOffset(Read());
+      extNode->SetBitsSize(Read());
       extNode->SetOpnd(ImportExpression(func), 0);
       return extNode;
     }
     case OP_depositbits: {
       DepositbitsNode *dbNode = mod.CurFuncCodeMemPool()->New<DepositbitsNode>(op, typ);
-      dbNode->SetBitsOffset(static_cast<uint8>(ReadNum()));
-      dbNode->SetBitsSize(static_cast<uint8>(ReadNum()));
+      dbNode->SetBitsOffset(ReadNum());
+      dbNode->SetBitsSize(ReadNum());
       dbNode->SetOpnd(ImportExpression(func), 0);
       dbNode->SetOpnd(ImportExpression(func), 1);
       return dbNode;
@@ -380,7 +354,7 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     case OP_cmpl:
     case OP_cmp: {
       CompareNode *cmpNode = mod.CurFuncCodeMemPool()->New<CompareNode>(op, typ);
-      cmpNode->SetOpndType((PrimType)ReadNum());
+      cmpNode->SetOpndType((PrimType)Read());
       cmpNode->SetOpnd(ImportExpression(func), 0);
       cmpNode->SetOpnd(ImportExpression(func), 1);
       return cmpNode;
@@ -388,7 +362,7 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     case OP_resolveinterfacefunc:
     case OP_resolvevirtualfunc: {
       ResolveFuncNode *rsNode = mod.CurFuncCodeMemPool()->New<ResolveFuncNode>(op, typ);
-      rsNode->SetPUIdx(ImportFuncViaSymName());
+      rsNode->SetPUIdx(ImportFuncViaSym(func));
       rsNode->SetOpnd(ImportExpression(func), 0);
       rsNode->SetOpnd(ImportExpression(func), 1);
       return rsNode;
@@ -404,7 +378,7 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     // nary
     case OP_array: {
       TyIdx tidx = ImportType();
-      auto boundsCheck = static_cast<uint32>(ReadNum());
+      bool boundsCheck = static_cast<bool>(Read());
       ArrayNode *arrNode =
           mod.CurFuncCodeMemPool()->New<ArrayNode>(func->GetCodeMPAllocator(), typ, tidx, boundsCheck);
       auto n = static_cast<uint32>(ReadNum());
@@ -437,12 +411,15 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
       return intrnNode;
     }
     default:
-      CHECK_FATAL(false, "Unhandled op %d", tag);
+      CHECK_FATAL(false, "Unhandled op %d", op);
       break;
   }
 }
 
 void BinaryMplImport::ImportSrcPos(SrcPosition &pos) {
+  if (!mod.IsWithDbgInfo()) {
+    return;
+  }
   pos.SetRawData(static_cast<uint32>(ReadNum()));
   pos.SetLineNum(static_cast<uint32>(ReadNum()));
 }
@@ -452,14 +429,16 @@ void BinaryMplImport::ImportReturnValues(MIRFunction *func, CallReturnVector *re
   CHECK_FATAL(tag == kBinReturnvals, "expecting return values");
   auto size = static_cast<uint32>(ReadNum());
   for (uint32 i = 0; i < size; ++i) {
-    uint32 idx = static_cast<uint32>(ReadNum());
-    FieldID fid = static_cast<FieldID>(ReadNum());
-    PregIdx ridx = static_cast<PregIdx>(ReadNum());
-    retv->push_back(std::make_pair(StIdx(kScopeLocal, idx), RegFieldPair(fid, ridx)));
-    if (idx == 0) {
+    RegFieldPair rfp;
+    rfp.SetPregIdx(ImportPreg(func));
+    if (rfp.IsReg()) {
+      retv->push_back(std::make_pair(StIdx(), rfp));
       continue;
     }
-    MIRSymbol *lsym = func->GetSymTab()->GetSymbolFromStIdx(idx, false);
+    rfp.SetFieldID(static_cast<FieldID>(ReadNum()));
+    MIRSymbol *lsym = ImportLocalSymbol(func);
+    CHECK_FATAL(lsym != nullptr, "null ptr check");
+    retv->push_back(std::make_pair(lsym->GetStIdx(), rfp));
     if (lsym->GetName().find("L_STR") == 0) {
       MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lsym->GetTyIdx());
       CHECK_FATAL(ty->GetKind() == kTypePointer, "Pointer type expected for L_STR prefix");
@@ -480,8 +459,6 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
   ImportSrcPos(block->GetSrcPos());
   int32 size = ReadInt();
   for (int32 k = 0; k < size; ++k) {
-    tag = ReadNum();
-    CHECK_FATAL(tag == kBinOpStatement, "kBinOpStatement expected");
     SrcPosition thesrcPosition;
     ImportSrcPos(thesrcPosition);
     op = (Opcode)ReadNum();
@@ -496,16 +473,16 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         int32 num = static_cast<int32>(ReadNum());
         StIdx stIdx;
         stIdx.SetScope(static_cast<uint32>(ReadNum()));
+        MIRSymbol *sym = nullptr;
         if (stIdx.Islocal()) {
-          stIdx.SetIdx(static_cast<uint32>(ReadNum()));
+          sym = ImportLocalSymbol(func);
+          CHECK_FATAL(sym != nullptr, "null ptr check");
         } else {
-          int32 stag = static_cast<int32>(ReadNum());
-          CHECK_FATAL(stag == kBinKindSymViaSymname, "kBinKindSymViaSymname expected");
-          GStrIdx strIdx = ImportStr();
-          MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx);
+          sym = InSymbol(func);
+          CHECK_FATAL(sym != nullptr, "null ptr check");
           sym->SetHasPotentialAssignment();
-          stIdx.SetIdx(sym->GetStIdx().Idx());
         }
+        stIdx.SetIdx(sym->GetStIdx().Idx());
         if (op == OP_dassign) {
           DassignNode *s = func->GetCodeMemPool()->New<DassignNode>();
           s->SetStIdx(stIdx);
@@ -524,8 +501,8 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       }
       case OP_regassign: {
         RegassignNode *s = func->GetCodeMemPool()->New<RegassignNode>();
-        s->SetPrimType((PrimType)ReadNum());
-        s->SetRegIdx(static_cast<PregIdx>(ReadNum()));
+        s->SetPrimType((PrimType)Read());
+        s->SetRegIdx(ImportPreg(func));
         s->SetOpnd(ImportExpression(func), 0);
         stmt = s;
         break;
@@ -541,7 +518,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       }
       case OP_iassignoff: {
         IassignoffNode *s = func->GetCodeMemPool()->New<IassignoffNode>();
-        s->SetPrimType((PrimType)ReadNum());
+        s->SetPrimType((PrimType)Read());
         s->SetOffset(static_cast<int32>(ReadNum()));
         s->SetOpnd(ImportExpression(func), 0);
         s->SetOpnd(ImportExpression(func), 1);
@@ -551,7 +528,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       case OP_iassignspoff:
       case OP_iassignfpoff: {
         IassignFPoffNode *s = func->GetCodeMemPool()->New<IassignFPoffNode>(op);
-        s->SetPrimType((PrimType)ReadNum());
+        s->SetPrimType((PrimType)Read());
         s->SetOffset(static_cast<int32>(ReadNum()));
         s->SetOpnd(ImportExpression(func), 0);
         stmt = s;
@@ -576,7 +553,9 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       case OP_interfaceicall:
       case OP_customcall: {
         CallNode *s = func->GetCodeMemPool()->New<CallNode>(mod, op);
-        s->SetPUIdx(ImportFuncViaSymName());
+        s->SetPUIdx(ImportFuncViaSym(func));
+        MIRFunction *f = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(s->GetPUIdx());
+        f->GetFuncSymbol()->SetAppearsInCode(true);
         numOpr = static_cast<uint8>(ReadNum());
         s->SetNumOpnds(numOpr);
         for (int32 i = 0; i < numOpr; ++i) {
@@ -593,7 +572,9 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       case OP_interfaceicallassigned:
       case OP_customcallassigned: {
         CallNode *s = func->GetCodeMemPool()->New<CallNode>(mod, op);
-        s->SetPUIdx(ImportFuncViaSymName());
+        s->SetPUIdx(ImportFuncViaSym(func));
+        MIRFunction *f = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(s->GetPUIdx());
+        f->GetFuncSymbol()->SetAppearsInCode(true);
         ImportReturnValues(func, &s->GetReturnVec());
         numOpr = static_cast<uint8>(ReadNum());
         s->SetNumOpnds(numOpr);
@@ -609,7 +590,9 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       }
       case OP_polymorphiccall: {
         CallNode *s = func->GetCodeMemPool()->New<CallNode>(mod, op);
-        s->SetPUIdx(ImportFuncViaSymName());
+        s->SetPUIdx(ImportFuncViaSym(func));
+        MIRFunction *f = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(s->GetPUIdx());
+        f->GetFuncSymbol()->SetAppearsInCode(true);
         s->SetTyIdx(ImportType());
         numOpr = static_cast<uint8>(ReadNum());
         s->SetNumOpnds(numOpr);
@@ -621,7 +604,9 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       }
       case OP_polymorphiccallassigned: {
         CallNode *s = func->GetCodeMemPool()->New<CallNode>(mod, op);
-        s->SetPUIdx(ImportFuncViaSymName());
+        s->SetPUIdx(ImportFuncViaSym(func));
+        MIRFunction *f = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(s->GetPUIdx());
+        f->GetFuncSymbol()->SetAppearsInCode(true);
         s->SetTyIdx(ImportType());
         ImportReturnValues(func, &s->GetReturnVec());
         numOpr = static_cast<uint8>(ReadNum());
@@ -644,6 +629,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         stmt = s;
         break;
       }
+      case OP_icallprotoassigned:
       case OP_icallassigned: {
         IcallNode *s = func->GetCodeMemPool()->New<IcallNode>(mod, op);
         s->SetRetTyIdx(ImportType());
@@ -758,32 +744,32 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       }
       case OP_label: {
         LabelNode *s = mod.CurFuncCodeMemPool()->New<LabelNode>();
-        s->SetLabelIdx(static_cast<LabelIdx>(ReadNum()));
+        s->SetLabelIdx(ImportLabel(func));
         stmt = s;
         break;
       }
       case OP_goto:
       case OP_gosub: {
         GotoNode *s = mod.CurFuncCodeMemPool()->New<GotoNode>(op);
-        s->SetOffset(static_cast<uint32>(ReadNum()));
+        s->SetOffset(ImportLabel(func));
         stmt = s;
         break;
       }
       case OP_brfalse:
       case OP_brtrue: {
         CondGotoNode *s = mod.CurFuncCodeMemPool()->New<CondGotoNode>(op);
-        s->SetOffset(static_cast<uint32>(ReadNum()));
+        s->SetOffset(ImportLabel(func));
         s->SetOpnd(ImportExpression(func), 0);
         stmt = s;
         break;
       }
       case OP_switch: {
         SwitchNode *s = mod.CurFuncCodeMemPool()->New<SwitchNode>(mod);
-        s->SetDefaultLabel(static_cast<LabelIdx>(ReadNum()));
+        s->SetDefaultLabel(ImportLabel(func));
         auto tagSize = static_cast<uint32>(ReadNum());
         for (uint32 i = 0; i < tagSize; ++i) {
           int64 casetag = ReadNum();
-          LabelIdx lidx(ReadNum());
+          LabelIdx lidx = ImportLabel(func);
           CasePair cpair = std::make_pair(casetag, lidx);
           s->GetSwitchTable().push_back(cpair);
         }
@@ -796,8 +782,8 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         s->SetTagOffset(ReadNum());
         uint32 tagSize = static_cast<uint32>(ReadNum());
         for (uint32 i = 0; i < tagSize; ++i) {
-          uint16 casetag = ReadNum();
-          LabelIdx lidx(ReadNum());
+          uint16 casetag = static_cast<uint16>(ReadNum());
+          LabelIdx lidx = ImportLabel(func);
           s->AddRangeGoto(casetag, lidx);
         }
         s->SetOpnd(ImportExpression(func), 0);
@@ -806,8 +792,8 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       }
       case OP_jstry: {
         JsTryNode *s = mod.CurFuncCodeMemPool()->New<JsTryNode>();
-        s->SetCatchOffset(static_cast<uint32>(ReadNum()));
-        s->SetFinallyOffset(static_cast<uint32>(ReadNum()));
+        s->SetCatchOffset(ImportLabel(func));
+        s->SetFinallyOffset(ImportLabel(func));
         stmt = s;
         break;
       }
@@ -816,7 +802,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         TryNode *s = mod.CurFuncCodeMemPool()->New<TryNode>(mod);
         auto numLabels = static_cast<uint32>(ReadNum());
         for (uint32 i = 0; i < numLabels; ++i) {
-          s->GetOffsets().push_back(ReadNum());
+          s->GetOffsets().push_back(ImportLabel(func));
         }
         stmt = s;
         break;
@@ -886,7 +872,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         // the labels
         count = static_cast<size_t>(ReadNum());
         for (size_t i = 0; i < count; ++i) {
-          auto lidx = static_cast<LabelIdx>(ReadNum());
+          LabelIdx lidx = ImportLabel(func);
           s->gotoLabels.push_back(lidx);
         }
         // the inputs
@@ -926,6 +912,13 @@ void BinaryMplImport::ReadFunctionBodyField() {
     PUIdx puIdx = ImportFunction();
     MIRFunction *fn = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx);
     mod.SetCurFunction(fn);
+    fn->GetFuncSymbol()->SetAppearsInCode(true);
+    localSymTab.clear();
+    localSymTab.push_back(nullptr);
+    localPregTab.clear();
+    localPregTab.push_back(0);
+    localLabelTab.clear();
+    localLabelTab.push_back(0);
 
     fn->AllocSymTab();
     fn->AllocPregTab();
@@ -933,9 +926,6 @@ void BinaryMplImport::ReadFunctionBodyField() {
     fn->AllocLabelTab();
 
     ImportFuncIdInfo(fn);
-    ImportPregTab(fn);
-    ImportLocalSymTab(fn);
-    ImportLabelTab(fn);
     ImportLocalTypeNameTable(fn->GetTypeNameTab());
     ImportFormalsStIdx(fn);
     if (mod.GetFlavor() < kMmpl) {
@@ -944,8 +934,6 @@ void BinaryMplImport::ReadFunctionBodyField() {
     (void)ImportBlockNode(fn);
     mod.AddFunction(fn);
   }
-  int64 tag = ReadNum();
-  CHECK_FATAL(tag == ~kBinFunctionBodyStart, "pattern mismatch in Read FunctionBody");
   return;
 }
 }  // namespace maple

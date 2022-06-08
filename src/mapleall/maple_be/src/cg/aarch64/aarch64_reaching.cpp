@@ -161,8 +161,7 @@ void AArch64ReachingDefinition::AddRetPseudoInsn(BB &bb) {
     Insn &retInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_pseudo_ret_int, regOpnd);
     bb.AppendInsn(retInsn);
     pseudoInsns.emplace_back(&retInsn);
-  } else {
-    ASSERT(regNO == V0, "CG internal error. Return value should be R0 or V0.");
+  } else if (regNO == V0) {
     RegOperand &regOpnd =
         static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(regNO, k64BitSize, kRegTyFloat);
     Insn &retInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_pseudo_ret_float, regOpnd);

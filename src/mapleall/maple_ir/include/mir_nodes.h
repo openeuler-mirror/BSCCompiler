@@ -2558,7 +2558,7 @@ class WhileStmtNode : public UnaryStmtNode {
     if (fromFreqs.count(GetStmtID()) > 0) {
       int64_t oldFreq = fromFreqs[GetStmtID()];
       int64_t newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
-      toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? newFreq : 1;
+      toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? static_cast<uint64_t>(newFreq) : 1;
       if (updateOp & kUpdateOrigFreq) {
         int64_t left = (oldFreq - newFreq) > 0 ? (oldFreq - newFreq) : 1;
         fromFreqs[GetStmtID()] = left;
@@ -2638,11 +2638,11 @@ class DoloopNode : public StmtNode {
         int64_t bodyFreq = fromFreqs[GetDoBody()->GetStmtID()];
         newFreq = denom > 0 ? (((bodyFreq * numer) % denom) + (oldFreq - bodyFreq)) : oldFreq;
       }
-      toFreqs[node->GetStmtID()] = newFreq;
+      toFreqs[node->GetStmtID()] = static_cast<uint64_t>(newFreq);
       ASSERT(oldFreq >= newFreq, "sanity check");
       if (updateOp & kUpdateOrigFreq) {
         int64_t left = oldFreq - newFreq;
-        fromFreqs[GetStmtID()] = left;
+        fromFreqs[GetStmtID()] = static_cast<uint64_t>(left);
       }
     }
     node->SetStartExpr(startExpr->CloneTree(allocator));
@@ -3303,7 +3303,7 @@ class CallNode : public NaryStmtNode {
   CallReturnVector returnValues;
 };
 
-// icall and icallproto
+// icall, icallassigned, icallproto and icallprotoassigned
 class IcallNode : public NaryStmtNode {
  public:
   IcallNode(MapleAllocator &allocator, Opcode o)
