@@ -129,11 +129,13 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
     }
     case kBinKindConstAddrofFunc: {
       PUIdx puIdx = ImportFunction();
+      MIRFunction *f = GlobalTables::GetFunctionTable().GetFuncTable()[puIdx];
+      f->GetFuncSymbol()->SetAppearsInCode(true);
       mod.SetCurFunction(func);
       return memPool->New<MIRAddroffuncConst>(puIdx, *type);
     }
     case kBinKindConstAddrofLabel: {
-      LabelIdx lidx = static_cast<LabelIdx>(ReadNum());
+      LabelIdx lidx = ImportLabel(func);
       PUIdx puIdx = func->GetPuidx();
       MIRLblConst *lblConst = memPool->New<MIRLblConst>(lidx, puIdx, *type);
       (void)func->GetLabelTab()->addrTakenLabels.insert(lidx);
@@ -240,7 +242,7 @@ MIRPragmaElement *BinaryMplImport::ImportPragmaElement() {
   MIRPragmaElement *element = mod.GetPragmaMemPool()->New<MIRPragmaElement>(mod);
   element->SetNameStrIdx(ImportStr());
   element->SetTypeStrIdx(ImportStr());
-  element->SetType((PragmaValueType)ReadNum());
+  element->SetType(static_cast<PragmaValueType>(ReadNum()));
   if (element->GetType() == kValueString || element->GetType() == kValueType || element->GetType() == kValueField ||
       element->GetType() == kValueMethod || element->GetType() == kValueEnum) {
     element->SetI32Val(static_cast<int32>(ImportStr()));
@@ -490,9 +492,9 @@ void BinaryMplImport::Reset() {
 
 TypeAttrs BinaryMplImport::ImportTypeAttrs() {
   TypeAttrs ta;
-  ta.SetAttrFlag(ReadNum());
-  ta.SetAlignValue(ReadNum());
-  ta.SetPack(ReadNum());
+  ta.SetAttrFlag(static_cast<uint64>(ReadNum()));
+  ta.SetAlignValue(static_cast<uint8>(ReadNum()));
+  ta.SetPack(static_cast<uint32>(ReadNum()));
   return ta;
 }
 
@@ -541,19 +543,6 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
     CHECK_FATAL(static_cast<size_t>(-tag) < typTab.size(), "index out of bounds");
     return typTab.at(static_cast<uint64>(-tag));
   }
-  if (tag == kBinKindTypeViaTypename) {
-    GStrIdx typenameStrIdx = ImportStr();
-    TyIdx tyIdx = mod.GetTypeNameTab()->GetTyIdxFromGStrIdx(typenameStrIdx);
-    if (tyIdx != 0) {
-      typTab.push_back(tyIdx);
-      return tyIdx;
-    }
-    MIRTypeByName ltype(typenameStrIdx);
-    ltype.SetNameIsLocal(false);
-    MIRType *type = GlobalTables::GetTypeTable().GetOrCreateMIRTypeNode(ltype);
-    typTab.push_back(type->GetTypeIndex());
-    return type->GetTypeIndex();
-  }
   PrimType primType = (PrimType)0;
   GStrIdx strIdx(0);
   bool nameIsLocal = false;
@@ -578,13 +567,6 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
         typeNeedsComplete = nullptr;
         CompleteAggInfo(tyIdxNeedsComplete);
       }
-      return origType->GetTypeIndex();
-    }
-    case kBinKindTypeByName: {
-      MIRTypeByName type(strIdx);
-      type.SetNameIsLocal(nameIsLocal);
-      MIRType *origType = &InsertInTypeTables(type);
-      typTab.push_back(origType->GetTypeIndex());
       return origType->GetTypeIndex();
     }
     case kBinKindTypeFArray: {
@@ -629,7 +611,7 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
       size_t idx = typTab.size();
       typTab.push_back(TyIdx(0));
       type.SetRetTyIdx(ImportType());
-      type.SetVarArgs(ReadNum());
+      type.funcAttrs.SetAttrFlag(ReadNum());
       int64 size = ReadNum();
       for (int64 i = 0; i < size; ++i) {
         type.GetParamTypeList().push_back(ImportType());
@@ -737,19 +719,6 @@ TyIdx BinaryMplImport::ImportTypeNonJava() {
     CHECK_FATAL(static_cast<size_t>(-tag) < typTab.size(), "index out of bounds");
     return typTab[static_cast<uint64>(-tag)];
   }
-  if (tag == kBinKindTypeViaTypename) {
-    GStrIdx typenameStrIdx = ImportStr();
-    TyIdx tyIdx = mod.GetTypeNameTab()->GetTyIdxFromGStrIdx(typenameStrIdx);
-    if (tyIdx != 0) {
-      typTab.push_back(tyIdx);
-      return tyIdx;
-    }
-    MIRTypeByName ltype(typenameStrIdx);
-    ltype.SetNameIsLocal(false);
-    MIRType *type = GlobalTables::GetTypeTable().GetOrCreateMIRTypeNode(ltype);
-    typTab.push_back(type->GetTypeIndex());
-    return type->GetTypeIndex();
-  }
   PrimType primType = (PrimType)0;
   GStrIdx strIdx(0);
   bool nameIsLocal = false;
@@ -768,12 +737,6 @@ TyIdx BinaryMplImport::ImportTypeNonJava() {
       type.SetNameIsLocal(nameIsLocal);
       type.SetTypeAttrs(ImportTypeAttrs());
       type.SetPointedTyIdx(ImportTypeNonJava());
-      GlobalTables::GetTypeTable().CreateMirTypeNodeAt(type, tyIdxUsed, &mod, false, false);
-      return tyIdxUsed;
-    }
-    case kBinKindTypeByName: {
-      MIRTypeByName type(strIdx);
-      type.SetNameIsLocal(nameIsLocal);
       GlobalTables::GetTypeTable().CreateMirTypeNodeAt(type, tyIdxUsed, &mod, false, false);
       return tyIdxUsed;
     }
@@ -808,7 +771,7 @@ TyIdx BinaryMplImport::ImportTypeNonJava() {
       MIRFuncType type(strIdx);
       type.SetNameIsLocal(nameIsLocal);
       type.SetRetTyIdx(ImportTypeNonJava());
-      type.SetVarArgs(ReadNum());
+      type.funcAttrs.SetAttrFlag(ReadNum());
       int64 size = ReadNum();
       for (int64 i = 0; i < size; ++i) {
         type.GetParamTypeList().push_back(ImportTypeNonJava());
@@ -888,7 +851,7 @@ TyIdx BinaryMplImport::ImportTypeNonJava() {
 }
 
 void BinaryMplImport::ImportTypeBase(PrimType &primType, GStrIdx &strIdx, bool &nameIsLocal) {
-  primType = (PrimType)ReadNum();
+  primType = static_cast<PrimType>(ReadNum());
   strIdx = ImportStr();
   nameIsLocal = ReadNum();
 }
@@ -1035,7 +998,7 @@ PUIdx BinaryMplImport::ImportFunction() {
   } else if (tag < 0) {
     CHECK_FATAL(static_cast<uint64>(-tag) <= funcTab.size(), "index out of bounds");
     if (static_cast<uint64>(-tag) == funcTab.size()) { // function was exported before its symbol
-      return (PUIdx)0;
+      return static_cast<PUIdx>(0);
     }
     PUIdx puIdx =  funcTab[static_cast<uint64>(-tag)]->GetPuidx();
     mod.SetCurFunction(GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx));
@@ -1154,11 +1117,12 @@ void BinaryMplImport::ReadStrField() {
 
 void BinaryMplImport::ReadHeaderField() {
   SkipTotalSize();
-  mod.SetFlavor((MIRFlavor)ReadNum());
-  mod.SetSrcLang((MIRSrcLang)ReadNum());
+  mod.SetFlavor(static_cast<MIRFlavor>(ReadNum()));
+  mod.SetSrcLang(static_cast<MIRSrcLang>(ReadNum()));
   mod.SetID(static_cast<uint16>(ReadNum()));
   if (mod.GetFlavor() == kFlavorLmbc) {
-    mod.SetGlobalMemSize(ReadNum());
+    mod.SetGlobalMemSize(static_cast<uint32>(ReadNum()));
+    mod.SetWithDbgInfo(static_cast<uint32>(ReadNum()));
   }
   mod.SetNumFuncs(static_cast<uint32>(ReadNum()));
   std::string inStr;
@@ -1235,7 +1199,7 @@ CallInfo *BinaryMplImport::ImportCallInfo() {
     return callInfoTab.at(-tag);
   }
   CHECK_FATAL(tag == kBinCallinfo, "expecting kBinCallinfo");
-  CallType ctype = (CallType)ReadNum();  // call type
+  CallType ctype = static_cast<CallType>(ReadNum());  // call type
   uint32 loopDepth = static_cast<uint32>(ReadInt());
   uint32 id = static_cast<uint32>(ReadInt());
   bool argLocal = Read() == 1;
@@ -1353,7 +1317,7 @@ void BinaryMplImport::ReadSeField() {
 
 void BinaryMplImport::InEaCgBaseNode(EACGBaseNode &base, EAConnectionGraph &newEaCg, bool firstPart) {
   if (firstPart) {
-    base.SetEAStatus((EAStatus)ReadNum());
+    base.SetEAStatus(static_cast<EAStatus>(ReadNum()));
     base.SetID(ReadInt());
   } else {
     // start to in points to
@@ -1424,7 +1388,7 @@ EACGBaseNode &BinaryMplImport::InEaCgNode(EAConnectionGraph &newEaCg) {
     return *eaCgTab[-tag];
   }
   CHECK_FATAL(tag == kBinEaCgNode, "must be");
-  NodeKind kind = (NodeKind)ReadNum();
+  NodeKind kind = static_cast<NodeKind>(ReadNum());
   EACGBaseNode *node = nullptr;
   switch (kind) {
     case kObejectNode:
@@ -1568,7 +1532,7 @@ bool BinaryMplImport::ImportForSrcLang(const std::string &fname, MIRSrcLang &src
       case kBinHeaderStart: {
         SkipTotalSize();
         (void)ReadNum();  // skip flavor
-        srcLang = (MIRSrcLang)ReadNum();
+        srcLang = static_cast<MIRSrcLang>(ReadNum());
         return true;
       }
       default: {

@@ -68,10 +68,10 @@ Operand *HandleConstStr(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
 #if TARGAARCH64 || TARGRISCV64
   if (CGOptions::IsArm64ilp32()) {
     return cgFunc.SelectStrConst(*cgFunc.GetMemoryPool()->New<MIRStrConst>(
-        constStrNode.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a32)));
+        constStrNode.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_a32))));
   } else {
     return cgFunc.SelectStrConst(*cgFunc.GetMemoryPool()->New<MIRStrConst>(
-        constStrNode.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64)));
+        constStrNode.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_a64))));
   }
 #else
   return cgFunc.SelectStrConst(*cgFunc.GetMemoryPool()->New<MIRStrConst>(
@@ -85,10 +85,10 @@ Operand *HandleConstStr16(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc
 #if TARGAARCH64 || TARGRISCV64
   if (CGOptions::IsArm64ilp32()) {
     return cgFunc.SelectStr16Const(*cgFunc.GetMemoryPool()->New<MIRStr16Const>(
-        constStr16Node.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a32)));
+        constStr16Node.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_a32))));
   } else {
     return cgFunc.SelectStr16Const(*cgFunc.GetMemoryPool()->New<MIRStr16Const>(
-        constStr16Node.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64)));
+        constStr16Node.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_a64))));
    }
 #else
   return cgFunc.SelectStr16Const(*cgFunc.GetMemoryPool()->New<MIRStr16Const>(
@@ -1145,7 +1145,11 @@ void HandleReturn(StmtNode &stmt, CGFunc &cgFunc) {
   ASSERT(retNode.NumOpnds() <= 1, "NYI return nodes number > 1");
   Operand *opnd = nullptr;
   if (retNode.NumOpnds() != 0) {
-    opnd = cgFunc.HandleExpr(retNode, *retNode.Opnd(0));
+    if (!cgFunc.GetFunction().StructReturnedInRegs()) {
+      opnd = cgFunc.HandleExpr(retNode, *retNode.Opnd(0));
+    } else {
+      cgFunc.SelectReturnSendOfStructInRegs(retNode.Opnd(0));
+    }
   }
   cgFunc.SelectReturn(opnd);
   cgFunc.SetCurBBKind(BB::kBBReturn);
@@ -1195,6 +1199,7 @@ void HandleDassign(StmtNode &stmt, CGFunc &cgFunc) {
     UnaryStmtNode &uNode = static_cast<UnaryStmtNode &>(stmt);
     Operand *opnd0 = cgFunc.HandleExpr(dassignNode, *(uNode.Opnd()));
     cgFunc.SelectDassign(dassignNode, *opnd0);
+    return;
   } else if (rhs->GetPrimType() == PTY_agg) {
     cgFunc.SelectAggDassign(dassignNode);
     return;
@@ -1560,15 +1565,16 @@ void CGFunc::CreateLmbcFormalParamInfo() {
   PrimType primType;
   uint32 offset;
   uint32 typeSize;
-  MIRFunction &mirFunc = GetFunction();
-  if (mirFunc.GetParamSize() > 0) {
+  MIRFunction &func = GetFunction();
+  if (func.GetFormalCount() > 0) {
+    /* Whenever lmbc cannot delete call type info, the prototype is available */
     uint32 stackOffset = 0;
-    for (size_t idx = 0; idx < mirFunc.GetParamSize(); ++idx) {
-      MIRSymbol *sym = mirFunc.GetFormal(idx);
+    for (size_t idx = 0; idx < func.GetFormalCount(); ++idx) {
+      MIRSymbol *sym = func.GetFormal(idx);
       MIRType *type;
       TyIdx tyIdx;
       if (sym) {
-        tyIdx = mirFunc.GetNthParamTyIdx(idx);
+        tyIdx = func.GetFormalDefVec()[idx].formalTyIdx;
         type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
       } else {
         FormalDef vec = const_cast<MIRFunction *>(GetBecommon().GetMIRModule().CurFunction())->GetFormalDefAt(idx);
@@ -1615,6 +1621,9 @@ void CGFunc::CreateLmbcFormalParamInfo() {
       }
       IreadFPoffNode *ireadNode = static_cast<IreadFPoffNode *>(operand);
       primType = ireadNode->GetPrimType();
+      if (ireadNode->GetOffset() < 0) {
+        continue;
+      }
       offset = static_cast<uint32>(ireadNode->GetOffset());
       typeSize = GetPrimTypeSize(primType);
       CHECK_FATAL((offset % k8ByteSize) == 0, "");  /* scalar only, no struct for now */
@@ -1626,6 +1635,31 @@ void CGFunc::CreateLmbcFormalParamInfo() {
                 [] (LmbcFormalParamInfo *x, LmbcFormalParamInfo *y)
                     { return x->GetOffset() < y->GetOffset(); }
            );
+
+  /* When a scalar param address is taken, its regassign is not in the 1st block */
+  for (StmtNode *stmt = func.GetBody()->GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
+    if (stmt == nullptr) {
+      break;
+    }
+    if (stmt->GetOpCode() == OP_label) {
+      continue;
+    }
+    if (stmt->GetOpCode() != OP_regassign) {
+      break;
+    }
+    RegassignNode *regAssignNode = static_cast<RegassignNode *>(stmt);
+    BaseNode *operand = regAssignNode->Opnd(0);
+    if (operand->GetOpCode() != OP_ireadfpoff) {
+      break;
+    }
+    IreadFPoffNode *ireadNode = static_cast<IreadFPoffNode *>(operand);
+    if (ireadNode->GetOffset() < 0) {
+      continue;
+    }
+    LmbcFormalParamInfo *info = GetLmbcFormalParamInfo(ireadNode->GetOffset());
+    info->SetHasRegassign();
+  }
+
   AssignLmbcFormalParams();
 }
 
@@ -1634,7 +1668,7 @@ void CGFunc::GenerateInstruction() {
   InitHandleStmtFactory();
   StmtNode *secondStmt = HandleFirstStmt();
 
-  CreateLmbcFormalParamInfo();
+  //CreateLmbcFormalParamInfo();
   /* First Pass: Creates the doubly-linked list of BBs (next,prev) */
   volReleaseInsn = nullptr;
   unsigned lastSrcLoc = 0;
@@ -2006,6 +2040,7 @@ void CGFunc::HandleFunction() {
     ASSERT(exitBBVec.size() <= 1, "there are more than one BB_return in func");
   }
   ProcessExitBBVec();
+  LmbcGenSaveSpForAlloca();
 
   if (func.IsJava()) {
     GenerateCleanupCodeForExtEpilog(*cleanupBB);
@@ -2040,6 +2075,7 @@ void CGFunc::HandleFunction() {
 
 void CGFunc::AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc) {
   ASSERT(debugInfo != nullptr, "debugInfo is null!");
+  ASSERT(loc->GetMemSegment() != nullptr, "only support those variable that locate at stack now");
   DBGDie *sdie = debugInfo->GetLocalDie(&func, sym->GetNameStrIdx());
   if (sdie == nullptr) {
     return;

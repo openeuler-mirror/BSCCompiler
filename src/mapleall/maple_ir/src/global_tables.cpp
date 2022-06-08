@@ -13,8 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "global_tables.h"
-#include <cmath>
-#include <cstring>
 #include "mir_type.h"
 #include "mir_symbol.h"
 
@@ -51,6 +49,7 @@ void TypeTable::SetTypeWithTyIdx(const TyIdx &tyIdx, MIRType &type) {
   if (oldType != nullptr && oldType != &type) {
     (void)typeHashTable.erase(oldType);
     (void)typeHashTable.insert(&type);
+    delete oldType;
   }
 }
 
@@ -225,7 +224,9 @@ MIRType *TypeTable::GetOrCreateFunctionType(const TyIdx &retTyIdx, const std::ve
                                             const std::vector<TypeAttrs> &vecAttrs, bool isVarg,
                                             const TypeAttrs &retAttrs) {
   MIRFuncType funcType(retTyIdx, vecType, vecAttrs, retAttrs);
-  funcType.SetVarArgs(isVarg);
+  if (isVarg) {
+    funcType.SetVarArgs();
+  }
   TyIdx tyIdx = GetOrCreateMIRType(&funcType);
   ASSERT(tyIdx < typeTable.size(), "index out of range in TypeTable::GetOrCreateFunctionType");
   return typeTable.at(tyIdx);
@@ -396,8 +397,8 @@ MIRDoubleConst *FPConstTable::DoGetOrCreateDoubleConst(double doubleVal) {
     return it->second;
   }
   // create a new one
-  auto *doubleConst = new MIRDoubleConst(doubleVal,
-                                         *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_f64));
+  auto *doubleConst = new MIRDoubleConst(
+      doubleVal, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_f64)));
   doubleConstTable[doubleVal] = doubleConst;
   return doubleConst;
 }
@@ -412,8 +413,8 @@ MIRDoubleConst *FPConstTable::DoGetOrCreateDoubleConstThreadSafe(double doubleVa
   }
   // create a new one
   std::unique_lock<std::shared_timed_mutex> lock(doubleMtx);
-  auto *doubleConst = new MIRDoubleConst(doubleVal,
-                                         *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_f64));
+  auto *doubleConst = new MIRDoubleConst(
+      doubleVal, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_f64)));
   doubleConstTable[doubleVal] = doubleConst;
   return doubleConst;
 }

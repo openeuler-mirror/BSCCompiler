@@ -1189,14 +1189,6 @@ class MIRStructType : public MIRType {
     isImported = flag;
   }
 
-  bool IsUsed() const {
-    return isUsed;
-  }
-
-  void SetIsUsed(bool flag) {
-    isUsed = flag;
-  }
-
   bool IsCPlusPlus() const {
     return isCPlusPlus;
   }
@@ -1368,7 +1360,6 @@ class MIRStructType : public MIRType {
     vTableMethods.clear();
     iTableMethods.clear();
     isImported = false;
-    isUsed = false;
     hasVolatileField = false;
     hasVolatileFieldSet = false;
   }
@@ -1471,7 +1462,6 @@ class MIRStructType : public MIRType {
   // implementation functions, For interfaces, they are abstact functions.
   // Weak indicates the actual definition is in another module.
   bool isImported = false;
-  bool isUsed = false;
   bool isCPlusPlus = false;        // empty struct in C++ has size 1 byte
   mutable bool hasVolatileField = false;     // for caching computed value
   mutable bool hasVolatileFieldSet = false;  // if true, just read hasVolatileField;
@@ -1928,11 +1918,19 @@ class MIRFuncType : public MIRType {
   }
 
   bool IsVarargs() const {
-    return isVarArgs;
+    return funcAttrs.GetAttr(FUNCATTR_varargs);
   }
 
-  void SetVarArgs(bool flag) {
-    isVarArgs = flag;
+  void SetVarArgs() {
+    funcAttrs.SetAttr(FUNCATTR_varargs);
+  }
+
+  bool FirstArgReturn() const {
+    return funcAttrs.GetAttr(FUNCATTR_firstarg_return);
+  }
+
+  void SetFirstArgReturn() {
+    funcAttrs.SetAttr(FUNCATTR_firstarg_return);
   }
 
   const TypeAttrs &GetRetAttrs() const {
@@ -1960,7 +1958,8 @@ class MIRFuncType : public MIRType {
   std::vector<TyIdx> paramTypeList;
   std::vector<TypeAttrs> paramAttrsList;
   TypeAttrs retAttrs;
-  bool isVarArgs = false;
+ public:
+  FuncAttrs funcAttrs;
 };
 
 class MIRTypeByName : public MIRType {

@@ -24,6 +24,10 @@
 using namespace std;
 namespace maple {
 void BinaryMplExport::OutputInfoVector(const MIRInfoVector &infoVector, const MapleVector<bool> &infoVectorIsString) {
+  if (!mod.IsWithDbgInfo()) {
+    Write(0);
+    return;
+  }
   WriteNum(infoVector.size());
   for (uint32 i = 0; i < infoVector.size(); i++) {
     OutputStr(infoVector[i].first);
@@ -41,98 +45,73 @@ void BinaryMplExport::OutputFuncIdInfo(MIRFunction *func) {
   WriteNum(func->GetPuidxOrigin());  // the funcid
   OutputInfoVector(func->GetInfoVector(), func->InfoIsString());
   if (mod.GetFlavor() == kFlavorLmbc) {
-    WriteNum(func->GetUpFormalSize());
     WriteNum(func->GetFrameSize());
-    WriteNum(func->GetOutParmSize());
   }
-  WriteNum(~kBinFuncIdInfoStart);
 }
 
 void BinaryMplExport::OutputBaseNode(const BaseNode *b) {
-  WriteNum(b->GetOpCode());
-  WriteNum(b->GetPrimType());
+  Write(static_cast<uint8>(b->GetOpCode()));
+  Write(static_cast<uint8>(b->GetPrimType()));
 }
 
 void BinaryMplExport::OutputLocalSymbol(MIRSymbol *sym) {
-  if (sym == nullptr) {
-    WriteNum(0);
+  std::unordered_map<const MIRSymbol*, int64>::iterator it = localSymMark.find(sym);
+  if (it != localSymMark.end()) {
+    WriteNum(-(it->second));
     return;
   }
+
   WriteNum(kBinSymbol);
-  WriteNum(sym->GetStIndex());  // preserve original st index
   OutputStr(sym->GetNameStrIdx());
   WriteNum(sym->GetSKind());
   WriteNum(sym->GetStorageClass());
+  size_t mark = localSymMark.size();
+  localSymMark[sym] = mark;
   OutputTypeAttrs(sym->GetAttrs());
   WriteNum(static_cast<int64>(sym->GetIsTmp()));
   if (sym->GetSKind() == kStVar || sym->GetSKind() == kStFunc) {
     OutputSrcPos(sym->GetSrcPosition());
   }
-  OutputTypeViaTypeName(sym->GetTyIdx());
+  OutputType(sym->GetTyIdx());
   if (sym->GetSKind() == kStPreg) {
-    WriteNum(sym->GetPreg()->GetPregNo());
+    OutputPreg(sym->GetPreg());
   } else if (sym->GetSKind() == kStConst || sym->GetSKind() == kStVar) {
     OutputConst(sym->GetKonst());
   } else if (sym->GetSKind() == kStFunc) {
-    OutputFuncViaSymName(sym->GetFunction()->GetPuidx());
-    OutputTypeViaTypeName(sym->GetTyIdx());
+    OutputFuncViaSym(sym->GetFunction()->GetPuidx());
   } else {
     CHECK_FATAL(false, "should not used");
   }
 }
 
-void BinaryMplExport::OutputLocalSymTab(const MIRFunction *func) {
-  WriteNum(kBinSymStart);
-  uint64 outsymSizeIdx = buf.size();
-  ExpandFourBuffSize();  /// size of OutSym
-  int32 size = 0;
-
-  for (uint32 i = 1; i < func->GetSymTab()->GetSymbolTableSize(); i++) {
-    MIRSymbol *s = func->GetSymTab()->GetSymbolFromStIdx(i);
-    if (s->IsDeleted()) {
-      OutputLocalSymbol(nullptr);
-    } else {
-      OutputLocalSymbol(s);
-    }
-    size++;
+void BinaryMplExport::OutputPreg(MIRPreg *preg) {
+  if (preg->GetPregNo() < 0) {
+    WriteNum(kBinSpecialReg);
+    Write(-preg->GetPregNo());
+    return;
+  }
+  std::unordered_map<const MIRPreg*, int64>::iterator it = localPregMark.find(preg);
+  if (it != localPregMark.end()) {
+    WriteNum(-(it->second));
+    return;
   }
 
-  Fixup(outsymSizeIdx, size);
-  WriteNum(~kBinSymStart);
+  WriteNum(kBinPreg);
+  Write(static_cast<uint8>(preg->GetPrimType()));
+  size_t mark = localPregMark.size();
+  localPregMark[preg] = mark;
 }
 
-void BinaryMplExport::OutputPregTab(const MIRFunction *func) {
-  WriteNum(kBinPregStart);
-  uint64 outRegSizeIdx = buf.size();
-  ExpandFourBuffSize();  /// size of OutReg
-  int32 size = 0;
-
-  for (uint32 i = 1; i < func->GetPregTab()->Size(); ++i) {
-    MIRPreg *mirpreg = func->GetPregTab()->PregFromPregIdx(static_cast<int32>(i));
-    if (mirpreg == nullptr) {
-      WriteNum(0);
-      size++;
-      continue;
-    }
-    WriteNum(kBinPreg);
-    WriteNum(mirpreg->GetPregNo());
-    TyIdx tyIdx = (mirpreg->GetMIRType() == nullptr) ? TyIdx(0) : mirpreg->GetMIRType()->GetTypeIndex();
-    OutputTypeViaTypeName(tyIdx);
-    WriteNum(mirpreg->GetPrimType());
-    size++;
+void BinaryMplExport::OutputLabel(LabelIdx lidx) {
+  std::unordered_map<LabelIdx, int64>::iterator it = labelMark.find(lidx);
+  if (it != labelMark.end()) {
+    WriteNum(-(it->second));
+    return;
   }
 
-  Fixup(outRegSizeIdx, size);
-  WriteNum(~kBinPregStart);
-}
-
-void BinaryMplExport::OutputLabelTab(const MIRFunction *func) {
-  WriteNum(kBinLabelStart);
-  WriteNum(static_cast<int64>(func->GetLabelTab()->Size()-1));  // entry 0 is skipped
-  for (uint32 i = 1; i < func->GetLabelTab()->Size(); i++) {
-    OutputStr(func->GetLabelTab()->GetLabelTable()[i]);
-  }
-  WriteNum(~kBinLabelStart);
+  WriteNum(kBinLabel);
+  size_t mark = labelMark.size();
+  labelMark[lidx] = mark;
 }
 
 void BinaryMplExport::OutputLocalTypeNameTab(const MIRTypeNameTable *typeNameTab) {
@@ -140,18 +119,16 @@ void BinaryMplExport::OutputLocalTypeNameTab(const MIRTypeNameTable *typeNameTab
   WriteNum(static_cast<int64>(typeNameTab->Size()));
   for (std::pair<GStrIdx, TyIdx> it : typeNameTab->GetGStrIdxToTyIdxMap()) {
     OutputStr(it.first);
-    OutputTypeViaTypeName(it.second);
+    OutputType(it.second);
   }
-  WriteNum(~kBinTypenameStart);
 }
 
 void BinaryMplExport::OutputFormalsStIdx(MIRFunction *func) {
   WriteNum(kBinFormalStart);
   WriteNum(func->GetFormalDefVec().size());
   for (FormalDef formalDef : func->GetFormalDefVec()) {
-    WriteNum(formalDef.formalSym->GetStIndex());
+    OutputLocalSymbol(formalDef.formalSym);
   }
-  WriteNum(~kBinFormalStart);
 }
 
 void BinaryMplExport::OutputAliasMap(MapleMap<GStrIdx, MIRAliasVars> &aliasVarMap) {
@@ -160,21 +137,18 @@ void BinaryMplExport::OutputAliasMap(MapleMap<GStrIdx, MIRAliasVars> &aliasVarMa
   for (std::pair<GStrIdx, MIRAliasVars> it : aliasVarMap) {
     OutputStr(it.first);
     OutputStr(it.second.memPoolStrIdx);
-    OutputTypeViaTypeName(it.second.tyIdx);
+    OutputType(it.second.tyIdx);
     OutputStr(it.second.sigStrIdx);
   }
-  WriteNum(~kBinAliasMapStart);
 }
 
-void BinaryMplExport::OutputFuncViaSymName(PUIdx puIdx) {
+void BinaryMplExport::OutputFuncViaSym(PUIdx puIdx) {
   MIRFunction *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx);
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func->GetStIdx().Idx());
-  WriteNum(kBinKindFuncViaSymname);
-  OutputStr(funcSt->GetNameStrIdx());
+  OutputSymbol(funcSt);
 }
 
 void BinaryMplExport::OutputExpression(BaseNode *e) {
-  WriteNum(kBinOpExpression);
   OutputBaseNode(e);
   switch (e->GetOpCode()) {
     // leaf
@@ -190,17 +164,17 @@ void BinaryMplExport::OutputExpression(BaseNode *e) {
     }
     case OP_addroflabel: {
       AddroflabelNode *lNode = static_cast<AddroflabelNode *>(e);
-      WriteNum(lNode->GetOffset());
+      OutputLabel(lNode->GetOffset());
       return;
     }
     case OP_addroffunc: {
       AddroffuncNode *addrNode = static_cast<AddroffuncNode *>(e);
-      OutputFuncViaSymName(addrNode->GetPUIdx());
+      OutputFuncViaSym(addrNode->GetPUIdx());
       return;
     }
     case OP_sizeoftype: {
       SizeoftypeNode *sot = static_cast<SizeoftypeNode *>(e);
-      OutputTypeViaTypeName(sot->GetTyIdx());
+      OutputType(sot->GetTyIdx());
       return;
     }
     case OP_addrof:
@@ -219,24 +193,23 @@ void BinaryMplExport::OutputExpression(BaseNode *e) {
       }
       WriteNum(stIdx.Scope());
       if (stIdx.Islocal()) {
-        WriteNum(stIdx.Idx());  // preserve original st index
+        OutputLocalSymbol(curFunc->GetLocalOrGlobalSymbol(stIdx));
       } else {
-        MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx());
-        WriteNum(kBinKindSymViaSymname);
-        OutputStr(sym->GetNameStrIdx());
+        OutputSymbol(curFunc->GetLocalOrGlobalSymbol(stIdx));
       }
       return;
     }
     case OP_regread: {
       RegreadNode *regreadNode = static_cast<RegreadNode *>(e);
-      WriteNum(regreadNode->GetRegIdx());
+      MIRPreg *preg = curFunc->GetPregTab()->PregFromPregIdx(regreadNode->GetRegIdx());
+      OutputPreg(preg);
       return;
     }
     case OP_gcmalloc:
     case OP_gcpermalloc:
     case OP_stackmalloc: {
       GCMallocNode *gcNode = static_cast<GCMallocNode *>(e);
-      OutputTypeViaTypeName(gcNode->GetTyIdx());
+      OutputType(gcNode->GetTyIdx());
       return;
     }
     // unary
@@ -245,18 +218,18 @@ void BinaryMplExport::OutputExpression(BaseNode *e) {
     case OP_floor:
     case OP_trunc: {
       TypeCvtNode *typecvtNode = static_cast<TypeCvtNode *>(e);
-      WriteNum(typecvtNode->FromType());
+      Write(static_cast<uint8>(typecvtNode->FromType()));
       break;
     }
     case OP_retype: {
       RetypeNode *retypeNode = static_cast<RetypeNode *>(e);
-      OutputTypeViaTypeName(retypeNode->GetTyIdx());
+      OutputType(retypeNode->GetTyIdx());
       break;
     }
     case OP_iread:
     case OP_iaddrof: {
       IreadNode *irNode = static_cast<IreadNode *>(e);
-      OutputTypeViaTypeName(irNode->GetTyIdx());
+      OutputType(irNode->GetTyIdx());
       WriteNum(irNode->GetFieldID());
       break;
     }
@@ -274,20 +247,20 @@ void BinaryMplExport::OutputExpression(BaseNode *e) {
     case OP_zext:
     case OP_extractbits: {
       ExtractbitsNode *extNode = static_cast<ExtractbitsNode *>(e);
-      WriteNum(extNode->GetBitsOffset());
-      WriteNum(extNode->GetBitsSize());
+      Write(extNode->GetBitsOffset());
+      Write(extNode->GetBitsSize());
       break;
     }
     case OP_depositbits: {
       DepositbitsNode *dbNode = static_cast<DepositbitsNode *>(e);
-      WriteNum(dbNode->GetBitsOffset());
-      WriteNum(dbNode->GetBitsSize());
+      Write(dbNode->GetBitsOffset());
+      Write(dbNode->GetBitsSize());
       break;
     }
     case OP_gcmallocjarray:
     case OP_gcpermallocjarray: {
       JarrayMallocNode *gcNode = static_cast<JarrayMallocNode *>(e);
-      OutputTypeViaTypeName(gcNode->GetTyIdx());
+      OutputType(gcNode->GetTyIdx());
       break;
     }
     // binary
@@ -320,13 +293,13 @@ void BinaryMplExport::OutputExpression(BaseNode *e) {
     case OP_cmpl:
     case OP_cmp: {
       CompareNode *cmpNode = static_cast<CompareNode *>(e);
-      WriteNum(cmpNode->GetOpndType());
+      Write(static_cast<uint8>(cmpNode->GetOpndType()));
       break;
     }
     case OP_resolveinterfacefunc:
     case OP_resolvevirtualfunc: {
       ResolveFuncNode *rsNode = static_cast<ResolveFuncNode *>(e);
-      OutputFuncViaSymName(rsNode->GetPuIdx());
+      OutputFuncViaSym(rsNode->GetPuIdx());
       break;
     }
     // ternary
@@ -336,8 +309,8 @@ void BinaryMplExport::OutputExpression(BaseNode *e) {
     // nary
     case OP_array: {
       ArrayNode *arrNode = static_cast<ArrayNode *>(e);
-      OutputTypeViaTypeName(arrNode->GetTyIdx());
-      WriteNum(static_cast<int64>(arrNode->GetBoundsCheck()));
+      OutputType(arrNode->GetTyIdx());
+      Write(static_cast<int8>(arrNode->GetBoundsCheck()));
       WriteNum(static_cast<int64>(arrNode->NumOpnds()));
       break;
     }
@@ -350,7 +323,7 @@ void BinaryMplExport::OutputExpression(BaseNode *e) {
     case OP_intrinsicopwithtype: {
       IntrinsicopNode *intrnNode = static_cast<IntrinsicopNode *>(e);
       WriteNum(intrnNode->GetIntrinsic());
-      OutputTypeViaTypeName(intrnNode->GetTyIdx());
+      OutputType(intrnNode->GetTyIdx());
       WriteNum(static_cast<int64>(intrnNode->NumOpnds()));
       break;
     }
@@ -365,6 +338,9 @@ void BinaryMplExport::OutputExpression(BaseNode *e) {
 static SrcPosition lastOutputSrcPosition;
 
 void BinaryMplExport::OutputSrcPos(const SrcPosition &pos) {
+  if (!mod.IsWithDbgInfo()) {
+    return;
+  }
   if (pos.FileNum() == 0 || pos.LineNum() == 0) {  // error case, so output 0
     WriteNum(lastOutputSrcPosition.RawData());
     WriteNum(lastOutputSrcPosition.LineNum());
@@ -379,9 +355,15 @@ void BinaryMplExport::OutputReturnValues(const CallReturnVector *retv) {
   WriteNum(kBinReturnvals);
   WriteNum(static_cast<int64>(retv->size()));
   for (uint32 i = 0; i < retv->size(); i++) {
-    WriteNum((*retv)[i].first.Idx());
-    WriteNum((*retv)[i].second.GetFieldID());
-    WriteNum((*retv)[i].second.GetPregIdx());
+    RegFieldPair rfp = (*retv)[i].second;
+    if (rfp.IsReg()) {
+      MIRPreg *preg = curFunc->GetPregTab()->PregFromPregIdx(rfp.GetPregIdx());
+      OutputPreg(preg);
+    } else {
+      WriteNum(0);
+      WriteNum((rfp.GetFieldID()));
+      OutputLocalSymbol(curFunc->GetLocalOrGlobalSymbol((*retv)[i].first));
+    }
   }
 }
 
@@ -397,7 +379,6 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
   ExpandFourBuffSize();  // place holder, Fixup later
   for (StmtNode *s = block->GetFirst(); s; s = s->GetNext()) {
     bool doneWithOpnds = false;
-    WriteNum(kBinOpStatement);
     OutputSrcPos(s->GetSrcPos());
     WriteNum(s->GetOpCode());
     switch (s->GetOpCode()) {
@@ -416,36 +397,35 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
         }
         WriteNum(stIdx.Scope());
         if (stIdx.Islocal()) {
-          WriteNum(stIdx.Idx());  // preserve original st index
+          OutputLocalSymbol(curFunc->GetLocalOrGlobalSymbol(stIdx));
         } else {
-          MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx());
-          WriteNum(kBinKindSymViaSymname);
-          OutputStr(sym->GetNameStrIdx());
+          OutputSymbol(curFunc->GetLocalOrGlobalSymbol(stIdx));
         }
         break;
       }
       case OP_regassign: {
         RegassignNode *rass = static_cast<RegassignNode *>(s);
-        WriteNum(rass->GetPrimType());
-        WriteNum(rass->GetRegIdx());
+        Write(static_cast<uint8>(rass->GetPrimType()));
+        MIRPreg *preg = curFunc->GetPregTab()->PregFromPregIdx(rass->GetRegIdx());
+        OutputPreg(preg);
         break;
       }
       case OP_iassign: {
         IassignNode *iass = static_cast<IassignNode *>(s);
-        OutputTypeViaTypeName(iass->GetTyIdx());
+        OutputType(iass->GetTyIdx());
         WriteNum(iass->GetFieldID());
         break;
       }
       case OP_iassignoff: {
         IassignoffNode *iassoff = static_cast<IassignoffNode *>(s);
-        WriteNum(iassoff->GetPrimType());
+        Write(static_cast<uint8>(iassoff->GetPrimType()));
         WriteNum(iassoff->GetOffset());
         break;
       }
       case OP_iassignspoff:
       case OP_iassignfpoff: {
         IassignFPoffNode *iassfpoff = static_cast<IassignFPoffNode *>(s);
-        WriteNum(iassfpoff->GetPrimType());
+        Write(static_cast<uint8>(iassfpoff->GetPrimType()));
         WriteNum(iassfpoff->GetOffset());
         break;
       }
@@ -465,9 +445,9 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
       case OP_customcall:
       case OP_polymorphiccall: {
         CallNode *callnode = static_cast<CallNode *>(s);
-        OutputFuncViaSymName(callnode->GetPUIdx());
+        OutputFuncViaSym(callnode->GetPUIdx());
         if (s->GetOpCode() == OP_polymorphiccall) {
-          OutputTypeViaTypeName(static_cast<CallNode *>(callnode)->GetTyIdx());
+          OutputType(static_cast<CallNode *>(callnode)->GetTyIdx());
         }
         WriteNum(static_cast<int64>(s->NumOpnds()));
         break;
@@ -480,15 +460,15 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
       case OP_interfaceicallassigned:
       case OP_customcallassigned: {
         CallNode *callnode = static_cast<CallNode *>(s);
-        OutputFuncViaSymName(callnode->GetPUIdx());
+        OutputFuncViaSym(callnode->GetPUIdx());
         OutputReturnValues(&callnode->GetReturnVec());
         WriteNum(static_cast<int64>(s->NumOpnds()));
         break;
       }
       case OP_polymorphiccallassigned: {
         CallNode *callnode = static_cast<CallNode *>(s);
-        OutputFuncViaSymName(callnode->GetPUIdx());
-        OutputTypeViaTypeName(callnode->GetTyIdx());
+        OutputFuncViaSym(callnode->GetPUIdx());
+        OutputType(callnode->GetTyIdx());
         OutputReturnValues(&callnode->GetReturnVec());
         WriteNum(static_cast<int64>(s->NumOpnds()));
         break;
@@ -496,13 +476,14 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
       case OP_icallproto:
       case OP_icall: {
         IcallNode *icallnode = static_cast<IcallNode *>(s);
-        OutputTypeViaTypeName(icallnode->GetRetTyIdx());
+        OutputType(icallnode->GetRetTyIdx());
         WriteNum(static_cast<int64>(s->NumOpnds()));
         break;
       }
+      case OP_icallprotoassigned:
       case OP_icallassigned: {
         IcallNode *icallnode = static_cast<IcallNode *>(s);
-        OutputTypeViaTypeName(icallnode->GetRetTyIdx());
+        OutputType(icallnode->GetRetTyIdx());
         OutputReturnValues(&icallnode->GetReturnVec());
         WriteNum(static_cast<int64>(s->NumOpnds()));
         break;
@@ -525,14 +506,14 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
       case OP_intrinsiccallwithtype: {
         IntrinsiccallNode *intrnNode = static_cast<IntrinsiccallNode *>(s);
         WriteNum(intrnNode->GetIntrinsic());
-        OutputTypeViaTypeName(intrnNode->GetTyIdx());
+        OutputType(intrnNode->GetTyIdx());
         WriteNum(static_cast<int64>(s->NumOpnds()));
         break;
       }
       case OP_intrinsiccallwithtypeassigned: {
         IntrinsiccallNode *intrnNode = static_cast<IntrinsiccallNode *>(s);
         WriteNum(intrnNode->GetIntrinsic());
-        OutputTypeViaTypeName(intrnNode->GetTyIdx());
+        OutputType(intrnNode->GetTyIdx());
         OutputReturnValues(&intrnNode->GetReturnVec());
         WriteNum(static_cast<int64>(s->NumOpnds()));
         break;
@@ -567,28 +548,28 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
       }
       case OP_label: {
         LabelNode *lNode = static_cast<LabelNode *>(s);
-        WriteNum(lNode->GetLabelIdx());
+        OutputLabel(lNode->GetLabelIdx());
         break;
       }
       case OP_goto:
       case OP_gosub: {
         GotoNode *gtoNode = static_cast<GotoNode *>(s);
-        WriteNum(gtoNode->GetOffset());
+        OutputLabel(gtoNode->GetOffset());
         break;
       }
       case OP_brfalse:
       case OP_brtrue: {
         CondGotoNode *cgotoNode = static_cast<CondGotoNode *>(s);
-        WriteNum(cgotoNode->GetOffset());
+        OutputLabel(cgotoNode->GetOffset());
         break;
       }
       case OP_switch: {
         SwitchNode *swNode = static_cast<SwitchNode *>(s);
-        WriteNum(swNode->GetDefaultLabel());
+        OutputLabel(swNode->GetDefaultLabel());
         WriteNum(static_cast<int64>(swNode->GetSwitchTable().size()));
         for (CasePair cpair : swNode->GetSwitchTable()) {
           WriteNum(cpair.first);
-          WriteNum(cpair.second);
+          OutputLabel(cpair.second);
         }
         break;
       }
@@ -598,14 +579,14 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
         WriteNum(static_cast<int64>(rgoto->GetRangeGotoTable().size()));
         for (SmallCasePair cpair : rgoto->GetRangeGotoTable()) {
           WriteNum(cpair.first);
-          WriteNum(cpair.second);
+          OutputLabel(cpair.second);
         }
         break;
       }
       case OP_jstry: {
         JsTryNode *tryNode = static_cast<JsTryNode *>(s);
-        WriteNum(tryNode->GetCatchOffset());
-        WriteNum(tryNode->GetFinallyOffset());
+        OutputLabel(tryNode->GetCatchOffset());
+        OutputLabel(tryNode->GetFinallyOffset());
         break;
       }
       case OP_cpptry:
@@ -613,7 +594,7 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
         TryNode *tryNode = static_cast<TryNode *>(s);
         WriteNum(static_cast<int64>(tryNode->GetOffsetsCount()));
         for (LabelIdx lidx : tryNode->GetOffsets()) {
-          WriteNum(lidx);
+          OutputLabel(lidx);
         }
         break;
       }
@@ -621,7 +602,7 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
         CatchNode *catchNode = static_cast<CatchNode *>(s);
         WriteNum(static_cast<int64>(catchNode->GetExceptionTyIdxVec().size()));
         for (TyIdx tidx : catchNode->GetExceptionTyIdxVec()) {
-          OutputTypeViaTypeName(tidx);
+          OutputType(tidx);
         }
         break;
       }
@@ -678,7 +659,7 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
         count = asmNode->gotoLabels.size();
         WriteNum(static_cast<int64>(count));
         for (size_t i = 0; i < count; ++i) {
-          WriteNum(asmNode->gotoLabels[i]);
+          OutputLabel(asmNode->gotoLabels[i]);
         }
         // the inputs
         WriteNum(asmNode->NumOpnds());
@@ -713,6 +694,7 @@ void BinaryMplExport::WriteFunctionBodyField(uint64 contentIdx, std::unordered_s
 
   if (not2mplt) {
     for (MIRFunction *func : GetMIRModule().GetFunctionList()) {
+      curFunc = func;
       if (func->GetAttr(FUNCATTR_optimized)) {
         continue;
       }
@@ -733,12 +715,15 @@ void BinaryMplExport::WriteFunctionBodyField(uint64 contentIdx, std::unordered_s
           continue;
         }
       }
+      localSymMark.clear();
+      localSymMark[nullptr] = 0;
+      localPregMark.clear();
+      localPregMark[nullptr] = 0;
+      labelMark.clear();
+      labelMark[0] = 0;
       OutputFunction(func->GetPuidx());
       CHECK_FATAL(func->GetBody() != nullptr, "WriteFunctionBodyField: no function body");
       OutputFuncIdInfo(func);
-      OutputPregTab(func);
-      OutputLocalSymTab(func);
-      OutputLabelTab(func);
       OutputLocalTypeNameTab(func->GetTypeNameTab());
       OutputFormalsStIdx(func);
       if (mod.GetFlavor() < kMmpl) {
@@ -752,7 +737,6 @@ void BinaryMplExport::WriteFunctionBodyField(uint64 contentIdx, std::unordered_s
 
   Fixup(totalSizeIdx, static_cast<int32>(buf.size() - totalSizeIdx));
   Fixup(outFunctionBodySizeIdx, size);
-  WriteNum(~kBinFunctionBodyStart);
   return;
 }
 }  // namespace maple
