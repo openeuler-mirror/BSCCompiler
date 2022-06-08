@@ -1519,6 +1519,7 @@ class GraphColorRegAllocator : public RegAllocator {
 #endif
   bool hasSpill = false;
   bool doMultiPass = false;
+  bool seenFP = false;
 };
 
 class CallerSavePre: public CGPre {
