@@ -63,8 +63,8 @@ struct CCLocInfo {
 class LmbcFormalParamInfo {
  public:
   LmbcFormalParamInfo(PrimType pType, uint32 ofst, uint32 sz) :
-      type(nullptr), primType(pType), offset(ofst), size(sz), regNO(0), vregNO(0), numRegs(0),
-      fpSize(0), isReturn(false), isPureFloat(false), isOnStack(false) {}
+      type(nullptr), primType(pType), offset(ofst), onStackOffset(0), size(sz), regNO(0), vregNO(0), numRegs(0),
+      fpSize(0), isReturn(false), isPureFloat(false), isOnStack(false), hasRegassign(false) {}
 
   ~LmbcFormalParamInfo() = default;
 
@@ -86,7 +86,13 @@ class LmbcFormalParamInfo {
   void SetOffset(uint32 ofs) {
     offset = ofs;
   }
-  uint32 GetSize() const {
+  uint32 GetOnStackOffset() {
+    return onStackOffset;
+  }
+  void SetOnStackOffset(uint32 ofs) {
+    onStackOffset = ofs;
+  }
+  uint32 GetSize() {
     return size;
   }
   void SetSize(uint32 sz) {
@@ -137,10 +143,17 @@ class LmbcFormalParamInfo {
   void SetIsOnStack() {
     isOnStack = true;
   }
+  bool HasRegassign() {
+    return hasRegassign;
+  }
+  void SetHasRegassign() {
+    hasRegassign = true;
+  }
  private:
   MIRStructType *type;
   PrimType primType;
   uint32 offset;
+  uint32 onStackOffset;   /* stack location if isOnStack */
   uint32 size;        /* size primtype or struct */
   regno_t regNO = 0;  /* param reg num or starting reg num if numRegs > 0 */
   regno_t vregNO = 0; /* if no explicit regassing from IR, create move from param reg */
@@ -148,7 +161,8 @@ class LmbcFormalParamInfo {
   uint32 fpSize = 0;  /* size of fp param if isPureFloat */
   bool isReturn;
   bool isPureFloat = false;
-  bool isOnStack; /* small struct with arrays need to be saved onto stack */
+  bool isOnStack; /* large struct is passed by a copy on stack */
+  bool hasRegassign;
 };
 }  /* namespace maplebe */
 

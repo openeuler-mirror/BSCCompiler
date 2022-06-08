@@ -134,6 +134,7 @@ class MIRParser {
   bool ParseStmtIcall(StmtNodePtr&);
   bool ParseStmtIcallassigned(StmtNodePtr&);
   bool ParseStmtIcallproto(StmtNodePtr&);
+  bool ParseStmtIcallprotoassigned(StmtNodePtr&);
   bool ParseStmtIntrinsiccall(StmtNodePtr&, bool isAssigned);
   bool ParseStmtIntrinsiccall(StmtNodePtr&);
   bool ParseStmtIntrinsiccallassigned(StmtNodePtr&);
@@ -291,7 +292,6 @@ class MIRParser {
   bool ParseStmtBlockForType();
   bool ParseStmtBlockForFrameSize();
   bool ParseStmtBlockForUpformalSize();
-  bool ParseStmtBlockForOutParmSize();
   bool ParseStmtBlockForModuleID();
   bool ParseStmtBlockForFuncSize();
   bool ParseStmtBlockForFuncID();
@@ -319,6 +319,7 @@ class MIRParser {
   MIRFunction *curFunc = nullptr;
   uint16 lastFileNum = 0;                    // to remember first number after LOC
   uint32 lastLineNum = 0;                    // to remember second number after LOC
+  uint16 lastColumnNum = 0;                  // to remember third number after LOC
   uint32 firstLineNum = 0;                   // to track function starting line
   std::map<TyIdx, TyIdx> typeDefIdxMap;      // map previous declared tyIdx
   bool firstImport = true;                   // Mark the first imported mplt file

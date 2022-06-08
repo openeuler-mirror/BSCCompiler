@@ -86,6 +86,7 @@ class MIRLower {
   ForeachelemNode *ExpandArrayMrtForeachelemBlock(ForeachelemNode &node);
   BlockNode *ExpandArrayMrtBlock(BlockNode &block);
   void AddArrayMrtMpl(BaseNode &exp, BlockNode &newblk);
+  MIRFuncType *FuncTypeFromFuncPtrExpr(BaseNode *x);
   void SetLowerME() {
     lowerPhase |= kShiftLowerMe;
   }

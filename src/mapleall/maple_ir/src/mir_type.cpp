@@ -738,7 +738,9 @@ void MIRFuncType::Dump(int indent, bool dontUseName) const {
   if (!dontUseName && CheckAndDumpTypeName(nameStrIdx, nameIsLocal)) {
     return;
   }
-  LogInfo::MapleLogger() << "<func(";
+  LogInfo::MapleLogger() << "<func";
+  funcAttrs.DumpAttributes();
+  LogInfo::MapleLogger() << " (";
   size_t size = paramTypeList.size();
   for (size_t i = 0; i < size; ++i) {
     GlobalTables::GetTypeTable().GetTypeFromTyIdx(paramTypeList[i])->Dump(indent + 1);
@@ -749,7 +751,7 @@ void MIRFuncType::Dump(int indent, bool dontUseName) const {
       LogInfo::MapleLogger() << ",";
     }
   }
-  if (isVarArgs) {
+  if (IsVarargs()) {
     LogInfo::MapleLogger() << ", ...";
   }
   LogInfo::MapleLogger() << ") ";
@@ -1663,7 +1665,7 @@ bool MIRFuncType::EqualTo(const MIRType &type) const {
   }
   const auto &pType = static_cast<const MIRFuncType&>(type);
   return (pType.retTyIdx == retTyIdx && pType.paramTypeList == paramTypeList &&
-          pType.isVarArgs == isVarArgs && pType.paramAttrsList == paramAttrsList &&
+          pType.funcAttrs == funcAttrs && pType.paramAttrsList == paramAttrsList &&
           pType.retAttrs == retAttrs);
 }
 

@@ -38,7 +38,7 @@ uint32 MemLayout::FindLargestActualArea(int32 &aggCopySize) {
   uint32 maxCopyStackSize = 0;   // Size of aggregate param stack copy requirement
   for (; stmt != nullptr; stmt = stmt->GetNext()) {
     Opcode opCode = stmt->GetOpCode();
-    if (opCode < OP_call || opCode > OP_xintrinsiccallassigned) {
+    if ((opCode < OP_call || opCode > OP_xintrinsiccallassigned) && opCode != OP_icallproto) {
       continue;
     }
     if (opCode == OP_intrinsiccallwithtypeassigned || opCode == OP_intrinsiccallwithtype ||
@@ -54,9 +54,9 @@ uint32 MemLayout::FindLargestActualArea(int32 &aggCopySize) {
      * if the following check fails, most likely dex has invoke-custom etc
      * that is not supported yet
      */
-    DCHECK((opCode == OP_call || opCode == OP_icall), "Not lowered to call or icall?");
+    DCHECK((opCode == OP_call || opCode == OP_icall || opCode == OP_icallproto), "Not lowered to call or icall?");
     int32 copySize;
-    uint32 size = ComputeStackSpaceRequirementForCall(*stmt, copySize, opCode == OP_icall);
+    uint32 size = ComputeStackSpaceRequirementForCall(*stmt, copySize, opCode == OP_icall || opCode == OP_icallproto);
     if (size > maxParamStackSize) {
       maxParamStackSize = size;
     }

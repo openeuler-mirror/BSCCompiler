@@ -485,10 +485,12 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
       return callnode;
     }
     case OP_icall:
-    case OP_icallassigned: {
+    case OP_icallassigned:
+    case OP_icallproto:
+    case OP_icallprotoassigned: {
       IcallMeStmt *icallMeStmt = static_cast<IcallMeStmt *> (mestmt);
       IcallNode *icallnode =
-          codeMP->New<IcallNode>(*codeMPAlloc, OP_icallassigned, icallMeStmt->GetRetTyIdx());
+          codeMP->New<IcallNode>(*codeMPAlloc, OP_icallprotoassigned, icallMeStmt->GetRetTyIdx());
       for (uint32 i = 0; i < icallMeStmt->GetOpnds().size(); i++) {
         icallnode->GetNopnd().push_back(EmitPreMeExpr(icallMeStmt->GetOpnd(i), icallnode));
       }
@@ -508,6 +510,9 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
           MIRPreg *preg = mirFunc->GetPregTab()->PregFromPregIdx(pregidx);
           icallnode->SetRetTyIdx(TyIdx(preg->GetPrimType()));
         }
+      }
+      if (mestmt->GetOp() == OP_icallproto || mestmt->GetOp() == OP_icallprotoassigned) {
+        icallnode->SetRetTyIdx(icallMeStmt->GetRetTyIdx());
       }
       icallnode->CopySafeRegionAttr(mestmt->GetStmtAttr());
       icallnode->SetOriginalID(mestmt->GetOriginalId());

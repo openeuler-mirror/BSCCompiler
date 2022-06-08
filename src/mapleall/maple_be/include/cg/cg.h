@@ -121,11 +121,13 @@ class CG {
         emitter(nullptr),
         labelOrderCnt(0),
         cgOption(cgOptions),
-        instrumentationFunction(nullptr) {
+        instrumentationFunction(nullptr),
+        fileGP(nullptr) {
     const std::string &internalNameLiteral = namemangler::GetInternalNameLiteral(namemangler::kJavaLangObjectStr);
     GStrIdx strIdxFromName = GlobalTables::GetStrTable().GetStrIdxFromName(internalNameLiteral);
     isLibcore = (GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdxFromName) != nullptr);
     DefineDebugTraceFunctions();
+    isLmbc = (mirModule->GetFlavor() == MIRFlavor::kFlavorLmbc);
   }
 
   virtual ~CG();
@@ -361,6 +363,10 @@ class CG {
     return isLibcore;
   }
 
+  bool IsLmbc() const {
+    return isLmbc;
+  }
+
   MIRSymbol *GetDebugTraceEnterFunction() {
     return dbgTraceEnter;
   }
@@ -421,6 +427,13 @@ class CG {
   /* Object map generation helper */
   std::vector<int64> GetReferenceOffsets64(const BECommon &beCommon, MIRStructType &structType);
 
+  void SetGP(MIRSymbol *sym) {
+    fileGP = sym;
+  }
+  MIRSymbol *GetGP() const {
+    return fileGP;
+  }
+
   static bool IsInFuncWrapLabels(MIRFunction *func) {
     return funcWrapLabels.find(func) != funcWrapLabels.end();
   }
@@ -449,12 +462,14 @@ class CG {
   LabelIDOrder labelOrderCnt;
   static CGFunc *currentCGFunction;  /* current cg function being compiled */
   CGOptions cgOption;
-  bool isLibcore;
   MIRSymbol *instrumentationFunction;
   MIRSymbol *dbgTraceEnter;
   MIRSymbol *dbgTraceExit;
   MIRSymbol *dbgFuncProfile;
+  MIRSymbol *fileGP;  /* for lmbc, one local %GP per file */
   static std::map<MIRFunction *, std::pair<LabelIdx, LabelIdx>> funcWrapLabels;
+  bool isLibcore;
+  bool isLmbc;
 };  /* class CG */
 }  /* namespace maplebe */
 
