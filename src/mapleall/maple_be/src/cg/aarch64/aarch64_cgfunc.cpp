@@ -8063,6 +8063,17 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
   std::set<size_t> specialArgs;
   SelectParmListPreprocess(naryNode, i, specialArgs);
   bool specialArg = false;
+  bool firstArgReturn = false;
+  MIRFunction *callee = nullptr;
+  if (dynamic_cast<CallNode*>(&naryNode) != nullptr) {
+    auto calleePuIdx = static_cast<CallNode&>(naryNode).GetPUIdx();
+    callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(calleePuIdx);
+    firstArgReturn = callee->IsFirstArgReturn();
+  } else if (naryNode.GetOpCode() == OP_icallproto) {
+    IcallNode *icallnode = &static_cast<IcallNode&>(naryNode);
+    MIRFuncType *funcType = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(icallnode->GetRetTyIdx()));
+    firstArgReturn = funcType->FirstArgReturn();
+  }
   BB *curBBrecord = GetCurBB();
   BB *tmpBB = nullptr;
   if (!specialArgs.empty()) {
@@ -8084,11 +8095,6 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
     BaseNode *argExpr = naryNode.Opnd(i);
     PrimType primType = argExpr->GetPrimType();
     ASSERT(primType != PTY_void, "primType should not be void");
-    MIRFunction *callee = nullptr;
-    if (dynamic_cast<CallNode*>(&naryNode) != nullptr) {
-      auto calleePuIdx = static_cast<CallNode&>(naryNode).GetPUIdx();
-      callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(calleePuIdx);
-    }
     if (callee != nullptr && pnum < callee->GetFormalCount() && callee->GetFormal(pnum) != nullptr) {
       is64x1vec = callee->GetFormal(pnum)->GetAttr(ATTR_oneelem_simd);
     }
@@ -8153,7 +8159,7 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
     }
     expRegOpnd = static_cast<RegOperand*>(opnd);
 
-    if ((pnum == 0) && (SelectParmListGetStructReturnSize(naryNode) > k16ByteSize)) {
+    if ((pnum == 0) && firstArgReturn) {
       parmLocator.InitCCLocInfo(ploc);
       ploc.reg0 = R8;
     } else {
