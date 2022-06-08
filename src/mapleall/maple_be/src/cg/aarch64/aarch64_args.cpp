@@ -436,6 +436,7 @@ void AArch64MoveRegArgs::MoveVRegisterArgs() {
   uint32 start = 0;
   if (formalCount) {
     MIRFunction *func = const_cast<MIRFunction*>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
+    if (func->IsReturnStruct() && func->IsFirstArgReturn()) {
       TyIdx tyIdx = func->GetFuncRetStructTyIdx();
       if (aarchCGFunc->GetBecommon().GetTypeSize(tyIdx) <= k16BitSize) {
         start = 1;
