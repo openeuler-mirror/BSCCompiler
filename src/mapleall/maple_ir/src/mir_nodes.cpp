@@ -257,10 +257,10 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
     } else {
       newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
     }
-    toFreqs[nnode->GetStmtID()] = (newFreq > 0 || (numer == 0)) ? newFreq : 1;
+    toFreqs[nnode->GetStmtID()] = (newFreq > 0 || (numer == 0)) ? static_cast<uint64_t>(newFreq) : 1;
     if (updateOp & kUpdateOrigFreq) { // upateOp & 1 : update from
       int64_t left = ((oldFreq - newFreq) > 0 || (oldFreq == 0)) ? (oldFreq - newFreq) : 1;
-      fromFreqs[GetStmtID()] = left;
+      fromFreqs[GetStmtID()] = static_cast<uint64_t>(left);
     }
   }
   for (auto &stmt : stmtNodeList) {
@@ -287,10 +287,11 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
         } else {
           newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
         }
-        toFreqs[newStmt->GetStmtID()] = (newFreq > 0 || oldFreq == 0 || numer == 0) ? newFreq : 1;
+        toFreqs[newStmt->GetStmtID()] = (newFreq > 0 || oldFreq == 0 || numer == 0) ?
+            static_cast<uint64_t>(newFreq) : 1;
         if (updateOp & kUpdateOrigFreq) {
           int64_t left = ((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1;
-          fromFreqs[stmt.GetStmtID()] = left;
+          fromFreqs[stmt.GetStmtID()] = static_cast<uint64_t>(left);
         }
       }
     }
@@ -1310,16 +1311,7 @@ void BlockNode::Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable
     }
     LogInfo::MapleLogger() << '\n';
     if (theMIRModule->CurFunction()->NeedEmitAliasInfo()) {
-      for (std::pair<GStrIdx, MIRAliasVars> it : theMIRModule->CurFunction()->GetAliasVarMap()) {
-        LogInfo::MapleLogger() << "ALIAS %" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first) << " %"
-                               << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.memPoolStrIdx) << " ";
-        GlobalTables::GetTypeTable().GetTypeFromTyIdx(it.second.tyIdx)->Dump(0);
-        if (it.second.sigStrIdx) {
-          LogInfo::MapleLogger() << " \"" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.sigStrIdx)
-                                 << "\"";
-        }
-        LogInfo::MapleLogger() << '\n';
-      }
+      theMIRModule->CurFunction()->DumpScope();
     }
   }
   if (srcPosition.FileNum() != 0 && srcPosition.LineNum() != 0 && srcPosition.LineNum() != lastPrintedLineNum &&

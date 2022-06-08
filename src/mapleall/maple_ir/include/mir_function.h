@@ -23,19 +23,13 @@
 #include "file_layout.h"
 #include "mir_nodes.h"
 #include "mir_type.h"
+#include "mir_scope.h"
 #include "profile.h"
 #include "func_desc.h"
 
 #define DEBUGME true
 
 namespace maple {
-// mapping src (java) variable to mpl variables to display debug info
-struct MIRAliasVars {
-  GStrIdx memPoolStrIdx;
-  TyIdx tyIdx;
-  GStrIdx sigStrIdx;
-};
-
 enum PointerAttr: uint32_t {
   kPointerUndeiced = 0x1,
   kPointerNull = 0x2,
@@ -74,7 +68,9 @@ class MIRFunction {
  public:
   MIRFunction(MIRModule *mod, StIdx idx)
       : module(mod),
-        symbolTableIdx(idx) {}
+        symbolTableIdx(idx) {
+          scope = module->GetMemPool()->New<MIRScope>(mod);
+        }
 
   ~MIRFunction() = default;
 
@@ -82,6 +78,7 @@ class MIRFunction {
   void DumpUpFormal(int32 indent) const;
   void DumpFrame(int32 indent) const;
   void DumpFuncBody(int32 indent);
+  void DumpScope();
   const MIRSymbol *GetFuncSymbol() const;
   MIRSymbol *GetFuncSymbol();
 
@@ -722,21 +719,19 @@ class MIRFunction {
     infoIsString.push_back(isString);
   }
 
+  MIRScope *GetScope() {
+    return scope;
+  }
+
   bool NeedEmitAliasInfo() const {
-    return aliasVarMap != nullptr;
+    return scope->NeedEmitAliasInfo();
   }
 
   MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {
-    if (aliasVarMap == nullptr) {
-      aliasVarMap = module->GetMemPool()->New<MapleMap<GStrIdx, MIRAliasVars>>(module->GetMPAllocator().Adapter());
-    }
-    return *aliasVarMap;
+    return scope->aliasVarMap;
   }
   void SetAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
-    if (aliasVarMap == nullptr) {
-      aliasVarMap = module->GetMemPool()->New<MapleMap<GStrIdx, MIRAliasVars>>(module->GetMPAllocator().Adapter());
-    }
-    (*aliasVarMap)[idx] = vars;
+    scope->SetAliasVarMap(idx, vars);
   }
 
   bool HasVlaOrAlloca() const {
@@ -1289,8 +1284,7 @@ class MIRFunction {
   uint32 fileIndex = 0;  // this function belongs to which file, used by VM for plugin manager
   MIRInfoVector info{module->GetMPAllocator().Adapter()};
   MapleVector<bool> infoIsString{module->GetMPAllocator().Adapter()};  // tells if an entry has string value
-  MapleMap<GStrIdx, MIRAliasVars> *aliasVarMap = nullptr;  // source code alias variables
-                                                                                    // for debuginfo
+  MIRScope *scope = nullptr;
   MapleMap<uint32, uint32> *freqFirstMap = nullptr;  // save bb frequency in its first_stmt, key is stmtId
   MapleMap<uint32, uint32> *freqLastMap = nullptr;  // save bb frequency in its last_stmt, key is stmtId
   MapleSet<uint32> referedPregs{module->GetMPAllocator().Adapter()};

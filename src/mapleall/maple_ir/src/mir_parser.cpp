@@ -251,7 +251,7 @@ bool MIRParser::ParseStmtBlkassignoff(StmtNodePtr &stmt) {
     Error("expect align but get ");
     return false;
   }
-  bassignoff->SetAlign(lexer.GetTheIntVal());
+  bassignoff->SetAlign(static_cast<uint32>(lexer.GetTheIntVal()));
   if (lexer.NextToken() != TK_intconst) {
     Error("expect size but get ");
     return false;
@@ -2013,7 +2013,7 @@ bool MIRParser::ParseStmtBlockForOutParmSize() {
     Error("expect integer after outparmsize but get ");
     return false;
   }
-  fn->SetOutParmSize(lexer.GetTheIntVal());
+  fn->SetOutParmSize(static_cast<uint16>(lexer.GetTheIntVal()));
   lexer.NextToken();
   return true;
 }
@@ -3446,6 +3446,7 @@ std::map<TokenKind, MIRParser::FuncPtrParseStmt> MIRParser::InitFuncPtrMapForPar
   funcPtrMap[TK_assignassertle] = &MIRParser::ParseNaryStmtAssignAssertLE;
   funcPtrMap[TK_label] = &MIRParser::ParseStmtLabel;
   funcPtrMap[TK_LOC] = &MIRParser::ParseLocStmt;
+  funcPtrMap[TK_SCOPE] = &MIRParser::ParseScope;
   funcPtrMap[TK_ALIAS] = &MIRParser::ParseAlias;
   funcPtrMap[TK_asm] = &MIRParser::ParseStmtAsm;
   funcPtrMap[TK_safe] = &MIRParser::ParseStmtSafeRegion;
