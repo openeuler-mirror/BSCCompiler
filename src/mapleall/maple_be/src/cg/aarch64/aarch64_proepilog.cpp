@@ -841,6 +841,7 @@ BB *AArch64GenProEpilog::IsolateFastPath(BB &bb) {
     tgtBB->GetPrev()->SetNext(tgtBB->GetNext());
     tgtBB->GetNext()->SetPrev(tgtBB->GetPrev());
   }
+  SetFastPathReturnBB(tgtBB);
   return coldBB;
 }
 
@@ -2013,7 +2014,9 @@ void AArch64GenProEpilog::Run() {
   }
 
   for (auto *exitBB : cgFunc.GetExitBBsVec()) {
-    GenerateEpilog(*exitBB);
+    if (GetFastPathReturnBB() != exitBB) {
+      GenerateEpilog(*exitBB);
+    }
   }
 
   if (cgFunc.GetFunction().IsJava()) {
