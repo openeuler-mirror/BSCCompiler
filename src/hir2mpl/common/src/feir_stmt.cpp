@@ -31,6 +31,7 @@
 #ifndef ONLY_C
 #include "rc_setter.h"
 #endif
+#include "ast_util.h"
 
 namespace maple {
 std::string GetFEIRNodeKindDescription(FEIRNodeKind kindArg) {
@@ -239,6 +240,14 @@ std::list<StmtNode*> FEIRStmtNary::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const
     }
     stmt = mirBuilder.CreateStmtNary(op, std::move(args));
   } else if (argExprs.size() == 1) {
+    // ignore invalid syntax: access content pointed by void pointer
+    if (op == OP_eval && argExprs.front()->GetKind() == FEIRNodeKind::kExprIRead) {
+      FEIRExprIRead *ireadFeExpr = static_cast<FEIRExprIRead*>(argExprs.front().get());
+      MIRType *mirType = ireadFeExpr->GetClonedPtrType()->GenerateMIRTypeAuto();
+      if (ASTUtil::IsVoidPointerType(mirType->GetTypeIndex())) {
+        return stmts;
+      }
+    }
     BaseNode *node = argExprs.front()->GenMIRNode(mirBuilder);
     if (op == OP_eval && argExprs.front()->IsAddrof()) {
       node = ReplaceAddrOfNode(node);  // addrof va_list
