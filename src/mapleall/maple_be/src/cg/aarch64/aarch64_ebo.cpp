@@ -40,8 +40,8 @@ constexpr uint8 insPairsNum = 5;
 
 PairMOperator extInsnPairTable[ExtTableSize][insPairsNum] = {
   /* {origMop, newMop} */
-  {{MOP_wldrb, MOP_wldrb},  {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef},
-   {MOP_undef, MOP_undef}},   /* AND */
+  {{MOP_wldrb, MOP_wldrb},  {MOP_wldrsh, MOP_wldrb},   {MOP_wldrh, MOP_wldrb},   {MOP_xldrsw, MOP_wldrb},
+   {MOP_wldr, MOP_wldrb}},   /* AND */
   {{MOP_wldrb, MOP_wldrsb}, {MOP_wldr, MOP_wldrsb},   {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef},
    {MOP_undef, MOP_undef}},   /* SXTB */
   {{MOP_wldrh, MOP_wldrsh}, {MOP_wldrb, MOP_wldrb},   {MOP_wldrsb, MOP_wldrsb}, {MOP_wldrsh, MOP_wldrsh},

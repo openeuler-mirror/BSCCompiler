@@ -2170,6 +2170,11 @@ void Emitter::EmitGlobalVar(const MIRSymbol &globalVar) {
 }
 
 void Emitter::EmitGlobalVars(std::vector<std::pair<MIRSymbol*, bool>> &globalVars) {
+  if (GetCG()->IsLmbc() && GetCG()->GetGP() != nullptr) {
+    Emit(asmInfo->GetLocal()).Emit("\t").Emit(GetCG()->GetGP()->GetName()).Emit("\n");
+    Emit(asmInfo->GetComm()).Emit("\t").Emit(GetCG()->GetGP()->GetName());
+    Emit(", ").Emit(GetCG()->GetMIRModule()->GetGlobalMemSize()).Emit(", ").Emit("8\n");
+  }
   /* load globalVars profile */
   if (globalVars.empty()) {
     return;

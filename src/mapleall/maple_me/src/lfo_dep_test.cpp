@@ -66,6 +66,8 @@ void LfoDepInfo::CreateDoloopInfo(BlockNode *block, DoloopInfo *parent) {
       case OP_callassigned:
       case OP_icall:
       case OP_icallassigned:
+      case OP_icallproto:
+      case OP_icallprotoassigned:
       case OP_return:
       case OP_throw:
       case OP_asm:

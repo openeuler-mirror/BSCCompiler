@@ -67,8 +67,8 @@ enum : uint8 {
   kBinEaCgStart = 41,
   kBinEaStart = 42,
   kBinNodeBlock = 43,
-  kBinOpStatement = 44,
-  kBinOpExpression = 45,
+//kBinOpStatement = 44,
+//kBinOpExpression = 45,
   kBinReturnvals = 46,
   kBinTypeTabStart = 47,
   kBinSymStart = 48,
@@ -76,14 +76,14 @@ enum : uint8 {
   kBinFuncIdInfoStart = 50,
   kBinFormalStart = 51,
   kBinPreg = 52,
-  kBinPregStart = 53,
-  kBinLabelStart = 54,
+  kBinSpecialReg = 53,
+  kBinLabel = 54,
   kBinTypenameStart = 55,
   kBinHeaderStart = 56,
   kBinAliasMapStart = 57,
-  kBinKindTypeViaTypename = 58,
-  kBinKindSymViaSymname = 59,
-  kBinKindFuncViaSymname = 60,
+//kBinKindTypeViaTypename = 58,
+//kBinKindSymViaSymname = 59,
+//kBinKindFuncViaSymname = 60,
   kBinFunctionBodyStart = 61,
   kBinFormalWordsTypeTagged = 62,
   kBinFormalWordsRefCounted = 63,
@@ -103,8 +103,7 @@ class BinaryMplExport {
   void Export(const std::string &fname, std::unordered_set<std::string> *dumpFuncSet);
   void WriteNum(int64 x);
   void Write(uint8 b);
-  void OutputType(TyIdx tyIdx, bool canUseTypename);
-  void OutputTypeViaTypeName(TyIdx tidx) { OutputType(tidx, true); }
+  void OutputType(TyIdx tyIdx);
   void WriteFunctionBodyField(uint64 contentIdx, std::unordered_set<std::string> *dumpFuncSet);
   void OutputConst(MIRConst *c);
   void OutputConstBase(const MIRConst &c);
@@ -133,12 +132,11 @@ class BinaryMplExport {
   void OutputInfoVector(const MIRInfoVector &infoVector, const MapleVector<bool> &infoVectorIsString);
   void OutputFuncIdInfo(MIRFunction *func);
   void OutputLocalSymbol(MIRSymbol *sym);
-  void OutputLocalSymTab(const MIRFunction *func);
-  void OutputPregTab(const MIRFunction *func);
-  void OutputLabelTab(const MIRFunction *func);
+  void OutputPreg(MIRPreg *preg);
+  void OutputLabel(LabelIdx lidx);
   void OutputLocalTypeNameTab(const MIRTypeNameTable *tyNameTab);
   void OutputFormalsStIdx(MIRFunction *func);
-  void OutputFuncViaSymName(PUIdx puIdx);
+  void OutputFuncViaSym(PUIdx puIdx);
   void OutputExpression(BaseNode *e);
   void OutputBaseNode(const BaseNode *b);
   void OutputReturnValues(const CallReturnVector *retv);
@@ -182,6 +180,7 @@ class BinaryMplExport {
   void ExpandFourBuffSize();
 
   MIRModule &mod;
+  MIRFunction *curFunc = nullptr;
   size_t bufI = 0;
   std::vector<uint8> buf;
   std::unordered_map<GStrIdx, int64, GStrIdxHash> gStrMark;
@@ -190,6 +189,9 @@ class BinaryMplExport {
   std::unordered_map<UStrIdx, int64, UStrIdxHash> uStrMark;
   std::unordered_map<const MIRSymbol*, int64> symMark;
   std::unordered_map<MIRType*, int64> typMark;
+  std::unordered_map<const MIRSymbol*, int64> localSymMark;
+  std::unordered_map<const MIRPreg*, int64> localPregMark;
+  std::unordered_map<LabelIdx, int64> labelMark;
   friend class UpdateMplt;
   std::unordered_map<uint32, int64> callInfoMark;
   std::map<GStrIdx, uint8> *func2SEMap = nullptr;

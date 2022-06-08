@@ -933,6 +933,7 @@ bool IpaSideEffect::UpdateSideEffectWithStmt(MeStmt &meStmt,
     case OP_customcallassigned:
     case OP_polymorphiccallassigned:
     case OP_icallassigned:
+    case OP_icallprotoassigned:
     case OP_superclasscallassigned:
     case OP_asm: {
       hasPrivateDef = hasThrException = true;
@@ -959,7 +960,8 @@ bool IpaSideEffect::UpdateSideEffectWithStmt(MeStmt &meStmt,
     case OP_interfaceicall:
     case OP_customcall:
     case OP_polymorphiccall:
-    case OP_icall: {
+    case OP_icall:
+    case OP_icallproto: {
       hasPrivateDef = hasThrException = true;
       SetHasDef();
       for (size_t i = 0; i < meStmt.NumMeStmtOpnds(); ++i) {

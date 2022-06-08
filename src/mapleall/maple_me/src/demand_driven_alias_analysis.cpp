@@ -642,7 +642,9 @@ void PEGBuilder::BuildPEGNodeInStmt(const StmtNode *stmt) {
       break;
     }
     case OP_icall:
-    case OP_icallassigned: {
+    case OP_icallassigned:
+    case OP_icallproto:
+    case OP_icallprotoassigned: {
       BuildPEGNodeInIcall(static_cast<const IcallNode *>(stmt));
       break;
     }

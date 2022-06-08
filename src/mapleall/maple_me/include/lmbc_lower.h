@@ -32,6 +32,7 @@ class LMBCLowerer {
   BaseNode *LowerDread(AddrofNode *);
   BaseNode *LowerDreadoff(DreadoffNode *);
   BaseNode *LowerIread(IreadNode *);
+  BaseNode *LowerIaddrof(IreadNode *);
   BaseNode *LowerExpr(BaseNode *expr);
   void LowerAggDassign(const DassignNode *, MIRType *lhsty, int32 offset, BlockNode *);
   void LowerDassign(DassignNode *, BlockNode *);
@@ -39,10 +40,7 @@ class LMBCLowerer {
   void LowerIassign(IassignNode *, BlockNode *);
   void LowerAggIassign(IassignNode *, MIRType *type, int32 offset, BlockNode *);
   void LowerReturn(NaryStmtNode *retNode, BlockNode *newblk);
-  MIRFuncType *FuncTypeFromFuncPtrExpr(BaseNode *x);
-  void LowerCall(NaryStmtNode *callNode, BlockNode *newblk);
   BlockNode *LowerBlock(BlockNode *);
-  void LoadFormalsAssignedToPregs();
   void LowerFunction();
 
   MIRModule *mirModule;
