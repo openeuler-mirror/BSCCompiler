@@ -31,8 +31,8 @@ typedef enum {
   MS_actual,    // for the outgoing parameters
   MS_local,     // for all local variables and temporaries
   MS_FPbased,   // addressed via offset from the frame pointer
-  MS_SPbased,   // addressed via offset from the stack pointer
   MS_GPbased,   // addressed via offset from the global pointer
+  MS_largeStructActual, // for storing large struct actuals passed by value for ARM CPU
 } MemSegmentKind;
 
 class MemSegment;
@@ -64,15 +64,10 @@ class MemSegment {
 
 class LMBCMemLayout {
  public:
-  uint32 FindLargestActualArea(void);
-  uint32 FindLargestActualArea(StmtNode *, int &);
-  LMBCMemLayout(MIRFunction *f, MapleAllocator *mallocator)
+  LMBCMemLayout(MIRFunction *f, MemSegment *segGP, MapleAllocator *mallocator)
     : func(f),
-      seg_upformal(MS_upformal),
-      seg_formal(MS_formal),
-      seg_actual(MS_actual),
+      seg_GPbased(segGP),
       seg_FPbased(MS_FPbased),
-      seg_SPbased(MS_SPbased),
       sym_alloc_table(mallocator->Adapter()) {
     sym_alloc_table.resize(f->GetSymTab()->GetSymbolTableSize());
   }
@@ -81,65 +76,23 @@ class LMBCMemLayout {
 
   void LayoutStackFrame(void);
   int32 StackFrameSize(void) const {
-    return seg_SPbased.size - seg_FPbased.size;
-  }
-
-  int32 UpformalSize(void) const {
-    return seg_upformal.size;
+    return -seg_FPbased.size;
   }
 
   MIRFunction *func;
-  MemSegment seg_upformal;
-  MemSegment seg_formal;
-  MemSegment seg_actual;
+  MemSegment *seg_GPbased;
   MemSegment seg_FPbased;
-  MemSegment seg_SPbased;
   MapleVector<SymbolAlloc> sym_alloc_table;  // index is StIdx
 };
 
 class GlobalMemLayout {
  public:
-  GlobalMemLayout(maplebe::BECommon *b, MIRModule *mod, MapleAllocator *mallocator);
+  GlobalMemLayout(MIRModule *mod, MapleAllocator *mallocator);
   ~GlobalMemLayout() {}
 
   MemSegment seg_GPbased;
   MapleVector<SymbolAlloc> sym_alloc_table;  // index is StIdx
-
- private:
-  void FillScalarValueInMap(uint32 startaddress, PrimType pty, MIRConst *c);
-  void FillTypeValueInMap(uint32 startaddress, MIRType *ty, MIRConst *c);
-  void FillSymbolValueInMap(const MIRSymbol *sym);
-
-  maplebe::BECommon *be;
   MIRModule *mirModule;
-};
-
-// for specifying how a parameter is passed
-struct PLocInfo {
-  int32 memoffset;
-  int32 memsize;
-};
-
-// for processing an incoming or outgoing parameter list
-class ParmLocator {
- public:
-  explicit ParmLocator() : parmNum(0), lastMemOffset(0) {}
-
-  ~ParmLocator() {}
-
-  void LocateNextParm(const MIRType *ty, PLocInfo &ploc);
-
- private:
-  int32 parmNum;  // number of all types of parameters processed so far
-  int32 lastMemOffset;
-};
-
-// given the type of the return value, determines the return mechanism
-class ReturnMechanism {
- public:
-  ReturnMechanism(const MIRType *retty);
-  bool fake_first_parm;  // whether returning in memory via fake first parameter
-  PrimType ptype0;       // the primitive type stored in retval0
 };
 
 }  /* namespace maple */

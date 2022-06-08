@@ -13,8 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "global_tables.h"
-#include <cmath>
-#include <cstring>
 #include "mir_type.h"
 #include "mir_symbol.h"
 
@@ -51,6 +49,7 @@ void TypeTable::SetTypeWithTyIdx(const TyIdx &tyIdx, MIRType &type) {
   if (oldType != nullptr && oldType != &type) {
     (void)typeHashTable.erase(oldType);
     (void)typeHashTable.insert(&type);
+    delete oldType;
   }
 }
 
@@ -225,7 +224,9 @@ MIRType *TypeTable::GetOrCreateFunctionType(const TyIdx &retTyIdx, const std::ve
                                             const std::vector<TypeAttrs> &vecAttrs, bool isVarg,
                                             const TypeAttrs &retAttrs) {
   MIRFuncType funcType(retTyIdx, vecType, vecAttrs, retAttrs);
-  funcType.SetVarArgs(isVarg);
+  if (isVarg) {
+    funcType.SetVarArgs();
+  }
   TyIdx tyIdx = GetOrCreateMIRType(&funcType);
   ASSERT(tyIdx < typeTable.size(), "index out of range in TypeTable::GetOrCreateFunctionType");
   return typeTable.at(tyIdx);

@@ -38,6 +38,7 @@ class LmbcArgInfo {
   MapleVector<PrimType> lmbcCallArgTypes;
   MapleVector<int32> lmbcCallArgOffsets;
   MapleVector<int32> lmbcCallArgNumOfRegs; // # of regs needed to complete struct
+  uint32 lmbcTotalStkUsed = -1;    // TBD: remove when explicit addr for large agg is available
 };
 
 class AArch64CGFunc : public CGFunc {
@@ -101,7 +102,7 @@ class AArch64CGFunc : public CGFunc {
     return kRFLAG;
   }
 
-  MIRType *GetAggTyFromCallSite(StmtNode *stmt);
+  MIRType *LmbcGetAggTyFromCallSite(StmtNode *stmt, std::vector<TyIdx> **parmList);
   RegOperand &GetOrCreateResOperand(const BaseNode &parent, PrimType primType);
 
   void IntrinsifyGetAndAddInt(ListOperand &srcOpnds, PrimType pty);
@@ -125,9 +126,11 @@ class AArch64CGFunc : public CGFunc {
                                        bool needLow12 = false);
   MemOperand *FixLargeMemOpnd(MemOperand &memOpnd, uint32 align);
   MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
+  uint32 LmbcFindTotalStkUsed(std::vector<TyIdx>* paramList);
+  uint32 LmbcTotalRegsUsed();
   void LmbcSelectParmList(ListOperand *srcOpnds, bool isArgReturn);
-  bool LmbcSmallAggForRet(const BlkassignoffNode &bNode, Operand *src);
-  bool LmbcSmallAggForCall(BlkassignoffNode &bNode, Operand *src);
+  bool LmbcSmallAggForRet(BlkassignoffNode &bNode, Operand *src);
+  bool LmbcSmallAggForCall(BlkassignoffNode &bNode, Operand *src, std::vector<TyIdx> **parmList);
   void SelectAggDassign(DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
   void SelectIassignoff(IassignoffNode &stmt) override;
@@ -135,6 +138,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd) override;
   void SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) override;
   void SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) override;
+  void SelectReturnSendOfStructInRegs(BaseNode *x) override;
   void SelectReturn(Operand *opnd0) override;
   void SelectIgoto(Operand *opnd0) override;
   void SelectCondGoto(CondGotoNode &stmt, Operand &opnd0, Operand &opnd1) override;
@@ -486,7 +490,10 @@ class AArch64CGFunc : public CGFunc {
   void GenerateCleanupCodeForExtEpilog(BB &bb) override;
   uint32 FloatParamRegRequired(MIRStructType *structType, uint32 &fpSize) override;
   void AssignLmbcFormalParams() override;
-  RegOperand *GenLmbcParamLoad(int32 offset, uint32 byteSize, RegType regType, PrimType primType);
+  void LmbcGenSaveSpForAlloca() override;
+  MemOperand *GenLmbcFpMemOperand(int32 offset, uint32 byteSize, AArch64reg base = RFP);
+  RegOperand *GenLmbcParamLoad(int32 offset, uint32 byteSize, RegType regType, PrimType primType, AArch64reg baseRegno = RFP);
+  RegOperand *LmbcStructReturnLoad(int32 offset);
   Operand *GetBaseReg(const AArch64SymbolAlloc &symAlloc);
   int32 GetBaseOffset(const SymbolAlloc &symAlloc) override;
 
@@ -732,6 +739,22 @@ class AArch64CGFunc : public CGFunc {
 
   RegOperand &GetZeroOpnd(uint32 size) override;
 
+  int32 GetLmbcTotalStkUsed() {
+    return lmbcArgInfo->lmbcTotalStkUsed;
+  }
+
+  void SetLmbcTotalStkUsed(int32 offset) {
+    lmbcArgInfo->lmbcTotalStkUsed = offset;
+  }
+
+  void SetLmbcCallReturnType(MIRType *ty) {
+    lmbcCallReturnType = ty;
+  }
+
+  MIRType *GetLmbcCallReturnType() {
+    return lmbcCallReturnType;
+  }
+
  private:
   enum RelationOperator : uint8 {
     kAND,
@@ -799,6 +822,7 @@ class AArch64CGFunc : public CGFunc {
   regno_t methodHandleVreg = -1;
   uint32 alignPow = 5; /* function align pow defaults to 5   i.e. 2^5*/
   LmbcArgInfo *lmbcArgInfo = nullptr;
+  MIRType *lmbcCallReturnType = nullptr;
 
   void SelectLoadAcquire(Operand &dest, PrimType dtype, Operand &src, PrimType stype,
                          AArch64isa::MemoryOrdering memOrd, bool isDirect);

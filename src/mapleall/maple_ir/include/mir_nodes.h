@@ -3304,7 +3304,7 @@ class CallNode : public NaryStmtNode {
   CallReturnVector returnValues;
 };
 
-// icall and icallproto
+// icall, icallassigned, icallproto and icallprotoassigned
 class IcallNode : public NaryStmtNode {
  public:
   IcallNode(MapleAllocator &allocator, Opcode o)

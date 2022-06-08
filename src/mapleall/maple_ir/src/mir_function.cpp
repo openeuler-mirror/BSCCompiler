@@ -41,15 +41,21 @@ const MIRSymbol *MIRFunction::GetFuncSymbol() const {
   return GlobalTables::GetGsymTable().GetSymbolFromStidx(symbolTableIdx.Idx());
 }
 MIRSymbol *MIRFunction::GetFuncSymbol() {
-  return const_cast<MIRSymbol*>(const_cast<const MIRFunction*>(this)->GetFuncSymbol());
+  const MIRFunction *mirFunc = const_cast<const MIRFunction*>(this);
+  ASSERT(mirFunc != nullptr, "null ptr check");
+  return const_cast<MIRSymbol*>(mirFunc->GetFuncSymbol());
 }
 
 const std::string &MIRFunction::GetName() const {
-  return GlobalTables::GetGsymTable().GetSymbolFromStidx(symbolTableIdx.Idx())->GetName();
+  MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(symbolTableIdx.Idx());
+  ASSERT(mirSymbol != nullptr, "null ptr check");
+  return mirSymbol->GetName();
 }
 
 GStrIdx MIRFunction::GetNameStrIdx() const {
-  return GlobalTables::GetGsymTable().GetSymbolFromStidx(symbolTableIdx.Idx())->GetNameStrIdx();
+  MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(symbolTableIdx.Idx());
+  ASSERT(mirSymbol != nullptr, "null ptr check");
+  return mirSymbol->GetNameStrIdx();
 }
 
 const std::string &MIRFunction::GetBaseClassName() const {
@@ -341,14 +347,7 @@ void MIRFunction::Dump(bool withoutBody) {
   MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(symbolTableIdx.Idx());
   ASSERT(symbol != nullptr, "symbol MIRSymbol is null");
   if (!withoutBody) {
-    if (symbol->GetSrcPosition().FileNum() != 0 &&
-        symbol->GetSrcPosition().LineNum() != 0 &&
-        symbol->GetSrcPosition().LineNum() != MIRSymbol::LastPrintedLineNum()) {
-      LogInfo::MapleLogger() << "LOC "
-                             << symbol->GetSrcPosition().FileNum()
-                             << " " << symbol->GetSrcPosition().LineNum() << std::endl;
-      MIRSymbol::SetLastPrintedLineNum(symbol->GetSrcPosition().LineNum());
-    }
+    symbol->GetSrcPosition().DumpLoc(MIRSymbol::LastPrintedLineNumRef(), MIRSymbol::LastPrintedColumnNumRef());
   }
   LogInfo::MapleLogger() << "func " << "&" << symbol->GetName();
   theMIRModule = module;
@@ -369,10 +368,8 @@ void MIRFunction::Dump(bool withoutBody) {
     LogInfo::MapleLogger() << " )";
   }
 
-  if (module->GetFlavor() < kMmpl) {
+  if (module->GetFlavor() != kMmpl) {
     DumpFlavorLoweredThanMmpl();
-  } else {
-    LogInfo::MapleLogger() << " () void";
   }
 
   // codeMemPool is nullptr, means maple_ir has been released for memory's sake
