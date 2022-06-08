@@ -92,11 +92,18 @@ class AArch64GenProEpilog : public GenProEpilog {
   BB *GetCurTailcallExitBB() {
     return curTailcallExitBB;
   }
+  void SetFastPathReturnBB(BB *bb) {
+    fastPathReturnBB = bb;
+  }
+  BB *GetFastPathReturnBB() {
+    return fastPathReturnBB;
+  }
   MapleAllocator tmpAlloc;
   static constexpr const int32 kOffset8MemPos = 8;
   static constexpr const int32 kOffset16MemPos = 16;
   MapleMap<BB*, MapleSet<Insn*>> exitBB2CallSitesMap;
-  BB* curTailcallExitBB = nullptr;
+  BB *curTailcallExitBB = nullptr;
+  BB *fastPathReturnBB = nullptr;
   bool useFP = true;
   /* frame pointer(x29) is available as a general-purpose register if useFP is set as false */
   AArch64reg stackBaseReg = RFP;
