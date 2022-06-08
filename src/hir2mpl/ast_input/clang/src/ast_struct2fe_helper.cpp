@@ -281,6 +281,9 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   ENCChecker::InsertBoundaryInAtts(attrs, func.GetBoundaryInfo());
   mirMethodPair.second.second = attrs;
   mirFunc->SetFuncAttrs(attrs);
+  if (firstArgRet) {
+    mirFunc->GetMIRFuncType()->funcAttrs.SetAttr(FUNCATTR_firstarg_return);
+  }
   func.ClearGenericAttrsContentMap();
   return true;
 }
