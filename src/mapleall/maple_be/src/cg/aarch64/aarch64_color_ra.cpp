@@ -3609,6 +3609,9 @@ RegOperand *GraphColorRegAllocator::GetReplaceOpnd(Insn &insn, const Operand &op
   auto &regOpnd = static_cast<const RegOperand&>(opnd);
 
   uint32 vregNO = regOpnd.GetRegisterNumber();
+  if (vregNO == RFP) {
+    seenFP = true;
+  }
   RegType regType = regOpnd.GetRegisterType();
   if (vregNO < kAllRegNum) {
     return nullptr;
@@ -4976,6 +4979,9 @@ bool GraphColorRegAllocator::AllocateRegisters() {
 
   MarkCalleeSaveRegs();
 
+  if (seenFP == false) {
+    cgFunc->UnsetSeenFP();
+  }
   if (GCRA_DUMP) {
     cgFunc->DumpCGIR();
   }
