@@ -29,7 +29,9 @@ class RegisterInfo {
       allFpRegs(mallocator.Adapter()),
       allregs(mallocator.Adapter()) {}
 
-  virtual ~RegisterInfo() = default;
+  virtual ~RegisterInfo() {
+    memAllocator = nullptr;
+  }
 
   virtual void Init() = 0;
   virtual void Fini() = 0;

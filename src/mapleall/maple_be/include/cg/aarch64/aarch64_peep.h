@@ -393,7 +393,10 @@ class CombineSameArithmeticPattern : public CGPeepPattern {
  public:
   CombineSameArithmeticPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
       CGPeepPattern(cgFunc, currBB, currInsn, info) {}
-  ~CombineSameArithmeticPattern() override = default;
+  ~CombineSameArithmeticPattern() override {
+    prevInsn = nullptr;
+    newImmOpnd = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -845,7 +848,9 @@ class RemoveIdenticalLoadAndStorePattern : public CGPeepPattern {
  public:
   RemoveIdenticalLoadAndStorePattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
       : CGPeepPattern(cgFunc, currBB, currInsn) {}
-  ~RemoveIdenticalLoadAndStorePattern() override = default;
+  ~RemoveIdenticalLoadAndStorePattern() override {
+    nextInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -910,7 +915,9 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
       : CGPeepPattern(cgFunc, currBB, currInsn) {
     doAggressiveCombine = cgFunc.GetMirModule().IsCModule();
   }
-  ~CombineContiLoadAndStorePattern() override = default;
+  ~CombineContiLoadAndStorePattern() override {
+    memOpnd = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -985,7 +992,10 @@ class EliminateSpecifcUXTAArch64 : public PeepPattern {
 class FmovRegPattern : public CGPeepPattern {
  public:
   FmovRegPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
-  ~FmovRegPattern() override = default;
+  ~FmovRegPattern() override {
+    prevInsn = nullptr;
+    nextInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -1006,7 +1016,9 @@ class FmovRegPattern : public CGPeepPattern {
 class SbfxOptPattern : public CGPeepPattern {
 public:
   SbfxOptPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
-  ~SbfxOptPattern() override = default;
+  ~SbfxOptPattern() override {
+    nextInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -1030,7 +1042,9 @@ private:
 class CbnzToCbzPattern : public CGPeepPattern {
  public:
   CbnzToCbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
-  ~CbnzToCbzPattern() override = default;
+  ~CbnzToCbzPattern() override {
+    movInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -1071,7 +1085,9 @@ class ContiLDRorSTRToSameMEMPattern : public CGPeepPattern {
  public:
   ContiLDRorSTRToSameMEMPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
       : CGPeepPattern(cgFunc, currBB, currInsn) {}
-  ~ContiLDRorSTRToSameMEMPattern() override = default;
+  ~ContiLDRorSTRToSameMEMPattern() override {
+    prevInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -1093,7 +1109,9 @@ class RemoveIncDecRefPattern : public CGPeepPattern {
  public:
   RemoveIncDecRefPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
       : CGPeepPattern(cgFunc, currBB, currInsn) {}
-  ~RemoveIncDecRefPattern() override = default;
+  ~RemoveIncDecRefPattern() override {
+    prevInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -1158,7 +1176,10 @@ class InlineReadBarriersPattern : public CGPeepPattern {
 class ReplaceDivToMultiPattern : public CGPeepPattern {
  public:
   ReplaceDivToMultiPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
-  ~ReplaceDivToMultiPattern() override = default;
+  ~ReplaceDivToMultiPattern() override {
+    prevInsn = nullptr;
+    prePrevInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -1458,7 +1479,10 @@ class RemoveIncRefPattern : public CGPeepPattern {
  public:
   RemoveIncRefPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
       : CGPeepPattern(cgFunc, currBB, currInsn) {}
-  ~RemoveIncRefPattern() override = default;
+  ~RemoveIncRefPattern() override {
+    insnMov2 = nullptr;
+    insnMov1 = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -1570,7 +1594,10 @@ class WriteFieldCallPattern : public CGPeepPattern {
   };
   WriteFieldCallPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
       : CGPeepPattern(cgFunc, currBB, currInsn) {}
-  ~WriteFieldCallPattern() override = default;
+  ~WriteFieldCallPattern() override {
+    prevCallInsn = nullptr;
+    nextInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -1597,7 +1624,9 @@ class RemoveDecRefPattern : public CGPeepPattern {
  public:
   RemoveDecRefPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
       : CGPeepPattern(cgFunc, currBB, currInsn) {}
-  ~RemoveDecRefPattern() override = default;
+  ~RemoveDecRefPattern() override {
+    prevInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {

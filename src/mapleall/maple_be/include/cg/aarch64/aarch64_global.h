@@ -378,7 +378,10 @@ class ExtenToMovPattern : public OptimizePattern {
 class SameDefPattern : public OptimizePattern {
  public:
   explicit SameDefPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
-  ~SameDefPattern() override = default;
+  ~SameDefPattern() override {
+    currInsn = nullptr;
+    sameInsn = nullptr;
+  }
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;

@@ -23,7 +23,9 @@ namespace maplebe {
 class InsnBuilder {
  public:
   explicit InsnBuilder(MemPool &memPool) : mp(&memPool) {}
-  virtual ~InsnBuilder() = default;
+  virtual ~InsnBuilder() {
+    mp = nullptr;
+  }
 
 #ifdef TARGX86_64
   Insn &BuildInsn(MOperator opCode, const InsnDescription &idesc);

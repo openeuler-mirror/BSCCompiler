@@ -660,7 +660,9 @@ class OfstOperand : public ImmOperand {
         symbol(&mirSymbol),
         relocs(relocs) {}
 
-  ~OfstOperand() override = default;
+  ~OfstOperand() override {
+    symbol = nullptr;
+  }
 
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<OfstOperand>(*this);
@@ -1468,7 +1470,9 @@ class CGImmOperand : public OperandVisitable<CGImmOperand> {
   CGImmOperand(uint32 sz, int64 value) : OperandVisitable(kOpdImmediate, sz), val(value), symbol(nullptr) {}
   CGImmOperand(const MIRSymbol &symbol, int64 value, int32 relocs)
       : OperandVisitable(kOpdStImmediate, 0), val(value), symbol(&symbol), relocs(relocs) {}
-  ~CGImmOperand() override = default;
+  ~CGImmOperand() override {
+    symbol = nullptr;
+  }
   using OperandVisitable<CGImmOperand>::OperandVisitable;
 
   int64 GetValue() const {
@@ -1513,7 +1517,12 @@ class CGImmOperand : public OperandVisitable<CGImmOperand> {
 class CGMemOperand : public OperandVisitable<CGMemOperand> {
  public:
   explicit CGMemOperand(uint32 sz) : OperandVisitable(kOpdMem, sz) {}
-  ~CGMemOperand() override = default;
+  ~CGMemOperand() override {
+    baseReg = nullptr;
+    indexReg = nullptr;
+    baseOfst = nullptr;
+    scaleFactor = nullptr;
+  }
   using OperandVisitable<CGMemOperand>::OperandVisitable;
 
   void Dump() const override {
@@ -1614,7 +1623,9 @@ class CGFuncNameOperand : public OperandVisitable<CGFuncNameOperand> {
   explicit CGFuncNameOperand(const MIRSymbol &fsym) : OperandVisitable(kOpdBBAddress, 0),
       symbol(&fsym) {}
 
-  ~CGFuncNameOperand() override = default;
+  ~CGFuncNameOperand() override {
+    symbol = nullptr;
+  }
   using OperandVisitable<CGFuncNameOperand>::OperandVisitable;
 
   const std::string &GetName() const {
@@ -1806,7 +1817,9 @@ class OpndDumpVisitor : public OperandVisitorBase,
                                                CGLabelOperand> {
  public:
   explicit OpndDumpVisitor(const OpndDescription &operandDesc) : opndDesc(&operandDesc) {}
-  virtual ~OpndDumpVisitor() = default;
+  virtual ~OpndDumpVisitor() {
+    opndDesc = nullptr;
+  }
 
  protected:
   virtual void DumpOpndPrefix() {

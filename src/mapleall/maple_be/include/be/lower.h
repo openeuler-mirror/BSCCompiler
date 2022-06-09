@@ -66,7 +66,9 @@ class CGLowerer {
     SetCurrentFunc(nullptr);
   }
 
-  ~CGLowerer() = default;
+  ~CGLowerer() {
+    mirBuilder = nullptr;
+  }
 
   MIRFunction *RegisterFunctionVoidStarToVoid(BuiltinFunctionID id, const std::string &name,
                                               const std::string &paramName);

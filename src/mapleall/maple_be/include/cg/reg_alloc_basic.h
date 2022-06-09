@@ -34,7 +34,9 @@ class DefaultO0RegAllocator : public RegAllocator {
     availRegSet.resize(regInfo->GetAllRegNum(), false);
   }
 
-  ~DefaultO0RegAllocator() override = default;
+  ~DefaultO0RegAllocator() override {
+    regInfo = nullptr;
+  }
 
   bool AllocateRegisters() override;
 

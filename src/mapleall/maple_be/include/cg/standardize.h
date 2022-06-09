@@ -22,7 +22,9 @@ class Standardize {
  public:
   explicit Standardize(CGFunc &f) : cgFunc(&f) {}
 
-  virtual ~Standardize() = default;
+  virtual ~Standardize() {
+    cgFunc = nullptr;
+  }
 
   /*
    * for cpu instruction contains different operands
@@ -30,20 +32,24 @@ class Standardize {
    * convertion rule is:
    * mop(dest, src1, src2) -> mov(dest, src1)
    *                          mop(dest, src2)
+   * maple provide a default implement from two address to one address for unary op
+   * convertion rule is:
+   * mop(dest, src) -> mov(dest, src1)
+   *                   mop(dest)
    */
-  void TwoAddressMapping(Insn &insn);
+  void AddressMapping(Insn &insn);
 
   void DoStandardize();
 
  protected:
-  void SetTwoAddressMapping(bool needMapping) {
-    needTwoAddrMapping = needMapping;
+  void SetAddressMapping(bool needMapping) {
+    needAddrMapping = needMapping;
   }
-  bool NeedTwoAddressMapping(Insn &insn) {
+  bool NeedAddressMapping(Insn &insn) {
     /* Operand number for two addressing mode is 2 */
     /* and 3 for three addressing mode */
-    needTwoAddrMapping = insn.GetOperandSize() > 2;
-    return needTwoAddrMapping;
+    needAddrMapping = (insn.GetOperandSize() > 2) || (insn.IsUnaryOp());
+    return needAddrMapping;
   }
  private:
   /*
@@ -61,8 +67,11 @@ class Standardize {
   virtual void StdzMov(Insn &insn) = 0;
   virtual void StdzStrLdr(Insn &insn) = 0;
   virtual void StdzBasicOp(Insn &insn) = 0;
+  virtual void StdzUnaryOp(Insn &insn) = 0;
+  virtual void StdzCvtOp(Insn &insn, CGFunc &cgFunc) = 0;
+  virtual void StdzShiftOp(Insn &insn, CGFunc &cgFunc) = 0;
   CGFunc *cgFunc;
-  bool needTwoAddrMapping = false;
+  bool needAddrMapping = false;
 };
 }
 #endif  /* MAPLEBE_INCLUDE_STANDARDIZE_H */

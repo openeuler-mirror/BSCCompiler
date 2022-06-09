@@ -298,7 +298,9 @@ class A64OpndEmitVisitor : public OpndEmitVisitor {
   A64OpndEmitVisitor(Emitter &emitter, const OpndProp *operandProp)
       : OpndEmitVisitor(emitter),
         opndProp(operandProp) {}
-  ~A64OpndEmitVisitor() override = default;
+  ~A64OpndEmitVisitor() override {
+    opndProp = nullptr;
+  }
 
  private:
   void Visit(RegOperand *v) final;

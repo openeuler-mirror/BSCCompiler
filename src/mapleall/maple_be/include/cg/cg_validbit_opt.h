@@ -27,7 +27,10 @@ class ValidBitPattern {
  public:
   ValidBitPattern(CGFunc &f, CGSSAInfo &info) :
       cgFunc(&f), ssaInfo(&info) {}
-  virtual ~ValidBitPattern() = default;
+  virtual ~ValidBitPattern() {
+    cgFunc = nullptr;
+    ssaInfo = nullptr;
+  }
   std::string PhaseName() const {
     return "cgvalidbitopt";
   }
@@ -47,7 +50,10 @@ class ValidBitPattern {
 class ValidBitOpt {
  public:
   ValidBitOpt(CGFunc &f, CGSSAInfo &info) : cgFunc(&f), ssaInfo(&info) {}
-  virtual ~ValidBitOpt() = default;
+  virtual ~ValidBitOpt() {
+    cgFunc = nullptr;
+    ssaInfo = nullptr;
+  }
   void Run();
   static uint32 GetImmValidBit(int64 value, uint32 size) {
     if (value < 0) {

@@ -43,7 +43,10 @@ class AArch64ValidBitOpt : public ValidBitOpt {
 class AndValidBitPattern : public ValidBitPattern {
  public:
   AndValidBitPattern(CGFunc &cgFunc, CGSSAInfo &info) : ValidBitPattern(cgFunc, info) {}
-  ~AndValidBitPattern() override = default;
+  ~AndValidBitPattern() override {
+    desReg = nullptr;
+    srcReg = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -64,18 +67,21 @@ class AndValidBitPattern : public ValidBitPattern {
  * mov   w1, w2
  *
  * Example 2)
- * ubfx  w1, w2[16], #0, #16
+ * ubfx  w1, w2[16], #0, #16  /  sbfx  w1, w2[16], #0, #16
  * ===>
  * mov   w1, w2
  */
-class ZxtValidBitPattern : public ValidBitPattern {
+class ExtValidBitPattern : public ValidBitPattern {
  public:
-  ZxtValidBitPattern(CGFunc &cgFunc, CGSSAInfo &info) : ValidBitPattern(cgFunc, info) {}
-  ~ZxtValidBitPattern() override = default;
+  ExtValidBitPattern(CGFunc &cgFunc, CGSSAInfo &info) : ValidBitPattern(cgFunc, info) {}
+  ~ExtValidBitPattern() override {
+    newDstOpnd = nullptr;
+    newSrcOpnd = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
-    return "ZxtValidBitPattern";
+    return "ExtValidBitPattern";
   }
 
  private:
@@ -111,7 +117,9 @@ class ZxtValidBitPattern : public ValidBitPattern {
 class CmpCsetVBPattern : public ValidBitPattern {
  public:
   CmpCsetVBPattern(CGFunc &cgFunc, CGSSAInfo &info) : ValidBitPattern(cgFunc, info) {}
-  ~CmpCsetVBPattern() override = default;
+  ~CmpCsetVBPattern() override {
+    cmpInsn = nullptr;
+  }
   void Run(BB &bb, Insn &csetInsn) override;
   bool CheckCondition(Insn &csetInsn) override;
   std::string GetPatternName() override {
@@ -134,7 +142,9 @@ class CmpCsetVBPattern : public ValidBitPattern {
 class CmpBranchesPattern : public ValidBitPattern {
  public:
   CmpBranchesPattern(CGFunc &cgFunc, CGSSAInfo &info) : ValidBitPattern(cgFunc, info) {}
-  ~CmpBranchesPattern() override = default;
+  ~CmpBranchesPattern() override {
+    prevCmpInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {

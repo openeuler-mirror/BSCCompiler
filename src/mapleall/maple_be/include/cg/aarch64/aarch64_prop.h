@@ -356,7 +356,9 @@ private:
 class A64PregCopyPattern : public PropOptimizePattern {
  public:
   A64PregCopyPattern(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
-  ~A64PregCopyPattern() override = default;
+  ~A64PregCopyPattern() override {
+    firstPhiInsn = nullptr;
+  }
   bool CheckCondition(Insn &insn) override;
   void Optimize(Insn &insn) override;
   void Run() override;

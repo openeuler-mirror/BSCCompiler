@@ -23,7 +23,9 @@ class FrameFinalize {
  public:
   explicit FrameFinalize(CGFunc &func) : cgFunc(&func) {}
 
-  virtual ~FrameFinalize() = default;
+  virtual ~FrameFinalize() {
+    cgFunc = nullptr;
+  }
 
   virtual void Run() {}
 

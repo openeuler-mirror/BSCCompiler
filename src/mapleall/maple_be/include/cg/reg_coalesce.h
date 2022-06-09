@@ -196,7 +196,9 @@ class LiveIntervalAnalysis {
         alloc(&memPool),
         vregIntervals(alloc.Adapter()) {}
 
-  virtual ~LiveIntervalAnalysis() = default;
+  virtual ~LiveIntervalAnalysis() {
+    bfs = nullptr;
+  }
 
   virtual void ComputeLiveIntervals() = 0;
   virtual void CoalesceRegisters() = 0;
