@@ -1151,6 +1151,7 @@ void ASTInitListExpr::ProcessStringLiteralInitList(const UniqueFEIRExpr &addrOfC
   argExprList->emplace_back(FEIRBuilder::CreateExprConstI32(static_cast<int32>(stringLength)));
   std::unique_ptr<FEIRStmtIntrinsicCallAssign> memcpyStmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(
       INTRN_C_memcpy, nullptr, nullptr, std::move(argExprList));
+  memcpyStmt->SetSrcLoc(addrOfStringLiteral->GetLoc());
   stmts.emplace_back(std::move(memcpyStmt));
 
   // Handling Implicit Initialization When Incomplete Initialization
@@ -1166,12 +1167,13 @@ void ASTInitListExpr::ProcessStringLiteralInitList(const UniqueFEIRExpr &addrOfC
     }
     uint32 dimSize = arrayType->GetSizeArrayItem(arrayType->GetDim() - 1);
     uint32 elemSize = arrayType->GetElemType()->GetSize();
-    ProcessImplicitInit(addrOfCharArray->Clone(), stringLength, dimSize, elemSize, stmts);
+    ProcessImplicitInit(addrOfCharArray->Clone(), stringLength, dimSize, elemSize, stmts,
+                        addrOfStringLiteral->GetLoc());
   }
 }
 
-void ASTInitListExpr::ProcessImplicitInit(const UniqueFEIRExpr &addrExpr, uint32 initSize,
-                                          uint32 total, uint32 elemSize, std::list<UniqueFEIRStmt> &stmts) const {
+void ASTInitListExpr::ProcessImplicitInit(const UniqueFEIRExpr &addrExpr, uint32 initSize,uint32 total, uint32 elemSize,
+                                          std::list<UniqueFEIRStmt> &stmts, Loc loc) const {
   if (initSize >= total) {
     return;
   }
@@ -1196,6 +1198,9 @@ void ASTInitListExpr::ProcessImplicitInit(const UniqueFEIRExpr &addrExpr, uint32
   argExprList->emplace_back(std::move(cntExpr));
   std::unique_ptr<FEIRStmtIntrinsicCallAssign> memsetStmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(
       INTRN_C_memset, nullptr, nullptr, std::move(argExprList));
+  if (loc.fileIdx != 0) {
+    memsetStmt->SetSrcLoc(loc);
+  }
   stmts.emplace_back(std::move(memsetStmt));
 }
 
@@ -1224,7 +1229,7 @@ void ASTInitListExpr::ProcessDesignatedInitUpdater(
 
 void ASTInitListExpr::InitializeStructFieldsWithMemset(std::list<UniqueFEIRStmt> &stmtsIn,
     std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &baseIn,
-    UniqueFEIRVar &varIn, uint32 initSizeIn, uint32 fieldIDIn, uint32 sizeIn) const {
+    UniqueFEIRVar &varIn, uint32 initSizeIn, uint32 fieldIDIn, uint32 sizeIn, Loc loc) const {
   UniqueFEIRExpr addrOfExpr;
   if (std::holds_alternative<UniqueFEIRExpr>(baseIn)) {
     UniqueFEIRExpr offsetExpr = FEIRBuilder::CreateExprConstU32(initSizeIn);
@@ -1233,7 +1238,7 @@ void ASTInitListExpr::InitializeStructFieldsWithMemset(std::list<UniqueFEIRStmt>
   } else {
     addrOfExpr = std::make_unique<FEIRExprAddrofVar>(varIn->Clone(), fieldIDIn);
   }
-  ProcessImplicitInit(addrOfExpr->Clone(), 0, sizeIn, 1, stmtsIn);
+  ProcessImplicitInit(addrOfExpr->Clone(), 0, sizeIn, 1, stmtsIn, loc);
 }
 
 std::tuple<uint32, uint32, MIRType*> ASTInitListExpr::GetStructFieldInfo(uint32 fieldIndex,
@@ -1277,7 +1282,7 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
 
   if (initList->initExprs.size() == 0) {
     UniqueFEIRExpr addrOfExpr = std::make_unique<FEIRExprAddrofVar>(var->Clone(), 0);
-    ProcessImplicitInit(addrOfExpr->Clone(), 0, curStructMirType->GetSize(), 1, stmts);
+    ProcessImplicitInit(addrOfExpr->Clone(), 0, curStructMirType->GetSize(), 1, stmts, initList->GetSrcLoc());
     return;
   }
 
@@ -1289,10 +1294,10 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
       // first field in the nested struct or union), because even though these two addresses have the same value,
       // they have different pointer type.
       UniqueFEIRExpr addrOfExpr = std::make_unique<FEIRExprAddrofVar>(var->Clone(), fieldID - 1);
-      ProcessImplicitInit(addrOfExpr->Clone(), 0, curStructMirType->GetSize(), 1, stmts);
+      ProcessImplicitInit(addrOfExpr->Clone(), 0, curStructMirType->GetSize(), 1, stmts, initList->GetSrcLoc());
     } else { // kTypeUnion
       UniqueFEIRExpr addrOfExpr = std::make_unique<FEIRExprAddrofVar>(var->Clone(), 0);
-      ProcessImplicitInit(addrOfExpr->Clone(), 0, baseStructMirType->GetSize(), 1, stmts);
+      ProcessImplicitInit(addrOfExpr->Clone(), 0, baseStructMirType->GetSize(), 1, stmts, initList->GetSrcLoc());
     }
     return;
   }
@@ -1323,6 +1328,7 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
       int64 initBitSize = baseStructMirType->GetBitOffsetFromBaseAddr(fieldID); // in bit
       uint32 fieldSizeOfLastZero = 0; // in byte
       uint32 fieldIdOfLastZero = fieldID;
+      size_t start = i;
       while (i < initList->initExprs.size() &&
              initList->initExprs[i] != nullptr &&
              initList->initExprs[i]->GetEvaluatedFlag() == EvaluatedAsZero) {
@@ -1342,7 +1348,8 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
           fieldSizeOfLastZero * 8) - initBitSize;
       if (fieldsCount >= 2 && fieldsBitSize % 8 == 0 && (fieldsBitSize / 8) % 4 == 0) {
         InitializeStructFieldsWithMemset(stmts, base, var, static_cast<uint32>(initBitSize / 8), fieldID,
-                                         static_cast<uint32>(fieldsBitSize / 8));
+                                         static_cast<uint32>(fieldsBitSize / 8),
+                                         initList->initExprs[start]->GetSrcLoc());
         --i;
         continue;
       } else {
@@ -1351,7 +1358,8 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
     }
 
     if (initList->initExprs[i]->GetASTOp() == kASTImplicitValueInitExpr && fieldMirType->GetPrimType() == PTY_agg) {
-      InitializeStructFieldsWithMemset(stmts, base, var, offset - curFieldTypeSize, fieldID, fieldMirType->GetSize());
+      InitializeStructFieldsWithMemset(stmts, base, var, offset - curFieldTypeSize, fieldID, fieldMirType->GetSize(),
+                                       initList->initExprs[i]->GetSrcLoc());
       continue;
     }
 
@@ -1413,7 +1421,7 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
   if (curStructMirType->GetKind() == kTypeUnion) {
     UniqueFEIRExpr addrOfExpr = std::make_unique<FEIRExprAddrofVar>(var->Clone(), baseFieldID);
     ProcessImplicitInit(addrOfExpr->Clone(), curFieldTypeSize,
-                        curStructMirType->GetSize(), 1, stmts);
+                        curStructMirType->GetSize(), 1, stmts, initList->GetSrcLoc());
   }
 }
 
@@ -1448,7 +1456,7 @@ void ASTInitListExpr::ProcessArrayInitList(const UniqueFEIRExpr &addrOfArray, co
   auto elementPtrFEType = FEIRTypeHelper::CreateTypeNative(*elementPtrType);
   CHECK_FATAL(initExprs.size() <= INT_MAX, "invalid index");
   if (!FEOptions::GetInstance().IsNpeCheckDynamic() && initList->GetEvaluatedFlag() == EvaluatedAsZero) {
-    ProcessImplicitInit(addrOfArray->Clone(), 0, arrayMirType->GetSize(), 1, stmts);
+    ProcessImplicitInit(addrOfArray->Clone(), 0, arrayMirType->GetSize(), 1, stmts, initList->GetSrcLoc());
     return;
   }
   for (size_t i = 0; i < initList->initExprs.size(); ++i) {
@@ -1472,7 +1480,8 @@ void ASTInitListExpr::ProcessArrayInitList(const UniqueFEIRExpr &addrOfArray, co
                                                                           elemSizeExpr->Clone());
             realAddr = FEIRBuilder::CreateExprBinary(OP_add, std::move(realAddr), offsetSizeExpr->Clone());
           }
-          ProcessImplicitInit(realAddr->Clone(), 0, elementType->GetSize(), 1, stmts);
+          ProcessImplicitInit(realAddr->Clone(), 0, elementType->GetSize(), 1, stmts,
+                              initList->initExprs[i]->GetSrcLoc());
       } else {
           ProcessInitList(base, static_cast<const ASTInitListExpr*>(subExpr), stmts);
       }
@@ -1489,6 +1498,7 @@ void ASTInitListExpr::ProcessArrayInitList(const UniqueFEIRExpr &addrOfArray, co
         auto stmt = FEIRBuilder::CreateStmtIAssign(elementPtrFEType->Clone(), addrOfElemExpr->Clone(),
                                                    elemExpr->Clone(),
                                                    0);
+        stmt->SetSrcLoc(initList->initExprs[i]->GetSrcLoc());
         stmts.emplace_back(std::move(stmt));
       }
     }
@@ -1499,7 +1509,8 @@ void ASTInitListExpr::ProcessArrayInitList(const UniqueFEIRExpr &addrOfArray, co
   auto elemSize = elementType->GetSize();
   CHECK_FATAL(elemSize != 0, "elemSize should not 0");
   auto allElemCnt = allSize / elemSize;
-  ProcessImplicitInit(addrOfArray->Clone(), initList->initExprs.size(), allElemCnt, elemSize, stmts);
+  ProcessImplicitInit(addrOfArray->Clone(), initList->initExprs.size(), allElemCnt, elemSize, stmts,
+                      initList->GetSrcLoc());
 }
 
 void ASTInitListExpr::ProcessVectorInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,

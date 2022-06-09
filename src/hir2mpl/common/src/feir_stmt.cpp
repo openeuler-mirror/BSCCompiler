@@ -894,6 +894,7 @@ void FEIRStmtReturn::InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<Stm
   }
   if (expr->GetPrimType() == PTY_ptr) {
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_returnassertnonnull, expr->Clone());
+    stmt->SetSrcLoc(expr->GetLoc());
     std::list<StmtNode*> stmts = stmt->GenMIRStmts(mirBuilder);
     ans.splice(ans.end(), stmts);
   }
@@ -1920,6 +1921,7 @@ void FEIRStmtCallAssign::InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr,
   if (expr->GetPrimType() == PTY_ptr) {
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtCallAssertNonnull>(OP_callassertnonnull, expr->Clone(),
                                                                       funcName, index);
+    stmt->SetSrcLoc(expr->GetLoc());
     std::list<StmtNode*> stmts = stmt->GenMIRStmts(mirBuilder);
     ans.splice(ans.end(), stmts);
   }
@@ -2040,6 +2042,7 @@ void FEIRStmtICallAssign::InsertNonnullCheckingInArgs(MIRBuilder &mirBuilder, st
     if (expr->GetPrimType() == PTY_ptr) {
       UniqueFEIRStmt stmt = std::make_unique<FEIRStmtCallAssertNonnull>(
           OP_callassertnonnull, expr->Clone(), "function_pointer", idx);
+      stmt->SetSrcLoc(expr->GetLoc());
       std::list<StmtNode*> stmts = stmt->GenMIRStmts(mirBuilder);
       ans.splice(ans.end(), stmts);
     }

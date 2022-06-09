@@ -101,7 +101,7 @@ class ASTCompoundStmt : public ASTStmt {
   }
 
   Loc GetEndLoc() {
-    return loc;
+    return endLoc;
   }
 
  private:

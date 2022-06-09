@@ -669,8 +669,8 @@ class ASTInitListExpr : public ASTExpr {
                                                           MIRStructType &structMirType) const;
   void InitializeStructFieldsWithMemset(std::list<UniqueFEIRStmt> &stmtsIn,
                                         std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &baseIn,
-                                        UniqueFEIRVar &varIn,
-                                        uint32 initSizeIn, uint32 fieldIDIn, uint32 sizeIn) const;
+                                        UniqueFEIRVar &varIn, uint32 initSizeIn, uint32 fieldIDIn, uint32 sizeIn,
+                                        Loc loc = {0 , 0, 0}) const;
   UniqueFEIRExpr GetAddrofArrayFEExprByStructArrayField(MIRType *fieldType, UniqueFEIRExpr addrOfArrayField) const;
   void ProcessVectorInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                              const ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
@@ -680,7 +680,7 @@ class ASTInitListExpr : public ASTExpr {
   void ProcessStringLiteralInitList(const UniqueFEIRExpr &addrOfCharArray, const UniqueFEIRExpr &addrOfStringLiteral,
                                     size_t stringLength, std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessImplicitInit(const UniqueFEIRExpr &addrExpr, uint32 initSize, uint32 total, uint32 elemSize,
-                           std::list<UniqueFEIRStmt> &stmts) const;
+                           std::list<UniqueFEIRStmt> &stmts, Loc loc ={0, 0, 0}) const;
   MIRConst *GenerateMIRConstForArray() const;
   MIRConst *GenerateMIRConstForStruct() const;
   MapleVector<ASTExpr*> initExprs;

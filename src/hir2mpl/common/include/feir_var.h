@@ -150,10 +150,6 @@ class FEIRVar {
     return GetNameRawImpl();
   }
 
-  std::unique_ptr<FEIRVar> Clone() const {
-    return CloneImpl();
-  }
-
   bool EqualsTo(const std::unique_ptr<FEIRVar> &var) const {
     return EqualsToImpl(var);
   }
@@ -186,6 +182,7 @@ class FEIRVar {
     return loc.line;
   }
 
+  std::unique_ptr<FEIRVar> Clone() const;
   void SetBoundaryLenExpr(std::unique_ptr<FEIRExpr> expr);
   const std::unique_ptr<FEIRExpr> &GetBoundaryLenExpr() const;
 

@@ -107,6 +107,7 @@ void ASTVar::GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, const UniqueFE
     argExprList->emplace_back(sizeExpr->Clone());
     std::unique_ptr<FEIRStmtIntrinsicCallAssign> memcpyStmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(
         INTRN_C_memcpy, nullptr, nullptr, std::move(argExprList));
+    memcpyStmt->SetSrcLoc(initFeirExpr->GetLoc());
     stmts.emplace_back(std::move(memcpyStmt));
     if (mirArrayType->GetKind() != kTypeArray) {
       return;
@@ -124,6 +125,7 @@ void ASTVar::GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, const UniqueFE
       argExprList->emplace_back(FEIRBuilder::CreateExprConstI32(needInitFurtherCnt * elemSize));
       std::unique_ptr<FEIRStmtIntrinsicCallAssign> memsetStmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(
           INTRN_C_memset, nullptr, nullptr, std::move(argExprList));
+      memsetStmt->SetSrcLoc(initFeirExpr->GetLoc());
       stmts.emplace_back(std::move(memsetStmt));
     }
     return;

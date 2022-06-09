@@ -99,6 +99,18 @@ FEIRVar::FEIRVar(FEIRVarKind argKind, std::unique_ptr<FEIRType> argType)
 
 FEIRVar::~FEIRVar() {}
 
+std::unique_ptr<FEIRVar> FEIRVar::Clone() const {
+  auto var = CloneImpl();
+  var->SetGlobal(isGlobal);
+  var->SetAttrs(genAttrs);
+  var->SetSectionAttr(sectionAttr);
+  if (boundaryLenExpr != nullptr) {
+    var->SetBoundaryLenExpr(boundaryLenExpr->Clone());
+  }
+  var->SetSrcLoc(loc);
+  return var;
+}
+
 void FEIRVar::SetBoundaryLenExpr(std::unique_ptr<FEIRExpr> expr) {
   boundaryLenExpr = std::move(expr);
 }

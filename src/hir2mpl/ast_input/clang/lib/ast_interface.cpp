@@ -106,29 +106,30 @@ Loc LibAstFile::GetLOC(const clang::SourceLocation &srcLoc) const {
     return {0, 0, 0};
   }
   if (srcLoc.isFileID()) {
-    clang::PresumedLoc pLOC = astContext->getSourceManager().getPresumedLoc(srcLoc);
-    if (pLOC.isInvalid()) {
+    std::string fileName = astContext->getSourceManager().getFilename(srcLoc).str();
+    if (fileName.empty()) {
       return {0, 0, 0};
     }
-    std::string fileName = pLOC.getFilename();
+    unsigned line = astContext->getSourceManager().getSpellingLineNumber(srcLoc);
+    unsigned colunm = astContext->getSourceManager().getSpellingColumnNumber(srcLoc);
     GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fileName);
     for (const auto &info : FEManager::GetModule().GetSrcFileInfo()) {
       if (info.first == strIdx) {
-        return {info.second, static_cast<uint32>(pLOC.getLine()), static_cast<uint32>(pLOC.getColumn())};
+        return {info.second, static_cast<uint32>(line), static_cast<uint32>(colunm)};
       }
     }
     if (FEManager::GetModule().GetSrcFileInfo().empty()) {
       // src files start from 2, 1 is mpl file
       FEManager::GetModule().PushbackFileInfo(MIRInfoPair(strIdx, 2));
-      return {2, static_cast<uint32>(pLOC.getLine()), static_cast<uint32>(pLOC.getColumn())};
+      return {2, static_cast<uint32>(line), static_cast<uint32>(colunm)};
     } else {
       auto last = FEManager::GetModule().GetSrcFileInfo().rbegin();
       FEManager::GetModule().PushbackFileInfo(MIRInfoPair(strIdx, last->second + 1));
-      return {last->second + 1, static_cast<uint32>(pLOC.getLine()), static_cast<uint32>(pLOC.getColumn())};
+      return {last->second + 1, static_cast<uint32>(line), static_cast<uint32>(colunm)};
     }
+  } else {  // For macro line: The expansion location is the line in the source code where the macro was expanded
+    return GetLOC(astContext->getSourceManager().getExpansionLoc(srcLoc));
   }
-
-  return GetLOC(astContext->getSourceManager().getExpansionLoc(srcLoc));
 }
 
 uint32 LibAstFile::GetMaxAlign(const clang::Decl &decl) const {

@@ -38,14 +38,7 @@ std::string FEIRVarName::GetNameRawImpl() const {
 }
 
 std::unique_ptr<FEIRVar> FEIRVarName::CloneImpl() const {
-  std::unique_ptr<FEIRVar> var = std::make_unique<FEIRVarName>(nameIdx, type->Clone(), withType);
-  var->SetGlobal(isGlobal);
-  GenericAttrs attrs = genAttrs;
-  var->SetAttrs(attrs);
-  if (boundaryLenExpr != nullptr) {
-    var->SetBoundaryLenExpr(boundaryLenExpr->Clone());
-  }
-  return var;
+  return std::make_unique<FEIRVarName>(nameIdx, type->Clone(), withType);
 }
 
 bool FEIRVarName::EqualsToImpl(const std::unique_ptr<FEIRVar> &var) const {
