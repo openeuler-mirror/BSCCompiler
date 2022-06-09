@@ -303,7 +303,7 @@ void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &output, const st
     RunNewPM(output, vtableImplFile);
   }
   if (withDwarf && !theModule->IsWithDbgInfo()) {
-    std::cout << "set up debug info " << std::endl;
+    LogInfo::MapleLogger() << "set up debug info " << '\n';
     theMIRModule->GetDbgInfo()->BuildDebugInfo();
   }
 }
