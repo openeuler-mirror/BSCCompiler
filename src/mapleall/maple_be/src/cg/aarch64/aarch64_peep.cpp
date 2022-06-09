@@ -5510,7 +5510,8 @@ void UbfxAndCbzToTbzPattern::Run(BB &bb , Insn &insn) {
     return;
   }
   Insn *newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, opnd2, imm3, label);
-  bb.ReplaceInsn(*useInsn, *newInsn);
+  BB *useInsnBB = useInsn->GetBB();
+  useInsnBB->ReplaceInsn(*useInsn, *newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(*useInsn, *newInsn);
   optSuccess = true;
@@ -5529,7 +5530,7 @@ bool UbfxAndCbzToTbzPattern::CheckCondition(Insn &insn) {
     return false;
   }
   useInsn = *useInsns.begin();
-  if (useInsn == nullptr || useInsn->GetBB() != insn.GetBB()) {
+  if (useInsn == nullptr) {
     return false;
   }
   if (imm4.GetValue() == 1) {
