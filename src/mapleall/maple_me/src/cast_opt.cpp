@@ -397,7 +397,7 @@ MeExpr *MeCastOpt::SimplifyCastSingle(IRMap &irMap, const MeExprCastInfo &castIn
       // zext/sext + dread u1 %var ==>  dread u1 %var
       return opnd;
     }
-    if (varExpr->GetDefBy() == kDefByStmt) {
+    if (varExpr->GetDefBy() == kDefByStmt && !varExpr->IsVolatile()) {
       MeStmt *defStmt = varExpr->GetDefByMeStmt();
       if (defStmt->GetOp() == OP_dassign && IsCompareOp(static_cast<DassignMeStmt*>(defStmt)->GetRHS()->GetOp())) {
         // zext/sext + dread non-u1 %var (%var is defined by compare op)  ==>  dread non-u1 %var

@@ -62,8 +62,10 @@ RegMeExpr *IRMapBuild::GetOrCreateRegFromVerSt(const VersionSt &vst) {
 
 MeExpr *IRMapBuild::BuildLHSVar(const VersionSt &vst, DassignMeStmt &defMeStmt) {
   VarMeExpr *meDef = GetOrCreateVarFromVerSt(vst);
-  meDef->SetDefStmt(&defMeStmt);
-  meDef->SetDefBy(kDefByStmt);
+  if (!vst.GetOst()->IsVolatile()) {
+    meDef->SetDefStmt(&defMeStmt);
+    meDef->SetDefBy(kDefByStmt);
+  }
   irMap->verst2MeExprTable.at(vst.GetIndex()) = meDef;
   return meDef;
 }
