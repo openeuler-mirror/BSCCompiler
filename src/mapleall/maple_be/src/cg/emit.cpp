@@ -381,11 +381,7 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       } else {
         size = std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()));
       }
-      Emit(asmInfo->GetComm());
-      Emit(symName);
-      Emit(", ");
-      Emit(size);
-      Emit(", ");
+      Emit(asmInfo->GetComm()).Emit(symName).Emit(", ").Emit(size).Emit(", ");
 #if PECOFF
 #if TARGARM || TARGAARCH64 || TARGARK || TARGRISCV64
       std::string align = std::to_string(
@@ -404,11 +400,7 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       } else if (((kind == kTypeStruct) || (kind == kTypeClass) || (kind == kTypeArray) || (kind == kTypeUnion)) &&
                  ((storage == kScGlobal) || (storage == kScPstatic) || (storage == kScFstatic))) {
         int32 align = Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex());
-        if (kSizeOfPtr < align) {
-          Emit(std::to_string(align));
-        } else {
-          Emit(std::to_string(k8ByteSize));
-        }
+        Emit(std::to_string(align > kSizeOfPtr ? align : k8BitSize));
       } else {
         Emit(std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex())));
       }
@@ -3499,6 +3491,7 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
         die->SetAttr(DW_AT_frame_base, exprloc);
       } break;
       case DW_TAG_structure_type:
+      case DW_TAG_union_type:
       case DW_TAG_class_type:
       case DW_TAG_interface_type: {
         DBGDieAttr *byteSizeAttr = LFindDieAttr(die, DW_AT_byte_size);
