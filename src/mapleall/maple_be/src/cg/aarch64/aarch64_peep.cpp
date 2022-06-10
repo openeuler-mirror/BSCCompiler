@@ -1587,6 +1587,7 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterLoad(Insn &insn) {
   }
   MOperator prevOrigMop = prevInsn->GetMachineOpcode();
   for (uint8 i = 0; i < kPrevLoadPatternNum; i++) {
+    ASSERT(extTypeIdx < SpecificExtTypeSize, "extTypeIdx must be lower than SpecificExtTypeSize");
     if (prevOrigMop != loadMappingTable[extTypeIdx][i][0]) {
       continue;
     }
@@ -1661,6 +1662,7 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterSameExt(Insn &insn) {
   MOperator prevMop = prevInsn->GetMachineOpcode();
   MOperator currMop = insn.GetMachineOpcode();
   for (uint8 i = 0; i < kSameExtPatternNum; i++) {
+    ASSERT(extTypeIdx < SpecificExtTypeSize, "extTypeIdx must be lower than SpecificExtTypeSize");
     if (sameExtMappingTable[extTypeIdx][i][0] == MOP_undef || sameExtMappingTable[extTypeIdx][i][1] == MOP_undef) {
       continue;
     }
@@ -2726,6 +2728,7 @@ void CombineContiLoadAndStorePattern::RemoveInsnAndKeepComment(BB &bb, Insn &ins
     newComment = newComment + "  " + comment.c_str();
   }
   if (newComment.c_str() != nullptr && strlen(newComment.c_str()) > 0) {
+    ASSERT(nn != nullptr, "nn should not be nullptr");
     nn->SetComment(newComment);
   }
   bb.RemoveInsn(insn);
@@ -3363,6 +3366,8 @@ void CselZeroOneToCsetOpt::Run(BB &bb, Insn &insn) {
     falseMovInsn = FindFixedValue(falseValueOp, bb, falseTempOp, insn);
   }
 
+  ASSERT(trueTempOp != nullptr, "trueTempOp should not be nullptr");
+  ASSERT(falseTempOp != nullptr, "falseTempOp should not be nullptr");
   /* csel to cset */
   if ((trueTempOp->IsIntImmediate() || IsZeroRegister(*trueTempOp)) &&
       (falseTempOp->IsIntImmediate() || IsZeroRegister(*falseTempOp))){

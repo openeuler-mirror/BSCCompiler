@@ -233,6 +233,7 @@ struct InsnDescription {
     return atomicNum;
   }
   static const InsnDescription &GetAbstractId(MOperator opc) {
+    ASSERT(opc < abstract::kMopLast, "op must be lower than kMopLast");
     return abstractId[opc];
   }
   static const InsnDescription abstractId[abstract::kMopLast];

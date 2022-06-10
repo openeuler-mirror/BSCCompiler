@@ -892,6 +892,7 @@ BlockNode *CGLowerer::LowerReturnStruct(NaryStmtNode &retNode) {
   MIRPtrType *retTy = static_cast<MIRPtrType*>(retSt->GetType());
   IassignNode *iassign = mirModule.CurFuncCodeMemPool()->New<IassignNode>();
   iassign->SetTyIdx(retTy->GetTypeIndex());
+  ASSERT(opnd0 != nullptr, "opnd0 should not be nullptr");
   if ((beCommon.GetTypeSize(retTy->GetPointedTyIdx().GetIdx()) <= k16ByteSize) && (opnd0->GetPrimType() == PTY_agg)) {
     /* struct goes into register. */
     curFunc->SetStructReturnedInRegs();

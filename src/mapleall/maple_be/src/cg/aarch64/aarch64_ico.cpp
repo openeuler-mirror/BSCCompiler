@@ -591,7 +591,7 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joi
 
   if (elseBB != nullptr) {
     cmpBB.SetKind(elseBB->GetKind());
-  } else {
+  } else if (ifBB != nullptr){
     cmpBB.SetKind(ifBB->GetKind());
   }
 
@@ -613,7 +613,7 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joi
   if (cmpBB.GetKind() == BB::kBBGoto || cmpBB.GetKind() == BB::kBBIf) {
     if (elseBB != nullptr) {
       (void)cmpBB.InsertInsnAfter(*cmpBB.GetLastInsn(), *elseBB->GetLastInsn());
-    } else {
+    } else if (ifBB != nullptr){
       (void)cmpBB.InsertInsnAfter(*cmpBB.GetLastInsn(), *ifBB->GetLastInsn());
     }
   }
@@ -674,6 +674,7 @@ bool AArch64ICOIfThenElsePattern::Optimize(BB &curBB) {
     /* not a form we can handle */
     return false;
   }
+  ASSERT(elseBB != nullptr, "elseBB should not be nullptr");
   if (CGCFG::InLSDA(elseBB->GetLabIdx(), *cgFunc->GetEHFunc()) ||
       CGCFG::InSwitchTable(elseBB->GetLabIdx(), *cgFunc)) {
     return false;
@@ -806,6 +807,7 @@ bool AArch64ICOMorePredsPattern::Optimize(BB &curBB) {
     }
   }
   Insn *gotoBr = curBB.GetLastMachineInsn();
+  ASSERT(gotoBr != nullptr, "gotoBr should not be nullptr");
   auto &gotoLabel = static_cast<LabelOperand&>(gotoBr->GetOperand(gotoBr->GetOperandSize() - 1));
   for (BB *preBB : curBB.GetPreds()) {
     Insn *condBr = cgFunc->GetTheCFG()->FindLastCondBrInsn(*preBB);

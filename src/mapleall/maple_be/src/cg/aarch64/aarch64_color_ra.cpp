@@ -892,6 +892,7 @@ void GraphColorRegAllocator::SetupLiveRangeByOp(Operand &op, Insn &insn, bool is
   CreateLiveRange(regNO, *insn.GetBB(), isDef, insn.GetId(), true);
 
   LiveRange *lr = GetLiveRange(regNO);
+  ASSERT(lr != nullptr, "lr should not be nullptr");
   if (isDef) {
     lr->SetSpillSize((regOpnd.GetSize() <= k32) ? k32 : k64);
   }
@@ -1601,6 +1602,7 @@ MapleVector<LiveRange*>::iterator GraphColorRegAllocator::GetHighPriorityLr(Mapl
 void GraphColorRegAllocator::UpdateForbiddenForNeighbors(const LiveRange &lr) const {
   auto updateForbidden = [&lr, this] (regno_t regNO) {
     LiveRange *newLr = GetLiveRange(regNO);
+    ASSERT(newLr != nullptr, "newLr should not be nullptr");
     if (!newLr->GetPregveto(lr.GetAssignedRegNO())) {
       newLr->InsertElemToForbidden(lr.GetAssignedRegNO());
     }
@@ -1611,6 +1613,7 @@ void GraphColorRegAllocator::UpdateForbiddenForNeighbors(const LiveRange &lr) co
 void GraphColorRegAllocator::UpdatePregvetoForNeighbors(const LiveRange &lr) const {
   auto updatePregveto = [&lr, this] (regno_t regNO) {
     LiveRange *newLr = GetLiveRange(regNO);
+    ASSERT(newLr != nullptr, "newLr should not be nullptr");
     newLr->InsertElemToPregveto(lr.GetAssignedRegNO());
     newLr->EraseElemFromForbidden(lr.GetAssignedRegNO());
   };
@@ -4852,7 +4855,7 @@ void GraphColorRegAllocator::FinalizeRegisters() {
         }
       }
       if (fInfo->GetOffsetOperand()) {
-        ASSERT(memOpnd != nullptr, "mem operand cannot be null");
+        ASSERT(memOpnd != nullptr, "memOpnd should not be nullptr");
         Operand *offset = memOpnd->GetIndexRegister();
         RegOperand *phyOpnd = GetReplaceOpnd(*insn, *offset, useSpillIdx, usedRegMask, false);
         if (phyOpnd != nullptr) {

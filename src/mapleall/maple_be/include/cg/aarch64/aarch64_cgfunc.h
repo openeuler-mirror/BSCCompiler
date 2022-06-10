@@ -456,6 +456,7 @@ class AArch64CGFunc : public CGFunc {
                                   AArch64isa::MemoryOrdering memOrd = AArch64isa::kMoNone);
 
   CondOperand &GetCondOperand(AArch64CC_t op) const {
+    ASSERT(op < kCcLast, "op must be lower than kCcLast");
     return ccOperands[op];
   }
 

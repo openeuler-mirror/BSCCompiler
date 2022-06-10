@@ -533,6 +533,7 @@ void AArch64CGFunc::SelectCopyMemOpnd(Operand &dest, PrimType dtype, uint32 dsiz
 
   GetCurBB()->AppendInsn(*insn);
   if (regTy != PTY_void && mop != MOP_undef) {
+    ASSERT(loadReg != nullptr, "loadReg should not be nullptr");
     GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mop, dest, *loadReg));
   }
 }
@@ -1630,6 +1631,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       if (doPair) {
         MOperator mOpSTP = (copySize == k4BitSize) ? MOP_wstp : MOP_xstp;
         lhsMemOpnd = FixLargeMemOpnd(mOpSTP, *lhsMemOpnd, copySize * k8BitSize, kInsnThirdOpnd);
+        ASSERT(result1 != nullptr, "result1 should not be nullptr");
         newStoreInsn = &GetCG()->BuildInstruction<AArch64Insn>(mOpSTP, result, *result1, *lhsMemOpnd);
         i++;
       } else {
@@ -1746,6 +1748,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       if (doPair) {
         MOperator mOpSTP = (copySize == k4BitSize) ? MOP_wstp : MOP_xstp;
         lhsMemOpnd = FixLargeMemOpnd(mOpSTP, *lhsMemOpnd, copySize * k8BitSize, kInsnThirdOpnd);
+        ASSERT(result1 != nullptr, "result1 should not be nullptr");
         GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpSTP, result, *result1, *lhsMemOpnd));
         i++;
       } else {
@@ -2509,6 +2512,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       if (doPair) {
         MOperator mOpSTP = (copySize == k4BitSize) ? MOP_wstp : MOP_xstp;
         lhsMemOpnd = FixLargeMemOpnd(mOpSTP, *static_cast<MemOperand*>(lhsMemOpnd), operandSize, kInsnThirdOpnd);
+        ASSERT(result1 != nullptr, "result1 should not be nullptr");
         GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpSTP, result, *result1, *lhsMemOpnd));
         i++;
       } else {
@@ -2622,7 +2626,7 @@ Operand *AArch64CGFunc::SelectDread(const BaseNode &parent, DreadNode &expr) {
 
   PrimType resultType = expr.GetPrimType();
   RegOperand &resOpnd = GetOrCreateResOperand(parent, symType);
-  /* a local register variable defined with a specified register  */
+  /* a local register variable defined with a specified register */
   if (symbol->GetAsmAttr() != UStrIdx(0) &&
       symbol->GetStorageClass() != kScPstatic && symbol->GetStorageClass() != kScFstatic) {
     std::string regDesp = GlobalTables::GetUStrTable().GetStringFromStrIdx(symbol->GetAsmAttr());
@@ -3066,6 +3070,7 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr,
     isAggParamInReg = false;
     return aggParamReg;
   }
+  ASSERT(memOpnd != nullptr, "memOpnd should not be nullptr");
   if (isVolLoad && (memOpnd->GetAddrMode() == MemOperand::kAddrModeBOi)) {
     memOrd = AArch64isa::kMoAcquire;
     isVolLoad = false;
@@ -4130,7 +4135,7 @@ void AArch64CGFunc::SelectRem(Operand &resOpnd, Operand &lhsOpnd, Operand &rhsOp
           GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xandrri13, resOpnd, resOpnd, remBits));
           GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xsubrrr, resOpnd, resOpnd, temp));
           return;
-        } else if (imm->GetValue() > 0) {
+        } else if (imm && imm->GetValue() > 0) {
           ImmOperand &remBits = CreateImmOperand(dividor - 1, k64BitSize, isSigned);
           GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xandrri13, resOpnd, opnd0, remBits));
           return;
@@ -4155,7 +4160,7 @@ void AArch64CGFunc::SelectRem(Operand &resOpnd, Operand &lhsOpnd, Operand &rhsOp
 
           GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wsubrrr, resOpnd, resOpnd, temp));
           return;
-        } else if (imm->GetValue() > 0) {
+        } else if (imm && imm->GetValue() > 0) {
           ImmOperand &remBits = CreateImmOperand(dividor - 1, k32BitSize, isSigned);
           GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wandrri12, resOpnd, opnd0, remBits));
           return;
@@ -7378,6 +7383,7 @@ void AArch64CGFunc::CreateCallStructParamPassByReg(regno_t regno, MemOperand &me
   if (!IsOperandImmValid(selectedMop, &memOpnd, kInsnSecondOpnd)) {
     memOpnd = SplitOffsetWithAddInstruction(memOpnd, dataSizeBits);
   }
+  ASSERT(parmOpnd != nullptr, "parmOpnd should not be nullptr");
   GetCurBB()->AppendInsn(cg->BuildInstruction<AArch64Insn>(selectedMop, *parmOpnd, memOpnd));
   srcOpnds.PushOpnd(*parmOpnd);
 }
@@ -7879,6 +7885,7 @@ Operand *AArch64CGFunc::SelectClearStackCallParam(const AddrofNode &expr, int64 
   } else {
     CHECK_FATAL(false, "the symLoc of parameter in clear stack reference call is unreasonable");
   }
+  ASSERT(offset != nullptr, "offset should not be nullptr");
   offsetValue = offset->GetValue();
   SelectAdd(result, *GetBaseReg(*symLoc), *offset, PTY_u64);
   if (GetCG()->GenerateVerboseCG()) {
@@ -8770,7 +8777,8 @@ MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int64 off
       ASSERT(offset == 0, "offset should be 0 for constant literals");
       return *CreateMemOperand(MemOperand::kAddrModeLiteral, size, symbol);
     } else {
-      if (needLow12) {
+      /* not guaranteed align for uninitialized symbol */
+      if (needLow12 || (!symbol.IsConst() && CGOptions::IsPIC())) {
         StImmOperand &stOpnd = CreateStImmOperand(symbol, offset, 0);
         if (!regOp) {
           regOp = static_cast<RegOperand *>(&CreateRegisterOperandOfType(PTY_u64));
