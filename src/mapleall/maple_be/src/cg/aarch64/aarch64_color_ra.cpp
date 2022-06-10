@@ -4112,7 +4112,7 @@ void CallerSavePre::CodeMotion() {
   for (auto *occ : allOccs) {
     if (occ->GetOccType() == kOccUse) {
       ++cnt;
-      beyondLimit |= (cnt > limitNum);
+      beyondLimit |= (cnt == limitNum);
       if (!beyondLimit && dump) {
         LogInfo::MapleLogger() << "opt use occur: ";
         occ->Dump();
@@ -4523,7 +4523,7 @@ void CallerSavePre::ApplySSAPRE() {
   constexpr uint32 preLimit = UINT32_MAX;
   while (!workList.empty()) {
     ++cnt;
-    if (cnt > preLimit) {
+    if (cnt == preLimit) {
       beyondLimit = true;
     }
     workCand = workList.front();

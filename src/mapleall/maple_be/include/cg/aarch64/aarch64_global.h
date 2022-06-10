@@ -103,7 +103,10 @@ class ForwardPropPattern : public OptimizePattern {
 class BackPropPattern : public OptimizePattern {
  public:
   explicit BackPropPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
-  ~BackPropPattern() override = default;
+  ~BackPropPattern() override {
+    firstRegOpnd = nullptr;
+    secondRegOpnd = nullptr;
+  }
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
@@ -157,7 +160,12 @@ class BackPropPattern : public OptimizePattern {
 class CmpCsetPattern : public OptimizePattern {
  public:
   explicit CmpCsetPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
-  ~CmpCsetPattern() override = default;
+  ~CmpCsetPattern() override {
+    nextInsn = nullptr;
+    cmpFirstOpnd = nullptr;
+    cmpSecondOpnd = nullptr;
+    csetFirstOpnd = nullptr;
+  }
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
@@ -222,7 +230,9 @@ class CselPattern : public OptimizePattern {
 class RedundantUxtPattern : public OptimizePattern {
  public:
   explicit RedundantUxtPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
-  ~RedundantUxtPattern() override = default;
+  ~RedundantUxtPattern() override {
+    secondOpnd = nullptr;
+  }
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
@@ -249,7 +259,14 @@ class RedundantUxtPattern : public OptimizePattern {
 class LocalVarSaveInsnPattern : public OptimizePattern {
  public:
   explicit LocalVarSaveInsnPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
-  ~LocalVarSaveInsnPattern() override = default;
+  ~LocalVarSaveInsnPattern() override {
+    firstInsnSrcOpnd = nullptr;
+    firstInsnDestOpnd = nullptr;
+    secondInsnSrcOpnd = nullptr;
+    secondInsnDestOpnd = nullptr;
+    useInsn = nullptr;
+    secondInsn = nullptr;
+  }
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
@@ -273,7 +290,10 @@ class LocalVarSaveInsnPattern : public OptimizePattern {
 class ExtendShiftOptPattern : public OptimizePattern {
  public:
   explicit ExtendShiftOptPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
-  ~ExtendShiftOptPattern() override = default;
+  ~ExtendShiftOptPattern() override {
+    defInsn = nullptr;
+    newInsn = nullptr;
+  }
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
@@ -412,7 +432,9 @@ class SameDefPattern : public OptimizePattern {
 class AndCbzPattern : public OptimizePattern {
  public:
   explicit AndCbzPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
-  ~AndCbzPattern() override = default;
+  ~AndCbzPattern() override {
+    prevInsn = nullptr;
+  }
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
@@ -449,7 +471,9 @@ class AndCbzPattern : public OptimizePattern {
 class SameRHSPropPattern : public OptimizePattern {
  public:
   explicit SameRHSPropPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
-  ~SameRHSPropPattern() override = default;
+  ~SameRHSPropPattern() override {
+    prevInsn = nullptr;
+  }
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;

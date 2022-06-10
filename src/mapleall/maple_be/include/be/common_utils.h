@@ -51,6 +51,27 @@ constexpr uint32 k256BitSize = 256;
 constexpr uint32 k512BitSize = 512;
 constexpr uint32 k1024BitSize = 1024;
 
+constexpr int32 k1FConstInt = 31;
+constexpr int32 k0BitSizeInt = 0;
+constexpr int32 k1BitSizeInt = 1;
+constexpr int32 k2BitSizeInt = 2;
+constexpr int32 k3BitSizeInt = 3;
+constexpr int32 k4BitSizeInt = 4;
+constexpr int32 k5BitSizeInt = 5;
+constexpr int32 k6BitSizeInt = 6;
+constexpr int32 k7BitSizeInt = 7;
+constexpr int32 k8BitSizeInt = 8;
+constexpr int32 k16BitSizeInt = 16;
+constexpr int32 k24BitSizeInt = 24;
+constexpr int32 k32BitSizeInt = 32;
+constexpr int32 k48BitSizeInt = 48;
+constexpr int32 k56BitSizeInt = 56;
+constexpr int32 k64BitSizeInt = 64;
+constexpr int32 k128BitSizeInt = 128;
+constexpr int32 k256BitSizeInt = 256;
+constexpr int32 k512BitSizeInt = 512;
+constexpr int32 k1024BitSizeInt = 1024;
+
 constexpr int32 kNegative256BitSize = -256;
 constexpr int32 kNegative512BitSize = -512;
 constexpr int32 kNegative1024BitSize = -1024;

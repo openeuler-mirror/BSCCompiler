@@ -1096,7 +1096,7 @@ bool CombineSameArithmeticPattern::CheckCondition(Insn &insn) {
     case MOP_wlsrrri5:
     case MOP_wasrrri5:
     case MOP_wlslrri5: {
-      if ((prevImm + curImm) < k0BitSize || (prevImm + curImm) >= k32BitSize) {
+      if ((prevImm + curImm) < k0BitSizeInt || (prevImm + curImm) >= k32BitSizeInt) {
         return false;
       }
       break;
@@ -1104,7 +1104,7 @@ bool CombineSameArithmeticPattern::CheckCondition(Insn &insn) {
     case MOP_xlsrrri6:
     case MOP_xasrrri6:
     case MOP_xlslrri6: {
-      if ((prevImm + curImm) < k0BitSize || (prevImm + curImm) >= k64BitSize) {
+      if ((prevImm + curImm) < k0BitSizeInt || (prevImm + curImm) >= k64BitSizeInt) {
         return false;
       }
       break;
