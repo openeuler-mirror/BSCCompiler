@@ -25,8 +25,8 @@ PregIdx LMBCLowerer::GetSpecialRegFromSt(const MIRSymbol *sym) {
   if (storageClass == kScAuto) {
     CHECK(sym->GetStIndex() < memlayout->sym_alloc_table.size(),
           "index out of range in LMBCLowerer::GetSpecialRegFromSt");
-    SymbolAlloc symalloc = memlayout->sym_alloc_table[sym->GetStIndex()];
-    if (symalloc.mem_segment->kind == MS_FPbased) {
+    SymbolAlloc *symalloc = &memlayout->sym_alloc_table[sym->GetStIndex()];
+    if (symalloc->mem_segment->kind == MS_FPbased) {
       specreg = -kSregFp;
     } else {
       CHECK_FATAL(false, "LMBCLowerer::LowerDread: bad memory layout for local variable");
