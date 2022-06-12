@@ -311,11 +311,12 @@ void MeStmtPre::CollectVarForCand(MeRealOcc &realOcc, std::vector<MeExpr*> &varV
 }
 
 static MeStmt *CopyMeStmt(IRMap *irMap, const MeStmt &meStmt) {
+  MeStmt *newStmt = nullptr;
   switch (meStmt.GetOp()) {
     case OP_callassertnonnull: {
       auto *callAssertStmt = static_cast<const CallAssertNonnullMeStmt*>(&meStmt);
-      auto *newCallAssertStmt = irMap->New<CallAssertNonnullMeStmt>(*callAssertStmt);
-      return newCallAssertStmt;
+      newStmt = irMap->New<CallAssertNonnullMeStmt>(*callAssertStmt);
+      break;
     }
     case OP_assertlt:
     case OP_assertge:
@@ -324,42 +325,42 @@ static MeStmt *CopyMeStmt(IRMap *irMap, const MeStmt &meStmt) {
     case OP_calcassertlt:
     case OP_returnassertle: {
       auto *naryStmt = static_cast<const AssertBoundaryMeStmt*>(&meStmt);
-      auto *newNaryMeStmt = irMap->NewInPool<AssertBoundaryMeStmt>(*naryStmt);
-      newNaryMeStmt->CopyInfo(*naryStmt);
-      return newNaryMeStmt;
+      newStmt = irMap->NewInPool<AssertBoundaryMeStmt>(*naryStmt);
+      break;
     }
     case OP_callassertle: {
       auto *callAssertStmt = static_cast<const CallAssertBoundaryMeStmt*>(&meStmt);
-      auto *newCallAssertStmt = irMap->NewInPool<CallAssertBoundaryMeStmt>(*callAssertStmt);
-      newCallAssertStmt->CopyInfo(*callAssertStmt);
-      return newCallAssertStmt;
+      newStmt = irMap->NewInPool<CallAssertBoundaryMeStmt>(*callAssertStmt);
+      break;
     }
     case OP_dassign: {
       auto *dass = static_cast<const DassignMeStmt*>(&meStmt);
-      DassignMeStmt *newDass = irMap->New<DassignMeStmt>(&irMap->GetIRMapAlloc(), dass);
-      return newDass;
+      newStmt = irMap->New<DassignMeStmt>(&irMap->GetIRMapAlloc(), dass);
+      break;
     }
     case OP_intrinsiccall:
     case OP_intrinsiccallwithtype: {
       auto *intrnStmt = static_cast<const IntrinsiccallMeStmt*>(&meStmt);
-      IntrinsiccallMeStmt *newIntrnStmt = irMap->NewInPool<IntrinsiccallMeStmt>(intrnStmt);
-      return newIntrnStmt;
+      newStmt = irMap->NewInPool<IntrinsiccallMeStmt>(intrnStmt);
+      break;
     }
     case OP_callassigned: {
       auto *callAss = static_cast<const CallMeStmt*>(&meStmt);
-      CallMeStmt *newCallAss = irMap->NewInPool<CallMeStmt>(callAss);
-      return newCallAss;
+      newStmt = irMap->NewInPool<CallMeStmt>(callAss);
+      break;
     }
     case OP_assertnonnull:
     case OP_assignassertnonnull:
     case OP_returnassertnonnull: {
       auto *assertStmt = static_cast<const AssertNonnullMeStmt*>(&meStmt);
-      auto *newAssertStmt = irMap->New<AssertNonnullMeStmt>(*assertStmt);
-      return newAssertStmt;
+      newStmt = irMap->New<AssertNonnullMeStmt>(*assertStmt);
+      break;
     }
     default:
       CHECK_FATAL(false, "MeStmtEPre::CopyMeStmt: NYI");
   }
+  newStmt->CopyInfo(meStmt);
+  return newStmt;
 }
 
 // for each variable in realz that is defined by a phi, replace it by the jth
