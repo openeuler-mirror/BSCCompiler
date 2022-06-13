@@ -202,7 +202,7 @@ class AArch64RegSavesOpt : public RegSavesOpt {
     if (reg <= R28) {
       r = (reg - R19);
     } else {
-      r = (R28 - R19 + 1) + (reg - V8);
+      r = ((R28 - R19) + 1) + (reg - V8);
     }
     return r;
   }
@@ -211,7 +211,7 @@ class AArch64RegSavesOpt : public RegSavesOpt {
     if (reg < 10) {
       return static_cast<AArch64reg>(R19 + reg);
     } else {
-      return static_cast<AArch64reg>(V8 + reg - (R28 - R19 + 1));
+      return static_cast<AArch64reg>((V8 + reg) - (R28 - R19 + 1));
     }
   }
 

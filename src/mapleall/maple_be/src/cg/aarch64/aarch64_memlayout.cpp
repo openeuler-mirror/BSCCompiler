@@ -568,8 +568,8 @@ int32 AArch64MemLayout::GetGRSaveAreaBaseLoc() {
 }
 
 int32 AArch64MemLayout::GetVRSaveAreaBaseLoc() {
-  int32 total = static_cast<int32>(RealStackFrameSize() -
-                RoundUp(GetSizeOfGRSaveArea(), kAarch64StackPtrAlignment) -
+  int32 total = static_cast<int32>((RealStackFrameSize() -
+                RoundUp(GetSizeOfGRSaveArea(), kAarch64StackPtrAlignment)) -
                 RoundUp(GetSizeOfVRSaveArea(), kAarch64StackPtrAlignment));
   total -= static_cast<int32>(SizeOfArgsToStackPass());
   return total;

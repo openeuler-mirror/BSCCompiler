@@ -13,16 +13,12 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "becommon.h"
-#include <cinttypes>
-#include <list>
-#if TARGAARCH64
-#include "aarch64_rt.h"
-#elif TARGRISCV64
-#include "riscv64_rt.h"
-#endif
+#include "rt.h"
 #include "cg_option.h"
 #include "mir_builder.h"
 #include "mpl_logging.h"
+#include <cinttypes>
+#include <list>
 
 namespace maplebe {
 using namespace maple;
@@ -142,17 +138,21 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
     }
     return;
   }
+  auto structAttr = structType.GetTypeAttrs();
+  auto structPack = static_cast<uint8>(structAttr.GetPack());
   for (uint32 j = 0; j < fields.size(); ++j) {
     TyIdx fieldTyIdx = fields[j].second.first;
+    auto fieldAttr = fields[j].second.second;
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
     uint32 fieldTypeSize = GetTypeSize(fieldTyIdx);
     if (fieldTypeSize == 0) {
       ComputeTypeSizesAligns(*fieldType);
       fieldTypeSize = GetTypeSize(fieldTyIdx);
     }
-    uint8 fieldAlign = GetTypeAlign(fieldTyIdx);
-    uint8 attrAlign = structType.GetTyidxFieldAttrPair(j).second.GetAlign();
-    fieldAlign = std::max(fieldAlign, attrAlign);
+    uint64 fieldSizeBits = fieldTypeSize * kBitsPerByte;
+    auto attrAlign = static_cast<uint8>(fieldAttr.GetAlign());
+    auto originAlign = std::max(attrAlign, GetTypeAlign(fieldTyIdx));
+    uint8 fieldAlign = fieldAttr.IsPacked() ? 1 : std::min(originAlign, structPack);
     uint64 fieldAlignBits = fieldAlign * kBitsPerByte;
     CHECK_FATAL(fieldAlign != 0, "expect fieldAlign not equal 0");
     MIRStructType *subStructType = fieldType->EmbeddedStructType();
@@ -163,34 +163,29 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
       if (fieldType->GetKind() == kTypeBitField) {
         uint32 fieldSize = static_cast<MIRBitFieldType*>(fieldType)->GetFieldSize();
         /* is this field is crossing the align boundary of its base type? */
-        if ((allocedSizeInBits / (fieldAlign * 8u)) != ((allocedSizeInBits + fieldSize - 1u) / (fieldAlign * 8u))) {
-          /* the field is crossing the align boundary of its base type; */
-          /* align alloced_size_in_bits to fieldAlign */
-          allocedSizeInBits = RoundUp(allocedSizeInBits, fieldAlign * kBitsPerByte);
+        if ((!structAttr.IsPacked() &&
+            ((allocedSizeInBits / fieldSizeBits) != ((allocedSizeInBits + fieldSize - 1u) / fieldSizeBits))) ||
+            fieldSize == 0) {
+          allocedSizeInBits = RoundUp(allocedSizeInBits, fieldSizeBits);
         }
         /* allocate the bitfield */
         allocedSizeInBits += fieldSize;
-        allocedSize = std::max(allocedSize, RoundUp(allocedSizeInBits, fieldAlign * kBitsPerByte) /
-                                            kBitsPerByte);
-        if (fieldSize == 0) {
-          allocedSizeInBits = allocedSize * kBitsPerByte;
-        }
+        allocedSize = std::max(allocedSize, RoundUp(allocedSizeInBits, fieldAlignBits) / kBitsPerByte);
       } else {
-        uint32 fldsizeinbits = fieldTypeSize * kBitsPerByte;
         bool leftoverbits = false;
 
         if (allocedSizeInBits == allocedSize * kBitsPerByte) {
           allocedSize = RoundUp(allocedSize, fieldAlign);
         } else {
           /* still some leftover bits on allocated words, we calculate things based on bits then. */
-          if (allocedSizeInBits / fieldAlignBits != (allocedSizeInBits + fldsizeinbits - 1) / fieldAlignBits) {
+          if (allocedSizeInBits / fieldAlignBits != (allocedSizeInBits + fieldSizeBits - 1) / fieldAlignBits) {
             /* the field is crossing the align boundary of its base type */
             allocedSizeInBits = RoundUp(allocedSizeInBits, fieldAlignBits);
           }
           leftoverbits =  true;
         }
         if (leftoverbits) {
-          allocedSizeInBits += fldsizeinbits;
+          allocedSizeInBits += fieldSizeBits;
           allocedSize = std::max(allocedSize, RoundUp(allocedSizeInBits, fieldAlignBits) / kBitsPerByte);
         } else {
           /* pad alloced_size according to the field alignment */
@@ -279,8 +274,8 @@ void BECommon::ComputeClassTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx, uint
 
     if ((fieldType->GetKind() == kTypePointer) && (fieldType->GetPrimType() == PTY_a64)) {
       /* handle class reference field */
-      fieldSize = AArch64RTSupport::kRefFieldSize;
-      fieldAlign = AArch64RTSupport::kRefFieldAlign;
+      fieldSize = static_cast<uint32>(RTSupport::GetRTSupportInstance().GetFieldSize());
+      fieldAlign = RTSupport::GetRTSupportInstance().GetFieldAlign();
     }
 
     /* try to alloc the field in one of previously created padding slots */
@@ -475,12 +470,12 @@ void BECommon::GenFieldOffsetMap(const std::string &className) {
     const std::string &fieldName = GlobalTables::GetStrTable().GetStringFromStrIdx(strIdx);
 
     TyIdx fieldTyIdx = fp.second.first;
-    uint32 fieldSize = GetTypeSize(fieldTyIdx);
+    uint64 fieldSize = GetTypeSize(fieldTyIdx);
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
 
     if ((fieldType->GetKind() == kTypePointer) && (fieldType->GetPrimType() == PTY_a64)) {
       /* handle class reference field */
-      fieldSize = AArch64RTSupport::kRefFieldSize;
+      fieldSize = RTSupport::GetRTSupportInstance().GetFieldSize();
     }
 
     std::pair<int32, int32> p = GetFieldOffset(*classType, i);
@@ -501,7 +496,7 @@ void BECommon::GenFieldOffsetMap(MIRClassType &classType, FILE &outFile) {
    * the programmer should access them as `Parent.field`.
    */
   FieldID myEnd = structFieldCountTable.at(classType.GetTypeIndex());
-  FieldID myBegin = myEnd - static_cast<FieldID>(classType.GetFieldsSize()) + 1;
+  FieldID myBegin = (myEnd - static_cast<FieldID>(classType.GetFieldsSize())) + 1;
 
   for (FieldID i = myBegin; i <= myEnd; ++i) {
     FieldID fieldID = i;
@@ -518,17 +513,17 @@ void BECommon::GenFieldOffsetMap(MIRClassType &classType, FILE &outFile) {
     const std::string &fieldName = GlobalTables::GetStrTable().GetStringFromStrIdx(strIdx);
 
     TyIdx fieldTyIdx = fp.second.first;
-    uint32 fieldSize = GetTypeSize(fieldTyIdx);
+    uint64 fieldSize = GetTypeSize(fieldTyIdx);
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
 
     if ((fieldType->GetKind() == kTypePointer) && (fieldType->GetPrimType() == PTY_a64)) {
       /* handle class reference field */
-      fieldSize = AArch64RTSupport::kRefFieldSize;
+      fieldSize = RTSupport::GetRTSupportInstance().GetFieldSize();;
     }
 
     std::pair<int32, int32> p = GetFieldOffset(classType, i);
     CHECK_FATAL(p.second == 0, "expect p.second equals 0");
-    fprintf(&outFile, "__MRT_CLASS_FIELD(%s, %s, %d, %u)\n", className.c_str(), fieldName.c_str(), p.first, fieldSize);
+    fprintf(&outFile, "__MRT_CLASS_FIELD(%s, %s, %d, %lu)\n", className.c_str(), fieldName.c_str(), p.first, fieldSize);
   }
 }
 
@@ -575,11 +570,15 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
 
   /* process the struct fields */
   FieldVector fields = structType.GetFields();
+  auto structPack = static_cast<uint8>(structType.GetTypeAttrs().GetPack());
   for (uint32 j = 0; j < fields.size(); ++j) {
     TyIdx fieldTyIdx = fields[j].second.first;
+    auto fieldAttr = fields[j].second.second;
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
     uint32 fieldTypeSize = GetTypeSize(fieldTyIdx);
-    uint8 fieldAlign = GetTypeAlign(fieldTyIdx);
+    uint64 fieldSizeBits = fieldTypeSize * kBitsPerByte;
+    auto originAlign = GetTypeAlign(fieldTyIdx);
+    auto fieldAlign = fieldAttr.IsPacked() ? 1 : std::min(originAlign, structPack);
     uint64 fieldAlignBits = fieldAlign * kBitsPerByte;
     CHECK_FATAL(fieldAlign != 0, "fieldAlign should not equal 0");
     if (structType.GetKind() != kTypeUnion) {
@@ -595,25 +594,25 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
          * We know that A zero-width bit field can cause the next field to be aligned on the next container
          * boundary where the container is the same size as the underlying type of the bit field.
          */
-        if (((allocedSizeInBits / (fieldAlign * 8u)) != ((allocedSizeInBits + fieldSize - 1u) / (fieldAlign * 8u))) ||
+        if ((!structType.GetTypeAttrs().IsPacked() &&
+            ((allocedSizeInBits / fieldSizeBits) != ((allocedSizeInBits + fieldSize - 1u) / fieldSizeBits))) ||
             fieldSize == 0) {
           /*
            * the field is crossing the align boundary of its base type;
            * align alloced_size_in_bits to fieldAlign
            */
-          allocedSizeInBits = RoundUp(allocedSizeInBits, fieldAlign * kBitsPerByte);
+          allocedSizeInBits = RoundUp(allocedSizeInBits, fieldSizeBits);
         }
         /* allocate the bitfield */
         if (curFieldID == fieldID) {
-          return std::pair<int32, int32>((allocedSizeInBits / (fieldAlign * 8u)) * fieldAlign,
-                                         allocedSizeInBits % (fieldAlign * 8u));
+          return std::pair<int32, int32>((allocedSizeInBits / fieldAlignBits) * fieldAlign,
+                                         allocedSizeInBits % fieldAlignBits);
         } else {
           ++curFieldID;
         }
         allocedSizeInBits += fieldSize;
-        allocedSize = std::max(allocedSize, RoundUp(allocedSizeInBits, fieldAlign * kBitsPerByte) / kBitsPerByte);
+        allocedSize = std::max(allocedSize, RoundUp(allocedSizeInBits, fieldAlignBits) / kBitsPerByte);
       } else {
-        uint32 fldSizeInBits = fieldTypeSize * k8BitSize;
         bool leftOverBits = false;
         uint64 offset = 0;
 
@@ -622,7 +621,7 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
           offset = allocedSize;
         } else {
           /* still some leftover bits on allocated words, we calculate things based on bits then. */
-          if (allocedSizeInBits / fieldAlignBits != (allocedSizeInBits + fldSizeInBits - k1BitSize) / fieldAlignBits) {
+          if (allocedSizeInBits / fieldAlignBits != (allocedSizeInBits + fieldSizeBits - k1BitSize) / fieldAlignBits) {
             /* the field is crossing the align boundary of its base type */
             allocedSizeInBits = RoundUp(allocedSizeInBits, fieldAlignBits);
           }
@@ -648,7 +647,7 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
         }
 
         if (leftOverBits) {
-          allocedSizeInBits += fldSizeInBits;
+          allocedSizeInBits += fieldSizeBits;
           allocedSize = std::max(allocedSize, RoundUp(allocedSizeInBits, fieldAlignBits) / kBitsPerByte);
         } else {
           allocedSize += fieldTypeSize;
@@ -673,7 +672,6 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
     }
   }
   CHECK_FATAL(false, "GetFieldOffset() fails to find field");
-
   return std::pair<int32, int32>(0, 0);
 }
 

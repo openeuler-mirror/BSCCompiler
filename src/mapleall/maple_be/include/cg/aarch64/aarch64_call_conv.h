@@ -64,6 +64,7 @@ class AArch64CallConvImpl {
   int32 nextStackArgAdress = 0;
 
   AArch64reg AllocateGPRegister() {
+    ASSERT(nextGeneralRegNO >= 0, "nextGeneralRegNO can not be neg");
     return (nextGeneralRegNO < AArch64Abi::kNumIntParmRegs) ? AArch64Abi::intParmRegs[nextGeneralRegNO++] : kRinvalid;
   }
 

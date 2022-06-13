@@ -128,7 +128,7 @@ class CGLowerer {
   void AddElemToPrintf(MapleVector<BaseNode*> &argsPrintf, int num, ...);
 
   std::string AssertBoundaryGetFileName(StmtNode &stmt) {
-    int pos = mirModule.GetFileNameFromFileNum(stmt.GetSrcPos().FileNum()).rfind('/');
+    size_t pos = mirModule.GetFileNameFromFileNum(stmt.GetSrcPos().FileNum()).rfind('/');
     return mirModule.GetFileNameFromFileNum(stmt.GetSrcPos().FileNum()).substr(pos + 1);
   }
 

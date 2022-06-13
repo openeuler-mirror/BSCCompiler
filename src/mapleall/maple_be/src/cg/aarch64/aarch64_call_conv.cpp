@@ -30,10 +30,6 @@ enum AArch64ArgumentClass : uint8 {
   kAArch64NoClass,
   kAArch64IntegerClass,
   kAArch64FloatClass,
-  kAArch64ShortVectorClass,
-  kAArch64PointerClass,
-  kAArch64CompositeTypeHFAClass,  /* Homegeneous Floating-point Aggregates */
-  kAArch64CompositeTypeHVAClass,  /* Homegeneous Short-Vector Aggregates */
   kAArch64MemoryClass
 };
 

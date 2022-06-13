@@ -591,7 +591,8 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joi
 
   if (elseBB != nullptr) {
     cmpBB.SetKind(elseBB->GetKind());
-  } else if (ifBB != nullptr){
+  } else {
+    ASSERT(ifBB != nullptr, "ifBB should not be nullptr");
     cmpBB.SetKind(ifBB->GetKind());
   }
 
@@ -613,7 +614,8 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joi
   if (cmpBB.GetKind() == BB::kBBGoto || cmpBB.GetKind() == BB::kBBIf) {
     if (elseBB != nullptr) {
       (void)cmpBB.InsertInsnAfter(*cmpBB.GetLastInsn(), *elseBB->GetLastInsn());
-    } else if (ifBB != nullptr){
+    } else {
+      ASSERT(ifBB != nullptr, "ifBB should not be nullptr");
       (void)cmpBB.InsertInsnAfter(*cmpBB.GetLastInsn(), *ifBB->GetLastInsn());
     }
   }

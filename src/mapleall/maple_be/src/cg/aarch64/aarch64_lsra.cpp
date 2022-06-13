@@ -155,7 +155,7 @@ void LSRALinearScanRegAllocator::PrintLiveRanges() const {
               continue;
             }
           } else {
-            bool isDef = static_cast<AArch64OpndProp*>(md->operand[iSecond])->IsRegDef();
+            bool isDef = (md->operand[iSecond])->IsRegDef();
             (void)CheckForReg(opnd, *insn, *li, regNO, isDef);
           }
         }
@@ -165,7 +165,7 @@ void LSRALinearScanRegAllocator::PrintLiveRanges() const {
   LogInfo::MapleLogger() << "set yrange [" << (minY - 1) << ":" << (maxY + 1) << "]\n";
 
   LogInfo::MapleLogger() << "plot \"plot.dat\" using 1:2 title \"R" << minVregNum << "\"";
-  for (uint32 i = 1; i < (maxVregNum - minVregNum + 1); ++i) {
+  for (uint32 i = 1; i < ((maxVregNum - minVregNum) + 1); ++i) {
     LogInfo::MapleLogger() << ", \\\n\t\"\" using 1:" << (i + kDivide2) << " title \"R" << (minVregNum + i) << "\"";
   }
   LogInfo::MapleLogger() << ";\n";
@@ -401,7 +401,7 @@ void LSRALinearScanRegAllocator::RecordPhysRegs(const RegOperand &regOpnd, uint3
     return;
   }
 
-  if (IsUntouchableReg(regNO) || regOpnd.IsConstReg()) {
+  if (IsUntouchableReg(regNO) || regNO == RZR) {
     return;
   }
 
@@ -647,8 +647,8 @@ void LSRALinearScanRegAllocator::BuildIntervalRangesForEachOperand(const Insn &i
         SetupIntervalRangesByOperand(*offset, insn, blockFrom, false, true);
       }
     } else if (opnd.IsRegister()) {
-      bool isDef = static_cast<AArch64OpndProp*>(md->operand[i])->IsRegDef();
-      bool isUse = static_cast<AArch64OpndProp*>(md->operand[i])->IsRegUse();
+      bool isDef = (md->operand[i])->IsRegDef();
+      bool isUse = (md->operand[i])->IsRegUse();
       SetupIntervalRangesByOperand(opnd, insn, blockFrom, isDef, isUse);
     }
   }
@@ -849,8 +849,8 @@ void LSRALinearScanRegAllocator::ComputeLiveIntervalForEachOperand(Insn &insn) {
    */
   int32 lastOpndId = static_cast<int32>(insn.GetOperandSize() - 1);
   for (int32 i = lastOpndId; i >= 0; --i) {
-    Operand &opnd = insn.GetOperand(i);
-    bool isDef = static_cast<AArch64OpndProp*>(md->operand[i])->IsRegDef();
+    Operand &opnd = insn.GetOperand(static_cast<uint32>(i));
+    bool isDef = (md->operand[i])->IsRegDef();
     if (opnd.IsList()) {
       auto &listOpnd = static_cast<ListOperand&>(opnd);
       for (auto op : listOpnd.GetOperands()) {
@@ -1244,7 +1244,7 @@ uint32 LSRALinearScanRegAllocator::AssignSpecialPhysRegPattern(const Insn &insn,
       auto &regSrc = static_cast<RegOperand&>(src);
       uint32 srcRegNO = regSrc.GetRegisterNumber();
       if (li.GetRegNO() == srcRegNO) {
-        bool srcIsDef = static_cast<AArch64OpndProp*>(md->operand[i])->IsRegDef();
+        bool srcIsDef = (md->operand[i])->IsRegDef();
         if (srcIsDef) {
           break;
         }
@@ -1444,13 +1444,13 @@ void LSRALinearScanRegAllocator::InsertCallerSave(Insn &insn, Operand &opnd, boo
     MOperator opCode = insn.GetMachineOpcode();
     if (opCode == MOP_xmovri64 || opCode == MOP_xmovri32) {
       Operand &opnd1 = insn.GetOperand(1);
-      auto &imm = static_cast<AArch64ImmOperand&>(opnd1);
+      auto &imm = static_cast<ImmOperand&>(opnd1);
       if (imm.IsZero()) {
         isSpillZero = true;
       }
     } else if (opCode == MOP_wmovrr || opCode == MOP_xmovrr) {
       auto &opnd1 = static_cast<RegOperand&>(insn.GetOperand(1));
-      if (opnd1.IsZeroRegister()) {
+      if (opnd1.GetRegisterNumber() == RZR) {
         isSpillZero = true;
       }
     }
@@ -1466,7 +1466,7 @@ void LSRALinearScanRegAllocator::InsertCallerSave(Insn &insn, Operand &opnd, boo
   RegOperand *phyOpnd = nullptr;
 
   if (isSpillZero) {
-    phyOpnd = &AArch64RegOperand::GetZeroRegister(regSize);
+    phyOpnd = &cgFunc->GetZeroOpnd(regSize);
   } else {
     phyOpnd = &a64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(rli->GetAssignedReg()), regSize,
                                                              regType);
@@ -1663,13 +1663,13 @@ void LSRALinearScanRegAllocator::SpillOperand(Insn &insn, Operand &opnd, bool is
     MOperator opCode = insn.GetMachineOpcode();
     if (opCode == MOP_xmovri64 || opCode == MOP_xmovri32) {
       Operand &opnd1 = insn.GetOperand(1);
-      auto &imm = static_cast<AArch64ImmOperand&>(opnd1);
+      auto &imm = static_cast<ImmOperand&>(opnd1);
       if (imm.IsZero()) {
         isSpillZero = true;
       }
     } else if (opCode == MOP_wmovrr || opCode == MOP_xmovrr) {
       auto &opnd1 = static_cast<RegOperand&>(insn.GetOperand(1));
-      if (opnd1.IsZeroRegister()) {
+      if (opnd1.GetRegisterNumber() == RZR) {
         isSpillZero = true;
       }
     }
@@ -1690,7 +1690,7 @@ void LSRALinearScanRegAllocator::SpillOperand(Insn &insn, Operand &opnd, bool is
   bool isOutOfRange = false;
   RegOperand *phyOpnd = nullptr;
   if (isSpillZero) {
-    phyOpnd = &AArch64RegOperand::GetZeroRegister(regSize);
+    phyOpnd = &cgFunc->GetZeroOpnd(regSize);
   } else {
     phyOpnd = &a64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(spReg), regSize, regType);
   }
@@ -1741,7 +1741,7 @@ void LSRALinearScanRegAllocator::SpillOperand(Insn &insn, Operand &opnd, bool is
   }
 }
 
-RegOperand *LSRALinearScanRegAllocator::HandleSpillForInsn(Insn &insn, Operand &opnd) {
+RegOperand *LSRALinearScanRegAllocator::HandleSpillForInsn(const Insn &insn, Operand &opnd) {
   /* choose the lowest priority li to spill */
   auto &regOpnd = static_cast<RegOperand&>(opnd);
   uint32 regNO = regOpnd.GetRegisterNumber();
@@ -1799,7 +1799,7 @@ bool LSRALinearScanRegAllocator::OpndNeedAllocation(const Insn &insn, Operand &o
   if (regType == kRegTyCc || regType == kRegTyVary) {
     return false;
   }
-  if (IsUntouchableReg(regNO) || regOpnd.IsConstReg()) {
+  if (IsUntouchableReg(regNO) || regNO == RZR) {
     return false;
   }
   if (regOpnd.IsPhysicalRegister()) {
@@ -1975,7 +1975,7 @@ void LSRALinearScanRegAllocator::LiveIntervalAnalysis() {
       uint32 opndNum = insn->GetOperandSize();
       for (uint32 i = 0; i < opndNum; ++i) {
         Operand &opnd = insn->GetOperand(i);
-        bool isDef = static_cast<AArch64OpndProp*>(md->operand[i])->IsRegDef();
+        bool isDef = (md->operand[i])->IsRegDef();
         if (isDef) {
           auto &regOpnd = static_cast<RegOperand&>(opnd);
           if (regOpnd.IsVirtualRegister() && regOpnd.GetRegisterType() != kRegTyCc) {
@@ -2047,7 +2047,7 @@ void LSRALinearScanRegAllocator::AssignPhysRegsForInsn(Insn &insn) {
   uint32 opndNum = insn.GetOperandSize();
   for (uint32 i = 0; i < opndNum; ++i) {
     Operand &opnd = insn.GetOperand(i);
-    bool isDef = static_cast<AArch64OpndProp*>(md->operand[i])->IsRegDef();
+    bool isDef = (md->operand[i])->IsRegDef();
     RegOperand *newOpnd = nullptr;
     if (opnd.IsList()) {
       /* For arm32, not arm64 */
@@ -2120,7 +2120,7 @@ RegOperand *LSRALinearScanRegAllocator::GetReplaceOpnd(Insn &insn, Operand &opnd
   if (regType == kRegTyCc || regType == kRegTyVary) {
     return nullptr;
   }
-  if (IsUntouchableReg(vRegNO) || regOpnd->IsConstReg()) {
+  if (IsUntouchableReg(vRegNO) || vRegNO == RZR) {
     return nullptr;
   }
   if (regOpnd->IsPhysicalRegister()) {
@@ -2244,7 +2244,7 @@ void LSRALinearScanRegAllocator::FinalizeRegisters() {
       for (uint32 i = 0; i < opndNum; ++i) {
         Operand &opnd = insn->GetOperand(i);
         ASSERT(md->operand[i] != nullptr, "pointer is null in LSRALinearScanRegAllocator::FinalizeRegisters");
-        bool isDef = static_cast<AArch64OpndProp*>(md->operand[i])->IsRegDef();
+        bool isDef = (md->operand[i])->IsRegDef();
         if (isDef) {
           continue;
         }
@@ -2280,7 +2280,7 @@ void LSRALinearScanRegAllocator::FinalizeRegisters() {
       /* Handle dest opernads last */
       for (uint32 i = 0; i < opndNum; ++i) {
         Operand &opnd = insn->GetOperand(i);
-        bool isDef = static_cast<AArch64OpndProp*>(md->operand[i])->IsRegDef();
+        bool isDef = (md->operand[i])->IsRegDef();
         if (!isDef) {
           continue;
         }

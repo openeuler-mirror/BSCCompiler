@@ -599,9 +599,9 @@ class AArch64CGFunc : public CGFunc {
      * its physical number
      */
     if (reg < V0) {
-      return *memPool->New<cfi::RegOperand>(reg - R0 + kDwarfScalarRegBegin, size);
+      return *memPool->New<cfi::RegOperand>((reg - R0) + kDwarfScalarRegBegin, size);
     } else {
-      return *memPool->New<cfi::RegOperand>(reg - V0 + kDwarfFpRegBegin, size);
+      return *memPool->New<cfi::RegOperand>((reg - V0) + kDwarfFpRegBegin, size);
     }
   }
 

@@ -18,14 +18,13 @@
 #include "mempool.h"
 #include "mempool_allocator.h"
 #include "cg_dominance.h"
+#include "cg_ssa_pre.h"
 
 // Use SSUPRE to determine where to insert restores for callee-saved registers.
 // The external interface is DoRestorePlacementOpt(). Class SPreWorkCand is used
 // as input/output interface.
 
 namespace maplebe {
-
-typedef uint32 BBId;
 
 // This must have been constructed by the caller of DoRestorePlacementOpt() and
 // passed to it as parameter.  The caller of DoRestorePlacementOpt() describes

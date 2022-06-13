@@ -26,6 +26,7 @@
 
 /* Mempool */
 #include "mempool_allocator.h" /* MapleList */
+#include "memlayout.h"
 
 namespace maplebe {
 class OpndProp;
@@ -36,7 +37,7 @@ bool IsBitmaskImmediate(maple::uint64 val, maple::uint32 bitLen);
 bool IsMoveWidableImmediate(maple::uint64 val, maple::uint32 bitLen);
 bool BetterUseMOVZ(maple::uint64 val);
 
-using regno_t = uint32_t;
+
 using MOperator = uint32;
 enum RegType : maple::uint8 {
   kRegTyUndef,
@@ -530,7 +531,7 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
         }
       }
     }
-    return !isFound || (size >= end - start + 1);
+    return !isFound || (size >= (end - start) + 1);
 #endif
   }
 

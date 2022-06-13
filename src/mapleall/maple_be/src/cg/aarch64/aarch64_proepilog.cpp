@@ -361,7 +361,7 @@ void AArch64GenProEpilog::GenStackGuard(BB &bb) {
   if (useFP) {
     stkSize -= static_cast<int32>(static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass());
   }
-  int32 memSize = stkSize - kOffset8MemPos - static_cast<int32>(vArea);
+  int32 memSize = (stkSize - kOffset8MemPos) - static_cast<int32>(vArea);
   MemOperand *downStk = aarchCGFunc.CreateStackMemOpnd(stackBaseReg, memSize, kSizeOfPtr * kBitsPerByte);
   if (downStk->GetMemVaryType() == kNotVary &&
       aarchCGFunc.IsImmediateOffsetOutOfRange(*downStk, k64BitSize)) {
@@ -420,7 +420,7 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   if (useFP) {
     stkSize -= static_cast<int32>(static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass());
   }
-  uint32 memSize = stkSize - kOffset8MemPos - static_cast<int32>(vArea);
+  uint32 memSize = (stkSize - kOffset8MemPos) - static_cast<int32>(vArea);
   MemOperand *downStk = aarchCGFunc.CreateStackMemOpnd(stackBaseReg, memSize, kSizeOfPtr * kBitsPerByte);
   if (downStk->GetMemVaryType() == kNotVary && aarchCGFunc.IsImmediateOffsetOutOfRange(*downStk, k64BitSize)) {
     downStk = &aarchCGFunc.SplitOffsetWithAddInstruction(*downStk, k64BitSize, R10);
@@ -1251,8 +1251,8 @@ void AArch64GenProEpilog::GeneratePushRegs() {
   CHECK_FATAL(*it == RLR, "The second callee saved reg is expected to be RLR");
   ++it;
 
-  auto offset = static_cast<int32>(static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout())->RealStackFrameSize() -
-      (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* for FP/LR */) -
+  auto offset = static_cast<int32>((static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout())->RealStackFrameSize() -
+      (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* for FP/LR */)) -
       cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
 
   if (cgFunc.GetCG()->IsStackProtectorStrong() || cgFunc.GetCG()->IsStackProtectorAll()) {
@@ -1728,9 +1728,9 @@ void AArch64GenProEpilog::GeneratePopRegs() {
   CHECK_FATAL(*it == RLR, "The second callee saved reg is expected to be RLR");
   ++it;
 
-  int32 offset = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
-                 (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* for FP/LR */) -
-                 cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
+  int32 offset = static_cast<int32>((static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
+                 (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* for FP/LR */)) -
+                 cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
 
   if (cgFunc.GetCG()->IsStackProtectorStrong() || cgFunc.GetCG()->IsStackProtectorAll()) {
     offset -= static_cast<uint32>(kAarch64StackPtrAlignment);
