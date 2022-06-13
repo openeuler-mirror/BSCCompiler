@@ -1620,8 +1620,8 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
     for (; it != tp->vecInfo->uniformNodes.end(); ++it) {
       BaseNode *node = *it;
       PreMeMIRExtension *lfoP = (*PreMeExprExtensionMap)[node];
-      // check node's parent, if they are binary node, skip the duplication
-      if ((!lfoP->GetParent()->IsBinaryNode()) || (node->GetOpCode() == OP_iread)) {
+      // check node's parent, if they are binary node (exculude compare node), skip the duplication
+      if ((!lfoP->GetParent()->IsBinaryNode() || IsCompareNode(lfoP->GetParent()->GetOpCode())) || (node->GetOpCode() == OP_iread)) {
         PrimType ptype =  (node->GetOpCode() == OP_iread) ?
             (static_cast<IreadNode *>(node))->GetType()->GetPrimType() : node->GetPrimType();
         if (tp->vecInfo->constvalTypes.count(node) > 0) {
