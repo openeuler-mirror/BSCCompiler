@@ -55,6 +55,10 @@ class ASTStmt {
     loc = l;
   }
 
+  const Loc &GetSrcLoc() const {
+    return loc;
+  }
+
   uint32 GetSrcFileIdx() const {
     return loc.fileIdx;
   }
@@ -82,7 +86,7 @@ class ASTStmtDummy : public ASTStmt {
 class ASTCompoundStmt : public ASTStmt {
  public:
   explicit ASTCompoundStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtCompound),
-      astStmts(allocatorIn.Adapter()){}
+      astStmts(allocatorIn.Adapter()) {}
   ~ASTCompoundStmt() = default;
   void SetASTStmt(ASTStmt*);
   void InsertASTStmtsAtFront(const std::list<ASTStmt*> &stmts);
@@ -100,7 +104,7 @@ class ASTCompoundStmt : public ASTStmt {
     endLoc = loc;
   }
 
-  Loc GetEndLoc() {
+  const Loc &GetEndLoc() const {
     return endLoc;
   }
 
@@ -175,12 +179,20 @@ class ASTForStmt : public ASTStmt {
     bodyStmt = astStmt;
   }
 
+  void SetEndLoc(const Loc &loc) {
+    endLoc = loc;
+  }
+
+  const Loc &GetEndLoc() const {
+    return endLoc;
+  }
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
   ASTStmt *initStmt = nullptr;
   ASTExpr *condExpr = nullptr;
   ASTExpr *incExpr = nullptr;
   ASTStmt *bodyStmt = nullptr;
+  Loc endLoc = {0, 0 ,0};
 };
 
 class ASTWhileStmt : public ASTStmt {

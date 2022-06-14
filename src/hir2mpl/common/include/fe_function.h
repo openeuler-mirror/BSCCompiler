@@ -48,6 +48,10 @@ class FEFunction {
   std::string GetDescription();
   void OutputUseDefChain();
   void OutputDefUseChain();
+  void PushStmtScope(SrcPosition startOfScope, SrcPosition endOfScope, MIRScope *scope = nullptr);
+  void PopTopStmtScope();
+  MIRScope *GetTopStmtScope();
+  MIRScope *GetFunctionScope();
 
   void SetSrcFileName(const std::string &fileName) {
     srcFileName = fileName;
@@ -232,6 +236,8 @@ class FEFunction {
   std::map<const FEIRVarTypeScatter*, FEIRStmt*> defVarTypeScatterStmtMap;
   std::unordered_map<uint32, std::pair<StIdx, StIdx>> boundaryMap; // EnhanceC boundary var
   std::stack<bool> safeRegionFlag; // EnhanceC saferegion(true: safe, false: unsafe)
+  // an element of the stack represents the scope of one compoundstmt or forstmt
+  std::stack<MIRScope*> stmtsScopeStack;
 };
 }  // namespace maple
 #endif  // HIR2MPL_INCLUDE_COMMON_FE_FUNCTION_H

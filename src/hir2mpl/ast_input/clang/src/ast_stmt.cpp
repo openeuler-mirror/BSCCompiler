@@ -72,8 +72,16 @@ std::list<UniqueFEIRStmt> ASTCompoundStmt::Emit2FEStmtImpl() const {
     }
   };
   insertStmt(false);
+  FEFunction &feFunction = FEManager::GetCurrentFEFunction();
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    feFunction.PushStmtScope(GetSrcLoc().Emit2SourcePosition(),
+                             GetEndLoc().Emit2SourcePosition());
+  }
   for (auto it : astStmts) {
     stmts.splice(stmts.end(), it->Emit2FEStmt());
+  }
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    feFunction.PopTopStmtScope();
   }
   insertStmt(true);
   return stmts;
@@ -121,9 +129,17 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
   AstLoopUtil::Instance().PushBreak(loopEndLabelName);
   auto labelBodyEndStmt = std::make_unique<FEIRStmtLabel>(loopBodyEndLabelName);
   auto labelLoopEndStmt = std::make_unique<FEIRStmtLabel>(loopEndLabelName);
+  FEFunction &feFunction = FEManager::GetCurrentFEFunction();
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    feFunction.PushStmtScope(GetSrcLoc().Emit2SourcePosition(),
+                             GetEndLoc().Emit2SourcePosition());
+  }
   if (initStmt != nullptr) {
     std::list<UniqueFEIRStmt> feStmts = initStmt->Emit2FEStmt();
     stmts.splice(stmts.cend(), feStmts);
+  }
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    feFunction.PopTopStmtScope();
   }
   std::list<UniqueFEIRStmt> bodyFEStmts = bodyStmt->Emit2FEStmt();
   if (AstLoopUtil::Instance().IsCurrentContinueLabelUsed()) {

@@ -392,6 +392,7 @@ ASTStmt *ASTParser::ProcessStmtIfStmt(MapleAllocator &allocator, const clang::If
 ASTStmt *ASTParser::ProcessStmtForStmt(MapleAllocator &allocator, const clang::ForStmt &forStmt) {
   auto *astStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTForStmt>(allocator);
   CHECK_FATAL(astStmt != nullptr, "astStmt is nullptr");
+  astStmt->SetEndLoc(astFile->GetLOC(forStmt.getEndLoc()));
   if (forStmt.getInit() != nullptr) {
     ASTStmt *initStmt = ProcessStmt(allocator, *forStmt.getInit());
     if (initStmt == nullptr) {

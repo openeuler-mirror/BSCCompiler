@@ -46,7 +46,7 @@ MIRConst *ASTDecl::Translate2MIRConst() const {
 
 std::string ASTDecl::GenerateUniqueVarName() const {
   // add `_line_column` suffix for avoiding local var name conflict
-  if (isGlobalDecl || isParam || isDbgFriendly) {
+  if (isGlobalDecl || isParam) {
     return GetName();
   } else {
     std::stringstream os;
@@ -136,6 +136,17 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   MIRSymbol *sym = Translate2MIRSymbol();
   ENCChecker::CheckNonnullLocalVarInit(*sym, initExpr);
   UniqueFEIRVar feirVar = Translate2FEIRVar();
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    FEFunction &feFunction = FEManager::GetCurrentFEFunction();
+    MIRScope *mirScope = feFunction.GetTopStmtScope();
+    ASSERT_NOT_NULL(mirScope);
+    GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
+        namemangler::EncodeName(GetName()));
+    MIRAliasVars aliasVar;
+    aliasVar.tyIdx = sym->GetTyIdx();
+    aliasVar.memPoolStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(sym->GetName());
+    mirScope->SetAliasVarMap(nameIdx, aliasVar);
+  }
   if (variableArrayExpr != nullptr) {
     // free, Currently, the back-end are not supported.
     // alloca
@@ -237,6 +248,12 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
     return stmts;
   }
   const ASTCompoundStmt *astCpdStmt = static_cast<const ASTCompoundStmt*>(astStmt);
+  FEFunction &feFunction = FEManager::GetCurrentFEFunction();
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    MIRScope *funcScope = feFunction.GetFunctionScope();
+    feFunction.PushStmtScope(astCpdStmt->GetSrcLoc().Emit2SourcePosition(),
+                             astCpdStmt->GetEndLoc().Emit2SourcePosition(), funcScope);
+  }
   const MapleList<ASTStmt*> &astStmtList = astCpdStmt->GetASTStmtList();
   for (auto stmtNode : astStmtList) {
     std::list<UniqueFEIRStmt> childStmts = stmtNode->Emit2FEStmt();
@@ -244,6 +261,9 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
       // Link jump stmt not implemented yet
       stmts.emplace_back(std::move(stmt));
     }
+  }
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    feFunction.PopTopStmtScope();
   }
   // fix int main() no return 0 and void func() no return. there are multiple branches, insert return at the end.
   if (stmts.size() == 0 || stmts.back()->GetKind() != kStmtReturn) {

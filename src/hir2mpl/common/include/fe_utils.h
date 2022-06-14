@@ -29,6 +29,14 @@ struct Loc {
   uint32 fileIdx;
   uint32 line;
   uint32 column;
+
+  SrcPosition Emit2SourcePosition() const {
+    SrcPosition srcPos;
+    srcPos.SetFileNum(static_cast<uint16>(fileIdx));
+    srcPos.SetLineNum(line);
+    srcPos.SetColumn(static_cast<uint16>(column));
+    return srcPos;
+  }
 };
 
 class FEUtils {

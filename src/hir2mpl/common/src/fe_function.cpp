@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -792,5 +792,35 @@ void FEFunction::AddLocForStmt(const FEIRStmt &stmt, std::list<StmtNode*> &mirSt
     mirStmts.front()->GetSrcPos().SetFileNum(static_cast<uint16>(pesudoLoc->GetSrcFileIdx()));
     mirStmts.front()->GetSrcPos().SetLineNum(pesudoLoc->GetSrcFileLineNum());
   }
+}
+
+void FEFunction::PushStmtScope(SrcPosition startOfScope, SrcPosition endOfScope, MIRScope *scope) {
+  MIRScope *mirScope = scope;
+  if (mirScope == nullptr) {
+    mirScope = mirFunction.GetModule()->GetMemPool()->New<MIRScope>(mirFunction.GetModule());
+    mirScope->IncLevel();
+    MIRScope *parentMirScope = GetTopStmtScope();
+    ASSERT_NOT_NULL(parentMirScope);
+    parentMirScope->AddScope(mirScope);
+  }
+  mirScope->SetRange(startOfScope, endOfScope);
+  stmtsScopeStack.push(mirScope);
+}
+
+MIRScope *FEFunction::GetTopStmtScope() {
+  if (!stmtsScopeStack.empty()) {
+    return stmtsScopeStack.top();
+  }
+  return nullptr;
+}
+
+void FEFunction::PopTopStmtScope() {
+  if (!stmtsScopeStack.empty()) {
+    stmtsScopeStack.pop();
+  }
+}
+
+MIRScope *FEFunction::GetFunctionScope() {
+  return mirFunction.GetScope();
 }
 }  // namespace maple
