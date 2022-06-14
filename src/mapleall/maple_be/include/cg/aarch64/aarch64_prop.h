@@ -94,7 +94,7 @@ class A64ConstProp {
   /* false : default lsl #0 true: lsl #12 (only support 12 bit left shift in aarch64) */
   static MOperator GetRegImmMOP(MOperator regregMop, bool withLeftShift);
   static MOperator GetReversalMOP(MOperator arithMop);
-  static MOperator GetFoldMopAndVal(int64 &newVal, int64 constVal, Insn &arithInsn);
+  static MOperator GetFoldMopAndVal(int64 &newVal, int64 constVal, const Insn &arithInsn);
 
  private:
   bool ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd);
@@ -133,7 +133,7 @@ class CopyRegProp : public PropOptimizePattern {
     srcVersion = nullptr;
   }
  private:
-  bool IsValidCopyProp(RegOperand &dstReg, RegOperand &srcReg);
+  bool IsValidCopyProp(const RegOperand &dstReg, RegOperand &srcReg);
   void VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn);
   VRegVersion *destVersion = nullptr;
   VRegVersion *srcVersion = nullptr;

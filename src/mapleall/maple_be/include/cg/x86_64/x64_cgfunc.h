@@ -71,10 +71,10 @@ class X64CGFunc : public CGFunc {
   Operand *SelectCisaligned(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCalignup(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCaligndown(IntrinsicopNode &intrinopNode) override;
-  Operand *SelectCSyncAddFetch(IntrinsicopNode &intrinopNode, PrimType pty) override;
-  Operand *SelectCSyncFetchAdd(IntrinsicopNode &intrinopNode, PrimType pty) override;
-  Operand *SelectCSyncSubFetch(IntrinsicopNode &intrinopNode, PrimType pty) override;
-  Operand *SelectCSyncFetchSub(IntrinsicopNode &intrinopNode, PrimType pty) override;
+  Operand *SelectCSyncFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) override;
+  Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCAtomicExchangeN(IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) override;
   Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) override;
   Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimType pty) override;
@@ -85,11 +85,12 @@ class X64CGFunc : public CGFunc {
   void HandleCatch() override;
   Operand *SelectDread(const BaseNode &parent, AddrofNode &expr) override;
   RegOperand *SelectRegread(RegreadNode &expr) override;
-  Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent) override;
+  Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent, bool isAddrofoff = false) override;
   Operand &SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) override;
   Operand &SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) override;
   Operand *SelectIread(const BaseNode &parent, IreadNode &expr, int extraOffset = 0,
       PrimType finalBitFieldDestType = kPtyInvalid) override;
+  Operand *SelectIreadoff(const BaseNode &parent, IreadoffNode &ireadoff) override;
   Operand *SelectIntConst(MIRIntConst &intConst) override;
   Operand *SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &parent) override;
   Operand *SelectDoubleConst(MIRDoubleConst &doubleConst, const BaseNode &parent) override;
@@ -138,6 +139,7 @@ class X64CGFunc : public CGFunc {
   Operand *SelectRetype(TypeCvtNode &node, Operand &opnd0) override;
   Operand *SelectRound(TypeCvtNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectCvt(const BaseNode &parent, TypeCvtNode &node, Operand &opnd0) override;
+  Operand *SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectTrunc(TypeCvtNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectSelect(TernaryNode &node, Operand &cond, Operand &opnd0, Operand &opnd1,
       const BaseNode &parent, bool hasCompare = false) override;
@@ -163,12 +165,11 @@ class X64CGFunc : public CGFunc {
   RegOperand &GetOrCreateVirtualRegisterOperand(RegOperand &regOpnd) override;
   RegOperand &GetOrCreateFramePointerRegOperand() override;
   RegOperand &GetOrCreateStackBaseRegOperand() override;
-  Operand &GetZeroOpnd(uint32 size) override;
+  RegOperand &GetZeroOpnd(uint32 size) override;
   Operand &CreateCfiRegOperand(uint32 reg, uint32 size) override;
   Operand &GetTargetRetOperand(PrimType primType, int32 sReg) override;
   Operand &CreateImmOperand(PrimType primType, int64 val) override;
-  Operand *CreateZeroOperand(PrimType primType) override;
-  void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn) override;
+  void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn, regno_t regno) override;
   void CleanupDeadMov(bool dump = false) override;
   void GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &realCallerSave) override;
   bool IsFrameReg(const RegOperand &opnd) const override;
@@ -244,6 +245,9 @@ class X64OpndDumpVistor : public OpndDumpVisitor {
   void Visit(CGRegOperand *v) final;
   void Visit(CGImmOperand *v) final;
   void Visit(CGMemOperand *v) final;
+  void Visit(CGFuncNameOperand *v) final;
+  void Visit(CGListOperand *v) final;
+  void Visit(CGLabelOperand *v) final;
 
  private:
   void DumpRegInfo(CGRegOperand &v);

@@ -50,7 +50,7 @@ class AArch64MoveRegArgs : public MoveRegArgs {
   ArgInfo GetArgInfo(std::map<uint32, AArch64reg> &argsList, std::vector<uint32> &numFpRegs,
                      std::vector<uint32> &fpSize, uint32 argIndex) const;
   bool IsInSameSegment(const ArgInfo &firstArgInfo, const ArgInfo &secondArgInfo) const;
-  void GenOneInsn(ArgInfo &argInfo, AArch64RegOperand &baseOpnd, uint32 stBitSize, AArch64reg dest, int32 offset);
+  void GenOneInsn(const ArgInfo &argInfo, RegOperand &baseOpnd, uint32 stBitSize, AArch64reg dest, int32 offset);
   void GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgInfo &secondArgInfo);
   void GenerateStrInsn(ArgInfo &argInfo, AArch64reg reg2, uint32 numFpRegs, uint32 fpSize);
   void MoveRegisterArgs();

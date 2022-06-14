@@ -113,7 +113,7 @@ class CGLowerer {
 
   BaseNode *LowerCastExpr(BaseNode &expr);
 
-  BaseNode *ExtractSymbolAddress(StIdx &stIdx);
+  BaseNode *ExtractSymbolAddress(const StIdx &stIdx);
   BaseNode *LowerDreadToThreadLocal(BaseNode &expr, BlockNode &block);
   StmtNode *LowerDassignToThreadLocal(StmtNode &stmt, BlockNode &block);
 
@@ -201,7 +201,7 @@ class CGLowerer {
   void LowerTypePtr(BaseNode &expr) const;
 
   BaseNode *GetBitField(int32 byteOffset, BaseNode *baseAddr, PrimType fieldPrimType);
-  StmtNode *WriteBitField(std::pair<int32, int32> byteBitOffsets, MIRBitFieldType *fieldType, BaseNode *baseAddr,
+  StmtNode *WriteBitField(const std::pair<int32, int32> &byteBitOffsets, MIRBitFieldType *fieldType, BaseNode *baseAddr,
       BaseNode *rhs, BlockNode *block);
   BaseNode *ReadBitField(std::pair<int32, int32> byteBitOffsets, MIRBitFieldType *fieldType, BaseNode *baseAddr);
   BaseNode *LowerDreadBitfield(DreadNode &dread);

@@ -28,9 +28,9 @@ class InsnBuilder {
   }
 
 #ifdef TARGX86_64
-  Insn &BuildInsn(MOperator opCode, const InsnDescription &idesc);
+  Insn &BuildInsn(MOperator opCode, const InsnDescription &idesc) const;
 #else
-  Insn &BuildInsn(MOperator opCode, const InsnDescription &idesc) {
+  Insn &BuildInsn(MOperator opCode, const InsnDescription &idesc) const {
     (void)idesc;
     Insn *a = nullptr;
     return *a;

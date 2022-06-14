@@ -149,7 +149,7 @@ MOperator PickLdStInsn(bool isLoad, uint32 bitSize, PrimType primType, AArch64is
 }
 }
 
-bool IsBlkassignForPush(BlkassignoffNode &bNode) {
+bool IsBlkassignForPush(const BlkassignoffNode &bNode) {
   BaseNode *dest = bNode.Opnd(0);
   bool spBased = false;
   if (dest->GetOpCode() == OP_regread) {
@@ -886,7 +886,7 @@ RegOperand *AArch64CGFunc::GetBaseRegForSplit(uint32 baseRegNum) {
  * Here we split the offset into (512 * n) and +/-(new Offset) when misaligned, to make sure that
  * the new offet is always under 256 bits.
  */
-MemOperand &AArch64CGFunc::ConstraintOffsetToSafeRegion(uint32 bitLen, MemOperand &memOpnd) {
+MemOperand &AArch64CGFunc::ConstraintOffsetToSafeRegion(uint32 bitLen, const MemOperand &memOpnd) {
   auto it = hashMemOpndTable.find(memOpnd);
   if (it != hashMemOpndTable.end()) {
     hashMemOpndTable.erase(memOpnd);
@@ -2010,7 +2010,7 @@ MIRType *AArch64CGFunc::GetAggTyFromCallSite(StmtNode *stmt) {
 }
 
 /* return true if blkassignoff for return, false otherwise */
-bool AArch64CGFunc::LmbcSmallAggForRet(BlkassignoffNode &bNode, Operand *src) {
+bool AArch64CGFunc::LmbcSmallAggForRet(const BlkassignoffNode &bNode, Operand *src) {
   PrimType pTy;
   uint32 size = 0;
   AArch64reg regno = static_cast<AArch64reg>(static_cast<RegOperand*>(src)->GetRegisterNumber());
@@ -9832,7 +9832,7 @@ void AArch64CGFunc::GenCVaStartIntrin(RegOperand &opnd, uint32 stkSize) {
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wstr, *tmpReg, *strOpnd));
 
   /* __vr_offs */
-  offs = static_cast<int32>(0UL - static_cast<AArch64MemLayout*>(GetMemlayout())->GetSizeOfVRSaveArea());
+  offs = static_cast<int32>(UINT32_MAX - (static_cast<AArch64MemLayout*>(GetMemlayout())->GetSizeOfVRSaveArea() - 1UL));
   offsOpnd = &CreateImmOperand(offs, k32BitSize, false);
   tmpReg = &CreateRegisterOperandOfType(PTY_i32);
   SelectCopyImm(*tmpReg, *offsOpnd, PTY_i32);
@@ -10425,7 +10425,7 @@ Operand *AArch64CGFunc::SelectCSyncSynchronize(IntrinsicopNode &intrinopNode) {
   return nullptr;
 }
 
-AArch64isa::MemoryOrdering AArch64CGFunc::PickMemOrder(std::memory_order memOrder, bool isLdr) {
+AArch64isa::MemoryOrdering AArch64CGFunc::PickMemOrder(std::memory_order memOrder, bool isLdr) const {
   switch (memOrder) {
     case std::memory_order_relaxed:
       return AArch64isa::kMoNone;

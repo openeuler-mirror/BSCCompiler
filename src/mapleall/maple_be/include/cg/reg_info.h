@@ -62,7 +62,7 @@ class RegisterInfo {
   CGFunc *GetCurrFunction() const {
     return cgFunc;
   }
-  virtual RegOperand &GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag = 0) = 0;
+  virtual RegOperand &GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag) = 0;
   virtual ListOperand *CreateListOperand() = 0;
   virtual Insn *BuildMovInstruction(Operand &opnd0, Operand &opnd1) = 0;
   virtual bool IsSpecialReg(regno_t regno) const = 0;

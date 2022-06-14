@@ -24,9 +24,27 @@ class X64MPIsel : public MPISel {
   X64MPIsel(MemPool &mp, CGFunc &f) : MPISel(mp, f) {}
   ~X64MPIsel() override = default;
   void SelectReturn(Operand &opnd) override;
+  void SelectCall(CallNode &callNode) override;
+  Operand &ProcessReturnReg(PrimType primType, int32 sReg) override;
+  Operand &GetTargetRetOperand(PrimType primType, int32 sReg) override;
+  Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent, bool isAddrofoff = false) override;
+  void SelectGoto(GotoNode &stmt) override;
+  void SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOpnd) override;
+  void SelectCondGoto(CondGotoNode &stmt, BaseNode &condNode, Operand &opnd0) override;
+  Operand* SelectDiv(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
+  CGMemOperand &CreateMemOpndOrNull(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int64 offset = 0);
+  Operand *SelectMpy(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
+  Operand *SelectCmpOp(CompareNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
+  Operand *SelectStrLiteral(ConststrNode &constStr) override;
 
  private:
-  CGMemOperand &GetSymbolFromMemory(const MIRSymbol &symbol) override;
+  CGMemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, FieldID fieldId = 0) override;
+  void SelectParmList(StmtNode &naryNode, CGListOperand &srcOpnds);
+  Insn &AppendCall(MIRSymbol &sym, CGListOperand &srcOpnds);
+  MOperator PickJmpInsn(Opcode brOp, Opcode cmpOp, bool isSigned) const;
+  void SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
+  void SelectCmpOp(CGRegOperand &resOpnd, Operand &opnd0, Operand &opnd1, Opcode opCode, PrimType primType,
+                   PrimType primOpndType, const BaseNode &parent);
 };
 }
 

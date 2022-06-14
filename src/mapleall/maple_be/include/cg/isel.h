@@ -83,7 +83,7 @@ class MPISel {
   StmtNode *HandleFuncEntry();
   void HandleFuncExit();
   void SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, Operand &opndRhs);
-  virtual CGMemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, FieldID fieldId = 0) = 0;
+  virtual CGMemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, FieldID fieldId) = 0;
   virtual Operand &GetTargetRetOperand(PrimType primType, int32 sReg) = 0;
   void SelectBasicOp(Operand &resOpnd, Operand &opnd0, Operand &opnd1, MOperator mOp, PrimType primType);
   /*

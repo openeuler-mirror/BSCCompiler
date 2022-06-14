@@ -126,7 +126,7 @@ class AArch64CGFunc : public CGFunc {
   MemOperand *FixLargeMemOpnd(MemOperand &memOpnd, uint32 align);
   MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
   void LmbcSelectParmList(ListOperand *srcOpnds, bool isArgReturn);
-  bool LmbcSmallAggForRet(BlkassignoffNode &bNode, Operand *src);
+  bool LmbcSmallAggForRet(const BlkassignoffNode &bNode, Operand *src);
   bool LmbcSmallAggForCall(BlkassignoffNode &bNode, Operand *src);
   void SelectAggDassign(DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
@@ -162,7 +162,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinsicopNode, PrimType pty) override;
   Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinsicopNode) override;
-  AArch64isa::MemoryOrdering PickMemOrder(std::memory_order memOrder, bool isLdr);
+  AArch64isa::MemoryOrdering PickMemOrder(std::memory_order memOrder, bool isLdr) const;
   Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectCAtomicExchangeN(IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectAtomicLoad(Operand &addrOpnd, PrimType primType, AArch64isa::MemoryOrdering memOrder);
@@ -628,7 +628,7 @@ class AArch64CGFunc : public CGFunc {
   bool CheckIfSplitOffsetWithAdd(const MemOperand &memOpnd, uint32 bitLen);
   RegOperand *GetBaseRegForSplit(uint32 baseRegNum);
 
-  MemOperand &ConstraintOffsetToSafeRegion(uint32 bitLen, MemOperand &memOpnd);
+  MemOperand &ConstraintOffsetToSafeRegion(uint32 bitLen, const MemOperand &memOpnd);
   MemOperand &SplitOffsetWithAddInstruction(const MemOperand &memOpnd, uint32 bitLen,
                                             uint32 baseRegNum = AArch64reg::kRinvalid, bool isDest = false,
                                             Insn *insn = nullptr, bool forPair = false);
@@ -684,7 +684,7 @@ class AArch64CGFunc : public CGFunc {
     return proEpilogSavedRegs;
   }
 
-  uint32 GetDefaultAlignPow() {
+  uint32 GetDefaultAlignPow() const {
     return alignPow;
   }
 

@@ -48,9 +48,9 @@ class AArch64CallConvImpl {
   /*  return value related  */
   void InitReturnInfo(MIRType &retTy, CCLocInfo &pLoc);
 
-  void SetupSecondRetReg(const MIRType &retTy2, CCLocInfo &pLoc);
+  void SetupSecondRetReg(const MIRType &retTy2, CCLocInfo &pLoc) const;
 
-  void SetupToReturnThroughMemory(CCLocInfo &pLoc) {
+  void SetupToReturnThroughMemory(CCLocInfo &pLoc) const {
     pLoc.regCount = 1;
     pLoc.reg0 = R8;
     pLoc.primTypeOfReg0 = PTY_u64;

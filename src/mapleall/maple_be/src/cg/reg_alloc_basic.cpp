@@ -425,20 +425,20 @@ Operand *DefaultO0RegAllocator::HandleRegOpnd(Operand &opnd) {
     availRegSet[newRegNO] = false;  /* make sure the real register can not be allocated and live */
     (void)liveReg.insert(newRegNO);
     (void)allocatedSet.insert(&opnd);
-    return &regInfo->GetOrCreatePhyRegOperand(newRegNO, regOpnd.GetSize(), regOpnd.GetRegisterType());
+    return &regInfo->GetOrCreatePhyRegOperand(newRegNO, regOpnd.GetSize(), regOpnd.GetRegisterType(), 0);
   }
   if (AllocatePhysicalRegister(regOpnd)) {
     (void)allocatedSet.insert(&opnd);
     auto regMapItSecond = regMap.find(regOpnd.GetRegisterNumber());
     ASSERT(regMapItSecond != regMap.end(), " ERROR: can not find register number in regmap ");
     return &regInfo->GetOrCreatePhyRegOperand(regMapItSecond->second, regOpnd.GetSize(),
-                                              regOpnd.GetRegisterType());
+                                              regOpnd.GetRegisterType(), 0);
   }
 
   /* use 0 register as spill register */
   regno_t regNO = 0;
   return &regInfo->GetOrCreatePhyRegOperand(regNO, regOpnd.GetSize(),
-                                            regOpnd.GetRegisterType());
+                                            regOpnd.GetRegisterType(), 0);
 }
 
 Operand *DefaultO0RegAllocator::HandleMemOpnd(Operand &opnd) {
@@ -512,11 +512,11 @@ Operand *DefaultO0RegAllocator::AllocDestOpnd(Operand &opnd, const Insn &insn) {
       /* For register spill. use 0 register as spill register */
       regno_t regNO = 0;
       return &regInfo->GetOrCreatePhyRegOperand(regNO, regOpnd.GetSize(),
-                                                regOpnd.GetRegisterType());
+                                                regOpnd.GetRegisterType(), 0);
     }
   }
   (void)allocatedSet.insert(&opnd);
-  return &regInfo->GetOrCreatePhyRegOperand(regMapIt->second, regOpnd.GetSize(), regOpnd.GetRegisterType());
+  return &regInfo->GetOrCreatePhyRegOperand(regMapIt->second, regOpnd.GetSize(), regOpnd.GetRegisterType(), 0);
 }
 
 void DefaultO0RegAllocator::AllocHandleCallee(Insn &insn) {
@@ -530,7 +530,7 @@ void DefaultO0RegAllocator::AllocHandleCallee(Insn &insn) {
       availRegSet[physicalReg] = false;
       (void)liveReg.insert(physicalReg);
       srcOpndsNew->PushOpnd(
-          regInfo->GetOrCreatePhyRegOperand(physicalReg, regOpnd->GetSize(), regOpnd->GetRegisterType()));
+          regInfo->GetOrCreatePhyRegOperand(physicalReg, regOpnd->GetSize(), regOpnd->GetRegisterType(), 0));
     }
     insn.SetOperand(1, *srcOpndsNew);
   }
@@ -541,7 +541,7 @@ void DefaultO0RegAllocator::AllocHandleCallee(Insn &insn) {
       auto &regOpnd = static_cast<RegOperand&>(opnd);
       regno_t physicalReg = regMap[regOpnd.GetRegisterNumber()];
       Operand &phyRegOpnd = regInfo->GetOrCreatePhyRegOperand(physicalReg, regOpnd.GetSize(),
-                                                              regOpnd.GetRegisterType());
+                                                              regOpnd.GetRegisterType(), 0);
       insn.SetOperand(0, phyRegOpnd);
     } else {
       Operand *srcOpnd = AllocSrcOpnd(opnd);
@@ -682,15 +682,16 @@ void DefaultO0RegAllocator::AllocHandleDestList(Insn &insn, Operand &opnd, uint3
       SaveCalleeSavedReg(regOpnd);
       listOpndsNew->PushOpnd(
           regInfo->GetOrCreatePhyRegOperand(
-              regMap[regOpnd.GetRegisterNumber()], regOpnd.GetSize(), regOpnd.GetRegisterType()));
+              regMap[regOpnd.GetRegisterNumber()], regOpnd.GetSize(), regOpnd.GetRegisterType(), 0));
       continue;  /* already allocated */
     }
     RegOperand *regOpnd = static_cast<RegOperand *>(AllocDestOpnd(*dstOpnd, insn));
+    ASSERT(regOpnd != nullptr, "null ptr check");
     auto physRegno = regOpnd->GetRegisterNumber();
     availRegSet[physRegno] = false;
     (void)liveReg.insert(physRegno);
     listOpndsNew->PushOpnd(
-        regInfo->GetOrCreatePhyRegOperand(physRegno, regOpnd->GetSize(), regOpnd->GetRegisterType()));
+        regInfo->GetOrCreatePhyRegOperand(physRegno, regOpnd->GetSize(), regOpnd->GetRegisterType(), 0));
   }
   insn.SetOperand(idx, *listOpndsNew);
   for (auto *dstOpnd : listOpndsNew->GetOperands()) {
@@ -717,7 +718,7 @@ void DefaultO0RegAllocator::AllocHandleDest(Insn &insn, Operand &opnd, uint32 id
       }
     }
     insn.SetOperand(idx, regInfo->GetOrCreatePhyRegOperand(
-        regMap[regOpnd.GetRegisterNumber()], regOpnd.GetSize(), regOpnd.GetRegisterType()));
+        regMap[regOpnd.GetRegisterNumber()], regOpnd.GetSize(), regOpnd.GetRegisterType(), 0));
     return;  /* already allocated */
   }
 
@@ -740,7 +741,7 @@ void DefaultO0RegAllocator::AllocHandleSrcList(Insn &insn, Operand &opnd, uint32
       availRegSet[reg] = false;
       (void)liveReg.insert(reg);  /* this register is live now */
       listOpndsNew->PushOpnd(
-          regInfo->GetOrCreatePhyRegOperand(reg, regOpnd->GetSize(), regOpnd->GetRegisterType()));
+          regInfo->GetOrCreatePhyRegOperand(reg, regOpnd->GetSize(), regOpnd->GetRegisterType(), 0));
       continue;  /* already allocated */
     }
     RegOperand *regOpnd = static_cast<RegOperand *>(AllocSrcOpnd(*srcOpnd));
@@ -757,7 +758,7 @@ void DefaultO0RegAllocator::AllocHandleSrc(Insn &insn, Operand &opnd, uint32 idx
     availRegSet[reg] = false;
     (void)liveReg.insert(reg);  /* this register is live now */
     insn.SetOperand(
-        idx, regInfo->GetOrCreatePhyRegOperand(reg, regOpnd->GetSize(), regOpnd->GetRegisterType()));
+        idx, regInfo->GetOrCreatePhyRegOperand(reg, regOpnd->GetSize(), regOpnd->GetRegisterType(), 0));
   } else {
     Operand *srcOpnd = AllocSrcOpnd(opnd);
     CHECK_NULL_FATAL(srcOpnd);

@@ -69,7 +69,7 @@ class A64OpndSSAUpdateVsitor : public SSAOperandVisitor,
   void Visit(MemOperand *v) final;
   void Visit(PhiOperand *v) final;
 
-  bool IsPhi() {
+  bool IsPhi() const {
     return isPhi;
   }
 

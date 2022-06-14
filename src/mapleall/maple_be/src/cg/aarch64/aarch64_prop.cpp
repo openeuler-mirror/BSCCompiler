@@ -183,7 +183,7 @@ MOperator A64ConstProp::GetRegImmMOP(MOperator regregMop, bool withLeftShift) {
   return MOP_undef;
 }
 
-MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, Insn &arithInsn) {
+MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const Insn &arithInsn) {
   MOperator arithMop = arithInsn.GetMachineOpcode();
   MOperator newMop = MOP_undef;
   switch(arithMop) {
@@ -1514,7 +1514,7 @@ void CopyRegProp::Run() {
   }
 }
 
-bool CopyRegProp::IsValidCopyProp(RegOperand &dstReg, RegOperand &srcReg) {
+bool CopyRegProp::IsValidCopyProp(const RegOperand &dstReg, RegOperand &srcReg) {
   ASSERT(destVersion != nullptr, "find destVersion failed");
   ASSERT(srcVersion != nullptr, "find srcVersion failed");
   LiveInterval *dstll = nullptr;

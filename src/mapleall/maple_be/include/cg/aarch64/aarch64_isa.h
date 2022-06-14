@@ -144,7 +144,7 @@ static inline RegType GetRegType(AArch64reg r) {
 
 enum MemoryOrdering : uint32 {
   kMoNone = 0,
-  kMoAcquire = (1ULL << 0),     /* ARMv8 */
+  kMoAcquire = 1ULL,     /* ARMv8 */
   kMoAcquireRcpc = (1ULL << 1), /* ARMv8.3 */
   kMoLoacquire = (1ULL << 2),   /* ARMv8.1 */
   kMoRelease = (1ULL << 3),     /* ARMv8 */

@@ -53,7 +53,7 @@ enum MopProperty : maple::uint8 {
   kInsnIsNop,
 };
 using regno_t = uint32_t;
-#define ISABSTRACT (1ULL << kInsnIsAbstract)
+#define ISABSTRACT 1ULL
 #define ISMOVE (1ULL << kInsnIsMove)
 #define ISLOAD (1ULL << kInsnIsLoad)
 #define ISLOADPAIR (1ULL << kInsnIsLoadPair)
@@ -229,7 +229,7 @@ struct InsnDescription {
   const std::string &GetFormat() const {
     return format;
   }
-  uint32 GetAtomicNum() {
+  uint32 GetAtomicNum() const {
     return atomicNum;
   }
   static const InsnDescription &GetAbstractId(MOperator opc) {

@@ -317,8 +317,8 @@ class A64OpndEmitVisitor : public OpndEmitVisitor {
   void Visit(OfstOperand *v) final;
   void Visit(ListOperand *v) final;
 
-  void EmitVectorOperand(RegOperand &v);
-  void EmitIntReg(RegOperand &v, uint8 opndSz = kMaxSimm32);
+  void EmitVectorOperand(const RegOperand &v);
+  void EmitIntReg(const RegOperand &v, uint8 opndSz = kMaxSimm32);
 
   const OpndProp *opndProp;
 };

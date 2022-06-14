@@ -181,7 +181,7 @@ Operand *HandleRem(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
 
 Operand *HandleAddrof(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   auto &addrofNode = static_cast<AddrofNode&>(expr);
-  return cgFunc.SelectAddrof(addrofNode, parent);
+  return cgFunc.SelectAddrof(addrofNode, parent, false);
 }
 
 Operand *HandleAddrofoff(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
@@ -494,7 +494,9 @@ Operand *HandleVectorSetElement(const IntrinsicopNode &intrnNode, CGFunc &cgFunc
 Operand *HandleVectorReverse(const IntrinsicopNode &intrnNode, CGFunc &cgFunc, uint32 size) {
   BaseNode *argExpr = intrnNode.Opnd(0);                               /* src operand */
   Operand *src = cgFunc.HandleExpr(intrnNode, *argExpr);
-  auto revVecType = intrnNode.GetIntrinDesc().GetReturnType()->GetPrimType();
+  MIRType *type = intrnNode.GetIntrinDesc().GetReturnType();
+  ASSERT(type != nullptr, "null ptr check");
+  auto revVecType = type->GetPrimType();
   return cgFunc.SelectVectorReverse(revVecType, src, revVecType, size);
 }
 
@@ -1563,7 +1565,7 @@ void CGFunc::CreateLmbcFormalParamInfo() {
   uint32 typeSize;
   MIRFunction &func = GetFunction();
   if (func.GetParamSize() > 0) {
-    int stackOffset = 0;
+    uint32 stackOffset = 0;
     for (size_t idx = 0; idx < func.GetParamSize(); ++idx) {
       MIRSymbol *sym = func.GetFormal(idx);
       MIRType *type;
@@ -1616,7 +1618,7 @@ void CGFunc::CreateLmbcFormalParamInfo() {
       }
       IreadFPoffNode *ireadNode = static_cast<IreadFPoffNode *>(operand);
       primType = ireadNode->GetPrimType();
-      offset = ireadNode->GetOffset();
+      offset = static_cast<uint32>(ireadNode->GetOffset());
       typeSize = GetPrimTypeSize(primType);
       CHECK_FATAL((offset % k8ByteSize) == 0, "");  /* scalar only, no struct for now */
       LmbcFormalParamInfo *info = GetMemoryPool()->New<LmbcFormalParamInfo>(primType, offset, typeSize);
@@ -1661,15 +1663,15 @@ void CGFunc::GenerateInstruction() {
     if (freq != -1) {
       if (tmpBB != curBB) {
         if (curBB->GetFirstInsn() == nullptr && curBB->GetLabIdx() == 0 && bbFreqSet.count(tmpBB->GetId()) == 0) {
-          tmpBB->SetFrequency(freq);
+          tmpBB->SetFrequency(static_cast<uint32>(freq));
           bbFreqSet.insert(tmpBB->GetId());
         } else if ((curBB->GetFirstInsn() != nullptr  || curBB->GetLabIdx() != 0) &&
                    bbFreqSet.count(curBB->GetId()) == 0) {
-          curBB->SetFrequency(freq);
+          curBB->SetFrequency(static_cast<uint32>(freq));
           bbFreqSet.insert(tmpBB->GetId());
         }
       } else if (bbFreqSet.count(curBB->GetId()) == 0) {
-        curBB->SetFrequency(freq);
+        curBB->SetFrequency(static_cast<uint32>(freq));
         bbFreqSet.insert(curBB->GetId());
       }
     }
@@ -1911,6 +1913,7 @@ bool CGFunc::MemBarOpt(const StmtNode &membar) {
       auto *callNode = static_cast<CallNode*>(stmt);
       MIRFunction *fn = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode->GetPUIdx());
       MIRSymbol *fsym = GetMirModule().CurFunction()->GetLocalOrGlobalSymbol(fn->GetStIdx(), false);
+      ASSERT(fsym != nullptr, "null ptr check");
       if (fsym->GetName() == "MCC_WriteRefFieldNoDec") {
         base = callNode->Opnd(0);
       }
@@ -2054,6 +2057,7 @@ void CGFunc::AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc) {
 
 void CGFunc::DumpCFG() const {
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());
+  ASSERT(funcSt != nullptr, "null ptr check");
   LogInfo::MapleLogger() << "\n****** CFG built by CG for " << funcSt->GetName() << " *******\n";
   FOR_ALL_BB_CONST(bb, this) {
     LogInfo::MapleLogger() << "=== BB ( " << std::hex << bb << std::dec << " ) <" << bb->GetKindName() << "> ===\n";
@@ -2088,7 +2092,8 @@ void CGFunc::DumpCFG() const {
 }
 
 void CGFunc::DumpCGIR(bool withTargetInfo) const {
-  MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());
+  MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());;
+  ASSERT(funcSt != nullptr, "null ptr check");
   LogInfo::MapleLogger() << "\n******  CGIR for " << funcSt->GetName() << " *******\n";
   FOR_ALL_BB_CONST(bb, this) {
     if (bb->IsUnreachable()) {

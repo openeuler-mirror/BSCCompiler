@@ -236,7 +236,7 @@ class CGFunc {
   /* select expr */
   virtual Operand *SelectDread(const BaseNode &parent, AddrofNode &expr) = 0;
   virtual RegOperand *SelectRegread(RegreadNode &expr) = 0;
-  virtual Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent, bool isAddrofoff = false) = 0;
+  virtual Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent, bool isAddrofoff) = 0;
   virtual Operand *SelectAddrofoff(AddrofoffNode &expr, const BaseNode &parent) = 0;
   virtual Operand &SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) = 0;
   virtual Operand &SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) = 0;
@@ -897,7 +897,7 @@ class CGFunc {
     }
   }
 
-  int16 GetLmbcArgsInRegs(RegType ty) {
+  int16 GetLmbcArgsInRegs(RegType ty) const {
     return ty == kRegTyInt ? lmbcIntArgs : lmbcFpArgs;
   }
 
@@ -910,7 +910,7 @@ class CGFunc {
     lmbcTotalArgs++;
   }
 
-  int16 GetLmbcTotalArgs() {
+  int16 GetLmbcTotalArgs() const {
     return lmbcTotalArgs;
   }
 

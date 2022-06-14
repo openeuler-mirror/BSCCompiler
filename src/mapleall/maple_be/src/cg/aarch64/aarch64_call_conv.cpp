@@ -681,7 +681,7 @@ void AArch64CallConvImpl::InitReturnInfo(MIRType &retTy, CCLocInfo &ccLocInfo) {
   }
 }
 
-void AArch64CallConvImpl::SetupSecondRetReg(const MIRType &retTy2, CCLocInfo &pLoc) {
+void AArch64CallConvImpl::SetupSecondRetReg(const MIRType &retTy2, CCLocInfo &pLoc) const {
   ASSERT(pLoc.reg1 == kRinvalid, "make sure reg1 equal kRinvalid");
   PrimType pType = retTy2.GetPrimType();
   switch (pType) {

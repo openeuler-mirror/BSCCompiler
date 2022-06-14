@@ -895,7 +895,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) {
   (void)emitter.Emit("\n");
 }
 
-void AArch64AsmEmitter::EmitClinit(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitClinit(Emitter &emitter, const Insn &insn) const {
   /*
    * adrp    x3, __muid_data_undef_tab$$GetBoolean_dex+144
    * ldr     x3, [x3, #:lo12:__muid_data_undef_tab$$GetBoolean_dex+144]
@@ -989,7 +989,7 @@ static void AsmStringOutputRegNum(
   strToEmit += newRegno + '0';
 }
 
-void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const {
   (void)emitter.Emit("\t//Inline asm begin\n\t");
   auto &list1 = static_cast<ListOperand&>(insn.GetOperand(kAsmOutputListOpnd));
   std::vector<RegOperand *> outOpnds;
@@ -1101,7 +1101,7 @@ void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, Insn &insn) const {
   (void)emitter.Emit("\n\t//Inline asm end\n");
 }
 
-void AArch64AsmEmitter::EmitClinitTail(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitClinitTail(Emitter &emitter, const Insn &insn) const {
   /*
    * ldr x17, [xs, #112]
    * ldr wzr, [x17]
@@ -1125,7 +1125,7 @@ void AArch64AsmEmitter::EmitClinitTail(Emitter &emitter, Insn &insn) const {
   (void)emitter.Emit("\t").Emit("ldr\txzr, [x17]\n");
 }
 
-void AArch64AsmEmitter::EmitLazyLoad(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitLazyLoad(Emitter &emitter, const Insn &insn) const {
   /*
    * ldr wd, [xs]  # xd and xs should be differenct register
    * ldr wd, [xd]
@@ -1156,7 +1156,7 @@ void AArch64AsmEmitter::EmitLazyLoad(Emitter &emitter, Insn &insn) const {
   (void)emitter.Emit("]\t// lazy load.\n");
 }
 
-void AArch64AsmEmitter::EmitCounter(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitCounter(Emitter &emitter, const Insn &insn) const {
   /*
    * adrp    x1, __profile_bb_table$$GetBoolean_dex+4
    * ldr     w17, [x1, #:lo12:__profile_bb_table$$GetBoolean_dex+4]
@@ -1206,7 +1206,7 @@ void AArch64AsmEmitter::EmitCounter(Emitter &emitter, Insn &insn) const {
   (void)emitter.Emit("\n");
 }
 
-void AArch64AsmEmitter::EmitAdrpLabel(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitAdrpLabel(Emitter &emitter, const Insn &insn) const {
   /* adrp    xd, label
    * add     xd, xd, #lo12:label
    */
@@ -1238,7 +1238,7 @@ void AArch64AsmEmitter::EmitAdrpLabel(Emitter &emitter, Insn &insn) const {
   idx = nullptr;
 }
 
-void AArch64AsmEmitter::EmitAdrpLdr(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitAdrpLdr(Emitter &emitter, const Insn &insn) const {
   /*
    * adrp    xd, _PTR__cinf_Ljava_2Futil_2Fconcurrent_2Fatomic_2FAtomicInteger_3B
    * ldr     xd, [xd, #:lo12:_PTR__cinf_Ljava_2Futil_2Fconcurrent_2Fatomic_2FAtomicInteger_3B]
@@ -1282,7 +1282,7 @@ void AArch64AsmEmitter::EmitAdrpLdr(Emitter &emitter, Insn &insn) const {
   (void)emitter.Emit("]\n");
 }
 
-void AArch64AsmEmitter::EmitLazyLoadStatic(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitLazyLoadStatic(Emitter &emitter, const Insn &insn) const {
   /* adrp xd, :got:__staticDecoupleValueOffset$$xxx+offset
    * ldr wd, [xd, #:got_lo12:__staticDecoupleValueOffset$$xxx+offset]
    * ldr wzr, [xd]
@@ -1332,7 +1332,7 @@ void AArch64AsmEmitter::EmitLazyLoadStatic(Emitter &emitter, Insn &insn) const {
   (void)emitter.Emit("]\t// lazy load static.\n");
 }
 
-void AArch64AsmEmitter::EmitArrayClassCacheLoad(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitArrayClassCacheLoad(Emitter &emitter, const Insn &insn) const {
   /* adrp xd, :got:__arrayClassCacheTable$$xxx+offset
    * ldr wd, [xd, #:got_lo12:__arrayClassCacheTable$$xxx+offset]
    * ldr wzr, [xd]
@@ -1392,7 +1392,7 @@ void AArch64AsmEmitter::EmitArrayClassCacheLoad(Emitter &emitter, Insn &insn) co
  * stlxr  ws, wt, [xt]
  * cbnz   ws, label
  */
-void AArch64AsmEmitter::EmitGetAndAddInt(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitGetAndAddInt(Emitter &emitter, const Insn &insn) const {
   ASSERT(insn.GetOperandSize() > kInsnEighthOpnd, "ensure the oprands number");
   (void)emitter.Emit("\t//\tstart of Unsafe.getAndAddInt.\n");
   Operand *tempOpnd0 = &insn.GetOperand(kInsnSecondOpnd);
@@ -1458,7 +1458,7 @@ void AArch64AsmEmitter::EmitGetAndAddInt(Emitter &emitter, Insn &insn) const {
  * stlxr  ws, w3, [xt]
  * cbnz   ws, label
  */
-void AArch64AsmEmitter::EmitGetAndSetInt(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitGetAndSetInt(Emitter &emitter, const Insn &insn) const {
   /* MOP_get_and_setI and MOP_get_and_setL have 7 operands */
   ASSERT(insn.GetOperandSize() > kInsnSeventhOpnd, "ensure the operands number");
   Operand *tempOpnd0 = &insn.GetOperand(kInsnSecondOpnd);
@@ -1550,7 +1550,7 @@ void AArch64AsmEmitter::EmitGetAndSetInt(Emitter &emitter, Insn &insn) const {
  * mov       w0, #-1
  * .Label.RET:
  */
-void AArch64AsmEmitter::EmitStringIndexOf(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitStringIndexOf(Emitter &emitter, const Insn &insn) const {
   /* MOP_string_indexof has 18 operands */
   ASSERT(insn.GetOperandSize() == 18, "ensure the operands number");
   Operand *patternLengthOpnd = &insn.GetOperand(kInsnFifthOpnd);
@@ -1823,7 +1823,7 @@ void AArch64AsmEmitter::EmitStringIndexOf(Emitter &emitter, Insn &insn) const {
  * label2:
  * cset      x0, eq
  */
-void AArch64AsmEmitter::EmitCompareAndSwapInt(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitCompareAndSwapInt(Emitter &emitter, const Insn &insn) const {
   /* MOP_compare_and_swapI and MOP_compare_and_swapL have 8 operands */
   ASSERT(insn.GetOperandSize() > kInsnEighthOpnd, "ensure the operands number");
   const MOperator mOp = insn.GetMachineOpcode();
@@ -1891,7 +1891,7 @@ void AArch64AsmEmitter::EmitCompareAndSwapInt(Emitter &emitter, Insn &insn) cons
   (void)emitter.Emit(", EQ\n");
 }
 
-void AArch64AsmEmitter::EmitCTlsDescRel(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitCTlsDescRel(Emitter &emitter, const Insn &insn) const {
   const AArch64MD *md = &AArch64CG::kMd[MOP_tls_desc_rel];
   Operand *result = &insn.GetOperand(kInsnFirstOpnd);
   Operand *src = &insn.GetOperand(kInsnSecondOpnd);
@@ -1910,7 +1910,7 @@ void AArch64AsmEmitter::EmitCTlsDescRel(Emitter &emitter, Insn &insn) const {
   result->Accept(resultVisitor);
   (void)emitter.Emit(", #:tprel_lo12_nc:").Emit(stImmOpnd->GetName()).Emit("\n");
 }
-void AArch64AsmEmitter::EmitCTlsDescCall(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitCTlsDescCall(Emitter &emitter, const Insn &insn) const {
   const AArch64MD *md = &AArch64CG::kMd[MOP_tls_desc_call];
   Operand *func = &insn.GetOperand(kInsnFirstOpnd);
   Operand *symbol = &insn.GetOperand(kInsnThirdOpnd);
@@ -1933,7 +1933,7 @@ void AArch64AsmEmitter::EmitCTlsDescCall(Emitter &emitter, Insn &insn) const {
   func->Accept(funcVisitor);
   (void)emitter.Emit("\n");
 }
-void AArch64AsmEmitter::EmitSyncLockTestSet(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitSyncLockTestSet(Emitter &emitter, const Insn &insn) const {
   const AArch64MD *md = &AArch64CG::kMd[insn.GetMachineOpcode()];
   auto *result = &insn.GetOperand(kInsnFirstOpnd);
   auto *temp = &insn.GetOperand(kInsnSecondOpnd);
@@ -1987,15 +1987,15 @@ void AArch64AsmEmitter::EmitCheckThrowPendingException(Emitter &emitter, Insn &i
   (void)emitter.Emit("\n");
   (void)emitter.Emit("\t").Emit("ldr").Emit("\tx16, [x16, #8]");
   (void)emitter.Emit("\n");
-  (void)emitter.Emit("\t").Emit("cbz").Emit("\tx16, .lnoeh.").Emit(GetCG()->GetCurCGFunc()->GetName());
+  (void)emitter.Emit("\t").Emit("cbz").Emit("\tx16, .lnoeh.").Emit(maplebe::CG::GetCurCGFunc()->GetName());
   (void)emitter.Emit("\n");
   (void)emitter.Emit("\t").Emit("bl").Emit("\tMCC_ThrowPendingException");
   (void)emitter.Emit("\n");
-  (void)emitter.Emit(".lnoeh.").Emit(GetCG()->GetCurCGFunc()->GetName()).Emit(":");
+  (void)emitter.Emit(".lnoeh.").Emit(maplebe::CG::GetCurCGFunc()->GetName()).Emit(":");
   (void)emitter.Emit("\n");
 }
 
-void AArch64AsmEmitter::EmitLazyBindingRoutine(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitLazyBindingRoutine(Emitter &emitter, const Insn &insn) const {
   /* ldr xzr, [xs] */
   const AArch64MD *md = &AArch64CG::kMd[MOP_adrp_ldr];
 
@@ -2062,7 +2062,7 @@ static CfiDescr cfiDescrTable[cfi::kOpCfiLast + 1] = {
   { ".cfi_undef", 0, { Operand::kOpdUndef, Operand::kOpdUndef, Operand::kOpdUndef } }
 };
 
-void AArch64AsmEmitter::EmitAArch64CfiInsn(Emitter &emitter, Insn &insn) {
+void AArch64AsmEmitter::EmitAArch64CfiInsn(Emitter &emitter, const Insn &insn) {
   MOperator mOp = insn.GetMachineOpcode();
   CfiDescr &cfiDescr = cfiDescrTable[mOp];
   (void)emitter.Emit("\t").Emit(cfiDescr.name);
@@ -2092,7 +2092,7 @@ static DbgDescr dbgDescrTable[mpldbg::kOpDbgLast + 1] = {
   { "undef", 0, { Operand::kOpdUndef, Operand::kOpdUndef, Operand::kOpdUndef } }
 };
 
-void AArch64AsmEmitter::EmitAArch64DbgInsn(Emitter &emitter, Insn &insn) {
+void AArch64AsmEmitter::EmitAArch64DbgInsn(Emitter &emitter, const Insn &insn) {
   MOperator mOp = insn.GetMachineOpcode();
   DbgDescr &dbgDescr = dbgDescrTable[mOp];
   (void)emitter.Emit("\t.").Emit(dbgDescr.name);

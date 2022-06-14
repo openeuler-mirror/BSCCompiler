@@ -627,7 +627,7 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
     }
     return (value == op.GetValue() && isSigned == op.IsSignedValue());
   }
-  bool IsFmov() {
+  bool IsFmov() const {
     return isFmov;
   }
 
@@ -1717,7 +1717,7 @@ class CGLabelOperand : public OperandVisitable<CGLabelOperand> {
 namespace operand {
 /* bit 0-7 for common */
 enum CommOpndDescProp : maple::uint64 {
-  kIsDef = (1ULL << 0),
+  kIsDef = 1ULL,
   kIsUse = (1ULL << 1),
   kIsVector = (1ULL << 2)
 
@@ -1829,7 +1829,7 @@ class OpndDumpVisitor : public OperandVisitorBase,
   virtual void DumpOpndSuffix() {
     LogInfo::MapleLogger() << " )";
   }
-  void DumpSize(Operand &opnd) {
+  void DumpSize(const Operand &opnd) {
     LogInfo::MapleLogger() << " [size:" << opnd.GetSize() << "]";
   }
   const OpndDescription *GetOpndDesc() const {

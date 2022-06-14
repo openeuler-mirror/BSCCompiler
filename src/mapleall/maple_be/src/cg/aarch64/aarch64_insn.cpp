@@ -769,7 +769,7 @@ bool AArch64Insn::IsDestRegAlsoSrcReg() const {
   return prop0->IsRegDef() && prop0->IsRegUse();
 }
 
-void A64OpndEmitVisitor::EmitIntReg(RegOperand &v, uint8 opndSz) {
+void A64OpndEmitVisitor::EmitIntReg(const RegOperand &v, uint8 opndSz) {
   CHECK_FATAL(v.GetRegisterType() == kRegTyInt, "wrong Type");
   uint8 opndSize = (opndSz == kMaxSimm32) ? v.GetSize() : opndSz;
   ASSERT((opndSize == k32BitSize || opndSize == k64BitSize), "illegal register size");
@@ -1122,7 +1122,7 @@ void A64OpndEmitVisitor::Visit(OfstOperand *v) {
   }
 }
 
-void A64OpndEmitVisitor::EmitVectorOperand(RegOperand &v) {
+void A64OpndEmitVisitor::EmitVectorOperand(const RegOperand &v) {
   std::string width;
   switch (v.GetVecElementSize()) {
     case k8BitSize:

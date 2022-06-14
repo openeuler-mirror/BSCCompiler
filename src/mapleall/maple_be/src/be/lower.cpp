@@ -742,7 +742,7 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
   return rAdd;
 }
 
-StmtNode *CGLowerer::WriteBitField(std::pair<int32, int32> byteBitOffsets, MIRBitFieldType *fieldType,
+StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets, MIRBitFieldType *fieldType,
     BaseNode *baseAddr, BaseNode *rhs, BlockNode *block) {
   auto bitSize = fieldType->GetFieldSize();
   auto primType = fieldType->GetPrimType();
@@ -2735,7 +2735,7 @@ void CGLowerer::LowerRegassign(RegassignNode &regNode, BlockNode &newBlk) {
   }
 }
 
-BaseNode *CGLowerer::ExtractSymbolAddress(StIdx &stIdx) {
+BaseNode *CGLowerer::ExtractSymbolAddress(const StIdx &stIdx) {
   auto builder = mirModule.GetMIRBuilder();
   return builder->CreateExprAddrof(0, stIdx);
 }
