@@ -3497,6 +3497,7 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
         die->SetAttr(DW_AT_frame_base, exprloc);
       } break;
       case DW_TAG_structure_type:
+      case DW_TAG_union_type:
       case DW_TAG_class_type:
       case DW_TAG_interface_type: {
         DBGDieAttr *byteSizeAttr = LFindDieAttr(die, DW_AT_byte_size);

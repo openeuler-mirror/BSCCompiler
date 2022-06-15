@@ -532,6 +532,7 @@ void PEGBuilder::BuildPEGNodeInIassign(const IassignNode *iassign) {
   auto *vstOfBase = baseAddrValNode.pegNode->vst;
   OriginalSt *defedOst = AliasClass::FindOrCreateExtraLevOst(
       ssaTab, vstOfBase, iassign->GetTyIdx(), iassign->GetFieldID(), baseAddrValNode.offset);
+  CHECK_FATAL(defedOst, "defedOst is nullptr");
   auto zeroVersionSt = ssaTab->GetVerSt(defedOst->GetZeroVersionIndex());
   PEGNode *lhsNode = peg->GetOrCreateNodeOf(zeroVersionSt);
 

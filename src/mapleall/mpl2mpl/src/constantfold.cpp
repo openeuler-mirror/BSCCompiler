@@ -1678,13 +1678,23 @@ std::pair<BaseNode*, int64> ConstantFold::FoldExtractbits(ExtractbitsNode *node)
   ConstvalNode *cst = safe_cast<ConstvalNode>(p.first);
   if (cst != nullptr && (opcode == OP_sext || opcode == OP_zext)) {
     result = FoldSignExtend(opcode, node->GetPrimType(), size, *cst);
+    return std::make_pair(result, 0);
+  }
+  BaseNode *e = PairToExpr(node->Opnd(0)->GetPrimType(), p);
+  if (e != node->Opnd(0)) {
+    result = mirModule->CurFuncCodeMemPool()->New<ExtractbitsNode>(opcode, PrimType(node->GetPrimType()),
+                                                                   offset, size, e);
   } else {
-    BaseNode *e = PairToExpr(node->Opnd(0)->GetPrimType(), p);
-    if (e != node->Opnd(0)) {
-      result = mirModule->CurFuncCodeMemPool()->New<ExtractbitsNode>(opcode, PrimType(node->GetPrimType()),
-                                                                     offset, size, e);
-    } else {
-      result = node;
+    result = node;
+  }
+  // check for consecutive and redundant extraction of same bits
+  BaseNode *opnd = result->Opnd(0);
+  Opcode opndOp = opnd->GetOpCode();
+  if (opndOp == OP_extractbits || opndOp == OP_sext || opndOp == OP_zext) {
+    uint8 opndOffset = static_cast<ExtractbitsNode*>(opnd)->GetBitsOffset();
+    uint8 opndSize = static_cast<ExtractbitsNode*>(opnd)->GetBitsSize();
+    if (offset == opndOffset && size == opndSize) {
+      result->SetOpnd(opnd->Opnd(0), 0);  // delete the redundant extraction
     }
   }
   return std::make_pair(result, 0);

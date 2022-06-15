@@ -684,6 +684,7 @@ MeStmt *IRMapBuild::BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
   auto &iasNode = static_cast<IassignNode&>(stmt);
 
   auto *baseAddr = BuildExpr(*iasNode.Opnd(0), false, false);
+  CHECK_FATAL(baseAddr, "baseAddr is nullptr!");
   if (baseAddr->GetOp() == OP_addrof) {
     auto *addrofExpr = static_cast<AddrofMeExpr*>(baseAddr);
     auto *ost = ssaTab.GetOriginalStFromID(addrofExpr->GetOstIdx());
@@ -781,6 +782,7 @@ MeStmt *IRMapBuild::BuildCallMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
     MeExpr *meExpr = BuildExpr(*intrinNode.Opnd(i), true, false);
     if (i >= kMaxRegParamNum) {
       PrimType origType = intrinNode.Opnd(i)->GetPrimType();
+      CHECK_FATAL(meExpr, "meExpr is nullptr!");
       PrimType curType = meExpr->GetPrimType();
       if (GetPrimTypeSize(origType) != GetPrimTypeSize(curType)) {
         // When we pass parameters by stack, cvt is needed for call opnds if type size changes

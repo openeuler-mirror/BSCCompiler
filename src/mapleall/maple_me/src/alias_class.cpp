@@ -501,8 +501,9 @@ void AliasClass::ApplyUnionForFieldsInCopiedAgg() {
           ssaTab.GetVersionStTable().GetOrCreateZeroVersionSt(*fieldOstRHS);
       RecordAliasAnalysisInfo(*zeroVersionStOfFieldOstRHS);
 
-      unionFind.Union(fieldOstLHS->GetZeroVersionIndex(),
-                      fieldOstRHS->GetZeroVersionIndex());
+      CHECK_FATAL(fieldOstLHS, "fieldOstLHS is nullptr!");
+      CHECK_FATAL(fieldOstRHS, "fieldOstRHS is nullptr!");
+      unionFind.Union(fieldOstLHS->GetZeroVersionIndex(), fieldOstRHS->GetZeroVersionIndex());
     }
   }
 }
@@ -1515,6 +1516,7 @@ void AliasClass::UnionForAggAndFields() {
     }
     for (const auto idA : ostsWithSameSymbol) {
       auto *ostA = ssaTab.GetOriginalStFromID(idA);
+      CHECK_FATAL(ostA, "ostA is nullptr!");
       if (ostA->GetFieldID() == 0) {
         (void)ostsWithSameSymbol.erase(idA);
         for (const auto &idB : ostsWithSameSymbol) {
@@ -1703,8 +1705,9 @@ void AliasClass::ProcessIdsAliasWithRoot(const std::set<uint32> &idsAliasWithRoo
     OriginalSt *ostA = ssaTab.GetOriginalStFromID(OStIdx(ostIdxA));
     for (uint32 ostIdxB : newGroups) {
       OriginalSt *ostB = ssaTab.GetOriginalStFromID(OStIdx(ostIdxB));
-      if (AliasAccordingToType(ostA->GetPrevLevelOst()->GetTyIdx(),
-                               ostB->GetPrevLevelOst()->GetTyIdx()) &&
+      CHECK_FATAL(ostB, "ostB is nullptr");
+      CHECK_FATAL(ostB->GetPrevLevelOst(), "ostB PrevLevelOst is nullptr");
+      if (AliasAccordingToType(ostA->GetPrevLevelOst()->GetTyIdx(), ostB->GetPrevLevelOst()->GetTyIdx()) &&
           AliasAccordingToFieldID(*ostA, *ostB)) {
         unionFind.Union(ostIdxA, ostIdxB);
         unioned = true;
@@ -1798,6 +1801,7 @@ void AliasClass::DumpClassSets() {
     } else {
       LogInfo::MapleLogger() << "Members of alias class " << ostIdx << ": ";
       for (auto aliasedOstIdx : *aliasSet) {
+        CHECK_FATAL(ssaTab.GetOriginalStFromID(OStIdx(aliasedOstIdx)), "orig st is nullptr!");
         ssaTab.GetOriginalStFromID(OStIdx(aliasedOstIdx))->Dump();
         if (IsNotAllDefsSeen(OStIdx(aliasedOstIdx))) {
           LogInfo::MapleLogger() << "?";
@@ -2265,6 +2269,7 @@ void AliasClass::InsertMayDefUseSyncOps(StmtNode &stmt, BBId bbid) {
     OriginalSt *aliasOst = ssaTab.GetOriginalStFromID(OStIdx(ostIdx));
     if (!aliasOst->IsFinal()) {
       VersionSt *vst0 = ssaTab.GetVerSt(aliasOst->GetZeroVersionIndex());
+      CHECK_FATAL(theSSAPart, "theSSAPart is nullptr!");
       theSSAPart->InsertMayUseNode(MayUseNode(vst0));
       theSSAPart->InsertMayDefNode(MayDefNode(vst0, &stmt));
       ssaTab.AddDefBB4Ost(aliasOst->GetIndex(), bbid);
@@ -2517,6 +2522,7 @@ void AliasClass::InsertMayDefUseClinitCheck(IntrinsiccallNode &stmt, BBId bbid) 
   auto *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
   for (const OStIdx &ostIdx : globalsMayAffectedByClinitCheck) {
     OriginalSt *ost = ssaTab.GetOriginalStFromID(OStIdx(ostIdx));
+    CHECK_FATAL(ost, "ost is nullptr!");
     ssaPart->InsertMayDefNode(MayDefNode(
       ssaTab.GetVersionStTable().GetVersionStVectorItem(ost->GetZeroVersionIndex()), &stmt));
     ssaTab.AddDefBB4Ost(ostIdx, bbid);

@@ -401,7 +401,9 @@ class OriginalStTable {
     return GetOriginalStFromID(id, false)->GetMIRSymbol();
   }
   MIRSymbol *GetMIRSymbolFromID(OStIdx id) {
-    return GetOriginalStFromID(id, false)->GetMIRSymbol();
+    auto *originalSt = GetOriginalStFromID(id, false);
+    CHECK_FATAL(originalSt, "originalSt is nullptr!");
+    return originalSt->GetMIRSymbol();
   }
 
   MapleAllocator &GetAlloc() {

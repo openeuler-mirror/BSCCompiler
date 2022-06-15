@@ -315,6 +315,7 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
   if (arrayMeExpr == nullptr || arrayMeExpr->GetOp() == OP_add) {  // the array is converted from add
   } else if (parentNode->op == OP_iread) {
     ivarMeExpr = static_cast<IvarMeExpr *>(depInfo->preEmit->GetMexpr(parentNode));
+    CHECK_FATAL(ivarMeExpr, "ivarMeExpr is nullptr!");
     if (ivarMeExpr->HasMultipleMu()) {
       return nullptr;
     }
@@ -725,6 +726,7 @@ void LfoDepInfo::PerformDepTest() {
         } else {
           for (OStIdx oidx : *arrAcc->arrayOstIdxSet) {
             OriginalSt *ost = preMeFunc->meFunc->GetMeSSATab()->GetOriginalStFromID(oidx);
+            CHECK_FATAL(ost, "ost is nullptr!");
             ost->Dump();
             LogInfo::MapleLogger() << "| ";
           }

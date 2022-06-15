@@ -31,6 +31,7 @@ void MeDSE::VerifyPhi() const {
       if (IsSymbolLived(*pair.second.GetResult())) {
         if (predBBNums <= 1) {  // phi is live and non-virtual in bb with 0 or 1 pred
           const OriginalSt *ost = func.GetMeSSATab()->GetOriginalStFromID(pair.first);
+          CHECK_FATAL(ost, "ost is nullptr!");
           CHECK_FATAL(!ost->IsSymbolOst() || ost->GetIndirectLev() != 0,
               "phi is live and non-virtual in bb with zero or one pred");
         } else if (pair.second.GetPhiOpnds().size() != predBBNums) {

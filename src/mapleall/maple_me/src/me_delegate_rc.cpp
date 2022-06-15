@@ -90,6 +90,7 @@ static bool IsVarDecRefStmt(const MeStmt &stmt) {
 void DelegateRC::SetCantDelegate(const MapleMap<OStIdx, MePhiNode*> &meVarPhiList) {
   for (auto it = meVarPhiList.begin(); it != meVarPhiList.end(); ++it) {
     const OriginalSt *ost = ssaTab.GetOriginalStFromID(it->first);
+    CHECK_FATAL(ost, "ost is nullptr!");
     if (!ost->IsSymbolOst() || ost->GetIndirectLev() != 0) {
       continue;
     }
@@ -815,6 +816,7 @@ void DelegateRC::CleanUpDeadLocalRefVar(const std::set<OStIdx> &liveLocalrefvars
         }
         auto *varMeExpr = static_cast<AddrofMeExpr*>(stmt.GetOpnd(0));
         const OriginalSt *ost = ssaTab.GetOriginalStFromID(varMeExpr->GetOstIdx());
+        CHECK_FATAL(ost, "ost is nullptr!");
         if (ost->IsLocal() && !ost->IsFormal() && !ost->IsIgnoreRC() &&
             liveLocalrefvars.find(varMeExpr->GetOstIdx()) == liveLocalrefvars.end()) {
           bb->RemoveMeStmt(&stmt);

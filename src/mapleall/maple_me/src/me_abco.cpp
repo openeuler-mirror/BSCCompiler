@@ -26,6 +26,8 @@ constexpr int kPiListSize = 2;
 void MeABC::AddEdgePair(ESSABaseNode &from, ESSABaseNode &to, int64 value, EdgeType type) {
   InequalEdge *pairEdge1 = inequalityGraph->AddEdge(from, to, value, type);
   InequalEdge *pairEdge2 = inequalityGraph->AddEdge(to, from, -value, type);
+  CHECK_FATAL(pairEdge1, "pairEdge1 is nullptr!");
+  CHECK_FATAL(pairEdge2, "pairEdge2 is nullptr!");
   pairEdge1->SetPairEdge(*pairEdge2);
   pairEdge2->SetPairEdge(*pairEdge1);
 }
