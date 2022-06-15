@@ -230,7 +230,7 @@ void AArch64MemLayout::LayoutFormalParams() {
     if (ploc.reg0 != kRinvalid) {  /* register */
       symLoc->SetRegisters(static_cast<AArch64reg>(ploc.reg0), static_cast<AArch64reg>(ploc.reg1),
                            static_cast<AArch64reg>(ploc.reg2), static_cast<AArch64reg>(ploc.reg3));
-      if (mirFunction->GetFormalDefVec()[i].formalAttrs.GetAttr(ATTR_localrefvar)) {
+      if (!cgFunc->GetMirModule().IsCModule() && mirFunction->GetNthParamAttr(i).GetAttr(ATTR_localrefvar)) {
         symLoc->SetMemSegment(segRefLocals);
         SetSegmentSize(*symLoc, segRefLocals, ptyIdx);
       } else if (!sym->IsPreg()) {
@@ -272,7 +272,7 @@ void AArch64MemLayout::LayoutFormalParams() {
       } else {
         segArgsStkPassed.SetSize(static_cast<uint32>(RoundUp(segArgsStkPassed.GetSize(), kSizeOfPtr)));
       }
-      if (mirFunction->GetFormalDefVec()[i].formalAttrs.GetAttr(ATTR_localrefvar)) {
+      if (!cgFunc->GetMirModule().IsCModule() && mirFunction->GetNthParamAttr(i).GetAttr(ATTR_localrefvar)) {
         SetLocalRegLocInfo(sym->GetStIdx(), *symLoc);
         AArch64SymbolAlloc *symLoc1 = memAllocator->GetMemPool()->New<AArch64SymbolAlloc>();
         symLoc1->SetMemSegment(segRefLocals);
