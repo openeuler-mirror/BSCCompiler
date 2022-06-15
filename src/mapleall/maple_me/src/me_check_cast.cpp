@@ -140,7 +140,9 @@ void CheckCast::TryToResolveFuncArg(MeExpr &expr, AnnotationType &at) {
     if (expr.GetMeOp() == kMeOpVar) {
       VarMeExpr *var = static_cast<VarMeExpr*>(&expr);
       const OriginalSt *symOst = func->GetIRMap()->GetSSATab().GetOriginalStFromID(var->GetOstIdx());
+      CHECK_FATAL(symOst, "symOst is nullptr!");
       const MIRSymbol *sym = symOst->GetMIRSymbol();
+      CHECK_FATAL(sym, "sym is nullptr!");
       mirType = sym->GetType();
     } else if (expr.GetMeOp() == kMeOpIvar) {
       IvarMeExpr *ivar = static_cast<IvarMeExpr*>(&expr);
@@ -323,6 +325,7 @@ void CheckCast::TryToResolveIvar(IvarMeExpr &ivar, MIRStructType *callStruct) {
 
 bool CheckCast::TryToResolveStaticVar(const VarMeExpr &var) {
   const OriginalSt *symOst = func->GetIRMap()->GetSSATab().GetOriginalStFromID(var.GetOstIdx());
+  CHECK_FATAL(symOst, "ost is nullptr!");
   const MIRSymbol *sym = symOst->GetMIRSymbol();
   if (!sym->IsStatic()) {
     return false;

@@ -180,7 +180,8 @@ class VersionStTable {
   VersionSt *GetOrCreateZeroVersionSt(OriginalSt &ost);
 
   VersionSt *GetZeroVersionSt(const OriginalSt *ost) const {
-    CHECK_FATAL(ost->GetVersionsIndices().size() != 0, "GetZeroVersionSt:: zero version has not been created");
+    CHECK_FATAL(ost, "ost is nullptr!");
+    CHECK_FATAL(!ost->GetVersionsIndices().empty(), "GetZeroVersionSt:: zero version has not been created");
     return versionStVector[ost->GetZeroVersionIndex()];
   }
 

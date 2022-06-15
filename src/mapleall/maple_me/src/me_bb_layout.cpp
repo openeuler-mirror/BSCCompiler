@@ -19,6 +19,7 @@
 #include "me_option.h"
 #include "me_predict.h"
 #include "maple_phase.h"
+#include "me_critical_edge.h"
 
 // This BB layout strategy strictly obeys source ordering when inside try blocks.
 // This Optimization will reorder the bb layout. it start from the first bb of func.
@@ -91,7 +92,7 @@ void BBLayout::BuildChainForFunc() {
   InitBBChains();
   BuildChainForLoops();
   // init ready chains for func
-  for (auto it = cfg->valid_end(); it != cfg->valid_end(); ++it) {
+  for (auto it = cfg->valid_begin(); it != cfg->valid_end(); ++it) {
     BB *bb = *it;
     BBId bbId = bb->GetBBId();
     BBChain *chain = bb2chain[bbId];
@@ -529,6 +530,7 @@ bool BBLayout::HasSameBranchCond(BB &bb1, BB &bb2) const {
 }
 
 bool BBLayout::BBIsEmpty(const BB *bb) {
+  CHECK_FATAL(bb, "bb is nullptr!");
   if (func.GetIRMap() != nullptr) {
     return bb->IsMeStmtEmpty();
   }
@@ -540,6 +542,7 @@ void BBLayout::OptimizeCaseTargets(BB *switchBB, CaseVector *swTable) {
   for (; caseIt != swTable->end(); ++caseIt) {
     LabelIdx lidx = caseIt->second;
     BB *brTargetBB = func.GetCfg()->GetLabelBBAt(lidx);
+    CHECK_FATAL(brTargetBB, "brTargetBB is nullptr!");
     if (brTargetBB->GetSucc().size() != 0) {
       OptimizeBranchTarget(*brTargetBB);
     }
@@ -1359,9 +1362,13 @@ void MEBBLayout::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MEBBLayout::PhaseRun(maple::MeFunction &f) {
-  MeCFG *cfg = GET_ANALYSIS(MEMeCfg, f);
+  if (f.GetMIRModule().IsCModule() && MeSplitCEdge(false).SplitCriticalEdgeForMeFunc(f)) {
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);
+  }
   auto *bbLayout = GetPhaseAllocator()->New<BBLayout>(*GetPhaseMemPool(), f, DEBUGFUNC_NEWPM(f), this);
   // assume common_entry_bb is always bb 0
+  MeCFG *cfg = f.GetCfg();
   ASSERT(cfg->front() == cfg->GetCommonEntryBB(), "assume bb[0] is the commont entry bb");
   if (DEBUGFUNC_NEWPM(f)) {
     cfg->DumpToFile("beforeBBLayout", false);

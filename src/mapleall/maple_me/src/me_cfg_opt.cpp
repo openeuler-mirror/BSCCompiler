@@ -125,9 +125,9 @@ bool MeCfgOpt::IsExpensiveOp(Opcode op) {
   }
 }
 
-const MeStmt *MeCfgOpt::GetCondBrStmtFromBB(const BB &bb) const {
+MeStmt *MeCfgOpt::GetCondBrStmtFromBB(BB &bb) const {
   CHECK_FATAL(bb.GetKind() == kBBCondGoto, "must be cond goto");
-  const MeStmt *meStmt = to_ptr(bb.GetMeStmts().rbegin());
+  MeStmt *meStmt = to_ptr(bb.GetMeStmts().rbegin());
   if (meStmt->IsCondBr()) {
     return meStmt;
   }
@@ -245,7 +245,7 @@ bool MeCfgOpt::Run(MeCFG &cfg) {
     auto *bb = *bIt;
     constexpr uint32 numOfSuccs = 2;
     if (bb->GetKind() == kBBCondGoto && bb->GetSucc().size() == numOfSuccs) {
-      const MeStmt *condMeStmt = GetCondBrStmtFromBB(*bb);
+      MeStmt *condMeStmt = GetCondBrStmtFromBB(*bb);
       if (condMeStmt == nullptr || !condMeStmt->IsCondBr()) {
         continue;
       }
@@ -338,6 +338,8 @@ bool CheckAnalysisResult(const MeFunction &func) {
   return false;
 }
 
+extern void ResetDependentedSymbolLive(MIRFunction *mirFunction);
+
 void EmitMapleIr(MeFunction &func) {
   CHECK_FATAL(func.HasLaidOut(), "Check bb layout phase.");
   auto layoutBBs = func.GetLaidOutBBs();
@@ -350,6 +352,7 @@ void EmitMapleIr(MeFunction &func) {
 
   for (size_t k = 1; k < mirFunction->GetSymTab()->GetSymbolTableSize(); ++k) {
     MIRSymbol *sym = mirFunction->GetSymTab()->GetSymbolFromStIdx(k);
+    CHECK_FATAL(sym, "sym is nullptr!");
     if (sym->GetSKind() == kStVar) {
       sym->SetIsDeleted();
     }
@@ -359,6 +362,8 @@ void EmitMapleIr(MeFunction &func) {
     ASSERT(bb != nullptr, "bb should not be nullptr");
     bb->EmitBB(*func.GetMeSSATab(), *func.GetMirFunc()->GetBody(), true);
   }
+  ResetDependentedSymbolLive(mirFunction);
+
   func.ClearLayout();
 }
 

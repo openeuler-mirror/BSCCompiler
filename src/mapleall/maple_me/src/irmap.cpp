@@ -79,6 +79,7 @@ void IRMap::SimplifyAssign(AssignMeStmt *assignStmt) {
 }
 
 VarMeExpr *IRMap::CreateVarMeExprVersion(OriginalSt *ost) {
+  CHECK_FATAL(ost, "ost is nullptr!");
   VarMeExpr *varMeExpr = New<VarMeExpr>(exprID++, ost, verst2MeExprTable.size(),
       GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx())->GetPrimType());
   ost->PushbackVersionsIndices(verst2MeExprTable.size());
@@ -177,6 +178,7 @@ RegMeExpr *IRMap::CreateRegMeExprVersion(OriginalSt &pregOSt) {
 
 ScalarMeExpr *IRMap::CreateRegOrVarMeExprVersion(OStIdx ostIdx) {
   OriginalSt *ost = ssaTab.GetOriginalStFromID(ostIdx);
+  CHECK_FATAL(ost, "ost is nullptr!");
   if (ost->IsPregOst()) {
     return CreateRegMeExprVersion(*ost);
   } else {
@@ -372,6 +374,7 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
   auto *ost = ssaTab.GetOriginalStFromID(addrofExpr->GetOstIdx());
   auto *typeOfIvar = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ivar->GetTyIdx());
   CHECK_FATAL(typeOfIvar->IsMIRPtrType(), "type of ivar must be ptr");
+  CHECK_FATAL(ost, "ost is nullptr!");
   auto *ptrTypeOfIvar = static_cast<MIRPtrType *>(typeOfIvar);
   OffsetType offset(0);
   if (addrofExpr->GetFieldID() > 1) {
@@ -600,6 +603,7 @@ MeExpr *IRMap::HashMeExpr(MeExpr &meExpr) {
         auto ostIdx = static_cast<AddrofMeExpr &>(meExpr).GetOstIdx();
         resultExpr = New<AddrofMeExpr>(exprID, meExpr.GetPrimType(), ostIdx);
         static_cast<AddrofMeExpr*>(resultExpr)->SetFieldID(static_cast<AddrofMeExpr&>(meExpr).GetFieldID());
+        CHECK_FATAL(ssaTab.GetOriginalStFromID(ostIdx), "orign st is nullptr!");
         auto pointerVstIdx = ssaTab.GetOriginalStFromID(ostIdx)->GetPointerVstIdx();
         if (pointerVstIdx != kInvalidVstIdx) {
           SetVerst2MeExprTableItem(pointerVstIdx, resultExpr);

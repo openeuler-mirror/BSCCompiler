@@ -637,6 +637,7 @@ void IVCanon::PerformIVCanon() {
   // go thru the list of phis at the loop head to find all IVs
   for (std::pair<OStIdx, MePhiNode*> mapEntry: headBB->GetMePhiList()) {
     OriginalSt *ost = ssatab->GetOriginalStFromID(mapEntry.first);
+    CHECK_FATAL(ost, "ost is nullptr!");
     if (!ost->IsIVCandidate()) {
       continue;
     }

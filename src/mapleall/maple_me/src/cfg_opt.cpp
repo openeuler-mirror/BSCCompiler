@@ -30,15 +30,17 @@ bool CfgOpt::IsShortCircuitStIdx(StIdx stIdx) {
   if (stIdx.IsGlobal()) {
     return false;
   }
-  std::string symName = meFunc.GetMirFunc()->GetSymTab()->GetSymbolFromStIdx(stIdx.Idx())->GetName();
+  auto *sym = meFunc.GetMirFunc()->GetSymTab()->GetSymbolFromStIdx(stIdx.Idx());
+  CHECK_FATAL(sym, "sym is nullptr!");
+  std::string symName = sym->GetName();
   return symName.find("shortCircuit") != std::string::npos;
 }
 
-bool CfgOpt::IsAssignToShortCircuit(StmtNode &stmt) {
+bool CfgOpt::IsAssignToShortCircuit(const StmtNode &stmt) {
   if (stmt.GetOpCode() != OP_dassign) {
     return false;
   }
-  return IsShortCircuitStIdx(static_cast<DassignNode&>(stmt).GetStIdx());
+  return IsShortCircuitStIdx(static_cast<const DassignNode&>(stmt).GetStIdx());
 }
 
 void CfgOpt::SimplifyCondGotoStmt(CondGotoNode &condGoto) const {

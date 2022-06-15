@@ -431,6 +431,7 @@ StmtNode &CallMeStmt::EmitStmt(SSATab &ssaTab) {
           if (stIdx.Islocal()) {
             MIRSymbolTable *symbolTab = ssaTab.GetModule().CurFunction()->GetSymTab();
             MIRSymbol *symbol = symbolTab->GetSymbolFromStIdx(stIdx.Idx());
+            CHECK_FATAL(symbol, "symbol is nullptr!");
             symbol->ResetIsDeleted();
           }
         }

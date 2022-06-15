@@ -16,7 +16,6 @@
 #define MAPLE_ME_INCLUDE_SSA_TAB_H
 #include "mempool.h"
 #include "mempool_allocator.h"
-#include "phase.h"
 #include "ver_symbol.h"
 #include "ssa_mir_nodes.h"
 
@@ -73,12 +72,17 @@ class SSATab : public AnalysisResult {
     return originalStTable.FindOrCreateSymbolOriginalSt(mirSt, puIdx, fld);
   }
 
-  OriginalSt *FindOrCreateExtraLevOriginalSt(OriginalSt *ost, TyIdx tyIdx, FieldID fld) {
-    return originalStTable.FindOrCreateExtraLevOriginalSt(ost, tyIdx, fld);
-  }
-
   OriginalSt *FindOrCreateAddrofSymbolOriginalSt(OriginalSt *ost) {
-    return originalStTable.FindOrCreateAddrofSymbolOriginalSt(ost);
+    CHECK_FATAL(ost, "ost is nullptr!");
+    auto *addrofOst = ost->GetPrevLevelOst();
+    if (ost->GetPrevLevelOst() != nullptr) {
+      return addrofOst;
+    }
+    addrofOst = originalStTable.FindOrCreateAddrofSymbolOriginalSt(ost);
+    auto *zeroVersionSt = versionStTable.GetOrCreateZeroVersionSt(*addrofOst);
+    originalStTable.AddNextLevelOstOfVst(zeroVersionSt, ost);
+    ost->SetPointerVst(zeroVersionSt);
+    return addrofOst;
   }
 
   const OriginalSt *GetOriginalStFromID(OStIdx id) const {
@@ -97,6 +101,14 @@ class SSATab : public AnalysisResult {
     OriginalSt *ost = originalStTable.GetOriginalStFromID(id);
     ASSERT(ost->IsSymbolOst() || ost->GetIndirectLev() > 0, "GetSymbolOriginalStFromid: id has wrong ost type");
     return ost;
+  }
+
+  MapleVector<OriginalSt*> *GetNextLevelOsts(const VersionSt &vst) const {
+    return originalStTable.GetNextLevelOstsOfVst(vst.GetIndex());
+  }
+
+  MapleVector<OriginalSt*> *GetNextLevelOsts(size_t vstIdx) const {
+    return originalStTable.GetNextLevelOstsOfVst(vstIdx);
   }
 
   PrimType GetPrimType(OStIdx idx) const {

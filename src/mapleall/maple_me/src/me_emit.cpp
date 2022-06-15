@@ -53,6 +53,7 @@ static void ResetDependentedSymbolLive(MIRConst *mirConst) {
 void ResetDependentedSymbolLive(MIRFunction *func) {
   for (size_t k = 1; k < func->GetSymTab()->GetSymbolTableSize(); ++k) {
     MIRSymbol *sym = func->GetSymTab()->GetSymbolFromStIdx(k);
+    CHECK_FATAL(sym, "sym is nullptr!");
     if (!sym->IsConst()) {
       continue;
     }
@@ -85,6 +86,7 @@ bool MEEmit::PhaseRun(maple::MeFunction &f) {
       // initialize is_deleted field to true; will reset when emitting Maple IR
       for (size_t k = 1; k < mirFunction->GetSymTab()->GetSymbolTableSize(); ++k) {
         MIRSymbol *sym = mirFunction->GetSymTab()->GetSymbolFromStIdx(k);
+        CHECK_FATAL(sym, "sym is nullptr!");
         if (sym->GetSKind() == kStVar) {
           sym->SetIsDeleted();
         }

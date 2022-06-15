@@ -186,6 +186,7 @@ void MeCFG::BuildMirCFG() {
         for (size_t j = 0; j < switchStmt.GetSwitchTable().size(); ++j) {
           lblIdx = switchStmt.GetCasePair(j).second;
           BB *meBB = GetLabelBBAt(lblIdx);
+          CHECK_FATAL(meBB, "meBB is nullptr!");
           // Avoid duplicate succs.
           if (!meBB->IsSuccBB(*bb)) {
             bb->AddSucc(*meBB);
@@ -668,6 +669,7 @@ void MeCFG::ConvertPhiList2IdentityAssigns(BB &meBB) const {
   while (phiIt != meBB.GetPhiList().end()) {
     // replace phi with identify assignment as it only has 1 opnd
     const OriginalSt *ost = func.GetMeSSATab()->GetOriginalStFromID(phiIt->first);
+    CHECK_FATAL(ost, "ost is nullptr!");
     if (ost->IsSymbolOst() && ost->GetIndirectLev() == 0) {
       const MIRSymbol *st = ost->GetMIRSymbol();
       MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(st->GetTyIdx());
@@ -693,6 +695,7 @@ void MeCFG::ConvertMePhiList2IdentityAssigns(BB &meBB) const {
   while (phiIt != meBB.GetMePhiList().end()) {
     // replace phi with identify assignment as it only has 1 opnd
     const OriginalSt *ost = func.GetMeSSATab()->GetOriginalStFromID(phiIt->first);
+    CHECK_FATAL(ost, "ost is nullptr!");
     if (ost->IsSymbolOst() && ost->GetIndirectLev() == 0) {
       MePhiNode *varPhi = phiIt->second;
       auto *dassign = func.GetIRMap()->NewInPool<DassignMeStmt>(
