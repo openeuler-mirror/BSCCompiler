@@ -94,7 +94,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
       if (sym->IsLocal()) {
         sym->ResetIsDeleted();
       }
-      AddrofNode *dreadnode = codeMP->New<AddrofNode>(OP_dread, varmeexpr->GetPrimType(), sym->GetStIdx(),
+      AddrofNode *dreadnode = codeMP->New<AddrofNode>(OP_dread, GetRegPrimType(varmeexpr->GetPrimType()), sym->GetStIdx(),
                                                       varmeexpr->GetOst()->GetFieldID());
       PreMeExprExtensionMap[dreadnode] = pmeExt;
       return dreadnode;
