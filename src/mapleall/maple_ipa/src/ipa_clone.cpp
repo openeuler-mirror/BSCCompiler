@@ -107,6 +107,8 @@ MIRFunction *IpaClone::IpaCloneFunction(MIRFunction &originalFunction, const std
   newFunc->SetSrcPosition(originalFunction.GetSrcPosition());
   newFunc->SetFuncAttrs(originalFunction.GetFuncAttrs());
   newFunc->SetBaseClassFuncNames(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fullName));
+  newFunc->GetFuncSymbol()->SetAppearsInCode(true);
+  newFunc->SetPuidxOrigin(newFunc->GetPuidx());
   if (originalFunction.GetBody() != nullptr) {
     CopyFuncInfo(originalFunction, *newFunc);
     newFunc->SetBody(
@@ -135,6 +137,8 @@ MIRFunction *IpaClone::IpaCloneFunctionWithFreq(MIRFunction &originalFunction,
   newFunc->SetSrcPosition(originalFunction.GetSrcPosition());
   newFunc->SetFuncAttrs(originalFunction.GetFuncAttrs());
   newFunc->SetBaseClassFuncNames(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fullName));
+  newFunc->GetFuncSymbol()->SetAppearsInCode(true);
+  newFunc->SetPuidxOrigin(newFunc->GetPuidx());
   GcovFuncInfo *origProfData = originalFunction.GetFuncProfData();
   auto *moduleMp = mirBuilder.GetMirModule().GetMemPool();
   GcovFuncInfo *newProfData = moduleMp->New<GcovFuncInfo>(&mirBuilder.GetMirModule().GetMPAllocator(),
