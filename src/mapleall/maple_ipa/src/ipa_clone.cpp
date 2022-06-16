@@ -14,8 +14,6 @@
  */
 #include "ipa_clone.h"
 #include "clone.h"
-#include <iostream>
-#include <algorithm>
 #include "mir_symbol.h"
 #include "func_desc.h"
 #include "inline.h"
@@ -109,6 +107,8 @@ MIRFunction *IpaClone::IpaCloneFunction(MIRFunction &originalFunction, const std
   newFunc->SetSrcPosition(originalFunction.GetSrcPosition());
   newFunc->SetFuncAttrs(originalFunction.GetFuncAttrs());
   newFunc->SetBaseClassFuncNames(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fullName));
+  newFunc->GetFuncSymbol()->SetAppearsInCode(true);
+  newFunc->SetPuidxOrigin(newFunc->GetPuidx());
   if (originalFunction.GetBody() != nullptr) {
     CopyFuncInfo(originalFunction, *newFunc);
     newFunc->SetBody(
@@ -137,6 +137,8 @@ MIRFunction *IpaClone::IpaCloneFunctionWithFreq(MIRFunction &originalFunction,
   newFunc->SetSrcPosition(originalFunction.GetSrcPosition());
   newFunc->SetFuncAttrs(originalFunction.GetFuncAttrs());
   newFunc->SetBaseClassFuncNames(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fullName));
+  newFunc->GetFuncSymbol()->SetAppearsInCode(true);
+  newFunc->SetPuidxOrigin(newFunc->GetPuidx());
   GcovFuncInfo *origProfData = originalFunction.GetFuncProfData();
   auto *moduleMp = mirBuilder.GetMirModule().GetMemPool();
   GcovFuncInfo *newProfData = moduleMp->New<GcovFuncInfo>(&mirBuilder.GetMirModule().GetMPAllocator(),
@@ -217,13 +219,15 @@ bool IpaClone::CheckCostModel(MIRFunction *newFunc, uint32 paramIndex, std::vect
 }
 
 void IpaClone::ReplaceIfCondtion(MIRFunction *newFunc, std::vector<ImpExpr> &result, uint64_t res) {
+  ASSERT(newFunc != nullptr, "null ptr check");
   MemPool *currentFunMp = newFunc->GetCodeMempool();
   auto elemPrimType = PTY_u8;
   MIRType *type = GlobalTables::GetTypeTable().GetPrimType(elemPrimType);
   MIRConst *constVal = nullptr;
-  for (int32 index = result.size() - 1; index >= 0; index--) {
-    uint32 stmtId = result[index].GetStmtId();
+  for (int32 index = static_cast<int32>(result.size()) - 1; index >= 0; index--) {
+    uint32 stmtId = result[static_cast<uint32>(index)].GetStmtId();
     StmtNode *newReplace = newFunc->GetStmtNodeFromMeId(stmtId);
+    ASSERT(newReplace != nullptr, "null ptr check");
     if (newReplace->GetOpCode() != OP_if && newReplace->GetOpCode() != OP_brtrue &&
         newReplace->GetOpCode() != OP_brfalse) {
       ASSERT(false, "ERROR: cann't find the replace statement");
@@ -238,6 +242,7 @@ void IpaClone::ReplaceIfCondtion(MIRFunction *newFunc, std::vector<ImpExpr> &res
 }
 
 void IpaClone::ModifyParameterSideEffect(MIRFunction *newFunc, uint32 paramIndex) {
+  ASSERT(newFunc != nullptr, "null ptr check");
   auto &desc = newFunc->GetFuncDesc();
   if (paramIndex >= kMaxParamCount) {
     return;
@@ -250,6 +255,7 @@ void IpaClone::ModifyParameterSideEffect(MIRFunction *newFunc, uint32 paramIndex
 }
 
 void IpaClone::RemoveUnneedParameter(MIRFunction *newFunc, uint32 paramIndex, int64_t value) {
+  ASSERT(newFunc != nullptr, "null ptr check");
   if (newFunc->GetBody() != nullptr) {
     MemPool *newFuncMP = newFunc->GetCodeMempool();
     // Create the const value
@@ -282,6 +288,7 @@ void IpaClone::RemoveUnneedParameter(MIRFunction *newFunc, uint32 paramIndex, in
       }
     }
     MIRSymbol *funcSymbol = newFunc->GetFuncSymbol();
+    ASSERT(funcSymbol != nullptr, "null ptr check");
     funcSymbol->SetTyIdx(GlobalTables::GetTypeTable().GetOrCreateFunctionType(funcType->GetRetTyIdx(), paramTypeList,
         paramTypeAttrsList, funcType->IsVarargs(), funcType->GetRetAttrs())->GetTypeIndex());
     auto *newFuncType = static_cast<MIRFuncType*>(funcSymbol->GetType());
@@ -352,8 +359,8 @@ void IpaClone::DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramInd
           for (size_t i = paramIndex; i < oldCallNode->GetNopndSize() - 1; ++i) {
             oldCallNode->SetNOpndAt(i, oldCallNode->GetNopndAt(i + 1));
           }
-          oldCallNode->GetNopnd().resize(oldCallNode->GetNumOpnds() - 1);
-          oldCallNode->SetNumOpnds(oldCallNode->GetNumOpnds() - 1);
+          oldCallNode->GetNopnd().resize(static_cast<uint8>(oldCallNode->GetNumOpnds() - 1));
+          oldCallNode->SetNumOpnds(static_cast<uint8>(oldCallNode->GetNumOpnds() - 1));
         }
       }
     }
@@ -384,7 +391,7 @@ void IpaClone::EvalCompareResult(std::vector<ImpExpr> &result, std::map<uint32, 
     uint64_t bitRes = 0;
     bool runFlag = false;
     for (auto &expr : result) {
-      StmtNode *stmt  = curFunc->GetStmtNodeFromMeId(expr.GetStmtId());
+      StmtNode *stmt  = curFunc->GetStmtNodeFromMeId(static_cast<uint32>(expr.GetStmtId()));
       if (stmt == nullptr || expr.GetParamIndex() != index) {
         continue;
       }
@@ -437,12 +444,13 @@ void IpaClone::EvalImportantExpression(MIRFunction *func, std::vector<ImpExpr> &
       continue;
     }
     std::map<uint32, std::vector<int64_t > > evalMap;
-    EvalCompareResult(result, evalMap ,calleeInfo[keyPair], index);
+    EvalCompareResult(result, evalMap ,calleeInfo[keyPair], static_cast<uint32>(index));
     // Later: Now we just the consider one parameter important expression
     std::vector<ImpExpr> filterRes;
     if (!evalMap.empty()) {
       for (auto &expr : result) {
-        if (expr.GetParamIndex() == index && func->GetStmtNodeFromMeId(expr.GetStmtId()) != nullptr) {
+        if (expr.GetParamIndex() == static_cast<uint32>(index) &&
+            func->GetStmtNodeFromMeId(expr.GetStmtId()) != nullptr) {
           filterRes.emplace_back(expr);
           // Resolve most numOfImpExprUpper important expression
           if (filterRes.size() > kNumOfImpExprUpper) {
@@ -450,7 +458,7 @@ void IpaClone::EvalImportantExpression(MIRFunction *func, std::vector<ImpExpr> &
           }
         }
       }
-      DecideCloneFunction(filterRes, index, evalMap);
+      DecideCloneFunction(filterRes, static_cast<uint32>(index), evalMap);
       return;
     }
   }
@@ -494,8 +502,8 @@ void IpaClone::CloneNoImportantExpressFunction(MIRFunction *func, uint32 paramIn
     for (size_t i = paramIndex; i < oldCallNode->GetNopndSize() - 1; ++i) {
       oldCallNode->SetNOpndAt(i, oldCallNode->GetNopndAt(i + 1));
     }
-    oldCallNode->GetNopnd().resize(oldCallNode->GetNumOpnds() - 1);
-    oldCallNode->SetNumOpnds(oldCallNode->GetNumOpnds() - 1);
+    oldCallNode->GetNopnd().resize(static_cast<uint8>(oldCallNode->GetNumOpnds() - 1));
+    oldCallNode->SetNumOpnds(static_cast<uint8>(oldCallNode->GetNumOpnds() - 1));
   }
 }
 
