@@ -105,6 +105,9 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
       curtemp = meirmap->CreateRegMeExpr(*varmeexpr->GetType());
     }
     OriginalSt *pregOst = curtemp->GetOst();
+    if (varmeexpr->IsZeroVersion()) {
+      pregOst->SetZeroVersionIndex(curtemp->GetVstIdx());
+    }
     pregOst->SetIsFormal(ost->IsFormal());
     sym2reg_map[ost->GetIndex()] = pregOst;
     (void)vstidx2reg_map.insert(std::make_pair(varmeexpr->GetExprID(), curtemp));
@@ -190,6 +193,11 @@ void SSARename2Preg::Rename2PregLeafRHS(MeStmt *mestmt, const VarMeExpr *varmeex
   if (varreg != nullptr) {
     if (varreg->GetPrimType() != varmeexpr->GetPrimType()) {
       varreg = meirmap->CreateMeExprTypeCvt(varmeexpr->GetPrimType(), varreg->GetPrimType(), *varreg);
+    } else if (static_cast<ScalarMeExpr*>(varreg)->IsZeroVersion() && GetPrimTypeSize(varreg->GetPrimType()) < 4) {
+      // if reading garbage, need to truncate the garbage value
+      Opcode extOp = IsSignedInteger(varreg->GetPrimType()) ? OP_sext : OP_zext;
+      varreg = meirmap->CreateMeExprUnary(extOp, GetRegPrimType(varreg->GetPrimType()), *varreg);
+      static_cast<OpMeExpr *>(varreg)->SetBitsSize(GetPrimTypeSize(varmeexpr->GetPrimType()) * 8);
     }
     (void)meirmap->ReplaceMeExprStmt(*mestmt, *varmeexpr, *varreg);
   }
