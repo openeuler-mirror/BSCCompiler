@@ -1780,11 +1780,11 @@ class OpndDescription {
   }
 
   bool IsDef() const {
-    return (property & operand::kIsDef);
+    return (property & operand::kIsDef) != 0;
   }
 
   bool IsUse() const {
-    return (property & operand::kIsUse);
+    return (property & operand::kIsUse) != 0;
   }
 
   bool IsMemLow12() const {
@@ -1796,7 +1796,7 @@ class OpndDescription {
   }
 
   bool IsLoadLiteral() const {
-    return property & operand::kIsLoadLiteral;
+    return (property & operand::kIsLoadLiteral) != 0;
   }
 
 #define DEFINE_MOP(op, ...) static const OpndDescription op;

@@ -302,7 +302,6 @@ class A64OpndEmitVisitor : public OpndEmitVisitor {
     opndProp = nullptr;
   }
 
- private:
   void Visit(RegOperand *v) final;
   void Visit(ImmOperand *v) final;
   void Visit(MemOperand *v) final;
@@ -317,6 +316,7 @@ class A64OpndEmitVisitor : public OpndEmitVisitor {
   void Visit(OfstOperand *v) final;
   void Visit(ListOperand *v) final;
 
+ private:
   void EmitVectorOperand(const RegOperand &v);
   void EmitIntReg(const RegOperand &v, uint8 opndSz = kMaxSimm32);
 
@@ -347,7 +347,6 @@ class A64OpndDumpVisitor : public OpndTmpDumpVisitor {
   A64OpndDumpVisitor() : OpndTmpDumpVisitor() {}
   ~A64OpndDumpVisitor() override = default;
 
- private:
   void Visit(RegOperand *v) final;
   void Visit(ImmOperand *v) final;
   void Visit(MemOperand *v) final;
