@@ -102,8 +102,8 @@ class ImpExpr {
  public:
   ImpExpr(uint32 stmtId, uint32 paramIndex)
       : stmtId(stmtId), paramIndex(paramIndex) {}
-  int32 GetStmtId() { return stmtId; }
-  uint32 GetParamIndex() { return paramIndex; }
+  int32 GetStmtId() const { return stmtId; }
+  uint32 GetParamIndex() const { return paramIndex; }
 
  private:
   uint32 stmtId;
@@ -195,6 +195,7 @@ class MIRModule {
     if (pragmaMemPool) {
       memPoolCtrler.DeleteMemPool(pragmaMemPool);
     }
+    pragmaMemPool = nullptr;
   }
 
   MapleAllocator &GetMPAllocator() {

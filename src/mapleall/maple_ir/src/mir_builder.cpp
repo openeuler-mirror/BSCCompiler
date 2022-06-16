@@ -13,7 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "mir_builder.h"
-#include <string>
 #include "mir_symbol_builder.h"
 
 namespace maple {
@@ -331,6 +330,7 @@ MIRSymbol *MIRBuilder::GetOrCreateLocalDecl(const std::string &str, TyIdx tyIdx,
   created = true;
   strIdx = GetOrCreateStringIndex(str);
   MIRSymbol *st = symbolTable.CreateSymbol(kScopeLocal);
+  ASSERT(st != nullptr, "null ptr check");
   st->SetNameStrIdx(strIdx);
   st->SetTyIdx(tyIdx);
   (void)symbolTable.AddToStringSymbolMap(*st);
@@ -394,6 +394,7 @@ MIRSymbol *MIRBuilder::CreateGlobalDecl(const std::string &str, const MIRType &t
 MIRSymbol *MIRBuilder::GetOrCreateGlobalDecl(const std::string &str, const MIRType &type) {
   bool isCreated = false;
   MIRSymbol *st = GetOrCreateGlobalDecl(str, type.GetTypeIndex(), isCreated);
+  ASSERT(st != nullptr, "null ptr check");
   if (isCreated) {
     st->SetStorageClass(kScGlobal);
     st->SetSKind(kStVar);
@@ -642,7 +643,7 @@ AddrofNode *MIRBuilder::CreateExprDread(PregIdx pregID, PrimType pty) {
   return dread;
 }
 
-DreadoffNode *MIRBuilder::CreateExprDreadoff(Opcode op, PrimType pty, MIRSymbol &symbol, int32 offset) {
+DreadoffNode *MIRBuilder::CreateExprDreadoff(Opcode op, PrimType pty, const MIRSymbol &symbol, int32 offset) {
   DreadoffNode *node = GetCurrentFuncCodeMp()->New<DreadoffNode>(op, pty);
   node->stIdx = symbol.GetStIdx();
   node->offset = offset;
@@ -807,7 +808,8 @@ IassignoffNode *MIRBuilder::CreateStmtIassignoff(PrimType pty, int32 offset, Bas
   return GetCurrentFuncCodeMp()->New<IassignoffNode>(pty, offset, addr, src);
 }
 
-IassignFPoffNode *MIRBuilder::CreateStmtIassignFPoff(Opcode op, PrimType pty, int32 offset, BaseNode *src) {
+IassignFPoffNode *MIRBuilder::CreateStmtIassignFPoff(Opcode op, PrimType pty,
+                                                     int32 offset, BaseNode *src) {
   return GetCurrentFuncCodeMp()->New<IassignFPoffNode>(op, pty, offset, src);
 }
 

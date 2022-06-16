@@ -36,22 +36,22 @@ class MPISel {
 
   Operand *HandleExpr(const BaseNode &parent, BaseNode &expr);
 
-  void SelectDassign(DassignNode &stmt, Operand &opndRhs);
-  void SelectIassign(IassignNode &stmt, MPISel &iSel, BaseNode &addr, BaseNode &rhs);
-  void SelectIassignoff(IassignoffNode &stmt);
-  Operand* SelectDread(const BaseNode &parent, AddrofNode &expr);
-  Operand* SelectBand(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
-  Operand* SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
-  Operand* SelectSub(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
-  Operand* SelectNeg(UnaryNode &node, Operand &opnd0, const BaseNode &parent);
-  Operand* SelectCvt(const BaseNode &parent, TypeCvtNode &node, Operand &opnd0);
-  Operand* SelectExtractbits(const BaseNode &parent, ExtractbitsNode &node, Operand &opnd0);
-  Operand *SelectDepositBits(DepositbitsNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
+  void SelectDassign(const DassignNode &stmt, Operand &opndRhs);
+  void SelectIassign(const IassignNode &stmt, MPISel &iSel, BaseNode &addr, BaseNode &rhs);
+  void SelectIassignoff(const IassignoffNode &stmt);
+  Operand* SelectDread(const BaseNode &parent, const AddrofNode &expr);
+  Operand* SelectBand(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
+  Operand* SelectAdd(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
+  Operand* SelectSub(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
+  Operand* SelectNeg(const UnaryNode &node, Operand &opnd0, const BaseNode &parent);
+  Operand* SelectCvt(const BaseNode &parent, const TypeCvtNode &node, Operand &opnd0);
+  Operand* SelectExtractbits(const BaseNode &parent, const ExtractbitsNode &node, Operand &opnd0);
+  Operand *SelectDepositBits(const DepositbitsNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   CGImmOperand *SelectIntConst(MIRIntConst &intConst);
-  CGRegOperand *SelectRegread(RegreadNode &expr);
+  CGRegOperand *SelectRegread(RegreadNode &expr) const;
   void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
-  Operand *SelectShift(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
+  Operand *SelectShift(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   void SelectShift(Operand &resOpnd, Operand &o0, Operand &o1, Opcode shiftDirect, PrimType primType);
   void SelectBand(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectDiv(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
@@ -63,15 +63,15 @@ class MPISel {
   virtual Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent) = 0;
   virtual Operand &ProcessReturnReg(PrimType primType, int32 sReg) = 0 ;
   virtual void SelectCondGoto(CondGotoNode &stmt, BaseNode &condNode, Operand &opnd0) = 0;
-  Operand *SelectBior(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
-  Operand *SelectBxor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
-  Operand *SelectIread(const BaseNode &parent, IreadNode &expr, int extraOffset = 0);
-  Operand *SelectIreadoff(const BaseNode &parent, IreadoffNode &ireadoff);
+  Operand *SelectBior(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
+  Operand *SelectBxor(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
+  Operand *SelectIread(const BaseNode &parent, const IreadNode &expr, int extraOffset = 0);
+  Operand *SelectIreadoff(const BaseNode &parent, const IreadoffNode &ireadoff);
   virtual Operand *SelectMpy(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual Operand *SelectDiv(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual Operand *SelectCmpOp(CompareNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual Operand *SelectStrLiteral(ConststrNode &constStr) = 0;
-  Operand *SelectBnot(UnaryNode &node, Operand &opnd0, const BaseNode &parent);
+  Operand *SelectBnot(const UnaryNode &node, Operand &opnd0, const BaseNode &parent);
  protected:
   MemPool *isMp;
   CGFunc *cgFunc;

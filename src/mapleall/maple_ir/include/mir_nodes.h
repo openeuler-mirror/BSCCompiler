@@ -1404,6 +1404,7 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
  public:
   static std::atomic<uint32> stmtIDNext;  // for assigning stmtID, initialized to 1; 0 is reserved
   static uint32 lastPrintedLineNum;       // used during printing ascii output
+  static uint16 lastPrintedColumnNum;
 
   explicit StmtNode(Opcode o) : BaseNode(o), PtrListNodeBase(), stmtID(stmtIDNext), stmtOriginalID(stmtIDNext) {
     ++stmtIDNext;
@@ -2558,7 +2559,7 @@ class WhileStmtNode : public UnaryStmtNode {
     if (fromFreqs.count(GetStmtID()) > 0) {
       int64_t oldFreq = fromFreqs[GetStmtID()];
       int64_t newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
-      toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? newFreq : 1;
+      toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? static_cast<uint64_t>(newFreq) : 1;
       if (updateOp & kUpdateOrigFreq) {
         int64_t left = (oldFreq - newFreq) > 0 ? (oldFreq - newFreq) : 1;
         fromFreqs[GetStmtID()] = left;
@@ -2626,7 +2627,7 @@ class DoloopNode : public StmtNode {
       uint64_t numer, uint64_t denom, uint32_t updateOp) {
     auto *node = allocator.GetMemPool()->New<DoloopNode>(*this);
     node->SetStmtID(stmtIDNext++);
-   if (fromFreqs.count(GetStmtID()) > 0) {
+    if (fromFreqs.count(GetStmtID()) > 0) {
       int64_t oldFreq = fromFreqs[GetStmtID()];
       int64_t newFreq = oldFreq;
       if (updateOp & kUpdateFreqbyScale) { // used in inline/clone
@@ -2638,11 +2639,11 @@ class DoloopNode : public StmtNode {
         int64_t bodyFreq = fromFreqs[GetDoBody()->GetStmtID()];
         newFreq = denom > 0 ? (((bodyFreq * numer) % denom) + (oldFreq - bodyFreq)) : oldFreq;
       }
-      toFreqs[node->GetStmtID()] = newFreq;
+      toFreqs[node->GetStmtID()] = static_cast<uint64_t>(newFreq);
       ASSERT(oldFreq >= newFreq, "sanity check");
       if (updateOp & kUpdateOrigFreq) {
         int64_t left = oldFreq - newFreq;
-        fromFreqs[GetStmtID()] = left;
+        fromFreqs[GetStmtID()] = static_cast<uint64_t>(left);
       }
     }
     node->SetStartExpr(startExpr->CloneTree(allocator));

@@ -666,6 +666,7 @@ struct OffsetType {
 };
 
 class MIRStructType; // circular dependency exists, no other choice
+class MIRFuncType;
 
 class MIRType {
  public:
@@ -883,6 +884,19 @@ class MIRPtrType : public MIRType {
     hIdx += (typeAttrs.GetAttrFlag() << attrShift) + typeAttrs.GetAlignValue();
     return hIdx % kTypeHashLength;
   }
+  bool IsFunctionPtr() const {
+    MIRType *pointedType = GetPointedType();
+    if (pointedType->GetKind() == kTypeFunction) {
+      return true;
+    }
+    if (pointedType->GetKind() == kTypePointer) {
+      MIRPtrType *pointedPtrType = static_cast<MIRPtrType *>(pointedType);
+      return pointedPtrType->GetPointedType()->GetKind() == kTypeFunction;
+    }
+    return false;
+  }
+
+  MIRFuncType *GetPointedFuncType() const;
 
   bool PointsToConstString() const override;
 
@@ -928,7 +942,7 @@ class MIRArrayType : public MIRType {
     sizeArray[idx] = value;
   }
 
-  bool IsIncompleteArray() {
+  bool IsIncompleteArray() const {
     return typeAttrs.GetAttr(ATTR_incomplete_array);
   }
 

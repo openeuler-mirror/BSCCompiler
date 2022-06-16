@@ -107,7 +107,7 @@ void IpaSccPM::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   }
 }
 
-void SCCPrepare::Dump(MeFunction &f, const std::string phaseName) {
+void SCCPrepare::Dump(const MeFunction &f, const std::string phaseName) {
   if (Options::dumpIPA) {
     LogInfo::MapleLogger() << ">>>>> Dump after " << phaseName << " <<<<<\n";
     f.Dump(false);
@@ -157,7 +157,7 @@ bool SCCPrepare::PhaseRun(SCCNode<CGNode> &scc) {
   return false;
 }
 
-void SCCEmit::Dump(MeFunction &f, const std::string phaseName) {
+void SCCEmit::Dump(const MeFunction &f, const std::string phaseName) {
   if (Options::dumpIPA) {
     LogInfo::MapleLogger() << ">>>>> Dump after " << phaseName << " <<<<<\n";
     f.DumpFunctionNoSSA();

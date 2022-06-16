@@ -13,8 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "mir_type.h"
-#include <iostream>
-#include <cstring>
 #include "mir_symbol.h"
 #include "printing.h"
 #include "namemangler.h"
@@ -196,11 +194,11 @@ bool NeedCvtOrRetype(PrimType origin, PrimType compared) {
 
 #if TARGX86_64 || TARGAARCH64
 #if ILP32
-  #define POINTER_SIZE 4
-  #define POINTER_P2SIZE 2
+#define POINTER_SIZE 4
+#define POINTER_P2SIZE 2
 #else
-  #define POINTER_SIZE 8
-  #define POINTER_P2SIZE 3
+#define POINTER_SIZE 8
+#define POINTER_P2SIZE 3
 #endif
 #elif TARGX86 || TARGARM32 || TARGVM
   #define POINTER_SIZE 4
@@ -1153,7 +1151,9 @@ static void DumpMethods(MethodVector methods, int indent) {
   for (size_t i = 0; i < size; ++i) {
     LogInfo::MapleLogger() << '\n';
     PrintIndentation(indent);
-    LogInfo::MapleLogger() << "&" << GlobalTables::GetGsymTable().GetSymbolFromStidx(methods[i].first.Idx())->GetName();
+    MIRSymbol *mFirstSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(methods[i].first.Idx());
+    ASSERT(mFirstSymbol != nullptr, "null ptr check");
+    LogInfo::MapleLogger() << "&" << mFirstSymbol->GetName();
     methods[i].second.second.DumpAttributes();
     LogInfo::MapleLogger() << " (";
     auto *funcType =
@@ -1185,7 +1185,9 @@ static void DumpConstructorsAsCxx(MethodVector methods, int indent) {
     }
     auto *funcType = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(m.second.first));
     PrintIndentation(indent);
-    LogInfo::MapleLogger() << "/* &" << GlobalTables::GetGsymTable().GetSymbolFromStidx(m.first.Idx())->GetName();
+    MIRSymbol *mFirstSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(m.first.Idx());
+    ASSERT(mFirstSymbol != nullptr, "null ptr check");
+    LogInfo::MapleLogger() << "/* &" << mFirstSymbol->GetName();
     fa.DumpAttributes();
     LogInfo::MapleLogger() << " (";
     unsigned int j = 0;
@@ -1205,14 +1207,13 @@ static void DumpConstructorsAsCxx(MethodVector methods, int indent) {
     LogInfo::MapleLogger() << " */" << '\n';
     PrintIndentation(indent);
     LogInfo::MapleLogger() << "/* ";
-    LogInfo::MapleLogger() << namemangler::DecodeName(
-        GlobalTables::GetGsymTable().GetSymbolFromStidx(m.first.Idx())->GetName());
+    LogInfo::MapleLogger() << namemangler::DecodeName(mFirstSymbol->GetName());
     LogInfo::MapleLogger() << " */" << '\n';
     PrintIndentation(indent);
     LogInfo::MapleLogger() << "extern \"C\" ";
     // return type
     GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetRetTyIdx())->DumpAsCxx(0);
-    LogInfo::MapleLogger() << " " << GlobalTables::GetGsymTable().GetSymbolFromStidx(m.first.Idx())->GetName() << "( ";
+    LogInfo::MapleLogger() << " " << mFirstSymbol->GetName() << "( ";
     j = 0;
     for (auto &p : funcType->GetParamTypeList()) {
       GlobalTables::GetTypeTable().GetTypeFromTyIdx(p)->DumpAsCxx(indent + 1);
@@ -2282,6 +2283,20 @@ std::string MIRPtrType::GetCompactMplTypeName() const {
   MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointedTyIdx);
   CHECK_FATAL(pointedType != nullptr, "invalid ptr type");
   return pointedType->GetCompactMplTypeName();
+}
+
+MIRFuncType *MIRPtrType::GetPointedFuncType() const {
+  MIRType *pointedType = GetPointedType();
+  if (pointedType->GetKind() == kTypeFunction) {
+    return static_cast<MIRFuncType *>(pointedType);
+  }
+  if (pointedType->GetKind() == kTypePointer) {
+    MIRPtrType *pointedPtrType = static_cast<MIRPtrType *>(pointedType);
+    if (pointedPtrType->GetPointedType()->GetKind() == kTypeFunction) {
+      return static_cast<MIRFuncType *>(pointedPtrType->GetPointedType());
+    }
+  }
+  return nullptr;
 }
 
 uint32 MIRStructType::NumberOfFieldIDs() const {

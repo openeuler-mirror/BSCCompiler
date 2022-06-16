@@ -194,7 +194,7 @@ class MIRBuilder {
   virtual AddrofNode *CreateExprDread(MIRSymbol &symbol);
   AddrofNode *CreateExprDread(PregIdx pregID, PrimType pty);
   AddrofNode *CreateExprDread(MIRSymbol &symbol, uint16 fieldID);
-  DreadoffNode *CreateExprDreadoff(Opcode op, PrimType pty, MIRSymbol &symbol, int32 offset);
+  DreadoffNode *CreateExprDreadoff(Opcode op, PrimType pty, const MIRSymbol &symbol, int32 offset);
   RegreadNode *CreateExprRegread(PrimType pty, PregIdx regIdx);
   IreadNode *CreateExprIread(const MIRType &returnType, const MIRType &ptrType, FieldID fieldID, BaseNode *addr);
   IreadoffNode *CreateExprIreadoff(PrimType pty, int32 offset, BaseNode *opnd0);

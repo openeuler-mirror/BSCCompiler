@@ -69,8 +69,8 @@ class MIRFunction {
   MIRFunction(MIRModule *mod, StIdx idx)
       : module(mod),
         symbolTableIdx(idx) {
-          scope = module->GetMemPool()->New<MIRScope>(mod);
-        }
+    scope = module->GetMemPool()->New<MIRScope>(mod);
+  }
 
   ~MIRFunction() = default;
 
@@ -160,6 +160,7 @@ class MIRFunction {
   }
 
   void AddArgument(MIRSymbol *st) {
+    ASSERT(st != nullptr, "null ptr check");
     FormalDef formalDef(st->GetNameStrIdx(), st, st->GetTyIdx(), st->GetAttrs());
     formalDefVec.push_back(formalDef);
   }
@@ -656,10 +657,12 @@ class MIRFunction {
   }
 
   SrcPosition &GetSrcPosition() {
+    ASSERT(GetFuncSymbol() != nullptr, "null ptr check");
     return GetFuncSymbol()->GetSrcPosition();
   }
 
   void SetSrcPosition(const SrcPosition &position) {
+    ASSERT(GetFuncSymbol() != nullptr, "null ptr check");
     GetFuncSymbol()->SetSrcPosition(position);
   }
 
@@ -728,7 +731,7 @@ class MIRFunction {
   }
 
   MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {
-    return scope->aliasVarMap;
+    return scope->GetAliasVarMap();
   }
   void SetAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
     scope->SetAliasVarMap(idx, vars);
@@ -1190,7 +1193,7 @@ class MIRFunction {
     nCtrs = num;
   }
 
-  uint32 GetNumCtrs() {
+  uint32 GetNumCtrs() const {
     return nCtrs;
   }
 
@@ -1199,7 +1202,7 @@ class MIRFunction {
     fileLinenoChksum = chksum;
   }
 
-  uint64 GetFileLineNoChksum() {
+  uint64 GetFileLineNoChksum() const {
     return fileLinenoChksum;
   }
 
@@ -1208,7 +1211,7 @@ class MIRFunction {
     cfgChksum = chksum;
   }
 
-  uint64 GetCFGChksum() {
+  uint64 GetCFGChksum() const {
     return cfgChksum;
   }
 

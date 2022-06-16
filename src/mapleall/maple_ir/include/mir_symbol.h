@@ -443,12 +443,12 @@ class MIRSymbol {
     return nameStrIdx < msym.nameStrIdx;
   }
 
-  static uint32 LastPrintedLineNum() {
+  static uint32 &LastPrintedLineNumRef() {
     return lastPrintedLineNum;
   }
 
-  static void SetLastPrintedLineNum(uint32 val) {
-    lastPrintedLineNum = val;
+  static uint16 &LastPrintedColumnNumRef() {
+    return lastPrintedColumnNum;
   }
 
   bool HasPotentialAssignment() const {
@@ -479,16 +479,19 @@ class MIRSymbol {
     return storageClass == kScFormal;
   }
 
-  bool LMBCAllocateOffSpecialReg() {
+  bool LMBCAllocateOffSpecialReg() const {
     if (isDeleted) {
       return false;
     }
     switch (storageClass) {
       case kScFormal:
-      case kScAuto:    return true;
+      case kScAuto:
+        return true;
       case kScPstatic:
-      case kScFstatic: return value.konst == nullptr;
-      default:         return false;
+      case kScFstatic:
+        return value.konst == nullptr;
+      default:
+        return false;
     }
   }
 
@@ -526,6 +529,7 @@ class MIRSymbol {
   static GStrIdx reflectMethodNameIdx;
   static GStrIdx reflectFieldNameIdx;
   static uint32 lastPrintedLineNum;     // used during printing ascii output
+  static uint16 lastPrintedColumnNum;
 };
 
 class MIRSymbolTable {
@@ -587,7 +591,8 @@ class MIRSymbolTable {
     return GetSymbolFromStIdx(GetStIdxFromStrIdx(idx).Idx(), checkFirst);
   }
 
-  void Dump(bool isLocal, int32 indent = 0, bool printDeleted = false, MIRFlavor flavor = kFlavorUnknown) const;
+  void Dump(bool isLocal, int32 indent = 0, bool printDeleted = false,
+            MIRFlavor flavor = kFlavorUnknown) const;
   size_t GetSymbolTableSize() const {
     return symbolTable.size();
   }

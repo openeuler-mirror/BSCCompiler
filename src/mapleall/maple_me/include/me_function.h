@@ -202,8 +202,8 @@ class MeFunction : public FuncEmit {
   }
 
   void ReleaseVersMemory() {
-    if (versMemPool != nullptr) {
-      delete versMemPool;
+    if (versMemPool) {
+      memPoolCtrler.DeleteMemPool(versMemPool);
       versMemPool = nullptr;
       versAlloc.SetMemPool(nullptr);
     }
@@ -347,19 +347,19 @@ class MeFunction : public FuncEmit {
   void SetPme(bool set) { isPme = set; }
   void CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCands = nullptr,
                       bool copyWithoutLastMe = false);
-  bool IsTopLevelSSAValid() {
+  bool IsTopLevelSSAValid() const {
     return state & kSSATopLevel;
   }
-  bool IsAddrTakenSSAValid() {
+  bool IsAddrTakenSSAValid() const {
     return state & kSSAAddrTaken;
   }
   bool IsMemSSAValid() {
     return IsTopLevelSSAValid() && IsAddrTakenSSAValid();
   }
-  bool IsMeIRAvailable() {
+  bool IsMeIRAvailable() const {
     return (state & kSSAHSSA);
   }
-  bool IsMplIRAvailable() {
+  bool IsMplIRAvailable() const {
     return !(state & kSSAHSSA);
   }
 
