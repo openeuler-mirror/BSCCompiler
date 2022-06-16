@@ -229,7 +229,7 @@ static bool CannotInsertAfterStmt(const MeStmt &occStmt, OStIdx ostIdx, bool rea
   if (occStmt.GetOp() == OP_return || occStmt.GetOp() == OP_throw) {
     return true;
   }
-  BB *lastUseBB = occStmt.GetBB();
+  const BB *lastUseBB = occStmt.GetBB();
   if (&occStmt == to_ptr(lastUseBB->GetMeStmts().rbegin()) && lastUseBB->GetKind() != kBBFallthru) {
     return true;
   }
@@ -449,7 +449,7 @@ void PlacementRC::SetFormalParamsAttr(MIRFunction &mirFunc) const {
   }
 }
 
-void PlacementRC::DeleteEntryIncref(SRealOcc &realOcc, const UnaryMeStmt *entryIncref) const {
+void PlacementRC::DeleteEntryIncref(SRealOcc &realOcc, UnaryMeStmt *entryIncref) const {
   CHECK_NULL_FATAL(entryIncref);
   CHECK_FATAL(workCand->GetOst()->IsFormal(), "PlacementRC::CodeMotion: realOcc->meStmt cannot be null");
 
@@ -458,6 +458,7 @@ void PlacementRC::DeleteEntryIncref(SRealOcc &realOcc, const UnaryMeStmt *entryI
   auto *resetDass = irMap->CreateAssignMeStmt(*candVar, *irMap->CreateIntConstMeExpr(0, PTY_ptr), realOcc.GetBB());
   resetDass->SetSrcPos(entryIncref->GetSrcPosition());
   candVar->SetDefByStmt(*resetDass);
+  CHECK_FATAL(func->GetCfg()->GetFirstBB(), "firstBB is nullptr!");
   func->GetCfg()->GetFirstBB()->InsertMeStmtBefore(entryIncref, resetDass);
   func->GetCfg()->GetFirstBB()->RemoveMeStmt(entryIncref);
 }
@@ -559,7 +560,7 @@ void PlacementRC::CodeMotionForSLambdares(SLambdaResOcc &lambdaResOcc) {
   CheckAndInsert(lambdaResOcc.GetBB(), lambdaRealOcc);
 }
 
-void PlacementRC::CodeMotionForReal(SOcc &occ, const UnaryMeStmt *entryIncref) {
+void PlacementRC::CodeMotionForReal(SOcc &occ, UnaryMeStmt *entryIncref) {
   SRealOcc &realOcc = static_cast<SRealOcc&>(occ);
   if (realOcc.GetRedundant()) {
     return;
@@ -856,6 +857,7 @@ void PlacementRC::BuildWorkListBB(BB *bb) {
       continue;
     }
     const OriginalSt *ost = ssaTab->GetOriginalStFromID(it->first);
+    CHECK_FATAL(ost, "ost is nullptr!");
     if (!ost->IsSymbolOst() || ost->GetIndirectLev() != 0 || ost->IsIgnoreRC()) {
       continue;
     }

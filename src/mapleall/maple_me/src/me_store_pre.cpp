@@ -214,6 +214,7 @@ void MeStorePre::CreateRealOcc(const OStIdx &ostIdx, MeStmt &meStmt) {
     wkCand = mapIt->second;
   } else {
     OriginalSt *ost = ssaTab->GetSymbolOriginalStFromID(ostIdx);
+    CHECK_FATAL(ost, "ost is nullptr!");
     wkCand = spreMp->New<SpreWorkCand>(spreAllocator, *ost);
     workCandMap[ostIdx] = wkCand;
     // if it is local symbol, insert artificial use occ at common_exit_bb
@@ -245,6 +246,7 @@ void MeStorePre::CreateUseOcc(const OStIdx &ostIdx, BB &bb) {
   auto mapIt = workCandMap.find(ostIdx);
   if (mapIt == workCandMap.end()) {
     OriginalSt *ost = ssaTab->GetSymbolOriginalStFromID(ostIdx);
+    CHECK_FATAL(ost, "ost is nullptr!");
     wkCand = spreMp->New<SpreWorkCand>(spreAllocator, *ost);
     workCandMap[ostIdx] = wkCand;
     // if it is local symbol, insert artificial real occ at common_exit_bb
@@ -341,6 +343,7 @@ void MeStorePre::BuildWorkListBB(BB *bb) {
     }
     if (lhsOstIdx != 0u) {
       const OriginalSt *ost = ssaTab->GetOriginalStFromID(lhsOstIdx);
+      CHECK_FATAL(ost, "ost is nullptr!");
       if (!ost->IsVolatile()) {
         CreateRealOcc(lhsOstIdx, *to_ptr(stmt));
       }

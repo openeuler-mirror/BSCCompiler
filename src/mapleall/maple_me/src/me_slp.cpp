@@ -386,7 +386,8 @@ std::optional<int32> EstimateStackOffsetOfMemLoc(MemLoc *memLoc, MeFunction &fun
     auto *rhs = static_cast<AssignMeStmt*>(defStmt)->GetRHS();
     if (rhs->GetOp() == OP_addrof) {
       auto ostIdx = static_cast<AddrofMeExpr*>(rhs)->GetOstIdx();
-      auto ost = func.GetMeSSATab()->GetOriginalStFromID(ostIdx);
+      auto *ost = func.GetMeSSATab()->GetOriginalStFromID(ostIdx);
+      CHECK_FATAL(ost, "ost is nullptr");
       if (ost->IsLocal()) {
         return GetLocalSymApproximateOffset(ost->GetMIRSymbol(), func);
       }

@@ -368,21 +368,20 @@ void MePrediction::PredictByOpcode(const BB *bb) {
   Opcode cmp = testExpr->GetOp();
   Edge *e0 = edges[bb->GetBBId()];
   Edge *e1 = e0->next;
-  Edge *thenEdge;
-  if (isTrueBr) {
-    thenEdge = (e0->dest.GetBBLabel() == condStmt.GetOffset()) ? e0 : e1;
-  } else {
-    thenEdge = (e0->dest.GetBBLabel() == condStmt.GetOffset()) ? e1 : e0;
-  }
+  bool isE0BranchEdge = e0->dest.GetBBLabel() == condStmt.GetOffset();
+  Edge *jumpEdge = (isE0BranchEdge) ? e0 : e1;
 
   // prediction for builtin_expect
   if (condStmt.GetBranchProb() == kProbLikely) {
-    PredEdgeDef(*thenEdge, kPredBuiltinExpect, kNotTaken);
+    PredEdgeDef(*jumpEdge, kPredBuiltinExpect, kTaken);
     return;
   }
   if (condStmt.GetBranchProb() == kProbUnlikely) {
-    PredEdgeDef(*thenEdge, kPredBuiltinExpect, kTaken);
+    PredEdgeDef(*jumpEdge, kPredBuiltinExpect, kNotTaken);
+    return;
   }
+
+  Edge *thenEdge = (isTrueBr ^ isE0BranchEdge) ? e1 : e0;
 
   PrimType pty = op0->GetPrimType();
   bool isCmpPtr = MustBeAddress(cmpExpr->GetOpndType());
@@ -765,11 +764,11 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
   Edge *bestEdge = nullptr;
   for (size_t i = 0; i < bb.GetSucc().size(); ++i) {
     Edge *edge = FindEdge(bb, *bb.GetSucc(i));
+    CHECK_NULL_FATAL(edge);
     if (i == 0) {
       bestEdge = edge;
       tmp = edge->probability;
     } else {
-      CHECK_NULL_FATAL(edge);
       if (edge->probability > tmp) {
         tmp = edge->probability;
         bestEdge = edge;

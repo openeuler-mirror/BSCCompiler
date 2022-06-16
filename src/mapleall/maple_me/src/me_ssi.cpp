@@ -166,6 +166,7 @@ void MeSSI::InsertPiNodes() {
       SSIType careBranch{};
       careBranch.SetOptType(careOpt & ssiType.GetOptType());
       auto *brMeStmt = static_cast<CondGotoMeStmt*>(bb->GetLastMe());
+      CHECK_FATAL(brMeStmt, "brMeStmt is nullptr");
       BB *brTarget = bb->GetSucc(1);
       BB *brFallThru = bb->GetSucc(0);
       CHECK_FATAL(brMeStmt->GetOffset() == brTarget->GetBBLabel(), "must be");
