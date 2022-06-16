@@ -1018,6 +1018,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
         }
         VarMeExpr *varMeExpr = static_cast<VarMeExpr *>(dassMeStmt.GetVarLHS());
         const OriginalSt *ost = varMeExpr->GetOst();
+        CHECK_FATAL(ost, "ost is nullptr");
         if (ost->IsFinal()) {
           PreStmtWorkCand *stmtWkCand = CreateStmtRealOcc(stmt, seqStmt);
           stmtWkCand->SetLHSIsFinal(true);

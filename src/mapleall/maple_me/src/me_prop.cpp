@@ -54,6 +54,7 @@ bool MEMeProp::PhaseRun(maple::MeFunction &f) {
   bool propIloadRef = MeOption::propIloadRef;
   if (!propIloadRef) {
     MIRSymbol *fnSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(f.GetMirFunc()->GetStIdx().Idx());
+    CHECK_FATAL(fnSt, "fnSt is nullptr");
     const std::string &funcName = fnSt->GetName();
     propIloadRef = propWhiteList.find(funcName) != propWhiteList.end();
     if (DEBUGFUNC_NEWPM(f)) {

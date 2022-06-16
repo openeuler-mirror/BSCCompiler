@@ -2627,7 +2627,7 @@ class DoloopNode : public StmtNode {
       uint64_t numer, uint64_t denom, uint32_t updateOp) {
     auto *node = allocator.GetMemPool()->New<DoloopNode>(*this);
     node->SetStmtID(stmtIDNext++);
-   if (fromFreqs.count(GetStmtID()) > 0) {
+    if (fromFreqs.count(GetStmtID()) > 0) {
       int64_t oldFreq = fromFreqs[GetStmtID()];
       int64_t newFreq = oldFreq;
       if (updateOp & kUpdateFreqbyScale) { // used in inline/clone

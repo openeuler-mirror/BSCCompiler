@@ -194,11 +194,11 @@ bool NeedCvtOrRetype(PrimType origin, PrimType compared) {
 
 #if TARGX86_64 || TARGAARCH64
 #if ILP32
-  #define POINTER_SIZE 4
-  #define POINTER_P2SIZE 2
+#define POINTER_SIZE 4
+#define POINTER_P2SIZE 2
 #else
-  #define POINTER_SIZE 8
-  #define POINTER_P2SIZE 3
+#define POINTER_SIZE 8
+#define POINTER_P2SIZE 3
 #endif
 #elif TARGX86 || TARGARM32 || TARGVM
   #define POINTER_SIZE 4
@@ -2287,7 +2287,7 @@ std::string MIRPtrType::GetCompactMplTypeName() const {
   return pointedType->GetCompactMplTypeName();
 }
 
-MIRFuncType *MIRPtrType::GetPointedFuncType() {
+MIRFuncType *MIRPtrType::GetPointedFuncType() const {
   MIRType *pointedType = GetPointedType();
   if (pointedType->GetKind() == kTypeFunction) {
     return static_cast<MIRFuncType *>(pointedType);

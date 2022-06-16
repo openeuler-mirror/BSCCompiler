@@ -530,6 +530,7 @@ bool IVOptimizer::FindBasicIVs() {
       continue;
     }
     OriginalSt *ost = func.GetMeSSATab()->GetOriginalStFromID(phi.first);
+    CHECK_FATAL(ost, "ost is nullptr!");
     if (!ost->IsIVCandidate()) {
       continue;
     }
@@ -991,6 +992,7 @@ bool IVOptimizer::LHSEscape(const ScalarMeExpr *lhs) {
     if (useSite.IsUseByPhi()) {
       auto *useBB = useSite.GetPhi()->GetDefBB();
       auto *iv = data->GetIV(*lhs);
+      CHECK_FATAL(iv, "iv is nullptr");
       if (useBB != data->currLoop->head || !iv->isBasicIV) {
         return true;
       }
@@ -1006,6 +1008,7 @@ void IVOptimizer::FindGeneralIVInStmt(MeStmt &stmt) {
     isUsedInAddr |= stmt.GetOp() == OP_assertnonnull;
     if (FindGeneralIVInExpr(stmt, *opnd, isUsedInAddr)) {
       auto *iv = data->GetIV(*opnd);
+      CHECK_FATAL(iv, "iv is nullptr!");
       if (stmt.GetOp() == OP_regassign || stmt.GetOp() == OP_dassign) {
         // record lhs scalar same (base, step) iv as rhs
         data->CreateIV(stmt.GetLHS(), iv->base, iv->step, false);

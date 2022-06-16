@@ -1129,6 +1129,7 @@ void RCLowering::HandleArguments() {
   // insert incref at entry and decref before all returns
   MIRFunction *mirFunc = func.GetMirFunc();
   BB *firstBB = func.GetCfg()->GetFirstBB();
+  CHECK_FATAL(firstBB, "firstBB is nullptr!");
   MeStmt *firstMeStmt = to_ptr(firstBB->GetMeStmts().begin());
   for (size_t i = (mirFunc->IsStatic() ? 0 : 1); i < mirFunc->GetFormalCount(); ++i) {
     MIRSymbol *sym = mirFunc->GetFormal(i);
@@ -1214,6 +1215,7 @@ void RCLowering::ParseCheckFlag() {
 void RCLowering::CheckFormals() {
   MIRFunction *mirFunc = func.GetMirFunc();
   BB *firstBB = func.GetCfg()->GetFirstBB();
+  CHECK_FATAL(firstBB, "firstBB is nullptr!");
   if (firstBB->IsMeStmtEmpty()) {
     return;
   }

@@ -35,7 +35,6 @@ class ValidBitPattern {
     return "cgvalidbitopt";
   }
 
- protected:
   virtual std::string GetPatternName() = 0;
   virtual bool CheckCondition(Insn &insn) = 0;
   virtual void Run(BB &bb, Insn &insn) = 0;
@@ -43,6 +42,7 @@ class ValidBitPattern {
   InsnSet GetAllUseInsn(const RegOperand &defReg);
   void DumpAfterPattern(std::vector<Insn*> &prevInsns, const Insn *replacedInsn, const Insn *newInsn);
 
+ protected:
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;
 };
@@ -75,7 +75,6 @@ class ValidBitOpt {
     return (__builtin_popcountll(static_cast<uint64>(val)) == 1) ? (__builtin_ffsll(val) - 1) : -1;
   }
 
- protected:
   template<typename VBOpt>
   void Optimize(BB &bb, Insn &insn) {
     VBOpt opt(*cgFunc, *ssaInfo);
@@ -86,6 +85,8 @@ class ValidBitOpt {
   void RecoverValidBitNum();
   virtual void SetValidBits(Insn &insn) = 0;
   virtual bool SetPhiValidBits(Insn &insn) = 0;
+
+ protected:
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;
 };

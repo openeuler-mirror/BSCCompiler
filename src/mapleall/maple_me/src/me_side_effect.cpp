@@ -636,6 +636,7 @@ bool IpaSideEffect::UpdateSideEffectWithStmt(MeStmt &meStmt,
       }
       VarMeExpr *dread = static_cast<VarMeExpr*>(baseNode);
       const OriginalSt *ost = meFunc.GetMeSSATab()->GetSymbolOriginalStFromID(dread->GetOstIdx());
+      CHECK_FATAL(ost, "ost is nullptr!");
       if (ost->GetMIRSymbol()->IsGlobal() || globalExprs.find(dread) != globalExprs.end()) {
         SetHasDef();
       } else if (meFunc.GetMirFunc()->IsAFormal(ost->GetMIRSymbol()) || argExprs.find(dread) != argExprs.end()) {

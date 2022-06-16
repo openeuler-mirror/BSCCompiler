@@ -114,6 +114,7 @@ void MeSSA::InsertIdentifyAssignments(IdentifyLoops *identloops) {
     std::set<OriginalSt *, OriginalSt::OriginalStPtrComparator> ostSet;
     for (auto& mapEntry: (headbb->GetPhiList())) {
       OriginalSt *ost = func->GetMeSSATab()->GetOriginalStFromID(mapEntry.first);
+      CHECK_FATAL(ost, "ost is nullptr");
       if (ost->IsIVCandidate()) {
         ostSet.insert(ost);
       }

@@ -1472,7 +1472,7 @@ class MeStmt {
     originalId = id;
   }
 
-  uint32 GetMeStmtId() {
+  uint32 GetMeStmtId() const {
     return meStmtId;
   }
 

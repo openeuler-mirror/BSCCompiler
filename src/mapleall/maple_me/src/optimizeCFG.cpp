@@ -1,5 +1,4 @@
 /*
-        }
  * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
@@ -34,6 +33,7 @@ std::pair<BB *, BB *> GetTrueFalseBrPair(BB *bb) {
   }
   if (bb->GetKind() == kBBCondGoto) {
     auto *condBr = static_cast<CondGotoMeStmt*>(bb->GetLastMe());
+    CHECK_FATAL(condBr, "condBr is nullptr!");
     if (condBr->GetOp() == OP_brtrue) {
       return { bb->GetSucc(1), bb->GetSucc(0) };
     } else {
@@ -914,6 +914,7 @@ bool OptimizeBB::EliminateRedundantPhiList() {
 
 // Eliminate redundant philist in bb which has only one pred
 bool OptimizeBB::EliminateRedundantPhiList(BB *bb) {
+  CHECK_FATAL(bb, "bb is null!");
   if (bb->GetPred().size() != 1) {
     return false;
   }
@@ -1005,6 +1006,7 @@ bool OptimizeBB::OptimizeCondBB2UnCond() {
     MeStmt *brStmt = currBB->GetLastMe();
     MeExpr *condExpr = brStmt->GetOpnd(0);
     if (condExpr->GetMeOp() == kMeOpConst) {
+      CHECK_FATAL(brStmt, "brStmt is nullptr!");
       bool isCondTrue = (!condExpr->IsZero());
       bool isBrtrue = (brStmt->GetOp() == OP_brtrue);
       if (isCondTrue ^ isBrtrue) { // goto fallthru BB
@@ -1111,6 +1113,7 @@ bool OptimizeBB::RemoveSuccFromNoReturnBB() {
       currBB->RemoveAllSucc();
     }
     while (currBB->GetLastMe() != exceptionStmt) {
+      CHECK_FATAL(currBB->GetLastMe(), "LastMe is nullptr!");
       currBB->GetLastMe()->SetIsLive(false);
       currBB->RemoveLastMeStmt();
     }
@@ -1135,6 +1138,7 @@ bool OptimizeBB::RemoveSuccFromNoReturnBB() {
     BB *retBB = GetFirstReturnBB();
     if (retBB != currBB) {
       DEBUG_LOG() << "Connect BB" << LOG_BBID(currBB) << " to return BB" << LOG_BBID(retBB) << "\n";
+      CHECK_FATAL(retBB, "retBB is nullptr!");
       currBB->AddSucc(*retBB);
       auto *gotoStmt = irmap->CreateGotoMeStmt(f.GetOrCreateBBLabel(*retBB), currBB);
       currBB->AddMeStmtLast(gotoStmt);
@@ -1417,6 +1421,7 @@ bool OptimizeBB::CondBranchToSelect() {
     }
   }
   MeStmt *condStmt = currBB->GetLastMe();
+  CHECK_FATAL(condStmt, "condStmt is nullptr!");
   MeExpr *trueExpr = (condStmt->GetOp() == OP_brtrue) ? gtRHS : ftRHS;
   MeExpr *falseExpr = (trueExpr == gtRHS) ? ftRHS : gtRHS;
 
@@ -1443,6 +1448,7 @@ bool OptimizeBB::CondBranchToSelect() {
   MeExpr *selExpr = irmap->CreateMeExprSelect(resLHS->GetPrimType(), *condExpr, *trueExpr, *falseExpr);
   MeExpr *simplifiedSel = irmap->SimplifyMeExpr(selExpr);
   AssignMeStmt *newAssStmt = irmap->CreateAssignMeStmt(*resLHS, *simplifiedSel, *currBB);
+  CHECK_FATAL(currBB->GetLastMe(), "LastMe is nullptr!");
   newAssStmt->SetSrcPos(currBB->GetLastMe()->GetSrcPosition());
   // here we do not remove condStmt, because it will be delete in BranchBB2UncondBB
   currBB->InsertMeStmtBefore(condStmt, newAssStmt);
@@ -1679,6 +1685,8 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
   }
   auto *predBr = static_cast<CondGotoMeStmt*>(pred.GetLastMe());
   auto *succBr = static_cast<CondGotoMeStmt*>(succ.GetLastMe());
+  CHECK_FATAL(predBr, "predBr is nullptr!");
+  CHECK_FATAL(succBr, "succBr is nullptr!");
   if (!IsAllOpndsNotDefByCurrBB(*succBr)) {
     return false;
   }
@@ -1709,6 +1717,7 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
     // if newTarget is succ's gotoBB, and it has fallthru pred, we should add a goto stmt to succ's last
     // to replace condGoto stmt. Otherwise, newTarget will have two fallthru pred
     if (newTarget == FindFirstRealSucc(succ.GetSucc(1)) && HasFallthruPred(*newTarget)) {
+      CHECK_FATAL(succ.GetLastMe(), "LastMe is nullptr!");
       auto *gotoStmt =
           irmap->CreateGotoMeStmt(f.GetOrCreateBBLabel(*newTarget), &succ, &succ.GetLastMe()->GetSrcPosition());
       succ.ReplaceMeStmt(succ.GetLastMe(), gotoStmt);
@@ -1749,6 +1758,7 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
     newBB->SetAttributes(succ.GetAttributes());
     if (HasFallthruPred(*newTarget)) {
       // insert a gotostmt to avoid duplicate fallthru pred
+      CHECK_FATAL(succ.GetLastMe(), "LastMe is nullptr!");
       auto *gotoStmt =
           irmap->CreateGotoMeStmt(f.GetOrCreateBBLabel(*newTarget), newBB, &succ.GetLastMe()->GetSrcPosition());
       newBB->AddMeStmtLast(gotoStmt);
@@ -1950,6 +1960,7 @@ bool OptimizeBB::MergeGotoBBToPred(BB *succ, BB *pred) {
   }
   // pred is moved to newTarget
   if (pred->GetKind() == kBBFallthru) {
+    CHECK_FATAL(succ->GetLastMe(), "LastMe is nullptr!");
     GotoMeStmt *gotoMeStmt = irmap->CreateGotoMeStmt(newTarget->GetBBLabel(), pred,
                                                      &succ->GetLastMe()->GetSrcPosition());
     pred->AddMeStmtLast(gotoMeStmt);
@@ -2067,6 +2078,7 @@ bool OptimizeBB::OptimizeSwitchBB() {
   CHECK_CURR_BB();
   ONLY_FOR_MEIR();
   auto *swStmt = static_cast<SwitchMeStmt*>(currBB->GetLastMe());
+  CHECK_FATAL(swStmt, "swStmt is nullptr!");
   if (swStmt->GetOpnd()->GetMeOp() != kMeOpConst) {
     return false;
   }
@@ -2218,8 +2230,10 @@ bool OptimizeBB::FoldBranchToCommonDest(BB *pred, BB *succ) {
   }
   // we have found a pattern
   auto *succCondBr = static_cast<CondGotoMeStmt*>(succ->GetLastMe());
+  CHECK_FATAL(succCondBr, "succCondBr is nullptr!");
   MeExpr *succCond = succCondBr->GetOpnd();
   auto *predCondBr = static_cast<CondGotoMeStmt*>(pred->GetLastMe());
+  CHECK_FATAL(predCondBr, "predCondBr is nullptr!");
   MeExpr *predCond = predCondBr->GetOpnd();
   // Check for safety
   if (!IsSafeToMergeCond(predCond, succCond)) {

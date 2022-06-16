@@ -39,6 +39,7 @@ void VectorVersionStacks::InsertZeroVersion2RenameStack(SSATab &ssaTab, IRMap &i
       continue;
     }
     OriginalSt *ost = ssaTab.GetOriginalStFromID(OStIdx(i));
+    CHECK_FATAL(ost, "ost is nullptr");
     ScalarMeExpr *zeroVersScalar =
         (ost->IsSymbolOst()) ? irMap.GetOrCreateZeroVersionVarMeExpr(*ost) : irMap.CreateRegMeExprVersion(*ost);
     auto renameStack = renameWithVectorStacks.at(i).get();
@@ -133,9 +134,10 @@ void MeSSAUpdate::InsertPhis() {
       auto *phiMeNode = irMap.NewInPool<MePhiNode>();
       phiMeNode->SetDefBB(bb);
       phiMeNode->GetOpnds().resize(bb->GetPred().size());
-      auto *ost = ssaTab.GetOriginalStFromID(it->first);
+      auto *ost1 = ssaTab.GetOriginalStFromID(it->first);
+      CHECK_FATAL(ost1, "ost1 is nullptr!");
       ScalarMeExpr *newScalar =
-          (ost->IsSymbolOst()) ? irMap.CreateVarMeExprVersion(ost) : irMap.CreateRegMeExprVersion(*ost);
+          (ost1->IsSymbolOst()) ? irMap.CreateVarMeExprVersion(ost1) : irMap.CreateRegMeExprVersion(*ost1);
       phiMeNode->UpdateLHS(*newScalar);
       (void)bb->GetMePhiList().insert(std::make_pair(it->first, phiMeNode));
     }

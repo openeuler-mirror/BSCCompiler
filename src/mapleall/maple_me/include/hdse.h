@@ -33,14 +33,16 @@ class HDSE {
         postDom(pDom),
         irMap(map),
         aliasInfo(aliasClass),
-        bbRequired(bbVec.size(), false),
-        decoupleStatic(decouple) {}
+        bbRequired(bbVec.size(),false,irMap.GetIRMapAlloc().Adapter()),
+        exprLive(irMap.GetIRMapAlloc().Adapter()),
+        decoupleStatic(decouple),
+        verstUseCounts(irMap.GetIRMapAlloc().Adapter()) {}
 
   virtual ~HDSE() = default;
 
   void DoHDSE();
   void InvokeHDSEUpdateLive();
-  bool NeedUNClean() {
+  bool NeedUNClean() const {
     return needUNClean;
   }
   void SetRemoveRedefine(bool val) {
@@ -121,8 +123,8 @@ class HDSE {
   Dominance &postDom;
   IRMap &irMap;
   const AliasClass *aliasInfo;
-  std::vector<bool> bbRequired;
-  std::vector<bool> exprLive;
+  MapleVector<bool> bbRequired;
+  MapleVector<bool> exprLive;
   std::forward_list<MeExpr*> workList;
   std::unordered_map<MeStmt*, std::vector<MeExpr*>> stmt2NotNullExpr;
   std::unordered_map<MeExpr*, std::vector<MeStmt*>> notNullExpr2Stmt;
@@ -136,7 +138,7 @@ class HDSE {
   bool decoupleStatic = false;
   bool needUNClean = false;  // used to record if there's unreachable BB
   bool removeRedefine = false;  // used to control if run ResolveContinuousRedefine()
-  std::vector<uint32> verstUseCounts; // index is vstIdx
+  MapleVector<uint32> verstUseCounts; // index is vstIdx
   std::forward_list<DassignMeStmt *> backSubsCands; // backward substitution candidates
 };
 }  // namespace maple

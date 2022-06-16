@@ -67,8 +67,7 @@ void OptimizationPattern::Search2Op(bool noOptimize) {
   BB *curBB = cgFunc->GetFirstBB();
   while (curBB != nullptr) {
     bool changed = false;
-    do
-    {
+    do{
       changed = Optimize(*curBB);
     } while (changed);
     if (keepPosition) {
@@ -240,6 +239,7 @@ void DotGenerator::DumpBBInstructions(const CGFunc &cgFunction, regno_t vReg, st
     }
     cfgFile << "{ ";
     cfgFile << bb->GetKindName() << "\n";
+    cfgFile << bb->GetFrequency() << "\n";
     if (bb->GetLabIdx() != 0) {
       cfgFile << "LabIdx=" << bb->GetLabIdx() << "\n";
     }

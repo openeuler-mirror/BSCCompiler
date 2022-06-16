@@ -22,6 +22,7 @@ void SubsumRC::SetCantSubsum() {
     }
     for (auto it : bb->GetMePhiList()) {
       const OriginalSt *ost = ssaTab->GetOriginalStFromID(it.first);
+      CHECK_FATAL(ost, "ost is nullptr!");
       if (!ost->IsSymbolOst() || ost->GetIndirectLev() != 0) {
         continue;
       }
@@ -251,6 +252,7 @@ void SubsumRC::BuildWorkListBB(BB *bb) {
       continue;
     }
     const OriginalSt *lhsOst = ssaTab->GetSymbolOriginalStFromID(lhs->GetOstIdx());
+    CHECK_FATAL(lhsOst, "lhsOst is nullptr!");
     if (lhsOst->IsLocal() || lhsOst->IsEPreLocalRefVar()) {
       auto mItemLhs = irMap->FindDecrefItem(*lhs);
       if (mItemLhs == irMap->GetDecrefsEnd()) {

@@ -166,19 +166,19 @@ struct AArch64MD {
   }
 
   bool IsCall() const {
-    return properties & ISCALL;
+    return (properties & ISCALL) != 0;
   }
 
   bool IsPhi() const {
-    return properties & ISPHI;
+    return (properties & ISPHI) != 0;
   }
 
   bool HasLoop() const {
-    return properties & HASLOOP;
+    return (properties & HASLOOP) != 0;
   }
 
   bool CanThrow() const {
-    return properties & CANTHROW;
+    return (properties & CANTHROW) != 0;
   }
 
   OpndProp *GetOperand(int nth) const {
@@ -260,19 +260,19 @@ struct AArch64MD {
   }
 
   bool IsCondDef() const {
-    return properties & ISCONDDEF;
+    return (properties & ISCONDDEF) != 0;
   }
 
   bool IsPartDef() const {
-    return properties & ISPARTDEF;
+    return (properties & ISPARTDEF) != 0;
   }
 
   bool IsVectorOp() const {
-    return properties & ISVECTOR;
+    return (properties & ISVECTOR) != 0;
   }
 
   bool IsNop() const {
-    return properties & ISNOP;
+    return (properties & ISNOP) != 0;
   }
 
   uint32 GetLatencyType() const {

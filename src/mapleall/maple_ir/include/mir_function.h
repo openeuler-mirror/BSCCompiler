@@ -1193,7 +1193,7 @@ class MIRFunction {
     nCtrs = num;
   }
 
-  uint32 GetNumCtrs() {
+  uint32 GetNumCtrs() const {
     return nCtrs;
   }
 
@@ -1202,7 +1202,7 @@ class MIRFunction {
     fileLinenoChksum = chksum;
   }
 
-  uint64 GetFileLineNoChksum() {
+  uint64 GetFileLineNoChksum() const {
     return fileLinenoChksum;
   }
 
@@ -1211,7 +1211,7 @@ class MIRFunction {
     cfgChksum = chksum;
   }
 
-  uint64 GetCFGChksum() {
+  uint64 GetCFGChksum() const {
     return cfgChksum;
   }
 

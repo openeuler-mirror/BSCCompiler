@@ -31,7 +31,7 @@ class DefaultO0RegAllocator : public RegAllocator {
         regLiveness(alloc.Adapter()),
         rememberRegs(alloc.Adapter()) {
     regInfo = cgFunc.GetTargetRegInfo();
-    availRegSet.resize(regInfo->GetAllRegNum(), false);
+    availRegSet.resize(regInfo->GetAllRegNum());
   }
 
   ~DefaultO0RegAllocator() override {

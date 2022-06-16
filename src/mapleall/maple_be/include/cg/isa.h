@@ -134,22 +134,22 @@ struct InsnDescription {
       std::function<bool (const InsnDescription &left, const InsnDescription &right)> cmp) const;
 
   bool IsCall() const {
-    return properties & ISCALL;
+    return (properties & ISCALL) != 0;
   }
   bool IsPhi() const {
-    return properties & ISPHI;
+    return (properties & ISPHI) != 0;
   }
   bool IsPhysicalInsn() const {
-    return !(properties & ISABSTRACT);
+    return (properties & ISABSTRACT) == 0;
   }
   bool IsStore() const {
-    return (properties & ISSTORE);
+    return (properties & ISSTORE) != 0;
   }
   bool IsLoad() const {
-    return (properties & ISLOAD);
+    return (properties & ISLOAD) != 0;
   }
   bool IsConversion() const {
-    return (properties & ISCONVERSION);
+    return (properties & ISCONVERSION) != 0;
   }
   bool IsLoadPair() const {
     return (properties & (ISLOADPAIR)) != 0;
@@ -161,13 +161,13 @@ struct InsnDescription {
     return (properties & (ISLOADPAIR | ISSTOREPAIR)) != 0;
   }
   bool IsMove() const {
-    return (properties & ISMOVE);
+    return (properties & ISMOVE) != 0;
   }
   bool IsDMB() const {
     return (properties & (ISDMB)) != 0;
   }
   bool IsBasicOp() const {
-    return (properties & ISBASICOP);
+    return (properties & ISBASICOP) != 0;
   }
   bool IsCondBranch() const {
     return (properties & (ISCONDBRANCH)) != 0;
@@ -182,13 +182,13 @@ struct InsnDescription {
     return (properties & ISATOMIC) != 0;
   }
   bool IsCondDef() const {
-    return properties & ISCONDDEF;
+    return (properties & ISCONDDEF) != 0;
   }
   bool IsPartDef() const {
-    return properties & ISPARTDEF;
+    return (properties & ISPARTDEF) != 0;
   }
   bool IsVectorOp() const {
-    return properties & ISVECTOR;
+    return (properties & ISVECTOR) != 0;
   }
   bool IsVolatile() const {
     return ((properties & HASRELEASE) != 0) || ((properties & HASACQUIRE) != 0);
@@ -203,10 +203,10 @@ struct InsnDescription {
     return (properties & (ISCONDBRANCH | ISUNCONDBRANCH)) != 0;
   }
   bool HasLoop() const {
-    return properties & HASLOOP;
+    return (properties & HASLOOP) != 0;
   }
   bool CanThrow() const {
-    return properties & CANTHROW;
+    return (properties & CANTHROW) != 0;
   }
   MOperator GetOpc() const {
     return opc;
@@ -218,10 +218,10 @@ struct InsnDescription {
     return latencyType;
   }
   bool IsUnaryOp() const {
-    return (properties & ISUNARYOP);
+    return (properties & ISUNARYOP) != 0;
   }
   bool IsShift() const {
-    return (properties & ISSHIFT);
+    return (properties & ISSHIFT) != 0;
   }
   const std::string &GetName() const {
     return name;

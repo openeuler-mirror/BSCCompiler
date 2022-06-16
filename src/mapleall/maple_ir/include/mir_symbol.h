@@ -479,7 +479,7 @@ class MIRSymbol {
     return storageClass == kScFormal;
   }
 
-  bool LMBCAllocateOffSpecialReg() {
+  bool LMBCAllocateOffSpecialReg() const {
     if (isDeleted) {
       return false;
     }

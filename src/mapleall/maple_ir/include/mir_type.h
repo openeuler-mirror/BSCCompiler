@@ -884,7 +884,7 @@ class MIRPtrType : public MIRType {
     hIdx += (typeAttrs.GetAttrFlag() << attrShift) + typeAttrs.GetAlignValue();
     return hIdx % kTypeHashLength;
   }
-  bool IsFunctionPtr() {
+  bool IsFunctionPtr() const {
     MIRType *pointedType = GetPointedType();
     if (pointedType->GetKind() == kTypeFunction) {
       return true;
@@ -896,7 +896,7 @@ class MIRPtrType : public MIRType {
     return false;
   }
 
-  MIRFuncType *GetPointedFuncType();
+  MIRFuncType *GetPointedFuncType() const;
 
   bool PointsToConstString() const override;
 
@@ -942,7 +942,7 @@ class MIRArrayType : public MIRType {
     sizeArray[idx] = value;
   }
 
-  bool IsIncompleteArray() {
+  bool IsIncompleteArray() const {
     return typeAttrs.GetAttr(ATTR_incomplete_array);
   }
 

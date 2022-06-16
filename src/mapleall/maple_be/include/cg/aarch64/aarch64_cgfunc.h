@@ -749,6 +749,12 @@ class AArch64CGFunc : public CGFunc {
     return lmbcCallReturnType;
   }
 
+  bool IsSPOrFP(const RegOperand &opnd) const override;
+  bool IsReturnReg(const RegOperand &opnd) const override;
+  bool IsSaveReg(const RegOperand &reg, MIRType &mirType, BECommon &cgBeCommon) const override;
+
+  RegOperand &GetZeroOpnd(uint32 size) override;
+
  private:
   enum RelationOperator : uint8 {
     kAND,
@@ -824,11 +830,7 @@ class AArch64CGFunc : public CGFunc {
                           AArch64isa::MemoryOrdering memOrd, bool isDirect);
   MOperator PickJmpInsn(Opcode brOp, Opcode cmpOp, bool isFloat, bool isSigned) const;
   bool IsFrameReg(const RegOperand &opnd) const override;
-  bool IsSPOrFP(const RegOperand &opnd) const override;
-  bool IsReturnReg(const RegOperand &opnd) const override;
-  bool IsSaveReg(const RegOperand &reg, MIRType &mirType, BECommon &cgBeCommon) const override;
 
-  RegOperand &GetZeroOpnd(uint32 size) override;
   PrimType GetOperandTy(bool isIntty, uint32 dsize, bool isSigned) const {
     ASSERT(!isSigned || isIntty, "");
     return (isIntty ? ((dsize == k64BitSize) ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32))

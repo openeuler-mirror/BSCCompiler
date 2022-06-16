@@ -13,12 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "mir_module.h"
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <algorithm>
-#include <unordered_set>
-#include <cctype>
 #include "mir_const.h"
 #include "mir_preg.h"
 #include "mir_function.h"
@@ -67,6 +61,7 @@ MIRModule::~MIRModule() {
   for (MIRFunction *mirFunc : functionList) {
     mirFunc->ReleaseCodeMemory();
   }
+  ReleasePragmaMemPool();
   delete memPool;
   delete binMplt;
 }
@@ -271,6 +266,7 @@ void MIRModule::DumpGlobals(bool emitStructureType) const {
     // dump javaclass and javainterface first
     for (auto sit = symbolDefOrder.begin(); sit != symbolDefOrder.end(); ++sit) {
       MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx((*sit).Idx());
+      ASSERT(s != nullptr, "null ptr check");
       if (!s->IsJavaClassInterface()) {
         continue;
       }
@@ -300,7 +296,9 @@ void MIRModule::Dump(bool emitStructureType, const std::unordered_set<std::strin
 void MIRModule::DumpGlobalArraySymbol() const {
   for (StIdx stIdx : symbolSet) {
     MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx());
+    ASSERT(symbol != nullptr, "null ptr check");
     MIRType *symbolType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(symbol->GetTyIdx());
+    ASSERT(symbolType != nullptr, "null ptr check");
     if (symbolType == nullptr || symbolType->GetKind() != kTypeArray) {
       continue;
     }
@@ -423,6 +421,7 @@ void MIRModule::DumpInlineCandidateToFile(const std::string &fileNameStr) {
   // dump global variables needed for inlining file
   for (auto symbolIdx : inliningGlobals) {
     MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx(symbolIdx);
+    ASSERT(s != nullptr, "null ptr check");
     if (s->GetStorageClass() == kScFstatic) {
       if (s->IsNeedForwDecl()) {
         // const string, including initialization
@@ -432,6 +431,7 @@ void MIRModule::DumpInlineCandidateToFile(const std::string &fileNameStr) {
   }
   for (auto symbolIdx : inliningGlobals) {
     MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx(symbolIdx);
+    ASSERT(s != nullptr, "null ptr check");
     MIRStorageClass sc = s->GetStorageClass();
     if (s->GetStorageClass() == kScFstatic) {
       if (!s->IsNeedForwDecl()) {
@@ -783,8 +783,8 @@ bool MIRModule::HasNotWarned(uint32 position, uint32 stmtOriginalID) {
     return true;
   }
   if (warnedOp->second.find(stmtOriginalID) == warnedOp->second.end()) {
-     warnedOp->second.emplace(stmtOriginalID);
-     return true;
+    warnedOp->second.emplace(stmtOriginalID);
+    return true;
   }
   return false;
 }

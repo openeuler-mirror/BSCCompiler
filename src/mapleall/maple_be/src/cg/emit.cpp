@@ -1209,7 +1209,7 @@ void Emitter::EmitAddrofSymbolConst(const MIRSymbol &mirSymbol, MIRConst &elemCo
 MIRAddroffuncConst *Emitter::GetAddroffuncConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst) {
   MIRAddroffuncConst *innerFuncAddr = nullptr;
   size_t addrIndex = mirSymbol.IsReflectionMethodsInfo() ? static_cast<size_t>(MethodProperty::kPaddrData) :
-                                                           static_cast<size_t>(MethodInfoCompact::kPaddrData);
+      static_cast<size_t>(MethodInfoCompact::kPaddrData);
   MIRConst *pAddrConst = aggConst.GetConstVecItem(addrIndex);
   if (pAddrConst->GetKind() == kConstAddrof) {
     /* point addr data. */

@@ -195,6 +195,7 @@ void ValueRangePropagation::DealWithSwitch(BB &bb, MeStmt &stmt) {
   for (auto &pair : switchMeStmt.GetSwitchTable()) {
     valueOfCase.push_back(pair.first);
     auto *currbb = func.GetCfg()->GetLabelBBAt(pair.second);
+    CHECK_FATAL(currbb, "currbb is nullptr!");
     // Can prop value range to target bb only when the pred size of target bb is one and
     // only one case can jump to the target bb.
     if (currbb->GetPred().size() == 1 && bbOfCases.insert(currbb->GetBBId()).second) {

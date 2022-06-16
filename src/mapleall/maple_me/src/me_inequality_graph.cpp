@@ -147,6 +147,8 @@ void InequalityGraph::ConnectTrivalEdge() {
     CHECK_FATAL(value > prevValue, "must be");
     InequalEdge *pairEdge1 = AddEdge(*node, *prevNode, prevValue - value, EdgeType::kNone);
     InequalEdge *pairEdge2 = AddEdge(*prevNode, *node, value - prevValue, EdgeType::kNone);
+    CHECK_FATAL(pairEdge1, "pairEdge1 is nullptr!");
+    CHECK_FATAL(pairEdge2, "pairEdge2 is nullptr!");
     pairEdge1->SetPairEdge(*pairEdge2);
     pairEdge2->SetPairEdge(*pairEdge1);
     prevValue = value;
@@ -164,7 +166,8 @@ ESSABaseNode &InequalityGraph::GetNode(int64 value) {
   return *constNodes[value];
 }
 
-InequalEdge *InequalityGraph::HasEdge(const ESSABaseNode &from, ESSABaseNode &to, InequalEdge &type) const {
+InequalEdge *InequalityGraph::HasEdge(const ESSABaseNode &from, ESSABaseNode &to,
+                                      const InequalEdge &type) const {
   auto miter = from.GetOutWithConstEdgeMap().equal_range(&to);
   for (auto it = miter.first; it != miter.second; ++it) {
     if (it->second->IsSame(type)) {
@@ -421,7 +424,8 @@ ProveResult ABCD::Prove(ESSABaseNode &aNode, ESSABaseNode &bNode, InequalEdge &e
   return res;
 }
 
-ProveResult ABCD::UpdateCacheResult(ESSABaseNode &aNode, ESSABaseNode &bNode, InequalEdge &edge, MeetFunction meet) {
+ProveResult ABCD::UpdateCacheResult(ESSABaseNode &aNode, ESSABaseNode &bNode,
+                                    const InequalEdge &edge, MeetFunction meet) {
   ProveResult res = meet == Min ? kReduced : kFalse;
   if (meet == Min) {
     CHECK_FATAL(bNode.GetKind() == kPhiNode, "must be");

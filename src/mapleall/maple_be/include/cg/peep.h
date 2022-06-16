@@ -85,6 +85,8 @@ class CGPeepPattern {
   void SetCurrInsn(Insn *updateInsn) {
     currInsn = updateInsn;
   }
+  virtual void Run(BB &bb, Insn &insn) = 0;
+  virtual bool CheckCondition(Insn &insn) = 0;
 
  protected:
   CGFunc *cgFunc;
@@ -92,8 +94,6 @@ class CGPeepPattern {
   Insn *currInsn;
   CGSSAInfo *ssaInfo;
   bool optSuccess = false;
-  virtual void Run(BB &bb, Insn &insn) = 0;
-  virtual bool CheckCondition(Insn &insn) = 0;
 };
 
 class PeepHoleOptimizer {
