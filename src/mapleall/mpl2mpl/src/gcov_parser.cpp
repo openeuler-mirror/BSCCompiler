@@ -144,7 +144,7 @@ const gcov_unsigned_t * MGcovParser::GcovReadWords (unsigned words) {
   if (excess < words) {
     gcovVar->start += gcovVar->offset;
     if (excess) {
-      memmove (gcovVar->buffer, gcovVar->buffer + gcovVar->offset, excess * 4);
+      memmove_s(gcovVar->buffer, excess * 4, gcovVar->buffer + gcovVar->offset, excess * 4);
     }
     gcovVar->offset = 0;
     gcovVar->length = excess;
@@ -219,7 +219,7 @@ void MGcovParser::GcovReadSummary (struct gcov_summary *summary) {
     csum->sum_all = GcovReadCounter();
     csum->run_max = GcovReadCounter();
     csum->sum_max = GcovReadCounter();
-    memset (csum->histogram, 0, sizeof (gcov_bucket_type) * 252);
+    memset_s(csum->histogram, sizeof (gcov_bucket_type) * 252, 0, sizeof (gcov_bucket_type) * 252);
     for (bv_ix = 0; bv_ix < (252 + 31) / 32; bv_ix++) {
       histo_bitvector[bv_ix] = GcovReadUnsigned();
       h_cnt += popcount_hwi (histo_bitvector[bv_ix]);
