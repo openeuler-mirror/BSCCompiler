@@ -21,6 +21,8 @@
 #include "types_def.h"
 #include "prim_types.h"
 #include "mir_nodes.h"
+#include "mir_scope.h"
+#include "namemangler.h"
 #include "lexer.h"
 #include "Dwarf.h"
 
@@ -48,6 +50,7 @@ class MIRLexer;
 class DBGLine {
  public:
   DBGLine(uint32 lnum, const char *l) : lineNum(lnum), codeLine(l) {}
+  virtual ~DBGLine() {}
 
   void Dump() {
     LogInfo::MapleLogger() << "LINE: " << lineNum << " " << codeLine << std::endl;
@@ -121,7 +124,7 @@ class DBGExpr {
     return opnds;
   }
 
-  int GetOpndSize() const {
+  size_t GetOpndSize() const {
     return opnds.size();
   }
 
@@ -173,7 +176,7 @@ class DBGExprLoc {
   }
 
   uint32 GetSize() const {
-    return simpLoc->GetOpndSize();
+    return static_cast<uint32>(simpLoc->GetOpndSize());
   }
 
   void ClearOpnd() {
@@ -207,7 +210,7 @@ class DBGExprLoc {
 
 class DBGDieAttr {
  public:
-  uint32 SizeOf(DBGDieAttr *attr);
+  size_t SizeOf(DBGDieAttr *attr);
   explicit DBGDieAttr(DBGDieKind k) : dieKind(k), dwAttr(DW_AT_deleted), dwForm(DW_FORM_GNU_strp_alt) {
     value.u = kDbgDefaultVal;
   }
@@ -441,7 +444,7 @@ class DBGDie {
   }
 
   uint32 GetSubDieVecSize() const {
-    return subDieVec.size();
+    return static_cast<uint32>(subDieVec.size());
   }
 
   DBGDie *GetSubDieVecAt(uint32 i) const {
@@ -564,6 +567,7 @@ class DebugInfo {
     /* valid entry starting from index 1 as abbrevid starting from 1 as well */
     abbrevVec.push_back(nullptr);
     InitMsg();
+    varPtrPrefix = std::string(namemangler::kPtrPrefixStr);
   }
 
   virtual ~DebugInfo() {}
@@ -598,7 +602,6 @@ class DebugInfo {
   void Finish();
   void SetupCU();
   void BuildDebugInfo();
-  void BuildAliasDIEs();
   void Dump(int indent);
 
   // build tree to populate withChildren, sibling, firstChild
@@ -637,7 +640,7 @@ class DebugInfo {
     idDieMap[i] = die;
   }
 
-  uint32 GetParentDieSize() const {
+  size_t GetParentDieSize() const {
     return parentDieStack.size();
   }
 
@@ -693,9 +696,10 @@ class DebugInfo {
   DBGDieAttr *CreateAttr(DwAt attr, DwForm form, uint64 val);
 
   DBGDie *CreateVarDie(MIRSymbol *sym);
+  DBGDie *CreateVarDie(MIRSymbol *sym, GStrIdx strIdx); // use alt name
   DBGDie *CreateFormalParaDie(MIRFunction *func, MIRType *type, MIRSymbol *sym);
   DBGDie *CreateFieldDie(maple::FieldPair pair, uint32 lnum);
-  DBGDie *CreateBitfieldDie(MIRBitFieldType *type, GStrIdx idx);
+  DBGDie *CreateBitfieldDie(const MIRBitFieldType *type, GStrIdx idx);
   DBGDie *CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *type, bool update = false);
   DBGDie *CreateClassTypeDie(GStrIdx strIdx, const MIRClassType *type);
   DBGDie *CreateInterfaceTypeDie(GStrIdx strIdx, const MIRInterfaceType *type);
@@ -712,6 +716,9 @@ class DebugInfo {
   DBGDie *GetOrCreatePointTypeDie(const MIRPtrType *type);
   DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *type);
   DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
+
+  void AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap);
+  void AddScopeDie(MIRScope *scope);
 
   // Functions for calculating the size and offset of each DW_TAG_xxx and DW_AT_xxx
   void ComputeSizeAndOffsets();
@@ -745,6 +752,7 @@ class DebugInfo {
   MapleMap<MIRFunction *, std::map<uint32, uint32>> funcLstrIdxDieIdMap;
   MapleMap<MIRFunction *, std::map<uint32, LabelIdx>> funcLstrIdxLabIdxMap;
   MapleSet<uint32> strps;
+  std::string varPtrPrefix;
 };
 } // namespace maple
 #endif // MAPLE_IR_INCLUDE_DBG_INFO_H
