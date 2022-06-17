@@ -97,7 +97,7 @@ DBGDieAttr *DBGDie::AddGlobalLocAttr(DwAt at, DwForm form, uint64 val) {
 }
 
 DBGDieAttr *DBGDie::AddFrmBaseAttr(DwAt at, DwForm form) {
-  DBGExprLoc *p = module->GetMemPool()->New<DBGExprLoc>(module, DW_OP_reg29);
+  DBGExprLoc *p = module->GetMemPool()->New<DBGExprLoc>(module, DW_OP_call_frame_cfa);
   DBGDieAttr *attr = module->GetDbgInfo()->CreateAttr(at, form, reinterpret_cast<uint64>(p));
   AddAttr(attr);
   return attr;
@@ -293,7 +293,7 @@ void DebugInfo::AddScopeDie(MIRScope *scope) {
 
 void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap) {
   MIRFunction *func = GetCurFunction();
-  for (std::pair<GStrIdx, MIRAliasVars> i : aliasMap) {
+  for (auto &i : aliasMap) {
     // maple var
     MIRSymbol *var = func->GetSymTab()->GetSymbolFromStrIdx(i.second.memPoolStrIdx);
 
@@ -508,7 +508,6 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym) {
 
   return die;
 }
-
 
 DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym, GStrIdx strIdx) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_variable);
@@ -1197,7 +1196,6 @@ size_t DBGDieAttr::SizeOf(DBGDieAttr *attr) {
       CHECK_FATAL(ptr != (DBGExprLoc*)(0xdeadbeef), "wrong ptr");
       switch (ptr->GetOp()) {
         case DW_OP_call_frame_cfa:
-        case DW_OP_reg29:
           return k2BitSize;  // size 1 byte + DW_OP_call_frame_cfa 1 byte
         case DW_OP_fbreg: {
           // DW_OP_fbreg 1 byte

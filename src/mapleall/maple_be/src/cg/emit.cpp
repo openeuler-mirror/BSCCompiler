@@ -3208,11 +3208,6 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
     case DW_FORM_exprloc: {
       DBGExprLoc *elp = attr->GetPtr();
       switch (elp->GetOp()) {
-        case DW_OP_reg29:
-          EmitHexUnsigned(1);
-          Emit("\n\t.byte    ");
-          EmitHexUnsigned(elp->GetOp());
-          break;
         case DW_OP_call_frame_cfa:
           EmitHexUnsigned(1);
           Emit("\n\t.byte    ");
@@ -3488,7 +3483,7 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
     switch (diae->GetTag()) {
       case DW_TAG_subprogram: {
         DBGExprLoc *exprloc = emitter->memPool->New<DBGExprLoc>(emitter->GetCG()->GetMIRModule());
-        exprloc->GetSimpLoc()->SetDwOp(DW_OP_reg29);
+        exprloc->GetSimpLoc()->SetDwOp(DW_OP_call_frame_cfa);
         die->SetAttr(DW_AT_frame_base, exprloc);
       } break;
       case DW_TAG_structure_type:
