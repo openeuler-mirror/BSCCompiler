@@ -181,7 +181,7 @@ struct AArch64MD {
     return (properties & CANTHROW) != 0;
   }
 
-  OpndProp *GetOperand(int nth) const {
+  OpndProp *GetOperand(uint32 nth) const {
     ASSERT(nth < operand.size(), "index of Operand should not be bigger than MaxOperandNum");
     return operand[nth];
   }
@@ -189,10 +189,10 @@ struct AArch64MD {
   uint32 GetOperandSize() const {
     if (properties & (ISLOAD | ISSTORE)) {
       /* use memory operand */
-      return GetOperand(1)->GetOperandSize();
+      return GetOperand(1U)->GetOperandSize();
     }
     /* use dest operand */
-    return GetOperand(0)->GetOperandSize();
+    return GetOperand(0U)->GetOperandSize();
   }
 
   bool Is64Bit() const {

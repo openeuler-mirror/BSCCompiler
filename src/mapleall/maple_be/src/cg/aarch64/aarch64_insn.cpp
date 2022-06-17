@@ -80,67 +80,67 @@ uint8 AArch64Insn::GetLoadStoreSize() const {
   }
   /* These are the loads and stores possible from PickLdStInsn() */
   switch (mOp) {
-  case MOP_wldarb:
-  case MOP_wldxrb:
-  case MOP_wldaxrb:
-  case MOP_wldrb:
-  case MOP_wldrsb:
-  case MOP_xldrsb:
-  case MOP_wstrb:
-  case MOP_wstlrb:
-  case MOP_wstxrb:
-  case MOP_wstlxrb:
-    return k1ByteSize;
-  case MOP_wldrh:
-  case MOP_wldarh:
-  case MOP_wldxrh:
-  case MOP_wldaxrh:
-  case MOP_wldrsh:
-  case MOP_xldrsh:
-  case MOP_wstrh:
-  case MOP_wstlrh:
-  case MOP_wstxrh:
-  case MOP_wstlxrh:
-    return k2ByteSize;
-  case MOP_sldr:
-  case MOP_wldr:
-  case MOP_wldxr:
-  case MOP_wldar:
-  case MOP_wldaxr:
-  case MOP_sstr:
-  case MOP_wstr:
-  case MOP_wstxr:
-  case MOP_wstlr:
-  case MOP_wstlxr:
-  case MOP_xldrsw:
-    return k4ByteSize;
-  case MOP_dstr:
-  case MOP_xstr:
-  case MOP_xstxr:
-  case MOP_xstlr:
-  case MOP_xstlxr:
-  case MOP_wstp:
-  case MOP_sstp:
-  case MOP_dldr:
-  case MOP_xldr:
-  case MOP_xldxr:
-  case MOP_xldar:
-  case MOP_xldaxr:
-  case MOP_wldp:
-  case MOP_sldp:
-    return k8ByteSize;
-  case MOP_xldp:
-  case MOP_xldpsw:
-  case MOP_dldp:
-  case MOP_qldr:
-  case MOP_xstp:
-  case MOP_dstp:
-  case MOP_qstr:
-    return k16ByteSize;
+    case MOP_wldarb:
+    case MOP_wldxrb:
+    case MOP_wldaxrb:
+    case MOP_wldrb:
+    case MOP_wldrsb:
+    case MOP_xldrsb:
+    case MOP_wstrb:
+    case MOP_wstlrb:
+    case MOP_wstxrb:
+    case MOP_wstlxrb:
+      return k1ByteSize;
+    case MOP_wldrh:
+    case MOP_wldarh:
+    case MOP_wldxrh:
+    case MOP_wldaxrh:
+    case MOP_wldrsh:
+    case MOP_xldrsh:
+    case MOP_wstrh:
+    case MOP_wstlrh:
+    case MOP_wstxrh:
+    case MOP_wstlxrh:
+      return k2ByteSize;
+    case MOP_sldr:
+    case MOP_wldr:
+    case MOP_wldxr:
+    case MOP_wldar:
+    case MOP_wldaxr:
+    case MOP_sstr:
+    case MOP_wstr:
+    case MOP_wstxr:
+    case MOP_wstlr:
+    case MOP_wstlxr:
+    case MOP_xldrsw:
+      return k4ByteSize;
+    case MOP_dstr:
+    case MOP_xstr:
+    case MOP_xstxr:
+    case MOP_xstlr:
+    case MOP_xstlxr:
+    case MOP_wstp:
+    case MOP_sstp:
+    case MOP_dldr:
+    case MOP_xldr:
+    case MOP_xldxr:
+    case MOP_xldar:
+    case MOP_xldaxr:
+    case MOP_wldp:
+    case MOP_sldp:
+      return k8ByteSize;
+    case MOP_xldp:
+    case MOP_xldpsw:
+    case MOP_dldp:
+    case MOP_qldr:
+    case MOP_xstp:
+    case MOP_dstp:
+    case MOP_qstr:
+      return k16ByteSize;
 
-  default:
-    this->Dump();
-    CHECK_FATAL(false, "Unsupported load/store op");
+    default:
+      this->Dump();
+      CHECK_FATAL(false, "Unsupported load/store op");
   }
 }
 
@@ -825,7 +825,7 @@ void A64OpndEmitVisitor::Visit(maplebe::ImmOperand *v) {
    * compute float value
    * use top 4 bits expect MSB of value . then calculate its fourth power
    */
-  int32 exp = (((static_cast<uint32>(value) & 0x70) >> 4) ^ 0x4) - 3;
+  int32 exp = static_cast<int32>((((static_cast<uint32>(value) & 0x70) >> 4) ^ 0x4) - 3);
   /* use the lower four bits of value in this expression */
   const float mantissa = 1.0 + (static_cast<float>(static_cast<uint64>(value) & 0xf) / 16.0);
   float result = std::pow(2, exp) * mantissa;
@@ -848,7 +848,7 @@ void A64OpndEmitVisitor::Visit(maplebe::ImmOperand *v) {
   }
   /* fetch the sign bit of this value */
   std::string sign = static_cast<uint64>(value) & 0x80 ? "-" : "";
-  (void)emitter.Emit(sign + integer + "." + fraction + "e+").Emit(dot - 1);
+  (void)emitter.Emit(sign + integer + "." + fraction + "e+").Emit(static_cast<int64>(dot) - 1);
 }
 
 void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {

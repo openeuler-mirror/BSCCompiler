@@ -83,94 +83,91 @@ bool LiveRange::IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLev) const 
     return false;
 
   switch (op) {
-  case OP_undef:
-    return false;
-  case OP_constval: {
-    const MIRConst *mirConst = rematInfo.mirConst;
-    if (mirConst->GetKind() != kConstInt) {
+    case OP_undef:
       return false;
-    }
-    const MIRIntConst *intConst = static_cast<const MIRIntConst *>(rematInfo.mirConst);
-    int64 val = intConst->GetValue();
-    if (val >= -kMax16UnsignedImm && val <= kMax16UnsignedImm) {
-      return true;
-    }
-    auto uval = static_cast<uint64>(val);
-    if (IsMoveWidableImmediate(uval, GetSpillSize())) {
-      return true;
-    }
-    return IsBitmaskImmediate(uval, GetSpillSize());
-  }
-  case OP_addrof: {
-    if (rematLev < rematAddr) {
-      return false;
-    }
-    const MIRSymbol *symbol = rematInfo.sym;
-    if (symbol->IsDeleted()) {
-      return false;
-    }
-    /* cost too much to remat */
-    if ((symbol->GetStorageClass() == kScFormal) && (symbol->GetSKind() == kStVar) &&
-        ((fieldID != 0) ||
-         (cgFunc.GetBecommon().GetTypeSize(symbol->GetType()->GetTypeIndex().GetIdx()) > k16ByteSize))) {
-      return false;
-    }
-    if (!addrUpper && CGOptions::IsPIC() &&
-        ((symbol->GetStorageClass() == kScGlobal) ||
-         (symbol->GetStorageClass() == kScExtern))) {
-      /* check if in loop  */
-      bool useInLoop = false;
-      bool defOutLoop = false;
-      for (auto luIt: luMap) {
-        BB *bb = cgFunc.GetBBFromID(luIt.first);
-        LiveUnit *curLu = luIt.second;
-        if (bb->GetLoop() != nullptr && curLu->GetUseNum() != 0) {
-          useInLoop = true;
-        }
-        if (bb->GetLoop() == nullptr && curLu->GetDefNum() != 0) {
-          defOutLoop = true;
-        }
+    case OP_constval: {
+      const MIRConst *mirConst = rematInfo.mirConst;
+      if (mirConst->GetKind() != kConstInt) {
+        return false;
       }
-      return !(useInLoop && defOutLoop);
+      const MIRIntConst *intConst = static_cast<const MIRIntConst *>(rematInfo.mirConst);
+      int64 val = intConst->GetValue();
+      if (val >= -kMax16UnsignedImm && val <= kMax16UnsignedImm) {
+        return true;
+      }
+      auto uval = static_cast<uint64>(val);
+      if (IsMoveWidableImmediate(uval, GetSpillSize())) {
+        return true;
+      }
+      return IsBitmaskImmediate(uval, GetSpillSize());
     }
-    return true;
-  }
-  case OP_dread: {
-    if (rematLev < rematDreadLocal) {
+    case OP_addrof: {
+      if (rematLev < rematAddr) {
+        return false;
+      }
+      const MIRSymbol *symbol = rematInfo.sym;
+      if (symbol->IsDeleted()) {
+        return false;
+      }
+      /* cost too much to remat */
+      if ((symbol->GetStorageClass() == kScFormal) && (symbol->GetSKind() == kStVar) && ((fieldID != 0) ||
+          (cgFunc.GetBecommon().GetTypeSize(symbol->GetType()->GetTypeIndex().GetIdx()) > k16ByteSize))) {
+        return false;
+      }
+      if (!addrUpper && CGOptions::IsPIC() && ((symbol->GetStorageClass() == kScGlobal) ||
+          (symbol->GetStorageClass() == kScExtern))) {
+        /* check if in loop  */
+        bool useInLoop = false;
+        bool defOutLoop = false;
+        for (auto luIt: luMap) {
+          BB *bb = cgFunc.GetBBFromID(luIt.first);
+          LiveUnit *curLu = luIt.second;
+          if (bb->GetLoop() != nullptr && curLu->GetUseNum() != 0) {
+            useInLoop = true;
+          }
+          if (bb->GetLoop() == nullptr && curLu->GetDefNum() != 0) {
+            defOutLoop = true;
+          }
+        }
+        return !(useInLoop && defOutLoop);
+      }
+      return true;
+    }
+    case OP_dread: {
+      if (rematLev < rematDreadLocal) {
+        return false;
+      }
+      const MIRSymbol *symbol = rematInfo.sym;
+      if (symbol->IsDeleted()) {
+        return false;
+      }
+      MIRStorageClass storageClass = symbol->GetStorageClass();
+      if ((storageClass == kScAuto) || (storageClass == kScFormal)) {
+        /* cost too much to remat. */
+        return false;
+      }
+      PrimType symType = symbol->GetType()->GetPrimType();
+      int32 offset = 0;
+      if (fieldID != 0) {
+        MIRStructType *structType = static_cast<MIRStructType *>(symbol->GetType());
+        ASSERT(structType != nullptr, "Rematerialize: non-zero fieldID for non-structure");
+        symType = structType->GetFieldType(fieldID)->GetPrimType();
+        offset = cgFunc.GetBecommon().GetFieldOffset(*structType, fieldID).first;
+      }
+      /* check stImm.GetOffset() is in addri12 */
+      StImmOperand &stOpnd = cgFunc.CreateStImmOperand(*symbol, offset, 0);
+      uint32 dataSize = GetPrimTypeBitSize(symType);
+      ImmOperand &immOpnd = cgFunc.CreateImmOperand(stOpnd.GetOffset(), dataSize, false);
+      if (!immOpnd.IsInBitSize(kMaxImmVal12Bits, 0)) {
+        return false;
+      }
+      if (rematLev < rematDreadGlobal && !symbol->IsLocal()) {
+        return false;
+      }
+      return true;
+    }
+    default:
       return false;
-    }
-    const MIRSymbol *symbol = rematInfo.sym;
-    if (symbol->IsDeleted()) {
-      return false;
-    }
-    MIRStorageClass storageClass = symbol->GetStorageClass();
-    if ((storageClass == kScAuto) || (storageClass == kScFormal)) {
-      /* cost too much to remat. */
-      return false;
-    }
-    PrimType symType = symbol->GetType()->GetPrimType();
-    int32 offset = 0;
-    if (fieldID != 0) {
-      MIRStructType *structType = static_cast<MIRStructType *>(symbol->GetType());
-      ASSERT(structType != nullptr,
-             "Rematerialize: non-zero fieldID for non-structure");
-      symType = structType->GetFieldType(fieldID)->GetPrimType();
-      offset = cgFunc.GetBecommon().GetFieldOffset(*structType, fieldID).first;
-    }
-    /* check stImm.GetOffset() is in addri12 */
-    StImmOperand &stOpnd = cgFunc.CreateStImmOperand(*symbol, offset, 0);
-    uint32 dataSize = GetPrimTypeBitSize(symType);
-    ImmOperand &immOpnd = cgFunc.CreateImmOperand(stOpnd.GetOffset(), dataSize, false);
-    if (!immOpnd.IsInBitSize(kMaxImmVal12Bits, 0)) {
-      return false;
-    }
-    if (rematLev < rematDreadGlobal && !symbol->IsLocal()) {
-      return false;
-    }
-    return true;
-  }
-  default:
-    return false;
   }
 }
 
@@ -179,104 +176,86 @@ std::vector<Insn *> LiveRange::Rematerialize(AArch64CGFunc *cgFunc,
   std::vector<Insn *> insns;
   CG *cg = cgFunc->GetCG();
   switch (op) {
-  case OP_constval:
-    switch (rematInfo.mirConst->GetKind()) {
-    case kConstInt: {
-      MIRIntConst *intConst = const_cast<MIRIntConst *>(
-        static_cast<const MIRIntConst *>(rematInfo.mirConst));
+    case OP_constval:
+      switch (rematInfo.mirConst->GetKind()) {
+        case kConstInt: {
+          MIRIntConst *intConst = const_cast<MIRIntConst *>(static_cast<const MIRIntConst *>(rematInfo.mirConst));
 
-      Operand *immOp = cgFunc->SelectIntConst(*intConst);
-      MOperator movOp = (GetSpillSize() == k32BitSize) ? MOP_xmovri32 : MOP_xmovri64;
-      insns.push_back(&cg->BuildInstruction<AArch64Insn>(movOp, regOp, *immOp));
-    }
-    break;
-    default:
-      ASSERT(false, "Unsupported constant for rematerialization");
-    }
-    break;
-  case OP_dread: {
-    const MIRSymbol *symbol = rematInfo.sym;
-    PrimType symType = symbol->GetType()->GetPrimType();
-    RegOperand *regOp64 = &cgFunc->GetOrCreatePhysicalRegisterOperand(
-        static_cast<AArch64reg>(regOp.GetRegisterNumber()), k64BitSize, regOp.GetRegisterType());
-    int32 offset = 0;
-    if (fieldID != 0) {
-      MIRStructType *structType =
-          static_cast<MIRStructType *>(symbol->GetType());
-      ASSERT(structType != nullptr,
-             "Rematerialize: non-zero fieldID for non-structure");
-      symType = structType->GetFieldType(fieldID)->GetPrimType();
-      offset =
-          cgFunc->GetBecommon().GetFieldOffset(*structType, fieldID).first;
-    }
-
-    uint32 dataSize = GetPrimTypeBitSize(symType);
-    MemOperand *spillMemOp = &cgFunc->GetOrCreateMemOpndAfterRa(*symbol, offset, dataSize, false, regOp64, insns);
-    MOperator mOp = cgFunc->PickLdInsn(spillMemOp->GetSize(), symType);
-    insns.push_back(&cg->BuildInstruction<AArch64Insn>(mOp, regOp, *spillMemOp));
-  }
-  break;
-  case OP_addrof: {
-    const MIRSymbol *symbol = rematInfo.sym;
-    int32 offset = 0;
-    if (fieldID != 0) {
-      MIRStructType *structType =
-          static_cast<MIRStructType *>(symbol->GetType());
-      ASSERT(structType != nullptr,
-             "Rematerialize: non-zero fieldID for non-structure");
-      offset = cgFunc->GetBecommon().GetFieldOffset(*structType, fieldID).first;
-    }
-    StImmOperand &stImm = cgFunc->CreateStImmOperand(*symbol, offset, 0);
-    if ((symbol->GetStorageClass() == kScAuto) ||
-        (symbol->GetStorageClass() == kScFormal)) {
-      AArch64SymbolAlloc *symLoc =
-          static_cast<AArch64SymbolAlloc *>(
-              cgFunc->GetMemlayout()->GetSymAllocInfo(symbol->GetStIndex()));
-      ImmOperand *offsetOp = nullptr;
-      offsetOp = &cgFunc->CreateImmOperand(cgFunc->GetBaseOffset(*symLoc) +
-                                               offset,
-                                           k64BitSize, false);
-
-      Insn *insn =
-          &cg->BuildInstruction<AArch64Insn>(MOP_xaddrri12, regOp,
-                                             *cgFunc->GetBaseReg(*symLoc),
-                                             *offsetOp);
-      if (cg->GenerateVerboseCG()) {
-        std::string comm = "local/formal var: ";
-        comm.append(symbol->GetName());
-        insn->SetComment(comm);
-      }
-      insns.push_back(insn);
-    } else {
-      Insn *insn = &cg->BuildInstruction<AArch64Insn>(MOP_xadrp, regOp, stImm);
-      insns.push_back(insn);
-      if (!addrUpper && CGOptions::IsPIC() && ((symbol->GetStorageClass() == kScGlobal) ||
-                                 (symbol->GetStorageClass() == kScExtern))) {
-        /* ldr     x0, [x0, #:got_lo12:Ljava_2Flang_2FSystem_3B_7Cout] */
-        OfstOperand &offsetOp = cgFunc->CreateOfstOpnd(*symbol, offset, 0);
-        MemOperand &memOpnd =
-            cgFunc->GetOrCreateMemOpnd(MemOperand::kAddrModeBOi,
-                                       kSizeOfPtr * kBitsPerByte,
-                                       static_cast<RegOperand *>(&regOp),
-                                       nullptr, &offsetOp, nullptr);
-        MOperator ldOp = (memOpnd.GetSize() == k64BitSize) ? MOP_xldr : MOP_wldr;
-        insn = &cg->BuildInstruction<AArch64Insn>(ldOp, regOp, memOpnd);
-        insns.push_back(insn);
-        if (offset > 0) {
-          OfstOperand &ofstOpnd = cgFunc->GetOrCreateOfstOpnd(static_cast<uint64>(static_cast<int64>(offset)),
-                                                              k32BitSize);
-          insns.push_back(&cg->BuildInstruction<AArch64Insn>(
-              MOP_xaddrri12, regOp, regOp, ofstOpnd));
+          Operand *immOp = cgFunc->SelectIntConst(*intConst);
+          MOperator movOp = (GetSpillSize() == k32BitSize) ? MOP_xmovri32 : MOP_xmovri64;
+          insns.push_back(&cg->BuildInstruction<AArch64Insn>(movOp, regOp, *immOp));
         }
-      } else if (!addrUpper) {
-        insns.push_back(&cg->BuildInstruction<AArch64Insn>(
-            MOP_xadrpl12, regOp, regOp, stImm));
+          break;
+        default:
+          ASSERT(false, "Unsupported constant for rematerialization");
+      }
+      break;
+    case OP_dread: {
+      const MIRSymbol *symbol = rematInfo.sym;
+      PrimType symType = symbol->GetType()->GetPrimType();
+      RegOperand *regOp64 = &cgFunc->GetOrCreatePhysicalRegisterOperand(
+          static_cast<AArch64reg>(regOp.GetRegisterNumber()), k64BitSize, regOp.GetRegisterType());
+      int32 offset = 0;
+      if (fieldID != 0) {
+        MIRStructType *structType = static_cast<MIRStructType *>(symbol->GetType());
+        ASSERT(structType != nullptr, "Rematerialize: non-zero fieldID for non-structure");
+        symType = structType->GetFieldType(fieldID)->GetPrimType();
+        offset = cgFunc->GetBecommon().GetFieldOffset(*structType, fieldID).first;
+      }
+
+      uint32 dataSize = GetPrimTypeBitSize(symType);
+      MemOperand *spillMemOp = &cgFunc->GetOrCreateMemOpndAfterRa(*symbol, offset, dataSize, false, regOp64, insns);
+      MOperator mOp = cgFunc->PickLdInsn(spillMemOp->GetSize(), symType);
+      insns.push_back(&cg->BuildInstruction<AArch64Insn>(mOp, regOp, *spillMemOp));
+    }
+      break;
+    case OP_addrof: {
+      const MIRSymbol *symbol = rematInfo.sym;
+      int32 offset = 0;
+      if (fieldID != 0) {
+        MIRStructType *structType = static_cast<MIRStructType *>(symbol->GetType());
+        ASSERT(structType != nullptr, "Rematerialize: non-zero fieldID for non-structure");
+        offset = cgFunc->GetBecommon().GetFieldOffset(*structType, fieldID).first;
+      }
+      StImmOperand &stImm = cgFunc->CreateStImmOperand(*symbol, offset, 0);
+      if ((symbol->GetStorageClass() == kScAuto) || (symbol->GetStorageClass() == kScFormal)) {
+        AArch64SymbolAlloc *symLoc = static_cast<AArch64SymbolAlloc *>(
+            cgFunc->GetMemlayout()->GetSymAllocInfo(symbol->GetStIndex()));
+        ImmOperand *offsetOp = nullptr;
+        offsetOp = &cgFunc->CreateImmOperand(cgFunc->GetBaseOffset(*symLoc) + offset, k64BitSize, false);
+
+        Insn *insn = &cg->BuildInstruction<AArch64Insn>(MOP_xaddrri12, regOp, *cgFunc->GetBaseReg(*symLoc), *offsetOp);
+        if (cg->GenerateVerboseCG()) {
+          std::string comm = "local/formal var: ";
+          comm.append(symbol->GetName());
+          insn->SetComment(comm);
+        }
+        insns.push_back(insn);
+      } else {
+        Insn *insn = &cg->BuildInstruction<AArch64Insn>(MOP_xadrp, regOp, stImm);
+        insns.push_back(insn);
+        if (!addrUpper && CGOptions::IsPIC() && ((symbol->GetStorageClass() == kScGlobal) ||
+            (symbol->GetStorageClass() == kScExtern))) {
+          /* ldr     x0, [x0, #:got_lo12:Ljava_2Flang_2FSystem_3B_7Cout] */
+          OfstOperand &offsetOp = cgFunc->CreateOfstOpnd(*symbol, offset, 0);
+          MemOperand &memOpnd = cgFunc->GetOrCreateMemOpnd(MemOperand::kAddrModeBOi, kSizeOfPtr * kBitsPerByte,
+              static_cast<RegOperand *>(&regOp), nullptr, &offsetOp, nullptr);
+          MOperator ldOp = (memOpnd.GetSize() == k64BitSize) ? MOP_xldr : MOP_wldr;
+          insn = &cg->BuildInstruction<AArch64Insn>(ldOp, regOp, memOpnd);
+          insns.push_back(insn);
+          if (offset > 0) {
+            OfstOperand &ofstOpnd = cgFunc->GetOrCreateOfstOpnd(static_cast<uint64>(static_cast<int64>(offset)),
+                k32BitSize);
+            insns.push_back(&cg->BuildInstruction<AArch64Insn>(MOP_xaddrri12, regOp, regOp, ofstOpnd));
+          }
+        } else if (!addrUpper) {
+          insns.push_back(&cg->BuildInstruction<AArch64Insn>(MOP_xadrpl12, regOp, regOp, stImm));
+        }
       }
     }
-  }
-  break;
-  default:
-    ASSERT(false, "Unexpected op in live range");
+      break;
+    default:
+      ASSERT(false, "Unexpected op in live range");
   }
 
   return insns;
@@ -3858,8 +3837,8 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(const Insn &insn) {
         }
       }
     } else if (opnd->IsRegister()) {
-      bool isDef = md->GetOperand(static_cast<int>(opndIdx))->IsRegDef();
-      bool isUse = md->GetOperand(static_cast<int>(opndIdx))->IsRegUse();
+      bool isDef = md->GetOperand(opndIdx)->IsRegDef();
+      bool isUse = md->GetOperand(opndIdx)->IsRegUse();
       RegOperand *ropnd = static_cast<RegOperand*>(opnd);
       if (IsUnconcernedReg(*ropnd)) {
         continue;

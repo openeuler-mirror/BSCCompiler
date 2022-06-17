@@ -420,7 +420,7 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   if (useFP) {
     stkSize -= static_cast<int32>(static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass());
   }
-  uint32 memSize = (stkSize - kOffset8MemPos) - static_cast<int32>(vArea);
+  int32 memSize = (stkSize - kOffset8MemPos) - static_cast<int32>(vArea);
   MemOperand *downStk = aarchCGFunc.CreateStackMemOpnd(stackBaseReg, memSize, kSizeOfPtr * kBitsPerByte);
   if (downStk->GetMemVaryType() == kNotVary && aarchCGFunc.IsImmediateOffsetOutOfRange(*downStk, k64BitSize)) {
     downStk = &aarchCGFunc.SplitOffsetWithAddInstruction(*downStk, k64BitSize, R10);
@@ -945,11 +945,11 @@ Insn &AArch64GenProEpilog::AppendInstructionForAllocateOrDeallocateCallFrame(int
   if (argsToStkPassSize <= kStrLdrImm64UpperBound - kOffset8MemPos) {
     mOp = isAllocate ? pushPopOps[kRegsPushOp][rty][kPushPopSingle] : pushPopOps[kRegsPopOp][rty][kPushPopSingle];
     RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, size * kBitsPerByte, rty);
-    MemOperand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, argsToStkPassSize, size * kBitsPerByte);
+    MemOperand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize), size * kBitsPerByte);
     Insn &insn1 = currCG->BuildInstruction<AArch64Insn>(mOp, o0, *o2);
     AppendInstructionTo(insn1, cgFunc);
     RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, size * kBitsPerByte, rty);
-    o2 = aarchCGFunc.CreateStackMemOpnd(RSP, argsToStkPassSize + size,
+    o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize + size),
                                         size * kBitsPerByte);
     Insn &insn2 = currCG->BuildInstruction<AArch64Insn>(mOp, o1, *o2);
     AppendInstructionTo(insn2, cgFunc);
@@ -987,7 +987,7 @@ Insn &AArch64GenProEpilog::CreateAndAppendInstructionForAllocateCallFrame(int64 
   } else {
     Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
     Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
-    Operand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, argsToStkPassSize,
+    Operand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize),
                                                  kSizeOfPtr * kBitsPerByte);
     allocInsn = &currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, *o2);
     AppendInstructionTo(*allocInsn, cgFunc);
@@ -1256,7 +1256,7 @@ void AArch64GenProEpilog::GeneratePushRegs() {
       cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
 
   if (cgFunc.GetCG()->IsStackProtectorStrong() || cgFunc.GetCG()->IsStackProtectorAll()) {
-    offset -= static_cast<uint32>(kAarch64StackPtrAlignment);
+    offset -= kAarch64StackPtrAlignment;
   }
 
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
@@ -1587,7 +1587,7 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrame(AArch64reg reg0, 
 
   Operand *o2 = nullptr;
   if (!cgFunc.HasVLAOrAlloca() && argsToStkPassSize > 0) {
-    o2 = aarchCGFunc.CreateStackMemOpnd(RSP, argsToStkPassSize, kSizeOfPtr * kBitsPerByte);
+    o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize), kSizeOfPtr * kBitsPerByte);
   } else {
     if (stackFrameSize > kStpLdpImm64UpperBound) {
       useLdpAdd = true;
@@ -1679,7 +1679,7 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg r
     }
   } else {
     Operand *o2;
-    o2 = aarchCGFunc.CreateStackMemOpnd(RSP, argsToStkPassSize, kSizeOfPtr * kBitsPerByte);
+    o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize), kSizeOfPtr * kBitsPerByte);
     if (argsToStkPassSize > kStpLdpImm64UpperBound) {
       (void)AppendInstructionForAllocateOrDeallocateCallFrame(argsToStkPassSize, reg0, reg1, rty, false);
     } else {
@@ -1733,7 +1733,7 @@ void AArch64GenProEpilog::GeneratePopRegs() {
                  cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
 
   if (cgFunc.GetCG()->IsStackProtectorStrong() || cgFunc.GetCG()->IsStackProtectorAll()) {
-    offset -= static_cast<uint32>(kAarch64StackPtrAlignment);
+    offset -= kAarch64StackPtrAlignment;
   }
 
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {

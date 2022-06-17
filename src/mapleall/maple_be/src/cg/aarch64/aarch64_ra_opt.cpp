@@ -90,7 +90,7 @@ bool RaX0Opt::PropagateX0DetectX0(const Insn *insn, X0OptInfo &optVal) {
 
 bool RaX0Opt::PropagateX0DetectRedefine(const AArch64MD *md, const Insn *ninsn, const X0OptInfo &optVal,
                                         uint32 index) {
-  bool isdef = (md->GetOperand(static_cast<int>(index)))->IsRegDef();
+  bool isdef = (md->GetOperand(index))->IsRegDef();
   if (isdef) {
     RegOperand &opnd = static_cast<RegOperand&>(ninsn->GetOperand(index));
     if (opnd.GetRegisterNumber() == optVal.GetReplaceReg()) {

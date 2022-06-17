@@ -1758,7 +1758,7 @@ bool ExtenToMovPattern::CheckHideUxtw(const Insn &insn, regno_t regno) {
   uint32 optSize = insn.GetOperandSize();
   for (uint32 i = 0; i < optSize; ++i) {
     if (regno == static_cast<RegOperand&>(insn.GetOperand(i)).GetRegisterNumber()) {
-      OpndProp *curOpndProp = md->GetOperand(static_cast<int>(i));
+      OpndProp *curOpndProp = md->GetOperand(i);
       if (curOpndProp->IsDef() && curOpndProp->GetSize() == k32BitSize) {
         return true;
       }

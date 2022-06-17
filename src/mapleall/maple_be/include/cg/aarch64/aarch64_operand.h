@@ -17,7 +17,6 @@
 
 #include <limits>
 #include <string>
-#include <cmath>
 #include <iomanip>
 #include "aarch64_isa.h"
 #include "operand.h"

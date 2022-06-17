@@ -178,10 +178,10 @@ int32 ClassifyAggregate(const BECommon &be, MIRType &mirType, AArch64ArgumentCla
    * Rule B.4. The size of an argument of composite type is rounded up to the nearest
    * multiple of 8 bytes.
    */
-  int32 sizeOfTyInDwords = RoundUp(sizeOfTy, k8ByteSize) >> k8BitShift;
+  int64 sizeOfTyInDwords = static_cast<int64>(RoundUp(sizeOfTy, k8ByteSize) >> k8BitShift);
   ASSERT(sizeOfTyInDwords > 0, "sizeOfTyInDwords should be sizeOfTyInDwords > 0");
   ASSERT(sizeOfTyInDwords <= kTwoRegister, "sizeOfTyInDwords should be <= 2");
-  int32 i;
+  int64 i;
   for (i = 0; i < sizeOfTyInDwords; ++i) {
     classes[i] = kAArch64NoClass;
   }
@@ -198,7 +198,7 @@ int32 ClassifyAggregate(const BECommon &be, MIRType &mirType, AArch64ArgumentCla
       return 0;
     }
   }
-  return sizeOfTyInDwords;
+  return static_cast<int32>(sizeOfTyInDwords);
 }
 }
 
@@ -434,7 +434,7 @@ int32 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, boo
   /* Rule C.12 */
   if (pLoc.reg0 == kRinvalid) {
     /* being passed in memory */
-    nextStackArgAdress = pLoc.memOffset + typeSize;
+    nextStackArgAdress = pLoc.memOffset + static_cast<int32>(static_cast<int64>(typeSize));
   }
   return aggCopySize;
 }
@@ -507,7 +507,7 @@ int32 AArch64CallConvImpl::ProcessPtyAggWhenLocateNextParm(MIRType &mirType, CCL
      */
     typeSize = k8ByteSize;
     pLoc.reg0 = AllocateGPRegister();
-    pLoc.memSize = k8ByteSize;  /* byte size of a pointer in AArch64 */
+    pLoc.memSize = k8ByteSizeInt;  /* byte size of a pointer in AArch64 */
     if (pLoc.reg0 != kRinvalid) {
       numRegs = 1;
     }

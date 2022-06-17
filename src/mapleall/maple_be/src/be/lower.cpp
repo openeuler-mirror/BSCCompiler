@@ -413,7 +413,7 @@ BaseNode *CGLowerer::LowerFarray(ArrayNode &array) {
       int64 eleOffset = pIntConst->GetValue() * eSize;
 
       if (farrayType->GetKind() == kTypeJArray) {
-        eleOffset += RTSupport::GetRTSupportInstance().GetArrayContentOffset();
+        eleOffset += static_cast<int64>(RTSupport::GetRTSupportInstance().GetArrayContentOffset());
       }
 
       BaseNode *baseNode = NodeConvert(array.GetPrimType(), *array.GetBase());
@@ -773,11 +773,12 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
   block->AddStatement(assignedLowerBits);
   auto *extractedHigherBits =
       builder->CreateExprExtractbits(OP_extractbits, primType, bitsExtracted, bitsRemained, rhs);
-  auto *bitFieldRemained = builder->CreateExprIreadoff(primType, byteOffset + GetPrimTypeSize(primType), baseAddr);
+  auto *bitFieldRemained = builder->CreateExprIreadoff(primType,
+      byteOffset + static_cast<int32>(GetPrimTypeSize(primType)), baseAddr);
   auto *depositedHigherBits =
       builder->CreateExprDepositbits(OP_depositbits, primType, 0, bitsRemained, bitFieldRemained, extractedHigherBits);
-  auto *assignedHigherBits =
-      builder->CreateStmtIassignoff(primType, byteOffset + GetPrimTypeSize(primType), baseAddr, depositedHigherBits);
+  auto *assignedHigherBits = builder->CreateStmtIassignoff(primType,
+      byteOffset + static_cast<int32>(GetPrimTypeSize(primType)), baseAddr, depositedHigherBits);
   return assignedHigherBits;
 }
 
@@ -806,7 +807,8 @@ BaseNode *CGLowerer::ReadBitField(std::pair<int32, int32> byteBitOffsets, MIRBit
   }
   auto *extractedLowerBits =
       builder->CreateExprExtractbits(OP_extractbits, primType, bitOffset, bitSize - bitsRemained, bitField);
-  auto *bitFieldRemained = builder->CreateExprIreadoff(primType, byteOffset + GetPrimTypeSize(primType), baseAddr);
+  auto *bitFieldRemained = builder->CreateExprIreadoff(primType,
+      byteOffset + static_cast<int32>(GetPrimTypeSize(primType)), baseAddr);
   auto *result = builder->CreateExprDepositbits(OP_depositbits, primType, bitSize - bitsRemained, bitsRemained,
       extractedLowerBits, bitFieldRemained);
   return result;
@@ -3737,7 +3739,7 @@ void CGLowerer::LowerJarrayMalloc(const StmtNode &stmt, const JarrayMallocNode &
   PrimType elemPrimType = elemType->GetPrimType();
   uint32 elemSize = GetPrimTypeSize(elemPrimType);
   if (elemType->GetKind() != kTypeScalar) {  /* element is reference */
-    elemSize = RTSupport::GetRTSupportInstance().GetFieldSize();
+    elemSize = static_cast<uint32>(RTSupport::GetRTSupportInstance().GetFieldSize());
   }
 
   std::string klassName = jaryType->GetJavaName();
@@ -3819,123 +3821,120 @@ bool CGLowerer::IsIntrinsicCallHandledAtLowerLevel(MIRIntrinsicID intrinsic) con
 bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) const {
   switch (intrinsic) {
 #if TARGAARCH64
-  case INTRN_C_cos:
-  case INTRN_C_cosf:
-  case INTRN_C_cosh:
-  case INTRN_C_coshf:
-  case INTRN_C_acos:
-  case INTRN_C_acosf:
-  case INTRN_C_sin:
-  case INTRN_C_sinf:
-  case INTRN_C_sinh:
-  case INTRN_C_sinhf:
-  case INTRN_C_asin:
-  case INTRN_C_asinf:
-  case INTRN_C_atan:
-  case INTRN_C_atanf:
-  case INTRN_C_exp:
-  case INTRN_C_expf:
-  case INTRN_C_ffs:
-  case INTRN_C_log:
-  case INTRN_C_logf:
-  case INTRN_C_log10:
-  case INTRN_C_log10f:
-  case INTRN_C_clz32:
-  case INTRN_C_clz64:
-  case INTRN_C_ctz32:
-  case INTRN_C_ctz64:
-  case INTRN_C_popcount32:
-  case INTRN_C_popcount64:
-  case INTRN_C_parity32:
-  case INTRN_C_parity64:
-  case INTRN_C_clrsb32:
-  case INTRN_C_clrsb64:
-  case INTRN_C_isaligned:
-  case INTRN_C_alignup:
-  case INTRN_C_aligndown:
-  case INTRN_C___sync_add_and_fetch_1:
-  case INTRN_C___sync_add_and_fetch_2:
-  case INTRN_C___sync_add_and_fetch_4:
-  case INTRN_C___sync_add_and_fetch_8:
-  case INTRN_C___sync_sub_and_fetch_1:
-  case INTRN_C___sync_sub_and_fetch_2:
-  case INTRN_C___sync_sub_and_fetch_4:
-  case INTRN_C___sync_sub_and_fetch_8:
-  case INTRN_C___sync_fetch_and_add_1:
-  case INTRN_C___sync_fetch_and_add_2:
-  case INTRN_C___sync_fetch_and_add_4:
-  case INTRN_C___sync_fetch_and_add_8:
-  case INTRN_C___sync_fetch_and_sub_1:
-  case INTRN_C___sync_fetch_and_sub_2:
-  case INTRN_C___sync_fetch_and_sub_4:
-  case INTRN_C___sync_fetch_and_sub_8:
-  case INTRN_C___sync_bool_compare_and_swap_1:
-  case INTRN_C___sync_bool_compare_and_swap_2:
-  case INTRN_C___sync_bool_compare_and_swap_4:
-  case INTRN_C___sync_bool_compare_and_swap_8:
-  case INTRN_C___sync_val_compare_and_swap_1:
-  case INTRN_C___sync_val_compare_and_swap_2:
-  case INTRN_C___sync_val_compare_and_swap_4:
-  case INTRN_C___sync_val_compare_and_swap_8:
-  case INTRN_C___sync_lock_test_and_set_1:
-  case INTRN_C___sync_lock_test_and_set_2:
-  case INTRN_C___sync_lock_test_and_set_4:
-  case INTRN_C___sync_lock_test_and_set_8:
-  case INTRN_C___sync_lock_release_8:
-  case INTRN_C___sync_lock_release_4:
-  case INTRN_C___sync_lock_release_2:
-  case INTRN_C___sync_lock_release_1:
-  case INTRN_C___sync_fetch_and_and_1:
-  case INTRN_C___sync_fetch_and_and_2:
-  case INTRN_C___sync_fetch_and_and_4:
-  case INTRN_C___sync_fetch_and_and_8:
-  case INTRN_C___sync_fetch_and_or_1:
-  case INTRN_C___sync_fetch_and_or_2:
-  case INTRN_C___sync_fetch_and_or_4:
-  case INTRN_C___sync_fetch_and_or_8:
-  case INTRN_C___sync_fetch_and_xor_1:
-  case INTRN_C___sync_fetch_and_xor_2:
-  case INTRN_C___sync_fetch_and_xor_4:
-  case INTRN_C___sync_fetch_and_xor_8:
-  case INTRN_C___sync_fetch_and_nand_1:
-  case INTRN_C___sync_fetch_and_nand_2:
-  case INTRN_C___sync_fetch_and_nand_4:
-  case INTRN_C___sync_fetch_and_nand_8:
-  case INTRN_C___sync_and_and_fetch_1:
-  case INTRN_C___sync_and_and_fetch_2:
-  case INTRN_C___sync_and_and_fetch_4:
-  case INTRN_C___sync_and_and_fetch_8:
-  case INTRN_C___sync_or_and_fetch_1:
-  case INTRN_C___sync_or_and_fetch_2:
-  case INTRN_C___sync_or_and_fetch_4:
-  case INTRN_C___sync_or_and_fetch_8:
-  case INTRN_C___sync_xor_and_fetch_1:
-  case INTRN_C___sync_xor_and_fetch_2:
-  case INTRN_C___sync_xor_and_fetch_4:
-  case INTRN_C___sync_xor_and_fetch_8:
-  case INTRN_C___sync_nand_and_fetch_1:
-  case INTRN_C___sync_nand_and_fetch_2:
-  case INTRN_C___sync_nand_and_fetch_4:
-  case INTRN_C___sync_nand_and_fetch_8:
-  case INTRN_C___sync_synchronize:
-  case INTRN_C__builtin_return_address:
-  case INTRN_C__builtin_extract_return_addr:
-  case INTRN_C_memcmp:
-  case INTRN_C_strlen:
-  case INTRN_C_strcmp:
-  case INTRN_C_strncmp:
-  case INTRN_C_strchr:
-  case INTRN_C_strrchr:
-  case INTRN_C_rev16_2:
-  case INTRN_C_rev_4:
-  case INTRN_C_rev_8:
-
-
-
-    return true;
+    case INTRN_C_cos:
+    case INTRN_C_cosf:
+    case INTRN_C_cosh:
+    case INTRN_C_coshf:
+    case INTRN_C_acos:
+    case INTRN_C_acosf:
+    case INTRN_C_sin:
+    case INTRN_C_sinf:
+    case INTRN_C_sinh:
+    case INTRN_C_sinhf:
+    case INTRN_C_asin:
+    case INTRN_C_asinf:
+    case INTRN_C_atan:
+    case INTRN_C_atanf:
+    case INTRN_C_exp:
+    case INTRN_C_expf:
+    case INTRN_C_ffs:
+    case INTRN_C_log:
+    case INTRN_C_logf:
+    case INTRN_C_log10:
+    case INTRN_C_log10f:
+    case INTRN_C_clz32:
+    case INTRN_C_clz64:
+    case INTRN_C_ctz32:
+    case INTRN_C_ctz64:
+    case INTRN_C_popcount32:
+    case INTRN_C_popcount64:
+    case INTRN_C_parity32:
+    case INTRN_C_parity64:
+    case INTRN_C_clrsb32:
+    case INTRN_C_clrsb64:
+    case INTRN_C_isaligned:
+    case INTRN_C_alignup:
+    case INTRN_C_aligndown:
+    case INTRN_C___sync_add_and_fetch_1:
+    case INTRN_C___sync_add_and_fetch_2:
+    case INTRN_C___sync_add_and_fetch_4:
+    case INTRN_C___sync_add_and_fetch_8:
+    case INTRN_C___sync_sub_and_fetch_1:
+    case INTRN_C___sync_sub_and_fetch_2:
+    case INTRN_C___sync_sub_and_fetch_4:
+    case INTRN_C___sync_sub_and_fetch_8:
+    case INTRN_C___sync_fetch_and_add_1:
+    case INTRN_C___sync_fetch_and_add_2:
+    case INTRN_C___sync_fetch_and_add_4:
+    case INTRN_C___sync_fetch_and_add_8:
+    case INTRN_C___sync_fetch_and_sub_1:
+    case INTRN_C___sync_fetch_and_sub_2:
+    case INTRN_C___sync_fetch_and_sub_4:
+    case INTRN_C___sync_fetch_and_sub_8:
+    case INTRN_C___sync_bool_compare_and_swap_1:
+    case INTRN_C___sync_bool_compare_and_swap_2:
+    case INTRN_C___sync_bool_compare_and_swap_4:
+    case INTRN_C___sync_bool_compare_and_swap_8:
+    case INTRN_C___sync_val_compare_and_swap_1:
+    case INTRN_C___sync_val_compare_and_swap_2:
+    case INTRN_C___sync_val_compare_and_swap_4:
+    case INTRN_C___sync_val_compare_and_swap_8:
+    case INTRN_C___sync_lock_test_and_set_1:
+    case INTRN_C___sync_lock_test_and_set_2:
+    case INTRN_C___sync_lock_test_and_set_4:
+    case INTRN_C___sync_lock_test_and_set_8:
+    case INTRN_C___sync_lock_release_8:
+    case INTRN_C___sync_lock_release_4:
+    case INTRN_C___sync_lock_release_2:
+    case INTRN_C___sync_lock_release_1:
+    case INTRN_C___sync_fetch_and_and_1:
+    case INTRN_C___sync_fetch_and_and_2:
+    case INTRN_C___sync_fetch_and_and_4:
+    case INTRN_C___sync_fetch_and_and_8:
+    case INTRN_C___sync_fetch_and_or_1:
+    case INTRN_C___sync_fetch_and_or_2:
+    case INTRN_C___sync_fetch_and_or_4:
+    case INTRN_C___sync_fetch_and_or_8:
+    case INTRN_C___sync_fetch_and_xor_1:
+    case INTRN_C___sync_fetch_and_xor_2:
+    case INTRN_C___sync_fetch_and_xor_4:
+    case INTRN_C___sync_fetch_and_xor_8:
+    case INTRN_C___sync_fetch_and_nand_1:
+    case INTRN_C___sync_fetch_and_nand_2:
+    case INTRN_C___sync_fetch_and_nand_4:
+    case INTRN_C___sync_fetch_and_nand_8:
+    case INTRN_C___sync_and_and_fetch_1:
+    case INTRN_C___sync_and_and_fetch_2:
+    case INTRN_C___sync_and_and_fetch_4:
+    case INTRN_C___sync_and_and_fetch_8:
+    case INTRN_C___sync_or_and_fetch_1:
+    case INTRN_C___sync_or_and_fetch_2:
+    case INTRN_C___sync_or_and_fetch_4:
+    case INTRN_C___sync_or_and_fetch_8:
+    case INTRN_C___sync_xor_and_fetch_1:
+    case INTRN_C___sync_xor_and_fetch_2:
+    case INTRN_C___sync_xor_and_fetch_4:
+    case INTRN_C___sync_xor_and_fetch_8:
+    case INTRN_C___sync_nand_and_fetch_1:
+    case INTRN_C___sync_nand_and_fetch_2:
+    case INTRN_C___sync_nand_and_fetch_4:
+    case INTRN_C___sync_nand_and_fetch_8:
+    case INTRN_C___sync_synchronize:
+    case INTRN_C__builtin_return_address:
+    case INTRN_C__builtin_extract_return_addr:
+    case INTRN_C_memcmp:
+    case INTRN_C_strlen:
+    case INTRN_C_strcmp:
+    case INTRN_C_strncmp:
+    case INTRN_C_strchr:
+    case INTRN_C_strrchr:
+    case INTRN_C_rev16_2:
+    case INTRN_C_rev_4:
+    case INTRN_C_rev_8:
+      return true;
 #endif
-  default:
-    return false;
+    default:
+      return false;
   }
 }
 

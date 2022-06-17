@@ -1230,7 +1230,7 @@ void LogicShiftAndOrrToExtrPattern::Run(BB &bb, Insn &insn) {
   Operand &opnd2 = (prevLsrInsn == nullptr ? insn.GetOperand(kInsnThirdOpnd) :
                     prevLsrInsn->GetOperand(kInsnSecondOpnd));
   ImmOperand &immOpnd = is64Bits ? aarFunc->CreateImmOperand(shiftValue, kMaxImmVal6Bits, false) :
-                                   aarFunc->CreateImmOperand(shiftValue, kMaxImmVal5Bits, false);
+      aarFunc->CreateImmOperand(shiftValue, kMaxImmVal5Bits, false);
   MOperator newMop = is64Bits ? MOP_xextrrrri6 : MOP_wextrrrri5;
   Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, insn.GetOperand(kInsnFirstOpnd),
                                                                  opnd1, opnd2, immOpnd);
@@ -1348,9 +1348,8 @@ void SimplifyMulArithmeticPattern::DoOptimize(BB &currBB, Insn &currInsn) {
     newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, resOpnd, opndMulOpnd1, opndMulOpnd2));
   } else {
     Operand &opnd3 = (validOpndIdx == kInsnSecondOpnd) ? currInsn.GetOperand(kInsnThirdOpnd) :
-                                                         currInsn.GetOperand(kInsnSecondOpnd);
-    newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, resOpnd, opndMulOpnd1,
-                                                               opndMulOpnd2, opnd3));
+        currInsn.GetOperand(kInsnSecondOpnd);
+    newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, resOpnd, opndMulOpnd1, opndMulOpnd2, opnd3));
   }
   CHECK_FATAL(newInsn != nullptr, "must create newInsn");
   currBB.ReplaceInsn(currInsn, *newInsn);
@@ -2992,7 +2991,7 @@ bool SbfxOptPattern::CheckCondition(Insn &insn) {
     Operand &opnd = nextInsn->GetOperand(opndIdx);
     /* Check if it is a source operand. */
     if (opnd.IsMemoryAccessOperand() || opnd.IsList()) {
-       return false;
+      return false;
     } else if (opnd.IsRegister()) {
       auto &reg = static_cast<RegOperand&>(opnd);
       auto *regProp = md->operand[opndIdx];
@@ -3370,7 +3369,7 @@ void CselZeroOneToCsetOpt::Run(BB &bb, Insn &insn) {
   ASSERT(falseTempOp != nullptr, "falseTempOp should not be nullptr");
   /* csel to cset */
   if ((trueTempOp->IsIntImmediate() || IsZeroRegister(*trueTempOp)) &&
-      (falseTempOp->IsIntImmediate() || IsZeroRegister(*falseTempOp))){
+      (falseTempOp->IsIntImmediate() || IsZeroRegister(*falseTempOp))) {
     ImmOperand *imm1 = static_cast<ImmOperand*>(trueTempOp);
     ImmOperand *imm2 = static_cast<ImmOperand*>(falseTempOp);
     bool inverse = imm1->IsOne() && (imm2->IsZero() || IsZeroRegister(*imm2));

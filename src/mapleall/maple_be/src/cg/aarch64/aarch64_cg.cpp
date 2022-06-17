@@ -19,6 +19,7 @@
 #include "alignment.h"
 
 namespace maplebe {
+#include "immvalid.def"
 #include "aarch64_opnd.def"
 #define DEFINE_MOP(...) {__VA_ARGS__},
 const AArch64MD AArch64CG::kMd[kMopLast] = {
@@ -302,7 +303,7 @@ void AArch64CG::EnrollTargetPhases(MaplePhaseManager *pm) const {
   if (!GetMIRModule()->IsCModule()) {
     CGOptions::DisableCGSSA();
   }
-  #include "aarch64_phases.def"
+#include "aarch64_phases.def"
 }
 
 Insn &AArch64CG::BuildPhiInsn(RegOperand &defOpnd, Operand &listParam) {
@@ -321,6 +322,6 @@ Insn &AArch64CG::BuildPhiInsn(RegOperand &defOpnd, Operand &listParam) {
 }
 
 PhiOperand &AArch64CG::CreatePhiOperand(MemPool &mp, MapleAllocator &mAllocator) {
-  return *mp.New<AArch64PhiOperand>(mAllocator);
+  return *mp.New<PhiOperand>(mAllocator);
 }
 }  /* namespace maplebe */

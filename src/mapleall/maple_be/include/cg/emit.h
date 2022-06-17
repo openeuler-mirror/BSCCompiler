@@ -18,7 +18,6 @@
 /* C++ headers */
 #include <fstream>
 #include <functional>
-#include <climits>
 #include <map>
 #include <array>
 #include "isa.h"

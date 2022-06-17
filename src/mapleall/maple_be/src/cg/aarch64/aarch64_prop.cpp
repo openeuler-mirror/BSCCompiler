@@ -446,7 +446,7 @@ bool A64ConstProp::ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) {
     case MOP_waddrrrs:
     case MOP_wsubrrrs:
     case MOP_xsubrrrs: {
-     return ShiftConstReplace(useDUInfo, constOpnd);
+      return ShiftConstReplace(useDUInfo, constOpnd);
     }
     case MOP_wbfirri5i5:
     case MOP_xbfirri6i6: {
@@ -476,7 +476,7 @@ bool A64ConstProp::BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &con
       if (__builtin_popcountl(val) == width) {
         val = val << lsb;
         MOperator newMop = GetRegImmMOP(curMop, false);
-        Operand &newOpnd = cgFunc->CreateImmOperand(PTY_i64, val);
+        Operand &newOpnd = cgFunc->CreateImmOperand(PTY_i64, static_cast<int64>(val));
         if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, &newOpnd, kInsnThirdOpnd)) {
           Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, useInsn->GetOperand(kInsnFirstOpnd), useInsn->GetOperand(kInsnFirstOpnd), newOpnd);
           ReplaceInsnAndUpdateSSA(*useInsn, newInsn);
@@ -545,8 +545,7 @@ void A64StrLdrProp::DoOpt() {
 }
 
 bool A64StrLdrProp::ReplaceMemOpnd(const MemOperand &currMemOpnd, const Insn *defInsn) {
-  auto GetDefInsn = [&defInsn, this](const RegOperand &regOpnd,
-      std::vector<Insn*> &allUseInsns)->void{
+  auto GetDefInsn = [&defInsn, this](const RegOperand &regOpnd, std::vector<Insn*> &allUseInsns)->void {
     if (regOpnd.IsSSAForm() && defInsn == nullptr) {
       VRegVersion *replacedV = ssaInfo->FindSSAVersion(regOpnd.GetRegisterNumber());
       if (replacedV->GetDefInsnInfo() != nullptr) {
@@ -801,7 +800,7 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const MemOpera
       auto *imm = static_cast<ImmOperand*>(&defInsn.GetOperand(kInsnThirdOpnd));
       RegOperand *newOfst = GetReplaceReg(static_cast<RegOperand&>(defInsn.GetOperand(kInsnSecondOpnd)));
       if (newOfst != nullptr) {
-        int64 shift = imm->GetValue();
+        uint32 shift = static_cast<uint32>(static_cast<int32>(imm->GetValue()));
         if (memPropMode == kPropOffset) {
           if ((shift < k4ByteSize) && (shift >= 0)) {
             newMemOpnd = static_cast<AArch64CGFunc*>(cgFunc)->CreateMemOperand(

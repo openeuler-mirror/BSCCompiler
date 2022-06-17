@@ -88,6 +88,18 @@ constexpr uint32 k15ByteSize = 15;
 constexpr uint32 k16ByteSize = 16;
 constexpr uint32 k32ByteSize = 32;
 
+constexpr int32 k1ByteSizeInt = 1;
+constexpr int32 k2ByteSizeInt = 2;
+constexpr int32 k3ByteSizeInt = 3;
+constexpr int32 k4ByteSizeInt = 4;
+constexpr int32 k8ByteSizeInt = 8;
+constexpr int32 k9ByteSizeInt = 9;
+constexpr int32 k12ByteSizeInt = 12;
+constexpr int32 k14ByteSizeInt = 14;
+constexpr int32 k15ByteSizeInt = 15;
+constexpr int32 k16ByteSizeInt = 16;
+constexpr int32 k32ByteSizeInt = 32;
+
 constexpr uint32 k1EightBytesSize = 8;
 constexpr uint32 k2EightBytesSize = 16;
 constexpr uint32 k3EightBytesSize = 24;

@@ -74,8 +74,8 @@ bool AArch64AlignAnalysis::IsInSizeRange(BB &bb) {
   if (CGOptions::GetAlignMinBBSize() == 0 || CGOptions::GetAlignMaxBBSize() == 0) {
     return false;
   }
-  targetInfo.alignMinBBSize = CGOptions::GetAlignMinBBSize();
-  targetInfo.alignMaxBBSize = CGOptions::GetAlignMaxBBSize();
+  targetInfo.alignMinBBSize = (CGOptions::OptimizeForSize()) ? 16 : CGOptions::GetAlignMinBBSize();
+  targetInfo.alignMaxBBSize = (CGOptions::OptimizeForSize()) ? 44 : CGOptions::GetAlignMaxBBSize();
   if (size <= targetInfo.alignMinBBSize || size >= targetInfo.alignMaxBBSize) {
     return false;
   }
@@ -128,7 +128,7 @@ void AArch64AlignAnalysis::ComputeJumpAlign() {
       return;
     }
     AArch64AlignInfo targetInfo;
-    targetInfo.jumpAlign = CGOptions::GetJumpAlignPow();
+    targetInfo.jumpAlign = (CGOptions::OptimizeForSize()) ? 3 : CGOptions::GetJumpAlignPow();
     if (alignInfos.find(bb) == alignInfos.end()) {
       alignInfos[bb] = targetInfo.jumpAlign;
     } else {
@@ -248,7 +248,7 @@ bool AArch64AlignAnalysis::MarkShortBranchSplit() {
     split = false;
     UpdateInsnId();
     for (auto *bb = aarFunc->GetFirstBB(); bb != nullptr && !split; bb = bb->GetNext()) {
-      for (auto *insn = bb->GetLastInsn(); insn != nullptr && !split; insn = insn->GetPrev()){
+      for (auto *insn = bb->GetLastInsn(); insn != nullptr && !split; insn = insn->GetPrev()) {
         if (!insn->IsMachineInstruction()) {
           continue;
         }

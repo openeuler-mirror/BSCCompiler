@@ -72,9 +72,6 @@ void AArch64LiveIntervalAnalysis::SetupLiveIntervalByOp(Operand &op, Insn &insn,
     return;
   }
   LiveInterval *lr = GetOrCreateLiveInterval(regNO);
-  if (lr == nullptr) {
-    return;
-  }
   uint32 point = isDef ? insn.GetId() : (insn.GetId() - 1);
   lr->AddRange(insn.GetBB()->GetId(), point, vregLive.find(regNO) != vregLive.end());
   if (lr->GetRegType() == kRegTyUndef) {
@@ -107,7 +104,7 @@ void AArch64LiveIntervalAnalysis::ComputeLiveIntervalsForEachDefOperand(Insn &in
         SetupLiveIntervalByOp(opnd, insn, true);
       }
     }
-    if (!md->GetOperand(static_cast<int>(i))->IsRegDef()) {
+    if (!md->GetOperand(i)->IsRegDef()) {
       continue;
     }
     SetupLiveIntervalByOp(opnd, insn, true);
@@ -124,7 +121,7 @@ void AArch64LiveIntervalAnalysis::ComputeLiveIntervalsForEachUseOperand(Insn &in
       }
       continue;
     }
-    if (md->GetOperand(static_cast<int>(i))->IsRegDef() && !md->GetOperand(static_cast<int>(i))->IsRegUse()) {
+    if (md->GetOperand(i)->IsRegDef() && !md->GetOperand(i)->IsRegUse()) {
       continue;
     }
     Operand &opnd = insn.GetOperand(i);

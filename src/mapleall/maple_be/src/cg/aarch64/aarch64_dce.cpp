@@ -25,7 +25,7 @@ bool AArch64Dce::RemoveUnuseDef(VRegVersion &defVersion) {
     CHECK_FATAL(defInsnInfo->GetInsn() != nullptr, "Get def insn failed");
     Insn *defInsn = defInsnInfo->GetInsn();
     /* have not support asm/neon opt yet */
-    if (defInsn->GetMachineOpcode() == MOP_asm || defInsn->IsVectorOp()) {
+    if (defInsn->GetMachineOpcode() == MOP_asm || defInsn->IsVectorOp() || defInsn->IsAtomic()) {
       return false;
     }
     std::set<uint32> defRegs = defInsn->GetDefRegs();
@@ -40,8 +40,8 @@ bool AArch64Dce::RemoveUnuseDef(VRegVersion &defVersion) {
       }
       defVersion.MarkDeleted();
       uint32 opndNum = defInsn->GetOperandSize();
-      for (int32 i = opndNum - 1; i >= 0; --i) {
-        Operand &opnd = defInsn->GetOperand(static_cast<uint32>(i));
+      for (uint32 i = opndNum; i > 0; --i) {
+        Operand &opnd = defInsn->GetOperand(i - 1);
         A64DeleteRegUseVisitor deleteUseRegVisitor(*GetSSAInfo(), defInsn->GetId());
         opnd.Accept(deleteUseRegVisitor);
       }
@@ -66,8 +66,7 @@ void A64DeleteRegUseVisitor::Visit(ListOperand *v) {
     Visit(regOpnd);
   }
 }
-void A64DeleteRegUseVisitor::Visit(MemOperand *v) {
-  auto *a64MemOpnd = static_cast<AArch64MemOperand*>(v);
+void A64DeleteRegUseVisitor::Visit(MemOperand *a64MemOpnd) {
   RegOperand *baseRegOpnd = a64MemOpnd->GetBaseRegister();
   RegOperand *indexRegOpnd = a64MemOpnd->GetIndexRegister();
   if (baseRegOpnd != nullptr && baseRegOpnd->IsSSAForm()) {
