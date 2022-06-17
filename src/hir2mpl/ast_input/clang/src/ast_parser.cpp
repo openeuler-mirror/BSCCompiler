@@ -1795,6 +1795,10 @@ ASTExpr *ASTParser::ProcessExprCallExpr(MapleAllocator &allocator, const clang::
   // return
   MIRType *retType = astFile->CvtType(expr.getCallReturnType(*astFile->GetAstContext()));
   astCallExpr->SetRetType(retType);
+  // return var attrs
+  GenericAttrs  returnVarAttrs;
+  astFile->CollectFuncReturnVarAttrs(expr, returnVarAttrs);
+  astCallExpr->SetReturnVarAttrs(returnVarAttrs);
   // args
   MapleVector<ASTExpr*> args(allocator.Adapter());
   for (uint32_t i = 0; i < expr.getNumArgs(); ++i) {

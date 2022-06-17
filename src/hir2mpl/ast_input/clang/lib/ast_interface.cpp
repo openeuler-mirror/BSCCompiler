@@ -276,6 +276,12 @@ void LibAstFile::CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAtt
   }
 }
 
+void LibAstFile::CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericAttrs &genAttrs) {
+  if (LibAstFile::IsOneElementVector(expr.getCallReturnType(*astContext))) {
+    genAttrs.SetAttr(GenericAttrKind::GENATTR_oneelem_simd);
+  }
+}
+
 void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access) {
   CollectAttrs(decl, genAttrs, access);
   if (decl.isVirtualAsWritten()) {

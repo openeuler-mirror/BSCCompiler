@@ -259,6 +259,7 @@ void ASTCallExpr::InsertNonnullCheckingForIcall(const UniqueFEIRExpr &expr, std:
 
 UniqueFEIRExpr ASTCallExpr::AddRetExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt) const {
   UniqueFEIRVar var = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *retType, false, false);
+  var->SetAttrs(GetReturnVarAttrs());
   UniqueFEIRVar dreadVar = var->Clone();
   if (!IsFirstArgRet()) {
     callStmt->SetVar(var->Clone());

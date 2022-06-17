@@ -101,6 +101,7 @@ class LibAstFile {
   void GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs);
   void CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access);
   void CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access);
+  void CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericAttrs &genAttrs);
   void CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl);
   void CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access);
   void CheckUnsupportedVarAttrs(const clang::VarDecl &decl);

@@ -1169,6 +1169,14 @@ class ASTCallExpr : public ASTExpr {
     funcDecl = decl;
   }
 
+  void SetReturnVarAttrs(const GenericAttrs &attrs) {
+    returnVarAttrs = attrs;
+  }
+
+  const GenericAttrs &GetReturnVarAttrs() const {
+    return returnVarAttrs;
+  }
+
   std::string CvtBuiltInFuncName(std::string builtInName) const;
   UniqueFEIRExpr ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
   std::unique_ptr<FEIRStmtAssign> GenCallStmt() const;
@@ -1349,6 +1357,7 @@ UniqueFEIRExpr EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) const;
   bool isIcall = false;
   MapleString varName;
   ASTFunc *funcDecl = nullptr;
+  GenericAttrs returnVarAttrs;
 };
 
 class ASTParenExpr : public ASTExpr {
