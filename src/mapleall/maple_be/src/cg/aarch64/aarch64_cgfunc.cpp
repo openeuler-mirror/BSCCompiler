@@ -893,7 +893,7 @@ MemOperand &AArch64CGFunc::ConstraintOffsetToSafeRegion(uint32 bitLen, const Mem
   }
   int32 offsetValue = static_cast<int32>(memOpnd.GetOffsetImmediate()->GetOffsetValue());
   int32 multiplier = (offsetValue / k512BitSize) + static_cast<int32>(offsetValue % k512BitSize > k256BitSize);
-  int32 addMount = multiplier * k512BitSizeInt;
+  int32 addMount = multiplier * k512BitSize;
   int32 newOffset = offsetValue - addMount;
   RegOperand *baseReg = memOpnd.GetBaseRegister();
   ImmOperand &immAddMount = CreateImmOperand(addMount, k64BitSize, true);
