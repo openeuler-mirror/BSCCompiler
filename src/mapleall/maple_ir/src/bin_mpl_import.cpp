@@ -122,10 +122,10 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
       return memPool->New<MIRAddrofConst>(sym->GetStIdx(), fi, *exprTy, ofst);
     }
     case kBinKindConstAddrofLocal: {
-      uint32 fullidx = static_cast<uint32>(ReadNum());
+      MIRSymbol *sym = ImportLocalSymbol(func);
       FieldID fi = static_cast<FieldID>(ReadNum());
       int32 ofst = static_cast<int32>(ReadNum());
-      return memPool->New<MIRAddrofConst>(StIdx(fullidx), fi, *type, ofst);
+      return memPool->New<MIRAddrofConst>(sym->GetStIdx(), fi, *type, ofst);
     }
     case kBinKindConstAddrofFunc: {
       PUIdx puIdx = ImportFunction();
@@ -661,9 +661,9 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
       auto kind = static_cast<MIRTypeKind>(ReadNum());
       MIRStructType type(kind, strIdx);
       type.SetNameIsLocal(nameIsLocal);
-      auto &origType = static_cast<MIRStructType&>(InsertInTypeTables(type));
-      typTab.push_back(origType.GetTypeIndex());
       type.SetTypeAttrs(ImportTypeAttrs());
+      MIRStructType &origType = static_cast<MIRStructType&>(InsertInTypeTables(type));
+      typTab.push_back(origType.GetTypeIndex());
       if (kind != kTypeStructIncomplete) {
         if (forPointedType) {
           typeNeedsComplete = &origType;
