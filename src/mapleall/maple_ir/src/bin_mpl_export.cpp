@@ -45,7 +45,7 @@ void OutputConstAddrof(const MIRConst &constVal, BinaryMplExport &mplExport) {
   if (addrof.GetSymbolIndex().IsGlobal()) {
     mplExport.OutputSymbol(mplExport.GetMIRModule().CurFunction()->GetLocalOrGlobalSymbol(addrof.GetSymbolIndex()));
   } else {
-    mplExport.WriteNum(addrof.GetSymbolIndex().FullIdx());
+    mplExport.OutputLocalSymbol(mplExport.curFunc->GetLocalOrGlobalSymbol(addrof.GetSymbolIndex()));
   }
   mplExport.WriteNum(addrof.GetFieldID());
   mplExport.WriteNum(addrof.GetOffset());
