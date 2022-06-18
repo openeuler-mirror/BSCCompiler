@@ -180,7 +180,9 @@ class BinaryMplExport {
   void ExpandFourBuffSize();
 
   MIRModule &mod;
+ public:
   MIRFunction *curFunc = nullptr;
+ private:
   size_t bufI = 0;
   std::vector<uint8> buf;
   std::unordered_map<GStrIdx, int64, GStrIdxHash> gStrMark;
