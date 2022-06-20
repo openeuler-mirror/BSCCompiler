@@ -81,7 +81,7 @@ void Standardize::AddressMapping(Insn &insn) {
   CHECK_FATAL(mOp != abstract::MOP_undef, "do two address mapping failed");
   insn.SetOperand(kInsnSecondOpnd, dest);
   Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDescription::GetAbstractId(mOp));
-  newInsn.AddOperandChain(dest).AddOperandChain(src1);
-  cgFunc->GetCurBB()->InsertInsnBefore(insn, newInsn);
+  (void)newInsn.AddOperandChain(dest).AddOperandChain(src1);
+  (void)cgFunc->GetCurBB()->InsertInsnBefore(insn, newInsn);
 }
 }

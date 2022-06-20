@@ -42,7 +42,9 @@ class SymbolAlloc {
  public:
   SymbolAlloc() : mem_segment(nullptr), offset(0) {}
 
-  ~SymbolAlloc() {}
+  ~SymbolAlloc() {
+    mem_segment = nullptr;
+  }
 
   MemSegment *mem_segment;
   int32 offset;
@@ -77,7 +79,9 @@ class LMBCMemLayout {
     sym_alloc_table.resize(f->GetSymTab()->GetSymbolTableSize());
   }
 
-  ~LMBCMemLayout() {}
+  ~LMBCMemLayout() {
+    func = nullptr;
+  }
 
   void LayoutStackFrame(void);
   int32 StackFrameSize(void) const {
@@ -100,7 +104,10 @@ class LMBCMemLayout {
 class GlobalMemLayout {
  public:
   GlobalMemLayout(maplebe::BECommon *b, MIRModule *mod, MapleAllocator *mallocator);
-  ~GlobalMemLayout() {}
+  ~GlobalMemLayout() {
+    be = nullptr;
+    mirModule = nullptr;
+  }
 
   MemSegment seg_GPbased;
   MapleVector<SymbolAlloc> sym_alloc_table;  // index is StIdx

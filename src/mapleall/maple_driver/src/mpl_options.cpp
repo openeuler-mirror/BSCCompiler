@@ -61,7 +61,7 @@ const std::vector<std::string> kMapleCompilers = { "jbc2mpl", "hir2mpl",
     "me", "mpl2mpl", "mplcg", "clang"};
 
 ErrorCode MplOptions::Parse(int argc, char **argv) {
-  maplecl::CommandLine::GetCommandLine().Parse(argc, argv);
+  (void)maplecl::CommandLine::GetCommandLine().Parse(argc, argv);
   exeFolder = FileUtils::GetFileFolder(FileUtils::GetExecutable());
 
   // We should recognize O0, O2 and run options firstly to decide the real options

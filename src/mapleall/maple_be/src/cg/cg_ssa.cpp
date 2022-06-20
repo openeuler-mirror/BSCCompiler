@@ -95,7 +95,7 @@ void CGSSAInfo::PrunedPhiInsertion(const BB &bb, RegOperand &virtualOpnd) {
       bool insertSuccess = false;
       FOR_BB_INSNS(insn, phiBB) {
         if (insn->IsMachineInstruction()) {
-          phiBB->InsertInsnBefore(*insn, phiInsn);
+          (void)phiBB->InsertInsnBefore(*insn, phiInsn);
           insertSuccess = true;
           break;
         }

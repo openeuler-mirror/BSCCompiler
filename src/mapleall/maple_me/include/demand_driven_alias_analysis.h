@@ -56,7 +56,10 @@ class PEGNode {
       multiDefed = true;
     }
   }
-  ~PEGNode() = default;
+  ~PEGNode() {
+    vst = nullptr;
+    prevLevNode = nullptr;
+  }
 
   void SetPrevLevelNode(PEGNode *node) {
     prevLevNode = node;

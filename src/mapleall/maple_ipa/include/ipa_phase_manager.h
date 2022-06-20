@@ -70,7 +70,9 @@ class SCCEmit : public MapleSccPhase<SCCNode<CGNode>>, public MaplePhaseManager 
 class SCCProfile : public MapleSccPhase<SCCNode<CGNode>>, public MaplePhaseManager {
  public:
   explicit SCCProfile(MemPool *mp) : MapleSccPhase<SCCNode<CGNode>>(&id, mp), MaplePhaseManager(*mp) {}
-  ~SCCProfile() override = default;
+  ~SCCProfile() override {
+    result = nullptr;
+  }
   std::string PhaseName() const override;
   PHASECONSTRUCTOR(SCCProfile);
   bool PhaseRun(SCCNode<CGNode> &f) override;

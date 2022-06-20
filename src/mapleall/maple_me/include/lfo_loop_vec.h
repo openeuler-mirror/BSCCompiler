@@ -54,7 +54,10 @@ class LoopVecInfo {
     ivConstArraySym = nullptr;
     ivvecIncrStmt = nullptr;
   }
-  virtual ~LoopVecInfo() = default;
+  virtual ~LoopVecInfo() {
+    ivConstArraySym = nullptr;
+    ivvecIncrStmt = nullptr;
+  }
   void UpdateWidestTypeSize(uint32_t);
   void ResetStmtRHSTypeSize() { currentRHSTypeSize = 0; }
   bool UpdateRHSTypeSize(PrimType); // record rhs node typesize

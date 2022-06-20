@@ -126,7 +126,7 @@ ErrorCode MplcgCompiler::MakeCGOptions(const MplOptions &options) {
   if (itOpt != options.GetExeOptions().end()) {
     const auto &cgExeOpts = itOpt->second;
     const std::deque<std::string_view> strCgOptions(cgExeOpts.begin(), cgExeOpts.end());
-    maplecl::CommandLine::GetCommandLine().HandleInputArgs(strCgOptions, cgCategory);
+    (void)maplecl::CommandLine::GetCommandLine().HandleInputArgs(strCgOptions, cgCategory);
   }
 
   bool result = cgOption.SolveOptions(opts::debug);

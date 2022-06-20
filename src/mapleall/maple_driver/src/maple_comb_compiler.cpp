@@ -12,8 +12,6 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include <iterator>
-#include <algorithm>
 #include "compiler.h"
 #include "driver_options.h"
 #include "string_utils.h"
@@ -145,7 +143,7 @@ ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunn
   if (itOpt != options.GetExeOptions().end()) {
     const auto &meExeOpts = itOpt->second;
     const std::deque<std::string_view> strMeOptions(meExeOpts.begin(), meExeOpts.end());
-    maplecl::CommandLine::GetCommandLine().HandleInputArgs(strMeOptions, meCategory);
+    (void)maplecl::CommandLine::GetCommandLine().HandleInputArgs(strMeOptions, meCategory);
   }
 
   bool result = MeOption::GetInstance().SolveOptions(opts::debug);
@@ -182,7 +180,7 @@ ErrorCode MapleCombCompiler::MakeMpl2MplOptions(const MplOptions &options, Drive
   if (itOpt != options.GetExeOptions().end()) {
     const auto &mpl2mplExeOpts = itOpt->second;
     const std::deque<std::string_view> strMpl2mplOptions(mpl2mplExeOpts.begin(), mpl2mplExeOpts.end());
-    maplecl::CommandLine::GetCommandLine().HandleInputArgs(strMpl2mplOptions, mpl2mplCategory);
+    (void)maplecl::CommandLine::GetCommandLine().HandleInputArgs(strMpl2mplOptions, mpl2mplCategory);
   }
 
   auto &mpl2mplOption = Options::GetInstance();

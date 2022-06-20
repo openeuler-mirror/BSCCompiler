@@ -14,6 +14,7 @@
  */
 #include "compiler_factory.h"
 #include <regex>
+#include "driver_options.h"
 #include "file_utils.h"
 #include "string_utils.h"
 #include "mpl_logging.h"
@@ -78,7 +79,9 @@ ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions,
         break;
       }
     }
-    if (!isSave && mplOptions.GetInputFiles().find(tmpFile) == std::string::npos /* not input */) {
+
+    auto &inputs = mplOptions.GetInputFiles();
+    if (!isSave && (std::find(inputs.begin(), inputs.end(), tmpFile) == inputs.end())) {
       bool isNeedRemove = true;
       /* If we compile several files we can have several last Actions,
        * so we need to NOT remove output files for each last Action.
@@ -92,10 +95,7 @@ ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions,
       }
 
       if (isNeedRemove == true) {
-        ret = FileUtils::Remove(tmpFile);
-        if (ret != 0) {
-          LogInfo::MapleLogger() << tmpFile << " File Not Found in DeleteTmpFiles\n";
-        }
+        (void)FileUtils::Remove(tmpFile);
       }
     }
   }
@@ -136,13 +136,13 @@ ErrorCode CompilerFactory::Compile(MplOptions &mplOptions) {
       return ret;
     }
   }
-  if (mplOptions.HasSetDebugFlag()) {
+  if (opts::debug) {
     mplOptions.PrintDetailCommand(false);
   }
   // Compiler finished
   compileFinished = true;
 
-  if (!mplOptions.HasSetSaveTmps() || !mplOptions.GetSaveFiles().empty()) {
+  if (!opts::saveTempOpt.IsEnabledByUser() || !mplOptions.GetSaveFiles().empty()) {
     std::vector<std::string> tmpFiles;
 
     for (auto *action : actions) {

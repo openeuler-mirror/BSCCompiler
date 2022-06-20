@@ -319,7 +319,7 @@ bool Options::SolveOptions(bool isDebug) const {
 }
 
 bool Options::ParseOptions(int argc, char **argv, std::string &fileName) const {
-  maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, mpl2mplCategory);
+  (void)maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, mpl2mplCategory);
   bool result = SolveOptions(false);
   if (!result) {
     return result;

@@ -28,14 +28,18 @@ class IpaClone : public AnalysisResult {
  public:
   IpaClone(MIRModule *mod, MemPool *memPool, MIRBuilder &builder)
       : AnalysisResult(memPool), mirModule(mod), allocator(memPool), mirBuilder(builder), curFunc(nullptr) {}
-  ~IpaClone() = default;
+  ~IpaClone() {
+    mirModule = nullptr;
+    curFunc = nullptr;
+  }
 
   static MIRSymbol *IpaCloneLocalSymbol(const MIRSymbol &oldSym, const MIRFunction &newFunc);
   static void IpaCloneSymbols(MIRFunction &newFunc, const MIRFunction &oldFunc);
   static void IpaCloneLabels(MIRFunction &newFunc, const MIRFunction &oldFunc);
   static void IpaClonePregTable(MIRFunction &newFunc, const MIRFunction &oldFunc);
   MIRFunction *IpaCloneFunction(MIRFunction &originalFunction, const std::string &newBaseFuncName) const;
-  MIRFunction *IpaCloneFunctionWithFreq(MIRFunction &originalFunction, const std::string &newBaseFuncName, int64_t) const;
+  MIRFunction *IpaCloneFunctionWithFreq(MIRFunction &originalFunction,
+                                        const std::string &newBaseFuncName, int64_t) const;
   void DoIpaClone();
   void InitParams();
   void CopyFuncInfo(MIRFunction &originalFunction, MIRFunction &newFunc) const;

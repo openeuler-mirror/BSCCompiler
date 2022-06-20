@@ -523,7 +523,7 @@ void MPISel::SelectBasicOp(Operand &resOpnd, Operand &opnd0, Operand &opnd1, MOp
   CGRegOperand &firstOpnd = SelectCopy2Reg(opnd0, primType);
   CGRegOperand &secondOpnd = SelectCopy2Reg(opnd1, primType);
   Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDescription::GetAbstractId(mOp));
-  insn.AddOperandChain(resOpnd).AddOperandChain(firstOpnd).AddOperandChain(secondOpnd);
+  (void)insn.AddOperandChain(resOpnd).AddOperandChain(firstOpnd).AddOperandChain(secondOpnd);
   cgFunc->GetCurBB()->AppendInsn(insn);
 }
 
@@ -789,7 +789,7 @@ void MPISel::SelectIntCvt(maplebe::CGRegOperand &resOpnd, maplebe::Operand &opnd
   bool isSigned = !IsPrimitiveUnsigned(toType);
   MOperator mOp = GetFastCvtMopI(resOpnd.GetKind(), opnd0.GetKind(), fromSize, toSize, isSigned);
   Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDescription::GetAbstractId(mOp));
-  insn.AddOperandChain(resOpnd).AddOperandChain(opnd0);
+  (void)insn.AddOperandChain(resOpnd).AddOperandChain(opnd0);
   cgFunc->GetCurBB()->AppendInsn(insn);
   return;
 }
@@ -830,7 +830,7 @@ Operand* MPISel::SelectNeg(const UnaryNode &node, Operand &opnd0, const BaseNode
 void MPISel::SelectNeg(Operand &resOpnd, Operand &opnd0, PrimType primType) {
   MOperator mOp = abstract::MOP_neg_32;
   Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDescription::GetAbstractId(mOp));
-  insn.AddOperandChain(resOpnd).AddOperandChain(opnd0);
+  (void)insn.AddOperandChain(resOpnd).AddOperandChain(opnd0);
   cgFunc->GetCurBB()->AppendInsn(insn);
 }
 
@@ -857,7 +857,7 @@ Operand *MPISel::SelectBxor(const BinaryNode &node, Operand &opnd0, Operand &opn
         cgFunc->GetRegTyFromPrimTy(dtype));
     MOperator mOp = abstract::MOP_xor_32;
     Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDescription::GetAbstractId(mOp));
-    insn.AddOperandChain(*resOpnd).AddOperandChain(opnd0).AddOperandChain(opnd1);
+    (void)insn.AddOperandChain(*resOpnd).AddOperandChain(opnd0).AddOperandChain(opnd1);
     cgFunc->GetCurBB()->AppendInsn(insn);
   } else {
     CHECK_FATAL(false, "NIY");
@@ -1055,7 +1055,7 @@ void MPISel::SelectCopyInsn(destTy &dest, srcTy &src, PrimType type) {
   MOperator mop = GetFastIselMop(dest.GetKind(), src.GetKind(), type);
   CHECK_FATAL(mop != abstract::MOP_undef, "get mop failed");
   Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mop, InsnDescription::GetAbstractId(mop));
-  insn.AddOperandChain(dest).AddOperandChain(src);
+  (void)insn.AddOperandChain(dest).AddOperandChain(src);
   cgFunc->GetCurBB()->AppendInsn(insn);
 }
 
@@ -1079,7 +1079,7 @@ Operand *MPISel::SelectBnot(const UnaryNode &node, Operand &opnd0, const BaseNod
       break;
   }
   Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDescription::GetAbstractId(mOp));
-  insn.AddOperandChain(*resOpnd).AddOperandChain(opnd0);
+  (void)insn.AddOperandChain(*resOpnd).AddOperandChain(opnd0);
   cgFunc->GetCurBB()->AppendInsn(insn);
   return resOpnd;
 }

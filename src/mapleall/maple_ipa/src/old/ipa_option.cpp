@@ -70,7 +70,7 @@ bool IpaOption::ParseCmdline(int argc, char **argv, std::vector<std::string> &fi
   // Default value
   MeOption::inlineFuncList = "";
 
-  maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, ipaCategory);
+  (void)maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, ipaCategory);
   bool result = SolveOptions();
   if (!result) {
     return false;
