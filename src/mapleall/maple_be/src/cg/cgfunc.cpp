@@ -1587,7 +1587,7 @@ void CGFunc::CreateLmbcFormalParamInfo() {
       stackOffset += (typeSize + 7) & (-8);
       LmbcFormalParamInfo *info = GetMemoryPool()->New<LmbcFormalParamInfo>(primType, offset, typeSize);
       lmbcParamVec.push_back(info);
-      if (idx == 0 && mirFunc.IsFirstArgReturn()) {
+      if (idx == 0 && func.IsFirstArgReturn()) {
         info->SetIsReturn();
       }
       if (type->GetKind() == kTypeStruct) {
@@ -1604,7 +1604,7 @@ void CGFunc::CreateLmbcFormalParamInfo() {
     }
   } else {
     /* No aggregate pass by value here */
-    for (StmtNode *stmt = mirFunc.GetBody()->GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
+    for (StmtNode *stmt = func.GetBody()->GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
       if (stmt == nullptr) {
         break;
       }
