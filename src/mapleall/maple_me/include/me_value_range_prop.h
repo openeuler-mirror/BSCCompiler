@@ -722,11 +722,10 @@ class ValueRangePropagation {
   bool ConditionBBCanBeDeletedAfterOPNeOrEq(BB &bb, ValueRange &leftRange, ValueRange &rightRange, BB &falseBranch,
                                             BB &trueBranch);
   bool ConditionEdgeCanBeDeleted(BB &pred, BB &bb, const ValueRange *leftRange,
-      const ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op,
+      const ValueRange *rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op,
       ScalarMeExpr *updateSSAExceptTheScalarExpr, std::map<OStIdx, std::set<BB*>> &ssaupdateCandsForCondExpr);
   void GetSizeOfUnreachableBBsAndReachableBB(BB &bb, size_t &unreachableBB, BB *&reachableBB);
-  bool ConditionEdgeCanBeDeleted(BB &bb, MeExpr &opnd0, ValueRange &rightRange, BB &falseBranch,
-                                 BB &trueBranch, PrimType opndType, Opcode op);
+  bool ConditionEdgeCanBeDeleted(BB &bb, MeExpr &opnd0, ValueRange *rightRange, PrimType opndType, Opcode op);
   bool OnlyHaveCondGotoStmt(BB &bb) const;
   bool RemoveUnreachableEdge(BB &pred, BB &bb, BB &trueBranch, ScalarMeExpr *updateSSAExceptTheScalarExpr,
                              std::map<OStIdx, std::set<BB*>> &ssaupdateCandsForCondExpr);
@@ -747,8 +746,8 @@ class ValueRangePropagation {
   MeExpr *GetDefOfBase(const IvarMeExpr &ivar) const;
   std::unique_ptr<ValueRange> DealWithMeOp(const BB &bb, const MeStmt &stmt);
   void ReplaceOpndByDef(const BB &bb, MeExpr &currOpnd, MeExpr *&predOpnd, MePhiNode *&phi, bool &thePhiIsInBB);
-  bool AnalysisValueRangeInPredsOfCondGotoBB(BB &bb, MeExpr &opnd0, MeExpr &currOpnd,
-      ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op, BB &condGoto);
+  bool AnalysisValueRangeInPredsOfCondGotoBB(BB &bb, MeExpr *opnd0, MeExpr &currOpnd,
+      ValueRange *rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op, BB &condGoto);
   void CreateLabelForTargetBB(BB &pred, BB &newBB);
   size_t FindBBInSuccs(const BB &bb, const BB &succBB) const;
   void DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &meExpr);
@@ -818,6 +817,8 @@ class ValueRangePropagation {
   void CreateVRWithBitsSize(const BB &bb, OpMeExpr &opMeExpr);
   MeExpr &GetVersionOfOpndInPred(const BB &pred, const BB &bb, MeExpr &expr) const;
   std::unique_ptr<ValueRange> GetValueRangeOfLHS(BB &pred, const BB &bb, MeExpr &expr) const;
+  Opcode GetOpAfterSwapThePositionsOfTwoOperands(Opcode op) const;
+  bool TowCompareOperandsAreInSameIterOfLoop(const MeExpr &lhs, const MeExpr &rhs) const;
 
   MeFunction &func;
   MeIRMap &irMap;
