@@ -799,11 +799,13 @@ void FEFunction::PushStmtScope(SrcPosition startOfScope, SrcPosition endOfScope,
   if (mirScope == nullptr) {
     mirScope = mirFunction.GetModule()->GetMemPool()->New<MIRScope>(mirFunction.GetModule());
     mirScope->IncLevel();
+    mirScope->SetRange(startOfScope, endOfScope);
     MIRScope *parentMirScope = GetTopStmtScope();
     ASSERT_NOT_NULL(parentMirScope);
     parentMirScope->AddScope(mirScope);
+  } else { // function scope
+    mirScope->SetRange(startOfScope, endOfScope);
   }
-  mirScope->SetRange(startOfScope, endOfScope);
   stmtsScopeStack.push(mirScope);
 }
 
@@ -823,4 +825,13 @@ void FEFunction::PopTopStmtScope() {
 MIRScope *FEFunction::GetFunctionScope() {
   return mirFunction.GetScope();
 }
+
+void FEFunction::AddAliasInMIRScope(MIRScope *scope, std::string srcVarName, const MIRSymbol *symbol) {
+  GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
+      namemangler::EncodeName(srcVarName));
+  MIRAliasVars aliasVar;
+  aliasVar.tyIdx = symbol->GetTyIdx();
+  aliasVar.memPoolStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(symbol->GetName());
+  scope->SetAliasVarMap(nameIdx, aliasVar);
+};
 }  // namespace maple

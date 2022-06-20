@@ -140,12 +140,7 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
     FEFunction &feFunction = FEManager::GetCurrentFEFunction();
     MIRScope *mirScope = feFunction.GetTopStmtScope();
     ASSERT_NOT_NULL(mirScope);
-    GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
-        namemangler::EncodeName(GetName()));
-    MIRAliasVars aliasVar;
-    aliasVar.tyIdx = sym->GetTyIdx();
-    aliasVar.memPoolStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(sym->GetName());
-    mirScope->SetAliasVarMap(nameIdx, aliasVar);
+    feFunction.AddAliasInMIRScope(mirScope, GetName(), sym);
   }
   if (variableArrayExpr != nullptr) {
     // free, Currently, the back-end are not supported.
