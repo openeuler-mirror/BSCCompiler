@@ -340,30 +340,44 @@ BlockNode *MIRLower::LowerWhileStmt(WhileStmtNode &whileStmt) {
   mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(lalbeIdx);
   brFalseStmt->SetOffset(lalbeIdx);
   blk->AddStatement(brFalseStmt);
-  LabelIdx bodyLableIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
-  mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(bodyLableIdx);
-  auto *lableStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
-  lableStmt->SetLabelIdx(bodyLableIdx);
-  blk->AddStatement(lableStmt);
-  // update frequency
-  if (GetFuncProfData()) {
-    GetFuncProfData()->CopyStmtFreq(lableStmt->GetStmtID(), whileStmt.GetStmtID());
-    GetFuncProfData()->CopyStmtFreq(brFalseStmt->GetStmtID(), whileStmt.GetStmtID());
-  }
   blk->AppendStatementsFromBlock(*whileStmt.GetBody());
-  auto *brTrueStmt = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(OP_brtrue);
-  brTrueStmt->SetOpnd(whileStmt.Opnd(0)->CloneTree(mirModule.GetCurFuncCodeMPAllocator()), 0);
-  brTrueStmt->SetOffset(bodyLableIdx);
-  if (GetFuncProfData() && blk->GetLast()) {
-    GetFuncProfData()->CopyStmtFreq(brTrueStmt->GetStmtID(), whileStmt.GetBody()->GetStmtID());
+  if (MeOption::optForSize) {
+    // still keep while-do format to avoid coping too much condition-related stmt
+    LabelIdx whileLalbeIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
+    mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(whileLalbeIdx);
+    auto *lableStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
+    lableStmt->SetLabelIdx(whileLalbeIdx);
+    blk->InsertBefore(brFalseStmt, lableStmt);
+    auto *whilegotonode = mirModule.CurFuncCodeMemPool()->New<GotoNode>(OP_goto, whileLalbeIdx);
+    if (GetFuncProfData() && blk->GetLast()) {
+      GetFuncProfData()->CopyStmtFreq(whilegotonode->GetStmtID(), blk->GetLast()->GetStmtID());
+    }
+    blk->AddStatement(whilegotonode);
+  } else {
+    LabelIdx bodyLableIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
+    mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(bodyLableIdx);
+    auto *lableStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
+    lableStmt->SetLabelIdx(bodyLableIdx);
+    blk->InsertAfter(brFalseStmt, lableStmt);
+    // update frequency
+    if (GetFuncProfData()) {
+      GetFuncProfData()->CopyStmtFreq(lableStmt->GetStmtID(), whileStmt.GetStmtID());
+      GetFuncProfData()->CopyStmtFreq(brFalseStmt->GetStmtID(), whileStmt.GetStmtID());
+    }
+    auto *brTrueStmt = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(OP_brtrue);
+    brTrueStmt->SetOpnd(whileStmt.Opnd(0)->CloneTree(mirModule.GetCurFuncCodeMPAllocator()), 0);
+    brTrueStmt->SetOffset(bodyLableIdx);
+    if (GetFuncProfData() && blk->GetLast()) {
+      GetFuncProfData()->CopyStmtFreq(brTrueStmt->GetStmtID(), whileStmt.GetBody()->GetStmtID());
+    }
+    blk->AddStatement(brTrueStmt);
   }
-  blk->AddStatement(brTrueStmt);
-  lableStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
+  auto *lableStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   lableStmt->SetLabelIdx(lalbeIdx);
   blk->AddStatement(lableStmt);
   if (GetFuncProfData()) {
     int64_t freq = GetFuncProfData()->GetStmtFreq(whileStmt.GetStmtID()) -
-                   GetFuncProfData()->GetStmtFreq(brTrueStmt->GetStmtID());
+                   GetFuncProfData()->GetStmtFreq(blk->GetLast()->GetStmtID());
     ASSERT(freq >= 0, "sanity check");
     GetFuncProfData()->SetStmtFreq(lableStmt->GetStmtID(), freq);
   }

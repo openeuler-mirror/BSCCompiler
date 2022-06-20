@@ -53,7 +53,7 @@ static bool CompareBackedge(const std::pair<BB*, BB*> &a, const std::pair<BB*, B
 bool MeLoopInversion::NeedConvert(MeFunction *func, BB &bb, BB &pred, MapleAllocator &localAlloc,
                                   MapleMap<Key, bool> &swapSuccs) const {
   // loop is transformed
-  if (pred.GetAttributes(kBBAttrArtificial)) {
+  if (pred.GetAttributes(kBBAttrArtificial) && bb.GetAttributes(kBBAttrArtificial)) {
     return false;
   }
   bb.SetAttributes(kBBAttrIsInLoop);
@@ -316,18 +316,35 @@ void MeLoopInversion::ExecuteLoopInversion(MeFunction &func, Dominance &dom) {
       LogInfo::MapleLogger() << "-----------------Dump mefunction before loop convert----------\n";
       func.Dump(true);
     }
-    for (auto it = backEdges.begin(); it != backEdges.end(); ++it) {
-      BB *bb = it->first;
-      BB *pred = it->second;
+    for (size_t i = 0; i < backEdges.size(); i++) {
+      BB *bb = backEdges[i].first;
+      BB *pred = backEdges[i].second;
       ASSERT(bb != nullptr, "bb should not be nullptr");
       ASSERT(pred != nullptr, "pred should not be nullptr");
       Convert(func, *bb, *pred, swapSuccs);
-      if (isDebugFunc) {
-        LogInfo::MapleLogger() << "-----------------Dump mefunction after loop convert-----------\n";
-        func.Dump(true);
+      for (auto *succ : bb->GetSucc()) {
+        if (!dom.Dominate(*succ, *pred)) {
+          continue;
+        }
+        for (BB *tmpPred : succ->GetPred()) {
+          if (!tmpPred->IsSuccBB(*pred)) {
+            continue;
+          }
+          if ((NeedConvert(&func, *succ, *tmpPred, localAlloc, swapSuccs))) {
+            if (isDebugFunc) {
+              LogInfo::MapleLogger() << "find new backedge " << succ->GetBBId()
+                                     << " <-- " << tmpPred->GetBBId() << '\n';
+            }
+            backEdges.push_back(std::make_pair(succ, tmpPred));
+          }
+        }
       }
     }
     isCFGChange = true;
+    if (isDebugFunc) {
+      LogInfo::MapleLogger() << "-----------------Dump mefunction after loop convert-----------\n";
+      func.Dump(true);
+    }
   }
 }
 

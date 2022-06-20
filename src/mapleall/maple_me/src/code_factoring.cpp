@@ -39,6 +39,9 @@ class FactoringOptimizer {
         mirBuilder(f.GetMIRModule().GetMIRBuilder()),
         dumpDetail(enableDebug) {}
   ~FactoringOptimizer() = default;
+  bool IsCFGChanged() const {
+    return isCFGChanged;
+  }
   bool IsIdenticalStmt(StmtNode *stmt1, StmtNode *stmt2);
   void SinkStmtsInCands(std::map<BB*, StmtNode*, cmpByBBID> &cands);
   void DoSink(BB *bb);
@@ -51,6 +54,7 @@ class FactoringOptimizer {
   MapleAllocator *codeMPAlloc;
   MIRBuilder *mirBuilder;
   bool dumpDetail = false;
+  bool isCFGChanged = false;
   uint32 sinkCount = 0;
 };
 
@@ -141,6 +145,26 @@ bool FactoringOptimizer::IsIdenticalStmt(StmtNode *stmt1, StmtNode *stmt2) {
       isCall = true;
       break;
     }
+    case OP_intrinsiccall:
+    case OP_intrinsiccallassigned: {
+      auto *call1 = static_cast<IntrinsiccallNode*>(stmt1);
+      auto *call2 = static_cast<IntrinsiccallNode*>(stmt2);
+      if (call1->GetIntrinsic() != call2->GetIntrinsic() ||
+          call1->GetTyIdx() != call2->GetTyIdx() ||
+          call1->GetCallReturnVector()->size() != call2->GetReturnVec().size()) {
+        return false;
+      }
+      for (size_t i = 0; i < call1->GetCallReturnVector()->size(); ++i) {
+        auto retPair1 = call1->GetCallReturnPair(i);
+        auto retPair2 = call2->GetCallReturnPair(i);
+        if (retPair1.first != retPair2.first ||
+            retPair1.second.GetPregIdx() != retPair2.second.GetPregIdx() ||
+            retPair1.second.GetFieldID() != retPair2.second.GetFieldID()) {
+          return false;
+        }
+      }
+      break;
+    }
     default:
       return false;
   }
@@ -181,6 +205,7 @@ void FactoringOptimizer::SinkStmtsInCands(std::map<BB *, StmtNode *, cmpByBBID> 
       pred->ReplaceSucc(succ, sinkBB);
     }
     sinkBB->AddSucc(*succ);
+    isCFGChanged = true;
   }
   auto *identifyStmt = cands.begin()->second;
   auto *sinkedStmt = identifyStmt->CloneTree(*codeMPAlloc);
@@ -299,6 +324,9 @@ void MECodeFactoring::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 bool MECodeFactoring::PhaseRun(MeFunction &f) {
   auto *optimizer = GetPhaseAllocator()->New<FactoringOptimizer>(f, DEBUGFUNC_NEWPM(f));
   optimizer->RunLocalFactoring();
+  if (optimizer->IsCFGChanged()) {
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
+  }
   return true;
 }
 }  // namespace maple
