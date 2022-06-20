@@ -733,6 +733,21 @@ class AArch64CGFunc : public CGFunc {
     return lmbcArgInfo->lmbcCallArgNumOfRegs;
   }
 
+  int32 GetLmbcTotalStkUsed() {
+    return lmbcArgInfo->lmbcTotalStkUsed;
+  }
+
+  void SetLmbcTotalStkUsed(int32 offset) {
+    lmbcArgInfo->lmbcTotalStkUsed = offset;
+  }
+
+  void SetLmbcCallReturnType(MIRType *ty) {
+    lmbcCallReturnType = ty;
+  }
+
+  MIRType *GetLmbcCallReturnType() {
+    return lmbcCallReturnType;
+  }
   bool IsSPOrFP(const RegOperand &opnd) const override;
   bool IsReturnReg(const RegOperand &opnd) const override;
   bool IsSaveReg(const RegOperand &reg, MIRType &mirType, BECommon &cgBeCommon) const override;
