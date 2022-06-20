@@ -199,7 +199,8 @@ void AArch64MoveRegArgs::GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgI
       lastSegment = firstArgInfo.symLoc->GetMemSegment();
       aarchCGFunc->SelectAdd(*baseReg, *baseOpnd, immOpnd, LOWERED_PTR_TYPE);
     }
-    OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(firstArgInfo.symLoc->GetOffset(), k32BitSize);
+    OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(static_cast<uint64>(firstArgInfo.symLoc->GetOffset()),
+        k32BitSize);
     if (firstArgInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
       offsetOpnd.SetVary(kUnAdjustVary);
     }
@@ -207,7 +208,8 @@ void AArch64MoveRegArgs::GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgI
                                             firstArgInfo.stkSize * kBitsPerByte,
                                             *baseReg, nullptr, &offsetOpnd, firstArgInfo.sym);
   } else {
-    OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(stOffset, k32BitSize);
+    OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(static_cast<uint64>(static_cast<int64>(stOffset)),
+        k32BitSize);
     if (firstArgInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
       offsetOpnd.SetVary(kUnAdjustVary);
     }
@@ -258,7 +260,7 @@ void AArch64MoveRegArgs::GenerateStrInsn(ArgInfo &argInfo, AArch64reg reg2, uint
       lastSegment = argInfo.symLoc->GetMemSegment();
       aarchCGFunc->SelectAdd(*baseReg, *baseOpnd, immOpnd, PTY_a64);
     }
-    OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(argInfo.symLoc->GetOffset(), k32BitSize);
+    OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(static_cast<uint64>(argInfo.symLoc->GetOffset()), k32BitSize);
     if (argInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
       offsetOpnd.SetVary(kUnAdjustVary);
     }
@@ -266,7 +268,8 @@ void AArch64MoveRegArgs::GenerateStrInsn(ArgInfo &argInfo, AArch64reg reg2, uint
                                             argInfo.symSize * kBitsPerByte, *baseReg,
                                             nullptr, &offsetOpnd, argInfo.sym);
   } else {
-    OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(stOffset, k32BitSize);
+    OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(static_cast<uint64>(static_cast<int64>(stOffset)),
+        k32BitSize);
     if (argInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
       offsetOpnd.SetVary(kUnAdjustVary);
     }

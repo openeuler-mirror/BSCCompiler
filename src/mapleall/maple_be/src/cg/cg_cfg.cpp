@@ -41,7 +41,7 @@ bool CanBBThrow(const BB &bb) {
 }
 }
 
-namespace maplebe{
+namespace maplebe {
 void CGCFG::BuildCFG() {
   /*
    * Second Pass:
@@ -875,6 +875,7 @@ void CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
   /* update offset if succ is goto target */
   if (pred.GetKind() == BB::kBBIf) {
     Insn *brInsn = FindLastCondBrInsn(pred);
+    ASSERT(brInsn != nullptr, "null ptr check");
     LabelOperand &brTarget = static_cast<LabelOperand&>(brInsn->GetOperand(brInsn->GetJumpTargetIdx()));
     if (brTarget.GetLabelIndex() == succ.GetLabIdx()) {
       brInsn->SetOperand(brInsn->GetJumpTargetIdx(), cgFunc->GetOrCreateLabelOperand(newLblIdx));

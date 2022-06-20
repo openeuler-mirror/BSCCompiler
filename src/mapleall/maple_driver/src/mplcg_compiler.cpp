@@ -12,7 +12,6 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include <cstdlib>
 #include "compiler.h"
 #include "driver_options.h"
 #include "default_options.def"
@@ -68,7 +67,7 @@ std::string MplcgCompiler::GetInputFile(const MplOptions &, const Action &action
   if (idx != std::string::npos) {
     outputName = action.GetOutputName().substr(0, idx);
   }
-  if (md->GetSrcLang() == kSrcLangC) {
+  if (md != nullptr && md->GetSrcLang() == kSrcLangC) {
     return action.GetOutputFolder() + outputName + ".me.mpl";
   }
   return action.GetOutputFolder() + outputName + ".VtableImpl.mpl";

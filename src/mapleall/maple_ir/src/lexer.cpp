@@ -17,10 +17,10 @@
 #include <climits>
 #include <cstdlib>
 #include "mpl_logging.h"
+#include "debug_info.h"
 #include "mir_module.h"
 #include "securec.h"
 #include "utils.h"
-#include "debug_info.h"
 
 namespace maple {
 int32 HexCharToDigit(char c) {
@@ -115,7 +115,7 @@ void MIRLexer::GenName() {
 }
 
 // get the constant value
-TokenKind MIRLexer::GetConstVal(){
+TokenKind MIRLexer::GetConstVal() {
   bool negative = false;
   int valStart = curIdx;
   char c = GetCharAtWithUpperCheck(curIdx);

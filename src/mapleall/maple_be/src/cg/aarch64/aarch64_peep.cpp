@@ -2568,8 +2568,8 @@ bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(Insn &insn, cons
   } else {
     auto &newBaseReg = static_cast<RegOperand&>(splitAdd->GetOperand(kInsnFirstOpnd));
     auto &addImmOpnd = static_cast<ImmOperand&>(splitAdd->GetOperand(kInsnThirdOpnd));
-    auto *newOfstOpnd = &aarFunc.CreateOfstOpnd(
-        (ofstOpnd->GetOffsetValue() - addImmOpnd.GetValue()), ofstOpnd->GetSize());
+    auto *newOfstOpnd = &aarFunc.CreateOfstOpnd(static_cast<uint64>(ofstOpnd->GetOffsetValue() - addImmOpnd.GetValue()),
+        ofstOpnd->GetSize());
     auto *newMemOpnd = aarFunc.CreateMemOperand(
         MemOperand::kAddrModeBOi, opndProp->GetSize(), newBaseReg, nullptr, newOfstOpnd, memOperand.GetSymbol());
     if (!(static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(

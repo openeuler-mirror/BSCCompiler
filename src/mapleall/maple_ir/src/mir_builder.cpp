@@ -654,7 +654,7 @@ IreadNode *MIRBuilder::CreateExprIread(const MIRType &returnType, const MIRType 
                                        BaseNode *addr) {
   TyIdx returnTypeIdx = returnType.GetTypeIndex();
   CHECK(returnTypeIdx < GlobalTables::GetTypeTable().GetTypeTable().size(),
-         "index out of range in MIRBuilder::CreateExprIread");
+        "index out of range in MIRBuilder::CreateExprIread");
   ASSERT(fieldID != 0 || ptrType.GetPrimType() != PTY_agg,
          "Error: Fieldid should not be 0 when trying to iread a field from type ");
   PrimType type = GetRegPrimType(returnType.GetPrimType());

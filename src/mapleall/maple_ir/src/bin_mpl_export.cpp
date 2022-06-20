@@ -1039,7 +1039,7 @@ void BinaryMplExport::WriteEaField(const CallGraph &cg) {
   WriteNum(~kBinEaStart);
 }
 
-void BinaryMplExport::WriteEaCgField(EAConnectionGraph *eacg){
+void BinaryMplExport::WriteEaCgField(EAConnectionGraph *eacg) {
   if (eacg == nullptr) {
     WriteNum(~kBinEaCgStart);
     return;
@@ -1096,6 +1096,7 @@ void BinaryMplExport::WriteSymField(uint64 contentIdx) {
     for (auto sit = GetMIRModule().GetSymbolDefOrder().begin();
          sit != GetMIRModule().GetSymbolDefOrder().end(); ++sit) {
       MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx(sit->Idx());
+      ASSERT(s != nullptr, "null ptr check");
       // Verify: all wpofake variables should have been deleted from globaltable
       ASSERT(!(s->IsWpoFakeParm() || s->IsWpoFakeRet()) || s->IsDeleted(), "wpofake var not deleted");
       MIRStorageClass storageClass = s->GetStorageClass();

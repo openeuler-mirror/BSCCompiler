@@ -185,7 +185,7 @@ void AArch64RegSavesOpt::GetLocalDefUse() {
   } /* for all sortedBBs */
 
   if (RS_DUMP) {
-    for (uint32 i=0; i<cgFunc->NumBBs(); ++i) {
+    for (uint32 i = 0; i < cgFunc->NumBBs(); ++i) {
       mLog << i << " : " << calleeBitsDef[i] << " " << calleeBitsUse[i] << "\n";;
     }
   }
@@ -278,7 +278,7 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
       continue;
     }
     CalleeBitsType mask = 1;
-    for (uint32 i=0; i < (sizeof(CalleeBitsType)<<3); ++i) {
+    for (uint32 i = 0; i < static_cast<uint32>(sizeof(CalleeBitsType) << 3); ++i) {
       if ((c & mask) != 0) {
         MapleSet<regno_t> &liveIn = bb->GetLiveInRegNO();
         regno_t reg = ReverseRegBitMap(i);
@@ -465,7 +465,7 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
     if (wkCand.restoreAtEpilog) {
       /* Restore cannot b3 applied, skip this reg and place save/restore
          in prolog/epilog */
-      for (int bid = 1; bid < bbSavedRegs.size(); bid++) {
+      for (size_t bid = 1; bid < bbSavedRegs.size(); ++bid) {
         SavedRegInfo *sp = bbSavedRegs[bid];
         if (sp != nullptr && !sp->GetSaveSet().empty()) {
           if (sp->ContainSaveReg(reg)) {

@@ -288,7 +288,7 @@ void AArch64MemLayout::LayoutFormalParams() {
 
 void AArch64MemLayout::LayoutLocalVariables(std::vector<MIRSymbol*> &tempVar, std::vector<MIRSymbol*> &returnDelays) {
   if (be.GetMIRModule().GetFlavor() == kFlavorLmbc && mirFunction->GetFormalCount() == 0) {
-    segLocals.SetSize(mirFunction->GetFrameSize() - mirFunction->GetOutParmSize());
+    segLocals.SetSize(static_cast<uint32>(mirFunction->GetFrameSize() - mirFunction->GetOutParmSize()));
     return;
   }
 

@@ -201,8 +201,8 @@ bool NeedCvtOrRetype(PrimType origin, PrimType compared) {
 #define POINTER_P2SIZE 3
 #endif
 #elif TARGX86 || TARGARM32 || TARGVM
-  #define POINTER_SIZE 4
-  #define POINTER_P2SIZE 2
+#define POINTER_SIZE 4
+#define POINTER_P2SIZE 2
 #endif
 
 PrimType GetExactPtrPrimType() {
@@ -562,7 +562,7 @@ void TypeAttrs::DumpAttributes() const {
   if (attrAlign) {
     LogInfo::MapleLogger() << " align(" << GetAlign() << ")";
   }
-  if(GetAttr(ATTR_pack) && GetPack() != 0) {
+  if (GetAttr(ATTR_pack) && GetPack() != 0) {
     LogInfo::MapleLogger() << " pack(" << GetPack() << ")";
   }
 }
@@ -583,7 +583,7 @@ void FieldAttrs::DumpAttributes() const {
   if (attrAlign) {
     LogInfo::MapleLogger() << " align(" << GetAlign() << ")";
   }
-  if(IsPacked()) {
+  if (IsPacked()) {
     LogInfo::MapleLogger() << " pack(1)";
   }
 }

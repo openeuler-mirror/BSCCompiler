@@ -623,12 +623,6 @@ Operand *MPISel::SelectShift(const BinaryNode &node, Operand &opnd0, Operand &op
   CGRegOperand *resOpnd = nullptr;
   Opcode opcode = node.GetOpCode();
 
-  bool isOneElemVector = false;
-  BaseNode *expr = node.Opnd(0);
-  if (expr->GetOpCode() == OP_dread) {
-    MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(static_cast<DreadNode*>(expr)->GetStIdx());
-    isOneElemVector = symbol->GetAttr(ATTR_oneelem_simd);
-  }
   if (false) {
     /* TODO : primitive vector */
   } else {

@@ -515,7 +515,7 @@ int32 AArch64CallConvImpl::ProcessPtyAggWhenLocateNextParm(MIRType &mirType, CCL
   /* compute rightpad */
   if ((numRegs == 0) || (pLoc.reg0 == kRinvalid)) {
     /* passed in memory */
-    typeSize = RoundUp(pLoc.memSize, k8ByteSize);
+    typeSize = RoundUp(static_cast<uint64>(static_cast<int64>(pLoc.memSize)), k8ByteSize);
   }
   return aggCopySize;
 }

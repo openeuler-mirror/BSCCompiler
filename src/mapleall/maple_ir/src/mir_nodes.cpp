@@ -29,6 +29,7 @@ namespace maple {
 MIRModule *theMIRModule = nullptr;
 std::atomic<uint32> StmtNode::stmtIDNext(1);  // 0 is reserved
 uint32 StmtNode::lastPrintedLineNum = 0;
+uint16 StmtNode::lastPrintedColumnNum = 0;
 const int32 CondGotoNode::probAll = 10000;
 
 const char *GetIntrinsicName(MIRIntrinsicID intrn) {
@@ -71,6 +72,7 @@ bool BaseNode::MayThrowException() {
 
 bool AddrofNode::CheckNode(const MIRModule &mod) const {
   const MIRSymbol *st = mod.CurFunction()->GetLocalOrGlobalSymbol(GetStIdx());
+  ASSERT(st != nullptr, "null ptr check");
   MIRType *ty = st->GetType();
   switch (ty->GetKind()) {
     case kTypeScalar: {
@@ -266,17 +268,17 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
   for (auto &stmt : stmtNodeList) {
     StmtNode *newStmt;
     if (stmt.GetOpCode() == OP_block) {
-      newStmt = static_cast<StmtNode *>((static_cast<BlockNode *>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs,
-        fromFreqs, numer, denom, updateOp));
+      newStmt = static_cast<StmtNode *>((static_cast<BlockNode *>(&stmt))->CloneTreeWithFreqs(
+          allocator, toFreqs, fromFreqs, numer, denom, updateOp));
     } else if (stmt.GetOpCode() == OP_if) {
-      newStmt = static_cast<StmtNode *>((static_cast<IfStmtNode *>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs,
-        fromFreqs, numer, denom, updateOp));
+      newStmt = static_cast<StmtNode *>((static_cast<IfStmtNode *>(&stmt))->CloneTreeWithFreqs(
+          allocator, toFreqs, fromFreqs, numer, denom, updateOp));
     } else if (stmt.GetOpCode() == OP_while) {
-      newStmt = static_cast<StmtNode *>((static_cast<WhileStmtNode *>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs,
-        fromFreqs, numer, denom, updateOp));
+      newStmt = static_cast<StmtNode *>((static_cast<WhileStmtNode *>(&stmt))->CloneTreeWithFreqs(
+          allocator, toFreqs, fromFreqs, numer, denom, updateOp));
     } else if (stmt.GetOpCode() == OP_doloop) {
-      newStmt = static_cast<StmtNode *>((static_cast<DoloopNode *>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs,
-        fromFreqs, numer, denom, updateOp));
+      newStmt = static_cast<StmtNode *>((static_cast<DoloopNode *>(&stmt))->CloneTreeWithFreqs(
+          allocator, toFreqs, fromFreqs, numer, denom, updateOp));
     } else {
       newStmt = static_cast<StmtNode*>(stmt.CloneTree(allocator));
       if (fromFreqs.count(stmt.GetStmtID()) > 0) {
@@ -621,6 +623,7 @@ void AddrofNode::Dump(int32) const {
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOpCode()).name << " " << GetPrimTypeName(GetPrimType());
   const MIRSymbol *st = theMIRModule->CurFunction()->GetLocalOrGlobalSymbol(GetStIdx());
   LogInfo::MapleLogger() << (GetStIdx().Islocal() ? " %" : " $");
+  ASSERT(st != nullptr, "null ptr check");
   LogInfo::MapleLogger() << st->GetName();
   if (fieldID != 0) {
     LogInfo::MapleLogger() << " " << fieldID;
@@ -631,6 +634,7 @@ void DreadoffNode::Dump(int32) const {
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOpCode()).name << " " << GetPrimTypeName(GetPrimType());
   const MIRSymbol *st = theMIRModule->CurFunction()->GetLocalOrGlobalSymbol(stIdx);
   LogInfo::MapleLogger() << (stIdx.Islocal() ? " %" : " $");
+  ASSERT(st != nullptr, "null ptr check");
   LogInfo::MapleLogger() << st->GetName();
   LogInfo::MapleLogger() << " " << offset;
 }
@@ -678,11 +682,7 @@ void AddroflabelNode::Dump(int32) const {
 }
 
 void StmtNode::DumpBase(int32 indent) const {
-  if (srcPosition.FileNum() != 0 && srcPosition.LineNum() != 0 && srcPosition.LineNum() != lastPrintedLineNum &&
-      theMIRModule->CurFunction()->WithLocInfo()) {
-    LogInfo::MapleLogger() << "LOC " << srcPosition.FileNum() << " " << srcPosition.LineNum() << '\n';
-    lastPrintedLineNum = srcPosition.LineNum();
-  }
+  srcPosition.DumpLoc(lastPrintedLineNum, lastPrintedColumnNum);
   // dump stmtFreqs
   if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData() &&
       theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) >= 0) {
@@ -733,6 +733,7 @@ void StmtNode::InsertBeforeThis(StmtNode &pos) {
 void DassignNode::Dump(int32 indent) const {
   StmtNode::DumpBase(indent);
   const MIRSymbol *st = theMIRModule->CurFunction()->GetLocalOrGlobalSymbol(stIdx);
+  ASSERT(st != nullptr, "null ptr check");
   LogInfo::MapleLogger() << (st->IsLocal() ? " %" : " $");
   LogInfo::MapleLogger() << st->GetName() << " " << fieldID;
   LogInfo::MapleLogger() << " (";
@@ -748,6 +749,7 @@ void DassignoffNode::Dump(int32 indent) const {
   StmtNode::DumpBase(indent);
   LogInfo::MapleLogger() << " " << GetPrimTypeName(GetPrimType());
   const MIRSymbol *st = theMIRModule->CurFunction()->GetLocalOrGlobalSymbol(stIdx);
+  ASSERT(st != nullptr, "null ptr check");
   LogInfo::MapleLogger() << (st->IsLocal() ? " %" : " $");
   LogInfo::MapleLogger() << st->GetName() << " " << offset;
   LogInfo::MapleLogger() << " (";
@@ -1304,7 +1306,7 @@ void BlockNode::Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable
         }
       }
       // print the locally declared variables
-      theSymTab->Dump(true/*isLocal*/, indent + 1, false/*printDeleted*/, flavor);
+      theSymTab->Dump(true, indent + 1, false, flavor); /* first:isLocal, third:printDeleted */
       if (thePregTab != nullptr) {
         thePregTab->DumpPregsWithTypes(indent + 1);
       }
@@ -1314,11 +1316,7 @@ void BlockNode::Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable
       theMIRModule->CurFunction()->DumpScope();
     }
   }
-  if (srcPosition.FileNum() != 0 && srcPosition.LineNum() != 0 && srcPosition.LineNum() != lastPrintedLineNum &&
-      theMIRModule->CurFunction()->WithLocInfo()) {
-    LogInfo::MapleLogger() << "LOC " << srcPosition.FileNum() << " " << srcPosition.LineNum() << '\n';
-    lastPrintedLineNum = srcPosition.LineNum();
-  }
+  srcPosition.DumpLoc(lastPrintedLineNum, lastPrintedColumnNum);
   // dump stmtFreqs
   if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
     LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  <<
@@ -1332,10 +1330,8 @@ void BlockNode::Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable
 }
 
 void LabelNode::Dump(int32) const {
-  if (srcPosition.FileNum() != 0 && srcPosition.LineNum() != 0 && srcPosition.LineNum() != lastPrintedLineNum &&
-      theMIRModule->CurFunction()->WithLocInfo()) {
-    LogInfo::MapleLogger() << "LOC " << srcPosition.FileNum() << " " << srcPosition.LineNum() << '\n';
-    lastPrintedLineNum = srcPosition.LineNum();
+  if (theMIRModule->CurFunction()->WithLocInfo()) {
+    srcPosition.DumpLoc(lastPrintedLineNum, lastPrintedColumnNum);
   }
   // dump stmtFreqs
   if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
@@ -1346,11 +1342,7 @@ void LabelNode::Dump(int32) const {
 }
 
 void CommentNode::Dump(int32 indent) const {
-  if (srcPosition.FileNum() != 0 && srcPosition.LineNum() != 0 && srcPosition.LineNum() != lastPrintedLineNum &&
-      theMIRModule->CurFunction()->WithLocInfo()) {
-    LogInfo::MapleLogger() << "LOC " << srcPosition.FileNum() << " " << srcPosition.LineNum() << '\n';
-    lastPrintedLineNum = srcPosition.LineNum();
-  }
+  srcPosition.DumpLoc(lastPrintedLineNum, lastPrintedColumnNum);
   PrintIndentation(indent);
   LogInfo::MapleLogger() << "#" << comment << '\n';
 }
@@ -1486,7 +1478,7 @@ void AsmNode::DumpInputOperands(int32 indent, std::string &uStr) const {
       LogInfo::MapleLogger() << " (";
       GetNopndAt(i)->Dump(indent + 4);  // Increase the indent by 4 bytes.
       LogInfo::MapleLogger() << ")";
-      if (i != static_cast<size_t>(numOpnds - 1)) {
+      if (i != static_cast<size_t>(static_cast<int64>(numOpnds - 1))) {
         LogInfo::MapleLogger() << ',';
       }
       LogInfo::MapleLogger() << "\n";
@@ -1495,11 +1487,7 @@ void AsmNode::DumpInputOperands(int32 indent, std::string &uStr) const {
 }
 
 void AsmNode::Dump(int32 indent) const {
-  if (srcPosition.FileNum() != 0 && srcPosition.LineNum() != 0 && srcPosition.LineNum() != lastPrintedLineNum &&
-      theMIRModule->CurFunction()->WithLocInfo()) {
-    LogInfo::MapleLogger() << "LOC " << srcPosition.FileNum() << " " << srcPosition.LineNum() << '\n';
-    lastPrintedLineNum = srcPosition.LineNum();
-  }
+  srcPosition.DumpLoc(lastPrintedLineNum, lastPrintedColumnNum);
   PrintIndentation(indent);
   LogInfo::MapleLogger() << kOpcodeInfo.GetName(op);
   if (GetQualifier(kASMvolatile)) { LogInfo::MapleLogger() << " volatile"; }
@@ -2249,6 +2237,7 @@ bool AddrofNode::Verify() const {
     }
     if (fieldID != 0 && structVerf) {
       const MIRSymbol *var = theMIRModule->CurFunction()->GetLocalOrGlobalSymbol(GetStIdx());
+      ASSERT(var != nullptr, "null ptr check");
       MIRType *type = var->GetType();
       auto *stTy = static_cast<MIRStructType*>(type);
       if (IsStructureTypeKind(GetFieldTypeKind(stTy, fieldID))) {

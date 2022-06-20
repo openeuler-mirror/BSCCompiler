@@ -1938,7 +1938,7 @@ void AArch64CGFunc::SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) {
     OfstOperand *offsetOpnd = &CreateOfstOpnd(0, k32BitSize);
     memOpnd = &GetOrCreateMemOpnd(MemOperand::kAddrModeBOi, bitlen, baseOpnd, nullptr, offsetOpnd, nullptr);
   } else {
-    OfstOperand *offsetOpnd = &CreateOfstOpnd(offset, k32BitSize);
+    OfstOperand *offsetOpnd = &CreateOfstOpnd(static_cast<uint64>(static_cast<int64>(offset)), k32BitSize);
     memOpnd = &GetOrCreateMemOpnd(MemOperand::kAddrModeBOi, bitlen, rfp, nullptr, offsetOpnd, nullptr);
   }
   memOpnd->SetStackMem(true);
@@ -1981,7 +1981,7 @@ MIRType *AArch64CGFunc::GetAggTyFromCallSite(StmtNode *stmt) {
   }
   CHECK_FATAL(stmt && (stmt->GetOpCode() == OP_call || stmt->GetOpCode() == OP_icallproto),
               "blkassign sp not followed by call");
-  int32 nargs = GetLmbcTotalArgs();
+  uint32 nargs = GetLmbcTotalArgs();
   MIRType *ty = nullptr;
   if (stmt->GetOpCode() == OP_call) {
     CallNode *callNode = static_cast<CallNode*>(stmt);
@@ -2069,8 +2069,7 @@ bool AArch64CGFunc::LmbcSmallAggForRet(const BlkassignoffNode &bNode, Operand *s
       for (uint32 i = 0; i < numRegs; i++) {
         AArch64reg preg = static_cast<AArch64reg>((intReg ? R0 : V0) + i);
         MOperator mop = intReg ? MOP_pseudo_ret_int: MOP_pseudo_ret_float;
-        RegOperand &dest = GetOrCreatePhysicalRegisterOperand(preg, loadSize,
-                                                              intReg ? kRegTyInt : kRegTyFloat);
+        RegOperand &dest = GetOrCreatePhysicalRegisterOperand(preg, loadSize, intReg ? kRegTyInt : kRegTyFloat);
         Insn &pseudo = GetCG()->BuildInstruction<AArch64Insn>(mop, dest);
         GetCurBB()->AppendInsn(pseudo);
       }
@@ -2161,7 +2160,7 @@ void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src)
   opndVec.push_back(regResult);                              /* result */
   opndVec.push_back(PrepareMemcpyParamOpnd(bNode.offset, *dest));/* param 0 */
   opndVec.push_back(src);                                    /* param 1 */
-  opndVec.push_back(PrepareMemcpyParamOpnd(bNode.blockSize));/* param 2 */
+  opndVec.push_back(PrepareMemcpyParamOpnd(static_cast<uint64>(static_cast<int64>(bNode.blockSize))));/* param 2 */
   SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
   if (IsBlkassignForPush(bNode)) {
     SetLmbcArgInfo(static_cast<RegOperand*>(src), PTY_i64, (int32)bNode.offset, 1);
@@ -2930,7 +2929,7 @@ RegOperand *AArch64CGFunc::GenLmbcParamLoad(int32 offset, uint32 byteSize, RegTy
     memOpnd = &GetOrCreateMemOpnd(MemOperand::kAddrModeBOi, bitlen, baseOpnd,
                                   nullptr, offsetOpnd, nullptr);
   } else {
-    OfstOperand *offsetOpnd = &CreateOfstOpnd(offset, k32BitSize);
+    OfstOperand *offsetOpnd = &CreateOfstOpnd(static_cast<uint64>(static_cast<int64>(offset)), k32BitSize);
     memOpnd = &GetOrCreateMemOpnd(MemOperand::kAddrModeBOi, bitlen, rfp,
                                   nullptr, offsetOpnd, nullptr);
   }
@@ -2950,7 +2949,7 @@ Operand *AArch64CGFunc::SelectIreadfpoff(const BaseNode &parent, IreadFPoffNode 
   RegType regty = GetRegTyFromPrimTy(primType);
   RegOperand *result = nullptr;
   if (offset >= 0) {
-    LmbcFormalParamInfo *info = GetLmbcFormalParamInfo(offset);
+    LmbcFormalParamInfo *info = GetLmbcFormalParamInfo(static_cast<uint32>(offset));
     if (info->GetPrimType() == PTY_agg) {
       result = GenLmbcParamLoad(offset, bytelen, regty, primType);
     } else {
@@ -6301,7 +6300,7 @@ void AArch64CGFunc::AssignLmbcFormalParams() {
 }
 
 /* if offset < 0, allocation; otherwise, deallocation */
-MemOperand &AArch64CGFunc::CreateCallFrameOperand(int32 offset, int32 size) {
+MemOperand &AArch64CGFunc::CreateCallFrameOperand(int32 offset, uint32 size) {
   MemOperand *memOpnd = CreateStackMemOpnd(RSP, offset, size);
   memOpnd->SetIndexOpt((offset < 0) ? MemOperand::kPreIndex : MemOperand::kPostIndex);
   return *memOpnd;
@@ -6332,7 +6331,7 @@ MemOperand &AArch64CGFunc::CreateStkTopOpnd(uint32 offset, uint32 size) {
 MemOperand *AArch64CGFunc::CreateStackMemOpnd(regno_t preg, int32 offset, uint32 size) {
   auto *memOp = memPool->New<MemOperand>(
       memPool->New<RegOperand>(preg, k64BitSize, kRegTyInt),
-      &CreateOfstOpnd(offset, k32BitSize),
+      &CreateOfstOpnd(static_cast<uint64>(static_cast<int64>(offset)), k32BitSize),
       size);
   if (preg == RFP || preg == RSP) {
     memOp->SetStackMem(true);
@@ -8228,9 +8227,8 @@ void AArch64CGFunc::LmbcSelectParmList(ListOperand *srcOpnds, bool isArgReturn) 
     } else {
       uint32 pSize = GetPrimTypeSize(pTy);
       Operand &memOpd = CreateMemOpnd(RSP, offsets[i], pSize);
-      GetCurBB()->AppendInsn(
-          GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(pSize * kBitsPerByte, pTy),
-                                                 *args[i], memOpd));
+      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(pSize * kBitsPerByte, pTy),
+          *args[i], memOpd));
     }
   }
   /* Load x8 if 1st arg is for agg return */
@@ -8739,10 +8737,10 @@ MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int64 off
       if (symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed && size < k64BitSize) {
         offsetOpnd = &CreateOfstOpnd(k4BitSize + static_cast<uint32>(totalOffset), k64BitSize);
       } else {
-        offsetOpnd = &CreateOfstOpnd(totalOffset, k64BitSize);
+        offsetOpnd = &CreateOfstOpnd(static_cast<uint64>(static_cast<int64>(totalOffset)), k64BitSize);
       }
     } else {
-      offsetOpnd = &CreateOfstOpnd(totalOffset, k64BitSize);
+      offsetOpnd = &CreateOfstOpnd(static_cast<uint64>(static_cast<int64>(totalOffset)), k64BitSize);
     }
     if (symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed &&
         MemOperand::IsPIMMOffsetOutOfRange(totalOffset, size)) {
@@ -9361,8 +9359,8 @@ MemOperand *AArch64CGFunc::GetOrCreatSpillMem(regno_t vrNum) {
     }
 
     RegOperand &baseOpnd = GetOrCreateStackBaseRegOperand();
-    int32 offset = GetOrCreatSpillRegLocation(vrNum);
-    OfstOperand *offsetOpnd = &CreateOfstOpnd(offset, k64BitSize);
+    int64 offset = GetOrCreatSpillRegLocation(vrNum);
+    OfstOperand *offsetOpnd = &CreateOfstOpnd(static_cast<uint64>(offset), k64BitSize);
     MemOperand *memOpnd = CreateMemOperand(MemOperand::kAddrModeBOi, memBitSize, baseOpnd,
                                            nullptr, offsetOpnd, nullptr);
     (void)spillRegMemOperands.emplace(std::pair<regno_t, MemOperand*>(vrNum, memOpnd));

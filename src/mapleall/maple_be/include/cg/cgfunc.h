@@ -910,7 +910,7 @@ class CGFunc {
     lmbcTotalArgs++;
   }
 
-  int16 GetLmbcTotalArgs() const {
+  uint32 GetLmbcTotalArgs() const {
     return lmbcTotalArgs;
   }
 
@@ -1267,7 +1267,7 @@ class CGFunc {
   MapleVector<LmbcFormalParamInfo*> lmbcParamVec;
   int32 lmbcIntArgs = 0;
   int32 lmbcFpArgs = 0;
-  int32 lmbcTotalArgs = 0;
+  uint32 lmbcTotalArgs = 0;
   CGCFG *theCFG = nullptr;
   uint32 nextSpillLocation = 0;
 

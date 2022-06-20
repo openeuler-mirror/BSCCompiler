@@ -107,7 +107,7 @@ void PhiEliminate::RecordRematInfo(regno_t vRegNO, PregIdx pIdx) {
 
 bool CgPhiElimination::PhaseRun(maplebe::CGFunc &f) {
   CGSSAInfo *ssaInfo = GET_ANALYSIS(CgSSAConstruct, f);
-  PhiEliminate *pe = f.GetCG()->CreatePhiElimintor(*GetPhaseMemPool(),f, *ssaInfo);
+  PhiEliminate *pe = f.GetCG()->CreatePhiElimintor(*GetPhaseMemPool(), f, *ssaInfo);
   pe->TranslateTSSAToCSSA();
   return false;
 }

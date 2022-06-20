@@ -504,10 +504,7 @@ Operand *HandleVectorShiftNarrow(const IntrinsicopNode &intrnNode, CGFunc &cgFun
   PrimType rType = intrnNode.GetPrimType();                          /* vector result */
   Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand */
   Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* shift const */
-  int32 sVal;
-  if (opnd2->IsConstImmediate()) {
-    sVal = static_cast<int32>(static_cast<ImmOperand*>(opnd2)->GetValue());
-  } else {
+  if (!opnd2->IsConstImmediate()) {
     CHECK_FATAL(0, "VectorShiftNarrow does not have shift const");
   }
   return cgFunc.SelectVectorShiftRNarrow(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2, isLow);
@@ -1563,15 +1560,15 @@ void CGFunc::CreateLmbcFormalParamInfo() {
   PrimType primType;
   uint32 offset;
   uint32 typeSize;
-  MIRFunction &func = GetFunction();
-  if (func.GetParamSize() > 0) {
+  MIRFunction &mirFunc = GetFunction();
+  if (mirFunc.GetParamSize() > 0) {
     uint32 stackOffset = 0;
-    for (size_t idx = 0; idx < func.GetParamSize(); ++idx) {
-      MIRSymbol *sym = func.GetFormal(idx);
+    for (size_t idx = 0; idx < mirFunc.GetParamSize(); ++idx) {
+      MIRSymbol *sym = mirFunc.GetFormal(idx);
       MIRType *type;
       TyIdx tyIdx;
       if (sym) {
-        tyIdx = func.GetNthParamTyIdx(idx);
+        tyIdx = mirFunc.GetNthParamTyIdx(idx);
         type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
       } else {
         FormalDef vec = const_cast<MIRFunction *>(GetBecommon().GetMIRModule().CurFunction())->GetFormalDefAt(idx);
@@ -1584,7 +1581,7 @@ void CGFunc::CreateLmbcFormalParamInfo() {
       stackOffset += (typeSize + 7) & (-8);
       LmbcFormalParamInfo *info = GetMemoryPool()->New<LmbcFormalParamInfo>(primType, offset, typeSize);
       lmbcParamVec.push_back(info);
-      if (idx == 0 && func.IsFirstArgReturn()) {
+      if (idx == 0 && mirFunc.IsFirstArgReturn()) {
         info->SetIsReturn();
       }
       if (type->GetKind() == kTypeStruct) {
@@ -1601,7 +1598,7 @@ void CGFunc::CreateLmbcFormalParamInfo() {
     }
   } else {
     /* No aggregate pass by value here */
-    for (StmtNode *stmt = func.GetBody()->GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
+    for (StmtNode *stmt = mirFunc.GetBody()->GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
       if (stmt == nullptr) {
         break;
       }

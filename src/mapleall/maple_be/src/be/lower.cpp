@@ -322,13 +322,13 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
     currentStmtFreq = FindTheCurrentStmtFreq(static_cast<StmtNode*>(&parent));
   }
   currentStmtFreq = currentStmtFreq == -1 ? 0 : currentStmtFreq;
-  func->SetLastFreqMap(brTargetStmt->GetStmtID(), currentStmtFreq);
+  func->SetLastFreqMap(brTargetStmt->GetStmtID(), static_cast<uint32>(currentStmtFreq));
   blkNode.InsertAfter(blkNode.GetLast(), brTargetStmt);
   union {
     MIRSymbol *resSym;
     PregIdx resPreg;
   } cplxSelRes; // complex select result
-  uint32 fallthruStmtFreq = (currentStmtFreq + 1) / 2;
+  uint32 fallthruStmtFreq = static_cast<uint32>((currentStmtFreq + 1) / 2);
   if (tNode.GetPrimType() == PTY_agg) {
     static uint32 val = 0;
     std::string name("ComplexSelectTmp");
@@ -355,7 +355,7 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
   func->SetLastFreqMap(gotoStmt->GetStmtID(), fallthruStmtFreq);
   blkNode.InsertAfter(blkNode.GetLast(), gotoStmt);
 
-  uint32 targetStmtFreq = currentStmtFreq / 2;
+  uint32 targetStmtFreq = static_cast<uint32>(currentStmtFreq / 2);
   LabelNode *lableStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   lableStmt->SetLabelIdx(targetIdx);
   func->SetFirstFreqMap(lableStmt->GetStmtID(), targetStmtFreq);
@@ -377,7 +377,7 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
   lableStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   lableStmt->SetLabelIdx(EndIdx);
   // Update the frequence third opnd
-  func->SetFirstFreqMap(lableStmt->GetStmtID(), currentStmtFreq);
+  func->SetFirstFreqMap(lableStmt->GetStmtID(), static_cast<uint32>(currentStmtFreq));
   blkNode.InsertAfter(blkNode.GetLast(), lableStmt);
 
   BaseNode *exprNode = (tNode.GetPrimType() == PTY_agg) ?
@@ -413,7 +413,7 @@ BaseNode *CGLowerer::LowerFarray(ArrayNode &array) {
       int64 eleOffset = pIntConst->GetValue() * eSize;
 
       if (farrayType->GetKind() == kTypeJArray) {
-        eleOffset += static_cast<int64>(RTSupport::GetRTSupportInstance().GetArrayContentOffset());
+        eleOffset += RTSupport::GetRTSupportInstance().GetArrayContentOffset();
       }
 
       BaseNode *baseNode = NodeConvert(array.GetPrimType(), *array.GetBase());
@@ -460,7 +460,7 @@ BaseNode *CGLowerer::LowerFarray(ArrayNode &array) {
   if (farrayType->GetKind() == kTypeJArray) {
     BaseNode *jarrayBaseNode = mirModule.CurFuncCodeMemPool()->New<BinaryNode>(OP_add);
     MIRIntConst *arrayHeaderNode = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        static_cast<int64>(RTSupport::GetRTSupportInstance().GetArrayContentOffset()), arrayType);
+        RTSupport::GetRTSupportInstance().GetArrayContentOffset(), arrayType);
     BaseNode *arrayHeaderCstNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(arrayHeaderNode);
     arrayHeaderCstNode->SetPrimType(array.GetPrimType());
     jarrayBaseNode->SetPrimType(array.GetPrimType());
@@ -757,7 +757,8 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
     if (CGOptions::IsBigEndian()) {
         bitOffset = (beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte - bitOffset) - bitSize;
     }
-    auto depositBits = builder->CreateExprDepositbits(OP_depositbits, primType, bitOffset, bitSize, bitField, rhs);
+    auto depositBits = builder->CreateExprDepositbits(OP_depositbits, primType, static_cast<uint32>(bitOffset),
+        bitSize, bitField, rhs);
     return builder->CreateStmtIassignoff(primType, byteOffset, baseAddr, depositBits);
   }
 
@@ -767,8 +768,8 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
   if(CGOptions::IsBigEndian()) {
     bitOffset = 0;
   }
-  auto *depositedLowerBits =
-      builder->CreateExprDepositbits(OP_depositbits, primType, bitOffset, bitsExtracted, bitField, rhs);
+  auto *depositedLowerBits = builder->CreateExprDepositbits(OP_depositbits, primType,
+      static_cast<uint32>(bitOffset), bitsExtracted, bitField, rhs);
   auto *assignedLowerBits = builder->CreateStmtIassignoff(primType, byteOffset, baseAddr, depositedLowerBits);
   block->AddStatement(assignedLowerBits);
   auto *extractedHigherBits =
@@ -797,7 +798,7 @@ BaseNode *CGLowerer::ReadBitField(std::pair<int32, int32> byteBitOffsets, MIRBit
     if (CGOptions::IsBigEndian()) {
       bitOffset = (beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte - bitOffset) - bitSize;
     }
-    return builder->CreateExprExtractbits(OP_extractbits, primType, bitOffset, bitSize, bitField);
+    return builder->CreateExprExtractbits(OP_extractbits, primType, static_cast<uint32>(bitOffset), bitSize, bitField);
   }
 
   // if space not enough in the unit with size of primType, the result would be binding of two exprs of load
@@ -805,8 +806,8 @@ BaseNode *CGLowerer::ReadBitField(std::pair<int32, int32> byteBitOffsets, MIRBit
   if (CGOptions::IsBigEndian()) {
     bitOffset = 0;
   }
-  auto *extractedLowerBits =
-      builder->CreateExprExtractbits(OP_extractbits, primType, bitOffset, bitSize - bitsRemained, bitField);
+  auto *extractedLowerBits = builder->CreateExprExtractbits(OP_extractbits, primType,
+      static_cast<uint32>(bitOffset), bitSize - bitsRemained, bitField);
   auto *bitFieldRemained = builder->CreateExprIreadoff(primType,
       byteOffset + static_cast<int32>(GetPrimTypeSize(primType)), baseAddr);
   auto *result = builder->CreateExprDepositbits(OP_depositbits, primType, bitSize - bitsRemained, bitsRemained,
@@ -1343,7 +1344,8 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt, bool uselvar) {
       p2nRets = &origCall.GetReturnVec();
       static_cast<CallNode *>(newCall)->SetReturnVec(*p2nRets);
       MIRFunction *curFunc = mirModule.CurFunction();
-      curFunc->SetLastFreqMap(newCall->GetStmtID(), curFunc->GetFreqFromLastStmt(stmt.GetStmtID()));
+      curFunc->SetLastFreqMap(newCall->GetStmtID(),
+          static_cast<uint32>(curFunc->GetFreqFromLastStmt(stmt.GetStmtID())));
       break;
     }
     case OP_intrinsiccallassigned:
@@ -1683,7 +1685,8 @@ void CGLowerer::LowerSwitchOpnd(StmtNode &stmt, BlockNode &newBlk) {
     PregIdx pIdx = GetCurrentFunc()->GetPregTab()->CreatePreg(ptyp);
     RegassignNode *regAss = mirBuilder->CreateStmtRegassign(ptyp, pIdx, opnd);
     newBlk.AddStatement(regAss);
-    GetCurrentFunc()->SetLastFreqMap(regAss->GetStmtID(), GetCurrentFunc()->GetFreqFromLastStmt(stmt.GetStmtID()));
+    GetCurrentFunc()->SetLastFreqMap(regAss->GetStmtID(),
+         static_cast<uint32>(GetCurrentFunc()->GetFreqFromLastStmt(stmt.GetStmtID())));
     stmt.SetOpnd(mirBuilder->CreateExprRegread(ptyp, pIdx), 0);
   } else {
     stmt.SetOpnd(LowerExpr(stmt, *stmt.Opnd(0), newBlk), 0);
@@ -2524,7 +2527,7 @@ BaseNode *CGLowerer::MergeToCvtType(PrimType dType, PrimType sType, BaseNode &sr
 
 IreadNode &CGLowerer::GetLenNode(BaseNode &opnd0) {
   MIRIntConst *arrayHeaderNode = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-      static_cast<int64>(RTSupport::GetRTSupportInstance().GetArrayLengthOffset()),
+      RTSupport::GetRTSupportInstance().GetArrayLengthOffset(),
       *GlobalTables::GetTypeTable().GetTypeFromTyIdx(opnd0.GetPrimType()));
   BaseNode *arrayHeaderCstNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(arrayHeaderNode);
   arrayHeaderCstNode->SetPrimType(opnd0.GetPrimType());
@@ -3081,7 +3084,7 @@ BaseNode *CGLowerer::LowerIntrinJavaArrayLength(const BaseNode &parent, Intrinsi
       ((parent.GetOpCode() == OP_regassign) || (parent.GetOpCode() == OP_dassign) || (parent.GetOpCode() == OP_ge))) {
     MIRType *addrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(arrAddr->GetPrimType()));
     MIRIntConst *arrayHeaderNode = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        static_cast<int64>(RTSupport::GetRTSupportInstance().GetArrayLengthOffset()), *addrType);
+        RTSupport::GetRTSupportInstance().GetArrayLengthOffset(), *addrType);
     BaseNode *arrayHeaderCstNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(arrayHeaderNode);
     arrayHeaderCstNode->SetPrimType(arrAddr->GetPrimType());
 

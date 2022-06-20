@@ -44,7 +44,7 @@ void LiveIntervalAnalysis::Analysis() {
   ComputeLiveIntervals();
 }
 
-/*bfs is not utilized outside the function. */
+/* bfs is not utilized outside the function. */
 void LiveIntervalAnalysis::ClearBFS() {
   bfs = nullptr;
 }

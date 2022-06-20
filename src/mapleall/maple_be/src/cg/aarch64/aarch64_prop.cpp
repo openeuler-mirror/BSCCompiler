@@ -767,7 +767,8 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const MemOpera
         auto *offset1 = static_cast<StImmOperand*>(&defInsn.GetOperand(kInsnThirdOpnd));
         CHECK_FATAL(offset1 != nullptr, "offset1 is null!");
         val += offset1->GetOffset();
-        OfstOperand *newOfsetOpnd = &static_cast<AArch64CGFunc*>(cgFunc)->CreateOfstOpnd(val, k32BitSize);
+        OfstOperand *newOfsetOpnd = &static_cast<AArch64CGFunc*>(cgFunc)->CreateOfstOpnd(static_cast<uint64>(val),
+            k32BitSize);
         CHECK_FATAL(newOfsetOpnd != nullptr, "newOfsetOpnd is null!");
         const MIRSymbol *addr = offset1->GetSymbol();
         /* do not guarantee rodata alignment at Os */
@@ -788,7 +789,8 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const MemOpera
     case MOP_xmovri64: {
       if (memPropMode == kPropOffset) {
         auto *imm = static_cast<ImmOperand*>(&defInsn.GetOperand(kInsnSecondOpnd));
-        OfstOperand *newOffset = &static_cast<AArch64CGFunc*>(cgFunc)->CreateOfstOpnd(imm->GetValue(), k32BitSize);
+        OfstOperand *newOffset = &static_cast<AArch64CGFunc*>(cgFunc)->CreateOfstOpnd(
+            static_cast<uint64>(imm->GetValue()), k32BitSize);
         CHECK_FATAL(newOffset != nullptr, "newOffset is null!");
         newMemOpnd = static_cast<AArch64CGFunc*>(cgFunc)->CreateMemOperand(
             MemOperand::kAddrModeBOi, currMemOpnd.GetSize(), *base, nullptr, newOffset, nullptr);
@@ -849,11 +851,12 @@ MemOperand *A64StrLdrProp::HandleArithImmDef(RegOperand &replace, Operand *oldOf
   }
   OfstOperand *newOfstImm = nullptr;
   if (oldOffset == nullptr) {
-    newOfstImm = &static_cast<AArch64CGFunc*>(cgFunc)->CreateOfstOpnd(defVal, k32BitSize);
+    newOfstImm = &static_cast<AArch64CGFunc*>(cgFunc)->CreateOfstOpnd(static_cast<uint64>(defVal), k32BitSize);
   } else {
     auto *ofstOpnd = static_cast<OfstOperand*>(oldOffset);
     CHECK_FATAL(ofstOpnd != nullptr, "oldOffsetOpnd is null");
-    newOfstImm = &static_cast<AArch64CGFunc*>(cgFunc)->CreateOfstOpnd(defVal + ofstOpnd->GetValue(), k32BitSize);
+    newOfstImm = &static_cast<AArch64CGFunc*>(cgFunc)->CreateOfstOpnd(
+        static_cast<uint64>(defVal + ofstOpnd->GetValue()), k32BitSize);
   }
   CHECK_FATAL(newOfstImm != nullptr, "newOffset is null!");
   return static_cast<AArch64CGFunc*>(cgFunc)->CreateMemOperand(MemOperand::kAddrModeBOi, memSize,
@@ -1800,7 +1803,8 @@ void FpSpConstProp::PropInMem(DUInsnInfo &useDUInfo, Insn &useInsn) {
           auto *ofstOpnd = static_cast<OfstOperand*>(a64memOpnd->GetOffsetImmediate());
           CHECK_FATAL(ofstOpnd != nullptr, "oldOffsetOpnd is null");
           int64 newVal = ArithmeticFold(ofstOpnd->GetValue(), kAArch64Add);
-          auto *newOfstImm = &static_cast<AArch64CGFunc&>(cgFunc).CreateOfstOpnd(newVal, k64BitSize);
+          auto *newOfstImm = &static_cast<AArch64CGFunc&>(cgFunc).CreateOfstOpnd(static_cast<uint64>(newVal),
+              k64BitSize);
           if (ofstOpnd->GetVary() == kUnAdjustVary || shiftOpnd->GetVary() == kUnAdjustVary) {
             newOfstImm->SetVary(kUnAdjustVary);
           }

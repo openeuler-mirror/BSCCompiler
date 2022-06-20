@@ -73,8 +73,8 @@ InsnSet CGPeepPattern::GetAllUseInsn(const RegOperand &defReg) {
     VRegVersion *defVersion = ssaInfo->FindSSAVersion(defReg.GetRegisterNumber());
     CHECK_FATAL(defVersion != nullptr, "useVRegVersion must not be null based on ssa");
     for (auto insnInfo : defVersion->GetAllUseInsns()) {
-      Insn *currInsn = insnInfo.second->GetInsn();
-      allUseInsn.emplace(currInsn);
+      Insn *secondInsn = insnInfo.second->GetInsn();
+      allUseInsn.emplace(secondInsn);
     }
   }
   return allUseInsn;
@@ -169,7 +169,7 @@ bool CGPeepPattern::IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &in
       }
 #if TARGAARCH64 || TARGRISCV64
       const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(nextInsn)->GetMachineOpcode()];
-      auto *regProp = (md->operand[static_cast<uint64>(i)]);
+      auto *regProp = (md->operand[static_cast<uint32>(i)]);
 #endif
 #if TARGARM32
       const Arm32MD *md = &Arm32CG::kMd[static_cast<Arm32Insn*>(nextInsn)->GetMachineOpcode()];
@@ -285,7 +285,7 @@ ReturnType CGPeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb
     for (int32 i = lastOpndId; i >= 0; --i) {
       Operand &opnd = insn->GetOperand(static_cast<uint32>(i));
 #if TARGAARCH64 || TARGRISCV64
-      auto *regProp = (md->operand[static_cast<uint64>(i)]);
+      auto *regProp = (md->operand[static_cast<uint32>(i)]);
 #endif
 #if TARGARM32
       auto *regProp = static_cast<Arm32OpndProp*>(md->operand[i]);
@@ -394,7 +394,7 @@ bool PeepPattern::IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &insn
       }
 #if TARGAARCH64 || TARGRISCV64
       const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(nextInsn)->GetMachineOpcode()];
-      auto *regProp = (md->operand[static_cast<uint64>(i)]);
+      auto *regProp = (md->operand[static_cast<uint32>(i)]);
 #endif
 #if TARGARM32
       const Arm32MD *md = &Arm32CG::kMd[static_cast<Arm32Insn*>(nextInsn)->GetMachineOpcode()];
@@ -510,7 +510,7 @@ ReturnType PeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) 
     for (int32 i = lastOpndId; i >= 0; --i) {
       Operand &opnd = insn->GetOperand(static_cast<uint32>(i));
 #if TARGAARCH64 || TARGRISCV64
-      auto *regProp = (md->operand[static_cast<uint64>(i)]);
+      auto *regProp = (md->operand[static_cast<uint32>(i)]);
 #endif
 #if TARGARM32
       auto *regProp = static_cast<Arm32OpndProp*>(md->operand[i]);

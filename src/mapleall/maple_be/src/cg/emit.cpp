@@ -508,7 +508,7 @@ void Emitter::EmitCombineBfldValue(StructEmitInfo &structEmitInfo) {
      * the bits must be aligned to 8 bits to prevent errors in the emit.
      */
     auto width = static_cast<uint8>(RoundUp(structEmitInfo.GetCombineBitFieldWidth(), charBitWidth));
-    if(structEmitInfo.GetCombineBitFieldWidth() < width) {
+    if (structEmitInfo.GetCombineBitFieldWidth() < width) {
       structEmitInfo.SetCombineBitFieldValue(structEmitInfo.GetCombineBitFieldValue() <<
                                              (width - structEmitInfo.GetCombineBitFieldWidth()));
       structEmitInfo.IncreaseCombineBitFieldWidth(static_cast<uint8>(
@@ -1545,7 +1545,7 @@ void Emitter::EmitIntConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst, ui
       auto it = strIdx2Type.find(strIdx);
       ASSERT(it != strIdx2Type.end(), "Can not find type");
       MIRType *mirType = it->second;
-
+      ASSERT_NOT_NULL(mirType);
       objSize = Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex());
     }
     /* objSize should not exceed 16 bits */
@@ -2219,6 +2219,8 @@ void Emitter::EmitGlobalVars(std::vector<std::pair<MIRSymbol*, bool>> &globalVar
   }
   MIRSymbol *endSym = globalVars.back().first;
   MIRType *mirType = endSym->GetType();
+  ASSERT_NOT_NULL(endSym);
+  ASSERT_NOT_NULL(mirType);
   const std::string kStaticVarEndAdd =
       std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex())) + "+" +
                      endSym->GetName();
@@ -2500,7 +2502,7 @@ void Emitter::EmitGlobalVariable() {
         } else {
           EmitAsmLabel(*mirSymbol, kAsmGlbl);
         }
-        if(theMIRModule->IsJavaModule()) {
+        if (theMIRModule->IsJavaModule()) {
           EmitAsmLabel(*mirSymbol, kAsmHidden);
         }
       } else if (mirSymbol->GetStorageClass() == kScFstatic) {
@@ -2619,18 +2621,18 @@ void Emitter::EmitGlobalVariable() {
       std::string className = stName.substr(strlen(CLASSINFO_PREFIX_STR));
       /* Get classinfo ro symbol */
       MIRSymbol *classInfoROSt = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
-        GlobalTables::GetStrTable().GetStrIdxFromName(CLASSINFO_RO_PREFIX_STR + className));
+          GlobalTables::GetStrTable().GetStrIdxFromName(CLASSINFO_RO_PREFIX_STR + className));
       EmitClassInfoSequential(*classInfoROSt, strIdx2Type, sectionName);
       /* Get fields */
       MIRSymbol *fieldSt = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
-        GlobalTables::GetStrTable().GetStrIdxFromName(kFieldsInfoPrefixStr + className));
+          GlobalTables::GetStrTable().GetStrIdxFromName(kFieldsInfoPrefixStr + className));
       MIRSymbol *fieldStCompact = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
-        GlobalTables::GetStrTable().GetStrIdxFromName(kFieldsInfoCompactPrefixStr + className));
+          GlobalTables::GetStrTable().GetStrIdxFromName(kFieldsInfoCompactPrefixStr + className));
       /* Get methods */
       MIRSymbol *methodSt = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
-        GlobalTables::GetStrTable().GetStrIdxFromName(kMethodsInfoPrefixStr + className));
+          GlobalTables::GetStrTable().GetStrIdxFromName(kMethodsInfoPrefixStr + className));
       MIRSymbol *methodStCompact = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
-        GlobalTables::GetStrTable().GetStrIdxFromName(kMethodsInfoCompactPrefixStr + className));
+          GlobalTables::GetStrTable().GetStrIdxFromName(kMethodsInfoCompactPrefixStr + className));
 
       if (fieldSt != nullptr) {
         fieldInfoStVec.emplace_back(fieldSt);
@@ -3218,7 +3220,8 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           Emit("\n\t.byte    ");
           EmitHexUnsigned(elp->GetOp());
           Emit("\n\t.8byte   ");
-          (void)Emit(GlobalTables::GetStrTable().GetStringFromStrIdx(static_cast<uint32>(elp->GetGvarStridx())).c_str());
+          (void)Emit(GlobalTables::GetStrTable().GetStringFromStrIdx(
+              static_cast<uint32>(elp->GetGvarStridx())).c_str());
           break;
         case DW_OP_fbreg:
           EmitHexUnsigned(1 + namemangler::GetSleb128Size(elp->GetFboffset()));

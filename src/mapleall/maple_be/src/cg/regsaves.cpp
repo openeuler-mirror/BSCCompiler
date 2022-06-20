@@ -45,13 +45,13 @@ bool CgRegSavesOpt::PhaseRun(maplebe::CGFunc &f) {
   PostDomAnalysis *pdom = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() >= 1 &&
       f.GetCG()->GetCGOptions().DoColoringBasedRegisterAllocation()) {
-    MaplePhase *it = GetAnalysisInfoHook()->
+    MaplePhase *phase = GetAnalysisInfoHook()->
         ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgDomAnalysis::id, f);
-    dom = static_cast<CgDomAnalysis*>(it)->GetResult();
+    dom = static_cast<CgDomAnalysis*>(phase)->GetResult();
     CHECK_FATAL(dom != nullptr, "null ptr check");
-    it = GetAnalysisInfoHook()->
+    phase = GetAnalysisInfoHook()->
         ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgPostDomAnalysis::id, f);
-    pdom = static_cast<CgPostDomAnalysis*>(it)->GetResult();
+    pdom = static_cast<CgPostDomAnalysis*>(phase)->GetResult();
     CHECK_FATAL(pdom != nullptr, "null ptr check");
   }
 

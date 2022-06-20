@@ -847,9 +847,9 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) {
         }
       }
     }
-    A64OpndEmitVisitor visitor(emitter, md->operand[seq[i]]);
+    A64OpndEmitVisitor visitor(emitter, md->operand[static_cast<uint32>(seq[i])]);
 
-    insn.GetOperand(seq[i]).Accept(visitor);
+    insn.GetOperand(static_cast<uint32>(seq[i])).Accept(visitor);
     if (compositeOpnds == 1) {
       (void)emitter.Emit("}");
     }
@@ -858,7 +858,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) {
     }
     /* reset opnd0 ref-field flag, so following instruction has correct register */
     if (isRefField && (i == 0)) {
-      static_cast<RegOperand*>(&insn.GetOperand(seq[0]))->SetRefField(false);
+      static_cast<RegOperand*>(&insn.GetOperand(static_cast<uint32>(seq[0])))->SetRefField(false);
     }
     /* Temporary comment the label:.Label.debug.callee */
     if (i != (commaNum - 1)) {
@@ -866,14 +866,15 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) {
     }
     const uint32 commaNumForEmitLazy = 2;
     if (!CGOptions::IsLazyBinding() || GetCG()->IsLibcore() || (mOp != MOP_wldr && mOp != MOP_xldr) ||
-        commaNum != commaNumForEmitLazy || i != 1 || !insn.GetOperand(seq[1]).IsMemoryAccessOperand()) {
+        commaNum != commaNumForEmitLazy || i != 1 ||
+        !insn.GetOperand(static_cast<uint32>(seq[1])).IsMemoryAccessOperand()) {
       continue;
     }
     /*
      * Only check the last operand of ldr in lo12 mode.
      * Check the second operand, if it's [AArch64MemOperand::kAddrModeLo12Li]
      */
-    auto *memOpnd = static_cast<MemOperand*>(&insn.GetOperand(seq[1]));
+    auto *memOpnd = static_cast<MemOperand*>(&insn.GetOperand(static_cast<uint32>(seq[1])));
     if (memOpnd == nullptr || memOpnd->GetAddrMode() != MemOperand::kAddrModeLo12Li) {
       continue;
     }

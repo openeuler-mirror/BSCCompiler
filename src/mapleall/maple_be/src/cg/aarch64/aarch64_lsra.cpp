@@ -850,7 +850,7 @@ void LSRALinearScanRegAllocator::ComputeLiveIntervalForEachOperand(Insn &insn) {
   int32 lastOpndId = static_cast<int32>(insn.GetOperandSize() - 1);
   for (int32 i = lastOpndId; i >= 0; --i) {
     Operand &opnd = insn.GetOperand(static_cast<uint32>(i));
-    bool isDef = (md->operand[i])->IsRegDef();
+    bool isDef = (md->operand[static_cast<uint32>(i)])->IsRegDef();
     if (opnd.IsList()) {
       auto &listOpnd = static_cast<ListOperand&>(opnd);
       for (auto op : listOpnd.GetOperands()) {

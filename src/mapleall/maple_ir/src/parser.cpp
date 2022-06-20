@@ -1124,22 +1124,22 @@ bool MIRParser::ParseFuncAttrs(FuncAttrs &attrs) {
   } while (true);
 }
 
-void MIRParser::SetAttrContent(FuncAttrs &attrs, FuncAttrKind x, const MIRLexer &lexer) {
+void MIRParser::SetAttrContent(FuncAttrs &attrs, FuncAttrKind x, const MIRLexer &mirLexer) {
   switch (x) {
     case FUNCATTR_alias: {
-      attrs.SetAliasFuncName(lexer.GetName());
+      attrs.SetAliasFuncName(mirLexer.GetName());
       break;
     }
     case FUNCATTR_section: {
-      attrs.SetPrefixSectionName(lexer.GetName());
+      attrs.SetPrefixSectionName(mirLexer.GetName());
       break;
     }
     case FUNCATTR_constructor_priority: {
-      attrs.SetConstructorPriority(lexer.GetTheIntVal());
+      attrs.SetConstructorPriority(mirLexer.GetTheIntVal());
       break;
     }
     case FUNCATTR_destructor_priority: {
-      attrs.SetDestructorPriority(lexer.GetTheIntVal());
+      attrs.SetDestructorPriority(mirLexer.GetTheIntVal());
       break;
     }
     default:
@@ -2116,6 +2116,7 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
     // to avoid carrying over info from previous function
     firstLineNum = 0;
     lastLineNum = 0;
+    lastColumnNum = 0;
     func->NewBody();
     BlockNode *block = nullptr;
     safeRegionFlag.push(curFunc->IsSafe());
@@ -2131,6 +2132,7 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
     // set source file number for function
     func->GetSrcPosition().SetLineNum(firstLineNum);
     func->GetSrcPosition().SetFileNum(lastFileNum);
+    func->GetSrcPosition().SetColumn(lastColumnNum);
     // check if any local type name is undefined
     for (auto it : func->GetGStrIdxToTyIdxMap()) {
       MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(it.second);
