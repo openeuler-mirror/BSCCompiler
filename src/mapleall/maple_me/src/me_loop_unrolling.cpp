@@ -858,7 +858,7 @@ MeExpr *LoopUnrolling::CreateExprWithCRNode(CRNode &crNode) {
       return mulOpnds;
     }
     case kCRDivNode: {
-      auto divCRNode = static_cast<const CRDivNode&>(crNode);
+      auto divCRNode = static_cast<CRDivNode&>(crNode);
       auto opnd1 = CreateExprWithCRNode(*divCRNode.GetLHS());
       auto opnd2 = CreateExprWithCRNode(*divCRNode.GetRHS());
       return irMap->CreateMeExprBinary(OP_div, PTY_i32, *opnd1, *opnd2);

@@ -68,6 +68,7 @@ class CGLowerer {
 
   ~CGLowerer() {
     mirBuilder = nullptr;
+    currentBlock = nullptr;
   }
 
   MIRFunction *RegisterFunctionVoidStarToVoid(BuiltinFunctionID id, const std::string &name,
@@ -203,7 +204,7 @@ class CGLowerer {
   BaseNode *GetBitField(int32 byteOffset, BaseNode *baseAddr, PrimType fieldPrimType);
   StmtNode *WriteBitField(const std::pair<int32, int32> &byteBitOffsets, MIRBitFieldType *fieldType, BaseNode *baseAddr,
       BaseNode *rhs, BlockNode *block);
-  BaseNode *ReadBitField(std::pair<int32, int32> byteBitOffsets, MIRBitFieldType *fieldType, BaseNode *baseAddr);
+  BaseNode *ReadBitField(const std::pair<int32, int32> &byteBitOffsets, MIRBitFieldType *fieldType, BaseNode *baseAddr);
   BaseNode *LowerDreadBitfield(DreadNode &dread);
   BaseNode *LowerIreadBitfield(IreadNode &iread);
   StmtNode *LowerDassignBitfield(DassignNode &dassign, BlockNode &block);

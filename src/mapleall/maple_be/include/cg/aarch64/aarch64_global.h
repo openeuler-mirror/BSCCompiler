@@ -106,6 +106,7 @@ class BackPropPattern : public OptimizePattern {
   ~BackPropPattern() override {
     firstRegOpnd = nullptr;
     secondRegOpnd = nullptr;
+    defInsnForSecondOpnd = nullptr;
   }
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;

@@ -140,10 +140,6 @@ class MeRealOcc : public MeOccur {
     meExpr = &expr;
   }
 
-  const MeExpr *GetSavedExpr() const {
-    return savedExpr;
-  }
-
   MeExpr *GetSavedExpr() override {
     return savedExpr;
   }
@@ -255,10 +251,6 @@ class MeInsertedOcc : public MeOccur {
 
   void SetMeExpr(MeExpr &expr) {
     meExpr = &expr;
-  }
-
-  const MeExpr *GetSavedExpr() const {
-    return savedExpr;
   }
 
   MeExpr *GetSavedExpr() override {

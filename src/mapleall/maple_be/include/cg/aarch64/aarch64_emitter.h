@@ -61,7 +61,7 @@ class AArch64AsmEmitter : public AsmEmitter {
   void EmitSyncLockTestSet(Emitter &emitter, const Insn &insn) const;
 
   void PrepareVectorOperand(RegOperand *regOpnd, uint32 &compositeOpnds, Insn &insn) const;
-  bool CheckInsnRefField(Insn &insn, size_t opndIndex) const;
+  bool CheckInsnRefField(const Insn &insn, size_t opndIndex) const;
 };
 }  /* namespace maplebe */
 

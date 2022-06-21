@@ -1516,7 +1516,7 @@ void CopyRegProp::Run() {
   }
 }
 
-bool CopyRegProp::IsValidCopyProp(const RegOperand &dstReg, RegOperand &srcReg) {
+bool CopyRegProp::IsValidCopyProp(const RegOperand &dstReg, const RegOperand &srcReg) {
   ASSERT(destVersion != nullptr, "find destVersion failed");
   ASSERT(srcVersion != nullptr, "find srcVersion failed");
   LiveInterval *dstll = nullptr;

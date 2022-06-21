@@ -308,15 +308,15 @@ class OpndProp {
   }
 
   bool IsDef() const {
-    return regProp.GetDefUse() & kRegPropDef;
+    return (regProp.GetDefUse() & kRegPropDef) != 0;
   }
 
   bool IsUse() const {
-    return regProp.GetDefUse() & kRegPropUse;
+    return (regProp.GetDefUse() & kRegPropUse) != 0;
   }
 
   bool IsLoadLiteral() const {
-    return regProp.GetDefUse() & kLoadLiteral;
+    return (regProp.GetDefUse() & kLoadLiteral) != 0;
   }
 
   uint8 GetSize() const {
@@ -328,7 +328,7 @@ class OpndProp {
   }
 
   bool IsVectorOperand() const {
-    return regProp.GetDefUse() & kVector;
+    return (regProp.GetDefUse() & kVector) != 0;
   }
 
   void SetContainImm() {

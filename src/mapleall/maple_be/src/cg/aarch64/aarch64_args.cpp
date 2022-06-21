@@ -244,7 +244,7 @@ void AArch64MoveRegArgs::GenOneInsn(const ArgInfo &argInfo, RegOperand &baseOpnd
   aarchCGFunc->GetCurBB()->AppendInsn(insn);
 }
 
-void AArch64MoveRegArgs::GenerateStrInsn(ArgInfo &argInfo, AArch64reg reg2, uint32 numFpRegs, uint32 fpSize) {
+void AArch64MoveRegArgs::GenerateStrInsn(const ArgInfo &argInfo, AArch64reg reg2, uint32 numFpRegs, uint32 fpSize) {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   int32 stOffset = aarchCGFunc->GetBaseOffset(*argInfo.symLoc);
   RegOperand *baseOpnd = static_cast<RegOperand*>(aarchCGFunc->GetBaseReg(*argInfo.symLoc));

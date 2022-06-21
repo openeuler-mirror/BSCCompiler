@@ -31,6 +31,7 @@ class RegisterInfo {
 
   virtual ~RegisterInfo() {
     memAllocator = nullptr;
+    cgFunc = nullptr;
   }
 
   virtual void Init() = 0;

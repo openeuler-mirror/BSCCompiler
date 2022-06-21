@@ -197,6 +197,8 @@ class LiveIntervalAnalysis {
         vregIntervals(alloc.Adapter()) {}
 
   virtual ~LiveIntervalAnalysis() {
+    cgFunc = nullptr;
+    memPool = nullptr;
     bfs = nullptr;
   }
 

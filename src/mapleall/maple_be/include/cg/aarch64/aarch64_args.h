@@ -52,7 +52,7 @@ class AArch64MoveRegArgs : public MoveRegArgs {
   bool IsInSameSegment(const ArgInfo &firstArgInfo, const ArgInfo &secondArgInfo) const;
   void GenOneInsn(const ArgInfo &argInfo, RegOperand &baseOpnd, uint32 stBitSize, AArch64reg dest, int32 offset);
   void GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgInfo &secondArgInfo);
-  void GenerateStrInsn(ArgInfo &argInfo, AArch64reg reg2, uint32 numFpRegs, uint32 fpSize);
+  void GenerateStrInsn(const ArgInfo &argInfo, AArch64reg reg2, uint32 numFpRegs, uint32 fpSize);
   void MoveRegisterArgs();
   void MoveVRegisterArgs();
   void MoveLocalRefVarToRefLocals(MIRSymbol &mirSym);

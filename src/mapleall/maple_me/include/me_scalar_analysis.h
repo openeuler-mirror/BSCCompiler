@@ -54,6 +54,10 @@ class CRNode {
     CHECK_FATAL(false, "can not be here");
   }
 
+  virtual std::vector<CRNode*> &GetOpnds() {
+    CHECK_FATAL(false, "can not be here");
+  }
+
   virtual const std::vector<CRNode*> &GetOpnds() const {
     CHECK_FATAL(false, "can not be here");
   }
@@ -122,11 +126,11 @@ class CRAddNode : public CRNode {
     return opnds.at(i);
   }
 
-  std::vector<CRNode*> &GetOpnds() {
+  std::vector<CRNode*> &GetOpnds() override {
     return opnds;
   }
 
-  const std::vector<CRNode*> &GetOpnds() const {
+  const std::vector<CRNode*> &GetOpnds() const override {
     return opnds;
   }
 
@@ -134,7 +138,7 @@ class CRAddNode : public CRNode {
     return opnds.size();
   }
 
-  size_t SizeOfOperand() const {
+  size_t SizeOfOperand() const override {
     return opnds.size();
   }
 
@@ -163,11 +167,15 @@ class CRMulNode : public CRNode {
     opnds = o;
   }
 
-  const std::vector<CRNode*> &GetOpnds() const {
+  std::vector<CRNode*> &GetOpnds() override {
     return opnds;
   }
 
-  size_t SizeOfOperand() const {
+  const std::vector<CRNode*> &GetOpnds() const override {
+    return opnds;
+  }
+
+  size_t SizeOfOperand() const override {
     return opnds.size();
   }
 
@@ -230,11 +238,11 @@ class CR : public CRNode {
     return opnds.size();
   }
 
-  const std::vector<CRNode*> &GetOpnds() const {
+  std::vector<CRNode*> &GetOpnds() override {
     return opnds;
   }
 
-  std::vector<CRNode*> &GetOpnds() {
+  const std::vector<CRNode*> &GetOpnds() const override {
     return opnds;
   }
 

@@ -685,8 +685,10 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
             auto res = constantOfDivOperand / constantOfMulOperand;
             crMulOpnds.erase(crMulOpnds.begin() + divCRIndex);
             crMulOpnds.erase(crMulOpnds.begin());
-            crMulOpnds.insert(crMulOpnds.end(), GetOrCreateCRDivNode(nullptr, *divCRNode->GetLHS(),
-                *GetOrCreateCRConstNode(nullptr, res)));
+            crMulOpnds.insert(crMulOpnds.end(),
+                              GetOrCreateCRDivNode(nullptr,
+                                                   *divCRNode->GetLHS(),
+                                                   *GetOrCreateCRConstNode(nullptr, res)));
             if (crMulOpnds.size() == 1) {
               return crMulOpnds[0];
             }

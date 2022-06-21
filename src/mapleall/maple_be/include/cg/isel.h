@@ -25,6 +25,7 @@ class MPISel {
   MPISel(MemPool &mp, CGFunc &f) : isMp(&mp), cgFunc(&f) {}
 
   virtual ~MPISel() {
+    isMp = nullptr;
     cgFunc = nullptr;
   }
 

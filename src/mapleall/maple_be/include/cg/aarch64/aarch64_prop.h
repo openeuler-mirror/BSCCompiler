@@ -133,7 +133,7 @@ class CopyRegProp : public PropOptimizePattern {
     srcVersion = nullptr;
   }
  private:
-  bool IsValidCopyProp(const RegOperand &dstReg, RegOperand &srcReg);
+  bool IsValidCopyProp(const RegOperand &dstReg, const RegOperand &srcReg);
   void VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn);
   VRegVersion *destVersion = nullptr;
   VRegVersion *srcVersion = nullptr;

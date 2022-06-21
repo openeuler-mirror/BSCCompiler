@@ -821,7 +821,9 @@ class UbfxAndCbzToTbzPattern : public CGPeepPattern {
  public:
   UbfxAndCbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
   CGPeepPattern(cgFunc, currBB, currInsn, info) {}
-  ~UbfxAndCbzToTbzPattern() override = default;
+  ~UbfxAndCbzToTbzPattern() override {
+    useInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -1043,7 +1045,9 @@ class CbnzToCbzPattern : public CGPeepPattern {
  public:
   CbnzToCbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
   ~CbnzToCbzPattern() override {
+    nextBB = nullptr;
     movInsn = nullptr;
+    brInsn = nullptr;
   }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -1663,7 +1667,10 @@ class ReplaceIncDecWithIncPattern : public CGPeepPattern {
  public:
   ReplaceIncDecWithIncPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
       : CGPeepPattern(cgFunc, currBB, currInsn) {}
-  ~ReplaceIncDecWithIncPattern() override = default;
+  ~ReplaceIncDecWithIncPattern() override {
+    prevInsn = nullptr;
+    target = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {

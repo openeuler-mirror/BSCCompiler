@@ -783,7 +783,7 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
   return assignedHigherBits;
 }
 
-BaseNode *CGLowerer::ReadBitField(std::pair<int32, int32> byteBitOffsets, MIRBitFieldType *fieldType,
+BaseNode *CGLowerer::ReadBitField(const std::pair<int32, int32> &byteBitOffsets, MIRBitFieldType *fieldType,
     BaseNode *baseAddr) {
   auto bitSize = fieldType->GetFieldSize();
   auto primType = fieldType->GetPrimType();

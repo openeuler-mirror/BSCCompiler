@@ -2105,8 +2105,8 @@ void AArch64AsmEmitter::EmitAArch64DbgInsn(Emitter &emitter, const Insn &insn) {
   (void)emitter.Emit("\n");
 }
 
-bool AArch64AsmEmitter::CheckInsnRefField(Insn &insn, size_t opndIndex) const {
-  if (insn.IsAccessRefField() && static_cast<AArch64Insn&>(insn).AccessMem()) {
+bool AArch64AsmEmitter::CheckInsnRefField(const Insn &insn, size_t opndIndex) const {
+  if (insn.IsAccessRefField() && static_cast<const AArch64Insn&>(insn).AccessMem()) {
     Operand &opnd0 = insn.GetOperand(static_cast<uint32>(opndIndex));
     if (opnd0.IsRegister()) {
       static_cast<RegOperand&>(opnd0).SetRefField(true);

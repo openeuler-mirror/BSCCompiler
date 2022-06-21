@@ -1468,7 +1468,7 @@ class CGRegOperand : public OperandVisitable<CGRegOperand> {
 
 class CGImmOperand : public OperandVisitable<CGImmOperand> {
  public:
-  CGImmOperand(uint32 sz, int64 value) : OperandVisitable(kOpdImmediate, sz), val(value), symbol(nullptr) {}
+  CGImmOperand(uint32 sz, int64 value) : OperandVisitable(kOpdImmediate, sz), val(value), symbol(nullptr), relocs(0) {}
   CGImmOperand(const MIRSymbol &symbol, int64 value, int32 relocs)
       : OperandVisitable(kOpdStImmediate, 0), val(value), symbol(&symbol), relocs(relocs) {}
   ~CGImmOperand() override {
