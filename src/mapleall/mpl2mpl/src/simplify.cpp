@@ -18,6 +18,7 @@
 #include <iostream>
 #include <algorithm>
 #include "constantfold.h"
+#include "mpl_logging.h"
 
 namespace {
 constexpr char kClassNameOfMath[] = "Ljava_2Flang_2FMath_3B";
@@ -470,31 +471,28 @@ MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst *mirCon
   MIRConst *resultConst = nullptr;
   auto originAggConst = static_cast<MIRAggConst*>(mirConst);
   auto originAggType = static_cast<MIRStructType&>(originAggConst->GetType());
+  bool hasReached = false;
   std::function<void(MIRConst*)> traverseAgg = [&] (MIRConst *currConst) {
     auto currAggConst = static_cast<MIRAggConst*>(currConst);
     auto currAggType = static_cast<MIRStructType&>(currAggConst->GetType());
     auto iter = 0;
-    for (iter = 0; iter < currAggType.GetFieldsSize(); ++iter) {
-      auto step = 1;
+    for (iter = 0; iter < currAggType.GetFieldsSize() && !hasReached; ++iter) {
       auto constIdx = currAggType.GetKind() == kTypeUnion ? 1 : iter + 1;
       auto *fieldConst = currAggConst->GetAggConstElement(constIdx);
       auto *fieldType = originAggType.GetFieldType(currFieldId);
       if (currFieldId == fieldId) {
         resultConst = fieldConst;
+        hasReached = true;
         return;
       }
+      ++currFieldId;
       if (fieldType->GetKind() == kTypeUnion || fieldType->GetKind() == kTypeStruct) {
-        step += static_cast<MIRStructType*>(fieldType)->GetFieldsSize();
-      }
-      if (currFieldId + step > fieldId) {
-        ++currFieldId;
         traverseAgg(fieldConst);
-        return;
       }
-      currFieldId += step;
     }
   };
   traverseAgg(mirConst);
+  CHECK_FATAL(hasReached, "const not found");
   return resultConst;
 }
 
