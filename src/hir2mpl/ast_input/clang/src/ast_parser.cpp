@@ -1186,6 +1186,10 @@ ASTExpr *ASTParser::ProcessExprUnaryOperator(MapleAllocator &allocator, const cl
   if (astExpr == nullptr) {
     return nullptr;
   }
+  // vla as a pointer is not need to be addrof
+  if (clangOpCode == clang::UO_AddrOf && subExpr->getType()->isVariableArrayType() ) {
+    return astExpr;
+  }
   astUOExpr->SetASTDecl(astExpr->GetASTDecl());
   astUOExpr->SetUOExpr(astExpr);
   return astUOExpr;
@@ -1463,10 +1467,10 @@ ASTExpr *ASTParser::ProcessExprArraySubscriptExpr(MapleAllocator &allocator, con
   astArraySubscriptExpr->SetArrayType(arrayMirType);
 
   clang::QualType exprType = expr.getType().getCanonicalType();
-  if (llvm::isa<clang::VariableArrayType>(arrayQualType)) {
-    CHECK_FATAL(FEOptions::GetInstance().IsEnableVariableArray(),
-                "Intercepts variable arrays, because the backend does not yet support.");
+  if (arrayQualType->isVariablyModifiedType()) {
     astArraySubscriptExpr->SetIsVLA(true);
+    ASTExpr *vlaTypeSizeExpr = BuildExprToComputeSizeFromVLA(allocator, exprType);
+    astArraySubscriptExpr->SetVLASizeExpr(vlaTypeSizeExpr);
   }
   ASTExpr *astBaseExpr = ProcessExpr(allocator, base);
   astArraySubscriptExpr->SetBaseExpr(astBaseExpr);
@@ -1550,6 +1554,23 @@ ASTExpr *ASTParser::GetAddrShiftExpr(MapleAllocator &allocator, ASTExpr *expr, u
   auto ptrSizeExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
   ptrSizeExpr->SetVal(typeSize);
   ptrSizeExpr->SetType(retType);
+  auto shiftExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
+  shiftExpr->SetLeftExpr(expr);
+  shiftExpr->SetRightExpr(ptrSizeExpr);
+  shiftExpr->SetOpcode(OP_mul);
+  shiftExpr->SetRetType(retType);
+  shiftExpr->SetCvtNeeded(true);
+  shiftExpr->SetSrcLoc(expr->GetSrcLoc());
+  return shiftExpr;
+}
+
+ASTExpr *ASTParser::GetSizeMulExpr(MapleAllocator &allocator, ASTExpr *expr, ASTExpr *ptrSizeExpr) {
+  MIRType *retType = nullptr;
+  if (IsSignedInteger(expr->GetType()->GetPrimType())) {
+    retType = GlobalTables::GetTypeTable().GetInt64();
+  } else {
+    retType = GlobalTables::GetTypeTable().GetPtr();
+  }
   auto shiftExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
   shiftExpr->SetLeftExpr(expr);
   shiftExpr->SetRightExpr(ptrSizeExpr);
@@ -1958,7 +1979,10 @@ ASTExpr *ASTParser::ProcessExprCastExpr(MapleAllocator &allocator, const clang::
       astCastExpr->SetBitCast(true);
       break;
     case clang::CK_ArrayToPointerDecay:
-      astCastExpr->SetIsArrayToPointerDecay(true);
+      if (!(expr.getSubExpr()->getType()->isVariableArrayType() &&
+            expr.getSubExpr()->getStmtClass() == clang::Stmt::DeclRefExprClass)) {
+        astCastExpr->SetIsArrayToPointerDecay(true);  // vla as a pointer is not need to be addrof
+      }
       break;
     case clang::CK_BuiltinFnToFnPtr:
       astCastExpr->SetBuilinFunc(true);
@@ -2126,18 +2150,26 @@ ASTExpr *ASTParser::ProcessExprBinaryOperator(MapleAllocator &allocator, const c
        (lhsType->isIntegerType() && rhsType->isPointerType())) &&
       !boType->isVoidPointerType() && GetSizeFromQualType(boType->getPointeeType()) != 1) {
     auto boMirType = astFile->CvtType(boType);
-    auto typeSize = GetSizeFromQualType(boType->getPointeeType());
-    MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
-        static_cast<MIRPtrType*>(boMirType)->GetPointedTyIdx());
-    if (pointedType->GetPrimType() == PTY_f64) {
-      typeSize = 8; // 8 is f64 byte num, because now f128 also cvt to f64
-    }
-    if (lhsType->isPointerType()) {
-      astRExpr = GetAddrShiftExpr(allocator, astRExpr, typeSize);
-    } else if (rhsType->isPointerType()) {
-      astLExpr = GetAddrShiftExpr(allocator, astLExpr, typeSize);
+    auto ptrType = lhsType->isPointerType() ? lhsType : rhsType;
+    auto astSizeExpr = lhsType->isPointerType() ? astRExpr : astLExpr;
+    if (ptrType->getPointeeType()->isVariableArrayType()) {
+      ASTExpr *vlaTypeSizeExpr = BuildExprToComputeSizeFromVLA(allocator, ptrType->getPointeeType());
+      astSizeExpr = GetSizeMulExpr(allocator, astSizeExpr, vlaTypeSizeExpr);
+    } else {
+      auto typeSize = GetSizeFromQualType(boType->getPointeeType());
+      MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
+          static_cast<MIRPtrType*>(boMirType)->GetPointedTyIdx());
+      if (pointedType->GetPrimType() == PTY_f64) {
+        typeSize = 8; // 8 is f64 byte num, because now f128 also cvt to f64
+      }
+      astSizeExpr = GetAddrShiftExpr(allocator, astSizeExpr, typeSize);
     }
     astBinOpExpr->SetCvtNeeded(false); // the type cannot be cvt.
+    if (lhsType->isPointerType()) {
+      astRExpr = astSizeExpr;
+    } else {
+      astLExpr = astSizeExpr;
+    }
   }
   astBinOpExpr->SetLeftExpr(astLExpr);
   astBinOpExpr->SetRightExpr(astRExpr);
@@ -2621,12 +2653,6 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
     varName = varName + astFile->GetAstFileNameHashStr();
   }
 
-  if (llvm::isa<clang::VariableArrayType>(varDecl.getType())) {
-    CHECK_FATAL(FEOptions::GetInstance().IsEnableVariableArray(),
-                "Intercepts variable arrays, because the backend does not yet support.");
-    MIRType *elementType = static_cast<MIRArrayType*>(varType)->GetElemType();
-    varType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*elementType);
-  }
   astVar = ASTDeclsBuilder::ASTVarBuilder(
       allocator, fileName, varName, MapleVector<MIRType*>({varType}, allocator.Adapter()), attrs, varDecl.getID());
   astVar->SetIsMacro(varDecl.getLocation().isMacroID());
@@ -2657,10 +2683,10 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
       astVar->SetAttr(GENATTR_static_init_zero); // used to distinguish with uninitialized vars
     }
   }
-  if (llvm::isa<clang::VariableArrayType>(varDecl.getType())) {
+  if (llvm::isa<clang::VariableArrayType>(qualType.getCanonicalType())) {
     CHECK_FATAL(FEOptions::GetInstance().IsEnableVariableArray(),
                 "Intercepts variable arrays, because the backend does not yet support.");
-    astVar->SetVariableArrayExpr(GetTypeSizeFromQualType(allocator, varDecl.getType()));
+    astVar->SetVariableArrayExpr(BuildExprToComputeSizeFromVLA(allocator, qualType.getCanonicalType()));
   }
   if (!varDecl.getType()->isIncompleteType()) {
     int64 naturalAlignment = astFile->GetContext()->toCharUnitsFromBits(

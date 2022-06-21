@@ -906,6 +906,10 @@ class ASTArraySubscriptExpr : public ASTExpr {
     isVLA = flag;
   }
 
+  void SetVLASizeExpr(ASTExpr *expr) {
+    vlaSizeExpr = expr;
+  }
+
  private:
   ASTExpr *FindFinalBase() const;
   MIRConst *GenerateMIRConstImpl() const override;
@@ -920,6 +924,7 @@ class ASTArraySubscriptExpr : public ASTExpr {
   MIRType *arrayType = nullptr;
   ASTExpr *idxExpr = nullptr;
   bool isVLA = false;
+  ASTExpr *vlaSizeExpr = nullptr;
 };
 
 class ASTExprUnaryExprOrTypeTraitExpr : public ASTExpr {

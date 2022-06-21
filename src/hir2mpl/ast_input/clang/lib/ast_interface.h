@@ -90,7 +90,6 @@ class LibAstFile {
 
   void CollectBaseEltTypeAndDimFromVariaArrayDecl(const clang::QualType &qualType, MIRType *&elemType,
                                                   TypeAttrs &elemAttr, uint8_t &dim);
-
   void CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(const clang::QualType qualType, MIRType *&elemType,
                                                            TypeAttrs &elemAttr, std::vector<uint32_t> &operands);
 

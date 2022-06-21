@@ -149,13 +149,17 @@ MIRType *LibAstFile::CvtType(const clang::QualType qualType) {
     if (TypeHasMayAlias(qualType->getPointeeType())) {
       attrs.SetAttr(ATTR_may_alias);
     }
-
-    MIRPtrType *prtType;
+    // Variably Modified type is the type of a Variable Length Array. (C99 6.7.5)
+    // Convert the vla to a single-dimensional pointer, e.g. int(*)[N]
+    if (qualType->isVariablyModifiedType() && mirPointeeType->IsMIRPtrType()) {
+      static_cast<MIRPtrType*>(mirPointeeType)->SetTypeAttrs(attrs);
+      return mirPointeeType;
+    }
+    MIRType *prtType;
     if (attrs == TypeAttrs()) {
-      prtType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirPointeeType));
+      prtType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirPointeeType);
     } else {
-      prtType = static_cast<MIRPtrType*>(
-          GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirPointeeType, PTY_ptr, attrs));
+      prtType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirPointeeType, PTY_ptr, attrs);
     }
     return prtType;
   }
@@ -250,8 +254,10 @@ MIRType *LibAstFile::CvtArrayType(const clang::QualType srcType) {
         tempSizeArray[k] = operands[k];
       }
       sizeArray = tempSizeArray;
+      retType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*elemType, dim, sizeArray, elemAttrs);
+    } else {
+      retType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*elemType, PTY_ptr, elemAttrs);
     }
-    retType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*elemType, dim, sizeArray, elemAttrs);
   } else {
     bool asFlag = srcType->isIncompleteArrayType();
     CHECK_FATAL(asFlag, "Incomplete Array Type");

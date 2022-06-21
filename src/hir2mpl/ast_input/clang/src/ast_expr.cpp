@@ -1746,7 +1746,11 @@ UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> 
       feIdxExpr = FEIRBuilder::CreateExprCvtPrim(std::move(feIdxExpr),
                                                  GetRegPrimType(indexPty), PTY_ptr);
     }
-    if (mirType->GetSize() != 1) {
+    if (isVLA) {
+      auto feSizeExpr = vlaSizeExpr->Emit2FEExpr(stmts);
+      feIdxExpr = FEIRBuilder::CreateExprBinary(sizeType->Clone(), OP_mul, std::move(feIdxExpr),
+                                                std::move(feSizeExpr));
+    } else if (mirType->GetSize() != 1) {
       auto typeSizeExpr = std::make_unique<FEIRExprConst>(mirType->GetSize(), sizeType->GetPrimType());
       feIdxExpr = FEIRBuilder::CreateExprBinary(sizeType->Clone(), OP_mul, std::move(feIdxExpr),
                                                 std::move(typeSizeExpr));
@@ -1763,9 +1767,6 @@ UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> 
                                                      std::move(offsetExprs[i]));
         }
       }
-    }
-    if (isVLA) {
-      baseAddrFEExpr = FEIRBuilder::CreateExprDRead(baseAddrFEExpr->GetVarUses().front()->Clone());
     }
     addrOfArray = FEIRBuilder::CreateExprBinary(std::move(sizeType), OP_add, baseAddrFEExpr->Clone(),
                                                 std::move(offsetExpr));

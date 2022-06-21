@@ -164,6 +164,7 @@ class ASTParser {
   ASTDecl *PROCESS_DECL(StaticAssert);
 
   static ASTExpr *GetAddrShiftExpr(MapleAllocator &allocator, ASTExpr *expr, uint32 typeSize);
+  static ASTExpr *GetSizeMulExpr(MapleAllocator &allocator, ASTExpr *expr, ASTExpr *ptrSizeExpr);
 
  private:
   void ProcessNonnullFuncAttrs(const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
