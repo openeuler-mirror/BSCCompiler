@@ -61,7 +61,7 @@ class DSE {
   void MarkControlDependenceLive(const BB &bb);
   void MarkLastBranchStmtInBBRequired(const BB &bb);
   void MarkLastBranchStmtInPDomBBRequired(const BB &bb);
-  void MarkLastGotoInPredBBRequired(const BB &bb);
+  void MarkLastBranchStmtInPredBBRequired(const BB &bb);
 
   // step 3: mark stmt use live
   void MarkStmtUseLive(const StmtNode &stmt);
@@ -90,6 +90,7 @@ class DSE {
 
   void RemoveNotRequiredStmtsInBB(BB &bb);
   void OnRemoveBranchStmt(BB &bb, const StmtNode &stmt);
+  bool IsCallReturnRemovable(const StmtNode &stmt);
   void CheckRemoveCallAssignedReturn(StmtNode &stmt);
 
   bool IsStmtRequired(const StmtNode &stmt) const {

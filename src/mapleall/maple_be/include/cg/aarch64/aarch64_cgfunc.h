@@ -582,7 +582,6 @@ class AArch64CGFunc : public CGFunc {
   void AppendCall(const MIRSymbol &func);
   Insn &AppendCall(const MIRSymbol &func, ListOperand &srcOpnds, bool isCleanCall = false);
 
-  static constexpr uint32 kDwarfScalarRegBegin = 0;
   static constexpr uint32 kDwarfFpRegBegin = 64;
   static constexpr int32 kBitLenOfShift64Bits = 6; /* for 64 bits register, shift amount is 0~63, use 6 bits to store */
   static constexpr int32 kBitLenOfShift32Bits = 5; /* for 32 bits register, shift amount is 0~31, use 5 bits to store */
@@ -599,7 +598,7 @@ class AArch64CGFunc : public CGFunc {
      * its physical number
      */
     if (reg < V0) {
-      return *memPool->New<cfi::RegOperand>((reg - R0) + kDwarfScalarRegBegin, size);
+      return *memPool->New<cfi::RegOperand>((reg - R0), size);
     } else {
       return *memPool->New<cfi::RegOperand>((reg - V0) + kDwarfFpRegBegin, size);
     }

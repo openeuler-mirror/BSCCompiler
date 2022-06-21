@@ -172,7 +172,7 @@ void DSE::DumpStmt(const StmtNode &stmt, const std::string &msg) const {
   }
 }
 
-bool DSE::IsCallReturnRemovable(StmtNode &stmt) {
+bool DSE::IsCallReturnRemovable(const StmtNode &stmt) {
   if (!kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
     return false;
   }
@@ -180,7 +180,7 @@ bool DSE::IsCallReturnRemovable(StmtNode &stmt) {
     return false;
   }
   if (stmt.GetOpCode() == OP_intrinsiccallassigned) {
-    auto intrinsicID = static_cast<IntrinsiccallNode&>(stmt).GetIntrinsic();
+    auto intrinsicID = static_cast<const IntrinsiccallNode&>(stmt).GetIntrinsic();
     return !IntrinDesc::intrinTable[intrinsicID].IsAtomic();
   }
   return true;

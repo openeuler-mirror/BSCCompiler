@@ -667,7 +667,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     A64OpndEmitVisitor visitor(emitter, nullptr);
     labelOpnd.Accept(visitor);
     (void)emitter.Emit(":\n");
-    (void)emitter.Emit("\t.quad ").Emit(mpPair.second).Emit("\n");
+    (void)emitter.Emit("\t.quad ").Emit(static_cast<int64>(mpPair.second)).Emit("\n");
     emitter.IncreaseJavaInsnCount(kQuadInsnCount);
   }
 
@@ -1920,13 +1920,13 @@ void AArch64AsmEmitter::EmitCTlsDescCall(Emitter &emitter, const Insn &insn) con
   const std::string &symName = stImmOpnd->GetName();
   A64OpndEmitVisitor funcVisitor(emitter, prop);
   /*  adrp    x0, :tlsdesc:symbol */
-  emitter.Emit("\t").Emit("adrp\tx0, :tlsdesc:").Emit(symName).Emit("\n");
+  (void)emitter.Emit("\t").Emit("adrp\tx0, :tlsdesc:").Emit(symName).Emit("\n");
   /*  ldr x1, [x0, #tlsdesc_lo12:symbol] */
-  emitter.Emit("\t").Emit("ldr").Emit("\t");
+  (void)emitter.Emit("\t").Emit("ldr").Emit("\t");
   func->Accept(funcVisitor);
-  emitter.Emit(", [x0, #:tlsdesc_lo12:").Emit(symName).Emit("]\n");
+  (void)emitter.Emit(", [x0, #:tlsdesc_lo12:").Emit(symName).Emit("]\n");
   /*  add x0 ,#tlsdesc_lo12:symbol */
-  emitter.Emit("\t").Emit("add\tx0, x0, :tlsdesc_lo12:").Emit(symName).Emit("\n");
+  (void)emitter.Emit("\t").Emit("add\tx0, x0, :tlsdesc_lo12:").Emit(symName).Emit("\n");
   /* .tlsdesccall <symbolName> */
   (void)emitter.Emit("\t").Emit(".tlsdesccall").Emit("\t").Emit(symName).Emit("\n");
   /* blr xd*/

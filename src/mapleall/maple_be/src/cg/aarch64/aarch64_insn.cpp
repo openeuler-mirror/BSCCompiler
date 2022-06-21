@@ -982,7 +982,7 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
 }
 
 void A64OpndEmitVisitor::Visit(LabelOperand *v) {
-  (void)emitter.EmitLabelRef(v->GetLabelIndex());
+  emitter.EmitLabelRef(v->GetLabelIndex());
 }
 
 void A64OpndEmitVisitor::Visit(CondOperand *v) {

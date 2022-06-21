@@ -3669,7 +3669,7 @@ void AArch64CGFunc::SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
     int64 immVal = immOpnd->GetValue();
     int32 tail0bitNum = GetTail0BitNum(immVal);
     int32 head0bitNum = GetHead0BitNum(immVal);
-    const int32 bitNum = (k64BitSize - head0bitNum) - tail0bitNum;
+    const int32 bitNum = (k64BitSizeInt - head0bitNum) - tail0bitNum;
     RegOperand &regOpnd = CreateRegisterOperandOfType(primType);
     if (isAfterRegAlloc) {
       RegType regty = GetRegTyFromPrimTy(primType);
@@ -3825,7 +3825,7 @@ void AArch64CGFunc::SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
   int64 immVal = immOpnd->GetValue();
   int32 tail0bitNum = GetTail0BitNum(immVal);
   int32 head0bitNum = GetHead0BitNum(immVal);
-  const int32 bitNum = (k64BitSize - head0bitNum) - tail0bitNum;
+  const int32 bitNum = (k64BitSizeInt - head0bitNum) - tail0bitNum;
   RegOperand &regOpnd = CreateRegisterOperandOfType(primType);
   if (isAfterRegAlloc) {
     RegType regty = GetRegTyFromPrimTy(primType);
@@ -4567,7 +4567,7 @@ void AArch64CGFunc::SelectRelationOperator(RelationOperator operatorCode, Operan
       int64 immVal = immOpnd->GetValue();
       int32 tail0BitNum = GetTail0BitNum(immVal);
       int32 head0BitNum = GetHead0BitNum(immVal);
-      const int32 bitNum = (k64BitSize - head0BitNum) - tail0BitNum;
+      const int32 bitNum = (k64BitSizeInt - head0BitNum) - tail0BitNum;
       RegOperand &regOpnd = CreateRegisterOperandOfType(primType);
 
       if (bitNum <= k16ValidBit) {
@@ -7689,7 +7689,7 @@ void AArch64CGFunc::SelectParmListPreprocess(const StmtNode &naryNode, size_t st
     BaseNode *argExpr = naryNode.Opnd(i);
     PrimType primType = argExpr->GetPrimType();
     if (MarkParmListCall(*argExpr)) {
-      specialArgs.emplace(i);
+      (void)specialArgs.emplace(i);
     }
     ASSERT(primType != PTY_void, "primType should not be void");
     if (primType != PTY_agg) {

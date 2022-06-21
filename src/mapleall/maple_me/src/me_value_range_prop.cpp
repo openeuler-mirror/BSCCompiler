@@ -1336,7 +1336,7 @@ void ValueRangePropagation::CollectMeExpr(
 // bitsSize : 12
 // =>
 // vr: (0, 0xfff)
-void ValueRangePropagation::CreateVRWithBitsSize(const BB &bb, OpMeExpr &opMeExpr) {
+void ValueRangePropagation::CreateVRWithBitsSize(const BB &bb, const OpMeExpr &opMeExpr) {
   auto bitsSize = opMeExpr.GetBitsSize();
   if (bitsSize >= 0 && bitsSize < 64) {
     auto pTypeOfOpMeExpr = opMeExpr.GetPrimType();
@@ -2419,7 +2419,7 @@ void ValueRangePropagation::TravelBBs(std::vector<BB*> &reversePostOrderOfLoopBB
   }
 }
 
-void ValueRangePropagation::CreateVRForPhi(LoopDesc &loop, const BB &bb) {
+void ValueRangePropagation::CreateVRForPhi(const LoopDesc &loop, const BB &bb) {
   onlyPropVRStack.push(onlyPropVR);
   onlyPropVR = true;
   std::vector<BB*> reversePostOrderOfLoopBBs;
@@ -3918,7 +3918,8 @@ MeExpr &ValueRangePropagation::GetVersionOfOpndInPred(const BB &pred, const BB &
 //       succ1
 //         |
 //       bb if (a3 - b3 > constant)
-std::unique_ptr<ValueRange> ValueRangePropagation::GetValueRangeOfLHS(BB &pred, const BB &bb, MeExpr &expr) const {
+std::unique_ptr<ValueRange> ValueRangePropagation::GetValueRangeOfLHS(const BB &pred, const BB &bb,
+                                                                      MeExpr &expr) const {
   if (expr.GetMeOp() != kMeOpOp || expr.GetOp() != OP_sub) {
     return nullptr;
   }
@@ -4536,7 +4537,7 @@ void ValueRangePropagation::GetValueRangeForUnsignedInt(const BB &bb, OpMeExpr &
 // ==>
 // Example: if (a != 0)
 bool ValueRangePropagation::DealWithSpecialCondGoto(
-    BB &bb, OpMeExpr &opMeExpr, const ValueRange &leftRange, ValueRange &rightRange, CondGotoMeStmt &brMeStmt) {
+    const BB &bb, OpMeExpr &opMeExpr, const ValueRange &leftRange, ValueRange &rightRange, CondGotoMeStmt &brMeStmt) {
   if (onlyPropVR) {
     return false;
   }

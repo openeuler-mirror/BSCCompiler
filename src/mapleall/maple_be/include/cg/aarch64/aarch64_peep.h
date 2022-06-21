@@ -1443,7 +1443,7 @@ class LoadFloatPointPattern : public CGPeepPattern {
     return "LoadFloatPointPattern";
   }
  private:
-  bool FindLoadFloatPoint(std::vector<Insn*> &optInsn, Insn &insn);
+  bool FindLoadFloatPoint(Insn &insn);
   bool IsPatternMatch();
   std::vector<Insn*> optInsn;
 };

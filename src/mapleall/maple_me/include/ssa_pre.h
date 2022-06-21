@@ -249,7 +249,7 @@ class SSAPre {
   MapleAllocator perCandAllocator;
   MapleList<PreWorkCand*> workList;
   PreWorkCand *workCand = nullptr;  // the current PreWorkCand
-  ExprHoist *eh;
+  ExprHoist *eh = nullptr;
   PreKind preKind;
 
   uint32 curTreeId = 0;  // based on number of rooted trees processed in collecting

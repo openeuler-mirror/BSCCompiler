@@ -913,14 +913,14 @@ class TreeNode {
 
   PrimType GetType() const;
 
-  void DumpVecStmts(IRMap &irMap) const {
+  void DumpVecStmts(const IRMap &irMap) const {
     LogInfo::MapleLogger() << "  Emit stmts:" << std::endl;
     for (auto *stmt : outStmts) {
       stmt->Dump(&irMap);
     }
   }
 
-  void DumpInDot(MeFunction &func) const {
+  void DumpInDot(const MeFunction &func) const {
     (void)func;
     LogInfo::MapleLogger() << "[" << id << "] ";
     LogInfo::MapleLogger() << GetOpName(op);
@@ -1546,7 +1546,7 @@ void GetOstsUsed(MeStmt *stmt, std::unordered_set<OriginalSt*> &ostsUsed) {
   }
 }
 
-void GetUseStmtsOfChiRhs(MeExprUseInfo &useInfo, MeStmt *stmt, std::vector<MeStmt*> &useStmts) {
+void GetUseStmtsOfChiRhs(const MeExprUseInfo &useInfo, MeStmt *stmt, std::vector<MeStmt*> &useStmts) {
   auto *chiList = stmt->GetChiList();
   if (chiList == nullptr) {
     return;
@@ -1687,8 +1687,8 @@ bool BlockScheduling::CanScheduleIassignStmtWithoutOverlapBefore(MeStmt *stmt, M
   }
   auto *firstMemLoc = memoryHelper.GetMemLoc(*lhsIvarAnchor);
   auto *secondMemLoc = memoryHelper.GetMemLoc(*lhsIvarStmt);
-  if (!memoryHelper.HaveSameBase(*firstMemLoc, *secondMemLoc) ||
-      !memoryHelper.MustHaveNoOverlap(*firstMemLoc, *secondMemLoc)) {
+  if (!MemoryHelper::HaveSameBase(*firstMemLoc, *secondMemLoc) ||
+      !MemoryHelper::MustHaveNoOverlap(*firstMemLoc, *secondMemLoc)) {
     return false;
   }
   return true;
@@ -2113,7 +2113,7 @@ void SLPVectorizer::VectorizeCompatibleStores(StoreVec &storeVec, uint32 begin, 
   for (uint32 i = begin; i < end;) {
     uint32 j = i + 1;
     for (; j < end; ++j) {
-      if (!memoryHelper.IsConsecutive(*storeVec[j - 1]->storeMem, *storeVec[j]->storeMem, false)) {
+      if (!MemoryHelper::IsConsecutive(*storeVec[j - 1]->storeMem, *storeVec[j]->storeMem, false)) {
         break;
       }
     }

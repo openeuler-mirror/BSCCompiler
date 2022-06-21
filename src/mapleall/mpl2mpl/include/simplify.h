@@ -98,11 +98,11 @@ class SimplifyMemOp {
     debug = dbg;
   }
 
-  bool AutoSimplify(StmtNode &stmt, BlockNode &block, bool isLowLevel) const;
-  bool SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowLevel) const;
-  bool SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLevel) const;
+  bool AutoSimplify(StmtNode &stmt, BlockNode &block, bool isLowLevel);
+  bool SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowLevel);
+  bool SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLevel);
  private:
-  StmtNode *PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block) const;
+  StmtNode *PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block);
 
   static const uint32 thresholdMemsetExpand;
   static const uint32 thresholdMemsetSExpand;
@@ -133,8 +133,8 @@ class Simplify : public FuncOptimizeImpl {
   bool IsMathAbs(const std::string funcName);
   bool IsMathMin(const std::string funcName);
   bool IsMathMax(const std::string funcName);
-  bool IsSymbolReplaceableWithConst(const MIRSymbol &symbol);
-  bool IsConstRepalceable(const MIRConst &mirConst);
+  bool IsSymbolReplaceableWithConst(const MIRSymbol &symbol) const;
+  bool IsConstRepalceable(const MIRConst &mirConst) const;
   bool SimplifyMathMethod(const StmtNode &stmt, BlockNode &block);
   void SimplifyCallAssigned(StmtNode &stmt, BlockNode &block);
   StmtNode *SimplifyToSelect(MIRFunction *func, IfStmtNode *ifNode, BlockNode *block);

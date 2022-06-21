@@ -625,7 +625,7 @@ class ValueRangePropagation {
   }
 
   // If the vr of lhs is equal to the vr of rhs in bb.
-  bool FindPairOfExprs(MeExpr &lhs, MeExpr &rhs, const BB &bb) const {
+  bool FindPairOfExprs(MeExpr &lhs, const MeExpr &rhs, const BB &bb) const {
     auto it = pairOfExprs.find(&lhs);
     if (it == pairOfExprs.end()) {
       return false;
@@ -780,7 +780,7 @@ class ValueRangePropagation {
   bool DealWithCVT(const BB &bb, MeStmt &stmt, OpMeExpr &opMeExpr);
   bool IfTheLowerOrUpperOfLeftRangeEqualToTheRightRange(
           const ValueRange &leftRange, ValueRange &rightRange, bool isLower) const;
-  bool DealWithSpecialCondGoto(BB &bb, OpMeExpr &opMeExpr, const ValueRange &leftRange, ValueRange &rightRange,
+  bool DealWithSpecialCondGoto(const BB &bb, OpMeExpr &opMeExpr, const ValueRange &leftRange, ValueRange &rightRange,
                                CondGotoMeStmt &brMeStmt);
   void UpdateOrDeleteValueRange(const MeExpr &opnd, std::unique_ptr<ValueRange> valueRange, const BB &branch);
   void Insert2UnreachableBBs(BB &unreachableBB);
@@ -804,7 +804,7 @@ class ValueRangePropagation {
   bool DealWithVariableRange(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
   std::unique_ptr<ValueRange> MergeValuerangeOfPhi(std::vector<std::unique_ptr<ValueRange>> &valueRangeOfPhi);
   std::unique_ptr<ValueRange> MakeMonotonicIncreaseOrDecreaseValueRangeForPhi(int stride, Bound &initBound) const;
-  void CreateVRForPhi(LoopDesc &loop, const BB &bb);
+  void CreateVRForPhi(const LoopDesc &loop, const BB &bb);
   void TravelBBs(std::vector<BB *> &reversePostOrderOfLoopBBs);
   std::unique_ptr<ValueRange> CreateInitVRForPhi(LoopDesc &loop, const BB &bb, ScalarMeExpr &init,
       ScalarMeExpr &backedge, const ScalarMeExpr &lhsOfPhi);
@@ -814,9 +814,9 @@ class ValueRangePropagation {
   bool MergeVrOrInitAndBackedge(MePhiNode &mePhiNode, ValueRange &vrOfInitExpr,
       ValueRange &valueRange, Bound &resBound);
   void ReplaceUsePoints(MePhiNode *phi);
-  void CreateVRWithBitsSize(const BB &bb, OpMeExpr &opMeExpr);
+  void CreateVRWithBitsSize(const BB &bb, const OpMeExpr &opMeExpr);
   MeExpr &GetVersionOfOpndInPred(const BB &pred, const BB &bb, MeExpr &expr) const;
-  std::unique_ptr<ValueRange> GetValueRangeOfLHS(BB &pred, const BB &bb, MeExpr &expr) const;
+  std::unique_ptr<ValueRange> GetValueRangeOfLHS(const BB &pred, const BB &bb, MeExpr &expr) const;
   Opcode GetOpAfterSwapThePositionsOfTwoOperands(Opcode op) const;
   bool TowCompareOperandsAreInSameIterOfLoop(const MeExpr &lhs, const MeExpr &rhs) const;
 

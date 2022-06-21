@@ -196,7 +196,7 @@ class MeRealOcc : public MeOccur {
     isFormalAtEntry = isFormal;
   }
 
-  bool IsHoisted() {
+  bool IsHoisted() const {
     return isHoisted;
   }
 

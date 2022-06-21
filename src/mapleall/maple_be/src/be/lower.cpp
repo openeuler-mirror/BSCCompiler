@@ -755,7 +755,8 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
 
   if ((static_cast<uint32>(bitOffset) + bitSize) <= primTypeBitSize) {
     if (CGOptions::IsBigEndian()) {
-        bitOffset = (beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte - bitOffset) - bitSize;
+        bitOffset = (static_cast<int64>(beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte)
+            - bitOffset) - bitSize;
     }
     auto depositBits = builder->CreateExprDepositbits(OP_depositbits, primType, static_cast<uint32>(bitOffset),
         bitSize, bitField, rhs);
@@ -796,7 +797,8 @@ BaseNode *CGLowerer::ReadBitField(const std::pair<int32, int32> &byteBitOffsets,
 
   if ((static_cast<uint32>(bitOffset) + bitSize) <= primTypeBitSize) {
     if (CGOptions::IsBigEndian()) {
-      bitOffset = (beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte - bitOffset) - bitSize;
+      bitOffset = (static_cast<int64>(beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte)
+          - bitOffset) - bitSize;
     }
     return builder->CreateExprExtractbits(OP_extractbits, primType, static_cast<uint32>(bitOffset), bitSize, bitField);
   }
@@ -1686,7 +1688,7 @@ void CGLowerer::LowerSwitchOpnd(StmtNode &stmt, BlockNode &newBlk) {
     RegassignNode *regAss = mirBuilder->CreateStmtRegassign(ptyp, pIdx, opnd);
     newBlk.AddStatement(regAss);
     GetCurrentFunc()->SetLastFreqMap(regAss->GetStmtID(),
-         static_cast<uint32>(GetCurrentFunc()->GetFreqFromLastStmt(stmt.GetStmtID())));
+        static_cast<uint32>(GetCurrentFunc()->GetFreqFromLastStmt(stmt.GetStmtID())));
     stmt.SetOpnd(mirBuilder->CreateExprRegread(ptyp, pIdx), 0);
   } else {
     stmt.SetOpnd(LowerExpr(stmt, *stmt.Opnd(0), newBlk), 0);

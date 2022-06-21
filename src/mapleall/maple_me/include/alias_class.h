@@ -24,6 +24,7 @@ namespace maple {
 constexpr int64 bitsPerByte = 8;
 
 inline int64 GetTypeBitSize(const MIRType *type) {
+  ASSERT(type != nullptr, "type is wrong.");
   if (type->GetKind() == kTypeBitField) {
     return static_cast<const MIRBitFieldType*>(type)->GetFieldSize();
   } else {
@@ -176,9 +177,11 @@ class AliasClass : public AnalysisResult {
   bool IsGlobalOstTypeUnsafe(const OriginalSt &ost) const;
   void PropagateTypeUnsafe();
   void PropagateTypeUnsafeVertically(const VersionSt &vst) const;
+  MIRType *GetAliasInfoRealType(const AliasInfo &ai, const BaseNode &expr);
+  bool IsAddrTypeConsistent(MIRType *typeA, MIRType *typeB) const;
   void SetTypeUnsafeForAddrofUnion(const VersionSt *vst) const;
-  void SetTypeUnsafeForTypeConversion(const VersionSt *lhsVst, const VersionSt *rhsVst) const;
-  void SetTypeUnsafeForBaseTypeCvt(const TyIdx &accessTyIdx, const OriginalSt *baseOst) const;
+  void SetTypeUnsafeForTypeConversion(const VersionSt *lhsVst, BaseNode *rhsExpr);
+  void SetTypeUnsafeIfBaseTypeCvt(OriginalSt *memOst, const TyIdx &accessTyIdx, BaseNode *baseNode);
   void CreateAssignSets();
   void DumpAssignSets();
   void GetValueAliasSetOfVst(size_t vstIdx, std::set<size_t> &result);
@@ -192,7 +195,7 @@ class AliasClass : public AnalysisResult {
   void UnionForAggAndFields();
   void CollectAliasGroups(std::map<unsigned int, std::set<unsigned int>> &aliasGroups);
   bool AliasAccordingToType(TyIdx tyIdxA, TyIdx tyIdxB);
-  bool AliasAccordingToFieldID(const OriginalSt &ostA, const OriginalSt &ostB);
+  bool AliasAccordingToFieldID(const OriginalSt &ostA, const OriginalSt &ostB) const;
   void ReconstructAliasGroups();
   void CollectNotAllDefsSeenAes();
   void CreateClassSets();
@@ -260,7 +263,7 @@ class AliasClass : public AnalysisResult {
   void SetPtrFieldsOfAggNextLevNADS(const BaseNode *opnd, const VersionSt *vst);
   void SetAggOpndPtrFieldsNextLevNADS(MapleVector<BaseNode*> &opnds);
   void ApplyUnionForDassignCopy(VersionSt &lhsVst, VersionSt *rhsVst, BaseNode &rhs);
-  bool SetNextLevNADSForEscapePtr(VersionSt &lhsVst, BaseNode &rhs);
+  bool SetNextLevNADSForEscapePtr(const VersionSt &lhsVst, BaseNode &rhs);
   void UnionNextLevelOfAliasOst(std::set<OriginalSt*> &ostsToUnionNextLev);
   VersionSt *FindOrCreateDummyNADSVst();
   VersionSt &FindOrCreateVstOfAddrofOSt(OriginalSt &oSt);

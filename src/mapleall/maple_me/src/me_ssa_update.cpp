@@ -356,7 +356,7 @@ void MeSSAUpdate::InsertOstToSSACands(OStIdx ostIdx, const BB &defBB,
 
 // Insert ost and def bbs to ssa cands except the updateSSAExceptTheOstIdx.
 void MeSSAUpdate::InsertDefPointsOfBBToSSACands(
-    BB &defBB, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &ssaCands, OStIdx updateSSAExceptTheOstIdx) {
+    BB &defBB, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &ssaCands, const OStIdx updateSSAExceptTheOstIdx) {
   // Insert the ost of philist to defBB.
   for (auto &it : defBB.GetMePhiList()) {
     if (it.first == updateSSAExceptTheOstIdx) {

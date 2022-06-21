@@ -516,7 +516,7 @@ void AliasClass::ApplyUnionForFieldsInCopiedAgg() {
 //    - agg <- ptr or vice versa
 //
 // return true if ptr escapes
-bool AliasClass::SetNextLevNADSForEscapePtr(VersionSt &lhsVst, BaseNode &rhs) {
+bool AliasClass::SetNextLevNADSForEscapePtr(const VersionSt &lhsVst, BaseNode &rhs) {
   TyIdx lhsTyIdx = lhsVst.GetOst()->GetTyIdx();
   PrimType lhsPtyp = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx)->GetPrimType();
   BaseNode *realRhs = RemoveTypeConversionIfExist(&rhs);
@@ -821,7 +821,7 @@ bool AliasClass::IsAddrTypeConsistent(MIRType *typeA, MIRType *typeB) const {
 // Type of AliasInfo may be inconsistent with its corresponding expr.
 // The root cause is AliasInfo of addrof/iaddrof has a type as pointer
 // to base, instead of its field type.
-MIRType *AliasClass::GetAliasInfoRealType(AliasInfo ai, BaseNode &expr) {
+MIRType *AliasClass::GetAliasInfoRealType(const AliasInfo &ai, const BaseNode &expr) {
   switch (expr.GetOpCode()) {
     case OP_addrof: {
       // type of addrof's vst is a pointer type to agg, instead of its field type.
@@ -834,7 +834,7 @@ MIRType *AliasClass::GetAliasInfoRealType(AliasInfo ai, BaseNode &expr) {
       return GlobalTables::GetTypeTable().GetOrCreatePointerType(*fieldType);
     }
     case OP_iaddrof: {
-      MIRType *memType = static_cast<IreadNode &>(expr).GetType();
+      MIRType *memType = static_cast<const IreadNode&>(expr).GetType();
       return GlobalTables::GetTypeTable().GetOrCreatePointerType(*memType);
     }
     case OP_dread:
@@ -850,9 +850,9 @@ MIRType *AliasClass::GetAliasInfoRealType(AliasInfo ai, BaseNode &expr) {
       return GetAliasInfoRealType(CreateAliasInfoExpr(*expr.Opnd(0)), *expr.Opnd(0));
     }
     case OP_select: {
-      AliasInfo ai = CreateAliasInfoExpr(*expr.Opnd(1));
-      if (ai.vst != nullptr) {
-        return GetAliasInfoRealType(ai, *expr.Opnd(1));
+      AliasInfo ai1 = CreateAliasInfoExpr(*expr.Opnd(1));
+      if (ai1.vst != nullptr) {
+        return GetAliasInfoRealType(ai1, *expr.Opnd(1));
       }
       return GetAliasInfoRealType(CreateAliasInfoExpr(*expr.Opnd(2)), *expr.Opnd(2));
     }
@@ -1677,7 +1677,7 @@ int AliasClass::GetOffset(const Klass &super, const Klass &base) const {
   return offset;
 }
 
-bool AliasClass::AliasAccordingToFieldID(const OriginalSt &ostA, const OriginalSt &ostB) {
+bool AliasClass::AliasAccordingToFieldID(const OriginalSt &ostA, const OriginalSt &ostB) const {
   if (ostA.GetFieldID() == 0 || ostB.GetFieldID() == 0) {
     return true;
   }

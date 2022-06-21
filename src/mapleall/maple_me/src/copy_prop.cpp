@@ -98,7 +98,7 @@ static bool PropagatableOpndOfOperator(const MeExpr *meExpr, Opcode op, size_t o
   return true;
 }
 
-static bool ExpectedPropedExpr(MeExpr &expr) {
+static bool ExpectedPropedExpr(const MeExpr &expr) {
   auto meop = expr.GetMeOp();
   if (meop == kMeOpReg || meop == kMeOpConst) {
     return true;

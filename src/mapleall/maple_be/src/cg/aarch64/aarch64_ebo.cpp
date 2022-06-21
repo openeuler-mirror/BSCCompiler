@@ -1233,7 +1233,6 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
       }
       opndInfo = origInfos.at(kInsnSecondOpnd);
       return CheckCanDoMadd(&insn, opndInfo, kInsnThirdOpnd, is64bits, false);
-      break;
     }
     /*
      *  fmul     d1, d1, d2

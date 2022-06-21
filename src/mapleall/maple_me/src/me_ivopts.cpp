@@ -222,7 +222,7 @@ class IVOptimizer {
   bool IsReplaceSameOst(const MeExpr *parent, ScalarMeExpr *target);
   MeStmt *GetIncPos();
   MeExpr *GetInvariant(MeExpr *expr);
-  MeExpr *ReplaceCompareOpnd(OpMeExpr &cmp, MeExpr *compared, MeExpr *replace);
+  MeExpr *ReplaceCompareOpnd(const OpMeExpr &cmp, MeExpr *compared, MeExpr *replace);
   bool PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeStmt *incPos,
                          MeExpr *&extraExpr, MeExpr *&replace);
   MeExpr *GenerateRealReplace(int64 ratio, MeExpr *extraExpr, MeExpr *replace,
@@ -2109,7 +2109,7 @@ MeExpr *IVOptimizer::GetInvariant(MeExpr *expr) {
   return expr;
 }
 
-MeExpr *IVOptimizer::ReplaceCompareOpnd(OpMeExpr &cmp, MeExpr *compared, MeExpr *replace) {
+MeExpr *IVOptimizer::ReplaceCompareOpnd(const OpMeExpr &cmp, MeExpr *compared, MeExpr *replace) {
   OpMeExpr newOpExpr(cmp, kInvalidExprID);
   for (size_t i = 0; i < newOpExpr.GetNumOpnds(); i++) {
     if (newOpExpr.GetOpnd(i) == compared) {

@@ -448,12 +448,12 @@ BaseNode *Simplify::ReplaceExprWithConst(DreadNode &dread) {
   return currFunc->GetModule()->GetMIRBuilder()->CreateConstval(symbolConst);
 }
 
-bool Simplify::IsSymbolReplaceableWithConst(const MIRSymbol &symbol) {
+bool Simplify::IsSymbolReplaceableWithConst(const MIRSymbol &symbol) const {
   return (symbol.GetStorageClass() == kScFstatic && !symbol.HasPotentialAssignment()) ||
       symbol.GetAttrs().GetAttr(ATTR_const);
 }
 
-bool Simplify::IsConstRepalceable(const MIRConst &mirConst) {
+bool Simplify::IsConstRepalceable(const MIRConst &mirConst) const {
   switch (mirConst.GetKind()) {
     case kConstInt:
     case kConstFloatConst:
@@ -1359,7 +1359,7 @@ MemOpKind SimplifyMemOp::ComputeMemOpKind(StmtNode &stmt) {
   return MEM_OP_unknown;
 }
 
-bool SimplifyMemOp::AutoSimplify(StmtNode &stmt, BlockNode &block, bool isLowLevel) const {
+bool SimplifyMemOp::AutoSimplify(StmtNode &stmt, BlockNode &block, bool isLowLevel) {
   MemOpKind memOpKind = ComputeMemOpKind(stmt);
   switch (memOpKind) {
     case MEM_OP_memset:
@@ -1378,7 +1378,7 @@ bool SimplifyMemOp::AutoSimplify(StmtNode &stmt, BlockNode &block, bool isLowLev
 
 // expand memset_s call statement, return pointer of memset call statement node to be expanded in the next step, return
 // nullptr if memset_s is expanded completely.
-StmtNode *SimplifyMemOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block) const {
+StmtNode *SimplifyMemOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block) {
   ErrorNumber errNum = ERRNO_OK;
 
   int64 srcSize = 0;
@@ -1478,7 +1478,7 @@ StmtNode *SimplifyMemOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block
 //   for primitive type, array type with element size < 4 bytes and struct type without padding
 // (2) cglower memset expand
 //   for array type with element size >= 4 bytes and struct type with paddings
-bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowLevel) const {
+bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowLevel) {
   MemOpKind memOpKind = ComputeMemOpKind(stmt);
   if (memOpKind != MEM_OP_memset && memOpKind != MEM_OP_memset_s) {
     return false;
@@ -1568,7 +1568,7 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
   return ret;
 }
 
-bool SimplifyMemOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLevel) const {
+bool SimplifyMemOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLevel) {
   MemOpKind memOpKind = ComputeMemOpKind(stmt);
   if (memOpKind != MEM_OP_memcpy && memOpKind != MEM_OP_memcpy_s) {
     return false;

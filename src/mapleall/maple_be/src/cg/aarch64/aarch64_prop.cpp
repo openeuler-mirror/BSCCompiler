@@ -200,7 +200,7 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
       BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
       switch(sOp) {
         case BitShiftOperand::kLSL: {
-          newVal = constVal + static_cast<int64>((unsigned)(constVal << amount));
+          newVal = constVal + static_cast<int64>(((unsigned)constVal << amount));
           break;
         }
         case BitShiftOperand::kLSR: {
@@ -231,7 +231,7 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
       BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
       switch(sOp) {
         case BitShiftOperand::kLSL: {
-          newVal = constVal - static_cast<int64>((unsigned)(constVal << amount));
+          newVal = constVal - static_cast<int64>(((unsigned)constVal << amount));
           break;
         }
         case BitShiftOperand::kLSR: {
@@ -804,13 +804,13 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const MemOpera
       if (newOfst != nullptr) {
         uint32 shift = static_cast<uint32>(static_cast<int32>(imm->GetValue()));
         if (memPropMode == kPropOffset) {
-          if ((shift < k4ByteSize) && (shift >= 0)) {
+          if (shift < k4ByteSize) {
             newMemOpnd = static_cast<AArch64CGFunc*>(cgFunc)->CreateMemOperand(
                 MemOperand::kAddrModeBOrX, currMemOpnd.GetSize(), *base, *newOfst, shift);
           }
         } else if (memPropMode == kPropShift) {
           shift += currMemOpnd.ShiftAmount();
-          if ((shift < k4ByteSize) && (shift >= 0)) {
+          if (shift < k4ByteSize) {
             newMemOpnd = static_cast<AArch64CGFunc*>(cgFunc)->CreateMemOperand(
                 MemOperand::kAddrModeBOrX, currMemOpnd.GetSize(), *base, *newOfst, shift);
           }

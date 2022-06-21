@@ -199,7 +199,7 @@ void SSAProp::UpdateDef(VersionSt *vst) {
   }
 }
 
-void SSAProp::UpdateDefOfMayDef(StmtNode &stmt) {
+void SSAProp::UpdateDefOfMayDef(const StmtNode &stmt) {
   if (!kOpcodeInfo.HasSSADef(stmt.GetOpCode()) || stmt.GetOpCode() == maple::OP_regassign) {
     return;
   }

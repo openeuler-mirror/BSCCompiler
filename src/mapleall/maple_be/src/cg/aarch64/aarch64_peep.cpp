@@ -4483,7 +4483,7 @@ void OneHoleBranchesPreAArch64::Run(BB &bb, Insn &insn) {
   }
 }
 
-bool LoadFloatPointPattern::FindLoadFloatPoint(std::vector<Insn*> &optInsn, Insn &insn) {
+bool LoadFloatPointPattern::FindLoadFloatPoint(Insn &insn) {
   MOperator mOp = insn.GetMachineOpcode();
   optInsn.clear();
   if (mOp != MOP_xmovzri16) {
@@ -4547,7 +4547,7 @@ bool LoadFloatPointPattern::IsPatternMatch() {
 }
 
 bool LoadFloatPointPattern::CheckCondition(Insn &insn) {
-  if (FindLoadFloatPoint(optInsn, insn) && IsPatternMatch()) {
+  if (FindLoadFloatPoint(insn) && IsPatternMatch()) {
     return true;
   }
   return false;
@@ -4861,7 +4861,7 @@ void ComplexMemOperandAArch64::Run(BB &bb, Insn &insn) {
     }
 
     /* avoid relocation */
-    if ((offOpnd.GetValue() % kBitsPerByte) != 0) {
+    if ((offOpnd.GetValue() % static_cast<int8>(kBitsPerByte)) != 0) {
       return;
     }
 
@@ -5523,7 +5523,7 @@ void UbfxAndCbzToTbzPattern::Run(BB &bb , Insn &insn) {
   optSuccess = true;
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
-    prevs.emplace_back(useInsn);
+    (void)prevs.emplace_back(useInsn);
     DumpAfterPattern(prevs, newInsn, nullptr);
   }
 }

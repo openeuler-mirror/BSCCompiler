@@ -729,7 +729,7 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
   // multiple definition for these static symbols
   ConvertPStaticToFStatic(callee);
   // Step 1: Clone CALLEE's body.
-  auto getBody = [caller, callee, this] (BlockNode* funcBody, CallNode &callStmt, bool recursiveFirstClone) {
+  auto getBody = [caller, callee, this] (BlockNode* funcBody, const CallNode &callStmt, bool recursiveFirstClone) {
     if (callee.IsFromMpltInline()) {
       return funcBody->CloneTree(module.GetCurFuncCodeMPAllocator());
     }

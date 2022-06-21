@@ -264,7 +264,7 @@ void GlobalMemLayout::FillTypeValueInMap(uint32 startaddress, MIRType *ty, MIRCo
       CHECK_FATAL(aggconst, "FillTypeValueInMap: inconsistent array initialization specification");
       MapleVector<MIRConst *> &constvec = aggconst->GetConstVec();
       for (MapleVector<MIRConst *>::iterator it = constvec.begin(); it != constvec.end();
-           it++, startaddress += elemsize) {
+           ++it, startaddress += elemsize) {
         FillTypeValueInMap(startaddress, elemtype, *it);
       }
       break;

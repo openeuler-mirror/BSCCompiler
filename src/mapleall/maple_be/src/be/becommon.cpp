@@ -523,7 +523,8 @@ void BECommon::GenFieldOffsetMap(MIRClassType &classType, FILE &outFile) {
 
     std::pair<int32, int32> p = GetFieldOffset(classType, i);
     CHECK_FATAL(p.second == 0, "expect p.second equals 0");
-    fprintf(&outFile, "__MRT_CLASS_FIELD(%s, %s, %d, %lu)\n", className.c_str(), fieldName.c_str(), p.first, fieldSize);
+    (void)fprintf(&outFile, "__MRT_CLASS_FIELD(%s, %s, %d, %lu)\n", className.c_str(), fieldName.c_str(),
+        p.first, fieldSize);
   }
 }
 

@@ -373,7 +373,7 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsPre() {
       /* Set the BB occurrences of this callee-saved register */
       if (IsCalleeBitSet(GetCalleeBitsDef(), bid, reg) ||
           IsCalleeBitSet(GetCalleeBitsUse(), bid, reg)) {
-        wkCand.occBBs.insert(bid);
+        (void)wkCand.occBBs.insert(bid);
       }
     }
     DoSavePlacementOpt(cgFunc, GetDomInfo(), &wkCand);
@@ -432,13 +432,13 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
       SavedRegInfo *sp = bbSavedRegs[bid];
       if (sp != nullptr) {
         if (sp->ContainSaveReg(reg)) {
-          wkCand.saveBBs.insert(bid);
+          (void)wkCand.saveBBs.insert(bid);
         }
       }
       /* Set the BB occurrences of this callee-saved register */
       if (IsCalleeBitSet(GetCalleeBitsDef(), bid, reg) ||
           IsCalleeBitSet(GetCalleeBitsUse(), bid, reg)) {
-        wkCand.occBBs.insert(bid);
+        (void)wkCand.occBBs.insert(bid);
       }
     }
     DoRestorePlacementOpt(cgFunc, GetPostDomInfo(), &wkCand);
@@ -449,7 +449,7 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
     /* splitted empty block for critical edge present, skip function */
     MapleSet<uint32> rset = wkCand.restoreAtEntryBBs;
     for (auto bbid : wkCand.restoreAtExitBBs) {
-      rset.insert(bbid);
+      (void)rset.insert(bbid);
     }
     for (auto bbid : rset) {
       BB *bb = GetId2bb(bbid);
@@ -617,7 +617,7 @@ void AArch64RegSavesOpt::InsertCalleeSaveCode() {
 
 /* DFS to verify the save/restore are in pair(s) within a path */
 void AArch64RegSavesOpt::Verify(regno_t reg, BB *bb, std::set<BB*, BBIdCmp> *visited, BBId *s, BBId *r) {
-  visited->insert(bb);
+  (void)visited->insert(bb);
   BBId bid = bb->GetId();
   if (RS_EXTRA) {
     mLog << bid << ",";    /* path trace can be long */

@@ -141,7 +141,6 @@ class SSA {
 
   bool ShouldRenameVst(const VersionSt *vst) const;
 
- protected:
   MapleVector<MapleStack<VersionSt*>*> *vstStacks = nullptr;    // rename stack for variable versions
   SSATab *ssaTab = nullptr;
   MapleVector<BB *> &bbVec;

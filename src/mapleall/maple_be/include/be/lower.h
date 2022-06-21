@@ -66,7 +66,7 @@ class CGLowerer {
     SetCurrentFunc(nullptr);
   }
 
-  ~CGLowerer() {
+  virtual ~CGLowerer() {
     mirBuilder = nullptr;
     currentBlock = nullptr;
   }
