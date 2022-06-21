@@ -774,6 +774,7 @@ bool ZeroCmpBranchesToTbzPattern::CheckAndSelectPattern(const Insn &currInsn) {
         default:
           return false;
       }
+      break;
     }
     case MOP_wcmprr:
     case MOP_xcmprr: {
@@ -818,6 +819,7 @@ bool ZeroCmpBranchesToTbzPattern::CheckAndSelectPattern(const Insn &currInsn) {
         default:
           return false;
       }
+      break;
     }
     // fall through
     [[clang::fallthrough]];
