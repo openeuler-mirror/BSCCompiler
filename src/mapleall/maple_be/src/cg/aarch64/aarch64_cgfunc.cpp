@@ -2158,9 +2158,9 @@ void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src)
   RegOperand *regResult = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
   std::vector<Operand*> opndVec;
   opndVec.push_back(regResult);                              /* result */
-  opndVec.push_back(PrepareMemcpyParamOpnd(bNode.offset, *dest));/* param 0 */
+  opndVec.push_back(PrepareMemcpyParamOpnd(bNode.offset, *dest)); /* param 0 */
   opndVec.push_back(src);                                    /* param 1 */
-  opndVec.push_back(PrepareMemcpyParamOpnd(static_cast<uint64>(static_cast<int64>(bNode.blockSize))));/* param 2 */
+  opndVec.push_back(PrepareMemcpyParamOpnd(static_cast<uint64>(static_cast<int64>(bNode.blockSize)))); /* param 2 */
   SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
   if (IsBlkassignForPush(bNode)) {
     SetLmbcArgInfo(static_cast<RegOperand*>(src), PTY_i64, (int32)bNode.offset, 1);
@@ -4969,7 +4969,6 @@ Operand *AArch64CGFunc::SelectDepositBits(DepositbitsNode &node, Operand &opnd0,
   uint32 bitSize = node.GetBitsSize();
   PrimType regType = node.GetPrimType();
   bool is64Bits = GetPrimTypeBitSize(regType) == k64BitSize;
-
   /*
    * if operand 1 is immediate and fits in MOVK, use it
    * MOVK Wd, #imm{, LSL #shift} ; 32-bit general registers
@@ -8334,7 +8333,7 @@ void AArch64CGFunc::SelectCall(CallNode &callNode) {
 void AArch64CGFunc::SelectIcall(IcallNode &icallNode, Operand &srcOpnd) {
   ListOperand *srcOpnds = CreateListOpnd(*GetFuncScopeAllocator());
   if (GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
-    LmbcSelectParmList(srcOpnds, false /*fType->GetRetAttrs().GetAttr(ATTR_firstarg_return)*/);
+    LmbcSelectParmList(srcOpnds, false); /*fType->GetRetAttrs().GetAttr(ATTR_firstarg_return)*/
   } else {
     SelectParmList(icallNode, *srcOpnds);
   }
@@ -10782,12 +10781,10 @@ RegOperand *AArch64CGFunc::SelectVectorAbs(PrimType rType, Operand *o1) {
 
 RegOperand *AArch64CGFunc::SelectVectorAddLong(PrimType rType, Operand *o1, Operand *o2,
     PrimType otyp, bool isLow) {
-
   RegOperand *res = &CreateRegisterOperandOfType(rType);                     /* result type */
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
   VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(otyp);       /* vector operand 1 */
   VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(otyp);       /* vector operand 2 */
-
   MOperator mOp;
   if (isLow) {
     mOp = IsUnsignedInteger(rType) ? MOP_vuaddlvuu : MOP_vsaddlvuu;
@@ -10825,9 +10822,7 @@ RegOperand *AArch64CGFunc::SelectVectorAddWiden(Operand *o1, PrimType otyp1, Ope
 RegOperand *AArch64CGFunc::SelectVectorImmMov(PrimType rType, Operand *src, PrimType sType) {
   RegOperand *res = &CreateRegisterOperandOfType(rType);                 /* result operand */
   VectorRegSpec *vecSpec = GetMemoryPool()->New<VectorRegSpec>(rType);
-
   int64 val = static_cast<ImmOperand*>(src)->GetValue();
-
   /* copy the src imm operand to a reg if out of range */
   if ((GetVecEleSize(rType) >= k64BitSize) ||
       (GetPrimTypeSize(sType) > k4ByteSize && val != 0) ||

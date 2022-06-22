@@ -748,11 +748,9 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
   auto primType = fieldType->GetPrimType();
   auto byteOffset = byteBitOffsets.first;
   auto bitOffset = byteBitOffsets.second;
-
   auto *builder = mirModule.GetMIRBuilder();
   auto *bitField = builder->CreateExprIreadoff(primType, byteOffset, baseAddr);
   auto primTypeBitSize = GetPrimTypeBitSize(primType);
-
   if ((static_cast<uint32>(bitOffset) + bitSize) <= primTypeBitSize) {
     if (CGOptions::IsBigEndian()) {
         bitOffset = (static_cast<int64>(beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte)
@@ -762,7 +760,6 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
         bitSize, bitField, rhs);
     return builder->CreateStmtIassignoff(primType, byteOffset, baseAddr, depositBits);
   }
-
   // if space not enough in the unit with size of primType, we would make an extra assignment from next bound
   auto bitsRemained = (bitOffset + bitSize) - primTypeBitSize;
   auto bitsExtracted = primTypeBitSize - bitOffset;
@@ -790,11 +787,9 @@ BaseNode *CGLowerer::ReadBitField(const std::pair<int32, int32> &byteBitOffsets,
   auto primType = fieldType->GetPrimType();
   auto byteOffset = byteBitOffsets.first;
   auto bitOffset = byteBitOffsets.second;
-
   auto *builder = mirModule.GetMIRBuilder();
   auto *bitField = builder->CreateExprIreadoff(primType, byteOffset, baseAddr);
   auto primTypeBitSize = GetPrimTypeBitSize(primType);
-
   if ((static_cast<uint32>(bitOffset) + bitSize) <= primTypeBitSize) {
     if (CGOptions::IsBigEndian()) {
       bitOffset = (static_cast<int64>(beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte)
@@ -802,7 +797,6 @@ BaseNode *CGLowerer::ReadBitField(const std::pair<int32, int32> &byteBitOffsets,
     }
     return builder->CreateExprExtractbits(OP_extractbits, primType, static_cast<uint32>(bitOffset), bitSize, bitField);
   }
-
   // if space not enough in the unit with size of primType, the result would be binding of two exprs of load
   auto bitsRemained = (bitOffset + bitSize) - primTypeBitSize;
   if (CGOptions::IsBigEndian()) {
@@ -1790,7 +1784,6 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
   labelBC->SetSrcPos(stmt.GetSrcPos());
   callPrintf->SetSrcPos(stmt.GetSrcPos());
   abortModeNode->SetSrcPos(stmt.GetSrcPos());
-
 
   newBlk.AddStatement(brFalseNode);
   abortNode.emplace_back(labelBC);

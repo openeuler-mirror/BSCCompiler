@@ -67,7 +67,7 @@ std::unique_ptr<FEIRVar> ASTVar::Translate2FEIRVar() const {
   auto feirVar =
       std::make_unique<FEIRVarName>(GenerateUniqueVarName(), std::make_unique<FEIRTypeNative>(*(typeDesc[0])));
   feirVar->SetGlobal(isGlobalDecl);
-  feirVar->SetAttrs(const_cast<GenericAttrs&>(genAttrs));
+  feirVar->SetAttrs(genAttrs);
   feirVar->SetSrcLoc(loc);
   feirVar->SetSectionAttr(sectionAttr);
   if (boundary.lenExpr != nullptr) {

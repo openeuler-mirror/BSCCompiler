@@ -514,8 +514,6 @@ void FEFunction::LinkBranchBBAndItsTargets(FEIRBB &bb) {
   FEIRNodeKind nodeKind = stmtTail->GetKind();
   switch (nodeKind) {
     case FEIRNodeKind::kStmtCondGoto:
-      // should fallthrough
-      [[fallthrough]];
     case FEIRNodeKind::kStmtGoto: {
       LinkGotoBBAndItsTarget(bb, *stmtTail);
       break;
@@ -794,7 +792,7 @@ void FEFunction::AddLocForStmt(const FEIRStmt &stmt, std::list<StmtNode*> &mirSt
   }
 }
 
-void FEFunction::PushStmtScope(SrcPosition startOfScope, SrcPosition endOfScope, MIRScope *scope) {
+void FEFunction::PushStmtScope(const SrcPosition &startOfScope, const SrcPosition &endOfScope, MIRScope *scope) {
   MIRScope *mirScope = scope;
   if (mirScope == nullptr) {
     mirScope = mirFunction.GetModule()->GetMemPool()->New<MIRScope>(mirFunction.GetModule());
@@ -826,7 +824,7 @@ MIRScope *FEFunction::GetFunctionScope() {
   return mirFunction.GetScope();
 }
 
-void FEFunction::AddAliasInMIRScope(MIRScope *scope, std::string srcVarName, const MIRSymbol *symbol) {
+void FEFunction::AddAliasInMIRScope(MIRScope *scope, const std::string &srcVarName, const MIRSymbol *symbol) {
   GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
       namemangler::EncodeName(srcVarName));
   MIRAliasVars aliasVar;

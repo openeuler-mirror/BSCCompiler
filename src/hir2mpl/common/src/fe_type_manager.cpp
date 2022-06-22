@@ -124,7 +124,7 @@ void FETypeManager::UpdateStructNameTypeMapFromTypeTable(const std::string &mplt
     if ((type != nullptr) && IsStructType(*type)) {
       MIRStructType *structType = static_cast<MIRStructType*>(type);
       auto it = structNameTypeMap.insert(std::make_pair(structType->GetNameStrIdx(), std::make_pair(structType, flag)));
-      if (it.second == false) {
+      if (!it.second) {
         // type is existed
         structSameNameSrcList.push_back(std::make_pair(structType->GetNameStrIdx(),
                                                        structNameSrcMap[structType->GetNameStrIdx()]));
@@ -444,7 +444,7 @@ FEStructElemInfo *FETypeManager::RegisterStructFieldInfo(
     return ptrInfo;
   }
   ptrInfo = allocator.GetMemPool()->New<FEStructFieldInfo>(allocator, structElemNameIdx, argSrcLang, isStatic);
-  CHECK_FATAL(mapStructElemInfo.insert(std::make_pair(structElemNameIdx.full, ptrInfo)).second == true,
+  CHECK_FATAL(mapStructElemInfo.insert(std::make_pair(structElemNameIdx.full, ptrInfo)).second,
               "register struct elem info failed");
   return ptrInfo;
 }
@@ -457,7 +457,7 @@ FEStructElemInfo *FETypeManager::RegisterStructMethodInfo(
     return ptrInfo;
   }
   ptrInfo = allocator.GetMemPool()->New<FEStructMethodInfo>(allocator, structElemNameIdx, argSrcLang, isStatic);
-  CHECK_FATAL(mapStructElemInfo.insert(std::make_pair(structElemNameIdx.full, ptrInfo)).second == true,
+  CHECK_FATAL(mapStructElemInfo.insert(std::make_pair(structElemNameIdx.full, ptrInfo)).second,
               "register struct elem info failed");
   return ptrInfo;
 }
@@ -470,7 +470,7 @@ FEStructElemInfo *FETypeManager::GetStructElemInfo(const GStrIdx &fullNameIdx) c
   return it->second;
 }
 
-MIRFunction *FETypeManager::GetMIRFunction(const std::string &classMethodName, bool isStatic){
+MIRFunction *FETypeManager::GetMIRFunction(const std::string &classMethodName, bool isStatic) {
   GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(classMethodName);
   return GetMIRFunction(nameIdx, isStatic);
 }

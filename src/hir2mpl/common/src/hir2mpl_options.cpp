@@ -153,7 +153,6 @@ bool HIR2MPLOptions::InitFactory() {
 }
 
 bool HIR2MPLOptions::SolveOptions(bool isDebug) {
-
   for (const auto &opt : hir2mplCategory.GetEnabledOptions()) {
     std::string printOpt;
     if (isDebug) {
@@ -175,7 +174,6 @@ bool HIR2MPLOptions::SolveOptions(bool isDebug) {
 }
 
 bool HIR2MPLOptions::SolveArgs(int argc, char **argv) {
-
   maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, hir2mplCategory);
   bool result = SolveOptions(opts::hir2mpl::debug);
   if (!result) {

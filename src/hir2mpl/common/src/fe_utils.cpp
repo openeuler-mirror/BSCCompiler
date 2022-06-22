@@ -105,14 +105,14 @@ PrimType FEUtils::MergePrimType(PrimType primType1, PrimType primType2) {
     return primType1;
   }
   // merge signed integer
-  CHECK_FATAL(LogicXOR(IsSignedInteger(primType1), IsSignedInteger(primType2)) == false,
+  CHECK_FATAL(!LogicXOR(IsSignedInteger(primType1), IsSignedInteger(primType2)),
               "can not merge type %s and %s", GetPrimTypeName(primType1), GetPrimTypeName(primType2));
   if (IsSignedInteger(primType1)) {
     return GetPrimTypeSize(primType1) >= GetPrimTypeSize(primType2) ? primType1 : primType2;
   }
 
   // merge unsigned integer
-  CHECK_FATAL(LogicXOR(IsUnsignedInteger(primType1), IsUnsignedInteger(primType2)) == false,
+  CHECK_FATAL(!LogicXOR(IsUnsignedInteger(primType1), IsUnsignedInteger(primType2)),
               "can not merge type %s and %s", GetPrimTypeName(primType1), GetPrimTypeName(primType2));
   if (IsUnsignedInteger(primType1)) {
     if (GetPrimTypeSize(primType1) == GetPrimTypeSize(primType2) && GetPrimTypeSize(primType1) == 1) {
@@ -123,7 +123,7 @@ PrimType FEUtils::MergePrimType(PrimType primType1, PrimType primType2) {
   }
 
   // merge float
-  CHECK_FATAL(LogicXOR(IsPrimitiveFloat(primType1), IsPrimitiveFloat(primType2)) == false,
+  CHECK_FATAL(!LogicXOR(IsPrimitiveFloat(primType1), IsPrimitiveFloat(primType2)),
               "can not merge type %s and %s", GetPrimTypeName(primType1), GetPrimTypeName(primType2));
   if (IsPrimitiveFloat(primType1)) {
     return GetPrimTypeSize(primType1) >= GetPrimTypeSize(primType2) ? primType1 : primType2;

@@ -1452,8 +1452,9 @@ void GraphColorRegAllocator::BuildInterferenceGraph() {
         int32 lr2UniqueBucketIdx = uniqueBucketIdx[static_cast<uint64>(std::distance(intLrVec.begin(), it2))];
         if (lr1UniqueBucketIdx == -1 && lr2UniqueBucketIdx == -1) {
           CheckInterference(*lr1, *lr2);
-        } else if ((lr1UniqueBucketIdx >= 0 && lr1->GetBBMember()[lr1UniqueBucketIdx] & lr2->GetBBMember()[lr1UniqueBucketIdx]) ||
-                   (lr2UniqueBucketIdx >= 0 && lr1->GetBBMember()[lr2UniqueBucketIdx] & lr2->GetBBMember()[lr2UniqueBucketIdx])) {
+        } else if (((lr1UniqueBucketIdx >= 0) && lr1->GetBBMember()[lr1UniqueBucketIdx] &
+            lr2->GetBBMember()[lr1UniqueBucketIdx]) || ((lr2UniqueBucketIdx >= 0) &&
+            lr1->GetBBMember()[lr2UniqueBucketIdx] & lr2->GetBBMember()[lr2UniqueBucketIdx])) {
           CheckInterference(*lr1, *lr2);
         }
       }
@@ -4979,7 +4980,7 @@ bool GraphColorRegAllocator::AllocateRegisters() {
     cgFunc->DumpCGIR();
   }
 
-  bfs = nullptr; /*bfs is not utilized outside the function. */
+  bfs = nullptr; /* bfs is not utilized outside the function. */
 
   if (doMultiPass && hasSpill) {
     return false;

@@ -1929,7 +1929,7 @@ void AArch64AsmEmitter::EmitCTlsDescCall(Emitter &emitter, const Insn &insn) con
   (void)emitter.Emit("\t").Emit("add\tx0, x0, :tlsdesc_lo12:").Emit(symName).Emit("\n");
   /* .tlsdesccall <symbolName> */
   (void)emitter.Emit("\t").Emit(".tlsdesccall").Emit("\t").Emit(symName).Emit("\n");
-  /* blr xd*/
+  /* blr xd */
   (void)emitter.Emit("\t").Emit("blr").Emit("\t");
   func->Accept(funcVisitor);
   (void)emitter.Emit("\n");
@@ -1955,7 +1955,7 @@ void AArch64AsmEmitter::EmitSyncLockTestSet(Emitter &emitter, const Insn &insn) 
   (void)emitter.Emit(", [");
   addr->Accept(addrVisitor);
   (void)emitter.Emit("]\n");
-  /* stxr w1, x3, [x2]*/
+  /* stxr w1, x3, [x2] */
   (void)emitter.Emit("\t").Emit("stxr").Emit("\t");
   temp->Accept(tempVisitor);
   (void)emitter.Emit(", ");
@@ -1969,7 +1969,7 @@ void AArch64AsmEmitter::EmitSyncLockTestSet(Emitter &emitter, const Insn &insn) 
   (void)emitter.Emit(", ");
   label->Accept(labelVisitor);
   (void)emitter.Emit("\n");
-  /* dmb ish*/
+  /* dmb ish */
   (void)emitter.Emit("\t").Emit("dmb").Emit("\t").Emit("ish").Emit("\n");
 }
 

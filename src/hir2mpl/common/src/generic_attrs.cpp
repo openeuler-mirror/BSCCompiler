@@ -16,7 +16,7 @@
 #include "global_tables.h"
 
 namespace maple {
-TypeAttrs GenericAttrs::ConvertToTypeAttrs() {
+TypeAttrs GenericAttrs::ConvertToTypeAttrs() const {
   TypeAttrs attr;
   for (uint32 i = 0; i < MAX_ATTR_NUM; ++i) {
     if (attrFlag[i] == 0) {

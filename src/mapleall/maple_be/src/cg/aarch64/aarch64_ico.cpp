@@ -479,7 +479,6 @@ bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, std
       }
     }
 
-
     if (flagOpnd != nullptr) {
       RegOperand *flagReg = static_cast<RegOperand*>(flagOpnd);
       regno_t flagRegNO = flagReg->GetRegisterNumber();

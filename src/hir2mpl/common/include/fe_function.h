@@ -48,11 +48,11 @@ class FEFunction {
   std::string GetDescription();
   void OutputUseDefChain();
   void OutputDefUseChain();
-  void PushStmtScope(SrcPosition startOfScope, SrcPosition endOfScope, MIRScope *scope = nullptr);
+  void PushStmtScope(const SrcPosition &startOfScope, const SrcPosition &endOfScope, MIRScope *scope = nullptr);
   void PopTopStmtScope();
   MIRScope *GetTopStmtScope();
   MIRScope *GetFunctionScope();
-  void AddAliasInMIRScope(MIRScope *scope, std::string srcVarName, const MIRSymbol *symbol);
+  void AddAliasInMIRScope(MIRScope *scope, const std::string &srcVarName, const MIRSymbol *symbol);
   void SetSrcFileName(const std::string &fileName) {
     srcFileName = fileName;
   }

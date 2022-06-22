@@ -41,7 +41,7 @@ enum PushPopType : uint8 {
 
 MOperator pushPopOps[kRegsPopOp + 1][kRegTyFloat + 1][kPushPopPair + 1] = {
   { /* push */
-    { 0 /* undef */ },
+    { 0 }, /* undef */
     { /* kRegTyInt */
       MOP_xstr, /* single */
       MOP_xstp, /* pair   */
@@ -52,7 +52,7 @@ MOperator pushPopOps[kRegsPopOp + 1][kRegTyFloat + 1][kPushPopPair + 1] = {
     },
   },
   { /* pop */
-    { 0 /* undef */ },
+    { 0 }, /* undef */
     { /* kRegTyInt */
       MOP_xldr, /* single */
       MOP_xldp, /* pair   */

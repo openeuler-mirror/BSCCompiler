@@ -842,64 +842,48 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
   if (!beforeRegAlloc) {
     return false;
   }
-
   OpndInfo *opndInfo = origInfos[kInsnSecondOpnd];
-
   if (opndInfo == nullptr) {
     return false;
   }
-
   Insn *prevInsn = opndInfo->insn;
-
   if (prevInsn == nullptr) {
     return false;
   }
 
   MOperator prevMop = prevInsn->GetMachineOpcode();
   ASSERT(prevMop != MOP_undef, "Invalid opcode of instruction!");
-
   PairMOperator *begin = &extInsnPairTable[idx][0];
   PairMOperator *end = &extInsnPairTable[idx][insPairsNum];
-
   auto pairIt = std::find_if(begin, end, [prevMop](PairMOperator insPair) {
     return prevMop == insPair[0];
   });
-
   if (pairIt == end) {
     return false;
   }
 
   auto &res = static_cast<RegOperand &>(prevInsn->GetOperand(kInsnFirstOpnd));
   OpndInfo *prevOpndInfo = GetOpndInfo(res, -1);
-
   MOperator newPreMop = (*pairIt)[1];
   ASSERT(newPreMop != MOP_undef, "Invalid opcode of instruction!");
-
   if (!ValidPatternForCombineExtAndLoad(prevOpndInfo, insn, newPreMop, prevMop,
                                         res)) {
     return false;
   }
-
   auto *newMemOp =
       GetOrCreateMemOperandForNewMOP(*cgFunc, *prevInsn, newPreMop);
-
   if (newMemOp == nullptr) {
     return false;
   }
-
   prevInsn->SetMemOpnd(newMemOp);
-
   if (is64bits && idx <= SXTW && idx >= SXTB) {
     newPreMop = ExtLoadSwitchBitSize(newPreMop);
     auto &prevDstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
     prevDstOpnd.SetSize(k64BitSize);
     prevDstOpnd.SetValidBitsNum(k64BitSize);
   }
-
   prevInsn->SetMOP(newPreMop);
-
   MOperator movOp = is64bits ? MOP_xmovrr : MOP_wmovrr;
-
   if (insn->GetMachineOpcode() == MOP_wandrri12 ||
       insn->GetMachineOpcode() == MOP_xandrri13) {
     Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
@@ -909,7 +893,6 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
   } else {
     insn->SetMOP(movOp);
   }
-
   return true;
 }
 

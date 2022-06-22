@@ -2425,7 +2425,7 @@ bool LSRALinearScanRegAllocator::AllocateRegisters() {
         (reloadCount + callerSaveReloadCount) << " RELOAD\n";
   }
 
-  bfs = nullptr; /*bfs is not utilized outside the function. */
+  bfs = nullptr; /* bfs is not utilized outside the function. */
 
   return true;
 }

@@ -360,5 +360,3 @@ void AArch64AlignAnalysis::ComputeCondBranchAlign() {
   AddNopAfterMark();
 }
 } /* namespace maplebe */
-
-

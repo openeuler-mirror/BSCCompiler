@@ -193,7 +193,7 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorZip(std::list<UniqueFEIRStmt> &stmt
   UniqueFEIRVar retVar = FEIRBuilder::CreateVarNameForC(retName, *retType);
 
 #define VECTOR_INTRINSICCALL_TYPE(OP_NAME, VECTY)                                                \
-  if (FEUtils::EndsWith(GetFuncName(), #VECTY)) {                                                     \
+  if (FEUtils::EndsWith(GetFuncName(), #VECTY)) {                                                \
     stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(                                        \
         INTRN_vector_##OP_NAME##_##VECTY, nullptr, retVar->Clone(), std::move(argExprList));     \
     }

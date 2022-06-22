@@ -2389,7 +2389,7 @@ class FEIRStmtFieldStore : public FEIRStmt {
   bool CalculateDefs4AllUsesForStatic(FEIRStmtCheckPoint &checkPoint, FEIRUseDefChain &udChain);
   bool CalculateDefs4AllUsesForNonStatic(FEIRStmtCheckPoint &checkPoint, FEIRUseDefChain &udChain);
   bool NeedMCCForStatic(uint32 &typeID) const;
-  void InitPrimTypeFuncNameIdxMap (std::map<PrimType, GStrIdx> &primTypeFuncNameIdxMap) const;
+  void InitPrimTypeFuncNameIdxMap(std::map<PrimType, GStrIdx> &primTypeFuncNameIdxMap) const;
   std::list<StmtNode*> GenMIRStmtsImplForStatic(MIRBuilder &mirBuilder) const;
   std::list<StmtNode*> GenMIRStmtsImplForNonStatic(MIRBuilder &mirBuilder) const;
 

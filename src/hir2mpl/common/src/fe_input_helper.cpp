@@ -17,9 +17,11 @@
 #include "fe_manager.h"
 
 namespace maple {
-#define SET_CLASS_INFO_PAIR(A, B, C, D)                                                         \
-  A->PushbackMIRInfo(MIRInfoPair(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(B), C)); \
-  A->PushbackIsString(D)
+#define SET_CLASS_INFO_PAIR(A, B, C, D)                                                            \
+  do {                                                                                             \
+    A->PushbackMIRInfo(MIRInfoPair(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(B), C));  \
+    A->PushbackIsString(D);                                                                        \
+  } while (0);
 
 std::string FEInputStructHelper::GetSrcFileNameImpl() const {
   return "unknown";

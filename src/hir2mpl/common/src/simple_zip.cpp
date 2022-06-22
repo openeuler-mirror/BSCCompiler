@@ -79,7 +79,7 @@ std::unique_ptr<ZipLocalFile> ZipLocalFile::Parse(BasicIORead &io) {
   CHECK_FATAL((zf->header->GetGPFlag() & 0x1) == 0, "encrypted file is not supported");
   uint32 posDataStart = io.GetPos();
   uint32 posDataEnd = zf->GetDataEndPos(io);
-  if (zf->isCompressed == false) {
+  if (!zf->isCompressed) {
     zf->ProcessUncompressedFile(io, posDataStart, posDataEnd);
   } else {
     zf->ProcessCompressedFile(io, posDataStart, posDataEnd);

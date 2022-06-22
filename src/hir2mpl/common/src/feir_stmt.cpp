@@ -1152,13 +1152,13 @@ std::list<StmtNode*> FEIRStmtIf::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
     stmt = mirBuilder.CreateStmtIf(condBase);
   }
   for (const auto &thenStmt : thenStmts) {
-    for(auto thenNode : thenStmt->GenMIRStmts(mirBuilder)) {
+    for (auto thenNode : thenStmt->GenMIRStmts(mirBuilder)) {
       stmt->GetThenPart()->AddStatement(thenNode);
     }
   }
   if (hasElse) {
     for (const auto &elseStmt : elseStmts) {
-      for(auto elseNode : elseStmt->GenMIRStmts(mirBuilder)) {
+      for (auto elseNode : elseStmt->GenMIRStmts(mirBuilder)) {
         stmt->GetElsePart()->AddStatement(elseNode);
       }
     }
@@ -1510,7 +1510,7 @@ bool FEIRStmtFieldStore::NeedMCCForStatic(uint32 &typeID) const {
   // check type first
   const std::string &actualContainerName = fieldInfo.GetActualContainerName();
   typeID = FEManager::GetTypeManager().GetTypeIDFromMplClassName(actualContainerName, dexFileHashCode);
-  if(typeID == UINT32_MAX) {
+  if (typeID == UINT32_MAX) {
     return true;
   }
 
@@ -1520,14 +1520,14 @@ bool FEIRStmtFieldStore::NeedMCCForStatic(uint32 &typeID) const {
   const auto &fields = currStructType->GetStaticFields();
   for (auto f : fields) {
     const std::string &fieldNameIt = GlobalTables::GetStrTable().GetStringFromStrIdx(f.first);
-    if(fieldName.compare(fieldNameIt) == 0) {
+    if (fieldName.compare(fieldNameIt) == 0) {
       return false;
     }
   }
   return true;
 }
 
-void FEIRStmtFieldStore::InitPrimTypeFuncNameIdxMap (std::map<PrimType, GStrIdx> &primTypeFuncNameIdxMap) const {
+void FEIRStmtFieldStore::InitPrimTypeFuncNameIdxMap(std::map<PrimType, GStrIdx> &primTypeFuncNameIdxMap) const {
   primTypeFuncNameIdxMap = {
       { PTY_u1, FEUtils::GetMCCStaticFieldSetBoolIdx() },
       { PTY_i8, FEUtils::GetMCCStaticFieldSetByteIdx() },
@@ -1688,7 +1688,7 @@ bool FEIRStmtFieldLoad::NeedMCCForStatic(uint32 &typeID) const {
   // check type first
   const std::string &actualContainerName = fieldInfo.GetActualContainerName();
   typeID = FEManager::GetTypeManager().GetTypeIDFromMplClassName(actualContainerName, dexFileHashCode);
-  if(typeID == UINT32_MAX) {
+  if (typeID == UINT32_MAX) {
     return true;
   }
 
@@ -1704,7 +1704,7 @@ bool FEIRStmtFieldLoad::NeedMCCForStatic(uint32 &typeID) const {
   }
   for (auto f : fields) {
     const std::string &fieldNameIt = GlobalTables::GetStrTable().GetStringFromStrIdx(f.first);
-    if(fieldName.compare(fieldNameIt) == 0) {
+    if (fieldName.compare(fieldNameIt) == 0) {
       return false;
     }
   }
@@ -2596,7 +2596,7 @@ BaseNode *FEIRExprAddrofConstArray::GenMIRNodeImpl(MIRBuilder &mirBuilder) const
     return module.GetMemPool()->New<ConststrNode>(PTY_ptr, StrIdx);
   }
   MIRType *arrayTypeWithSize = GlobalTables::GetTypeTable().GetOrCreateArrayType(
-      *elemType,static_cast<uint32>(array.size()));
+      *elemType, static_cast<uint32>(array.size()));
   MIRSymbol *arrayVar = mirBuilder.GetOrCreateGlobalDecl(arrayName, *arrayTypeWithSize);
   arrayVar->SetAttr(ATTR_readonly);
   arrayVar->SetStorageClass(kScFstatic);

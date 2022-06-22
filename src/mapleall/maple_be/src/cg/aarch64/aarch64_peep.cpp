@@ -2503,7 +2503,7 @@ std::vector<Insn*> CombineContiLoadAndStorePattern::FindPrevStrLdr(Insn &insn, r
         memBaseRegNO != stackBaseRegNO)) {
       return prevContiInsns;
     }
-    /*store opt should not cross call due to stack args */
+    /* store opt should not cross call due to stack args */
     if (curInsn->IsCall() && isStr) {
       return prevContiInsns;
     }
@@ -2559,7 +2559,7 @@ bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(Insn &insn, cons
   if (splitAdd == nullptr) {
     if (insn.IsStorePair() || insn.IsLoadPair()) {
       if (ofstOpnd->GetOffsetValue() < 0) {
-        return false; /* do not split*/
+        return false; /* do not split */
       }
     }
     regno_t pregNO = R16;

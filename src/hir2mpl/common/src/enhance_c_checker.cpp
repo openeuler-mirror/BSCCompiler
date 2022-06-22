@@ -190,7 +190,8 @@ std::string ENCChecker::PrintParamIdx(const std::list<size_t> &idxs) {
   return os.str();
 }
 
-void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr, Loc loc) {
+void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
+                                                  const Loc &loc) {
   if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
     return;
   }
@@ -305,7 +306,7 @@ void ASTCallExpr::CheckNonnullFieldInStruct() const {
   }
 }
 
-void ENCChecker::CheckNonnullFieldInStruct(const MIRType &src, const MIRType &dst, Loc loc) {
+void ENCChecker::CheckNonnullFieldInStruct(const MIRType &src, const MIRType &dst, const Loc &loc) {
   if (!FEOptions::GetInstance().IsNpeCheckDynamic() ||
       !dst.IsMIRPtrType() || !src.IsMIRPtrType() ||
       dst.GetTypeIndex() == src.GetTypeIndex()) {
@@ -1590,7 +1591,7 @@ void ASTFunc::InsertBoundaryCheckingInRet(std::list<UniqueFEIRStmt> &stmts) cons
 }
 
 void ENCChecker::InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans,
-                                              const UniqueFEIRExpr &srcExpr, Loc loc) {
+                                              const UniqueFEIRExpr &srcExpr, const Loc &loc) {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || srcExpr == nullptr || srcExpr->GetPrimType() != PTY_ptr ||
       srcExpr->GetKind() != kExprBinary) {  // pointer computed assignment
     return;
@@ -1788,7 +1789,7 @@ void FEIRStmtIAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
 }
 
 void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRVar &var, FieldID fieldID,
-                                             Loc loc) {
+                                             const Loc &loc) {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || !FEOptions::GetInstance().IsEnableSafeRegion()) {
     return;
   }
@@ -1819,7 +1820,7 @@ void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const Uniqu
 }
 
 void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRType &addrType, FieldID fieldID,
-                                             Loc loc) {
+                                             const Loc &loc) {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || !FEOptions::GetInstance().IsEnableSafeRegion() ||
       fieldID == 0) {
     return;
@@ -1841,7 +1842,7 @@ void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const Uniqu
   }
 }
 
-void ENCChecker::CheckBoundaryLenFinalAddr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr, Loc loc) {
+void ENCChecker::CheckBoundaryLenFinalAddr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr, const Loc &loc) {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || !FEOptions::GetInstance().IsEnableSafeRegion()) {
     return;
   }
@@ -2136,7 +2137,8 @@ bool ENCChecker::IsSameBoundary(const AttrBoundary &arg1, const AttrBoundary &ar
   return false;
 }
 
-void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr, Loc loc) {
+void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
+                                                   const Loc &loc) {
   const MIRFuncType *funcType = FEUtils::GetFuncPtrType(dstType);
   if (funcType == nullptr) {
     return;

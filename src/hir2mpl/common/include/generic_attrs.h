@@ -62,7 +62,7 @@ class GenericAttrs {
     isInit = true;
   }
 
-  bool GetContentFlag(GenericAttrKind key) {
+  bool GetContentFlag(GenericAttrKind key) const {
     return contentFlag[key];
   }
 
@@ -92,7 +92,7 @@ class GenericAttrs {
   }
 
   FieldAttrs ConvertToFieldAttrs();
-  TypeAttrs ConvertToTypeAttrs();
+  TypeAttrs ConvertToTypeAttrs() const;
   FuncAttrs ConvertToFuncAttrs();
 
  private:

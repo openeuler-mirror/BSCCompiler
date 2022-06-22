@@ -77,7 +77,7 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, const 
    * case3 : cc flag operand
    */
   if (defInsn != nullptr) {
-    /* case 1*/
+    /* case 1 */
     uint32 defUseIdx = defInsn->GetBothDefUseOpnd();
     if (defUseIdx != kInsnMaxOpnd) {
       if (defInfo->GetOperands().count(defUseIdx)) {

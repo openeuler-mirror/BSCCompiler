@@ -338,23 +338,22 @@ bool AArch64DepAnalysis::IsFrameReg(const RegOperand &opnd) const {
   return (opnd.GetRegisterNumber() == RFP) || (opnd.GetRegisterNumber() == RSP);
 }
 
-AArch64MemOperand *AArch64DepAnalysis::BuildNextMemOperandByByteSize(const AArch64MemOperand &aarchMemOpnd,
-                                                                     uint32 byteSize) const {
-  AArch64MemOperand *nextMemOpnd = nullptr;
-  Operand *nextOpnd = aarchMemOpnd.Clone(memPool);
-  nextMemOpnd = static_cast<AArch64MemOperand*>(nextOpnd);
+MemOperand *AArch64DepAnalysis::BuildNextMemOperandByByteSize(const MemOperand &aarchMemOpnd,
+                                                              uint32 byteSize) const {
+  MemOperand *nextMemOpnd = aarchMemOpnd.Clone(memPool);
   Operand *nextOfstOpnd = nextMemOpnd->GetOffsetImmediate()->Clone(memPool);
-  AArch64OfstOperand *aarchNextOfstOpnd = static_cast<AArch64OfstOperand*>(nextOfstOpnd);
+  OfstOperand *aarchNextOfstOpnd = static_cast<OfstOperand*>(nextOfstOpnd);
   CHECK_NULL_FATAL(aarchNextOfstOpnd);
   int32 offsetVal = static_cast<int32>(aarchNextOfstOpnd->GetOffsetValue());
   aarchNextOfstOpnd->SetOffsetValue(offsetVal + byteSize);
-  nextMemOpnd->SetOffsetImmediate(*aarchNextOfstOpnd);
+  nextMemOpnd->SetOffsetOperand(*aarchNextOfstOpnd);
   return nextMemOpnd;
 }
 
 /* Get the second memory access operand of stp/ldp instructions. */
-AArch64MemOperand *AArch64DepAnalysis::GetNextMemOperand(const Insn &insn, AArch64MemOperand &aarchMemOpnd) const {
-  AArch64MemOperand *nextMemOpnd = nullptr;
+MemOperand *AArch64DepAnalysis::GetNextMemOperand(
+    const Insn &insn, const MemOperand &aarchMemOpnd) const {
+  MemOperand *nextMemOpnd = nullptr;
   switch (insn.GetMachineOpcode()) {
     case MOP_wldp:
     case MOP_sldp:
@@ -403,12 +402,11 @@ void AArch64DepAnalysis::BuildDepsAccessStImmMem(Insn &insn, bool isDest) {
 }
 
 /* Build dependences of stack memory and heap memory uses. */
-void AArch64DepAnalysis::BuildDepsUseMem(Insn &insn, MemOperand &memOpnd) {
-  RegOperand *baseRegister = memOpnd.GetBaseRegister();
-  AArch64MemOperand &aarchMemOpnd = static_cast<AArch64MemOperand&>(memOpnd);
-  AArch64MemOperand *nextMemOpnd = GetNextMemOperand(insn, aarchMemOpnd);
+void AArch64DepAnalysis::BuildDepsUseMem(Insn &insn, MemOperand &aarchMemOpnd) {
+  RegOperand *baseRegister = aarchMemOpnd.GetBaseRegister();
+  MemOperand *nextMemOpnd = GetNextMemOperand(insn, aarchMemOpnd);
 
-  memOpnd.SetAccessSize(static_cast<AArch64Insn &>(insn).GetLoadStoreSize());
+  aarchMemOpnd.SetAccessSize(static_cast<AArch64Insn &>(insn).GetLoadStoreSize());
   /* Stack memory address */
   for (auto defInsn : stackDefs) {
     if (defInsn->IsCall() || NeedBuildDepsMem(aarchMemOpnd, nextMemOpnd, *defInsn)) {
@@ -428,22 +426,63 @@ void AArch64DepAnalysis::BuildDepsUseMem(Insn &insn, MemOperand &memOpnd) {
   }
 }
 
+static bool NoAlias(const MemOperand &leftOpnd, const MemOperand &rightOpnd) {
+  if (leftOpnd.GetAddrMode() == MemOperand::kAddrModeBOi &&
+      rightOpnd.GetAddrMode() == MemOperand::kAddrModeBOi && leftOpnd.GetIndexOpt() == MemOperand::kIntact &&
+      rightOpnd.GetIndexOpt() == MemOperand::kIntact) {
+    if (leftOpnd.GetBaseRegister()->GetRegisterNumber() == RFP ||
+        rightOpnd.GetBaseRegister()->GetRegisterNumber() == RFP) {
+      Operand *ofstOpnd = leftOpnd.GetOffsetOperand();
+      Operand *rofstOpnd = rightOpnd.GetOffsetOperand();
+      ASSERT(ofstOpnd != nullptr, "offset operand should not be null.");
+      ASSERT(rofstOpnd != nullptr, "offset operand should not be null.");
+      ImmOperand *ofst = static_cast<ImmOperand*>(ofstOpnd);
+      ImmOperand *rofst = static_cast<ImmOperand*>(rofstOpnd);
+      ASSERT(ofst != nullptr, "CG internal error, invalid type.");
+      ASSERT(rofst != nullptr, "CG internal error, invalid type.");
+      return (!ofst->ValueEquals(*rofst));
+    }
+  }
+  return false;
+}
+
+static bool NoOverlap(const MemOperand &leftOpnd, const MemOperand &rightOpnd) {
+  if (leftOpnd.GetAddrMode() != MemOperand::kAddrModeBOi ||
+      rightOpnd.GetAddrMode() != MemOperand::kAddrModeBOi ||
+      leftOpnd.GetIndexOpt() != MemOperand::kIntact ||
+      rightOpnd.GetIndexOpt() != MemOperand::kIntact) {
+    return false;
+  }
+  if (leftOpnd.GetBaseRegister()->GetRegisterNumber() != RFP ||
+      rightOpnd.GetBaseRegister()->GetRegisterNumber() != RFP) {
+    return false;
+  }
+  int64 ofset1 = leftOpnd.GetOffsetOperand()->GetValue();
+  int64 ofset2 = rightOpnd.GetOffsetOperand()->GetValue();
+  if (ofset1 < ofset2) {
+    return ((ofset1 + leftOpnd.GetAccessSize()) <= ofset2);
+  } else {
+    return ((ofset2 + rightOpnd.GetAccessSize()) <= ofset1);
+  }
+}
+
 /* Return true if memInsn's memOpnd no alias with memOpnd and nextMemOpnd */
-bool AArch64DepAnalysis::NeedBuildDepsMem(const AArch64MemOperand &memOpnd, const AArch64MemOperand *nextMemOpnd,
-                                          Insn &memInsn) const {
-  auto *memOpndOfmemInsn = static_cast<AArch64MemOperand*>(memInsn.GetMemOpnd());
-  if (!memOpnd.NoAlias(*memOpndOfmemInsn) || ((nextMemOpnd != nullptr) && !nextMemOpnd->NoAlias(*memOpndOfmemInsn))) {
+bool AArch64DepAnalysis::NeedBuildDepsMem(const MemOperand &memOpnd,
+                                          const MemOperand *nextMemOpnd,
+                                          const Insn &memInsn) const {
+  auto *memOpndOfmemInsn = static_cast<MemOperand*>(memInsn.GetMemOpnd());
+  if (!NoAlias(memOpnd, *memOpndOfmemInsn) || ((nextMemOpnd != nullptr) && !NoAlias(*nextMemOpnd, *memOpndOfmemInsn))) {
     return true;
   }
   if (cgFunc.GetMirModule().GetSrcLang() == kSrcLangC && memInsn.IsCall() == false) {
     static_cast<MemOperand*>(memInsn.GetMemOpnd())->SetAccessSize(
-        static_cast<AArch64Insn&>(memInsn).GetLoadStoreSize());
-    return (memOpnd.NoOverlap(*memOpndOfmemInsn) == false);
+        static_cast<const AArch64Insn&>(memInsn).GetLoadStoreSize());
+    return (NoOverlap(memOpnd, *memOpndOfmemInsn) == false);
   }
-  AArch64MemOperand *nextMemOpndOfmemInsn = GetNextMemOperand(memInsn, *memOpndOfmemInsn);
+  MemOperand *nextMemOpndOfmemInsn = GetNextMemOperand(memInsn, *memOpndOfmemInsn);
   if (nextMemOpndOfmemInsn != nullptr) {
-    if (!memOpnd.NoAlias(*nextMemOpndOfmemInsn) ||
-        ((nextMemOpnd != nullptr) && !nextMemOpnd->NoAlias(*nextMemOpndOfmemInsn))) {
+    if (!NoAlias(memOpnd, *nextMemOpndOfmemInsn) ||
+        ((nextMemOpnd != nullptr) && !NoAlias(*nextMemOpnd, *nextMemOpndOfmemInsn))) {
       return true;
     }
   }
@@ -456,8 +495,8 @@ bool AArch64DepAnalysis::NeedBuildDepsMem(const AArch64MemOperand &memOpnd, cons
  * memOpnd     : insn's memOpnd
  * nextMemOpnd : some memory pair operator instruction (like ldp/stp) defines two memory.
  */
-void AArch64DepAnalysis::BuildAntiDepsDefStackMem(Insn &insn, AArch64MemOperand &memOpnd,
-                                                  const AArch64MemOperand *nextMemOpnd) {
+void AArch64DepAnalysis::BuildAntiDepsDefStackMem(Insn &insn, MemOperand &memOpnd,
+                                                  const MemOperand *nextMemOpnd) {
   memOpnd.SetAccessSize(static_cast<AArch64Insn &>(insn).GetLoadStoreSize());
   for (auto *useInsn : stackUses) {
     if (NeedBuildDepsMem(memOpnd, nextMemOpnd, *useInsn)) {
@@ -472,8 +511,8 @@ void AArch64DepAnalysis::BuildAntiDepsDefStackMem(Insn &insn, AArch64MemOperand 
  * memOpnd     : insn's memOpnd
  * nextMemOpnd : some memory pair operator instruction (like ldp/stp) defines two memory.
  */
-void AArch64DepAnalysis::BuildOutputDepsDefStackMem(Insn &insn, AArch64MemOperand &memOpnd,
-                                                    const AArch64MemOperand *nextMemOpnd) {
+void AArch64DepAnalysis::BuildOutputDepsDefStackMem(Insn &insn, MemOperand &memOpnd,
+                                                    const MemOperand *nextMemOpnd) {
   memOpnd.SetAccessSize(static_cast<AArch64Insn &>(insn).GetLoadStoreSize());
   for (auto defInsn : stackDefs) {
     if (defInsn->IsCall() || NeedBuildDepsMem(memOpnd, nextMemOpnd, *defInsn)) {
@@ -483,10 +522,9 @@ void AArch64DepAnalysis::BuildOutputDepsDefStackMem(Insn &insn, AArch64MemOperan
 }
 
 /* Build dependences of stack memory and heap memory definitions. */
-void AArch64DepAnalysis::BuildDepsDefMem(Insn &insn, MemOperand &memOpnd) {
-  RegOperand *baseRegister = memOpnd.GetBaseRegister();
-  AArch64MemOperand &aarchMemOpnd = static_cast<AArch64MemOperand&>(memOpnd);
-  AArch64MemOperand *nextMemOpnd = GetNextMemOperand(insn, aarchMemOpnd);
+void AArch64DepAnalysis::BuildDepsDefMem(Insn &insn, MemOperand &aarchMemOpnd) {
+  RegOperand *baseRegister = aarchMemOpnd.GetBaseRegister();
+  MemOperand *nextMemOpnd = GetNextMemOperand(insn, aarchMemOpnd);
 
   /* Build anti dependences. */
   BuildAntiDepsDefStackMem(insn, aarchMemOpnd, nextMemOpnd);
@@ -748,14 +786,14 @@ bool AArch64DepAnalysis::IfInAmbiRegs(regno_t regNO) const {
  * opnd : the memory access operand.
  * regProp : operand property of the memory access operandess operand.
  */
-void AArch64DepAnalysis::BuildMemOpndDependency(Insn &insn, Operand &opnd, const AArch64OpndProp &regProp) {
+void AArch64DepAnalysis::BuildMemOpndDependency(Insn &insn, Operand &opnd, const OpndProp &regProp) {
   ASSERT(opnd.IsMemoryAccessOperand(), "opnd must be memory Operand");
-  AArch64MemOperand *memOpnd = static_cast<AArch64MemOperand*>(&opnd);
+  MemOperand *memOpnd = static_cast<MemOperand*>(&opnd);
   RegOperand *baseRegister = memOpnd->GetBaseRegister();
   if (baseRegister != nullptr) {
     regno_t regNO = baseRegister->GetRegisterNumber();
     BuildDepsUseReg(insn, regNO);
-    if ((memOpnd->GetAddrMode() == AArch64MemOperand::kAddrModeBOi) &&
+    if ((memOpnd->GetAddrMode() == MemOperand::kAddrModeBOi) &&
         (memOpnd->IsPostIndexed() || memOpnd->IsPreIndexed())) {
       /* Base operand has changed. */
       BuildDepsDefReg(insn, regNO);
@@ -785,7 +823,7 @@ void AArch64DepAnalysis::BuildOpndDependency(Insn &insn) {
   uint32 opndNum = insn.GetOperandSize();
   for (uint32 i = 0; i < opndNum; ++i) {
     Operand &opnd = insn.GetOperand(i);
-    AArch64OpndProp *regProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+    OpndProp *regProp = md->operand[i];
     if (opnd.IsMemoryAccessOperand()) {
       BuildMemOpndDependency(insn, opnd, *regProp);
     } else if (opnd.IsStImmediate()) {

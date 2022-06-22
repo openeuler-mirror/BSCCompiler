@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
   MPLTimer timer;
   timer.Start();
   HIR2MPLOptions &options = HIR2MPLOptions::GetInstance();
-  if (options.SolveArgs(argc, argv) == false) {
+  if (!options.SolveArgs(argc, argv)) {
     return static_cast<int>(FEErrno::kCmdParseError);
   }
   HIR2MPLEnv::GetInstance().Init();

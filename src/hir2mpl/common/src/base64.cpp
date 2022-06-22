@@ -104,17 +104,16 @@ std::string Base64::Encode(const uint8 *input, size_t length) {
 size_t Base64::DecodeLength(const std::string &input) {
   // length calculation
   size_t length;
-  const char *inputBuf = input.c_str();
   size_t inputLength = input.length();
   if (inputLength == 0) {
     return 0;
   }
   CHECK_FATAL(inputLength % kBase64DecodeBaseLen == 0, "input.length must be factor of 4");
   length = inputLength * kBase64EncodeBaseLen / kBase64DecodeBaseLen;
-  if (inputBuf[inputLength - 1] == '=') {
+  if (input[inputLength - 1] == '=') {
     length--;
   }
-  if (inputBuf[inputLength - 2] == '=') {
+  if (input[inputLength - 2] == '=') {
     length--;
   }
   return length;
