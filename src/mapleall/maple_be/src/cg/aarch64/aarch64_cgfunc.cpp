@@ -8599,6 +8599,8 @@ uint32 AArch64CGFunc::GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alig
                                        __builtin_ffs(static_cast<int>(offsetAlign2))) - 1);
   if (alignOffset == k8ByteSize || alignOffset == k4ByteSize || alignOffset == k2ByteSize) {
     return alignOffset;
+  } else if (alignOffset > k8ByteSize) {
+    return k8ByteSize;
   } else {
     return alignment;
   }

@@ -268,6 +268,20 @@ MemLoc *MemoryHelper::GetMemLoc(IvarMeExpr &ivar) {
   return &memLoc;
 }
 
+MemLoc *MemoryHelper::GetMemLoc(MeExpr &meExpr) {
+  auto meOp = meExpr.GetMeOp();
+  switch (meOp) {
+    case kMeOpIvar:
+      return GetMemLoc(static_cast<IvarMeExpr&>(meExpr));
+    case kMeOpVar:
+      return GetMemLoc(static_cast<VarMeExpr&>(meExpr));
+    default:
+      CHECK_FATAL(false, "MemoryHelper::GetMemLoc: not supported meOp");
+      break;
+  }
+  return nullptr;
+}
+
 bool MemoryHelper::HaveSameBase(const MemLoc &mem1, const MemLoc &mem2) {
   CHECK_NULL_FATAL(mem1.base);
   CHECK_NULL_FATAL(mem2.base);
@@ -406,7 +420,7 @@ bool IsIntStpLdpOffsetValid(uint32 typeBitSize, int32 offset) {
       return StrLdr64PairImmValid(offset);
     }
     default: {
-      CHECK_FATAL(false, "should be here");
+      CHECK_FATAL(false, "should not be here");
       break;
     }
   }
@@ -432,7 +446,7 @@ bool IsVecStrLdrOffsetValid(uint32 typeBitSize, int32 offset) {
       return StrLdr128ImmValid(offset);
     }
     default: {
-      CHECK_FATAL(false, "should be here");
+      CHECK_FATAL(false, "should not be here");
       break;
     }
   }
@@ -584,10 +598,11 @@ MapleMap<OStIdx, ChiMeNode*> *MergeChiList(const std::vector<MapleMap<OStIdx, Ch
   return &mergedChiList;
 }
 
-bool SwapChiForSameOstIfNeeded(IassignMeStmt &iassign1, IassignMeStmt &iassign2) {
+// both `stmt1` and `stmt2` must have chiList
+bool SwapChiForSameOstIfNeeded(MeStmt &stmt1, MeStmt &stmt2) {
   bool swapped = false;
-  auto *chiList1 = iassign1.GetChiList();
-  auto *chiList2 = iassign2.GetChiList();
+  auto *chiList1 = stmt1.GetChiList();
+  auto *chiList2 = stmt2.GetChiList();
   CHECK_NULL_FATAL(chiList1);
   CHECK_NULL_FATAL(chiList2);
   auto p = chiList1->begin();
@@ -599,8 +614,8 @@ bool SwapChiForSameOstIfNeeded(IassignMeStmt &iassign1, IassignMeStmt &iassign2)
         p->second = q->second;
         q->second = tmp;
         // Update defStmt
-        p->second->SetBase(&iassign1);
-        q->second->SetBase(&iassign2);
+        p->second->SetBase(&stmt1);
+        q->second->SetBase(&stmt2);
         swapped = true;
       }
       ++p;
@@ -1192,6 +1207,10 @@ int32 TreeNode::GetScalarCost() const {
 
 // Only valid for load/store treeNode for now
 int32 TreeNode::GetVectorCost() const {
+  // If we reorder stmts instead of vectorizing stmts, lane may be invalid, we check it here
+  if (GetLane() % 2 != 0) {
+    return kHugeCost;
+  }
   ASSERT(IsLoad() || IsStore(), "must be");
   ASSERT(CanVectorized(), "must be");
   int32 cost = 1;
@@ -1421,17 +1440,13 @@ struct BlockScheduling {
 
   bool IsOstUsedByStmt(OriginalSt *ost, MeStmt *stmt);
 
-  void ScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor, bool needRectifyIassignChiList = false) {
+  void ScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor, bool needRectifyChiList = false) {
     CHECK_FATAL(stmt->GetBB() == anchor->GetBB(), "must belong to same BB");
     int32 stmtOrderId = GetOrderId(stmt);
     int32 anchorOrderId = GetOrderId(anchor);
     CHECK_FATAL(anchorOrderId < stmtOrderId, "anchor must be before stmt");
-    if (needRectifyIassignChiList) {
-      CHECK_FATAL(stmt->GetOp() == OP_iassign, "must be");
-      CHECK_FATAL(anchor->GetOp() == OP_iassign, "must be");
-      auto *iassignStmt = static_cast<IassignMeStmt*>(stmt);
-      auto *iassignAnchor = static_cast<IassignMeStmt*>(anchor);
-      irModified = SwapChiForSameOstIfNeeded(*iassignStmt, *iassignAnchor);
+    if (needRectifyChiList) {
+      irModified = SwapChiForSameOstIfNeeded(*stmt, *anchor);
     }
     // should use signed id
     for (int32 id = stmtOrderId - 1; id >= anchorOrderId; --id) {
@@ -1443,7 +1458,7 @@ struct BlockScheduling {
   }
 
   bool CanScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor);
-  bool CanScheduleIassignStmtWithoutOverlapBefore(MeStmt *stmt, MeStmt *anchor);
+  bool CanScheduleAssignWithoutOverlapBefore(MeStmt *stmt, MeStmt *anchor);
   bool TryScheduleTwoStmtsTogether(MeStmt *first, MeStmt *second);
   void VerifyScheduleResult(uint32 firstOrderId, uint32 lastOrderId);
   // Collect use info from `begin` to `end` (not include `end`) in current BB
@@ -1475,10 +1490,9 @@ void BlockScheduling::DumpStmtVec() const {
 // Move these two functions into some util class when doing code refactor
 // Collect defStmt of `expr`
 void GetDependencyStmts(MeExpr *expr, std::vector<MeStmt*> &dependencies) {
-  Opcode op = expr->GetOp();
-  if (op == OP_regread) {
+  if (expr->IsScalar()) {
     // we don't need to consider defPhi, we only focus on BB level use-def
-    auto *defStmt = static_cast<RegMeExpr*>(expr)->GetDefByMeStmt();
+    auto *defStmt = static_cast<ScalarMeExpr*>(expr)->GetDefByMeStmt();
     if (defStmt != nullptr) {
       dependencies.push_back(defStmt);
     }
@@ -1663,30 +1677,37 @@ bool BlockScheduling::CanScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor) {
   return true;
 }
 
-// Both `anchor` and `stmt` must be iassign stmt and must be adjacent
-bool BlockScheduling::CanScheduleIassignStmtWithoutOverlapBefore(MeStmt *stmt, MeStmt *anchor) {
-  if (stmt->GetOp() != OP_iassign || anchor->GetOp() != OP_iassign) {
+// Both `anchor` and `stmt` must be iassign/dassign stmt and must be adjacent
+bool BlockScheduling::CanScheduleAssignWithoutOverlapBefore(MeStmt *stmt, MeStmt *anchor) {
+  bool bothDassign = (stmt->GetOp() == OP_dassign && anchor->GetOp() == OP_dassign);
+  bool bothIassign = (stmt->GetOp() == OP_iassign && anchor->GetOp() == OP_iassign);
+  if (!bothDassign && !bothIassign) {
     return false;
   }
   CHECK_FATAL(stmt->GetBB() == anchor->GetBB(), "must belong to same BB");
   auto stmtOrderId = GetOrderId(stmt);
   auto anchorOrderId = GetOrderId(anchor);
-  // Two iassign stmts must be adjacent:
+  // Two stmts must be adjacent:
   //   id     : anchor
   //   id + 1 : stmt
   if (stmtOrderId - 1 != anchorOrderId) {
     return false;
   }
-  auto *iassignAnchor = static_cast<IassignMeStmt*>(anchor);
-  auto *iassignStmt = static_cast<IassignMeStmt*>(stmt);
-  auto *lhsIvarAnchor = iassignAnchor->GetLHSVal();
-  auto *lhsIvarStmt = iassignStmt->GetLHSVal();
-  if (PrimitiveType(lhsIvarAnchor->GetPrimType()).IsVector() ||
-      PrimitiveType(lhsIvarStmt->GetPrimType()).IsVector()) {
+  MeExpr *lhsAnchor = nullptr;
+  MeExpr *lhsStmt = nullptr;
+  if (bothDassign) {
+    lhsAnchor = static_cast<DassignMeStmt*>(anchor)->GetLHS();
+    lhsStmt = static_cast<DassignMeStmt*>(stmt)->GetLHS();
+  } else if (bothIassign) {
+    lhsAnchor = static_cast<IassignMeStmt*>(anchor)->GetLHSVal();
+    lhsStmt = static_cast<IassignMeStmt*>(stmt)->GetLHSVal();
+  }
+  if (PrimitiveType(lhsAnchor->GetPrimType()).IsVector() ||
+      PrimitiveType(lhsStmt->GetPrimType()).IsVector()) {
     return false;
   }
-  auto *firstMemLoc = memoryHelper.GetMemLoc(*lhsIvarAnchor);
-  auto *secondMemLoc = memoryHelper.GetMemLoc(*lhsIvarStmt);
+  auto *firstMemLoc = memoryHelper.GetMemLoc(*lhsAnchor);
+  auto *secondMemLoc = memoryHelper.GetMemLoc(*lhsStmt);
   if (!MemoryHelper::HaveSameBase(*firstMemLoc, *secondMemLoc) ||
       !MemoryHelper::MustHaveNoOverlap(*firstMemLoc, *secondMemLoc)) {
     return false;
@@ -1710,11 +1731,11 @@ bool BlockScheduling::TryScheduleTwoStmtsTogether(MeStmt *first, MeStmt *second)
           stmtVec[i]->Dump(func.GetIRMap());
         }
       }
-      // Try schedule iassign stmts without overlap
-      if (CanScheduleIassignStmtWithoutOverlapBefore(stmt, first)) {
+      // Try schedule iassign/dassign stmts without overlap
+      if (CanScheduleAssignWithoutOverlapBefore(stmt, first)) {
         ScheduleStmtBefore(stmt, first, true);
         if (debug) {
-          os << "Schedule iassign stmts without overlap successfully\nAfter scheduled:" << std::endl;
+          os << "Schedule iassign/dassign stmts without overlap successfully\nAfter scheduled:" << std::endl;
           // orderIds have been swapped now
           for (auto i = GetOrderId(stmt); i <= GetOrderId(first); ++i) {
             os << "  <" << i << "> LOC " << stmtVec[i]->GetSrcPosition().LineNum();
@@ -1994,6 +2015,7 @@ class SLPVectorizer {
   bool VectorizeSLPTree();
   void SetStmtVectorized(MeStmt &stmt);
   bool IsStmtVectorized(MeStmt &stmt) const;
+  MIRType* GenMergedType(PrimType primType, uint8 lanes) const;
 
   void MarkStmtsVectorizedInTree();
   void ReplaceStmts(const std::vector<MeStmt*> &origStmtVec, std::list<MeStmt*> &newStmtList);
@@ -2013,6 +2035,7 @@ class SLPVectorizer {
   BlockScheduling *blockScheduling = nullptr;
   BB *currBB = nullptr;
   bool splited = false;     // whether the stmts in currBB have been splited
+  bool mergeToVecType = true;
   SLPTree *tree = nullptr;
   bool debug = false;
   std::ostream &os;
@@ -2129,37 +2152,43 @@ void SLPVectorizer::VectorizeCompatibleStores(StoreVec &storeVec, uint32 begin, 
 }
 
 // This is target-dependent, we need abstract TargetInfo in the future
-uint32 GetMaxVectorFactor(PrimType scalarType) {
+// The first is VectorFactor, the second is ScalarFactor
+std::pair<uint32, uint32> GetMaxFactors(PrimType scalarType) {
   CHECK_FATAL(!PrimitiveType(scalarType).IsVector(), "must be");
   auto typeSize = GetPrimTypeSize(scalarType);
   CHECK_FATAL(typeSize != 0, "unknown type size");
-  return 16 / typeSize;  // max vector regsize: 16byte
+  return { 16 / typeSize, 8 / typeSize };  // max vector regsize: 16byte, max scalar regsize: 8byte
 }
 
-uint32 GetMinVectorFactor(PrimType scalarType) {
+std::pair<uint32, uint32> GetMinFactors(PrimType scalarType) {
   CHECK_FATAL(!PrimitiveType(scalarType).IsVector(), "must be");
   auto typeSize = GetPrimTypeSize(scalarType);
   CHECK_FATAL(typeSize != 0, "unknown type size");
-  return std::max(8 / typeSize, 2u);  // min vector regsize: 8byte
+  return { std::max(8 / typeSize, 2u), 2u };  // min vector regsize: 8byte, minSf is always 2
 }
 
 // Try to vectorize storeVec[begin, end), in which all stores are compatible and consecutive
 void SLPVectorizer::VectorizeConsecutiveStores(StoreVec &storeVec, uint32 begin, uint32 end) {
   SLP_DEBUG(os << "==== VectorizeConsecutiveStores [" << begin << ", " << end << ")" << std::endl);
   PrimType scalarType = storeVec[begin]->storeMem->type->GetPrimType();
-  const uint32 maxVf = GetMaxVectorFactor(scalarType);
-  const uint32 minVf = GetMinVectorFactor(scalarType);
-  SLP_DEBUG(os << "minVf: " << minVf << ", maxVf: " << maxVf << std::endl);
-  //uint32 startIdx = begin;
+  const auto &maxFactors = GetMaxFactors(scalarType);
+  const auto &minFactors = GetMinFactors(scalarType);
+  const uint32 maxVf = maxFactors.first;
+  const uint32 maxSf = maxFactors.second;
+  const uint32 minVf = minFactors.first;
+  const uint32 minSf = minFactors.second;
+  SLP_DEBUG(os << "minVf: " << minVf << ", maxVf: " << maxVf <<
+      "; minSf: " << minSf << ", maxSf: " << maxSf << std::endl);
   uint32 endIdx = end;
   bool tried = false;
   std::vector<bool> vectorized(storeVec.size(), false);
-  for (uint32 vf = maxVf; vf >= minVf; vf /= 2) {
-    for (uint32 i = endIdx; i >= vf && i - vf >= begin;) {
+  for (uint32 factor = maxVf; factor >= minSf; factor /= 2) {
+    for (uint32 i = endIdx; i >= factor && i - factor >= begin;) {
       // Make sure no scalar stores have been vectorized
       // When stmts are vectorized successfully, we will set them vectorizd
       // to avoid vectorize them again.
-      uint32 currBegin = i - vf;
+      mergeToVecType = factor >= minVf;
+      uint32 currBegin = i - factor;
       bool allStoresNotVectorized = true;
       for (uint32 k = currBegin; k < i; ++k) {
         if (vectorized[k]) {
@@ -2168,7 +2197,7 @@ void SLPVectorizer::VectorizeConsecutiveStores(StoreVec &storeVec, uint32 begin,
         }
       }
       if (!allStoresNotVectorized) {
-        i -= vf;  // can use --i for more optimization at the cost of build time
+        i -= factor;  // can use --i for more optimization at the cost of build time
         continue;
       }
       bool res = DoVectorizeSlicedStores(storeVec, currBegin, i);
@@ -2178,12 +2207,12 @@ void SLPVectorizer::VectorizeConsecutiveStores(StoreVec &storeVec, uint32 begin,
           vectorized[j] = true;
         }
         if (i == endIdx) {
-          endIdx -= vf;
+          endIdx -= factor;
         }
-        i -= vf;
+        i -= factor;
         continue;
       }
-      i -= vf;  // can use --i for more optimization at the cost of build time
+      i -= factor;  // can use --i for more optimization at the cost of build time
     }
   }
   if (!tried) {
@@ -2216,6 +2245,8 @@ bool SLPVectorizer::DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, ui
     CHECK_FATAL(false, "should not be here");
   }
   if (onlySchedule) {
+    SLP_DEBUG(os << "onlySchedule save result" << std::endl;);
+    CodeMotionSaveSchedulingResult();
     return true;
   }
 
@@ -2289,8 +2320,8 @@ void SLPVectorizer::ReplaceStmts(const std::vector<MeStmt*> &origStmtVec, std::l
         continue;
       }
       auto orderId = GetOrderId(stmt);
-      if (keepStmtsExceptIassign && treeNode->GetOp() == OP_iassign) {
-        toBeRemoved.insert(orderId);  // only remove iassgin scalar stmts
+      if (keepStmtsExceptIassign && (treeNode->GetOp() == OP_iassign || treeNode->GetOp() == OP_dassign)) {
+        toBeRemoved.insert(orderId);  // only remove store scalar stmts
       }
       if (orderId > pos) {
         pos = orderId;
@@ -2711,12 +2742,20 @@ bool SLPVectorizer::DoVectTreeNodeConstval(TreeNode *treeNode) {
     return false;
   }
   PrimType elemType = tree->GetType();
-  auto *vecType = GenVecType(tree->GetType(), treeNode->GetLane());
+  auto *vecType = GenMergedType(tree->GetType(), treeNode->GetLane());
   CHECK_NULL_FATAL(vecType);
   bool useScalarType = tree->CanTreeUseScalarTypeForConstvalIassign();
   ScalarMeExpr *lhsReg = nullptr;
   MeExpr *rhs = nullptr;
   if (useScalarType) {
+    if (!mergeToVecType) {
+      auto firstConstVal = static_cast<ConstMeExpr*>(treeNode->GetExprs()[0])->GetIntValue();
+      if (!treeNode->SameExpr() || firstConstVal != 0) {
+        SLP_FAILURE_DEBUG(os << "all constVals must be 0 if mergeToScalarType considering big const performance" <<
+            std::endl);
+        return false;
+      }
+    }
     vecType = GetScalarUnsignedTypeBySize(GetPrimTypeBitSize(vecType->GetPrimType()));
     lhsReg = irMap.CreateRegMeExpr(*vecType);
     std::vector<int64> constants(treeNode->GetExprs().size());
@@ -2726,6 +2765,10 @@ bool SLPVectorizer::DoVectTreeNodeConstval(TreeNode *treeNode) {
     uint64 mergeConstval = ConstructConstants(constants, GetPrimTypeBitSize(elemType));
     rhs = irMap.CreateIntConstMeExpr(mergeConstval, vecType->GetPrimType());
   } else if (treeNode->SameExpr()) {
+    if (!mergeToVecType) {
+      SLP_DEBUG(os << "vector_from_scalar is not supproted for scalar mergedType" << std::endl);
+      return false;
+    }
     MIRIntrinsicID intrnId = GetVectorFromScalarIntrnId(vecType->GetPrimType());
     MeExpr *constExpr = treeNode->GetExprs()[0];
     if (constExpr->GetPrimType() != elemType) {
@@ -2738,6 +2781,10 @@ bool SLPVectorizer::DoVectTreeNodeConstval(TreeNode *treeNode) {
     naryExpr.PushOpnd(constExpr);
     rhs = irMap.CreateNaryMeExpr(naryExpr);
   } else {
+    if (!mergeToVecType) {
+      SLP_DEBUG(os << "vector_set_element is not supproted for scalar mergedType" << std::endl);
+      return false;
+    }
     auto *vecReg = irMap.CreateRegMeExpr(*vecType);
     auto exprNum = treeNode->GetExprs().size();
     std::vector<std::pair<uint32, MeExpr*>> posExprVec;
@@ -2779,7 +2826,7 @@ bool SLPVectorizer::DoVectTreeNodeIvar(TreeNode *treeNode) {
     }
     return false;
   }
-  auto *vecType = GenVecType(tree->GetType(), treeNode->GetLane());
+  auto *vecType = GenMergedType(tree->GetType(), treeNode->GetLane());
   CHECK_NULL_FATAL(vecType);
   auto *minMem = treeNode->GetMinMemLoc();
   auto *vecPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*vecType);
@@ -2810,7 +2857,7 @@ bool SLPVectorizer::DoVectTreeNodeIvar(TreeNode *treeNode) {
 
 bool SLPVectorizer::DoVectTreeNodeBinary(TreeNode *treeNode) {
   CHECK_FATAL(treeNode->GetChildren().size() == 2, "must be");
-  auto *vecType = GenVecType(tree->GetType(), treeNode->GetLane());
+  auto *vecType = GenMergedType(tree->GetType(), treeNode->GetLane());
   CHECK_NULL_FATAL(vecType);
   // Get the first vector operand
   auto &childOutStmts0 = treeNode->GetChildren()[0]->GetOutStmts();
@@ -2891,13 +2938,13 @@ bool SLPVectorizer::DoVectTreeNodeNaryReverse(TreeNode *treeNode, MIRIntrinsicID
         os << "only v64 and v128 are allowed as vector reverse operand, but get " << vecOpndBitSize << std::endl);
     return false;
   }
-  auto *vecType = GenVecType(tree->GetType(), treeNode->GetLane());
+  auto *vecType = GenMergedType(tree->GetType(), treeNode->GetLane());
   CHECK_NULL_FATAL(vecType);
   uint32 newNumLane = vecOpndBitSize / elementBitSize;
   auto isSign = !PrimitiveType(treeNode->GetType()).IsUnsigned();
   // TODO get new vector type
   auto newElementType = GetIntegerPrimTypeBySizeAndSign(elementBitSize, isSign);
-  auto revVecType = GenVecType(newElementType, newNumLane);
+  auto revVecType = GenMergedType(newElementType, newNumLane);
   MIRIntrinsicID vecIntrnId;
   switch (rangeBitSize) {
     case 16:
@@ -2936,31 +2983,45 @@ bool SLPVectorizer::DoVectTreeNodeIassign(TreeNode *treeNode) {
   CHECK_FATAL(treeNode->GetChildren().size() == 1, "must be");
   auto *minMem = treeNode->GetMinMemLoc();
   CHECK_NULL_FATAL(minMem);
-  auto *vecType = GenVecType(tree->GetType(), treeNode->GetLane());
+  // Use root node type for covering the following case:
+  //   [(mx943), 4] : u8 = constval : u32
+  auto *vecType = GenMergedType(tree->GetType(), treeNode->GetLane());
   CHECK_NULL_FATAL(vecType);
   if (tree->CanTreeUseScalarTypeForConstvalIassign()) {
     vecType = GetScalarUnsignedTypeBySize(GetPrimTypeBitSize(vecType->GetPrimType()));
   }
   auto *vecPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*vecType);
   MeExpr *addrExpr = minMem->Emit(irMap);
-  auto *ivarExpr = static_cast<IvarMeExpr*>(addrExpr);
-  if (ivarExpr->GetFieldID() == 0) {
-    IvarMeExpr newIvar(*ivarExpr);
-    newIvar.SetTyIdx(vecPtrType->GetTypeIndex());
-    newIvar.SetPtyp(vecType->GetPrimType());
-    addrExpr = irMap.HashMeExpr(newIvar);
-  } else {  // fieldId != 0
-    auto *newBase = ivarExpr->GetBase();
-    if (minMem->extraOffset != 0) {
-      auto *extraOffsetExpr = irMap.CreateIntConstMeExpr(minMem->extraOffset, PTY_u64);
-      newBase = irMap.CreateMeExprBinary(OP_add, PTY_u64,
-          *newBase, *extraOffsetExpr);
-    }
+  if (treeNode->GetOp() == OP_dassign) {
+    auto &varMeExpr = static_cast<VarMeExpr&>(*addrExpr);
+    AddrofMeExpr addrofExpr(-1, PTY_ptr, varMeExpr.GetOst()->GetIndex());
+    addrofExpr.SetFieldID(varMeExpr.GetFieldID());
+    auto *newBase = irMap.HashMeExpr(addrofExpr);
     IvarMeExpr newIvar(&irMap.GetIRMapAlloc(), -1, vecType->GetPrimType(), TyIdx(PTY_u64), 0);
     newIvar.SetTyIdx(vecPtrType->GetTypeIndex());
     newIvar.SetPtyp(vecType->GetPrimType());
     newIvar.SetBase(newBase);
     addrExpr = irMap.HashMeExpr(newIvar);
+  } else {
+    auto *ivarExpr = static_cast<IvarMeExpr*>(addrExpr);
+    if (ivarExpr->GetFieldID() == 0) {
+      IvarMeExpr newIvar(*ivarExpr);
+      newIvar.SetTyIdx(vecPtrType->GetTypeIndex());
+      newIvar.SetPtyp(vecType->GetPrimType());
+      addrExpr = irMap.HashMeExpr(newIvar);
+    } else {  // fieldId != 0
+      auto *newBase = ivarExpr->GetBase();
+      if (minMem->extraOffset != 0) {
+        auto *extraOffsetExpr = irMap.CreateIntConstMeExpr(minMem->extraOffset, PTY_u64);
+        newBase = irMap.CreateMeExprBinary(OP_add, PTY_u64,
+            *newBase, *extraOffsetExpr);
+      }
+      IvarMeExpr newIvar(&irMap.GetIRMapAlloc(), -1, vecType->GetPrimType(), TyIdx(PTY_u64), 0);
+      newIvar.SetTyIdx(vecPtrType->GetTypeIndex());
+      newIvar.SetPtyp(vecType->GetPrimType());
+      newIvar.SetBase(newBase);
+      addrExpr = irMap.HashMeExpr(newIvar);
+    }
   }
   // lhs ivar don't need mu
   auto *childStmt = treeNode->GetChildren()[0]->GetOutStmts().back();
@@ -2980,10 +3041,8 @@ bool SLPVectorizer::DoVectTreeNodeIassign(TreeNode *treeNode) {
     return GetOrderId(a) < GetOrderId(b);
   });
   for (auto *stmt : sortedStmts) {  // must iterate stmt by orderId
-    auto *scalarIassign = static_cast<IassignMeStmt*>(stmt);
-    auto *chiList = scalarIassign->GetChiList();
-    auto *muList = scalarIassign->GetMuList();
-    (void)muList;
+    auto *chiList = stmt->GetChiList();
+    CHECK_NULL_FATAL(chiList);
     chiListVec.push_back(chiList);
   }
   auto *mergedChiList = MergeChiList(chiListVec, irMap, *vecIassign);
@@ -2997,8 +3056,12 @@ bool SLPVectorizer::DoVectTreeNodeIassign(TreeNode *treeNode) {
 }
 
 bool SLPVectorizer::DoVectTreeNodeGatherNeeded(TreeNode *treeNode) {
+  if (!mergeToVecType) {
+    SLP_DEBUG(os << "vector_set_element/vector_from_scalar is not supproted for scalar mergedType" << std::endl);
+    return false;
+  }
   auto elemType = tree->GetType();
-  auto *vecType = GenVecType(elemType, treeNode->GetLane());
+  auto *vecType = GenMergedType(elemType, treeNode->GetLane());
   CHECK_NULL_FATAL(vecType);
   auto *vecReg = irMap.CreateRegMeExpr(*vecType);
   auto exprNum = treeNode->GetExprs().size();
@@ -3038,10 +3101,6 @@ bool SLPVectorizer::VectorizeTreeNode(TreeNode *treeNode) {
   }
   SLP_DEBUG(os << "Start to vectorize tree node " << treeNode->GetId() << " (" <<
       GetOpName(treeNode->GetOp()) << ")" << std::endl);
-  // Use root node type for covering the following case:
-  //   [(mx943), 4] : u8 = constval : u32
-  auto *vecType = GenVecType(tree->GetType(), treeNode->GetLane());
-  CHECK_NULL_FATAL(vecType);
 
   // Tree node can not be vectorized, we use vector_set_element
   if (!treeNode->CanVectorized()) {
@@ -3067,6 +3126,7 @@ bool SLPVectorizer::VectorizeTreeNode(TreeNode *treeNode) {
     case OP_constval: {
       return DoVectTreeNodeConstval(treeNode);
     }
+    case OP_dassign:
     case OP_iassign: {
       return DoVectTreeNodeIassign(treeNode);
     }
@@ -3098,6 +3158,15 @@ bool SLPVectorizer::VectorizeSLPTree() {
   SLP_OK_DEBUG(os << "tree size: " << tree->GetSize() << ", tree cost: " << cost << ", func: " << func.GetName() <<
       ", bbId: " << currBB->GetBBId() << ", loc: 0" << std::endl);
   return true;
+}
+
+MIRType *SLPVectorizer::GenMergedType(PrimType primType, uint8 lanes) const {
+  if (mergeToVecType) {
+    return GenVecType(primType, lanes);
+  }
+  uint32 totalByteBitSize = GetPrimTypeBitSize(primType) * lanes;
+  CHECK_FATAL(totalByteBitSize >= 16, "must be");
+  return GetScalarUnsignedTypeBySize(totalByteBitSize);
 }
 
 void SLPVectorizer::SetStmtVectorized(MeStmt &stmt) {

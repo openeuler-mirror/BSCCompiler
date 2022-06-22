@@ -149,6 +149,7 @@ class MemoryHelper {
   // We can support more overloaded GetMemLoc if needed
   MemLoc *GetMemLoc(IvarMeExpr &ivar);
   MemLoc *GetMemLoc(VarMeExpr &var);
+  MemLoc *GetMemLoc(MeExpr &meExpr);  // Only support ivar and var
 
   bool IsAllIvarConsecutive(const std::vector<MeExpr*> &ivarVec, bool mustSameType);
 
