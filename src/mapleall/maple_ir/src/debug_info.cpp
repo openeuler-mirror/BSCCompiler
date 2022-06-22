@@ -244,6 +244,8 @@ void DebugInfo::SetupCU() {
   /* Add the Producer (Compiler) Information */
   const char *producer = strdup((std::string("Maple Version ") + Version::GetVersionStr()).c_str());
   GStrIdx strIdx = module->GetMIRBuilder()->GetOrCreateStringIndex(producer);
+  delete producer;
+  producer = nullptr;
   compUnit->AddAttr(DW_AT_producer, DW_FORM_strp, strIdx.GetIdx());
 
   /* Source Languate  */
@@ -296,6 +298,10 @@ void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap) {
   for (auto &i : aliasMap) {
     // maple var
     MIRSymbol *var = func->GetSymTab()->GetSymbolFromStrIdx(i.second.memPoolStrIdx);
+    if (!var) {
+      var = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(i.second.memPoolStrIdx);
+    }
+    ASSERT(var, "can not find symbol");
 
     // create alias die using maple var except name
     DBGDie *vdie = CreateVarDie(var, i.first);
@@ -605,6 +611,13 @@ DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum) {
 
   die->AddAttr(DW_AT_specification, DW_FORM_ref4, funcdecldie->GetId());
   die->AddAttr(DW_AT_decl_line, DW_FORM_data4, lnum);
+
+  if (!func->IsReturnVoid()) {
+    auto returnType = func->GetReturnType();
+    (void)GetOrCreateTypeDie(returnType);
+    die->AddAttr(DW_AT_type, DW_FORM_ref4, returnType->GetTypeIndex().GetIdx());
+  }
+
   die->AddAttr(DW_AT_low_pc, DW_FORM_addr, kDbgDefaultVal);
   die->AddAttr(DW_AT_high_pc, DW_FORM_data8, kDbgDefaultVal);
   die->AddFrmBaseAttr(DW_AT_frame_base, DW_FORM_exprloc);

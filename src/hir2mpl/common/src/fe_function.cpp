@@ -829,6 +829,7 @@ void FEFunction::AddAliasInMIRScope(MIRScope *scope, const std::string &srcVarNa
   MIRAliasVars aliasVar;
   aliasVar.tyIdx = symbol->GetTyIdx();
   aliasVar.memPoolStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(symbol->GetName());
+  aliasVar.isLocal = symbol->IsLocal();
   scope->SetAliasVarMap(nameIdx, aliasVar);
 };
 }  // namespace maple

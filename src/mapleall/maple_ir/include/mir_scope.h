@@ -22,6 +22,7 @@ namespace maple {
 struct MIRAliasVars {
   GStrIdx memPoolStrIdx;
   TyIdx tyIdx;
+  bool isLocal;
   GStrIdx sigStrIdx;
 };
 
@@ -37,6 +38,7 @@ class MIRScope {
 
   bool IsSubScope(const MIRScope *s) const;
   bool HasJoinScope(const MIRScope *s1, const MIRScope *s2) const;
+  bool HasSameRange(const MIRScope *s1, const MIRScope *s2) const;
 
   unsigned GetLevel() const {
     return level;

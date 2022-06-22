@@ -19,43 +19,60 @@ namespace maple {
 
 // scp is a sub scope
 // (low (scp.low, scp.high] high]
-bool MIRScope::IsSubScope(MIRScope *scp) {
+bool MIRScope::IsSubScope(const MIRScope *scp) const {
   // special case for function level scope which might not have range specified
   if (level == 0) {
     return true;
   }
-  SrcPosition l  = GetRangeLow();
-  SrcPosition h  = GetRangeHigh();
-  SrcPosition l1 = scp->GetRangeLow();
-  SrcPosition h1 = scp->GetRangeHigh();
+  auto &l = GetRangeLow();
+  auto &h = GetRangeHigh();
+  auto &l1 = scp->GetRangeLow();
+  auto &h1 = scp->GetRangeHigh();
   return l.IsBfOrEq(l1) && h1.IsBfOrEq(h);
 }
 
 // s1 and s2 has join
 // (s1.low (s2.low s1.high] s2.high]
 // (s2.low (s1.low s2.high] s1.high]
-bool MIRScope::HasJoinScope(MIRScope *scp1, MIRScope *scp2) {
-  SrcPosition l1 = scp1->GetRangeLow();
-  SrcPosition h1 = scp1->GetRangeHigh();
-  SrcPosition l2 = scp2->GetRangeLow();
-  SrcPosition h2 = scp1->GetRangeHigh();
-  return (l1.IsBfOrEq(l2) && l2.IsBfOrEq(h1)) ||
-         (l2.IsBfOrEq(l1) && l1.IsBfOrEq(h2));
+bool MIRScope::HasJoinScope(const MIRScope *scp1, const MIRScope *scp2) const {
+  auto &l1 = scp1->GetRangeLow();
+  auto &h1 = scp1->GetRangeHigh();
+  auto &l2 = scp2->GetRangeLow();
+  auto &h2 = scp2->GetRangeHigh();
+  return (l1.IsBfOrEq(l2) && l2.IsBfOrEq(h1)) || (l2.IsBfOrEq(l1) && l1.IsBfOrEq(h2));
+}
+
+// scope range of s1 and s2 may be completly same when macro calling macro expand
+bool MIRScope::HasSameRange(const MIRScope *scp1, const MIRScope *scp2) const {
+  auto &l1 = scp1->GetRangeLow();
+  auto &h1 = scp1->GetRangeHigh();
+  auto &l2 = scp2->GetRangeLow();
+  auto &h2 = scp2->GetRangeHigh();
+  return l1.IsSrcPostionEq(l2) && h1.IsSrcPostionEq(h2);
 }
 
 void MIRScope::IncLevel() {
   level++;
-  for (auto s : subScopes) {
+  for (auto *s : subScopes) {
     s->IncLevel();
   }
 }
 
+
 bool MIRScope::AddScope(MIRScope *scope) {
   // check first if it is valid with parent scope and sibling sub scopes
-  ASSERT(IsSubScope(scope), "is not a subscope");
-  for (auto s : subScopes) {
-    if (HasJoinScope(s, scope)) {
-      ASSERT(false, "has join range with another subscope");
+  CHECK_FATAL(IsSubScope(scope), "<%s %s> is not a subscope of scope <%s %s>",
+                scope->GetRangeLow().DumpLocWithColToString().c_str(),
+                scope->GetRangeHigh().DumpLocWithColToString().c_str(),
+                GetRangeLow().DumpLocWithColToString().c_str(),
+                GetRangeHigh().DumpLocWithColToString().c_str());
+  for (auto *s : subScopes) {
+    if (!HasSameRange(s, scope) && HasJoinScope(s, scope)) {
+      CHECK_FATAL(false, "<%s %s> has join range with another subscope <%s %s>",
+                  scope->GetRangeLow().DumpLocWithColToString().c_str(),
+                  scope->GetRangeHigh().DumpLocWithColToString().c_str(),
+                  s->GetRangeLow().DumpLocWithColToString().c_str(),
+                  s->GetRangeHigh().DumpLocWithColToString().c_str());
     }
   }
   if (this != module->CurFunction()->GetScope()) {
@@ -68,12 +85,11 @@ bool MIRScope::AddScope(MIRScope *scope) {
 }
 
 void MIRScope::Dump(int32 indent) const {
-  unsigned ind = (level != 0);
+  int32 ind = static_cast<int32>(level != 0);
   if (level != 0) {
     SrcPosition low = range.first;
     SrcPosition high = range.second;
     PrintIndentation(indent);
-    // LogInfo::MapleLogger() << level << " ";
     LogInfo::MapleLogger() << "SCOPE <(" <<
       low.FileNum() << ", " <<
       low.LineNum() << ", " <<
@@ -85,8 +101,9 @@ void MIRScope::Dump(int32 indent) const {
 
   for (auto it : aliasVarMap) {
     PrintIndentation(indent + ind);
-    LogInfo::MapleLogger() << "ALIAS %" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first) << " %"
-      << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.memPoolStrIdx) << " ";
+    LogInfo::MapleLogger() << "ALIAS %" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first)
+                           << ((it.second.isLocal) ? " %" : " $")
+                           << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.memPoolStrIdx) << " ";
     GlobalTables::GetTypeTable().GetTypeFromTyIdx(it.second.tyIdx)->Dump(0);
     if (it.second.sigStrIdx) {
       LogInfo::MapleLogger() << " \"" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.sigStrIdx) << "\"";
@@ -95,7 +112,9 @@ void MIRScope::Dump(int32 indent) const {
   }
 
   for (auto it : subScopes) {
-    it->Dump(indent + ind);
+    if (it->NeedEmitAliasInfo()) {
+      it->Dump(indent + ind);
+    }
   }
 
   if (level != 0) {
@@ -104,7 +123,7 @@ void MIRScope::Dump(int32 indent) const {
   }
 }
 
-void MIRScope::D() const {
+void MIRScope::Dump() const {
   Dump(0);
 }
 }  // namespace maple
