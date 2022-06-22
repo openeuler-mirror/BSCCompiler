@@ -103,7 +103,7 @@ void MIRScope::Dump(int32 indent) const {
     PrintIndentation(indent + ind);
     LogInfo::MapleLogger() << "ALIAS %" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first)
                            << ((it.second.isLocal) ? " %" : " $")
-                           << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.memPoolStrIdx) << " ";
+                           << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.mplStrIdx) << " ";
     GlobalTables::GetTypeTable().GetTypeFromTyIdx(it.second.tyIdx)->Dump(0);
     if (it.second.sigStrIdx) {
       LogInfo::MapleLogger() << " \"" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.sigStrIdx) << "\"";

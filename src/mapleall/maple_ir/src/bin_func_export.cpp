@@ -87,7 +87,7 @@ void BinaryMplExport::OutputLocalSymbol(MIRSymbol *sym) {
 void BinaryMplExport::OutputPreg(MIRPreg *preg) {
   if (preg->GetPregNo() < 0) {
     WriteNum(kBinSpecialReg);
-    Write(-preg->GetPregNo());
+    Write(static_cast<uint8>(-preg->GetPregNo()));
     return;
   }
   std::unordered_map<const MIRPreg*, int64>::iterator it = localPregMark.find(preg);
@@ -136,7 +136,7 @@ void BinaryMplExport::OutputAliasMap(MapleMap<GStrIdx, MIRAliasVars> &aliasVarMa
   WriteInt(static_cast<int32>(aliasVarMap.size()));
   for (std::pair<GStrIdx, MIRAliasVars> it : aliasVarMap) {
     OutputStr(it.first);
-    OutputStr(it.second.memPoolStrIdx);
+    OutputStr(it.second.mplStrIdx);
     OutputType(it.second.tyIdx);
     OutputStr(it.second.sigStrIdx);
   }

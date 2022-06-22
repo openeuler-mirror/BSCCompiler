@@ -297,9 +297,9 @@ void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap) {
   MIRFunction *func = GetCurFunction();
   for (auto &i : aliasMap) {
     // maple var
-    MIRSymbol *var = func->GetSymTab()->GetSymbolFromStrIdx(i.second.memPoolStrIdx);
+    MIRSymbol *var = func->GetSymTab()->GetSymbolFromStrIdx(i.second.mplStrIdx);
     if (!var) {
-      var = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(i.second.memPoolStrIdx);
+      var = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(i.second.mplStrIdx);
     }
     ASSERT(var, "can not find symbol");
 

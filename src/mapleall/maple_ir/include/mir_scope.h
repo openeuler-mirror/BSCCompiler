@@ -20,7 +20,7 @@
 namespace maple {
 // mapping src variable to mpl variables to display debug info
 struct MIRAliasVars {
-  GStrIdx memPoolStrIdx;
+  GStrIdx mplStrIdx;  // maple varialbe name
   TyIdx tyIdx;
   bool isLocal;
   GStrIdx sigStrIdx;

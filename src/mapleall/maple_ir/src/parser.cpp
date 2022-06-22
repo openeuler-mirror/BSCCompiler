@@ -2536,7 +2536,7 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
     signStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
     lexer.NextToken();
   }
-  aliasVar.memPoolStrIdx = mplStrIdx;
+  aliasVar.mplStrIdx = mplStrIdx;
   aliasVar.tyIdx = tyIdx;
   aliasVar.isLocal = isLocal;
   aliasVar.sigStrIdx = signStrIdx;
