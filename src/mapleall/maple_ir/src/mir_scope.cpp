@@ -25,8 +25,12 @@ bool MIRScope::IsSubScope(const MIRScope *scp) const {
     return true;
   }
   auto &l = GetRangeLow();
-  auto &h = GetRangeHigh();
   auto &l1 = scp->GetRangeLow();
+  // allow included file
+  if (l.FileNum() != l1.FileNum()) {
+    return true;
+  }
+  auto &h = GetRangeHigh();
   auto &h1 = scp->GetRangeHigh();
   return l.IsBfOrEq(l1) && h1.IsBfOrEq(h);
 }
