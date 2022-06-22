@@ -1521,7 +1521,7 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
         InsertAndMayPrintStmt(block, *memsetCallStmt, debug, retAssign);
       }
       block.RemoveStmt(memsetCallStmt);
-      return false;
+      return true;
     }
   }
 
