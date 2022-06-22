@@ -213,7 +213,7 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
         sym = ImportLocalSymbol(func);
         CHECK_FATAL(sym != nullptr, "null ptr check");
       } else {
-        sym = InSymbol(func);
+        sym = InSymbol(nullptr);
         CHECK_FATAL(sym != nullptr, "null ptr check");
         if (op == OP_addrof) {
           sym->SetHasPotentialAssignment();
@@ -475,7 +475,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
           sym = ImportLocalSymbol(func);
           CHECK_FATAL(sym != nullptr, "null ptr check");
         } else {
-          sym = InSymbol(func);
+          sym = InSymbol(nullptr);
           CHECK_FATAL(sym != nullptr, "null ptr check");
           sym->SetHasPotentialAssignment();
         }
