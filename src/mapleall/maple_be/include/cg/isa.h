@@ -277,7 +277,7 @@ class RegProp {
 
 class OpndProp {
  public:
-  OpndProp(Operand::OperandType t, RegProp p, uint8 s) : opndType(t), regProp(p), size(s) {}
+  OpndProp(Operand::OperandType t, const RegProp &p, uint8 s) : opndType(t), regProp(p), size(s) {}
   virtual ~OpndProp() = default;
   Operand::OperandType GetOperandType() const {
     return opndType;

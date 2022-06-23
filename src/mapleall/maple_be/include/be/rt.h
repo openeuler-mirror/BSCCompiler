@@ -25,7 +25,10 @@ namespace maplebe {
  */
 class RTSupport {
  public:
-  static RTSupport &GetRTSupportInstance();
+  static RTSupport &GetRTSupportInstance() {
+    static RTSupport RtSupport;
+    return RtSupport;
+  }
   uint64_t GetObjectAlignment() const {
     return kObjectAlignment;
   }
@@ -61,6 +64,21 @@ class RTSupport {
   int64_t kGcTibOffsetAbs;
 
  private:
+  RTSupport() {
+    kObjectAlignment = 8;
+    kObjectHeaderSize = 8;
+#ifdef USE_32BIT_REF
+    kRefFieldSize = 4;
+    kRefFieldAlign = 4;
+#else
+    kRefFieldSize = 8;
+    kRefFieldAlign = 8;
+#endif /* USE_32BIT_REF */
+    kArrayLengthOffset = 12;
+    kArrayContentOffset = 16;
+    kGcTibOffset = -8;
+    kGcTibOffsetAbs = -kGcTibOffset;
+  }
   static const std::string kObjectMapSectionName;
   static const std::string kGctibLabelArrayOfObject;
   static const std::string kGctibLabelJavaObject;

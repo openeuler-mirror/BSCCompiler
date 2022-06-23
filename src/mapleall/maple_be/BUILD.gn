@@ -85,7 +85,6 @@ src_libmplbe = [
 ]
 
 src_libcgaarch64 = [
-  "src/cg/aarch64/aarch64_rt.cpp",
   "src/cg/aarch64/aarch64_abi.cpp",
   "src/cg/aarch64/aarch64_call_conv.cpp",
   "src/cg/aarch64/mpl_atomic.cpp",
@@ -131,7 +130,6 @@ src_libcgx8664 = [
   "src/cg/x86_64/x64_MPIsel.cpp",
   "src/cg/x86_64/x64_cgfunc.cpp",
   "src/cg/x86_64/x64_memlayout.cpp",
-  "src/cg/x86_64/x64_rt.cpp",
   "src/cg/x86_64/x64_emitter.cpp",
   "src/cg/x86_64/x64_abi.cpp",
   "src/cg/x86_64/x64_call_conv.cpp",
@@ -211,6 +209,7 @@ src_libcg = [
   "src/cg/cgfunc.cpp",
   "src/cg/cg_cfg.cpp",
   "src/cg/cg_option.cpp",
+  "src/cg/cg_options.cpp",
   "src/cg/dbg.cpp",
   "src/cg/optimize_common.cpp",
   "src/cg/eh_func.cpp",
