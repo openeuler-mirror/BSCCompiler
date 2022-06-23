@@ -138,9 +138,6 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
     std::list<UniqueFEIRStmt> feStmts = initStmt->Emit2FEStmt();
     stmts.splice(stmts.cend(), feStmts);
   }
-  if (FEOptions::GetInstance().IsDbgFriendly()) {
-    feFunction.PopTopStmtScope();
-  }
   std::list<UniqueFEIRStmt> bodyFEStmts = bodyStmt->Emit2FEStmt();
   if (AstLoopUtil::Instance().IsCurrentContinueLabelUsed()) {
     bodyFEStmts.emplace_back(std::move(labelBodyEndStmt));
@@ -170,6 +167,9 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
   stmts.emplace_back(std::move(whileStmt));
   if (AstLoopUtil::Instance().IsCurrentBreakLabelUsed()) {
     stmts.emplace_back(std::move(labelLoopEndStmt));
+  }
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    feFunction.PopTopStmtScope();
   }
   AstLoopUtil::Instance().PopCurrentBreak();
   AstLoopUtil::Instance().PopCurrentContinue();
