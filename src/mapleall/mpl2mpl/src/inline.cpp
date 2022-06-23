@@ -636,6 +636,28 @@ void MInline::RecordRealCaller(MIRFunction &caller, const MIRFunction &callee) {
   }
 }
 
+static void UpdateAddrofConstForPStatic(MIRConst &mirConst, MIRFunction &func,
+    const std::vector<uint32> &oldStIdx2New) {
+  auto constKind = mirConst.GetKind();
+  if (constKind == kConstAddrof) {
+    auto *addrofConst = static_cast<MIRAddrofConst *>(&mirConst);
+    StIdx valueStIdx = addrofConst->GetSymbolIndex();
+    if (!valueStIdx.IsGlobal()) {
+      MIRSymbol *valueSym = func.GetSymbolTabItem(valueStIdx.Idx());
+      if (valueSym->GetStorageClass() == kScPstatic) {
+        valueStIdx.SetFullIdx(oldStIdx2New[valueStIdx.Idx()]);
+        addrofConst->SetSymbolIndex(valueStIdx);
+      }
+    }
+  } else if (constKind == kConstAggConst) {
+    // Example code: static struct tag1 { struct tag1 *next; } s1 = {&s1}
+    auto *aggConst = static_cast<MIRAggConst *>(&mirConst);
+    for (auto *subMirConst : aggConst->GetConstVec()) {
+      UpdateAddrofConstForPStatic(*subMirConst, func, oldStIdx2New);
+    }
+  }
+}
+
 void MInline::ConvertPStaticToFStatic(MIRFunction &func) {
   bool hasPStatic = false;
   for (size_t i = 0; i < func.GetSymbolTabSize(); ++i) {
@@ -680,17 +702,8 @@ void MInline::ConvertPStaticToFStatic(MIRFunction &func) {
       // of foo's initial value. Example code:
       //   static int bar = 42;
       //   static int *foo = &bar;
-      if ((newSym->GetSKind() == kStConst || newSym->GetSKind() == kStVar) && newSym->GetKonst() != nullptr &&
-        newSym->GetKonst()->GetKind() == kConstAddrof) {
-        auto *addrofConst = static_cast<MIRAddrofConst*>(newSym->GetKonst());
-        StIdx valueStIdx = addrofConst->GetSymbolIndex();
-        if (!valueStIdx.IsGlobal()) {
-          MIRSymbol *valueSym = func.GetSymbolTabItem(valueStIdx.Idx());
-          if (valueSym->GetStorageClass() == kScPstatic) {
-            valueStIdx.SetFullIdx(oldStIdx2New[valueStIdx.Idx()]);
-            addrofConst->SetSymbolIndex(valueStIdx);
-          }
-        }
+      if ((newSym->GetSKind() == kStConst || newSym->GetSKind() == kStVar) && newSym->GetKonst() != nullptr) {
+        UpdateAddrofConstForPStatic(*newSym->GetKonst(), func, oldStIdx2New);
       }
     } else {
       StIdx newStIdx(oldStIdx);
