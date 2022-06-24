@@ -747,6 +747,7 @@ class AArch64CGFunc : public CGFunc {
   MIRType *GetLmbcCallReturnType() {
     return lmbcCallReturnType;
   }
+
   bool IsSPOrFP(const RegOperand &opnd) const override;
   bool IsReturnReg(const RegOperand &opnd) const override;
   bool IsSaveReg(const RegOperand &reg, MIRType &mirType, BECommon &cgBeCommon) const override;
