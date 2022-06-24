@@ -326,13 +326,11 @@ void AArch64AlignAnalysis::AddNopAfterMark() {
       uint32 nopNum = insn->GetNopNum();
       if (findIsland) {
         for (uint32 i = 0; i < nopNum; i++) {
-          bb->InsertInsnAfter(*detect,
-                               aarFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_nop));
+          bb->InsertInsnAfter(*detect, aarFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_nop));
         }
       } else {
         for (uint32 i = 0; i < nopNum; i++) {
-          bb->InsertInsnBefore(*insn,
-                               aarFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_nop));
+          bb->InsertInsnBefore(*insn, aarFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_nop));
         }
       }
     }

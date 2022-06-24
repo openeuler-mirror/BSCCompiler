@@ -241,7 +241,7 @@ bool AArch64RegSavesOpt::AlreadySavedInDominatorList(BB *bb, regno_t reg) const 
   BB *aBB = GetDomInfo()->GetDom(bb->GetId());
 
   if (RS_DUMP) {
-    mLog << "Checking dom list starting " << bb->GetId() << " for saved R" << reg-1 << ":\n  ";
+    mLog << "Checking dom list starting " << bb->GetId() << " for saved R" << (reg - 1) << ":\n  ";
   }
   while (!aBB->GetPreds().empty()) {  /* can't go beyond prolog */
     if (RS_DUMP) {
@@ -316,7 +316,7 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
             regSavedBBs[creg] = memPool->New<SavedBBInfo>(alloc);
           } else {
             for (BB *sbb : sp->GetBBList()) {
-              for (BB *abb = sbb; !abb->GetPreds().empty(); ) {
+              for (BB *abb = sbb; !abb->GetPreds().empty();) {
                 if (abb->GetId() == bbDom->GetId()) {
                   /* Found! Don't plan to save in abb */
                   sp->RemoveBB(sbb);
@@ -496,11 +496,9 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
           CHECK_FATAL(false, "igoto detected");
         }
         Insn *lastInsn = bb->GetLastInsn();
-        if (lastInsn != nullptr && lastInsn->IsBranch() &&
-            (!lastInsn->GetOperand(0).IsRegister() ||   /* not a reg OR */
-             (!AArch64Abi::IsCalleeSavedReg(            /* reg but not cs */
-              static_cast<AArch64reg>(static_cast<RegOperand&>(
-                  lastInsn->GetOperand(0)).GetRegisterNumber()))))) {
+        if (lastInsn != nullptr && lastInsn->IsBranch() && (!lastInsn->GetOperand(0).IsRegister() ||  /* not a reg OR */
+            (!AArch64Abi::IsCalleeSavedReg(            /* reg but not cs */
+                static_cast<AArch64reg>(static_cast<RegOperand&>(lastInsn->GetOperand(0)).GetRegisterNumber()))))) {
           /* To insert in this block - 1 instr */
           SavedRegInfo *sp = GetbbSavedRegsEntry(exitBB);
           sp->InsertExitReg(reg);
@@ -595,7 +593,7 @@ void AArch64RegSavesOpt::InsertCalleeSaveCode() {
           }
           firstHalf = kRinvalid;
           if (RS_DUMP) {
-            mLog << r << reg-1 << " save in BB" << bid << "  Offset = " << regOffset[reg]<< "\n";
+            mLog << r << (reg - 1) << " save in BB" << bid << "  Offset = " << regOffset[reg]<< "\n";
           }
         }
       }
@@ -605,7 +603,7 @@ void AArch64RegSavesOpt::InsertCalleeSaveCode() {
             intRegFirstHalf, kRegTyInt, static_cast<int32>(regOffset[intRegFirstHalf]));
       }
 
-      if(fpRegFirstHalf != kRinvalid) {
+      if (fpRegFirstHalf != kRinvalid) {
         AArch64GenProEpilog::AppendInstructionPushSingle(*cgFunc,
             fpRegFirstHalf, kRegTyFloat, static_cast<int32>(regOffset[fpRegFirstHalf]));
       }

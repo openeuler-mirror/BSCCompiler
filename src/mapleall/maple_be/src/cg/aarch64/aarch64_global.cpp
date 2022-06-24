@@ -630,7 +630,7 @@ bool BackPropPattern::CheckReplacedUseInsn(Insn &insn) {
   for (auto *useInsn : srcOpndUseInsnSet) {
     if (useInsn->GetMemOpnd() != nullptr) {
       auto *a64MemOpnd = static_cast<MemOperand*>(useInsn->GetMemOpnd());
-      if (!a64MemOpnd->IsIntactIndexed() ){
+      if (!a64MemOpnd->IsIntactIndexed()) {
         if (a64MemOpnd->GetBaseRegister() != nullptr &&
             a64MemOpnd->GetBaseRegister()->GetRegisterNumber() == secondRegNO) {
           return false;
@@ -756,7 +756,7 @@ void BackPropPattern::Optimize(Insn &insn) {
     if (opnd.IsRegister() && (static_cast<RegOperand&>(opnd).GetRegisterNumber() == secondRegNO)) {
       /* remove remat info */
       Operand &defOp = defInsnForSecondOpnd->GetOperand(i);
-      CHECK_FATAL(defOp.IsRegister() ,"unexpect def opnd type");
+      CHECK_FATAL(defOp.IsRegister(), "unexpect def opnd type");
       auto &defRegOp = static_cast<RegOperand&>(defOp);
       MIRPreg *preg = static_cast<AArch64CGFunc&>(cgFunc).GetPseudoRegFromVirtualRegNO(
           defRegOp.GetRegisterNumber(), CGOptions::DoCGSSA());
@@ -2216,7 +2216,7 @@ bool SameRHSPropPattern::CheckCondition(Insn &insn) {
     return false;
   }
   uint32 opndNum = prevInsn->GetOperandSize();
-  for(uint32 i = 0; i < opndNum; i++) {
+  for (uint32 i = 0; i < opndNum; ++i) {
     Operand &opnd = prevInsn->GetOperand(i);
     if (!opnd.IsRegister()) {
       continue;

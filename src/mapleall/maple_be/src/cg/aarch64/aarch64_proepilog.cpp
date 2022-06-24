@@ -243,7 +243,7 @@ bool AArch64GenProEpilog::TailCallOpt() {
     } else {
       break;
     }
-  } while(1);
+  } while (1);
 
   /* regular calls exist in function */
   if (nCount != optCount) {
@@ -495,7 +495,7 @@ bool AArch64GenProEpilog::InsertOpndRegs(Operand &op, std::set<regno_t> &vecRegs
 }
 
 bool AArch64GenProEpilog::InsertInsnRegs(Insn &insn, bool insertSource, std::set<regno_t> &vecSourceRegs,
-                                         bool insertTarget, std::set<regno_t> &vecTargetRegs){
+                                         bool insertTarget, std::set<regno_t> &vecTargetRegs) {
   Insn *curInsn = &insn;
   for (uint32 o = 0; o < curInsn->GetOperandSize(); ++o) {
     Operand &opnd = curInsn->GetOperand(o);
@@ -1322,7 +1322,7 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
     for (uint32 i = start_regno + static_cast<uint32>(R0); i < static_cast<uint32>(R8); i++) {
       uint32 tmpOffset = 0;
       if (CGOptions::IsBigEndian()) {
-        if((dataSizeBits >> 3) < 8) {
+        if ((dataSizeBits >> 3) < 8) {
           tmpOffset += 8U - (dataSizeBits >> 3);
         }
       }
@@ -1341,7 +1341,7 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
       for (uint32 i = start_regno + static_cast<uint32>(V0); i < static_cast<uint32>(V8); i++) {
         uint32 tmpOffset = 0;
         if (CGOptions::IsBigEndian()) {
-          if((dataSizeBits >> 3) < 16) {
+          if ((dataSizeBits >> 3) < 16) {
             tmpOffset += 16U - (dataSizeBits >> 3);
           }
         }

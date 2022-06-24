@@ -794,7 +794,7 @@ void A64OpndEmitVisitor::Visit(maplebe::RegOperand *v) {
     }
     case kRegTyFloat: {
       ASSERT((opndSize == k8BitSize || opndSize == k16BitSize || opndSize == k32BitSize ||
-              opndSize == k64BitSize || opndSize == k128BitSize), "illegal register size");
+          opndSize == k64BitSize || opndSize == k128BitSize), "illegal register size");
       if (opndProp->IsVectorOperand() && v->GetVecLaneSize() != 0) {
         EmitVectorOperand(*v);
       } else {
@@ -994,7 +994,7 @@ void A64OpndEmitVisitor::Visit(ExtendShiftOperand *v) {
          "shift amount out of range in ExtendShiftOperand");
   auto emitExtendShift = [this, v](const std::string &extendKind)->void {
     (void)emitter.Emit(extendKind);
-    if (v->GetShiftAmount()!= 0) {
+    if (v->GetShiftAmount() != 0) {
       (void)emitter.Emit(" #").Emit(v->GetShiftAmount());
     }
   };

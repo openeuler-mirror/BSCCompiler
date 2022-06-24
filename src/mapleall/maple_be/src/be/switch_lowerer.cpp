@@ -102,7 +102,7 @@ RangeGotoNode *SwitchLowerer::BuildRangeGotoNode(int32 startIdx, int32 endIdx) {
   node->SetOpnd(stmt->GetSwitchOpnd(), 0);
 
   node->SetRangeGotoTable(SmallCaseVector(mirModule.CurFuncCodeMemPoolAllocator()->Adapter()));
-  node->SetTagOffset(static_cast<int32>(stmt->GetCasePair(startIdx).first));
+  node->SetTagOffset(static_cast<int32>(stmt->GetCasePair(static_cast<size_t>(startIdx)).first));
   uint32 curTag = 0;
   node->AddRangeGoto(curTag, stmt->GetCasePair(startIdx).second);
   int64 lastCaseTag = stmt->GetSwitchTable().at(startIdx).first;
@@ -118,7 +118,7 @@ RangeGotoNode *SwitchLowerer::BuildRangeGotoNode(int32 startIdx, int32 endIdx) {
         node->AddRangeGoto(curTag, stmt->GetDefaultLabel());
       }
     }
-    curTag = static_cast<uint32>(stmt->GetCasePair(i).first - node->GetTagOffset());
+    curTag = static_cast<uint32>(stmt->GetCasePair(static_cast<size_t>(i)).first - node->GetTagOffset());
     node->AddRangeGoto(curTag, stmt->GetCasePair(i).second);
     lastCaseTag = stmt->GetCasePair(i).first;
   }
@@ -254,8 +254,8 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
   }
   if ((start == end) && lowBlockNodeChecked && highBlockNodeChecked) {
     /* only 1 case with 1 tag remains */
-    auto *gotoStmt = BuildGotoNode(switchItems[start].first);
-    if (gotoStmt != nullptr ) {
+    auto *gotoStmt = BuildGotoNode(switchItems[static_cast<size_t>(start)].first);
+    if (gotoStmt != nullptr) {
       localBlk->AddStatement(gotoStmt);
     }
     return localBlk;

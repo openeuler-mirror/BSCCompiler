@@ -40,7 +40,7 @@ uint32 AArch64FixShortBranch::CalculateAlignRange(const BB &bb, uint32 addr) con
   return range > kAlignPseudoSize ? range : kAlignPseudoSize;
 }
 
-void AArch64FixShortBranch::SetInsnId(){
+void AArch64FixShortBranch::SetInsnId() {
   uint32 i = 0;
   AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   FOR_ALL_BB(bb, aarch64CGFunc) {
@@ -91,7 +91,7 @@ void AArch64FixShortBranch::FixShortBranches() {
         if (aarch64CGFunc->DistanceCheck(*bb, label.GetLabelIndex(), insn->GetId())) {
           continue;
         }
-        auto &reg = static_cast<AArch64RegOperand&>(insn->GetOperand(kInsnFirstOpnd));
+        auto &reg = static_cast<RegOperand&>(insn->GetOperand(kInsnFirstOpnd));
         ImmOperand &bitSize = aarch64CGFunc->CreateImmOperand(1, k8BitSize, false);
         auto &bitPos = static_cast<ImmOperand&>(insn->GetOperand(kInsnSecondOpnd));
         MOperator ubfxOp = MOP_undef;
@@ -116,7 +116,7 @@ void AArch64FixShortBranch::FixShortBranches() {
           default:
             break;
         }
-        AArch64RegOperand &tmp = aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(
+        RegOperand &tmp = aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(
             R16, (ubfxOp == MOP_wubfxrri5i5) ? k32BitSize : k64BitSize, kRegTyInt);
         (void)bb->InsertInsnAfter(*insn, cg->BuildInstruction<AArch64Insn>(cbOp, tmp, label));
         (void)bb->InsertInsnAfter(*insn, cg->BuildInstruction<AArch64Insn>(ubfxOp, tmp, reg, bitPos, bitSize));

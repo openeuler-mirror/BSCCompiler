@@ -1139,7 +1139,7 @@ void AArch64CGFunc::SelectAssertNull(UnaryStmtNode &stmt) {
 void AArch64CGFunc::SelectAbort() {
   RegOperand &inOpnd = GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
   auto &mem = CreateMemOpnd(inOpnd, 0, k64BitSize);
-  Insn &movXzr = GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovri64, inOpnd, CreateImmOperand(0, k64BitSize,false));
+  Insn &movXzr = GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovri64, inOpnd, CreateImmOperand(0, k64BitSize, false));
   Insn &loadRef = GetCG()->BuildInstruction<AArch64Insn>(MOP_wldr, GetZeroOpnd(k64BitSize), mem);
   loadRef.SetDoNotRemove(true);
   movXzr.SetDoNotRemove(true);
@@ -1353,7 +1353,7 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
           listOutputOpnd->PushOpnd(static_cast<RegOperand&>(*outOpnd));
           listOutRegPrefix->stringList.push_back(
               static_cast<StringOperand*>(&CreateStringOperand(
-              GetRegPrefixFromPrimType(pty, outOpnd->GetSize(), str))));
+                  GetRegPrefixFromPrimType(pty, outOpnd->GetSize(), str))));
         }
       }
     }
@@ -1974,7 +1974,7 @@ void AArch64CGFunc::SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd
 
 /* Search for CALL/ICALL/ICALLPROTO node, must be called from a blkassignoff node */
 MIRType *AArch64CGFunc::GetAggTyFromCallSite(StmtNode *stmt) {
-  for ( ; stmt != nullptr; stmt = stmt->GetNext()) {
+  for (; stmt != nullptr; stmt = stmt->GetNext()) {
     if (stmt->GetOpCode() == OP_call || stmt->GetOpCode() == OP_icallproto) {
       break;
     }
@@ -2068,7 +2068,7 @@ bool AArch64CGFunc::LmbcSmallAggForRet(const BlkassignoffNode &bNode, Operand *s
       bool intReg = fpregs == 0;
       for (uint32 i = 0; i < numRegs; i++) {
         AArch64reg preg = static_cast<AArch64reg>((intReg ? R0 : V0) + i);
-        MOperator mop = intReg ? MOP_pseudo_ret_int: MOP_pseudo_ret_float;
+        MOperator mop = intReg ? MOP_pseudo_ret_int : MOP_pseudo_ret_float;
         RegOperand &dest = GetOrCreatePhysicalRegisterOperand(preg, loadSize, intReg ? kRegTyInt : kRegTyFloat);
         Insn &pseudo = GetCG()->BuildInstruction<AArch64Insn>(mop, dest);
         GetCurBB()->AppendInsn(pseudo);
@@ -2753,7 +2753,7 @@ void AArch64CGFunc::SelectAddrof(Operand &result, MemOperand &memOpnd, FieldID f
     ASSERT(memOpnd.GetBaseRegister() != nullptr, "nullptr check");
     SelectAdd(result, *memOpnd.GetBaseRegister(), immOpnd, PTY_u32);
     SetStackProtectInfo(kAddrofStack);
-  } else if (!IsAfterRegAlloc()){
+  } else if (!IsAfterRegAlloc()) {
     // Create a new vreg/preg for the upper bits of the address
     PregIdx pregIdx = GetFunction().GetPregTab()->CreatePreg(PTY_a64);
     MIRPreg *tmpPreg = GetFunction().GetPregTab()->PregFromPregIdx(pregIdx);
@@ -3198,7 +3198,7 @@ Operand *AArch64CGFunc::HandleFmovImm(PrimType stype, int64 val, MIRConst &mirCo
     RegOperand &regOpnd = LoadIntoRegister(*newOpnd0, itype);
 
     result = &GetOrCreateResOperand(parent, stype);
-    MOperator mopFmov = (is64Bits ? MOP_xvmovdr: MOP_xvmovsr);
+    MOperator mopFmov = (is64Bits ? MOP_xvmovdr : MOP_xvmovsr);
     GetCurBB()->AppendInsn(cg->BuildInstruction<AArch64Insn>(mopFmov, *result, regOpnd));
   }
   return result;
@@ -3235,7 +3235,7 @@ Operand *SelectStrLiteral(T &c, AArch64CGFunc &cgFunc) {
   labelStr.append(std::to_string(c.GetValue()));
 
   MIRSymbol *labelSym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
-    GlobalTables::GetStrTable().GetStrIdxFromName(labelStr));
+      GlobalTables::GetStrTable().GetStrIdxFromName(labelStr));
   if (labelSym == nullptr) {
     labelSym = cgFunc.GetMirModule().GetMIRBuilder()->CreateGlobalDecl(labelStr, c.GetType());
     labelSym->SetStorageClass(kScFstatic);
@@ -5877,9 +5877,9 @@ bool AArch64CGFunc::IsRegRematCand(const RegOperand &reg) {
   if (preg != nullptr && preg->GetOp() != OP_undef) {
     if (preg->GetOp() == OP_constval && cg->GetRematLevel() >= 1) {
       return true;
-    } else if ( preg->GetOp() == OP_addrof && cg->GetRematLevel() >= 2) {
+    } else if (preg->GetOp() == OP_addrof && cg->GetRematLevel() >= 2) {
       return true;
-    } else if ( preg->GetOp() == OP_iread && cg->GetRematLevel() >= 4) {
+    } else if (preg->GetOp() == OP_iread && cg->GetRematLevel() >= 4) {
       return true;
     } else {
       return false;
@@ -5902,9 +5902,9 @@ bool AArch64CGFunc::IsRegSameRematInfo(const RegOperand &regDest, const RegOpera
   if (pregDest != nullptr && pregDest == pregSrc) {
     if (pregDest->GetOp() == OP_constval && cg->GetRematLevel() >= 1) {
       return true;
-    } else if ( pregDest->GetOp() == OP_addrof && cg->GetRematLevel() >= 2) {
+    } else if (pregDest->GetOp() == OP_addrof && cg->GetRematLevel() >= 2) {
       return true;
-    } else if ( pregDest->GetOp() == OP_iread && cg->GetRematLevel() >= 4) {
+    } else if (pregDest->GetOp() == OP_iread && cg->GetRematLevel() >= 4) {
       return true;
     } else {
       return false;
@@ -6808,7 +6808,7 @@ RegOperand *AArch64CGFunc::CreateVirtualRegisterOperand(regno_t vRegNO, uint32 s
 
 RegOperand &AArch64CGFunc::CreateVirtualRegisterOperand(regno_t vRegNO) {
   ASSERT((vRegOperandTable.find(vRegNO) == vRegOperandTable.end()), "already exist");
-  ASSERT(vRegNO < vRegTable.size() , "index out of range");
+  ASSERT(vRegNO < vRegTable.size(), "index out of range");
   uint8 bitSize = static_cast<uint8>((static_cast<uint32>(vRegTable[vRegNO].GetSize())) * kBitsPerByte);
   RegOperand *res = CreateVirtualRegisterOperand(vRegNO, bitSize, vRegTable.at(vRegNO).GetType());
   vRegOperandTable[vRegNO] = res;
@@ -7658,7 +7658,7 @@ bool AArch64CGFunc::MarkParmListCall(BaseNode &expr) {
   if (!CGOptions::IsPIC()) {
     return false;
   }
-  switch(expr.GetOpCode()) {
+  switch (expr.GetOpCode()) {
     case OP_addrof: {
       auto &addrNode = static_cast<AddrofNode&>(expr);
       MIRSymbol *symbol = GetFunction().GetLocalOrGlobalSymbol(addrNode.GetStIdx());
@@ -7669,7 +7669,7 @@ bool AArch64CGFunc::MarkParmListCall(BaseNode &expr) {
     }
     default: {
       for (auto i = 0; i < expr.GetNumOpnds(); i++) {
-        if(expr.Opnd(i)) {
+        if (expr.Opnd(i)) {
           if (MarkParmListCall(*expr.Opnd(i))) {
             return true;
           }
@@ -8849,7 +8849,7 @@ MemOperand &AArch64CGFunc::CreateMemOpnd(RegOperand &baseOpnd, int64 offset, uin
   if (!checkSimm && !ImmOperand::IsInBitSizeRot(kMaxImmVal12Bits, offset)) {
     Operand *resImmOpnd = &SelectCopy(CreateImmOperand(offset, k32BitSize, true), PTY_i32, PTY_i32);
     return *CreateMemOperand(MemOperand::kAddrModeBOrX, size, baseOpnd,
-                              static_cast<RegOperand*>(resImmOpnd), nullptr, nullptr);
+        static_cast<RegOperand*>(resImmOpnd), nullptr, nullptr);
   } else {
     return *CreateMemOperand(MemOperand::kAddrModeBOi, size, baseOpnd,
                              nullptr, &offsetOpnd, nullptr);
@@ -9167,7 +9167,7 @@ void AArch64CGFunc::SelectLibCallNArg(const std::string &funcName, std::vector<O
 Operand *AArch64CGFunc::GetBaseReg(const AArch64SymbolAlloc &symAlloc) {
   MemSegmentKind sgKind = symAlloc.GetMemSegment()->GetMemSegmentKind();
   ASSERT(((sgKind == kMsArgsRegPassed) || (sgKind == kMsLocals) || (sgKind == kMsRefLocals) ||
-          (sgKind == kMsArgsToStkPass) || (sgKind == kMsArgsStkPassed)), "NYI");
+      (sgKind == kMsArgsToStkPass) || (sgKind == kMsArgsStkPassed)), "NYI");
 
   if (sgKind == kMsArgsStkPassed) {
     return &GetOrCreatevaryreg();
@@ -9922,7 +9922,7 @@ void AArch64CGFunc::SelectCTlsLocalDesc(Operand &result, StImmOperand &stImm) {
 
 void AArch64CGFunc::SelectCTlsGlobalDesc(Operand &result, StImmOperand &stImm) {
   /* according to AArch64 Machine Directives */
-  auto &r0opnd = GetOrCreatePhysicalRegisterOperand (R0, k64BitSize,GetRegTyFromPrimTy(PTY_u64));
+  auto &r0opnd = GetOrCreatePhysicalRegisterOperand (R0, k64BitSize, GetRegTyFromPrimTy(PTY_u64));
   RegOperand *tlsAddr = &CreateRegisterOperandOfType(PTY_u64);
   RegOperand *specialFunc = &CreateRegisterOperandOfType(PTY_u64);
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_tls_desc_call, r0opnd, *tlsAddr, stImm));
@@ -10222,8 +10222,9 @@ Operand *AArch64CGFunc::SelectCisaligned(IntrinsicopNode &intrnNode) {
   return opnd0;
 }
 
-void AArch64CGFunc::SelectArithmeticAndLogical(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType, Opcode op) {
-  switch(op) {
+void AArch64CGFunc::SelectArithmeticAndLogical(Operand &resOpnd, Operand &opnd0, Operand &opnd1,
+                                               PrimType primType, Opcode op) {
+  switch (op) {
     case OP_add:
       SelectAdd(resOpnd, opnd0, opnd1, primType);
       break;
@@ -10294,7 +10295,7 @@ Operand *AArch64CGFunc::SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopN
 
 Operand *AArch64CGFunc::SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, bool retBool) {
   PrimType primType = intrinopNode.GetNopndAt(kInsnSecondOpnd)->GetPrimType();
-  ASSERT(primType == intrinopNode.GetNopndAt(kInsnThirdOpnd)->GetPrimType(),"gcc built_in rule");
+  ASSERT(primType == intrinopNode.GetNopndAt(kInsnThirdOpnd)->GetPrimType(), "gcc built_in rule");
   LabelIdx atomicBBLabIdx = CreateLabel();
   BB *atomicBB = CreateNewBB();
   atomicBB->SetKind(BB::kBBIf);
@@ -11405,7 +11406,7 @@ RegOperand *AArch64CGFunc::SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand
   VectorRegSpec *vecSpec3 = GetMemoryPool()->New<VectorRegSpec>(oTyp3);          /* vector operand 2 */
 
   MOperator mop = IsPrimitiveUnSignedVector(oTyp1) ? MOP_vumaddvvv : MOP_vsmaddvvv;
-  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mop, *o1 , *o2, *o3);
+  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mop, *o1, *o2, *o3);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec1);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec2);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec3);
@@ -11581,7 +11582,7 @@ RegOperand *AArch64CGFunc::SelectVectorShiftRNarrow(PrimType rType, Operand *o1,
   return res;
 }
 
-RegOperand *AArch64CGFunc::SelectVectorSubWiden(PrimType resType, Operand *o1,PrimType otyp1,
+RegOperand *AArch64CGFunc::SelectVectorSubWiden(PrimType resType, Operand *o1, PrimType otyp1,
                                                 Operand *o2, PrimType otyp2, bool isLow, bool isWide) {
   RegOperand *res = &CreateRegisterOperandOfType(resType);                   /* result reg */
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(resType);

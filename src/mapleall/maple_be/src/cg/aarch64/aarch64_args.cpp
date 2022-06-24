@@ -236,7 +236,7 @@ void AArch64MoveRegArgs::GenOneInsn(const ArgInfo &argInfo, RegOperand &baseOpnd
     offsetOpnd.SetVary(kUnAdjustVary);
   }
   MemOperand *memOpnd = aarchCGFunc->CreateMemOperand(MemOperand::kAddrModeBOi,
-                        stBitSize, baseOpnd, nullptr, &offsetOpnd, argInfo.sym);
+      stBitSize, baseOpnd, nullptr, &offsetOpnd, argInfo.sym);
   Insn &insn = aarchCGFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd, *memOpnd);
   if (aarchCGFunc->GetCG()->GenerateVerboseCG()) {
     insn.SetComment(std::string("store param: ").append(argInfo.sym->GetName()));

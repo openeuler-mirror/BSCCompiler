@@ -440,7 +440,7 @@ int32 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, boo
 }
 
 int32 AArch64CallConvImpl::ProcessPtyAggWhenLocateNextParm(MIRType &mirType, CCLocInfo &pLoc, uint64 &typeSize,
-                                                   int32 typeAlign) {
+                                                           int32 typeAlign) {
   /*
    * In AArch64, integer-float or float-integer
    * argument passing is not allowed. All should go through
@@ -627,7 +627,7 @@ void AArch64CallConvImpl::InitReturnInfo(MIRType &retTy, CCLocInfo &ccLocInfo) {
       uint32 fpSize;
       AArch64ArgumentClass classes[kMaxRegCount] = { kAArch64NoClass };
       ccLocInfo.regCount = static_cast<uint8>(ClassifyAggregate(beCommon, retTy, classes,
-                                                      sizeof(classes) / sizeof(AArch64ArgumentClass), fpSize));
+          sizeof(classes) / sizeof(AArch64ArgumentClass), fpSize));
       if (classes[0] == kAArch64FloatClass) {
         switch (ccLocInfo.regCount) {
           case kFourRegister:

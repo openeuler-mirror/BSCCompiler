@@ -66,7 +66,7 @@ class CGLowerer {
     SetCurrentFunc(nullptr);
   }
 
-  virtual ~CGLowerer() {
+  ~CGLowerer() {
     mirBuilder = nullptr;
     currentBlock = nullptr;
   }
@@ -190,7 +190,7 @@ class CGLowerer {
 #if TARGARM32 || TARGAARCH64 || TARGRISCV64
   BlockNode *LowerReturnStruct(NaryStmtNode &retNode);
 #endif
-  virtual BlockNode *LowerReturn(NaryStmtNode &retNode);
+  BlockNode *LowerReturn(NaryStmtNode &retNode);
   void LowerEntry(MIRFunction &func);
 
   StmtNode *LowerCall(

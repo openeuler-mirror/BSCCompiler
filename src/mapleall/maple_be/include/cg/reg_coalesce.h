@@ -45,8 +45,8 @@ public:
     } else {
       MapleVector<posPair> &posVec = it->second;
       if (alreadLive) {
-        posPair lastPos = posVec[posVec.size()-1];
-        posVec[posVec.size()-1] = std::pair(end, lastPos.second);
+        posPair lastPos = posVec[posVec.size() - 1];
+        posVec[posVec.size() - 1] = std::pair(end, lastPos.second);
       } else {
         posVec.emplace_back(std::pair(end, end));
       }

@@ -37,7 +37,7 @@ bool MayOverflow(const ImmOperand &value1, const ImmOperand &value2, bool is64Bi
     return (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
             static_cast<uint64>(cstA) >> rightShiftNumToGetSignFlag) &&
            (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
-            static_cast<uint64>(cstB) >> rightShiftNumToGetSignFlag );
+            static_cast<uint64>(cstB) >> rightShiftNumToGetSignFlag);
   } else {
     /* sub */
     if (!isSigned) {
@@ -186,7 +186,7 @@ MOperator A64ConstProp::GetRegImmMOP(MOperator regregMop, bool withLeftShift) {
 MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const Insn &arithInsn) {
   MOperator arithMop = arithInsn.GetMachineOpcode();
   MOperator newMop = MOP_undef;
-  switch(arithMop) {
+  switch (arithMop) {
     case MOP_waddrrr:
     case MOP_xaddrrr: {
       newVal = constVal + constVal;
@@ -229,7 +229,7 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
       auto &shiftOpnd = static_cast<BitShiftOperand&>(arithInsn.GetOperand(kInsnFourthOpnd));
       uint32 amount = shiftOpnd.GetShiftAmount();
       BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
-      switch(sOp) {
+      switch (sOp) {
         case BitShiftOperand::kLSL: {
           newVal = constVal - static_cast<int64>(((unsigned)constVal << amount));
           break;
@@ -525,7 +525,7 @@ ImmOperand *A64ConstProp::CanDoConstFold(
     tempImm->SetVary(kUnAdjustVary);
   }
   bool canBeMove = tempImm->IsSingleInstructionMovable(k64BitSize);
-  return canBeMove ? static_cast<ImmOperand*>(tempImm->Clone(*cgFunc->GetMemoryPool())): nullptr;
+  return canBeMove ? static_cast<ImmOperand*>(tempImm->Clone(*cgFunc->GetMemoryPool())) : nullptr;
 }
 
 void A64StrLdrProp::DoOpt() {
@@ -912,7 +912,7 @@ void AArch64Prop::PropPatternOpt() {
 
 bool ExtendShiftPattern::IsSwapInsn(const Insn &insn) const {
   MOperator op = insn.GetMachineOpcode();
-  switch(op) {
+  switch (op) {
     case MOP_xaddrrr:
     case MOP_waddrrr:
     case MOP_xiorrrr:
@@ -1107,16 +1107,16 @@ void ExtendShiftPattern::SelectExtendOrShift(const Insn &def) {
  */
 constexpr uint32 kExtenAddShiftNum = 5;
 ExtendShiftPattern::SuffixType optTable[kExtenAddShiftNum][kExtenAddShiftNum] = {
-        { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kLSL, ExtendShiftPattern::kLSR,
-                ExtendShiftPattern::kASR, ExtendShiftPattern::kExten },
-        { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kLSL, ExtendShiftPattern::kNoSuffix,
-                ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kExten },
-        { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kLSR,
-                ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix },
-        { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix,
-                ExtendShiftPattern::kASR, ExtendShiftPattern::kNoSuffix },
-        { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix,
-                ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kExten }
+    { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kLSL, ExtendShiftPattern::kLSR,
+        ExtendShiftPattern::kASR, ExtendShiftPattern::kExten },
+    { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kLSL, ExtendShiftPattern::kNoSuffix,
+        ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kExten },
+    { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kLSR,
+        ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix },
+    { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix,
+        ExtendShiftPattern::kASR, ExtendShiftPattern::kNoSuffix },
+    { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix,
+        ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kExten }
 };
 
 /* Check whether ExtendShiftPattern optimization can be performed. */
@@ -1145,13 +1145,13 @@ constexpr uint32 kExMopTypeSize = 9;
 constexpr uint32 kLsMopTypeSize = 15;
 
 MOperator exMopTable[kExMopTypeSize] = {
-        MOP_undef, MOP_xxwaddrrre, MOP_wwwaddrrre, MOP_xxwsubrrre, MOP_wwwsubrrre,
-        MOP_xwcmnrre, MOP_wwcmnrre, MOP_xwcmprre, MOP_wwcmprre
+    MOP_undef, MOP_xxwaddrrre, MOP_wwwaddrrre, MOP_xxwsubrrre, MOP_wwwsubrrre,
+    MOP_xwcmnrre, MOP_wwcmnrre, MOP_xwcmprre, MOP_wwcmprre
 };
 MOperator lsMopTable[kLsMopTypeSize] = {
-        MOP_undef, MOP_xaddrrrs, MOP_waddrrrs, MOP_xsubrrrs, MOP_wsubrrrs,
-        MOP_xcmnrrs, MOP_wcmnrrs, MOP_xcmprrs, MOP_wcmprrs, MOP_xeorrrrs,
-        MOP_weorrrrs, MOP_xinegrrs, MOP_winegrrs, MOP_xiorrrrs, MOP_wiorrrrs
+    MOP_undef, MOP_xaddrrrs, MOP_waddrrrs, MOP_xsubrrrs, MOP_wsubrrrs,
+    MOP_xcmnrrs, MOP_wcmnrrs, MOP_xcmprrs, MOP_wcmprrs, MOP_xeorrrrs,
+    MOP_weorrrrs, MOP_xinegrrs, MOP_winegrrs, MOP_xiorrrrs, MOP_wiorrrrs
 };
 /* new Insn extenType:
  * =====================
@@ -1654,8 +1654,8 @@ bool ValidBitNumberProp::CheckCondition(Insn &insn) {
     srcOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   }
   if (insn.GetMachineOpcode() == MOP_xubfxrri6i6) {
-    destOpnd= &static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-    srcOpnd= &static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+    destOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+    srcOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
     auto &lsb = static_cast<ImmOperand &>(insn.GetOperand(kInsnThirdOpnd));
     auto &width = static_cast<ImmOperand &>(insn.GetOperand(kInsnFourthOpnd));
     if ((lsb.GetValue() != 0) || (width.GetValue() != k32BitSize)) {
@@ -2304,7 +2304,7 @@ void A64PregCopyPattern::Optimize(Insn &insn) {
       differPhiDefOpnd = &DFSBuildPhiInsn(firstPhiInsn, visited);
     }
     CHECK_FATAL(differPhiDefOpnd, "get differPhiDefOpnd failed");
-    for (uint32 i = 0; i< opndNum; ++i) {
+    for (uint32 i = 0; i < opndNum; ++i) {
       if (defInsn->OpndIsDef(i)) {
         newInsn.SetOperand(i, dstOpnd);
       } else if (i == static_cast<uint32>(differIdx)) {

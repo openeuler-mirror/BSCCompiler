@@ -23,12 +23,12 @@
 namespace {
 using namespace maple;
 const std::unordered_set<std::string> kJniNativeFuncList = {
-  "Landroid_2Fos_2FParcel_3B_7CnativeWriteString_7C_28JLjava_2Flang_2FString_3B_29V_native",
-  "Landroid_2Fos_2FParcel_3B_7CnativeReadString_7C_28J_29Ljava_2Flang_2FString_3B_native",
-  "Landroid_2Fos_2FParcel_3B_7CnativeWriteInt_7C_28JI_29V_native",
-  "Landroid_2Fos_2FParcel_3B_7CnativeReadInt_7C_28J_29I_native",
-  "Landroid_2Fos_2FParcel_3B_7CnativeWriteInterfaceToken_7C_28JLjava_2Flang_2FString_3B_29V_native",
-  "Landroid_2Fos_2FParcel_3B_7CnativeEnforceInterface_7C_28JLjava_2Flang_2FString_3B_29V_native"
+    "Landroid_2Fos_2FParcel_3B_7CnativeWriteString_7C_28JLjava_2Flang_2FString_3B_29V_native",
+    "Landroid_2Fos_2FParcel_3B_7CnativeReadString_7C_28J_29Ljava_2Flang_2FString_3B_native",
+    "Landroid_2Fos_2FParcel_3B_7CnativeWriteInt_7C_28JI_29V_native",
+    "Landroid_2Fos_2FParcel_3B_7CnativeReadInt_7C_28J_29I_native",
+    "Landroid_2Fos_2FParcel_3B_7CnativeWriteInterfaceToken_7C_28JLjava_2Flang_2FString_3B_29V_native",
+    "Landroid_2Fos_2FParcel_3B_7CnativeEnforceInterface_7C_28JLjava_2Flang_2FString_3B_29V_native"
 };
 constexpr uint32 kBinSearchInsnCount = 56;
 // map func name to <filename, insnCount> pair
@@ -345,7 +345,7 @@ void AArch64AsmEmitter::RecordRegInfo(FuncEmitInfo &funcEmitInfo) {
             }
           }
         }
-        if (!safeCheck){
+        if (!safeCheck) {
           mirFunc.SetReferedRegsValid(false);
           return;
         }

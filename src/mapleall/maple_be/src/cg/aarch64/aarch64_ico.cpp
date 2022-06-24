@@ -703,7 +703,7 @@ bool AArch64ICOSameCondPattern::Optimize(BB &secondIfBB) {
   if (firstIfBB == nullptr || firstIfBB->GetKind() != BB::kBBIf || nextBB->GetId() != secondIfBB.GetId()) {
     return false;
   }
-  return DoOpt(firstIfBB,secondIfBB);
+  return DoOpt(firstIfBB, secondIfBB);
 }
 
 bool AArch64ICOPattern::CheckMop(MOperator mOperator) const {

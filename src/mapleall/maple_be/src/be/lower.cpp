@@ -753,8 +753,8 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
   auto primTypeBitSize = GetPrimTypeBitSize(primType);
   if ((static_cast<uint32>(bitOffset) + bitSize) <= primTypeBitSize) {
     if (CGOptions::IsBigEndian()) {
-        bitOffset = (static_cast<int64>(beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte)
-            - bitOffset) - bitSize;
+      bitOffset = (static_cast<int64>(beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte)
+          - bitOffset) - bitSize;
     }
     auto depositBits = builder->CreateExprDepositbits(OP_depositbits, primType, static_cast<uint32>(bitOffset),
         bitSize, bitField, rhs);
@@ -763,7 +763,7 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
   // if space not enough in the unit with size of primType, we would make an extra assignment from next bound
   auto bitsRemained = (bitOffset + bitSize) - primTypeBitSize;
   auto bitsExtracted = primTypeBitSize - bitOffset;
-  if(CGOptions::IsBigEndian()) {
+  if (CGOptions::IsBigEndian()) {
     bitOffset = 0;
   }
   auto *depositedLowerBits = builder->CreateExprDepositbits(OP_depositbits, primType,
@@ -1151,14 +1151,12 @@ StmtNode *CGLowerer::GenIntrinsiccallNode(const StmtNode &stmt, PUIdx &funcCalle
       newCall = mirModule.GetMIRBuilder()->CreateStmtCall(bFunc, origCall.GetNopnd());
     } else {
       if (stmt.GetOpCode() == OP_intrinsiccallassigned) {
-        newCall = mirModule.GetMIRBuilder()->CreateStmtIntrinsicCall(origCall.GetIntrinsic(),
-                                                                      origCall.GetNopnd());
+        newCall = mirModule.GetMIRBuilder()->CreateStmtIntrinsicCall(origCall.GetIntrinsic(), origCall.GetNopnd());
       } else if (stmt.GetOpCode() == OP_xintrinsiccallassigned) {
-        newCall = mirModule.GetMIRBuilder()->CreateStmtXintrinsicCall(origCall.GetIntrinsic(),
-                                                                      origCall.GetNopnd());
+        newCall = mirModule.GetMIRBuilder()->CreateStmtXintrinsicCall(origCall.GetIntrinsic(), origCall.GetNopnd());
       } else {
         newCall = mirModule.GetMIRBuilder()->CreateStmtIntrinsicCall(origCall.GetIntrinsic(), origCall.GetNopnd(),
-                                                                     origCall.GetTyIdx());
+            origCall.GetTyIdx());
       }
     }
     newCall->SetSrcPos(stmt.GetSrcPos());
@@ -3067,7 +3065,7 @@ BaseNode *CGLowerer::LowerIntrinJavaMerge(const BaseNode &parent, IntrinsicopNod
   return resNode;
 }
 
-BaseNode *CGLowerer::LowerIntrinJavaArrayLength(const BaseNode &parent, IntrinsicopNode &intrinNode){
+BaseNode *CGLowerer::LowerIntrinJavaArrayLength(const BaseNode &parent, IntrinsicopNode &intrinNode) {
   BaseNode *resNode = &intrinNode;
   PUIdx bFunc = GetBuiltinToUse(intrinNode.GetIntrinsic());
   CHECK_FATAL(bFunc != kFuncNotFound, "bFunc should not be kFuncNotFound");
@@ -3145,7 +3143,7 @@ BaseNode *CGLowerer::LowerIntrinsicop(const BaseNode &parent, IntrinsicopNode &i
   return resNode;
 }
 
-void CGLowerer::ProcessClassInfo(MIRType &classType, bool &classInfoFromRt, std::string &classInfo){
+void CGLowerer::ProcessClassInfo(MIRType &classType, bool &classInfoFromRt, std::string &classInfo) {
   MIRPtrType &ptrType = static_cast<MIRPtrType&>(classType);
   MIRType *pType = ptrType.GetPointedType();
   CHECK_FATAL(pType != nullptr, "Class type not found for INTRN_JAVA_CONST_CLASS");
@@ -3939,19 +3937,19 @@ bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) const
 void CGLowerer::InitArrayClassCacheTableIndex() {
   MIRSymbol *reflectStrtabSym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
       GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
-      namemangler::kReflectionStrtabPrefixStr + mirModule.GetFileNameAsPostfix()));
+          namemangler::kReflectionStrtabPrefixStr + mirModule.GetFileNameAsPostfix()));
   MIRSymbol *reflectStartHotStrtabSym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
       GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
-      namemangler::kReflectionStartHotStrtabPrefixStr + mirModule.GetFileNameAsPostfix()));
+          namemangler::kReflectionStartHotStrtabPrefixStr + mirModule.GetFileNameAsPostfix()));
   MIRSymbol *reflectBothHotStrtabSym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
       GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
-      namemangler::kReflectionBothHotStrTabPrefixStr + mirModule.GetFileNameAsPostfix()));
+          namemangler::kReflectionBothHotStrTabPrefixStr + mirModule.GetFileNameAsPostfix()));
   MIRSymbol *reflectRunHotStrtabSym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
       GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
-      namemangler::kReflectionRunHotStrtabPrefixStr + mirModule.GetFileNameAsPostfix()));
+          namemangler::kReflectionRunHotStrtabPrefixStr + mirModule.GetFileNameAsPostfix()));
   MIRSymbol *arrayCacheNameTableSym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
       GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
-      namemangler::kArrayClassCacheNameTable + mirModule.GetFileNameAsPostfix()));
+          namemangler::kArrayClassCacheNameTable + mirModule.GetFileNameAsPostfix()));
   if (arrayCacheNameTableSym == nullptr) {
     return;
   }

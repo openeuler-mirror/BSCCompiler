@@ -33,11 +33,11 @@ const uint32 kSizeOfSextMopTable = 5;
 const uint32 kSizeOfUextMopTable = 3;
 
 MOperator sextMopTable[kSizeOfSextMopTable] = {
-  MOP_xsxtb32, MOP_xsxtb64, MOP_xsxth32, MOP_xsxth64, MOP_xsxtw64
+    MOP_xsxtb32, MOP_xsxtb64, MOP_xsxth32, MOP_xsxth64, MOP_xsxtw64
 };
 
 MOperator uextMopTable[kSizeOfUextMopTable] = {
-  MOP_xuxtb32, MOP_xuxth32, MOP_xuxtw64
+    MOP_xuxtb32, MOP_xuxth32, MOP_xuxtw64
 };
 
 const std::string GetReadBarrierName(const Insn &insn) {
@@ -246,7 +246,7 @@ bool ContinuousCmpCsetPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &cmpCCReg = static_cast<RegOperand&>(prevCmpInsn->GetOperand(kInsnFirstOpnd));
-  InsnSet useSet= GetAllUseInsn(cmpCCReg);
+  InsnSet useSet = GetAllUseInsn(cmpCCReg);
   if (useSet.size() > 1) {
     return false;
   }
@@ -972,7 +972,7 @@ bool MvnAndToBicPattern::CheckCondition(Insn &insn) {
   return false;
 }
 
-void MvnAndToBicPattern::Run(BB &bb , Insn &insn) {
+void MvnAndToBicPattern::Run(BB &bb, Insn &insn) {
   if (!CheckCondition(insn)) {
     return;
   }
@@ -1029,7 +1029,7 @@ void AndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
   }
   MOperator mOp = insn.GetMachineOpcode();
   MOperator newMop = MOP_undef;
-  switch(mOp) {
+  switch (mOp) {
     case MOP_wcbz:
       newMop = MOP_wtbz;
       break;
@@ -2386,7 +2386,7 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
   if (insn.IsStore() == isStore) {
     sameMemAccess = true;
   }
-  for(uint32 i = 0; i < opndNum; ++i) {
+  for (uint32 i = 0; i < opndNum; ++i) {
     Operand &opnd = insn.GetOperand(i);
     if (opnd.IsList()) {
       auto &listOpnd = static_cast<ListOperand&>(opnd);
@@ -2454,7 +2454,7 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
 
 bool ComplexExtendWordLslAArch64::IsExtendWordLslPattern(const Insn &insn) {
   Insn *nextInsn = insn.GetNext();
-  if(nextInsn == nullptr) {
+  if (nextInsn == nullptr) {
     return false;
   }
   MOperator nextMop = nextInsn->GetMachineOpcode();
@@ -2635,9 +2635,9 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
         (destOpnd.GetValidBitsNum() == memSize * k8BitSize) &&
         (prevDestOpnd.GetValidBitsNum() == prevMemSize * k8BitSize)) {
       RegOperand &newDest = static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(
-              static_cast<AArch64reg>(destRegNO), k64BitSize, destOpnd.GetRegisterType());
+          static_cast<AArch64reg>(destRegNO), k64BitSize, destOpnd.GetRegisterType());
       RegOperand &newPrevDest = static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(
-              static_cast<AArch64reg>(prevDestRegNO), k64BitSize, prevDestOpnd.GetRegisterType());
+          static_cast<AArch64reg>(prevDestRegNO), k64BitSize, prevDestOpnd.GetRegisterType());
       MemOperand *combineMemOpnd = (offsetVal < prevOffsetVal) ? memOpnd : prevMemOpnd;
       CG *cg = cgFunc->GetCG();
       MOperator mopPair = (destOpnd.GetRegisterType() == kRegTyInt) ? MOP_xstp : MOP_dstp;
@@ -4585,7 +4585,7 @@ void LoadFloatPointPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
-void ReplaceOrrToMovAArch64::Run(BB &bb, Insn &insn){
+void ReplaceOrrToMovAArch64::Run(BB &bb, Insn &insn) {
   Operand *opndOfOrr = nullptr;
   ImmOperand *immOpnd = nullptr;
   RegOperand *reg1 = nullptr;
@@ -5436,7 +5436,7 @@ void AndCmpBranchesToTbzAArch64::Run(BB &bb, Insn &insn) {
   }
 }
 
-void RemoveSxtBeforeStrAArch64::Run(BB &bb , Insn &insn) {
+void RemoveSxtBeforeStrAArch64::Run(BB &bb, Insn &insn) {
   MOperator mop = insn.GetMachineOpcode();
   Insn *prevInsn = insn.GetPreviousMachineInsn();
   if (prevInsn == nullptr) {
@@ -5465,7 +5465,7 @@ void RemoveSxtBeforeStrAArch64::Run(BB &bb , Insn &insn) {
   bb.RemoveInsn(*prevInsn);
 }
 
-void UbfxToUxtwPattern::Run(BB &bb , Insn &insn) {
+void UbfxToUxtwPattern::Run(BB &bb, Insn &insn) {
   if (!CheckCondition(insn)) {
     return;
   }
@@ -5488,7 +5488,7 @@ bool UbfxToUxtwPattern::CheckCondition(Insn &insn) {
   return true;
 }
 
-void UbfxAndCbzToTbzPattern::Run(BB &bb , Insn &insn) {
+void UbfxAndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
   Operand &opnd2 = static_cast<Operand&>(insn.GetOperand(kInsnSecondOpnd));
   ImmOperand &imm3 = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
   if (!CheckCondition(insn)) {
@@ -5553,7 +5553,7 @@ bool UbfxAndCbzToTbzPattern::CheckCondition(Insn &insn) {
   return false;
 }
 
-void ComplexExtendWordLslAArch64::Run(BB &bb , Insn &insn) {
+void ComplexExtendWordLslAArch64::Run(BB &bb, Insn &insn) {
   if (!IsExtendWordLslPattern(insn)) {
     return;
   }
