@@ -59,9 +59,9 @@ std::list<UniqueFEIRStmt> ASTCompoundStmt::Emit2FEStmtImpl() const {
       return;
     }
     UniqueFEIRStmt stmt;
-    if (safeSS == kSafeSS) {
+    if (safeSS == SafeSS::kSafeSS) {
       stmt = std::make_unique<FEIRStmtPesudoSafe>(flag);
-    } else if (safeSS == kUnsafeSS) {
+    } else if (safeSS == SafeSS::kUnsafeSS) {
       stmt = std::make_unique<FEIRStmtPesudoUnsafe>(flag);
     }
     if (stmt != nullptr) {

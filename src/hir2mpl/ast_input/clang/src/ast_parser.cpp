@@ -94,13 +94,13 @@ ASTStmt *ASTParser::ProcessStmtCompoundStmt(MapleAllocator &allocator, const cla
   if (FEOptions::GetInstance().IsEnableSafeRegion()) {
     switch (cpdStmt.getSafeSpecifier()) {
       case clang::SS_None:
-        astCompoundStmt->SetSafeSS(kNoneSS);
+        astCompoundStmt->SetSafeSS(SafeSS::kNoneSS);
         break;
       case clang::SS_Unsafe:
-        astCompoundStmt->SetSafeSS(kUnsafeSS);
+        astCompoundStmt->SetSafeSS(SafeSS::kUnsafeSS);
         break;
       case clang::SS_Safe:
-        astCompoundStmt->SetSafeSS(kSafeSS);
+        astCompoundStmt->SetSafeSS(SafeSS::kSafeSS);
         break;
       default: break;
     }
@@ -953,9 +953,9 @@ ASTExpr *ASTParser::EvaluateExprAsConst(MapleAllocator &allocator, const clang::
     llvm::APSInt intVal = constVal.getInt();
     intExpr->SetVal(intVal.getExtValue());
     if (intVal.getExtValue() == 0) {
-      intExpr->SetEvaluatedFlag(EvaluatedAsZero);
+      intExpr->SetEvaluatedFlag(kEvaluatedAsZero);
     } else {
-      intExpr->SetEvaluatedFlag(EvaluatedAsNonZero);
+      intExpr->SetEvaluatedFlag(kEvaluatedAsNonZero);
     }
     return intExpr;
   } else if (constVal.isFloat()) {
@@ -965,11 +965,11 @@ ASTExpr *ASTParser::EvaluateExprAsConst(MapleAllocator &allocator, const clang::
     double val = 0;
     if (&fltSem == &llvm::APFloat::IEEEsingle()) {
       val = static_cast<double>(floatVal.convertToFloat());
-      floatExpr->SetKind(F32);
+      floatExpr->SetKind(FloatKind::F32);
       floatExpr->SetVal(val);
     } else if (&fltSem == &llvm::APFloat::IEEEdouble()) {
       val = static_cast<double>(floatVal.convertToDouble());
-      floatExpr->SetKind(F64);
+      floatExpr->SetKind(FloatKind::F64);
       floatExpr->SetVal(val);
     } else if (&fltSem == &llvm::APFloat::IEEEquad() || &fltSem == &llvm::APFloat::x87DoubleExtended()) {
       bool losesInfo;
@@ -977,15 +977,15 @@ ASTExpr *ASTParser::EvaluateExprAsConst(MapleAllocator &allocator, const clang::
                              llvm::APFloatBase::rmNearestTiesToAway,
                              &losesInfo);
       val = static_cast<double>(floatVal.convertToDouble());
-      floatExpr->SetKind(F64);
+      floatExpr->SetKind(FloatKind::F64);
       floatExpr->SetVal(val);
     } else {
       return nullptr;
     }
     if (floatVal.isPosZero()) {
-      floatExpr->SetEvaluatedFlag(EvaluatedAsZero);
+      floatExpr->SetEvaluatedFlag(kEvaluatedAsZero);
     } else {
-      floatExpr->SetEvaluatedFlag(EvaluatedAsNonZero);
+      floatExpr->SetEvaluatedFlag(kEvaluatedAsNonZero);
     }
     return floatExpr;
   }
@@ -1331,10 +1331,10 @@ ASTExpr *ASTParser::ProcessExprInitListExpr(MapleAllocator &allocator, const cla
       astInitListExpr->SetInitExprs(astExpr);
     }
   }
-  if (evaluatedFlags.count(NotEvaluated) || evaluatedFlags.count(EvaluatedAsNonZero)) {
-    astInitListExpr->SetEvaluatedFlag(EvaluatedAsNonZero);
+  if (evaluatedFlags.count(kNotEvaluated) || evaluatedFlags.count(kEvaluatedAsNonZero)) {
+    astInitListExpr->SetEvaluatedFlag(kEvaluatedAsNonZero);
   } else {
-    astInitListExpr->SetEvaluatedFlag(EvaluatedAsZero);
+    astInitListExpr->SetEvaluatedFlag(kEvaluatedAsZero);
   }
   return astInitListExpr;
 }
@@ -1429,7 +1429,7 @@ ASTExpr *ASTParser::ProcessExprImplicitValueInitExpr(MapleAllocator &allocator,
   auto *astImplicitValueInitExpr = ASTDeclsBuilder::ASTExprBuilder<ASTImplicitValueInitExpr>(allocator);
   CHECK_FATAL(astImplicitValueInitExpr != nullptr, "astImplicitValueInitExpr is nullptr");
   astImplicitValueInitExpr->SetType(astFile->CvtType(expr.getType()));
-  astImplicitValueInitExpr->SetEvaluatedFlag(EvaluatedAsZero);
+  astImplicitValueInitExpr->SetEvaluatedFlag(kEvaluatedAsZero);
   return astImplicitValueInitExpr;
 }
 
@@ -1940,11 +1940,11 @@ ASTExpr *ASTParser::ProcessExprFloatingLiteral(MapleAllocator &allocator, const 
   double val = 0;
   if (&fltSem == &llvm::APFloat::IEEEdouble()) {
     val = static_cast<double>(apf.convertToDouble());
-    astFloatingLiteral->SetKind(F64);
+    astFloatingLiteral->SetKind(FloatKind::F64);
     astFloatingLiteral->SetVal(val);
   } else if (&fltSem == &llvm::APFloat::IEEEsingle()) {
     val = static_cast<double>(apf.convertToFloat());
-    astFloatingLiteral->SetKind(F32);
+    astFloatingLiteral->SetKind(FloatKind::F32);
     astFloatingLiteral->SetVal(val);
   } else if (&fltSem == &llvm::APFloat::IEEEquad() || &fltSem == &llvm::APFloat::x87DoubleExtended()) {
     bool losesInfo;
@@ -1952,7 +1952,7 @@ ASTExpr *ASTParser::ProcessExprFloatingLiteral(MapleAllocator &allocator, const 
                       llvm::APFloatBase::rmNearestTiesToAway,
                       &losesInfo);
     val = static_cast<double>(apf.convertToDouble());
-    astFloatingLiteral->SetKind(F64);
+    astFloatingLiteral->SetKind(FloatKind::F64);
     astFloatingLiteral->SetVal(val);
   } else {
     CHECK_FATAL(false, "unsupported floating literal");
@@ -2414,7 +2414,7 @@ ASTDecl *ASTParser::ProcessDeclRecordDecl(MapleAllocator &allocator, const clang
     return nullptr;
   }
   GenericAttrs attrs;
-  astFile->CollectRecordAttrs(recDecl, attrs, kNone);
+  astFile->CollectRecordAttrs(recDecl, attrs);
   std::string structName = recName.str();
   if (structName.empty() || !ASTUtil::IsValidName(structName)) {
     structName = astFile->GetTypedefNameFromUnnamedStruct(recDecl);
@@ -2677,7 +2677,7 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
     // has zero, they won't be set initExpr and will be stored into .bss section instead of .data section
     // to reduce code size. However, when passing '-npe-check-dynamic', initExpr should be always set otherwise
     // '-npe-check-dynamic' cannot work as expected.
-    if (FEOptions::GetInstance().IsNpeCheckDynamic() || !isStaticStorageVar || flag != EvaluatedAsZero) {
+    if (FEOptions::GetInstance().IsNpeCheckDynamic() || !isStaticStorageVar || flag != kEvaluatedAsZero) {
       astVar->SetInitExpr(astInitExpr);
     } else {
       astVar->SetAttr(GENATTR_static_init_zero); // used to distinguish with uninitialized vars

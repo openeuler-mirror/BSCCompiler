@@ -628,7 +628,7 @@ TEST_F(AstExprTest, ASTArraySubscriptExpr) {
   // Elem
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral->SetVal(3.5);
-  astFloatingLiteral->SetKind(F64);
+  astFloatingLiteral->SetKind(FloatKind::F64);
 
   // astArraySubscriptExpr
   ASTArraySubscriptExpr *astArraySubscriptExpr = ASTDeclsBuilder::ASTExprBuilder<ASTArraySubscriptExpr>(allocator);
@@ -672,12 +672,12 @@ TEST_F(AstExprTest, InitListExpr_Array) {
   // Elem 0
   ASTFloatingLiteral *astFloatingLiteral0 = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral0->SetVal(2.5);
-  astFloatingLiteral0->SetKind(F64);
+  astFloatingLiteral0->SetKind(FloatKind::F64);
 
   // Elem 1
   ASTFloatingLiteral *astFloatingLiteral1 = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral1->SetVal(3.5);
-  astFloatingLiteral1->SetKind(F64);
+  astFloatingLiteral1->SetKind(FloatKind::F64);
 
   // astInitListExpr
   ASTInitListExpr *astInitListExpr = ASTDeclsBuilder::ASTExprBuilder<ASTInitListExpr>(allocator);

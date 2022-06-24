@@ -390,7 +390,7 @@ void LibAstFile::CheckUnsupportedVarAttrs(const clang::VarDecl &decl) {
               unsupportedVarAttrs.c_str());
 }
 
-void LibAstFile::CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs &genAttrs, AccessKind access) {
+void LibAstFile::CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs &genAttrs) {
   clang::PackedAttr *packedAttr = decl.getAttr<clang::PackedAttr>();
   if (packedAttr != nullptr) {
     genAttrs.SetAttr(GENATTR_pack);
@@ -479,11 +479,11 @@ const std::string LibAstFile::GetOrCreateMappedUnnamedName(uint32_t id) {
   return unnamedSymbolMap[id];
 }
 
-void LibAstFile::EmitTypeName(const clang::RecordType &recoType, std::stringstream &ss) {
-  clang::RecordDecl *recoDecl = recoType.getDecl();
-  std::string str = recoType.desugar().getAsString();
-  if (!recoDecl->isAnonymousStructOrUnion() && str.find("anonymous") == std::string::npos) {
-    clang::DeclContext *ctx = recoDecl->getDeclContext();
+void LibAstFile::EmitTypeName(const clang::RecordType &recordType, std::stringstream &ss) {
+  clang::RecordDecl *recordDecl = recordType.getDecl();
+  std::string str = recordType.desugar().getAsString();
+  if (!recordDecl->isAnonymousStructOrUnion() && str.find("anonymous") == std::string::npos) {
+    clang::DeclContext *ctx = recordDecl->getDeclContext();
     MapleStack<clang::NamedDecl*> nsStack(module->GetMPAllocator().Adapter());
     while (!ctx->isTranslationUnit()) {
       auto *primCtxNsDc = llvm::dyn_cast<clang::NamespaceDecl>(ctx->getPrimaryContext());
@@ -507,22 +507,22 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recoType, std::stringstre
       }
       nsStack.pop();
     }
-    auto nameStr = recoDecl->getName().str();
+    auto nameStr = recordDecl->getName().str();
     if (nameStr.empty()) {
-      nameStr = GetTypedefNameFromUnnamedStruct(*recoDecl);
+      nameStr = GetTypedefNameFromUnnamedStruct(*recordDecl);
     }
     if (nameStr.empty()) {
-      uint32_t id = recoType.getDecl()->getLocation().getRawEncoding();
+      uint32_t id = recordType.getDecl()->getLocation().getRawEncoding();
       nameStr = GetOrCreateMappedUnnamedName(id);
     }
     ss << nameStr;
   } else {
-    uint32_t id = recoType.getDecl()->getLocation().getRawEncoding();
+    uint32_t id = recordType.getDecl()->getLocation().getRawEncoding();
     ss << GetOrCreateMappedUnnamedName(id);
   }
 
-  if (!recoDecl->isDefinedOutsideFunctionOrMethod()) {
-    Pos p = GetDeclPosInfo(*recoDecl);
+  if (!recordDecl->isDefinedOutsideFunctionOrMethod()) {
+    Pos p = GetDeclPosInfo(*recordDecl);
     ss << "_" << p.first << "_" << p.second;
   }
 }

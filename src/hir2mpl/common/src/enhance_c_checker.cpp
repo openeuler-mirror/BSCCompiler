@@ -650,7 +650,7 @@ void ASTParser::ProcessBoundaryFuncPtrAttrsByIndex(MapleAllocator &allocator, co
 
 template <typename T>
 bool ASTParser::ProcessBoundaryFuncPtrAttrsByIndexForParams(T *attr, ASTDecl &astDecl, const MIRFuncType &funcType,
-                                                            std::vector<TypeAttrs> &attrsVec) {
+                                                            std::vector<TypeAttrs> &attrsVec) const {
   bool isUpdated = false;
   std::vector<TyIdx> typesVec = funcType.GetParamTypeList();
   unsigned int lenIdx = attr->getLenVarIndex().getASTIndex();

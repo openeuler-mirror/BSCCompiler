@@ -14,7 +14,6 @@
  */
 #ifndef HIR2MPL_AST_FILE_INCLUDE_AST_ALIAS_H
 #define HIR2MPL_AST_FILE_INCLUDE_AST_ALIAS_H
-#include "clang-c/Index.h"
 #include "libclang/CIndexer.h"
 #include "libclang/CXTranslationUnit.h"
 #include "clang/Frontend/ASTUnit.h"
@@ -27,8 +26,6 @@
 #include "clang/AST/Mangle.h"
 #include "clang/AST/VTableBuilder.h"
 #include "clang/AST/VTTBuilder.h"
-#include "clang/Lex/Lexer.h"
-#include "clang/Frontend/ASTConsumers.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/AST/DeclBase.h"
 

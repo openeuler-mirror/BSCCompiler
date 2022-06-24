@@ -897,7 +897,7 @@ ASTExpr *ASTParser::ParseBuiltinHugeVal(MapleAllocator &allocator, const clang::
   (void)expr;
   (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
-  astFloatingLiteral->SetKind(F64);
+  astFloatingLiteral->SetKind(FloatKind::F64);
   astFloatingLiteral->SetVal(std::numeric_limits<double>::infinity());
   return astFloatingLiteral;
 }
@@ -907,7 +907,7 @@ ASTExpr *ASTParser::ParseBuiltinHugeValf(MapleAllocator &allocator, const clang:
   (void)expr;
   (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
-  astFloatingLiteral->SetKind(F32);
+  astFloatingLiteral->SetKind(FloatKind::F32);
   astFloatingLiteral->SetVal(std::numeric_limits<float>::infinity());
   return astFloatingLiteral;
 }
@@ -917,7 +917,7 @@ ASTExpr *ASTParser::ParseBuiltinInf(MapleAllocator &allocator, const clang::Call
   (void)expr;
   (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
-  astFloatingLiteral->SetKind(F64);
+  astFloatingLiteral->SetKind(FloatKind::F64);
   astFloatingLiteral->SetVal(std::numeric_limits<float>::infinity());
   return astFloatingLiteral;
 }
@@ -927,7 +927,7 @@ ASTExpr *ASTParser::ParseBuiltinInff(MapleAllocator &allocator, const clang::Cal
   (void)expr;
   (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
-  astFloatingLiteral->SetKind(F32);
+  astFloatingLiteral->SetKind(FloatKind::F32);
   astFloatingLiteral->SetVal(std::numeric_limits<float>::infinity());
   return astFloatingLiteral;
 }
@@ -937,7 +937,7 @@ ASTExpr *ASTParser::ParseBuiltinNan(MapleAllocator &allocator, const clang::Call
   (void)expr;
   (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
-  astFloatingLiteral->SetKind(F64);
+  astFloatingLiteral->SetKind(FloatKind::F64);
   astFloatingLiteral->SetVal(nan(""));
   return astFloatingLiteral;
 }
@@ -947,7 +947,7 @@ ASTExpr *ASTParser::ParseBuiltinNanf(MapleAllocator &allocator, const clang::Cal
   (void)expr;
   (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
-  astFloatingLiteral->SetKind(F32);
+  astFloatingLiteral->SetKind(FloatKind::F32);
   astFloatingLiteral->SetVal(nanf(""));
   return astFloatingLiteral;
 }

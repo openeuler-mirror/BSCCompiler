@@ -21,7 +21,7 @@
 namespace maple {
 class ASTDecl;
 
-enum SafeSS {
+enum class SafeSS {
   kNoneSS,
   kSafeSS,
   kUnsafeSS,
@@ -109,9 +109,9 @@ class ASTCompoundStmt : public ASTStmt {
   }
 
  private:
-  SafeSS safeSS = kNoneSS;
+  SafeSS safeSS = SafeSS::kNoneSS;
   MapleList<ASTStmt*> astStmts; // stmts
-  Loc endLoc = {0, 0 ,0};
+  Loc endLoc = {0, 0, 0};
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
   mutable bool hasEmitted2MIRScope = false;
 };
@@ -193,7 +193,7 @@ class ASTForStmt : public ASTStmt {
   ASTExpr *condExpr = nullptr;
   ASTExpr *incExpr = nullptr;
   ASTStmt *bodyStmt = nullptr;
-  Loc endLoc = {0, 0 ,0};
+  Loc endLoc = {0, 0, 0};
   mutable bool hasEmitted2MIRScope = false;
 };
 

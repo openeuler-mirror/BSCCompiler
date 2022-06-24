@@ -45,16 +45,16 @@ struct ASTValue {
   MIRConst *Translate2MIRConst() const;
 };
 
-enum ParentFlag {
+enum class ParentFlag {
   kNoParent,
   kArrayParent,
   kStructParent
 };
 
 enum EvaluatedFlag : uint8 {
-  EvaluatedAsZero,
-  EvaluatedAsNonZero,
-  NotEvaluated
+  kEvaluatedAsZero,
+  kEvaluatedAsNonZero,
+  kNotEvaluated
 };
 
 class ASTExpr {
@@ -157,7 +157,7 @@ class ASTExpr {
   bool isConstantFolded = false;
   ASTValue *value = nullptr;
   Loc loc = {0, 0, 0};
-  EvaluatedFlag evaluatedflag = NotEvaluated;
+  EvaluatedFlag evaluatedflag = kNotEvaluated;
   bool isRValue = false;
 };
 
@@ -659,18 +659,16 @@ class ASTInitListExpr : public ASTExpr {
  private:
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
-  void ProcessInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base, const ASTInitListExpr *initList,
-                       std::list<UniqueFEIRStmt> &stmts) const;
+  void ProcessInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
+                       const ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessArrayInitList(const UniqueFEIRExpr &addrOfArray, const ASTInitListExpr *initList,
                             std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                              const ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
   std::tuple<uint32, uint32, MIRType*> GetStructFieldInfo(uint32 fieldIndex, uint32 baseFieldID,
                                                           MIRStructType &structMirType) const;
-  void InitializeStructFieldsWithMemset(std::list<UniqueFEIRStmt> &stmtsIn,
-                                        std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &baseIn,
-                                        UniqueFEIRVar &varIn, uint32 initSizeIn, uint32 fieldIDIn, uint32 sizeIn,
-                                        Loc loc = {0 , 0, 0}) const;
+  UniqueFEIRExpr CalculateStartAddressForMemset(UniqueFEIRVar &varIn, uint32 initSizeIn, uint32 fieldIDIn,
+      std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &baseIn) const;
   UniqueFEIRExpr GetAddrofArrayFEExprByStructArrayField(MIRType *fieldType, UniqueFEIRExpr addrOfArrayField) const;
   void ProcessVectorInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                              const ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
@@ -680,14 +678,14 @@ class ASTInitListExpr : public ASTExpr {
   void ProcessStringLiteralInitList(const UniqueFEIRExpr &addrOfCharArray, const UniqueFEIRExpr &addrOfStringLiteral,
                                     size_t stringLength, std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessImplicitInit(const UniqueFEIRExpr &addrExpr, uint32 initSize, uint32 total, uint32 elemSize,
-                           std::list<UniqueFEIRStmt> &stmts, Loc loc ={0, 0, 0}) const;
+                           std::list<UniqueFEIRStmt> &stmts, Loc loc = {0, 0, 0}) const;
   MIRConst *GenerateMIRConstForArray() const;
   MIRConst *GenerateMIRConstForStruct() const;
   MapleVector<ASTExpr*> initExprs;
   ASTExpr *arrayFillerExpr = nullptr;
   MIRType *initListType = nullptr;
   MapleString varName;
-  ParentFlag parentFlag = kNoParent;
+  ParentFlag parentFlag = ParentFlag::kNoParent;
   uint32 unionInitFieldIdx = UINT32_MAX;
   bool hasArrayFiller = false;
   bool isTransparent = false;
@@ -843,11 +841,11 @@ class ASTStringLiteral : public ASTExpr {
       str.clear();
       str.shrink_to_fit();
     }
-    str.insert(str.end(), strIn.begin(), strIn.end());
+    str.insert(str.end(), strIn.cbegin(), strIn.cend());
   }
 
   const std::string GetStr() const {
-    return std::string(str.begin(), str.end());
+    return std::string(str.cbegin(), str.cend());
   }
 
   void SetIsArrayToPointerDecay(bool argIsArrayToPointerDecay) {
@@ -1052,7 +1050,7 @@ class ASTDesignatedInitUpdateExpr : public ASTExpr {
     return initListType;
   }
 
-  void SetInitListVarName (const std::string &name) {
+  void SetInitListVarName(const std::string &name) {
     initListVarName = name;
   }
 
@@ -1097,7 +1095,7 @@ class ASTBOComma : public ASTBinaryOperatorExpr {
 
 class ASTBOPtrMemExpr : public ASTBinaryOperatorExpr {
  public:
-  ASTBOPtrMemExpr(MapleAllocator &allocatorIn) : ASTBinaryOperatorExpr(allocatorIn, kASTOpPtrMemD) {}
+  explicit ASTBOPtrMemExpr(MapleAllocator &allocatorIn) : ASTBinaryOperatorExpr(allocatorIn, kASTOpPtrMemD) {}
   ~ASTBOPtrMemExpr() override = default;
 
  private:
@@ -1106,8 +1104,9 @@ class ASTBOPtrMemExpr : public ASTBinaryOperatorExpr {
 
 class ASTCallExpr : public ASTExpr {
  public:
-  explicit ASTCallExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpCall), args(allocatorIn.Adapter()),
-      funcName("", allocatorIn.GetMemPool()), varName(FEUtils::GetSequentialName("retVar_"), allocatorIn.GetMemPool()) {}
+  explicit ASTCallExpr(MapleAllocator &allocatorIn)
+      : ASTExpr(kASTOpCall), args(allocatorIn.Adapter()), funcName("", allocatorIn.GetMemPool()),
+        varName(FEUtils::GetSequentialName("retVar_"), allocatorIn.GetMemPool()) {}
   ~ASTCallExpr() = default;
   void SetCalleeExpr(ASTExpr *astExpr) {
     calleeExpr = astExpr;
@@ -1422,7 +1421,7 @@ class ASTIntegerLiteral : public ASTExpr {
   int64 val = 0;
 };
 
-enum FloatKind {
+enum class FloatKind {
   F32,
   F64
 };
@@ -1454,7 +1453,7 @@ class ASTFloatingLiteral : public ASTExpr {
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   MIRConst *GenerateMIRConstImpl() const override;
   double val = 0;
-  FloatKind kind = F32;
+  FloatKind kind = FloatKind::F32;
 };
 
 class ASTCharacterLiteral : public ASTExpr {

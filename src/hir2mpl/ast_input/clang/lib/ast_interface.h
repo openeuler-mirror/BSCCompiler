@@ -82,15 +82,15 @@ class LibAstFile {
   const std::string GetOrCreateMappedUnnamedName(uint32_t id);
 
   void EmitTypeName(const clang::QualType qualType, std::stringstream &ss);
-  void EmitTypeName(const clang::RecordType &qualType, std::stringstream &ss);
+  void EmitTypeName(const clang::RecordType &recordType, std::stringstream &ss);
   void EmitQualifierName(const clang::QualType qualType, std::stringstream &ss);
   std::string GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl) const;
-  void CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualType &qualType, MIRType *&elemType,
+  void CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
                                                     TypeAttrs &elemAttr, std::vector<uint32_t> &operands);
 
-  void CollectBaseEltTypeAndDimFromVariaArrayDecl(const clang::QualType &qualType, MIRType *&elemType,
+  void CollectBaseEltTypeAndDimFromVariaArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
                                                   TypeAttrs &elemAttr, uint8_t &dim);
-  void CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(const clang::QualType qualType, MIRType *&elemType,
+  void CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(const clang::QualType currQualType, MIRType *&elemType,
                                                            TypeAttrs &elemAttr, std::vector<uint32_t> &operands);
 
   void GetCVRAttrs(uint32_t qualifiers, GenericAttrs &genAttrs);
@@ -104,11 +104,11 @@ class LibAstFile {
   void CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl);
   void CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access);
   void CheckUnsupportedVarAttrs(const clang::VarDecl &decl);
-  void CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs &genAttrs, AccessKind access);
+  void CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs &genAttrs);
   void CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl);
   void CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &genAttrs, AccessKind access);
   MIRType *CvtPrimType(const clang::QualType qualType) const;
-  PrimType CvtPrimType(const clang::BuiltinType::Kind) const;
+  PrimType CvtPrimType(const clang::BuiltinType::Kind kind) const;
   MIRType *CvtType(const clang::QualType qualType);
   MIRType *CvtOtherType(const clang::QualType srcType);
   MIRType *CvtArrayType(const clang::QualType srcType);

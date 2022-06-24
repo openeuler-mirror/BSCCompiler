@@ -1173,8 +1173,8 @@ void ASTInitListExpr::ProcessStringLiteralInitList(const UniqueFEIRExpr &addrOfC
   }
 }
 
-void ASTInitListExpr::ProcessImplicitInit(const UniqueFEIRExpr &addrExpr, uint32 initSize,uint32 total, uint32 elemSize,
-                                          std::list<UniqueFEIRStmt> &stmts, Loc loc) const {
+void ASTInitListExpr::ProcessImplicitInit(const UniqueFEIRExpr &addrExpr, uint32 initSize, uint32 total,
+    uint32 elemSize,std::list<UniqueFEIRStmt> &stmts, Loc loc) const {
   if (initSize >= total) {
     return;
   }
@@ -1228,9 +1228,8 @@ void ASTInitListExpr::ProcessDesignatedInitUpdater(
   ProcessInitList(base, static_cast<const ASTInitListExpr*>(updaterExpr), stmts);
 }
 
-void ASTInitListExpr::InitializeStructFieldsWithMemset(std::list<UniqueFEIRStmt> &stmtsIn,
-    std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &baseIn,
-    UniqueFEIRVar &varIn, uint32 initSizeIn, uint32 fieldIDIn, uint32 sizeIn, Loc loc) const {
+UniqueFEIRExpr ASTInitListExpr::CalculateStartAddressForMemset(UniqueFEIRVar &varIn, uint32 initSizeIn,
+    uint32 fieldIDIn, std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &baseIn) const {
   UniqueFEIRExpr addrOfExpr;
   if (std::holds_alternative<UniqueFEIRExpr>(baseIn)) {
     UniqueFEIRExpr offsetExpr = FEIRBuilder::CreateExprConstU32(initSizeIn);
@@ -1239,7 +1238,7 @@ void ASTInitListExpr::InitializeStructFieldsWithMemset(std::list<UniqueFEIRStmt>
   } else {
     addrOfExpr = std::make_unique<FEIRExprAddrofVar>(varIn->Clone(), fieldIDIn);
   }
-  ProcessImplicitInit(addrOfExpr->Clone(), 0, sizeIn, 1, stmtsIn, loc);
+  return addrOfExpr;
 }
 
 std::tuple<uint32, uint32, MIRType*> ASTInitListExpr::GetStructFieldInfo(uint32 fieldIndex,
@@ -1287,7 +1286,7 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
     return;
   }
 
-  if (!FEOptions::GetInstance().IsNpeCheckDynamic() && initList->GetEvaluatedFlag() == EvaluatedAsZero) {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() && initList->GetEvaluatedFlag() == kEvaluatedAsZero) {
     if (baseStructMirType->GetKind() == kTypeStruct) {
       std::tuple<uint32, uint32, MIRType*> fieldInfo = GetStructFieldInfo(0, baseFieldID, *curStructMirType);
       uint32 fieldID = std::get<0>(fieldInfo);
@@ -1323,7 +1322,7 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
     if (!FEOptions::GetInstance().IsNpeCheckDynamic() &&
         curStructMirType->GetKind() == kTypeStruct &&
         fieldMirType->GetKind() != kTypeBitField && // skip bitfield type field because it not follows byte alignment
-        initList->initExprs[i]->GetEvaluatedFlag() == EvaluatedAsZero &&
+        initList->initExprs[i]->GetEvaluatedFlag() == kEvaluatedAsZero &&
         (baseStructMirType->GetBitOffsetFromBaseAddr(fieldID) / 8) % 4 == 0) {
       uint32 fieldsCount = 0;
       int64 initBitSize = baseStructMirType->GetBitOffsetFromBaseAddr(fieldID); // in bit
@@ -1332,7 +1331,7 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
       size_t start = i;
       while (i < initList->initExprs.size() &&
              initList->initExprs[i] != nullptr &&
-             initList->initExprs[i]->GetEvaluatedFlag() == EvaluatedAsZero) {
+             initList->initExprs[i]->GetEvaluatedFlag() == kEvaluatedAsZero) {
         fieldInfo = GetStructFieldInfo(i, baseFieldID, *curStructMirType);
         curFieldTypeSize = std::get<1>(fieldInfo);
         fieldMirType = std::get<2>(fieldInfo);
@@ -1348,9 +1347,9 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
       int64 fieldsBitSize = (baseStructMirType->GetBitOffsetFromBaseAddr(fieldIdOfLastZero) +
           fieldSizeOfLastZero * 8) - initBitSize;
       if (fieldsCount >= 2 && fieldsBitSize % 8 == 0 && (fieldsBitSize / 8) % 4 == 0) {
-        InitializeStructFieldsWithMemset(stmts, base, var, static_cast<uint32>(initBitSize / 8), fieldID,
-                                         static_cast<uint32>(fieldsBitSize / 8),
-                                         initList->initExprs[start]->GetSrcLoc());
+        auto addrOfExpr = CalculateStartAddressForMemset(var, static_cast<uint32>(initBitSize / 8), fieldID, base);
+        ProcessImplicitInit(addrOfExpr->Clone(), 0, static_cast<uint32>(fieldsBitSize / 8), 1, stmts,
+                            initList->initExprs[start]->GetSrcLoc());
         --i;
         continue;
       } else {
@@ -1359,8 +1358,9 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
     }
 
     if (initList->initExprs[i]->GetASTOp() == kASTImplicitValueInitExpr && fieldMirType->GetPrimType() == PTY_agg) {
-      InitializeStructFieldsWithMemset(stmts, base, var, offset - curFieldTypeSize, fieldID, fieldMirType->GetSize(),
-                                       initList->initExprs[i]->GetSrcLoc());
+      auto addrOfExpr = CalculateStartAddressForMemset(var, offset - curFieldTypeSize, fieldID, base);
+      ProcessImplicitInit(addrOfExpr->Clone(), 0, fieldMirType->GetSize(), 1, stmts,
+                          initList->initExprs[i]->GetSrcLoc());
       continue;
     }
 
@@ -1456,7 +1456,7 @@ void ASTInitListExpr::ProcessArrayInitList(const UniqueFEIRExpr &addrOfArray, co
   auto elementPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*elementType);
   auto elementPtrFEType = FEIRTypeHelper::CreateTypeNative(*elementPtrType);
   CHECK_FATAL(initExprs.size() <= INT_MAX, "invalid index");
-  if (!FEOptions::GetInstance().IsNpeCheckDynamic() && initList->GetEvaluatedFlag() == EvaluatedAsZero) {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() && initList->GetEvaluatedFlag() == kEvaluatedAsZero) {
     ProcessImplicitInit(addrOfArray->Clone(), 0, arrayMirType->GetSize(), 1, stmts, initList->GetSrcLoc());
     return;
   }
@@ -1472,7 +1472,7 @@ void ASTInitListExpr::ProcessArrayInitList(const UniqueFEIRExpr &addrOfArray, co
     }
     if (subExpr->GetASTOp() == kASTOpInitListExpr) {
       auto base = std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr>(addrOfElemExpr->Clone());
-      if (!FEOptions::GetInstance().IsNpeCheckDynamic() && subExpr->GetEvaluatedFlag() == EvaluatedAsZero) {
+      if (!FEOptions::GetInstance().IsNpeCheckDynamic() && subExpr->GetEvaluatedFlag() == kEvaluatedAsZero) {
         UniqueFEIRExpr realAddr = addrOfArray->Clone();
           if (i > 0) {
             UniqueFEIRExpr indexExpr = FEIRBuilder::CreateExprConstI32(static_cast<int32>(i));
@@ -2328,7 +2328,7 @@ MIRConst *ASTFloatingLiteral::GenerateMIRConstImpl() const {
   MemPool *mp = FEManager::GetModule().GetMemPool();
   MIRConst *cst;
   MIRType *type;
-  if (kind == F32) {
+  if (kind == FloatKind::F32) {
     type = GlobalTables::GetTypeTable().GetPrimType(PTY_f32);
     cst = mp->New<MIRFloatConst>(static_cast<float>(val), *type);
   } else {
@@ -2341,7 +2341,7 @@ MIRConst *ASTFloatingLiteral::GenerateMIRConstImpl() const {
 UniqueFEIRExpr ASTFloatingLiteral::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   (void)stmts;
   UniqueFEIRExpr expr;
-  if (kind == F32) {
+  if (kind == FloatKind::F32) {
     expr = FEIRBuilder::CreateExprConstF32(static_cast<float>(val));
   } else {
     expr = FEIRBuilder::CreateExprConstF64(val);
