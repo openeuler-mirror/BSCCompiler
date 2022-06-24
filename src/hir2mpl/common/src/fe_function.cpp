@@ -795,8 +795,7 @@ void FEFunction::PushFuncScope(const SrcPosition &startOfScope, const SrcPositio
   UniqueFEIRScope feirScope = std::make_unique<FEIRScope>();
   if (FEOptions::GetInstance().IsDbgFriendly()) {
     MIRScope *mockedScope = mirFunction.GetScope();
-    MIRScope *mirScope = mirFunction.GetModule()->GetMemPool()->New<MIRScope>(
-        mirFunction.GetModule(), 1);  // func scope start level is 1
+    MIRScope *mirScope = mirFunction.GetModule()->GetMemPool()->New<MIRScope>(mirFunction.GetModule());
     mirScope->SetRange(startOfScope, endOfScope);
     mockedScope->AddScope(mirScope);
     feirScope->SetMIRScope(mirScope);

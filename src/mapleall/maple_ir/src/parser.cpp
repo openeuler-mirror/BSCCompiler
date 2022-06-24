@@ -2464,8 +2464,7 @@ bool MIRParser::ParseOneScope(MIRScope &scope) {
         break;
       }
       case TK_SCOPE: {
-        // initial level 1
-        MIRScope *scp = mod.GetMemPool()->New<MIRScope>(&mod, 1);
+        MIRScope *scp = mod.GetMemPool()->New<MIRScope>(&mod);
         status = ParseOneScope(*scp);
         if (status) {
           scope.AddScope(scp);
@@ -2491,8 +2490,7 @@ bool MIRParser::ParseOneScope(MIRScope &scope) {
 }
 
 bool MIRParser::ParseScope(StmtNodePtr &stmt) {
-  // initial level 1
-  MIRScope *scp = mod.GetMemPool()->New<MIRScope>(&mod, 1);
+  MIRScope *scp = mod.GetMemPool()->New<MIRScope>(&mod);
   bool status = ParseOneScope(*scp);
   if (status) {
     mod.CurFunction()->GetScope()->AddScope(scp);

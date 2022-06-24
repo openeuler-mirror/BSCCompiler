@@ -12,10 +12,15 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "mir_scope.h"
 #include "mir_function.h"
 #include "printing.h"
 
 namespace maple {
+
+static unsigned scopeId = 0;
+
+MIRScope::MIRScope(MIRModule *mod, unsigned l) : module(mod), level(l), id(scopeId++) {}
 
 // scp is a sub scope
 // (low (scp.low, scp.high] high]
@@ -66,10 +71,10 @@ void MIRScope::IncLevel() {
 bool MIRScope::AddScope(MIRScope *scope) {
   // check first if it is valid with parent scope and sibling sub scopes
   CHECK_FATAL(IsSubScope(scope), "<%s %s> is not a subscope of scope <%s %s>",
-                scope->GetRangeLow().DumpLocWithColToString().c_str(),
-                scope->GetRangeHigh().DumpLocWithColToString().c_str(),
-                GetRangeLow().DumpLocWithColToString().c_str(),
-                GetRangeHigh().DumpLocWithColToString().c_str());
+              scope->GetRangeLow().DumpLocWithColToString().c_str(),
+              scope->GetRangeHigh().DumpLocWithColToString().c_str(),
+              GetRangeLow().DumpLocWithColToString().c_str(),
+              GetRangeHigh().DumpLocWithColToString().c_str());
   for (auto *s : subScopes) {
     if (!HasSameRange(s, scope) && HasJoinScope(s, scope)) {
       CHECK_FATAL(false, "<%s %s> has join range with another subscope <%s %s>",
