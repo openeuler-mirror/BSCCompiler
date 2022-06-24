@@ -825,8 +825,7 @@ MIRScope *FEFunction::GetFunctionScope() {
 }
 
 void FEFunction::AddAliasInMIRScope(MIRScope *scope, const std::string &srcVarName, const MIRSymbol *symbol) {
-  GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
-      namemangler::EncodeName(srcVarName));
+  GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(srcVarName);
   MIRAliasVars aliasVar;
   aliasVar.tyIdx = symbol->GetTyIdx();
   aliasVar.memPoolStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(symbol->GetName());

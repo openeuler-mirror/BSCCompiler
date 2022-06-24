@@ -113,6 +113,7 @@ class ASTCompoundStmt : public ASTStmt {
   MapleList<ASTStmt*> astStmts; // stmts
   Loc endLoc = {0, 0 ,0};
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
+  mutable bool hasEmitted2MIRScope = false;
 };
 
 // Any other expressions or stmts should be extended here
@@ -193,6 +194,7 @@ class ASTForStmt : public ASTStmt {
   ASTExpr *incExpr = nullptr;
   ASTStmt *bodyStmt = nullptr;
   Loc endLoc = {0, 0 ,0};
+  mutable bool hasEmitted2MIRScope = false;
 };
 
 class ASTWhileStmt : public ASTStmt {

@@ -350,6 +350,7 @@ class ASTVar : public ASTDecl {
   std::string asmAttr;
   ASTExpr *variableArrayExpr = nullptr;
   PrimType promotedType = PTY_void;
+  bool hasAddedInMIRScope = false;
 };
 
 class ASTFileScopeAsm : public ASTDecl {

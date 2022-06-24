@@ -136,11 +136,12 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   MIRSymbol *sym = Translate2MIRSymbol();
   ENCChecker::CheckNonnullLocalVarInit(*sym, initExpr);
   UniqueFEIRVar feirVar = Translate2FEIRVar();
-  if (FEOptions::GetInstance().IsDbgFriendly()) {
+  if (FEOptions::GetInstance().IsDbgFriendly() && !hasAddedInMIRScope) {
     FEFunction &feFunction = FEManager::GetCurrentFEFunction();
     MIRScope *mirScope = feFunction.GetTopStmtScope();
     ASSERT_NOT_NULL(mirScope);
     feFunction.AddAliasInMIRScope(mirScope, GetName(), sym);
+    hasAddedInMIRScope = true;
   }
   if (variableArrayExpr != nullptr) {
     // free, Currently, the back-end are not supported.
