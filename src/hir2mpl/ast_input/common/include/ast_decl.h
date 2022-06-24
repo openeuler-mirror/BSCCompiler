@@ -120,6 +120,10 @@ class ASTDecl {
     loc = l;
   }
 
+  const Loc &GetSrclOC() const {
+    return loc;
+  }
+
   uint32 GetSrcFileIdx() const {
     return loc.fileIdx;
   }

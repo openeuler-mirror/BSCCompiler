@@ -165,9 +165,9 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   if (mirSymbol->GetType()->GetTypeIndex() != type->GetTypeIndex()) {
     mirSymbol->SetTyIdx(type->GetTypeIndex());
   }
-  mirSymbol->GetSrcPosition().SetFileNum(static_cast<uint16>(astVar.GetSrcFileIdx()));
-  mirSymbol->GetSrcPosition().SetLineNum(astVar.GetSrcFileLineNum());
-  mirSymbol->GetSrcPosition().SetColumn(static_cast<uint16>(astVar.GetSrcFileColumn()));
+  if (mirSymbol->GetSrcPosition().LineNum() == 0) {
+    mirSymbol->SetSrcPosition(astVar.GetSrclOC().Emit2SourcePosition());
+  }
   auto typeAttrs = astVar.GetGenericAttrs().ConvertToTypeAttrs();
   ENCChecker::InsertBoundaryInAtts(typeAttrs, astVar.GetBoundaryInfo());
   // do not allow extern var override global var
@@ -241,9 +241,7 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   }
   mirFunc = FEManager::GetTypeManager().CreateFunction(methodNameIdx, retMIRType->GetTypeIndex(),
                                                        argsTypeIdx, isVarg, isStatic);
-  mirFunc->GetSrcPosition().SetFileNum(static_cast<uint16>(func.GetSrcFileIdx()));
-  mirFunc->GetSrcPosition().SetLineNum(func.GetSrcFileLineNum());
-  mirFunc->GetSrcPosition().SetColumn(static_cast<uint16>(func.GetSrcFileColumn()));
+  mirFunc->SetSrcPosition(func.GetSrclOC().Emit2SourcePosition());
   MIRSymbol *funSym = mirFunc->GetFuncSymbol();
   if (!func.GetSectionAttr().empty()) {
     funSym->sectionAttr = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(func.GetSectionAttr());

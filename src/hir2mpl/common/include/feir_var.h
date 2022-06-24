@@ -123,18 +123,18 @@ class FEIRVar {
 
   MIRSymbol *GenerateGlobalMIRSymbol(MIRBuilder &builder) const {
     MIRSymbol *mirSym = GenerateGlobalMIRSymbolImpl(builder);
-    mirSym->GetSrcPosition().SetFileNum(static_cast<uint16>(loc.fileIdx));
-    mirSym->GetSrcPosition().SetLineNum(loc.line);
-    mirSym->GetSrcPosition().SetColumn(static_cast<uint16>(loc.column));
+    if (mirSym->GetSrcPosition().LineNum() == 0) {
+      mirSym->SetSrcPosition(loc.Emit2SourcePosition());
+    }
     builder.GetMirModule().InsertInlineGlobal(mirSym->GetStIdx().Idx());
     return mirSym;
   }
 
   MIRSymbol *GenerateLocalMIRSymbol(MIRBuilder &builder) const {
     MIRSymbol *mirSym = GenerateLocalMIRSymbolImpl(builder);
-    mirSym->GetSrcPosition().SetFileNum(static_cast<uint16>(loc.fileIdx));
-    mirSym->GetSrcPosition().SetLineNum(loc.line);
-    mirSym->GetSrcPosition().SetColumn(static_cast<uint16>(loc.column));
+    if (mirSym->GetSrcPosition().LineNum() == 0) {
+      mirSym->SetSrcPosition(loc.Emit2SourcePosition());
+    }
     return mirSym;
   }
 
