@@ -1310,14 +1310,32 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
         VectorizeExpr(opnd2, tp, vecopnd2, depth+1);
       }
       CHECK_FATAL(((!vecopnd1.empty()) && !vecopnd2.empty()), "check binary op vectrized node");
-      PrimType opnd0PrimType = vecopnd1[0]->GetPrimType();
-      PrimType opnd1PrimType = vecopnd2[0]->GetPrimType();
+      PrimType opnd1PrimType = vecopnd1[0]->GetPrimType();
+      PrimType opnd2PrimType = vecopnd2[0]->GetPrimType();
       // widen instruction (addl/subl) need two operands with same vectype
-      if ((PTY_begin != GetVecElemPrimType(opnd0PrimType)) &&
-          (PTY_begin != GetVecElemPrimType(opnd1PrimType)) &&
-          (tp->vecInfo->currentLHSTypeSize > GetPrimTypeSize(GetVecElemPrimType(opnd0PrimType))) &&
-          CanWidenOpcode(node, GetVecElemPrimType(opnd0PrimType))) {
+      if ((PTY_begin != GetVecElemPrimType(opnd1PrimType)) &&
+          (PTY_begin != GetVecElemPrimType(opnd2PrimType)) &&
+          (opnd1PrimType == opnd2PrimType) &&
+          (tp->vecInfo->currentLHSTypeSize > GetPrimTypeSize(GetVecElemPrimType(opnd1PrimType))) &&
+          CanWidenOpcode(node, GetVecElemPrimType(opnd1PrimType))) {
         GenWidenBinaryExpr(binNode->GetOpCode(), vecopnd1, vecopnd2, vectorizedNode);
+      } else if ((PTY_begin != GetVecElemPrimType(opnd2PrimType)) &&
+                 (GetPrimTypeSize(GetVecElemPrimType(opnd2PrimType)) > GetPrimTypeSize(GetVecElemPrimType(opnd1PrimType)))) {
+        // opnd2 is uniform scalar and type is different from opnd1
+        // widen opnd1 with same element type as opnd2
+        BaseNode *newopnd1 = vecopnd1[0];
+        int opnd2ElemPrimTypeSize = GetPrimTypeSize(GetVecElemPrimType(opnd2PrimType));
+        while (GetPrimTypeSize(GetVecElemPrimType(opnd1PrimType)) < opnd2ElemPrimTypeSize) {
+          newopnd1 = GenVectorWidenOpnd(newopnd1, opnd1PrimType, false);
+          opnd1PrimType = newopnd1->GetPrimType();
+        }
+        binNode->SetOpnd(newopnd1, 0);
+        binNode->SetOpnd(vecopnd2[0], 1);
+        binNode->SetPrimType(newopnd1->GetPrimType());
+        if (IsCompareNode(binNode->GetOpCode())) {
+          static_cast<CompareNode *>(binNode)->SetOpndType(binNode->GetPrimType());
+        }
+        vectorizedNode.push_back(binNode);
       } else {
         auto lenMax = vecopnd1.size() >= vecopnd2.size() ? vecopnd1.size() : vecopnd2.size();
         for (size_t i = 0; i < lenMax; i++) {
@@ -1619,30 +1637,21 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
     auto it = tp->vecInfo->uniformNodes.begin();
     for (; it != tp->vecInfo->uniformNodes.end(); ++it) {
       BaseNode *node = *it;
-      PreMeMIRExtension *lfoP = (*PreMeExprExtensionMap)[node];
-      // check node's parent, if they are binary node (exculude compare node), skip the duplication
-      if ((!lfoP->GetParent()->IsBinaryNode() || IsCompareNode(lfoP->GetParent()->GetOpCode())) ||
-          (node->GetOpCode() == OP_iread)) {
-        PrimType ptype =  (node->GetOpCode() == OP_iread) ?
-            (static_cast<IreadNode *>(node))->GetType()->GetPrimType() : node->GetPrimType();
-        if (tp->vecInfo->constvalTypes.count(node) > 0) {
-          ptype = tp->vecInfo->constvalTypes[node];
+      PrimType ptype =  (node->GetOpCode() == OP_iread) ?
+          (static_cast<IreadNode *>(node))->GetType()->GetPrimType() : node->GetPrimType();
+      if (tp->vecInfo->constvalTypes.count(node) > 0) {
+        if (ptype != tp->vecInfo->constvalTypes[node]) {
+          node->SetPrimType(tp->vecInfo->constvalTypes[node]);
         }
-        MIRType *vecType = GenVecType(ptype, tp->vecFactor);
-        IntrinsicopNode *dupscalar = GenDupScalarExpr(node, vecType->GetPrimType());
-        PregIdx regIdx = mirFunc->GetPregTab()->CreatePreg(vecType->GetPrimType());
-        RegassignNode *dupScalarStmt = codeMP->New<RegassignNode>(vecType->GetPrimType(), regIdx, dupscalar);
-        pblock->InsertBefore(doloop, dupScalarStmt);
-        RegreadNode *regreadNode = codeMP->New<RegreadNode>(vecType->GetPrimType(), regIdx);
-        tp->vecInfo->uniformVecNodes[node] = regreadNode;
-      } else if (lfoP->GetParent()->IsBinaryNode() && (node->GetOpCode() != OP_dread)) {
-        // assign uniform node to regvar and promote out of loop
-        PregIdx regIdx = mirFunc->GetPregTab()->CreatePreg(node->GetPrimType());
-        RegassignNode *scalarStmt = codeMP->New<RegassignNode>(node->GetPrimType(), regIdx, node);
-        pblock->InsertBefore(doloop, scalarStmt);
-        RegreadNode *regreadNode = codeMP->New<RegreadNode>(node->GetPrimType(), regIdx);
-        tp->vecInfo->uniformVecNodes[node] = regreadNode;
+        ptype = tp->vecInfo->constvalTypes[node];
       }
+      MIRType *vecType = GenVecType(ptype, tp->vecFactor);
+      IntrinsicopNode *dupscalar = GenDupScalarExpr(node, vecType->GetPrimType());
+      PregIdx regIdx = mirFunc->GetPregTab()->CreatePreg(vecType->GetPrimType());
+      RegassignNode *dupScalarStmt = codeMP->New<RegassignNode>(vecType->GetPrimType(), regIdx, dupscalar);
+      pblock->InsertBefore(doloop, dupScalarStmt);
+      RegreadNode *regreadNode = codeMP->New<RegreadNode>(vecType->GetPrimType(), regIdx);
+      tp->vecInfo->uniformVecNodes[node] = regreadNode;
     }
     if (!tp->vecInfo->ivNodes.empty()) {
       // initconst array -> [0, 1, 2... veclanes-1]
@@ -1821,15 +1830,31 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
         if (parent && parent->GetOpCode() == OP_array && x == parent->Opnd(0)) {
           return true;
         }
-        vecInfo->uniformNodes.insert(x->Opnd(0));
-        vecInfo->uniformNodes.insert(x->Opnd(1));
+        if (!isArraySub) {
+          vecInfo->uniformNodes.insert(x);
+        }
         return true;
-      } else if (r0Uniform) {
+      } else if ((!isArraySub) && r0Uniform) {
         vecInfo->uniformNodes.insert(x->Opnd(0));
         isvectorizable = ExprVectorizable(doloopInfo, vecInfo, x->Opnd(1));
-      } else if (r1Uniform) {
+      } else if ((!isArraySub) && r1Uniform) {
         vecInfo->uniformNodes.insert(x->Opnd(1));
         isvectorizable = ExprVectorizable(doloopInfo, vecInfo, x->Opnd(0));
+        PrimType opnd1Type = x->Opnd(1)->GetPrimType();
+        // update constval type if needed
+        if (isvectorizable && (x->Opnd(1)->GetOpCode() == OP_constval)) {
+           PrimType targetType;
+           if (vecInfo->currentRHSTypeSize != 0 && vecInfo->currentRHSTypeSize < GetPrimTypeSize(opnd1Type)) {
+             targetType = vecInfo->currentRHSTypeSize == 32 ? PTY_i32 :
+                 (vecInfo->currentRHSTypeSize == 16 ? PTY_i16 : PTY_i8);;
+           } else {
+             targetType = x->Opnd(0)->GetPrimType();
+           }
+           if (GetPrimTypeSize(targetType) != GetPrimTypeSize(opnd1Type) &&
+               CanAdjustRhsConstType(targetType, static_cast<ConstvalNode *>(x->Opnd(1)))) {
+             vecInfo->constvalTypes[x->Opnd(1)] = targetType;
+           }
+        }
       } else if (ExprVectorizable(doloopInfo, vecInfo, x->Opnd(0)) && ExprVectorizable(doloopInfo, vecInfo,
           x->Opnd(1))) {
         isvectorizable = true;
@@ -1845,7 +1870,7 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
     case OP_neg:
     case OP_abs: {
       bool r0Uniform = doloopInfo->IsLoopInvariant2(x->Opnd(0));
-      if (r0Uniform) {
+      if ((!isArraySub) && r0Uniform) {
         vecInfo->uniformNodes.insert(x->Opnd(0));
         return true;
       }
@@ -1897,11 +1922,11 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
     }
     // select
     case OP_select : {
-      if (doloopInfo->IsLoopInvariant2(x)) {
-        vecInfo->uniformNodes.insert(x);
-      }
       if (isArraySub) {
         return false;
+      }
+      if (doloopInfo->IsLoopInvariant2(x)) {
+        vecInfo->uniformNodes.insert(x);
       }
       for (size_t i = 0; i < x->NumOpnds(); i++) {
         if (!ExprVectorizable(doloopInfo, vecInfo, x->Opnd(i))) {
@@ -2218,7 +2243,6 @@ void LoopVectorization::Perform() {
     bool vectorizable = Vectorizable(mapit->second, vecInfo, mapit->first->GetDoBody());
     if (vectorizable) {
       LoopVectorization::vectorizedLoop++;
-      mapit->second->hasBeenVectorized = true;
     }
     if (enableDebug) {
       LogInfo::MapleLogger() << "\nInnermost Doloop:";
@@ -2236,6 +2260,7 @@ void LoopVectorization::Perform() {
     if (tplan->Generate(mapit->first, mapit->second, enableDebug)) {
       vecPlans[mapit->first] = tplan;
       GenConstVar(vecInfo, tplan->vecLanes);
+      mapit->second->hasBeenVectorized = true;
     }
   }
   // step 3: do transform
