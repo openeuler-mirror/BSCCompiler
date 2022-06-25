@@ -1009,7 +1009,7 @@ bool OptimizeBB::OptimizeCondBB2UnCond() {
       CHECK_FATAL(brStmt, "brStmt is nullptr!");
       bool isCondTrue = (!condExpr->IsZero());
       bool isBrtrue = (brStmt->GetOp() == OP_brtrue);
-      if (isCondTrue ^ isBrtrue) { // goto fallthru BB
+      if (isCondTrue != isBrtrue) { // goto fallthru BB
         currBB->RemoveLastMeStmt();
         currBB->SetKind(kBBFallthru);
         if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
@@ -1045,7 +1045,7 @@ bool OptimizeBB::OptimizeCondBB2UnCond() {
       MIRConst *constVal = static_cast<ConstvalNode*>(condExpr)->GetConstVal();
       bool isCondTrue = (!constVal->IsZero());
       bool isBrTrue = (brStmt.GetOpCode() == OP_brtrue);
-      if (isCondTrue ^ isBrTrue) {
+      if (isCondTrue != isBrTrue) {
         currBB->RemoveLastStmt();
         currBB->SetKind(kBBFallthru);
         if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
@@ -1794,7 +1794,6 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
     }
     return true;
   }
-  return false;
 }
 
 bool OptimizeBB::SkipRedundantCond() {

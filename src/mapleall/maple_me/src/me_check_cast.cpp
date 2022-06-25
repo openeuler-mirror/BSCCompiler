@@ -616,7 +616,6 @@ ProveRes CheckCast::TraverseBackProve(MeExpr &expr, MIRType &targetType, std::se
         }
       }
       return res;
-      break;
     }
     default:
     break;

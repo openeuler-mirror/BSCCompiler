@@ -1543,9 +1543,6 @@ void ValueRangePropagation::UpdateTryAttribute(BB &bb) {
       (bb.GetMeStmts().empty() || (bb.GetMeStmts().front().GetOp() != OP_try))) {
     auto *startTryBB = func.GetCfg()->GetTryBBFromEndTryBB(&bb);
     auto *newEndTry = func.GetCfg()->GetBBFromID(bb.GetBBId() - 1);
-    while (newEndTry == nullptr) {
-      newEndTry = func.GetCfg()->GetBBFromID(newEndTry->GetBBId() - 1);
-    }
     CHECK_NULL_FATAL(newEndTry);
     CHECK_FATAL(!newEndTry->GetAttributes(kBBAttrIsTryEnd), "must not be try end");
     if (newEndTry->GetAttributes(kBBAttrIsTry) && !newEndTry->GetAttributes(kBBAttrIsTryEnd)) {
@@ -1655,26 +1652,19 @@ int64 GetMinNumber(PrimType primType) {
   switch (primType) {
     case PTY_i8:
       return std::numeric_limits<int8_t>::min();
-      break;
     case PTY_i16:
       return std::numeric_limits<int16_t>::min();
-      break;
     case PTY_i32:
       return std::numeric_limits<int32_t>::min();
-      break;
     case PTY_i64:
       return std::numeric_limits<int64_t>::min();
-      break;
     case PTY_u8:
       return std::numeric_limits<uint8_t>::min();
-      break;
     case PTY_u16:
       return std::numeric_limits<uint16_t>::min();
-      break;
     case PTY_u32:
     case PTY_a32:
       return std::numeric_limits<uint32_t>::min();
-      break;
     case PTY_ref:
     case PTY_ptr:
       if (GetPrimTypeSize(primType) == kFourByte) { // 32 bit
@@ -1683,17 +1673,13 @@ int64 GetMinNumber(PrimType primType) {
         CHECK_FATAL(GetPrimTypeSize(primType) == kEightByte, "must be 64 bit");
         return std::numeric_limits<uint64_t>::min();
       }
-      break;
     case PTY_u64:
     case PTY_a64:
       return std::numeric_limits<uint64_t>::min();
-      break;
     case PTY_u1:
       return 0;
-      break;
     default:
       CHECK_FATAL(false, "must not be here");
-      break;
   }
 }
 
@@ -1701,26 +1687,19 @@ int64 GetMaxNumber(PrimType primType) {
   switch (primType) {
     case PTY_i8:
       return std::numeric_limits<int8_t>::max();
-      break;
     case PTY_i16:
       return std::numeric_limits<int16_t>::max();
-      break;
     case PTY_i32:
       return std::numeric_limits<int32_t>::max();
-      break;
     case PTY_i64:
       return std::numeric_limits<int64_t>::max();
-      break;
     case PTY_u8:
       return std::numeric_limits<uint8_t>::max();
-      break;
     case PTY_u16:
       return std::numeric_limits<uint16_t>::max();
-      break;
     case PTY_u32:
     case PTY_a32:
       return std::numeric_limits<uint32_t>::max();
-      break;
     case PTY_ref:
     case PTY_ptr:
       if (GetPrimTypeSize(primType) == kFourByte) { // 32 bit
@@ -1729,17 +1708,13 @@ int64 GetMaxNumber(PrimType primType) {
         CHECK_FATAL(GetPrimTypeSize(primType) == kEightByte, "must be 64 bit");
         return std::numeric_limits<uint64_t>::max();
       }
-      break;
     case PTY_u64:
     case PTY_a64:
       return std::numeric_limits<uint64_t>::max();
-      break;
     case PTY_u1:
       return 1;
-      break;
     default:
       CHECK_FATAL(false, "must not be here");
-      break;
   }
 }
 
@@ -2790,9 +2765,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateInitVRForPhi(LoopDesc &
     const BB &bb, ScalarMeExpr &init, ScalarMeExpr &backedge, const ScalarMeExpr &lhsOfPhi) {
   Bound initBound;
   ValueRange *valueRangeOfInit = FindValueRange(bb, init);
-  bool initIsConstant = false;
   if (valueRangeOfInit != nullptr && valueRangeOfInit->IsConstant() && valueRangeOfInit->GetRangeType() != kNotEqual) {
-    initIsConstant = true;
     auto bound = valueRangeOfInit->GetBound();
     initBound = Bound(GetRealValue(bound.GetConstant(), bound.GetPrimType()), bound.GetPrimType());
   } else {
@@ -2896,14 +2869,14 @@ void ValueRangePropagation::DealWithPhi(const BB &bb) {
         backExprOfPhi.insert(opnd);
       }
     }
-    if (backExprOfPhi.size() == 0) {
-      valueRangeOfInitExprs.push_back(nullptr);
+    if (backExprOfPhi.empty()) {
+      valueRangeOfInitExprs.emplace_back(nullptr);
     } else if (initExprsOfPhi.size() == 1 && backExprOfPhi.size() == 1) { // Create vr for initial value of phi node.
       auto vrOfInitExpr = CreateInitVRForPhi(
           *loop, bb, **initExprsOfPhi.begin(), **backExprOfPhi.begin(), *pair.second->GetLHS());
-      valueRangeOfInitExprs.push_back(std::move(vrOfInitExpr));
+      valueRangeOfInitExprs.emplace_back(std::move(vrOfInitExpr));
     } else {
-      valueRangeOfInitExprs.push_back(nullptr);
+      valueRangeOfInitExprs.emplace_back(nullptr);
     }
     initExprsOfPhi.clear();
     backExprOfPhi.clear();

@@ -88,8 +88,7 @@ using VstUseSiteList = MapleList<VstUseItem>;
 enum VstUnseInfoState {
   kVstUseInfoInvalid = 0,
   kVstUseInfoTopLevelVst = 1,
-  kVstUseInfoAddrTakenVst = 2,
-  kVstUseInfoBoth = kVstUseInfoTopLevelVst | kVstUseInfoAddrTakenVst
+  kVstUseInfoAddrTakenVst = 2
 };
 
 class VstUseInfo final {

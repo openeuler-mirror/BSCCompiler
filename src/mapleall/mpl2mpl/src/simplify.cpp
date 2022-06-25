@@ -1325,7 +1325,6 @@ StmtNode *MemEntry::GenMemopRetAssign(StmtNode &stmt, MIRFunction &func, bool is
     }
     return retAssign;
   }
-  return nullptr;
 }
 
 MemOpKind SimplifyMemOp::ComputeMemOpKind(StmtNode &stmt) {

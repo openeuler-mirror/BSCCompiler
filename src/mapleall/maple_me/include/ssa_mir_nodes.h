@@ -47,6 +47,10 @@ class MayDefNode {
     return stmt;
   }
 
+  void SetStmt(StmtNode *s) {
+    stmt = s;
+  }
+
   void SetOpnd(VersionSt *sym) {
     opnd = sym;
   }
@@ -491,6 +495,7 @@ class SSANode : public BaseNode {
   virtual BaseNode *GetNoSSANode()= 0;
 
  protected:
+  virtual void SetNoSSANode(BaseNode *node) = 0;
   VersionSt *ssaVar = nullptr;
 };
 
@@ -521,7 +526,18 @@ class AddrofSSANode : public SSANode {
     return addrofNode;
   }
 
- private:
+  AddrofSSANode *CloneTree(MapleAllocator &allocator) const override {
+    auto *node = allocator.New<AddrofSSANode>(*this);
+    BaseNode *newAddrof = node->GetNoSSANode()->CloneTree(allocator);
+    node->SetNoSSANode(newAddrof);
+    return node;
+  }
+
+ protected:
+  void SetNoSSANode(BaseNode *node) override {
+    ASSERT(node->GetOpCode() == OP_addrof || node->GetOpCode() == OP_dread, "must be!");
+    addrofNode = static_cast<AddrofNode *>(node);
+  }
   AddrofNode *addrofNode;
 };
 
@@ -559,7 +575,18 @@ class IreadSSANode : public SSANode {
     return ireadNode;
   }
 
- private:
+  IreadSSANode *CloneTree(MapleAllocator &allocator) const override {
+    auto *node = allocator.New<IreadSSANode>(*this);
+    BaseNode *newIread = node->GetNoSSANode()->CloneTree(allocator);
+    node->SetNoSSANode(newIread);
+    return node;
+  }
+
+ protected:
+  void SetNoSSANode(BaseNode *node) override {
+    ASSERT(node->GetOpCode() == OP_iread, "must be!");
+    ireadNode = static_cast<IreadNode *>(node);
+  }
   IreadNode *ireadNode;
 };
 
@@ -585,7 +612,18 @@ class RegreadSSANode : public SSANode {
     return regreadNode;
   }
 
- private:
+  RegreadSSANode *CloneTree(MapleAllocator &allocator) const override {
+    auto *node = allocator.New<RegreadSSANode>(*this);
+    BaseNode *newRegread = node->GetNoSSANode()->CloneTree(allocator);
+    node->SetNoSSANode(newRegread);
+    return node;
+  }
+
+ protected:
+  void SetNoSSANode(BaseNode *node) override {
+    ASSERT(node->GetOpCode() == OP_regread, "must be!");
+    regreadNode = static_cast<RegreadNode *>(node);
+  }
   RegreadNode *regreadNode;
 };
 
@@ -597,5 +635,7 @@ inline bool HasMallocOpnd(const BaseNode *x) {
   return x->op == OP_malloc || x->op == OP_gcmalloc || x->op == OP_gcmallocjarray || x->op == OP_alloca ||
          x->op == OP_stackmalloc || x->op == OP_stackmallocjarray;
 }
+
+bool IsSameContent(const BaseNode *exprA, const BaseNode *exprB, bool isZeroVstEqual = true);
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_SSA_MIR_NODES_H

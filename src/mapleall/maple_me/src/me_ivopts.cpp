@@ -196,6 +196,7 @@ class IVOptimizer {
   bool CreateIVFromIaddrof(OpMeExpr &op, MeStmt &stmt);
   OpMeExpr *TryCvtCmp(OpMeExpr &op, MeStmt &stmt);
   bool FindGeneralIVInExpr(MeStmt &stmt, MeExpr &expr, bool useInAddress = false);
+  MeExpr *OptimizeInvariable(MeExpr *expr);
   bool LHSEscape(const ScalarMeExpr *lhs);
   void FindGeneralIVInStmt(MeStmt &stmt);
   void FindGeneralIVInPhi(MePhiNode &phi);
@@ -412,6 +413,15 @@ bool IVOptData::IsLoopInvariant(const MeExpr &expr) {
       }
       if (bb != nullptr) {
         return currLoop->loopBBs.count(static_cast<const ScalarMeExpr&>(expr).DefByBB()->GetBBId()) == 0;
+      }
+      return true;
+    }
+    case kMeOpOp: {
+      auto &op = static_cast<const OpMeExpr&>(expr);
+      for (size_t i = 0; i < op.GetNumOpnds(); ++i) {
+        if (!IsLoopInvariant(*op.GetOpnd(i))) {
+          return false;
+        }
       }
       return true;
     }
@@ -925,7 +935,7 @@ bool IVOptimizer::FindGeneralIVInExpr(MeStmt &stmt, MeExpr &expr, bool useInAddr
       if (FindGeneralIVInExpr(stmt, *base, true)) {
         auto *iv = data->GetIV(*base);
         data->CreateGroup(stmt, *iv, kUseAddress, &ivar);
-        (*(*data->groups.rbegin())->uses.rbegin())->hasField = ivar.GetFieldID() != 0;
+        (*(*data->groups.rbegin())->uses.rbegin())->hasField = ivar.GetFieldID() != 0 || ivar.GetOffset() != 0;
       }
       return false;
     }
@@ -942,7 +952,6 @@ bool IVOptimizer::FindGeneralIVInExpr(MeStmt &stmt, MeExpr &expr, bool useInAddr
     default:
       return false;
   }
-  return false;
 }
 
 void IVOptimizer::FindGeneralIVInPhi(MePhiNode &phi) {
@@ -1001,9 +1010,54 @@ bool IVOptimizer::LHSEscape(const ScalarMeExpr *lhs) {
   return false;
 }
 
+MeExpr *IVOptimizer::OptimizeInvariable(MeExpr *expr) {
+  for (size_t i = 0; i < expr->GetNumOpnds(); ++i) {
+    auto *opnd = expr->GetOpnd(i);
+    if (opnd->GetMeOp() == kMeOpOp && data->IsLoopInvariant(*opnd)) {
+      // move loop invariant out of current loop
+      auto found = invariables.find(opnd->GetExprID());
+      RegMeExpr *outValue = nullptr;
+      if (found == invariables.end()) {
+        outValue = irMap->CreateRegMeExpr(*opnd);
+        invariables.emplace(opnd->GetExprID(), outValue);
+        auto *outStmt = irMap->CreateAssignMeStmt(static_cast<ScalarMeExpr &>(*outValue), *opnd,
+                                                  *data->currLoop->preheader);
+        data->currLoop->preheader->InsertMeStmtLastBr(outStmt);
+      } else {
+        outValue = static_cast<RegMeExpr *>(found->second);
+      }
+      expr = irMap->ReplaceMeExprExpr(*expr, *opnd, *outValue);
+      continue;
+    }
+    auto *res = OptimizeInvariable(opnd);
+    expr = irMap->ReplaceMeExprExpr(*expr, *opnd, *res);
+  }
+  if (expr->GetMeOp() == kMeOpOp && data->IsLoopInvariant(*expr)) {
+    // move loop invariant out of current loop
+    auto found = invariables.find(expr->GetExprID());
+    RegMeExpr *outValue = nullptr;
+    if (found == invariables.end()) {
+      outValue = irMap->CreateRegMeExpr(*expr);
+      invariables.emplace(expr->GetExprID(), outValue);
+      auto *outStmt = irMap->CreateAssignMeStmt(static_cast<ScalarMeExpr &>(*outValue), *expr,
+                                                *data->currLoop->preheader);
+      data->currLoop->preheader->InsertMeStmtLastBr(outStmt);
+    } else {
+      outValue = static_cast<RegMeExpr*>(found->second);
+    }
+    return outValue;
+  }
+  return expr;
+}
+
 void IVOptimizer::FindGeneralIVInStmt(MeStmt &stmt) {
   for (uint32 i = 0; i < stmt.NumMeStmtOpnds(); ++i) {
     auto *opnd = stmt.GetOpnd(i);
+    auto *opted = OptimizeInvariable(opnd);
+    if (opted != opnd) {
+      irMap->ReplaceMeExprStmt(stmt, *opnd, *opted);
+      opnd = opted;
+    }
     bool isUsedInAddr = (stmt.GetOp() == OP_iassign || stmt.GetOp() == OP_iassignoff) && i == 0;
     isUsedInAddr |= stmt.GetOp() == OP_assertnonnull;
     if (FindGeneralIVInExpr(stmt, *opnd, isUsedInAddr)) {
@@ -1026,7 +1080,8 @@ void IVOptimizer::FindGeneralIVInStmt(MeStmt &stmt) {
       if (isUsedInAddr) {
         data->CreateGroup(stmt, *iv, kUseAddress, static_cast<IassignMeStmt&>(stmt).GetLHSVal());
         (*(*data->groups.rbegin())->uses.rbegin())->hasField =
-            static_cast<IassignMeStmt&>(stmt).GetLHSVal()->GetFieldID() != 0;
+            static_cast<IassignMeStmt&>(stmt).GetLHSVal()->GetFieldID() != 0 ||
+            static_cast<IassignMeStmt&>(stmt).GetLHSVal()->GetOffset() != 0;
         continue;
       }
       // record use of iv that is root expr
@@ -1354,66 +1409,19 @@ static uint32 ComputeExprCost(MeExpr &expr, const MeExpr *parent = nullptr) {
   }
 }
 
-static void CountElement(MeExpr &expr, std::vector<uint32> &record) {
-  switch (expr.GetMeOp()) {
-    case kMeOpVar: {
-      if (record[0] == 0) { ++record[0]; }
-      return;
-    }
-    case kMeOpReg: {
-      if (record[1] == 0) { ++record[1]; }
-      return;
-    }
-    case kMeOpConst: {
-      if (record[2] == 0) { ++record[2]; }
-      return;
-    }
-    case kMeOpOp: {
-      auto &op = static_cast<OpMeExpr&>(expr);
-      auto opop = op.GetOp();
-      if (opop == OP_add || opop == OP_mul || opop == OP_sub) {
-        CountElement(*op.GetOpnd(0), record);
-        CountElement(*op.GetOpnd(1), record);
-      }
-      return;
-    }
-    default:
-      return;
-  }
-}
-
 static uint32 ComputeAddressCost(MeExpr *expr, int64 ratio, bool hasField) {
-  // cost model
-  //  index costs 1
-  //  var + index costs 2
-  //  reg + index costs 1
-  //  var + reg + index costs 6
-  //  cst + index costs 1
-  //  var + cst + index costs 5
-  //  reg + cst + index costs 4
-  //  var + reg + cst + index costs 9
-  //
-  //  rat * index costs 4
-  //  var + rat * index costs 2
-  //  reg + rat * index costs 1
-  //  var + reg + rat * index costs 6
-  //  cst + rat * index costs 12
-  //  var + cst + rat * index costs 9
-  //  reg + cst + rat * index costs 8
-  //  var + reg + cst + rat * index costs 13
-  // matrix[var][reg][cst][rat]
-  static const uint32 addressCostMatrix[2][2][2][2] = {
-      {{{1, 4}, {1, 12}}, {{1, 1}, {4, 8}}}, {{{2, 2}, {5, 9}},{{6, 6}, {9, 13}}}
-  };
   bool ratioCombine = ratio == 1 || ratio == 2 || ratio == 4 || ratio == 8;
-  std::vector<uint32> count = {0, 0, 0};
-  if (hasField) {
-    count[2] = 1;
-  }
+  uint32 cost = 0;
   if (expr != nullptr) {
-    CountElement(*expr, count);
+    cost += 1;
   }
-  return addressCostMatrix[count[0]][count[1]][count[2]][ratio ? 0 : 1] + (ratioCombine ? 0 : 1);
+  if (!ratioCombine) {
+    cost += 5;
+  }
+  if (hasField && (!expr || expr->GetMeOp() != kMeOpConst)) {
+    cost += 3;
+  }
+  return cost;
 }
 
 void IVOptimizer::ComputeCandCost() {
@@ -2223,6 +2231,7 @@ bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeSt
           simplified = irMap->SimplifyMeExpr(extraExpr);
           if (simplified != nullptr) { extraExpr = simplified; }
         }
+        extraExpr = GetInvariant(extraExpr);
         auto *newCmp = ReplaceCompareOpnd(static_cast<OpMeExpr&>(*use->expr), use->comparedExpr, extraExpr);
         (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *newCmp);
         use->expr = newCmp;
@@ -2456,6 +2465,7 @@ void IVOptimizer::ApplyOptimize() {
   // find general ivs
   std::vector<bool> bbVisited(cfg->GetAllBBs().size(), false);
   TraversalLoopBB(*data->currLoop->head, bbVisited);
+  invariables.clear();
   if (data->groups.empty()) {
     return;
   }

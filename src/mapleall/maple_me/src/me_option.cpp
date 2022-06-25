@@ -14,7 +14,6 @@
  */
 #include "me_option.h"
 #include <iostream>
-#include <cstring>
 #include "driver_options.h"
 #include "me_options.h"
 #include "mpl_logging.h"

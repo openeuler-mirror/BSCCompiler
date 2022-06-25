@@ -58,16 +58,16 @@ void ProfileGen::CreateModProfDesc() {
   TyIdx arrOfPtrsTyIdx = arrOfPtrsTy->GetTypeIndex();
 
   // Form descriptor type                                                                                    // Field
-  modProfDescFields.push_back(FieldPair(verStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));             // 1
-  modProfDescFields.push_back(FieldPair(pad4b1StrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));          // 2
-  modProfDescFields.push_back(FieldPair(nextStrIdx, TyIdxFieldAttrPair(ptrTyIdx, FieldAttrs())));            // 3
-  modProfDescFields.push_back(FieldPair(stampStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));           // 4
-  modProfDescFields.push_back(FieldPair(chksumStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));          // 5
-  modProfDescFields.push_back(FieldPair(outputFNStrIdx, TyIdxFieldAttrPair(charPtrTyIdx, FieldAttrs())));    // 6
-  modProfDescFields.push_back(FieldPair(mergeFuncsStrIdx, TyIdxFieldAttrPair(arrOfPtrsTyIdx, FieldAttrs())));// 7
-  modProfDescFields.push_back(FieldPair(nFuncsStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));          // 8
-  modProfDescFields.push_back(FieldPair(pad4b2StrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));          // 9
-  modProfDescFields.push_back(FieldPair(funcDescTblStrIdx, TyIdxFieldAttrPair(ptrTyIdx, FieldAttrs())));     // 10
+  modProfDescFields.emplace_back(FieldPair(verStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));             // 1
+  modProfDescFields.emplace_back(FieldPair(pad4b1StrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));          // 2
+  modProfDescFields.emplace_back(FieldPair(nextStrIdx, TyIdxFieldAttrPair(ptrTyIdx, FieldAttrs())));            // 3
+  modProfDescFields.emplace_back(FieldPair(stampStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));           // 4
+  modProfDescFields.emplace_back(FieldPair(chksumStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));          // 5
+  modProfDescFields.emplace_back(FieldPair(outputFNStrIdx, TyIdxFieldAttrPair(charPtrTyIdx, FieldAttrs())));    // 6
+  modProfDescFields.emplace_back(FieldPair(mergeFuncsStrIdx, TyIdxFieldAttrPair(arrOfPtrsTyIdx, FieldAttrs())));// 7
+  modProfDescFields.emplace_back(FieldPair(nFuncsStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));          // 8
+  modProfDescFields.emplace_back(FieldPair(pad4b2StrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));          // 9
+  modProfDescFields.emplace_back(FieldPair(funcDescTblStrIdx, TyIdxFieldAttrPair(ptrTyIdx, FieldAttrs())));     // 10
   FieldVector parentFields;
 
   std::string srcFN = mod.GetFileName();
@@ -164,8 +164,8 @@ void ProfileGen::CreateFuncProfDesc() {
   GStrIdx ctrTblStrIdx = mirBuilder->GetOrCreateStringIndex("ctr_tbl");  // 2
 
   FieldVector ctrInfoFields;
-  ctrInfoFields.push_back(FieldPair(nCtrStrIdx, TyIdxFieldAttrPair(u32Ty->GetTypeIndex(), FieldAttrs())));      // 1
-  ctrInfoFields.push_back(FieldPair(ctrTblStrIdx, TyIdxFieldAttrPair(i64PtrTy->GetTypeIndex(), FieldAttrs()))); // 2
+  ctrInfoFields.emplace_back(FieldPair(nCtrStrIdx, TyIdxFieldAttrPair(u32Ty->GetTypeIndex(), FieldAttrs())));      // 1
+  ctrInfoFields.emplace_back(FieldPair(ctrTblStrIdx, TyIdxFieldAttrPair(i64PtrTy->GetTypeIndex(), FieldAttrs()))); // 2
   MIRType *ctrDescTy = GlobalTables::GetTypeTable().GetOrCreateStructType(
       "__mpl_ctr_desc_ty", ctrInfoFields, parentFields, mod);
 
@@ -181,14 +181,18 @@ void ProfileGen::CreateFuncProfDesc() {
   MIRType *arrOfCtrDescTy = GlobalTables::GetTypeTable().GetOrCreateArrayType(*ctrDescTy, kMplFuncProfCtrInfoNum);
 
   FieldVector funcProfDescFields;                                                                             // Field
-  funcProfDescFields.push_back(FieldPair(modDescStrIdx, TyIdxFieldAttrPair(modProfDescPtrTy->GetTypeIndex(),
-                                                                           FieldAttrs())));                       // 1
-  funcProfDescFields.push_back(FieldPair(funcIDStrIdx, TyIdxFieldAttrPair(u32Ty->GetTypeIndex(), FieldAttrs()))); // 2
-  funcProfDescFields.push_back(FieldPair(lnChkStrIdx, TyIdxFieldAttrPair(u32Ty->GetTypeIndex(), FieldAttrs())));  // 3
-  funcProfDescFields.push_back(FieldPair(cfgChkStrIdx, TyIdxFieldAttrPair(u32Ty->GetTypeIndex(), FieldAttrs()))); // 4
-  funcProfDescFields.push_back(FieldPair(pad4bStrIdx, TyIdxFieldAttrPair(u32Ty->GetTypeIndex(), FieldAttrs())));  // 5
-  funcProfDescFields.push_back(FieldPair(ctrDescStrIdx, TyIdxFieldAttrPair(arrOfCtrDescTy->GetTypeIndex(),
-                                                                           FieldAttrs())));                       // 6
+  funcProfDescFields.emplace_back(
+      FieldPair(modDescStrIdx, TyIdxFieldAttrPair(modProfDescPtrTy->GetTypeIndex(), FieldAttrs())));    // 1
+  funcProfDescFields.emplace_back(FieldPair(funcIDStrIdx,
+                                            TyIdxFieldAttrPair(u32Ty->GetTypeIndex(), FieldAttrs())));  // 2
+  funcProfDescFields.emplace_back(FieldPair(lnChkStrIdx,
+                                            TyIdxFieldAttrPair(u32Ty->GetTypeIndex(), FieldAttrs())));  // 3
+  funcProfDescFields.emplace_back(FieldPair(cfgChkStrIdx,
+                                            TyIdxFieldAttrPair(u32Ty->GetTypeIndex(), FieldAttrs())));  // 4
+  funcProfDescFields.emplace_back(FieldPair(pad4bStrIdx,
+                                            TyIdxFieldAttrPair(u32Ty->GetTypeIndex(), FieldAttrs())));  // 5
+  funcProfDescFields.emplace_back(
+      FieldPair(ctrDescStrIdx, TyIdxFieldAttrPair(arrOfCtrDescTy->GetTypeIndex(), FieldAttrs())));      // 6
 
   MIRType *funcProfDescTy =
       GlobalTables::GetTypeTable().GetOrCreateStructType("__mpl_prof_desc_ty", funcProfDescFields, parentFields, mod);

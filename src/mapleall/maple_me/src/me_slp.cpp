@@ -2727,7 +2727,7 @@ uint64 ConstructConstants(std::vector<int64> &constants, uint32 elemSize) {
   uint64 res = 0;
   uint32 shift = 0;
   uint32 maskShift = 64 - elemSize;
-  uint64 mask = static_cast<uint64>(-1) << maskShift >> maskShift;
+  uint64 mask = (static_cast<uint64>(-1) << maskShift) >> maskShift;
   for (auto cst : constants) {
     res += ((cst & mask) << shift);
     shift += elemSize;
@@ -3133,7 +3133,6 @@ bool SLPVectorizer::VectorizeTreeNode(TreeNode *treeNode) {
     default: {
       SLP_FAILURE_DEBUG(os << "unsupported op: " << GetOpName(treeNode->GetOp()) << std::endl);
       return false;
-      break;
     }
   }
   return false;

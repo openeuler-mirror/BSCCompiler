@@ -381,7 +381,7 @@ void MePrediction::PredictByOpcode(const BB *bb) {
     return;
   }
 
-  Edge *thenEdge = (isTrueBr ^ isE0BranchEdge) ? e1 : e0;
+  Edge *thenEdge = (isTrueBr != isE0BranchEdge) ? e1 : e0;
 
   PrimType pty = op0->GetPrimType();
   bool isCmpPtr = MustBeAddress(cmpExpr->GetOpndType());

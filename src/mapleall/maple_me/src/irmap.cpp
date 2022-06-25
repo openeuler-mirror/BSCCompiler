@@ -1612,7 +1612,7 @@ bool IRMap::IfMeExprIsU1Type(const MeExpr *expr) const {
     const auto *regExpr = static_cast<const RegMeExpr*>(expr);
     // find if itself is u1
     if (regExpr->GetPrimType() == PTY_u1) {
-        return true;
+      return true;
     }
     // find if its definition is u1
     if (regExpr->GetDefBy() == kDefByStmt) {
