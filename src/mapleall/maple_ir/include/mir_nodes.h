@@ -28,6 +28,10 @@
 #include "ptr_list_ref.h"
 
 namespace maple {
+constexpr size_t kFirstOpnd = 0;
+constexpr size_t kSecondOpnd = 1;
+constexpr size_t kThirdOpnd = 2;
+
 extern MIRModule *theMIRModule;
 extern void EmitStr(const MapleString &mplStr);
 
@@ -2658,7 +2662,7 @@ class DoloopNode : public StmtNode {
   }
 
   PregIdx GetDoVarPregIdx() const {
-    return (PregIdx) doVarStIdx.FullIdx();
+    return static_cast<PregIdx>(doVarStIdx.FullIdx());
   }
 
   const StIdx &GetDoVarStIdx() const {
@@ -3304,7 +3308,7 @@ class CallNode : public NaryStmtNode {
   CallReturnVector returnValues;
 };
 
-// icall and icallproto
+// icall, icallassigned, icallproto and icallprotoassigned
 class IcallNode : public NaryStmtNode {
  public:
   IcallNode(MapleAllocator &allocator, Opcode o)

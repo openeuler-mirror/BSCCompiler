@@ -830,24 +830,24 @@ class MIRFunction {
     callTimes = times;
   }
 
-  uint16 GetFrameSize() const {
+  uint32 GetFrameSize() const {
     return frameSize;
   }
-  void SetFrameSize(uint16 size) {
+  void SetFrameSize(uint32 size) {
     frameSize = size;
   }
 
-  uint16 GetUpFormalSize() const {
+  uint32 GetUpFormalSize() const {
     return upFormalSize;
   }
-  void SetUpFormalSize(uint16 size) {
+  void SetUpFormalSize(uint32 size) {
     upFormalSize = size;
   }
 
-  uint16 GetOutParmSize() const {
+  uint32 GetOutParmSize() const {
     return outParmSize;
   }
-  void SetOutParmSize(uint16 size) {
+  void SetOutParmSize(uint32 size) {
     outParmSize = size;
   }
 
@@ -1298,9 +1298,9 @@ class MIRFunction {
   bool isDirty = false;
   bool fromMpltInline = false;  // Whether this function is imported from mplt_inline file or not.
   uint8_t layoutType = kLayoutUnused;
-  uint16 frameSize = 0;
-  uint16 upFormalSize = 0;
-  uint16 outParmSize = 0;
+  uint32 frameSize = 0;
+  uint32 upFormalSize = 0;
+  uint32 outParmSize = 0;
   uint16 moduleID = 0;
   uint32 funcSize = 0;                         // size of code in words
   uint32 tempCount = 0;
@@ -1349,7 +1349,7 @@ class MIRFunction {
   MapleAllocator codeMemPoolTmpAllocator{nullptr};
   bool useTmpMemPool = false;
   PointerAttr returnKind = PointerAttr::kPointerUndeiced;
-  std::map<MIRSymbol*, PointerAttr> paramNonullTypeMap;
+  MapleMap<MIRSymbol*, PointerAttr> paramNonullTypeMap{module->GetMPAllocator().Adapter()};
   FuncDesc funcDesc{};
   MIRSymbol *profCtrTbl = nullptr;
   uint32 nCtrs = 0; // number of counters

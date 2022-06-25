@@ -162,6 +162,8 @@ StmtNode *ConstantFold::Simplify(StmtNode *node) {
       return SimplifyNary(static_cast<NaryStmtNode*>(node));
     case OP_icall:
     case OP_icallassigned:
+    case OP_icallproto:
+    case OP_icallprotoassigned:
       return SimplifyIcall(static_cast<IcallNode*>(node));
     case OP_asm:
       return SimplifyAsm(static_cast<AsmNode*>(node));
@@ -2628,8 +2630,8 @@ StmtNode *ConstantFold::SimplifyIcall(IcallNode *node) {
       AddroffuncNode *addrofNode = static_cast<AddroffuncNode*>(node->GetNopndAt(0));
       CallNode *callNode =
           mirModule->CurFuncCodeMemPool()->New<CallNode>(*mirModule,
-                                                         node->GetOpCode() == OP_icall ? OP_call : OP_callassigned);
-      if (node->GetOpCode() == OP_icallassigned) {
+             (node->GetOpCode() == OP_icall || node->GetOpCode() == OP_icallproto) ? OP_call : OP_callassigned);
+      if (node->GetOpCode() == OP_icallassigned || node->GetOpCode() == OP_icallprotoassigned) {
         callNode->SetReturnVec(node->GetReturnVec());
       }
       callNode->SetPUIdx(addrofNode->GetPUIdx());

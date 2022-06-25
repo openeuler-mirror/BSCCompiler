@@ -27,9 +27,8 @@ inline bool IsReadOnlyOst(const OriginalSt &ost) {
   return ost.GetMIRSymbol()->HasAddrOfValues();
 }
 
-inline bool IsPotentialAddress(PrimType primType, const MIRModule *mirModule) {
-  return IsAddress(primType) || IsPrimitiveDynType(primType) ||
-         (primType == PTY_u64 && mirModule->IsCModule());
+inline bool IsPotentialAddress(PrimType primType) {
+  return IsAddress(primType) || IsPrimitiveDynType(primType);
 }
 
 // return true if this expression opcode can result in a valid address
@@ -108,7 +107,6 @@ const FuncDesc &AliasClass::GetFuncDescFromCallStmt(const CallNode &callstmt) co
   MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callstmt.GetPUIdx());
   return callee->GetFuncDesc();
 }
-
 // ost is a restrict pointer
 static bool IsRestrictPointer(const OriginalSt *ost) {
   if (!IsAddress(ost->GetType()->GetPrimType())) {
@@ -467,7 +465,7 @@ void AliasClass::ApplyUnionForFieldsInCopiedAgg() {
     FieldID numFieldIDs = static_cast<FieldID>(mirStructType->NumberOfFieldIDs());
     for (FieldID fieldID = 1; fieldID <= numFieldIDs; fieldID++) {
       MIRType *fieldType = mirStructType->GetFieldType(fieldID);
-      if (!IsPotentialAddress(fieldType->GetPrimType(), &mirModule)) {
+      if (!IsPotentialAddress(fieldType->GetPrimType())) {
         continue;
       }
       OffsetType offset(mirStructType->GetBitOffsetFromBaseAddr(fieldID));
@@ -522,15 +520,15 @@ bool AliasClass::SetNextLevNADSForEscapePtr(const VersionSt &lhsVst, BaseNode &r
   BaseNode *realRhs = RemoveTypeConversionIfExist(&rhs);
   PrimType rhsPtyp = realRhs->GetPrimType();
   if (lhsPtyp != rhsPtyp) {
-    if ((IsPotentialAddress(lhsPtyp, &mirModule) && !IsPotentialAddress(rhsPtyp, &mirModule)) ||
-        (!IsPotentialAddress(lhsPtyp, &mirModule) && IsPotentialAddress(rhsPtyp, &mirModule))) {
+    if ((IsPotentialAddress(lhsPtyp) && !IsPotentialAddress(rhsPtyp)) ||
+        (!IsPotentialAddress(lhsPtyp) && IsPotentialAddress(rhsPtyp))) {
       SetNextLevNotAllDefsSeen(lhsVst.GetIndex());
       AliasInfo realRhsAinfo = CreateAliasInfoExpr(*realRhs);
       if (realRhsAinfo.vst != nullptr) {
         SetNextLevNotAllDefsSeen(realRhsAinfo.vst->GetIndex());
       }
       return true;
-    } else if (IsPotentialAddress(lhsPtyp, &mirModule) &&
+    } else if (IsPotentialAddress(lhsPtyp) &&
                realRhs->GetOpCode() == OP_constval &&
                static_cast<ConstvalNode*>(realRhs)->GetConstVal()->IsZero()) {
       // special case, pointer initial : ptr <- 0
@@ -581,8 +579,8 @@ void AliasClass::ApplyUnionForDassignCopy(VersionSt &lhsVst, VersionSt *rhsVst, 
     SetNextLevNotAllDefsSeen(lhsVst.GetIndex());
     return;
   }
-
-  if (!IsPotentialAddress(rhs.GetPrimType(), &mirModule) ||
+  PrimType rhsPtyp = rhsOst->GetType()->GetPrimType();
+  if (!(IsPrimitiveInteger(rhsPtyp) && GetPrimTypeSize(rhsPtyp) == GetPrimTypeSize(PTY_ptr)) ||
       kOpcodeInfo.NotPure(rhs.GetOpCode()) ||
       HasMallocOpnd(&rhs) ||
       (rhs.GetOpCode() == OP_addrof && IsReadOnlyOst(*rhsOst))) {
@@ -597,7 +595,7 @@ void AliasClass::SetPtrOpndNextLevNADS(const BaseNode &opnd, VersionSt *vst, boo
   }
 
   auto *ost = vst->GetOst();
-  if (IsPotentialAddress(opnd.GetPrimType(), &mirModule) &&
+  if (IsPotentialAddress(opnd.GetPrimType()) &&
       !(hasNoPrivateDefEffect && ost->IsPrivate()) &&
       !(opnd.GetOpCode() == OP_addrof && IsReadOnlyOst(*ost))) {
     SetNextLevNotAllDefsSeen(vst->GetIndex());
@@ -605,7 +603,7 @@ void AliasClass::SetPtrOpndNextLevNADS(const BaseNode &opnd, VersionSt *vst, boo
     if (ost->GetOffset().IsInvalid() && prevLevVst != nullptr) {
       auto *siblingOsts = ssaTab.GetOriginalStTable().GetNextLevelOstsOfVst(prevLevVst);
       for (auto *mayValueAliasOst : *siblingOsts) {
-        if (!IsPotentialAddress(mayValueAliasOst->GetType()->GetPrimType(), &mirModule)) {
+        if (!IsPotentialAddress(mayValueAliasOst->GetType()->GetPrimType())) {
           continue;
         }
         SetNextLevNotAllDefsSeen(mayValueAliasOst->GetZeroVersionIndex());
@@ -651,7 +649,7 @@ void AliasClass::SetAggPtrFieldsNextLevNADS(const OriginalSt &ost) {
         // LHS is next, and ptr will escape, but LHS's primtype is agg, not an address type.
         //
         // Hence we should not skip for this case
-        if (!IsPotentialAddress(nextOst->GetType()->GetPrimType(), &mirModule)) {
+        if (!IsPotentialAddress(nextOst->GetType()->GetPrimType())) {
           MIRType *prevType = static_cast<MIRPtrType*>(prevVst->GetOst()->GetType())->GetPointedType();
           int64 bitOffset = prevType->GetBitOffsetFromBaseAddr(nextOst->GetFieldID());
           if (nextOst->GetOffset().val == bitOffset) {
@@ -666,7 +664,7 @@ void AliasClass::SetAggPtrFieldsNextLevNADS(const OriginalSt &ost) {
     FieldID numFieldIDs = static_cast<FieldID>(structType->NumberOfFieldIDs());
     for (FieldID fieldID = 1; fieldID <= numFieldIDs; fieldID++) {
       MIRType *fieldType = structType->GetFieldType(fieldID);
-      if (!IsPotentialAddress(fieldType->GetPrimType(), &mirModule)) {
+      if (!IsPotentialAddress(fieldType->GetPrimType())) {
         continue;
       }
       int64 bitOffset = structType->GetBitOffsetFromBaseAddr(fieldID);
@@ -966,8 +964,9 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       bool hasnoprivatedefeffect = CallHasNoPrivateDefEffect(&stmt);
       for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
         const AliasInfo &ainfo = CreateAliasInfoExpr(*stmt.Opnd(i));
-        // no need to solve args that are not used.
-        if (desc.IsArgUnused(i)) {
+        // no need to solve args that are not used or read-Only.
+        if (desc.IsArgUnused(i) ||
+            (desc.IsReturnNoAlias() && (desc.IsArgReadSelfOnly(i) || desc.IsArgReadMemoryOnly(i)))) {
           continue;
         }
         SetPtrOpndNextLevNADS(*stmt.Opnd(i), ainfo.vst, hasnoprivatedefeffect);
@@ -1006,7 +1005,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
         if (hasnoprivatedefeffect && ainfo.vst->GetOst()->IsPrivate()) {
           continue;
         }
-        if (!IsPotentialAddress(stmt.Opnd(i)->GetPrimType(), &mirModule)) {
+        if (!IsPotentialAddress(stmt.Opnd(i)->GetPrimType())) {
           continue;
         }
         if (stmt.Opnd(i)->GetOpCode() == OP_addrof && IsReadOnlyOst(*ainfo.vst->GetOst())) {
@@ -1018,7 +1017,9 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
     }
     case OP_asm:
     case OP_icall:
-    case OP_icallassigned: {
+    case OP_icallassigned:
+    case OP_icallproto:
+    case OP_icallprotoassigned: {
       for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
         const AliasInfo &ainfo = CreateAliasInfoExpr(*stmt.Opnd(i));
         if (stmt.GetOpCode() != OP_asm && i == 0) {
@@ -1136,9 +1137,7 @@ void AliasClass::GetValueAliasSetOfVst(size_t vstIdx, std::set<size_t> &result) 
   if (assignSet == nullptr) {
     result.insert(vstIdx);
   } else {
-    for (auto valueAliasVstIdx : *assignSet) {
-      result.insert(valueAliasVstIdx);
-    }
+    result.insert(assignSet->begin(), assignSet->end());
   }
 }
 
@@ -1925,9 +1924,7 @@ void AliasClass::InsertMayUseExpr(BaseNode &expr) {
 
 // collect the mayUses caused by globalsAffectedByCalls.
 void AliasClass::CollectMayUseFromGlobalsAffectedByCalls(std::set<OriginalSt*> &mayUseOsts) {
-  for (auto *ostOfGlobal : globalsAffectedByCalls) {
-    (void)mayUseOsts.insert(ostOfGlobal);
-  }
+  mayUseOsts.insert(globalsAffectedByCalls.begin(), globalsAffectedByCalls.end());
 }
 
 // collect the mayUses caused by defined final field.
@@ -2046,7 +2043,7 @@ void AliasClass::InsertReturnOpndMayUse(const StmtNode &stmt) {
     // insert mayuses for the return operand's next level
     BaseNode *retValue = stmt.Opnd(0);
     auto *vst = CreateAliasInfoExpr(*retValue).vst;
-    if (IsPotentialAddress(retValue->GetPrimType(), &mirModule) && vst != nullptr) {
+    if (IsPotentialAddress(retValue->GetPrimType()) && vst != nullptr) {
       if (retValue->GetOpCode() == OP_addrof && IsReadOnlyOst(*vst->GetOst())) {
         return;
       }
@@ -2305,10 +2302,6 @@ void AliasClass::CollectMayUseForNextLevel(const VersionSt &vst, std::set<Origin
     return;
   }
   for (OriginalSt *nextLevelOst : *nextLevelOsts) {
-    if (IsNotAllDefsSeen(nextLevelOst->GetIndex())) {
-      return;
-    }
-
     if (nextLevelOst->IsFinal()) {
       // only final fields pointed to by the first opnd(this) are considered.
       if (!isFirstOpnd) {
@@ -2336,15 +2329,13 @@ void AliasClass::CollectMayUseForNextLevel(const VersionSt &vst, std::set<Origin
     auto *aliasSet = GetAliasSet(*nextLevelOst);
     if (aliasSet == nullptr) {
       (void)mayUseOsts.insert(nextLevelOst);
-      if (!IsNextLevNotAllDefsSeen(zeroVersionIdx)) {
-        CollectMayUseForNextLevel(*zeroVersionSt, mayUseOsts, stmt, false);
-      }
+      CollectMayUseForNextLevel(*zeroVersionSt, mayUseOsts, stmt, false);
     } else {
       for (uint32 aliasOstIdx : *aliasSet) {
         OriginalSt *aliasOst = ssaTab.GetOriginalStFromID(OStIdx(aliasOstIdx));
         CHECK_FATAL(aliasOst->GetVersionsIndices().size() == 1, "ost must only has zero version");
         auto retPair = mayUseOsts.insert(aliasOst);
-        if (retPair.second && !IsNextLevNotAllDefsSeen(zeroVersionIdx)) {
+        if (retPair.second) {
           CollectMayUseForNextLevel(*zeroVersionSt, mayUseOsts, stmt, false);
         }
       }
@@ -2357,7 +2348,7 @@ void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<Origina
   for (; opndId < stmt.NumOpnds(); ++opndId) {
     BaseNode *expr = stmt.Opnd(opndId);
     expr = RemoveTypeConversionIfExist(expr);
-    if (!IsPotentialAddress(expr->GetPrimType(), &mirModule)) {
+    if (!IsPotentialAddress(expr->GetPrimType())) {
       continue;
     }
 
@@ -2377,36 +2368,46 @@ void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<Origina
 }
 
 void AliasClass::CollectMayDefUseForCallOpnd(const StmtNode &stmt,
-                                             std::set<OriginalSt*> &mayDefOsts,
-                                             std::set<OriginalSt*> &mayUseOsts) {
+    std::set<OriginalSt*> &mayDefOsts, std::set<OriginalSt*> &mayUseOsts,
+    std::set<OriginalSt*> &mustNotDefOsts, std::set<OriginalSt*> &mustNotUseOsts) {
   size_t opndId = kOpcodeInfo.IsICall(stmt.GetOpCode()) ? 1 : 0;
   const FuncDesc *desc = nullptr;
   if (stmt.GetOpCode() == OP_call || stmt.GetOpCode() == OP_callassigned) {
     desc = &GetFuncDescFromCallStmt(static_cast<const CallNode&>(stmt));
   }
   for (; opndId < stmt.NumOpnds(); ++opndId) {
-    if (desc != nullptr && (desc->IsArgUnused(opndId) || desc->IsArgReadSelfOnly(opndId))) {
-      continue;
-    }
     BaseNode *expr = stmt.Opnd(opndId);
     expr = RemoveTypeConversionIfExist(expr);
-    if (!IsPotentialAddress(expr->GetPrimType(), &mirModule)) {
+    if (!IsPotentialAddress(expr->GetPrimType())) {
       continue;
     }
 
     AliasInfo aInfo = CreateAliasInfoExpr(*expr);
-    if (aInfo.vst == nullptr ||
-        (IsNextLevNotAllDefsSeen(aInfo.vst->GetIndex()) &&
-         aInfo.vst->GetOst()->GetIndirectLev() > 0)) {
+    if (aInfo.vst == nullptr) {
       continue;
     }
 
     if (aInfo.vst->GetOst()->GetType()->PointsToConstString()) {
+      ssaTab.CollectIterNextLevel(aInfo.vst->GetIndex(), mustNotDefOsts);
+      continue;
+    }
+
+    if (desc != nullptr && (desc->IsArgUnused(opndId) || desc->IsArgReadSelfOnly(opndId))) {
+      // configured desc guarantees iterNextLevel of opnd are never modified through any way(like global or other opnds)
+      if (desc->IsConfiged()) {
+        std::set<OriginalSt*> result;
+        ssaTab.CollectIterNextLevel(aInfo.vst->GetIndex(), result);
+        mustNotDefOsts.insert(result.begin(), result.end());
+        mustNotUseOsts.insert(result.begin(), result.end());
+      }
       continue;
     }
 
     if (desc != nullptr && desc->IsArgReadMemoryOnly(opndId)) {
       CollectMayUseForNextLevel(*aInfo.vst, mayUseOsts, stmt, opndId == 0);
+      if (desc->IsConfiged()) {
+        ssaTab.CollectIterNextLevel(aInfo.vst->GetIndex(), mustNotDefOsts);
+      }
       continue;
     }
 
@@ -2445,26 +2446,41 @@ void AliasClass::InsertMayDefUseCall(StmtNode &stmt, BBId bbid, bool isDirectCal
   auto *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
   std::set<OriginalSt*> mayDefOstsA;
   std::set<OriginalSt*> mayUseOstsA;
+  std::set<OriginalSt*> mustNotDefOsts;
+  std::set<OriginalSt*> mustNotUseOsts;
   // 1. collect mayDefs and mayUses caused by callee-opnds
-  CollectMayDefUseForCallOpnd(stmt, mayDefOstsA, mayUseOstsA);
+  CollectMayDefUseForCallOpnd(stmt, mayDefOstsA, mayUseOstsA, mustNotDefOsts, mustNotUseOsts);
   // 2. collect mayDefs and mayUses caused by not_all_def_seen_ae
-  mayUseOstsA.insert(nadsOsts.begin(), nadsOsts.end());
+  if (mustNotUseOsts.empty()) {
+    mayUseOstsA.insert(nadsOsts.begin(), nadsOsts.end());
+  } else {
+    // filter mustNotUse
+    std::set_difference(nadsOsts.begin(), nadsOsts.end(), mustNotUseOsts.begin(), mustNotUseOsts.end(),
+                        std::inserter(mayUseOstsA, mayUseOstsA.end()));
+  }
   if (hasSideEffect) {
-    mayDefOstsA.insert(nadsOsts.begin(), nadsOsts.end());
+    if (mustNotDefOsts.empty()) {
+      mayDefOstsA.insert(nadsOsts.begin(), nadsOsts.end());
+    } else {
+      // filter mustNotDef
+      std::set_difference(nadsOsts.begin(), nadsOsts.end(), mustNotDefOsts.begin(), mustNotDefOsts.end(),
+                          std::inserter(mayDefOstsA, mayDefOstsA.end()));
+    }
   }
   // insert mayuse node caused by opnd and not_all_def_seen_ae.
   InsertMayUseNode(mayUseOstsA, ssaPart);
   // insert maydef node caused by opnd and not_all_def_seen_ae.
   InsertMayDefNodeForCall(mayDefOstsA, ssaPart, stmt, bbid, hasNoPrivateDefEffect);
+
   // 3. insert mayDefs and mayUses caused by globalsAffectedByCalls
-  std::set<OriginalSt*> mayDefUseOstsB;
-  CollectMayUseFromGlobalsAffectedByCalls(mayDefUseOstsB);
+  std::set<OriginalSt*> mayDefUseOfGOsts;
+  CollectMayUseFromGlobalsAffectedByCalls(mayDefUseOfGOsts);
   if (desc == nullptr || !desc->IsConst()) {
-    InsertMayUseNode(mayDefUseOstsB, ssaPart);
+    InsertMayUseNode(mayDefUseOfGOsts, ssaPart);
   }
   // insert may def node, if the callee has side-effect.
   if (hasSideEffect) {
-    InsertMayDefNodeExcludeFinalOst(mayDefUseOstsB, ssaPart, stmt, bbid);
+    InsertMayDefNodeExcludeFinalOst(mayDefUseOfGOsts, ssaPart, stmt, bbid);
   }
   if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
     // 4. insert mayDefs caused by the mustDefs
@@ -2569,6 +2585,7 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
     case OP_customcallassigned:
     case OP_polymorphiccallassigned:
     case OP_icallassigned:
+    case OP_icallprotoassigned:
     case OP_virtualcall:
     case OP_virtualicall:
     case OP_superclasscall:
@@ -2576,7 +2593,8 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
     case OP_interfaceicall:
     case OP_customcall:
     case OP_polymorphiccall:
-    case OP_icall: {
+    case OP_icall:
+    case OP_icallproto: {
       InsertMayDefUseCall(stmt, bbID, false);
       return;
     }

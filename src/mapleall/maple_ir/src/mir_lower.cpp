@@ -403,7 +403,7 @@ BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
   }
   auto *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   if (doloop.IsPreg()) {
-    PregIdx regIdx = (PregIdx)doloop.GetDoVarStIdx().FullIdx();
+    PregIdx regIdx = static_cast<PregIdx>(doloop.GetDoVarStIdx().FullIdx());
     MIRPreg *mirPreg = mirModule.CurFunction()->GetPregTab()->PregFromPregIdx(regIdx);
     PrimType primType = mirPreg->GetPrimType();
     ASSERT(primType != kPtyInvalid, "runtime check error");
@@ -544,6 +544,23 @@ BlockNode *MIRLower::LowerBlock(BlockNode &block) {
       case OP_doloop:
         newBlock->AppendStatementsFromBlock(*LowerDoloopStmt(static_cast<DoloopNode&>(*stmt)));
         break;
+      case OP_icallassigned:
+      case OP_icall: {
+        if (mirModule.IsCModule()) {
+          // convert to icallproto/icallprotoassigned
+          IcallNode *ic = static_cast<IcallNode *>(stmt);
+          ic->SetOpCode(stmt->GetOpCode() == OP_icall ? OP_icallproto : OP_icallprotoassigned);
+          MIRFuncType *funcType = FuncTypeFromFuncPtrExpr(stmt->Opnd(0));
+          CHECK_FATAL(funcType != nullptr, "MIRLower::LowerBlock: cannot find prototype for icall");
+          ic->SetRetTyIdx(funcType->GetTypeIndex());
+          MIRType *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetRetTyIdx());
+          if (retType->GetPrimType() == PTY_agg && retType->GetSize() > 16) {
+            funcType->funcAttrs.SetAttr(FUNCATTR_firstarg_return);
+          }
+        }
+        newBlock->AddStatement(stmt);
+        break;
+      }
       case OP_block:
         tmp = LowerBlock(static_cast<BlockNode&>(*stmt));
         newBlock->AppendStatementsFromBlock(*tmp);
@@ -997,6 +1014,100 @@ void MIRLower::ExpandArrayMrt(MIRFunction &func) {
     BlockNode *newBody = ExpandArrayMrtBlock(*origBody);
     func.SetBody(newBody);
   }
+}
+
+MIRFuncType *MIRLower::FuncTypeFromFuncPtrExpr(BaseNode *x) {
+  MIRFuncType *res = nullptr;
+  MIRFunction *func = mirModule.CurFunction();
+  switch (x->GetOpCode()) {
+    case OP_regread: {
+      RegreadNode *regread = static_cast<RegreadNode *>(x);
+      MIRPreg *preg = func->GetPregTab()->PregFromPregIdx(regread->GetRegIdx());
+      // see if it is promoted from a symbol
+      if (preg->GetOp() == OP_dread) {
+        const MIRSymbol *symbol = preg->rematInfo.sym;
+        MIRType *mirType = symbol->GetType();
+        if (preg->fieldID != 0) {
+          MIRStructType *structty = static_cast<MIRStructType *>(mirType);
+          FieldPair thepair = structty->TraverseToField(preg->fieldID);
+          mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
+        }
+
+        if (mirType->GetKind() == kTypePointer) {
+          res = static_cast<MIRPtrType *>(mirType)->GetPointedFuncType();
+        }
+        if (res != nullptr) {
+          break;
+        }
+      }
+      // check if a formal promoted to preg
+      for (FormalDef &formalDef : func->GetFormalDefVec()) {
+        if (!formalDef.formalSym->IsPreg()) {
+          continue;
+        }
+        if (formalDef.formalSym->GetPreg() == preg) {
+          MIRType *mirType = formalDef.formalSym->GetType();
+          if (mirType->GetKind() == kTypePointer) {
+            res = static_cast<MIRPtrType *>(mirType)->GetPointedFuncType();
+          }
+          break;
+        }
+      }
+      break;
+    }
+    case OP_dread: {
+      DreadNode *dread = static_cast<DreadNode *>(x);
+      MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dread->GetStIdx());
+      MIRType *mirType = symbol->GetType();
+      if (dread->GetFieldID() != 0) {
+        MIRStructType *structty = static_cast<MIRStructType *>(mirType);
+        FieldPair thepair = structty->TraverseToField(dread->GetFieldID());
+        mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
+      }
+      if (mirType->GetKind() == kTypePointer) {
+        res = static_cast<MIRPtrType *>(mirType)->GetPointedFuncType();
+      }
+      break;
+    }
+    case OP_iread: {
+      IreadNode *iread = static_cast<IreadNode *>(x);
+      MIRPtrType *ptrType = static_cast<MIRPtrType *>(iread->GetType());
+      MIRType *mirType = ptrType->GetPointedType();
+      if (mirType->GetKind() == kTypeFunction) {
+        res = static_cast<MIRFuncType *>(mirType);
+      } else if (mirType->GetKind() == kTypePointer) {
+        res = static_cast<MIRPtrType *>(mirType)->GetPointedFuncType();
+      }
+      break;
+    }
+    case OP_addroffunc: {
+      AddroffuncNode *addrofFunc = static_cast<AddroffuncNode *>(x);
+      PUIdx puIdx = addrofFunc->GetPUIdx();
+      MIRFunction *f = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx);
+      res = f->GetMIRFuncType();
+      break;
+    }
+    case OP_retype: {
+      MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
+          static_cast<RetypeNode*>(x)->GetTyIdx());
+      if (mirType->GetKind() == kTypePointer) {
+        res = static_cast<MIRPtrType *>(mirType)->GetPointedFuncType();
+      }
+      if (res == nullptr) {
+        res = FuncTypeFromFuncPtrExpr(x->Opnd(0));
+      }
+      break;
+    }
+    case OP_select: {
+      res = FuncTypeFromFuncPtrExpr(x->Opnd(1));
+      if (res == nullptr) {
+        res = FuncTypeFromFuncPtrExpr(x->Opnd(2));
+      }
+      break;
+    }
+    default: CHECK_FATAL(false, "LMBCLowerer::FuncTypeFromFuncPtrExpr: NYI");
+  }
+  return res;
 }
 
 const std::set<std::string> MIRLower::kSetArrayHotFunc = {};

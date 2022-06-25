@@ -1145,6 +1145,7 @@ void RCLowering::HandleArguments() {
       firstBB->InsertMeStmtBefore(firstMeStmt, incCall);
     }
     sym->SetLocalRefVar();
+    mirFunc->GetFormalDefVec()[i].formalAttrs.SetAttr(ATTR_localrefvar);
 
     for (auto *stmt : rets) {
       std::vector<MeExpr*> opnds = { argVar };

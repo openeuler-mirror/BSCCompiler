@@ -30,7 +30,7 @@ void AArch64ReachingDefinition::InitStartGen() {
   CCLocInfo pLoc;
   for (uint32 i = 0; i < cgFunc->GetFunction().GetFormalCount(); ++i) {
     MIRType *type = cgFunc->GetFunction().GetNthParamType(i);
-    parmLocator.LocateNextParm(*type, pLoc);
+    parmLocator.LocateNextParm(*type, pLoc, i == 0, &cgFunc->GetFunction());
     if (pLoc.reg0 == 0) {
       /* If is a large frame, parameter addressing mode is based vreg:Vra. */
       continue;
@@ -161,8 +161,7 @@ void AArch64ReachingDefinition::AddRetPseudoInsn(BB &bb) {
     Insn &retInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_pseudo_ret_int, regOpnd);
     bb.AppendInsn(retInsn);
     pseudoInsns.emplace_back(&retInsn);
-  } else {
-    ASSERT(regNO == V0, "CG internal error. Return value should be R0 or V0.");
+  } else if (regNO == V0) {
     RegOperand &regOpnd =
         static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(regNO, k64BitSize, kRegTyFloat);
     Insn &retInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_pseudo_ret_float, regOpnd);

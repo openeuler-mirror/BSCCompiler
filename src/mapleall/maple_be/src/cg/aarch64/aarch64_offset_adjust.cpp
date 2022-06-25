@@ -50,7 +50,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGF
         if (memBaseReg->GetRegisterNumber() == RFP) {
           RegOperand &newBaseOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(stackBaseReg, k64BitSize, kRegTyInt);
           MemOperand &newMemOpnd = aarchCGFunc.GetOrCreateMemOpnd(
-              MemOperand::kAddrModeBOi, memOpnd.GetSize(), &newBaseOpnd, memOpnd.GetIndexRegister(),
+              memOpnd.GetAddrMode(), memOpnd.GetSize(), &newBaseOpnd, memOpnd.GetIndexRegister(),
               memOpnd.GetOffsetImmediate(), memOpnd.GetSymbol());
           insn.SetOperand(i, newMemOpnd);
           stackBaseOpnd = true;
