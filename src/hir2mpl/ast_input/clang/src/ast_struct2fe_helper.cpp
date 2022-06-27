@@ -270,9 +270,6 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
     ENCChecker::InsertBoundaryInAtts(typeAttrs, paramDecls[i]->GetBoundaryInfo());
     sym->AddAttrs(typeAttrs);
     mirFunc->AddArgument(sym);
-    if (FEOptions::GetInstance().IsDbgFriendly()) {
-      feFunc->AddAliasInMIRScope(mirFunc->GetScope(), paramDecls[i]->GetName(), sym);
-    }
   }
   mirMethodPair.first = mirFunc->GetStIdx();
   mirMethodPair.second.first = mirFunc->GetMIRFuncType()->GetTypeIndex();
