@@ -123,7 +123,7 @@ bool DBGDie::SetAttr(DwAt attr, uint64 val) {
   return false;
 }
 
-bool DBGDie::SetAttr(DwAt attr, int val) {
+bool DBGDie::SetAttr(DwAt attr, int32 val) {
   for (auto it : attrVec) {
     if (it->GetDwAt() == attr) {
       it->SetI(val);
@@ -302,15 +302,22 @@ void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap) {
   for (auto &i : aliasMap) {
     // maple var
     MIRSymbol *var = nullptr;
+    GStrIdx mplIdx = i.second.mplStrIdx;
     if (i.second.isLocal) {
-      var = func->GetSymTab()->GetSymbolFromStrIdx(i.second.mplStrIdx);
+      var = func->GetSymTab()->GetSymbolFromStrIdx(mplIdx);
     } else {
-      var = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(i.second.mplStrIdx);
+      var = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(mplIdx);
     }
     ASSERT(var, "can not find symbol");
 
     // create alias die using maple var except name
     DBGDie *vdie = CreateVarDie(var, i.first);
+    // maple var die
+    DBGDie *mdie = (var->IsGlobal()) ? GetGlobalDie(mplIdx) : GetLocalDie(mplIdx);
+    ASSERT(mdie, "can not find maple mdie");
+
+    // link vdie's ExprLoc to mdie's
+    vdie->LinkExprLoc(mdie);
 
     GetParentDie()->AddSubVec(vdie);
 
@@ -409,6 +416,15 @@ void DebugInfo::SetLocalDie(MIRFunction *func, GStrIdx strIdx, const DBGDie *die
   (funcLstrIdxDieIdMap[func])[strIdx.GetIdx()] = die->GetId();
 }
 
+DBGDie *DebugInfo::GetGlobalDie(GStrIdx strIdx) {
+  unsigned idx = strIdx.GetIdx();
+  if (stridxDieIdMap.find(idx) != stridxDieIdMap.end()) {
+    uint32 id = stridxDieIdMap[idx];
+    return idDieMap[id];
+  }
+  return nullptr;
+}
+
 DBGDie *DebugInfo::GetLocalDie(MIRFunction *func, GStrIdx strIdx) {
   uint32 id = (funcLstrIdxDieIdMap[func])[strIdx.GetIdx()];
   return idDieMap[id];
@@ -423,8 +439,8 @@ DBGDie *DebugInfo::GetLocalDie(GStrIdx strIdx) {
   return idDieMap[id];
 }
 
-void DebugInfo::SetLabelIdx(MIRFunction *func, GStrIdx strIdx, LabelIdx labidx) {
-  (funcLstrIdxLabIdxMap[func])[strIdx.GetIdx()] = labidx;
+void DebugInfo::SetLabelIdx(MIRFunction *func, GStrIdx strIdx, LabelIdx labIdx) {
+  (funcLstrIdxLabIdxMap[func])[strIdx.GetIdx()] = labIdx;
 }
 
 LabelIdx DebugInfo::GetLabelIdx(MIRFunction *func, GStrIdx strIdx) {
@@ -432,8 +448,8 @@ LabelIdx DebugInfo::GetLabelIdx(MIRFunction *func, GStrIdx strIdx) {
   return labidx;
 }
 
-void DebugInfo::SetLabelIdx(GStrIdx strIdx, LabelIdx labidx) {
-  (funcLstrIdxLabIdxMap[GetCurFunction()])[strIdx.GetIdx()] = labidx;
+void DebugInfo::SetLabelIdx(GStrIdx strIdx, LabelIdx labIdx) {
+  (funcLstrIdxLabIdxMap[GetCurFunction()])[strIdx.GetIdx()] = labIdx;
 }
 
 LabelIdx DebugInfo::GetLabelIdx(GStrIdx strIdx) {
@@ -854,9 +870,9 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arraytype) {
   rangedie->AddAttr(DW_AT_type, DW_FORM_ref4, PTY_u32);
   if (theMIRModule->IsCModule() || theMIRModule->IsJavaModule()) {
     // The default lower bound value for C, C++, or Java is 0
-    rangedie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arraytype->GetSizeArrayItem(0) - 1);
+    (void)rangedie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arraytype->GetSizeArrayItem(0) - 1);
   } else {
-    rangedie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arraytype->GetSizeArrayItem(0));
+    (void)rangedie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arraytype->GetSizeArrayItem(0));
   }
 
   die->AddSubVec(rangedie);

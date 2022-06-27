@@ -210,12 +210,13 @@ class DBGExprLoc {
 
 class DBGDieAttr {
  public:
-  size_t SizeOf(DBGDieAttr *attr);
   explicit DBGDieAttr(DBGDieKind k) : dieKind(k), dwAttr(DW_AT_deleted), dwForm(DW_FORM_GNU_strp_alt) {
     value.u = kDbgDefaultVal;
   }
 
-  virtual ~DBGDieAttr() {}
+  virtual ~DBGDieAttr() = default;
+
+  size_t SizeOf(DBGDieAttr *attr);
 
   void AddSimpLocOpnd(uint64 val) {
     value.ptr->AddSimpLocOpnd(val);
@@ -307,6 +308,14 @@ class DBGDieAttr {
     value.ptr = val;
   }
 
+  void SetKeep(bool flag) {
+    keep = flag;
+  }
+
+  bool GetKeep() const {
+    return keep;
+  }
+
  private:
   DBGDieKind dieKind;
   DwAt dwAttr;
@@ -322,6 +331,7 @@ class DBGDieAttr {
 
     DBGExprLoc *ptr;
   } value;
+  bool keep = true;
 };
 
 class DBGDie {
@@ -331,7 +341,8 @@ class DBGDie {
   void AddAttr(DBGDieAttr *attr);
   void AddSubVec(DBGDie *die);
 
-  DBGDieAttr *AddAttr(DwAt attr, DwForm form, uint64 val);
+  DBGDieAttr *AddAttr(DwAt at, DwForm form, uint64 val);
+  DBGDieAttr *AddAttr(DwAt at, DwForm form, uint64 val, bool keep);
   DBGDieAttr *AddSimpLocAttr(DwAt at, DwForm form, uint64 val);
   DBGDieAttr *AddGlobalLocAttr(DwAt at, DwForm form, uint64 val);
   DBGDieAttr *AddFrmBaseAttr(DwAt at, DwForm form);
@@ -449,6 +460,16 @@ class DBGDie {
 
   DBGDie *GetSubDieVecAt(uint32 i) const {
     return subDieVec[i];
+  }
+
+  // link ExprLoc to die's
+  void LinkExprLoc(DBGDie *die) {
+    for (auto &at : attrVec) {
+      if (at->GetDwAt() == DW_AT_location) {
+        DBGExprLoc *loc = die->GetExprLoc();
+        at->SetPtr(loc);
+      }
+    }
   }
 
  private:
@@ -612,7 +633,9 @@ class DebugInfo {
   void FillTypeAttrWithDieId();
 
   void BuildAbbrev();
-  uint32 GetAbbrevId(DBGAbbrevEntryVec *, DBGAbbrevEntry *);
+  uint32 GetAbbrevId(DBGAbbrevEntryVec *vec, DBGAbbrevEntry *entry);
+
+  DBGDie *GetGlobalDie(GStrIdx strIdx);
 
   void SetLocalDie(GStrIdx strIdx, const DBGDie *die);
   void SetLocalDie(MIRFunction *func, GStrIdx strIdx, const DBGDie *die);
@@ -621,8 +644,8 @@ class DebugInfo {
 
   LabelIdx GetLabelIdx(GStrIdx strIdx);
   LabelIdx GetLabelIdx(MIRFunction *func, GStrIdx strIdx);
-  void SetLabelIdx(GStrIdx strIdx, LabelIdx idx);
-  void SetLabelIdx(MIRFunction *func, GStrIdx strIdx, LabelIdx idx);
+  void SetLabelIdx(GStrIdx strIdx, LabelIdx labIdx);
+  void SetLabelIdx(MIRFunction *func, GStrIdx strIdx, LabelIdx labIdx);
 
   uint32 GetMaxId() const {
     return maxId;
@@ -693,17 +716,17 @@ class DebugInfo {
     tyIdxDieIdMap[tyIdx.GetIdx()] = die->GetId();
   }
 
-  DBGDieAttr *CreateAttr(DwAt attr, DwForm form, uint64 val);
+  DBGDieAttr *CreateAttr(DwAt at, DwForm form, uint64 val);
 
   DBGDie *CreateVarDie(MIRSymbol *sym);
   DBGDie *CreateVarDie(MIRSymbol *sym, GStrIdx strIdx); // use alt name
   DBGDie *CreateFormalParaDie(MIRFunction *func, MIRType *type, MIRSymbol *sym);
   DBGDie *CreateFieldDie(maple::FieldPair pair, uint32 lnum);
-  DBGDie *CreateBitfieldDie(const MIRBitFieldType *type, GStrIdx idx);
-  DBGDie *CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *type, bool update = false);
-  DBGDie *CreateClassTypeDie(GStrIdx strIdx, const MIRClassType *type);
-  DBGDie *CreateInterfaceTypeDie(GStrIdx strIdx, const MIRInterfaceType *type);
-  DBGDie *CreatePointedFuncTypeDie(MIRFuncType *func);
+  DBGDie *CreateBitfieldDie(const MIRBitFieldType *type, GStrIdx sidx, uint32 prevBits);
+  DBGDie *CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *structtype, bool update = false);
+  DBGDie *CreateClassTypeDie(GStrIdx strIdx, const MIRClassType *classtype);
+  DBGDie *CreateInterfaceTypeDie(GStrIdx strIdx, const MIRInterfaceType *interfacetype);
+  DBGDie *CreatePointedFuncTypeDie(MIRFuncType *ftype);
 
   DBGDie *GetOrCreateLabelDie(LabelIdx labid);
   DBGDie *GetOrCreateTypeAttrDie(MIRSymbol *sym);
@@ -713,8 +736,8 @@ class DebugInfo {
   DBGDie *GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum);
   DBGDie *GetOrCreatePrimTypeDie(MIRType *ty);
   DBGDie *GetOrCreateTypeDie(MIRType *type);
-  DBGDie *GetOrCreatePointTypeDie(const MIRPtrType *type);
-  DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *type);
+  DBGDie *GetOrCreatePointTypeDie(const MIRPtrType *ptrtype);
+  DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *arraytype);
   DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
 
   void AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap);
@@ -722,7 +745,7 @@ class DebugInfo {
 
   // Functions for calculating the size and offset of each DW_TAG_xxx and DW_AT_xxx
   void ComputeSizeAndOffsets();
-  void ComputeSizeAndOffset(DBGDie *die, uint32 &offset);
+  void ComputeSizeAndOffset(DBGDie *die, uint32 &cuOffset);
 
  private:
   MIRModule *module;
