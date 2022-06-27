@@ -38,8 +38,7 @@ FEFunction::FEFunction(MIRFunction &argMIRFunction, const std::unique_ptr<FEFunc
       feirBBTail(nullptr),
       phaseResult(FEOptions::GetInstance().IsDumpPhaseTimeDetail() || FEOptions::GetInstance().IsDumpPhaseTime()),
       phaseResultTotal(argPhaseResultTotal),
-      mirFunction(argMIRFunction) {
-}
+      mirFunction(argMIRFunction) {}
 
 FEFunction::~FEFunction() {
   genStmtHead = nullptr;
@@ -792,36 +791,56 @@ void FEFunction::AddLocForStmt(const FEIRStmt &stmt, std::list<StmtNode*> &mirSt
   }
 }
 
-void FEFunction::PushStmtScope(const SrcPosition &startOfScope, const SrcPosition &endOfScope, MIRScope *scope) {
-  MIRScope *mirScope = scope;
-  if (mirScope == nullptr) {
-    mirScope = mirFunction.GetModule()->GetMemPool()->New<MIRScope>(mirFunction.GetModule());
-    mirScope->IncLevel();
+void FEFunction::PushFuncScope(const SrcPosition &startOfScope, const SrcPosition &endOfScope) {
+  UniqueFEIRScope feirScope = std::make_unique<FEIRScope>();
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    MIRScope *mockedScope = mirFunction.GetScope();
+    MIRScope *mirScope = mirFunction.GetModule()->GetMemPool()->New<MIRScope>(
+        mirFunction.GetModule(), 1);  // func scope start level is 1
     mirScope->SetRange(startOfScope, endOfScope);
-    MIRScope *parentMirScope = GetTopStmtScope();
-    ASSERT_NOT_NULL(parentMirScope);
-    parentMirScope->AddScope(mirScope);
-  } else { // function scope
-    mirScope->SetRange(startOfScope, endOfScope);
+    mockedScope->AddScope(mirScope);
+    feirScope->SetMIRScope(mirScope);
   }
-  stmtsScopeStack.push(mirScope);
+  stmtsScopeStack.push(std::move(feirScope));
 }
 
-MIRScope *FEFunction::GetTopStmtScope() {
-  if (!stmtsScopeStack.empty()) {
-    return stmtsScopeStack.top();
+void FEFunction::PushStmtScope(const SrcPosition &startOfScope, const SrcPosition &endOfScope) {
+  UniqueFEIRScope feirScope = std::make_unique<FEIRScope>();
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    MIRScope *parentMIRScope = GetTopStmtMIRScope();
+    MIRScope *mirScope = mirFunction.GetModule()->GetMemPool()->New<MIRScope>(
+        mirFunction.GetModule(), parentMIRScope->GetLevel());
+    mirScope->SetRange(startOfScope, endOfScope);
+    parentMIRScope->AddScope(mirScope);
+    feirScope->SetMIRScope(mirScope);
   }
+  stmtsScopeStack.push(std::move(feirScope));
+}
+
+FEIRScope *FEFunction::GetTopStmtFEIRScopePtr() const {
+  if (!stmtsScopeStack.empty()) {
+    return stmtsScopeStack.top().get();
+  }
+  CHECK_FATAL(false, "scope stack is empty");
   return nullptr;
 }
 
-void FEFunction::PopTopStmtScope() {
+MIRScope *FEFunction::GetTopStmtMIRScope() const {
   if (!stmtsScopeStack.empty()) {
-    stmtsScopeStack.pop();
+    return stmtsScopeStack.top().get()->GetMIRScope();
   }
+  CHECK_FATAL(false, "scope stack is empty");
+  return nullptr;
 }
 
-MIRScope *FEFunction::GetFunctionScope() {
-  return mirFunction.GetScope();
+UniqueFEIRScope FEFunction::PopTopStmtScope() {
+  if (!stmtsScopeStack.empty()) {
+    UniqueFEIRScope scope = std::move(stmtsScopeStack.top());
+    stmtsScopeStack.pop();
+    return scope;
+  }
+  CHECK_FATAL(false, "scope stack is empty");
+  return nullptr;
 }
 
 void FEFunction::AddAliasInMIRScope(MIRScope *scope, const std::string &srcVarName, const MIRSymbol *symbol) {

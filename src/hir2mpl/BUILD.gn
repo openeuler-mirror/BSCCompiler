@@ -109,6 +109,7 @@ static_library("lib_hir2mpl_common") {
     "${HIR2MPL_ROOT}/common/src/simple_zip.cpp",
     "${HIR2MPL_ROOT}/common/src/generic_attrs.cpp",
     "${HIR2MPL_ROOT}/common/src/enhance_c_checker.cpp",
+    "${HIR2MPL_ROOT}/common/src/feir_scope.cpp",
   ]
   include_dirs = include_directories
   output_dir = "${root_out_dir}/ar"

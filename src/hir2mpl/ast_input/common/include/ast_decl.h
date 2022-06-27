@@ -46,9 +46,7 @@ struct BoundaryInfo {
 class ASTDecl {
  public:
   ASTDecl(const MapleString &srcFile, const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn)
-      : isGlobalDecl(false), srcFileName(srcFile), name(nameIn), typeDesc(typeDescIn) {
-        isDbgFriendly = FEOptions::GetInstance().IsDbgFriendly();
-      }
+      : isGlobalDecl(false), srcFileName(srcFile), name(nameIn), typeDesc(typeDescIn) {}
   virtual ~ASTDecl() = default;
   const std::string GetSrcFileName() const;
   const std::string GetName() const;
@@ -184,7 +182,6 @@ class ASTDecl {
   virtual void GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {}
   bool isGlobalDecl;
   bool isParam = false;
-  bool isDbgFriendly = false;
   uint32 align = 1; // in byte
   const MapleString srcFileName;
 

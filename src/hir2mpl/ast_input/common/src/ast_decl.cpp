@@ -138,22 +138,35 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   UniqueFEIRVar feirVar = Translate2FEIRVar();
   if (FEOptions::GetInstance().IsDbgFriendly() && !hasAddedInMIRScope) {
     FEFunction &feFunction = FEManager::GetCurrentFEFunction();
-    MIRScope *mirScope = feFunction.GetTopStmtScope();
-    ASSERT_NOT_NULL(mirScope);
+    MIRScope *mirScope = feFunction.GetTopStmtMIRScope();
     feFunction.AddAliasInMIRScope(mirScope, GetName(), sym);
     hasAddedInMIRScope = true;
   }
-  if (variableArrayExpr != nullptr) {
-    // free, Currently, the back-end are not supported.
+  if (variableArrayExpr != nullptr) {  // vla declaration point
+    FEFunction &feFunction = FEManager::GetCurrentFEFunction();
+    if (feFunction.GetTopStmtFEIRScopePtr() != nullptr &&
+        feFunction.GetTopStmtFEIRScopePtr()->GetVLASavedStackVar() == nullptr) {
+      // stack save
+      MIRType *retType = GlobalTables::GetTypeTable().GetOrCreatePointerType(
+          *GlobalTables::GetTypeTable().GetPrimType(PTY_void));
+      auto stackVar = FEIRBuilder::CreateVarNameForC(FEUtils::GetSequentialName("saved_stack."), *retType, false);
+      std::unique_ptr<std::list<UniqueFEIRExpr>> argExprList = std::make_unique<std::list<UniqueFEIRExpr>>();
+      auto stackSaveStmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(INTRN_C_stack_save, nullptr, stackVar->Clone(),
+                                                                         std::move(argExprList));
+      stackSaveStmt->SetSrcLoc(feirVar->GetSrcLoc());
+      stmts.emplace_back(std::move(stackSaveStmt));
+      // push saved stack var into scope
+      feFunction.GetTopStmtFEIRScopePtr()->SetVLASavedStackVar(std::move(stackVar));
+    }
     // alloca
     UniqueFEIRExpr variableArrayFEIRExpr = variableArrayExpr->Emit2FEExpr(stmts);
     MIRType *mirType = GlobalTables::GetTypeTable().GetPrimType(PTY_a64);
     UniqueFEIRType feType = std::make_unique<FEIRTypeNative>(*mirType);
     UniqueFEIRExpr allocaExpr = std::make_unique<FEIRExprUnary>(std::move(feType), OP_alloca,
                                                                 std::move(variableArrayFEIRExpr));
-    UniqueFEIRStmt stmt = FEIRBuilder::CreateStmtDAssign(feirVar->Clone(), std::move(allocaExpr));
-    stmt->SetSrcLoc(feirVar->GetSrcLoc());
-    stmts.emplace_back(std::move(stmt));
+    UniqueFEIRStmt allocaStmt = FEIRBuilder::CreateStmtDAssign(feirVar->Clone(), std::move(allocaExpr));
+    allocaStmt->SetSrcLoc(feirVar->GetSrcLoc());
+    stmts.emplace_back(std::move(allocaStmt));
     return;
   }
   if (initExpr == nullptr) {
@@ -245,11 +258,8 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
   }
   const ASTCompoundStmt *astCpdStmt = static_cast<const ASTCompoundStmt*>(astStmt);
   FEFunction &feFunction = FEManager::GetCurrentFEFunction();
-  if (FEOptions::GetInstance().IsDbgFriendly()) {
-    MIRScope *funcScope = feFunction.GetFunctionScope();
-    feFunction.PushStmtScope(astCpdStmt->GetSrcLoc().Emit2SourcePosition(),
-                             astCpdStmt->GetEndLoc().Emit2SourcePosition(), funcScope);
-  }
+  feFunction.PushFuncScope(astCpdStmt->GetSrcLoc().Emit2SourcePosition(),
+                           astCpdStmt->GetEndLoc().Emit2SourcePosition());
   const MapleList<ASTStmt*> &astStmtList = astCpdStmt->GetASTStmtList();
   for (auto stmtNode : astStmtList) {
     std::list<UniqueFEIRStmt> childStmts = stmtNode->Emit2FEStmt();
@@ -258,8 +268,11 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
       stmts.emplace_back(std::move(stmt));
     }
   }
-  if (FEOptions::GetInstance().IsDbgFriendly()) {
-    feFunction.PopTopStmtScope();
+  UniqueFEIRScope scope = feFunction.PopTopStmtScope();
+  if (scope->GetVLASavedStackVar() != nullptr) {
+    auto stackRestoreStmt = scope->GenVLAStackRestoreStmt();
+    stackRestoreStmt->SetSrcLoc(astCpdStmt->GetEndLoc());
+    stmts.emplace_back(std::move(stackRestoreStmt));
   }
   // fix int main() no return 0 and void func() no return. there are multiple branches, insert return at the end.
   if (stmts.size() == 0 || stmts.back()->GetKind() != kStmtReturn) {

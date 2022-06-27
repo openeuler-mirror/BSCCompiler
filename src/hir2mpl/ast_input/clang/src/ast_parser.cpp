@@ -2684,8 +2684,6 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
     }
   }
   if (llvm::isa<clang::VariableArrayType>(qualType.getCanonicalType())) {
-    CHECK_FATAL(FEOptions::GetInstance().IsEnableVariableArray(),
-                "Intercepts variable arrays, because the backend does not yet support.");
     astVar->SetVariableArrayExpr(BuildExprToComputeSizeFromVLA(allocator, qualType.getCanonicalType()));
   }
   if (!varDecl.getType()->isIncompleteType()) {

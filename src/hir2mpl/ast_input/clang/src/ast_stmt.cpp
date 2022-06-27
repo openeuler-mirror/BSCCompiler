@@ -73,15 +73,19 @@ std::list<UniqueFEIRStmt> ASTCompoundStmt::Emit2FEStmtImpl() const {
   };
   insertStmt(false);
   FEFunction &feFunction = FEManager::GetCurrentFEFunction();
-  if (FEOptions::GetInstance().IsDbgFriendly() && !hasEmitted2MIRScope) {
-    feFunction.PushStmtScope(GetSrcLoc().Emit2SourcePosition(),
-                             GetEndLoc().Emit2SourcePosition());
+  if (!hasEmitted2MIRScope) {
+    feFunction.PushStmtScope(GetSrcLoc().Emit2SourcePosition(), GetEndLoc().Emit2SourcePosition());
   }
   for (auto it : astStmts) {
     stmts.splice(stmts.end(), it->Emit2FEStmt());
   }
-  if (FEOptions::GetInstance().IsDbgFriendly() && !hasEmitted2MIRScope) {
-    feFunction.PopTopStmtScope();
+  if (!hasEmitted2MIRScope) {
+    UniqueFEIRScope scope = feFunction.PopTopStmtScope();
+    if (scope->GetVLASavedStackVar() != nullptr) {
+      auto stackRestoreStmt = scope->GenVLAStackRestoreStmt();
+      stackRestoreStmt->SetSrcLoc(endLoc);
+      stmts.emplace_back(std::move(stackRestoreStmt));
+    }
     hasEmitted2MIRScope = true;
   }
   insertStmt(true);
@@ -131,9 +135,8 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
   auto labelBodyEndStmt = std::make_unique<FEIRStmtLabel>(loopBodyEndLabelName);
   auto labelLoopEndStmt = std::make_unique<FEIRStmtLabel>(loopEndLabelName);
   FEFunction &feFunction = FEManager::GetCurrentFEFunction();
-  if (FEOptions::GetInstance().IsDbgFriendly() && !hasEmitted2MIRScope) {
-    feFunction.PushStmtScope(GetSrcLoc().Emit2SourcePosition(),
-                             GetEndLoc().Emit2SourcePosition());
+  if (!hasEmitted2MIRScope) {
+    feFunction.PushStmtScope(GetSrcLoc().Emit2SourcePosition(), GetEndLoc().Emit2SourcePosition());
   }
   if (initStmt != nullptr) {
     std::list<UniqueFEIRStmt> feStmts = initStmt->Emit2FEStmt();
@@ -169,8 +172,13 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
   if (AstLoopUtil::Instance().IsCurrentBreakLabelUsed()) {
     stmts.emplace_back(std::move(labelLoopEndStmt));
   }
-  if (FEOptions::GetInstance().IsDbgFriendly() && !hasEmitted2MIRScope) {
-    feFunction.PopTopStmtScope();
+  if (!hasEmitted2MIRScope) {
+    UniqueFEIRScope scope = feFunction.PopTopStmtScope();
+    if (scope->GetVLASavedStackVar() != nullptr) {
+      auto stackRestoreStmt = scope->GenVLAStackRestoreStmt();
+      stackRestoreStmt->SetSrcLoc(endLoc);
+      stmts.emplace_back(std::move(stackRestoreStmt));
+    }
     hasEmitted2MIRScope = true;
   }
   AstLoopUtil::Instance().PopCurrentBreak();
