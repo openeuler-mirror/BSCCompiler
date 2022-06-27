@@ -494,16 +494,16 @@ bool MESSARename2Preg::PhaseRun(maple::MeFunction &f) {
   MemPool *renamemp = ApplyTempMemPool();
   if (f.GetCfg()->GetAllBBs().size() == 0) {
     // empty function, we only promote the parameter
-    auto *emptyrenamer = renamemp->New<SSARename2Preg>(renamemp, &f, nullptr, nullptr, nullptr);
-    emptyrenamer->PromoteEmptyFunction();
+    SSARename2Preg emptyrenamer(renamemp, &f, nullptr, nullptr, nullptr);
+    emptyrenamer.PromoteEmptyFunction();
     return true;
   }
 
   auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
   ASSERT(aliasClass != nullptr, "");
 
-  auto *phase = renamemp->New<SSARename2Preg>(renamemp, &f, f.GetIRMap(), dom, aliasClass);
-  phase->RunSelf();
+  SSARename2Preg phase(renamemp, &f, f.GetIRMap(), dom, aliasClass);
+  phase.RunSelf();
   if (DEBUGFUNC_NEWPM(f)) {
     irMap->Dump();
   }

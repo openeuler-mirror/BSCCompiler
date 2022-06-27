@@ -93,10 +93,12 @@ class RegPressure {
   }
 
   void IncPressureByIndex(uint32 index) {
+    ASSERT(index < pressure.size(), "index out of range");
     ++pressure[index];
   }
 
   void DecPressureByIndex(uint32 index) {
+    ASSERT(index < pressure.size(), "index out of range");
     --pressure[index];
   }
 
@@ -111,11 +113,12 @@ class RegPressure {
   }
 
   void IncDeadDefByIndex(uint32 index) {
+    ASSERT(index < deadDefNum.size(), "index out of range");
     ++deadDefNum[index];
   }
 
   RegList *GetRegUses(size_t idx) const {
-    return regUses[idx];
+    return idx < regUses.size() ? regUses[idx] : nullptr;
   }
 
   void InitRegUsesSize(size_t size) {
@@ -123,7 +126,7 @@ class RegPressure {
   }
 
   RegList *GetRegDefs(size_t idx) const {
-    return regDefs[idx];
+    return idx < regDefs.size() ? regDefs[idx] : nullptr;
   }
 
   void InitRegDefsSize(size_t size) {
