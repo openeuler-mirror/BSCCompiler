@@ -326,7 +326,7 @@ void RCSetter::SetRCUnownedAttribute(const CallNode &callNode, MIRFunction &func
     const GStrIdx &strIdx = symbol->GetNameStrIdx();
     // checking maple name in ALIAS
     for (auto als : func.GetAliasVarMap()) {
-      if (als.second.memPoolStrIdx != strIdx) {
+      if (als.second.mplStrIdx != strIdx) {
         continue;
       }
       for (auto sit : gStrIdx) {

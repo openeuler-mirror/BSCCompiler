@@ -376,32 +376,6 @@ std::string AnnotationAnalysis::ReadInAllSubString(const MIRPragma &classPragma)
   return signature;
 }
 
-void FunctionGenericDump(MIRFunction &func) {
-  if (func.GetFuncGenericDeclare().size()) {
-    std::cout << '<';
-    for (GenericDeclare *gd : func.GetFuncGenericDeclare()) {
-      gd->Dump();
-    }
-    std::cout << '>';
-  }
-  std::cout << '(';
-  for (AnnotationType *at : func.GetFuncGenericArg()) {
-    if (at->GetKind() == kGenericDeclare) {
-      std::cout << "T" << at->GetName() << ";";
-    } else {
-      at->Dump();
-    }
-  }
-  std::cout << ')';
-  AnnotationType *ret = func.GetFuncGenericRet();
-  if (ret->GetKind() == kGenericDeclare) {
-    std::cout << "T" << ret->GetName() << ";";
-  } else {
-    ret->Dump();
-  }
-  std::cout << std::endl;
-}
-
 void AnnotationAnalysis::AnalysisAnnotationForFuncLocalVar(MIRFunction &func, AnnotationParser &aParser,
                                                            MIRStructType &structType) {
   for (auto pair : func.GetAliasVarMap()) {
@@ -410,7 +384,7 @@ void AnnotationAnalysis::AnalysisAnnotationForFuncLocalVar(MIRFunction &func, An
       std::string newSig = GlobalTables::GetStrTable().GetStringFromStrIdx(aliasVar.sigStrIdx);
       aParser.ReplaceSignature(newSig);
       AnnotationType *var = ReadInGenericType(aParser, &structType);
-      func.AddFuncLocalGenericVar(aliasVar.memPoolStrIdx, var);
+      func.AddFuncLocalGenericVar(aliasVar.mplStrIdx, var);
     }
   }
 }

@@ -1133,11 +1133,11 @@ void MIRParser::SetAttrContent(FuncAttrs &attrs, FuncAttrKind x, const MIRLexer 
       break;
     }
     case FUNCATTR_constructor_priority: {
-      attrs.SetConstructorPriority(mirLexer.GetTheIntVal());
+      attrs.SetConstructorPriority(static_cast<int32>(mirLexer.GetTheIntVal()));
       break;
     }
     case FUNCATTR_destructor_priority: {
-      attrs.SetDestructorPriority(mirLexer.GetTheIntVal());
+      attrs.SetDestructorPriority(static_cast<int32>(mirLexer.GetTheIntVal()));
       break;
     }
     default:
@@ -2376,8 +2376,8 @@ bool MIRParser::ParsePosition(SrcPosition &pos) {
     Error("expect int in SrcPos but get ");
     return false;
   }
-  int i = static_cast<uint32>(lexer.GetTheIntVal());
-  pos.SetFileNum(i);
+  uint32 i = static_cast<uint32>(lexer.GetTheIntVal());
+  pos.SetFileNum(static_cast<uint16>(i));
   nameTk = lexer.NextToken();
   if (nameTk != TK_coma) {
     Error("expect comma in SrcPos but get ");
@@ -2403,7 +2403,7 @@ bool MIRParser::ParsePosition(SrcPosition &pos) {
     return false;
   }
   i = static_cast<uint32>(lexer.GetTheIntVal());
-  pos.SetColumn(i);
+  pos.SetColumn(static_cast<uint16>(i));
   nameTk = lexer.NextToken();
   if (nameTk != TK_rparen) {
     Error("expect ) in SrcPos but get ");
@@ -2515,8 +2515,13 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
   }
   strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
   nameTk = lexer.NextToken();
-  if (nameTk != TK_lname) {
-    Error("expect local in ALIAS but get ");
+  bool isLocal;
+  if (nameTk == TK_lname) {
+    isLocal = true;
+  } else if (nameTk == TK_gname) {
+    isLocal = false;
+  } else {
+    Error("expect name in ALIAS but get ");
     return false;
   }
   GStrIdx mplStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
@@ -2531,8 +2536,9 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
     signStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
     lexer.NextToken();
   }
-  aliasVar.memPoolStrIdx = mplStrIdx;
+  aliasVar.mplStrIdx = mplStrIdx;
   aliasVar.tyIdx = tyIdx;
+  aliasVar.isLocal = isLocal;
   aliasVar.sigStrIdx = signStrIdx;
   return true;
 }

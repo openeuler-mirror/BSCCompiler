@@ -20,8 +20,9 @@
 namespace maple {
 // mapping src variable to mpl variables to display debug info
 struct MIRAliasVars {
-  GStrIdx memPoolStrIdx;
+  GStrIdx mplStrIdx;  // maple varialbe name
   TyIdx tyIdx;
+  bool isLocal;
   GStrIdx sigStrIdx;
 };
 
@@ -37,6 +38,7 @@ class MIRScope {
 
   bool IsSubScope(const MIRScope *s) const;
   bool HasJoinScope(const MIRScope *s1, const MIRScope *s2) const;
+  bool HasSameRange(const MIRScope *s1, const MIRScope *s2) const;
 
   unsigned GetLevel() const {
     return level;
@@ -57,6 +59,7 @@ class MIRScope {
   }
 
   void SetAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
+    ASSERT(aliasVarMap.find(idx) == aliasVarMap.end(), "alias already exist");
     aliasVarMap[idx] = vars;
   }
 
