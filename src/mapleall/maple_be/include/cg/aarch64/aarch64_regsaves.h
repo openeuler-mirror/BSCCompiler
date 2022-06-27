@@ -130,7 +130,7 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   }
   ~AArch64RegSavesOpt() override = default;
 
-  typedef uint64 CalleeBitsType;
+  using CalleeBitsType = uint64 ;
 
   void InitData();
   void CollectLiveInfo(const BB &bb, const Operand &opnd, bool isDef, bool isUse);
@@ -143,7 +143,7 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   void GetLocalDefUse();
   void PrintBBs() const;
   int CheckCriteria(BB *bb, regno_t reg) const;
-  bool AlreadySavedInDominatorList(BB *bb, regno_t reg) const;
+  bool AlreadySavedInDominatorList(const BB *bb, regno_t reg) const;
   void DetermineCalleeSaveLocationsDoms();
   void DetermineCalleeSaveLocationsPre();
   bool DetermineCalleeRestoreLocations();

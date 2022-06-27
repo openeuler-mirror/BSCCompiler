@@ -34,7 +34,7 @@ class AArch64CGSSAInfo : public CGSSAInfo {
   void RenameInsn(Insn &insn) override;
   VRegVersion *RenamedOperandSpecialCase(RegOperand &vRegOpnd, Insn &curInsn, uint32 idx);
   RegOperand *CreateSSAOperand(RegOperand &virtualOpnd) override;
-  void CheckAsmDUbinding(Insn &insn, VRegVersion *toBeReplaced, VRegVersion *newVersion);
+  void CheckAsmDUbinding(Insn &insn, const VRegVersion *toBeReplaced, VRegVersion *newVersion);
 };
 
 class A64SSAOperandRenameVisitor : public SSAOperandVisitor {

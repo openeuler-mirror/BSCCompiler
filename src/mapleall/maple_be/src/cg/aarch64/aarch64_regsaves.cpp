@@ -28,7 +28,7 @@ namespace maplebe {
 #define mLog LogInfo::MapleLogger()
 #define threshold 8
 
-typedef uint32 BBId;
+using BBId = uint32;
 
 void AArch64RegSavesOpt::InitData() {
   calleeBitsDef = cgFunc->GetMemoryPool()->NewArray<CalleeBitsType>(cgFunc->NumBBs());
@@ -237,7 +237,7 @@ int32 AArch64RegSavesOpt::CheckCriteria(BB *bb, regno_t reg) const {
 }
 
 /* Return true if reg is already to be saved in its dominator list */
-bool AArch64RegSavesOpt::AlreadySavedInDominatorList(BB *bb, regno_t reg) const {
+bool AArch64RegSavesOpt::AlreadySavedInDominatorList(const BB *bb, regno_t reg) const {
   BB *aBB = GetDomInfo()->GetDom(bb->GetId());
 
   if (RS_DUMP) {

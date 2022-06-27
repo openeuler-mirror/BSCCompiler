@@ -187,9 +187,9 @@ void CGCFG::CheckCFG() {
 }
 
 void CGCFG::CheckCFGFreq() {
-  auto verifyBBFreq = [this](BB *bb, uint32 succFreq) {
+  auto verifyBBFreq = [this](const BB *bb, uint32 succFreq) {
     uint32 res = bb->GetFrequency();
-    if ((res != 0 && abs((int)(res - succFreq)) / res > 1.0) || (res == 0 && res != succFreq)) {
+    if ((res != 0 && abs(static_cast<int>(res - succFreq)) / res > 1.0) || (res == 0 && res != succFreq)) {
       // Not included
       if (bb->GetSuccs().size() > 1 && bb->GetPreds().size() > 1) {
         return;
@@ -892,7 +892,7 @@ void CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
     }
     MIRSymbol *st = cgFunc->GetEmitSt(pred.GetId());
     MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
-    MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64);
+    MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_a64));
     MIRConst *mirConst = cgFunc->GetMemoryPool()->New<MIRLblConst>(newLblIdx, cgFunc->GetFunction().GetPuidx(), *etype);
     for (size_t i = 0; i < arrayConst->GetConstVec().size(); ++i) {
       CHECK_FATAL(arrayConst->GetConstVecItem(i)->GetKind() == kConstLblConst, "not a kConstLblConst");

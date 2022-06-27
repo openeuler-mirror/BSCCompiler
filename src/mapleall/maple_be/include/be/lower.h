@@ -115,8 +115,8 @@ class CGLowerer {
   BaseNode *LowerCastExpr(BaseNode &expr) const;
 
   BaseNode *ExtractSymbolAddress(const StIdx &stIdx);
-  BaseNode *LowerDreadToThreadLocal(BaseNode &expr, BlockNode &block);
-  StmtNode *LowerDassignToThreadLocal(StmtNode &stmt, BlockNode &block);
+  BaseNode *LowerDreadToThreadLocal(BaseNode &expr, const BlockNode &block);
+  StmtNode *LowerDassignToThreadLocal(StmtNode &stmt, const BlockNode &block);
 
   void LowerDassign(DassignNode &dassign, BlockNode &block);
 
@@ -155,7 +155,7 @@ class CGLowerer {
   BaseNode *SplitBinaryNodeOpnd1(BinaryNode &bNode, BlockNode &blkNode);
   BaseNode *SplitTernaryNodeResult(TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode);
   bool IsComplexSelect(const TernaryNode &tNode) const;
-  int32 FindTheCurrentStmtFreq(StmtNode *stmt) const;
+  int32 FindTheCurrentStmtFreq(const StmtNode *stmt) const;
   BaseNode *LowerComplexSelect(const TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode);
   BaseNode *LowerFarray(ArrayNode &array);
   BaseNode *LowerArrayDim(ArrayNode &array, int32 dim);
@@ -202,9 +202,10 @@ class CGLowerer {
   void LowerTypePtr(BaseNode &expr) const;
 
   BaseNode *GetBitField(int32 byteOffset, BaseNode *baseAddr, PrimType fieldPrimType);
-  StmtNode *WriteBitField(const std::pair<int32, int32> &byteBitOffsets, MIRBitFieldType *fieldType, BaseNode *baseAddr,
-      BaseNode *rhs, BlockNode *block);
-  BaseNode *ReadBitField(const std::pair<int32, int32> &byteBitOffsets, MIRBitFieldType *fieldType, BaseNode *baseAddr);
+  StmtNode *WriteBitField(const std::pair<int32, int32> &byteBitOffsets, const MIRBitFieldType *fieldType,
+                          BaseNode *baseAddr, BaseNode *rhs, BlockNode *block);
+  BaseNode *ReadBitField(const std::pair<int32, int32> &byteBitOffsets, const MIRBitFieldType *fieldType,
+                         BaseNode *baseAddr);
   BaseNode *LowerDreadBitfield(DreadNode &dread);
   BaseNode *LowerIreadBitfield(IreadNode &iread);
   StmtNode *LowerDassignBitfield(DassignNode &dassign, BlockNode &block);

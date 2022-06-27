@@ -855,7 +855,7 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
   ASSERT(prevMop != MOP_undef, "Invalid opcode of instruction!");
   PairMOperator *begin = &extInsnPairTable[idx][0];
   PairMOperator *end = &extInsnPairTable[idx][insPairsNum];
-  auto pairIt = std::find_if(begin, end, [prevMop](PairMOperator insPair) {
+  auto pairIt = std::find_if(begin, end, [prevMop](const PairMOperator insPair) {
     return prevMop == insPair[0];
   });
   if (pairIt == end) {

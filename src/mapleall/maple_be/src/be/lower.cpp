@@ -267,7 +267,7 @@ bool CGLowerer::IsComplexSelect(const TernaryNode &tNode) const {
   return false;
 }
 
-int32 CGLowerer::FindTheCurrentStmtFreq(StmtNode *stmt) const {
+int32 CGLowerer::FindTheCurrentStmtFreq(const StmtNode *stmt) const {
   while (stmt != nullptr) {
     int32 freq = mirModule.CurFunction()->GetFreqFromLastStmt(stmt->GetStmtID());
     if (freq != -1) {
@@ -743,7 +743,7 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
   return rAdd;
 }
 
-StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets, MIRBitFieldType *fieldType,
+StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets, const MIRBitFieldType *fieldType,
     BaseNode *baseAddr, BaseNode *rhs, BlockNode *block) {
   auto bitSize = fieldType->GetFieldSize();
   auto primType = fieldType->GetPrimType();
@@ -782,7 +782,7 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
   return assignedHigherBits;
 }
 
-BaseNode *CGLowerer::ReadBitField(const std::pair<int32, int32> &byteBitOffsets, MIRBitFieldType *fieldType,
+BaseNode *CGLowerer::ReadBitField(const std::pair<int32, int32> &byteBitOffsets, const MIRBitFieldType *fieldType,
     BaseNode *baseAddr) {
   auto bitSize = fieldType->GetFieldSize();
   auto primType = fieldType->GetPrimType();
@@ -2791,7 +2791,7 @@ BaseNode *CGLowerer::ExtractSymbolAddress(const StIdx &stIdx) {
   return builder->CreateExprAddrof(0, stIdx);
 }
 
-BaseNode *CGLowerer::LowerDreadToThreadLocal(BaseNode &expr, BlockNode &block) {
+BaseNode *CGLowerer::LowerDreadToThreadLocal(BaseNode &expr, const BlockNode &block) {
   uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   auto *result = &expr;
   if (expr.GetOpCode() != maple::OP_dread) {
@@ -2818,7 +2818,7 @@ BaseNode *CGLowerer::LowerDreadToThreadLocal(BaseNode &expr, BlockNode &block) {
   return result;
 }
 
-StmtNode *CGLowerer::LowerDassignToThreadLocal(StmtNode &stmt, BlockNode &block) {
+StmtNode *CGLowerer::LowerDassignToThreadLocal(StmtNode &stmt, const BlockNode &block) {
   uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   StmtNode *result = &stmt;
   if (stmt.GetOpCode() != maple::OP_dassign) {

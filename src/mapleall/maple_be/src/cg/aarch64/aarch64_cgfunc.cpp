@@ -2071,10 +2071,10 @@ MIRType *AArch64CGFunc::LmbcGetAggTyFromCallSite(StmtNode *stmt, std::vector<TyI
 }
 
 /* return true if blkassignoff for return, false otherwise */
-bool AArch64CGFunc::LmbcSmallAggForRet(const BlkassignoffNode &bNode, Operand *src) {
+bool AArch64CGFunc::LmbcSmallAggForRet(const BlkassignoffNode &bNode, const Operand *src) {
   PrimType pTy;
   uint32 size = 0;
-  AArch64reg regno = static_cast<AArch64reg>(static_cast<RegOperand*>(src)->GetRegisterNumber());
+  AArch64reg regno = static_cast<AArch64reg>(static_cast<const RegOperand*>(src)->GetRegisterNumber());
   MIRFunction *func = &GetFunction();
 
   if (func->IsReturnStruct()) {
@@ -2141,8 +2141,8 @@ bool AArch64CGFunc::LmbcSmallAggForRet(const BlkassignoffNode &bNode, Operand *s
 }
 
 /* return true if blkassignoff for return, false otherwise */
-bool AArch64CGFunc::LmbcSmallAggForCall(BlkassignoffNode &bNode, Operand *src, std::vector<TyIdx> **parmList) {
-  AArch64reg regno = static_cast<AArch64reg>(static_cast<RegOperand*>(src)->GetRegisterNumber());
+bool AArch64CGFunc::LmbcSmallAggForCall(BlkassignoffNode &bNode, const Operand *src, std::vector<TyIdx> **parmList) {
+  AArch64reg regno = static_cast<AArch64reg>(static_cast<const RegOperand*>(src)->GetRegisterNumber());
   if (IsBlkassignForPush(bNode)) {
     PrimType pTy = PTY_i64;
     MIRStructType *ty = static_cast<MIRStructType*>(LmbcGetAggTyFromCallSite(&bNode, parmList));

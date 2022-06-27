@@ -34,12 +34,12 @@ void CGProp::DoTargetProp() {
     }
   }
   /* pattern  level opt */
-  if (CGOptions::GetInstance().GetOptimizeLevel() == 2) {
+  if (CGOptions::GetInstance().GetOptimizeLevel() == CGOptions::kLevel2) {
     PropPatternOpt();
   }
 }
 
-Insn *PropOptimizePattern::FindDefInsn(VRegVersion *useVersion) {
+Insn *PropOptimizePattern::FindDefInsn(const VRegVersion *useVersion) {
   if (!useVersion) {
     return nullptr;
   }

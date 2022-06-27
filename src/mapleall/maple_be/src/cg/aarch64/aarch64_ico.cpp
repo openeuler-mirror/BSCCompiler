@@ -377,7 +377,8 @@ bool AArch64ICOIfThenElsePattern::CheckHasSameDest(std::vector<Insn*> &lInsn, st
 
 bool AArch64ICOIfThenElsePattern::CheckModifiedRegister(Insn &insn, std::map<Operand*,
                                                         std::vector<Operand*>> &destSrcMap, std::vector<Operand*> &src,
-                                                        Operand &dest, Insn *cmpInsn, Operand *flagOpnd) const {
+                                                        Operand &dest, const Insn *cmpInsn,
+                                                        const Operand *flagOpnd) const {
 /* src was modified in this blcok earlier */
   for (auto srcOpnd : src) {
     if (srcOpnd->IsRegister()) {

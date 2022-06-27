@@ -25,7 +25,7 @@
 
 namespace maplebe {
 
-typedef uint32 BBId;
+using BBId = uint32;
 
 // This must have been constructed by the caller of DoSavePlacementOpt() and
 // passed to it as parameter.  The caller of DoSavePlacementOpt() describes

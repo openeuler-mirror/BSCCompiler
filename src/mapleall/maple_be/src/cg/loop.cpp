@@ -352,7 +352,7 @@ void LoopFinder::markExtraEntryAndEncl() {
   }
 }
 
-bool LoopFinder::HasSameHeader(LoopHierarchy *lp1, LoopHierarchy *lp2) {
+bool LoopFinder::HasSameHeader(const LoopHierarchy *lp1, const LoopHierarchy *lp2) {
   if (lp1->GetHeader() == lp2->GetHeader()) {
     return true;
   }
@@ -571,7 +571,7 @@ void LoopFinder::DetectInnerLoop() {
   }
 }
 
-static void CopyLoopInfo(LoopHierarchy *from, CGFuncLoops *to, CGFuncLoops *parent, MemPool *memPool) {
+static void CopyLoopInfo(const LoopHierarchy *from, CGFuncLoops *to, CGFuncLoops *parent, MemPool *memPool) {
   to->SetHeader(*const_cast<BB*>(from->GetHeader()));
   for (auto bb : from->otherLoopEntries) {
     to->AddMultiEntries(*bb);

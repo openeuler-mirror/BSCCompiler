@@ -129,8 +129,8 @@ class AArch64CGFunc : public CGFunc {
   uint32 LmbcFindTotalStkUsed(std::vector<TyIdx>* paramList);
   uint32 LmbcTotalRegsUsed();
   void LmbcSelectParmList(ListOperand *srcOpnds, bool isArgReturn);
-  bool LmbcSmallAggForRet(const BlkassignoffNode &bNode, Operand *src);
-  bool LmbcSmallAggForCall(BlkassignoffNode &bNode, Operand *src, std::vector<TyIdx> **parmList);
+  bool LmbcSmallAggForRet(const BlkassignoffNode &bNode, const Operand *src);
+  bool LmbcSmallAggForCall(BlkassignoffNode &bNode, const Operand *src, std::vector<TyIdx> **parmList);
   void SelectAggDassign(DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
   void SelectIassignoff(IassignoffNode &stmt) override;
@@ -436,8 +436,8 @@ class AArch64CGFunc : public CGFunc {
 
   MemOperand &HashMemOpnd(MemOperand &tMemOpnd);
 
-  MemOperand &GetOrCreateMemOpnd(MemOperand::AArch64AddressingMode, uint32, RegOperand*, RegOperand*,
-                                 ImmOperand*, const MIRSymbol*);
+  MemOperand &GetOrCreateMemOpnd(MemOperand::AArch64AddressingMode mode, uint32 size, RegOperand *base,
+                                 RegOperand *index, ImmOperand *offset, const MIRSymbol *st);
 
   MemOperand &GetOrCreateMemOpnd(MemOperand::AArch64AddressingMode, uint32 size, RegOperand *base,
                                  RegOperand *index, int32 shift, bool isSigned = false);

@@ -1565,16 +1565,16 @@ void CGFunc::CreateLmbcFormalParamInfo() {
   PrimType primType;
   uint32 offset;
   uint32 typeSize;
-  MIRFunction &func = GetFunction();
-  if (func.GetFormalCount() > 0) {
+  MIRFunction &lmbcFunc = GetFunction();
+  if (lmbcFunc.GetFormalCount() > 0) {
     /* Whenever lmbc cannot delete call type info, the prototype is available */
     uint32 stackOffset = 0;
-    for (size_t idx = 0; idx < func.GetFormalCount(); ++idx) {
-      MIRSymbol *sym = func.GetFormal(idx);
+    for (size_t idx = 0; idx < lmbcFunc.GetFormalCount(); ++idx) {
+      MIRSymbol *sym = lmbcFunc.GetFormal(idx);
       MIRType *type;
       TyIdx tyIdx;
       if (sym) {
-        tyIdx = func.GetFormalDefVec()[idx].formalTyIdx;
+        tyIdx = lmbcFunc.GetFormalDefVec()[idx].formalTyIdx;
         type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
       } else {
         FormalDef vec = const_cast<MIRFunction *>(GetBecommon().GetMIRModule().CurFunction())->GetFormalDefAt(idx);
@@ -1583,11 +1583,11 @@ void CGFunc::CreateLmbcFormalParamInfo() {
       }
       primType = type->GetPrimType();
       offset = stackOffset;
-      typeSize = GetBecommon().GetTypeSize(tyIdx);
+      typeSize = static_cast<uint32>(GetBecommon().GetTypeSize(tyIdx));
       stackOffset += (typeSize + 7) & (-8);
       LmbcFormalParamInfo *info = GetMemoryPool()->New<LmbcFormalParamInfo>(primType, offset, typeSize);
       lmbcParamVec.push_back(info);
-      if (idx == 0 && func.IsFirstArgReturn()) {
+      if (idx == 0 && lmbcFunc.IsFirstArgReturn()) {
         info->SetIsReturn();
       }
       if (type->GetKind() == kTypeStruct) {
@@ -1604,7 +1604,7 @@ void CGFunc::CreateLmbcFormalParamInfo() {
     }
   } else {
     /* No aggregate pass by value here */
-    for (StmtNode *stmt = func.GetBody()->GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
+    for (StmtNode *stmt = lmbcFunc.GetBody()->GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
       if (stmt == nullptr) {
         break;
       }
@@ -1632,12 +1632,12 @@ void CGFunc::CreateLmbcFormalParamInfo() {
     }
   }
   std::sort(lmbcParamVec.begin(), lmbcParamVec.end(),
-                [] (LmbcFormalParamInfo *x, LmbcFormalParamInfo *y)
+                [] (const LmbcFormalParamInfo *x, const LmbcFormalParamInfo *y)
                     { return x->GetOffset() < y->GetOffset(); }
            );
 
   /* When a scalar param address is taken, its regassign is not in the 1st block */
-  for (StmtNode *stmt = func.GetBody()->GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
+  for (StmtNode *stmt = lmbcFunc.GetBody()->GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
     if (stmt == nullptr) {
       break;
     }
@@ -1656,7 +1656,8 @@ void CGFunc::CreateLmbcFormalParamInfo() {
     if (ireadNode->GetOffset() < 0) {
       continue;
     }
-    LmbcFormalParamInfo *info = GetLmbcFormalParamInfo(ireadNode->GetOffset());
+    LmbcFormalParamInfo *info = GetLmbcFormalParamInfo(static_cast<uint32>(ireadNode->GetOffset()));
+    ASSERT_NOT_NULL(info);
     info->SetHasRegassign();
   }
 
@@ -1668,7 +1669,6 @@ void CGFunc::GenerateInstruction() {
   InitHandleStmtFactory();
   StmtNode *secondStmt = HandleFirstStmt();
 
-  //CreateLmbcFormalParamInfo();
   /* First Pass: Creates the doubly-linked list of BBs (next,prev) */
   volReleaseInsn = nullptr;
   unsigned lastSrcLoc = 0;

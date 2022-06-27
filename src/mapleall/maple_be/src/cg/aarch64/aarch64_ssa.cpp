@@ -105,7 +105,7 @@ void AArch64CGSSAInfo::ReplaceInsn(Insn &oriInsn, Insn &newInsn) {
 }
 
 /* do not break binding between input and output operands in asm */
-void AArch64CGSSAInfo::CheckAsmDUbinding(Insn &insn, VRegVersion *toBeReplaced, VRegVersion *newVersion) {
+void AArch64CGSSAInfo::CheckAsmDUbinding(Insn &insn, const VRegVersion *toBeReplaced, VRegVersion *newVersion) {
   if (insn.GetMachineOpcode() == MOP_asm) {
     for (auto &opndIt : static_cast<ListOperand&>(insn.GetOperand(kAsmOutputListOpnd)).GetOperands()) {
       if (opndIt->IsSSAForm()) {

@@ -1983,7 +1983,7 @@ bool A64PregCopyPattern::DFSFindValidDefInsns(Insn *curDefInsn, RegOperand *last
   return true;
 }
 
-bool A64PregCopyPattern::CheckMultiUsePoints(Insn *defInsn) const {
+bool A64PregCopyPattern::CheckMultiUsePoints(const Insn *defInsn) const {
   Operand &dstOpnd = defInsn->GetOperand(kInsnFirstOpnd);
   CHECK_FATAL(dstOpnd.IsRegister(), "dstOpnd must be register");
   VRegVersion *defVersion = optSsaInfo->FindSSAVersion(static_cast<RegOperand&>(dstOpnd).GetRegisterNumber());
@@ -2061,7 +2061,7 @@ bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &curInsn, Insn &defInsn) {
   return true;
 }
 
-bool A64PregCopyPattern::CheckUselessDefInsn(Insn *defInsn) const {
+bool A64PregCopyPattern::CheckUselessDefInsn(const Insn *defInsn) const {
   Operand &dstOpnd = defInsn->GetOperand(kInsnFirstOpnd);
   CHECK_FATAL(dstOpnd.IsRegister(), "dstOpnd must be register");
   VRegVersion *defVersion = optSsaInfo->FindSSAVersion(static_cast<RegOperand&>(dstOpnd).GetRegisterNumber());
@@ -2105,7 +2105,7 @@ bool A64PregCopyPattern::CheckUselessDefInsn(Insn *defInsn) const {
   return true;
 }
 
-bool A64PregCopyPattern::CheckValidDefInsn(Insn *defInsn) {
+bool A64PregCopyPattern::CheckValidDefInsn(const Insn *defInsn) {
   const AArch64MD *md = &AArch64CG::kMd[defInsn->GetMachineOpcode()];
   CHECK_FATAL(md != nullptr, "expect valid AArch64MD");
   /* this pattern applies to all basicOps */
