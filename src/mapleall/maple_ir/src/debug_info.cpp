@@ -41,6 +41,7 @@ DBGDie::DBGDie(MIRModule *m, DwTag tag)
       tag(tag),
       id(m->GetDbgInfo()->GetMaxId()),
       withChildren(false),
+      keep(true),
       sibling(nullptr),
       firstChild(nullptr),
       abbrevId(0),
@@ -662,7 +663,13 @@ DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum) {
     for (uint32 i = 1; i < func->GetSymTab()->GetSymbolTableSize(); i++) {
       MIRSymbol *var = func->GetSymTab()->GetSymbolFromStIdx(i);
       DBGDie *vdie = CreateVarDie(var);
-      die->AddSubVec(vdie);
+      if (vdie) {
+        die->AddSubVec(vdie);
+        // for C, source variable names will be used instead of mangloed maple variables
+        if (module->IsCModule()) {
+          vdie->SetKeep(false);
+        }
+      }
     }
   }
 
@@ -1288,6 +1295,9 @@ void DebugInfo::ComputeSizeAndOffsets() {
 // Compute the size and offset of a DIE. The Offset is relative to start of the CU.
 // It returns the offset after laying out the DIE.
 void DebugInfo::ComputeSizeAndOffset(DBGDie *die, uint32 &cuOffset) {
+  if (!die->GetKeep()) {
+    return;
+  }
   uint32 cuOffsetOrg = cuOffset;
   die->SetOffset(cuOffset);
 

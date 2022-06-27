@@ -3282,6 +3282,9 @@ void Emitter::EmitDIDebugInfoSection(DebugInfo *mirdi) {
       emitter->Emit("\t.byte    0x0\n");
       return;
     }
+    if (!die->GetKeep()) {
+      return;
+    }
     bool verbose = emitter->GetCG()->GenerateVerboseAsm();
     if (verbose) {
       emitter->Emit("\n");
@@ -3323,6 +3326,10 @@ void Emitter::EmitDIDebugInfoSection(DebugInfo *mirdi) {
 
     for (size_t i = 0; i < diae->GetAttrPairs().size(); i += k2ByteSize) {
       DBGDieAttr *attr = LFindAttribute(die->GetAttrVec(), DwAt(apl[i]));
+      ASSERT_NOT_NULL(attr);
+      if (!attr->GetKeep()) {
+        continue;
+      }
       if (!LShouldEmit(unsigned(apl[i + 1]))) {
         continue;
       }
@@ -3475,7 +3482,7 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
   Emitter *emitter = this;
   MapleVector<DBGAbbrevEntry*> &abbrevVec = mirdi->GetAbbrevVec();
   ApplyInPrefixOrder(mirdi->GetCompUnit(), [&abbrevVec, &emitter](DBGDie *die) {
-    if (!die) {
+    if (!die || !die->GetKeep()) {
       return;
     }
 

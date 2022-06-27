@@ -382,6 +382,14 @@ class DBGDie {
     withChildren = val;
   }
 
+  bool GetKeep() const {
+    return keep;
+  }
+
+  void SetKeep(bool val) {
+    keep = val;
+  }
+
   DBGDie *GetParent() const {
     return parent;
   }
@@ -477,6 +485,7 @@ class DBGDie {
   DwTag tag;
   uint32 id;         // starts from 1 which is root die compUnit
   bool withChildren;
+  bool keep;         // whether emit into .s
   DBGDie *parent;
   DBGDie *sibling;
   DBGDie *firstChild;
