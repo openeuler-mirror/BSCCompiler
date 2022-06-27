@@ -38,9 +38,9 @@ class AArch64LiveIntervalAnalysis : public LiveIntervalAnalysis {
   void SetupLiveIntervalInLiveOut(regno_t liveOut, const BB &bb, uint32 currPoint);
   void CoalesceRegPair(RegOperand &regDest, RegOperand &regSrc);
   void CoalesceRegisters() override;
-  void CollectMoveForEachBB(BB &bb, std::vector<Insn*> &movInsns);
+  void CollectMoveForEachBB(BB &bb, std::vector<Insn*> &movInsns) const;
   void CoalesceMoves(std::vector<Insn*> &movInsns, bool phiOnly);
-  void CheckInterference(LiveInterval &li1, LiveInterval &li2);
+  void CheckInterference(LiveInterval &li1, LiveInterval &li2) const;
   void CollectCandidate();
   std::string PhaseName() const {
     return "regcoalesce";

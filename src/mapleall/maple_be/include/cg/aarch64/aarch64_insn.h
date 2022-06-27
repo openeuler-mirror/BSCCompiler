@@ -187,7 +187,7 @@ class AArch64Insn : public Insn {
 struct VectorRegSpec {
   VectorRegSpec() : vecLane(-1), vecLaneMax(0), vecElementSize(0), compositeOpnds(0) {}
 
-  VectorRegSpec(PrimType type, int16 lane = -1, uint16 compositeOpnds = 0) :
+  explicit VectorRegSpec(PrimType type, int16 lane = -1, uint16 compositeOpnds = 0) :
       vecLane(lane),
       vecLaneMax(GetVecLanes(type)),
       vecElementSize(GetVecEleSize(type)),
@@ -287,7 +287,7 @@ class OpndEmitVisitor : public OperandVisitorBase,
                                                LogicalShiftLeftOperand,
                                                CommentOperand> {
  public:
-  OpndEmitVisitor(Emitter &asmEmitter): emitter(asmEmitter) {}
+  explicit OpndEmitVisitor(Emitter &asmEmitter): emitter(asmEmitter) {}
   virtual ~OpndEmitVisitor() = default;
  protected:
   Emitter &emitter;

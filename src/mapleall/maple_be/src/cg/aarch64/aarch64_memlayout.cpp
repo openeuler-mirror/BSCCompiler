@@ -115,7 +115,7 @@ void AArch64MemLayout::SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint
   }
 }
 
-void AArch64MemLayout::SetSegmentSize(AArch64SymbolAlloc &symbolAlloc, MemSegment &segment, uint32 typeIdx) {
+void AArch64MemLayout::SetSegmentSize(AArch64SymbolAlloc &symbolAlloc, MemSegment &segment, uint32 typeIdx) const {
   uint32 size;
   uint32 align;
   SetSizeAlignForTypeIdx(typeIdx, size, align);
@@ -545,7 +545,7 @@ uint64 AArch64MemLayout::StackFrameSize() const {
   return RoundUp(total, kAarch64StackPtrAlignment);
 }
 
-uint32 AArch64MemLayout::RealStackFrameSize() {
+uint32 AArch64MemLayout::RealStackFrameSize() const {
   auto size = StackFrameSize();
   if (cgFunc->GetCG()->IsStackProtectorStrong() || cgFunc->GetCG()->IsStackProtectorAll()) {
     size += static_cast<uint32>(kAarch64StackPtrAlignment);

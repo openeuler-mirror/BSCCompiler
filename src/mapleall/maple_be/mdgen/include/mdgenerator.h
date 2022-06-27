@@ -29,13 +29,13 @@ class MDCodeGen {
   const std::string &GetOFileDir() const {
     return outputFileDir;
   }
-  void SetTargetArchName(const std::string &archName) {
+  void SetTargetArchName(const std::string &archName) const {
     targetArchName = archName;
   }
 
   void EmitCheckPtr(std::ofstream &outputFile, const std::string &emitName, const std::string &name,
-                    const std::string &ptrType);
-  void EmitFileHead(std::ofstream &outputFile, const std::string &headInfo);
+                    const std::string &ptrType) const;
+  void EmitFileHead(std::ofstream &outputFile, const std::string &headInfo) const;
   MDClass GetSpecificClass (const std::string &className);
 
  protected:

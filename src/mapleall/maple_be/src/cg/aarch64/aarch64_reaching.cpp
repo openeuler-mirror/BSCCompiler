@@ -690,7 +690,7 @@ bool AArch64ReachingDefinition::FindRegUseBetweenInsnGlobal(uint32 regNO, Insn *
   return false;
 }
 
-bool AArch64ReachingDefinition::HasRegDefBetweenInsnGlobal(uint32 regNO, Insn &startInsn, Insn &endInsn) {
+bool AArch64ReachingDefinition::HasRegDefBetweenInsnGlobal(uint32 regNO, Insn &startInsn, Insn &endInsn) const {
   CHECK_FATAL((startInsn.GetBB() != endInsn.GetBB()), "Is same BB!");
   /* check Start BB */
   BB* startBB = startInsn.GetBB();

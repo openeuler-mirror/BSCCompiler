@@ -32,15 +32,15 @@ class AArch64AsmEmitter : public AsmEmitter {
   void EmitFullLSDA(FuncEmitInfo &funcEmitInfo) override;
   void EmitBBHeaderLabel(FuncEmitInfo &funcEmitInfo, const std::string &name, LabelIdx labIdx) override;
   void EmitJavaInsnAddr(FuncEmitInfo &funcEmitInfo) override;
-  void RecordRegInfo(FuncEmitInfo &funcEmitInfo);
+  void RecordRegInfo(FuncEmitInfo &funcEmitInfo) const;
   void Run(FuncEmitInfo &funcEmitInfo) override;
 
  private:
   /* cfi & dbg need target info ? */
-  void EmitAArch64CfiInsn(Emitter &emitter, const Insn &insn);
-  void EmitAArch64DbgInsn(Emitter &emitter, const Insn &insn);
+  void EmitAArch64CfiInsn(Emitter &emitter, const Insn &insn) const;
+  void EmitAArch64DbgInsn(Emitter &emitter, const Insn &insn) const;
 
-  void EmitAArch64Insn(Emitter &emitter, Insn &insn);
+  void EmitAArch64Insn(Emitter &emitter, Insn &insn) const;
   void EmitClinit(Emitter &emitter, const Insn &insn) const;
   void EmitAdrpLdr(Emitter &emitter, const Insn &insn) const;
   void EmitCounter(Emitter &emitter, const Insn &insn) const;

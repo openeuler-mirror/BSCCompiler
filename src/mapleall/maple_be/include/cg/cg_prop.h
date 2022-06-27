@@ -65,12 +65,12 @@ class PropOptimizeManager {
  public:
   ~PropOptimizeManager() = default;
   template<typename PropOptimizePattern>
-  void Optimize(CGFunc &cgFunc, CGSSAInfo *cgssaInfo, LiveIntervalAnalysis *ll) {
+  void Optimize(CGFunc &cgFunc, CGSSAInfo *cgssaInfo, LiveIntervalAnalysis *ll) const {
     PropOptimizePattern optPattern(cgFunc, cgssaInfo, ll);
     optPattern.Run();
   }
   template<typename PropOptimizePattern>
-  void Optimize(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) {
+  void Optimize(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) const {
     PropOptimizePattern optPattern(cgFunc, cgssaInfo);
     optPattern.Run();
   }

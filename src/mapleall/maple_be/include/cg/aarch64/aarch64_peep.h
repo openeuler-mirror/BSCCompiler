@@ -50,7 +50,7 @@ class PeepOptimizeManager {
     }
   }
   template<typename OptimizePattern>
-  void NormalPatternOpt(bool patternEnable = false) {
+  void NormalPatternOpt(bool patternEnable = false) const {
     if (!patternEnable) {
       return;
     }
@@ -152,8 +152,8 @@ class CselToCsetPattern : public CGPeepPattern {
   }
 
  private:
-  bool IsOpndDefByZero(const Insn &insn);
-  bool IsOpndDefByOne(const Insn &insn);
+  bool IsOpndDefByZero(const Insn &insn) const;
+  bool IsOpndDefByOne(const Insn &insn) const;
   AArch64CC_t GetInversedCondCode(const CondOperand &condOpnd) const;
   Insn *prevMovInsn1 = nullptr;
   Insn *prevMovInsn2 = nullptr;
@@ -580,8 +580,8 @@ class ElimSpecificExtensionPattern : public CGPeepPattern {
  private:
   void SetSpecificExtType(const Insn &currInsn);
   void SetOptSceneType();
-  bool IsValidLoadExtPattern(Insn &currInsn, MOperator oldMop, MOperator newMop);
-  MOperator SelectNewLoadMopByBitSize(MOperator lowBitMop);
+  bool IsValidLoadExtPattern(Insn &currInsn, MOperator oldMop, MOperator newMop) const;
+  MOperator SelectNewLoadMopByBitSize(MOperator lowBitMop) const;
   void ElimExtensionAfterLoad(Insn &currInsn);
   void ElimExtensionAfterMov(Insn &currInsn);
   void ElimExtensionAfterSameExt(Insn &currInsn);
@@ -934,10 +934,10 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
    * bl foo (change memory)
    * str x21, [x19, #16]
    */
-  bool IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore, int64 baseOfst);
-  void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn);
+  bool IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore, int64 baseOfst) const;
+  void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn) const;
   MOperator GetMopHigherByte(MOperator mop) const;
-  bool SplitOfstWithAddToCombine(Insn &insn, const MemOperand &memOperand);
+  bool SplitOfstWithAddToCombine(Insn &insn, const MemOperand &memOperand) const;
   bool doAggressiveCombine = false;
   MemOperand *memOpnd = nullptr;
 };
@@ -1270,7 +1270,7 @@ class AndCmpBranchesToCsetAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
 
  private:
-  Insn *FindPreviousCmp(Insn &insn);
+  Insn *FindPreviousCmp(Insn &insn) const;
 };
 /*
  * We optimize the following pattern in this function:
@@ -1347,8 +1347,8 @@ class CmpCsetAArch64 : public PeepPattern {
 
  private:
   bool CheckOpndDefPoints(Insn &checkInsn, int opndIdx);
-  const Insn *DefInsnOfOperandInBB(const Insn &startInsn, const Insn &checkInsn, int opndIdx);
-  bool OpndDefByOneValidBit(const Insn &defInsn);
+  const Insn *DefInsnOfOperandInBB(const Insn &startInsn, const Insn &checkInsn, int opndIdx) const;
+  bool OpndDefByOneValidBit(const Insn &defInsn) const;
   bool FlagUsedLaterInCurBB(const BB &bb, Insn &startInsn) const;
 };
 
@@ -1365,7 +1365,7 @@ class ComplexMemOperandAddAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
  private:
 
-  bool IsExpandBaseOpnd(const Insn &insn, const Insn &prevInsn);
+  bool IsExpandBaseOpnd(const Insn &insn, const Insn &prevInsn) const;
 };
 
 /*
@@ -1399,7 +1399,7 @@ class DeleteMovAfterCbzOrCbnzAArch64 : public PeepPattern {
   bool PredBBCheck(BB &bb, bool checkCbz, const Operand &opnd) const;
   bool OpndDefByMovZero(const Insn &insn) const;
   bool NoPreDefine(Insn &testInsn) const;
-  void ProcessBBHandle(BB *processBB, const BB &bb, const Insn &insn);
+  void ProcessBBHandle(BB *processBB, const BB &bb, const Insn &insn) const;
   CGCFG *cgcfg;
 };
 
@@ -1616,7 +1616,7 @@ class WriteFieldCallPattern : public CGPeepPattern {
   WriteRefFieldParam currentCallParam;
   std::vector<Insn*> paramDefInsns;
   bool WriteFieldCallOptPatternMatch(const Insn &writeFieldCallInsn, WriteRefFieldParam &param);
-  bool IsWriteRefFieldCallInsn(const Insn &insn);
+  bool IsWriteRefFieldCallInsn(const Insn &insn) const;
 };
 
 /*
@@ -1742,7 +1742,7 @@ class CselZeroOneToCsetOpt : public PeepPattern {
  private:
   Insn *trueMovInsn = nullptr;
   Insn *falseMovInsn = nullptr;
-  Insn *FindFixedValue(Operand &opnd, BB &bb, Operand *&tempOp, const Insn &insn);
+  Insn *FindFixedValue(Operand &opnd, BB &bb, Operand *&tempOp, const Insn &insn) const;
   AArch64CC_t GetReverseCond(const CondOperand &cond) const;
  protected:
   CGFunc *cgFunc;
@@ -1763,7 +1763,7 @@ class ComplexExtendWordLslAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
 
   private:
-  bool IsExtendWordLslPattern(const Insn &insn);
+  bool IsExtendWordLslPattern(const Insn &insn) const;
 };
 
 class AArch64PeepHole : public PeepPatternMatch {

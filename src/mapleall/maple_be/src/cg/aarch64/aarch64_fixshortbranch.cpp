@@ -40,7 +40,7 @@ uint32 AArch64FixShortBranch::CalculateAlignRange(const BB &bb, uint32 addr) con
   return range > kAlignPseudoSize ? range : kAlignPseudoSize;
 }
 
-void AArch64FixShortBranch::SetInsnId() {
+void AArch64FixShortBranch::SetInsnId() const {
   uint32 i = 0;
   AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   FOR_ALL_BB(bb, aarch64CGFunc) {

@@ -442,7 +442,7 @@ void LSRALinearScanRegAllocator::RecordPhysRegs(const RegOperand &regOpnd, uint3
   }
 }
 
-void LSRALinearScanRegAllocator::UpdateLiveIntervalState(const BB &bb, LiveInterval &li) {
+void LSRALinearScanRegAllocator::UpdateLiveIntervalState(const BB &bb, LiveInterval &li) const {
   if (bb.IsCatch()) {
     li.SetInCatchState();
   } else {
@@ -1161,7 +1161,7 @@ void LSRALinearScanRegAllocator::RetireFromActive(const Insn &insn) {
 
 /* the return value is a physical reg */
 uint32 LSRALinearScanRegAllocator::GetRegFromSet(MapleSet<uint32> &set, regno_t offset, LiveInterval &li,
-                                                 regno_t forcedReg) {
+                                                 regno_t forcedReg) const {
   uint32 regNO;
   if (forcedReg) {
     /* forced_reg is a caller save reg */
@@ -1575,7 +1575,7 @@ RegOperand *LSRALinearScanRegAllocator::AssignPhysRegs(Operand &opnd, const Insn
 }
 
 MemOperand *LSRALinearScanRegAllocator::GetSpillMem(uint32 vRegNO, bool isDest, Insn &insn, AArch64reg regNO,
-                                                    bool &isOutOfRange) {
+                                                    bool &isOutOfRange) const {
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   MemOperand *memOpnd = a64CGFunc->GetOrCreatSpillMem(vRegNO);
   return (a64CGFunc->AdjustMemOperandIfOffsetOutOfRange(memOpnd, vRegNO, isDest, insn, regNO, isOutOfRange));

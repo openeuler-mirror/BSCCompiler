@@ -1094,17 +1094,13 @@ class MemOperand : public OperandVisitable<MemOperand> {
             (GetOffsetOperand() == opnd.GetOffsetOperand()) ;
   }
 
-  VaryType GetMemVaryType() {
+  VaryType GetMemVaryType() const {
     Operand *ofstOpnd = GetOffsetOperand();
     if (ofstOpnd != nullptr) {
       auto *opnd = static_cast<OfstOperand*>(ofstOpnd);
       return opnd->GetVary();
     }
     return kNotVary;
-  }
-
-  AArch64AddressingMode GetAddrMode() {
-    return addrMode;
   }
 
   void SetAddrMode(AArch64AddressingMode val) {
@@ -1829,7 +1825,7 @@ class OpndDumpVisitor : public OperandVisitorBase,
   virtual void DumpOpndSuffix() {
     LogInfo::MapleLogger() << " )";
   }
-  void DumpSize(const Operand &opnd) {
+  void DumpSize(const Operand &opnd) const {
     LogInfo::MapleLogger() << " [size:" << opnd.GetSize() << "]";
   }
   const OpndDescription *GetOpndDesc() const {

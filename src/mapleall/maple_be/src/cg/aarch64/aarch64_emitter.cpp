@@ -315,7 +315,7 @@ void AArch64AsmEmitter::EmitJavaInsnAddr(FuncEmitInfo &funcEmitInfo) {
   }
 }
 
-void AArch64AsmEmitter::RecordRegInfo(FuncEmitInfo &funcEmitInfo) {
+void AArch64AsmEmitter::RecordRegInfo(FuncEmitInfo &funcEmitInfo) const {
   if (!CGOptions::DoIPARA() || funcEmitInfo.GetCGFunc().GetFunction().IsJava()) {
     return;
   }
@@ -681,7 +681,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
 #endif /* ~EMIT_INSN_COUNT */
 }
 
-void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) {
+void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) const {
   MOperator mOp = insn.GetMachineOpcode();
   emitter.SetCurrentMOP(mOp);
   const AArch64MD *md = &AArch64CG::kMd[mOp];
@@ -2063,7 +2063,7 @@ static CfiDescr cfiDescrTable[cfi::kOpCfiLast + 1] = {
   { ".cfi_undef", 0, { Operand::kOpdUndef, Operand::kOpdUndef, Operand::kOpdUndef } }
 };
 
-void AArch64AsmEmitter::EmitAArch64CfiInsn(Emitter &emitter, const Insn &insn) {
+void AArch64AsmEmitter::EmitAArch64CfiInsn(Emitter &emitter, const Insn &insn) const {
   MOperator mOp = insn.GetMachineOpcode();
   CfiDescr &cfiDescr = cfiDescrTable[mOp];
   (void)emitter.Emit("\t").Emit(cfiDescr.name);
@@ -2093,7 +2093,7 @@ static DbgDescr dbgDescrTable[mpldbg::kOpDbgLast + 1] = {
   { "undef", 0, { Operand::kOpdUndef, Operand::kOpdUndef, Operand::kOpdUndef } }
 };
 
-void AArch64AsmEmitter::EmitAArch64DbgInsn(Emitter &emitter, const Insn &insn) {
+void AArch64AsmEmitter::EmitAArch64DbgInsn(Emitter &emitter, const Insn &insn) const {
   MOperator mOp = insn.GetMachineOpcode();
   DbgDescr &dbgDescr = dbgDescrTable[mOp];
   (void)emitter.Emit("\t.").Emit(dbgDescr.name);

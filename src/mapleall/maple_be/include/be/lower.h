@@ -112,7 +112,7 @@ class CGLowerer {
     return (iread.GetFieldID() == 0 ? &iread : LowerIreadBitfield(iread));
   }
 
-  BaseNode *LowerCastExpr(BaseNode &expr);
+  BaseNode *LowerCastExpr(BaseNode &expr) const;
 
   BaseNode *ExtractSymbolAddress(const StIdx &stIdx);
   BaseNode *LowerDreadToThreadLocal(BaseNode &expr, BlockNode &block);
@@ -126,14 +126,14 @@ class CGLowerer {
 
   void LowerRegassign(RegassignNode &regAssign, BlockNode &block);
 
-  void AddElemToPrintf(MapleVector<BaseNode*> &argsPrintf, int num, ...);
+  void AddElemToPrintf(MapleVector<BaseNode*> &argsPrintf, int num, ...) const;
 
   std::string AssertBoundaryGetFileName(StmtNode &stmt) {
     size_t pos = mirModule.GetFileNameFromFileNum(stmt.GetSrcPos().FileNum()).rfind('/');
     return mirModule.GetFileNameFromFileNum(stmt.GetSrcPos().FileNum()).substr(pos + 1);
   }
 
-  std::string GetFileNameSymbolName(const std::string &fileName);
+  std::string GetFileNameSymbolName(const std::string &fileName) const;
 
   void SwitchAssertBoundary(StmtNode &stmt, MapleVector<BaseNode*> &argsPrintf);
 
@@ -183,7 +183,7 @@ class CGLowerer {
 
   BlockNode *LowerBlock(BlockNode &block);
 
-  void SimplifyBlock(BlockNode &block);
+  void SimplifyBlock(BlockNode &block) const;
 
   void LowerTryCatchBlocks(BlockNode &body);
 
@@ -289,12 +289,12 @@ class CGLowerer {
     return (options & kGenEh) != 0;
   }
 
-  BaseNode *MergeToCvtType(PrimType dtyp, PrimType styp, BaseNode &src);
+  BaseNode *MergeToCvtType(PrimType dtyp, PrimType styp, BaseNode &src) const;
   BaseNode *LowerJavascriptIntrinsicop(IntrinsicopNode &intrinNode, const IntrinDesc &desc);
   StmtNode *CreateStmtCallWithReturnValue(const IntrinsicopNode &intrinNode, const MIRSymbol &ret, PUIdx bFunc,
-                                          BaseNode *extraInfo = nullptr);
+                                          BaseNode *extraInfo = nullptr) const;
   StmtNode *CreateStmtCallWithReturnValue(const IntrinsicopNode &intrinNode, PregIdx retPregIdx, PUIdx bFunc,
-                                          BaseNode *extraInfo = nullptr);
+                                          BaseNode *extraInfo = nullptr) const;
   BaseNode *LowerIntrinsicop(const BaseNode &parent, IntrinsicopNode &intrinNode);
   BaseNode *LowerIntrinJavaMerge(const BaseNode &parent, IntrinsicopNode &intrinNode);
   BaseNode *LowerIntrinJavaArrayLength(const BaseNode &parent, IntrinsicopNode &intrinNode);
@@ -304,7 +304,7 @@ class CGLowerer {
   IreadNode &GetLenNode(BaseNode &opnd0);
   LabelIdx GetLabelIdx(MIRFunction &curFunc) const;
   void ProcessArrayExpr(BaseNode &expr, BlockNode &blkNode);
-  void ProcessClassInfo(MIRType &classType, bool &classInfoFromRt, std::string &classInfo);
+  void ProcessClassInfo(MIRType &classType, bool &classInfoFromRt, std::string &classInfo) const;
   StmtNode *GenCallNode(const StmtNode &stmt, PUIdx &funcCalled, CallNode& origCall);
   StmtNode *GenIntrinsiccallNode(const StmtNode &stmt, PUIdx &funcCalled, bool &handledAtLowerLevel,
                                     IntrinsiccallNode &origCall);
@@ -313,7 +313,7 @@ class CGLowerer {
                           const PUIdx &funcCalled, bool handledAtLowerLevel, bool uselvar);
   BaseNode *GetClassInfoExprFromRuntime(const std::string &classInfo);
   BaseNode *GetClassInfoExprFromArrayClassCache(const std::string &classInfo);
-  BaseNode *GetClassInfoExpr(const std::string &classInfo);
+  BaseNode *GetClassInfoExpr(const std::string &classInfo) const;
   BaseNode *GetBaseNodeFromCurFunc(MIRFunction &curFunc, bool isJarray);
 
   OptionFlag options = 0;

@@ -72,10 +72,10 @@ class Occ {
 
 class RealOcc : public Occ {
  public:
-  RealOcc(BB *bb): Occ(kAOccReal, bb) {}
+  explicit RealOcc(BB *bb): Occ(kAOccReal, bb) {}
   virtual ~RealOcc() = default;
 
-  void Dump() const {
+  void Dump() const override {
     LogInfo::MapleLogger() << "RealOcc at bb" << cgbb->GetId();
     LogInfo::MapleLogger() << " classId" << classId;
   }
@@ -90,7 +90,7 @@ class PhiOpndOcc : public Occ {
   explicit PhiOpndOcc(BB *bb): Occ(kAOccPhiOpnd, bb) {}
   virtual ~PhiOpndOcc() = default;
 
-  void Dump() const {
+  void Dump() const override {
     LogInfo::MapleLogger() << "PhiOpndOcc at bb" << cgbb->GetId() << " classId" << classId;
   }
 
@@ -110,7 +110,7 @@ class PhiOcc : public Occ {
     return isCanBeAvail && !isLater;
   }
 
-  void Dump() const {
+  void Dump() const override {
     LogInfo::MapleLogger() << "PhiOcc at bb" << cgbb->GetId() << " classId" << classId << " Phi[";
     for (size_t i = 0; i < phiOpnds.size(); i++) {
       phiOpnds[i]->Dump();
@@ -134,7 +134,7 @@ class ExitOcc : public Occ {
   explicit ExitOcc(BB *bb) : Occ(kAOccExit, bb) {}
   virtual ~ExitOcc() = default;
 
-  void Dump() const {
+  void Dump() const override {
     LogInfo::MapleLogger() << "ExitOcc at bb" << cgbb->GetId();
   }
 };

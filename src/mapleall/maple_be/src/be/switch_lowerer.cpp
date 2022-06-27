@@ -53,7 +53,7 @@ static bool CasePairKeyLessThan(const CasePair &left, const CasePair &right) {
   return left.first < right.first;
 }
 
-void SwitchLowerer::FindClusters(MapleVector<Cluster> &clusters) {
+void SwitchLowerer::FindClusters(MapleVector<Cluster> &clusters) const {
   int32 length = static_cast<int>(stmt->GetSwitchTable().size());
   int32 i = 0;
   while (i < length - kClusterSwitchCutoff) {

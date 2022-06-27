@@ -713,7 +713,7 @@ bool AArch64Ebo::CheckCondCode(const CondOperand &cond) const {
 }
 
 bool AArch64Ebo::SimplifyBothConst(BB &bb, Insn &insn, const ImmOperand &immOperand0,
-                                   const ImmOperand &immOperand1, uint32 opndSize) {
+                                   const ImmOperand &immOperand1, uint32 opndSize) const {
   MOperator mOp = insn.GetMachineOpcode();
   int64 val = 0;
   /* do not support negative const simplify yet */
@@ -759,7 +759,7 @@ bool AArch64Ebo::SimplifyBothConst(BB &bb, Insn &insn, const ImmOperand &immOper
   return true;
 }
 
-bool AArch64Ebo::OperandLiveAfterInsn(const RegOperand &regOpnd, Insn &insn) {
+bool AArch64Ebo::OperandLiveAfterInsn(const RegOperand &regOpnd, Insn &insn) const {
   for (Insn *nextInsn = insn.GetNext(); nextInsn != nullptr; nextInsn = nextInsn->GetNext()) {
     if (!nextInsn->IsMachineInstruction()) {
       continue;
@@ -897,7 +897,7 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
 }
 
 bool AArch64Ebo::CombineMultiplyAdd(Insn *insn, const Insn *prevInsn, InsnInfo *insnInfo, Operand *addOpnd,
-                                    bool is64bits, bool isFp) {
+                                    bool is64bits, bool isFp) const {
   /* don't use register if it was redefined. */
   OpndInfo *opndInfo1 = insnInfo->origOpnd[kInsnSecondOpnd];
   OpndInfo *opndInfo2 = insnInfo->origOpnd[kInsnThirdOpnd];
@@ -937,7 +937,7 @@ bool AArch64Ebo::CheckCanDoMadd(Insn *insn, OpndInfo *opndInfo, int32 pos, bool 
   return false;
 }
 
-bool AArch64Ebo::CombineMultiplySub(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp) {
+bool AArch64Ebo::CombineMultiplySub(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp) const {
   if ((opndInfo == nullptr) || (opndInfo->insn == nullptr)) {
     return false;
   }
@@ -983,7 +983,7 @@ bool CheckInsnRefField(const Insn &insn, size_t opndIndex) {
   return false;
 }
 
-bool AArch64Ebo::CombineMultiplyNeg(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp) {
+bool AArch64Ebo::CombineMultiplyNeg(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp) const {
   if ((opndInfo == nullptr) || (opndInfo->insn == nullptr)) {
     return false;
   }
@@ -1016,7 +1016,7 @@ bool AArch64Ebo::CombineMultiplyNeg(Insn *insn, OpndInfo *opndInfo, bool is64bit
   return false;
 }
 
-bool AArch64Ebo::CombineLsrAnd(Insn &insn, const OpndInfo &opndInfo, bool is64bits, bool isFp) {
+bool AArch64Ebo::CombineLsrAnd(Insn &insn, const OpndInfo &opndInfo, bool is64bits, bool isFp) const {
   if (opndInfo.insn == nullptr) {
     return false;
   }

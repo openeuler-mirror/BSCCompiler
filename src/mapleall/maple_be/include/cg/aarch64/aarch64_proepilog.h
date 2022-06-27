@@ -54,12 +54,12 @@ class AArch64GenProEpilog : public GenProEpilog {
   void GenStackGuard(BB&);
   BB &GenStackGuardCheckInsn(BB&);
   bool HasLoop();
-  bool OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &exitBB);
+  bool OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &exitBB) const;
   void TailCallBBOpt(BB &bb, MapleSet<Insn*> &callInsns, BB &exitBB);
-  bool InsertOpndRegs(Operand &opnd, std::set<regno_t> &vecRegs);
+  bool InsertOpndRegs(Operand &opnd, std::set<regno_t> &vecRegs) const;
   bool InsertInsnRegs(Insn &insn, bool insetSource, std::set<regno_t> &vecSourceRegs,
                       bool insertTarget, std::set<regno_t> &vecTargetRegs);
-  bool FindRegs(Operand &insn, std::set<regno_t> &vecRegs);
+  bool FindRegs(Operand &insn, std::set<regno_t> &vecRegs) const;
   bool BackwardFindDependency(BB &ifbb, std::set<regno_t> &vecReturnSourceReg,
                               std::list<Insn*> &existingInsns, std::list<Insn*> &moveInsns);
   BB *IsolateFastPath(BB&);

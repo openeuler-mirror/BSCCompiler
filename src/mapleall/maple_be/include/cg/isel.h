@@ -93,7 +93,7 @@ class MPISel {
    * alltypes -> reg -> mem
    */
   template<typename destTy, typename srcTy>
-  void SelectCopyInsn(destTy &dest, srcTy &src, PrimType type);
+  void SelectCopyInsn(destTy &dest, srcTy &src, PrimType type) const;
   void SelectNeg(Operand &resOpnd, Operand &opnd0, PrimType primType);
   void SelectBior(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectExtractbits(CGRegOperand &resOpnd, CGRegOperand &opnd0, uint8 bitOffset, uint8 bitSize, PrimType primType);

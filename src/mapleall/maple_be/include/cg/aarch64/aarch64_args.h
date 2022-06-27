@@ -50,14 +50,14 @@ class AArch64MoveRegArgs : public MoveRegArgs {
   ArgInfo GetArgInfo(std::map<uint32, AArch64reg> &argsList, std::vector<uint32> &numFpRegs,
                      std::vector<uint32> &fpSize, uint32 argIndex) const;
   bool IsInSameSegment(const ArgInfo &firstArgInfo, const ArgInfo &secondArgInfo) const;
-  void GenOneInsn(const ArgInfo &argInfo, RegOperand &baseOpnd, uint32 stBitSize, AArch64reg dest, int32 offset);
+  void GenOneInsn(const ArgInfo &argInfo, RegOperand &baseOpnd, uint32 stBitSize, AArch64reg dest, int32 offset) const;
   void GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgInfo &secondArgInfo);
   void GenerateStrInsn(const ArgInfo &argInfo, AArch64reg reg2, uint32 numFpRegs, uint32 fpSize);
   void MoveRegisterArgs();
   void MoveVRegisterArgs();
-  void MoveLocalRefVarToRefLocals(MIRSymbol &mirSym);
-  void LoadStackArgsToVReg(MIRSymbol &mirSym);
-  void MoveArgsToVReg(const CCLocInfo &ploc, MIRSymbol &mirSym);
+  void MoveLocalRefVarToRefLocals(MIRSymbol &mirSym) const;
+  void LoadStackArgsToVReg(MIRSymbol &mirSym) const;
+  void MoveArgsToVReg(const CCLocInfo &ploc, MIRSymbol &mirSym) const;
 };
 }  /* namespace maplebe */
 

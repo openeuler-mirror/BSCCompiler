@@ -93,7 +93,7 @@ class BECommon {
 
   void LowerJavaVolatileInClassType(MIRClassType &ty);
 
-  void LowerJavaVolatileForSymbol(MIRSymbol &sym);
+  void LowerJavaVolatileForSymbol(MIRSymbol &sym) const;
 
   void ComputeTypeSizesAligns(MIRType &type, uint8 align = 0);
 
@@ -105,7 +105,7 @@ class BECommon {
 
   std::pair<int32, int32> GetFieldOffset(MIRStructType &structType, FieldID fieldID);
 
-  bool IsRefField(MIRStructType &structType, FieldID fieldID);
+  bool IsRefField(MIRStructType &structType, FieldID fieldID) const;
 
   /* some class may has incomplete type definition. provide an interface to check them. */
   bool HasJClassLayout(MIRClassType &klass) const {

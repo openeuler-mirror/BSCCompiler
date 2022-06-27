@@ -136,7 +136,7 @@ class CGOptions {
   }
 
   template <class T>
-  void SetOrClear(T &dest, uint64 flag, bool truth) {
+  void SetOrClear(T &dest, uint64 flag, bool truth) const {
     if (truth) {
       dest |= flag;
     } else {

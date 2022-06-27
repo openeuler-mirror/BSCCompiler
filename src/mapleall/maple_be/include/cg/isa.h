@@ -98,7 +98,7 @@ template <typename ParaType>
 class ConstraintFunction {
  public:
   typedef bool (*cfPointer)(ParaType);
-  bool CheckConstraint(cfPointer ccfunc, ParaType a) {
+  bool CheckConstraint(cfPointer ccfunc, ParaType a) const {
     return (*ccfunc)(a);
   }
 };

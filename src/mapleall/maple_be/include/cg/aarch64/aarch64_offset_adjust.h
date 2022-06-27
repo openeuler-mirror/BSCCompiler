@@ -31,7 +31,7 @@ class AArch64FPLROffsetAdjustment : public FrameFinalize {
 
  private:
   void AdjustmentOffsetForOpnd(Insn &insn, AArch64CGFunc &aarchCGFunc);
-  void AdjustmentOffsetForImmOpnd(Insn &insn, uint32 index, AArch64CGFunc &aarchCGFunc);
+  void AdjustmentOffsetForImmOpnd(Insn &insn, uint32 index, AArch64CGFunc &aarchCGFunc) const;
   void AdjustmentOffsetForFPLR();
   /* frame pointer(x29) is available as a general-purpose register if useFP is set as false */
   void AdjustmentStackPointer(Insn &insn, AArch64CGFunc &aarchCGFunc);

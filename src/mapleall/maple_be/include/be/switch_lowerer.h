@@ -54,7 +54,7 @@ class SwitchLowerer {
   const maple::int32 kMaxRangeGotoTableSize = 127;
   bool jumpToDefaultBlockGenerated = false;
 
-  void FindClusters(maple::MapleVector<Cluster> &clusters);
+  void FindClusters(maple::MapleVector<Cluster> &clusters) const;
   void InitSwitchItems(maple::MapleVector<Cluster> &clusters);
   maple::RangeGotoNode *BuildRangeGotoNode(maple::int32 startIdx, maple::int32 endIdx);
   maple::CompareNode *BuildCmpNode(maple::Opcode opCode, maple::uint32 idx);

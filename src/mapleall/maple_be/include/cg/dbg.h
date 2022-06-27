@@ -59,8 +59,6 @@ class DbgInsn : public maplebe::Insn {
   }
 
 #if TARGAARCH64 || TARGRISCV64
-  void Emit(const maplebe::CG &cg, maplebe::Emitter &emitter) const override;
-
   void Dump() const override;
 
   bool Check() const override;
@@ -92,7 +90,7 @@ class DbgInsn : public maplebe::Insn {
 
 class ImmOperand : public maplebe::OperandVisitable<ImmOperand>{
  public:
-  ImmOperand(int64 val) : OperandVisitable(kOpdImmediate, 32), val(val) {}
+  explicit ImmOperand(int64 val) : OperandVisitable(kOpdImmediate, 32), val(val) {}
 
   ~ImmOperand() = default;
   using OperandVisitable<ImmOperand>::OperandVisitable;

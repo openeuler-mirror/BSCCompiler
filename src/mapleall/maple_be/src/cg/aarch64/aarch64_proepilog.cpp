@@ -90,7 +90,7 @@ bool AArch64GenProEpilog::HasLoop() {
  *  Remove redundant mov and mark optimizable bl/blr insn in the BB.
  *  Return value: true to call this modified block again.
  */
-bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &exitBB) {
+bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &exitBB) const {
   if (bb.NumInsn() == 1 &&
       (bb.GetLastInsn()->GetMachineOpcode() != MOP_xbr &&
        bb.GetLastInsn()->GetMachineOpcode() != MOP_xblr &&
@@ -461,7 +461,7 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   return *newBB;
 }
 
-bool AArch64GenProEpilog::InsertOpndRegs(Operand &op, std::set<regno_t> &vecRegs) {
+bool AArch64GenProEpilog::InsertOpndRegs(Operand &op, std::set<regno_t> &vecRegs) const {
   Operand *opnd = &op;
   CHECK_FATAL(opnd != nullptr, "opnd is nullptr in InsertRegs");
   if (opnd->IsList()) {
@@ -506,7 +506,7 @@ bool AArch64GenProEpilog::InsertInsnRegs(Insn &insn, bool insertSource, std::set
   return true;
 }
 
-bool AArch64GenProEpilog::FindRegs(Operand &op, std::set<regno_t> &vecRegs) {
+bool AArch64GenProEpilog::FindRegs(Operand &op, std::set<regno_t> &vecRegs) const {
   Operand *opnd = &op;
   if (opnd == nullptr || vecRegs.empty()) {
     return false;
@@ -1226,7 +1226,7 @@ void AArch64GenProEpilog::GeneratePushRegs() {
       } else {
         immOpnd = &aarchCGFunc.CreateImmOperand(argsToStkPassSize, k32BitSize, true);
       }
-      if (isLmbc == false || cgFunc.SeenFP() || cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
+      if (!isLmbc || cgFunc.SeenFP() || cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
         aarchCGFunc.SelectAdd(fpOpnd, spOpnd, *immOpnd, PTY_u64);
       }
       cgFunc.GetCurBB()->GetLastInsn()->SetFrameDef(true);
@@ -1256,11 +1256,11 @@ void AArch64GenProEpilog::GeneratePushRegs() {
   AArch64MemLayout *memLayout = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
   int32 offset;
   if (cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
-    offset = static_cast<int32>(memLayout->RealStackFrameSize() -
-        aarchCGFunc.SizeOfCalleeSaved() - memLayout->GetSizeOfLocals());
+    offset = static_cast<int32>((memLayout->RealStackFrameSize() -
+        aarchCGFunc.SizeOfCalleeSaved()) - memLayout->GetSizeOfLocals());
   } else {
-    offset = static_cast<int32>(memLayout->RealStackFrameSize() -
-        (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* for FP/LR */) -
+    offset = (static_cast<int32>(memLayout->RealStackFrameSize() -
+        (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen))) - /* for FP/LR */
        memLayout->SizeOfArgsToStackPass());
   }
 
@@ -1685,7 +1685,7 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg r
   bool isLmbc = (cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc);
   if (cgFunc.HasVLAOrAlloca() || argsToStkPassSize == 0 || isLmbc) {
     int lmbcOffset = 0;
-    if (isLmbc == false) {
+    if (!isLmbc) {
       stackFrameSize -= argsToStkPassSize;
     } else {
       lmbcOffset = argsToStkPassSize - (kDivide2 * k8ByteSize);
@@ -1770,11 +1770,11 @@ void AArch64GenProEpilog::GeneratePopRegs() {
   AArch64MemLayout *memLayout = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
   int32 offset;
   if (cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
-    offset = static_cast<int32>(memLayout->RealStackFrameSize() -
-        aarchCGFunc.SizeOfCalleeSaved() - memLayout->GetSizeOfLocals());
+    offset = static_cast<int32>((memLayout->RealStackFrameSize() -
+        aarchCGFunc.SizeOfCalleeSaved()) - memLayout->GetSizeOfLocals());
   } else {
-    offset = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
-        (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* for FP/LR */) -
+    offset = (static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
+        (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen))) - /* for FP/LR */
         memLayout->SizeOfArgsToStackPass();
   }
 

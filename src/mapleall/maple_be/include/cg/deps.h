@@ -283,72 +283,72 @@ class DepNode {
       regPressure->DumpRegPressure();
     }
   }
-  void InitPressure() {
+  void InitPressure() const {
     regPressure->InitPressure();
   }
   const MapleVector<int32> &GetPressure() const {
     return regPressure->GetPressure();
   }
 
-  void IncPressureByIndex(int32 idx) {
+  void IncPressureByIndex(int32 idx) const {
     regPressure->IncPressureByIndex(static_cast<uint32>(idx));
   }
-  void DecPressureByIndex(int32 idx) {
+  void DecPressureByIndex(int32 idx) const {
     regPressure->DecPressureByIndex(static_cast<uint32>(idx));
   }
 
   const MapleVector<int32> &GetDeadDefNum() const {
     return regPressure->GetDeadDefNum();
   }
-  void IncDeadDefByIndex(int32 idx) {
+  void IncDeadDefByIndex(int32 idx) const {
     regPressure->IncDeadDefByIndex(static_cast<uint32>(idx));
   }
 
-  void SetRegUses(RegList &regList) {
+  void SetRegUses(RegList &regList) const {
     regPressure->SetRegUses(&regList);
   }
-  void SetRegDefs(size_t idx, RegList *regList) {
+  void SetRegDefs(size_t idx, RegList *regList) const {
     regPressure->SetRegDefs(idx, regList);
   }
 
   int32 GetIncPressure() const {
     return regPressure->GetIncPressure();
   }
-  void SetIncPressure(bool value) {
+  void SetIncPressure(bool value) const {
     regPressure->SetIncPressure(value);
   }
   int32 GetMaxDepth() const {
     return regPressure->GetMaxDepth();
   }
-  void SetMaxDepth(int32 value) {
+  void SetMaxDepth(int32 value) const {
     regPressure->SetMaxDepth(value);
   }
   int32 GetNear() const {
     return regPressure->GetNear();
   }
-  void SetNear(int32 value) {
+  void SetNear(int32 value) const {
     regPressure->SetNear(value);
   }
   int32 GetPriority() const {
     return regPressure->GetPriority();
   }
-  void SetPriority(int32 value) {
+  void SetPriority(int32 value) const {
     regPressure->SetPriority(value);
   }
   RegList *GetRegUses(size_t idx) const {
     return regPressure->GetRegUses(idx);
   }
-  void InitRegUsesSize(size_t size) {
+  void InitRegUsesSize(size_t size) const {
     regPressure->InitRegUsesSize(size);
   }
   RegList *GetRegDefs(size_t idx) const {
     return regPressure->GetRegDefs(idx);
   }
-  void InitRegDefsSize(size_t size) {
+  void InitRegDefsSize(size_t size) const {
     regPressure->InitRegDefsSize(size);
   }
 
-  void SetNumCall(int32 value) {
+  void SetNumCall(int32 value) const {
     regPressure->SetNumCall(value);
   }
 
@@ -395,7 +395,7 @@ class DepNode {
     LogInfo::MapleLogger() << "\n";
   }
 
-  void SetHasPreg(bool value) {
+  void SetHasPreg(bool value) const {
     regPressure->SetHasPreg(value);
   }
 

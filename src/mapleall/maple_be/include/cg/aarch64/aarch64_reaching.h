@@ -31,7 +31,7 @@ class AArch64ReachingDefinition : public ReachingDefinition {
   bool FindRegUseBetweenInsnGlobal(uint32 regNO, Insn *startInsn, Insn *endInsn, BB* movBB) const final;
   bool FindMemUseBetweenInsn(uint32 offset, Insn *startInsn, const Insn *endInsn,
                              InsnSet &useInsnSet) const final;
-  bool HasRegDefBetweenInsnGlobal(uint32 regNO, Insn &startInsn, Insn &endInsn);
+  bool HasRegDefBetweenInsnGlobal(uint32 regNO, Insn &startInsn, Insn &endInsn) const;
   bool DFSFindRegDefBetweenBB(const BB &startBB, const BB &endBB, uint32 regNO,
                               std::vector<VisitStatus> &visitedBB) const;
   InsnSet FindDefForRegOpnd(Insn &insn, uint32 indexOrRegNO, bool isRegNO = false) const final;

@@ -32,7 +32,7 @@ void AArch64IfConversionOptimizer::InitOptimizePatterns() {
 }
 
 /* build ccmp Insn */
-Insn *AArch64ICOPattern::BuildCcmpInsn(AArch64CC_t ccCode, const Insn *cmpInsn) {
+Insn *AArch64ICOPattern::BuildCcmpInsn(AArch64CC_t ccCode, const Insn *cmpInsn) const {
   Operand &opnd0 = cmpInsn->GetOperand(kInsnFirstOpnd);
   Operand &opnd1 = cmpInsn->GetOperand(kInsnSecondOpnd);
   Operand &opnd2 = cmpInsn->GetOperand(kInsnThirdOpnd);
@@ -86,7 +86,7 @@ uint32 AArch64ICOPattern::GetNZCV(AArch64CC_t ccCode, bool inverse) {
   }
 }
 
-Insn *AArch64ICOPattern::BuildCmpInsn(const Insn &condBr) {
+Insn *AArch64ICOPattern::BuildCmpInsn(const Insn &condBr) const {
   AArch64CGFunc *func = static_cast<AArch64CGFunc*>(cgFunc);
   RegOperand &reg = static_cast<RegOperand&>(condBr.GetOperand(0));
   PrimType ptyp = (reg.GetSize() == k64BitSize) ? PTY_u64 : PTY_u32;
@@ -154,7 +154,7 @@ AArch64CC_t AArch64ICOPattern::Encode(MOperator mOp, bool inverse) const {
   }
 }
 
-Insn *AArch64ICOPattern::BuildCondSet(const Insn &branch, RegOperand &reg, bool inverse) {
+Insn *AArch64ICOPattern::BuildCondSet(const Insn &branch, RegOperand &reg, bool inverse) const {
   AArch64CC_t ccCode = Encode(branch.GetMachineOpcode(), inverse);
   ASSERT(ccCode != kCcLast, "unknown cond, ccCode can't be kCcLast");
   AArch64CGFunc *func = static_cast<AArch64CGFunc*>(cgFunc);
@@ -165,7 +165,7 @@ Insn *AArch64ICOPattern::BuildCondSet(const Insn &branch, RegOperand &reg, bool 
 }
 
 Insn *AArch64ICOPattern::BuildCondSel(const Insn &branch, MOperator mOp, RegOperand &dst, RegOperand &src1,
-                                      RegOperand &src2) {
+                                      RegOperand &src2) const {
   AArch64CC_t ccCode = Encode(branch.GetMachineOpcode(), false);
   ASSERT(ccCode != kCcLast, "unknown cond, ccCode can't be kCcLast");
   CondOperand &cond = static_cast<AArch64CGFunc *>(cgFunc)->GetCondOperand(ccCode);
@@ -226,7 +226,7 @@ void AArch64ICOIfThenElsePattern::GenerateInsnForImm(const Insn &branchInsn, Ope
 }
 
 RegOperand *AArch64ICOIfThenElsePattern::GenerateRegAndTempInsn(Operand &dest, const RegOperand &destReg,
-                                                                std::vector<Insn*> &generateInsn) {
+                                                                std::vector<Insn*> &generateInsn) const {
   RegOperand *reg = nullptr;
   if (!dest.IsRegister()) {
     bool destIsIntTy = destReg.IsOfIntClass();
@@ -355,7 +355,7 @@ bool AArch64ICOIfThenElsePattern::BuildCondMovInsn(BB &cmpBB, const BB &bb,
   return true;
 }
 
-bool AArch64ICOIfThenElsePattern::CheckHasSameDest(std::vector<Insn*> &lInsn, std::vector<Insn*> &rInsn) {
+bool AArch64ICOIfThenElsePattern::CheckHasSameDest(std::vector<Insn*> &lInsn, std::vector<Insn*> &rInsn) const {
   for (size_t i = 0; i < lInsn.size(); ++i) {
     if (cgFunc->GetTheCFG()->IsAddOrSubInsn(*lInsn[i])) {
       bool hasSameDest = false;
@@ -828,7 +828,7 @@ bool AArch64ICOMorePredsPattern::Optimize(BB &curBB) {
 }
 
 /* this BBGoto only has mov Insn and Branch */
-bool AArch64ICOMorePredsPattern::CheckGotoBB(BB &gotoBB, std::vector<Insn*> &movInsn) {
+bool AArch64ICOMorePredsPattern::CheckGotoBB(BB &gotoBB, std::vector<Insn*> &movInsn) const {
   FOR_BB_INSNS(insn, &gotoBB) {
     if (!insn->IsMachineInstruction()) {
       continue;
@@ -848,7 +848,7 @@ bool AArch64ICOMorePredsPattern::CheckGotoBB(BB &gotoBB, std::vector<Insn*> &mov
 
 /* this BBGoto only has mov Insn */
 bool AArch64ICOMorePredsPattern::MovToCsel(std::vector<Insn*> &movInsn, std::vector<Insn*> &cselInsn,
-                                           const Insn &branchInsn) {
+                                           const Insn &branchInsn) const {
   Operand &branchOpnd0 = branchInsn.GetOperand(kInsnFirstOpnd);
   regno_t branchRegNo;
   if (branchOpnd0.IsRegister()) {

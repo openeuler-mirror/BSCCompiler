@@ -647,16 +647,16 @@ class BB {
   void SetLiveIn(DataInfo &arg) {
     liveIn = &arg;
   }
-  void SetLiveInBit(uint32 arg) {
+  void SetLiveInBit(uint32 arg) const {
     liveIn->SetBit(arg);
   }
   void SetLiveInInfo(const DataInfo &arg) const {
     *liveIn = arg;
   }
-  void LiveInOrBits(const DataInfo &arg) {
+  void LiveInOrBits(const DataInfo &arg) const {
     liveIn->OrBits(arg);
   }
-  void LiveInEnlargeCapacity(uint32 arg) {
+  void LiveInEnlargeCapacity(uint32 arg) const {
     liveIn->EnlargeCapacityToAdaptSize(arg);
   }
   void LiveInClearDataInfo() {
@@ -672,13 +672,13 @@ class BB {
   void SetLiveOut(DataInfo &arg) {
     liveOut = &arg;
   }
-  void SetLiveOutBit(uint32 arg) {
+  void SetLiveOutBit(uint32 arg) const {
     liveOut->SetBit(arg);
   }
-  void LiveOutOrBits(const DataInfo &arg) {
+  void LiveOutOrBits(const DataInfo &arg) const {
     liveOut->OrBits(arg);
   }
-  void LiveOutEnlargeCapacity(uint32 arg) {
+  void LiveOutEnlargeCapacity(uint32 arg) const {
     liveOut->EnlargeCapacityToAdaptSize(arg);
   }
   void LiveOutClearDataInfo() {
@@ -691,13 +691,13 @@ class BB {
   void SetDef(DataInfo &arg) {
     def = &arg;
   }
-  void SetDefBit(uint32 arg) {
+  void SetDefBit(uint32 arg) const {
     def->SetBit(arg);
   }
-  void DefResetAllBit() {
+  void DefResetAllBit() const {
     def->ResetAllBit();
   }
-  void DefResetBit(uint32 arg) {
+  void DefResetBit(uint32 arg) const {
     def->ResetBit(arg);
   }
   void DefClearDataInfo() {
@@ -710,13 +710,13 @@ class BB {
   void SetUse(DataInfo &arg) {
     use = &arg;
   }
-  void SetUseBit(uint32 arg) {
+  void SetUseBit(uint32 arg) const {
     use->SetBit(arg);
   }
-  void UseResetAllBit() {
+  void UseResetAllBit() const {
     use->ResetAllBit();
   }
-  void UseResetBit(uint32 arg) {
+  void UseResetBit(uint32 arg) const {
     use->ResetBit(arg);
   }
   void UseClearDataInfo() {

@@ -247,7 +247,7 @@ void HandleLabel(StmtNode &stmt, MPISel &iSel) {
   auto &label = static_cast<LabelNode&>(stmt);
   BB *newBB = cgFunc->StartNewBBImpl(false, label);
   newBB->AddLabel(label.GetLabelIdx());
-  cgFunc->SetLab2BBMap(newBB->GetLabIdx(), *newBB);
+  cgFunc->SetLab2BBMap(static_cast<int32>(newBB->GetLabIdx()), *newBB);
   cgFunc->SetCurBB(*newBB);
 }
 
@@ -563,7 +563,7 @@ void MPISel::SelectIassign(const IassignNode &stmt, MPISel &iSel, BaseNode &addr
     if (fieldId != 0) {
       ASSERT(pointedType->GetKind() == kTypeStruct, "non-structure");
       MIRStructType *structType = static_cast<MIRStructType*>(pointedType);
-      fieldOffset = static_cast<uint32>(cgFunc->GetBecommon().GetFieldOffset(*structType, fieldId).first);
+      fieldOffset = cgFunc->GetBecommon().GetFieldOffset(*structType, fieldId).first;
       destType = structType->GetFieldType(fieldId)->GetPrimType();
       destType = (destType == PTY_agg) ? PTY_a64 : destType;
     }
@@ -624,7 +624,6 @@ Operand *MPISel::SelectShift(const BinaryNode &node, Operand &opnd0, Operand &op
   Opcode opcode = node.GetOpCode();
 
   if (false) {
-    /* TODO : primitive vector */
   } else {
     PrimType primType = isFloat ? dtype : (is64Bits ? (isSigned ? PTY_i64 : PTY_u64) :
         (isSigned ? PTY_i32 : PTY_u32));
@@ -890,7 +889,7 @@ Operand *MPISel::SelectIread(const BaseNode &parent, const IreadNode &expr, int 
   if (fieldId != 0) {
     ASSERT(pointedType->GetKind() == kTypeStruct, "non-structure");
     MIRStructType *structType = static_cast<MIRStructType*>(pointedType);
-    fieldOffset = static_cast<uint32>(cgFunc->GetBecommon().GetFieldOffset(*structType, fieldId).first);
+    fieldOffset = cgFunc->GetBecommon().GetFieldOffset(*structType, fieldId).first;
     destType = structType->GetFieldType(fieldId)->GetPrimType();
   }
   PrimType primType = expr.GetPrimType();
@@ -1051,7 +1050,7 @@ void MPISel::SelectCopy(Operand &dest, Operand &src, PrimType type) {
 }
 
 template<typename destTy, typename srcTy>
-void MPISel::SelectCopyInsn(destTy &dest, srcTy &src, PrimType type) {
+void MPISel::SelectCopyInsn(destTy &dest, srcTy &src, PrimType type) const {
   MOperator mop = GetFastIselMop(dest.GetKind(), src.GetKind(), type);
   CHECK_FATAL(mop != abstract::MOP_undef, "get mop failed");
   Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mop, InsnDescription::GetAbstractId(mop));
@@ -1093,7 +1092,6 @@ void MPISel::HandleFuncExit() {
   BlockNode *block = cgFunc->GetFunction().GetBody();
   ASSERT(block != nullptr, "get func body block failed in CGFunc::GenerateInstruction");
   cgFunc->GetCurBB()->SetLastStmt(*block->GetLast());
-  /* TODO : Set lastbb's frequency */
   cgFunc->SetLastBB(*cgFunc->GetCurBB());
   cgFunc->SetCleanupBB(*cgFunc->GetCurBB()->GetPrev());
 }

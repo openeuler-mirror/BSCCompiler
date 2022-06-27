@@ -226,7 +226,7 @@ void AArch64MoveRegArgs::GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgI
 }
 
 void AArch64MoveRegArgs::GenOneInsn(const ArgInfo &argInfo, RegOperand &baseOpnd, uint32 stBitSize, AArch64reg dest,
-                                    int32 offset) {
+                                    int32 offset) const {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   MOperator mOp = aarchCGFunc->PickStInsn(stBitSize, argInfo.mirTy->GetPrimType());
   RegOperand &regOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(dest, stBitSize, argInfo.regType);
@@ -350,7 +350,7 @@ void AArch64MoveRegArgs::MoveRegisterArgs() {
   aarchCGFunc->SetCurBB(*formerCurBB);
 }
 
-void AArch64MoveRegArgs::MoveLocalRefVarToRefLocals(MIRSymbol &mirSym) {
+void AArch64MoveRegArgs::MoveLocalRefVarToRefLocals(MIRSymbol &mirSym) const {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   PrimType stype = mirSym.GetType()->GetPrimType();
   uint32 byteSize = GetPrimTypeSize(stype);
@@ -372,7 +372,7 @@ void AArch64MoveRegArgs::MoveLocalRefVarToRefLocals(MIRSymbol &mirSym) {
   aarchCGFunc->GetCurBB()->InsertInsnBegin(insn);
 }
 
-void AArch64MoveRegArgs::LoadStackArgsToVReg(MIRSymbol &mirSym) {
+void AArch64MoveRegArgs::LoadStackArgsToVReg(MIRSymbol &mirSym) const {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   PrimType stype = mirSym.GetType()->GetPrimType();
   uint32 byteSize = GetPrimTypeSize(stype);
@@ -394,7 +394,7 @@ void AArch64MoveRegArgs::LoadStackArgsToVReg(MIRSymbol &mirSym) {
   aarchCGFunc->GetCurBB()->InsertInsnBegin(insn);
 }
 
-void AArch64MoveRegArgs::MoveArgsToVReg(const CCLocInfo &ploc, MIRSymbol &mirSym) {
+void AArch64MoveRegArgs::MoveArgsToVReg(const CCLocInfo &ploc, MIRSymbol &mirSym) const {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   RegType regType = (ploc.reg0 < V0) ? kRegTyInt : kRegTyFloat;
   PrimType stype = mirSym.GetType()->GetPrimType();

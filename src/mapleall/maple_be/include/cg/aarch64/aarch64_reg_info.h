@@ -23,7 +23,7 @@ namespace maplebe {
 
 class AArch64RegInfo : public RegisterInfo {
  public:
-  AArch64RegInfo(MapleAllocator &mallocator): RegisterInfo(mallocator) {
+  explicit AArch64RegInfo(MapleAllocator &mallocator): RegisterInfo(mallocator) {
   }
 
   ~AArch64RegInfo() override = default;

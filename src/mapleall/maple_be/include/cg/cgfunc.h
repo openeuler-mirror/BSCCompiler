@@ -399,11 +399,11 @@ class CGFunc {
     return it == vRegOperandTable.end() ? nullptr : it->second;
   }
 
-  Operand &CreateCfiImmOperand(int64 val, uint32 size) {
+  Operand &CreateCfiImmOperand(int64 val, uint32 size) const {
     return *memPool->New<cfi::ImmOperand>(val, size);
   }
 
-  Operand &CreateCfiStrOperand(const std::string &str) {
+  Operand &CreateCfiStrOperand(const std::string &str) const {
     return *memPool->New<cfi::StrOperand>(str, *memPool);
   }
 
@@ -522,7 +522,7 @@ class CGFunc {
     return;
   }
 
-  Operand *CreateDbgImmOperand(int64 val) {
+  Operand *CreateDbgImmOperand(int64 val) const {
     return memPool->New<mpldbg::ImmOperand>(val);
   }
 
@@ -618,10 +618,6 @@ class CGFunc {
 
   void SetEHFunc(EHFunc &ehFunction) {
     ehFunc = &ehFunction;
-  }
-
-  uint32 GetLabelIdx() {
-    return labelIdx;
   }
 
   uint32 GetLabelIdx() const {
@@ -1046,7 +1042,7 @@ class CGFunc {
     return bb;
   }
 
-  void SetCurBBKind(BB::BBKind bbKind) {
+  void SetCurBBKind(BB::BBKind bbKind) const {
     curBB->SetKind(bbKind);
   }
 

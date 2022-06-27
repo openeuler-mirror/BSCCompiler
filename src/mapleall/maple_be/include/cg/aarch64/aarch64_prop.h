@@ -57,14 +57,14 @@ class A64StrLdrProp {
   bool ReplaceMemOpnd(const MemOperand &currMemOpnd, const Insn *defInsn);
   MemOperand *SelectReplaceMem(const Insn &defInsn, const MemOperand &currMemOpnd);
   RegOperand *GetReplaceReg(RegOperand &a64Reg);
-  MemOperand *HandleArithImmDef(RegOperand &replace, Operand *oldOffset, int64 defVal, uint32 memSize);
+  MemOperand *HandleArithImmDef(RegOperand &replace, Operand *oldOffset, int64 defVal, uint32 memSize) const;
   MemOperand *SelectReplaceExt(const Insn &defInsn, RegOperand &base, uint32 amount,
                                bool isSigned, uint32 memSize);
-  bool CheckNewMemOffset(const Insn &insn, MemOperand *newMemOpnd, uint32 opndIdx);
+  bool CheckNewMemOffset(const Insn &insn, MemOperand *newMemOpnd, uint32 opndIdx) const;
   void DoMemReplace(const RegOperand &replacedReg, MemOperand &newMem, Insn &useInsn);
-  uint32 GetMemOpndIdx(MemOperand *newMemOpnd, const Insn &insn);
+  uint32 GetMemOpndIdx(MemOperand *newMemOpnd, const Insn &insn) const;
 
-  bool CheckSameReplace(const RegOperand &replacedReg, const MemOperand *memOpnd);
+  bool CheckSameReplace(const RegOperand &replacedReg, const MemOperand *memOpnd) const;
 
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;
@@ -99,11 +99,11 @@ class A64ConstProp {
  private:
   bool ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd);
   /* use xzr/wzr in aarch64 to shrink register live range */
-  void ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg);
+  void ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) const;
 
   /* replace old Insn with new Insn, update ssa info automatically */
-  void ReplaceInsnAndUpdateSSA(Insn &oriInsn, Insn &newInsn);
-  ImmOperand *CanDoConstFold(const ImmOperand &value1, const ImmOperand &value2, ArithmeticType aT, bool is64Bit);
+  void ReplaceInsnAndUpdateSSA(Insn &oriInsn, Insn &newInsn) const;
+  ImmOperand *CanDoConstFold(const ImmOperand &value1, const ImmOperand &value2, ArithmeticType aT, bool is64Bit) const;
 
   /* optimization */
   bool MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd);
@@ -133,7 +133,7 @@ class CopyRegProp : public PropOptimizePattern {
     srcVersion = nullptr;
   }
  private:
-  bool IsValidCopyProp(const RegOperand &dstReg, const RegOperand &srcReg);
+  bool IsValidCopyProp(const RegOperand &dstReg, const RegOperand &srcReg) const;
   void VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn);
   VRegVersion *destVersion = nullptr;
   VRegVersion *srcVersion = nullptr;
@@ -306,8 +306,8 @@ private:
   uint32 replaceIdx;
   ExtendShiftOperand::ExtendOp extendOp;
   BitShiftOperand::ShiftOp shiftOp;
-  Insn *defInsn;
-  Insn *newInsn;
+  Insn *defInsn = nullptr;
+  Insn *newInsn = nullptr;
   Insn *curInsn = nullptr;
   bool optSuccess;
   ExMOpType exMOpType;
@@ -373,14 +373,14 @@ class A64PregCopyPattern : public PropOptimizePattern {
   }
 
  private:
-  bool CheckUselessDefInsn(Insn *defInsn);
+  bool CheckUselessDefInsn(Insn *defInsn) const;
   bool CheckValidDefInsn(Insn *defInsn);
-  bool CheckMultiUsePoints(Insn *defInsn);
+  bool CheckMultiUsePoints(Insn *defInsn) const;
   bool CheckPhiCaseCondition(Insn &curInsn, Insn &defInsn);
   bool DFSFindValidDefInsns(Insn *curDefInsn, RegOperand *lastPhiDef, std::unordered_map<uint32, bool> &visited);
   Insn &CreateNewPhiInsn(std::unordered_map<uint32, RegOperand*> &newPhiList, Insn *curInsn);
   RegOperand &DFSBuildPhiInsn(Insn *curInsn, std::unordered_map<uint32, RegOperand*> &visited);
-  RegOperand *CheckAndGetExistPhiDef(Insn &phiInsn, std::vector<regno_t> &validDifferRegNOs);
+  RegOperand *CheckAndGetExistPhiDef(Insn &phiInsn, std::vector<regno_t> &validDifferRegNOs) const;
   std::vector<Insn*> validDefInsns;
   Insn *firstPhiInsn = nullptr;
   int differIdx = -1;

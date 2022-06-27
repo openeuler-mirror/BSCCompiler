@@ -33,7 +33,7 @@ bool RaX0Opt::PropagateX0CanReplace(Operand *opnd, regno_t replaceReg) const {
  * Replace replace_reg with rename_reg.
  * return true if there is a redefinition that needs to terminate the propagation.
  */
-bool RaX0Opt::PropagateRenameReg(Insn *nInsn, const X0OptInfo &optVal) {
+bool RaX0Opt::PropagateRenameReg(Insn *nInsn, const X0OptInfo &optVal) const {
   uint32 renameReg = static_cast<RegOperand*>(optVal.GetRenameOpnd())->GetRegisterNumber();
   const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*> (nInsn)->GetMachineOpcode()];
   int32 lastOpndId = static_cast<int32>(nInsn->GetOperandSize() - 1);
@@ -75,7 +75,7 @@ bool RaX0Opt::PropagateRenameReg(Insn *nInsn, const X0OptInfo &optVal) {
  * This eliminates some local reloads under high register pressure, since
  * the use has been replaced by x0.
  */
-bool RaX0Opt::PropagateX0DetectX0(const Insn *insn, X0OptInfo &optVal) {
+bool RaX0Opt::PropagateX0DetectX0(const Insn *insn, X0OptInfo &optVal) const {
   if (insn->GetMachineOpcode() != MOP_xmovrr && insn->GetMachineOpcode() != MOP_wmovrr) {
     return false;
   }
@@ -89,7 +89,7 @@ bool RaX0Opt::PropagateX0DetectX0(const Insn *insn, X0OptInfo &optVal) {
 }
 
 bool RaX0Opt::PropagateX0DetectRedefine(const AArch64MD *md, const Insn *ninsn, const X0OptInfo &optVal,
-                                        uint32 index) {
+                                        uint32 index) const {
   bool isdef = (md->GetOperand(index))->IsRegDef();
   if (isdef) {
     RegOperand &opnd = static_cast<RegOperand&>(ninsn->GetOperand(index));

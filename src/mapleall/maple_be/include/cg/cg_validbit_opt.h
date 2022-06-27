@@ -76,7 +76,7 @@ class ValidBitOpt {
   }
 
   template<typename VBOpt>
-  void Optimize(BB &bb, Insn &insn) {
+  void Optimize(BB &bb, Insn &insn) const {
     VBOpt opt(*cgFunc, *ssaInfo);
     opt.Run(bb, insn);
   }

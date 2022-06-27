@@ -221,7 +221,7 @@ class LSRALinearScanRegAllocator : public RegAllocator {
       liveParent = newLiParent;
     }
 
-    void SetLiParentChild(LiveInterval *child) {
+    void SetLiParentChild(LiveInterval *child) const {
       liveParent->SetLiChild(child);
     }
 
@@ -430,7 +430,7 @@ class LSRALinearScanRegAllocator : public RegAllocator {
   void InitFreeRegPool();
   void RecordCall(Insn &insn);
   void RecordPhysRegs(const RegOperand &regOpnd, uint32 insnNum, bool isDef);
-  void UpdateLiveIntervalState(const BB &bb, LiveInterval &li);
+  void UpdateLiveIntervalState(const BB &bb, LiveInterval &li) const;
   void SetupLiveInterval(Operand &opnd, Insn &insn, bool isDef, uint32 &nUses);
   void UpdateLiveIntervalByLiveIn(const BB &bb, uint32 insnNum);
   void UpdateParamLiveIntervalByLiveIn(const BB &bb, uint32 insnNum);
@@ -456,9 +456,9 @@ class LSRALinearScanRegAllocator : public RegAllocator {
   void SpillOperand(Insn &insn, Operand &opnd, bool isDef, uint32 spillIdx);
   void SetOperandSpill(Operand &opnd);
   RegOperand *HandleSpillForInsn(const Insn &insn, Operand &opnd);
-  MemOperand *GetSpillMem(uint32 vregNO, bool isDest, Insn &insn, AArch64reg regNO, bool &isOutOfRange);
+  MemOperand *GetSpillMem(uint32 vregNO, bool isDest, Insn &insn, AArch64reg regNO, bool &isOutOfRange) const;
   void InsertCallerSave(Insn &insn, Operand &opnd, bool isDef);
-  uint32 GetRegFromSet(MapleSet<uint32> &set, regno_t offset, LiveInterval &li, regno_t forcedReg = 0);
+  uint32 GetRegFromSet(MapleSet<uint32> &set, regno_t offset, LiveInterval &li, regno_t forcedReg = 0) const;
   uint32 AssignSpecialPhysRegPattern(const Insn &insn, LiveInterval &li);
   uint32 FindAvailablePhyReg(LiveInterval &li, const Insn &insn);
   RegOperand *AssignPhysRegs(Operand &opnd, const Insn &insn);

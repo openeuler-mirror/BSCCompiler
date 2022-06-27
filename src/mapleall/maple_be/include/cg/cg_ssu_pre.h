@@ -75,10 +75,10 @@ class SOcc {
 
 class SRealOcc : public SOcc {
  public:
-  SRealOcc(BB *bb): SOcc(kSOccReal, bb) {}
+  explicit SRealOcc(BB *bb): SOcc(kSOccReal, bb) {}
   virtual ~SRealOcc() = default;
 
-  void Dump() const {
+  void Dump() const override {
     LogInfo::MapleLogger() << "RealOcc at bb" << cgbb->GetId();
     LogInfo::MapleLogger() << " classId" << classId;
   }
@@ -94,7 +94,7 @@ class SLambdaResOcc : public SOcc {
   explicit SLambdaResOcc(BB *bb): SOcc(kSOccLambdaRes, bb) {}
   virtual ~SLambdaResOcc() = default;
 
-  void Dump() const {
+  void Dump() const override {
     LogInfo::MapleLogger() << "LambdaResOcc at bb" << cgbb->GetId() << " classId" << classId;
   }
 
@@ -114,7 +114,7 @@ class SLambdaOcc : public SOcc {
     return isCanBeAnt && !isEarlier;
   }
 
-  void Dump() const {
+  void Dump() const override {
     LogInfo::MapleLogger() << "LambdaOcc at bb" << cgbb->GetId() << " classId" << classId << " Lambda[";
     for (size_t i = 0; i < lambdaRes.size(); i++) {
       lambdaRes[i]->Dump();
@@ -147,7 +147,7 @@ class SKillOcc : public SOcc {
   explicit SKillOcc(BB *bb) : SOcc(kSOccKill, bb) {}
   virtual ~SKillOcc() = default;
 
-  void Dump() const {
+  void Dump() const override {
     LogInfo::MapleLogger() << "KillOcc at bb" << cgbb->GetId();
   }
 };

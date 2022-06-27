@@ -65,7 +65,7 @@ class EHTry {
     this->lsdaCallSite = &lsdaCallSite;
   }
 
-  void SetCSAction(uint32 action) {
+  void SetCSAction(uint32 action) const {
     lsdaCallSite->csAction = action;
   }
 

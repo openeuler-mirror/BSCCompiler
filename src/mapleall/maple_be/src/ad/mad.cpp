@@ -157,15 +157,15 @@ MAD::~MAD() {
   allReservations.clear();
 }
 
-void MAD::InitUnits() {
+void MAD::InitUnits() const {
 #include "mplad_unit_define.def"
 }
 
-void MAD::InitReservation() {
+void MAD::InitReservation() const {
 #include "mplad_reservation_define.def"
 }
 
-void MAD::InitParallelism() {
+void MAD::InitParallelism() const {
 #include "mplad_arch_define.def"
 }
 
@@ -210,13 +210,13 @@ int MAD::DefaultLatency(const Insn &insn) const {
   return res != nullptr ? res->GetLatency() : 0;
 }
 
-void MAD::AdvanceCycle() {
+void MAD::AdvanceCycle() const {
   for (auto unit : allUnits) {
     unit->AdvanceCycle();
   }
 }
 
-void MAD::ReleaseAllUnits() {
+void MAD::ReleaseAllUnits() const {
   for (auto unit : allUnits) {
     unit->Release();
   }
@@ -236,7 +236,7 @@ void MAD::SaveStates(std::vector<uint32> &occupyTable, int size) const {
 #define ADDACCUMULATORBYPASS(DEFLTTY, USELTTY, LT) AddBypass(*(new AccumulatorBypass(DEFLTTY, USELTTY, LT)))
 #define ADDSTOREBYPASS(DEFLTTY, USELTTY, LT) AddBypass(*(new StoreBypass(DEFLTTY, USELTTY, LT)))
 
-void MAD::InitBypass() {
+void MAD::InitBypass() const {
 #include "mplad_bypass_define.def"
 }
 
@@ -254,7 +254,7 @@ bool MAD::IsFullIssued() const {
   return true;
 }
 
-void MAD::RestoreStates(std::vector<uint32> &occupyTable, int size) {
+void MAD::RestoreStates(std::vector<uint32> &occupyTable, int size) const {
   int i = 0;
   for (auto unit : allUnits) {
     CHECK_FATAL(i < size, "unit number error");
@@ -295,6 +295,7 @@ bool StoreBypass::CanBypass(const Insn &defInsn, const Insn &useInsn) const {
    * false:r96=r92+x2 -> str r92, [r96]
    * false:r96=r92+x2 -> str r92, [r94, r96]
    */
+#if TARGAARCH64
   switch (useInsn.GetMachineOpcode()) {
     case MOP_wstrb:
     case MOP_wstrh:
@@ -302,13 +303,13 @@ bool StoreBypass::CanBypass(const Insn &defInsn, const Insn &useInsn) const {
     case MOP_xstr:
     case MOP_sstr:
     case MOP_dstr: {
-      auto &useMemOpnd = static_cast<AArch64MemOperand&>(useInsn.GetOperand(kInsnSecondOpnd));
+      auto &useMemOpnd = static_cast<MemOperand&>(useInsn.GetOperand(kInsnSecondOpnd));
       return (&(defInsn.GetOperand(kInsnFirstOpnd)) != useMemOpnd.GetOffset() &&
               &(defInsn.GetOperand(kInsnFirstOpnd)) != useMemOpnd.GetBaseRegister());
     }
     case MOP_wstp:
     case MOP_xstp: {
-      auto &useMemOpnd = static_cast<AArch64MemOperand&>(useInsn.GetOperand(kInsnThirdOpnd));
+      auto &useMemOpnd = static_cast<MemOperand&>(useInsn.GetOperand(kInsnThirdOpnd));
       return (&(defInsn.GetOperand(kInsnFirstOpnd)) != useMemOpnd.GetOffset() &&
               &(defInsn.GetOperand(kInsnFirstOpnd)) != useMemOpnd.GetBaseRegister());
     }
@@ -316,6 +317,8 @@ bool StoreBypass::CanBypass(const Insn &defInsn, const Insn &useInsn) const {
     default:
       return false;
   }
+#endif
+  return false;
 }
 
 /* Reservation */

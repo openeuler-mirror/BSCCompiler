@@ -85,7 +85,8 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGF
   }
 }
 
-void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 index, AArch64CGFunc &aarchCGFunc) {
+void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 index,
+                                                             AArch64CGFunc &aarchCGFunc) const {
   auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(index));
   MemLayout *memLayout = aarchCGFunc.GetMemlayout();
   if (immOpnd.GetVary() == kUnAdjustVary) {

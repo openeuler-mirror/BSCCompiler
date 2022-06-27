@@ -325,7 +325,7 @@ class LiveRange {
     return bbMember[index];
   }
 
-  void SetBBMemberElem(int32 index, uint64 elem) {
+  void SetBBMemberElem(int32 index, uint64 elem) const {
     bbMember[index] = elem;
   }
 
@@ -472,7 +472,7 @@ class LiveRange {
     return bbConflict[index];
   }
 
-  void SetBBConflictElem(int32 index, uint64 elem) {
+  void SetBBConflictElem(int32 index, uint64 elem) const {
     ASSERT(index < regBuckets, "out of bbConflict");
     bbConflict[index] = elem;
   }
@@ -974,7 +974,7 @@ class LocalRegAllocator {
     return IsBitArrElemSet(regAssigned, regNO);;
   }
 
-  void SetRegAssigned(regno_t regNO, bool isInt) {
+  void SetRegAssigned(regno_t regNO, bool isInt) const {
     if (isInt) {
       SetBitArrElement(intRegAssigned, regNO);
     } else {
@@ -1030,7 +1030,7 @@ class LocalRegAllocator {
     return isSet;
   }
 
-  void SetRegSpilled(regno_t regNO, bool isInt) {
+  void SetRegSpilled(regno_t regNO, bool isInt) const {
     if (isInt) {
       SetBitArrElement(intRegSpilled, regNO);
     } else {
@@ -1344,9 +1344,10 @@ class GraphColorRegAllocator : public RegAllocator {
   bool SetupLiveRangeByOpHandlePhysicalReg(const RegOperand &op, Insn &insn, regno_t regNO, bool isDef);
   void SetupLiveRangeByOp(Operand &op, Insn &insn, bool isDef, uint32 &numUses);
   void SetupLiveRangeByRegNO(regno_t liveOut, BB &bb, uint32 currPoint);
-  bool UpdateInsnCntAndSkipUseless(Insn &insn, uint32 &currPoint);
+  bool UpdateInsnCntAndSkipUseless(Insn &insn, uint32 &currPoint) const;
   void UpdateCallInfo(uint32 bbId, uint32 currPoint, const Insn &insn);
-  void ClassifyOperand(std::unordered_set<regno_t> &pregs, std::unordered_set<regno_t> &vregs, const Operand &opnd);
+  void ClassifyOperand(std::unordered_set<regno_t> &pregs, std::unordered_set<regno_t> &vregs,
+      const Operand &opnd) const;
   void SetOpndConflict(const Insn &insn, bool onlyDef);
   void UpdateOpndConflict(const Insn &insn, bool multiDef);
   void SetLrMustAssign(const RegOperand *regOpnd);
@@ -1374,14 +1375,14 @@ class GraphColorRegAllocator : public RegAllocator {
   void UpdateLocalRegDefUseCount(regno_t regNO, LocalRegAllocator &localRa, bool isDef, bool isInt) const;
   void UpdateLocalRegConflict(regno_t regNO, LocalRegAllocator &localRa, bool isInt);
   void HandleLocalReg(Operand &op, LocalRegAllocator &localRa, const BBAssignInfo *bbInfo, bool isDef, bool isInt);
-  void LocalRaRegSetEraseReg(LocalRegAllocator &localRa, regno_t regNO);
+  void LocalRaRegSetEraseReg(LocalRegAllocator &localRa, regno_t regNO) const;
   bool LocalRaInitRegSet(LocalRegAllocator &localRa, uint32 bbId);
   void LocalRaInitAllocatableRegs(LocalRegAllocator &localRa, uint32 bbId);
   void LocalRaForEachDefOperand(const Insn &insn, LocalRegAllocator &localRa, const BBAssignInfo *bbInfo);
   void LocalRaForEachUseOperand(const Insn &insn, LocalRegAllocator &localRa, const BBAssignInfo *bbInfo);
   void LocalRaPrepareBB(BB &bb, LocalRegAllocator &localRa);
   void LocalRaFinalAssignment(const LocalRegAllocator &localRa, BBAssignInfo &bbInfo);
-  void LocalRaDebug(const BB &bb, const LocalRegAllocator &localRa);
+  void LocalRaDebug(const BB &bb, const LocalRegAllocator &localRa) const;
   void LocalRegisterAllocator(bool allocate);
   MemOperand *GetSpillOrReuseMem(LiveRange &lr, uint32 regSize, bool &isOutOfRange, Insn &insn, bool isDef);
   void SpillOperandForSpillPre(Insn &insn, const Operand &opnd, RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
@@ -1392,7 +1393,7 @@ class GraphColorRegAllocator : public RegAllocator {
   MemOperand *GetCommonReuseMem(const uint64 *conflict, const std::set<MemOperand*> &usedMemOpnd, uint32 size,
                                 RegType regType);
   MemOperand *GetReuseMem(uint32 vregNO, uint32 size, RegType regType);
-  MemOperand *GetSpillMem(uint32 vregNO, bool isDest, Insn &insn, AArch64reg regNO, bool &isOutOfRange);
+  MemOperand *GetSpillMem(uint32 vregNO, bool isDest, Insn &insn, AArch64reg regNO, bool &isOutOfRange) const;
   bool SetAvailableSpillReg(std::unordered_set<regno_t> &cannotUseReg, LiveRange &lr, uint64 &usedRegMask);
   void CollectCannotUseReg(std::unordered_set<regno_t> &cannotUseReg, const LiveRange &lr, Insn &insn);
   regno_t PickRegForSpill(uint64 &usedRegMask, RegType regType, uint32 spillIdx, bool &needSpillLr);
@@ -1403,8 +1404,8 @@ class GraphColorRegAllocator : public RegAllocator {
   bool FoundPrevBeforeCall(Insn &insn, LiveRange &lr, bool isDef);
   bool EncountNextRef(const BB &succ, LiveRange &lr, bool isDef, std::vector<bool>& visitedMap);
   bool FoundNextBeforeCall(Insn &insn, LiveRange &lr, bool isDef);
-  bool HavePrevRefInCurBB(Insn &insn, LiveRange &lr, bool &contSearch);
-  bool HaveNextDefInCurBB(Insn &insn, LiveRange &lr, bool &contSearch);
+  bool HavePrevRefInCurBB(Insn &insn, LiveRange &lr, bool &contSearch) const;
+  bool HaveNextDefInCurBB(Insn &insn, LiveRange &lr, bool &contSearch) const;
   bool NeedCallerSave(Insn &insn, LiveRange &lr, bool isDef);
   RegOperand *GetReplaceOpnd(Insn &insn, const Operand &opnd, uint32 &spillIdx, uint64 &usedRegMask, bool isDef);
   void MarkCalleeSaveRegs();
@@ -1441,10 +1442,10 @@ class GraphColorRegAllocator : public RegAllocator {
                            const std::set<CGFuncLoops*, CGFuncLoopCmp> &candidateInLoop,
                            std::set<CGFuncLoops*, CGFuncLoopCmp> &defInLoop);
   void ComputeBBForNewSplit(LiveRange &newLr, LiveRange &oldLr);
-  void ClearLrBBFlags(const std::set<BB*, SortedBBCmpFunc> &member);
+  void ClearLrBBFlags(const std::set<BB*, SortedBBCmpFunc> &member) const;
   void ComputeBBForOldSplit(LiveRange &newLr, LiveRange &oldLr);
   bool LrCanBeColored(const LiveRange &lr, const BB &bbAdded, std::unordered_set<regno_t> &conflictRegs);
-  void MoveLrBBInfo(LiveRange &oldLr, LiveRange &newLr, BB &bb);
+  void MoveLrBBInfo(LiveRange &oldLr, LiveRange &newLr, BB &bb) const;
   bool ContainsLoop(const CGFuncLoops &loop, const std::set<CGFuncLoops*, CGFuncLoopCmp> &loops) const;
   void GetAllLrMemberLoops(LiveRange &lr, std::set<CGFuncLoops*, CGFuncLoopCmp> &loop);
   bool SplitLrShouldSplit(LiveRange &lr);
@@ -1452,10 +1453,10 @@ class GraphColorRegAllocator : public RegAllocator {
   void SplitLrHandleLoops(LiveRange &lr, LiveRange &newLr, const std::set<CGFuncLoops*, CGFuncLoopCmp> &oldLoops,
                           const std::set<CGFuncLoops*, CGFuncLoopCmp> &newLoops);
   void SplitLrFixNewLrCallsAndRlod(LiveRange &newLr, const std::set<CGFuncLoops*, CGFuncLoopCmp> &origLoops);
-  void SplitLrFixOrigLrCalls(LiveRange &lr);
+  void SplitLrFixOrigLrCalls(LiveRange &lr) const;
   void SplitLrUpdateInterference(LiveRange &lr);
   void SplitLrUpdateRegInfo(const LiveRange &origLr, LiveRange &newLr,
-                            std::unordered_set<regno_t> &conflictRegs);
+                            std::unordered_set<regno_t> &conflictRegs) const ;
   void SplitLrErrorCheckAndDebug(const LiveRange &origLr) const;
   void SplitLr(LiveRange &lr);
 

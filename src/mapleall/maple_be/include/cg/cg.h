@@ -140,7 +140,7 @@ class CG {
   const std::string ExtractFuncName(const std::string &str);
 
   template <typename I>
-  Insn &BuildInstruction(MOperator opCode) {
+  Insn &BuildInstruction(MOperator opCode) const {
     currentCGFunction->IncTotalNumberOfInstructions();
     MemPool *memPool = currentCGFunction->GetMemoryPool();
     Insn *insn = memPool->New<I>(*memPool, opCode);
@@ -148,7 +148,7 @@ class CG {
   }
 
   template <typename I>
-  Insn &BuildInstruction(MOperator opCode, Operand &opnd0) {
+  Insn &BuildInstruction(MOperator opCode, Operand &opnd0) const {
     currentCGFunction->IncTotalNumberOfInstructions();
     MemPool *memPool = currentCGFunction->GetMemoryPool();
     Insn *insn = memPool->New<I>(*memPool, opCode);
@@ -157,7 +157,7 @@ class CG {
   }
 
   template <typename I>
-  Insn &BuildInstruction(MOperator opCode, Operand &opnd0, Operand &opnd1) {
+  Insn &BuildInstruction(MOperator opCode, Operand &opnd0, Operand &opnd1) const {
     currentCGFunction->IncTotalNumberOfInstructions();
     MemPool *memPool = currentCGFunction->GetMemoryPool();
     Insn *insn = memPool->New<I>(*memPool, opCode);
@@ -167,7 +167,7 @@ class CG {
   }
 
   template <typename I>
-  Insn &BuildInstruction(MOperator opCode, Operand &opnd0, Operand &opnd1, Operand &opnd2) {
+  Insn &BuildInstruction(MOperator opCode, Operand &opnd0, Operand &opnd1, Operand &opnd2) const {
     currentCGFunction->IncTotalNumberOfInstructions();
     MemPool *memPool = currentCGFunction->GetMemoryPool();
     Insn *insn = memPool->New<I>(*memPool, opCode);
@@ -178,7 +178,7 @@ class CG {
   }
 
   template <typename I>
-  Insn &BuildInstruction(MOperator opCode, Operand &opnd0, Operand &opnd1, Operand &opnd2, Operand &opnd3) {
+  Insn &BuildInstruction(MOperator opCode, Operand &opnd0, Operand &opnd1, Operand &opnd2, Operand &opnd3) const {
     currentCGFunction->IncTotalNumberOfInstructions();
     MemPool *memPool = currentCGFunction->GetMemoryPool();
     Insn *insn = memPool->New<I>(*memPool, opCode);
@@ -191,7 +191,7 @@ class CG {
 
   template <typename I>
   Insn &BuildInstruction(MOperator opCode, Operand &opnd0, Operand &opnd1, Operand &opnd2, Operand &opnd3,
-                         Operand &opnd4) {
+                         Operand &opnd4) const {
     currentCGFunction->IncTotalNumberOfInstructions();
     MemPool *memPool = currentCGFunction->GetMemoryPool();
     Insn *insn = memPool->New<I>(*memPool, opCode);
@@ -204,7 +204,7 @@ class CG {
   }
 
   template <typename I>
-  Insn &BuildInstruction(MOperator opCode, std::vector<Operand*> &opnds) {
+  Insn &BuildInstruction(MOperator opCode, std::vector<Operand*> &opnds) const {
     currentCGFunction->IncTotalNumberOfInstructions();
     MemPool *memPool = currentCGFunction->GetMemoryPool();
     Insn *insn = memPool->New<I>(*memPool, opCode);
@@ -463,9 +463,9 @@ class CG {
   static CGFunc *currentCGFunction;  /* current cg function being compiled */
   CGOptions cgOption;
   MIRSymbol *instrumentationFunction;
-  MIRSymbol *dbgTraceEnter;
-  MIRSymbol *dbgTraceExit;
-  MIRSymbol *dbgFuncProfile;
+  MIRSymbol *dbgTraceEnter = nullptr;
+  MIRSymbol *dbgTraceExit = nullptr;
+  MIRSymbol *dbgFuncProfile = nullptr;
   MIRSymbol *fileGP;  /* for lmbc, one local %GP per file */
   static std::map<MIRFunction *, std::pair<LabelIdx, LabelIdx>> funcWrapLabels;
   bool isLibcore;

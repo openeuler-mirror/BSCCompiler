@@ -253,7 +253,7 @@ void AArch64LiveIntervalAnalysis::ComputeLiveIntervals() {
   }
 }
 
-void AArch64LiveIntervalAnalysis::CheckInterference(LiveInterval &li1, LiveInterval &li2) {
+void AArch64LiveIntervalAnalysis::CheckInterference(LiveInterval &li1, LiveInterval &li2) const {
   auto ranges1 = li1.GetRanges();
   auto ranges2 = li2.GetRanges();
   bool conflict = false;
@@ -311,7 +311,7 @@ void AArch64LiveIntervalAnalysis::CoalesceRegPair(RegOperand &regDest, RegOperan
   CoalesceLiveIntervals(*lrDest, *lrSrc);
 }
 
-void AArch64LiveIntervalAnalysis::CollectMoveForEachBB(BB &bb, std::vector<Insn*> &movInsns) {
+void AArch64LiveIntervalAnalysis::CollectMoveForEachBB(BB &bb, std::vector<Insn*> &movInsns) const {
   FOR_BB_INSNS_SAFE(insn, &bb, ninsn) {
     if (!insn->IsMachineInstruction()) {
       continue;

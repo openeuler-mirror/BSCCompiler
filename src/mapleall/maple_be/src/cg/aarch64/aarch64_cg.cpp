@@ -242,7 +242,7 @@ void AArch64CG::FindOrCreateRepresentiveSym(std::vector<uint64> &bitmapWords, ui
  * Add local symbol REF_XXX to global GCTIB symbol,
  * and replace the global GCTIBPattern in keyPatternMap.
  */
-void AArch64CG::CreateRefSymForGlobalPtn(GCTIBPattern &ptn) {
+void AArch64CG::CreateRefSymForGlobalPtn(GCTIBPattern &ptn) const {
   const std::string &refPtnString = REF_PREFIX_STR + ptn.GetName();
   const std::string &ptnString = "\t.type " + refPtnString + ", %object\n" +
                                  "\t.data\n"  +

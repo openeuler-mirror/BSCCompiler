@@ -100,7 +100,7 @@ void A64ConstProp::DoOpt() {
   }
 }
 
-void A64ConstProp::ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) {
+void A64ConstProp::ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) const {
   auto *useInsn = static_cast<AArch64Insn*>(useDUInfo.GetInsn());
   const AArch64MD *md = &AArch64CG::kMd[(useInsn->GetMachineOpcode())];
   /* special case */
@@ -256,7 +256,7 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
   return newMop;
 }
 
-void A64ConstProp::ReplaceInsnAndUpdateSSA(Insn &oriInsn, Insn &newInsn) {
+void A64ConstProp::ReplaceInsnAndUpdateSSA(Insn &oriInsn, Insn &newInsn) const {
   ssaInfo->ReplaceInsn(oriInsn, newInsn);
   oriInsn.GetBB()->ReplaceInsn(oriInsn, newInsn);
   /* dump insn replacement here */
@@ -489,7 +489,7 @@ bool A64ConstProp::BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &con
 }
 
 ImmOperand *A64ConstProp::CanDoConstFold(
-    const ImmOperand &value1, const ImmOperand &value2, ArithmeticType aT, bool is64Bit) {
+    const ImmOperand &value1, const ImmOperand &value2, ArithmeticType aT, bool is64Bit) const {
   auto *tempImm = static_cast<ImmOperand*>(value1.Clone(*constPropMp));
   int64 newVal = 0;
   bool isSigned = value1.IsSignedValue();
@@ -597,7 +597,7 @@ bool A64StrLdrProp::ReplaceMemOpnd(const MemOperand &currMemOpnd, const Insn *de
   return false;
 }
 
-bool A64StrLdrProp::CheckSameReplace(const RegOperand &replacedReg, const MemOperand *memOpnd) {
+bool A64StrLdrProp::CheckSameReplace(const RegOperand &replacedReg, const MemOperand *memOpnd) const {
   if (memOpnd != nullptr && memPropMode != kUndef) {
     if (memPropMode == kPropBase) {
       return replacedReg.GetRegisterNumber() ==  memOpnd->GetBaseRegister()->GetRegisterNumber();
@@ -610,7 +610,7 @@ bool A64StrLdrProp::CheckSameReplace(const RegOperand &replacedReg, const MemOpe
   return false;
 }
 
-uint32 A64StrLdrProp::GetMemOpndIdx(MemOperand *newMemOpnd, const Insn &insn) {
+uint32 A64StrLdrProp::GetMemOpndIdx(MemOperand *newMemOpnd, const Insn &insn) const {
   uint32 opndIdx = kInsnMaxOpnd;
   if (insn.IsLoadPair() || insn.IsStorePair()) {
     ASSERT(newMemOpnd->GetOffsetImmediate() != nullptr, "unexpect insn");
@@ -845,7 +845,7 @@ RegOperand *A64StrLdrProp::GetReplaceReg(RegOperand &a64Reg) {
 }
 
 MemOperand *A64StrLdrProp::HandleArithImmDef(RegOperand &replace, Operand *oldOffset,
-                                             int64 defVal, uint32 memSize) {
+                                             int64 defVal, uint32 memSize) const {
   if (memPropMode != kPropBase) {
     return nullptr;
   }
@@ -885,7 +885,7 @@ MemOperand *A64StrLdrProp::SelectReplaceExt(const Insn &defInsn, RegOperand &bas
   return newMemOpnd;
 }
 
-bool A64StrLdrProp::CheckNewMemOffset(const Insn &insn, MemOperand *newMemOpnd, uint32 opndIdx) {
+bool A64StrLdrProp::CheckNewMemOffset(const Insn &insn, MemOperand *newMemOpnd, uint32 opndIdx) const {
   auto *a64CgFunc = static_cast<AArch64CGFunc*>(cgFunc);
   if ((newMemOpnd->GetOffsetImmediate() != nullptr) &&
       !a64CgFunc->IsOperandImmValid(insn.GetMachineOpcode(), newMemOpnd, opndIdx)) {
@@ -1516,7 +1516,7 @@ void CopyRegProp::Run() {
   }
 }
 
-bool CopyRegProp::IsValidCopyProp(const RegOperand &dstReg, const RegOperand &srcReg) {
+bool CopyRegProp::IsValidCopyProp(const RegOperand &dstReg, const RegOperand &srcReg) const {
   ASSERT(destVersion != nullptr, "find destVersion failed");
   ASSERT(srcVersion != nullptr, "find srcVersion failed");
   LiveInterval *dstll = nullptr;
@@ -1983,7 +1983,7 @@ bool A64PregCopyPattern::DFSFindValidDefInsns(Insn *curDefInsn, RegOperand *last
   return true;
 }
 
-bool A64PregCopyPattern::CheckMultiUsePoints(Insn *defInsn) {
+bool A64PregCopyPattern::CheckMultiUsePoints(Insn *defInsn) const {
   Operand &dstOpnd = defInsn->GetOperand(kInsnFirstOpnd);
   CHECK_FATAL(dstOpnd.IsRegister(), "dstOpnd must be register");
   VRegVersion *defVersion = optSsaInfo->FindSSAVersion(static_cast<RegOperand&>(dstOpnd).GetRegisterNumber());
@@ -2061,7 +2061,7 @@ bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &curInsn, Insn &defInsn) {
   return true;
 }
 
-bool A64PregCopyPattern::CheckUselessDefInsn(Insn *defInsn) {
+bool A64PregCopyPattern::CheckUselessDefInsn(Insn *defInsn) const {
   Operand &dstOpnd = defInsn->GetOperand(kInsnFirstOpnd);
   CHECK_FATAL(dstOpnd.IsRegister(), "dstOpnd must be register");
   VRegVersion *defVersion = optSsaInfo->FindSSAVersion(static_cast<RegOperand&>(dstOpnd).GetRegisterNumber());
@@ -2189,7 +2189,7 @@ Insn &A64PregCopyPattern::CreateNewPhiInsn(std::unordered_map<uint32, RegOperand
 /*
  * Check whether the required phi is available, do not insert phi repeatedly.
  */
-RegOperand *A64PregCopyPattern::CheckAndGetExistPhiDef(Insn &phiInsn, std::vector<regno_t> &validDifferRegNOs) {
+RegOperand *A64PregCopyPattern::CheckAndGetExistPhiDef(Insn &phiInsn, std::vector<regno_t> &validDifferRegNOs) const {
   MapleMap<regno_t, Insn*> &phiInsns = phiInsn.GetBB()->GetPhiInsns();
   for (auto &phiIt : phiInsns) {
     auto &def = static_cast<RegOperand&>(phiIt.second->GetOperand(kInsnFirstOpnd));

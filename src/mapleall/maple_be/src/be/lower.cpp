@@ -88,7 +88,7 @@ const std::string kFileSymbolNamePrefix = "symname";
 const std::string CGLowerer::kIntrnRetValPrefix = "__iret";
 const std::string CGLowerer::kUserRetValPrefix = "__uret";
 
-std::string CGLowerer::GetFileNameSymbolName(const std::string &fileName) {
+std::string CGLowerer::GetFileNameSymbolName(const std::string &fileName) const {
   return kFileSymbolNamePrefix + std::regex_replace(fileName, std::regex("-"), "_");
 }
 
@@ -848,7 +848,7 @@ BaseNode *CGLowerer::LowerIreadBitfield(IreadNode &iread) {
 }
 
 // input node must be cvt, retype, zext or sext
-BaseNode *CGLowerer::LowerCastExpr(BaseNode &expr) {
+BaseNode *CGLowerer::LowerCastExpr(BaseNode &expr) const {
   if (CGOptions::GetInstance().GetOptimizeLevel() >= CGOptions::kLevel2) {
     BaseNode *simplified = MapleCastOpt::SimplifyCast(*mirBuilder, &expr);
     return simplified != nullptr ? simplified : &expr;
@@ -1709,13 +1709,13 @@ void CGLowerer::LowerSwitchOpnd(StmtNode &stmt, BlockNode &newBlk) {
   }
 }
 
-void CGLowerer::AddElemToPrintf(MapleVector<BaseNode*> &argsPrintf, int num, ...) {
-  va_list arg_ptr;
-  va_start(arg_ptr, num);
+void CGLowerer::AddElemToPrintf(MapleVector<BaseNode*> &argsPrintf, int num, ...) const {
+  va_list argPtr;
+  va_start(argPtr, num);
   for (int i = 0; i < num; ++i) {
-    argsPrintf.push_back(va_arg(arg_ptr, BaseNode*));
+    argsPrintf.push_back(va_arg(argPtr, BaseNode*));
   }
-  va_end(arg_ptr);
+  va_end(argPtr);
 }
 
 void CGLowerer::SwitchAssertBoundary(StmtNode &stmt, MapleVector<BaseNode *> &argsPrintf) {
@@ -1973,7 +1973,7 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
   return newBlk;
 }
 
-void CGLowerer::SimplifyBlock(BlockNode &block) {
+void CGLowerer::SimplifyBlock(BlockNode &block) const {
   if (block.GetFirst() == nullptr) {
     return;
   }
@@ -2525,7 +2525,7 @@ void CGLowerer::RegisterBuiltIns() {
  * changing any bits.  The size of <opnd0> and <prim-type> must be the same.
  * <opnd0> may be of aggregate type.
  */
-BaseNode *CGLowerer::MergeToCvtType(PrimType dType, PrimType sType, BaseNode &src) {
+BaseNode *CGLowerer::MergeToCvtType(PrimType dType, PrimType sType, BaseNode &src) const {
   CHECK_FATAL(IsPrimitiveInteger(dType) || IsPrimitiveFloat(dType),
               "dtype should be primitiveInteger or primitiveFloat");
   CHECK_FATAL(IsPrimitiveInteger(sType) || IsPrimitiveFloat(sType),
@@ -3027,7 +3027,7 @@ BaseNode *CGLowerer::LowerJavascriptIntrinsicop(IntrinsicopNode &intrinNode, con
 }
 
 StmtNode *CGLowerer::CreateStmtCallWithReturnValue(const IntrinsicopNode &intrinNode, const MIRSymbol &ret,
-                                                   PUIdx bFunc, BaseNode *extraInfo) {
+                                                   PUIdx bFunc, BaseNode *extraInfo) const {
   MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
   for (size_t i = 0; i < intrinNode.NumOpnds(); ++i) {
     args.emplace_back(intrinNode.Opnd(i));
@@ -3039,7 +3039,7 @@ StmtNode *CGLowerer::CreateStmtCallWithReturnValue(const IntrinsicopNode &intrin
 }
 
 StmtNode *CGLowerer::CreateStmtCallWithReturnValue(const IntrinsicopNode &intrinNode, PregIdx retpIdx, PUIdx bFunc,
-                                                   BaseNode *extraInfo) {
+                                                   BaseNode *extraInfo) const {
   MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
   for (size_t i = 0; i < intrinNode.NumOpnds(); ++i) {
     args.emplace_back(intrinNode.Opnd(i));
@@ -3197,7 +3197,7 @@ BaseNode *CGLowerer::LowerIntrinsicop(const BaseNode &parent, IntrinsicopNode &i
   return resNode;
 }
 
-void CGLowerer::ProcessClassInfo(MIRType &classType, bool &classInfoFromRt, std::string &classInfo) {
+void CGLowerer::ProcessClassInfo(MIRType &classType, bool &classInfoFromRt, std::string &classInfo) const {
   MIRPtrType &ptrType = static_cast<MIRPtrType&>(classType);
   MIRType *pType = ptrType.GetPointedType();
   CHECK_FATAL(pType != nullptr, "Class type not found for INTRN_JAVA_CONST_CLASS");
@@ -3342,7 +3342,7 @@ BaseNode *CGLowerer::GetClassInfoExprFromArrayClassCache(const std::string &clas
                                            *GlobalTables::GetTypeTable().GetPrimType(PTY_ref), args);
 }
 
-BaseNode *CGLowerer::GetClassInfoExpr(const std::string &classInfo) {
+BaseNode *CGLowerer::GetClassInfoExpr(const std::string &classInfo) const {
   BaseNode *classInfoExpr = nullptr;
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(classInfo);
   MIRSymbol *classInfoSym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx);

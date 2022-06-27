@@ -309,7 +309,7 @@ class Emitter {
     return javaInsnCount > kHugeSoInsnCountThreshold;
   }
 
-  std::string HugeSoPostFix() {
+  std::string HugeSoPostFix() const {
     return std::string(kHugeSoPostFix) + std::to_string(hugeSoSeqence);
   }
 

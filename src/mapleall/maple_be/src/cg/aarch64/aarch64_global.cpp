@@ -516,7 +516,7 @@ bool BackPropPattern::DestOpndHasUseInsns(Insn &insn) {
   return true;
 }
 
-bool BackPropPattern::DestOpndLiveOutToEHSuccs(Insn &insn) {
+bool BackPropPattern::DestOpndLiveOutToEHSuccs(Insn &insn) const {
   BB &bb = *insn.GetBB();
   for (auto ehSucc : bb.GetEhSuccs()) {
     if (ehSucc->GetLiveIn()->TestBit(firstRegNO)) {
@@ -1750,7 +1750,7 @@ void ExtenToMovPattern::Run() {
 }
 
 /* Check for Implicit uxtw */
-bool ExtenToMovPattern::CheckHideUxtw(const Insn &insn, regno_t regno) {
+bool ExtenToMovPattern::CheckHideUxtw(const Insn &insn, regno_t regno) const {
   const AArch64MD *md = &AArch64CG::kMd[insn.GetMachineOpcode()];
   if (md->IsMove()) {
     return false;
@@ -2015,7 +2015,7 @@ void AndCbzPattern::Init() {
   prevInsn = nullptr;
 }
 
-bool AndCbzPattern::IsAdjacentArea(Insn &prev, Insn &curr) {
+bool AndCbzPattern::IsAdjacentArea(Insn &prev, Insn &curr) const {
   if (prev.GetBB() == curr.GetBB()) {
     return true;
   }

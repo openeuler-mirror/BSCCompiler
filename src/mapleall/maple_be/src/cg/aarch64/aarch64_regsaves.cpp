@@ -525,7 +525,7 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
   return true;
 }
 
-int32 AArch64RegSavesOpt::FindNextOffsetForCalleeSave() {
+int32 AArch64RegSavesOpt::FindNextOffsetForCalleeSave() const {
   int32 offset = static_cast<int32>(
       static_cast<AArch64MemLayout*>(cgFunc->GetMemlayout())->RealStackFrameSize() -
       (static_cast<AArch64CGFunc*>(cgFunc)->SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* FP/LR */) -

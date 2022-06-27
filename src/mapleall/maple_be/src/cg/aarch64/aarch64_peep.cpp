@@ -531,7 +531,7 @@ void ExtLslToBitFieldInsertPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
-bool CselToCsetPattern::IsOpndDefByZero(const Insn &insn) {
+bool CselToCsetPattern::IsOpndDefByZero(const Insn &insn) const {
   MOperator movMop = insn.GetMachineOpcode();
   switch (movMop) {
     case MOP_xmovrr:
@@ -548,7 +548,7 @@ bool CselToCsetPattern::IsOpndDefByZero(const Insn &insn) {
   }
 }
 
-bool CselToCsetPattern::IsOpndDefByOne(const Insn &insn) {
+bool CselToCsetPattern::IsOpndDefByOne(const Insn &insn) const {
   MOperator movMop = insn.GetMachineOpcode();
   if ((movMop != MOP_xmovri32) && (movMop != MOP_xmovri64)) {
     return false;
@@ -1537,7 +1537,7 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterMov(Insn &insn) {
   }
 }
 
-bool ElimSpecificExtensionPattern::IsValidLoadExtPattern(Insn &currInsn, MOperator oldMop, MOperator newMop) {
+bool ElimSpecificExtensionPattern::IsValidLoadExtPattern(Insn &currInsn, MOperator oldMop, MOperator newMop) const {
   if (oldMop == newMop) {
     return true;
   }
@@ -1563,7 +1563,7 @@ bool ElimSpecificExtensionPattern::IsValidLoadExtPattern(Insn &currInsn, MOperat
   return true;
 }
 
-MOperator ElimSpecificExtensionPattern::SelectNewLoadMopByBitSize(MOperator lowBitMop) {
+MOperator ElimSpecificExtensionPattern::SelectNewLoadMopByBitSize(MOperator lowBitMop) const {
   auto &prevDstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
   switch (lowBitMop) {
     case MOP_wldrsb: {
@@ -2380,7 +2380,7 @@ bool IsSameRegisterOperation(const RegOperand &desMovOpnd,
 }
 
 bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore,
-                                                               int64 baseOfst) {
+                                                               int64 baseOfst) const {
   uint32 opndNum = insn.GetOperandSize();
   bool sameMemAccess = false; /* both store or load */
   if (insn.IsStore() == isStore) {
@@ -2452,7 +2452,7 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
   return false;
 }
 
-bool ComplexExtendWordLslAArch64::IsExtendWordLslPattern(const Insn &insn) {
+bool ComplexExtendWordLslAArch64::IsExtendWordLslPattern(const Insn &insn) const {
   Insn *nextInsn = insn.GetNext();
   if (nextInsn == nullptr) {
     return false;
@@ -2517,7 +2517,7 @@ std::vector<Insn*> CombineContiLoadAndStorePattern::FindPrevStrLdr(Insn &insn, r
   return prevContiInsns;
 }
 
-bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(Insn &insn, const MemOperand &memOperand) {
+bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(Insn &insn, const MemOperand &memOperand) const {
   auto *baseRegOpnd = static_cast<RegOperand*>(memOperand.GetBaseRegister());
   auto *ofstOpnd = static_cast<OfstOperand*>(memOperand.GetOffsetImmediate());
   CHECK_FATAL(insn.GetOperand(kInsnFirstOpnd).GetSize() == insn.GetOperand(kInsnSecondOpnd).GetSize(),
@@ -2716,7 +2716,7 @@ MOperator CombineContiLoadAndStorePattern::GetMopHigherByte(MOperator mop) const
   }
 }
 
-void CombineContiLoadAndStorePattern::RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn) {
+void CombineContiLoadAndStorePattern::RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn) const {
   /* keep the comment */
   Insn *nn = prevInsn.GetNextMachineInsn();
   std::string newComment = "";
@@ -3396,7 +3396,7 @@ void CselZeroOneToCsetOpt::Run(BB &bb, Insn &insn) {
   }
 }
 
-Insn *CselZeroOneToCsetOpt::FindFixedValue(Operand &opnd, BB &bb, Operand *&tempOp, const Insn &insn) {
+Insn *CselZeroOneToCsetOpt::FindFixedValue(Operand &opnd, BB &bb, Operand *&tempOp, const Insn &insn) const {
   tempOp = &opnd;
   bool alreadyFindCsel = false;
   bool isRegDefined = false;
@@ -3625,7 +3625,7 @@ void ReplaceDivToMultiPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
-Insn *AndCmpBranchesToCsetAArch64::FindPreviousCmp(Insn &insn) {
+Insn *AndCmpBranchesToCsetAArch64::FindPreviousCmp(Insn &insn) const {
   regno_t defRegNO = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
   for (Insn *curInsn = insn.GetPrev(); curInsn != nullptr; curInsn = curInsn->GetPrev()) {
     if (!curInsn->IsMachineInstruction()) {
@@ -3985,7 +3985,7 @@ void ElimDuplicateExtensionAArch64::Run(BB &bb, Insn &insn) {
  * if there is define point of checkInsn->GetOperand(opndIdx) between startInsn and  firstInsn
  * return define insn. else return nullptr
  */
-const Insn *CmpCsetAArch64::DefInsnOfOperandInBB(const Insn &startInsn, const Insn &checkInsn, int opndIdx) {
+const Insn *CmpCsetAArch64::DefInsnOfOperandInBB(const Insn &startInsn, const Insn &checkInsn, int opndIdx) const {
   Insn *prevInsn = nullptr;
   for (const Insn *insn = &startInsn; insn != nullptr; insn = prevInsn) {
     prevInsn = insn->GetPreviousMachineInsn();
@@ -4026,7 +4026,7 @@ const Insn *CmpCsetAArch64::DefInsnOfOperandInBB(const Insn &startInsn, const In
   return nullptr;
 }
 
-bool CmpCsetAArch64::OpndDefByOneValidBit(const Insn &defInsn) {
+bool CmpCsetAArch64::OpndDefByOneValidBit(const Insn &defInsn) const {
   MOperator defMop = defInsn.GetMachineOpcode();
   switch (defMop) {
     case MOP_wcsetrc:
@@ -4272,7 +4272,7 @@ bool DeleteMovAfterCbzOrCbnzAArch64::NoPreDefine(Insn &testInsn) const {
   }
   return true;
 }
-void DeleteMovAfterCbzOrCbnzAArch64::ProcessBBHandle(BB *processBB, const BB &bb, const Insn &insn) {
+void DeleteMovAfterCbzOrCbnzAArch64::ProcessBBHandle(BB *processBB, const BB &bb, const Insn &insn) const {
   FOR_BB_INSNS_SAFE(processInsn, processBB, nextProcessInsn) {
     nextProcessInsn = processInsn->GetNextMachineInsn();
     if (!processInsn->IsMachineInstruction()) {
@@ -4324,7 +4324,7 @@ void DeleteMovAfterCbzOrCbnzAArch64::ProcessBBHandle(BB *processBB, const BB &bb
 /* ldr wn, [x1, wn, SXTW]
  * add x2, wn, x2
  */
-bool ComplexMemOperandAddAArch64::IsExpandBaseOpnd(const Insn &insn, const Insn &prevInsn) {
+bool ComplexMemOperandAddAArch64::IsExpandBaseOpnd(const Insn &insn, const Insn &prevInsn) const {
   MOperator prevMop = prevInsn.GetMachineOpcode();
   if (prevMop >= MOP_wldrsb && prevMop <= MOP_xldr &&
       prevInsn.GetOperand(kInsnFirstOpnd).Equals(insn.GetOperand(kInsnSecondOpnd))) {
@@ -5110,7 +5110,7 @@ bool WriteFieldCallPattern::WriteFieldCallOptPatternMatch(const Insn &writeField
   return true;
 }
 
-bool WriteFieldCallPattern::IsWriteRefFieldCallInsn(const Insn &insn) {
+bool WriteFieldCallPattern::IsWriteRefFieldCallInsn(const Insn &insn) const {
   if (!insn.IsCall() || insn.IsIndirectCall()) {
     return false;
   }

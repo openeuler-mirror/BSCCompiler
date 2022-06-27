@@ -34,10 +34,10 @@ class AArch64ICOPattern : public ICOPattern {
   ~AArch64ICOPattern() override = default;
  protected:
   AArch64CC_t Encode(MOperator mOp, bool inverse) const;
-  Insn *BuildCmpInsn(const Insn &condBr);
-  Insn *BuildCcmpInsn(AArch64CC_t ccCode, const Insn *cmpInsn);
-  Insn *BuildCondSet(const Insn &branch, RegOperand &reg, bool inverse);
-  Insn *BuildCondSel(const Insn &branch, MOperator mOp, RegOperand &dst, RegOperand &src1, RegOperand &src2);
+  Insn *BuildCmpInsn(const Insn &condBr) const;
+  Insn *BuildCcmpInsn(AArch64CC_t ccCode, const Insn *cmpInsn) const;
+  Insn *BuildCondSet(const Insn &branch, RegOperand &reg, bool inverse) const;
+  Insn *BuildCondSel(const Insn &branch, MOperator mOp, RegOperand &dst, RegOperand &src1, RegOperand &src2) const;
   bool IsSetInsn(const Insn &insn, Operand *&dest, std::vector<Operand*> &src) const;
   static uint32 GetNZCV(AArch64CC_t ccCode, bool inverse);
   bool CheckMop(MOperator mOperator) const;
@@ -60,8 +60,8 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
                       const RegOperand &destReg) const;
   void GenerateInsnForReg(const Insn &branchInsn, Operand &ifDest, Operand &elseDest, RegOperand &destReg,
                           std::vector<Insn*> &generateInsn);
-  RegOperand *GenerateRegAndTempInsn(Operand &dest, const RegOperand &destReg, std::vector<Insn*> &generateInsn);
-  bool CheckHasSameDest(std::vector<Insn*> &lInsn, std::vector<Insn*> &rInsn);
+  RegOperand *GenerateRegAndTempInsn(Operand &dest, const RegOperand &destReg, std::vector<Insn*> &generateInsn) const;
+  bool CheckHasSameDest(std::vector<Insn*> &lInsn, std::vector<Insn*> &rInsn) const;
   bool CheckModifiedRegister(Insn &insn, std::map<Operand*, std::vector<Operand*>> &destSrcMap,
                              std::vector<Operand*> &src, Operand &dest, Insn *cmpInsn, Operand *flagOpnd) const;
   bool CheckCondMoveBB(BB *bb, std::map<Operand*, std::vector<Operand*>> &destSrcMap, std::vector<Operand*> &destRegs,
@@ -105,8 +105,8 @@ class AArch64ICOMorePredsPattern : public AArch64ICOPattern {
   bool Optimize(BB &curBB) override;
  protected:
   bool DoOpt(BB &gotoBB);
-  bool CheckGotoBB(BB &gotoBB, std::vector<Insn*> &movInsn);
-  bool MovToCsel(std::vector<Insn*> &movInsn, std::vector<Insn*> &cselInsn, const Insn &branchInsn);
+  bool CheckGotoBB(BB &gotoBB, std::vector<Insn*> &movInsn) const;
+  bool MovToCsel(std::vector<Insn*> &movInsn, std::vector<Insn*> &cselInsn, const Insn &branchInsn) const;
 };
 }  /* namespace maplebe */
 

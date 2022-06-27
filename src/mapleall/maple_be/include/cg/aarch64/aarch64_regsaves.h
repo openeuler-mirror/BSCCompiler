@@ -147,7 +147,7 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   void DetermineCalleeSaveLocationsDoms();
   void DetermineCalleeSaveLocationsPre();
   bool DetermineCalleeRestoreLocations();
-  int32 FindNextOffsetForCalleeSave();
+  int32 FindNextOffsetForCalleeSave() const;
   void InsertCalleeSaveCode();
   void InsertCalleeRestoreCode();
   void Verify(regno_t reg, BB* bb, std::set<BB*, BBIdCmp> *visited, uint32 *s, uint32 *r);

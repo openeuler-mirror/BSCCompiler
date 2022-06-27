@@ -148,7 +148,7 @@ class AArch64CG : public CG {
 
   void FindOrCreateRepresentiveSym(std::vector<uint64> &bitmapWords, uint32 rcHeader, const std::string &name);
 
-  void CreateRefSymForGlobalPtn(GCTIBPattern &ptn);
+  void CreateRefSymForGlobalPtn(GCTIBPattern &ptn) const;
 
   Insn &BuildPhiInsn(RegOperand &defOpnd, Operand &listParam) override;
 

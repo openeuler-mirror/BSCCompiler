@@ -118,7 +118,7 @@ class BackPropPattern : public OptimizePattern {
  private:
   bool CheckAndGetOpnd(const Insn &insn);
   bool DestOpndHasUseInsns(Insn &insn);
-  bool DestOpndLiveOutToEHSuccs(Insn &insn);
+  bool DestOpndLiveOutToEHSuccs(Insn &insn) const;
   bool CheckSrcOpndDefAndUseInsns(Insn &insn);
   bool CheckSrcOpndDefAndUseInsnsGlobal(Insn &insn);
   bool CheckPredefineInsn(Insn &insn);
@@ -353,8 +353,8 @@ class ExtendShiftOptPattern : public OptimizePattern {
   uint32 replaceIdx;
   ExtendShiftOperand::ExtendOp extendOp;
   BitShiftOperand::ShiftOp shiftOp;
-  Insn *defInsn;
-  Insn *newInsn;
+  Insn *defInsn = nullptr;
+  Insn *newInsn = nullptr;
   bool optSuccess;
   bool removeDefInsn;
   ExMOpType exMOpType;
@@ -388,7 +388,7 @@ class ExtenToMovPattern : public OptimizePattern {
   void Init() final;
 
  private:
-  bool CheckHideUxtw(const Insn &insn, regno_t regno);
+  bool CheckHideUxtw(const Insn &insn, regno_t regno) const;
   bool CheckUxtw(Insn &insn);
   bool BitNotAffected(Insn &insn, uint32 validNum); /* check whether significant bits are affected */
   bool CheckSrcReg(Insn &insn, regno_t srcRegNo, uint32 validNum);
@@ -445,8 +445,8 @@ class AndCbzPattern : public OptimizePattern {
 
  private:
   int64 CalculateLogValue(int64 val) const;
-  bool IsAdjacentArea(Insn &prev, Insn &curr);
-  Insn *prevInsn;
+  bool IsAdjacentArea(Insn &prev, Insn &curr) const;
+  Insn *prevInsn = nullptr;
 };
 
 /*
@@ -485,7 +485,7 @@ class SameRHSPropPattern : public OptimizePattern {
  private:
   bool IsSameOperand(Operand *opnd1, Operand *opnd2) const;
   bool FindSameRHSInsnInBB(Insn &insn);
-  Insn *prevInsn;
+  Insn *prevInsn = nullptr;
   std::vector<MOperator> candidates;
 };
 }  /* namespace maplebe */

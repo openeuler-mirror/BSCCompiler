@@ -42,7 +42,7 @@ class LabelPair {
     return endOffset;
   }
 
-  void SetEndOffsetLabelIdx(LabelIdx index) {
+  void SetEndOffsetLabelIdx(LabelIdx index) const {
     endOffset->SetLabelIdx(index);
   }
 

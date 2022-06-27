@@ -151,9 +151,9 @@ class AArch64MemLayout : public MemLayout {
 
   SymbolAlloc *AssignLocationToSpillReg(regno_t vrNum) override;
 
-  uint64 StackFrameSize();
+  uint64 StackFrameSize() const;
 
-  uint32 RealStackFrameSize();
+  uint32 RealStackFrameSize() const;
 
   const MemSegment &locals() const {
     return segLocals;
@@ -200,7 +200,7 @@ class AArch64MemLayout : public MemLayout {
   MemSegment segVrSaveArea = MemSegment(kMsVrSaveArea);
   int32 fixStackSize = 0;
   void SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint32 &align) const;
-  void SetSegmentSize(AArch64SymbolAlloc &symbolAlloc, MemSegment &segment, uint32 typeIdx);
+  void SetSegmentSize(AArch64SymbolAlloc &symbolAlloc, MemSegment &segment, uint32 typeIdx) const;
   void LayoutVarargParams();
   void LayoutFormalParams();
   void LayoutActualParams();

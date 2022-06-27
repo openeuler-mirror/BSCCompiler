@@ -434,7 +434,7 @@ void BECommon::LowerJavaVolatileInClassType(MIRClassType &ty) {
   }
 }
 
-bool BECommon::IsRefField(MIRStructType &structType, FieldID fieldID) {
+bool BECommon::IsRefField(MIRStructType &structType, FieldID fieldID) const {
   if (structType.GetKind() == kTypeClass) {
     CHECK_FATAL(HasJClassLayout(static_cast<MIRClassType&>(structType)), "Cannot found java class layout information");
     const JClassLayout &layout = GetJClassLayout(static_cast<MIRClassType&>(structType));
@@ -447,7 +447,7 @@ bool BECommon::IsRefField(MIRStructType &structType, FieldID fieldID) {
   return false;
 }
 
-void BECommon::LowerJavaVolatileForSymbol(MIRSymbol &sym) {
+void BECommon::LowerJavaVolatileForSymbol(MIRSymbol &sym) const {
   /* type attr is associated with symbol */
   if (sym.GetAttr(ATTR_volatile)) {
     sym.SetAttr(ATTR_memory_order_acquire);

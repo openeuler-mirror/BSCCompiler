@@ -33,7 +33,7 @@ class AArch64FixShortBranch {
   CGFunc *cgFunc;
   CG *cg;
   uint32 CalculateAlignRange(const BB &bb, uint32 addr) const;
-  void SetInsnId();
+  void SetInsnId() const;
 };  /* class AArch64ShortBranch */
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgFixShortBranch, maplebe::CGFunc)

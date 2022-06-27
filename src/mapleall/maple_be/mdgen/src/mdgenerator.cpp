@@ -23,7 +23,7 @@ namespace MDGen {
 std::string MDCodeGen::targetArchName = "";
 
 void MDCodeGen::EmitCheckPtr(std::ofstream &outputFile, const std::string &emitName, const std::string &name,
-                             const std::string &ptrType) {
+                             const std::string &ptrType) const {
   outputFile << "if(" << emitName << " == nullptr) {\n" <<
                 "  maple::LogInfo::MapleLogger(maple::kLlErr) << \"" << ptrType << " allocation for " << name <<
                 " failed.\" << std::endl;\n" << "}\n" <<
@@ -31,7 +31,7 @@ void MDCodeGen::EmitCheckPtr(std::ofstream &outputFile, const std::string &emitN
                 " failed.\");\n" << "\n";
 }
 
-void MDCodeGen::EmitFileHead(std::ofstream &outputFile, const std::string &headInfo) {
+void MDCodeGen::EmitFileHead(std::ofstream &outputFile, const std::string &headInfo) const {
   outputFile << "/* " << targetArchName << " " << headInfo << " definition : */\n";
 }
 

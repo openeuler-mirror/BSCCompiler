@@ -29,7 +29,7 @@
 namespace maplebe {
 class LmbcArgInfo {
  public:
-  LmbcArgInfo(MapleAllocator &mallocator)
+  explicit LmbcArgInfo(MapleAllocator &mallocator)
     : lmbcCallArgs(mallocator.Adapter()),
       lmbcCallArgTypes(mallocator.Adapter()),
       lmbcCallArgOffsets(mallocator.Adapter()),
@@ -38,7 +38,7 @@ class LmbcArgInfo {
   MapleVector<PrimType> lmbcCallArgTypes;
   MapleVector<int32> lmbcCallArgOffsets;
   MapleVector<int32> lmbcCallArgNumOfRegs; // # of regs needed to complete struct
-  uint32 lmbcTotalStkUsed = -1;    // TBD: remove when explicit addr for large agg is available
+  uint32 lmbcTotalStkUsed = -1;    // remove when explicit addr for large agg is available
 };
 
 class AArch64CGFunc : public CGFunc {
@@ -102,7 +102,7 @@ class AArch64CGFunc : public CGFunc {
     return kRFLAG;
   }
 
-  MIRType *LmbcGetAggTyFromCallSite(StmtNode *stmt, std::vector<TyIdx> **parmList);
+  MIRType *LmbcGetAggTyFromCallSite(StmtNode *stmt, std::vector<TyIdx> **parmList) const;
   RegOperand &GetOrCreateResOperand(const BaseNode &parent, PrimType primType);
 
   void IntrinsifyGetAndAddInt(ListOperand &srcOpnds, PrimType pty);
@@ -287,9 +287,9 @@ class AArch64CGFunc : public CGFunc {
   void SelectLibCall(const std::string&, std::vector<Operand*>&, PrimType, PrimType, bool is2ndRet = false);
   void SelectLibCallNArg(const std::string &funcName, std::vector<Operand*> &opndVec, std::vector<PrimType> pt,
                          PrimType retPrimType, bool is2ndRet);
-  bool IsRegRematCand(const RegOperand &reg);
-  void ClearRegRematInfo(const RegOperand &reg);
-  bool IsRegSameRematInfo(const RegOperand &regDest, const RegOperand &regSrc);
+  bool IsRegRematCand(const RegOperand &reg) const;
+  void ClearRegRematInfo(const RegOperand &reg) const;
+  bool IsRegSameRematInfo(const RegOperand &regDest, const RegOperand &regSrc) const;
   void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn, regno_t destNO) override;
   void CleanupDeadMov(bool dump = false) override;
   void GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &realSaveRegs) override;
@@ -305,7 +305,7 @@ class AArch64CGFunc : public CGFunc {
   void FreeSpillRegMem(regno_t vrNum);
   RegOperand &GetOrCreatePhysicalRegisterOperand(AArch64reg regNO, uint32 size, RegType type, uint32 flag = 0);
   RegOperand &GetOrCreatePhysicalRegisterOperand(std::string &asmAttr);
-  RegOperand *CreateVirtualRegisterOperand(regno_t vRegNO, uint32 size, RegType kind, uint32 flg = 0);
+  RegOperand *CreateVirtualRegisterOperand(regno_t vRegNO, uint32 size, RegType kind, uint32 flg = 0) const;
   RegOperand &CreateVirtualRegisterOperand(regno_t vregNO) override;
   RegOperand &GetOrCreateVirtualRegisterOperand(regno_t vregNO) override;
   RegOperand &GetOrCreateVirtualRegisterOperand(RegOperand &regOpnd) override;
@@ -358,7 +358,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectVectorZip(PrimType rType, Operand *o1, Operand *o2);
   void PrepareVectorOperands(Operand **o1, PrimType &oty1, Operand **o2, PrimType &oty2);
   RegOperand *AdjustOneElementVectorOperand(PrimType oType, RegOperand *opnd);
-  bool DistanceCheck(const BB &bb, LabelIdx targLabIdx, uint32 targId);
+  bool DistanceCheck(const BB &bb, LabelIdx targLabIdx, uint32 targId) const;
 
   PrimType FilterOneElementVectorType(PrimType origTyp) const {
     PrimType nType = origTyp;
@@ -381,33 +381,33 @@ class AArch64CGFunc : public CGFunc {
   }
   /* create an integer immediate operand */
   ImmOperand &CreateImmOperand(int64 val, uint32 size, bool isSigned, VaryType varyType = kNotVary,
-                               bool isFmov = false) {
+                               bool isFmov = false) const {
     return *memPool->New<ImmOperand>(val, size, isSigned, varyType, isFmov);
   }
 
-  ListOperand *CreateListOpnd(MapleAllocator &allocator) {
+  ListOperand *CreateListOpnd(MapleAllocator &allocator) const {
     return memPool->New<ListOperand>(allocator);
   }
 
-  ImmFPZeroOperand &GetOrCreateFpZeroOperand(uint8 size) {
+  ImmFPZeroOperand &GetOrCreateFpZeroOperand(uint8 size) const {
     return *ImmFPZeroOperand::allocate(size);
   }
 
   OfstOperand &GetOrCreateOfstOpnd(uint64 offset, uint32 size);
 
-  OfstOperand &CreateOfstOpnd(uint64 offset, uint32 size) {
+  OfstOperand &CreateOfstOpnd(uint64 offset, uint32 size) const {
     return *memPool->New<OfstOperand>(offset, size);
   }
 
-  OfstOperand &CreateOfstOpnd(const MIRSymbol &mirSymbol, int32 relocs) {
+  OfstOperand &CreateOfstOpnd(const MIRSymbol &mirSymbol, int32 relocs) const {
     return *memPool->New<OfstOperand>(mirSymbol, 0, relocs);
   }
 
-  OfstOperand &CreateOfstOpnd(const MIRSymbol &mirSymbol, int64 offset, int32 relocs) {
+  OfstOperand &CreateOfstOpnd(const MIRSymbol &mirSymbol, int64 offset, int32 relocs) const {
     return *memPool->New<OfstOperand>(mirSymbol, 0, offset, relocs);
   }
 
-  StImmOperand &CreateStImmOperand(const MIRSymbol &mirSymbol, int64 offset, int32 relocs) {
+  StImmOperand &CreateStImmOperand(const MIRSymbol &mirSymbol, int64 offset, int32 relocs) const {
     return *memPool->New<StImmOperand>(mirSymbol, offset, relocs);
   }
 
@@ -472,17 +472,17 @@ class AArch64CGFunc : public CGFunc {
     return &movkLslOperands[(shiftAmount >> 4) + (is64bits ? 4 : 0)];
   }
 
-  BitShiftOperand &CreateBitShiftOperand(BitShiftOperand::ShiftOp op, uint32 amount, int32 bitLen) {
+  BitShiftOperand &CreateBitShiftOperand(BitShiftOperand::ShiftOp op, uint32 amount, int32 bitLen) const {
     return *memPool->New<BitShiftOperand>(op, amount, bitLen);
   }
 
-  ExtendShiftOperand &CreateExtendShiftOperand(ExtendShiftOperand::ExtendOp op, uint32 amount, int32 bitLen) {
+  ExtendShiftOperand &CreateExtendShiftOperand(ExtendShiftOperand::ExtendOp op, uint32 amount, int32 bitLen) const {
     return *memPool->New<ExtendShiftOperand>(op, amount, bitLen);
   }
 
   void SplitMovImmOpndInstruction(int64 immVal, RegOperand &destReg, Insn *curInsn = nullptr);
 
-  Operand &GetOrCreateFuncNameOpnd(const MIRSymbol &symbol);
+  Operand &GetOrCreateFuncNameOpnd(const MIRSymbol &symbol) const;
   void GenerateYieldpoint(BB &bb) override;
   Operand &ProcessReturnReg(PrimType primType, int32 sReg) override;
   void GenerateCleanupCode(BB &bb) override;
@@ -492,24 +492,25 @@ class AArch64CGFunc : public CGFunc {
   void AssignLmbcFormalParams() override;
   void LmbcGenSaveSpForAlloca() override;
   MemOperand *GenLmbcFpMemOperand(int32 offset, uint32 byteSize, AArch64reg base = RFP);
-  RegOperand *GenLmbcParamLoad(int32 offset, uint32 byteSize, RegType regType, PrimType primType, AArch64reg baseRegno = RFP);
+  RegOperand *GenLmbcParamLoad(int32 offset, uint32 byteSize, RegType regType,
+                               PrimType primType, AArch64reg baseRegno = RFP);
   RegOperand *LmbcStructReturnLoad(int32 offset);
   Operand *GetBaseReg(const AArch64SymbolAlloc &symAlloc);
   int32 GetBaseOffset(const SymbolAlloc &symAlloc) override;
 
-  Operand &CreateCommentOperand(const std::string &s) {
+  Operand &CreateCommentOperand(const std::string &s) const {
     return *memPool->New<CommentOperand>(s, *memPool);
   }
 
-  Operand &CreateCommentOperand(const MapleString &s) {
+  Operand &CreateCommentOperand(const MapleString &s) const {
     return *memPool->New<CommentOperand>(s.c_str(), *memPool);
   }
 
-  Operand &CreateStringOperand(const std::string &s) {
+  Operand &CreateStringOperand(const std::string &s) const {
     return *memPool->New<StringOperand>(s, *memPool);
   }
 
-  Operand &CreateStringOperand(const MapleString &s) {
+  Operand &CreateStringOperand(const MapleString &s) const {
     return *memPool->New<StringOperand>(s.c_str(), *memPool);
   }
 
@@ -576,11 +577,11 @@ class AArch64CGFunc : public CGFunc {
   MemOperand &CreateStkTopOpnd(uint32 offset, uint32 size);
   MemOperand *CreateStackMemOpnd(regno_t preg, int32 offset, uint32 size);
   MemOperand *CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 size,
-      RegOperand &base, RegOperand *index, ImmOperand *offset, const MIRSymbol *symbol);
+      RegOperand &base, RegOperand *index, ImmOperand *offset, const MIRSymbol *symbol) const;
   MemOperand *CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 size,
       RegOperand &base, RegOperand &index, ImmOperand *offset, const MIRSymbol &symbol, bool noExtend);
   MemOperand *CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 dSize,
-      RegOperand &base, RegOperand &indexOpnd, uint32 shift, bool isSigned = false);
+      RegOperand &base, RegOperand &indexOpnd, uint32 shift, bool isSigned = false) const;
   MemOperand *CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 dSize, const MIRSymbol &sym);
 
   /* if offset < 0, allocation; otherwise, deallocation */
@@ -631,7 +632,7 @@ class AArch64CGFunc : public CGFunc {
                        AArch64isa::MemoryOrdering memOrd = AArch64isa::kMoNone) const;
   MOperator PickExtInsn(PrimType dtype, PrimType stype) const;
 
-  bool CheckIfSplitOffsetWithAdd(const MemOperand &memOpnd, uint32 bitLen);
+  bool CheckIfSplitOffsetWithAdd(const MemOperand &memOpnd, uint32 bitLen) const;
   RegOperand *GetBaseRegForSplit(uint32 baseRegNum);
 
   MemOperand &ConstraintOffsetToSafeRegion(uint32 bitLen, const MemOperand &memOpnd);
@@ -716,19 +717,19 @@ class AArch64CGFunc : public CGFunc {
     GetLmbcCallArgNumOfRegs().clear();
   }
 
-  MapleVector<RegOperand*> &GetLmbcCallArgs() {
+  MapleVector<RegOperand*> &GetLmbcCallArgs() const {
     return lmbcArgInfo->lmbcCallArgs;
   }
 
-  MapleVector<PrimType> &GetLmbcCallArgTypes() {
+  MapleVector<PrimType> &GetLmbcCallArgTypes() const {
     return lmbcArgInfo->lmbcCallArgTypes;
   }
 
-  MapleVector<int32> &GetLmbcCallArgOffsets() {
+  MapleVector<int32> &GetLmbcCallArgOffsets() const {
     return lmbcArgInfo->lmbcCallArgOffsets;
   }
 
-  MapleVector<int32> &GetLmbcCallArgNumOfRegs() {
+  MapleVector<int32> &GetLmbcCallArgNumOfRegs() const {
     return lmbcArgInfo->lmbcCallArgNumOfRegs;
   }
 
@@ -938,7 +939,7 @@ class AArch64CGFunc : public CGFunc {
 
   MemOperand *GetPseudoRegisterSpillMemoryOperand(PregIdx i) override;
   void ProcessLazyBinding() override;
-  bool CanLazyBinding(const Insn &insn);
+  bool CanLazyBinding(const Insn &insn) const;
   void ConvertAdrpl12LdrToLdr();
   void ConvertAdrpLdrToIntrisic();
   bool IsStoreMop(MOperator mOp) const;
@@ -958,7 +959,7 @@ class AArch64CGFunc : public CGFunc {
   MemOperand *CheckAndCreateExtendMemOpnd(PrimType ptype, const BaseNode &addrExpr, int64 offset,
                                           AArch64isa::MemoryOrdering memOrd);
   MemOperand &CreateNonExtendMemOpnd(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int64 offset);
-  std::string GenerateMemOpndVerbose(const Operand &src);
+  std::string GenerateMemOpndVerbose(const Operand &src) const;
   RegOperand *PrepareMemcpyParamOpnd(bool isLo12, const MIRSymbol &symbol, int64 offsetVal, RegOperand &BaseReg);
   RegOperand *PrepareMemcpyParamOpnd(int64 offset, Operand &exprOpnd);
   RegOperand *PrepareMemcpyParamOpnd(uint64 copySize);
