@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021] Futurewei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -24,9 +24,9 @@ using namespace maple;
 // <body>
 // goto <whilelabel>
 // label <endlabel>
-BlockNode *PreMeMIRLower::LowerWhileStmt(WhileStmtNode &whilestmt) {
+BlockNode *PreMeMIRLower::LowerWhileStmt(WhileStmtNode &whileStmt) {
   MIRBuilder *mirbuilder = mirModule.GetMIRBuilder();
-  whilestmt.SetBody(LowerBlock(*whilestmt.GetBody()));
+  whileStmt.SetBody(LowerBlock(*whileStmt.GetBody()));
   BlockNode *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   LabelIdx whilelblidx = func->GetMirFunc()->GetLabelTab()->CreateLabelWithPrefix('w');
   mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(whilelblidx);
@@ -37,19 +37,19 @@ BlockNode *PreMeMIRLower::LowerWhileStmt(WhileStmtNode &whilestmt) {
   preMeFunc->label2WhileInfo.insert(std::make_pair(whilelblidx, whileInfo));
   blk->AddStatement(whilelblstmt);
   CondGotoNode *brfalsestmt = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(OP_brfalse);
-  brfalsestmt->SetOpnd(whilestmt.Opnd(), 0);
-  brfalsestmt->SetSrcPos(whilestmt.GetSrcPos());
+  brfalsestmt->SetOpnd(whileStmt.Opnd(), 0);
+  brfalsestmt->SetSrcPos(whileStmt.GetSrcPos());
   // add jump label target later
   blk->AddStatement(brfalsestmt);
   // update frequency
   if (GetFuncProfData()) {
-    ASSERT(GetFuncProfData()->GetStmtFreq(whilestmt.GetStmtID()) >= 0, "while stmt should has freq");
-    GetFuncProfData()->CopyStmtFreq(whilelblstmt->GetStmtID(), whilestmt.GetStmtID());
-    GetFuncProfData()->CopyStmtFreq(brfalsestmt->GetStmtID(), whilestmt.GetStmtID());
+    ASSERT(GetFuncProfData()->GetStmtFreq(whileStmt.GetStmtID()) >= 0, "while stmt should has freq");
+    GetFuncProfData()->CopyStmtFreq(whilelblstmt->GetStmtID(), whileStmt.GetStmtID());
+    GetFuncProfData()->CopyStmtFreq(brfalsestmt->GetStmtID(), whileStmt.GetStmtID());
   }
   // create body
-  CHECK_FATAL(whilestmt.GetBody(), "null ptr check");
-  blk->AppendStatementsFromBlock(*whilestmt.GetBody());
+  CHECK_FATAL(whileStmt.GetBody(), "null ptr check");
+  blk->AppendStatementsFromBlock(*whileStmt.GetBody());
   GotoNode *whilegotonode = mirbuilder->CreateStmtGoto(OP_goto, whilelblidx);
   if (GetFuncProfData() && blk->GetLast()) {
     ASSERT(GetFuncProfData()->GetStmtFreq(blk->GetLast()->GetStmtID()) >= 0,
@@ -64,14 +64,14 @@ BlockNode *PreMeMIRLower::LowerWhileStmt(WhileStmtNode &whilestmt) {
   LabelNode *endlblstmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   endlblstmt->SetLabelIdx(endlblidx);
   brfalsestmt->SetOffset(endlblidx);
-  SrcPosition pos = func->GetMirFunc()->GetScope()->GetScopeEndPos(whilestmt.GetBody()->GetSrcPos());
+  SrcPosition pos = func->GetMirFunc()->GetScope()->GetScopeEndPos(whileStmt.GetBody()->GetSrcPos());
   if (!pos.IsValid()) {
-    pos = func->GetMirFunc()->GetScope()->GetScopeEndPos(whilestmt.GetSrcPos());
+    pos = func->GetMirFunc()->GetScope()->GetScopeEndPos(whileStmt.GetSrcPos());
   }
   endlblstmt->SetSrcPos(pos);
   blk->AddStatement(endlblstmt);
   if (GetFuncProfData()) {
-    int64_t freq = GetFuncProfData()->GetStmtFreq(whilestmt.GetStmtID()) -
+    int64_t freq = GetFuncProfData()->GetStmtFreq(whileStmt.GetStmtID()) -
                    GetFuncProfData()->GetStmtFreq(whilegotonode->GetStmtID());
     ASSERT(freq >= 0, "sanity check");
     GetFuncProfData()->SetStmtFreq(endlblstmt->GetStmtID(), freq);
@@ -252,8 +252,8 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     if (fallthru_from_then) {
       labstmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
       labstmt->SetLabelIdx(endlabelidx);
-      SrcPosition pos = func->GetMirFunc()->GetScope()->GetScopeEndPos(ifstmt.GetElsePart()->GetSrcPos());
-      labstmt->SetSrcPos(pos);
+      SrcPosition position = func->GetMirFunc()->GetScope()->GetScopeEndPos(ifstmt.GetElsePart()->GetSrcPos());
+      labstmt->SetSrcPos(position);
       blk->AddStatement(labstmt);
       // set stmtfreqs
       if (GetFuncProfData()) {
@@ -266,8 +266,8 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
         preMeFunc->SetIfLabelCreatedByPreMe(endlabelidx);
       }
       LabelNode *endlabelnode = mirbuilder->CreateStmtLabel(endlabelidx);
-      SrcPosition pos = func->GetMirFunc()->GetScope()->GetScopeEndPos(ifstmt.GetElsePart()->GetSrcPos());
-      endlabelnode->SetSrcPos(pos);
+      SrcPosition position = func->GetMirFunc()->GetScope()->GetScopeEndPos(ifstmt.GetElsePart()->GetSrcPos());
+      endlabelnode->SetSrcPos(position);
       blk->AddStatement(endlabelnode);
       // set stmtfreqs
       if (GetFuncProfData()) {

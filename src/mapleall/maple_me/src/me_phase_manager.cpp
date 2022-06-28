@@ -150,7 +150,7 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
         continue;
       }
       if (!IsQuiet()) {
-        LogInfo::MapleLogger() << ">>>> Generating LMBC for Function  < " << func->GetName() << " > [" << i - 1 << "]\n";
+        LogInfo::MapleLogger() << ">>>> Generating LMBC for Function  < " << func->GetName() << " >\n";
       }
       m.SetCurFunction(func);
       cgLower.LowerFunc(*func);

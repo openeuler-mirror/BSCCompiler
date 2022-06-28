@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021] Futurewei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -13,11 +13,12 @@
  * See the MulanPSL - 2.0 for more details.
  */
 
+#include "pme_emit.h"
 #include "me_irmap.h"
 #include "pme_function.h"
 #include "mir_lower.h"
 #include "constantfold.h"
-#include "pme_emit.h"
+#include "inline_summary.h"
 
 namespace maple {
 // convert x to use OP_array if possible; return nullptr if unsuccessful;
@@ -80,17 +81,17 @@ ArrayNode *PreMeEmitter::ConvertToArray(BaseNode *x, TyIdx ptrTyIdx) {
   return arryNode;
 }
 
-BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
-  PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(parent, meexpr);
-  switch (meexpr->GetOp()) {
+BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
+  PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(parent, meExpr);
+  switch (meExpr->GetOp()) {
     case OP_constval: {
-      MIRConst *constval = static_cast<ConstMeExpr *>(meexpr)->GetConstVal();
+      MIRConst *constval = static_cast<ConstMeExpr *>(meExpr)->GetConstVal();
       ConstvalNode *lcvlNode = codeMP->New<ConstvalNode>(constval->GetType().GetPrimType(), constval);
       PreMeExprExtensionMap[lcvlNode] = pmeExt;
       return lcvlNode;
     }
     case OP_dread: {
-      VarMeExpr *varmeexpr = static_cast<VarMeExpr *>(meexpr);
+      VarMeExpr *varmeexpr = static_cast<VarMeExpr *>(meExpr);
       MIRSymbol *sym = varmeexpr->GetOst()->GetMIRSymbol();
       if (sym->IsLocal()) {
         sym->ResetIsDeleted();
@@ -109,9 +110,9 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
     case OP_cmpl:
     case OP_cmpg:
     case OP_lt: {
-      OpMeExpr *cmpexpr = static_cast<OpMeExpr *>(meexpr);
+      OpMeExpr *cmpexpr = static_cast<OpMeExpr *>(meExpr);
       CompareNode *cmpNode =
-          codeMP->New<CompareNode>(meexpr->GetOp(), cmpexpr->GetPrimType(), cmpexpr->GetOpndType(), nullptr, nullptr);
+          codeMP->New<CompareNode>(meExpr->GetOp(), cmpexpr->GetPrimType(), cmpexpr->GetOpndType(), nullptr, nullptr);
       BaseNode *opnd0 = EmitPreMeExpr(cmpexpr->GetOpnd(0), cmpNode);
       BaseNode *opnd1 = EmitPreMeExpr(cmpexpr->GetOpnd(1), cmpNode);
       cmpNode->SetBOpnd(opnd0, 0);
@@ -121,7 +122,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
       return cmpNode;
     }
     case OP_array: {
-      NaryMeExpr *arrExpr = static_cast<NaryMeExpr *>(meexpr);
+      NaryMeExpr *arrExpr = static_cast<NaryMeExpr *>(meExpr);
       ArrayNode *arrNode =
         codeMP->New<ArrayNode>(*codeMPAlloc, arrExpr->GetPrimType(), arrExpr->GetTyIdx());
       arrNode->SetBoundsCheck(arrExpr->GetBoundCheck());
@@ -129,7 +130,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
         BaseNode *opnd = EmitPreMeExpr(arrExpr->GetOpnd(i), arrNode);
         arrNode->GetNopnd().push_back(opnd);
       }
-      arrNode->SetNumOpnds(meexpr->GetNumOpnds());
+      arrNode->SetNumOpnds(meExpr->GetNumOpnds());
       PreMeExprExtensionMap[arrNode] = pmeExt;
       return arrNode;
     }
@@ -150,16 +151,16 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
     case OP_shl:
     case OP_sub:
     case OP_add: {
-      OpMeExpr *opExpr = static_cast<OpMeExpr *>(meexpr);
-      BinaryNode *binNode = codeMP->New<BinaryNode>(meexpr->GetOp(), meexpr->GetPrimType());
+      OpMeExpr *opExpr = static_cast<OpMeExpr *>(meExpr);
+      BinaryNode *binNode = codeMP->New<BinaryNode>(meExpr->GetOp(), meExpr->GetPrimType());
       binNode->SetBOpnd(EmitPreMeExpr(opExpr->GetOpnd(0), binNode), 0);
       binNode->SetBOpnd(EmitPreMeExpr(opExpr->GetOpnd(1), binNode), 1);
       PreMeExprExtensionMap[binNode] = pmeExt;
       return binNode;
     }
     case OP_iread: {
-      IvarMeExpr *ivarExpr = static_cast<IvarMeExpr *>(meexpr);
-      IreadNode *irdNode = codeMP->New<IreadNode>(meexpr->GetOp(), meexpr->GetPrimType());
+      IvarMeExpr *ivarExpr = static_cast<IvarMeExpr *>(meExpr);
+      IreadNode *irdNode = codeMP->New<IreadNode>(meExpr->GetOp(), meExpr->GetPrimType());
       ASSERT(ivarExpr->GetOffset() == 0, "offset in iread should be 0");
       irdNode->SetOpnd(EmitPreMeExpr(ivarExpr->GetBase(), irdNode), 0);
       irdNode->SetTyIdx(ivarExpr->GetTyIdx());
@@ -174,8 +175,8 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
       return irdNode;
     }
     case OP_ireadoff: {
-      IvarMeExpr *ivarExpr = static_cast<IvarMeExpr *>(meexpr);
-      IreadNode *irdNode = codeMP->New<IreadNode>(OP_iread, meexpr->GetPrimType());
+      IvarMeExpr *ivarExpr = static_cast<IvarMeExpr *>(meExpr);
+      IreadNode *irdNode = codeMP->New<IreadNode>(OP_iread, meExpr->GetPrimType());
       MeExpr *baseexpr = ivarExpr->GetBase();
       if (ivarExpr->GetOffset() == 0) {
         irdNode->SetOpnd(EmitPreMeExpr(baseexpr, irdNode), 0);
@@ -196,7 +197,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
       return irdNode;
     }
     case OP_addrof: {
-      AddrofMeExpr *addrMeexpr = static_cast<AddrofMeExpr *> (meexpr);
+      AddrofMeExpr *addrMeexpr = static_cast<AddrofMeExpr *>(meExpr);
       OriginalSt *ost = addrMeexpr->GetOst();
       MIRSymbol *sym = ost->GetMIRSymbol();
       AddrofNode *addrofNode =
@@ -205,14 +206,14 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
       return addrofNode;
     }
     case OP_addroflabel: {
-      AddroflabelMeExpr *addroflabelexpr = static_cast<AddroflabelMeExpr *>(meexpr);
+      AddroflabelMeExpr *addroflabelexpr = static_cast<AddroflabelMeExpr *>(meExpr);
       AddroflabelNode *addroflabel = codeMP->New<AddroflabelNode>(addroflabelexpr->labelIdx);
-      addroflabel->SetPrimType(meexpr->GetPrimType());
+      addroflabel->SetPrimType(meExpr->GetPrimType());
       PreMeExprExtensionMap[addroflabel] = pmeExt;
       return addroflabel;
     }
     case OP_addroffunc: {
-      AddroffuncMeExpr *addrMeexpr = static_cast<AddroffuncMeExpr *>(meexpr);
+      AddroffuncMeExpr *addrMeexpr = static_cast<AddroffuncMeExpr *>(meExpr);
       AddroffuncNode *addrfunNode = codeMP->New<AddroffuncNode>(addrMeexpr->GetPrimType(), addrMeexpr->GetPuIdx());
       PreMeExprExtensionMap[addrfunNode] = pmeExt;
       return addrfunNode;
@@ -220,16 +221,16 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
     case OP_gcmalloc:
     case OP_gcpermalloc:
     case OP_stackmalloc: {
-      GcmallocMeExpr *gcMeexpr = static_cast<GcmallocMeExpr *> (meexpr);
+      GcmallocMeExpr *gcMeexpr = static_cast<GcmallocMeExpr *>(meExpr);
       GCMallocNode *gcMnode =
-          codeMP->New<GCMallocNode>(meexpr->GetOp(), meexpr->GetPrimType(), gcMeexpr->GetTyIdx());
+          codeMP->New<GCMallocNode>(meExpr->GetOp(), meExpr->GetPrimType(), gcMeexpr->GetTyIdx());
       gcMnode->SetTyIdx(gcMeexpr->GetTyIdx());
       PreMeExprExtensionMap[gcMnode] = pmeExt;
       return gcMnode;
     }
     case OP_retype: {
-      OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meexpr);
-      RetypeNode *retypeNode = codeMP->New<RetypeNode>(meexpr->GetPrimType());
+      OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meExpr);
+      RetypeNode *retypeNode = codeMP->New<RetypeNode>(meExpr->GetPrimType());
       retypeNode->SetFromType(opMeexpr->GetOpndType());
       retypeNode->SetTyIdx(opMeexpr->GetTyIdx());
       retypeNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(0), retypeNode), 0);
@@ -240,8 +241,8 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
     case OP_cvt:
     case OP_floor:
     case OP_trunc: {
-      OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meexpr);
-      TypeCvtNode *tycvtNode = codeMP->New<TypeCvtNode>(meexpr->GetOp(), meexpr->GetPrimType());
+      OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meExpr);
+      TypeCvtNode *tycvtNode = codeMP->New<TypeCvtNode>(meExpr->GetOp(), meExpr->GetPrimType());
       tycvtNode->SetFromType(opMeexpr->GetOpndType());
       tycvtNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(0), tycvtNode), 0);
       PreMeExprExtensionMap[tycvtNode] = pmeExt;
@@ -250,8 +251,8 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
     case OP_sext:
     case OP_zext:
     case OP_extractbits: {
-      OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meexpr);
-      ExtractbitsNode *extNode = codeMP->New<ExtractbitsNode>(meexpr->GetOp(), meexpr->GetPrimType());
+      OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meExpr);
+      ExtractbitsNode *extNode = codeMP->New<ExtractbitsNode>(meExpr->GetOp(), meExpr->GetPrimType());
       extNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(0), extNode), 0);
       extNode->SetBitsOffset(opMeexpr->GetBitsOffSet());
       extNode->SetBitsSize(opMeexpr->GetBitsSize());
@@ -259,8 +260,8 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
       return extNode;
     }
     case OP_depositbits: {
-      OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meexpr);
-      DepositbitsNode *depNode = codeMP->New<DepositbitsNode>(meexpr->GetOp(), meexpr->GetPrimType());
+      OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meExpr);
+      DepositbitsNode *depNode = codeMP->New<DepositbitsNode>(meExpr->GetOp(), meExpr->GetPrimType());
       depNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(0), depNode), 0);
       depNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(1), depNode), 1);
       depNode->SetBitsOffset(opMeexpr->GetBitsOffSet());
@@ -269,7 +270,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
       return depNode;
     }
     case OP_regread: {
-      RegMeExpr *regMeexpr = static_cast<RegMeExpr *>(meexpr);
+      RegMeExpr *regMeexpr = static_cast<RegMeExpr *>(meExpr);
       RegreadNode *regNode = codeMP->New<RegreadNode>();
       regNode->SetPrimType(regMeexpr->GetPrimType());
       regNode->SetRegIdx(regMeexpr->GetRegIdx());
@@ -277,14 +278,14 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
       return regNode;
     }
     case OP_sizeoftype: {
-      SizeoftypeMeExpr *sizeofMeexpr = static_cast<SizeoftypeMeExpr *>(meexpr);
+      SizeoftypeMeExpr *sizeofMeexpr = static_cast<SizeoftypeMeExpr *>(meExpr);
       SizeoftypeNode *sizeofTynode =
           codeMP->New<SizeoftypeNode>(sizeofMeexpr->GetPrimType(), sizeofMeexpr->GetTyIdx());
       PreMeExprExtensionMap[sizeofTynode] = pmeExt;
       return sizeofTynode;
     }
     case OP_fieldsdist: {
-      FieldsDistMeExpr *fdMeexpr = static_cast<FieldsDistMeExpr *>(meexpr);
+      FieldsDistMeExpr *fdMeexpr = static_cast<FieldsDistMeExpr *>(meExpr);
       FieldsDistNode *fieldsNode =
           codeMP->New<FieldsDistNode>(fdMeexpr->GetPrimType(), fdMeexpr->GetTyIdx(), fdMeexpr->GetFieldID1(),
                                       fdMeexpr->GetFieldID2());
@@ -292,14 +293,14 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
       return fieldsNode;
     }
     case OP_conststr: {
-      ConststrMeExpr *constrMeexpr = static_cast<ConststrMeExpr *>(meexpr);
+      ConststrMeExpr *constrMeexpr = static_cast<ConststrMeExpr *>(meExpr);
       ConststrNode *constrNode =
           codeMP->New<ConststrNode>(constrMeexpr->GetPrimType(), constrMeexpr->GetStrIdx());
       PreMeExprExtensionMap[constrNode] = pmeExt;
       return constrNode;
     }
     case OP_conststr16: {
-      Conststr16MeExpr *constr16Meexpr = static_cast<Conststr16MeExpr *>(meexpr);
+      Conststr16MeExpr *constr16Meexpr = static_cast<Conststr16MeExpr *>(meExpr);
       Conststr16Node *constr16Node =
           codeMP->New<Conststr16Node>(constr16Meexpr->GetPrimType(), constr16Meexpr->GetStrIdx());
       PreMeExprExtensionMap[constr16Node] = pmeExt;
@@ -313,15 +314,15 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
     case OP_sqrt:
     case OP_alloca:
     case OP_malloc: {
-      OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meexpr);
-      UnaryNode *unNode = codeMP->New<UnaryNode>(meexpr->GetOp(), meexpr->GetPrimType());
+      OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meExpr);
+      UnaryNode *unNode = codeMP->New<UnaryNode>(meExpr->GetOp(), meExpr->GetPrimType());
       unNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(0), unNode), 0);
       PreMeExprExtensionMap[unNode] = pmeExt;
       return unNode;
     }
     case OP_iaddrof: {
-      OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meexpr);
-      IreadNode *ireadNode = codeMP->New<IreadNode>(meexpr->GetOp(), meexpr->GetPrimType());
+      OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meExpr);
+      IreadNode *ireadNode = codeMP->New<IreadNode>(meExpr->GetOp(), meExpr->GetPrimType());
       ireadNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(0), ireadNode), 0);
       ireadNode->SetTyIdx(opMeexpr->GetTyIdx());
       ireadNode->SetFieldID(opMeexpr->GetFieldID());
@@ -329,8 +330,8 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
       return ireadNode;
     }
     case OP_select: {
-      OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meexpr);
-      TernaryNode *tNode = codeMP->New<TernaryNode>(OP_select, meexpr->GetPrimType());
+      OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meExpr);
+      TernaryNode *tNode = codeMP->New<TernaryNode>(OP_select, meExpr->GetPrimType());
       tNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(0), tNode), 0);
       tNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(1), tNode), 1);
       tNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(2), tNode), 2);
@@ -339,9 +340,9 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
     }
     case OP_intrinsicop:
     case OP_intrinsicopwithtype: {
-      NaryMeExpr *nMeexpr = static_cast<NaryMeExpr *>(meexpr);
+      NaryMeExpr *nMeexpr = static_cast<NaryMeExpr *>(meExpr);
       IntrinsicopNode *intrnNode =
-          codeMP->New<IntrinsicopNode>(*codeMPAlloc, meexpr->GetOp(), meexpr->GetPrimType(), nMeexpr->GetTyIdx());
+          codeMP->New<IntrinsicopNode>(*codeMPAlloc, meExpr->GetOp(), meExpr->GetPrimType(), nMeexpr->GetTyIdx());
       intrnNode->SetIntrinsic(nMeexpr->GetIntrinsic());
       for (uint32 i = 0; i < nMeexpr->GetNumOpnds(); i++) {
         BaseNode *opnd = EmitPreMeExpr(nMeexpr->GetOpnd(i), intrnNode);
@@ -356,36 +357,36 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
   }
 }
 
-StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
-  PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(parent, mestmt);
-  switch (mestmt->GetOp()) {
+StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
+  PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(parent, meStmt);
+  switch (meStmt->GetOp()) {
     case OP_dassign: {
-      DassignMeStmt *dsmestmt = static_cast<DassignMeStmt *>(mestmt);
+      DassignMeStmt *dsmestmt = static_cast<DassignMeStmt *>(meStmt);
       DassignNode *dass = codeMP->New<DassignNode>();
       MIRSymbol *sym = dsmestmt->GetLHS()->GetOst()->GetMIRSymbol();
       dass->SetStIdx(sym->GetStIdx());
       dass->SetFieldID(static_cast<VarMeExpr *>(dsmestmt->GetLHS())->GetOst()->GetFieldID());
       dass->SetOpnd(EmitPreMeExpr(dsmestmt->GetRHS(), dass), 0);
       dass->SetSrcPos(dsmestmt->GetSrcPosition());
-      dass->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      dass->SetOriginalID(mestmt->GetOriginalId());
+      dass->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      dass->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[dass->GetStmtID()] = pmeExt;
       return dass;
     }
     case OP_regassign: {
-      AssignMeStmt *asMestmt = static_cast<AssignMeStmt *>(mestmt);
+      AssignMeStmt *asMestmt = static_cast<AssignMeStmt *>(meStmt);
       RegassignNode *rssnode = codeMP->New<RegassignNode>();
       rssnode->SetPrimType(asMestmt->GetLHS()->GetPrimType());
       rssnode->SetRegIdx(asMestmt->GetLHS()->GetRegIdx());
       rssnode->SetOpnd(EmitPreMeExpr(asMestmt->GetRHS(), rssnode), 0);
       rssnode->SetSrcPos(asMestmt->GetSrcPosition());
-      rssnode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      rssnode->SetOriginalID(mestmt->GetOriginalId());
+      rssnode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      rssnode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[rssnode->GetStmtID()] = pmeExt;
       return rssnode;
     }
     case OP_iassign: {
-      IassignMeStmt *iass = static_cast<IassignMeStmt *>(mestmt);
+      IassignMeStmt *iass = static_cast<IassignMeStmt *>(meStmt);
       IvarMeExpr *lhsVar = iass->GetLHSVal();
       IassignNode *iassignNode = codeMP->New<IassignNode>();
       iassignNode->SetTyIdx(iass->GetTyIdx());
@@ -409,26 +410,26 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
       }
       iassignNode->rhs = EmitPreMeExpr(iass->GetRHS(), iassignNode);
       iassignNode->SetSrcPos(iass->GetSrcPosition());
-      iassignNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      iassignNode->SetOriginalID(mestmt->GetOriginalId());
+      iassignNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      iassignNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[iassignNode->GetStmtID()] = pmeExt;
       return iassignNode;
     }
     case OP_return: {
-      RetMeStmt *retMestmt = static_cast<RetMeStmt *>(mestmt);
+      RetMeStmt *retMestmt = static_cast<RetMeStmt *>(meStmt);
       NaryStmtNode *retNode = codeMP->New<NaryStmtNode>(*codeMPAlloc, OP_return);
       for (uint32 i = 0; i < retMestmt->GetOpnds().size(); i++) {
         retNode->GetNopnd().push_back(EmitPreMeExpr(retMestmt->GetOpnd(i), retNode));
       }
       retNode->SetNumOpnds(static_cast<uint8>(retMestmt->GetOpnds().size()));
       retNode->SetSrcPos(retMestmt->GetSrcPosition());
-      retNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      retNode->SetOriginalID(mestmt->GetOriginalId());
+      retNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      retNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[retNode->GetStmtID()] = pmeExt;
       return retNode;
     }
     case OP_goto: {
-      GotoMeStmt *gotoStmt = static_cast<GotoMeStmt *>(mestmt);
+      GotoMeStmt *gotoStmt = static_cast<GotoMeStmt *>(meStmt);
       if (preMeFunc->WhileLabelCreatedByPreMe(gotoStmt->GetOffset())) {
         return nullptr;
       }
@@ -438,28 +439,28 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
       GotoNode *gto = codeMP->New<GotoNode>(OP_goto);
       gto->SetOffset(gotoStmt->GetOffset());
       gto->SetSrcPos(gotoStmt->GetSrcPosition());
-      gto->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      gto->SetOriginalID(mestmt->GetOriginalId());
+      gto->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      gto->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[gto->GetStmtID()] = pmeExt;
       return gto;
     }
     case OP_igoto: {
-      UnaryMeStmt *igotoMeStmt = static_cast<UnaryMeStmt *>(mestmt);
+      UnaryMeStmt *igotoMeStmt = static_cast<UnaryMeStmt *>(meStmt);
       UnaryStmtNode *igto = codeMP->New<UnaryStmtNode>(OP_igoto);
       igto->SetOpnd(EmitPreMeExpr(igotoMeStmt->GetOpnd(), igto), 0);
       igto->SetSrcPos(igotoMeStmt->GetSrcPosition());
-      igto->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      igto->SetOriginalID(mestmt->GetOriginalId());
+      igto->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      igto->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[igto->GetStmtID()] = pmeExt;
       return igto;
     }
     case OP_comment: {
-      CommentMeStmt *cmtmeNode = static_cast<CommentMeStmt *>(mestmt);
+      CommentMeStmt *cmtmeNode = static_cast<CommentMeStmt *>(meStmt);
       CommentNode *cmtNode = codeMP->New<CommentNode>(*codeMPAlloc);
       cmtNode->SetComment(cmtmeNode->GetComment());
       cmtNode->SetSrcPos(cmtmeNode->GetSrcPosition());
-      cmtNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      cmtNode->SetOriginalID(mestmt->GetOriginalId());
+      cmtNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      cmtNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[cmtNode->GetStmtID()] = pmeExt;
       return cmtNode;
     }
@@ -479,18 +480,18 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
     case OP_customcallassigned:
     case OP_polymorphiccall:
     case OP_polymorphiccallassigned: {
-      CallMeStmt *callMeStmt = static_cast<CallMeStmt *>(mestmt);
-      CallNode *callnode = codeMP->New<CallNode>(*codeMPAlloc, mestmt->GetOp());
+      CallMeStmt *callMeStmt = static_cast<CallMeStmt *>(meStmt);
+      CallNode *callnode = codeMP->New<CallNode>(*codeMPAlloc, meStmt->GetOp());
       callnode->SetPUIdx(callMeStmt->GetPUIdx());
       callnode->SetTyIdx(callMeStmt->GetTyIdx());
       callnode->SetNumOpnds(static_cast<uint8>(callMeStmt->GetOpnds().size()));
       callnode->SetSrcPos(callMeStmt->GetSrcPosition());
-      mestmt->EmitCallReturnVector(callnode->GetReturnVec());
+      meStmt->EmitCallReturnVector(callnode->GetReturnVec());
       for (uint32 i = 0; i < callMeStmt->GetOpnds().size(); i++) {
         callnode->GetNopnd().push_back(EmitPreMeExpr(callMeStmt->GetOpnd(i), callnode));
       }
-      callnode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      callnode->SetOriginalID(mestmt->GetOriginalId());
+      callnode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      callnode->SetOriginalID(meStmt->GetOriginalId());
       callnode->SetMeStmtID(callMeStmt->GetMeStmtId());
       PreMeStmtExtensionMap[callnode->GetStmtID()] = pmeExt;
       return callnode;
@@ -499,15 +500,15 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
     case OP_icallassigned:
     case OP_icallproto:
     case OP_icallprotoassigned: {
-      IcallMeStmt *icallMeStmt = static_cast<IcallMeStmt *> (mestmt);
+      IcallMeStmt *icallMeStmt = static_cast<IcallMeStmt *>(meStmt);
       IcallNode *icallnode =
           codeMP->New<IcallNode>(*codeMPAlloc, OP_icallprotoassigned, icallMeStmt->GetRetTyIdx());
       for (uint32 i = 0; i < icallMeStmt->GetOpnds().size(); i++) {
         icallnode->GetNopnd().push_back(EmitPreMeExpr(icallMeStmt->GetOpnd(i), icallnode));
       }
       icallnode->SetNumOpnds(static_cast<uint8>(icallMeStmt->GetOpnds().size()));
-      icallnode->SetSrcPos(mestmt->GetSrcPosition());
-      mestmt->EmitCallReturnVector(icallnode->GetReturnVec());
+      icallnode->SetSrcPos(meStmt->GetSrcPosition());
+      meStmt->EmitCallReturnVector(icallnode->GetReturnVec());
       icallnode->SetRetTyIdx(TyIdx(PTY_void));
       for (uint32 j = 0; j < icallnode->GetReturnVec().size(); j++) {
         CallReturnPair retpair = icallnode->GetReturnVec()[j];
@@ -523,11 +524,11 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
           icallnode->SetRetTyIdx(TyIdx(preg->GetPrimType()));
         }
       }
-      if (mestmt->GetOp() == OP_icallproto || mestmt->GetOp() == OP_icallprotoassigned) {
+      if (meStmt->GetOp() == OP_icallproto || meStmt->GetOp() == OP_icallprotoassigned) {
         icallnode->SetRetTyIdx(icallMeStmt->GetRetTyIdx());
       }
-      icallnode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      icallnode->SetOriginalID(mestmt->GetOriginalId());
+      icallnode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      icallnode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[icallnode->GetStmtID()] = pmeExt;
       return icallnode;
     }
@@ -537,40 +538,40 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
     case OP_xintrinsiccallassigned:
     case OP_intrinsiccallwithtype:
     case OP_intrinsiccallwithtypeassigned: {
-      IntrinsiccallMeStmt *callMeStmt = static_cast<IntrinsiccallMeStmt *> (mestmt);
+      IntrinsiccallMeStmt *callMeStmt = static_cast<IntrinsiccallMeStmt *>(meStmt);
       IntrinsiccallNode *callnode =
-          codeMP->New<IntrinsiccallNode>(*codeMPAlloc, mestmt->GetOp(), callMeStmt->GetIntrinsic());
+          codeMP->New<IntrinsiccallNode>(*codeMPAlloc, meStmt->GetOp(), callMeStmt->GetIntrinsic());
       callnode->SetIntrinsic(callMeStmt->GetIntrinsic());
       callnode->SetTyIdx(callMeStmt->GetTyIdx());
       for (uint32 i = 0; i < callMeStmt->GetOpnds().size(); i++) {
         callnode->GetNopnd().push_back(EmitPreMeExpr(callMeStmt->GetOpnd(i), callnode));
       }
       callnode->SetNumOpnds(static_cast<uint8>(callnode->GetNopndSize()));
-      callnode->SetSrcPos(mestmt->GetSrcPosition());
-      if (kOpcodeInfo.IsCallAssigned(mestmt->GetOp())) {
-        mestmt->EmitCallReturnVector(callnode->GetReturnVec());
+      callnode->SetSrcPos(meStmt->GetSrcPosition());
+      if (kOpcodeInfo.IsCallAssigned(meStmt->GetOp())) {
+        meStmt->EmitCallReturnVector(callnode->GetReturnVec());
       }
-      callnode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      callnode->SetOriginalID(mestmt->GetOriginalId());
+      callnode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      callnode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[callnode->GetStmtID()] = pmeExt;
       return callnode;
     }
     case OP_asm: {
-      AsmMeStmt *asmMeStmt = static_cast<AsmMeStmt *>(mestmt);
+      AsmMeStmt *asmMeStmt = static_cast<AsmMeStmt *>(meStmt);
       AsmNode *asmNode = codeMP->New<AsmNode>(codeMPAlloc);
       for (size_t i = 0; i < asmMeStmt->NumMeStmtOpnds(); ++i) {
         asmNode->GetNopnd().push_back(EmitPreMeExpr(asmMeStmt->GetOpnd(i), asmNode));
       }
       asmNode->SetNumOpnds(static_cast<uint8>(asmNode->GetNopndSize()));
-      asmNode->SetSrcPos(mestmt->GetSrcPosition());
-      mestmt->EmitCallReturnVector(*asmNode->GetCallReturnVector());
+      asmNode->SetSrcPos(meStmt->GetSrcPosition());
+      meStmt->EmitCallReturnVector(*asmNode->GetCallReturnVector());
       asmNode->asmString = asmMeStmt->asmString;
       asmNode->inputConstraints = asmMeStmt->inputConstraints;
       asmNode->outputConstraints = asmMeStmt->outputConstraints;
       asmNode->clobberList = asmMeStmt->clobberList;
       asmNode->gotoLabels = asmMeStmt->gotoLabels;
-      asmNode->SetOriginalID(mestmt->GetOriginalId());
-      asmNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
+      asmNode->SetOriginalID(meStmt->GetOriginalId());
+      asmNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       return asmNode;
     }
     case OP_jscatch:
@@ -581,141 +582,141 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
     case OP_membarrelease:
     case OP_membarstorestore:
     case OP_membarstoreload: {
-      StmtNode *stmtNode = codeMP->New<StmtNode>(mestmt->GetOp());
-      stmtNode->SetSrcPos(mestmt->GetSrcPosition());
-      stmtNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      stmtNode->SetOriginalID(mestmt->GetOriginalId());
+      StmtNode *stmtNode = codeMP->New<StmtNode>(meStmt->GetOp());
+      stmtNode->SetSrcPos(meStmt->GetSrcPosition());
+      stmtNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      stmtNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[stmtNode->GetStmtID()] = pmeExt;
       return stmtNode;
     }
     case OP_retsub: {
-      StmtNode *usesStmtNode = codeMP->New<StmtNode>(mestmt->GetOp());
-      usesStmtNode->SetSrcPos(mestmt->GetSrcPosition());
-      usesStmtNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      usesStmtNode->SetOriginalID(mestmt->GetOriginalId());
+      StmtNode *usesStmtNode = codeMP->New<StmtNode>(meStmt->GetOp());
+      usesStmtNode->SetSrcPos(meStmt->GetSrcPosition());
+      usesStmtNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      usesStmtNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[usesStmtNode->GetStmtID()] = pmeExt;
       return usesStmtNode;
     }
     case OP_brfalse:
     case OP_brtrue: {
-      CondGotoNode *CondNode = codeMP->New<CondGotoNode>(mestmt->GetOp());
-      CondGotoMeStmt *condMeStmt = static_cast<CondGotoMeStmt *> (mestmt);
+      CondGotoNode *CondNode = codeMP->New<CondGotoNode>(meStmt->GetOp());
+      CondGotoMeStmt *condMeStmt = static_cast<CondGotoMeStmt *>(meStmt);
       CondNode->SetBranchProb(condMeStmt->GetBranchProb());
       CondNode->SetOffset(condMeStmt->GetOffset());
-      CondNode->SetSrcPos(mestmt->GetSrcPosition());
+      CondNode->SetSrcPos(meStmt->GetSrcPosition());
       CondNode->SetOpnd(EmitPreMeExpr(condMeStmt->GetOpnd(), CondNode), 0);
-      CondNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      CondNode->SetOriginalID(mestmt->GetOriginalId());
-      CondNode->SetMeStmtID(mestmt->GetMeStmtId());
+      CondNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      CondNode->SetOriginalID(meStmt->GetOriginalId());
+      CondNode->SetMeStmtID(meStmt->GetMeStmtId());
       PreMeStmtExtensionMap[CondNode->GetStmtID()] = pmeExt;
       return CondNode;
     }
     case OP_cpptry:
     case OP_try: {
       TryNode *jvTryNode = codeMP->New<TryNode>(*codeMPAlloc);
-      TryMeStmt *tryMeStmt = static_cast<TryMeStmt *> (mestmt);
+      TryMeStmt *tryMeStmt = static_cast<TryMeStmt *>(meStmt);
       size_t offsetsSize = tryMeStmt->GetOffsets().size();
       jvTryNode->ResizeOffsets(offsetsSize);
       for (size_t i = 0; i < offsetsSize; i++) {
         jvTryNode->SetOffset(tryMeStmt->GetOffsets()[i], i);
       }
       jvTryNode->SetSrcPos(tryMeStmt->GetSrcPosition());
-      jvTryNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      jvTryNode->SetOriginalID(mestmt->GetOriginalId());
+      jvTryNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      jvTryNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[jvTryNode->GetStmtID()] = pmeExt;
       return jvTryNode;
     }
     case OP_cppcatch: {
       CppCatchNode *cppCatchNode = codeMP->New<CppCatchNode>();
-      CppCatchMeStmt *catchMestmt = static_cast<CppCatchMeStmt *> (mestmt);
+      CppCatchMeStmt *catchMestmt = static_cast<CppCatchMeStmt *>(meStmt);
       cppCatchNode->exceptionTyIdx = catchMestmt->exceptionTyIdx;
       cppCatchNode->SetSrcPos(catchMestmt->GetSrcPosition());
-      cppCatchNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      cppCatchNode->SetOriginalID(mestmt->GetOriginalId());
+      cppCatchNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      cppCatchNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[cppCatchNode->GetStmtID()] = pmeExt;
       return cppCatchNode;
     }
     case OP_catch: {
       CatchNode *jvCatchNode = codeMP->New<CatchNode>(*codeMPAlloc);
-      CatchMeStmt *catchMestmt = static_cast<CatchMeStmt *> (mestmt);
+      CatchMeStmt *catchMestmt = static_cast<CatchMeStmt *>(meStmt);
       jvCatchNode->SetExceptionTyIdxVec(catchMestmt->GetExceptionTyIdxVec());
       jvCatchNode->SetSrcPos(catchMestmt->GetSrcPosition());
-      jvCatchNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      jvCatchNode->SetOriginalID(mestmt->GetOriginalId());
+      jvCatchNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      jvCatchNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[jvCatchNode->GetStmtID()] = pmeExt;
       return jvCatchNode;
     }
     case OP_throw: {
-      UnaryStmtNode *throwStmtNode = codeMP->New<UnaryStmtNode>(mestmt->GetOp());
-      ThrowMeStmt *throwMeStmt = static_cast<ThrowMeStmt *>(mestmt);
+      UnaryStmtNode *throwStmtNode = codeMP->New<UnaryStmtNode>(meStmt->GetOp());
+      ThrowMeStmt *throwMeStmt = static_cast<ThrowMeStmt *>(meStmt);
       throwStmtNode->SetOpnd(EmitPreMeExpr(throwMeStmt->GetOpnd(), throwStmtNode), 0);
       throwStmtNode->SetSrcPos(throwMeStmt->GetSrcPosition());
-      throwStmtNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      throwStmtNode->SetOriginalID(mestmt->GetOriginalId());
+      throwStmtNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      throwStmtNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[throwStmtNode->GetStmtID()] = pmeExt;
       return throwStmtNode;
     }
     case OP_callassertnonnull: {
-      CallAssertNonnullMeStmt *assertNullStmt = static_cast<CallAssertNonnullMeStmt *>(mestmt);
-      CallAssertNonnullStmtNode *assertNullNode = codeMP->New<CallAssertNonnullStmtNode>(mestmt->GetOp(),
+      CallAssertNonnullMeStmt *assertNullStmt = static_cast<CallAssertNonnullMeStmt *>(meStmt);
+      CallAssertNonnullStmtNode *assertNullNode = codeMP->New<CallAssertNonnullStmtNode>(meStmt->GetOp(),
           assertNullStmt->GetFuncNameIdx(), assertNullStmt->GetParamIndex(), assertNullStmt->GetStmtFuncNameIdx());
-      assertNullNode->SetSrcPos(mestmt->GetSrcPosition());
+      assertNullNode->SetSrcPos(meStmt->GetSrcPosition());
       assertNullNode->SetOpnd(EmitPreMeExpr(assertNullStmt->GetOpnd(), assertNullNode), 0);
       assertNullNode->SetNumOpnds(1);
-      assertNullNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      assertNullNode->SetOriginalID(mestmt->GetOriginalId());
+      assertNullNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      assertNullNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[assertNullNode->GetStmtID()] = pmeExt;
       return assertNullNode;
     }
     case OP_callassertle: {
-      CallAssertBoundaryMeStmt *assertBoundaryStmt = static_cast<CallAssertBoundaryMeStmt *>(mestmt);
+      CallAssertBoundaryMeStmt *assertBoundaryStmt = static_cast<CallAssertBoundaryMeStmt *>(meStmt);
       CallAssertBoundaryStmtNode *assertBoundaryNode = codeMP->New<CallAssertBoundaryStmtNode>(
-          *codeMPAlloc, mestmt->GetOp(), assertBoundaryStmt->GetFuncNameIdx(), assertBoundaryStmt->GetParamIndex(),
+          *codeMPAlloc, meStmt->GetOp(), assertBoundaryStmt->GetFuncNameIdx(), assertBoundaryStmt->GetParamIndex(),
           assertBoundaryStmt->GetStmtFuncNameIdx());
-      assertBoundaryNode->SetSrcPos(mestmt->GetSrcPosition());
+      assertBoundaryNode->SetSrcPos(meStmt->GetSrcPosition());
       for (uint32 i = 0; i < assertBoundaryStmt->GetOpnds().size(); i++) {
         assertBoundaryNode->GetNopnd().push_back(EmitPreMeExpr(assertBoundaryStmt->GetOpnd(i), assertBoundaryNode));
       }
       assertBoundaryNode->SetNumOpnds(static_cast<uint8>(assertBoundaryNode->GetNopndSize()));
-      assertBoundaryNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      assertBoundaryNode->SetOriginalID(mestmt->GetOriginalId());
+      assertBoundaryNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      assertBoundaryNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[assertBoundaryNode->GetStmtID()] = pmeExt;
       return assertBoundaryNode;
     }
     case OP_eval:
     case OP_free: {
-      UnaryStmtNode *unaryStmtNode = codeMP->New<UnaryStmtNode>(mestmt->GetOp());
-      UnaryMeStmt *uMeStmt = static_cast<UnaryMeStmt *>(mestmt);
+      UnaryStmtNode *unaryStmtNode = codeMP->New<UnaryStmtNode>(meStmt->GetOp());
+      UnaryMeStmt *uMeStmt = static_cast<UnaryMeStmt *>(meStmt);
       unaryStmtNode->SetOpnd(EmitPreMeExpr(uMeStmt->GetOpnd(), unaryStmtNode), 0);
       unaryStmtNode->SetSrcPos(uMeStmt->GetSrcPosition());
-      unaryStmtNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      unaryStmtNode->SetOriginalID(mestmt->GetOriginalId());
+      unaryStmtNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      unaryStmtNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[unaryStmtNode->GetStmtID()] = pmeExt;
       return unaryStmtNode;
     }
     case OP_switch: {
       SwitchNode *switchNode = codeMP->New<SwitchNode>(*codeMPAlloc);
-      SwitchMeStmt *meSwitch = static_cast<SwitchMeStmt *>(mestmt);
+      SwitchMeStmt *meSwitch = static_cast<SwitchMeStmt *>(meStmt);
       switchNode->SetSwitchOpnd(EmitPreMeExpr(meSwitch->GetOpnd(), switchNode));
       switchNode->SetDefaultLabel(meSwitch->GetDefaultLabel());
       switchNode->SetSwitchTable(meSwitch->GetSwitchTable());
       switchNode->SetSrcPos(meSwitch->GetSrcPosition());
-      switchNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      switchNode->SetOriginalID(mestmt->GetOriginalId());
+      switchNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      switchNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[switchNode->GetStmtID()] = pmeExt;
       return switchNode;
     }
     case OP_assertnonnull:
     case OP_assignassertnonnull:
     case OP_returnassertnonnull: {
-      AssertNonnullMeStmt *assertNullStmt = static_cast<AssertNonnullMeStmt *>(mestmt);
+      AssertNonnullMeStmt *assertNullStmt = static_cast<AssertNonnullMeStmt *>(meStmt);
       AssertNonnullStmtNode *assertNullNode = codeMP->New<AssertNonnullStmtNode>(
-      mestmt->GetOp(), assertNullStmt->GetFuncNameIdx());
-      assertNullNode->SetSrcPos(mestmt->GetSrcPosition());
+          meStmt->GetOp(), assertNullStmt->GetFuncNameIdx());
+      assertNullNode->SetSrcPos(meStmt->GetSrcPosition());
       assertNullNode->SetOpnd(EmitPreMeExpr(assertNullStmt->GetOpnd(), assertNullNode), 0);
       assertNullNode->SetNumOpnds(1);
-      assertNullNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      assertNullNode->SetOriginalID(mestmt->GetOriginalId());
+      assertNullNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      assertNullNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[assertNullNode->GetStmtID()] = pmeExt;
       return assertNullNode;
     }
@@ -725,23 +726,23 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
     case OP_assertlt:
     case OP_assignassertle:
     case OP_returnassertle: {
-      AssertBoundaryMeStmt *assertBoundaryStmt = static_cast<AssertBoundaryMeStmt *>(mestmt);
+      AssertBoundaryMeStmt *assertBoundaryStmt = static_cast<AssertBoundaryMeStmt *>(meStmt);
       AssertBoundaryStmtNode *assertBoundaryNode = codeMP->New<AssertBoundaryStmtNode>(
-          *codeMPAlloc, mestmt->GetOp(), assertBoundaryStmt->GetFuncNameIdx());
-      assertBoundaryNode->SetSrcPos(mestmt->GetSrcPosition());
+          *codeMPAlloc, meStmt->GetOp(), assertBoundaryStmt->GetFuncNameIdx());
+      assertBoundaryNode->SetSrcPos(meStmt->GetSrcPosition());
       for (uint32 i = 0; i < assertBoundaryStmt->GetOpnds().size(); i++) {
         assertBoundaryNode->GetNopnd().push_back(EmitPreMeExpr(assertBoundaryStmt->GetOpnd(i), assertBoundaryNode));
       }
       assertBoundaryNode->SetNumOpnds(static_cast<uint8>(assertBoundaryNode->GetNopndSize()));
-      assertBoundaryNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      assertBoundaryNode->SetOriginalID(mestmt->GetOriginalId());
+      assertBoundaryNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
+      assertBoundaryNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[assertBoundaryNode->GetStmtID()] = pmeExt;
       return assertBoundaryNode;
     }
     case OP_syncenter:
     case OP_syncexit: {
-      auto naryMeStmt = static_cast<NaryMeStmt *>(mestmt);
-      auto syncStmt = codeMP->New<NaryStmtNode>(*codeMPAlloc, mestmt->GetOp());
+      auto naryMeStmt = static_cast<NaryMeStmt *>(meStmt);
+      auto syncStmt = codeMP->New<NaryStmtNode>(*codeMPAlloc, meStmt->GetOp());
       for (uint32 i = 0; i < naryMeStmt->GetOpnds().size(); i++) {
         syncStmt->GetNopnd().push_back(EmitPreMeExpr(naryMeStmt->GetOpnd(i), syncStmt));
       }
@@ -753,8 +754,8 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
   }
 }
 
-void PreMeEmitter::EmitBB(BB *bb, BlockNode *curblk) {
-  CHECK_FATAL(curblk != nullptr, "null ptr check");
+void PreMeEmitter::EmitBB(BB *bb, BlockNode *curBlk) {
+  CHECK_FATAL(curBlk != nullptr, "null ptr check");
   bool setFirstFreq = (GetFuncProfData() != nullptr);
   bool setLastFreq = false;
   bool bbIsEmpty = bb->GetMeStmts().empty();
@@ -764,19 +765,19 @@ void PreMeEmitter::EmitBB(BB *bb, BlockNode *curblk) {
     // not a empty bb
     LabelNode *lbnode = codeMP->New<LabelNode>();
     lbnode->SetLabelIdx(labidx);
-    curblk->AddStatement(lbnode);
-    PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curblk);
+    curBlk->AddStatement(lbnode);
+    PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
     PreMeStmtExtensionMap[lbnode->GetStmtID()] = pmeExt;
     if (GetFuncProfData()) {
       GetFuncProfData()->SetStmtFreq(lbnode->GetStmtID(), bb->GetFrequency());
     }
   }
   for (auto& mestmt : bb->GetMeStmts()) {
-    StmtNode *stmt = EmitPreMeStmt(&mestmt, curblk);
+    StmtNode *stmt = EmitPreMeStmt(&mestmt, curBlk);
     if (!stmt) // can be null i.e, a goto to a label that was created by lno lower
       continue;
-    curblk->AddStatement(stmt);
-    // add <stmtID, freq> for first stmt in bb in curblk
+    curBlk->AddStatement(stmt);
+    // add <stmtID, freq> for first stmt in bb in curBlk
     if (GetFuncProfData() != nullptr) {
       if (setFirstFreq || (stmt->GetOpCode() == OP_call) || IsCallAssigned(stmt->GetOpCode())) {
         GetFuncProfData()->SetStmtFreq(stmt->GetStmtID(), bb->GetFrequency());
@@ -789,31 +790,31 @@ void PreMeEmitter::EmitBB(BB *bb, BlockNode *curblk) {
   if (bb->GetAttributes(kBBAttrIsTryEnd)) {
     /* generate op_endtry */
     StmtNode *endtry = codeMP->New<StmtNode>(OP_endtry);
-    curblk->AddStatement(endtry);
-    PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curblk);
+    curBlk->AddStatement(endtry);
+    PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
     PreMeStmtExtensionMap[endtry->GetStmtID()] = pmeExt;
     setLastFreq = true;
   }
   // add stmtnode to last
   if (GetFuncProfData()) {
     if (setLastFreq) {
-      GetFuncProfData()->SetStmtFreq(curblk->GetLast()->GetStmtID(), bb->GetFrequency());
+      GetFuncProfData()->SetStmtFreq(curBlk->GetLast()->GetStmtID(), bb->GetFrequency());
     } else if (bbIsEmpty) {
       LogInfo::MapleLogger() << " bb " << bb->GetBBId() << "no stmt used to add frequency, add commentnode\n";
       CommentNode *commentNode = codeMP->New<CommentNode>(*(mirFunc->GetModule()));
       commentNode->SetComment("freqStmt"+std::to_string(commentNode->GetStmtID()));
       GetFuncProfData()->SetStmtFreq(commentNode->GetStmtID(), bb->GetFrequency());
-      curblk->AddStatement(commentNode);
+      curBlk->AddStatement(commentNode);
     }
   }
 }
 
-DoloopNode *PreMeEmitter::EmitPreMeDoloop(BB *mewhilebb, BlockNode *curblk, PreMeWhileInfo *whileInfo) {
-  MeStmt *lastmestmt = mewhilebb->GetLastMe();
+DoloopNode *PreMeEmitter::EmitPreMeDoloop(BB *meWhileBB, BlockNode *curBlk, PreMeWhileInfo *whileInfo) {
+  MeStmt *lastmestmt = meWhileBB->GetLastMe();
   CHECK_FATAL(lastmestmt->GetPrev() == nullptr || dynamic_cast<AssignMeStmt *>(lastmestmt->GetPrev()) == nullptr,
               "EmitPreMeDoLoop: there are other statements at while header bb");
   DoloopNode *Doloopnode = codeMP->New<DoloopNode>();
-  PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curblk);
+  PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
   pmeExt->mestmt = lastmestmt;
   PreMeStmtExtensionMap[Doloopnode->GetStmtID()] = pmeExt;
   Doloopnode->SetDoVarStIdx(whileInfo->ivOst->GetMIRSymbol()->GetStIdx());
@@ -840,20 +841,20 @@ DoloopNode *PreMeEmitter::EmitPreMeDoloop(BB *mewhilebb, BlockNode *curblk, PreM
   PreMeExprExtensionMap[constnode] = doloopExt;
   Doloopnode->SetIncrExpr(constnode);
   Doloopnode->SetIsPreg(false);
-  curblk->AddStatement(Doloopnode);
+  curBlk->AddStatement(Doloopnode);
   // add stmtfreq
   if (GetFuncProfData()) {
-    GetFuncProfData()->SetStmtFreq(Doloopnode->GetStmtID(), mewhilebb->GetFrequency());
+    GetFuncProfData()->SetStmtFreq(Doloopnode->GetStmtID(), meWhileBB->GetFrequency());
   }
   return Doloopnode;
 }
 
-WhileStmtNode *PreMeEmitter::EmitPreMeWhile(BB *meWhilebb, BlockNode *curblk) {
-  MeStmt *lastmestmt = meWhilebb->GetLastMe();
+WhileStmtNode *PreMeEmitter::EmitPreMeWhile(BB *meWhileBB, BlockNode *curBlk) {
+  MeStmt *lastmestmt = meWhileBB->GetLastMe();
   CHECK_FATAL(lastmestmt->GetPrev() == nullptr || dynamic_cast<AssignMeStmt *>(lastmestmt->GetPrev()) == nullptr,
               "EmitPreMeWhile: there are other statements at while header bb");
   WhileStmtNode *Whilestmt = codeMP->New<WhileStmtNode>(OP_while);
-  PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curblk);
+  PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
   PreMeStmtExtensionMap[Whilestmt->GetStmtID()] = pmeExt;
   CondGotoMeStmt *condGotostmt = static_cast<CondGotoMeStmt *>(lastmestmt);
   Whilestmt->SetOpnd(EmitPreMeExpr(condGotostmt->GetOpnd(), Whilestmt), 0);
@@ -863,15 +864,15 @@ WhileStmtNode *PreMeEmitter::EmitPreMeWhile(BB *meWhilebb, BlockNode *curblk) {
   Whilestmt->SetBody(whilebodyNode);
   // add stmtfreq
   if (GetFuncProfData()) {
-    GetFuncProfData()->SetStmtFreq(Whilestmt->GetStmtID(), meWhilebb->GetFrequency());
+    GetFuncProfData()->SetStmtFreq(Whilestmt->GetStmtID(), meWhileBB->GetFrequency());
   }
-  curblk->AddStatement(Whilestmt);
+  curBlk->AddStatement(Whilestmt);
   return Whilestmt;
 }
 
-uint32 PreMeEmitter::Raise2PreMeWhile(uint32 curj, BlockNode *curblk) {
+uint32 PreMeEmitter::Raise2PreMeWhile(uint32 curJ, BlockNode *curBlk) {
   MapleVector<BB *> &bbvec = cfg->GetAllBBs();
-  BB *curbb = bbvec[curj];
+  BB *curbb = bbvec[curJ];
   LabelIdx whilelabidx = curbb->GetBBLabel();
   PreMeWhileInfo *whileInfo = preMeFunc->label2WhileInfo[whilelabidx];
 
@@ -884,19 +885,19 @@ uint32 PreMeEmitter::Raise2PreMeWhile(uint32 curj, BlockNode *curblk) {
   BB *endlblbb = condgotomestmt->GetOffset() == suc1->GetBBLabel() ? suc1 : suc0;
   BlockNode *dobody = nullptr;
   if (whileInfo->canConvertDoloop) {  // emit doloop
-    DoloopNode *doloopnode = EmitPreMeDoloop(curbb, curblk, whileInfo);
-    ++curj;
+    DoloopNode *doloopnode = EmitPreMeDoloop(curbb, curBlk, whileInfo);
+    ++curJ;
     dobody = static_cast<BlockNode *>(doloopnode->GetDoBody());
   } else { // emit while loop
-    WhileStmtNode *whileNode = EmitPreMeWhile(curbb, curblk);
-    ++curj;
-    dobody = static_cast<BlockNode *> (whileNode->GetBody());
+    WhileStmtNode *whileNode = EmitPreMeWhile(curbb, curBlk);
+    ++curJ;
+    dobody = static_cast<BlockNode *>(whileNode->GetBody());
   }
   // emit loop body
-  while (bbvec[curj]->GetBBId() != endlblbb->GetBBId()) {
-    curj = EmitPreMeBB(curj, dobody);
-    while (bbvec[curj] == nullptr) {
-      curj++;
+  while (bbvec[curJ]->GetBBId() != endlblbb->GetBBId()) {
+    curJ = EmitPreMeBB(curJ, dobody);
+    while (bbvec[curJ] == nullptr) {
+      curJ++;
     }
   }
   if (whileInfo->canConvertDoloop) {  // delete the increment statement
@@ -912,26 +913,26 @@ uint32 PreMeEmitter::Raise2PreMeWhile(uint32 curj, BlockNode *curblk) {
     int64_t freq = (endlblbb == suc0) ? suc1->GetFrequency() : suc0->GetFrequency();
     GetFuncProfData()->SetStmtFreq(dobody->GetStmtID(), freq);
   }
-  return curj;
+  return curJ;
 }
 
-uint32 PreMeEmitter::Raise2PreMeIf(uint32 curj, BlockNode *curblk) {
+uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
   MapleVector<BB *> &bbvec = cfg->GetAllBBs();
-  BB *curbb = bbvec[curj];
+  BB *curbb = bbvec[curJ];
   bool setFirstFreq = (GetFuncProfData() != nullptr);
   // emit BB contents before the if statement
   LabelIdx labidx = curbb->GetBBLabel();
   if (labidx != 0 && !preMeFunc->IfLabelCreatedByPreMe(labidx)) {
     LabelNode *lbnode = mirFunc->GetCodeMempool()->New<LabelNode>();
     lbnode->SetLabelIdx(labidx);
-    curblk->AddStatement(lbnode);
-    PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curblk);
+    curBlk->AddStatement(lbnode);
+    PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
     PreMeStmtExtensionMap[lbnode->GetStmtID()] = pmeExt;
   }
   MeStmt *mestmt = curbb->GetFirstMe();
   while (mestmt->GetOp() != OP_brfalse && mestmt->GetOp() != OP_brtrue) {
-    StmtNode *stmt = EmitPreMeStmt(mestmt, curblk);
-    curblk->AddStatement(stmt);
+    StmtNode *stmt = EmitPreMeStmt(mestmt, curBlk);
+    curBlk->AddStatement(stmt);
     if (GetFuncProfData() &&
         (setFirstFreq || (stmt->GetOpCode() == OP_call) || IsCallAssigned(stmt->GetOpCode()))) {
       // add frequency of first/call stmt of curbb
@@ -947,7 +948,7 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curj, BlockNode *curblk) {
   PreMeIfInfo *ifInfo = preMeFunc->label2IfInfo[condgoto->GetOffset()];
   CHECK_FATAL(ifInfo->endLabel != 0, "Raise2PreMeIf: endLabel not found");
   IfStmtNode *IfstmtNode = mirFunc->GetCodeMempool()->New<IfStmtNode>();
-  PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curblk);
+  PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
   PreMeStmtExtensionMap[IfstmtNode->GetStmtID()] = pmeExt;
   BaseNode *condnode = EmitPreMeExpr(condgoto->GetOpnd(), IfstmtNode);
   if (condgoto->IsBranchProbValid() && (condgoto->GetBranchProb() == kProbLikely ||
@@ -973,7 +974,7 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curj, BlockNode *curblk) {
   }
   IfstmtNode->SetOpnd(condnode, 0);
   IfstmtNode->SetMeStmtID(condgoto->GetMeStmtId());
-  curblk->AddStatement(IfstmtNode);
+  curBlk->AddStatement(IfstmtNode);
   if (GetFuncProfData()) {
     // set ifstmt freq
     GetFuncProfData()->SetStmtFreq(IfstmtNode->GetStmtID(), curbb->GetFrequency());
@@ -991,7 +992,7 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curj, BlockNode *curblk) {
     CHECK_FATAL(elsemebb, "Raise2PreMeIf: cannot find else BB");
     CHECK_FATAL(endmebb, "Raise2PreMeIf: cannot find BB at end of IF");
     // emit then branch;
-    uint32 j = curj + 1;
+    uint32 j = curJ + 1;
     while (j != elsemebb->GetBBId()) {
       j = EmitPreMeBB(j, thenBlk);
     }
@@ -1001,7 +1002,7 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curj, BlockNode *curblk) {
     }
     if (GetFuncProfData()) {
       // set then part/else part frequency
-      GetFuncProfData()->SetStmtFreq(thenBlk->GetStmtID(), bbvec[curj+1]->GetFrequency());
+      GetFuncProfData()->SetStmtFreq(thenBlk->GetStmtID(), bbvec[curJ + 1]->GetFrequency());
       GetFuncProfData()->SetStmtFreq(elseBlk->GetStmtID(), elsemebb->GetFrequency());
     }
     CHECK_FATAL(j < bbvec.size(), "");
@@ -1019,7 +1020,7 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curj, BlockNode *curblk) {
       IfstmtNode->SetElsePart(emptyBlock);
     }
     BB *endmebb = cfg->GetLabelBBAt(ifInfo->endLabel);
-    uint32 j = curj + 1;
+    uint32 j = curJ + 1;
     ASSERT_NOT_NULL(endmebb);
     while (j != endmebb->GetBBId()) {
       j = EmitPreMeBB(j, branchBlock);
@@ -1028,7 +1029,7 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curj, BlockNode *curblk) {
     if (GetFuncProfData()) {
       // set then part/else part frequency
       int64_t ifFreq = GetFuncProfData()->GetStmtFreq(IfstmtNode->GetStmtID());
-      int64_t branchFreq = bbvec[curj+1]->GetFrequency();
+      int64_t branchFreq = bbvec[curJ + 1]->GetFrequency();
       GetFuncProfData()->SetStmtFreq(branchBlock->GetStmtID(), branchFreq);
       GetFuncProfData()->SetStmtFreq(emptyBlock->GetStmtID(), (ifFreq - branchFreq));
     }
@@ -1036,18 +1037,18 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curj, BlockNode *curblk) {
   }
 }
 
-uint32 PreMeEmitter::EmitPreMeBB(uint32 curj, BlockNode *curblk) {
+uint32 PreMeEmitter::EmitPreMeBB(uint32 curJ, BlockNode *curBlk) {
   MapleVector<BB *> &bbvec = cfg->GetAllBBs();
-  BB *mebb = bbvec[curj];
+  BB *mebb = bbvec[curJ];
   if (!mebb || mebb == cfg->GetCommonEntryBB() || mebb == cfg->GetCommonExitBB()) {
-    return curj + 1;
+    return curJ + 1;
   }
   if (mebb->GetBBLabel() != 0) {
-    MapleMap<LabelIdx, PreMeWhileInfo*>::iterator it = preMeFunc->label2WhileInfo.find(mebb->GetBBLabel());
+    MapleMap<LabelIdx, PreMeWhileInfo*>::const_iterator it = preMeFunc->label2WhileInfo.find(mebb->GetBBLabel());
     if (it != preMeFunc->label2WhileInfo.end()) {
       if (mebb->GetSucc().size() == 2) {
-        curj = Raise2PreMeWhile(curj, curblk);
-        return curj;
+        curJ = Raise2PreMeWhile(curJ, curBlk);
+        return curJ;
       } else {
         preMeFunc->pmeCreatedWhileLabelSet.erase(mebb->GetBBLabel());
       }
@@ -1057,14 +1058,14 @@ uint32 PreMeEmitter::EmitPreMeBB(uint32 curj, BlockNode *curblk) {
       (mebb->GetLastMe()->GetOp() == OP_brfalse ||
        mebb->GetLastMe()->GetOp() == OP_brtrue)) {
     CondGotoMeStmt *condgoto = static_cast<CondGotoMeStmt *>(mebb->GetLastMe());
-    MapleMap<LabelIdx, PreMeIfInfo*>::iterator it = preMeFunc->label2IfInfo.find(condgoto->GetOffset());
+    MapleMap<LabelIdx, PreMeIfInfo*>::const_iterator it = preMeFunc->label2IfInfo.find(condgoto->GetOffset());
     if (it != preMeFunc->label2IfInfo.end()) {
-      curj = Raise2PreMeIf(curj, curblk);
-      return curj;
+      curJ = Raise2PreMeIf(curJ, curBlk);
+      return curJ;
     }
   }
-  EmitBB(mebb, curblk);
-  return ++curj;
+  EmitBB(mebb, curBlk);
+  return ++curJ;
 }
 
 bool MEPreMeEmission::PhaseRun(MeFunction &f) {
@@ -1102,6 +1103,13 @@ bool MEPreMeEmission::PhaseRun(MeFunction &f) {
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n**** After premeemit phase ****\n";
     mirfunction->Dump(false);
+  }
+
+  if (Options::enableInlineSummary) {
+    auto *inlineSummary = f.GetMirFunc()->GetInlineSummary();
+    if (inlineSummary != nullptr) {
+      inlineSummary->RefreshMapKeyIfNeeded();
+    }
   }
 
   return emitter;

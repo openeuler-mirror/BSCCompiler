@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021] Futurewei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -50,7 +50,6 @@ class PreMeFunction {
   MapleSet<LabelIdx> pmeCreatedIfLabelSet;
   MapleSet<LabelIdx> pmeCreatedWhileLabelSet;
 
- public:
   PreMeFunction(MemPool *mp, MeFunction *func)
       : pmemp(mp),
         pmeAlloc(mp),
@@ -65,7 +64,7 @@ class PreMeFunction {
     pmeCreatedIfLabelSet.insert(lbidx);
   }
 
-  bool IfLabelCreatedByPreMe(LabelIdx lbidx) {
+  bool IfLabelCreatedByPreMe(LabelIdx lbidx) const {
     return pmeCreatedIfLabelSet.count(lbidx) != 0;
   }
 
@@ -73,7 +72,7 @@ class PreMeFunction {
     pmeCreatedWhileLabelSet.insert(lbidx);
   }
 
-  bool WhileLabelCreatedByPreMe(LabelIdx lbidx) {
+  bool WhileLabelCreatedByPreMe(LabelIdx lbidx) const {
     return pmeCreatedWhileLabelSet.count(lbidx) != 0;
   }
 };
