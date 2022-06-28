@@ -411,6 +411,53 @@ BlockNode *LMBCLowerer::LowerBlock(BlockNode *block) {
         }
         break;
       }
+      case OP_call:
+      case OP_icallproto: {
+        for (size_t i = 0; i < stmt->NumOpnds(); ++i) {
+          if (stmt->Opnd(i)->GetPrimType() != PTY_agg) {
+            stmt->SetOpnd(LowerExpr(stmt->Opnd(i)), i);
+          } else {
+            bool paramInPrototype = false;
+            MIRFuncType *funcType = nullptr;
+            if (stmt->GetOpCode() == OP_icallproto) {
+              IcallNode *icallproto = static_cast<IcallNode*>(stmt);
+              funcType = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(icallproto->GetRetTyIdx()));
+              paramInPrototype = (i-1) < funcType->GetParamTypeList().size();
+            } else {
+              CallNode *callNode = static_cast<CallNode*>(stmt);
+              MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode->GetPUIdx());
+              funcType = calleeFunc->GetMIRFuncType();
+              paramInPrototype = i < funcType->GetParamTypeList().size();
+            }
+            if (paramInPrototype) {
+              stmt->SetOpnd(LowerExpr(stmt->Opnd(i)), i);
+            } else {  // lower to iread so the type can be provided
+              if (stmt->Opnd(i)->GetOpCode() ==  OP_iread) {
+                IreadNode *iread = static_cast<IreadNode *>(stmt->Opnd(i));
+                iread->SetOpnd(LowerExpr(iread->Opnd(0)), 0);
+              } else if (stmt->Opnd(i)->GetOpCode() ==  OP_dread) {
+                AddrofNode *addrof = static_cast<AddrofNode *>(stmt->Opnd(i));
+                FieldID fid = addrof->GetFieldID();
+                addrof->SetOpCode(OP_addrof);
+                addrof->SetPrimType(GetExactPtrPrimType());
+                addrof->SetFieldID(0);
+                MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(addrof->GetStIdx());
+                MIRPtrType ptrType(symbol->GetTyIdx(), GetExactPtrPrimType());
+                ptrType.SetTypeAttrs(symbol->GetAttrs());
+                TyIdx addrTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&ptrType);
+                if (addrTyIdx == becommon->GetSizeOfTypeSizeTable()) {
+                  MIRType *newType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(addrTyIdx);
+                  becommon->UpdateTypeTable(*newType);
+                }
+                IreadNode *newIread = mirModule->CurFuncCodeMemPool()->New<IreadNode>(OP_iread, PTY_agg, addrTyIdx, fid, LowerExpr(addrof));
+                stmt->SetOpnd(newIread, i);
+              }
+            }
+          }
+        }
+        newblk->AddStatement(stmt);
+        break;
+      }
       default: {
         for (size_t i = 0; i < stmt->NumOpnds(); ++i) {
           stmt->SetOpnd(LowerExpr(stmt->Opnd(i)), i);
