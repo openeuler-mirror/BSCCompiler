@@ -272,10 +272,11 @@ void DebugInfo::AddScopeDie(MIRScope *scope) {
     return;
   }
 
-  if (scope->GetLevel() != 0) {
+  MIRFunction *func = GetCurFunction();
+  if (scope != func->GetScope()) {
     DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_lexical_block);
-    die->AddAttr(DW_AT_low_pc, DW_FORM_addr, kDbgDefaultVal);
-    die->AddAttr(DW_AT_high_pc, DW_FORM_data8, kDbgDefaultVal);
+    die->AddAttr(DW_AT_low_pc, DW_FORM_addr, scope->GetId());
+    die->AddAttr(DW_AT_high_pc, DW_FORM_data8, scope->GetId());
 
     // add die to parent
     GetParentDie()->AddSubVec(die);
@@ -293,7 +294,7 @@ void DebugInfo::AddScopeDie(MIRScope *scope) {
     }
   }
 
-  if (scope->GetLevel() != 0) {
+  if (scope != func->GetScope()) {
     PopParentDie();
   }
 }
@@ -324,6 +325,48 @@ void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap) {
 
     // add alias var name to debug_str section
     strps.insert(i.first.GetIdx());
+  }
+}
+
+void DebugInfo::CollectScopePos(MIRFunction *func, MIRScope *scope) {
+  if (scope != func->GetScope()) {
+    ScopePos plow;
+    plow.id = scope->GetId();
+    plow.pos = scope->GetRangeLow();
+    funcScopeLows[func].push_back(plow);
+
+    ScopePos phigh;
+    phigh.id = scope->GetId();
+    phigh.pos = scope->GetRangeHigh();
+    funcScopeHighs[func].push_back(phigh);
+  }
+
+  if (scope->GetSubScopes().size() > 0) {
+    for (auto it : scope->GetSubScopes()) {
+      CollectScopePos(func, it);
+    }
+  }
+}
+
+// result is in idSet,
+// a set of scope ids which are crossed from oldSrcPos to newSrcPos
+void DebugInfo::GetCrossScopeId(MIRFunction *func,
+                                std::unordered_set<uint32> &idSet,
+                                bool isLow,
+                                SrcPosition &oldSrcPos,
+                                SrcPosition &newSrcPos) {
+  if (isLow) {
+    for (auto &it : funcScopeLows[func]) {
+      if (oldSrcPos.IsBf(it.pos) && (it.pos).IsBfOrEq(newSrcPos)) {
+        idSet.insert(it.id);
+      }
+    }
+  } else {
+    for (auto &it : funcScopeHighs[func]) {
+      if (oldSrcPos.IsBf(it.pos) && (it.pos).IsBfOrEq(newSrcPos)) {
+        idSet.insert(it.id);
+      }
+    }
   }
 }
 
@@ -675,6 +718,7 @@ DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum) {
 
   // add scope die
   AddScopeDie(func->GetScope());
+  CollectScopePos(func, func->GetScope());
 
   PopParentDie();
 

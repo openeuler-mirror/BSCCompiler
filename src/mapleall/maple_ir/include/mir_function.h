@@ -69,8 +69,7 @@ class MIRFunction {
   MIRFunction(MIRModule *mod, StIdx idx)
       : module(mod),
         symbolTableIdx(idx) {
-    // function scope is of level 0
-    scope = module->GetMemPool()->New<MIRScope>(module, 0);
+    scope = module->GetMemPool()->New<MIRScope>(module);
   }
 
   ~MIRFunction() = default;

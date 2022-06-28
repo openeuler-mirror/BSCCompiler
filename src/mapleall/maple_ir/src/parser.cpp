@@ -2490,14 +2490,9 @@ bool MIRParser::ParseOneScope(MIRScope &scope) {
 }
 
 bool MIRParser::ParseScope(StmtNodePtr &stmt) {
-  MIRScope *scp = mod.GetMemPool()->New<MIRScope>(&mod);
+  MIRScope *scp = mod.CurFunction()->GetScope();
   bool status = ParseOneScope(*scp);
-  if (status) {
-    mod.CurFunction()->GetScope()->AddScope(scp);
-  } else {
-    delete scp;
-  }
-  return true;
+  return status;
 }
 
 bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {

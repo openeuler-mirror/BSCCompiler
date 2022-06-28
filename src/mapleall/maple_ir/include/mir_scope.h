@@ -29,8 +29,7 @@ struct MIRAliasVars {
 
 class MIRScope {
  public:
-  // default to level 1, function scope is level 0 which is created by MIRFunction constructor
-  MIRScope(MIRModule *mod, unsigned l = 1);
+  MIRScope(MIRModule *mod);
   ~MIRScope() = default;
 
   bool NeedEmitAliasInfo() const {
@@ -40,10 +39,6 @@ class MIRScope {
   bool IsSubScope(const MIRScope *scp) const;
   bool HasJoinScope(const MIRScope *scp1, const MIRScope *scp2) const;
   bool HasSameRange(const MIRScope *s1, const MIRScope *s2) const;
-
-  unsigned GetLevel() const {
-    return level;
-  }
 
   unsigned GetId() const {
     return id;
@@ -88,7 +83,6 @@ class MIRScope {
 
  private:
   MIRModule *module;
-  unsigned level = 0;
   unsigned id;
   std::pair<SrcPosition, SrcPosition> range;
   // source to maple variable alias

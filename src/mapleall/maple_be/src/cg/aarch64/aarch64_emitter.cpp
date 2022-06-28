@@ -1362,7 +1362,7 @@ void AArch64AsmEmitter::EmitArrayClassCacheLoad(Emitter &emitter, const Insn &in
 #ifdef USE_32BIT_REF
   OpndProp prop2(prop0->GetOperandType(), prop0->GetRegProp(), prop0->GetSize() / 2);
   A64OpndEmitVisitor visitor2(emitter, prop2);
-  opnd0->Accept(visitor2);; /* ldr wd, ... for emui */
+  opnd0->Accept(visitor2); /* ldr wd, ... for emui */
 #else
   opnd0->Accept(visitor);  /* ldr xd, ... for qemu */
 #endif /* USE_32BIT_REF */
@@ -2096,11 +2096,25 @@ static DbgDescr dbgDescrTable[mpldbg::kOpDbgLast + 1] = {
 void AArch64AsmEmitter::EmitAArch64DbgInsn(Emitter &emitter, const Insn &insn) const {
   MOperator mOp = insn.GetMachineOpcode();
   DbgDescr &dbgDescr = dbgDescrTable[mOp];
-  (void)emitter.Emit("\t.").Emit(dbgDescr.name);
-  for (uint32 i = 0; i < dbgDescr.opndCount; ++i) {
-    (void)emitter.Emit(" ");
-    Operand &curOperand = insn.GetOperand(i);
-    curOperand.Emit(emitter, nullptr);
+  switch (mOp) {
+    case mpldbg::OP_DBG_scope:
+    {
+      unsigned val = (unsigned)(static_cast<ImmOperand&>(insn.GetOperand(0)).GetValue());
+      emitter.Emit(".LScp." + std::to_string(val));
+      val = (unsigned)(static_cast<ImmOperand&>(insn.GetOperand(1)).GetValue());
+      emitter.Emit((val == 0) ? "B:" : "E:");
+      break;
+    }
+    default:
+    {
+      (void)emitter.Emit("\t.").Emit(dbgDescr.name);
+      for (uint32 i = 0; i < dbgDescr.opndCount; ++i) {
+        (void)emitter.Emit(" ");
+        Operand &curOperand = insn.GetOperand(i);
+        curOperand.Emit(emitter, nullptr);
+      }
+      break;
+    }
   }
   (void)emitter.Emit("\n");
 }

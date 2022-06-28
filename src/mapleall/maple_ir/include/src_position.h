@@ -75,15 +75,36 @@ class SrcPosition {
     u.fileColumn.fileNum = i != 0 ? i : n;
   }
 
-  // as you read: this->IsBfOrEq(pos)
-  bool IsBfOrEq(SrcPosition pos) const {
-    return (pos.FileNum() == FileNum() &&
-           ((LineNum() < pos.LineNum()) ||
-            ((LineNum() == pos.LineNum()) && (Column() <= pos.Column()))));
+  void UpdateWith(const SrcPosition pos) {
+    u.fileColumn.fileNum = pos.FileNum();
+    u.fileColumn.column = pos.Column();
+    lineNum = pos.LineNum();
+    mplLineNum = pos.MplLineNum();
   }
 
-  bool IsSrcPostionEq(SrcPosition pos) const {
+  // as you read: pos0->IsBf(pos) "pos0 Is Before pos"
+  bool IsBf(SrcPosition pos) const {
+    return (pos.FileNum() == FileNum() &&
+           ((LineNum() < pos.LineNum()) ||
+            ((LineNum() == pos.LineNum()) && (Column() < pos.Column()))));
+  }
+
+  bool IsBfMpl(SrcPosition pos) const {
+    return (pos.FileNum() == FileNum() &&
+           ((MplLineNum() < pos.MplLineNum()) ||
+            ((MplLineNum() == pos.MplLineNum()) && (Column() < pos.Column()))));
+  }
+
+  bool IsEq(SrcPosition pos) const {
     return FileNum() == pos.FileNum() && LineNum() == pos.LineNum() && Column() == pos.Column();
+  }
+
+  bool IsBfOrEq(SrcPosition pos) const {
+    return IsBf(pos) || IsEq(pos);
+  }
+
+  bool IsEqMpl(SrcPosition pos) const {
+    return MplLineNum() == pos.MplLineNum();
   }
 
   void DumpLoc(uint32 &lastLineNum, uint16 &lastColumnNum) const {

@@ -3122,6 +3122,9 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
             CHECK_FATAL(lowpc != nullptr, "lowpc is null in Emitter::EmitDIAttrValue");
             EmitLabelRef(lowpc->GetId());    /* maybe deadbeef */
           }
+        } else if (tagName == DW_TAG_lexical_block) {
+          unsigned i = attr->GetU();
+          Emit(".LScp." + std::to_string(i) + "E-.LScp." + std::to_string(i) + "B");
         }
       } else {
         EmitHexUnsigned(static_cast<uint64>(static_cast<int64>(attr->GetI())));
@@ -3172,6 +3175,9 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           const std::string &fnameStr = GlobalTables::GetStrTable().GetStringFromStrIdx(fnameAttr->GetId());
           LabelOperand *res = memPool->New<LabelOperand>(fnameStr.c_str(), labelIdx);
           res->Emit(*this, nullptr);
+        } else if (tagName == DW_TAG_lexical_block) {
+          unsigned i = attr->GetU();
+          Emit(".LScp." + std::to_string(i) + "B");
         }
       } else if (attrName == DW_AT_high_pc) {
         if (tagName == DW_TAG_compile_unit) {

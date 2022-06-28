@@ -16,6 +16,7 @@
 #ifndef MAPLE_IR_INCLUDE_DBG_INFO_H
 #define MAPLE_IR_INCLUDE_DBG_INFO_H
 #include <iostream>
+#include <unordered_set>
 
 #include "mpl_logging.h"
 #include "types_def.h"
@@ -569,6 +570,11 @@ class DBGAbbrevEntryVec {
   MapleVector<DBGAbbrevEntry *> entryVec;
 };
 
+struct ScopePos {
+  uint32 id;
+  SrcPosition pos;
+};
+
 class DebugInfo {
  public:
   DebugInfo(MIRModule *m)
@@ -593,6 +599,8 @@ class DebugInfo {
         pointedPointerMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         funcLstrIdxDieIdMap(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
         funcLstrIdxLabIdxMap(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
+        funcScopeLows(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
+        funcScopeHighs(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
         strps(std::less<uint32>(), m->GetMPAllocator().Adapter()) {
     /* valid entry starting from index 1 as abbrevid starting from 1 as well */
     abbrevVec.push_back(nullptr);
@@ -751,6 +759,12 @@ class DebugInfo {
 
   void AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap);
   void AddScopeDie(MIRScope *scope);
+  void CollectScopePos(MIRFunction *func, MIRScope *scope);
+  void GetCrossScopeId(MIRFunction *func,
+                       std::unordered_set<uint32> &idSet,
+                       bool isLow,
+                       SrcPosition &oldSrcPos,
+                       SrcPosition &newSrcPos);
 
   // Functions for calculating the size and offset of each DW_TAG_xxx and DW_AT_xxx
   void ComputeSizeAndOffsets();
@@ -783,6 +797,10 @@ class DebugInfo {
   MapleMap<uint32, uint32> pointedPointerMap;
   MapleMap<MIRFunction *, std::map<uint32, uint32>> funcLstrIdxDieIdMap;
   MapleMap<MIRFunction *, std::map<uint32, LabelIdx>> funcLstrIdxLabIdxMap;
+
+  MapleMap<MIRFunction *, std::vector<ScopePos>> funcScopeLows;
+  MapleMap<MIRFunction *, std::vector<ScopePos>> funcScopeHighs;
+
   MapleSet<uint32> strps;
   std::string varPtrPrefix;
 };

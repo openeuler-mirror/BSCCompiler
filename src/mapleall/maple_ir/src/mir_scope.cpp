@@ -20,15 +20,11 @@ namespace maple {
 
 static unsigned scopeId = 0;
 
-MIRScope::MIRScope(MIRModule *mod, unsigned l) : module(mod), level(l), id(scopeId++) {}
+MIRScope::MIRScope(MIRModule *mod) : module(mod), id(scopeId++) {}
 
 // scp is a sub scope
 // (low (scp.low, scp.high] high]
 bool MIRScope::IsSubScope(const MIRScope *scp) const {
-  // special case for function level scope which might not have range specified
-  if (level == 0) {
-    return true;
-  }
   auto &l = GetRangeLow();
   auto &l1 = scp->GetRangeLow();
   // allow included file
@@ -57,14 +53,7 @@ bool MIRScope::HasSameRange(const MIRScope *scp1, const MIRScope *scp2) const {
   auto &h1 = scp1->GetRangeHigh();
   auto &l2 = scp2->GetRangeLow();
   auto &h2 = scp2->GetRangeHigh();
-  return l1.IsSrcPostionEq(l2) && h1.IsSrcPostionEq(h2);
-}
-
-void MIRScope::IncLevel() {
-  level++;
-  for (auto *s : subScopes) {
-    s->IncLevel();
-  }
+  return l1.IsEq(l2) && h1.IsEq(h2);
 }
 
 
@@ -84,32 +73,24 @@ bool MIRScope::AddScope(MIRScope *scope) {
                   s->GetRangeHigh().DumpLocWithColToString().c_str());
     }
   }
-  if (this != module->CurFunction()->GetScope()) {
-    // skip level incremental if this is function-scope, of level 0,
-    // as scope is aready starting from 1
-    scope->IncLevel();
-  }
   subScopes.push_back(scope);
   return true;
 }
 
 void MIRScope::Dump(int32 indent) const {
-  int32 ind = static_cast<int32>(level != 0);
-  if (level != 0) {
-    SrcPosition low = range.first;
-    SrcPosition high = range.second;
-    PrintIndentation(indent);
-    LogInfo::MapleLogger() << "SCOPE <(" <<
-      low.FileNum() << ", " <<
-      low.LineNum() << ", " <<
-      low.Column() << "), (" <<
-      high.FileNum() << ", " <<
-      high.LineNum() << ", " <<
-      high.Column() << ")> {\n";
-  }
+  SrcPosition low = range.first;
+  SrcPosition high = range.second;
+  PrintIndentation(indent);
+  LogInfo::MapleLogger() << "SCOPE <(" <<
+    low.FileNum() << ", " <<
+    low.LineNum() << ", " <<
+    low.Column() << "), (" <<
+    high.FileNum() << ", " <<
+    high.LineNum() << ", " <<
+    high.Column() << ")> {\n";
 
   for (auto it : aliasVarMap) {
-    PrintIndentation(indent + ind);
+    PrintIndentation(indent + 1);
     LogInfo::MapleLogger() << "ALIAS %" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first)
                            << ((it.second.isLocal) ? " %" : " $")
                            << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.mplStrIdx) << " ";
@@ -122,14 +103,12 @@ void MIRScope::Dump(int32 indent) const {
 
   for (auto it : subScopes) {
     if (it->NeedEmitAliasInfo()) {
-      it->Dump(indent + ind);
+      it->Dump(indent + 1);
     }
   }
 
-  if (level != 0) {
-    PrintIndentation(indent);
-    LogInfo::MapleLogger() << "}\n";
-  }
+  PrintIndentation(indent);
+  LogInfo::MapleLogger() << "}\n";
 }
 
 void MIRScope::Dump() const {

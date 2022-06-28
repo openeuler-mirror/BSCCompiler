@@ -1503,34 +1503,62 @@ bool CGFunc::CheckSkipMembarOp(const StmtNode &stmt) {
   return false;
 }
 
-void CGFunc::GenerateLoc(StmtNode *stmt, unsigned &lastSrcLoc, unsigned &lastMplLoc) {
+void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos) {
   /* insert Insn for .loc before cg for the stmt */
   if (cg->GetCGOptions().WithLoc() && stmt->op != OP_label && stmt->op != OP_comment) {
     /* if original src file location info is availiable for this stmt,
      * use it and skip mpl file location info for this stmt
      */
     bool hasLoc = false;
-    unsigned newSrcLoc = cg->GetCGOptions().WithSrc() ? stmt->GetSrcPos().LineNum() : 0;
-    if (newSrcLoc != 0 && newSrcLoc != lastSrcLoc) {
+    SrcPosition &newSrcPos = stmt->GetSrcPos();
+    if (cg->GetCGOptions().WithSrc() && lastSrcPos.IsBf(newSrcPos)) {
       /* .loc for original src file */
-      unsigned fileid = stmt->GetSrcPos().FileNum();
-      Operand *o0 = CreateDbgImmOperand(fileid);
-      Operand *o1 = CreateDbgImmOperand(newSrcLoc);
-      Insn &loc = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1);
+      Operand *o0 = CreateDbgImmOperand(newSrcPos.FileNum());
+      Operand *o1 = CreateDbgImmOperand(newSrcPos.LineNum());
+      Operand *o2 = CreateDbgImmOperand(newSrcPos.Column());
+      Insn &loc = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1, *o2);
       curBB->AppendInsn(loc);
-      lastSrcLoc = newSrcLoc;
+      lastSrcPos.UpdateWith(newSrcPos);
       hasLoc = true;
     }
     /* .loc for mpl file, skip if already has .loc from src for this stmt */
-    unsigned newMplLoc = cg->GetCGOptions().WithMpl() ? stmt->GetSrcPos().MplLineNum() : 0;
-    if (newMplLoc != 0 && newMplLoc != lastMplLoc && !hasLoc) {
-      unsigned fileid = 1;
-      Operand *o0 = CreateDbgImmOperand(fileid);
-      Operand *o1 = CreateDbgImmOperand(newMplLoc);
+    if (cg->GetCGOptions().WithMpl() && !hasLoc && lastMplPos.IsBfMpl(newSrcPos)) {
+      Operand *o0 = CreateDbgImmOperand(1);
+      Operand *o1 = CreateDbgImmOperand(newSrcPos.MplLineNum());
       Insn &loc = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1);
       curBB->AppendInsn(loc);
-      lastMplLoc = newMplLoc;
+      lastMplPos.UpdateWith(newSrcPos);
     }
+  }
+}
+
+void CGFunc::GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos) {
+  /* insert lable for scope begin and end .LScp.1B .LScp.1E */
+  MIRFunction &func = GetFunction();
+  DebugInfo *dbgInfo = GetMirModule().GetDbgInfo();
+  if (cg->GetCGOptions().WithDwarf() && stmt->op != OP_label && stmt->op != OP_comment) {
+    SrcPosition newSrcPos = stmt->GetSrcPos();
+    if (newSrcPos.FileNum() == 0) {
+      return;
+    }
+    std::unordered_set<uint32> idSet;
+    idSet.clear();
+    dbgInfo->GetCrossScopeId(&func, idSet, false, lastSrcPos, newSrcPos);
+    for (auto it : idSet) {
+      Operand *o0 = CreateDbgImmOperand(it);
+      Operand *o1 = CreateDbgImmOperand(1);
+      Insn &scope = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_scope, *o0, *o1);
+      curBB->AppendInsn(scope);
+    }
+    idSet.clear();
+    dbgInfo->GetCrossScopeId(&func, idSet, true, lastSrcPos, newSrcPos);
+    for (auto it : idSet) {
+      Operand *o0 = CreateDbgImmOperand(it);
+      Operand *o1 = CreateDbgImmOperand(0);
+      Insn &scope = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_scope, *o0, *o1);
+      curBB->AppendInsn(scope);
+    }
+    lastSrcPos.UpdateWith(newSrcPos);
   }
 }
 
@@ -1632,9 +1660,9 @@ void CGFunc::CreateLmbcFormalParamInfo() {
     }
   }
   std::sort(lmbcParamVec.begin(), lmbcParamVec.end(),
-                [] (const LmbcFormalParamInfo *x, const LmbcFormalParamInfo *y)
-                    { return x->GetOffset() < y->GetOffset(); }
-           );
+            [] (const LmbcFormalParamInfo *x, const LmbcFormalParamInfo *y)
+            { return x->GetOffset() < y->GetOffset(); }
+            );
 
   /* When a scalar param address is taken, its regassign is not in the 1st block */
   for (StmtNode *stmt = lmbcFunc.GetBody()->GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
@@ -1671,12 +1699,19 @@ void CGFunc::GenerateInstruction() {
 
   /* First Pass: Creates the doubly-linked list of BBs (next,prev) */
   volReleaseInsn = nullptr;
-  unsigned lastSrcLoc = 0;
-  unsigned lastMplLoc = 0;
+  SrcPosition lastLocPos = GetFunction().GetScope()->GetRangeLow();
+  SrcPosition lastScpPos = GetFunction().GetScope()->GetRangeLow();
+  SrcPosition lastMplPos = GetFunction().GetScope()->GetRangeLow();
+  SrcPosition lastStmtPos = GetFunction().GetScope()->GetRangeLow();
   std::set<uint32> bbFreqSet;
   for (StmtNode *stmt = secondStmt; stmt != nullptr; stmt = stmt->GetNext()) {
+    /* insert Insn for scope begin/end labels */
+    if (lastStmtPos.IsBf(stmt->GetSrcPos())) {
+      GenerateScopeLabel(stmt, lastScpPos);
+      lastStmtPos = stmt->GetSrcPos();
+    }
     /* insert Insn for .loc before cg for the stmt */
-    GenerateLoc(stmt, lastSrcLoc, lastMplLoc);
+    GenerateLoc(stmt, lastLocPos, lastMplPos);
     BB *tmpBB = curBB;
     isVolLoad = false;
     if (CheckSkipMembarOp(*stmt)) {
@@ -1722,9 +1757,6 @@ void CGFunc::GenerateInstruction() {
         volReleaseInsn = nullptr;
         isVolStore = false;
       }
-    }
-    if (curBB != tmpBB) {
-      lastSrcLoc = 0;
     }
   }
 
