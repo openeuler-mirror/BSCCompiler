@@ -149,6 +149,9 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
       if (func->GetBody() == nullptr) {
         continue;
       }
+      if (!IsQuiet()) {
+        LogInfo::MapleLogger() << ">>>> Generating LMBC for Function  < " << func->GetName() << " > [" << i - 1 << "]\n";
+      }
       m.SetCurFunction(func);
       cgLower.LowerFunc(*func);
       MemPool *layoutMp = memPoolCtrler.NewMemPool("layout mempool", true);
@@ -160,7 +163,7 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
       func->SetFrameSize(localMemLayout.StackFrameSize());
       memPoolCtrler.DeleteMemPool(layoutMp);
     }
-    globalMemLayout.seg_GPbased.size = maplebe::RoundUp(globalMemLayout.seg_GPbased.size, GetPrimTypeSize(PTY_ptr));
+    globalMemLayout.seg_GPbased.size = maplebe::RoundUp(static_cast<uint64>(globalMemLayout.seg_GPbased.size), GetPrimTypeSize(PTY_ptr));
     m.SetGlobalMemSize(globalMemLayout.seg_GPbased.size);
     // output .lmbc
     BinaryMplt binMplt(m);
