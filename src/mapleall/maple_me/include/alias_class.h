@@ -271,8 +271,9 @@ class AliasClass : public AnalysisResult {
   void CollectMayUseForNextLevel(const VersionSt &vst, std::set<OriginalSt*> &mayUseOsts,
                                  const StmtNode &stmt, bool isFirstOpnd);
   void CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<OriginalSt*> &mayUseOsts);
-  void CollectMayDefUseForCallOpnd(const StmtNode &stmt, std::set<OriginalSt*> &mayDefOsts,
-                                   std::set<OriginalSt*> &mayUseOsts);
+  void CollectMayDefUseForCallOpnd(const StmtNode &stmt,
+                                   std::set<OriginalSt*> &mayDefOsts, std::set<OriginalSt*> &mayUseOsts,
+                                   std::set<OriginalSt*> &mustNotDefOsts, std::set<OriginalSt*> &mustNotUseOsts);
   void InsertMayDefNodeForCall(std::set<OriginalSt*> &mayDefOsts, AccessSSANodes *ssaPart,
                                StmtNode &stmt, BBId bbid, bool hasNoPrivateDefEffect);
   void InsertMayUseExpr(BaseNode &expr);
@@ -297,6 +298,7 @@ class AliasClass : public AnalysisResult {
   void InsertMayUseNodeExcludeFinalOst(const std::set<OriginalSt*> &mayUseOsts, AccessSSANodes *ssaPart);
   void InsertMayDefUseIntrncall(StmtNode &stmt, BBId bbid);
   void InsertMayDefUseClinitCheck(IntrinsiccallNode &stmt, BBId bbid);
+  void InsertMayDefUseAsm(StmtNode &stmt, const BBId bbid);
   virtual BB *GetBB(BBId id) = 0;
   void ProcessIdsAliasWithRoot(const std::set<unsigned int> &idsAliasWithRoot, std::vector<unsigned int> &newGroups);
   int GetOffset(const Klass &super, const Klass &base) const;

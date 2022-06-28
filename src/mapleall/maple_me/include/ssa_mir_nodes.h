@@ -94,7 +94,7 @@ class MayUseNode {
   void Dump() const {
     LogInfo::MapleLogger() << " MAYU(";
     opnd->Dump();
-    LogInfo::MapleLogger() << ")";
+    LogInfo::MapleLogger() << ")\n";
   }
 
   bool operator==(const MayUseNode &other) const {

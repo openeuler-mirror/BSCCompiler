@@ -2543,6 +2543,53 @@ void AliasClass::InsertMayDefUseClinitCheck(IntrinsiccallNode &stmt, BBId bbid) 
   }
 }
 
+void AliasClass::InsertMayDefUseAsm(StmtNode &stmt, const BBId bbID) {
+  AsmNode &asmStmt = static_cast<AsmNode&>(stmt);
+
+  /* process listClobber */
+  for (size_t i = 0; i < asmStmt.clobberList.size(); ++i) {
+    const std::string &str = GlobalTables::GetUStrTable().GetStringFromStrIdx(asmStmt.clobberList[i]);
+    if (str[0] == 'm') {
+      InsertMayDefUseCall(stmt, bbID, false);
+      return;
+    }
+  }
+
+  auto *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
+  std::set<OriginalSt*> mayDefOsts;
+  std::set<OriginalSt*> mayUseOsts;
+  /* process input constraint */
+  for (size_t i = 0; i < asmStmt.numOpnds; ++i) {
+    BaseNode *expr = asmStmt.Opnd(i);
+    expr = RemoveTypeConversionIfExist(expr);
+    if (!IsPotentialAddress(expr->GetPrimType())) {
+      continue;
+    }
+
+    AliasInfo aInfo = CreateAliasInfoExpr(*expr);
+    if (aInfo.vst == nullptr) {
+      continue;
+    }
+
+    if (aInfo.vst->GetOst()->GetType()->PointsToConstString()) {
+      continue;
+    }
+
+    CollectMayUseForNextLevel(*aInfo.vst, mayUseOsts, stmt, false);
+
+    const std::string &str = GlobalTables::GetUStrTable().GetStringFromStrIdx(asmStmt.inputConstraints[i]);
+    if (str[0] == '+') {
+      CollectMayUseForNextLevel(*aInfo.vst, mayDefOsts, stmt, false);
+    }
+  }
+
+  /* process output -- outputs are handled in mustdefs of the stmt. */
+  CollectMayDefForMustDefs(stmt, mayDefOsts);
+
+  InsertMayUseNode(mayUseOsts, ssaPart);
+  InsertMayDefNode(mayDefOsts, ssaPart, stmt, bbID);
+}
+
 void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
   for (size_t i = 0; i < stmt.NumOpnds(); ++i) {
     InsertMayUseExpr(*stmt.Opnd(i));
@@ -2576,7 +2623,10 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
       InsertMayDefUseCall(stmt, bbID, true);
       return;
     }
-    case OP_asm:
+    case OP_asm: {
+      InsertMayDefUseAsm(stmt, bbID);
+      return;
+    }
     case OP_virtualcallassigned:
     case OP_virtualicallassigned:
     case OP_superclasscallassigned:
