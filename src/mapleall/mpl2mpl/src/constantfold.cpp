@@ -47,6 +47,23 @@ namespace maple {
 // A. Analyze expression type
 // B. Analysis operator type
 // C. Replace the expression with the result of the operation
+
+// true if the constant's bits are made of only one group of contiguous 1's
+// starting at bit 0
+static bool ContiguousBitsOf1(uint64 x) {
+  if (x == 0) {
+    return false;
+  }
+  return (~x & (x+1)) == (x+1);
+}
+
+inline bool IsPowerOf2(uint64 num) {
+  if (num == 0) {
+    return false;
+  }
+  return (~(num - 1) & num) == num;
+}
+
 BinaryNode *ConstantFold::NewBinaryNode(BinaryNode *old, Opcode op, PrimType primType,
                                         BaseNode *lhs, BaseNode *rhs) const {
   CHECK_NULL_FATAL(old);
@@ -1667,6 +1684,46 @@ ConstvalNode *ConstantFold::FoldSignExtend(Opcode opcode, PrimType resultType, u
   return resultConst;
 }
 
+// check if truncation is redundant due to dread or iread having same effect
+static bool ExtractbitsRedundant(ExtractbitsNode *x, MIRFunction *f) {
+  if (GetPrimTypeSize(x->GetPrimType()) == 8) {
+    return false;  // this is trying to be conservative
+  }
+  BaseNode *opnd = x->Opnd(0);
+  MIRType *mirType = nullptr;
+  if (opnd->GetOpCode() == OP_dread) {
+    DreadNode *dread = static_cast<DreadNode *>(opnd);
+    MIRSymbol *sym = f->GetLocalOrGlobalSymbol(dread->GetStIdx());
+    mirType = sym->GetType();
+    if (dread->GetFieldID() != 0) {
+      MIRStructType *structType = dynamic_cast<MIRStructType*>(mirType);
+      if (structType == nullptr) {
+        return false;
+      }
+      mirType = structType->GetFieldType(dread->GetFieldID());
+    }
+  } else if (opnd->GetOpCode() == OP_iread) {
+    IreadNode *iread = static_cast<IreadNode *>(opnd);
+    MIRPtrType *ptrType = dynamic_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(iread->GetTyIdx()));
+    if (ptrType == nullptr) {
+      return false;
+    }
+    mirType = ptrType->GetPointedType();
+    if (iread->GetFieldID() != 0) {
+      MIRStructType *structType = dynamic_cast<MIRStructType*>(mirType);
+      if (structType == nullptr) {
+        return false;
+      }
+      mirType = structType->GetFieldType(iread->GetFieldID());
+    }
+  } else {
+    return false;
+  }
+  return IsPrimitiveInteger(mirType->GetPrimType()) &&
+         mirType->GetSize() * 8 == x->GetBitsSize() && 
+         IsSignedInteger(mirType->GetPrimType()) == IsSignedInteger(x->GetPrimType());
+}
+
 // sext and zext also handled automatically
 std::pair<BaseNode*, int64> ConstantFold::FoldExtractbits(ExtractbitsNode *node) {
   CHECK_NULL_FATAL(node);
@@ -1695,6 +1752,11 @@ std::pair<BaseNode*, int64> ConstantFold::FoldExtractbits(ExtractbitsNode *node)
     uint8 opndSize = static_cast<ExtractbitsNode*>(opnd)->GetBitsSize();
     if (offset == opndOffset && size == opndSize) {
       result->SetOpnd(opnd->Opnd(0), 0);  // delete the redundant extraction
+    }
+  }
+  if (offset == 0 && size >= 8 && IsPowerOf2(size)) {
+    if (ExtractbitsRedundant(static_cast<ExtractbitsNode *>(result), mirModule->CurFunction())) {
+      return std::make_pair(result->Opnd(0), 0);
     }
   }
   return std::make_pair(result, 0);
@@ -1917,6 +1979,31 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       // X & (-1) -> X
       sum = lp.second;
       result = l;
+    } else if (op == OP_band && ContiguousBitsOf1(cst) && lp.second == 0) {
+      bool fold2extractbits = false;
+      if (l->GetOpCode() == OP_ashr || l->GetOpCode() == OP_lshr) {
+        BinaryNode *shrNode = static_cast<BinaryNode *>(l);
+        if (shrNode->Opnd(1)->GetOpCode() == OP_constval) {
+          ConstvalNode *shrOpnd = static_cast<ConstvalNode *>(shrNode->Opnd(1));
+          int64 shrAmt = static_cast<MIRIntConst*>(shrOpnd->GetConstVal())->GetValue();
+          uint64 ucst = cst;
+          uint64 bsize = 0;
+          do {
+            bsize++;
+            ucst >>= 1;
+          } while (ucst != 0);
+          if (shrAmt + bsize <= GetPrimTypeSize(primType) * 8) {
+            fold2extractbits = true;
+            // change to use extractbits
+            result = mirModule->GetMIRBuilder()->CreateExprExtractbits(OP_extractbits, GetUnsignedPrimType(primType), shrAmt, bsize, shrNode->Opnd(0));
+            sum = 0;
+          }
+        }
+      }
+      if (!fold2extractbits) {
+        result = NewBinaryNode(node, op, primType, PairToExpr(lPrimTypes, lp), r);
+        sum = 0;
+      }
     } else if (op == OP_bior && cst == -1) {
       // X | (-1) -> -1
       sum = 0;

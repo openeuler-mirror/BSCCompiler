@@ -596,7 +596,7 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
   }
   if (IsPrimitiveInteger(lhsTy->GetPrimType()) &&
       lhsTy->GetPrimType() != PTY_ptr && lhsTy->GetPrimType() != PTY_ref) {
-    if (GetPrimTypeSize(lhsTy->GetPrimType()) < GetPrimTypeSize(rhs->GetPrimType())) {
+    if (GetPrimTypeSize(lhsTy->GetPrimType()) < GetPrimTypeSize(GetRegPrimType(rhs->GetPrimType()))) {
       if (GetPrimTypeSize(lhsTy->GetPrimType()) >= 4) {
         return irMap.CreateMeExprTypeCvt(lhsTy->GetPrimType(), rhs->GetPrimType(), *rhs);
       } else {
@@ -657,17 +657,18 @@ MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
       propsPerformed >= propLimit) {
     return varMeExpr;
   }
-  if (st->GetType() && st->GetType()->GetKind() == kTypePointer) {
-    MIRPtrType *ptrType = static_cast<MIRPtrType *>(st->GetType());
-    if (ptrType->GetPointedType()->GetKind() == kTypeFunction) {
-      return varMeExpr;
-    }
-  }
 
   if (varMeExpr.GetDefBy() == kDefByStmt) {
     DassignMeStmt *defStmt = static_cast<DassignMeStmt*>(varMeExpr.GetDefStmt());
     ASSERT(defStmt != nullptr, "dynamic cast result is nullptr");
     MeExpr *rhs = defStmt->GetRHS();
+    if (st->GetType() && st->GetType()->GetKind() == kTypePointer) {
+      if (static_cast<MIRPtrType *>(st->GetType())->IsFunctionPtr()) {
+        if (rhs->GetMeOp() != kMeOpAddroffunc) {
+          return varMeExpr;
+        }
+      }
+    }
     uint32 treeLevelLimitUsed = kPropTreeLevel;
     if (varMeExpr.GetOst()->storesIVInitValue) {
       treeLevelLimitUsed = treeLevelLimitUsed >> 2;

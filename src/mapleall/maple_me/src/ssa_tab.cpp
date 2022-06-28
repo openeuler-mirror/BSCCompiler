@@ -28,9 +28,23 @@
 // stored in class SSATab's StmtsSSAPart, which has an array of pointers indexed
 // by the stmtID field of each statement node.
 namespace maple {
+// iteratively collect next level of vst
+void SSATab::CollectIterNextLevel(size_t vstIdx, std::set<OriginalSt*> &resultOsts) {
+  auto *nextLevelOsts = GetNextLevelOsts(vstIdx);
+  if (nextLevelOsts == nullptr) {
+    return;
+  }
+  resultOsts.insert(nextLevelOsts->begin(), nextLevelOsts->end());
+  for (OriginalSt *nextLevelOst : *nextLevelOsts) {
+    for (auto allVstOfOst : nextLevelOst->GetVersionsIndices()) {
+      CollectIterNextLevel(allVstOfOst, resultOsts);
+    }
+  }
+}
+
 BaseNode *SSATab::CreateSSAExpr(BaseNode *expr) {
   bool arrayLowered = false;
-  while (expr->GetOpCode() == OP_array && !mirModule.IsJavaModule() && !func->IsLfo()) {
+  while (expr->GetOpCode() == OP_array && !mirModule.IsJavaModule() && !func->IsPme()) {
     MIRLower mirLower(mirModule, mirModule.CurFunction());
     expr = mirLower.LowerCArray(static_cast<ArrayNode*>(expr));
     arrayLowered = true;
@@ -50,6 +64,9 @@ BaseNode *SSATab::CreateSSAExpr(BaseNode *expr) {
     ssaNode->SetSSAVar(*versionStTable.GetZeroVersionSt(ost));
     return ssaNode;
   } else if (expr->GetOpCode() == OP_regread) {
+    if (expr->IsSSANode()) {
+      return mirModule.CurFunction()->GetCodeMemPool()->New<RegreadSSANode>(*static_cast<RegreadSSANode*>(expr));
+    }
     RegreadNode *regReadNode = static_cast<RegreadNode*>(expr);
     RegreadSSANode *ssaNode = mirModule.CurFunction()->GetCodeMemPool()->New<RegreadSSANode>(*regReadNode);
     OriginalSt *ost =
@@ -74,6 +91,16 @@ BaseNode *SSATab::CreateSSAExpr(BaseNode *expr) {
     if (newOpnd != nullptr) {
       expr->SetOpnd(newOpnd, i);
     }
+  }
+  // special lowering for trunc whose result has size less than 4 bytes
+  if (expr->GetOpCode() == OP_trunc && GetPrimTypeSize(expr->GetPrimType()) < 4) {
+    Opcode extOp = IsSignedInteger(expr->GetPrimType()) ? OP_sext : OP_zext;
+    uint32 extSize = GetPrimTypeBitSize(expr->GetPrimType());
+    PrimType newPrimType = GetRegPrimType(expr->GetPrimType());
+    expr->SetPrimType(newPrimType);
+    BaseNode *extNode = mirModule.CurFunction()->GetCodeMemPool()->New<ExtractbitsNode>(extOp, newPrimType, 0, extSize);
+    extNode->SetOpnd(expr, 0);
+    return extNode;
   }
   return arrayLowered ? expr : nullptr;
 }
