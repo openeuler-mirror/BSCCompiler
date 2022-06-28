@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021] Futurewei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -66,6 +66,7 @@ class PreMeEmitter : public AnalysisResult {
       return nullptr;
     }
     PreMeMIRExtension *pmeExt = it->second;
+    ASSERT_NOT_NULL(pmeExt);
     return pmeExt->meexpr;
   }
   MeStmt *GetMeStmt(uint32_t stmtID) {

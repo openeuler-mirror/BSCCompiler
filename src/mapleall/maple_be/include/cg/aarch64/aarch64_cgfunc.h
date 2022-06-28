@@ -30,10 +30,10 @@ namespace maplebe {
 class LmbcArgInfo {
  public:
   explicit LmbcArgInfo(MapleAllocator &mallocator)
-    : lmbcCallArgs(mallocator.Adapter()),
-      lmbcCallArgTypes(mallocator.Adapter()),
-      lmbcCallArgOffsets(mallocator.Adapter()),
-      lmbcCallArgNumOfRegs(mallocator.Adapter()) {}
+      : lmbcCallArgs(mallocator.Adapter()),
+        lmbcCallArgTypes(mallocator.Adapter()),
+        lmbcCallArgOffsets(mallocator.Adapter()),
+        lmbcCallArgNumOfRegs(mallocator.Adapter()) {}
   MapleVector<RegOperand*> lmbcCallArgs;
   MapleVector<PrimType> lmbcCallArgTypes;
   MapleVector<int32> lmbcCallArgOffsets;
@@ -128,7 +128,6 @@ class AArch64CGFunc : public CGFunc {
   MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
   uint32 LmbcFindTotalStkUsed(std::vector<TyIdx>* paramList);
   uint32 LmbcTotalRegsUsed();
-  void LmbcSelectParmList(ListOperand *srcOpnds, bool isArgReturn);
   bool LmbcSmallAggForRet(const BlkassignoffNode &bNode, const Operand *src);
   bool LmbcSmallAggForCall(BlkassignoffNode &bNode, const Operand *src, std::vector<TyIdx> **parmList);
   void SelectAggDassign(DassignNode &stmt) override;

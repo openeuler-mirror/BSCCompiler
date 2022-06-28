@@ -8466,56 +8466,6 @@ void AArch64CGFunc::IntrinsifyStringIndexOf(ListOperand &srcOpnds, const MIRSymb
   SetCurBB(*jointBB);
 }
 
-/* Lmbc calls have no argument, they are all explicit iassignspoff or
-   blkassign.  Info collected and to be emitted here */
-void AArch64CGFunc::LmbcSelectParmList(ListOperand *srcOpnds, bool isArgReturn) {
-  if (GetLmbcArgInfo() == nullptr) {
-    return;   /* no arg */
-  }
-  CHECK_FATAL(GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc, "To be called for Lmbc model only");
-  MapleVector<RegOperand*> &args = GetLmbcCallArgs();
-  MapleVector<PrimType> &types = GetLmbcCallArgTypes();
-  MapleVector<int32> &offsets = GetLmbcCallArgOffsets();
-  MapleVector<int32> &regs = GetLmbcCallArgNumOfRegs();
-  int iCnt = 0;
-  int fCnt = 0;
-  for (size_t i = isArgReturn ? 1 : 0; i < args.size(); i++) {
-    RegType ty = args[i]->GetRegisterType();
-    PrimType pTy = types[i];
-    AArch64reg reg;
-    if (args[i]->IsOfIntClass() && (iCnt + regs[i]) <= static_cast<int32>(k8ByteSize)) {
-      reg = static_cast<AArch64reg>(R0 + iCnt++);
-      RegOperand *res = &GetOrCreatePhysicalRegisterOperand(
-          reg, GetPrimTypeSize(pTy) * kBitsPerByte, ty);
-      SelectCopy(*res, pTy, *args[i], pTy);
-      srcOpnds->PushOpnd(*res);
-    } else if (!args[i]->IsOfIntClass() && (fCnt + regs[i]) <= static_cast<int32>(k8ByteSize)) {
-      reg = static_cast<AArch64reg>(V0 + fCnt++);
-      RegOperand *res = &GetOrCreatePhysicalRegisterOperand(
-          reg, GetPrimTypeSize(pTy) * kBitsPerByte, ty);
-      SelectCopy(*res, pTy, *args[i], pTy);
-      srcOpnds->PushOpnd(*res);
-    } else {
-      uint32 pSize = GetPrimTypeSize(pTy);
-      Operand &memOpd = CreateMemOpnd(RSP, offsets[i], pSize);
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(pSize * kBitsPerByte, pTy),
-          *args[i], memOpd));
-    }
-  }
-  /* Load x8 if 1st arg is for agg return */
-  if (isArgReturn) {
-    AArch64reg reg = static_cast<AArch64reg>(R8);
-    RegOperand *res = &GetOrCreatePhysicalRegisterOperand(reg,
-                                                          GetPrimTypeSize(PTY_a64) * kBitsPerByte,
-                                                          kRegTyInt);
-    SelectCopy(*res, PTY_a64, *args[0], PTY_a64);
-    srcOpnds->PushOpnd(*res);
-  }
-  ResetLmbcArgInfo();     /* reset */
-  ResetLmbcArgsInRegs();
-  ResetLmbcTotalArgs();
-}
-
 void AArch64CGFunc::SelectCall(CallNode &callNode) {
   MIRFunction *fn = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode.GetPUIdx());
   MIRSymbol *fsym = GetFunction().GetLocalOrGlobalSymbol(fn->GetStIdx(), false);
@@ -8529,18 +8479,15 @@ void AArch64CGFunc::SelectCall(CallNode &callNode) {
   ListOperand *srcOpnds = CreateListOpnd(*GetFuncScopeAllocator());
   if (GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
     SetLmbcCallReturnType(nullptr);
-    bool largeStructRet = false;
     if (fn->IsFirstArgReturn()) {
       MIRPtrType *ptrTy = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(
           fn->GetFormalDefVec()[0].formalTyIdx));
       MIRType *sTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrTy->GetPointedTyIdx());
-      largeStructRet = sTy->GetSize() > k16ByteSize;
       SetLmbcCallReturnType(sTy);
     } else {
       MIRType *ty = fn->GetReturnType();
       SetLmbcCallReturnType(ty);
     }
-    LmbcSelectParmList(srcOpnds, largeStructRet);
   }
   bool callNative = false;
   if ((fsym->GetName() == "MCC_CallFastNative") || (fsym->GetName() == "MCC_CallFastNativeExt") ||
