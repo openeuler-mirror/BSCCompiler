@@ -1720,7 +1720,7 @@ static bool ExtractbitsRedundant(ExtractbitsNode *x, MIRFunction *f) {
     return false;
   }
   return IsPrimitiveInteger(mirType->GetPrimType()) &&
-         mirType->GetSize() * 8 == x->GetBitsSize() && 
+         mirType->GetSize() * 8 == x->GetBitsSize() &&
          IsSignedInteger(mirType->GetPrimType()) == IsSignedInteger(x->GetPrimType());
 }
 
@@ -1995,7 +1995,8 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
           if (shrAmt + bsize <= GetPrimTypeSize(primType) * 8) {
             fold2extractbits = true;
             // change to use extractbits
-            result = mirModule->GetMIRBuilder()->CreateExprExtractbits(OP_extractbits, GetUnsignedPrimType(primType), shrAmt, bsize, shrNode->Opnd(0));
+            result = mirModule->GetMIRBuilder()->CreateExprExtractbits(OP_extractbits,
+                GetUnsignedPrimType(primType), shrAmt, bsize, shrNode->Opnd(0));
             sum = 0;
           }
         }
