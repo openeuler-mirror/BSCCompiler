@@ -371,6 +371,17 @@ bool NegCmpToCmnPattern::CheckCondition(Insn &insn) {
       prevMop != MOP_winegrrs && prevMop != MOP_xinegrrs) {
     return false;
   }
+  auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  InsnSet useInsns = GetAllUseInsn(ccReg);
+  for (auto *useInsn : useInsns) {
+    if (useInsn == nullptr) {
+      continue;
+    }
+    MOperator useMop = useInsn->GetMachineOpcode();
+    if (useMop == MOP_bhi) {
+      return false;
+    }
+  }
   return true;
 }
 
