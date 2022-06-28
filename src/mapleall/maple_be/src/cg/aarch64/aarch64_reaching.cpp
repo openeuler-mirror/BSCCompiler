@@ -425,14 +425,15 @@ std::vector<Insn*> AArch64ReachingDefinition::FindMemDefBetweenInsn(
       continue;
     }
 
-    if (insn->IsCall()) {
-      if (insn->GetMachineOpcode() == MOP_asm) {
-        if (insn->IsAsmModMem()) {
-          defInsnVec.emplace_back(insn);
-          return defInsnVec;
-        }
-        continue;
+    if (insn->GetMachineOpcode() == MOP_asm) {
+      if (insn->IsAsmModMem()) {
+        defInsnVec.emplace_back(insn);
+        return defInsnVec;
       }
+      continue;
+    }
+
+    if (insn->IsCall()) {
       if (CallInsnClearDesignateStackRef(*insn, offset)) {
         defInsnVec.emplace_back(insn);
         return defInsnVec;
