@@ -639,6 +639,8 @@ class AArch64CGFunc : public CGFunc {
   MemOperand &SplitOffsetWithAddInstruction(const MemOperand &memOpnd, uint32 bitLen,
                                             uint32 baseRegNum = AArch64reg::kRinvalid, bool isDest = false,
                                             Insn *insn = nullptr, bool forPair = false);
+  ImmOperand &SplitAndGetRemained(const MemOperand &memOpnd, uint32 bitLen, RegOperand *resOpnd, int64 ofstVal,
+                                  bool isDest = false, Insn *insn = nullptr, bool forPair = false);
   MemOperand &CreateReplacementMemOperand(uint32 bitLen, RegOperand &baseReg, int64 offset);
 
   bool HasStackLoadStore();

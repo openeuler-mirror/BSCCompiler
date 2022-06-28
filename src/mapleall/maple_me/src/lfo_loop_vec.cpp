@@ -1320,7 +1320,8 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
           CanWidenOpcode(node, GetVecElemPrimType(opnd1PrimType))) {
         GenWidenBinaryExpr(binNode->GetOpCode(), vecopnd1, vecopnd2, vectorizedNode);
       } else if ((PTY_begin != GetVecElemPrimType(opnd2PrimType)) &&
-                 (GetPrimTypeSize(GetVecElemPrimType(opnd2PrimType)) > GetPrimTypeSize(GetVecElemPrimType(opnd1PrimType)))) {
+                 (GetPrimTypeSize(GetVecElemPrimType(opnd2PrimType)) >
+                 GetPrimTypeSize(GetVecElemPrimType(opnd1PrimType)))) {
         // opnd2 is uniform scalar and type is different from opnd1
         // widen opnd1 with same element type as opnd2
         BaseNode *newopnd1 = vecopnd1[0];
@@ -1558,7 +1559,7 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
           // rhs replaced scalar node with vector node
           newrhs = tp->vecInfo->uniformVecNodes[rhs];
           if (GetPrimTypeSize(GetVecElemPrimType(newrhs->GetPrimType())) < tp->vecInfo->currentLHSTypeSize) {
-            newrhs = (BaseNode *)GenVectorWidenOpnd(newrhs, newrhs->GetPrimType(), false);
+            newrhs = GenVectorWidenOpnd(newrhs, newrhs->GetPrimType(), false);
           }
         } else {
           MapleVector<BaseNode *> vecRhs(localAlloc.Adapter());

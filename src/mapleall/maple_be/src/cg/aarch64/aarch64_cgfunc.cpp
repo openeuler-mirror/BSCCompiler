@@ -908,14 +908,8 @@ MemOperand &AArch64CGFunc::ConstraintOffsetToSafeRegion(uint32 bitLen, const Mem
   return newMemOpnd;
 }
 
-MemOperand &AArch64CGFunc::SplitOffsetWithAddInstruction(const MemOperand &memOpnd, uint32 bitLen,
-                                                         uint32 baseRegNum, bool isDest,
-                                                         Insn *insn, bool forPair) {
-  ASSERT((memOpnd.GetAddrMode() == MemOperand::kAddrModeBOi), "expect kAddrModeBOi memOpnd");
-  ASSERT(memOpnd.IsIntactIndexed(), "expect intactIndexed memOpnd");
-  OfstOperand *ofstOpnd = memOpnd.GetOffsetImmediate();
-  int64 opndVal = ofstOpnd->GetOffsetValue();
-
+ImmOperand &AArch64CGFunc::SplitAndGetRemained(const MemOperand &memOpnd, uint32 bitLen, RegOperand *resOpnd,
+                                               int64 ofstVal, bool isDest, Insn *insn, bool forPair) {
   auto it = hashMemOpndTable.find(memOpnd);
   if (it != hashMemOpndTable.end()) {
     hashMemOpndTable.erase(memOpnd);
@@ -937,13 +931,13 @@ MemOperand &AArch64CGFunc::SplitOffsetWithAddInstruction(const MemOperand &memOp
   }
   ASSERT(maxPimm != 0, "get max pimm failed");
 
-  int64 q0 = opndVal / maxPimm + (opndVal < 0 ? -1 : 0);
+  int64 q0 = ofstVal / maxPimm + (ofstVal < 0 ? -1 : 0);
   int64 addend = q0 * maxPimm;
-  int64 r0 = opndVal - addend;
+  int64 r0 = ofstVal - addend;
   int64 alignment = MemOperand::GetImmediateOffsetAlignment(bitLen);
-  int64 q1 = static_cast<int64>(static_cast<uint64>(r0) >> static_cast<uint64>(alignment));
-  int64 r1 = static_cast<int64>(static_cast<uint64>(r0) & ((1u << static_cast<uint64>(alignment)) - 1));
-  int64 remained = static_cast<int64>(static_cast<uint64>(q1) << static_cast<uint64>(alignment));
+  auto q1 = static_cast<int64>(static_cast<uint64>(r0) >> static_cast<uint64>(alignment));
+  auto r1 = static_cast<int64>(static_cast<uint64>(r0) & ((1u << static_cast<uint64>(alignment)) - 1));
+  auto remained = static_cast<int64>(static_cast<uint64>(q1) << static_cast<uint64>(alignment));
   addend = addend + r1;
   if (addend > 0) {
     int64 suffixClear = 0xfff;
@@ -957,15 +951,25 @@ MemOperand &AArch64CGFunc::SplitOffsetWithAddInstruction(const MemOperand &memOp
       addend = (addend & ~suffixClear);
     }
   }
-
-  RegOperand *origBaseReg = memOpnd.GetBaseRegister();
-  ASSERT(origBaseReg != nullptr, "nullptr check");
-
   ImmOperand &immAddend = CreateImmOperand(addend, k64BitSize, true);
   if (memOpnd.GetOffsetImmediate()->GetVary() == kUnAdjustVary) {
     immAddend.SetVary(kUnAdjustVary);
   }
+  return immAddend;
+}
+
+MemOperand &AArch64CGFunc::SplitOffsetWithAddInstruction(const MemOperand &memOpnd, uint32 bitLen,
+                                                         uint32 baseRegNum, bool isDest,
+                                                         Insn *insn, bool forPair) {
+  ASSERT((memOpnd.GetAddrMode() == MemOperand::kAddrModeBOi), "expect kAddrModeBOi memOpnd");
+  ASSERT(memOpnd.IsIntactIndexed(), "expect intactIndexed memOpnd");
+  OfstOperand *ofstOpnd = memOpnd.GetOffsetImmediate();
+  int64 ofstVal = ofstOpnd->GetOffsetValue();
   RegOperand *resOpnd = GetBaseRegForSplit(baseRegNum);
+  ImmOperand &immAddend = SplitAndGetRemained(memOpnd, bitLen, resOpnd, ofstVal, isDest, insn, forPair);
+  int64 remained = (ofstVal - immAddend.GetValue());
+  RegOperand *origBaseReg = memOpnd.GetBaseRegister();
+  ASSERT(origBaseReg != nullptr, "nullptr check");
   if (insn == nullptr) {
     SelectAdd(*resOpnd, *origBaseReg, immAddend, PTY_i64);
   } else {
@@ -10381,6 +10385,10 @@ void AArch64CGFunc::SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) {
       SelectVectorZip(intrinsiccallNode.Opnd(0)->GetPrimType(),
                       HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(0)),
                       HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(1)));
+      return;
+    case INTRN_C_stack_save:
+      return;
+    case INTRN_C_stack_restore:
       return;
     default:
       break;

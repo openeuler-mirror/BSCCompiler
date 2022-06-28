@@ -713,6 +713,30 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const MemOpera
       }
       break;
     }
+    case MOP_xaddrri24:
+    case MOP_waddrri24: {
+      RegOperand *replace = GetReplaceReg(static_cast<RegOperand&>(defInsn.GetOperand(kInsnSecondOpnd)));
+      if (replace != nullptr) {
+        auto &immOpnd = static_cast<ImmOperand&>(defInsn.GetOperand(kInsnThirdOpnd));
+        auto &shiftOpnd = static_cast<LogicalShiftLeftOperand&>(defInsn.GetOperand(kInsnFourthOpnd));
+        CHECK_FATAL(shiftOpnd.GetShiftAmount() == 12, "invalid shiftAmount");
+        int64 defVal = (immOpnd.GetValue() << shiftOpnd.GetShiftAmount());
+        newMemOpnd = HandleArithImmDef(*replace, offset, defVal, currMemOpnd.GetSize());
+      }
+      break;
+    }
+    case MOP_xsubrri24:
+    case MOP_wsubrri24: {
+      RegOperand *replace = GetReplaceReg(static_cast<RegOperand&>(defInsn.GetOperand(kInsnSecondOpnd)));
+      if (replace != nullptr) {
+        auto &immOpnd = static_cast<ImmOperand&>(defInsn.GetOperand(kInsnThirdOpnd));
+        auto &shiftOpnd = static_cast<LogicalShiftLeftOperand&>(defInsn.GetOperand(kInsnFourthOpnd));
+        CHECK_FATAL(shiftOpnd.GetShiftAmount() == 12, "invalid shiftAmount");
+        int64 defVal = -(immOpnd.GetValue() << shiftOpnd.GetShiftAmount());
+        newMemOpnd = HandleArithImmDef(*replace, offset, defVal, currMemOpnd.GetSize());
+      }
+      break;
+    }
     case MOP_xaddrrr:
     case MOP_waddrrr:
     case MOP_dadd:

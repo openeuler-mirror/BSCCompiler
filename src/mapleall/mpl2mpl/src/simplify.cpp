@@ -405,7 +405,7 @@ void Simplify::ProcessStmt(StmtNode &stmt) {
       break;
     }
   }
-  for (auto i = 0; i < stmt.NumOpnds(); i++) {
+  for (size_t i = 0; i < stmt.NumOpnds(); ++i) {
     if (stmt.Opnd(i)) {
       stmt.SetOpnd(SimplifyExpr(*stmt.Opnd(i)), i);
     }

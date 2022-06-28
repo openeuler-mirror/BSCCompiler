@@ -63,6 +63,7 @@ void MEBETopLevelManager::InitFuncDescWithWhiteList(const maple::MIRModule &mod)
     }
     const FuncDesc &desc = pair.second;
     func->SetFuncDesc(desc);
+    func->GetFuncDesc().SetConfiged();
     if (desc.IsPure() || desc.IsConst()) {
       func->SetAttr(FUNCATTR_pure);
       func->SetAttr(FUNCATTR_nodefargeffect);
@@ -76,7 +77,6 @@ void MEBETopLevelManager::Run(maple::MIRModule &mod) {
   InitFuncDescWithWhiteList(mod);
   auto admMempool = AllocateMemPoolInPhaseManager("MEBETopLevelManager's Analysis Data Manager mempool");
   auto *serialADM = GetManagerMemPool()->New<AnalysisDataManager>(*(admMempool.get()));
-  bool changed = false;
   for (size_t i = 0; i < phasesSequence.size(); ++i) {
     const MaplePhaseInfo *curPhase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(phasesSequence[i]);
     if (!IsQuiet()) {
@@ -85,9 +85,9 @@ void MEBETopLevelManager::Run(maple::MIRModule &mod) {
     }
     DumpModule(mod, curPhase->PhaseName(), true);
     if (curPhase->IsAnalysis()) {
-      changed |= RunAnalysisPhase<MapleModulePhase, MIRModule>(*curPhase, *serialADM, mod);
+      (void)RunAnalysisPhase<MapleModulePhase, MIRModule>(*curPhase, *serialADM, mod);
     } else {
-      changed |= RunTransformPhase<MapleModulePhase, MIRModule>(*curPhase, *serialADM, mod);
+      (void)RunTransformPhase<MapleModulePhase, MIRModule>(*curPhase, *serialADM, mod);
     }
     DumpModule(mod, curPhase->PhaseName(), false);
   }

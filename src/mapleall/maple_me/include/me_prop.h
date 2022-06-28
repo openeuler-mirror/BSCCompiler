@@ -29,7 +29,7 @@ class MeProp : public Prop {
  private:
   MeFunction *func;
 
-  BB *GetBB(BBId id) {
+  BB *GetBB(BBId id) override {
     return func->GetCfg()->GetAllBBs()[id];
   }
 };

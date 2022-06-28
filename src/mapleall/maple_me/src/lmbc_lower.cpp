@@ -356,7 +356,7 @@ void LMBCLowerer::LowerIassign(IassignNode *iassign, BlockNode *newblk) {
 void LMBCLowerer::LowerReturn(NaryStmtNode *retNode, BlockNode *newblk) {
   if (retNode->Opnd(0)->GetPrimType() != PTY_agg) {
     CHECK_FATAL(retNode->NumOpnds() <= 2, "LMBCLowerer::LowerReturn: more than 2 return values NYI");
-    for (int i = 0; i < retNode->NumOpnds(); i++) {
+    for (size_t i = 0; i < retNode->NumOpnds(); ++i) {
       // insert regassign for the returned value
       PrimType ptyp = retNode->Opnd(i)->GetPrimType();
       BaseNode *rhs = LowerExpr(retNode->Opnd(i));

@@ -64,7 +64,7 @@ GlobalMemLayout::GlobalMemLayout(MIRModule *mod, MapleAllocator *mallocator) :
   sym_alloc_table.resize(symtabsize);
   MIRSymbol *sym = nullptr;
   // allocate the global variables ordered based on alignments
-  for (int32 curalign = 8; curalign != 0; curalign >>= 1) {
+  for (uint32 curalign = 8; curalign != 0; curalign >>= 1) {
     for (uint32 i = 0; i < symtabsize; i++) {
       sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(i);
       if (!sym) {

@@ -59,7 +59,7 @@ BlockNode *LfoUnrollOneLoop::DoFullUnroll(size_t tripCount) {
     auto &stmtFreqs = profData->GetStmtFreqs();
     uint32 updateOp = (kKeepOrigFreq | kUpdateUnrolledFreq);
     unrolledBlk = doloop->GetDoBody()->CloneTreeWithFreqs(mirModule->GetCurFuncCodeMPAllocator(),
-                      stmtFreqs, stmtFreqs, 1 /*numor*/, unrollTimes/*denom*/, updateOp);
+                                                          stmtFreqs, stmtFreqs, 1, unrollTimes, updateOp);
   } else {
     unrolledBlk = doloop->GetDoBody()->CloneTreeWithSrcPosition(*mirModule);
   }
@@ -73,8 +73,8 @@ BlockNode *LfoUnrollOneLoop::DoFullUnroll(size_t tripCount) {
         preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()) {
       auto &stmtFreqs = preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()->GetStmtFreqs();
       nextIterBlk = doloop->GetDoBody()->CloneTreeWithFreqs(mirModule->GetCurFuncCodeMPAllocator(),
-                        stmtFreqs, stmtFreqs, 1 /*numor*/, unrollTimes/*denom*/,
-                        (kKeepOrigFreq | kUpdateUnrolledFreq));
+                                                            stmtFreqs, stmtFreqs, 1, unrollTimes,
+                                                            (kKeepOrigFreq | kUpdateUnrolledFreq));
     } else {
       nextIterBlk = doloop->GetDoBody()->CloneTreeWithSrcPosition(*mirModule);
     }
@@ -100,9 +100,10 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
       if (Options::profileUse && preMeFunc->meFunc && preMeFunc->meFunc->GetMirFunc() &&
           preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()) {
         auto &stmtFreqs = preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()->GetStmtFreqs();
-        unrolledBlk = doloop->GetDoBody()->CloneTreeWithFreqs(mirModule->GetCurFuncCodeMPAllocator(),
-                          stmtFreqs, stmtFreqs, 1/*numor*/, times/*denom*/,
-                          (kKeepOrigFreq | kUpdateUnrollRemainderFreq)) ;
+        unrolledBlk =
+            doloop->GetDoBody()->CloneTreeWithFreqs(mirModule->GetCurFuncCodeMPAllocator(),
+                                                    stmtFreqs, stmtFreqs, 1, times,
+                                                    (kKeepOrigFreq | kUpdateUnrollRemainderFreq));
       } else {
         unrolledBlk = doloop->GetDoBody()->CloneTreeWithSrcPosition(*mirModule);
       }
@@ -153,7 +154,8 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
         preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()) {
       auto &stmtFreqs = preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()->GetStmtFreqs();
       remDoloop = doloop->CloneTreeWithFreqs(mirModule->GetCurFuncCodeMPAllocator(),
-                      stmtFreqs, stmtFreqs, 1/*numor*/, times/*denom*/, (kUpdateUnrollRemainderFreq));
+                                             stmtFreqs, stmtFreqs, 1, times,
+                                             (kUpdateUnrollRemainderFreq));
     } else {
       remDoloop = doloop->CloneTree(*preEmit->GetCodeMPAlloc());
     }
@@ -169,7 +171,8 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
       preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()) {
     auto &stmtFreqs = preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()->GetStmtFreqs();
     unrolledDoloop = doloop->CloneTreeWithFreqs(mirModule->GetCurFuncCodeMPAllocator(),
-                       stmtFreqs, stmtFreqs, 1/*numor*/, times/*denom*/,(kKeepOrigFreq | kUpdateUnrolledFreq));
+                                                stmtFreqs, stmtFreqs, 1, times,
+                                                (kKeepOrigFreq | kUpdateUnrolledFreq));
   } else {
     unrolledDoloop = doloop->CloneTree(*preEmit->GetCodeMPAlloc());
   }

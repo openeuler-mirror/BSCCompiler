@@ -282,7 +282,7 @@ class MePhiOpndOcc : public MeOccur {
 
   ~MePhiOpndOcc() = default;
   bool IsOkToInsert() const;
-  void Dump(const IRMap&) const;
+  void Dump(const IRMap&) const override;
   bool IsProcessed() const {
     return isProcessed;
   }
@@ -648,7 +648,7 @@ class PreStmtWorkCand : public PreWorkCand {
 
   virtual ~PreStmtWorkCand() = default;
 
-  void DumpCand(IRMap &irMap) const {
+  void DumpCand(IRMap &irMap) const override {
     theMeStmt->Dump(&irMap);
   }
 

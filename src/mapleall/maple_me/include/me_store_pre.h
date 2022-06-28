@@ -40,15 +40,15 @@ class MeStorePre : public MeSSUPre {
   // step 6 methods
   void CheckCreateCurTemp();
   RegMeExpr *EnsureRHSInCurTemp(BB &bb);
-  void CodeMotion();
+  void CodeMotion() override;
   // step 0 methods
   void CreateRealOcc(const OStIdx &ostIdx, MeStmt &meStmt);
   void CreateUseOcc(const OStIdx &ostIdx, BB &bb);
   void CreateSpreUseOccsThruAliasing(const OriginalSt &muOst, BB &bb);
   void FindAndCreateSpreUseOccs(const MeExpr &meExpr, BB &bb);
   void CreateSpreUseOccsForAll(BB &bb) const;
-  void BuildWorkListBB(BB *bb);
-  void PerCandInit() {
+  void BuildWorkListBB(BB *bb) override;
+  void PerCandInit() override {
     curTemp = nullptr;
     bbCurTempMap.clear();
   }

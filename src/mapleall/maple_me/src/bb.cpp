@@ -80,7 +80,7 @@ void BB::DumpBBAttribute(const MIRModule *mod) const {
 void BB::DumpHeader(const MIRModule *mod) const {
   mod->GetOut() << "============BB id:" << GetBBId() << " " << StrAttribute() << " [";
   DumpBBAttribute(mod);
-  if (Options::profileUse && frequency >= 0) {
+  if (Options::profileUse) {
     mod->GetOut() << "  freq: " << frequency  << " ";
   }
   mod->GetOut() << "]===============\n";
@@ -93,10 +93,10 @@ void BB::DumpHeader(const MIRModule *mod) const {
     mod->GetOut() << succElement->GetBBId() << " ";
   }
   // dump edge frequency
-  if (Options::profileUse && succFreq.size() > 0) {
+  if (Options::profileUse && !succFreq.empty()) {
     mod->GetOut() << "      succFreq [ ";
-    for (const auto &succFreq : succFreq) {
-      mod->GetOut() << succFreq << " ";
+    for (const auto &freq : succFreq) {
+      mod->GetOut() << freq << " ";
     }
     mod->GetOut() << " ]";
   }
@@ -487,10 +487,9 @@ void BB::UpdateEdgeFreqs() {
   }
   // early return if frequency is consistent
   if (len == 0 || succFreqs == GetFrequency()) return;
-  for (int i = 0; i < len; i++) {
+  for (size_t i = 0; i < len; ++i) {
     int64_t sfreq = GetSuccFreq()[i];
-    int64_t scalefreq = (succFreqs == 0 ?
-                            (frequency / len) : (sfreq * frequency / succFreqs));
+    int64_t scalefreq = (succFreqs == 0 ? (frequency / len) : (sfreq * frequency / succFreqs));
     SetSuccFreq(i, scalefreq);
   }
 }

@@ -1338,7 +1338,7 @@ void ValueRangePropagation::CollectMeExpr(
 // vr: (0, 0xfff)
 void ValueRangePropagation::CreateVRWithBitsSize(const BB &bb, const OpMeExpr &opMeExpr) {
   auto bitsSize = opMeExpr.GetBitsSize();
-  if (bitsSize >= 0 && bitsSize < 64) {
+  if (bitsSize < 64) {
     auto pTypeOfOpMeExpr = opMeExpr.GetPrimType();
     uint64 maxNumber = (1ULL << bitsSize) - 1;
     (void)Insert2Caches(bb.GetBBId(), opMeExpr.GetExprID(), std::make_unique<ValueRange>(
@@ -1416,7 +1416,7 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
           if (valueRange != nullptr && valueRange->GetRangeType() != kNotEqual &&
               (IsPrimitiveUnsigned(pTypeOpnd) || valueRange->IsGreaterThanOrEqualToZero())) {
             auto bSize = opMeExpr.GetBitsSize();
-            if (bSize >= 0 && bSize < 64) {
+            if (bSize < 64) {
               uint64 maxNumber = (1ULL << bSize) - 1;
               // Judge whether the truncated range is the same as the previous range.
               if (valueRange->IsEqualAfterCVT(valueRange->GetLower().GetPrimType(), pTypeOpnd) &&
@@ -2360,8 +2360,8 @@ void ValueRangePropagation::TravelBBs(std::vector<BB*> &reversePostOrderOfLoopBB
       DealWithPhi(*bb);
     }
     for (auto it = bb->GetMeStmts().begin(); it != bb->GetMeStmts().end(); ++it) {
-      for (size_t i = 0; i < it->NumMeStmtOpnds(); ++i) {
-        DealWithOperand(*bb, *it, *it->GetOpnd(i));
+      for (size_t j = 0; j < it->NumMeStmtOpnds(); ++j) {
+        DealWithOperand(*bb, *it, *it->GetOpnd(j));
       }
       switch (it->GetOp()) {
         case OP_dassign:
@@ -4125,7 +4125,7 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
 // if mx12
 void ValueRangePropagation::ReplaceUsePoints(MePhiNode *phi) {
   if (phi == nullptr || phi->GetDefBB() == nullptr ||
-      phi->GetDefBB()->GetMePhiList().empty() || phi->GetOpnds().size() < 1) {
+      phi->GetDefBB()->GetMePhiList().empty() || phi->GetOpnds().empty()) {
     return;
   }
   auto *opnd = phi->GetOpnd(0);
@@ -4140,12 +4140,12 @@ void ValueRangePropagation::ReplaceUsePoints(MePhiNode *phi) {
   auto *useListOfPredOpnd = useInfo->GetUseSitesOfExpr(lhs);
   for (auto &useItem : *useListOfPredOpnd) {
     if (useItem.IsUseByPhi()) {
-      auto *phi = useItem.GetPhi();
+      auto *usePhi = useItem.GetPhi();
       for (size_t i = 0; i < useItem.GetPhi()->GetOpnds().size(); ++i) {
-        if (phi->GetOpnd(i) != lhs) {
+        if (usePhi->GetOpnd(i) != lhs) {
           continue;
         }
-        phi->SetOpnd(i, replaceMeExpr);
+        usePhi->SetOpnd(i, replaceMeExpr);
       }
     } else {
       auto *stmt = useItem.GetStmt();

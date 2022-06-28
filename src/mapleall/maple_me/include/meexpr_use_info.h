@@ -80,10 +80,10 @@ using UseSitesType = MapleList<UseItem>;
 using ExprUseInfoPair = std::pair<MeExpr*, UseSitesType*>;
 class MeExprUseInfo final {
  public:
-   MeExprUseInfo(MemPool *memPool)
-    : allocator(memPool),
-      useSites(nullptr),
-      useInfoState(kUseInfoInvalid) {}
+  explicit MeExprUseInfo(MemPool *memPool)
+      : allocator(memPool),
+        useSites(nullptr),
+        useInfoState(kUseInfoInvalid) {}
 
   ~MeExprUseInfo() {}
   void CollectUseInfoInFunc(IRMap *irMap, Dominance *domTree, MeExprUseInfoState state);
@@ -104,6 +104,14 @@ class MeExprUseInfo final {
 
   MapleVector<ExprUseInfoPair> &GetUseSites() {
     return *useSites;
+  }
+
+  void SetUseSites(MapleVector<ExprUseInfoPair> *sites) {
+    useSites = sites;
+  }
+
+  void SetState(MeExprUseInfoState state) {
+    useInfoState = state;
   }
 
   void InvalidUseInfo() {

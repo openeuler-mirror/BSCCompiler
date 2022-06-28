@@ -46,7 +46,8 @@ class BBUseEdge : public BBEdge {
 
 class BBUseInfo {
  public:
-  BBUseInfo(MemPool &tmpPool) : tmpAlloc(&tmpPool), inEdges(tmpAlloc.Adapter()), outEdges(tmpAlloc.Adapter()) {}
+  explicit BBUseInfo(MemPool &tmpPool)
+      : tmpAlloc(&tmpPool), inEdges(tmpAlloc.Adapter()), outEdges(tmpAlloc.Adapter()) {}
   virtual ~BBUseInfo() = default;
 
   void SetCount(uint64 value) {

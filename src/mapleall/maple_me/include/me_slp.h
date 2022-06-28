@@ -154,7 +154,7 @@ class MemoryHelper {
   bool IsAllIvarConsecutive(const std::vector<MeExpr*> &ivarVec, bool mustSameType);
 
  private:
-  void ExtractAddendOffset(MapleAllocator &alloc, const MeExpr &expr, bool isNeg, MemLoc &memLoc);
+  void ExtractAddendOffset(const MeExpr &expr, bool isNeg, MemLoc &memLoc);
   // Each MemBasePtr object must be unique, just like MIRType object.
   // Because we may use the address of MemBasePtr objects as the key of map containers
   void UniqueMemLocBase(MemLoc &memLoc);

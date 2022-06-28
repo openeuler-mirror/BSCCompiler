@@ -1846,12 +1846,11 @@ void MeCFG::ConstructEdgeFreqFromBBFreq() {
       }
     } else if (bb->GetSucc().size() > 2) {
       // switch case, no critical edge is supposted
-      for (int i = 0; i < bb->GetSucc().size(); i++) {
+      for (size_t i = 0; i < bb->GetSucc().size(); ++i) {
         bb->PushBackSuccFreq(bb->GetSucc(i)->GetFrequency());
       }
     }
   }
-  return;
 }
 
 // set bb frequency from stmt record
@@ -1875,13 +1874,13 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
   // add common entry and common exit
   auto *bb = *common_entry();
   uint64_t freq = 0;
-  for (int i = 0; i < bb->GetSucc().size(); i++) {
+  for (size_t i = 0; i < bb->GetSucc().size(); ++i) {
     freq += bb->GetSucc(i)->GetFrequency();
   }
   bb->SetFrequency(freq);
   bb = *common_exit();
   freq = 0;
-  for (int i = 0; i < bb->GetPred().size(); i++) {
+  for (size_t i = 0; i < bb->GetPred().size(); ++i) {
     freq += bb->GetPred(i)->GetFrequency();
   }
   bb->SetFrequency(freq);

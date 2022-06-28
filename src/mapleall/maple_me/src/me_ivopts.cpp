@@ -2630,13 +2630,13 @@ bool MEIVOpts::PhaseRun(maple::MeFunction &f) {
   ivOptimizer.Run();
   if (ivOptimizer.LoopOptimized()) {
     // run hdse to remove unused exprs
-    auto *aliasClass = FORCE_GET(MEAliasClass);
-    MeHDSE hdse(f, *dom, *f.GetIRMap(), aliasClass, DEBUGFUNC_NEWPM(f));
+    auto *aliasClass0 = FORCE_GET(MEAliasClass);
+    MeHDSE hdse0(f, *dom, *f.GetIRMap(), aliasClass0, DEBUGFUNC_NEWPM(f));
     if (!MeOption::quiet) {
-      LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << hdse.PhaseName() << " ] ==\n";
+      LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << hdse0.PhaseName() << " ] ==\n";
     }
-    hdse.DoHDSE();
-    if (hdse.NeedUNClean()) {
+    hdse0.DoHDSE();
+    if (hdse0.NeedUNClean()) {
       f.GetCfg()->UnreachCodeAnalysis(true);
     }
   }

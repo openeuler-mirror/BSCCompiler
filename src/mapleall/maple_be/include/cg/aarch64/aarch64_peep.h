@@ -908,7 +908,8 @@ class RemoveMovingtoSameRegAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
 };
 
-/* Combining 2 STRs into 1 stp or 2 LDRs into 1 ldp, when they are
+/*
+ * Combining 2 STRs into 1 stp or 2 LDRs into 1 ldp, when they are
  * back to back and the [MEM] they access is conjointed.
  */
 class CombineContiLoadAndStorePattern : public CGPeepPattern {
@@ -925,6 +926,7 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
   std::string GetPatternName() override {
     return "CombineContiLoadAndStorePattern";
   }
+
  private:
   std::vector<Insn*> FindPrevStrLdr(Insn &insn, regno_t destRegNO, regno_t memBaseRegNO, int64 baseOfst);
   /*
@@ -937,7 +939,10 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
   bool IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore, int64 baseOfst) const;
   void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn) const;
   MOperator GetMopHigherByte(MOperator mop) const;
-  bool SplitOfstWithAddToCombine(Insn &insn, const MemOperand &memOperand) const;
+  bool SplitOfstWithAddToCombine(const Insn &curInsn, Insn &combineInsn, const MemOperand &memOperand) const;
+  Insn *FindValidSplitAddInsn(Insn &curInsn, RegOperand &baseOpnd) const;
+  bool PlaceSplitAddInsn(const Insn &curInsn, Insn &combineInsn, const MemOperand &memOpnd,
+                         RegOperand &baseOpnd, uint32 bitLen) const;
   bool doAggressiveCombine = false;
   MemOperand *memOpnd = nullptr;
 };

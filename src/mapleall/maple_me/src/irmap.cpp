@@ -1891,7 +1891,7 @@ static inline void ImplicitBitPartConvert(uint64 dstBitWidth, BitPart &bitpart) 
   }
   bitpart.provenance.resize(dstBitWidth);
   if (dstBitWidth > srcBitWidth) {
-    for (int i = srcBitWidth; i < dstBitWidth; ++i) {
+    for (size_t i = srcBitWidth; i < dstBitWidth; ++i) {
       bitpart.provenance[i] = BitPart::kUnset;
     }
   }
@@ -1899,15 +1899,14 @@ static inline void ImplicitBitPartConvert(uint64 dstBitWidth, BitPart &bitpart) 
 
 // collect expr's BitPart recursively to check if it's possible for bytewise reverse.
 // we can get the BitPart of a expr if the opcode is bit operation related.
-std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::optional<BitPart>> &bps,
-                                              int depth) {
+std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::optional<BitPart>> &bps, int depth) {
   auto iter = bps.find(expr);
   if (iter != bps.end()) {
     return iter->second;
   }
 
   std::optional<BitPart> &result = bps[expr];
-  if (depth > kBitPartRecursionMaxDepth) {
+  if (depth > static_cast<int>(kBitPartRecursionMaxDepth)) {
     return result;
   }
   auto bitwidth = GetPrimTypeBitSize(expr->GetPrimType());

@@ -57,17 +57,18 @@ void ProfileGen::CreateModProfDesc() {
   MIRType *arrOfPtrsTy = GlobalTables::GetTypeTable().GetOrCreateArrayType(*funcPtrTy, kMplModProfMergeFuncs);
   TyIdx arrOfPtrsTyIdx = arrOfPtrsTy->GetTypeIndex();
 
-  // Form descriptor type                                                                                    // Field
-  modProfDescFields.emplace_back(FieldPair(verStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));             // 1
-  modProfDescFields.emplace_back(FieldPair(pad4b1StrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));          // 2
-  modProfDescFields.emplace_back(FieldPair(nextStrIdx, TyIdxFieldAttrPair(ptrTyIdx, FieldAttrs())));            // 3
-  modProfDescFields.emplace_back(FieldPair(stampStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));           // 4
-  modProfDescFields.emplace_back(FieldPair(chksumStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));          // 5
-  modProfDescFields.emplace_back(FieldPair(outputFNStrIdx, TyIdxFieldAttrPair(charPtrTyIdx, FieldAttrs())));    // 6
-  modProfDescFields.emplace_back(FieldPair(mergeFuncsStrIdx, TyIdxFieldAttrPair(arrOfPtrsTyIdx, FieldAttrs())));// 7
-  modProfDescFields.emplace_back(FieldPair(nFuncsStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));          // 8
-  modProfDescFields.emplace_back(FieldPair(pad4b2StrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));          // 9
-  modProfDescFields.emplace_back(FieldPair(funcDescTblStrIdx, TyIdxFieldAttrPair(ptrTyIdx, FieldAttrs())));     // 10
+  /* Form descriptor type                                                                                      Field */
+  modProfDescFields.emplace_back(FieldPair(verStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));          // 1
+  modProfDescFields.emplace_back(FieldPair(pad4b1StrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));       // 2
+  modProfDescFields.emplace_back(FieldPair(nextStrIdx, TyIdxFieldAttrPair(ptrTyIdx, FieldAttrs())));         // 3
+  modProfDescFields.emplace_back(FieldPair(stampStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));        // 4
+  modProfDescFields.emplace_back(FieldPair(chksumStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));       // 5
+  modProfDescFields.emplace_back(FieldPair(outputFNStrIdx, TyIdxFieldAttrPair(charPtrTyIdx, FieldAttrs()))); // 6
+  modProfDescFields.emplace_back(
+      FieldPair(mergeFuncsStrIdx, TyIdxFieldAttrPair(arrOfPtrsTyIdx, FieldAttrs())));                     // 7
+  modProfDescFields.emplace_back(FieldPair(nFuncsStrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));       // 8
+  modProfDescFields.emplace_back(FieldPair(pad4b2StrIdx, TyIdxFieldAttrPair(u32TyIdx, FieldAttrs())));       // 9
+  modProfDescFields.emplace_back(FieldPair(funcDescTblStrIdx, TyIdxFieldAttrPair(ptrTyIdx, FieldAttrs())));  // 10
   FieldVector parentFields;
 
   std::string srcFN = mod.GetFileName();
@@ -141,9 +142,9 @@ void ProfileGen::CreateModProfDesc() {
   modProfDescSymMirConst->AddItem(zeroMirConst, 9);
 
   // func_desc_tbl will be fixed up later in fixup
-  MIRAddrofConst *funcProfDescTbl = modMP->New<MIRAddrofConst>(
+  MIRAddrofConst *addrofConst = modMP->New<MIRAddrofConst>(
       modProfDescSym->GetStIdx(), 0, *GlobalTables::GetTypeTable().GetPtr());
-  modProfDescSymMirConst->AddItem(funcProfDescTbl, 10);
+  modProfDescSymMirConst->AddItem(addrofConst, 10);
 
   modProfDescSym->SetKonst(modProfDescSymMirConst);
   modProfDesc = modProfDescSym;
@@ -257,9 +258,9 @@ void ProfileGen::CreateFuncProfDesc() {
       ctrDescMirConst->AddItem(nullPtrMirConst, 2);
     }
 
-    MIRType *arrOfCtrDescTy =
+    MIRType *mirType =
         GlobalTables::GetTypeTable().GetOrCreateArrayType(*ctrDescTy, kMplFuncProfCtrInfoNum);
-    MIRAggConst *arrOfCtrDescMirConst = modMP->New<MIRAggConst>(mod, *arrOfCtrDescTy);
+    MIRAggConst *arrOfCtrDescMirConst = modMP->New<MIRAggConst>(mod, *mirType);
 
     // if kMplFuncProfCtrInfoNum > 1, more counter descriptors need to add
     arrOfCtrDescMirConst->AddItem(ctrDescMirConst, 0);
@@ -289,7 +290,7 @@ void ProfileGen::CreateFuncProfDescTbl() {
       namemangler::kprefixProfFuncDescTbl + flatenName(fileName), *arrOffuncProfDescPtrTy, kScFstatic);
   MIRAggConst *funcDescTblMirConst = mod.GetMemPool()->New<MIRAggConst>(mod, *arrOffuncProfDescPtrTy);
 
-  for (auto i = 0; i < tblSize; i++) {
+  for (size_t i = 0; i < tblSize; ++i) {
     MIRAddrofConst *funcProfDescMirConst = mod.GetMemPool()->New<MIRAddrofConst>(
         funcProfDescs[i]->GetStIdx(), 0, *GlobalTables::GetTypeTable().GetPtr());
     funcDescTblMirConst->AddItem(funcProfDescMirConst, i);

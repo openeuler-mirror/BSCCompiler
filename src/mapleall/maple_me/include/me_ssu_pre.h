@@ -83,7 +83,7 @@ class SOcc {
 
 class SRealOcc : public SOcc {
  public:
-  SRealOcc(BB &bb)
+  explicit SRealOcc(BB &bb)
       : SOcc(kSOccReal, bb), meStmt(nullptr), vMeExpr(nullptr), realFromDef(false), redundant(true) {}
   explicit SRealOcc(MeStmt &s)
       : SOcc(kSOccReal, *s.GetBB()), meStmt(&s), vMeExpr(nullptr), realFromDef(false), redundant(true) {}
@@ -92,7 +92,7 @@ class SRealOcc : public SOcc {
   SRealOcc(BB &bb, VarMeExpr &v)
       : SOcc(kSOccReal, bb), meStmt(nullptr), vMeExpr(&v), realFromDef(false), redundant(true) {}
   virtual ~SRealOcc() = default;
-  void Dump() const {
+  void Dump() const override {
     LogInfo::MapleLogger() << "RealOcc at bb" << GetBB().GetBBId();
     if (realFromDef) {
       LogInfo::MapleLogger() << "(from-def)";

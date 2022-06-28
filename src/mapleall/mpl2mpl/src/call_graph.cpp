@@ -753,6 +753,8 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
 void CallGraph::HandleBody(MIRFunction &func, BlockNode &body, CGNode &node, uint32 loopDepth) {
   StmtNode *stmtNext = nullptr;
   for (StmtNode *stmt = body.GetFirst(); stmt != nullptr; stmt = stmtNext) {
+    CollectAddroffuncFromStmt(stmt);
+    RecordLocalConstValue(stmt);
     stmtNext = static_cast<StmtNode*>(stmt)->GetNext();
     Opcode op = stmt->GetOpCode();
     if (op == OP_comment) {
@@ -770,8 +772,6 @@ void CallGraph::HandleBody(MIRFunction &func, BlockNode &body, CGNode &node, uin
         HandleBody(func, *n->GetElsePart(), node, loopDepth);
       }
     } else {
-      CollectAddroffuncFromStmt(stmt);
-      RecordLocalConstValue(stmt);
       node.IncrStmtCount();
       CallType ct = GetCallType(op);
       switch (ct) {

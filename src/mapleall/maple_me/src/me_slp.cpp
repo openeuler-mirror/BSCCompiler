@@ -56,7 +56,7 @@ namespace maple {
 // A wrapper class of meExpr with its defStmt, this can avoid repeated searches for use-def chains
 class ExprWithDef {
  public:
-  ExprWithDef(MeExpr *meExpr, BB *bb = nullptr) : expr(meExpr) {
+  explicit ExprWithDef(MeExpr *meExpr, BB *bb = nullptr) : expr(meExpr) {
     if (expr->GetOp() == OP_regread) {
       FindDef(static_cast<ScalarMeExpr*>(expr), bb);
     }
@@ -119,17 +119,17 @@ static bool IsPointerType(PrimType type) {
 }
 
 // Only support add, sub, constval, iaddrof, pointer cvt for now, we can support more op if more scenes are found
-void MemoryHelper::ExtractAddendOffset(MapleAllocator &alloc, const MeExpr &expr, bool isNeg, MemLoc &memLoc) {
+void MemoryHelper::ExtractAddendOffset(const MeExpr &expr, bool isNeg, MemLoc &memLoc) {
   Opcode op = expr.GetOp();
   switch (op) {
     case OP_add: {
-      ExtractAddendOffset(alloc, *expr.GetOpnd(0), isNeg, memLoc);
-      ExtractAddendOffset(alloc, *expr.GetOpnd(1), isNeg, memLoc);
+      ExtractAddendOffset(*expr.GetOpnd(0), isNeg, memLoc);
+      ExtractAddendOffset(*expr.GetOpnd(1), isNeg, memLoc);
       break;
     }
     case OP_sub: {
-      ExtractAddendOffset(alloc, *expr.GetOpnd(0), isNeg, memLoc);
-      ExtractAddendOffset(alloc, *expr.GetOpnd(1), !isNeg, memLoc);
+      ExtractAddendOffset(*expr.GetOpnd(0), isNeg, memLoc);
+      ExtractAddendOffset(*expr.GetOpnd(1), !isNeg, memLoc);
       break;
     }
     case OP_iaddrof: {
@@ -142,7 +142,7 @@ void MemoryHelper::ExtractAddendOffset(MapleAllocator &alloc, const MeExpr &expr
         auto bitOffset = static_cast<MIRStructType*>(pointedType)->GetBitOffsetFromBaseAddr(fieldId);
         memLoc.offset += (bitOffset / 8);
       }
-      ExtractAddendOffset(alloc, *expr.GetOpnd(0), isNeg, memLoc);
+      ExtractAddendOffset(*expr.GetOpnd(0), isNeg, memLoc);
       break;
     }
     case OP_constval: {
@@ -156,7 +156,7 @@ void MemoryHelper::ExtractAddendOffset(MapleAllocator &alloc, const MeExpr &expr
       PrimType fromType = opExpr.GetOpndType();
       PrimType toType = opExpr.GetPrimType();
       if (IsPointerType(fromType) && IsPointerType(toType)) {
-        ExtractAddendOffset(alloc, *opExpr.GetOpnd(0), isNeg, memLoc);
+        ExtractAddendOffset(*opExpr.GetOpnd(0), isNeg, memLoc);
         break;
       }
     }
@@ -238,7 +238,7 @@ MemLoc *MemoryHelper::GetMemLoc(IvarMeExpr &ivar) {
     ExprWithDef exprWithDef(ivarBase);
     realBase = exprWithDef.GetRealExpr();
   }
-  ExtractAddendOffset(alloc, *realBase, false, memLoc);
+  ExtractAddendOffset(*realBase, false, memLoc);
   // bugfix for constval ivar.base
   if (memLoc.base == nullptr) {
     memLoc.base = alloc.GetMemPool()->New<MemBasePtr>();
@@ -1420,8 +1420,8 @@ struct BlockScheduling {
     return false;
   }
 
-  MeStmt *FindAnyStmtInRegion(const std::vector<MeStmt*> &stmtVec, MeStmt *beginStmt, MeStmt *endStmt) {
-    for (auto *stmt : stmtVec) {
+  MeStmt *FindAnyStmtInRegion(const std::vector<MeStmt*> &meStmtVec, MeStmt *beginStmt, MeStmt *endStmt) {
+    for (auto *stmt : meStmtVec) {
       if (IsStmtInRegion(stmt, beginStmt, endStmt)) {
         return stmt;
       }
@@ -1429,8 +1429,8 @@ struct BlockScheduling {
     return nullptr;
   }
 
-  bool IsAnyStmtInRegion(const std::vector<MeStmt*> &stmtVec, MeStmt *beginStmt, MeStmt *endStmt) {
-    for (auto *stmt : stmtVec) {
+  bool IsAnyStmtInRegion(const std::vector<MeStmt*> &meStmtVec, MeStmt *beginStmt, MeStmt *endStmt) {
+    for (auto *stmt : meStmtVec) {
       if (IsStmtInRegion(stmt, beginStmt, endStmt)) {
         return true;
       }
@@ -3041,9 +3041,9 @@ bool SLPVectorizer::DoVectTreeNodeIassign(TreeNode *treeNode) {
     return GetOrderId(a) < GetOrderId(b);
   });
   for (auto *stmt : sortedStmts) {  // must iterate stmt by orderId
-    auto *chiList = stmt->GetChiList();
-    CHECK_NULL_FATAL(chiList);
-    chiListVec.push_back(chiList);
+    auto *cl = stmt->GetChiList();
+    CHECK_NULL_FATAL(cl);
+    chiListVec.push_back(cl);
   }
   auto *mergedChiList = MergeChiList(chiListVec, irMap, *vecIassign);
   vecIassign->SetChiList(*mergedChiList);

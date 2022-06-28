@@ -188,16 +188,16 @@ bool MEHdse::PhaseRun(maple::MeFunction &f) {
   auto *hMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_NULL_FATAL(hMap);
 
-  MemPool *memPool = GetPhaseMemPool();
-  auto *hdse = memPool->New<MeHDSE>(f, *dom, *hMap, aliasClass, DEBUGFUNC_NEWPM(f));
-  hdse->hdseKeepRef = MeOption::dseKeepRef;
+
+  MeHDSE hdse = MeHDSE(f, *dom, *hMap, aliasClass, DEBUGFUNC_NEWPM(f));
+  hdse.hdseKeepRef = MeOption::dseKeepRef;
   if (f.hdseRuns > 2) {
-    hdse->SetRemoveRedefine(true);
+    hdse.SetRemoveRedefine(true);
   }
-  hdse->DoHDSE();
-  hdse->BackwardSubstitution();
+  hdse.DoHDSE();
+  hdse.BackwardSubstitution();
   MakeEmptyTrysUnreachable(f);
-  (void)f.GetCfg()->UnreachCodeAnalysis(/* update_phi = */ true);
+  (void)f.GetCfg()->UnreachCodeAnalysis(true);
   f.GetCfg()->WontExitAnalysis();
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== HDSE =============" << '\n';
