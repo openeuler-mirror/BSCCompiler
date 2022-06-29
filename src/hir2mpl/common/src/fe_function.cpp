@@ -847,7 +847,7 @@ void FEFunction::AddAliasInMIRScope(MIRScope *scope, const std::string &srcVarNa
   GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(srcVarName);
   MIRAliasVars aliasVar;
   aliasVar.tyIdx = symbol->GetTyIdx();
-  aliasVar.mplStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(symbol->GetName());
+  aliasVar.mplStrIdx = symbol->GetNameStrIdx();
   aliasVar.isLocal = symbol->IsLocal();
   scope->SetAliasVarMap(nameIdx, aliasVar);
 };
