@@ -378,7 +378,20 @@ bool NegCmpToCmnPattern::CheckCondition(Insn &insn) {
       continue;
     }
     MOperator useMop = useInsn->GetMachineOpcode();
-    if (useMop == MOP_bhi) {
+    if (useMop == MOP_bhi || useMop == MOP_bls) {
+      return false;
+    }
+    bool findUnsignedCond = false;
+    for (size_t i = 0; i < useInsn->GetOperandSize(); ++i) {
+      if (useInsn->GetOperand(i).GetKind() == Operand::kOpdCond) {
+        AArch64CC_t cond = static_cast<CondOperand&>(useInsn->GetOperand(i)).GetCode();
+        if (cond == CC_HI || cond == CC_LS) {
+          findUnsignedCond = true;
+          break;
+        }
+      }
+    }
+    if (findUnsignedCond) {
       return false;
     }
   }
@@ -1578,12 +1591,10 @@ MOperator ElimSpecificExtensionPattern::SelectNewLoadMopByBitSize(MOperator lowB
   auto &prevDstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
   switch (lowBitMop) {
     case MOP_wldrsb: {
-      prevDstOpnd.SetValidBitsNum(k8BitSize);
       prevDstOpnd.SetSize(k64BitSize);
       return MOP_xldrsb;
     }
     case MOP_wldrsh: {
-      prevDstOpnd.SetValidBitsNum(k16BitSize);
       prevDstOpnd.SetSize(k64BitSize);
       return MOP_xldrsh;
     }

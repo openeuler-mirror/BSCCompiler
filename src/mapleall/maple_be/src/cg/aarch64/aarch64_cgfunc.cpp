@@ -4210,9 +4210,11 @@ void AArch64CGFunc::SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
       if (otherOp->GetKind() != Operand::kOpdRegister) {
         otherOp = &SelectCopy(*otherOp, primType, primType);
       }
-      ImmOperand &shiftNum = CreateImmOperand(__builtin_ffsll(immValue) - 1, dsize, false);
+      int64 shiftVal = __builtin_ffsll(immValue);
+      ImmOperand &shiftNum = CreateImmOperand(shiftVal - 1, dsize, false);
       SelectShift(resOpnd, *otherOp, shiftNum, kShiftLeft, primType);
-      if (imm->GetValue() < 0) {
+      bool reachSignBit = (is64Bits && (shiftVal == k64BitSize)) || (!is64Bits && (shiftVal == k32BitSize));
+      if (imm->GetValue() < 0 && !reachSignBit) {
         SelectNeg(resOpnd, resOpnd, primType);
       }
 

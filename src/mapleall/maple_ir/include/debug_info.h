@@ -699,7 +699,7 @@ class DebugInfo {
   DBGDie *CreateVarDie(MIRSymbol *sym, GStrIdx strIdx); // use alt name
   DBGDie *CreateFormalParaDie(MIRFunction *func, MIRType *type, MIRSymbol *sym);
   DBGDie *CreateFieldDie(maple::FieldPair pair, uint32 lnum);
-  DBGDie *CreateBitfieldDie(const MIRBitFieldType *type, GStrIdx idx, uint32 prev_bits);
+  DBGDie *CreateBitfieldDie(const MIRBitFieldType *type, GStrIdx idx);
   DBGDie *CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *type, bool update = false);
   DBGDie *CreateClassTypeDie(GStrIdx strIdx, const MIRClassType *type);
   DBGDie *CreateInterfaceTypeDie(GStrIdx strIdx, const MIRInterfaceType *type);

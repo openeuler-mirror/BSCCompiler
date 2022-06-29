@@ -1585,7 +1585,10 @@ bool CopyRegProp::CheckCondition(Insn &insn) {
       ASSERT(destOpnd.IsRegister() && srcOpnd.IsRegister(), "must be");
       auto &destReg = static_cast<RegOperand &>(destOpnd);
       auto &srcReg = static_cast<RegOperand &>(srcOpnd);
-      CHECK_FATAL(srcReg.GetRegisterNumber() != RZR, "CHECK ZERO REGISTER");
+      if (srcReg.GetRegisterNumber() == RZR) {
+        insn.SetMOP(mOp == MOP_xmovrr ? MOP_xmovri64 : MOP_xmovri32);
+        insn.SetOperand(kInsnSecondOpnd, cgFunc.CreateImmOperand(PTY_u64, 0));
+      }
       if (destReg.IsSSAForm() && srcReg.IsSSAForm()) {
         /* case for ExplicitExtendProp  */
         if (destReg.GetSize() != srcReg.GetSize()) {
