@@ -302,7 +302,7 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
         // get offset value
         auto *mirConst = static_cast<ConstMeExpr*>(offsetNode)->GetConstVal();
         CHECK_FATAL(mirConst->GetKind() == kConstInt, "must be integer const");
-        auto offsetInByte = static_cast<MIRIntConst*>(mirConst)->GetValue();
+        auto offsetInByte = static_cast<MIRIntConst*>(mirConst)->GetExtValue();
         OffsetType offset(ivar->GetOffset());
         offset += (base->GetOp() == OP_add ? offsetInByte : -offsetInByte);
         if (offset.IsInvalid()) {
@@ -814,6 +814,10 @@ MeExpr *IRMap::CreateConstMeExpr(PrimType pType, MIRConst &mirConst) {
   return HashMeExpr(constMeExpr);
 }
 
+MeExpr *IRMap::CreateIntConstMeExpr(const IntVal &value, PrimType pType) {
+  return CreateIntConstMeExpr(value.GetExtValue(), pType);
+}
+
 MeExpr *IRMap::CreateIntConstMeExpr(int64 value, PrimType pType) {
   auto *intConst =
       GlobalTables::GetIntConstTable().GetOrCreateIntConst(value, *GlobalTables::GetTypeTable().GetPrimType(pType));
@@ -1098,12 +1102,8 @@ MeExpr *IRMap::FoldConstExpr(PrimType primType, Opcode op, ConstMeExpr *opndA, C
   maple::ConstantFold cf(mirModule);
   auto *constA = static_cast<MIRIntConst*>(opndA->GetConstVal());
   auto *constB = static_cast<MIRIntConst*>(opndB->GetConstVal());
-  if ((op == OP_div || op == OP_rem)) {
-    if (constB->GetValue() == 0 ||
-        (constB->GetValue() == -1 && ((primType == PTY_i32 && constA->GetValue() == INT32_MIN) ||
-                                      (primType == PTY_i64 && constA->GetValue() == INT64_MIN)))) {
-      return nullptr;
-    }
+  if ((op == OP_div || op == OP_rem) && !IsDivSafe(*constA, *constB, primType)) {
+    return nullptr;
   }
   MIRConst *resconst = cf.FoldIntConstBinaryMIRConst(op, primType, constA, constB);
   return CreateConstMeExpr(primType, *resconst);
@@ -1128,7 +1128,7 @@ MeExpr *IRMap::SimplifyLshrExpr(const OpMeExpr *shrExpr) {
   auto trySimplifyToExtractbits = [this, shrExpr, countr_one](MeExpr *band, ConstMeExpr *shrConst)->MeExpr* {
     auto *opnd0 = band->GetOpnd(0);
     auto *opnd1 = band->GetOpnd(1);
-    auto shrOffset = static_cast<ConstMeExpr*>(shrConst)->GetIntValue();
+    auto shrOffset = static_cast<ConstMeExpr*>(shrConst)->GetExtIntValue();
     if (opnd0->GetMeOp() != kMeOpConst && opnd1->GetMeOp() != kMeOpConst) {
       return nullptr;
     }
@@ -1136,7 +1136,7 @@ MeExpr *IRMap::SimplifyLshrExpr(const OpMeExpr *shrExpr) {
       opnd0 = opnd1;
       opnd1 = band->GetOpnd(0);
     }
-    int64 const0 = static_cast<ConstMeExpr*>(opnd0)->GetIntValue();
+    int64 const0 = static_cast<ConstMeExpr*>(opnd0)->GetExtIntValue();
     if (GetPrimTypeSize(opnd0->GetPrimType()) < GetPrimTypeSize(PTY_u64)) {
       const0 = static_cast<int64>(static_cast<uint32>(const0));
     }
@@ -1386,8 +1386,8 @@ MeExpr *IRMap::SimplifyAddExpr(const OpMeExpr *addExpr) {
       }
       // (constA - a) + constB --> (constA + constB) - a
       if (opnd1->GetMeOp() == kMeOpConst) {
-        auto constA = static_cast<ConstMeExpr*>(opndA)->GetIntValue();
-        auto constB = static_cast<ConstMeExpr*>(opnd1)->GetIntValue();
+        auto constA = static_cast<ConstMeExpr*>(opndA)->GetExtIntValue();
+        auto constB = static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue();
         if (ConstantFold::IntegerOpIsOverflow(OP_add, opndA->GetPrimType(), constA, constB)) {
           return nullptr;
         }
@@ -1410,11 +1410,11 @@ MeExpr *IRMap::SimplifyAddExpr(const OpMeExpr *addExpr) {
       return retOpMeExpr;
     }
 
-    if (opndB->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opndB)->GetIntValue() != INT_MIN) {
+    if (opndB->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opndB)->GetExtIntValue() != INT_MIN) {
       // (a - constA) + constB --> a + (constB - constA)
       if (opnd1->GetMeOp() == kMeOpConst) {
-        auto constA = static_cast<ConstMeExpr*>(opnd1)->GetIntValue();
-        auto constB = static_cast<ConstMeExpr*>(opndB)->GetIntValue();
+        auto constA = static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue();
+        auto constB = static_cast<ConstMeExpr*>(opndB)->GetExtIntValue();
         if (ConstantFold::IntegerOpIsOverflow(OP_sub, opndA->GetPrimType(), constA, constB)) {
           return nullptr;
         }
@@ -1810,13 +1810,13 @@ MeExpr *IRMap::SimplifyCmpExpr(OpMeExpr *cmpExpr) {
         // we prefer ne/eq in following optimizations
         if (opnd0->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd0)->GetConstVal()->IsZero()) {
           auto *newcmp = CreateMeExprCompare(cmpop == OP_ge ? OP_eq : OP_ne, PTY_u1, cmpExpr->GetOpndType(),
-                                             *opnd1, *CreateIntConstMeExpr(0, cmpExpr->GetPrimType()));
+                                             *opnd1, *CreateIntConstMeExpr(0, cmpExpr->GetOpndType()));
           auto *simplified = SimplifyCmpExpr(static_cast<OpMeExpr*>(newcmp));
           return simplified == nullptr ? newcmp : simplified;
         }
         if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd1)->GetConstVal()->IsOne()) {
           auto *newcmp = CreateMeExprCompare(cmpop == OP_ge ? OP_ne : OP_eq, PTY_u1, cmpExpr->GetOpndType(),
-                                             *opnd0, *CreateIntConstMeExpr(0, cmpExpr->GetPrimType()));
+                                             *opnd0, *CreateIntConstMeExpr(0, cmpExpr->GetOpndType()));
           auto *simplified = SimplifyCmpExpr(static_cast<OpMeExpr*>(newcmp));
           return simplified == nullptr ? newcmp : simplified;
         }
@@ -1836,13 +1836,13 @@ MeExpr *IRMap::SimplifyCmpExpr(OpMeExpr *cmpExpr) {
         // we prefer ne/eq in following optimizations
         if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd1)->GetConstVal()->IsZero()) {
           auto *newcmp = CreateMeExprCompare(cmpop == OP_gt ? OP_ne : OP_eq, PTY_u1, cmpExpr->GetOpndType(),
-                                             *opnd0, *CreateIntConstMeExpr(0, cmpExpr->GetPrimType()));
+                                             *opnd0, *CreateIntConstMeExpr(0, cmpExpr->GetOpndType()));
           auto *simplified = SimplifyCmpExpr(static_cast<OpMeExpr*>(newcmp));
           return simplified == nullptr ? newcmp : simplified;
         }
         if (opnd0->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd0)->GetConstVal()->IsOne()) {
           auto *newcmp = CreateMeExprCompare(cmpop == OP_gt ? OP_eq : OP_ne, PTY_u1, cmpExpr->GetOpndType(),
-                                             *opnd1, *CreateIntConstMeExpr(0, cmpExpr->GetPrimType()));
+                                             *opnd1, *CreateIntConstMeExpr(0, cmpExpr->GetOpndType()));
           auto *simplified = SimplifyCmpExpr(static_cast<OpMeExpr*>(newcmp));
           return simplified == nullptr ? newcmp : simplified;
         }
@@ -1950,7 +1950,7 @@ std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::op
   }
 
   if (opcode == OP_band && expr->GetOpnd(1)->GetMeOp() == kMeOpConst) {
-    auto andMask = static_cast<ConstMeExpr *>(expr->GetOpnd(1))->GetIntValue();
+    auto andMask = static_cast<ConstMeExpr *>(expr->GetOpnd(1))->GetExtIntValue();
     if (__builtin_popcountll(andMask) % 8 != 0) {
       return result;
     }
@@ -1975,7 +1975,7 @@ std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::op
     return result;
   }
   if (IsLogicalShift(opcode) && expr->GetOpnd(1)->GetMeOp() == kMeOpConst) {
-    auto bitShift = static_cast<ConstMeExpr *>(expr->GetOpnd(1))->GetIntValue();
+    auto bitShift = static_cast<ConstMeExpr *>(expr->GetOpnd(1))->GetExtIntValue();
     if (bitShift < 0 || bitShift > bitwidth) {
       return result;
     }
@@ -2145,7 +2145,7 @@ static bool IsSignBitZero(MeExpr *opnd, uint64 signBit, uint64 shiftAmt) {
       if (opnd1->GetMeOp() != kMeOpConst) {
         return false;
       }
-      auto andValue = static_cast<ConstMeExpr *>(opnd1)->GetIntValue();
+      auto andValue = static_cast<ConstMeExpr *>(opnd1)->GetExtIntValue();
       knownZeroBits |= ~andValue;
       break;
     }
@@ -2169,7 +2169,7 @@ MeExpr *IRMap::SimplifyAshrMeExpr(OpMeExpr *opmeexpr) {
   if (opnd1->GetMeOp() != kMeOpConst) {
     return nullptr;
   }
-  auto shiftAmt = static_cast<ConstMeExpr*>(opnd1)->GetIntValue();
+  auto shiftAmt = static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue();
   auto bitWidth = GetPrimTypeBitSize(opmeexpr->GetPrimType());
 
   if (shiftAmt >= bitWidth) {
@@ -2342,15 +2342,8 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
       maple::ConstantFold cf(mirModule);
       MIRIntConst *opnd0const = static_cast<MIRIntConst *>(static_cast<ConstMeExpr *>(opnd0)->GetConstVal());
       MIRIntConst *opnd1const = static_cast<MIRIntConst *>(static_cast<ConstMeExpr *>(opnd1)->GetConstVal());
-      if ((opop == OP_div || opop == OP_rem)) {
-        int64 opnd0constValue = opnd0const->GetValue();
-        int64 opnd1constValue = opnd1const->GetValue();
-        PrimType resPtyp = opmeexpr->GetPrimType();
-        if (opnd1constValue == 0 ||
-            (opnd1constValue == -1 && ((resPtyp == PTY_i32 && opnd0constValue == INT32_MIN) ||
-                                       (resPtyp == PTY_i64 && opnd0constValue == INT64_MIN)))) {
+      if ((opop == OP_div || opop == OP_rem) && !IsDivSafe(*opnd0const, *opnd1const, opmeexpr->GetPrimType())) {
           return nullptr;
-        }
       }
       MIRConst *resconst = cf.FoldIntConstBinaryMIRConst(opmeexpr->GetOp(),
           opmeexpr->GetPrimType(), opnd0const, opnd1const);
@@ -2376,9 +2369,11 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
       }
       MeExpr *opnd0 = opmeexpr->GetOpnd(0);
       MeExpr *opnd1 = opmeexpr->GetOpnd(1);
+
       if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
         return foldConst(opnd0, opnd1, opmeexpr->GetOp(), opmeexpr->GetPrimType());
       }
+
       return SimplifyLshrExpr(opmeexpr);
     }
     case OP_band: {
@@ -2406,7 +2401,7 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
       auto *opnd = opmeexpr->GetOpnd(0);
       if (opnd->GetMeOp() == kMeOpConst && IsPrimitiveInteger(opnd->GetPrimType()) &&
           IsPrimitiveInteger(opmeexpr->GetPrimType())) {
-        return CreateIntConstMeExpr(-static_cast<ConstMeExpr*>(opnd)->GetIntValue(), opmeexpr->GetPrimType());
+        return CreateIntConstMeExpr(-static_cast<ConstMeExpr*>(opnd)->GetExtIntValue(), opmeexpr->GetPrimType());
       }
       return nullptr;
     }

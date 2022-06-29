@@ -107,11 +107,11 @@ static int64 GetIncreAmtAndRhsScalar(MeExpr *x, ScalarMeExpr *&rhsScalar) {
               "GetIncreAmtAndRhsScalar: cannot find constant inc/dec amount");
   MIRConst *constVal = static_cast<ConstMeExpr *>(opexpr->GetOpnd(1))->GetConstVal();
   CHECK_FATAL(constVal->GetKind() == kConstInt, "GetIncreAmtAndRhsScalar: unexpected constant type");
-  int64 amt = static_cast<MIRIntConst *>(constVal)->GetValueUnderType();
+  int64 amt = static_cast<MIRIntConst *>(constVal)->GetExtValue();
   return (opexpr->GetOp() == OP_sub) ? -amt : amt;
 }
 
-MeExpr* SSAEPre::InsertRepairStmt(MeExpr *temp, int64 increAmt, const MeStmt *injuringDef) {
+MeExpr* SSAEPre::InsertRepairStmt(MeExpr *temp, int64 increAmt, MeStmt *injuringDef) {
   MeExpr *rhs = nullptr;
   if (increAmt >= 0) {
     rhs = irMap->CreateMeExprBinary(OP_add, temp->GetPrimType(), *temp,

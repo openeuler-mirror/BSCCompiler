@@ -91,7 +91,7 @@ bool LiveRange::IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLev) const 
         return false;
       }
       const MIRIntConst *intConst = static_cast<const MIRIntConst *>(rematInfo.mirConst);
-      int64 val = intConst->GetValue();
+      int64 val = intConst->GetExtValue();
       if (val >= -kMax16UnsignedImm && val <= kMax16UnsignedImm) {
         return true;
       }

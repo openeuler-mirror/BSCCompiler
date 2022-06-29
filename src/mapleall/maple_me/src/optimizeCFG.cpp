@@ -135,7 +135,7 @@ bool IsSimpleImm(uint64 imm) {
 // if non-simple imm exist, return it, otherwise return 0
 int64 GetNonSimpleImm(MeExpr *expr) {
   if (expr->GetMeOp() == kMeOpConst && IsPrimitiveInteger(expr->GetPrimType())) {
-    int64 imm = static_cast<MIRIntConst *>(static_cast<ConstMeExpr *>(expr)->GetConstVal())->GetValue();
+    int64 imm = static_cast<MIRIntConst *>(static_cast<ConstMeExpr *>(expr)->GetConstVal())->GetExtValue();
     if (!IsSimpleImm(static_cast<uint64>(imm))) {
       return imm;
     }
@@ -322,7 +322,7 @@ std::unique_ptr<ValueRange> GetVRForSimpleCmpExpr(const MeExpr &expr) {
     if (constVal->GetKind() != kConstInt) {
       return nullptr;
     }
-    int64 val = static_cast<MIRIntConst*>(constVal)->GetValue();
+    int64 val = static_cast<MIRIntConst*>(constVal)->GetExtValue();
     opnd1Bound.SetConstant(val);
   } else if (expr.GetOpnd(1)->IsScalar()) {
     opnd1Bound.SetVar(expr.GetOpnd(1));
@@ -1503,7 +1503,7 @@ bool IsExprSameLexicalally(MeExpr *expr1, MeExpr *expr2) {
       MIRConst *const1 = static_cast<ConstMeExpr*>(expr1)->GetConstVal();
       MIRConst *const2 = static_cast<ConstMeExpr*>(expr2)->GetConstVal();
       if (const1->GetKind() == kConstInt) {
-        return static_cast<MIRIntConst*>(const1)->GetValue() == static_cast<MIRIntConst*>(const2)->GetValue();
+        return static_cast<MIRIntConst*>(const1)->GetExtValue() == static_cast<MIRIntConst*>(const2)->GetExtValue();
       } else if (const1->GetKind() == kConstFloatConst) {
         return IsFloatingPointNumBitsSame<float>(static_cast<MIRFloatConst *>(const1)->GetValue(),
                                                  static_cast<MIRFloatConst *>(const2)->GetValue());
@@ -2084,7 +2084,7 @@ bool OptimizeBB::OptimizeSwitchBB() {
   auto *swConstExpr = static_cast<ConstMeExpr *>(swStmt->GetOpnd());
   MIRConst *swConstVal = swConstExpr->GetConstVal();
   ASSERT(swConstVal->GetKind() == kConstInt, "[FUNC: %s]switch is only legal for integer val", funcName);
-  int64 val = static_cast<MIRIntConst*>(swConstVal)->GetValue();
+  int64 val = static_cast<MIRIntConst*>(swConstVal)->GetExtValue();
   BB *survivor = currBB->GetSucc(0); // init as default BB
   for (size_t i = 0; i < swStmt->GetSwitchTable().size(); ++i) {
     int64 caseVal = swStmt->GetSwitchTable().at(i).first;
@@ -2146,8 +2146,8 @@ MeExpr *OptimizeBB::CombineCondByOffset(const MeExpr &expr) {
       lePtyp != gePtyp || !IsPrimitiveInteger(lePtyp)) { // only allowed for integer, because float cannot wrap around
     return nullptr;
   }
-  int64 leVal = static_cast<MIRIntConst*>(static_cast<ConstMeExpr*>(leConst)->GetConstVal())->GetValue();
-  int64 geVal = static_cast<MIRIntConst*>(static_cast<ConstMeExpr*>(geConst)->GetConstVal())->GetValue();
+  int64 leVal = static_cast<MIRIntConst*>(static_cast<ConstMeExpr*>(leConst)->GetConstVal())->GetExtValue();
+  int64 geVal = static_cast<MIRIntConst*>(static_cast<ConstMeExpr*>(geConst)->GetConstVal())->GetExtValue();
   if (leOp == OP_le) {
     // (x <= val1) <==> (x < val1 + 1)
     // if we still use (x <= val1) here, (x - val1) <= 0 may not overflow (if x == val1)

@@ -622,7 +622,7 @@ static bool IncDecAmountIsSmallInteger(MeExpr *x) {
   }
   ConstMeExpr *cMeExpr = static_cast<ConstMeExpr *>(x);
   MIRIntConst *cnode = dynamic_cast<MIRIntConst *>(cMeExpr->GetConstVal());
-  return cnode != nullptr && cnode->GetValue() < 0x1000;
+  return cnode != nullptr && cnode->GetExtValue() < 0x1000;
 }
 
 MeStmt *IRMapBuild::BuildDassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
@@ -808,7 +808,8 @@ MeStmt *IRMapBuild::BuildCallMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
 
 MeStmt *IRMapBuild::BuildNaryMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
   Opcode op = stmt.GetOpCode();
-  NaryMeStmt *naryMeStmt = (op == OP_icall || op == OP_icallassigned || op == OP_icallproto || op == OP_icallprotoassigned)
+  NaryMeStmt *naryMeStmt = (op == OP_icall || op == OP_icallassigned ||
+                            op == OP_icallproto || op == OP_icallprotoassigned)
                            ? static_cast<NaryMeStmt*>(irMap->NewInPool<IcallMeStmt>(&stmt))
                            : static_cast<NaryMeStmt*>(irMap->NewInPool<IntrinsiccallMeStmt>(&stmt));
   auto &naryStmtNode = static_cast<NaryStmtNode&>(stmt);

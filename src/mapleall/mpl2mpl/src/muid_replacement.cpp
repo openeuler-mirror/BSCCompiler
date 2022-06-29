@@ -641,13 +641,13 @@ void MUIDReplacement::GenerateFuncDefTable() {
     uint32 muidIdx = iter->second.second;
     constexpr uint32 weakFuncFlag = 0x80000000; // 0b10000000 00000000 00000000 00000000
     auto *indexConst = safe_cast<MIRIntConst>(muidIdxTabConst->GetConstVecItem(muidIdx));
-    uint32 tempIdx = (static_cast<uint64>(indexConst->GetValue()) & weakFuncFlag) | idx;
+    uint32 tempIdx = (indexConst->GetExtValue() & weakFuncFlag) | idx;
     indexConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(tempIdx,
                                                                       *GlobalTables::GetTypeTable().GetUInt32());
     muidIdxTabConst->SetItem(muidIdx, indexConst, 0);
     if (reflectionList.find(mirFunc->GetName()) != reflectionList.end()) {
       auto *tempConst = safe_cast<MIRIntConst>(muidIdxTabConst->GetConstVecItem(idx));
-      tempIdx = weakFuncFlag | static_cast<uint64>(tempConst->GetValue());
+      tempIdx = weakFuncFlag | tempConst->GetExtValue();
       tempConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(tempIdx,
                                                                        *GlobalTables::GetTypeTable().GetUInt32());
       muidIdxTabConst->SetItem(idx, tempConst, 0);
@@ -1237,7 +1237,7 @@ void MUIDReplacement::ReplaceAddroffuncConst(MIRConst *&entry, uint32 fieldID, b
                                                                      voidType);
   }
   if (fieldID != 0xffffffff) {
-    constNode = GlobalTables::GetIntConstTable().GetOrCreateIntConst(constNode->GetValue(),
+    constNode = GlobalTables::GetIntConstTable().GetOrCreateIntConst(constNode->GetExtValue(),
                                                                      constNode->GetType());
   }
   entry = constNode;
@@ -1266,7 +1266,7 @@ void MUIDReplacement::ReplaceFieldTypeTable(const std::string &name) {
         CHECK_NULL_FATAL(mirConst);
         if (mirConst->GetKind() == kConstInt) {
           MIRIntConst *newIntConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-              static_cast<MIRIntConst*>(mirConst)->GetValue(), mirConst->GetType());
+              static_cast<MIRIntConst*>(mirConst)->GetExtValue(), mirConst->GetType());
           aggrC->SetItem(index, newIntConst, index + 1);
         } else {
           aggrC->SetFieldIdOfElement(index, index + 1);
@@ -1297,7 +1297,7 @@ void MUIDReplacement::ReplaceDataTable(const std::string &name) {
         MIRConstPtr mirConst = aggrC->GetConstVecItem(i);
         if (mirConst->GetKind() == kConstInt) {
           MIRIntConst *newIntConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-              static_cast<MIRIntConst*>(mirConst)->GetValue(), mirConst->GetType());
+              static_cast<MIRIntConst*>(mirConst)->GetExtValue(), mirConst->GetType());
           aggrC->SetItem(i, newIntConst, i + 1);
         } else {
           aggrC->SetFieldIdOfElement(i, i + 1);
@@ -1326,7 +1326,7 @@ void MUIDReplacement::ReplaceDecoupleKeyTable(MIRAggConst* oldConst) {
           MIRConstPtr mirConst = aggrC->GetConstVecItem(i);
           if (mirConst->GetKind() == kConstInt) {
             MIRIntConst *newIntConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-                static_cast<MIRIntConst*>(mirConst)->GetValue(), mirConst->GetType());
+                static_cast<MIRIntConst*>(mirConst)->GetExtValue(), mirConst->GetType());
             aggrC->SetItem(i, newIntConst, i + 1);
           } else {
             aggrC->SetFieldIdOfElement(i, i + 1);

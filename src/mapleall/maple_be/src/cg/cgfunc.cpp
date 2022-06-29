@@ -417,7 +417,7 @@ Operand *HandleVectorMerge(const IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   int32 iNum = 0;
   if (index->GetOpCode() == OP_constval) {
     MIRConst *mirConst = static_cast<ConstvalNode *>(index)->GetConstVal();
-    iNum = static_cast<int32>(safe_cast<MIRIntConst>(mirConst)->GetValue());
+    iNum = static_cast<int32>(safe_cast<MIRIntConst>(mirConst)->GetExtValue());
     PrimType ty = intrnNode.Opnd(0)->GetPrimType();
     if (!IsPrimitiveVector(ty)) {
       iNum = 0;
@@ -449,7 +449,7 @@ Operand *HandleVectorGetElement(const IntrinsicopNode &intrnNode, CGFunc &cgFunc
   int32 laneNum = -1;
   if (opndLane->IsConstImmediate()) {
     MIRConst *mirConst = static_cast<ConstvalNode*>(intrnNode.Opnd(1))->GetConstVal();
-    laneNum = static_cast<int32>(safe_cast<MIRIntConst>(mirConst)->GetValue());
+    laneNum = static_cast<int32>(safe_cast<MIRIntConst>(mirConst)->GetExtValue());
   } else {
     CHECK_FATAL(0, "VectorGetElement does not have lane const");
   }
@@ -484,7 +484,7 @@ Operand *HandleVectorSetElement(const IntrinsicopNode &intrnNode, CGFunc &cgFunc
   int32 laneNum = -1;
   if (opnd2->IsConstImmediate()) {
     MIRConst *mirConst = static_cast<ConstvalNode*>(arg2)->GetConstVal();
-    laneNum = static_cast<int32>(safe_cast<MIRIntConst>(mirConst)->GetValue());
+    laneNum = static_cast<int32>(safe_cast<MIRIntConst>(mirConst)->GetExtValue());
   } else {
     CHECK_FATAL(0, "VectorSetElement does not have lane const");
   }
@@ -581,7 +581,7 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       auto constNode = static_cast<ConstvalNode*>(intrinsicopNode.Opnd(1));
       CHECK_FATAL(constNode != nullptr, "null ptr check");
       auto mirIntConst = static_cast<MIRIntConst*>(constNode->GetConstVal());
-      return cgFunc.SelectLazyLoadStatic(*st, mirIntConst->GetValue(), intrinsicopNode.GetPrimType());
+      return cgFunc.SelectLazyLoadStatic(*st, mirIntConst->GetExtValue(), intrinsicopNode.GetPrimType());
     }
     case INTRN_MPL_READ_ARRAYCLASS_CACHE_ENTRY: {
       auto addrOfNode = static_cast<AddrofNode*>(intrinsicopNode.Opnd(0));
@@ -589,7 +589,7 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       auto constNode = static_cast<ConstvalNode*>(intrinsicopNode.Opnd(1));
       CHECK_FATAL(constNode != nullptr, "null ptr check");
       auto mirIntConst = static_cast<MIRIntConst*>(constNode->GetConstVal());
-      return cgFunc.SelectLoadArrayClassCache(*st, mirIntConst->GetValue(), intrinsicopNode.GetPrimType());
+      return cgFunc.SelectLoadArrayClassCache(*st, mirIntConst->GetExtValue(), intrinsicopNode.GetPrimType());
     }
     // double
     case INTRN_C_sin:

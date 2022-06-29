@@ -204,7 +204,7 @@ MeExpr &MeExpr::GetAddrExprBase() {
     case kMeOpVar:
       return *this;
     case kMeOpOp:
-      if (op == OP_add || op == OP_sub) {
+      if (op == OP_add || op == OP_sub || op == OP_iaddrof || op == OP_retype) {
         auto *opMeExpr = static_cast<OpMeExpr*>(this);
         return opMeExpr->GetOpnd(0)->GetAddrExprBase();
       }
@@ -652,7 +652,7 @@ bool OpMeExpr::StrengthReducible() {
       if (GetOpnd(1)->GetOp() == OP_constval) {
         ConstMeExpr *cMeExpr = static_cast<ConstMeExpr *>(GetOpnd(1));
         MIRIntConst *cnode = static_cast<MIRIntConst *>(cMeExpr->GetConstVal());
-        return cnode->GetValue() < 0x1000;
+        return cnode->GetExtValue() < 0x1000;
       }
       return false;
     }
@@ -683,7 +683,7 @@ int64 OpMeExpr::SRMultiplier(OriginalSt *ost) {
     case OP_mul: {
       MIRConst *constVal = static_cast<ConstMeExpr *>(GetOpnd(1))->GetConstVal();
       ASSERT(constVal->GetKind() == kConstInt, "OpMeExpr::SRMultiplier: multiplier not an integer constant");
-      return static_cast<MIRIntConst *>(constVal)->GetValueUnderType();
+      return static_cast<MIRIntConst *>(constVal)->GetExtValue();
     }
     default:
       CHECK_FATAL(false, "SRMultiplier: unexpected strength reduction opcode");
@@ -693,7 +693,7 @@ int64 OpMeExpr::SRMultiplier(OriginalSt *ost) {
 
 // first, make sure it's int const and return true if the int const great or eq 0
 bool ConstMeExpr::GeZero() const {
-  return (GetIntValue() >= 0);
+  return (GetExtIntValue() >= 0);
 }
 
 bool ConstMeExpr::GtZero() const {
@@ -701,7 +701,7 @@ bool ConstMeExpr::GtZero() const {
   if (constVal->GetKind() != kConstInt) {
     return false;
   }
-  return (safe_cast<MIRIntConst>(constVal)->GetValue() > 0);
+  return (safe_cast<MIRIntConst>(constVal)->IsPositive());
 }
 
 bool ConstMeExpr::IsZero() const {
@@ -735,13 +735,31 @@ bool ConstMeExpr::IsOne() const {
   if (constVal->GetKind() != kConstInt) {
     return false;
   }
-  return (safe_cast<MIRIntConst>(constVal)->GetValue() == 1);
+  return safe_cast<MIRIntConst>(constVal)->IsOne();
 }
 
-int64 ConstMeExpr::GetIntValue() const {
+IntVal ConstMeExpr::GetIntValue() const {
   CHECK_FATAL(constVal != nullptr, "constVal is null");
   CHECK_FATAL(constVal->GetKind() == kConstInt, "expect int const");
   return safe_cast<MIRIntConst>(constVal)->GetValue();
+}
+
+int64 ConstMeExpr::GetExtIntValue() const {
+  CHECK_FATAL(constVal != nullptr, "constVal is null");
+  CHECK_FATAL(constVal->GetKind() == kConstInt, "expect int const");
+  return safe_cast<MIRIntConst>(constVal)->GetExtValue();
+}
+
+uint64 ConstMeExpr::GetZXTIntValue() const {
+  CHECK_FATAL(constVal != nullptr, "constVal is null");
+  CHECK_FATAL(constVal->GetKind() == kConstInt, "expect int const");
+  return safe_cast<MIRIntConst>(constVal)->GetZXTValue();
+}
+
+int64 ConstMeExpr::GetSXTIntValue() const {
+  CHECK_FATAL(constVal != nullptr, "constVal is null");
+  CHECK_FATAL(constVal->GetKind() == kConstInt, "expect int const");
+  return safe_cast<MIRIntConst>(constVal)->GetSXTValue();
 }
 
 MeExpr *ConstMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {

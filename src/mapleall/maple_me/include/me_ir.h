@@ -537,7 +537,14 @@ class ConstMeExpr : public MeExpr {
   bool IsZero() const override;
   bool IsIntZero() const override;
   bool IsOne() const;
-  int64 GetIntValue() const;
+  // Get int value represented by IntVal class
+  IntVal GetIntValue() const;
+  // Get value extended by its sign
+  int64 GetExtIntValue() const;
+  // Get zero extended value
+  uint64 GetZXTIntValue() const;
+  // Get sign extended value
+  int64 GetSXTIntValue() const;
 
   MIRConst *GetConstVal() {
     return constVal;
@@ -554,7 +561,7 @@ class ConstMeExpr : public MeExpr {
     if (constVal->GetKind() == kConstInt) {
       auto *intConst = safe_cast<MIRIntConst>(constVal);
       CHECK_NULL_FATAL(intConst);
-      return intConst->GetValue();
+      return intConst->GetExtValue();
     }
     if (constVal->GetKind() == kConstFloatConst) {
       auto *floatConst = safe_cast<MIRFloatConst>(constVal);
@@ -1114,7 +1121,7 @@ class IvarMeExpr : public MeExpr {
   }
 
   uint32 GetMuCount() const {
-    return muList.size();
+    return static_cast<uint32>(muList.size());
   }
 
   bool HasMultipleMu() const {

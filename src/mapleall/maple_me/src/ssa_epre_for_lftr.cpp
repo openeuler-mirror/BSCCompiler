@@ -159,7 +159,7 @@ static bool IsLargeInteger(ConstMeExpr *constOpnd) {
   if (intconst == nullptr) {
     return false;
   }
-  return ((uint64) intconst->GetValue()) > 0x8000000;
+  return intconst->GetExtValue() > 0x8000000;
 }
 
 void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool isRebuilt) {

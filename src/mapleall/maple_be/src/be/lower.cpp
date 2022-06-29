@@ -410,8 +410,8 @@ BaseNode *CGLowerer::LowerFarray(ArrayNode &array) {
     const ConstvalNode *constvalNode = static_cast<const ConstvalNode*>(array.GetIndex(0));
     if (constvalNode->GetConstVal()->GetKind() == kConstInt) {
       const MIRIntConst *pIntConst = static_cast<const MIRIntConst*>(constvalNode->GetConstVal());
-      CHECK_FATAL(JAVALANG || pIntConst->GetValue() >= 0, "Array index should >= 0.");
-      int64 eleOffset = pIntConst->GetValue() * eSize;
+      CHECK_FATAL(JAVALANG || !pIntConst->IsNegative(), "Array index should >= 0.");
+      uint64 eleOffset = pIntConst->GetExtValue() * eSize;
 
       if (farrayType->GetKind() == kTypeJArray) {
         eleOffset += RTSupport::GetRTSupportInstance().GetArrayContentOffset();
@@ -440,9 +440,8 @@ BaseNode *CGLowerer::LowerFarray(ArrayNode &array) {
 
   if ((farrayType->GetKind() == kTypeJArray) && (resNode->GetOpCode() == OP_constval)) {
     ConstvalNode *idxNode = static_cast<ConstvalNode*>(resNode);
-    int64 idx = safe_cast<MIRIntConst>(idxNode->GetConstVal())->GetValue();
-    MIRIntConst *eConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        idx * static_cast<int64>(eSize), arrayType);
+    uint64 idx = safe_cast<MIRIntConst>(idxNode->GetConstVal())->GetExtValue();
+    MIRIntConst *eConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(idx * eSize, arrayType);
     rMul = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(eConst);
     rMul->SetPrimType(array.GetPrimType());
   } else {
@@ -559,9 +558,8 @@ BaseNode *CGLowerer::LowerArray(ArrayNode &array, const BaseNode &parent) {
   if (resNode->GetOpCode() == OP_constval) {
     /* index is a constant, we can calculate the offset now */
     ConstvalNode *idxNode = static_cast<ConstvalNode*>(resNode);
-    int64 idx = safe_cast<MIRIntConst>(idxNode->GetConstVal())->GetValue();
-    MIRIntConst *eConst =
-        GlobalTables::GetIntConstTable().GetOrCreateIntConst(idx * static_cast<int64>(eSize), arrayTypes);
+    uint64 idx = safe_cast<MIRIntConst>(idxNode->GetConstVal())->GetExtValue();
+    MIRIntConst *eConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(idx * eSize, arrayTypes);
     rMul = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(eConst);
     rMul->SetPrimType(array.GetPrimType());
     if (dim == 1) {
@@ -650,14 +648,13 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
 
       BaseNode *index = static_cast<ConstvalNode *>(array.GetIndex(static_cast<size_t>(i)));
       bool isConst = false;
-      int64 indexVal = 0;
+      uint64 indexVal = 0;
       if (index->op == OP_constval) {
         ConstvalNode *constNode = static_cast<ConstvalNode *>(index);
-        indexVal = (static_cast<MIRIntConst *>(constNode->GetConstVal()))->GetValue();
+        indexVal = (static_cast<MIRIntConst *>(constNode->GetConstVal()))->GetExtValue();
         isConst = true;
         MIRIntConst *newConstNode = mirModule.GetMemPool()->New<MIRIntConst>(
-            indexVal * static_cast<int64>(mpyDim),
-            *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
+            indexVal * mpyDim, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
         BaseNode *newValNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(newConstNode);
         newValNode->SetPrimType(array.GetPrimType());
         if (i == 0) {
@@ -674,8 +671,7 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
       BaseNode *mpyNode;
       if (isConst) {
         MIRIntConst *mulConst = mirModule.GetMemPool()->New<MIRIntConst>(
-            static_cast<int64>(mpyDim) * indexVal,
-            *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
+            mpyDim * indexVal, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
         BaseNode *mulSize = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(mulConst);
         mulSize->SetPrimType(array.GetPrimType());
         mpyNode = mulSize;
@@ -717,9 +713,9 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
   if (resNode->op == OP_constval) {
     // index is a constant, we can calculate the offset now
     ConstvalNode *idxNode = static_cast<ConstvalNode *>(resNode);
-    int64 idx = static_cast<MIRIntConst *>(idxNode->GetConstVal())->GetValue();
+    uint64 idx = static_cast<MIRIntConst *>(idxNode->GetConstVal())->GetExtValue();
     MIRIntConst *econst = mirModule.GetMemPool()->New<MIRIntConst>(
-        idx * static_cast<int64>(esize), *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
+        idx * esize, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
     rMul = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(econst);
     rMul->SetPrimType(array.GetPrimType());
     if (dim == 1 && array.GetBase()->op == OP_addrof && static_cast<AddrofNode *>(array.GetBase())->GetFieldID() == 0) {
@@ -3670,7 +3666,7 @@ StmtNode *CGLowerer::LowerSyncEnterSyncExit(StmtNode &stmt) {
     CHECK_FATAL(nStmt.Opnd(1)->GetOpCode() == OP_constval, "wrong 2nd arg type for syncenter");
     ConstvalNode *cst = static_cast<ConstvalNode*>(nStmt.GetNopndAt(1));
     MIRIntConst *intConst = safe_cast<MIRIntConst>(cst->GetConstVal());
-    switch (static_cast<uint32>(intConst->GetValue())) {
+    switch (intConst->GetExtValue()) {
       case kMCCSyncEnterFast0:
         id = INTRN_FIRST_SYNC_ENTER;
         break;
@@ -4017,7 +4013,7 @@ void CGLowerer::InitArrayClassCacheTableIndex() {
   MIRSymbol *strTab = nullptr;
   for (size_t i = 0; i < aggConst.GetConstVec().size(); ++i) {
     MIRConst *elemConst = aggConst.GetConstVecItem(i);
-    uint32 intValue = static_cast<uint32>(((safe_cast<MIRIntConst>(elemConst))->GetValue()) & 0xFFFFFFFF);
+    uint32 intValue = static_cast<uint32>(((safe_cast<MIRIntConst>(elemConst))->GetExtValue()) & 0xFFFFFFFF);
     bool isHotReflectStr = (intValue & 0x00000003) != 0;     /* use the last two bits of intValue in this expression */
     if (isHotReflectStr) {
       uint32 tag = (intValue & 0x00000003) - kCStringShift;  /* use the last two bits of intValue in this expression */
@@ -4037,7 +4033,7 @@ void CGLowerer::InitArrayClassCacheTableIndex() {
     for (auto start = (intValue >> 2); start < strAgg->GetConstVec().size(); ++start) { /* the last two bits is flag */
       MIRIntConst *oneChar = static_cast<MIRIntConst*>(strAgg->GetConstVecItem(start));
       if ((oneChar != nullptr) && !oneChar->IsZero()) {
-        arrayClassName += static_cast<char>(oneChar->GetValue());
+        arrayClassName += static_cast<char>(oneChar->GetExtValue());
       } else {
         break;
       }

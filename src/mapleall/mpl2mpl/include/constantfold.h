@@ -18,6 +18,8 @@
 #include "phase_impl.h"
 #include "me_verify.h"
 
+#include <optional>
+
 namespace maple {
 class ConstantFold : public FuncOptimizeImpl {
  public:
@@ -37,6 +39,7 @@ class ConstantFold : public FuncOptimizeImpl {
   // simplification happened. If the statement can be deleted after a
   // simplification, it returns nullptr.
   StmtNode *Simplify(StmtNode *node);
+  StmtNode *SimplifyIassignWithAddrofBaseNode(IassignNode &node, const AddrofNode &base);
 
   FuncOptimizeImpl *Clone() {
     return new ConstantFold(*this);
@@ -49,7 +52,7 @@ class ConstantFold : public FuncOptimizeImpl {
   MIRConst *FoldFloorMIRConst(const MIRConst&, PrimType, PrimType, bool isFloor = true) const;
   MIRConst *FoldRoundMIRConst(const MIRConst&, PrimType, PrimType) const;
   MIRConst *FoldTypeCvtMIRConst(const MIRConst&, PrimType, PrimType) const;
-  MIRConst *FoldSignExtendMIRConst(Opcode, PrimType, uint8, const MIRConst&) const;
+  MIRConst *FoldSignExtendMIRConst(Opcode, PrimType, uint8, const IntVal&) const;
   MIRConst *FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resultType,
                                        const MIRIntConst *intConst0, const MIRIntConst *intConst1) const;
   MIRConst *FoldConstComparisonMIRConst(Opcode, PrimType, PrimType, const MIRConst&, const MIRConst&);
@@ -60,7 +63,6 @@ class ConstantFold : public FuncOptimizeImpl {
   StmtNode *SimplifyCondGoto(CondGotoNode *node);
   StmtNode *SimplifyCondGotoSelect(CondGotoNode *node) const;
   StmtNode *SimplifyDassign(DassignNode *node);
-  StmtNode *SimplifyIassignWithAddrofBaseNode(IassignNode &node, const AddrofNode &base);
   StmtNode *SimplifyIassignWithIaddrofBaseNode(IassignNode &node, const IaddrofNode &base);
   StmtNode *SimplifyIassign(IassignNode *node);
   StmtNode *SimplifyNary(NaryStmtNode *node);
@@ -70,20 +72,20 @@ class ConstantFold : public FuncOptimizeImpl {
   StmtNode *SimplifyUnary(UnaryStmtNode *node);
   StmtNode *SimplifyAsm(AsmNode* node);
   StmtNode *SimplifyWhile(WhileStmtNode *node);
-  std::pair<BaseNode*, int64> FoldArray(ArrayNode *node);
-  std::pair<BaseNode*, int64> FoldBase(BaseNode *node) const;
-  std::pair<BaseNode*, int64> FoldBinary(BinaryNode *node);
-  std::pair<BaseNode*, int64> FoldCompare(CompareNode *node);
-  std::pair<BaseNode*, int64> FoldDepositbits(DepositbitsNode *node);
-  std::pair<BaseNode*, int64> FoldExtractbits(ExtractbitsNode *node);
+  std::pair<BaseNode*, std::optional<IntVal>> FoldArray(ArrayNode *node);
+  std::pair<BaseNode*, std::optional<IntVal>> FoldBase(BaseNode *node) const;
+  std::pair<BaseNode*, std::optional<IntVal>> FoldBinary(BinaryNode *node);
+  std::pair<BaseNode*, std::optional<IntVal>> FoldCompare(CompareNode *node);
+  std::pair<BaseNode*, std::optional<IntVal>> FoldDepositbits(DepositbitsNode *node);
+  std::pair<BaseNode*, std::optional<IntVal>> FoldExtractbits(ExtractbitsNode *node);
   ConstvalNode *FoldSignExtend(Opcode opcode, PrimType resultType, uint8 size, const ConstvalNode &cst) const;
-  std::pair<BaseNode*, int64> FoldIread(IreadNode *node);
-  std::pair<BaseNode*, int64> FoldSizeoftype(SizeoftypeNode *node) const;
-  std::pair<BaseNode*, int64> FoldRetype(RetypeNode *node);
-  std::pair<BaseNode*, int64> FoldGcmallocjarray(JarrayMallocNode *node);
-  std::pair<BaseNode*, int64> FoldUnary(UnaryNode *node);
-  std::pair<BaseNode*, int64> FoldTernary(TernaryNode *node);
-  std::pair<BaseNode*, int64> FoldTypeCvt(TypeCvtNode *node);
+  std::pair<BaseNode*, std::optional<IntVal>> FoldIread(IreadNode *node);
+  std::pair<BaseNode*, std::optional<IntVal>> FoldSizeoftype(SizeoftypeNode *node) const;
+  std::pair<BaseNode*, std::optional<IntVal>> FoldRetype(RetypeNode *node);
+  std::pair<BaseNode*, std::optional<IntVal>> FoldGcmallocjarray(JarrayMallocNode *node);
+  std::pair<BaseNode*, std::optional<IntVal>> FoldUnary(UnaryNode *node);
+  std::pair<BaseNode*, std::optional<IntVal>> FoldTernary(TernaryNode *node);
+  std::pair<BaseNode*, std::optional<IntVal>> FoldTypeCvt(TypeCvtNode *node);
   ConstvalNode *FoldCeil(const ConstvalNode &cst, PrimType fromType, PrimType toType) const;
   ConstvalNode *FoldFloor(const ConstvalNode &cst, PrimType fromType, PrimType toType) const;
   ConstvalNode *FoldRound(const ConstvalNode &cst, PrimType fromType, PrimType toType) const;
@@ -122,8 +124,8 @@ class ConstantFold : public FuncOptimizeImpl {
   BaseNode *Negate(const ConstvalNode *node) const;
   BinaryNode *NewBinaryNode(BinaryNode *old, Opcode op, PrimType primeType, BaseNode *lhs, BaseNode *rhs) const;
   UnaryNode *NewUnaryNode(UnaryNode *old, Opcode op, PrimType primeType, BaseNode *expr) const;
-  std::pair<BaseNode*, int64> DispatchFold(BaseNode *node);
-  BaseNode *PairToExpr(PrimType resultType, const std::pair<BaseNode*, int64> &pair) const;
+  std::pair<BaseNode*, std::optional<IntVal>> DispatchFold(BaseNode *node);
+  BaseNode *PairToExpr(PrimType resultType, const std::pair<BaseNode*, std::optional<IntVal>> &pair) const;
   BaseNode *SimplifyDoubleCompare(CompareNode &node) const;
   CompareNode *FoldConstComparisonReverse(Opcode opcode, PrimType resultType, PrimType opndType,
                                           BaseNode &l, BaseNode &r);

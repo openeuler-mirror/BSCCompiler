@@ -422,7 +422,7 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCRVarNode(MeExpr &expr) {
 
 CRNode *LoopScalarAnalysisResult::GetOrCreateLoopInvariantCR(MeExpr &expr) {
   if (expr.GetMeOp() == kMeOpConst && static_cast<ConstMeExpr&>(expr).GetConstVal()->GetKind() == kConstInt) {
-    return GetOrCreateCRConstNode(&expr, static_cast<ConstMeExpr&>(expr).GetIntValue());
+    return GetOrCreateCRConstNode(&expr, static_cast<ConstMeExpr&>(expr).GetExtIntValue());
   }
   if (expr.GetMeOp() == kMeOpVar || expr.GetMeOp() == kMeOpReg) {
     // Try to resolve Var is assigned from Const
@@ -432,7 +432,7 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateLoopInvariantCR(MeExpr &expr) {
     scalar = TryToResolveScalar(*scalar, visitedPhi, dummyExpr);
     if (scalar != nullptr && scalar != &dummyExpr) {
       CHECK_FATAL(scalar->GetMeOp() == kMeOpConst, "must be");
-      return GetOrCreateCRConstNode(&expr, static_cast<ConstMeExpr*>(scalar)->GetIntValue());
+      return GetOrCreateCRConstNode(&expr, static_cast<ConstMeExpr*>(scalar)->GetExtIntValue());
     }
     return GetOrCreateCRVarNode(expr);
   }
@@ -901,7 +901,7 @@ CRNode *LoopScalarAnalysisResult::CreateSimpleCRForPhi(MePhiNode &phiNode,
   if (rhs->GetMeOp() == kMeOpConst && startExpr.GetDefBy() == kDefByStmt) {
     MeExpr *rhs2 = startExpr.GetDefStmt()->GetRHS();
     if (rhs2->GetMeOp() == kMeOpConst &&
-        (static_cast<ConstMeExpr*>(rhs)->GetIntValue() == static_cast<ConstMeExpr*>(rhs2)->GetIntValue())) {
+        (static_cast<ConstMeExpr*>(rhs)->GetExtIntValue() == static_cast<ConstMeExpr*>(rhs2)->GetExtIntValue())) {
       return GetOrCreateLoopInvariantCR(*rhs);
     }
   }

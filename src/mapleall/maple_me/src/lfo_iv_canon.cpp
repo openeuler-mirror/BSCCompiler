@@ -72,7 +72,7 @@ int32 IVCanon::ComputeIncrAmt(MeExpr *x, ScalarMeExpr *phiLHS, int32 *appearance
       MIRConst *konst = static_cast<ConstMeExpr *>(x)->GetConstVal();
       CHECK_FATAL(konst->GetKind() == kConstInt, "ComputeIncrAmt: must be integer constant");
       MIRIntConst *intConst = static_cast<MIRIntConst *>(konst);
-      return static_cast<int32>(intConst->GetValue());
+      return static_cast<int32>(intConst->GetExtValue());
     }
     case kMeOpVar:
     case kMeOpReg:{
@@ -484,7 +484,7 @@ void IVCanon::ComputeTripCount() {
     if (tripCount->GetOp() == maple::OP_constval) {
       MIRConst *con =  static_cast<ConstMeExpr *>(tripCount)->GetConstVal();
       MIRIntConst *countval =  static_cast<MIRIntConst *>(con);
-      if (static_cast<int32>(countval->GetValue()) < 0) {
+      if (countval->IsNegative()) {
         MIRIntConst *zeroConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, con->GetType());
         tripCount = irMap->CreateConstMeExpr(tripCount->GetPrimType(), *zeroConst);
       }

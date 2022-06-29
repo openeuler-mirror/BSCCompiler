@@ -590,7 +590,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
       switch (st->GetKonst()->GetType().GetPrimType()) {
         case PTY_u32: {
           MIRIntConst *intConst = safe_cast<MIRIntConst>(st->GetKonst());
-          (void)emitter.Emit("\t.long ").Emit(static_cast<uint32>(intConst->GetValue())).Emit("\n");
+          (void)emitter.Emit("\t.long ").Emit(static_cast<uint32>(intConst->GetExtValue())).Emit("\n");
           emitter.IncreaseJavaInsnCount();
           break;
         }

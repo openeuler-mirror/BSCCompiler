@@ -47,7 +47,7 @@ class MIRLexer {
     return lineNum;
   }
 
-  int GetCurIdx() const {
+  uint32 GetCurIdx() const {
     return curIdx;
   }
 
@@ -56,7 +56,7 @@ class MIRLexer {
     return name;
   }
 
-  int64 GetTheIntVal() const {
+  uint64 GetTheIntVal() const {
     return theIntVal;
   }
 
@@ -73,7 +73,7 @@ class MIRLexer {
  private:
   MIRModule &module;
   // for storing the different types of constant values
-  int64 theIntVal = 0;  // also indicates preg number under TK_preg
+  uint64 theIntVal = 0;  // also indicates preg number under TK_preg
   float theFloatVal = 0.0;
   double theDoubleVal = 0.0;
   MapleVector<std::string> seenComments;

@@ -715,7 +715,7 @@ bool ValueRangePropagation::TheValueOfOpndIsInvaliedInABCO(
     const BB &bb, const MeStmt *meStmt, MeExpr &boundOpnd, bool updateCaches) {
   if (boundOpnd.GetMeOp() == kMeOpConst &&
       static_cast<const ConstMeExpr&>(boundOpnd).GetConstVal()->GetKind() == kConstInt &&
-      static_cast<uint64>(static_cast<const ConstMeExpr&>(boundOpnd).GetIntValue()) == kInvaliedBound) {
+      static_cast<uint64>(static_cast<const ConstMeExpr&>(boundOpnd).GetExtIntValue()) == kInvaliedBound) {
     if (updateCaches) {
       Insert2AnalysisedArrayChecks(bb.GetBBId(), *meStmt->GetOpnd(1), *meStmt->GetOpnd(0), meStmt->GetOp());
     }
@@ -1352,7 +1352,7 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
     case kMeOpConst: {
       if (static_cast<ConstMeExpr&>(meExpr).GetConstVal()->GetKind() == kConstInt) {
         (void)Insert2Caches(bb.GetBBId(), meExpr.GetExprID(), std::make_unique<ValueRange>(
-            Bound(nullptr, static_cast<ConstMeExpr&>(meExpr).GetIntValue(), meExpr.GetPrimType()), kEqual));
+            Bound(nullptr, static_cast<ConstMeExpr&>(meExpr).GetExtIntValue(), meExpr.GetPrimType()), kEqual));
       }
       break;
     }
@@ -1747,7 +1747,7 @@ bool ValueRangePropagation::CreateNewBoundWhenAddOrSub(Opcode op, Bound bound, i
 // Judge whether the value is constant.
 bool ValueRangePropagation::IsConstant(const BB &bb, MeExpr &expr, int64 &value, bool canNotBeNotEqual) {
   if (expr.GetMeOp() == kMeOpConst && static_cast<ConstMeExpr&>(expr).GetConstVal()->GetKind() == kConstInt) {
-    value = static_cast<ConstMeExpr&>(expr).GetIntValue();
+    value = static_cast<ConstMeExpr&>(expr).GetExtIntValue();
     return true;
   }
   auto *valueRange = FindValueRange(bb, expr);
@@ -1756,7 +1756,7 @@ bool ValueRangePropagation::IsConstant(const BB &bb, MeExpr &expr, int64 &value,
         static_cast<VarMeExpr&>(expr).GetDefStmt()->GetRHS()->GetMeOp() == kMeOpConst &&
         static_cast<ConstMeExpr*>(static_cast<VarMeExpr&>(expr).GetDefStmt()->GetRHS())->GetConstVal()->GetKind() ==
             kConstInt) {
-      value = static_cast<ConstMeExpr*>(static_cast<VarMeExpr&>(expr).GetDefStmt()->GetRHS())->GetIntValue();
+      value = static_cast<ConstMeExpr*>(static_cast<VarMeExpr&>(expr).GetDefStmt()->GetRHS())->GetExtIntValue();
       (void)Insert2Caches(static_cast<VarMeExpr&>(expr).GetDefStmt()->GetBB()->GetBBId(), expr.GetExprID(),
                           std::make_unique<ValueRange>(Bound(value, expr.GetPrimType()), kEqual));
       return true;
@@ -2155,7 +2155,7 @@ void ValueRangePropagation::DealWithAssign(BB &bb, const MeStmt &stmt) {
     resVR = DealWithMeOp(bb, stmt);
   } else if (rhs->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(rhs)->GetConstVal()->GetKind() == kConstInt) {
     resVR = std::make_unique<ValueRange>(
-        Bound(static_cast<ConstMeExpr*>(rhs)->GetIntValue(), rhs->GetPrimType()), kEqual);
+        Bound(static_cast<ConstMeExpr*>(rhs)->GetExtIntValue(), rhs->GetPrimType()), kEqual);
   }
   if (resVR != nullptr) {
     auto pTypeOfLHS = lhs->GetPrimType();
@@ -2196,7 +2196,7 @@ bool ValueRangePropagation::CanComputeLoopIndVar(const MeExpr &phiLHS, MeExpr &e
         static_cast<ConstMeExpr*>(opMeExpr.GetOpnd(1))->GetConstVal()->GetKind() == kConstInt) {
       ConstMeExpr *rhsExpr = static_cast<ConstMeExpr*>(opMeExpr.GetOpnd(1));
       int64 res = 0;
-      auto rhsConst = rhsExpr->GetIntValue();
+      auto rhsConst = rhsExpr->GetExtIntValue();
       if (rhsExpr->GetPrimType() == PTY_u64 && static_cast<uint64>(rhsConst) > GetMaxNumber(PTY_i64)) {
         return false;
       }
@@ -4337,7 +4337,7 @@ bool ValueRangePropagation::GetValueRangeOfCondGotoOpnd(const BB &bb, OpMeExpr &
   valueRange = FindValueRange(bb, opnd);
   if (valueRange == nullptr) {
     if (opnd.GetMeOp() == kMeOpConst && static_cast<ConstMeExpr&>(opnd).GetConstVal()->GetKind() == kConstInt) {
-      rightRangePtr = std::make_unique<ValueRange>(Bound(static_cast<ConstMeExpr&>(opnd).GetIntValue(),
+      rightRangePtr = std::make_unique<ValueRange>(Bound(static_cast<ConstMeExpr&>(opnd).GetExtIntValue(),
           opnd.GetPrimType()), kEqual);
       valueRange = rightRangePtr.get();
       if (!Insert2Caches(bb.GetBBId(), opnd.GetExprID(), std::move(rightRangePtr))) {
@@ -4363,7 +4363,7 @@ bool ValueRangePropagation::GetValueRangeOfCondGotoOpnd(const BB &bb, OpMeExpr &
       RangeType lhsRangeType = valueRangeOfLHS->GetRangeType();
       Bound lhsBound = valueRangeOfLHS->GetBound();
       PrimType rhsPrimType = rhs->GetPrimType();
-      Bound rhsBound = Bound(static_cast<ConstMeExpr*>(rhs)->GetIntValue(), rhsPrimType);
+      Bound rhsBound = Bound(static_cast<ConstMeExpr*>(rhs)->GetExtIntValue(), rhsPrimType);
       // If the type of operands is OpMeExpr, need compute the valueRange of operand:
       // Example: if ((a != c) < b),
       // a: ValueRange(5, kEqual)
@@ -4577,8 +4577,8 @@ void ValueRangePropagation::DealWithBrStmtWithOneOpnd(BB &bb, const CondGotoMeSt
   std::unique_ptr<ValueRange> rightRangePtr = std::make_unique<ValueRange>(
       Bound(nullptr, 0, opnd.GetPrimType()), kEqual);
   if (opnd.GetMeOp() == kMeOpConst && static_cast<ConstMeExpr&>(opnd).GetConstVal()->GetKind() == kConstInt) {
-    std::unique_ptr<ValueRange> leftRangePtr =
-        std::make_unique<ValueRange>(Bound(static_cast<ConstMeExpr&>(opnd).GetIntValue(), opnd.GetPrimType()), kEqual);
+    std::unique_ptr<ValueRange> leftRangePtr = std::make_unique<ValueRange>(
+        Bound(static_cast<ConstMeExpr &>(opnd).GetExtIntValue(), opnd.GetPrimType()), kEqual);
     DealWithCondGoto(bb, op, leftRangePtr.get(), *rightRangePtr.get(), stmt);
   } else {
     ValueRange *leftRange = FindValueRange(bb, opnd);

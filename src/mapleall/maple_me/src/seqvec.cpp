@@ -227,7 +227,7 @@ MIRType* SeqVectorize::GenVecType(PrimType sPrimType, uint8 lanes) const {
 
 bool SeqVectorize::CanAdjustRhsType(PrimType targetType, ConstvalNode *rhs) {
   MIRIntConst *intConst = static_cast<MIRIntConst*>(rhs->GetConstVal());
-  int64 v = intConst->GetValue();
+  int64 v = intConst->GetExtValue();
   bool res = false;
   switch (targetType) {
     case PTY_i32: {
@@ -324,7 +324,7 @@ bool SeqVectorize::SameIntConstValue(MeExpr *e1, MeExpr *e2) {
     MIRIntConst *intc1 =  static_cast<MIRIntConst *>(const1);
     MIRConst *const2 =  (static_cast<ConstMeExpr *>(e2))->GetConstVal();
     MIRIntConst *intc2 =  static_cast<MIRIntConst *>(const2);
-    return (intc1->GetValue() == intc2->GetValue());
+    return (intc1->GetExtValue() == intc2->GetExtValue());
   }
   return false;
 }
@@ -376,7 +376,7 @@ bool SeqVectorize::IsOpExprConsecutiveMem(MeExpr *off1, MeExpr *off2, int32_t di
       MIRIntConst *intoff1 =  static_cast<MIRIntConst *>(constoff1);
       MIRConst *constoff2 =  static_cast<ConstMeExpr *>(off2->GetOpnd(1))->GetConstVal();
       MIRIntConst *intoff2 =  static_cast<MIRIntConst *>(constoff2);
-      if (intoff2->GetValue() - intoff1->GetValue() == diff) {
+      if (intoff2->GetExtValue() - intoff1->GetExtValue() == diff) {
         return true;
       }
     }
@@ -393,7 +393,7 @@ bool SeqVectorize::IsOpExprConsecutiveMem(MeExpr *off1, MeExpr *off2, int32_t di
     MIRIntConst *intc1 = static_cast<MIRIntConst *>(const1);
     MIRConst *const2 = static_cast<ConstMeExpr *>(off2)->GetConstVal();
     MIRIntConst *intc2 = static_cast<MIRIntConst *>(const2);
-    if (intc2->GetValue() - intc1->GetValue() == diff) {
+    if (intc2->GetExtValue() - intc1->GetExtValue() == diff) {
       return true;
     }
   }

@@ -296,14 +296,14 @@ void FPConstTable::PostInit() {
   minusZeroDoubleConst = new MIRDoubleConst(-0.0, typeDouble);
 }
 
-MIRIntConst *IntConstTable::GetOrCreateIntConst(int64 val, MIRType &type) {
+MIRIntConst *IntConstTable::GetOrCreateIntConst(uint64 val, MIRType &type) {
   if (ThreadEnv::IsMeParallel()) {
     return DoGetOrCreateIntConstTreadSafe(val, type);
   }
   return DoGetOrCreateIntConst(val, type);
 }
 
-MIRIntConst *IntConstTable::DoGetOrCreateIntConst(int64 val, MIRType &type) {
+MIRIntConst *IntConstTable::DoGetOrCreateIntConst(uint64 val, MIRType &type) {
   IntConstKey key(val, type.GetTypeIndex());
   if (intConstTable.find(key) != intConstTable.end()) {
     return intConstTable[key];
@@ -312,7 +312,7 @@ MIRIntConst *IntConstTable::DoGetOrCreateIntConst(int64 val, MIRType &type) {
   return intConstTable[key];
 }
 
-MIRIntConst *IntConstTable::DoGetOrCreateIntConstTreadSafe(int64 val, MIRType &type) {
+MIRIntConst *IntConstTable::DoGetOrCreateIntConstTreadSafe(uint64 val, MIRType &type) {
   IntConstKey key(val, type.GetTypeIndex());
   {
     std::shared_lock<std::shared_timed_mutex> lock(mtx);

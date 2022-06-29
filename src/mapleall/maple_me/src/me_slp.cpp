@@ -146,7 +146,7 @@ void MemoryHelper::ExtractAddendOffset(const MeExpr &expr, bool isNeg, MemLoc &m
       break;
     }
     case OP_constval: {
-      auto val = static_cast<const ConstMeExpr&>(expr).GetIntValue();
+      auto val = static_cast<const ConstMeExpr&>(expr).GetExtIntValue();
       memLoc.offset += (isNeg ? -val : val);
       break;
     }
@@ -1250,7 +1250,7 @@ static bool IsConstvalInRangeOfInsnImm(ConstMeExpr *constExpr, Opcode op, uint32
   if (constExpr->GetConstVal()->GetKind() != kConstInt) {
     return false;
   }
-  auto val = constExpr->GetIntValue();
+  auto val = constExpr->GetExtIntValue();
   switch (op) {
     case OP_add:
     case OP_sub:
@@ -2760,7 +2760,7 @@ bool SLPVectorizer::DoVectTreeNodeConstval(TreeNode *treeNode) {
     lhsReg = irMap.CreateRegMeExpr(*vecType);
     std::vector<int64> constants(treeNode->GetExprs().size());
     std::transform(treeNode->GetExprs().begin(), treeNode->GetExprs().end(), constants.begin(), [](MeExpr *expr) {
-      return static_cast<ConstMeExpr*>(expr)->GetIntValue();
+      return static_cast<ConstMeExpr*>(expr)->GetExtIntValue();
     });
     uint64 mergeConstval = ConstructConstants(constants, GetPrimTypeBitSize(elemType));
     rhs = irMap.CreateIntConstMeExpr(mergeConstval, vecType->GetPrimType());

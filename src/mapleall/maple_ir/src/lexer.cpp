@@ -204,49 +204,49 @@ TokenKind MIRLexer::GetHexConst(uint32 valStart, bool negative) {
 }
 
 TokenKind MIRLexer::GetIntConst(uint32 valStart, bool negative) {
-  char c = GetCharAtWithUpperCheck(curIdx);
-  theIntVal = HexCharToDigit(c);
-  c = GetNextCurrentCharWithUpperCheck();
-  uint8 hexValue = 10;
-  if (theIntVal == 0) {
-    // octal
-    hexValue = 8;
+  auto negOrSelf = [negative](uint64 val) { return negative ? ~val + 1 : val; };
+
+  theIntVal = HexCharToDigit(GetCharAtWithUpperCheck(curIdx));
+
+  uint64 radix = theIntVal == 0 ? 8 : 10;
+
+  char c = GetNextCurrentCharWithUpperCheck();
+
+  for (theIntVal = negOrSelf(theIntVal); isdigit(c); c = GetNextCurrentCharWithUpperCheck()) {
+    theIntVal = (theIntVal * radix) + negOrSelf(HexCharToDigit(c));
   }
-  if (negative) {
-    theIntVal = -theIntVal;
-  }
-  while (isdigit(c)) {
-    int32 val = HexCharToDigit(c);
-    if (negative) {
-      val = -val;
-    }
-    theIntVal = (theIntVal * hexValue) + val;
-    if (val < 0) {
-      ASSERT(theIntVal < 0, "int value overflow");
-    } else if (val > 0) {
-      ASSERT(theIntVal > 0, "int value overflow");
-    }
-    c = GetNextCurrentCharWithUpperCheck();
-  }
+
   if (c == 'u' || c == 'U') {  // skip 'u' or 'U'
     c = GetNextCurrentCharWithUpperCheck();
+
     if (c == 'l' || c == 'L') {
       c = GetNextCurrentCharWithUpperCheck();
     }
   }
+
   if (c == 'l' || c == 'L') {
     c = GetNextCurrentCharWithUpperCheck();
+
     if (c == 'l' || c == 'L' || c == 'u' || c == 'U') {
       ++curIdx;
     }
   }
+
   name = line.substr(valStart, curIdx - valStart);
-  theFloatVal = static_cast<float>(theIntVal);
-  theDoubleVal = static_cast<double>(theIntVal);
-  if (negative && theIntVal == 0) {
-    theFloatVal = -theFloatVal;
-    theDoubleVal = -theDoubleVal;
+
+  if (negative) {
+    theFloatVal = static_cast<float>(static_cast<int64>(theIntVal));
+    theDoubleVal = static_cast<double>(static_cast<int64>(theIntVal));
+
+    if (theIntVal == 0) {
+      theFloatVal = -theFloatVal;
+      theDoubleVal = -theDoubleVal;
+    }
+  } else {
+    theFloatVal = static_cast<float>(theIntVal);
+    theDoubleVal = static_cast<double>(theIntVal);
   }
+
   return TK_intconst;
 }
 

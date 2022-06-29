@@ -520,11 +520,11 @@ static uint64 JoinBytes(int byte, uint32 num) {
 
 // Return Fold result expr, does not always return a constant expr
 // Attention: Fold may modify the input expr, if foldExpr is not a nullptr, we should always replace expr with foldExpr
-static BaseNode *FoldIntConst(BaseNode *expr, int64 &out, bool &isIntConst) {
+static BaseNode *FoldIntConst(BaseNode *expr, uint64 &out, bool &isIntConst) {
   if (expr->GetOpCode() == OP_constval) {
     MIRConst *mirConst = static_cast<ConstvalNode*>(expr)->GetConstVal();
     if (mirConst->GetKind() == kConstInt) {
-      out = static_cast<MIRIntConst*>(mirConst)->GetValue();
+      out = static_cast<MIRIntConst*>(mirConst)->GetExtValue();
       isIntConst = true;
     }
     return nullptr;
@@ -535,14 +535,14 @@ static BaseNode *FoldIntConst(BaseNode *expr, int64 &out, bool &isIntConst) {
   if (foldExpr != nullptr && foldExpr->GetOpCode() == OP_constval) {
     MIRConst *mirConst = static_cast<ConstvalNode*>(foldExpr)->GetConstVal();
     if (mirConst->GetKind() == kConstInt) {
-      out = static_cast<MIRIntConst*>(mirConst)->GetValue();
+      out = static_cast<MIRIntConst*>(mirConst)->GetExtValue();
       isIntConst = true;
     }
   }
   return foldExpr;
 }
 
-static BaseNode *ConstructConstvalNode(int64 val, PrimType primType, MIRBuilder &mirBuilder) {
+static BaseNode *ConstructConstvalNode(uint64 val, PrimType primType, MIRBuilder &mirBuilder) {
   PrimType constPrimType = primType;
   if (IsPrimitiveFloat(primType)) {
     constPrimType = GetIntegerPrimTypeBySizeAndSign(GetPrimTypeBitSize(primType), false);
@@ -559,7 +559,7 @@ static BaseNode *ConstructConstvalNode(int64 val, PrimType primType, MIRBuilder 
 
 static BaseNode *ConstructConstvalNode(int64 byte, uint64 num, PrimType primType, MIRBuilder &mirBuilder) {
   auto val = JoinBytes(byte, static_cast<uint32>(num));
-  return ConstructConstvalNode(static_cast<int64>(val), primType, mirBuilder);
+  return ConstructConstvalNode(val, primType, mirBuilder);
 }
 
 // Input total size of memory, split the memory into several blocks, the max block size is 8 bytes
@@ -1380,21 +1380,21 @@ bool SimplifyMemOp::AutoSimplify(StmtNode &stmt, BlockNode &block, bool isLowLev
 StmtNode *SimplifyMemOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block) {
   ErrorNumber errNum = ERRNO_OK;
 
-  int64 srcSize = 0;
+  uint64 srcSize = 0;
   bool isSrcSizeConst = false;
   BaseNode *foldSrcSizeExpr = FoldIntConst(stmt.Opnd(kMemsetSSrcSizeOpndIdx), srcSize, isSrcSizeConst);
   if (foldSrcSizeExpr != nullptr) {
     stmt.SetOpnd(foldSrcSizeExpr, kMemsetSDstSizeOpndIdx);
   }
 
-  int64 dstSize = 0;
+  uint64 dstSize = 0;
   bool isDstSizeConst = false;
   BaseNode *foldDstSizeExpr = FoldIntConst(stmt.Opnd(kMemsetSDstSizeOpndIdx), dstSize, isDstSizeConst);
   if (foldDstSizeExpr != nullptr) {
     stmt.SetOpnd(foldDstSizeExpr, kMemsetSDstSizeOpndIdx);
   }
   if (isDstSizeConst) {
-    if ((srcSize > dstSize && dstSize == 0) || static_cast<uint64>(dstSize) > kSecurecMemMaxLen) {
+    if ((srcSize > dstSize && dstSize == 0) || dstSize > kSecurecMemMaxLen) {
       errNum = ERRNO_RANGE;
     }
   }
@@ -1500,7 +1500,7 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
     }
   }
 
-  int64 srcSize = 0;
+  uint64 srcSize = 0;
   bool isSrcSizeConst = false;
   BaseNode *foldSrcSizeExpr = FoldIntConst(memsetCallStmt->Opnd(srcSizeOpndIdx), srcSize, isSrcSizeConst);
   if (foldSrcSizeExpr != nullptr) {
@@ -1532,7 +1532,7 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
 
   ErrorNumber errNum = ERRNO_OK;
 
-  int64 val = 0;
+  uint64 val = 0;
   bool isIntConst = false;
   BaseNode *foldValExpr = FoldIntConst(memsetCallStmt->Opnd(srcOpndIdx), val, isIntConst);
   if (foldValExpr != nullptr) {
@@ -1587,7 +1587,7 @@ bool SimplifyMemOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowL
     stmt.Dump(0);
   }
 
-  int64 srcSize = 0;
+  uint64 srcSize = 0;
   bool isIntConst = false;
   BaseNode *foldCopySizeExpr = FoldIntConst(stmt.Opnd(srcSizeOpndIdx), srcSize, isIntConst);
   if (foldCopySizeExpr != nullptr) {
@@ -1606,10 +1606,10 @@ bool SimplifyMemOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowL
     MayPrintLog(debug, false, memOpKind, "memcpy with src size 0");
     return false;
   }
-  int64 copySize = srcSize;
+  uint64 copySize = srcSize;
   ErrorNumber errNum = ERRNO_OK;
   if (isSafeVersion) {
-    int64 dstSize = 0;
+    uint64 dstSize = 0;
     bool isDstSizeConst = false;
     BaseNode *foldDstSizeExpr = FoldIntConst(stmt.Opnd(dstSizeOpndIdx), dstSize, isDstSizeConst);
     if (foldDstSizeExpr != nullptr) {
@@ -1619,7 +1619,7 @@ bool SimplifyMemOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowL
       MayPrintLog(debug, false, memOpKind, "dst size is not int const");
       return false;
     }
-    if (dstSize == 0 || static_cast<uint64>(dstSize) > kSecurecMemMaxLen) {
+    if (dstSize == 0 || dstSize > kSecurecMemMaxLen) {
       copySize = 0;
       errNum = ERRNO_RANGE;
     } else if (srcSize > dstSize) {
@@ -1653,7 +1653,7 @@ bool SimplifyMemOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowL
   }
   bool ret = false;
   if (copySize != 0) {
-    ret = dstMemEntry.ExpandMemcpy(srcMemEntry, static_cast<uint64>(copySize), *func, stmt, block, isLowLevel, debug,
+    ret = dstMemEntry.ExpandMemcpy(srcMemEntry, copySize, *func, stmt, block, isLowLevel, debug,
                                    errNum);
   } else {
     // if copySize == 0, no need to copy memory, just return error number

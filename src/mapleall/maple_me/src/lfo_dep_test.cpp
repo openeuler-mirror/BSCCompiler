@@ -232,7 +232,7 @@ SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
     if (opnd1->op == OP_constval) {
       MIRConst *mirconst = static_cast<ConstvalNode *>(opnd1)->GetConstVal();
       if (mirconst->GetKind() == kConstInt) {
-        subsDesc->additiveConst = static_cast<MIRIntConst *>(mirconst)->GetValue();
+        subsDesc->additiveConst = static_cast<MIRIntConst *>(mirconst)->GetExtValue();
         if (op == OP_sub) {
           subsDesc->additiveConst = - subsDesc->additiveConst;
         }
@@ -278,7 +278,7 @@ SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
       subsDesc->tooMessy = true;
       return subsDesc;
     }
-    subsDesc->coeff = static_cast<MIRIntConst *>(mirconst)->GetValue();
+    subsDesc->coeff = static_cast<MIRIntConst *>(mirconst)->GetExtValue();
   }
   // process varNode
   if (varNode->GetOpCode() == OP_cvt) {

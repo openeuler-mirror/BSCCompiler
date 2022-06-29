@@ -56,7 +56,7 @@ BaseNode &ConstMeExpr::EmitExpr(SSATab &ssaTab) {
   // if int const has been promoted from dyn int const, remove the type tag
   if (IsPrimitiveInteger(exprConst->GetPrimType())) {
     auto *intConst = safe_cast<MIRIntConst>(exprConst->GetConstVal());
-    MIRIntConst *newIntConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(intConst->GetValueUnderType(),
+    MIRIntConst *newIntConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(intConst->GetExtValue(),
         intConst->GetType());
     exprConst->SetConstVal(newIntConst);
   }
@@ -302,7 +302,7 @@ StmtNode &DassignMeStmt::EmitStmt(SSATab &ssaTab) {
     StIdx lhsStIdx = lhsMirSt->GetStIdx();
     int32 offset = (GetVarLHS()->GetOst()->GetOffset().val) / 8;
     PrimType rhsType = GetRHS()->GetPrimType();
-    int64 val = static_cast<ConstMeExpr *>(GetRHS())->GetIntValue();
+    int64 val = static_cast<ConstMeExpr *>(GetRHS())->GetExtIntValue();
     ConstvalNode *rhsNode = ssaTab.GetModule().GetMIRBuilder()->CreateIntConst(val, rhsType);
     MemPool *codeMemPool = ssaTab.GetModule().CurFunction()->GetCodeMempool();
     DassignoffNode *dassignoffNode = codeMemPool->New<DassignoffNode>(lhsStIdx, offset, rhsType, rhsNode);
@@ -379,7 +379,7 @@ StmtNode &IassignMeStmt::EmitStmt(SSATab &ssaTab) {
       addrNode = codeMemPool->New<BinaryNode>(OP_add, lhsVar->GetBase()->GetPrimType(),
                                                        &(lhsVar->GetBase()->EmitExpr(ssaTab)), offsetNode);
     }
-    int64 val = static_cast<ConstMeExpr *>(GetOpnd(1))->GetIntValue();
+    int64 val = static_cast<ConstMeExpr *>(GetOpnd(1))->GetExtIntValue();
     ConstvalNode *rhsNode = ssaTab.GetModule().GetMIRBuilder()->CreateIntConst(val, rhsType);
     MemPool *codeMemPool = ssaTab.GetModule().CurFunction()->GetCodeMempool();
     IassignoffNode *iassignoffNode = codeMemPool->New<IassignoffNode>(rhsType, offset, addrNode, rhsNode);
@@ -412,7 +412,8 @@ MIRFunction &CallMeStmt::GetTargetFunction() {
 }
 
 StmtNode &CallMeStmt::EmitStmt(SSATab &ssaTab) {
-  if (GetOp() != OP_icall && GetOp() != OP_icallassigned && GetOp() != OP_icallproto && GetOp() != OP_icallprotoassigned) {
+  if (GetOp() != OP_icall && GetOp() != OP_icallassigned &&
+      GetOp() != OP_icallproto && GetOp() != OP_icallprotoassigned) {
     auto *callNode =
         ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<CallNode>(ssaTab.GetModule(), Opcode(GetOp()));
     callNode->SetPUIdx(puIdx);

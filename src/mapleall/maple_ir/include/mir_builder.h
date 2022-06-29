@@ -150,7 +150,7 @@ class MIRBuilder {
   MIRSymbol *GetOrCreateDeclInFunc(const std::string &str, const MIRType &type, MIRFunction &func);
   // for creating Expression
   ConstvalNode *CreateConstval(MIRConst *constVal);
-  ConstvalNode *CreateIntConst(int64, PrimType);
+  ConstvalNode *CreateIntConst(uint64, PrimType);
   ConstvalNode *CreateFloatConst(float val);
   ConstvalNode *CreateDoubleConst(double val);
   ConstvalNode *CreateFloat128Const(const uint64 *val);

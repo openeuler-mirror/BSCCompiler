@@ -16,6 +16,7 @@
 #define MAPLE_IR_INCLUDE_MIR_CONST_H
 #include <math.h>
 #include "mir_type.h"
+#include "mpl_int_val.h"
 
 namespace maple {
 class MIRConst;  // circular dependency exists, no other choice
@@ -92,56 +93,58 @@ class MIRConst {
 
 class MIRIntConst : public MIRConst {
  public:
-  using value_type = int64;
-  MIRIntConst(int64 val, MIRType &type) : MIRConst(type, kConstInt), value(val) {
-    if (!IsPrimitiveDynType(type.GetPrimType())) {
-      if (type.GetPrimType() == PTY_u128 || type.GetPrimType() == PTY_i128) {
-        Trunc(64u);
-      } else {
-        Trunc(GetPrimTypeBitSize(type.GetPrimType()));
-      }
-    }
+  MIRIntConst(uint64 val, MIRType &type)
+      : MIRConst(type, kConstInt), value(val, type.GetPrimType()) {}
+
+  MIRIntConst(const IntVal &val, MIRType &type) : MIRConst(type, kConstInt), value(val) {
+    [[maybe_unused]] PrimType pType = type.GetPrimType();
+    ASSERT(IsPrimitiveInteger(pType) && GetPrimTypeActualBitSize(pType) <= value.GetBitWidth(),
+           "Constant is tried to be constructed with non-integral type or bit-width is not appropriate for it");
   }
 
-  ~MIRIntConst() = default;
+  /// @return number of used bits in the value
+  uint8 GetActualBitWidth() const;
 
-  uint8 GetBitWidth() const;
-
-  void Trunc(uint8 width);
-
-  int64 GetValueUnderType() const;
+  void Trunc(uint8 width) {
+    value.TruncInPlace(width);
+  }
 
   void Dump(const MIRSymbolTable *localSymTab) const override;
-  bool IsZero() const override {
-    return value == 0 && IsPrimitiveInteger(GetType().GetPrimType());
+
+  bool IsNegative() const {
+    return value.IsSigned() && value.GetSignBit();
   }
 
-  bool IsGeZero() {
-    return value >= 0 && IsPrimitiveInteger(GetType().GetPrimType());
+  bool IsPositive() const {
+    return !IsNegative() && value != 0;
+  }
+
+  bool IsZero() const override {
+    return value == 0;
   }
 
   bool IsOne() const override {
-    return value == 1 && IsPrimitiveInteger(GetType().GetPrimType());
-  };
-  bool IsMagicNum() const override {
-    // use INIT_INST_TABLE defined 50 OPs for inst_processor_table
-    constexpr int64 kMagicNum = 51;
-    return value == kMagicNum && IsPrimitiveInteger(GetType().GetPrimType());
-  };
-  bool IsAllBitsOne() const {
-    return value == -1 && IsPrimitiveInteger(GetType().GetPrimType());
-  };
-  void Neg() override {
-    CHECK_FATAL(false, "Can't Use This Interface in This Object");
+    return value == 1;
   }
 
-  int64 GetValue() const {
+  void Neg() override {
+    value = -value;
+  }
+
+  const IntVal &GetValue() const {
     return value;
   }
 
-  int64 GetSXTValue() const {
-    uint32 width = GetPrimTypeBitSize(GetType().GetPrimType());
-    return static_cast<int64>(value << (64 - width)) >> (64 - width);
+  int64 GetExtValue(uint8 size = 0) const {
+    return value.GetExtValue(size);
+  }
+
+  int64 GetSXTValue(uint8 size = 0) const {
+    return value.GetSXTValue(size);
+  }
+
+  uint64 GetZXTValue(uint8 size = 0) const {
+    return value.GetZXTValue(size);
   }
 
   void SetValue(int64 val) const {
@@ -153,12 +156,10 @@ class MIRIntConst : public MIRConst {
 
   MIRIntConst *Clone(MemPool &memPool) const override {
     CHECK_FATAL(false, "Can't Use This Interface in This Object");
-    (void)memPool;
-    return nullptr;
   }
 
  private:
-  int64 value;
+  IntVal value;
 };
 
 class MIRAddrofConst : public MIRConst {
@@ -493,9 +494,9 @@ class MIRAggConst : public MIRConst {
 
   ~MIRAggConst() = default;
 
-  MIRConst *GetAggConstElement(unsigned int fieldidx) {
+  MIRConst *GetAggConstElement(unsigned int fieldId) {
     for (size_t i = 0; i < fieldIdVec.size(); ++i) {
-      if (fieldidx == fieldIdVec[i]) {
+      if (fieldId == fieldIdVec[i]) {
         return constVec[i];
       }
     }
@@ -606,6 +607,9 @@ class MIRStConst : public MIRConst {
   MapleVector<uint32> stOffsetVec;  // symbols offset
 };
 #endif  // MIR_FEATURE_FULL
+
+bool IsDivSafe(const MIRIntConst& dividend, const MIRIntConst& divisor, PrimType pType);
+
 }  // namespace maple
 
 #define LOAD_SAFE_CAST_FOR_MIR_CONST

@@ -498,7 +498,7 @@ ConstvalNode *MIRBuilder::CreateConstval(MIRConst *mirConst) {
   return GetCurrentFuncCodeMp()->New<ConstvalNode>(mirConst->GetType().GetPrimType(), mirConst);
 }
 
-ConstvalNode *MIRBuilder::CreateIntConst(int64 val, PrimType pty) {
+ConstvalNode *MIRBuilder::CreateIntConst(uint64 val, PrimType pty) {
   auto *mirConst =
       GlobalTables::GetIntConstTable().GetOrCreateIntConst(val, *GlobalTables::GetTypeTable().GetPrimType(pty));
   return GetCurrentFuncCodeMp()->New<ConstvalNode>(pty, mirConst);
