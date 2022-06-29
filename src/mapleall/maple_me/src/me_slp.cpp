@@ -295,6 +295,17 @@ std::optional<int32> MemoryHelper::Distance(const MemLoc &from, const MemLoc &to
   return to.offset - from.offset;
 }
 
+bool MemoryHelper::IsSame(const MemLoc &mem1, const MemLoc &mem2) {
+  if (mem1.type != mem2.type) {
+    return false;
+  }
+  auto dis = Distance(mem1, mem2);
+  if (!dis) {
+    return false;
+  }
+  return dis.value() == 0;
+}
+
 bool MemoryHelper::IsConsecutive(const MemLoc &mem1, const MemLoc &mem2, bool mustSameType) {
   if (mustSameType && mem1.type != mem2.type) {
     return false;
@@ -1317,7 +1328,12 @@ int32 SLPTree::GetCost() const {
   if (GetSize() == 2 && treeNodeVec[1]->GetOp() == OP_constval && treeNodeVec[1]->SameExpr()) {
     auto *constVal = static_cast<ConstMeExpr*>(treeNodeVec[1]->GetExprs()[0])->GetConstVal();
     if (constVal->GetKind() == kConstInt && static_cast<MIRIntConst*>(constVal)->GetValue() == 0) {
-      return kHugeCost;
+      // two 'str wzr' can be merged into one 'str xzr' now
+      bool canMergeTwoStrWzr = GetLane() == 2 && GetPrimTypeBitSize(GetType()) == 32 &&
+          treeNodeVec[0]->GetOp() == OP_iassign;
+      if (!canMergeTwoStrWzr) {
+        return kHugeCost;
+      }
     }
   }
   int32 cost = 0;
@@ -2167,6 +2183,21 @@ std::pair<uint32, uint32> GetMinFactors(PrimType scalarType) {
   return { std::max(8 / typeSize, 2u), 2u };  // min vector regsize: 8byte, minSf is always 2
 }
 
+bool IsTwoStoreWrapperSame(StoreWrapper *s1, StoreWrapper *s2) {
+  return MemoryHelper::IsSame(*s1->storeMem, *s2->storeMem) && s1->stmt->GetRHS() == s2->stmt->GetRHS();
+}
+
+bool IsSurroundedByRepeatedStore(SLPVectorizer::StoreVec &storeVec, uint32 first, uint32 last) {
+  auto size = storeVec.size();
+  if (first > 0 && IsTwoStoreWrapperSame(storeVec[first - 1], storeVec[first])) {
+    return true;
+  }
+  if (last < size - 1 && IsTwoStoreWrapperSame(storeVec[last], storeVec[last + 1])) {
+    return true;
+  }
+  return false;
+}
+
 // Try to vectorize storeVec[begin, end), in which all stores are compatible and consecutive
 void SLPVectorizer::VectorizeConsecutiveStores(StoreVec &storeVec, uint32 begin, uint32 end) {
   SLP_DEBUG(os << "==== VectorizeConsecutiveStores [" << begin << ", " << end << ")" << std::endl);
@@ -2198,6 +2229,11 @@ void SLPVectorizer::VectorizeConsecutiveStores(StoreVec &storeVec, uint32 begin,
       }
       if (!allStoresNotVectorized) {
         i -= factor;  // can use --i for more optimization at the cost of build time
+        continue;
+      }
+      if (IsSurroundedByRepeatedStore(storeVec, currBegin, i - 1)) {  // we trust hdse
+        SLP_FAILURE_DEBUG(os << "surrounded by repeated stores" << std::endl);
+        i -= factor;
         continue;
       }
       bool res = DoVectorizeSlicedStores(storeVec, currBegin, i);

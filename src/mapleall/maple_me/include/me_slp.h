@@ -141,6 +141,7 @@ class MemoryHelper {
   // return distance (in byte) from the first memLoc to the second memLoc if they have same base pointer,
   // return none otherwise.
   static std::optional<int32> Distance(const MemLoc &from, const MemLoc &to);
+  static bool IsSame(const MemLoc &mem1, const MemLoc &mem2);
   static bool IsConsecutive(const MemLoc &mem1, const MemLoc &mem2, bool mustSameType);
   static bool IsConsecutive(const IvarMeExpr &ivar1, const IvarMeExpr &ivar2, bool mustSameType);
   static bool MustHaveNoOverlap(const MemLoc &mem1, const MemLoc &mem2);
