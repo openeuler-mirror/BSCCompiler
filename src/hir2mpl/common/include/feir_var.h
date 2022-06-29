@@ -72,7 +72,7 @@ enum FEIRVarKind : uint8 {
 class FEIRExpr;
 class FEIRVar {
  public:
-  FEIRVar(FEIRVarKind argKind);
+  explicit FEIRVar(FEIRVarKind argKind);
   FEIRVar(FEIRVarKind argKind, std::unique_ptr<FEIRType> argType);
   virtual ~FEIRVar();
   void SetType(std::unique_ptr<FEIRType> argType);
@@ -166,7 +166,7 @@ class FEIRVar {
     sectionAttr = str;
   }
 
-  void SetSrcLoc(Loc l) {
+  void SetSrcLoc(const Loc &l) {
     loc = l;
   }
 

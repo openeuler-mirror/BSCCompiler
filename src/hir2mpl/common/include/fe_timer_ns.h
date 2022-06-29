@@ -16,7 +16,6 @@
 #define HIR2MPL_INCLUDE_COMMON_FE_TIMER_NS_H
 #include <ctime>
 #include <cstdlib>
-#include <inttypes.h>
 
 namespace maple {
 class FETimerNS {

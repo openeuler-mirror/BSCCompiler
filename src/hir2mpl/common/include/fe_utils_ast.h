@@ -15,7 +15,6 @@
 #ifndef HIR2MPL_INCLUDE_FE_UTILS_AST_H
 #define HIR2MPL_INCLUDE_FE_UTILS_AST_H
 #include <string>
-#include <vector>
 #include "types_def.h"
 #include "cfg_primitive_types.h"
 #include "mempool.h"

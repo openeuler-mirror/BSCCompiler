@@ -30,7 +30,6 @@
 #ifdef ENABLE_MAST
 #include "maple_ast_parser.h"
 #endif
-#include "mpl_timer.h"
 #include "hir2mpl_env.h"
 #include "fe_manager.h"
 #include "fe_type_hierarchy.h"

@@ -18,9 +18,6 @@
 
 #include "driver_options.h"
 
-#include <stdint.h>
-#include <string>
-
 namespace opts::hir2mpl {
 extern maplecl::Option<bool> help;
 extern maplecl::Option<bool> version;

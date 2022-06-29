@@ -29,6 +29,7 @@ struct StructElemNameIdx {
 
   StructElemNameIdx(const GStrIdx &argKlass, const GStrIdx &argElem, const GStrIdx &argType, const GStrIdx &argFull)
       : klass(argKlass), elem(argElem), type(argType), full(argFull) {}
+
   StructElemNameIdx(const std::string &klassStr, const std::string &elemStr, const std::string &typeStr) {
     const std::string &fullName = klassStr + "|" + elemStr + "|" + typeStr;
     klass = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(namemangler::EncodeName(klassStr));
@@ -36,7 +37,8 @@ struct StructElemNameIdx {
     type = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(namemangler::EncodeName(typeStr));
     full = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(namemangler::EncodeName(fullName));
   }
-  StructElemNameIdx(const std::string &funcStr) {
+
+  explicit StructElemNameIdx(const std::string &funcStr) {
     klass = GStrIdx(0);
     elem = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcStr);
     type = GStrIdx(0);

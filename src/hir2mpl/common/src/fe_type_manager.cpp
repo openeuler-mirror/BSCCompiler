@@ -481,8 +481,8 @@ MIRFunction *FETypeManager::GetMIRFunction(const GStrIdx &nameIdx, bool isStatic
   if (it != funcMap.end()) {
     return it->second;
   }
-  const std::unordered_map<GStrIdx, MIRFunction*, GStrIdxHash> &mpltFuncMap = isStatic ? mpltNameStaticFuncMap :
-                                                                                         mpltNameFuncMap;
+  const std::unordered_map<GStrIdx, MIRFunction*, GStrIdxHash> &mpltFuncMap =
+      isStatic ? mpltNameStaticFuncMap : mpltNameFuncMap;
   auto it2 = mpltFuncMap.find(nameIdx);
   if (it2 != mpltFuncMap.end()) {
     return it2->second;

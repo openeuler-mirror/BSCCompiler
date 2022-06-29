@@ -15,9 +15,6 @@
 
 #include "driver_options.h"
 
-#include <stdint.h>
-#include <string>
-
 namespace opts::hir2mpl {
 
 maplecl::Option<bool> help({"--help", "-h"},

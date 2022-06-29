@@ -111,7 +111,7 @@ class SimpleXMLElemMultiLine : public SimpleXMLElem {
 
 class SimpleXML {
  public:
-  SimpleXML(MapleAllocator &alloc);
+  explicit SimpleXML(MapleAllocator &alloc);
   ~SimpleXML() = default;
   void AddRoot(SimpleXMLElem &elem);
 

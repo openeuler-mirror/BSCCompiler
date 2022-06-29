@@ -115,7 +115,7 @@ class ZipLocalFile {
 
 class SimpleZip : public BasicIORead {
  public:
-  SimpleZip(BasicIOMapFile &file);
+  explicit SimpleZip(BasicIOMapFile &file);
   ~SimpleZip();
   void ParseFile();
 

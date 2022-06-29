@@ -1030,7 +1030,7 @@ MIRConst *ENCChecker::GetMIRConstFromExpr(const UniqueFEIRExpr &expr) {
     FEIRExprAddrofArray *arrExpr = static_cast<FEIRExprAddrofArray*>(expr.get());
     MIRConst *cst = GetMIRConstFromExpr(arrExpr->GetExprArray());
     if (cst != nullptr && cst->GetKind() == kConstAggConst) {
-      for (const auto & idxExpr : arrExpr->GetExprIndexs()) {
+      for (const auto &idxExpr : arrExpr->GetExprIndexs()) {
         MIRAggConst *aggConst = static_cast<MIRAggConst*>(cst);
         if (idxExpr->GetKind() != kExprConst) {
           return nullptr;

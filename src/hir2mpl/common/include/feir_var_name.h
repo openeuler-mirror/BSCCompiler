@@ -24,7 +24,7 @@ namespace maple {
 // ---------- FEIRVarName ----------
 class FEIRVarName : public FEIRVar {
  public:
-  FEIRVarName(const GStrIdx &argNameIdx, bool argWithType = false)
+  explicit FEIRVarName(const GStrIdx &argNameIdx, bool argWithType = false)
       : FEIRVar(FEIRVarKind::kFEIRVarName),
         nameIdx(argNameIdx),
         withType(argWithType) {}

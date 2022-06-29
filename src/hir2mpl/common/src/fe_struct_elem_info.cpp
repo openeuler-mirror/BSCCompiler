@@ -219,6 +219,7 @@ FEStructMethodInfo::FEStructMethodInfo(MapleAllocator &allocatorIn, const Struct
                                        MIRSrcLang argSrcLang, bool argIsStatic)
     : FEStructElemInfo(allocatorIn, argStructElemNameIdx, argSrcLang, argIsStatic),
       isReturnVoid(false),
+      isConstructor(false),
       isJavaPolymorphicCall(false),
       isJavaDynamicCall(false),
       methodNameIdx(argStructElemNameIdx.full),

@@ -216,7 +216,7 @@ class FEIRStmt : public FELinkListNode {
   bool IsStmtInstComment() const;
   bool ShouldHaveLOC() const;
   BaseNode *ReplaceAddrOfNode(BaseNode *node) const;
-  void SetSrcLoc(Loc l) {
+  void SetSrcLoc(const Loc &l) {
     loc = l;
   }
 
@@ -457,7 +457,7 @@ class FEIRExpr {
     return loc;
   }
 
-  std::string Dump() {
+  std::string Dump() const {
     return GetFEIRNodeKindDescription(kind);
   }
 
@@ -869,7 +869,7 @@ class FEIRExprAddrofArray : public FEIRExpr {
 
   void SetIndexsExprs(std::list<UniqueFEIRExpr> &exprs) {
     exprIndexs.clear();
-    for (auto &e : exprs) {
+    for (const auto &e : exprs) {
       auto ue = e->Clone();
       exprIndexs.push_back(std::move(ue));
     }
@@ -902,7 +902,7 @@ class FEIRExprAddrofArray : public FEIRExpr {
       hash += exprArray->Hash();
     }
     std::size_t seed = exprIndexs.size();
-    for (auto &idx : exprIndexs) {
+    for (const auto &idx : exprIndexs) {
       if (idx != nullptr) {
         seed ^= idx->Hash() + kRandomNum + (seed << 6) + (seed >> 2);
       }
@@ -1337,7 +1337,7 @@ class FEIRExprJavaNewArray : public FEIRExpr {
 // ---------- FEIRExprJavaArrayLength ----------
 class FEIRExprJavaArrayLength : public FEIRExpr {
  public:
-  FEIRExprJavaArrayLength(UniqueFEIRExpr argExprArray);
+  explicit FEIRExprJavaArrayLength(UniqueFEIRExpr argExprArray);
   ~FEIRExprJavaArrayLength() = default;
   void SetExprArray(UniqueFEIRExpr argExprArray) {
     CHECK_NULL_FATAL(argExprArray);
@@ -1868,7 +1868,7 @@ class FEIRStmtReturn : public FEIRStmtUseOnly {
 // ---------- FEIRStmtPesudoLabel ----------
 class FEIRStmtPesudoLabel : public FEIRStmt {
  public:
-  FEIRStmtPesudoLabel(uint32 argLabelIdx);
+  explicit FEIRStmtPesudoLabel(uint32 argLabelIdx);
   ~FEIRStmtPesudoLabel() = default;
   void GenerateLabelIdx(MIRBuilder &mirBuilder);
 
@@ -2036,7 +2036,7 @@ class FEIRStmtIGoto : public FEIRStmt {
 class FEIRStmtCondGotoForC : public FEIRStmt {
  public:
   explicit FEIRStmtCondGotoForC(UniqueFEIRExpr argExpr, Opcode op, const std::string &name)
-      : FEIRStmt(FEIRNodeKind::kStmtCondGoto), expr(std::move(argExpr)), opCode(op), labelName(std::move(name)) {}
+      : FEIRStmt(FEIRNodeKind::kStmtCondGoto), expr(std::move(argExpr)), opCode(op), labelName(name) {}
   virtual ~FEIRStmtCondGotoForC() = default;
   void SetLabelName(const std::string &name) {
     labelName = name;
@@ -2276,7 +2276,7 @@ class FEIRStmtSwitchForC : public FEIRStmt {
 // ---------- FEIRStmtCaseForC ----------
 class FEIRStmtCaseForC : public FEIRStmt {
  public:
-  FEIRStmtCaseForC(int64 lCaseLabel);
+  explicit FEIRStmtCaseForC(int64 lCaseLabel);
   void AddCaseTag2CaseVec(int64 lCaseTag, int64 rCaseTag);
   ~FEIRStmtCaseForC() = default;
   void AddFeirStmt(UniqueFEIRStmt stmt) {
@@ -2338,7 +2338,7 @@ class FEIRStmtArrayStore : public FEIRStmt {
 
   void SetIndexsExprs(std::list<UniqueFEIRExpr> &exprs) {
     exprIndexs.clear();
-    for (auto &e : exprs) {
+    for (const auto &e : exprs) {
       auto ue = e->Clone();
       exprIndexs.push_back(std::move(ue));
     }
@@ -2555,7 +2555,7 @@ class FEIRStmtPesudoJavaTry : public FEIRStmt {
 // ---------- FEIRStmtPesudoJavaTry2 ----------
 class FEIRStmtPesudoJavaTry2 : public FEIRStmt {
  public:
-  FEIRStmtPesudoJavaTry2(uint32 outerIdxIn);
+  explicit FEIRStmtPesudoJavaTry2(uint32 outerIdxIn);
   ~FEIRStmtPesudoJavaTry2() = default;
   void AddCatchLabelIdx(uint32 labelIdx) {
     catchLabelIdxVec.push_back(labelIdx);
@@ -2626,7 +2626,7 @@ class FEIRStmtPesudoCatch2 : public FEIRStmtPesudoLabel2 {
 
 class FEIRStmtPesudoSafe : public FEIRStmt {
  public:
-  FEIRStmtPesudoSafe(bool isEnd);
+  explicit FEIRStmtPesudoSafe(bool isEnd);
   ~FEIRStmtPesudoSafe() = default;
 
  protected:
@@ -2637,7 +2637,7 @@ class FEIRStmtPesudoSafe : public FEIRStmt {
 
 class FEIRStmtPesudoUnsafe : public FEIRStmt {
  public:
-  FEIRStmtPesudoUnsafe(bool isEnd);
+  explicit FEIRStmtPesudoUnsafe(bool isEnd);
   ~FEIRStmtPesudoUnsafe() = default;
 
  protected:
@@ -2755,7 +2755,7 @@ class FEIRStmtDoWhile : public FEIRStmt {
   ~FEIRStmtDoWhile() = default;
 
   const std::list<UniqueFEIRStmt> &GetBodyStmts() const {
-   return bodyStmts;
+    return bodyStmts;
   }
 
   const UniqueFEIRExpr &GetCondExpr() const {
@@ -2841,7 +2841,7 @@ class FEIRStmtLabel : public FEIRStmt {
 
 class FEIRStmtAtomic : public FEIRStmt {
  public:
-  FEIRStmtAtomic(UniqueFEIRExpr expr);
+  explicit FEIRStmtAtomic(UniqueFEIRExpr expr);
   ~FEIRStmtAtomic() = default;
 
  protected:

@@ -19,7 +19,6 @@
 #include <ctime>
 #include <sys/time.h>
 #include <iostream>
-#include <inttypes.h>
 #include "fe_options.h"
 #include "mpl_logging.h"
 

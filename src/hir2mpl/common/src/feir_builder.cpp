@@ -289,8 +289,8 @@ UniqueFEIRExpr FEIRBuilder::CreateExprZeroCompare(Opcode op, UniqueFEIRExpr expr
     }
     return std::make_unique<FEIRExprConst>(val, PTY_u1);
   }
-  UniqueFEIRExpr zeroExpr = (expr->GetPrimType() == PTY_ptr) ? CreateExprConstPtrNull() :
-                                                               CreateExprConstAnyScalar(expr->GetPrimType(), 0);
+  UniqueFEIRExpr zeroExpr =
+      (expr->GetPrimType() == PTY_ptr) ? CreateExprConstPtrNull() : CreateExprConstAnyScalar(expr->GetPrimType(), 0);
   return CreateExprMathBinary(op, std::move(expr), std::move(zeroExpr));
 }
 

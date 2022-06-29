@@ -22,12 +22,12 @@
 #include "fe_function.h"
 
 namespace maple {
-typedef struct {
+struct ExtraField {
   std::string klass;
   std::string field;
   std::string type;
   std::string attr;
-} ExtraField;
+};
 
 class FEInputContainer {
  public:
@@ -57,7 +57,7 @@ class FEInputStructHelper;
 
 class FEInputGlobalVarHelper {
  public:
-  FEInputGlobalVarHelper(MapleAllocator &allocatorIn) : allocator(allocatorIn) {}
+  explicit FEInputGlobalVarHelper(MapleAllocator &allocatorIn) : allocator(allocatorIn) {}
   virtual ~FEInputGlobalVarHelper() = default;
 
   bool ProcessDecl() {
@@ -75,7 +75,7 @@ class FEInputGlobalVarHelper {
 
 class FEInputFileScopeAsmHelper {
  public:
-  FEInputFileScopeAsmHelper(MapleAllocator &allocatorIn) : allocator(allocatorIn) {}
+  explicit FEInputFileScopeAsmHelper(MapleAllocator &allocatorIn) : allocator(allocatorIn) {}
   virtual ~FEInputFileScopeAsmHelper() = default;
 
   bool ProcessDecl() {
@@ -93,7 +93,7 @@ class FEInputFileScopeAsmHelper {
 
 class FEInputFieldHelper {
  public:
-  FEInputFieldHelper(MapleAllocator &allocator) {}
+  explicit FEInputFieldHelper(MapleAllocator &allocator) {}
   virtual ~FEInputFieldHelper() = default;
   const FieldPair &GetMIRFieldPair() const {
     return mirFieldPair;
@@ -131,7 +131,7 @@ class FEInputFieldHelper {
 
 class FEInputMethodHelper {
  public:
-  FEInputMethodHelper(MapleAllocator &allocatorIn)
+  explicit FEInputMethodHelper(MapleAllocator &allocatorIn)
       : allocator(allocatorIn),
         srcLang(kSrcLangUnknown),
         feFunc(nullptr),

@@ -113,7 +113,7 @@ class FEManager {
   }
 
   uint32 RegisterSourceFileIdx(const GStrIdx &strIdx) {
-    auto it = sourceFileIdxMap.find(strIdx);
+    const auto it = sourceFileIdxMap.find(strIdx);
     if (it != sourceFileIdxMap.end()) {
       return it->second;
     } else {

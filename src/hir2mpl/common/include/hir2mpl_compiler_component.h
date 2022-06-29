@@ -25,7 +25,7 @@
 namespace maple {
 class FEFunctionProcessTask : public MplTask {
  public:
-  FEFunctionProcessTask(std::unique_ptr<FEFunction> argFunction);
+  explicit FEFunctionProcessTask(std::unique_ptr<FEFunction> argFunction);
   virtual ~FEFunctionProcessTask() = default;
 
  protected:
@@ -38,7 +38,7 @@ class FEFunctionProcessTask : public MplTask {
 
 class FEFunctionProcessSchedular : public MplScheduler {
  public:
-  FEFunctionProcessSchedular(const std::string &name)
+  explicit FEFunctionProcessSchedular(const std::string &name)
       : MplScheduler(name) {}
   virtual ~FEFunctionProcessSchedular() = default;
   void AddFunctionProcessTask(std::unique_ptr<FEFunction> function);

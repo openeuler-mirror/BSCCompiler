@@ -47,7 +47,7 @@ class FEConfigParallel {
 
   void RegisterRunThreadID(const std::thread::id &tid) {
     mtx.lock();
-    CHECK_FATAL(runThreadIDs.insert(tid).second == true, "failed to register thread id");
+    CHECK_FATAL(runThreadIDs.insert(tid).second, "failed to register thread id");
     mtx.unlock();
   }
 

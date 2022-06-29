@@ -131,7 +131,7 @@ class BasicIOMapFile {
 
 class BasicIORead {
  public:
-  BasicIORead(BasicIOMapFile &f, bool bigEndian = false);
+  explicit BasicIORead(BasicIOMapFile &f, bool bigEndian = false);
   virtual ~BasicIORead() = default;
   uint8 ReadUInt8();
   uint8 ReadUInt8(bool &success);

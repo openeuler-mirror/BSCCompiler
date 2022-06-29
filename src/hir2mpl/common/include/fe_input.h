@@ -14,7 +14,6 @@
  */
 #ifndef HIR2MPL_INCLUDE_FE_INPUT_H
 #define HIR2MPL_INCLUDE_FE_INPUT_H
-#include <vector>
 #include "global_tables.h"
 #include "mir_module.h"
 #include "mpl_logging.h"
@@ -52,7 +51,7 @@ enum FEInputSameNamePolicy {
 template <typename T>
 class FEInputContent {
  public:
-  FEInputContent(MapleAllocator &alloc);
+  explicit FEInputContent(MapleAllocator &alloc);
   ~FEInputContent() = default;
   void RegisterItem(T &item);
   void CheckSameName();
@@ -75,7 +74,7 @@ class FEInputProgramUnit {
 
 class FEInputUnitMethod : public FEInputUnit {
  public:
-  FEInputUnitMethod(MapleAllocator &alloc);
+  explicit FEInputUnitMethod(MapleAllocator &alloc);
   ~FEInputUnitMethod() = default;
 
  protected:
@@ -86,7 +85,7 @@ class FEInputUnitMethod : public FEInputUnit {
 
 class FEInputUnitVariable : public FEInputUnit {
  public:
-  FEInputUnitVariable(MapleAllocator &alloc);
+  explicit FEInputUnitVariable(MapleAllocator &alloc);
   ~FEInputUnitVariable() = default;
 
  protected:

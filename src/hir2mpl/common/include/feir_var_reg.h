@@ -20,7 +20,7 @@
 namespace maple {
 class FEIRVarReg : public FEIRVar {
  public:
-  FEIRVarReg(uint32 argRegNum, FEIRVarKind kind = FEIRVarKind::kFEIRVarReg)
+  explicit FEIRVarReg(uint32 argRegNum, FEIRVarKind kind = FEIRVarKind::kFEIRVarReg)
       : FEIRVar(kind),
         regNum(argRegNum) {}
 
@@ -50,7 +50,7 @@ class FEIRVarReg : public FEIRVar {
 
 class FEIRVarAccumulator : public FEIRVarReg {
  public:
-  FEIRVarAccumulator(uint32 argRegNum)
+  explicit FEIRVarAccumulator(uint32 argRegNum)
       : FEIRVarReg(argRegNum, FEIRVarKind::kFEIRVarAccumulator) {}
 
   FEIRVarAccumulator(uint32 argRegNum, PrimType argPrimType)
