@@ -1511,7 +1511,10 @@ void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &l
      */
     bool hasLoc = false;
     SrcPosition &newSrcPos = stmt->GetSrcPos();
-    if (cg->GetCGOptions().WithSrc() && lastSrcPos.IsBf(newSrcPos)) {
+    if (!newSrcPos.IsValid()) {
+      return;
+    }
+    if (cg->GetCGOptions().WithSrc() && !lastSrcPos.IsEq(newSrcPos)) {
       /* .loc for original src file */
       Operand *o0 = CreateDbgImmOperand(newSrcPos.FileNum());
       Operand *o1 = CreateDbgImmOperand(newSrcPos.LineNum());
@@ -1522,7 +1525,7 @@ void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &l
       hasLoc = true;
     }
     /* .loc for mpl file, skip if already has .loc from src for this stmt */
-    if (cg->GetCGOptions().WithMpl() && !hasLoc && lastMplPos.IsBfMpl(newSrcPos)) {
+    if (cg->GetCGOptions().WithMpl() && !hasLoc && !lastMplPos.IsEqMpl(newSrcPos)) {
       Operand *o0 = CreateDbgImmOperand(1);
       Operand *o1 = CreateDbgImmOperand(newSrcPos.MplLineNum());
       Insn &loc = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1);
@@ -1538,7 +1541,7 @@ void CGFunc::GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos) {
   DebugInfo *dbgInfo = GetMirModule().GetDbgInfo();
   if (cg->GetCGOptions().WithDwarf() && stmt->op != OP_label && stmt->op != OP_comment) {
     SrcPosition newSrcPos = stmt->GetSrcPos();
-    if (newSrcPos.FileNum() == 0) {
+    if (!newSrcPos.IsValid()) {
       return;
     }
     std::unordered_set<uint32> idSet;
@@ -1699,10 +1702,14 @@ void CGFunc::GenerateInstruction() {
 
   /* First Pass: Creates the doubly-linked list of BBs (next,prev) */
   volReleaseInsn = nullptr;
-  SrcPosition lastLocPos = GetFunction().GetScope()->GetRangeLow();
-  SrcPosition lastScpPos = GetFunction().GetScope()->GetRangeLow();
-  SrcPosition lastMplPos = GetFunction().GetScope()->GetRangeLow();
-  SrcPosition lastStmtPos = GetFunction().GetScope()->GetRangeLow();
+  SrcPosition pos = GetFunction().GetScope()->GetRangeLow();
+  if (!pos.IsValid()) {
+    pos = GetFunction().GetSrcPosition();
+  }
+  SrcPosition lastScpPos = pos;
+  SrcPosition lastStmtPos = pos;
+  SrcPosition lastLocPos = SrcPosition();
+  SrcPosition lastMplPos = SrcPosition();
   std::set<uint32> bbFreqSet;
   for (StmtNode *stmt = secondStmt; stmt != nullptr; stmt = stmt->GetNext()) {
     /* insert Insn for scope begin/end labels */

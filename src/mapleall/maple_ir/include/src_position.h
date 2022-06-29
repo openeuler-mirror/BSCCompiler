@@ -21,6 +21,8 @@ namespace maple {
 class SrcPosition {
  public:
   SrcPosition() : lineNum(0), mplLineNum(0) {
+    u.fileColumn.fileNum = 0;
+    u.fileColumn.column = 0;
     u.word0 = 0;
   }
 
@@ -105,6 +107,10 @@ class SrcPosition {
 
   bool IsEqMpl(SrcPosition pos) const {
     return MplLineNum() == pos.MplLineNum();
+  }
+
+  bool IsValid() const {
+    return FileNum() != 0;
   }
 
   void DumpLoc(uint32 &lastLineNum, uint16 &lastColumnNum) const {
