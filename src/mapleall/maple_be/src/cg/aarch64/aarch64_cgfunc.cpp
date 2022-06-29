@@ -874,7 +874,8 @@ RegOperand *AArch64CGFunc::GetBaseRegForSplit(uint32 baseRegNum) {
   if (baseRegNum == AArch64reg::kRinvalid) {
     resOpnd = &CreateRegisterOperandOfType(PTY_i64);
   } else if (AArch64isa::IsPhysicalRegister(baseRegNum)) {
-    resOpnd = &GetOrCreatePhysicalRegisterOperand((AArch64reg)baseRegNum, kSizeOfPtr * kBitsPerByte, kRegTyInt);
+    resOpnd = &GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(baseRegNum),
+        kSizeOfPtr * kBitsPerByte, kRegTyInt);
   } else  {
     resOpnd = &GetOrCreateVirtualRegisterOperand(baseRegNum);
   }
@@ -2820,7 +2821,7 @@ void AArch64CGFunc::SelectReturnSendOfStructInRegs(BaseNode *x) {
 Operand *AArch64CGFunc::SelectDread(const BaseNode &parent, DreadNode &expr) {
   MIRSymbol *symbol = GetFunction().GetLocalOrGlobalSymbol(expr.GetStIdx());
   if (symbol->IsEhIndex()) {
-    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_i32);
+    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_i32));
     /* use the second register return by __builtin_eh_return(). */
     AArch64CallConvImpl retLocator(GetBecommon());
     CCLocInfo retMech;
@@ -3057,7 +3058,7 @@ Operand *AArch64CGFunc::SelectAddrof(AddrofNode &expr, const BaseNode &parent, b
     }
   }
   if ((symbol->GetStorageClass() == kScFormal) && (symbol->GetSKind() == kStVar) &&
-      ((isAddrofoff == false && expr.GetFieldID() != 0) ||
+      ((!isAddrofoff && expr.GetFieldID() != 0) ||
        (GetBecommon().GetTypeSize(symbol->GetType()->GetTypeIndex().GetIdx()) > k16ByteSize))) {
     /*
      * Struct param is copied on the stack by caller if struct size > 16.
@@ -3251,7 +3252,7 @@ Operand *AArch64CGFunc::SelectIreadfpoff(const BaseNode &parent, IreadFPoffNode 
       if (info->GetRegNO() == 0 || !info->HasRegassign()) {
         result = GenLmbcParamLoad(offset, bytelen, regty, primType);
       } else {
-        result = &GetOrCreatePhysicalRegisterOperand((AArch64reg)(info->GetRegNO()), bitlen, regty);
+        result = &GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(info->GetRegNO()), bitlen, regty);
       }
     }
   } else {
@@ -3971,7 +3972,7 @@ void AArch64CGFunc::SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
     if (isAfterRegAlloc) {
       RegType regty = GetRegTyFromPrimTy(primType);
       uint32 bytelen = GetPrimTypeSize(primType);
-      regOpnd = GetOrCreatePhysicalRegisterOperand((AArch64reg)(R16), bytelen, regty);
+      regOpnd = GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16), bytelen, regty);
     }
     regno_t regNO0 = static_cast<RegOperand&>(opnd0).GetRegisterNumber();
     /* addrrrs do not support sp */
@@ -4127,7 +4128,7 @@ void AArch64CGFunc::SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
   if (isAfterRegAlloc) {
     RegType regty = GetRegTyFromPrimTy(primType);
     uint32 bytelen = GetPrimTypeSize(primType);
-    regOpnd = GetOrCreatePhysicalRegisterOperand((AArch64reg)(R16), bytelen, regty);
+    regOpnd = GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16), bytelen, regty);
   }
 
   if (bitNum <= k16ValidBit) {
@@ -5595,7 +5596,7 @@ Operand *AArch64CGFunc::SelectRound(TypeCvtNode &node, Operand &opnd0, const Bas
 }
 
 static bool LIsPrimitivePointer(PrimType ptype) {
-  return ((PTY_ptr <= ptype) && (ptype <= PTY_a64));
+  return ((ptype >= PTY_ptr) && (ptype <= PTY_a64));
 }
 
 Operand *AArch64CGFunc::SelectRetype(TypeCvtNode &node, Operand &opnd0) {
@@ -5972,7 +5973,7 @@ void AArch64CGFunc::SelectAArch64Select(Operand &dest, Operand &o0, Operand &o1,
 
 void AArch64CGFunc::SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOpnd) {
   const SmallCaseVector &switchTable = rangeGotoNode.GetRangeGotoTable();
-  MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64);
+  MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_a64));
   /*
    * we store 8-byte displacement ( jump_label - offset_table_address )
    * in the table. Refer to AArch64Emit::Emit() in aarch64emit.cpp
@@ -6320,7 +6321,7 @@ void AArch64CGFunc::GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &r
     MIRFunction *func = funcSt->GetFunction();
     if (func != nullptr && func->IsReferedRegsValid()) {
       for (auto preg : func->GetReferedRegs()) {
-        if (AArch64Abi::IsCallerSaveReg((AArch64reg)preg)) {
+        if (AArch64Abi::IsCallerSaveReg(static_cast<AArch64reg>(preg))) {
           realSaveRegs.insert(preg);
         }
       }
@@ -6328,7 +6329,7 @@ void AArch64CGFunc::GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &r
     }
   }
   for (uint32 i = R0; i <= kMaxRegNum; ++i) {
-    if (AArch64Abi::IsCallerSaveReg((AArch64reg)i)) {
+    if (AArch64Abi::IsCallerSaveReg(static_cast<AArch64reg>(i))) {
       realSaveRegs.insert(i);
     }
   }
@@ -6923,7 +6924,7 @@ void AArch64CGFunc::HandleRetCleanup(NaryStmtNode &retNode) {
       }
     }
 
-    if (OP_intrinsiccall == cleanupNode->GetOpCode()) {
+    if (cleanupNode->GetOpCode() == OP_intrinsiccall) {
       IntrinsiccallNode *tempNode = static_cast<IntrinsiccallNode*>(cleanupNode);
       if ((tempNode->GetIntrinsic() == INTRN_MPL_CLEANUP_LOCALREFVARS) ||
           (tempNode->GetIntrinsic() == INTRN_MPL_CLEANUP_LOCALREFVARS_SKIP)) {

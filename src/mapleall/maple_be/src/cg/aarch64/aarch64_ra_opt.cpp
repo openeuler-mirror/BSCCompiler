@@ -180,7 +180,7 @@ bool RaX0Opt::PropagateX0ForCurrBb(BB *bb, const X0OptInfo &optVal) {
       break;
     }
   }
-  if (redefined == false) {
+  if (!redefined) {
     auto it = bb->GetLiveOutRegNO().find(optVal.GetReplaceReg());
     if (it != bb->GetLiveOutRegNO().end()) {
       bb->EraseLiveOutRegNO(it);
@@ -202,7 +202,7 @@ void RaX0Opt::PropagateX0ForNextBb(BB *nextBb, const X0OptInfo &optVal) {
       break;
     }
   }
-  if (redefined == false) {
+  if (!redefined) {
     auto it = nextBb->GetLiveOutRegNO().find(optVal.GetReplaceReg());
     if (it != nextBb->GetLiveOutRegNO().end()) {
       nextBb->EraseLiveOutRegNO(it);
@@ -229,7 +229,7 @@ void RaX0Opt::PropagateX0() {
     if (insn == nullptr) {
       continue;
     }
-    if (PropagateX0DetectX0(insn, optVal) == false) {
+    if (!PropagateX0DetectX0(insn, optVal)) {
       continue;
     }
 
@@ -327,7 +327,7 @@ bool VregRename::IsProfitableToRename(const VregRenameInfo *info) const{
 void VregRename::RenameProfitableVreg(RegOperand *ropnd, const CGFuncLoops *loop) {
   regno_t vreg = ropnd->GetRegisterNumber();
   VregRenameInfo *info = (vreg <= maxRegnoSeen) ? renameInfo[vreg] : nullptr;
-  if ((info == nullptr) || loop->GetMultiEntries().size() || (IsProfitableToRename(info) == false)) {
+  if ((info == nullptr) || loop->GetMultiEntries().size() || (!IsProfitableToRename(info))) {
     return;
   }
 

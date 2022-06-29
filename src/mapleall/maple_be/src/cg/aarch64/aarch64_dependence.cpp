@@ -474,10 +474,10 @@ bool AArch64DepAnalysis::NeedBuildDepsMem(const MemOperand &memOpnd,
   if (!NoAlias(memOpnd, *memOpndOfmemInsn) || ((nextMemOpnd != nullptr) && !NoAlias(*nextMemOpnd, *memOpndOfmemInsn))) {
     return true;
   }
-  if (cgFunc.GetMirModule().GetSrcLang() == kSrcLangC && memInsn.IsCall() == false) {
+  if (cgFunc.GetMirModule().GetSrcLang() == kSrcLangC && !memInsn.IsCall()) {
     static_cast<MemOperand*>(memInsn.GetMemOpnd())->SetAccessSize(
         static_cast<const AArch64Insn&>(memInsn).GetLoadStoreSize());
-    return (NoOverlap(memOpnd, *memOpndOfmemInsn) == false);
+    return (!NoOverlap(memOpnd, *memOpndOfmemInsn));
   }
   MemOperand *nextMemOpndOfmemInsn = GetNextMemOperand(memInsn, *memOpndOfmemInsn);
   if (nextMemOpndOfmemInsn != nullptr) {

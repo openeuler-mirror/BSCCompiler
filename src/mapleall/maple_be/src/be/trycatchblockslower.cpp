@@ -166,7 +166,7 @@ void TryCatchBlocksLower::RecoverBasicBlock() {
       case OP_label: {
         LabelNode *labelStmt = static_cast<LabelNode*>(stmt);
         labeledBBs.emplace_back(curBB);
-        curBB->SetLabelIdx((LabelIdx)labelStmt->GetLabelIdx());
+        curBB->SetLabelIdx(static_cast<LabelIdx>(labelStmt->GetLabelIdx()));
       } break;
       case OP_brtrue:
       case OP_brfalse:
@@ -232,8 +232,8 @@ void TryCatchBlocksLower::RecoverBasicBlock() {
 
   for (auto &cbBB : condbrBBs) {
     CHECK_FATAL(cbBB->GetLastStmt()->IsCondBr(), "cbBB's lastStmt is not condBr");
-    CondGotoNode *s = static_cast<CondGotoNode*>(cbBB->GetLastStmt());
-    cbBB->SetCondJumpBranch(FindTargetBBlock((LabelIdx)s->GetOffset(), labeledBBs));
+    CondGotoNode *cbBBLastStmt = static_cast<CondGotoNode*>(cbBB->GetLastStmt());
+    cbBB->SetCondJumpBranch(FindTargetBBlock(static_cast<LabelIdx>(cbBBLastStmt->GetOffset()), labeledBBs));
   }
 
   for (auto &swBB : switchBBs) {
@@ -388,7 +388,7 @@ BBT *TryCatchBlocksLower::CollectCatchAndFallthruUntilNextCatchBB(BBT *&lowerBB,
   return nextBBThreadHead;
 }
 
-void TryCatchBlocksLower::ProcessThreadTail(BBT &threadTail, const BBT *&nextBBThreadHead, bool hasMoveEndTry) {
+void TryCatchBlocksLower::ProcessThreadTail(BBT &threadTail, BBT * const &nextBBThreadHead, bool hasMoveEndTry) {
   BBT *endTryBB = tryEndTryBlock.GetEndTryBB();
   StmtNode *newEndTry = endTryBB->GetKeyStmt()->CloneTree(mirModule.GetCurFuncCodeMPAllocator());
   newEndTry->SetPrev(threadTail.GetLastStmt());
@@ -432,7 +432,7 @@ void TryCatchBlocksLower::WrapCatchWithTryEndTryBlock(std::vector<BBT*> &currBBT
     BBT *threadTail = currBBThread.back();
 
     /* for this endtry stmt, we don't need to create a basic block */
-    ProcessThreadTail(*threadTail, (const BBT *&)nextBBThreadHead, hasMoveEndTry);
+    ProcessThreadTail(*threadTail, static_cast<BBT * const &>(nextBBThreadHead), hasMoveEndTry);
   } else {
     /* For cases try->catch->normal_bb->normal_bb->endtry, Combine normal bb first. */
     while (nextEnclosedIdx < enclosedBBs.size()) {
@@ -463,7 +463,7 @@ void TryCatchBlocksLower::WrapCatchWithTryEndTryBlock(std::vector<BBT*> &currBBT
     BBT *threadTail = currBBThread.back();
 
     /* for this endtry stmt, we don't need to create a basic block */
-    ProcessThreadTail(*threadTail, (const BBT *&)nextBBThreadHead, hasMoveEndTry);
+    ProcessThreadTail(*threadTail, static_cast<BBT * const &>(nextBBThreadHead), hasMoveEndTry);
   }
 }
 

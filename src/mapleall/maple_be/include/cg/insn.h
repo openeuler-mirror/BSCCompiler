@@ -675,7 +675,7 @@ class Insn {
 
   bool GetIsCallReturnSigned() const {
     ASSERT(IsCall(), "Insn should be a call.");
-    return (isCallReturnUnsigned == false);
+    return !isCallReturnUnsigned;
   }
 
   void SetRetType(RetType retType) {

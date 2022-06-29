@@ -71,11 +71,11 @@ MOperator AArch64Ebo::ExtLoadSwitchBitSize(MOperator lowMop) const {
 }
 
 bool AArch64Ebo::IsFmov(const Insn &insn) const {
-  return ((MOP_xvmovsr <= insn.GetMachineOpcode()) && (insn.GetMachineOpcode() <= MOP_xvmovrd));
+  return ((insn.GetMachineOpcode() >= MOP_xvmovsr) && (insn.GetMachineOpcode() <= MOP_xvmovrd));
 }
 
 bool AArch64Ebo::IsAdd(const Insn &insn) const {
-  return ((MOP_xaddrrr <= insn.GetMachineOpcode()) && (insn.GetMachineOpcode() <= MOP_ssub));
+  return ((insn.GetMachineOpcode() >= MOP_xaddrrr) && (insn.GetMachineOpcode() <= MOP_ssub));
 }
 
 bool AArch64Ebo::IsInvalidReg(const RegOperand &opnd) const {
@@ -294,8 +294,8 @@ void AArch64Ebo::DefineCallerSaveRegisters(InsnInfo &insnInfo) {
           if (AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(preg))) {
             continue;
           }
-          RegOperand *opnd = &a64CGFunc->GetOrCreatePhysicalRegisterOperand((AArch64reg)preg, k64BitSize,
-              AArch64isa::IsFPSIMDRegister((AArch64reg)preg) ? kRegTyFloat : kRegTyInt);
+          RegOperand *opnd = &a64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(preg), k64BitSize,
+              AArch64isa::IsFPSIMDRegister(static_cast<AArch64reg>(preg)) ? kRegTyFloat : kRegTyInt);
           OpndInfo *opndInfo = OperandInfoDef(*insn->GetBB(), *insn, *opnd);
           opndInfo->insnInfo = &insnInfo;
         }
@@ -623,8 +623,8 @@ bool AArch64Ebo::SimplifyConstOperand(Insn &insn, const MapleVector<Operand*> &o
     return true;
   }
   /* For the imm is 0. Then replace the insn by a move insn. */
-  if (((MOP_xaddrrr <= insn.GetMachineOpcode()) && (insn.GetMachineOpcode() <= MOP_sadd) && immOpnd->IsZero()) ||
-      (op1IsConstant && (MOP_xsubrrr <= insn.GetMachineOpcode()) && (insn.GetMachineOpcode() <= MOP_ssub) &&
+  if (((insn.GetMachineOpcode() >= MOP_xaddrrr ) && (insn.GetMachineOpcode() <= MOP_sadd) && immOpnd->IsZero()) ||
+      (op1IsConstant && (insn.GetMachineOpcode() >= MOP_xsubrrr ) && (insn.GetMachineOpcode() <= MOP_ssub) &&
        immOpnd->IsZero())) {
     Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(opndSize == k64BitSize ? MOP_xmovrr : MOP_wmovrr,
                                                                    *res, *op);

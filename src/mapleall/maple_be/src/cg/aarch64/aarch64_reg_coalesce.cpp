@@ -395,7 +395,7 @@ void AArch64LiveIntervalAnalysis::CoalesceRegisters() {
   for (size_t bbIdx = bfs->sortedBBs.size(); bbIdx > 0; --bbIdx) {
     BB *bb = bfs->sortedBBs[bbIdx - 1];
 
-    if (bb->GetCritical() == false) {
+    if (!bb->GetCritical()) {
       continue;
     }
     CollectMoveForEachBB(*bb, movInsns);

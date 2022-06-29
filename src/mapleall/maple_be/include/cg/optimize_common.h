@@ -17,15 +17,15 @@
 #include "cgfunc.h"
 
 namespace maplebe {
-const std::string kCfgoChaining = "red";
-const std::string kCfgoSj = "burlywood1";
-const std::string kCfgoFlipCond = "cadetblue1";
-const std::string kCfgoAlways = "green";
-const std::string kCfgoUnreach = "yellow";
-const std::string kCfgoDup = "orange";
-const std::string kCfgoEmpty = "purple";
-const std::string kIcoIte = "blue"; /* if conversion optimization, if-then-else */
-const std::string kIcoIt = "grey";  /* if conversion optimization, if-then-else */
+inline const std::string kCfgoChaining = "red";
+inline const std::string kCfgoSj = "burlywood1";
+inline const std::string kCfgoFlipCond = "cadetblue1";
+inline const std::string kCfgoAlways = "green";
+inline const std::string kCfgoUnreach = "yellow";
+inline const std::string kCfgoDup = "orange";
+inline const std::string kCfgoEmpty = "purple";
+inline const std::string kIcoIte = "blue"; /* if conversion optimization, if-then-else */
+inline const std::string kIcoIt = "grey";  /* if conversion optimization, if-then-else */
 
 class OptimizationPattern {
  public:

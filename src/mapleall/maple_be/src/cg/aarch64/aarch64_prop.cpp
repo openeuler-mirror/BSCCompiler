@@ -200,11 +200,11 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
       BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
       switch(sOp) {
         case BitShiftOperand::kLSL: {
-          newVal = constVal + static_cast<int64>(((unsigned)constVal << amount));
+          newVal = constVal + static_cast<int64>((static_cast<unsigned>(constVal) << amount));
           break;
         }
         case BitShiftOperand::kLSR: {
-          newVal = constVal + ((unsigned)constVal >> amount);
+          newVal = constVal + (static_cast<unsigned>(constVal) >> amount);
           break;
         }
         case BitShiftOperand::kASR: {
@@ -231,11 +231,11 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
       BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
       switch (sOp) {
         case BitShiftOperand::kLSL: {
-          newVal = constVal - static_cast<int64>(((unsigned)constVal << amount));
+          newVal = constVal - static_cast<int64>((static_cast<unsigned>(constVal) << amount));
           break;
         }
         case BitShiftOperand::kLSR: {
-          newVal = constVal - ((unsigned)constVal >> amount);
+          newVal = constVal - (static_cast<unsigned>(constVal) >> amount);
           break;
         }
         case BitShiftOperand::kASR: {

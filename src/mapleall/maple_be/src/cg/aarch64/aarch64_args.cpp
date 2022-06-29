@@ -334,10 +334,10 @@ void AArch64MoveRegArgs::MoveRegisterArgs() {
               secondArgInfo.sym->GetStIndex()));
       /* Make sure they are in same segment if want to use stp */
       if (((firstArgInfo.isTwoRegParm && secondArgInfo.isTwoRegParm) ||
-          (firstArgInfo.isTwoRegParm == false && secondArgInfo.isTwoRegParm == false)) &&
+          (!firstArgInfo.isTwoRegParm && !secondArgInfo.isTwoRegParm)) &&
           (firstArgInfo.doMemPairOpt || IsInSameSegment(firstArgInfo, secondArgInfo))) {
         GenerateStpInsn(firstArgInfo, secondArgInfo);
-        if (firstArgInfo.doMemPairOpt == false) {
+        if (!firstArgInfo.doMemPairOpt) {
           it = next;
         }
         continue;

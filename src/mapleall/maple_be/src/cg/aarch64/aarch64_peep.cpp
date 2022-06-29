@@ -3391,7 +3391,7 @@ void ContiLDRorSTRToSameMEMPattern::Run(BB &bb, Insn &insn) {
         moveSameReg = true;
       }
     }
-    if (moveSameReg == false) {
+    if (!moveSameReg) {
       CG *cg = cgFunc->GetCG();
       bb.InsertInsnAfter(*prevInsn, cg->BuildInstruction<AArch64Insn>(newOp, reg1, reg2));
     }

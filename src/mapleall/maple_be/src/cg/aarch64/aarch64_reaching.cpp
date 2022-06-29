@@ -208,7 +208,7 @@ void AArch64ReachingDefinition::GenAllCallerSavedRegs(BB &bb, Insn &insn) {
     }
   } else {
     for (uint32 i = R0; i <= V31; ++i) {
-      if (AArch64Abi::IsCallerSaveReg((AArch64reg)i)) {
+      if (AArch64Abi::IsCallerSaveReg(static_cast<AArch64reg>(i))) {
         regGen[bb.GetId()]->SetBit(i);
       }
     }
@@ -222,7 +222,7 @@ bool AArch64ReachingDefinition::IsRegKilledByCallInsn(const Insn &insn, regno_t 
     cgFunc->GetRealCallerSaveRegs(insn, callerSaveRegs);
     return callerSaveRegs.find(regNO) != callerSaveRegs.end();
   } else {
-    return AArch64Abi::IsCallerSaveReg((AArch64reg)regNO);
+    return AArch64Abi::IsCallerSaveReg(static_cast<AArch64reg>(regNO));
   }
 }
 
@@ -1276,7 +1276,7 @@ int32 AArch64ReachingDefinition::GetStackSize() const {
 }
 
 bool AArch64ReachingDefinition::IsCallerSavedReg(uint32 regNO) const {
-  return AArch64Abi::IsCallerSaveReg((AArch64reg)regNO);
+  return AArch64Abi::IsCallerSaveReg(static_cast<AArch64reg>(regNO));
 }
 
 int64 AArch64ReachingDefinition::GetEachMemSizeOfPair(MOperator opCode) const {

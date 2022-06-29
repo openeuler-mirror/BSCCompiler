@@ -135,7 +135,7 @@ class LmbcFormalParamInfo {
     isPureFloat = true;
   }
   bool IsInReg() const {
-    return (isOnStack == false);
+    return !isOnStack ;
   }
   bool IsOnStack() const {
     return isOnStack;

@@ -147,7 +147,7 @@ class TryCatchBlocksLower {
                                    uint32 &nextEnclosedIdx, bool hasMoveEndTry);
   void SwapEndTryBBAndCurrBBThread(const std::vector<BBT*> &currBBThread,
                                    bool &hasMoveEndTry, const BBT *nextBBThreadHead);
-  void ProcessThreadTail(BBT &threadTail, const BBT *&nextBBThreadHead, bool hasMoveEndTry);
+  void ProcessThreadTail(BBT &threadTail, BBT * const &nextBBThreadHead, bool hasMoveEndTry);
   static StmtNode *MoveCondGotoIntoTry(BBT &jtBB, BBT &condbrBB, const MapleVector<BBT*> &labeledBBsInTry);
   static BBT *FindTargetBBlock(LabelIdx idx, const std::vector<BBT*> &bbs);
 };

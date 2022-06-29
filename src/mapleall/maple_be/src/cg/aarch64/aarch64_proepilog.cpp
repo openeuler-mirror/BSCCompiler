@@ -496,10 +496,10 @@ bool AArch64GenProEpilog::InsertInsnRegs(Insn &insn, bool insertSource, std::set
   Insn *curInsn = &insn;
   for (uint32 o = 0; o < curInsn->GetOperandSize(); ++o) {
     Operand &opnd = curInsn->GetOperand(o);
-    if (insertSource == true && curInsn->OpndIsUse(o)) {
+    if (insertSource && curInsn->OpndIsUse(o)) {
       InsertOpndRegs(opnd, vecSourceRegs);
     }
-    if (insertTarget == true && curInsn->OpndIsDef(o)) {
+    if (insertTarget && curInsn->OpndIsDef(o)) {
       InsertOpndRegs(opnd, vecTargetRegs);
     }
   }

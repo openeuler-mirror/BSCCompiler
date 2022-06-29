@@ -211,7 +211,7 @@ BaseNode *CGLowerer::SplitBinaryNodeOpnd1(BinaryNode &bNode, BlockNode &blkNode)
   name.append(std::to_string(val++));
 
   BaseNode *opnd1 = bNode.Opnd(1);
-  MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)(opnd1->GetPrimType()));
+  MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(opnd1->GetPrimType()));
   MIRSymbol *dnodeSt = mirbuilder->GetOrCreateLocalDecl(const_cast<const std::string&>(name), *ty);
   DassignNode *dnode = mirbuilder->CreateStmtDassign(const_cast<MIRSymbol&>(*dnodeSt), 0, opnd1);
   blkNode.InsertAfter(blkNode.GetLast(), dnode);
@@ -231,7 +231,7 @@ BaseNode *CGLowerer::SplitTernaryNodeResult(TernaryNode &tNode, BaseNode &parent
   std::string name("tnaryTmp");
   name.append(std::to_string(val++));
 
-  MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)(tNode.GetPrimType()));
+  MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(tNode.GetPrimType()));
   MIRSymbol *dassignNodeSym = mirbuilder->GetOrCreateLocalDecl(const_cast<const std::string&>(name), *ty);
   DassignNode *dassignNode = mirbuilder->CreateStmtDassign(const_cast<MIRSymbol&>(*dassignNodeSym), 0, &tNode);
   blkNode.InsertAfter(blkNode.GetLast(), dassignNode);
@@ -309,7 +309,7 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
       CHECK_FATAL(false, "NYI: LowerComplexSelect");
     }
   } else {
-    resultTy =  GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)(tNode.GetPrimType()));
+    resultTy =  GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(tNode.GetPrimType()));
   }
 
   CondGotoNode *brTargetStmt = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(OP_brfalse);
@@ -667,7 +667,7 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
           resNode = newValNode;
         }
       }
-      if (i > 0 && isConst == false) {
+      if (i > 0 && !isConst) {
         resNode = NodeConvert(array.GetPrimType(), *array.GetIndex(static_cast<size_t>(i)));
       }
 
@@ -1018,7 +1018,7 @@ void CGLowerer::LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk) {
       continue;
     }
     // introduce a temporary to store the expression tree operand
-    TyIdx tyIdxUsed = (TyIdx)opnd->GetPrimType();
+    TyIdx tyIdxUsed = static_cast<TyIdx>(opnd->GetPrimType());
     if (opnd->op == OP_iread) {
       IreadNode *ireadNode = static_cast<IreadNode *>(opnd);
       tyIdxUsed = ireadNode->GetType()->GetTypeIndex();
@@ -1206,7 +1206,7 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
           sizeIs0 = true;
         }
       }
-      if (sizeIs0 == false) {
+      if (!sizeIs0) {
         RegFieldPair regFieldPair = p2nRets[0].second;
         if (!regFieldPair.IsReg()) {
           uint16 fieldID = static_cast<uint16>(regFieldPair.GetFieldID());
@@ -2027,7 +2027,7 @@ MIRType *CGLowerer::GetArrayNodeType(BaseNode &baseNode) {
   if (baseType != nullptr) {
     MIRType *stType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
         static_cast<MIRPtrType*>(baseType)->GetPointedTyIdx());
-    while (kTypeJArray == stType->GetKind()) {
+    while (stType->GetKind() == kTypeJArray) {
       MIRJarrayType *baseType1 = static_cast<MIRJarrayType*>(stType);
       MIRType *elemType = baseType1->GetElemType();
       if (elemType->GetKind() == kTypePointer) {
@@ -2288,7 +2288,7 @@ void CGLowerer::CleanupBranches(MIRFunction &func) const {
         }
         next = next->GetNext();
       }
-      if ((next != nullptr) && (isCleanable == false)) {
+      if ((next != nullptr) && (!isCleanable)) {
         prev = next->GetPrev();
         continue;
       }
@@ -3254,7 +3254,7 @@ BaseNode *CGLowerer::GetBaseNodeFromCurFunc(MIRFunction &curFunc, bool isFromJar
         callerClassInfoSym->SetSKind(kStVar);
         /* it must be a local symbol */
         GlobalTables::GetGsymTable().AddToStringSymbolMap(*callerClassInfoSym);
-        callerClassInfoSym->SetTyIdx((TyIdx)PTY_ptr);
+        callerClassInfoSym->SetTyIdx(static_cast<TyIdx>(PTY_ptr));
       }
     }
 
@@ -3359,7 +3359,7 @@ BaseNode *CGLowerer::GetClassInfoExpr(const std::string &classInfo) const {
       classInfoSym->SetAttr(ATTR_weak);
     }
     GlobalTables::GetGsymTable().AddToStringSymbolMap(*classInfoSym);
-    classInfoSym->SetTyIdx((TyIdx)PTY_ptr);
+    classInfoSym->SetTyIdx(static_cast<TyIdx>(PTY_ptr));
 
     classInfoExpr = mirBuilder->CreateExprAddrof(0, *classInfoSym);
   }
@@ -3596,7 +3596,7 @@ StmtNode *CGLowerer::LowerDefaultIntrinsicCall(IntrinsiccallNode &intrincall, MI
   st.SetTyIdx(funcType->GetTypeIndex());
   fn.SetMIRFuncType(static_cast<MIRFuncType*>(funcType));
   if (retTy->GetKind() == kTypeStruct) {
-    fn.SetReturnTyIdx((TyIdx) PTY_void);
+    fn.SetReturnTyIdx(static_cast<TyIdx>(PTY_void));
   } else {
     fn.SetReturnTyIdx(retTy->GetTypeIndex());
   }
@@ -3657,7 +3657,7 @@ StmtNode *CGLowerer::LowerSyncEnterSyncExit(StmtNode &stmt) {
   if (nStmt.GetOpCode() == OP_syncenter) {
     if (nStmt.NumOpnds() == 1) {
       /* Just as ParseNaryStmt do for syncenter */
-      MIRType &intType = *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_i32);
+      MIRType &intType = *GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_i32));
       /* default 2 for __sync_enter_fast() */
       MIRIntConst *intConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(2, intType);
       ConstvalNode *exprConst = mirModule.GetMemPool()->New<ConstvalNode>();
@@ -3733,7 +3733,7 @@ void CGLowerer::LowerGCMalloc(const BaseNode &node, const GCMallocNode &gcmalloc
   auto *curFunc = mirModule.CurFunction();
   if (classSym->GetAttr(ATTR_abstract) || classSym->GetAttr(ATTR_interface)) {
     MIRFunction *funcSecond = mirBuilder->GetOrCreateFunction("MCC_Reflect_ThrowInstantiationError",
-                                                              (TyIdx)(LOWERED_PTR_TYPE));
+                                                              static_cast<TyIdx>(LOWERED_PTR_TYPE));
     funcSecond->GetFuncSymbol()->SetAppearsInCode(true);
     beCommon.UpdateTypeTable(*funcSecond->GetMIRFuncType());
     funcSecond->AllocSymTab();
@@ -3832,7 +3832,7 @@ void CGLowerer::LowerJarrayMalloc(const StmtNode &stmt, const JarrayMallocNode &
           arrayClassSym->SetAttr(ATTR_weak);
         }
         GlobalTables::GetGsymTable().AddToStringSymbolMap(*arrayClassSym);
-        arrayClassSym->SetTyIdx((TyIdx)PTY_ptr);
+        arrayClassSym->SetTyIdx(static_cast<TyIdx>(PTY_ptr));
       }
       args.emplace_back(mirBuilder->CreateExprAddrof(0, *arrayClassSym));
     } else {
@@ -3852,7 +3852,7 @@ void CGLowerer::LowerJarrayMalloc(const StmtNode &stmt, const JarrayMallocNode &
     /* set class flag 0 */
     args.emplace_back(mirBuilder->CreateIntConst(0, PTY_u32));
   }
-  MIRFunction *func = mirBuilder->GetOrCreateFunction(funcName, (TyIdx)(LOWERED_PTR_TYPE));
+  MIRFunction *func = mirBuilder->GetOrCreateFunction(funcName, static_cast<TyIdx>(LOWERED_PTR_TYPE));
   func->GetFuncSymbol()->SetAppearsInCode(true);
   beCommon.UpdateTypeTable(*func->GetMIRFuncType());
   func->AllocSymTab();

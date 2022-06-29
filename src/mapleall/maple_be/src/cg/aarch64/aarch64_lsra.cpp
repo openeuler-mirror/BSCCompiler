@@ -1321,7 +1321,7 @@ uint32 LSRALinearScanRegAllocator::FindAvailablePhyReg(LiveInterval &li, const I
       LogInfo::MapleLogger() << "\t\tlive interval crosses a call\n";
     }
     if (regNO == 0) {
-      if (!li.IsInCatch() && li.IsAllInCleanupOrFirstBB() == false && !calleeRegSet.empty()) {
+      if (!li.IsInCatch() && !li.IsAllInCleanupOrFirstBB() && !calleeRegSet.empty()) {
         /* call in live interval, use callee if available */
         regNO = GetRegFromSet(calleeRegSet, reg0, li);
         /* Since it is callee saved, no need to continue search */

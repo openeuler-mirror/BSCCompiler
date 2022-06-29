@@ -81,7 +81,7 @@ public:
             }
           }
           /* add it directly when no overlap*/
-          if (merged == false) {
+          if (!merged) {
             srcPosVec.emplace_back(std::pair(pos1.first, pos1.second));
           }
         }

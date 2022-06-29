@@ -35,7 +35,7 @@ enum DepType : uint8 {
   kDependenceTypeNone
 };
 
-const std::array<std::string, kDependenceTypeNone + 1> kDepTypeName = {
+inline const std::array<std::string, kDependenceTypeNone + 1> kDepTypeName = {
   "true-dep",
   "output-dep",
   "anti-dep",

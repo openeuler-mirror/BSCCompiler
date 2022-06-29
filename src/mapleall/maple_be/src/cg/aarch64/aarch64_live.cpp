@@ -142,8 +142,8 @@ void AArch64LiveAnalysis::ProcessCallInsnParam(BB &bb, const Insn &insn) const {
         if (AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(preg))) {
           continue;
         }
-        RegOperand *opnd = &aarchCGFunc->GetOrCreatePhysicalRegisterOperand((AArch64reg)preg, k64BitSize,
-            AArch64isa::IsFPSIMDRegister((AArch64reg)preg) ? kRegTyFloat : kRegTyInt);
+        RegOperand *opnd = &aarchCGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(preg), k64BitSize,
+            AArch64isa::IsFPSIMDRegister(static_cast<AArch64reg>(preg)) ? kRegTyFloat : kRegTyInt);
         CollectLiveInfo(bb, *opnd, true, false);
       }
       return;
