@@ -843,7 +843,12 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arraytype) {
   DBGDie *rangedie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_subrange_type);
   (void)GetOrCreatePrimTypeDie(GlobalTables::GetTypeTable().GetUInt32());
   rangedie->AddAttr(DW_AT_type, DW_FORM_ref4, PTY_u32);
-  rangedie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arraytype->GetSizeArrayItem(0));
+  if (theMIRModule->IsCModule() || theMIRModule->IsJavaModule()) {
+    // The default lower bound value for C, C++, or Java is 0
+    rangedie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arraytype->GetSizeArrayItem(0) - 1);
+  } else {
+    rangedie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arraytype->GetSizeArrayItem(0));
+  }
 
   die->AddSubVec(rangedie);
 
@@ -852,7 +857,6 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arraytype) {
 
 DBGDie *DebugInfo::CreateFieldDie(maple::FieldPair pair, uint32 lnum) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_member);
-
   die->AddAttr(DW_AT_name, DW_FORM_strp, pair.first.GetIdx());
   die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx());
   die->AddAttr(DW_AT_decl_line, DW_FORM_data4, lnum);
@@ -868,7 +872,7 @@ DBGDie *DebugInfo::CreateFieldDie(maple::FieldPair pair, uint32 lnum) {
   return die;
 }
 
-DBGDie *DebugInfo::CreateBitfieldDie(const MIRBitFieldType *type, GStrIdx sidx) {
+DBGDie *DebugInfo::CreateBitfieldDie(const MIRBitFieldType *type, GStrIdx sidx, uint32 prevBits) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_member);
 
   die->AddAttr(DW_AT_name, DW_FORM_strp, sidx.GetIdx());
@@ -882,7 +886,7 @@ DBGDie *DebugInfo::CreateBitfieldDie(const MIRBitFieldType *type, GStrIdx sidx) 
   die->AddAttr(DW_AT_byte_size, DW_FORM_data4, GetPrimTypeSize(type->GetPrimType()));
   die->AddAttr(DW_AT_bit_size, DW_FORM_data4, type->GetFieldSize());
   die->AddAttr(DW_AT_bit_offset, DW_FORM_data4,
-               GetPrimTypeSize(type->GetPrimType()) * k8BitSize - type->GetFieldSize());
+               GetPrimTypeSize(type->GetPrimType()) * k8BitSize - type->GetFieldSize() - prevBits);
   die->AddAttr(DW_AT_data_member_location, DW_FORM_data4, 0);
 
   return die;
@@ -960,13 +964,17 @@ DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *stru
   PushParentDie(die);
 
   // fields
+  uint32 prevBits = 0;
   for (size_t i = 0; i < structtype->GetFieldsSize(); i++) {
     MIRType *ety = structtype->GetElemType(static_cast<uint32>(i));
     FieldPair fp = structtype->GetFieldsElemt(i);
-    if (MIRBitFieldType *bfty = static_cast<MIRBitFieldType*>(ety)) {
-      DBGDie *bfdie = CreateBitfieldDie(bfty, fp.first);
+    if (ety->IsMIRBitFieldType()) {
+      MIRBitFieldType *bfty = static_cast<MIRBitFieldType*>(ety);
+      DBGDie *bfdie = CreateBitfieldDie(bfty, fp.first, prevBits);
+      prevBits += bfty->GetFieldSize();
       die->AddSubVec(bfdie);
     } else {
+      prevBits = 0;
       DBGDie *fdie = CreateFieldDie(fp, 0);
       die->AddSubVec(fdie);
     }
