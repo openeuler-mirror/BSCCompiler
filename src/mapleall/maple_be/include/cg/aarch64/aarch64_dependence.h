@@ -46,11 +46,12 @@ class AArch64DepAnalysis : public DepAnalysis {
   void BuildDepsDefReg(Insn &insn, regno_t regNO) override;
   void BuildDepsAmbiInsn(Insn &insn) override;
   void BuildDepsMayThrowInsn(Insn &insn) override;
-  bool NeedBuildDepsMem(const AArch64MemOperand &memOpnd, const AArch64MemOperand *nextMemOpnd, Insn &memInsn) const;
+  bool NeedBuildDepsMem(const MemOperand &memOpnd,
+                        const MemOperand *nextMemOpnd, const Insn &memInsn) const;
   void BuildDepsUseMem(Insn &insn, MemOperand &memOpnd) override;
   void BuildDepsDefMem(Insn &insn, MemOperand &memOpnd) override;
-  void BuildAntiDepsDefStackMem(Insn &insn, AArch64MemOperand &memOpnd, const AArch64MemOperand *nextMemOpnd);
-  void BuildOutputDepsDefStackMem(Insn &insn, AArch64MemOperand &memOpnd, const AArch64MemOperand *nextMemOpnd);
+  void BuildAntiDepsDefStackMem(Insn &insn, MemOperand &memOpnd, const MemOperand *nextMemOpnd);
+  void BuildOutputDepsDefStackMem(Insn &insn, MemOperand &memOpnd, const MemOperand *nextMemOpnd);
   void BuildDepsMemBar(Insn &insn) override;
   void BuildDepsSeparator(DepNode &newSepNode, MapleVector<DepNode*> &nodes) override;
   void BuildDepsControlAll(DepNode &depNode, const MapleVector<DepNode*> &nodes) override;
@@ -66,17 +67,17 @@ class AArch64DepAnalysis : public DepAnalysis {
   bool IsFrameReg(const RegOperand&) const override;
 
  private:
-  AArch64MemOperand *GetNextMemOperand(const Insn &insn, AArch64MemOperand &aarchMemOpnd) const;
-  void BuildMemOpndDependency(Insn &insn, Operand &opnd, const AArch64OpndProp &regProp);
+  MemOperand *GetNextMemOperand(const Insn &insn, const MemOperand &aarchMemOpnd) const;
+  void BuildMemOpndDependency(Insn &insn, Operand &opnd, const OpndProp &regProp);
   void BuildOpndDependency(Insn &insn);
   void BuildSpecialInsnDependency(Insn &insn, DepNode &depNode, const MapleVector<DepNode*> &nodes);
   void SeperateDependenceGraph(MapleVector<DepNode*> &nodes, uint32 &nodeSum);
   DepNode *GenerateDepNode(Insn &insn, MapleVector<DepNode*> &nodes, int32 nodeSum, const MapleVector<Insn*> &comments);
   void BuildAmbiInsnDependency(Insn &insn);
   void BuildMayThrowInsnDependency(Insn &insn);
-  void UpdateRegUseAndDef(Insn &insn, DepNode &depNode, MapleVector<DepNode*> &nodes);
+  void UpdateRegUseAndDef(Insn &insn, const DepNode &depNode, MapleVector<DepNode*> &nodes);
   void UpdateStackAndHeapDependency(DepNode &depNode, Insn &insn, const Insn &locInsn);
-  AArch64MemOperand *BuildNextMemOperandByByteSize(const AArch64MemOperand &aarchMemOpnd, uint32 byteSize) const;
+  MemOperand *BuildNextMemOperandByByteSize(const MemOperand &aarchMemOpnd, uint32 byteSize) const;
   void AddDependence4InsnInVectorByType(MapleVector<Insn*> &insns, Insn &insn, const DepType &type);
   void AddDependence4InsnInVectorByTypeAndCmp(MapleVector<Insn*> &insns, Insn &insn, const DepType &type);
   void ReplaceDepNodeWithNewInsn(DepNode &firstNode, DepNode &secondNode, Insn& newInsn, bool isFromClinit) const;

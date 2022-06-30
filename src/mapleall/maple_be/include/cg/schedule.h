@@ -130,8 +130,6 @@ class Schedule {
   virtual ~Schedule() = default;
   virtual void MemoryAccessPairOpt() = 0;
   virtual void ClinitPairOpt() = 0;
-  virtual void FindAndCombineMemoryAccessPair(const std::vector<DepNode*> &memList) = 0;
-  virtual void RegPressureScheduling(BB &bb, MapleVector<DepNode*> &nodes) = 0;
   virtual uint32 DoSchedule() = 0;
   virtual uint32 DoBruteForceSchedule() = 0;
   virtual uint32 SimulateOnly() = 0;
@@ -153,6 +151,8 @@ class Schedule {
   virtual void EraseNodeFromNodeList(const DepNode &target, MapleVector<DepNode*> &nodeList) = 0;
   virtual uint32 GetNextSepIndex() const = 0;
   virtual void CountUnitKind(const DepNode &depNode, uint32 array[], const uint32 arraySize) const = 0;
+  virtual void FindAndCombineMemoryAccessPair(const std::vector<DepNode*> &memList) = 0;
+  virtual void RegPressureScheduling(BB &bb, MapleVector<DepNode*> &nodes) = 0;
   virtual bool CanCombine(const Insn &insn) const = 0;
   void SetConsiderRegPressure() {
     considerRegPressure = true;

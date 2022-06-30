@@ -403,7 +403,7 @@ class CGFunc {
     return *memPool->New<cfi::ImmOperand>(val, size);
   }
 
-  Operand &CreateCfiStrOperand(const std::string &str) const {
+  Operand &CreateCfiStrOperand(const std::string &str) {
     return *memPool->New<cfi::StrOperand>(str, *memPool);
   }
 

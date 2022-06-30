@@ -45,6 +45,7 @@ const std::set<std::string> kArrayBaseName{
 using namespace maple;
 
 #define JAVALANG (mirModule.IsJavaModule())
+#define TARGARM32 0
 
 enum ExtFuncT : uint8 { kFmodDouble, kFmodFloat };
 
@@ -844,7 +845,7 @@ BaseNode *CGLowerer::LowerIreadBitfield(IreadNode &iread) {
 }
 
 // input node must be cvt, retype, zext or sext
-BaseNode *CGLowerer::LowerCastExpr(BaseNode &expr) const {
+BaseNode *CGLowerer::LowerCastExpr(BaseNode &expr) {
   if (CGOptions::GetInstance().GetOptimizeLevel() >= CGOptions::kLevel2) {
     BaseNode *simplified = MapleCastOpt::SimplifyCast(*mirBuilder, &expr);
     return simplified != nullptr ? simplified : &expr;
@@ -2757,7 +2758,7 @@ BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkN
   }
 }
 
-BaseNode *CGLowerer::LowerDread(DreadNode &dread, BlockNode &block) {
+BaseNode *CGLowerer::LowerDread(DreadNode &dread, const BlockNode &block) {
   /* use PTY_u8 for boolean type in dread/iread */
   if (dread.GetPrimType() == PTY_u1) {
     dread.SetPrimType(PTY_u8);

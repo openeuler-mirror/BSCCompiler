@@ -1329,12 +1329,12 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
         offset += size;  /* End of area should be aligned. Hole between VR and GR area */
       }
     } else {
-      offset = -memlayout->GetSizeOfGRSaveArea();  /* FP reference */
+      offset = (UINT32_MAX - memlayout->GetSizeOfGRSaveArea()) + 1;  /* FP reference */
       if (memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) {
         offset -= size;
       }
     }
-    uint32 grSize = -offset;
+    uint32 grSize = (UINT32_MAX - offset) + 1;
     uint32 start_regno = k8BitSize - (memlayout->GetSizeOfGRSaveArea() / size);
     ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for GR Save Area");
     for (uint32 i = start_regno + static_cast<uint32>(R0); i < static_cast<uint32>(R8); i++) {
@@ -1361,7 +1361,7 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
       if (cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
         offset = static_cast<uint32>(memlayout->GetVRSaveAreaBaseLoc());
       } else {
-        offset = -(memlayout->GetSizeOfVRSaveArea() + grSize);
+        offset = (UINT32_MAX - (memlayout->GetSizeOfVRSaveArea() + grSize)) + 1;
       }
       start_regno = k8BitSize - (memlayout->GetSizeOfVRSaveArea() / (size * k2BitSize));
       ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for VR Save Area");

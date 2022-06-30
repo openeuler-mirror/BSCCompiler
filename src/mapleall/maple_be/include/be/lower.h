@@ -102,7 +102,7 @@ class CGLowerer {
 
   BaseNode *LowerExpr(BaseNode&, BaseNode&, BlockNode&);
 
-  BaseNode *LowerDread(DreadNode &dread, BlockNode& block);
+  BaseNode *LowerDread(DreadNode &dread, const BlockNode& block);
 
   BaseNode *LowerIread(IreadNode &iread) {
     /* use PTY_u8 for boolean type in dread/iread */
@@ -112,7 +112,7 @@ class CGLowerer {
     return (iread.GetFieldID() == 0 ? &iread : LowerIreadBitfield(iread));
   }
 
-  BaseNode *LowerCastExpr(BaseNode &expr) const;
+  BaseNode *LowerCastExpr(BaseNode &expr);
 
   BaseNode *ExtractSymbolAddress(const StIdx &stIdx);
   BaseNode *LowerDreadToThreadLocal(BaseNode &expr, const BlockNode &block);

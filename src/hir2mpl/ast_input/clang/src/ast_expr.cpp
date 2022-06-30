@@ -371,8 +371,10 @@ std::unique_ptr<FEIRStmtAssign> ASTCallExpr::GenCallStmt() const {
     callStmt = std::make_unique<FEIRStmtICallAssign>();
   } else {
     StructElemNameIdx *nameIdx = mp->New<StructElemNameIdx>(GetFuncName());
+    ASSERT_NOT_NULL(nameIdx);
     FEStructMethodInfo *info = static_cast<FEStructMethodInfo*>(
         FEManager::GetTypeManager().RegisterStructMethodInfo(*nameIdx, kSrcLangC, false));
+    ASSERT_NOT_NULL(info);
     info->SetFuncAttrs(funcAttrs);
     FEIRTypeNative *retTypeInfo = nullptr;
     if (IsFirstArgRet()) {
@@ -766,7 +768,9 @@ UniqueFEIRExpr ASTUnaryOperatorExpr::ASTUOSideEffectExpr(Opcode op, std::list<Un
   if (post) {
     tempVar = FEIRBuilder::CreateVarNameForC(varName, *subType);
     UniqueFEIRStmt readSelfstmt = FEIRBuilder::CreateStmtDAssign(tempVar->Clone(), childFEIRExpr->Clone());
-    readSelfstmt->SetDummy();
+    if (!IsRValue()) {
+      readSelfstmt->SetDummy();
+    }
     stmts.emplace_back(std::move(readSelfstmt));
   }
 
@@ -1325,8 +1329,8 @@ void ASTInitListExpr::ProcessDesignatedInitUpdater(
   ProcessInitList(base, static_cast<const ASTInitListExpr*>(updaterExpr), stmts);
 }
 
-UniqueFEIRExpr ASTInitListExpr::CalculateStartAddressForMemset(UniqueFEIRVar &varIn, uint32 initSizeIn,
-    uint32 fieldIDIn, std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &baseIn) const {
+UniqueFEIRExpr ASTInitListExpr::CalculateStartAddressForMemset(const UniqueFEIRVar &varIn, uint32 initSizeIn,
+    uint32 fieldIDIn, const std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &baseIn) const {
   UniqueFEIRExpr addrOfExpr;
   if (std::holds_alternative<UniqueFEIRExpr>(baseIn)) {
     UniqueFEIRExpr offsetExpr = FEIRBuilder::CreateExprConstU32(initSizeIn);
@@ -1572,9 +1576,9 @@ void ASTInitListExpr::ProcessArrayInitList(const UniqueFEIRExpr &addrOfArray, co
       if (!FEOptions::GetInstance().IsNpeCheckDynamic() && subExpr->GetEvaluatedFlag() == kEvaluatedAsZero) {
         UniqueFEIRExpr realAddr = addrOfArray->Clone();
           if (i > 0) {
-            UniqueFEIRExpr indexExpr = FEIRBuilder::CreateExprConstI32(static_cast<int32>(i));
+            UniqueFEIRExpr idxExpr = FEIRBuilder::CreateExprConstI32(static_cast<int32>(i));
             UniqueFEIRExpr elemSizeExpr = FEIRBuilder::CreateExprConstI32(static_cast<int32>(elementType->GetSize()));
-            UniqueFEIRExpr offsetSizeExpr = FEIRBuilder::CreateExprBinary(OP_mul, std::move(indexExpr),
+            UniqueFEIRExpr offsetSizeExpr = FEIRBuilder::CreateExprBinary(OP_mul, std::move(idxExpr),
                                                                           elemSizeExpr->Clone());
             realAddr = FEIRBuilder::CreateExprBinary(OP_add, std::move(realAddr), offsetSizeExpr->Clone());
           }
@@ -1762,8 +1766,8 @@ MIRConst *ASTArraySubscriptExpr::GenerateMIRConstImpl() const {
   }
 }
 
-bool ASTArraySubscriptExpr::CheckFirstDimIfZero(const MIRType *arrayType) const {
-  auto tmpArrayType = static_cast<const MIRArrayType*>(arrayType);
+bool ASTArraySubscriptExpr::CheckFirstDimIfZero(const MIRType *arrType) const {
+  auto tmpArrayType = static_cast<const MIRArrayType*>(arrType);
   uint32 size = tmpArrayType->GetSizeArrayItem(0);
   uint32 oriDim = tmpArrayType->GetDim();
   if (size == 0 && oriDim >= 2) { // 2 is the array dim
@@ -2821,29 +2825,22 @@ UniqueFEIRExpr ASTAtomicExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) 
 
 // ---------- ASTExprStmtExpr ----------
 UniqueFEIRExpr ASTExprStmtExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
-  std::list<UniqueFEIRStmt> stmts0 = cpdStmt->Emit2FEStmt();
-  for (auto &stmt : stmts0) {
-    stmts.emplace_back(std::move(stmt));
-  }
   CHECK_FATAL(cpdStmt->GetASTStmtOp() == kASTStmtCompound, "Invalid in ASTExprStmtExpr");
-  stmts0.clear();
   const auto *lastCpdStmt = static_cast<ASTCompoundStmt *>(cpdStmt);
   while (lastCpdStmt->GetASTStmtList().back()->GetASTStmtOp() == kASTStmtStmtExpr) {
     auto bodyStmt = static_cast<ASTStmtExprStmt*>(lastCpdStmt->GetASTStmtList().back())->GetBodyStmt();
     lastCpdStmt = static_cast<const ASTCompoundStmt*>(bodyStmt);
   }
+  UniqueFEIRExpr feirExpr = nullptr;
+  std::list<UniqueFEIRStmt> stmts0;
   if (lastCpdStmt->GetASTStmtList().size() != 0 && lastCpdStmt->GetASTStmtList().back()->GetExprs().size() != 0) {
-    UniqueFEIRExpr feirExpr = lastCpdStmt->GetASTStmtList().back()->GetExprs().back()->Emit2FEExpr(stmts0);
-    for (size_t i = 0; i < stmts0.size(); ++i) {
-      if (!stmts.empty()) {
-        stmts.pop_back();
-      }
-    }
-    for (auto &stmt : stmts0) {
-      stmts.emplace_back(std::move(stmt));
-    }
-    return feirExpr;
+    feirExpr = lastCpdStmt->GetASTStmtList().back()->GetExprs().back()->Emit2FEExpr(stmts0);
+    lastCpdStmt->GetASTStmtList().back()->GetExprs().back()->SetRValue(true);
   }
-  return nullptr;
+  stmts0 = cpdStmt->Emit2FEStmt();
+  for (auto &stmt : stmts0) {
+    stmts.emplace_back(std::move(stmt));
+  }
+  return feirExpr;
 }
 }

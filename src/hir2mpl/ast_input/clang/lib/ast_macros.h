@@ -17,6 +17,7 @@
 #define AST2MPL_INCLUDE_ASTMACROS_H
 #include <iostream>
 
+namespace maple {
 const uint32_t kSrcFileNum = 2;
 
 // ast2mpl options
@@ -54,7 +55,7 @@ const int kDefaultIndent = 1;
 
 #define NOTYETHANDLED(s)                                                                                          \
   std::cout << "\n" << LOCATION << " <<<<<<<<<<<<<<<<<< Not Yet Handled: " << s << "<<<<<<<<<<<<<<<<<<" << '\n';  \
-  if (maple::ast2mplOption & kCheckAssertion) {                                                                   \
+  if ((maple::ast2mplOption & kCheckAssertion) != 0) {                                                            \
     ASSERT(false, "Not yet handled");                                                                             \
   }                                                                                                               \
 // print empty line
@@ -248,5 +249,5 @@ const int kDefaultIndent = 1;
 #define SET_INFO_PAIR(a, b, c, d, e)                               \
   a.emplace_back(builder->GetOrCreateStringIndex(b), c);           \
   d.emplace_back(e)
-
+} // namespace maple
 #endif  // AST2MPL_INCLUDE_ASTMACROS_H

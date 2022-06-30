@@ -100,7 +100,7 @@ void A64ConstProp::DoOpt() {
   }
 }
 
-void A64ConstProp::ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) const {
+void A64ConstProp::ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) {
   auto *useInsn = static_cast<AArch64Insn*>(useDUInfo.GetInsn());
   const AArch64MD *md = &AArch64CG::kMd[(useInsn->GetMachineOpcode())];
   /* special case */
@@ -489,7 +489,7 @@ bool A64ConstProp::BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &con
 }
 
 ImmOperand *A64ConstProp::CanDoConstFold(
-    const ImmOperand &value1, const ImmOperand &value2, ArithmeticType aT, bool is64Bit) const {
+    const ImmOperand &value1, const ImmOperand &value2, ArithmeticType aT, bool is64Bit) {
   auto *tempImm = static_cast<ImmOperand*>(value1.Clone(*constPropMp));
   int64 newVal = 0;
   bool isSigned = value1.IsSignedValue();

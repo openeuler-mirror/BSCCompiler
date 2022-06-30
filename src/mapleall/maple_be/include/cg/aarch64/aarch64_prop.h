@@ -99,11 +99,11 @@ class A64ConstProp {
  private:
   bool ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd);
   /* use xzr/wzr in aarch64 to shrink register live range */
-  void ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) const;
+  void ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg);
 
   /* replace old Insn with new Insn, update ssa info automatically */
   void ReplaceInsnAndUpdateSSA(Insn &oriInsn, Insn &newInsn) const;
-  ImmOperand *CanDoConstFold(const ImmOperand &value1, const ImmOperand &value2, ArithmeticType aT, bool is64Bit) const;
+  ImmOperand *CanDoConstFold(const ImmOperand &value1, const ImmOperand &value2, ArithmeticType aT, bool is64Bit);
 
   /* optimization */
   bool MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd);

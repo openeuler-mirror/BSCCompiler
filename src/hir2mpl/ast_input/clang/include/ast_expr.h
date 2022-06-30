@@ -284,7 +284,7 @@ class ASTUnaryOperatorExpr : public ASTExpr {
     (void)allocatorIn;
   }
   virtual ~ASTUnaryOperatorExpr() = default;
-  void SetUOExpr(ASTExpr*);
+  void SetUOExpr(ASTExpr *astExpr);
 
   const ASTExpr *GetUOExpr() const {
     return expr;
@@ -513,7 +513,7 @@ class ASTPredefinedExpr : public ASTExpr {
     (void)allocatorIn;
   }
   ~ASTPredefinedExpr() = default;
-  void SetASTExpr(ASTExpr*);
+  void SetASTExpr(ASTExpr *astExpr);
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
@@ -526,7 +526,7 @@ class ASTOpaqueValueExpr : public ASTExpr {
     (void)allocatorIn;
   }
   ~ASTOpaqueValueExpr() = default;
-  void SetASTExpr(ASTExpr*);
+  void SetASTExpr(ASTExpr *astExpr);
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
@@ -553,7 +553,7 @@ class ASTCompoundLiteralExpr : public ASTExpr {
   }
   ~ASTCompoundLiteralExpr() = default;
   void SetCompoundLiteralType(MIRType *clType);
-  void SetASTExpr(ASTExpr*);
+  void SetASTExpr(ASTExpr *astExpr);
 
   void SetAddrof(bool flag) {
     isAddrof = flag;
@@ -667,8 +667,8 @@ class ASTInitListExpr : public ASTExpr {
                              const ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
   std::tuple<uint32, uint32, MIRType*> GetStructFieldInfo(uint32 fieldIndex, uint32 baseFieldID,
                                                           MIRStructType &structMirType) const;
-  UniqueFEIRExpr CalculateStartAddressForMemset(UniqueFEIRVar &varIn, uint32 initSizeIn, uint32 fieldIDIn,
-      std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &baseIn) const;
+  UniqueFEIRExpr CalculateStartAddressForMemset(const UniqueFEIRVar &varIn, uint32 initSizeIn, uint32 fieldIDIn,
+      const std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &baseIn) const;
   UniqueFEIRExpr GetAddrofArrayFEExprByStructArrayField(MIRType *fieldType, UniqueFEIRExpr addrOfArrayField) const;
   void ProcessVectorInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                              const ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
@@ -913,8 +913,8 @@ class ASTArraySubscriptExpr : public ASTExpr {
   MIRConst *GenerateMIRConstImpl() const override;
   bool CheckFirstDimIfZero(const MIRType *arrayType) const;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
-  void InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &idxExpr,
-                             const UniqueFEIRExpr &addrOfArray) const;
+  void InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &indexExpr,
+                             const UniqueFEIRExpr &baseAddrExpr) const;
   bool InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr indexExpr,
                               UniqueFEIRExpr baseAddrFEExpr) const;
 

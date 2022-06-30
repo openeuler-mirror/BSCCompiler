@@ -88,7 +88,7 @@ class ASTCompoundStmt : public ASTStmt {
   explicit ASTCompoundStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtCompound),
       astStmts(allocatorIn.Adapter()) {}
   ~ASTCompoundStmt() = default;
-  void SetASTStmt(ASTStmt*);
+  void SetASTStmt(ASTStmt *astStmt);
   void InsertASTStmtsAtFront(const std::list<ASTStmt*> &stmts);
   const MapleList<ASTStmt*> &GetASTStmtList() const;
 
@@ -581,8 +581,8 @@ class ASTCStyleCastExprStmt : public ASTStmt {
 
 class ASTCallExprStmt : public ASTStmt {
  public:
-  explicit ASTCallExprStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtCallExpr),
-      varName(FEUtils::GetSequentialName("retVar_")) {}
+  ASTCallExprStmt(MapleAllocator &allocatorIn, const std::string &varNameIn)
+      : ASTStmt(allocatorIn, kASTStmtCallExpr), varName(varNameIn) {}
   ~ASTCallExprStmt() override = default;
 
  private:

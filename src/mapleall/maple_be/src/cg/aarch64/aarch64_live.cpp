@@ -31,7 +31,7 @@ void AArch64LiveAnalysis::InitEhDefine(BB &bb) {
 }
 
 /* build use and def sets of each BB according to the type of regOpnd. */
-void AArch64LiveAnalysis::CollectLiveInfo(BB &bb, const Operand &opnd, bool isDef, bool isUse) const {
+void AArch64LiveAnalysis::CollectLiveInfo(const BB &bb, const Operand &opnd, bool isDef, bool isUse) const {
   if (!opnd.IsRegister()) {
     return;
   }

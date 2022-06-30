@@ -2277,7 +2277,7 @@ void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src)
   opndVec.push_back(regResult);                              /* result */
   opndVec.push_back(PrepareMemcpyParamOpnd(offset, *dest));  /* param 0 */
   opndVec.push_back(src);                                    /* param 1 */
-  opndVec.push_back(PrepareMemcpyParamOpnd(static_cast<uint64>(bNode.blockSize))); /* param 2 */
+  opndVec.push_back(PrepareMemcpyParamOpnd(static_cast<uint64>(static_cast<int64>(bNode.blockSize)))); /* param 2 */
   SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
 }
 
@@ -2594,6 +2594,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
 
       return;
     }
+    ASSERT(copySize != 0, "expect non-zero");
     for (uint32 i = 0; i < (lhsSize / copySize); i++) {
       /* generate the load */
       uint32 operandSize = copySize * k8BitSize;
@@ -8212,6 +8213,7 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
     ASSERT(ploc.reg1 == 0, "SelectCall NYI");
   }
   if (specialArg) {
+    ASSERT(tmpBB, "need temp bb for lower priority args");
     curBBrecord->InsertAtEnd(*tmpBB);
     SetCurBB(*curBBrecord);
   }

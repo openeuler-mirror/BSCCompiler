@@ -86,13 +86,13 @@ class LmbcFormalParamInfo {
   void SetOffset(uint32 ofs) {
     offset = ofs;
   }
-  uint32 GetOnStackOffset() {
+  uint32 GetOnStackOffset() const {
     return onStackOffset;
   }
   void SetOnStackOffset(uint32 ofs) {
     onStackOffset = ofs;
   }
-  uint32 GetSize() {
+  uint32 GetSize() const {
     return size;
   }
   void SetSize(uint32 sz) {
@@ -143,7 +143,7 @@ class LmbcFormalParamInfo {
   void SetIsOnStack() {
     isOnStack = true;
   }
-  bool HasRegassign() {
+  bool HasRegassign() const {
     return hasRegassign;
   }
   void SetHasRegassign() {

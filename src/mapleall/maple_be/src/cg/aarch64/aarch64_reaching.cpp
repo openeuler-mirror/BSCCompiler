@@ -30,7 +30,7 @@ void AArch64ReachingDefinition::InitStartGen() {
   CCLocInfo pLoc;
   for (uint32 i = 0; i < cgFunc->GetFunction().GetFormalCount(); ++i) {
     MIRType *type = cgFunc->GetFunction().GetNthParamType(i);
-    parmLocator.LocateNextParm(*type, pLoc, i == 0, &cgFunc->GetFunction());
+    (void)parmLocator.LocateNextParm(*type, pLoc, i == 0, &cgFunc->GetFunction());
     if (pLoc.reg0 == 0) {
       /* If is a large frame, parameter addressing mode is based vreg:Vra. */
       continue;

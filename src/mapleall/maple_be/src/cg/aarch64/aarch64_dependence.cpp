@@ -996,7 +996,7 @@ void AArch64DepAnalysis::BuildMayThrowInsnDependency(Insn &insn) {
   }
 }
 
-void AArch64DepAnalysis::UpdateRegUseAndDef(Insn &insn, DepNode &depNode, MapleVector<DepNode*> &nodes) {
+void AArch64DepAnalysis::UpdateRegUseAndDef(Insn &insn, const DepNode &depNode, MapleVector<DepNode*> &nodes) {
   const auto &useRegnos = depNode.GetUseRegnos();
   if (beforeRA) {
     depNode.InitRegUsesSize(useRegnos.size());

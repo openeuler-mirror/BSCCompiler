@@ -26,9 +26,9 @@ class AArch64LiveAnalysis : public LiveAnalysis {
   bool CleanupBBIgnoreReg(uint32 reg) override;
   void InitEhDefine(BB &bb) override;
  private:
-  void CollectLiveInfo(BB &bb, const Operand &opnd, bool isDef, bool isUse) const;
+  void CollectLiveInfo(const BB &bb, const Operand &opnd, bool isDef, bool isUse) const;
   void GenerateReturnBBDefUse(BB &bb) const;
-  void ProcessCallInsnParam(BB &bb) const;
+  void ProcessCallInsnParam(BB &bb, const Insn &insn) const;
   void ProcessAsmListOpnd(BB &bb, Operand &opnd, uint32 idx) const;
   void ProcessListOpnd(BB &bb, Operand &opnd) const;
   void ProcessMemOpnd(BB &bb, Operand &opnd) const;

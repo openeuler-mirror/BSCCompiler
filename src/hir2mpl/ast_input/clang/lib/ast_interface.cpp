@@ -19,6 +19,36 @@
 #include "fe_manager.h"
 
 namespace maple {
+const std::unordered_map<clang::attr::Kind, std::string> kUnsupportedFuncAttrsMap = {
+    {clang::attr::NoInstrumentFunction, "no_instrument_function"},
+    {clang::attr::StdCall, "stdcall"},
+    {clang::attr::CDecl, "cdecl"},
+    {clang::attr::MipsLongCall, "mips_long_call"},
+    {clang::attr::MipsShortCall, "mips_short_call"},
+    {clang::attr::ARMInterrupt, "arm_interrupt"},
+    {clang::attr::AnyX86Interrupt, "x86_interrupt"},
+    {clang::attr::Naked, "naked"},
+    {clang::attr::AllocAlign, "alloc_align"},
+    {clang::attr::AssumeAligned, "assume_aligned"},
+    {clang::attr::Flatten, "flatten"},
+    {clang::attr::GNUInline, "gnu_inline"},
+    {clang::attr::Cold, "cold"},
+    {clang::attr::IFunc, "ifunc"},
+    {clang::attr::NoSanitize, "no_sanitize"},
+    {clang::attr::NoSplitStack, "no_split_stack"},
+    {clang::attr::PatchableFunctionEntry, "patchable_function_entry"},
+    {clang::attr::Target, "target"}};
+const std::unordered_map<clang::attr::Kind, std::string> kUnsupportedVarAttrsMap = {
+    {clang::attr::Mode, "mode"},
+    {clang::attr::NoCommon, "nocommon"},
+    {clang::attr::TransparentUnion, "transparent_union"},
+    {clang::attr::Alias, "alias"},
+    {clang::attr::Cleanup, "cleanup"},
+    {clang::attr::Common, "common"},
+    {clang::attr::Uninitialized, "uninitialized"}};
+const std::unordered_map<clang::attr::Kind, std::string> kUnsupportedTypeAttrsMap = {
+    {clang::attr::MSStruct, "ms_struct"}};
+
 bool LibAstFile::Open(const MapleString &fileName,
                       int excludeDeclFromPCH, int displayDiagnostics) {
   astFileName = fileName;
@@ -67,7 +97,7 @@ AstUnitDecl *LibAstFile::GetAstUnitDecl() {
   return astUnitDecl;
 }
 
-std::string LibAstFile::GetMangledName(const clang::NamedDecl &decl) {
+std::string LibAstFile::GetMangledName(const clang::NamedDecl &decl) const {
   std::string mangledName;
   if (!mangleContext->shouldMangleDeclName(&decl)) {
     mangledName = decl.getNameAsString();
@@ -156,14 +186,14 @@ uint32 LibAstFile::RetrieveAggTypeAlign(const clang::Type *ty) const {
   return 0;
 }
 
-void LibAstFile::GetCVRAttrs(uint32_t qualifiers, GenericAttrs &genAttrs) {
-  if (qualifiers & clang::Qualifiers::Const) {
+void LibAstFile::GetCVRAttrs(uint32_t qualifiers, GenericAttrs &genAttrs) const {
+  if ((qualifiers & clang::Qualifiers::Const) != 0) {
     genAttrs.SetAttr(GENATTR_const);
   }
-  if (qualifiers & clang::Qualifiers::Restrict) {
+  if ((qualifiers & clang::Qualifiers::Restrict) != 0) {
     genAttrs.SetAttr(GENATTR_restrict);
   }
-  if (qualifiers & clang::Qualifiers::Volatile) {
+  if ((qualifiers & clang::Qualifiers::Volatile) != 0) {
     genAttrs.SetAttr(GENATTR_volatile);
   }
 }
@@ -213,7 +243,7 @@ void LibAstFile::GetStorageAttrs(const clang::NamedDecl &decl, GenericAttrs &gen
   return;
 }
 
-void LibAstFile::GetAccessAttrs(AccessKind access, GenericAttrs &genAttrs) {
+void LibAstFile::GetAccessAttrs(AccessKind access, GenericAttrs &genAttrs) const {
   switch (access) {
     case kPublic:
       genAttrs.SetAttr(GENATTR_public);
@@ -276,7 +306,7 @@ void LibAstFile::CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAtt
   }
 }
 
-void LibAstFile::CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericAttrs &genAttrs) {
+void LibAstFile::CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericAttrs &genAttrs) const {
   if (LibAstFile::IsOneElementVector(expr.getCallReturnType(*astContext))) {
     genAttrs.SetAttr(GenericAttrKind::GENATTR_oneelem_simd);
   }
@@ -343,8 +373,8 @@ void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) {
   const clang::AttrVec &funcAttrs = decl.getAttrs();
   for (const auto *attr : funcAttrs) {
     clang::attr::Kind attrKind = attr->getKind();
-    auto iterator = unsupportedFuncAttrsMap.find(attrKind);
-    if (iterator != unsupportedFuncAttrsMap.end()) {
+    auto iterator = kUnsupportedFuncAttrsMap.find(attrKind);
+    if (iterator != kUnsupportedFuncAttrsMap.end()) {
       unsupportedFuncAttrs += iterator->second + " ";
     }
   }
@@ -378,8 +408,8 @@ void LibAstFile::CheckUnsupportedVarAttrs(const clang::VarDecl &decl) {
   const clang::AttrVec &varAttrs = decl.getAttrs();
   for (const auto *attr : varAttrs) {
     clang::attr::Kind attrKind = attr->getKind();
-    auto iterator = unsupportedVarAttrsMap.find(attrKind);
-    if (iterator != unsupportedVarAttrsMap.end()) {
+    auto iterator = kUnsupportedVarAttrsMap.find(attrKind);
+    if (iterator != kUnsupportedVarAttrsMap.end()) {
       unsupportedVarAttrs += iterator->second + " ";
     }
   }
@@ -399,7 +429,8 @@ void LibAstFile::CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs 
   clang::MaxFieldAlignmentAttr *maxFieldAlignAttr = decl.getAttr<clang::MaxFieldAlignmentAttr>();
   if (maxFieldAlignAttr != nullptr) {
     genAttrs.SetAttr(GENATTR_pack);
-    genAttrs.InsertIntContentMap(GENATTR_pack, static_cast<uint32>(maxFieldAlignAttr->getAlignment() / 8));
+    int value = static_cast<int>(maxFieldAlignAttr->getAlignment() / 8); // bits to byte
+    genAttrs.InsertIntContentMap(GENATTR_pack, value);
   }
   CheckUnsupportedTypeAttrs(decl);
 }
@@ -412,8 +443,8 @@ void LibAstFile::CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl) {
   const clang::AttrVec &typeAttrs = decl.getAttrs();
   for (const auto *attr : typeAttrs) {
     clang::attr::Kind attrKind = attr->getKind();
-    auto iterator = unsupportedTypeAttrsMap.find(attrKind);
-    if (iterator != unsupportedTypeAttrsMap.end()) {
+    auto iterator = kUnsupportedTypeAttrsMap.find(attrKind);
+    if (iterator != kUnsupportedTypeAttrsMap.end()) {
       unsupportedTypeAttrs += iterator->second + " ";
     }
   }
@@ -460,18 +491,18 @@ void LibAstFile::EmitTypeName(const clang::QualType qualType, std::stringstream 
   }
 }
 
-void LibAstFile::EmitQualifierName(const clang::QualType qualType, std::stringstream &ss) {
+void LibAstFile::EmitQualifierName(const clang::QualType qualType, std::stringstream &ss) const {
   uint32_t cvrQual = qualType.getCVRQualifiers();
   if ((cvrQual & clang::Qualifiers::Const) != 0) {
     ss << "K";
   }
-  if (cvrQual & clang::Qualifiers::Volatile) {
+  if ((cvrQual & clang::Qualifiers::Volatile) != 0) {
     ss << "U";
   }
 }
 
 const std::string LibAstFile::GetOrCreateMappedUnnamedName(uint32_t id) {
-  std::map<uint32_t, std::string>::iterator it = unnamedSymbolMap.find(id);
+  std::map<uint32_t, std::string>::const_iterator it = unnamedSymbolMap.find(id);
   if (it == unnamedSymbolMap.end()) {
     std::string name = FEUtils::GetSequentialName("unNamed");
     unnamedSymbolMap[id] = name;

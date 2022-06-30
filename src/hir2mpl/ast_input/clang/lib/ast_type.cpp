@@ -97,7 +97,7 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind) const {
   }
 }
 
-bool LibAstFile::TypeHasMayAlias(const clang::QualType srcType) {
+bool LibAstFile::TypeHasMayAlias(const clang::QualType srcType) const {
   auto *td = srcType->getAsTagDecl();
   if (td != nullptr && td->hasAttr<clang::MayAliasAttr>()) {
     return true;
@@ -135,9 +135,9 @@ MIRType *LibAstFile::CvtType(const clang::QualType qualType) {
     TypeAttrs attrs;
     // Get alignment from the pointee type
     uint32 alignmentBits = astContext->getTypeAlignIfKnown(srcPteType);
-    if (alignmentBits) {
+    if (alignmentBits != 0) {
       if (alignmentBits > astContext->getTypeUnadjustedAlign(srcPteType)) {
-        attrs.SetAlign(alignmentBits / 8);
+        attrs.SetAlign(alignmentBits / 8); // bits to byte
       }
     }
     if (IsOneElementVector(srcPteType)) {
@@ -195,8 +195,8 @@ MIRType *LibAstFile::CvtOtherType(const clang::QualType srcType) {
 MIRType *LibAstFile::CvtRecordType(const clang::QualType srcType) {
   const auto *recordType = llvm::cast<clang::RecordType>(srcType);
   clang::RecordDecl *recordDecl = recordType->getDecl();
-  if (!recordDecl->isLambda() && recordDeclSet.emplace(recordDecl).second == true) {
-    auto itor = std::find(recordDecles.begin(), recordDecles.end(), recordDecl);
+  if (!recordDecl->isLambda() && recordDeclSet.emplace(recordDecl).second) {
+    auto itor = std::find(recordDecles.cbegin(), recordDecles.cend(), recordDecl);
     if (itor == recordDecles.end()) {
       recordDecles.emplace_back(recordDecl);
     }
@@ -216,7 +216,7 @@ MIRType *LibAstFile::CvtRecordType(const clang::QualType srcType) {
   }
   type = FEManager::GetTypeManager().GetOrCreateStructType(name);
   type->SetMIRTypeKind(srcType->isUnionType() ? kTypeUnion : kTypeStruct);
-  if(recordDecl->getDefinition() == nullptr) {
+  if (recordDecl->getDefinition() == nullptr) {
     type->SetMIRTypeKind(kTypeStructIncomplete);
   }
   return recordDecl->isLambda() ? GlobalTables::GetTypeTable().GetOrCreatePointerType(*type) : type;
@@ -272,7 +272,7 @@ MIRType *LibAstFile::CvtArrayType(const clang::QualType srcType) {
   return retType;
 }
 
-MIRType *LibAstFile::CvtComplexType(const clang::QualType srcType) {
+MIRType *LibAstFile::CvtComplexType(const clang::QualType srcType) const {
   clang::QualType srcElemType = llvm::cast<clang::ComplexType>(srcType)->getElementType();
   MIRType *destElemType = CvtPrimType(srcElemType);
   CHECK_NULL_FATAL(destElemType);
@@ -322,17 +322,7 @@ void LibAstFile::CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualT
     operands.push_back(size.getSExtValue());
     CollectBaseEltTypeAndSizesFromConstArrayDecl(constArrayType->getElementType(), elemType, elemAttr, operands);
   } else {
-    elemType = CvtType(currQualType);
-    // Get alignment from the element type
-    uint32 alignmentBits = astContext->getTypeAlignIfKnown(currQualType);
-    if (alignmentBits) {
-      if (alignmentBits > astContext->getTypeUnadjustedAlign(currQualType)) {
-        elemAttr.SetAlign(alignmentBits / 8);
-      }
-    }
-    if (IsOneElementVector(currQualType)) {
-      elemAttr.SetAttr(ATTR_oneelem_simd);
-    }
+    CollectBaseEltTypeFromArrayDecl(currQualType, elemType, elemAttr);
   }
 }
 
@@ -345,17 +335,7 @@ void LibAstFile::CollectBaseEltTypeAndDimFromVariaArrayDecl(const clang::QualTyp
     CollectBaseEltTypeAndDimFromVariaArrayDecl(arrayType->getElementType(), elemType, elemAttr, dim);
     ++dim;
   } else {
-    elemType = CvtType(currQualType);
-    // Get alignment from the element type
-    uint32 alignmentBits = astContext->getTypeAlignIfKnown(currQualType);
-    if (alignmentBits) {
-      if (alignmentBits > astContext->getTypeUnadjustedAlign(currQualType)) {
-        elemAttr.SetAlign(alignmentBits / 8);
-      }
-    }
-    if (IsOneElementVector(currQualType)) {
-      elemAttr.SetAttr(ATTR_oneelem_simd);
-    }
+    CollectBaseEltTypeFromArrayDecl(currQualType, elemType, elemAttr);
   }
 }
 
@@ -370,17 +350,23 @@ void LibAstFile::CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(
     operands.push_back(0);
     CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(arrayType->getElementType(), elemType, elemAttr, operands);
   } else {
-    elemType = CvtType(currQualType);
-    // Get alignment from the element type
-    uint32 alignmentBits = astContext->getTypeAlignIfKnown(currQualType);
-    if (alignmentBits) {
-      if (alignmentBits > astContext->getTypeUnadjustedAlign(currQualType)) {
-        elemAttr.SetAlign(alignmentBits / 8);
-      }
+    CollectBaseEltTypeFromArrayDecl(currQualType, elemType, elemAttr);
+  }
+}
+
+void LibAstFile::CollectBaseEltTypeFromArrayDecl(const clang::QualType &currQualType,
+                                                 MIRType *&elemType,
+                                                 TypeAttrs &elemAttr) {
+  elemType = CvtType(currQualType);
+  // Get alignment from the element type
+  uint32 alignmentBits = astContext->getTypeAlignIfKnown(currQualType);
+  if (alignmentBits != 0) {
+    if (alignmentBits > astContext->getTypeUnadjustedAlign(currQualType)) {
+      elemAttr.SetAlign(alignmentBits / 8); // bits to byte
     }
-    if (IsOneElementVector(currQualType)) {
-      elemAttr.SetAttr(ATTR_oneelem_simd);
-    }
+  }
+  if (IsOneElementVector(currQualType)) {
+    elemAttr.SetAttr(ATTR_oneelem_simd);
   }
 }
 

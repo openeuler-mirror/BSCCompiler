@@ -735,7 +735,7 @@ class AArch64CGFunc : public CGFunc {
     return lmbcArgInfo->lmbcCallArgNumOfRegs;
   }
 
-  int32 GetLmbcTotalStkUsed() {
+  int32 GetLmbcTotalStkUsed() const {
     return lmbcArgInfo->lmbcTotalStkUsed;
   }
 

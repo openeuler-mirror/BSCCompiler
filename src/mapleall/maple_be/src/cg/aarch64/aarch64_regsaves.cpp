@@ -27,6 +27,7 @@ namespace maplebe {
 #define RS_EXTRA (RS_DUMP && true)
 #define mLog LogInfo::MapleLogger()
 #define threshold 8
+#define ONE_REG_AT_A_TIME 0
 
 using BBId = uint32;
 

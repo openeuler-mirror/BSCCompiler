@@ -145,7 +145,7 @@ class AArch64ScheduleProcessInfo : public ScheduleProcessInfo {
       freeIntRegNodeSet.find(&node)->second++;
     }
   }
-  const std::map<DepNode*, uint32> &GetFreeIntRegNodeSet() {
+  const std::map<DepNode*, uint32> &GetFreeIntRegNodeSet() const {
     return freeIntRegNodeSet;
   }
   void IncFreeFpRegNode(DepNode &node) {
@@ -158,7 +158,7 @@ class AArch64ScheduleProcessInfo : public ScheduleProcessInfo {
   uint32 GetFreeFpRegs(DepNode &node) {
     return freeFpRegNodeSet.count(&node) ? freeFpRegNodeSet.find(&node)->second : 0;
   }
-  const std::map<DepNode*, uint32> &GetFreeFpRegNodeSet() {
+  const std::map<DepNode*, uint32> &GetFreeFpRegNodeSet() const {
     return freeFpRegNodeSet;
   }
 
@@ -167,7 +167,7 @@ class AArch64ScheduleProcessInfo : public ScheduleProcessInfo {
     freeFpRegNodeSet.clear();
   }
 
-  size_t FindIntLiveReg(regno_t reg) {
+  size_t FindIntLiveReg(regno_t reg) const {
     return intLiveRegSet.count(reg);
   }
   void IncIntLiveRegSet(regno_t reg) {
@@ -176,7 +176,7 @@ class AArch64ScheduleProcessInfo : public ScheduleProcessInfo {
   void DecIntLiveRegSet(regno_t reg) {
     intLiveRegSet.erase(reg);
   }
-  size_t FindFpLiveReg(regno_t reg) {
+  size_t FindFpLiveReg(regno_t reg) const {
     return fpLiveRegSet.count(reg);
   }
   void IncFpLiveRegSet(regno_t reg) {
@@ -186,7 +186,7 @@ class AArch64ScheduleProcessInfo : public ScheduleProcessInfo {
     fpLiveRegSet.erase(reg);
   }
 
-  size_t SizeOfIntLiveRegSet() {
+  size_t SizeOfIntLiveRegSet() const {
     return intLiveRegSet.size();
   }
 
@@ -208,7 +208,7 @@ class AArch64ScheduleProcessInfo : public ScheduleProcessInfo {
     return num;
   }
 
-  size_t SizeOfFpLiveRegSet() {
+  size_t SizeOfFpLiveRegSet() const {
     return fpLiveRegSet.size();
   }
  private:
@@ -229,6 +229,9 @@ class AArch64Schedule : public Schedule {
   void DumpDepGraph(const MapleVector<DepNode*> &nodes) const;
   void DumpScheduleResult(const MapleVector<DepNode*> &nodes, SimulateType type) const;
   void GenerateDot(const BB &bb, const MapleVector<DepNode*> &nodes) const;
+  void EraseNodeFromNodeList(const DepNode &target, MapleVector<DepNode*> &nodeList) override;
+  void FindAndCombineMemoryAccessPair(const std::vector<DepNode*> &memList) override;
+  void RegPressureScheduling(BB &bb, MapleVector<DepNode*> &nodes) override;
 
  private:
   enum CSRResult : uint8 {
@@ -239,7 +242,6 @@ class AArch64Schedule : public Schedule {
   void Init() override;
   void MemoryAccessPairOpt() override;
   void ClinitPairOpt() override;
-  void RegPressureScheduling(BB &bb, MapleVector<DepNode*> &nd) override;
   uint32 DoSchedule() override;
   uint32 DoBruteForceSchedule() override;
   uint32 SimulateOnly() override;
@@ -247,7 +249,6 @@ class AArch64Schedule : public Schedule {
   void IterateBruteForce(DepNode &targetNode, MapleVector<DepNode*> &readyList, uint32 currCycle,
                          MapleVector<DepNode*> &scheduledNodes, uint32 &maxCycleCount,
                          MapleVector<DepNode*> &optimizedScheduledNodes) override;
-  void FindAndCombineMemoryAccessPair(const std::vector<DepNode*> &readyList) override;
   bool CanCombine(const Insn &insn) const override;
   void ListScheduling(bool beforeRA) override;
   void BruteForceScheduling(const BB &bb);
@@ -258,16 +259,15 @@ class AArch64Schedule : public Schedule {
   void UpdateELStartsOnCycle(uint32 cycle) override;
   void RandomTest() override;
   void EraseNodeFromReadyList(const DepNode &target) override;
-  void EraseNodeFromNodeList(const DepNode &target, MapleVector<DepNode*> &readyList) override;
   uint32 GetNextSepIndex() const override;
   void CountUnitKind(const DepNode &depNode, uint32 array[], const uint32 arraySize) const override;
   static bool IfUseUnitKind(const DepNode &depNode, uint32 index);
   void UpdateReadyList(DepNode &targetNode, MapleVector<DepNode*> &readyList, bool updateEStart) override;
   void UpdateScheduleProcessInfo(AArch64ScheduleProcessInfo &info);
-  void UpdateAdvanceCycle(AArch64ScheduleProcessInfo &info, DepNode &targetNode);
+  void UpdateAdvanceCycle(AArch64ScheduleProcessInfo &scheduleInfo, const DepNode &targetNode);
   bool CheckSchedulable(AArch64ScheduleProcessInfo &info) const;
   void SelectNode(AArch64ScheduleProcessInfo &scheduleInfo);
-  static void DumpDebugInfo(const ScheduleProcessInfo &info);
+  static void DumpDebugInfo(const ScheduleProcessInfo &scheduleInfo);
   bool CompareDepNode(DepNode &node1, DepNode &node2, AArch64ScheduleProcessInfo &scheduleInfo) const;
   void CalculateMaxUnitKindCount(ScheduleProcessInfo &scheduleInfo);
   void UpdateReleaseRegInfo(AArch64ScheduleProcessInfo &scheduleInfo);
@@ -276,7 +276,7 @@ class AArch64Schedule : public Schedule {
   void InitLiveRegSet(AArch64ScheduleProcessInfo &scheduleInfo);
   int CalSeriesCycles(const MapleVector<DepNode*> &nodes);
   CSRResult DoCSR(DepNode &node1, DepNode &node2, AArch64ScheduleProcessInfo &scheduleInfo) const;
-  AArch64Schedule::CSRResult ScheduleCrossCall(DepNode &node1, DepNode &node2) const;
+  AArch64Schedule::CSRResult ScheduleCrossCall(const DepNode &node1, const DepNode &node2) const;
   int intCalleeSaveThreshold = 0;
 
   static uint32 maxUnitIndex;

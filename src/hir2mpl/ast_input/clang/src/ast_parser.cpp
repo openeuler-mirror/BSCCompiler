@@ -162,8 +162,8 @@ ASTStmt *ASTParser::ProcessStmt(MapleAllocator &allocator, const clang::Stmt &st
   }
 }
 
-ASTStmt *ASTParser::ProcessStmtAttributedStmt(MapleAllocator &allocator, const clang::AttributedStmt &AttrStmt) {
-  ASSERT(clang::hasSpecificAttr<clang::FallThroughAttr>(AttrStmt.getAttrs()), "AttrStmt is not fallthrough");
+ASTStmt *ASTParser::ProcessStmtAttributedStmt(MapleAllocator &allocator, const clang::AttributedStmt &attrStmt) {
+  ASSERT(clang::hasSpecificAttr<clang::FallThroughAttr>(attrStmt.getAttrs()), "AttrStmt is not fallthrough");
   ASTAttributedStmt *astAttributedStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTAttributedStmt>(allocator);
   CHECK_FATAL(astAttributedStmt != nullptr, "astAttributedStmt is nullptr");
   return astAttributedStmt;
@@ -215,12 +215,13 @@ ASTStmt *ASTParser::ProcessStmtBinaryOperator(MapleAllocator &allocator, const c
 }
 
 ASTStmt *ASTParser::ProcessStmtCallExpr(MapleAllocator &allocator, const clang::CallExpr &callExpr) {
-  ASTCallExprStmt *astCallExprStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTCallExprStmt>(allocator);
-  CHECK_FATAL(astCallExprStmt != nullptr, "astCallExprStmt is nullptr");
   ASTExpr *astExpr = ProcessExpr(allocator, &callExpr);
   if (astExpr == nullptr) {
     return nullptr;
   }
+  ASTCallExprStmt *astCallExprStmt =
+      allocator.GetMemPool()->New<ASTCallExprStmt>(allocator, static_cast<ASTCallExpr*>(astExpr)->GetRetVarName());
+  CHECK_FATAL(astCallExprStmt != nullptr, "astCallExprStmt is nullptr");
   astCallExprStmt->SetASTExpr(astExpr);
   return astCallExprStmt;
 }
@@ -500,11 +501,11 @@ bool ASTParser::HasDefault(const clang::Stmt &stmt) {
     const auto *cpdStmt = llvm::cast<const clang::CompoundStmt>(&stmt);
     clang::CompoundStmt::const_body_iterator it;
     for (it = cpdStmt->body_begin(); it != cpdStmt->body_end(); ++it) {
-      const auto *stmt = llvm::dyn_cast<const clang::Stmt>(*it);
-      if (stmt == nullptr) {
+      const auto *bodyStmt = llvm::dyn_cast<const clang::Stmt>(*it);
+      if (bodyStmt == nullptr) {
         continue;
       }
-      if (HasDefault(*stmt)) {
+      if (HasDefault(*bodyStmt)) {
         return true;
       }
     }
@@ -1362,6 +1363,7 @@ ASTExpr *ASTParser::ProcessExprOffsetOfExpr(MapleAllocator &allocator, const cla
       uint32 idx = comp.getArrayExprIndex();
       auto idxExpr = expr.getIndexExpr(idx);
       auto leftExpr = ProcessExpr(allocator, idxExpr);
+      ASSERT(i >= 1, "arg should be nonnegative number");
       auto arrayType = expr.getComponent(i - 1).getField()->getType();
       auto elementType = llvm::cast<clang::ArrayType>(arrayType)->getElementType();
       uint32 elementSize = GetSizeFromQualType(elementType);
@@ -2075,7 +2077,6 @@ ASTExpr *ASTParser::ProcessExprDeclRefExpr(MapleAllocator &allocator, const clan
       CHECK_FATAL(false, "NIY");
       return nullptr;
   }
-  return nullptr;
 }
 
 ASTExpr *ASTParser::ProcessExprBinaryOperatorComplex(MapleAllocator &allocator, const clang::BinaryOperator &bo) {
@@ -2393,7 +2394,6 @@ ASTDecl *ASTParser::ProcessDecl(MapleAllocator &allocator, const clang::Decl &de
       CHECK_FATAL(false, "ASTDecl: %s NIY", decl.getDeclKindName());
       return nullptr;
   }
-  return nullptr;
 }
 
 ASTDecl *ASTParser::ProcessDeclStaticAssertDecl(MapleAllocator &allocator, const clang::StaticAssertDecl &assertDecl) {
@@ -2808,6 +2808,7 @@ ASTDecl *ASTParser::ProcessDeclEnumConstantDecl(MapleAllocator &allocator, const
   astFile->CollectAttrs(*clang::dyn_cast<clang::NamedDecl>(&decl), attrs, kNone);
   const std::string &varName = clang::dyn_cast<clang::NamedDecl>(&decl)->getNameAsString();
   MIRType *mirType = astFile->CvtType(clang::dyn_cast<clang::ValueDecl>(&decl)->getType());
+  CHECK_NULL_FATAL(mirType);
   astConst = ASTDeclsBuilder::ASTEnumConstBuilder(
       allocator, fileName, varName, MapleVector<MIRType*>({mirType}, allocator.Adapter()), attrs, decl.getID());
 
@@ -2856,6 +2857,7 @@ bool ASTParser::RetrieveStructs(MapleAllocator &allocator) {
 bool ASTParser::RetrieveFuncs(MapleAllocator &allocator) {
   for (auto &func : funcDecles) {
     clang::FunctionDecl *funcDecl = llvm::cast<clang::FunctionDecl>(func);
+    CHECK_NULL_FATAL(funcDecl);
     if (funcDecl->isDefined()) {
       clang::SafeScopeSpecifier spec = funcDecl->getSafeSpecifier();
       funcDecl = funcDecl->getDefinition();

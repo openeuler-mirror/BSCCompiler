@@ -879,7 +879,6 @@ ASTExpr *ASTParser::ParseBuiltinSignbit(MapleAllocator &allocator, const clang::
 ASTExpr *ASTParser::ParseBuiltinIsinfsign(MapleAllocator &allocator, const clang::CallExpr &expr,
                                           std::stringstream &ss) const {
   (void)allocator;
-  (void)expr;
   ss.clear();
   ss.str(std::string());
   if (astFile->CvtType(expr.getArg(0)->getType())->GetPrimType() == PTY_f64) {

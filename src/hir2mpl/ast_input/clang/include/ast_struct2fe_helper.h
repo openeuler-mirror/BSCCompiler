@@ -36,8 +36,8 @@ class ASTStruct2FEHelper : public FEInputStructHelper {
   std::string GetSourceFileNameImpl() const override;
   MIRStructType *CreateMIRStructTypeImpl(bool &error) const override;
   uint64 GetRawAccessFlagsImpl() const override;
-  virtual GStrIdx GetIRSrcFileSigIdxImpl() const override;
-  virtual bool IsMultiDefImpl() const override;
+  GStrIdx GetIRSrcFileSigIdxImpl() const override;
+  bool IsMultiDefImpl() const override;
   std::string GetSrcFileNameImpl() const override;
 
   ASTStruct &astStruct;

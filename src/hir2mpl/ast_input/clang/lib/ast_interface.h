@@ -31,44 +31,12 @@ enum AccessKind {
   kPrivate,
   kNone
 };
-const std::unordered_map<clang::attr::Kind, std::string> unsupportedFuncAttrsMap = {
-  {clang::attr::NoInstrumentFunction, "no_instrument_function"},
-  {clang::attr::StdCall, "stdcall"},
-  {clang::attr::CDecl, "cdecl"},
-  {clang::attr::MipsLongCall, "mips_long_call"},
-  {clang::attr::MipsShortCall, "mips_short_call"},
-  {clang::attr::ARMInterrupt, "arm_interrupt"},
-  {clang::attr::AnyX86Interrupt, "x86_interrupt"},
-  {clang::attr::Naked, "naked"},
-  {clang::attr::AllocAlign, "alloc_align"},
-  {clang::attr::AssumeAligned, "assume_aligned"},
-  {clang::attr::Flatten, "flatten"},
-  {clang::attr::GNUInline, "gnu_inline"},
-  {clang::attr::Cold, "cold"},
-  {clang::attr::IFunc, "ifunc"},
-  {clang::attr::NoSanitize, "no_sanitize"},
-  {clang::attr::NoSplitStack, "no_split_stack"},
-  {clang::attr::PatchableFunctionEntry, "patchable_function_entry"},
-  {clang::attr::Target, "target"}
-};
-const std::unordered_map<clang::attr::Kind, std::string> unsupportedVarAttrsMap = {
-  {clang::attr::Mode, "mode"},
-  {clang::attr::NoCommon, "nocommon"},
-  {clang::attr::TransparentUnion, "transparent_union"},
-  {clang::attr::Alias, "alias"},
-  {clang::attr::Cleanup, "cleanup"},
-  {clang::attr::Common, "common"},
-  {clang::attr::Uninitialized, "uninitialized"}
-};
-const std::unordered_map<clang::attr::Kind, std::string> unsupportedTypeAttrsMap = {
-  {clang::attr::MSStruct, "ms_struct"}
-};
 
 class LibAstFile {
  public:
   explicit LibAstFile(MapleAllocator &allocatorIn, MapleList<clang::Decl*> &recordDeclesIn)
       : recordDeclMap(allocatorIn.Adapter()), recordDeclSet(allocatorIn.Adapter()),
-        unnamedSymbolMap(allocatorIn.Adapter()), CompoundLiteralExprInitSymbolMap(allocatorIn.Adapter()),
+        unnamedSymbolMap(allocatorIn.Adapter()), compoundLiteralExprInitSymbolMap(allocatorIn.Adapter()),
         recordDecles(recordDeclesIn), astFileName("", allocatorIn.GetMemPool()) {}
   ~LibAstFile() = default;
 
@@ -78,12 +46,12 @@ class LibAstFile {
   const AstASTContext *GetAstContext() const;
   AstASTContext *GetNonConstAstContext() const;
   AstUnitDecl *GetAstUnitDecl();
-  std::string GetMangledName(const clang::NamedDecl &decl);
+  std::string GetMangledName(const clang::NamedDecl &decl) const;
   const std::string GetOrCreateMappedUnnamedName(uint32_t id);
 
   void EmitTypeName(const clang::QualType qualType, std::stringstream &ss);
   void EmitTypeName(const clang::RecordType &recordType, std::stringstream &ss);
-  void EmitQualifierName(const clang::QualType qualType, std::stringstream &ss);
+  void EmitQualifierName(const clang::QualType qualType, std::stringstream &ss) const;
   std::string GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl) const;
   void CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
                                                     TypeAttrs &elemAttr, std::vector<uint32_t> &operands);
@@ -92,15 +60,15 @@ class LibAstFile {
                                                   TypeAttrs &elemAttr, uint8_t &dim);
   void CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(const clang::QualType currQualType, MIRType *&elemType,
                                                            TypeAttrs &elemAttr, std::vector<uint32_t> &operands);
-
-  void GetCVRAttrs(uint32_t qualifiers, GenericAttrs &genAttrs);
+  void CollectBaseEltTypeFromArrayDecl(const clang::QualType &currQualType, MIRType *&elemType, TypeAttrs &elemAttr);
+  void GetCVRAttrs(uint32_t qualifiers, GenericAttrs &genAttrs) const;
   void GetSClassAttrs(const clang::StorageClass storageClass, GenericAttrs &genAttrs) const;
   void GetStorageAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs) const;
-  void GetAccessAttrs(AccessKind access, GenericAttrs &genAttrs);
+  void GetAccessAttrs(AccessKind access, GenericAttrs &genAttrs) const;
   void GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs);
   void CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access);
   void CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access);
-  void CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericAttrs &genAttrs);
+  void CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericAttrs &genAttrs) const;
   void CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl);
   void CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access);
   void CheckUnsupportedVarAttrs(const clang::VarDecl &decl);
@@ -115,9 +83,9 @@ class LibAstFile {
   MIRType *CvtFunctionType(const clang::QualType srcType);
   MIRType *CvtRecordType(const clang::QualType srcType);
   MIRType *CvtFieldType(const clang::NamedDecl &decl);
-  MIRType *CvtComplexType(const clang::QualType srcType);
+  MIRType *CvtComplexType(const clang::QualType srcType) const;
   MIRType *CvtVectorType(const clang::QualType srcType);
-  bool TypeHasMayAlias(const clang::QualType srcType);
+  bool TypeHasMayAlias(const clang::QualType srcType) const;
   static bool IsOneElementVector(const clang::QualType &qualType);
   static bool IsOneElementVector(const clang::Type &type);
 
@@ -142,7 +110,7 @@ class LibAstFile {
   RecordDeclMap recordDeclMap;
   MapleSet<const clang::RecordDecl*> recordDeclSet;
   MapleMap<uint32_t, std::string> unnamedSymbolMap;
-  MapleMap<uint32_t, std::string> CompoundLiteralExprInitSymbolMap;
+  MapleMap<uint32_t, std::string> compoundLiteralExprInitSymbolMap;
   MIRModule *module = nullptr;
 
   MapleList<clang::Decl*> &recordDecles;
