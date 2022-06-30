@@ -51,8 +51,11 @@ BlockNode *PreMeMIRLower::LowerWhileStmt(WhileStmtNode &whilestmt) {
   CHECK_FATAL(whilestmt.GetBody(), "null ptr check");
   blk->AppendStatementsFromBlock(*whilestmt.GetBody());
   GotoNode *whilegotonode = mirbuilder->CreateStmtGoto(OP_goto, whilelblidx);
+  SrcPosition pos = func->GetMirFunc()->GetScope()->GetScopeEndPos(whilestmt.GetSrcPos());
+  whilegotonode->SetSrcPos(pos);
   if (GetFuncProfData() && blk->GetLast()) {
-    ASSERT(GetFuncProfData()->GetStmtFreq(blk->GetLast()->GetStmtID()) >= 0, "last stmt of while body should has freq");
+    ASSERT(GetFuncProfData()->GetStmtFreq(blk->GetLast()->GetStmtID()) >= 0,
+        "last stmt of while body should has freq");
     GetFuncProfData()->CopyStmtFreq(whilegotonode->GetStmtID(), blk->GetLast()->GetStmtID());
   }
   blk->AddStatement(whilegotonode);

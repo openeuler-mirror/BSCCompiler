@@ -76,7 +76,8 @@ class MIRScope {
     return subScopes;
   }
 
-  void IncLevel();
+  SrcPosition GetScopeEndPos(SrcPosition pos);
+
   bool AddScope(MIRScope *scope);
   void Dump(int32 indent) const;
   void Dump() const;

@@ -56,6 +56,19 @@ bool MIRScope::HasSameRange(const MIRScope *scp1, const MIRScope *scp2) const {
   return l1.IsEq(l2) && h1.IsEq(h2);
 }
 
+SrcPosition MIRScope::GetScopeEndPos(SrcPosition pos) {
+  if (pos.IsEq(GetRangeLow())) {
+    return GetRangeHigh();
+  }
+  SrcPosition result = SrcPosition();
+  for (auto *s : subScopes) {
+    result = s->GetScopeEndPos(pos);
+    if (result.IsValid()) {
+      return result;
+    }
+  }
+  return result;
+}
 
 bool MIRScope::AddScope(MIRScope *scope) {
   // check first if it is valid with parent scope and sibling sub scopes
