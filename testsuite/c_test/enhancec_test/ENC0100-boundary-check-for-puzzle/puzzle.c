@@ -1,6 +1,5 @@
 #include "stdlib.h"
 #include "stdio.h"
-#include <stdlib_c_enhanced.h>
 #define ARRAY_SIZE 500000
 #define NLOOPS1 5
 #define NLOOPS2 200
@@ -52,7 +51,7 @@ int *createRandomArray(int size) {
     // CHECK-NOT: [[# @LINE ]] warning: cant't prove the offset < the upper bounds
     // CHECK-NOT: [[# @LINE ]] warning: cant't prove the offset >= the lower bounds
         result[i] = i;
-    result[0] = randInt(1, size); // CHECK: [[# @LINE ]] warning: cant't prove the offset < the upper bounds
+    result[0] = randInt(1, size); // CHECK: [[# @LINE ]] warning: can't prove the pointer < the upper bounds when accessing the memory
     shuffle(result, len);
     return result;
 }

@@ -17,14 +17,14 @@ __Safe__ void func1(void);
 __Unsafe__ void func2(void);
 
 
-__Unsafe__ void func1(void) { // CHECK: [[# @LINE]] warning
+__Unsafe__ void func1(void) { // CHECK: [[# @LINE]] error
   int a = 0;
   __Safe__ {
     a += 1;
   }
 }
 
-__Safe__ void func2(void) { // CHECK: [[# @LINE]] warning
+__Safe__ void func2(void) { // CHECK: [[# @LINE]] error
   int a = 0;
   __Safe__ {
     a += 1;
@@ -33,12 +33,12 @@ __Safe__ void func2(void) { // CHECK: [[# @LINE]] warning
 
 __Safe__ void func3(void);
 
-void func3(void) { // CHECK-NOT: [[# @LINE]] warning
+void func3(void) { // CHECK-NOT: [[# @LINE]] error
 }
 
 void func4(void);
 
-__Safe__ void func4(void) { // CHECK-NOT: [[# @LINE]] warning
+__Safe__ void func4(void) { // CHECK-NOT: [[# @LINE]] error
 }
 
 __attribute__((count_index(2, 1)))

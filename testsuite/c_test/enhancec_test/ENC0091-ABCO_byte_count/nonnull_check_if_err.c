@@ -14,7 +14,6 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdlib_c_enhanced.h>
 #define MALLOC(n, type) ((type *) malloc((n)* sizeof(type)))
 
 #define ARG_LEN 16

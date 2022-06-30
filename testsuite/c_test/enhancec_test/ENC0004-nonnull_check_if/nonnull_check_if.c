@@ -21,8 +21,8 @@
 /* check if */
 int test1(int *x) {
   if (x != NULL) {
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-    // CHECK-NEXT: assertnonnull (dread ptr %x)
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+    // CHECK-NEXT: assertnonnull <&test1> (dread ptr %x)
     return *x;
   }
   return 0;
@@ -32,8 +32,8 @@ int test2(int *x) {
   if (x == NULL) {
     return 0;
   } else {
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-    // CHECK-NEXT: assertnonnull (dread ptr %x)
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+    // CHECK-NEXT: assertnonnull <&test2> (dread ptr %x)
     return *x;
   }
 }
@@ -42,8 +42,8 @@ int test3(int *x) {
   if (!x) {
     return 0;
   }
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-  // CHECK-NEXT: assertnonnull (dread ptr %x)
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+  // CHECK-NEXT: assertnonnull <&test3> (dread ptr %x)
   return *x;
 }
 
@@ -52,9 +52,9 @@ int test4(int *a, int *b) {
   if (a == NULL || b == NULL) {
     return 0;
   } else {
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
-    // CHECK-NEXT: assertnonnull (dread ptr %a)
-    // CHECK-NEXT: assertnonnull (dread ptr %b)
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
+    // CHECK-NEXT: assertnonnull <&test4> (dread ptr %a)
+    // CHECK: assertnonnull <&test4> (dread ptr %b)
     return *a + *b;
   }
 }
@@ -62,8 +62,8 @@ int test4(int *a, int *b) {
 /* chenck if and */
 int test5(int *a, int b) {
   if (a != NULL && b > 0) {
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-    // CHECK-NEXT: assertnonnull (dread ptr %a)
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+    // CHECK-NEXT: assertnonnull <&test5> (dread ptr %a)
     return *a + b;
   }
   return b;
@@ -73,8 +73,8 @@ int test5(int *a, int b) {
 int test6(int *x, int b) {
   if (x != NULL) {
     if (b > 0) {
-      // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-      // CHECK-NEXT: assertnonnull (dread ptr %x)
+      // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+      // CHECK-NEXT: assertnonnull <&test6> (dread ptr %x)
       return *x + b;
     }
   }
@@ -93,9 +93,9 @@ int test7(int *a) {
   b = bar(b);
 
   if (b == NULL) return 1;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
-  // CHECK-NEXT: assertnonnull (dread ptr %a)
-  // CHECK-NEXT: assertnonnull (dread ptr %b{{.*}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
+  // CHECK-NEXT: assertnonnull <&test7> (dread ptr %a)
+  // CHECK: assertnonnull <&test7> (dread ptr %b{{.*}}
   return *a + *b;
 }
 

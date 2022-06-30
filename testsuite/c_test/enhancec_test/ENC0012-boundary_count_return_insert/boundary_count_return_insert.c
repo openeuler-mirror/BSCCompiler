@@ -21,7 +21,7 @@
 __attribute__((returns_count("len"))) __attribute__((count("len", 1)))
 int *getBoundaryPtr(int *ptr, int len) {
   ++len;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NEXT: assertle{{.*}}
   return ptr;
 }
@@ -40,28 +40,28 @@ struct B {
 
 int main() {
   int a[5] = {1, 2, 3, 4, 5};
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]
   // CHECK: assertle{{.*}}
   // CHECK: dassign %_boundary.retVar{{.*}}.lower 0 (dread ptr %retVar{{.*}}
   // CHECK: dassign %_boundary.pa{{.*}}.lower 0 (dread ptr %_boundary.retVar{{.*}}.lower
   int *pa = getBoundaryPtr(a, 4);
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 5 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 5 ]]
   // CHECK: assertle{{.*}}
   // CHECK: dassign %_boundary.retVar{{.*}}.lower 0 (dread ptr %retVar{{.*}}
   // CHECK: assertge{{.*}}
   // CHECK: dassign %_boundary.pa1{{.*}}.lower 0 (dread ptr %_boundary.retVar{{.*}}.lower
   int *pa1 = getBoundaryPtr(a, 4) + 1;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NEXT: assertge{{.*}}
   printf("%d\n", *(pa+2));
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NEXT: assertge{{.*}}
   printf("%d\n", pa1[2]);
 
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NOT: dassign %_boundary.pa2{{.*}}.lower{{.*}}
   int *pa2 = getPtr(a);
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NOT: assertge{{.*}}
   printf("%d\n", pa2[2]);
 
@@ -69,12 +69,12 @@ int main() {
   struct B bb[4];
   struct B *q = bb;
   q->a = &aa;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]
   // CHECK: assertle{{.*}}
   // CHECK: dassign %_boundary.retVar{{.*}}.lower 0 (dread ptr %retVar{{.*}}
   // CHECK: dassign %_boundary.A_i{{.*}}.lower 0 (dread ptr %_boundary.retVar{{.*}}.lower
   q->a->i = getBoundaryPtr(a + 1, 4);
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NEXT: assertge{{.*}}
   printf("%d\n", q->a->i[3]);
   return 0;

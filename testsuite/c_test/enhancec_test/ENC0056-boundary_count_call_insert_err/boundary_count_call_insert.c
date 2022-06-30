@@ -25,7 +25,7 @@ int get(int *buf __attribute__((count(10)))) {
 void foo(int w, int x, int y, int z) {
   int C[5] = {0};
   int *L = C;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK: callassertle{{.*}}
   get(L);  // expected-warning
 }

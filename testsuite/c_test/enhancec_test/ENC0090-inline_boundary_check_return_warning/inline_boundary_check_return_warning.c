@@ -17,7 +17,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdlib_c_enhanced.h>
 __attribute__((returns_count("len")))
 int *getBoundaryPtr(int len, int len1) {
   int* ret = (int*) malloc(len1 * sizeof(int));

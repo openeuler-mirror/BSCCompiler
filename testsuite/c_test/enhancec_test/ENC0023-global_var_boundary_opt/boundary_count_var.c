@@ -36,15 +36,15 @@ int func(int x) {
 }
 
 int test_local() {
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-  // CHECK-NEXT: dassign %_boundary.q{{.*}}.lower 0 (dread ptr %q{{.*}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+  // CHECK: dassign %_boundary.q{{.*}}.lower 0 (dread ptr %q{{.*}}
   int *q __attribute__((count(3)));
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK: dassign %_boundary.q1{{.*}}.lower 0 (dread ptr %_boundary.q{{.*}}
   int *q1 = q;
   int *q2;
   int res = 0;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]
   // CHECK-NEXT: dassign %_boundary.p{{.*}}.lower 0 (dread ptr %p{{.*}}
   // CHECK: assignassertle{{.*}}
   // CHECK: dassign %_boundary.p{{.*}}.lower 0 (addrof ptr $g_a)
@@ -53,7 +53,7 @@ int test_local() {
   int *p1 = p + 1;
   res += func(*(p1 + 3));
 
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]
   // CHECK: assertge{{.*}}
   // CHECK: assignassertle{{.*}}
   // CHECK: dassign %_boundary.q{{.*}}.lower 0 (dread ptr %_boundary.p{{.*}}
@@ -69,21 +69,21 @@ int test_local() {
 int test_global() {
   int res = 0;
   res += func(g_a[2]);
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NEXT: assertge{{.*}}
   res += func(g_p[2]);
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK: dassign %_boundary.p{{.*}}.lower 0 (dread ptr $g_p)
   int *p = g_p;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]
   // CHECK: dassign %_boundary.p1{{.*}}.lower 0 (dread ptr %p1{{.*}}
   // CHECK: assignassertle{{.*}}
   // CHECK: dassign %_boundary.p1{{.*}}.lower 0 (dread ptr $g_p)
   int *p1 __attribute__((count(3))) = g_p;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NEXT: dassign %_boundary.p2{{.*}}.lower 0 (dread ptr %p2{{.*}}
   int *p2 __attribute__((count(3)));
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
   // CHECK: assignassertle{{.*}}
   // CHECK: dassign %_boundary.p2{{.*}}.lower 0 (dread ptr $g_p)
   p2 = g_p;

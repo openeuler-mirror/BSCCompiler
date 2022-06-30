@@ -30,15 +30,15 @@ __attribute__((returns_nonnull))
 int* test(int i) {
   int *ptr = &i;
   if (i) {
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]{{$}}
-    // CHECK-NEXT: callassertnonnull <&getNonnullPtr, 0> (dread ptr %ptr_{{.*}}
-    // CHECK-NEXT: callassigned &getNonnullPtr{{.*}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]
+    // CHECK-NEXT: callassertnonnull <&getNonnullPtr, 0, &test> (dread ptr %ptr_{{.*}}
+    // CHECK: callassigned &getNonnullPtr{{.*}}
     // CHECK-NOT: assertnonnull (dread ptr %retVar_{{.*}}
     return getNonnullPtr(ptr);
   } else {
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
     // CHECK-NEXT: callassigned &getNullablePtr{{.*}}
-    // CHECK-NEXT: returnassertnonnull <&test> (dread ptr %retVar_{{.*}}
+    // CHECK: returnassertnonnull <&test> (dread ptr %retVar_{{.*}}
     return getNullablePtr(ptr);
   }
 }

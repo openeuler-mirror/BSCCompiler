@@ -1,0 +1,14 @@
+	functions that have something to do with date
+
+	month_name function                                              PASSED
+
+	day_of_year function                                             PASSED
+
+	month_day function                                               PASSED
+
+	day_of_year pointer version                                      PASSED
+
+	month_day pointer version                                        PASSED
+
+RESULT: (unknown_test)                                                   PASSED
+

@@ -23,9 +23,9 @@ int test6(int *p, int *q) {
     if (q != 0) {
                 return 0;
         }
-        // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
-        // CHECK-NEXT: assertnonnull (dread ptr %p)
-        // CHECK-NEXT: assertnonnull (dread ptr %q)
+        // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
+        // CHECK-NEXT: assertnonnull <&test6> (dread ptr %q)
+        // CHECK: assertnonnull <&test6> (dread ptr %p)
         *p = *q; // expected-warning
   }
   return 0;

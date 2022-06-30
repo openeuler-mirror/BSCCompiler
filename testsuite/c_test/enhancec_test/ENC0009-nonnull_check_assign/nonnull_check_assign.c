@@ -22,14 +22,14 @@ void foo() {
   int *data;
   int tmp = 5;
   data = &tmp;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-  // CHECK-NEXT: assertnonnull (dread ptr %data{{.*}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+  // CHECK-NEXT: assertnonnull <&foo> (dread ptr %data{{.*}}
   printf("%d", *data);
 
   int **p2;
   p2 = &data;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-  // CHECK-NEXT: assertnonnull (dread ptr %p2{{.*}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+  // CHECK-NEXT: assertnonnull <&foo> (dread ptr %p2{{.*}}
   printf("%d", **p2);  // The nested pointer is temporarily not checked
 }
 

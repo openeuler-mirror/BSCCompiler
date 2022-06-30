@@ -40,7 +40,7 @@ void bar() {
   struct A a;
 
   char *z = a.info;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK: assertle{{.*}}
   f(z);  // expected-warning 
 }

@@ -1,0 +1,4 @@
+	Some non-trivial loop control
+
+RESULT: (unknown_test)                                                   PASSED
+

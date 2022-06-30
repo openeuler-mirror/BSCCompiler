@@ -18,8 +18,8 @@
 #include <stddef.h>
 int test(int *x, int *y) __attribute__((nonnull(2))) {
   // expected-warning
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-  // CHECK: assertnonnull (dread ptr %x)
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+  // CHECK: assertnonnull <&test> (dread ptr %x)
   return ((x == NULL) ? (*x > 0) : (*y == 0));
 }
 

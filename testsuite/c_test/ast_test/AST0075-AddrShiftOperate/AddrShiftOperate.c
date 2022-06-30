@@ -19,49 +19,49 @@ int a[6] = {12345, 1, 2, 3, 4, 5};
 
 int main() {
   int *b = &a[2];
-  // CHECK: iread i32 <* i32> 0 (add ptr (dread ptr %b_21_3, constval i64 8))
+  // CHECK: iread i32 <* i32> 0 (add ptr (dread ptr %b{{.*}}, constval i64 8))
   printf("%d\n", *(b + 2));
-  // CHECK: iread i32 <* i32> 0 (add ptr (constval i64 8, dread ptr %b_21_3))
+  // CHECK: iread i32 <* i32> 0 (add ptr (constval i64 8, dread ptr %b{{.*}}))
   printf("%d\n", *(2 + b));
-  // CHECK: iread i32 <* i32> 0 (add ptr (dread ptr %b_21_3, constval i64 -8))
+  // CHECK: iread i32 <* i32> 0 (add ptr (dread ptr %b{{.*}}, constval i64 -8))
   printf("%d\n", *(b + (-2)));
   int i = 2;
   // CHECK:      iread i32 <* i32> 0 (add ptr (
-  // CHECK-NEXT:   dread ptr %b_21_3,
+  // CHECK-NEXT:   dread ptr %b{{.*}},
   // CHECK-NEXT:   mul i64 (
-  // CHECK-NEXT:     cvt i64 i32 (dread i32 %i_28_3),
+  // CHECK-NEXT:     cvt i64 i32 (dread i32 %i{{.*}}),
   // CHECK-NEXT:     constval i64 4)))
   printf("%d\n", *(b + i));
   // CHECK:      iread i32 <* i32> 0 (sub ptr (
-  // CHECK-NEXT:   dread ptr %b_21_3,
+  // CHECK-NEXT:   dread ptr %b{{.*}},
   // CHECK-NEXT:   mul i64 (
-  // CHECK-NEXT:     cvt i64 i32 (dread i32 %i_28_3),
+  // CHECK-NEXT:     cvt i64 i32 (dread i32 %i{{.*}}),
   // CHECK-NEXT:     constval i64 4)))
   printf("%d\n", *(b - i));
   unsigned int j = 2;
   // CHECK:      iread i32 <* i32> 0 (add ptr (
-  // CHECK-NEXT:   dread ptr %b_21_3,
+  // CHECK-NEXT:   dread ptr %b{{.*}},
   // CHECK-NEXT:   mul ptr (
-  // CHECK-NEXT:     cvt ptr u32 (dread u32 %j_41_3),
+  // CHECK-NEXT:     cvt ptr u32 (dread u32 %j{{.*}}),
   // CHECK-NEXT:     constval ptr 4)))
   printf("%d\n", *(b + j));
   // CHECK:      iread i32 <* i32> 0 (sub ptr (
-  // CHECK-NEXT:   dread ptr %b_21_3,
+  // CHECK-NEXT:   dread ptr %b{{.*}},
   // CHECK-NEXT:   mul ptr (
-  // CHECK-NEXT:     cvt ptr u32 (dread u32 %j_41_3),
+  // CHECK-NEXT:     cvt ptr u32 (dread u32 %j{{.*}}),
   // CHECK-NEXT:     constval ptr 4)))
   printf("%d\n", *(b - j));
   int k = -2;
   // CHECK:      iread i32 <* i32> 0 (add ptr (
-  // CHECK-NEXT:   dread ptr %b_21_3,
+  // CHECK-NEXT:   dread ptr %b{{.*}},
   // CHECK-NEXT:   mul i64 (
-  // CHECK-NEXT:     cvt i64 i32 (dread i32 %k_54_3),
+  // CHECK-NEXT:     cvt i64 i32 (dread i32 %k{{.*}}),
   // CHECK-NEXT:     constval i64 4)))
   printf("%d\n", *(b + k));
   // CHECK:      iread i32 <* i32> 0 (sub ptr (
-  // CHECK-NEXT:   dread ptr %b_21_3,
+  // CHECK-NEXT:   dread ptr %b{{.*}},
   // CHECK-NEXT:   mul i64 (
-  // CHECK-NEXT:     cvt i64 i32 (dread i32 %k_54_3),
+  // CHECK-NEXT:     cvt i64 i32 (dread i32 %k{{.*}}),
   // CHECK-NEXT:     constval i64 4)))
   printf("%d\n", *(b - k));
   return 0;

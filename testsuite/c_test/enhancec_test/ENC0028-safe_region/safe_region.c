@@ -44,36 +44,42 @@ int main(void) {
 }
 
 __Safe__ void func2(void) {
-  // CHECK: dassign %a_48_3 0 (constval i32 0)
+  // CHECK: dassign %a{{.*}} 0 (constval i32 0)
   int a = 0;
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NEXT: safe
   __Safe__ {
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-    // CHECK-NEXT: dassign %a_48_3 0 (add i32 (dread i32 %a_48_3, constval i32 1))
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+    // CHECK-NEXT: dassign %a{{.*}} 0 (add i32 (dread i32 %a{{.*}}, constval i32 1))
     a += 1;
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK-NEXT: unsafe
     __Unsafe__ {
-      // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-      // CHECK-NEXT: dassign %a_48_3 0 (add i32 (dread i32 %a_48_3, constval i32 2))
+      // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+      // CHECK-NEXT: dassign %a{{.*}} 0 (add i32 (dread i32 %a{{.*}}, constval i32 2))
       a += 2;
+      // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
       // CHECK-NEXT: safe
       __Safe__ {
-        // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-        // CHECK-NEXT: dassign %a_48_3 0 (add i32 (dread i32 %a_48_3, constval i32 3))
+        // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+        // CHECK-NEXT: dassign %a{{.*}} 0 (add i32 (dread i32 %a{{.*}}, constval i32 3))
         a += 3;
+      // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
       // CHECK-NEXT: endsafe
       }
-      // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-      // CHECK-NEXT: dassign %a_48_3 0 (add i32 (dread i32 %a_48_3, constval i32 4))
+      // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+      // CHECK-NEXT: dassign %a{{.*}} 0 (add i32 (dread i32 %a{{.*}}, constval i32 4))
       a += 4;
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK-NEXT: endunsafe
     }
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-    // CHECK-NEXT: dassign %a_48_3 0 (add i32 (dread i32 %a_48_3, constval i32 5))
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+    // CHECK-NEXT: dassign %a{{.*}} 0 (add i32 (dread i32 %a{{.*}}, constval i32 5))
     a += 5;
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NEXT: endsafe
   }
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-  // CHECK-NEXT: dassign %a_48_3 0 (add i32 (dread i32 %a_48_3, constval i32 6))
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+  // CHECK-NEXT: dassign %a{{.*}} 0 (add i32 (dread i32 %a{{.*}}, constval i32 6))
   a += 6;
 }

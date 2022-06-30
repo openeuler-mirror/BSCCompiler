@@ -1,0 +1,7 @@
+a.a=1
+a.c ok
+a.b=2
+a.p ok
+a.f.d=3
+a.f.c ok
+a.f.c2 ok

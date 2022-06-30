@@ -154,7 +154,7 @@ void array_indexing_nullable(char *in) {
 void array_indexing_nonnull(char *in __attribute__((nonnull))) {
   char *data = "abcde";
   char c = in[0]; // CHECK-NOT: [[# @LINE ]] warning
-  c = data[0]; // CHECK-NOT: [[# @LINE ]] warning
+  c = data[0]; // COM:CHECK-NOT: [[# @LINE ]] warning
 }
 
 void func_ptr_nullable(void (*funcPtr)(void)) {

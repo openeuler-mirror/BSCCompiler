@@ -41,37 +41,37 @@ __attribute__((nonnull))
 void foo(int a, int *p, struct B *q) {
   int *p1;
   // pointer assignment
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NOT: assertnonnull (dread ptr %p)
   p1 = p;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-  // CHECK-NEXT: assertnonnull (dread ptr %p1_{{.*}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+  // CHECK-NEXT: assertnonnull <&foo> (dread ptr %p1_{{.*}}
   p = p1;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]
   // CHECK-NOT: assertnonnull (dread ptr %q)
-  // CHECK-NEXT: assertnonnull (iread ptr <* <$B>> 1 (dread ptr %q))
-  // CHECK-NEXT: assignassertnonnull (iread ptr <* <$A>> 1 (iread ptr <* <$B>> 1 (dread ptr %q)))
+  // CHECK-NEXT: assertnonnull <&foo> (iread ptr <* <$B>> 1 (dread ptr %q))
+  // CHECK: assignassertnonnull <&foo> (iread ptr <* <$A>> 1 (iread ptr <* <$B>> 1 (dread ptr %q)))
   p = q->a->i;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]{{$}}
-  // CHECK-NEXT: callassertnonnull <&getNonnullPtr, 0> (dread ptr %p1_{{.*}}
-  // CHECK-NEXT: callassigned &getNonnullPtr{{.*}}
-  // CHECK-NOT: assertnonnull (dread ptr %retVar_{{.*}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]
+  // CHECK-NEXT: callassertnonnull <&getNonnullPtr, 0, &foo> (dread ptr %p1_{{.*}}
+  // CHECK: callassigned &getNonnullPtr{{.*}}
+  // CHECK-NOT: assertnonnull <&foo> (dread ptr %retVar_{{.*}}
   p = getNonnullPtr(p1);
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
   // CHECK-NEXT: callassigned &getNullablePtr{{.*}}
-  // CHECK-NEXT: assertnonnull (dread ptr %retVar_{{.*}}
+  // CHECK: assertnonnull <&foo> (dread ptr %retVar_{{.*}}
   p = getNullablePtr(p1);
 
   // *ptr
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-  // CHECK-NEXT: assertnonnull (dread ptr %p1_{{.*}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+  // CHECK-NEXT: assertnonnull <&foo> (dread ptr %p1_{{.*}}
   printf("*p=%d, *p1=%d\n", *p, *p1);
 
   // ptr->a
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]
   // CHECK-NOT: assertnonnull (dread ptr %q)
-  // CHECK-NEXT: assertnonnull (iread ptr <* <$B>> 1 (dread ptr %q))
-  // CHECK-NEXT: assertnonnull (iread ptr <* <$A>> 1 (iread ptr <* <$B>> 1 (dread ptr %q)))
+  // CHECK-NEXT: assertnonnull <&foo> (iread ptr <* <$B>> 1 (dread ptr %q))
+  // CHECK: assertnonnull <&foo> (iread ptr <* <$A>> 1 (iread ptr <* <$B>> 1 (dread ptr %q)))
   printf("*(q->a->i)=%d\n", *(q->a->i));
 }
 

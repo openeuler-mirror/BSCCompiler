@@ -13,7 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include <stdio.h>
-#include <stdlib_c_enhanced.h>
+#include <stdlib.h>
 
 __attribute__((count(10, 1)))
 void func1(int* p) {

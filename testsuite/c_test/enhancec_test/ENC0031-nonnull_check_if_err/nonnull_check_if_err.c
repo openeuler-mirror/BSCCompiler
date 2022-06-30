@@ -21,8 +21,8 @@ int test2(int *x) {
     if (x) {
         return 0;
     }
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-    // CHECK-NEXT: assertnonnull (dread ptr %x)
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+    // CHECK-NEXT: assertnonnull <&test2> (dread ptr %x)
     return *x; // expected-warning
 }
 

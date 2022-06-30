@@ -38,10 +38,10 @@ int func(int x) {
 
 int test_field(struct B b, struct B *pb) {
   int res = 0;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK: assertge{{.*}}
   res += func(*(b.a.i + 4));
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK: assertge{{.*}}
   res += func(pb->pa->i[4]);
 }
@@ -53,15 +53,15 @@ int test_field1(struct B b, int i) {
   if (i > 0) {
     int arr[7] = {1, 2, 3, 4, 5, 6, 7};
     b.a.len = 7;
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
     // CHECK: assignassertle{{.*}}
     // CHECK: dassign %_boundary.b{{.*}}.lower 0{{.*}}
     b.a.i = arr;
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK: assertge{{.*}}
     res += func(*(b.a.i + 4));
   } else {
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK: assertge{{.*}}
     res += func(*(b.a.i + 4));
   }
@@ -71,17 +71,17 @@ int test_field1(struct B b, int i) {
 __attribute__((count("len", 1)))
 int test_arg(int* a, struct B *b, int len) {
   int res = 0;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK: assertge{{.*}}
   res += func(a[1]);
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK: assertge{{.*}}
   res += func(b->a.i[1]);
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
   // CHECK: assignassertle{{.*}}
   // CHECK: dassign %_boundary.a.upper 0 (add ptr {{.*}}
   a = g_p;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
   // CHECK: assignassertle{{.*}}
   // CHECK: dassign %_boundary.B_i{{.*}}
   b->a.i = g_p;

@@ -13,7 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <stdlib_c_enhanced.h>
+#include <stdlib.h>
 __attribute__((noinline))
 int get(int *buf __attribute__((count(10)))) {
   return buf[9];

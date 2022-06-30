@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
-#include <stdlib_c_enhanced.h>
 #define heapsort benchmark_heapsort
 
 #define IM 139968
@@ -68,14 +67,14 @@ main(int argc, char *argv[]) {
     /* create an array of N random doubles */
     ary = (double *)malloc((N+1) * sizeof(double));
     for (i=1; i<=N; i++) {
-        // CHECK-NOT: [[# @LINE+2 ]] warning: cant't prove the offset < the upper bounds
-        // CHECK-NOT: [[# @LINE+1 ]] warning: cant't prove the offset >= the lower bounds
+        // CHECK-NOT: [[# @LINE+2 ]] warning: cant't prove the pointer < the upper bounds when accessing the memory
+        // CHECK-NOT: [[# @LINE+1 ]] warning: cant't prove the pointer >= the lower bounds when accessing the memory
        ary[i] = gen_random(1);
     }
 
     heapsort(N, ary);
 
-    // CHECK: [[# @LINE+1 ]] warning: cant't prove the offset >= the lower bounds
+    // CHECK: [[# @LINE+1 ]] warning: can't prove the pointer >= the lower bounds when accessing the memory
     printf("%f\n", ary[N]);
 
     free(ary);

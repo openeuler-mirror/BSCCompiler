@@ -19,10 +19,10 @@
 #include <stdio.h>
 __attribute__((returns_byte_count_index(2), byte_count_index(2, 1)))
 int *getBoundaryPtrOutRange(int *ptr, int len) {
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK: assertge{{.*}}
   int *p = ptr + 1;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NEXT: assertle{{.*}}
   return p;
 }

@@ -26,9 +26,10 @@ union U {
   char c;
   int i;
   short s;
+  float f;
 };
 
-union U u = { 10 };
+union U u = { .f=10.1 };
 
 struct A Aarray[2] = { { { e0, e1 }, 11.1f },
                        { { sizeof(int), 4 }, 22.2f }
@@ -36,6 +37,12 @@ struct A Aarray[2] = { { { e0, e1 }, 11.1f },
 struct A a = { { 5, e1 }, 33.3f };
 int i[3] = { 3 + 1, 2, 1};
 
+struct CC {
+  int i;
+  struct A *a;
+};
+
+struct CC c = { .a = (struct A[1]){{{1,2}, 1.123}}};
 //
 struct D {
   int y;
@@ -55,9 +62,10 @@ struct F *pf = &d.e.f;
 int main() {
   printf("a.i[0] = %d\na.i[1] = %d\n", a.i[0], a.i[1]);
   printf("i[0] = %d\ni[1] = %d\ni[2] = %d\n", i[0], i[1], i[2]);
-  printf("u.i = %d\n", u.i);
+  printf("u.f = %f\n", u.f);
   pf->y = 2;
   printf("d.e.f.y=%d, pf=%d\n", d.e.f.y, pf->y);
+  printf("c.a->i[1]=%d, c.a->f=%f\n", c.a->i[1], c.a->f);
   
   return 0;
 }

@@ -20,8 +20,8 @@
 /*  check if or */
 int test4(int *a, int b) {
   if (a != NULL || b > 0) {
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-    // CHECK-NEXT: assertnonnull (dread ptr %a)
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+    // CHECK-NEXT: assertnonnull <&test4> (dread ptr %a)
     return *a + b; // expected-warning
   }
   return b;

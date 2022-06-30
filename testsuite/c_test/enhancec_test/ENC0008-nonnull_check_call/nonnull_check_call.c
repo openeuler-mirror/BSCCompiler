@@ -24,15 +24,15 @@ void foo_nonnull(int *a) __attribute__((nonnull)) {
 }
 
 void call(int *a, int *b) __attribute__((nonnull(2))) {
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NOT: assertnonnull (dread ptr %a)
   foo_nullable(a);
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-  // CHECK-NEXT: callassertnonnull <&foo_nonnull, 0> (dread ptr %a)
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+  // CHECK-NEXT: callassertnonnull <&foo_nonnull, 0, &call> (dread ptr %a)
   foo_nonnull(a); // expected-warning
   if (a) {
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-    // CHECK-NEXT: callassertnonnull <&foo_nonnull, 0> (dread ptr %a)
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+    // CHECK-NEXT: callassertnonnull <&foo_nonnull, 0, &call> (dread ptr %a)
     foo_nonnull(a);
   }
   foo_nullable(b);
@@ -44,20 +44,20 @@ void call(int *a, int *b) __attribute__((nonnull(2))) {
 
   int *c = a;
   foo_nullable(c);
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-  // CHECK-NEXT: callassertnonnull <&foo_nonnull, 0> (dread ptr %c{{.*}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+  // CHECK-NEXT: callassertnonnull <&foo_nonnull, 0, &call> (dread ptr %c{{.*}}
   foo_nonnull(c); // expected-warning
 
   int *d = b;
   foo_nullable(d);
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-  // CHECK-NEXT: callassertnonnull <&foo_nonnull, 0> (dread ptr %d{{.*}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+  // CHECK-NEXT: callassertnonnull <&foo_nonnull, 0, &call> (dread ptr %d{{.*}}
   foo_nonnull(d);
 
   int *e = &x;
   foo_nullable(e);
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-  // CHECK-NEXT: callassertnonnull <&foo_nonnull, 0> (dread ptr %e{{.*}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+  // CHECK-NEXT: callassertnonnull <&foo_nonnull, 0, &call> (dread ptr %e{{.*}}
   foo_nonnull(e);
 }
 

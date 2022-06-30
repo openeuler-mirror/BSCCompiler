@@ -12,7 +12,7 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
+#include <stdio.h>
 struct A {
   int *i __attribute__((nonnull));
   int *j;
@@ -29,10 +29,14 @@ struct C {
 };
 
 struct B* cvt(struct A *a) {
+  if (a == NULL) { // CHECK-NOT: [[# @LINE ]] error
+    return NULL;
+  }
   return (struct B*)a;
 }
 
 struct A* cvt1(struct B *b) {
+  (struct A*)b; // CHECK-NOT: [[# @LINE ]] error
   return (struct A*)b;  // CHECK: [[# @LINE ]] error
 }
 

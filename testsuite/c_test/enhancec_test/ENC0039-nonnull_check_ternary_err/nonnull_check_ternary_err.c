@@ -18,8 +18,8 @@
 #include <stddef.h>
 int test1(int *a, int b) {
   // expected-warning
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-  // CHECK: assertnonnull (dread ptr %a)
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+  // CHECK: assertnonnull <&test1> (dread ptr %a)
   return (a != NULL) ? b : *a;
 }
 

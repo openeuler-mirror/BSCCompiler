@@ -23,9 +23,9 @@ int test5(int *a, int *b) {
     return 0;
   } else {
     // expected-warning
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
-    // CHECK-NEXT: assertnonnull (dread ptr %a)
-    // CHECK-NEXT: assertnonnull (dread ptr %b)
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
+    // CHECK-NEXT: assertnonnull <&test5> (dread ptr %a)
+    // CHECK: assertnonnull <&test5> (dread ptr %b)
     return *a + *b;
   }
 }

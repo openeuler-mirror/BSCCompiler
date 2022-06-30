@@ -30,74 +30,75 @@ struct B {
 __attribute__((count("len")))
 void foo1(int len, int *p) {
  // CHECK: dassign %_boundary.p.lower 0 (dread ptr %p)
- // CHECK: LOC [[# FILENUM]] [[# @LINE + 1 ]]{{$}}
+ // CHECK: LOC [[# FILENUM]] [[# @LINE + 1 ]]
  return;
 }
 
 __attribute__((count("len", 2, 3)))
 void foo(int len, int *p, struct B *q) {
   // The boundary assignment: l-value with or without a boundary, r-value with a boundary
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
   // CHECK: assertge{{.*}}
   // CHECK: dassign %_boundary.p1{{.*}}.0.[[# IDX_P1:]].upper 0 (dread ptr %_boundary.p.upper)
   int *p1 = len + p - 3 + 1;  //pointer computed assignment
-  if (len) {
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  if (1) {
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK-NEXT: assertge{{.*}}
     printf("%d\n", p[1]);
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK-NEXT: assertge{{.*}}
     printf("%d\n", *(p+1));
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK-NOT: assertge{{.*}}
     printf("%d\n", q->a->i[1]);
-    // The boundary assignment and inserting empty r-value boundary: l-value with a boundary, the r-value without a boundary
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
+    // The boundary assignment and inserting undef r-value boundary: l-value with a boundary, the r-value without a boundary
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
     // CHECK-NOT: assertge{{.*}}
-    // CHECK: dassign %_boundary.p1{{.*}}.0.[[# IDX_P1]].upper 0 (dread ptr %_boundary.A_i.[[# IDX_I:]].upper)
+    // CHECK: dassign %_boundary.p1{{.*}}.0.[[# IDX_P1]].upper 0 ({{.*}}
     p1 = q->a->i;
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+    p1 = p;
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK-NEXT: assertge{{.*}}
     printf("%d\n", p1[0]);
   } else {
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
     // CHECK-NOT: assertge{{.*}}
     // CHECK: dassign %_boundary.A_i.[[# IDX_I:]].upper  0 (dread ptr %_boundary.{{.*}}.0.[[# IDX_P1:]].upper
     q->a->i = p1;
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK-NEXT: assertge{{.*}}
     printf("%d\n", q->a->i[0]);
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK-NEXT: assertge{{.*}}
     printf("%d\n", *(q->a->i+1));
   }
   struct A aa;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
   // CHECK-NOT: assertge{{.*}}
   // CHECK: dassign %_boundary.aa{{.*}}.1.[[# IDX_aa:]].upper 0 (dread ptr %_boundary.p.upper)
   aa.i = p;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
   // CHECK-NOT: assertge{{.*}}
   // CHECK: dassign %_boundary.p1{{.*}}.0.[[# IDX_P1]].upper 0 (dread ptr %_boundary.aa{{.*}}.1.[[# IDX_aa]].upper)
   p1 = aa.i;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NEXT: assertge{{.*}}
   printf("%d\n", *(aa.i+2));
 }
 
 int main() {
   int a[5] = {1, 2, 3, 4, 5};
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK: dassign %_boundary.pa{{.*}}.upper 0 (add ptr (addrof ptr %a{{.*}}
   int *pa = a;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
   // CHECK: assertge{{.*}}
   // CHECK: dassign %_boundary.pa1{{.*}}.upper 0 (add ptr (addrof ptr %a{{.*}}
   int *pa1 = a + 1;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NEXT: assertge{{.*}}
   printf("%d\n", *(pa+2));
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK-NEXT: assertge{{.*}}
   printf("%d\n", pa1[2]);
   struct A aa;
@@ -105,7 +106,7 @@ int main() {
   struct B *q = bb;
   q->a = &aa;
   q->a->i = pa;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
   // CHECK: callassertle{{.*}}
   // CHECK: callassertle{{.*}}
   foo(5, pa, q);

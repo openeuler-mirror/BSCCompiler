@@ -1,0 +1,3 @@
+destVar = 4
+destFoo.a = -1
+destFoo.b = 3

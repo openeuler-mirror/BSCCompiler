@@ -17,11 +17,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdlib_c_enhanced.h>
 __attribute__((returns_count("len")))
 static inline int *getBoundaryPtr(int len, int len1) {
   int* ret = (int*) malloc(len1 * sizeof(int));
-  return ret; // CHECK: [[# @LINE ]] error: getBoundaryPtr can't prove return value's bounds match the function declaration when inlined to main
+  return ret; // CHECK: [[# @LINE ]] error: return value's bounds does not match the function declaration for getBoundaryPtr  when inlined to main
 }
 
 

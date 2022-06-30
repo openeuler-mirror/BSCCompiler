@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -14,13 +14,13 @@
  */
 typedef void (*func)();
 
-// CHECK:     type $TypeC_[[# IDX:]] <struct {
+// CHECK:     type $TypeC_MNO[[# IDX:]] <struct {
 // CHECK-NEXT:  @c i32 align(4),
-// CHECK-NEXT:  @b <$TypeB_[[# IDX:]]> align(4)}>
-// CHECK-NEXT:type $TypeB_[[# IDX:]] <struct {
+// CHECK-NEXT:  @b <$TypeB_MNO[[# IDX:]]> align(4)}>
+// CHECK-NEXT:type $TypeB_MNO[[# IDX:]] <struct {
 // CHECK-NEXT:  @b i32 align(4),
-// CHECK-NEXT:  @a <$TypeA_[[# IDX:]]> align(4)}>
-// CHECK-NEXT:type $TypeA_[[# IDX:]] <struct {
+// CHECK-NEXT:  @a <$TypeA_MNO[[# IDX:]]> align(4)}>
+// CHECK-NEXT:type $TypeA_MNO[[# IDX:]] <struct {
 // CHECK-NEXT:  @a i32 align(4)}>
 struct TypeA {
   int a;
@@ -42,7 +42,7 @@ static void func1() {
   a++;
 }
 
-// CHECK: func &func2_[[# IDX:]] public static used () void
+// CHECK: func &func2_MNO[[# IDX:]] public static used () void
 static void func2() {
   a++;
 }
@@ -52,7 +52,7 @@ __attribute__((noinline))
 void func5() {
 }
 
-// CHECK: func &func3_[[# IDX:]] public static used () void
+// CHECK: func &func3_MNO[[# IDX:]] public static used () void
 static void func3() {
   a++;
   func2();

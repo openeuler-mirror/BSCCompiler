@@ -1,0 +1,2 @@
+string is empty
+string = test

@@ -242,7 +242,7 @@ unsigned int test12() {
                         asm volatile(                   \
                         "stp %x[x0], %x[x1], [%x[p1]]"  \
                         ::[x0]"r"(val0), [x1]"r"(val1), [p1]"r"(addr) \
-                        ); })
+                        :"memory"); })
 void test13()
 {
   long long addr[2] = {0x111, 0x222};

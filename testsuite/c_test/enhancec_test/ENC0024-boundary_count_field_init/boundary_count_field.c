@@ -43,7 +43,7 @@ int test_field_init() {
   // CHECK: dassign %_boundary.A_i{{.*}}.lower 0 (iread ptr {{.*}}
   struct A a;
   a.len = 4;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 3 ]]
   // CHECK: assignassertle{{.*}}
   // CHECK: dassign %_boundary.a{{.*}}.lower 0 (dread ptr $g_p)
   a.i = g_p;
@@ -59,19 +59,19 @@ int test_field_init() {
 
   struct B *pb = &b;
 
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK: assertge{{.*}}
   res += func(*(b.a.i + 3));
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK: assertge{{.*}}
   res += func(pb->pa->i[3]);
 
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]
   // CHECK: assertge
   // CHECK: assertle
   // CHECK: dassign %_boundary.A_i{{.*}}.lower 0 (dread ptr $g_p)
   pb->pa->i = g_p + 1;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]{{$}}
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 4 ]]
   // CHECK: assertge
   // CHECK: assertle
   // CHECK: dassign %_boundary.b{{.*}}.lower 0 (dread ptr $g_p)
@@ -91,11 +91,11 @@ int test_field_init1(int i) {
     int arr[7] = {1, 2, 3, 4, 5, 6, 7};
     a.len = 7;
     a.i = arr;
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK: assertge
     res += func(*(a.i + 3));
   } else {
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK: assertge
     res += func(*(a.i + 3));
   }
@@ -111,11 +111,11 @@ int test_global_field_init1(int i) {
     int arr[7] = {1, 2, 3, 4, 5, 6, 7};
     ga.len = 7;
     ga.i = arr;
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK: assertge
     res += func(*(ga.i + 3));
   } else {
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK: assertge
     res += func(*(ga.i + 3));
   }
@@ -133,11 +133,11 @@ int test_global_field_init2(int i) {
     int arr[7] = {1, 2, 3, 4, 5, 6, 7};
     gpa->len = 7;
     gpa->i = arr;
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK: assertge
     res += func(*(gpa->i + 3));
   } else {
-    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
+    // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
     // CHECK: assertge
     res += func(*(gpa->i + 3));
   }

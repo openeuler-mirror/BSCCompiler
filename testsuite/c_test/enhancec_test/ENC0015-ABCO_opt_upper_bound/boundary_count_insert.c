@@ -52,7 +52,7 @@ int test3(int len, int *p) {
   }
   int res = 0;
   for (int i = 0; i <= 10; i++) {
-    for (int j = 3; j < i - 5 ; j++) {
+    for (int j = 4; j < i - 5 ; j++) {
       res += p[j - 4];
     }
   }

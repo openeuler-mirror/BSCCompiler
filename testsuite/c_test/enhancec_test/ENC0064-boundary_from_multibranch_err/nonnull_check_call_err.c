@@ -14,7 +14,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdlib_c_enhanced.h>
+
 __attribute__((count(10, 1)))
 void func1(int* p) {
   printf("func1");

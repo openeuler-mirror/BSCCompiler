@@ -26,8 +26,8 @@ struct Foo {
 int foo(void *f) {
   if (f == NULL)
     return 0;
-  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]{{$}}
-  // CHECK-NEXT: assertnonnull (dread ptr %f)
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+  // CHECK-NEXT: assertnonnull <&foo> (dread ptr %f)
   if (((struct Foo *)f)->a > 0)
     return 1;
 

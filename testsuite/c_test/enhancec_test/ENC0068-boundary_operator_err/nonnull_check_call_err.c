@@ -13,10 +13,11 @@
  * See the Mulan PSL v2 for more details.
  */
 #include <stdio.h>
-#include <stdlib_c_enhanced.h>
+#include <stdlib.h>
 
 int main() {
   int *q __attribute__((count(5))) = malloc(sizeof(int) * 5);
   int *p = q + 6;
+  printf("%d", *p);
   return 0;
 }

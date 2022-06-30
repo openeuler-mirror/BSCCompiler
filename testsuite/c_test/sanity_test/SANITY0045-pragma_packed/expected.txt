@@ -1,0 +1,8 @@
+A size 16, A align 8
+a is at offset 0
+b is at offset 4
+c is at offset 8
+B size 13, B align 1
+a is at offset 0
+b is at offset 4
+c is at offset 5
