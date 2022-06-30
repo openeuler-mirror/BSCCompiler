@@ -17,7 +17,7 @@
 #include "default_options.def"
 
 namespace maple {
-std::string LdCompiler::GetBinPath(const MplOptions&) const {
+std::string LdCompiler::GetBinPath(const MplOptions &mplOptions) const {
 #ifdef ANDROID
   return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
 #else
@@ -25,7 +25,7 @@ std::string LdCompiler::GetBinPath(const MplOptions&) const {
 #endif
 }
 
-// TODO: Required to use ld instead of gcc; ld will be implemented later
+// Required to use ld instead of gcc; ld will be implemented later
 const std::string &LdCompiler::GetBinName() const {
   return kBinNameGcc;
 }
@@ -35,7 +35,7 @@ const std::string &LdCompiler::GetTool() const {
   return kLdFlag;
 }
 
-DefaultOption LdCompiler::GetDefaultOptions(const MplOptions &options, const Action&) const {
+DefaultOption LdCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
   uint32_t len = sizeof(kLdDefaultOptions) / sizeof(MplOption);
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
 
@@ -52,7 +52,7 @@ DefaultOption LdCompiler::GetDefaultOptions(const MplOptions &options, const Act
   return defaultOptions;
 }
 
-std::string LdCompiler::GetInputFileName(const MplOptions&, const Action &action) const {
+std::string LdCompiler::GetInputFileName(const MplOptions &options, const Action &action) const {
     std::string files;
 
     bool isFirstEntry = true;
@@ -68,4 +68,10 @@ std::string LdCompiler::GetInputFileName(const MplOptions&, const Action &action
     }
     return files;
 }
+
+void LdCompiler::AppendOutputOption(std::vector<MplOption> &finalOptions,
+                                    const std::string &name) const {
+  finalOptions.emplace_back("-o", name);
+}
+
 }  // namespace maple

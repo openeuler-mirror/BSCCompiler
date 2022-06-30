@@ -120,22 +120,22 @@ void BB::RemoveInsnPair(Insn &insn, const Insn &nextInsn) {
 }
 
 /* Remove insns in this bb from insn1 to insn2. */
-void BB::RemoveInsnSequence(Insn &insn1, const Insn &insn2) {
-  ASSERT(insn1.GetBB() == this, "remove insn sequence in one bb");
-  ASSERT(insn2.GetBB() == this, "remove insn sequence in one bb");
-  if ((firstInsn == &insn1) && (lastInsn == &insn2)) {
+void BB::RemoveInsnSequence(Insn &insn, const Insn &nextInsn) {
+  ASSERT(insn.GetBB() == this, "remove insn sequence in one bb");
+  ASSERT(nextInsn.GetBB() == this, "remove insn sequence in one bb");
+  if ((firstInsn == &insn) && (lastInsn == &nextInsn)) {
     firstInsn = lastInsn = nullptr;
-  } else if (firstInsn == &insn1) {
-    firstInsn = insn2.GetNext();
-  } else if (lastInsn == &insn2) {
-    lastInsn = insn1.GetPrev();
+  } else if (firstInsn == &insn) {
+    firstInsn = nextInsn.GetNext();
+  } else if (lastInsn == &nextInsn) {
+    lastInsn = insn.GetPrev();
   }
 
-  if (insn1.GetPrev() != nullptr) {
-    insn1.GetPrev()->SetNext(insn2.GetNext());
+  if (insn.GetPrev() != nullptr) {
+    insn.GetPrev()->SetNext(nextInsn.GetNext());
   }
-  if (insn2.GetNext() != nullptr) {
-    insn2.GetNext()->SetPrev(insn1.GetPrev());
+  if (nextInsn.GetNext() != nullptr) {
+    nextInsn.GetNext()->SetPrev(insn.GetPrev());
   }
 }
 

@@ -53,7 +53,7 @@ class DefaultO0RegAllocator : public RegAllocator {
 #else
   void ReleaseReg(const RegOperand &regOpnd);
 #endif
-  void GetPhysicalRegisterBank(RegType regType, uint8 &start, uint8 &end) const;
+  void GetPhysicalRegisterBank(RegType regTy, uint8 &begin, uint8 &end) const;
   void AllocHandleDestList(Insn &insn, Operand &opnd, uint32 idx);
   void AllocHandleDest(Insn &insn, Operand &opnd, uint32 idx);
   void AllocHandleSrcList(Insn &insn, Operand &opnd, uint32 idx);
@@ -65,7 +65,7 @@ class DefaultO0RegAllocator : public RegAllocator {
 #ifdef TARGX86_64
   void SaveCalleeSavedReg(const CGRegOperand &opnd);
 #else
-  void SaveCalleeSavedReg(const RegOperand &opnd);
+  void SaveCalleeSavedReg(const RegOperand &regOpnd);
 #endif
 
  protected:
@@ -78,7 +78,7 @@ class DefaultO0RegAllocator : public RegAllocator {
 
   RegisterInfo *regInfo = nullptr;
   MapleSet<regno_t> calleeSaveUsed;
-  MapleVector<uint32_t> availRegSet;
+  MapleVector<bool> availRegSet;
   MapleMap<uint32, regno_t> regMap;  /* virtual-register-to-physical-register map */
   MapleSet<uint8> liveReg;              /* a set of currently live physical registers */
   MapleSet<Operand*> allocatedSet;      /* already allocated */

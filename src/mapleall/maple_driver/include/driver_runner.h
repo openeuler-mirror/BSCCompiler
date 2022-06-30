@@ -67,8 +67,8 @@ class DriverRunner final {
   ~DriverRunner() = default;
 
   ErrorCode Run();
-  void RunNewPM(const std::string &outputFile, const std::string &vtableImplFile);
-  void ProcessCGPhase(const std::string &outputFile, const std::string &oriBasenam);
+  void RunNewPM(const std::string &output, const std::string &vtableImplFile);
+  void ProcessCGPhase(const std::string &output, const std::string &originBaseName);
   void SetCGInfo(CGOptions *cgOptions, const std::string &cgInput) {
     this->cgOptions = cgOptions;
     this->cgInput = cgInput;
@@ -91,7 +91,7 @@ class DriverRunner final {
 
  private:
   std::string GetPostfix();
-  void ProcessMpl2mplAndMePhases(const std::string &outputFile, const std::string &vtableImplFile);
+  void ProcessMpl2mplAndMePhases(const std::string &output, const std::string &vtableImplFile);
   CGOptions *cgOptions = nullptr;
   std::string cgInput;
   void InitProfile() const;

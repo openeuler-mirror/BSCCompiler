@@ -179,7 +179,8 @@ class Emitter {
                     const std::map<GStrIdx, MIRType*> &strIdx2Type, size_t idx);
   void EmitAddrofFuncConst(const MIRSymbol &mirSymbol, MIRConst &elemConst, size_t idx);
   void EmitAddrofSymbolConst(const MIRSymbol &mirSymbol, MIRConst &elemConst, size_t idx);
-  void EmitConstantTable(const MIRSymbol &mirSymbol, MIRConst &ct, const std::map<GStrIdx, MIRType*> &strIdx2Type);
+  void EmitConstantTable(const MIRSymbol &mirSymbol, MIRConst &mirConst,
+                         const std::map<GStrIdx, MIRType*> &strIdx2Type);
   void EmitClassInfoSequential(const MIRSymbol &mirSymbol, const std::map<GStrIdx, MIRType*> &strIdx2Type,
                                const std::string &sectionName);
   void EmitMethodFieldSequential(const MIRSymbol &mirSymbol, const std::map<GStrIdx, MIRType*> &strIdx2Type,
@@ -211,7 +212,7 @@ class Emitter {
   void EmitGlobalRootList(const MIRSymbol &mirSymbol);
   void EmitMuidTable(const std::vector<MIRSymbol*> &vec, const std::map<GStrIdx, MIRType*> &strIdx2Type,
                      const std::string &sectionName);
-  MIRAddroffuncConst *GetAddroffuncConst(const MIRSymbol &st, MIRAggConst &aggConst);
+  MIRAddroffuncConst *GetAddroffuncConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst);
   int64 GetFieldOffsetValue(const std::string &className, const MIRIntConst &intConst,
                             const std::map<GStrIdx, MIRType*> &strIdx2Type);
 
@@ -248,15 +249,15 @@ class Emitter {
 
   /* Dwarf debug info */
   void FillInClassByteSize(DBGDie *die, DBGDieAttr *byteSizeAttr);
-  void SetupDBGInfo(DebugInfo*);
+  void SetupDBGInfo(DebugInfo *mirdi);
   void ApplyInPrefixOrder(DBGDie *die, const std::function<void(DBGDie*)> &func);
-  void AddLabelDieToLabelIdxMapping(DBGDie*, LabelIdx);
-  LabelIdx GetLabelIdxForLabelDie(DBGDie*);
+  void AddLabelDieToLabelIdxMapping(DBGDie *lblDie, LabelIdx lblIdx);
+  LabelIdx GetLabelIdxForLabelDie(DBGDie *lblDie);
   void EmitDIHeader();
   void EmitDIFooter();
   void EmitDIHeaderFileInfo();
-  void EmitDIDebugInfoSection(DebugInfo*);
-  void EmitDIDebugAbbrevSection(DebugInfo*);
+  void EmitDIDebugInfoSection(DebugInfo *mirdi);
+  void EmitDIDebugAbbrevSection(DebugInfo *mirdi);
   void EmitDIDebugARangesSection();
   void EmitDIDebugRangesSection();
   void EmitDIDebugLineSection();

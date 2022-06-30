@@ -41,7 +41,7 @@ class CgOccur {
   CgOccur(OccType ty, int cId, BB &bb, CgOccur *df) : occTy(ty), classID(cId), cgBB(&bb), def(df) {}
   virtual ~CgOccur() = default;
 
-  bool IsDominate(DomAnalysis &dom, CgOccur&);
+  bool IsDominate(DomAnalysis &dom, CgOccur &occ);
   const BB *GetBB() const {
     return cgBB;
   }
@@ -474,7 +474,7 @@ class PreWorkCand {
 class PreWorkCandHashTable {
  public:
   static const uint32 workCandHashLength = 229;
-  static uint32 ComputeWorkCandHashIndex(const Operand &curOpnd);
+  static uint32 ComputeWorkCandHashIndex(const Operand &opnd);
   static uint32 ComputeStmtWorkCandHashIndex(const Insn &insn);
 
   PreWorkCandHashTable() = default;

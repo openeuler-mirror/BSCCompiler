@@ -34,8 +34,8 @@ class Emitter;
 
 bool IsBitSizeImmediate(maple::uint64 val, maple::uint32 bitLen, maple::uint32 nLowerZeroBits);
 bool IsBitmaskImmediate(maple::uint64 val, maple::uint32 bitLen);
-bool IsMoveWidableImmediate(maple::uint64 val, maple::uint32 bitLen);
-bool BetterUseMOVZ(maple::uint64 val);
+bool IsMoveWidableImmediate(uint64 val, uint32 bitLen);
+bool BetterUseMOVZ(uint64 val);
 
 
 using MOperator = uint32;
@@ -392,9 +392,9 @@ class RegOperand : public OperandVisitable<RegOperand> {
     return vecElementSize;
   }
 
-  bool operator==(const RegOperand &opnd) const;
+  bool operator==(const RegOperand &o) const;
 
-  bool operator<(const RegOperand &opnd) const;
+  bool operator<(const RegOperand &o) const;
 
  protected:
   regno_t regNO;
@@ -1177,8 +1177,8 @@ class MemOperand : public OperandVisitable<MemOperand> {
   }
 
   /* Return true if given operand has the same base reg and offset with this. */
-  bool Equals(Operand &opnd) const override;
-  bool Equals(const MemOperand &opnd) const;
+  bool Equals(Operand &op) const override;
+  bool Equals(const MemOperand &op) const;
   bool Less(const Operand &right) const override;
 
  private:

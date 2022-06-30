@@ -37,8 +37,10 @@ class AArch64StoreLoadOpt : public StoreLoadOpt {
   ~AArch64StoreLoadOpt() override = default;
   void Run() final;
   void DoStoreLoadOpt();
-  void DoLoadZeroToMoveTransfer(const Insn&, short, const InsnSet&) const;
-  void DoLoadToMoveTransfer(Insn&, short, short, const InsnSet&);
+  void DoLoadZeroToMoveTransfer(const Insn &strInsn, short strSrcIdx,
+                                const InsnSet &memUseInsnSet) const;
+  void DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
+                            short memSeq, const InsnSet &memUseInsnSet);
   bool CheckStoreOpCode(MOperator opCode) const;
   static bool CheckNewAmount(const Insn &insn, uint32 newAmount);
 
@@ -46,16 +48,16 @@ class AArch64StoreLoadOpt : public StoreLoadOpt {
   void StrLdrIndexModeOpt(Insn &currInsn);
   bool CheckReplaceReg(Insn &defInsn, Insn &currInsn, InsnSet &replaceRegDefSet, regno_t replaceRegNo);
   bool CheckDefInsn(Insn &defInsn, Insn &currInsn);
-  bool CheckNewMemOffset(const Insn &insn, AArch64MemOperand *newMemOpnd, uint32 opndIdx);
-  AArch64MemOperand *HandleArithImmDef(AArch64RegOperand &replace, Operand *oldOffset, int64 defVal);
-  AArch64MemOperand *SelectReplaceMem(Insn &defInsn, Insn &curInsn, RegOperand &base, Operand *offset);
-  AArch64MemOperand *SelectReplaceExt(const Insn &defInsn, RegOperand &base, bool isSigned);
+  bool CheckNewMemOffset(const Insn &insn, MemOperand *newMemOpnd, uint32 opndIdx);
+  MemOperand *HandleArithImmDef(RegOperand &replace, Operand *oldOffset, int64 defVal);
+  MemOperand *SelectReplaceMem(Insn &defInsn, Insn &curInsn, RegOperand &base, Operand *offset);
+  MemOperand *SelectReplaceExt(const Insn &defInsn, RegOperand &base, bool isSigned);
   bool CanDoMemProp(const Insn *insn);
-  bool CanDoIndexOpt(const AArch64MemOperand &MemOpnd);
+  bool CanDoIndexOpt(const MemOperand &MemOpnd);
   void MemPropInit();
-  void SelectPropMode(const AArch64MemOperand &currMemOpnd);
+  void SelectPropMode(const MemOperand &currMemOpnd);
   int64 GetOffsetForNewIndex(Insn &defInsn, Insn &insn, regno_t baseRegNO, uint32 memOpndSize);
-  AArch64MemOperand *SelectIndexOptMode(Insn &insn, const AArch64MemOperand &curMemOpnd);
+  MemOperand *SelectIndexOptMode(Insn &insn, const MemOperand &curMemOpnd);
   bool ReplaceMemOpnd(Insn &insn, regno_t regNo, RegOperand &base, Operand *offset);
   void MemProp(Insn &insn);
   void ProcessStrPair(Insn &insn);

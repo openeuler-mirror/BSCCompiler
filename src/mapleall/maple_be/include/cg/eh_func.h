@@ -111,7 +111,7 @@ class EHThrow {
 
   void Lower(CGFunc &cgFunc);
   void ConvertThrowToRethrow(CGFunc &cgFunc);
-  void ConvertThrowToRuntime(CGFunc&, BaseNode&);
+  void ConvertThrowToRuntime(CGFunc &cgFunc, BaseNode &arg);
 
  private:
   UnaryStmtNode *rethrow;            /* must be a throw stmt */

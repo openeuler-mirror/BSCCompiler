@@ -67,8 +67,8 @@ enum : uint8 {
   kBinEaCgStart = 41,
   kBinEaStart = 42,
   kBinNodeBlock = 43,
-//kBinOpStatement = 44,
-//kBinOpExpression = 45,
+// kBinOpStatement : 44,
+// kBinOpExpression : 45,
   kBinReturnvals = 46,
   kBinTypeTabStart = 47,
   kBinSymStart = 48,
@@ -81,9 +81,9 @@ enum : uint8 {
   kBinTypenameStart = 55,
   kBinHeaderStart = 56,
   kBinAliasMapStart = 57,
-//kBinKindTypeViaTypename = 58,
-//kBinKindSymViaSymname = 59,
-//kBinKindFuncViaSymname = 60,
+// kBinKindTypeViaTypename : 58,
+// kBinKindSymViaSymname : 59,
+// kBinKindFuncViaSymname : 60,
   kBinFunctionBodyStart = 61,
   kBinFormalWordsTypeTagged = 62,
   kBinFormalWordsRefCounted = 63,
@@ -105,10 +105,10 @@ class BinaryMplExport {
   void Write(uint8 b);
   void OutputType(TyIdx tyIdx);
   void WriteFunctionBodyField(uint64 contentIdx, std::unordered_set<std::string> *dumpFuncSet);
-  void OutputConst(MIRConst *c);
-  void OutputConstBase(const MIRConst &c);
+  void OutputConst(MIRConst *constVal);
+  void OutputConstBase(const MIRConst &constVal);
   void OutputTypeBase(const MIRType &type);
-  void OutputTypePairs(const MIRInstantVectorType &typ);
+  void OutputTypePairs(const MIRInstantVectorType &type);
   void OutputStr(const GStrIdx &gstr);
   void OutputUsrStr(UStrIdx ustr);
   void OutputTypeAttrs(const TypeAttrs &ta);
@@ -134,7 +134,7 @@ class BinaryMplExport {
   void OutputLocalSymbol(MIRSymbol *sym);
   void OutputPreg(MIRPreg *preg);
   void OutputLabel(LabelIdx lidx);
-  void OutputLocalTypeNameTab(const MIRTypeNameTable *tyNameTab);
+  void OutputLocalTypeNameTab(const MIRTypeNameTable *typeNameTab);
   void OutputFormalsStIdx(MIRFunction *func);
   void OutputFuncViaSym(PUIdx puIdx);
   void OutputExpression(BaseNode *e);
@@ -147,6 +147,7 @@ class BinaryMplExport {
   }
 
   bool not2mplt;  // this export is not to an mplt file
+  MIRFunction *curFunc = nullptr;
 
  private:
   using CallSite = std::pair<CallInfo*, PUIdx>;
@@ -154,10 +155,10 @@ class BinaryMplExport {
   void WriteEaCgField(EAConnectionGraph *eaCg);
   void OutEaCgNode(EACGBaseNode &node);
   void OutEaCgBaseNode(const EACGBaseNode &node, bool firstPart);
-  void OutEaCgFieldNode(EACGFieldNode &node);
-  void OutEaCgRefNode(const EACGRefNode &node);
-  void OutEaCgActNode(const EACGActualNode &node);
-  void OutEaCgObjNode(EACGObjectNode &node);
+  void OutEaCgFieldNode(EACGFieldNode &field);
+  void OutEaCgRefNode(const EACGRefNode &ref);
+  void OutEaCgActNode(const EACGActualNode &act);
+  void OutEaCgObjNode(EACGObjectNode &obj);
   void WriteCgField(uint64 contentIdx, const CallGraph *cg);
   void WriteSeField();
   void OutputCallInfo(CallInfo &callInfo);
@@ -175,14 +176,11 @@ class BinaryMplExport {
   void WriteInt64(int64 x);
   void WriteAsciiStr(const std::string &str);
   void Fixup(size_t i, int32 x);
-  void DumpBuf(const std::string &modid);
-  void AppendAt(const std::string &fname, int32 ipaIdx);
+  void DumpBuf(const std::string &name);
+  void AppendAt(const std::string &name, int32 offset);
   void ExpandFourBuffSize();
 
   MIRModule &mod;
- public:
-  MIRFunction *curFunc = nullptr;
- private:
   size_t bufI = 0;
   std::vector<uint8> buf;
   std::unordered_map<GStrIdx, int64, GStrIdxHash> gStrMark;

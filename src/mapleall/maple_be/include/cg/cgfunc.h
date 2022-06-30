@@ -90,7 +90,7 @@ class CGFunc {
   };
 
   CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon, MemPool &memPool,
-         StackMemPool &stackMp, MapleAllocator &mallocator, uint32 funcId);
+         StackMemPool &stackMp, MapleAllocator &allocator, uint32 funcId);
   virtual ~CGFunc();
 
   const std::string &GetName() const {

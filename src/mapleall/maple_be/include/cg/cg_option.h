@@ -278,7 +278,7 @@ class CGOptions {
   static bool DumpPhase(const std::string &phase);
   static bool FuncFilter(const std::string &name);
   void SplitPhases(const std::string &str, std::unordered_set<std::string> &set);
-  void SetRange(const std::string &str, const std::string&, Range&);
+  void SetRange(const std::string &str, const std::string &cmd, Range &subRange);
   void SetTargetMachine(const std::string &str);
 
   int32 GetOptimizeLevel() const {

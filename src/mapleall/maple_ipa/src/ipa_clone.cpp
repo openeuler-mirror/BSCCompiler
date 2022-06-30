@@ -124,7 +124,7 @@ MIRFunction *IpaClone::IpaCloneFunction(MIRFunction &originalFunction, const std
 }
 
 MIRFunction *IpaClone::IpaCloneFunctionWithFreq(MIRFunction &originalFunction,
-                                                 const std::string &fullName, int64_t callsitefreq) const {
+                                                 const std::string &fullName, int64_t callSiteFreq) const {
   MapleAllocator cgAlloc(originalFunction.GetDataMemPool());
   ArgVector argument(cgAlloc.Adapter());
   IpaCloneArgument(originalFunction, argument);
@@ -144,16 +144,16 @@ MIRFunction *IpaClone::IpaCloneFunctionWithFreq(MIRFunction &originalFunction,
   GcovFuncInfo *newProfData = moduleMp->New<GcovFuncInfo>(&mirBuilder.GetMirModule().GetMPAllocator(),
                                   newFunc->GetPuidx(), 0, 0); // skip checksum information
   newFunc->SetFuncProfData(newProfData);
-  newProfData->SetFuncFrequency(callsitefreq);
-  newProfData->SetFuncRealFrequency(callsitefreq);
+  newProfData->SetFuncFrequency(callSiteFreq);
+  newProfData->SetFuncRealFrequency(callSiteFreq);
   // original function need to update frequency by real entry value
   // update real left frequency
-  origProfData->SetFuncRealFrequency(origProfData->GetFuncRealFrequency() - callsitefreq);
+  origProfData->SetFuncRealFrequency(origProfData->GetFuncRealFrequency() - callSiteFreq);
   if (originalFunction.GetBody() != nullptr) {
     CopyFuncInfo(originalFunction, *newFunc);
     BlockNode *newbody = originalFunction.GetBody()->CloneTreeWithFreqs(newFunc->GetCodeMempoolAllocator(),
                              newProfData->GetStmtFreqs(), origProfData->GetStmtFreqs(),
-                             static_cast<uint64_t>(callsitefreq), /* numer */
+                             static_cast<uint64_t>(callSiteFreq), /* numer */
                              static_cast<uint64_t>(origProfData->GetFuncFrequency()), /* denom */
                              (kKeepOrigFreq | kUpdateFreqbyScale));
     newFunc->SetBody(newbody);

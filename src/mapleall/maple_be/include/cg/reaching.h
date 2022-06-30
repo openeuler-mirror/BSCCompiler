@@ -51,9 +51,9 @@ class ReachingDefinition : public AnalysisResult {
   ReachingDefinition(CGFunc &func, MemPool &memPool);
   ~ReachingDefinition() override = default;
   void AnalysisStart();
-  void Dump(uint32) const;
-  void DumpInfo(const BB&, DumpType) const;
-  void DumpBBCGIR(const BB&) const;
+  void Dump(uint32 flag) const;
+  void DumpInfo(const BB &bb, DumpType flag) const;
+  void DumpBBCGIR(const BB &bb) const;
   void ClearDefUseInfo();
   void UpdateInOut(BB &changedBB);
   void UpdateInOut(BB &changedBB, bool isReg);
@@ -80,32 +80,44 @@ class ReachingDefinition : public AnalysisResult {
   void EnlargeRegCapacity(uint32 size);
   bool IsFrameReg(const Operand &opnd) const;
   InsnSet FindUseForRegOpnd(Insn &insn, uint32 indexOrRegNO, bool isRegNO) const;
-  bool RegIsLiveBetweenInsn(uint32 regNO, Insn &startInsn, Insn &endInsn) const;
-  bool IsLiveInAllPathBB(uint32 regNO, const BB &startBB, const BB &endBB, std::vector<bool> &visitedBB) const;
+  bool RegIsUsedIncaller(uint32 regNO, Insn &startInsn, Insn &endInsn) const;
+  bool CheckRegLiveinReturnBB(uint32 regNO, const BB &bb) const;
+  bool RegIsLiveBetweenInsn(uint32 regNO, Insn &startInsn, Insn &endInsn, bool isBack = false,
+                            bool isFirstNo = false) const;
+  bool RegIsUsedOrDefBetweenInsn(uint32 regNO, Insn &startInsn, Insn &endInsn) const;
+  bool IsLiveInAllPathBB(uint32 regNO, const BB &startBB, const BB &endBB, std::vector<bool> &visitedBB,
+                         bool isFirstNo = false) const;
+  bool IsUseOrDefInAllPathBB(uint32 regNO, const BB &startBB, const BB &endBB, std::vector<bool> &visitedBB) const;
+  bool IsUseOrDefBetweenInsn(uint32 regNO, const BB &curBB, const Insn &startInsn, Insn &endInsn) const;
   bool HasCallBetweenDefUse(const Insn &defInsn, const Insn &useInsn) const;
 
   virtual void InitGenUse(BB &bb, bool firstTime = true) = 0;
   virtual InsnSet FindDefForMemOpnd(Insn &insn, uint32 indexOrOffset, bool isOffset = false) const = 0;
   virtual InsnSet FindUseForMemOpnd(Insn &insn, uint8 index, bool secondMem = false) const = 0;
   virtual std::vector<Insn*> FindMemDefBetweenInsn(uint32 offset, const Insn *startInsn, Insn *endInsn) const = 0;
-  virtual std::vector<Insn*> FindRegDefBetweenInsn(uint32 regNO, Insn *startInsn, Insn *endInsn) const = 0;
+  virtual std::vector<Insn*> FindRegDefBetweenInsn(
+      uint32 regNO, Insn *startInsn, Insn *endInsn, bool findAll = false) const = 0;
+  virtual std::vector<Insn*> FindRegDefBetweenInsnGlobal(uint32 regNO, Insn *startInsn, Insn *endInsn) const = 0;
   virtual bool FindRegUseBetweenInsn(uint32 regNO, Insn *startInsn, Insn *endInsn, InsnSet &useInsnSet) const = 0;
+  virtual bool FindRegUseBetweenInsnGlobal(uint32 regNO, Insn *startInsn, Insn *endInsn, BB* movBB) const = 0;
   virtual bool FindMemUseBetweenInsn(uint32 offset, Insn *startInsn, const Insn *endInsn,
                                      InsnSet &useInsnSet) const = 0;
   virtual InsnSet FindDefForRegOpnd(Insn &insn, uint32 indexOrRegNO, bool isRegNO = false) const = 0;
+
   static constexpr int32 kWordByteNum = 4;
   static constexpr int32 kDoubleWordByteNum = 8;
   /* to save storage space, the offset of stack memory is devided by 4 and then saved in DataInfo */
   static constexpr int32 kMemZoomSize = 4;
   /* number the insn interval 3. make sure no repeated insn number when new insn inserted */
   static constexpr uint32 kInsnNoInterval = 3;
-
+  bool HasCallBetweenInsnInSameBB(const Insn &startInsn, const Insn &endInsn) const;
+  virtual bool KilledByCallBetweenInsnInSameBB(const Insn &startInsn, const Insn &endInsn, regno_t regNO) const = 0;
  protected:
   virtual void InitStartGen() = 0;
   virtual void InitEhDefine(BB &bb) = 0;
   virtual void GenAllAsmDefRegs(BB &bb, Insn &insn, uint32 index) = 0;
   virtual void GenAllAsmUseRegs(BB &bb, Insn &insn, uint32 index) = 0;
-  virtual void GenAllCallerSavedRegs(BB &bb) = 0;
+  virtual void GenAllCallerSavedRegs(BB &bb, Insn &insn) = 0;
   virtual void AddRetPseudoInsn(BB &bb) = 0;
   virtual void AddRetPseudoInsns() = 0;
   virtual int32 GetStackSize() const = 0;
@@ -118,6 +130,7 @@ class ReachingDefinition : public AnalysisResult {
                                     InsnSet &defInsnSet) const = 0;
   void DFSFindUseForMemOpnd(const BB &startBB, uint32 offset, std::vector<bool> &visitedBB,
                             InsnSet &useInsnSet, bool onlyFindForEhSucc) const;
+
   CGFunc *cgFunc;
   MapleAllocator rdAlloc;
   StackMemPool &stackMp;
@@ -142,17 +155,17 @@ class ReachingDefinition : public AnalysisResult {
   void InitRegAndMemInfo(const BB &bb);
   void InitOut(const BB &bb);
   bool GenerateIn(const BB &bb);
-  bool GenerateIn(const BB &bb, const std::set<uint32> &index, const bool isReg);
+  bool GenerateIn(const BB &bb, const std::set<uint32> &infoIndex, const bool isReg);
   bool GenerateOut(const BB &bb);
-  bool GenerateOut(const BB &bb, const std::set<uint32> &index, const bool isReg);
+  bool GenerateOut(const BB &bb, const std::set<uint32> &infoIndex, const bool isReg);
   bool GenerateInForFirstCleanUpBB();
-  bool GenerateInForFirstCleanUpBB(bool isReg, const std::set<uint32> &index);
+  bool GenerateInForFirstCleanUpBB(bool isReg, const std::set<uint32> &infoIndex);
   void DFSFindUseForRegOpnd(const BB &startBB, uint32 regNO, std::vector<bool> &visitedBB,
                             InsnSet &useInsnSet, bool onlyFindForEhSucc) const;
   bool RegIsUsedInOtherBB(const BB &startBB, uint32 regNO, std::vector<bool> &visitedBB) const;
-  bool RegHasUsePoint(uint32 regNO, Insn &startInsn) const;
+  bool RegHasUsePoint(uint32 regNO, Insn &regDefInsn) const;
   bool CanReachEndBBFromCurrentBB(const BB &currentBB, const BB &endBB, std::vector<bool> &traversedBBSet) const;
-  bool HasCallBetweenInsnInSameBB(const Insn &startInsn, const Insn &endInsn) const;
+
   bool HasCallInPath(const BB &startBB, const BB &endBB, std::vector<bool> &visitedBB) const;
   bool RegIsUsedInCleanUpBB(uint32 regNO) const;
 

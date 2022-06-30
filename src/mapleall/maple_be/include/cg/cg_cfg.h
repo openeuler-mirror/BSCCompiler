@@ -92,7 +92,7 @@ class CGCFG {
    * Remove a BB from its position in the CFG.
    * Prev, next, preds and sucs are all modified accordingly.
    */
-  void RemoveBB(BB &bb, bool isGotoIf = false);
+  void RemoveBB(BB &curBB, bool isGotoIf = false);
   /* Skip the successor of bb, directly jump to bb's successor'ssuccessor */
   void RetargetJump(BB &srcBB, BB &targetBB);
 
@@ -108,7 +108,7 @@ class CGCFG {
 
   Insn *FindLastCondBrInsn(BB &bb) const;
   static void FindAndMarkUnreachable(CGFunc &func);
-  void FlushUnReachableStatusAndRemoveRelations(BB &curBB, const CGFunc &func) const;
+  void FlushUnReachableStatusAndRemoveRelations(BB &bb, const CGFunc &func) const;
   void MarkLabelTakenBB();
   void UnreachCodeAnalysis();
   void FindWillExitBBs(BB *bb, std::set<BB*, BBIdCmp> *visitedBBs);

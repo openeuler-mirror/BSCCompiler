@@ -92,7 +92,9 @@ class MapleSccPhase : public MaplePhase {
  public:
   MapleSccPhase(MaplePhaseID id, MemPool *mp) : MaplePhase(kSccPhase, id, *mp){}
   ~MapleSccPhase() override = default;
-  virtual bool PhaseRun(SccT &f) = 0;
+  virtual bool PhaseRun(SccT &scc) = 0;
+  template <class funcT>
+  void Dump(funcT &f, const std::string phaseName);
 };
 
 class MaplePhaseRegister {
@@ -103,7 +105,7 @@ class MaplePhaseRegister {
   static MaplePhaseRegister *GetMaplePhaseRegister();
   void RegisterPhase(const MaplePhaseInfo &PI);
   const MaplePhaseInfo *GetPhaseByID(MaplePhaseID id);
-  const auto &GetAllPassInfo() {
+  const auto &GetAllPassInfo() const {
     return passInfoMap;
   }
  private:
@@ -142,7 +144,7 @@ class PHASENAME : public MapleFunctionPhase<IRTYPE> {                      \
   static MaplePhase *CreatePhase(MemPool *createMP) {                      \
     return createMP->New<PHASENAME>(createMP);                             \
   }                                                                        \
-  bool PhaseRun(IRTYPE &f) override;
+  bool PhaseRun(IRTYPE &func) override;
 
 #define MAPLE_FUNC_PHASE_DECLARE_END \
 };
@@ -157,7 +159,7 @@ class PHASENAME : public MapleSccPhase<IRTYPE> {                           \
   static MaplePhase *CreatePhase(MemPool *createMP) {                      \
     return createMP->New<PHASENAME>(createMP);                             \
   }                                                                        \
-  bool PhaseRun(IRTYPE &f) override;
+  bool PhaseRun(IRTYPE &scc) override;
 
 #define MAPLE_SCC_PHASE_DECLARE_END \
 };
@@ -208,7 +210,7 @@ std::string CLASSNAME::PhaseName() const { return #PHASENAME; }                 
 static RegisterPhase<CLASSNAME> MAPLEPHASE_##PHASENAME(#PHASENAME, false, false, true);
 
 #define GET_ANALYSIS(PHASENAME, PHASEKEY)                               \
-static_cast<PHASENAME*>(GetAnalysisInfoHook()->FindAnalysisData(PHASEKEY.GetUniqueID(), this, &PHASENAME::id))-> \
+static_cast<PHASENAME*>(GetAnalysisInfoHook()->FindAnalysisData((PHASEKEY).GetUniqueID(), this, &PHASENAME::id))-> \
     GetResult()
 
 #define FORCE_GET(PHASENAME) \

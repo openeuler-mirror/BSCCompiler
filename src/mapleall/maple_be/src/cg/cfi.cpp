@@ -65,24 +65,9 @@ bool CfiInsn::Check() const {
   return true;
 }
 
-void CfiInsn::Emit(const CG &cg, Emitter &emitter) const {
-  (void)cg;
-  MOperator mOp = GetMachineOpcode();
-  CfiDescr &cfiDescr = cfiDescrTable[mOp];
-  emitter.Emit("\t").Emit(cfiDescr.name);
-  for (uint32 i = 0; i < cfiDescr.opndCount; ++i) {
-    emitter.Emit(" ");
-    Operand &curOperand = GetOperand(i);
-    curOperand.Emit(emitter, nullptr);
-    if (i < (cfiDescr.opndCount - 1)) {
-      emitter.Emit(",");
-    }
-  }
-  emitter.Emit("\n");
-}
 #endif
 
-void RegOperand::Emit(Emitter &emitter, const OpndProp*) const {
+void RegOperand::Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop) const {
   emitter.Emit(regNO);
 }
 
@@ -90,7 +75,7 @@ void RegOperand::Dump() const {
   LogInfo::MapleLogger() << "reg: " << regNO << "[ size: " << GetSize() << "] ";
 }
 
-void ImmOperand::Emit(Emitter &emitter, const OpndProp*) const {
+void ImmOperand::Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop) const {
   emitter.Emit(val);
 }
 
@@ -98,7 +83,7 @@ void ImmOperand::Dump() const {
   LogInfo::MapleLogger() << "imm: " << val << "[ size: " << GetSize() << "] ";
 }
 
-void StrOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
+void StrOperand::Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *opndProp) const {
   (void)opndProp;
   emitter.Emit(str);
 }

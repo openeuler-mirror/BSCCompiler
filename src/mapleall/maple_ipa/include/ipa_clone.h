@@ -37,14 +37,14 @@ class IpaClone : public AnalysisResult {
   static void IpaCloneSymbols(MIRFunction &newFunc, const MIRFunction &oldFunc);
   static void IpaCloneLabels(MIRFunction &newFunc, const MIRFunction &oldFunc);
   static void IpaClonePregTable(MIRFunction &newFunc, const MIRFunction &oldFunc);
-  MIRFunction *IpaCloneFunction(MIRFunction &originalFunction, const std::string &newBaseFuncName) const;
+  MIRFunction *IpaCloneFunction(MIRFunction &originalFunction, const std::string &fullName) const;
   MIRFunction *IpaCloneFunctionWithFreq(MIRFunction &originalFunction,
-                                        const std::string &newBaseFuncName, int64_t) const;
+                                        const std::string &fullName, int64_t callSiteFreq) const;
   void DoIpaClone();
   void InitParams();
   void CopyFuncInfo(MIRFunction &originalFunction, MIRFunction &newFunc) const;
   void IpaCloneArgument(MIRFunction &originalFunction, ArgVector &argument) const;
-  void RemoveUnneedParameter(MIRFunction *func, uint32 paramIndex, int64_t value);
+  void RemoveUnneedParameter(MIRFunction *newFunc, uint32 paramIndex, int64_t value);
   void DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramIndex, std::map<uint32,
                            std::vector<int64_t>> &evalMap);
   void ReplaceIfCondtion(MIRFunction *newFunc, std::vector<ImpExpr> &result, uint64_t res);

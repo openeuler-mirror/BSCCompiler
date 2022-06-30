@@ -21,7 +21,7 @@
 #include "default_options.def"
 
 namespace maple {
-std::string ClangCompiler::GetBinPath(const MplOptions&) const{
+std::string ClangCompiler::GetBinPath(const MplOptions &mplOptions) const{
   return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
 }
 
@@ -33,18 +33,21 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
                                      const Action &action) {
   uint32_t additionalLen = 1; // for -o option
 
-  /* TODO: Add check for the target architecture and OS environment.
-   * Currently it supports only aarch64 and linux-gnu-
+  /*
+   * 1. Add check for the target architecture and OS environment.
+   * 2. Currently it supports only aarch64 and linux-gnu-
    */
   if (kOperatingSystem == "linux-gnu-" && kMachine == "aarch64-") {
-    additionalLen += 3;
+    additionalLen += k3BitSize;
     opt = std::make_unique<MplOption[]>(additionalLen);
 
     opt[0].SetKey("-isystem");
-    opt[0].SetValue(FileUtils::SafeGetenv(kMapleRoot) + "/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include");
+    opt[0].SetValue(FileUtils::SafeGetenv(kMapleRoot) +
+                    "/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include");
 
     opt[1].SetKey("-isystem");
-    opt[1].SetValue(FileUtils::SafeGetenv(kMapleRoot) + "/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include");
+    opt[1].SetValue(FileUtils::SafeGetenv(kMapleRoot) +
+                    "/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include");
 
     opt[2].SetKey("-target");
     opt[2].SetValue("aarch64");
@@ -89,15 +92,21 @@ DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options, const 
   return defaultOptions;
 }
 
-void ClangCompiler::GetTmpFilesToDelete(const MplOptions&, const Action &action,
+void ClangCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
                                         std::vector<std::string> &tempFiles) const {
   tempFiles.push_back(action.GetFullOutputName() + ".ast");
 }
 
-std::unordered_set<std::string> ClangCompiler::GetFinalOutputs(const MplOptions&,
+std::unordered_set<std::string> ClangCompiler::GetFinalOutputs(const MplOptions &mplOptions,
                                                                const Action &action) const {
   std::unordered_set<std::string> finalOutputs;
   (void)finalOutputs.insert(action.GetFullOutputName() + ".ast");
   return finalOutputs;
 }
+
+void ClangCompiler::AppendOutputOption(std::vector<MplOption> &finalOptions,
+                                       const std::string &name) const {
+  finalOptions.emplace_back("-o", name);
+}
+
 }

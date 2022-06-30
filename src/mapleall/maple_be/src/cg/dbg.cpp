@@ -62,19 +62,6 @@ bool DbgInsn::Check() const {
   }
   return true;
 }
-
-void DbgInsn::Emit(const CG &cg, Emitter &emitter) const {
-  (void)cg;
-  MOperator mOp = GetMachineOpcode();
-  DbgDescr &dbgDescr = dbgDescrTable[mOp];
-  emitter.Emit("\t.").Emit(dbgDescr.name);
-  for (uint32 i = 0; i < dbgDescr.opndCount; ++i) {
-    emitter.Emit(" ");
-    Operand &curOperand = GetOperand(i);
-    curOperand.Emit(emitter, nullptr);
-  }
-  emitter.Emit("\n");
-}
 #endif
 
 uint32 DbgInsn::GetLoc() const {
@@ -84,7 +71,7 @@ uint32 DbgInsn::GetLoc() const {
   return static_cast<uint32>(static_cast<ImmOperand *>(opnds[0])->GetVal());
 }
 
-void ImmOperand::Emit(Emitter &emitter, const OpndProp*) const {
+void ImmOperand::Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop) const {
   emitter.Emit(val);
 }
 

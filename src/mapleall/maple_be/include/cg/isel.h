@@ -53,7 +53,7 @@ class MPISel {
   void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   Operand *SelectShift(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
-  void SelectShift(Operand &resOpnd, Operand &o0, Operand &o1, Opcode shiftDirect, PrimType primType);
+  void SelectShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, Opcode shiftDirect, PrimType primType);
   void SelectBand(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectDiv(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
 

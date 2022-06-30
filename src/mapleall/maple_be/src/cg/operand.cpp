@@ -101,11 +101,11 @@ Operand *MemOperand::GetOffset() const {
   return nullptr;
 }
 
-bool MemOperand::Equals(Operand &operand) const {
-  if (!operand.IsMemoryAccessOperand()) {
+bool MemOperand::Equals(Operand &op) const {
+  if (!op.IsMemoryAccessOperand()) {
     return false;
   }
-  return Equals(static_cast<MemOperand&>(operand));
+  return Equals(static_cast<MemOperand&>(op));
 }
 
 bool MemOperand::Equals(const MemOperand &op) const {

@@ -25,14 +25,14 @@ const std::string &Dex2MplCompiler::GetBinName() const {
   return kBinNameDex2mpl;
 }
 
-DefaultOption Dex2MplCompiler::GetDefaultOptions(const MplOptions &options, const Action &) const {
+DefaultOption Dex2MplCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
   uint32_t len = 0;
   MplOption *kDex2mplDefaultOptions = nullptr;
 
-  if (options.GetOptimizationLevel() == kO0 && options.HasSetDefaultLevel()) {
+  if (opts::o0) {
     len = sizeof(kDex2mplDefaultOptionsO0) / sizeof(MplOption);
     kDex2mplDefaultOptions = kDex2mplDefaultOptionsO0;
-  } else if (options.GetOptimizationLevel() == kO2 && options.HasSetDefaultLevel()) {
+  } else if (opts::o2) {
     len = sizeof(kDex2mplDefaultOptionsO2) / sizeof(MplOption);
     kDex2mplDefaultOptions = kDex2mplDefaultOptionsO2;
   }
@@ -55,13 +55,13 @@ DefaultOption Dex2MplCompiler::GetDefaultOptions(const MplOptions &options, cons
   return defaultOptions;
 }
 
-void Dex2MplCompiler::GetTmpFilesToDelete(const MplOptions &, const Action &action,
+void Dex2MplCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
                                           std::vector<std::string> &tempFiles) const {
   tempFiles.push_back(action.GetFullOutputName() + ".mpl");
   tempFiles.push_back(action.GetFullOutputName() + ".mplt");
 }
 
-std::unordered_set<std::string> Dex2MplCompiler::GetFinalOutputs(const MplOptions &,
+std::unordered_set<std::string> Dex2MplCompiler::GetFinalOutputs(const MplOptions &mplOptions,
                                                                  const Action &action) const {
   auto finalOutputs = std::unordered_set<std::string>();
   (void)finalOutputs.insert(action.GetFullOutputName() + ".mpl");
@@ -194,8 +194,7 @@ void Dex2MplCompiler::PrintCommand(const MplOptions &options, const Action &acti
     runStr += "dex2mpl";
     auto inputDex2mplOptions = options.GetExeOptions().find(kBinNameDex2mpl);
     for (auto &opt : inputDex2mplOptions->second) {
-      connectSym = opt.Args() != "" ? "=" : "";
-      optionStr += " --" + opt.OptionKey() + connectSym + opt.Args();
+      optionStr += " --" + opt;
     }
   }
   optionStr += "\"";

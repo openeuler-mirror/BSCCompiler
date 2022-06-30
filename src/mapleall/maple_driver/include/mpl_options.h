@@ -378,7 +378,7 @@ class MplOptions {
   void UpdateRunningExe(const std::string &args);
   void UpdateExeOptions(const std::string &options, const std::string &tool);
   ErrorCode UpdateExeOptions(const std::string &args);
-  void DumpActionTree(const Action &action, int idents) const;
+  void DumpActionTree(const Action &action, int indents) const;
   void DumpActionTree() const;
 
   std::vector<std::string> inputFiles;

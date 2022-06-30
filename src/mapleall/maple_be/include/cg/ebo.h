@@ -160,17 +160,17 @@ class Ebo {
 
   void UpdateOpndInfo(const Operand &opnd, OpndInfo &opndInfo, OpndInfo *newInfo, int32 hashVal);
   void SetOpndInfo(const Operand &opnd, OpndInfo *opndInfo, int32 hashVal);
-  bool RegistersIdentical(const Operand &opnd0, const Operand &opnd1) const;
+  bool RegistersIdentical(const Operand &op0, const Operand &op1) const;
   OpndInfo *GetOpndInfo(const Operand &opnd, int32 hashVal) const;
   OpndInfo *GetNewOpndInfo(BB &bb, Insn *insn, Operand &opnd, int32 hashVal);
   OpndInfo *OperandInfoUse(BB &currentBB, Operand &localOpnd);
   InsnInfo *GetNewInsnInfo(Insn &insn);
   int32 ComputeOpndHash(const Operand &opnd) const;
-  uint32 ComputeHashVal(const Insn &insn, const MapleVector<OpndInfo*> &opndInfo) const;
-  void MarkOpndLiveIntoBB(const Operand &opnd, BB &intoBB, BB &outOfBB) const;
-  void RemoveInsn(InsnInfo &insnInfo);
+  uint32 ComputeHashVal(const Insn &insn, const MapleVector<OpndInfo*> &opndInfos) const;
+  void MarkOpndLiveIntoBB(const Operand &opnd, BB &into, BB &def) const;
+  void RemoveInsn(InsnInfo &info);
   void RemoveUses(uint32 opndNum, const MapleVector<OpndInfo*> &origInfo);
-  void HashInsn(Insn &insn, const MapleVector<OpndInfo*> &origInfo, const MapleVector<OpndInfo*> &opndInfo);
+  void HashInsn(Insn &insn, const MapleVector<OpndInfo*> &origInfo, const MapleVector<OpndInfo*> &opndInfos);
   void BuildAllInfo(BB &bb);
   InsnInfo *LocateInsnInfo(const OpndInfo &info);
   void RemoveUnusedInsns(BB &bb, bool normal);
@@ -215,6 +215,9 @@ class Ebo {
   virtual bool IsSameRedefine(BB &bb, Insn &insn, OpndInfo &opndInfo) const = 0;
   virtual bool ResIsNotDefAndUse(Insn &insn) const = 0;
   virtual bool LiveOutOfBB(const Operand &opnd, const BB &bb) const = 0;
+  virtual bool IsInvalidReg(const RegOperand &opnd) const = 0;
+  virtual bool IsZeroRegister(const Operand &opnd) const = 0;
+  virtual bool IsConstantImmOrReg(const Operand &opnd) const = 0;
   OpndInfo *BuildMemOpndInfo(BB &bb, Insn &insn, Operand &opnd, uint32 opndIndex);
   OpndInfo *BuildOperandInfo(BB &bb, Insn &insn, Operand &opnd, uint32 opndIndex, MapleVector<OpndInfo*> &origInfos);
   bool ForwardPropagateOpnd(Insn &insn, Operand *&opnd, uint32 opndIndex, OpndInfo *&opndInfo,

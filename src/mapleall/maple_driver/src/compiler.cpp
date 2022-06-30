@@ -44,7 +44,7 @@ std::string Compiler::GetBinPath(const MplOptions &mplOptions) const {
 }
 
 ErrorCode Compiler::Compile(MplOptions &options, const Action &action,
-                            std::unique_ptr<MIRModule>&) {
+                            std::unique_ptr<MIRModule> &theModule) {
   MPLTimer timer = MPLTimer();
   LogInfo::MapleLogger() << "Starting " << GetName() << '\n';
   timer.Start();

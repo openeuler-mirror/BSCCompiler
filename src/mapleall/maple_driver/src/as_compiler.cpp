@@ -17,7 +17,7 @@
 #include "default_options.def"
 
 namespace maple {
-std::string AsCompiler::GetBinPath(const MplOptions&) const {
+std::string AsCompiler::GetBinPath(const MplOptions &mplOptions) const {
 #ifdef ANDROID
   return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
 #else
@@ -54,19 +54,25 @@ DefaultOption AsCompiler::GetDefaultOptions(const MplOptions &options, const Act
   return defaultOptions;
 }
 
-std::string AsCompiler::GetInputFileName(const MplOptions&, const Action &action) const {
+std::string AsCompiler::GetInputFileName(const MplOptions &options, const Action &action) const {
   return action.GetFullOutputName() + ".s";
 }
 
-void AsCompiler::GetTmpFilesToDelete(const MplOptions&, const Action &action,
+void AsCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
                                      std::vector<std::string> &tempFiles) const {
   tempFiles.push_back(action.GetFullOutputName() + ".o");
 }
 
-std::unordered_set<std::string> AsCompiler::GetFinalOutputs(const MplOptions&,
+std::unordered_set<std::string> AsCompiler::GetFinalOutputs(const MplOptions &mplOptions,
                                                             const Action &action) const {
   auto finalOutputs = std::unordered_set<std::string>();
   (void)finalOutputs.insert(action.GetFullOutputName() + ".o");
   return finalOutputs;
 }
+
+void AsCompiler::AppendOutputOption(std::vector<MplOption> &finalOptions,
+                                    const std::string &name) const {
+  finalOptions.emplace_back("-o", name);
+}
+
 }  // namespace maple

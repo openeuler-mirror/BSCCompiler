@@ -12,7 +12,6 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include <cstdlib>
 #include "compiler.h"
 #include "default_options.def"
 
@@ -21,17 +20,17 @@ const std::string &Jbc2MplCompiler::GetBinName() const {
   return kBinNameJbc2mpl;
 }
 
-DefaultOption Jbc2MplCompiler::GetDefaultOptions(const MplOptions&, const Action &) const {
+DefaultOption Jbc2MplCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
   return DefaultOption();
 }
 
-void Jbc2MplCompiler::GetTmpFilesToDelete(const MplOptions &, const Action &action,
+void Jbc2MplCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
                                           std::vector<std::string> &tempFiles) const {
   tempFiles.push_back(action.GetFullOutputName() + ".mpl");
   tempFiles.push_back(action.GetFullOutputName() + ".mplt");
 }
 
-std::unordered_set<std::string> Jbc2MplCompiler::GetFinalOutputs(const MplOptions &,
+std::unordered_set<std::string> Jbc2MplCompiler::GetFinalOutputs(const MplOptions &mplOptions,
                                                                  const Action &action) const {
   std::unordered_set<std::string> finalOutputs;
   (void)finalOutputs.insert(action.GetFullOutputName() + ".mpl");

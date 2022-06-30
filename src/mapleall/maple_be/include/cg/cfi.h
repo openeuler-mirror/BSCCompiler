@@ -79,8 +79,6 @@ class CfiInsn : public maplebe::Insn {
     return false;
   }
 #if TARGAARCH64 || TARGRISCV64
-  void Emit(const maplebe::CG &cg, maplebe::Emitter &emitter) const override;
-
   void Dump() const override;
 
   bool Check() const override;
@@ -196,7 +194,7 @@ class StrOperand : public maplebe::OperandVisitable<StrOperand> {
     return opnd;
   }
 
-  void Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop) const override;
+  void Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *opndProp) const override;
 
   bool Less(const Operand &right) const override {
     (void)right;

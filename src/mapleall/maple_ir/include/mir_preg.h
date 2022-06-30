@@ -21,7 +21,7 @@
 #endif  // MIR_FEATURE_FULL
 
 namespace maple {
-extern void PrintIndentation(int32);
+extern void PrintIndentation(int32 indent);
 
 // these special registers are encoded by negating the enumeration
 enum SpecialReg : signed int {
@@ -134,7 +134,7 @@ class MIRPregTable {
 
   PregIdx ClonePreg(const MIRPreg &rfpreg) {
     PregIdx idx = CreatePreg(rfpreg.GetPrimType(), rfpreg.GetMIRType());
-    MIRPreg *preg = pregTable[idx];
+    MIRPreg *preg = pregTable[static_cast<uint32>(idx)];
     preg->SetNeedRC(rfpreg.NeedRC());
     return idx;
   }
@@ -143,7 +143,7 @@ class MIRPregTable {
     if (pregidx < 0) {  // special register
       return &specPregTable[-pregidx];
     } else {
-      return pregTable.at(pregidx);
+      return pregTable.at(static_cast<uint32>(pregidx));
     }
   }
 

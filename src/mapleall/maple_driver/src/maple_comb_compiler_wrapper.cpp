@@ -17,7 +17,6 @@
 #include <vector>
 
 namespace maple {
-using namespace mapleOption;
 
 // FixMe
 static const std::string kTmpBin = "maple";
@@ -26,77 +25,28 @@ const std::string &MapleCombCompilerWrp::GetBinName() const {
   return kTmpBin;
 }
 
-std::string MapleCombCompilerWrp::GetBinPath(const MplOptions&) const {
+std::string MapleCombCompilerWrp::GetBinPath(const MplOptions &mplOptions) const {
   return FileUtils::SafeGetenv(kMapleRoot) + "/output/" +
       FileUtils::SafeGetenv("MAPLE_BUILD_TYPE") + "/bin/";
 }
 
-DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &mplOptions,
-                                                      const Action&) const {
-  auto options = mplOptions.GetOptions();
-  std::vector<Option *> tmpOptions;
-
-  uint32 optForWrapperCnt = 0;
-  for (Option &opt : options) {
-    auto desc = opt.GetDescriptor();
-    if (desc.exeName == "all" ||
-        desc.exeName == "mpl2mpl" ||
-        desc.exeName == "mplcg" ||
-        desc.exeName == "me") {
-      ++optForWrapperCnt;
-      tmpOptions.push_back(&opt);
-    }
-  }
-
+DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &options, const Action &action) const {
   /* need to add --maple-phase option to run only maple phase.
    * linker will be called as separated step (AsCompiler).
    */
-  uint32 additionalOption = 1;
-  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(optForWrapperCnt + additionalOption),
-                                   optForWrapperCnt + additionalOption };
+  opts::maplePhase.SetValue(true);
 
-  /* Set additional option */
-  defaultOptions.mplOptions[0].SetKey("--maple-phase");
+  /* opts::infile must be cleared because we should run compilation for each file separately.
+   * Separated input file are set in Actions.
+   */
+  opts::infile.Clear();
 
-  for (unsigned int tmpOpInd = 0, defOptInd = additionalOption;
-       tmpOpInd < optForWrapperCnt; ++tmpOpInd) {
-
-    if (tmpOptions[tmpOpInd]->OptionKey() == "no-maple-phase") {
-      defaultOptions.length--;
-      continue;
-    }
-
-    std::string strOpt;
-    if (tmpOptions[tmpOpInd]->GetPrefixType() == shortOptPrefix) {
-      strOpt = "-";
-    } else if (tmpOptions[tmpOpInd]->GetPrefixType() == longOptPrefix) {
-      strOpt = "--";
-    }
-
-    if (!tmpOptions[tmpOpInd]->OptionKey().empty()) {
-      strOpt += tmpOptions[tmpOpInd]->OptionKey();
-    }
-
-    if (!tmpOptions[tmpOpInd]->Args().empty()) {
-      if (tmpOptions[tmpOpInd]->CheckEqualPrefix() == true) {
-        strOpt += "=";
-      } else {
-        strOpt += " ";
-      }
-      strOpt += tmpOptions[tmpOpInd]->Args();
-    }
-
-    defaultOptions.mplOptions[defOptInd++].SetKey(strOpt);
-  }
-
-  return defaultOptions;
+  return DefaultOption();
 }
 
 std::string MapleCombCompilerWrp::GetInputFileName(const MplOptions &options, const Action &action) const {
-  if (!options.GetRunningExes().empty()) {
-    if (options.GetRunningExes()[0] == kBinNameMe || options.GetRunningExes()[0] == kBinNameMpl2mpl) {
-      return action.GetInputFile();
-    }
+  if (action.IsItFirstRealAction()) {
+    return action.GetInputFile();
   }
 
   InputFileType fileType = action.GetInputFileType();
@@ -110,12 +60,12 @@ std::string MapleCombCompilerWrp::GetInputFileName(const MplOptions &options, co
   return fullOutput + ".mpl";
 }
 
-void MapleCombCompilerWrp::GetTmpFilesToDelete(const MplOptions&, const Action &action,
+void MapleCombCompilerWrp::GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
                                                std::vector<std::string> &tempFiles) const {
   tempFiles.push_back(action.GetFullOutputName() + ".s");
 }
 
-std::unordered_set<std::string> MapleCombCompilerWrp::GetFinalOutputs(const MplOptions&,
+std::unordered_set<std::string> MapleCombCompilerWrp::GetFinalOutputs(const MplOptions &mplOptions,
                                                                       const Action &action) const {
   std::unordered_set<std::string> finalOutputs;
   (void)finalOutputs.insert(action.GetFullOutputName() + ".s");

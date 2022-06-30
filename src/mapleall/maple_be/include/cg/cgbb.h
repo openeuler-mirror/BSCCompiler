@@ -850,9 +850,9 @@ class Bfs {
   ~Bfs() = default;
 
   bool AllPredBBVisited(const BB &bb, long &level) const;
-  BB *MarkStraightLineBBInBFS(BB*);
-  BB *SearchForStraightLineBBs(BB&);
-  void BFS(BB &bb);
+  BB *MarkStraightLineBBInBFS(BB *bb);
+  BB *SearchForStraightLineBBs(BB &bb);
+  void BFS(BB &curBB);
   void ComputeBlockOrder();
 
   CGFunc *cgfunc;

@@ -22,7 +22,7 @@
 namespace maple {
 using namespace maplebe;
 
-DefaultOption MplcgCompiler::GetDefaultOptions(const MplOptions &options, const Action&) const {
+DefaultOption MplcgCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
   uint32_t len = 0;
   MplOption *kMplcgDefaultOptions = nullptr;
 
@@ -56,8 +56,7 @@ const std::string &MplcgCompiler::GetBinName() const {
   return kBinNameMplcg;
 }
 
-std::string MplcgCompiler::GetInputFile(const MplOptions &, const Action &action,
-                                        const MIRModule *md) const {
+std::string MplcgCompiler::GetInputFile(const MplOptions &options, const Action &action, const MIRModule *md) const {
   if (action.IsItFirstRealAction()) {
     return action.GetInputFile();
   }

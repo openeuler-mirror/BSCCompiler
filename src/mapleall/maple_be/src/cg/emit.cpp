@@ -137,9 +137,9 @@ void Emitter::EmitLabelPair(const LabelPair &pairLabel) {
   outStream << "\n";
 }
 
-void Emitter::EmitLabelForFunc(const MIRFunction *func, LabelIdx labidx) {
+void Emitter::EmitLabelForFunc(const MIRFunction *func, LabelIdx labIdx) {
   char *idx = strdup(std::to_string(func->GetPuidx()).c_str());
-  outStream << ".L." << idx << "__" << labidx;
+  outStream << ".L." << idx << "__" << labIdx;
   free(idx);
   idx = nullptr;
 }
@@ -2100,13 +2100,13 @@ void Emitter::EmitStringPointers() {
   }
 }
 
-void Emitter::EmitLocalVariable(const CGFunc &cgfunc) {
+void Emitter::EmitLocalVariable(const CGFunc &cgFunc) {
   /* function local pstatic initialization */
   if (cg->GetMIRModule()->IsCModule()) {
-    MIRSymbolTable *lSymTab = cgfunc.GetMirModule().CurFunction()->GetSymTab();
+    MIRSymbolTable *lSymTab = cgFunc.GetMirModule().CurFunction()->GetSymTab();
     if (lSymTab != nullptr) {
       /* anything larger than is created by cg */
-      size_t lsize = cgfunc.GetLSymSize();
+      size_t lsize = cgFunc.GetLSymSize();
       for (size_t i = 0; i < lsize; i++) {
         MIRSymbol *st = lSymTab->GetSymbolFromStIdx(static_cast<uint32>(i));
         if (st != nullptr && st->GetStorageClass() == kScPstatic) {
@@ -2114,7 +2114,7 @@ void Emitter::EmitLocalVariable(const CGFunc &cgfunc) {
            * Local static names can repeat.
            * Append the current program unit index to the name.
            */
-          PUIdx pIdx = cgfunc.GetMirModule().CurFunction()->GetPuidx();
+          PUIdx pIdx = cgFunc.GetMirModule().CurFunction()->GetPuidx();
           std::string localname = st->GetName() + std::to_string(pIdx);
           static std::vector<std::string> emittedLocalSym;
           bool found = false;
@@ -2752,10 +2752,10 @@ void Emitter::EmitAddressString(const std::string &address) {
   Emit("\t.word\t" + address);
 #endif
 }
-void Emitter::EmitGlobalRootList(const MIRSymbol &gcrootsSt) {
+void Emitter::EmitGlobalRootList(const MIRSymbol &mirSymbol) {
   Emit("\t.section .maple.gcrootsmap").Emit(",\"aw\",%progbits\n");
   std::vector<std::string> nameVec;
-  std::string name = gcrootsSt.GetName();
+  std::string name = mirSymbol.GetName();
   nameVec.emplace_back(name);
   nameVec.emplace_back(name + "Size");
   bool gcrootsFlag = true;
@@ -2772,7 +2772,7 @@ void Emitter::EmitGlobalRootList(const MIRSymbol &gcrootsSt) {
     }
     Emit(gcrootsName + ":\n");
     if (gcrootsFlag) {
-      MIRAggConst *aggConst = safe_cast<MIRAggConst>(gcrootsSt.GetKonst());
+      MIRAggConst *aggConst = safe_cast<MIRAggConst>(mirSymbol.GetKonst());
       if (aggConst == nullptr) {
         continue;
       }
@@ -2993,12 +2993,12 @@ void Emitter::EmitDIHeaderFileInfo() {
   Emit("// dummy header file 3\n");
 }
 
-void Emitter::AddLabelDieToLabelIdxMapping(DBGDie *lbldie, LabelIdx lblidx) {
-  InsertLabdie2labidxTable(lbldie, lblidx);
+void Emitter::AddLabelDieToLabelIdxMapping(DBGDie *lblDie, LabelIdx lblIdx) {
+  InsertLabdie2labidxTable(lblDie, lblIdx);
 }
 
-LabelIdx Emitter::GetLabelIdxForLabelDie(DBGDie *lbldie) {
-  auto it = labdie2labidxTable.find(lbldie);
+LabelIdx Emitter::GetLabelIdxForLabelDie(DBGDie *lblDie) {
+  auto it = labdie2labidxTable.find(lblDie);
   CHECK_FATAL(it != labdie2labidxTable.end(), "");
   return it->second;
 }

@@ -25,9 +25,6 @@
 #include "mir_parser.h"
 #include "driver_runner.h"
 #include "bin_mplt.h"
-#ifdef INTERGRATE_DRIVER
-#include "dex2mpl_options.h"
-#endif
 
 namespace maple {
 const std::string kBinNameNone = "";
@@ -63,10 +60,10 @@ class Compiler {
   virtual ErrorCode Compile(MplOptions &options, const Action &action,
                             std::unique_ptr<MIRModule> &theModule);
 
-  virtual void GetTmpFilesToDelete(const MplOptions&, const Action&,
-                                   std::vector<std::string>&) const {}
+  virtual void GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
+                                   std::vector<std::string> &tempFiles) const {}
 
-  virtual std::unordered_set<std::string> GetFinalOutputs(const MplOptions&, const Action&) const {
+  virtual std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions, const Action &action) const {
     return std::unordered_set<std::string>();
   }
 
@@ -85,12 +82,16 @@ class Compiler {
     return GetBinName();
   }
 
-  virtual std::string GetInputFileName(const MplOptions&, const Action &action) const {
+  virtual std::string GetInputFileName(const MplOptions &options, const Action &action) const {
     return action.GetInputFile();
   }
 
-  virtual DefaultOption GetDefaultOptions(const MplOptions&, const Action&) const {
+  virtual DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const {
     return DefaultOption();
+  }
+
+  virtual void AppendOutputOption(std::vector<MplOption> &, const std::string &) const {
+    return;
   }
 
  private:
@@ -100,8 +101,8 @@ class Compiler {
   void AppendDefaultOptions(std::vector<MplOption> &finalOptions,
                             const std::vector<MplOption> &defaultOptions,
                             bool isDebug) const;
-  void AppendExtraOptions(std::vector<MplOption> &finalOptions,
-                          const MplOptions &options, bool isDebug) const;
+  void AppendExtraOptions(std::vector<MplOption> &finalOptions, const MplOptions &options,
+                          bool isDebug, const Action &action) const;
   void AppendInputsAsOptions(std::vector<MplOption> &finalOptions,
                              const MplOptions &mplOptions, const Action &action) const;
   void ReplaceOrInsertOption(std::vector<MplOption> &finalOptions,
@@ -137,12 +138,13 @@ class ClangCompiler : public Compiler {
 
  private:
   const std::string &GetBinName() const override;
-  std::string GetBinPath(const MplOptions &options) const override;
+  std::string GetBinPath(const MplOptions &mplOptions) const override;
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
   void GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
                            std::vector<std::string> &tempFiles) const override;
   std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions,
                                                   const Action &action) const override ;
+  void AppendOutputOption(std::vector<MplOption> &finalOptions, const std::string &name) const override;
 };
 
 class Cpp2MplCompiler : public Compiler {
@@ -152,7 +154,7 @@ class Cpp2MplCompiler : public Compiler {
   ~Cpp2MplCompiler() = default;
 
  private:
-  std::string GetBinPath(const MplOptions &options) const override;
+  std::string GetBinPath(const MplOptions &mplOptions) const override;
   const std::string &GetBinName() const override;
   std::string GetInputFileName(const MplOptions &options, const Action &action) const override;
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
@@ -160,6 +162,7 @@ class Cpp2MplCompiler : public Compiler {
                            std::vector<std::string> &tempFiles) const override;
   std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions,
                                                   const Action &action) const override;
+  void AppendOutputOption(std::vector<MplOption> &finalOptions, const std::string &name) const override;
 };
 
 class Dex2MplCompiler : public Compiler {
@@ -248,7 +251,7 @@ class MapleCombCompilerWrp : public Compiler {
   std::string GetInputFileName(const MplOptions &options, const Action &action) const override;
 
  private:
-  std::string GetBinPath(const MplOptions &options) const override;
+  std::string GetBinPath(const MplOptions &mplOptions) const override;
   const std::string &GetBinName() const override;
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
   void GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
@@ -265,7 +268,7 @@ class AsCompiler : public Compiler {
   ~AsCompiler() = default;
 
  private:
-  std::string GetBinPath(const MplOptions &options) const override;
+  std::string GetBinPath(const MplOptions &mplOptions) const override;
   const std::string &GetBinName() const override;
   const std::string &GetTool() const override;
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
@@ -274,6 +277,7 @@ class AsCompiler : public Compiler {
                            std::vector<std::string> &tempFiles) const override;
   std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions,
                                                   const Action &action) const override;
+  void AppendOutputOption(std::vector<MplOption> &finalOptions, const std::string &name) const override;
 };
 
 // Build .o to .so
@@ -284,11 +288,12 @@ class LdCompiler : public Compiler {
   ~LdCompiler() = default;
 
  private:
-  std::string GetBinPath(const MplOptions &options) const override;
+  std::string GetBinPath(const MplOptions &mplOptions) const override;
   const std::string &GetBinName() const override;
   const std::string &GetTool() const override;
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
   std::string GetInputFileName(const MplOptions &options, const Action &action) const override;
+  void AppendOutputOption(std::vector<MplOption> &finalOptions, const std::string &name) const override;
 };
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_COMPILER_H

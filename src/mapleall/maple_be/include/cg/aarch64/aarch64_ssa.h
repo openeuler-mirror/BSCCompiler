@@ -44,7 +44,7 @@ class A64SSAOperandRenameVisitor : public SSAOperandVisitor {
   ~A64SSAOperandRenameVisitor() override = default;
   void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;
-  void Visit(MemOperand *v) final;
+  void Visit(MemOperand *a64MemOpnd) final;
 
  private:
   AArch64CGSSAInfo *ssaInfo;
@@ -64,10 +64,10 @@ class A64OpndSSAUpdateVsitor : public SSAOperandVisitor,
   bool HasDeleteDef() const {
     return !deletedDef.empty();
   }
-  void Visit(RegOperand *v) final;
+  void Visit(RegOperand *regOpnd) final;
   void Visit(ListOperand *v) final;
-  void Visit(MemOperand *v) final;
-  void Visit(PhiOperand *v) final;
+  void Visit(MemOperand *a64MemOpnd) final;
+  void Visit(PhiOperand *phiOpnd) final;
 
   bool IsPhi() const {
     return isPhi;
@@ -91,10 +91,10 @@ class A64SSAOperandDumpVisitor : public SSAOperandDumpVisitor {
   explicit A64SSAOperandDumpVisitor(const MapleUnorderedMap<regno_t, VRegVersion*> &allssa) :
       SSAOperandDumpVisitor(allssa) {};
   ~A64SSAOperandDumpVisitor() override = default;
-  void Visit(RegOperand *v) final;
+  void Visit(RegOperand *a64RegOpnd) final;
   void Visit(ListOperand *v) final;
-  void Visit(MemOperand *v) final;
-  void Visit(PhiOperand *v) final;
+  void Visit(MemOperand *a64MemOpnd) final;
+  void Visit(PhiOperand *phi) final;
 };
 }
 

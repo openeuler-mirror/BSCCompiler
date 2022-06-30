@@ -20,11 +20,11 @@ const std::string &IpaCompiler::GetBinName() const {
   return kBinNameMplipa;
 }
 
-DefaultOption IpaCompiler::GetDefaultOptions(const MplOptions &options, const Action &) const {
+DefaultOption IpaCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
   uint32_t len = 0;
   MplOption *kMplipaDefaultOptions = nullptr;
 
-  if (options.GetOptimizationLevel() == kO2 && options.HasSetDefaultLevel()) {
+  if (opts::o2) {
     len = sizeof(kMplipaDefaultOptionsO2) / sizeof(MplOption);
     kMplipaDefaultOptions = kMplipaDefaultOptionsO2;
   }
@@ -47,7 +47,7 @@ DefaultOption IpaCompiler::GetDefaultOptions(const MplOptions &options, const Ac
   return defaultOptions;
 }
 
-std::string IpaCompiler::GetInputFileName(const MplOptions &, const Action &action) const {
+std::string IpaCompiler::GetInputFileName(const MplOptions &options, const Action &action) const {
   return action.GetFullOutputName() + ".mpl";
 }
 }  // namespace maple

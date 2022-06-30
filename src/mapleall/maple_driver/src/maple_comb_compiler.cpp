@@ -23,7 +23,7 @@
 
 namespace maple {
 
-std::string MapleCombCompiler::GetInputFileName(const MplOptions &, const Action &action) const {
+std::string MapleCombCompiler::GetInputFileName(const MplOptions &options, const Action &action) const {
   if (action.IsItFirstRealAction()) {
     return action.GetInputFile();
   }
@@ -36,7 +36,7 @@ std::string MapleCombCompiler::GetInputFileName(const MplOptions &, const Action
   return action.GetFullOutputName() + ".mpl";
 }
 
-void MapleCombCompiler::GetTmpFilesToDelete(const MplOptions&, const Action &action,
+void MapleCombCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
                                             std::vector<std::string> &tempFiles) const {
   std::string filePath;
   filePath = action.GetFullOutputName() + ".data.muid";
@@ -55,7 +55,7 @@ void MapleCombCompiler::GetTmpFilesToDelete(const MplOptions&, const Action &act
   }
 }
 
-std::unordered_set<std::string> MapleCombCompiler::GetFinalOutputs(const MplOptions&,
+std::unordered_set<std::string> MapleCombCompiler::GetFinalOutputs(const MplOptions &mplOptions,
                                                                    const Action &action) const {
   std::unordered_set<std::string> finalOutputs;
   (void)finalOutputs.insert(action.GetFullOutputName() + ".VtableImpl.mpl");

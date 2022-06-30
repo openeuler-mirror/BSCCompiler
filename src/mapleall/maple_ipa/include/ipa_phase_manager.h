@@ -37,7 +37,7 @@ class IpaSccPM : public SccPM {
   std::string PhaseName() const override;
  private:
   void GetAnalysisDependence(AnalysisDep &aDep) const override;
-  virtual void DoPhasesPopulate(const MIRModule &m);
+  virtual void DoPhasesPopulate(const MIRModule &mirModule);
 };
 
 class SCCPrepare : public MapleSccPhase<SCCNode<CGNode>>, public MaplePhaseManager {

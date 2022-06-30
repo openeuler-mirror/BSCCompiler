@@ -60,7 +60,7 @@ class RegAllocator {
   virtual bool AllocateRegisters() = 0;
 
   bool IsYieldPointReg(regno_t regNO) const;
-  bool IsUntouchableReg(uint32 regNO) const;
+  bool IsUntouchableReg(regno_t regNO) const;
 
   virtual std::string PhaseName() const {
     return "regalloc";

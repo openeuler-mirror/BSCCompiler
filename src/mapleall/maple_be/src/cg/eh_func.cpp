@@ -65,7 +65,7 @@ void EHFunc::CollectEHInformation(std::vector<std::pair<LabelIdx, CatchNode*>> &
           MIRType *ehType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(catchNode->GetExceptionTyIdxVecElement(i));
           ASSERT(ehType->GetKind() == kTypePointer, "ehType must be kTypePointer.");
           MIRPtrType *ehPointedTy = static_cast<MIRPtrType*>(ehType);
-          if (ehPointedTy->GetPointedTyIdx() == (TyIdx)PTY_void) {
+          if (ehPointedTy->GetPointedTyIdx() == static_cast<TyIdx>(PTY_void)) {
             ASSERT(mirModule->GetThrowableTyIdx() != 0, "throwable type id is 0");
             const MIRType *throwType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(mirModule->GetThrowableTyIdx());
             MIRType *pointerType = cgFunc->GetBecommon().BeGetOrCreatePointerType(*throwType);
@@ -96,7 +96,7 @@ void EHFunc::CollectEHInformation(std::vector<std::pair<LabelIdx, CatchNode*>> &
   }
 }
 
-void EHTry::DumpEHTry(const MIRModule&) {
+void EHTry::DumpEHTry(const MIRModule &mirModule) {
   if (tryNode != nullptr) {
     tryNode->Dump();
   }
@@ -116,7 +116,7 @@ void EHTry::DumpEHTry(const MIRModule&) {
 void EHThrow::ConvertThrowToRuntime(CGFunc &cgFunc, BaseNode &arg) {
   MIRFunction &mirFunc = cgFunc.GetFunction();
   MIRModule *mirModule = mirFunc.GetModule();
-  MIRFunction *calleeFunc = mirModule->GetMIRBuilder()->GetOrCreateFunction("MCC_ThrowException", (TyIdx)(PTY_void));
+  MIRFunction *calleeFunc = mirModule->GetMIRBuilder()->GetOrCreateFunction("MCC_ThrowException", static_cast<TyIdx>(PTY_void));
   cgFunc.GetBecommon().UpdateTypeTable(*calleeFunc->GetMIRFuncType());
   calleeFunc->SetNoReturn();
   MapleVector<BaseNode*> args(mirModule->GetMIRBuilder()->GetCurrentFuncCodeMpAllocator()->Adapter());
@@ -129,7 +129,7 @@ void EHThrow::ConvertThrowToRethrow(CGFunc &cgFunc) {
   MIRFunction &mirFunc = cgFunc.GetFunction();
   MIRModule *mirModule = mirFunc.GetModule();
   MIRBuilder *mirBuilder = mirModule->GetMIRBuilder();
-  MIRFunction *unFunc = mirBuilder->GetOrCreateFunction("MCC_RethrowException", (TyIdx)PTY_void);
+  MIRFunction *unFunc = mirBuilder->GetOrCreateFunction("MCC_RethrowException", static_cast<TyIdx>(PTY_void));
   cgFunc.GetBecommon().UpdateTypeTable(*unFunc->GetMIRFuncType());
   unFunc->SetNoReturn();
   MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
@@ -510,7 +510,7 @@ void EHFunc::InsertDefaultLabelAndAbortFunc(BlockNode &blkNode, SwitchNode &swit
   cgFunc->GetFunction().GetLabelTab()->AddToStringLabelMap(dfLabIdx);
   StmtNode *dfLabStmt = mirModule.GetMIRBuilder()->CreateStmtLabel(dfLabIdx);
   blkNode.InsertAfter(&beforeEndLabel, dfLabStmt);
-  MIRFunction *calleeFunc = mirModule.GetMIRBuilder()->GetOrCreateFunction("abort", (TyIdx)(PTY_void));
+  MIRFunction *calleeFunc = mirModule.GetMIRBuilder()->GetOrCreateFunction("abort", static_cast<TyIdx>(PTY_void));
   cgFunc->GetBecommon().UpdateTypeTable(*calleeFunc->GetMIRFuncType());
   MapleVector<BaseNode*> args(mirModule.GetMIRBuilder()->GetCurrentFuncCodeMpAllocator()->Adapter());
   CallNode *callExit = mirModule.GetMIRBuilder()->CreateStmtCall(calleeFunc->GetPuidx(), args);

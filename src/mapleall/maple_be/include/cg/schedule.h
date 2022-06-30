@@ -31,7 +31,7 @@ class RegPressureSchedule {
         originalNodeSeries(alloc.Adapter()), readyList(alloc.Adapter()),
         partialList(alloc.Adapter()), partialSet(alloc.Adapter()),
         partialScheduledNode(alloc.Adapter()), optimisticScheduledNodes(alloc.Adapter()),
-        liveInRegNO(alloc.Adapter()), liveOutRegNO(alloc.Adapter()) {}
+        splitterIndexes(alloc.Adapter()),liveInRegNO(alloc.Adapter()), liveOutRegNO(alloc.Adapter()) {}
   virtual ~RegPressureSchedule() = default;
 
   void InitBBInfo(BB &b, MemPool &memPool, const MapleVector<DepNode*> &nodes);
@@ -41,7 +41,7 @@ class RegPressureSchedule {
   void UpdateBBPressure(const DepNode &node);
   void CalculatePressure(DepNode &node, regno_t reg, bool def);
   void SortReadyList();
-  static bool IsLastUse(const DepNode &node, regno_t reg) ;
+  static bool IsLastUse(const DepNode &node, regno_t regNO) ;
   void ReCalculateDepNodePressure(DepNode &node);
   void UpdateLiveReg(const DepNode &node, regno_t reg, bool def);
   bool CanSchedule(const DepNode &node) const;
@@ -88,7 +88,7 @@ class RegPressureSchedule {
   /* optimistic schedule series with minimum register pressure */
   MapleVector<DepNode*> optimisticScheduledNodes;
   /* save split points */
-  std::vector<int> splitterIndexes;
+  MapleVector<int> splitterIndexes;
   /* save integer register pressure */
   std::vector<int> integerRegisterPressureList;
   /* save the amount of every type register. */
@@ -130,8 +130,8 @@ class Schedule {
   virtual ~Schedule() = default;
   virtual void MemoryAccessPairOpt() = 0;
   virtual void ClinitPairOpt() = 0;
-  virtual void FindAndCombineMemoryAccessPair(const std::vector<DepNode*> &readyList) = 0;
-  virtual void RegPressureScheduling(BB &bb, MapleVector<DepNode*> &depNodes) = 0;
+  virtual void FindAndCombineMemoryAccessPair(const std::vector<DepNode*> &memList) = 0;
+  virtual void RegPressureScheduling(BB &bb, MapleVector<DepNode*> &nodes) = 0;
   virtual uint32 DoSchedule() = 0;
   virtual uint32 DoBruteForceSchedule() = 0;
   virtual uint32 SimulateOnly() = 0;
@@ -150,7 +150,7 @@ class Schedule {
   virtual void UpdateELStartsOnCycle(uint32 cycle) = 0;
   virtual void RandomTest() = 0;
   virtual void EraseNodeFromReadyList(const DepNode &target) = 0;
-  virtual void EraseNodeFromNodeList(const DepNode &target, MapleVector<DepNode*> &readyList) = 0;
+  virtual void EraseNodeFromNodeList(const DepNode &target, MapleVector<DepNode*> &nodeList) = 0;
   virtual uint32 GetNextSepIndex() const = 0;
   virtual void CountUnitKind(const DepNode &depNode, uint32 array[], const uint32 arraySize) const = 0;
   virtual bool CanCombine(const Insn &insn) const = 0;

@@ -48,7 +48,7 @@ class OptimizationPattern {
            cgFunc->GetTheCFG()->InSwitchTable(label, *cgFunc);
   }
 
-  void Search2Op(bool checkOnly);
+  void Search2Op(bool noOptimize);
   virtual bool Optimize(BB &curBB) = 0;
 
  protected:
@@ -119,7 +119,7 @@ class DotGenerator {
  private:
   static std::map<uint32, std::string> coloringMap;
   static std::string GetFileName(const MIRModule &mirModule, const std::string &filePreFix);
-  static bool IsBackEdge(const CGFunc &cgFunc, const BB &from, const BB &to);
+  static bool IsBackEdge(const CGFunc &cgFunction, const BB &from, const BB &to);
   static void DumpEdge(const CGFunc &cgFunction, std::ofstream &cfgFileOfStream, bool isIncludeEH);
   static void DumpBBInstructions(const CGFunc &cgFunction, regno_t vReg, std::ofstream &cfgFile);
   static bool FoundListOpndRegNum(ListOperand &listOpnd, const Insn &insnObj, regno_t vReg);

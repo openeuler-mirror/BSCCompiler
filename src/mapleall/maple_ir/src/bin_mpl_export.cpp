@@ -1053,8 +1053,8 @@ void BinaryMplExport::WriteEaField(const CallGraph &cg) {
   WriteNum(~kBinEaStart);
 }
 
-void BinaryMplExport::WriteEaCgField(EAConnectionGraph *eacg) {
-  if (eacg == nullptr) {
+void BinaryMplExport::WriteEaCgField(EAConnectionGraph *eaCg) {
+  if (eaCg == nullptr) {
     WriteNum(~kBinEaCgStart);
     return;
   }
@@ -1062,13 +1062,13 @@ void BinaryMplExport::WriteEaCgField(EAConnectionGraph *eacg) {
   size_t totalSizeIdx = buf.size();
   WriteInt(0);
   // out this function's arg list
-  OutputStr(eacg->GetFuncNameStrIdx());
-  WriteInt(eacg->GetNodes().size());
-  OutEaCgNode(*eacg->GetGlobalObject());
+  OutputStr(eaCg->GetFuncNameStrIdx());
+  WriteInt(eaCg->GetNodes().size());
+  OutEaCgNode(*eaCg->GetGlobalObject());
   size_t outNodeSizeIdx = buf.size();
   WriteInt(0);
   size_t argNodeSize = 0;
-  for (EACGBaseNode *node : eacg->GetFuncArgNodes()) {
+  for (EACGBaseNode *node : eaCg->GetFuncArgNodes()) {
     OutEaCgNode(*node);
     ++argNodeSize;
   }
@@ -1077,7 +1077,7 @@ void BinaryMplExport::WriteEaCgField(EAConnectionGraph *eacg) {
   outNodeSizeIdx = buf.size();
   WriteInt(0);
   size_t callSiteSize = 0;
-  for (auto nodePair : eacg->GetCallSite2Nodes()) {
+  for (auto nodePair : eaCg->GetCallSite2Nodes()) {
     uint32 id = nodePair.first;
     MapleVector<EACGBaseNode*> *calleeArgNode = nodePair.second;
     WriteInt(id);
