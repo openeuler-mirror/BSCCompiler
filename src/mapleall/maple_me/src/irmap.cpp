@@ -2451,7 +2451,6 @@ MeExpr *IRMap::SimplifyMeExpr(MeExpr *x) {
       if (opexp->GetOp() == OP_intrinsicop && opexp->GetIntrinsic() == INTRN_C___builtin_expect) {
         return opexp->GetOpnd(0);
       }
-      // TODO do the simplification of this op
       return opexp;
     }
     default:

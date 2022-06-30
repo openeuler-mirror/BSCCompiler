@@ -2978,7 +2978,6 @@ bool SLPVectorizer::DoVectTreeNodeNaryReverse(TreeNode *treeNode, MIRIntrinsicID
   CHECK_NULL_FATAL(vecType);
   uint32 newNumLane = vecOpndBitSize / elementBitSize;
   auto isSign = !PrimitiveType(treeNode->GetType()).IsUnsigned();
-  // TODO get new vector type
   auto newElementType = GetIntegerPrimTypeBySizeAndSign(elementBitSize, isSign);
   auto revVecType = GenMergedType(newElementType, newNumLane);
   MIRIntrinsicID vecIntrnId;

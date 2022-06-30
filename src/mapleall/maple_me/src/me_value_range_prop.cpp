@@ -300,7 +300,7 @@ std::unique_ptr<ValueRange> MergeVR(const ValueRange &vr1, const ValueRange &vr2
             return nullptr;
           }
           if (upper2 < lower1 || upper1 < lower2) {
-            return intersect ? std::make_unique<ValueRange>(kRTEmpty) /* always false */ : nullptr;
+            return intersect ? std::make_unique<ValueRange>(kRTEmpty) : nullptr; // always false
           } else if (upper2 == lower1) {
             return intersect ? std::make_unique<ValueRange>(lower1, kEqual)
                              : std::make_unique<ValueRange>(lower2, upper1, kLowerAndUpper);

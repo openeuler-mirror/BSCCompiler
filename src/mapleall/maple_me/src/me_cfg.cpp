@@ -1996,7 +1996,6 @@ bool MECfgVerifyFrequency::PhaseRun(MeFunction &f) {
   }
   // hack code here: no use profile data after verifycation pass since
   // following tranform phases related of cfg change are not touched
-  // TODO::following code will be deleted
   f.GetMirFunc()->SetFuncProfData(nullptr);
   auto &bbVec = f.GetCfg()->GetAllBBs();
   for (size_t i = 0; i < bbVec.size(); ++i) {  // skip common entry and common exit

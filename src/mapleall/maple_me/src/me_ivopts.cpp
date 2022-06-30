@@ -1245,7 +1245,7 @@ void IVOptimizer::CreateIVCandidateFromUse(IVUse &use) {
   MeExpr *simplified = nullptr;
   // try to find simpler candidate
   if (use.iv->base->GetOp() == OP_add) {
-    for (uint32 i = 0; i < 2 /* add/sub has 2 opnds */; i++) {
+    for (uint32 i = 0; i < 2 ; ++i) { // add/sub has 2 opnds
       if (use.iv->base->GetOpnd(i) == use.iv->step) {
         tmp = irMap->CreateRegMeExpr(GetUnsignedPrimType(use.iv->expr->GetPrimType()));
         inc = irMap->CreateRegMeExprVersion(*tmp);

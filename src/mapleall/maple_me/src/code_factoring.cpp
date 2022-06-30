@@ -18,10 +18,9 @@
 
 // This phase aims to move identical stmts into common block to reduce code size
 // Two methods are used in this phase:
-// 1. local factoring: hoist(TODO)/sink identical stmts to it's common predecessor/successor
+// 1. local factoring: hoist/sink identical stmts to it's common predecessor/successor
 // 2. sequence extract: extract a series of stmts into one common block and merge
-//                      all predecessors and successors to this block (TODO)
-
+//                      all predecessors and successors to this block
 namespace maple {
 struct cmpByBBID {
   bool operator()(BB* bb1, BB* bb2) const {

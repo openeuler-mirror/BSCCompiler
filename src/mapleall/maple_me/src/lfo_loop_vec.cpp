@@ -1095,8 +1095,7 @@ void LoopVectorization::GenWidenBinaryExpr(Opcode binOp,
       IntrinsicopNode *getLowop1Intrn = GenVectorGetLow(opnd1, opnd1PrimType);
       IntrinsicopNode *widenOpLow = GenVectorWidenIntrn(getLowop0Intrn, getLowop1Intrn, getLowop0Intrn->GetPrimType(),
           false, binOp);
-      IntrinsicopNode *widenOpHigh = GenVectorWidenIntrn(opnd0, opnd1, getLowop0Intrn->GetPrimType(),
-          true /*high part*/, binOp);
+      IntrinsicopNode *widenOpHigh = GenVectorWidenIntrn(opnd0, opnd1, getLowop0Intrn->GetPrimType(), true, binOp);
       vectorizedNode.push_back(widenOpLow);
       vectorizedNode.push_back(widenOpHigh);
     } else {
@@ -1104,7 +1103,6 @@ void LoopVectorization::GenWidenBinaryExpr(Opcode binOp,
       vectorizedNode.push_back(widenOp);
     }
   }
-  return;
 }
 
 // insert retype/cvt if sign/unsign
@@ -1121,7 +1119,6 @@ BaseNode *LoopVectorization::ConvertNodeType(bool cvtSigned, BaseNode* n) {
   }
   BaseNode *newnode = nullptr;
   if (GetPrimTypeSize(n->GetPrimType()) == GetPrimTypeSize(opcodetype->GetPrimType())) {
-    //newnode = codeMP->New<RetypeNode>(opcodetype->GetPrimType(), n->GetPrimType(), opcodetype->GetTypeIndex(), n);
     newnode = codeMP->New<RetypeNode>(opcodetype->GetPrimType(), n->GetPrimType(), nodetype->GetTypeIndex(), n);
   } else {
     newnode = codeMP->New<TypeCvtNode>(OP_cvt, opcodetype->GetPrimType(), n->GetPrimType(), n);
@@ -2093,7 +2090,7 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
           MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
           PrimType stmtpt = ptrType->GetPointedType()->GetPrimType();
           if (!IsPrimitiveInteger(stmtpt)) {
-             //iassign ptr type should be integer now
+             // iassign ptr type should be integer now
             return false;
           }
           // now check lsh type size should be same as rhs typesize
