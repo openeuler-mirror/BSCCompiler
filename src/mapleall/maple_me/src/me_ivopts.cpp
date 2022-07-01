@@ -402,6 +402,9 @@ bool IVOptData::IsLoopInvariant(const MeExpr &expr) {
       return true;
     case kMeOpReg:
     case kMeOpVar: {
+      if (expr.IsVolatile()) {
+        return false;
+      }
       auto *bb = static_cast<const ScalarMeExpr&>(expr).DefByBB();
       auto *phi = static_cast<const ScalarMeExpr&>(expr).GetMePhiDef();
       if (phi != nullptr && phi->GetDefBB() == currLoop->head) {
