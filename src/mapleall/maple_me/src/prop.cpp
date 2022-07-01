@@ -37,7 +37,7 @@ Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, uint32 bbvecsize, con
       mirModule(irMap.GetSSATab().GetModule()),
       propMapAlloc(&memPool),
       vstLiveStackVec(propMapAlloc.Adapter()),
-      bbVisited(bbvecsize, false, propMapAlloc.Adapter()),
+      bbVisited(bbvecsize, false),
       config(config),
       candsForSSAUpdate(),
       propLimit(limit) {
@@ -55,6 +55,13 @@ Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, uint32 bbvecsize, con
   }
 }
 
+void Prop::ReplaceVstLiveStackTop(size_t ostIdx, MeExpr &newTopExpr) {
+  auto &vstStack = vstLiveStackVec[ostIdx];
+  ASSERT(!vstStack->empty(), "Cannot replace top element of an empty stack!");
+  vstStack->pop();
+  vstStack->push(&newTopExpr);
+}
+
 void Prop::PropUpdateDef(MeExpr &meExpr) {
   ASSERT(meExpr.GetMeOp() == kMeOpVar || meExpr.GetMeOp() == kMeOpReg, "meExpr error");
   OStIdx ostIdx;
@@ -67,7 +74,23 @@ void Prop::PropUpdateDef(MeExpr &meExpr) {
     }
     ostIdx = regExpr.GetOstIdx();
   }
-  vstLiveStackVec[ostIdx]->push(&meExpr);
+  // If a new version meExpr is pushed to the top before, replace it with the newest one;
+  // otherwise, push the newest version meExpr to the top.
+  if (ostIdx.GetIdx() < isNewVstPushed->size()) {
+    if (IsNewVstPushed(ostIdx.GetIdx())) {
+      ReplaceVstLiveStackTop(ostIdx.GetIdx(), meExpr);
+    } else {
+      vstLiveStackVec[ostIdx]->push(&meExpr);
+      SetNewVstPushed(ostIdx.GetIdx());
+    }
+  } else {
+    // for temp expr
+    if (vstLiveStackVec[ostIdx]->empty()) {
+      vstLiveStackVec[ostIdx]->push(&meExpr);
+    } else {
+      ReplaceVstLiveStackTop(ostIdx.GetIdx(), meExpr);
+    }
+  }
 }
 
 void Prop::PropUpdateChiListDef(const MapleMap<OStIdx, ChiMeNode*> &chiList) {
@@ -112,18 +135,13 @@ void Prop::CollectSubVarMeExpr(const MeExpr &meExpr, std::vector<const MeExpr*> 
 // the version of progation of x1 is a1, but the top of the stack of symbol a is a2, so it's not consistent
 // warning: I suppose the vector vervec is on the stack, otherwise would cause memory leak
 bool Prop::IsVersionConsistent(const std::vector<const MeExpr*> &vstVec,
-                               const MapleVector<MapleStack<MeExpr*>*> &vstLiveStack) const {
+                               const MapleVector<MapleStack<MeExpr *>*> &vstLiveStack) const {
   for (auto it = vstVec.begin(); it != vstVec.end(); ++it) {
     // iterate each cur defintion of related symbols of rhs, check the version
     const MeExpr *subExpr = *it;
     CHECK_FATAL(subExpr->GetMeOp() == kMeOpVar || subExpr->GetMeOp() == kMeOpReg, "error: sub expr error");
-    uint32 stackIdx = 0;
-    if (subExpr->GetMeOp() == kMeOpVar) {
-      stackIdx = static_cast<const VarMeExpr*>(subExpr)->GetOstIdx();
-    } else {
-      stackIdx = static_cast<const RegMeExpr*>(subExpr)->GetOstIdx();
-    }
-    auto &pStack = vstLiveStack.at(stackIdx);
+    uint32 stackIdx = static_cast<const ScalarMeExpr *>(subExpr)->GetOstIdx();
+    auto *pStack = vstLiveStack.at(stackIdx);
     if (pStack->empty()) {
       // no definition so far go ahead
       continue;
@@ -270,7 +288,7 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
       if (IsVersionConsistent(regReadVec, vstLiveStackVec)) {
         return kPropYes;
       } else if (checkInverse && regRead->GetOst() != propagatingScalar->GetOst()) {
-        MapleStack<MeExpr *> *pstack = vstLiveStackVec[regRead->GetOst()->GetIndex()];
+        auto &pstack = vstLiveStackVec[regRead->GetOst()->GetIndex()];
         return IsFunctionOfCurVersion(regRead, static_cast<ScalarMeExpr *>(pstack->top())) ?
             kPropOnlyWithInverse : kPropNo;
       } else {
@@ -302,7 +320,7 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
         return kPropYes;
       } else if (checkInverse && varMeExpr->GetOst() != propagatingScalar->GetOst() &&
                  varMeExpr->GetType()->GetKind() != kTypeBitField) {
-        MapleStack<MeExpr *> *pstack = vstLiveStackVec[varMeExpr->GetOst()->GetIndex()];
+        auto &pstack = vstLiveStackVec[varMeExpr->GetOst()->GetIndex()];
         return IsFunctionOfCurVersion(varMeExpr, static_cast<ScalarMeExpr *>(pstack->top())) ?
             kPropOnlyWithInverse : kPropNo;
       } else {
@@ -455,7 +473,7 @@ MeExpr *Prop::RehashUsingInverse(MeExpr *x) {
     case kMeOpVar:
     case kMeOpReg: {
       ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
-      MapleStack<MeExpr *> *pstack = vstLiveStackVec[scalar->GetOst()->GetIndex()];
+      auto &pstack = vstLiveStackVec[scalar->GetOst()->GetIndex()];
       if (pstack == nullptr || pstack->empty() || pstack->top() == scalar) {
         return nullptr;
       }
@@ -777,8 +795,8 @@ MeExpr &Prop::PropIvar(IvarMeExpr &ivarMeExpr) {
     // create new verstStack for new RegMeExpr
     ASSERT(vstLiveStackVec.size() == tmpReg->GetOstIdx(), "there is prev created ost not tracked");
     auto *verstStack = propMapAlloc.GetMemPool()->New<MapleStack<MeExpr *>>(propMapAlloc.Adapter());
-    verstStack->push(tmpReg);
     vstLiveStackVec.push_back(verstStack);
+    PropUpdateDef(*tmpReg);
 
     auto newRHS = CheckTruncation(&ivarMeExpr, &rhs);
     auto *regassign = irMap.CreateAssignMeStmt(*tmpReg, *newRHS, *defStmt->GetBB());
@@ -1213,14 +1231,12 @@ void Prop::TraversalBB(BB &bb) {
     return;
   }
   bbVisited[bb.GetBBId()] = true;
-  curBB = &bb;
 
-  // record stack size for variable versions before processing rename. It is used for stack pop up.
-  MapleVector<size_t> curStackSizeVec(propMapAlloc.Adapter());
-  curStackSizeVec.resize(vstLiveStackVec.size());
-  for (size_t i = 1; i < vstLiveStackVec.size(); ++i) {
-    curStackSizeVec[i] = vstLiveStackVec[i]->size();
-  }
+  // record if a new meExpr version is pushed to renameStack.
+  // It is used for new version pushed checking and recovering.
+  // when exit this func, dtor of this class will recover vstLiveStack as before.
+  BBPropEnvHelper bbEnvHelper(this, bb);
+  (void) bbEnvHelper; // for warning suppression
 
   // update var phi nodes
   for (auto it = bb.GetMePhiList().begin(); it != bb.GetMePhiList().end(); ++it) {
@@ -1236,17 +1252,6 @@ void Prop::TraversalBB(BB &bb) {
   for (auto it = domChildren.begin(); it != domChildren.end(); ++it) {
     BBId childbbid = *it;
     TraversalBB(*GetBB(childbbid));
-  }
-
-  for (size_t i = 1; i < vstLiveStackVec.size(); ++i) {
-    MapleStack<MeExpr*> *liveStack = vstLiveStackVec[i];
-    if (i < curStackSizeVec.size()) {
-      while (liveStack->size() > curStackSizeVec[i]) {
-        liveStack->pop();
-      }
-    } else { // clear temp expr
-      liveStack->clear();
-    }
   }
 }
 }  // namespace maple

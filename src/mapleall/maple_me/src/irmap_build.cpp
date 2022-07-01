@@ -955,15 +955,12 @@ void IRMapBuild::BuildBB(BB &bb, std::vector<bool> &bbIRMapProcessed) {
   irMap->SetCurFunction(bb);
   // iterate phi list to update the definition by phi
   BuildPhiMeNode(bb);
-  std::vector<uint32> curStackSizeVec;
+  // record if a new meExpr version is pushed to renameStack.
+  // It is used for new version pushed checking and recovering.
+  // when exit this func, dtor of this class will recover vstLiveStack as before.
+  BBPropEnvHelper bbPropEnvHelper(propagater, bb);
+  (void) bbPropEnvHelper; // for warning suppression
   if (propagater) { // proper is not null that means we will do propragation during build meir.
-    propagater->SetCurBB(&bb);
-    uint32 vstVecsize = propagater->GetVstLiveStackVecSize();
-    curStackSizeVec.resize(vstVecsize);
-    for (uint32 i = 1; i < vstVecsize; ++i) {
-      curStackSizeVec[i] = 0;
-      curStackSizeVec[i] = static_cast<uint32>(propagater->GetVstLiveStackVec(i)->size());
-    }
     // traversal phi nodes
     MapleMap<OStIdx, MePhiNode *> &mePhiList = bb.GetMePhiList();
     for (auto it = mePhiList.begin(); it != mePhiList.end(); ++it) {
@@ -984,15 +981,6 @@ void IRMapBuild::BuildBB(BB &bb, std::vector<bool> &bbIRMapProcessed) {
   for (auto bbIt = domChildren.begin(); bbIt != domChildren.end(); ++bbIt) {
     BBId childBBId = *bbIt;
     BuildBB(*irMap->GetBB(childBBId), bbIRMapProcessed);
-  }
-  if (propagater) {
-    for (uint32 i = 1; i < curStackSizeVec.size(); i++) {
-      MapleStack<MeExpr *> *liveStack = propagater->GetVstLiveStackVec(i);
-      uint32 curSize = curStackSizeVec[i];
-      while (liveStack->size() > curSize) {
-        liveStack->pop();
-      }
-    }
   }
 }
 }  // namespace maple

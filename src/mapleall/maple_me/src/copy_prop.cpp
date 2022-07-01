@@ -338,7 +338,7 @@ bool MECopyProp::PhaseRun(maple::MeFunction &f) {
   auto *dom = GET_ANALYSIS(MEDominance, f);
   auto *hMap = GET_ANALYSIS(MEIRMapBuild, f);
 
-  CopyProp copyProp(&f, *hMap, *dom, *GetPhaseMemPool(), f.GetCfg()->NumBBs(),
+  CopyProp copyProp(&f, *hMap, *dom, *ApplyTempMemPool(), f.GetCfg()->NumBBs(),
       Prop::PropConfig { MeOption::propBase, true, MeOption::propGlobalRef, MeOption::propFinaliLoadRef,
       MeOption::propIloadRefNonParm, MeOption::propAtPhi, MeOption::propWithInverse || f.IsLfo() });
   copyProp.TraversalBB(*f.GetCfg()->GetCommonEntryBB());

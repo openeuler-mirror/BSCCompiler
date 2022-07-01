@@ -93,11 +93,25 @@ void SSA::InitRenameStack(const OriginalStTable &oTable, const VersionStTable &v
   }
 }
 
+void SSA::ReplaceRenameStackTop(VersionSt &newTop) {
+  auto *vstStack = GetVstStacks()[newTop.GetOrigIdx()];
+  ASSERT(!vstStack->empty(), "Cannot replace top element of an empty stack!");
+  vstStack->pop();
+  vstStack->push(&newTop);
+}
+
 void SSA::PushToRenameStack(VersionSt *vSym) {
   if (vSym == nullptr || vSym->IsInitVersion()) {
     return;
   }
-  GetVstStacks()[vSym->GetOrigIdx()]->push(vSym);
+  // If a new version is pushed to the top before, replace it with the newest one;
+  // otherwise, push the newest version to the top.
+  if (IsNewVstPushed(vSym->GetOrigIdx())) {
+    ReplaceRenameStackTop(*vSym);
+  } else {
+    GetVstStacks()[vSym->GetOrigIdx()]->push(vSym);
+    SetNewVstPushed(vSym->GetOrigIdx());
+  }
 }
 
 VersionSt *SSA::CreateNewVersion(VersionSt &vSym, BB &defBB) {
@@ -112,7 +126,7 @@ VersionSt *SSA::CreateNewVersion(VersionSt &vSym, BB &defBB) {
   } else {
     newVersionSym = &vSym;
   }
-  GetVstStacks()[vSym.GetOrigIdx()]->push(newVersionSym);
+  PushToRenameStack(newVersionSym);
   newVersionSym->SetDefBB(&defBB);
   return newVersionSym;
 }
@@ -155,13 +169,13 @@ void SSA::RenameDefs(StmtNode &stmt, BB &defBB) {
         PushToRenameStack(vSym);
         continue;
       }
-      mayDef.SetOpnd(GetVstStacks()[vSym->GetOrigIdx()]->top());
+      mayDef.SetOpnd(GetVstStackTop(vSym->GetOrigIdx()));
       VersionSt *newVersionSym = CreateNewVersion(*vSym, defBB);
       mayDef.SetResult(newVersionSym);
       newVersionSym->SetDefType(VersionSt::kMayDef);
       newVersionSym->SetMayDef(&mayDef);
       if (opcode == OP_iassign && mayDef.base != nullptr) {
-        mayDef.base = GetVstStacks()[mayDef.base->GetOrigIdx()]->top();
+        mayDef.base = GetVstStackTop(mayDef.base->GetOrigIdx());
       }
     }
   }
@@ -192,7 +206,7 @@ void SSA::RenameMayUses(const BaseNode &node) {
     MayUseNode &mayUse = it->second;
     VersionSt *vSym = mayUse.GetOpnd();
     CHECK_FATAL(vSym->GetOrigIdx() < GetVstStacks().size(), "index out of range in SSA::RenameMayUses");
-    mayUse.SetOpnd(GetVstStacks().at(vSym->GetOrigIdx())->top());
+    mayUse.SetOpnd(GetVstStackTop(vSym->GetOrigIdx()));
   }
 }
 
@@ -202,7 +216,7 @@ void SSA::RenameExpr(BaseNode &expr) {
     VersionSt *vSym = ssaNode.GetSSAVar();
     if (ShouldRenameVst(vSym)) {
       CHECK_FATAL(vSym->GetOrigIdx() < GetVstStacks().size(), "index out of range in SSA::RenameExpr");
-      ssaNode.SetSSAVar(*GetVstStacks()[vSym->GetOrigIdx()]->top());
+      ssaNode.SetSSAVar(*GetVstStackTop(vSym->GetOrigIdx()));
     }
   }
   for (size_t i = 0; i < expr.NumOpnds(); ++i) {
@@ -238,7 +252,7 @@ void SSA::RenamePhiUseInSucc(const BB &bb) {
       if (!ShouldRenameVst(vSym)) {
         continue;
       }
-      phiNode.SetPhiOpnd(index, *GetVstStacks().at(phiNode.GetPhiOpnd(index)->GetOrigIdx())->top());
+      phiNode.SetPhiOpnd(index, *GetVstStackTop(phiNode.GetPhiOpnd(index)->GetOrigIdx()));
     }
   }
 }
@@ -257,14 +271,11 @@ void SSA::RenameAllBBs(MeCFG *cfg) {
 }
 
 void SSA::RenameBB(BB &bb) {
-  // record stack size for variable versions before processing rename. It is used for stack pop up.
-  std::vector<uint32> oriStackSize(GetVstStacks().size());
-  for (size_t i = 1; i < GetVstStacks().size(); ++i) {
-    if (GetVstStacks()[i] == nullptr) {
-      continue;
-    }
-    oriStackSize[i] = static_cast<uint32>(GetVstStack(i)->size());
-  }
+  // record if a new version is pushed to renameStack. It is used for new version pushed checking and recovering.
+  auto tmpNewVstPushed = std::make_unique<std::vector<bool>>(GetVstStacks().size(), false);
+  std::vector<bool> *backupPtr = isNewVstPushed; // for recovering before leave this BB
+  isNewVstPushed = tmpNewVstPushed.get();
+
   RenamePhi(bb);
   for (auto &stmt : bb.GetStmtNodes()) {
     RenameUses(stmt);
@@ -279,13 +290,14 @@ void SSA::RenameBB(BB &bb) {
     RenameBB(*bbVec[child]);
   }
   for (size_t i = 1; i < GetVstStacks().size(); ++i) {
-    if (GetVstStacks()[i] == nullptr) {
+    if (GetVstStacks()[i] == nullptr || !IsNewVstPushed(i)) {
       continue;
     }
-    while (GetVstStack(i)->size() > oriStackSize[i]) {
-      PopVersionSt(i);
-    }
+    // only need to pop top, because we only keep the newest version on the top
+    vstStacks->at(i)->pop();
   }
+
+  isNewVstPushed = backupPtr;
 }
 
 // Check if ost should be processed according to target ssa level set before

@@ -51,16 +51,31 @@ class Prop {
   MeExpr &PropVar(VarMeExpr &varmeExpr, bool atParm, bool checkPhi);
   MeExpr &PropReg(RegMeExpr &regmeExpr, bool atParm, bool checkPhi);
   MeExpr &PropIvar(IvarMeExpr &ivarMeExpr);
+  void ReplaceVstLiveStackTop(size_t ostIdx, MeExpr &newTopExpr);
   void PropUpdateDef(MeExpr &meExpr);
   void PropUpdateChiListDef(const MapleMap<OStIdx, ChiMeNode*> &chiList);
   void PropUpdateMustDefList(MeStmt *mestmt);
   void TraversalBB(BB &bb);
-  uint32 GetVstLiveStackVecSize() const {
-    return static_cast<uint32>(vstLiveStackVec.size());
+  size_t GetVstLiveStackVecSize() const {
+    return vstLiveStackVec.size();
   }
-  MapleStack<MeExpr *> *GetVstLiveStackVec(uint32 i) {
+
+  MapleStack<MeExpr *> *GetVstLiveStackVec(size_t i) {
     return vstLiveStackVec[i];
   }
+
+  std::vector<bool> *GetIsNewVstPushed() {
+    return isNewVstPushed;
+  }
+
+  void SetIsNewVstPushed(std::vector<bool> *vecPtr) {
+    isNewVstPushed = vecPtr;
+  }
+
+  bool IsNewVstPushed(size_t ostIdx) const {
+    return isNewVstPushed->at(ostIdx);
+  }
+
   void SetCurBB(BB *bb) {
     curBB = bb;
   }
@@ -106,12 +121,17 @@ class Prop {
     MeSSAUpdate::InsertOstToSSACands(ostIdx, bb, &candsForSSAUpdate);
   }
 
+  void SetNewVstPushed(size_t ostIdx) {
+    isNewVstPushed->at(ostIdx) = true;
+  }
+
   IRMap &irMap;
   SSATab &ssaTab;
   MIRModule &mirModule;
   MapleAllocator propMapAlloc;
+  std::vector<bool> *isNewVstPushed = nullptr;
   MapleVector<MapleStack<MeExpr *> *> vstLiveStackVec;
-  MapleVector<bool> bbVisited;  // needed because dominator tree is a DAG in wpo
+  std::vector<bool> bbVisited;  // needed because dominator tree is a DAG in wpo
   BB *curBB = nullptr;          // gives the bb of the traversal
   PropConfig config;
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> candsForSSAUpdate;
@@ -119,6 +139,47 @@ class Prop {
   uint32 propLimit;
   uint32 propsPerformed = 0;    // count number of copy propagations performed
   bool isLfo = false;           // true during LFO phases
+};
+
+// Help to prepare/recover environment, i.e. use RAII to manage a temporary version check table
+class BBPropEnvHelper {
+ public:
+  // prepare isNewVstPushed check table for vstLiveStack, to tell whether a new version has been pushed to stack
+  BBPropEnvHelper(Prop *propagater, BB &currBB)
+      : prop(propagater) {
+    if (prop) {
+      prop->SetCurBB(&currBB);
+      backupBB = &currBB;
+      tmpIsNewVstPushed = std::make_unique<std::vector<bool>>(prop->GetVstLiveStackVecSize(), false);
+      backupIsNewVstPushed = prop->GetIsNewVstPushed();
+      prop->SetIsNewVstPushed(tmpIsNewVstPushed.get());
+    }
+  }
+
+  ~BBPropEnvHelper() {
+    if (!prop) {
+      return;
+    }
+    // recover vstLiveStack after exit bb
+    for (size_t i = 1; i < prop->GetVstLiveStackVecSize(); ++i) {
+      auto *liveStack = prop->GetVstLiveStackVec(i);
+      if (i < tmpIsNewVstPushed->size()) {
+        if (prop->IsNewVstPushed(i)) {
+          liveStack->pop();
+        }
+      } else { // clear temp expr
+        liveStack->clear();
+      }
+    }
+    prop->SetCurBB(backupBB);
+    prop->SetIsNewVstPushed(backupIsNewVstPushed);
+  }
+
+ private:
+  Prop *prop = nullptr;
+  std::unique_ptr<std::vector<bool>> tmpIsNewVstPushed = nullptr;
+  std::vector<bool> *backupIsNewVstPushed = nullptr;
+  BB *backupBB = nullptr;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_PROP_H

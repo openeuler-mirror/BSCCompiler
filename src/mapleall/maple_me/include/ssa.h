@@ -101,6 +101,7 @@ class SSA {
   void InsertPhiForDefBB(size_t bbid, VersionSt *vst);
   void InitRenameStack(const OriginalStTable&, const VersionStTable&, MapleAllocator &renameAlloc);
   VersionSt *CreateNewVersion(VersionSt &vSym, BB &defBB);
+  void ReplaceRenameStackTop(VersionSt &newTop);
   void PushToRenameStack(VersionSt *vSym);
   void RenamePhi(BB &bb);
   void RenameDefs(StmtNode &stmt, BB &defBB);
@@ -113,6 +114,10 @@ class SSA {
 
   const MapleVector<MapleStack<VersionSt*>*> &GetVstStacks() const {
     return *vstStacks;
+  }
+
+  VersionSt *GetVstStackTop(size_t ostIdx) const {
+    return GetVstStacks()[ostIdx]->top();
   }
 
   const MapleStack<VersionSt*> *GetVstStack(size_t idx) const {
@@ -141,7 +146,16 @@ class SSA {
 
   bool ShouldRenameVst(const VersionSt *vst) const;
 
+  bool IsNewVstPushed(size_t ostIdx) const {
+    return isNewVstPushed->at(ostIdx);
+  }
+
+  void SetNewVstPushed(size_t ostIdx) {
+    isNewVstPushed->at(ostIdx) = true;
+  }
+
   MapleVector<MapleStack<VersionSt*>*> *vstStacks = nullptr;    // rename stack for variable versions
+  std::vector<bool> *isNewVstPushed = nullptr; // this is a temp ptr, but shared in some functions
   SSATab *ssaTab = nullptr;
   MapleVector<BB *> &bbVec;
   Dominance *dom = nullptr;

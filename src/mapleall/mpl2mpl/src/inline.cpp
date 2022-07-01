@@ -1845,7 +1845,7 @@ void MInline::MarkUsedSymbols(const BaseNode *baseNode) const {
 
 // Unified interface to run inline module phase.
 bool M2MInline::PhaseRun(maple::MIRModule &m) {
-  MemPool *memPool = GetPhaseMemPool();
+  MemPool *memPool = ApplyTempMemPool();
   CallGraph *cg = GET_ANALYSIS(M2MCallGraph, m);
   CHECK_FATAL(cg != nullptr, "Expecting a valid CallGraph, found nullptr");
   // Reset inlining threshold for other srcLang, especially for srcLangJava. Because those methods related to

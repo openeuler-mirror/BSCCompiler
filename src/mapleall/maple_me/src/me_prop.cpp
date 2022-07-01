@@ -63,7 +63,7 @@ bool MEMeProp::PhaseRun(maple::MeFunction &f) {
       }
     }
   }
-  MeProp meProp(*hMap, *dom, *GetPhaseMemPool(), Prop::PropConfig { MeOption::propBase, propIloadRef,
+  MeProp meProp(*hMap, *dom, *ApplyTempMemPool(), Prop::PropConfig { MeOption::propBase, propIloadRef,
       MeOption::propGlobalRef, MeOption::propFinaliLoadRef, MeOption::propIloadRefNonParm, MeOption::propAtPhi,
       MeOption::propWithInverse || f.IsLfo() }, MeOption::propLimit);
   meProp.isLfo = f.IsLfo();
