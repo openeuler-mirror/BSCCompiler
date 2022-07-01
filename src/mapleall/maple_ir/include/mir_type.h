@@ -43,14 +43,26 @@ extern bool VerifyPrimType(PrimType primType1, PrimType primType2);       // ver
 extern PrimType GetExactPtrPrimType();  // return either PTY_a64 or PTY_a32
 extern uint32 GetPrimTypeSize(PrimType primType);                         // answer in bytes; 0 if unknown
 extern uint32 GetPrimTypeP2Size(PrimType primType);                       // answer in bytes in power-of-two.
-extern PrimType GetSignedPrimType(PrimType primType);                     // return signed version
-extern PrimType GetUnsignedPrimType(PrimType primType);                   // return unsigned version
+extern PrimType GetSignedPrimType(PrimType pty);                     // return signed version
+extern PrimType GetUnsignedPrimType(PrimType pty);                   // return unsigned version
 extern uint32 GetVecEleSize(PrimType primType);                           // element size of each lane in vector
 extern uint32 GetVecLanes(PrimType primType);                             // lane size if vector
 extern const char *GetPrimTypeName(PrimType primType);
 extern const char *GetPrimTypeJavaName(PrimType primType);
 extern int64 MinValOfSignedInteger(PrimType primType);
 extern PrimType GetVecElemPrimType(PrimType primType);
+constexpr uint32 k0BitSize = 0;
+constexpr uint32 k1BitSize = 1;
+constexpr uint32 k2BitSize = 2;
+constexpr uint32 k3BitSize = 3;
+constexpr uint32 k4BitSize = 4;
+constexpr uint32 k5BitSize = 5;
+constexpr uint32 k8BitSize = 8;
+constexpr uint32 k9BitSize = 9;
+constexpr uint32 k10BitSize = 10;
+constexpr uint32 k16BitSize = 16;
+constexpr uint32 k32BitSize = 32;
+constexpr uint32 k64BitSize = 64;
 
 inline uint32 GetPrimTypeBitSize(PrimType primType) {
   // 1 byte = 8 bits = 2^3 bits
@@ -793,6 +805,10 @@ class MIRType {
     return typeKind == kTypeByName;
   }
 
+  bool IsMIRBitFieldType() const {
+    return typeKind == kTypeBitField;
+  }
+
   virtual bool IsUnsafeType() const {
     return false;
   }
@@ -1189,6 +1205,14 @@ class MIRStructType : public MIRType {
     isImported = flag;
   }
 
+  bool IsUsed() const {
+    return isUsed;
+  }
+
+  void SetIsUsed(bool flag) {
+    isUsed = flag;
+  }
+
   bool IsCPlusPlus() const {
     return isCPlusPlus;
   }
@@ -1360,6 +1384,7 @@ class MIRStructType : public MIRType {
     vTableMethods.clear();
     iTableMethods.clear();
     isImported = false;
+    isUsed = false;
     hasVolatileField = false;
     hasVolatileFieldSet = false;
   }
@@ -1462,6 +1487,7 @@ class MIRStructType : public MIRType {
   // implementation functions, For interfaces, they are abstact functions.
   // Weak indicates the actual definition is in another module.
   bool isImported = false;
+  bool isUsed = false;
   bool isCPlusPlus = false;        // empty struct in C++ has size 1 byte
   mutable bool hasVolatileField = false;     // for caching computed value
   mutable bool hasVolatileFieldSet = false;  // if true, just read hasVolatileField;
@@ -1949,17 +1975,17 @@ class MIRFuncType : public MIRType {
     constexpr uint8 idxShift = 6;
     size_t hIdx = (static_cast<size_t>(retTyIdx) << idxShift) + (typeKind << kShiftNumOfTypeKind);
     size_t size = paramTypeList.size();
-    hIdx += (size ? (static_cast<size_t>(paramTypeList[0]) + size) : 0) << 4; // shift bit is 4
+    hIdx += (size != 0 ? (static_cast<size_t>(paramTypeList[0]) + size) : 0) << 4; // shift bit is 4
     return hIdx % kTypeHashLength;
   }
 
+ public:
+  FuncAttrs funcAttrs;
  private:
   TyIdx retTyIdx{ 0 };
   std::vector<TyIdx> paramTypeList;
   std::vector<TypeAttrs> paramAttrsList;
   TypeAttrs retAttrs;
- public:
-  FuncAttrs funcAttrs;
 };
 
 class MIRTypeByName : public MIRType {

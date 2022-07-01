@@ -137,22 +137,22 @@ PrimType GetNonDynType(PrimType primType) {
 
 PrimType GetIntegerPrimTypeBySizeAndSign(size_t sizeBit, bool isSign) {
   switch (sizeBit) {
-    case 1: {
+    case k1BitSize: {
       if (isSign) {
         return PTY_begin;  // There is no 'i1' type
       }
       return PTY_u1;
     }
-    case 8: {
+    case k8BitSize: {
       return isSign ? PTY_i8 : PTY_u8;
     }
-    case 16: {
+    case k16BitSize: {
       return isSign ? PTY_i16 : PTY_u16;
     }
-    case 32: {
+    case k32BitSize: {
       return isSign ? PTY_i32 : PTY_u32;
     }
-    case 64: {
+    case k64BitSize: {
       return isSign ? PTY_i64 : PTY_u64;
     }
     default: {
@@ -206,7 +206,7 @@ bool NeedCvtOrRetype(PrimType origin, PrimType compared) {
 #endif
 
 PrimType GetExactPtrPrimType() {
-  return (POINTER_SIZE == 8) ? PTY_a64 : PTY_a32;
+  return (POINTER_SIZE == k8BitSize) ? PTY_a64 : PTY_a32;
 }
 
 // answer in bytes; 0 if unknown
@@ -214,24 +214,24 @@ uint32 GetPrimTypeSize(PrimType primType) {
   switch (primType) {
     case PTY_void:
     case PTY_agg:
-      return 0;
+      return k0BitSize;
     case PTY_ptr:
     case PTY_ref:
       return POINTER_SIZE;
     case PTY_u1:
     case PTY_i8:
     case PTY_u8:
-      return 1;
+      return k1BitSize;
     case PTY_i16:
     case PTY_u16:
-      return 2;
+      return k2BitSize;
     case PTY_a32:
     case PTY_f32:
     case PTY_i32:
     case PTY_u32:
     case PTY_simplestr:
     case PTY_simpleobj:
-      return 4;
+      return k4BitSize;
     case PTY_a64:
     case PTY_c64:
     case PTY_f64:
@@ -244,7 +244,7 @@ uint32 GetPrimTypeSize(PrimType primType) {
     case PTY_v4u16:
     case PTY_v8u8:
     case PTY_v2f32:
-      return 8;
+      return k8BitSize;
     case PTY_u128:
     case PTY_i128:
     case PTY_c128:
@@ -259,7 +259,7 @@ uint32 GetPrimTypeSize(PrimType primType) {
     case PTY_v16u8:
     case PTY_v2f64:
     case PTY_v4f32:
-      return 16;
+      return k16BitSize;
 #ifdef DYNAMICLANG
     case PTY_dynf32:
     case PTY_dyni32:
@@ -268,13 +268,13 @@ uint32 GetPrimTypeSize(PrimType primType) {
     case PTY_dynundef:
     case PTY_dynnull:
     case PTY_dynbool:
-      return 8;
+      return k8BitSize;
     case PTY_dynany:
     case PTY_dynf64:
-      return 8;
+      return k8BitSize;
 #endif
     default:
-      return 0;
+      return k0BitSize;
   }
 }
 
@@ -287,17 +287,17 @@ uint32 GetPrimTypeP2Size(PrimType primType) {
     case PTY_u1:
     case PTY_i8:
     case PTY_u8:
-      return 0;
+      return k0BitSize;
     case PTY_i16:
     case PTY_u16:
-      return 1;
+      return k1BitSize;
     case PTY_a32:
     case PTY_f32:
     case PTY_i32:
     case PTY_u32:
     case PTY_simplestr:
     case PTY_simpleobj:
-      return 2;
+      return k2BitSize;
     case PTY_a64:
     case PTY_c64:
     case PTY_f64:
@@ -310,7 +310,7 @@ uint32 GetPrimTypeP2Size(PrimType primType) {
     case PTY_v4u16:
     case PTY_v8u8:
     case PTY_v2f32:
-      return 3;
+      return k3BitSize;
     case PTY_c128:
     case PTY_f128:
     case PTY_v2i64:
@@ -323,7 +323,7 @@ uint32 GetPrimTypeP2Size(PrimType primType) {
     case PTY_v16u8:
     case PTY_v2f64:
     case PTY_v4f32:
-      return 4;
+      return k4BitSize;
 #ifdef DYNAMICLANG
     case PTY_dynf32:
     case PTY_dyni32:
@@ -334,11 +334,11 @@ uint32 GetPrimTypeP2Size(PrimType primType) {
     case PTY_dynbool:
     case PTY_dynany:
     case PTY_dynf64:
-      return 3;
+      return k3BitSize;
 #endif
     default:
       ASSERT(false, "Power-of-2 size only applicable to sizes of 1, 2, 4, 8 or 16 bytes.");
-      return 10;
+      return k10BitSize;
   }
 }
 
@@ -350,24 +350,24 @@ uint32 GetVecEleSize(PrimType primType) {
     case PTY_i64:
     case PTY_u64:
     case PTY_f64:
-      return 64;
+      return k64BitSize;
     case PTY_v2i32:
     case PTY_v2u32:
     case PTY_v2f32:
     case PTY_v4i32:
     case PTY_v4u32:
     case PTY_v4f32:
-      return 32;
+      return k32BitSize;
     case PTY_v4i16:
     case PTY_v4u16:
     case PTY_v8i16:
     case PTY_v8u16:
-      return 16;
+      return k16BitSize;
     case PTY_v8i8:
     case PTY_v8u8:
     case PTY_v16i8:
     case PTY_v16u8:
-      return 8;
+      return k8BitSize;
     default:
       CHECK_FATAL(false, "unexpected primtType for vector");
   }
@@ -381,21 +381,21 @@ uint32 GetVecLanes(PrimType primType) {
     case PTY_v2i64:
     case PTY_v2u64:
     case PTY_v2f64:
-      return 2;
+      return k2BitSize;
     case PTY_v4i16:
     case PTY_v4u16:
     case PTY_v4i32:
     case PTY_v4u32:
     case PTY_v4f32:
-      return 4;
+      return k4BitSize;
     case PTY_v8i8:
     case PTY_v8u8:
     case PTY_v8i16:
     case PTY_v8u16:
-      return 8;
+      return k8BitSize;
     case PTY_v16i8:
     case PTY_v16u8:
-      return 16;
+      return k16BitSize;
     default:
       return 0;
   }
@@ -559,7 +559,7 @@ void TypeAttrs::DumpAttributes() const {
 #undef NOCONTENT_ATTR
 #undef TYPE_ATTR
 // dump attr with content
-  if (attrAlign) {
+  if (attrAlign != 0) {
     LogInfo::MapleLogger() << " align(" << GetAlign() << ")";
   }
   if (GetAttr(ATTR_pack) && GetPack() != 0) {
@@ -580,7 +580,7 @@ void FieldAttrs::DumpAttributes() const {
 #undef NOCONTENT_ATTR
 #undef FIELD_ATTR
 // dump attr with content
-  if (attrAlign) {
+  if (attrAlign != 0) {
     LogInfo::MapleLogger() << " align(" << GetAlign() << ")";
   }
   if (IsPacked()) {
@@ -629,11 +629,11 @@ std::string MIRType::GetCompactMplTypeName() const {
   return "";
 }
 
-void MIRType::Dump(int, bool) const {
+void MIRType::Dump(int indent, bool dontUseName) const {
   LogInfo::MapleLogger() << GetPrimTypeName(primType);
 }
 
-void MIRType::DumpAsCxx(int) const {
+void MIRType::DumpAsCxx(int indent) const {
   switch (primType) {
     case PTY_void:
       LogInfo::MapleLogger() << "void";
@@ -941,7 +941,7 @@ void MIRPtrType::Dump(int indent, bool dontUseName) const {
   }
 }
 
-void MIRBitFieldType::Dump(int, bool) const {
+void MIRBitFieldType::Dump(int indent, bool dontUseName) const {
   LogInfo::MapleLogger() << ":" << static_cast<int>(fieldSize) << " " << GetPrimTypeName(primType);
 }
 
@@ -1274,12 +1274,12 @@ size_t MIRStructType::GetSize() const {
     TyIdxFieldAttrPair tfap = GetTyidxFieldAttrPair(i);
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tfap.first);
     if (fieldType->GetKind() != kTypeBitField) {
-      if (byteOfst * 8 < bitOfst) {
+      if (byteOfst * k8BitSize < bitOfst) {
         byteOfst = (bitOfst >> shiftNum) + 1;
       }
       byteOfst = RoundUp(byteOfst, std::max(fieldType->GetAlign(), tfap.second.GetAlign()));
       byteOfst += fieldType->GetSize();
-      bitOfst = byteOfst * 8;
+      bitOfst = byteOfst * k8BitSize;
     } else {
       MIRBitFieldType *bitfType = static_cast<MIRBitFieldType *>(fieldType);
       if (bitfType->GetFieldSize() == 0) {  // special case, for aligning purpose
@@ -1466,17 +1466,17 @@ void MIRInterfaceType::Dump(int indent, bool dontUseName) const {
   LogInfo::MapleLogger() << "}>";
 }
 
-void MIRTypeByName::Dump(int, bool) const {
+void MIRTypeByName::Dump(int indent, bool dontUseName) const {
   const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(nameStrIdx);
   LogInfo::MapleLogger() << (nameIsLocal ? "<%" : "<$") << name << ">";
 }
 
-void MIRTypeParam::Dump(int, bool) const {
+void MIRTypeParam::Dump(int indent, bool dontUseName) const {
   const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(nameStrIdx);
   LogInfo::MapleLogger() << "<!" << name << ">";
 }
 
-void MIRInstantVectorType::Dump(int, bool) const {
+void MIRInstantVectorType::Dump(int indent, bool dontUseName) const {
   LogInfo::MapleLogger() << "{";
   for (size_t i = 0; i < instantVec.size(); ++i) {
     TypePair typePair = instantVec[i];
@@ -2223,7 +2223,7 @@ FieldPair MIRClassType::TraverseToFieldRef(FieldID &fieldID) const {
 }
 
 // fields in interface are all static and are global, won't be accessed through fields
-FieldPair MIRInterfaceType::TraverseToFieldRef(FieldID&) const {
+FieldPair MIRInterfaceType::TraverseToFieldRef(FieldID &fieldID) const {
   return { GStrIdx(0), TyIdxFieldAttrPair(TyIdx(0), FieldAttrs()) };
 }
 

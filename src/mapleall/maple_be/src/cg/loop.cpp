@@ -21,7 +21,7 @@ namespace maplebe {
 
 static void PrintLoopInfo(const LoopHierarchy &loop) {
   LogInfo::MapleLogger() << "header " << loop.GetHeader()->GetId();
-  if (loop.otherLoopEntries.size()) {
+  if (loop.otherLoopEntries.size() != 0) {
     LogInfo::MapleLogger() << " multi-header ";
     for (auto en : loop.otherLoopEntries) {
       LogInfo::MapleLogger() << en->GetId() << " ";
@@ -127,7 +127,7 @@ void CGFuncLoops::CheckLoops() const {
 void CGFuncLoops::PrintLoops(const CGFuncLoops &funcLoop) const {
   LogInfo::MapleLogger() << "loop_level(" << funcLoop.loopLevel << ") ";
   LogInfo::MapleLogger() << "header " << funcLoop.GetHeader()->GetId() << " ";
-  if (funcLoop.multiEntries.size()) {
+  if (funcLoop.multiEntries.size() != 0) {
     LogInfo::MapleLogger() << "other-header ";
     for (auto bb : funcLoop.multiEntries) {
       LogInfo::MapleLogger() << bb->GetId() << " ";

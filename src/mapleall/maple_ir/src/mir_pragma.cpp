@@ -13,7 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "mir_pragma.h"
-#include <iomanip>
 #include "mir_nodes.h"
 #include "mir_function.h"
 #include "printing.h"
@@ -288,7 +287,7 @@ void MIRPragmaElement::Dump(int indent) const {
       size_t num = subElemVec.size();
       LogInfo::MapleLogger() << "annotation <$";
       LogInfo::MapleLogger() << GlobalTables::GetStrTable().GetStringFromStrIdx(typeStrIdx) << "> [" << num;
-      if (num) {
+      if (num != 0) {
         if (num > 1) {
           LogInfo::MapleLogger() << ",\n";
         } else {

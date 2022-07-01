@@ -889,7 +889,7 @@ void BinaryMplExport::WriteSeField() {
 
   for (const auto &func2SE : *func2SEMap) {
     uint8 se = func2SE.second;
-    if (static_cast<int32>(se)) {
+    if (se != 0) {
       OutputStr(func2SE.first);
       Write(se);
       if ((se & kPureFunc) == kPureFunc) {

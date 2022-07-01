@@ -56,10 +56,10 @@ bool ReachingDefinition::IsFrameReg(const Operand &opnd) const {
 
 /* intialize bb->out, bb->out only include generated DataInfo */
 void ReachingDefinition::InitOut(const BB &bb) {
-  if (mode & kRDRegAnalysis) {
+  if ((mode & kRDRegAnalysis) != 0) {
     *regOut[bb.GetId()] = *regGen[bb.GetId()];
   }
-  if (mode & kRDMemAnalysis) {
+  if ((mode & kRDMemAnalysis) != 0) {
     *memOut[bb.GetId()] = *memGen[bb.GetId()];
   }
 }
@@ -362,7 +362,7 @@ void ReachingDefinition::DFSFindUseForMemOpnd(const BB &startBB, uint32 offset, 
 /* Out[BB] = gen[BB] union in[BB]. if bb->out changed, return true. */
 bool ReachingDefinition::GenerateOut(const BB &bb) {
   bool outInfoChanged = false;
-  if (mode & kRDRegAnalysis) {
+  if ((mode & kRDRegAnalysis) != 0) {
     LocalMapleAllocator alloc(stackMp);
     DataInfo &bbRegOutBak = regOut[bb.GetId()]->Clone(alloc);
     *regOut[bb.GetId()] = *(regIn[bb.GetId()]);
@@ -372,7 +372,7 @@ bool ReachingDefinition::GenerateOut(const BB &bb) {
     }
   }
 
-  if (mode & kRDMemAnalysis) {
+  if ((mode & kRDMemAnalysis) != 0) {
     LocalMapleAllocator alloc(stackMp);
     DataInfo &bbMemOutBak = memOut[bb.GetId()]->Clone(alloc);
     *memOut[bb.GetId()] = *memIn[bb.GetId()];
@@ -412,7 +412,7 @@ bool ReachingDefinition::GenerateOut(const BB &bb, const std::set<uint32> &infoI
 /* In[BB] = Union all of out[Parents(bb)]. return true if bb->in changed. */
 bool ReachingDefinition::GenerateIn(const BB &bb) {
   bool inInfoChanged = false;
-  if (mode & kRDRegAnalysis) {
+  if ((mode & kRDRegAnalysis) != 0) {
     LocalMapleAllocator alloc(stackMp);
     DataInfo &bbRegInBak = regIn[bb.GetId()]->Clone(alloc);
     for (auto predBB : bb.GetPreds()) {
@@ -426,7 +426,7 @@ bool ReachingDefinition::GenerateIn(const BB &bb) {
       inInfoChanged = true;
     }
   }
-  if (mode & kRDMemAnalysis) {
+  if ((mode & kRDMemAnalysis) != 0) {
     LocalMapleAllocator alloc(stackMp);
     DataInfo &memInBak = memIn[bb.GetId()]->Clone(alloc);
     for (auto predBB : bb.GetPreds()) {
@@ -485,19 +485,19 @@ bool ReachingDefinition::GenerateIn(const BB &bb, const std::set<uint32> &infoIn
 /* In[firstCleanUpBB] = Union all of out[bbNormalSet] */
 bool ReachingDefinition::GenerateInForFirstCleanUpBB() {
   CHECK_NULL_FATAL(firstCleanUpBB);
-  if (mode & kRDRegAnalysis) {
+  if ((mode & kRDRegAnalysis) != 0) {
     regIn[firstCleanUpBB->GetId()]->ResetAllBit();
   }
-  if (mode & kRDMemAnalysis) {
+  if ((mode & kRDMemAnalysis) != 0) {
     memIn[firstCleanUpBB->GetId()]->ResetAllBit();
   }
 
   for (auto normalBB : normalBBSet) {
-    if (mode & kRDRegAnalysis) {
+    if ((mode & kRDRegAnalysis) != 0) {
       regIn[firstCleanUpBB->GetId()]->OrBits(*regOut[normalBB->GetId()]);
     }
 
-    if (mode & kRDMemAnalysis) {
+    if ((mode & kRDMemAnalysis) != 0) {
       memIn[firstCleanUpBB->GetId()]->OrBits(*memOut[normalBB->GetId()]);
     }
   }
@@ -537,7 +537,7 @@ bool ReachingDefinition::GenerateInForFirstCleanUpBB(bool isReg, const std::set<
 
 /* allocate memory for DataInfo of bb */
 void ReachingDefinition::InitRegAndMemInfo(const BB &bb) {
-  if (mode & kRDRegAnalysis) {
+  if ((mode & kRDRegAnalysis) != 0) {
     const uint32 kMaxRegCount = cgFunc->GetMaxVReg();
     regGen[bb.GetId()] = new DataInfo(kMaxRegCount, rdAlloc);
     regUse[bb.GetId()] = new DataInfo(kMaxRegCount, rdAlloc);
@@ -545,7 +545,7 @@ void ReachingDefinition::InitRegAndMemInfo(const BB &bb) {
     regOut[bb.GetId()] = new DataInfo(kMaxRegCount, rdAlloc);
   }
 
-  if (mode & kRDMemAnalysis) {
+  if ((mode & kRDMemAnalysis) != 0) {
     const int32 kStackSize = GetStackSize();
     memGen[bb.GetId()] = new DataInfo((kStackSize / kMemZoomSize), rdAlloc);
     memUse[bb.GetId()] = new DataInfo((kStackSize / kMemZoomSize), rdAlloc);
@@ -1268,13 +1268,13 @@ void ReachingDefinition::DumpBBCGIR(const BB &bb) const {
   if (bb.IsUnreachable()) {
     LogInfo::MapleLogger() << "[unreachable] ";
   }
-  if (bb.GetSuccs().size()) {
+  if (bb.GetSuccs().size() != 0) {
     LogInfo::MapleLogger() << "      succs: ";
     for (auto *succBB : bb.GetSuccs()) {
       LogInfo::MapleLogger() << succBB->GetId() << " ";
     }
   }
-  if (bb.GetEhSuccs().size()) {
+  if (bb.GetEhSuccs().size() != 0) {
     LogInfo::MapleLogger() << "      eh_succs: ";
     for (auto *ehSuccBB : bb.GetEhSuccs()) {
       LogInfo::MapleLogger() << ehSuccBB->GetId() << " ";
@@ -1297,39 +1297,39 @@ void ReachingDefinition::Dump(uint32 flag) const {
   FOR_ALL_BB(bb, cgFunc) {
     LogInfo::MapleLogger() << "  === BB_" << bb->GetId() << " ===\n";
 
-    if (flag & kDumpBBCGIR) {
+    if ((flag & kDumpBBCGIR) != 0) {
       DumpBBCGIR(*bb);
     }
 
-    if (flag & kDumpRegIn) {
+    if ((flag & kDumpRegIn) != 0) {
       DumpInfo(*bb, kDumpRegIn);
     }
 
-    if (flag & kDumpRegUse) {
+    if ((flag & kDumpRegUse) != 0) {
       DumpInfo(*bb, kDumpRegUse);
     }
 
-    if (flag & kDumpRegGen) {
+    if ((flag & kDumpRegGen) != 0) {
       DumpInfo(*bb, kDumpRegGen);
     }
 
-    if (flag & kDumpRegOut) {
+    if ((flag & kDumpRegOut) != 0) {
       DumpInfo(*bb, kDumpRegOut);
     }
 
-    if (flag & kDumpMemIn) {
+    if ((flag & kDumpMemIn) != 0) {
       DumpInfo(*bb, kDumpMemIn);
     }
 
-    if (flag & kDumpMemGen) {
+    if ((flag & kDumpMemGen) != 0) {
       DumpInfo(*bb, kDumpMemGen);
     }
 
-    if (flag & kDumpMemOut) {
+    if ((flag & kDumpMemOut) != 0) {
       DumpInfo(*bb, kDumpMemOut);
     }
 
-    if (flag & kDumpMemUse) {
+    if ((flag & kDumpMemUse) != 0) {
       DumpInfo(*bb, kDumpMemUse);
     }
   }

@@ -1595,7 +1595,7 @@ bool MIRParser::ParseTypedef() {
       }
       if ((prevType->GetKind() != kTypeByName) && !prevType->IsIncomplete()) {
         // allow duplicated type def if kKeepFirst is set which is the default
-        if (options & kKeepFirst) {
+        if ((options & kKeepFirst) != 0) {
           lexer.NextToken();
           Warning("redefined global type");
           if (!ParseDerivedType(tyIdx, kTypeUnknown)) {
@@ -2065,7 +2065,7 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
     func->ClearFormals();
 
     // update with current attr
-    if (funcAttrs.GetAttrFlag()) {
+    if (funcAttrs.GetAttrFlag() != 0) {
       if (func->IsIpaSeen()) {
         funcAttrs.SetAttr(FUNCATTR_ipaseen);
       }
@@ -2114,7 +2114,7 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
   if (lexer.GetTokenKind() == TK_lbrace) {  // #2 parse Function body
     funcSymbol->SetAppearsInCode(true);
     // when parsing func in mplt_inline file, set it as tmpunused.
-    if (options & kParseInlineFuncBody) {
+    if ((options & kParseInlineFuncBody) != 0) {
       funcSymbol->SetIsTmpUnused(true);
     }
     definedLabels.clear();
@@ -2490,7 +2490,7 @@ bool MIRParser::ParseOneScope(MIRScope &scope) {
   return true;
 }
 
-bool MIRParser::ParseScope(StmtNodePtr &) {
+bool MIRParser::ParseScope(StmtNodePtr &stmt) {
   // initial level 1
   MIRScope *scp = mod.GetMemPool()->New<MIRScope>(&mod, 1);
   bool status = ParseOneScope(*scp);
@@ -2543,7 +2543,7 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
   return true;
 }
 
-bool MIRParser::ParseAlias(StmtNodePtr &) {
+bool MIRParser::ParseAlias(StmtNodePtr &stmt) {
   GStrIdx strIdx;
   MIRAliasVars aliasVar;
 
@@ -2866,7 +2866,7 @@ bool MIRParser::ParseMIRForVar() {
     MIRSymbol *newst = mirBuilder.CreateSymbol(st.GetTyIdx(), st.GetNameStrIdx(), st.GetSKind(), st.GetStorageClass(),
                                                nullptr, kScopeGlobal);
     // when parsing var in mplt_inline file, set it as tmpunused.
-    if (this->options & kParseInlineFuncBody) {
+    if ((this->options & kParseInlineFuncBody) != 0) {
       newst->SetIsTmpUnused(true);
     }
     newst->SetAttrs(st.GetAttrs());

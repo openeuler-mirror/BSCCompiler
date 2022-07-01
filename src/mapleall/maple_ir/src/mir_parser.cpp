@@ -248,7 +248,7 @@ bool MIRParser::ParseStmtBlkassignoff(StmtNodePtr &stmt) {
     Error("expect offset but get ");
     return false;
   }
-  bassignoff->offset = lexer.GetTheIntVal();
+  bassignoff->offset = static_cast<int32>(lexer.GetTheIntVal());
   if (lexer.NextToken() != TK_intconst) {
     Error("expect align but get ");
     return false;
@@ -258,7 +258,7 @@ bool MIRParser::ParseStmtBlkassignoff(StmtNodePtr &stmt) {
     Error("expect size but get ");
     return false;
   }
-  bassignoff->blockSize = lexer.GetTheIntVal();
+  bassignoff->blockSize = static_cast<int32>(lexer.GetTheIntVal());
   lexer.NextToken();
   BaseNode *destAddr = nullptr;
   BaseNode *srcAddr = nullptr;
@@ -988,7 +988,7 @@ bool MIRParser::ParseStmtIntrinsiccall(StmtNodePtr &stmt, bool isAssigned) {
                                                                              : OP_xintrinsiccallassigned);
   auto *intrnCallNode = mod.CurFuncCodeMemPool()->New<IntrinsiccallNode>(mod, o);
   lexer.NextToken();
-  if (o == !isAssigned ? OP_intrinsiccall : OP_intrinsiccallassigned) {
+  if (o == (isAssigned == 0) ? OP_intrinsiccall : OP_intrinsiccallassigned) {
     intrnCallNode->SetIntrinsic(GetIntrinsicID(lexer.GetTokenKind()));
   } else {
     intrnCallNode->SetIntrinsic(static_cast<MIRIntrinsicID>(lexer.GetTheIntVal()));
@@ -1821,7 +1821,7 @@ bool MIRParser::ParseLoc() {
     firstLineNum = lastLineNum;
   }
   if (lexer.NextToken() == TK_intconst) {  // optional column number
-    lastColumnNum = lexer.GetTheIntVal();
+    lastColumnNum = static_cast<uint16>(lexer.GetTheIntVal());
     lexer.NextToken();
   }
   return true;
@@ -2255,7 +2255,7 @@ void MIRParser::CreateFuncMIRSymbol(PUIdx &puidx, GStrIdx strIdx) {
   fn->SetPuidx(puidx);
   GlobalTables::GetFunctionTable().GetFuncTable().push_back(fn);
   funcSt->SetFunction(fn);
-  if (options & kParseInlineFuncBody) {
+  if ((options & kParseInlineFuncBody) != 0) {
     funcSt->SetIsTmpUnused(true);
   }
 }

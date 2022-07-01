@@ -483,7 +483,7 @@ TokenKind MIRLexer::GetTokenWithPrefixDoubleQuotation() {
           line[curIdx - shift] = c;
           break;
       }
-    } else if (shift) {
+    } else if (shift != 0) {
       line[curIdx - shift] = c;
     }
     c = GetNextCurrentCharWithUpperCheck();

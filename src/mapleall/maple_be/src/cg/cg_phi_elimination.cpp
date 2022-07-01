@@ -75,7 +75,7 @@ void PhiEliminate::PlaceMovInPredBB(uint32 predBBId, Insn &movInsn) {
 }
 
 regno_t PhiEliminate::GetAndIncreaseTempRegNO() {
-  while (GetSSAInfo()->GetAllSSAOperands().count(tempRegNO)) {
+  while (GetSSAInfo()->GetAllSSAOperands().count(tempRegNO) != 0) {
     tempRegNO++;
   }
   regno_t ori = tempRegNO;
@@ -96,7 +96,7 @@ RegOperand *PhiEliminate::MakeRoomForNoDefVreg(RegOperand &conflictReg) {
 }
 
 void PhiEliminate::RecordRematInfo(regno_t vRegNO, PregIdx pIdx) {
-  if (remateInfoAfterSSA.count(vRegNO)) {
+  if (remateInfoAfterSSA.count(vRegNO) != 0) {
     if (remateInfoAfterSSA[vRegNO] != pIdx) {
       remateInfoAfterSSA.erase(vRegNO);
     }

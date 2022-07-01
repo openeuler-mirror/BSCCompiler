@@ -3184,7 +3184,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
     case DW_FORM_ref4:
       if (attrName == DW_AT_type) {
         DBGDie *die0 = di->GetDie(static_cast<uint32>(attr->GetU()));
-        if (die0->GetOffset()) {
+        if (die0->GetOffset() != 0) {
           EmitHexUnsigned(die0->GetOffset());
         } else {
           /* unknown type, missing mplt */

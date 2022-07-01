@@ -294,7 +294,7 @@ bool BB::HasCriticalEdge() {
 
 void BB::Dump() const {
   LogInfo::MapleLogger() << "=== BB " << this << " <" << GetKindName();
-  if (labIdx) {
+  if (labIdx != 0) {
     LogInfo::MapleLogger() << "[labeled with " << labIdx << "]";
     if (labelTaken) {
       LogInfo::MapleLogger() << " taken";

@@ -252,15 +252,15 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
   auto *nnode = allocator.GetMemPool()->New<BlockNode>();
   nnode->SetStmtID(stmtIDNext++);
   if (fromFreqs.count(GetStmtID()) > 0) {
-    int64_t oldFreq = fromFreqs[GetStmtID()];
-    int64_t newFreq;
+    uint64_t oldFreq = fromFreqs[GetStmtID()];
+    uint64_t newFreq;
     if (updateOp & kUpdateUnrollRemainderFreq) {
       newFreq = denom > 0 ? (oldFreq * numer % denom) : oldFreq;
     } else {
       newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
     }
-    toFreqs[nnode->GetStmtID()] = (newFreq > 0 || (numer == 0)) ? static_cast<uint64_t>(newFreq) : 1;
-    if (updateOp & kUpdateOrigFreq) { // upateOp & 1 : update from
+    toFreqs[nnode->GetStmtID()] = (newFreq > 0 || (numer == 0)) ? newFreq : 1;
+    if ((updateOp & kUpdateOrigFreq) != 0) { // upateOp & 1 : update from
       int64_t left = ((oldFreq - newFreq) > 0 || (oldFreq == 0)) ? (oldFreq - newFreq) : 1;
       fromFreqs[GetStmtID()] = static_cast<uint64_t>(left);
     }
@@ -282,16 +282,16 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
     } else {
       newStmt = static_cast<StmtNode*>(stmt.CloneTree(allocator));
       if (fromFreqs.count(stmt.GetStmtID()) > 0) {
-        int64_t oldFreq = fromFreqs[stmt.GetStmtID()];
-        int64_t newFreq;
-        if (updateOp & kUpdateUnrollRemainderFreq) {
+        uint64_t oldFreq = fromFreqs[stmt.GetStmtID()];
+        uint64_t newFreq;
+        if ((updateOp & kUpdateUnrollRemainderFreq) != 0) {
           newFreq = denom > 0 ? (oldFreq * numer % denom) : oldFreq;
         } else {
           newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
         }
         toFreqs[newStmt->GetStmtID()] = (newFreq > 0 || oldFreq == 0 || numer == 0) ?
             static_cast<uint64_t>(newFreq) : 1;
-        if (updateOp & kUpdateOrigFreq) {
+        if ((updateOp & kUpdateOrigFreq) != 0) {
           int64_t left = ((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1;
           fromFreqs[stmt.GetStmtID()] = static_cast<uint64_t>(left);
         }
@@ -455,22 +455,22 @@ void DepositbitsNode::Dump(int32 indent) const {
 void TernaryNode::Dump(int32 indent) const {
   BaseNode::DumpBase(0);
   LogInfo::MapleLogger() << " (";
-  if (topnd[0]->IsLeaf() && topnd[1]->IsLeaf() && topnd[2]->IsLeaf()) {
-    topnd[0]->Dump(0);
+  if (topnd[kFirstOpnd]->IsLeaf() && topnd[kSecondOpnd]->IsLeaf() && topnd[kThirdOpnd]->IsLeaf()) {
+    topnd[kFirstOpnd]->Dump(0);
     LogInfo::MapleLogger() << ", ";
-    topnd[1]->Dump(0);
+    topnd[kSecondOpnd]->Dump(0);
     LogInfo::MapleLogger() << ", ";
-    topnd[2]->Dump(0);
+    topnd[kThirdOpnd]->Dump(0);
   } else {
     LogInfo::MapleLogger() << '\n';
     PrintIndentation(indent + 1);
-    topnd[0]->Dump(indent + 1);
+    topnd[kFirstOpnd]->Dump(indent + 1);
     LogInfo::MapleLogger() << ",\n";
     PrintIndentation(indent + 1);
-    topnd[1]->Dump(indent + 1);
+    topnd[kSecondOpnd]->Dump(indent + 1);
     LogInfo::MapleLogger() << ",\n";
     PrintIndentation(indent + 1);
-    topnd[2]->Dump(indent + 1);
+    topnd[kThirdOpnd]->Dump(indent + 1);
   }
   LogInfo::MapleLogger() << ")";
 }
@@ -642,8 +642,7 @@ void DreadoffNode::Dump(int32) const {
 void RegreadNode::Dump(int32) const {
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOpCode()).name << " " << GetPrimTypeName(GetPrimType());
   if (regIdx >= 0) {
-    LogInfo::MapleLogger() << " %" << theMIRModule->CurFunction()->GetPregTab()->PregFromPregIdx(
-        static_cast<uint32>(regIdx))->GetPregNo();
+    LogInfo::MapleLogger() << " %" << theMIRModule->CurFunction()->GetPregTab()->PregFromPregIdx(regIdx)->GetPregNo();
     return;
   }
   LogInfo::MapleLogger() << " %%";
@@ -765,8 +764,7 @@ void RegassignNode::Dump(int32 indent) const {
   StmtNode::DumpBase(indent);
   LogInfo::MapleLogger() << " " << GetPrimTypeName(GetPrimType());
   if (regIdx >= 0) {
-    LogInfo::MapleLogger() << " %" << theMIRModule->CurFunction()->GetPregTab()->PregFromPregIdx(
-        static_cast<uint32>(regIdx))->GetPregNo();
+    LogInfo::MapleLogger() << " %" << theMIRModule->CurFunction()->GetPregTab()->PregFromPregIdx(regIdx)->GetPregNo();
   } else {
     LogInfo::MapleLogger() << " %%";
     switch (regIdx) {
@@ -2188,9 +2186,9 @@ bool IntrinsicopNode::Verify() const {
 }
 
 bool TernaryNode::Verify() const {
-  bool comp1Verf = CompatibleTypeVerify(*topnd[1], *this);
-  bool comp2Verf = CompatibleTypeVerify(*topnd[2], *this);
-  bool opnd0TypeVerf = IsPrimitiveInteger(topnd[0]->GetPrimType());
+  bool comp1Verf = CompatibleTypeVerify(*topnd[kSecondOpnd], *this);
+  bool comp2Verf = CompatibleTypeVerify(*topnd[kThirdOpnd], *this);
+  bool opnd0TypeVerf = IsPrimitiveInteger(topnd[kFirstOpnd]->GetPrimType());
   if (!opnd0TypeVerf) {
     LogInfo::MapleLogger() << "\n#Error:select-opnd0 must be of integer type\n";
   }

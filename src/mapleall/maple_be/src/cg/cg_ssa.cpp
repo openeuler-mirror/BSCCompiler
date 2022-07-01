@@ -41,7 +41,7 @@ void CGSSAInfo::ConstructSSA() {
     }
   }
 #endif
-  cgFunc->SetSSAvRegCount(GetAllSSAOperands().size() + SSARegNObase + 1);
+  cgFunc->SetSSAvRegCount(static_cast<uint32>(GetAllSSAOperands().size()) + SSARegNObase + 1);
   /* save reversePostOrder of bbs for rectify validbit */
   SetReversePostOrder();
 }
@@ -190,7 +190,7 @@ uint32 CGSSAInfo::IncreaseVregCount(regno_t vRegNO) {
 }
 
 bool CGSSAInfo::IncreaseSSAOperand(regno_t vRegNO, VRegVersion *vst) {
-  if (allSSAOperands.count(vRegNO)) {
+  if (allSSAOperands.count(vRegNO) != 0) {
     return false;
   }
   allSSAOperands.emplace(vRegNO, vst);

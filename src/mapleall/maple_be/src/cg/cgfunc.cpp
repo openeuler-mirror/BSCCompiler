@@ -1799,7 +1799,7 @@ void CGFunc::GenerateCfiPrologEpilog() {
 
 void CGFunc::TraverseAndClearCatchMark(BB &bb) {
   /* has bb been visited */
-  if (bb.GetInternalFlag3()) {
+  if (bb.GetInternalFlag3() != 0) {
     return;
   }
   bb.SetIsCatch(false);
@@ -1896,7 +1896,7 @@ void CGFunc::MarkCleanupEntryBB() {
 /* Tranverse from current bb's successor and set isCleanup true. */
 void CGFunc::SetCleanupLabel(BB &cleanupEntry) {
   /* If bb hasn't been visited, return. */
-  if (cleanupEntry.GetInternalFlag3()) {
+  if (cleanupEntry.GetInternalFlag3() != 0) {
     return;
   }
   cleanupEntry.SetInternalFlag3(1);

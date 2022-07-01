@@ -71,7 +71,7 @@ VRegVersion *AArch64CGSSAInfo::RenamedOperandSpecialCase(RegOperand &vRegOpnd, I
 
 RegOperand *AArch64CGSSAInfo::CreateSSAOperand(RegOperand &virtualOpnd) {
   regno_t ssaRegNO = static_cast<regno_t>(GetAllSSAOperands().size()) + SSARegNObase;
-  while (GetAllSSAOperands().count(ssaRegNO)) {
+  while (GetAllSSAOperands().count(ssaRegNO) != 0) {
     ssaRegNO++;
     SSARegNObase++;
   }
@@ -317,7 +317,7 @@ void A64OpndSSAUpdateVsitor::UpdateRegDef(uint32 ssaIdx) {
     deletedDef.emplace(ssaIdx);
     curVersion->MarkDeleted();
   } else {
-    if (deletedDef.count(ssaIdx)) {
+    if (deletedDef.count(ssaIdx) != 0) {
       deletedDef.erase(ssaIdx);
       curVersion->MarkRecovery();
     } else {

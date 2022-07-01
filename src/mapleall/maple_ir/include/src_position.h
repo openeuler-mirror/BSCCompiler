@@ -14,6 +14,7 @@
  */
 #ifndef MAPLE_IR_INCLUDE_SRC_POSITION_H
 #define MAPLE_IR_INCLUDE_SRC_POSITION_H
+#include "mpl_logging.h"
 
 namespace maple {
 // to store source position information
@@ -66,19 +67,50 @@ class SrcPosition {
   }
 
   void CondSetLineNum(uint32 n) {
-    lineNum = lineNum ? lineNum : n;
+    lineNum = lineNum != 0 ? lineNum : n;
   }
 
   void CondSetFileNum(uint16 n) {
     uint16 i = u.fileColumn.fileNum;
-    u.fileColumn.fileNum = i ? i : n;
+    u.fileColumn.fileNum = i != 0 ? i : n;
   }
 
   // as you read: this->IsBfOrEq(pos)
-  bool IsBfOrEq(SrcPosition pos) {
+  bool IsBfOrEq(SrcPosition pos) const {
     return (pos.FileNum() == FileNum() &&
            ((LineNum() < pos.LineNum()) ||
             ((LineNum() == pos.LineNum()) && (Column() <= pos.Column()))));
+  }
+
+  bool IsSrcPostionEq(SrcPosition pos) const {
+    return FileNum() == pos.FileNum() && LineNum() == pos.LineNum() && Column() == pos.Column();
+  }
+
+  void DumpLoc(uint32 &lastLineNum, uint16 &lastColumnNum) const {
+    if (FileNum() != 0 && LineNum() != 0) {
+      if (Column() != 0 && (LineNum() != lastLineNum || Column() != lastColumnNum)) {
+        DumpLocWithCol();
+        lastLineNum = LineNum();
+        lastColumnNum = Column();
+      } else if (LineNum() != lastLineNum) {
+        DumpLocWithLine();
+        lastLineNum = LineNum();
+      }
+    }
+  }
+
+  void DumpLocWithLine() const {
+    LogInfo::MapleLogger() << "LOC " << FileNum() << " " << LineNum() << '\n';
+  }
+
+  void DumpLocWithCol() const {
+    LogInfo::MapleLogger() << "LOC " << FileNum() << " " << LineNum() << " " << Column() << '\n';
+  }
+
+  std::string DumpLocWithColToString() const {
+    std::stringstream ss;
+    ss << "LOC " << FileNum() << " " << LineNum() << " " << Column();
+    return ss.str();
   }
 
  private:

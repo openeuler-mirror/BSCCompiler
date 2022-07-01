@@ -33,6 +33,7 @@ namespace {
 constexpr uint32 kClinitAdvanceCycle = 10;
 constexpr uint32 kAdrpLdrAdvanceCycle = 2;
 constexpr uint32 kClinitTailAdvanceCycle = 4;
+constexpr uint32 kSecondToLastNode = 2;
 }
 
 uint32 AArch64Schedule::maxUnitIndex = 0;
@@ -90,13 +91,13 @@ bool AArch64Schedule::CanCombine(const Insn &insn) const {
   }
 
   ASSERT(insn.GetOperand(1).IsMemoryAccessOperand(), "expects mem operands");
-  auto &memOpnd = static_cast<AArch64MemOperand&>(insn.GetOperand(1));
-  AArch64MemOperand::AArch64AddressingMode addrMode = memOpnd.GetAddrMode();
-  if ((addrMode != AArch64MemOperand::kAddrModeBOi) || !memOpnd.IsIntactIndexed()) {
+  auto &memOpnd = static_cast<MemOperand&>(insn.GetOperand(1));
+  MemOperand::AArch64AddressingMode addrMode = memOpnd.GetAddrMode();
+  if ((addrMode != MemOperand::kAddrModeBOi) || !memOpnd.IsIntactIndexed()) {
     return false;
   }
 
-  auto &regOpnd = static_cast<AArch64RegOperand&>(insn.GetOperand(0));
+  auto &regOpnd = static_cast<RegOperand&>(insn.GetOperand(0));
   if (regOpnd.GetSize() != memOpnd.GetSize()) {
     return false;
   }
@@ -108,7 +109,7 @@ bool AArch64Schedule::CanCombine(const Insn &insn) const {
   }
 #endif /* USE_32BIT_REF */
 
-  AArch64OfstOperand *offset = memOpnd.GetOffsetImmediate();
+  OfstOperand *offset = memOpnd.GetOffsetImmediate();
   if (offset == nullptr) {
     return false;
   }
@@ -179,7 +180,7 @@ void AArch64Schedule::MemoryAccessPairOpt() {
 void AArch64Schedule::FindAndCombineMemoryAccessPair(const std::vector<DepNode*> &memList) {
   ASSERT(!memList.empty(), "memList should not be empty");
   CHECK_FATAL(memList[0]->GetInsn() != nullptr, "memList[0]'s insn should not be nullptr");
-  AArch64MemOperand *currMemOpnd = static_cast<AArch64MemOperand*>(memList[0]->GetInsn()->GetMemOpnd());
+  MemOperand *currMemOpnd = static_cast<MemOperand*>(memList[0]->GetInsn()->GetMemOpnd());
   ASSERT(currMemOpnd != nullptr, "opnd should not be nullptr");
   ASSERT(currMemOpnd->IsMemoryAccessOperand(), "opnd should be memOpnd");
   int32 currOffsetVal = static_cast<int32>(currMemOpnd->GetOffsetImmediate()->GetOffsetValue());
@@ -189,7 +190,7 @@ void AArch64Schedule::FindAndCombineMemoryAccessPair(const std::vector<DepNode*>
     ASSERT((*it)->GetInsn() != nullptr, "null ptr check");
 
     if (currMop == (*it)->GetInsn()->GetMachineOpcode()) {
-      AArch64MemOperand *nextMemOpnd = static_cast<AArch64MemOperand*>((*it)->GetInsn()->GetMemOpnd());
+      MemOperand *nextMemOpnd = static_cast<MemOperand*>((*it)->GetInsn()->GetMemOpnd());
       CHECK_FATAL(nextMemOpnd != nullptr, "opnd should not be nullptr");
       CHECK_FATAL(nextMemOpnd->IsMemoryAccessOperand(), "opnd should be MemOperand");
       int32 nextOffsetVal = static_cast<int32>(nextMemOpnd->GetOffsetImmediate()->GetOffsetValue());
@@ -264,7 +265,7 @@ void AArch64Schedule::RegPressureScheduling(BB &bb, MapleVector<DepNode*> &nodes
    * Get physical register amount currently
    * undef, Int Reg, Float Reg, Flag Reg
    */
-  const std::vector<int32> kRegNumVec = { 0, V0, kMaxRegNum - V0 + 1, 1 };
+  const std::vector<int32> kRegNumVec = { 0, V0, (kMaxRegNum - V0) + 1, 1 };
   regSchedule->InitBBInfo(bb, memPool, nodes);
   regSchedule->BuildPhyRegInfo(kRegNumVec);
   regSchedule->DoScheduling(nodes);
@@ -480,7 +481,7 @@ void AArch64Schedule::CountUnitKind(const DepNode &depNode, uint32 array[], cons
   ASSERT(arraySize >= kUnitKindLast, "CG internal error. unit kind number is not correct.");
   uint32 unitKind = depNode.GetUnitKind();
   int32 index = static_cast<int32>(__builtin_ffs(unitKind));
-  while (index) {
+  while (index != 0) {
     ASSERT(index < kUnitKindLast, "CG internal error. index error.");
     ++array[index];
     unitKind &= ~(1u << (index - 1u));
@@ -492,9 +493,9 @@ void AArch64Schedule::CountUnitKind(const DepNode &depNode, uint32 array[], cons
 bool AArch64Schedule::IfUseUnitKind(const DepNode &depNode, uint32 index) {
   uint32 unitKind = depNode.GetUnitKind();
   int32 idx = static_cast<int32>(__builtin_ffs(unitKind));
-  while (idx) {
+  while (idx != 0) {
     ASSERT(index < kUnitKindLast, "CG internal error. index error.");
-    if (idx == index) {
+    if (idx == static_cast<int32>(index)) {
       return true;
     }
     unitKind &= ~(1u << (idx - 1u));
@@ -1053,8 +1054,8 @@ uint32 AArch64Schedule::SimulateOnly() {
     }
   }
   /* the second to last node is the true last node, because the last is kNodeTypeSeparator nod */
-  ASSERT(nodes.size() - 2 >= 0, "size of nodes should be greater than or equal 2");
-  return (nodes[nodes.size() - 2]->GetSimulateCycle());
+  ASSERT(nodes.size() - kSecondToLastNode >= 0, "size of nodes should be greater than or equal 2");
+  return (nodes[nodes.size() - kSecondToLastNode]->GetSimulateCycle());
 }
 
 /* Restore dependence graph to normal CGIR. */
@@ -1482,7 +1483,7 @@ void AArch64Schedule::ListScheduling(bool beforeRA) {
       DumpDepGraph(nodes);
     }
     if (beforeRA) {
-      liveInRegNo = bb->GetLiveInRegNO();;
+      liveInRegNo = bb->GetLiveInRegNO();
       liveOutRegNo = bb->GetLiveOutRegNO();
       if (bb->GetKind() != BB::kBBReturn) {
         SetConsiderRegPressure();

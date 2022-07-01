@@ -169,7 +169,7 @@ void MIRModule::DumpGlobals(bool emitStructureType) const {
       EmitStr(asmDecls[i]);
     }
   }
-  if (entryFuncName.length()) {
+  if (entryFuncName.length() != 0) {
     LogInfo::MapleLogger() << "entryfunc &" << entryFuncName << '\n';
   }
   if (!fileInfo.empty()) {
@@ -579,7 +579,7 @@ void MIRModule::DumpToCxxHeaderFile(std::set<std::string> &leafClasses, const st
   LogInfo::MapleLogger().rdbuf(mpltFile.rdbuf());  // change cout's buffer to that of file
   char *headerGuard = strdup(pathToOutf.c_str());
   CHECK_FATAL(headerGuard != nullptr, "strdup failed");
-  for (char *p = headerGuard; *p; ++p) {
+  for (char *p = headerGuard; *p != 0; ++p) {
     if (!isalnum(*p)) {
       *p = '_';
     } else if (isalpha(*p) && islower(*p)) {

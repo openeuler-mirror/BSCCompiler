@@ -108,7 +108,7 @@ bool MIRBuilder::TraverseToNamedFieldWithTypeAndMatchStyle(MIRStructType &struct
   if (structType.IsIncomplete()) {
     (void)incompleteTypeRefedSet.insert(structType.GetTypeIndex());
   }
-  if (matchStyle & kParentFirst) {
+  if ((matchStyle & kParentFirst) != 0) {
     // process parent
     if ((structType.GetKind() != kTypeClass) && (structType.GetKind() != kTypeClassIncomplete)) {
       return false;
