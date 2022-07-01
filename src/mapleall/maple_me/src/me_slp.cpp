@@ -20,16 +20,16 @@
 #include "common_utils.h"
 
 #define SLP_DEBUG(X) \
-do { if (debug) { LogInfo::MapleLogger() << "[SLP] "; X; } } while (false)
+do { if (debug) { LogInfo::MapleLogger() << "[SLP] "; (X); } } while (false)
 
 #define SLP_OK_DEBUG(X) \
-do { if (debug) { LogInfo::MapleLogger() << "[SLP OK] "; X; } } while (false)
+do { if (debug) { LogInfo::MapleLogger() << "[SLP OK] "; (X); } } while (false)
 
 #define SLP_GATHER_DEBUG(X) \
-do { if (debug) { LogInfo::MapleLogger() << "[SLP GATHER] "; X; } } while (false)
+do { if (debug) { LogInfo::MapleLogger() << "[SLP GATHER] "; (X); } } while (false)
 
 #define SLP_FAILURE_DEBUG(X) \
-do { if (debug) { LogInfo::MapleLogger() << "[SLP FAILURE] "; X; } } while (false)
+do { if (debug) { LogInfo::MapleLogger() << "[SLP FAILURE] "; (X); } } while (false)
 
 namespace {
 using namespace maple;
@@ -679,6 +679,20 @@ void SetOrderId(MeStmt *stmt, uint32 id) {
   CHECK_NULL_FATAL(stmt);
   stmt->SetMeStmtId(id);
 }
+
+// Assume there are two stmts in a same bb, stmt1 is located before stmt2:
+//   stmt1
+//   ...
+//   stmt2
+// Now we want to schedule stmt2 before stmt1, the scenario of scheduling failure is as follows:
+enum class SchedFailReason {
+  kSchedSuccess,        // schedule success
+  kSchedFailOpndDep,    // dependencies of stmt2's opnds is within the range [stmt1, stmt2)
+  kSchedFailMuDep,      // dependencies of stmt2's mu is within the range [stmt1, stmt2)
+  kSchedFailChiRhsDep,  // dependencies of stmt2's chiRhs is within the range [stmt1, stmt2)
+  kSchedFailChiRhsUse,  // [cross-version ref] stmt2's chiRhs is used by stmts in the range [stmt1, stmt2)
+  kSchedFailPregWAR     // preg Write After Read
+};
 
 // ---------- //
 //  SLP Tree  //
@@ -1473,7 +1487,7 @@ struct BlockScheduling {
     }
   }
 
-  bool CanScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor);
+  bool CanScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor, SchedFailReason &failReason);
   bool CanScheduleAssignWithoutOverlapBefore(MeStmt *stmt, MeStmt *anchor);
   bool TryScheduleTwoStmtsTogether(MeStmt *first, MeStmt *second);
   void VerifyScheduleResult(uint32 firstOrderId, uint32 lastOrderId);
@@ -1527,10 +1541,11 @@ void GetDependencyStmts(MeExpr *expr, std::vector<MeStmt*> &dependencies) {
 }
 
 // Collect defStmt of `stmt`
-void GetDependencyStmts(MeStmt *stmt, std::vector<MeStmt*> &dependencies) {
+void GetDependencyStmts(MeStmt *stmt, std::vector<MeStmt*> &depsOfOpnd, std::vector<MeStmt*> &depsOfChiRhs,
+    std::vector<MeStmt*> &depsOfMu) {
   for (size_t i = 0; i < stmt->NumMeStmtOpnds(); ++i) {
     auto *opnd = stmt->GetOpnd(i);
-    GetDependencyStmts(opnd, dependencies);
+    GetDependencyStmts(opnd, depsOfOpnd);
   }
   auto *chiList = stmt->GetChiList();
   if (chiList != nullptr) {
@@ -1538,7 +1553,7 @@ void GetDependencyStmts(MeStmt *stmt, std::vector<MeStmt*> &dependencies) {
       auto *chiNode = chiNodePair.second;
       auto *defStmt = chiNode->GetRHS()->GetDefByMeStmt();
       if (defStmt != nullptr) {
-        dependencies.push_back(defStmt);
+        depsOfChiRhs.push_back(defStmt);
       }
     }
   }
@@ -1549,7 +1564,7 @@ void GetDependencyStmts(MeStmt *stmt, std::vector<MeStmt*> &dependencies) {
       auto *mu = muPair.second;
       auto *defStmt = mu->GetDefByMeStmt();
       if (defStmt != nullptr) {
-        dependencies.push_back(defStmt);
+        depsOfMu.push_back(defStmt);
       }
     }
   }
@@ -1654,26 +1669,44 @@ bool BlockScheduling::IsOstUsedByStmt(OriginalSt *ost, MeStmt *stmt) {
 }
 
 // `anchor` must be before `stmt`
-bool BlockScheduling::CanScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor) {
+bool BlockScheduling::CanScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor, SchedFailReason &failReason) {
   CHECK_FATAL(stmt->GetBB() == anchor->GetBB(), "must belong to same BB");
   auto stmtOrderId = GetOrderId(stmt);
   auto anchorOrderId = GetOrderId(anchor);
   CHECK_FATAL(anchorOrderId < stmtOrderId, "anchor must be before stmt");
-  std::vector<MeStmt*> dependencies;
-  GetDependencyStmts(stmt, dependencies);
-  std::vector<MeStmt*> useChiRhsStmts;
-  GetUseStmtsOfChiRhs(*exprUseInfo, stmt, useChiRhsStmts);
-  // range: [anchor, stmt)
-  MeStmt *foundDepStmt = FindAnyStmtInRegion(dependencies, anchor, stmt);
-  if (foundDepStmt != nullptr) {
-    SLP_DEBUG(os << "stmt" << GetOrderId(stmt) << " depends on stmt" <<
-        GetOrderId(foundDepStmt) << std::endl);
+  std::vector<MeStmt*> depsOfOpnd;
+  std::vector<MeStmt*> depsOfChiRhs;
+  std::vector<MeStmt*> depsOfMu;
+  GetDependencyStmts(stmt, depsOfOpnd, depsOfChiRhs, depsOfMu);
+  // check opndDep
+  MeStmt *found = FindAnyStmtInRegion(depsOfOpnd, anchor, stmt);  // range: [anchor, stmt)
+  if (found != nullptr) {
+    failReason = SchedFailReason::kSchedFailOpndDep;
+    SLP_DEBUG(os << "stmt" << GetOrderId(stmt) << "'s opnd depends on stmt" << GetOrderId(found) << std::endl);
     return false;
   }
-  MeStmt *useStmtOfChiRhs = FindAnyStmtInRegion(useChiRhsStmts, anchor, stmt);
-  if (useStmtOfChiRhs != nullptr) {
-    SLP_DEBUG(os << "stmt" << GetOrderId(stmt) << " chi rhs is used by stmt" <<
-        GetOrderId(useStmtOfChiRhs) << std::endl);
+  // check muDep
+  found = FindAnyStmtInRegion(depsOfMu, anchor, stmt);
+  if (found != nullptr) {
+    failReason = SchedFailReason::kSchedFailMuDep;
+    SLP_DEBUG(os << "stmt" << GetOrderId(stmt) << "'s mu depends on stmt" << GetOrderId(found) << std::endl);
+    return false;
+  }
+  // check chiRhsDep
+  found = FindAnyStmtInRegion(depsOfChiRhs, anchor, stmt);
+  if (found != nullptr) {
+    failReason = SchedFailReason::kSchedFailChiRhsDep;
+    SLP_DEBUG(os << "stmt" << GetOrderId(stmt) << "'s chiRhs depends on stmt" << GetOrderId(found) << std::endl);
+    return false;
+  }
+
+  // check chiRhsUse
+  std::vector<MeStmt*> useChiRhsStmts;
+  GetUseStmtsOfChiRhs(*exprUseInfo, stmt, useChiRhsStmts);
+  found = FindAnyStmtInRegion(useChiRhsStmts, anchor, stmt);
+  if (found != nullptr) {
+    failReason = SchedFailReason::kSchedFailChiRhsUse;
+    SLP_DEBUG(os << "stmt" << GetOrderId(stmt) << " chi rhs is used by stmt" << GetOrderId(found) << std::endl);
     return false;
   }
   // Identify WAR (Write After Read) for a same preg
@@ -1681,6 +1714,7 @@ bool BlockScheduling::CanScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor) {
     auto *defOst = static_cast<AssignMeStmt*>(stmt)->GetLHS()->GetOst();
     for (size_t id = anchorOrderId; id < stmtOrderId; ++id) {
       if (IsOstUsedByStmt(defOst, stmtVec[id])) {
+        failReason = SchedFailReason::kSchedFailPregWAR;
         SLP_DEBUG(os << "Found WAR: stmt" << GetOrderId(stmtVec[id]) << " uses ost ");
         if (debug) {
           defOst->Dump();
@@ -1690,6 +1724,7 @@ bool BlockScheduling::CanScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor) {
       }
     }
   }
+  failReason = SchedFailReason::kSchedSuccess;
   return true;
 }
 
@@ -1738,7 +1773,8 @@ bool BlockScheduling::TryScheduleTwoStmtsTogether(MeStmt *first, MeStmt *second)
   CHECK_FATAL(firstOrderId < secondOrderId, "`first` must be before `second`");
   for (uint32 id = firstOrderId + 1; id < secondOrderId; ++id) {
     auto *stmt = stmtVec[id];
-    if (!CanScheduleStmtBefore(stmt, first)) {
+    SchedFailReason failReason = SchedFailReason::kSchedSuccess;
+    if (!CanScheduleStmtBefore(stmt, first, failReason)) {
       SLP_DEBUG(os << "stmt" << GetOrderId(stmt) << " can not be scheduled before stmt" <<
           GetOrderId(first) << std::endl);
       if (debug) {
@@ -1748,7 +1784,7 @@ bool BlockScheduling::TryScheduleTwoStmtsTogether(MeStmt *first, MeStmt *second)
         }
       }
       // Try schedule iassign/dassign stmts without overlap
-      if (CanScheduleAssignWithoutOverlapBefore(stmt, first)) {
+      if (failReason == SchedFailReason::kSchedFailChiRhsDep && CanScheduleAssignWithoutOverlapBefore(stmt, first)) {
         ScheduleStmtBefore(stmt, first, true);
         if (debug) {
           os << "Schedule iassign/dassign stmts without overlap successfully\nAfter scheduled:" << std::endl;
@@ -2281,7 +2317,7 @@ bool SLPVectorizer::DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, ui
     CHECK_FATAL(false, "should not be here");
   }
   if (onlySchedule) {
-    SLP_DEBUG(os << "onlySchedule save result" << std::endl;);
+    SLP_DEBUG(os << "onlySchedule save result" << std::endl);
     CodeMotionSaveSchedulingResult();
     return true;
   }
@@ -2289,15 +2325,15 @@ bool SLPVectorizer::DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, ui
   bool vectorized = VectorizeSLPTree();
   // If we can use stp instruction, don't need to replace scalar stmts with vector stmts
   if (vectorized) {
-    SLP_DEBUG(os << "CodeMotionVectorize" << std::endl;);
+    SLP_DEBUG(os << "CodeMotionVectorize" << std::endl);
     MarkStmtsVectorizedInTree();
     CodeMotionVectorize();
   } else if (blockScheduling->irModified) {
     // If IR have been modified after scheduling (such as chiList), scheduling result must be saved
-    SLP_DEBUG(os << "CodeMotionSaveSchedulingResult" << std::endl;);
+    SLP_DEBUG(os << "CodeMotionSaveSchedulingResult" << std::endl);
     CodeMotionSaveSchedulingResult();
   } else if (tree->CanTreeUseStp()) {
-    SLP_DEBUG(os << "CodeMotionReorderStoresAndLoads" << std::endl;);
+    SLP_DEBUG(os << "CodeMotionReorderStoresAndLoads" << std::endl);
     CodeMotionReorderStoresAndLoads();
   } else if (tree->GetSize() > 2) {
     bool hasLoadStorePair = false;
@@ -2308,7 +2344,7 @@ bool SLPVectorizer::DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, ui
       }
     }
     if (hasLoadStorePair) {
-      SLP_DEBUG(os << "CodeMotionSaveSchedulingResult" << std::endl;);
+      SLP_DEBUG(os << "CodeMotionSaveSchedulingResult" << std::endl);
       CodeMotionSaveSchedulingResult();  // Save scheduling result to put load/store pair together
     }
   }
