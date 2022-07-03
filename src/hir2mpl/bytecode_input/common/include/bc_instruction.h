@@ -194,7 +194,7 @@ class BCRegType {
   }
 
   static void InsertUniqueTypeItem(MapleList<BCRegTypeItem*> &itemSet, BCRegTypeItem *item) {
-    for (auto &elem : itemSet) {
+    for (auto const &elem : itemSet) {
       if ((!elem->isIndeterminate && !item->isIndeterminate && (*elem) == (*item)) || elem == item) {
         return;
       }
@@ -343,7 +343,7 @@ struct TypeInferItem {
   }
 
   bool RegisterInPrevs(TypeInferItem *prev) {
-    for (auto e : prevs) {
+    for (auto const e : prevs) {
       if (e == prev) {
         return false;
       }
@@ -364,7 +364,7 @@ struct TypeInferItem {
       currItem->isAlive = true;
       for (auto type : *types) {
         bool duplicate = false;
-        for (auto ty : *(currItem->aliveUsedTypes)) {
+        for (auto const ty : *(currItem->aliveUsedTypes)) {
           if (ty == type) {
             duplicate = true;
             break;
@@ -376,7 +376,7 @@ struct TypeInferItem {
         }
       }
       // insert into its prevs cyclely
-      for (auto prev : currItem->prevs) {
+      for (auto const prev : currItem->prevs) {
         if (end != nullptr && end->reg == prev->reg && end->reg->regType->IsBefore(prev->beginPos, end->beginPos)) {
           continue;
         }
@@ -405,7 +405,7 @@ struct TypeInferItem {
       auto currItem = workList[index++];
       currItem->isAlive = true;
       bool duplicate = false;
-      for (auto ty : *(currItem->aliveUsedTypes)) {
+      for (auto const ty : *(currItem->aliveUsedTypes)) {
         if (ty == type) {
           duplicate = true;
           break;

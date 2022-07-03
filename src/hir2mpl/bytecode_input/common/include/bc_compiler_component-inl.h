@@ -140,11 +140,11 @@ bool BCCompilerComponent<T>::LoadOnDemandBCClass2FEClass(
     structHelper->SetIsOnDemandLoad(true);
     structHelpers.push_back(std::move(structHelper));
   }
-  for (const std::unique_ptr<FEInputStructHelper> &helper : structHelpers) {
+  for (std::unique_ptr<FEInputStructHelper> const &helper : structHelpers) {
     ASSERT_NOT_NULL(helper);
     (void)helper->PreProcessDecl();
   }
-  for (const std::unique_ptr<FEInputStructHelper> &helper : structHelpers) {
+  for (std::unique_ptr<FEInputStructHelper> const &helper : structHelpers) {
     ASSERT_NOT_NULL(helper);
     (void)helper->ProcessDecl();
     helper->ProcessPragma();

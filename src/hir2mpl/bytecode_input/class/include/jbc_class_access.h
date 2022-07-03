@@ -17,7 +17,7 @@
 
 namespace maple {
 namespace jbc {
-enum JBCClassAccessFlag {
+enum JBCClassAccessFlag: uint16 {
   kAccClassPublic = 0x0001,
   kAccClassFinal = 0x0010,
   kAccClassSuper = 0x0020,
@@ -40,7 +40,7 @@ enum JBCClassFieldAccessFlag {
   kAccFieldEnum = 0x4000,
 };
 
-enum JBCClassMethodAccessFlag {
+enum JBCClassMethodAccessFlag: uint16 {
   kAccMethodPublic = 0x0001,
   kAccMethodPrivate = 0x0002,
   kAccMethodProtected = 0x0004,

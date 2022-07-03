@@ -29,7 +29,7 @@ JBCStack2FEHelper::JBCStack2FEHelper(bool argUseNestExpr)
 //                  (mapping to slotNum: nArgs ~ allLocals - 1)
 //              baseLocal + nLocals ~ baseLocal + allLocals - 1: args var
 //                  (mapping to slotNum: 0 ~ nArgs - 1)
-//
+
 uint32 JBCStack2FEHelper::GetRegNumForSlot(uint32 slotNum) const {
   uint32 baseLocal = nStacks + nSwaps;
   uint32 allLocals = nLocals + nArgs;

@@ -111,7 +111,7 @@ bool BCInput<T>::CollectAllDepTypeNamesOnAllBCFiles(std::unordered_set<std::stri
       ERR(kLncErr, "Collect all dependent typenames failed in : %s.", item.first.c_str());
       return false;
     }
-    allDepSet.insert(depSet.begin(), depSet.end());
+    allDepSet.insert(depSet.cbegin(), depSet.cend());
   }
   BCUtil::AddDefaultDepSet(allDepSet);  // allDepSet is equal to "DefaultTypeSet + TypeSet - ClassSet"
   std::unordered_set<std::string> classSet;
@@ -130,9 +130,9 @@ bool BCInput<T>::CollectMethodDepTypeNamesOnAllBCFiles(std::unordered_set<std::s
       continue;
     }
     std::list<std::string> superClassNames = klass->GetSuperClassNames();
-    depSet.insert(superClassNames.begin(), superClassNames.end());
+    depSet.insert(superClassNames.cbegin(), superClassNames.cend());
     std::vector<std::string> superInterfaceNames = klass->GetSuperInterfaceNames();
-    depSet.insert(superInterfaceNames.begin(), superInterfaceNames.end());
+    depSet.insert(superInterfaceNames.cbegin(), superInterfaceNames.cend());
     for (const std::unique_ptr<BCClassMethod> &method : klass->GetMethods()) {
       if (method == nullptr) {
         continue;
@@ -157,7 +157,7 @@ bool BCInput<T>::CollectClassNamesOnAllBCFiles(std::unordered_set<std::string> &
       ERR(kLncErr, "Collect all class names failed in : %s.", item.first.c_str());
       return false;
     }
-    allClassSet.insert(classSet.begin(), classSet.end());
+    allClassSet.insert(classSet.cbegin(), classSet.cend());
   }
   return true;
 }
