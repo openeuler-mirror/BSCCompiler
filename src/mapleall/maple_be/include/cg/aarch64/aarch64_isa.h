@@ -29,7 +29,8 @@ namespace maplebe {
  * ARM Architecture Reference Manual (for ARMv8)
  * D1.8.2
  */
-constexpr int kAarch64StackPtrAlignment = 16;
+constexpr uint32 kAarch64StackPtrAlignment = 16;
+constexpr int32 kAarch64StackPtrAlignmentInt = 16;
 
 constexpr int32 kOffsetAlign = 8;
 constexpr uint32 kIntregBytelen = 8; /* 64-bit */
@@ -187,7 +188,7 @@ struct AArch64MD {
   }
 
   uint32 GetOperandSize() const {
-    if (properties & (ISLOAD | ISSTORE)) {
+    if ((properties & (ISLOAD | ISSTORE)) > 0) {
       /* use memory operand */
       return GetOperand(1U)->GetOperandSize();
     }

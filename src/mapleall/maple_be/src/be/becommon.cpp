@@ -80,11 +80,11 @@ static uint32 TryAllocInPaddingSlots(std::list<uint32> paddingSlots[],
         uint32 leftSize = (1u << freeSlot) - fieldSize;
         if (leftSize != 0) {
           uint32 leftOffset = paddingOffset + fieldSize;
-          if (leftSize & 0x1) {  /* check whether the last bit is 1 */
+          if ((leftSize & 0x1) > 0) {  /* check whether the last bit is 1 */
             paddingSlots[0].push_front(leftOffset);
             leftOffset += 1;
           }
-          if (leftSize & 0x2) {  /* check whether the penultimate bit is 1 */
+          if ((leftSize & 0x2) > 0) {  /* check whether the penultimate bit is 1 */
             paddingSlots[1].push_front(leftOffset);
           }
         }
@@ -102,7 +102,7 @@ static void AddPaddingSlot(std::list<uint32> paddingSlots[], uint32 offset, uint
    * to satisfy alignment constraints.
    */
   for (size_t i = 0; i < paddingSlotsLength; ++i) {
-    if (size & (1u << i)) {
+    if ((size & (1u << i)) > 0) {
       paddingSlots[i].push_front(offset);
       offset += (1u << i);
     }

@@ -45,7 +45,7 @@ uint32 AArch64Insn::GetOpndNum() const {
 void AArch64Insn::PrepareVectorOperand(RegOperand *regOpnd, uint32 &compositeOpnds) const {
   AArch64Insn *insn = const_cast<AArch64Insn*>(this);
   VectorRegSpec* vecSpec = static_cast<AArch64VectorInsn*>(insn)->GetAndRemoveRegSpecFromList();
-  compositeOpnds = vecSpec->compositeOpnds ? vecSpec->compositeOpnds : compositeOpnds;
+  compositeOpnds = (vecSpec->compositeOpnds > 0) ? vecSpec->compositeOpnds : compositeOpnds;
   regOpnd->SetVecLanePosition(vecSpec->vecLane);
   switch (mOp) {
     case MOP_vanduuu:
@@ -622,7 +622,7 @@ uint32 AArch64Insn::GetJumpTargetIdxFromMOp(MOperator mOp) const {
       return kOperandPosition0;
     }
     case MOP_xbr: {
-      CHECK_FATAL(opnds[1] != 0, "ERR");
+      CHECK_FATAL(opnds[1] != nullptr, "ERR");
       return kOperandPosition1;
     }
     /* conditional jump */
@@ -847,7 +847,7 @@ void A64OpndEmitVisitor::Visit(maplebe::ImmOperand *v) {
     fraction.pop_back();
   }
   /* fetch the sign bit of this value */
-  std::string sign = static_cast<uint64>(value) & 0x80 ? "-" : "";
+  std::string sign = ((static_cast<uint64>(value) & 0x80) > 0) ? "-" : "";
   (void)emitter.Emit(sign + integer + "." + fraction + "e+").Emit(static_cast<int64>(dot) - 1);
 }
 

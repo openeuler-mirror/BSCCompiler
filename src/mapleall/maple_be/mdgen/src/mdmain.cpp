@@ -35,9 +35,9 @@ void ParseCommandLine(int argc, char **argv) {
   int gOptionIndex = 0;
   std::string optStr = "s:o:";
   static struct option longOptions[] = {
-      {"genSchdInfo", required_argument, NULL, 's'},
-      {"outDirectory", required_argument, NULL, 'o'},
-      {0, 0, 0, 0}
+      {"genSchdInfo", required_argument, nullptr, 's'},
+      {"outDirectory", required_argument, nullptr, 'o'},
+      {nullptr, 0, nullptr, 0}
   };
   while ((opt = getopt_long(argc, argv, optStr.c_str(), longOptions, &gOptionIndex)) != -1) {
     switch (opt) {

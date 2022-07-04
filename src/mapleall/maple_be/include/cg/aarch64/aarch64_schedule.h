@@ -136,7 +136,7 @@ class AArch64ScheduleProcessInfo : public ScheduleProcessInfo {
   void VaryFreeRegSet(CGFunc &f, std::set<regno_t> regNOs, DepNode &node);
 
   uint32 GetFreeIntRegs(DepNode &node) {
-    return freeIntRegNodeSet.count(&node) ? freeIntRegNodeSet.find(&node)->second : 0;
+    return (freeIntRegNodeSet.count(&node)) > 0 ? freeIntRegNodeSet.find(&node)->second : 0;
   }
   void IncFreeIntRegNode(DepNode &node) {
     if (!freeIntRegNodeSet.count(&node)) {
@@ -156,7 +156,7 @@ class AArch64ScheduleProcessInfo : public ScheduleProcessInfo {
     }
   }
   uint32 GetFreeFpRegs(DepNode &node) {
-    return freeFpRegNodeSet.count(&node) ? freeFpRegNodeSet.find(&node)->second : 0;
+    return (freeFpRegNodeSet.count(&node)) > 0 ? freeFpRegNodeSet.find(&node)->second : 0;
   }
   const std::map<DepNode*, uint32> &GetFreeFpRegNodeSet() const {
     return freeFpRegNodeSet;

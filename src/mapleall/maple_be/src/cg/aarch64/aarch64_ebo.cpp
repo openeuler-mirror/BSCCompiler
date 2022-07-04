@@ -692,7 +692,7 @@ AArch64CC_t AArch64Ebo::GetReverseCond(const CondOperand &cond) const {
     case CC_LE:
       return CC_GT;
     default:
-      CHECK_FATAL(0, "Not support yet.");
+      CHECK_FATAL(false, "Not support yet.");
   }
   return kCcLast;
 }

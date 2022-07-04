@@ -178,7 +178,7 @@ class CGSSAInfo {
     return noDefVRegs.find(vRegNO) != noDefVRegs.end();
   }
   uint32 GetVersionNOOfOriginalVreg(regno_t vRegNO) {
-    if (vRegDefCount.count(vRegNO)) {
+    if (vRegDefCount.count(vRegNO) > 0) {
       return vRegDefCount[vRegNO];
     }
     ASSERT(false, " original vreg is not existed");

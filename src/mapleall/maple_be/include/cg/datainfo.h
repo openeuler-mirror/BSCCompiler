@@ -99,7 +99,7 @@ class DataInfo {
   }
 
   void AndBits(const DataInfo &secondInfo) {
-    auto infoSize = static_cast<const int32>(info.size());
+    auto infoSize = static_cast<const uint32>(info.size());
     ASSERT(infoSize == secondInfo.GetInfo().size(), "two dataInfo's size different");
     for (uint32 i = 0; i != infoSize; ++i) {
       info[i] &= secondInfo.GetElem(i);
@@ -169,7 +169,7 @@ class DataInfo {
       uint32 offset = 0;
       uint32 baseWord = 0;
       bool firstTime = true;
-      while (word) {
+      while (word > 0) {
         int32 index = __builtin_ffsll(static_cast<int64>(word));
         if (index == 0) {
           continue;

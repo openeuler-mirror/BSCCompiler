@@ -66,21 +66,21 @@ void AArch64ReachingDefinition::InitStartGen() {
     Insn &pseudoInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd);
     bb->InsertInsnBegin(pseudoInsn);
     pseudoInsns.emplace_back(&pseudoInsn);
-    if (pLoc.reg1) {
+    if (pLoc.reg1 > 0) {
       RegOperand &regOpnd1 = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(
           static_cast<AArch64reg>(pLoc.reg1), srcBitSize, regType);
       Insn &pseudoInsn1 = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd1);
       bb->InsertInsnBegin(pseudoInsn1);
       pseudoInsns.emplace_back(&pseudoInsn1);
     }
-    if (pLoc.reg2) {
+    if (pLoc.reg2 > 0) {
       RegOperand &regOpnd2 = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(
           static_cast<AArch64reg>(pLoc.reg2), srcBitSize, regType);
       Insn &pseudoInsn1 = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd2);
       bb->InsertInsnBegin(pseudoInsn1);
       pseudoInsns.emplace_back(&pseudoInsn1);
     }
-    if (pLoc.reg3) {
+    if (pLoc.reg3 > 0) {
       RegOperand &regOpnd3 = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(
           static_cast<AArch64reg>(pLoc.reg3), srcBitSize, regType);
       Insn &pseudoInsn1 = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd3);

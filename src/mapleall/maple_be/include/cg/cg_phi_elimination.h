@@ -47,7 +47,7 @@ class PhiEliminate {
   RegOperand *MakeRoomForNoDefVreg(RegOperand &conflictReg);
   void RecordRematInfo(regno_t vRegNO, PregIdx pIdx);
   PregIdx FindRematInfo(regno_t vRegNO) {
-    return remateInfoAfterSSA.count(vRegNO) ? remateInfoAfterSSA[vRegNO] : -1;
+    return (remateInfoAfterSSA.count(vRegNO)) > 0 ? remateInfoAfterSSA[vRegNO] : -1;
   }
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;

@@ -36,7 +36,7 @@ void AArch64MoveRegArgs::CollectRegisterArgs(std::map<uint32, AArch64reg> &argsL
   AArch64CallConvImpl parmlocator(aarchCGFunc->GetBecommon());
   CCLocInfo ploc;
   uint32 start = 0;
-  if (numFormal) {
+  if (numFormal > 0) {
     MIRFunction *func = const_cast<MIRFunction *>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
     if (func->IsReturnStruct() && func->IsFirstArgReturn()) {
       TyIdx tyIdx = func->GetFuncRetStructTyIdx();
@@ -62,7 +62,7 @@ void AArch64MoveRegArgs::CollectRegisterArgs(std::map<uint32, AArch64reg> &argsL
     if (ploc.reg1 == kRinvalid) {
       continue;
     }
-    if (ploc.numFpPureRegs) {
+    if (ploc.numFpPureRegs > 0) {
       uint32 index = i;
       numFpRegs[index] = ploc.numFpPureRegs;
       fpSize[index] = ploc.fpSize;
@@ -437,7 +437,7 @@ void AArch64MoveRegArgs::MoveVRegisterArgs() {
 
   uint32 formalCount = static_cast<uint32>(aarchCGFunc->GetFunction().GetFormalCount());
   uint32 start = 0;
-  if (formalCount) {
+  if (formalCount > 0) {
     MIRFunction *func = const_cast<MIRFunction*>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
     if (func->IsReturnStruct() && func->IsFirstArgReturn()) {
       TyIdx tyIdx = func->GetFuncRetStructTyIdx();

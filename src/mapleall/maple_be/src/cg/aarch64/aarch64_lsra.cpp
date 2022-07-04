@@ -194,7 +194,7 @@ void LSRALinearScanRegAllocator::PrintLiveInterval(const LiveInterval &li, const
   if (li.GetIsCall() != nullptr) {
     LogInfo::MapleLogger() << " firstDef " << li.GetFirstDef();
     LogInfo::MapleLogger() << " isCall";
-  } else if (li.GetPhysUse()) {
+  } else if (li.GetPhysUse() > 0) {
     LogInfo::MapleLogger() << "\tregNO " << li.GetRegNO();
     LogInfo::MapleLogger() << " firstDef " << li.GetFirstDef();
     LogInfo::MapleLogger() << " physUse " << li.GetPhysUse();
@@ -257,7 +257,7 @@ void LSRALinearScanRegAllocator::PrintActiveListSimple() const {
       assignedReg = kSpecialIntSpillReg;
     }
     LogInfo::MapleLogger() << li->GetRegNO() << "(" << assignedReg << ", ";
-    if (li->GetPhysUse()) {
+    if (li->GetPhysUse() > 0) {
       LogInfo::MapleLogger() << "p) ";
     } else {
       LogInfo::MapleLogger() << li->GetFirstAcrossedCall();
@@ -449,7 +449,7 @@ void LSRALinearScanRegAllocator::UpdateLiveIntervalState(const BB &bb, LiveInter
     li.SetNotInCatchState();
   }
 
-  if (bb.GetInternalFlag1()) {
+  if (bb.GetInternalFlag1() != 0) {
     li.SetInCleanupState();
   } else {
     li.SetNotInCleanupState(bb.GetId() == 1);
@@ -994,20 +994,20 @@ void LSRALinearScanRegAllocator::ReturnPregToSet(const LiveInterval &li, uint32 
     return;
   }
   if (li.GetRegType() == kRegTyInt) {
-    if (intCallerMask & mask) {
+    if ((intCallerMask & mask) > 0) {
       (void)intCallerRegSet.insert(preg);
-    } else if (intCalleeMask & mask) {
+    } else if ((intCalleeMask & mask) > 0) {
       (void)intCalleeRegSet.insert(preg);
-    } else if (intParamMask & mask) {
+    } else if ((intParamMask & mask) > 0) {
       (void)intParamRegSet.insert(preg);
     } else {
       ASSERT(false, "ReturnPregToSet: Unknown caller/callee type");
     }
-  } else if (fpCallerMask & mask) {
+  } else if ((fpCallerMask & mask) > 0) {
     (void)fpCallerRegSet.insert(preg);
-  } else if (fpCalleeMask & mask) {
+  } else if ((fpCalleeMask & mask) > 0) {
     (void)fpCalleeRegSet.insert(preg);
-  } else if (fpParamMask & mask) {
+  } else if ((fpParamMask & mask) > 0) {
     (void)fpParamRegSet.insert(preg);
   } else {
     ASSERT(false, "ReturnPregToSet invalid physical register");
@@ -1035,20 +1035,20 @@ void LSRALinearScanRegAllocator::ReleasePregToSet(const LiveInterval &li, uint32
     return;
   }
   if (li.GetRegType() == kRegTyInt) {
-    if (intCallerMask & mask) {
+    if ((intCallerMask & mask) > 0) {
       intCallerRegSet.erase(preg);
-    } else if (intCalleeMask & mask) {
+    } else if ((intCalleeMask & mask) > 0) {
       intCalleeRegSet.erase(preg);
-    } else if (intParamMask & mask) {
+    } else if ((intParamMask & mask) > 0) {
       intParamRegSet.erase(preg);
     } else {
       ASSERT(false, "ReleasePregToSet: Unknown caller/callee type");
     }
-  } else if (fpCallerMask & mask) {
+  } else if ((fpCallerMask & mask) > 0) {
     fpCallerRegSet.erase(preg);
-  } else if (fpCalleeMask & mask) {
+  } else if ((fpCalleeMask & mask) > 0) {
     fpCalleeRegSet.erase(preg);
-  } else if (fpParamMask & mask) {
+  } else if ((fpParamMask & mask) > 0) {
     fpParamRegSet.erase(preg);
   } else {
     ASSERT(false, "ReleasePregToSet invalid physical register");
@@ -1163,7 +1163,7 @@ void LSRALinearScanRegAllocator::RetireFromActive(const Insn &insn) {
 uint32 LSRALinearScanRegAllocator::GetRegFromSet(MapleSet<uint32> &set, regno_t offset, LiveInterval &li,
                                                  regno_t forcedReg) const {
   uint32 regNO;
-  if (forcedReg) {
+  if (forcedReg > 0) {
     /* forced_reg is a caller save reg */
     regNO = forcedReg;
   } else {
@@ -1407,7 +1407,7 @@ void LSRALinearScanRegAllocator::InsertCallerSave(Insn &insn, Operand &opnd, boo
       mask = fpBBDefMask;
       regBase = V0;
     }
-    if (mask & (1u << (rli->GetAssignedReg() - regBase))) {
+    if ((mask & (1u << (rli->GetAssignedReg() - regBase))) > 0) {
       if (LSRA_DUMP) {
         LogInfo::MapleLogger() << "InsertCallerSave " << rli->GetAssignedReg() << " skipping due to local def\n";
       }

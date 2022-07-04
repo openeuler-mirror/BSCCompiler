@@ -317,7 +317,7 @@ void GraphColorRegAllocator::PrintLiveRangeConflicts(const LiveRange &lr) const 
   for (uint32 i = 0; i < regBuckets; ++i) {
     uint64 chunk = lr.GetBBConflictElem(i);
     for (uint64 bit = 0; bit < kU64; ++bit) {
-      if (chunk & (1ULL << bit)) {
+      if ((chunk & (1ULL << bit)) > 0) {
         regno_t newNO = i * kU64 + bit;
         LogInfo::MapleLogger() << newNO << ",";
       }
@@ -1428,7 +1428,7 @@ void GraphColorRegAllocator::BuildInterferenceGraph() {
     uint32 uniqueIdx;
     LiveRange *lr =  intLrVec[i];
     for (uint32 j = 0; j < bbBuckets; ++j) {
-      if (lr->GetBBMember()[j]) {
+      if (lr->GetBBMember()[j] > 0) {
         count++;
         uniqueIdx = j;
       }
@@ -1526,7 +1526,7 @@ void GraphColorRegAllocator::Separate() {
       unconstrained.emplace_back(lr);
     } else if (HaveAvailableColor(*lr, lr->GetNumBBConflicts() + static_cast<uint32>(lr->GetPregvetoSize()) +
         static_cast<uint32>(lr->GetForbiddenSize()))) {
-      if (lr->GetPrefs().size()) {
+      if (lr->GetPrefs().size() > 0) {
         unconstrainedPref.emplace_back(lr);
       } else {
         unconstrained.emplace_back(lr);
@@ -1774,7 +1774,7 @@ bool GraphColorRegAllocator::AssignColorToLr(LiveRange &lr, bool isDelayed) {
 void GraphColorRegAllocator::PruneLrForSplit(LiveRange &lr, BB &bb, bool remove,
                                              std::set<CGFuncLoops*, CGFuncLoopCmp> &candidateInLoop,
                                              std::set<CGFuncLoops*, CGFuncLoopCmp> &defInLoop) {
-  if (bb.GetInternalFlag1()) {
+  if (bb.GetInternalFlag1() != 0) {
     /* already visited */
     return;
   }
@@ -4470,13 +4470,13 @@ void CallerSavePre::BuildWorkList() {
       if (lu != nullptr && (lu->GetDefNum() || lu->GetUseNum() || lu->HasCall())) {
         MapleMap<uint32, uint32> refs = lr->GetRefs(bb->GetId());
         for (auto it = refs.begin(); it != refs.end(); ++it) {
-          if (it->second & kIsUse) {
+          if ((it->second & kIsUse) > 0) {
             (void)CreateRealOcc(*insnMap[it->first], opnd, kOccUse);
           }
-          if (it->second & kIsDef) {
+          if ((it->second & kIsDef) > 0) {
             (void)CreateRealOcc(*insnMap[it->first], opnd, kOccDef);
           }
-          if (it->second & kIsCall) {
+          if ((it->second & kIsCall) > 0) {
             Insn *callInsn = insnMap[it->first];
             auto *targetOpnd = callInsn->GetCallTargetOperand();
             if (CGOptions::DoIPARA() && targetOpnd->IsFuncNameOpnd()) {

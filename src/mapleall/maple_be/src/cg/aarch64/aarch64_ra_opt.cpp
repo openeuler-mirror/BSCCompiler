@@ -290,22 +290,22 @@ void VregRename::PrintRenameInfo(regno_t regno) const {
     return;
   }
   LogInfo::MapleLogger() << "reg: " << regno;
-  if (info->firstBBLevelSeen) {
+  if (info->firstBBLevelSeen != nullptr) {
     LogInfo::MapleLogger() << " fromLevel " << info->firstBBLevelSeen->GetInternalFlag2();
   }
-  if (info->lastBBLevelSeen) {
+  if (info->lastBBLevelSeen != nullptr) {
     LogInfo::MapleLogger() << " toLevel " << info->lastBBLevelSeen->GetInternalFlag2();
   }
-  if (info->numDefs) {
+  if (info->numDefs > 0) {
     LogInfo::MapleLogger() << " defs " << info->numDefs;
   }
-  if (info->numUses) {
+  if (info->numUses > 0) {
     LogInfo::MapleLogger() << " uses " << info->numUses;
   }
-  if (info->numDefs) {
+  if (info->numDefs > 0) {
     LogInfo::MapleLogger() << " innerDefs " << info->numInnerDefs;
   }
-  if (info->numUses) {
+  if (info->numUses > 0) {
     LogInfo::MapleLogger() << " innerUses " << info->numInnerUses;
   }
   LogInfo::MapleLogger() << "\n";

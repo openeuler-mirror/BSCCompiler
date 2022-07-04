@@ -1259,13 +1259,12 @@ void AArch64GenProEpilog::GeneratePushRegs() {
     offset = static_cast<int32>((memLayout->RealStackFrameSize() -
         aarchCGFunc.SizeOfCalleeSaved()) - memLayout->GetSizeOfLocals());
   } else {
-    offset = (static_cast<int32>(memLayout->RealStackFrameSize() -
-        (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen))) - /* for FP/LR */
-       memLayout->SizeOfArgsToStackPass());
+    offset = static_cast<int32>((memLayout->RealStackFrameSize() - (aarchCGFunc.SizeOfCalleeSaved() -
+        (kDivide2 * kIntregBytelen))) - memLayout->SizeOfArgsToStackPass());  /* for FP/LR */
   }
 
   if (cgFunc.GetCG()->IsStackProtectorStrong() || cgFunc.GetCG()->IsStackProtectorAll()) {
-    offset -= kAarch64StackPtrAlignment;
+    offset -= kAarch64StackPtrAlignmentInt;
   }
 
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
@@ -1325,12 +1324,12 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
     uint32 offset;
     if (cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
       offset = static_cast<uint32>(memlayout->GetGRSaveAreaBaseLoc()); /* SP reference */
-      if (memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) {
+      if ((memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) > 0) {
         offset += size;  /* End of area should be aligned. Hole between VR and GR area */
       }
     } else {
       offset = (UINT32_MAX - memlayout->GetSizeOfGRSaveArea()) + 1;  /* FP reference */
-      if (memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) {
+      if ((memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) > 0) {
         offset -= size;
       }
     }
@@ -1773,13 +1772,13 @@ void AArch64GenProEpilog::GeneratePopRegs() {
     offset = static_cast<int32>((memLayout->RealStackFrameSize() -
         aarchCGFunc.SizeOfCalleeSaved()) - memLayout->GetSizeOfLocals());
   } else {
-    offset = (static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
+    offset = static_cast<int32>((static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
         (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen))) - /* for FP/LR */
-        memLayout->SizeOfArgsToStackPass();
+        memLayout->SizeOfArgsToStackPass());
   }
 
   if (cgFunc.GetCG()->IsStackProtectorStrong() || cgFunc.GetCG()->IsStackProtectorAll()) {
-    offset -= kAarch64StackPtrAlignment;
+    offset -= kAarch64StackPtrAlignmentInt;
   }
 
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
@@ -2003,7 +2002,7 @@ void AArch64GenProEpilog::ConvertToTailCalls(MapleSet<Insn*> &callInsnsMap) {
         toBB->RemoveInsn(*callInsn);
         return;
       }
-      CHECK_FATAL(0, "Tailcall in incorrect block");
+      CHECK_FATAL(false, "Tailcall in incorrect block");
     }
     FOR_BB_INSNS_SAFE(insn, fromBB, next) {
       if (insn->IsCfiInsn() || (insn->IsMachineInstruction() && insn->GetMachineOpcode() != MOP_xret)) {

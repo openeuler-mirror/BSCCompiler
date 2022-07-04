@@ -291,7 +291,7 @@ int32 CGLowerer::FindTheCurrentStmtFreq(const StmtNode *stmt) const {
 BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode) {
   MIRBuilder *mirbuilder = mirModule.GetMIRBuilder();
 
-  MIRType *resultTy = 0;
+  MIRType *resultTy = nullptr;
   MIRFunction *func = mirModule.CurFunction();
   if (tNode.GetPrimType() == PTY_agg) {
     if (tNode.Opnd(1)->op == OP_dread) {
@@ -1585,7 +1585,7 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
 
     uint32 curSize = 0;
     PregIdx pIdxS;
-    while (size) {
+    while (size > 0) {
       pIdxR = pIdx1R;
       if (curSize >= k8ByteSize) {
         pIdxR = pIdx2R;
@@ -3711,7 +3711,7 @@ PUIdx CGLowerer::GetBuiltinToUse(BuiltinFunctionID id) const {
 
 void CGLowerer::LowerGCMalloc(const BaseNode &node, const GCMallocNode &gcmalloc, BlockNode &blkNode, bool perm) {
   MIRFunction *func = mirBuilder->GetOrCreateFunction((perm ? "MCC_NewPermanentObject" : "MCC_NewObj_fixed_class"),
-                                                      (TyIdx)(LOWERED_PTR_TYPE));
+                                                      static_cast<TyIdx>(LOWERED_PTR_TYPE));
   func->GetFuncSymbol()->SetAppearsInCode(true);
   beCommon.UpdateTypeTable(*func->GetMIRFuncType());
   func->AllocSymTab();

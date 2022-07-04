@@ -248,7 +248,8 @@ bool AArch64RegSavesOpt::AlreadySavedInDominatorList(const BB *bb, regno_t reg) 
     if (RS_DUMP) {
       mLog << aBB->GetId() << " ";
     }
-    if (int t = CheckCriteria(aBB, reg)) {
+    int t = CheckCriteria(aBB, reg);
+    if (t != 0) {
       if (RS_DUMP) {
         if (t == 1) {
           mLog << " --R" << (reg - 1) << " saved here, skip!\n";
@@ -292,7 +293,7 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
           bool done = false;
           while (bbDom->GetLoop() != nullptr) {
             bbDom = GetDomInfo()->GetDom(bbDom->GetId());
-            if (CheckCriteria(bbDom, reg)) {
+            if (CheckCriteria(bbDom, reg) != 0) {
               done = true;
               break;
             }
@@ -622,7 +623,7 @@ void AArch64RegSavesOpt::Verify(regno_t reg, BB *bb, std::set<BB*, BBIdCmp> *vis
     mLog << bid << ",";    /* path trace can be long */
   }
 
-  if (bbSavedRegs[bid]) {
+  if (bbSavedRegs[bid] != nullptr) {
     bool entryRestoreMet = false;
     if (bbSavedRegs[bid]->ContainEntryReg(reg)) {
       if (RS_EXTRA) {

@@ -125,6 +125,12 @@ constexpr int32 kInsnSeventhOpnd = 6;
 constexpr int32 kInsnEighthOpnd = 7;
 constexpr int32 kInsnMaxOpnd = 8;
 
+/* Reg of CCLocInfo */
+constexpr uint32 kFirstReg = 0;
+constexpr uint32 kSecondReg = 1;
+constexpr uint32 kThirdReg = 2;
+constexpr uint32 kFourthReg = 3;
+
 /* inline asm operand designations */
 constexpr uint32 kAsmStringOpnd = 0;
 constexpr uint32 kAsmOutputListOpnd = 1;
@@ -154,6 +160,9 @@ constexpr int32 kDivide2 = 2;
 constexpr int32 kRegNum2 = 2;
 constexpr int32 kStepNum2 = 2;
 constexpr int32 kSign4ByteSize = 4;
+
+/* alignment in bytes of uint8 */
+constexpr uint8 kAlignOfU8 = 3;
 
 /*
  * if the number of local refvar is less than 12, use stp or str to init local refvar
@@ -209,6 +218,8 @@ constexpr uint32 kDecimalMax = 10;
 constexpr double kMicroSecPerMilliSec = 1000.0;
 
 constexpr double kPercent = 100.0;
+
+constexpr int32 kZeroAsciiNum = 48;
 
 inline bool IsPowerOf2Const(uint64 i) {
   return (i & (i - 1)) == 0;

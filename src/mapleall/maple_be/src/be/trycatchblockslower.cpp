@@ -224,7 +224,7 @@ void TryCatchBlocksLower::RecoverBasicBlock() {
         break;
       }
       case OP_block:
-        CHECK_FATAL(0, "should not run here");
+        CHECK_FATAL(false, "should not run here");
       default:
         break;
     }

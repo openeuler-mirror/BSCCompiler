@@ -128,7 +128,7 @@ bool StrLdrSignedOfstValid(int64 value, uint wordSize) {
     return true;
   } else if ((value > k256BitSize) && (value <= kMaxPimm[wordSize])) {
     uint64 mask = (1U << wordSize) - 1U;
-    return (static_cast<uint64>(value) & mask) ? false : true;
+    return (static_cast<uint64>(value) & mask) > 0 ? false : true;
   }
   return false;
 }
@@ -148,7 +148,7 @@ bool StrLdr32ImmValid(int64 value) {
 
 bool StrLdr32PairImmValid(int64 value) {
   if ((value <= kMaxSimm32Pair)  && (value >= kMinSimm32)) {
-    return (static_cast<uint64>(value) & 3) ? false : true;
+    return (static_cast<uint64>(value) & 3) > 0 ? false : true;
   }
   return false;
 }
@@ -159,7 +159,7 @@ bool StrLdr64ImmValid(int64 value) {
 
 bool StrLdr64PairImmValid(int64 value) {
   if (value <= kMaxSimm64Pair && (value >= kMinSimm64)) {
-    return (static_cast<uint64>(value) & 7) ? false : true;
+    return (static_cast<uint64>(value) & 7) > 0 ? false : true;
   }
   return false;
 }
@@ -170,7 +170,7 @@ bool StrLdr128ImmValid(int64 value) {
 
 bool StrLdr128PairImmValid(int64 value) {
   if (value < k1024BitSize && (value >= kNegative1024BitSize)) {
-    return (static_cast<uint64>(value) & 0xf) ? false : true;
+    return (static_cast<uint64>(value) & 0xf) > 0 ? false : true;
   }
   return false;
 }

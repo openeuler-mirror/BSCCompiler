@@ -640,7 +640,7 @@ AArch64CC_t CselToCsetPattern::GetInversedCondCode(const CondOperand &condOpnd) 
     case CC_LE:
       return CC_GT;
     default:
-      CHECK_FATAL(0, "Not support yet.");
+      CHECK_FATAL(false, "Not support yet.");
   }
   return kCcLast;
 }
@@ -2556,7 +2556,7 @@ Insn *CombineContiLoadAndStorePattern::FindValidSplitAddInsn(Insn &curInsn, RegO
     if (useOpnd.GetRegisterNumber() != baseOpnd.GetRegisterNumber()) {
       if (useOpnd.GetRegisterNumber() == R16) {
         Insn *defInsn = cursor->GetPrev();
-        CHECK_FATAL(defInsn, "invalid defInsn");
+        CHECK_FATAL(defInsn != nullptr, "invalid defInsn");
         CHECK_FATAL(defInsn->GetMachineOpcode() == MOP_xaddrri24 || defInsn->GetMachineOpcode() == MOP_waddrri24,
                     "split with wrong add");
         auto &opnd = static_cast<RegOperand&>(defInsn->GetOperand(kInsnSecondOpnd));
@@ -2592,7 +2592,7 @@ bool CombineContiLoadAndStorePattern::PlaceSplitAddInsn(const Insn &curInsn, Ins
       RegOperand *curBaseOpnd = curMemOpnd.GetBaseRegister();
       if (curMemOpnd.GetAddrMode() == MemOperand::kAddrModeBOi && RegOperand::IsSameReg(baseOpnd, *curBaseOpnd)) {
         OfstOperand *curOfstOpnd = curMemOpnd.GetOffsetImmediate();
-        CHECK_FATAL(curOfstOpnd, "invalid OfstOperand");
+        CHECK_FATAL(curOfstOpnd != nullptr, "invalid OfstOperand");
         if (curOfstOpnd->GetOffsetValue() > ofstVal &&
             (curOfstOpnd->GetOffsetValue() - ofstVal) < MemOperand::GetMaxPairPIMM(bitLen) &&
             !aarFunc.IsOperandImmValid(combineInsn.GetMachineOpcode(), &curMemOpnd, kInsnThirdOpnd)) {
@@ -3557,7 +3557,7 @@ AArch64CC_t CselZeroOneToCsetOpt::GetReverseCond(const CondOperand &cond) const 
     case CC_LE:
       return CC_GT;
     default:
-      CHECK_FATAL(0, "Not support yet.");
+      CHECK_FATAL(false, "Not support yet.");
   }
   return kCcLast;
 }

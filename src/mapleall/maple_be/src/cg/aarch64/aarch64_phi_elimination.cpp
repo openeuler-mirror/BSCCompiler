@@ -80,7 +80,7 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, const 
     /* case 1 */
     uint32 defUseIdx = defInsn->GetBothDefUseOpnd();
     if (defUseIdx != kInsnMaxOpnd) {
-      if (defInfo->GetOperands().count(defUseIdx)) {
+      if (defInfo->GetOperands().count(defUseIdx) > 0) {
         CHECK_FATAL(defInfo->GetOperands()[defUseIdx] == 1, "multiple definiation");
         Operand &preRegOpnd = defInsn->GetOperand(defUseIdx);
         ASSERT(preRegOpnd.IsRegister(), "unexpect operand type");

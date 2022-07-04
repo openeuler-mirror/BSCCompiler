@@ -801,7 +801,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
   for (uint32 i = 0; i < format.length(); ++i) {
     char c = format[i];
     if (c >= '0' && c <= '5') {
-      seq[index++] = c - '0';
+      seq[index++] = static_cast<int32>(c) - kZeroAsciiNum;
       ++commaNum;
     } else if (c != ',') {
       prefix[index].push_back(c);
@@ -984,10 +984,10 @@ static void AsmStringOutputRegNum(
   }
   if (newRegno > (kDecimalMax - 1)) {
     uint32 tenth = newRegno / kDecimalMax;
-    strToEmit += '0' + static_cast<char>(tenth);
+    strToEmit += static_cast<char>(kZeroAsciiNum + tenth);
     newRegno -= (kDecimalMax * tenth);
   }
-  strToEmit += newRegno + '0';
+  strToEmit += static_cast<int32>(newRegno) + kZeroAsciiNum;
 }
 
 void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const {
@@ -1033,9 +1033,9 @@ void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const 
       case '$': {
         char c = asmStr[++i];
         if ((c >= '0') && (c <= '9')) {
-          auto val = static_cast<uint32>(c - '0');
+          auto val = static_cast<uint32>(static_cast<int32>(c) - kZeroAsciiNum);
           if (asmStr[i + 1] >= '0' && asmStr[i + 1] <= '9') {
-            val = val * kDecimalMax + static_cast<uint32>(asmStr[++i] - '0');
+            val = val * kDecimalMax + static_cast<uint32>(static_cast<int32>(asmStr[++i]) - kZeroAsciiNum);
           }
           if (val < outOpnds.size()) {
             const char *prefix = list6.stringList[val]->GetComment().c_str();
@@ -2016,7 +2016,7 @@ void AArch64AsmEmitter::EmitLazyBindingRoutine(Emitter &emitter, const Insn &ins
 
 void AArch64AsmEmitter::PrepareVectorOperand(RegOperand *regOpnd, uint32 &compositeOpnds, Insn &insn) const {
   VectorRegSpec* vecSpec = static_cast<AArch64VectorInsn&>(insn).GetAndRemoveRegSpecFromList();
-  compositeOpnds = vecSpec->compositeOpnds ? vecSpec->compositeOpnds : compositeOpnds;
+  compositeOpnds = (vecSpec->compositeOpnds > 0) ? vecSpec->compositeOpnds : compositeOpnds;
   regOpnd->SetVecLanePosition(vecSpec->vecLane);
   switch (insn.GetMachineOpcode()) {
     case MOP_vanduuu:
