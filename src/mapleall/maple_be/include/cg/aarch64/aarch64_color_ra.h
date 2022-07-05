@@ -139,24 +139,24 @@ class LiveUnit {
     return end;
   }
 
-  void SetEnd(uint32 end) {
-    this->end = end;
+  void SetEnd(uint32 endVal) {
+    this->end = endVal;
   }
 
   bool HasCall() const {
     return hasCall;
   }
 
-  void SetHasCall(bool hasCall) {
-    this->hasCall = hasCall;
+  void SetHasCall(bool hasCallVal) {
+    this->hasCall = hasCallVal;
   }
 
   uint32 GetDefNum() const {
     return defNum;
   }
 
-  void SetDefNum(uint32 defNum) {
-    this->defNum = defNum;
+  void SetDefNum(uint32 defNumVal) {
+    this->defNum = defNumVal;
   }
 
   void IncDefNum() {
@@ -167,8 +167,8 @@ class LiveUnit {
     return useNum;
   }
 
-  void SetUseNum(uint32 useNum) {
-    this->useNum = useNum;
+  void SetUseNum(uint32 useNumVal) {
+    this->useNum = useNumVal;
   }
 
   void IncUseNum() {
@@ -179,16 +179,16 @@ class LiveUnit {
     return needReload;
   }
 
-  void SetNeedReload(bool needReload) {
-    this->needReload = needReload;
+  void SetNeedReload(bool needReloadVal) {
+    this->needReload = needReloadVal;
   }
 
   bool NeedRestore() const {
     return needRestore;
   }
 
-  void SetNeedRestore(bool needRestore) {
-    this->needRestore = needRestore;
+  void SetNeedRestore(bool needRestoreVal) {
+    this->needRestore = needRestoreVal;
   }
 
  private:
@@ -239,16 +239,16 @@ class LiveRange {
     return id;
   }
 
-  void SetID(uint32 id) {
-    this->id = id;
+  void SetID(uint32 idVal) {
+    this->id = idVal;
   }
 
   regno_t GetAssignedRegNO() const {
     return assignedRegNO;
   }
 
-  void SetAssignedRegNO(regno_t val) {
-    assignedRegNO = val;
+  void SetAssignedRegNO(regno_t regno) {
+    assignedRegNO = regno;
   }
 
   uint32 GetNumCall() const {
@@ -267,16 +267,16 @@ class LiveRange {
     return regType;
   }
 
-  void SetRegType(RegType regType) {
-    this->regType = regType;
+  void SetRegType(RegType regTy) {
+    this->regType = regTy;
   }
 
   float GetPriority() const {
     return priority;
   }
 
-  void SetPriority(float priority) {
-    this->priority = priority;
+  void SetPriority(float priorityVal) {
+    this->priority = priorityVal;
   }
 
   bool IsMustAssigned() const {
@@ -349,9 +349,9 @@ class LiveRange {
     }
   }
 
-  void SetConflictBitArrElem(regno_t regNO) {
-    uint32 index = regNO / kU64;
-    uint64 bit = regNO % kU64;
+  void SetConflictBitArrElem(regno_t regno) {
+    uint32 index = regno / kU64;
+    uint64 bit = regno % kU64;
     uint64 mask = 1ULL << bit;
     if ((GetBBConflictElem(index) & mask) == 0) {
       IncNumBBConflicts();
@@ -359,9 +359,9 @@ class LiveRange {
     }
   }
 
-  void UnsetConflictBitArrElem(regno_t regNO) {
-    uint32 index = regNO / kU64;
-    uint64 bit = regNO % kU64;
+  void UnsetConflictBitArrElem(regno_t regno) {
+    uint32 index = regno / kU64;
+    uint64 bit = regno % kU64;
     uint64 mask = 1ULL << bit;
     if ((GetBBConflictElem(index) & mask) != 0) {
       DecNumBBConflicts();
@@ -489,8 +489,8 @@ class LiveRange {
     return prefs;
   }
 
-  void InsertElemToPrefs(regno_t regNO) {
-    (void)prefs.insert(regNO);
+  void InsertElemToPrefs(regno_t regno) {
+    (void)prefs.insert(regno);
   }
 
   const MapleMap<uint32, MapleMap<uint32, uint32>*> GetRefs() const {
@@ -585,8 +585,8 @@ class LiveRange {
     return frequency;
   }
 
-  void SetFrequency(uint32 frequency) {
-    this->frequency = frequency;
+  void SetFrequency(uint32 frequencyVal) {
+    this->frequency = frequencyVal;
   }
 #endif  /* OPTIMIZE_FOR_PROLOG */
 
@@ -606,8 +606,8 @@ class LiveRange {
     return spillReg;
   }
 
-  void SetSpillReg(regno_t spillReg) {
-    this->spillReg = spillReg;
+  void SetSpillReg(regno_t spillRegister) {
+    this->spillReg = spillRegister;
   }
 
   uint32 GetSpillSize() const {
@@ -646,8 +646,8 @@ class LiveRange {
     return isNonLocal;
   }
 
-  void SetIsNonLocal(bool isNonLocal) {
-    this->isNonLocal = isNonLocal;
+  void SetIsNonLocal(bool isNonLocalVal) {
+    this->isNonLocal = isNonLocalVal;
   }
 
   void SetRematLevel(uint32 val) {

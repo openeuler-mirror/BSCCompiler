@@ -1445,6 +1445,18 @@ bool OptimizeBB::CondBranchToSelect() {
     // we should create a new version
     resLHS = irmap->CreateRegOrVarMeExprVersion(ftLHS->GetOstIdx());
   }
+  // It is profitable for instruction selection if select opnd is a compare expression
+  // select condExpr, trueExpr, falseExpr => select cmpExpr, trueExpr, falseExpr
+  if (condExpr->IsScalar() && condExpr->GetPrimType() != PTY_u1) {
+    auto *scalarExpr = static_cast<ScalarMeExpr *>(condExpr);
+    if (scalarExpr->GetDefBy() == kDefByStmt) {
+      MeStmt *defStmt = scalarExpr->GetDefStmt();
+      MeExpr *rhs = defStmt->GetRHS();
+      if (rhs != nullptr && kOpcodeInfo.IsCompare(rhs->GetOp())) {
+        condExpr = rhs;
+      }
+    }
+  }
   MeExpr *selExpr = irmap->CreateMeExprSelect(resLHS->GetPrimType(), *condExpr, *trueExpr, *falseExpr);
   MeExpr *simplifiedSel = irmap->SimplifyMeExpr(selExpr);
   AssignMeStmt *newAssStmt = irmap->CreateAssignMeStmt(*resLHS, *simplifiedSel, *currBB);

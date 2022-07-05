@@ -845,8 +845,6 @@ bool ZeroCmpBranchesToTbzPattern::CheckAndSelectPattern(const Insn &currInsn) {
       }
       break;
     }
-    // fall through
-    [[clang::fallthrough]];
     default:
       return false;
   }

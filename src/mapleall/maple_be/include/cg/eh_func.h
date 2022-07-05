@@ -61,8 +61,8 @@ class EHTry {
     return catchVec.at(pos);
   }
 
-  void SetLSDACallSite(LSDACallSite &lsdaCallSite) {
-    this->lsdaCallSite = &lsdaCallSite;
+  void SetLSDACallSite(LSDACallSite &lsdaCallSiteVal) {
+    this->lsdaCallSite = &lsdaCallSiteVal;
   }
 
   void SetCSAction(uint32 action) const {
@@ -97,8 +97,8 @@ class EHThrow {
     return rethrow;
   }
 
-  void SetJavaTry(EHTry *javaTry) {
-    this->javaTry = javaTry;
+  void SetJavaTry(EHTry *javaTryVal) {
+    this->javaTry = javaTryVal;
   }
 
   LabelNode *GetStartLabel() {

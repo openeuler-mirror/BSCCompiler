@@ -987,16 +987,16 @@ class CGFunc {
     return bb;
   }
 
-  BB *CreateNewBB(bool unreachable, BB::BBKind kind, uint32 frequency) {
+  BB *CreateNewBB(bool unreachable, BB::BBKind kind, uint32 frequencyVal) {
     BB *newBB = CreateNewBB();
     newBB->SetKind(kind);
     newBB->SetUnreachable(unreachable);
-    newBB->SetFrequency(frequency);
+    newBB->SetFrequency(frequencyVal);
     return newBB;
   }
 
-  BB *CreateNewBB(LabelIdx label, bool unreachable, BB::BBKind kind, uint32 frequency) {
-    BB *newBB = CreateNewBB(unreachable, kind, frequency);
+  BB *CreateNewBB(LabelIdx label, bool unreachable, BB::BBKind kind, uint32 frequencyVal) {
+    BB *newBB = CreateNewBB(unreachable, kind, frequencyVal);
     newBB->AddLabel(label);
     SetLab2BBMap(label, *newBB);
     return newBB;

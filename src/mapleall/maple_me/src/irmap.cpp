@@ -1581,7 +1581,6 @@ bool IRMap::IfMeExprIsU1Type(const MeExpr *expr) const {
   if (IsCompareHasReverseOp(expr->GetOp()) || expr->GetPrimType() == PTY_u1) {
     return true;
   }
-  return false;
   if (expr->GetMeOp() == kMeOpVar) {
     const auto *varExpr = static_cast<const VarMeExpr*>(expr);
     // find if itself is u1
@@ -1739,10 +1738,10 @@ MeExpr *IRMap::SimplifyCmpExpr(OpMeExpr *cmpExpr) {
       }
 
       // case of:
-      // ne (u1 expr, 0) ==> cmpexpr
-      // ne (u1 expr, 1) ==> !cmpexpr
-      // eq (u1 expr, 0) ==> !cmpexpr
-      // eq (u1 expr, 1) ==> cmpexpr
+      // ne (u1 u1_expr, 0) ==> u1_expr
+      // ne (u1 u1_expr, 1) ==> !u1_expr
+      // eq (u1 u1_expr, 0) ==> !u1_expr
+      // eq (u1 u1_expr, 1) ==> u1_expr
       if ((opnd1->GetMeOp() == kMeOpConst && IfMeExprIsU1Type(opnd0)) ||
           (opnd0->GetMeOp() == kMeOpConst && IfMeExprIsU1Type(opnd1))) {
         if (opnd0->GetMeOp() == kMeOpConst) { // ne/eq (0/1, u1 expr) => ne/eq (u1 expr, 0/1)

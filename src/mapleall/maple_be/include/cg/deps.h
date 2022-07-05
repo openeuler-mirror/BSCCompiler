@@ -245,8 +245,8 @@ class DepNode {
   void SetComments(MapleVector<Insn*> com) {
     comments = com;
   }
-  void AddComments(Insn &insn) {
-    comments.emplace_back(&insn);
+  void AddComments(Insn &addInsn) {
+    comments.emplace_back(&addInsn);
   }
   void ClearComments() {
     comments.clear();
@@ -257,8 +257,8 @@ class DepNode {
   void SetCfiInsns(MapleVector<Insn*> insns) {
     cfiInsns = insns;
   }
-  void AddCfiInsn(Insn &insn) {
-    cfiInsns.emplace_back(&insn);
+  void AddCfiInsn(Insn &addInsn) {
+    cfiInsns.emplace_back(&addInsn);
   }
   void ClearCfiInsns() {
     cfiInsns.clear();
@@ -269,8 +269,8 @@ class DepNode {
   void SetClinitInsns(MapleVector<Insn*> insns) {
     clinitInsns = insns;
   }
-  void AddClinitInsn(Insn &insn) {
-    clinitInsns.emplace_back(&insn);
+  void AddClinitInsn(Insn &addInsn) {
+    clinitInsns.emplace_back(&addInsn);
   }
   const RegPressure *GetRegPressure() const {
     return regPressure;
@@ -367,8 +367,8 @@ class DepNode {
   const Insn *GetLocInsn() const {
     return locInsn;
   }
-  void SetLocInsn(const Insn &insn) {
-    locInsn = &insn;
+  void SetLocInsn(const Insn &locationInsn) {
+    locInsn = &locationInsn;
   }
 
   /* printf dep-node's information of scheduling */

@@ -232,9 +232,9 @@ struct InsnDescription {
   uint32 GetAtomicNum() const {
     return atomicNum;
   }
-  static const InsnDescription &GetAbstractId(MOperator opc) {
-    ASSERT(opc < abstract::kMopLast, "op must be lower than kMopLast");
-    return abstractId[opc];
+  static const InsnDescription &GetAbstractId(MOperator mOperator) {
+    ASSERT(mOperator < abstract::kMopLast, "op must be lower than kMopLast");
+    return abstractId[mOperator];
   }
   static const InsnDescription abstractId[abstract::kMopLast];
 };

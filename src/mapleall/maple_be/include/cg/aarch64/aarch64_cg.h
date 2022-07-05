@@ -99,8 +99,8 @@ class GCTIBPattern {
   ~GCTIBPattern() = default;
 
   int GetId() const {
-    static int id = 0;
-    return id++;
+    static int createNum = 0;
+    return createNum++;
   }
 
   std::string GetName() const {

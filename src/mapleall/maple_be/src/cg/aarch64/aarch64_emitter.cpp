@@ -1223,8 +1223,8 @@ void AArch64AsmEmitter::EmitAdrpLabel(Emitter &emitter, const Insn &insn) const 
   (void)emitter.Emit("\t").Emit("adrp").Emit("\t");
   opnd0->Accept(visitor);
   (void)emitter.Emit(", ");
-  char *idx;
-  idx = strdup(std::to_string(Globals::GetInstance()->GetBECommon()->GetMIRModule().CurFunction()->GetPuidx()).c_str());
+  char *idx = strdup(
+      std::to_string(Globals::GetInstance()->GetBECommon()->GetMIRModule().CurFunction()->GetPuidx()).c_str());
   (void)emitter.Emit(".L.").Emit(idx).Emit("__").Emit(lidx).Emit("\n");
 
   /* add     xd, xd, #lo12:label */

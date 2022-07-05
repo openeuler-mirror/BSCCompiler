@@ -142,16 +142,16 @@ class CG {
   template <typename I>
   Insn &BuildInstruction(MOperator opCode) const {
     currentCGFunction->IncTotalNumberOfInstructions();
-    MemPool *memPool = currentCGFunction->GetMemoryPool();
-    Insn *insn = memPool->New<I>(*memPool, opCode);
+    MemPool *newMemPool = currentCGFunction->GetMemoryPool();
+    Insn *insn = newMemPool->New<I>(*newMemPool, opCode);
     return *insn;
   }
 
   template <typename I>
   Insn &BuildInstruction(MOperator opCode, Operand &opnd0) const {
     currentCGFunction->IncTotalNumberOfInstructions();
-    MemPool *memPool = currentCGFunction->GetMemoryPool();
-    Insn *insn = memPool->New<I>(*memPool, opCode);
+    MemPool *newMemPool = currentCGFunction->GetMemoryPool();
+    Insn *insn = newMemPool->New<I>(*newMemPool, opCode);
     insn->AddOperand(opnd0);
     return *insn;
   }
@@ -159,8 +159,8 @@ class CG {
   template <typename I>
   Insn &BuildInstruction(MOperator opCode, Operand &opnd0, Operand &opnd1) const {
     currentCGFunction->IncTotalNumberOfInstructions();
-    MemPool *memPool = currentCGFunction->GetMemoryPool();
-    Insn *insn = memPool->New<I>(*memPool, opCode);
+    MemPool *newMemPool = currentCGFunction->GetMemoryPool();
+    Insn *insn = newMemPool->New<I>(*newMemPool, opCode);
     insn->AddOperand(opnd0);
     insn->AddOperand(opnd1);
     return *insn;
@@ -169,8 +169,8 @@ class CG {
   template <typename I>
   Insn &BuildInstruction(MOperator opCode, Operand &opnd0, Operand &opnd1, Operand &opnd2) const {
     currentCGFunction->IncTotalNumberOfInstructions();
-    MemPool *memPool = currentCGFunction->GetMemoryPool();
-    Insn *insn = memPool->New<I>(*memPool, opCode);
+    MemPool *newMemPool = currentCGFunction->GetMemoryPool();
+    Insn *insn = newMemPool->New<I>(*newMemPool, opCode);
     insn->AddOperand(opnd0);
     insn->AddOperand(opnd1);
     insn->AddOperand(opnd2);
@@ -180,8 +180,8 @@ class CG {
   template <typename I>
   Insn &BuildInstruction(MOperator opCode, Operand &opnd0, Operand &opnd1, Operand &opnd2, Operand &opnd3) const {
     currentCGFunction->IncTotalNumberOfInstructions();
-    MemPool *memPool = currentCGFunction->GetMemoryPool();
-    Insn *insn = memPool->New<I>(*memPool, opCode);
+    MemPool *newMemPool = currentCGFunction->GetMemoryPool();
+    Insn *insn = newMemPool->New<I>(*newMemPool, opCode);
     insn->AddOperand(opnd0);
     insn->AddOperand(opnd1);
     insn->AddOperand(opnd2);
@@ -193,8 +193,8 @@ class CG {
   Insn &BuildInstruction(MOperator opCode, Operand &opnd0, Operand &opnd1, Operand &opnd2, Operand &opnd3,
                          Operand &opnd4) const {
     currentCGFunction->IncTotalNumberOfInstructions();
-    MemPool *memPool = currentCGFunction->GetMemoryPool();
-    Insn *insn = memPool->New<I>(*memPool, opCode);
+    MemPool *newMemPool = currentCGFunction->GetMemoryPool();
+    Insn *insn = newMemPool->New<I>(*newMemPool, opCode);
     insn->AddOperand(opnd0);
     insn->AddOperand(opnd1);
     insn->AddOperand(opnd2);
@@ -206,8 +206,8 @@ class CG {
   template <typename I>
   Insn &BuildInstruction(MOperator opCode, std::vector<Operand*> &opnds) const {
     currentCGFunction->IncTotalNumberOfInstructions();
-    MemPool *memPool = currentCGFunction->GetMemoryPool();
-    Insn *insn = memPool->New<I>(*memPool, opCode);
+    MemPool *newMemPool = currentCGFunction->GetMemoryPool();
+    Insn *insn = newMemPool->New<I>(*newMemPool, opCode);
     for (auto *opnd : opnds) {
       insn->AddOperand(*opnd);
     }
@@ -323,8 +323,8 @@ class CG {
     return mirModule;
   }
 
-  void SetEmitter(Emitter &emitter) {
-    this->emitter = &emitter;
+  void SetEmitter(Emitter &emitterVal) {
+    this->emitter = &emitterVal;
   }
 
   Emitter *GetEmitter() const {

@@ -35,43 +35,73 @@ const std::map<std::string, FuncDesc> &SideEffect::GetWhiteList() {
   return whiteList;
 }
 
-void SideEffect::PropInfoFromCallee(const CallMeStmt &call, MIRFunction &callee) {
-  const FuncDesc &desc = callee.GetFuncDesc();
-
-  auto paramInfoUpdater = [&](size_t vstIdx, size_t calleeIdx) -> void {
-    for (size_t callerIdx = 0; callerIdx < vstsValueAliasWithFormal.size(); ++callerIdx) {
-      auto &formals = vstsValueAliasWithFormal[callerIdx];
-      if (formals.find(vstIdx) != formals.end()) {
-        curFuncDesc->SetParamInfoNoBetterThan(callerIdx, desc.GetParamInfo(calleeIdx));
-      }
-    }
-  };
-
-  for (size_t calleeIdx = 0; calleeIdx < callee.GetFormalCount(); ++calleeIdx) {
-    MeExpr *opnd = call.GetOpnd(calleeIdx);
-    OriginalSt *ost = nullptr;
-    switch (opnd->GetMeOp()) {
-      case kMeOpVar: {
-        auto *dread = static_cast<ScalarMeExpr*>(opnd);
-        paramInfoUpdater(dread->GetVstIdx(), calleeIdx);
-        break;
-      }
-      case kMeOpAddrof: {
-        AddrofMeExpr *addrofMeExpr = static_cast<AddrofMeExpr*>(opnd);
-        // As in CollectFormalOst, this is conservative to make sure it's right.
-        // For example:
-        // void callee(int *p) : write memory that p points to.
-        // call callee(&x) : this will modify x but we prop info of 'write memory' to x.
-        ost = meFunc->GetMeSSATab()->GetOriginalStFromID(addrofMeExpr->GetOstIdx());
-        for (auto vstIdx : ost->GetVersionsIndices()) {
-          paramInfoUpdater(vstIdx, calleeIdx);
-        }
-        break;
-      }
-      default:
-        break;
+void SideEffect::ParamInfoUpdater(size_t vstIdx, const PI &calleeParamInfo) {
+  for (size_t callerFormalIdx = 0; callerFormalIdx < vstsValueAliasWithFormal.size(); ++callerFormalIdx) {
+    auto &formalValueAlias = vstsValueAliasWithFormal[callerFormalIdx];
+    if (formalValueAlias.find(vstIdx) != formalValueAlias.end()) {
+      curFuncDesc->SetParamInfoNoBetterThan(callerFormalIdx, calleeParamInfo);
     }
   }
+}
+
+void SideEffect::PropInfoFromOpnd(MeExpr &opnd, const PI &calleeParamInfo) {
+  MeExpr &base = opnd.GetAddrExprBase();
+  OriginalSt *ost = nullptr;
+  switch (base.GetMeOp()) {
+    case kMeOpVar: {
+      auto &dread = static_cast<ScalarMeExpr&>(base);
+      ost = dread.GetOst();
+      for (auto vstIdx : ost->GetVersionsIndices()) {
+        ParamInfoUpdater(vstIdx, calleeParamInfo);
+      }
+      break;
+    }
+    case kMeOpAddrof: {
+      AddrofMeExpr &addrofMeExpr = static_cast<AddrofMeExpr&>(base);
+      // As in CollectFormalOst, this is conservative to make sure it's right.
+      // For example:
+      // void callee(int *p) : write memory that p points to.
+      // call callee(&x) : this will modify x but we prop info of 'write memory' to x.
+      ost = meFunc->GetMeSSATab()->GetOriginalStFromID(addrofMeExpr.GetOstIdx());
+      ASSERT(ost != nullptr, "null ptr check");
+      for (auto vstIdx : ost->GetVersionsIndices()) {
+        ParamInfoUpdater(vstIdx, calleeParamInfo);
+      }
+      break;
+    }
+    case kMeOpOp: {
+      if (base.GetOp() == OP_select) {
+        PropInfoFromOpnd(*base.GetOpnd(kSecondOpnd), calleeParamInfo);
+        PropInfoFromOpnd(*base.GetOpnd(kThirdOpnd), calleeParamInfo);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+void SideEffect::PropParamInfoFromCallee(const MeStmt &call, MIRFunction &callee) {
+  const FuncDesc &desc = callee.GetFuncDesc();
+  size_t skipFirstOpnd = kOpcodeInfo.IsICall(call.GetOp()) ? 1 : 0;
+  for (size_t formalIdx = 0; formalIdx < callee.GetFormalCount(); ++formalIdx) {
+    MeExpr *opnd = call.GetOpnd(formalIdx + skipFirstOpnd);
+    PropInfoFromOpnd(*opnd, desc.GetParamInfo(formalIdx));
+  }
+}
+
+void SideEffect::PropAllInfoFromCallee(const MeStmt &call, MIRFunction &callee) {
+  const FuncDesc &desc = callee.GetFuncDesc();
+  if (!desc.IsPure() && !desc.IsConst()) {
+    curFuncDesc->SetFuncInfoNoBetterThan(FI::kUnknown);
+  }
+  if (desc.IsPure()) {
+    curFuncDesc->SetFuncInfoNoBetterThan(FI::kPure);
+  }
+  if (desc.IsConst()) {
+    curFuncDesc->SetFuncInfoNoBetterThan(FI::kConst);
+  }
+  PropParamInfoFromCallee(call, callee);
 }
 
 void SideEffect::DealWithStmt(MeStmt &stmt) {
@@ -85,17 +115,27 @@ void SideEffect::DealWithStmt(MeStmt &stmt) {
   CallMeStmt *call = safe_cast<CallMeStmt>(&stmt);
   if (call != nullptr) {
     MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(call->GetPUIdx());
-    const FuncDesc &desc = calleeFunc->GetFuncDesc();
-    if (!desc.IsPure() && !desc.IsConst()) {
-      curFuncDesc->SetFuncInfoNoBetterThan(FI::kUnknown);
+    PropAllInfoFromCallee(*call, *calleeFunc);
+  }
+  IcallMeStmt *icall = safe_cast<IcallMeStmt>(&stmt);
+  if (icall != nullptr) {
+    MIRFunction *mirFunc = meFunc->GetMirFunc();
+    CGNode *icallCGNode = callGraph->GetCGNode(mirFunc);
+    CallInfo callInfo(stmt.GetMeStmtId());
+    CHECK_NULL_FATAL(icallCGNode);
+    auto &callees = icallCGNode->GetCallee();
+    auto it = callees.find(&callInfo);
+    if (it == callees.end() || it->second->empty()) {
+      // no candidates found, process conservatively
+      for (size_t formalIdx = 1; formalIdx < icall->NumMeStmtOpnds(); ++formalIdx) {
+        PropInfoFromOpnd(*icall->GetOpnd(formalIdx), PI::kUnknown);
+      }
+    } else {
+      for (auto *cgNode : *it->second) {
+        MIRFunction *calleeFunc = cgNode->GetMIRFunction();
+        PropAllInfoFromCallee(*icall, *calleeFunc);
+      }
     }
-    if (desc.IsPure()) {
-      curFuncDesc->SetFuncInfoNoBetterThan(FI::kPure);
-    }
-    if (desc.IsConst()) {
-      curFuncDesc->SetFuncInfoNoBetterThan(FI::kConst);
-    }
-    PropInfoFromCallee(*call, *calleeFunc);
   }
   if (stmt.GetMuList() == nullptr) {
     return;
@@ -193,7 +233,7 @@ void SideEffect::DealWithReturn(const RetMeStmt &retMeStmt) {
   std::set<size_t> result;
   alias->GetValueAliasSetOfVst(vstIdxOfRet, result);
   for (auto valueAliasVstIdx : result) {
-    auto *meExpr = meFunc->GetIRMap()->GetVerst2MeExprTableItem(valueAliasVstIdx);
+    auto *meExpr = meFunc->GetIRMap()->GetVerst2MeExprTableItem(static_cast<uint32>(valueAliasVstIdx));
     // meExpr of valueAliasVstIdx not created in IRMap, it must not occured in hssa-mefunction
     if (meExpr == nullptr) {
       continue;
@@ -207,6 +247,7 @@ void SideEffect::DealWithReturn(const RetMeStmt &retMeStmt) {
     } else {
       CHECK_FATAL(false, "not supported meExpr");
     }
+    ASSERT(aliasOst != nullptr, "null ptr check");
     if (aliasOst->IsFormal()) {
       curFuncDesc->SetReturnInfo(RI::kUnknown);
     }
@@ -255,7 +296,7 @@ void SideEffect::CollectFormalOst(MeFunction &f) {
       }
 
       // Put level -1 ost into it, so we can get a conservative result.
-      // Because when we solve all ostValueAliasWithFormal we regard every ost in it as lev 0.
+      // Because when we solve all vstsValueAliasWithFormal we regard every ost in it as lev 0.
 
       std::set<size_t> vstValueAliasFormal;
       if (ost->IsAddressTaken()) {
@@ -266,9 +307,9 @@ void SideEffect::CollectFormalOst(MeFunction &f) {
       alias->GetValueAliasSetOfVst(ost->GetZeroVersionIndex(), vstValueAliasFormal);
 
       for (size_t vstIdx: vstValueAliasFormal) {
-        auto *meExpr = meFunc->GetIRMap()->GetVerst2MeExprTableItem(vstIdx);
+        auto *meExpr = meFunc->GetIRMap()->GetVerst2MeExprTableItem(static_cast<uint32>(vstIdx));
         if (meExpr == nullptr || meExpr->GetMeOp() == kMeOpAddrof) {
-          // corresponding ScalarMeExpr has not created in irmap for vstIdx.
+          // corresponding ScalarMeExpr has not been created in irmap for vstIdx.
           CollectAllLevelOst(vstIdx, vstsValueAliasWithFormal[idx]);
           continue;
         }
@@ -276,12 +317,8 @@ void SideEffect::CollectFormalOst(MeFunction &f) {
         CHECK_FATAL(static_cast<ScalarMeExpr*>(meExpr)->GetVstIdx() == vstIdx, "VersionSt index must be equal");
         auto *aliasOst = static_cast<ScalarMeExpr*>(meExpr)->GetOst();
         if (aliasOst != ost) {
-          if (aliasOst->IsTopLevelOst()) {
-            CollectAllLevelOst(vstIdx, vstsValueAliasWithFormal[idx]);
-          } else {
-            for (auto vstIdxOfAliasOst : aliasOst->GetVersionsIndices()) {
-              CollectAllLevelOst(vstIdxOfAliasOst, vstsValueAliasWithFormal[idx]);
-            }
+          for (auto vstIdxOfAliasOst : aliasOst->GetVersionsIndices()) {
+            CollectAllLevelOst(vstIdxOfAliasOst, vstsValueAliasWithFormal[idx]);
           }
         }
       }
@@ -293,7 +330,7 @@ void SideEffect::AnalysisFormalOst() {
   for (size_t formalIndex = 0; formalIndex < vstsValueAliasWithFormal.size(); ++formalIndex) {
     for (size_t vstIdx : vstsValueAliasWithFormal[formalIndex]) {
       curFuncDesc->SetParamInfoNoBetterThan(formalIndex, PI::kReadSelfOnly);
-      auto *meExpr = meFunc->GetIRMap()->GetVerst2MeExprTableItem(vstIdx);
+      auto *meExpr = meFunc->GetIRMap()->GetVerst2MeExprTableItem(static_cast<uint32>(vstIdx));
       if (meExpr == nullptr) {
         continue;
       }
@@ -337,6 +374,9 @@ bool SideEffect::Perform(MeFunction &f) {
   curFuncDesc = &func->GetFuncDesc();
   FuncDesc oldDesc = *curFuncDesc;
 
+  if (func->GetFuncDesc().IsConfiged()) {
+    return false;
+  }
   SolveVarArgs(f);
   CollectFormalOst(f);
   AnalysisFormalOst();
@@ -351,7 +391,7 @@ bool SideEffect::Perform(MeFunction &f) {
 bool SCCSideEffect::PhaseRun(SCCNode<CGNode> &scc) {
   for (CGNode *node : scc.GetNodes()) {
     MIRFunction *func = node->GetMIRFunction();
-    if (func != nullptr) {
+    if (func != nullptr && !func->GetFuncDesc().IsConfiged()) {
       func->InitFuncDescToBest();
       func->GetFuncDesc().SetReturnInfo(RI::kUnknown);
       if (func->GetParamSize() > kMaxParamCount) {
@@ -380,8 +420,18 @@ bool SCCSideEffect::PhaseRun(SCCNode<CGNode> &scc) {
       phase = map->GetVaildAnalysisPhase(meFunc->GetUniqueID(), &MESSATab::id);
       SSATab *meSSATab = static_cast<MESSATab*>(phase)->GetResult();
       CHECK_FATAL(meSSATab == meFunc->GetMeSSATab(), "IPA_PM may be wrong.");
-      SideEffect se(meFunc, dom, alias);
+      MaplePhase *it = GetAnalysisInfoHook()->GetOverIRAnalyisData<M2MCallGraph, MIRModule>(*func->GetModule());
+      CallGraph *cg = static_cast<M2MCallGraph*>(it)->GetResult();
+      SideEffect se(meFunc, dom, alias, cg);
       changed |= se.Perform(*meFunc);
+    }
+  }
+  if (Options::dumpIPA) {
+    for (CGNode *node : scc.GetNodes()) {
+      MIRFunction *func = node->GetMIRFunction();
+      FuncDesc &desc = func->GetFuncDesc();
+      LogInfo::MapleLogger() <<  "funcid: " << func->GetPuidx() << " funcName: " << func->GetName() << std::endl;
+      desc.Dump();
     }
   }
   return false;

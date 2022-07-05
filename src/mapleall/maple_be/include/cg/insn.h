@@ -82,8 +82,8 @@ class Insn {
 #ifdef TARGX86_64
   void SetMOP(const InsnDescription &idesc);
 #else
-  void SetMOP(MOperator mOp) {
-    this->mOp = mOp;
+  void SetMOP(MOperator mOperator) {
+    this->mOp = mOperator;
   }
 #endif
 
@@ -563,8 +563,8 @@ class Insn {
     return 0;
   }
 
-  void SetPrev(Insn *prev) {
-    this->prev = prev;
+  void SetPrev(Insn *prevInsn) {
+    this->prev = prevInsn;
   }
 
   Insn *GetPrev() {
@@ -575,16 +575,16 @@ class Insn {
     return prev;
   }
 
-  void SetNext(Insn *next) {
-    this->next = next;
+  void SetNext(Insn *nextInsn) {
+    this->next = nextInsn;
   }
 
   Insn *GetNext() const {
     return next;
   }
 
-  void SetBB(BB *bb) {
-    this->bb = bb;
+  void SetBB(BB *newBB) {
+    this->bb = newBB;
   }
 
   BB *GetBB() {
@@ -595,8 +595,8 @@ class Insn {
     return bb;
   }
 
-  void SetId(uint32 id) {
-    this->id = id;
+  void SetId(uint32 idVal) {
+    this->id = idVal;
   }
 
   uint32 GetId() const {
@@ -627,16 +627,16 @@ class Insn {
     return needSplit;
   }
 
-  void SetIsThrow(bool isThrow) {
-    this->isThrow = isThrow;
+  void SetIsThrow(bool isThrowVal) {
+    this->isThrow = isThrowVal;
   }
 
   bool GetIsThrow() const {
     return isThrow;
   }
 
-  void SetDoNotRemove(bool doNotRemove) {
-    this->doNotRemove = doNotRemove;
+  void SetDoNotRemove(bool doNotRemoveVal) {
+    this->doNotRemove = doNotRemoveVal;
   }
 
   bool GetDoNotRemove() const {
@@ -678,8 +678,8 @@ class Insn {
     return !isCallReturnUnsigned;
   }
 
-  void SetRetType(RetType retType) {
-    this->retType = retType;
+  void SetRetType(RetType retTy) {
+    this->retType = retTy;
   }
 
   RetType GetRetType() const {
@@ -701,8 +701,8 @@ class Insn {
     return clearStackOffset[0] != -1 || clearStackOffset[1] != -1;
   }
 
-  void SetDepNode(DepNode &depNode) {
-    this->depNode = &depNode;
+  void SetDepNode(DepNode &depNodeVal) {
+    this->depNode = &depNodeVal;
   }
 
   DepNode *GetDepNode() {

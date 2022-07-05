@@ -1707,8 +1707,8 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       addrMode = lhsIsLo12 ? MemOperand::kAddrModeLo12Li : MemOperand::kAddrModeBOi;
       sym = lhsIsLo12 ? lhsSymbol : nullptr;
       OfstOperand &lhsOfstOpnd = GetOrCreateOfstOpnd(lhsSizeCovered + static_cast<uint64>(lhsOffsetVal), k32BitSize);
-      MemOperand *lhsMemOpnd;
-      lhsMemOpnd = &GetOrCreateMemOpnd(addrMode, newAlignUsed * k8BitSize, lhsBaseReg, nullptr, &lhsOfstOpnd, sym);
+      MemOperand *lhsMemOpnd = &GetOrCreateMemOpnd(addrMode, newAlignUsed * k8BitSize,
+                                                   lhsBaseReg, nullptr, &lhsOfstOpnd, sym);
       lhsMemOpnd = FixLargeMemOpnd(*lhsMemOpnd, newAlignUsed);
       mOp = PickStInsn(newAlignUsed * k8BitSize, PTY_u32);
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *lhsMemOpnd));
@@ -3504,21 +3504,13 @@ Operand *AArch64CGFunc::HandleFmovImm(PrimType stype, int64 val, MIRConst &mirCo
 }
 
 Operand *AArch64CGFunc::SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &parent) {
-  PrimType stype = floatConst.GetType().GetPrimType();
-  int32 val = floatConst.GetIntValue();
   /* according to aarch64 encoding format, convert int to float expression */
-  Operand *result;
-  result = HandleFmovImm(stype, val, floatConst, parent);
-  return result;
+  return HandleFmovImm(floatConst.GetType().GetPrimType(), floatConst.GetIntValue(), floatConst, parent);
 }
 
 Operand *AArch64CGFunc::SelectDoubleConst(MIRDoubleConst &doubleConst, const BaseNode &parent) {
-  PrimType stype = doubleConst.GetType().GetPrimType();
-  int64 val = doubleConst.GetIntValue();
   /* according to aarch64 encoding format, convert int to float expression */
-  Operand *result;
-  result = HandleFmovImm(stype, val, doubleConst, parent);
-  return result;
+  return HandleFmovImm(doubleConst.GetType().GetPrimType(), doubleConst.GetIntValue(), doubleConst, parent);
 }
 
 template <typename T>
@@ -9132,8 +9124,7 @@ MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int64 off
     }
     if (symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed &&
         MemOperand::IsPIMMOffsetOutOfRange(totalOffset, size)) {
-      ImmOperand *offsetOprand;
-      offsetOprand = &CreateImmOperand(totalOffset, k64BitSize, true, kUnAdjustVary);
+      ImmOperand *offsetOprand = &CreateImmOperand(totalOffset, k64BitSize, true, kUnAdjustVary);
       Operand *resImmOpnd = &SelectCopy(*offsetOprand, PTY_i64, PTY_i64);
       return *CreateMemOperand(MemOperand::kAddrModeBOrX, size, *baseOpnd,
                                static_cast<RegOperand&>(*resImmOpnd), nullptr, symbol, true);
@@ -9507,8 +9498,7 @@ void AArch64CGFunc::SelectLibCallNArg(const std::string &funcName, std::vector<O
   ListOperand *srcOpnds = CreateListOpnd(*GetFuncScopeAllocator());
   for (size_t i = 1; i < opndVec.size(); ++i) {
     ASSERT(pt[i] != PTY_void, "primType check");
-    MIRType *ty;
-    ty = GlobalTables::GetTypeTable().GetTypeTable()[static_cast<size_t>(pt[i])];
+    MIRType *ty = GlobalTables::GetTypeTable().GetTypeTable()[static_cast<size_t>(pt[i])];
     Operand *stOpnd = opndVec[i];
     if (stOpnd->GetKind() != Operand::kOpdRegister) {
       stOpnd = &SelectCopy(*stOpnd, pt[i], pt[i]);
