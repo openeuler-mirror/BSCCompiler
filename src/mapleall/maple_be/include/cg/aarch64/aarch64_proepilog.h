@@ -58,7 +58,7 @@ class AArch64GenProEpilog : public GenProEpilog {
   void TailCallBBOpt(BB &bb, MapleSet<Insn*> &callInsns, BB &exitBB);
   bool InsertOpndRegs(Operand &opnd, std::set<regno_t> &vecRegs) const;
   bool InsertInsnRegs(Insn &insn, bool insetSource, std::set<regno_t> &vecSourceRegs,
-                      bool insertTarget, std::set<regno_t> &vecTargetRegs);
+                      bool insertTarget, std::set<regno_t> &vecTargetRegs) const;
   bool FindRegs(Operand &insn, std::set<regno_t> &vecRegs) const;
   bool BackwardFindDependency(BB &ifbb, std::set<regno_t> &vecReturnSourceReg,
                               std::list<Insn*> &existingInsns, std::list<Insn*> &moveInsns);

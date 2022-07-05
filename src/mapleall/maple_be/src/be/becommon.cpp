@@ -528,7 +528,7 @@ void BECommon::GenFieldOffsetMap(MIRClassType &classType, FILE &outFile) {
   }
 }
 
-void BECommon::GenObjSize(const MIRClassType &classType, FILE &outFile) {
+void BECommon::GenObjSize(const MIRClassType &classType, FILE &outFile) const {
   const std::string &className = classType.GetName();
   uint64_t objSize = GetTypeSize(classType.GetTypeIndex());
   if (objSize == 0) {

@@ -55,7 +55,7 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
                         std::vector<Insn*> &generateInsn);
   bool DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joinBB);
   void GenerateInsnForImm(const Insn &branchInsn, Operand &ifDest, Operand &elseDest, RegOperand &destReg,
-                          std::vector<Insn*> &generateInsn);
+                          std::vector<Insn*> &generateInsn) const;
   Operand *GetDestReg(const std::map<Operand*, std::vector<Operand*>> &destSrcMap,
                       const RegOperand &destReg) const;
   void GenerateInsnForReg(const Insn &branchInsn, Operand &ifDest, Operand &elseDest, RegOperand &destReg,
@@ -82,7 +82,7 @@ class AArch64ICOSameCondPattern : public AArch64ICOPattern {
   ~AArch64ICOSameCondPattern() override = default;
   bool Optimize(BB &curBB) override;
  protected:
-  bool DoOpt(BB *firstIfBB, BB &secondIfBB);
+  bool DoOpt(BB *firstIfBB, BB &secondIfBB) const;
 };
 
 /* If-Then MorePreds pattern
@@ -105,7 +105,7 @@ class AArch64ICOMorePredsPattern : public AArch64ICOPattern {
   ~AArch64ICOMorePredsPattern() override = default;
   bool Optimize(BB &curBB) override;
  protected:
-  bool DoOpt(BB &gotoBB);
+  bool DoOpt(BB &gotoBB) const;
   bool CheckGotoBB(BB &gotoBB, std::vector<Insn*> &movInsn) const;
   bool MovToCsel(std::vector<Insn*> &movInsn, std::vector<Insn*> &cselInsn, const Insn &branchInsn) const;
 };

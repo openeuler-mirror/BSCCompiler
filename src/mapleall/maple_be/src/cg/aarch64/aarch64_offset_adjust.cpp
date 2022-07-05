@@ -127,7 +127,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
   immOpnd.SetVary(kAdjustVary);
 }
 
-void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn, AArch64CGFunc &aarchCGFunc) {
+void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn, AArch64CGFunc &aarchCGFunc) const {
   AArch64MemLayout *aarch64memlayout = static_cast<AArch64MemLayout*>(aarchCGFunc.GetMemlayout());
   int32 offset = static_cast<int32>(aarch64memlayout->SizeOfArgsToStackPass());
   if (offset == 0) {

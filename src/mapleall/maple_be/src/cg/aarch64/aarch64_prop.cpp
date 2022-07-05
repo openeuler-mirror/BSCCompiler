@@ -100,7 +100,7 @@ void A64ConstProp::DoOpt() {
   }
 }
 
-void A64ConstProp::ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) {
+void A64ConstProp::ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) const {
   auto *useInsn = static_cast<AArch64Insn*>(useDUInfo.GetInsn());
   const AArch64MD *md = &AArch64CG::kMd[(useInsn->GetMachineOpcode())];
   /* special case */
@@ -262,7 +262,7 @@ void A64ConstProp::ReplaceInsnAndUpdateSSA(Insn &oriInsn, Insn &newInsn) const {
   /* dump insn replacement here */
 }
 
-bool A64ConstProp::MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) {
+bool A64ConstProp::MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) const {
   Insn *useInsn = useDUInfo.GetInsn();
   MOperator curMop = useInsn->GetMachineOpcode();
   if (useDUInfo.GetOperands().size() == 1) {
@@ -362,7 +362,7 @@ bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &con
 }
 
 bool A64ConstProp::ArithmeticConstFold(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd,
-                                       ArithmeticType aT) {
+                                       ArithmeticType aT) const {
   Insn *useInsn = useDUInfo.GetInsn();
   if (useDUInfo.GetOperands().size() == 1) {
     Operand &existedImm = useInsn->GetOperand(kInsnThirdOpnd);
@@ -458,7 +458,7 @@ bool A64ConstProp::ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) {
   return false;
 }
 
-bool A64ConstProp::BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) {
+bool A64ConstProp::BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) const {
   Insn *useInsn = useDUInfo.GetInsn();
   MOperator curMop = useInsn->GetMachineOpcode();
   if (useDUInfo.GetOperands().size() == 1) {
@@ -489,7 +489,7 @@ bool A64ConstProp::BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &con
 }
 
 ImmOperand *A64ConstProp::CanDoConstFold(
-    const ImmOperand &value1, const ImmOperand &value2, ArithmeticType aT, bool is64Bit) {
+    const ImmOperand &value1, const ImmOperand &value2, ArithmeticType aT, bool is64Bit) const {
   auto *tempImm = static_cast<ImmOperand*>(value1.Clone(*constPropMp));
   int64 newVal = 0;
   bool isSigned = value1.IsSignedValue();

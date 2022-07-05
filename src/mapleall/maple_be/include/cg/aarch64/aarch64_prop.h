@@ -99,18 +99,18 @@ class A64ConstProp {
  private:
   bool ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd);
   /* use xzr/wzr in aarch64 to shrink register live range */
-  void ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg);
+  void ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) const;
 
   /* replace old Insn with new Insn, update ssa info automatically */
   void ReplaceInsnAndUpdateSSA(Insn &oriInsn, Insn &newInsn) const;
-  ImmOperand *CanDoConstFold(const ImmOperand &value1, const ImmOperand &value2, ArithmeticType aT, bool is64Bit);
+  ImmOperand *CanDoConstFold(const ImmOperand &value1, const ImmOperand &value2, ArithmeticType aT, bool is64Bit) const;
 
   /* optimization */
-  bool MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd);
+  bool MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) const;
   bool ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT);
-  bool ArithmeticConstFold(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd, ArithmeticType aT);
+  bool ArithmeticConstFold(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd, ArithmeticType aT) const;
   bool ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd);
-  bool BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd);
+  bool BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) const;
 
   MemPool *constPropMp;
   CGFunc *cgFunc;
@@ -302,14 +302,14 @@ private:
   void SetExMOpType(const Insn &use);
   void SetLsMOpType(const Insn &use);
 
-  MOperator replaceOp;
-  uint32 replaceIdx;
+  MOperator replaceOp = 0;
+  uint32 replaceIdx = 0;
   ExtendShiftOperand::ExtendOp extendOp;
   BitShiftOperand::ShiftOp shiftOp;
   Insn *defInsn = nullptr;
   Insn *newInsn = nullptr;
   Insn *curInsn = nullptr;
-  bool optSuccess;
+  bool optSuccess = false;
   ExMOpType exMOpType;
   LsMOpType lsMOpType;
 };

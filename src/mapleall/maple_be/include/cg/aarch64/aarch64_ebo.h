@@ -68,7 +68,7 @@ class AArch64Ebo : public Ebo {
   bool IsConstantImmOrReg(const Operand &opnd) const override;
   bool OperandLiveAfterInsn(const RegOperand &regOpnd, Insn &insn) const;
   bool ValidPatternForCombineExtAndLoad(OpndInfo *prevOpndInfo, Insn *insn, MOperator newMop, MOperator oldMop,
-                                        const RegOperand& opnd);
+                                        const RegOperand& opnd) const;
 
  private:
   /* The number of elements in callerSaveRegTable must less then 45. */
@@ -77,7 +77,7 @@ class AArch64Ebo : public Ebo {
   bool CheckCondCode(const CondOperand &cond) const;
   bool CombineMultiplyAdd(Insn *insn, const Insn *prevInsn, InsnInfo *insnInfo, Operand *addOpnd,
                           bool is64bits, bool isFp) const;
-  bool CheckCanDoMadd(Insn *insn, OpndInfo *opndInfo, int32 pos, bool is64bits, bool isFp);
+  bool CheckCanDoMadd(Insn *insn, OpndInfo *opndInfo, int32 pos, bool is64bits, bool isFp) const;
   bool CombineMultiplySub(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp) const;
   bool CombineMultiplyNeg(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp) const;
   bool SimplifyBothConst(BB &bb, Insn &insn, const ImmOperand &immOperand0, const ImmOperand &immOperand1,

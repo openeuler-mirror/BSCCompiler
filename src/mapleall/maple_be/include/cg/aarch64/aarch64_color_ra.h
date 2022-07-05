@@ -325,7 +325,7 @@ class LiveRange {
     return bbMember[index];
   }
 
-  void SetBBMemberElem(int32 index, uint64 elem) {
+  void SetBBMemberElem(int32 index, uint64 elem) const {
     bbMember[index] = elem;
   }
 
@@ -472,7 +472,7 @@ class LiveRange {
     return bbConflict[index];
   }
 
-  void SetBBConflictElem(int32 index, uint64 elem) {
+  void SetBBConflictElem(int32 index, uint64 elem) const {
     ASSERT(index < regBuckets, "out of bbConflict");
     bbConflict[index] = elem;
   }

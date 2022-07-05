@@ -54,7 +54,7 @@ class AArch64MoveRegArgs : public MoveRegArgs {
   void GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgInfo &secondArgInfo);
   void GenerateStrInsn(const ArgInfo &argInfo, AArch64reg reg2, uint32 numFpRegs, uint32 fpSize);
   void MoveRegisterArgs();
-  void MoveVRegisterArgs();
+  void MoveVRegisterArgs() const;
   void MoveLocalRefVarToRefLocals(MIRSymbol &mirSym) const;
   void LoadStackArgsToVReg(MIRSymbol &mirSym) const;
   void MoveArgsToVReg(const CCLocInfo &ploc, MIRSymbol &mirSym) const;

@@ -27,7 +27,7 @@ class AArch64FixShortBranch {
     cg = cgFunc->GetCG();
   }
   ~AArch64FixShortBranch() = default;
-  void FixShortBranches();
+  void FixShortBranches() const;
 
  private:
   CGFunc *cgFunc;

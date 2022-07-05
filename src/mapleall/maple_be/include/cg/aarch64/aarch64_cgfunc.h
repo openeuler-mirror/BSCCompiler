@@ -451,7 +451,7 @@ class AArch64CGFunc : public CGFunc {
 
   MemOperand &CreateMemOpnd(RegOperand &baseOpnd, int64 offset, uint32 size);
 
-  MemOperand &CreateMemOpnd(RegOperand &baseOpnd, int64 offset, uint32 size, const MIRSymbol &sym);
+  MemOperand &CreateMemOpnd(RegOperand &baseOpnd, int64 offset, uint32 size, const MIRSymbol &sym) const;
 
   MemOperand &CreateMemOpnd(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int64 offset = 0,
                             AArch64isa::MemoryOrdering memOrd = AArch64isa::kMoNone);
@@ -575,14 +575,14 @@ class AArch64CGFunc : public CGFunc {
   }
 
   MemOperand &CreateStkTopOpnd(uint32 offset, uint32 size);
-  MemOperand *CreateStackMemOpnd(regno_t preg, int32 offset, uint32 size);
+  MemOperand *CreateStackMemOpnd(regno_t preg, int32 offset, uint32 size) const;
   MemOperand *CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 size,
       RegOperand &base, RegOperand *index, ImmOperand *offset, const MIRSymbol *symbol) const;
   MemOperand *CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 size,
-      RegOperand &base, RegOperand &index, ImmOperand *offset, const MIRSymbol &symbol, bool noExtend);
+      RegOperand &base, RegOperand &index, ImmOperand *offset, const MIRSymbol &symbol, bool noExtend) const;
   MemOperand *CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 dSize,
       RegOperand &base, RegOperand &indexOpnd, uint32 shift, bool isSigned = false) const;
-  MemOperand *CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 dSize, const MIRSymbol &sym);
+  MemOperand *CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 dSize, const MIRSymbol &sym) const;
 
   /* if offset < 0, allocation; otherwise, deallocation */
   MemOperand &CreateCallFrameOperand(int32 offset, uint32 size);
@@ -654,11 +654,11 @@ class AArch64CGFunc : public CGFunc {
     splitStpldpBaseOffset = val;
   }
 
-  Insn &CreateCommentInsn(const std::string &comment) {
+  Insn &CreateCommentInsn(const std::string &comment) const {
     return cg->BuildInstruction<AArch64Insn>(MOP_comment, CreateCommentOperand(comment));
   }
 
-  Insn &CreateCommentInsn(const MapleString &comment) {
+  Insn &CreateCommentInsn(const MapleString &comment) const {
     return cg->BuildInstruction<AArch64Insn>(MOP_comment, CreateCommentOperand(comment));
   }
 
@@ -705,14 +705,14 @@ class AArch64CGFunc : public CGFunc {
     lmbcArgInfo = p;
   }
 
-  void SetLmbcArgInfo(RegOperand *reg, PrimType pTy, int32 ofst, int32 regs) {
+  void SetLmbcArgInfo(RegOperand *reg, PrimType pTy, int32 ofst, int32 regs) const {
     (void)GetLmbcCallArgs().emplace_back(reg);
     (void)GetLmbcCallArgTypes().emplace_back(pTy);
     (void)GetLmbcCallArgOffsets().emplace_back(ofst);
     (void)GetLmbcCallArgNumOfRegs().emplace_back(regs);
   }
 
-  void ResetLmbcArgInfo() {
+  void ResetLmbcArgInfo() const {
     GetLmbcCallArgs().clear();
     GetLmbcCallArgTypes().clear();
     GetLmbcCallArgOffsets().clear();
@@ -739,7 +739,7 @@ class AArch64CGFunc : public CGFunc {
     return lmbcArgInfo->lmbcTotalStkUsed;
   }
 
-  void SetLmbcTotalStkUsed(int32 offset) {
+  void SetLmbcTotalStkUsed(int32 offset) const {
     lmbcArgInfo->lmbcTotalStkUsed = offset;
   }
 

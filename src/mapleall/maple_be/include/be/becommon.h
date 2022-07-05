@@ -101,7 +101,7 @@ class BECommon {
 
   void GenFieldOffsetMap(MIRClassType &classType, FILE &outFile);
 
-  void GenObjSize(const MIRClassType &classType, FILE &outFile);
+  void GenObjSize(const MIRClassType &classType, FILE &outFile) const;
 
   std::pair<int32, int32> GetFieldOffset(MIRStructType &structType, FieldID fieldID);
 

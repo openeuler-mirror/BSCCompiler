@@ -100,7 +100,7 @@ bool RaX0Opt::PropagateX0DetectRedefine(const AArch64MD *md, const Insn *ninsn, 
   return false;
 }
 
-bool RaX0Opt::PropagateX0Optimize(const BB *bb, const Insn *insn, X0OptInfo &optVal) {
+bool RaX0Opt::PropagateX0Optimize(const BB *bb, const Insn *insn, X0OptInfo &optVal) const {
   bool redefined = false;
   for (Insn *ninsn = insn->GetNext(); (ninsn != nullptr) && ninsn != bb->GetLastInsn()->GetNext();
        ninsn = ninsn->GetNext()) {
@@ -168,7 +168,7 @@ bool RaX0Opt::PropagateX0Optimize(const BB *bb, const Insn *insn, X0OptInfo &opt
   return redefined;
 }
 
-bool RaX0Opt::PropagateX0ForCurrBb(BB *bb, const X0OptInfo &optVal) {
+bool RaX0Opt::PropagateX0ForCurrBb(BB *bb, const X0OptInfo &optVal) const {
   bool redefined = false;
   for (Insn *ninsn = optVal.GetRenameInsn()->GetNext(); (ninsn != nullptr) && ninsn != bb->GetLastInsn()->GetNext();
        ninsn = ninsn->GetNext()) {
@@ -191,7 +191,7 @@ bool RaX0Opt::PropagateX0ForCurrBb(BB *bb, const X0OptInfo &optVal) {
   return redefined;
 }
 
-void RaX0Opt::PropagateX0ForNextBb(BB *nextBb, const X0OptInfo &optVal) {
+void RaX0Opt::PropagateX0ForNextBb(BB *nextBb, const X0OptInfo &optVal) const {
   bool redefined = false;
   for (Insn *ninsn = nextBb->GetFirstInsn(); ninsn != nextBb->GetLastInsn()->GetNext(); ninsn = ninsn->GetNext()) {
     if (!ninsn->IsMachineInstruction()) {

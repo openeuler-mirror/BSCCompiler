@@ -174,7 +174,7 @@ Insn *AArch64ICOPattern::BuildCondSel(const Insn &branch, MOperator mOp, RegOper
 }
 
 void AArch64ICOIfThenElsePattern::GenerateInsnForImm(const Insn &branchInsn, Operand &ifDest, Operand &elseDest,
-                                                     RegOperand &destReg, std::vector<Insn*> &generateInsn) {
+                                                     RegOperand &destReg, std::vector<Insn*> &generateInsn) const {
   ImmOperand &imm1 = static_cast<ImmOperand&>(ifDest);
   ImmOperand &imm2 = static_cast<ImmOperand&>(elseDest);
   bool inverse = imm1.IsZero() && imm2.IsOne();
@@ -734,7 +734,7 @@ bool AArch64ICOPattern::CheckMop(MOperator mOperator) const {
  *
  * Limitations: branchInsn1 is the same as branchInsn2
  * */
-bool AArch64ICOSameCondPattern::DoOpt(BB *firstIfBB, BB &secondIfBB) {
+bool AArch64ICOSameCondPattern::DoOpt(BB *firstIfBB, BB &secondIfBB) const {
   Insn *branchInsn1 = cgFunc->GetTheCFG()->FindLastCondBrInsn(*firstIfBB);
   ASSERT(branchInsn1 != nullptr, "nullptr check");
   Insn *cmpInsn1 = FindLastCmpInsn(*firstIfBB);
@@ -892,7 +892,7 @@ bool AArch64ICOMorePredsPattern::MovToCsel(std::vector<Insn*> &movInsn, std::vec
   return true;
 }
 
-bool AArch64ICOMorePredsPattern::DoOpt(BB &gotoBB) {
+bool AArch64ICOMorePredsPattern::DoOpt(BB &gotoBB) const {
   std::vector<Insn*> movInsn;
   std::vector<std::vector<Insn*>> presCselInsn;
   std::vector<BB*> presBB;

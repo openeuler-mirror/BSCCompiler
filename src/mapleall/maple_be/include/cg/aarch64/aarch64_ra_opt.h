@@ -89,9 +89,9 @@ class RaX0Opt {
   bool PropagateRenameReg(Insn *insn, const X0OptInfo &optVal) const;
   bool PropagateX0DetectX0(const Insn *insn, X0OptInfo &optVal) const;
   bool PropagateX0DetectRedefine(const AArch64MD *md, const Insn *ninsn, const X0OptInfo &optVal, uint32 index) const;
-  bool PropagateX0Optimize(const BB *bb, const Insn *insn, X0OptInfo &optVal);
-  bool PropagateX0ForCurrBb(BB *bb, const X0OptInfo &optVal);
-  void PropagateX0ForNextBb(BB *nextBb, const X0OptInfo &optVal);
+  bool PropagateX0Optimize(const BB *bb, const Insn *insn, X0OptInfo &optVal) const;
+  bool PropagateX0ForCurrBb(BB *bb, const X0OptInfo &optVal) const;
+  void PropagateX0ForNextBb(BB *nextBb, const X0OptInfo &optVal) const;
   void PropagateX0();
 
  private:

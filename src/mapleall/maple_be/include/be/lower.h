@@ -112,7 +112,7 @@ class CGLowerer {
     return (iread.GetFieldID() == 0 ? &iread : LowerIreadBitfield(iread));
   }
 
-  BaseNode *LowerCastExpr(BaseNode &expr);
+  BaseNode *LowerCastExpr(BaseNode &expr) const;
 
   BaseNode *ExtractSymbolAddress(const StIdx &stIdx);
   BaseNode *LowerDreadToThreadLocal(BaseNode &expr, const BlockNode &block);
@@ -297,7 +297,7 @@ class CGLowerer {
   StmtNode *CreateStmtCallWithReturnValue(const IntrinsicopNode &intrinNode, PregIdx retPregIdx, PUIdx bFunc,
                                           BaseNode *extraInfo = nullptr) const;
   BaseNode *LowerIntrinsicop(const BaseNode &parent, IntrinsicopNode &intrinNode);
-  BaseNode *LowerIntrinJavaMerge(const BaseNode &parent, IntrinsicopNode &intrinNode);
+  BaseNode *LowerIntrinJavaMerge(const BaseNode &parent, IntrinsicopNode &intrinNode) const;
   BaseNode *LowerIntrinJavaArrayLength(const BaseNode &parent, IntrinsicopNode &intrinNode);
   BaseNode *LowerIntrinsicopWithType(const BaseNode &parent, IntrinsicopNode &intrinNode);
 

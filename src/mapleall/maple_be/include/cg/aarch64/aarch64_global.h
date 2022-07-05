@@ -349,14 +349,14 @@ class ExtendShiftOptPattern : public OptimizePattern {
   void SetExMOpType(const Insn &use);
   void SetLsMOpType(const Insn &use);
 
-  MOperator replaceOp;
-  uint32 replaceIdx;
+  MOperator replaceOp = 0;
+  uint32 replaceIdx = 0;
   ExtendShiftOperand::ExtendOp extendOp;
   BitShiftOperand::ShiftOp shiftOp;
   Insn *defInsn = nullptr;
   Insn *newInsn = nullptr;
-  bool optSuccess;
-  bool removeDefInsn;
+  bool optSuccess = false;
+  bool removeDefInsn = false;
   ExMOpType exMOpType;
   LsMOpType lsMOpType;
 };

@@ -280,7 +280,7 @@ void AArch64MemLayout::LayoutFormalParams() {
         SetSymAllocInfo(stIndex, *symLoc1);
       }
     }
-    if (cgFunc->GetCG()->GetCGOptions().WithDwarf() && ploc.reg0 == kRinvalid) {
+    if (cgFunc->GetCG()->GetCGOptions().WithDwarf() && (symLoc->GetMemSegment() != nullptr)) {
       cgFunc->AddDIESymbolLocation(sym, symLoc);
     }
   }
@@ -562,14 +562,14 @@ int32 AArch64MemLayout::GetRefLocBaseLoc() const {
   return static_cast<int32>(beforeSize + kSizeOfFplr);
 }
 
-int32 AArch64MemLayout::GetGRSaveAreaBaseLoc() {
+int32 AArch64MemLayout::GetGRSaveAreaBaseLoc() const {
   int32 total = static_cast<int32>(RealStackFrameSize() -
                 RoundUp(GetSizeOfGRSaveArea(), kAarch64StackPtrAlignment));
   total -= static_cast<int32>(SizeOfArgsToStackPass());
   return total;
 }
 
-int32 AArch64MemLayout::GetVRSaveAreaBaseLoc() {
+int32 AArch64MemLayout::GetVRSaveAreaBaseLoc() const {
   int32 total = static_cast<int32>((RealStackFrameSize() -
                 RoundUp(GetSizeOfGRSaveArea(), kAarch64StackPtrAlignment)) -
                 RoundUp(GetSizeOfVRSaveArea(), kAarch64StackPtrAlignment));

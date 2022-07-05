@@ -1044,7 +1044,7 @@ class MemOperand : public OperandVisitable<MemOperand> {
       return false;
     }
     OfstOperand *ofstOpnd = GetOffsetImmediate();
-    if (ofstOpnd->GetOffsetValue() >= -256 && ofstOpnd->GetOffsetValue() <= 255) {
+    if (ofstOpnd->GetOffsetValue() >= kMinSimm32 && ofstOpnd->GetOffsetValue() <= kMaxSimm32) {
       return false;
     }
     return ((static_cast<uint32>(ofstOpnd->GetOffsetValue()) &

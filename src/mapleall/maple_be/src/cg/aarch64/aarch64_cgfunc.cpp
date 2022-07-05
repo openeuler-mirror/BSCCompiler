@@ -1966,7 +1966,7 @@ MemOperand *AArch64CGFunc::GenLmbcFpMemOperand(int32 offset, uint32 byteSize, AA
   MemOperand *memOpnd;
   RegOperand *rfp = &GetOrCreatePhysicalRegisterOperand(baseRegno, k64BitSize, kRegTyInt);
   uint32 bitlen = byteSize * kBitsPerByte;
-  if (offset < 0 && offset < -256) {
+  if (offset < kMinSimm32) {
     RegOperand *baseOpnd = &CreateRegisterOperandOfType(PTY_a64);
     ImmOperand &immOpnd = CreateImmOperand(offset, k32BitSize, true);
     Insn &addInsn = GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *baseOpnd, *rfp, immOpnd);
@@ -6674,7 +6674,7 @@ MemOperand &AArch64CGFunc::CreateStkTopOpnd(uint32 offset, uint32 size) {
   return *memOp;
 }
 
-MemOperand *AArch64CGFunc::CreateStackMemOpnd(regno_t preg, int32 offset, uint32 size) {
+MemOperand *AArch64CGFunc::CreateStackMemOpnd(regno_t preg, int32 offset, uint32 size) const {
   auto *memOp = memPool->New<MemOperand>(
       memPool->New<RegOperand>(preg, k64BitSize, kRegTyInt),
       &CreateOfstOpnd(static_cast<uint64>(static_cast<int64>(offset)), k32BitSize),
@@ -6698,7 +6698,7 @@ MemOperand *AArch64CGFunc::CreateMemOperand(MemOperand::AArch64AddressingMode mo
 
 MemOperand *AArch64CGFunc::CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 size,
                                             RegOperand &base, RegOperand &index,
-                                            ImmOperand *offset, const MIRSymbol &symbol, bool noExtend) {
+                                            ImmOperand *offset, const MIRSymbol &symbol, bool noExtend) const {
   auto *memOp = memPool->New<MemOperand>(
       mode, size, base, index, offset, symbol, noExtend);
   if (base.GetRegisterNumber() == RFP || base.GetRegisterNumber() == RSP) {
@@ -6719,7 +6719,7 @@ MemOperand *AArch64CGFunc::CreateMemOperand(MemOperand::AArch64AddressingMode mo
 }
 
 MemOperand *AArch64CGFunc::CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 dSize,
-                                            const MIRSymbol &sym) {
+                                            const MIRSymbol &sym) const {
   auto *memOp = memPool->New<MemOperand>(mode, dSize, sym);
   return memOp;
 }
@@ -9244,7 +9244,7 @@ MemOperand &AArch64CGFunc::CreateMemOpnd(RegOperand &baseOpnd, int64 offset, uin
 }
 
 /* offset: base offset + #:lo12:Label+immediate */
-MemOperand &AArch64CGFunc::CreateMemOpnd(RegOperand &baseOpnd, int64 offset, uint32 size, const MIRSymbol &sym) {
+MemOperand &AArch64CGFunc::CreateMemOpnd(RegOperand &baseOpnd, int64 offset, uint32 size, const MIRSymbol &sym) const {
   OfstOperand &offsetOpnd = CreateOfstOpnd(static_cast<uint64>(offset), k32BitSize);
   ASSERT(ImmOperand::IsInBitSizeRot(kMaxImmVal12Bits, offset), "");
   return *CreateMemOperand(MemOperand::kAddrModeBOi, size, baseOpnd, nullptr, &offsetOpnd, &sym);

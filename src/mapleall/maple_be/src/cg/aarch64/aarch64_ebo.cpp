@@ -806,7 +806,7 @@ bool AArch64Ebo::OperandLiveAfterInsn(const RegOperand &regOpnd, Insn &insn) con
 }
 
 bool AArch64Ebo::ValidPatternForCombineExtAndLoad(OpndInfo *prevOpndInfo, Insn *insn, MOperator newMop,
-                                                  MOperator oldMop, const RegOperand& opnd) {
+                                                  MOperator oldMop, const RegOperand& opnd) const {
   if (newMop == oldMop) {
     return true;
   }
@@ -916,7 +916,7 @@ bool AArch64Ebo::CombineMultiplyAdd(Insn *insn, const Insn *prevInsn, InsnInfo *
   return true;
 }
 
-bool AArch64Ebo::CheckCanDoMadd(Insn *insn, OpndInfo *opndInfo, int32 pos, bool is64bits, bool isFp) {
+bool AArch64Ebo::CheckCanDoMadd(Insn *insn, OpndInfo *opndInfo, int32 pos, bool is64bits, bool isFp) const {
   if ((opndInfo == nullptr) || (opndInfo->insn == nullptr)) {
     return false;
   }

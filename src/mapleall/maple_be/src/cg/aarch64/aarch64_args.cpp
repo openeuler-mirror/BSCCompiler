@@ -427,7 +427,7 @@ void AArch64MoveRegArgs::MoveArgsToVReg(const CCLocInfo &ploc, MIRSymbol &mirSym
   aarchCGFunc->GetCurBB()->InsertInsnBegin(insn);
 }
 
-void AArch64MoveRegArgs::MoveVRegisterArgs() {
+void AArch64MoveRegArgs::MoveVRegisterArgs() const {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   BB *formerCurBB = aarchCGFunc->GetCurBB();
   aarchCGFunc->GetDummyBB()->ClearInsns();

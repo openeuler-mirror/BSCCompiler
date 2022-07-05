@@ -240,7 +240,7 @@ bool AArch64GenProEpilog::TailCallOpt() {
     } else {
       break;
     }
-  } while (1);
+  } while (true);
 
   /* regular calls exist in function */
   if (nCount != optCount) {
@@ -492,7 +492,7 @@ bool AArch64GenProEpilog::InsertOpndRegs(Operand &op, std::set<regno_t> &vecRegs
 }
 
 bool AArch64GenProEpilog::InsertInsnRegs(Insn &insn, bool insertSource, std::set<regno_t> &vecSourceRegs,
-                                         bool insertTarget, std::set<regno_t> &vecTargetRegs) {
+                                         bool insertTarget, std::set<regno_t> &vecTargetRegs) const {
   Insn *curInsn = &insn;
   for (uint32 o = 0; o < curInsn->GetOperandSize(); ++o) {
     Operand &opnd = curInsn->GetOperand(o);

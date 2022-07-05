@@ -70,7 +70,7 @@ void AArch64FixShortBranch::SetInsnId() const {
  * that purpose. To save compile time, we do this change when there are more than 32KB / 4 instructions
  * in the function.
  */
-void AArch64FixShortBranch::FixShortBranches() {
+void AArch64FixShortBranch::FixShortBranches() const {
   AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   bool change = false;
   do {

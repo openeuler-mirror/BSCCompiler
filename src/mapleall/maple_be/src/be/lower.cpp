@@ -845,7 +845,7 @@ BaseNode *CGLowerer::LowerIreadBitfield(IreadNode &iread) {
 }
 
 // input node must be cvt, retype, zext or sext
-BaseNode *CGLowerer::LowerCastExpr(BaseNode &expr) {
+BaseNode *CGLowerer::LowerCastExpr(BaseNode &expr) const {
   if (CGOptions::GetInstance().GetOptimizeLevel() >= CGOptions::kLevel2) {
     BaseNode *simplified = MapleCastOpt::SimplifyCast(*mirBuilder, &expr);
     return simplified != nullptr ? simplified : &expr;
@@ -1719,13 +1719,16 @@ void CGLowerer::SwitchAssertBoundary(StmtNode &stmt, MapleVector<BaseNode *> &ar
   MIRSymbol *errMsg;
   MIRSymbol *fileNameSym;
   ConstvalNode *lineNum;
+  const int callElemNum = 5;
+  const int returnElemNum = 4;
+  const int otherElemNum = 3;
   fileNameSym = mirBuilder->CreateConstStringSymbol(GetFileNameSymbolName(AssertBoundaryGetFileName(stmt)),
       AssertBoundaryGetFileName(stmt));
   lineNum = mirBuilder->CreateIntConst(stmt.GetSrcPos().LineNum(), PTY_u32);
   if (kOpcodeInfo.IsAssertLowerBoundary(stmt.GetOpCode())) {
     errMsg = mirBuilder->CreateConstStringSymbol(kOpAssertge,
         "%s:%d error: the pointer < the lower bounds when accessing the memory!\n");
-    AddElemToPrintf(argsPrintf, 3, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
+    AddElemToPrintf(argsPrintf, otherElemNum, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
                     mirBuilder->CreateAddrof(*fileNameSym, PTY_a64), lineNum);
   } else {
     if (kOpcodeInfo.IsAssertLeBoundary(stmt.GetOpCode())) {
@@ -1740,7 +1743,7 @@ void CGLowerer::SwitchAssertBoundary(StmtNode &stmt, MapleVector<BaseNode *> &ar
         funcName = mirBuilder->CreateConstStringSymbol(callStmt.GetFuncName() + kOpCallAssertle,
                                                        callStmt.GetFuncName());
         paramNum = mirBuilder->CreateConstStringSymbol(kOpCallAssertle + param, param);
-        AddElemToPrintf(argsPrintf, 5, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
+        AddElemToPrintf(argsPrintf, callElemNum, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
                         mirBuilder->CreateAddrof(*fileNameSym, PTY_a64), lineNum,
                         mirBuilder->CreateAddrof(*funcName, PTY_a64),
                         mirBuilder->CreateAddrof(*paramNum, PTY_a64));
@@ -1751,19 +1754,19 @@ void CGLowerer::SwitchAssertBoundary(StmtNode &stmt, MapleVector<BaseNode *> &ar
             "%s:%d error: return value's bounds does not match the function declaration for %s\n");
         funcName = mirBuilder->CreateConstStringSymbol(callStmt.GetFuncName() + kOpReturnAssertle,
                                                        callStmt.GetFuncName());
-        AddElemToPrintf(argsPrintf, 4, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
+        AddElemToPrintf(argsPrintf, returnElemNum, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
                         mirBuilder->CreateAddrof(*fileNameSym, PTY_a64), lineNum,
                         mirBuilder->CreateAddrof(*funcName, PTY_a64));
       } else {
         errMsg = mirBuilder->CreateConstStringSymbol(kOpAssignAssertle,
             "%s:%d error: l-value boundary should not be larger than r-value boundary!\n");
-        AddElemToPrintf(argsPrintf, 3, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
+        AddElemToPrintf(argsPrintf, otherElemNum, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
                         mirBuilder->CreateAddrof(*fileNameSym, PTY_a64), lineNum);
       }
     } else {
       errMsg = mirBuilder->CreateConstStringSymbol(kOpAssertlt,
           "%s:%d error: the pointer >= the upper bounds when accessing the memory!\n");
-      AddElemToPrintf(argsPrintf, 3, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
+      AddElemToPrintf(argsPrintf, otherElemNum, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
                       mirBuilder->CreateAddrof(*fileNameSym, PTY_a64), lineNum);
     }
   }
@@ -3047,7 +3050,7 @@ StmtNode *CGLowerer::CreateStmtCallWithReturnValue(const IntrinsicopNode &intrin
   return mirBuilder->CreateStmtCallRegassigned(bFunc, args, retpIdx, OP_callassigned);
 }
 
-BaseNode *CGLowerer::LowerIntrinJavaMerge(const BaseNode &parent, IntrinsicopNode &intrinNode) {
+BaseNode *CGLowerer::LowerIntrinJavaMerge(const BaseNode &parent, IntrinsicopNode &intrinNode) const {
   BaseNode *resNode = &intrinNode;
   CHECK_FATAL(intrinNode.GetNumOpnds() > 0, "invalid JAVA_MERGE intrinsic node");
   BaseNode *candidate = intrinNode.Opnd(0);

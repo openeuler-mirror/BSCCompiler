@@ -50,7 +50,7 @@ class PeepOptimizeManager {
     }
   }
   template<typename OptimizePattern>
-  void NormalPatternOpt(bool patternEnable = false) {
+  void NormalPatternOpt(bool patternEnable = false) const {
     if (!patternEnable) {
       return;
     }
@@ -580,7 +580,7 @@ class ElimSpecificExtensionPattern : public CGPeepPattern {
  private:
   void SetSpecificExtType(const Insn &currInsn);
   void SetOptSceneType();
-  bool IsValidLoadExtPattern(Insn &currInsn, MOperator oldMop, MOperator newMop) const;
+  bool IsValidLoadExtPattern(const Insn &currInsn, MOperator oldMop, MOperator newMop) const;
   MOperator SelectNewLoadMopByBitSize(MOperator lowBitMop) const;
   void ElimExtensionAfterLoad(Insn &currInsn);
   void ElimExtensionAfterMov(Insn &currInsn);
@@ -928,7 +928,7 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
   }
 
  private:
-  std::vector<Insn*> FindPrevStrLdr(Insn &insn, regno_t destRegNO, regno_t memBaseRegNO, int64 baseOfst);
+  std::vector<Insn*> FindPrevStrLdr(Insn &insn, regno_t destRegNO, regno_t memBaseRegNO, int64 baseOfst) const;
   /*
    * avoid the following situation:
    * str x2, [x19, #8]
@@ -1351,7 +1351,7 @@ class CmpCsetAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
 
  private:
-  bool CheckOpndDefPoints(Insn &checkInsn, int opndIdx);
+  bool CheckOpndDefPoints(Insn &checkInsn, int opndIdx) const;
   const Insn *DefInsnOfOperandInBB(const Insn &startInsn, const Insn &checkInsn, int opndIdx) const;
   bool OpndDefByOneValidBit(const Insn &defInsn) const;
   bool FlagUsedLaterInCurBB(const BB &bb, Insn &startInsn) const;

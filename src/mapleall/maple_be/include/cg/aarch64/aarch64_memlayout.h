@@ -188,8 +188,8 @@ class AArch64MemLayout : public MemLayout {
   }
 
   int32 GetRefLocBaseLoc() const;
-  int32 GetGRSaveAreaBaseLoc();
-  int32 GetVRSaveAreaBaseLoc();
+  int32 GetGRSaveAreaBaseLoc() const;
+  int32 GetVRSaveAreaBaseLoc() const;
 
  private:
   MemSegment segRefLocals = MemSegment(kMsRefLocals);

@@ -1561,7 +1561,8 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterMov(Insn &insn) {
   }
 }
 
-bool ElimSpecificExtensionPattern::IsValidLoadExtPattern(Insn &currInsn, MOperator oldMop, MOperator newMop) const {
+bool ElimSpecificExtensionPattern::IsValidLoadExtPattern(const Insn &currInsn, MOperator oldMop,
+                                                         MOperator newMop) const {
   if (oldMop == newMop) {
     return true;
   }
@@ -2475,7 +2476,7 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
 }
 
 std::vector<Insn*> CombineContiLoadAndStorePattern::FindPrevStrLdr(Insn &insn, regno_t destRegNO,
-                                                                   regno_t memBaseRegNO, int64 baseOfst) {
+                                                                   regno_t memBaseRegNO, int64 baseOfst) const {
   std::vector<Insn*> prevContiInsns;
   bool isStr = insn.IsStore();
   for (Insn *curInsn = insn.GetPrev(); curInsn != nullptr; curInsn = curInsn->GetPrev()) {
@@ -4159,7 +4160,7 @@ bool CmpCsetAArch64::OpndDefByOneValidBit(const Insn &defInsn) const {
  * if all define points of used opnd in insn has only one valid bit,return true.
  * for cmp reg,#0(#1), that is checking for reg
  */
-bool CmpCsetAArch64::CheckOpndDefPoints(Insn &checkInsn, int opndIdx) {
+bool CmpCsetAArch64::CheckOpndDefPoints(Insn &checkInsn, int opndIdx) const {
   if (checkInsn.GetBB()->GetPrev() == nullptr) {
     /* For 1st BB, be conservative for def of parameter registers */
     /* Since peep is light weight, do not want to insert pseudo defs */
