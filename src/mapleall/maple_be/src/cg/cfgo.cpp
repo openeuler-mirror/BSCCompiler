@@ -42,7 +42,11 @@ void CFGOptimizer::InitOptimizePatterns() {
     diffPassPatterns.emplace_back(memPool->New<ChainingPattern>(*cgFunc));
   }
   diffPassPatterns.emplace_back(memPool->New<SequentialJumpPattern>(*cgFunc));
-  diffPassPatterns.emplace_back(memPool->New<FlipBRPattern>(*cgFunc));
+  FlipBRPattern *brOpt = memPool->New<FlipBRPattern>(*cgFunc);
+  if (GetPhase() == CfgoPostRegAlloc) {
+    brOpt->SetPhase(CfgoPostRegAlloc);
+  }
+  diffPassPatterns.emplace_back(brOpt);
   diffPassPatterns.emplace_back(memPool->New<DuplicateBBPattern>(*cgFunc));
   diffPassPatterns.emplace_back(memPool->New<UnreachBBPattern>(*cgFunc));
   diffPassPatterns.emplace_back(memPool->New<EmptyBBPattern>(*cgFunc));
@@ -396,7 +400,7 @@ void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) {
   }
   MIRSymbol *st = cgFunc->GetEmitSt(curBB.GetId());
   MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
-  MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64);
+  MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_a64));
   MIRConst *mirConst = cgFunc->GetMemoryPool()->New<MIRLblConst>(targetLable, cgFunc->GetFunction().GetPuidx(), *etype);
   for (size_t i = 0; i < arrayConst->GetConstVec().size(); ++i) {
     CHECK_FATAL(arrayConst->GetConstVecItem(i)->GetKind() == kConstLblConst, "not a kConstLblConst");
@@ -525,6 +529,7 @@ void FlipBRPattern::RelocateThrowBB(BB &curBB) {
 
   /* move ftBB after retBB */
   curBB.SetNext(brBB);
+  CHECK_NULL_FATAL(brBB);
   brBB->SetPrev(&curBB);
 
   retBB->GetNext()->SetPrev(ftBB);
@@ -547,7 +552,13 @@ void FlipBRPattern::RelocateThrowBB(BB &curBB) {
  *                            ftBB
  *                            targetBB
  *
- * 2. relocate throw BB in RelocateThrowBB()
+ * loopHeaderBB:              loopHeaderBB:
+ *       ...                        ...
+ *       cond_br loopExit:          cond_br loopHeaderBB
+ * ftBB:                      ftBB:
+ *       goto loopHeaderBB:         goto loopExit
+ *
+ * 3. relocate throw BB in RelocateThrowBB()
  */
 bool FlipBRPattern::Optimize(BB &curBB) {
   if (curBB.GetKind() == BB::kBBIf && !curBB.IsEmpty()) {
@@ -647,6 +658,50 @@ bool FlipBRPattern::Optimize(BB &curBB) {
         ftBB->RemoveInsn(*brInsn);
         ftBB->SetKind(BB::kBBFallthru);
       }
+    } else if (GetPhase() == CfgoPostRegAlloc && ftBB->GetKind() == BB::kBBGoto &&
+               curBB.GetLoop() != nullptr &&  curBB.GetLoop() == ftBB->GetLoop() &&
+               ftBB->IsSoloGoto() &&
+               ftBB->GetLoop()->GetHeader() == *(ftBB->GetSuccsBegin()) &&
+               curBB.GetLoop()->IsBBLoopMember((curBB.GetSuccs().front() == ftBB) ?
+                   curBB.GetSuccs().back() : curBB.GetSuccs().front()) == false) {
+      Insn *curBBBranchInsn = nullptr;
+      for (curBBBranchInsn = curBB.GetLastInsn(); curBBBranchInsn != nullptr;
+           curBBBranchInsn = curBBBranchInsn->GetPrev()) {
+        if (curBBBranchInsn->IsBranch()) {
+          break;
+        }
+      }
+      ASSERT(curBBBranchInsn != nullptr, "FlipBRPattern: curBB has no branch");
+      Insn *brInsn = nullptr;
+      for (brInsn = ftBB->GetLastInsn(); brInsn != nullptr; brInsn = brInsn->GetPrev()) {
+        if (brInsn->IsGoto()) {
+          break;
+        }
+      }
+      ASSERT(brInsn != nullptr, "FlipBRPattern: ftBB has no branch");
+      uint32 condTargetIdx = curBBBranchInsn->GetJumpTargetIdx();
+      LabelOperand &condTarget = static_cast<LabelOperand&>(curBBBranchInsn->GetOperand(condTargetIdx));
+      MOperator mOp = curBBBranchInsn->FlipConditionOp(curBBBranchInsn->GetMachineOpcode(), condTargetIdx);
+      if (mOp == 0) {
+        return false;
+      }
+      uint32 gotoTargetIdx = brInsn->GetJumpTargetIdx();
+      LabelOperand &gotoTarget = static_cast<LabelOperand&>(brInsn->GetOperand(gotoTargetIdx));
+      curBBBranchInsn->SetMOP(mOp);
+      curBBBranchInsn->SetOperand(condTargetIdx, gotoTarget);
+      brInsn->SetOperand(gotoTargetIdx, condTarget);
+      auto it = ftBB->GetSuccsBegin();
+      BB *loopHeadBB = *it;
+
+      curBB.RemoveSuccs(*brBB);
+      brBB->RemovePreds(curBB);
+      ftBB->RemoveSuccs(*loopHeadBB);
+      loopHeadBB->RemovePreds(*ftBB);
+
+      curBB.PushBackSuccs(*loopHeadBB);
+      loopHeadBB->PushBackPreds(curBB);
+      ftBB->PushBackSuccs(*brBB);
+      brBB->PushBackPreds(*ftBB);
     } else {
       RelocateThrowBB(curBB);
     }
@@ -847,6 +902,10 @@ bool DuplicateBBPattern::Optimize(BB &curBB) {
 /* === new pm === */
 bool CgCfgo::PhaseRun(maplebe::CGFunc &f) {
   CFGOptimizer *cfgOptimizer = GetPhaseAllocator()->New<CFGOptimizer>(f, *GetPhaseMemPool());
+  if (f.IsAfterRegAlloc()) {
+    (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
+    cfgOptimizer->SetPhase(CfgoPostRegAlloc);
+  }
   const std::string &funcClass = f.GetFunction().GetBaseClassName();
   const std::string &funcName = f.GetFunction().GetBaseFuncName();
   const std::string &name = funcClass + funcName;
@@ -854,6 +913,9 @@ bool CgCfgo::PhaseRun(maplebe::CGFunc &f) {
     DotGenerator::GenerateDot("before-cfgo", f, f.GetMirModule());
   }
   cfgOptimizer->Run(name);
+  if (f.IsAfterRegAlloc()) {
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLoopAnalysis::id);
+  }
   if (CFGO_DUMP_NEWPM) {
     DotGenerator::GenerateDot("after-cfgo", f, f.GetMirModule());
   }
