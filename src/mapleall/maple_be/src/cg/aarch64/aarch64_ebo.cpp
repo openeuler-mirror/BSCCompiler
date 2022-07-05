@@ -1058,6 +1058,57 @@ bool AArch64Ebo::CombineLsrAnd(Insn &insn, const OpndInfo &opndInfo, bool is64bi
   return false;
 }
 
+/*
+ *  extension  dest, src0
+ *  and        dest, dest, 0xff or 0xffff
+ *  ===> if extension is >= imm then can eliminate extension
+ *
+ *  and dst1, src0, imm1
+ *  and dst2, dst1, imm2  where imm2 is 0xff or 0xffff
+ *  ===> and dst2, src0, imm1  if imm1 <= imm2
+ */
+bool AArch64Ebo::CombineExtAnd(Insn &insn, const OpndInfo &opndInfo, bool is64bits, bool isFp, int64 immVal) const {
+  if (isFp || opndInfo.insn == nullptr || !cgFunc->GetMirModule().IsCModule()) {
+    return false;
+  }
+  Insn *prevInsn = opndInfo.insn;
+  InsnInfo *insnInfo = opndInfo.insnInfo;
+  if (insnInfo == nullptr) {
+    return false;
+  }
+  CHECK_NULL_FATAL(insnInfo);
+  MOperator opc1 = prevInsn->GetMachineOpcode();
+  if (((immVal == 0xff) &&
+         (opc1 >= MOP_xsxtb32) && (opc1 <= MOP_xuxtw64)) ||
+      ((immVal == 0xffff) &&
+         (opc1 == MOP_xsxth32 || opc1 == MOP_xsxth64 || opc1 == MOP_xsxtw64 ||
+          opc1 == MOP_xsxth32 || opc1 == MOP_xsxtw64))) {
+    /* don't use register if it was redefined. */
+    OpndInfo *opndInfo1 = insnInfo->origOpnd[kInsnSecondOpnd];
+    if ((opndInfo1 != nullptr) && opndInfo1->redefined) {
+      return false;
+    }
+    Operand &opnd1 = prevInsn->GetOperand(kInsnSecondOpnd);
+    insn.SetOperand(kInsnSecondOpnd, opnd1);
+    return true;
+  }
+  if ((immVal == 0xff || immVal == 0xffff) && (opc1 == MOP_wandrri12 || opc1 == MOP_xandrri13)) {
+    OpndInfo *opndInfo1 = insnInfo->origOpnd[kInsnSecondOpnd];
+    if ((opndInfo1 != nullptr) && opndInfo1->redefined) {
+      return false;
+    }
+    int64 prevImmVal = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd)).GetValue();
+    if (prevImmVal > immVal) {
+      return false;
+    }
+    Operand &opnd1 = prevInsn->GetOperand(kInsnSecondOpnd);
+    insn.SetOperand(kInsnSecondOpnd, opnd1);
+    Operand &opnd2 = prevInsn->GetOperand(kInsnThirdOpnd);
+    insn.SetOperand(kInsnThirdOpnd, opnd2);
+  }
+  return false;
+}
+
 /* Do some special pattern */
 bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origInfos) {
   MOperator opCode = insn.GetMachineOpcode();
@@ -1104,32 +1155,12 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
      * ===> ldrb x1, []     ===> ldrb x1, []   ===> ldrsb x1, []     ===> no change
      *      mov x1, x1           mov  x1, x1        mov   x1, x1
      */
-    case MOP_wandrri12: {
-      bool doAndOpt = false;
-      if (static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetValue() == 0xff) {
-        doAndOpt = CombineExtensionAndLoad(&insn, origInfos, AND, false);
-      }
-      if (doAndOpt) {
-        return doAndOpt;
-      }
-      /*
-      *  lsr     d0, d1, #6
-      *  and     d0, d0, #1
-      * ===> ubfx d0, d1, #6, #1
-      */
-      int64 immValue = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetValue();
-      if (!beforeRegAlloc && immValue != 0 &&
-          (static_cast<uint64>(immValue) & (static_cast<uint64>(immValue) + 1)) == 0) {
-        /* immValue is (1 << n - 1) */
-        OpndInfo *opndInfo = origInfos.at(kInsnSecondOpnd);
-        return CombineLsrAnd(insn, *opndInfo, false, false);
-      }
-      break;
-    }
+    case MOP_wandrri12:
     case MOP_xandrri13: {
+      bool is64Bits = (opCode == MOP_xandrri13);
       bool doAndOpt = false;
       if (static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetValue() == 0xff) {
-        doAndOpt = CombineExtensionAndLoad(&insn, origInfos, AND, true);
+        doAndOpt = CombineExtensionAndLoad(&insn, origInfos, AND, is64Bits);
       }
       if (doAndOpt) {
         return doAndOpt;
@@ -1144,7 +1175,12 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
           (static_cast<uint64>(immValue) & (static_cast<uint64>(immValue) + 1)) == 0) {
         /* immValue is (1 << n - 1) */
         OpndInfo *opndInfo = origInfos.at(kInsnSecondOpnd);
-        return CombineLsrAnd(insn, *opndInfo, true, false);
+        return CombineLsrAnd(insn, *opndInfo, is64Bits, false);
+      }
+      if (beforeRegAlloc && immValue != 0 &&
+          (static_cast<uint64>(immValue) & (static_cast<uint64>(immValue) + 1)) == 0) {
+        OpndInfo *opndInfo = origInfos.at(kInsnSecondOpnd);
+        return CombineExtAnd(insn, *opndInfo, is64Bits, false, immValue);
       }
       break;
     }
