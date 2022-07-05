@@ -778,6 +778,7 @@ void ReachingDefinition::AnalysisStart() {
   if (!cgFunc->GetFirstBB()) {
     return;
   }
+  stackSize = GetStackSize();
   Initialize();
   /* Build in/out for function body first. (Except cleanup bb) */
   BuildInOutForFuncBody();

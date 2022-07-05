@@ -478,7 +478,8 @@ bool A64ConstProp::BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &con
         MOperator newMop = GetRegImmMOP(curMop, false);
         Operand &newOpnd = cgFunc->CreateImmOperand(PTY_i64, static_cast<int64>(val));
         if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, &newOpnd, kInsnThirdOpnd)) {
-          Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, useInsn->GetOperand(kInsnFirstOpnd), useInsn->GetOperand(kInsnFirstOpnd), newOpnd);
+          Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop,
+              useInsn->GetOperand(kInsnFirstOpnd), useInsn->GetOperand(kInsnFirstOpnd), newOpnd);
           ReplaceInsnAndUpdateSSA(*useInsn, newInsn);
           return true;
         }
@@ -1491,6 +1492,9 @@ bool ExtendMovPattern::CheckSrcReg(regno_t srcRegNo, uint32 validNum) {
 
 bool ExtendMovPattern::BitNotAffected(const Insn &insn, uint32 validNum) {
   RegOperand &firstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  if (firstOpnd.IsPhysicalRegister()) {
+    return false;
+  }
   RegOperand &secondOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   regno_t desRegNo = firstOpnd.GetRegisterNumber();
   regno_t srcRegNo = secondOpnd.GetRegisterNumber();
