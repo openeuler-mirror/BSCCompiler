@@ -63,6 +63,12 @@ void DBGDie::ResetParentDie() {
   module->GetDbgInfo()->ResetParentDie();
 }
 
+DBGDieAttr *DBGDie::AddAttr(DwAt at, DwForm form, uint64 val, bool keep) {
+  auto *attr = AddAttr(at, form, val);
+  attr->SetKeep(keep);
+  return attr;
+}
+
 DBGDieAttr *DBGDie::AddAttr(DwAt at, DwForm form, uint64 val) {
   // collect strps which need label
   if (form == DW_FORM_strp) {
@@ -203,6 +209,9 @@ DBGAbbrevEntry::DBGAbbrevEntry(MIRModule *m, DBGDie *die) : attrPairs(m->GetMPAl
   abbrevId = 0;
   withChildren = die->GetWithChildren();
   for (auto it : die->GetAttrVec()) {
+    if (!it->GetKeep()) {
+      continue;
+    }
     attrPairs.push_back(it->GetDwAt());
     attrPairs.push_back(it->GetDwForm());
   }
@@ -843,7 +852,12 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arraytype) {
   DBGDie *rangedie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_subrange_type);
   (void)GetOrCreatePrimTypeDie(GlobalTables::GetTypeTable().GetUInt32());
   rangedie->AddAttr(DW_AT_type, DW_FORM_ref4, PTY_u32);
-  rangedie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arraytype->GetSizeArrayItem(0));
+  if (theMIRModule->IsCModule() || theMIRModule->IsJavaModule()) {
+    // The default lower bound value for C, C++, or Java is 0
+    rangedie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arraytype->GetSizeArrayItem(0) - 1);
+  } else {
+    rangedie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arraytype->GetSizeArrayItem(0));
+  }
 
   die->AddSubVec(rangedie);
 
@@ -852,9 +866,14 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arraytype) {
 
 DBGDie *DebugInfo::CreateFieldDie(maple::FieldPair pair, uint32 lnum) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_member);
-  die->AddAttr(DW_AT_name, DW_FORM_strp, pair.first.GetIdx());
-  die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx());
-  die->AddAttr(DW_AT_decl_line, DW_FORM_data4, lnum);
+
+  bool keep = true;
+  if (GlobalTables::GetStrTable().GetStringFromStrIdx(pair.first).find("unNamed") != std::string::npos) {
+    keep = false;
+  }
+  die->AddAttr(DW_AT_name, DW_FORM_strp, pair.first.GetIdx(), keep);
+  die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx(), keep);
+  die->AddAttr(DW_AT_decl_line, DW_FORM_data4, lnum, keep);
 
   MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pair.second.first);
   (void)GetOrCreateTypeDie(type);
@@ -880,8 +899,10 @@ DBGDie *DebugInfo::CreateBitfieldDie(const MIRBitFieldType *type, GStrIdx sidx, 
 
   die->AddAttr(DW_AT_byte_size, DW_FORM_data4, GetPrimTypeSize(type->GetPrimType()));
   die->AddAttr(DW_AT_bit_size, DW_FORM_data4, type->GetFieldSize());
-  die->AddAttr(DW_AT_bit_offset, DW_FORM_data4,
-               GetPrimTypeSize(type->GetPrimType()) * k8BitSize - type->GetFieldSize() - prevBits);
+
+  uint32 offset = GetPrimTypeSize(type->GetPrimType()) * k8BitSize > type->GetFieldSize() - prevBits ?
+                  GetPrimTypeSize(type->GetPrimType()) * k8BitSize - type->GetFieldSize() - prevBits : 0;
+  die->AddAttr(DW_AT_bit_offset, DW_FORM_data4, offset);
   die->AddAttr(DW_AT_data_member_location, DW_FORM_data4, 0);
 
   return die;
@@ -966,8 +987,13 @@ DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *stru
     if (ety->IsMIRBitFieldType()) {
       MIRBitFieldType *bfty = static_cast<MIRBitFieldType*>(ety);
       DBGDie *bfdie = CreateBitfieldDie(bfty, fp.first, prevBits);
-      prevBits += bfty->GetFieldSize();
       die->AddSubVec(bfdie);
+      if (die->GetTag() == DW_TAG_union_type) {
+        continue;
+      }
+
+      prevBits = (prevBits + bfty->GetFieldSize()) < GetPrimTypeSize(bfty->GetPrimType()) * k8BitSize ?
+                 (prevBits + bfty->GetFieldSize()) : 0;
     } else {
       prevBits = 0;
       DBGDie *fdie = CreateFieldDie(fp, 0);
@@ -1232,10 +1258,10 @@ size_t DBGDieAttr::SizeOf(DBGDieAttr *attr) {
 
 void DebugInfo::ComputeSizeAndOffsets() {
   // CU-relative offset is reset to 0 here.
-  uint32 cuOffset = sizeof(int32_t)  // Length of Unit Info
-                    + sizeof(int16)  // DWARF version number      : 0x0004
-                    + sizeof(int32)  // Offset into Abbrev. Section : 0x0000
-                    + sizeof(int8);  // Pointer Size (in bytes)       : 0x08
+  uint32 cuOffset = sizeof(int32_t) +  // Length of Unit Info
+                    sizeof(int16) +  // DWARF version number      : 0x0004
+                    sizeof(int32) +  // Offset into Abbrev. Section : 0x0000
+                    sizeof(int8);  // Pointer Size (in bytes)       : 0x08
 
   // After returning from this function, the length value is the size
   // of the .debug_info section
@@ -1254,6 +1280,9 @@ void DebugInfo::ComputeSizeAndOffset(DBGDie *die, uint32 &cuOffset) {
 
   // Add the byte size of all the DIE attributes.
   for (const auto &attr : die->GetAttrVec()) {
+    if (!attr->GetKeep()) {
+      continue;
+    }
     cuOffset += static_cast<uint32>(attr->SizeOf(attr));
   }
 
