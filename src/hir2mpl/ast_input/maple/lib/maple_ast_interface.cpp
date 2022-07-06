@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -28,7 +28,7 @@ bool LibMapleAstFile::Open(const std::string &fileName) {
   maplefe::AstLoad loadAst;
   maplefe::ModuleNode *mod = loadAst.LoadFromAstBuf(vec);
   // add mod to the vector
-  while(mod) {
+  while (mod) {
     handler.AddModule(mod);
     mod = loadAst.Next();
   }

@@ -76,7 +76,7 @@ class ASTDecl {
     if (flag) {
       isMacroID = FEUtils::GetSequentialNumber();
     } else {
-      isMacroID = flag;
+      isMacroID = static_cast<uint32>(flag);
     }
   }
 
@@ -189,7 +189,7 @@ class ASTDecl {
   MapleVector<MIRType*> typeDesc;
   GenericAttrs genAttrs;
   Loc loc = { 0, 0, 0 };
-  Pos pos = {0 , 0};
+  Pos pos = {0, 0};
   uint32 isMacroID = false;
   DeclKind declKind = kASTDecl;
   BoundaryInfo boundary;
@@ -224,8 +224,8 @@ class ASTFunc : public ASTDecl {
   ~ASTFunc() {
     compound = nullptr;
   }
-  void SetCompoundStmt(ASTStmt*);
-  void InsertStmtsIntoCompoundStmtAtFront(const std::list<ASTStmt*> &stmts);
+  void SetCompoundStmt(ASTStmt *astCompoundStmt);
+  void InsertStmtsIntoCompoundStmtAtFront(const std::list<ASTStmt*> &stmts) const;
   const ASTStmt *GetCompoundStmt() const;
   const MapleVector<ASTDecl*> &GetParamDecls() const {
     return paramDecls;
@@ -315,7 +315,7 @@ class ASTVar : public ASTDecl {
     initExpr = init;
   }
 
-  ASTExpr *GetInitExpr() const {
+  const ASTExpr *GetInitExpr() const {
     return initExpr;
   }
 
@@ -346,7 +346,7 @@ class ASTVar : public ASTDecl {
   MIRConst *Translate2MIRConstImpl() const override;
   void GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) override;
   void GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, const UniqueFEIRVar &feirVar,
-                                      const UniqueFEIRExpr &initFeirExpr, std::list<UniqueFEIRStmt> &stmts);
+                                      const UniqueFEIRExpr &initFeirExpr, std::list<UniqueFEIRStmt> &stmts) const;
   ASTExpr *initExpr = nullptr;
   std::string asmAttr;
   ASTExpr *variableArrayExpr = nullptr;

@@ -33,7 +33,7 @@ class ASTParser {
         astVars(astVarsIn), astFileScopeAsms(astFileScopeAsmsIn) {}
   virtual ~ASTParser() = default;
   bool OpenFile(MapleAllocator &allocator);
-  bool Release();
+  bool Release() const;
 
   bool Verify() const;
   bool PreProcessAST();
@@ -92,16 +92,16 @@ class ASTParser {
   bool HasDefault(const clang::Stmt &stmt);
 
   // ProcessExpr
-  const clang::Expr *PeelParen(const clang::Expr &expr);
-  const clang::Expr *PeelParen2(const clang::Expr &expr);
-  ASTUnaryOperatorExpr *AllocUnaryOperatorExpr(MapleAllocator &allocator, const clang::UnaryOperator &expr);
+  const clang::Expr *PeelParen(const clang::Expr &expr) const;
+  const clang::Expr *PeelParen2(const clang::Expr &expr) const;
+  ASTUnaryOperatorExpr *AllocUnaryOperatorExpr(MapleAllocator &allocator, const clang::UnaryOperator &expr) const;
   ASTValue *AllocASTValue(const MapleAllocator &allocator) const;
   ASTValue *TranslateExprEval(MapleAllocator &allocator, const clang::Expr *expr) const;
   ASTExpr *EvaluateExprAsConst(MapleAllocator &allocator, const clang::Expr *expr);
   bool HasLabelStmt(const clang::Stmt *expr);
   ASTExpr *ProcessExpr(MapleAllocator &allocator, const clang::Expr *expr);
   ASTExpr *ProcessExprInType(MapleAllocator &allocator, const clang::QualType &qualType);
-  ASTBinaryOperatorExpr *AllocBinaryOperatorExpr(MapleAllocator &allocator, const clang::BinaryOperator &bo);
+  ASTBinaryOperatorExpr *AllocBinaryOperatorExpr(MapleAllocator &allocator, const clang::BinaryOperator &bo) const;
   ASTExpr *ProcessExprCastExpr(MapleAllocator &allocator, const clang::CastExpr &expr);
 #define PROCESS_EXPR(CLASS) ProcessExpr##CLASS(MapleAllocator&, const clang::CLASS&)
   ASTExpr *PROCESS_EXPR(UnaryOperator);
@@ -167,7 +167,7 @@ class ASTParser {
   static ASTExpr *GetSizeMulExpr(MapleAllocator &allocator, ASTExpr *expr, ASTExpr *ptrSizeExpr);
 
  private:
-  void ProcessNonnullFuncAttrs(const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
+  void ProcessNonnullFuncAttrs(const clang::FunctionDecl &funcDecl, ASTFunc &astFunc) const;
   void ProcessNonnullFuncPtrAttrs(MapleAllocator &allocator, const clang::ValueDecl &valueDecl, ASTDecl &astVar);
   void ProcessBoundaryFuncAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
   void ProcessByteBoundaryFuncAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
@@ -207,11 +207,11 @@ class ASTParser {
   ASTValue *TranslateConstantValue2ASTValue(MapleAllocator &allocator, const clang::Expr *expr) const;
   ASTValue *TranslateLValue2ASTValue(MapleAllocator &allocator,
       const clang::Expr::EvalResult &result, const clang::Expr *expr) const;
-  void TraverseDecl(const clang::Decl *decl, std::function<void (clang::Decl*)> const &functor);
+  void TraverseDecl(const clang::Decl *decl, std::function<void (clang::Decl*)> const &functor) const;
   ASTDecl *GetAstDeclOfDeclRefExpr(MapleAllocator &allocator, const clang::Expr &expr);
-  uint32 GetSizeFromQualType(const clang::QualType qualType);
+  uint32 GetSizeFromQualType(const clang::QualType qualType) const;
   ASTExpr *GetTypeSizeFromQualType(MapleAllocator &allocator, const clang::QualType qualType);
-  uint32_t GetAlignOfType(const clang::QualType currQualType, clang::UnaryExprOrTypeTrait exprKind);
+  uint32_t GetAlignOfType(const clang::QualType currQualType, clang::UnaryExprOrTypeTrait exprKind) const;
   uint32_t GetAlignOfExpr(const clang::Expr &expr, clang::UnaryExprOrTypeTrait exprKind);
   ASTExpr *BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, const clang::QualType &qualType);
   ASTExpr *ProcessExprBinaryOperatorComplex(MapleAllocator &allocator, const clang::BinaryOperator &bo);
@@ -247,7 +247,7 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
   uint32 fileIdx;
   const MapleString fileName;
   LibAstFile *astFile = nullptr;
-  AstUnitDecl *astUnitDecl = nullptr;
+  const AstUnitDecl *astUnitDecl = nullptr;
   MapleList<clang::Decl*> globalVarDecles;
   MapleList<clang::Decl*> funcDecles;
   MapleList<clang::Decl*> recordDecles;

@@ -347,10 +347,10 @@ MIRStructType *FETypeManager::GetStructTypeFromName(const GStrIdx &nameIdx) {
 }
 
 uint32 FETypeManager::GetTypeIDFromMplClassName(const std::string &mplClassName, int32 dexFileHashCode) const {
-  auto const &itMap = classNameTypeIDMapAllDex.find(dexFileHashCode);
+  const auto &itMap = classNameTypeIDMapAllDex.find(dexFileHashCode);
   if (itMap != classNameTypeIDMapAllDex.end()) {
-    auto const &thisDexClassNameTypeIDMap =  itMap->second;
-    auto const &it = thisDexClassNameTypeIDMap.find(mplClassName);
+    const auto &thisDexClassNameTypeIDMap =  itMap->second;
+    const auto &it = thisDexClassNameTypeIDMap.find(mplClassName);
     if (it != thisDexClassNameTypeIDMap.end()) {
       return it->second;
     }

@@ -747,7 +747,7 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinIslessequal(std::list<UniqueFEIRStmt> &st
   return CreateBinaryExpr(stmts, OP_le);
 }
 
-UniqueFEIRExpr ASTCallExpr::EmitBuiltinIsgreater (std::list<UniqueFEIRStmt> &stmts) const {
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinIsgreater(std::list<UniqueFEIRStmt> &stmts) const {
   return CreateBinaryExpr(stmts, OP_gt);
 }
 
@@ -881,12 +881,16 @@ ASTExpr *ASTParser::ParseBuiltinIsinfsign(MapleAllocator &allocator, const clang
   (void)allocator;
   ss.clear();
   ss.str(std::string());
-  if (astFile->CvtType(expr.getArg(0)->getType())->GetPrimType() == PTY_f64) {
-    ss << "__isinf";
-  } else if (astFile->CvtType(expr.getArg(0)->getType())->GetPrimType() == PTY_f32) {
-    ss << "__isinff";
-  } else {
-    ASSERT(false, "Unsupported type passed to isinf");
+  MIRType *mirType = astFile->CvtType(expr.getArg(0)->getType());
+  if (mirType != nullptr) {
+    PrimType type = mirType->GetPrimType();
+    if (type == PTY_f64) {
+      ss << "__isinf";
+    } else if (type == PTY_f32) {
+      ss << "__isinff";
+    } else {
+      ASSERT(false, "Unsupported type passed to isinf");
+    }
   }
   return nullptr;
 }
@@ -991,7 +995,7 @@ ASTExpr *ASTParser::ParseBuiltinObjectsize(MapleAllocator &allocator, const clan
   bool canEval = expr.getArg(0)->tryEvaluateObjectSize(objSize, *astFile->GetNonConstAstContext(), objSizeType);
   if (!canEval) {
     // type 0 and 1 need return -1, type 2 and 3 need return 0
-    objSize = objSizeType & 2 ? 0 : -1;
+    objSize = (objSizeType & 2) != 0 ? 0 : -1;
   }
   ASTIntegerLiteral *astIntegerLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
   astIntegerLiteral->SetVal(static_cast<int64>(objSize));

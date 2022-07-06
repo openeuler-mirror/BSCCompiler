@@ -93,7 +93,7 @@ AstASTContext *LibAstFile::GetNonConstAstContext() const {
   return astContext;
 }
 
-AstUnitDecl *LibAstFile::GetAstUnitDecl() {
+const AstUnitDecl *LibAstFile::GetAstUnitDecl() const {
   return astUnitDecl;
 }
 
@@ -263,7 +263,7 @@ void LibAstFile::GetAccessAttrs(AccessKind access, GenericAttrs &genAttrs) const
   return;
 }
 
-void LibAstFile::GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs) {
+void LibAstFile::GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs) const {
   switch (decl.getKind()) {
     case clang::Decl::Function:
     case clang::Decl::CXXMethod:
@@ -282,7 +282,7 @@ void LibAstFile::GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAtt
   }
 }
 
-void LibAstFile::CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access) {
+void LibAstFile::CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {
   GetStorageAttrs(decl, genAttrs);
   GetAccessAttrs(access, genAttrs);
   GetQualAttrs(decl, genAttrs);
@@ -312,7 +312,7 @@ void LibAstFile::CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericA
   }
 }
 
-void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access) {
+void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {
   CollectAttrs(decl, genAttrs, access);
   if (decl.isVirtualAsWritten()) {
     genAttrs.SetAttr(GENATTR_virtual);
@@ -365,7 +365,7 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs 
   CheckUnsupportedFuncAttrs(decl);
 }
 
-void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) {
+void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) const {
   if (!decl.hasAttrs()) {
     return;
   }
@@ -385,7 +385,7 @@ void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) {
               unsupportedFuncAttrs.c_str());
 }
 
-void LibAstFile::CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access) {
+void LibAstFile::CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {
   CollectAttrs(decl, genAttrs, access);
   // handle __thread
   if (decl.getTLSKind() == clang::VarDecl::TLS_Static) {
@@ -400,7 +400,7 @@ void LibAstFile::CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAt
   CheckUnsupportedVarAttrs(decl);
 }
 
-void LibAstFile::CheckUnsupportedVarAttrs(const clang::VarDecl &decl) {
+void LibAstFile::CheckUnsupportedVarAttrs(const clang::VarDecl &decl) const {
   if (!decl.hasAttrs()) {
     return;
   }
@@ -420,7 +420,7 @@ void LibAstFile::CheckUnsupportedVarAttrs(const clang::VarDecl &decl) {
               unsupportedVarAttrs.c_str());
 }
 
-void LibAstFile::CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs &genAttrs) {
+void LibAstFile::CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs &genAttrs) const {
   clang::PackedAttr *packedAttr = decl.getAttr<clang::PackedAttr>();
   if (packedAttr != nullptr) {
     genAttrs.SetAttr(GENATTR_pack);
@@ -435,7 +435,7 @@ void LibAstFile::CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs 
   CheckUnsupportedTypeAttrs(decl);
 }
 
-void LibAstFile::CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl) {
+void LibAstFile::CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl) const {
   if (!decl.hasAttrs()) {
     return;
   }
@@ -455,7 +455,7 @@ void LibAstFile::CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl) {
               unsupportedTypeAttrs.c_str());
 }
 
-void LibAstFile::CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &genAttrs, AccessKind access) {
+void LibAstFile::CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {
   CollectAttrs(decl, genAttrs, access);
   clang::PackedAttr *packedAttr = decl.getAttr<clang::PackedAttr>();
   if (packedAttr != nullptr) {

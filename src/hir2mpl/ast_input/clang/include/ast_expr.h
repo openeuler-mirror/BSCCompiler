@@ -665,11 +665,12 @@ class ASTInitListExpr : public ASTExpr {
                             std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                              const ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
-  std::tuple<uint32, uint32, MIRType*> GetStructFieldInfo(uint32 fieldIndex, uint32 baseFieldID,
-                                                          MIRStructType &structMirType) const;
-  UniqueFEIRExpr CalculateStartAddressForMemset(const UniqueFEIRVar &varIn, uint32 initSizeIn, uint32 fieldIDIn,
+  std::tuple<FieldID, uint32, MIRType*> GetStructFieldInfo(uint32 fieldIndex, FieldID baseFieldID,
+                                                           MIRStructType &structMirType) const;
+  UniqueFEIRExpr CalculateStartAddressForMemset(const UniqueFEIRVar &varIn, uint32 initSizeIn, FieldID fieldIDIn,
       const std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &baseIn) const;
-  UniqueFEIRExpr GetAddrofArrayFEExprByStructArrayField(MIRType *fieldType, UniqueFEIRExpr addrOfArrayField) const;
+  UniqueFEIRExpr GetAddrofArrayFEExprByStructArrayField(MIRType *fieldType,
+                                                        const UniqueFEIRExpr &addrOfArrayField) const;
   void ProcessVectorInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                              const ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
   MIRIntrinsicID SetVectorSetLane(const MIRType &type) const;
@@ -678,7 +679,7 @@ class ASTInitListExpr : public ASTExpr {
   void ProcessStringLiteralInitList(const UniqueFEIRExpr &addrOfCharArray, const UniqueFEIRExpr &addrOfStringLiteral,
                                     size_t stringLength, std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessImplicitInit(const UniqueFEIRExpr &addrExpr, uint32 initSize, uint32 total, uint32 elemSize,
-                           std::list<UniqueFEIRStmt> &stmts, Loc loc = {0, 0, 0}) const;
+                           std::list<UniqueFEIRStmt> &stmts, const Loc loc = {0, 0, 0}) const;
   MIRConst *GenerateMIRConstForArray() const;
   MIRConst *GenerateMIRConstForStruct() const;
   MapleVector<ASTExpr*> initExprs;
@@ -911,7 +912,7 @@ class ASTArraySubscriptExpr : public ASTExpr {
  private:
   ASTExpr *FindFinalBase() const;
   MIRConst *GenerateMIRConstImpl() const override;
-  bool CheckFirstDimIfZero(const MIRType *arrayType) const;
+  bool CheckFirstDimIfZero(const MIRType *arrType) const;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   void InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &indexExpr,
                              const UniqueFEIRExpr &baseAddrExpr) const;

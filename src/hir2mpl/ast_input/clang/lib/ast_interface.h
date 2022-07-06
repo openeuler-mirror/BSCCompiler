@@ -45,7 +45,7 @@ class LibAstFile {
   void DisposeTranslationUnit();
   const AstASTContext *GetAstContext() const;
   AstASTContext *GetNonConstAstContext() const;
-  AstUnitDecl *GetAstUnitDecl();
+  const AstUnitDecl *GetAstUnitDecl() const;
   std::string GetMangledName(const clang::NamedDecl &decl) const;
   const std::string GetOrCreateMappedUnnamedName(uint32_t id);
 
@@ -65,16 +65,16 @@ class LibAstFile {
   void GetSClassAttrs(const clang::StorageClass storageClass, GenericAttrs &genAttrs) const;
   void GetStorageAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs) const;
   void GetAccessAttrs(AccessKind access, GenericAttrs &genAttrs) const;
-  void GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs);
-  void CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access);
-  void CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access);
+  void GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs) const;
+  void CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
+  void CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   void CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericAttrs &genAttrs) const;
-  void CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl);
-  void CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access);
-  void CheckUnsupportedVarAttrs(const clang::VarDecl &decl);
-  void CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs &genAttrs);
-  void CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl);
-  void CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &genAttrs, AccessKind access);
+  void CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) const;
+  void CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
+  void CheckUnsupportedVarAttrs(const clang::VarDecl &decl) const;
+  void CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs &genAttrs) const;
+  void CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl) const;
+  void CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   MIRType *CvtPrimType(const clang::QualType qualType) const;
   PrimType CvtPrimType(const clang::BuiltinType::Kind kind) const;
   MIRType *CvtType(const clang::QualType qualType);

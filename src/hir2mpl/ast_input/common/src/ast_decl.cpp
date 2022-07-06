@@ -51,7 +51,7 @@ std::string ASTDecl::GenerateUniqueVarName() const {
   } else {
     std::stringstream os;
     os << GetName();
-    if (isMacroID) {
+    if (isMacroID != 0) {
       // for macro expansion, variable names of same location need to be unique
       os << "_" << std::to_string(isMacroID);
     } else {
@@ -83,7 +83,7 @@ MIRConst *ASTVar::Translate2MIRConstImpl() const {
 }
 
 void ASTVar::GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, const UniqueFEIRVar &feirVar,
-                                            const UniqueFEIRExpr &initFeirExpr, std::list<UniqueFEIRStmt> &stmts) {
+    const UniqueFEIRExpr &initFeirExpr, std::list<UniqueFEIRStmt> &stmts) const {
   if (!static_cast<ASTStringLiteral*>(initASTExpr)->IsArrayToPointerDecay()) {
     std::unique_ptr<std::list<UniqueFEIRExpr>> argExprList = std::make_unique<std::list<UniqueFEIRExpr>>();
     UniqueFEIRExpr dstExpr = FEIRBuilder::CreateExprAddrofVar(feirVar->Clone());
@@ -229,7 +229,7 @@ int32 ASTEnumConstant::GetValue() const {
 
 MIRConst *ASTEnumConstant::Translate2MIRConstImpl() const {
   return GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-      value, *GlobalTables::GetTypeTable().GetPrimType(PTY_i32));
+      static_cast<uint64>(static_cast<int64>(value)), *GlobalTables::GetTypeTable().GetPrimType(PTY_i32));
 }
 
 // ---------- ASTFunc ---------
@@ -237,7 +237,7 @@ void ASTFunc::SetCompoundStmt(ASTStmt *astCompoundStmt) {
   compound = astCompoundStmt;
 }
 
-void ASTFunc::InsertStmtsIntoCompoundStmtAtFront(const std::list<ASTStmt*> &stmts) {
+void ASTFunc::InsertStmtsIntoCompoundStmtAtFront(const std::list<ASTStmt*> &stmts) const {
   static_cast<ASTCompoundStmt*>(compound)->InsertASTStmtsAtFront(stmts);
 }
 

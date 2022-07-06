@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -45,7 +45,7 @@ void ASTCompoundStmt::SetASTStmt(ASTStmt *astStmt) {
 }
 
 void ASTCompoundStmt::InsertASTStmtsAtFront(const std::list<ASTStmt*> &stmts) {
-  astStmts.insert(astStmts.begin(), stmts.begin(), stmts.end());
+  astStmts.insert(astStmts.cbegin(), stmts.cbegin(), stmts.cend());
 }
 
 const MapleList<ASTStmt*> &ASTCompoundStmt::GetASTStmtList() const {
@@ -119,8 +119,7 @@ std::list<UniqueFEIRStmt> ASTIfStmt::Emit2FEStmtImpl() const {
   }
   UniqueFEIRExpr condFEExpr = condExpr->Emit2FEExpr(stmts);
   condFEExpr = FEIRBuilder::CreateExprZeroCompare(OP_ne, std::move(condFEExpr));
-  UniqueFEIRStmt ifStmt;
-  ifStmt = FEIRBuilder::CreateStmtIf(std::move(condFEExpr), thenStmts, elseStmts);
+  UniqueFEIRStmt ifStmt = FEIRBuilder::CreateStmtIf(std::move(condFEExpr), thenStmts, elseStmts);
   ifStmt->SetSrcLoc(loc);
   stmts.emplace_back(std::move(ifStmt));
   return stmts;

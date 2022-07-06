@@ -173,7 +173,7 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   // do not allow extern var override global var
   if (mirSymbol->GetAttrs().GetAttrFlag() != 0 && typeAttrs.GetAttr(ATTR_extern)) {
     mirSymbol->AddAttrs(typeAttrs);
-    ASTExpr *initExpr = astVar.GetInitExpr();
+    const ASTExpr *initExpr = astVar.GetInitExpr();
     if (initExpr == nullptr) {
       return true;
     }
@@ -197,7 +197,7 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   if (!astVar.GetAsmAttr().empty()) {
     mirSymbol->SetAsmAttr(GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(astVar.GetAsmAttr()));
   }
-  ASTExpr *initExpr = astVar.GetInitExpr();
+  const ASTExpr *initExpr = astVar.GetInitExpr();
   MIRConst *cst = nullptr;
   if (initExpr != nullptr) {
     cst = initExpr->GenerateMIRConst();
@@ -243,6 +243,7 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
                                                        argsTypeIdx, isVarg, isStatic);
   mirFunc->SetSrcPosition(func.GetSrclOC().Emit2SourcePosition());
   MIRSymbol *funSym = mirFunc->GetFuncSymbol();
+  ASSERT_NOT_NULL(funSym);
   if (!func.GetSectionAttr().empty()) {
     funSym->sectionAttr = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(func.GetSectionAttr());
   }
@@ -259,11 +260,12 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
     ASTDecl *returnParamVar = ASTDeclsBuilder::ASTVarBuilder(allocator, MapleString("", allocator.GetMemPool()),
         "first_arg_return", MapleVector<MIRType*>({}, allocator.Adapter()), GenericAttrs());
     returnParamVar->SetIsParam(true);
-    paramDecls.insert(paramDecls.begin(), returnParamVar);
+    paramDecls.insert(paramDecls.cbegin(), returnParamVar);
   }
   for (uint32 i = 0; i < paramDecls.size(); ++i) {
     MIRSymbol *sym = FEManager::GetMIRBuilder().GetOrCreateDeclInFunc(
         paramDecls[i]->GetName(), *argMIRTypes[i], *mirFunc);
+    ASSERT_NOT_NULL(sym);
     sym->SetStorageClass(kScFormal);
     sym->SetSKind(kStVar);
     TypeAttrs typeAttrs = paramDecls[i]->GetGenericAttrs().ConvertToTypeAttrs();
@@ -292,11 +294,11 @@ void ASTFunc2FEHelper::SolveReturnAndArgTypesImpl(MapleAllocator &allocator) {
   const MapleVector<MIRType*> &returnAndArgTypeNames = func.GetTypeDesc();
   retMIRType = returnAndArgTypeNames[1];
   // skip funcType and returnType
-  argMIRTypes.insert(argMIRTypes.begin(), returnAndArgTypeNames.begin() + 2, returnAndArgTypeNames.end());
+  argMIRTypes.insert(argMIRTypes.cbegin(), returnAndArgTypeNames.cbegin() + 2, returnAndArgTypeNames.cend());
   if (retMIRType->GetPrimType() == PTY_agg && retMIRType->GetSize() > 16) {
     firstArgRet = true;
     MIRType *retPointerType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*retMIRType);
-    argMIRTypes.insert(argMIRTypes.begin(), retPointerType);
+    argMIRTypes.insert(argMIRTypes.cbegin(), retPointerType);
     retMIRType = GlobalTables::GetTypeTable().GetPrimType(PTY_void);
   }
 }
