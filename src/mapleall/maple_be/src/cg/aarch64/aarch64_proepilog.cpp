@@ -41,26 +41,26 @@ enum PushPopType : uint8 {
 
 MOperator pushPopOps[kRegsPopOp + 1][kRegTyFloat + 1][kPushPopPair + 1] = {
   { /* push */
-    { 0 }, /* undef */
-    { /* kRegTyInt */
-      MOP_xstr, /* single */
-      MOP_xstp, /* pair   */
-    },
-    { /* kRegTyFloat */
-      MOP_dstr, /* single */
-      MOP_dstp, /* pair   */
-    },
+      { 0 }, /* undef */
+      { /* kRegTyInt */
+        MOP_xstr, /* single */
+        MOP_xstp, /* pair   */
+      },
+      { /* kRegTyFloat */
+        MOP_dstr, /* single */
+        MOP_dstp, /* pair   */
+      },
   },
   { /* pop */
-    { 0 }, /* undef */
-    { /* kRegTyInt */
-      MOP_xldr, /* single */
-      MOP_xldp, /* pair   */
-    },
-    { /* kRegTyFloat */
-      MOP_dldr, /* single */
-      MOP_dldp, /* pair   */
-    },
+      { 0 }, /* undef */
+      { /* kRegTyInt */
+        MOP_xldr, /* single */
+        MOP_xldp, /* pair   */
+      },
+      { /* kRegTyFloat */
+        MOP_dldr, /* single */
+        MOP_dldp, /* pair   */
+      },
   }
 };
 
@@ -1438,13 +1438,15 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
           }
         }
         Operand *o1 = cgFunc.CreateDbgImmOperand(lineNum);
-        Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1);
+        Operand *o2 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().Column());
+        Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1, *o2);
         cgFunc.GetCurBB()->AppendInsn(loc);
       }
     } else {
       Operand *o0 = cgFunc.CreateDbgImmOperand(1);
       Operand *o1 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().MplLineNum());
-      Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1);
+      Operand *o2 = cgFunc.CreateDbgImmOperand(0);
+      Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1, *o2);
       cgFunc.GetCurBB()->AppendInsn(loc);
     }
   }

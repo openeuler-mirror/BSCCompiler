@@ -13,5 +13,5 @@
  * See the Mulan PSL v1 for more details.
  */
 /* .loc fileNum lineNum */
-DBG_DEFINE(loc,     , 2, Immediate, Immediate, Undef)
+DBG_DEFINE(loc,     , 3, Immediate, Immediate, Immediate)
 DBG_DEFINE(scope,   , 2, Immediate, Immediate, Undef)
