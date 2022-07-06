@@ -2420,6 +2420,11 @@ bool MIRParser::ParseOneScope(MIRScope &scope) {
     return false;
   }
   nameTk = lexer.NextToken();
+  if (nameTk == TK_intconst) {
+    uint32 i = static_cast<uint32>(lexer.GetTheIntVal());
+    scope.SetId(i);
+    nameTk = lexer.NextToken();
+  }
   if (nameTk != TK_langle) {
     Error("expect < in SCOPE but get ");
     return false;
@@ -2464,12 +2469,20 @@ bool MIRParser::ParseOneScope(MIRScope &scope) {
         break;
       }
       case TK_SCOPE: {
-        MIRScope *scp = mod.GetMemPool()->New<MIRScope>(&mod);
+        MIRScope *scp = mod.GetMemPool()->New<MIRScope>(&mod, mod.CurFunction());
         status = ParseOneScope(*scp);
-        if (status) {
-          scope.AddScope(scp);
-        } else {
-          delete scp;
+        if (status && !scp->IsEmpty()) {
+          if (scope.GetRangeLow().IsEq(scp->GetRangeLow()) &&
+              scope.GetRangeHigh().IsEq(scp->GetRangeHigh())) {
+            for (auto it : scp->GetAliasVarMap()) {
+              scope.AddAliasVarMap(it.first, it.second);
+            }
+            for (auto it : scp->GetSubScopes()) {
+              scope.AddScope(it);
+            }
+          } else {
+            scope.AddScope(scp);
+          }
         }
         break;
       }

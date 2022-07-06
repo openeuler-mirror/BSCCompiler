@@ -14,6 +14,7 @@
  */
 #ifndef MAPLE_IR_INCLUDE_MIR_SCOPE_H
 #define MAPLE_IR_INCLUDE_MIR_SCOPE_H
+#include <tuple>
 #include "mir_module.h"
 #include "mir_type.h"
 #include "src_position.h"
@@ -29,11 +30,11 @@ struct MIRAliasVars {
 
 class MIRScope {
  public:
-  MIRScope(MIRModule *mod);
+  MIRScope(MIRModule *mod, MIRFunction *f = nullptr);
   ~MIRScope() = default;
 
-  bool NeedEmitAliasInfo() const {
-    return aliasVarMap.size() != 0 || subScopes.size() != 0;
+  bool IsEmpty() const {
+    return aliasVarMap.size() == 0 && subScopes.size() == 0;
   }
 
   bool IsSubScope(const MIRScope *scp) const;
@@ -42,6 +43,10 @@ class MIRScope {
 
   unsigned GetId() const {
     return id;
+  }
+
+  void SetId(unsigned i) {
+    id = i;
   }
 
   const SrcPosition &GetRangeLow() const {
@@ -76,20 +81,31 @@ class MIRScope {
     return subScopes;
   }
 
+  void AddTuple(SrcPosition pos, SrcPosition posB, SrcPosition posE) {
+    if (pos.LineNum() == 0 || posB.LineNum() == 0 || posE.LineNum() == 0) {
+      return;
+    }
+    std::tuple<SrcPosition, SrcPosition, SrcPosition> t(pos,posB,posE);
+    BlkSrcPos.push_back(t);
+  }
+
   SrcPosition GetScopeEndPos(SrcPosition pos);
 
   bool AddScope(MIRScope *scope);
+
   void Dump(int32 indent) const;
   void Dump() const;
 
  private:
   MIRModule *module;
+  MIRFunction *func;
   unsigned id;
   std::pair<SrcPosition, SrcPosition> range;
   // source to maple variable alias
   MapleMap<GStrIdx, MIRAliasVars> aliasVarMap { module->GetMPAllocator().Adapter() };
   // subscopes' range should be disjoint
   MapleVector<MIRScope*> subScopes { module->GetMPAllocator().Adapter() };
+  std::vector<std::tuple<SrcPosition, SrcPosition, SrcPosition>> BlkSrcPos;
 };
 }  // namespace maple
 #endif  // MAPLE_IR_INCLUDE_MIR_SCOPE_H

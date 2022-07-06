@@ -25,6 +25,11 @@ class SrcPosition {
     u.fileColumn.column = 0;
     u.word0 = 0;
   }
+  explicit SrcPosition(uint32 fnum, uint32 lnum, uint32 cnum, uint32 mlnum)
+    : lineNum(lnum), mplLineNum(mlnum) {
+    u.fileColumn.fileNum = fnum;
+    u.fileColumn.column = cnum;
+  }
 
   virtual ~SrcPosition() = default;
 
@@ -116,21 +121,21 @@ class SrcPosition {
   void DumpLoc(uint32 &lastLineNum, uint16 &lastColumnNum) const {
     if (FileNum() != 0 && LineNum() != 0) {
       if (Column() != 0 && (LineNum() != lastLineNum || Column() != lastColumnNum)) {
-        DumpLocWithCol();
+        Dump();
         lastLineNum = LineNum();
         lastColumnNum = Column();
       } else if (LineNum() != lastLineNum) {
-        DumpLocWithLine();
+        DumpLine();
         lastLineNum = LineNum();
       }
     }
   }
 
-  void DumpLocWithLine() const {
+  void DumpLine() const {
     LogInfo::MapleLogger() << "LOC " << FileNum() << " " << LineNum() << '\n';
   }
 
-  void DumpLocWithCol() const {
+  void Dump() const {
     LogInfo::MapleLogger() << "LOC " << FileNum() << " " << LineNum() << " " << Column() << '\n';
   }
 

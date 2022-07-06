@@ -69,7 +69,7 @@ class MIRFunction {
   MIRFunction(MIRModule *mod, StIdx idx)
       : module(mod),
         symbolTableIdx(idx) {
-    scope = module->GetMemPool()->New<MIRScope>(module);
+    scope = module->GetMemPool()->New<MIRScope>(module, this);
   }
 
   ~MIRFunction() = default;
@@ -727,7 +727,7 @@ class MIRFunction {
   }
 
   bool NeedEmitAliasInfo() const {
-    return scope->NeedEmitAliasInfo();
+    return !scope->IsEmpty();
   }
 
   MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {

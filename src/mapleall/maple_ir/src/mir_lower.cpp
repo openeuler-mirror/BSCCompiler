@@ -512,6 +512,7 @@ BlockNode *MIRLower::LowerDowhileStmt(WhileStmtNode &doWhileStmt) {
 
 BlockNode *MIRLower::LowerBlock(BlockNode &block) {
   auto *newBlock = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
+  newBlock->SetSrcPos(block.GetSrcPos());
   BlockNode *tmp = nullptr;
   if (block.GetFirst() == nullptr) {
     newBlock->SetStmtID(block.GetStmtID()); // keep original block stmtid

@@ -18,9 +18,10 @@
 
 namespace maple {
 
-static unsigned scopeId = 0;
+static unsigned scopeId = 1;
 
-MIRScope::MIRScope(MIRModule *mod) : module(mod), id(scopeId++) {}
+MIRScope::MIRScope(MIRModule *mod,  MIRFunction *f)
+  : module(mod), func(f), id(scopeId++) {}
 
 // scp is a sub scope
 // (low (scp.low, scp.high] high]
@@ -57,8 +58,23 @@ bool MIRScope::HasSameRange(const MIRScope *scp1, const MIRScope *scp2) const {
 }
 
 SrcPosition MIRScope::GetScopeEndPos(SrcPosition pos) {
-  if (pos.IsEq(GetRangeLow())) {
-    return GetRangeHigh();
+  SrcPosition low  = GetRangeLow();
+  SrcPosition high = GetRangeHigh();
+  if (pos.IsEq(low)) {
+    return high;
+  }
+  for (auto it : func->GetScope()->BlkSrcPos) {
+    SrcPosition p  = std::get<0>(it);
+    SrcPosition pB = std::get<1>(it);
+    SrcPosition pE = std::get<2>(it);
+    if (pos.IsEq(p)) {
+      // pB < low < p < pE < high
+      if (pB.IsBfOrEq(low) &&
+          low.IsBfOrEq(p) &&
+          pE.IsBfOrEq(high)) {
+        return high;
+      }
+    }
   }
   SrcPosition result = SrcPosition();
   for (auto *s : subScopes) {
@@ -94,7 +110,8 @@ void MIRScope::Dump(int32 indent) const {
   SrcPosition low = range.first;
   SrcPosition high = range.second;
   PrintIndentation(indent);
-  LogInfo::MapleLogger() << "SCOPE <(" <<
+  LogInfo::MapleLogger() << "SCOPE " <<
+    id << " <(" <<
     low.FileNum() << ", " <<
     low.LineNum() << ", " <<
     low.Column() << "), (" <<
@@ -115,7 +132,7 @@ void MIRScope::Dump(int32 indent) const {
   }
 
   for (auto it : subScopes) {
-    if (it->NeedEmitAliasInfo()) {
+    if (!it->IsEmpty()) {
       it->Dump(indent + 1);
     }
   }

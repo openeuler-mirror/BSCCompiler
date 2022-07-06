@@ -268,7 +268,7 @@ void DebugInfo::SetupCU() {
 }
 
 void DebugInfo::AddScopeDie(MIRScope *scope) {
-  if (!scope->NeedEmitAliasInfo()) {
+  if (scope->IsEmpty()) {
     return;
   }
 
@@ -362,8 +362,11 @@ void DebugInfo::GetCrossScopeId(MIRFunction *func,
       }
     }
   } else {
+    if (oldSrcPos.IsEq(newSrcPos)) {
+      return;
+    }
     for (auto &it : funcScopeHighs[func]) {
-      if (oldSrcPos.IsBf(it.pos) && (it.pos).IsBfOrEq(newSrcPos)) {
+      if (oldSrcPos.IsBfOrEq(it.pos) && (it.pos).IsBf(newSrcPos)) {
         idSet.insert(it.id);
       }
     }

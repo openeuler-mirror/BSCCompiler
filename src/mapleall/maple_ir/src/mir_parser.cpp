@@ -423,6 +423,7 @@ bool MIRParser::ParseStmtIf(StmtNodePtr &stmt) {
     return false;
   }
   ifStmt->SetThenPart(thenBlock);
+
   BlockNode *elseBlock = nullptr;
   if (lexer.GetTokenKind() == TK_else) {
     // has else part
@@ -896,6 +897,7 @@ bool MIRParser::ParseStmtCall(StmtNodePtr &stmt) {
   callStmt->SetPUIdx(pIdx);
 
   MIRFunction *callee = GlobalTables::GetFunctionTable().GetFuncTable()[pIdx];
+  CHECK_NULL_FATAL(callee);
   callee->GetFuncSymbol()->SetAppearsInCode(true);
   if (callee->GetName() == "setjmp") {
     mod.CurFunction()->SetHasSetjmp();
@@ -1860,19 +1862,22 @@ bool MIRParser::ParseStatement(StmtNodePtr &stmt) {
 /* parse the statements enclosed by { and }
  */
 bool MIRParser::ParseStmtBlock(BlockNodePtr &blk) {
+  bool retval = false;
   if (lexer.GetTokenKind() != TK_lbrace) {
     Error("expect { for func body but get ");
     return false;
   }
+  SrcPosition posB(lastFileNum, lastLineNum, lastColumnNum, lexer.GetLineNum());
   blk = mod.CurFuncCodeMemPool()->New<BlockNode>();
   MIRFunction *fn = mod.CurFunction();
   paramCurrFuncForParseStmtBlock = fn;
   lexer.NextToken();
+  bool first = true;
   // Insert _mcount for PI.
   if (mod.GetWithProfileInfo()) {
     StmtNode *stmtt = nullptr;
     if (!ParseStmtCallMcount(stmtt)) {
-      return false;
+      goto tupleSetup;
     }
     blk->AddStatement(stmtt);
   }
@@ -1881,14 +1886,20 @@ bool MIRParser::ParseStmtBlock(BlockNodePtr &blk) {
     // calculate the mpl file line number mplNum here to get accurate result
     uint32 mplNum = lexer.GetLineNum();
     if (IsStatement(stmtTk)) {
+
       ParseStmtBlockForSeenComment(blk, mplNum);
       StmtNode *stmt = nullptr;
       if (!ParseStatement(stmt)) {
         Error("ParseStmtBlock failed when parsing a statement");
-        return false;
+        goto tupleSetup;
       }
       if (stmt != nullptr) {  // stmt is nullptr if it is a LOC
         blk->AddStatement(stmt);
+        // set blk src position
+        if (first) {
+          blk->SetSrcPos(stmt->GetSrcPos());
+          first = false;
+        }
       }
     } else {
       std::map<TokenKind, FuncPtrParseStmtBlock>::iterator itFuncPtr = funcPtrMapForParseStmtBlock.find(stmtTk);
@@ -1896,18 +1907,23 @@ bool MIRParser::ParseStmtBlock(BlockNodePtr &blk) {
         if (stmtTk == TK_rbrace) {
           ParseStmtBlockForSeenComment(blk, mplNum);
           lexer.NextToken();
-          return true;
+          retval = true;
+          goto tupleSetup;
         } else {
           Error("expect } or var or statement for func body but get ");
-          return false;
+          goto tupleSetup;
         }
       } else {
         if (!(this->*(itFuncPtr->second))()) {
-          return false;
+          goto tupleSetup;
         }
       }
     }
   }
+tupleSetup:
+  SrcPosition posE(lastFileNum, lastLineNum, lastColumnNum, lexer.GetLineNum());
+  mod.CurFunction()->GetScope()->AddTuple(blk->GetSrcPos(), posB, posE);
+  return retval;
 }
 
 void MIRParser::ParseStmtBlockForSeenComment(BlockNodePtr blk, uint32 mplNum) {
@@ -2277,6 +2293,7 @@ bool MIRParser::ParseDeclaredFunc(PUIdx &puidx) {
     return false;
   }
   MIRFunction *func = st->GetFunction();
+  CHECK_NULL_FATAL(func);
   puidx = func->GetPuidx();
   st->SetAppearsInCode(true);
   return true;
@@ -3238,8 +3255,11 @@ bool MIRParser::ParseConstAddrLeafExpr(MIRConstPtr &cexpr) {
         anode->GetStIdx(), anode->GetFieldID(), *exprTy, ofst);
   } else if (expr->GetOpCode() == OP_addroffunc) {
     auto *aof = static_cast<AddroffuncNode*>(expr);
+    CHECK_NULL_FATAL(aof);
     MIRFunction *f = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(aof->GetPUIdx());
+    CHECK_NULL_FATAL(f);
     MIRSymbol *fName = f->GetFuncSymbol();
+    CHECK_NULL_FATAL(fName);
     fName->SetAppearsInCode(true);
     TyIdx ptyIdx = fName->GetTyIdx();
     MIRPtrType ptrType(ptyIdx);
