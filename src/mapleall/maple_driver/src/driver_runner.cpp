@@ -314,6 +314,11 @@ void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &
   if (withDwarf && !theModule->IsWithDbgInfo()) {
     LogInfo::MapleLogger() << "set up debug info " << '\n';
     theMIRModule->GetDbgInfo()->BuildDebugInfo();
+#if DEBUG
+    if (cgOptions) {
+      cgOptions->SetOption(CGOptions::kVerboseAsm);
+    }
+#endif
   }
   if (cgOptions == nullptr) {
     return;
@@ -345,6 +350,9 @@ void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &
     cgfuncPhaseManager->DumpPhaseTime();
   }
   timer.Stop();
+  if (theMIRModule->GetDbgInfo() != nullptr) {
+    theMIRModule->GetDbgInfo()->ClearDebugInfo();
+  }
   theMIRModule->ReleasePragmaMemPool();
   LogInfo::MapleLogger() << "Mplcg consumed " << timer.ElapsedMilliseconds() << "ms" << '\n';
 }

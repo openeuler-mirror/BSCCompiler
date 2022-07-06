@@ -118,6 +118,9 @@ ErrorCode MplcgCompiler::MakeCGOptions(const MplOptions &options) {
   /* use maple flags to set cg flags */
   if (opts::withDwarf) {
     cgOption.SetOption(CGOptions::kWithDwarf);
+#if DEBUG
+    cgOption.SetOption(CGOptions::kVerboseAsm);
+#endif
   }
   cgOption.SetGenerateFlags(CGOptions::kDefaultGflags);
 
