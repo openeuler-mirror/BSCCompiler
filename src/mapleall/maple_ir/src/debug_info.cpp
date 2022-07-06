@@ -414,8 +414,7 @@ void DebugInfo::BuildDebugInfo() {
 
   for (size_t i = 0; i < GlobalTables::GetGsymTable().GetSymbolTableSize(); ++i) {
     MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(static_cast<uint32>(i));
-    if (mirSymbol == nullptr || mirSymbol->IsDeleted() || mirSymbol->GetStorageClass() == kScUnused ||
-        mirSymbol->GetStorageClass() == kScExtern) {
+    if (mirSymbol == nullptr || mirSymbol->IsDeleted() || mirSymbol->GetStorageClass() == kScUnused) {
       continue;
     }
     if (module->IsCModule() && mirSymbol->IsGlobal() && mirSymbol->IsVar()) {
