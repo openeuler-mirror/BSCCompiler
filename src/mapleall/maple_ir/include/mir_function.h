@@ -69,7 +69,7 @@ class MIRFunction {
   MIRFunction(MIRModule *mod, StIdx idx)
       : module(mod),
         symbolTableIdx(idx) {
-    scope = module->GetMemPool()->New<MIRScope>(mod);
+    scope = module->GetMemPool()->New<MIRScope>(module, this);
   }
 
   ~MIRFunction() = default;
@@ -427,7 +427,7 @@ class MIRFunction {
   bool IsEmpty() const;
   bool IsClinit() const;
   uint32 GetInfo(GStrIdx strIdx) const;
-  uint32 GetInfo(const std::string &str) const;
+  uint32 GetInfo(const std::string &string) const;
   bool IsAFormal(const MIRSymbol *st) const {
     for (const auto &formalDef : formalDefVec) {
       if (st == formalDef.formalSym) {
@@ -727,14 +727,19 @@ class MIRFunction {
   }
 
   bool NeedEmitAliasInfo() const {
-    return scope->NeedEmitAliasInfo();
+    return !scope->IsEmpty();
   }
 
   MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {
     return scope->GetAliasVarMap();
   }
+
   void SetAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
     scope->SetAliasVarMap(idx, vars);
+  }
+
+  void AddAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
+    scope->AddAliasVarMap(idx, vars);
   }
 
   bool HasVlaOrAlloca() const {
@@ -775,7 +780,7 @@ class MIRFunction {
     if ((*freqLastMap).find(stmtId) == (*freqLastMap).end()) {
       return -1;
     }
-    return (*freqLastMap)[stmtId];
+    return static_cast<int32>((*freqLastMap)[stmtId]);
   }
 
   int32 GetFreqFromFirstStmt(uint32 stmtId) {
@@ -785,7 +790,7 @@ class MIRFunction {
     if ((*freqFirstMap).find(stmtId) == (*freqFirstMap).end()) {
       return -1;
     }
-    return (*freqFirstMap)[stmtId];
+    return static_cast<int32>((*freqFirstMap)[stmtId]);
   }
 
   void SetLastFreqMap(uint32 stmtID, uint32 freq) {
@@ -1253,7 +1258,7 @@ class MIRFunction {
   }
   void SetStmtFreq(uint32_t stmtID, uint64_t freq) {
     ASSERT((funcProfData != nullptr && freq > 0), "nullptr check");
-    funcProfData->SetStmtFreq(stmtID, freq);
+    funcProfData->SetStmtFreq(stmtID, static_cast<int64_t>(freq));
   }
  private:
   MIRModule *module;     // the module that owns this function

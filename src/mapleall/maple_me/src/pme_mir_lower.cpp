@@ -52,7 +52,8 @@ BlockNode *PreMeMIRLower::LowerWhileStmt(WhileStmtNode &whilestmt) {
   blk->AppendStatementsFromBlock(*whilestmt.GetBody());
   GotoNode *whilegotonode = mirbuilder->CreateStmtGoto(OP_goto, whilelblidx);
   if (GetFuncProfData() && blk->GetLast()) {
-    ASSERT(GetFuncProfData()->GetStmtFreq(blk->GetLast()->GetStmtID()) >= 0, "last stmt of while body should has freq");
+    ASSERT(GetFuncProfData()->GetStmtFreq(blk->GetLast()->GetStmtID()) >= 0,
+        "last stmt of while body should has freq");
     GetFuncProfData()->CopyStmtFreq(whilegotonode->GetStmtID(), blk->GetLast()->GetStmtID());
   }
   blk->AddStatement(whilegotonode);
@@ -63,6 +64,11 @@ BlockNode *PreMeMIRLower::LowerWhileStmt(WhileStmtNode &whilestmt) {
   LabelNode *endlblstmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   endlblstmt->SetLabelIdx(endlblidx);
   brfalsestmt->SetOffset(endlblidx);
+  SrcPosition pos = func->GetMirFunc()->GetScope()->GetScopeEndPos(whilestmt.GetBody()->GetSrcPos());
+  if (!pos.IsValid()) {
+    pos = func->GetMirFunc()->GetScope()->GetScopeEndPos(whilestmt.GetSrcPos());
+  }
+  endlblstmt->SetSrcPos(pos);
   blk->AddStatement(endlblstmt);
   if (GetFuncProfData()) {
     int64_t freq = GetFuncProfData()->GetStmtFreq(whilestmt.GetStmtID()) -
@@ -142,6 +148,8 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     if (canRaiseBack) {
       preMeFunc->label2IfInfo.insert(std::make_pair(endlabelidx, ifInfo));
     }
+    SrcPosition pos = func->GetMirFunc()->GetScope()->GetScopeEndPos(ifstmt.GetThenPart()->GetSrcPos());
+    labstmt->SetSrcPos(pos);
     blk->AddStatement(labstmt);
     // set stmtfreqs
     if (GetFuncProfData()) {
@@ -177,6 +185,8 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     if (canRaiseBack) {
       preMeFunc->label2IfInfo.insert(std::make_pair(endlabelidx, ifInfo));
     }
+    SrcPosition pos = func->GetMirFunc()->GetScope()->GetScopeEndPos(ifstmt.GetElsePart()->GetSrcPos());
+    labstmt->SetSrcPos(pos);
     blk->AddStatement(labstmt);
     // set stmtfreqs
     if (GetFuncProfData()) {
@@ -233,6 +243,8 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
 
     LabelNode *labstmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
     labstmt->SetLabelIdx(elselabelidx);
+    SrcPosition pos = func->GetMirFunc()->GetScope()->GetScopeEndPos(ifstmt.GetThenPart()->GetSrcPos());
+    labstmt->SetSrcPos(pos);
     blk->AddStatement(labstmt);
 
     blk->AppendStatementsFromBlock(*ifstmt.GetElsePart());
@@ -240,6 +252,8 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     if (fallthru_from_then) {
       labstmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
       labstmt->SetLabelIdx(endlabelidx);
+      SrcPosition pos = func->GetMirFunc()->GetScope()->GetScopeEndPos(ifstmt.GetElsePart()->GetSrcPos());
+      labstmt->SetSrcPos(pos);
       blk->AddStatement(labstmt);
       // set stmtfreqs
       if (GetFuncProfData()) {
@@ -252,6 +266,8 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
         preMeFunc->SetIfLabelCreatedByPreMe(endlabelidx);
       }
       LabelNode *endlabelnode = mirbuilder->CreateStmtLabel(endlabelidx);
+      SrcPosition pos = func->GetMirFunc()->GetScope()->GetScopeEndPos(ifstmt.GetElsePart()->GetSrcPos());
+      endlabelnode->SetSrcPos(pos);
       blk->AddStatement(endlabelnode);
       // set stmtfreqs
       if (GetFuncProfData()) {

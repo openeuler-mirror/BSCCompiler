@@ -794,11 +794,8 @@ void FEFunction::AddLocForStmt(const FEIRStmt &stmt, std::list<StmtNode*> &mirSt
 void FEFunction::PushFuncScope(const SrcPosition &startOfScope, const SrcPosition &endOfScope) {
   UniqueFEIRScope feirScope = std::make_unique<FEIRScope>();
   if (FEOptions::GetInstance().IsDbgFriendly()) {
-    MIRScope *mockedScope = mirFunction.GetScope();
-    MIRScope *mirScope = mirFunction.GetModule()->GetMemPool()->New<MIRScope>(
-        mirFunction.GetModule(), 1);  // func scope start level is 1
+    MIRScope *mirScope = mirFunction.GetScope();
     mirScope->SetRange(startOfScope, endOfScope);
-    mockedScope->AddScope(mirScope);
     feirScope->SetMIRScope(mirScope);
   }
   stmtsScopeStack.push(std::move(feirScope));
@@ -809,7 +806,7 @@ void FEFunction::PushStmtScope(const SrcPosition &startOfScope, const SrcPositio
   if (FEOptions::GetInstance().IsDbgFriendly()) {
     MIRScope *parentMIRScope = GetTopStmtMIRScope();
     MIRScope *mirScope = mirFunction.GetModule()->GetMemPool()->New<MIRScope>(
-        mirFunction.GetModule(), parentMIRScope->GetLevel());
+        mirFunction.GetModule());
     mirScope->SetRange(startOfScope, endOfScope);
     parentMIRScope->AddScope(mirScope);
     feirScope->SetMIRScope(mirScope);

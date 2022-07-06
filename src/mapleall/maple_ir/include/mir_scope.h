@@ -14,8 +14,10 @@
  */
 #ifndef MAPLE_IR_INCLUDE_MIR_SCOPE_H
 #define MAPLE_IR_INCLUDE_MIR_SCOPE_H
+#include <tuple>
 #include "mir_module.h"
 #include "mir_type.h"
+#include "src_position.h"
 
 namespace maple {
 // mapping src variable to mpl variables to display debug info
@@ -28,20 +30,23 @@ struct MIRAliasVars {
 
 class MIRScope {
  public:
-  explicit MIRScope(MIRModule *mod) : module(mod) {}
-  MIRScope(MIRModule *mod, unsigned l) : module(mod), level(l) {}
+  MIRScope(MIRModule *mod, MIRFunction *f = nullptr);
   ~MIRScope() = default;
 
-  bool NeedEmitAliasInfo() const {
-    return aliasVarMap.size() != 0 || subScopes.size() != 0;
+  bool IsEmpty() const {
+    return aliasVarMap.size() == 0 && subScopes.size() == 0;
   }
 
-  bool IsSubScope(const MIRScope *s) const;
-  bool HasJoinScope(const MIRScope *s1, const MIRScope *s2) const;
+  bool IsSubScope(const MIRScope *scp) const;
+  bool HasJoinScope(const MIRScope *scp1, const MIRScope *scp2) const;
   bool HasSameRange(const MIRScope *s1, const MIRScope *s2) const;
 
-  unsigned GetLevel() const {
-    return level;
+  unsigned GetId() const {
+    return id;
+  }
+
+  void SetId(unsigned i) {
+    id = i;
   }
 
   const SrcPosition &GetRangeLow() const {
@@ -63,6 +68,11 @@ class MIRScope {
     aliasVarMap[idx] = vars;
   }
 
+  void AddAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
+    /* allow same idx, save last aliasVars */
+    aliasVarMap[idx] = vars;
+  }
+
   MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {
     return aliasVarMap;
   }
@@ -71,18 +81,31 @@ class MIRScope {
     return subScopes;
   }
 
-  void IncLevel();
+  void AddTuple(SrcPosition pos, SrcPosition posB, SrcPosition posE) {
+    if (pos.LineNum() == 0 || posB.LineNum() == 0 || posE.LineNum() == 0) {
+      return;
+    }
+    std::tuple<SrcPosition, SrcPosition, SrcPosition> t(pos,posB,posE);
+    BlkSrcPos.push_back(t);
+  }
+
+  SrcPosition GetScopeEndPos(SrcPosition pos);
+
   bool AddScope(MIRScope *scope);
+
   void Dump(int32 indent) const;
   void Dump() const;
 
  private:
   MIRModule *module;
-  unsigned level = 0;
+  MIRFunction *func;
+  unsigned id;
   std::pair<SrcPosition, SrcPosition> range;
   // source to maple variable alias
   MapleMap<GStrIdx, MIRAliasVars> aliasVarMap { module->GetMPAllocator().Adapter() };
+  // subscopes' range should be disjoint
   MapleVector<MIRScope*> subScopes { module->GetMPAllocator().Adapter() };
+  std::vector<std::tuple<SrcPosition, SrcPosition, SrcPosition>> BlkSrcPos;
 };
 }  // namespace maple
 #endif  // MAPLE_IR_INCLUDE_MIR_SCOPE_H

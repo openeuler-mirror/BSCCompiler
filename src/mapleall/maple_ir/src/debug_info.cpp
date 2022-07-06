@@ -41,6 +41,7 @@ DBGDie::DBGDie(MIRModule *m, DwTag tag)
       tag(tag),
       id(m->GetDbgInfo()->GetMaxId()),
       withChildren(false),
+      keep(true),
       sibling(nullptr),
       firstChild(nullptr),
       abbrevId(0),
@@ -267,14 +268,15 @@ void DebugInfo::SetupCU() {
 }
 
 void DebugInfo::AddScopeDie(MIRScope *scope) {
-  if (!scope->NeedEmitAliasInfo()) {
+  if (scope->IsEmpty()) {
     return;
   }
 
-  if (scope->GetLevel() != 0) {
+  MIRFunction *func = GetCurFunction();
+  if (scope != func->GetScope()) {
     DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_lexical_block);
-    die->AddAttr(DW_AT_low_pc, DW_FORM_addr, kDbgDefaultVal);
-    die->AddAttr(DW_AT_high_pc, DW_FORM_data8, kDbgDefaultVal);
+    die->AddAttr(DW_AT_low_pc, DW_FORM_addr, scope->GetId());
+    die->AddAttr(DW_AT_high_pc, DW_FORM_data8, scope->GetId());
 
     // add die to parent
     GetParentDie()->AddSubVec(die);
@@ -292,7 +294,7 @@ void DebugInfo::AddScopeDie(MIRScope *scope) {
     }
   }
 
-  if (scope->GetLevel() != 0) {
+  if (scope != func->GetScope()) {
     PopParentDie();
   }
 }
@@ -302,20 +304,72 @@ void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap) {
   for (auto &i : aliasMap) {
     // maple var
     MIRSymbol *var = nullptr;
+    GStrIdx mplIdx = i.second.mplStrIdx;
     if (i.second.isLocal) {
-      var = func->GetSymTab()->GetSymbolFromStrIdx(i.second.mplStrIdx);
+      var = func->GetSymTab()->GetSymbolFromStrIdx(mplIdx);
     } else {
-      var = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(i.second.mplStrIdx);
+      var = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(mplIdx);
     }
     ASSERT(var, "can not find symbol");
 
     // create alias die using maple var except name
     DBGDie *vdie = CreateVarDie(var, i.first);
+    // maple var die
+    DBGDie *mdie = (var->IsGlobal()) ? GetGlobalDie(mplIdx) : GetLocalDie(mplIdx);
+    ASSERT(mdie, "can not find maple mdie");
+
+    // link vdie's ExprLoc to mdie's
+    vdie->LinkExprLoc(mdie);
 
     GetParentDie()->AddSubVec(vdie);
 
     // add alias var name to debug_str section
     strps.insert(i.first.GetIdx());
+  }
+}
+
+void DebugInfo::CollectScopePos(MIRFunction *func, MIRScope *scope) {
+  if (scope != func->GetScope()) {
+    ScopePos plow;
+    plow.id = scope->GetId();
+    plow.pos = scope->GetRangeLow();
+    funcScopeLows[func].push_back(plow);
+
+    ScopePos phigh;
+    phigh.id = scope->GetId();
+    phigh.pos = scope->GetRangeHigh();
+    funcScopeHighs[func].push_back(phigh);
+  }
+
+  if (scope->GetSubScopes().size() > 0) {
+    for (auto it : scope->GetSubScopes()) {
+      CollectScopePos(func, it);
+    }
+  }
+}
+
+// result is in idSet,
+// a set of scope ids which are crossed from oldSrcPos to newSrcPos
+void DebugInfo::GetCrossScopeId(MIRFunction *func,
+                                std::unordered_set<uint32> &idSet,
+                                bool isLow,
+                                SrcPosition &oldSrcPos,
+                                SrcPosition &newSrcPos) {
+  if (isLow) {
+    for (auto &it : funcScopeLows[func]) {
+      if (oldSrcPos.IsBf(it.pos) && (it.pos).IsBfOrEq(newSrcPos)) {
+        idSet.insert(it.id);
+      }
+    }
+  } else {
+    if (oldSrcPos.IsEq(newSrcPos)) {
+      return;
+    }
+    for (auto &it : funcScopeHighs[func]) {
+      if (oldSrcPos.IsBfOrEq(it.pos) && (it.pos).IsBf(newSrcPos)) {
+        idSet.insert(it.id);
+      }
+    }
   }
 }
 
@@ -360,8 +414,7 @@ void DebugInfo::BuildDebugInfo() {
 
   for (size_t i = 0; i < GlobalTables::GetGsymTable().GetSymbolTableSize(); ++i) {
     MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(static_cast<uint32>(i));
-    if (mirSymbol == nullptr || mirSymbol->IsDeleted() || mirSymbol->GetStorageClass() == kScUnused ||
-        mirSymbol->GetStorageClass() == kScExtern) {
+    if (mirSymbol == nullptr || mirSymbol->IsDeleted() || mirSymbol->GetStorageClass() == kScUnused) {
       continue;
     }
     if (module->IsCModule() && mirSymbol->IsGlobal() && mirSymbol->IsVar()) {
@@ -407,6 +460,15 @@ DBGDieAttr *DebugInfo::CreateAttr(DwAt at, DwForm form, uint64 val) {
 
 void DebugInfo::SetLocalDie(MIRFunction *func, GStrIdx strIdx, const DBGDie *die) {
   (funcLstrIdxDieIdMap[func])[strIdx.GetIdx()] = die->GetId();
+}
+
+DBGDie *DebugInfo::GetGlobalDie(GStrIdx strIdx) {
+  unsigned idx = strIdx.GetIdx();
+  if (stridxDieIdMap.find(idx) != stridxDieIdMap.end()) {
+    uint32 id = stridxDieIdMap[idx];
+    return idDieMap[id];
+  }
+  return nullptr;
 }
 
 DBGDie *DebugInfo::GetLocalDie(MIRFunction *func, GStrIdx strIdx) {
@@ -646,12 +708,19 @@ DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum) {
     for (uint32 i = 1; i < func->GetSymTab()->GetSymbolTableSize(); i++) {
       MIRSymbol *var = func->GetSymTab()->GetSymbolFromStIdx(i);
       DBGDie *vdie = CreateVarDie(var);
-      die->AddSubVec(vdie);
+      if (vdie) {
+        die->AddSubVec(vdie);
+        // for C, source variable names will be used instead of mangloed maple variables
+        if (module->IsCModule()) {
+          vdie->SetKeep(false);
+        }
+      }
     }
   }
 
   // add scope die
   AddScopeDie(func->GetScope());
+  CollectScopePos(func, func->GetScope());
 
   PopParentDie();
 
@@ -1272,6 +1341,9 @@ void DebugInfo::ComputeSizeAndOffsets() {
 // Compute the size and offset of a DIE. The Offset is relative to start of the CU.
 // It returns the offset after laying out the DIE.
 void DebugInfo::ComputeSizeAndOffset(DBGDie *die, uint32 &cuOffset) {
+  if (!die->GetKeep()) {
+    return;
+  }
   uint32 cuOffsetOrg = cuOffset;
   die->SetOffset(cuOffset);
 

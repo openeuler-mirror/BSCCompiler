@@ -3122,6 +3122,9 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
             CHECK_FATAL(lowpc != nullptr, "lowpc is null in Emitter::EmitDIAttrValue");
             EmitLabelRef(lowpc->GetId());    /* maybe deadbeef */
           }
+        } else if (tagName == DW_TAG_lexical_block) {
+          unsigned i = attr->GetU();
+          Emit(".LScp." + std::to_string(i) + "E-.LScp." + std::to_string(i) + "B");
         }
       } else {
         EmitHexUnsigned(static_cast<uint64>(static_cast<int64>(attr->GetI())));
@@ -3172,6 +3175,9 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           const std::string &fnameStr = GlobalTables::GetStrTable().GetStringFromStrIdx(fnameAttr->GetId());
           LabelOperand *res = memPool->New<LabelOperand>(fnameStr.c_str(), labelIdx);
           res->Emit(*this, nullptr);
+        } else if (tagName == DW_TAG_lexical_block) {
+          unsigned i = attr->GetU();
+          Emit(".LScp." + std::to_string(i) + "B");
         }
       } else if (attrName == DW_AT_high_pc) {
         if (tagName == DW_TAG_compile_unit) {
@@ -3282,6 +3288,9 @@ void Emitter::EmitDIDebugInfoSection(DebugInfo *mirdi) {
       emitter->Emit("\t.byte    0x0\n");
       return;
     }
+    if (!die->GetKeep()) {
+      return;
+    }
     bool verbose = emitter->GetCG()->GenerateVerboseAsm();
     if (verbose) {
       emitter->Emit("\n");
@@ -3323,6 +3332,10 @@ void Emitter::EmitDIDebugInfoSection(DebugInfo *mirdi) {
 
     for (size_t i = 0; i < diae->GetAttrPairs().size(); i += k2ByteSize) {
       DBGDieAttr *attr = LFindAttribute(die->GetAttrVec(), DwAt(apl[i]));
+      ASSERT_NOT_NULL(attr);
+      if (!attr->GetKeep()) {
+        continue;
+      }
       if (!LShouldEmit(unsigned(apl[i + 1]))) {
         continue;
       }
@@ -3475,7 +3488,7 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
   Emitter *emitter = this;
   MapleVector<DBGAbbrevEntry*> &abbrevVec = mirdi->GetAbbrevVec();
   ApplyInPrefixOrder(mirdi->GetCompUnit(), [&abbrevVec, &emitter](DBGDie *die) {
-    if (!die) {
+    if (!die || !die->GetKeep()) {
       return;
     }
 
