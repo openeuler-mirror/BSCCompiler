@@ -123,7 +123,7 @@ bool DBGDie::SetAttr(DwAt attr, uint64 val) {
   return false;
 }
 
-bool DBGDie::SetAttr(DwAt attr, int val) {
+bool DBGDie::SetAttr(DwAt attr, int32 val) {
   for (auto it : attrVec) {
     if (it->GetDwAt() == attr) {
       it->SetI(val);
@@ -423,8 +423,8 @@ DBGDie *DebugInfo::GetLocalDie(GStrIdx strIdx) {
   return idDieMap[id];
 }
 
-void DebugInfo::SetLabelIdx(MIRFunction *func, GStrIdx strIdx, LabelIdx labidx) {
-  (funcLstrIdxLabIdxMap[func])[strIdx.GetIdx()] = labidx;
+void DebugInfo::SetLabelIdx(MIRFunction *func, GStrIdx strIdx, LabelIdx labIdx) {
+  (funcLstrIdxLabIdxMap[func])[strIdx.GetIdx()] = labIdx;
 }
 
 LabelIdx DebugInfo::GetLabelIdx(MIRFunction *func, GStrIdx strIdx) {
@@ -432,8 +432,8 @@ LabelIdx DebugInfo::GetLabelIdx(MIRFunction *func, GStrIdx strIdx) {
   return labidx;
 }
 
-void DebugInfo::SetLabelIdx(GStrIdx strIdx, LabelIdx labidx) {
-  (funcLstrIdxLabIdxMap[GetCurFunction()])[strIdx.GetIdx()] = labidx;
+void DebugInfo::SetLabelIdx(GStrIdx strIdx, LabelIdx labIdx) {
+  (funcLstrIdxLabIdxMap[GetCurFunction()])[strIdx.GetIdx()] = labIdx;
 }
 
 LabelIdx DebugInfo::GetLabelIdx(GStrIdx strIdx) {
@@ -685,25 +685,25 @@ DBGDie *DebugInfo::GetOrCreatePrimTypeDie(MIRType *ty) {
   return die;
 }
 
-DBGDie *DebugInfo::CreatePointedFuncTypeDie(MIRFuncType *ftype) {
+DBGDie *DebugInfo::CreatePointedFuncTypeDie(MIRFuncType *fType) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_subroutine_type);
 
-  die->AddAttr(DW_AT_prototyped, DW_FORM_data4, static_cast<int>(ftype->GetParamTypeList().size() > 0));
-  MIRType *rtype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ftype->GetRetTyIdx());
+  die->AddAttr(DW_AT_prototyped, DW_FORM_data4, static_cast<int>(fType->GetParamTypeList().size() > 0));
+  MIRType *rtype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fType->GetRetTyIdx());
   (void)GetOrCreateTypeDie(rtype);
-  die->AddAttr(DW_AT_type, DW_FORM_ref4, ftype->GetRetTyIdx().GetIdx());
+  die->AddAttr(DW_AT_type, DW_FORM_ref4, fType->GetRetTyIdx().GetIdx());
 
   compUnit->AddSubVec(die);
 
-  for (uint32 i = 0; i < ftype->GetParamTypeList().size(); i++) {
+  for (uint32 i = 0; i < fType->GetParamTypeList().size(); i++) {
     DBGDie *paramdie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_formal_parameter);
-    MIRType *ptype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ftype->GetNthParamType(i));
+    MIRType *ptype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fType->GetNthParamType(i));
     (void)GetOrCreateTypeDie(ptype);
-    paramdie->AddAttr(DW_AT_type, DW_FORM_ref4, ftype->GetNthParamType(i).GetIdx());
+    paramdie->AddAttr(DW_AT_type, DW_FORM_ref4, fType->GetNthParamType(i).GetIdx());
     die->AddSubVec(paramdie);
   }
 
-  tyIdxDieIdMap[ftype->GetTypeIndex().GetIdx()] = die->GetId();
+  tyIdxDieIdMap[fType->GetTypeIndex().GetIdx()] = die->GetId();
   return die;
 }
 
@@ -732,20 +732,20 @@ DBGDie *DebugInfo::GetOrCreateTypeDie(MIRType *type) {
   DBGDie *die = nullptr;
   switch (type->GetKind()) {
     case kTypePointer: {
-      MIRPtrType *ptype = static_cast<MIRPtrType *>(type);
-      die = GetOrCreatePointTypeDie(ptype);
+      MIRPtrType *pType = static_cast<MIRPtrType *>(type);
+      die = GetOrCreatePointTypeDie(pType);
       break;
     }
     case kTypeFunction: {
-      MIRFuncType *ftype = static_cast<MIRFuncType *>(type);
-      die = CreatePointedFuncTypeDie(ftype);
+      MIRFuncType *fType = static_cast<MIRFuncType *>(type);
+      die = CreatePointedFuncTypeDie(fType);
       break;
     }
     case kTypeArray:
     case kTypeFArray:
     case kTypeJArray: {
-      MIRArrayType *atype = static_cast<MIRArrayType *>(type);
-      die = GetOrCreateArrayTypeDie(atype);
+      MIRArrayType *aType = static_cast<MIRArrayType *>(type);
+      die = GetOrCreateArrayTypeDie(aType);
       break;
     }
     case kTypeUnion:
@@ -768,14 +768,14 @@ DBGDie *DebugInfo::GetOrCreateTypeDie(MIRType *type) {
   return die;
 }
 
-DBGDie *DebugInfo::GetOrCreatePointTypeDie(const MIRPtrType *ptrtype) {
-  uint32 tid = ptrtype->GetTypeIndex().GetIdx();
+DBGDie *DebugInfo::GetOrCreatePointTypeDie(const MIRPtrType *ptrType) {
+  uint32 tid = ptrType->GetTypeIndex().GetIdx();
   if (tyIdxDieIdMap.find(tid) != tyIdxDieIdMap.end()) {
     uint32 id = tyIdxDieIdMap[tid];
     return idDieMap[id];
   }
 
-  MIRType *type = ptrtype->GetPointedType();
+  MIRType *type = ptrType->GetPointedType();
   // for <* void>
   if ((type != nullptr) &&
       (type->GetPrimType() == PTY_void || type->GetKind() == kTypeFunction)) {
@@ -786,7 +786,7 @@ DBGDie *DebugInfo::GetOrCreatePointTypeDie(const MIRPtrType *ptrtype) {
       die->AddAttr(DW_AT_type, DW_FORM_ref4, type->GetTypeIndex().GetIdx());
       tyIdxDieIdMap[type->GetTypeIndex().GetIdx()] = pdie->GetId();
     }
-    tyIdxDieIdMap[ptrtype->GetTypeIndex().GetIdx()] = die->GetId();
+    tyIdxDieIdMap[ptrType->GetTypeIndex().GetIdx()] = die->GetId();
     compUnit->AddSubVec(die);
     return die;
   }
@@ -821,21 +821,21 @@ DBGDie *DebugInfo::GetOrCreatePointTypeDie(const MIRPtrType *ptrtype) {
   // fill with type idx instead of typedie->id to avoid nullptr typedie of
   // forward reference of class types
   die->AddAttr(DW_AT_type, DW_FORM_ref4, type->GetTypeIndex().GetIdx());
-  tyIdxDieIdMap[ptrtype->GetTypeIndex().GetIdx()] = die->GetId();
+  tyIdxDieIdMap[ptrType->GetTypeIndex().GetIdx()] = die->GetId();
 
   compUnit->AddSubVec(die);
 
   return die;
 }
 
-DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arraytype) {
-  uint32 tid = arraytype->GetTypeIndex().GetIdx();
+DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arrayType) {
+  uint32 tid = arrayType->GetTypeIndex().GetIdx();
   if (tyIdxDieIdMap.find(tid) != tyIdxDieIdMap.end()) {
     uint32 id = tyIdxDieIdMap[tid];
     return idDieMap[id];
   }
 
-  MIRType *type = arraytype->GetElemType();
+  MIRType *type = arrayType->GetElemType();
   (void)GetOrCreateTypeDie(type);
 
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_array_type);
@@ -843,7 +843,7 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arraytype) {
   // fill with type idx instead of typedie->id to avoid nullptr typedie of
   // forward reference of class types
   die->AddAttr(DW_AT_type, DW_FORM_ref4, type->GetTypeIndex().GetIdx());
-  tyIdxDieIdMap[arraytype->GetTypeIndex().GetIdx()] = die->GetId();
+  tyIdxDieIdMap[arrayType->GetTypeIndex().GetIdx()] = die->GetId();
 
   compUnit->AddSubVec(die);
 
@@ -854,9 +854,9 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arraytype) {
   rangedie->AddAttr(DW_AT_type, DW_FORM_ref4, PTY_u32);
   if (theMIRModule->IsCModule() || theMIRModule->IsJavaModule()) {
     // The default lower bound value for C, C++, or Java is 0
-    rangedie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arraytype->GetSizeArrayItem(0) - 1);
+    (void)rangedie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arrayType->GetSizeArrayItem(0) - 1);
   } else {
-    rangedie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arraytype->GetSizeArrayItem(0));
+    (void)rangedie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arrayType->GetSizeArrayItem(0));
   }
 
   die->AddSubVec(rangedie);
@@ -923,15 +923,15 @@ DBGDie *DebugInfo::GetOrCreateStructTypeDie(const MIRType *type) {
     case kTypeClass:
     case kTypeClassIncomplete:
       {
-        const MIRClassType *classtype = static_cast<const MIRClassType *>(type);
-        die = CreateClassTypeDie(strIdx, classtype);
+        const MIRClassType *classType = static_cast<const MIRClassType *>(type);
+        die = CreateClassTypeDie(strIdx, classType);
         break;
       }
     case kTypeInterface:
     case kTypeInterfaceIncomplete:
       {
-        const MIRInterfaceType *interfacetype = static_cast<const MIRInterfaceType *>(type);
-        die = CreateInterfaceTypeDie(strIdx, interfacetype);
+        const MIRInterfaceType *interfaceType = static_cast<const MIRInterfaceType *>(type);
+        die = CreateInterfaceTypeDie(strIdx, interfaceType);
         break;
       }
     case kTypeStruct:
@@ -953,17 +953,17 @@ DBGDie *DebugInfo::GetOrCreateStructTypeDie(const MIRType *type) {
 }
 
 // shared between struct and union
-DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *structtype, bool update) {
+DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *structType, bool update) {
   DBGDie *die = nullptr;
 
   if (update) {
-    uint32 id = tyIdxDieIdMap[structtype->GetTypeIndex().GetIdx()];
+    uint32 id = tyIdxDieIdMap[structType->GetTypeIndex().GetIdx()];
     die = idDieMap[id];
     ASSERT(die, "update type die not exist");
   } else {
-    DwTag tag = structtype->GetKind() == kTypeStruct ? DW_TAG_structure_type : DW_TAG_union_type;
+    DwTag tag = structType->GetKind() == kTypeStruct ? DW_TAG_structure_type : DW_TAG_union_type;
     die = module->GetMemPool()->New<DBGDie>(module, tag);
-    tyIdxDieIdMap[structtype->GetTypeIndex().GetIdx()] = die->GetId();
+    tyIdxDieIdMap[structType->GetTypeIndex().GetIdx()] = die->GetId();
   }
 
   if (strIdx.GetIdx() != 0) {
@@ -981,9 +981,9 @@ DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *stru
 
   // fields
   uint32 prevBits = 0;
-  for (size_t i = 0; i < structtype->GetFieldsSize(); i++) {
-    MIRType *ety = structtype->GetElemType(static_cast<uint32>(i));
-    FieldPair fp = structtype->GetFieldsElemt(i);
+  for (size_t i = 0; i < structType->GetFieldsSize(); i++) {
+    MIRType *ety = structType->GetElemType(static_cast<uint32>(i));
+    FieldPair fp = structType->GetFieldsElemt(i);
     if (ety->IsMIRBitFieldType()) {
       MIRBitFieldType *bfty = static_cast<MIRBitFieldType*>(ety);
       DBGDie *bfdie = CreateBitfieldDie(bfty, fp.first, prevBits);
@@ -1002,14 +1002,14 @@ DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *stru
   }
 
   // parentFields
-  for (size_t i = 0; i < structtype->GetParentFieldsSize(); i++) {
-    FieldPair fp = structtype->GetParentFieldsElemt(i);
+  for (size_t i = 0; i < structType->GetParentFieldsSize(); i++) {
+    FieldPair fp = structType->GetParentFieldsElemt(i);
     DBGDie *fdie = CreateFieldDie(fp, 0);
     die->AddSubVec(fdie);
   }
 
   // member functions decl
-  for (auto fp : structtype->GetMethods()) {
+  for (auto fp : structType->GetMethods()) {
     MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(fp.first.Idx());
     ASSERT((symbol != nullptr) && symbol->GetSKind() == kStFunc, "member function symbol not exist");
     MIRFunction *func = symbol->GetValue().mirFunc;
@@ -1021,7 +1021,7 @@ DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *stru
   PopParentDie();
 
   // member functions defination, these die are global
-  for (auto fp : structtype->GetMethods()) {
+  for (auto fp : structType->GetMethods()) {
     MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(fp.first.Idx());
     ASSERT(symbol && symbol->GetSKind() == kStFunc, "member function symbol not exist");
     MIRFunction *func = symbol->GetValue().mirFunc;
@@ -1036,15 +1036,15 @@ DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *stru
   return die;
 }
 
-DBGDie *DebugInfo::CreateClassTypeDie(GStrIdx strIdx, const MIRClassType *classtype) {
+DBGDie *DebugInfo::CreateClassTypeDie(GStrIdx strIdx, const MIRClassType *classType) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_class_type);
 
   PushParentDie(die);
 
   // parent
-  uint32 ptid = classtype->GetParentTyIdx().GetIdx();
+  uint32 ptid = classType->GetParentTyIdx().GetIdx();
   if (ptid != 0) {
-    MIRType *parenttype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(classtype->GetParentTyIdx());
+    MIRType *parenttype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(classType->GetParentTyIdx());
     DBGDie *parentdie = GetOrCreateTypeDie(parenttype);
     if (parentdie) {
       parentdie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_inheritance);
@@ -1060,20 +1060,20 @@ DBGDie *DebugInfo::CreateClassTypeDie(GStrIdx strIdx, const MIRClassType *classt
   PopParentDie();
 
   // update common fields
-  tyIdxDieIdMap[classtype->GetTypeIndex().GetIdx()] = die->GetId();
-  DBGDie *die1 = CreateStructTypeDie(strIdx, classtype, true);
+  tyIdxDieIdMap[classType->GetTypeIndex().GetIdx()] = die->GetId();
+  DBGDie *die1 = CreateStructTypeDie(strIdx, classType, true);
   ASSERT(die == die1, "ClassTypeDie update wrong die");
 
   return die1;
 }
 
-DBGDie *DebugInfo::CreateInterfaceTypeDie(GStrIdx strIdx, const MIRInterfaceType *interfacetype) {
+DBGDie *DebugInfo::CreateInterfaceTypeDie(GStrIdx strIdx, const MIRInterfaceType *interfaceType) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_interface_type);
 
   PushParentDie(die);
 
   // parents
-  for (auto it : interfacetype->GetParentsTyIdx()) {
+  for (auto it : interfaceType->GetParentsTyIdx()) {
     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(it);
     DBGDie *parentdie = GetOrCreateTypeDie(type);
     if (parentdie) {
@@ -1092,8 +1092,8 @@ DBGDie *DebugInfo::CreateInterfaceTypeDie(GStrIdx strIdx, const MIRInterfaceType
   PopParentDie();
 
   // update common fields
-  tyIdxDieIdMap[interfacetype->GetTypeIndex().GetIdx()] = die->GetId();
-  DBGDie *die1 = CreateStructTypeDie(strIdx, interfacetype, true);
+  tyIdxDieIdMap[interfaceType->GetTypeIndex().GetIdx()] = die->GetId();
+  DBGDie *die1 = CreateStructTypeDie(strIdx, interfaceType, true);
   ASSERT(die == die1, "InterfaceTypeDie update wrong die");
 
   return die1;

@@ -257,7 +257,7 @@ class ESSAConstNode : public ESSABaseNode {
     return value;
   }
 
-  virtual std::string GetExprID() const {
+  virtual std::string GetExprID() const override {
     return std::to_string(GetValue()) + " Const";
   }
 
@@ -333,7 +333,7 @@ class InequalityGraph {
  private:
   std::string GetColor(EdgeType type) const;
   bool HasNode(int64 value) const;
-  InequalEdge *HasEdge(const ESSABaseNode &from, ESSABaseNode &to, InequalEdge &type) const;
+  InequalEdge *HasEdge(const ESSABaseNode &from, ESSABaseNode &to, const InequalEdge &type) const;
   std::string GetName(const ESSABaseNode &node) const;
   std::string GetName(const MeExpr &meExpr) const;
   void DumpDotNodes(std::ostream &out, DumpType dumpType,
@@ -379,7 +379,8 @@ class ABCD {
   }
 
   ProveResult Prove(ESSABaseNode &a, ESSABaseNode &b, InequalEdge &e);
-  ProveResult UpdateCacheResult(ESSABaseNode &a, ESSABaseNode &b, InequalEdge &e, MeetFunction meet);
+  ProveResult UpdateCacheResult(ESSABaseNode &a, ESSABaseNode &b, const InequalEdge &e,
+                                MeetFunction meet);
   void PrintTracing() const;
   InequalityGraph *inequalityGraph;
   std::map<ESSABaseNode*, InequalEdge*> active;

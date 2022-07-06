@@ -573,13 +573,13 @@ class EACGRefNode : public EACGBaseNode {
   };
 
   void DumpDotFile(std::ostream &fout, std::map<EACGBaseNode*, bool> &dumped, bool dumpPt,
-                   const IRMap *irMap = nullptr);
+                   const IRMap *irMap = nullptr) override;
 
  private:
   bool isStaticField;
   MIRSymbol *sym;
   int version;
-  bool ReplaceByGlobalNode();
+  bool ReplaceByGlobalNode() override;
 };
 class EACGFieldNode : public EACGBaseNode {
  public:
@@ -640,7 +640,7 @@ class EACGFieldNode : public EACGBaseNode {
   };
 
   void DumpDotFile(std::ostream &fout, std::map<EACGBaseNode*, bool> &dumped, bool dumpPt,
-                   const IRMap *irMap = nullptr);
+                   const IRMap *irMap = nullptr) override;
 
  private:
   FieldID fieldID;
@@ -649,7 +649,7 @@ class EACGFieldNode : public EACGBaseNode {
   MIRSymbol *sym;
   int version;
   FieldID mirFieldId;
-  bool ReplaceByGlobalNode();
+  bool ReplaceByGlobalNode() override;
 };
 
 class EACGActualNode : public EACGBaseNode {
@@ -684,14 +684,14 @@ class EACGActualNode : public EACGBaseNode {
   }
 
   void DumpDotFile(std::ostream &fout, std::map<EACGBaseNode*, bool> &dumped, bool dumpPt,
-                   const IRMap *irMap = nullptr);
+                   const IRMap *irMap = nullptr) override;
 
  private:
   bool isReturn;
   bool isPhantom;
   uint8 argIdx;
   uint32 callSiteInfo;
-  bool ReplaceByGlobalNode();
+  bool ReplaceByGlobalNode() override;
 };
 } // namespace maple
 #endif

@@ -765,7 +765,7 @@ class AddroflabelMeExpr : public MeExpr {
   AddroflabelMeExpr(int32 exprid, LabelIdx lidx)
       : MeExpr(exprid, kMeOpAddroflabel, OP_addroflabel, PTY_ptr, 0), labelIdx(lidx) {}
 
-  ~AddroflabelMeExpr() {}
+  ~AddroflabelMeExpr() override {}
 
   void Dump(const IRMap *, int32 indent = 0) const override;
   bool IsIdentical(const MeExpr *meexpr) const {
@@ -794,14 +794,14 @@ class GcmallocMeExpr : public MeExpr {
 
   ~GcmallocMeExpr() = default;
 
-  void Dump(const IRMap*, int32 indent = 0) const;
-  BaseNode &EmitExpr(SSATab&);
+  void Dump(const IRMap*, int32 indent = 0) const override;
+  BaseNode &EmitExpr(SSATab&) override;
 
   TyIdx GetTyIdx() const {
     return tyIdx;
   }
 
-  uint32 GetHashIndex() const {
+  uint32 GetHashIndex() const override {
     constexpr uint32 kGcmallocHashShift = 4;
     return static_cast<uint32>(tyIdx) << kGcmallocHashShift;
   }
@@ -1659,15 +1659,15 @@ class PiassignMeStmt : public MeStmt {
     generatedBy = &meStmt;
   }
 
-  VarMeExpr *GetLHS() const {
+  VarMeExpr *GetLHS() const override {
     return lhs;
   }
 
-  VarMeExpr *GetRHS() const {
+  VarMeExpr *GetRHS() const override {
     return rhs;
   }
 
-  MeStmt *GetGeneratedBy() const{
+  MeStmt *GetGeneratedBy() const {
     return generatedBy;
   }
 
@@ -1679,7 +1679,7 @@ class PiassignMeStmt : public MeStmt {
     return isToken;
   }
 
-  void Dump(const IRMap*) const;
+  void Dump(const IRMap*) const override;
 
  private:
   VarMeExpr *rhs = nullptr;
@@ -1696,37 +1696,37 @@ class AssignMeStmt : public MeStmt {
 
   ~AssignMeStmt() = default;
 
-  size_t NumMeStmtOpnds() const {
+  size_t NumMeStmtOpnds() const override {
     return kOperandNumUnary;
   }
 
-  MeExpr *GetOpnd(size_t) const {
+  MeExpr *GetOpnd(size_t) const override {
     return rhs;
   }
 
-  void SetOpnd(size_t, MeExpr *val) {
+  void SetOpnd(size_t, MeExpr *val) override {
     rhs = val;
   }
 
-  void Dump(const IRMap*) const;
+  void Dump(const IRMap*) const override;
 
-  bool NeedIncref() const {
+  bool NeedIncref() const override {
     return needIncref;
   }
 
-  void SetNeedIncref(bool value = true) {
+  void SetNeedIncref(bool value = true) override {
     needIncref = value;
   }
 
-  void EnableNeedIncref() {
+  void EnableNeedIncref() override {
     needIncref = true;
   }
 
-  void DisableNeedIncref() {
+  void DisableNeedIncref() override {
     needIncref = false;
   }
 
-  bool NeedDecref() const {
+  bool NeedDecref() const override {
     return needDecref;
   }
 
@@ -1734,19 +1734,19 @@ class AssignMeStmt : public MeStmt {
     needDecref = value;
   }
 
-  void EnableNeedDecref() {
+  void EnableNeedDecref() override {
     needDecref = true;
   }
 
-  void DisableNeedDecref() {
+  void DisableNeedDecref() override {
     needDecref = false;
   }
 
-  ScalarMeExpr *GetLHS() const {
+  ScalarMeExpr *GetLHS() const override {
     return lhs;
   }
 
-  MeExpr *GetRHS() const {
+  MeExpr *GetRHS() const override {
     return rhs;
   }
 
@@ -1764,7 +1764,7 @@ class AssignMeStmt : public MeStmt {
     var->SetDefStmt(this);
   }
 
-  StmtNode &EmitStmt(SSATab &ssaTab);
+  StmtNode &EmitStmt(SSATab &ssaTab) override;
 
  protected:
   MeExpr *rhs = nullptr;
@@ -1791,7 +1791,7 @@ class DassignMeStmt : public AssignMeStmt {
 
   ~DassignMeStmt() = default;
 
-  MapleMap<OStIdx, ChiMeNode *> *GetChiList() {
+  MapleMap<OStIdx, ChiMeNode *> *GetChiList() override {
     return &chiList;
   }
 
@@ -1815,13 +1815,13 @@ class DassignMeStmt : public AssignMeStmt {
     wasMayDassign = value;
   }
 
-  void Dump(const IRMap*) const;
+  void Dump(const IRMap*) const override;
 
-  ScalarMeExpr *GetVarLHS() const {
+  ScalarMeExpr *GetVarLHS() const override {
     return static_cast<VarMeExpr *>(lhs);
   }
 
-  ScalarMeExpr *GetVarLHS() {
+  ScalarMeExpr *GetVarLHS() override {
     return static_cast<VarMeExpr *>(lhs);
   }
 
@@ -1841,8 +1841,8 @@ class DassignMeStmt : public AssignMeStmt {
     emitDassignoff = val;
   }
 
-  MeExpr *GetLHSRef(bool excludeLocalRefVar);
-  StmtNode &EmitStmt(SSATab &ssaTab);
+  MeExpr *GetLHSRef(bool excludeLocalRefVar) override;
+  StmtNode &EmitStmt(SSATab &ssaTab) override;
 
  private:
   MapleMap<OStIdx, ChiMeNode*> chiList;
@@ -1865,19 +1865,19 @@ class MaydassignMeStmt : public MeStmt {
 
   ~MaydassignMeStmt() = default;
 
-  size_t NumMeStmtOpnds() const {
+  size_t NumMeStmtOpnds() const override {
     return kOperandNumUnary;
   }
 
-  MeExpr *GetOpnd(size_t) const {
+  MeExpr *GetOpnd(size_t) const override {
     return rhs;
   }
 
-  void SetOpnd(size_t, MeExpr *val) {
+  void SetOpnd(size_t, MeExpr *val) override {
     rhs = val;
   }
 
-  MapleMap<OStIdx, ChiMeNode *> *GetChiList() {
+  MapleMap<OStIdx, ChiMeNode *> *GetChiList() override {
     return &chiList;
   }
 
@@ -1885,31 +1885,31 @@ class MaydassignMeStmt : public MeStmt {
     chiList = value;
   }
 
-  bool NeedDecref() const {
+  bool NeedDecref() const override {
     return needDecref;
   }
 
-  void EnableNeedDecref() {
+  void EnableNeedDecref() override {
     needDecref = true;
   }
 
-  void DisableNeedDecref() {
+  void DisableNeedDecref() override {
     needDecref = false;
   }
 
-  bool NeedIncref() const {
+  bool NeedIncref() const override {
     return needIncref;
   }
 
-  void SetNeedIncref(bool val = true) {
+  void SetNeedIncref(bool val = true) override {
     needIncref = val;
   }
 
-  void EnableNeedIncref() {
+  void EnableNeedIncref() override {
     needIncref = true;
   }
 
-  void DisableNeedIncref() {
+  void DisableNeedIncref() override {
     needIncref = false;
   }
 
@@ -1933,12 +1933,12 @@ class MaydassignMeStmt : public MeStmt {
     fieldID = fieldIDVal;
   }
 
-  void Dump(const IRMap*) const;
-  ScalarMeExpr *GetLHS() const {
+  void Dump(const IRMap*) const override;
+  ScalarMeExpr *GetLHS() const override {
     return chiList.find(mayDSSym->GetIndex())->second->GetLHS();
   }
 
-  MeExpr *GetRHS() const {
+  MeExpr *GetRHS() const override {
     return rhs;
   }
 
@@ -1946,16 +1946,16 @@ class MaydassignMeStmt : public MeStmt {
     rhs = value;
   }
 
-  ScalarMeExpr *GetVarLHS() const {
+  ScalarMeExpr *GetVarLHS() const override {
     return chiList.find(mayDSSym->GetIndex())->second->GetLHS();
   }
 
-  ScalarMeExpr *GetVarLHS() {
+  ScalarMeExpr *GetVarLHS() override {
     return chiList.find(mayDSSym->GetIndex())->second->GetLHS();
   }
 
-  MeExpr *GetLHSRef(bool excludeLocalRefVar);
-  StmtNode &EmitStmt(SSATab &ssaTab);
+  MeExpr *GetLHSRef(bool excludeLocalRefVar) override;
+  StmtNode &EmitStmt(SSATab &ssaTab) override;
 
  private:
   MeExpr *rhs = nullptr;
@@ -2000,15 +2000,15 @@ class IassignMeStmt : public MeStmt {
     tyIdx = idx;
   }
 
-  size_t NumMeStmtOpnds() const {
+  size_t NumMeStmtOpnds() const override {
     return kOperandNumBinary;
   }
 
-  MeExpr *GetOpnd(size_t idx) const {
+  MeExpr *GetOpnd(size_t idx) const override {
     return idx == 0 ? lhsVar->GetBase() : rhs;
   }
 
-  void SetOpnd(size_t idx, MeExpr *val) {
+  void SetOpnd(size_t idx, MeExpr *val) override {
     if (idx == 0) {
       lhsVar->SetBase(val);
     } else {
@@ -2016,7 +2016,7 @@ class IassignMeStmt : public MeStmt {
     }
   }
 
-  MapleMap<OStIdx, ChiMeNode*> *GetChiList() {
+  MapleMap<OStIdx, ChiMeNode*> *GetChiList() override{
     return &chiList;
   }
   const MapleMap<OStIdx, ChiMeNode*> *GetChiList() const {
@@ -2027,37 +2027,37 @@ class IassignMeStmt : public MeStmt {
     chiList = value;
   }
 
-  MeExpr *GetLHSRef(bool excludeLocalRefVar);
-  bool NeedDecref() const {
+  MeExpr *GetLHSRef(bool excludeLocalRefVar) override;
+  bool NeedDecref() const override {
     return needDecref;
   }
 
-  void EnableNeedDecref() {
+  void EnableNeedDecref() override {
     needDecref = true;
   }
 
-  void DisableNeedDecref() {
+  void DisableNeedDecref() override {
     needDecref = false;
   }
 
-  bool NeedIncref() const {
+  bool NeedIncref() const override {
     return needIncref;
   }
 
-  void SetNeedIncref(bool val = true) {
+  void SetNeedIncref(bool val = true) override {
     needIncref = val;
   }
 
-  void EnableNeedIncref() {
+  void EnableNeedIncref() override {
     needIncref = true;
   }
 
-  void DisableNeedIncref() {
+  void DisableNeedIncref() override {
     needIncref = false;
   }
 
-  void Dump(const IRMap*) const;
-  MeExpr *GetRHS() const {
+  void Dump(const IRMap*) const override;
+  MeExpr *GetRHS() const override {
     return rhs;
   }
 
@@ -2090,7 +2090,7 @@ class IassignMeStmt : public MeStmt {
     emitIassignoff = val;
   }
 
-  StmtNode &EmitStmt(SSATab &ssaTab);
+  StmtNode &EmitStmt(SSATab &ssaTab) override;
 
  private:
   TyIdx tyIdx{ 0 };
@@ -2117,16 +2117,16 @@ class NaryMeStmt : public MeStmt {
 
   virtual ~NaryMeStmt() = default;
 
-  size_t NumMeStmtOpnds() const {
+  size_t NumMeStmtOpnds() const override {
     return opnds.size();
   }
 
-  MeExpr *GetOpnd(size_t idx) const {
+  MeExpr *GetOpnd(size_t idx) const override {
     ASSERT(idx < opnds.size(), "out of range in NaryMeStmt::GetOpnd");
     return opnds.at(idx);
   }
 
-  void SetOpnd(size_t idx, MeExpr *val) {
+  void SetOpnd(size_t idx, MeExpr *val) override {
     opnds[idx] = val;
   }
 
@@ -2159,12 +2159,12 @@ class NaryMeStmt : public MeStmt {
   }
 
   void DumpOpnds(const IRMap*) const;
-  void Dump(const IRMap*) const;
-  virtual MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
+  void Dump(const IRMap*) const override;
+  virtual MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() override {
     return nullptr;
   }
 
-  StmtNode &EmitStmt(SSATab &ssaTab);
+  StmtNode &EmitStmt(SSATab &ssaTab) override;
 
  private:
   MapleVector<MeExpr*> opnds;
@@ -2255,20 +2255,20 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return stmtID;
   }
 
-  void Dump(const IRMap*) const;
-  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
+  void Dump(const IRMap*) const override;
+  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() override {
     return &muList;
   }
 
-  MapleMap<OStIdx, ChiMeNode *> *GetChiList() {
+  MapleMap<OStIdx, ChiMeNode *> *GetChiList() override {
     return &chiList;
   }
 
-  MapleVector<MustDefMeNode> *GetMustDefList() {
+  MapleVector<MustDefMeNode> *GetMustDefList() override {
     return &mustDefList;
   }
 
-  const MapleVector<MustDefMeNode> &GetMustDefList() const {
+  const MapleVector<MustDefMeNode> &GetMustDefList() const override {
     return mustDefList;
   }
 
@@ -2280,57 +2280,57 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return mustDefList.size();
   }
 
-  const ScalarMeExpr *GetAssignedLHS() const {
+  const ScalarMeExpr *GetAssignedLHS() const override {
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 
-  ScalarMeExpr *GetAssignedLHS() {
+  ScalarMeExpr *GetAssignedLHS() override {
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 
-  MeExpr *GetLHSRef(bool excludeLocalRefVar) {
+  MeExpr *GetLHSRef(bool excludeLocalRefVar) override {
     return GetAssignedPartLHSRef(excludeLocalRefVar);
   }
 
-  ScalarMeExpr *GetVarLHS() {
+  ScalarMeExpr *GetVarLHS() override {
     if (mustDefList.empty() || mustDefList.front().GetLHS()->GetMeOp() != kMeOpVar) {
       return nullptr;
     }
     return static_cast<VarMeExpr*>(mustDefList.front().GetLHS());
   }
 
-  bool NeedDecref() const {
+  bool NeedDecref() const override {
     return needDecref;
   }
 
-  void EnableNeedDecref() {
+  void EnableNeedDecref() override {
     needDecref = true;
   }
 
-  void DisableNeedDecref() {
+  void DisableNeedDecref() override {
     needDecref = false;
   }
 
-  bool NeedIncref() const {
+  bool NeedIncref() const override {
     return needIncref;
   }
 
-  void EnableNeedIncref() {
+  void EnableNeedIncref() override {
     needIncref = true;
   }
 
-  void DisableNeedIncref() {
+  void DisableNeedIncref() override {
     needIncref = false;
   }
 
-  MIRType *GetReturnType() const {
+  MIRType *GetReturnType() const override {
     MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx);
     return callee->GetReturnType();
   }
 
   const MIRFunction &GetTargetFunction() const;
   MIRFunction &GetTargetFunction();
-  StmtNode &EmitStmt(SSATab &ssaTab);
+  StmtNode &EmitStmt(SSATab &ssaTab) override;
 
   void SetCallReturn(ScalarMeExpr&);
 
@@ -2369,71 +2369,71 @@ class IcallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
 
   virtual ~IcallMeStmt() = default;
 
-  void Dump(const IRMap*) const;
-  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
+  void Dump(const IRMap*) const override;
+  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() override {
     return &muList;
   }
 
-  MapleMap<OStIdx, ChiMeNode *> *GetChiList() {
+  MapleMap<OStIdx, ChiMeNode *> *GetChiList() override {
     return &chiList;
   }
 
-  MapleVector<MustDefMeNode> *GetMustDefList() {
+  MapleVector<MustDefMeNode> *GetMustDefList() override {
     return &mustDefList;
   }
 
-  const MapleVector<MustDefMeNode> &GetMustDefList() const {
+  const MapleVector<MustDefMeNode> &GetMustDefList() const override {
     return mustDefList;
   }
 
-  const ScalarMeExpr *GetAssignedLHS() const {
+  const ScalarMeExpr *GetAssignedLHS() const override {
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 
-  ScalarMeExpr *GetAssignedLHS() {
+  ScalarMeExpr *GetAssignedLHS() override {
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 
-  ScalarMeExpr *GetVarLHS() {
+  ScalarMeExpr *GetVarLHS() override {
     if (mustDefList.empty() || mustDefList.front().GetLHS()->GetMeOp() != kMeOpVar) {
       return nullptr;
     }
     return static_cast<VarMeExpr*>(mustDefList.front().GetLHS());
   }
 
-  MeExpr *GetLHSRef(bool excludeLocalRefVar) {
+  MeExpr *GetLHSRef(bool excludeLocalRefVar) override {
     return GetAssignedPartLHSRef(excludeLocalRefVar);
   }
 
-  bool NeedDecref() const {
+  bool NeedDecref() const override {
     return needDecref;
   }
 
-  void EnableNeedDecref() {
+  void EnableNeedDecref() override {
     needDecref = true;
   }
 
-  void DisableNeedDecref() {
+  void DisableNeedDecref() override {
     needDecref = false;
   }
 
-  bool NeedIncref() const {
+  bool NeedIncref() const override {
     return needIncref;
   }
 
-  void EnableNeedIncref() {
+  void EnableNeedIncref() override {
     needIncref = true;
   }
 
-  void DisableNeedIncref() {
+  void DisableNeedIncref() override {
     needIncref = false;
   }
 
-  MIRType *GetReturnType() const {
+  MIRType *GetReturnType() const override {
     return GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx);
   }
 
-  StmtNode &EmitStmt(SSATab &ssaTab);
+  StmtNode &EmitStmt(SSATab &ssaTab) override;
 
   TyIdx GetRetTyIdx() const {
     return retTyIdx;
@@ -2489,27 +2489,27 @@ class IntrinsiccallMeStmt : public NaryMeStmt, public MuChiMePart, public Assign
 
   virtual ~IntrinsiccallMeStmt() = default;
 
-  void Dump(const IRMap*) const;
-  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
+  void Dump(const IRMap*) const override;
+  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() override {
     return &muList;
   }
 
-  MapleMap<OStIdx, ChiMeNode *> *GetChiList() {
+  MapleMap<OStIdx, ChiMeNode *> *GetChiList() override {
     return &chiList;
   }
 
-  MIRType *GetReturnType() const {
+  MIRType *GetReturnType() const override {
     if (!mustDefList.empty()) {
       return GlobalTables::GetTypeTable().GetPrimType(mustDefList.front().GetLHS()->GetPrimType());
     }
     return GlobalTables::GetTypeTable().GetPrimType(retPType);
   }
 
-  MapleVector<MustDefMeNode> *GetMustDefList() {
+  MapleVector<MustDefMeNode> *GetMustDefList() override {
     return &mustDefList;
   }
 
-  const MapleVector<MustDefMeNode> &GetMustDefList() const {
+  const MapleVector<MustDefMeNode> &GetMustDefList() const override {
     return mustDefList;
   }
 
@@ -2517,43 +2517,43 @@ class IntrinsiccallMeStmt : public NaryMeStmt, public MuChiMePart, public Assign
     return mustDefList[i];
   }
 
-  const ScalarMeExpr *GetAssignedLHS() const {
+  const ScalarMeExpr *GetAssignedLHS() const override {
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 
-  ScalarMeExpr *GetAssignedLHS() {
+  ScalarMeExpr *GetAssignedLHS() override {
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 
-  MeExpr *GetLHSRef(bool excludeLocalRefVar) {
+  MeExpr *GetLHSRef(bool excludeLocalRefVar) override {
     return GetAssignedPartLHSRef(excludeLocalRefVar);
   }
 
-  bool NeedDecref() const {
+  bool NeedDecref() const override {
     return needDecref;
   }
 
-  void EnableNeedDecref() {
+  void EnableNeedDecref() override {
     needDecref = true;
   }
 
-  void DisableNeedDecref() {
+  void DisableNeedDecref() override {
     needDecref = false;
   }
 
-  bool NeedIncref() const {
+  bool NeedIncref() const  override{
     return needIncref;
   }
 
-  void EnableNeedIncref() {
+  void EnableNeedIncref() override {
     needIncref = true;
   }
 
-  void DisableNeedIncref() {
+  void DisableNeedIncref() override {
     needIncref = false;
   }
 
-  StmtNode &EmitStmt(SSATab &ssaTab);
+  StmtNode &EmitStmt(SSATab &ssaTab) override;
 
   MIRIntrinsicID GetIntrinsic() const {
     return intrinsic;
@@ -2615,17 +2615,17 @@ class AsmMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
   }
 
   virtual ~AsmMeStmt() = default;
-  void Dump(const IRMap*) const;
-  MapleMap<OStIdx, ScalarMeExpr *> *GetMuList() {
+  void Dump(const IRMap*) const override;
+  MapleMap<OStIdx, ScalarMeExpr *> *GetMuList() override {
     return &muList;
   }
-  MapleMap<OStIdx, ChiMeNode *> *GetChiList() {
+  MapleMap<OStIdx, ChiMeNode *> *GetChiList() override {
     return &chiList;
   }
-  MapleVector<MustDefMeNode> *GetMustDefList() {
+  MapleVector<MustDefMeNode> *GetMustDefList() override {
     return &mustDefList;
   }
-  StmtNode &EmitStmt(SSATab &ssaTab);
+  StmtNode &EmitStmt(SSATab &ssaTab) override;
 
   MapleString asmString;
   MapleVector<UStrIdx> inputConstraints;  // length is numOpnds
@@ -2642,8 +2642,8 @@ class RetMeStmt : public NaryMeStmt {
 
   ~RetMeStmt() = default;
 
-  void Dump(const IRMap*) const;
-  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
+  void Dump(const IRMap*) const override;
+  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() override {
     return &muList;
   }
 
@@ -2662,15 +2662,15 @@ class UnaryMeStmt : public MeStmt {
 
   virtual ~UnaryMeStmt() = default;
 
-  size_t NumMeStmtOpnds() const {
+  size_t NumMeStmtOpnds() const override {
     return kOperandNumUnary;
   }
 
-  MeExpr *GetOpnd(size_t) const {
+  MeExpr *GetOpnd(size_t) const override {
     return opnd;
   }
 
-  void SetOpnd(size_t, MeExpr *val) {
+  void SetOpnd(size_t, MeExpr *val) override {
     opnd = val;
   }
 
@@ -2682,9 +2682,9 @@ class UnaryMeStmt : public MeStmt {
     opnd = val;
   }
 
-  void Dump(const IRMap*) const;
+  void Dump(const IRMap*) const override;
 
-  StmtNode &EmitStmt(SSATab &ssaTab);
+  StmtNode &EmitStmt(SSATab &ssaTab) override;
 
  private:
   MeExpr *opnd = nullptr;
@@ -2728,12 +2728,6 @@ class SafetyCallCheckMeStmt {
 
 class SafetyCheckMeStmt {
  public:
-  explicit SafetyCheckMeStmt(GStrIdx funcNameIdx)
-      : funcNameIdx(funcNameIdx) {}
-  explicit SafetyCheckMeStmt(const SafetyCheckMeStmt& stmt)
-      : funcNameIdx(stmt.GetFuncNameIdx()) {}
-  SafetyCheckMeStmt() {}
-
   virtual ~SafetyCheckMeStmt() = default;
 
   const std::string& GetFuncName() const {
@@ -2743,6 +2737,13 @@ class SafetyCheckMeStmt {
   GStrIdx GetFuncNameIdx() const {
     return funcNameIdx;
   }
+
+ protected:
+  explicit SafetyCheckMeStmt(GStrIdx funcNameIdx)
+      : funcNameIdx(funcNameIdx) {}
+  explicit SafetyCheckMeStmt(const SafetyCheckMeStmt& stmt)
+      : funcNameIdx(stmt.GetFuncNameIdx()) {}
+  SafetyCheckMeStmt() {}
 
  private:
   GStrIdx funcNameIdx;
@@ -2867,8 +2868,8 @@ class CondGotoMeStmt : public UnaryMeStmt {
     }
   }
 
-  void Dump(const IRMap*) const;
-  StmtNode &EmitStmt(SSATab &ssaTab);
+  void Dump(const IRMap*) const override;
+  StmtNode &EmitStmt(SSATab &ssaTab) override;
 
  private:
   uint32 offset;  // the label
@@ -2968,8 +2969,8 @@ class SwitchMeStmt : public UnaryMeStmt {
     return switchTable;
   }
 
-  void Dump(const IRMap*) const;
-  StmtNode &EmitStmt(SSATab &ssatab);
+  void Dump(const IRMap*) const override;
+  StmtNode &EmitStmt(SSATab &ssatab) override;
 
  private:
   LabelIdx defaultLabel;
@@ -2998,7 +2999,7 @@ class WithMuMeStmt : public MeStmt {
 
   virtual ~WithMuMeStmt() = default;
 
-  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
+  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() override {
     return &muList;
   }
 
@@ -3017,8 +3018,8 @@ class GosubMeStmt : public WithMuMeStmt {
 
   ~GosubMeStmt() = default;
 
-  void Dump(const IRMap*) const;
-  StmtNode &EmitStmt(SSATab &ssatab);
+  void Dump(const IRMap*) const override;
+  StmtNode &EmitStmt(SSATab &ssatab) override;
 
  private:
   uint32 offset;  // the label
@@ -3030,15 +3031,15 @@ class ThrowMeStmt : public WithMuMeStmt {
 
   ~ThrowMeStmt() = default;
 
-  size_t NumMeStmtOpnds() const {
+  size_t NumMeStmtOpnds() const override {
     return kOperandNumUnary;
   }
 
-  MeExpr *GetOpnd(size_t) const {
+  MeExpr *GetOpnd(size_t) const override {
     return opnd;
   }
 
-  void SetOpnd(size_t, MeExpr *val) {
+  void SetOpnd(size_t, MeExpr *val) override {
     opnd = val;
   }
 
@@ -3050,8 +3051,8 @@ class ThrowMeStmt : public WithMuMeStmt {
     opnd = val;
   }
 
-  void Dump(const IRMap*) const;
-  StmtNode &EmitStmt(SSATab &ssaTab);
+  void Dump(const IRMap*) const override;
+  StmtNode &EmitStmt(SSATab &ssaTab) override;
 
  private:
   MeExpr *opnd = nullptr;
@@ -3063,12 +3064,12 @@ class SyncMeStmt : public NaryMeStmt, public MuChiMePart {
 
   ~SyncMeStmt() = default;
 
-  void Dump(const IRMap*) const;
-  MapleMap<OStIdx, ScalarMeExpr *> *GetMuList() {
+  void Dump(const IRMap*) const override;
+  MapleMap<OStIdx, ScalarMeExpr *> *GetMuList() override {
     return &muList;
   }
 
-  MapleMap<OStIdx, ChiMeNode *> *GetChiList() {
+  MapleMap<OStIdx, ChiMeNode *> *GetChiList() override {
     return &chiList;
   }
 };

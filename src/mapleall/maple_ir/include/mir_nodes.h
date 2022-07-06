@@ -121,7 +121,7 @@ class BaseNode : public BaseNodeT {
 
   const char *GetOpName() const;
   bool MayThrowException();
-  virtual size_t NumOpnds() const {
+  virtual size_t NumOpnds() const override {
     return numOpnds;
   }
 
@@ -571,7 +571,7 @@ class IreadPCoffNode : public IreadFPoffNode {
     ptyp = typ;
     numOpnds = numopns;
   }
-  virtual ~IreadPCoffNode() {}
+  virtual ~IreadPCoffNode() override {}
 };
 
 typedef IreadPCoffNode AddroffPCNode;
@@ -1162,7 +1162,7 @@ class FieldsDistNode : public BaseNode {
 
 class ArrayNode : public NaryNode {
  public:
-  ArrayNode(MapleAllocator &allocator) : NaryNode(allocator, OP_array) {}
+  explicit ArrayNode(MapleAllocator &allocator) : NaryNode(allocator, OP_array) {}
 
   explicit ArrayNode(const MIRModule &mod) : ArrayNode(mod.GetCurFuncCodeMPAllocator()) {}
 
@@ -1188,7 +1188,7 @@ class ArrayNode : public NaryNode {
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
-  bool IsSameBase(ArrayNode*);
+  bool IsSameBase(ArrayNode *arry);
 
   size_t NumOpnds() const override {
     ASSERT(numOpnds == GetNopndSize(), "ArrayNode has wrong numOpnds field");
@@ -2344,7 +2344,7 @@ class BlockNode : public StmtNode {
 
   BlockNode() : StmtNode(OP_block) {}
 
-  ~BlockNode() {
+  ~BlockNode() override {
     stmtNodeList.clear();
   }
 
@@ -2886,7 +2886,7 @@ class IassignoffNode : public BinaryStmtNode {
 // for iassignfpoff, iassignspoff, iassignpcoff
 class IassignFPoffNode : public UnaryStmtNode {
  public:
-  IassignFPoffNode(Opcode o) : UnaryStmtNode(o) {}
+  explicit IassignFPoffNode(Opcode o) : UnaryStmtNode(o) {}
 
   explicit IassignFPoffNode(Opcode o, int32 ofst) : UnaryStmtNode(o), offset(ofst) {}
 
@@ -3110,7 +3110,7 @@ class CallAssertNonnullStmtNode : public UnaryStmtNode, public SafetyCallCheckSt
  public:
   CallAssertNonnullStmtNode(Opcode o, GStrIdx callFuncNameIdx, size_t paramIndex, GStrIdx stmtFuncNameIdx)
       : UnaryStmtNode(o), SafetyCallCheckStmtNode(callFuncNameIdx, paramIndex, stmtFuncNameIdx) {}
-  virtual ~CallAssertNonnullStmtNode() {}
+  virtual ~CallAssertNonnullStmtNode() override {}
 
   void Dump(int32 indent) const override;
 
@@ -3127,7 +3127,7 @@ class AssertNonnullStmtNode : public UnaryStmtNode, public SafetyCheckStmtNode {
  public:
   AssertNonnullStmtNode(Opcode o, GStrIdx funcNameIdx)
       : UnaryStmtNode(o), SafetyCheckStmtNode(funcNameIdx) {}
-  virtual ~AssertNonnullStmtNode() {}
+  virtual ~AssertNonnullStmtNode() override {}
 
   void Dump(int32 indent) const override;
 
@@ -3144,7 +3144,7 @@ class AssertBoundaryStmtNode : public NaryStmtNode, public SafetyCheckStmtNode {
  public:
   AssertBoundaryStmtNode(MapleAllocator &allocator, Opcode o, GStrIdx funcNameIdx)
       : NaryStmtNode(allocator, o), SafetyCheckStmtNode(funcNameIdx) {}
-  virtual ~AssertBoundaryStmtNode() {}
+  virtual ~AssertBoundaryStmtNode() override {}
 
   AssertBoundaryStmtNode(MapleAllocator &allocator, const AssertBoundaryStmtNode& stmtNode)
       : NaryStmtNode(allocator, stmtNode), SafetyCheckStmtNode(stmtNode) {}
@@ -3171,7 +3171,7 @@ class CallAssertBoundaryStmtNode : public NaryStmtNode, public SafetyCallCheckSt
   CallAssertBoundaryStmtNode(MapleAllocator &allocator, Opcode o, GStrIdx funcNameIdx, size_t paramIndex,
                              GStrIdx stmtFuncNameIdx)
       : NaryStmtNode(allocator, o), SafetyCallCheckStmtNode(funcNameIdx, paramIndex, stmtFuncNameIdx) {}
-  virtual ~CallAssertBoundaryStmtNode() {}
+  virtual ~CallAssertBoundaryStmtNode() override {}
 
   CallAssertBoundaryStmtNode(MapleAllocator &allocator, const CallAssertBoundaryStmtNode& stmtNode)
       : NaryStmtNode(allocator, stmtNode), SafetyCallCheckStmtNode(stmtNode) {}

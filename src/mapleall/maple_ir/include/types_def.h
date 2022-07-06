@@ -53,7 +53,7 @@ class StIdx {  // scope nesting level + symbol table index
     u.scopeIdx.idx = i;
   }
 
-  StIdx(uint32 fidx) {
+  explicit StIdx(uint32 fidx) {
     u.fullIdx = fidx;
   }
 
