@@ -285,6 +285,7 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
       retExpr = FEIRBuilder::CreateExprConstAnyScalar(retType, static_cast<int64>(0));
     }
     UniqueFEIRStmt retStmt = std::make_unique<FEIRStmtReturn>(std::move(retExpr));
+    retStmt->SetSrcLoc(astCpdStmt->GetEndLoc());
     stmts.emplace_back(std::move(retStmt));
   }
   InsertBoundaryCheckingInRet(stmts);

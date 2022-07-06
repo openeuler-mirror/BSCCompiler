@@ -805,8 +805,7 @@ void FEFunction::PushStmtScope(const SrcPosition &startOfScope, const SrcPositio
   UniqueFEIRScope feirScope = std::make_unique<FEIRScope>();
   if (FEOptions::GetInstance().IsDbgFriendly()) {
     MIRScope *parentMIRScope = GetTopStmtMIRScope();
-    MIRScope *mirScope = mirFunction.GetModule()->GetMemPool()->New<MIRScope>(
-        mirFunction.GetModule());
+    MIRScope *mirScope = mirFunction.GetModule()->GetMemPool()->New<MIRScope>(mirFunction.GetModule());
     mirScope->SetRange(startOfScope, endOfScope);
     parentMIRScope->AddScope(mirScope);
     feirScope->SetMIRScope(mirScope);
