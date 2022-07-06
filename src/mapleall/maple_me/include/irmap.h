@@ -149,6 +149,8 @@ class IRMap : public AnalysisResult {
   MeExpr *SimplifyOpMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyOrMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyAshrMeExpr(OpMeExpr *opmeexpr);
+  MeExpr *SimplifyDepositbits(const OpMeExpr &opmeexpr);
+  MeExpr *SimplifyExtractbits(const OpMeExpr &opmeexpr);
   MeExpr *SimplifyMeExpr(MeExpr *x);
   void SimplifyCastForAssign(MeStmt *assignStmt);
   void SimplifyAssign(AssignMeStmt *assignStmt);

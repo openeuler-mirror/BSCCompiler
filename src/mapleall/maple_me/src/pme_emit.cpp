@@ -257,6 +257,16 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
       PreMeExprExtensionMap[extNode] = pmeExt;
       return extNode;
     }
+    case OP_depositbits: {
+      OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meexpr);
+      DepositbitsNode *depNode = codeMP->New<DepositbitsNode>(meexpr->GetOp(), meexpr->GetPrimType());
+      depNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(0), depNode), 0);
+      depNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(1), depNode), 1);
+      depNode->SetBitsOffset(opMeexpr->GetBitsOffSet());
+      depNode->SetBitsSize(opMeexpr->GetBitsSize());
+      PreMeExprExtensionMap[depNode] = pmeExt;
+      return depNode;
+    }
     case OP_regread: {
       RegMeExpr *regMeexpr = static_cast<RegMeExpr *>(meexpr);
       RegreadNode *regNode = codeMP->New<RegreadNode>();

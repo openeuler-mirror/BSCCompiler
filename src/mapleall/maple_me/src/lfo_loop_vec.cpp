@@ -1830,7 +1830,10 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
         if (parent && parent->GetOpCode() == OP_array && x == parent->Opnd(0)) {
           return true;
         }
-        if (!isArraySub) {
+        if (!isArraySub && !vecInfo->UpdateRHSTypeSize(x->GetPrimType())) {
+          // no vectorize if rhs operands types are not same
+          return false;
+        } else if (!isArraySub) {
           vecInfo->uniformNodes.insert(x);
         }
         return true;

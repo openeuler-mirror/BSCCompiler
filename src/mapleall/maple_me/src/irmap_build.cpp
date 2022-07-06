@@ -297,6 +297,14 @@ std::unique_ptr<MeExpr> IRMapBuild::BuildOpMeExprForExtractbits(const BaseNode &
   return meExpr;
 }
 
+std::unique_ptr<MeExpr> IRMapBuild::BuildOpMeExprForDepositbits(const BaseNode &mirNode) const {
+  auto meExpr = BuildOpMeExpr(mirNode);
+  auto &depositbitsNode = static_cast<const DepositbitsNode&>(mirNode);
+  meExpr->SetBitsOffSet(depositbitsNode.GetBitsOffset());
+  meExpr->SetBitsSize(depositbitsNode.GetBitsSize());
+  return meExpr;
+}
+
 std::unique_ptr<MeExpr> IRMapBuild::BuildOpMeExprForJarrayMalloc(const BaseNode &mirNode) const {
   auto meExpr = BuildOpMeExpr(mirNode);
   meExpr->SetTyIdx(static_cast<const JarrayMallocNode&>(mirNode).GetTyIdx());
@@ -494,6 +502,7 @@ void IRMapBuild::InitMeExprBuildFactory() {
   RegisterFactoryFunction<MeExprBuildFactory>(OP_sext, &IRMapBuild::BuildOpMeExprForExtractbits);
   RegisterFactoryFunction<MeExprBuildFactory>(OP_zext, &IRMapBuild::BuildOpMeExprForExtractbits);
   RegisterFactoryFunction<MeExprBuildFactory>(OP_extractbits, &IRMapBuild::BuildOpMeExprForExtractbits);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_depositbits, &IRMapBuild::BuildOpMeExprForDepositbits);
   RegisterFactoryFunction<MeExprBuildFactory>(OP_gcmallocjarray, &IRMapBuild::BuildOpMeExprForJarrayMalloc);
   RegisterFactoryFunction<MeExprBuildFactory>(OP_gcpermallocjarray, &IRMapBuild::BuildOpMeExprForJarrayMalloc);
   RegisterFactoryFunction<MeExprBuildFactory>(OP_resolveinterfacefunc, &IRMapBuild::BuildOpMeExprForResolveFunc);

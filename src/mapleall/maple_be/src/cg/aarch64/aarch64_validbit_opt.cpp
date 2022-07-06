@@ -119,6 +119,13 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       dstOpnd.SetValidBitsNum(newVB);
       break;
     }
+    case MOP_wubfxrri5i5:
+    case MOP_xubfxrri6i6: {
+      auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+      auto &widthOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnFourthOpnd));
+      dstOpnd.SetValidBitsNum(static_cast<uint32>(widthOpnd.GetValue()));
+      break;
+    }
     case MOP_wldrb:
     case MOP_wldrh: {
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
@@ -336,6 +343,9 @@ void ExtValidBitPattern::Run(BB &bb, Insn &insn) {
       bb.ReplaceInsn(insn, newInsn);
       /* update ssa info */
       ssaInfo->ReplaceInsn(insn, newInsn);
+      if (newDstOpnd->GetSize() > newSrcOpnd->GetSize()) {
+        ssaInfo->InsertSafePropInsn(newInsn.GetId());
+      }
       /* dump pattern info */
       if (CG_VALIDBIT_OPT_DUMP) {
         std::vector<Insn*> prevs;
@@ -438,6 +448,7 @@ bool CmpCsetVBPattern::CheckCondition(Insn &csetInsn) {
     return false;
   }
   VRegVersion *ccRegVersion = ssaInfo->FindSSAVersion(ccRegNo);
+  CHECK_NULL_FATAL(ccRegVersion);
   if (ccRegVersion->GetAllUseInsns().size() > k1BitSize) {
     return false;
   }

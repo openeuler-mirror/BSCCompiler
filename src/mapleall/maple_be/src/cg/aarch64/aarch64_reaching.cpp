@@ -943,7 +943,6 @@ bool AArch64ReachingDefinition::FindRegUseBetweenInsn(uint32 regNO, Insn *startI
           (void)regUseInsnSet.insert(insn);
         }
       } else if (opnd.IsRegister() && (static_cast<RegOperand&>(opnd).GetRegisterNumber() == regNO)) {
-        ASSERT(!regProp->IsDef(), "def use both reg");
         (void)regUseInsnSet.insert(insn);
       }
     }

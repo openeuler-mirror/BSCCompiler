@@ -70,6 +70,7 @@ class IRMapBuild {
   std::unique_ptr<MeExpr> BuildOpMeExprForRetype(const BaseNode &mirNode) const;
   std::unique_ptr<MeExpr> BuildOpMeExprForIread(const BaseNode &mirNode) const;
   std::unique_ptr<MeExpr> BuildOpMeExprForExtractbits(const BaseNode &mirNode) const;
+  std::unique_ptr<MeExpr> BuildOpMeExprForDepositbits(const BaseNode &mirNode) const;
   std::unique_ptr<MeExpr> BuildOpMeExprForJarrayMalloc(const BaseNode &mirNode) const;
   std::unique_ptr<MeExpr> BuildOpMeExprForResolveFunc(const BaseNode &mirNode) const;
   std::unique_ptr<MeExpr> BuildNaryMeExprForArray(const BaseNode &mirNode) const;

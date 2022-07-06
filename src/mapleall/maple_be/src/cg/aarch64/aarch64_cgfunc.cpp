@@ -421,7 +421,8 @@ void AArch64CGFunc::SelectCopyImm(Operand &dest, ImmOperand &src, PrimType dtype
     ImmOperand &srcLower = CreateImmOperand(static_cast<int64>(srcVal & 0x0000FFFFULL), k16BitSize, false);
     GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovri32, dest, srcLower));
     /* create an imm opereand which represents upper 16 bits of the immediate */
-    ImmOperand &srcUpper = CreateImmOperand(static_cast<int64>((srcVal >> k16BitSize) & 0x0000FFFFULL), k16BitSize, false);
+    ImmOperand &srcUpper = CreateImmOperand(static_cast<int64>((srcVal >> k16BitSize) & 0x0000FFFFULL),
+        k16BitSize, false);
     LogicalShiftLeftOperand *lslOpnd = GetLogicalShiftLeftOperand(k16BitSize, false);
     GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wmovkri16, dest, srcUpper, *lslOpnd));
   } else {
@@ -5262,6 +5263,9 @@ Operand *AArch64CGFunc::SelectDepositBits(DepositbitsNode &node, Operand &opnd0,
   uint32 bitSize = node.GetBitsSize();
   PrimType regType = node.GetPrimType();
   bool is64Bits = GetPrimTypeBitSize(regType) == k64BitSize;
+  // deposit does not define opnd0 but bfi does, so we need an extra copy to keep opnd0 wont de defined
+  Operand *result = &GetOrCreateResOperand(parent, regType);
+  SelectCopy(*result, regType, opnd0, regType);
   /*
    * if operand 1 is immediate and fits in MOVK, use it
    * MOVK Wd, #imm{, LSL #shift} ; 32-bit general registers
@@ -5270,7 +5274,7 @@ Operand *AArch64CGFunc::SelectDepositBits(DepositbitsNode &node, Operand &opnd0,
   if (opnd1.IsIntImmediate() &&
       IsMoveWideKeepable(static_cast<ImmOperand&>(opnd1).GetValue(), bitOffset, bitSize, is64Bits)) {
     RegOperand &resOpnd = GetOrCreateResOperand(parent, regType);
-    SelectCopy(resOpnd, regType, opnd0, regType);
+    SelectCopy(resOpnd, regType, *result, regType);
     GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>((is64Bits ? MOP_xmovkri16 : MOP_wmovkri16),
                                                                   resOpnd, opnd1,
                                                                   *GetLogicalShiftLeftOperand(bitOffset, is64Bits)));
@@ -5280,8 +5284,8 @@ Operand *AArch64CGFunc::SelectDepositBits(DepositbitsNode &node, Operand &opnd0,
     uint32 mopBfi = is64Bits ? MOP_xbfirri6i6 : MOP_wbfirri5i5;
     ImmOperand &immOpnd1 = CreateImmOperand(bitOffset, k8BitSize, false);
     ImmOperand &immOpnd2 = CreateImmOperand(bitSize, k8BitSize, false);
-    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mopBfi, opnd0, movOpnd, immOpnd1, immOpnd2));
-    return &opnd0;
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mopBfi, *result, movOpnd, immOpnd1, immOpnd2));
+    return result;
   }
 }
 

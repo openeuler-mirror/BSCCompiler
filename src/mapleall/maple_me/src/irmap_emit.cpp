@@ -182,6 +182,15 @@ BaseNode &OpMeExpr::EmitExpr(SSATab &ssaTab) {
       unode->SetBitsSize(bitsSize);
       return *unode;
     }
+    case OP_depositbits: {
+      auto *bnode = ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<DepositbitsNode>(
+          Opcode(GetOp()), PrimType(GetPrimType()));
+      bnode->SetOpnd(&opnds[0]->EmitExpr(ssaTab), 0);
+      bnode->SetOpnd(&opnds[1]->EmitExpr(ssaTab), 1);
+      bnode->SetBitsOffset(bitsOffset);
+      bnode->SetBitsSize(bitsSize);
+      return *bnode;
+    }
     case OP_select: {
       auto *ternaryNode = ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<TernaryNode>(
           Opcode(GetOp()), PrimType(GetPrimType()));

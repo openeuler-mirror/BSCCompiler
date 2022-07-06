@@ -368,6 +368,73 @@ StmtNode *Simplify::SimplifyToSelect(MIRFunction *func, IfStmtNode *ifNode, Bloc
   return newDassign;
 }
 
+struct BitFieldExtract {
+  int64 byteOffset = 0;
+  int64 extractStart = 0;
+  int64 extractSize = 0;
+  MIRType *extractType = nullptr;
+};
+
+static bool ExtractBitField(const MIRPtrType &type, FieldID fldID, BitFieldExtract &bfe) {
+  // skip volatile field and packed struct
+  if (type.IsPointedTypeVolatile(fldID)) {
+    return false;
+  }
+  auto *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(type.GetPointedTyIdxWithFieldID(fldID));
+  ASSERT_NOT_NULL(fieldType);
+  if (fieldType->GetKind() != kTypeBitField || GetPrimTypeSize(fieldType->GetPrimType()) > GetPrimTypeSize(PTY_u64)) {
+    return false;
+  }
+  auto bitOffset = type.GetPointedType()->GetBitOffsetFromBaseAddr(fldID);
+  auto extractSize = static_cast<MIRBitFieldType*>(fieldType)->GetFieldSize();
+  if ((bitOffset / LLONG_WIDTH) != ((bitOffset + extractSize) / LLONG_WIDTH)) {
+    return false;
+  }
+  if (bitOffset % CHAR_WIDTH == 0 && (extractSize == CHAR_WIDTH || extractSize == SHRT_WIDTH ||
+                                      extractSize == INT_WIDTH || extractSize == LLONG_WIDTH)) {
+    return false;
+  }
+  auto byteOffset = (bitOffset / LLONG_WIDTH) * CHAR_WIDTH;  // expand the read length to 64 bit
+  auto *readType = GlobalTables::GetTypeTable().GetUInt64();
+  if ((bitOffset / INT_WIDTH) == ((bitOffset + extractSize) / INT_WIDTH)) {
+    byteOffset = (bitOffset / INT_WIDTH) * INT_WIDTH / CHAR_WIDTH;  // expand the read length to 32 bit
+    readType = GlobalTables::GetTypeTable().GetUInt32();
+  }
+  bfe.byteOffset = byteOffset;
+  bfe.extractStart = bitOffset - byteOffset * CHAR_WIDTH;
+  bfe.extractSize = extractSize;
+  bfe.extractType = readType;
+  return true;
+}
+
+// Bitfield can not write directly, when write 2 bitfields that belong to the same 4-bytes memory,
+// we can expose the 4-bytes memory's read & write to remove partial/fully redundant. This function
+// lowers bitfield write to `4-bytes memory's read + bits insert + 4-bytes memory write`.
+StmtNode *Simplify::SimplifyBitFieldWrite(const IassignNode &iass) {
+  if (iass.GetFieldID() == 0) {
+    return nullptr;
+  }
+  auto *type = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(iass.GetTyIdx()));
+  BitFieldExtract bfe;
+  if (!ExtractBitField(*type, iass.GetFieldID(), bfe)) {
+    return nullptr;
+  }
+  CHECK_NULL_FATAL(bfe.extractType);
+  auto *newIvarType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*bfe.extractType);
+  auto *base = iass.Opnd(0);
+  MIRBuilder *mirBuiler = currFunc->GetModule()->GetMIRBuilder();
+  if (bfe.byteOffset != 0) {
+    base = mirBuiler->CreateExprBinary(OP_add, PTY_a64, base,
+        mirBuiler->CreateIntConst(static_cast<uint64>(bfe.byteOffset), PTY_a64));
+  }
+  auto *readIvar = mirBuiler->CreateExprIread(*bfe.extractType, *newIvarType, 0, base);
+  auto *deposit = mirBuiler->CreateExprDepositbits(OP_depositbits, bfe.extractType->GetPrimType(),
+      static_cast<uint32>(bfe.extractStart), static_cast<uint32>(bfe.extractSize), readIvar, iass.GetRHS());
+  auto *newIass = mirBuiler->CreateStmtIassign(*newIvarType, 0, base, deposit);
+  currBlock->ReplaceStmt1WithStmt2(&iass, newIass);
+  return newIass;
+}
+
 void Simplify::ProcessStmt(StmtNode &stmt) {
   switch (stmt.GetOpCode()) {
     case OP_callassigned: {
@@ -388,7 +455,11 @@ void Simplify::ProcessStmt(StmtNode &stmt) {
       break;
     }
     case OP_iassign: {
-      auto *newStmt = SplitIassignAggCopy(static_cast<IassignNode *>(&stmt), currBlock, currFunc);
+      auto *newStmt = SimplifyBitFieldWrite(static_cast<IassignNode&>(stmt));
+      if (newStmt) {
+        break;
+      }
+      newStmt = SplitIassignAggCopy(static_cast<IassignNode *>(&stmt), currBlock, currFunc);
       if (newStmt) {
         ProcessBlock(*newStmt);
       }
@@ -418,6 +489,9 @@ BaseNode *Simplify::SimplifyExpr(BaseNode &expr) {
       auto &dread = static_cast<DreadNode&>(expr);
       return ReplaceExprWithConst(dread);
     }
+    case OP_iread: {
+      return SimplifyBitFieldRead(static_cast<IreadNode&>(expr));
+    }
     default: {
       for (auto i = 0; i < expr.GetNumOpnds(); i++) {
         if(expr.Opnd(i)) {
@@ -428,6 +502,38 @@ BaseNode *Simplify::SimplifyExpr(BaseNode &expr) {
     }
   }
   return &expr;
+}
+
+// Bitfield can not read directly, when read 2 bitfields that belong to the same 4-bytes memory,
+// we can expose the 4-bytes memory's read to remove partial/fully redundant. This function lowers
+// bitfield read to `4-bytes memory's read + bits extract.
+BaseNode *Simplify::SimplifyBitFieldRead(IreadNode &iread) {
+  if (iread.GetFieldID() == 0) {
+    return &iread;
+  }
+  auto *type = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(iread.GetTyIdx()));
+  BitFieldExtract bfe;
+  if (!ExtractBitField(*type, iread.GetFieldID(), bfe)) {
+    return &iread;
+  }
+  CHECK_NULL_FATAL(bfe.extractType);
+  auto *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(type->GetPointedTyIdxWithFieldID(iread.GetFieldID()));
+  auto extractPtyp = IsSignedInteger(fieldType->GetPrimType()) ?
+      GetSignedPrimType(bfe.extractType->GetPrimType()) : bfe.extractType->GetPrimType();
+  auto *newIvarType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*bfe.extractType);
+  auto *base = iread.Opnd(0);
+  MIRBuilder *mirBuiler = currFunc->GetModule()->GetMIRBuilder();
+  if (bfe.byteOffset != 0) {
+    base = mirBuiler->CreateExprBinary(OP_add, PTY_a64, base,
+        mirBuiler->CreateIntConst(static_cast<uint64>(bfe.byteOffset), PTY_a64));
+  }
+  auto *readIvar = mirBuiler->CreateExprIread(*bfe.extractType, *newIvarType, 0, base);
+  auto *extract = mirBuiler->CreateExprExtractbits(OP_extractbits, extractPtyp, static_cast<uint32>(bfe.extractStart),
+                                                   static_cast<uint32>(bfe.extractSize), readIvar);
+  if (extractPtyp != iread.GetPrimType()) {
+    return mirBuiler->CreateExprTypeCvt(OP_cvt, iread.GetPrimType(), extractPtyp, *extract);
+  }
+  return extract;
 }
 
 BaseNode *Simplify::ReplaceExprWithConst(DreadNode &dread) {

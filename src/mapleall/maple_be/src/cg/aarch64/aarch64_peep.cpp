@@ -2667,10 +2667,9 @@ bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(const Insn &curI
       addVal = addImmOpnd.GetValue();
     }
     auto *newOfstOpnd = &aarFunc.CreateOfstOpnd(static_cast<uint64>(ofstOpnd->GetOffsetValue() - addVal),
-                                                         ofstOpnd->GetSize());
+        ofstOpnd->GetSize());
     auto *newMemOpnd = aarFunc.CreateMemOperand(MemOperand::kAddrModeBOi, opndProp->GetSize(),
-                                                              newBaseReg, nullptr, newOfstOpnd,
-                                                              memOperand.GetSymbol());
+        newBaseReg, nullptr, newOfstOpnd, memOperand.GetSymbol());
     if (!(static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(combineInsn.GetMachineOpcode(), newMemOpnd,
                                                                  kInsnThirdOpnd))) {
       return PlaceSplitAddInsn(curInsn, combineInsn, memOperand, *baseRegOpnd, opndProp->GetSize());
@@ -5594,16 +5593,12 @@ void UbfxAndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
   MOperator nextMop = useInsn->GetMachineOpcode();
   switch (nextMop) {
     case MOP_wcbz:
-      newMop = MOP_wtbz;
-      break;
     case MOP_xcbz:
-      newMop = MOP_xtbz;
+      newMop = opnd2.GetSize() == k64BitSize ? MOP_xtbz : MOP_wtbz;
       break;
     case MOP_wcbnz:
-      newMop = MOP_wtbnz;
-      break;
     case MOP_xcbnz:
-      newMop = MOP_xtbnz;
+      newMop = opnd2.GetSize() == k64BitSize ? MOP_xtbnz : MOP_wtbnz;
       break;
     default:
       return;

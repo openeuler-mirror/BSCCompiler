@@ -537,6 +537,7 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsns(Insn &insn) {
   /* part defined */
   if ((defInsnForSecondOpnd->GetMachineOpcode() == MOP_xmovkri16) ||
       (defInsnForSecondOpnd->GetMachineOpcode() == MOP_wmovkri16) ||
+      (defInsnForSecondOpnd->GetBothDefUseOpnd() != kInsnMaxOpnd) ||
       (defInsnForSecondOpnd->GetMachineOpcode() == MOP_asm)) {
     return false;
   }
@@ -784,8 +785,8 @@ void BackPropPattern::Optimize(Insn &insn) {
    * foo:
    * bl                                               bl // bar()
    * mov vreg, X0  //res = bar()        naive bkprop
-   * ....          //X0 is not redefined    ====>        ....  //X0 may be reused as RA sees "X0 has not been used" after bl
-   * mov X0, vreg                                              //In fact, X0 is implicitly used by foo. We need to tell RA that X0 is live
+   * ....          //X0 is not redefined    ====>    ....  //X0 may be reused as RA sees "X0 has not been used" after bl
+   * mov X0, vreg                            //In fact, X0 is implicitly used by foo. We need to tell RA that X0 is live
    * ret                                              ret
    *
    * To make RA simple, we tell RA to not use X0 by keeping "mov X0, X0". That is

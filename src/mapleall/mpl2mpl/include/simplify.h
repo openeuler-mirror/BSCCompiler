@@ -137,6 +137,8 @@ class Simplify : public FuncOptimizeImpl {
   bool IsConstRepalceable(const MIRConst &mirConst) const;
   bool SimplifyMathMethod(const StmtNode &stmt, BlockNode &block);
   void SimplifyCallAssigned(StmtNode &stmt, BlockNode &block);
+  StmtNode *SimplifyBitFieldWrite(const IassignNode &iass);
+  BaseNode *SimplifyBitFieldRead(IreadNode &iread);
   StmtNode *SimplifyToSelect(MIRFunction *func, IfStmtNode *ifNode, BlockNode *block);
   BaseNode *SimplifyExpr(BaseNode &expr);
   BaseNode *ReplaceExprWithConst(DreadNode &dread);

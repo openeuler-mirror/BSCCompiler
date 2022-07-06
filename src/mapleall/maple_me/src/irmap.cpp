@@ -298,7 +298,7 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
       MeExpr *newBase = nullptr;
       int32 offsetVal = 0;
       bool dontRecurse = false;
-      if ((ptrVar == nullptr || ptrVar->GetOst()->isPtrWithIncDec)) {
+      if ((ptrVar == nullptr || ptrVar->GetOst()->isPtrWithIncDec || !MeOption::strengthReduction)) {
         // get offset value
         auto *mirConst = static_cast<ConstMeExpr*>(offsetNode)->GetConstVal();
         CHECK_FATAL(mirConst->GetKind() == kConstInt, "must be integer const");
@@ -2158,6 +2158,89 @@ static bool IsSignBitZero(MeExpr *opnd, uint64 signBit, uint64 shiftAmt) {
   return false;
 }
 
+MeExpr *IRMap::SimplifyDepositbits(const OpMeExpr &opmeexpr) {
+  if (opmeexpr.GetOp() != OP_depositbits) {
+    return nullptr;
+  }
+
+  auto *opnd0 = opmeexpr.GetOpnd(0);
+  auto *opnd1 = opmeexpr.GetOpnd(1);
+  if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
+    uint8 bitsOffset = opmeexpr.GetBitsOffSet();
+    uint8 bitsSize = opmeexpr.GetBitsSize();
+    uint64 mask0 = (1LLU << (bitsSize + bitsOffset)) - 1;
+    uint64 mask1 = (1LLU << bitsOffset) - 1;
+    uint64 op0Mask = ~(mask0 ^ mask1);
+    uint64 op0ExtractVal = (static_cast<uint64>(static_cast<ConstMeExpr*>(opnd0)->GetExtIntValue()) & op0Mask);
+    uint64 op1ExtractVal = (static_cast<uint64>(static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue()) << bitsOffset) &
+                           ((1ULL << (bitsSize + bitsOffset)) - 1);
+    return CreateIntConstMeExpr(static_cast<int64>(op0ExtractVal | op1ExtractVal), opmeexpr.GetPrimType());
+  }
+
+  // depositbits 9 4 (a, zext u32 8 (b)) ==> depositbits 9 4 (a, b)
+  if (opnd1->GetOp() == OP_zext || opnd1->GetOp() == OP_sext) {
+    if (static_cast<OpMeExpr*>(opnd1)->GetBitsSize() >= opmeexpr.GetBitsSize()) {
+      OpMeExpr newOp(kInvalidExprID, OP_depositbits, opmeexpr.GetPrimType(), opnd0, opnd1->GetOpnd(0));
+      newOp.SetBitsOffSet(opmeexpr.GetBitsOffSet());
+      newOp.SetBitsSize(opmeexpr.GetBitsSize());
+      auto *ret = SimplifyDepositbits(newOp);
+      return ret == nullptr ? HashMeExpr(newOp) : ret;
+    }
+  }
+
+  // depositbits 1 7 (depositbits 1 5 (a, b), c) ==> depositbits 1 7 (a, c)
+  if (opnd0->GetOp() == OP_depositbits &&
+      opmeexpr.GetBitsOffSet() == static_cast<OpMeExpr*>(opnd0)->GetBitsOffSet() &&
+      opmeexpr.GetBitsSize() >= static_cast<OpMeExpr*>(opnd0)->GetBitsSize()) {
+    OpMeExpr newOp(kInvalidExprID, OP_depositbits, opmeexpr.GetPrimType(), opnd0->GetOpnd(0), opmeexpr.GetOpnd(1));
+    newOp.SetBitsOffSet(opmeexpr.GetBitsOffSet());
+    newOp.SetBitsSize(opmeexpr.GetBitsSize());
+    auto *ret = SimplifyDepositbits(newOp);
+    return ret == nullptr ? HashMeExpr(newOp) : ret;
+  }
+  return nullptr;
+}
+
+MeExpr *IRMap::SimplifyExtractbits(const OpMeExpr &opmeexpr) {
+  if (opmeexpr.GetOp() != OP_extractbits) {
+    return nullptr;
+  }
+
+  auto *opnd0 = opmeexpr.GetOpnd(0);
+  if (opnd0->GetMeOp() == kMeOpConst) {
+    uint8 bitsOffset = opmeexpr.GetBitsOffSet();
+    uint8 bitsSize = opmeexpr.GetBitsSize();
+    auto extractVal = IntVal(static_cast<ConstMeExpr*>(opnd0)->GetIntValue().GetZXTValue(), PTY_u64);
+    extractVal = extractVal.Shl(sizeof(uint64) * CHAR_BIT - (bitsOffset + bitsSize), PTY_u64);
+    extractVal = IsSignedInteger(opmeexpr.GetPrimType()) ?
+        extractVal.AShr(sizeof(uint64) * CHAR_BIT - bitsSize, PTY_u64) :
+        extractVal.LShr(sizeof(uint64) * CHAR_BIT - bitsSize, PTY_u64);
+    return CreateIntConstMeExpr(extractVal, opmeexpr.GetPrimType());
+  }
+
+  if (opnd0->GetOp() == OP_depositbits) {
+    // extractbits 7 22 (depositbits 1 6 (a, b)) ==> extractbits 7 22 (a)
+    // extractbits 7 2 (depositbits 23 4 (a, b)) ==> extractbits 7 2 (a)
+    auto *opnd = static_cast<OpMeExpr*>(opnd0);
+    if (opnd->GetBitsOffSet() + opnd->GetBitsSize() <= opmeexpr.GetBitsOffSet() ||
+        opmeexpr.GetBitsSize() + opmeexpr.GetBitsOffSet() <= opnd->GetBitsOffSet()) {
+      OpMeExpr newOp(kInvalidExprID, OP_extractbits, opmeexpr.GetPrimType(), opnd->GetOpnd(0));
+      newOp.SetBitsOffSet(opmeexpr.GetBitsOffSet());
+      newOp.SetBitsSize(opmeexpr.GetBitsSize());
+      return HashMeExpr(newOp);
+    }
+
+    // extractbits 7 2 (depositbits 7 2 (a, b)) ==> extractbits 0 2 (b)
+    if (opnd->GetBitsOffSet() == opmeexpr.GetBitsOffSet() && opnd->GetBitsSize() == opmeexpr.GetBitsSize()) {
+      OpMeExpr newOp(kInvalidExprID, OP_extractbits, opmeexpr.GetPrimType(), opnd->GetOpnd(1));
+      newOp.SetBitsOffSet(0);
+      newOp.SetBitsSize(opmeexpr.GetBitsSize());
+      return HashMeExpr(newOp);
+    }
+  }
+  return nullptr;
+}
+
 MeExpr *IRMap::SimplifyAshrMeExpr(OpMeExpr *opmeexpr) {
   Opcode opcode = opmeexpr->GetOp();
   if (opcode != OP_ashr) {
@@ -2325,8 +2408,7 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
     case OP_cand:
     case OP_land:
     case OP_cior:
-    case OP_lior:
-    case OP_depositbits: {
+    case OP_lior: {
       if (!IsPrimitiveInteger(opmeexpr->GetPrimType())) {
         return nullptr;
       }
@@ -2347,6 +2429,18 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
       MIRConst *resconst = cf.FoldIntConstBinaryMIRConst(opmeexpr->GetOp(),
           opmeexpr->GetPrimType(), opnd0const, opnd1const);
       return CreateConstMeExpr(opmeexpr->GetPrimType(), *resconst);
+    }
+    case OP_depositbits: {
+      if (!IsPrimitiveInteger(opmeexpr->GetPrimType())) {
+        return nullptr;
+      }
+      return SimplifyDepositbits(*opmeexpr);
+    }
+    case OP_extractbits: {
+      if (!IsPrimitiveInteger(opmeexpr->GetPrimType())) {
+        return nullptr;
+      }
+      return SimplifyExtractbits(*opmeexpr);
     }
     case OP_sub: {
       if (!IsPrimitiveInteger(opmeexpr->GetPrimType())) {

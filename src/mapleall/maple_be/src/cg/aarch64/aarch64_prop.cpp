@@ -478,7 +478,11 @@ bool A64ConstProp::BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &con
         MOperator newMop = GetRegImmMOP(curMop, false);
         Operand &newOpnd = cgFunc->CreateImmOperand(PTY_i64, static_cast<int64>(val));
         if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, &newOpnd, kInsnThirdOpnd)) {
-          Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, useInsn->GetOperand(kInsnFirstOpnd), useInsn->GetOperand(kInsnFirstOpnd), newOpnd);
+          auto &useReg = static_cast<RegOperand&>(useInsn->GetOperand(kInsnSecondOpnd));
+          VRegVersion *implicitDef = ssaInfo->FindSSAVersion(useReg.GetRegisterNumber() + 1);
+          ASSERT(implicitDef->GetDefInsnInfo()->GetInsn() == useInsn, "check def-use insn");
+          Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+              newMop, *implicitDef->GetSSAvRegOpnd(), useInsn->GetOperand(kInsnFirstOpnd), newOpnd);
           ReplaceInsnAndUpdateSSA(*useInsn, newInsn);
           return true;
         }
@@ -1558,6 +1562,9 @@ bool CopyRegProp::IsValidCopyProp(const RegOperand &dstReg, const RegOperand &sr
     if (useInsn == nullptr) {
       continue;
     }
+    if (useInsn->IsPhi() && dstReg.GetSize() != srcReg.GetSize()) {
+      return false;
+    }
 
     dstll = regll->GetLiveInterval(dstRegNO);
     srcll = regll->GetLiveInterval(srcRegNO);
@@ -1591,18 +1598,17 @@ bool CopyRegProp::CheckCondition(Insn &insn) {
       }
       if (destReg.IsSSAForm() && srcReg.IsSSAForm()) {
         /* case for ExplicitExtendProp  */
-        if (destReg.GetSize() != srcReg.GetSize()) {
+        auto &propInsns = optSsaInfo->GetSafePropInsns();
+        bool isSafeCvt = std::find(propInsns.begin(), propInsns.end(), insn.GetId()) != propInsns.end();
+        if (destReg.GetSize() != srcReg.GetSize() && !isSafeCvt) {
           VaildateImplicitCvt(destReg, srcReg, insn);
           return false;
         }
         if (destReg.GetValidBitsNum() >= srcReg.GetValidBitsNum()) {
           destReg.SetValidBitsNum(srcReg.GetValidBitsNum());
-        } else {
-          MapleVector<uint32> &propInsns = optSsaInfo->GetSafePropInsns();
-          if (std::find(propInsns.begin(), propInsns.end(), insn.GetId()) == propInsns.end()) {
-            CHECK_FATAL(false, "do not support explicit extract bit in mov");
-            return false;
-          }
+        } else if (!isSafeCvt) {
+          CHECK_FATAL(false, "do not support explicit extract bit in mov");
+          return false;
         }
         destVersion = optSsaInfo->FindSSAVersion(destReg.GetRegisterNumber());
         ASSERT(destVersion != nullptr, "find Version failed");
