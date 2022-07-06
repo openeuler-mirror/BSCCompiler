@@ -134,7 +134,7 @@ class TypeTable {
   }
 
   void SetTypeWithTyIdx(const TyIdx &tyIdx, MIRType &type);
-  MIRType *GetOrCreateMIRTypeNode(MIRType &ptype);
+  MIRType *GetOrCreateMIRTypeNode(MIRType &pType);
 
   TyIdx GetOrCreateMIRType(MIRType *pType) {
     return GetOrCreateMIRTypeNode(*pType)->GetTypeIndex();
@@ -412,8 +412,9 @@ class TypeTable {
   MIRArrayType *GetOrCreateArrayType(const MIRType &elem, uint32 size, const TypeAttrs &attrs = TypeAttrs());
   MIRType *GetOrCreateFarrayType(const MIRType &elem);
   MIRType *GetOrCreateJarrayType(const MIRType &elem);
-  MIRType *GetOrCreateFunctionType(const TyIdx&, const std::vector<TyIdx>&, const std::vector<TypeAttrs>&,
-                                   bool isVarg = false, const TypeAttrs &retAttrs = TypeAttrs());
+  MIRType *GetOrCreateFunctionType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecType,
+                                   const std::vector<TypeAttrs> &vecAttrs, bool isVarg = false,
+                                   const TypeAttrs &retAttrs = TypeAttrs());
   MIRType *GetOrCreateStructType(const std::string &name, const FieldVector &fields, const FieldVector &prntFields,
                                  MIRModule &module) {
     return GetOrCreateStructOrUnion(name, fields, prntFields, module);
@@ -593,9 +594,9 @@ class FPConstTable {
   ~FPConstTable();
 
   // get the const from floatConstTable or create a new one
-  MIRFloatConst *GetOrCreateFloatConst(float fval);
+  MIRFloatConst *GetOrCreateFloatConst(float floatVal);
   // get the const from doubleConstTable or create a new one
-  MIRDoubleConst *GetOrCreateDoubleConst(double fval);
+  MIRDoubleConst *GetOrCreateDoubleConst(double doubleVal);
 
   static std::unique_ptr<FPConstTable> Create() {
     auto p = std::unique_ptr<FPConstTable>(new FPConstTable());
@@ -606,10 +607,10 @@ class FPConstTable {
  private:
   FPConstTable() : floatConstTable(), doubleConstTable() {};
   void PostInit();
-  MIRFloatConst *DoGetOrCreateFloatConst(float);
-  MIRDoubleConst *DoGetOrCreateDoubleConst(double);
-  MIRFloatConst *DoGetOrCreateFloatConstThreadSafe(float);
-  MIRDoubleConst *DoGetOrCreateDoubleConstThreadSafe(double);
+  MIRFloatConst *DoGetOrCreateFloatConst(float floatVal);
+  MIRDoubleConst *DoGetOrCreateDoubleConst(double doubleVal);
+  MIRFloatConst *DoGetOrCreateFloatConstThreadSafe(float floatVal);
+  MIRDoubleConst *DoGetOrCreateDoubleConstThreadSafe(double doubleVal);
   std::shared_timed_mutex floatMtx;
   std::shared_timed_mutex doubleMtx;
   std::unordered_map<float, MIRFloatConst*> floatConstTable;     // map float const value to the table;
@@ -630,6 +631,7 @@ class IntConstTable {
   IntConstTable &operator=(const IntConstTable &p) = delete;
   ~IntConstTable();
 
+  MIRIntConst *GetOrCreateIntConst(const IntVal &val, MIRType &type);
   MIRIntConst *GetOrCreateIntConst(uint64 val, MIRType &type);
 
   static std::unique_ptr<IntConstTable> Create() {

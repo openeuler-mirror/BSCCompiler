@@ -296,6 +296,13 @@ void FPConstTable::PostInit() {
   minusZeroDoubleConst = new MIRDoubleConst(-0.0, typeDouble);
 }
 
+MIRIntConst *IntConstTable::GetOrCreateIntConst(const IntVal &val, MIRType &type) {
+  if (ThreadEnv::IsMeParallel()) {
+    return DoGetOrCreateIntConstTreadSafe(val.GetExtValue(), type);
+  }
+  return DoGetOrCreateIntConst(val.GetExtValue(), type);
+}
+
 MIRIntConst *IntConstTable::GetOrCreateIntConst(uint64 val, MIRType &type) {
   if (ThreadEnv::IsMeParallel()) {
     return DoGetOrCreateIntConstTreadSafe(val, type);

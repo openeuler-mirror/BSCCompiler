@@ -312,6 +312,11 @@ class IntVal {
     return ret;
   }
 
+  IntVal LShr(uint64 shift) const {
+    ASSERT(shift <= width, "invalid shift value");
+    return IntVal(value >> shift, width, sign);
+  }
+
   // arithmetic right-shift operators (MSB is sign extended)
   IntVal AShr(const IntVal &shift, PrimType pType) const {
     return AShr(shift.value, pType);
@@ -483,6 +488,14 @@ inline IntVal operator%(const IntVal &v1, uint64 v2) {
 
 inline IntVal operator%(uint64 v1, const IntVal& v2) {
   return IntVal(v1, v2.GetBitWidth(), v2.IsSigned()) % v2;
+}
+
+inline IntVal operator&(const IntVal &v1, uint64 v2) {
+  return v1 & IntVal(v2, v1.GetBitWidth(), v1.IsSigned());
+}
+
+inline IntVal operator&(uint64 v1, const IntVal &v2) {
+  return v2 & v1;
 }
 
 }  // namespace maple
