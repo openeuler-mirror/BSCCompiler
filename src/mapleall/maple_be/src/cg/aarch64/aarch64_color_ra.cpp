@@ -455,14 +455,18 @@ void GraphColorRegAllocator::CalculatePriority(LiveRange &lr) const {
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   CG *cg = a64CGFunc->GetCG();
 
-  if (cg->GetRematLevel() >= rematConst && lr.IsRematerializable(*a64CGFunc, rematConst)) {
-    lr.SetRematLevel(rematConst);
-  } else if (cg->GetRematLevel() >= rematAddr && lr.IsRematerializable(*a64CGFunc, rematAddr)) {
-    lr.SetRematLevel(rematAddr);
-  } else if (cg->GetRematLevel() >= rematDreadLocal && lr.IsRematerializable(*a64CGFunc, rematDreadLocal)) {
-    lr.SetRematLevel(rematDreadLocal);
-  } else if (cg->GetRematLevel() >= rematDreadGlobal && lr.IsRematerializable(*a64CGFunc, rematDreadGlobal)) {
-    lr.SetRematLevel(rematDreadGlobal);
+  if (cgFunc->GetCG()->IsLmbc()) {
+    lr.SetRematLevel(rematOff);
+  } else {
+    if (cg->GetRematLevel() >= rematConst && lr.IsRematerializable(*a64CGFunc, rematConst)) {
+      lr.SetRematLevel(rematConst);
+    } else if (cg->GetRematLevel() >= rematAddr && lr.IsRematerializable(*a64CGFunc, rematAddr)) {
+      lr.SetRematLevel(rematAddr);
+    } else if (cg->GetRematLevel() >= rematDreadLocal && lr.IsRematerializable(*a64CGFunc, rematDreadLocal)) {
+      lr.SetRematLevel(rematDreadLocal);
+    } else if (cg->GetRematLevel() >= rematDreadGlobal && lr.IsRematerializable(*a64CGFunc, rematDreadGlobal)) {
+      lr.SetRematLevel(rematDreadGlobal);
+    }
   }
 
   auto calculatePriorityFunc = [&lr, &bbNum, &numDefs, &numUses, &pri, this] (uint32 bbID) {
@@ -3932,7 +3936,8 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(const Insn &insn) {
   }
 }
 
-RegOperand *GraphColorRegAllocator::CreateSpillFillCode(const RegOperand &opnd, Insn &insn, uint32 spillCnt, bool isdef) {
+RegOperand *GraphColorRegAllocator::CreateSpillFillCode(const RegOperand &opnd, Insn &insn,
+                                                        uint32 spillCnt, bool isdef) {
   regno_t vregno = opnd.GetRegisterNumber();
   LiveRange *lr = GetLiveRange(vregno);
   if (lr != nullptr && lr->IsSpilled()) {
@@ -4301,8 +4306,8 @@ void CallerSavePre::ComputeAvail() {
           continue;
         }
         // for not move load too far from use site, set not-fully-available-phi killing availibity of phiOpnd
-        if ((defOcc->GetOccType() == kOccPhiocc && !static_cast<CgPhiOcc *>(defOcc)->IsFullyAvailable())
-            || defOcc->GetOccType() == kOccStore) {
+        if ((defOcc->GetOccType() == kOccPhiocc && !static_cast<CgPhiOcc *>(defOcc)->IsFullyAvailable()) ||
+            defOcc->GetOccType() == kOccStore) {
           ++killedCnt;
           opndOcc->SetHasRealUse(false);
           // opnd at back-edge is killed, set phi not avail

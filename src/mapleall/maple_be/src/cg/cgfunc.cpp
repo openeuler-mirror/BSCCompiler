@@ -1514,6 +1514,7 @@ void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &l
     if (!newSrcPos.IsValid()) {
       return;
     }
+
     if (cg->GetCGOptions().WithSrc() && !lastSrcPos.IsEq(newSrcPos)) {
       /* .loc for original src file */
       Operand *o0 = CreateDbgImmOperand(newSrcPos.FileNum());
@@ -1535,49 +1536,33 @@ void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &l
   }
 }
 
-void CGFunc::GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &posDone) {
+void CGFunc::GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos) {
   /* insert lable for scope begin and end .LScp.1B .LScp.1E */
-  MIRFunction &func = GetFunction();
+  MIRFunction &mirFunc = GetFunction();
   DebugInfo *dbgInfo = GetMirModule().GetDbgInfo();
-  if (cg->GetCGOptions().WithDwarf() && stmt->op != OP_comment) {
+  if (cg->GetCGOptions().WithDwarf() && stmt->op != OP_label && stmt->op != OP_comment) {
     SrcPosition newSrcPos = stmt->GetSrcPos();
     if (!newSrcPos.IsValid()) {
       return;
     }
-    // check if newSrcPos is done
-    if (posDone && lastSrcPos.IsEq(newSrcPos)) {
-      return;
-    }
-    std::unordered_set<uint32> idSetB;
-    std::unordered_set<uint32> idSetE;
-    idSetB.clear();
-    idSetE.clear();
-    dbgInfo->GetCrossScopeId(&func, idSetB, true, lastSrcPos, newSrcPos);
-    dbgInfo->GetCrossScopeId(&func, idSetE, false, lastSrcPos, newSrcPos);
-    for (auto it : idSetE) {
-      // skip if begin label is not in yet
-      if (scpIdSet.find(it) == scpIdSet.end()) {
-        continue;
-      }
+    std::unordered_set<uint32> idSet;
+    idSet.clear();
+    dbgInfo->GetCrossScopeId(&mirFunc, idSet, false, lastSrcPos, newSrcPos);
+    for (auto it : idSet) {
       Operand *o0 = CreateDbgImmOperand(it);
       Operand *o1 = CreateDbgImmOperand(1);
       Insn &scope = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_scope, *o0, *o1);
       curBB->AppendInsn(scope);
-      scpIdSet.erase(it);
     }
-    for (auto it : idSetB) {
-      // skip if begin label is already in
-      if (scpIdSet.find(it) != scpIdSet.end()) {
-        continue;
-      }
+    idSet.clear();
+    dbgInfo->GetCrossScopeId(&mirFunc, idSet, true, lastSrcPos, newSrcPos);
+    for (auto it : idSet) {
       Operand *o0 = CreateDbgImmOperand(it);
       Operand *o1 = CreateDbgImmOperand(0);
       Insn &scope = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_scope, *o0, *o1);
       curBB->AppendInsn(scope);
-      scpIdSet.insert(it);
     }
     lastSrcPos.UpdateWith(newSrcPos);
-    posDone = false;
   }
 }
 
@@ -1718,6 +1703,7 @@ void CGFunc::GenerateInstruction() {
 
   /* First Pass: Creates the doubly-linked list of BBs (next,prev) */
   volReleaseInsn = nullptr;
+
   SrcPosition pos = GetFunction().GetScope()->GetRangeLow();
   if (!pos.IsValid()) {
     pos = GetFunction().GetSrcPosition();
@@ -1727,12 +1713,10 @@ void CGFunc::GenerateInstruction() {
   SrcPosition lastLocPos = SrcPosition();
   SrcPosition lastMplPos = SrcPosition();
   std::set<uint32> bbFreqSet;
-  bool posDone = false;
-  scpIdSet.clear();
   for (StmtNode *stmt = secondStmt; stmt != nullptr; stmt = stmt->GetNext()) {
     /* insert Insn for scope begin/end labels */
-    if (lastStmtPos.IsBfOrEq(stmt->GetSrcPos())) {
-      GenerateScopeLabel(stmt, lastScpPos, posDone);
+    if (lastStmtPos.IsBf(stmt->GetSrcPos())) {
+      GenerateScopeLabel(stmt, lastScpPos);
       lastStmtPos = stmt->GetSrcPos();
     }
     /* insert Insn for .loc before cg for the stmt */
@@ -2024,26 +2008,12 @@ bool CGFunc::MemBarOpt(const StmtNode &membar) {
   return stmt->GetOpCode() == OP_membarrelease;
 }
 
-void CGFunc::MakeupScopeLabels(BB &bb) {
-  /* insert leftover scope-end labels */
-  if (!scpIdSet.empty()) {
-    std::set<uint32>::reverse_iterator rit;
-    for (rit=scpIdSet.rbegin(); rit != scpIdSet.rend(); ++rit) {
-      Operand *o0 = CreateDbgImmOperand(*rit);
-      Operand *o1 = CreateDbgImmOperand(1);
-      Insn &scope = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_scope, *o0, *o1);
-      bb.AppendInsn(scope);
-    }
-  }
-}
-
 void CGFunc::ProcessExitBBVec() {
   if (exitBBVec.empty()) {
     LabelIdx newLabelIdx = CreateLabel();
     BB *retBB = CreateNewBB(newLabelIdx, cleanupBB->IsUnreachable(), BB::kBBReturn, cleanupBB->GetFrequency());
     cleanupBB->PrependBB(*retBB);
     exitBBVec.emplace_back(retBB);
-    MakeupScopeLabels(*retBB);
     return;
   }
   /* split an empty exitBB */
@@ -2066,9 +2036,7 @@ void CGFunc::ProcessExitBBVec() {
     LabelIdx newLabelIdx = CreateLabel();
     bb->AddLabel(newLabelIdx);
     lab2BBMap[newLabelIdx] = bb;
-    curBB = bb;
   }
-  MakeupScopeLabels(*bb);
 }
 
 void CGFunc::AddCommonExitBB() {
@@ -2106,7 +2074,8 @@ void CGFunc::HandleFunction() {
   /* select instruction */
   GenerateInstruction();
   /* merge multi return */
-  if (!func.GetModule()->IsCModule() || CGOptions::DoRetMerge() || CGOptions::OptimizeForSize()) {
+  if (!func.GetModule()->IsCModule() || (func.GetModule()->IsCModule() && (NumBBs() < kNumBBOptReturn)) ||
+      CGOptions::DoRetMerge() || CGOptions::OptimizeForSize()) {
     MergeReturn();
   }
   if (func.IsJava()) {
