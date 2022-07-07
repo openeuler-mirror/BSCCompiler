@@ -17,11 +17,6 @@
 #define MAPLE_BE_INCLUDE_CG_OPTIONS_H
 
 #include "cl_option.h"
-#include "cl_parser.h"
-
-#include <bits/stdint-uintn.h>
-#include <stdint.h>
-#include <string>
 
 namespace opts::cg {
 

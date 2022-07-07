@@ -40,7 +40,7 @@ constexpr AArch64reg floatParmRegs[kNumFloatParmRegs] = { V0, V1, V2, V3, V4, V5
  */
 bool IsAvailableReg(AArch64reg reg);
 bool IsCalleeSavedReg(AArch64reg reg);
-bool IsCallerSaveReg(AArch64reg reg);
+bool IsCallerSaveReg(AArch64reg regNO);
 bool IsParamReg(AArch64reg reg);
 bool IsSpillReg(AArch64reg reg);
 bool IsExtraSpillReg(AArch64reg reg);

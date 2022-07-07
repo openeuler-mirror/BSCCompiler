@@ -14,7 +14,6 @@
  */
 #ifndef MAPLEBE_INCLUDE_BE_COMMON_UTILS_H
 #define MAPLEBE_INCLUDE_BE_COMMON_UTILS_H
-#include <cstdint>
 #include "types_def.h"
 #include "mpl_logging.h"
 

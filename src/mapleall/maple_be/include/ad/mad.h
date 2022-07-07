@@ -70,8 +70,8 @@ class Unit {
   const std::vector<Unit*> &GetCompositeUnits() const;
 
   std::string GetName() const;
-  bool IsFree(maple::uint32 cycle) const;
-  void Occupy(const Insn &insn, maple::uint32 cycle);
+  bool IsFree(uint32 cycle) const;
+  void Occupy(const Insn &insn, uint32 cycle);
   void Release();
   void AdvanceCycle();
   void Dump(int indent = 0) const;

@@ -15,7 +15,6 @@
 #ifndef MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_FIXSHORTBRANCH_H
 #define MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_FIXSHORTBRANCH_H
 
-#include <vector>
 #include "aarch64_cg.h"
 #include "optimize_common.h"
 #include "mir_builder.h"

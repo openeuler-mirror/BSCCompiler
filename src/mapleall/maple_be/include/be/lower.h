@@ -78,9 +78,9 @@ class CGLowerer {
 
   void LowerFunc(MIRFunction &func);
 
-  BaseNode *LowerIntrinsicop(const BaseNode&, IntrinsicopNode&, BlockNode&);
+  BaseNode *LowerIntrinsicop(const BaseNode &parent, IntrinsicopNode &intrinNode, BlockNode &newBlk);
 
-  BaseNode *LowerIntrinsicopwithtype(const BaseNode&, IntrinsicopNode&, BlockNode&);
+  BaseNode *LowerIntrinsicopwithtype(const BaseNode &parent, IntrinsicopNode &intrinNode, BlockNode &blk);
 
   StmtNode *LowerIntrinsicMplClearStack(const IntrinsiccallNode &intrinCall, BlockNode &newBlk);
 
@@ -100,9 +100,9 @@ class CGLowerer {
     return mirModule.CurFunction();
   }
 
-  BaseNode *LowerExpr(BaseNode&, BaseNode&, BlockNode&);
+  BaseNode *LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkNode);
 
-  BaseNode *LowerDread(DreadNode &dread, const BlockNode& block);
+  BaseNode *LowerDread(DreadNode &dread);
 
   BaseNode *LowerIread(IreadNode &iread) {
     /* use PTY_u8 for boolean type in dread/iread */
@@ -115,16 +115,16 @@ class CGLowerer {
   BaseNode *LowerCastExpr(BaseNode &expr) const;
 
   BaseNode *ExtractSymbolAddress(const StIdx &stIdx);
-  BaseNode *LowerDreadToThreadLocal(BaseNode &expr, const BlockNode &block);
-  StmtNode *LowerDassignToThreadLocal(StmtNode &stmt, const BlockNode &block);
+  BaseNode *LowerDreadToThreadLocal(BaseNode &expr);
+  StmtNode *LowerDassignToThreadLocal(StmtNode &stmt);
 
-  void LowerDassign(DassignNode &dassign, BlockNode &block);
+  void LowerDassign(DassignNode &dsNode, BlockNode &newBlk);
 
   void LowerResetStmt(StmtNode &stmt, BlockNode &block);
 
-  void LowerIassign(IassignNode &iassign, BlockNode &block);
+  void LowerIassign(IassignNode &iassign, BlockNode &newBlk);
 
-  void LowerRegassign(RegassignNode &regAssign, BlockNode &block);
+  void LowerRegassign(RegassignNode &regNode, BlockNode &newBlk);
 
   void AddElemToPrintf(MapleVector<BaseNode*> &argsPrintf, int num, ...) const;
 
@@ -139,13 +139,13 @@ class CGLowerer {
 
   void LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode &newBlk, std::vector<StmtNode *> &abortNode);
 
-  StmtNode *LowerIntrinsicopDassign(const DassignNode &dassign, IntrinsicopNode &intrinsic, BlockNode &block);
+  StmtNode *LowerIntrinsicopDassign(const DassignNode &dsNode, IntrinsicopNode &intrinNode, BlockNode &newBlk);
 
-  void LowerGCMalloc(const BaseNode &node, const GCMallocNode &gcNode, BlockNode &blkNode, bool perm = false);
+  void LowerGCMalloc(const BaseNode &node, const GCMallocNode &gcmalloc, BlockNode &blkNode, bool perm = false);
 
   std::string GetNewArrayFuncName(const uint32 elemSize, const bool perm) const;
 
-  void LowerJarrayMalloc(const StmtNode &stmt, const JarrayMallocNode &node, BlockNode &block, bool perm = false);
+  void LowerJarrayMalloc(const StmtNode &stmt, const JarrayMallocNode &node, BlockNode &blkNode, bool perm = false);
 
   BaseNode *LowerAddrof(AddrofNode &addrof) const {
     return &addrof;
@@ -163,19 +163,19 @@ class CGLowerer {
   BaseNode *LowerArray(ArrayNode &array, const BaseNode &parent);
   BaseNode *LowerCArray(ArrayNode &array);
 
-  DassignNode *SaveReturnValueInLocal(StIdx, uint16);
-  void LowerCallStmt(StmtNode&, StmtNode*&, BlockNode&, MIRType *retty = nullptr, bool uselvar = false,
-                     bool isIntrinAssign = false);
+  DassignNode *SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID);
+  void LowerCallStmt(StmtNode &stmt, StmtNode *&nextStmt, BlockNode &newBlk, MIRType *retty = nullptr,
+                     bool uselvar = false, bool isIntrinAssign = false);
   BlockNode *LowerIntrinsiccallAassignedToAssignStmt(IntrinsiccallNode &intrinsicCall);
   BlockNode *LowerCallAssignedStmt(StmtNode &stmt, bool uselvar = false);
-  bool LowerStructReturn(BlockNode &blk, StmtNode *stmt, StmtNode *&nextStmt, bool &lvar, BlockNode *oldblk);
-  BlockNode *LowerMemop(StmtNode&);
+  bool LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *&nextStmt, bool &lvar, BlockNode *oldBlk);
+  BlockNode *LowerMemop(StmtNode &stmt);
 
-  BaseNode *LowerRem(BaseNode &rem, BlockNode &block);
+  BaseNode *LowerRem(BaseNode &rem, BlockNode &blk);
 
-  void LowerStmt(StmtNode &stmt, BlockNode &block);
+  void LowerStmt(StmtNode &stmt, BlockNode &newBlk);
 
-  void LowerSwitchOpnd(StmtNode &stmt, BlockNode &block);
+  void LowerSwitchOpnd(StmtNode &stmt, BlockNode &newBlk);
 
   MIRSymbol *CreateNewRetVar(const MIRType &ty, const std::string &prefix);
 
@@ -194,12 +194,12 @@ class CGLowerer {
   void LowerEntry(MIRFunction &func);
 
   StmtNode *LowerCall(
-      CallNode &call, StmtNode *&stmt, BlockNode &block, MIRType *retty = nullptr, bool uselvar = false);
+      CallNode &callNode, StmtNode *&nextStmt, BlockNode &newBlk, MIRType *retty = nullptr, bool uselvar = false);
   void SplitCallArg(CallNode &callNode, BaseNode *newOpnd, size_t i, BlockNode &newBlk);
 
   void CleanupBranches(MIRFunction &func) const;
 
-  void LowerTypePtr(BaseNode &expr) const;
+  void LowerTypePtr(BaseNode &node) const;
 
   BaseNode *GetBitField(int32 byteOffset, BaseNode *baseAddr, PrimType fieldPrimType);
   StmtNode *WriteBitField(const std::pair<int32, int32> &byteBitOffsets, const MIRBitFieldType *fieldType,
@@ -208,17 +208,17 @@ class CGLowerer {
                          BaseNode *baseAddr);
   BaseNode *LowerDreadBitfield(DreadNode &dread);
   BaseNode *LowerIreadBitfield(IreadNode &iread);
-  StmtNode *LowerDassignBitfield(DassignNode &dassign, BlockNode &block);
-  StmtNode *LowerIassignBitfield(IassignNode &iassign, BlockNode &block);
+  StmtNode *LowerDassignBitfield(DassignNode &dassign, BlockNode &newBlk);
+  StmtNode *LowerIassignBitfield(IassignNode &iassign, BlockNode &newBlk);
 
-  void LowerAsmStmt(AsmNode *asmNode, BlockNode *blk);
+  void LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk);
 
   bool ShouldOptarray() const {
     ASSERT(mirModule.CurFunction() != nullptr, "nullptr check");
     return MIRLower::ShouldOptArrayMrt(*mirModule.CurFunction());
   }
 
-  BaseNode *NodeConvert(PrimType mtype, BaseNode &expr);
+  BaseNode *NodeConvert(PrimType mType, BaseNode &expr);
   /* Lower pointer/reference types if found in pseudo registers. */
   void LowerPseudoRegs(const MIRFunction &func) const;
 
@@ -290,7 +290,7 @@ class CGLowerer {
     return (options & kGenEh) != 0;
   }
 
-  BaseNode *MergeToCvtType(PrimType dtyp, PrimType styp, BaseNode &src) const;
+  BaseNode *MergeToCvtType(PrimType dType, PrimType sType, BaseNode &src) const;
   BaseNode *LowerJavascriptIntrinsicop(IntrinsicopNode &intrinNode, const IntrinDesc &desc);
   StmtNode *CreateStmtCallWithReturnValue(const IntrinsicopNode &intrinNode, const MIRSymbol &ret, PUIdx bFunc,
                                           BaseNode *extraInfo = nullptr) const;
@@ -315,7 +315,7 @@ class CGLowerer {
   BaseNode *GetClassInfoExprFromRuntime(const std::string &classInfo);
   BaseNode *GetClassInfoExprFromArrayClassCache(const std::string &classInfo);
   BaseNode *GetClassInfoExpr(const std::string &classInfo) const;
-  BaseNode *GetBaseNodeFromCurFunc(MIRFunction &curFunc, bool isJarray);
+  BaseNode *GetBaseNodeFromCurFunc(MIRFunction &curFunc, bool isFromJarray);
 
   OptionFlag options = 0;
   bool needBranchCleanup = false;

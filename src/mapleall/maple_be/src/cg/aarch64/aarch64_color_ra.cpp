@@ -79,9 +79,9 @@ void LiveUnit::PrintLiveUnit() const {
 }
 
 bool LiveRange::IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLev) const {
-  if (rematLev == rematOff)
+  if (rematLev == rematOff) {
     return false;
-
+  }
   switch (op) {
     case OP_undef:
       return false;
@@ -3932,7 +3932,8 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(const Insn &insn) {
   }
 }
 
-RegOperand *GraphColorRegAllocator::CreateSpillFillCode(const RegOperand &opnd, Insn &insn, uint32 spillCnt, bool isdef) {
+RegOperand *GraphColorRegAllocator::CreateSpillFillCode(const RegOperand &opnd, Insn &insn,
+                                                        uint32 spillCnt, bool isdef) {
   regno_t vregno = opnd.GetRegisterNumber();
   LiveRange *lr = GetLiveRange(vregno);
   if (lr != nullptr && lr->IsSpilled()) {
@@ -4301,8 +4302,8 @@ void CallerSavePre::ComputeAvail() {
           continue;
         }
         // for not move load too far from use site, set not-fully-available-phi killing availibity of phiOpnd
-        if ((defOcc->GetOccType() == kOccPhiocc && !static_cast<CgPhiOcc *>(defOcc)->IsFullyAvailable())
-            || defOcc->GetOccType() == kOccStore) {
+        if ((defOcc->GetOccType() == kOccPhiocc && !static_cast<CgPhiOcc *>(defOcc)->IsFullyAvailable()) ||
+            defOcc->GetOccType() == kOccStore) {
           ++killedCnt;
           opndOcc->SetHasRealUse(false);
           // opnd at back-edge is killed, set phi not avail

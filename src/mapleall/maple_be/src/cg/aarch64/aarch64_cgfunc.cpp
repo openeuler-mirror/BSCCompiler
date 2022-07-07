@@ -16,7 +16,6 @@
 #include "aarch64_cgfunc.h"
 #include <vector>
 #include <cstdint>
-#include <sys/stat.h>
 #include <atomic>
 #include "cfi.h"
 #include "mpl_logging.h"
@@ -910,8 +909,8 @@ MemOperand &AArch64CGFunc::ConstraintOffsetToSafeRegion(uint32 bitLen, const Mem
   return newMemOpnd;
 }
 
-ImmOperand &AArch64CGFunc::SplitAndGetRemained(const MemOperand &memOpnd, uint32 bitLen, RegOperand *resOpnd,
-                                               int64 ofstVal, bool isDest, Insn *insn, bool forPair) {
+ImmOperand &AArch64CGFunc::SplitAndGetRemained(const MemOperand &memOpnd, uint32 bitLen,
+                                               int64 ofstVal, Insn *insn, bool forPair) {
   auto it = hashMemOpndTable.find(memOpnd);
   if (it != hashMemOpndTable.end()) {
     hashMemOpndTable.erase(memOpnd);
@@ -968,7 +967,7 @@ MemOperand &AArch64CGFunc::SplitOffsetWithAddInstruction(const MemOperand &memOp
   OfstOperand *ofstOpnd = memOpnd.GetOffsetImmediate();
   int64 ofstVal = ofstOpnd->GetOffsetValue();
   RegOperand *resOpnd = GetBaseRegForSplit(baseRegNum);
-  ImmOperand &immAddend = SplitAndGetRemained(memOpnd, bitLen, resOpnd, ofstVal, isDest, insn, forPair);
+  ImmOperand &immAddend = SplitAndGetRemained(memOpnd, bitLen, ofstVal, insn, forPair);
   int64 remained = (ofstVal - immAddend.GetValue());
   RegOperand *origBaseReg = memOpnd.GetBaseRegister();
   ASSERT(origBaseReg != nullptr, "nullptr check");

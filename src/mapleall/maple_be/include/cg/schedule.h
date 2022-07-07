@@ -26,7 +26,7 @@ namespace maplebe {
 
 class RegPressureSchedule {
  public:
-  RegPressureSchedule (CGFunc &func, MapleAllocator &alloc)
+  RegPressureSchedule(CGFunc &func, MapleAllocator &alloc)
       : cgFunc(func), liveReg(alloc.Adapter()), scheduledNode(alloc.Adapter()),
         originalNodeSeries(alloc.Adapter()), readyList(alloc.Adapter()),
         partialList(alloc.Adapter()), partialSet(alloc.Adapter()),

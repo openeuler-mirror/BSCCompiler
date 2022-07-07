@@ -36,7 +36,7 @@ class MDCodeGen {
   void EmitCheckPtr(std::ofstream &outputFile, const std::string &emitName, const std::string &name,
                     const std::string &ptrType) const;
   void EmitFileHead(std::ofstream &outputFile, const std::string &headInfo) const;
-  MDClass GetSpecificClass (const std::string &className);
+  MDClass GetSpecificClass(const std::string &className);
 
  protected:
   MDClassRange curKeeper;

@@ -14,9 +14,7 @@
  */
 #ifndef MAPLEBE_INCLUDE_CG_CG_PHASEMANAGER_H
 #define MAPLEBE_INCLUDE_CG_CG_PHASEMANAGER_H
-#include <vector>
 #include <string>
-#include <sys/stat.h>
 #include "mempool.h"
 #include "mempool_allocator.h"
 #include "mir_module.h"

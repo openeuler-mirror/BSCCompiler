@@ -35,7 +35,7 @@ bool RaX0Opt::PropagateX0CanReplace(Operand *opnd, regno_t replaceReg) const {
  */
 bool RaX0Opt::PropagateRenameReg(Insn *nInsn, const X0OptInfo &optVal) const {
   uint32 renameReg = static_cast<RegOperand*>(optVal.GetRenameOpnd())->GetRegisterNumber();
-  const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*> (nInsn)->GetMachineOpcode()];
+  const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(nInsn)->GetMachineOpcode()];
   int32 lastOpndId = static_cast<int32>(nInsn->GetOperandSize() - 1);
   for (int32_t i = lastOpndId; i >= 0; i--) {
     Operand &opnd = nInsn->GetOperand(static_cast<uint32>(i));

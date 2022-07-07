@@ -197,7 +197,7 @@ class LSRALinearScanRegAllocator : public RegAllocator {
       return ranges;
     }
 
-    size_t GetRangesSize () const {
+    size_t GetRangesSize() const {
       return ranges.size();
     }
 

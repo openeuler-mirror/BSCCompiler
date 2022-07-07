@@ -95,7 +95,7 @@ class BECommon {
 
   void LowerJavaVolatileForSymbol(MIRSymbol &sym) const;
 
-  void ComputeTypeSizesAligns(MIRType &type, uint8 align = 0);
+  void ComputeTypeSizesAligns(MIRType &ty, uint8 align = 0);
 
   void GenFieldOffsetMap(const std::string &className);
 
@@ -230,8 +230,8 @@ class BECommon {
   }
 
  private:
-  bool TyIsInSizeAlignTable(const MIRType&) const;
-  void AddAndComputeSizeAlign(MIRType&);
+  bool TyIsInSizeAlignTable(const MIRType &ty) const;
+  void AddAndComputeSizeAlign(MIRType &ty);
   void ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx);
   void ComputeClassTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx, uint8 align = 0);
   void ComputeArrayTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx);

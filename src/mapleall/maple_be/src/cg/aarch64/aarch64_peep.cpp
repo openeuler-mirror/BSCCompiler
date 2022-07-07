@@ -1559,8 +1559,7 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterMov(Insn &insn) {
   }
 }
 
-bool ElimSpecificExtensionPattern::IsValidLoadExtPattern(const Insn &currInsn, MOperator oldMop,
-                                                         MOperator newMop) const {
+bool ElimSpecificExtensionPattern::IsValidLoadExtPattern(MOperator oldMop, MOperator newMop) const {
   if (oldMop == newMop) {
     return true;
   }
@@ -1614,7 +1613,7 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterLoad(Insn &insn) {
       continue;
     }
     MOperator prevNewMop = loadMappingTable[extTypeIdx][i][1];
-    if (!IsValidLoadExtPattern(insn, prevOrigMop, prevNewMop)) {
+    if (!IsValidLoadExtPattern(prevOrigMop, prevNewMop)) {
       return;
     }
     if (is64Bits && extTypeIdx >= SXTB && extTypeIdx <= SXTW) {
@@ -2613,8 +2612,8 @@ bool CombineContiLoadAndStorePattern::PlaceSplitAddInsn(const Insn &curInsn, Ins
                                                         false, &combineInsn, true);
   } else {
     RegOperand *addResOpnd = aarFunc.GetBaseRegForSplit(R16);
-    ImmOperand &immAddend = aarFunc.SplitAndGetRemained(*maxOfstMem, bitLen, addResOpnd, maxOfstVal,
-                                                        false, &combineInsn, true);
+    ImmOperand &immAddend = aarFunc.SplitAndGetRemained(*maxOfstMem, bitLen, maxOfstVal,
+                                                        &combineInsn, true);
     newMemOpnd = &aarFunc.CreateReplacementMemOperand(bitLen, *addResOpnd, ofstVal - immAddend.GetValue());
     if (!(aarFunc.IsOperandImmValid(combineInsn.GetMachineOpcode(), newMemOpnd, kInsnThirdOpnd))) {
       newMemOpnd = &aarFunc.SplitOffsetWithAddInstruction(memOperand, bitLen, static_cast<AArch64reg>(R16),
@@ -5646,7 +5645,7 @@ bool UbfxAndCbzToTbzPattern::CheckCondition(Insn &insn) {
 
 bool ComplexExtendWordLslAArch64::IsExtendWordLslPattern(const Insn &insn) const {
   Insn *nextInsn = insn.GetNext();
-  if(nextInsn == nullptr) {
+  if (nextInsn == nullptr) {
     return false;
   }
   MOperator nextMop = nextInsn->GetMachineOpcode();

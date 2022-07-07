@@ -140,9 +140,8 @@ class TryCatchBlocksLower {
   void PlaceRelocatedBB(BBT &insertAfter);
   void PalceCatchSeenSofar(BBT &insertAfter);
   BBT *CreateNewBB(StmtNode *first, StmtNode *last);
-  bool CheckAndProcessCatchNodeInCurrTryBlock(BBT &ebb, LabelIdx ebbLabel, uint32 index);
-  BBT *CollectCatchAndFallthruUntilNextCatchBB(BBT *&ebb, uint32 &nextEnclosedIdx,
-                                               std::vector<BBT*> &currBBThread);
+  bool CheckAndProcessCatchNodeInCurrTryBlock(BBT &origLowerBB, LabelIdx ebbLabel, uint32 index);
+  BBT *CollectCatchAndFallthruUntilNextCatchBB(BBT *&lowerBB, uint32 &nextEnclosedIdx, std::vector<BBT*> &currBBThread);
   void WrapCatchWithTryEndTryBlock(std::vector<BBT*> &currBBThread, BBT *&nextBBThreadHead,
                                    uint32 &nextEnclosedIdx, bool hasMoveEndTry);
   void SwapEndTryBBAndCurrBBThread(const std::vector<BBT*> &currBBThread,

@@ -374,10 +374,10 @@ class MvnAndToBicPattern : public CGPeepPattern {
  */
 class AndCbzToTbzPattern : public CGPeepPattern {
  public:
-  AndCbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
-  AndCbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) :
-      CGPeepPattern(cgFunc, currBB, currInsn) {}
+  AndCbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  AndCbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
   ~AndCbzToTbzPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -391,8 +391,8 @@ class AndCbzToTbzPattern : public CGPeepPattern {
 
 class CombineSameArithmeticPattern : public CGPeepPattern {
  public:
-  CombineSameArithmeticPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  CombineSameArithmeticPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~CombineSameArithmeticPattern() override {
     prevInsn = nullptr;
     newImmOpnd = nullptr;
@@ -580,7 +580,7 @@ class ElimSpecificExtensionPattern : public CGPeepPattern {
  private:
   void SetSpecificExtType(const Insn &currInsn);
   void SetOptSceneType();
-  bool IsValidLoadExtPattern(const Insn &currInsn, MOperator oldMop, MOperator newMop) const;
+  bool IsValidLoadExtPattern(MOperator oldMop, MOperator newMop) const;
   MOperator SelectNewLoadMopByBitSize(MOperator lowBitMop) const;
   void ElimExtensionAfterLoad(Insn &currInsn);
   void ElimExtensionAfterMov(Insn &currInsn);
@@ -819,8 +819,8 @@ class UbfxToUxtwPattern : public CGPeepPattern {
  */
 class UbfxAndCbzToTbzPattern : public CGPeepPattern {
  public:
-  UbfxAndCbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-  CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  UbfxAndCbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~UbfxAndCbzToTbzPattern() override {
     useInsn = nullptr;
   }

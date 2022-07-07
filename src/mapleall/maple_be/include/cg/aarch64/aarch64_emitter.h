@@ -38,7 +38,7 @@ class AArch64AsmEmitter : public AsmEmitter {
  private:
   /* cfi & dbg need target info ? */
   void EmitAArch64CfiInsn(Emitter &emitter, const Insn &insn) const;
-  void EmitAArch64DbgInsn(Emitter &emitter, const Insn &insn) const;
+  void EmitAArch64DbgInsn(FuncEmitInfo &funcEmitInfo, Emitter &emitter, const Insn &insn) const;
 
   void EmitAArch64Insn(Emitter &emitter, Insn &insn) const;
   void EmitClinit(Emitter &emitter, const Insn &insn) const;
@@ -55,7 +55,7 @@ class AArch64AsmEmitter : public AsmEmitter {
   void EmitCompareAndSwapInt(Emitter &emitter, const Insn &insn) const;
   void EmitStringIndexOf(Emitter &emitter, const Insn &insn) const;
   void EmitLazyBindingRoutine(Emitter &emitter, const Insn &insn) const;
-  void EmitCheckThrowPendingException(Emitter &emitter, Insn &insn) const;
+  void EmitCheckThrowPendingException(Emitter &emitter) const;
   void EmitCTlsDescRel(Emitter &emitter, const Insn &insn) const;
   void EmitCTlsDescCall(Emitter &emitter, const Insn &insn) const;
   void EmitSyncLockTestSet(Emitter &emitter, const Insn &insn) const;

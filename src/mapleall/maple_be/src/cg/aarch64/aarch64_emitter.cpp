@@ -526,7 +526,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
       if (insn->IsCfiInsn()) {
         EmitAArch64CfiInsn(emitter, *insn);
       } else if (insn->IsDbgInsn()) {
-        EmitAArch64DbgInsn(emitter, *insn);
+        EmitAArch64DbgInsn(funcEmitInfo, emitter, *insn);
       } else {
         EmitAArch64Insn(emitter, *insn);
       }
@@ -785,7 +785,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
   if (CGOptions::IsNativeOpt() && mOp == MOP_xbl) {
     auto *nameOpnd = static_cast<FuncNameOperand*>(&insn.GetOperand(kInsnFirstOpnd));
     if (nameOpnd->GetName() == "MCC_CheckThrowPendingException") {
-      EmitCheckThrowPendingException(emitter, insn);
+      EmitCheckThrowPendingException(emitter);
       emitter.IncreaseJavaInsnCount(md->GetAtomicNum());
       return;
     }
@@ -1973,7 +1973,7 @@ void AArch64AsmEmitter::EmitSyncLockTestSet(Emitter &emitter, const Insn &insn) 
   (void)emitter.Emit("\t").Emit("dmb").Emit("\t").Emit("ish").Emit("\n");
 }
 
-void AArch64AsmEmitter::EmitCheckThrowPendingException(Emitter &emitter, Insn &insn) const {
+void AArch64AsmEmitter::EmitCheckThrowPendingException(Emitter &emitter) const {
   /*
    * mrs x16, TPIDR_EL0
    * ldr x16, [x16, #64]
@@ -2093,20 +2093,24 @@ static DbgDescr dbgDescrTable[mpldbg::kOpDbgLast + 1] = {
   { "undef", 0, { Operand::kOpdUndef, Operand::kOpdUndef, Operand::kOpdUndef } }
 };
 
-void AArch64AsmEmitter::EmitAArch64DbgInsn(Emitter &emitter, const Insn &insn) const {
+void AArch64AsmEmitter::EmitAArch64DbgInsn(FuncEmitInfo &funcEmitInfo, Emitter &emitter, const Insn &insn) const {
   MOperator mOp = insn.GetMachineOpcode();
   DbgDescr &dbgDescr = dbgDescrTable[mOp];
   switch (mOp) {
-    case mpldbg::OP_DBG_scope:
-    {
-      unsigned val = (unsigned)(static_cast<ImmOperand&>(insn.GetOperand(0)).GetValue());
-      emitter.Emit(".LScp." + std::to_string(val));
-      val = (unsigned)(static_cast<ImmOperand&>(insn.GetOperand(1)).GetValue());
-      emitter.Emit((val == 0) ? "B:" : "E:");
+    case mpldbg::OP_DBG_scope: {
+      unsigned scopeId = static_cast<unsigned>(static_cast<ImmOperand&>(insn.GetOperand(0)).GetValue());
+      (void)emitter.Emit(".LScp." + std::to_string(scopeId));
+      unsigned val = static_cast<unsigned>(static_cast<ImmOperand&>(insn.GetOperand(1)).GetValue());
+      (void)emitter.Emit((val == 0) ? "B:" : "E:");
+
+      CGFunc &cgFunc = funcEmitInfo.GetCGFunc();
+      MIRFunction &mirFunc = cgFunc.GetFunction();
+      EmitStatus status = (val == 0) ? kBeginEmited : kEndEmited;
+      cgFunc.GetCG()->GetMIRModule()->GetDbgInfo()->SetFuncScopeIdStatus(&mirFunc, scopeId, status);
       break;
     }
-    default:
-    {
+
+    default: {
       (void)emitter.Emit("\t.").Emit(dbgDescr.name);
       for (uint32 i = 0; i < dbgDescr.opndCount; ++i) {
         (void)emitter.Emit(" ");

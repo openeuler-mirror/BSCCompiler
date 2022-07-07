@@ -32,8 +32,8 @@ namespace maplebe {
 class OpndProp;
 class Emitter;
 
-bool IsBitSizeImmediate(maple::uint64 val, maple::uint32 bitLen, maple::uint32 nLowerZeroBits);
-bool IsBitmaskImmediate(maple::uint64 val, maple::uint32 bitLen);
+bool IsBitSizeImmediate(uint64 val, uint32 bitLen, uint32 nLowerZeroBits);
+bool IsBitmaskImmediate(uint64 val, uint32 bitLen);
 bool IsMoveWidableImmediate(uint64 val, uint32 bitLen);
 bool BetterUseMOVZ(uint64 val);
 

@@ -198,7 +198,7 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
       auto &shiftOpnd = static_cast<BitShiftOperand&>(arithInsn.GetOperand(kInsnFourthOpnd));
       uint32 amount = shiftOpnd.GetShiftAmount();
       BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
-      switch(sOp) {
+      switch (sOp) {
         case BitShiftOperand::kLSL: {
           newVal = constVal + static_cast<int64>((static_cast<unsigned>(constVal) << amount));
           break;
@@ -2037,7 +2037,7 @@ bool A64PregCopyPattern::CheckMultiUsePoints(const Insn *defInsn) const {
   return true;
 }
 
-bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &curInsn, Insn &defInsn) {
+bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &defInsn) {
   std::unordered_map<uint32, bool> visited;
   RegOperand *lastPhiDef = (defInsn.IsPhi() ? &static_cast<RegOperand&>(defInsn.GetOperand(kInsnFirstOpnd)) : nullptr);
   if (!DFSFindValidDefInsns(&defInsn, lastPhiDef, visited)) {
@@ -2189,7 +2189,7 @@ bool A64PregCopyPattern::CheckCondition(Insn &insn) {
   if (defInsn->IsPhi()) {
     isCrossPhi = true;
     firstPhiInsn = defInsn;
-    return CheckPhiCaseCondition(insn, *defInsn);
+    return CheckPhiCaseCondition(*defInsn);
   } else {
     if (!CheckValidDefInsn(defInsn)) {
       return false;

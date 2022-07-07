@@ -144,7 +144,7 @@ class AArch64CG : public CG {
 
   void GenerateObjectMaps(BECommon &beCommon) override;
 
-  bool IsExclusiveFunc(MIRFunction&) override;
+  bool IsExclusiveFunc(MIRFunction &mirFunc) override;
 
   void FindOrCreateRepresentiveSym(std::vector<uint64> &bitmapWords, uint32 rcHeader, const std::string &name);
 

@@ -751,8 +751,8 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
   auto primTypeBitSize = GetPrimTypeBitSize(primType);
   if ((static_cast<uint32>(bitOffset) + bitSize) <= primTypeBitSize) {
     if (CGOptions::IsBigEndian()) {
-      bitOffset = (static_cast<int64>(beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte)
-          - bitOffset) - bitSize;
+      bitOffset = static_cast<int32>(static_cast<int64>(beCommon.GetTypeSize(fieldType->GetTypeIndex()) *
+          kBitsPerByte) - bitOffset) - bitSize;
     }
     auto depositBits = builder->CreateExprDepositbits(OP_depositbits, primType, static_cast<uint32>(bitOffset),
         bitSize, bitField, rhs);
@@ -790,8 +790,8 @@ BaseNode *CGLowerer::ReadBitField(const std::pair<int32, int32> &byteBitOffsets,
   auto primTypeBitSize = GetPrimTypeBitSize(primType);
   if ((static_cast<uint32>(bitOffset) + bitSize) <= primTypeBitSize) {
     if (CGOptions::IsBigEndian()) {
-      bitOffset = (static_cast<int64>(beCommon.GetTypeSize(fieldType->GetTypeIndex()) * kBitsPerByte)
-          - bitOffset) - bitSize;
+      bitOffset = static_cast<int32>(static_cast<int64>(beCommon.GetTypeSize(fieldType->GetTypeIndex()) *
+          kBitsPerByte) - bitOffset) - bitSize;
     }
     return builder->CreateExprExtractbits(OP_extractbits, primType, static_cast<uint32>(bitOffset), bitSize, bitField);
   }
@@ -1347,23 +1347,23 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt, bool uselvar) {
     }
     case OP_intrinsiccallassigned:
     case OP_xintrinsiccallassigned: {
-      IntrinsiccallNode &intrincall = static_cast<IntrinsiccallNode&>(stmt);
-      auto intrinsicID = intrincall.GetIntrinsic();
+      IntrinsiccallNode &intrinCall = static_cast<IntrinsiccallNode&>(stmt);
+      auto intrinsicID = intrinCall.GetIntrinsic();
       if (IntrinDesc::intrinTable[intrinsicID].IsAtomic()) {
-        return LowerIntrinsiccallAassignedToAssignStmt(intrincall);
+        return LowerIntrinsiccallAassignedToAssignStmt(intrinCall);
       }
       if (intrinsicID == INTRN_JAVA_POLYMORPHIC_CALL) {
         BaseNode *contextClassArg = GetBaseNodeFromCurFunc(*mirModule.CurFunction(), false);
         constexpr int kContextIdx = 4; /* stable index in MCC_DexPolymorphicCall, never out of range */
-        intrincall.InsertOpnd(contextClassArg, kContextIdx);
+        intrinCall.InsertOpnd(contextClassArg, kContextIdx);
 
-        BaseNode *firstArg = intrincall.GetNopndAt(0);
+        BaseNode *firstArg = intrinCall.GetNopndAt(0);
         BaseNode *baseVal = mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetPtr(), firstArg,
                                                          mirBuilder->CreateIntConst(1, PTY_ref));
-        intrincall.SetNOpndAt(0, baseVal);
+        intrinCall.SetNOpndAt(0, baseVal);
       }
-      newCall = GenIntrinsiccallNode(stmt, funcCalled, handledAtLowerLevel, intrincall);
-      p2nRets = &intrincall.GetReturnVec();
+      newCall = GenIntrinsiccallNode(stmt, funcCalled, handledAtLowerLevel, intrinCall);
+      p2nRets = &intrinCall.GetReturnVec();
       static_cast<IntrinsiccallNode *>(newCall)->SetReturnVec(*p2nRets);
       break;
     }
@@ -2615,7 +2615,7 @@ void CGLowerer::ProcessArrayExpr(BaseNode &expr, BlockNode &blkNode) {
     BaseNode *lenRegreadNode = mirBuilder->CreateExprRegread(PTY_u32, lenPregIdx);
 
     LabelIdx labIdx = GetLabelIdx(*curFunc);
-    LabelNode *labelBC = mirBuilder->CreateStmtLabel(labIdx);;
+    LabelNode *labelBC = mirBuilder->CreateStmtLabel(labIdx);
     BaseNode *cond = mirBuilder->CreateExprCompare(OP_ge, *GlobalTables::GetTypeTable().GetUInt1(),
                                                    *GlobalTables::GetTypeTable().GetUInt32(),
                                                    arrayNode.GetNopndAt(1), lenRegreadNode);
@@ -2690,7 +2690,7 @@ BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkN
     }
 
     case OP_dread:
-      return LowerDread(static_cast<DreadNode&>(expr), blkNode);
+      return LowerDread(static_cast<DreadNode&>(expr));
 
     case OP_addrof:
       return LowerAddrof(static_cast<AddrofNode&>(expr));
@@ -2761,12 +2761,12 @@ BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkN
   }
 }
 
-BaseNode *CGLowerer::LowerDread(DreadNode &dread, const BlockNode &block) {
+BaseNode *CGLowerer::LowerDread(DreadNode &dread) {
   /* use PTY_u8 for boolean type in dread/iread */
   if (dread.GetPrimType() == PTY_u1) {
     dread.SetPrimType(PTY_u8);
   }
-  return (dread.GetFieldID() == 0 ? LowerDreadToThreadLocal(dread, block) : LowerDreadBitfield(dread));
+  return (dread.GetFieldID() == 0 ? LowerDreadToThreadLocal(dread) : LowerDreadBitfield(dread));
 }
 
 void CGLowerer::LowerRegassign(RegassignNode &regNode, BlockNode &newBlk) {
@@ -2791,7 +2791,7 @@ BaseNode *CGLowerer::ExtractSymbolAddress(const StIdx &stIdx) {
   return builder->CreateExprAddrof(0, stIdx);
 }
 
-BaseNode *CGLowerer::LowerDreadToThreadLocal(BaseNode &expr, const BlockNode &block) {
+BaseNode *CGLowerer::LowerDreadToThreadLocal(BaseNode &expr) {
   uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   auto *result = &expr;
   if (expr.GetOpCode() != maple::OP_dread) {
@@ -2818,7 +2818,7 @@ BaseNode *CGLowerer::LowerDreadToThreadLocal(BaseNode &expr, const BlockNode &bl
   return result;
 }
 
-StmtNode *CGLowerer::LowerDassignToThreadLocal(StmtNode &stmt, const BlockNode &block) {
+StmtNode *CGLowerer::LowerDassignToThreadLocal(StmtNode &stmt) {
   uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   StmtNode *result = &stmt;
   if (stmt.GetOpCode() != maple::OP_dassign) {
@@ -2877,7 +2877,7 @@ void CGLowerer::LowerDassign(DassignNode &dsNode, BlockNode &newBlk) {
   }
 
   if (newStmt != nullptr) {
-    newBlk.AddStatement(LowerDassignToThreadLocal(*newStmt, newBlk));
+    newBlk.AddStatement(LowerDassignToThreadLocal(*newStmt));
   }
 }
 
@@ -3038,7 +3038,7 @@ StmtNode *CGLowerer::CreateStmtCallWithReturnValue(const IntrinsicopNode &intrin
   return mirBuilder->CreateStmtCallAssigned(bFunc, args, &ret, OP_callassigned);
 }
 
-StmtNode *CGLowerer::CreateStmtCallWithReturnValue(const IntrinsicopNode &intrinNode, PregIdx retpIdx, PUIdx bFunc,
+StmtNode *CGLowerer::CreateStmtCallWithReturnValue(const IntrinsicopNode &intrinNode, PregIdx retPregIdx, PUIdx bFunc,
                                                    BaseNode *extraInfo) const {
   MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
   for (size_t i = 0; i < intrinNode.NumOpnds(); ++i) {
@@ -3047,7 +3047,7 @@ StmtNode *CGLowerer::CreateStmtCallWithReturnValue(const IntrinsicopNode &intrin
   if (extraInfo != nullptr) {
     args.emplace_back(extraInfo);
   }
-  return mirBuilder->CreateStmtCallRegassigned(bFunc, args, retpIdx, OP_callassigned);
+  return mirBuilder->CreateStmtCallRegassigned(bFunc, args, retPregIdx, OP_callassigned);
 }
 
 BaseNode *CGLowerer::LowerIntrinJavaMerge(const BaseNode &parent, IntrinsicopNode &intrinNode) const {
@@ -3468,13 +3468,13 @@ BaseNode *CGLowerer::LowerIntrinsicopwithtype(const BaseNode &parent, Intrinsico
   return &intrinNode;
 }
 
-StmtNode *CGLowerer::LowerIntrinsicMplClearStack(const IntrinsiccallNode &intrincall, BlockNode &newBlk) {
+StmtNode *CGLowerer::LowerIntrinsicMplClearStack(const IntrinsiccallNode &intrinCall, BlockNode &newBlk) {
   StmtNode *newStmt = mirBuilder->CreateStmtIassign(
       *beCommon.BeGetOrCreatePointerType(*GlobalTables::GetTypeTable().GetUInt8()), 0,
-      intrincall.Opnd(0), mirBuilder->GetConstUInt8(0));
+      intrinCall.Opnd(0), mirBuilder->GetConstUInt8(0));
   newBlk.AddStatement(newStmt);
 
-  BaseNode *length = intrincall.Opnd(1);
+  BaseNode *length = intrinCall.Opnd(1);
   PrimType pType = PTY_i64;
   PregIdx pIdx = GetCurrentFunc()->GetPregTab()->CreatePreg(pType);
   newStmt = mirBuilder->CreateStmtRegassign(pType, pIdx, mirBuilder->CreateIntConst(1, pType));
@@ -3494,7 +3494,7 @@ StmtNode *CGLowerer::LowerIntrinsicMplClearStack(const IntrinsiccallNode &intrin
 
   BinaryNode *addr = mirBuilder->CreateExprBinary(OP_add,
                                                   *GlobalTables::GetTypeTable().GetAddr64(),
-                                                  intrincall.Opnd(0), regLen);
+                                                  intrinCall.Opnd(0), regLen);
 
   newStmt = mirBuilder->CreateStmtIassign(*beCommon.BeGetOrCreatePointerType(*GlobalTables::GetTypeTable().GetUInt8()),
                                           0, addr, mirBuilder->GetConstUInt8(0));
@@ -3516,9 +3516,9 @@ StmtNode *CGLowerer::LowerIntrinsicMplClearStack(const IntrinsiccallNode &intrin
   return newStmt;
 }
 
-StmtNode *CGLowerer::LowerIntrinsicRCCall(const IntrinsiccallNode &intrincall) {
+StmtNode *CGLowerer::LowerIntrinsicRCCall(const IntrinsiccallNode &intrinCall) {
   /* If GCONLY enabled, lowering RC intrinsics in another way. */
-  MIRIntrinsicID intrnID = intrincall.GetIntrinsic();
+  MIRIntrinsicID intrnID = intrinCall.GetIntrinsic();
   IntrinDesc *intrinDesc = &IntrinDesc::intrinTable[intrnID];
 
   /* convert intrinsic call into function call. */
@@ -3532,18 +3532,18 @@ StmtNode *CGLowerer::LowerIntrinsicRCCall(const IntrinsiccallNode &intrincall) {
   }
   CallNode *callStmt = mirModule.CurFuncCodeMemPool()->New<CallNode>(mirModule, OP_call);
   callStmt->SetPUIdx(intrinFuncIDs.at(intrinDesc));
-  for (size_t i = 0; i < intrincall.GetNopndSize(); ++i) {
-    callStmt->GetNopnd().emplace_back(intrincall.GetNopndAt(i));
+  for (size_t i = 0; i < intrinCall.GetNopndSize(); ++i) {
+    callStmt->GetNopnd().emplace_back(intrinCall.GetNopndAt(i));
     callStmt->SetNumOpnds(callStmt->GetNumOpnds() + 1);
   }
   return callStmt;
 }
 
-void CGLowerer::LowerArrayStore(const IntrinsiccallNode &intrincall, BlockNode &newBlk) {
+void CGLowerer::LowerArrayStore(const IntrinsiccallNode &intrinCall, BlockNode &newBlk) {
   bool needCheckStore = true;
-  BaseNode *arrayNode = intrincall.Opnd(0);
+  BaseNode *arrayNode = intrinCall.Opnd(0);
   MIRType *arrayElemType = GetArrayNodeType(*arrayNode);
-  BaseNode *valueNode = intrincall.Opnd(kNodeThirdOpnd);
+  BaseNode *valueNode = intrinCall.Opnd(kNodeThirdOpnd);
   MIRType *valueRealType = GetArrayNodeType(*valueNode);
   if ((arrayElemType != nullptr) && (valueRealType != nullptr) && (arrayElemType->GetKind() == kTypeClass) &&
       static_cast<MIRClassType*>(arrayElemType)->IsFinal() && (valueRealType->GetKind() == kTypeClass) &&
@@ -3558,19 +3558,19 @@ void CGLowerer::LowerArrayStore(const IntrinsiccallNode &intrincall, BlockNode &
     beCommon.UpdateTypeTable(*fn->GetMIRFuncType());
     fn->AllocSymTab();
     MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
-    args.emplace_back(intrincall.Opnd(0));
-    args.emplace_back(intrincall.Opnd(kNodeThirdOpnd));
+    args.emplace_back(intrinCall.Opnd(0));
+    args.emplace_back(intrinCall.Opnd(kNodeThirdOpnd));
     StmtNode *checkStoreStmt = mirBuilder->CreateStmtCall(fn->GetPuidx(), args);
     newBlk.AddStatement(checkStoreStmt);
   }
 }
 
-StmtNode *CGLowerer::LowerDefaultIntrinsicCall(IntrinsiccallNode &intrincall, MIRSymbol &st, MIRFunction &fn) {
-  MIRIntrinsicID intrnID = intrincall.GetIntrinsic();
+StmtNode *CGLowerer::LowerDefaultIntrinsicCall(IntrinsiccallNode &intrinCall, MIRSymbol &st, MIRFunction &fn) {
+  MIRIntrinsicID intrnID = intrinCall.GetIntrinsic();
   IntrinDesc *intrinDesc = &IntrinDesc::intrinTable[intrnID];
   std::vector<TyIdx> funcTyVec;
   std::vector<TypeAttrs> fnTaVec;
-  MapleVector<BaseNode*> &nOpnds = intrincall.GetNopnd();
+  MapleVector<BaseNode*> &nOpnds = intrinCall.GetNopnd();
   MIRType *retTy = intrinDesc->GetReturnType();
   CHECK_FATAL(retTy != nullptr, "retTy should not be nullptr");
   if (retTy->GetKind() == kTypeStruct) {
@@ -3603,9 +3603,9 @@ StmtNode *CGLowerer::LowerDefaultIntrinsicCall(IntrinsiccallNode &intrincall, MI
   return static_cast<CallNode*>(mirBuilder->CreateStmtCall(fn.GetPuidx(), nOpnds));
 }
 
-StmtNode *CGLowerer::LowerIntrinsicMplCleanupLocalRefVarsSkip(IntrinsiccallNode &intrincall) {
+StmtNode *CGLowerer::LowerIntrinsicMplCleanupLocalRefVarsSkip(IntrinsiccallNode &intrinCall) {
   MIRFunction *mirFunc = mirModule.CurFunction();
-  BaseNode *skipExpr = intrincall.Opnd(intrincall.NumOpnds() - 1);
+  BaseNode *skipExpr = intrinCall.Opnd(intrinCall.NumOpnds() - 1);
 
   CHECK_FATAL(skipExpr != nullptr, "should be dread");
   CHECK_FATAL(skipExpr->GetOpCode() == OP_dread, "should be dread");
@@ -3614,24 +3614,24 @@ StmtNode *CGLowerer::LowerIntrinsicMplCleanupLocalRefVarsSkip(IntrinsiccallNode 
   if (skipSym->GetAttr(ATTR_localrefvar)) {
     mirFunc->InsertMIRSymbol(skipSym);
   }
-  return &intrincall;
+  return &intrinCall;
 }
 
-StmtNode *CGLowerer::LowerIntrinsiccall(IntrinsiccallNode &intrincall, BlockNode &newBlk) {
-  MIRIntrinsicID intrnID = intrincall.GetIntrinsic();
-  for (size_t i = 0; i < intrincall.GetNumOpnds(); ++i) {
-    intrincall.SetOpnd(LowerExpr(intrincall, *intrincall.Opnd(i), newBlk), i);
+StmtNode *CGLowerer::LowerIntrinsiccall(IntrinsiccallNode &intrinCall, BlockNode &newBlk) {
+  MIRIntrinsicID intrnID = intrinCall.GetIntrinsic();
+  for (size_t i = 0; i < intrinCall.GetNumOpnds(); ++i) {
+    intrinCall.SetOpnd(LowerExpr(intrinCall, *intrinCall.Opnd(i), newBlk), i);
   }
   if (intrnID == INTRN_MPL_CLEAR_STACK) {
-    return LowerIntrinsicMplClearStack(intrincall, newBlk);
+    return LowerIntrinsicMplClearStack(intrinCall, newBlk);
   }
   if (intrnID == INTRN_C_va_start) {
-    return &intrincall;
+    return &intrinCall;
   }
   IntrinDesc *intrinDesc = &IntrinDesc::intrinTable[intrnID];
   if (intrinDesc->IsSpecial() || intrinDesc->IsAtomic()) {
-    /* For special intrinsics we leave them to CGFunc::SelectIntrinCall() */
-    return &intrincall;
+    /* For special intrinsics we leave them to CGFunc::SelectintrinCall() */
+    return &intrinCall;
   }
   /* default lowers intrinsic call to real function call. */
   MIRSymbol *st = GlobalTables::GetGsymTable().CreateSymbol(kScopeGlobal);
@@ -3645,7 +3645,7 @@ StmtNode *CGLowerer::LowerIntrinsiccall(IntrinsiccallNode &intrincall, BlockNode
   fn->AllocSymTab();
   st->SetFunction(fn);
   st->SetAppearsInCode(true);
-  return LowerDefaultIntrinsicCall(intrincall, *st, *fn);
+  return LowerDefaultIntrinsicCall(intrinCall, *st, *fn);
 }
 
 StmtNode *CGLowerer::LowerSyncEnterSyncExit(StmtNode &stmt) {

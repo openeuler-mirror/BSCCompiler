@@ -14,7 +14,6 @@
  */
 #include <cstdio>
 #include <unistd.h>
-#include <sys/stat.h>
 #include <iomanip>
 #include <algorithm>
 #include "mdgenerator.h"

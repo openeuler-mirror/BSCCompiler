@@ -15,8 +15,6 @@
 #ifndef MAPLEBE_INCLUDE_CG_REG_ALLOC_H
 #define MAPLEBE_INCLUDE_CG_REG_ALLOC_H
 
-#include <map>
-#include <stack>
 #include "isa.h"
 #include "cg_phase.h"
 #include "maple_phase_manager.h"

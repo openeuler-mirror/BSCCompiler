@@ -623,8 +623,8 @@ bool AArch64Ebo::SimplifyConstOperand(Insn &insn, const MapleVector<Operand*> &o
     return true;
   }
   /* For the imm is 0. Then replace the insn by a move insn. */
-  if (((insn.GetMachineOpcode() >= MOP_xaddrrr ) && (insn.GetMachineOpcode() <= MOP_sadd) && immOpnd->IsZero()) ||
-      (op1IsConstant && (insn.GetMachineOpcode() >= MOP_xsubrrr ) && (insn.GetMachineOpcode() <= MOP_ssub) &&
+  if (((insn.GetMachineOpcode() >= MOP_xaddrrr) && (insn.GetMachineOpcode() <= MOP_sadd) && immOpnd->IsZero()) ||
+      (op1IsConstant && (insn.GetMachineOpcode() >= MOP_xsubrrr) && (insn.GetMachineOpcode() <= MOP_ssub) &&
        immOpnd->IsZero())) {
     Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(opndSize == k64BitSize ? MOP_xmovrr : MOP_wmovrr,
                                                                    *res, *op);

@@ -16,7 +16,6 @@
 #define MAPLEBE_INCLUDE_CG_CG_H
 
 /* C++ headers. */
-#include <cstddef>
 #include <string>
 /* MapleIR headers. */
 #include "operand.h"

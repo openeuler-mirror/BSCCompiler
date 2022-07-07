@@ -36,9 +36,9 @@ class AArch64CallConvImpl {
   ~AArch64CallConvImpl() = default;
 
   /* Return size of aggregate structure copy on stack. */
-  int32 LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, bool isFirst = false, MIRFunction *func = nullptr);
+  int32 LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, bool isFirst = false, MIRFunction *tFunc = nullptr);
 
-  int32 LocateRetVal(MIRType &retType, CCLocInfo &ploc);
+  int32 LocateRetVal(MIRType &retType, CCLocInfo &pLoc);
 
   void InitCCLocInfo(CCLocInfo &pLoc) const;
 
@@ -46,7 +46,7 @@ class AArch64CallConvImpl {
   uint32 FloatParamRegRequired(MIRStructType &structType, uint32 &fpSize);
 
   /*  return value related  */
-  void InitReturnInfo(MIRType &retTy, CCLocInfo &pLoc);
+  void InitReturnInfo(MIRType &retTy, CCLocInfo &ccLocInfo);
 
   void SetupSecondRetReg(const MIRType &retTy2, CCLocInfo &pLoc) const;
 
