@@ -43,11 +43,11 @@ constexpr uint32 k64 = sizeof(int64) * CHAR_BIT;
 constexpr uint32 kU64 = sizeof(uint64) * CHAR_BIT;
 
 enum RematLevel {
-  rematOff = 0,
-  rematConst = 1,
-  rematAddr = 2,
-  rematDreadLocal = 3,
-  rematDreadGlobal = 4
+  kRematOff = 0,
+  kRematConst = 1,
+  kRematAddr = 2,
+  kRematDreadLocal = 3,
+  kRematDreadGlobal = 4
 };
 
 template <typename T, typename Comparator = std::less<T>>
@@ -207,7 +207,7 @@ struct SortedBBCmpFunc {
   }
 };
 
-enum refType : uint8 {
+enum RefType : uint8 {
   kIsUse = 0x1,
   kIsDef = 0x2,
   kIsCall = 0x4,
@@ -1020,7 +1020,7 @@ class LocalRegAllocator {
     }
   }
 
-  bool isInRegSpilled(regno_t regNO, bool isInt) const {
+  bool IsInRegSpilled(regno_t regNO, bool isInt) const {
     bool isSet;
     if (isInt) {
       isSet = IsBitArrElemSet(intRegSpilled, regNO);

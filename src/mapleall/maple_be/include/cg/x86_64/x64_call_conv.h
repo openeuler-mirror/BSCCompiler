@@ -18,6 +18,7 @@
 #include "types_def.h"
 #include "becommon.h"
 #include "call_conv.h"
+#include "abi.h"
 #include "x64_abi.h"
 
 namespace maplebe {
@@ -41,13 +42,13 @@ class X64CallConvImpl {
  private:
   X64reg AllocateGPParmRegister() {
     return (nextGeneralParmRegNO < kNumIntParmRegs) ?
-        intParmRegs[nextGeneralParmRegNO++] : kRinvalid;
+        kIntParmRegs[nextGeneralParmRegNO++] : kRinvalid;
   }
 
   void AllocateTwoGPParmRegisters(CCLocInfo &pLoc) {
     if ((nextGeneralParmRegNO + 1) < kNumIntParmRegs) {
-      pLoc.reg0 = intParmRegs[nextGeneralParmRegNO++];
-      pLoc.reg1 = intParmRegs[nextGeneralParmRegNO++];
+      pLoc.reg0 = kIntParmRegs[nextGeneralParmRegNO++];
+      pLoc.reg1 = kIntParmRegs[nextGeneralParmRegNO++];
     } else {
       pLoc.reg0 = kRinvalid;
     }
@@ -55,13 +56,13 @@ class X64CallConvImpl {
 
   X64reg AllocateGPReturnRegister() {
     return (nextGeneralReturnRegNO < kNumIntReturnRegs) ?
-        intReturnRegs[nextGeneralReturnRegNO++] : kRinvalid;
+        kIntReturnRegs[nextGeneralReturnRegNO++] : kRinvalid;
   }
 
   void AllocateTwoGPReturnRegisters(CCLocInfo &pLoc) {
     if ((nextGeneralReturnRegNO + 1) < kNumIntReturnRegs) {
-      pLoc.reg0 = intReturnRegs[nextGeneralReturnRegNO++];
-      pLoc.reg1 = intReturnRegs[nextGeneralReturnRegNO++];
+      pLoc.reg0 = kIntReturnRegs[nextGeneralReturnRegNO++];
+      pLoc.reg1 = kIntReturnRegs[nextGeneralReturnRegNO++];
     } else {
       pLoc.reg0 = kRinvalid;
     }

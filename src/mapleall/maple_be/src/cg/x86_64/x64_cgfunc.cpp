@@ -142,22 +142,6 @@ Operand *X64CGFunc::SelectCaligndown(IntrinsicopNode &intrinopNode) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
-Operand *X64CGFunc::SelectCSyncAddFetch(IntrinsicopNode &intrinopNode, PrimType pty) {
-  CHECK_FATAL(false, "NIY");
-  return nullptr;
-}
-Operand *X64CGFunc::SelectCSyncFetchAdd(IntrinsicopNode &intrinopNode, PrimType pty) {
-  CHECK_FATAL(false, "NIY");
-  return nullptr;
-}
-Operand *X64CGFunc::SelectCSyncSubFetch(IntrinsicopNode &intrinopNode, PrimType pty) {
-  CHECK_FATAL(false, "NIY");
-  return nullptr;
-}
-Operand *X64CGFunc::SelectCSyncFetchSub(IntrinsicopNode &intrinopNode, PrimType pty) {
-  CHECK_FATAL(false, "NIY");
-  return nullptr;
-}
 Operand *X64CGFunc::SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
@@ -170,7 +154,27 @@ Operand *X64CGFunc::SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimTy
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
+Operand *X64CGFunc::SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+  return nullptr;
+}
 Operand *X64CGFunc::SelectCSyncLockRelease(IntrinsicopNode &intrinopNode, PrimType pty) {
+  CHECK_FATAL(false, "NIY");
+  return nullptr;
+}
+Operand *X64CGFunc::SelectCSyncFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) {
+  CHECK_FATAL(false, "NIY");
+  return nullptr;
+}
+Operand *X64CGFunc::SelectCSyncSynchronize(IntrinsicopNode &intrinsicopNode) {
+  CHECK_FATAL(false, "NIY");
+  return nullptr;
+}
+Operand *X64CGFunc::SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) {
+  CHECK_FATAL(false, "NIY");
+  return nullptr;
+}
+Operand *X64CGFunc::SelectCAtomicExchangeN(IntrinsicopNode &intrinsicopNode) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -210,7 +214,11 @@ Operand &X64CGFunc::SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &par
   return *a;
 }
 Operand *X64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr, int extraOffset,
-                     PrimType finalBitFieldDestType) {
+                                PrimType finalBitFieldDestType) {
+  CHECK_FATAL(false, "NIY");
+  return nullptr;
+}
+Operand *X64CGFunc::SelectIreadoff(const BaseNode &parent, IreadoffNode &ireadoff) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -299,7 +307,7 @@ Operand *X64CGFunc::SelectLand(BinaryNode &node, Operand &opnd0, Operand &opnd1,
   return nullptr;
 }
 Operand *X64CGFunc::SelectLor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent,
-                   bool parentIsBr) {
+                              bool parentIsBr) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -396,7 +404,7 @@ Operand *X64CGFunc::SelectTrunc(TypeCvtNode &node, Operand &opnd0, const BaseNod
   return nullptr;
 }
 Operand *X64CGFunc::SelectSelect(TernaryNode &node, Operand &cond, Operand &opnd0, Operand &opnd1,
-                      const BaseNode &parent, bool hasCompare) {
+                                 const BaseNode &parent, bool hasCompare) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -496,9 +504,9 @@ RegOperand &X64CGFunc::GetOrCreateStackBaseRegOperand() {
   RegOperand *a;
   return *a;
 }
-Operand &X64CGFunc::GetZeroOpnd(uint32 size) {
+RegOperand &X64CGFunc::GetZeroOpnd(uint32 size) {
   CHECK_FATAL(false, "NIY");
-  Operand *a;
+  RegOperand *a;
   return *a;
 }
 Operand &X64CGFunc::CreateCfiRegOperand(uint32 reg, uint32 size) {
@@ -516,11 +524,7 @@ Operand &X64CGFunc::CreateImmOperand(PrimType primType, int64 val) {
   Operand *a;
   return *a;
 }
-Operand *X64CGFunc::CreateZeroOperand(PrimType primType) {
-  CHECK_FATAL(false, "NIY");
-  return nullptr;
-}
-void X64CGFunc::ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn) {
+void X64CGFunc::ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn, regno_t regno) {
   CHECK_FATAL(false, "NIY");
 }
 void X64CGFunc::CleanupDeadMov(bool dump) {
@@ -546,12 +550,12 @@ RegOperand *X64CGFunc::SelectVectorAbs(PrimType rType, Operand *o1) {
   return nullptr;
 }
 RegOperand *X64CGFunc::SelectVectorBinOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2,
-                              PrimType oTyp2, Opcode opc) {
+                                         PrimType oTyp2, Opcode opc) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
 RegOperand *X64CGFunc::SelectVectorBitwiseOp(PrimType rType, Operand *o1, PrimType oty1, Operand *o2,
-                                  PrimType oty2, Opcode opc) {
+                                             PrimType oty2, Opcode opc) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -584,7 +588,7 @@ RegOperand *X64CGFunc::SelectVectorAbsSubL(PrimType rType, Operand *o1, Operand 
   return nullptr;
 }
 RegOperand *X64CGFunc::SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, Operand *o3,
-                             PrimType oTyp3) {
+                                        PrimType oTyp3) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -593,7 +597,7 @@ RegOperand *X64CGFunc::SelectVectorMerge(PrimType rTyp, Operand *o1, Operand *o2
   return nullptr;
 }
 RegOperand *X64CGFunc::SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2,
-                             bool isLow) {
+                                        bool isLow) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -626,12 +630,12 @@ RegOperand *X64CGFunc::SelectVectorReverse(PrimType rtype, Operand *src, PrimTyp
   return nullptr;
 }
 RegOperand *X64CGFunc::SelectVectorSetElement(Operand *eOp, PrimType eTyp, Operand *vOpd, PrimType vTyp,
-                                   int32 lane) {
+                                              int32 lane) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
 RegOperand *X64CGFunc::SelectVectorShift(PrimType rType, Operand *o1, PrimType oty1, Operand *o2, PrimType oty2,
-                              Opcode opc) {
+                                         Opcode opc) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -644,7 +648,7 @@ RegOperand *X64CGFunc::SelectVectorShiftRNarrow(PrimType rType, Operand *o1, Pri
   return nullptr;
 }
 RegOperand *X64CGFunc::SelectVectorSubWiden(PrimType resType, Operand *o1, PrimType otyp1, Operand *o2, PrimType otyp2,
-                                 bool isLow, bool isWide) {
+                                            bool isLow, bool isWide) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -686,28 +690,37 @@ int32 X64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
    * Refer to layout in x64_memlayout.h.
    * Do Not change this unless you know what you do
    */
+  const int32 sizeofFplr = 2 * kIntregBytelen;
   MemSegmentKind sgKind = symAlloc->GetMemSegment()->GetMemSegmentKind();
   auto *memLayout = static_cast<X64MemLayout*>(this->GetMemlayout());
   if (sgKind == kMsLocals) {
     // baseOffset is the offset of this symbol based on the rbp position.
     int32 baseOffset = symAlloc->GetOffset();
     return baseOffset - memLayout->StackFrameSize();
+  } else if (sgKind == kMsArgsRegPassed) {
+    int32 baseOffset = symAlloc->GetOffset();
+    return baseOffset + memLayout->GetSizeOfLocals() - memLayout->StackFrameSize();
+  } else if (sgKind == kMsArgsStkPassed) {
+    int32 baseOffset = static_cast<int32>(symAlloc->GetOffset());
+    return baseOffset + sizeofFplr;
   } else {
     CHECK_FATAL(false, "sgKind check");
   }
   return 0;
 }
-CGRegOperand* X64CGFunc::GetBaseReg(const maplebe::SymbolAlloc &symAlloc) {
+
+CGRegOperand *X64CGFunc::GetBaseReg(const maplebe::SymbolAlloc &symAlloc) {
   MemSegmentKind sgKind = symAlloc.GetMemSegment()->GetMemSegmentKind();
   ASSERT(((sgKind == kMsArgsRegPassed) || (sgKind == kMsLocals) || (sgKind == kMsRefLocals) ||
-          (sgKind == kMsArgsToStkPass) || (sgKind == kMsArgsStkPassed)), "NYI");
-  if (sgKind == kMsLocals) {
-    return &GetOpndBuilder()->CreatePReg(x64::RBP, kSizeOfPtr, kRegTyInt);
+      (sgKind == kMsArgsToStkPass) || (sgKind == kMsArgsStkPassed)), "NIY");
+  if (sgKind == kMsLocals || sgKind == kMsArgsRegPassed || sgKind == kMsArgsStkPassed) {
+    return &GetOpndBuilder()->CreatePReg(x64::RBP, kSizeOfPtr * kBitsPerByte, kRegTyInt);
   } else {
     CHECK_FATAL(false, "NIY sgKind");
   }
   return nullptr;
 }
+
 void X64CGFunc::DumpTargetIR(const Insn &insn) const {
   const InsnDescription &curMd =  X64CG::kMd[insn.GetMachineOpcode()];
   LogInfo::MapleLogger() << "MOP (" << curMd.GetName() << ")";
@@ -742,6 +755,7 @@ void X64OpndDumpVistor::Visit(maplebe::CGImmOperand *v) {
   DumpSize(*v);
   DumpOpndSuffix();
 }
+
 void X64OpndDumpVistor::Visit(maplebe::CGMemOperand *v) {
   DumpOpndPrefix();
   LogInfo::MapleLogger() << "mem ";
@@ -755,7 +769,7 @@ void X64OpndDumpVistor::Visit(maplebe::CGMemOperand *v) {
   DumpOpndSuffix();
 }
 void X64OpndDumpVistor::DumpRegInfo(maplebe::CGRegOperand &v) {
-  if (v.GetRegisterNumber() > baseVirtualRegNO) {
+  if (v.GetRegisterNumber() > kBaseVirtualRegNO) {
     LogInfo::MapleLogger() << "V" << v.GetRegisterNumber();
   } else {
     bool r32 = (v.GetSize() == k32BitSize);
@@ -763,5 +777,34 @@ void X64OpndDumpVistor::DumpRegInfo(maplebe::CGRegOperand &v) {
                            << X64CG::intRegNames[(r32 ? X64CG::kR32List : X64CG::kR64List)][v.GetRegisterNumber()];
   }
 
+}
+
+void X64OpndDumpVistor::Visit(maplebe::CGFuncNameOperand *v) {
+  DumpOpndPrefix();
+  LogInfo::MapleLogger() << "funcname ";
+  LogInfo::MapleLogger() << v->GetName();
+  DumpSize(*v);
+  DumpOpndSuffix();
+}
+
+void X64OpndDumpVistor::Visit(maplebe::CGListOperand *v) {
+  DumpOpndPrefix();
+  LogInfo::MapleLogger() << "list ";
+
+  MapleList<CGRegOperand*> opndList = v->GetOperands();
+  for (auto it = opndList.begin(); it != opndList.end();) {
+    (*it)->Dump();
+    LogInfo::MapleLogger() << (++it == opndList.end() ? "" : " ,");
+  }
+  DumpSize(*v);
+  DumpOpndSuffix();
+}
+
+void X64OpndDumpVistor::Visit(maplebe::CGLabelOperand *v) {
+  DumpOpndPrefix();
+  LogInfo::MapleLogger() << "label ";
+  LogInfo::MapleLogger() << v->GetLabelIndex();
+  DumpSize(*v);
+  DumpOpndSuffix();
 }
 }

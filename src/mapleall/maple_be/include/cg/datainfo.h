@@ -87,11 +87,11 @@ class DataInfo {
     return true;
   }
 
-  bool IsEqual(const MapleVector<uint64> &LiveInfoBak) const {
+  bool IsEqual(const MapleVector<uint64> &liveInfoBak) const {
     size_t infoSize = info.size();
-    ASSERT(infoSize == LiveInfoBak.size(), "two dataInfo's size different");
+    ASSERT(infoSize == liveInfoBak.size(), "two dataInfo's size different");
     for (size_t i = 0; i != infoSize; ++i) {
-      if (info[i] != LiveInfoBak[i]) {
+      if (info[i] != liveInfoBak[i]) {
         return false;
       }
     }

@@ -1608,7 +1608,7 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterLoad(Insn &insn) {
   }
   MOperator prevOrigMop = prevInsn->GetMachineOpcode();
   for (uint8 i = 0; i < kPrevLoadPatternNum; i++) {
-    ASSERT(extTypeIdx < SpecificExtTypeSize, "extTypeIdx must be lower than SpecificExtTypeSize");
+    ASSERT(extTypeIdx < SETS, "extTypeIdx must be lower than SETS");
     if (prevOrigMop != loadMappingTable[extTypeIdx][i][0]) {
       continue;
     }
@@ -1683,7 +1683,7 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterSameExt(Insn &insn) {
   MOperator prevMop = prevInsn->GetMachineOpcode();
   MOperator currMop = insn.GetMachineOpcode();
   for (uint8 i = 0; i < kSameExtPatternNum; i++) {
-    ASSERT(extTypeIdx < SpecificExtTypeSize, "extTypeIdx must be lower than SpecificExtTypeSize");
+    ASSERT(extTypeIdx < SETS, "extTypeIdx must be lower than SETS");
     if (sameExtMappingTable[extTypeIdx][i][0] == MOP_undef || sameExtMappingTable[extTypeIdx][i][1] == MOP_undef) {
       continue;
     }
@@ -3788,7 +3788,7 @@ void AndCmpBranchesToCsetAArch64::Run(BB &bb, Insn &insn) {
       }
 
       /* andImmVal is n power of 2 */
-      int n = logValueAtBase2(andImmVal);
+      int n = LogValueAtBase2(andImmVal);
       if (n < 0) {
         return;
       }
@@ -5337,7 +5337,7 @@ void OneHoleBranchesAArch64::Run(BB &bb, Insn &insn) {
     return;
   }
   auto &imm = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
-  int n = logValueAtBase2(imm.GetValue());
+  int n = LogValueAtBase2(imm.GetValue());
   if (n < 0) {
     return;
   }
@@ -5453,7 +5453,7 @@ void AndCmpBranchesToTbzAArch64::Run(BB &bb, Insn &insn) {
   auto &immAnd = static_cast<ImmOperand&>(prevPrevInsn->GetOperand(opndIdx));
   auto &immCmp = static_cast<ImmOperand&>(prevInsn->GetOperand(opndIdx));
   if (immCmp.GetValue() == 0) {
-    int n = logValueAtBase2(immAnd.GetValue());
+    int n = LogValueAtBase2(immAnd.GetValue());
     if (n < 0) {
       return;
     }
@@ -5490,8 +5490,8 @@ void AndCmpBranchesToTbzAArch64::Run(BB &bb, Insn &insn) {
     bb.RemoveInsn(*prevInsn);
     bb.RemoveInsn(*prevPrevInsn);
   } else {
-    int n = logValueAtBase2(immAnd.GetValue());
-    int m = logValueAtBase2(immCmp.GetValue());
+    int n = LogValueAtBase2(immAnd.GetValue());
+    int m = LogValueAtBase2(immCmp.GetValue());
     if (n < 0 || m < 0 || n != m) {
       return;
     }

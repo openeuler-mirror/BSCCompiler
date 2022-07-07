@@ -484,11 +484,12 @@ MemOperand *AArch64StoreLoadOpt::HandleArithImmDef(RegOperand &replace,
   }
   OfstOperand *newOfstImm = nullptr;
   if (oldOffset == nullptr) {
-    newOfstImm = &static_cast<AArch64CGFunc&>(cgFunc).CreateOfstOpnd(defVal, k32BitSize);
+    newOfstImm = &static_cast<AArch64CGFunc&>(cgFunc).CreateOfstOpnd(static_cast<uint64>(defVal), k32BitSize);
   } else {
     auto *ofstOpnd = static_cast<OfstOperand*>(oldOffset);
     CHECK_FATAL(ofstOpnd != nullptr, "oldOffsetOpnd is null");
-    newOfstImm = &static_cast<AArch64CGFunc&>(cgFunc).CreateOfstOpnd(defVal + ofstOpnd->GetValue(), k32BitSize);
+    newOfstImm = &static_cast<AArch64CGFunc&>(cgFunc).CreateOfstOpnd(
+        static_cast<uint64>(defVal + ofstOpnd->GetValue()), k32BitSize);
   }
   CHECK_FATAL(newOfstImm != nullptr, "newOffset is null!");
   return static_cast<AArch64CGFunc&>(cgFunc).CreateMemOperand(MemOperand::kAddrModeBOi, k64BitSize,
@@ -594,7 +595,8 @@ MemOperand *AArch64StoreLoadOpt::SelectReplaceMem(Insn &defInsn, Insn &curInsn,
         StImmOperand *offset1 = static_cast<StImmOperand*>(&defInsn.GetOperand(kInsnThirdOpnd));
         CHECK_FATAL(offset1 != nullptr, "offset1 is null!");
         val += offset1->GetOffset();
-        OfstOperand *newOfsetOpnd = &static_cast<AArch64CGFunc&>(cgFunc).CreateOfstOpnd(val, k32BitSize);
+        OfstOperand *newOfsetOpnd = &static_cast<AArch64CGFunc&>(cgFunc).CreateOfstOpnd(
+            static_cast<uint64>(val), k32BitSize);
         CHECK_FATAL(newOfsetOpnd != nullptr, "newOfsetOpnd is null!");
         const MIRSymbol *addr = offset1->GetSymbol();
         /* do not guarantee rodata alignment at Os */
@@ -634,7 +636,8 @@ MemOperand *AArch64StoreLoadOpt::SelectReplaceMem(Insn &defInsn, Insn &curInsn,
     case MOP_xmovri64: {
       if (propMode == kPropOffset) {
         ImmOperand *imm = static_cast<ImmOperand*>(&defInsn.GetOperand(kInsnSecondOpnd));
-        OfstOperand *newOffset = &static_cast<AArch64CGFunc&>(cgFunc).CreateOfstOpnd(imm->GetValue(), k32BitSize);
+        OfstOperand *newOffset = &static_cast<AArch64CGFunc&>(cgFunc).CreateOfstOpnd(
+            static_cast<uint64>(imm->GetValue()), k32BitSize);
         CHECK_FATAL(newOffset != nullptr, "newOffset is null!");
         newMemOpnd = static_cast<AArch64CGFunc&>(cgFunc).CreateMemOperand(
             MemOperand::kAddrModeBOi, k64BitSize, base, nullptr, newOffset, nullptr);
@@ -646,7 +649,7 @@ MemOperand *AArch64StoreLoadOpt::SelectReplaceMem(Insn &defInsn, Insn &curInsn,
       ImmOperand *imm = static_cast<ImmOperand*>(&defInsn.GetOperand(kInsnThirdOpnd));
       RegOperand *newOffset = static_cast<RegOperand*>(&defInsn.GetOperand(kInsnSecondOpnd));
       CHECK_FATAL(newOffset != nullptr, "newOffset is null!");
-      int64 shift = imm->GetValue();
+      uint32 shift = static_cast<uint32>(imm->GetValue());
       if (propMode == kPropOffset) {
         if ((shift < k4ByteSize) && (shift >= 0)) {
           newMemOpnd = static_cast<AArch64CGFunc&>(cgFunc).CreateMemOperand(
@@ -922,18 +925,18 @@ void AArch64StoreLoadOpt::StrLdrIndexModeOpt(Insn &currInsn) {
   }
 }
 
-bool AArch64StoreLoadOpt::CanDoIndexOpt(const MemOperand &MemOpnd) {
-  if (MemOpnd.GetAddrMode() != MemOperand::kAddrModeBOi || !MemOpnd.IsIntactIndexed()) {
+bool AArch64StoreLoadOpt::CanDoIndexOpt(const MemOperand &currMemOpnd) {
+  if (currMemOpnd.GetAddrMode() != MemOperand::kAddrModeBOi || !currMemOpnd.IsIntactIndexed()) {
     return false;
   }
-  ASSERT(MemOpnd.GetOffsetImmediate() != nullptr, " kAddrModeBOi memopnd have no offset imm");
-  if (!MemOpnd.GetOffsetImmediate()->IsImmOffset()) {
+  ASSERT(currMemOpnd.GetOffsetImmediate() != nullptr, " kAddrModeBOi memopnd have no offset imm");
+  if (!currMemOpnd.GetOffsetImmediate()->IsImmOffset()) {
     return false;
   }
-  if (cgFunc.IsSPOrFP(*MemOpnd.GetBaseRegister())) {
+  if (cgFunc.IsSPOrFP(*currMemOpnd.GetBaseRegister())) {
     return false;
   }
-  OfstOperand *a64Ofst = MemOpnd.GetOffsetImmediate();
+  OfstOperand *a64Ofst = currMemOpnd.GetOffsetImmediate();
   if (a64Ofst == nullptr) {
     return false;
   }

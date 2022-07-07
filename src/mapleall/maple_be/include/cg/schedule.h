@@ -36,7 +36,7 @@ class RegPressureSchedule {
 
   void InitBBInfo(BB &b, MemPool &memPool, const MapleVector<DepNode*> &nodes);
   void BuildPhyRegInfo(const std::vector<int32> &regNumVec);
-  void initPartialSplitters(const MapleVector<DepNode*> &nodes);
+  void InitPartialSplitters(const MapleVector<DepNode*> &nodes);
   void Init(const MapleVector<DepNode*> &nodes);
   void UpdateBBPressure(const DepNode &node);
   void CalculatePressure(DepNode &node, regno_t reg, bool def);

@@ -507,7 +507,7 @@ Operand *MPISel::HandleExpr(const BaseNode &parent, BaseNode &expr) {
   return function(parent, expr, *this);
 }
 
-void MPISel::doMPIS() {
+void MPISel::DoMPIS() {
   isel::InitHandleStmtFactory();
   isel::InitHandleExprFactory();
   StmtNode *secondStmt = HandleFuncEntry();
@@ -533,6 +533,7 @@ void MPISel::SelectDassign(const DassignNode &stmt, Operand &opndRhs) {
 
 void MPISel::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, Operand &opndRhs) {
   MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(stIdx);
+  CHECK_NULL_FATAL(symbol);
   /* Get symbol location */
   CGMemOperand &symbolMem = GetOrCreateMemOpndFromSymbol(*symbol, fieldId);
   /* Generate Insn */
@@ -1099,7 +1100,7 @@ void MPISel::HandleFuncExit() {
 
 bool InstructionSelector::PhaseRun(maplebe::CGFunc &f) {
   MPISel *mpIS = f.GetCG()->CreateMPIsel(*GetPhaseMemPool(), f);
-  mpIS->doMPIS();
+  mpIS->DoMPIS();
   Standardize *stdz = f.GetCG()->CreateStandardize(*GetPhaseMemPool(), f);
   stdz->DoStandardize();
   return true;

@@ -53,7 +53,7 @@ class AArch64StoreLoadOpt : public StoreLoadOpt {
   MemOperand *SelectReplaceMem(Insn &defInsn, Insn &curInsn, RegOperand &base, Operand *offset);
   MemOperand *SelectReplaceExt(const Insn &defInsn, RegOperand &base, bool isSigned);
   bool CanDoMemProp(const Insn *insn);
-  bool CanDoIndexOpt(const MemOperand &MemOpnd);
+  bool CanDoIndexOpt(const MemOperand &currMemOpnd);
   void MemPropInit();
   void SelectPropMode(const MemOperand &currMemOpnd);
   int64 GetOffsetForNewIndex(Insn &defInsn, Insn &insn, regno_t baseRegNO, uint32 memOpndSize);

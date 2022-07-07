@@ -29,7 +29,7 @@ class MPISel {
     cgFunc = nullptr;
   }
 
-  void doMPIS();
+  void DoMPIS();
 
   CGFunc *GetCurFunc() {
     return cgFunc;

@@ -188,9 +188,9 @@ bool MeFuncPM::FuncLevelRun(MeFunction &meFunc, AnalysisDataManager &serialADM) 
     }
     DumpMEIR(meFunc, curPhase->PhaseName(), true);
     if (curPhase->IsAnalysis()) {
-      changed |= RunAnalysisPhase<meFuncOptTy, MeFunction>(*curPhase, serialADM, meFunc);
+      changed |= RunAnalysisPhase<MeFuncOptTy, MeFunction>(*curPhase, serialADM, meFunc);
     } else {
-      changed |= RunTransformPhase<meFuncOptTy, MeFunction>(*curPhase, serialADM, meFunc);
+      changed |= RunTransformPhase<MeFuncOptTy, MeFunction>(*curPhase, serialADM, meFunc);
     }
     DumpMEIR(meFunc, curPhase->PhaseName(), false);
     SolveSkipAfter(MeOption::GetSkipAfterPhase(), i);

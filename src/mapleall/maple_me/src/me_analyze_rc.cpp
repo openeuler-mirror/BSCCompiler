@@ -464,14 +464,14 @@ bool MEAnalyzeRC::PhaseRun(maple::MeFunction &f) {
     f.Dump(false);
   }
   if (MeOption::subsumRC && MeOption::rcLowering && MeOption::optLevel > 0) {
-    GetAnalysisInfoHook()->ForceRunTransFormPhase<meFuncOptTy, MeFunction>(&MESubsumRC::id, f);
+    GetAnalysisInfoHook()->ForceRunTransFormPhase<MeFuncOptTy, MeFunction>(&MESubsumRC::id, f);
   }
   if (!MeOption::noDelegateRC && MeOption::rcLowering && MeOption::optLevel > 0) {
-    GetAnalysisInfoHook()->ForceRunTransFormPhase<meFuncOptTy, MeFunction>(&MEDelegateRC::id, f);
+    GetAnalysisInfoHook()->ForceRunTransFormPhase<MeFuncOptTy, MeFunction>(&MEDelegateRC::id, f);
   }
   if (!MeOption::noCondBasedRC && !(f.GetHints() & kPlacementRCed) &&
       MeOption::rcLowering && MeOption::optLevel > 0) {
-    GetAnalysisInfoHook()->ForceRunTransFormPhase<meFuncOptTy, MeFunction>(&MECondBasedRC::id, f);
+    GetAnalysisInfoHook()->ForceRunTransFormPhase<MeFuncOptTy, MeFunction>(&MECondBasedRC::id, f);
   }
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::Info() << "\n============== After delegate RC and condbased RC =============" << '\n';

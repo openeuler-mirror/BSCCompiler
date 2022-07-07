@@ -130,10 +130,10 @@ class LoopFinder : public AnalysisResult {
 
   ~LoopFinder() override = default;
 
-  void formLoop(BB* headBB, BB* backBB);
-  void seekBackEdge(BB* bb, MapleList<BB*> succs);
-  void seekCycles();
-  void markExtraEntryAndEncl();
+  void FormLoop(BB* headBB, BB* backBB);
+  void SeekBackEdge(BB* bb, MapleList<BB*> succs);
+  void SeekCycles();
+  void MarkExtraEntryAndEncl();
   bool HasSameHeader(const LoopHierarchy *lp1, const LoopHierarchy *lp2);
   void MergeLoops();
   void SortLoops();

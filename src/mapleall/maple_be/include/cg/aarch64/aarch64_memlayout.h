@@ -155,7 +155,7 @@ class AArch64MemLayout : public MemLayout {
 
   uint32 RealStackFrameSize() const;
 
-  const MemSegment &locals() const {
+  const MemSegment &Locals() const {
     return segLocals;
   }
 

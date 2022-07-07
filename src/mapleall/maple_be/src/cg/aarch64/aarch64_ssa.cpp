@@ -70,10 +70,10 @@ VRegVersion *AArch64CGSSAInfo::RenamedOperandSpecialCase(RegOperand &vRegOpnd, I
 }
 
 RegOperand *AArch64CGSSAInfo::CreateSSAOperand(RegOperand &virtualOpnd) {
-  regno_t ssaRegNO = static_cast<regno_t>(GetAllSSAOperands().size()) + SSARegNObase;
+  regno_t ssaRegNO = static_cast<regno_t>(GetAllSSAOperands().size()) + ssaRegNObase;
   while (GetAllSSAOperands().count(ssaRegNO) != 0) {
     ssaRegNO++;
-    SSARegNObase++;
+    ssaRegNObase++;
   }
   RegOperand *newVreg = memPool->New<RegOperand>(ssaRegNO,
       virtualOpnd.GetSize(), virtualOpnd.GetRegisterType());

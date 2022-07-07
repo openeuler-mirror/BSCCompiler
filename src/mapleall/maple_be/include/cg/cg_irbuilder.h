@@ -40,7 +40,7 @@ class InsnBuilder {
   MemPool *mp;
 };
 
-constexpr uint32 baseVirtualRegNO = 200; /* avoid conflicts between virtual and physical */
+constexpr uint32 kBaseVirtualRegNO = 200; /* avoid conflicts between virtual and physical */
 class OperandBuilder {
  public:
   explicit OperandBuilder(MemPool &mp) : alloc(&mp) {}

@@ -46,7 +46,7 @@ CGMemOperand &OperandBuilder::CreateMem(CGRegOperand &baseOpnd, int64 offset, ui
 
 CGRegOperand &OperandBuilder::CreateVReg(uint32 size, RegType type, MemPool *mp) {
   virtualRegNum++;
-  regno_t vRegNO = baseVirtualRegNO + virtualRegNum;
+  regno_t vRegNO = kBaseVirtualRegNO + virtualRegNum;
   return mp ? *mp->New<CGRegOperand>(vRegNO, size, type) : *alloc.New<CGRegOperand>(vRegNO, size, type);
 }
 

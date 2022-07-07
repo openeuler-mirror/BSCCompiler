@@ -73,6 +73,7 @@
 #include "me_fsaa.h"
 #include "optimizeCFG.h"
 #include "me_ivopts.h"
+#include "code_factoring.h"
 #include "me_slp.h"
 #if MIR_JAVA
 #include "sync_select.h"
@@ -92,7 +93,7 @@
 #include "me_sink.h"
 
 namespace maple {
-using meFuncOptTy = MapleFunctionPhase<MeFunction>;
+using MeFuncOptTy = MapleFunctionPhase<MeFunction>;
 
 /* ==== new phase manager ==== */
 class MeFuncPM : public FunctionPM {

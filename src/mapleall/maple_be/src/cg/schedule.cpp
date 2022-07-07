@@ -63,7 +63,7 @@ void RegPressureSchedule::BuildPhyRegInfo(const std::vector<int32> &regNumVec) {
 }
 
 /* Initialize pre-scheduling split point in BB */
-void RegPressureSchedule::initPartialSplitters(const MapleVector<DepNode*> &nodes) {
+void RegPressureSchedule::InitPartialSplitters(const MapleVector<DepNode*> &nodes) {
   bool addFirstAndLastNodeIndex = false;
   constexpr uint32 SecondLastNodeIndexFromBack = 2;
   constexpr uint32 LastNodeIndexFromBack = 1;
@@ -585,7 +585,7 @@ void RegPressureSchedule::DoScheduling(MapleVector<DepNode*> &nodes) {
   for (auto node : nodes) {
     originalNodeSeries.emplace_back(node);
   }
-  initPartialSplitters(nodes);
+  InitPartialSplitters(nodes);
 #if PRESCHED_DEBUG
   LogInfo::MapleLogger() << "\n Calculate Pressure Info for Schedule Input Series \n";
 #endif

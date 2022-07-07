@@ -18,8 +18,8 @@
 #include "me_function.h"
 
 namespace maple {
-using meFuncOptTy = MapleFunctionPhase<MeFunction>;
-using cgFuncOptTy = MapleFunctionPhase<maplebe::CGFunc>;
+using MeFuncOptTy = MapleFunctionPhase<MeFunction>;
+using CgFuncOptTy = MapleFunctionPhase<maplebe::CGFunc>;
 MemPool *AnalysisDataManager::ApplyMemPoolForAnalysisPhase(uint32 phaseKey, const MaplePhaseInfo &pi) {
   std::string mempoolName = pi.PhaseName() + " memPool";
   MemPool *phaseMempool = nullptr;
@@ -319,12 +319,12 @@ template bool MaplePhaseManager::RunTransformPhase<MapleSccPhase<SCCNode<CGNode>
     const MaplePhaseInfo &phaseInfo, AnalysisDataManager &adm, SCCNode<CGNode> &irUnit, int lev);
 template bool MaplePhaseManager::RunAnalysisPhase<MapleModulePhase, MIRModule>(
     const MaplePhaseInfo &phaseInfo, AnalysisDataManager &adm, MIRModule &irUnit, int lev);
-template bool MaplePhaseManager::RunTransformPhase<meFuncOptTy, MeFunction>(
+template bool MaplePhaseManager::RunTransformPhase<MeFuncOptTy, MeFunction>(
     const MaplePhaseInfo &phaseInfo, AnalysisDataManager &adm, MeFunction &irUnit, int lev);
-template bool MaplePhaseManager::RunAnalysisPhase<meFuncOptTy, MeFunction>(
+template bool MaplePhaseManager::RunAnalysisPhase<MeFuncOptTy, MeFunction>(
     const MaplePhaseInfo &phaseInfo, AnalysisDataManager &adm, MeFunction &irUnit, int lev);
-template bool MaplePhaseManager::RunTransformPhase<cgFuncOptTy, maplebe::CGFunc>(
+template bool MaplePhaseManager::RunTransformPhase<CgFuncOptTy, maplebe::CGFunc>(
     const MaplePhaseInfo &phaseInfo, AnalysisDataManager &adm, maplebe::CGFunc &irUnit, int lev);
-template bool MaplePhaseManager::RunAnalysisPhase<cgFuncOptTy, maplebe::CGFunc>(
+template bool MaplePhaseManager::RunAnalysisPhase<CgFuncOptTy, maplebe::CGFunc>(
     const MaplePhaseInfo &phaseInfo, AnalysisDataManager &adm, maplebe::CGFunc &irUnit, int lev);
 }

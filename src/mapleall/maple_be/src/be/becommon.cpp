@@ -12,13 +12,13 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include <cinttypes>
+#include <list>
 #include "becommon.h"
 #include "rt.h"
 #include "cg_option.h"
 #include "mir_builder.h"
 #include "mpl_logging.h"
-#include <cinttypes>
-#include <list>
 
 namespace maplebe {
 using namespace maple;
@@ -518,7 +518,7 @@ void BECommon::GenFieldOffsetMap(MIRClassType &classType, FILE &outFile) {
 
     if ((fieldType->GetKind() == kTypePointer) && (fieldType->GetPrimType() == PTY_a64)) {
       /* handle class reference field */
-      fieldSize = RTSupport::GetRTSupportInstance().GetFieldSize();;
+      fieldSize = RTSupport::GetRTSupportInstance().GetFieldSize();
     }
 
     std::pair<int32, int32> p = GetFieldOffset(classType, i);

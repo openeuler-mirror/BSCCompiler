@@ -518,7 +518,7 @@ class ElimSpecificExtensionPattern : public CGPeepPattern {
     UXTB,
     UXTH,
     UXTW,
-    SpecificExtTypeSize
+    SETS    /* SETS */
   };
   enum OptSceneType : uint8 {
     kSceneUndef = 0,
@@ -532,7 +532,7 @@ class ElimSpecificExtensionPattern : public CGPeepPattern {
   static constexpr uint64 kInvalidValue = 0;
   static constexpr uint8 kSameExtPatternNum = 4;
   static constexpr uint8 kSameExtMappingNum = 2;
-  uint64 extValueRangeTable[SpecificExtTypeSize][kValueTypeNum] = {
+  uint64 extValueRangeTable[SETS][kValueTypeNum] = {
       /* {minValue, maxValue} */
       {kInvalidValue, kInvalidValue},          /* UNDEF */
       {0xFFFFFFFFFFFFFF80, 0x7F},              /* SXTB */
@@ -542,7 +542,7 @@ class ElimSpecificExtensionPattern : public CGPeepPattern {
       {0xFFFFFFFFFFFF0000, kInvalidValue},     /* UXTH */
       {kInvalidValue, kInvalidValue}           /* UXTW */
   };
-  MOperator loadMappingTable[SpecificExtTypeSize][kPrevLoadPatternNum][kPrevLoadMappingNum] = {
+  MOperator loadMappingTable[SETS][kPrevLoadPatternNum][kPrevLoadMappingNum] = {
       /* {prevOrigMop, prevNewMop} */
       {{MOP_undef, MOP_undef},   {MOP_undef, MOP_undef},      {MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},
        {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* UNDEF */
@@ -559,7 +559,7 @@ class ElimSpecificExtensionPattern : public CGPeepPattern {
       {{MOP_wldr,  MOP_wldr},    {MOP_wldrh, MOP_wldrh},      {MOP_wldrb, MOP_wldrb},     {MOP_undef, MOP_undef},
        {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}}    /* UXTW */
   };
-  MOperator sameExtMappingTable[SpecificExtTypeSize][kSameExtPatternNum][kSameExtMappingNum] = {
+  MOperator sameExtMappingTable[SETS][kSameExtPatternNum][kSameExtMappingNum] = {
       /* {prevMop, currMop} */
       {{MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},
        {MOP_undef, MOP_undef}},       /* UNDEF */

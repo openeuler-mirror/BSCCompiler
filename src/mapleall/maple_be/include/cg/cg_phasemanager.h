@@ -25,7 +25,7 @@
 #include "cg_phase.h"
 #include "cg_option.h"
 namespace maplebe {
-using cgFuncOptTy = MapleFunctionPhase<CGFunc>;
+using CgFuncOptTy = MapleFunctionPhase<CGFunc>;
 
 /* =================== new phase manager ===================  */
 class CgFuncPM : public FunctionPM {

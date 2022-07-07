@@ -32,25 +32,25 @@ enum SSAOpndDefBy {
 /* precise def/use info in machine instrcution */
 class DUInsnInfo {
  public:
-  DUInsnInfo(Insn *cInsn, uint32 cIdx, MapleAllocator &alloc) : insn(cInsn), DUInfo(alloc.Adapter()) {
+  DUInsnInfo(Insn *cInsn, uint32 cIdx, MapleAllocator &alloc) : insn(cInsn), defUseInfo(alloc.Adapter()) {
     IncreaseDU(cIdx);
   }
   void IncreaseDU(uint32 idx) {
-    if (!DUInfo.count(idx)) {
-      DUInfo[idx] = 0;
+    if (!defUseInfo.count(idx)) {
+      defUseInfo[idx] = 0;
     }
-    DUInfo[idx]++;
+    defUseInfo[idx]++;
   }
   void DecreaseDU(uint32 idx) {
-    ASSERT(DUInfo[idx] > 0, "no def/use any more");
-    DUInfo[idx]--;
+    ASSERT(defUseInfo[idx] > 0, "no def/use any more");
+    defUseInfo[idx]--;
   }
   void ClearDU(uint32 idx) {
-    ASSERT(DUInfo.count(idx), "no def/use find");
-    DUInfo[idx] = 0;
+    ASSERT(defUseInfo.count(idx), "no def/use find");
+    defUseInfo[idx] = 0;
   }
   bool HasNoDU() {
-    for(auto it : DUInfo) {
+    for(auto it : defUseInfo) {
       if (it.second != 0) {
         return false;
       }
@@ -61,12 +61,12 @@ class DUInsnInfo {
     return insn;
   }
   MapleMap<uint32, uint32>& GetOperands() {
-    return DUInfo;
+    return defUseInfo;
   }
  private:
   Insn *insn;
   /* operand idx --- count */
-  MapleMap<uint32, uint32> DUInfo;
+  MapleMap<uint32, uint32> defUseInfo;
 };
 
 class VRegVersion {
@@ -139,7 +139,7 @@ class VRegVersion {
    * def reg (size:64)  or       def reg (size:32)  -->
    * all use reg (size:32)       all use reg (size:64)
    * do not support single use which has implicit conversion yet
-   * support single use in DUInfo in future
+   * support single use in defUseInfo in future
    */
   bool hasImplicitCvt = false;
 };
@@ -195,7 +195,7 @@ class CGSSAInfo {
   }
   void DumpFuncCGIRinSSAForm() const;
   virtual void DumpInsnInSSAForm(const Insn &insn) const = 0;
-  static uint32 SSARegNObase;
+  static uint32 ssaRegNObase;
 
  protected:
   VRegVersion *CreateNewVersion(RegOperand &virtualOpnd, Insn &defInsn, uint32 idx, bool isDefByPhi = false);

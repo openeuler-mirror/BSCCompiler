@@ -4907,7 +4907,7 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
       }
     }
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);
-    GetAnalysisInfoHook()->ForceRunTransFormPhase<meFuncOptTy, MeFunction>(&MELoopCanon::id, f);
+    GetAnalysisInfoHook()->ForceRunTransFormPhase<MeFuncOptTy, MeFunction>(&MELoopCanon::id, f);
   }
   // Run vrp twice when need check boundary and nullable pointer.
   if (MeOption::boundaryCheckMode != kNoCheck || MeOption::npeCheckMode != kNoCheck) {

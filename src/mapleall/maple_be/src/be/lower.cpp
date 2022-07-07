@@ -350,9 +350,9 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
   }
 
   GotoNode *gotoStmt = mirModule.CurFuncCodeMemPool()->New<GotoNode>(OP_goto);
-  LabelIdx EndIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
-  mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(EndIdx);
-  gotoStmt->SetOffset(EndIdx);
+  LabelIdx endIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
+  mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(endIdx);
+  gotoStmt->SetOffset(endIdx);
   // Update the frequence first opnd
   func->SetLastFreqMap(gotoStmt->GetStmtID(), fallthruStmtFreq);
   blkNode.InsertAfter(blkNode.GetLast(), gotoStmt);
@@ -377,7 +377,7 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
   }
 
   lableStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
-  lableStmt->SetLabelIdx(EndIdx);
+  lableStmt->SetLabelIdx(endIdx);
   // Update the frequence third opnd
   func->SetFirstFreqMap(lableStmt->GetStmtID(), static_cast<uint32>(currentStmtFreq));
   blkNode.InsertAfter(blkNode.GetLast(), lableStmt);

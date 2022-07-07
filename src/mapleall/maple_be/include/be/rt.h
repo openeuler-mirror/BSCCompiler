@@ -26,8 +26,8 @@ namespace maplebe {
 class RTSupport {
  public:
   static RTSupport &GetRTSupportInstance() {
-    static RTSupport RtSupport;
-    return RtSupport;
+    static RTSupport rtSupport;
+    return rtSupport;
   }
   uint64_t GetObjectAlignment() const {
     return kObjectAlignment;

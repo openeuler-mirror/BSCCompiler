@@ -353,7 +353,7 @@ ReturnType CGPeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb
   return kResNotFind;
 }
 
-int PeepPattern::logValueAtBase2(int64 val) const {
+int PeepPattern::LogValueAtBase2(int64 val) const {
   return (__builtin_popcountll(static_cast<uint64>(val)) == 1) ? (__builtin_ffsll(val) - 1) : (-1);
 }
 

@@ -15,9 +15,9 @@
 #ifndef MAPLEBE_INCLUDE_CG_DEPS_H
 #define MAPLEBE_INCLUDE_CG_DEPS_H
 
+#include <array>
 #include "mad.h"
 #include "pressure.h"
-#include <array>
 namespace maplebe {
 #define PRINT_STR_VAL(STR, VAL) \
   LogInfo::MapleLogger() << std::left << std::setw(12) << STR << VAL << " | ";

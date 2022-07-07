@@ -12,11 +12,13 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "aarch64_cg.h"
-#include "aarch64_cgfunc.h"
 #include <vector>
 #include <cstdint>
 #include <atomic>
+#include <algorithm>
+#include <sys/stat.h>
+#include "aarch64_cg.h"
+#include "aarch64_cgfunc.h"
 #include "cfi.h"
 #include "mpl_logging.h"
 #include "rt.h"
@@ -27,7 +29,6 @@
 #include "metadata_layout.h"
 #include "emit.h"
 #include "simplify.h"
-#include <algorithm>
 
 namespace maplebe {
 using namespace maple;
@@ -1528,14 +1529,14 @@ MemOperand *AArch64CGFunc::GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32
 }
 
 RegOperand *AArch64CGFunc::PrepareMemcpyParamOpnd(bool isLo12, const MIRSymbol &symbol, int64 offsetVal,
-                                                  RegOperand &BaseReg) {
+                                                  RegOperand &baseReg) {
   RegOperand *tgtAddr = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
   if (isLo12) {
     StImmOperand &stImm = CreateStImmOperand(symbol, 0, 0);
-    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrpl12, *tgtAddr, BaseReg, stImm));
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrpl12, *tgtAddr, baseReg, stImm));
   } else {
     ImmOperand &imm = CreateImmOperand(offsetVal, k64BitSize, false);
-    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *tgtAddr, BaseReg, imm));
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *tgtAddr, baseReg, imm));
   }
   return tgtAddr;
 }
@@ -4407,13 +4408,13 @@ void AArch64CGFunc::SelectRem(Operand &resOpnd, Operand &lhsOpnd, Operand &rhsOp
     if (imm && (imm->GetValue() != LONG_MIN)) {
       dividor = abs(imm->GetValue());
     }
-    const int64 Log2OfDividor = GetLog2(static_cast<uint64>(dividor));
-    if ((dividor != 0) && (Log2OfDividor > 0)) {
+    const int64 log2OfDividor = GetLog2(static_cast<uint64>(dividor));
+    if ((dividor != 0) && (log2OfDividor > 0)) {
       if (is64Bits) {
-        CHECK_FATAL(Log2OfDividor < k64BitSize, "imm out of bound");
+        CHECK_FATAL(log2OfDividor < k64BitSize, "imm out of bound");
         if (isSigned) {
-          ImmOperand &rightShiftValue = CreateImmOperand(k64BitSize - Log2OfDividor, k64BitSize, isSigned);
-          if (Log2OfDividor != 1) {
+          ImmOperand &rightShiftValue = CreateImmOperand(k64BitSize - log2OfDividor, k64BitSize, isSigned);
+          if (log2OfDividor != 1) {
             /* 63->shift ALL , 32 ->32bit register */
             ImmOperand &rightShiftAll = CreateImmOperand(63, k64BitSize, isSigned);
             GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xasrrri6, temp, opnd0, rightShiftAll));
@@ -4433,10 +4434,10 @@ void AArch64CGFunc::SelectRem(Operand &resOpnd, Operand &lhsOpnd, Operand &rhsOp
           return;
         }
       } else {
-        CHECK_FATAL(Log2OfDividor < k32BitSize, "imm out of bound");
+        CHECK_FATAL(log2OfDividor < k32BitSize, "imm out of bound");
         if (isSigned) {
-          ImmOperand &rightShiftValue = CreateImmOperand(k32BitSize - Log2OfDividor, k32BitSize, isSigned);
-          if (Log2OfDividor != 1) {
+          ImmOperand &rightShiftValue = CreateImmOperand(k32BitSize - log2OfDividor, k32BitSize, isSigned);
+          if (log2OfDividor != 1) {
             /* 31->shift ALL , 32 ->32bit register */
             ImmOperand &rightShiftAll = CreateImmOperand(31, k32BitSize, isSigned);
             GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wasrrri5, temp, opnd0, rightShiftAll));
@@ -7500,7 +7501,7 @@ void AArch64CGFunc::SelectParmListIreadSmallAggregate(const IreadNode &iread, MI
     CreateCallStructParamPassByStack(symSize, nullptr, addrOpnd1, ploc.memOffset);
   } else {
     /* pass by param regs. */
-    fpParamState state = kStateUnknown;
+    FpParamState state = kStateUnknown;
     uint32 memSize = 0;
     switch (ploc.fpSize) {
       case k0BitSize:
@@ -7696,7 +7697,7 @@ RegOperand *AArch64CGFunc::SelectParmListDreadAccessField(const MIRSymbol &sym, 
 }
 
 void AArch64CGFunc::CreateCallStructParamPassByReg(regno_t regno, MemOperand &memOpnd, ListOperand &srcOpnds,
-                                                   fpParamState state) {
+                                                   FpParamState state) {
   RegOperand *parmOpnd;
   uint32 dataSizeBits = 0;
   PrimType pType = PTY_void;
@@ -8173,7 +8174,7 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
        convert R-reg to equivalent V-reg */
     PrimType destPrimType = primType;
     if (is64x1vec && ploc.reg0 != kRinvalid && ploc.reg0 < R7) {
-      ploc.reg0 = AArch64Abi::floatParmRegs[static_cast<int>(ploc.reg0) - 1];
+      ploc.reg0 = AArch64Abi::kFloatParmRegs[static_cast<int>(ploc.reg0) - 1];
       destPrimType = PTY_f64;
     }
 

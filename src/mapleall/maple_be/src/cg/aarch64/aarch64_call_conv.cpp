@@ -524,7 +524,7 @@ void AArch64CallConvImpl::InitReturnInfo(MIRType &retTy, CCLocInfo &ccLocInfo) {
     case PTY_u32:
     case PTY_i32:
       ccLocInfo.regCount = 1;
-      ccLocInfo.reg0 = AArch64Abi::intReturnRegs[0];
+      ccLocInfo.reg0 = AArch64Abi::kIntReturnRegs[0];
       ccLocInfo.primTypeOfReg0 = IsSignedInteger(pType) ? PTY_i32 : PTY_u32;  /* promote the type */
       return;
 
@@ -539,7 +539,7 @@ void AArch64CallConvImpl::InitReturnInfo(MIRType &retTy, CCLocInfo &ccLocInfo) {
     case PTY_i128:
     case PTY_u128:
       ccLocInfo.regCount = 1;
-      ccLocInfo.reg0 = AArch64Abi::intReturnRegs[0];
+      ccLocInfo.reg0 = AArch64Abi::kIntReturnRegs[0];
       ccLocInfo.primTypeOfReg0 = IsSignedInteger(pType) ? PTY_i64 : PTY_u64;  /* promote the type */
       return;
 
@@ -576,7 +576,7 @@ void AArch64CallConvImpl::InitReturnInfo(MIRType &retTy, CCLocInfo &ccLocInfo) {
     case PTY_v2f64:
     case PTY_v4f32:
       ccLocInfo.regCount = 1;
-      ccLocInfo.reg0 = AArch64Abi::floatReturnRegs[0];
+      ccLocInfo.reg0 = AArch64Abi::kFloatReturnRegs[0];
       ccLocInfo.primTypeOfReg0 = pType;
       return;
 
@@ -608,16 +608,16 @@ void AArch64CallConvImpl::InitReturnInfo(MIRType &retTy, CCLocInfo &ccLocInfo) {
       if (classes[0] == kAArch64FloatClass) {
         switch (ccLocInfo.regCount) {
           case kFourRegister:
-            ccLocInfo.reg3 = AArch64Abi::floatReturnRegs[3];
+            ccLocInfo.reg3 = AArch64Abi::kFloatReturnRegs[3];
             break;
           case kThreeRegister:
-            ccLocInfo.reg2 = AArch64Abi::floatReturnRegs[2];
+            ccLocInfo.reg2 = AArch64Abi::kFloatReturnRegs[2];
             break;
           case kTwoRegister:
-            ccLocInfo.reg1 = AArch64Abi::floatReturnRegs[1];
+            ccLocInfo.reg1 = AArch64Abi::kFloatReturnRegs[1];
             break;
           case kOneRegister:
-            ccLocInfo.reg0 = AArch64Abi::floatReturnRegs[0];
+            ccLocInfo.reg0 = AArch64Abi::kFloatReturnRegs[0];
             break;
           default:
             CHECK_FATAL(0, "AArch64CallConvImpl: unsupported");
@@ -635,19 +635,19 @@ void AArch64CallConvImpl::InitReturnInfo(MIRType &retTy, CCLocInfo &ccLocInfo) {
         if (ccLocInfo.regCount == 1) {
           /* passing in registers */
           if (classes[0] == kAArch64FloatClass) {
-            ccLocInfo.reg0 = AArch64Abi::floatReturnRegs[0];
+            ccLocInfo.reg0 = AArch64Abi::kFloatReturnRegs[0];
             ccLocInfo.primTypeOfReg0 = PTY_f64;
           } else {
-            ccLocInfo.reg0 = AArch64Abi::intReturnRegs[0];
+            ccLocInfo.reg0 = AArch64Abi::kIntReturnRegs[0];
             ccLocInfo.primTypeOfReg0 = PTY_i64;
           }
         } else {
           ASSERT(ccLocInfo.regCount <= k2ByteSize, "reg count from ClassifyAggregate() should be 0, 1, or 2");
           ASSERT(classes[0] == kAArch64IntegerClass, "error val :classes[0]");
           ASSERT(classes[1] == kAArch64IntegerClass, "error val :classes[1]");
-          ccLocInfo.reg0 = AArch64Abi::intReturnRegs[0];
+          ccLocInfo.reg0 = AArch64Abi::kIntReturnRegs[0];
           ccLocInfo.primTypeOfReg0 = PTY_i64;
-          ccLocInfo.reg1 = AArch64Abi::intReturnRegs[1];
+          ccLocInfo.reg1 = AArch64Abi::kIntReturnRegs[1];
           ccLocInfo.primTypeOfReg1 = PTY_i64;
         }
         return;
@@ -677,7 +677,7 @@ void AArch64CallConvImpl::SetupSecondRetReg(const MIRType &retTy2, CCLocInfo &pL
     case PTY_a64:
     case PTY_u64:
     case PTY_i64:
-      pLoc.reg1 = AArch64Abi::intReturnRegs[1];
+      pLoc.reg1 = AArch64Abi::kIntReturnRegs[1];
       pLoc.primTypeOfReg1 = IsSignedInteger(pType) ? PTY_i64 : PTY_u64;  /* promote the type */
       break;
     default:

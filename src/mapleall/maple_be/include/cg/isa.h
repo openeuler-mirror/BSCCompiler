@@ -97,8 +97,8 @@ using CsrBitset = uint64_t;
 template <typename ParaType>
 class ConstraintFunction {
  public:
-  using cfPointer = bool (*) (ParaType);
-  bool CheckConstraint(cfPointer ccfunc, ParaType a) const {
+  using CfPointer = bool (*) (ParaType);
+  bool CheckConstraint(CfPointer ccfunc, ParaType a) const {
     return (*ccfunc)(a);
   }
 };

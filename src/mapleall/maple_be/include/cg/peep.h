@@ -36,7 +36,7 @@ class PeepPattern {
   bool CheckOpndLiveinSuccs(const RegOperand &regOpnd, const BB &bb) const;
   bool CheckRegLiveinReturnBB(const RegOperand &regOpnd, const BB &bb) const;
   ReturnType IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) const;
-  int logValueAtBase2(int64 val) const;
+  int LogValueAtBase2(int64 val) const;
   bool IsMemOperandOptPattern(const Insn &insn, Insn &nextInsn);
 
  protected:

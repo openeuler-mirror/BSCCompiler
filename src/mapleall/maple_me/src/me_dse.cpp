@@ -79,7 +79,7 @@ bool MEDse::PhaseRun(maple::MeFunction &f) {
   }
   if (f.GetMIRModule().IsCModule() && MeOption::performFSAA) {
     /* invoke FSAA */
-    GetAnalysisInfoHook()->ForceRunTransFormPhase<meFuncOptTy, MeFunction>(&MEFSAA::id, f);
+    GetAnalysisInfoHook()->ForceRunTransFormPhase<MeFuncOptTy, MeFunction>(&MEFSAA::id, f);
   }
   return false;
 }

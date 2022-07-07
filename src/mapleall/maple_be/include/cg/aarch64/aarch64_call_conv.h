@@ -65,42 +65,42 @@ class AArch64CallConvImpl {
 
   AArch64reg AllocateGPRegister() {
     ASSERT(nextGeneralRegNO >= 0, "nextGeneralRegNO can not be neg");
-    return (nextGeneralRegNO < AArch64Abi::kNumIntParmRegs) ? AArch64Abi::intParmRegs[nextGeneralRegNO++] : kRinvalid;
+    return (nextGeneralRegNO < AArch64Abi::kNumIntParmRegs) ? AArch64Abi::kIntParmRegs[nextGeneralRegNO++] : kRinvalid;
   }
 
   void AllocateTwoGPRegisters(CCLocInfo &pLoc) {
     if ((nextGeneralRegNO + 1) < AArch64Abi::kNumIntParmRegs) {
-      pLoc.reg0 = AArch64Abi::intParmRegs[nextGeneralRegNO++];
-      pLoc.reg1 = AArch64Abi::intParmRegs[nextGeneralRegNO++];
+      pLoc.reg0 = AArch64Abi::kIntParmRegs[nextGeneralRegNO++];
+      pLoc.reg1 = AArch64Abi::kIntParmRegs[nextGeneralRegNO++];
     } else {
       pLoc.reg0 = kRinvalid;
     }
   }
 
   AArch64reg AllocateSIMDFPRegister() {
-    return (nextFloatRegNO < AArch64Abi::kNumFloatParmRegs) ? AArch64Abi::floatParmRegs[nextFloatRegNO++] : kRinvalid;
+    return (nextFloatRegNO < AArch64Abi::kNumFloatParmRegs) ? AArch64Abi::kFloatParmRegs[nextFloatRegNO++] : kRinvalid;
   }
 
   void AllocateNSIMDFPRegisters(CCLocInfo &ploc, uint32 num) {
     if ((nextFloatRegNO + num - 1) < AArch64Abi::kNumFloatParmRegs) {
       switch (num) {
         case kOneRegister:
-          ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+          ploc.reg0 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
           break;
         case kTwoRegister:
-          ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-          ploc.reg1 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+          ploc.reg0 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
+          ploc.reg1 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
           break;
         case kThreeRegister:
-          ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-          ploc.reg1 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-          ploc.reg2 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+          ploc.reg0 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
+          ploc.reg1 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
+          ploc.reg2 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
           break;
         case kFourRegister:
-          ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-          ploc.reg1 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-          ploc.reg2 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-          ploc.reg3 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+          ploc.reg0 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
+          ploc.reg1 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
+          ploc.reg2 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
+          ploc.reg3 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
           break;
         default:
           CHECK_FATAL(0, "AllocateNSIMDFPRegisters: unsupported");

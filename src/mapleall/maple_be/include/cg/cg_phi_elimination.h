@@ -28,7 +28,7 @@ class PhiEliminate {
       eliminatedBB(phiEliAlloc.Adapter()),
       replaceVreg(phiEliAlloc.Adapter()),
       remateInfoAfterSSA(phiEliAlloc.Adapter()) {
-    tempRegNO = static_cast<uint32_t>(GetSSAInfo()->GetAllSSAOperands().size()) + CGSSAInfo::SSARegNObase;
+    tempRegNO = static_cast<uint32_t>(GetSSAInfo()->GetAllSSAOperands().size()) + CGSSAInfo::ssaRegNObase;
   }
   virtual ~PhiEliminate() = default;
   CGSSAInfo *GetSSAInfo() {

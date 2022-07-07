@@ -16,6 +16,8 @@
 #include "x64_cgfunc.h"
 #include "becommon.h"
 #include "mir_nodes.h"
+#include "x64_call_conv.h"
+#include "cg.h"
 
 namespace maplebe {
 using namespace maple;
@@ -31,31 +33,43 @@ void X64MemLayout::SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint32 &
 }
 
 void X64MemLayout::LayoutFormalParams() {
+  X64CallConvImpl parmLocator(be);
+  CCLocInfo ploc;
   for (size_t i = 0; i < mirFunction->GetFormalCount(); ++i) {
     MIRSymbol *sym = mirFunction->GetFormal(i);
     uint32 stIndex = sym->GetStIndex();
     X64SymbolAlloc *symLoc = memAllocator->GetMemPool()->New<X64SymbolAlloc>();
     SetSymAllocInfo(stIndex, *symLoc);
     if (i == 0) {
-     // The function name here is not appropriate, it should be to determine
-     // whether the function returns a structure less than 16 bytes. At this
-     // time, the first parameter is a structure occupant, which has no
-     // practical significance.
-     if (be.HasFuncReturnType(*mirFunction)) {
-       continue;
-     }
+      // The function name here is not appropriate, it should be to determine
+      // whether the function returns a structure less than 16 bytes. At this
+      // time, the first parameter is a structure occupant, which has no
+      // practical significance.
+      if (be.HasFuncReturnType(*mirFunction)) {
+        continue;
+      }
     }
 
     MIRType *ty = mirFunction->GetNthParamType(i);
     uint32 ptyIdx = ty->GetTypeIndex();
-    if (!sym->IsPreg()) {
-      uint32 size;
-      uint32 align;
+    parmLocator.LocateNextParm(*ty, ploc, i == 0, mirFunction);
+    uint32 size = 0;
+    uint32 align = 0;
+    if (ploc.reg0 != kRinvalid) {
+      if (!sym->IsPreg()) {
+        SetSizeAlignForTypeIdx(ptyIdx, size, align);
+        symLoc->SetMemSegment(GetSegArgsRegPassed());
+        segArgsRegPassed.SetSize(static_cast<uint32>(RoundUp(segArgsRegPassed.GetSize(), align)));
+        symLoc->SetOffset(segArgsRegPassed.GetSize());
+        segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + size);
+      }
+    } else {
       SetSizeAlignForTypeIdx(ptyIdx, size, align);
-      symLoc->SetMemSegment(GetSegArgsRegPassed());
-      segArgsRegPassed.SetSize(static_cast<uint32>(RoundUp(segArgsRegPassed.GetSize(), align)));
-      symLoc->SetOffset(segArgsRegPassed.GetSize());
-      segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + size);
+      symLoc->SetMemSegment(GetSegArgsStkPassed());
+      segArgsStkPassed.SetSize(static_cast<uint32>(RoundUp(segArgsStkPassed.GetSize(), align)));
+      symLoc->SetOffset(segArgsStkPassed.GetSize());
+      segArgsStkPassed.SetSize(segArgsStkPassed.GetSize() + size);
+      segArgsStkPassed.SetSize(static_cast<uint32>(RoundUp(segArgsStkPassed.GetSize(), kSizeOfPtr)));
     }
   }
 }
@@ -91,16 +105,16 @@ void X64MemLayout::LayoutStackFrame(int32 &structCopySize, int32 &maxParmStackSi
   /* allocate the local variables in the stack */
   LayoutLocalVariables();
 
-  // TODO:Need to adapt to the cc interface.
+  // Need to adapt to the cc interface.
   structCopySize = 0;
-  // TODO:Scenes with more than 6 parameters are not yet enabled.
+  // Scenes with more than 6 parameters are not yet enabled.
   maxParmStackSize = 0;
 
   cgFunc->SetUseFP(cgFunc->UseFP());
 }
 
 uint64 X64MemLayout::StackFrameSize() const {
-  uint64 total = locals().GetSize();
+  uint64 total = Locals().GetSize() + segArgsRegPassed.GetSize() + segArgsToStkPass.GetSize();
   constexpr int kX64StackPtrAlignment = 16;
 
   return RoundUp(total, kX64StackPtrAlignment);

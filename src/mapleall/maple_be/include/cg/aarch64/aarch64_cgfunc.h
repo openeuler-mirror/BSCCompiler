@@ -391,7 +391,7 @@ class AArch64CGFunc : public CGFunc {
   }
 
   ImmFPZeroOperand &GetOrCreateFpZeroOperand(uint8 size) const {
-    return *ImmFPZeroOperand::allocate(size);
+    return *ImmFPZeroOperand::Allocate(size);
   }
 
   OfstOperand &GetOrCreateOfstOpnd(uint64 offset, uint32 size);
@@ -803,7 +803,7 @@ class AArch64CGFunc : public CGFunc {
     regno_t regNOCatch;  /* For O2. */
     Operand *opndCatch;  /* For O0-O1. */
   } uCatch;
-  enum fpParamState {
+  enum FpParamState {
     kNotFp,
     kFp32Bit,
     kFp64Bit,
@@ -863,7 +863,7 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectParmListDreadAccessField(const MIRSymbol &sym, FieldID fieldID, const CCLocInfo &ploc,
                                              int32 offset, uint32 parmNum);
   void CreateCallStructParamPassByReg(regno_t regno, MemOperand &memOpnd, ListOperand &srcOpnds,
-                                      fpParamState state);
+                                      FpParamState state);
   void CreateCallStructParamMemcpy(const MIRSymbol *sym, RegOperand *addropnd,
                                    uint32 structSize, int32 copyOffset, int32 fromOffset);
   RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, const MIRSymbol *sym, RegOperand *addrOpd,
@@ -900,7 +900,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectRelationOperator(RelationOperator operatorCode, Operand &resOpnd, Operand &opnd0, Operand &opnd1,
                               PrimType primType);
   MOperator SelectRelationMop(RelationOperator operatorCode, RelationOperatorOpndPattern opndPattern,
-                              bool is64Bits, bool IsBitmaskImmediate, bool isBitNumLessThan16) const;
+                              bool is64Bits, bool isBitmaskImmediate, bool isBitNumLessThan16) const;
   Operand *SelectMinOrMax(bool isMin, const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   void SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   Operand *SelectRoundLibCall(RoundType roundType, const TypeCvtNode &node, Operand &opnd0);
@@ -963,7 +963,7 @@ class AArch64CGFunc : public CGFunc {
                                           AArch64isa::MemoryOrdering memOrd);
   MemOperand &CreateNonExtendMemOpnd(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int64 offset);
   std::string GenerateMemOpndVerbose(const Operand &src) const;
-  RegOperand *PrepareMemcpyParamOpnd(bool isLo12, const MIRSymbol &symbol, int64 offsetVal, RegOperand &BaseReg);
+  RegOperand *PrepareMemcpyParamOpnd(bool isLo12, const MIRSymbol &symbol, int64 offsetVal, RegOperand &baseReg);
   RegOperand *PrepareMemcpyParamOpnd(int64 offset, Operand &exprOpnd);
   RegOperand *PrepareMemcpyParamOpnd(uint64 copySize);
   Insn *AggtStrLdrInsert(bool bothUnion, Insn *lastStrLdr, Insn &newStrLdr);

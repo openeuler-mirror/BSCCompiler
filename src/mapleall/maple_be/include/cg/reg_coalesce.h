@@ -18,7 +18,7 @@
 
 namespace maplebe {
 
-using posPair = std::pair<uint32, uint32>;
+using PosPair = std::pair<uint32, uint32>;
 class LiveInterval {
 public:
   explicit LiveInterval(MapleAllocator &allocator)
@@ -32,20 +32,20 @@ public:
     ++numCall;
   }
 
-  MapleMap<uint32, MapleVector<posPair>> GetRanges() {
+  MapleMap<uint32, MapleVector<PosPair>> GetRanges() {
     return ranges;
   }
 
   void AddRange(uint32 bbid, uint32 end, bool alreadLive) {
     auto it = ranges.find(bbid);
     if (it == ranges.end()) {
-      MapleVector<posPair> posVec(alloc.Adapter());
+      MapleVector<PosPair> posVec(alloc.Adapter());
       posVec.emplace_back(std::pair(end, end));
       ranges.emplace(bbid, posVec);
     } else {
-      MapleVector<posPair> &posVec = it->second;
+      MapleVector<PosPair> &posVec = it->second;
       if (alreadLive) {
-        posPair lastPos = posVec[posVec.size() - 1];
+        PosPair lastPos = posVec[posVec.size() - 1];
         posVec[posVec.size() - 1] = std::pair(end, lastPos.second);
       } else {
         posVec.emplace_back(std::pair(end, end));
@@ -61,7 +61,7 @@ public:
       auto it = ranges.find(bbid);
       if (it == ranges.end()) {
         /* directly add it */
-        MapleVector<posPair> posVec(alloc.Adapter());
+        MapleVector<PosPair> posVec(alloc.Adapter());
         for (auto pos: destPosVec) {
           posVec.emplace_back(std::pair(pos.first, pos.second));
         }
@@ -72,8 +72,8 @@ public:
         for (auto pos1 : destPosVec) {
           bool merged = false;
           for (auto &pos2 : srcPosVec) {
-            if (!((pos1.first < pos2.first && pos1.second < pos2.first)
-               || (pos2.first < pos1.second && pos2.second < pos1.first))) {
+            if (!((pos1.first < pos2.first && pos1.second < pos2.first) ||
+                (pos2.first < pos1.second && pos2.second < pos1.first))) {
               uint32 bgn = pos1.first < pos2.first ? pos1.first : pos2.first;
               uint32 end = pos1.second > pos2.second ? pos1.second : pos2.second;
               pos2 = std::pair(bgn, end);
@@ -178,7 +178,7 @@ public:
   }
 
 private:
-  MapleMap<uint32, MapleVector<posPair>> ranges;
+  MapleMap<uint32, MapleVector<PosPair>> ranges;
   MapleSet<uint32> conflict;
   InsnMapleSet defPoints;
   InsnMapleSet usePoints;

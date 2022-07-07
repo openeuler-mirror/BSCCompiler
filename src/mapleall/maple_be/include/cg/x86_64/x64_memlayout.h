@@ -96,7 +96,7 @@ class X64MemLayout : public MemLayout {
 
   uint64 StackFrameSize() const;
 
-  const MemSegment &locals() const {
+  const MemSegment &Locals() const {
     return segLocals;
   }
   /*

@@ -59,7 +59,7 @@ class ImmFPZeroOperand : public OperandVisitable<ImmFPZeroOperand> {
   ~ImmFPZeroOperand() override = default;
   using OperandVisitable<ImmFPZeroOperand>::OperandVisitable;
 
-  static ImmFPZeroOperand *allocate(uint8 sz) {
+  static ImmFPZeroOperand *Allocate(uint8 sz) {
     CHECK_FATAL((sz == k32BitSize || sz == k64BitSize), "half-precession is yet to be supported");
     auto *memPool = static_cast<MemPool*>(CG::GetCurCGFuncNoConst()->GetMemoryPool());
     ImmFPZeroOperand *inst = memPool->New<ImmFPZeroOperand>(static_cast<uint32>(sz));

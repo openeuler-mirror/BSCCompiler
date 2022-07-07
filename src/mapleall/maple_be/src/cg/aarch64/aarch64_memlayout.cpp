@@ -525,7 +525,7 @@ SymbolAlloc *AArch64MemLayout::AssignLocationToSpillReg(regno_t vrNum) {
 
 uint64 AArch64MemLayout::StackFrameSize() const {
   uint64 total = segArgsRegPassed.GetSize() + static_cast<AArch64CGFunc*>(cgFunc)->SizeOfCalleeSaved() +
-                 GetSizeOfRefLocals() + locals().GetSize() + GetSizeOfSpillReg();
+      GetSizeOfRefLocals() + Locals().GetSize() + GetSizeOfSpillReg();
 
   if (cgFunc->GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
     if (GetSizeOfGRSaveArea() > 0) {

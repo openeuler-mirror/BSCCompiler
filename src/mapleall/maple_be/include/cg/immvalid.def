@@ -2,7 +2,7 @@ static std::set<uint64> ValidBitmaskImmSet = {
 #include "valid_bitmask_imm.txt"
 };
 constexpr uint32 kMaxBitTableSize = 5;
-constexpr std::array<uint64, kMaxBitTableSize> bitmaskImmMultTable = {
+constexpr std::array<uint64, kMaxBitTableSize> kBitmaskImmMultTable = {
     0x0000000100000001UL, 0x0001000100010001UL, 0x0101010101010101UL, 0x1111111111111111UL, 0x5555555555555555UL,
 };
 
@@ -69,11 +69,11 @@ bool IsBitmaskImmediate(uint64 val, uint32 bitLen) {
   int32 logDiff = __builtin_ctzll(static_cast<uint64>(diff));
   int64 pattern = static_cast<int64>(val & ((1ULL << static_cast<uint64>(diff)) - 1));
 #if DEBUG
-  bool ret = (val == pattern * bitmaskImmMultTable[kMaxBitTableSize - logDiff]);
+  bool ret = (val == pattern * kBitmaskImmMultTable[kMaxBitTableSize - logDiff]);
   ASSERT(expectedOutcome == ret, "incorrect implementation: return value does not match expected outcome");
   return ret;
 #else
-  return val == pattern * bitmaskImmMultTable[kMaxBitTableSize - logDiff];
+  return val == pattern * kBitmaskImmMultTable[kMaxBitTableSize - logDiff];
 #endif
 }
 

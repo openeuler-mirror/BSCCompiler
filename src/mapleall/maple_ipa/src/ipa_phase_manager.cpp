@@ -108,7 +108,7 @@ void IpaSccPM::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 void SCCPrepare::Dump(const MeFunction &f, const std::string phaseName) {
-  if (Options::dumpIPA) {
+  if (Options::dumpIPA && (f.GetName() == Options::dumpFunc || f.GetName() == "*")) {
     LogInfo::MapleLogger() << ">>>>> Dump after " << phaseName << " <<<<<\n";
     f.Dump(false);
     LogInfo::MapleLogger() << ">>>>> Dump after End <<<<<\n\n";
@@ -147,9 +147,9 @@ bool SCCPrepare::PhaseRun(SCCNode<CGNode> &scc) {
                                << " Phase [ " << phase->PhaseName() << " ] <<\n";
       }
       if (phase->IsAnalysis()) {
-        (void)RunAnalysisPhase<meFuncOptTy, MeFunction>(*phase, *result, meFunc, 1);
+        (void)RunAnalysisPhase<MeFuncOptTy, MeFunction>(*phase, *result, meFunc, 1);
       } else {
-        (void)RunTransformPhase<meFuncOptTy, MeFunction>(*phase, *result, meFunc, 1);
+        (void)RunTransformPhase<MeFuncOptTy, MeFunction>(*phase, *result, meFunc, 1);
       }
       Dump(meFunc,phase->PhaseName());
     }
@@ -158,7 +158,7 @@ bool SCCPrepare::PhaseRun(SCCNode<CGNode> &scc) {
 }
 
 void SCCEmit::Dump(const MeFunction &f, const std::string phaseName) {
-  if (Options::dumpIPA) {
+  if (Options::dumpIPA && (f.GetName() == Options::dumpFunc || f.GetName() == "*")) {
     LogInfo::MapleLogger() << ">>>>> Dump after " << phaseName << " <<<<<\n";
     f.DumpFunctionNoSSA();
     LogInfo::MapleLogger() << ">>>>> Dump after End <<<<<\n\n";
@@ -186,7 +186,7 @@ bool SCCEmit::PhaseRun(SCCNode<CGNode> &scc) {
       LogInfo::MapleLogger() << "  ---call " << (phase->IsAnalysis() ? "analysis" : "transform")
                              << " Phase [ " << phase->PhaseName() << " ]---\n";
     }
-    (void)RunAnalysisPhase<meFuncOptTy, MeFunction>(*phase, *serialADM, *func->GetMeFunc());
+    (void)RunAnalysisPhase<MeFuncOptTy, MeFunction>(*phase, *serialADM, *func->GetMeFunc());
     Dump(*func->GetMeFunc(), phase->PhaseName());
     delete func->GetMeFunc()->GetPmeMempool();
     func->GetMeFunc()->SetPmeMempool(nullptr);
@@ -226,9 +226,9 @@ bool SCCProfile::PhaseRun(SCCNode<CGNode> &scc) {
                                << " Phase [ " << phase->PhaseName() << " ] <<\n";
       }
       if (phase->IsAnalysis()) {
-        (void)RunAnalysisPhase<meFuncOptTy, MeFunction>(*phase, *result, meFunc, 1);
+        (void)RunAnalysisPhase<MeFuncOptTy, MeFunction>(*phase, *result, meFunc, 1);
       } else {
-        (void)RunTransformPhase<meFuncOptTy, MeFunction>(*phase, *result, meFunc, 1);
+        (void)RunTransformPhase<MeFuncOptTy, MeFunction>(*phase, *result, meFunc, 1);
       }
     }
   }

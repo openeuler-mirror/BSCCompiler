@@ -215,7 +215,7 @@ static_cast<PHASENAME*>(GetAnalysisInfoHook()->FindAnalysisData((PHASEKEY).GetUn
 
 #define FORCE_GET(PHASENAME) \
 static_cast<PHASENAME*>(GetAnalysisInfoHook()-> \
-    ForceRunAnalysisPhase<meFuncOptTy, MeFunction>(&PHASENAME::id, f))->GetResult()
+    ForceRunAnalysisPhase<MeFuncOptTy, MeFunction>(&PHASENAME::id, f))->GetResult()
 
 #define FORCE_INVALID(PHASENAME, PHASEKEY) \
 GetAnalysisInfoHook()->ForceEraseAnalysisPhase(PHASEKEY.GetUniqueID(), &PHASENAME::id)

@@ -18,7 +18,7 @@
 #include "optimize_common.h"
 
 namespace maplebe {
-uint32 CGSSAInfo::SSARegNObase = 100;
+uint32 CGSSAInfo::ssaRegNObase = 100;
 void CGSSAInfo::ConstructSSA() {
   InsertPhiInsn();
   /* Rename variables */
@@ -41,7 +41,7 @@ void CGSSAInfo::ConstructSSA() {
     }
   }
 #endif
-  cgFunc->SetSSAvRegCount(static_cast<uint32>(GetAllSSAOperands().size()) + SSARegNObase + 1);
+  cgFunc->SetSSAvRegCount(static_cast<uint32>(GetAllSSAOperands().size()) + ssaRegNObase + 1);
   /* save reversePostOrder of bbs for rectify validbit */
   SetReversePostOrder();
 }

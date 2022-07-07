@@ -163,7 +163,7 @@ void CGFuncLoops::PrintLoops(const CGFuncLoops &funcLoop) const {
 
 // partial loop body found with formLoop is NOT really needed in down stream
 //       It should be simplied later
-void LoopFinder::formLoop(BB* headBB, BB* backBB) {
+void LoopFinder::FormLoop(BB* headBB, BB* backBB) {
   ASSERT(headBB != nullptr && backBB != nullptr, "headBB or backBB is nullptr");
   LoopHierarchy *simple_loop = memPool->New<LoopHierarchy>(*memPool);
 
@@ -202,13 +202,13 @@ void LoopFinder::formLoop(BB* headBB, BB* backBB) {
   loops = simple_loop;
 }
 
-void LoopFinder::seekBackEdge(BB* bb, MapleList<BB*> succs) {
+void LoopFinder::SeekBackEdge(BB* bb, MapleList<BB*> succs) {
   for (const auto succBB : succs) {
     if (!visitedBBs[succBB->GetId()]) {
       dfsBBs.push(succBB);
     } else {
       if (onPathBBs[succBB->GetId()]) {
-        formLoop(succBB, bb);
+        FormLoop(succBB, bb);
         bb->PushBackLoopSuccs(*succBB);
         succBB->PushBackLoopPreds(*bb);
       }
@@ -216,7 +216,7 @@ void LoopFinder::seekBackEdge(BB* bb, MapleList<BB*> succs) {
   }
 }
 
-void LoopFinder::seekCycles() {
+void LoopFinder::SeekCycles() {
   while (!dfsBBs.empty()) {
     BB *bb = dfsBBs.top();
     if (visitedBBs[bb->GetId()]) {
@@ -227,12 +227,12 @@ void LoopFinder::seekCycles() {
 
     visitedBBs[bb->GetId()] = true;
     onPathBBs[bb->GetId()] = true;
-    seekBackEdge(bb, bb->GetSuccs());
-    seekBackEdge(bb, bb->GetEhSuccs());
+    SeekBackEdge(bb, bb->GetSuccs());
+    SeekBackEdge(bb, bb->GetEhSuccs());
   }
 }
 
-void LoopFinder::markExtraEntryAndEncl() {
+void LoopFinder::MarkExtraEntryAndEncl() {
   ASSERT(dfsBBs.empty(), "dfsBBs is NOT empty");
   std::vector<BB *> loopEnclosure;
   loopEnclosure.resize(cgFunc->NumBBs());
@@ -625,13 +625,13 @@ void LoopFinder::FormLoopHierarchy() {
     FOR_ALL_BB(bb, cgFunc) {
       if (!visitedBBs[bb->GetId()]) {
         dfsBBs.push(bb);
-        seekCycles();
+        SeekCycles();
         changed = true;
       }
     }
   } while (changed);
 
-  markExtraEntryAndEncl();
+  MarkExtraEntryAndEncl();
   /*
    * FIX : Should merge the partial loops at the time of initial
    * construction.  And make the linked list as a sorted set,
