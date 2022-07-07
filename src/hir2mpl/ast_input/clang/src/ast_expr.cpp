@@ -871,21 +871,24 @@ UniqueFEIRExpr ASTUOAddrOfLabelExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &
 }
 
 UniqueFEIRExpr ASTUODerefExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
+  std::list<UniqueFEIRStmt> subStmts;  // To delete redundant bounds checks in one ASTUODerefExpr stmts.
   ASTExpr *childExpr = expr;
   CHECK_FATAL(childExpr != nullptr, "childExpr is nullptr");
-  UniqueFEIRExpr childFEIRExpr = childExpr->Emit2FEExpr(stmts);
+  UniqueFEIRExpr childFEIRExpr = childExpr->Emit2FEExpr(subStmts);
   UniqueFEIRType retType = std::make_unique<FEIRTypeNative>(*uoType);
   UniqueFEIRType ptrType = std::make_unique<FEIRTypeNative>(*subType);
   if (uoType->GetKind() == kTypePointer &&
       static_cast<MIRPtrType*>(uoType)->GetPointedType()->GetKind() == kTypeFunction) {
+    stmts.splice(stmts.end(), subStmts);
     return childFEIRExpr;
   }
-  InsertNonnullChecking(stmts, childFEIRExpr->Clone());
-  if (InsertBoundaryChecking(stmts, childFEIRExpr->Clone())) {
+  InsertNonnullChecking(subStmts, childFEIRExpr->Clone());
+  if (InsertBoundaryChecking(subStmts, childFEIRExpr->Clone())) {
     childFEIRExpr->SetIsBoundaryChecking(true);
   }
   UniqueFEIRExpr derefExpr = FEIRBuilder::CreateExprIRead(std::move(retType), std::move(ptrType),
                                                           std::move(childFEIRExpr));
+  stmts.splice(stmts.end(), subStmts);
   return derefExpr;
 }
 
@@ -1014,9 +1017,11 @@ UniqueFEIRExpr ASTBinaryConditionalOperator::Emit2FEExprImpl(std::list<UniqueFEI
   UniqueFEIRVar tempVarCloned1 = tempVar->Clone();
   UniqueFEIRVar tempVarCloned2 = tempVar->Clone();
   UniqueFEIRStmt retTrueStmt = FEIRBuilder::CreateStmtDAssign(std::move(tempVar), std::move(trueFEIRExpr));
+  retTrueStmt->SetSrcLoc(condExpr->GetSrcLoc());
   std::list<UniqueFEIRStmt> trueStmts;
   trueStmts.emplace_back(std::move(retTrueStmt));
   UniqueFEIRStmt retFalseStmt = FEIRBuilder::CreateStmtDAssign(std::move(tempVarCloned1), std::move(falseFEIRExpr));
+  retFalseStmt->SetSrcLoc(falseExpr->GetSrcLoc());
   falseStmts.emplace_back(std::move(retFalseStmt));
   UniqueFEIRStmt stmtIf = FEIRBuilder::CreateStmtIf(std::move(condFEIRExpr), trueStmts, falseStmts);
   stmts.emplace_back(std::move(stmtIf));
@@ -1789,7 +1794,8 @@ void ASTArraySubscriptExpr::InsertNonnullChecking(std::list<UniqueFEIRStmt> &stm
 }
 
 UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
-  auto baseAddrFEExpr = baseExpr->Emit2FEExpr(stmts);
+  std::list<UniqueFEIRStmt> subStmts;  // To delete redundant bounds checks in one ASTArraySubscriptExpr stmts.
+  auto baseAddrFEExpr = baseExpr->Emit2FEExpr(subStmts);
   auto retFEType = std::make_unique<FEIRTypeNative>(*mirType);
   MIRType *arrayTypeOpt = arrayType;
   bool isArrayTypeOpt = false;
@@ -1816,6 +1822,7 @@ UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> 
   if (arrayTypeOpt->GetKind() == MIRTypeKind::kTypeArray && !isVLA) {
     if (CheckFirstDimIfZero(arrayTypeOpt)) {
       // return multi-dim array addr directly if its first dim size was 0.
+      stmts.splice(stmts.end(), subStmts);
       return baseAddrFEExpr;
     }
     std::list<UniqueFEIRExpr> feIdxExprs;
@@ -1827,16 +1834,16 @@ UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> 
       arrayFEType = baseArrayExpr->GetTypeArray()->Clone();
       baseAddrFEExpr = baseArrayExpr->GetExprArray()->Clone();
     }
-    auto feIdxExpr = idxExpr->Emit2FEExpr(stmts);
+    auto feIdxExpr = idxExpr->Emit2FEExpr(subStmts);
     if (isArrayTypeOpt) {
-      InsertNonnullChecking(stmts, feIdxExpr, baseAddrFEExpr);
+      InsertNonnullChecking(subStmts, feIdxExpr, baseAddrFEExpr);
     }
     feIdxExprs.emplace_back(std::move(feIdxExpr));
     addrOfArray = FEIRBuilder::CreateExprAddrofArray(arrayFEType->Clone(), baseAddrFEExpr->Clone(), "", feIdxExprs);
   } else {
     std::vector<UniqueFEIRExpr> offsetExprs;
     UniqueFEIRExpr offsetExpr;
-    auto feIdxExpr = idxExpr->Emit2FEExpr(stmts);
+    auto feIdxExpr = idxExpr->Emit2FEExpr(subStmts);
     PrimType indexPty = feIdxExpr->GetPrimType();
     UniqueFEIRType sizeType;
     if (IsSignedInteger(indexPty)) {
@@ -1848,7 +1855,7 @@ UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> 
                                                  GetRegPrimType(indexPty), PTY_ptr);
     }
     if (isVLA) {
-      auto feSizeExpr = vlaSizeExpr->Emit2FEExpr(stmts);
+      auto feSizeExpr = vlaSizeExpr->Emit2FEExpr(subStmts);
       feIdxExpr = FEIRBuilder::CreateExprBinary(sizeType->Clone(), OP_mul, std::move(feIdxExpr),
                                                 std::move(feSizeExpr));
     } else if (mirType->GetSize() != 1) {
@@ -1872,9 +1879,10 @@ UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> 
     addrOfArray = FEIRBuilder::CreateExprBinary(std::move(sizeType), OP_add, baseAddrFEExpr->Clone(),
                                                 std::move(offsetExpr));
   }
-  if (InsertBoundaryChecking(stmts, addrOfArray->Clone(), std::move(baseAddrFEExpr))) {
+  if (InsertBoundaryChecking(subStmts, addrOfArray->Clone(), std::move(baseAddrFEExpr))) {
     addrOfArray->SetIsBoundaryChecking(true);
   }
+  stmts.splice(stmts.end(), subStmts);
   return FEIRBuilder::CreateExprIRead(std::move(retFEType), fePtrType->Clone(), addrOfArray->Clone());
 }
 
@@ -2485,8 +2493,10 @@ UniqueFEIRExpr ASTConditionalOperator::Emit2FEExprImpl(std::list<UniqueFEIRStmt>
   UniqueFEIRVar tempVarCloned1 = tempVar->Clone();
   UniqueFEIRVar tempVarCloned2 = tempVar->Clone();
   UniqueFEIRStmt retTrueStmt = FEIRBuilder::CreateStmtDAssign(std::move(tempVar), std::move(trueFEIRExpr));
+  retTrueStmt->SetSrcLoc(trueExpr->GetSrcLoc());
   trueStmts.emplace_back(std::move(retTrueStmt));
   UniqueFEIRStmt retFalseStmt = FEIRBuilder::CreateStmtDAssign(std::move(tempVarCloned1), std::move(falseFEIRExpr));
+  retFalseStmt->SetSrcLoc(falseExpr->GetSrcLoc());
   falseStmts.emplace_back(std::move(retFalseStmt));
   UniqueFEIRStmt stmtIf = FEIRBuilder::CreateStmtIf(std::move(condFEIRExpr), trueStmts, falseStmts);
   stmts.emplace_back(std::move(stmtIf));
