@@ -20,6 +20,5 @@
 // emit ir to specified file
 namespace maple {
 MAPLE_FUNC_PHASE_DECLARE(MEEmit, MeFunction)
-MAPLE_FUNC_PHASE_DECLARE(EmitForIPA, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_EMIT_H

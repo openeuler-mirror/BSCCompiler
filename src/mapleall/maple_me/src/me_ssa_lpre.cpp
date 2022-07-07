@@ -364,7 +364,7 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       }
       if (!(mirModule->IsCModule()) || MeOption::rematLevel < kLevelTwo) {
         auto *addrOfMeExpr = static_cast<AddrofMeExpr *>(&meExpr);
-        const OriginalSt *ost = ssaTab->GetOriginalStFromID(addrOfMeExpr->GetOstIdx());
+        const OriginalSt *ost = addrOfMeExpr->GetOst();
         CHECK_FATAL(ost, "ost is nullptr");
         if (ost->IsLocal()) {  // skip lpre for stack addresses as they are cheap and need keep for rc
           break;

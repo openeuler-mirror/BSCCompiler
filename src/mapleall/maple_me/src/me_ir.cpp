@@ -593,7 +593,7 @@ bool AddrofMeExpr::IsUseSameSymbol(const MeExpr &expr) const {
     return false;
   }
   const auto &varMeExpr = static_cast<const AddrofMeExpr&>(expr);
-  return ostIdx == varMeExpr.ostIdx;
+  return GetOstIdx() == varMeExpr.GetOstIdx();
 }
 
 bool OpMeExpr::IsUseSameSymbol(const MeExpr &expr) const {
@@ -839,8 +839,9 @@ MeExpr *AddrofMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
   auto *addrofExpr = static_cast<AddrofMeExpr*>(&expr);
 
   while (addrofExpr != nullptr) {
-    if (addrofExpr->GetMeOp() == kMeOpAddrof && addrofExpr->GetOstIdx() == GetOstIdx() &&
-        addrofExpr->GetFieldID() == fieldID) {
+    if (addrofExpr->GetMeOp() == kMeOpAddrof &&
+        addrofExpr->GetOstIdx() == GetOstIdx() &&
+        addrofExpr->GetFieldID() == GetFieldID()) {
       return addrofExpr;
     }
     addrofExpr = static_cast<AddrofMeExpr*>(addrofExpr->GetNext());
@@ -1008,11 +1009,10 @@ void FieldsDistMeExpr::Dump(const IRMap*, int32) const {
   LogInfo::MapleLogger() << " mx" << GetExprID();
 }
 
-void AddrofMeExpr::Dump(const IRMap *irMap, int32) const {
-  CHECK_NULL_FATAL(irMap);
+void AddrofMeExpr::Dump(const IRMap*, int32) const {
   LogInfo::MapleLogger() << "ADDROF:";
-  irMap->GetSSATab().GetOriginalStFromID(ostIdx)->Dump();
-  LogInfo::MapleLogger() << " (field)" << fieldID;
+  GetOst()->Dump();
+  LogInfo::MapleLogger() << " (field)" << GetFieldID();
   LogInfo::MapleLogger() << " mx" << GetExprID();
 }
 

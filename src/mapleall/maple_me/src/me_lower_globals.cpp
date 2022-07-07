@@ -64,7 +64,7 @@ void MeLowerGlobals::LowerGlobalDreads(MeStmt &stmt, MeExpr &expr) {
         PUIdx puIdx = func.GetMirFunc()->GetPuidx();
         baseOst = ssaTable->FindOrCreateSymbolOriginalSt(*ost->GetMIRSymbol(), puIdx, 0);
       }
-      AddrofMeExpr tmpAddrofMeExpr(-1, PTY_ptr, baseOst->GetIndex());
+      AddrofMeExpr tmpAddrofMeExpr(-1, PTY_ptr, baseOst);
       auto *addrofExpr = static_cast<AddrofMeExpr*>(irMap->HashMeExpr(tmpAddrofMeExpr));
       MIRPtrType ptrType(baseOst->GetTyIdx(), PTY_ptr);
       if (ost->IsVolatile() || ost->HasOneElemSimdAttr()) {
@@ -87,7 +87,7 @@ void MeLowerGlobals::LowerGlobalDreads(MeStmt &stmt, MeExpr &expr) {
       if (addrofExpr.GetFieldID() == 0) {
         break;
       }
-      OriginalSt *ost = ssaTable->GetSymbolOriginalStFromID(addrofExpr.GetOstIdx());
+      OriginalSt *ost = addrofExpr.GetOst();
       if (ost->IsLocal()) {
         break;
       }
@@ -129,7 +129,7 @@ void MeLowerGlobals::Run() {
           baseOst = ssaTable->FindOrCreateSymbolOriginalSt(*ost->GetMIRSymbol(),
               func.GetMirFunc()->GetPuidx(), 0);
         }
-        AddrofMeExpr addrofmeexpr(-1, PTY_ptr, baseOst->GetIndex());
+        AddrofMeExpr addrofmeexpr(-1, PTY_ptr, baseOst);
         AddrofMeExpr *addrof = static_cast<AddrofMeExpr *>(irMap->HashMeExpr(addrofmeexpr));
 
         MIRPtrType ptrType(baseOst->GetTyIdx(), PTY_ptr);

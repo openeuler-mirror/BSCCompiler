@@ -193,8 +193,7 @@ void IRMapBuild::SetMeExprOpnds(MeExpr &meExpr, BaseNode &mirNode, bool atParm, 
 std::unique_ptr<MeExpr> IRMapBuild::BuildAddrofMeExpr(const BaseNode &mirNode) const {
   auto &addrofNode = static_cast<const AddrofSSANode&>(mirNode);
   auto meExpr = std::make_unique<AddrofMeExpr>(kInvalidExprID, addrofNode.GetPrimType(),
-                                               addrofNode.GetSSAVar()->GetOst()->GetIndex());
-  meExpr->SetFieldID(addrofNode.GetFieldID());
+                                               addrofNode.GetSSAVar()->GetOst());
   return meExpr;
 }
 
@@ -696,7 +695,7 @@ MeStmt *IRMapBuild::BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
   CHECK_FATAL(baseAddr, "baseAddr is nullptr!");
   if (baseAddr->GetOp() == OP_addrof) {
     auto *addrofExpr = static_cast<AddrofMeExpr*>(baseAddr);
-    auto *ost = ssaTab.GetOriginalStFromID(addrofExpr->GetOstIdx());
+    auto *ost = addrofExpr->GetOst();
     auto *iassType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iasNode.GetTyIdx());
     if (static_cast<MIRPtrType*>(iassType)->GetPointedTyIdx() == ost->GetTyIdx()) {
       auto fldId = iasNode.GetFieldID() + addrofExpr->GetFieldID();

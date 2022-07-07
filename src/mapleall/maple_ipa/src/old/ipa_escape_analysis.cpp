@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -28,6 +28,7 @@ static bool IsTypeRefOrPtr(PrimType type) {
 
 static bool IsGlobal(const SSATab &ssaTab, const VarMeExpr &expr) {
   const OriginalSt *symOst = ssaTab.GetOriginalStFromID(expr.GetOstIdx());
+  ASSERT(symOst != nullptr, "null ptr check");
   if (symOst->GetMIRSymbol()->GetStIdx().IsGlobal()) {
     return true;
   }
@@ -36,6 +37,7 @@ static bool IsGlobal(const SSATab &ssaTab, const VarMeExpr &expr) {
 
 static bool IsGlobal(const SSATab &ssaTab, const AddrofMeExpr &expr) {
   const OriginalSt *symOst = ssaTab.GetOriginalStFromID(expr.GetOstIdx());
+  ASSERT(symOst != nullptr, "null ptr check");
   if (symOst->GetMIRSymbol()->GetStIdx().IsGlobal()) {
     return true;
   }
@@ -70,6 +72,7 @@ static bool StartWith(const std::string &str, const std::string &head) {
 
 static bool IsVirtualVar(const SSATab &ssaTab, const VarMeExpr &expr) {
   const OriginalSt *ost = ssaTab.GetOriginalStFromID(expr.GetOstIdx());
+  ASSERT(ost != nullptr, "null ptr check");
   return ost->GetIndirectLev() > 0;
 }
 
@@ -1054,7 +1057,7 @@ void IPAEscapeAnalysis::HandleSingleCallee(CallMeStmt &callMeStmt) {
   CHECK_FATAL(calleeNode != nullptr, "Impossible, funcName: %s", calleeCandidate.GetName().c_str());
   if (calleeNode->GetSCCNode() == callerNode->GetSCCNode() &&
       (eaCG->GetNeedConservation() ||
-       callerNode->GetSCCNode()->GetCGNodes().size() > IPAEscapeAnalysis::kFuncInSCCLimit)) {
+       callerNode->GetSCCNode()->GetNodes().size() > IPAEscapeAnalysis::kFuncInSCCLimit)) {
     bool changedAfterMerge = eaCG->MergeCG(*eaCG->GetCallSiteArgNodeVector(callInfoId), nullptr);
     if (changedAfterMerge) {
       cgChangedInSCC = true;
@@ -1304,6 +1307,7 @@ void IPAEscapeAnalysis::ProcessRetStmt() {
   VarMeExpr *initVar = CreateEATempVarMeExpr(*ost);
   MeExpr *zeroExpr = irMap->CreateIntConstMeExpr(0, PTY_ref);
   DassignMeStmt *newStmt = static_cast<DassignMeStmt *>(irMap->CreateAssignMeStmt(*initVar, *zeroExpr, *firstBB));
+  ASSERT(firstBB != nullptr, "null ptr check");
   firstBB->AddMeStmtFirst(newStmt);
 
   for (BB *bb : cfg->GetAllBBs()) {
@@ -1563,7 +1567,8 @@ void IPAEscapeAnalysis::DeleteRedundantRC() {
                 }
               } else {
                 AddrofMeExpr *addrof = static_cast<AddrofMeExpr*>(expr);
-                const OriginalSt *ost = ssaTab->GetOriginalStFromID(addrof->GetOstIdx());
+                const OriginalSt *ost = addrof->GetOst();
+                ASSERT(ost != nullptr, "null ptr check");
                 for (auto index : ost->GetVersionsIndices()) {
                   if (ost->IsFormal()) {
                     canRemoveStmt = false;

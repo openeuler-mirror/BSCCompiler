@@ -19,7 +19,6 @@
 namespace maple {
 // Implementation of SSAPRE based on the paper "Partial Redundancy Elimination
 // in SSA Form" Kennedy et al.
-//
 // This file represents the base SSAPRE implementation.  There are different
 // variants of SSAPRE-based optimizations, and they are derived from this base
 // implementation and implemented in additional files.  The optimizations are
@@ -67,8 +66,9 @@ ScalarMeExpr *SSAPre::CreateNewCurTemp(const MeExpr &meExpr) {
       MIRPreg *preg = regVar->GetOst()->GetMIRPreg();
       if (workCand->GetTheMeExpr()->GetMeOp() == kMeOpAddrof) {
         AddrofMeExpr *addrof = static_cast<AddrofMeExpr *>(workCand->GetTheMeExpr());
-        OriginalSt *ost = ssaTab->GetOriginalStFromID(addrof->GetOstIdx());
+        OriginalSt *ost = addrof->GetOst();
         preg->SetOp(OP_addrof);
+        ASSERT_NOT_NULL(ost);
         preg->rematInfo.sym = ost->GetMIRSymbol();
         preg->fieldID = addrof->GetFieldID();
       } else if (workCand->GetTheMeExpr()->GetMeOp() == kMeOpConst) {

@@ -311,7 +311,7 @@ class BB {
   void RemoveLastMeStmt();
   void DumpMePhiList(const IRMap *irMap);
   void DumpMeVarPiList(const IRMap *irMap);
-  void EmitBB(SSATab &ssaTab, BlockNode &curblk, bool needAnotherPass);
+  void EmitBB(BlockNode &curblk, bool needAnotherPass);
   StmtNodes &GetStmtNodes() {
     return stmtNodeList;
   }
@@ -404,7 +404,7 @@ class BB {
   }
   void SetSuccFreq(int idx, uint64 freq) {
     ASSERT(idx >= 0 && idx <= succFreq.size(), "sanity check");
-    succFreq[idx] = freq;
+    succFreq[static_cast<size_t>(idx)] = freq;
   }
   // update edge frequency
   void UpdateEdgeFreqs();

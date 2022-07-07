@@ -15,9 +15,9 @@
 
 #include "me_irmap.h"
 #include "pme_function.h"
-#include "pme_emit.h"
 #include "mir_lower.h"
 #include "constantfold.h"
+#include "pme_emit.h"
 
 namespace maple {
 // convert x to use OP_array if possible; return nullptr if unsuccessful;
@@ -67,6 +67,7 @@ ArrayNode *PreMeEmitter::ConvertToArray(BaseNode *x, TyIdx ptrTyIdx) {
   arryNode->SetBoundsCheck(false);
   arryNode->GetNopnd().push_back(opnd0);
   arryNode->GetNopnd().push_back(indexOpnd);
+  // The number of operands of arryNode is set to 2
   arryNode->SetNumOpnds(2);
   PreMeExprExtensionMap[arryNode] = PreMeExprExtensionMap[x];
   // update opnds' parent info if it has
@@ -196,7 +197,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meexpr, BaseNode *parent) {
     }
     case OP_addrof: {
       AddrofMeExpr *addrMeexpr = static_cast<AddrofMeExpr *> (meexpr);
-      OriginalSt *ost = meirmap->GetSSATab().GetOriginalStFromID(addrMeexpr->GetOstIdx());
+      OriginalSt *ost = addrMeexpr->GetOst();
       MIRSymbol *sym = ost->GetMIRSymbol();
       AddrofNode *addrofNode =
           codeMP->New<AddrofNode>(OP_addrof, addrMeexpr->GetPrimType(), sym->GetStIdx(), ost->GetFieldID());
@@ -514,6 +515,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
           StIdx stIdx = retpair.first;
           MIRSymbolTable *symtab = mirFunc->GetSymTab();
           MIRSymbol *sym = symtab->GetSymbolFromStIdx(stIdx.Idx());
+          ASSERT_NOT_NULL(sym);
           icallnode->SetRetTyIdx(sym->GetType()->GetTypeIndex());
         } else {
           PregIdx pregidx = (PregIdx)retpair.second.GetPregIdx();
@@ -587,7 +589,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
       return stmtNode;
     }
     case OP_retsub: {
-      StmtNode * usesStmtNode = codeMP->New<StmtNode>(mestmt->GetOp());
+      StmtNode *usesStmtNode = codeMP->New<StmtNode>(mestmt->GetOp());
       usesStmtNode->SetSrcPos(mestmt->GetSrcPosition());
       usesStmtNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
       usesStmtNode->SetOriginalID(mestmt->GetOriginalId());
@@ -944,7 +946,6 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curj, BlockNode *curblk) {
   CondGotoMeStmt *condgoto = static_cast <CondGotoMeStmt *>(mestmt);
   PreMeIfInfo *ifInfo = preMeFunc->label2IfInfo[condgoto->GetOffset()];
   CHECK_FATAL(ifInfo->endLabel != 0, "Raise2PreMeIf: endLabel not found");
-  //IfStmtNode *lnoIfstmtNode = mirFunc->GetCodeMempool()->New<IfStmtNode>(curblk);
   IfStmtNode *IfstmtNode = mirFunc->GetCodeMempool()->New<IfStmtNode>();
   PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curblk);
   PreMeStmtExtensionMap[IfstmtNode->GetStmtID()] = pmeExt;
@@ -1019,6 +1020,7 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curj, BlockNode *curblk) {
     }
     BB *endmebb = cfg->GetLabelBBAt(ifInfo->endLabel);
     uint32 j = curj + 1;
+    ASSERT_NOT_NULL(endmebb);
     while (j != endmebb->GetBBId()) {
       j = EmitPreMeBB(j, branchBlock);
     }

@@ -36,7 +36,7 @@ void MeIRMap::Dump() {
         LogInfo::MapleLogger() << "(" << i++ << ") ";
       }
       if (meStmt.GetOp() != OP_piassign) {
-        meStmt.EmitStmt(GetSSATab()).Dump(0);
+        meStmt.EmitStmt(mirFunction->GetCodeMemPoolAllocator()).Dump(0);
       }
       meStmt.Dump(this);
     }

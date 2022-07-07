@@ -360,7 +360,7 @@ void EmitMapleIr(MeFunction &func) {
   func.GetIRMap()->SetNeedAnotherPass(true);
   for (BB *bb : layoutBBs) {
     ASSERT(bb != nullptr, "bb should not be nullptr");
-    bb->EmitBB(*func.GetMeSSATab(), *func.GetMirFunc()->GetBody(), true);
+    bb->EmitBB(*func.GetMirFunc()->GetBody(), true);
   }
   ResetDependentedSymbolLive(mirFunction);
 

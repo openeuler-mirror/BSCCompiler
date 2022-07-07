@@ -410,8 +410,7 @@ std::optional<int32> EstimateStackOffsetOfMemLoc(MemLoc *memLoc, MeFunction &fun
   if (defStmt != nullptr && defStmt->GetOp() == OP_regassign) {
     auto *rhs = static_cast<AssignMeStmt*>(defStmt)->GetRHS();
     if (rhs->GetOp() == OP_addrof) {
-      auto ostIdx = static_cast<AddrofMeExpr*>(rhs)->GetOstIdx();
-      auto *ost = func.GetMeSSATab()->GetOriginalStFromID(ostIdx);
+      auto *ost = static_cast<AddrofMeExpr*>(rhs)->GetOst();
       CHECK_FATAL(ost, "ost is nullptr");
       if (ost->IsLocal()) {
         return GetLocalSymApproximateOffset(ost->GetMIRSymbol(), func);
@@ -3065,8 +3064,7 @@ bool SLPVectorizer::DoVectTreeNodeIassign(TreeNode *treeNode) {
   MeExpr *addrExpr = minMem->Emit(irMap);
   if (treeNode->GetOp() == OP_dassign) {
     auto &varMeExpr = static_cast<VarMeExpr&>(*addrExpr);
-    AddrofMeExpr addrofExpr(-1, PTY_ptr, varMeExpr.GetOst()->GetIndex());
-    addrofExpr.SetFieldID(varMeExpr.GetFieldID());
+    AddrofMeExpr addrofExpr(-1, PTY_ptr, varMeExpr.GetOst());
     auto *newBase = irMap.HashMeExpr(addrofExpr);
     IvarMeExpr newIvar(&irMap.GetIRMapAlloc(), -1, vecType->GetPrimType(), TyIdx(PTY_u64), 0);
     newIvar.SetTyIdx(vecPtrType->GetTypeIndex());

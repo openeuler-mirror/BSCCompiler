@@ -90,7 +90,7 @@ VarMeExpr *IRMap::CreateVarMeExprVersion(OriginalSt *ost) {
 MeExpr *IRMap::CreateAddrofMeExpr(MeExpr &expr) {
   if (expr.GetMeOp() == kMeOpVar) {
     auto &varMeExpr = static_cast<VarMeExpr&>(expr);
-    AddrofMeExpr addrofme(-1, PTY_ptr, varMeExpr.GetOst()->GetIndex());
+    AddrofMeExpr addrofme(-1, PTY_ptr, varMeExpr.GetOst());
     return HashMeExpr(addrofme);
   } else {
     ASSERT(expr.GetMeOp() == kMeOpIvar, "expecting IVarMeExpr");
@@ -371,7 +371,7 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
   }
 
   auto *addrofExpr = static_cast<const AddrofMeExpr *>(base);
-  auto *ost = ssaTab.GetOriginalStFromID(addrofExpr->GetOstIdx());
+  auto *ost = addrofExpr->GetOst();
   auto *typeOfIvar = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ivar->GetTyIdx());
   CHECK_FATAL(typeOfIvar->IsMIRPtrType(), "type of ivar must be ptr");
   CHECK_FATAL(ost, "ost is nullptr!");
@@ -600,11 +600,10 @@ MeExpr *IRMap::HashMeExpr(MeExpr &meExpr) {
         break;
       }
       case kMeOpAddrof: {
-        auto ostIdx = static_cast<AddrofMeExpr &>(meExpr).GetOstIdx();
-        resultExpr = New<AddrofMeExpr>(exprID, meExpr.GetPrimType(), ostIdx);
-        static_cast<AddrofMeExpr*>(resultExpr)->SetFieldID(static_cast<AddrofMeExpr&>(meExpr).GetFieldID());
-        CHECK_FATAL(ssaTab.GetOriginalStFromID(ostIdx), "orign st is nullptr!");
-        auto pointerVstIdx = ssaTab.GetOriginalStFromID(ostIdx)->GetPointerVstIdx();
+        auto *ost = static_cast<AddrofMeExpr &>(meExpr).GetOst();
+        CHECK_FATAL(ost != nullptr, "orign st is nullptr!");
+        resultExpr = New<AddrofMeExpr>(exprID, meExpr.GetPrimType(), ost);
+        auto pointerVstIdx = ost->GetPointerVstIdx();
         if (pointerVstIdx != kInvalidVstIdx) {
           SetVerst2MeExprTableItem(pointerVstIdx, resultExpr);
         }
@@ -936,7 +935,7 @@ MeExpr *IRMap::CreateAddrofMeExprFromSymbol(MIRSymbol &st, PUIdx puIdx) {
     baseOst->PushbackVersionsIndices(baseOst->GetZeroVersionIndex());
   }
 
-  AddrofMeExpr addrOfMe(kInvalidExprID, PTY_ptr, baseOst->GetIndex());
+  AddrofMeExpr addrOfMe(kInvalidExprID, PTY_ptr, baseOst);
   return HashMeExpr(addrOfMe);
 }
 

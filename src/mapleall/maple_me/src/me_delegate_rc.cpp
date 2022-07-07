@@ -815,7 +815,7 @@ void DelegateRC::CleanUpDeadLocalRefVar(const std::set<OStIdx> &liveLocalrefvars
           continue;
         }
         auto *varMeExpr = static_cast<AddrofMeExpr*>(stmt.GetOpnd(0));
-        const OriginalSt *ost = ssaTab.GetOriginalStFromID(varMeExpr->GetOstIdx());
+        const OriginalSt *ost = varMeExpr->GetOst();
         CHECK_FATAL(ost, "ost is nullptr!");
         if (ost->IsLocal() && !ost->IsFormal() && !ost->IsIgnoreRC() &&
             liveLocalrefvars.find(varMeExpr->GetOstIdx()) == liveLocalrefvars.end()) {

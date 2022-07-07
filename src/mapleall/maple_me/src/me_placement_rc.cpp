@@ -72,7 +72,7 @@ UnaryMeStmt *PlacementRC::GenerateDecrefreset(OStIdx ostIdx, BB &bb) const {
   UnaryMeStmt *decrefStmt = irMap->New<UnaryMeStmt>(OP_decrefreset);
   decrefStmt->SetBB(&bb);
 
-  AddrofMeExpr addrofMeExpr(-1, PTY_ptr, ssaTab->GetOriginalStFromID(ostIdx)->GetIndex());
+  AddrofMeExpr addrofMeExpr(-1, PTY_ptr, ssaTab->GetOriginalStFromID(ostIdx));
   decrefStmt->SetMeStmtOpndValue(irMap->HashMeExpr(addrofMeExpr));
   return decrefStmt;
 }

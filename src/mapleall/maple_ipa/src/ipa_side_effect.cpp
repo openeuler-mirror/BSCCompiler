@@ -62,7 +62,7 @@ void SideEffect::PropInfoFromOpnd(MeExpr &opnd, const PI &calleeParamInfo) {
       // For example:
       // void callee(int *p) : write memory that p points to.
       // call callee(&x) : this will modify x but we prop info of 'write memory' to x.
-      ost = meFunc->GetMeSSATab()->GetOriginalStFromID(addrofMeExpr.GetOstIdx());
+      ost = addrofMeExpr.GetOst();
       ASSERT(ost != nullptr, "null ptr check");
       for (auto vstIdx : ost->GetVersionsIndices()) {
         ParamInfoUpdater(vstIdx, calleeParamInfo);

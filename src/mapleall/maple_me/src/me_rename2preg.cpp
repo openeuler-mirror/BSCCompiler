@@ -291,7 +291,7 @@ void SSARename2Preg::Rename2PregExpr(MeStmt *mestmt, MeExpr *meexpr) {
       break;
     case kMeOpAddrof: {
       AddrofMeExpr *addrofx = static_cast<AddrofMeExpr *>(meexpr);
-      const OriginalSt *ost = ssaTab->GetOriginalStFromID(addrofx->GetOstIdx());
+      const OriginalSt *ost = addrofx->GetOst();
       if (ost->IsFormal()) {
         const MIRSymbol *mirst = ost->GetMIRSymbol();
         uint32 index = func->GetMirFunc()->GetFormalIndex(mirst);
@@ -382,8 +382,7 @@ void SSARename2Preg::CollectUsedOst(const MeExpr *meExpr) {
     auto ostIdx = static_cast<const ScalarMeExpr*>(meExpr)->GetOstIdx();
     ostUsedByDread[ostIdx] = true;
   } else if (meExpr->GetMeOp() == kMeOpAddrof) {
-    auto ostIdx = static_cast<const AddrofMeExpr *>(meExpr)->GetOstIdx();
-    auto *ost = func->GetMeSSATab()->GetOriginalStFromID(ostIdx);
+    auto *ost = static_cast<const AddrofMeExpr *>(meExpr)->GetOst();
     ost->SetAddressTaken(true);
     auto *siblingOsts = ssaTab->GetNextLevelOsts(ost->GetPointerVstIdx());
     if (siblingOsts != nullptr) {

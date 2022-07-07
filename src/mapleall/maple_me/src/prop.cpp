@@ -20,8 +20,8 @@
 
 using namespace maple;
 
-const uint32 kPropTreeLevel = 15;   // tree height threshold to increase to
-const uint32 kTreeNodeLimit = 5000; // tree node threshold to decide propagatable.
+static const uint32 kPropTreeLevel = 15;   // tree height threshold to increase to
+static const uint32 kTreeNodeLimit = 5000; // tree node threshold to decide propagatable.
 
 namespace maple {
 #ifdef USE_ARM32_MACRO
@@ -984,8 +984,7 @@ bool Prop::NoPropUnionAggField(const MeStmt *meStmt, const StmtNode *stmt, const
       const auto *ivar = static_cast<const IvarMeExpr*>(propedRHS);
       const MeExpr *base = ivar->GetBase();
       if (base->GetOp() == OP_addrof) {
-        OStIdx ostIdx = static_cast<const AddrofMeExpr*>(base)->GetOstIdx();
-        rhsOst = ssaTab.GetOriginalStFromID(ostIdx);
+        rhsOst = static_cast<const AddrofMeExpr*>(base)->GetOst();
       }
     } else if (propedRHS->GetMeOp() == kMeOpVar) {
       rhsOst = static_cast<const VarMeExpr*>(propedRHS)->GetOst();

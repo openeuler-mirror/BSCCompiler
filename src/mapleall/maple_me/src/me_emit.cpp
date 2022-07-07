@@ -100,7 +100,7 @@ bool MEEmit::PhaseRun(maple::MeFunction &f) {
       }
       for (BB *bb : layoutBBs) {
         ASSERT(bb != nullptr, "Check bblayout phase");
-        bb->EmitBB(*f.GetMeSSATab(), *mirFunction->GetBody(), false);
+        bb->EmitBB(*mirFunction->GetBody(), false);
         if (bb->IsEmpty()) {
           continue;
         }
@@ -145,43 +145,6 @@ bool MEEmit::PhaseRun(maple::MeFunction &f) {
   }
   if (Options::profileUse && f.GetMirFunc()->GetFuncProfData()) {
     f.GetMirFunc()->SetFuncProfData(nullptr);
-  }
-  return false;
-}
-
-void EmitForIPA::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
-  aDep.SetPreservedAll();
-}
-
-// emit IR to specified file
-bool EmitForIPA::PhaseRun(maple::MeFunction &f) {
-  static std::mutex mtx;
-  ParallelGuard guard(mtx, ThreadEnv::IsMeParallel());
-  if (f.GetCfg()->NumBBs() > 0) {
-    if (f.GetIRMap()) {
-      // emit after hssa
-      MIRFunction *mirFunction = f.GetMirFunc();
-      mirFunction->ReleaseCodeMemory();
-      mirFunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR from IRMap::Emit()"));
-      mirFunction->SetBody(mirFunction->GetCodeMempool()->New<BlockNode>());
-      // initialize is_deleted field to true; will reset when emitting Maple IR
-      for (size_t k = 1; k < mirFunction->GetSymTab()->GetSymbolTableSize(); ++k) {
-        MIRSymbol *sym = mirFunction->GetSymTab()->GetSymbolFromStIdx(k);
-        if (sym->GetSKind() == kStVar) {
-          sym->SetIsDeleted();
-        }
-      }
-      for (BB *bb : f.GetCfg()->GetAllBBs()) {
-        if (bb == nullptr) {
-          continue;
-        }
-        bb->EmitBB(*f.GetMeSSATab(), *mirFunction->GetBody(), false);
-      }
-      ResetDependentedSymbolLive(mirFunction);
-    } else {
-      // emit from mir function body
-      f.EmitBeforeHSSA((*(f.GetMirFunc())), f.GetLaidOutBBs());
-    }
   }
   return false;
 }
