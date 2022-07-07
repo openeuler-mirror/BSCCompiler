@@ -306,7 +306,8 @@ bool ExtValidBitPattern::CheckCondition(Insn &insn) {
       if (lsb != 0 || static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() > width) {
         return false;
       }
-      if ((mOp == MOP_wsbfxrri5i5 || mOp == MOP_xsbfxrri6i6) && width != static_cast<RegOperand&>(srcOpnd).GetSize()) {
+      if ((mOp == MOP_wsbfxrri5i5 || mOp == MOP_xsbfxrri6i6) &&
+          static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() == width) {
         return false;
       }
       if (mOp == MOP_wubfxrri5i5 || mOp == MOP_wsbfxrri5i5) {
