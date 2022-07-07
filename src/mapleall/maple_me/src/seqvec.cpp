@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021] Futurewei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -519,8 +519,8 @@ bool SeqVectorize::CanSeqVec(const IassignNode *s1, const IassignNode *s2, bool 
   return true;
 }
 
-static int PreviousPowerOfTwo(unsigned int x) {
-  return 1U << ((sizeof(x)*8 - 1) - static_cast<uint64>(__builtin_clz(x)));
+static uint32 PreviousPowerOfTwo(unsigned int x) {
+  return 1U << ((sizeof(x) * 8 - 1) - static_cast<uint64>(__builtin_clz(x)));
 }
 
 void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
@@ -533,7 +533,7 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
   uint32 start = 0;
   do {
     IassignNode *iassign = cands[start];
-    uint32_t candCountP2 = static_cast<uint32>(PreviousPowerOfTwo(len));
+    uint32_t candCountP2 = PreviousPowerOfTwo(len);
     uint32_t lanes = (candCountP2 <  maxLanes) ? candCountP2 : maxLanes;
     if (!HasVecType(ptType, static_cast<uint8>(lanes))) {
       break; // early quit if ptType and lanes has no vectype

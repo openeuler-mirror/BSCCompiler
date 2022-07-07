@@ -130,6 +130,7 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
     case kBinKindConstAddrofFunc: {
       PUIdx puIdx = ImportFunction();
       MIRFunction *f = GlobalTables::GetFunctionTable().GetFuncTable()[puIdx];
+      CHECK_NULL_FATAL(f);
       f->GetFuncSymbol()->SetAppearsInCode(true);
       mod.SetCurFunction(func);
       return memPool->New<MIRAddroffuncConst>(puIdx, *type);
@@ -543,7 +544,7 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
     CHECK_FATAL(static_cast<size_t>(-tag) < typTab.size(), "index out of bounds");
     return typTab.at(static_cast<uint64>(-tag));
   }
-  PrimType primType = (PrimType)0;
+  PrimType primType = static_cast<PrimType>(0);
   GStrIdx strIdx(0);
   bool nameIsLocal = false;
   ImportTypeBase(primType, strIdx, nameIsLocal);
@@ -719,7 +720,7 @@ TyIdx BinaryMplImport::ImportTypeNonJava() {
     CHECK_FATAL(static_cast<size_t>(-tag) < typTab.size(), "index out of bounds");
     return typTab[static_cast<uint64>(-tag)];
   }
-  PrimType primType = (PrimType)0;
+  PrimType primType = static_cast<PrimType>(0);
   GStrIdx strIdx(0);
   bool nameIsLocal = false;
   ImportTypeBase(primType, strIdx, nameIsLocal);
@@ -1064,10 +1065,10 @@ PUIdx BinaryMplImport::ImportFunction() {
 
   auto &attributes = func->GetFuncAttrs();
   if (attributes.GetAttr(FUNCATTR_constructor_priority)) {
-    attributes.SetConstructorPriority(ReadNum());
+    attributes.SetConstructorPriority(static_cast<int>(ReadNum()));
   }
   if (attributes.GetAttr(FUNCATTR_destructor_priority)) {
-    attributes.SetDestructorPriority(ReadNum());
+    attributes.SetDestructorPriority(static_cast<int>(ReadNum()));
   }
 
   func->SetFlag(ReadNum());
@@ -1205,7 +1206,7 @@ CallInfo *BinaryMplImport::ImportCallInfo() {
   bool argLocal = Read() == 1;
   MIRSymbol *funcSym = InSymbol(nullptr);
   CHECK_FATAL(funcSym != nullptr, "func_sym is null in BinaryMplImport::InCallInfo");
-  CallInfo *ret = mod.GetMemPool()->New<CallInfo>(ctype, *funcSym->GetFunction(),
+  CallInfo *ret = mod.GetMemPool()->New<CallInfo>(ctype, funcSym->GetFunction(),
                                                   static_cast<StmtNode*>(nullptr), loopDepth, id, argLocal);
   callInfoTab.push_back(ret);
   return ret;
