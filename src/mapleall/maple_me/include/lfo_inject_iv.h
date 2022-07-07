@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021] Futurewei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -15,18 +15,10 @@
 
 #ifndef MAPLE_ME_INCLUDE_LFO_INJECT_IV_H
 #define MAPLE_ME_INCLUDE_LFO_INJECT_IV_H
-#include "me_phase.h"
+#include "me_phase_manager.h"
 
 namespace maple {
-
-/*emit ir to specified file*/
-class DoLfoInjectIV : public MeFuncPhase {
- public:
-  DoLfoInjectIV(MePhaseID id) : MeFuncPhase(id) {}
-
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) override;
-  std::string PhaseName() const override { return "injectiv"; }
-};
-
+/* emit ir to specified file */
+MAPLE_FUNC_PHASE_DECLARE(MELfoInjectIV, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_LFO_INJECT_IV_H
