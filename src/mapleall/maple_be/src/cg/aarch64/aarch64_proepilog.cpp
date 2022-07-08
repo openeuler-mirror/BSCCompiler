@@ -41,26 +41,26 @@ enum PushPopType : uint8 {
 
 MOperator pushPopOps[kRegsPopOp + 1][kRegTyFloat + 1][kPushPopPair + 1] = {
   { /* push */
-    { 0 }, /* undef */
-    { /* kRegTyInt */
-      MOP_xstr, /* single */
-      MOP_xstp, /* pair   */
-    },
-    { /* kRegTyFloat */
-      MOP_dstr, /* single */
-      MOP_dstp, /* pair   */
-    },
+      { 0 }, /* undef */
+      { /* kRegTyInt */
+        MOP_xstr, /* single */
+        MOP_xstp, /* pair   */
+      },
+      { /* kRegTyFloat */
+        MOP_dstr, /* single */
+        MOP_dstp, /* pair   */
+      },
   },
   { /* pop */
-    { 0 }, /* undef */
-    { /* kRegTyInt */
-      MOP_xldr, /* single */
-      MOP_xldp, /* pair   */
-    },
-    { /* kRegTyFloat */
-      MOP_dldr, /* single */
-      MOP_dldp, /* pair   */
-    },
+      { 0 }, /* undef */
+      { /* kRegTyInt */
+        MOP_xldr, /* single */
+        MOP_xldp, /* pair   */
+      },
+      { /* kRegTyFloat */
+        MOP_dldr, /* single */
+        MOP_dldp, /* pair   */
+      },
   }
 };
 
@@ -1415,8 +1415,14 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
   aarchCGFunc.GetDummyBB()->ClearInsns();
   aarchCGFunc.GetDummyBB()->SetIsProEpilog(true);
   cgFunc.SetCurBB(*aarchCGFunc.GetDummyBB());
-  if (!cgFunc.GetHasProEpilogue()) {
-    return;
+
+  bool hasProEpilogue = cgFunc.GetHasProEpilogue();
+  if (!hasProEpilogue) {
+    if (!(currCG->GetMIRModule()->IsCModule() &&
+          currCG->GetCGOptions().WithLoc() &&
+          currCG->GetMIRModule()->IsWithDbgInfo())) {
+      return;
+    }
   }
 
   // insert .loc for function
@@ -1446,6 +1452,12 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
       Operand *o1 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().MplLineNum());
       Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1);
       cgFunc.GetCurBB()->AppendInsn(loc);
+    }
+    if (!hasProEpilogue) {
+      bb.InsertAtBeginning(*aarchCGFunc.GetDummyBB());
+      cgFunc.SetCurBB(*formerCurBB);
+      aarchCGFunc.GetDummyBB()->SetIsProEpilog(false);
+      return;
     }
   }
 
