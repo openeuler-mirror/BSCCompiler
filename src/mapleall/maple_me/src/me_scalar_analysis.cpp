@@ -1046,7 +1046,13 @@ CRNode *LoopScalarAnalysisResult::DealWithMeOpOp(MeExpr &currOpMeExpr, MeExpr &e
       return ComputeCRNodeWithOperator(expr, *lhsCR, *rhsCR, opMeExpr.GetOp());
     }
     case OP_cvt:
-    case OP_zext:
+    case OP_zext: {
+      if (!computeTripCountForLoopUnroll) {
+        return GetOrCreateCRNode(*opMeExpr.GetOpnd(0));
+      }
+      InsertExpr2CR(expr, nullptr);
+      return nullptr;
+    }
     case OP_iaddrof: {
       return GetOrCreateCRNode(*opMeExpr.GetOpnd(0));
     }
@@ -1206,12 +1212,6 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
     case OP_ge: {
       if (isSigned && start < value) { return 0; }
       if (!isSigned && static_cast<uint64>(start) < static_cast<uint64>(value)) { return 0; }
-      /* fix for case:
-       * for(uint i = 9; i >=4; i -=5) ...
-       */
-      if (!isSigned && (start == value) && ((value + stride) < 0)) {
-        return kInvalidTripCount;
-      }
       // consider if there's overflow
       if (stride > 0) {
         if (isSigned ||  // undefined overflow
@@ -1431,8 +1431,8 @@ TripCountType LoopScalarAnalysisResult::ComputeTripCount(const MeFunction &func,
                                                      : op == OP_gt ? OP_lt
                                                                    : op;
       }
-      bool isSigned = IsSignedInteger(opMeExpr->GetOpndType()) && IsSignedInteger(opMeExpr->GetOpnd(0)->GetPrimType());
-      tripCountResult = ComputeTripCountWithSimpleConstCR(op, isSigned, constNode->GetConstValue(),
+      tripCountResult = ComputeTripCountWithSimpleConstCR(op, IsSignedInteger(opMeExpr->GetOpndType()),
+                                                          constNode->GetConstValue(),
                                                           static_cast<CRConstNode*>(cr->GetOpnd(0))->GetConstValue(),
                                                           static_cast<CRConstNode*>(cr->GetOpnd(1))->GetConstValue());
       return (tripCountResult == 0) ? kCouldNotUnroll : kConstCR;
