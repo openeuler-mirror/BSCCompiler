@@ -1259,6 +1259,18 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
         }
         break;
       }
+      case OP_ireadfpoff: {
+        IreadFPoffNode *ireadfpoff = static_cast<IreadFPoffNode*>(node.Opnd(i));
+        Operand *inOpnd = SelectIreadfpoff(node, *ireadfpoff);
+        listInputOpnd->PushOpnd(static_cast<RegOperand&>(*inOpnd));
+        PrimType pType = ireadfpoff->GetPrimType();
+        listInRegPrefix->stringList.push_back(
+            static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pType, inOpnd->GetSize(), str))));
+        if (isOutputTempNode) {
+          rPlusOpnd.emplace_back(std::make_pair(inOpnd, pType));
+        }
+        break;
+      }
       case OP_add: {
         BinaryNode *addNode = static_cast<BinaryNode*>(node.Opnd(i));
         Operand *inOpnd = SelectAdd(*addNode, *HandleExpr(*addNode, *addNode->Opnd(0)), *HandleExpr(*addNode, *addNode->Opnd(1)), node);
