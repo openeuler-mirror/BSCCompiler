@@ -2138,14 +2138,14 @@ bool GraphColorRegAllocator::ContainsLoop(const CGFuncLoops &loop,
 }
 
 void GraphColorRegAllocator::GetAllLrMemberLoops(LiveRange &lr, std::set<CGFuncLoops*, CGFuncLoopCmp> &loops) {
-  auto GetLrMemberFunc = [&loops, this](uint32 bbID) {
+  auto getLrMemberFunc = [&loops, this](uint32 bbID) {
     BB *bb = bbVec[bbID];
     CGFuncLoops *loop = bb->GetLoop();
     if (loop != nullptr) {
       (void)loops.insert(loop);
     }
   };
-  ForEachBBArrElem(lr.GetBBMember(), GetLrMemberFunc);
+  ForEachBBArrElem(lr.GetBBMember(), getLrMemberFunc);
 }
 
 bool GraphColorRegAllocator::SplitLrShouldSplit(LiveRange &lr) {

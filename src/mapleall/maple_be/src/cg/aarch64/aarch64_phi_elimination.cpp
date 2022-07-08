@@ -90,16 +90,16 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, const 
     /* case 2 */
     if (defInsn->GetMachineOpcode() == MOP_asm) {
       auto &inputList = static_cast<ListOperand&>(defInsn->GetOperand(kAsmInputListOpnd));
-      VRegVersion *LastVersion = nullptr;
+      VRegVersion *lastVersion = nullptr;
       for (auto inputReg : inputList.GetOperands()) {
-        LastVersion = GetSSAInfo()->FindSSAVersion(inputReg->GetRegisterNumber());
-        if (LastVersion != nullptr && LastVersion->GetOriginalRegNO() == ssaVersion->GetOriginalRegNO()) {
+        lastVersion = GetSSAInfo()->FindSSAVersion(inputReg->GetRegisterNumber());
+        if (lastVersion != nullptr && lastVersion->GetOriginalRegNO() == ssaVersion->GetOriginalRegNO()) {
           break;
         }
-        LastVersion = nullptr;
+        lastVersion = nullptr;
       }
-      if (LastVersion != nullptr) {
-        newReg.SetRegisterNumber(LastVersion->GetSSAvRegOpnd()->GetRegisterNumber());
+      if (lastVersion != nullptr) {
+        newReg.SetRegisterNumber(lastVersion->GetSSAvRegOpnd()->GetRegisterNumber());
       } else {
         const MapleMap<uint32, uint32>& bindingMap = defInsn->GetRegBinding();
         auto pairIt = bindingMap.find(ssaVersion->GetOriginalRegNO());

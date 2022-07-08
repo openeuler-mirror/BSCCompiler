@@ -1007,11 +1007,11 @@ void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const 
   MapleString asmStr = static_cast<StringOperand&>(insn.GetOperand(kAsmStringOpnd)).GetComment();
   std::string stringToEmit;
   size_t sidx = 0;
-  auto IsMemAccess = [](char c)->bool {
+  auto isMemAccess = [](char c)->bool {
     return c == '[';
   };
-  auto EmitRegister = [&](const char *p, bool isInt, uint32 regNO, bool unDefRegSize)->void {
-    if (IsMemAccess(p[0])) {
+  auto emitRegister = [&](const char *p, bool isInt, uint32 regNO, bool unDefRegSize)->void {
+    if (isMemAccess(p[0])) {
       stringToEmit += "[x";
       AsmStringOutputRegNum(isInt, regNO, R0, V0, stringToEmit);
       stringToEmit += "]";
@@ -1040,7 +1040,7 @@ void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const 
           if (val < outOpnds.size()) {
             const char *prefix = list6.stringList[val]->GetComment().c_str();
             RegOperand *opnd = outOpnds[val];
-            EmitRegister(prefix, opnd->IsOfIntClass(), opnd->GetRegisterNumber(), true);
+            emitRegister(prefix, opnd->IsOfIntClass(), opnd->GetRegisterNumber(), true);
           } else {
             val -= static_cast<uint32>(outOpnds.size());
             CHECK_FATAL(val < inOpnds.size(), "Inline asm : invalid register constraint number");
@@ -1053,7 +1053,7 @@ void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const 
                 stringToEmit += prefix[k];
               }
             } else {
-              EmitRegister(prefix, opnd->IsOfIntClass(), opnd->GetRegisterNumber(), true);
+              emitRegister(prefix, opnd->IsOfIntClass(), opnd->GetRegisterNumber(), true);
             }
           }
         } else if (c == '{') {
@@ -1068,13 +1068,13 @@ void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const 
           if (val < outOpnds.size()) {
             RegOperand *opnd = outOpnds[val];
             regno = opnd->GetRegisterNumber();
-            isAddr = IsMemAccess(list6.stringList[val]->GetComment().c_str()[0]);
+            isAddr = isMemAccess(list6.stringList[val]->GetComment().c_str()[0]);
           } else {
             val -= static_cast<uint32>(outOpnds.size());
             CHECK_FATAL(val < inOpnds.size(), "Inline asm : invalid register constraint number");
             RegOperand *opnd = inOpnds[val];
             regno = opnd->GetRegisterNumber();
-            isAddr = IsMemAccess(list7.stringList[val]->GetComment().c_str()[0]);
+            isAddr = isMemAccess(list7.stringList[val]->GetComment().c_str()[0]);
           }
           c = asmStr[++i];
           CHECK_FATAL(c == ':', "Parsing error in inline asm string during emit");
@@ -1083,7 +1083,7 @@ void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const 
           if (c == 'a' || isAddr) {
             prefix = "[x";
           }
-          EmitRegister(prefix.c_str(), true, regno, false);
+          emitRegister(prefix.c_str(), true, regno, false);
           c = asmStr[++i];
           CHECK_FATAL(c == '}', "Parsing error in inline asm string during emit");
         }

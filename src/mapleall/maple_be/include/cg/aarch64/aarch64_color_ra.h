@@ -971,7 +971,7 @@ class LocalRegAllocator {
     } else {
       regAssigned = fpRegAssigned;
     }
-    return IsBitArrElemSet(regAssigned, regNO);;
+    return IsBitArrElemSet(regAssigned, regNO);
   }
 
   void SetRegAssigned(regno_t regNO, bool isInt) const {

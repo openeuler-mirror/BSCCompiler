@@ -36,9 +36,9 @@ namespace {
 
 using PairMOperator = MOperator[2];
 
-constexpr uint8 insPairsNum = 5;
+constexpr uint8 kInsPairsNum = 5;
 
-PairMOperator extInsnPairTable[ExtTableSize][insPairsNum] = {
+PairMOperator extInsnPairTable[ExtTableSize][kInsPairsNum] = {
   /* {origMop, newMop} */
   {{MOP_wldrb, MOP_wldrb},  {MOP_wldrsh, MOP_wldrb},   {MOP_wldrh, MOP_wldrb},   {MOP_xldrsw, MOP_wldrb},
    {MOP_wldr, MOP_wldrb}},   /* AND */
@@ -854,7 +854,7 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
   MOperator prevMop = prevInsn->GetMachineOpcode();
   ASSERT(prevMop != MOP_undef, "Invalid opcode of instruction!");
   PairMOperator *begin = &extInsnPairTable[idx][0];
-  PairMOperator *end = &extInsnPairTable[idx][insPairsNum];
+  PairMOperator *end = &extInsnPairTable[idx][kInsPairsNum];
   auto pairIt = std::find_if(begin, end, [prevMop](const PairMOperator insPair) {
     return prevMop == insPair[0];
   });

@@ -447,10 +447,10 @@ void AArch64MemLayout::LayoutStackFrame(int32 &structCopySize, int32 &maxParmSta
     segArgsStkPassed.SetSize(RoundUp(segArgsStkPassed.GetSize(), kSizeOfPtr + kSizeOfPtr));
   }
   /* allocate the local variables in the stack */
-  std::vector<MIRSymbol*> EATempVar;
+  std::vector<MIRSymbol*> eaTempVar;
   std::vector<MIRSymbol*> retDelays;
-  LayoutLocalVariables(EATempVar, retDelays);
-  LayoutEAVariales(EATempVar);
+  LayoutLocalVariables(eaTempVar, retDelays);
+  LayoutEAVariales(eaTempVar);
 
   /* handle ret_ref sym now */
   LayoutReturnRef(retDelays, structCopySize, maxParmStackSize);

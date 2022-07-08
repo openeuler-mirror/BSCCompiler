@@ -549,7 +549,7 @@ void A64StrLdrProp::DoOpt() {
 }
 
 bool A64StrLdrProp::ReplaceMemOpnd(const MemOperand &currMemOpnd, const Insn *defInsn) {
-  auto GetDefInsn = [&defInsn, this](const RegOperand &regOpnd, std::vector<Insn*> &allUseInsns)->void {
+  auto getDefInsn = [&defInsn, this](const RegOperand &regOpnd, std::vector<Insn*> &allUseInsns)->void {
     if (regOpnd.IsSSAForm() && defInsn == nullptr) {
       VRegVersion *replacedV = ssaInfo->FindSSAVersion(regOpnd.GetRegisterNumber());
       if (replacedV->GetDefInsnInfo() != nullptr) {
@@ -572,7 +572,7 @@ bool A64StrLdrProp::ReplaceMemOpnd(const MemOperand &currMemOpnd, const Insn *de
     replacedReg = static_cast<RegOperand*>(offset);
   }
   CHECK_FATAL(replacedReg != nullptr, "check this insn");
-  GetDefInsn(*replacedReg, allUseInsns);
+  getDefInsn(*replacedReg, allUseInsns);
   if (defInsn != nullptr) {
     for (auto useInsn : allUseInsns) {
       MemOperand *oldMemOpnd = StrLdrPropPreCheck(*useInsn, memPropMode);

@@ -19,7 +19,7 @@
 #include <iostream>
 #include <string>
 #include <unordered_map>
-#include "stdio.h"
+#include <cstdio>
 #include "mdtokens.h"
 #include "mpl_logging.h"
 #include "types_def.h"

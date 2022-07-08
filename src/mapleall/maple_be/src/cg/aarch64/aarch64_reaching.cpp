@@ -814,9 +814,9 @@ bool AArch64ReachingDefinition::FindRegUsingBetweenInsn(uint32 regNO, Insn *star
       continue;
     }
     if (insn->GetMachineOpcode() == MOP_asm) {
-      InsnSet Temp;
-      if (IsRegInAsmList(insn, kAsmInputListOpnd, regNO, Temp) ||
-          IsRegInAsmList(insn, kAsmOutputListOpnd, regNO, Temp)) {
+      InsnSet temp;
+      if (IsRegInAsmList(insn, kAsmInputListOpnd, regNO, temp) ||
+          IsRegInAsmList(insn, kAsmOutputListOpnd, regNO, temp)) {
         return true;
       }
       continue;

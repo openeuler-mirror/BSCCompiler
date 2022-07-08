@@ -41,26 +41,26 @@ enum PushPopType : uint8 {
 
 MOperator pushPopOps[kRegsPopOp + 1][kRegTyFloat + 1][kPushPopPair + 1] = {
   { /* push */
-    { 0 }, /* undef */
-    { /* kRegTyInt */
-      MOP_xstr, /* single */
-      MOP_xstp, /* pair   */
-    },
-    { /* kRegTyFloat */
-      MOP_dstr, /* single */
-      MOP_dstp, /* pair   */
-    },
+      { 0 }, /* undef */
+      { /* kRegTyInt */
+        MOP_xstr, /* single */
+        MOP_xstp, /* pair   */
+      },
+      { /* kRegTyFloat */
+        MOP_dstr, /* single */
+        MOP_dstp, /* pair   */
+      },
   },
   { /* pop */
-    { 0 }, /* undef */
-    { /* kRegTyInt */
-      MOP_xldr, /* single */
-      MOP_xldp, /* pair   */
-    },
-    { /* kRegTyFloat */
-      MOP_dldr, /* single */
-      MOP_dldp, /* pair   */
-    },
+      { 0 }, /* undef */
+      { /* kRegTyInt */
+        MOP_xldr, /* single */
+        MOP_xldp, /* pair   */
+      },
+      { /* kRegTyFloat */
+        MOP_dldr, /* single */
+        MOP_dldp, /* pair   */
+      },
   }
 };
 
@@ -98,7 +98,7 @@ bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, con
        bb.GetLastInsn()->GetMachineOpcode() != MOP_xuncond)) {
     return false;
   }
-  FOR_BB_INSNS_REV_SAFE(insn, &bb, prev_insn) {
+  FOR_BB_INSNS_REV_SAFE(insn, &bb, prevInsn) {
     if (!insn->IsMachineInstruction() || insn->IsPseudoInstruction()) {
       continue;
     }
@@ -1334,9 +1334,9 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
       }
     }
     uint32 grSize = (UINT32_MAX - offset) + 1;
-    uint32 start_regno = k8BitSize - (memlayout->GetSizeOfGRSaveArea() / size);
-    ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for GR Save Area");
-    for (uint32 i = start_regno + static_cast<uint32>(R0); i < static_cast<uint32>(R8); i++) {
+    uint32 startRegno = k8BitSize - (memlayout->GetSizeOfGRSaveArea() / size);
+    ASSERT(startRegno <= k8BitSize, "Incorrect starting GR regno for GR Save Area");
+    for (uint32 i = startRegno + static_cast<uint32>(R0); i < static_cast<uint32>(R8); i++) {
       uint32 tmpOffset = 0;
       if (CGOptions::IsBigEndian()) {
         if ((dataSizeBits >> 3) < 8) {
@@ -1362,9 +1362,9 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
       } else {
         offset = (UINT32_MAX - (memlayout->GetSizeOfVRSaveArea() + grSize)) + 1;
       }
-      start_regno = k8BitSize - (memlayout->GetSizeOfVRSaveArea() / (size * k2BitSize));
-      ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for VR Save Area");
-      for (uint32 i = start_regno + static_cast<uint32>(V0); i < static_cast<uint32>(V8); i++) {
+      startRegno = k8BitSize - (memlayout->GetSizeOfVRSaveArea() / (size * k2BitSize));
+      ASSERT(startRegno <= k8BitSize, "Incorrect starting GR regno for VR Save Area");
+      for (uint32 i = startRegno + static_cast<uint32>(V0); i < static_cast<uint32>(V8); i++) {
         uint32 tmpOffset = 0;
         if (CGOptions::IsBigEndian()) {
           if ((dataSizeBits >> 3) < 16) {

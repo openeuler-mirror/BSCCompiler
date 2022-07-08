@@ -2491,11 +2491,11 @@ std::vector<Insn*> CombineContiLoadAndStorePattern::FindPrevStrLdr(Insn &insn, r
       auto *memOperand = static_cast<MemOperand*>(curInsn->GetMemOpnd());
       /* do not combine ldr r0, label */
       if (memOperand != nullptr) {
-        auto *BaseRegOpnd = static_cast<RegOperand*>(memOperand->GetBaseRegister());
-        ASSERT(BaseRegOpnd == nullptr || !BaseRegOpnd->IsVirtualRegister(),
+        auto *baseRegOpnd = static_cast<RegOperand*>(memOperand->GetBaseRegister());
+        ASSERT(baseRegOpnd == nullptr || !baseRegOpnd->IsVirtualRegister(),
             "physical register has not been allocated?");
         if (memOperand->GetAddrMode() == MemOperand::kAddrModeBOi &&
-            BaseRegOpnd->GetRegisterNumber() == memBaseRegNO) {
+            baseRegOpnd->GetRegisterNumber() == memBaseRegNO) {
           prevContiInsns.emplace_back(curInsn);
         }
       }
