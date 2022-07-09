@@ -411,6 +411,7 @@ BlockNode *LMBCLowerer::LowerBlock(BlockNode *block) {
         }
         break;
       }
+      case OP_asm:
       case OP_call:
       case OP_icallproto: {
         for (size_t i = 0; i < stmt->NumOpnds(); ++i) {
@@ -418,16 +419,18 @@ BlockNode *LMBCLowerer::LowerBlock(BlockNode *block) {
             stmt->SetOpnd(LowerExpr(stmt->Opnd(i)), i);
           } else {
             bool paramInPrototype = false;
-            MIRFuncType *funcType = nullptr;
-            if (stmt->GetOpCode() == OP_icallproto) {
-              IcallNode *icallproto = static_cast<IcallNode*>(stmt);
-              funcType = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(icallproto->GetRetTyIdx()));
-              paramInPrototype = (i-1) < funcType->GetParamTypeList().size();
-            } else {
-              CallNode *callNode = static_cast<CallNode*>(stmt);
-              MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode->GetPUIdx());
-              funcType = calleeFunc->GetMIRFuncType();
-              paramInPrototype = i < funcType->GetParamTypeList().size();
+            if (stmt->GetOpCode() != OP_asm) {
+              MIRFuncType *funcType = nullptr;
+              if (stmt->GetOpCode() == OP_icallproto) {
+                IcallNode *icallproto = static_cast<IcallNode*>(stmt);
+                funcType = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(icallproto->GetRetTyIdx()));
+                paramInPrototype = (i-1) < funcType->GetParamTypeList().size();
+              } else {
+                CallNode *callNode = static_cast<CallNode*>(stmt);
+                MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode->GetPUIdx());
+                funcType = calleeFunc->GetMIRFuncType();
+                paramInPrototype = i < funcType->GetParamTypeList().size();
+              }
             }
             if (paramInPrototype) {
               stmt->SetOpnd(LowerExpr(stmt->Opnd(i)), i);
