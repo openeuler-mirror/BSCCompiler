@@ -1415,8 +1415,14 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
   aarchCGFunc.GetDummyBB()->ClearInsns();
   aarchCGFunc.GetDummyBB()->SetIsProEpilog(true);
   cgFunc.SetCurBB(*aarchCGFunc.GetDummyBB());
-  if (!cgFunc.GetHasProEpilogue()) {
-    return;
+
+  bool hasProEpilogue = cgFunc.GetHasProEpilogue();
+  if (!hasProEpilogue) {
+    if (!(currCG->GetMIRModule()->IsCModule() &&
+          currCG->GetCGOptions().WithLoc() &&
+          currCG->GetMIRModule()->IsWithDbgInfo())) {
+      return;
+    }
   }
 
   // insert .loc for function
@@ -1446,6 +1452,12 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
       Operand *o1 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().MplLineNum());
       Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1);
       cgFunc.GetCurBB()->AppendInsn(loc);
+    }
+    if (!hasProEpilogue) {
+      bb.InsertAtBeginning(*aarchCGFunc.GetDummyBB());
+      cgFunc.SetCurBB(*formerCurBB);
+      aarchCGFunc.GetDummyBB()->SetIsProEpilog(false);
+      return;
     }
   }
 
