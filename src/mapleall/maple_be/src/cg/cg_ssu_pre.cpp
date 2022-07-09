@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021] Futurewei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -593,7 +593,7 @@ void SSUPre::ApplySSUPre() {
 
 void DoRestorePlacementOpt(CGFunc *f, PostDomAnalysis *pdom, SPreWorkCand *workCand) {
   MemPool *tempMP = memPoolCtrler.NewMemPool("cg_ssu_pre", true);
-  SSUPre cgssupre(f, pdom, tempMP, workCand, true/*asLateAsPossible*/, false/*enabledDebug*/);
+  SSUPre cgssupre(f, pdom, tempMP, workCand, true, false); /* asLateAsPossible, enabledDebug */
 
   cgssupre.ApplySSUPre();
 

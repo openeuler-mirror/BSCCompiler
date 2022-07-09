@@ -1268,6 +1268,18 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
         }
         break;
       }
+      case OP_iread: {
+        IreadNode *iread = static_cast<IreadNode*>(node.Opnd(i));
+        Operand *inOpnd = SelectIread(node, *iread);
+        listInputOpnd->PushOpnd(static_cast<RegOperand&>(*inOpnd));
+        PrimType pType = iread->GetPrimType();
+        listInRegPrefix->stringList.push_back(
+            static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pType, inOpnd->GetSize(), str))));
+        if (isOutputTempNode) {
+          rPlusOpnd.emplace_back(std::make_pair(inOpnd, pType));
+        }
+        break;
+      }
       case OP_add: {
         BinaryNode *addNode = static_cast<BinaryNode*>(node.Opnd(i));
         Operand *inOpnd = SelectAdd(*addNode, *HandleExpr(*addNode, *addNode->Opnd(0)), *HandleExpr(*addNode, *addNode->Opnd(1)), node);
@@ -3251,7 +3263,7 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr,
     if (pointedType->IsStructType()) {
       MIRStructType *structType = static_cast<MIRStructType*>(pointedType);
       /* size << 3, that is size * 8, change bytes to bits */
-      bitSize = structType->GetSize() << 3;
+      bitSize = std::min(structType->GetSize(), (size_t)kSizeOfPtr) << 3;
     } else {
       bitSize = GetPrimTypeBitSize(destType);
     }
