@@ -525,6 +525,7 @@ void Bfs::ComputeBlockOrder() {
         done = true;
       } else {
         LogInfo::MapleLogger() << "Error: RA BFS loop " << sortedCnt << " in func " << cgfunc->GetName() << "\n";
+        CHECK_FATAL(false, "");
       }
     }
     sortedCnt = sortedBBs.size();

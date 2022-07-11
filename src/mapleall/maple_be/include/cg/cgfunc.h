@@ -81,6 +81,7 @@ class SpillMemOperandSet {
 class LiveRange;
 #endif  /* TARGARM32 */
 constexpr uint32 kVRegisterNumber = 80;
+constexpr uint32 kNumBBOptReturn = 30;
 class CGFunc {
  public:
   enum ShiftDirection : uint8 {

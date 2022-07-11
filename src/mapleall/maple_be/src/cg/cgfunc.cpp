@@ -1410,6 +1410,7 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
 #endif  /* TARGARM32 */
       loops(allocator.Adapter()),
       lmbcParamVec(allocator.Adapter()),
+      scpIdSet(allocator.Adapter()),
       shortFuncName(cg.ExtractFuncName(mirFunc.GetName()) + "." + std::to_string(funcId), &memPool) {
   mirModule.SetCurFunction(&func);
   dummyBB = CreateNewBB();
@@ -1537,33 +1538,49 @@ void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &l
   }
 }
 
-void CGFunc::GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos) {
+void CGFunc::GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &posDone) {
   /* insert lable for scope begin and end .LScp.1B .LScp.1E */
   MIRFunction &mirFunc = GetFunction();
   DebugInfo *dbgInfo = GetMirModule().GetDbgInfo();
-  if (cg->GetCGOptions().WithDwarf() && stmt->op != OP_label && stmt->op != OP_comment) {
+  if (cg->GetCGOptions().WithDwarf() && stmt->op != OP_comment) {
     SrcPosition newSrcPos = stmt->GetSrcPos();
     if (!newSrcPos.IsValid()) {
       return;
     }
-    std::unordered_set<uint32> idSet;
-    idSet.clear();
-    dbgInfo->GetCrossScopeId(&mirFunc, idSet, false, lastSrcPos, newSrcPos);
-    for (auto it : idSet) {
+    // check if newSrcPos is done
+    if (posDone && lastSrcPos.IsEq(newSrcPos)) {
+      return;
+    }
+    std::unordered_set<uint32> idSetB;
+    std::unordered_set<uint32> idSetE;
+    idSetB.clear();
+    idSetE.clear();
+    dbgInfo->GetCrossScopeId(&mirFunc, idSetB, true, lastSrcPos, newSrcPos);
+    dbgInfo->GetCrossScopeId(&mirFunc, idSetE, false, lastSrcPos, newSrcPos);
+    for (auto it : idSetE) {
+      // skip if begin label is not in yet
+      if (scpIdSet.find(it) == scpIdSet.end()) {
+        continue;
+      }
       Operand *o0 = CreateDbgImmOperand(it);
       Operand *o1 = CreateDbgImmOperand(1);
       Insn &scope = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_scope, *o0, *o1);
       curBB->AppendInsn(scope);
+      (void)scpIdSet.erase(it);
     }
-    idSet.clear();
-    dbgInfo->GetCrossScopeId(&mirFunc, idSet, true, lastSrcPos, newSrcPos);
-    for (auto it : idSet) {
+    for (auto it : idSetB) {
+      // skip if begin label is already in
+      if (scpIdSet.find(it) != scpIdSet.end()) {
+        continue;
+      }
       Operand *o0 = CreateDbgImmOperand(it);
       Operand *o1 = CreateDbgImmOperand(0);
       Insn &scope = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_scope, *o0, *o1);
       curBB->AppendInsn(scope);
+      (void)scpIdSet.insert(it);
     }
     lastSrcPos.UpdateWith(newSrcPos);
+    posDone = false;
   }
 }
 
@@ -1714,10 +1731,12 @@ void CGFunc::GenerateInstruction() {
   SrcPosition lastLocPos = SrcPosition();
   SrcPosition lastMplPos = SrcPosition();
   std::set<uint32> bbFreqSet;
+  bool posDone = false;
+  scpIdSet.clear();
   for (StmtNode *stmt = secondStmt; stmt != nullptr; stmt = stmt->GetNext()) {
     /* insert Insn for scope begin/end labels */
-    if (lastStmtPos.IsBf(stmt->GetSrcPos())) {
-      GenerateScopeLabel(stmt, lastScpPos);
+    if (lastStmtPos.IsBfOrEq(stmt->GetSrcPos())) {
+      GenerateScopeLabel(stmt, lastScpPos, posDone);
       lastStmtPos = stmt->GetSrcPos();
     }
     /* insert Insn for .loc before cg for the stmt */
@@ -1820,6 +1839,18 @@ void CGFunc::GenerateCfiPrologEpilog() {
     firstBB->InsertInsnBefore(*firstBB->GetFirstInsn(), ipoint);
   } else {
     firstBB->AppendInsn(ipoint);
+  }
+
+  // insert .loc for function
+  if (cg->GetMIRModule()->IsCModule() && cg->GetMIRModule()->IsWithDbgInfo()) {
+    MIRSymbol *fSym = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());
+    if (fSym->GetSrcPosition().FileNum() != 0) {
+      Operand *o0 = CreateDbgImmOperand(fSym->GetSrcPosition().FileNum());
+      Operand *o1 = CreateDbgImmOperand(fSym->GetSrcPosition().LineNum());
+      Operand *o2 = CreateDbgImmOperand(fSym->GetSrcPosition().Column());
+      Insn &loc = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1, *o2);
+      (void)firstBB->InsertInsnBefore(*firstBB->GetFirstInsn(), loc);
+    }
   }
 
 #if !defined(TARGARM32)
@@ -2009,12 +2040,26 @@ bool CGFunc::MemBarOpt(const StmtNode &membar) {
   return stmt->GetOpCode() == OP_membarrelease;
 }
 
+void CGFunc::MakeupScopeLabels(BB &bb) {
+  /* insert leftover scope-end labels */
+  if (!scpIdSet.empty()) {
+    std::set<uint32>::reverse_iterator rit;
+    for (rit=scpIdSet.rbegin(); rit != scpIdSet.rend(); ++rit) {
+      Operand *o0 = CreateDbgImmOperand(*rit);
+      Operand *o1 = CreateDbgImmOperand(1);
+      Insn &scope = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_scope, *o0, *o1);
+      bb.AppendInsn(scope);
+    }
+  }
+}
+
 void CGFunc::ProcessExitBBVec() {
   if (exitBBVec.empty()) {
     LabelIdx newLabelIdx = CreateLabel();
     BB *retBB = CreateNewBB(newLabelIdx, cleanupBB->IsUnreachable(), BB::kBBReturn, cleanupBB->GetFrequency());
     cleanupBB->PrependBB(*retBB);
     exitBBVec.emplace_back(retBB);
+    MakeupScopeLabels(*retBB);
     return;
   }
   /* split an empty exitBB */
@@ -2037,7 +2082,9 @@ void CGFunc::ProcessExitBBVec() {
     LabelIdx newLabelIdx = CreateLabel();
     bb->AddLabel(newLabelIdx);
     lab2BBMap[newLabelIdx] = bb;
+    curBB = bb;
   }
+  MakeupScopeLabels(*bb);
 }
 
 void CGFunc::AddCommonExitBB() {
@@ -2075,7 +2122,8 @@ void CGFunc::HandleFunction() {
   /* select instruction */
   GenerateInstruction();
   /* merge multi return */
-  if (!func.GetModule()->IsCModule() || CGOptions::DoRetMerge() || CGOptions::OptimizeForSize()) {
+  if (!func.GetModule()->IsCModule() || (func.GetModule()->IsCModule() && (NumBBs() < kNumBBOptReturn)) ||
+      CGOptions::DoRetMerge() || CGOptions::OptimizeForSize()) {
     MergeReturn();
   }
   if (func.IsJava()) {
@@ -2276,7 +2324,7 @@ void CGFunc::PatchLongBranch() {
     if (bb->GetKind() != BB::kBBIf && bb->GetKind() != BB::kBBGoto) {
       continue;
     }
-    Insn * insn = bb->GetLastInsn();
+    Insn * insn = bb->GetLastMachineInsn();
     while (insn->IsImmaterialInsn()) {
       insn = insn->GetPrev();
     }

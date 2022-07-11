@@ -455,14 +455,18 @@ void GraphColorRegAllocator::CalculatePriority(LiveRange &lr) const {
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   CG *cg = a64CGFunc->GetCG();
 
-  if (cg->GetRematLevel() >= kRematConst && lr.IsRematerializable(*a64CGFunc, kRematConst)) {
-    lr.SetRematLevel(kRematConst);
-  } else if (cg->GetRematLevel() >= kRematAddr && lr.IsRematerializable(*a64CGFunc, kRematAddr)) {
-    lr.SetRematLevel(kRematAddr);
-  } else if (cg->GetRematLevel() >= kRematDreadLocal && lr.IsRematerializable(*a64CGFunc, kRematDreadLocal)) {
-    lr.SetRematLevel(kRematDreadLocal);
-  } else if (cg->GetRematLevel() >= kRematDreadGlobal && lr.IsRematerializable(*a64CGFunc, kRematDreadGlobal)) {
-    lr.SetRematLevel(kRematDreadGlobal);
+  if (cgFunc->GetCG()->IsLmbc()) {
+    lr.SetRematLevel(kRematOff);
+  } else {
+    if (cg->GetRematLevel() >= kRematConst && lr.IsRematerializable(*a64CGFunc, kRematConst)) {
+      lr.SetRematLevel(kRematConst);
+    } else if (cg->GetRematLevel() >= kRematAddr && lr.IsRematerializable(*a64CGFunc, kRematAddr)) {
+      lr.SetRematLevel(kRematAddr);
+    } else if (cg->GetRematLevel() >= kRematDreadLocal && lr.IsRematerializable(*a64CGFunc, kRematDreadLocal)) {
+      lr.SetRematLevel(kRematDreadLocal);
+    } else if (cg->GetRematLevel() >= kRematDreadGlobal && lr.IsRematerializable(*a64CGFunc, kRematDreadGlobal)) {
+      lr.SetRematLevel(kRematDreadGlobal);
+    }
   }
 
   auto calculatePriorityFunc = [&lr, &bbNum, &numDefs, &numUses, &pri, this] (uint32 bbID) {
