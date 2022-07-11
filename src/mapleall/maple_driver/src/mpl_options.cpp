@@ -807,6 +807,12 @@ std::string MplOptions::GetInputFileNameForPrint(const Action * const action) co
   if (action->GetInputFileType() == InputFileType::kFileTypeBpl) {
     return action->GetFullOutputName() + ".bpl";
   }
+  if (action->GetInputFileType() == InputFileType::kFileTypeMbc) {
+    return action->GetFullOutputName() + ".mbc";
+  }
+  if (action->GetInputFileType() == InputFileType::kFileTypeLmbc) {
+    return action->GetFullOutputName() + ".lmbc";
+  }
   return action->GetFullOutputName() + ".mpl";
 }
 
