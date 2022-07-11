@@ -35,19 +35,19 @@ using namespace maplebe;
 
 /* tool -> OptionCategory map: ld -> ldCategory, me -> meCategory and etc... */
 static std::unordered_map<std::string, maplecl::OptionCategory *> exeCategories =
-  {
-   {"maple", &driverCategory},
-   {maple::kBinNameClang, &clangCategory},
-   {maple::kBinNameCpp2mpl, &hir2mplCategory},
-   {maple::kBinNameMpl2mpl, &mpl2mplCategory},
-   {maple::kBinNameMe, &meCategory},
-   {maple::kBinNameMplcg, &cgCategory},
-   {maple::kAsFlag, &asCategory},
-   {maple::kLdFlag, &ldCategory},
-   {maple::kBinNameDex2mpl, &dex2mplCategory},
-   {maple::kBinNameJbc2mpl, &jbc2mplCategory},
-   {maple::kBinNameMplipa, &ipaCategory}
-  };
+    {
+      {"maple", &driverCategory},
+      {maple::kBinNameClang, &clangCategory},
+      {maple::kBinNameCpp2mpl, &hir2mplCategory},
+      {maple::kBinNameMpl2mpl, &mpl2mplCategory},
+      {maple::kBinNameMe, &meCategory},
+      {maple::kBinNameMplcg, &cgCategory},
+      {maple::kAsFlag, &asCategory},
+      {maple::kLdFlag, &ldCategory},
+      {maple::kBinNameDex2mpl, &dex2mplCategory},
+      {maple::kBinNameJbc2mpl, &jbc2mplCategory},
+      {maple::kBinNameMplipa, &ipaCategory}
+    };
 
 #ifdef ANDROID
 const std::string kMapleDriverVersion = "MapleDriver " + std::to_string(Version::GetMajorVersion()) + "." +
@@ -381,9 +381,7 @@ ErrorCode MplOptions::DecideRunningPhases() {
 
     lastAction = DecideRunningPhasesByType(inputInfo.get(), isMultipleFiles);
 
-    /* TODO: Add a message interface for correct exit with compilation error. And use it here
-     * instead of CHECK_FATAL.
-     */
+    /* Add a message interface for correct exit with compilation error. And use it here instead of CHECK_FATAL. */
     CHECK_FATAL(lastAction != nullptr, "Incorrect input file type: %s",
                 inputInfo->GetInputFile().c_str());
 
@@ -516,12 +514,9 @@ void MplOptions::DumpActionTree(const Action &action, int indents) const {
 
 std::string MplOptions::GetCommonOptionsStr() const {
   std::string driverOptions;
-  static const std::vector<maplecl::OptionInterface *> extraExclude = { &opts::run,
-                                                                   &opts::optionOpt,
-                                                                   &opts::infile,
-                                                                   &opts::mpl2mplOpt,
-                                                                   &opts::meOpt,
-                                                                   &opts::mplcgOpt };
+  static const std::vector<maplecl::OptionInterface *> extraExclude = {
+      &opts::run, &opts::optionOpt, &opts::infile, &opts::mpl2mplOpt, &opts::meOpt, &opts::mplcgOpt
+  };
 
   for (auto const &opt : driverCategory.GetEnabledOptions()) {
     if (!(std::find(std::begin(extraExclude), std::end(extraExclude), opt) != std::end(extraExclude))) {
@@ -812,6 +807,12 @@ std::string MplOptions::GetInputFileNameForPrint(const Action * const action) co
   if (action->GetInputFileType() == InputFileType::kFileTypeBpl) {
     return action->GetFullOutputName() + ".bpl";
   }
+  if (action->GetInputFileType() == InputFileType::kFileTypeMbc) {
+    return action->GetFullOutputName() + ".mbc";
+  }
+  if (action->GetInputFileType() == InputFileType::kFileTypeLmbc) {
+    return action->GetFullOutputName() + ".lmbc";
+  }
   return action->GetFullOutputName() + ".mpl";
 }
 
@@ -862,8 +863,8 @@ void MplOptions::connectOptStr(std::string &optionStr, const std::string &exeNam
 }
 
 void MplOptions::PrintDetailCommand(const Action * const action, bool isBeforeParse) {
-  if (exeOptions.find(kBinNameMe) == exeOptions.end() && exeOptions.find(kBinNameMpl2mpl) == exeOptions.end()
-      && exeOptions.find(kBinNameMplcg) == exeOptions.end()) {
+  if (exeOptions.find(kBinNameMe) == exeOptions.end() && exeOptions.find(kBinNameMpl2mpl) == exeOptions.end() &&
+      exeOptions.find(kBinNameMplcg) == exeOptions.end()) {
     return;
   }
   std::string runStr = "--run=";
