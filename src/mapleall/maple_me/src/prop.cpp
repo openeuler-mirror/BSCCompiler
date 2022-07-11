@@ -31,7 +31,8 @@ static constexpr uint32 kMaxRegParamNum = 8;
 #endif
 
 Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, uint32 bbvecsize, const PropConfig &config, uint32 limit)
-    : dom(dom),
+    : propLimit(limit),
+      dom(dom),
       irMap(irMap),
       ssaTab(irMap.GetSSATab()),
       mirModule(irMap.GetSSATab().GetModule()),
@@ -39,8 +40,7 @@ Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, uint32 bbvecsize, con
       vstLiveStackVec(propMapAlloc.Adapter()),
       bbVisited(bbvecsize, false),
       config(config),
-      candsForSSAUpdate(),
-      propLimit(limit) {
+      candsForSSAUpdate() {
   const MapleVector<OriginalSt *> &originalStVec = ssaTab.GetOriginalStTable().GetOriginalStVector();
   vstLiveStackVec.resize(originalStVec.size());
   for (size_t i = 1; i < originalStVec.size(); ++i) {
@@ -1030,7 +1030,11 @@ void Prop::PropEqualExpr(const MeExpr *replacedExpr, ConstMeExpr *constExpr, BB 
   }
 
   for (auto &meStmt : fromBB->GetMeStmts()) {
-    bool replaced = irMap.ReplaceMeExprStmt(meStmt, *replacedExpr, *constExpr);
+    MeExpr *eqExpr = constExpr;
+    if (replacedExpr->GetPrimType() != constExpr->GetPrimType()) {
+      eqExpr = irMap.CreateMeExprTypeCvt(replacedExpr->GetPrimType(), constExpr->GetPrimType(), *constExpr);
+    }
+    bool replaced = irMap.ReplaceMeExprStmt(meStmt, *replacedExpr, *eqExpr);
     if (replaced) {
       irMap.UpdateIncDecAttr(meStmt);
     }
@@ -1169,7 +1173,7 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
     case OP_regassign: {
       AssignMeStmt *asmestmt = static_cast<AssignMeStmt *>(&meStmt);
       MeExpr &propedRHS = PropMeExpr(*asmestmt->GetRHS(), subProped, false);
-      if (NoPropUnionAggField(asmestmt, /* StmtNode */ nullptr, &propedRHS)) {
+      if (NoPropUnionAggField(asmestmt, nullptr, &propedRHS)) {
         break;
       }
       asmestmt->SetRHS(&propedRHS);
