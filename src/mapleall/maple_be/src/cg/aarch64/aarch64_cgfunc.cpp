@@ -7528,6 +7528,9 @@ void AArch64CGFunc::SelectParmListIreadLargeAggregate(const IreadNode &iread, MI
 
 void AArch64CGFunc::CreateCallStructParamPassByStack(int32 symSize, const MIRSymbol *sym,
                                                      RegOperand *addrOpnd, int32 baseOffset) {
+  if (symSize == 0) {
+    return;
+  }
   MemOperand *ldMopnd = nullptr;
   MemOperand *stMopnd = nullptr;
   uint32 numRegNeeded = (static_cast<uint32>(symSize) <= k8ByteSize) ? kOneRegister : kTwoRegister;
