@@ -1927,7 +1927,7 @@ void FpSpConstProp::Optimize(Insn &insn) {
   }
 }
 
-bool A64PregCopyPattern::DFSFindValidDefInsns(Insn *curDefInsn, RegOperand *lastPhiDef,
+bool A64PregCopyPattern::DFSFindValidDefInsns(Insn *curDefInsn, std::vector<regno_t> &visitedPhiDefs,
                                               std::unordered_map<uint32, bool> &visited) {
   if (curDefInsn == nullptr) {
     return false;
@@ -1982,11 +1982,12 @@ bool A64PregCopyPattern::DFSFindValidDefInsns(Insn *curDefInsn, RegOperand *last
    *                                  [BB47]
    *                               mov R0, R321
    */
-  if (visited[curDefInsn->GetId()] && curDefInsn->IsPhi() && lastPhiDef != nullptr) {
+  if (visited[curDefInsn->GetId()] && curDefInsn->IsPhi() && !visitedPhiDefs.empty()) {
     auto &curPhiOpnd = static_cast<PhiOperand&>(curDefInsn->GetOperand(kInsnSecondOpnd));
     for (auto &curPhiListIt : curPhiOpnd.GetOperands()) {
       auto &curUseOpnd = static_cast<RegOperand&>(*curPhiListIt.second);
-      if (&curUseOpnd == lastPhiDef) {
+      if (std::find(visitedPhiDefs.begin(), visitedPhiDefs.end(), curUseOpnd.GetRegisterNumber()) !=
+          visitedPhiDefs.end()) {
         return false;
       }
     }
@@ -2008,8 +2009,11 @@ bool A64PregCopyPattern::DFSFindValidDefInsns(Insn *curDefInsn, RegOperand *last
     if (defInsn == nullptr) {
       return false;
     }
-    lastPhiDef = &static_cast<RegOperand&>(curDefInsn->GetOperand(kInsnFirstOpnd));
-    if (!DFSFindValidDefInsns(defInsn, lastPhiDef, visited)) {
+    if (defInsn->IsPhi()) {
+      auto &curPhiDef = static_cast<RegOperand&>(curDefInsn->GetOperand(kInsnFirstOpnd));
+      (void)visitedPhiDefs.emplace_back(curPhiDef.GetRegisterNumber());
+    }
+    if (!DFSFindValidDefInsns(defInsn, visitedPhiDefs, visited)) {
       return false;
     }
   }
@@ -2039,8 +2043,12 @@ bool A64PregCopyPattern::CheckMultiUsePoints(const Insn *defInsn) const {
 
 bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &defInsn) {
   std::unordered_map<uint32, bool> visited;
-  RegOperand *lastPhiDef = (defInsn.IsPhi() ? &static_cast<RegOperand&>(defInsn.GetOperand(kInsnFirstOpnd)) : nullptr);
-  if (!DFSFindValidDefInsns(&defInsn, lastPhiDef, visited)) {
+  std::vector<regno_t> visitedPhiDefs;
+  if (defInsn.IsPhi()) {
+    (void)visitedPhiDefs.emplace_back(
+        static_cast<RegOperand&>(defInsn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber());
+  }
+  if (!DFSFindValidDefInsns(&defInsn, visitedPhiDefs, visited)) {
     return false;
   }
   if (!CheckValidDefInsn(validDefInsns[0])) {

@@ -208,9 +208,7 @@ ErrorCode DriverRunner::ParseInput() const {
   MIRParser parser(*theModule);
   ErrorCode ret = kErrorNoError;
   if (!fileParsed) {
-    if (inputFileType != kFileTypeBpl &&
-        inputFileType != kFileTypeMbc &&
-        inputFileType != kFileTypeLmbc) {
+    if (inputFileType != kFileTypeBpl) {
       bool parsed = parser.ParseMIR(0, 0, false, true);
       if (!parsed) {
         ret = kErrorExit;
@@ -237,9 +235,7 @@ ErrorCode DriverRunner::ParseInput() const {
 
 ErrorCode DriverRunner::ParseSrcLang(MIRSrcLang &srcLang) const {
   ErrorCode ret = kErrorNoError;
-  if (inputFileType != kFileTypeBpl &&
-      inputFileType != kFileTypeMbc &&
-      inputFileType != kFileTypeLmbc) {
+  if (inputFileType != kFileTypeBpl) {
     MIRParser parser(*theModule);
     bool parsed = parser.ParseSrcLang(srcLang);
     if (!parsed) {

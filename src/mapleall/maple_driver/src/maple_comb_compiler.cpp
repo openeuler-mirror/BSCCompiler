@@ -33,12 +33,6 @@ std::string MapleCombCompiler::GetInputFileName(const MplOptions &options, const
   if (action.GetInputFileType() == InputFileType::kFileTypeBpl) {
     return action.GetFullOutputName() + ".bpl";
   }
-  if (action.GetInputFileType() == InputFileType::kFileTypeMbc) {
-    return action.GetFullOutputName() + ".mbc";
-  }
-  if (action.GetInputFileType() == InputFileType::kFileTypeLmbc) {
-    return action.GetFullOutputName() + ".lmbc";
-  }
   return action.GetFullOutputName() + ".mpl";
 }
 
