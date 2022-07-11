@@ -1112,7 +1112,8 @@ void ReflectionAnalysis::GenFieldOffsetConst(MIRAggConst &newConst, const Klass 
   }
 }
 
-MIRSymbol *ReflectionAnalysis::GenFieldOffsetData(const Klass &klass, std::pair<FieldPair, int> &fieldInfo) {
+MIRSymbol *ReflectionAnalysis::GenFieldOffsetData(const Klass &klass,
+                                                  const std::pair<FieldPair, int> &fieldInfo) {
   MIRModule &module = *mirModule;
   auto &fieldOffsetType =
       static_cast<MIRStructType&>(*GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldOffsetDataTyIdx));
@@ -1193,8 +1194,9 @@ static void ConvertFieldName(std::string &fieldname, bool staticfield) {
 }
 
 void ReflectionAnalysis::GenFieldMeta(const Klass &klass, MIRStructType &fieldsInfoType,
-                                      std::pair<FieldPair, int> &fieldInfo, MIRAggConst &aggConst,
-                                      int idx, const std::vector<std::pair<FieldPair, uint16>> &fieldHashVec) {
+                                      const std::pair<FieldPair, int> &fieldInfo,
+                                      MIRAggConst &aggConst, int idx,
+                                      const std::vector<std::pair<FieldPair, uint16>> &fieldHashVec) {
   FieldPair fieldP = fieldInfo.first;
   MIRAggConst *newConst = mirModule->GetMemPool()->New<MIRAggConst>(*mirModule, fieldsInfoType);
   ASSERT(newConst != nullptr, "null ptr check!");
@@ -1253,8 +1255,9 @@ void ReflectionAnalysis::GenFieldMeta(const Klass &klass, MIRStructType &fieldsI
   aggConst.AddItem(newConst, 0);
 }
 
-MIRSymbol *ReflectionAnalysis::GenFieldsMeta(const Klass &klass, std::vector<std::pair<FieldPair, int>> &fieldsVector,
-                                             std::vector<std::pair<FieldPair, uint16>> &fieldHashVec) {
+MIRSymbol *ReflectionAnalysis::GenFieldsMeta(
+    const Klass &klass, std::vector<std::pair<FieldPair, int>> &fieldsVector,
+    const std::vector<std::pair<FieldPair, uint16>> &fieldHashVec) {
   size_t size = fieldsVector.size();
   auto &fieldsInfoType =
       static_cast<MIRStructType&>(*GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldsInfoTyIdx));
@@ -1281,7 +1284,8 @@ MIRSymbol *ReflectionAnalysis::GenFieldsMeta(const Klass &klass, std::vector<std
 }
 
 void ReflectionAnalysis::GenFieldMetaCompact(const Klass &klass, MIRStructType &fieldsInfoCompactType,
-                                             std::pair<FieldPair, int> &fieldInfo, MIRAggConst &aggConstCompact) {
+                                             const std::pair<FieldPair, int> &fieldInfo,
+                                             MIRAggConst &aggConstCompact) {
   MIRModule &module = *mirModule;
   std::vector<uint8> fieldCompactLeb128Vec;
   FieldPair fieldP = fieldInfo.first;
@@ -1958,17 +1962,17 @@ bool ReflectionAnalysis::IsLocalClass(const std::string annotationString) {
   return false;
 }
 
-TyIdx ReflectionAnalysis::GenMetaStructType(MIRModule &mirModule, MIRStructType &metaType, const std::string &str) {
+TyIdx ReflectionAnalysis::GenMetaStructType(MIRModule &module, MIRStructType &metaType, const std::string &str) {
   const GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(str);
-  TyIdx tyIdx = mirModule.GetTypeNameTab()->GetTyIdxFromGStrIdx(strIdx);
+  TyIdx tyIdx = module.GetTypeNameTab()->GetTyIdxFromGStrIdx(strIdx);
   // A corresponding dummy type has been created in previous phases, update it with metaType.
   if (tyIdx != kInitTyIdx) {
     GlobalTables::GetTypeTable().UpdateMIRType(metaType, tyIdx);
   } else {
     tyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&metaType);
   }
-  mirModule.GetTypeNameTab()->SetGStrIdxToTyIdx(strIdx, tyIdx);
-  mirModule.PushbackTypeDefOrder(strIdx);
+  module.GetTypeNameTab()->SetGStrIdxToTyIdx(strIdx, tyIdx);
+  module.PushbackTypeDefOrder(strIdx);
   if (GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetNameStrIdx() == 0u) {
     GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->SetNameStrIdx(strIdx);
   }
@@ -1983,7 +1987,7 @@ MIRType *ReflectionAnalysis::GetRefFieldType() {
 #endif  // USE_32BIT_REF
 }
 
-void ReflectionAnalysis::GenMetadataType(MIRModule &mirModule) {
+void ReflectionAnalysis::GenMetadataType(MIRModule &module) {
   if (classMetadataTyIdx != 0u) { // Types have been generated.
     return;
   }
@@ -2016,7 +2020,7 @@ void ReflectionAnalysis::GenMetadataType(MIRModule &mirModule) {
   GlobalTables::GetTypeTable().AddFieldToStructType(classMetadataType, kClassinforoStr, *typeVoidPtr);
 #endif  // USE_32BIT_REF
   GlobalTables::GetTypeTable().AddFieldToStructType(classMetadataType, kClinitbridgeStr, *typeVoidPtr);
-  classMetadataTyIdx = GenMetaStructType(mirModule, classMetadataType, namemangler::kClassMetadataTypeName);
+  classMetadataTyIdx = GenMetaStructType(module, classMetadataType, namemangler::kClassMetadataTypeName);
   MIRStructType classMetadataROType(kTypeStruct);
   GlobalTables::GetTypeTable().AddFieldToStructType(classMetadataROType, kClassNameStr, *typeVoidPtr);
   GlobalTables::GetTypeTable().AddFieldToStructType(classMetadataROType, kIfieldsStr, *typeVoidPtr);
@@ -2034,7 +2038,7 @@ void ReflectionAnalysis::GenMetadataType(MIRModule &mirModule) {
   GlobalTables::GetTypeTable().AddFieldToStructType(classMetadataROType, kModStr, *typeI32);
   GlobalTables::GetTypeTable().AddFieldToStructType(classMetadataROType, kAnnotationStr, *typeI32);
   GlobalTables::GetTypeTable().AddFieldToStructType(classMetadataROType, kClinitAddrStr, *typeI32);
-  classMetadataRoTyIdx = GenMetaStructType(mirModule, classMetadataROType, kClassMetadataRoTypeName);
+  classMetadataRoTyIdx = GenMetaStructType(module, classMetadataROType, kClassMetadataRoTypeName);
   // MethodInfoType.
   MIRStructType methodInfoType(kTypeStruct);
 #ifdef USE_32BIT_REF
@@ -2055,13 +2059,13 @@ void ReflectionAnalysis::GenMetadataType(MIRModule &mirModule) {
 #ifndef USE_32BIT_REF
   GlobalTables::GetTypeTable().AddFieldToStructType(methodInfoType, kPaddingStr, *typeU32);
 #endif  // USE_32BIT_REF
-  methodsInfoTyIdx = GenMetaStructType(mirModule, methodInfoType, kMethodInfoTypeName);
+  methodsInfoTyIdx = GenMetaStructType(module, methodInfoType, kMethodInfoTypeName);
   // MethodInfoCompactType.
   MIRStructType methodInfoCompactType(kTypeStruct);
   GlobalTables::GetTypeTable().AddFieldToStructType(methodInfoCompactType, kMethodInVtabIndexStr, *typeI32);
   GlobalTables::GetTypeTable().AddFieldToStructType(methodInfoCompactType, kAddrStr, *typeI32);
   GlobalTables::GetTypeTable().AddFieldToStructType(methodInfoCompactType, kLebPadding0Str, *typeU8);
-  methodsInfoCompactTyIdx = GenMetaStructType(mirModule, methodInfoCompactType, kMethodInfoCompactTypeName);
+  methodsInfoCompactTyIdx = GenMetaStructType(module, methodInfoCompactType, kMethodInfoCompactTypeName);
   // FieldInfoType.
   MIRStructType fieldInfoType(kTypeStruct);
 #ifndef USE_32BIT_REF
@@ -2086,30 +2090,30 @@ void ReflectionAnalysis::GenMetadataType(MIRModule &mirModule) {
   GlobalTables::GetTypeTable().AddFieldToStructType(fieldInfoType, kDeclaringclassStr, *typeU32);
   GlobalTables::GetTypeTable().AddFieldToStructType(fieldInfoType, kPClassTypeStr, *typeU32);
 #endif  // USE_32BIT_REF
-  fieldsInfoTyIdx = GenMetaStructType(mirModule, fieldInfoType, kFieldInfoTypeName);
+  fieldsInfoTyIdx = GenMetaStructType(module, fieldInfoType, kFieldInfoTypeName);
   // FieldInfoType Compact.
   MIRStructType fieldInfoCompactType(kTypeStruct);
   GlobalTables::GetTypeTable().AddFieldToStructType(fieldInfoCompactType, kOffsetStr, *typeU32);
   GlobalTables::GetTypeTable().AddFieldToStructType(fieldInfoCompactType, kLebPadding0Str, *typeU8);
-  fieldsInfoCompactTyIdx = GenMetaStructType(mirModule, fieldInfoCompactType, kFieldInfoCompactTypeName);
+  fieldsInfoCompactTyIdx = GenMetaStructType(module, fieldInfoCompactType, kFieldInfoCompactTypeName);
   // SuperClassMetaType.
   MIRStructType superclassMetadataType(kTypeStruct);
   GlobalTables::GetTypeTable().AddFieldToStructType(superclassMetadataType, kSuperclassinfoStr, *typeVoidPtr);
-  superclassMetadataTyIdx = GenMetaStructType(mirModule, superclassMetadataType, kSuperclassMetadataTypeName);
+  superclassMetadataTyIdx = GenMetaStructType(module, superclassMetadataType, kSuperclassMetadataTypeName);
   // FieldOffsetDataType.
   MIRStructType fieldOffsetDataType(kTypeStruct);
   GlobalTables::GetTypeTable().AddFieldToStructType(fieldOffsetDataType, kFieldOffsetDataStr, *typeVoidPtr);
-  fieldOffsetDataTyIdx = GenMetaStructType(mirModule, fieldOffsetDataType, kFieldOffsetDataTypeName);
+  fieldOffsetDataTyIdx = GenMetaStructType(module, fieldOffsetDataType, kFieldOffsetDataTypeName);
   // MethodAddrDataType.
   MIRStructType methodAddrDataType(kTypeStruct);
   GlobalTables::GetTypeTable().AddFieldToStructType(methodAddrDataType, kMethodAddrDataStr, *typeVoidPtr);
-  methodAddrDataTyIdx = GenMetaStructType(mirModule, methodAddrDataType, kMethodAddrDataTypeName);
+  methodAddrDataTyIdx = GenMetaStructType(module, methodAddrDataType, kMethodAddrDataTypeName);
 
   // MethodSignature
   MIRStructType methodSignatureType(kTypeStruct);
   GlobalTables::GetTypeTable().AddFieldToStructType(methodSignatureType, kMethodSignatureOffsetName, *typeI32);
   GlobalTables::GetTypeTable().AddFieldToStructType(methodSignatureType, kMethodSignatureParameterName, *typeVoidPtr);
-  methodSignatureTyIdx = GenMetaStructType(mirModule, methodSignatureType, kMethodSignatureTypeName);
+  methodSignatureTyIdx = GenMetaStructType(module, methodSignatureType, kMethodSignatureTypeName);
 }
 
 void ReflectionAnalysis::GenClassHashMetaData() {
@@ -2160,17 +2164,17 @@ static void ReflectionAnalysisGenStrTab(MIRModule &mirModule, const std::string 
   strTabSt->SetKonst(strTabAggconst);
 }
 
-void ReflectionAnalysis::GenStrTab(MIRModule &mirModule) {
+void ReflectionAnalysis::GenStrTab(MIRModule &module) {
   // Hot string tab.
-  std::string hotStrtabName = namemangler::kReflectionStartHotStrtabPrefixStr + mirModule.GetFileNameAsPostfix();
-  ReflectionAnalysisGenStrTab(mirModule, strTabStartHot, hotStrtabName);
-  hotStrtabName = namemangler::kReflectionBothHotStrTabPrefixStr + mirModule.GetFileNameAsPostfix();
-  ReflectionAnalysisGenStrTab(mirModule, strTabBothHot, hotStrtabName);
-  hotStrtabName = namemangler::kReflectionRunHotStrtabPrefixStr + mirModule.GetFileNameAsPostfix();
-  ReflectionAnalysisGenStrTab(mirModule, strTabRunHot, hotStrtabName);
+  std::string hotStrtabName = namemangler::kReflectionStartHotStrtabPrefixStr + module.GetFileNameAsPostfix();
+  ReflectionAnalysisGenStrTab(module, strTabStartHot, hotStrtabName);
+  hotStrtabName = namemangler::kReflectionBothHotStrTabPrefixStr + module.GetFileNameAsPostfix();
+  ReflectionAnalysisGenStrTab(module, strTabBothHot, hotStrtabName);
+  hotStrtabName = namemangler::kReflectionRunHotStrtabPrefixStr + module.GetFileNameAsPostfix();
+  ReflectionAnalysisGenStrTab(module, strTabRunHot, hotStrtabName);
   // Cold string tab.
-  std::string strTabName = namemangler::kReflectionStrtabPrefixStr + mirModule.GetFileNameAsPostfix();
-  ReflectionAnalysisGenStrTab(mirModule, strTab, strTabName);
+  std::string strTabName = namemangler::kReflectionStrtabPrefixStr + module.GetFileNameAsPostfix();
+  ReflectionAnalysisGenStrTab(module, strTab, strTabName);
 }
 
 void ReflectionAnalysis::MarkWeakMethods() {

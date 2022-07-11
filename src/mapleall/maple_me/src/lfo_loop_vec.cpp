@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -12,13 +12,13 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "lfo_loop_vec.h"
 #include <iostream>
 #include <algorithm>
 #include "me_option.h"
 #include "mir_module.h"
-#include "mir_lower.h"
 #include "mir_builder.h"
-#include "lfo_loop_vec.h"
+#include "common_utils.h"
 
 #define MAX_VECTOR_LENGTH_SIZE 128
 
@@ -183,7 +183,7 @@ bool LoopTransPlan::Generate(const DoloopNode *doloop, const DoloopInfo* li, boo
   vecLanes = MAX_VECTOR_LENGTH_SIZE / (vecInfo->largestTypeSize);
   vecFactor = vecLanes;
   // return false if small type has no builtin vector type
-  if (vecFactor * vecInfo->smallestTypeSize < 64) {
+  if (vecFactor * vecInfo->smallestTypeSize < maplebe::k64BitSize) {
     if (enableDebug) {
       LogInfo::MapleLogger() << "NOT VECTORIZABLE because no builtin vector type for smallestType in loop\n";
     }
@@ -247,7 +247,7 @@ bool LoopTransPlan::Generate(const DoloopNode *doloop, const DoloopInfo* li, boo
       int64 tripCount = (upvalue - lowvalue) / (incrConst->GetExtValue());
       if (static_cast<uint32>(tripCount) < vecLanes) {
         tripCount = (tripCount / 4 * 4); // get closest 2^n
-        if (tripCount * vecInfo->smallestTypeSize < 64) {
+        if (tripCount * vecInfo->smallestTypeSize < maplebe::k64BitSize) {
           if (enableDebug) {
             LogInfo::MapleLogger() << "NOT VECTORIZABLE because of doloop trip count is small \n";
           }
@@ -1248,7 +1248,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
           (tp->vecInfo->currentLHSTypeSize > GetPrimTypeSize(GetVecElemPrimType(vecType->GetPrimType()))) &&
           ((GetPrimTypeSize(optype) / GetPrimTypeSize(GetVecElemPrimType(vecType->GetPrimType()))) > 2)) {
         // widen 128 bit node type : split two nodes
-        if (GetPrimTypeSize(vecType->GetPrimType()) == 16) {
+        if (GetPrimTypeSize(vecType->GetPrimType()) == maplebe::k16BitSize) {
           IntrinsicopNode *getLowIntrn = GenVectorGetLow(node, vecType->GetPrimType());
           IntrinsicopNode *lowNode = GenVectorWidenOpnd(getLowIntrn, getLowIntrn->GetPrimType(), false);
           IntrinsicopNode *highNode = GenVectorWidenOpnd(node, getLowIntrn->GetPrimType(), true);
@@ -1354,7 +1354,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
             static_cast<CompareNode *>(newbin)->SetOpndType(newbin->GetPrimType());
           }
           if (tp->vecInfo->currentLHSTypeSize / GetPrimTypeSize(GetVecElemPrimType(newbin->GetPrimType())) > 2) {
-            if (GetPrimTypeSize(newbin->GetPrimType()) == 16) {
+            if (GetPrimTypeSize(newbin->GetPrimType()) == maplebe::k16BitSize) {
               // widen vectorized node to low and high part if newbin is already 128-bit
               IntrinsicopNode *getLowIntrn = GenVectorGetLow(newbin, newbin->GetPrimType());
               IntrinsicopNode *lowNode = GenVectorWidenOpnd(getLowIntrn, getLowIntrn->GetPrimType(), false);
@@ -1441,7 +1441,8 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
         vectorizedNode.push_back(vecNode);
       } else {
         MapleVector<BaseNode *> vecopnd(localAlloc.Adapter());
-        for (int i = 0; i < 3; i++) {
+        const uint8 tnodeSize = 3;
+        for (int i = 0; i < tnodeSize; i++) {
           BaseNode *opnd = tnode->Opnd(i);
           if (tp->vecInfo->uniformVecNodes.find(opnd) != tp->vecInfo->uniformVecNodes.end()) {
             vecopnd.push_back(tp->vecInfo->uniformVecNodes[opnd]);
@@ -1532,7 +1533,6 @@ void LoopVectorization::VectorizeReductionStmt(StmtNode *stmt, LoopTransPlan *tp
   copyStmt->GetRHS()->SetOpnd(intrnvecSum, 1);
   tp->vecInfo->afterLoopStmts.push_back(copyStmt);
   doloopbody->RemoveStmt(stmt);
-  return;
 }
 
 // iterate tree node to vectorize scalar type to vector type

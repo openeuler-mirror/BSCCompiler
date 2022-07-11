@@ -757,8 +757,7 @@ void MeStmtPre::CreateSortedOccs() {
 void MeStmtPre::ConstructUseOccurMapExpr(uint32 bbDfn, const MeExpr &meExpr) {
   if (meExpr.GetMeOp() == kMeOpVar) {
     OStIdx ostIdx = static_cast<const VarMeExpr*>(&meExpr)->GetOstIdx();
-    MapleMap<OStIdx, MapleSet<uint32>*>::iterator mapIt;
-    mapIt = useOccurMap.find(ostIdx);
+    auto mapIt = useOccurMap.find(ostIdx);
     if (mapIt == useOccurMap.end()) {
       return;
     }

@@ -226,10 +226,10 @@ OffsetType AliasClass::OffsetInBitOfArrayElement(const ArrayNode *arrayNode) {
 // offset is the offset of base.
 //     |-----offset------|---|---|-----|
 // prevLevOst          tyIdx fld
-OriginalSt *AliasClass::FindOrCreateExtraLevOst(SSATab *ssaTab, const VersionSt *pointerVst, const TyIdx &tyIdx,
-    FieldID fld, OffsetType offset) {
-  auto nextLevOst = ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(pointerVst, tyIdx, fld, offset);
-  ssaTab->GetVersionStTable().CreateZeroVersionSt(nextLevOst);
+OriginalSt *AliasClass::FindOrCreateExtraLevOst(SSATab *ssaTable, const VersionSt *pointerVst, const TyIdx &tyIdx,
+                                                FieldID fld, OffsetType offset) {
+  auto nextLevOst = ssaTable->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(pointerVst, tyIdx, fld, offset);
+  ssaTable->GetVersionStTable().CreateZeroVersionSt(nextLevOst);
   return nextLevOst;
 }
 

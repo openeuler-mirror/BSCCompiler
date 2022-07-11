@@ -1043,7 +1043,7 @@ void MeABC::ProcessCallParameters(CallMeStmt &callNode) {
       if (boundaryCheck && nullCheck && typeCheck) {
         if (isScalar) {
           MIRFunction *arrayCopyFunc = meFunc->GetMIRModule().GetMIRBuilder()->GetOrCreateFunction(
-              "Native_java_lang_System_arraycopyCharUnchecked___3CI_3CII", (TyIdx) (PTY_void));
+              "Native_java_lang_System_arraycopyCharUnchecked___3CI_3CII", TyIdx(PTY_void));
           callNode.SetPUIdx(arrayCopyFunc->GetPuidx());
           return;
         } // ref can be handled, but need to extend ABI.
@@ -1052,7 +1052,7 @@ void MeABC::ProcessCallParameters(CallMeStmt &callNode) {
     if (callFunc->GetBaseFuncNameWithType().compare(
         "arraycopy_7C_28Ljava_2Flang_2FObject_3BILjava_2Flang_2FObject_3BII_29V") == 0) {
       MIRFunction *arrayCopyFunc = meFunc->GetMIRModule().GetMIRBuilder()->GetOrCreateFunction(
-          "Native_java_lang_System_arraycopy__Ljava_lang_Object_2ILjava_lang_Object_2II", (TyIdx)(PTY_void));
+          "Native_java_lang_System_arraycopy__Ljava_lang_Object_2ILjava_lang_Object_2II", TyIdx(PTY_void));
       callNode.SetPUIdx(arrayCopyFunc->GetPuidx());
     }
   }

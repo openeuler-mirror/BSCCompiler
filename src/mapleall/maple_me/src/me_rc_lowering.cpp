@@ -1465,8 +1465,7 @@ void RCLowering::FastLowerThrowStmt(MeStmt &stmt, MapleMap<uint32, MeStmt*> &exc
   bb->InsertMeStmtBefore(&throwMeStmt, backup);
   if (throwVal->GetMeOp() == kMeOpVar) {
     auto *var = static_cast<VarMeExpr*>(throwVal);
-    MapleMap<uint32, MeStmt*>::iterator iter;
-    iter = exceptionAllocsites.find(var->GetVstIdx());
+    auto iter = exceptionAllocsites.find(var->GetVstIdx());
     if (iter != exceptionAllocsites.end()) {
       exceptionAllocsites.erase(iter);
     }

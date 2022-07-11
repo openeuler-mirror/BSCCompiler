@@ -4980,9 +4980,7 @@ bool GraphColorRegAllocator::AllocateRegisters() {
 
   MarkCalleeSaveRegs();
 
-  if (!seenFP) {
-    cgFunc->UnsetSeenFP();
-  }
+  cgFunc->SetSeenFP(seenFP);
   if (GCRA_DUMP) {
     cgFunc->DumpCGIR();
   }

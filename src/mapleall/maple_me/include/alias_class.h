@@ -207,7 +207,7 @@ class AliasClass : public AnalysisResult {
   bool MayAlias(const OriginalSt *ostA, const OriginalSt *ostB) const;
 
   static OffsetType OffsetInBitOfArrayElement(const ArrayNode *arrayNode);
-  static OriginalSt *FindOrCreateExtraLevOst(SSATab *ssaTab, const VersionSt *pointerVst, const TyIdx &tyIdx,
+  static OriginalSt *FindOrCreateExtraLevOst(SSATab *ssaTable, const VersionSt *pointerVst, const TyIdx &tyIdx,
                                              FieldID fld, OffsetType offset);
 
   MapleAllocator &GetMapleAllocator() {

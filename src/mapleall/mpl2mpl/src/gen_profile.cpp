@@ -105,8 +105,8 @@ void ProfileGen::CreateModProfDesc() {
 
   // Make the profile file name as fileName.gcda
   std::string profFileName = mod.GetProfileDataFileName();
-  MIRStrConst *profileFNMirConst = modMP->New<MIRStrConst>(
-      "./" + profFileName, *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64));
+  auto *profileFNMirConst =
+      modMP->New<MIRStrConst>("./" + profFileName, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_a64)));
   modProfDescSymMirConst->AddItem(profileFNMirConst, 6);
 
   // Additional profiling (in addition to frequency profiling) should be added here

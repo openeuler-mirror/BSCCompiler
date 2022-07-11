@@ -443,7 +443,7 @@ StmtNode &CallMeStmt::EmitStmt(MapleAllocator &alloc) {
           symbol->ResetIsDeleted();
         }
       } else {
-        PregIdx pregIdx = (PregIdx)retPair.second.GetPregIdx();
+        auto pregIdx = PregIdx(retPair.second.GetPregIdx());
         MIRPreg *preg = GetCurFunction()->GetPregTab()->PregFromPregIdx(pregIdx);
         icallNode->SetRetTyIdx(TyIdx(preg->GetPrimType()));
       }
@@ -473,7 +473,7 @@ StmtNode &IcallMeStmt::EmitStmt(MapleAllocator &alloc) {
           symbol->ResetIsDeleted();
         }
       } else {
-        PregIdx pregIdx = (PregIdx)retPair.second.GetPregIdx();
+        auto pregIdx = PregIdx(retPair.second.GetPregIdx());
         MIRPreg *preg = GetCurFunction()->GetPregTab()->PregFromPregIdx(pregIdx);
         icallNode->SetRetTyIdx(TyIdx(preg->GetPrimType()));
       }

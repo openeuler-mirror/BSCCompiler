@@ -60,7 +60,7 @@ bool MELfoInjectIV::PhaseRun(MeFunction &f) {
     std::string ivName("injected.iv");
     ivName.append(std::to_string(++ivCount));
     GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(ivName);
-    MIRSymbol *st = mirbuilder->CreateSymbol((TyIdx)PTY_i64, strIdx, kStVar, kScAuto, f.GetMirFunc(), kScopeLocal);
+    MIRSymbol *st = mirbuilder->CreateSymbol(TyIdx(PTY_i64), strIdx, kStVar, kScAuto, f.GetMirFunc(), kScopeLocal);
     whileInfo->injectedIVSym = st;
     if (DEBUGFUNC_NEWPM(f)) {
       LogInfo::MapleLogger() << "****** Injected IV " << st->GetName() << " in while loop at label ";

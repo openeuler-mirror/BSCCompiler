@@ -98,22 +98,22 @@ class OriginalSt {
   bool IsFormal() const {
     return isFormal;
   }
-  void SetIsFormal(bool isFormal) {
-    this->isFormal = isFormal;
+  void SetIsFormal(bool val) {
+    this->isFormal = val;
   }
 
   bool IsFinal() const {
     return isFinal;
   }
-  void SetIsFinal(bool isFinal = true) {
-    this->isFinal = isFinal;
+  void SetIsFinal(bool val = true) {
+    this->isFinal = val;
   }
 
   bool IsPrivate() const {
     return isPrivate;
   }
-  void SetIsPrivate(bool isPrivate) {
-    this->isPrivate = isPrivate;
+  void SetIsPrivate(bool val) {
+    this->isPrivate = val;
   }
 
   bool IsVolatile() const {
@@ -196,8 +196,8 @@ class OriginalSt {
     return fieldID;
   }
 
-  void SetFieldID(FieldID fieldID) {
-    this->fieldID = fieldID;
+  void SetFieldID(FieldID fieldIndex) {
+    this->fieldID = fieldIndex;
   }
 
   const OffsetType &GetOffset() const {
@@ -276,6 +276,8 @@ class OriginalSt {
     }
     return static_cast<uint32>(versionsIndices.size()) - 1;  // preg's zero version not counted
   }
+  bool isPtrWithIncDec = false;  // is a pointer with self-increment/decrement
+  bool storesIVInitValue = false; // temp created to store IV's initial value
 
  private:
   enum OSTType {
@@ -315,9 +317,6 @@ class OriginalSt {
   bool isPrivate = false;        // if the field has private attribute, only when fieldID != 0
   bool ignoreRC = false;         // base on MIRSymbol's IgnoreRC()
   bool epreLocalRefVar = false;  // is a localrefvar temp created by epre phase
- public:
-  bool isPtrWithIncDec = false;  // is a pointer with self-increment/decrement
-  bool storesIVInitValue = false; // temp created to store IV's initial value
  private:
   SymOrPreg symOrPreg;
   PUIdx puIdx;
@@ -434,7 +433,6 @@ class OriginalStTable {
     varOstMap[id] = originalStVector[id];
   }
 
-
   ConstOriginalStIterator begin() const {
     auto it = originalStVector.begin();
     // self-inc resulting from the fact that the 1st element is reserved and set null.
@@ -459,7 +457,7 @@ class OriginalStTable {
 
   void Dump();
   OriginalSt *FindOrCreateAddrofSymbolOriginalSt(OriginalSt *ost);
-  OriginalSt *FindOrCreateExtraLevOriginalSt(const VersionSt *vst, TyIdx ptyidx, FieldID fld,
+  OriginalSt *FindOrCreateExtraLevOriginalSt(const VersionSt *vst, const TyIdx &ptyidx, FieldID fld,
                                              const OffsetType &offset = OffsetType(kOffsetUnknown));
   OriginalSt *FindOrCreateExtraLevSymOrRegOriginalSt(const VersionSt *vst, TyIdx tyIdx, FieldID fld,
                                                      const OffsetType &offset = OffsetType(kOffsetUnknown),

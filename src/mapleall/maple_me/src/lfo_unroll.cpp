@@ -224,8 +224,9 @@ static size_t CountBlockStmts(BlockNode *blk) {
     } else if (stmt->GetOpCode() != OP_label && stmt->GetOpCode() != OP_comment) {
       stmtCount++;
       if (stmt->GetOpCode() == OP_if) {
-        stmtCount += 3 + CountBlockStmts(static_cast<IfStmtNode *>(stmt)->GetThenPart());
-        stmtCount += 3 + CountBlockStmts(static_cast<IfStmtNode *>(stmt)->GetElsePart());
+        constexpr uint8 kIfCount = 3;
+        stmtCount += kIfCount + CountBlockStmts(static_cast<IfStmtNode *>(stmt)->GetThenPart());
+        stmtCount += kIfCount + CountBlockStmts(static_cast<IfStmtNode *>(stmt)->GetElsePart());
       }
     }
     ASSERT(stmt->GetOpCode() != OP_switch && stmt->GetOpCode() != OP_while &&
@@ -249,7 +250,8 @@ void LfoUnrollOneLoop::Process() {
     return;
   }
   size_t stmtCount = CountBlockStmts(doloop->GetDoBody());
-  if (stmtCount == 0 || stmtCount > 16) {
+  constexpr uint8 kMaxStmtCount = 16;
+  if (stmtCount == 0 || stmtCount > kMaxStmtCount) {
     return;
   }
 

@@ -54,6 +54,7 @@ using namespace maplebe;
 
 namespace maple {
 // A wrapper class of meExpr with its defStmt, this can avoid repeated searches for use-def chains
+constexpr int8 k8Bit = 8;
 class ExprWithDef {
  public:
   explicit ExprWithDef(MeExpr *meExpr, BB *bb = nullptr) : expr(meExpr) {
@@ -140,7 +141,7 @@ void MemoryHelper::ExtractAddendOffset(const MeExpr &expr, bool isNeg, MemLoc &m
         auto *pointedType = static_cast<MIRPtrType*>(type)->GetPointedType();
         CHECK_FATAL(pointedType->GetKind() == kTypeStruct || pointedType->GetKind() == kTypeUnion, "must be");
         auto bitOffset = static_cast<MIRStructType*>(pointedType)->GetBitOffsetFromBaseAddr(fieldId);
-        memLoc.offset += (bitOffset / 8);
+        memLoc.offset += (bitOffset / k8Bit);
       }
       ExtractAddendOffset(*expr.GetOpnd(0), isNeg, memLoc);
       break;
@@ -209,7 +210,7 @@ MemLoc *MemoryHelper::GetMemLoc(VarMeExpr &var) {
   auto *memLocPtr = alloc.GetMemPool()->New<MemLoc>();
   MemLoc &memLoc = *memLocPtr;
   memLoc.rawExpr = &var;
-  memLoc.offset = ost->GetOffset().val / 8;
+  memLoc.offset = ost->GetOffset().val / k8Bit;
   memLoc.type = ost->GetType();
   memLoc.base = alloc.GetMemPool()->New<MemBasePtr>();
   memLoc.base->SetBaseOstIdx(prevLevOst->GetIndex().get());
@@ -257,7 +258,7 @@ MemLoc *MemoryHelper::GetMemLoc(IvarMeExpr &ivar) {
     ASSERT(pointedType->GetKind() == kTypeStruct || pointedType->GetKind() == kTypeUnion, "must be");
     auto *structType = static_cast<MIRStructType*>(pointedType);
     auto bitOffset = structType->GetBitOffsetFromBaseAddr(ivar.GetFieldID());
-    extraOffset += (bitOffset / 8);
+    extraOffset += (bitOffset / k8Bit);
   }
   extraOffset += ivar.GetOffset();
   memLoc.extraOffset = extraOffset;
@@ -2248,7 +2249,7 @@ void SLPVectorizer::VectorizeConsecutiveStores(StoreVec &storeVec, uint32 begin,
   uint32 endIdx = end;
   bool tried = false;
   std::vector<bool> vectorized(storeVec.size(), false);
-  for (uint32 factor = maxVf; factor >= minSf; factor /= 2) {
+  for (uint32 factor = maxVf; factor >= minSf; factor /= k2BitSize) {
     for (uint32 i = endIdx; i >= factor && i - factor >= begin;) {
       // Make sure no scalar stores have been vectorized
       // When stmts are vectorized successfully, we will set them vectorizd
@@ -2334,7 +2335,7 @@ bool SLPVectorizer::DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, ui
   } else if (tree->CanTreeUseStp()) {
     SLP_DEBUG(os << "CodeMotionReorderStoresAndLoads" << std::endl);
     CodeMotionReorderStoresAndLoads();
-  } else if (tree->GetSize() > 2) {
+  } else if (tree->GetSize() > k2BitSize) {
     bool hasLoadStorePair = false;
     for (auto *treeNode : tree->GetNodes()) {
       if (treeNode->CanNodeUseLoadStorePair()) {
@@ -2432,11 +2433,11 @@ void SLPVectorizer::CodeMotionReorderStoresAndLoads() {
     return;
   }
   auto scalarTypeSize = GetPrimTypeBitSize(tree->GetType());
-  if (scalarTypeSize != 32 && scalarTypeSize != 64) {
+  if (scalarTypeSize != k32BitSize && scalarTypeSize != k64BitSize) {
     return;
   }
   auto lane = tree->GetLane();
-  if (lane != 2) {
+  if (lane != k2BitSize) {
     return;
   }
   auto *root = tree->GetRoot();
@@ -2494,7 +2495,7 @@ bool SLPVectorizer::TrySplitSeedStmts() {
   bool changed = false;
   for (auto &entry : storeVecMap) {
     StoreVec &storeVec = entry.second;
-    CHECK_FATAL(storeVec.size() >= 2, "storeVec with size less than 2 should have been removed before");
+    CHECK_FATAL(storeVec.size() >= k2BitSize, "storeVec with size less than 2 should have been removed before");
     // Split the potentially vectorizable seed stmts
     for (auto *store : storeVec) {
       TrySplitMeStmt(*store->stmt, func, changed);
@@ -2593,7 +2594,7 @@ bool SLPVectorizer::TryScheduleTogehter(const std::vector<MeStmt*> &stmts) {
 bool SLPVectorizer::BuildTree(std::vector<MeStmt*> &stmts) {
   tree = tmpAlloc->New<SLPTree>(*tmpAlloc, memoryHelper, func, *blockScheduling);
   SLP_DEBUG(os << "Build tree node for " << GetOpName(stmts[0]->GetOp()) << std::endl);
-  CHECK_FATAL(stmts.size() >= 2, "must be");
+  CHECK_FATAL(stmts.size() >= k2BitSize, "must be");
 
   if (!TryScheduleTogehter(stmts)) {
     SLP_FAILURE_DEBUG(os << "Scheduling failure" << std::endl);

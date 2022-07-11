@@ -418,7 +418,7 @@ MeOption &MeOption::GetInstance() {
 }
 
 void MeOption::ParseOptions(int argc, char **argv, std::string &fileName) {
-  maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, meCategory);
+  maplecl::CommandLine::GetCommandLine().Parse(argc, argv, meCategory);
   bool result = SolveOptions(false);
   if (!result) {
     return;

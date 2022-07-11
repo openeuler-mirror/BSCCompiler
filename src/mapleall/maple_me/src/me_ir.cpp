@@ -1497,7 +1497,7 @@ void CondGotoMeStmt::Dump(const IRMap *irMap) const {
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "cond: ";
   auto mirFunc = static_cast<const MeIRMap*>(irMap)->GetFunc().GetMirFunc();
-  LogInfo::MapleLogger() << " @" << mirFunc->GetLabelName((LabelIdx)offset);
+  LogInfo::MapleLogger() << " @" << mirFunc->GetLabelName(LabelIdx(offset));
   GetOpnd()->Dump(irMap, kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << '\n';
 }

@@ -1003,8 +1003,8 @@ void MePrediction::SavePredictResultIntoCfg() {
   VerifyFreq(*func);
 }
 
-void MePrediction::VerifyFreq(const MeFunction &func) {
-  const auto &bbVec = func.GetCfg()->GetAllBBs();
+void MePrediction::VerifyFreq(const MeFunction &meFunc) {
+  const auto &bbVec = meFunc.GetCfg()->GetAllBBs();
   for (size_t i = 2; i < bbVec.size(); ++i) {  // skip common entry and common exit
     auto *bb = bbVec[i];
     if (bb == nullptr || bb->GetAttributes(kBBAttrIsEntry) || bb->GetAttributes(kBBAttrIsExit)) {
@@ -1018,18 +1018,18 @@ void MePrediction::VerifyFreq(const MeFunction &func) {
     if (succSumFreq != bb->GetFrequency()) {
       LogInfo::MapleLogger() << "[VerifyFreq failure] BB" << bb->GetBBId() << " freq: " <<
           bb->GetFrequency() << ", all succ edge freq sum: " << succSumFreq << std::endl;
-      LogInfo::MapleLogger() << func.GetName() << std::endl;
+      LogInfo::MapleLogger() << meFunc.GetName() << std::endl;
       CHECK_FATAL(false, "VerifyFreq failure: bb freq != succ freq sum");
     }
   }
 }
 
 // Prediction will sort meLoop
-void MePrediction::RebuildFreq(MeFunction &func, Dominance &dom, IdentifyLoops &meLoop) {
-  func.SetProfValid(false);
+void MePrediction::RebuildFreq(MeFunction &meFunc, Dominance &dom, IdentifyLoops &meLoop) {
+  meFunc.SetProfValid(false);
   StackMemPool stackMp(memPoolCtrler, "");
-  MePrediction predict(stackMp, stackMp, func, dom, meLoop, *func.GetIRMap());
-  if (MeOption::dumpFunc == func.GetName()) {
+  MePrediction predict(stackMp, stackMp, meFunc, dom, meLoop, *meFunc.GetIRMap());
+  if (MeOption::dumpFunc == meFunc.GetName()) {
     predict.SetPredictDebug(true);
   }
   predict.Run();

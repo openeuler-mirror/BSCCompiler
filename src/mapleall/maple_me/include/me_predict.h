@@ -58,8 +58,8 @@ struct EdgePrediction {
 class MePrediction : public AnalysisResult {
  public:
   static const PredictorInfo predictorInfo[kEndPrediction + 1];
-  static void VerifyFreq(const MeFunction &func);
-  static void RebuildFreq(MeFunction &func, Dominance &dom, IdentifyLoops &meLoop);
+  static void VerifyFreq(const MeFunction &meFunc);
+  static void RebuildFreq(MeFunction &meFunc, Dominance &dom, IdentifyLoops &meLoop);
   MePrediction(MemPool &memPool, MemPool &tmpPool, MeFunction &mf, Dominance &dom, IdentifyLoops &loops,
                MeIRMap &map)
       : AnalysisResult(&memPool),

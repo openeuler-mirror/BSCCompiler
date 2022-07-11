@@ -711,7 +711,7 @@ static bool IsComplexExpr(const BaseNode *expr, MIRFunction &func) {
 // Input a address expr, output a memEntry to abstract this expr
 bool MemEntry::ComputeMemEntry(BaseNode &expr, MIRFunction &func, MemEntry &memEntry, bool isLowLevel) {
   Opcode op = expr.GetOpCode();
-  MIRType *memType = nullptr;
+  MIRType *mirType = nullptr;
   switch (op) {
     case OP_dread: {
       const auto &concreteExpr = static_cast<const DreadNode&>(expr);
@@ -722,7 +722,7 @@ bool MemEntry::ComputeMemEntry(BaseNode &expr, MIRFunction &func, MemEntry &memE
       }
       // Support kTypeScalar ptr if possible
       if (curType->GetKind() == kTypePointer) {
-        memType = static_cast<MIRPtrType*>(curType)->GetPointedType();
+        mirType = static_cast<MIRPtrType*>(curType)->GetPointedType();
       }
       break;
     }
@@ -733,12 +733,12 @@ bool MemEntry::ComputeMemEntry(BaseNode &expr, MIRFunction &func, MemEntry &memE
       if (concreteExpr.GetFieldID() != 0) {
         curType = static_cast<MIRStructType*>(curType)->GetFieldType(concreteExpr.GetFieldID());
       }
-      memType = curType;
+      mirType = curType;
       break;
     }
     case OP_iread: {
       const auto &concreteExpr = static_cast<const IreadNode&>(expr);
-      memType = concreteExpr.GetType();
+      mirType = concreteExpr.GetType();
       break;
     }
     case OP_iaddrof: {  // Do NOT call GetType because it is for OP_iread
@@ -747,7 +747,7 @@ bool MemEntry::ComputeMemEntry(BaseNode &expr, MIRFunction &func, MemEntry &memE
       CHECK_FATAL(curType->IsMIRPtrType(), "must be MIRPtrType");
       curType = static_cast<MIRPtrType*>(curType)->GetPointedType();
       CHECK_FATAL(curType->IsStructType(), "must be MIRStructType");
-      memType = static_cast<MIRStructType*>(curType)->GetFieldType(concreteExpr.GetFieldID());
+      mirType = static_cast<MIRStructType*>(curType)->GetFieldType(concreteExpr.GetFieldID());
       break;
     }
     case OP_regread: {
@@ -770,7 +770,7 @@ bool MemEntry::ComputeMemEntry(BaseNode &expr, MIRFunction &func, MemEntry &memE
         if (isFromDread && curType->GetKind() == kTypePointer) {
           curType = static_cast<MIRPtrType*>(curType)->GetPointedType();
         }
-        memType = curType;
+        mirType = curType;
       }
       break;
     }
@@ -783,11 +783,11 @@ bool MemEntry::ComputeMemEntry(BaseNode &expr, MIRFunction &func, MemEntry &memE
       break;
     }
   }
-  if (memType == nullptr) {
+  if (mirType == nullptr) {
     return false;
   }
   memEntry.addrExpr = &expr;
-  memEntry.memType = memType;
+  memEntry.memType = mirType;
   return true;
 }
 
@@ -1447,8 +1447,8 @@ MemOpKind SimplifyMemOp::ComputeMemOpKind(StmtNode &stmt) {
     return MEM_OP_unknown;
   }
   auto &callStmt = static_cast<CallNode&>(stmt);
-  MIRFunction *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt.GetPUIdx());
-  const char *funcName = func->GetName().c_str();
+  MIRFunction *mirFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt.GetPUIdx());
+  const char *funcName = mirFunc->GetName().c_str();
   if (strcmp(funcName, kFuncNameOfMemset) == 0) {
     return MEM_OP_memset;
   }

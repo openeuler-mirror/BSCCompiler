@@ -81,7 +81,7 @@ BaseNode *JavaEHLowerer::DoLowerDiv(BinaryNode &expr, BlockNode &blknode) {
   // Check if the second operand of the div expression is 0.
   // Inser if statement for high level ir.
   CompareNode *cmpNode = mirBuilder->CreateExprCompare(OP_eq, *GlobalTables::GetTypeTable().GetInt32(),
-                                                       *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)ptype),
+                                                       *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(ptype)),
                                                        divOpnd, mirBuilder->CreateIntConst(0, ptype));
   IfStmtNode *ifStmtNode = mirBuilder->CreateStmtIf(cmpNode);
   blknode.AddStatement(ifStmtNode);

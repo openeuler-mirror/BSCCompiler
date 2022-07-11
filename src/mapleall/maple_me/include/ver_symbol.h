@@ -72,8 +72,8 @@ class VersionSt {
     return defType;
   }
 
-  void SetDefType(DefType defType) {
-    this->defType = defType;
+  void SetDefType(DefType defineType) {
+    this->defType = defineType;
   }
 
   OStIdx GetOrigIdx() const {

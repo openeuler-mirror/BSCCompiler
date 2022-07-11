@@ -26,6 +26,9 @@ constexpr uint32 kMaxCandidatesPerGroup = 40;
 constexpr uint64 kDefaultEstimatedLoopIterNum = 10;
 constexpr uint32 kInfinityCost = 0xdeadbeef;
 constexpr uint32 kRegCost = 1;
+constexpr uint32 kRegCost2 = 2;
+constexpr uint32 kCost3 = 3;
+constexpr uint32 kCost5 = 5;
 class IVGroup;
 class IVUse;
 class IVCand;
@@ -1419,10 +1422,10 @@ static uint32 ComputeAddressCost(MeExpr *expr, int64 ratio, bool hasField) {
     cost += 1;
   }
   if (!ratioCombine) {
-    cost += 5;
+    cost += kCost5;
   }
   if (hasField && (!expr || expr->GetMeOp() != kMeOpConst)) {
-    cost += 3;
+    cost += kCost3;
   }
   return cost;
 }
@@ -1721,6 +1724,7 @@ uint32 IVOptimizer::ComputeCandCostForGroup(const IVCand &cand, IVGroup &group) 
     return kInfinityCost;
   }
   uint32 mulCost = 5;
+  uint8 extraConstCost = 4;
   if (group.type == kUseGeneral) {
     if (extraExpr == nullptr) {
       return (ratio == 1 ? 0 : mulCost + kRegCost);
@@ -1730,9 +1734,9 @@ uint32 IVOptimizer::ComputeCandCostForGroup(const IVCand &cand, IVGroup &group) 
     }
     uint32 cost = ComputeExprCost(*extraExpr);
     if (extraExpr->GetMeOp() == kMeOpConst) {
-      return 4;
+      return extraConstCost;
     }
-    return (cost / data->iterNum) + (ratio == 1 ? mulCost - 1 + kRegCost : mulCost + kRegCost * 2);
+    return (cost / data->iterNum) + (ratio == 1 ? mulCost - 1 + kRegCost : mulCost + kRegCost2);
   } else if (group.type == kUseAddress) {
     if (GetPrimTypeSize(cand.iv->expr->GetPrimType()) > GetPrimTypeSize(PTY_ptr)) {
       // keep address type
@@ -1750,7 +1754,7 @@ uint32 IVOptimizer::ComputeCandCostForGroup(const IVCand &cand, IVGroup &group) 
     }
     uint32 cost = ComputeExprCost(*extraExpr);
     auto isEqNe = group.uses[0]->expr->GetOp() == OP_eq || group.uses[0]->expr->GetOp() == OP_ne;
-    return (cost / data->iterNum) + ((ratio == 1 || (ratio == -1 && isEqNe)) ? 0 : mulCost + kRegCost * 2);
+    return (cost / data->iterNum) + ((ratio == 1 || (ratio == -1 && isEqNe)) ? 0 : mulCost + kRegCost2);
   }
   return kInfinityCost;
 }
@@ -1944,7 +1948,8 @@ bool IVOptimizer::OptimizeSet() {
         replaced = true;
       }
     }
-    if (replaced && numIVs < 10) {
+    constexpr uint8 kMaxNumIvs = 10;
+    if (replaced && numIVs < kMaxNumIvs) {
       auto tmpSet = *set;
       tmpSet.cost = curCost;
       for (auto &it : curChange) {
@@ -2579,7 +2584,8 @@ void IVOptimizer::Run() {
       // not canonicalized
       continue;
     }
-    if (loop->loopBBs.size() > 60 && loop->nestDepth > 0) {
+    constexpr uint32 kMaxLoopBBSize = 60;
+    if (loop->loopBBs.size() > kMaxLoopBBSize && loop->nestDepth > 0) {
       // just skip now because we can hardly get register pressure
       continue;
     }
