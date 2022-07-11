@@ -22,15 +22,16 @@
 namespace maple {
 // mapping src variable to mpl variables to display debug info
 struct MIRAliasVars {
-  GStrIdx mplStrIdx;  // maple varialbe name
+  GStrIdx mplStrIdx;      // maple varialbe name
   TyIdx tyIdx;
+  GStrIdx srcTypeStrIdx;  // src type name
   bool isLocal;
   GStrIdx sigStrIdx;
 };
 
 class MIRScope {
  public:
-  MIRScope(MIRModule *mod, MIRFunction *f = nullptr);
+  explicit MIRScope(MIRModule *mod, MIRFunction *f = nullptr);
   ~MIRScope() = default;
 
   bool IsEmpty() const {
@@ -85,12 +86,11 @@ class MIRScope {
     if (pos.LineNum() == 0 || posB.LineNum() == 0 || posE.LineNum() == 0) {
       return;
     }
-    std::tuple<SrcPosition, SrcPosition, SrcPosition> t(pos,posB,posE);
-    BlkSrcPos.push_back(t);
+    std::tuple<SrcPosition, SrcPosition, SrcPosition> srcPos(pos, posB, posE);
+    blkSrcPos.push_back(srcPos);
   }
 
-  SrcPosition GetScopeEndPos(SrcPosition pos);
-
+  SrcPosition GetScopeEndPos(const SrcPosition &pos);
   bool AddScope(MIRScope *scope);
 
   void Dump(int32 indent) const;
@@ -105,7 +105,7 @@ class MIRScope {
   MapleMap<GStrIdx, MIRAliasVars> aliasVarMap { module->GetMPAllocator().Adapter() };
   // subscopes' range should be disjoint
   MapleVector<MIRScope*> subScopes { module->GetMPAllocator().Adapter() };
-  std::vector<std::tuple<SrcPosition, SrcPosition, SrcPosition>> BlkSrcPos;
+  MapleVector<std::tuple<SrcPosition, SrcPosition, SrcPosition>> blkSrcPos { module->GetMPAllocator().Adapter() };
 };
 }  // namespace maple
 #endif  // MAPLE_IR_INCLUDE_MIR_SCOPE_H

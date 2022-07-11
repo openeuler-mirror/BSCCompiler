@@ -20,8 +20,7 @@ namespace maple {
 
 static unsigned scopeId = 1;
 
-MIRScope::MIRScope(MIRModule *mod,  MIRFunction *f)
-  : module(mod), func(f), id(scopeId++) {}
+MIRScope::MIRScope(MIRModule *mod,  MIRFunction *f) : module(mod), func(f), id(scopeId++) {}
 
 // scp is a sub scope
 // (low (scp.low, scp.high] high]
@@ -57,13 +56,13 @@ bool MIRScope::HasSameRange(const MIRScope *scp1, const MIRScope *scp2) const {
   return l1.IsEq(l2) && h1.IsEq(h2);
 }
 
-SrcPosition MIRScope::GetScopeEndPos(SrcPosition pos) {
+SrcPosition MIRScope::GetScopeEndPos(const SrcPosition &pos) {
   SrcPosition low  = GetRangeLow();
   SrcPosition high = GetRangeHigh();
   if (pos.IsEq(low)) {
     return high;
   }
-  for (auto it : func->GetScope()->BlkSrcPos) {
+  for (auto it : func->GetScope()->blkSrcPos) {
     SrcPosition p  = std::get<0>(it);
     SrcPosition pB = std::get<1>(it);
     SrcPosition pE = std::get<2>(it);
@@ -76,9 +75,10 @@ SrcPosition MIRScope::GetScopeEndPos(SrcPosition pos) {
       }
     }
   }
+
   SrcPosition result = SrcPosition();
-  for (auto *s : subScopes) {
-    result = s->GetScopeEndPos(pos);
+  for (auto *scope : subScopes) {
+    result = scope->GetScopeEndPos(pos);
     if (result.IsValid()) {
       return result;
     }
@@ -124,7 +124,11 @@ void MIRScope::Dump(int32 indent) const {
     LogInfo::MapleLogger() << "ALIAS %" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first)
                            << ((it.second.isLocal) ? " %" : " $")
                            << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.mplStrIdx) << " ";
-    GlobalTables::GetTypeTable().GetTypeFromTyIdx(it.second.tyIdx)->Dump(0);
+    if (it.second.tyIdx) {
+      GlobalTables::GetTypeTable().GetTypeFromTyIdx(it.second.tyIdx)->Dump(0);
+    } else {
+      LogInfo::MapleLogger() << "\"" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.srcTypeStrIdx) << "\"";
+    }
     if (it.second.sigStrIdx) {
       LogInfo::MapleLogger() << " \"" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.sigStrIdx) << "\"";
     }

@@ -150,7 +150,7 @@ PrimType MIRParser::GetPrimitiveType(TokenKind tk) const {
 MIRIntrinsicID MIRParser::GetIntrinsicID(TokenKind tk) const {
   switch (tk) {
     default:
-#define DEF_MIR_INTRINSIC(P, NAME, INTRN_CLASS, RETURN_TYPE, ...) \
+#define DEF_MIR_INTRINSIC(P, NAME, NUM_INSN, INTRN_CLASS, RETURN_TYPE, ...) \
     case TK_##P:                                                  \
       return INTRN_##P;
 #include "intrinsics.def"
@@ -2120,8 +2120,8 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
     definedLabels.clear();
     mod.SetCurFunction(func);
     mod.AddFunction(func);
-    // set maple line number for function
-    func->GetSrcPosition().SetMplLineNum(lexer.GetLineNum());
+    // set line number for function
+    SetSrcPos(funcSymbol->GetSrcPosition(), lexer.GetLineNum());
     // initialize source line number to be 0
     // to avoid carrying over info from previous function
     firstLineNum = 0;
@@ -2138,11 +2138,6 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
       return false;
     }
     func->SetBody(block);
-
-    // set source file number for function
-    func->GetSrcPosition().SetLineNum(firstLineNum);
-    func->GetSrcPosition().SetFileNum(lastFileNum);
-    func->GetSrcPosition().SetColumn(lastColumnNum);
     // check if any local type name is undefined
     for (auto it : func->GetGStrIdxToTyIdxMap()) {
       MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(it.second);
@@ -2478,7 +2473,7 @@ bool MIRParser::ParseOneScope(MIRScope &scope) {
               scope.AddAliasVarMap(it.first, it.second);
             }
             for (auto it : scp->GetSubScopes()) {
-              scope.AddScope(it);
+              (void)scope.AddScope(it);
             }
           } else {
             scope.AddScope(scp);
@@ -2531,9 +2526,23 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
     return false;
   }
   GStrIdx mplStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
+  aliasVar.mplStrIdx = mplStrIdx;
+  aliasVar.isLocal = isLocal;
   lexer.NextToken();
+  TokenKind tk = lexer.GetTokenKind();
   TyIdx tyIdx(0);
-  if (!ParseType(tyIdx)) {
+  if (ParseType(tyIdx)) {
+    aliasVar.tyIdx = tyIdx;
+    aliasVar.srcTypeStrIdx = GStrIdx(0);
+  } else if (tk == TK_string) {
+    /* it is original type name from source code */
+    std::string typeName = lexer.GetName();
+    GStrIdx srcTypeStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName);
+
+    aliasVar.tyIdx = TyIdx(0);
+    aliasVar.srcTypeStrIdx = srcTypeStrIdx;
+    lexer.NextToken();
+  } else {
     Error("parseType failed when parsing ALIAS ");
     return false;
   }
@@ -2542,9 +2551,6 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
     signStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
     lexer.NextToken();
   }
-  aliasVar.mplStrIdx = mplStrIdx;
-  aliasVar.tyIdx = tyIdx;
-  aliasVar.isLocal = isLocal;
   aliasVar.sigStrIdx = signStrIdx;
   return true;
 }

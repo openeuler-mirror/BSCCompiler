@@ -64,9 +64,9 @@ void DBGDie::ResetParentDie() {
   module->GetDbgInfo()->ResetParentDie();
 }
 
-DBGDieAttr *DBGDie::AddAttr(DwAt at, DwForm form, uint64 val, bool keep) {
+DBGDieAttr *DBGDie::AddAttr(DwAt at, DwForm form, uint64 val, bool keepFlag) {
   auto *attr = AddAttr(at, form, val);
-  attr->SetKeep(keep);
+  attr->SetKeep(keepFlag);
   return attr;
 }
 
@@ -310,13 +310,27 @@ void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap) {
     } else {
       var = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(mplIdx);
     }
-    ASSERT(var, "can not find symbol");
+    if (var == nullptr) {
+      continue;
+    }
+    // maple var die
+    DBGDie *mdie = (var->IsGlobal()) ? GetGlobalDie(mplIdx) : GetLocalDie(mplIdx);
+    if (var->IsGlobal() && mdie == nullptr) {
+      continue;
+    }
+
+    // use src code type name if provided
+    DBGDie *typedefDie = nullptr;
+    if (i.second.srcTypeStrIdx.GetIdx()) {
+      typedefDie = GetOrCreateTypeDefDie(i.second.srcTypeStrIdx, var);
+    }
 
     // create alias die using maple var except name
     DBGDie *vdie = CreateVarDie(var, i.first);
-    // maple var die
-    DBGDie *mdie = (var->IsGlobal()) ? GetGlobalDie(mplIdx) : GetLocalDie(mplIdx);
-    ASSERT(mdie, "can not find maple mdie");
+    if (typedefDie) {
+      // use negtive number to indicate DIE id instead of tyidx in normal cases
+      vdie->SetAttr(DW_AT_type, -typedefDie->GetId());
+    }
 
     // link vdie's ExprLoc to mdie's
     vdie->LinkExprLoc(mdie);
@@ -353,12 +367,12 @@ void DebugInfo::CollectScopePos(MIRFunction *func, MIRScope *scope) {
 void DebugInfo::GetCrossScopeId(MIRFunction *func,
                                 std::unordered_set<uint32> &idSet,
                                 bool isLow,
-                                SrcPosition &oldSrcPos,
-                                SrcPosition &newSrcPos) {
+                                const SrcPosition &oldSrcPos,
+                                const SrcPosition &newSrcPos) {
   if (isLow) {
     for (auto &it : funcScopeLows[func]) {
       if (oldSrcPos.IsBf(it.pos) && (it.pos).IsBfOrEq(newSrcPos)) {
-        idSet.insert(it.id);
+        (void)idSet.insert(it.id);
       }
     }
   } else {
@@ -367,7 +381,7 @@ void DebugInfo::GetCrossScopeId(MIRFunction *func,
     }
     for (auto &it : funcScopeHighs[func]) {
       if (oldSrcPos.IsBfOrEq(it.pos) && (it.pos).IsBf(newSrcPos)) {
-        idSet.insert(it.id);
+        (void)idSet.insert(it.id);
       }
     }
   }
@@ -414,7 +428,8 @@ void DebugInfo::BuildDebugInfo() {
 
   for (size_t i = 0; i < GlobalTables::GetGsymTable().GetSymbolTableSize(); ++i) {
     MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(static_cast<uint32>(i));
-    if (mirSymbol == nullptr || mirSymbol->IsDeleted() || mirSymbol->GetStorageClass() == kScUnused) {
+    if (mirSymbol == nullptr || mirSymbol->IsDeleted() || mirSymbol->GetStorageClass() == kScUnused ||
+        mirSymbol->GetStorageClass() == kScExtern) {
       continue;
     }
     if (module->IsCModule() && mirSymbol->IsGlobal() && mirSymbol->IsVar()) {
@@ -462,10 +477,10 @@ void DebugInfo::SetLocalDie(MIRFunction *func, GStrIdx strIdx, const DBGDie *die
   (funcLstrIdxDieIdMap[func])[strIdx.GetIdx()] = die->GetId();
 }
 
-DBGDie *DebugInfo::GetGlobalDie(GStrIdx strIdx) {
+DBGDie *DebugInfo::GetGlobalDie(const GStrIdx &strIdx) {
   unsigned idx = strIdx.GetIdx();
-  if (stridxDieIdMap.find(idx) != stridxDieIdMap.end()) {
-    uint32 id = stridxDieIdMap[idx];
+  if (globalStridxDieIdMap.find(idx) != globalStridxDieIdMap.end()) {
+    uint32 id = globalStridxDieIdMap[idx];
     return idDieMap[id];
   }
   return nullptr;
@@ -565,8 +580,8 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym) {
       return GetLocalDie(strIdx);
     }
   } else {
-    if (stridxDieIdMap.find(strIdx.GetIdx()) != stridxDieIdMap.end()) {
-      uint32 id = stridxDieIdMap[strIdx.GetIdx()];
+    if (globalStridxDieIdMap.find(strIdx.GetIdx()) != globalStridxDieIdMap.end()) {
+      uint32 id = globalStridxDieIdMap[strIdx.GetIdx()];
       return idDieMap[id];
     }
   }
@@ -577,7 +592,7 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym) {
   if (isLocal) {
     SetLocalDie(strIdx, die);
   } else {
-    stridxDieIdMap[strIdx.GetIdx()] = die->GetId();
+    globalStridxDieIdMap[strIdx.GetIdx()] = die->GetId();
   }
 
   return die;
@@ -708,12 +723,13 @@ DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum) {
     for (uint32 i = 1; i < func->GetSymTab()->GetSymbolTableSize(); i++) {
       MIRSymbol *var = func->GetSymTab()->GetSymbolFromStIdx(i);
       DBGDie *vdie = CreateVarDie(var);
-      if (vdie) {
-        die->AddSubVec(vdie);
-        // for C, source variable names will be used instead of mangloed maple variables
-        if (module->IsCModule()) {
-          vdie->SetKeep(false);
-        }
+      if (vdie == nullptr) {
+        continue;
+      }
+      die->AddSubVec(vdie);
+      // for C, source variable names will be used instead of mangloed maple variables
+      if (module->IsCModule()) {
+        vdie->SetKeep(false);
       }
     }
   }
@@ -834,6 +850,31 @@ DBGDie *DebugInfo::GetOrCreateTypeDie(MIRType *type) {
       break;
   }
 
+  return die;
+}
+
+DBGDie *DebugInfo::GetOrCreateTypeDefDie(GStrIdx stridx, MIRSymbol *var) {
+  uint32 sid = stridx.GetIdx();
+  if (typedefStrIdxDieIdMap.find(sid) != typedefStrIdxDieIdMap.end()) {
+    uint32 id = typedefStrIdxDieIdMap[sid];
+    return idDieMap[id];
+  }
+
+  DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_typedef);
+  compUnit->AddSubVec(die);
+
+  die->AddAttr(DW_AT_name, DW_FORM_strp, sid);
+  die->AddAttr(DW_AT_decl_file, DW_FORM_data1, var->GetSrcPosition().FileNum());
+  die->AddAttr(DW_AT_decl_line, DW_FORM_data1, var->GetSrcPosition().LineNum());
+  die->AddAttr(DW_AT_decl_column, DW_FORM_data1, var->GetSrcPosition().Column());
+
+  MIRType *type = var->GetType();
+  DBGDie *tdie = GetOrCreateTypeDie(type);
+
+  // use negative vaule of Die id
+  die->AddAttr(DW_AT_type, DW_FORM_ref4, -tdie->GetId());
+
+  typedefStrIdxDieIdMap[sid] = die->GetId();
   return die;
 }
 
@@ -1236,6 +1277,11 @@ void DebugInfo::FillTypeAttrWithDieId() {
     for (auto at : die->GetAttrVec()) {
       if (at->GetDwAt() == DW_AT_type) {
         uint32 tid = at->GetId();
+        // handle typedef where die id is already used but with nagetive value
+        if ((int)tid < 0) {
+          at->SetId(-(int)tid);
+          break;
+        }
         MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(tid));
         if (type) {
           uint32 dieid = tyIdxDieIdMap[tid];
@@ -1371,6 +1417,26 @@ void DebugInfo::ComputeSizeAndOffset(DBGDie *die, uint32 &cuOffset) {
 
     // Each child chain is terminated with a zero byte, adjust the offset.
     cuOffset += sizeof(int8);
+  }
+}
+
+void DebugInfo::ClearDebugInfo() {
+  for (auto &funcLstrIdxDieId : funcLstrIdxDieIdMap) {
+    funcLstrIdxDieId.second.clear();
+  }
+  for (auto &funcLstrIdxLabIdx : funcLstrIdxLabIdxMap) {
+    funcLstrIdxLabIdx.second.clear();
+  }
+  for (auto &funcScopeLow : funcScopeLows) {
+    funcScopeLow.second.clear();
+    funcScopeLow.second.shrink_to_fit();
+  }
+  for (auto &funcScopeHigh : funcScopeHighs) {
+    funcScopeHigh.second.clear();
+    funcScopeHigh.second.shrink_to_fit();
+  }
+  for (auto &status : funcScopeIdStatus) {
+    status.second.clear();
   }
 }
 

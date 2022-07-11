@@ -16,7 +16,6 @@
 #ifndef MAPLE_IR_INCLUDE_DBG_INFO_H
 #define MAPLE_IR_INCLUDE_DBG_INFO_H
 #include <iostream>
-#include <unordered_set>
 
 #include "mpl_logging.h"
 #include "types_def.h"
@@ -575,6 +574,12 @@ struct ScopePos {
   SrcPosition pos;
 };
 
+enum EmitStatus : uint8 {
+  kBeginEmited = 0,
+  kEndEmited = 1,
+};
+constexpr uint8 kAllEmited = 3;
+
 class DebugInfo {
  public:
   explicit DebugInfo(MIRModule *m)
@@ -594,6 +599,7 @@ class DebugInfo {
         tagAbbrevMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         tyIdxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         stridxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
+        globalStridxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         funcDefStrIdxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         typeDefTyIdxMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         pointedPointerMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
@@ -601,6 +607,8 @@ class DebugInfo {
         funcLstrIdxLabIdxMap(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
         funcScopeLows(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
         funcScopeHighs(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
+        funcScopeIdStatus(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
+        typedefStrIdxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         strps(std::less<uint32>(), m->GetMPAllocator().Adapter()) {
     /* valid entry starting from index 1 as abbrevid starting from 1 as well */
     abbrevVec.push_back(nullptr);
@@ -609,6 +617,8 @@ class DebugInfo {
   }
 
   virtual ~DebugInfo() {}
+
+  void ClearDebugInfo();
 
   void InitMsg() {
     compileMsg = module->GetMemPool()->New<DBGCompileMsgInfo>();
@@ -652,7 +662,7 @@ class DebugInfo {
   void BuildAbbrev();
   uint32 GetAbbrevId(DBGAbbrevEntryVec *vec, DBGAbbrevEntry *entry);
 
-  DBGDie *GetGlobalDie(GStrIdx strIdx);
+  DBGDie *GetGlobalDie(const GStrIdx &strIdx);
 
   void SetLocalDie(GStrIdx strIdx, const DBGDie *die);
   void SetLocalDie(MIRFunction *func, GStrIdx strIdx, const DBGDie *die);
@@ -763,12 +773,39 @@ class DebugInfo {
   void GetCrossScopeId(MIRFunction *func,
                        std::unordered_set<uint32> &idSet,
                        bool isLow,
-                       SrcPosition &oldSrcPos,
-                       SrcPosition &newSrcPos);
+                       const SrcPosition &oldSrcPos,
+                       const SrcPosition &newSrcPos);
 
   // Functions for calculating the size and offset of each DW_TAG_xxx and DW_AT_xxx
   void ComputeSizeAndOffsets();
   void ComputeSizeAndOffset(DBGDie *die, uint32 &cuOffset);
+
+  void SetFuncScopeIdStatus(MIRFunction *func, uint32 scopeId, EmitStatus status) {
+    if (funcScopeIdStatus[func].find(scopeId) == funcScopeIdStatus[func].end()) {
+      funcScopeIdStatus[func][scopeId] = 0;
+    }
+    funcScopeIdStatus[func][scopeId] |= (1 << status);
+  }
+
+  bool IsScopeIdEmited(MIRFunction *func, uint32 scopeId) {
+    auto it = funcScopeIdStatus.find(func);
+    if (it == funcScopeIdStatus.end()) {
+      return false;
+    }
+
+    auto scopeIdIt = it->second.find(scopeId);
+    if (scopeIdIt == it->second.end()) {
+      return false;
+    }
+
+    if (scopeIdIt->second != kAllEmited) {
+      return false;
+    }
+    return true;
+  }
+
+  // src code type name stridx and aliased maple var
+  DBGDie *GetOrCreateTypeDefDie(GStrIdx stridx, MIRSymbol *var);
 
  private:
   MIRModule *module;
@@ -792,6 +829,8 @@ class DebugInfo {
   // to be used when derived type references a base type die
   MapleMap<uint32, uint32> tyIdxDieIdMap;
   MapleMap<uint32, uint32> stridxDieIdMap;
+  // save global var die, global var string idx to die id
+  MapleMap<uint32, uint32> globalStridxDieIdMap;
   MapleMap<uint32, uint32> funcDefStrIdxDieIdMap;
   MapleMap<uint32, uint32> typeDefTyIdxMap;  // prevtyIdxtypidx_map
   MapleMap<uint32, uint32> pointedPointerMap;
@@ -800,6 +839,12 @@ class DebugInfo {
 
   MapleMap<MIRFunction *, std::vector<ScopePos>> funcScopeLows;
   MapleMap<MIRFunction *, std::vector<ScopePos>> funcScopeHighs;
+
+  /* save functions's scope id that has been emited */
+  MapleMap<MIRFunction *, std::map<uint32, uint8>> funcScopeIdStatus;
+
+  /* alias type */
+  MapleMap<uint32, uint32> typedefStrIdxDieIdMap;
 
   MapleSet<uint32> strps;
   std::string varPtrPrefix;
