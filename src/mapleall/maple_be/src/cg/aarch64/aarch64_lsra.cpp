@@ -1926,14 +1926,14 @@ void LSRALinearScanRegAllocator::InsertToActive(Operand &opnd, uint32 insnNum) {
 }
 
 /* find the lowest one and erase it from active */
-void LSRALinearScanRegAllocator::FindLowestPrioInActive(LiveInterval *&targetLi, RegType regType, bool startRA) {
+void LSRALinearScanRegAllocator::FindLowestPrioInActive(LiveInterval *&targetLi, RegType regType, bool startRa) {
   float lowestPrio = 100.0;
   bool found = false;
   MapleSet<LiveInterval*, ActiveCmp>::iterator it;
   MapleSet<LiveInterval*, ActiveCmp>::iterator lowestIt;
   for (it = active.begin(); it != active.end(); ++it) {
     auto *li = static_cast<LiveInterval*>(*it);
-    if (startRA && li->GetPhysUse() != 0) {
+    if (startRa && li->GetPhysUse() != 0) {
       continue;
     }
     if (li->GetPriority() < lowestPrio && li->GetRegType() == regType) {

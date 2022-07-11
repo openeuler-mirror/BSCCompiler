@@ -21,6 +21,7 @@ namespace maplebe {
 class AArch64Dce : public CGDce {
  public:
   AArch64Dce(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo) : CGDce(mp, f, sInfo) {}
+  ~AArch64Dce() override = default;
 
  private:
    bool RemoveUnuseDef(VRegVersion &defVersion) override;
@@ -29,10 +30,12 @@ class AArch64Dce : public CGDce {
 class A64DeleteRegUseVisitor : public DeleteRegUseVisitor {
  public:
   A64DeleteRegUseVisitor(CGSSAInfo &cgSSAInfo, uint32 dInsnID) : DeleteRegUseVisitor(cgSSAInfo, dInsnID) {}
+  ~A64DeleteRegUseVisitor() override = default;
+
  private:
   void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;
-  void Visit(MemOperand *v) final;
+  void Visit(MemOperand *a64MemOpnd) final;
   void Visit(PhiOperand *v) final;
 };
 }

@@ -616,7 +616,7 @@ void AArch64RegSavesOpt::InsertCalleeSaveCode() {
 }
 
 /* DFS to verify the save/restore are in pair(s) within a path */
-void AArch64RegSavesOpt::Verify(regno_t reg, BB *bb, std::set<BB*, BBIdCmp> *visited, BBId *s, BBId *r) {
+void AArch64RegSavesOpt::Verify(regno_t reg, BB *bb, std::set<BB*, BBIdCmp> *visited, uint32 *s, uint32 *r) {
   (void)visited->insert(bb);
   BBId bid = bb->GetId();
   if (RS_EXTRA) {

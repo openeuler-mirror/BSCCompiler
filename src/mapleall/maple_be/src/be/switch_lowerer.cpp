@@ -47,13 +47,11 @@
 #include "mir_lower.h"  /* "../../../maple_ir/include/mir_lower.h" */
 
 namespace maplebe {
-using namespace maple;
-
 static bool CasePairKeyLessThan(const CasePair &left, const CasePair &right) {
   return left.first < right.first;
 }
 
-void SwitchLowerer::FindClusters(maple::MapleVector<Cluster> &clusters) const {
+void SwitchLowerer::FindClusters(MapleVector<Cluster> &clusters) const {
   int32 length = static_cast<int>(stmt->GetSwitchTable().size());
   int32 i = 0;
   while (i < length - kClusterSwitchCutoff) {
@@ -74,7 +72,7 @@ void SwitchLowerer::FindClusters(maple::MapleVector<Cluster> &clusters) const {
   }
 }
 
-void SwitchLowerer::InitSwitchItems(maple::MapleVector<Cluster> &clusters) {
+void SwitchLowerer::InitSwitchItems(MapleVector<Cluster> &clusters) {
   if (clusters.empty()) {
     for (int32 i = 0; i < static_cast<int>(stmt->GetSwitchTable().size()); ++i) {
       switchItems.emplace_back(SwitchItem(i, 0));
@@ -97,7 +95,7 @@ void SwitchLowerer::InitSwitchItems(maple::MapleVector<Cluster> &clusters) {
   }
 }
 
-RangeGotoNode *SwitchLowerer::BuildRangeGotoNode(maple::int32 startIdx, maple::int32 endIdx) {
+RangeGotoNode *SwitchLowerer::BuildRangeGotoNode(int32 startIdx, int32 endIdx) {
   RangeGotoNode *node = mirModule.CurFuncCodeMemPool()->New<RangeGotoNode>(mirModule);
   node->SetOpnd(stmt->GetSwitchOpnd(), 0);
 
@@ -129,7 +127,7 @@ RangeGotoNode *SwitchLowerer::BuildRangeGotoNode(maple::int32 startIdx, maple::i
   return node;
 }
 
-CompareNode *SwitchLowerer::BuildCmpNode(maple::Opcode opCode, maple::uint32 idx) {
+CompareNode *SwitchLowerer::BuildCmpNode(Opcode opCode, uint32 idx) {
   CompareNode *binaryExpr = mirModule.CurFuncCodeMemPool()->New<CompareNode>(opCode);
   binaryExpr->SetPrimType(PTY_u32);
   binaryExpr->SetOpndType(stmt->GetSwitchOpnd()->GetPrimType());
@@ -146,7 +144,7 @@ CompareNode *SwitchLowerer::BuildCmpNode(maple::Opcode opCode, maple::uint32 idx
   return binaryExpr;
 }
 
-GotoNode *SwitchLowerer::BuildGotoNode(maple::int32 idx) {
+GotoNode *SwitchLowerer::BuildGotoNode(int32 idx) {
   if (idx == -1 && stmt->GetDefaultLabel() == 0) {
     return nullptr;
   }
@@ -159,7 +157,7 @@ GotoNode *SwitchLowerer::BuildGotoNode(maple::int32 idx) {
   return gotoStmt;
 }
 
-CondGotoNode *SwitchLowerer::BuildCondGotoNode(maple::int32 idx, maple::Opcode opCode, maple::BaseNode &cond) {
+CondGotoNode *SwitchLowerer::BuildCondGotoNode(int32 idx, Opcode opCode, BaseNode &cond) {
   if (idx == -1 && stmt->GetDefaultLabel() == 0) {
     return nullptr;
   }
@@ -174,7 +172,7 @@ CondGotoNode *SwitchLowerer::BuildCondGotoNode(maple::int32 idx, maple::Opcode o
 }
 
 /* start and end is with respect to switchItems */
-BlockNode *SwitchLowerer::BuildCodeForSwitchItems(maple::int32 start, maple::int32 end, bool lowBlockNodeChecked,
+BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool lowBlockNodeChecked,
                                                   bool highBlockNodeChecked) {
   ASSERT(start >= 0, "invalid args start");
   ASSERT(end >= 0, "invalid args end");

@@ -18,6 +18,7 @@
 #include "mir_module.h"
 
 namespace maplebe {
+using namespace maple;
 class BELowerer;
 
 class SwitchLowerer {
@@ -54,13 +55,13 @@ class SwitchLowerer {
   const maple::int32 kMaxRangeGotoTableSize = 127;
   bool jumpToDefaultBlockGenerated = false;
 
-  void FindClusters(maple::MapleVector<Cluster> &clusters) const;
-  void InitSwitchItems(maple::MapleVector<Cluster> &clusters);
-  maple::RangeGotoNode *BuildRangeGotoNode(maple::int32 startIdx, maple::int32 endIdx);
-  maple::CompareNode *BuildCmpNode(maple::Opcode opCode, maple::uint32 idx);
-  maple::GotoNode *BuildGotoNode(maple::int32 idx);
-  maple::CondGotoNode *BuildCondGotoNode(maple::int32 idx, maple::Opcode opCode, maple::BaseNode &cond);
-  maple::BlockNode *BuildCodeForSwitchItems(maple::int32 start, maple::int32 end, bool lowBNdChecked,
+  void FindClusters(MapleVector<Cluster> &clusters) const;
+  void InitSwitchItems(MapleVector<Cluster> &clusters);
+  maple::RangeGotoNode *BuildRangeGotoNode(int32 startIdx, int32 endIdx);
+  maple::CompareNode *BuildCmpNode(Opcode opCode, uint32 idx);
+  maple::GotoNode *BuildGotoNode(int32 idx);
+  maple::CondGotoNode *BuildCondGotoNode(int32 idx, Opcode opCode, BaseNode &cond);
+  maple::BlockNode *BuildCodeForSwitchItems(int32 start, int32 end, bool lowBNdChecked,
                                             bool highBNdChecked);
 };
 }  /* namespace maplebe */

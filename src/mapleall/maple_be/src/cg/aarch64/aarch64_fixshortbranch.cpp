@@ -127,8 +127,8 @@ void AArch64FixShortBranch::FixShortBranches() const {
   } while (change);
 }
 
-bool CgFixShortBranch::PhaseRun(maplebe::CGFunc &f) {
-  auto *fixShortBranch = GetPhaseAllocator()->New<AArch64FixShortBranch>(&f);
+bool CgFixShortBranch::PhaseRun(maplebe::CGFunc &func) {
+  auto *fixShortBranch = GetPhaseAllocator()->New<AArch64FixShortBranch>(&func);
   CHECK_FATAL(fixShortBranch != nullptr, "AArch64FixShortBranch instance create failure");
   fixShortBranch->FixShortBranches();
   return false;

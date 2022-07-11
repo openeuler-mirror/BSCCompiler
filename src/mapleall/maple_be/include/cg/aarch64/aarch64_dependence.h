@@ -48,8 +48,8 @@ class AArch64DepAnalysis : public DepAnalysis {
   void BuildDepsMayThrowInsn(Insn &insn) override;
   bool NeedBuildDepsMem(const MemOperand &memOpnd,
                         const MemOperand *nextMemOpnd, const Insn &memInsn) const;
-  void BuildDepsUseMem(Insn &insn, MemOperand &memOpnd) override;
-  void BuildDepsDefMem(Insn &insn, MemOperand &memOpnd) override;
+  void BuildDepsUseMem(Insn &insn, MemOperand &aarchMemOpnd) override;
+  void BuildDepsDefMem(Insn &insn, MemOperand &aarchMemOpnd) override;
   void BuildAntiDepsDefStackMem(Insn &insn, MemOperand &memOpnd, const MemOperand *nextMemOpnd);
   void BuildOutputDepsDefStackMem(Insn &insn, MemOperand &memOpnd, const MemOperand *nextMemOpnd);
   void BuildDepsMemBar(Insn &insn) override;
@@ -64,7 +64,7 @@ class AArch64DepAnalysis : public DepAnalysis {
   void BuildDepsDirtyHeap(Insn &insn) override;
   DepNode *BuildSeparatorNode() override;
   bool IfInAmbiRegs(regno_t regNO) const override;
-  bool IsFrameReg(const RegOperand&) const override;
+  bool IsFrameReg(const RegOperand &opnd) const override;
 
  private:
   MemOperand *GetNextMemOperand(const Insn &insn, const MemOperand &aarchMemOpnd) const;

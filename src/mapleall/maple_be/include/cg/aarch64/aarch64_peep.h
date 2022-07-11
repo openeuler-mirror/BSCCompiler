@@ -582,9 +582,9 @@ class ElimSpecificExtensionPattern : public CGPeepPattern {
   void SetOptSceneType();
   bool IsValidLoadExtPattern(MOperator oldMop, MOperator newMop) const;
   MOperator SelectNewLoadMopByBitSize(MOperator lowBitMop) const;
-  void ElimExtensionAfterLoad(Insn &currInsn);
-  void ElimExtensionAfterMov(Insn &currInsn);
-  void ElimExtensionAfterSameExt(Insn &currInsn);
+  void ElimExtensionAfterLoad(Insn &insn);
+  void ElimExtensionAfterMov(Insn &insn);
+  void ElimExtensionAfterSameExt(Insn &insn);
   void ReplaceExtWithMov(Insn &currInsn);
   Insn *prevInsn = nullptr;
   SpecificExtType extTypeIdx = EXTUNDEF;
@@ -941,7 +941,7 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
   MOperator GetMopHigherByte(MOperator mop) const;
   bool SplitOfstWithAddToCombine(const Insn &curInsn, Insn &combineInsn, const MemOperand &memOperand) const;
   Insn *FindValidSplitAddInsn(Insn &curInsn, RegOperand &baseOpnd) const;
-  bool PlaceSplitAddInsn(const Insn &curInsn, Insn &combineInsn, const MemOperand &memOpnd,
+  bool PlaceSplitAddInsn(const Insn &curInsn, Insn &combineInsn, const MemOperand &memOperand,
                          RegOperand &baseOpnd, uint32 bitLen) const;
   bool doAggressiveCombine = false;
   MemOperand *memOpnd = nullptr;

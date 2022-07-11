@@ -257,8 +257,8 @@ class DepNode {
   void SetCfiInsns(MapleVector<Insn*> insns) {
     cfiInsns = insns;
   }
-  void AddCfiInsn(Insn &addInsn) {
-    cfiInsns.emplace_back(&addInsn);
+  void AddCfiInsn(Insn &curInsn) {
+    cfiInsns.emplace_back(&curInsn);
   }
   void ClearCfiInsns() {
     cfiInsns.clear();

@@ -121,12 +121,12 @@ class AArch64CGFunc : public CGFunc {
   void SelectRegassign(RegassignNode &stmt, Operand &opnd0) override;
   void SelectAbort() override;
   void SelectAssertNull(UnaryStmtNode &stmt) override;
-  void SelectAsm(AsmNode &stmt) override;
-  MemOperand *GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 alignUsed, int64 offset,
+  void SelectAsm(AsmNode &node) override;
+  MemOperand *GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 align, int64 offset,
                                        bool needLow12 = false);
   MemOperand *FixLargeMemOpnd(MemOperand &memOpnd, uint32 align);
   MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
-  uint32 LmbcFindTotalStkUsed(std::vector<TyIdx>* paramList);
+  uint32 LmbcFindTotalStkUsed(std::vector<TyIdx> *paramList);
   uint32 LmbcTotalRegsUsed();
   void LmbcSelectParmList(ListOperand *srcOpnds, bool isArgReturn);
   bool LmbcSmallAggForRet(const BlkassignoffNode &bNode, const Operand *src);
@@ -137,40 +137,39 @@ class AArch64CGFunc : public CGFunc {
   void SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) override;
   void SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd) override;
   void SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) override;
-  void SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) override;
+  void SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) override;
   void SelectReturnSendOfStructInRegs(BaseNode *x) override;
   void SelectReturn(Operand *opnd0) override;
   void SelectIgoto(Operand *opnd0) override;
   void SelectCondGoto(CondGotoNode &stmt, Operand &opnd0, Operand &opnd1) override;
-  void SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcode cmpOp, Operand &opnd0, Operand &opnd1,
-                      PrimType primType, bool signedCond);
-  void SelectCondSpecialCase1(CondGotoNode &stmt, BaseNode &opnd0) override;
+  void SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcode cmpOp, Operand &origOpnd0,
+                      Operand &origOpnd1, PrimType primType, bool signedCond);
+  void SelectCondSpecialCase1(CondGotoNode &stmt, BaseNode &expr) override;
   void SelectCondSpecialCase2(const CondGotoNode &stmt, BaseNode &expr) override;
   void SelectGoto(GotoNode &stmt) override;
   void SelectCall(CallNode &callNode) override;
-  void SelectIcall(IcallNode &icallNode, Operand &fptrOpnd) override;
+  void SelectIcall(IcallNode &icallNode, Operand &srcOpnd) override;
   void SelectIntrinCall(IntrinsiccallNode &intrinsicCallNode) override;
-  Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrinsicopNode, std::string name) override;
-  Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinsicopNode, PrimType retType,
-                                        const std::string &name) override;
-  Operand *SelectCclz(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCctz(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCpopcount(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCparity(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCclrsb(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCisaligned(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCalignup(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCaligndown(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCSyncFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) override;
-  Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinsicopNode, PrimType pty) override;
-  Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode, std::string name) override;
+  Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrnNode, PrimType retType, const std::string &name) override;
+  Operand *SelectCclz(IntrinsicopNode &intrnNode) override;
+  Operand *SelectCctz(IntrinsicopNode &intrnNode) override;
+  Operand *SelectCpopcount(IntrinsicopNode &intrnNode) override;
+  Operand *SelectCparity(IntrinsicopNode &intrnNode) override;
+  Operand *SelectCclrsb(IntrinsicopNode &intrnNode) override;
+  Operand *SelectCisaligned(IntrinsicopNode &intrnNode) override;
+  Operand *SelectCalignup(IntrinsicopNode &intrnNode) override;
+  Operand *SelectCaligndown(IntrinsicopNode &intrnNode) override;
+  Operand *SelectCSyncFetch(IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore) override;
+  Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode) override;
+  Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode) override;
+  Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimType pty) override;
+  Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinopNode) override;
   AArch64isa::MemoryOrdering PickMemOrder(std::memory_order memOrder, bool isLdr) const;
   Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectCAtomicExchangeN(IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectAtomicLoad(Operand &addrOpnd, PrimType primType, AArch64isa::MemoryOrdering memOrder);
-  Operand *SelectCReturnAddress(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCReturnAddress(IntrinsicopNode &intrinopNode) override;
   void SelectMembar(StmtNode &membar) override;
   void SelectComment(CommentNode &comment) override;
 
@@ -199,67 +198,68 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectStrConst(MIRStrConst &strConst) override;
   Operand *SelectStr16Const(MIRStr16Const &str16Const) override;
 
-  void SelectAdd(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType) override;
-  Operand *SelectAdd(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
+  void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
+  Operand *SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
   Operand &SelectCGArrayElemAdd(BinaryNode &node, const BaseNode &parent) override;
-  void SelectMadd(Operand &resOpnd, Operand &oM0, Operand &oM1, Operand &o1, PrimType primeType) override;
-  Operand *SelectMadd(BinaryNode &node, Operand &oM0, Operand &oM1, Operand &o1, const BaseNode &parent) override;
-  Operand *SelectRor(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
-  Operand *SelectShift(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
-  Operand *SelectSub(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
-  void SelectSub(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType) override;
-  Operand *SelectBand(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
-  void SelectBand(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType) override;
-  Operand *SelectBior(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
-  void SelectBior(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType) override;
-  Operand *SelectBxor(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
+  void SelectMadd(Operand &resOpnd, Operand &opndM0, Operand &opndM1, Operand &opnd1, PrimType primType) override;
+  Operand *SelectMadd(BinaryNode &node, Operand &opndM0, Operand &opndM1, Operand &opnd1,
+                      const BaseNode &parent) override;
+  Operand *SelectRor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
+  Operand *SelectShift(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
+  Operand *SelectSub(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
+  void SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
+  Operand *SelectBand(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
+  void SelectBand(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
+  Operand *SelectBior(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
+  void SelectBior(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
+  Operand *SelectBxor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
   void SelectBxor(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType) override;
 
-  void SelectBxorShift(Operand &resOpnd, Operand *o0, Operand *o1, Operand &o2, PrimType primType);
+  void SelectBxorShift(Operand &resOpnd, Operand *opnd0, Operand *opnd1, Operand &opnd2, PrimType primType);
   Operand *SelectLand(BinaryNode &node, Operand &lhsOpnd, Operand &rhsOpnd, const BaseNode &parent) override;
   Operand *SelectLor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent,
                      bool parentIsBr = false) override;
-  Operand *SelectMin(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
-  void SelectMin(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType) override;
-  Operand *SelectMax(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
-  void SelectMax(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType) override;
-  void SelectFMinFMax(Operand &resOpnd, Operand &o0, Operand &o1, bool is64Bits, bool isMin);
+  Operand *SelectMin(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
+  void SelectMin(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
+  Operand *SelectMax(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
+  void SelectMax(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
+  void SelectFMinFMax(Operand &resOpnd, Operand &opnd0, Operand &opnd1, bool is64Bits, bool isMin);
   void SelectCmpOp(Operand &resOpnd, Operand &lhsOpnd, Operand &rhsOpnd,
                    Opcode opcode, PrimType primType, const BaseNode &parent);
 
-  Operand *SelectCmpOp(CompareNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
+  Operand *SelectCmpOp(CompareNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
 
-  void SelectAArch64Cmp(Operand &o, Operand &i, bool isIntType, uint32 dsize);
+  void SelectAArch64Cmp(Operand &o0, Operand &o1, bool isIntType, uint32 dsize);
   void SelectTargetFPCmpQuiet(Operand &o0, Operand &o1, uint32 dsize);
   void SelectAArch64CCmp(Operand &o, Operand &i, Operand &nzcv, CondOperand &cond, bool is64Bits);
-  void SelectAArch64CSet(Operand &o, CondOperand &cond, bool is64Bits);
+  void SelectAArch64CSet(Operand &res, CondOperand &cond, bool is64Bits);
   void SelectAArch64CSINV(Operand &res, Operand &o0, Operand &o1, CondOperand &cond, bool is64Bits);
   void SelectAArch64CSINC(Operand &res, Operand &o0, Operand &o1, CondOperand &cond, bool is64Bits);
-  void SelectShift(Operand &resOpnd, Operand &o0, Operand &o1, ShiftDirection direct, PrimType primType);
-  Operand *SelectMpy(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
-  void SelectMpy(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType) override;
+  void SelectShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, ShiftDirection direct, PrimType primType);
+  Operand *SelectMpy(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
+  void SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
   /* method description contains method information which is metadata for reflection. */
-  MemOperand *AdjustMemOperandIfOffsetOutOfRange(MemOperand *memOpnd, regno_t regNO, bool isDest, Insn &insn,
+  MemOperand *AdjustMemOperandIfOffsetOutOfRange(MemOperand *memOpnd, regno_t vrNum, bool isDest, Insn &insn,
                                                  AArch64reg regNum, bool &isOutOfRange);
-  void SelectAddAfterInsn(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType, bool isDest, Insn &insn);
+  void SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType, bool isDest, Insn &insn);
   bool IsImmediateOffsetOutOfRange(const MemOperand &memOpnd, uint32 bitLen);
   bool IsOperandImmValid(MOperator mOp, Operand *o, uint32 opndIdx);
   Operand *SelectRem(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
-  void SelectDiv(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
+  void SelectDiv(Operand &resOpnd, Operand &origOpnd0, Operand &opnd1, PrimType primType) override;
   Operand *SelectDiv(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
   Operand *SelectAbsSub(Insn &lastInsn, const UnaryNode &node, Operand &newOpnd0);
   Operand *SelectAbs(UnaryNode &node, Operand &opnd0) override;
   Operand *SelectBnot(UnaryNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) override;
-  Operand *SelectExtractbits(ExtractbitsNode &node, Operand &opnd0, const BaseNode &parent) override;
+  Operand *SelectExtractbits(ExtractbitsNode &node, Operand &srcOpnd, const BaseNode &parent) override;
   Operand *SelectRegularBitFieldLoad(ExtractbitsNode &node, const BaseNode &parent) override;
   Operand *SelectDepositBits(DepositbitsNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
-  Operand *SelectLnot(UnaryNode &node, Operand &opnd0, const BaseNode &parent) override;
+  Operand *SelectLnot(UnaryNode &node, Operand &srcOpnd, const BaseNode &parent) override;
   Operand *SelectNeg(UnaryNode &node, Operand &opnd0, const BaseNode &parent) override;
-  void SelectNeg(Operand &dest, Operand &opnd0, PrimType primType);
-  void SelectMvn(Operand &dest, Operand &opnd0, PrimType primType);
-  Operand *SelectRecip(UnaryNode &node, Operand &opnd0, const BaseNode &parent) override;
-  Operand *SelectSqrt(UnaryNode &node, Operand &opnd0, const BaseNode &parent) override;
+  void SelectNeg(Operand &dest, Operand &srcOpnd, PrimType primType);
+  void SelectMvn(Operand &dest, Operand &src, PrimType primType);
+  Operand *SelectRecip(UnaryNode &node, Operand &src, const BaseNode &parent) override;
+  Operand *SelectSqrt(UnaryNode &node, Operand &src, const BaseNode &parent) override;
   Operand *SelectCeil(TypeCvtNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectFloor(TypeCvtNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectRetype(TypeCvtNode &node, Operand &opnd0) override;
@@ -268,15 +268,15 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectTrunc(TypeCvtNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectSelect(TernaryNode &node, Operand &opnd0, Operand &trueOpnd, Operand &falseOpnd,
                         const BaseNode &parent, bool hasCompare = false) override;
-  Operand *SelectMalloc(UnaryNode &call, Operand &opnd0) override;
-  Operand *SelectAlloca(UnaryNode &call, Operand &opnd0) override;
-  Operand *SelectGCMalloc(GCMallocNode &call) override;
-  Operand *SelectJarrayMalloc(JarrayMallocNode &call, Operand &opnd0) override;
+  Operand *SelectMalloc(UnaryNode &node, Operand &opnd0) override;
+  Operand *SelectAlloca(UnaryNode &node, Operand &opnd0) override;
+  Operand *SelectGCMalloc(GCMallocNode &node) override;
+  Operand *SelectJarrayMalloc(JarrayMallocNode &node, Operand &opnd0) override;
   void SelectSelect(Operand &resOpnd, Operand &condOpnd, Operand &trueOpnd, Operand &falseOpnd, PrimType dtype,
                     PrimType ctype, bool hasCompare = false, AArch64CC_t cc = CC_NE);
   void SelectAArch64Select(Operand &dest, Operand &opnd0, Operand &opnd1, CondOperand &cond, bool isIntType,
                            uint32 is64bits);
-  void SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &opnd0) override;
+  void SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOpnd) override;
   Operand *SelectLazyLoad(Operand &opnd0, PrimType primType) override;
   Operand *SelectLazyLoadStatic(MIRSymbol &st, int64 offset, PrimType primType) override;
   Operand *SelectLoadArrayClassCache(MIRSymbol &st, int64 offset, PrimType primType) override;
@@ -292,7 +292,7 @@ class AArch64CGFunc : public CGFunc {
   void ClearRegRematInfo(const RegOperand &reg) const;
   bool IsRegSameRematInfo(const RegOperand &regDest, const RegOperand &regSrc) const;
   void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn, regno_t destNO) override;
-  void CleanupDeadMov(bool dump = false) override;
+  void CleanupDeadMov(bool dumpInfo = false) override;
   void GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &realSaveRegs) override;
   Operand &GetTargetRetOperand(PrimType primType, int32 sReg) override;
   Operand &GetOrCreateRflag() override;
@@ -304,18 +304,18 @@ class AArch64CGFunc : public CGFunc {
   RegOperand &GetOrCreateSpecialRegisterOperand(PregIdx sregIdx, PrimType primType);
   MemOperand *GetOrCreatSpillMem(regno_t vrNum);
   void FreeSpillRegMem(regno_t vrNum);
-  RegOperand &GetOrCreatePhysicalRegisterOperand(AArch64reg regNO, uint32 size, RegType type, uint32 flag = 0);
+  RegOperand &GetOrCreatePhysicalRegisterOperand(AArch64reg regNO, uint32 size, RegType kind, uint32 flag = 0);
   RegOperand &GetOrCreatePhysicalRegisterOperand(std::string &asmAttr);
   RegOperand *CreateVirtualRegisterOperand(regno_t vRegNO, uint32 size, RegType kind, uint32 flg = 0) const;
-  RegOperand &CreateVirtualRegisterOperand(regno_t vregNO) override;
-  RegOperand &GetOrCreateVirtualRegisterOperand(regno_t vregNO) override;
+  RegOperand &CreateVirtualRegisterOperand(regno_t vRegNO) override;
+  RegOperand &GetOrCreateVirtualRegisterOperand(regno_t vRegNO) override;
   RegOperand &GetOrCreateVirtualRegisterOperand(RegOperand &regOpnd) override;
   const LabelOperand *GetLabelOperand(LabelIdx labIdx) const override;
   LabelOperand &GetOrCreateLabelOperand(LabelIdx labIdx) override;
   LabelOperand &GetOrCreateLabelOperand(BB &bb) override;
   uint32 GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment) const;
 
-  RegOperand *SelectVectorAddLong(PrimType rTy, Operand *o1, Operand *o2, PrimType oty, bool isLow) override;
+  RegOperand *SelectVectorAddLong(PrimType rType, Operand *o1, Operand *o2, PrimType otyp, bool isLow) override;
   RegOperand *SelectVectorAddWiden(Operand *o1, PrimType otyp1, Operand *o2, PrimType otyp2, bool isLow) override;
   RegOperand *SelectVectorAbs(PrimType rType, Operand *o1) override;
   RegOperand *SelectVectorBinOp(PrimType rType, Operand *o1, PrimType oty1, Operand *o2,
@@ -324,10 +324,10 @@ class AArch64CGFunc : public CGFunc {
                                     PrimType oty2, Opcode opc) override;
   RegOperand *SelectVectorCompare(Operand *o1, PrimType oty1, Operand *o2, PrimType oty2, Opcode opc) override;
   RegOperand *SelectVectorCompareZero(Operand *o1, PrimType oty1, Operand *o2, Opcode opc) override;
-  RegOperand *SelectOneElementVectorCopy(Operand *opnd, PrimType sType);
+  RegOperand *SelectOneElementVectorCopy(Operand *src, PrimType sType);
   RegOperand *SelectVectorImmMov(PrimType rType, Operand *src, PrimType sType);
   RegOperand *SelectVectorRegMov(PrimType rType, Operand *src, PrimType sType);
-  RegOperand *SelectVectorFromScalar(PrimType pType, Operand *opnd, PrimType sType) override;
+  RegOperand *SelectVectorFromScalar(PrimType rType, Operand *src, PrimType sType) override;
   RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) override;
   RegOperand *SelectVectorGetHigh(PrimType rType, Operand *src) override;
   RegOperand *SelectVectorGetLow(PrimType rType, Operand *src) override;
@@ -343,20 +343,25 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectVectorNot(PrimType rType, Operand *o1) override;
   RegOperand *SelectVectorPairwiseAdalp(Operand *src1, PrimType sty1, Operand *src2, PrimType sty2) override;
   RegOperand *SelectVectorPairwiseAdd(PrimType rType, Operand *src, PrimType sType) override;
-  RegOperand *SelectVectorReverse(PrimType rtype, Operand *src, PrimType stype, uint32 size) override;
-  RegOperand *SelectVectorSetElement(Operand *eOp, PrimType eTyp, Operand *vOpd, PrimType vTyp, int32 lane) override;
+  RegOperand *SelectVectorReverse(PrimType rType, Operand *src, PrimType sType, uint32 size) override;
+  RegOperand *SelectVectorSetElement(Operand *eOpnd, PrimType eType, Operand *vOpnd,
+                                     PrimType vType, int32 lane) override;
   RegOperand *SelectVectorSelect(Operand &cond, PrimType rType, Operand &o0, Operand &o1);
-  RegOperand *SelectVectorShift(PrimType rType, Operand *o1, PrimType oty1, Operand *o2, PrimType oty2, Opcode opc) override;
+  RegOperand *SelectVectorShift(PrimType rType, Operand *o1, PrimType oty1, Operand *o2,
+                                PrimType oty2, Opcode opc) override;
   RegOperand *SelectVectorShiftImm(PrimType rType, Operand *o1, Operand *imm, int32 sVal, Opcode opc) override;
-  RegOperand *SelectVectorShiftRNarrow(PrimType rType, Operand *o1, PrimType oTyp, Operand *o2, bool isLow) override;
+  RegOperand *SelectVectorShiftRNarrow(PrimType rType, Operand *o1, PrimType oType, Operand *o2, bool isLow) override;
   RegOperand *SelectVectorSubWiden(PrimType resType, Operand *o1, PrimType otyp1,
                                    Operand *o2, PrimType otyp2, bool isLow, bool isWide) override;
-  RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) override;
+  RegOperand *SelectVectorSum(PrimType rType, Operand *o1, PrimType oType) override;
   RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) override;
   RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) override;
 
   void SelectVectorCvt(Operand *res, PrimType rType, Operand *o1, PrimType oType);
   void SelectVectorZip(PrimType rType, Operand *o1, Operand *o2);
+  void SelectStackSave();
+  void SelectStackRestore(const IntrinsiccallNode &intrnNode);
+
   void PrepareVectorOperands(Operand **o1, PrimType &oty1, Operand **o2, PrimType &oty2);
   RegOperand *AdjustOneElementVectorOperand(PrimType oType, RegOperand *opnd);
   bool DistanceCheck(const BB &bb, LabelIdx targLabIdx, uint32 targId) const;
@@ -440,7 +445,7 @@ class AArch64CGFunc : public CGFunc {
   MemOperand &GetOrCreateMemOpnd(MemOperand::AArch64AddressingMode mode, uint32 size, RegOperand *base,
                                  RegOperand *index, ImmOperand *offset, const MIRSymbol *st);
 
-  MemOperand &GetOrCreateMemOpnd(MemOperand::AArch64AddressingMode, uint32 size, RegOperand *base,
+  MemOperand &GetOrCreateMemOpnd(MemOperand::AArch64AddressingMode mode, uint32 size, RegOperand *base,
                                  RegOperand *index, int32 shift, bool isSigned = false);
 
   MemOperand &GetOrCreateMemOpnd(MemOperand &oldMem);
@@ -497,7 +502,7 @@ class AArch64CGFunc : public CGFunc {
                                PrimType primType, AArch64reg baseRegno = RFP);
   RegOperand *LmbcStructReturnLoad(int32 offset);
   Operand *GetBaseReg(const AArch64SymbolAlloc &symAlloc);
-  int32 GetBaseOffset(const SymbolAlloc &symAlloc) override;
+  int32 GetBaseOffset(const SymbolAlloc &symbolAlloc) override;
 
   Operand &CreateCommentOperand(const std::string &s) const {
     return *memPool->New<CommentOperand>(s, *memPool);
@@ -588,8 +593,8 @@ class AArch64CGFunc : public CGFunc {
   /* if offset < 0, allocation; otherwise, deallocation */
   MemOperand &CreateCallFrameOperand(int32 offset, uint32 size);
 
-  void AppendCall(const MIRSymbol &func);
-  Insn &AppendCall(const MIRSymbol &func, ListOperand &srcOpnds, bool isCleanCall = false);
+  void AppendCall(const MIRSymbol &funcSymbol);
+  Insn &AppendCall(const MIRSymbol &sym, ListOperand &srcOpnds, bool isCleanCall = false);
 
   static constexpr uint32 kDwarfFpRegBegin = 64;
   static constexpr int32 kBitLenOfShift64Bits = 6; /* for 64 bits register, shift amount is 0~63, use 6 bits to store */
@@ -646,7 +651,7 @@ class AArch64CGFunc : public CGFunc {
 
   bool HasStackLoadStore();
 
-  MemOperand &LoadStructCopyBase(const MIRSymbol &symbol, int64 offset, int datasize);
+  MemOperand &LoadStructCopyBase(const MIRSymbol &symbol, int64 offset, int dataSize);
 
   int32 GetSplitBaseOffset() const {
     return splitStpldpBaseOffset;
@@ -890,17 +895,17 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectClearStackCallParam(const AddrofNode &expr, int64 &offsetValue);
   void SelectClearStackCallParmList(const StmtNode &naryNode, ListOperand &srcOpnds,
                                     std::vector<int64> &stackPostion);
-  void SelectRem(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType, bool isSigned, bool is64Bits);
+  void SelectRem(Operand &resOpnd, Operand &lhsOpnd, Operand &rhsOpnd, PrimType primType, bool isSigned, bool is64Bits);
   void SelectCvtInt2Int(const BaseNode *parent, Operand *&resOpnd, Operand *opnd0, PrimType fromType, PrimType toType);
-  void SelectCvtFloat2Float(Operand &resOpnd, Operand &opnd0, PrimType fromType, PrimType toType);
-  void SelectCvtFloat2Int(Operand &resOpnd, Operand &opnd0, PrimType itype, PrimType ftype);
-  void SelectCvtInt2Float(Operand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType);
+  void SelectCvtFloat2Float(Operand &resOpnd, Operand &srcOpnd, PrimType fromType, PrimType toType);
+  void SelectCvtFloat2Int(Operand &resOpnd, Operand &srcOpnd, PrimType itype, PrimType ftype);
+  void SelectCvtInt2Float(Operand &resOpnd, Operand &origOpnd0, PrimType toType, PrimType fromType);
   Operand *SelectRelationOperator(RelationOperator operatorCode, const BinaryNode &node, Operand &opnd0,
                                   Operand &opnd1, const BaseNode &parent);
   void SelectRelationOperator(RelationOperator operatorCode, Operand &resOpnd, Operand &opnd0, Operand &opnd1,
                               PrimType primType);
-  MOperator SelectRelationMop(RelationOperator operatorCode, RelationOperatorOpndPattern opndPattern,
-                              bool is64Bits, bool isBitmaskImmediate, bool isBitNumLessThan16) const;
+  MOperator SelectRelationMop(RelationOperator operatorCode, RelationOperatorOpndPattern opndPattern, bool is64Bits,
+                              bool isBitmaskImmediate, bool isBitNumLessThan16) const;
   Operand *SelectMinOrMax(bool isMin, const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   void SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   Operand *SelectRoundLibCall(RoundType roundType, const TypeCvtNode &node, Operand &opnd0);
@@ -919,16 +924,16 @@ class AArch64CGFunc : public CGFunc {
   void GenCVaStartIntrin(RegOperand &opnd, uint32 stkSize);
   void SelectCVaStart(const IntrinsiccallNode &intrnNode);
   void SelectCAtomicStoreN(const IntrinsiccallNode &intrinsiccallNode);
-  void SelectCSyncLockRelease(const IntrinsiccallNode &intrinsiccallNode, PrimType primType);
+  void SelectCSyncLockRelease(const IntrinsiccallNode &intrinsiccall, PrimType primType);
   void SelectAtomicStore(Operand &srcOpnd, Operand &addrOpnd, PrimType primType, AArch64isa::MemoryOrdering memOrder);
   void SelectAddrofThreadLocal(Operand &result, StImmOperand &stImm);
   void SelectCTlsLocalDesc(Operand &result, StImmOperand &stImm);
   void SelectCTlsGlobalDesc(Operand &result, StImmOperand &stImm);
-  void SelectMPLClinitCheck(const IntrinsiccallNode&);
+  void SelectMPLClinitCheck(const IntrinsiccallNode &intrnNode);
   void SelectMPLProfCounterInc(const IntrinsiccallNode &intrnNode);
   void SelectArithmeticAndLogical(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType, Opcode op);
 
-  Operand *SelectAArch64CSyncFetch(const maple::IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore);
+  Operand *SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore);
   /* Helper functions for translating complex Maple IR instructions/inrinsics */
   void SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, Operand &opnd0);
   LabelIdx CreateLabeledBB(StmtNode &stmt);
@@ -942,7 +947,7 @@ class AArch64CGFunc : public CGFunc {
 
   MemOperand *GetPseudoRegisterSpillMemoryOperand(PregIdx i) override;
   void ProcessLazyBinding() override;
-  bool CanLazyBinding(const Insn &insn) const;
+  bool CanLazyBinding(const Insn &ldrInsn) const;
   void ConvertAdrpl12LdrToLdr();
   void ConvertAdrpLdrToIntrisic();
   bool IsStoreMop(MOperator mOp) const;

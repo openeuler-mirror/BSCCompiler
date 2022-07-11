@@ -65,8 +65,9 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
   bool CheckModifiedRegister(Insn &insn, std::map<Operand*, std::vector<Operand*>> &destSrcMap,
                              std::vector<Operand*> &src, Operand &dest,
                              const Insn *cmpInsn, const Operand *flagOpnd) const;
-  bool CheckCondMoveBB(BB *bb, std::map<Operand*, std::vector<Operand*>> &destSrcMap, std::vector<Operand*> &destRegs,
-                       std::vector<Insn*> &setInsn, Operand *flagReg, Insn *cmpInsn) const;
+  bool CheckCondMoveBB(BB *bb, std::map<Operand*, std::vector<Operand*>> &destSrcMap,
+                       std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn,
+                       Operand *flagOpnd, Insn *cmpInsn) const;
 };
 
 /* If( cmp || cmp ) then or If( cmp && cmp ) then
@@ -80,7 +81,7 @@ class AArch64ICOSameCondPattern : public AArch64ICOPattern {
  public:
   explicit AArch64ICOSameCondPattern(CGFunc &func) : AArch64ICOPattern(func) {}
   ~AArch64ICOSameCondPattern() override = default;
-  bool Optimize(BB &curBB) override;
+  bool Optimize(BB &secondIfBB) override;
  protected:
   bool DoOpt(BB *firstIfBB, BB &secondIfBB) const;
 };

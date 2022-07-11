@@ -397,7 +397,7 @@ class A64ReplaceRegOpndVisitor : public ReplaceRegOpndVisitor {
  private:
   void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;
-  void Visit(MemOperand *v) final;
+  void Visit(MemOperand *a64memOpnd) final;
   void Visit(PhiOperand *v) final;
 };
 }

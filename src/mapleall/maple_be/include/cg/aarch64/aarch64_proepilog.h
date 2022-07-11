@@ -27,57 +27,57 @@ using namespace maple;
 
 class AArch64GenProEpilog : public GenProEpilog {
  public:
-  AArch64GenProEpilog(CGFunc &func, MemPool &memPool) :
-      GenProEpilog(func),
-      tmpAlloc(&memPool),
-      exitBB2CallSitesMap(tmpAlloc.Adapter()) {
-    useFP = func.UseFP();
-    if (func.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
-      stackBaseReg = RFP;
-    } else {
-      stackBaseReg = useFP ? R29 : RSP;
-    }
-    exitBB2CallSitesMap.clear();
-  }
+  AArch64GenProEpilog(CGFunc &func, MemPool &memPool)
+      : GenProEpilog(func),
+        tmpAlloc(&memPool),
+        exitBB2CallSitesMap(tmpAlloc.Adapter()) {
+          useFP = func.UseFP();
+          if (func.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
+            stackBaseReg = RFP;
+          } else {
+            stackBaseReg = useFP ? R29 : RSP;
+          }
+          exitBB2CallSitesMap.clear();
+        }
   ~AArch64GenProEpilog() override = default;
 
   bool TailCallOpt() override;
   bool NeedProEpilog() override;
   static MemOperand *SplitStpLdpOffsetForCalleeSavedWithAddInstruction(
-      CGFunc &cgFunc, const MemOperand &mo, uint32 bitLen, AArch64reg baseReg = AArch64reg::kRinvalid);
-  static void AppendInstructionPushPair(CGFunc &cgFunc, AArch64reg reg0, AArch64reg reg1, RegType rty, int offset);
-  static void AppendInstructionPushSingle(CGFunc &cgFunc, AArch64reg reg, RegType rty, int offset);
-  static void AppendInstructionPopSingle(CGFunc &cgFunc, AArch64reg reg, RegType rty, int offset);
-  static void AppendInstructionPopPair(CGFunc &cgFunc, AArch64reg reg0, AArch64reg reg1, RegType rty, int offset);
+      CGFunc &cgFunc, const MemOperand &mo, uint32 bitLen, AArch64reg baseRegNum = AArch64reg::kRinvalid);
+  static void AppendInstructionPushPair(CGFunc &cgFunc, AArch64reg reg0, AArch64reg reg1, RegType rty, int32 offset);
+  static void AppendInstructionPushSingle(CGFunc &cgFunc, AArch64reg reg, RegType rty, int32 offset);
+  static void AppendInstructionPopSingle(CGFunc &cgFunc, AArch64reg reg, RegType rty, int32 offset);
+  static void AppendInstructionPopPair(CGFunc &cgFunc, AArch64reg reg0, AArch64reg reg1, RegType rty, int32 offset);
   void Run() override;
  private:
-  void GenStackGuard(BB&);
-  BB &GenStackGuardCheckInsn(BB&);
+  void GenStackGuard(BB &bb);
+  BB &GenStackGuardCheckInsn(BB &bb);
   bool HasLoop();
   bool OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &exitBB) const;
   void TailCallBBOpt(BB &bb, MapleSet<Insn*> &callInsns, BB &exitBB);
-  bool InsertOpndRegs(Operand &opnd, std::set<regno_t> &vecRegs) const;
-  bool InsertInsnRegs(Insn &insn, bool insetSource, std::set<regno_t> &vecSourceRegs,
+  bool InsertOpndRegs(Operand &op, std::set<regno_t> &vecRegs) const;
+  bool InsertInsnRegs(Insn &insn, bool insertSource, std::set<regno_t> &vecSourceRegs,
                       bool insertTarget, std::set<regno_t> &vecTargetRegs) const;
-  bool FindRegs(Operand &insn, std::set<regno_t> &vecRegs) const;
-  bool BackwardFindDependency(BB &ifbb, std::set<regno_t> &vecReturnSourceReg,
-                              std::list<Insn*> &existingInsns, std::list<Insn*> &moveInsns);
-  BB *IsolateFastPath(BB&);
+  bool FindRegs(Operand &op, std::set<regno_t> &vecRegs) const;
+  bool BackwardFindDependency(BB &ifbb, std::set<regno_t> &vecReturnSourceRegs, std::list<Insn*> &existingInsns,
+                              std::list<Insn*> &moveInsns);
+  BB *IsolateFastPath(BB &bb);
   void AppendInstructionAllocateCallFrame(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void AppendInstructionAllocateCallFrameDebug(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void GeneratePushRegs();
   void GeneratePushUnnamedVarargRegs();
-  void AppendInstructionStackCheck(AArch64reg reg, RegType rty, int offset);
-  void GenerateProlog(BB&);
+  void AppendInstructionStackCheck(AArch64reg reg, RegType rty, int32 offset);
+  void GenerateProlog(BB &bb);
 
   void GenerateRet(BB &bb);
   bool TestPredsOfRetBB(const BB &exitBB);
   void AppendInstructionDeallocateCallFrame(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void AppendInstructionDeallocateCallFrameDebug(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void GeneratePopRegs();
-  void AppendJump(const MIRSymbol &func);
-  void GenerateEpilog(BB&);
-  void GenerateEpilogForCleanup(BB&);
+  void AppendJump(const MIRSymbol &funcSymbol);
+  void GenerateEpilog(BB &bb);
+  void GenerateEpilogForCleanup(BB &bb);
   void ConvertToTailCalls(MapleSet<Insn*> &callInsnsMap);
   Insn &CreateAndAppendInstructionForAllocateCallFrame(int64 argsToStkPassSize, AArch64reg reg0, AArch64reg reg1,
                                                        RegType rty);

@@ -36,12 +36,12 @@ class AArch64Ebo : public Ebo {
  protected:
   MapleVector<RegOperand*> callerSaveRegTable;
   AArch64CGFunc *a64CGFunc;
-  int32 GetOffsetVal(const MemOperand &mem) const override;
+  int32 GetOffsetVal(const MemOperand &memOpnd) const override;
   OpndInfo *OperandInfoDef(BB &currentBB, Insn &currentInsn, Operand &localOpnd) override;
   const RegOperand &GetRegOperand(const Operand &opnd) const override;
   bool IsGlobalNeeded(Insn &insn) const override;
   bool OperandEqSpecial(const Operand &op1, const Operand &op2) const override;
-  bool DoConstProp(Insn &insn, uint32 i, Operand &opnd) override;
+  bool DoConstProp(Insn &insn, uint32 idx, Operand &opnd) override;
   bool Csel2Cset(Insn &insn, const MapleVector<Operand*> &opnds) override;
   bool SimplifyConstOperand(Insn &insn, const MapleVector<Operand*> &opnds,
                             const MapleVector<OpndInfo*> &opndInfo) override;
@@ -51,7 +51,7 @@ class AArch64Ebo : public Ebo {
   void DefineReturnUseRegister(Insn &insn) override;
   void DefineCallUseSpecialRegister(Insn &insn) override;
   void DefineClinitSpecialRegisters(InsnInfo &insnInfo) override;
-  bool CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*> &origInfos, ExtOpTable idx, bool is64Bits);
+  bool CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*> &origInfos, ExtOpTable idx, bool is64bits);
   bool SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origInfos) override;
   bool IsMovToSIMDVmov(Insn &insn, const Insn &replaceInsn) const override;
   bool IsPseudoRet(Insn &insn) const override;

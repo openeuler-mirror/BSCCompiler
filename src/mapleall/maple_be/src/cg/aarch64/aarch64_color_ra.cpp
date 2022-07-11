@@ -2642,7 +2642,7 @@ void GraphColorRegAllocator::LocalRaRegSetEraseReg(LocalRegAllocator &localRa, r
   }
 }
 
-bool GraphColorRegAllocator::LocalRaInitRegSet(LocalRegAllocator &localRa, uint32 bbID) {
+bool GraphColorRegAllocator::LocalRaInitRegSet(LocalRegAllocator &localRa, uint32 bbId) {
   bool needLocalRa = false;
   /* Note physical regs start from R0, V0. */
   localRa.InitPregs(MaxIntPhysRegNum(), MaxFloatPhysRegNum(), cgFunc->GetCG()->GenYieldPoint(), intSpillRegSet,
@@ -2650,7 +2650,7 @@ bool GraphColorRegAllocator::LocalRaInitRegSet(LocalRegAllocator &localRa, uint3
 
   localRa.ClearUseInfo();
   localRa.ClearDefInfo();
-  LocalRaInfo *lraInfo = localRegVec[bbID];
+  LocalRaInfo *lraInfo = localRegVec[bbId];
   ASSERT(lraInfo != nullptr, "lraInfo not be nullptr");
   for (const auto &useCntPair : lraInfo->GetUseCnt()) {
     regno_t regNO = useCntPair.first;
@@ -2669,8 +2669,8 @@ bool GraphColorRegAllocator::LocalRaInitRegSet(LocalRegAllocator &localRa, uint3
   return needLocalRa;
 }
 
-void GraphColorRegAllocator::LocalRaInitAllocatableRegs(LocalRegAllocator &localRa, uint32 bbID) {
-  BBAssignInfo *bbInfo = bbRegInfo[bbID];
+void GraphColorRegAllocator::LocalRaInitAllocatableRegs(LocalRegAllocator &localRa, uint32 bbId) {
+  BBAssignInfo *bbInfo = bbRegInfo[bbId];
   if (bbInfo != nullptr) {
     for (regno_t regNO = kInvalidRegNO; regNO < kMaxRegNum; ++regNO) {
       if (bbInfo->GetGlobalsAssigned(regNO)) {
@@ -4980,7 +4980,9 @@ bool GraphColorRegAllocator::AllocateRegisters() {
 
   MarkCalleeSaveRegs();
 
-  cgFunc->SetSeenFP(seenFP);
+  if (!seenFP) {
+    cgFunc->UnsetSeenFP();
+  }
   if (GCRA_DUMP) {
     cgFunc->DumpCGIR();
   }

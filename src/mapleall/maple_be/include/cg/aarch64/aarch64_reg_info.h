@@ -23,8 +23,7 @@ namespace maplebe {
 
 class AArch64RegInfo : public RegisterInfo {
  public:
-  explicit AArch64RegInfo(MapleAllocator &mallocator): RegisterInfo(mallocator) {
-  }
+  explicit AArch64RegInfo(MapleAllocator &mallocator) : RegisterInfo(mallocator) {}
 
   ~AArch64RegInfo() override = default;
 
@@ -40,7 +39,7 @@ class AArch64RegInfo : public RegisterInfo {
   void SaveCalleeSavedReg(MapleSet<regno_t> savedRegs) override;
   bool IsSpecialReg(regno_t regno) const override;
   bool IsCalleeSavedReg(regno_t regno) const override;
-  bool IsYieldPointReg(regno_t regNO) const override;
+  bool IsYieldPointReg(regno_t regno) const override;
   bool IsUnconcernedReg(regno_t regNO) const override;
   bool IsUnconcernedReg(const RegOperand &regOpnd) const override;
   RegOperand &GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag = 0) override;

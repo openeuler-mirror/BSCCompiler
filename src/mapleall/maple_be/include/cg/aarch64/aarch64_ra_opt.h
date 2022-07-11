@@ -86,7 +86,7 @@ class RaX0Opt {
   ~RaX0Opt() = default;
 
   bool PropagateX0CanReplace(Operand *opnd, regno_t replaceReg) const;
-  bool PropagateRenameReg(Insn *insn, const X0OptInfo &optVal) const;
+  bool PropagateRenameReg(Insn *nInsn, const X0OptInfo &optVal) const;
   bool PropagateX0DetectX0(const Insn *insn, X0OptInfo &optVal) const;
   bool PropagateX0DetectRedefine(const AArch64MD *md, const Insn *ninsn, const X0OptInfo &optVal, uint32 index) const;
   bool PropagateX0Optimize(const BB *bb, const Insn *insn, X0OptInfo &optVal) const;
@@ -133,7 +133,7 @@ class VregRename {
   bool IsProfitableToRename(const VregRenameInfo *info) const;
   void RenameProfitableVreg(RegOperand *ropnd, const CGFuncLoops *loop);
   void RenameGetFuncVregInfo();
-  void UpdateVregInfo(regno_t reg, BB *bb, bool isInner, bool isDef);
+  void UpdateVregInfo(regno_t vreg, BB *bb, bool isInner, bool isDef);
   void VregLongLiveRename();
 
   CGFunc *cgFunc;

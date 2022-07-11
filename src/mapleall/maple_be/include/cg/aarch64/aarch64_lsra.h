@@ -438,7 +438,7 @@ class LSRALinearScanRegAllocator : public RegAllocator {
   void ComputeLiveOut(BB &bb, uint32 insnNum);
   void ComputeLiveIntervalForEachOperand(Insn &insn);
   void ComputeLiveInterval();
-  void FindLowestPrioInActive(LiveInterval *&li, RegType regType = kRegTyInt, bool startRa = false);
+  void FindLowestPrioInActive(LiveInterval *&targetLi, RegType regType = kRegTyInt, bool startRa = false);
   void LiveIntervalAnalysis();
   bool OpndNeedAllocation(const Insn &insn, Operand &opnd, bool isDef, uint32 insnNum);
   void InsertParamToActive(Operand &opnd);
@@ -456,7 +456,7 @@ class LSRALinearScanRegAllocator : public RegAllocator {
   void SpillOperand(Insn &insn, Operand &opnd, bool isDef, uint32 spillIdx);
   void SetOperandSpill(Operand &opnd);
   RegOperand *HandleSpillForInsn(const Insn &insn, Operand &opnd);
-  MemOperand *GetSpillMem(uint32 vregNO, bool isDest, Insn &insn, AArch64reg regNO, bool &isOutOfRange) const;
+  MemOperand *GetSpillMem(uint32 vRegNO, bool isDest, Insn &insn, AArch64reg regNO, bool &isOutOfRange) const;
   void InsertCallerSave(Insn &insn, Operand &opnd, bool isDef);
   uint32 GetRegFromSet(MapleSet<uint32> &set, regno_t offset, LiveInterval &li, regno_t forcedReg = 0) const;
   uint32 AssignSpecialPhysRegPattern(const Insn &insn, LiveInterval &li);

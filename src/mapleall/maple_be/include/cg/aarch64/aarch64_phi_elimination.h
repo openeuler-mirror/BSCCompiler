@@ -21,7 +21,7 @@ class AArch64PhiEliminate : public PhiEliminate {
  public:
   AArch64PhiEliminate(CGFunc &f, CGSSAInfo &ssaAnalysisResult, MemPool &mp) : PhiEliminate(f, ssaAnalysisResult, mp) {}
   ~AArch64PhiEliminate() override = default;
-  RegOperand &GetCGVirtualOpearnd(RegOperand &ssaOpnd, Insn &curInsn /* for remat */);
+  RegOperand &GetCGVirtualOpearnd(RegOperand &ssaOpnd, const Insn &curInsn /* for remat */);
 
  private:
   void ReCreateRegOperand(Insn &insn) override;
@@ -37,9 +37,10 @@ class A64OperandPhiElmVisitor : public OperandPhiElmVisitor {
       : a64PhiEliminator(a64PhiElm),
         insn(&cInsn),
         idx(idx) {};
+  ~A64OperandPhiElmVisitor() override = default;
   void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;
-  void Visit(MemOperand *v) final;
+  void Visit(MemOperand *a64MemOpnd) final;
 
  private:
   AArch64PhiEliminate *a64PhiEliminator;

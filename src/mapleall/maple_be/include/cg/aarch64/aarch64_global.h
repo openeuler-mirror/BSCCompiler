@@ -242,7 +242,7 @@ class RedundantUxtPattern : public OptimizePattern {
   void Init() final;
 
  private:
-  uint32 GetMaximumValidBit(Insn &insn, uint8 udIdx, InsnSet &insnChecked) const;
+  uint32 GetMaximumValidBit(Insn &insn, uint8 index, InsnSet &visitedInsn) const;
   static uint32 GetInsnValidBit(const Insn &insn);
   InsnSet useInsnSet;
   uint32 firstRegNO = 0;
@@ -268,7 +268,7 @@ class LocalVarSaveInsnPattern : public OptimizePattern {
     useInsn = nullptr;
     secondInsn = nullptr;
   }
-  bool CheckCondition(Insn &insn) final;
+  bool CheckCondition(Insn &firstInsn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
 

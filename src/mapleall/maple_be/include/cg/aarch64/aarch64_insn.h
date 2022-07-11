@@ -73,12 +73,12 @@ class AArch64Insn : public Insn {
 
   uint32 GetResultNum() const override;
   uint32 GetOpndNum() const override;
-  Operand *GetResult(uint32 i) const override;
-  Operand *GetOpnd(uint32 i) const override;
+  Operand *GetResult(uint32 id) const override;
+  Operand *GetOpnd(uint32 id) const override;
   Operand *GetMemOpnd() const override;
   void SetMemOpnd(MemOperand *memOpnd) override;
-  void SetOpnd(uint32 i, Operand &opnd) override;
-  void SetResult(uint32 index, Operand &res) override;
+  void SetOpnd(uint32 id, Operand &opnd) override;
+  void SetResult(uint32 id, Operand &opnd) override;
   int32 CopyOperands() const override;
   bool IsGlobal() const final {
     return (mOp == MOP_xadrp || mOp == MOP_xadrpl12);
@@ -168,7 +168,7 @@ class AArch64Insn : public Insn {
 
   uint32 GetJumpTargetIdxFromMOp(MOperator mOp) const override;
 
-  MOperator FlipConditionOp(MOperator flippedOp, uint32 &targetIdx) override;
+  MOperator FlipConditionOp(MOperator originalOp, uint32 &targetIdx) override;
 
   uint8 GetLoadStoreSize() const;
 
@@ -181,23 +181,23 @@ class AArch64Insn : public Insn {
   bool IsRegDefOrUse(regno_t regNO) const;
 
  private:
-  void CheckOpnd(const Operand &opnd, const OpndProp &mopd) const;
+  void CheckOpnd(const Operand &opnd, const OpndProp &prop) const;
 };
 
 struct VectorRegSpec {
   VectorRegSpec() : vecLane(-1), vecLaneMax(0), vecElementSize(0), compositeOpnds(0) {}
 
-  explicit VectorRegSpec(PrimType type, int16 lane = -1, uint16 compositeOpnds = 0) :
-      vecLane(lane),
-      vecLaneMax(GetVecLanes(type)),
-      vecElementSize(GetVecEleSize(type)),
-      compositeOpnds(compositeOpnds) {}
+  explicit VectorRegSpec(PrimType type, int16 lane = -1, uint16 compositeOpnds = 0)
+      : vecLane(lane),
+        vecLaneMax(GetVecLanes(type)),
+        vecElementSize(GetVecEleSize(type)),
+        compositeOpnds(compositeOpnds) {}
 
-  VectorRegSpec(uint16 laneNum, uint16 eleSize, int16 lane = -1, uint16 compositeOpnds = 0) :
-      vecLane(lane),
-      vecLaneMax(laneNum),
-      vecElementSize(eleSize),
-      compositeOpnds(compositeOpnds) {}
+  VectorRegSpec(uint16 laneNum, uint16 eleSize, int16 lane = -1, uint16 compositeOpnds = 0)
+      : vecLane(lane),
+        vecLaneMax(laneNum),
+        vecElementSize(eleSize),
+        compositeOpnds(compositeOpnds) {}
 
   int16 vecLane;         /* -1 for whole reg, 0 to 15 to specify individual lane */
   uint16 vecLaneMax;     /* Maximum number of lanes for this vregister */
@@ -287,7 +287,7 @@ class OpndEmitVisitor : public OperandVisitorBase,
                                                LogicalShiftLeftOperand,
                                                CommentOperand> {
  public:
-  explicit OpndEmitVisitor(Emitter &asmEmitter): emitter(asmEmitter) {}
+  explicit OpndEmitVisitor(Emitter &asmEmitter) : emitter(asmEmitter) {}
   virtual ~OpndEmitVisitor() = default;
  protected:
   Emitter &emitter;
@@ -349,7 +349,7 @@ class A64OpndDumpVisitor : public OpndTmpDumpVisitor {
 
   void Visit(RegOperand *v) final;
   void Visit(ImmOperand *v) final;
-  void Visit(MemOperand *v) final;
+  void Visit(MemOperand *a64v) final;
   void Visit(CondOperand *v) final;
   void Visit(StImmOperand *v) final;
   void Visit(BitShiftOperand *v) final;
