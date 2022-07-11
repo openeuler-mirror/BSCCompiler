@@ -1444,13 +1444,15 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
           }
         }
         Operand *o1 = cgFunc.CreateDbgImmOperand(lineNum);
-        Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1);
+        Operand *o2 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().Column());
+        Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1, *o2);
         cgFunc.GetCurBB()->AppendInsn(loc);
       }
     } else {
       Operand *o0 = cgFunc.CreateDbgImmOperand(1);
       Operand *o1 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().MplLineNum());
-      Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1);
+      Operand *o2 = cgFunc.CreateDbgImmOperand(0);
+      Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1, *o2);
       cgFunc.GetCurBB()->AppendInsn(loc);
     }
     if (!hasProEpilogue) {

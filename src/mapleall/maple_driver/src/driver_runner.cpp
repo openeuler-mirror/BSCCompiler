@@ -318,6 +318,11 @@ void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &
   if (withDwarf && !theModule->IsWithDbgInfo()) {
     LogInfo::MapleLogger() << "set up debug info " << '\n';
     theMIRModule->GetDbgInfo()->BuildDebugInfo();
+#if DEBUG
+    if (cgOptions) {
+      cgOptions->SetOption(CGOptions::kVerboseAsm);
+    }
+#endif
   }
   if (cgOptions == nullptr) {
     return;
