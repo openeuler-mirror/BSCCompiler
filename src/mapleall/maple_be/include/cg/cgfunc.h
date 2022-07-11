@@ -162,13 +162,12 @@ class CGFunc {
   LmbcFormalParamInfo *GetLmbcFormalParamInfo(uint32 offset);
   virtual void LmbcGenSaveSpForAlloca() = 0;
   void GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos);
-  void GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &posDone);
+  void GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos);
   int32 GetFreqFromStmt(uint32 stmtId);
   void GenerateInstruction();
   bool MemBarOpt(const StmtNode &membar);
   void UpdateCallBBFrequency();
   void HandleFunction();
-  void MakeupScopeLabels(BB &bb);
   void ProcessExitBBVec();
   void AddCommonExitBB();
   virtual void MergeReturn() = 0;
@@ -1105,8 +1104,8 @@ class CGFunc {
     return useFP;
   }
 
-  void UnsetSeenFP() {
-    seenFP = false;
+  void SetSeenFP(bool seen) {
+    seenFP = seen;
   }
 
   bool SeenFP() const {
@@ -1273,7 +1272,6 @@ class CGFunc {
 #endif  /* TARGARM32 */
   MapleVector<CGFuncLoops*> loops;
   MapleVector<LmbcFormalParamInfo*> lmbcParamVec;
-  std::set<uint32> scpIdSet;
   int32 lmbcIntArgs = 0;
   int32 lmbcFpArgs = 0;
   uint32 lmbcTotalArgs = 0;
