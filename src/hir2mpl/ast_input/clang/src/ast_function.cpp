@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -45,6 +45,7 @@ bool ASTFunction::EmitToFEIRStmt(const std::string &phaseName) {
     FEManager::GetModule().AddOptFuncs(&mirFunction);
   }
   AppendFEIRStmts(feirStmts);
+  AppendFEIRStmts(vlaCleanupStmts);
   return phaseResult.Finish(true);
 }
 
@@ -56,6 +57,10 @@ void ASTFunction::SetMIRFunctionInfo() {
   GStrIdx idx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(astFunc.GetName());
   mirFunction.PushbackMIRInfo(MIRInfoPair(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName("INFO_fullname"), idx));
   mirFunction.PushbackIsString(true);
+}
+
+void ASTFunction::AddVLACleanupStmts(std::list<UniqueFEIRStmt> &stmts) {
+  vlaCleanupStmts.splice(vlaCleanupStmts.end(), stmts);
 }
 
 bool ASTFunction::ProcessImpl() {

@@ -17,13 +17,14 @@
 #include "fe_macros.h"
 #include "hir2mpl_compiler_component.h"
 #include "ast_input.h"
+#include "ast_input-inl.h"
 
 namespace maple {
 template<class T>
 class ASTCompilerComponent : public HIR2MPLCompilerComponent {
  public:
   explicit ASTCompilerComponent(MIRModule &module);
-  ~ASTCompilerComponent();
+  ~ASTCompilerComponent() override;
 
  protected:
   bool ParseInputImpl() override;
@@ -50,5 +51,4 @@ class ASTCompilerComponent : public HIR2MPLCompilerComponent {
   ASTInput<T> astInput;
 };  // class ASTCompilerComponent
 }  // namespace maple
-#include "ast_compiler_component-inl.h"
 #endif  // HIR2MPL_AST_INPUT_INCLUDE_AST_COMPILER_COMPONENT_H

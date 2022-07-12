@@ -214,6 +214,7 @@ class ASTWhileStmt : public ASTStmt {
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
   ASTExpr *condExpr = nullptr;
   ASTStmt *bodyStmt = nullptr;
+  mutable bool hasEmitted2MIRScope = false;
 };
 
 class ASTDoStmt : public ASTStmt {
@@ -233,6 +234,7 @@ class ASTDoStmt : public ASTStmt {
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
   ASTStmt *bodyStmt = nullptr;
   ASTExpr *condExpr = nullptr;
+  mutable bool hasEmitted2MIRScope = false;
 };
 
 class ASTBreakStmt : public ASTStmt {
@@ -375,6 +377,7 @@ class ASTSwitchStmt : public ASTStmt {
   ASTStmt *bodyStmt = nullptr;
   MIRType *condType = nullptr;
   bool hasDefualt = false;
+  mutable bool hasEmitted2MIRScope = false;
 };
 
 class ASTCaseStmt : public ASTStmt {
@@ -535,7 +538,8 @@ class ASTVAArgExprStmt : public ASTStmt {
 
 class ASTConditionalOperatorStmt : public ASTStmt {
  public:
-  explicit ASTConditionalOperatorStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtConditionalOperator) {}
+  explicit ASTConditionalOperatorStmt(MapleAllocator &allocatorIn)
+      : ASTStmt(allocatorIn, kASTStmtConditionalOperator) {}
   ~ASTConditionalOperatorStmt() override = default;
 
  private:
@@ -663,7 +667,8 @@ class ASTOffsetOfStmt : public ASTStmt {
 
 class ASTGenericSelectionExprStmt : public ASTStmt {
  public:
-  explicit ASTGenericSelectionExprStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTGenericSelectionExprStmt) {}
+  explicit ASTGenericSelectionExprStmt(MapleAllocator &allocatorIn)
+      : ASTStmt(allocatorIn, kASTGenericSelectionExprStmt) {}
   ~ASTGenericSelectionExprStmt() override = default;
 
  private:

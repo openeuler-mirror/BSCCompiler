@@ -24,6 +24,7 @@
 #include "ast_input.h"
 #include "fe_manager.h"
 #include "enhance_c_checker.h"
+#include "fe_macros.h"
 
 namespace maple {
 std::map<int64, ASTDecl*> ASTDeclsBuilder::declesTable;
@@ -818,8 +819,8 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
           bool losesInfo;
           if (constMirType->GetPrimType() == PTY_f64) {
             (void)fValue.convert(llvm::APFloat::IEEEdouble(),
-                                      llvm::APFloatBase::rmNearestTiesToAway,
-                                      &losesInfo);
+                                 llvm::APFloatBase::rmNearestTiesToAway,
+                                 &losesInfo);
             astValue->val.f64 = fValue.convertToDouble();
           } else {
             (void)fValue.convert(llvm::APFloat::IEEEsingle(),
@@ -1525,7 +1526,7 @@ uint32_t ASTParser::GetAlignOfType(const clang::QualType currQualType, clang::Un
   return static_cast<uint32_t>(alignInCharUnits.getQuantity());
 }
 
-uint32_t ASTParser::GetAlignOfExpr(const clang::Expr &expr, clang::UnaryExprOrTypeTrait exprKind) {
+uint32_t ASTParser::GetAlignOfExpr(const clang::Expr &expr, clang::UnaryExprOrTypeTrait exprKind) const {
   clang::CharUnits alignInCharUnits = clang::CharUnits::Zero();
   const clang::Expr *exprNoParens = expr.IgnoreParens();
   if (const auto *declRefExpr = clang::dyn_cast<clang::DeclRefExpr>(exprNoParens)) {
@@ -2832,7 +2833,7 @@ ASTDecl *ASTParser::ProcessDeclLabelDecl(MapleAllocator &allocator, const clang:
 }
 
 bool ASTParser::RetrieveStructs(MapleAllocator &allocator) {
-  for (const auto &decl : recordDecles) {
+  for (auto &decl : std::as_const(recordDecles)) {
     clang::RecordDecl *recDecl = llvm::cast<clang::RecordDecl>(decl->getCanonicalDecl());
     if (!recDecl->isCompleteDefinition()) {
       clang::RecordDecl *recDeclDef = recDecl->getDefinition();
@@ -2857,7 +2858,7 @@ bool ASTParser::RetrieveStructs(MapleAllocator &allocator) {
 }
 
 bool ASTParser::RetrieveFuncs(MapleAllocator &allocator) {
-  for (const auto &func : funcDecles) {
+  for (auto &func : std::as_const(funcDecles)) {
     clang::FunctionDecl *funcDecl = llvm::cast<clang::FunctionDecl>(func);
     CHECK_NULL_FATAL(funcDecl);
     if (funcDecl->isDefined()) {
@@ -2889,7 +2890,7 @@ bool ASTParser::RetrieveFuncs(MapleAllocator &allocator) {
 
 // seperate MP with astparser
 bool ASTParser::RetrieveGlobalVars(MapleAllocator &allocator) {
-  for (const auto &decl : globalVarDecles) {
+  for (auto &decl : std::as_const(globalVarDecles)) {
     clang::VarDecl *varDecl = llvm::cast<clang::VarDecl>(decl);
     ASTVar *val = static_cast<ASTVar*>(ProcessDecl(allocator, *varDecl));
     if (val == nullptr) {
@@ -2901,7 +2902,7 @@ bool ASTParser::RetrieveGlobalVars(MapleAllocator &allocator) {
 }
 
 bool ASTParser::RetrieveFileScopeAsms(MapleAllocator &allocator) {
-  for (const auto &decl : globalFileScopeAsm) {
+  for (auto &decl : std::as_const(globalFileScopeAsm)) {
     clang::FileScopeAsmDecl *fileScopeAsmDecl = llvm::cast<clang::FileScopeAsmDecl>(decl);
     ASTFileScopeAsm *asmDecl = static_cast<ASTFileScopeAsm*>(ProcessDecl(allocator, *fileScopeAsmDecl));
     if (asmDecl == nullptr) {
@@ -2913,7 +2914,7 @@ bool ASTParser::RetrieveFileScopeAsms(MapleAllocator &allocator) {
 }
 
 bool ASTParser::ProcessGlobalTypeDef(MapleAllocator &allocator) {
-  for (const auto gTypeDefDecl : globalTypeDefDecles) {
+  for (auto &gTypeDefDecl : std::as_const(globalTypeDefDecles)) {
     (void)ProcessDecl(allocator, *gTypeDefDecl);
   }
   return true;

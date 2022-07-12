@@ -46,25 +46,30 @@ const int kDefaultIndent = 1;
 #ifdef ASTDEBUG
 #define LOCATION __func__ << "() at " << __FILE__ << ":" << __LINE__
 
-#define DUMPINFO(stmtClass, s)                    \
-  if (maple::ast2mplDebug > kDebugLevelOne) {     \
-    std::cout << LOCATION << '\n';                \
-    s->dump();                                    \
-    std::cout << " " << '\n';                     \
-  }
+#define DUMPINFO(stmtClass, s)                      \
+  do {                                              \
+    if (maple::ast2mplDebug > kDebugLevelOne) {     \
+      std::cout << LOCATION << '\n';                \
+      s->dump();                                    \
+      std::cout << " " << '\n';                     \
+    }                                               \
+  } while (0)
 
-#define NOTYETHANDLED(s)                                                                                          \
-  std::cout << "\n" << LOCATION << " <<<<<<<<<<<<<<<<<< Not Yet Handled: " << s << "<<<<<<<<<<<<<<<<<<" << '\n';  \
-  if ((maple::ast2mplOption & kCheckAssertion) != 0) {                                                            \
-    ASSERT(false, "Not yet handled");                                                                             \
-  }                                                                                                               \
+#define NOTYETHANDLED(s)                                                                                            \
+  do {                                                                                                              \
+    std::cout << "\n" << LOCATION << " <<<<<<<<<<<<<<<<<< Not Yet Handled: " << s << "<<<<<<<<<<<<<<<<<<" << '\n';  \
+    if ((maple::ast2mplOption & kCheckAssertion) != 0) {                                                            \
+      ASSERT(false, "Not yet handled");                                                                             \
+    }                                                                                                               \
+  } while (0)
+
 // print empty line
 #define DEBUGPRINT_N(n)                           \
   do {                                            \
     if (maple::ast2mplDebug >= n) {               \
       std::cout << " " << '\n';                   \
     }                                             \
-  } while (0);
+  } while (0)
 
 // print indent
 #define DEBUGPRINTIND(n)                          \
@@ -72,7 +77,7 @@ const int kDefaultIndent = 1;
     if (maple::ast2mplDebug > kDebugLevelZero) {  \
       PrintIndentation(n);                        \
     }                                             \
-  } while (0);
+  } while (0)
 
 // print str
 #define DEBUGPRINT_S_LEVEL(str, level)            \
@@ -81,7 +86,7 @@ const int kDefaultIndent = 1;
       PrintIndentation(ast2mplDebugIndent);       \
       std::cout << " " << str << '\n';            \
     }                                             \
-  } while (0);
+  } while (0)
 
 #define DEBUGPRINT_FUNC(name)                     \
   do {                                            \
@@ -92,7 +97,7 @@ const int kDefaultIndent = 1;
       std::cout << name << " {" << '\n';          \
     }                                             \
     Util::SetIndent(ind);                         \
-  } while (0);
+  } while (0)
 
 #define DEBUGPRINT_FUNC_END(name)                 \
   do {                                            \
@@ -103,7 +108,7 @@ const int kDefaultIndent = 1;
       std::cout << "}\n" << '\n';                 \
     }                                             \
     Util::SetIndent(ind);                         \
-  } while (0);
+  } while (0)
 
 #define DEBUGPRINT_NODE(node, type)                                                       \
   do {                                                                                    \
@@ -113,7 +118,7 @@ const int kDefaultIndent = 1;
       static_cast<const type*>(node)->Print(static_cast<const MIRModule*>(module), 0);    \
       std::cout << "\n";                                                                  \
     }                                                                                     \
-  } while (0);
+  } while (0)
 
 // print var = val
 #define DEBUGPRINT_V_LEVEL(var, level)                                    \
@@ -122,7 +127,7 @@ const int kDefaultIndent = 1;
       PrintIndentation(maple::ast2mplDebugIndent);                        \
       std::cout << LOCATION << " " << #var << " = " << var << '\n';       \
     }                                                                     \
-  } while (0);
+  } while (0)
 
 #define DEBUGPRINT_X_LEVEL(var, level)                                                                    \
   do {                                                                                                    \
@@ -130,7 +135,7 @@ const int kDefaultIndent = 1;
       PrintIndentation(maple::ast2mplDebugIndent);                                                        \
       std::cout << LOCATION << " " << #var << " = " << std::hex << "0x" << var << std::dec << '\n';       \
     }                                                                                                     \
-  } while (0);
+  } while (0)
 
 // print var = val
 #define DEBUGPRINT_V_LEVEL_PURE(var, level)           \
@@ -139,7 +144,7 @@ const int kDefaultIndent = 1;
       PrintIndentation(maple::ast2mplDebugIndent);    \
       std::cout << #var << " = " << var << '\n';      \
     }                                                 \
-  } while (0);
+  } while (0)
 
 // print val0 val1
 #define DEBUGPRINT_NN_LEVEL(var0, var1, level)        \
@@ -148,7 +153,7 @@ const int kDefaultIndent = 1;
       PrintIndentation(maple::ast2mplDebugIndent);    \
       std::cout << var0 << " " << var1;               \
     }                                                 \
-  } while (0);
+  } while (0)
 
 // print var0 = val0, var1 = val1
 #define DEBUGPRINT_VV_LEVEL(var0, var1, level)                                                                \
@@ -157,7 +162,7 @@ const int kDefaultIndent = 1;
       PrintIndentation(maple::ast2mplDebugIndent);                                                            \
       std::cout << LOCATION << " " << #var0 << " = " << var0 << ", " << #var1 << " = " << var1 << '\n';       \
     }                                                                                                         \
-  } while (0);
+  } while (0)
 
 // print val0, var = val
 #define DEBUGPRINT_SV_LEVEL(val0, var, level)                                                    \
@@ -166,7 +171,7 @@ const int kDefaultIndent = 1;
       PrintIndentation(maple::ast2mplDebugIndent);                                               \
       std::cout << LOCATION << " " << val0 << ", " << #var << " = " << var << '\n';              \
     }                                                                                            \
-  } while (0);
+  } while (0)
 
 #define DEBUGPRINT_SX_LEVEL(val0, var, level)                                                                      \
   do {                                                                                                             \
@@ -175,7 +180,7 @@ const int kDefaultIndent = 1;
       std::cout << LOCATION << " " << val0 << ", " << #var << " = " << std::hex << "0x" << var << std::dec         \
                 << '\n';                                                                                           \
     }                                                                                                              \
-  } while (0);
+  } while (0)
 #else
 
 #define DUMPINFO(stmtClass, s)
@@ -247,7 +252,9 @@ const int kDefaultIndent = 1;
 // A: module->fileinfo,   B:"filename",
 // C: stridx,              D:module->fileinfo_isstring,  E:true;
 #define SET_INFO_PAIR(a, b, c, d, e)                               \
-  a.emplace_back(builder->GetOrCreateStringIndex(b), c);           \
-  d.emplace_back(e)
+  do {                                                             \
+    a.emplace_back(builder->GetOrCreateStringIndex(b), c);         \
+    d.emplace_back(e)                                              \
+  } while (0)
 } // namespace maple
 #endif  // AST2MPL_INCLUDE_ASTMACROS_H

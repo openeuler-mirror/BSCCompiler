@@ -50,11 +50,14 @@ class FEFunction {
   void OutputUseDefChain();
   void OutputDefUseChain();
   void PushFuncScope(const SrcPosition &startOfScope, const SrcPosition &endOfScope);
-  void PushStmtScope(const SrcPosition &startOfScope, const SrcPosition &endOfScope);
-  UniqueFEIRScope PopTopStmtScope();
-  FEIRScope *GetTopStmtFEIRScopePtr() const;
-  MIRScope *GetTopStmtMIRScope() const;
+  void PushStmtScope(const SrcPosition &startOfScope, const SrcPosition &endOfScope, bool isControllScope = false);
+  void PushStmtScope(bool isControllScope);
+  UniqueFEIRScope PopTopScope();
+  FEIRScope *GetTopFEIRScopePtr() const;
+  MIRScope *GetTopMIRScope() const;
   void AddAliasInMIRScope(MIRScope *scope, const std::string &srcVarName, const MIRSymbol *symbol);
+  virtual void AddVLACleanupStmts(std::list<UniqueFEIRStmt> &stmts);
+
   void SetSrcFileName(const std::string &fileName) {
     srcFileName = fileName;
   }
@@ -110,6 +113,18 @@ class FEFunction {
 
   const std::stack<bool> &GetSafeRegionFlag() const {
     return safeRegionFlag;
+  }
+
+  const std::deque<UniqueFEIRScope> &GetScopeStack() const {
+    return scopeStack;
+  }
+
+  void SetLabelWithScopes(std::string labelName, std::map<uint32, UniqueFEIRScope> scopes) {
+    labelWithScopes.insert(std::make_pair(labelName, std::move(scopes)));
+  }
+
+  const std::unordered_map<std::string, std::map<uint32, UniqueFEIRScope>> &GetLabelWithScopes() const {
+    return labelWithScopes;
   }
 
  LLT_PROTECTED:
@@ -238,8 +253,9 @@ class FEFunction {
   std::map<const FEIRVarTypeScatter*, FEIRStmt*> defVarTypeScatterStmtMap;
   std::unordered_map<uint32, std::pair<StIdx, StIdx>> boundaryMap; // EnhanceC boundary var
   std::stack<bool> safeRegionFlag; // EnhanceC saferegion(true: safe, false: unsafe)
-  // an element of the stack represents the scope of one compoundstmt or forstmt
-  std::stack<UniqueFEIRScope> stmtsScopeStack;
+  std::deque<UniqueFEIRScope> scopeStack;  // an element of the stack represents the scope
+  uint32 scopeID = 0;
+  std::unordered_map<std::string, std::map<uint32, UniqueFEIRScope>> labelWithScopes;
 };
 }  // namespace maple
 #endif  // HIR2MPL_INCLUDE_COMMON_FE_FUNCTION_H

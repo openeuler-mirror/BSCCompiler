@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -63,9 +63,11 @@ class ASTFunction : public FEFunction {
   void FinishImpl() override;
   bool EmitToMIR(const std::string &phaseName) override;
   void SetMIRFunctionInfo();
+  void AddVLACleanupStmts(std::list<UniqueFEIRStmt> &stmts) override;
 
   const ASTFunc2FEHelper &funcHelper;
   ASTFunc &astFunc;
+  std::list<UniqueFEIRStmt> vlaCleanupStmts;
   bool error = false;
 };
 }  // namespace maple

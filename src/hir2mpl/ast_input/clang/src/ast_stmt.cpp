@@ -80,7 +80,7 @@ std::list<UniqueFEIRStmt> ASTCompoundStmt::Emit2FEStmtImpl() const {
     stmts.splice(stmts.end(), it->Emit2FEStmt());
   }
   if (!hasEmitted2MIRScope) {
-    UniqueFEIRScope scope = feFunction.PopTopStmtScope();
+    UniqueFEIRScope scope = feFunction.PopTopScope();
     if (scope->GetVLASavedStackVar() != nullptr) {
       auto stackRestoreStmt = scope->GenVLAStackRestoreStmt();
       stackRestoreStmt->SetSrcLoc(endLoc);
@@ -100,8 +100,8 @@ std::list<UniqueFEIRStmt> ASTReturnStmt::Emit2FEStmtImpl() const {
   if (astExpr != nullptr && ConditionalOptimize::DeleteRedundantTmpVar(feExpr, stmts)) {
     return stmts;
   }
+  FEIRBuilder::EmitVLACleanupStmts(FEManager::GetCurrentFEFunction(), stmts);
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtReturn>(std::move(feExpr));
-  stmt->SetSrcLoc(loc);
   stmts.emplace_back(std::move(stmt));
   return stmts;
 }
@@ -135,7 +135,7 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
   auto labelLoopEndStmt = std::make_unique<FEIRStmtLabel>(loopEndLabelName);
   FEFunction &feFunction = FEManager::GetCurrentFEFunction();
   if (!hasEmitted2MIRScope) {
-    feFunction.PushStmtScope(GetSrcLoc().Emit2SourcePosition(), GetEndLoc().Emit2SourcePosition());
+    feFunction.PushStmtScope(GetSrcLoc().Emit2SourcePosition(), GetEndLoc().Emit2SourcePosition(), true);
   }
   if (initStmt != nullptr) {
     std::list<UniqueFEIRStmt> feStmts = initStmt->Emit2FEStmt();
@@ -172,7 +172,7 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
     stmts.emplace_back(std::move(labelLoopEndStmt));
   }
   if (!hasEmitted2MIRScope) {
-    UniqueFEIRScope scope = feFunction.PopTopStmtScope();
+    UniqueFEIRScope scope = feFunction.PopTopScope();
     if (scope->GetVLASavedStackVar() != nullptr) {
       auto stackRestoreStmt = scope->GenVLAStackRestoreStmt();
       stackRestoreStmt->SetSrcLoc(endLoc);
@@ -193,6 +193,10 @@ std::list<UniqueFEIRStmt> ASTWhileStmt::Emit2FEStmtImpl() const {
   AstLoopUtil::Instance().PushContinue(loopBodyEndLabelName);
   auto labelBodyEndStmt = std::make_unique<FEIRStmtLabel>(loopBodyEndLabelName);
   auto labelLoopEndStmt = std::make_unique<FEIRStmtLabel>(loopEndLabelName);
+  FEFunction &feFunction = FEManager::GetCurrentFEFunction();
+  if (!hasEmitted2MIRScope) {
+    feFunction.PushStmtScope(true);
+  }
   std::list<UniqueFEIRStmt> bodyFEStmts = bodyStmt->Emit2FEStmt();
   std::list<UniqueFEIRStmt> condStmts;
   std::list<UniqueFEIRStmt> condPreStmts;
@@ -212,11 +216,19 @@ std::list<UniqueFEIRStmt> ASTWhileStmt::Emit2FEStmtImpl() const {
   }
   AstLoopUtil::Instance().PopCurrentBreak();
   AstLoopUtil::Instance().PopCurrentContinue();
+  if (!hasEmitted2MIRScope) {
+    (void)feFunction.PopTopScope();
+    hasEmitted2MIRScope = true;
+  }
   return stmts;
 }
 
 std::list<UniqueFEIRStmt> ASTDoStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
+  FEFunction &feFunction = FEManager::GetCurrentFEFunction();
+  if (!hasEmitted2MIRScope) {
+    feFunction.PushStmtScope(true);
+  }
   std::string loopBodyEndLabelName = FEUtils::GetSequentialName("dowhile_body_end_");
   std::string loopEndLabelName = FEUtils::GetSequentialName("dowhile_end_");
   AstLoopUtil::Instance().PushBreak(loopEndLabelName);
@@ -243,21 +255,38 @@ std::list<UniqueFEIRStmt> ASTDoStmt::Emit2FEStmtImpl() const {
   }
   AstLoopUtil::Instance().PopCurrentBreak();
   AstLoopUtil::Instance().PopCurrentContinue();
+  if (!hasEmitted2MIRScope) {
+    (void)feFunction.PopTopScope();
+    hasEmitted2MIRScope = true;
+  }
   return stmts;
 }
 
 std::list<UniqueFEIRStmt> ASTBreakStmt::Emit2FEStmtImpl() const {
+  std::string breakName;
+  if (!AstLoopUtil::Instance().IsBreakLabelsEmpty()) {
+    breakName = AstLoopUtil::Instance().GetCurrentBreak();
+  }
+  std::string vlaLabelName = FEIRBuilder::EmitVLACleanupStmts(FEManager::GetCurrentFEFunction(), breakName, loc);
+  if (!vlaLabelName.empty()) {
+    breakName = vlaLabelName;
+  }
   std::list<UniqueFEIRStmt> stmts;
   auto stmt = std::make_unique<FEIRStmtBreak>();
-  if (!AstLoopUtil::Instance().IsBreakLabelsEmpty()) {
-    stmt->SetBreakLabelName(AstLoopUtil::Instance().GetCurrentBreak());
-  }
+  stmt->SetBreakLabelName(breakName);
   stmt->SetSrcLoc(loc);
   stmts.emplace_back(std::move(stmt));
   return stmts;
 }
 
 std::list<UniqueFEIRStmt> ASTLabelStmt::Emit2FEStmtImpl() const {
+  // collect scopes of label stmt
+  FEFunction &feFunction = FEManager::GetCurrentFEFunction();
+  std::map<uint32, UniqueFEIRScope> scopes;
+  for (const auto &scope : feFunction.GetScopeStack()) {
+    scopes.insert(std::make_pair(scope->GetID(), scope->Clone()));
+  }
+  feFunction.SetLabelWithScopes(GetLabelName(), std::move(scopes));
   std::list<UniqueFEIRStmt> stmts;
   auto feStmt = std::make_unique<FEIRStmtLabel>(GetLabelName());
   feStmt->SetSrcLoc(loc);
@@ -267,9 +296,14 @@ std::list<UniqueFEIRStmt> ASTLabelStmt::Emit2FEStmtImpl() const {
 }
 
 std::list<UniqueFEIRStmt> ASTContinueStmt::Emit2FEStmtImpl() const {
+  std::string continueName = AstLoopUtil::Instance().GetCurrentContinue();
+  std::string vlaLabelName = FEIRBuilder::EmitVLACleanupStmts(FEManager::GetCurrentFEFunction(), continueName, loc);
+  if (!vlaLabelName.empty()) {
+    continueName = vlaLabelName;
+  }
   std::list<UniqueFEIRStmt> stmts;
   auto stmt = std::make_unique<FEIRStmtContinue>();
-  stmt->SetLabelName(AstLoopUtil::Instance().GetCurrentContinue());
+  stmt->SetLabelName(continueName);
   stmts.emplace_back(std::move(stmt));
   return stmts;
 }
@@ -294,7 +328,15 @@ std::list<UniqueFEIRStmt> ASTUnaryOperatorStmt::Emit2FEStmtImpl() const {
 // ---------- ASTGotoStmt ----------
 std::list<UniqueFEIRStmt> ASTGotoStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
-  UniqueFEIRStmt stmt = FEIRBuilder::CreateStmtGoto(GetLabelName());
+  auto stmt = std::make_unique<FEIRStmtGotoForC>(GetLabelName());
+  // collect scopes with vla of goto stmt
+  FEFunction &feFunction = FEManager::GetCurrentFEFunction();
+  std::vector<std::pair<uint32, UniqueFEIRVar>> vlaSvaedStackVars;
+  for (const auto &scope : feFunction.GetScopeStack()) {
+    if (scope->GetVLASavedStackVar() != nullptr) {
+      stmt->AddVLASvaedStackVars(scope->GetID(), scope->GetVLASavedStackVar()->Clone());
+    }
+  }
   stmts.emplace_back(std::move(stmt));
   return stmts;
 }
@@ -310,6 +352,10 @@ std::list<UniqueFEIRStmt> ASTIndirectGotoStmt::Emit2FEStmtImpl() const {
 // ---------- ASTSwitchStmt ----------
 std::list<UniqueFEIRStmt> ASTSwitchStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
+  FEFunction &feFunction = FEManager::GetCurrentFEFunction();
+  if (!hasEmitted2MIRScope) {
+    feFunction.PushStmtScope(true);
+  }
   UniqueFEIRExpr expr = condExpr->Emit2FEExpr(stmts);
   std::string exitName = AstSwitchUtil::Instance().CreateEndOrExitLabelName();
   AstLoopUtil::Instance().PushBreak(exitName);
@@ -325,6 +371,10 @@ std::list<UniqueFEIRStmt> ASTSwitchStmt::Emit2FEStmtImpl() const {
   }
   stmts.emplace_back(std::move(switchStmt));
   AstLoopUtil::Instance().PopCurrentBreak();
+  if (!hasEmitted2MIRScope) {
+    (void)feFunction.PopTopScope();
+    hasEmitted2MIRScope = true;
+  }
   return stmts;
 }
 

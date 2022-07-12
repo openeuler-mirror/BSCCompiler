@@ -212,7 +212,7 @@ class ASTParser {
   uint32 GetSizeFromQualType(const clang::QualType qualType) const;
   ASTExpr *GetTypeSizeFromQualType(MapleAllocator &allocator, const clang::QualType qualType);
   uint32_t GetAlignOfType(const clang::QualType currQualType, clang::UnaryExprOrTypeTrait exprKind) const;
-  uint32_t GetAlignOfExpr(const clang::Expr &expr, clang::UnaryExprOrTypeTrait exprKind);
+  uint32_t GetAlignOfExpr(const clang::Expr &expr, clang::UnaryExprOrTypeTrait exprKind) const;
   ASTExpr *BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, const clang::QualType &qualType);
   ASTExpr *ProcessExprBinaryOperatorComplex(MapleAllocator &allocator, const clang::BinaryOperator &bo);
 

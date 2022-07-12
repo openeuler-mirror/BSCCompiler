@@ -26,16 +26,20 @@ using UniqueFEIRScope = std::unique_ptr<FEIRScope>;
 
 class FEIRScope {
  public:
-  FEIRScope() {};
-  explicit FEIRScope(MIRScope *scope);
+  explicit FEIRScope(uint32 currID) : id(currID) {}
+  FEIRScope(uint32 currID, MIRScope *scope) : id(currID), mirScope(scope) {}
+  FEIRScope(uint32 currID, bool isControll) : id(currID), isControllScope(isControll) {}
   virtual ~FEIRScope() = default;
+
+  uint32 GetID() const {
+    return id;
+  }
 
   void SetMIRScope(MIRScope *scope) {
     mirScope = scope;
   }
 
   MIRScope *GetMIRScope() const {
-    CHECK_NULL_FATAL(mirScope);
     return mirScope;
   }
 
@@ -47,11 +51,22 @@ class FEIRScope {
     return vlaSavedStackVar;
   }
 
+  void SetIsControllScope(bool flag) {
+    isControllScope = flag;
+  }
+
+  bool IsControllScope() const {
+    return isControllScope;
+  }
+
   UniqueFEIRStmt GenVLAStackRestoreStmt() const;
+  UniqueFEIRScope Clone() const;
 
  private:
-  MIRScope *mirScope = nullptr;
+  uint32 id;
+  MIRScope *mirScope = nullptr;  // one func, compoundstmt or forstmt scope includes decls
   UniqueFEIRVar vlaSavedStackVar = nullptr;
+  bool isControllScope = false;  // The controlling scope in a if/switch/while/for statement
 };
 } // namespace maple
 #endif // HIR2MPL_AST_INPUT_INCLUDE_AST_VAR_SCOPE_H

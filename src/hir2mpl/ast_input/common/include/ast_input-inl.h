@@ -42,10 +42,10 @@ bool ASTInput<T>::ReadASTFile(MapleAllocator &allocatorIn, uint32 index, const s
 }
 
 template<class T>
-bool ASTInput<T>::ReadASTFiles(MapleAllocator &mapleAllocator, const std::vector<std::string> &fileNames) {
+bool ASTInput<T>::ReadASTFiles(MapleAllocator &allocatorIn, const std::vector<std::string> &fileNames) {
   bool res = true;
   for (uint32 i = 0; res && i < fileNames.size(); ++i) {
-    res = res && ReadASTFile(mapleAllocator, i, fileNames[i]);
+    res = res && ReadASTFile(allocatorIn, i, fileNames[i]);
     RegisterFileInfo(fileNames[i]);
   }
   return res;

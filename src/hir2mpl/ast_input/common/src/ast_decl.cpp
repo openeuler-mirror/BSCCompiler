@@ -82,9 +82,9 @@ MIRConst *ASTVar::Translate2MIRConstImpl() const {
   return initExpr->GenerateMIRConst();
 }
 
-void ASTVar::GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, const UniqueFEIRVar &feirVar,
+void ASTVar::GenerateInitStmt4StringLiteral(const ASTExpr *initASTExpr, const UniqueFEIRVar &feirVar,
     const UniqueFEIRExpr &initFeirExpr, std::list<UniqueFEIRStmt> &stmts) const {
-  if (!static_cast<ASTStringLiteral*>(initASTExpr)->IsArrayToPointerDecay()) {
+  if (!static_cast<const ASTStringLiteral*>(initASTExpr)->IsArrayToPointerDecay()) {
     std::unique_ptr<std::list<UniqueFEIRExpr>> argExprList = std::make_unique<std::list<UniqueFEIRExpr>>();
     UniqueFEIRExpr dstExpr = FEIRBuilder::CreateExprAddrofVar(feirVar->Clone());
     uint32 stringLiteralSize = static_cast<FEIRExprAddrofConstArray*>(initFeirExpr.get())->GetStringLiteralSize();
@@ -138,14 +138,14 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   UniqueFEIRVar feirVar = Translate2FEIRVar();
   if (FEOptions::GetInstance().IsDbgFriendly() && !hasAddedInMIRScope) {
     FEFunction &feFunction = FEManager::GetCurrentFEFunction();
-    MIRScope *mirScope = feFunction.GetTopStmtMIRScope();
+    MIRScope *mirScope = feFunction.GetTopMIRScope();
     feFunction.AddAliasInMIRScope(mirScope, GetName(), sym);
     hasAddedInMIRScope = true;
   }
   if (variableArrayExpr != nullptr) {  // vla declaration point
     FEFunction &feFunction = FEManager::GetCurrentFEFunction();
-    if (feFunction.GetTopStmtFEIRScopePtr() != nullptr &&
-        feFunction.GetTopStmtFEIRScopePtr()->GetVLASavedStackVar() == nullptr) {
+    if (feFunction.GetTopFEIRScopePtr() != nullptr &&
+        feFunction.GetTopFEIRScopePtr()->GetVLASavedStackVar() == nullptr) {
       // stack save
       MIRType *retType = GlobalTables::GetTypeTable().GetOrCreatePointerType(
           *GlobalTables::GetTypeTable().GetPrimType(PTY_void));
@@ -156,7 +156,7 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
       stackSaveStmt->SetSrcLoc(feirVar->GetSrcLoc());
       stmts.emplace_back(std::move(stackSaveStmt));
       // push saved stack var into scope
-      feFunction.GetTopStmtFEIRScopePtr()->SetVLASavedStackVar(std::move(stackVar));
+      feFunction.GetTopFEIRScopePtr()->SetVLASavedStackVar(std::move(stackVar));
     }
     // alloca
     UniqueFEIRExpr variableArrayFEIRExpr = variableArrayExpr->Emit2FEExpr(stmts);
@@ -268,14 +268,14 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
       stmts.emplace_back(std::move(stmt));
     }
   }
-  UniqueFEIRScope scope = feFunction.PopTopStmtScope();
-  if (scope->GetVLASavedStackVar() != nullptr) {
-    auto stackRestoreStmt = scope->GenVLAStackRestoreStmt();
-    stackRestoreStmt->SetSrcLoc(astCpdStmt->GetEndLoc());
-    stmts.emplace_back(std::move(stackRestoreStmt));
-  }
+  UniqueFEIRScope scope = feFunction.PopTopScope();
   // fix int main() no return 0 and void func() no return. there are multiple branches, insert return at the end.
   if (stmts.size() == 0 || stmts.back()->GetKind() != kStmtReturn) {
+    if (scope->GetVLASavedStackVar() != nullptr) {
+      auto stackRestoreStmt = scope->GenVLAStackRestoreStmt();
+      stackRestoreStmt->SetSrcLoc(astCpdStmt->GetEndLoc());
+      stmts.emplace_back(std::move(stackRestoreStmt));
+    }
     UniqueFEIRExpr retExpr = nullptr;
     PrimType retType = typeDesc[1]->GetPrimType();
     if (retType != PTY_void) {

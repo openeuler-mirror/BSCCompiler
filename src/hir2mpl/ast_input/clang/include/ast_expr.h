@@ -331,7 +331,7 @@ class ASTUnaryOperatorExpr : public ASTExpr {
   int64 pointeeLen = 0;
 };
 
-class ASTUOMinusExpr: public ASTUnaryOperatorExpr {
+class ASTUOMinusExpr : public ASTUnaryOperatorExpr {
  public:
   explicit ASTUOMinusExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpMinus) {}
   ~ASTUOMinusExpr() = default;
@@ -340,7 +340,7 @@ class ASTUOMinusExpr: public ASTUnaryOperatorExpr {
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
 };
 
-class ASTUONotExpr: public ASTUnaryOperatorExpr {
+class ASTUONotExpr : public ASTUnaryOperatorExpr {
  public:
   explicit ASTUONotExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpNot) {}
   ~ASTUONotExpr() = default;
@@ -349,7 +349,7 @@ class ASTUONotExpr: public ASTUnaryOperatorExpr {
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
 };
 
-class ASTUOLNotExpr: public ASTUnaryOperatorExpr {
+class ASTUOLNotExpr : public ASTUnaryOperatorExpr {
  public:
   explicit ASTUOLNotExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpLNot) {}
   ~ASTUOLNotExpr() = default;
@@ -365,7 +365,7 @@ class ASTUOLNotExpr: public ASTUnaryOperatorExpr {
   uint32 falseIdx = 0;
 };
 
-class ASTUOPostIncExpr: public ASTUnaryOperatorExpr {
+class ASTUOPostIncExpr : public ASTUnaryOperatorExpr {
  public:
   explicit ASTUOPostIncExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpPostInc),
       tempVarName(FEUtils::GetSequentialName("postinc_")) {}
@@ -376,7 +376,7 @@ class ASTUOPostIncExpr: public ASTUnaryOperatorExpr {
   std::string tempVarName;
 };
 
-class ASTUOPostDecExpr: public ASTUnaryOperatorExpr {
+class ASTUOPostDecExpr : public ASTUnaryOperatorExpr {
  public:
   explicit ASTUOPostDecExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpPostDec),
       tempVarName(FEUtils::GetSequentialName("postdec_")) {}
@@ -387,7 +387,7 @@ class ASTUOPostDecExpr: public ASTUnaryOperatorExpr {
   std::string tempVarName;
 };
 
-class ASTUOPreIncExpr: public ASTUnaryOperatorExpr {
+class ASTUOPreIncExpr : public ASTUnaryOperatorExpr {
  public:
   explicit ASTUOPreIncExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpPreInc) {}
   ~ASTUOPreIncExpr() = default;
@@ -396,7 +396,7 @@ class ASTUOPreIncExpr: public ASTUnaryOperatorExpr {
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
 };
 
-class ASTUOPreDecExpr: public ASTUnaryOperatorExpr {
+class ASTUOPreDecExpr : public ASTUnaryOperatorExpr {
  public:
   explicit ASTUOPreDecExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpPreDec) {}
   ~ASTUOPreDecExpr() = default;
@@ -406,7 +406,7 @@ class ASTUOPreDecExpr: public ASTUnaryOperatorExpr {
   std::string tempVarName;
 };
 
-class ASTUOAddrOfExpr: public ASTUnaryOperatorExpr {
+class ASTUOAddrOfExpr : public ASTUnaryOperatorExpr {
  public:
   ASTUOAddrOfExpr() : ASTUnaryOperatorExpr(kASTOpAddrOf) {}
   explicit ASTUOAddrOfExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpAddrOf) {}
@@ -441,7 +441,7 @@ class ASTUOAddrOfLabelExpr : public ASTUnaryOperatorExpr {
   MapleString labelName;
 };
 
-class ASTUODerefExpr: public ASTUnaryOperatorExpr {
+class ASTUODerefExpr : public ASTUnaryOperatorExpr {
  public:
   explicit ASTUODerefExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpDeref) {}
   ~ASTUODerefExpr() = default;
@@ -452,7 +452,7 @@ class ASTUODerefExpr: public ASTUnaryOperatorExpr {
   bool InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr expr) const;
 };
 
-class ASTUOPlusExpr: public ASTUnaryOperatorExpr {
+class ASTUOPlusExpr : public ASTUnaryOperatorExpr {
  public:
   explicit ASTUOPlusExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpPlus) {}
   ~ASTUOPlusExpr() = default;
@@ -461,7 +461,7 @@ class ASTUOPlusExpr: public ASTUnaryOperatorExpr {
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
 };
 
-class ASTUORealExpr: public ASTUnaryOperatorExpr {
+class ASTUORealExpr : public ASTUnaryOperatorExpr {
  public:
   explicit ASTUORealExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpReal) {}
   ~ASTUORealExpr() = default;
@@ -475,7 +475,7 @@ class ASTUORealExpr: public ASTUnaryOperatorExpr {
   MIRType *elementType = nullptr;
 };
 
-class ASTUOImagExpr: public ASTUnaryOperatorExpr {
+class ASTUOImagExpr : public ASTUnaryOperatorExpr {
  public:
   explicit ASTUOImagExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpImag) {}
   ~ASTUOImagExpr() = default;
@@ -489,7 +489,7 @@ class ASTUOImagExpr: public ASTUnaryOperatorExpr {
   MIRType *elementType = nullptr;
 };
 
-class ASTUOExtensionExpr: public ASTUnaryOperatorExpr {
+class ASTUOExtensionExpr : public ASTUnaryOperatorExpr {
  public:
   explicit ASTUOExtensionExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpExtension) {}
   ~ASTUOExtensionExpr() = default;
@@ -498,7 +498,7 @@ class ASTUOExtensionExpr: public ASTUnaryOperatorExpr {
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
 };
 
-class ASTUOCoawaitExpr: public ASTUnaryOperatorExpr {
+class ASTUOCoawaitExpr : public ASTUnaryOperatorExpr {
  public:
   explicit ASTUOCoawaitExpr(MapleAllocator &allocatorIn) : ASTUnaryOperatorExpr(allocatorIn, kASTOpCoawait) {}
   ~ASTUOCoawaitExpr() = default;
@@ -1117,7 +1117,7 @@ class ASTCallExpr : public ASTExpr {
     return calleeExpr;
   }
 
-  void SetArgs(MapleVector<ASTExpr*> &argsVector){
+  void SetArgs(MapleVector<ASTExpr*> &argsVector) {
     args = std::move(argsVector);
   }
 
@@ -1807,4 +1807,4 @@ class ASTExprStmtExpr : public ASTExpr {
   ASTStmt *cpdStmt = nullptr;
 };
 }
-#endif //HIR2MPL_AST_INPUT_INCLUDE_AST_EXPR_H
+#endif // HIR2MPL_AST_INPUT_INCLUDE_AST_EXPR_H

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -19,6 +19,7 @@
 #include "mpl_logging.h"
 #include "feir_var.h"
 #include "feir_stmt.h"
+#include "fe_function.h"
 
 namespace maple {
 class FEIRBuilder {
@@ -142,6 +143,9 @@ class FEIRBuilder {
   static UniqueFEIRExpr ReadExprField(UniqueFEIRExpr expr, FieldID fieldID, UniqueFEIRType fieldType);
   static UniqueFEIRStmt AssginStmtField(const UniqueFEIRExpr &addrExpr, UniqueFEIRExpr srcExpr, FieldID fieldID);
   static bool IsZeroConstExpr(const UniqueFEIRExpr &expr);
+  static UniqueFEIRStmt CreateVLAStackRestore(const UniqueFEIRVar &vlaSavedStackVar);
+  static std::string EmitVLACleanupStmts(FEFunction &feFunction, const std::string &labelName, const Loc &loc);
+  static void EmitVLACleanupStmts(const FEFunction &feFunction, std::list<UniqueFEIRStmt> &stmts);
 };  // class FEIRBuilder
 }  // namespace maple
 #endif  // HIR2MPL_INCLUDE_COMMON_FEIR_BUILDER_H

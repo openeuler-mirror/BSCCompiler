@@ -946,10 +946,37 @@ FEIRStmtGotoForC::FEIRStmtGotoForC(const std::string &name)
 
 std::list<StmtNode*> FEIRStmtGotoForC::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   std::list<StmtNode*> ans;
+  GenVLACleanup(mirBuilder, ans);
   LabelIdx label = mirBuilder.GetOrCreateMIRLabel(labelName);
   GotoNode *gotoNode = mirBuilder.CreateStmtGoto(OP_goto, label);
   ans.push_back(gotoNode);
   return ans;
+}
+
+void FEIRStmtGotoForC::GenVLACleanup(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const {
+  if (vlaSvaedStackVars.empty()) {
+    return;
+  }
+  const auto &labelWithScopes = FEManager::GetCurrentFEFunction().GetLabelWithScopes();
+  const auto &iter = labelWithScopes.find(labelName);
+  if (iter == labelWithScopes.cend()) {
+    return;
+  }
+  const std::map<uint32, UniqueFEIRScope> &scopes = iter->second;
+  for (const auto &pair : vlaSvaedStackVars) {
+    // The current scope is the same, and the parent scope is also the same between goto stmt and label stmt
+    const auto &pIter = scopes.find(pair.first);
+    if (pIter != scopes.cend()) {
+      CHECK_NULL_FATAL(pIter->second);
+      const UniqueFEIRVar &vlaStackVar = pIter->second->GetVLASavedStackVar();
+      if (vlaStackVar != nullptr) {
+        break;
+      }
+    }
+    // emit vla stack restore stmt
+    auto vlaStmt = FEIRBuilder::CreateVLAStackRestore(pair.second->Clone())->GenMIRStmts(mirBuilder);
+    (void)ans.insert(ans.end(), vlaStmt.begin(), vlaStmt.end());
+  }
 }
 
 std::string FEIRStmtGotoForC::DumpDotStringImpl() const {

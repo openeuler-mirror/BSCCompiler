@@ -221,7 +221,7 @@ class ASTFunc : public ASTDecl {
     genAttrs = genAttrsIn;
     declKind = kASTFunc;
   }
-  ~ASTFunc() {
+  ~ASTFunc() override {
     compound = nullptr;
   }
   void SetCompoundStmt(ASTStmt *astCompoundStmt);
@@ -345,7 +345,7 @@ class ASTVar : public ASTDecl {
  private:
   MIRConst *Translate2MIRConstImpl() const override;
   void GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) override;
-  void GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, const UniqueFEIRVar &feirVar,
+  void GenerateInitStmt4StringLiteral(const ASTExpr *initASTExpr, const UniqueFEIRVar &feirVar,
                                       const UniqueFEIRExpr &initFeirExpr, std::list<UniqueFEIRStmt> &stmts) const;
   ASTExpr *initExpr = nullptr;
   std::string asmAttr;

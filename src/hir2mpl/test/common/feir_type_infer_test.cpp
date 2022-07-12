@@ -18,14 +18,13 @@
 #include "redirect_buffer.h"
 #include "global_tables.h"
 #include "mir_module.h"
+#define protected public
+#define private public
 #include "feir_type_helper.h"
 #include "feir_builder.h"
 #include "feir_var_type_scatter.h"
 #include "feir_dfg.h"
 #include "namemangler.h"
-
-#define protected public
-#define private public
 #include "fe_type_hierarchy.h"
 #include "feir_type_infer.h"
 

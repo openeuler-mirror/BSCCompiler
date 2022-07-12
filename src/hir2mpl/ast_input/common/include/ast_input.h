@@ -81,5 +81,4 @@ class ASTInput {
   MapleList<ASTFileScopeAsm*> astFileScopeAsms;
 };
 }
-#include "ast_input-inl.h"
 #endif  // HIR2MPL_AST_INPUT_INCLUDE_AST_INPUT_H

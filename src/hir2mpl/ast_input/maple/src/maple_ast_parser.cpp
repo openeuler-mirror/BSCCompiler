@@ -59,8 +59,6 @@ bool MapleASTParser::PreProcessAST() {
 #define MAPLE_DECL_CASE(CLASS)                                                                           \
   case maplefe::NK_##CLASS: {                                                                            \
     ASTDecl *astDecl = ProcessDecl##CLASS##Node(allocator, static_cast<maplefe::CLASS##Node*>(decl));    \
-    if (astDecl != nullptr) {                                                                            \
-    }                                                                                                    \
     return astDecl;                                                                                      \
   }
 
@@ -78,7 +76,6 @@ ASTDecl *MapleASTParser::ProcessDecl(MapleAllocator &allocator, maplefe::TreeNod
       CHECK_FATAL(false, "ASTDecl NIY");
       return nullptr;
   }
-  return nullptr;
 }
 
 ASTDecl *MapleASTParser::ProcessDeclIdentifierNode(MapleAllocator &allocator, maplefe::IdentifierNode *identifierDecl) {
@@ -223,9 +220,6 @@ ASTStmt *MapleASTParser::ProcessStmtReturnNode(MapleAllocator &allocator, maplef
 #define MAPLE_EXPR_CASE(CLASS)                                                                         \
   case maplefe::NK_##CLASS: {                                                                          \
     ASTExpr *astExpr = ProcessExpr##CLASS##Node(allocator, static_cast<maplefe::CLASS##Node*>(expr));  \
-    if (astExpr == nullptr) {                                                                          \
-      return nullptr;                                                                                  \
-    }                                                                                                  \
     return astExpr;                                                                                    \
   }
 

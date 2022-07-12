@@ -27,6 +27,7 @@
 #include "fe_manager.h"
 #include "mir_module.h"
 #include "mpl_logging.h"
+#include "fe_macros.h"
 
 namespace maple {
 std::unordered_map<std::string, ASTCallExpr::FuncPtrBuiltinFunc> ASTCallExpr::InitBuiltinFuncPtrMap() {

@@ -792,47 +792,59 @@ void FEFunction::AddLocForStmt(const FEIRStmt &stmt, std::list<StmtNode*> &mirSt
 }
 
 void FEFunction::PushFuncScope(const SrcPosition &startOfScope, const SrcPosition &endOfScope) {
-  UniqueFEIRScope feirScope = std::make_unique<FEIRScope>();
+  UniqueFEIRScope feirScope = std::make_unique<FEIRScope>(scopeID++);
   if (FEOptions::GetInstance().IsDbgFriendly()) {
     MIRScope *mirScope = mirFunction.GetScope();
     mirScope->SetRange(startOfScope, endOfScope);
     feirScope->SetMIRScope(mirScope);
   }
-  stmtsScopeStack.push(std::move(feirScope));
+  scopeStack.push_front(std::move(feirScope));
 }
 
-void FEFunction::PushStmtScope(const SrcPosition &startOfScope, const SrcPosition &endOfScope) {
-  UniqueFEIRScope feirScope = std::make_unique<FEIRScope>();
+void FEFunction::PushStmtScope(const SrcPosition &startOfScope, const SrcPosition &endOfScope, bool isControllScope) {
+  UniqueFEIRScope feirScope = std::make_unique<FEIRScope>(scopeID++);
   if (FEOptions::GetInstance().IsDbgFriendly()) {
-    MIRScope *parentMIRScope = GetTopStmtMIRScope();
+    MIRScope *parentMIRScope = GetTopMIRScope();
+    CHECK_NULL_FATAL(parentMIRScope);
     MIRScope *mirScope = mirFunction.GetModule()->GetMemPool()->New<MIRScope>(mirFunction.GetModule());
     mirScope->SetRange(startOfScope, endOfScope);
     parentMIRScope->AddScope(mirScope);
     feirScope->SetMIRScope(mirScope);
   }
-  stmtsScopeStack.push(std::move(feirScope));
+  feirScope->SetIsControllScope(isControllScope);
+  scopeStack.push_front(std::move(feirScope));
 }
 
-FEIRScope *FEFunction::GetTopStmtFEIRScopePtr() const {
-  if (!stmtsScopeStack.empty()) {
-    return stmtsScopeStack.top().get();
+void FEFunction::PushStmtScope(bool isControllScope) {
+  UniqueFEIRScope feirScope = std::make_unique<FEIRScope>(scopeID++, isControllScope);
+  scopeStack.push_front(std::move(feirScope));
+}
+
+FEIRScope *FEFunction::GetTopFEIRScopePtr() const {
+  if (!scopeStack.empty()) {
+    return scopeStack.front().get();
   }
   CHECK_FATAL(false, "scope stack is empty");
   return nullptr;
 }
 
-MIRScope *FEFunction::GetTopStmtMIRScope() const {
-  if (!stmtsScopeStack.empty()) {
-    return stmtsScopeStack.top().get()->GetMIRScope();
+MIRScope *FEFunction::GetTopMIRScope() const {
+  if (scopeStack.empty()) {
+    CHECK_FATAL(false, "scope stack is empty");
+    return nullptr;
   }
-  CHECK_FATAL(false, "scope stack is empty");
+  for (const auto &feirScope : scopeStack) {
+    if (feirScope->GetMIRScope() != nullptr) {
+      return feirScope->GetMIRScope();
+    }
+  }
   return nullptr;
 }
 
-UniqueFEIRScope FEFunction::PopTopStmtScope() {
-  if (!stmtsScopeStack.empty()) {
-    UniqueFEIRScope scope = std::move(stmtsScopeStack.top());
-    stmtsScopeStack.pop();
+UniqueFEIRScope FEFunction::PopTopScope() {
+  if (!scopeStack.empty()) {
+    UniqueFEIRScope scope = std::move(scopeStack.front());
+    scopeStack.pop_front();
     return scope;
   }
   CHECK_FATAL(false, "scope stack is empty");
@@ -846,5 +858,10 @@ void FEFunction::AddAliasInMIRScope(MIRScope *scope, const std::string &srcVarNa
   aliasVar.mplStrIdx = symbol->GetNameStrIdx();
   aliasVar.isLocal = symbol->IsLocal();
   scope->SetAliasVarMap(nameIdx, aliasVar);
+};
+
+void FEFunction::AddVLACleanupStmts(std::list<UniqueFEIRStmt> &stmts) {
+  (void)stmts;
+  CHECK_FATAL(false, "AddVLACleanupStmts only support astfunction");
 };
 }  // namespace maple

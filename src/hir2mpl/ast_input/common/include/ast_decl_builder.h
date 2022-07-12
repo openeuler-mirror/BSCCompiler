@@ -111,7 +111,7 @@ class ASTDeclsBuilder {
     return static_cast<ASTStruct*>(declesTable[id]);
   }
 
-  static ASTField * ASTFieldBuilder(const MapleAllocator &allocator, const MapleString &srcFile,
+  static ASTField *ASTFieldBuilder(const MapleAllocator &allocator, const MapleString &srcFile,
                                    const std::string &varName, const MapleVector<MIRType*> &desc,
                                    const GenericAttrs &genAttrsIn, int64 id = INT64_MAX,
                                    bool isAnonymous = false) {

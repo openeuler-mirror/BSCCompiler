@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -717,5 +717,55 @@ bool FEIRBuilder::IsZeroConstExpr(const std::unique_ptr<FEIRExpr> &expr) {
     return true;
   }
   return false;
+}
+
+UniqueFEIRStmt FEIRBuilder::CreateVLAStackRestore(const UniqueFEIRVar &vlaSavedStackVar) {
+  UniqueFEIRExpr dreadVar = FEIRBuilder::CreateExprDRead(vlaSavedStackVar->Clone());
+  std::unique_ptr<std::list<UniqueFEIRExpr>> argExprList = std::make_unique<std::list<UniqueFEIRExpr>>();
+  argExprList->emplace_back(std::move(dreadVar));
+  return std::make_unique<FEIRStmtIntrinsicCallAssign>(INTRN_C_stack_restore, nullptr, nullptr,
+                                                       std::move(argExprList));
+}
+
+std::string FEIRBuilder::EmitVLACleanupStmts(FEFunction &feFunction, const std::string &labelName, const Loc &loc) {
+  std::list<UniqueFEIRStmt> stmts;
+  bool isVlaCleanup = false;
+  std::string vlaLabelName = "";
+  for (const auto &scope : feFunction.GetScopeStack()) {
+    if (scope->GetVLASavedStackVar() != nullptr) {
+      if (!isVlaCleanup) {
+        // label vla_cleanup
+        vlaLabelName = FEUtils::GetSequentialName("vla_cleanup.");
+        auto vlaLabelStmt = std::make_unique<FEIRStmtLabel>(vlaLabelName);
+        (void)stmts.emplace_back(std::move(vlaLabelStmt));
+      }
+      // vla stack restore
+      isVlaCleanup = true;
+      auto stackRestoreStmt = scope->GenVLAStackRestoreStmt();
+      (void)stmts.emplace_back(std::move(stackRestoreStmt));
+    }
+    if (scope->IsControllScope()) {
+      break;
+    }
+  }
+  if (isVlaCleanup) {
+    // goto last label name
+    auto gotoStmt = FEIRBuilder::CreateStmtGoto(labelName);
+    stmts.emplace_back(std::move(gotoStmt));
+    for (const auto &stmt : stmts) {
+      stmt->SetSrcLoc(loc);
+    }
+    feFunction.AddVLACleanupStmts(stmts);
+  }
+  return vlaLabelName;
+}
+
+void FEIRBuilder::EmitVLACleanupStmts(const FEFunction &feFunction, std::list<UniqueFEIRStmt> &stmts) {
+  for (const auto &scope : feFunction.GetScopeStack()) {
+    if (scope->GetVLASavedStackVar() != nullptr) {
+      auto stackRestoreStmt = scope->GenVLAStackRestoreStmt();
+      (void)stmts.emplace_back(std::move(stackRestoreStmt));
+    }
+  }
 }
 }  // namespace maple

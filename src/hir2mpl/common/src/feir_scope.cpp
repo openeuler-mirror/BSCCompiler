@@ -16,14 +16,17 @@
 #include "feir_builder.h"
 
 namespace maple {
-FEIRScope::FEIRScope(MIRScope *scope) : mirScope(scope) {}
+UniqueFEIRScope FEIRScope::Clone() const {
+  UniqueFEIRScope scope = std::make_unique<FEIRScope>(id, mirScope);
+  scope->SetIsControllScope(isControllScope);
+  if (vlaSavedStackVar != nullptr) {
+    scope->SetVLASavedStackVar(vlaSavedStackVar->Clone());
+  }
+  return scope;
+}
 
 UniqueFEIRStmt FEIRScope::GenVLAStackRestoreStmt() const {
   CHECK_NULL_FATAL(vlaSavedStackVar);
-  UniqueFEIRExpr dreadVar = FEIRBuilder::CreateExprDRead(vlaSavedStackVar->Clone());
-  std::unique_ptr<std::list<UniqueFEIRExpr>> argExprList = std::make_unique<std::list<UniqueFEIRExpr>>();
-  argExprList->emplace_back(std::move(dreadVar));
-  return std::make_unique<FEIRStmtIntrinsicCallAssign>(INTRN_C_stack_restore, nullptr, nullptr,
-                                                       std::move(argExprList));
+  return FEIRBuilder::CreateVLAStackRestore(vlaSavedStackVar->Clone());
 }
 }

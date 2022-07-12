@@ -316,7 +316,7 @@ std::string ASTCallExpr::CvtBuiltInFuncName(std::string builtInName) const {
 #undef BUILTIN_FUNC
   };
   std::map<std::string, std::string>::const_iterator it = cvtMap.find(builtInName);
-  if (it != cvtMap.end()) {
+  if (it != cvtMap.cend()) {
     return cvtMap.find(builtInName)->second;
   } else {
     return builtInName;
@@ -926,14 +926,14 @@ UniqueFEIRExpr ASTUORealExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) 
 }
 
 UniqueFEIRExpr ASTUOImagExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
-  ASTExpr *childExpr = expr;
-  ASTOp astOP = childExpr->GetASTOp();
+  ASTExpr *childrenExpr = expr;
+  ASTOp astOP = childrenExpr->GetASTOp();
   UniqueFEIRExpr subFEIRExpr;
-  if (astOP == kASTStringLiteral || astOP == kASTIntegerLiteral || astOP == kASTFloatingLiteral ||
-      astOP == kASTCharacterLiteral || astOP == kASTImaginaryLiteral) {
-    subFEIRExpr = childExpr->Emit2FEExpr(stmts);
+  if (astOP == kASTStringLiteral || astOP == kASTCharacterLiteral || astOP == kASTImaginaryLiteral ||
+      astOP == kASTIntegerLiteral || astOP == kASTFloatingLiteral) {
+    subFEIRExpr = childrenExpr->Emit2FEExpr(stmts);
   } else {
-    subFEIRExpr = childExpr->Emit2FEExpr(stmts);
+    subFEIRExpr = childrenExpr->Emit2FEExpr(stmts);
     FEIRNodeKind subNodeKind = subFEIRExpr->GetKind();
     if (subNodeKind == kExprIRead) {
       static_cast<FEIRExprIRead*>(subFEIRExpr.get())->SetFieldID(kComplexImagID);

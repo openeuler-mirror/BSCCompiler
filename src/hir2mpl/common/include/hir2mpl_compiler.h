@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -26,6 +26,7 @@
 #include "ark_annotation_processor.h"
 #include "dex_reader.h"
 #include "ast_compiler_component.h"
+#include "ast_compiler_component-inl.h"
 #include "ast_parser.h"
 #ifdef ENABLE_MAST
 #include "maple_ast_parser.h"

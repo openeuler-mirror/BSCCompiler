@@ -1998,6 +1998,10 @@ class FEIRStmtGotoForC : public FEIRStmt {
     return labelName;
   }
 
+  void AddVLASvaedStackVars(uint32 scopeID, UniqueFEIRVar vlaSavedStackVar) {
+    vlaSvaedStackVars.emplace_back(std::make_pair(scopeID, std::move(vlaSavedStackVar)));
+  }
+
  protected:
   bool IsFallThroughImpl() const override {
     return false;
@@ -2009,7 +2013,12 @@ class FEIRStmtGotoForC : public FEIRStmt {
 
   std::string DumpDotStringImpl() const override;
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
+
+ private:
+  void GenVLACleanup(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
+
   std::string labelName;
+  std::vector<std::pair<uint32, UniqueFEIRVar>> vlaSvaedStackVars;
 };
 
 // ---------- FEIRStmtIGoto ----------
