@@ -43,18 +43,17 @@ constexpr uint32_t kMemsetSSrcSizeOpndIdx = 3;
 
 // Truncate the constant field of 'union' if it's written as scalar type (e.g. int),
 // but accessed as bit-field type with smaller size.
-//
-// Return the truncated constant or nullptr if the constant doesn't need to be truncated.
+// Return the truncated constant or the original constant 'fieldCst' if the constant doesn't need to be truncated.
 MIRConst *TruncateUnionConstant(const MIRStructType &unionType, MIRConst *fieldCst, const MIRType &unionFieldType) {
-  if (unionType.GetKind() != kTypeUnion) {
-    return nullptr;
+  if (!fieldCst || unionType.GetKind() != kTypeUnion) {
+    return fieldCst;
   }
 
   auto *bitFieldType = safe_cast<MIRBitFieldType>(unionFieldType);
   auto *intCst = safe_cast<MIRIntConst>(fieldCst);
 
   if (!bitFieldType || !intCst) {
-    return nullptr;
+    return fieldCst;
   }
 
   bool isBigEndian = MeOption::IsBigEndian() || Options::IsBigEndian();
@@ -63,7 +62,7 @@ MIRConst *TruncateUnionConstant(const MIRStructType &unionType, MIRConst *fieldC
   uint8 bitSize = bitFieldType->GetFieldSize();
 
   if (bitSize >= val.GetBitWidth()) {
-    return nullptr;
+    return fieldCst;
   }
 
   if (isBigEndian) {
@@ -620,19 +619,15 @@ MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst *mirCon
     ASSERT_NOT_NULL(currAggConst);
     auto* currAggType = safe_cast<MIRStructType>(currAggConst->GetType());
     ASSERT_NOT_NULL(currAggType);
-    for (size_t iter = 0; iter < currAggType->GetFieldsSize() && !hasReached; ++iter) {
-      size_t constIdx = currAggType->GetKind() == kTypeUnion ? 1 : iter + 1;
+    for (unsigned iter = 0; iter < currAggType->GetFieldsSize() && !hasReached; ++iter) {
+      unsigned constIdx = currAggType->GetKind() == kTypeUnion ? 1 : iter + 1;
       auto *fieldConst = currAggConst->GetAggConstElement(constIdx);
       auto *fieldType = originAggType.GetFieldType(currFieldId);
 
       if (currFieldId == fieldId) {
-        if (auto *truncCst = TruncateUnionConstant(*currAggType, fieldConst, *fieldType)) {
-          resultConst = truncCst;
-        } else {
-          resultConst = fieldConst;
-        }
-
+        resultConst = TruncateUnionConstant(*currAggType, fieldConst, *fieldType);
         hasReached = true;
+
         return;
       }
 
@@ -1641,7 +1636,6 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
     LogInfo::MapleLogger() << "[funcName] " << func->GetName() << std::endl;
     stmt.Dump(0);
   }
-
 
   StmtNode *memsetCallStmt = &stmt;
   if (memOpKind == MEM_OP_memset_s && !isLowLevel) {
