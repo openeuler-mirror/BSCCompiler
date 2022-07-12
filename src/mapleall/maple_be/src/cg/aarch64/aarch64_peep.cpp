@@ -371,6 +371,10 @@ bool NegCmpToCmnPattern::CheckCondition(Insn &insn) {
       prevMop != MOP_winegrrs && prevMop != MOP_xinegrrs) {
     return false;
   }
+  if ((prevMop == MOP_winegrr && curMop == MOP_xcmprr) || (prevMop == MOP_winegrrs && curMop == MOP_xcmprr) ||
+      (prevMop == MOP_xinegrr && curMop == MOP_wcmprr) || (prevMop == MOP_winegrrs && curMop == MOP_xcmprr)) {
+    return false;
+  }
   auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   InsnSet useInsns = GetAllUseInsn(ccReg);
   for (auto *useInsn : useInsns) {
@@ -2910,6 +2914,7 @@ void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
   auto &regOpnd0 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   auto &regOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   if (prevInsn->IsCall() &&
+      prevInsn->GetIsCallReturnUnsigned() &&
       regOpnd0.GetRegisterNumber() == regOpnd1.GetRegisterNumber() &&
       (regOpnd1.GetRegisterNumber() == R0 || regOpnd1.GetRegisterNumber() == V0)) {
     uint32 retSize = prevInsn->GetRetSize();
