@@ -64,15 +64,15 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGF
         continue;
       }
       if (ofstOpnd->GetVary() == kUnAdjustVary) {
-        ofstOpnd->AdjustOffset(static_cast<int32>(static_cast<AArch64MemLayout*>(memLayout)->RealStackFrameSize()
-            - memLayout->SizeOfArgsToStackPass()));
+        ofstOpnd->AdjustOffset(static_cast<int32>(static_cast<AArch64MemLayout*>(memLayout)->RealStackFrameSize() -
+            memLayout->SizeOfArgsToStackPass()));
         ofstOpnd->SetVary(kAdjustVary);
       }
       if (!stackBaseOpnd && (ofstOpnd->GetVary() == kAdjustVary || ofstOpnd->GetVary() == kNotVary)) {
         bool condition = aarchCGFunc.IsOperandImmValid(insn.GetMachineOpcode(), &memOpnd, i);
         if (!condition) {
           MemOperand &newMemOpnd = aarchCGFunc.SplitOffsetWithAddInstruction(
-              memOpnd, memOpnd.GetSize(), static_cast<AArch64reg>(R16), false, &insn);
+              memOpnd, memOpnd.GetSize(), static_cast<AArch64reg>(R16), false, &insn, insn.IsLoadStorePair());
           insn.SetOperand(i, newMemOpnd);
         }
       }
