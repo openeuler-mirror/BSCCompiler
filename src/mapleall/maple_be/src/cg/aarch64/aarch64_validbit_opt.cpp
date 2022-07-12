@@ -171,6 +171,14 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       dstOpnd.SetValidBitsNum(newVB);
       break;
     }
+    case MOP_wrevrr16: {
+      auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+      auto &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+      if (srcOpnd.GetValidBitsNum() <= k16BitSize) {
+        dstOpnd.SetValidBitsNum(k16BitSize);
+      }
+      break;
+    }
     default:
       break;
   }
@@ -344,7 +352,7 @@ void ExtValidBitPattern::Run(BB &bb, Insn &insn) {
       bb.ReplaceInsn(insn, newInsn);
       /* update ssa info */
       ssaInfo->ReplaceInsn(insn, newInsn);
-      if (newDstOpnd->GetSize() > newSrcOpnd->GetSize()) {
+      if (newDstOpnd->GetSize() > newSrcOpnd->GetSize() || newDstOpnd->GetSize() != newDstOpnd->GetValidBitsNum()) {
         ssaInfo->InsertSafePropInsn(newInsn.GetId());
       }
       /* dump pattern info */
