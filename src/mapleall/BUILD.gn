@@ -92,6 +92,10 @@ config("mapleallcompilecfg") {
       "-ftest-coverage"
     ]
   }
+  if (GPROF == 1) {
+    ldflags += ["-pg"]
+    cflags_cc += ["-pg"]
+  }
 
   if (MAJOR_VERSION != "") {
     cflags_cc += [ "-DMAJOR_VERSION=${MAJOR_VERSION}", ]

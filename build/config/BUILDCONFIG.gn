@@ -34,6 +34,7 @@ declare_args() {
   ASAN = 0
   ONLY_C = 0
   COV = 0
+  GPROF = 0
 }
 
 # Define global args
