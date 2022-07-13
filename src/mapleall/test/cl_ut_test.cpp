@@ -30,7 +30,7 @@ static bool utCLTypeChecker = false;
 
 /* You can create own OptionType and Set own Option Parser for him, like this: */
 class UTCLType {
-public:
+ public:
   UTCLType() = default;
   UTCLType(const std::string &data) : data(data) {};
 
@@ -57,8 +57,7 @@ std::vector<std::string> maplecl::Option<UTCLType>::GetRawValues() {
 
 template <>
 maplecl::RetCode maplecl::Option<UTCLType>::Parse(ssize_t &argsIndex,
-                                        const std::deque<std::string_view> &args,
-                                        KeyArg &keyArg) {
+    const std::deque<std::string_view> &args, KeyArg &keyArg) {
   utCLTypeChecker = true;
   RetCode err = maplecl::RetCode::noError;
 

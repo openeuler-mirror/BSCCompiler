@@ -37,7 +37,7 @@ class PhaseDriver : public MplScheduler {
  public:
   class Task : public MplTask {
    public:
-    Task(void *currTarget, void *currParamEx = nullptr) : target(currTarget), paramException(currParamEx) {}
+    explicit Task(void *currTarget, void *currParamEx = nullptr) : target(currTarget), paramException(currParamEx) {}
 
     ~Task() = default;
 
@@ -60,7 +60,7 @@ class PhaseDriver : public MplScheduler {
   explicit PhaseDriver(const std::string &phaseName);
   virtual ~PhaseDriver() = default;
 
-  virtual void RunAll(MIRModule *module, int thread, bool bSeq = false);
+  virtual void RunAll(MIRModule *currModule, int thread, bool bSeq = false);
   virtual void RunSerial();
   virtual void RunParallel(int thread, bool bSeq = false);
   virtual PhaseDriverImpl *NewPhase() = 0;

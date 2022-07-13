@@ -26,7 +26,7 @@
 namespace maple {
 using MaplePhaseID = const void *;
 class MaplePhase;
-typedef MaplePhase* (*MaplePhase_t)(MemPool*);
+using MaplePhaseT = MaplePhase* (*) (MemPool*);
 
 // base class of analysisPhase's result
 class AnalysisResult {
@@ -65,13 +65,19 @@ class MaplePhaseInfo {
     constructor = nullptr;
     phaseID = nullptr;
   };
-  MaplePhaseID GetPhaseID() const {
+  MaplePhaseID GetPhaseID() {
     return phaseID;
   }
-  void SetConstructor(MaplePhase_t newConstructor) {
+  const MaplePhaseID GetPhaseID() const {
+    return phaseID;
+  }
+  void SetConstructor(MaplePhaseT newConstructor) {
     constructor = newConstructor;
   }
-  MaplePhase_t GetConstructor() const {
+  MaplePhaseT GetConstructor() {
+    return constructor;
+  }
+  const MaplePhaseT GetConstructor() const {
     return constructor;
   }
   bool IsAnalysis() const {
@@ -86,7 +92,7 @@ class MaplePhaseInfo {
   bool CanSkip() const {
     return canSkip;
   }
-  MaplePhase_t constructor = nullptr;
+  MaplePhaseT constructor = nullptr;
  private:
   std::string phaseName;
   MaplePhaseID phaseID;
@@ -97,7 +103,7 @@ class MaplePhaseInfo {
 
 class PhaseTimeHandler {
  public:
-  PhaseTimeHandler(MemPool &memPool, uint32 threadNum = 1)
+  explicit PhaseTimeHandler(MemPool &memPool, uint32 threadNum = 1)
       : allocator(&memPool),
         phaseTimeRecord(allocator.Adapter()),
         originOrder(allocator.Adapter()),
@@ -106,7 +112,7 @@ class PhaseTimeHandler {
       isMultithread = true;
     }
   }
-
+  virtual ~PhaseTimeHandler() = default;
   void RunBeforePhase(const MaplePhaseInfo &pi);
   void RunAfterPhase(const MaplePhaseInfo &pi);
   void DumpPhasesTime();
@@ -128,6 +134,7 @@ class AnalysisDep {
         required(allocator.Adapter()),
         preserved(allocator.Adapter()),
         preservedExcept(allocator.Adapter()) {};
+  virtual ~AnalysisDep() = default;
   template<class PhaseT>
   void AddRequired() {
     required.emplace_back(&PhaseT::id);

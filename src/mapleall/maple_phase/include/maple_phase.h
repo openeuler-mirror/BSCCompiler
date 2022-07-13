@@ -41,7 +41,10 @@ class MaplePhase {
     }
   };
   void Dump() const;
-  MaplePhaseID GetPhaseID() const {
+  MaplePhaseID GetPhaseID() {
+    return phaseID;
+  }
+  const MaplePhaseID GetPhaseID() const {
     return phaseID;
   }
   void SetPhaseID(MaplePhaseID id) {
@@ -103,7 +106,7 @@ class MaplePhaseRegister {
   ~MaplePhaseRegister() = default;
 
   static MaplePhaseRegister *GetMaplePhaseRegister();
-  void RegisterPhase(const MaplePhaseInfo &PI);
+  void RegisterPhase(const MaplePhaseInfo &pi);
   const MaplePhaseInfo *GetPhaseByID(MaplePhaseID id);
   const auto &GetAllPassInfo() const {
     return passInfoMap;
@@ -115,8 +118,8 @@ class MaplePhaseRegister {
 template<typename phaseNameT>
 class RegisterPhase : public MaplePhaseInfo {
  public:
-  RegisterPhase(const std::string name, bool isAnalysis = false, bool CFGOnly = false, bool canSkip = false)
-      : MaplePhaseInfo(name, &phaseNameT::id, isAnalysis, CFGOnly, canSkip) {
+  explicit RegisterPhase(const std::string name, bool isAnalysis = false, bool cfgOnly = false, bool canSkip = false)
+      : MaplePhaseInfo(name, &phaseNameT::id, isAnalysis, cfgOnly, canSkip) {
     SetConstructor(phaseNameT::CreatePhase);
     auto globalRegistry = maple::MaplePhaseRegister::GetMaplePhaseRegister();
     globalRegistry->RegisterPhase(*this);

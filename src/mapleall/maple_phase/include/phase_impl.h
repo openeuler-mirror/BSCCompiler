@@ -22,7 +22,7 @@
 namespace maple {
 class FuncOptimizeImpl : public MplTaskParam {
  public:
-  FuncOptimizeImpl(MIRModule &mod, KlassHierarchy *kh = nullptr, bool trace = false);
+  explicit FuncOptimizeImpl(MIRModule &mod, KlassHierarchy *kh = nullptr, bool currTrace = false);
   virtual ~FuncOptimizeImpl();
   // Each phase needs to implement its own Clone
   virtual FuncOptimizeImpl *Clone() = 0;
@@ -32,6 +32,10 @@ class FuncOptimizeImpl : public MplTaskParam {
 
   const MIRModule &GetMIRModule() const {
     return *module;
+  }
+
+  void SetDump(bool dumpFunc) {
+    dump = dumpFunc;
   }
 
   virtual void CreateLocalBuilder(pthread_mutex_t &mtx);
@@ -46,14 +50,20 @@ class FuncOptimizeImpl : public MplTaskParam {
     module->SetCurFunction(&func);
   }
 
+  void SetCurrentBlock(BlockNode &block) {
+    currBlock = &block;
+  }
+
   virtual void ProcessBlock(StmtNode &stmt);
   // Each phase needs to implement its own ProcessStmt
   virtual void ProcessStmt(StmtNode&) {}
 
   KlassHierarchy *klassHierarchy = nullptr;
   MIRFunction *currFunc = nullptr;
+  BlockNode *currBlock = nullptr;
   MIRBuilderExt *builder = nullptr;
   bool trace = false;
+  bool dump = false;
 
  private:
   MIRModule *module = nullptr;

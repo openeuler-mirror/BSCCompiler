@@ -49,7 +49,7 @@ class AnalysisDataManager {
   void EraseAnalysisPhase(uint32 phaseKey, MaplePhaseID pid);
   void EraseAllAnalysisPhase();
   void EraseAnalysisPhase(MapleMap<AnalysisMemKey, MaplePhase*>::iterator &anaPhaseMapIt);
-  void ClearInVaildAnalysisPhase(uint32 phaseKey, AnalysisDep &ADep);                      // do after transform phase;
+  void ClearInVaildAnalysisPhase(uint32 phaseKey, AnalysisDep &aDep);                      // do after transform phase;
   MaplePhase *GetVaildAnalysisPhase(uint32 phaseKey, MaplePhaseID pid);
   bool IsAnalysisPhaseAvailable(uint32 phaseKey, MaplePhaseID pid);
   void Dump();
@@ -104,7 +104,7 @@ class MaplePhaseManager {
     return quiet;
   }
 
-  void LogDependence(const MaplePhaseInfo *curPhase, int depLev) {
+  void LogDependence(const MaplePhaseInfo *curPhase, int depLev) const {
     std::string prefix = "";
     while (depLev > 0) {
       prefix += "  ";
@@ -201,7 +201,7 @@ class AnalysisInfoHook {
 
   /* Find analysis Data which is at higher IR level */
   template <typename AIMPHASE, typename IRUnit>
-  MaplePhase *GetOverIRAnalyisData(const IRUnit &u) {
+  MaplePhase *GetOverIRAnalyisData(const IRUnit &u) const {
     MaplePhase *it = dynamic_cast<MaplePhase*>(bindingPM);
     ASSERT(it != nullptr, "find Over IR info failed");
     return it->GetAnalysisInfoHook()->FindAnalysisData(u.GetUniqueID(), it, &AIMPHASE::id);
@@ -224,7 +224,7 @@ class AnalysisInfoHook {
     return curHook->FindAnalysisData(u.GetUniqueID(), curPhase, &AIMPHASE::id);
   }
 
-  MemPool *GetOverIRMempool() {
+  MemPool *GetOverIRMempool() const {
     return bindingPM->GetManagerMemPool();
   }
 

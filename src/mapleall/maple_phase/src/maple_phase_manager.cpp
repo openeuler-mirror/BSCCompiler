@@ -81,10 +81,10 @@ void AnalysisDataManager::EraseAnalysisPhase(MapleMap<AnalysisMemKey, MaplePhase
   }
 }
 
-void AnalysisDataManager::ClearInVaildAnalysisPhase(uint32 phaseKey, AnalysisDep &ADep) {
-  if (!ADep.GetPreservedAll()) {
+void AnalysisDataManager::ClearInVaildAnalysisPhase(uint32 phaseKey, AnalysisDep &aDep) {
+  if (!aDep.GetPreservedAll()) {
     // delete phases which are not preserved
-    if (ADep.GetPreservedPhase().empty()) {
+    if (aDep.GetPreservedPhase().empty()) {
       for (auto it = availableAnalysisPhases.begin(); it != availableAnalysisPhases.end();) {
         if (it->first.first == phaseKey) {
           EraseAnalysisPhase(it);
@@ -94,15 +94,15 @@ void AnalysisDataManager::ClearInVaildAnalysisPhase(uint32 phaseKey, AnalysisDep
       }
     }
     for (auto it = availableAnalysisPhases.begin(); it != availableAnalysisPhases.end();) {
-      if (!ADep.FindIsPreserved((it->first).second) && it->first.first == phaseKey) {
+      if (!aDep.FindIsPreserved((it->first).second) && it->first.first == phaseKey) {
         EraseAnalysisPhase(it);
       } else {
         ++it;
       }
     }
   } else {
-    if (!ADep.GetPreservedExceptPhase().empty()) {
-      for (auto exceptPhaseID : ADep.GetPreservedExceptPhase()) {
+    if (!aDep.GetPreservedExceptPhase().empty()) {
+      for (auto exceptPhaseID : aDep.GetPreservedExceptPhase()) {
         auto it = availableAnalysisPhases.find(AnalysisMemKey(phaseKey, exceptPhaseID));
         if (it != availableAnalysisPhases.end()) {
           EraseAnalysisPhase(it);
