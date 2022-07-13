@@ -1494,7 +1494,7 @@ bool CGFunc::CheckSkipMembarOp(const StmtNode &stmt) {
     return true;
   }
   if ((opCode == OP_membarstorestore) && func.IsConstructor() && MemBarOpt(stmt)) {
-    return true;;
+    return true;
   }
 #if TARGAARCH64 || TARGRISCV64
   if ((!CGOptions::UseBarriersForVolatile()) && (nextStmt->GetOpCode() == OP_membaracquire)) {
@@ -2122,8 +2122,7 @@ void CGFunc::HandleFunction() {
   /* select instruction */
   GenerateInstruction();
   /* merge multi return */
-  if (!func.GetModule()->IsCModule() || (func.GetModule()->IsCModule() && (NumBBs() < kNumBBOptReturn)) ||
-      CGOptions::DoRetMerge() || CGOptions::OptimizeForSize()) {
+  if (!func.GetModule()->IsCModule() || CGOptions::DoRetMerge() || CGOptions::OptimizeForSize()) {
     MergeReturn();
   }
   if (func.IsJava()) {
@@ -2215,7 +2214,7 @@ void CGFunc::DumpCFG() const {
 }
 
 void CGFunc::DumpCGIR(bool withTargetInfo) const {
-  MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());;
+  MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());
   ASSERT(funcSt != nullptr, "null ptr check");
   LogInfo::MapleLogger() << "\n******  CGIR for " << funcSt->GetName() << " *******\n";
   FOR_ALL_BB_CONST(bb, this) {
