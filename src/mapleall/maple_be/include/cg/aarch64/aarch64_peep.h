@@ -1321,43 +1321,6 @@ class ElimDuplicateExtensionAArch64 : public PeepPattern {
 };
 
 /*
- *  cmp  w0, #0
- *  cset w1, NE --> mov w1, w0
- *
- *  cmp  w0, #0
- *  cset w1, EQ --> eor w1, w0, 1
- *
- *  cmp  w0, #1
- *  cset w1, NE --> eor w1, w0, 1
- *
- *  cmp  w0, #1
- *  cset w1, EQ --> mov w1, w0
- *
- *  cmp w0,  #0
- *  cset w0, NE -->null
- *
- *  cmp w0, #1
- *  cset w0, EQ -->null
- *
- *  condition:
- *    1. the first operand of cmp instruction must has only one valid bit
- *    2. the second operand of cmp instruction must be 0 or 1
- *    3. flag register of cmp isntruction must not be used later
- */
-class CmpCsetAArch64 : public PeepPattern {
- public:
-  explicit CmpCsetAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~CmpCsetAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
-
- private:
-  bool CheckOpndDefPoints(Insn &checkInsn, int opndIdx) const;
-  const Insn *DefInsnOfOperandInBB(const Insn &startInsn, const Insn &checkInsn, int opndIdx) const;
-  bool OpndDefByOneValidBit(const Insn &defInsn) const;
-  bool FlagUsedLaterInCurBB(const BB &bb, Insn &startInsn) const;
-};
-
-/*
  *  add     x0, x1, x0
  *  ldr     x2, [x0]
  *  ==>

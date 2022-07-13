@@ -371,6 +371,11 @@ bool NegCmpToCmnPattern::CheckCondition(Insn &insn) {
       prevMop != MOP_winegrrs && prevMop != MOP_xinegrrs) {
     return false;
   }
+  // Determine whether implicit conversion is existed.
+  if ((prevMop == MOP_winegrr && curMop == MOP_xcmprr) || (prevMop == MOP_winegrrs && curMop == MOP_xcmprr) ||
+      (prevMop == MOP_xinegrr && curMop == MOP_wcmprr) || (prevMop == MOP_winegrrs && curMop == MOP_xcmprr)) {
+    return false;
+  }
   auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   InsnSet useInsns = GetAllUseInsn(ccReg);
   for (auto *useInsn : useInsns) {
@@ -2047,7 +2052,6 @@ void AArch64PeepHole::Run(BB &bb, Insn &insn) {
 void AArch64PeepHole0::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
   optimizations[kRemoveIdenticalLoadAndStoreOpt] = optOwnMemPool->New<RemoveIdenticalLoadAndStoreAArch64>(cgFunc);
-  optimizations[kCmpCsetOpt] = optOwnMemPool->New<CmpCsetAArch64>(cgFunc);
   optimizations[kComplexMemOperandOptAdd] = optOwnMemPool->New<ComplexMemOperandAddAArch64>(cgFunc);
   optimizations[kDeleteMovAfterCbzOrCbnzOpt] = optOwnMemPool->New<DeleteMovAfterCbzOrCbnzAArch64>(cgFunc);
   optimizations[kRemoveSxtBeforeStrOpt] = optOwnMemPool->New<RemoveSxtBeforeStrAArch64>(cgFunc);
@@ -2060,11 +2064,6 @@ void AArch64PeepHole0::Run(BB &bb, Insn &insn) {
     case MOP_xstr:
     case MOP_wstr: {
       (static_cast<RemoveIdenticalLoadAndStoreAArch64*>(optimizations[kRemoveIdenticalLoadAndStoreOpt]))->Run(bb, insn);
-      break;
-    }
-    case MOP_wcmpri:
-    case MOP_xcmpri: {
-      (static_cast<CmpCsetAArch64*>(optimizations[kCmpCsetOpt]))->Run(bb, insn);
       break;
     }
     case MOP_xaddrrr: {
@@ -4071,199 +4070,6 @@ void ElimDuplicateExtensionAArch64::Run(BB &bb, Insn &insn) {
         }
       }
       break;
-    }
-  }
-}
-
-/*
- * if there is define point of checkInsn->GetOperand(opndIdx) between startInsn and  firstInsn
- * return define insn. else return nullptr
- */
-const Insn *CmpCsetAArch64::DefInsnOfOperandInBB(const Insn &startInsn, const Insn &checkInsn, int opndIdx) const {
-  Insn *prevInsn = nullptr;
-  for (const Insn *insn = &startInsn; insn != nullptr; insn = prevInsn) {
-    prevInsn = insn->GetPreviousMachineInsn();
-    if (!insn->IsMachineInstruction()) {
-      continue;
-    }
-    /* checkInsn.GetOperand(opndIdx) is thought modified conservatively */
-    if (insn->IsCall()) {
-      return insn;
-    }
-    const AArch64MD *md = &AArch64CG::kMd[static_cast<const AArch64Insn*>(insn)->GetMachineOpcode()];
-    uint32 opndNum = insn->GetOperandSize();
-    for (uint32 i = 0; i < opndNum; ++i) {
-      Operand &opnd = insn->GetOperand(i);
-      OpndProp *regProp = md->operand[i];
-      if (!regProp->IsDef()) {
-        continue;
-      }
-      /* Operand is base reg of Memory, defined by str */
-      if (opnd.IsMemoryAccessOperand()) {
-        auto &memOpnd = static_cast<MemOperand&>(opnd);
-        RegOperand *base = memOpnd.GetBaseRegister();
-        ASSERT(base != nullptr, "nullptr check");
-        ASSERT(base->IsRegister(), "expects RegOperand");
-        if (RegOperand::IsSameRegNO(*base, checkInsn.GetOperand(static_cast<uint32>(opndIdx))) &&
-            memOpnd.GetAddrMode() == MemOperand::kAddrModeBOi &&
-            (memOpnd.IsPostIndexed() || memOpnd.IsPreIndexed())) {
-          return insn;
-        }
-      } else {
-        ASSERT(opnd.IsRegister(), "expects RegOperand");
-        if (RegOperand::IsSameRegNO(checkInsn.GetOperand(static_cast<uint32>(opndIdx)), opnd)) {
-          return insn;
-        }
-      }
-    }
-  }
-  return nullptr;
-}
-
-bool CmpCsetAArch64::OpndDefByOneValidBit(const Insn &defInsn) const {
-  MOperator defMop = defInsn.GetMachineOpcode();
-  switch (defMop) {
-    case MOP_wcsetrc:
-    case MOP_xcsetrc:
-      return true;
-    case MOP_xmovri32:
-    case MOP_xmovri64: {
-      Operand &defOpnd = defInsn.GetOperand(kInsnSecondOpnd);
-      ASSERT(defOpnd.IsIntImmediate(), "expects ImmOperand");
-      auto &defConst = static_cast<ImmOperand&>(defOpnd);
-      int64 defConstValue = defConst.GetValue();
-      return (defConstValue == 0 || defConstValue == 1);
-    }
-    case MOP_xmovrr:
-    case MOP_wmovrr:
-      return IsZeroRegister(defInsn.GetOperand(kInsnSecondOpnd));
-    case MOP_wlsrrri5:
-    case MOP_xlsrrri6: {
-      Operand &opnd2 = defInsn.GetOperand(kInsnThirdOpnd);
-      ASSERT(opnd2.IsIntImmediate(), "expects ImmOperand");
-      auto &opndImm = static_cast<ImmOperand&>(opnd2);
-      int64 shiftBits = opndImm.GetValue();
-      return ((defMop == MOP_wlsrrri5 && shiftBits == (k32BitSize - 1)) ||
-              (defMop == MOP_xlsrrri6 && shiftBits == (k64BitSize - 1)));
-    }
-    default:
-      return false;
-  }
-}
-
-/*
- * help function for cmpcset optimize
- * if all define points of used opnd in insn has only one valid bit,return true.
- * for cmp reg,#0(#1), that is checking for reg
- */
-bool CmpCsetAArch64::CheckOpndDefPoints(Insn &checkInsn, int opndIdx) const {
-  if (checkInsn.GetBB()->GetPrev() == nullptr) {
-    /* For 1st BB, be conservative for def of parameter registers */
-    /* Since peep is light weight, do not want to insert pseudo defs */
-    regno_t reg = static_cast<RegOperand&>(checkInsn.GetOperand(static_cast<uint32>(opndIdx))).GetRegisterNumber();
-    if ((reg >= R0 && reg <= R7) || (reg >= D0 && reg <= D7)) {
-      return false;
-    }
-  }
-  /* check current BB */
-  const Insn *defInsn = DefInsnOfOperandInBB(checkInsn, checkInsn, opndIdx);
-  if (defInsn != nullptr) {
-    return OpndDefByOneValidBit(*defInsn);
-  }
-  /* check pred */
-  for (auto predBB : checkInsn.GetBB()->GetPreds()) {
-    const Insn *tempInsn = nullptr;
-    if (predBB->GetLastInsn() != nullptr) {
-      tempInsn = DefInsnOfOperandInBB(*predBB->GetLastInsn(), checkInsn, opndIdx);
-    }
-    if (tempInsn == nullptr || !OpndDefByOneValidBit(*tempInsn)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/* Check there is use point of rflag start from startInsn to current bb bottom */
-bool CmpCsetAArch64::FlagUsedLaterInCurBB(const BB &bb, Insn &startInsn) const {
-  if (&bb != startInsn.GetBB()) {
-    return false;
-  }
-  Insn *nextInsn = nullptr;
-  for (Insn *insn = &startInsn; insn != nullptr; insn = nextInsn) {
-    nextInsn = insn->GetNextMachineInsn();
-    const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
-    uint32 opndNum = insn->GetOperandSize();
-    for (uint32 i = 0; i < opndNum; ++i) {
-      Operand &opnd = insn->GetOperand(i);
-      /*
-       * For condition operand, such as NE, EQ and so on, the register number should be
-       * same with RFLAG, we only need check the property of use/def.
-       */
-      if (!opnd.IsConditionCode()) {
-        continue;
-      }
-      OpndProp *regProp = md->operand[i];
-      bool isUse = regProp->IsUse();
-      if (isUse) {
-        return true;
-      } else {
-        ASSERT(regProp->IsDef(), "register should be redefined.");
-        return false;
-      }
-    }
-  }
-  return false;
-}
-
-void CmpCsetAArch64::Run(BB &bb, Insn &insn)  {
-  Insn *nextInsn = insn.GetNextMachineInsn();
-  if (nextInsn == nullptr) {
-    return;
-  }
-  MOperator firstMop = insn.GetMachineOpcode();
-  MOperator secondMop = nextInsn->GetMachineOpcode();
-  if ((firstMop == MOP_wcmpri || firstMop == MOP_xcmpri) &&
-      (secondMop == MOP_wcsetrc || secondMop == MOP_xcsetrc)) {
-    Operand &cmpFirstOpnd = insn.GetOperand(kInsnSecondOpnd);
-    /* get ImmOperand, must be 0 or 1 */
-    Operand &cmpSecondOpnd = insn.GetOperand(kInsnThirdOpnd);
-    auto &cmpFlagReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-    ASSERT(cmpSecondOpnd.IsIntImmediate(), "expects ImmOperand");
-    auto &cmpConst = static_cast<ImmOperand&>(cmpSecondOpnd);
-    int64 cmpConstVal = cmpConst.GetValue();
-    Operand &csetFirstOpnd = nextInsn->GetOperand(kInsnFirstOpnd);
-    if ((cmpConstVal != 0 && cmpConstVal != 1) || !CheckOpndDefPoints(insn, 1) ||
-        (nextInsn->GetNextMachineInsn() != nullptr &&
-         FlagUsedLaterInCurBB(bb, *nextInsn->GetNextMachineInsn())) ||
-        FindRegLiveOut(cmpFlagReg, *insn.GetBB())) {
-      return;
-    }
-
-    Insn *csetInsn = nextInsn;
-    nextInsn = nextInsn->GetNextMachineInsn();
-    auto &cond = static_cast<CondOperand&>(csetInsn->GetOperand(kInsnSecondOpnd));
-    if ((cmpConstVal == 0 && cond.GetCode() == CC_NE) || (cmpConstVal == 1 && cond.GetCode() == CC_EQ)) {
-      if (RegOperand::IsSameRegNO(cmpFirstOpnd, csetFirstOpnd)) {
-        bb.RemoveInsn(insn);
-        bb.RemoveInsn(*csetInsn);
-      } else {
-        if (cmpFirstOpnd.GetSize() != csetFirstOpnd.GetSize()) {
-          return;
-        }
-        MOperator mopCode = (cmpFirstOpnd.GetSize() == k64BitSize) ? MOP_xmovrr : MOP_wmovrr;
-        Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mopCode, csetFirstOpnd, cmpFirstOpnd);
-        bb.ReplaceInsn(insn, newInsn);
-        bb.RemoveInsn(*csetInsn);
-      }
-    } else if ((cmpConstVal == 1 && cond.GetCode() == CC_NE) || (cmpConstVal == 0 && cond.GetCode() == CC_EQ)) {
-      if (cmpFirstOpnd.GetSize() != csetFirstOpnd.GetSize()) {
-        return;
-      }
-      MOperator mopCode = (cmpFirstOpnd.GetSize() == k64BitSize) ? MOP_xeorrri13 : MOP_weorrri12;
-      ImmOperand &one = static_cast<AArch64CGFunc*>(&cgFunc)->CreateImmOperand(1, k8BitSize, false);
-      Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mopCode, csetFirstOpnd, cmpFirstOpnd, one);
-      bb.ReplaceInsn(insn, newInsn);
-      bb.RemoveInsn(*csetInsn);
     }
   }
 }
