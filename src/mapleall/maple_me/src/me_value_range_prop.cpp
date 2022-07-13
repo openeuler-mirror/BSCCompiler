@@ -1868,7 +1868,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::RemWithRhsValueRange(
   if (pType == PTY_i64 && rhsConstant == GetMinNumber(PTY_i64)) { // var % x, if var is negative unlimited
     return nullptr;
   }
-  if (rhsConstant > 0) {
+  if (Bound(rhsConstant, pType).IsGreaterThan(Bound(nullptr, 0, pType), pType)) {
     if (AddOrSubWithConstant(opMeExpr.GetPrimType(), OP_sub, 1, rhsConstant, res)) {
       lowerRes = res;
     } else {
@@ -2727,6 +2727,18 @@ ValueRange *ValueRangePropagation::FindValueRangeWithCompareOp(const BB &bb, MeE
   return resValueRange;
 }
 
+bool ValueRangePropagation::IsSubOpndOfExpr(const MeExpr &expr, const MeExpr &subExpr) const {
+  if (&expr == &subExpr) {
+    return true;
+  }
+  for (uint8 i = 0; i < expr.GetNumOpnds(); ++i) {
+    if (IsSubOpndOfExpr(*(expr.GetOpnd(i)), subExpr)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // When the valueRange of expr is not exist, need find the valueRange of the def point or use points.
 ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr) {
   auto *valueRange = FindValueRangeInCaches(bb.GetBBId(), expr.GetExprID());
@@ -2751,6 +2763,16 @@ ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr) {
       valueRange = FindValueRangeInCaches(bb.GetBBId(), (*itOfExprs)->GetExprID());
       if (valueRange != nullptr && valueRange->IsEqualAfterCVT(expr.GetPrimType(), (*itOfExprs)->GetPrimType())) {
         return valueRange;
+      }
+      if (IsSubOpndOfExpr(**itOfExprs, expr)) {
+        // When the condition is true, mx1297 and mx553 are equivalent. When the vr of mx533 cannot be found,
+        // there is no need to continue to find the vr of mx1297, because it will fall into a dead cycle.
+        // For example:
+        // ||MEIR|| brtrue
+        //     opnd[0] = OP eq u1 u32 mx1297
+        //       opnd[0] = i32 i64 mx553
+        //     opnd[1] = OP cvt i32 i64 mx553
+        continue;
       }
       valueRange = FindValueRangeWithCompareOp(bb, **itOfExprs, &expr);
       if (valueRange != nullptr) {
