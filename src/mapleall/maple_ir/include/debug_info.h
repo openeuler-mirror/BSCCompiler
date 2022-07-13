@@ -1,5 +1,5 @@
 /*
- * Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+ * Copyright (C) [2021-2022] Futurewei Technologies, Inc. All rights reverved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -52,7 +52,7 @@ class DBGLine {
   DBGLine(uint32 lnum, const char *l) : lineNum(lnum), codeLine(l) {}
   virtual ~DBGLine() {}
 
-  void Dump() {
+  void Dump() const {
     LogInfo::MapleLogger() << "LINE: " << lineNum << " " << codeLine << std::endl;
   }
 
@@ -199,7 +199,7 @@ class DBGExprLoc {
     symLoc = loc;
   }
 
-  void Dump();
+  void Dump() const;
 
  private:
   MIRModule *module;
@@ -216,7 +216,7 @@ class DBGDieAttr {
 
   virtual ~DBGDieAttr() = default;
 
-  size_t SizeOf(DBGDieAttr *attr);
+  size_t SizeOf(DBGDieAttr *attr) const;
 
   void AddSimpLocOpnd(uint64 val) {
     value.ptr->AddSimpLocOpnd(val);
@@ -355,7 +355,7 @@ class DBGDie {
   bool SetAttr(DwAt attr, double val);
   bool SetSimpLocAttr(DwAt attr, int64 val);
   bool SetAttr(DwAt attr, DBGExprLoc *ptr);
-  void ResetParentDie();
+  void ResetParentDie() const;
   void Dump(int indent);
 
   uint32 GetId() const {
@@ -660,7 +660,7 @@ class DebugInfo {
   void FillTypeAttrWithDieId();
 
   void BuildAbbrev();
-  uint32 GetAbbrevId(DBGAbbrevEntryVec *vec, DBGAbbrevEntry *entry);
+  uint32 GetAbbrevId(DBGAbbrevEntryVec *vec, DBGAbbrevEntry *entry) const;
 
   DBGDie *GetGlobalDie(const GStrIdx &strIdx);
 
@@ -743,7 +743,7 @@ class DebugInfo {
     tyIdxDieIdMap[tyIdx.GetIdx()] = die->GetId();
   }
 
-  DBGDieAttr *CreateAttr(DwAt at, DwForm form, uint64 val);
+  DBGDieAttr *CreateAttr(DwAt at, DwForm form, uint64 val) const;
 
   DBGDie *CreateVarDie(MIRSymbol *sym);
   DBGDie *CreateVarDie(MIRSymbol *sym, GStrIdx strIdx); // use alt name
@@ -805,7 +805,7 @@ class DebugInfo {
   }
 
   // src code type name stridx and aliased maple var
-  DBGDie *GetOrCreateTypeDefDie(GStrIdx stridx, MIRSymbol *var);
+  DBGDie *GetOrCreateTypeDefDie(GStrIdx stridx, const MIRSymbol *var);
 
  private:
   MIRModule *module;

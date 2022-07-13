@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (C) [2020-2022] Futurewei Technologies, Inc. All rights reverved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -71,7 +71,7 @@ uint32 DbgInsn::GetLoc() const {
   return static_cast<uint32>(static_cast<ImmOperand *>(opnds[0])->GetVal());
 }
 
-void ImmOperand::Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop) const {
+void ImmOperand::Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop [[maybe_unused]]) const {
   emitter.Emit(val);
 }
 
