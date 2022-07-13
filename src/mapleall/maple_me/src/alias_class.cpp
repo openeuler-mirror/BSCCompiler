@@ -964,9 +964,18 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       bool hasnoprivatedefeffect = CallHasNoPrivateDefEffect(&stmt);
       for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
         const AliasInfo &ainfo = CreateAliasInfoExpr(*stmt.Opnd(i));
-        // no need to solve args that are not used or read-Only.
-        if (desc.IsArgUnused(i) ||
-            (desc.IsReturnNoAlias() && (desc.IsArgReadSelfOnly(i) || desc.IsArgReadMemoryOnly(i)))) {
+        // no need to solve args that are not used or readSelfOnly.
+        if (desc.IsArgUnused(i)) {
+          continue;
+        }
+        if (desc.IsReturnNoAlias() && desc.IsArgReadSelfOnly(i)) {
+          continue;
+        }
+        if (desc.IsReturnNoAlias() && desc.IsArgReadMemoryOnly(i) &&
+            ainfo.vst != nullptr && ssaTab.GetNextLevelOsts(*ainfo.vst) != nullptr) {
+          // Arg reads memory, we should set mayUse(*arg) here.
+          // If it has next level, memory alias of its nextLev will be inserted to MayUse later.
+          // If it has no next level, no elements will be inserted thru this arg.
           continue;
         }
         SetPtrOpndNextLevNADS(*stmt.Opnd(i), ainfo.vst, hasnoprivatedefeffect);
@@ -1155,7 +1164,7 @@ void AliasClass::UnionAllPointedTos() {
   }
 }
 
-void AliasClass::UnionNextLevelOfAliasOst(std::set<OriginalSt*> &ostsToUnionNextLev) {
+void AliasClass::UnionNextLevelOfAliasOst(OstPtrSet &ostsToUnionNextLev) {
   while (!ostsToUnionNextLev.empty()) {
     auto tmpSet = ostsToUnionNextLev;
     ostsToUnionNextLev.clear();
@@ -1269,7 +1278,7 @@ void AliasClass::ApplyUnionForPointedTos() {
     auto *assignSet = GetAssignSet(*vst);
     if (assignSet == nullptr) {
       // next level Alias Elements of aliaselem may alias each other. union aliasing elements in following
-      std::set<OriginalSt*> ostsToUnionNextLev;
+      OstPtrSet ostsToUnionNextLev;
       auto *nextLevelOsts = ssaTab.GetNextLevelOsts(vstIdx);
       if (nextLevelOsts == nullptr) {
         continue;
@@ -1326,7 +1335,7 @@ void AliasClass::ApplyUnionForPointedTos() {
     }
 
     // apply union among the assignSet elements
-    std::set<OriginalSt*> ostsToUnionNextLev;
+    OstPtrSet ostsToUnionNextLev;
     for (auto itA = assignSet->begin(); itA != assignSet->end(); ++itA) {
       auto *nextLevelNodesA = ssaTab.GetNextLevelOsts(*itA);
       if (nextLevelNodesA == nullptr) {
@@ -1403,7 +1412,7 @@ void AliasClass::UnionForNotAllDefsSeen() {
   if (!rootOstIDOfNADSs.empty()) {
     unsigned int idA = *(rootOstIDOfNADSs.begin());
     rootOstIDOfNADSs.erase(rootOstIDOfNADSs.begin());
-    std::set<OriginalSt*> ostsToUnionNextLev;
+    OstPtrSet ostsToUnionNextLev;
     for (size_t idB : rootOstIDOfNADSs) {
       if (unionFind.Root(idA) != unionFind.Root(idB)) {
         unionFind.Union(idA, idB);
@@ -1438,7 +1447,7 @@ void AliasClass::UnionForNotAllDefsSeenCLang() {
   // Union nadsOst with the other notAllDefsSeen osts.
   auto idA = notAllDefsSeenOsts[0];
   (void)notAllDefsSeenOsts.erase(notAllDefsSeenOsts.begin());
-  std::set<OriginalSt*> ostsToUnionNextLev;
+  OstPtrSet ostsToUnionNextLev;
   for (const auto &idB : notAllDefsSeenOsts) {
     if (unionFind.Root(idA) != unionFind.Root(idB)) {
       unionFind.Union(idA, idB);
@@ -1554,7 +1563,7 @@ void AliasClass::UnionAllNodes(MapleVector<OriginalSt *> *nextLevOsts) {
   auto it = nextLevOsts->begin();
   OriginalSt *ostA = *it;
   ++it;
-  std::set<OriginalSt*> ostsToUnionNextLev;
+  OstPtrSet ostsToUnionNextLev;
   for (; it != nextLevOsts->end(); ++it) {
     OriginalSt *ostB = *it;
     if (unionFind.Root(ostA->GetIndex()) != unionFind.Root(ostB->GetIndex())) {
@@ -1923,12 +1932,12 @@ void AliasClass::InsertMayUseExpr(BaseNode &expr) {
 }
 
 // collect the mayUses caused by globalsAffectedByCalls.
-void AliasClass::CollectMayUseFromGlobalsAffectedByCalls(std::set<OriginalSt*> &mayUseOsts) {
+void AliasClass::CollectMayUseFromGlobalsAffectedByCalls(OstPtrSet &mayUseOsts) {
   mayUseOsts.insert(globalsAffectedByCalls.begin(), globalsAffectedByCalls.end());
 }
 
 // collect the mayUses caused by defined final field.
-void AliasClass::CollectMayUseFromDefinedFinalField(std::set<OriginalSt*> &mayUseOsts) {
+void AliasClass::CollectMayUseFromDefinedFinalField(OstPtrSet &mayUseOsts) {
   for (auto *ost : ssaTab.GetOriginalStTable()) {
     if (!ost->IsFinal()) {
       continue;
@@ -1950,14 +1959,14 @@ void AliasClass::CollectMayUseFromDefinedFinalField(std::set<OriginalSt*> &mayUs
 }
 
 // insert the ost of mayUseOsts into mayUseNodes
-void AliasClass::InsertMayUseNode(std::set<OriginalSt*> &mayUseOsts, AccessSSANodes *ssaPart) {
+void AliasClass::InsertMayUseNode(OstPtrSet &mayUseOsts, AccessSSANodes *ssaPart) {
   for (OriginalSt *ost : mayUseOsts) {
     ssaPart->InsertMayUseNode(MayUseNode(
         ssaTab.GetVersionStTable().GetVersionStVectorItem(ost->GetZeroVersionIndex())));
   }
 }
 
-void AliasClass::CollectMayUseFromFormals(std::set<OriginalSt*> &mayUseOsts) {
+void AliasClass::CollectMayUseFromFormals(OstPtrSet &mayUseOsts) {
   auto *curFunc = mirModule.CurFunction();
   for (size_t formalId = 0; formalId < curFunc->GetFormalCount(); ++formalId) {
     auto *formal = curFunc->GetFormal(formalId);
@@ -2000,7 +2009,7 @@ void AliasClass::CollectMayUseFromFormals(std::set<OriginalSt*> &mayUseOsts) {
 // 2. mayUses caused by globalsAffectedByCalls;
 // 3. collect mayUses caused by defined final field for constructor.
 void AliasClass::InsertMayUseReturn(const StmtNode &stmt) {
-  std::set<OriginalSt*> mayUseOsts;
+  OstPtrSet mayUseOsts;
   // 1. collect mayUses caused by not_all_def_seen_ae.
   mayUseOsts.insert(nadsOsts.begin(), nadsOsts.end());
   // 2. collect mayUses caused by globals_affected_by_call.
@@ -2015,7 +2024,7 @@ void AliasClass::InsertMayUseReturn(const StmtNode &stmt) {
 }
 
 // collect next_level_nodes of the ost of ReturnOpnd into mayUseOsts
-void AliasClass::CollectPtsToOfReturnOpnd(const VersionSt &vst, std::set<OriginalSt*> &mayUseOsts) {
+void AliasClass::CollectPtsToOfReturnOpnd(const VersionSt &vst, OstPtrSet &mayUseOsts) {
   auto *nextLevelOsts = ssaTab.GetNextLevelOsts(vst);
   if (nextLevelOsts == nullptr) {
     return;
@@ -2048,7 +2057,7 @@ void AliasClass::InsertReturnOpndMayUse(const StmtNode &stmt) {
         return;
       }
       if (!IsNextLevNotAllDefsSeen(vst->GetIndex())) {
-        std::set<OriginalSt*> mayUseOsts;
+        OstPtrSet mayUseOsts;
         auto *assignSet = GetAssignSet(*vst);
         if (assignSet == nullptr) {
           CollectPtsToOfReturnOpnd(*vst, mayUseOsts);
@@ -2076,7 +2085,7 @@ void AliasClass::InsertMayUseAll(const StmtNode &stmt) {
   }
 }
 
-void AliasClass::CollectMayDefForDassign(const StmtNode &stmt, std::set<OriginalSt*> &mayDefOsts) {
+void AliasClass::CollectMayDefForDassign(const StmtNode &stmt, OstPtrSet &mayDefOsts) {
   OriginalSt *ostOfLhs = ssaTab.GetStmtsSSAPart().GetAssignedVarOf(stmt)->GetOst();
   auto *aliasSet = GetAliasSet(*ostOfLhs);
   if (aliasSet == nullptr) {
@@ -2106,7 +2115,7 @@ void AliasClass::CollectMayDefForDassign(const StmtNode &stmt, std::set<Original
   }
 }
 
-void AliasClass::InsertMayDefNode(std::set<OriginalSt*> &mayDefOsts, AccessSSANodes *ssaPart,
+void AliasClass::InsertMayDefNode(OstPtrSet &mayDefOsts, AccessSSANodes *ssaPart,
                                   StmtNode &stmt, BBId bbid) {
   for (OriginalSt *mayDefOst : mayDefOsts) {
     ssaPart->InsertMayDefNode(MayDefNode(
@@ -2116,7 +2125,7 @@ void AliasClass::InsertMayDefNode(std::set<OriginalSt*> &mayDefOsts, AccessSSANo
 }
 
 void AliasClass::InsertMayDefDassign(StmtNode &stmt, BBId bbid) {
-  std::set<OriginalSt*> mayDefOsts;
+  OstPtrSet mayDefOsts;
   CollectMayDefForDassign(stmt, mayDefOsts);
   InsertMayDefNode(mayDefOsts, ssaTab.GetStmtsSSAPart().SSAPartOf(stmt), stmt, bbid);
 }
@@ -2148,7 +2157,7 @@ bool AliasClass::IsAliasInfoEquivalentToExpr(const AliasInfo &ai, const BaseNode
   }
 }
 
-void AliasClass::CollectMayDefForIassign(StmtNode &stmt, std::set<OriginalSt*> &mayDefOsts) {
+void AliasClass::CollectMayDefForIassign(StmtNode &stmt, OstPtrSet &mayDefOsts) {
   auto &iassignNode = static_cast<IassignNode&>(stmt);
   VersionSt *lhsVst =
       FindOrCreateVstOfExtraLevOst(*iassignNode.Opnd(0), iassignNode.GetTyIdx(), iassignNode.GetFieldID(), false);
@@ -2191,7 +2200,7 @@ void AliasClass::CollectMayDefForIassign(StmtNode &stmt, std::set<OriginalSt*> &
   }
 }
 
-void AliasClass::InsertMayDefNodeExcludeFinalOst(std::set<OriginalSt*> &mayDefOsts,
+void AliasClass::InsertMayDefNodeExcludeFinalOst(OstPtrSet &mayDefOsts,
                                                  AccessSSANodes *ssaPart, StmtNode &stmt,
                                                  BBId bbid) {
   for (OriginalSt *mayDefOst : mayDefOsts) {
@@ -2204,7 +2213,7 @@ void AliasClass::InsertMayDefNodeExcludeFinalOst(std::set<OriginalSt*> &mayDefOs
 }
 
 void AliasClass::InsertMayDefIassign(StmtNode &stmt, BBId bbid) {
-  std::set<OriginalSt*> mayDefOsts;
+  OstPtrSet mayDefOsts;
   CollectMayDefForIassign(stmt, mayDefOsts);
   auto *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
   if (mayDefOsts.size() == 1) {
@@ -2273,7 +2282,7 @@ void AliasClass::InsertMayDefUseSyncOps(StmtNode &stmt, BBId bbid) {
 }
 
 // collect mayDefs caused by mustDefs
-void AliasClass::CollectMayDefForMustDefs(const StmtNode &stmt, std::set<OriginalSt*> &mayDefOsts) {
+void AliasClass::CollectMayDefForMustDefs(const StmtNode &stmt, OstPtrSet &mayDefOsts) {
   MapleVector<MustDefNode> &mustDefs = ssaTab.GetStmtsSSAPart().GetMustDefNodesOf(stmt);
   for (MustDefNode &mustDef : mustDefs) {
     VersionSt *vst = mustDef.GetResult();
@@ -2295,7 +2304,7 @@ void AliasClass::CollectMayDefForMustDefs(const StmtNode &stmt, std::set<Origina
   }
 }
 
-void AliasClass::CollectMayUseForNextLevel(const VersionSt &vst, std::set<OriginalSt*> &mayUseOsts,
+void AliasClass::CollectMayUseForNextLevel(const VersionSt &vst, OstPtrSet &mayUseOsts,
                                            const StmtNode &stmt, bool isFirstOpnd) {
   auto *nextLevelOsts = ssaTab.GetNextLevelOsts(vst);
   if (nextLevelOsts == nullptr) {
@@ -2343,7 +2352,7 @@ void AliasClass::CollectMayUseForNextLevel(const VersionSt &vst, std::set<Origin
   }
 }
 
-void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<OriginalSt*> &mayUseOsts) {
+void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, OstPtrSet &mayUseOsts) {
   size_t opndId = kOpcodeInfo.IsICall(stmt.GetOpCode()) ? 1 : 0;
   for (; opndId < stmt.NumOpnds(); ++opndId) {
     BaseNode *expr = stmt.Opnd(opndId);
@@ -2368,8 +2377,8 @@ void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<Origina
 }
 
 void AliasClass::CollectMayDefUseForCallOpnd(const StmtNode &stmt,
-    std::set<OriginalSt*> &mayDefOsts, std::set<OriginalSt*> &mayUseOsts,
-    std::set<OriginalSt*> &mustNotDefOsts, std::set<OriginalSt*> &mustNotUseOsts) {
+                                             OstPtrSet &mayDefOsts, OstPtrSet &mayUseOsts,
+                                             OstPtrSet &mustNotDefOsts, OstPtrSet &mustNotUseOsts) {
   size_t opndId = kOpcodeInfo.IsICall(stmt.GetOpCode()) ? 1 : 0;
   const FuncDesc *desc = nullptr;
   if (stmt.GetOpCode() == OP_call || stmt.GetOpCode() == OP_callassigned) {
@@ -2395,7 +2404,7 @@ void AliasClass::CollectMayDefUseForCallOpnd(const StmtNode &stmt,
     if (desc != nullptr && (desc->IsArgUnused(opndId) || desc->IsArgReadSelfOnly(opndId))) {
       // configured desc guarantees iterNextLevel of opnd are never modified through any way(like global or other opnds)
       if (desc->IsConfiged()) {
-        std::set<OriginalSt*> result;
+        OstPtrSet result;
         ssaTab.CollectIterNextLevel(aInfo.vst->GetIndex(), result);
         mustNotDefOsts.insert(result.begin(), result.end());
         mustNotUseOsts.insert(result.begin(), result.end());
@@ -2420,7 +2429,7 @@ void AliasClass::CollectMayDefUseForCallOpnd(const StmtNode &stmt,
   }
 }
 
-void AliasClass::InsertMayDefNodeForCall(std::set<OriginalSt*> &mayDefOsts, AccessSSANodes *ssaPart,
+void AliasClass::InsertMayDefNodeForCall(OstPtrSet &mayDefOsts, AccessSSANodes *ssaPart,
                                          StmtNode &stmt, BBId bbid,
                                          bool hasNoPrivateDefEffect) {
   for (OriginalSt *mayDefOst : mayDefOsts) {
@@ -2444,10 +2453,10 @@ void AliasClass::InsertMayDefUseCall(StmtNode &stmt, BBId bbid, bool isDirectCal
     hasSideEffect = !desc->IsPure() && !desc->IsConst();
   }
   auto *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
-  std::set<OriginalSt*> mayDefOstsA;
-  std::set<OriginalSt*> mayUseOstsA;
-  std::set<OriginalSt*> mustNotDefOsts;
-  std::set<OriginalSt*> mustNotUseOsts;
+  OstPtrSet mayDefOstsA;
+  OstPtrSet mayUseOstsA;
+  OstPtrSet mustNotDefOsts;
+  OstPtrSet mustNotUseOsts;
   // 1. collect mayDefs and mayUses caused by callee-opnds
   CollectMayDefUseForCallOpnd(stmt, mayDefOstsA, mayUseOstsA, mustNotDefOsts, mustNotUseOsts);
   // 2. collect mayDefs and mayUses caused by not_all_def_seen_ae
@@ -2456,7 +2465,7 @@ void AliasClass::InsertMayDefUseCall(StmtNode &stmt, BBId bbid, bool isDirectCal
   } else {
     // filter mustNotUse
     std::set_difference(nadsOsts.begin(), nadsOsts.end(), mustNotUseOsts.begin(), mustNotUseOsts.end(),
-                        std::inserter(mayUseOstsA, mayUseOstsA.end()));
+                        std::inserter(mayUseOstsA, mayUseOstsA.end()), OriginalSt::OriginalStPtrComparator());
   }
   if (hasSideEffect) {
     if (mustNotDefOsts.empty()) {
@@ -2464,7 +2473,7 @@ void AliasClass::InsertMayDefUseCall(StmtNode &stmt, BBId bbid, bool isDirectCal
     } else {
       // filter mustNotDef
       std::set_difference(nadsOsts.begin(), nadsOsts.end(), mustNotDefOsts.begin(), mustNotDefOsts.end(),
-                          std::inserter(mayDefOstsA, mayDefOstsA.end()));
+                          std::inserter(mayDefOstsA, mayDefOstsA.end()), OriginalSt::OriginalStPtrComparator());
     }
   }
   // insert mayuse node caused by opnd and not_all_def_seen_ae.
@@ -2473,7 +2482,7 @@ void AliasClass::InsertMayDefUseCall(StmtNode &stmt, BBId bbid, bool isDirectCal
   InsertMayDefNodeForCall(mayDefOstsA, ssaPart, stmt, bbid, hasNoPrivateDefEffect);
 
   // 3. insert mayDefs and mayUses caused by globalsAffectedByCalls
-  std::set<OriginalSt*> mayDefUseOfGOsts;
+  OstPtrSet mayDefUseOfGOsts;
   CollectMayUseFromGlobalsAffectedByCalls(mayDefUseOfGOsts);
   if (desc == nullptr || !desc->IsConst()) {
     InsertMayUseNode(mayDefUseOfGOsts, ssaPart);
@@ -2484,13 +2493,13 @@ void AliasClass::InsertMayDefUseCall(StmtNode &stmt, BBId bbid, bool isDirectCal
   }
   if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
     // 4. insert mayDefs caused by the mustDefs
-    std::set<OriginalSt*> mayDefOstsC;
+    OstPtrSet mayDefOstsC;
     CollectMayDefForMustDefs(stmt, mayDefOstsC);
     InsertMayDefNodeExcludeFinalOst(mayDefOstsC, ssaPart, stmt, bbid);
   }
 }
 
-void AliasClass::InsertMayUseNodeExcludeFinalOst(const std::set<OriginalSt*> &mayUseOsts,
+void AliasClass::InsertMayUseNodeExcludeFinalOst(const OstPtrSet &mayUseOsts,
                                                  AccessSSANodes *ssaPart) {
   for (OriginalSt *mayUseOst : mayUseOsts) {
     if (!mayUseOst->IsFinal()) {
@@ -2507,8 +2516,8 @@ void AliasClass::InsertMayDefUseIntrncall(StmtNode &stmt, BBId bbid) {
   auto *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
   auto &intrinNode = static_cast<IntrinsiccallNode&>(stmt);
   IntrinDesc *intrinDesc = &IntrinDesc::intrinTable[intrinNode.GetIntrinsic()];
-  std::set<OriginalSt*> mayDefUseOsts;
-  // 1. collect mayDefs and mayUses caused by not_all_defs_seen_ae
+  OstPtrSet mayDefUseOsts;
+  // 1. collect mayDefs and mayUses caused by opnds
   if (!mirModule.IsCModule()) {
     for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
       InsertMayUseExpr(*stmt.Opnd(i));
@@ -2526,7 +2535,7 @@ void AliasClass::InsertMayDefUseIntrncall(StmtNode &stmt, BBId bbid) {
   }
   if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
     // 4. insert maydefs caused by the mustdefs
-    std::set<OriginalSt*> mayDefOsts;
+    OstPtrSet mayDefOsts;
     CollectMayDefForMustDefs(stmt, mayDefOsts);
     InsertMayDefNodeExcludeFinalOst(mayDefOsts, ssaPart, stmt, bbid);
   }
@@ -2556,8 +2565,8 @@ void AliasClass::InsertMayDefUseAsm(StmtNode &stmt, const BBId bbID) {
   }
 
   auto *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
-  std::set<OriginalSt*> mayDefOsts;
-  std::set<OriginalSt*> mayUseOsts;
+  OstPtrSet mayDefOsts;
+  OstPtrSet mayUseOsts;
   /* process input constraint */
   for (size_t i = 0; i < asmStmt.numOpnds; ++i) {
     BaseNode *expr = asmStmt.Opnd(i);

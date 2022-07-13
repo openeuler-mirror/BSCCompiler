@@ -222,6 +222,66 @@ class NegCmpToCmnPattern : public CGPeepPattern {
 };
 
 /*
+ * case:
+ * ldr R261(32), [R197, #300]
+ * ldr R262(32), [R208, #12]
+ * cmp (CC) R261, R262
+ * bne lable175.
+ * ldr R264(32), [R197, #304]
+ * ldr R265(32), [R208, #16]
+ * cmp (CC) R264, R265
+ * bne lable175.
+ * ====>
+ * ldr R261(64), [R197, #300]
+ * ldr R262(64), [R208, #12]
+ * cmp (CC) R261, R262
+ * bne lable175.
+ */
+class LdrCmpPattern : public CGPeepPattern {
+ public:
+  LdrCmpPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~LdrCmpPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "LdrCmpPattern";
+  }
+
+ private:
+  bool IsLdr(Insn *insn) {
+    if (insn == nullptr) {
+      return false;
+    }
+    return insn->GetMachineOpcode() == MOP_wldr;
+  }
+
+  bool IsCmp(Insn *insn) {
+    if (insn == nullptr) {
+      return false;
+    }
+    return insn->GetMachineOpcode() == MOP_wcmprr;
+  }
+
+  bool IsBne(Insn *insn) {
+    if (insn == nullptr) {
+      return false;
+    }
+    return insn->GetMachineOpcode() == MOP_bne;
+  }
+
+  bool SetInsns();
+  bool CheckInsns();
+  bool MemOffet4Bit(const MemOperand &m1, const MemOperand &m2) const;
+  Insn *prevLdr1 = nullptr;
+  Insn *prevLdr2 = nullptr;
+  Insn *ldr1 = nullptr;
+  Insn *ldr2 = nullptr;
+  Insn *prevCmp = nullptr;
+  Insn *bne1 = nullptr;
+  Insn *bne2 = nullptr;
+};
+
+/*
  * combine {sxtw / uxtw} & lsl ---> {sbfiz / ubfiz}
  * sxtw  x1, w0
  * lsl   x2, x1, #3    ===>   sbfiz x2, x0, #3, #32

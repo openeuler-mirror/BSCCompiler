@@ -264,38 +264,38 @@ class AliasClass : public AnalysisResult {
   void SetAggOpndPtrFieldsNextLevNADS(MapleVector<BaseNode*> &opnds);
   void ApplyUnionForDassignCopy(VersionSt &lhsVst, VersionSt *rhsVst, BaseNode &rhs);
   bool SetNextLevNADSForEscapePtr(const VersionSt &lhsVst, BaseNode &rhs);
-  void UnionNextLevelOfAliasOst(std::set<OriginalSt*> &ostsToUnionNextLev);
+  void UnionNextLevelOfAliasOst(OstPtrSet &ostsToUnionNextLev);
   VersionSt *FindOrCreateDummyNADSVst();
   VersionSt &FindOrCreateVstOfAddrofOSt(OriginalSt &oSt);
-  void CollectMayDefForMustDefs(const StmtNode &stmt, std::set<OriginalSt*> &mayDefOsts);
-  void CollectMayUseForNextLevel(const VersionSt &vst, std::set<OriginalSt*> &mayUseOsts,
+  void CollectMayDefForMustDefs(const StmtNode &stmt, OstPtrSet &mayDefOsts);
+  void CollectMayUseForNextLevel(const VersionSt &vst, OstPtrSet &mayUseOsts,
                                  const StmtNode &stmt, bool isFirstOpnd);
-  void CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<OriginalSt*> &mayUseOsts);
+  void CollectMayUseForCallOpnd(const StmtNode &stmt, OstPtrSet &mayUseOsts);
   void CollectMayDefUseForCallOpnd(const StmtNode &stmt,
-                                   std::set<OriginalSt*> &mayDefOsts, std::set<OriginalSt*> &mayUseOsts,
-                                   std::set<OriginalSt*> &mustNotDefOsts, std::set<OriginalSt*> &mustNotUseOsts);
-  void InsertMayDefNodeForCall(std::set<OriginalSt*> &mayDefOsts, AccessSSANodes *ssaPart,
+                                   OstPtrSet &mayDefOsts, OstPtrSet &mayUseOsts,
+                                   OstPtrSet &mustNotDefOsts, OstPtrSet &mustNotUseOsts);
+  void InsertMayDefNodeForCall(OstPtrSet &mayDefOsts, AccessSSANodes *ssaPart,
                                StmtNode &stmt, BBId bbid, bool hasNoPrivateDefEffect);
   void InsertMayUseExpr(BaseNode &expr);
-  void CollectMayUseFromFormals(std::set<OriginalSt*> &mayUseOsts);
-  void CollectMayUseFromGlobalsAffectedByCalls(std::set<OriginalSt*> &mayUseOsts);
-  void CollectMayUseFromDefinedFinalField(std::set<OriginalSt*> &mayUseOsts);
-  void InsertMayUseNode(std::set<OriginalSt*> &mayUseOsts, AccessSSANodes *ssaPart);
+  void CollectMayUseFromFormals(OstPtrSet &mayUseOsts);
+  void CollectMayUseFromGlobalsAffectedByCalls(OstPtrSet &mayUseOsts);
+  void CollectMayUseFromDefinedFinalField(OstPtrSet &mayUseOsts);
+  void InsertMayUseNode(OstPtrSet &mayUseOsts, AccessSSANodes *ssaPart);
   void InsertMayUseReturn(const StmtNode &stmt);
-  void CollectPtsToOfReturnOpnd(const VersionSt &vst, std::set<OriginalSt*> &mayUseOsts);
+  void CollectPtsToOfReturnOpnd(const VersionSt &vst, OstPtrSet &mayUseOsts);
   void InsertReturnOpndMayUse(const StmtNode &stmt);
   void InsertMayUseAll(const StmtNode &stmt);
-  void CollectMayDefForDassign(const StmtNode &stmt, std::set<OriginalSt*> &mayDefOsts);
-  void InsertMayDefNode(std::set<OriginalSt*> &mayDefOsts, AccessSSANodes *ssaPart, StmtNode &stmt, BBId bbid);
+  void CollectMayDefForDassign(const StmtNode &stmt, OstPtrSet &mayDefOsts);
+  void InsertMayDefNode(OstPtrSet &mayDefOsts, AccessSSANodes *ssaPart, StmtNode &stmt, BBId bbid);
   void InsertMayDefDassign(StmtNode &stmt, BBId bbid);
   bool IsEquivalentField(TyIdx tyIdxA, FieldID fldA, TyIdx tyIdxB, FieldID fldB) const;
   bool IsAliasInfoEquivalentToExpr(const AliasInfo &ai, const BaseNode *expr);
-  void CollectMayDefForIassign(StmtNode &stmt, std::set<OriginalSt*> &mayDefOsts);
-  void InsertMayDefNodeExcludeFinalOst(std::set<OriginalSt*> &mayDefOsts, AccessSSANodes *ssaPart,
+  void CollectMayDefForIassign(StmtNode &stmt, OstPtrSet &mayDefOsts);
+  void InsertMayDefNodeExcludeFinalOst(OstPtrSet &mayDefOsts, AccessSSANodes *ssaPart,
                                        StmtNode &stmt, BBId bbid);
   void InsertMayDefIassign(StmtNode &stmt, BBId bbid);
   void InsertMayDefUseSyncOps(StmtNode &stmt, BBId bbid);
-  void InsertMayUseNodeExcludeFinalOst(const std::set<OriginalSt*> &mayUseOsts, AccessSSANodes *ssaPart);
+  void InsertMayUseNodeExcludeFinalOst(const OstPtrSet &mayUseOsts, AccessSSANodes *ssaPart);
   void InsertMayDefUseIntrncall(StmtNode &stmt, BBId bbid);
   void InsertMayDefUseClinitCheck(IntrinsiccallNode &stmt, BBId bbid);
   void InsertMayDefUseAsm(StmtNode &stmt, const BBId bbid);

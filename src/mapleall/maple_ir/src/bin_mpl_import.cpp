@@ -1206,7 +1206,7 @@ CallInfo *BinaryMplImport::ImportCallInfo() {
   bool argLocal = Read() == 1;
   MIRSymbol *funcSym = InSymbol(nullptr);
   CHECK_FATAL(funcSym != nullptr, "func_sym is null in BinaryMplImport::InCallInfo");
-  CallInfo *ret = mod.GetMemPool()->New<CallInfo>(ctype, funcSym->GetFunction(),
+  CallInfo *ret = mod.GetMemPool()->New<CallInfo>(ctype, *funcSym->GetFunction(),
                                                   static_cast<StmtNode*>(nullptr), loopDepth, id, argLocal);
   callInfoTab.push_back(ret);
   return ret;

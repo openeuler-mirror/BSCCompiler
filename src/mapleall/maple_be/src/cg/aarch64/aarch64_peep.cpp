@@ -436,6 +436,138 @@ void NegCmpToCmnPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
+void LdrCmpPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  bb.RemoveInsn(*ldr2);
+  bb.RemoveInsn(*ldr1);
+  bb.RemoveInsn(insn);
+  bb.RemoveInsn(*bne1);
+  prevLdr1->SetMOP(MOP_xldr);
+  prevLdr2->SetMOP(MOP_xldr);
+  prevCmp->SetMOP(MOP_xcmprr);
+}
+
+bool LdrCmpPattern::CheckCondition(Insn &insn) {
+  if (currInsn != &insn) {
+    return false;
+  }
+  if (!SetInsns()) {
+    return false;
+  }
+  if (!CheckInsns()) {
+    return false;
+  }
+  auto &reg0 = static_cast<RegOperand&>(currInsn->GetOperand(kInsnSecondOpnd));
+  auto &reg1 = static_cast<RegOperand&>(currInsn->GetOperand(kInsnThirdOpnd));
+  return !(IfOperandIsLiveAfterInsn(reg0, insn) || IfOperandIsLiveAfterInsn(reg1, insn));
+}
+
+/*
+ * mopSeq:
+ * ldr,ldr,cmp,bne
+ */
+bool LdrCmpPattern::SetInsns() {
+  if (!IsLdr(currInsn->GetPreviousMachineInsn())) {
+    return false;
+  }
+  ldr2 = currInsn->GetPreviousMachineInsn();
+  if (!IsLdr(ldr2->GetPreviousMachineInsn())) {
+    return false;
+  }
+  ldr1 = ldr2->GetPreviousMachineInsn();
+  /* ldr1 must be firstInsn in currBB */
+  if (currInsn->GetBB()->GetFirstInsn() != ldr1) {
+    return false;
+  }
+  if (!IsBne(currInsn->GetNextMachineInsn())) {
+    return false;
+  }
+  bne1 = currInsn->GetNextMachineInsn();
+  BB *prevBB = currInsn->GetBB()->GetPrev();
+  /* single prev, single pred */
+  const MapleList<BB*> &predBBs = currInsn->GetBB()->GetPreds();
+  if ((prevBB == nullptr) || (predBBs.size() != 1) || (prevBB != *predBBs.begin())) {
+    return false;
+  }
+  if (!IsBne(prevBB->GetLastInsn())) {
+    return false;
+  }
+  bne2 = prevBB->GetLastInsn();
+  if (!IsCmp(bne2->GetPreviousMachineInsn())) {
+    return false;
+  }
+  prevCmp = bne2->GetPreviousMachineInsn();
+  if (!IsLdr(prevCmp->GetPreviousMachineInsn())) {
+    return false;
+  }
+  prevLdr2 = prevCmp->GetPreviousMachineInsn();
+  if (!IsLdr(prevLdr2->GetPreviousMachineInsn())) {
+    return false;
+  }
+  prevLdr1 = prevLdr2->GetPreviousMachineInsn();
+  return true;
+}
+
+bool LdrCmpPattern::CheckInsns() {
+  auto &label1 = static_cast<LabelOperand&>(bne1->GetOperand(kInsnSecondOpnd));
+  auto &label2 = static_cast<LabelOperand&>(bne2->GetOperand(kInsnSecondOpnd));
+  if (label1.GetLabelIndex() != label2.GetLabelIndex()) {
+    return false;
+  }
+  auto &reg0 = static_cast<RegOperand&>(currInsn->GetOperand(kInsnSecondOpnd));
+  auto &reg1 = static_cast<RegOperand&>(currInsn->GetOperand(kInsnThirdOpnd));
+  regno_t regno0 = reg0.GetRegisterNumber();
+  regno_t regno1 = reg1.GetRegisterNumber();
+  if (regno0 == regno1) {
+    return false;
+  }
+  auto &mem1 = static_cast<MemOperand&>(ldr1->GetOperand(kInsnSecondOpnd));
+  auto &preMem1 = static_cast<MemOperand&>(prevLdr1->GetOperand(kInsnSecondOpnd));
+  auto &mem2 = static_cast<MemOperand&>(ldr2->GetOperand(kInsnSecondOpnd));
+  auto &preMem2 = static_cast<MemOperand&>(prevLdr2->GetOperand(kInsnSecondOpnd));
+  regno_t regnoBase0 = mem1.GetBaseRegister()->GetRegisterNumber();
+  regno_t regnoBase1 = mem2.GetBaseRegister()->GetRegisterNumber();
+  if (regnoBase0 == regnoBase1) {
+    return false;
+  }
+  if ((regno0 == regnoBase0) || (regno0 == regnoBase1) || (regno1 == regnoBase0) || (regno1 == regnoBase1)) {
+    return false;
+  }
+  if ((reg0 == static_cast<RegOperand&>(ldr2->GetOperand(kInsnFirstOpnd))) &&
+      (reg0 == static_cast<RegOperand&>(prevLdr2->GetOperand(kInsnFirstOpnd))) &&
+      (reg1 == static_cast<RegOperand&>(ldr1->GetOperand(kInsnFirstOpnd))) &&
+      (reg1 == static_cast<RegOperand&>(prevLdr1->GetOperand(kInsnFirstOpnd)))) {
+    if (MemOffet4Bit(preMem2, mem2) && MemOffet4Bit(preMem1, mem1)) {
+      return true;
+    }
+  }
+  if ((reg0 == static_cast<RegOperand&>(ldr1->GetOperand(kInsnFirstOpnd))) &&
+      (reg0 == static_cast<RegOperand&>(prevLdr1->GetOperand(kInsnFirstOpnd))) &&
+      (reg1 == static_cast<RegOperand&>(ldr2->GetOperand(kInsnFirstOpnd))) &&
+      (reg1 == static_cast<RegOperand&>(prevLdr2->GetOperand(kInsnFirstOpnd)))) {
+    if (MemOffet4Bit(preMem2, mem2) && MemOffet4Bit(preMem1, mem1)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool LdrCmpPattern::MemOffet4Bit(const MemOperand &m1, const MemOperand &m2) const {
+  if (m1.GetAddrMode() != m2.GetAddrMode()) {
+    return false;
+  }
+  if (m1.GetAddrMode() != MemOperand::kAddrModeBOi) {
+    return false;
+  }
+  if (m1.GetBaseRegister()->GetRegisterNumber() != m2.GetBaseRegister()->GetRegisterNumber()) {
+    return false;
+  }
+  int64 offset = m2.GetOffsetOperand()->GetValue() - m1.GetOffsetOperand()->GetValue();
+  return offset == k4BitSizeInt;
+}
+
 bool CsetCbzToBeqPattern::CheckCondition(Insn &insn) {
   MOperator curMop = insn.GetMachineOpcode();
   if (curMop != MOP_wcbz && curMop != MOP_xcbz && curMop != MOP_wcbnz && curMop != MOP_xcbnz) {
@@ -1911,6 +2043,10 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
     }
     case MOP_wcmpri: {
       manager->NormalPatternOpt<LongIntCompareWithZPattern>(!cgFunc->IsAfterRegAlloc());
+      break;
+    }
+    case MOP_wcmprr: {
+      manager->NormalPatternOpt<LdrCmpPattern>(cgFunc->IsAfterRegAlloc());
       break;
     }
     case MOP_wmovrr:

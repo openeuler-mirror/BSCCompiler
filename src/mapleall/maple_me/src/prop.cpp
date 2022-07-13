@@ -74,23 +74,7 @@ void Prop::PropUpdateDef(MeExpr &meExpr) {
     }
     ostIdx = regExpr.GetOstIdx();
   }
-  // If a new version meExpr is pushed to the top before, replace it with the newest one;
-  // otherwise, push the newest version meExpr to the top.
-  if (ostIdx.GetIdx() < isNewVstPushed->size()) {
-    if (IsNewVstPushed(ostIdx.GetIdx())) {
-      ReplaceVstLiveStackTop(ostIdx.GetIdx(), meExpr);
-    } else {
-      vstLiveStackVec[ostIdx]->push(&meExpr);
-      SetNewVstPushed(ostIdx.GetIdx());
-    }
-  } else {
-    // for temp expr
-    if (vstLiveStackVec[ostIdx]->empty()) {
-      vstLiveStackVec[ostIdx]->push(&meExpr);
-    } else {
-      ReplaceVstLiveStackTop(ostIdx.GetIdx(), meExpr);
-    }
-  }
+  ReplaceVstLiveStackTop(ostIdx.GetIdx(), meExpr);
 }
 
 void Prop::PropUpdateChiListDef(const MapleMap<OStIdx, ChiMeNode*> &chiList) {
@@ -142,7 +126,8 @@ bool Prop::IsVersionConsistent(const std::vector<const MeExpr*> &vstVec,
     CHECK_FATAL(subExpr->GetMeOp() == kMeOpVar || subExpr->GetMeOp() == kMeOpReg, "error: sub expr error");
     uint32 stackIdx = static_cast<const ScalarMeExpr *>(subExpr)->GetOstIdx();
     auto *pStack = vstLiveStack.at(stackIdx);
-    if (pStack->empty()) {
+    ASSERT(!pStack->empty(), "When enter BB, one element will be pushed to top!");
+    if (pStack->top() == nullptr) {
       // no definition so far go ahead
       continue;
     }
@@ -474,7 +459,11 @@ MeExpr *Prop::RehashUsingInverse(MeExpr *x) {
     case kMeOpReg: {
       ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
       auto &pstack = vstLiveStackVec[scalar->GetOst()->GetIndex()];
-      if (pstack == nullptr || pstack->empty() || pstack->top() == scalar) {
+      if (pstack == nullptr) {
+        return nullptr;
+      }
+      ASSERT(!pstack->empty(), "When enter BB, one element will be pushed to top!");
+      if (pstack->top() == nullptr || pstack->top() == scalar) {
         return nullptr;
       }
       ScalarMeExpr *curScalar = static_cast<ScalarMeExpr *>(pstack->top());
@@ -606,11 +595,21 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
         newPrimType = PTY_u64;
       }
     }
-    OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
-    opmeexpr.SetBitsSize(bitfieldTy->GetFieldSize());
-    opmeexpr.SetOpnd(0, rhs);
-    auto *simplifiedExpr = irMap.SimplifyOpMeExpr(&opmeexpr);
-    return simplifiedExpr != nullptr ? simplifiedExpr : irMap.HashMeExpr(opmeexpr);
+    auto extExpr = std::make_unique<OpMeExpr>(-1, extOp, newPrimType, 1);
+    extExpr->SetBitsSize(bitfieldTy->GetFieldSize());
+    extExpr->SetOpnd(0, rhs);
+    if (lhsTy->GetPrimType() != newPrimType) {
+      // need another z/sext to cvt explicitly
+      // Example : bitfield is i64 : 22
+      // first cvt => sext i32 22 (bitfield)
+      // second cvt => sext i64 22 (sext i32 22 (bitfield))
+      MeExpr *hashedExtExpr = irMap.HashMeExpr(*extExpr);
+      extExpr = std::make_unique<OpMeExpr>(-1, extOp, lhsTy->GetPrimType(), 1);
+      extExpr->SetBitsSize(bitfieldTy->GetFieldSize());
+      extExpr->SetOpnd(0, hashedExtExpr);
+    }
+    auto *simplifiedExpr = irMap.SimplifyOpMeExpr(extExpr.get());
+    return simplifiedExpr != nullptr ? simplifiedExpr : irMap.HashMeExpr(*extExpr);
   }
   if (IsPrimitiveInteger(lhsTy->GetPrimType()) &&
       lhsTy->GetPrimType() != PTY_ptr && lhsTy->GetPrimType() != PTY_ref) {
@@ -796,7 +795,7 @@ MeExpr &Prop::PropIvar(IvarMeExpr &ivarMeExpr) {
     ASSERT(vstLiveStackVec.size() == tmpReg->GetOstIdx(), "there is prev created ost not tracked");
     auto *verstStack = propMapAlloc.GetMemPool()->New<MapleStack<MeExpr *>>(propMapAlloc.Adapter());
     vstLiveStackVec.push_back(verstStack);
-    PropUpdateDef(*tmpReg);
+    verstStack->push(tmpReg);
 
     auto newRHS = CheckTruncation(&ivarMeExpr, &rhs);
     auto *regassign = irMap.CreateAssignMeStmt(*tmpReg, *newRHS, *defStmt->GetBB());
@@ -1229,17 +1228,32 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
   }
 }
 
+// Enter BB : every stack in vstLiveStackVec grows 1 layer as its top.
+// when update def, just replace the top element with new vst.
+void Prop::GrowVstLiveStack() {
+  for (size_t i = 1; i < vstLiveStackVec.size(); ++i) {
+    vstLiveStackVec[i]->push(vstLiveStackVec[i]->empty() ? nullptr : vstLiveStackVec[i]->top());
+  }
+}
+// Exit BB : recover vstLiveStackVec as before when enter BB
+void Prop::RecoverVstLiveStack() {
+  for (size_t i = 1; i < vstLiveStackVec.size(); ++i) {
+    if (!vstLiveStackVec[i]->empty()) {
+      vstLiveStackVec[i]->pop();
+    }
+  }
+}
+
 void Prop::TraversalBB(BB &bb) {
   if (bbVisited[bb.GetBBId()]) {
     return;
   }
   bbVisited[bb.GetBBId()] = true;
 
-  // record if a new meExpr version is pushed to renameStack.
-  // It is used for new version pushed checking and recovering.
-  // when exit this func, dtor of this class will recover vstLiveStack as before.
-  BBPropEnvHelper bbEnvHelper(this, bb);
-  (void) bbEnvHelper; // for warning suppression
+  SetCurBB(&bb);
+
+  // every vstLiveStack grows one layer, assuming that there would be new def later
+  GrowVstLiveStack();
 
   // update var phi nodes
   for (auto it = bb.GetMePhiList().begin(); it != bb.GetMePhiList().end(); ++it) {
@@ -1256,5 +1270,7 @@ void Prop::TraversalBB(BB &bb) {
     BBId childbbid = *it;
     TraversalBB(*GetBB(childbbid));
   }
+  // every vstLiveStack pop one layer to recover as before when entering BB.
+  RecoverVstLiveStack();
 }
 }  // namespace maple

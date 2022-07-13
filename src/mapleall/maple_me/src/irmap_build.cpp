@@ -963,12 +963,9 @@ void IRMapBuild::BuildBB(BB &bb, std::vector<bool> &bbIRMapProcessed) {
   irMap->SetCurFunction(bb);
   // iterate phi list to update the definition by phi
   BuildPhiMeNode(bb);
-  // record if a new meExpr version is pushed to renameStack.
-  // It is used for new version pushed checking and recovering.
-  // when exit this func, dtor of this class will recover vstLiveStack as before.
-  BBPropEnvHelper bbPropEnvHelper(propagater, bb);
-  (void) bbPropEnvHelper; // for warning suppression
   if (propagater) { // proper is not null that means we will do propragation during build meir.
+    propagater->SetCurBB(&bb);
+    propagater->GrowVstLiveStack();
     // traversal phi nodes
     MapleMap<OStIdx, MePhiNode *> &mePhiList = bb.GetMePhiList();
     for (auto it = mePhiList.begin(); it != mePhiList.end(); ++it) {
@@ -989,6 +986,9 @@ void IRMapBuild::BuildBB(BB &bb, std::vector<bool> &bbIRMapProcessed) {
   for (auto bbIt = domChildren.begin(); bbIt != domChildren.end(); ++bbIt) {
     BBId childBBId = *bbIt;
     BuildBB(*irMap->GetBB(childBBId), bbIRMapProcessed);
+  }
+  if (propagater) {
+    propagater->RecoverVstLiveStack();
   }
 }
 }  // namespace maple

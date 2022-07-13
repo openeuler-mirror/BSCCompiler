@@ -13,8 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ssa_tab.h"
-#include <iostream>
-#include <fstream>
 #include "ssa_mir_nodes.h"
 #include "opcode_info.h"
 #include "mir_function.h"
@@ -29,7 +27,7 @@
 // by the stmtID field of each statement node.
 namespace maple {
 // iteratively collect next level of vst
-void SSATab::CollectIterNextLevel(size_t vstIdx, std::set<OriginalSt*> &resultOsts) {
+void SSATab::CollectIterNextLevel(size_t vstIdx, OstPtrSet &resultOsts) {
   auto *nextLevelOsts = GetNextLevelOsts(vstIdx);
   if (nextLevelOsts == nullptr) {
     return;

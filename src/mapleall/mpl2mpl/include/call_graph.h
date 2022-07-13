@@ -50,8 +50,8 @@ struct Comparator {
 // Information description of each callsite
 class CallInfo {
  public:
-  CallInfo(CallType type, MIRFunction *call, StmtNode *node, uint32 ld, uint32 stmtId, bool local = false)
-      : areAllArgsLocal(local), cType(type), mirFunc(call), callStmt(node), loopDepth(ld), id(stmtId) {}
+  CallInfo(CallType type, MIRFunction &call, StmtNode *node, uint32 ld, uint32 stmtId, bool local = false)
+      : areAllArgsLocal(local), cType(type), mirFunc(&call), callStmt(node), loopDepth(ld), id(stmtId) {}
   // For fake callInfo, only id needed
   explicit CallInfo(uint32 stmtId) : id(stmtId) {}
   ~CallInfo() = default;
@@ -483,7 +483,8 @@ class CallGraph : public AnalysisResult {
   void IncrNodesCount(CGNode *cgNode, BaseNode *bn);
 
   CallInfo *GenCallInfo(CallType type, MIRFunction *call, StmtNode *s, uint32 loopDepth, uint32 callsiteID) {
-    return cgAlloc.GetMemPool()->New<CallInfo>(type, call, s, loopDepth, callsiteID);
+    ASSERT_NOT_NULL(call);
+    return cgAlloc.GetMemPool()->New<CallInfo>(type, *call, s, loopDepth, callsiteID);
   }
 
   bool debugFlag = false;

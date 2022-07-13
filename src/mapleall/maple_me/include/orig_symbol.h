@@ -489,6 +489,8 @@ class OriginalStTable {
   OStIdx virtuaLostUnkownMem{ 0 };
   OStIdx virtuaLostConstMem{ 0 };
 };
+
+using OstPtrSet = std::set<OriginalSt *, OriginalSt::OriginalStPtrComparator>;
 }  // namespace maple
 
 namespace std {

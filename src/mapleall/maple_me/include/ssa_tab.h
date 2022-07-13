@@ -197,6 +197,8 @@ class SSATab : public AnalysisResult {
     ASSERT(ost != nullptr, "null pointer check");
     return ost->GetZeroVersionIndex() == vstIdx;
   }
+
+  void CollectIterNextLevel(size_t vstIdx, OstPtrSet &resultOsts);
  private:
   MIRModule &mirModule;
   MeFunction *func;
