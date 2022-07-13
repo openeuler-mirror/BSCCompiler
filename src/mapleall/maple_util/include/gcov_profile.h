@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) [2022] Futurewei Technologies Co., Ltd. All rights reserved.
+ *
+ * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
+ * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
+ * You may obtain a copy of MulanPSL - 2.0 at:
+ *
+ *   https://opensource.org/licenses/MulanPSL-2.0
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the MulanPSL - 2.0 for more details.
+ */
+
 #ifndef MAPLE_UTIL_INCLUDE_GCOV_PROFILE_H
 #define MAPLE_UTIL_INCLUDE_GCOV_PROFILE_H
 
@@ -6,10 +21,10 @@
 #include <unordered_map>
 
 namespace maple {
-typedef unsigned gcov_unsigned_t;
-typedef int64_t  gcov_type;
-typedef uint64_t gcov_type_unsigned;
-typedef unsigned  location_t;
+using gcov_unsigned_t = unsigned;
+using gcov_type = int64_t;
+using gcov_type_unsigned = uint64_t;
+using location_t = unsigned;
 #define HOTCALLSITEFREQ 100
 
 enum UpdateFreqOp {
@@ -21,7 +36,7 @@ enum UpdateFreqOp {
 };
 
 class GcovFuncInfo {
-public:
+ public:
   GcovFuncInfo(MapleAllocator* alloc, unsigned funcIdent, unsigned lineno_cs, unsigned cfg_cs) :
       ident(funcIdent), lineno_checksum(lineno_cs), cfg_checksum(cfg_cs), counts(alloc->Adapter()) {};
   ~GcovFuncInfo() = default;
@@ -56,8 +71,8 @@ public:
   }
   bool IsHotCallSite(uint32_t stmtID) {
     if (stmtFreqs.count(stmtID) > 0) {
-       uint64 freq = stmtFreqs[stmtID];
-       return (freq >= HOTCALLSITEFREQ);
+      uint64 freq = stmtFreqs[stmtID];
+      return (freq >= HOTCALLSITEFREQ);
     }
     ASSERT(0, "should not be here");
     return false;
@@ -75,7 +90,7 @@ public:
 };
 
 class GcovProfileData {
-public:
+ public:
   GcovProfileData(MapleAllocator *alloc) : funcsCounter(alloc->Adapter()) {}
 
   GcovFuncInfo *GetFuncProfile(unsigned puidx) {

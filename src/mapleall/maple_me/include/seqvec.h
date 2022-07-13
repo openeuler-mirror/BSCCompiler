@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021] Futurewei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -50,16 +50,6 @@ class SeqVectorize {
   bool CanAdjustRhsType(PrimType targetType, ConstvalNode *rhs);
   void MergeIassigns(MapleVector<IassignNode *> &cands);
   bool IsIvarExprConsecutiveMem(IvarMeExpr *, IvarMeExpr *, PrimType);
- private:
-  void ResetRhsStatus() { currRhsStatus = 0; }
-  void SetRhsConst() { currRhsStatus = 1; }
-  void SetRhsConsercutiveMem() { currRhsStatus = 2; }
-  bool IsExprDataIndependent(const MeExpr *expr, const IassignMeStmt *defStmt);
-  bool IsStmtDataIndependent(const IassignMeStmt *s1, const IassignMeStmt *s2);
-  bool IsRhsStatusUnset() const { return currRhsStatus == 0; }
-  bool IsRhsConst() const { return currRhsStatus == 1; }
-  bool IsRhsConsercutiveMem() const { return currRhsStatus == 0; }
- public:
   static uint32_t seqVecStores;
   // iassignnode in same level block
   MemPool *localMP;
@@ -75,6 +65,15 @@ class SeqVectorize {
   StoreListMap stores;
   uint32_t currRhsStatus = 0; // unset
   bool enableDebug = true;
+ private:
+  void ResetRhsStatus() { currRhsStatus = 0; }
+  void SetRhsConst() { currRhsStatus = 1; }
+  void SetRhsConsercutiveMem() { currRhsStatus = 2; }
+  bool IsExprDataIndependent(const MeExpr *expr, const IassignMeStmt *defStmt);
+  bool IsStmtDataIndependent(const IassignMeStmt *s1, const IassignMeStmt *s2);
+  bool IsRhsStatusUnset() const { return currRhsStatus == 0; }
+  bool IsRhsConst() const { return currRhsStatus == 1; }
+  bool IsRhsConsercutiveMem() const { return currRhsStatus == 0; }
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_SEQVEC_H

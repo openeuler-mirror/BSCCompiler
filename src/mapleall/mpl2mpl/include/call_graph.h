@@ -50,9 +50,10 @@ struct Comparator {
 // Information description of each callsite
 class CallInfo {
  public:
-  CallInfo(CallType type, MIRFunction &call, StmtNode *node, uint32 ld, uint32 stmtId, bool local = false)
-      : areAllArgsLocal(local), cType(type), mirFunc(&call), callStmt(node), loopDepth(ld), id(stmtId) {}
-
+  CallInfo(CallType type, MIRFunction *call, StmtNode *node, uint32 ld, uint32 stmtId, bool local = false)
+      : areAllArgsLocal(local), cType(type), mirFunc(call), callStmt(node), loopDepth(ld), id(stmtId) {}
+  // For fake callInfo, only id needed
+  explicit CallInfo(uint32 stmtId) : id(stmtId) {}
   ~CallInfo() = default;
 
   uint32 GetID() const {
@@ -471,7 +472,7 @@ class CallGraph : public AnalysisResult {
   void ReadCallGraphFromMplt();
   void GenCallGraphFromFunctionBody();
   void FixIcallCallee();
-  void GetMatchedCGNode(TyIdx idx, std::vector<CGNode*> &result);
+  void GetMatchedCGNode(const TyIdx &idx, std::vector<CGNode*> &result);
 
   CGNode *GetOrGenCGNode(PUIdx puIdx, bool isVcall = false, bool isIcall = false);
   CallType GetCallType(Opcode op) const;
@@ -482,7 +483,7 @@ class CallGraph : public AnalysisResult {
   void IncrNodesCount(CGNode *cgNode, BaseNode *bn);
 
   CallInfo *GenCallInfo(CallType type, MIRFunction *call, StmtNode *s, uint32 loopDepth, uint32 callsiteID) {
-    return cgAlloc.GetMemPool()->New<CallInfo>(type, *call, s, loopDepth, callsiteID);
+    return cgAlloc.GetMemPool()->New<CallInfo>(type, call, s, loopDepth, callsiteID);
   }
 
   bool debugFlag = false;
