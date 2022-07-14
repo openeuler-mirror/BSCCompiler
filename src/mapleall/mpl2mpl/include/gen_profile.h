@@ -1,16 +1,16 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (C) [2022] Futurewei Technologies, Inc. All rights reverved.
  *
- * OpenArkCompiler is licensed under Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan PSL v2.
- * You may obtain a copy of Mulan PSL v2 at:
+ * Licensed under the Mulan Permissive Software License v2.
+ * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
+ * You may obtain a copy of MulanPSL - 2.0 at:
  *
- *     http://license.coscl.org.cn/MulanPSL2
+ *   https://opensource.org/licenses/MulanPSL-2.0
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v2 for more details.
+ * See the MulanPSL - 2.0 for more details.
  */
 #ifndef MAPLE_MPL2MPL_INCLUDE_PROFILEGEN_H
 #define MAPLE_MPL2MPL_INCLUDE_PROFILEGEN_H
@@ -40,7 +40,7 @@ class ProfileGenPM : public SccPM {
 };
 
 class ProfileGen {
-  public:
+ public:
   ProfileGen(MIRModule &module) : mod(module) {
     for (MIRFunction *f : mod.GetFunctionList()) {
       if (!f->IsEmpty()) { validFuncs.push_back(f); }
@@ -65,7 +65,7 @@ class ProfileGen {
   void Run();
   std::vector<MIRFunction *> getValidFuncs() { return validFuncs; }
 
-  private:
+ private:
     MIRModule &mod;
     MIRSymbol *modProfDesc = nullptr;
     // Keep order of funcs visited

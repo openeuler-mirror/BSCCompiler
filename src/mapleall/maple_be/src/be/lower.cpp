@@ -1826,6 +1826,7 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
     nextStmt = stmt->GetNext();
     stmt->SetNext(nullptr);
     currentBlock = newBlk;
+    auto lastStmt = newBlk->GetStmtNodes().rbegin();
 
     LowerTypePtr(*stmt);
 
@@ -1966,6 +1967,13 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
         break;
     }
     CHECK_FATAL(beCommon.GetSizeOfTypeSizeTable() == GlobalTables::GetTypeTable().GetTypeTableSize(), "Error!");
+
+    for (auto itStmt = newBlk->GetStmtNodes().rbegin(); itStmt != lastStmt; ++itStmt) {
+      if (stmt->GetSrcPos().IsValid()) {
+        itStmt->SetSrcPos(stmt->GetSrcPos());
+      }
+    }
+    lastStmt = newBlk->GetStmtNodes().rbegin();
   } while (nextStmt != nullptr);
   for (auto node : abortNode) {
       newBlk->AddStatement(node);
