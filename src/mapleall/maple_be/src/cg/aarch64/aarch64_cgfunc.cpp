@@ -1262,14 +1262,19 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       case OP_regread: {
         auto &regreadNode = static_cast<RegreadNode&>(*node.Opnd(i));
         PregIdx pregIdx = regreadNode.GetRegIdx();
-        RegOperand &inOpnd = GetOrCreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx));
-        listInputOpnd->PushOpnd(static_cast<RegOperand&>(inOpnd));
         MIRPreg *preg = GetFunction().GetPregTab()->PregFromPregIdx(pregIdx);
         PrimType pType = preg->GetPrimType();
+        RegOperand *inOpnd;
+        if (IsSpecialPseudoRegister(pregIdx)) {
+          inOpnd = &GetOrCreateSpecialRegisterOperand(-pregIdx, pType);
+        } else {
+          inOpnd = &GetOrCreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx));
+        }
+        listInputOpnd->PushOpnd(static_cast<RegOperand&>(*inOpnd));
         listInRegPrefix->stringList.push_back(
-            static_cast<StringOperand *>(&CreateStringOperand(GetRegPrefixFromPrimType(pType, inOpnd.GetSize(), str))));
+            static_cast<StringOperand *>(&CreateStringOperand(GetRegPrefixFromPrimType(pType, inOpnd->GetSize(), str))));
         if (isOutputTempNode) {
-          rPlusOpnd.emplace_back(std::make_pair(&static_cast<Operand&>(inOpnd), pType));
+          rPlusOpnd.emplace_back(std::make_pair(&static_cast<Operand&>(*inOpnd), pType));
         }
         break;
       }
