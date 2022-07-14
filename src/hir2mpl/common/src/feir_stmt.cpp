@@ -362,8 +362,7 @@ void FEIRStmtDAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRSym
     }
   }
   if (ENCChecker::HasNullExpr(expr)) {
-    FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull pointer",
-           FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
+    FE_ERR(kLncErr, loc, "null assignment of nonnull pointer");
     return;
   }
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assignassertnonnull, expr->Clone());
@@ -887,9 +886,7 @@ void FEIRStmtReturn::InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<Stm
     return;
   }
   if (ENCChecker::HasNullExpr(expr)) {
-    FE_ERR(kLncErr, "%s:%d error: %s return nonnull but got null pointer",
-           FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
-           mirBuilder.GetCurrentFunction()->GetName().c_str());
+    FE_ERR(kLncErr, loc, "%s return nonnull but got null pointer", mirBuilder.GetCurrentFunction()->GetName().c_str());
     return;
   }
   if (expr->GetPrimType() == PTY_ptr) {
@@ -1940,8 +1937,7 @@ void FEIRStmtCallAssign::InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr,
     return;
   }
   if (ENCChecker::HasNullExpr(expr)) {
-    FE_ERR(kLncErr, "%s:%d error: null passed to a callee that requires a nonnull argument[the %s argument]",
-           FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
+    FE_ERR(kLncErr, loc, "null passed to a callee that requires a nonnull argument[the %s argument]",
            ENCChecker::GetNthStr(index).c_str());
     return;
   }
@@ -2061,8 +2057,7 @@ void FEIRStmtICallAssign::InsertNonnullCheckingInArgs(MIRBuilder &mirBuilder, st
       continue;
     }
     if (ENCChecker::HasNullExpr(expr)) {
-      FE_ERR(kLncErr, "%s:%d error: null passed to a callee that requires a nonnull argument[the %s argument]",
-             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
+      FE_ERR(kLncErr, loc, "null passed to a callee that requires a nonnull argument[the %s argument]",
              ENCChecker::GetNthStr(idx).c_str());
       continue;
     }
@@ -4228,8 +4223,7 @@ void FEIRStmtIAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRTyp
   ENCChecker::CheckNonnullFieldInStruct(*srcType, *dstType, loc);
   if (fieldPair.second.second.GetAttr(FLDATTR_nonnull)) {
     if (ENCChecker::HasNullExpr(baseExpr)) {
-      FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull pointer",
-             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
+      FE_ERR(kLncErr, loc, "null assignment of nonnull pointer");
       return;
     }
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assignassertnonnull, baseExpr->Clone());

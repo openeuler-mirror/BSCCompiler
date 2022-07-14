@@ -432,6 +432,10 @@ MIRConst *FEUtils::TraverseToMIRConst(MIRAggConst *aggConst, const MIRStructType
   return curConst;
 }
 
+Loc FEUtils::GetSrcLocationForMIRSymbol(const MIRSymbol &symbol) {
+  return Loc(symbol.GetSrcPosition().FileNum(), symbol.GetSrcPosition().LineNum(), symbol.GetSrcPosition().Column());
+}
+
 // ---------- FELinkListNode ----------
 FELinkListNode::FELinkListNode()
     : prev(nullptr), next(nullptr) {}

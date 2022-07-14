@@ -78,6 +78,7 @@ int HIR2MPLCompiler::Run() {
   CHECK_FATAL(success, "Compile Error");
   ExportMpltFile();
   ExportMplFile();
+  FEManager::GetDiagManager().PrintFeErrorMessages();
   int res = FEManager::GetDiagManager().GetDiagRes();
   HIR2MPLEnv::GetInstance().Finish();
   Release();

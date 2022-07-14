@@ -2868,9 +2868,8 @@ bool ASTParser::RetrieveFuncs(MapleAllocator &allocator) {
         if (funcDecl->getSafeSpecifier() != clang::SS_None && spec != clang::SS_None) {
           std::string funcName = astFile->GetMangledName(*funcDecl);
           Loc loc = astFile->GetLOC(funcDecl->getLocation());
-          FE_ERR(kLncWarn, "%s:%d error: The function %s declaration and definition security attributes "
-                 "are inconsistent.", FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
-                 funcName.c_str());
+          FE_ERR(kLncWarn, loc, "The function %s declaration and definition security attributes "
+                 "are inconsistent.", funcName.c_str());
         } else {
           if (funcDecl->getSafeSpecifier() == clang::SS_None) {
             funcDecl->setSafeSpecifier(spec);

@@ -100,15 +100,11 @@ void ENCChecker::CheckNonnullGlobalVarInit(const MIRSymbol &sym, const MIRConst 
     return;
   }
   if (cst == nullptr) {
-    FE_ERR(kLncErr, "%s:%d error: nonnull parameter is uninitialized when defined",
-           FEManager::GetModule().GetFileNameFromFileNum(sym.GetSrcPosition().FileNum()).c_str(),
-           sym.GetSrcPosition().LineNum());
+    FE_ERR(kLncErr, FEUtils::GetSrcLocationForMIRSymbol(sym), "nonnull parameter is uninitialized when defined");
     return;
   }
   if (cst->IsZero()) {
-    FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull pointer",
-           FEManager::GetModule().GetFileNameFromFileNum(sym.GetSrcPosition().FileNum()).c_str(),
-           sym.GetSrcPosition().LineNum());
+    FE_ERR(kLncErr, FEUtils::GetSrcLocationForMIRSymbol(sym), "null assignment of nonnull pointer");
     return;
   }
 }
@@ -124,9 +120,7 @@ void ENCChecker::CheckNullFieldInGlobalStruct(MIRType &type, MIRAggConst &cst, c
     }
     size_t idx = structType.GetKind() == kTypeUnion ? 0 : i;  // union only is one element
     if (idx < cst.GetConstVec().size() && cst.GetConstVecItem(idx) != nullptr && cst.GetConstVecItem(idx)->IsZero()) {
-        FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull field pointer. [field name: %s]",
-               FEManager::GetModule().GetFileNameFromFileNum(initExprs[idx]->GetSrcFileIdx()).c_str(),
-               initExprs[idx]->GetSrcFileLineNum(),
+        FE_ERR(kLncErr, initExprs[idx]->GetSrcLoc(), "null assignment of nonnull field pointer. [field name: %s]",
                GlobalTables::GetStrTable().GetStringFromStrIdx(structType.GetFieldsElemt(i).first).c_str());
     }
   }
@@ -137,9 +131,7 @@ void ENCChecker::CheckNonnullLocalVarInit(const MIRSymbol &sym, const ASTExpr *i
     return;
   }
   if (initExpr == nullptr) {
-    FE_ERR(kLncErr, "%s:%d error: nonnull parameter is uninitialized when defined",
-           FEManager::GetModule().GetFileNameFromFileNum(sym.GetSrcPosition().FileNum()).c_str(),
-           sym.GetSrcPosition().LineNum());
+    FE_ERR(kLncErr, FEUtils::GetSrcLocationForMIRSymbol(sym), "error: nonnull parameter is uninitialized when defined");
     return;
   }
 }
@@ -150,15 +142,12 @@ void ENCChecker::CheckNonnullLocalVarInit(const MIRSymbol &sym, const UniqueFEIR
     return;
   }
   if (HasNullExpr(initFEExpr)) {
-    FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull pointer",
-           FEManager::GetModule().GetFileNameFromFileNum(sym.GetSrcPosition().FileNum()).c_str(),
-           sym.GetSrcPosition().LineNum());
+    FE_ERR(kLncErr, FEUtils::GetSrcLocationForMIRSymbol(sym), "null assignment of nonnull pointer");
     return;
   }
   if (initFEExpr->GetPrimType() == PTY_ptr) {
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assignassertnonnull, initFEExpr->Clone());
-    Loc loc = {sym.GetSrcPosition().FileNum(), sym.GetSrcPosition().LineNum(), sym.GetSrcPosition().Column()};
-    stmt->SetSrcLoc(loc);
+    stmt->SetSrcLoc(FEUtils::GetSrcLocationForMIRSymbol(sym));
     stmts.emplace_back(std::move(stmt));
   }
 }
@@ -211,14 +200,12 @@ void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const 
       }
     }
     if (!errIdxs.empty()) {
-      FE_ERR(kLncErr, "%s:%d error: function pointer and assigned function %s are mismatched "
-             "for the %s argument of nonnull attributes",
-             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
-             srcFunc->GetName().c_str(), PrintParamIdx(errIdxs).c_str());
+      FE_ERR(kLncErr, loc, "function pointer and assigned function %s are mismatched "
+             "for the %s argument of nonnull attributes", srcFunc->GetName().c_str(), PrintParamIdx(errIdxs).c_str());
     }
     if (srcFunc->GetFuncAttrs().GetAttr(FUNCATTR_nonnull) != funcType->GetRetAttrs().GetAttr(ATTR_nonnull)) {
-      FE_ERR(kLncErr, "%s:%d error: function pointer and target function's nonnull attributes are mismatched for"
-             " the return value", FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
+      FE_ERR(kLncErr, loc, "function pointer and target function's nonnull attributes are mismatched for "
+             "the return value");
     }
   }
   const MIRFuncType *srcFuncType = FEUtils::GetFuncPtrType(*srcExpr->GetType()->GenerateMIRTypeAuto());
@@ -231,13 +218,11 @@ void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const 
       }
     }
     if (!errIdxs.empty()) {
-      FE_ERR(kLncErr, "%s:%d error: function pointer's nonnull attributes are mismatched for the %s argument",
-             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
+      FE_ERR(kLncErr, loc, "function pointer's nonnull attributes are mismatched for the %s argument",
              PrintParamIdx(errIdxs).c_str());
     }
     if (srcFuncType->GetRetAttrs().GetAttr(ATTR_nonnull) != funcType->GetRetAttrs().GetAttr(ATTR_nonnull)) {
-      FE_ERR(kLncErr, "%s:%d error: function pointer's nonnull attributes are mismatched for the return value",
-             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
+      FE_ERR(kLncErr, loc, "function pointer's nonnull attributes are mismatched for the return value");
     }
   }
 }
@@ -301,8 +286,7 @@ void ASTCallExpr::CheckNonnullFieldInStruct() const {
     mirType = baseExpr->GetType()->GenerateMIRTypeAuto();
   }
   if (mirType != nullptr && ENCChecker::HasNonnullFieldInPtrStruct(*mirType)) {
-      FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull structure field pointer in %s",
-             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line, GetFuncName().c_str());
+      FE_ERR(kLncErr, loc, "null assignment of nonnull structure field pointer in %s", GetFuncName().c_str());
   }
 }
 
@@ -313,8 +297,7 @@ void ENCChecker::CheckNonnullFieldInStruct(const MIRType &src, const MIRType &ds
     return;
   }
   if (ENCChecker::HasNonnullFieldInPtrStruct(dst)) {
-    FE_ERR(kLncErr, "%s:%d error: null assignment risk of nonnull field pointer",
-           FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
+    FE_ERR(kLncErr, loc, "null assignment risk of nonnull field pointer");
   }
 }
 
@@ -659,9 +642,8 @@ bool ASTParser::ProcessBoundaryFuncPtrAttrsByIndexForParams(T *attr, ASTDecl &as
   }
   MIRType *lenType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(typesVec[lenIdx]);
   if (lenType == nullptr || !FEUtils::IsInteger(lenType->GetPrimType())) {
-    FE_ERR(kLncErr, "%s:%d error: The boundary length var by the %s argument is not an integer type",
-           FEManager::GetModule().GetFileNameFromFileNum(astDecl.GetSrcFileIdx()).c_str(),
-           astDecl.GetSrcFileLineNum(), ENCChecker::GetNthStr(lenIdx).c_str());
+    FE_ERR(kLncErr, astDecl.GetSrcLoc(), "The boundary length var by the %s argument is not an integer type",
+           ENCChecker::GetNthStr(lenIdx).c_str());
     return isUpdated;
   }
   for (const clang::ParamIdx &paramIdx : attr->index()) {
@@ -729,9 +711,7 @@ void ASTParser::ProcessBoundaryLenExpr(MapleAllocator &allocator, ASTDecl &ptrDe
                                        const std::function<ASTExpr* ()> &getLenExprFromStringLiteral,
                                        ASTExpr *lenExpr, bool isSize) {
   if (!qualType->isPointerType()) {
-    FE_ERR(kLncErr, "%s:%d error: The variable modified by the boundary attribute should be a pointer type",
-           FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(),
-           lenExpr->GetSrcFileLineNum());
+    FE_ERR(kLncErr, lenExpr->GetSrcLoc(), "The variable modified by the boundary attribute should be a pointer type");
     return;
   }
   // Check lenExpr kind from: length stringLiteral or constant value/var expression
@@ -742,9 +722,7 @@ void ASTParser::ProcessBoundaryLenExpr(MapleAllocator &allocator, ASTDecl &ptrDe
       return;
     }
   } else if (lenExpr->GetType() == nullptr || !FEUtils::IsInteger(lenExpr->GetType()->GetPrimType())) {
-    FE_ERR(kLncErr, "%s:%d error: The boundary length expr is not an integer type",
-           FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(),
-           lenExpr->GetSrcFileLineNum());
+    FE_ERR(kLncErr, lenExpr->GetSrcLoc(), "The boundary length expr is not an integer type");
     return;
   }
   if (isSize) {
@@ -771,9 +749,7 @@ void ENCChecker::CheckLenExpr(const ASTExpr &lenExpr, const std::list<UniqueFEIR
       }
     }
     if (!isAssertStmt) {
-      FE_ERR(kLncErr, "%s:%d error: The boundary length expr containing statement is invalid",
-             FEManager::GetModule().GetFileNameFromFileNum(lenExpr.GetSrcFileIdx()).c_str(),
-             lenExpr.GetSrcFileLineNum());
+      FE_ERR(kLncErr, lenExpr.GetSrcLoc(), "The boundary length expr containing statement is invalid");
       break;
     }
   }
@@ -790,9 +766,8 @@ void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const cl
     ptrDecl = astFunc.GetParamDecls()[idx];
     qualType = funcDecl.getParamDecl(idx)->getType();
   } else {
-    FE_ERR(kLncErr, "%s:%d error: The parameter annotated boundary attr [the %s argument] is not found"
-           "in the function [%s]", FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(),
-           lenExpr->GetSrcFileLineNum(), ENCChecker::GetNthStr(idx).c_str(), astFunc.GetName().c_str());
+    FE_ERR(kLncErr, lenExpr->GetSrcLoc(), "The parameter annotated boundary attr [the %s argument] is not found"
+           "in the function [%s]", ENCChecker::GetNthStr(idx).c_str(), astFunc.GetName().c_str());
     return;
   }
   // parameter stringLiteral -> real parameter decl
@@ -805,9 +780,8 @@ void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const cl
       }
       MIRType *lenType = astFunc.GetParamDecls()[i]->GetTypeDesc().front();
       if (lenType == nullptr || !FEUtils::IsInteger(lenType->GetPrimType())) {
-        FE_ERR(kLncErr, "%s:%d error: The parameter [%s] specified as boundary length var is not an integer type "
-               "in the function [%s]", FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(),
-               lenExpr->GetSrcFileLineNum(), lenName.c_str(), astFunc.GetName().c_str());
+        FE_ERR(kLncErr, lenExpr->GetSrcLoc(), "The parameter [%s] specified as boundary length var is not an integer "
+               "type in the function [%s]", lenName.c_str(), astFunc.GetName().c_str());
         return nullptr;
       }
       ASTDeclRefExpr *lenRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
@@ -816,9 +790,8 @@ void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const cl
       ptrDecl->SetBoundaryLenParamIdx(static_cast<int8>(i));
       return lenRefExpr;
     }
-    FE_ERR(kLncErr, "%s:%d error: The parameter [%s] specified as boundary length var is not found "
-           "in the function [%s]", FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(),
-           lenExpr->GetSrcFileLineNum(), lenName.c_str(), astFunc.GetName().c_str());
+    FE_ERR(kLncErr, lenExpr->GetSrcLoc(), "The parameter [%s] specified as boundary length var is not found "
+           "in the function [%s]", lenName.c_str(), astFunc.GetName().c_str());
     return nullptr;
   };
   ProcessBoundaryLenExpr(allocator, *ptrDecl, qualType, getLenExprFromStringLiteral, lenExpr, isSize);
@@ -827,14 +800,14 @@ void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const cl
 void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
                                              unsigned int idx, ASTFunc &astFunc, unsigned int lenIdx, bool isSize) {
   if (lenIdx > astFunc.GetParamDecls().size()) {
-    FE_ERR(kLncErr, "error: The %s parameter specified as boundary length var is not found "
+    FE_ERR(kLncErr, astFunc.GetSrcLoc(), "The %s parameter specified as boundary length var is not found "
            "in the function [%s]", ENCChecker::GetNthStr(lenIdx).c_str(), astFunc.GetName().c_str());
     return;
   }
   ASTDecl *lenDecl = astFunc.GetParamDecls()[lenIdx];
   MIRType *lenType = lenDecl->GetTypeDesc().front();
   if (lenType == nullptr || !FEUtils::IsInteger(lenType->GetPrimType())) {
-    FE_ERR(kLncErr, "error: The %s parameter specified as boundary length var is not an integer type "
+    FE_ERR(kLncErr, astFunc.GetSrcLoc(), "The %s parameter specified as boundary length var is not an integer type "
            "in the function [%s]", ENCChecker::GetNthStr(lenIdx).c_str(), astFunc.GetName().c_str());
     return;
   }
@@ -848,7 +821,7 @@ void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const cl
   } else if (idx < astFunc.GetParamDecls().size()) {
     ptrDecl = astFunc.GetParamDecls()[idx];
   } else {
-    FE_ERR(kLncErr, "error: The %s parameter annotated boundary attr is not found in the function [%s]",
+    FE_ERR(kLncErr, astFunc.GetSrcLoc(), "The %s parameter annotated boundary attr is not found in the function [%s]",
            ENCChecker::GetNthStr(idx).c_str(), astFunc.GetName().c_str());
     return;
   }
@@ -871,9 +844,7 @@ void ASTParser::ProcessBoundaryLenExprInVar(MapleAllocator &allocator, ASTDecl &
                                             const clang::QualType &qualType, ASTExpr *lenExpr, bool isSize) {
   // The StringLiteral is not allowed to use as boundary length of var
   auto getLenExprFromStringLiteral = [&]() -> ASTExpr* {
-    FE_ERR(kLncErr, "%s:%d error: The StringLiteral is not allowed to use as boundary length of var",
-           FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(),
-           lenExpr->GetSrcFileLineNum());
+    FE_ERR(kLncErr, lenExpr->GetSrcLoc(), "The StringLiteral is not allowed to use as boundary length of var");
     return nullptr;
   };
   ProcessBoundaryLenExpr(allocator, ptrDecl, qualType, getLenExprFromStringLiteral, lenExpr, isSize);
@@ -891,9 +862,8 @@ void ASTParser::ProcessBoundaryLenExprInField(MapleAllocator &allocator, ASTDecl
       }
       MIRType *lenType = fieldDecl->GetTypeDesc().front();
       if (lenType == nullptr || !FEUtils::IsInteger(lenType->GetPrimType())) {
-        FE_ERR(kLncErr, "%s:%d error: The field [%s] specified as boundary length var is not an integer type "
-               "in the struct [%s]", FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(),
-               lenExpr->GetSrcFileLineNum(), lenName.c_str(), structDecl.GetName().c_str());
+        FE_ERR(kLncErr, lenExpr->GetSrcLoc(), "The field [%s] specified as boundary length var is not an integer type "
+               "in the struct [%s]", lenName.c_str(), structDecl.GetName().c_str());
         return nullptr;
       }
       fieldDecl->SetAttr(GENATTR_final_boundary_size);
@@ -902,9 +872,8 @@ void ASTParser::ProcessBoundaryLenExprInField(MapleAllocator &allocator, ASTDecl
       lenRefExpr->SetType(fieldDecl->GetTypeDesc().front());
       return lenRefExpr;
     }
-    FE_ERR(kLncErr, "%s:%d error: The StringLiteral [%s] as boundary length var is not found "
-           "in the struct [%s]", FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(),
-           lenExpr->GetSrcFileLineNum(), lenName.c_str(), structDecl.GetName().c_str());
+    FE_ERR(kLncErr, lenExpr->GetSrcLoc(), "The StringLiteral [%s] as boundary length var is not found "
+           "in the struct [%s]", lenName.c_str(), structDecl.GetName().c_str());
     return nullptr;
   };
   ProcessBoundaryLenExpr(allocator, ptrDecl, qualType, getLenExprFromStringLiteral, lenExpr, isSize);
@@ -1903,24 +1872,20 @@ MapleVector<BaseNode*> ENCChecker::ReplaceBoundaryChecking(MIRBuilder &mirBuilde
         }
         if (op == OP_callassertle) {
           auto callAssert = static_cast<const FEIRStmtCallAssertBoundary*>(stmt);
-          FE_ERR(kLncErr, "%s:%d error: boundaryless pointer passed to %s that requires a boundary pointer for the %s"
-                 " argument", FEManager::GetModule().GetFileNameFromFileNum(stmt->GetSrcFileIdx()).c_str(),
-                 stmt->GetSrcFileLineNum(), callAssert->GetFuncName().c_str(),
+          FE_ERR(kLncErr, stmt->GetSrcLoc(), "boundaryless pointer passed to %s that requires a boundary pointer for "
+                 "the %s argument", callAssert->GetFuncName().c_str(),
                  ENCChecker::GetNthStr(callAssert->GetParamIndex()).c_str());
         } else if (op == OP_returnassertle) {
           if (curFunction->GetName().compare(kBoundsBuiltFunc) != 0) {
-            FE_ERR(kLncErr, "%s:%d error: boundaryless pointer returned from %s that requires a boundary pointer",
-                   FEManager::GetModule().GetFileNameFromFileNum(stmt->GetSrcFileIdx()).c_str(),
-                   stmt->GetSrcFileLineNum(), curFunction->GetName().c_str());
+            FE_ERR(kLncErr, stmt->GetSrcLoc(), "boundaryless pointer returned from %s that requires a boundary pointer",
+                   curFunction->GetName().c_str());
           }
         } else if (op == OP_assignassertle) {
-          FE_ERR(kLncErr, "%s:%d error: r-value requires a boundary pointer",
-              FEManager::GetModule().GetFileNameFromFileNum(stmt->GetSrcFileIdx()).c_str(), stmt->GetSrcFileLineNum());
+          FE_ERR(kLncErr, stmt->GetSrcLoc(), "r-value requires a boundary pointer");
         } else if (ENCChecker::IsSafeRegion(mirBuilder) &&
                    (op == OP_calcassertge ||
                     (op == OP_assertge && static_cast<const FEIRStmtAssertBoundary*>(stmt)->IsComputable()))) {
-          FE_ERR(kLncErr, "%s:%d error: calculation with pointer requires bounds in safe region",
-              FEManager::GetModule().GetFileNameFromFileNum(stmt->GetSrcFileIdx()).c_str(), stmt->GetSrcFileLineNum());
+          FE_ERR(kLncErr, stmt->GetSrcLoc(), "calculation with pointer requires bounds in safe region");
         }
         return args;
       }
@@ -2156,13 +2121,12 @@ void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const
       }
     }
     if (!errIdxs.empty()) {
-      FE_ERR(kLncErr, "%s:%d error: function pointer and target function's boundary attributes are mismatched "
-             "for the %s argument", FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
-             PrintParamIdx(errIdxs).c_str());
+      FE_ERR(kLncErr, loc, "function pointer and target function's boundary attributes are mismatched "
+             "for the %s argument", PrintParamIdx(errIdxs).c_str());
     }
     if (!IsSameBoundary(srcFunc->GetFuncAttrs().GetAttrBoundary(), funcType->GetRetAttrs().GetAttrBoundary())) {
-      FE_ERR(kLncErr, "%s:%d error: function pointer and target function's boundary attributes are mismatched "
-             "for the return value", FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
+      FE_ERR(kLncErr, loc, "function pointer and target function's boundary attributes are mismatched "
+             "for the return value");
     }
   }
   const MIRFuncType *srcFuncType = FEUtils::GetFuncPtrType(*srcExpr->GetType()->GenerateMIRTypeAuto());
@@ -2175,13 +2139,11 @@ void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const
       }
     }
     if (!errIdxs.empty()) {
-      FE_ERR(kLncErr, "%s:%d error: function pointer's boundary attributes are mismatched for the %s argument",
-             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line,
+      FE_ERR(kLncErr, loc, "function pointer's boundary attributes are mismatched for the %s argument",
              PrintParamIdx(errIdxs).c_str());
     }
     if (!IsSameBoundary(srcFuncType->GetRetAttrs().GetAttrBoundary(), funcType->GetRetAttrs().GetAttrBoundary())) {
-      FE_ERR(kLncErr, "%s:%d error: function pointer's boundary attributes are mismatched for the return value",
-             FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
+      FE_ERR(kLncErr, loc, "function pointer's boundary attributes are mismatched for the return value");
     }
   }
 }

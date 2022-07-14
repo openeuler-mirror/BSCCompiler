@@ -29,6 +29,7 @@ struct Loc {
   uint32 fileIdx;
   uint32 line;
   uint32 column;
+  Loc(uint32 fileIdxIn, uint32 lineIn, uint32 columnIn) : fileIdx(fileIdxIn),  line(lineIn), column(columnIn) {}
 
   SrcPosition Emit2SourcePosition() const {
     SrcPosition srcPos;
@@ -36,6 +37,16 @@ struct Loc {
     srcPos.SetLineNum(line);
     srcPos.SetColumn(static_cast<uint16>(column));
     return srcPos;
+  }
+
+  bool operator < (Loc const &loc) const {
+    if (fileIdx != loc.fileIdx) {
+      return fileIdx < loc.fileIdx;
+    } else if (line != loc.line) {
+      return line < loc.line;
+    } else {
+      return column < loc.column;
+    }
   }
 };
 
@@ -66,6 +77,7 @@ class FEUtils {
   static PrimType GetVectorElementPrimType(PrimType vectorPrimType);
   static bool EndsWith(const std::string &value, const std::string &ending);
   static MIRConst *TraverseToMIRConst(MIRAggConst *aggConst, const MIRStructType &structType, FieldID &fieldID);
+  static Loc GetSrcLocationForMIRSymbol(const MIRSymbol &symbol);
 
   static const std::string kBoolean;
   static const std::string kByte;

@@ -232,6 +232,10 @@ class FEIRStmt : public FELinkListNode {
     return loc.line;
   }
 
+  uint32 GetSrcFileColumn() const {
+    return loc.column;
+  }
+
   bool HasSetLOCInfo() const {
     return (loc.fileIdx != 0 || loc.line != 0);
   }

@@ -118,7 +118,7 @@ class ASTDecl {
     loc = l;
   }
 
-  const Loc &GetSrclOC() const {
+  const Loc &GetSrcLoc() const {
     return loc;
   }
 

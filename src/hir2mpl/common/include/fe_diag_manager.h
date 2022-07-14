@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -16,6 +16,7 @@
 #define HIR2MPL_INCLUDE_COMMON_FE_DIAG_MANAGER_H
 #include <memory>
 #include <mutex>
+#include "fe_utils.h"
 
 namespace maple {
 enum FEErrno : int {
@@ -32,10 +33,15 @@ class FEDiagManager {
 
   void IncErrNum();
   int GetDiagRes() const;
+  void InsertFeError(const Loc &loc, const std::string &err) {
+    feErrsMap[loc].emplace_back(err);
+  }
+  void PrintFeErrorMessages() const;
 
  private:
   uint errNum = 0;
   mutable std::mutex errNumMtx;
+  std::map<Loc, std::vector<std::string>> feErrsMap;
 };
 }  // namespace maple
 #endif  // HIR2MPL_INCLUDE_COMMON_FE_DIAG_MANAGER_H

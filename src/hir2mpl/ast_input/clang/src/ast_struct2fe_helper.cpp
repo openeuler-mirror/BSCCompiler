@@ -166,7 +166,7 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
     mirSymbol->SetTyIdx(type->GetTypeIndex());
   }
   if (mirSymbol->GetSrcPosition().LineNum() == 0) {
-    mirSymbol->SetSrcPosition(astVar.GetSrclOC().Emit2SourcePosition());
+    mirSymbol->SetSrcPosition(astVar.GetSrcLoc().Emit2SourcePosition());
   }
   auto typeAttrs = astVar.GetGenericAttrs().ConvertToTypeAttrs();
   ENCChecker::InsertBoundaryInAtts(typeAttrs, astVar.GetBoundaryInfo());
@@ -241,7 +241,7 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   }
   mirFunc = FEManager::GetTypeManager().CreateFunction(methodNameIdx, retMIRType->GetTypeIndex(),
                                                        argsTypeIdx, isVarg, isStatic);
-  mirFunc->SetSrcPosition(func.GetSrclOC().Emit2SourcePosition());
+  mirFunc->SetSrcPosition(func.GetSrcLoc().Emit2SourcePosition());
   MIRSymbol *funSym = mirFunc->GetFuncSymbol();
   ASSERT_NOT_NULL(funSym);
   if (!func.GetSectionAttr().empty()) {

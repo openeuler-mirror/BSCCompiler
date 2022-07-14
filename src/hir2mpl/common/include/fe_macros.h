@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -19,6 +19,7 @@
 #include <ctime>
 #include <sys/time.h>
 #include <iostream>
+#include <sstream>
 #include "fe_options.h"
 #include "mpl_logging.h"
 
@@ -62,8 +63,13 @@
   CHECK_FATAL(run, "%s", #run); \
 } while (0)
 
-#define FE_ERR(num, fmt, ...) do {                        \
-  ERR(num, fmt, ##__VA_ARGS__);                           \
-  FEManager::GetDiagManager().IncErrNum();                \
+#define FE_ERR(num, loc, fmt, ...) do {                                                                            \
+  if (PRINT_LEVEL_USER <= kLlErr) {                                                                                \
+      std::ostringstream ss;                                                                                       \
+      ss << FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx) << ":" << loc.line << " error: " << fmt;    \
+      FEManager::GetDiagManager().InsertFeError(loc, logInfo.EmitLogToStringForUser(num, kLlErr, ss.str().c_str(), \
+                                                ##__VA_ARGS__));                                                   \
+  }                                                                                                                \
+  FEManager::GetDiagManager().IncErrNum();                                                                         \
 } while (0)
 #endif  // ~HIR2MPL_INCLUDE_FE_MACROS_H
