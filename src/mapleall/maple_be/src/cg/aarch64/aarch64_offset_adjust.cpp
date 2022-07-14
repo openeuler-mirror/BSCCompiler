@@ -64,8 +64,8 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGF
         continue;
       }
       if (ofstOpnd->GetVary() == kUnAdjustVary) {
-        ofstOpnd->AdjustOffset(static_cast<int32>(static_cast<AArch64MemLayout*>(memLayout)->RealStackFrameSize()
-            - memLayout->SizeOfArgsToStackPass()));
+        ofstOpnd->AdjustOffset(static_cast<int32>(static_cast<AArch64MemLayout*>(memLayout)->RealStackFrameSize() -
+            (isLmbc ? 0 : memLayout->SizeOfArgsToStackPass())));
         ofstOpnd->SetVary(kAdjustVary);
       }
       if (!stackBaseOpnd && (ofstOpnd->GetVary() == kAdjustVary || ofstOpnd->GetVary() == kNotVary)) {
