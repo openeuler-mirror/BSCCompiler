@@ -1120,7 +1120,7 @@ bool MIRParser::ParseFuncAttrs(FuncAttrs &attrs) {
   } while (true);
 }
 
-void MIRParser::SetAttrContent(FuncAttrs &attrs, FuncAttrKind x, const MIRLexer &mirLexer) {
+void MIRParser::SetAttrContent(FuncAttrs &attrs, FuncAttrKind x, const MIRLexer &mirLexer) const {
   switch (x) {
     case FUNCATTR_alias: {
       attrs.SetAliasFuncName(mirLexer.GetName());
@@ -1636,17 +1636,23 @@ bool MIRParser::ParseTypedef() {
   }
   // for class/interface types, prev_tyidx could also be set during processing
   // so we check again right before SetGStrIdxToTyIdx
+  MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
   if (isLocal) {
     prevTyIdx = mod.CurFunction()->GetTyIdxFromGStrIdx(strIdx);
     mod.CurFunction()->SetGStrIdxToTyIdx(strIdx, tyIdx);
     ASSERT(GlobalTables::GetTypeTable().GetTypeTable().empty() == false, "container check");
-    if (GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetNameStrIdx() == 0u) {
-      GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->SetNameIsLocal(true);
+    if (type->GetNameStrIdx() == 0u) {
+      type->SetNameIsLocal(true);
     }
   } else {
     prevTyIdx = mod.GetTypeNameTab()->GetTyIdxFromGStrIdx(strIdx);
     mod.GetTypeNameTab()->SetGStrIdxToTyIdx(strIdx, tyIdx);
     mod.PushbackTypeDefOrder(strIdx);
+
+    // debuginfo for typedef
+    if (mod.IsWithDbgInfo() && strIdx != type->GetNameStrIdx()) {
+      mod.GetDbgInfo()->AddTypedefMap(strIdx, tyIdx);
+    }
   }
 
   if (prevTyIdx != TyIdx(0) && prevTyIdx != tyIdx) {
@@ -1658,7 +1664,6 @@ bool MIRParser::ParseTypedef() {
 
   // Merge class or interface type at the cross-module level
   ASSERT(GlobalTables::GetTypeTable().GetTypeTable().empty() == false, "container check");
-  MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
   if (!isLocal && (type->GetKind() == kTypeClass || type->GetKind() == kTypeClassIncomplete ||
                    type->GetKind() == kTypeInterface || type->GetKind() == kTypeInterfaceIncomplete)) {
     prevTyIdx = GlobalTables::GetTypeNameTable().GetTyIdxFromGStrIdx(strIdx);
@@ -2529,17 +2534,16 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
   lexer.NextToken();
   TokenKind tk = lexer.GetTokenKind();
   TyIdx tyIdx(0);
-  if (ParseType(tyIdx)) {
-    aliasVar.tyIdx = tyIdx;
-    aliasVar.srcTypeStrIdx = GStrIdx(0);
-  } else if (tk == TK_string) {
-    /* it is original type name from source code */
+  if (tk == TK_string || tk == TK_gname) {
+    // original type name from source code
     std::string typeName = lexer.GetName();
     GStrIdx srcTypeStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName);
-
     aliasVar.tyIdx = TyIdx(0);
     aliasVar.srcTypeStrIdx = srcTypeStrIdx;
     lexer.NextToken();
+  } else if (ParseType(tyIdx)) {
+    aliasVar.tyIdx = tyIdx;
+    aliasVar.srcTypeStrIdx = GStrIdx(0);
   } else {
     Error("parseType failed when parsing ALIAS ");
     return false;
@@ -2766,7 +2770,7 @@ bool MIRParser::ParseMIRForFunc() {
   return true;
 }
 
-bool MIRParser::TypeCompatible(TyIdx typeIdx1, TyIdx typeIdx2) {
+bool MIRParser::TypeCompatible(TyIdx typeIdx1, TyIdx typeIdx2) const {
   if (typeIdx1 == typeIdx2) {
     return true;
   }
@@ -2801,7 +2805,7 @@ bool MIRParser::TypeCompatible(TyIdx typeIdx1, TyIdx typeIdx2) {
   return false;
 }
 
-bool MIRParser::IsTypeIncomplete(MIRType *type) {
+bool MIRParser::IsTypeIncomplete(MIRType *type) const {
   if (type->IsIncomplete()) {
     return true;
   }
@@ -3337,7 +3341,7 @@ void MIRParser::EmitError(const std::string &fileName) {
   ERR(kLncErr, "%s \n%s", fileName.c_str(), GetError().c_str());
 }
 
-void MIRParser::EmitWarning(const std::string &fileName) {
+void MIRParser::EmitWarning(const std::string &fileName) const {
   if (!strlen(GetWarning().c_str())) {
     return;
   }
