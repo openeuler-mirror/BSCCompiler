@@ -165,7 +165,7 @@ void CGFuncLoops::PrintLoops(const CGFuncLoops &funcLoop) const {
 //       It should be simplied later
 void LoopFinder::FormLoop(BB* headBB, BB* backBB) {
   ASSERT(headBB != nullptr && backBB != nullptr, "headBB or backBB is nullptr");
-  LoopHierarchy *simple_loop = memPool->New<LoopHierarchy>(*memPool);
+  LoopHierarchy *simpleLoop = memPool->New<LoopHierarchy>(*memPool);
 
   if (headBB != backBB) {
     ASSERT(!dfsBBs.empty(), "dfsBBs is empty");
@@ -185,21 +185,21 @@ void LoopFinder::FormLoop(BB* headBB, BB* backBB) {
       tempStk.pop();
 
       if (onPathBBs[topBB->GetId()]) {
-        simple_loop->InsertLoopMembers(*topBB);
+        simpleLoop->InsertLoopMembers(*topBB);
       }
       dfsBBs.push(topBB);
     }
   }
   // Note: backBB is NOT on dfsBBs
-  simple_loop->InsertLoopMembers(*backBB);
-  simple_loop->SetHeader(*headBB);
-  simple_loop->InsertBackedge(*backBB);
+  simpleLoop->InsertLoopMembers(*backBB);
+  simpleLoop->SetHeader(*headBB);
+  simpleLoop->InsertBackedge(*backBB);
 
   if (loops) {
-    loops->SetPrev(simple_loop);
+    loops->SetPrev(simpleLoop);
   }
-  simple_loop->SetNext(loops);
-  loops = simple_loop;
+  simpleLoop->SetNext(loops);
+  loops = simpleLoop;
 }
 
 void LoopFinder::SeekBackEdge(BB* bb, MapleList<BB*> succs) {

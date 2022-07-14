@@ -2128,9 +2128,9 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
     func->NewBody();
     BlockNode *block = nullptr;
     safeRegionFlag.push(curFunc->IsSafe());
-    auto IsParseSucc = ParseStmtBlock(block);
+    auto isParseSucc = ParseStmtBlock(block);
     safeRegionFlag.pop();
-    if (!IsParseSucc) {
+    if (!isParseSucc) {
       Error("ParseFunction failed when parsing stmt block");
       ResetCurrentFunction();
       return false;

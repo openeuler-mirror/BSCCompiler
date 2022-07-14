@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -15,11 +15,6 @@
 #include "call_graph.h"
 #include "maple_phase.h"
 #include "maple_phase.h"
-#include <iostream>
-#include <fstream>
-#include <queue>
-#include <unordered_set>
-#include <algorithm>
 #include "option.h"
 #include "string_utils.h"
 #include "mir_function.h"
@@ -68,7 +63,7 @@ void PropParamType::ResolveIreadExpr(MeExpr &expr) {
   }
 }
 
-void PropParamType::InsertNullCheck(const CallMeStmt &callStmt, const std::string &funcName,
+void PropParamType::InsertNullCheck(CallMeStmt &callStmt, const std::string &funcName,
                                     uint32 index, MeExpr &receiver) {
   auto *irMap = curFunc->GetMeFunc()->GetIRMap();
   GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName);
@@ -91,6 +86,7 @@ void PropParamType::ResolveCallStmt(MeStmt &meStmt) {
     SSATab *ssaTab = static_cast<MESSATab*>(dataMap.GetVaildAnalysisPhase(curFunc->GetMeFunc()->GetUniqueID(),
                                                                           &MESSATab::id))->GetResult();
     OriginalSt *ostTemp = ssaTab->GetSymbolOriginalStFromID(idx);
+    ASSERT(ostTemp != nullptr, "null ptr check");
     MIRSymbol *tempSymbol = ostTemp->GetMIRSymbol();
     if (tempSymbol != nullptr && tempSymbol->IsFormal() && curFunc->GetParamNonull(tempSymbol) !=
                                                            PointerAttr::kPointerNoNull) {
@@ -108,7 +104,8 @@ void PropParamType::ResolveCallStmt(MeStmt &meStmt) {
           calledFunc->GetParamNonull(formalSt) == PointerAttr::kPointerNoNull) {
         InsertNullCheck(*callMeStmt, calledFunc->GetName(), i, *callMeStmt->GetOpnd(i));
         MIRSymbol *calledFuncFormalSt = calledFunc->GetFormal(i);
-        if (calledFuncFormalSt->IsFormal() && curFunc->GetParamNonull(calledFuncFormalSt) != PointerAttr::kPointerNull) {
+        if (calledFuncFormalSt->IsFormal() &&
+            curFunc->GetParamNonull(calledFuncFormalSt) != PointerAttr::kPointerNull) {
           formalMapLocal[calledFuncFormalSt] = PointerAttr::kPointerNoNull;
         }
       }
@@ -144,7 +141,9 @@ void PropParamType::TraversalMeStmt(MeStmt &meStmt) {
           OStIdx idx = map.first;
           SSATab *ssaTab = static_cast<MESSATab*>(dataMap.GetVaildAnalysisPhase(curFunc->GetMeFunc()->GetUniqueID(),
                                                                                 &MESSATab::id))->GetResult();
+          ASSERT(ssaTab != nullptr, "null ptr check");
           OriginalSt *ostTemp = ssaTab->GetSymbolOriginalStFromID(idx);
+          ASSERT(ostTemp != nullptr, "null ptr check");
           MIRSymbol *tempSymbol = ostTemp->GetMIRSymbol();
           if (tempSymbol->IsFormal()) {
             formalMapLocal[tempSymbol] = PointerAttr::kPointerNull;
@@ -163,8 +162,8 @@ void PropParamType::TraversalMeStmt(MeStmt &meStmt) {
   }
 }
 
-void PropParamType::runOnScc(maple::SCCNode &scc) {
-  for (auto *cgNode : scc.GetCGNodes()) {
+void PropParamType::RunOnScc(maple::SCCNode<CGNode> &scc) {
+  for (auto *cgNode : scc.GetNodes()) {
     MIRFunction *func = cgNode->GetMIRFunction();
     if (func->IsEmpty()) {
       continue;
@@ -221,8 +220,8 @@ void SCCPropParamType::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.SetPreservedAll();
 }
 
-bool SCCPropParamType::PhaseRun(maple::SCCNode &scc) {
-  MIRModule *m = ((scc.GetCGNodes()[0])->GetMIRFunction())->GetModule();
+bool SCCPropParamType::PhaseRun(maple::SCCNode<CGNode> &scc) {
+  MIRModule *m = ((scc.GetNodes()[0])->GetMIRFunction())->GetModule();
   auto *memPool = GetPhaseMemPool();
   MapleAllocator alloc = MapleAllocator(memPool);
   MaplePhase *it = GetAnalysisInfoHook()->GetOverIRAnalyisData<M2MCallGraph, MIRModule>(*m);
@@ -230,7 +229,7 @@ bool SCCPropParamType::PhaseRun(maple::SCCNode &scc) {
   CHECK_FATAL(cg != nullptr, "Expecting a valid CallGraph, found nullptr");
   AnalysisDataManager *dataMap = GET_ANALYSIS(SCCPrepare, scc);
   PropParamType prop(*memPool, alloc, *m, *cg, *dataMap);
-  prop.runOnScc(scc);
+  prop.RunOnScc(scc);
   return true;
 }
 }

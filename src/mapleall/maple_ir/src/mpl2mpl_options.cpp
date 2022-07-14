@@ -15,10 +15,6 @@
 
 #include "driver_options.h"
 
-#include <bits/stdint-uintn.h>
-#include <stdint.h>
-#include <string>
-
 namespace opts::mpl2mpl {
 
 maplecl::Option<std::string> dumpPhase({"--dump-phase"},
@@ -55,13 +51,13 @@ maplecl::Option<bool> quiet({"--quiet"},
                        {mpl2mplCategory},
                        maplecl::DisableWith("--no-quiet"));
 
-maplecl::Option<bool> maplelinker({"--maplelinker"},
+maplecl::Option<bool> mapleLinker({"--maplelinker"},
                              "  --maplelinker               \tGenerate MUID symbol tables and references\n"
                              "  --no-maplelinker            \tDon't Generate MUID symbol tables and references\n",
                              {mpl2mplCategory},
                              maplecl::DisableWith("--no-maplelinker"));
 
-maplecl::Option<bool> regnativefunc({"--regnativefunc"},
+maplecl::Option<bool> regNativeFunc({"--regnativefunc"},
                                "  --regnativefunc             \tGenerate native stub function"
                                " to support JNI registration and calling\n"
                                "  --no-regnativefunc          \tDisable regnativefunc\n",
@@ -149,12 +145,12 @@ maplecl::Option<uint32_t> profileColdRate({"--profile-cold-rate"},
                                      "  \tA count is regarded as cold if it is in the smallest 10%\n",
                                      {mpl2mplCategory});
 
-maplecl::Option<bool> nativewrapper({"--nativewrapper"},
+maplecl::Option<bool> nativeWrapper({"--nativewrapper"},
                                "  --nativewrapper             \tGenerate native wrappers [default]\n",
                                {mpl2mplCategory},
                                maplecl::DisableWith("--no-nativewrapper"));
 
-maplecl::Option<bool> regnativeDynamicOnly({"--regnative-dynamic-only"},
+maplecl::Option<bool> regNativeDynamicOnly({"--regnative-dynamic-only"},
                                       "  --regnative-dynamic-only    \tOnly Generate dynamic register code,"
                                       " Report Fatal Msg if no implemented\n"
                                       "  --no-regnative-dynamic-only \tDisable regnative-dynamic-only\n",
@@ -192,7 +188,7 @@ maplecl::Option<bool> emitVtableImpl({"--emitVtableImpl"},
                                 maplecl::DisableWith("--no-emitVtableImpl"));
 
 #if MIR_JAVA
-maplecl::Option<bool> skipvirtual({"--skipvirtual"},
+maplecl::Option<bool> skipVirtual({"--skipvirtual"},
                              "  --skipvirtual\n"
                              "  --no-skipvirtual\n",
                              {mpl2mplCategory},
@@ -217,7 +213,7 @@ maplecl::Option<bool> rcOpt1({"--rc-opt1"},
                         {mpl2mplCategory},
                         maplecl::DisableWith("--no-rc-opt1"));
 
-maplecl::Option<bool> nativeopt({"--nativeopt"},
+maplecl::Option<bool> nativeOpt({"--nativeopt"},
                            "  --nativeopt                 \tEnable native opt\n"
                            "  --no-nativeopt              \tDisable native opt\n",
                            {mpl2mplCategory},
@@ -245,7 +241,7 @@ maplecl::Option<std::string> fastNative({"--FastNative"},
                                    "                              \t--FastNative=list_file\n",
                                    {mpl2mplCategory});
 
-maplecl::Option<bool> nodot({"--nodot"},
+maplecl::Option<bool> noDot({"--nodot"},
                        "  --nodot                     \tDisable dot file generation from cfg\n"
                        "  --no-nodot                  \tEnable dot file generation from cfg\n",
                        {mpl2mplCategory},
@@ -257,7 +253,7 @@ maplecl::Option<bool> genIrProfile({"--ir-profile-gen"},
                               {mpl2mplCategory},
                               maplecl::DisableWith("--no-ir-profile-gen"));
 
-maplecl::Option<bool> profileTest({"--profile-test"},
+maplecl::Option<bool> proFileTest({"--profile-test"},
                              "  --profile-test              \tprofile test\n"
                              "  --no-profile-test           \tDisable profile test\n",
                              {mpl2mplCategory},
@@ -275,7 +271,7 @@ maplecl::Option<std::string> nativeFuncPropertyFile({"--nativefunc-property-list
                                                "                              \t--nativefunc-property-list=file\n",
                                                {mpl2mplCategory});
 
-maplecl::Option<bool> maplelinkerNolocal({"--maplelinker-nolocal"},
+maplecl::Option<bool> mapleLinkerNolocal({"--maplelinker-nolocal"},
                                     "  --maplelinker-nolocal       \tDo not turn functions"
                                     " into local when maple linker is on\n"
                                     "  --no-maplelinker-nolocal\n",
@@ -349,7 +345,7 @@ maplecl::Option<std::string> readDevirtual({"--read-devirtual-list"},
                                       "                              \t--read-devirtual-list=\n",
                                       {mpl2mplCategory});
 
-maplecl::Option<bool> usewhiteclass({"--usewhiteclass"},
+maplecl::Option<bool> useWhiteClass({"--usewhiteclass"},
                                "  --usewhiteclass"
                                "             \tEnable use preloaded class list to reducing clinit check\n"
                                "  --no-usewhiteclass"
@@ -412,13 +408,13 @@ maplecl::Option<bool> noComment({"--no-comment"},
                            "  --no-comment             \tbuild inlineCache 0:off, 1:open\n",
                            {mpl2mplCategory});
 
-maplecl::Option<bool> rmnousefunc({"--rmnousefunc"},
+maplecl::Option<bool> rmNouseFunc({"--rmnousefunc"},
                              "  --rmnousefunc            \tEnable remove no-used file-static function\n"
                              "  --no-rmnousefunc         \tDisable remove no-used file-static function\n",
                              {mpl2mplCategory},
                              maplecl::DisableWith("--no-rmnousefunc"));
 
-maplecl::Option<bool> sideeffect({"--sideeffect"},
+maplecl::Option<bool> sideEffect({"--sideeffect"},
                             "  --sideeffect      \tIPA: analysis sideeffect\n"
                             "  --no-sideeffect          \n",
                             {mpl2mplCategory},

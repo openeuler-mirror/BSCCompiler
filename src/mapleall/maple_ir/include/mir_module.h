@@ -102,7 +102,7 @@ class ImpExpr {
  public:
   ImpExpr(uint32 stmtId, uint32 paramIndex)
       : stmtId(stmtId), paramIndex(paramIndex) {}
-  int32 GetStmtId() const { return stmtId; }
+  uint32 GetStmtId() const { return stmtId; }
   uint32 GetParamIndex() const { return paramIndex; }
 
  private:
@@ -353,11 +353,11 @@ class MIRModule {
     return srcLang == kSrcLangChar;
   }
 
-  void addSuperCall(const std::string &func) {
+  void AddSuperCall(const std::string &func) {
     (void)superCallSet.insert(func);
   }
 
-  bool findSuperCall(const std::string &func) const {
+  bool FindSuperCall(const std::string &func) const {
     return superCallSet.find(func) != superCallSet.end();
   }
 
@@ -417,14 +417,6 @@ class MIRModule {
 
   std::map<PUIdx, std::vector<ImpExpr>> &GetFuncImportantExpr() {
     return funcImportantExpr;
-  }
-
-  const auto &GetRealCaller() const {
-    return realCaller;
-  }
-
-  auto &GetRealCaller() {
-    return realCaller;
   }
 
   const MapleSet<uint32_t> &GetInlineGlobals() const {
@@ -682,7 +674,7 @@ class MIRModule {
     return UINT_MAX;
   }
 
-  bool HasNotWarned(uint32 postion, uint32 stmtOriginalID);
+  bool HasNotWarned(uint32 position, uint32 stmtOriginalID);
 
  private:
   void DumpTypeTreeToCxxHeaderFile(MIRType &ty, std::unordered_set<MIRType*> &dumpedClasses) const;
@@ -765,7 +757,6 @@ class MIRModule {
   // and writes to all field id otherwise, it writes the field ids in MapleSet
   MapleMap<PUIdx, MapleSet<FieldID>*> puIdxFieldInitializedMap;
   mutable std::shared_timed_mutex fieldMapMutex;
-  std::map<std::pair<GStrIdx, GStrIdx>, GStrIdx> realCaller;
   MapleSet<uint32_t> inliningGlobals;  // global symbols accessed, used for inlining
   bool hasPartO2List = false;
   MapleSet<GStrIdx> partO2FuncList;

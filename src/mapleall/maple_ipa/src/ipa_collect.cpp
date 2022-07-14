@@ -12,19 +12,18 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "call_graph.h"
-#include "maple_phase.h"
-#include "maple_phase.h"
-#include "option.h"
-#include "string_utils.h"
-#include "mir_function.h"
-#include "me_dominance.h"
 #include "ipa_collect.h"
 
+#include "call_graph.h"
+#include "inline_analyzer.h"
+#include "maple_phase.h"
+#include "me_dominance.h"
+#include "mir_function.h"
+#include "option.h"
+#include "string_utils.h"
 
 namespace maple {
-void CollectIpaInfo::UpdateCaleeParaAboutFloat(MeStmt &meStmt, float paramValue, uint32 index,
-                                               CallerSummary &summary) {
+void CollectIpaInfo::UpdateCaleeParaAboutFloat(MeStmt &meStmt, float paramValue, uint32 index, CallerSummary &summary) {
   auto *callMeStmt = static_cast<CallMeStmt*>(&meStmt);
   MIRFunction &called = callMeStmt->GetTargetFunction();
   CalleePair calleeKey(called.GetPuidx(), index);
@@ -43,8 +42,7 @@ void CollectIpaInfo::UpdateCaleeParaAboutDouble(MeStmt &meStmt, double paramValu
   calleeParamAboutDouble[calleeKey][paramValue].emplace_back(summary);
 }
 
-void CollectIpaInfo::UpdateCaleeParaAboutInt(MeStmt &meStmt, int64_t paramValue, uint32 index, CallerSummary
-                                             &summary) {
+void CollectIpaInfo::UpdateCaleeParaAboutInt(MeStmt &meStmt, int64_t paramValue, uint32 index, CallerSummary &summary) {
   auto *callMeStmt = static_cast<CallMeStmt*>(&meStmt);
   MIRFunction &called = callMeStmt->GetTargetFunction();
   CalleePair calleeKey(called.GetPuidx(), index);
@@ -121,7 +119,7 @@ void CollectIpaInfo::TraversalMeStmt(MeStmt &meStmt) {
   }
   for (uint32 i = 0; i < callMeStmt->NumMeStmtOpnds() && i < called.GetFormalCount(); ++i) {
     if (callMeStmt->GetOpnd(i)->GetMeOp() == kMeOpConst) {
-      ConstMeExpr* constExpr = static_cast<ConstMeExpr*>(callMeStmt->GetOpnd(i));
+      ConstMeExpr *constExpr = static_cast<ConstMeExpr*>(callMeStmt->GetOpnd(i));
       MIRSymbol *formalSt = called.GetFormal(i);
       // Some vargs2 We cann't get the actual type
       if (formalSt == nullptr) {
@@ -154,8 +152,8 @@ void CollectIpaInfo::TraversalMeStmt(MeStmt &meStmt) {
 void CollectIpaInfo::Perform(const MeFunction &func) {
   // Pre-order traverse the dominance tree, so that each def is traversed
   // before its use
-  Dominance *dom = static_cast<MEDominance*>(dataMap.GetVaildAnalysisPhase(func.GetUniqueID(),
-                                                                           &MEDominance::id))->GetResult();
+  Dominance *dom =
+      static_cast<MEDominance*>(dataMap.GetVaildAnalysisPhase(func.GetUniqueID(), &MEDominance::id))->GetResult();
   for (auto *bb : dom->GetReversePostOrder()) {
     if (bb == nullptr) {
       return;
@@ -167,7 +165,7 @@ void CollectIpaInfo::Perform(const MeFunction &func) {
   }
 }
 
-void CollectIpaInfo::runOnScc(maple::SCCNode<CGNode> &scc) {
+void CollectIpaInfo::RunOnScc(maple::SCCNode<CGNode> &scc) {
   for (auto *cgNode : scc.GetNodes()) {
     MIRFunction *func = cgNode->GetMIRFunction();
     curFunc = func;
@@ -185,7 +183,7 @@ bool SCCCollectIpaInfo::PhaseRun(maple::SCCNode<CGNode> &scc) {
   MIRModule *m = ((scc.GetNodes()[0])->GetMIRFunction())->GetModule();
   AnalysisDataManager *dataMap = GET_ANALYSIS(SCCPrepare, scc);
   CollectIpaInfo collect(*m, *dataMap);
-  collect.runOnScc(scc);
+  collect.RunOnScc(scc);
   return true;
 }
-}
+}  // namespace maple

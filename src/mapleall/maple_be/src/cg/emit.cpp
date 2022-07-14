@@ -2966,8 +2966,8 @@ void Emitter::EmitHexUnsigned(uint64 num) {
   outStream.flags(flag);
 }
 
-#define XSTR(s) str(s)
-#define str(s) #s
+#define XSTR(s) STR(s)
+#define STR(s) #s
 
 void Emitter::EmitDIHeader() {
   if (cg->GetMIRModule()->GetSrcLang() == kSrcLangC) {
@@ -3055,6 +3055,8 @@ void Emitter::EmitDIFormSpecification(unsigned int dwform) {
 void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTag tagName, DebugInfo *di) {
   MapleVector<DBGDieAttr*> &attrvec = die->GetAttrVec();
 
+  static MIRFunction *lastMIRFunc = nullptr;
+
   switch (attr->GetDwForm()) {
     case DW_FORM_string: {
       const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(attr->GetId());
@@ -3107,6 +3109,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
 
           MIRBuilder *mirbuilder = GetCG()->GetMIRModule()->GetMIRBuilder();
           MIRFunction *mfunc = mirbuilder->GetFunctionFromName(str);
+          lastMIRFunc = mfunc;
           MapleMap<MIRFunction*, std::pair<LabelIdx, LabelIdx> >::iterator it =
               CG::GetFuncWrapLabels().find(mfunc);
           if (it != CG::GetFuncWrapLabels().end()) {
@@ -3123,8 +3126,12 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
             EmitLabelRef(lowpc->GetId());    /* maybe deadbeef */
           }
         } else if (tagName == DW_TAG_lexical_block) {
-          unsigned i = attr->GetU();
-          Emit(".LScp." + std::to_string(i) + "E-.LScp." + std::to_string(i) + "B");
+          auto i = static_cast<uint32>(attr->GetU());
+          if (GetCG()->GetMIRModule()->GetDbgInfo()->IsScopeIdEmited(lastMIRFunc, i)) {
+            (void)Emit(".LScp." + std::to_string(i) + "E-.LScp." + std::to_string(i) + "B");
+          } else {
+            (void)Emit(0);
+          }
         }
       } else {
         EmitHexUnsigned(static_cast<uint64>(static_cast<int64>(attr->GetI())));
@@ -3176,8 +3183,12 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           LabelOperand *res = memPool->New<LabelOperand>(fnameStr.c_str(), labelIdx);
           res->Emit(*this, nullptr);
         } else if (tagName == DW_TAG_lexical_block) {
-          unsigned i = attr->GetU();
-          Emit(".LScp." + std::to_string(i) + "B");
+          auto i = static_cast<uint32>(attr->GetU());
+          if (GetCG()->GetMIRModule()->GetDbgInfo()->IsScopeIdEmited(lastMIRFunc, i)) {
+            (void)Emit(".LScp." + std::to_string(i) + "B");
+          } else {
+            (void)Emit(0);
+          }
         }
       } else if (attrName == DW_AT_high_pc) {
         if (tagName == DW_TAG_compile_unit) {

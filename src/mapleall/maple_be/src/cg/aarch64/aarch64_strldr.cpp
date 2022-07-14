@@ -59,9 +59,9 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
   if (regDefInsnSet.size() != 1) {
     return;
   }
-  std::map<Insn*, bool> InsnState;
+  std::map<Insn*, bool> insnState;
   for (auto *ldrInsn : memUseInsnSet) {
-    InsnState[ldrInsn] = true;
+    insnState[ldrInsn] = true;
   }
   for (auto *ldrInsn : memUseInsnSet) {
     if (!ldrInsn->IsLoad() || (ldrInsn->GetResultNum() > 1) || ldrInsn->GetBB()->IsCleanup()) {
@@ -77,7 +77,7 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
     ASSERT(!memDefInsnSet.empty(), "load insn should have definitions.");
     /* If load has multiple definition, continue. */
     if (memDefInsnSet.size() > 1) {
-      InsnState[ldrInsn] = false;
+      insnState[ldrInsn] = false;
       continue;
     }
 
@@ -96,7 +96,7 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
     /* Check if use operand of store is live at load insn. */
     if (cgFunc.GetRD()->RegIsLiveBetweenInsn(srcRegOpnd.GetRegisterNumber(), strInsn, *ldrInsn)) {
       GenerateMoveLiveInsn(resRegOpnd, srcRegOpnd, *ldrInsn, strInsn, memSeq);
-      InsnState[ldrInsn] = false;
+      insnState[ldrInsn] = false;
     } else if (!cgFunc.IsAfterRegAlloc()) {
       GenerateMoveDeadInsn(resRegOpnd, srcRegOpnd, *ldrInsn, strInsn, memSeq);
     }
@@ -114,7 +114,7 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
   ++it;
   for (; it != memUseInsnSet.end(); ++it) {
     Insn *curInsn = *it;
-    if (InsnState[curInsn] == false) {
+    if (insnState[curInsn] == false) {
       continue;
     }
     if (!curInsn->IsLoad() || (curInsn->GetResultNum() > 1) || curInsn->GetBB()->IsCleanup()) {
@@ -129,7 +129,7 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
     do {
       --prevIt;
       Insn *prevInsn = *prevIt;
-      if (InsnState[prevInsn] == false) {
+      if (insnState[prevInsn] == false) {
         continue;
       }
       if (prevInsn->GetBB() != curInsn->GetBB()) {
@@ -158,7 +158,7 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
       if (cgFunc.GetRD()->FindRegDefBetweenInsn(srcRegOpnd.GetRegisterNumber(),
           prevInsn->GetNext(), curInsn->GetPrev()).empty()) {
         GenerateMoveLiveInsn(resRegOpnd, srcRegOpnd, *curInsn, *prevInsn, memSeq);
-        InsnState[curInsn] = false;
+        insnState[curInsn] = false;
       }
       break;
     } while (prevIt != memUseInsnSet.begin());

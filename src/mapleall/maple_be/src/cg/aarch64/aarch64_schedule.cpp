@@ -802,7 +802,7 @@ AArch64Schedule::CSRResult AArch64Schedule::DoCSR(DepNode &node1, DepNode &node2
       }
     }
   }
-  auto FindFreeRegNode = [&](bool isInt)->CSRResult {
+  auto findFreeRegNode = [&](bool isInt)->CSRResult {
     auto freeRegNodes = isInt ? scheduleInfo.GetFreeIntRegNodeSet() : scheduleInfo.GetFreeFpRegNodeSet();
     if (freeRegNodes.find(&node1) != freeRegNodes.end() && freeRegNodes.find(&node2) == freeRegNodes.end()) {
       return kNode1;
@@ -813,13 +813,13 @@ AArch64Schedule::CSRResult AArch64Schedule::DoCSR(DepNode &node1, DepNode &node2
     return kDoCSP;
   };
   if (static_cast<int>(scheduleInfo.SizeOfIntLiveRegSet()) >= intRegPressureThreshold) {
-    if (FindFreeRegNode(true) != kDoCSP) {
-      return FindFreeRegNode(true);
+    if (findFreeRegNode(true) != kDoCSP) {
+      return findFreeRegNode(true);
     }
   }
   if (static_cast<int>(scheduleInfo.SizeOfFpLiveRegSet()) >= fpRegPressureThreshold) {
-    if (FindFreeRegNode(false) != kDoCSP) {
-      return FindFreeRegNode(false);
+    if (findFreeRegNode(false) != kDoCSP) {
+      return findFreeRegNode(false);
     }
   }
 

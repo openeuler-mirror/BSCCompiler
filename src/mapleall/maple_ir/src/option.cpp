@@ -164,10 +164,10 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(skipPhase, opts::mpl2mpl::skipPhase);
   maplecl::CopyIfEnabled(skipFrom, opts::mpl2mpl::skipFrom);
   maplecl::CopyIfEnabled(skipAfter, opts::mpl2mpl::skipAfter);
-  maplecl::CopyIfEnabled(regNativeDynamicOnly, opts::mpl2mpl::regnativeDynamicOnly);
+  maplecl::CopyIfEnabled(regNativeDynamicOnly, opts::mpl2mpl::regNativeDynamicOnly);
   maplecl::CopyIfEnabled(staticBindingList, opts::mpl2mpl::staticBindingList);
-  maplecl::CopyIfEnabled(regNativeFunc, opts::mpl2mpl::regnativefunc);
-  maplecl::CopyIfEnabled(nativeWrapper, opts::mpl2mpl::nativewrapper);
+  maplecl::CopyIfEnabled(regNativeFunc, opts::mpl2mpl::regNativeFunc);
+  maplecl::CopyIfEnabled(nativeWrapper, opts::mpl2mpl::nativeWrapper);
   maplecl::CopyIfEnabled(inlineWithProfile, opts::mpl2mpl::inlineWithProfile);
   maplecl::CopyIfEnabled(useInline, opts::mpl2mpl::inlineOpt);
   maplecl::CopyIfEnabled(enableIPAClone, opts::mpl2mpl::ipaClone);
@@ -191,8 +191,8 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(profileHotRate, opts::mpl2mpl::profileHotRate);
   maplecl::CopyIfEnabled(profileColdRate, opts::mpl2mpl::profileColdRate);
 
-  if (opts::mpl2mpl::maplelinker) {
-    mapleLinker = opts::mpl2mpl::maplelinker;
+  if (opts::mpl2mpl::mapleLinker) {
+    mapleLinker = opts::mpl2mpl::mapleLinker;
     dumpMuidFile = mapleLinker; // quiet is overwrited by maplelinker option
     if (isDebug) {
       LogInfo::MapleLogger() << "--sub options: dumpMuidFile " << dumpMuidFile << '\n';
@@ -203,24 +203,25 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(emitVtableImpl, opts::mpl2mpl::emitVtableImpl);
 
 #if MIR_JAVA
-  maplecl::CopyIfEnabled(skipVirtualMethod, opts::mpl2mpl::skipvirtual);
+  maplecl::CopyIfEnabled(skipVirtualMethod, opts::mpl2mpl::skipVirtual);
 #endif
 
   maplecl::CopyIfEnabled(noRC, !opts::mpl2mpl::userc, opts::mpl2mpl::userc);
   maplecl::CopyIfEnabled(strictNaiveRC, opts::mpl2mpl::strictNaiveRc);
-  maplecl::CopyIfEnabled(gcOnly, opts::gconly);
-  maplecl::CopyIfEnabled(bigEndian, opts::bigendian);
+  maplecl::CopyIfEnabled(gcOnly, opts::gcOnly);
+  maplecl::CopyIfEnabled(bigEndian, opts::bigEndian);
   maplecl::CopyIfEnabled(rcOpt1, opts::mpl2mpl::rcOpt1);
-  maplecl::CopyIfEnabled(nativeOpt, opts::mpl2mpl::nativeopt);
+  maplecl::CopyIfEnabled(nativeOpt, opts::mpl2mpl::nativeOpt);
   maplecl::CopyIfEnabled(criticalNativeFile, opts::mpl2mpl::criticalNative);
   maplecl::CopyIfEnabled(fastNativeFile, opts::mpl2mpl::fastNative);
-  maplecl::CopyIfEnabled(noDot, opts::mpl2mpl::nodot);
+  maplecl::CopyIfEnabled(noDot, opts::mpl2mpl::noDot);
   maplecl::CopyIfEnabled(genIRProfile, opts::mpl2mpl::genIrProfile);
-  maplecl::CopyIfEnabled(profileTest, opts::mpl2mpl::profileTest);
+  maplecl::CopyIfEnabled(profileTest, opts::mpl2mpl::proFileTest);
   maplecl::CopyIfEnabled(barrier, opts::mpl2mpl::barrier);
   maplecl::CopyIfEnabled(nativeFuncPropertyFile, opts::mpl2mpl::nativeFuncPropertyFile);
 
-  maplecl::CopyIfEnabled(mapleLinkerTransformLocal, !opts::mpl2mpl::maplelinkerNolocal, opts::mpl2mpl::maplelinkerNolocal);
+  maplecl::CopyIfEnabled(mapleLinkerTransformLocal, !opts::mpl2mpl::mapleLinkerNolocal,
+                         opts::mpl2mpl::mapleLinkerNolocal);
   maplecl::CopyIfEnabled(deferredVisit, opts::mpl2mpl::deferredVisit);
 
   if (opts::mpl2mpl::deferredVisit.IsEnabledByUser()) {
@@ -235,9 +236,9 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(decoupleSuper, opts::mpl2mpl::decoupleSuper);
 
   if (opts::mpl2mpl::buildApp.IsEnabledByUser()) {
-    if (opts::mpl2mpl::buildApp != 0 &&
-        opts::mpl2mpl::buildApp != 1 &&
-        opts::mpl2mpl::buildApp != 2) {
+    if (opts::mpl2mpl::buildApp != kMpl2MplLevelZero &&
+        opts::mpl2mpl::buildApp != kMpl2MplLevelOne &&
+        opts::mpl2mpl::buildApp != kMpl2MplLevelTwo) {
       LogInfo::MapleLogger(kLlErr) << "expecting 0,1,2 or empty for --build-app\n";
       return false;
     }
@@ -254,9 +255,9 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(partialAot, opts::mpl2mpl::partialAot);
 
   if (opts::mpl2mpl::decoupleInit.IsEnabledByUser()) {
-    if (opts::mpl2mpl::decoupleInit != 0 &&
-        opts::mpl2mpl::decoupleInit != 1 &&
-        opts::mpl2mpl::decoupleInit != 2) {
+    if (opts::mpl2mpl::decoupleInit != kNoDecouple &&
+        opts::mpl2mpl::decoupleInit != kConservativeDecouple &&
+        opts::mpl2mpl::decoupleInit != kAggressiveDecouple) {
       std::cerr << "expecting 0,1,2 or empty for --decouple-init\n";
       return false;
     }
@@ -273,7 +274,7 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(profileFunc, opts::mpl2mpl::profileFunc);
   maplecl::CopyIfEnabled(dumpDevirtualList, opts::mpl2mpl::dumpDevirtual);
   maplecl::CopyIfEnabled(readDevirtualList, opts::mpl2mpl::readDevirtual);
-  maplecl::CopyIfEnabled(usePreloadedClass, opts::mpl2mpl::usewhiteclass);
+  maplecl::CopyIfEnabled(usePreloadedClass, opts::mpl2mpl::useWhiteClass);
   maplecl::CopyIfEnabled(profile, opts::profile);
 
   if (opts::profileGen.IsEnabledByUser()) {
@@ -310,8 +311,8 @@ bool Options::SolveOptions(bool isDebug) const {
   }
 
   maplecl::CopyIfEnabled(noComment, opts::mpl2mpl::noComment);
-  maplecl::CopyIfEnabled(rmNoUseFunc, opts::mpl2mpl::rmnousefunc);
-  maplecl::CopyIfEnabled(sideEffect, opts::mpl2mpl::sideeffect);
+  maplecl::CopyIfEnabled(rmNoUseFunc, opts::mpl2mpl::rmNouseFunc);
+  maplecl::CopyIfEnabled(sideEffect, opts::mpl2mpl::sideEffect);
   maplecl::CopyIfEnabled(dumpIPA, opts::mpl2mpl::dumpIPA);
   maplecl::CopyIfEnabled(wpaa, opts::mpl2mpl::wpaa);
 
@@ -319,7 +320,7 @@ bool Options::SolveOptions(bool isDebug) const {
 }
 
 bool Options::ParseOptions(int argc, char **argv, std::string &fileName) const {
-  (void)maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, mpl2mplCategory);
+  (void)maplecl::CommandLine::GetCommandLine().Parse(argc, static_cast<char **>(argv), mpl2mplCategory);
   bool result = SolveOptions(false);
   if (!result) {
     return result;

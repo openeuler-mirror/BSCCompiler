@@ -902,8 +902,8 @@ bool ReachingDefinition::RegIsUsedIncaller(uint32 regNO, Insn &startInsn, Insn &
   if (startInsn.GetNext() == &endInsn || &startInsn == &endInsn) {
     return false;
   }
-  auto RegDefVec = FindRegDefBetweenInsn(regNO, startInsn.GetNext(), endInsn.GetPrev());
-  if (!RegDefVec.empty()) {
+  auto regDefVec = FindRegDefBetweenInsn(regNO, startInsn.GetNext(), endInsn.GetPrev());
+  if (!regDefVec.empty()) {
     return false;
   }
   if (IsCallerSavedReg(regNO) && startInsn.GetNext() != nullptr &&
@@ -933,13 +933,13 @@ bool ReachingDefinition::RegIsLiveBetweenInsn(uint32 regNO, Insn &startInsn, Ins
       return true;
     }
     if (regGen[startInsn.GetBB()->GetId()]->TestBit(regNO)) {
-      std::vector<Insn*> RegDefVec;
+      std::vector<Insn*> regDefVec;
       if (isBack) {
-        RegDefVec = FindRegDefBetweenInsn(regNO, startInsn.GetNext(), endInsn.GetPrev());
+        regDefVec = FindRegDefBetweenInsn(regNO, startInsn.GetNext(), endInsn.GetPrev());
       } else {
-        RegDefVec = FindRegDefBetweenInsn(regNO, &startInsn, endInsn.GetPrev());
+        regDefVec = FindRegDefBetweenInsn(regNO, &startInsn, endInsn.GetPrev());
       }
-      if (!RegDefVec.empty()) {
+      if (!regDefVec.empty()) {
         return false;
       }
     }

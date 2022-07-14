@@ -844,7 +844,7 @@ void MplOptions::PrintCommand(const Action * const action) {
   hasPrinted = true;
 }
 
-void MplOptions::connectOptStr(std::string &optionStr, const std::string &exeName, bool &firstComb,
+void MplOptions::ConnectOptStr(std::string &optionStr, const std::string &exeName, bool &firstComb,
                                std::string &runStr) {
   std::string connectSym = "";
   if (exeOptions.find(exeName) != exeOptions.end()) {
@@ -871,9 +871,9 @@ void MplOptions::PrintDetailCommand(const Action * const action, bool isBeforePa
   std::string optionStr;
   optionStr += "--option=\"";
   bool firstComb = true;
-  connectOptStr(optionStr, kBinNameMe, firstComb, runStr);
-  connectOptStr(optionStr, kBinNameMpl2mpl, firstComb, runStr);
-  connectOptStr(optionStr, kBinNameMplcg, firstComb, runStr);
+  ConnectOptStr(optionStr, kBinNameMe, firstComb, runStr);
+  ConnectOptStr(optionStr, kBinNameMpl2mpl, firstComb, runStr);
+  ConnectOptStr(optionStr, kBinNameMplcg, firstComb, runStr);
   optionStr += "\"";
 
   std::string driverOptions = GetCommonOptionsStr();

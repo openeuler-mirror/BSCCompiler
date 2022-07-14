@@ -260,9 +260,9 @@ ErrorCode DriverRunner::ParseSrcLang(MIRSrcLang &srcLang) const {
 
 void DriverRunner::RunNewPM(const std::string &output, const std::string &vtableImplFile) {
   LogInfo::MapleLogger() << "Processing maplecomb in new phasemanager" << '\n';
-  auto PMMemPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "PM module mempool");
+  auto pmMemPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "PM module mempool");
   const MaplePhaseInfo *curPhase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(&MEBETopLevelManager::id);
-  auto *topLevelPhaseManager = static_cast<MEBETopLevelManager*>(curPhase->GetConstructor()(PMMemPool.get()));
+  auto *topLevelPhaseManager = static_cast<MEBETopLevelManager*>(curPhase->GetConstructor()(pmMemPool.get()));
   topLevelPhaseManager->SetRunMpl2Mpl(mpl2mplOptions != nullptr);
   topLevelPhaseManager->SetRunMe(meOptions != nullptr);
   topLevelPhaseManager->SetQuiet(Options::quiet);
@@ -286,7 +286,7 @@ void DriverRunner::RunNewPM(const std::string &output, const std::string &vtable
   } else if (genVtableImpl || Options::emitVtableImpl) {
     theModule->Emit(vtableImplFile);
   }
-  PMMemPool.reset();
+  pmMemPool.reset();
   timer.Stop();
   LogInfo::MapleLogger() << "maplecomb consumed " << timer.Elapsed() << "s" << '\n';
   // dump vectorized loop counter here
@@ -305,10 +305,6 @@ void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &output, const st
     MeOption::threads = 1;
     // main entry of newpm for me&mpl2mpl
     RunNewPM(output, vtableImplFile);
-  }
-  if (withDwarf && !theModule->IsWithDbgInfo()) {
-    LogInfo::MapleLogger() << "set up debug info " << '\n';
-    theMIRModule->GetDbgInfo()->BuildDebugInfo();
   }
 }
 

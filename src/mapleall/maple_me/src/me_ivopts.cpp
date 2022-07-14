@@ -785,6 +785,7 @@ OpMeExpr *IVOptimizer::TryCvtCmp(OpMeExpr &op, MeStmt &stmt) {
   } else {
     return &op;
   }
+  CHECK_NULL_FATAL(iv);
   if (iv->base->GetMeOp() != kMeOpConst || iv->step->GetMeOp() != kMeOpConst) {
     // do not handle range-unknown iv
     return &op;

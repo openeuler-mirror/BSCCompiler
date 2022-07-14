@@ -84,7 +84,7 @@ RegOperand *AArch64CGSSAInfo::CreateSSAOperand(RegOperand &virtualOpnd) {
 
 void AArch64CGSSAInfo::ReplaceInsn(Insn &oriInsn, Insn &newInsn) {
   A64OpndSSAUpdateVsitor ssaUpdator(*this);
-  auto UpdateInsnSSAInfo = [&ssaUpdator](Insn &curInsn, bool isDelete) {
+  auto updateInsnSSAInfo = [&ssaUpdator](Insn &curInsn, bool isDelete) {
     const AArch64MD *md = &AArch64CG::kMd[curInsn.GetMachineOpcode()];
     for (uint32 i = 0; i < curInsn.GetOperandSize(); ++i) {
       Operand &opnd = curInsn.GetOperand(i);
@@ -98,9 +98,9 @@ void AArch64CGSSAInfo::ReplaceInsn(Insn &oriInsn, Insn &newInsn) {
       opnd.Accept(ssaUpdator);
     }
   };
-  UpdateInsnSSAInfo(oriInsn, true);
+  updateInsnSSAInfo(oriInsn, true);
   newInsn.SetId(oriInsn.GetId());
-  UpdateInsnSSAInfo(newInsn, false);
+  updateInsnSSAInfo(newInsn, false);
   CHECK_FATAL(!ssaUpdator.HasDeleteDef(), "delete def point in replace insn, please check");
 }
 
@@ -254,7 +254,7 @@ void A64OpndSSAUpdateVsitor::Visit(RegOperand *v) {
       ASSERT(insn->GetOperand(kInsnSecondOpnd).IsRegister(), "Visit: must be.");
       UpdateRegDef(static_cast<RegOperand&>(insn->GetOperand(kInsnSecondOpnd)).GetRegisterNumber() + 1);
     } else {
-      if (opndProp->IsRegDef()){
+      if (opndProp->IsRegDef()) {
         UpdateRegDef(v->GetRegisterNumber());
       } else if (opndProp->IsRegUse()) {
         UpdateRegUse(v->GetRegisterNumber());
@@ -367,7 +367,7 @@ void A64SSAOperandDumpVisitor::Visit(MemOperand *v) {
       v->GetOffsetOperand()->Dump();
     }
   }
-  if (v->GetIndexRegister() != nullptr && v->GetIndexRegister()->IsSSAForm() ) {
+  if (v->GetIndexRegister() != nullptr && v->GetIndexRegister()->IsSSAForm()) {
     ASSERT(v->GetAddrMode() == MemOperand::kAddrModeBOrX, "mem mode false");
     LogInfo::MapleLogger() << "offset:";
     Visit(v->GetIndexRegister());

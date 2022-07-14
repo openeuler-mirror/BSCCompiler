@@ -27,13 +27,13 @@
 
 namespace maplebe {
 /* pressure standard value; pressure under this value will not lead to spill operation */
-static constexpr int g_pressureStandard = 27;
+static constexpr int kPressureStandard = 27;
 /* optimistic scheduling option */
-static constexpr bool g_optimisticScheduling = false;
+static constexpr bool kOptimisticScheduling = false;
 /* brute maximum count limit option */
-static constexpr bool g_bruteMaximumLimit = true;
+static constexpr bool kBruteMaximumLimit = true;
 /* brute maximum count */
-static constexpr int g_schedulingMaximumCount = 20000;
+static constexpr int kSchedulingMaximumCount = 20000;
 
 /* ---- RegPressureSchedule function ---- */
 void RegPressureSchedule::InitBBInfo(BB &b, MemPool &memPool, const MapleVector<DepNode*> &nodes) {
@@ -65,19 +65,19 @@ void RegPressureSchedule::BuildPhyRegInfo(const std::vector<int32> &regNumVec) {
 /* Initialize pre-scheduling split point in BB */
 void RegPressureSchedule::InitPartialSplitters(const MapleVector<DepNode*> &nodes) {
   bool addFirstAndLastNodeIndex = false;
-  constexpr uint32 SecondLastNodeIndexFromBack = 2;
-  constexpr uint32 LastNodeIndexFromBack = 1;
-  constexpr uint32 FirstNodeIndex = 0;
-  constexpr uint32 minimumBBSize = 2;
+  constexpr uint32 kSecondLastNodeIndexFromBack = 2;
+  constexpr uint32 kLastNodeIndexFromBack = 1;
+  constexpr uint32 kFirstNodeIndex = 0;
+  constexpr uint32 kMiniMumBBSize = 2;
   /* Add split point for the last instruction in return BB */
-  if (bb->GetKind() == BB::kBBReturn && nodes.size() > minimumBBSize) {
-    splitterIndexes.emplace_back(nodes.size() - SecondLastNodeIndexFromBack);
+  if (bb->GetKind() == BB::kBBReturn && nodes.size() > kMiniMumBBSize) {
+    splitterIndexes.emplace_back(nodes.size() - kSecondLastNodeIndexFromBack);
     addFirstAndLastNodeIndex = true;
   }
   /* Add first and last node as split point if needed */
   if (addFirstAndLastNodeIndex) {
-    splitterIndexes.emplace_back(nodes.size() - LastNodeIndexFromBack);
-    splitterIndexes.emplace_back(FirstNodeIndex);
+    splitterIndexes.emplace_back(nodes.size() - kLastNodeIndexFromBack);
+    splitterIndexes.emplace_back(kFirstNodeIndex);
   }
   std::sort(splitterIndexes.begin(), splitterIndexes.end(), std::less<int>{});
 }
@@ -594,7 +594,7 @@ void RegPressureSchedule::DoScheduling(MapleVector<DepNode*> &nodes) {
   LogInfo::MapleLogger() << "Original pressure : " << originalPressure << "\n";
 #endif
   /* Original pressure is small enough, skip pre-scheduling */
-  if (originalPressure < g_pressureStandard) {
+  if (originalPressure < kPressureStandard) {
 #if PRESCHED_DEBUG
     LogInfo::MapleLogger() << "Original pressure is small enough, skip pre-scheduling \n";
 #endif
@@ -602,7 +602,7 @@ void RegPressureSchedule::DoScheduling(MapleVector<DepNode*> &nodes) {
   }
   if (splitterIndexes.empty()) {
     LogInfo::MapleLogger() << "No splitter, normal scheduling \n";
-    if (!g_optimisticScheduling) {
+    if (!kOptimisticScheduling) {
       HeuristicScheduling(nodes);
     } else {
       InitBruteForceScheduling(nodes);
@@ -694,7 +694,7 @@ int RegPressureSchedule::CalculateRegisterPressure(MapleVector<DepNode*> &nodes)
     node->SetState(kScheduled);
   }
   /* Update live register set according to the instruction series */
-  for (auto node : nodes){
+  for (auto node : nodes) {
     for (auto &reg : node->GetUseRegnos()) {
       UpdateLiveReg(*node, reg, false);
     }
@@ -760,7 +760,7 @@ void RegPressureSchedule::PartialScheduling(MapleVector<DepNode*> &nodes) {
  */
 void RegPressureSchedule::BruteForceScheduling() {
   /* stop brute force scheduling when exceeding the count limit */
-  if (g_bruteMaximumLimit && (scheduleSeriesCount > g_schedulingMaximumCount)) {
+  if (kBruteMaximumLimit && (scheduleSeriesCount > kSchedulingMaximumCount)) {
     return;
   }
   int defaultPressureValue = -1;
@@ -790,7 +790,7 @@ void RegPressureSchedule::BruteForceScheduling() {
   for (auto tempNode : readyList) {
     innerList.emplace_back(tempNode);
   }
-  for (auto *node : innerList){
+  for (auto *node : innerList) {
     if (CanSchedule(*node)) {
       /* update readyList and node dependency info */
       std::vector<bool> changedToReady;

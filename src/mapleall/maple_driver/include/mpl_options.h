@@ -86,9 +86,9 @@ public:
   }
 
   ~InputInfo() = default;
-  static InputFileType GetInputFileType(const std::string &inputFile) {
+  static InputFileType GetInputFileType(const std::string &inputFilePath) {
     InputFileType fileType = InputFileType::kFileTypeNone;
-    std::string extensionName = FileUtils::GetFileExtension(inputFile);
+    std::string extensionName = FileUtils::GetFileExtension(inputFilePath);
     if (extensionName == "class") {
       fileType = InputFileType::kFileTypeClass;
     }
@@ -108,8 +108,8 @@ public:
       fileType = InputFileType::kFileTypeJar;
     }
     else if (extensionName == "mpl" || extensionName == "bpl") {
-      if (inputFile.find("VtableImpl") == std::string::npos) {
-        if (inputFile.find(".me.mpl") != std::string::npos) {
+      if (inputFilePath.find("VtableImpl") == std::string::npos) {
+        if (inputFilePath.find(".me.mpl") != std::string::npos) {
           fileType = InputFileType::kFileTypeMeMpl;
         } else {
           fileType = extensionName == "mpl" ? InputFileType::kFileTypeMpl : InputFileType::kFileTypeBpl;
@@ -352,7 +352,7 @@ class MplOptions {
   ErrorCode AppendMplcgOptions(MIRSrcLang srcLang);
   std::string GetInputFileNameForPrint(const Action * const action) const;
   void PrintCommand(const Action * const action);
-  void connectOptStr(std::string &optionStr, const std::string &exeName, bool &firstComb, std::string &runStr);
+  void ConnectOptStr(std::string &optionStr, const std::string &exeName, bool &firstComb, std::string &runStr);
   std::string GetCommonOptionsStr() const;
   void PrintDetailCommand(const Action * const action, bool isBeforeParse);
   inline void PrintDetailCommand(bool isBeforeParse) {

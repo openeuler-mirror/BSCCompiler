@@ -195,7 +195,7 @@ bool MeOption::SolveOptions(bool isDebug) {
 
   maplecl::CopyIfEnabled(dumpBefore, opts::me::dumpBefore);
   maplecl::CopyIfEnabled(dumpAfter, opts::me::dumpAfter);
-  maplecl::CopyIfEnabled(isBigEndian, opts::bigendian);
+  maplecl::CopyIfEnabled(isBigEndian, opts::bigEndian);
   maplecl::CopyIfEnabled(dumpFunc, opts::me::dumpFunc);
   maplecl::CopyIfEnabled(skipFrom, opts::me::skipFrom);
   maplecl::CopyIfEnabled(skipAfter, opts::me::skipAfter);
@@ -267,9 +267,9 @@ bool MeOption::SolveOptions(bool isDebug) {
   maplecl::CopyIfEnabled(lazyDecouple, opts::me::lazydecouple);
   maplecl::CopyIfEnabled(strictNaiveRC, opts::me::strictNaiverc);
 
-  if (opts::gconly.IsEnabledByUser()) {
-    gcOnly = opts::gconly;
-    propIloadRef = opts::gconly;
+  if (opts::gcOnly.IsEnabledByUser()) {
+    gcOnly = opts::gcOnly;
+    propIloadRef = opts::gcOnly;
     if (isDebug) {
       LogInfo::MapleLogger() << "--sub options: propIloadRef " << propIloadRef << '\n';
       LogInfo::MapleLogger() << "--sub options: propGlobalRef " << propGlobalRef << '\n';

@@ -14,7 +14,6 @@
  */
 #include "cg_option.h"
 #include <fstream>
-#include <string>
 #include <unordered_map>
 #include "cg_options.h"
 #include "driver_options.h"
@@ -25,7 +24,6 @@
 
 namespace maplebe {
 using namespace maple;
-using namespace mapleOption;
 
 const std::string kMplcgVersion = "";
 
@@ -467,7 +465,6 @@ bool CGOptions::SolveOptions(bool isDebug) {
   }
 
   if (opts::cg::nativeopt.IsEnabledByUser()) {
-    // FIXME: Disabling Looks strage: should be checked by author of the code
     DisableNativeOpt();
   }
 
@@ -573,8 +570,8 @@ bool CGOptions::SolveOptions(bool isDebug) {
     opts::cg::omitFramePointer ? DisableFramePointer() : EnableFramePointer();
   }
 
-  if (opts::gconly.IsEnabledByUser()) {
-    opts::gconly ? EnableGCOnly() : DisableGCOnly();
+  if (opts::gcOnly.IsEnabledByUser()) {
+    opts::gcOnly ? EnableGCOnly() : DisableGCOnly();
   }
 
   if (opts::cg::fastMath.IsEnabledByUser()) {
@@ -589,8 +586,8 @@ bool CGOptions::SolveOptions(bool isDebug) {
     opts::cg::condbrAlign ? EnableCondBrAlign() : DisableCondBrAlign();
   }
 
-  if (opts::bigendian.IsEnabledByUser()) {
-    opts::bigendian ? EnableBigEndianInCG() : DisableBigEndianInCG();
+  if (opts::bigEndian.IsEnabledByUser()) {
+    opts::bigEndian ? EnableBigEndianInCG() : DisableBigEndianInCG();
   }
 
   if (opts::cg::arm64Ilp32.IsEnabledByUser()) {

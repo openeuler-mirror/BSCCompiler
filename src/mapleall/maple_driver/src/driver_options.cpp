@@ -16,9 +16,6 @@
 #include "driver_options.h"
 #include "cl_option.h"
 
-#include <stdint.h>
-#include <string>
-
 namespace opts {
 
 /* ##################### BOOL Options ############################################################### */
@@ -53,13 +50,13 @@ maplecl::Option<bool> decoupleStatic({"--decouple-static", "-decouple-static"},
                                 {driverCategory, dex2mplCategory, meCategory, mpl2mplCategory},
                                 maplecl::DisableWith("--no-decouple-static"));
 
-maplecl::Option<bool> bigendian({"-Be", "--BigEndian"},
+maplecl::Option<bool> bigEndian({"-Be", "--BigEndian"},
                            "  --BigEndian/-Be            \tUsing BigEndian\n"
                            "  --no-BigEndian             \tUsing LittleEndian\n",
                            {driverCategory, meCategory, mpl2mplCategory, cgCategory},
                            maplecl::DisableWith("--no-BigEndian"));
 
-maplecl::Option<bool> gconly({"--gconly", "-gconly"},
+maplecl::Option<bool> gcOnly({"--gconly", "-gconly"},
                         "  --gconly                     \tMake gconly is enable\n"
                         "  --no-gconly                  \tDon't make gconly is enable\n",
                         {driverCategory, dex2mplCategory, meCategory,

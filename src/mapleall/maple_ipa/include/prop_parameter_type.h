@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -21,7 +21,6 @@
 #include "me_irmap.h"
 #include "dominance.h"
 #include "class_hierarchy.h"
-#include "module_phase_manager.h"
 #include "maple_phase.h"
 #include "ipa_phase_manager.h"
 namespace maple {
@@ -34,13 +33,13 @@ class PropParamType {
       : memPool(memPool), alloc(alloc), module(mod), builder(*mod.GetMIRBuilder()),
         cg(cg), dataMap(dataMap), curFunc(nullptr), debug(false) {}
   virtual ~PropParamType() = default;
-  bool CheckOpndZero(MeExpr *expr);
+  bool CheckOpndZero(const MeExpr *expr);
   void ResolveCallStmt(MeStmt &meStmt);
-  void InsertNullCheck(const CallMeStmt &callStmt, const std::string &funcName, uint32 index, MeExpr &receiver);
+  void InsertNullCheck(CallMeStmt &callStmt, const std::string &funcName, uint32 index, MeExpr &receiver);
   bool CheckCondtionStmt(const MeStmt &meStmt);
   void ResolveIreadExpr(MeExpr &expr);
   void TraversalMeStmt(MeStmt &meStmt);
-  void runOnScc(maple::SCCNode &scc);
+  void RunOnScc(maple::SCCNode<CGNode> &scc);
   void Prop(MIRFunction &func);
 
  private:
@@ -55,7 +54,7 @@ class PropParamType {
   bool debug;
 };
 #pragma clang diagnostic pop
-MAPLE_SCC_PHASE_DECLARE_BEGIN(SCCPropParamType, maple::SCCNode)
+MAPLE_SCC_PHASE_DECLARE_BEGIN(SCCPropParamType, maple::SCCNode<CGNode>)
 OVERRIDE_DEPENDENCE
 MAPLE_SCC_PHASE_DECLARE_END
 }  // namespace maple

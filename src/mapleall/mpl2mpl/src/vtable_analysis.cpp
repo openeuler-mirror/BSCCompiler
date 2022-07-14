@@ -559,7 +559,7 @@ void VtableAnalysis::ReplaceSuperclassInvoke(CallNode &stmt) {
   }
   stmt.SetOpCode(OP_callassigned);
   stmt.SetPUIdx(actualMIRFunc->GetPuidx());
-  GetMIRModule().addSuperCall(actualMIRFunc->GetName());
+  GetMIRModule().AddSuperCall(actualMIRFunc->GetName());
 }
 
 void VtableAnalysis::ReplacePolymorphicInvoke(CallNode &stmt) {

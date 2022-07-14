@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -21,7 +21,6 @@
 #include "me_irmap.h"
 #include "dominance.h"
 #include "class_hierarchy.h"
-#include "module_phase_manager.h"
 #include "maple_phase.h"
 #include "ipa_phase_manager.h"
 #include "mir_module.h"
@@ -32,7 +31,8 @@ union ParamValue {
   float valueFloat;
   double valueDouble;
 };
-enum valueType {
+
+enum ValueType {
   kBool,
   kInt,
   kFloat,
@@ -45,15 +45,15 @@ class CollectIpaInfo {
       : module(mod), builder(*mod.GetMIRBuilder()),
         dataMap(dataMap), curFunc(nullptr) {}
   virtual ~CollectIpaInfo() = default;
-  void runOnScc(maple::SCCNode &scc);
+  void RunOnScc(maple::SCCNode<CGNode> &scc);
   void UpdateCaleeParaAboutFloat(MeStmt &meStmt, float paramValue, uint32 index, CallerSummary &summary);
   void UpdateCaleeParaAboutDouble(MeStmt &meStmt, double paramValue, uint32 index, CallerSummary &summary);
   void UpdateCaleeParaAboutInt(MeStmt &meStmt, int64_t paramValue, uint32 index, CallerSummary &summary);
   bool IsConstKindValue(MeExpr *expr);
   bool CheckImpExprStmt(const MeStmt &meStmt);
-  bool CollectImportantExpression(const MeStmt &meStmt);
+  bool CollectImportantExpression(const MeStmt &meStmt, uint32 &index);
   void TraversalMeStmt(MeStmt &meStmt);
-  bool IsParameterOrUseParameter(VarMeExpr *varExpr);
+  bool IsParameterOrUseParameter(const VarMeExpr *varExpr, uint32 &index);
   void Perform(const MeFunction &func);
 
  private:
@@ -62,7 +62,7 @@ class CollectIpaInfo {
   AnalysisDataManager &dataMap;
   MIRFunction *curFunc;
 };
-MAPLE_SCC_PHASE_DECLARE_BEGIN(SCCCollectIpaInfo, maple::SCCNode)
+MAPLE_SCC_PHASE_DECLARE_BEGIN(SCCCollectIpaInfo, maple::SCCNode<CGNode>)
 OVERRIDE_DEPENDENCE
 MAPLE_SCC_PHASE_DECLARE_END
 }  // namespace maple

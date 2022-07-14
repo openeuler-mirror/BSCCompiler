@@ -1759,6 +1759,8 @@ bool BlockScheduling::CanScheduleAssignWithoutOverlapBefore(MeStmt *stmt, MeStmt
   }
   auto *firstMemLoc = memoryHelper.GetMemLoc(*lhsAnchor);
   auto *secondMemLoc = memoryHelper.GetMemLoc(*lhsStmt);
+  CHECK_NULL_FATAL(firstMemLoc);
+  CHECK_NULL_FATAL(secondMemLoc);
   if (!MemoryHelper::HaveSameBase(*firstMemLoc, *secondMemLoc) ||
       !MemoryHelper::MustHaveNoOverlap(*firstMemLoc, *secondMemLoc)) {
     return false;
