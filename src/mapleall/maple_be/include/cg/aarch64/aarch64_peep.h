@@ -106,8 +106,8 @@ class AArch64CGPeepHole {
 */
 class ContinuousCmpCsetPattern : public CGPeepPattern {
  public:
-  ContinuousCmpCsetPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ContinuousCmpCsetPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~ContinuousCmpCsetPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -142,8 +142,8 @@ class ContinuousCmpCsetPattern : public CGPeepPattern {
  */
 class CselToCsetPattern : public CGPeepPattern {
  public:
-  CselToCsetPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  CselToCsetPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~CselToCsetPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -177,8 +177,8 @@ class CselToCsetPattern : public CGPeepPattern {
  */
 class CsetCbzToBeqPattern : public CGPeepPattern {
  public:
-  CsetCbzToBeqPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  CsetCbzToBeqPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~CsetCbzToBeqPattern() override = default;
   std::string GetPatternName() override {
     return "CsetCbzToBeqPattern";
@@ -208,8 +208,8 @@ class CsetCbzToBeqPattern : public CGPeepPattern {
  */
 class NegCmpToCmnPattern : public CGPeepPattern {
  public:
-  NegCmpToCmnPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  NegCmpToCmnPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~NegCmpToCmnPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -380,8 +380,8 @@ class AndCmpBranchesToTbzPattern : public CGPeepPattern {
  */
 class ZeroCmpBranchesToTbzPattern : public CGPeepPattern {
  public:
-  ZeroCmpBranchesToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ZeroCmpBranchesToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~ZeroCmpBranchesToTbzPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -405,8 +405,8 @@ class ZeroCmpBranchesToTbzPattern : public CGPeepPattern {
  */
 class MvnAndToBicPattern : public CGPeepPattern {
  public:
-  MvnAndToBicPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  MvnAndToBicPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~MvnAndToBicPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -665,8 +665,8 @@ class ElimSpecificExtensionPattern : public CGPeepPattern {
  */
 class OneHoleBranchPattern : public CGPeepPattern {
  public:
-  explicit OneHoleBranchPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  explicit OneHoleBranchPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~OneHoleBranchPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -708,8 +708,8 @@ class OneHoleBranchPattern : public CGPeepPattern {
  */
 class LogicShiftAndOrrToExtrPattern : public CGPeepPattern {
  public:
-  LogicShiftAndOrrToExtrPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  LogicShiftAndOrrToExtrPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~LogicShiftAndOrrToExtrPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -758,8 +758,8 @@ class LogicShiftAndOrrToExtrPattern : public CGPeepPattern {
  */
 class SimplifyMulArithmeticPattern : public CGPeepPattern {
  public:
-  SimplifyMulArithmeticPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  SimplifyMulArithmeticPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~SimplifyMulArithmeticPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -812,8 +812,8 @@ class SimplifyMulArithmeticPattern : public CGPeepPattern {
  */
 class LsrAndToUbfxPattern : public CGPeepPattern {
  public:
-  LsrAndToUbfxPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  LsrAndToUbfxPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~LsrAndToUbfxPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -832,8 +832,8 @@ class LsrAndToUbfxPattern : public CGPeepPattern {
  */
 class OrrToMovPattern : public CGPeepPattern {
  public:
-  explicit OrrToMovPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  explicit OrrToMovPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~OrrToMovPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;

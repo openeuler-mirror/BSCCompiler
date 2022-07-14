@@ -19,7 +19,7 @@
 #include "insn.h"
 
 namespace maplebe {
-class CriticalEdge{
+class CriticalEdge {
  public:
   CriticalEdge(CGFunc &func, MemPool &mem)
       : cgFunc(&func),

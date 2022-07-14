@@ -1523,7 +1523,7 @@ class GraphColorRegAllocator : public RegAllocator {
   bool seenFP = false;
 };
 
-class CallerSavePre: public CGPre {
+class CallerSavePre : public CGPre {
  public:
   CallerSavePre(GraphColorRegAllocator * regAlloc, CGFunc &cgfunc, DomAnalysis &currDom,
                 MemPool &memPool, MemPool &mp2, PreKind kind, uint32 limit)

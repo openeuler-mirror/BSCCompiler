@@ -35,7 +35,7 @@ class A64DeleteRegUseVisitor : public DeleteRegUseVisitor {
  private:
   void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;
-  void Visit(MemOperand *a64MemOpnd) final;
+  void Visit(MemOperand *v) final;
   void Visit(PhiOperand *v) final;
 };
 }

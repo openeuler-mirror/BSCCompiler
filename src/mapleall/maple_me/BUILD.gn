@@ -116,6 +116,7 @@ src_libmplme = [
   "src/lfo_dep_test.cpp",
   "src/lfo_loop_vec.cpp",
   "src/me_value_range_prop.cpp",
+  "src/me_jump_threading.cpp",
   "src/cfg_opt.cpp",
   "src/optimizeCFG.cpp",
   "src/me_ivopts.cpp",

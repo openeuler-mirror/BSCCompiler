@@ -315,7 +315,7 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
         destBB.AddMeStmtLast(newStmt);
         break;
       }
-      case OP_asm:{
+      case OP_asm: {
         auto *asmStmt = static_cast<AsmMeStmt*>(&stmt);
         newStmt = irmap->NewInPool<AsmMeStmt>(asmStmt);
         for (auto &mu : *asmStmt->GetMuList()) {

@@ -752,19 +752,29 @@ void MeCFG::WontExitAnalysis() {
     if (!MeOption::quiet) {
       LogInfo::MapleLogger() << "#### BB " << idx << " wont exit\n";
     }
-    if (bb->GetKind() == kBBGoto || bb->GetKind() == kBBIgoto) {
-      // create artificial BB to transition to common_exit_bb
-      BB *newBB = NewBasicBlock();
-      // update bIt & eIt
-      auto newBBIt = std::find(cbegin(), cend(), bb);
-      bIt = build_filter_iterator(
-          newBBIt, std::bind(FilterNullPtr<MapleVector<BB*>::const_iterator>, std::placeholders::_1, end()));
-      eIt = valid_end();
-      newBB->SetKindReturn();
-      newBB->SetAttributes(kBBAttrArtificial);
-      bb->AddSucc(*newBB);
-      GetCommonExitBB()->AddExit(*newBB);
+    if (bb->GetKind() != kBBGoto && bb->GetKind() != kBBIgoto && bb->GetKind() != kBBFallthru) {
+      continue;
     }
+    if (bb->GetKind() == kBBFallthru) {
+      // Change fallthru bb to goto bb.
+      if (func.GetIRMap() == nullptr || bb->GetSucc().empty()) {
+        continue;
+      }
+      bb->AddMeStmtLast(func.GetIRMap()->New<GotoMeStmt>(func.GetOrCreateBBLabel(*bb->GetSucc(0))));
+      bb->SetKind(kBBGoto);
+      bb->FindWillExitBBs(visitedBBs);
+    }
+    // create artificial BB to transition to common_exit_bb
+    BB *newBB = NewBasicBlock();
+    // update bIt & eIt
+    auto newBBIt = std::find(cbegin(), cend(), bb);
+    bIt = build_filter_iterator(
+        newBBIt, std::bind(FilterNullPtr<MapleVector<BB*>::const_iterator>, std::placeholders::_1, end()));
+    eIt = valid_end();
+    newBB->SetKindReturn();
+    newBB->SetAttributes(kBBAttrArtificial);
+    bb->AddSucc(*newBB);
+    GetCommonExitBB()->AddExit(*newBB);
   }
 }
 

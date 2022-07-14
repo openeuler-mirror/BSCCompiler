@@ -16,9 +16,7 @@
 #include <cstdint>
 #include <atomic>
 #include <algorithm>
-#include <sys/stat.h>
 #include "aarch64_cg.h"
-#include "aarch64_cgfunc.h"
 #include "cfi.h"
 #include "mpl_logging.h"
 #include "rt.h"
@@ -29,6 +27,7 @@
 #include "metadata_layout.h"
 #include "emit.h"
 #include "simplify.h"
+#include "aarch64_cgfunc.h"
 
 namespace maplebe {
 using namespace maple;
@@ -910,8 +909,7 @@ MemOperand &AArch64CGFunc::ConstraintOffsetToSafeRegion(uint32 bitLen, const Mem
   return newMemOpnd;
 }
 
-ImmOperand &AArch64CGFunc::SplitAndGetRemained(const MemOperand &memOpnd, uint32 bitLen,
-                                               int64 ofstVal, Insn *insn, bool forPair) {
+ImmOperand &AArch64CGFunc::SplitAndGetRemained(const MemOperand &memOpnd, uint32 bitLen, int64 ofstVal, bool forPair) {
   auto it = hashMemOpndTable.find(memOpnd);
   if (it != hashMemOpndTable.end()) {
     hashMemOpndTable.erase(memOpnd);
@@ -968,7 +966,7 @@ MemOperand &AArch64CGFunc::SplitOffsetWithAddInstruction(const MemOperand &memOp
   OfstOperand *ofstOpnd = memOpnd.GetOffsetImmediate();
   int64 ofstVal = ofstOpnd->GetOffsetValue();
   RegOperand *resOpnd = GetBaseRegForSplit(baseRegNum);
-  ImmOperand &immAddend = SplitAndGetRemained(memOpnd, bitLen, ofstVal, insn, forPair);
+  ImmOperand &immAddend = SplitAndGetRemained(memOpnd, bitLen, ofstVal, forPair);
   int64 remained = (ofstVal - immAddend.GetValue());
   RegOperand *origBaseReg = memOpnd.GetBaseRegister();
   ASSERT(origBaseReg != nullptr, "nullptr check");
@@ -3236,6 +3234,7 @@ Operand *AArch64CGFunc::SelectIreadfpoff(const BaseNode &parent, IreadFPoffNode 
   RegOperand *result = nullptr;
   if (offset >= 0) {
     LmbcFormalParamInfo *info = GetLmbcFormalParamInfo(static_cast<uint32>(offset));
+    ASSERT(info != nullptr, "info should not be nullptr");
     if (info->GetPrimType() == PTY_agg) {
       if (info->IsOnStack()) {
         result = GenLmbcParamLoad(info->GetOnStackOffset(), GetPrimTypeSize(PTY_a64), kRegTyInt, PTY_a64);
@@ -8179,7 +8178,9 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
     }
 
     /* skip unused args */
-    if (callee != nullptr && callee->GetFuncDesc().IsArgUnused(pnum)) continue;
+    if (callee != nullptr && callee->GetFuncDesc().IsArgUnused(pnum)) {
+      continue;
+    }
 
     if (ploc.reg0 != kRinvalid) {  /* load to the register. */
       CHECK_FATAL(expRegOpnd != nullptr, "null ptr check");
@@ -9096,6 +9097,7 @@ MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int64 off
         return *(it->second);
       } else {
         Operand* offOpnd = (it->second)->GetOffset();
+        ASSERT(offOpnd != nullptr, "offOpnd should not be nullptr");
         if (((static_cast<OfstOperand*>(offOpnd))->GetOffsetValue() == (stOffset + offset)) &&
             (it->second->GetSize() == size)) {
           return *(it->second);
@@ -9783,7 +9785,9 @@ MemOperand *AArch64CGFunc::GetPseudoRegisterSpillMemoryOperand(PregIdx i) {
 
 MIRPreg *AArch64CGFunc::GetPseudoRegFromVirtualRegNO(const regno_t vRegNO, bool afterSSA) const {
   PregIdx pri = afterSSA ? VRegNOToPRegIdx(vRegNO) : GetPseudoRegIdxFromVirtualRegNO(vRegNO);
-  if (pri == -1) return nullptr;
+  if (pri == -1) {
+    return nullptr;
+  }
   return GetFunction().GetPregTab()->PregFromPregIdx(pri);
 }
 

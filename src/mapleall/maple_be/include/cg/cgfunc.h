@@ -580,7 +580,7 @@ class CGFunc {
     return cg;
   }
 
-  MIRModule &GetMirModule(){
+  MIRModule &GetMirModule() {
     return mirModule;
   }
 

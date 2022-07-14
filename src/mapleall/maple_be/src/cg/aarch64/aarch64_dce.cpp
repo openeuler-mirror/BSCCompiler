@@ -54,6 +54,7 @@ bool AArch64Dce::RemoveUnuseDef(VRegVersion &defVersion) {
 void A64DeleteRegUseVisitor::Visit(RegOperand *v) {
   if (v->IsSSAForm()) {
     VRegVersion *regVersion = GetSSAInfo()->FindSSAVersion(v->GetRegisterNumber());
+    ASSERT(regVersion != nullptr, "regVersion should not be nullptr");
     MapleUnorderedMap<uint32, DUInsnInfo*> &useInfos = regVersion->GetAllUseInsns();
     auto it = useInfos.find(deleteInsnId);
     if (it != useInfos.end()) {
@@ -66,9 +67,9 @@ void A64DeleteRegUseVisitor::Visit(ListOperand *v) {
     Visit(regOpnd);
   }
 }
-void A64DeleteRegUseVisitor::Visit(MemOperand *a64MemOpnd) {
-  RegOperand *baseRegOpnd = a64MemOpnd->GetBaseRegister();
-  RegOperand *indexRegOpnd = a64MemOpnd->GetIndexRegister();
+void A64DeleteRegUseVisitor::Visit(MemOperand *v) {
+  RegOperand *baseRegOpnd = v->GetBaseRegister();
+  RegOperand *indexRegOpnd = v->GetIndexRegister();
   if (baseRegOpnd != nullptr && baseRegOpnd->IsSSAForm()) {
     Visit(baseRegOpnd);
   }

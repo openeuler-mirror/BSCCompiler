@@ -107,7 +107,7 @@ class ReplaceRegOpndVisitor : public OperandVisitorBase,
                               public OperandVisitors<RegOperand, ListOperand, MemOperand>,
                               public OperandVisitor<PhiOperand> {
  public:
-  ReplaceRegOpndVisitor(CGFunc &f, Insn &cInsn, uint32 cIdx, RegOperand &oldR ,RegOperand &newR)
+  ReplaceRegOpndVisitor(CGFunc &f, Insn &cInsn, uint32 cIdx, RegOperand &oldR, RegOperand &newR)
       : cgFunc(&f),
         insn(&cInsn),
         idx(cIdx),

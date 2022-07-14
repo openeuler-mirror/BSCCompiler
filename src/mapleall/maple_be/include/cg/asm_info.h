@@ -146,11 +146,7 @@ class AsmInfo {
       : asmCmnt("\t#\t", &memPool),
 #endif
 
-#if TARGX86 || TARGX86_64
-        asmAtObt("\t@function\t", &memPool),
-#else
         asmAtObt("\t%object\t", &memPool),
-#endif
         asmFile("\t.file\t", &memPool),
         asmSection("\t.section\t", &memPool),
         asmRodata(".rodata\t", &memPool),
@@ -180,7 +176,7 @@ class AsmInfo {
         asmHidden("\t.hidden\t", &memPool),
         asmText("\t.text\t", &memPool),
         asmSet("\t.set\t", &memPool),
-        asmWeakref("\t.weakref\t", &memPool){}
+        asmWeakref("\t.weakref\t", &memPool) {}
 
   ~AsmInfo() = default;
 

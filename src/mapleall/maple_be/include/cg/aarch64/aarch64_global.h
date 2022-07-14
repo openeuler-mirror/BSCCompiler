@@ -351,8 +351,8 @@ class ExtendShiftOptPattern : public OptimizePattern {
 
   MOperator replaceOp = 0;
   uint32 replaceIdx = 0;
-  ExtendShiftOperand::ExtendOp extendOp;
-  BitShiftOperand::ShiftOp shiftOp;
+  ExtendShiftOperand::ExtendOp extendOp = ExtendShiftOperand::kUndef;
+  BitShiftOperand::ShiftOp shiftOp = BitShiftOperand::kUndef;
   Insn *defInsn = nullptr;
   Insn *newInsn = nullptr;
   bool optSuccess = false;

@@ -19,11 +19,11 @@
 #include "cg_prop.h"
 #include "aarch64_cgfunc.h"
 #include "aarch64_strldr.h"
-namespace maplebe{
+namespace maplebe {
 class AArch64Prop : public CGProp {
  public:
   AArch64Prop(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo, LiveIntervalAnalysis &ll)
-      : CGProp(mp, f, sInfo, ll){}
+      : CGProp(mp, f, sInfo, ll) {}
   ~AArch64Prop() override = default;
 
   /* do not extend life range */
@@ -304,14 +304,14 @@ private:
 
   MOperator replaceOp = 0;
   uint32 replaceIdx = 0;
-  ExtendShiftOperand::ExtendOp extendOp;
-  BitShiftOperand::ShiftOp shiftOp;
+  ExtendShiftOperand::ExtendOp extendOp = ExtendShiftOperand::kUndef;
+  BitShiftOperand::ShiftOp shiftOp = BitShiftOperand::kUndef;
   Insn *defInsn = nullptr;
   Insn *newInsn = nullptr;
   Insn *curInsn = nullptr;
   bool optSuccess = false;
-  ExMOpType exMOpType;
-  LsMOpType lsMOpType;
+  ExMOpType exMOpType = kExUndef;
+  LsMOpType lsMOpType = kLsUndef;
 };
 
 /*
@@ -391,7 +391,7 @@ class A64PregCopyPattern : public PropOptimizePattern {
 
 class A64ReplaceRegOpndVisitor : public ReplaceRegOpndVisitor {
  public:
-  A64ReplaceRegOpndVisitor(CGFunc &f, Insn &cInsn, uint32 cIdx, RegOperand &oldRegister ,RegOperand &newRegister)
+  A64ReplaceRegOpndVisitor(CGFunc &f, Insn &cInsn, uint32 cIdx, RegOperand &oldRegister, RegOperand &newRegister)
       : ReplaceRegOpndVisitor(f, cInsn, cIdx, oldRegister, newRegister) {}
   ~A64ReplaceRegOpndVisitor() override = default;
  private:

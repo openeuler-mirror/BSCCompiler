@@ -121,6 +121,9 @@ void ValueRangePropagation::Execute() {
           break;
         }
         CASE_OP_ASSERT_NONNULL {
+          if (!dealWithAssert) {
+            break;
+          }
           // If the option safeRegion is open and the stmt is not in safe region, delete it.
           if (MeOption::safeRegionMode && !it->IsInSafeRegion()) {
             deleteStmt = true;
@@ -135,6 +138,9 @@ void ValueRangePropagation::Execute() {
           break;
         }
         CASE_OP_ASSERT_BOUNDARY {
+          if (!dealWithAssert) {
+            break;
+          }
           // If the option safeRegion is open and the stmt is not in safe region, delete it.
           if (MeOption::safeRegionMode && !it->IsInSafeRegion()) {
             deleteStmt = true;
@@ -4895,7 +4901,7 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> cands((std::less<OStIdx>()));
   LoopScalarAnalysisResult sa(*irMap, nullptr);
   sa.SetComputeTripCountForLoopUnroll(false);
-  ValueRangePropagation valueRangePropagation(f, *irMap, *dom, meLoop, *valueRangeMemPool, cands, sa);
+  ValueRangePropagation valueRangePropagation(f, *irMap, *dom, meLoop, *valueRangeMemPool, cands, sa, true);
 
   SafetyCheck safetyCheck; // dummy
   valueRangePropagation.SetSafetyBoundaryCheck(safetyCheck);
@@ -4939,7 +4945,7 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
     meLoop = static_cast<MELoopAnalysis*>(
         hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MELoopAnalysis::id, f))->GetResult();
     ValueRangePropagation valueRangePropagationWithOPTAssert(
-        f, *irMap, *dom, meLoop, *valueRangeMemPool, cands, sa, true);
+        f, *irMap, *dom, meLoop, *valueRangeMemPool, cands, sa, true, true);
     SafetyCheckWithBoundaryError safetyCheckBoundaryError(f, valueRangePropagationWithOPTAssert);
     SafetyCheckWithNonnullError safetyCheckNonnullError(f);
     if (MeOption::boundaryCheckMode == kNoCheck) {

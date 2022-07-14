@@ -13,11 +13,11 @@
  * See the Mulan PSL v2 for more details.
  */
 #include <unordered_map>
-#include "aarch64_alignment.h"
 #include "insn.h"
 #include "loop.h"
 #include "aarch64_cg.h"
 #include "cg_option.h"
+#include "aarch64_alignment.h"
 
 namespace maplebe {
 void AArch64AlignAnalysis::FindLoopHeader() {

@@ -1691,7 +1691,7 @@ class AssignMeStmt : public MeStmt {
  public:
   explicit AssignMeStmt(const StmtNode *stt) : MeStmt(stt) {}
 
-  AssignMeStmt(Opcode op, ScalarMeExpr *theLhs, MeExpr *rhsVal): MeStmt(op), rhs(rhsVal), lhs(theLhs) {}
+  AssignMeStmt(Opcode op, ScalarMeExpr *theLhs, MeExpr *rhsVal) : MeStmt(op), rhs(rhsVal), lhs(theLhs) {}
 
   ~AssignMeStmt() = default;
 
@@ -2802,7 +2802,7 @@ class GotoMeStmt : public MeStmt {
  public:
   explicit GotoMeStmt(const StmtNode *stt) : MeStmt(stt), offset(static_cast<const GotoNode*>(stt)->GetOffset()) {}
   explicit GotoMeStmt(const GotoMeStmt &condGoto) : MeStmt(MeStmt(condGoto.GetOp())), offset(condGoto.GetOffset()) {}
-  explicit GotoMeStmt(uint32 o): MeStmt(OP_goto), offset(o) {}
+  explicit GotoMeStmt(uint32 o) : MeStmt(OP_goto), offset(o) {}
 
   ~GotoMeStmt() = default;
 
@@ -2965,6 +2965,10 @@ class SwitchMeStmt : public UnaryMeStmt {
   }
 
   CaseVector &GetSwitchTable() {
+    return switchTable;
+  }
+
+  const CaseVector &GetSwitchTable() const {
     return switchTable;
   }
 

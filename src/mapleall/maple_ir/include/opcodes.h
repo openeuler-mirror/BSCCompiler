@@ -192,30 +192,39 @@ constexpr Opcode GetReverseCmpOp(Opcode op) {
 
 constexpr bool IsSupportedOpForCopyInPhasesLoopUnrollAndVRP(Opcode op) {
   switch (op) {
-    case OP_igoto:
-    case OP_switch:
     case OP_comment:
     case OP_goto:
     case OP_dassign:
     case OP_regassign:
-    case OP_membarrelease:
     case OP_brfalse:
     case OP_brtrue:
     case OP_maydassign:
     case OP_iassign:
     CASE_OP_ASSERT_NONNULL
     CASE_OP_ASSERT_BOUNDARY
-    case OP_membaracquire:
     case OP_call:
     case OP_callassigned:
     case OP_virtualcallassigned:
     case OP_virtualicallassigned:
     case OP_interfaceicallassigned:
+    case OP_interfacecallassigned:
     case OP_intrinsiccall:
     case OP_intrinsiccallassigned:
     case OP_intrinsiccallwithtype:
+    case OP_intrinsiccallwithtypeassigned:
+    case OP_membaracquire:
     case OP_membarstorestore:
-    case OP_membarstoreload: {
+    case OP_membarstoreload:
+    case OP_membarrelease:
+    case OP_icall:
+    case OP_icallassigned:
+    case OP_icallproto:
+    case OP_icallprotoassigned:
+    case OP_asm:
+    case OP_eval:
+    case OP_incref:
+    case OP_decref:
+    case OP_decrefreset: {
       return true;
     }
     default:

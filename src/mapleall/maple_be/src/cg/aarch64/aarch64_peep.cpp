@@ -334,9 +334,6 @@ void ContinuousCmpCsetPattern::Run(BB &bb, Insn &insn) {
     newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, insn.GetOperand(kInsnFirstOpnd),
                                                               newCsetInsn->GetOperand(kInsnFirstOpnd));
   }
-  if (newInsn == nullptr) {
-    return;
-  }
   bb.ReplaceInsn(insn, *newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, *newInsn);
@@ -1470,6 +1467,7 @@ bool SimplifyMulArithmeticPattern::CheckCondition(Insn &insn) {
   }
   regno_t useRegNO = useReg.GetRegisterNumber();
   VRegVersion *useVersion = ssaInfo->FindSSAVersion(useRegNO);
+  ASSERT(useVersion != nullptr, "useVersion should not be nullptr");
   if (useVersion->GetAllUseInsns().size() > 1) {
     return false;
   }
@@ -2747,8 +2745,7 @@ bool CombineContiLoadAndStorePattern::PlaceSplitAddInsn(const Insn &curInsn, Ins
                                                         false, &combineInsn, true);
   } else {
     RegOperand *addResOpnd = aarFunc.GetBaseRegForSplit(R16);
-    ImmOperand &immAddend = aarFunc.SplitAndGetRemained(*maxOfstMem, bitLen, maxOfstVal,
-                                                        &combineInsn, true);
+    ImmOperand &immAddend = aarFunc.SplitAndGetRemained(*maxOfstMem, bitLen, maxOfstVal, true);
     newMemOpnd = &aarFunc.CreateReplacementMemOperand(bitLen, *addResOpnd, ofstVal - immAddend.GetValue());
     if (!(aarFunc.IsOperandImmValid(combineInsn.GetMachineOpcode(), newMemOpnd, kInsnThirdOpnd))) {
       newMemOpnd = &aarFunc.SplitOffsetWithAddInstruction(memOperand, bitLen, static_cast<AArch64reg>(R16),
@@ -4309,6 +4306,7 @@ bool DeleteMovAfterCbzOrCbnzAArch64::NoPreDefine(Insn &testInsn) const {
   return true;
 }
 void DeleteMovAfterCbzOrCbnzAArch64::ProcessBBHandle(BB *processBB, const BB &bb, const Insn &insn) const {
+  ASSERT(processBB != nullptr, "process_bb is null in ProcessBBHandle");
   FOR_BB_INSNS_SAFE(processInsn, processBB, nextProcessInsn) {
     nextProcessInsn = processInsn->GetNextMachineInsn();
     if (!processInsn->IsMachineInstruction()) {
@@ -4434,7 +4432,6 @@ void DeleteMovAfterCbzOrCbnzAArch64::Run(BB &bb, Insn &insn) {
     processBB = maplebe::CGCFG::GetTargetSuc(bb);
   }
 
-  ASSERT(processBB != nullptr, "process_bb is null in DeleteMovAfterCbzOrCbnzAArch64::Run");
   ProcessBBHandle(processBB, bb, insn);
 }
 

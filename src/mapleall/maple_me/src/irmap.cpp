@@ -427,7 +427,8 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
     return nullptr;
   }
   auto *siblingOsts = ssaTab.GetNextLevelOsts(ost->GetPointerVstIdx());
-  auto fieldOst = ssaTab.GetOriginalStTable().FindExtraLevOriginalSt(*siblingOsts, fieldType, 0, offset);
+  FieldID fld = ivar->GetFieldID() + addrofExpr->GetFieldID();
+  auto fieldOst = ssaTab.GetOriginalStTable().FindExtraLevOriginalSt(*siblingOsts, fieldType, fld, offset);
   if (fieldOst == nullptr) {
     return nullptr;
   }

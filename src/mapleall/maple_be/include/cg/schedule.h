@@ -31,7 +31,7 @@ class RegPressureSchedule {
         originalNodeSeries(alloc.Adapter()), readyList(alloc.Adapter()),
         partialList(alloc.Adapter()), partialSet(alloc.Adapter()),
         partialScheduledNode(alloc.Adapter()), optimisticScheduledNodes(alloc.Adapter()),
-        splitterIndexes(alloc.Adapter()),liveInRegNO(alloc.Adapter()), liveOutRegNO(alloc.Adapter()) {}
+        splitterIndexes(alloc.Adapter()), liveInRegNO(alloc.Adapter()), liveOutRegNO(alloc.Adapter()) {}
   virtual ~RegPressureSchedule() = default;
 
   void InitBBInfo(BB &b, MemPool &memPool, const MapleVector<DepNode*> &nodes);

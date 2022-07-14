@@ -77,7 +77,7 @@ bool IsPrimTypeUint64(PrimType pType);
 
 class Bound {
  public:
-  Bound() : var(nullptr), constant(0), primType(PTY_begin) {};
+  Bound() : var(nullptr), constant(0), primType(PTY_begin) {}
   Bound(MeExpr *argVar, int64 argConstant, PrimType pType) : var(argVar), constant(argConstant), primType(pType) {}
   Bound(MeExpr *argVar, PrimType pType) : var(argVar), constant(0), primType(pType) {}
   Bound(int64 argConstant, PrimType pType) : var(nullptr), constant(argConstant), primType(pType) {}
@@ -250,8 +250,8 @@ using Lower = Bound;
 using Upper = Bound;
 
 struct RangePair {
-  RangePair() : lower(Bound()), upper(Bound()) {};
-  RangePair(const Bound &l, const Bound &u) : lower(l), upper(u) {};
+  RangePair() : lower(Bound()), upper(Bound()) {}
+  RangePair(const Bound &l, const Bound &u) : lower(l), upper(u) {}
   Lower lower = Bound();
   Upper upper = Bound();
 };
@@ -488,12 +488,12 @@ class ValueRangePropagation {
   ValueRangePropagation(MeFunction &meFunc, MeIRMap &argIRMap, Dominance &argDom,
                         IdentifyLoops *argLoops, MemPool &pool,
                         std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &candsTem, LoopScalarAnalysisResult &currSA,
-                        bool dealWithAssert = false)
+                        bool dealWithAssertArg, bool onlyProp = false)
       : func(meFunc), irMap(argIRMap), dom(argDom), memPool(pool), mpAllocator(&pool), loops(argLoops),
         caches(meFunc.GetCfg()->GetAllBBs().size()), analysisedLowerBoundChecks(meFunc.GetCfg()->GetAllBBs().size()),
         analysisedUpperBoundChecks(meFunc.GetCfg()->GetAllBBs().size()),
         analysisedAssignBoundChecks(meFunc.GetCfg()->GetAllBBs().size()),
-        cands(candsTem), sa(currSA), onlyPropVR(dealWithAssert) {
+        cands(candsTem), sa(currSA), dealWithAssert(dealWithAssertArg), onlyPropVR(onlyProp) {
     onlyRecordValueRangeInTempCache.push(false);
   }
   ~ValueRangePropagation() = default;
@@ -520,8 +520,9 @@ class ValueRangePropagation {
   void JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
       const BB &bb, MeExpr &expr, std::set<MeExpr*> &visitedLHS, std::vector<MeStmt*> &stmts);
   bool TheValueOfOpndIsInvaliedInABCO(const BB &bb, const MeStmt *meStmt, MeExpr &boundOpnd, bool updateCaches = true);
-
- private:
+  ValueRange *FindValueRange(const BB &bb, MeExpr &expr);
+  bool BrStmtInRange(const BB &bb, const ValueRange &leftRange, const ValueRange &rightRange, Opcode op,
+                     PrimType opndType, bool judgeNotInRange = false);
   std::unique_ptr<ValueRange> CreateValueRangeOfNotEqualZero(PrimType pType) const {
     return std::make_unique<ValueRange>(Bound(nullptr, 0, pType), kNotEqual);
   }
@@ -530,6 +531,18 @@ class ValueRangePropagation {
     return std::make_unique<ValueRange>(Bound(nullptr, 0, pType), kEqual);
   }
 
+  ValueRange CreateTempValueRangeOfNotEqualZero(PrimType pType) const {
+    return ValueRange(Bound(nullptr, 0, pType), kNotEqual);
+  }
+
+  ValueRange CreateTempValueRangeOfEqualZero(PrimType pType) const {
+    return ValueRange(Bound(nullptr, 0, pType), kEqual);
+  }
+
+  void ComputeCodeSize(const MeExpr &meExpr, uint32 &cost);
+  void ComputeCodeSize(const MeStmt &meStmt, uint32 &cost);
+
+ private:
   bool Insert2Caches(BBId bbID, int32 exprID, std::unique_ptr<ValueRange> valueRange);
 
   ValueRange *FindValueRangeInCurrentBB(BBId bbID, int32 exprID) {
@@ -650,7 +663,7 @@ class ValueRangePropagation {
   // The pairOfExprs map collects the exprs which have the same valueRange in bbs,
   // the pair of expr and preExpr is element of pairOfExprs.
   ValueRange *FindValueRangeWithCompareOp(const BB &bb, MeExpr &expr, MeExpr *preExpr = nullptr);
-  ValueRange *FindValueRange(const BB &bb, MeExpr &expr);
+
   void DealWithPhi(const BB &bb);
   void DealWithCondGoto(BB &bb, MeStmt &stmt);
   void DealWithCondGotoWithOneOpnd(BB &bb, CondGotoMeStmt &brMeStmt);
@@ -707,12 +720,11 @@ class ValueRangePropagation {
       std::map<OStIdx, std::set<BB*>> &ssaupdateCandsForCondExpr);
   void InsertOstOfPhi2Cands(BB &bb, size_t i, ScalarMeExpr *updateSSAExceptTheScalarExpr,
                             std::map<OStIdx, std::set<BB*>> &ssaupdateCandsForCondExpr, bool setPhiIsDead = false);
+  void InsertOstOfPhi2Cands(BB &bb, size_t i);
   void AnalysisUnreachableBBOrEdge(BB &bb, BB &unreachableBB, BB &succBB);
   void CreateValueRangeForNeOrEq(const MeExpr &opnd, const ValueRange *leftRange,
                                  ValueRange &rightRange, const BB &trueBranch, const BB &falseBranch);
   void DeleteUnreachableBBs();
-  bool BrStmtInRange(const BB &bb, const ValueRange &leftRange, const ValueRange &rightRange, Opcode op,
-                     PrimType opndType, bool judgeNotInRange = false);
   void ChangeLoop2Goto(LoopDesc &loop, BB &bb, BB &succBB, const BB &unreachableBB);
   void UpdateTryAttribute(BB &bb);
   void GetTrueAndFalseBranch(Opcode op, BB &bb, BB *&trueBranch, BB *&falseBranch) const;
@@ -795,8 +807,6 @@ class ValueRangePropagation {
   void PropValueRangeFromCondGotoToTrueAndFalseBranch(
       const MeExpr &opnd0, ValueRange &rightRange, const BB &falseBranch, const BB &trueBranch);
   bool CodeSizeIsOverflowOrTheOpOfStmtIsNotSupported(const BB &bb);
-  void ComputeCodeSize(const MeExpr &meExpr, uint32 &cost);
-  void ComputeCodeSize(const MeStmt &meStmt, uint32 &cost);
   void DealWithSwitch(BB &bb, MeStmt &stmt);
   bool AnalysisUnreachableForGeOrGt(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
   bool AnalysisUnreachableForLeOrLt(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
@@ -819,6 +829,7 @@ class ValueRangePropagation {
   std::unique_ptr<ValueRange> GetValueRangeOfLHS(const BB &pred, const BB &bb, MeExpr &expr) const;
   Opcode GetOpAfterSwapThePositionsOfTwoOperands(Opcode op) const;
   bool TowCompareOperandsAreInSameIterOfLoop(const MeExpr &lhs, const MeExpr &rhs) const;
+  bool IsSubOpndOfExpr(const MeExpr &expr, const MeExpr &subExpr) const;
 
   MeFunction &func;
   MeIRMap &irMap;
@@ -851,6 +862,7 @@ class ValueRangePropagation {
   // The map collects the exprs which have the same valueRange in bbs.
   std::map<MeExpr*, std::map<BB*, std::set<MeExpr*>>> pairOfExprs;
   bool dealWithPhi = false;
+  bool dealWithAssert = false;
   bool onlyPropVR = false; // When need deal with check, do not opt cfg.
   MeExprUseInfo *useInfo = nullptr;
   std::stack<bool> onlyPropVRStack;

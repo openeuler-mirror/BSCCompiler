@@ -13,10 +13,10 @@
  * See the Mulan PSL v2 for more details.
  */
 #include <climits>
-#include "aarch64_prop.h"
 #include "aarch64_isa.h"
 #include "aarch64_cg.h"
 #include "aarch64_reg_coalesce.h"
+#include "aarch64_prop.h"
 
 namespace maplebe {
 
@@ -607,6 +607,7 @@ bool A64StrLdrProp::CheckSameReplace(const RegOperand &replacedReg, const MemOpe
       return replacedReg.GetRegisterNumber() ==  memOpnd->GetBaseRegister()->GetRegisterNumber();
     } else {
       Operand *offset = memOpnd->GetOffset();
+      ASSERT(offset != nullptr, "offset should not be nullptr");
       ASSERT(offset->IsRegister(), "must be");
       return replacedReg.GetRegisterNumber() == static_cast<RegOperand*>(offset)->GetRegisterNumber();
     }
@@ -746,6 +747,7 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const MemOpera
     case MOP_dadd:
     case MOP_sadd: {
       if (memPropMode == kPropBase) {
+        ASSERT(offset != nullptr, "offset should not be nullptr");
         auto *ofstOpnd = static_cast<ImmOperand*>(offset);
         if (!ofstOpnd->IsZero()) {
           break;
@@ -1332,6 +1334,7 @@ bool ExtendShiftPattern::CheckCondition(Insn &insn) {
   auto &regOperand = static_cast<RegOperand&>(insn.GetOperand(replaceIdx));
   regno_t regNo = regOperand.GetRegisterNumber();
   VRegVersion *useVersion = optSsaInfo->FindSSAVersion(regNo);
+  ASSERT(useVersion != nullptr, "useVersion should not be nullptr");
   defInsn = FindDefInsn(useVersion);
   if (!defInsn || (useVersion->GetAllUseInsns().size() > 1)) {
     return false;
@@ -1568,6 +1571,8 @@ bool CopyRegProp::IsValidCopyProp(const RegOperand &dstReg, const RegOperand &sr
 
     dstll = regll->GetLiveInterval(dstRegNO);
     srcll = regll->GetLiveInterval(srcRegNO);
+    ASSERT(dstll != nullptr, "dstll should not be nullptr");
+    ASSERT(srcll != nullptr, "srcll should not be nullptr");
     static_cast<AArch64LiveIntervalAnalysis*>(regll)->CheckInterference(*dstll, *srcll);
     BB *useBB = useInsn->GetBB();
     if (dstll->IsConflictWith(srcRegNO) &&
@@ -2024,6 +2029,7 @@ bool A64PregCopyPattern::CheckMultiUsePoints(const Insn *defInsn) const {
   Operand &dstOpnd = defInsn->GetOperand(kInsnFirstOpnd);
   CHECK_FATAL(dstOpnd.IsRegister(), "dstOpnd must be register");
   VRegVersion *defVersion = optSsaInfo->FindSSAVersion(static_cast<RegOperand&>(dstOpnd).GetRegisterNumber());
+  ASSERT(defVersion != nullptr, "defVersion should not be nullptr");
   /* use: (phi) or (mov preg) */
   for (auto &useInfoIt : defVersion->GetAllUseInsns()) {
     DUInsnInfo *useInfo = useInfoIt.second;
@@ -2106,6 +2112,7 @@ bool A64PregCopyPattern::CheckUselessDefInsn(const Insn *defInsn) const {
   Operand &dstOpnd = defInsn->GetOperand(kInsnFirstOpnd);
   CHECK_FATAL(dstOpnd.IsRegister(), "dstOpnd must be register");
   VRegVersion *defVersion = optSsaInfo->FindSSAVersion(static_cast<RegOperand&>(dstOpnd).GetRegisterNumber());
+  ASSERT(defVersion != nullptr, "defVersion should not be nullptr");
   if (defVersion->GetAllUseInsns().size() == 1) {
     return true;
   }
@@ -2235,6 +2242,7 @@ RegOperand *A64PregCopyPattern::CheckAndGetExistPhiDef(Insn &phiInsn, std::vecto
   for (auto &phiIt : phiInsns) {
     auto &def = static_cast<RegOperand&>(phiIt.second->GetOperand(kInsnFirstOpnd));
     VRegVersion *defVersion = optSsaInfo->FindSSAVersion(def.GetRegisterNumber());
+    ASSERT(defVersion != nullptr, "defVersion should not be nullptr");
     /*
      * if the phi of the change point has been created (according to original regNO), return the phiDefOpnd.
      * But, there is a problem: the phiDefOpnd of the same original regNO is not the required phi.

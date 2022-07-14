@@ -348,19 +348,19 @@ class MeFunction : public FuncEmit {
   void CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCands = nullptr,
                       bool copyWithoutLastMe = false);
   bool IsTopLevelSSAValid() const {
-    return state & kSSATopLevel;
+    return static_cast<bool>(state & kSSATopLevel);
   }
   bool IsAddrTakenSSAValid() const {
-    return state & kSSAAddrTaken;
+    return static_cast<bool>(state & kSSAAddrTaken);
   }
   bool IsMemSSAValid() {
     return IsTopLevelSSAValid() && IsAddrTakenSSAValid();
   }
   bool IsMeIRAvailable() const {
-    return (state & kSSAHSSA);
+    return static_cast<bool>(state & kSSAHSSA);
   }
   bool IsMplIRAvailable() const {
-    return !(state & kSSAHSSA);
+    return !static_cast<bool>(state & kSSAHSSA);
   }
 
   void ResetMeFuncState(uint8 s) {
@@ -404,6 +404,7 @@ class MeFunction : public FuncEmit {
   uint32 hdseRuns = 0;  // number of times hdse phase has been run
   uint32 hpropRuns = 0; // number of times hprop phase has been run
   uint32 vrpRuns = 0; // number of times vrp phase has been run
+  uint32 jumpThreadingRuns = 0; // number of times jump threading phase has been run
   bool genLMBC = false; // whether outputing lmbc (low maple bytecode)
 };
 }  // namespace maple

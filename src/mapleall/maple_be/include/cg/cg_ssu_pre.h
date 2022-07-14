@@ -66,7 +66,6 @@ class SOcc {
     return pdom->PostDominate(*cgbb, *occ->cgbb);
   }
 
-
   SOccType occTy;
   uint32 classId = 0;
   BB *cgbb;  // the BB it occurs in
@@ -75,7 +74,7 @@ class SOcc {
 
 class SRealOcc : public SOcc {
  public:
-  explicit SRealOcc(BB *bb): SOcc(kSOccReal, bb) {}
+  explicit SRealOcc(BB *bb) : SOcc(kSOccReal, bb) {}
   virtual ~SRealOcc() = default;
 
   void Dump() const override {

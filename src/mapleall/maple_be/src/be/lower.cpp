@@ -2803,7 +2803,7 @@ BaseNode *CGLowerer::LowerDreadToThreadLocal(BaseNode &expr) {
     return result;
   }
   MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx(), true);
-
+  ASSERT(symbol != nullptr, "symbol should not be nullptr");
   if (symbol->IsThreadLocal()) {
     //  iread <* u32> 0 (regread u64 %addr)
     auto addr = ExtractSymbolAddress(stIdx);
@@ -2830,6 +2830,7 @@ StmtNode *CGLowerer::LowerDassignToThreadLocal(StmtNode &stmt) {
     return result;
   }
   MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx(), true);
+  ASSERT(symbol != nullptr, "symbol should not be nullptr");
   if (symbol->IsThreadLocal()) {
     //  iassign <* u32> 0 (regread u64 %addr, dread u32 $x)
     auto addr = ExtractSymbolAddress(stIdx);
@@ -3987,6 +3988,8 @@ bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) const
     case INTRN_C_rev16_2:
     case INTRN_C_rev_4:
     case INTRN_C_rev_8:
+    case INTRN_C_stack_save:
+    case INTRN_C_stack_restore:
       return true;
 #endif
     default:

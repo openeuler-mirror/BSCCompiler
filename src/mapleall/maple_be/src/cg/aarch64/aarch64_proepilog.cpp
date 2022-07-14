@@ -2010,6 +2010,7 @@ void AArch64GenProEpilog::ConvertToTailCalls(MapleSet<Insn*> &callInsnsMap) {
         Insn *newInsn = cgFunc.GetTheCFG()->CloneInsn(*callInsn);
         toBB->ReplaceInsn(*lastInsn, *newInsn);
         for (Insn *insn = callInsn->GetNextMachineInsn(); insn != newInsn; insn = insn->GetNextMachineInsn()) {
+          ASSERT(insn != nullptr, "insn should not be nullptr");
           insn->SetDoNotRemove(true);
         }
         toBB->RemoveInsn(*callInsn);

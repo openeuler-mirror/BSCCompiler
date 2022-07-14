@@ -88,7 +88,7 @@ class DbgInsn : public maplebe::Insn {
   DbgInsn &operator=(const DbgInsn&);
 };
 
-class ImmOperand : public maplebe::OperandVisitable<ImmOperand>{
+class ImmOperand : public maplebe::OperandVisitable<ImmOperand> {
  public:
   explicit ImmOperand(int64 val) : OperandVisitable(kOpdImmediate, 32), val(val) {}
 

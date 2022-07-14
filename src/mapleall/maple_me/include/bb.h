@@ -486,7 +486,7 @@ class BB {
   void SetEdgeFreq(const BB *bb, uint64 freq) {
     auto iter = std::find(succ.begin(), succ.end(), bb);
     CHECK_FATAL(iter != std::end(succ), "%d is not the successor of %d", bb->UintID(), this->UintID());
-    CHECK_FATAL(succ.size() == succFreq.size(), "succfreq size %d doesn't match succ size %d",succFreq.size(),
+    CHECK_FATAL(succ.size() == succFreq.size(), "succfreq size %d doesn't match succ size %d", succFreq.size(),
         succ.size());
     const size_t idx = static_cast<size_t>(std::distance(succ.begin(), iter));
     succFreq[idx] = freq;
@@ -506,6 +506,17 @@ class BB {
 
   void ClearGroup() {
     group = this;
+  }
+
+  void GetTrueAndFalseBranch(Opcode op, BB *&trueBranch, BB *&falseBranch) const {
+    if (op == OP_brtrue) {
+      trueBranch = succ[1];
+      falseBranch = succ[0];
+    } else {
+      ASSERT(op == OP_brfalse, "must be brfalse");
+      trueBranch = succ[0];
+      falseBranch = succ[1];
+    }
   }
 
   void RemoveBBFromPred(const BB &bb, bool updatePhi);

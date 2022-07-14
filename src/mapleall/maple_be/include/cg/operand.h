@@ -174,7 +174,6 @@ class Operand {
 
   virtual void Dump() const = 0;
 
-
   virtual bool Less(const Operand &right) const = 0;
 
   virtual void Accept(OperandVisitorBase &v) = 0;
@@ -912,7 +911,7 @@ class MemOperand : public OperandVisitable<MemOperand> {
         idxOpt(memOpnd.idxOpt),
         noExtend(memOpnd.noExtend),
         isStackMem(memOpnd.isStackMem),
-        isStackArgMem(memOpnd.isStackArgMem){}
+        isStackArgMem(memOpnd.isStackArgMem) {}
 
   MemOperand &operator=(const MemOperand &memOpnd) = default;
 

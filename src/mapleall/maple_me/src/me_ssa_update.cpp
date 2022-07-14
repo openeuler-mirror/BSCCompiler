@@ -129,6 +129,9 @@ void MeSSAUpdate::InsertPhis() {
       auto phiListIt = bb->GetMePhiList().find(it->first);
       if (phiListIt != bb->GetMePhiList().end()) {
         phiListIt->second->SetIsLive(true);
+        if (phiListIt->second->GetOpnds().size() != bb->GetPred().size()) {
+          phiListIt->second->GetOpnds().resize(bb->GetPred().size());
+        }
         continue;
       }
       auto *phiMeNode = irMap.NewInPool<MePhiNode>();

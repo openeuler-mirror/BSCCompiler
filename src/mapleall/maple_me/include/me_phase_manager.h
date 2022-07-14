@@ -32,6 +32,7 @@
 #include "me_loop_inversion.h"
 #include "me_analyzector.h"
 #include "me_value_range_prop.h"
+#include "me_jump_threading.h"
 #include "me_abco.h"
 #include "me_dse.h"
 #include "me_hdse.h"

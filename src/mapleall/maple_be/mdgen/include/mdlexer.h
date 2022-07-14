@@ -24,7 +24,7 @@
 #include "mpl_logging.h"
 #include "types_def.h"
 
-namespace MDGen{
+namespace MDGen {
 using namespace maple;
 class MDLexer {
  public:

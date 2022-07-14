@@ -94,7 +94,6 @@ class PhiOpndOcc : public Occ {
     LogInfo::MapleLogger() << "PhiOpndOcc at bb" << cgbb->GetId() << " classId" << classId;
   }
 
-
   PhiOcc *defPhiOcc = nullptr;  // its lhs definition
   bool hasRealUse = false;
   bool insertHere = false;

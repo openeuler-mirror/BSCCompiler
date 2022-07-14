@@ -95,8 +95,9 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
   if (splitList.size() == 1) {
     // quick split
     auto *pred = splitList[0];
+    auto index = pred->GetSuccIndex(*splittedBB);
     splittedBB->ReplacePred(pred, mergedBB);
-    mergedBB->AddPred(*pred);
+    pred->AddSucc(*mergedBB, static_cast<uint64>(static_cast<int64>(index)));
     if (!pred->GetMeStmts().empty()) {
       UpdateTheOffsetOfStmtWhenTargetBBIsChange(*pred, *splittedBB, *mergedBB);
     }

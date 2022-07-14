@@ -151,6 +151,7 @@ void AArch64PhiEliminate::MaintainRematInfo(RegOperand &destOpnd, RegOperand &fr
   if (CGOptions::GetRematLevel() > 0 && isCopy) {
     if (fromOpnd.IsSSAForm()) {
       VRegVersion *fromSSAVersion = GetSSAInfo()->FindSSAVersion(fromOpnd.GetRegisterNumber());
+      ASSERT(fromSSAVersion != nullptr, "fromSSAVersion should not be nullptr");
       regno_t rematRegNO = fromSSAVersion->GetOriginalRegNO();
       MIRPreg *fPreg = static_cast<AArch64CGFunc*>(cgFunc)->GetPseudoRegFromVirtualRegNO(rematRegNO);
       if (fPreg != nullptr) {

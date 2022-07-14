@@ -15,7 +15,6 @@
 #ifndef MAPLEBE_INCLUDE_CG_REG_INFO_H
 #define MAPLEBE_INCLUDE_CG_REG_INFO_H
 
-#include <map>
 #include "isa.h"
 
 namespace maplebe {
