@@ -20,7 +20,10 @@
 #include "constantfold.h"
 #include "mpl_logging.h"
 
+namespace maple {
+
 namespace {
+
 constexpr char kClassNameOfMath[] = "Ljava_2Flang_2FMath_3B";
 constexpr char kFuncNamePrefixOfMathSqrt[] = "Ljava_2Flang_2FMath_3B_7Csqrt_7C_28D_29D";
 constexpr char kFuncNamePrefixOfMathAbs[] = "Ljava_2Flang_2FMath_3B_7Cabs_7C";
@@ -32,14 +35,47 @@ constexpr char kFuncNameOfMemcpy[] = "memcpy";
 constexpr char kFuncNameOfMemsetS[] = "memset_s";
 constexpr char kFuncNameOfMemcpyS[] = "memcpy_s";
 constexpr uint64_t kSecurecMemMaxLen = 0x7fffffffUL;
-static constexpr maple::int32 kProbUnlikely = 1000;
+static constexpr int32 kProbUnlikely = 1000;
 constexpr uint32_t kMemsetDstOpndIdx = 0;
 constexpr uint32_t kMemsetSDstSizeOpndIdx = 1;
 constexpr uint32_t kMemsetSSrcOpndIdx = 2;
 constexpr uint32_t kMemsetSSrcSizeOpndIdx = 3;
+
+// Truncate the constant field of 'union' if it's written as scalar type (e.g. int),
+// but accessed as bit-field type with smaller size.
+// Return the truncated constant or the original constant 'fieldCst' if the constant doesn't need to be truncated.
+MIRConst *TruncateUnionConstant(const MIRStructType &unionType, MIRConst *fieldCst, const MIRType &unionFieldType) {
+  if (!fieldCst || unionType.GetKind() != kTypeUnion) {
+    return fieldCst;
+  }
+
+  auto *bitFieldType = safe_cast<MIRBitFieldType>(unionFieldType);
+  auto *intCst = safe_cast<MIRIntConst>(fieldCst);
+
+  if (!bitFieldType || !intCst) {
+    return fieldCst;
+  }
+
+  bool isBigEndian = MeOption::IsBigEndian() || Options::IsBigEndian();
+
+  IntVal val = intCst->GetValue();
+  uint8 bitSize = bitFieldType->GetFieldSize();
+
+  if (bitSize >= val.GetBitWidth()) {
+    return fieldCst;
+  }
+
+  if (isBigEndian) {
+    val = val.LShr(val.GetBitWidth() - bitSize);
+  } else {
+    val = val & ((uint64(1) << bitSize) - 1);
+  }
+
+  return GlobalTables::GetIntConstTable().GetOrCreateIntConst(val, fieldCst->GetType());
+}
+
 } // namespace
 
-namespace maple {
 // If size (in byte) is bigger than this threshold, we won't expand memop
 const uint32 SimplifyMemOp::thresholdMemsetExpand = 512;
 const uint32 SimplifyMemOp::thresholdMemcpyExpand = 512;
@@ -579,18 +615,22 @@ MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst *mirCon
   auto originAggType = static_cast<MIRStructType&>(originAggConst->GetType());
   bool hasReached = false;
   std::function<void(MIRConst*)> traverseAgg = [&] (MIRConst *currConst) {
-    auto currAggConst = static_cast<MIRAggConst*>(currConst);
-    auto currAggType = static_cast<MIRStructType&>(currAggConst->GetType());
-    auto iter = 0;
-    for (iter = 0; iter < currAggType.GetFieldsSize() && !hasReached; ++iter) {
-      auto constIdx = currAggType.GetKind() == kTypeUnion ? 1 : iter + 1;
+    auto* currAggConst = safe_cast<MIRAggConst>(currConst);
+    ASSERT_NOT_NULL(currAggConst);
+    auto* currAggType = safe_cast<MIRStructType>(currAggConst->GetType());
+    ASSERT_NOT_NULL(currAggType);
+    for (unsigned iter = 0; iter < currAggType->GetFieldsSize() && !hasReached; ++iter) {
+      unsigned constIdx = currAggType->GetKind() == kTypeUnion ? 1 : iter + 1;
       auto *fieldConst = currAggConst->GetAggConstElement(constIdx);
       auto *fieldType = originAggType.GetFieldType(currFieldId);
+
       if (currFieldId == fieldId) {
-        resultConst = fieldConst;
+        resultConst = TruncateUnionConstant(*currAggType, fieldConst, *fieldType);
         hasReached = true;
+
         return;
       }
+
       ++currFieldId;
       if (fieldType->GetKind() == kTypeUnion || fieldType->GetKind() == kTypeStruct) {
         traverseAgg(fieldConst);
@@ -1596,7 +1636,6 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
     LogInfo::MapleLogger() << "[funcName] " << func->GetName() << std::endl;
     stmt.Dump(0);
   }
-
 
   StmtNode *memsetCallStmt = &stmt;
   if (memOpKind == MEM_OP_memset_s && !isLowLevel) {

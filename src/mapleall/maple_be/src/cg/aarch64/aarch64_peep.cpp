@@ -387,7 +387,14 @@ bool NegCmpToCmnPattern::CheckCondition(Insn &insn) {
     for (size_t i = 0; i < useInsn->GetOperandSize(); ++i) {
       if (useInsn->GetOperand(i).GetKind() == Operand::kOpdCond) {
         AArch64CC_t cond = static_cast<CondOperand&>(useInsn->GetOperand(i)).GetCode();
-        if (cond == CC_HI || cond == CC_LS) {
+        /* in case of ignoring v flag
+         *  adds xt, x0, x1 (0x8000000000000000) -> not set v
+         *  ==>
+         *  neg x1 x1 (0x8000000000000000) which is same for negative 0
+         *  subs xt, x0, x1 () -> set v
+         */
+        if (cond == CC_HI || cond == CC_LS || cond == CC_GE || cond == CC_GT ||
+            cond == CC_LE || cond == CC_LT) {
           findUnsignedCond = true;
           break;
         }
@@ -3042,6 +3049,7 @@ void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
   auto &regOpnd0 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   auto &regOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   if (prevInsn->IsCall() &&
+      prevInsn->GetIsCallReturnUnsigned() &&
       regOpnd0.GetRegisterNumber() == regOpnd1.GetRegisterNumber() &&
       (regOpnd1.GetRegisterNumber() == R0 || regOpnd1.GetRegisterNumber() == V0)) {
     uint32 retSize = prevInsn->GetRetSize();
