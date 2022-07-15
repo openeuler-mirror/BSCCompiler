@@ -1674,7 +1674,7 @@ const ResolvedCallSiteIdItem *LibDexFile::GetCallSiteIdItem(uint32_t idx) const 
 }
 
 const ResolvedMethodHandleItem *LibDexFile::GetMethodHandleItem(uint32_t idx) const {
-  return ResolvedMethodHandleItem::GetInstance(*this, idx);;
+  return ResolvedMethodHandleItem::GetInstance(*this, idx);
 }
 
 void LibDexFile::DebugNewLocalCb(void *context, const art::DexFile::LocalInfo &entry) const {

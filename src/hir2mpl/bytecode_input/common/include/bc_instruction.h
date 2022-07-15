@@ -121,9 +121,12 @@ struct TypeInferItem;
 
 struct BCRegTypeItem {
   BCRegTypeItem(const GStrIdx &idx, bool isIndeterminateIn = false, bool isFromDefIn = false)
-      : typeNameIdx(idx), isIndeterminate(isIndeterminateIn), isFromDef(isFromDefIn) {}
+      : typeNameIdx(idx),
+        isIndeterminate(isIndeterminateIn),
+        isFromDef(isFromDefIn) {}
   BCRegTypeItem(const BCRegTypeItem &item)
-      : typeNameIdx(item.typeNameIdx), isIndeterminate(item.isIndeterminate) {}
+      : typeNameIdx(item.typeNameIdx),
+        isIndeterminate(item.isIndeterminate) {}
   ~BCRegTypeItem() = default;
 
   PrimType GetPrimType() const;
@@ -416,7 +419,7 @@ struct TypeInferItem {
         currItem->reg->regType->UpdateFuzzyUsedSet(type);
       }
       // insert into its prevs cyclely
-      for (auto prev : currItem->prevs) {
+      for (auto prev : std::as_const(currItem->prevs)) {
         if (end != nullptr && end->reg == prev->reg && end->reg->regType->IsBefore(prev->beginPos, end->beginPos)) {
           continue;
         }

@@ -291,9 +291,9 @@ std::unique_ptr<std::list<std::unique_ptr<BCTryInfo>>> DexReader::ConstructBCTry
 }
 
 std::unique_ptr<std::list<std::unique_ptr<BCCatchInfo>>> DexReader::ConstructBCCatchList(
-      std::vector<IDexCatchHandlerItem> &catchHandlerItems) const {
+    std::vector<IDexCatchHandlerItem> &catchHandlerItems) const {
   std::unique_ptr<std::list<std::unique_ptr<BCCatchInfo>>> catches =
-      std::make_unique<std::list<std::unique_ptr<BCCatchInfo>>>();
+    std::make_unique<std::list<std::unique_ptr<BCCatchInfo>>>();
   for (const auto catchHandlerItem : catchHandlerItems) {
     // Use V (void) catch <any> exceptions
     GStrIdx exceptionNameIdx = catchHandlerItem.IsCatchAllHandlerType() ? BCUtil::GetVoidIdx() :

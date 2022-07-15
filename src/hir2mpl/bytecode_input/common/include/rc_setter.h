@@ -56,7 +56,8 @@ class RCSetter {
   void MarkRCAttributes() const;
 
  private:
-  explicit RCSetter(const std::string &whiteListName) : rcFieldAttrWhiteListName(whiteListName) {
+  explicit RCSetter(const std::string &whiteListName)
+      : rcFieldAttrWhiteListName(whiteListName) {
     if (!rcFieldAttrWhiteListName.empty()) {
       LoadRCFieldAttrWhiteList(rcFieldAttrWhiteListName);
     }

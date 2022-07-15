@@ -24,7 +24,7 @@ namespace maple {
 class PreCheckCast : public FuncOptimizeImpl {
  public:
   PreCheckCast(MIRModule &mod, KlassHierarchy *kh, bool dump);
-  ~PreCheckCast() {}
+  ~PreCheckCast() override = default;
   FuncOptimizeImpl *Clone() override {
     return new PreCheckCast(*this);
   }
@@ -35,7 +35,7 @@ class PreCheckCast : public FuncOptimizeImpl {
 class CheckCastGenerator : public FuncOptimizeImpl {
  public:
   CheckCastGenerator(MIRModule &mod, KlassHierarchy *kh, bool dump);
-  ~CheckCastGenerator() {}
+  ~CheckCastGenerator() override = default;
 
   FuncOptimizeImpl *Clone() override {
     return new CheckCastGenerator(*this);

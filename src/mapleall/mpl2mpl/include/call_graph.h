@@ -94,11 +94,11 @@ class CallInfo {
   }
 
  private:
-  bool areAllArgsLocal;
-  CallType cType;        // Call type
-  MIRFunction *mirFunc;  // Used to get signature
-  StmtNode *callStmt;    // Call statement
-  uint32 loopDepth;
+  bool areAllArgsLocal = false;
+  CallType cType = kCallTypeInvalid;        // Call type
+  MIRFunction *mirFunc = nullptr;  // Used to get signature
+  StmtNode *callStmt = nullptr;    // Call statement
+  uint32 loopDepth = 0;
   uint32 id;
 };
 
@@ -108,6 +108,7 @@ class BaseGraphNode {
   virtual void GetInNodes(std::vector<BaseGraphNode*> &outNodes) = 0;
   virtual const std::string GetIdentity() = 0;
   virtual uint32 GetID() const = 0;
+  virtual ~BaseGraphNode() = default;
 };
 
 // Node in callgraph
@@ -142,7 +143,7 @@ class CGNode : public BaseGraphNode {
         mustNotBeInlined(false),
         vcallCands(alloc->Adapter()) {}
 
-  ~CGNode() = default;
+  virtual ~CGNode() = default;
 
   void Dump(std::ofstream &fout) const;
   void DumpDetail() const;
@@ -157,6 +158,38 @@ class CGNode : public BaseGraphNode {
 
   uint32 GetID() const override {
     return id;
+  }
+
+  uint32 GetInlinedTimes() const {
+    return inlinedTimes;
+  }
+
+  void SetInlinedTimes(uint32 value) {
+    inlinedTimes = value;
+  }
+
+  void IncreaseInlinedTimes() {
+    inlinedTimes += 1;
+  }
+
+  uint32 GetRecursiveLevel() const {
+    return recursiveLevel;
+  }
+
+  void SetRecursiveLevel(uint32 value) {
+    recursiveLevel = value;
+  }
+
+  void IncreaseRecursiveLevel() {
+    recursiveLevel += 1;
+  }
+
+  BlockNode *GetOriginBody() {
+    return originBody;
+  }
+
+  void SetOriginBody(BlockNode *body) {
+    originBody = body;
   }
 
   SCCNode<CGNode> *GetSCCNode() {
@@ -339,8 +372,8 @@ class CGNode : public BaseGraphNode {
     return sccIdentity;
   }
   // check frequency
-  int64_t GetFuncFrequency() const;
-  int64_t GetCallsiteFrequency(const StmtNode *callstmt) const;
+  uint64_t GetFuncFrequency() const;
+  uint64_t GetCallsiteFrequency(const StmtNode *callstmt) const;
  private:
   // mirFunc is generated from callStmt's puIdx from mpl instruction
   // mirFunc will be nullptr if CGNode represents an external/intrinsic call
@@ -365,6 +398,9 @@ class CGNode : public BaseGraphNode {
   // so it cannot be inlined and all the parent nodes which contain this node should not be inlined, either.
   bool mustNotBeInlined;
   MapleVector<MIRFunction*> vcallCands;
+  uint32 inlinedTimes = 0;
+  uint32 recursiveLevel = 0;  // the inlined level when this func is a self-recursive func.
+  BlockNode *originBody = nullptr;  // the originnal body of the func when it's a self-recursive func.
 
   bool addrTaken = false;  // whether this function is taken address
 };
@@ -421,8 +457,8 @@ class CallGraph : public AnalysisResult {
   void Dump() const;
   CGNode *GetCGNode(MIRFunction *func) const;
   CGNode *GetCGNode(PUIdx puIdx) const;
-  void UpdateCaleeCandidate(PUIdx callerPuIdx, IcallNode *icall, PUIdx calleePuidx, CallNode *call);
-  void UpdateCaleeCandidate(PUIdx callerPuIdx, IcallNode *icall, std::set<PUIdx> &candidate);
+  void UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, PUIdx calleePuidx, CallNode *call);
+  void UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, std::set<PUIdx> &candidate);
   SCCNode<CGNode> *GetSCCNode(MIRFunction *func) const;
   bool IsRootNode(MIRFunction *func) const;
   void UpdateCallGraphNode(CGNode &node);

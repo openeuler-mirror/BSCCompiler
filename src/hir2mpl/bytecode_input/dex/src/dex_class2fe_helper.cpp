@@ -71,7 +71,7 @@ void DexClass2FEHelper::InitMethodHelpersImpl() {
 FieldAttrs DexClassField2FEHelper::AccessFlag2AttributeImpl(uint32 accessFlag) const {
   FieldAttrs attrs;
   if (accessFlag & DexFileUtil::kDexAccPublic) {
-    attrs.SetAttr(FLDATTR_public);;
+    attrs.SetAttr(FLDATTR_public);
   }
   if (accessFlag & DexFileUtil::kDexAccPrivate) {
     attrs.SetAttr(FLDATTR_private);

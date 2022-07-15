@@ -14,10 +14,6 @@
  */
 #include "call_graph.h"
 
-#include <algorithm>
-#include <iostream>
-#include <queue>
-#include <unordered_set>
 
 #include "option.h"
 #include "retype.h"
@@ -177,7 +173,7 @@ void CGNode::AddCallsite(CallInfo &ci, CGNode *node) {
 }
 
 void CGNode::RemoveCallsite(const CallInfo *ci, CGNode *node) {
-  for (Callsite callSite : GetCallee()) {
+  for (auto &callSite : GetCallee()) {
     if (callSite.first == ci) {
       auto cgIt = callSite.second->find(node);
       if (cgIt != callSite.second->end()) {
@@ -193,16 +189,16 @@ bool CGNode::IsCalleeOf(CGNode *func) const {
   return callers.find(func) != callers.end();
 }
 
-int64_t CGNode::GetCallsiteFrequency(const StmtNode *callstmt) const {
+uint64_t CGNode::GetCallsiteFrequency(const StmtNode *callstmt) const {
   GcovFuncInfo *funcInfo = mirFunc->GetFuncProfData();
   if (funcInfo->stmtFreqs.count(callstmt->GetStmtID()) > 0) {
     return funcInfo->stmtFreqs[callstmt->GetStmtID()];
   }
   ASSERT(0, "should not be here");
-  return -1;
+  return UINT64_MAX;
 }
 
-int64_t CGNode::GetFuncFrequency() const {
+uint64_t CGNode::GetFuncFrequency() const {
   GcovFuncInfo *funcInfo = mirFunc->GetFuncProfData();
   if (funcInfo) {
     return funcInfo->GetFuncFrequency();
@@ -333,7 +329,7 @@ CGNode *CallGraph::GetCGNode(MIRFunction *func) const {
   return nullptr;
 }
 
-CGNode *CallGraph::GetCGNode(PUIdx puIdx) const {
+CGNode *CallGraph::GetCGNode(const PUIdx puIdx) const {
   return GetCGNode(GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx));
 }
 
@@ -342,7 +338,7 @@ SCCNode<CGNode> *CallGraph::GetSCCNode(MIRFunction *func) const {
   return (cgNode != nullptr) ? cgNode->GetSCCNode() : nullptr;
 }
 
-void CallGraph::UpdateCaleeCandidate(PUIdx callerPuIdx, IcallNode *icall, std::set<PUIdx> &candidate) {
+void CallGraph::UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, std::set<PUIdx> &candidate) {
   CGNode *caller = GetCGNode(callerPuIdx);
   for (auto &pair : caller->GetCallee()) {
     auto *callsite = pair.first;
@@ -358,7 +354,7 @@ void CallGraph::UpdateCaleeCandidate(PUIdx callerPuIdx, IcallNode *icall, std::s
   }
 }
 
-void CallGraph::UpdateCaleeCandidate(PUIdx callerPuIdx, IcallNode *icall, PUIdx calleePuidx, CallNode *call) {
+void CallGraph::UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, PUIdx calleePuidx, CallNode *call) {
   CGNode *caller = GetCGNode(callerPuIdx);
   for (auto &pair : caller->GetCallee()) {
     auto *callsite = pair.first;
@@ -606,6 +602,7 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
     case OP_dread: {
       auto *dread = static_cast<DreadNode*>(funcAddr);
       MIRSymbol *symbol = CurFunction()->GetLocalOrGlobalSymbol(dread->GetStIdx());
+      ASSERT_NOT_NULL(symbol);
       funcType = symbol->GetType();
       if (funcType->IsStructType()) {
         funcType = static_cast<MIRStructType*>(funcType)->GetFieldType(dread->GetFieldID());
@@ -1646,7 +1643,7 @@ void CallGraph::GenCallGraphFromFunctionBody() {
   }
 }
 
-void CallGraph::GetMatchedCGNode(TyIdx idx, std::vector<CGNode*> &result) {
+void CallGraph::GetMatchedCGNode(const TyIdx &idx, std::vector<CGNode*> &result) {
   auto *funcType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(idx);
   for (auto puidx : addressTakenPuidxs) {
     auto *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puidx);
@@ -1684,6 +1681,7 @@ void CallGraph::GenCallGraph() {
   auto &symbolSet = mirModule->GetSymbolSet();
   for (auto sit = symbolSet.begin(); sit != symbolSet.end(); ++sit) {
     MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx(sit->Idx());
+    ASSERT_NOT_NULL(s);
     if (s->IsConst()) {
       MIRConst *mirConst = s->GetKonst();
       CollectAddroffuncFromConst(mirConst);

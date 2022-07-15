@@ -169,25 +169,6 @@ class SCCNode {
     return false;
   }
 
-  bool HasSelfRecursion() const {
-    if (nodes.size() != 1) {
-      return false;
-    }
-    T *node = nodes[0];
-    std::vector<BaseGraphNode*> outNodes;
-    node->GetOutNodes(outNodes);
-    for (auto outIt : outNodes) {
-      auto outNode = static_cast<T*>(outIt);
-      if (outNode == nullptr) {
-        continue;
-      }
-      if (node == outNode) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   bool HasInScc() const {
     return (!inScc.empty());
   }
@@ -242,9 +223,9 @@ void BuildSCCDFS(T &rootNode, uint32 &visitIndex, MapleVector<SCCNode<T>*> &sccN
   if (visitedOrder.at(id) == lowestOrder.at(id)) {
     SCCNode<T> *sccNode = cgAlloc.GetMemPool()->New<SCCNode<T>>(numOfSccs++, cgAlloc);
     inStack.at(id) = false;
-    T *rootNode = nodes.at(id);
-    rootNode->SetSCCNode(sccNode);
-    sccNode->AddNode(rootNode);
+    T *node = nodes.at(id);
+    node->SetSCCNode(sccNode);
+    sccNode->AddNode(node);
     while (!visitStack.empty()) {
       auto stackTopId = visitStack.back();
       if (visitedOrder.at(stackTopId) < visitedOrder.at(id)) {

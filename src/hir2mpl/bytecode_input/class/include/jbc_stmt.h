@@ -292,7 +292,8 @@ class JBCStmtPesudoTry : public JBCStmt {
 
 class JBCStmtPesudoEndTry : public JBCStmt {
  public:
-  JBCStmtPesudoEndTry() : JBCStmt(kJBCStmtPesudoEndTry) {
+  JBCStmtPesudoEndTry()
+      : JBCStmt(kJBCStmtPesudoEndTry) {
     isAuxPost = true;
   }
 

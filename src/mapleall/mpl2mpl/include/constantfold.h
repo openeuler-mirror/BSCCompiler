@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -28,7 +28,6 @@ class ConstantFold : public FuncOptimizeImpl {
   explicit ConstantFold(MIRModule &mod) : FuncOptimizeImpl(mod, nullptr, false), mirModule(&mod) {}
 
   // Fold an expression.
-  //
   // It returns a new expression if there was something to fold, or
   // nullptr otherwise.
   BaseNode *Fold(BaseNode *node);
@@ -41,12 +40,12 @@ class ConstantFold : public FuncOptimizeImpl {
   StmtNode *Simplify(StmtNode *node);
   StmtNode *SimplifyIassignWithAddrofBaseNode(IassignNode &node, const AddrofNode &base);
 
-  FuncOptimizeImpl *Clone() {
+  FuncOptimizeImpl *Clone() override {
     return new ConstantFold(*this);
   }
 
-  void ProcessFunc(MIRFunction *func);
-  virtual ~ConstantFold() = default;
+  void ProcessFunc(MIRFunction *func) override;
+  ~ConstantFold() override = default;
 
   template <class T> T CalIntValueFromFloatValue(T value, const MIRType &resultType) const;
   MIRConst *FoldFloorMIRConst(const MIRConst&, PrimType, PrimType, bool isFloor = true) const;

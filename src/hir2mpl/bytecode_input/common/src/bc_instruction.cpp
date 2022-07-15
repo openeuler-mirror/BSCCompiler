@@ -71,7 +71,7 @@ std::list<UniqueFEIRStmt> BCInstruction::EmitToFEIRStmts() {
   if ((instKind & kTarget) || (instKind & kCatch)) {
     if (instKind & kCatch) {
       UniqueFEIRStmt stmt = GenCatchStmt();
-      stmts.emplace_back(std::move(stmt));;
+      stmts.emplace_back(std::move(stmt));
     } else {
       UniqueFEIRStmt stmt = GenLabelStmt();
       stmts.emplace_back(std::move(stmt));

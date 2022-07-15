@@ -18,7 +18,6 @@
 #include "class_hierarchy_phase.h"
 #include "class_init.h"
 #include "bin_mpl_export.h"
-#include "mpl_timer.h"
 #include "clone.h"
 #include "ipa_clone.h"
 #include "call_graph.h"

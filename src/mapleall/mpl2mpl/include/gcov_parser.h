@@ -22,14 +22,8 @@
 #include "gcov_profile.h"
 
 namespace maple {
-
-#define CHAR_BIT __CHAR_BIT__
-typedef unsigned gcov_unsigned_t;
-typedef int64_t gcov_type;
-typedef uint64_t gcov_type_unsigned;
-typedef unsigned  location_t;
-typedef unsigned gcov_unsigned_t;
-typedef unsigned gcov_position_t;
+using gcov_unsigned_t = unsigned;
+using gcov_position_t = unsigned;
 // counter defined in gcov-counter.def
 enum {
   GCOV_COUNTER_ARCS,
@@ -45,20 +39,20 @@ enum {
 };
 
 class GcovVar {
-public:
+ public:
   GcovVar() {
     file = nullptr;
     buffer = nullptr;
   }
   FILE *file;
-  gcov_position_t start;
-  unsigned offset;
-  unsigned length;
-  unsigned overread;
-  int error;
-  int mode;
-  int endian;
-  size_t alloc;
+  gcov_position_t start = 0;
+  unsigned offset = 0;
+  unsigned length = 0;
+  unsigned overread = 0;
+  int error = 0;
+  int mode = 0;
+  int endian = 0;
+  size_t alloc = 0;
   gcov_unsigned_t* buffer;
 };
 
@@ -68,7 +62,11 @@ class MGcovParser : public AnalysisResult {
       alloc(memPool), localMP(memPool), gcovData(nullptr), dumpDetail(debug) {
     gcovVar = localMP->New<GcovVar>();
   }
-  virtual ~MGcovParser() = default;
+  virtual ~MGcovParser() {
+    localMP = nullptr;
+    gcovData = nullptr;
+    gcovVar = nullptr;
+  }
   int ReadGcdaFile();
   void DumpFuncInfo();
   GcovProfileData *GetGcovData() { return gcovData; }
@@ -90,18 +88,18 @@ class MGcovParser : public AnalysisResult {
   };
   struct gcov_summary {
     gcov_unsigned_t checksum;
-    struct gcov_ctr_summary ctrs[(GCOV_COUNTER_ARCS + 1)];
+    struct gcov_ctr_summary ctrs[GCOV_COUNTER_V_INTERVAL];
   };
 
   int GcovReadMagic(gcov_unsigned_t magic, gcov_unsigned_t expected);
   int GcovOpenFile(const char *name, int mode);
   gcov_unsigned_t from_file(gcov_unsigned_t value);
-  const gcov_unsigned_t * GcovReadWords(unsigned words);
+  const gcov_unsigned_t *GcovReadWords(unsigned words);
   void GcovSync(gcov_position_t base, gcov_unsigned_t length);
   int GcovCloseFile(void);
   void GcovAllocate(unsigned length);
   gcov_unsigned_t GcovReadUnsigned(void);
-  gcov_position_t GcovGetPosition (void);
+  gcov_position_t GcovGetPosition(void);
   gcov_type GcovReadCounter(void);
   void GcovReadSummary(struct gcov_summary *summary);
 
@@ -109,7 +107,7 @@ class MGcovParser : public AnalysisResult {
   MapleAllocator alloc;
   MemPool *localMP;
   GcovProfileData *gcovData;
-  GcovVar *gcovVar;
+  GcovVar *gcovVar = nullptr;
   bool dumpDetail;
 };
 

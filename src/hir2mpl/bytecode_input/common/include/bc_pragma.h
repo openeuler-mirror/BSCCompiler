@@ -26,7 +26,8 @@ namespace bc {
 class BCAnnotationsDirectory {
  public:
   BCAnnotationsDirectory(MIRModule &moduleArg, MemPool &mpArg)
-      : module(moduleArg), mp(mpArg) {}
+      : module(moduleArg),
+        mp(mpArg) {}
   virtual ~BCAnnotationsDirectory() = default;
   std::vector<MIRPragma*> &EmitPragmas() {
     return EmitPragmasImpl();

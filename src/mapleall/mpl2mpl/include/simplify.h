@@ -123,8 +123,10 @@ class Simplify : public FuncOptimizeImpl {
     CHECK_FATAL(false, "Simplify has pointer, should not be Cloned");
   }
 
-  void ProcessStmt(StmtNode &stmt) override;
   void Finish() override;
+
+ protected:
+  void ProcessStmt(StmtNode &stmt) override;
 
  private:
   MIRModule &mirMod;

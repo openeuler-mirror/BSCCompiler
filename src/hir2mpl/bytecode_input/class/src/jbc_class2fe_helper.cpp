@@ -237,7 +237,7 @@ bool JBCClassMethod2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   StructElemNameIdx *structElemNameIdx = allocator.GetMemPool()->New<StructElemNameIdx>(
       method.GetClassName(), method.GetName(), method.GetDescription());
   FEStructElemInfo *elemInfo = FEManager::GetTypeManager().RegisterStructMethodInfo(
-       *structElemNameIdx, kSrcLangJava, IsStatic());
+      *structElemNameIdx, kSrcLangJava, IsStatic());
   elemInfo->SetDefined();
   elemInfo->SetFromDex();
   return FEInputMethodHelper::ProcessDeclImpl(allocator);

@@ -297,7 +297,7 @@ bool JBCFunction::PreBuildJsrInfo(const jbc::JBCAttrCode &code) {
     jbc::JBCOpcode opcode = op->GetOpcode();
     jbc::JBCOpcodeKind kind = op->GetOpcodeKind();
     if (kind != jbc::kOpKindJsr) {
-      continue;;
+      continue;
     }
     uint32 width = (opcode == jbc::kOpJsr ? 3 : 5);  // instruction width for jsr is 3, and for jsr_w is 5
     uint32 nextPC = pc + width;

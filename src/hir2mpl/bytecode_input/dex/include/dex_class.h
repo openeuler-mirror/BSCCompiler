@@ -27,7 +27,9 @@ class DexClassField : public BCClassField {
  public:
   DexClassField(const BCClass &klassIn, uint32 itemIdxIn, uint32 idxIn, uint32 acc, const std::string &nameIn,
                 const std::string &descIn)
-      : BCClassField(klassIn, acc, nameIn, descIn), itemIdx(itemIdxIn), idx(idxIn) {}
+      : BCClassField(klassIn, acc, nameIn, descIn),
+        itemIdx(itemIdxIn),
+        idx(idxIn) {}
   ~DexClassField() = default;
 
  protected:
@@ -56,7 +58,9 @@ class DexClassMethod : public BCClassMethod {
  public:
   DexClassMethod(const BCClass &klassIn, uint32 itemIdxIn, uint32 idxIn, bool isVirtualIn, uint32 acc,
                  const std::string &nameIn, const std::string &descIn)
-      : BCClassMethod(klassIn, acc, isVirtualIn, nameIn, descIn), itemIdx(itemIdxIn), idx(idxIn) {}
+      : BCClassMethod(klassIn, acc, isVirtualIn, nameIn, descIn),
+        itemIdx(itemIdxIn),
+        idx(idxIn) {}
   ~DexClassMethod() = default;
 
  protected:

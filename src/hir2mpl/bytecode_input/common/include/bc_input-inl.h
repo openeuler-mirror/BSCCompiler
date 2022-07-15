@@ -29,14 +29,14 @@ bool BCInput<T>::ReadBCFile(uint32 index, const std::string &fileName, const std
   } else {
     CHECK_FATAL(false, "Unsupported BC reader: %s in BCInput", typeid(T).name());
   }
-  if (bcParser->OpenFile() == false) {
+  if (!bcParser->OpenFile()) {
     return false;
   }
-  if (bcParser->ParseHeader() == false) {
+  if (!bcParser->ParseHeader()) {
     ERR(kLncErr, "Parse Header failed in : %s.", fileName.c_str());
     return false;
   }
-  if (bcParser->Verify() == false) {
+  if (!bcParser->Verify()) {
     ERR(kLncErr, "Verify file failed in : %s.", fileName.c_str());
     return false;
   }
