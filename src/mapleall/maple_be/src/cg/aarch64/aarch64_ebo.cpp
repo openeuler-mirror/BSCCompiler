@@ -1067,7 +1067,7 @@ bool AArch64Ebo::CombineLsrAnd(Insn &insn, const OpndInfo &opndInfo, bool is64bi
  *  and dst2, dst1, imm2  where imm2 is 0xff or 0xffff
  *  ===> and dst2, src0, imm1  if imm1 <= imm2
  */
-bool AArch64Ebo::CombineExtAnd(Insn &insn, const OpndInfo &opndInfo, bool is64bits, bool isFp, int64 immVal) const {
+bool AArch64Ebo::CombineExtAnd(Insn &insn, const OpndInfo &opndInfo, bool isFp, int64 immVal) const {
   if (isFp || opndInfo.insn == nullptr || !cgFunc->GetMirModule().IsCModule()) {
     return false;
   }
@@ -1180,7 +1180,7 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
       if (beforeRegAlloc && immValue != 0 &&
           (static_cast<uint64>(immValue) & (static_cast<uint64>(immValue) + 1)) == 0) {
         OpndInfo *opndInfo = origInfos.at(kInsnSecondOpnd);
-        return CombineExtAnd(insn, *opndInfo, is64Bits, false, immValue);
+        return CombineExtAnd(insn, *opndInfo, false, immValue);
       }
       break;
     }
