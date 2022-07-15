@@ -110,8 +110,8 @@ void MeProfGen::InstrumentFunc() {
     uint32 nCtrs = instrumentBBs.size();
     func->GetMirFunc()->SetNumCtrs(nCtrs);
     if (nCtrs != 0) {
-      MIRType *arrOfInt64Ty = GlobalTables::GetTypeTable().GetOrCreateArrayType(
-         *GlobalTables::GetTypeTable().GetInt64(), nCtrs);
+      MIRType *arrOfInt64Ty =
+          GlobalTables::GetTypeTable().GetOrCreateArrayType(*GlobalTables::GetTypeTable().GetInt64(), nCtrs);
       // flatten the counter table name
       std::string ctrTblName = namemangler::kprefixProfCtrTbl +
                                func->GetMIRModule().GetFileName() + "_" +

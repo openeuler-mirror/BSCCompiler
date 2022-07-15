@@ -1,16 +1,16 @@
 /*
- * Copyright (C) [2022] Futurewei Technologies, Inc. All rights reverved.
+ * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * Licensed under the Mulan Permissive Software License v2.
- * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
- * You may obtain a copy of MulanPSL - 2.0 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *   https://opensource.org/licenses/MulanPSL-2.0
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the MulanPSL - 2.0 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #include <ctime>
 #include "gen_profile.h"
@@ -92,7 +92,7 @@ void ProfileGen::CreateModProfDesc() {
   MIRIntConst *nextMirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *voidPtrTy);
   modProfDescSymMirConst->AddItem(nextMirConst, 3);
 
-  uint32 timeStamp = time(NULL);
+  uint32 timeStamp = time(nullptr);
   MIRIntConst *stampMirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(timeStamp, *u32Ty);
   modProfDescSymMirConst->AddItem(stampMirConst, 4);
 
@@ -316,7 +316,7 @@ void ProfileGen::CreateInitProc() {
   MIRBuilder *mirBuilder = mod.GetMIRBuilder();
   MIRFunction *origFunc = mirBuilder->GetCurrentFunction();
 
-  MIRType *voidTy = GlobalTables::GetTypeTable().GetVoid();;
+  MIRType *voidTy = GlobalTables::GetTypeTable().GetVoid();
   ArgVector formals(mod.GetMPAllocator().Adapter());
   MIRFunction *mplProfInit = mirBuilder->CreateFunction(
       namemangler::kprefixProfInit + flatenName(mod.GetFileName()), *voidTy, formals);
@@ -337,7 +337,7 @@ void ProfileGen::CreateInitProc() {
   ActArg.push_back(addrModProfDesc);
   CallNode *callGInit = mirBuilder->CreateStmtCall(gccProfInitProtoTy->GetPuidx(), ActArg);
 
-  BlockNode *block =mplProfInit->GetCodeMemPool()->New<BlockNode>();;
+  BlockNode *block =mplProfInit->GetCodeMemPool()->New<BlockNode>();
   block->AddStatement(callGInit);
   mplProfInit->SetBody(block);
   mod.AddFunction(mplProfInit);
@@ -364,7 +364,7 @@ void ProfileGen::CreateExitProc() {
   MapleVector<BaseNode*> ActArg(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
   CallNode *callGExit = mirBuilder->CreateStmtCall(gccProfExitProtoTy->GetPuidx(), ActArg);
 
-  BlockNode *block = mplProfExit->GetCodeMemPool()->New<BlockNode>();;
+  BlockNode *block = mplProfExit->GetCodeMemPool()->New<BlockNode>();
   block->AddStatement(callGExit);
   mplProfExit->SetBody(block);
   mod.AddFunction(mplProfExit);

@@ -345,7 +345,7 @@ bool MESubsumRC::PhaseRun(maple::MeFunction &f) {
   if (!(f.GetHints() & kPlacementRCed)) {
     return false;
   }
-  if (MeOption::subsumRC == false) {
+  if (!MeOption::subsumRC) {
     return false;
   }
   auto *dom = GET_ANALYSIS(MEDominance, f);

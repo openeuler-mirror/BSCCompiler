@@ -25,7 +25,7 @@ class AArch64CGSSAInfo : public CGSSAInfo {
   ~AArch64CGSSAInfo() override = default;
   void DumpInsnInSSAForm(const Insn &insn) const override;
   RegOperand *GetRenamedOperand(RegOperand &vRegOpnd, bool isDef, Insn &curInsn, uint32 idx) override;
-  MemOperand *CreateMemOperand(MemOperand &memOpnd, bool isOnSSA /* false = on cgfunc */);
+  MemOperand *CreateMemOperand(MemOperand &memOpnd, bool isOnSSA) const; /* Second input parameter:false = on cgfunc */
   void ReplaceInsn(Insn &oriInsn, Insn &newInsn) override;
   void ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *newVersion) override;
   void CreateNewInsnSSAInfo(Insn &newInsn) override;
@@ -44,7 +44,7 @@ class A64SSAOperandRenameVisitor : public SSAOperandVisitor {
   ~A64SSAOperandRenameVisitor() override = default;
   void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;
-  void Visit(MemOperand *a64MemOpnd) final;
+  void Visit(MemOperand *v) final;
 
  private:
   AArch64CGSSAInfo *ssaInfo;
@@ -64,10 +64,10 @@ class A64OpndSSAUpdateVsitor : public SSAOperandVisitor,
   bool HasDeleteDef() const {
     return !deletedDef.empty();
   }
-  void Visit(RegOperand *regOpnd) final;
+  void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;
-  void Visit(MemOperand *a64MemOpnd) final;
-  void Visit(PhiOperand *phiOpnd) final;
+  void Visit(MemOperand *v) final;
+  void Visit(PhiOperand *v) final;
 
   bool IsPhi() const {
     return isPhi;
@@ -91,10 +91,10 @@ class A64SSAOperandDumpVisitor : public SSAOperandDumpVisitor {
   explicit A64SSAOperandDumpVisitor(const MapleUnorderedMap<regno_t, VRegVersion*> &allssa) :
       SSAOperandDumpVisitor(allssa) {};
   ~A64SSAOperandDumpVisitor() override = default;
-  void Visit(RegOperand *a64RegOpnd) final;
+  void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;
-  void Visit(MemOperand *a64MemOpnd) final;
-  void Visit(PhiOperand *phi) final;
+  void Visit(MemOperand *v) final;
+  void Visit(PhiOperand *v) final;
 };
 }
 

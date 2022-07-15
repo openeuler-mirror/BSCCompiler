@@ -449,14 +449,16 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
         // the OriginalSt of at least one side has appearance in code
         if (fieldOstLHS == nullptr) {
           auto *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(lhsOst->GetTyIdx());
-          fieldOstLHS = ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(
-            preLevOfLHSOst, ptrType->GetTypeIndex(), fieldId, bitOffset);
+          fieldOstLHS = ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(preLevOfLHSOst,
+                                                                                    ptrType->GetTypeIndex(),
+                                                                                    fieldId, bitOffset);
         }
 
         if (fieldOstRHS == nullptr) {
           auto *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(rhsOst->GetTyIdx());
-          fieldOstRHS = ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(
-            preLevOfRHSOst, ptrType->GetTypeIndex(), fieldId, bitOffset);
+          fieldOstRHS = ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(preLevOfRHSOst,
+                                                                                    ptrType->GetTypeIndex(),
+                                                                                    fieldId, bitOffset);
         }
 
         auto *zeroVersionOfFieldOstLHS = ssaTab->GetVersionStTable().GetOrCreateZeroVersionSt(*fieldOstLHS);

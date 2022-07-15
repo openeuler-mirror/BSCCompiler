@@ -133,7 +133,7 @@ void IpaSideEffect::GetEffectFromCallee(MIRFunction &callee, const MIRFunction &
     hasThrException = hasThrException || !callee.IsNoThrowException();
     hasRetArg = hasRetArg || !callee.IsNoRetArg();
     hasPrivateDef = hasPrivateDef || !callee.IsNoPrivateDefEffect();
-  } else if (MatchPuidxAndSetSideEffects(callee.GetPuidx()) == false) {
+  } else if (!MatchPuidxAndSetSideEffects(callee.GetPuidx())) {
     // function was not compiled before and it is not one of the predetermined
     // sideeffect functions, then assume
     //  - native function : no side effects

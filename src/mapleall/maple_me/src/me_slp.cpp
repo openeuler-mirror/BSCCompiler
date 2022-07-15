@@ -36,13 +36,10 @@ using namespace maple;
 constexpr maple::int32 kHugeCost = 10000;  // Used for impossible vectorized node
 
 const std::vector<Opcode> supportedOps = {
-  OP_iread, OP_ireadoff, OP_add, OP_sub, OP_constval, OP_bxor, OP_band, OP_mul,
-  OP_intrinsicop
+    OP_iread, OP_ireadoff, OP_add, OP_sub, OP_constval, OP_bxor, OP_band, OP_mul, OP_intrinsicop
 };
 
-const std::vector<MIRIntrinsicID> supportedIntrns = {
-  INTRN_C_rev_4, INTRN_C_rev_8, INTRN_C_rev16_2
-};
+const std::vector<MIRIntrinsicID> supportedIntrns = {INTRN_C_rev_4, INTRN_C_rev_8, INTRN_C_rev16_2};
 
 std::vector<int32> *localSymOffsetTab = nullptr;
 }  // anonymous namespace

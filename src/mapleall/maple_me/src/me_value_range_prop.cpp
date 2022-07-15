@@ -205,8 +205,9 @@ void ValueRangePropagation::DealWithSwitch(BB &bb, MeStmt &stmt) {
     // Can prop value range to target bb only when the pred size of target bb is one and
     // only one case can jump to the target bb.
     if (currbb->GetPred().size() == 1 && bbOfCases.insert(currbb->GetBBId()).second) {
-      (void)Insert2Caches(currbb->GetBBId(), opnd->GetExprID(),
-                    std::make_unique<ValueRange>(Bound(nullptr, pair.first, PTY_i64), kEqual));
+      (void)Insert2Caches(
+          currbb->GetBBId(), opnd->GetExprID(),
+          std::make_unique<ValueRange>(Bound(nullptr, pair.first, PTY_i64), kEqual));
     } else {
       (void)Insert2Caches(currbb->GetBBId(), opnd->GetExprID(), nullptr);
     }
@@ -1019,10 +1020,12 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
   }
   if (ValueRangePropagation::isDebug) {
     std::for_each(indexVector.begin(), indexVector.end(), [this](const CRNode *cr) {
-        sa.Dump(*cr); std::cout << " ";});
+        sa.Dump(*cr);
+        std::cout << " ";});
     LogInfo::MapleLogger() << "\n";
     std::for_each(boundVector.begin(), boundVector.end(), [this](const CRNode *cr) {
-        sa.Dump(*cr); std::cout << " ";});
+        sa.Dump(*cr);
+        std::cout << " ";});
     LogInfo::MapleLogger() << "\n";
   }
   // Get the valueRange of index and bound
@@ -4654,8 +4657,8 @@ void ValueRangePropagation::InsertValueRangeOfCondExpr2Caches(BB &bb, const MeSt
 // mx1: valuerange [mx2+1, max(mx2_type)] or [mx2, max(mx2_type)]
 // ==>
 // remove falseBranch or trueBranch
-bool ValueRangePropagation::AnalysisUnreachableForGeOrGt(
-        BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange) {
+bool ValueRangePropagation::AnalysisUnreachableForGeOrGt(BB &bb, const CondGotoMeStmt &brMeStmt,
+                                                         const ValueRange &leftRange) {
   Opcode op = static_cast<OpMeExpr*>(brMeStmt.GetOpnd())->GetOp();
   BB *trueBranch = nullptr;
   BB *falseBranch = nullptr;
@@ -4719,8 +4722,8 @@ bool ValueRangePropagation::AnalysisUnreachableForLeOrLt(
 // mx1: valuerange [mx2, mx2]
 // ==>
 // remove falseBranch or trueBranch
-bool ValueRangePropagation::AnalysisUnreachableForEqOrNe(
-        BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange) {
+bool ValueRangePropagation::AnalysisUnreachableForEqOrNe(BB &bb, const CondGotoMeStmt &brMeStmt,
+                                                         const ValueRange &leftRange) {
   Opcode op = static_cast<OpMeExpr*>(brMeStmt.GetOpnd())->GetOp();
   BB *trueBranch = nullptr;
   BB *falseBranch = nullptr;

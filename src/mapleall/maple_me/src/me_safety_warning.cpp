@@ -230,37 +230,37 @@ inline static bool HandleBoundaryCheckAssertReturn(const MeStmt &stmt, const MIR
 }
 
 SafetyWarningHandlers MESafetyWarning::npeHandleMap = {
-  { OP_assertnonnull, HandleAssertNonnull },
-  { OP_returnassertnonnull, HandleReturnAssertNonnull },
-  { OP_assignassertnonnull, HandleAssignAssertNonnull },
-  { OP_callassertnonnull, HandleCallAssertNonnull },
+    { OP_assertnonnull, HandleAssertNonnull },
+    { OP_returnassertnonnull, HandleReturnAssertNonnull },
+    { OP_assignassertnonnull, HandleAssignAssertNonnull },
+    { OP_callassertnonnull, HandleCallAssertNonnull }
 };
 
 SafetyWarningHandlers MESafetyWarning::boundaryHandleMap = {
-  { OP_assertlt, HandleMemoryAccessAssert },
-  { OP_assertge, HandleMemoryAccessAssert },
-  { OP_calcassertlt, HandleCalculationAssert },
-  { OP_calcassertge, HandleCalculationAssert },
-  { OP_callassertle, HandleBoundaryCheckAssertCall },
-  { OP_returnassertle, HandleBoundaryCheckAssertReturn },
-  { OP_assignassertle, HandleBoundaryCheckAssertAssign },
+    { OP_assertlt, HandleMemoryAccessAssert },
+    { OP_assertge, HandleMemoryAccessAssert },
+    { OP_calcassertlt, HandleCalculationAssert },
+    { OP_calcassertge, HandleCalculationAssert },
+    { OP_callassertle, HandleBoundaryCheckAssertCall },
+    { OP_returnassertle, HandleBoundaryCheckAssertReturn },
+    { OP_assignassertle, HandleBoundaryCheckAssertAssign }
 };
 
 SafetyWarningHandlers MESafetyWarning::npeSilentHandleMap = {
-  { OP_assertnonnull, [](auto&, auto&, auto&) -> bool { return !MeOption::isNpeCheckAll; } },
-  { OP_returnassertnonnull, [](auto&, auto&, auto&) -> bool { return false; } },
-  { OP_assignassertnonnull, [](auto&, auto&, auto&) -> bool { return false; } },
-  { OP_callassertnonnull, [](auto&, auto&, auto&) -> bool { return false; } },
+    { OP_assertnonnull, [](auto&, auto&, auto&) -> bool { return !MeOption::isNpeCheckAll; } },
+    { OP_returnassertnonnull, [](auto&, auto&, auto&) -> bool { return false; } },
+    { OP_assignassertnonnull, [](auto&, auto&, auto&) -> bool { return false; } },
+    { OP_callassertnonnull, [](auto&, auto&, auto&) -> bool { return false; } }
 };
 
 SafetyWarningHandlers MESafetyWarning::boundarySilentHandleMap = {
-  { OP_assertlt, [](auto&, auto&, auto&) -> bool { return false; } },
-  { OP_assertge, [](auto&, auto&, auto&) -> bool { return false; } },
-  { OP_calcassertlt, [](auto&, auto&, auto&) -> bool { return true; } },
-  { OP_calcassertge, [](auto&, auto&, auto&) -> bool { return true; } },
-  { OP_callassertle, [](auto&, auto&, auto&) -> bool { return false; } },
-  { OP_returnassertle, [](auto&, auto&, auto&) -> bool { return false; } },
-  { OP_assignassertle, [](auto&, auto&, auto&) -> bool { return false; } },
+    { OP_assertlt, [](auto&, auto&, auto&) -> bool { return false; } },
+    { OP_assertge, [](auto&, auto&, auto&) -> bool { return false; } },
+    { OP_calcassertlt, [](auto&, auto&, auto&) -> bool { return true; } },
+    { OP_calcassertge, [](auto&, auto&, auto&) -> bool { return true; } },
+    { OP_callassertle, [](auto&, auto&, auto&) -> bool { return false; } },
+    { OP_returnassertle, [](auto&, auto&, auto&) -> bool { return false; } },
+    { OP_assignassertle, [](auto&, auto&, auto&) -> bool { return false; } }
 };
 
 void MESafetyWarning::GetAnalysisDependence(maple::AnalysisDep &aDep) const {

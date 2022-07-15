@@ -264,7 +264,7 @@ void ReflectionAnalysis::InitReflectString() {
 }
 
 uint32 ReflectionAnalysis::FindOrInsertRepeatString(const std::string &str, bool isHot, uint8 hotType) {
-  if (strTabInited == false) {
+  if (!strTabInited) {
     // Add default hot strings.
     InitReflectString();
     strTabInited = true;
@@ -959,11 +959,12 @@ MIRSymbol *ReflectionAnalysis::GetMethodSignatureSymbol(std::string signature) {
 }
 
 void ReflectionAnalysis::GenMethodMetaCompact(const Klass &klass, MIRStructType &methodsInfoCompactType, int idx,
-                                              const MIRSymbol &funcSym, MIRAggConst &aggConst, int &allDeclaringClassOffset,
+                                              const MIRSymbol &funcSym, MIRAggConst &aggConst,
+                                              int &allDeclaringClassOffset,
                                               std::unordered_map<uint32, std::string> &baseNameMp,
                                               std::unordered_map<uint32, std::string> &fullNameMp) {
   MIRFunction &func = *funcSym.GetFunction();
-  MIRAggConst &newConstCompact = *mirModule->GetMemPool()->New<MIRAggConst>(*mirModule, methodsInfoCompactType);;
+  MIRAggConst &newConstCompact = *mirModule->GetMemPool()->New<MIRAggConst>(*mirModule, methodsInfoCompactType);
   std::vector<uint8> methodsCompactLeb128Vec;
   uint32 fieldIDCompact = 1;
 

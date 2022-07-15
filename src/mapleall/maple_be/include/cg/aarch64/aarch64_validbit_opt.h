@@ -127,8 +127,8 @@ class CmpCsetVBPattern : public ValidBitPattern {
   };
 
  private:
-  bool IsContinuousCmpCset(const Insn &curInsn);
-  bool OpndDefByOneValidBit(const Insn &defInsn);
+  bool IsContinuousCmpCset(const Insn &curInsn) const;
+  bool OpndDefByOneValidBit(const Insn &defInsn) const;
   Insn *cmpInsn = nullptr;
   int64 cmpConstVal = -1;
 };

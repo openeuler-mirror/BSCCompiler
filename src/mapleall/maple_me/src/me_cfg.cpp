@@ -1007,7 +1007,7 @@ void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs, bool dumpEdge
   }
   if (laidOut != nullptr) {
     static std::vector<std::string> colors = {
-      "indianred1", "darkorange1", "lightyellow1", "green3", "cyan", "dodgerblue2", "purple2"
+        "indianred1", "darkorange1", "lightyellow1", "green3", "cyan", "dodgerblue2", "purple2"
     };
     uint32 colorIdx = 0;
     size_t clusterSize = laidOut->size() / colors.size();
@@ -1644,8 +1644,8 @@ void MeCFG::BBTopologicalSort(SCCOfBBs &scc) {
 }
 
 void MeCFG::BuildSCCDFS(BB &bb, uint32 &visitIndex, std::vector<SCCOfBBs*> &sccNodes,
-                             std::vector<uint32> &visitedOrder, std::vector<uint32> &lowestOrder,
-                             std::vector<bool> &inStack, std::stack<uint32> &visitStack) {
+                        std::vector<uint32> &visitedOrder, std::vector<uint32> &lowestOrder,
+                        std::vector<bool> &inStack, std::stack<uint32> &visitStack) {
   uint32 id = bb.UintID();
   visitedOrder[id] = visitIndex;
   lowestOrder[id] = visitIndex;

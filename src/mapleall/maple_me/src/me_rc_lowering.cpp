@@ -496,7 +496,7 @@ MIRType *RCLowering::GetArrayNodeType(const VarMeExpr &var) {
   if (baseType != nullptr) {
     MIRType *stType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
         static_cast<MIRPtrType*>(baseType)->GetPointedTyIdx());
-    while (kTypeJArray == stType->GetKind()) {
+    while (stType->GetKind() == kTypeJArray) {
       MIRJarrayType *baseType1 = static_cast<MIRJarrayType*>(stType);
       MIRType *elemType = baseType1->GetElemType();
       if (elemType->GetKind() == kTypePointer) {
@@ -516,7 +516,7 @@ void RCLowering::CheckArrayStore(IntrinsiccallMeStmt &writeRefCall) {
     return;
   }
   MIRIntrinsicID intrnID = writeRefCall.GetIntrinsic();
-  if (!((INTRN_MCCWriteVolNoInc <= intrnID) && (intrnID <= INTRN_MCCWrite))) {
+  if (!((INTRN_MCCWriteVolNoInc <= intrnID) && (INTRN_MCCWrite >= intrnID))) {
     return;
   }
   if (writeRefCall.GetOpnd(1)->GetOp() != OP_iaddrof) {

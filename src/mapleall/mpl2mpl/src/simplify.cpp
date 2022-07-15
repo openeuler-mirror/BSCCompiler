@@ -1535,8 +1535,8 @@ StmtNode *SimplifyMemOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block
     } else {
       // check if src size is greater than dst size
       srcSizeCheckLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('n');  // 'n' means nullptr
-      CreateAndInsertCheckStmt(OP_gt, stmt.Opnd(kMemsetSSrcSizeOpndIdx), stmt.Opnd(kMemsetSDstSizeOpndIdx), srcSizeCheckLabIdx, stmt,
-                               block, *func, debug);
+      CreateAndInsertCheckStmt(OP_gt, stmt.Opnd(kMemsetSSrcSizeOpndIdx), stmt.Opnd(kMemsetSDstSizeOpndIdx),
+                               srcSizeCheckLabIdx, stmt, block, *func, debug);
     }
 
     MapleVector<BaseNode *> args(func->GetCodeMempoolAllocator().Adapter());

@@ -31,7 +31,7 @@ void AArch64CGSSAInfo::RenameInsn(Insn &insn) {
   }
 }
 
-MemOperand *AArch64CGSSAInfo::CreateMemOperand(MemOperand &memOpnd, bool isOnSSA) {
+MemOperand *AArch64CGSSAInfo::CreateMemOperand(MemOperand &memOpnd, bool isOnSSA) const {
   return isOnSSA ? memOpnd.Clone(*memPool) :
       &static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreateMemOpnd(memOpnd);
 }

@@ -1311,8 +1311,8 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
       PrimType opnd1PrimType = vecopnd1[0]->GetPrimType();
       PrimType opnd2PrimType = vecopnd2[0]->GetPrimType();
       // widen instruction (addl/subl) need two operands with same vectype
-      if ((PTY_begin != GetVecElemPrimType(opnd1PrimType)) &&
-          (PTY_begin != GetVecElemPrimType(opnd2PrimType)) &&
+      if ((GetVecElemPrimType(opnd1PrimType) != PTY_begin) &&
+          (GetVecElemPrimType(opnd2PrimType) != PTY_begin) &&
           (opnd1PrimType == opnd2PrimType) &&
           (tp->vecInfo->currentLHSTypeSize > GetPrimTypeSize(GetVecElemPrimType(opnd1PrimType))) &&
           CanWidenOpcode(node, GetVecElemPrimType(opnd1PrimType))) {

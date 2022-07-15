@@ -173,8 +173,9 @@ void MeLowerGlobals::Run() {
         if (!MeOption::optDirectCall) {
           continue;
         }
-        if (GlobalTables::GetGsymTable().GetSymbolFromStrIdx(GlobalTables::GetStrTable().GetStrIdxFromName(
-          namemangler::GetInternalNameLiteral(namemangler::kJavaLangObjectStr))) != nullptr) {
+        std::string name = namemangler::GetInternalNameLiteral(namemangler::kJavaLangObjectStr);
+        auto strIdx = GlobalTables::GetStrTable().GetStrIdxFromName(name);
+        if (GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx) != nullptr) {
           continue;
         }
         auto &callStmt = static_cast<CallMeStmt&>(stmt);

@@ -102,8 +102,8 @@ BaseNode *LMBCLowerer::LowerDreadoff(DreadoffNode *dreadoff) {
   PregIdx spcreg = GetSpecialRegFromSt(symbol);
   if (spcreg == -kSregFp) {
     CHECK_FATAL(symbol->IsLocal(), "load from fp non local?");
-    IreadFPoffNode *ireadoff = mirBuilder->CreateExprIreadFPoff(symty,
-      memlayout->sym_alloc_table[symbol->GetStIndex()].offset + dreadoff->offset);
+    IreadFPoffNode *ireadoff = mirBuilder->CreateExprIreadFPoff(
+        symty, memlayout->sym_alloc_table[symbol->GetStIndex()].offset + dreadoff->offset);
     return ireadoff;
   } else {
     BaseNode *rrn = mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, spcreg);
@@ -144,9 +144,9 @@ BaseNode *LMBCLowerer::LowerIaddrof(IaddrofNode *expr) {
   int32 offset = 0;
   if (expr->GetFieldID() != 0) {
     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(expr->GetTyIdx());
-    MIRStructType *structty = static_cast<MIRStructType *>(
-        GlobalTables::GetTypeTable().GetTypeFromTyIdx(
-        static_cast<MIRPtrType*>(type)->GetPointedTyIdx()));
+    MIRStructType *structty =
+        static_cast<MIRStructType*>(
+            GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<MIRPtrType*>(type)->GetPointedTyIdx()));
     offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
   }
   if (offset == 0) {

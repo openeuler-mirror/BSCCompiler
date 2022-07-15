@@ -345,7 +345,7 @@ void MeVerify::DealWithSpecialCase(const BB &currBB, const BB &tryBB) const {
   if (&currBB != &tryBB && !currBB.GetAttributes(kBBAttrIsTryEnd)) {
     for (auto &stmt : currBB.GetMeStmts()) {
       if (stmt.GetOp() == OP_try || stmt.GetOp() == OP_catch || stmt.GetOp() == OP_throw) {
-        CHECK_FATAL(false, "must be try");;
+        CHECK_FATAL(false, "must be try");
       }
     }
   }
@@ -355,7 +355,7 @@ void MeVerify::VerifyNestedTry(const BB &tryBB, const BB &currBB) const {
   if (&currBB != &tryBB && !currBB.GetAttributes(kBBAttrIsTryEnd)) {
     for (auto &stmt : currBB.GetMeStmts()) {
       if (stmt.GetOp() == OP_try) {
-        CHECK_FATAL(false, "nested try");;
+        CHECK_FATAL(false, "nested try");
       }
     }
   }

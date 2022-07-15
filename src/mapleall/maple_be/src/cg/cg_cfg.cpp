@@ -229,16 +229,16 @@ void CGCFG::CheckCFGFreq() {
 
 InsnVisitor *CGCFG::insnVisitor;
 
-void CGCFG::InitInsnVisitor(CGFunc &func) {
+void CGCFG::InitInsnVisitor(CGFunc &func) const {
   insnVisitor = func.NewInsnModifier();
 }
 
-Insn *CGCFG::CloneInsn(Insn &originalInsn) {
+Insn *CGCFG::CloneInsn(Insn &originalInsn) const {
   cgFunc->IncTotalNumberOfInstructions();
   return insnVisitor->CloneInsn(originalInsn);
 }
 
-RegOperand *CGCFG::CreateVregFromReg(const RegOperand &pReg) {
+RegOperand *CGCFG::CreateVregFromReg(const RegOperand &pReg) const {
   return insnVisitor->CreateVregFromReg(pReg);
 }
 
@@ -464,7 +464,7 @@ void CGCFG::FlushUnReachableStatusAndRemoveRelations(BB &bb, const CGFunc &func)
   }
 }
 
-void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) {
+void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) const {
   BB *sucBB = CGCFG::GetTargetSuc(curBB, false, isGotoIf);
   if (sucBB != nullptr) {
     sucBB->RemovePreds(curBB);
@@ -532,7 +532,7 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) {
   }
 }
 
-void CGCFG::RetargetJump(BB &srcBB, BB &targetBB) {
+void CGCFG::RetargetJump(BB &srcBB, BB &targetBB) const {
   insnVisitor->ModifyJumpTarget(srcBB, targetBB);
 }
 
@@ -632,7 +632,7 @@ Insn *CGCFG::FindLastCondBrInsn(BB &bb) const {
   return nullptr;
 }
 
-void CGCFG::MarkLabelTakenBB() {
+void CGCFG::MarkLabelTakenBB() const {
   if (cgFunc->GetMirModule().GetSrcLang() != kSrcLangC) {
     return;
   }
@@ -649,7 +649,7 @@ void CGCFG::MarkLabelTakenBB() {
  * analyse the CFG to find the BBs that are not reachable from function entries
  * and delete them
  */
-void CGCFG::UnreachCodeAnalysis() {
+void CGCFG::UnreachCodeAnalysis() const {
   if (cgFunc->GetMirModule().GetSrcLang() == kSrcLangC &&
       (cgFunc->HasTakenLabel() ||
       (cgFunc->GetEHFunc() && cgFunc->GetEHFunc()->GetLSDAHeader()))) {
@@ -790,7 +790,7 @@ BB *CGCFG::FindLastRetBB() {
   return nullptr;
 }
 
-void CGCFG::UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) {
+void CGCFG::UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) const {
   /* connext newBB -> succ */
   for (auto it = succ.GetPredsBegin(); it != succ.GetPredsEnd(); ++it) {
     if (*it == &pred) {

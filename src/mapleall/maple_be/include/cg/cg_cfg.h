@@ -74,7 +74,7 @@ class CGCFG {
   void CheckCFG();
   void CheckCFGFreq();
 
-  void InitInsnVisitor(CGFunc &func);
+  void InitInsnVisitor(CGFunc &func) const;
   InsnVisitor *GetInsnModifier() const {
     return insnVisitor;
   }
@@ -92,16 +92,16 @@ class CGCFG {
    * Remove a BB from its position in the CFG.
    * Prev, next, preds and sucs are all modified accordingly.
    */
-  void RemoveBB(BB &curBB, bool isGotoIf = false);
+  void RemoveBB(BB &curBB, bool isGotoIf = false) const;
   /* Skip the successor of bb, directly jump to bb's successor'ssuccessor */
-  void RetargetJump(BB &srcBB, BB &targetBB);
+  void RetargetJump(BB &srcBB, BB &targetBB) const;
 
   /* Loop up if the given label is in the exception tables in LSDA */
   static bool InLSDA(LabelIdx label, const EHFunc &ehFunc);
   static bool InSwitchTable(LabelIdx label, const CGFunc &func);
 
-  RegOperand *CreateVregFromReg(const RegOperand &pReg);
-  Insn *CloneInsn(Insn &originalInsn);
+  RegOperand *CreateVregFromReg(const RegOperand &pReg) const;
+  Insn *CloneInsn(Insn &originalInsn) const;
   static BB *GetTargetSuc(BB &curBB, bool branchOnly = false, bool isGotoIf = false);
   bool IsCompareAndBranchInsn(const Insn &insn) const;
   bool IsAddOrSubInsn(const Insn &insn) const;
@@ -109,13 +109,13 @@ class CGCFG {
   Insn *FindLastCondBrInsn(BB &bb) const;
   static void FindAndMarkUnreachable(CGFunc &func);
   void FlushUnReachableStatusAndRemoveRelations(BB &bb, const CGFunc &func) const;
-  void MarkLabelTakenBB();
-  void UnreachCodeAnalysis();
+  void MarkLabelTakenBB() const;
+  void UnreachCodeAnalysis() const;
   void FindWillExitBBs(BB *bb, std::set<BB*, BBIdCmp> *visitedBBs);
   void WontExitAnalysis();
   BB *FindLastRetBB();
 
-  void UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB);
+  void UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) const;
   void BreakCriticalEdge(BB &pred, BB &succ);
  /* cgcfgvisitor */
  private:

@@ -136,7 +136,7 @@ class CG {
 
   void GenExtraTypeMetadata(const std::string &classListFileName, const std::string &outputBaseName);
   void GenPrimordialObjectList(const std::string &outputBaseName);
-  const std::string ExtractFuncName(const std::string &str);
+  const std::string ExtractFuncName(const std::string &str) const;
 
   template <typename I>
   Insn &BuildInstruction(MOperator opCode) const {
@@ -316,7 +316,7 @@ class CG {
     return cgOption.DoConstFold();
   }
 
-  void AddStackGuardvar();
+  void AddStackGuardvar() const;
   void DefineDebugTraceFunctions();
   MIRModule *GetMIRModule() {
     return mirModule;
@@ -424,7 +424,7 @@ class CG {
   };
 
   /* Object map generation helper */
-  std::vector<int64> GetReferenceOffsets64(const BECommon &beCommon, MIRStructType &structType);
+  std::vector<int64> GetReferenceOffsets64(const BECommon &beCommon, MIRStructType &structType) const;
 
   void SetGP(MIRSymbol *sym) {
     fileGP = sym;

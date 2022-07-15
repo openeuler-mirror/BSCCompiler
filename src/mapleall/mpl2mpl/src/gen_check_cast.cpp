@@ -649,7 +649,7 @@ void CheckCastGenerator::ReplaceIsAssignableFromUsingCache(BlockNode &blockNode,
     resultFalse = builder->CreateStmtRegassign(mirPreg->GetPrimType(), regAssignNode->GetRegIdx(), falseVal);
     resultTrue = builder->CreateStmtRegassign(mirPreg->GetPrimType(), regAssignNode->GetRegIdx(), trueVal);
 
-    if (isDefinedConstClass == false) {
+    if (!isDefinedConstClass) {
       targetClassSymPregIdx = currFunc->GetPregTab()->CreatePreg(classPrimType);
       targetClassAssign = builder->CreateStmtRegassign(classPrimType, targetClassSymPregIdx, targetClassNode);
     }

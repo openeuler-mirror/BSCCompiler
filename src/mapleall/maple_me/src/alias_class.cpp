@@ -343,8 +343,9 @@ AliasInfo AliasClass::CreateAliasInfoExpr(BaseNode &expr) {
         typeOfField = static_cast<MIRStructType *>(typeOfField)->GetFieldType(iread.GetFieldID());
       }
       bool typeHasBeenCasted = IreadedMemInconsistentWithPointedType(iread.GetPrimType(), typeOfField->GetPrimType());
-      return AliasInfo(FindOrCreateVstOfExtraLevOst(
-        *iread.Opnd(0), iread.GetTyIdx(), iread.GetFieldID(), typeHasBeenCasted), 0, OffsetType(0));
+      return AliasInfo(
+          FindOrCreateVstOfExtraLevOst(*iread.Opnd(0), iread.GetTyIdx(), iread.GetFieldID(), typeHasBeenCasted),
+          0, OffsetType(0));
     }
     case OP_iaddrof: {
       auto &iread = static_cast<IreadNode&>(expr);
@@ -1774,7 +1775,7 @@ void AliasClass::CreateClassSets() {
         unionFind.Root(ost->GetIndex()) == ost->GetIndex() &&
         GetAliasSet(ost->GetIndex()) != nullptr) {
       CHECK_FATAL(GetAliasSet(ost->GetIndex())->size() == unionFind.GetElementsNumber(ost->GetIndex()),
-             "AliasClass::CreateClassSets: wrong result");
+                  "AliasClass::CreateClassSets: wrong result");
     }
   }
 #endif
@@ -2546,8 +2547,8 @@ void AliasClass::InsertMayDefUseClinitCheck(IntrinsiccallNode &stmt, BBId bbid) 
   for (const OStIdx &ostIdx : globalsMayAffectedByClinitCheck) {
     OriginalSt *ost = ssaTab.GetOriginalStFromID(OStIdx(ostIdx));
     CHECK_FATAL(ost, "ost is nullptr!");
-    ssaPart->InsertMayDefNode(MayDefNode(
-      ssaTab.GetVersionStTable().GetVersionStVectorItem(ost->GetZeroVersionIndex()), &stmt));
+    ssaPart->InsertMayDefNode(
+        MayDefNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(ost->GetZeroVersionIndex()), &stmt));
     ssaTab.AddDefBB4Ost(ostIdx, bbid);
   }
 }

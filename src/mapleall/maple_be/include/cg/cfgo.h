@@ -49,8 +49,8 @@ class SequentialJumpPattern : public OptimizationPattern {
   bool Optimize(BB &curBB) override;
 
  protected:
-  void SkipSucBB(BB &curBB, BB &sucBB);
-  void UpdateSwitchSucc(BB &curBB, BB &sucBB);
+  void SkipSucBB(BB &curBB, BB &sucBB) const;
+  void UpdateSwitchSucc(BB &curBB, BB &sucBB) const;
 };
 
 class FlipBRPattern : public OptimizationPattern {
@@ -64,7 +64,7 @@ class FlipBRPattern : public OptimizationPattern {
   bool Optimize(BB &curBB) override;
 
  protected:
-  void RelocateThrowBB(BB &curBB);
+  void RelocateThrowBB(BB &curBB) const;
 };
 
 /* This class represents the scenario that the BB is unreachable. */

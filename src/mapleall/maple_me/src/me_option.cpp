@@ -188,7 +188,7 @@ bool MeOption::SolveOptions(bool isDebug) {
   if (opts::me::range.IsEnabledByUser()) {
     useRange = true;
     bool ret = GetRange(opts::me::range);
-    if (ret == false) {
+    if (!ret) {
       return ret;
     }
   }
@@ -354,7 +354,7 @@ bool MeOption::SolveOptions(bool isDebug) {
 
   if (opts::me::placementrc.IsEnabledByUser()) {
     placementRC = opts::me::placementrc;
-    if (placementRC == false) {
+    if (!placementRC) {
       subsumRC = false;
       epreIncludeRef = false;
       if (isDebug) {

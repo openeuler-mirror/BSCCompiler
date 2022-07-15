@@ -628,7 +628,7 @@ void AArch64Schedule::SelectNode(AArch64ScheduleProcessInfo &scheduleInfo) {
   UpdateAdvanceCycle(scheduleInfo, *targetNode);
 }
 
-void AArch64Schedule::UpdateAdvanceCycle(AArch64ScheduleProcessInfo &scheduleInfo, const DepNode &targetNode) {
+void AArch64Schedule::UpdateAdvanceCycle(AArch64ScheduleProcessInfo &scheduleInfo, const DepNode &targetNode) const {
   switch (targetNode.GetInsn()->GetLatencyType()) {
     case kLtClinit:
       scheduleInfo.SetAdvanceCycle(kClinitAdvanceCycle);
@@ -656,7 +656,7 @@ void AArch64Schedule::UpdateAdvanceCycle(AArch64ScheduleProcessInfo &scheduleInf
  * Advance mad's cycle until info's advanceCycle equal zero,
  * and then clear info's availableReadyList.
  */
-void AArch64Schedule::UpdateScheduleProcessInfo(AArch64ScheduleProcessInfo &info) {
+void AArch64Schedule::UpdateScheduleProcessInfo(AArch64ScheduleProcessInfo &info) const {
   while (info.GetAdvanceCycle() > 0) {
     info.IncCurrCycle();
     mad->AdvanceCycle();
@@ -685,7 +685,7 @@ bool AArch64Schedule::CheckSchedulable(AArch64ScheduleProcessInfo &info) const {
 /*
  * Calculate estimated machine cycle count for an input node series
  */
-int AArch64Schedule::CalSeriesCycles(const MapleVector<DepNode*> &nodes) {
+int AArch64Schedule::CalSeriesCycles(const MapleVector<DepNode*> &nodes) const {
   int currentCycle = 0;
   /* after an instruction is issued, the minimum cycle count for the next instruction is 1 */
   int instructionBaseCycleCount = 1;
@@ -915,7 +915,7 @@ bool AArch64Schedule::CompareDepNode(DepNode &node1, DepNode &node2, AArch64Sche
 /*
  * Calculate number of every unit that used by avaliableReadyList's nodes and save the max in maxUnitIndex
  */
-void AArch64Schedule::CalculateMaxUnitKindCount(ScheduleProcessInfo &scheduleInfo) {
+void AArch64Schedule::CalculateMaxUnitKindCount(ScheduleProcessInfo &scheduleInfo) const {
   uint32 unitKindCount[kUnitKindLast] = { 0 };
   for (auto node : scheduleInfo.GetAvailableReadyList()) {
     CountUnitKind(*node, unitKindCount, kUnitKindLast);

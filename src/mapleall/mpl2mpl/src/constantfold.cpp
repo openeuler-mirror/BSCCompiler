@@ -47,13 +47,11 @@ std::optional<IntVal> operator*(const std::optional<IntVal> &v1, const std::opti
 
   // Perform all calculations in terms of the maximum available signed type.
   // The value will be truncated for an appropriate type when constant is created in PairToExpr function
-  // TODO: replace with PTY_i128 when IntVal supports 128bit calculation
   return v1 && v2 ? v1->Mul(*v2, PTY_i64) : IntVal(0, PTY_i64);
 }
 
 // Perform all calculations in terms of the maximum available signed type.
 // The value will be truncated for an appropriate type when constant is created in PairToExpr function
-// TODO: replace with PTY_i128 when IntVal supports 128bit calculation
 std::optional<IntVal> AddSub(const std::optional<IntVal> &v1, const std::optional<IntVal> &v2, bool isAdd) {
   if (!v1 && !v2) {
     return std::nullopt;
@@ -85,7 +83,6 @@ std::optional<IntVal> operator-(const std::optional<IntVal> &v1, const std::opti
 // simplifying constant expressions. The constant expression
 // is evaluated and replaced by the value calculated on compile
 // time to save time on runtime.
-//
 // The main procedure shows as following:
 // A. Analyze expression type
 // B. Analysis operator type
@@ -97,7 +94,7 @@ static bool ContiguousBitsOf1(uint64 x) {
   if (x == 0) {
     return false;
   }
-  return (~x & (x+1)) == (x+1);
+  return (~x & (x + 1)) == (x + 1);
 }
 
 inline bool IsPowerOf2(uint64 num) {
@@ -646,7 +643,7 @@ template<typename T>
 int64 ConstantFold::ComparisonResult(Opcode op, T *leftConst, T *rightConst) const {
   typename T::value_type leftValue = leftConst->GetValue();
   typename T::value_type rightValue = rightConst->GetValue();
-  int64 result = 0;;
+  int64 result = 0;
   switch (op) {
     case OP_eq: {
       result = FullyEqual(leftValue, rightValue);
@@ -974,7 +971,7 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldUnary(UnaryNode *n
     // As a workaround, we exclude u1 opnd type
     if (isInt && node->GetOpCode() == OP_neg && p.first->GetPrimType() != PTY_u1) {
       result = NegateTree(p.first);
-      if (result->GetOpCode() == OP_neg){
+      if (result->GetOpCode() == OP_neg) {
         PrimType origPtyp = node->GetPrimType();
         PrimType newPtyp = result->GetPrimType();
         if (newPtyp == origPtyp) {
@@ -1355,7 +1352,7 @@ PrimType GetExprValueRangePtyp(BaseNode *expr) {
   if (expr->IsLeaf()) {
     return ptyp;
   }
-  if(kOpcodeInfo.IsTypeCvt(op)) {
+  if (kOpcodeInfo.IsTypeCvt(op)) {
     auto *node = static_cast<TypeCvtNode *>(expr);
     if (GetPrimTypeSize(node->FromType()) < GetPrimTypeSize(node->GetPrimType())) {
       return GetExprValueRangePtyp(expr->Opnd(0));
@@ -1624,7 +1621,7 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldIread(IreadNode *n
 }
 
 bool ConstantFold::IntegerOpIsOverflow(Opcode op, PrimType primType, int64 cstA, int64 cstB) {
-  switch (op){
+  switch (op) {
     case OP_add: {
       int64 res = static_cast<int64>(static_cast<uint64>(cstA) + static_cast<uint64>(cstB));
       if (IsUnsignedInteger(primType)) {
@@ -1634,7 +1631,7 @@ bool ConstantFold::IntegerOpIsOverflow(Opcode op, PrimType primType, int64 cstA,
       return (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
               static_cast<uint64>(cstA) >> rightShiftNumToGetSignFlag) &&
              (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
-              static_cast<uint64>(cstB) >> rightShiftNumToGetSignFlag );
+              static_cast<uint64>(cstB) >> rightShiftNumToGetSignFlag);
     }
     case OP_sub: {
       if (IsUnsignedInteger(primType)) {

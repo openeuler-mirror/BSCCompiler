@@ -185,7 +185,7 @@ void JavaIntrnLowering::LoadClassLoaderInvocation(const std::string &list) {
       continue;  // Ignore comment line.
     }
     // Check if reach invocation parts by searching ','
-    if (!reachInvocation && std::string::npos != line.find(',')) {
+    if (!reachInvocation && (line.find(',') != std::string::npos)) {
       reachInvocation = true;
     }
     if (!reachInvocation) {

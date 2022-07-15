@@ -261,7 +261,7 @@ MeOccur *ExprHoist::GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defoc
     } else {  // insert a new one
       ASSERT(expr->GetExprID() != kInvalidExprID, "GetHoistedOcc: check expr hashed.");
       auto *fakeStmt = parent->irMap->CreateAssignMeStmt(*parent->irMap->CreateRegMeExpr(expr->GetPrimType()),
-                                                      *expr, *hs->bb);
+                                                         *expr, *hs->bb);
       hs->bb->InsertMeStmtLastBr(fakeStmt);
       auto seqStmt = 0;
       for (auto &stmt : hs->bb->GetMeStmts()) {

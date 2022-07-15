@@ -21,12 +21,13 @@ using namespace maple;
 #define JAVALANG (mirModule->IsJavaModule())
 
 CGFunc *CG::currentCGFunction = nullptr;
-std::map<MIRFunction *, std::pair<LabelIdx,LabelIdx>> CG::funcWrapLabels;
+std::map<MIRFunction*, std::pair<LabelIdx, LabelIdx>> CG::funcWrapLabels;
 
 CG::~CG() {
   if (emitter != nullptr) {
     emitter->CloseOutput();
   }
+  delete memPool;
   memPool = nullptr;
   mirModule = nullptr;
   emitter = nullptr;
@@ -125,7 +126,7 @@ void CG::GenPrimordialObjectList(const std::string &outputBaseName) {
   fclose(outputFile);
 }
 
-void CG::AddStackGuardvar() {
+void CG::AddStackGuardvar() const {
   MIRSymbol *chkGuard = GlobalTables::GetGsymTable().CreateSymbol(kScopeGlobal);
   chkGuard->SetNameStrIdx(std::string("__stack_chk_guard"));
   chkGuard->SetStorageClass(kScExtern);
@@ -241,7 +242,7 @@ static void AppendReferenceOffsets64(const BECommon &beCommon, MIRStructType &cu
 }
 
 /* Return a list of offsets of reference fields. */
-std::vector<int64> CG::GetReferenceOffsets64(const BECommon &beCommon, MIRStructType &structType) {
+std::vector<int64> CG::GetReferenceOffsets64(const BECommon &beCommon, MIRStructType &structType) const {
   std::vector<int64> result;
   /* java class layout has already been done in previous phase. */
   if (structType.GetKind() == kTypeClass) {
@@ -258,7 +259,7 @@ std::vector<int64> CG::GetReferenceOffsets64(const BECommon &beCommon, MIRStruct
   return result;
 }
 
-const std::string CG::ExtractFuncName(const std::string &str) {
+const std::string CG::ExtractFuncName(const std::string &str) const {
   /* 3: length of "_7C" */
   size_t offset = 3;
   size_t pos1 = str.find("_7C");

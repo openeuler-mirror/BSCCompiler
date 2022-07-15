@@ -584,7 +584,7 @@ BaseNode *MapleCastOpt::TransformCvtU1ToNe(MIRBuilder &mirBuilder, const TypeCvt
   auto *toMIRType = GlobalTables::GetTypeTable().GetUInt8();
   auto *zero = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *fromMIRType);
   auto *converted = mirBuilder.CreateExprCompare(OP_ne, *toMIRType, *fromMIRType, cvtExpr->Opnd(0),
-                                                  mirBuilder.CreateConstval(zero));
+                                                 mirBuilder.CreateConstval(zero));
   return converted;
 }
 

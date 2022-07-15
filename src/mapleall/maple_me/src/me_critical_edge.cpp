@@ -98,7 +98,8 @@ void MeSplitCEdge::UpdateCaseLabel(BB &newBB, MeFunction &func, BB &pred, BB &su
   }
 }
 
-void MeSplitCEdge::DealWithTryBB(const MeFunction &func, BB &pred, BB &succ, BB *&newBB, bool &isInsertAfterPred) const {
+void MeSplitCEdge::DealWithTryBB(const MeFunction &func, BB &pred,
+                                 BB &succ, BB *&newBB, bool &isInsertAfterPred) const {
   if ((!succ.GetStmtNodes().empty() && succ.GetStmtNodes().front().GetOpCode() == OP_try) ||
       (!succ.IsMeStmtEmpty() && succ.GetFirstMe()->GetOp() == OP_try)) {
     newBB = &func.GetCfg()->InsertNewBasicBlock(pred, false);

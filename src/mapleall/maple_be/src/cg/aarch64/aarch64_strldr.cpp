@@ -943,7 +943,8 @@ bool AArch64StoreLoadOpt::CanDoIndexOpt(const MemOperand &currMemOpnd) {
   return a64Ofst->GetValue() == 0;
 }
 
-int64 AArch64StoreLoadOpt::GetOffsetForNewIndex(Insn &defInsn, Insn &insn, regno_t baseRegNO, uint32 memOpndSize) {
+int64 AArch64StoreLoadOpt::GetOffsetForNewIndex(Insn &defInsn, Insn &insn,
+                                                regno_t baseRegNO, uint32 memOpndSize) const {
   bool subMode = defInsn.GetMachineOpcode() == MOP_wsubrri12 || defInsn.GetMachineOpcode() == MOP_xsubrri12;
   bool addMode = defInsn.GetMachineOpcode() == MOP_waddrri12 || defInsn.GetMachineOpcode() == MOP_xaddrri12;
   if (addMode || subMode) {

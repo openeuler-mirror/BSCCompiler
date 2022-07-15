@@ -506,7 +506,7 @@ LoopUnrolling::ReturnKindOfFullyUnroll LoopUnrolling::LoopFullyUnroll(int64 trip
     for (auto &meStmt : bb->GetMeStmts()) {
       uint32 cost = 0;
       ComputeCodeSize(meStmt, cost);
-      if (canUnroll == false) {
+      if (!canUnroll) {
         return kCanNotFullyUnroll;
       }
       costResult += cost;
@@ -578,7 +578,7 @@ void LoopUnrolling::InsertCondGotoBB() {
       gotoStmt.SetOffset(label);
     }
   }
-  if (addExitedSucc == false) {
+  if (!addExitedSucc) {
     newCondGotoBB->AddSucc(*exitedBB);
     if (profValid) {
       newCondGotoBB->PushBackSuccFreq(headFreq - 1 == 0 ? headFreq : headFreq - 1);
@@ -598,7 +598,7 @@ bool LoopUnrolling::DetermineUnrollTimes(uint32 &index, bool isConst) {
     for (auto &meStmt : bb->GetMeStmts()) {
       uint32 cost = 0;
       ComputeCodeSize(meStmt, cost);
-      if (canUnroll == false) {
+      if (!canUnroll) {
         return false;
       }
       costResult += cost;

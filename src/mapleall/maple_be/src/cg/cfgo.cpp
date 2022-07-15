@@ -375,7 +375,7 @@ bool SequentialJumpPattern::Optimize(BB &curBB) {
   return false;
 }
 
-void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) {
+void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) const {
   BB *gotoTarget = cgFunc->GetTheCFG()->GetTargetSuc(sucBB);
   CHECK_FATAL(gotoTarget != nullptr, "gotoTarget is null in SequentialJumpPattern::UpdateSwitchSucc");
   const MapleVector<LabelIdx> &labelVec = curBB.GetRangeGotoLabelVec();
@@ -396,7 +396,7 @@ void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) {
   }
   MIRSymbol *st = cgFunc->GetEmitSt(curBB.GetId());
   MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
-  MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64);
+  MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_a64));
   MIRConst *mirConst = cgFunc->GetMemoryPool()->New<MIRLblConst>(targetLable, cgFunc->GetFunction().GetPuidx(), *etype);
   for (size_t i = 0; i < arrayConst->GetConstVec().size(); ++i) {
     CHECK_FATAL(arrayConst->GetConstVecItem(i)->GetKind() == kConstLblConst, "not a kConstLblConst");
@@ -456,7 +456,7 @@ void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) {
  *
  * Change curBB's successor to sucBB's successor
  */
-void SequentialJumpPattern::SkipSucBB(BB &curBB, BB &sucBB) {
+void SequentialJumpPattern::SkipSucBB(BB &curBB, BB &sucBB) const {
   BB *gotoTarget = cgFunc->GetTheCFG()->GetTargetSuc(sucBB);
   CHECK_FATAL(gotoTarget != nullptr, "gotoTarget is null in SequentialJumpPattern::SkipSucBB");
   curBB.RemoveSuccs(sucBB);
@@ -478,7 +478,7 @@ void SequentialJumpPattern::SkipSucBB(BB &curBB, BB &sucBB) {
  * retBB:                      ftBB:
  *       ...                         bl throwfunc
  */
-void FlipBRPattern::RelocateThrowBB(BB &curBB) {
+void FlipBRPattern::RelocateThrowBB(BB &curBB) const {
   BB *ftBB = curBB.GetNext();
   CHECK_FATAL(ftBB != nullptr, "ifBB has a fall through BB");
   CGCFG *theCFG = cgFunc->GetTheCFG();
@@ -525,6 +525,7 @@ void FlipBRPattern::RelocateThrowBB(BB &curBB) {
 
   /* move ftBB after retBB */
   curBB.SetNext(brBB);
+  CHECK_NULL_FATAL(brBB);
   brBB->SetPrev(&curBB);
 
   retBB->GetNext()->SetPrev(ftBB);

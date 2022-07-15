@@ -384,8 +384,7 @@ bool BBLayout::ChooseTargetAsFallthru(const BB &bb, const BB &targetBB, const BB
       return true;
     }
   } else {
-    if ((&oldFallThru != &fallthru || fallthru.GetPred().size() > 1)
-        && BBCanBeMoved(targetBB, bb)) {
+    if ((&oldFallThru != &fallthru || fallthru.GetPred().size() > 1) && BBCanBeMoved(targetBB, bb)) {
       return true;
     }
   }

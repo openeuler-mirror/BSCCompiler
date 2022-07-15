@@ -215,7 +215,7 @@ static bool IsZeroRegister(const Operand &opnd) {
 
 bool AndValidBitPattern::CheckImmValidBit(int64 andImm, uint32 andImmVB, int64 shiftImm) const {
   if ((__builtin_ffs(static_cast<int>(andImm)) - 1 == shiftImm) &&
-      ((andImm >> shiftImm) == ((1 << (andImmVB - shiftImm)) -1))) {
+      ((andImm >> shiftImm) == ((1 << (andImmVB - shiftImm)) - 1))) {
     return true;
   }
   return false;
@@ -367,7 +367,7 @@ void ExtValidBitPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
-bool CmpCsetVBPattern::IsContinuousCmpCset(const Insn &curInsn) {
+bool CmpCsetVBPattern::IsContinuousCmpCset(const Insn &curInsn) const {
   auto &csetDstReg = static_cast<RegOperand&>(curInsn.GetOperand(kInsnFirstOpnd));
   CHECK_FATAL(csetDstReg.IsSSAForm(), "dstOpnd must be ssa form");
   VRegVersion *dstVersion = ssaInfo->FindSSAVersion(csetDstReg.GetRegisterNumber());
@@ -404,7 +404,7 @@ bool CmpCsetVBPattern::IsContinuousCmpCset(const Insn &curInsn) {
   return false;
 }
 
-bool CmpCsetVBPattern::OpndDefByOneValidBit(const Insn &defInsn) {
+bool CmpCsetVBPattern::OpndDefByOneValidBit(const Insn &defInsn) const {
   if (defInsn.IsPhi()) {
     return (static_cast<RegOperand&>(cmpInsn->GetOperand(kInsnSecondOpnd)).GetValidBitsNum() == k1BitSize) ||
            (static_cast<RegOperand&>(cmpInsn->GetOperand(kInsnSecondOpnd)).GetValidBitsNum() == k0BitSize);
