@@ -464,6 +464,9 @@ std::vector<Insn*> AArch64ReachingDefinition::FindMemDefBetweenInsn(
 
         ASSERT(memOpnd.GetOffsetImmediate() != nullptr, "offset must be a immediate value");
         int64 memOffset = memOpnd.GetOffsetImmediate()->GetOffsetValue();
+        if (memOffset < 0) {
+          memOffset = stackSize + memOffset;
+        }
         if ((offset == memOffset) ||
             (insn->IsStorePair() && offset == memOffset + GetEachMemSizeOfPair(insn->GetMachineOpcode()))) {
           defInsnVec.emplace_back(insn);
@@ -516,6 +519,9 @@ void AArch64ReachingDefinition::FindMemDefInBB(uint32 offset, BB &bb, InsnSet &d
 
         ASSERT(memOpnd.GetOffsetImmediate() != nullptr, "offset must be a immediate value");
         int64 memOffset = memOpnd.GetOffsetImmediate()->GetOffsetValue();
+        if (memOffset < 0) {
+          memOffset = stackSize + memOffset;
+        }
         if (offset == memOffset) {
           (void)defInsnSet.insert(insn);
           break;
@@ -1000,6 +1006,9 @@ bool AArch64ReachingDefinition::FindMemUseBetweenInsn(uint32 offset, Insn *start
       ASSERT(memOpnd.GetIndexRegister() == nullptr, "offset must not be Register for frame MemOperand");
       ASSERT(memOpnd.GetOffsetImmediate() != nullptr, "offset must be a immediate value");
       int64 memOffset = memOpnd.GetOffsetImmediate()->GetValue();
+      if (memOffset < 0) {
+        memOffset = stackSize + memOffset;
+      }
 
       if (insn->IsStore() || insn->IsPseudoInstruction()) {
         if (memOffset == offset) {
@@ -1049,6 +1058,9 @@ InsnSet AArch64ReachingDefinition::FindDefForMemOpnd(Insn &insn, uint32 indexOrO
     }
     ASSERT(memOpnd.GetOffsetImmediate() != nullptr, "offset must be a immediate value");
     memOffSet = memOpnd.GetOffsetImmediate()->GetOffsetValue();
+    if (memOffSet < 0) {
+      memOffSet = stackSize + memOffSet;
+    }
   } else {
     memOffSet = indexOrOffset;
   }
@@ -1100,6 +1112,9 @@ InsnSet AArch64ReachingDefinition::FindUseForMemOpnd(Insn &insn, uint8 index, bo
   ASSERT(memOpnd.GetIndexRegister() == nullptr, "IndexRegister no nullptr");
   ASSERT(memOpnd.GetOffsetImmediate() != nullptr, "offset must be a immediate value");
   int64 memOffSet = memOpnd.GetOffsetImmediate()->GetOffsetValue();
+  if (memOffSet < 0) {
+    memOffSet = stackSize + memOffSet;
+  }
   if (secondMem) {
     ASSERT(insn.IsStorePair(), "second MemOperand can only be defined in stp insn");
     memOffSet += GetEachMemSizeOfPair(insn.GetMachineOpcode());
@@ -1213,6 +1228,9 @@ void AArch64ReachingDefinition::InitInfoForMemOperand(Insn &insn, Operand &opnd,
     CHECK_FATAL(index == nullptr, "Existing [x29 + index] Memory Address");
     ASSERT(memOpnd.GetOffsetImmediate(), "offset must be a immediate value");
     int64 offsetVal = memOpnd.GetOffsetImmediate()->GetOffsetValue();
+    if (offsetVal < 0) {
+      offsetVal = stackSize + offsetVal;
+    }
     if ((offsetVal % kMemZoomSize) != 0) {
       SetAnalysisMode(kRDRegAnalysis);
     }

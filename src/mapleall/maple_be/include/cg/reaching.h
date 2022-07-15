@@ -146,6 +146,7 @@ class ReachingDefinition : public AnalysisResult {
   std::vector<DataInfo*> memIn;
   std::vector<DataInfo*> memOut;
   const uint32 kMaxBBNum;
+  uint32 stackSize = 0;
  private:
   void Initialize();
   void InitDataSize();
