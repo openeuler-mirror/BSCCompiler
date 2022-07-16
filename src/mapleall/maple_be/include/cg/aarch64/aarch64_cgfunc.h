@@ -971,6 +971,8 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *PrepareMemcpyParamOpnd(int64 offset, Operand &exprOpnd);
   RegOperand *PrepareMemcpyParamOpnd(uint64 copySize);
   Insn *AggtStrLdrInsert(bool bothUnion, Insn *lastStrLdr, Insn &newStrLdr);
+  MemOperand &CreateMemOpndForStatic(const MIRSymbol &symbol, int64 offset, uint32 size, bool needLow12,
+                                     RegOperand *regOp);
 };
 }  /* namespace maplebe */
 
