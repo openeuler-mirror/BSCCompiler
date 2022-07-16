@@ -1093,8 +1093,29 @@ void BinaryMplExport::WriteEaCgField(EAConnectionGraph *eaCg) {
   }
   Fixup(outNodeSizeIdx, callSiteSize);
 
-  Fixup(totalSizeIdx, buf.size()-totalSizeIdx);
+  Fixup(totalSizeIdx, buf.size() - totalSizeIdx);
   WriteNum(~kBinEaCgStart);
+}
+
+void BinaryMplExport::WriteEnumField(uint64 contentIdx) {
+  if (GlobalTables::GetEnumTable().enumTable.empty()) {
+    return;
+  }
+  Fixup(contentIdx, buf.size());
+  WriteNum(kBinEnumStart);
+  uint64 totalSizeIdx = buf.size();
+  ExpandFourBuffSize();  // total size of this field to ~BIN_SYM_START
+  uint64 outEnumSizeIdx = buf.size();
+  ExpandFourBuffSize();  // size of OutEnum
+  int32 size = 0;
+  for (MIREnum *mirEnum : GlobalTables::GetEnumTable().enumTable) {
+    OutputEnumeration(mirEnum);
+    size++;
+  }
+  Fixup(totalSizeIdx, buf.size() - totalSizeIdx);
+  Fixup(outEnumSizeIdx, size);
+  WriteNum(~kBinEnumStart);
+  return;
 }
 
 void BinaryMplExport::WriteSymField(uint64 contentIdx) {
@@ -1193,7 +1214,7 @@ void BinaryMplExport::WriteContentField4nonJava(int fieldNum, uint64 *fieldStart
   fieldStartP[kSecondField] = buf.size();
   ExpandFourBuffSize();
 
-  WriteNum(kBinTypeStart);
+  WriteNum(kBinEnumStart);
   fieldStartP[kThirdField] = buf.size();
   ExpandFourBuffSize();
 
@@ -1228,6 +1249,7 @@ void BinaryMplExport::Export(const std::string &fname, std::unordered_set<std::s
     } else {
       WriteContentField4nonJava(kSixthFieldInt, fieldStartPoint);
       WriteHeaderField(fieldStartPoint[kFirstField]);
+      WriteEnumField(fieldStartPoint[kThirdField]);
       WriteSymField(fieldStartPoint[kFourthField]);
       WriteFunctionBodyField(fieldStartPoint[kFifthField], dumpFuncSet);
     }
@@ -1294,7 +1316,18 @@ void BinaryMplExport::OutputType(TyIdx tyIdx) {
   }
 }
 
-void UpdateMplt::UpdateCgField(BinaryMplt &binMplt, const CallGraph &cg) {
+void BinaryMplExport::OutputEnumeration(MIREnum *mirEnum) {
+  WriteNum(kBinEnumeration);
+  Write(static_cast<uint8>(mirEnum->primType));
+  OutputStr(mirEnum->nameStrIdx);
+  WriteNum(mirEnum->elements.size());
+  for (size_t i = 0; i < mirEnum->elements.size(); ++i) {
+    OutputStr(mirEnum->elements[i].first);
+    WriteNum(mirEnum->elements[i].second.GetSXTValue());
+  }
+}
+
+void UpdateMplt::UpdateCgField(BinaryMplt &binMplt, const CallGraph &cg) const {
   BinaryMplImport &binImport = binMplt.GetBinImport();
   BinaryMplExport &binExport = binMplt.GetBinExport();
   binImport.SetBufI(0);

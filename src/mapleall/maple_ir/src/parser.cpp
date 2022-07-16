@@ -27,6 +27,7 @@
 #include "clone.h"
 #include "string_utils.h"
 #include "debug_info.h"
+#include "mir_enumeration.h"
 
 namespace {
 using namespace maple;
@@ -1684,6 +1685,81 @@ bool MIRParser::ParseTypedef() {
   return true;
 }
 
+bool MIRParser::ParseEnumeration() {
+  if (lexer.GetTokenKind() != TK_enumeration) {
+    Error("expect enum but get ");
+    return false;
+  }
+  TokenKind tokenKind = lexer.NextToken();
+  if (tokenKind != TK_gname) {
+    Error("expect global type name but get ");
+    return false;
+  }
+  const std::string &name = lexer.GetName();
+  GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
+  lexer.NextToken();
+  TyIdx tyIdx(0);
+  if (!ParsePrimType(tyIdx)) {
+    Error("expect primitive type name but get ");
+    return false;
+  }
+  PrimType ptyp = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetPrimType();
+  if (!IsPrimitiveInteger(ptyp)) {
+    Error("base type of enum cannot be non-integer");
+    return false;
+  }
+  if (lexer.GetTokenKind() != TK_lbrace) {
+    Error("expect left brace but get ");
+    return false;
+  }
+  tokenKind = lexer.NextToken();
+  if (tokenKind != TK_gname) {
+    Error("expect global enum value name but get ");
+    return false;
+  }
+  MIREnum *mirEnum = new MIREnum(ptyp, strIdx);
+  strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
+  tokenKind = lexer.NextToken();
+  if (tokenKind == TK_eqsign) {
+    tokenKind = lexer.NextToken();
+    if (tokenKind != TK_intconst) {
+      Error("expect integer constant but get ");
+      return false;
+    }
+    mirEnum->NewElement(strIdx, IntVal(lexer.GetTheIntVal(), ptyp));
+    tokenKind = lexer.NextToken();
+  } else {
+    mirEnum->AddNextElement(strIdx);
+  }
+  while (tokenKind == TK_coma) {
+    tokenKind = lexer.NextToken();
+    if (tokenKind != TK_gname) {
+      Error("expect global enum value name but get ");
+      return false;
+    }
+    strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
+    tokenKind = lexer.NextToken();
+    if (tokenKind == TK_eqsign) {
+      tokenKind = lexer.NextToken();
+      if (tokenKind != TK_intconst) {
+        Error("expect integer constant but get ");
+        return false;
+      }
+      mirEnum->NewElement(strIdx, IntVal(lexer.GetTheIntVal(), ptyp));
+      tokenKind = lexer.NextToken();
+    } else {
+      mirEnum->AddNextElement(strIdx);
+    }
+  }
+  if (tokenKind != TK_rbrace) {
+    Error("expect right brace but get ");
+    return false;
+  }
+  lexer.NextToken();
+  GlobalTables::GetEnumTable().enumTable.push_back(mirEnum);
+  return true;
+}
+
 bool MIRParser::ParseJavaClassInterface(MIRSymbol &symbol, bool isClass) {
   TokenKind tk = lexer.NextToken();
   if (tk != TK_gname) {
@@ -2734,6 +2810,7 @@ std::map<TokenKind, MIRParser::FuncPtrParseMIRForElem> MIRParser::InitFuncPtrMap
   funcPtrMap[TK_javaclass] = &MIRParser::ParseMIRForClass;
   funcPtrMap[TK_javainterface] = &MIRParser::ParseMIRForInterface;
   funcPtrMap[TK_type] = &MIRParser::ParseTypedef;
+  funcPtrMap[TK_enumeration] = &MIRParser::ParseEnumeration;
   funcPtrMap[TK_flavor] = &MIRParser::ParseMIRForFlavor;
   funcPtrMap[TK_srclang] = &MIRParser::ParseMIRForSrcLang;
   funcPtrMap[TK_globalmemsize] = &MIRParser::ParseMIRForGlobalMemSize;

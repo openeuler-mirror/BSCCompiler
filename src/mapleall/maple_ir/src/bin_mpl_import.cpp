@@ -147,8 +147,7 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
       return memPool->New<MIRStrConst>(ustr, *type);
     }
     case kBinKindConstStr16: {
-      Conststr16Node *cs;
-      cs = memPool->New<Conststr16Node>();
+      Conststr16Node *cs = memPool->New<Conststr16Node>();
       cs->SetPrimType(type->GetPrimType());
       int64 len = ReadNum();
       std::ostringstream ostr;
@@ -433,7 +432,7 @@ void BinaryMplImport::ImportPragmaOfStructType(MIRStructType &type) {
   }
 }
 
-void BinaryMplImport::SetClassTyidxOfMethods(MIRStructType &type) {
+void BinaryMplImport::SetClassTyidxOfMethods(MIRStructType &type) const {
   if (type.GetTypeIndex() != 0u) {
     // set up classTyIdx for methods
     for (size_t i = 0; i < type.GetMethods().size(); ++i) {
@@ -1193,6 +1192,32 @@ void BinaryMplImport::ReadTypeField() {
   CHECK_FATAL(tag == ~kBinTypeStart, "pattern mismatch in Read TYPE");
 }
 
+void BinaryMplImport::ImportEnumeration() {
+  int64 tag = ReadNum();
+  CHECK_FATAL(tag == kBinEnumeration, "expecting kBinEnumeration");
+  PrimType ptyp = static_cast<PrimType>(Read());
+  GStrIdx gStrIdx = ImportStr();
+  MIREnum *mirEnum = new MIREnum(ptyp, gStrIdx);
+  size_t siz = ReadNum();
+  for (size_t i = 0; i < siz; i++) {
+    gStrIdx = ImportStr();
+    IntVal intVal(ReadNum(), ptyp);
+    mirEnum->NewElement(gStrIdx, intVal);
+  }
+  GlobalTables::GetEnumTable().enumTable.push_back(mirEnum);
+}
+
+void BinaryMplImport::ReadEnumField() {
+  SkipTotalSize();
+
+  int32 size = ReadInt();
+  for (int64 i = 0; i < size; ++i) {
+    (void)ImportEnumeration();
+  }
+  int64 tag = ReadNum();
+  CHECK_FATAL(tag == ~kBinEnumStart, "pattern mismatch in Reading ENUM");
+}
+
 CallInfo *BinaryMplImport::ImportCallInfo() {
   int64 tag = ReadNum();
   if (tag < 0) {
@@ -1363,7 +1388,8 @@ void BinaryMplImport::InEaCgFieldNode(EACGFieldNode &field, EAConnectionGraph &n
 
 void BinaryMplImport::InEaCgObjNode(EACGObjectNode &obj, EAConnectionGraph &newEaCg) {
   Read();
-  obj.isPhantom = true;  int size = ReadInt();
+  obj.isPhantom = true;
+  int size = ReadInt();
   for (int i = 0; i < size; ++i) {
     EACGBaseNode *node = &InEaCgNode(newEaCg);
     CHECK_FATAL(node->IsFieldNode(), "must be");
@@ -1656,6 +1682,10 @@ bool BinaryMplImport::Import(const std::string &fname, bool readSymbols, bool re
       }
       case kBinFunctionBodyStart: {
         ReadFunctionBodyField();
+        break;
+      }
+      case kBinEnumStart: {
+        ReadEnumField();
         break;
       }
       default:

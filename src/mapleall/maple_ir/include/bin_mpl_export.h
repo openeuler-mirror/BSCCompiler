@@ -18,6 +18,7 @@
 #include "mir_nodes.h"
 #include "mir_function.h"
 #include "mir_preg.h"
+#include "mir_enumeration.h"
 #include "parser_opt.h"
 #include "ea_connection_graph.h"
 
@@ -67,8 +68,8 @@ enum : uint8 {
   kBinEaCgStart = 41,
   kBinEaStart = 42,
   kBinNodeBlock = 43,
-// kBinOpStatement : 44,
-// kBinOpExpression : 45,
+  kBinEnumeration = 44,
+  kBinEnumStart = 45,
   kBinReturnvals = 46,
   kBinTypeTabStart = 47,
   kBinSymStart = 48,
@@ -125,6 +126,7 @@ class BinaryMplExport {
   void OutputPragmaVec(const std::vector<MIRPragma*> &pragmaVec);
   void OutputClassTypeData(const MIRClassType &type);
   void OutputSymbol(MIRSymbol *sym);
+  void OutputEnumeration(MIREnum *mirEnum);
   void OutputFunction(PUIdx puIdx);
   void OutputInterfaceTypeData(const MIRInterfaceType &type);
   void OutputSrcPos(const SrcPosition &pos);
@@ -179,6 +181,7 @@ class BinaryMplExport {
   void DumpBuf(const std::string &name);
   void AppendAt(const std::string &name, int32 offset);
   void ExpandFourBuffSize();
+  void WriteEnumField(uint64 contentIdx);
 
   MIRModule &mod;
   size_t bufI = 0;
@@ -252,7 +255,7 @@ class UpdateMplt  {
     bool privateUse = false;
     bool privateDef = false;
   };
-  void UpdateCgField(BinaryMplt &binMplt, const CallGraph &cg);
+  void UpdateCgField(BinaryMplt &binMplt, const CallGraph &cg) const;
 };
 }  // namespace maple
 #endif  // MAPLE_IR_INCLUDE_BIN_MPL_EXPORT_H
