@@ -330,7 +330,7 @@ class CGFunc {
   virtual Operand &GetTargetRetOperand(PrimType primType, int32 sReg) = 0;
   virtual Operand &CreateImmOperand(PrimType primType, int64 val) = 0;
   virtual void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn, regno_t destNO) = 0;
-  virtual void CleanupDeadMov(bool dump = false) = 0;
+  virtual void CleanupDeadMov(bool dump) = 0;
   virtual void GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &realCallerSave) = 0;
 
   virtual bool IsFrameReg(const RegOperand &opnd) const = 0;

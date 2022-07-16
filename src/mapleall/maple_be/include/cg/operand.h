@@ -554,11 +554,11 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
     value = ~(static_cast<uint64>(value)) & ((1ULL << size) - 1UL);
   }
 
-  void DivideByPow2(int32 shift) {
+  void DivideByPow2(uint32 shift) {
     value = (static_cast<uint64>(value)) >> shift;
   }
 
-  void ModuloByPow2(int32 shift) {
+  void ModuloByPow2(uint32 shift) {
     value = (static_cast<uint64>(value)) & ((1ULL << shift) - 1UL);
   }
 
@@ -571,8 +571,8 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
   }
 
   bool operator<(const ImmOperand &iOpnd) const {
-    return value < iOpnd.value || (value == iOpnd.value && isSigned < iOpnd.isSigned) ||
-           (value == iOpnd.value && isSigned == iOpnd.isSigned && size < iOpnd.GetSize());
+    return value < iOpnd.value || (value == iOpnd.value && iOpnd.isSigned) ||
+        (value == iOpnd.value && isSigned == iOpnd.isSigned && size < iOpnd.GetSize());
   }
 
   bool operator==(const ImmOperand &iOpnd) const {
@@ -1055,9 +1055,9 @@ class MemOperand : public OperandVisitable<MemOperand> {
       return (offset < kMinSimm32 || offset > kMaxSimm32);
     }
     if (is64bit) {
-      return (offset < kMinSimm64 || offset > kMaxSimm64Pair) || (static_cast<uint64>(offset) & k7BitSize) ;
+      return (offset < kMinSimm64 || offset > kMaxSimm64Pair) || ((static_cast<uint64>(offset) & k7BitSize) != 0);
     }
-    return (offset < kMinSimm32 || offset > kMaxSimm32Pair) || (static_cast<uint64>(offset) & k3BitSize);
+    return (offset < kMinSimm32 || offset > kMaxSimm32Pair) || ((static_cast<uint64>(offset) & k3BitSize) != 0);
   }
 
   static bool IsPIMMOffsetOutOfRange(int32 offset, uint32 dSize) {
@@ -1767,11 +1767,11 @@ class OpndDescription {
   }
 
   bool IsRegDef() const {
-    return opndType == Operand::kOpdRegister && (property & operand::kIsDef);
+    return opndType == Operand::kOpdRegister && ((property & operand::kIsDef) != 0);
   }
 
   bool IsRegUse() const {
-    return opndType == Operand::kOpdRegister && (property & operand::kIsUse);
+    return opndType == Operand::kOpdRegister && ((property & operand::kIsUse) != 0);
   }
 
   bool IsDef() const {
@@ -1783,11 +1783,11 @@ class OpndDescription {
   }
 
   bool IsMemLow12() const {
-    return IsMem() && (property & operand::kMemLow12);
+    return IsMem() && ((property & operand::kMemLow12) != 0);
   }
 
   bool IsLiteralLow12() const {
-    return opndType == Operand::kOpdStImmediate && (property & operand::kLiteralLow12);
+    return opndType == Operand::kOpdStImmediate && ((property & operand::kLiteralLow12) != 0);
   }
 
   bool IsLoadLiteral() const {

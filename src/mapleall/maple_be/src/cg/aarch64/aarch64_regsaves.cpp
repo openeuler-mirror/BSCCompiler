@@ -29,8 +29,6 @@ namespace maplebe {
 #define THRESHOLD 8
 #define ONE_REG_AT_A_TIME 0
 
-using BBId = uint32;
-
 void AArch64RegSavesOpt::InitData() {
   calleeBitsDef = cgFunc->GetMemoryPool()->NewArray<CalleeBitsType>(cgFunc->NumBBs());
   errno_t retDef = memset_s(calleeBitsDef, cgFunc->NumBBs() * sizeof(CalleeBitsType),

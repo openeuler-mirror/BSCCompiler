@@ -933,22 +933,21 @@ ImmOperand &AArch64CGFunc::SplitAndGetRemained(const MemOperand &memOpnd, uint32
 
   int64 q0 = ofstVal / maxPimm + (ofstVal < 0 ? -1 : 0);
   int64 addend = q0 * maxPimm;
-  int64 r0 = ofstVal - addend;
-  int64 alignment = MemOperand::GetImmediateOffsetAlignment(bitLen);
-  auto q1 = static_cast<int64>(static_cast<uint64>(r0) >> static_cast<uint64>(alignment));
-  auto r1 = static_cast<int64>(static_cast<uint64>(r0) & ((1u << static_cast<uint64>(alignment)) - 1));
-  auto remained = static_cast<int64>(static_cast<uint64>(q1) << static_cast<uint64>(alignment));
+  uint64 r0 = static_cast<uint64>(ofstVal - addend);
+  uint64 alignment = static_cast<uint64>(static_cast<int64>(MemOperand::GetImmediateOffsetAlignment(bitLen)));
+  auto q1 = r0 >> alignment;
+  auto r1 = static_cast<int64>(r0 & ((1u << alignment) - 1));
+  auto remained = static_cast<int64>(q1 << alignment);
   addend = addend + r1;
   if (addend > 0) {
-    int64 suffixClear = 0xfff;
+    uint64 suffixClear = 0xfff;
     if (forPair) {
       suffixClear = 0xff;
     }
-    int64 remainedTmp = remained + (addend & suffixClear);
+    int64 remainedTmp = remained + static_cast<int64>(static_cast<uint64>(addend) & suffixClear);
     if (!MemOperand::IsPIMMOffsetOutOfRange(static_cast<int32>(remainedTmp), bitLen) &&
-        ((static_cast<uint64>(remainedTmp) & ((1u << static_cast<uint64>(alignment)) - 1)) == 0)) {
-      remained = remainedTmp;
-      addend = (addend & ~suffixClear);
+        ((static_cast<uint64>(remainedTmp) & ((1u << alignment) - 1)) == 0)) {
+      addend = static_cast<int64>(static_cast<uint64>(addend) & ~suffixClear);
     }
   }
   ImmOperand &immAddend = CreateImmOperand(addend, k64BitSize, true);
@@ -1576,7 +1575,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
     ASSERT(structType != nullptr, "SelectAggDassign: non-zero fieldID for non-structure");
     lhsType = structType->GetFieldType(stmt.GetFieldID());
     lhsOffset = static_cast<uint32>(GetBecommon().GetFieldOffset(*structType, stmt.GetFieldID()).first);
-    bothUnion |= (structType->GetKind() == kTypeUnion);
+    bothUnion = bothUnion || (structType->GetKind() == kTypeUnion);
   }
   uint32 lhsAlign = GetBecommon().GetTypeAlign(lhsType->GetTypeIndex());
   uint64 lhsSize = GetBecommon().GetTypeSize(lhsType->GetTypeIndex());
@@ -3947,7 +3946,7 @@ void AArch64CGFunc::SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
         Operand *tmpRes = IsAfterRegAlloc() ? &resOpnd : &CreateRegisterOperandOfType(primType);
         Insn &newInsn = GetCG()->BuildInstruction<AArch64Insn>(mOpCode, *tmpRes, opnd0, immOpnd2, addSubLslOperand);
         GetCurBB()->AppendInsn(newInsn);
-        immOpnd->ModuloByPow2(static_cast<int32>(kMaxImmVal12Bits));
+        immOpnd->ModuloByPow2(kMaxImmVal12Bits);
         newOpnd0 = tmpRes;
       }
       /* process lower 12  bits */
@@ -4101,7 +4100,7 @@ void AArch64CGFunc::SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
       mOpCode = is64Bits ? MOP_xsubrri24 : MOP_wsubrri24;
       Insn &newInsn = GetCG()->BuildInstruction<AArch64Insn>(mOpCode, resOpnd, *opnd0Bak, immOpnd2, addSubLslOperand);
       GetCurBB()->AppendInsn(newInsn);
-      immOpnd->ModuloByPow2(static_cast<int64>(kMaxImmVal12Bits));
+      immOpnd->ModuloByPow2(kMaxImmVal12Bits);
       immOpnd->SetValue(static_cast<int64>(kMax12UnsignedImm) - immOpnd->GetValue());
       opnd0Bak = &resOpnd;
     }
@@ -9644,7 +9643,7 @@ void AArch64CGFunc::SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand
         insn.GetBB()->InsertInsnBefore(insn, newInsn);
       }
       /* get lower 12 bits value */
-      immOpnd->ModuloByPow2(static_cast<int32>(kMaxImmVal12Bits));
+      immOpnd->ModuloByPow2(kMaxImmVal12Bits);
       newOpnd0 = &resOpnd;
       curInsn = &newInsn;
     }
@@ -11062,7 +11061,7 @@ MOperator AArch64CGFunc::PickLoadStoreExclInsn(uint32 byteP2Size, bool store, bo
                                           { { MOP_wldxr, MOP_wldaxr }, { MOP_wstxr, MOP_wstlxr } },
                                           { { MOP_xldxr, MOP_xldaxr }, { MOP_xstxr, MOP_xstlxr } } };
 
-  MOperator optr = operators[byteP2Size][store][acqRel];
+  MOperator optr = operators[byteP2Size][static_cast<uint32>(store)][static_cast<uint32>(acqRel)];
   CHECK_FATAL(optr != MOP_undef, "Unsupported type p2size: %d", byteP2Size);
 
   return optr;

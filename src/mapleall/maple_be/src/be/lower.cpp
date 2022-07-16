@@ -4028,7 +4028,8 @@ void CGLowerer::InitArrayClassCacheTableIndex() {
   MIRSymbol *strTab = nullptr;
   for (size_t i = 0; i < aggConst.GetConstVec().size(); ++i) {
     MIRConst *elemConst = aggConst.GetConstVecItem(i);
-    uint32 intValue = static_cast<uint32>(((safe_cast<MIRIntConst>(elemConst))->GetExtValue()) & 0xFFFFFFFF);
+    uint32 intValue = static_cast<uint32>(
+        static_cast<uint64>((safe_cast<MIRIntConst>(elemConst))->GetExtValue()) & 0xFFFFFFFF);
     bool isHotReflectStr = (intValue & 0x00000003) != 0;     /* use the last two bits of intValue in this expression */
     if (isHotReflectStr) {
       uint32 tag = (intValue & 0x00000003) - kCStringShift;  /* use the last two bits of intValue in this expression */

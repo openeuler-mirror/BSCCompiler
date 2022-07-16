@@ -59,12 +59,11 @@ class AArch64CallConvImpl {
  private:
   BECommon &beCommon;
   uint64 paramNum = 0;  /* number of all types of parameters processed so far */
-  int32 nextGeneralRegNO = 0;  /* number of integer parameters processed so far */
+  uint32 nextGeneralRegNO = 0;  /* number of integer parameters processed so far */
   uint32 nextFloatRegNO = 0;  /* number of float parameters processed so far */
   int32 nextStackArgAdress = 0;
 
   AArch64reg AllocateGPRegister() {
-    ASSERT(nextGeneralRegNO >= 0, "nextGeneralRegNO can not be neg");
     return (nextGeneralRegNO < AArch64Abi::kNumIntParmRegs) ? AArch64Abi::kIntParmRegs[nextGeneralRegNO++] : kRinvalid;
   }
 
@@ -111,7 +110,7 @@ class AArch64CallConvImpl {
   }
 
   void RoundNGRNUpToNextEven() {
-    nextGeneralRegNO = static_cast<int32>((nextGeneralRegNO + 1) & ~static_cast<int32>(1));
+    nextGeneralRegNO = (nextGeneralRegNO + 1U) & ~1U;
   }
 
   int32 ProcessPtyAggWhenLocateNextParm(MIRType &mirType, CCLocInfo &pLoc, uint64 &typeSize, int32 typeAlign);

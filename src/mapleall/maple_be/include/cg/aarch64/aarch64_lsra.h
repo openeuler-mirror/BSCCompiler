@@ -409,7 +409,7 @@ class LSRALinearScanRegAllocator : public RegAllocator {
         fpParamRegSet(alloc.Adapter()),
         fpSpillRegSet(alloc.Adapter()),
         calleeUseCnt(alloc.Adapter()) {
-    for (int32 i = 0; i < AArch64Abi::kNumIntParmRegs; ++i) {
+    for (uint32 i = 0; i < AArch64Abi::kNumIntParmRegs; ++i) {
       intParamQueue.push_back(initialQue);
       fpParamQueue.push_back(initialQue);
     }

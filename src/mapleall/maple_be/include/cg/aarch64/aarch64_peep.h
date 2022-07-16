@@ -1000,7 +1000,7 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
   void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn) const;
   MOperator GetMopHigherByte(MOperator mop) const;
   bool SplitOfstWithAddToCombine(const Insn &curInsn, Insn &combineInsn, const MemOperand &memOperand) const;
-  Insn *FindValidSplitAddInsn(Insn &curInsn, RegOperand &baseOpnd) const;
+  Insn *FindValidSplitAddInsn(Insn &curInsn, const RegOperand &baseOpnd) const;
   bool PlaceSplitAddInsn(const Insn &curInsn, Insn &combineInsn, const MemOperand &memOperand,
                          RegOperand &baseOpnd, uint32 bitLen) const;
   bool doAggressiveCombine = false;

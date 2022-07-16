@@ -292,19 +292,19 @@ class OpndProp {
   }
 
   bool IsRegDef() const {
-    return opndType == Operand::kOpdRegister && (regProp.GetDefUse() & kRegPropDef);
+    return opndType == Operand::kOpdRegister && ((regProp.GetDefUse() & kRegPropDef) != 0);
   }
 
   bool IsRegUse() const {
-    return opndType == Operand::kOpdRegister && (regProp.GetDefUse() & kRegPropUse);
+    return opndType == Operand::kOpdRegister && ((regProp.GetDefUse() & kRegPropUse) != 0);
   }
 
   bool IsMemLow12() const {
-    return opndType == Operand::kOpdMem && (regProp.GetDefUse() & kMemLow12);
+    return opndType == Operand::kOpdMem && ((regProp.GetDefUse() & kMemLow12) != 0);
   }
 
   bool IsLiteralLow12() const {
-    return opndType == Operand::kOpdStImmediate && (regProp.GetDefUse() & kLiteralLow12);
+    return opndType == Operand::kOpdStImmediate && ((regProp.GetDefUse() & kLiteralLow12) != 0);
   }
 
   bool IsDef() const {

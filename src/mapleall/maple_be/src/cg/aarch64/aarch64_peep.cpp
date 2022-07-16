@@ -2665,7 +2665,7 @@ std::vector<Insn*> CombineContiLoadAndStorePattern::FindPrevStrLdr(Insn &insn, r
   return prevContiInsns;
 }
 
-Insn *CombineContiLoadAndStorePattern::FindValidSplitAddInsn(Insn &curInsn, RegOperand &baseOpnd) const {
+Insn *CombineContiLoadAndStorePattern::FindValidSplitAddInsn(Insn &curInsn, const RegOperand &baseOpnd) const {
   Insn *splitAdd = nullptr;
   for (Insn *cursor = curInsn.GetPrev(); cursor != nullptr; cursor = cursor->GetPrev()) {
     if (!cursor->IsMachineInstruction()) {

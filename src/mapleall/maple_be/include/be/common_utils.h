@@ -241,12 +241,12 @@ inline uint64 RoundUp(uint64 offset, uint64 align) {
   return RoundUpConst(offset, align);
 }
 
-inline int64 RoundDownConst(int64 offset, int64 align) {
-  return (-align) & offset;
+inline uint64 RoundDownConst(uint64 offset, uint64 align) {
+  return (UINT64_MAX - align + 1) & offset;
 }
 
 // align must be a power of 2
-inline int64 RoundDown(int64 offset, int64 align) {
+inline uint64 RoundDown(uint64 offset, uint64 align) {
   if (align == 0) {
     return offset;
   }

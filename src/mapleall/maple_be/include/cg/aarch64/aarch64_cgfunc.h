@@ -292,7 +292,7 @@ class AArch64CGFunc : public CGFunc {
   void ClearRegRematInfo(const RegOperand &reg) const;
   bool IsRegSameRematInfo(const RegOperand &regDest, const RegOperand &regSrc) const;
   void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn, regno_t destNO) override;
-  void CleanupDeadMov(bool dumpInfo = false) override;
+  void CleanupDeadMov(bool dumpInfo) override;
   void GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &realSaveRegs) override;
   Operand &GetTargetRetOperand(PrimType primType, int32 sReg) override;
   Operand &GetOrCreateRflag() override;

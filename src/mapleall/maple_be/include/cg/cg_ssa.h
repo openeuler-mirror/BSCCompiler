@@ -36,7 +36,7 @@ class DUInsnInfo {
     IncreaseDU(cIdx);
   }
   void IncreaseDU(uint32 idx) {
-    if (!defUseInfo.count(idx)) {
+    if (defUseInfo.count(idx) == 0) {
       defUseInfo[idx] = 0;
     }
     defUseInfo[idx]++;

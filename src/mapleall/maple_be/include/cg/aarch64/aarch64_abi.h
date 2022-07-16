@@ -23,8 +23,8 @@ namespace maplebe {
 using namespace maple;
 
 namespace AArch64Abi {
-constexpr int32 kNumIntParmRegs = 8;
-constexpr int32 kNumFloatParmRegs = 8;
+constexpr uint32 kNumIntParmRegs = 8;
+constexpr uint32 kNumFloatParmRegs = 8;
 constexpr int32 kYieldPointReservedReg = 19;
 constexpr uint32 kNormalUseOperandNum = 3;
 constexpr uint32 kMaxInstrForCondBr = 260000; // approximately less than (2^18);

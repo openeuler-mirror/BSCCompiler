@@ -27,12 +27,12 @@ class AArch64LiveAnalysis : public LiveAnalysis {
   void InitEhDefine(BB &bb) override;
  private:
   void CollectLiveInfo(const BB &bb, const Operand &opnd, bool isDef, bool isUse) const;
-  void GenerateReturnBBDefUse(BB &bb) const;
-  void ProcessCallInsnParam(BB &bb, const Insn &insn) const;
-  void ProcessAsmListOpnd(BB &bb, Operand &opnd, uint32 idx) const;
-  void ProcessListOpnd(BB &bb, Operand &opnd) const;
-  void ProcessMemOpnd(BB &bb, Operand &opnd) const;
-  void ProcessCondOpnd(BB &bb) const;
+  void GenerateReturnBBDefUse(const BB &bb) const;
+  void ProcessCallInsnParam(const BB &bb, const Insn &insn) const;
+  void ProcessAsmListOpnd(const BB &bb, Operand &opnd, uint32 idx) const;
+  void ProcessListOpnd(const BB &bb, Operand &opnd) const;
+  void ProcessMemOpnd(const BB &bb, Operand &opnd) const;
+  void ProcessCondOpnd(const BB &bb) const;
 };
 }  /* namespace maplebe */
 

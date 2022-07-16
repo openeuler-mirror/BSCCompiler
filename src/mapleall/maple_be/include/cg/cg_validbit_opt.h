@@ -62,11 +62,12 @@ class ValidBitOpt {
       return k1BitSize;
     }
     uint32 pos = 0;
-    constexpr int64 mask = 1;
-    for (uint32 i = 0; i <= k8BitSize * sizeof(int64); ++i, value >>= 1) {
-      if ((value & mask) == mask) {
+    constexpr uint64 mask = 1;
+    for (uint32 i = 0; i <= k8BitSize * sizeof(int64); ++i) {
+      if ((static_cast<uint64>(value) & mask) == mask) {
         pos = i + 1;
       }
+      value = value / 2;
     }
     return pos;
   }

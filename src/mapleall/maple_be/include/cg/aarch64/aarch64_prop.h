@@ -16,6 +16,7 @@
 #ifndef MAPLEBE_INCLUDE_AARCH64_PROP_H
 #define MAPLEBE_INCLUDE_AARCH64_PROP_H
 
+#include "aarch64_opt_utiles.h"
 #include "cg_prop.h"
 #include "aarch64_cgfunc.h"
 #include "aarch64_strldr.h"
@@ -253,44 +254,6 @@ public:
   void Optimize(Insn &insn) final;
   void Run() final;
   void DoExtendShiftOpt(Insn &insn);
-
-  enum ExMOpType : uint8 {
-    kExUndef,
-    kExAdd,  /* MOP_xaddrrr | MOP_xxwaddrrre | MOP_xaddrrrs */
-    kEwAdd,  /* MOP_waddrrr | MOP_wwwaddrrre | MOP_waddrrrs */
-    kExSub,  /* MOP_xsubrrr | MOP_xxwsubrrre | MOP_xsubrrrs */
-    kEwSub,  /* MOP_wsubrrr | MOP_wwwsubrrre | MOP_wsubrrrs */
-    kExCmn,  /* MOP_xcmnrr | MOP_xwcmnrre | MOP_xcmnrrs */
-    kEwCmn,  /* MOP_wcmnrr | MOP_wwcmnrre | MOP_wcmnrrs */
-    kExCmp,  /* MOP_xcmprr | MOP_xwcmprre | MOP_xcmprrs */
-    kEwCmp,  /* MOP_wcmprr | MOP_wwcmprre | MOP_wcmprrs */
-  };
-
-  enum LsMOpType : uint8 {
-    kLsUndef,
-    kLxAdd,  /* MOP_xaddrrr | MOP_xaddrrrs */
-    kLwAdd,  /* MOP_waddrrr | MOP_waddrrrs */
-    kLxSub,  /* MOP_xsubrrr | MOP_xsubrrrs */
-    kLwSub,  /* MOP_wsubrrr | MOP_wsubrrrs */
-    kLxCmn,  /* MOP_xcmnrr | MOP_xcmnrrs */
-    kLwCmn,  /* MOP_wcmnrr | MOP_wcmnrrs */
-    kLxCmp,  /* MOP_xcmprr | MOP_xcmprrs */
-    kLwCmp,  /* MOP_wcmprr | MOP_wcmprrs */
-    kLxEor,  /* MOP_xeorrrr | MOP_xeorrrrs */
-    kLwEor,  /* MOP_weorrrr | MOP_weorrrrs */
-    kLxNeg,  /* MOP_xinegrr | MOP_xinegrrs */
-    kLwNeg,  /* MOP_winegrr | MOP_winegrrs */
-    kLxIor,  /* MOP_xiorrrr | MOP_xiorrrrs */
-    kLwIor,  /* MOP_wiorrrr | MOP_wiorrrrs */
-  };
-
-  enum SuffixType : uint8 {
-    kNoSuffix, /* no suffix or do not perform the optimization. */
-    kLSL,      /* logical shift left */
-    kLSR,      /* logical shift right */
-    kASR,      /* arithmetic shift right */
-    kExten     /* ExtendOp */
-  };
 
 protected:
   void Init() final;

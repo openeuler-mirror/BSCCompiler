@@ -258,7 +258,7 @@ class DepNode {
     cfiInsns = insns;
   }
   void AddCfiInsn(Insn &curInsn) {
-    cfiInsns.emplace_back(&curInsn);
+    (void)cfiInsns.emplace_back(&curInsn);
   }
   void ClearCfiInsns() {
     cfiInsns.clear();

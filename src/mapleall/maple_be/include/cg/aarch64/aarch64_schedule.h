@@ -139,7 +139,7 @@ class AArch64ScheduleProcessInfo : public ScheduleProcessInfo {
     return (freeIntRegNodeSet.count(&node)) > 0 ? freeIntRegNodeSet.find(&node)->second : 0;
   }
   void IncFreeIntRegNode(DepNode &node) {
-    if (!freeIntRegNodeSet.count(&node)) {
+    if (freeIntRegNodeSet.count(&node) == 0) {
       freeIntRegNodeSet.emplace(std::pair<DepNode*, uint32>(&node, 1));
     } else {
       freeIntRegNodeSet.find(&node)->second++;
@@ -149,7 +149,7 @@ class AArch64ScheduleProcessInfo : public ScheduleProcessInfo {
     return freeIntRegNodeSet;
   }
   void IncFreeFpRegNode(DepNode &node) {
-    if (!freeFpRegNodeSet.count(&node)) {
+    if (freeFpRegNodeSet.count(&node) == 0) {
       freeFpRegNodeSet.emplace(std::pair<DepNode*, uint32>(&node, 1));
     } else {
       freeFpRegNodeSet.find(&node)->second++;

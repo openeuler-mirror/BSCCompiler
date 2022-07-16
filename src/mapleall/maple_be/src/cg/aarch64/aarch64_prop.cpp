@@ -1135,40 +1135,28 @@ void ExtendShiftPattern::SelectExtendOrShift(const Insn &def) {
  * (use)
  * ===========================================================
  */
-constexpr uint32 kExtenAddShiftNum = 5;
-ExtendShiftPattern::SuffixType optTable[kExtenAddShiftNum][kExtenAddShiftNum] = {
-    { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kLSL, ExtendShiftPattern::kLSR,
-        ExtendShiftPattern::kASR, ExtendShiftPattern::kExten },
-    { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kLSL, ExtendShiftPattern::kNoSuffix,
-        ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kExten },
-    { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kLSR,
-        ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix },
-    { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix,
-        ExtendShiftPattern::kASR, ExtendShiftPattern::kNoSuffix },
-    { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix,
-        ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kExten }
-};
+
 
 /* Check whether ExtendShiftPattern optimization can be performed. */
-ExtendShiftPattern::SuffixType ExtendShiftPattern::CheckOpType(const Operand &lastOpnd) const {
+SuffixType ExtendShiftPattern::CheckOpType(const Operand &lastOpnd) const {
   /* Assign values to useType and defType. */
-  uint32 useType = ExtendShiftPattern::kNoSuffix;
+  uint32 useType = kNoSuffix;
   uint32 defType = shiftOp;
   if (extendOp != ExtendShiftOperand::kUndef) {
-    defType = ExtendShiftPattern::kExten;
+    defType = kExten;
   }
   if (lastOpnd.IsOpdShift()) {
     BitShiftOperand lastShiftOpnd = static_cast<const BitShiftOperand&>(lastOpnd);
     useType = lastShiftOpnd.GetShiftOp();
   } else if (lastOpnd.IsOpdExtend()) {
     ExtendShiftOperand lastExtendOpnd = static_cast<const ExtendShiftOperand&>(lastOpnd);
-    useType = ExtendShiftPattern::kExten;
+    useType = kExten;
     /* two insn is exten and exten ,value is exten(oneself) */
     if (useType == defType && extendOp != lastExtendOpnd.GetExtendOp()) {
-      return ExtendShiftPattern::kNoSuffix;
+      return kNoSuffix;
     }
   }
-  return optTable[useType][defType];
+  return kDoOptimizeTable[useType][defType];
 }
 
 constexpr uint32 kExMopTypeSize = 9;
@@ -1198,11 +1186,11 @@ void ExtendShiftPattern::ReplaceUseInsn(Insn &use, const Insn &def, uint32 amoun
   AArch64CGFunc &a64CGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   uint32 lastIdx = use.GetOperandSize() - k1BitSize;
   Operand &lastOpnd = use.GetOperand(lastIdx);
-  ExtendShiftPattern::SuffixType optType = CheckOpType(lastOpnd);
+  SuffixType optType = CheckOpType(lastOpnd);
   Operand *shiftOpnd = nullptr;
-  if (optType == ExtendShiftPattern::kNoSuffix) {
+  if (optType == kNoSuffix) {
     return;
-  }else if (optType == ExtendShiftPattern::kExten) {
+  }else if (optType == kExten) {
     replaceOp = exMopTable[exMOpType];
     if (amount > k4BitSize) {
       return;

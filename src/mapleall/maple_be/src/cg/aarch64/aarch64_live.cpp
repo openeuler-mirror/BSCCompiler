@@ -113,7 +113,7 @@ bool AArch64LiveAnalysis::CleanupBBIgnoreReg(uint32 reg) {
   return false;
 }
 
-void AArch64LiveAnalysis::GenerateReturnBBDefUse(BB &bb) const {
+void AArch64LiveAnalysis::GenerateReturnBBDefUse(const BB &bb) const {
   PrimType returnType = cgFunc->GetFunction().GetReturnType()->GetPrimType();
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   if (IsPrimitiveFloat(returnType)) {
@@ -127,7 +127,7 @@ void AArch64LiveAnalysis::GenerateReturnBBDefUse(BB &bb) const {
   }
 }
 
-void AArch64LiveAnalysis::ProcessCallInsnParam(BB &bb, const Insn &insn) const {
+void AArch64LiveAnalysis::ProcessCallInsnParam(const BB &bb, const Insn &insn) const {
   /* R0 ~ R7（R0 + 0  ~ R0 + 7） and V0 ~ V7 (V0 + 0 ~ V0 + 7) is parameter register */
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   auto *targetOpnd = insn.GetCallTargetOperand();
@@ -159,7 +159,7 @@ void AArch64LiveAnalysis::ProcessCallInsnParam(BB &bb, const Insn &insn) const {
   }
 }
 
-void AArch64LiveAnalysis::ProcessAsmListOpnd(BB &bb, Operand &opnd, uint32 idx) const {
+void AArch64LiveAnalysis::ProcessAsmListOpnd(const BB &bb, Operand &opnd, uint32 idx) const {
   bool isDef = false;
   bool isUse = false;
   switch (idx) {
@@ -181,14 +181,14 @@ void AArch64LiveAnalysis::ProcessAsmListOpnd(BB &bb, Operand &opnd, uint32 idx) 
   }
 }
 
-void AArch64LiveAnalysis::ProcessListOpnd(BB &bb, Operand &opnd) const {
+void AArch64LiveAnalysis::ProcessListOpnd(const BB &bb, Operand &opnd) const {
   ListOperand &listOpnd = static_cast<ListOperand&>(opnd);
   for (auto op : listOpnd.GetOperands()) {
     CollectLiveInfo(bb, *op, false, true);
   }
 }
 
-void AArch64LiveAnalysis::ProcessMemOpnd(BB &bb, Operand &opnd) const {
+void AArch64LiveAnalysis::ProcessMemOpnd(const BB &bb, Operand &opnd) const {
   auto &memOpnd = static_cast<MemOperand&>(opnd);
   Operand *base = memOpnd.GetBaseRegister();
   Operand *offset = memOpnd.GetIndexRegister();
@@ -200,7 +200,7 @@ void AArch64LiveAnalysis::ProcessMemOpnd(BB &bb, Operand &opnd) const {
   }
 }
 
-void AArch64LiveAnalysis::ProcessCondOpnd(BB &bb) const {
+void AArch64LiveAnalysis::ProcessCondOpnd(const BB &bb) const {
   Operand &rflag = cgFunc->GetOrCreateRflag();
   CollectLiveInfo(bb, rflag, false, true);
 }

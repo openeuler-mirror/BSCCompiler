@@ -172,7 +172,7 @@ class CGOptions {
   }
 
   bool GenLocalRC() const {
-    return (generateFlag & kGenLocalRc) && !gcOnly;
+    return ((generateFlag & kGenLocalRc) != 0) && !gcOnly;
   }
 
   bool DoConstFold() const {
