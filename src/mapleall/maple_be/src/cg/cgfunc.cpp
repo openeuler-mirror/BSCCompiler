@@ -1557,27 +1557,27 @@ void CGFunc::GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &p
     idSetE.clear();
     dbgInfo->GetCrossScopeId(&mirFunc, idSetB, true, lastSrcPos, newSrcPos);
     dbgInfo->GetCrossScopeId(&mirFunc, idSetE, false, lastSrcPos, newSrcPos);
-    for (auto it : idSetE) {
+    for (auto id : idSetE) {
       // skip if begin label is not in yet
-      if (scpIdSet.find(it) == scpIdSet.end()) {
+      if (scpIdSet.find(id) == scpIdSet.end()) {
         continue;
       }
-      Operand *o0 = CreateDbgImmOperand(it);
+      Operand *o0 = CreateDbgImmOperand(id);
       Operand *o1 = CreateDbgImmOperand(1);
       Insn &scope = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_scope, *o0, *o1);
       curBB->AppendInsn(scope);
-      (void)scpIdSet.erase(it);
+      (void)scpIdSet.erase(id);
     }
-    for (auto it : idSetB) {
+    for (auto id : idSetB) {
       // skip if begin label is already in
-      if (scpIdSet.find(it) != scpIdSet.end()) {
+      if (scpIdSet.find(id) != scpIdSet.end()) {
         continue;
       }
-      Operand *o0 = CreateDbgImmOperand(it);
+      Operand *o0 = CreateDbgImmOperand(id);
       Operand *o1 = CreateDbgImmOperand(0);
       Insn &scope = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_scope, *o0, *o1);
       curBB->AppendInsn(scope);
-      (void)scpIdSet.insert(it);
+      (void)scpIdSet.insert(id);
     }
     lastSrcPos.UpdateWith(newSrcPos);
     posDone = false;
@@ -1839,18 +1839,6 @@ void CGFunc::GenerateCfiPrologEpilog() {
     firstBB->InsertInsnBefore(*firstBB->GetFirstInsn(), ipoint);
   } else {
     firstBB->AppendInsn(ipoint);
-  }
-
-  // insert .loc for function
-  if (cg->GetMIRModule()->IsCModule() && cg->GetMIRModule()->IsWithDbgInfo()) {
-    MIRSymbol *fSym = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());
-    if (fSym->GetSrcPosition().FileNum() != 0) {
-      Operand *o0 = CreateDbgImmOperand(fSym->GetSrcPosition().FileNum());
-      Operand *o1 = CreateDbgImmOperand(fSym->GetSrcPosition().LineNum());
-      Operand *o2 = CreateDbgImmOperand(fSym->GetSrcPosition().Column());
-      Insn &loc = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1, *o2);
-      (void)firstBB->InsertInsnBefore(*firstBB->GetFirstInsn(), loc);
-    }
   }
 
 #if !defined(TARGARM32)

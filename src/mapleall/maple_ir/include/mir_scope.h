@@ -65,7 +65,6 @@ class MIRScope {
   }
 
   void SetAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
-    ASSERT(aliasVarMap.find(idx) == aliasVarMap.end(), "alias already exist");
     aliasVarMap[idx] = vars;
   }
 
