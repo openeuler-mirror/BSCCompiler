@@ -148,4 +148,35 @@ bool MEEmit::PhaseRun(maple::MeFunction &f) {
   }
   return false;
 }
+
+void ProfileGenEmit::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.SetPreservedAll();
+}
+
+// emit IR for profileGen
+bool ProfileGenEmit::PhaseRun(maple::MeFunction &f) {
+  if (f.GetCfg()->NumBBs() > 0) {
+    CHECK_FATAL(f.GetIRMap(), "sanity check");
+    // emit after hssa
+    MIRFunction *mirFunction = f.GetMirFunc();
+    mirFunction->ReleaseCodeMemory();
+    mirFunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR from IRMap::Emit()"));
+    mirFunction->SetBody(mirFunction->GetCodeMempool()->New<BlockNode>());
+    // initialize is_deleted field to true; will reset when emitting Maple IR
+    for (size_t k = 1; k < mirFunction->GetSymTab()->GetSymbolTableSize(); ++k) {
+      MIRSymbol *sym = mirFunction->GetSymTab()->GetSymbolFromStIdx(k);
+      if (sym->GetSKind() == kStVar) {
+        sym->SetIsDeleted();
+      }
+    }
+    for (BB *bb : f.GetCfg()->GetAllBBs()) {
+     if (bb == nullptr) {
+        continue;
+      }
+      bb->EmitBB(*mirFunction->GetBody(), false);
+    }
+    ResetDependentedSymbolLive(mirFunction);
+  }
+  return false;
+}
 }  // namespace maple

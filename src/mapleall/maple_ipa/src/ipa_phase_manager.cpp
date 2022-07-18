@@ -207,7 +207,7 @@ bool SCCProfile::PhaseRun(SCCNode<CGNode> &scc) {
     AddPhase("splitcriticaledge", true);
     AddPhase("profileGen", true);
   }
-  AddPhase("emitforipa", true);
+  AddPhase("profgenEmit", true);
   // Not like other phasemanager which use temp mempool to hold analysis results generated from the sub phases.
   // Here we use GetManagerMemPool which lives longer than this phase(manager) itself to hold all the analysis result.
   // So the following phase can access the result in this phase.
