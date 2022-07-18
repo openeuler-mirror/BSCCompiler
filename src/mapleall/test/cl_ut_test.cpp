@@ -56,7 +56,7 @@ std::vector<std::string> maplecl::Option<UTCLType>::GetRawValues() {
 }
 
 template <>
-maplecl::RetCode maplecl::Option<UTCLType>::Parse(ssize_t &argsIndex,
+maplecl::RetCode maplecl::Option<UTCLType>::Parse(size_t &argsIndex,
     const std::deque<std::string_view> &args, KeyArg &keyArg) {
   utCLTypeChecker = true;
   RetCode err = maplecl::RetCode::noError;
@@ -65,7 +65,7 @@ maplecl::RetCode maplecl::Option<UTCLType>::Parse(ssize_t &argsIndex,
     return maplecl::RetCode::parsingErr;
   }
 
-  ssize_t localArgsIndex = argsIndex + 1;
+  size_t localArgsIndex = argsIndex + 1;
   /* Second command line argument does not exist */
   if (localArgsIndex >= args.size() || args[localArgsIndex].empty()) {
     return RetCode::valueEmpty;
