@@ -145,7 +145,7 @@ class CGOptions {
   }
 
   void ParseExclusiveFunc(const std::string &fileName);
-  void ParseCyclePattern(const std::string &fileName);
+  void ParseCyclePattern(const std::string &fileName) const;
 
   void EnableO0();
   void EnableO1();
@@ -277,8 +277,8 @@ class CGOptions {
   void SetDefaultOptions(const MIRModule &mod);
   static bool DumpPhase(const std::string &phase);
   static bool FuncFilter(const std::string &name);
-  void SplitPhases(const std::string &str, std::unordered_set<std::string> &set);
-  void SetRange(const std::string &str, const std::string &cmd, Range &subRange);
+  void SplitPhases(const std::string &str, std::unordered_set<std::string> &set) const;
+  void SetRange(const std::string &str, const std::string &cmd, Range &subRange) const;
   void SetTargetMachine(const std::string &str);
 
   int32 GetOptimizeLevel() const {

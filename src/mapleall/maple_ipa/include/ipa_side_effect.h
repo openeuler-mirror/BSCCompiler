@@ -20,7 +20,8 @@
 namespace maple {
 class SideEffect {
  public:
-  SideEffect(MeFunction *meFunc, Dominance *dom, AliasClass *alias) : meFunc(meFunc), dom(dom), alias(alias) {
+  SideEffect(MeFunction *meFunc, Dominance *dom, AliasClass *alias, CallGraph *cg)
+      : meFunc(meFunc), dom(dom), alias(alias), callGraph(cg) {
     defGlobal = false;
     defArg = false;
     useGlobal = false;
@@ -41,11 +42,14 @@ class SideEffect {
   void DealWithOperand(MeExpr *expr);
   void DealWithOst(OStIdx ostIdx);
   void DealWithStmt(MeStmt &stmt);
-  void PropInfoFromCallee(const CallMeStmt &callMeStmt, MIRFunction &callee);
+  void PropAllInfoFromCallee(const MeStmt &call, MIRFunction &callee);
+  void PropParamInfoFromCallee(const MeStmt &call, MIRFunction &callee);
+  void PropInfoFromOpnd(MeExpr &opnd, const PI &calleeParamInfo);
+  void ParamInfoUpdater(size_t vstIdx, const PI &calleeParamInfo);
   void DealWithOst(const OriginalSt *ost);
-  void DealWithReturn(const RetMeStmt &retMeStmt);
+  void DealWithReturn(const RetMeStmt &retMeStmt) const;
   void AnalysisFormalOst();
-  void SolveVarArgs(MeFunction &f);
+  void SolveVarArgs(MeFunction &f) const;
   void CollectFormalOst(MeFunction &f);
   void CollectAllLevelOst(size_t vstIdx, std::set<size_t> &result);
 
@@ -55,6 +59,8 @@ class SideEffect {
   FuncDesc *curFuncDesc = nullptr;
   Dominance *dom = nullptr;
   AliasClass *alias = nullptr;
+  CallGraph *callGraph = nullptr;
+
   bool defGlobal = false;
   bool defArg = false;
   bool useGlobal = false;

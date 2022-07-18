@@ -196,13 +196,13 @@ class Emitter {
   void GetHotAndColdMetaSymbolInfo(const std::vector<MIRSymbol*> &mirSymbolVec,
                                    std::vector<MIRSymbol*> &hotFieldInfoSymbolVec,
                                    std::vector<MIRSymbol*> &coldFieldInfoSymbolVec, const std::string &prefixStr,
-                                   bool forceCold = false);
+                                   bool forceCold = false) const;
   void EmitMetaDataSymbolWithMarkFlag(const std::vector<MIRSymbol*> &mirSymbolVec,
                                       const std::map<GStrIdx, MIRType*> &strIdx2Type,
                                       const std::string &prefixStr, const std::string &sectionName,
                                       bool isHotFlag);
   void EmitMethodDeclaringClass(const MIRSymbol &mirSymbol, const std::string &sectionName);
-  void MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec);
+  void MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec) const;
   void EmitArrayConstant(MIRConst &mirConst);
   void EmitStructConstant(MIRConst &mirConst);
   void EmitVectorConstant(MIRConst &mirConst);
@@ -212,9 +212,9 @@ class Emitter {
   void EmitGlobalRootList(const MIRSymbol &mirSymbol);
   void EmitMuidTable(const std::vector<MIRSymbol*> &vec, const std::map<GStrIdx, MIRType*> &strIdx2Type,
                      const std::string &sectionName);
-  MIRAddroffuncConst *GetAddroffuncConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst);
+  MIRAddroffuncConst *GetAddroffuncConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst) const;
   int64 GetFieldOffsetValue(const std::string &className, const MIRIntConst &intConst,
-                            const std::map<GStrIdx, MIRType*> &strIdx2Type);
+                            const std::map<GStrIdx, MIRType*> &strIdx2Type) const;
 
   Emitter &Emit(int64 val) {
     outStream << val;
@@ -248,7 +248,7 @@ class Emitter {
   void EmitHexUnsigned(uint64 num);
 
   /* Dwarf debug info */
-  void FillInClassByteSize(DBGDie *die, DBGDieAttr *byteSizeAttr);
+  void FillInClassByteSize(DBGDie *die, DBGDieAttr *byteSizeAttr) const;
   void SetupDBGInfo(DebugInfo *mirdi);
   void ApplyInPrefixOrder(DBGDie *die, const std::function<void(DBGDie*)> &func);
   void AddLabelDieToLabelIdxMapping(DBGDie *lblDie, LabelIdx lblIdx);

@@ -22,7 +22,8 @@
 namespace maple {
 using namespace maplebe;
 
-DefaultOption MplcgCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
+DefaultOption MplcgCompiler::GetDefaultOptions(const MplOptions &options,
+                                               const Action &action [[maybe_unused]]) const {
   uint32_t len = 0;
   MplOption *kMplcgDefaultOptions = nullptr;
 
@@ -56,7 +57,8 @@ const std::string &MplcgCompiler::GetBinName() const {
   return kBinNameMplcg;
 }
 
-std::string MplcgCompiler::GetInputFile(const MplOptions &options, const Action &action, const MIRModule *md) const {
+std::string MplcgCompiler::GetInputFile(const MplOptions &options, const Action &action [[maybe_unused]],
+                                        const MIRModule *md) const {
   if (action.IsItFirstRealAction()) {
     return action.GetInputFile();
   }
@@ -104,7 +106,7 @@ void MplcgCompiler::PrintMplcgCommand(const MplOptions &options, const Action &a
                          << driverOptions << "--infile " << GetInputFile(options, action, &md) << '\n';
 }
 
-ErrorCode MplcgCompiler::MakeCGOptions(const MplOptions &options) {
+ErrorCode MplcgCompiler::MakeCGOptions(const MplOptions &options) const {
   auto it = std::find(options.GetRunningExes().begin(), options.GetRunningExes().end(), kBinNameMplcg);
   if (it == options.GetRunningExes().end()) {
     return kErrorNoError;

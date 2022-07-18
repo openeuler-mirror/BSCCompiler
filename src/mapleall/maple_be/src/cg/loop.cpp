@@ -352,7 +352,7 @@ void LoopFinder::MarkExtraEntryAndEncl() {
   }
 }
 
-bool LoopFinder::HasSameHeader(const LoopHierarchy *lp1, const LoopHierarchy *lp2) {
+bool LoopFinder::HasSameHeader(const LoopHierarchy *lp1, const LoopHierarchy *lp2) const {
   if (lp1->GetHeader() == lp2->GetHeader()) {
     return true;
   }
@@ -599,7 +599,7 @@ static void CopyLoopInfo(const LoopHierarchy *from, CGFuncLoops *to, CGFuncLoops
   }
 }
 
-void LoopFinder::UpdateCGFunc() {
+void LoopFinder::UpdateCGFunc() const {
   for (LoopHierarchy *loop = loops; loop != nullptr; loop = loop->GetNext()) {
     CGFuncLoops *floop = cgFunc->GetMemoryPool()->New<CGFuncLoops>(*cgFunc->GetMemoryPool());
     cgFunc->PushBackLoops(*floop);

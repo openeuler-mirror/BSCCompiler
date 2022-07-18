@@ -1205,7 +1205,7 @@ void Emitter::EmitAddrofSymbolConst(const MIRSymbol &mirSymbol, MIRConst &elemCo
   Emit("\n");
 }
 
-MIRAddroffuncConst *Emitter::GetAddroffuncConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst) {
+MIRAddroffuncConst *Emitter::GetAddroffuncConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst) const {
   MIRAddroffuncConst *innerFuncAddr = nullptr;
   size_t addrIndex = mirSymbol.IsReflectionMethodsInfo() ? static_cast<size_t>(MethodProperty::kPaddrData) :
       static_cast<size_t>(MethodInfoCompact::kPaddrData);
@@ -1241,7 +1241,7 @@ MIRAddroffuncConst *Emitter::GetAddroffuncConst(const MIRSymbol &mirSymbol, MIRA
 }
 
 int64 Emitter::GetFieldOffsetValue(const std::string &className, const MIRIntConst &intConst,
-                                   const std::map<GStrIdx, MIRType*> &strIdx2Type) {
+                                   const std::map<GStrIdx, MIRType*> &strIdx2Type) const {
   uint64 idx = intConst.GetExtValue();
   bool isDefTabIndex = idx & 0x1;
   int64 fieldIdx = idx >> 1;
@@ -1986,7 +1986,7 @@ void Emitter::EmitLiterals(std::vector<std::pair<MIRSymbol*, bool>> &literals,
 void Emitter::GetHotAndColdMetaSymbolInfo(const std::vector<MIRSymbol*> &mirSymbolVec,
                                           std::vector<MIRSymbol*> &hotFieldInfoSymbolVec,
                                           std::vector<MIRSymbol*> &coldFieldInfoSymbolVec, const std::string &prefixStr,
-                                          bool forceCold) {
+                                          bool forceCold) const {
   bool isHot = false;
   for (auto mirSymbol : mirSymbolVec) {
     CHECK_FATAL(prefixStr.length() < mirSymbol->GetName().length(), "string length check");
@@ -2034,7 +2034,7 @@ void Emitter::EmitMetaDataSymbolWithMarkFlag(const std::vector<MIRSymbol*> &mirS
   EmitBlockMarker((markString + hotOrCold + "_end"), sectionName, false);
 }
 
-void Emitter::MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec) {
+void Emitter::MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec) const {
   for (auto mirSymbol : mirSymbolVec) {
     auto *aggConst = safe_cast<MIRAggConst>(mirSymbol->GetKonst());
     if ((aggConst == nullptr) || (aggConst->GetConstVec().empty())) {
@@ -3477,7 +3477,7 @@ void Emitter::EmitDIDebugStrSection() {
   }
 }
 
-void Emitter::FillInClassByteSize(DBGDie *die, DBGDieAttr *byteSizeAttr) {
+void Emitter::FillInClassByteSize(DBGDie *die, DBGDieAttr *byteSizeAttr) const {
   ASSERT(byteSizeAttr->GetDwForm() == DW_FORM_data1 || byteSizeAttr->GetDwForm() == DW_FORM_data2 ||
          byteSizeAttr->GetDwForm() == DW_FORM_data4 || byteSizeAttr->GetDwForm() == DW_FORM_data8,
          "Unknown FORM value for DW_AT_byte_size");

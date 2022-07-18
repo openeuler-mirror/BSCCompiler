@@ -33,7 +33,7 @@ class LiveAnalysis : public AnalysisResult {
   void DumpInfo(const DataInfo &info) const;
   void InitBB(BB &bb);
   void InitAndGetDefUse();
-  bool GenerateLiveOut(BB &bb);
+  bool GenerateLiveOut(BB &bb) const;
   bool GenerateLiveIn(BB &bb);
   void BuildInOutforFunc();
   void DealWithInOutOfCleanupBB();

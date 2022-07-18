@@ -74,11 +74,11 @@ class IPAEscapeAnalysis {
   EAConnectionGraph *GetEAConnectionGraph(MIRFunction &function) const;
   void ProcessNoAndRetEscObj();
   void ProcessRetStmt();
-  VarMeExpr *CreateEATempVarWithName(const std::string &name);
+  VarMeExpr *CreateEATempVarWithName(const std::string &name) const;
   VarMeExpr *CreateEATempVar();
   VarMeExpr *GetOrCreateEARetTempVar();
-  VarMeExpr *CreateEATempVarMeExpr(OriginalSt &ost);
-  OriginalSt *CreateEATempOstWithName(const std::string &name);
+  VarMeExpr *CreateEATempVarMeExpr(OriginalSt &ost) const;
+  OriginalSt *CreateEATempOstWithName(const std::string &name) const;
   OriginalSt *CreateEATempOst();
   OriginalSt *CreateEARetTempOst();
   VarMeExpr *GetOrCreateEARetTempVarMeExpr(OriginalSt &ost);

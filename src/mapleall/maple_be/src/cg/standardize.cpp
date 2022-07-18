@@ -57,7 +57,7 @@ void Standardize::DoStandardize() {
   }
 }
 
-void Standardize::AddressMapping(Insn &insn) {
+void Standardize::AddressMapping(Insn &insn) const {
   Operand &dest = insn.GetOperand(kInsnFirstOpnd);
   Operand &src1 = insn.GetOperand(kInsnSecondOpnd);
   uint32 destSize = dest.GetSize();

@@ -368,9 +368,9 @@ class MplOptions {
   ErrorCode DecideRunningPhases(const std::vector<std::string> &runExes);
   std::unique_ptr<Action> DecideRunningPhasesByType(const InputInfo *const inputInfo, bool isMultipleFiles);
   ErrorCode MFCreateActionByExe(const std::string &exe, std::unique_ptr<Action> &currentAction,
-                                const InputInfo *const inputInfo, bool &wasWrpCombCompilerCreated);
+                                const InputInfo *const inputInfo, bool &wasWrpCombCompilerCreated) const;
   ErrorCode SFCreateActionByExe(const std::string &exe, std::unique_ptr<Action> &currentAction,
-                                const InputInfo *const inputInfo, bool &isCombCompiler);
+                                const InputInfo *const inputInfo, bool &isCombCompiler) const;
   InputInfo *AllocateInputInfo(const std::string &inputFile);
   ErrorCode AppendDefaultOptions(const std::string &exeName, MplOption mplOptions[], unsigned int length);
   void DumpAppendedOptions(const std::string &exeName,

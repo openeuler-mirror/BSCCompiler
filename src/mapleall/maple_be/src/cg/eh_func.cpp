@@ -96,7 +96,7 @@ void EHFunc::CollectEHInformation(std::vector<std::pair<LabelIdx, CatchNode*>> &
   }
 }
 
-void EHTry::DumpEHTry(const MIRModule &mirModule) {
+void EHTry::DumpEHTry(const MIRModule &mirModule [[maybe_unused]]) {
   if (tryNode != nullptr) {
     tryNode->Dump();
   }
@@ -113,10 +113,11 @@ void EHTry::DumpEHTry(const MIRModule &mirModule) {
   }
 }
 
-void EHThrow::ConvertThrowToRuntime(CGFunc &cgFunc, BaseNode &arg) {
+void EHThrow::ConvertThrowToRuntime(CGFunc &cgFunc, BaseNode &arg) const {
   MIRFunction &mirFunc = cgFunc.GetFunction();
   MIRModule *mirModule = mirFunc.GetModule();
-  MIRFunction *calleeFunc = mirModule->GetMIRBuilder()->GetOrCreateFunction("MCC_ThrowException", static_cast<TyIdx>(PTY_void));
+  MIRFunction *calleeFunc = mirModule->GetMIRBuilder()->GetOrCreateFunction(
+      "MCC_ThrowException", static_cast<TyIdx>(PTY_void));
   cgFunc.GetBecommon().UpdateTypeTable(*calleeFunc->GetMIRFuncType());
   calleeFunc->SetNoReturn();
   MapleVector<BaseNode*> args(mirModule->GetMIRBuilder()->GetCurrentFuncCodeMpAllocator()->Adapter());
@@ -125,7 +126,7 @@ void EHThrow::ConvertThrowToRuntime(CGFunc &cgFunc, BaseNode &arg) {
   mirFunc.GetBody()->ReplaceStmt1WithStmt2(rethrow, callAssign);
 }
 
-void EHThrow::ConvertThrowToRethrow(CGFunc &cgFunc) {
+void EHThrow::ConvertThrowToRethrow(CGFunc &cgFunc) const {
   MIRFunction &mirFunc = cgFunc.GetFunction();
   MIRModule *mirModule = mirFunc.GetModule();
   MIRBuilder *mirBuilder = mirModule->GetMIRBuilder();
@@ -287,7 +288,7 @@ bool EHFunc::HasTry() const {
   return !tryVec.empty();
 }
 
-void EHFunc::CreateTypeInfoSt() {
+void EHFunc::CreateTypeInfoSt() const {
   MIRFunction &mirFunc = cgFunc->GetFunction();
   bool ctorDefined = false;
   if (mirFunc.GetAttr(FUNCATTR_constructor) && !mirFunc.GetAttr(FUNCATTR_static) && (mirFunc.GetBody() != nullptr)) {
@@ -504,7 +505,7 @@ void EHFunc::GenerateCleanupLabel() {
 }
 
 void EHFunc::InsertDefaultLabelAndAbortFunc(BlockNode &blkNode, SwitchNode &switchNode,
-                                            const StmtNode &beforeEndLabel) {
+                                            const StmtNode &beforeEndLabel) const {
   MIRModule &mirModule = *cgFunc->GetFunction().GetModule();
   LabelIdx dfLabIdx = cgFunc->GetFunction().GetLabelTab()->CreateLabel();
   cgFunc->GetFunction().GetLabelTab()->AddToStringLabelMap(dfLabIdx);
@@ -587,7 +588,7 @@ LabelIdx EHFunc::CreateLabel(const std::string &cstr) {
 }
 
 /* think about moving this to BELowerer where LowerThrownval is already written */
-void EHFunc::InsertCxaAfterEachCatch(const std::vector<std ::pair<LabelIdx, CatchNode*>> &catchVec) {
+void EHFunc::InsertCxaAfterEachCatch(const std::vector<std ::pair<LabelIdx, CatchNode*>> &catchVec) const {
   MIRModule &mirModule = *cgFunc->GetFunction().GetModule();
   BlockNode *funcBody = cgFunc->GetFunction().GetBody();
   CatchNode *jCatchNode = nullptr;

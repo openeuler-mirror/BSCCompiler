@@ -26,7 +26,7 @@
 #endif
 
 namespace maplebe {
-bool CGPeepPattern::IsCCRegCrossVersion(Insn &startInsn, Insn &endInsn, const RegOperand &ccReg) {
+bool CGPeepPattern::IsCCRegCrossVersion(Insn &startInsn, Insn &endInsn, const RegOperand &ccReg) const {
   if (startInsn.GetBB() != endInsn.GetBB()) {
     return true;
   }
@@ -67,7 +67,7 @@ int64 CGPeepPattern::GetLogValueAtBase2(int64 val) const {
   return (__builtin_popcountll(static_cast<uint64>(val)) == 1) ? (__builtin_ffsll(val) - 1) : -1;
 }
 
-InsnSet CGPeepPattern::GetAllUseInsn(const RegOperand &defReg) {
+InsnSet CGPeepPattern::GetAllUseInsn(const RegOperand &defReg) const {
   InsnSet allUseInsn;
   if ((ssaInfo != nullptr) && defReg.IsSSAForm()) {
     VRegVersion *defVersion = ssaInfo->FindSSAVersion(defReg.GetRegisterNumber());
@@ -80,7 +80,7 @@ InsnSet CGPeepPattern::GetAllUseInsn(const RegOperand &defReg) {
   return allUseInsn;
 }
 
-Insn *CGPeepPattern::GetDefInsn(const RegOperand &useReg) {
+Insn *CGPeepPattern::GetDefInsn(const RegOperand &useReg) const {
   if (!useReg.IsSSAForm()) {
     return nullptr;
   }

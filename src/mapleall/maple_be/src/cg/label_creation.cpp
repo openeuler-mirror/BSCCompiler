@@ -24,7 +24,7 @@ void LabelCreation::Run() {
   CreateStartEndLabel();
 }
 
-void LabelCreation::CreateStartEndLabel() {
+void LabelCreation::CreateStartEndLabel() const {
   ASSERT(cgFunc != nullptr, "expect a cgfunc before CreateStartEndLabel");
   LabelIdx startLblIdx = cgFunc->CreateLabel();
   MIRBuilder *mirBuilder = cgFunc->GetFunction().GetModule()->GetMIRBuilder();

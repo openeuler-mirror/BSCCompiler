@@ -124,7 +124,7 @@ class Ebo {
 
   virtual ~Ebo() = default;
 
-  MemOpndInfo *GetMemInfo(InsnInfo &insnInfo);
+  MemOpndInfo *GetMemInfo(InsnInfo &insnInfo) const;
   void SetInsnInfo(uint32 hashVal, InsnInfo &info) {
     ASSERT(hashVal < insnInfoTable.size(), "hashVal out of insnInfoTable range");
     insnInfoTable.at(hashVal) = &info;
@@ -138,7 +138,7 @@ class Ebo {
     --info.refCount;
   }
 
-  void EnlargeSpaceForLA(Insn &csetInsn);
+  void EnlargeSpaceForLA(Insn &csetInsn) const;
   bool IsSaveReg(const Operand &opnd) const;
   bool IsFrameReg(Operand &opnd) const;
   bool OperandEqual(const Operand &op1, const Operand &op2) const;
@@ -146,10 +146,10 @@ class Ebo {
   bool IsPhysicalReg(const Operand &opnd) const;
   bool HasAssignedReg(const Operand &opnd) const;
   bool IsOfSameClass(const Operand &op0, const Operand &op1) const;
-  bool OpndAvailableInBB(const BB &bb, OpndInfo *info);
+  bool OpndAvailableInBB(const BB &bb, OpndInfo *info) const;
   bool ForwardPropCheck(const Operand *opndReplace, const OpndInfo &opndInfo, const Operand &opnd, Insn &insn);
   bool RegForwardCheck(Insn &insn, const Operand &opnd, const Operand *opndReplace, Operand &oldOpnd,
-                       const OpndInfo *tmpInfo);
+                       const OpndInfo *tmpInfo) const;
   bool IsNotVisited(const BB &bb) {
     return !visitedBBs.at(bb.GetId());
   };
@@ -168,11 +168,11 @@ class Ebo {
   int32 ComputeOpndHash(const Operand &opnd) const;
   uint32 ComputeHashVal(const Insn &insn, const MapleVector<OpndInfo*> &opndInfos) const;
   void MarkOpndLiveIntoBB(const Operand &opnd, BB &into, BB &def) const;
-  void RemoveInsn(InsnInfo &info);
-  void RemoveUses(uint32 opndNum, const MapleVector<OpndInfo*> &origInfo);
+  void RemoveInsn(InsnInfo &info) const;
+  void RemoveUses(uint32 opndNum, const MapleVector<OpndInfo*> &origInfo) const;
   void HashInsn(Insn &insn, const MapleVector<OpndInfo*> &origInfo, const MapleVector<OpndInfo*> &opndInfos);
   void BuildAllInfo(BB &bb);
-  InsnInfo *LocateInsnInfo(const OpndInfo &info);
+  InsnInfo *LocateInsnInfo(const OpndInfo &info) const;
   void RemoveUnusedInsns(BB &bb, bool normal);
   void UpdateNextInfo(const OpndInfo &opndInfo);
   void BackupOpndInfoList(OpndInfo *saveLast);

@@ -653,7 +653,7 @@ void CGOptions::ParseExclusiveFunc(const std::string &fileName) {
   }
 }
 
-void CGOptions::ParseCyclePattern(const std::string &fileName) {
+void CGOptions::ParseCyclePattern(const std::string &fileName) const {
   std::ifstream file(fileName);
   if (!file.is_open()) {
     ERR(kLncErr, "%s open failed!", fileName.c_str());
@@ -677,7 +677,7 @@ void CGOptions::ParseCyclePattern(const std::string &fileName) {
   }
 }
 
-void CGOptions::SetRange(const std::string &str, const std::string &cmd, Range &subRange) {
+void CGOptions::SetRange(const std::string &str, const std::string &cmd, Range &subRange) const {
   const std::string &tmpStr = str;
   size_t comma = tmpStr.find_first_of(",", 0);
   subRange.enable = true;
@@ -787,7 +787,7 @@ void CGOptions::SetTargetMachine(const std::string &str) {
   CHECK_FATAL(false, "unknown target. not implement yet");
 }
 
-void CGOptions::SplitPhases(const std::string &str, std::unordered_set<std::string> &set) {
+void CGOptions::SplitPhases(const std::string &str, std::unordered_set<std::string> &set) const {
   const std::string& tmpStr{ str };
   if ((tmpStr.compare("*") == 0) || (tmpStr.compare("cgir") == 0)) {
     (void)set.insert(tmpStr);

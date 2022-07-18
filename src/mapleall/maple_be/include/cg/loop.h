@@ -134,14 +134,14 @@ class LoopFinder : public AnalysisResult {
   void SeekBackEdge(BB* bb, MapleList<BB*> succs);
   void SeekCycles();
   void MarkExtraEntryAndEncl();
-  bool HasSameHeader(const LoopHierarchy *lp1, const LoopHierarchy *lp2);
+  bool HasSameHeader(const LoopHierarchy *lp1, const LoopHierarchy *lp2) const;
   void MergeLoops();
   void SortLoops();
   void UpdateOuterForInnerLoop(BB *bb, LoopHierarchy *outer);
   void UpdateOuterLoop(const LoopHierarchy *loop);
   void CreateInnerLoop(LoopHierarchy &inner, LoopHierarchy &outer);
   void DetectInnerLoop();
-  void UpdateCGFunc();
+  void UpdateCGFunc() const;
   void FormLoopHierarchy();
 
  private:

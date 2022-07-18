@@ -48,7 +48,7 @@ void LiveAnalysis::InitAndGetDefUse() {
 }
 
 /* Out[BB] = Union all of In[Succs(BB)] */
-bool LiveAnalysis::GenerateLiveOut(BB &bb) {
+bool LiveAnalysis::GenerateLiveOut(BB &bb) const {
   const MapleVector<uint64>bbLiveOutBak(bb.GetLiveOut()->GetInfo());
   for (auto succBB : bb.GetSuccs()) {
     if (succBB->GetLiveInChange() && !succBB->GetLiveIn()->NoneBit()) {
@@ -195,6 +195,7 @@ void LiveAnalysis::InsertInOutOfCleanupBB() {
 /* dump the current info of def/use/livein/liveout */
 void LiveAnalysis::Dump() const {
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(cgFunc->GetFunction().GetStIdx().Idx());
+  ASSERT(funcSt != nullptr, "null ptr check");
   LogInfo::MapleLogger() << "\n---------  liveness for " << funcSt->GetName() << "  iteration ";
   LogInfo::MapleLogger() << iteration << " ---------\n";
   FOR_ALL_BB(bb, cgFunc) {

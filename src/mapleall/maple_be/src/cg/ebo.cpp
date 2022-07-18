@@ -41,7 +41,7 @@ constexpr uint32 kEboOpndHashLength = 521;
 constexpr uint32 kEboMaxBBNums = 200;
 
 /* Return the opndInfo for the first mem operand of insn. */
-MemOpndInfo *Ebo::GetMemInfo(InsnInfo &insnInfo) {
+MemOpndInfo *Ebo::GetMemInfo(InsnInfo &insnInfo) const {
   Insn *insn = insnInfo.insn;
   CHECK_FATAL(insn != nullptr, "insnInfo.insn is nullptr!");
   CHECK_FATAL(insn->AccessMem(), "insn is not access memory!");
@@ -67,7 +67,7 @@ MemOpndInfo *Ebo::GetMemInfo(InsnInfo &insnInfo) {
   return nullptr;
 }
 
-void Ebo::EnlargeSpaceForLA(Insn &csetInsn) {
+void Ebo::EnlargeSpaceForLA(Insn &csetInsn) const {
   CHECK_FATAL(live != nullptr, "no live info!");
   live->EnlargeSpaceForLiveAnalysis(*csetInsn.GetBB());
 }
@@ -82,7 +82,7 @@ bool Ebo::IsFrameReg(Operand &opnd) const {
 
 Operand *Ebo::GetZeroOpnd(uint32 size) const {
 #if TARGAARCH64 || TARGRISCV64
-  return &cgFunc->GetZeroOpnd(size);
+  return size > k64BitSize ? nullptr : &cgFunc->GetZeroOpnd(size);
 #else
   return nullptr;
 #endif
@@ -93,7 +93,7 @@ bool Ebo::IsSaveReg(const Operand &opnd) const {
     return false;
   }
   const RegOperand &reg = static_cast<const RegOperand&>(opnd);
-  return reg.IsSaveReg(*cgFunc->GetFunction().GetReturnType(), cgFunc->GetBecommon());
+  return cgFunc->IsSaveReg(reg, *cgFunc->GetFunction().GetReturnType(), cgFunc->GetBecommon());
 }
 
 bool Ebo::IsPhysicalReg(const Operand &opnd) const {
@@ -109,7 +109,7 @@ bool Ebo::HasAssignedReg(const Operand &opnd) const {
     return false;
   }
   const auto &reg = static_cast<const RegOperand&>(opnd);
-  return reg.IsVirtualRegister() ? (!reg.IsInvalidRegister()) : true;
+  return reg.IsVirtualRegister() ? (!IsInvalidReg(reg)) : true;
 }
 
 bool Ebo::IsOfSameClass(const Operand &op0, const Operand &op1) const {
@@ -122,7 +122,7 @@ bool Ebo::IsOfSameClass(const Operand &op0, const Operand &op1) const {
 }
 
 /* return true if opnd of bb is available. */
-bool Ebo::OpndAvailableInBB(const BB &bb, OpndInfo *info) {
+bool Ebo::OpndAvailableInBB(const BB &bb, OpndInfo *info) const {
   if (info == nullptr) {
     return false;
   }
@@ -131,7 +131,7 @@ bool Ebo::OpndAvailableInBB(const BB &bb, OpndInfo *info) {
   }
 
   Operand *op = info->opnd;
-  if (op->IsConstant()) {
+  if (IsConstantImmOrReg(*op)) {
     return true;
   }
 
@@ -170,7 +170,7 @@ bool Ebo::ForwardPropCheck(const Operand *opndReplace, const OpndInfo &opndInfo,
     return false;
   }
 #endif
-  if (!(opndReplace->IsConstant() ||
+  if (!(IsConstantImmOrReg(*opndReplace) ||
         ((OpndAvailableInBB(*insn.GetBB(), opndInfo.replacementInfo) || RegistersIdentical(opnd, *opndReplace)) &&
          (HasAssignedReg(opnd) == HasAssignedReg(*opndReplace))))) {
     return false;
@@ -180,11 +180,11 @@ bool Ebo::ForwardPropCheck(const Operand *opndReplace, const OpndInfo &opndInfo,
 }
 
 bool Ebo::RegForwardCheck(Insn &insn, const Operand &opnd, const Operand *opndReplace, Operand &oldOpnd,
-                          const OpndInfo *tmpInfo) {
-  if (opnd.IsConstant()) {
+                          const OpndInfo *tmpInfo) const {
+  if (IsConstantImmOrReg(opnd)) {
     return false;
   }
-  if (!(!beforeRegAlloc || (HasAssignedReg(oldOpnd) == HasAssignedReg(*opndReplace)) || opnd.IsConstReg() ||
+  if (!(!beforeRegAlloc || (HasAssignedReg(oldOpnd) == HasAssignedReg(*opndReplace)) || IsZeroRegister(opnd) ||
         !insn.IsMove())) {
     return false;
   }
@@ -354,8 +354,8 @@ bool Ebo::RegistersIdentical(const Operand &op0, const Operand &op1) const {
   }
   const RegOperand &reg0 = static_cast<const RegOperand&>(op0);
   const RegOperand &reg1 = static_cast<const RegOperand&>(op1);
-  return ((reg0.IsPhysicalRegister() || !reg0.IsInvalidRegister()) &&
-          (reg1.IsPhysicalRegister() || !reg1.IsInvalidRegister()) &&
+  return ((reg0.IsPhysicalRegister() || !IsInvalidReg(reg0)) &&
+          (reg1.IsPhysicalRegister() || !IsInvalidReg(reg1)) &&
           (reg0.GetRegisterType() == reg1.GetRegisterType()) &&
           (reg0.GetRegisterNumber() == reg1.GetRegisterNumber()));
 }
@@ -449,7 +449,7 @@ void Ebo::HashInsn(Insn &insn, const MapleVector<OpndInfo*> &origInfo, const Map
 }
 
 /* do decref of orig_info, refCount will be set to 0 */
-void Ebo::RemoveUses(uint32 opndNum, const MapleVector<OpndInfo*> &origInfo) {
+void Ebo::RemoveUses(uint32 opndNum, const MapleVector<OpndInfo*> &origInfo) const {
   OpndInfo *info = nullptr;
   for (uint32 i = 0; i < opndNum; ++i) {
     info = origInfo.at(i);
@@ -471,7 +471,7 @@ void Ebo::RemoveUses(uint32 opndNum, const MapleVector<OpndInfo*> &origInfo) {
 }
 
 OpndInfo *Ebo::BuildMemOpndInfo(BB &bb, Insn &insn, Operand &opnd, uint32 opndIndex) {
-  auto *memOpnd = static_cast<AArch64MemOperand*>(&opnd);
+  auto *memOpnd = static_cast<MemOperand*>(&opnd);
   Operand *base = memOpnd->GetBaseRegister();
   Operand *offset = memOpnd->GetOffset();
   OpndInfo *baseInfo = nullptr;
@@ -489,7 +489,7 @@ OpndInfo *Ebo::BuildMemOpndInfo(BB &bb, Insn &insn, Operand &opnd, uint32 opndIn
       auto *baseReg = static_cast<RegOperand*>(base);
       Operand *replaceOpnd = baseInfo->replacementOpnd;
       OpndInfo *replaceInfo = baseInfo->replacementInfo;
-      if ((replaceInfo != nullptr) && (replaceOpnd != nullptr) && !baseReg->IsSPOrFP() &&
+      if ((replaceInfo != nullptr) && (replaceOpnd != nullptr) && !cgFunc->IsSPOrFP(*baseReg) &&
           (!beforeRegAlloc || (!IsPhysicalReg(*replaceOpnd) && !IsPhysicalReg(*base))) &&
           IsOfSameClass(*base, *replaceOpnd) && memOpnd->IsIntactIndexed() &&
           (base->GetSize() <= replaceOpnd->GetSize()) &&
@@ -582,7 +582,7 @@ bool Ebo::ForwardPropagateOpnd(Insn &insn, Operand *&opnd, uint32 opndIndex,
   }
   /* move reg, wzr, store vreg, mem ==> store wzr, mem */
 #if TARGAARCH64 || TARGRISCV64
-  if (opnd->IsZeroRegister() && opndIndex == 0 &&
+  if (IsZeroRegister(*opnd) && opndIndex == 0 &&
       (insn.GetMachineOpcode() == MOP_wstr || insn.GetMachineOpcode() == MOP_xstr)) {
     if (EBO_DUMP) {
       LogInfo::MapleLogger() << "===replace operand " << opndIndex << " of insn: \n";
@@ -675,9 +675,9 @@ void Ebo::SimplifyInsn(Insn &insn, bool &insnReplaced, bool opndsConstant,
       if (insn.GetResultNum() > 0 && ResIsNotDefAndUse(insn)) {
         if ((opndNum == 2) && (insn.GetResultNum() == 1) &&
             (((kInsnSecondOpnd < opnds.size()) && (opnds[kInsnSecondOpnd] != nullptr) &&
-              opnds[kInsnSecondOpnd]->IsConstant()) ||
+              IsConstantImmOrReg(*opnds[kInsnSecondOpnd])) ||
              ((kInsnThirdOpnd < opnds.size()) && (opnds[kInsnThirdOpnd] != nullptr) &&
-              opnds[kInsnThirdOpnd]->IsConstant()))) {
+              IsConstantImmOrReg(*opnds[kInsnThirdOpnd])))) {
           insnReplaced = SimplifyConstOperand(insn, opnds, opndInfos);
         }
       }
@@ -776,7 +776,7 @@ void Ebo::BuildAllInfo(BB &bb) {
       opnds.emplace_back(opnd);
       opndInfos.emplace_back(nullptr);
       origInfos.emplace_back(nullptr);
-      if (opnd->IsConstant()) {
+      if (IsConstantImmOrReg(*opnd)) {
         continue;
       }
       OpndInfo *opndInfo = BuildOperandInfo(bb, *insn, *opnd, i, origInfos);
@@ -793,7 +793,7 @@ void Ebo::BuildAllInfo(BB &bb) {
       }
       opnds.at(i) = opnd;
       opndInfos.at(i) = opndInfo;
-      if (!opnd->IsConstant()) {
+      if (!IsConstantImmOrReg(*opnd)) {
         opndsConstant = false;
       }
     }  /* End : Process all the operands. */
@@ -822,7 +822,7 @@ void Ebo::BuildAllInfo(BB &bb) {
 }
 
 /* Decrement the use counts for the actual operands of an insnInfo. */
-void Ebo::RemoveInsn(InsnInfo &info) {
+void Ebo::RemoveInsn(InsnInfo &info) const {
   Insn *insn = info.insn;
   CHECK_FATAL(insn != nullptr, "get insn in info failed in Ebo::RemoveInsn");
   uint32 opndNum = insn->GetOperandSize();
@@ -887,7 +887,7 @@ void Ebo::MarkOpndLiveIntoBB(const Operand &opnd, BB &into, BB &def) const {
 }
 
 /* return insn information if has insnInfo,else,return lastInsnInfo */
-InsnInfo *Ebo::LocateInsnInfo(const OpndInfo &info) {
+InsnInfo *Ebo::LocateInsnInfo(const OpndInfo &info) const {
   if (info.insn != nullptr) {
     if (info.insnInfo != nullptr) {
       return info.insnInfo;
@@ -943,7 +943,7 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
       goto insn_is_needed;
     }
 
-    if (insn->GetMachineOpcode() == MOP_asm) {
+    if (insn->GetMachineOpcode() == MOP_asm || insn->IsAtomic()) {
       goto insn_is_needed;
     }
 
@@ -984,7 +984,7 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
           RegOperand *reg = static_cast<RegOperand*>(opInfo->opnd);
           Operand *res1 = insn->GetResult(0);
           ASSERT(res1 != nullptr, "null ptr check");
-          if (!reg->IsSPOrFP() && (reg->GetRegisterNumber() != R0) && (reg->GetRegisterNumber() != V0) &&
+          if (!cgFunc->IsSPOrFP(*reg) && !cgFunc->IsReturnReg(*reg) &&
               (prev->IsLoad() || IsAdd(*prev)) && (!LiveOutOfBB(*reg, bb) || opInfo->redefinedInBB)) {
             /*
              * pattern 1:

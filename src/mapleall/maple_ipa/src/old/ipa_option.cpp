@@ -66,11 +66,11 @@ bool IpaOption::SolveOptions() const {
   return true;
 }
 
-bool IpaOption::ParseCmdline(int argc, char **argv, std::vector<std::string> &fileNames) {
+bool IpaOption::ParseCmdline(int argc, char **argv, std::vector<std::string> &fileNames) const {
   // Default value
   MeOption::inlineFuncList = "";
 
-  (void)maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, ipaCategory);
+  (void)maplecl::CommandLine::GetCommandLine().Parse(argc, static_cast<char **>(argv), ipaCategory);
   bool result = SolveOptions();
   if (!result) {
     return false;

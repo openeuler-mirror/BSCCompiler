@@ -110,8 +110,8 @@ class EHThrow {
   }
 
   void Lower(CGFunc &cgFunc);
-  void ConvertThrowToRethrow(CGFunc &cgFunc);
-  void ConvertThrowToRuntime(CGFunc &cgFunc, BaseNode &arg);
+  void ConvertThrowToRethrow(CGFunc &cgFunc) const;
+  void ConvertThrowToRuntime(CGFunc &cgFunc, BaseNode &arg) const;
 
  private:
   UnaryStmtNode *rethrow;            /* must be a throw stmt */
@@ -131,12 +131,12 @@ class EHFunc {
   void CreateLSDA();
   bool NeedFullLSDA() const;
   bool NeedFastLSDA() const;
-  void InsertCxaAfterEachCatch(const std::vector<std::pair<LabelIdx, CatchNode*>> &catchVec);
+  void InsertCxaAfterEachCatch(const std::vector<std::pair<LabelIdx, CatchNode*>> &catchVec) const;
   void GenerateCleanupLabel();
   void MergeCatchToTry(const std::vector<std::pair<LabelIdx, CatchNode*>> &catchVec);
   void BuildEHTypeTable(const std::vector<std::pair<LabelIdx, CatchNode*>> &catchVec);
   void LowerThrow();  /* for non-personality function */
-  void CreateTypeInfoSt();
+  void CreateTypeInfoSt() const;
   void DumpEHFunc() const;
 
   bool HasThrow() const {
@@ -179,7 +179,7 @@ class EHFunc {
  private:
   void CreateLSDAAction();
   void InsertDefaultLabelAndAbortFunc(BlockNode &blkNode, SwitchNode &switchNode,
-                                      const StmtNode &beforeEndLabel);
+                                      const StmtNode &beforeEndLabel) const;
   void FillSwitchTable(SwitchNode &switchNode, const EHTry &ehTry);
   void CreateLSDAHeader();
   void FillLSDACallSiteTable();

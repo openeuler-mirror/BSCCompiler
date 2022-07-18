@@ -406,7 +406,7 @@ ErrorCode MplOptions::DecideRunningPhases() {
 }
 
 ErrorCode MplOptions::MFCreateActionByExe(const std::string &exe, std::unique_ptr<Action> &currentAction,
-                                          const InputInfo *const inputInfo, bool &wasWrpCombCompilerCreated) {
+                                          const InputInfo *const inputInfo, bool &wasWrpCombCompilerCreated) const {
   ErrorCode ret = kErrorNoError;
 
   if (exe == kBinNameMe || exe == kBinNameMpl2mpl || exe == kBinNameMplcg) {
@@ -428,7 +428,7 @@ ErrorCode MplOptions::MFCreateActionByExe(const std::string &exe, std::unique_pt
 }
 
 ErrorCode MplOptions::SFCreateActionByExe(const std::string &exe, std::unique_ptr<Action> &currentAction,
-                                          const InputInfo *const inputInfo, bool &isCombCompiler) {
+                                          const InputInfo *const inputInfo, bool &isCombCompiler) const {
   ErrorCode ret = kErrorNoError;
 
   if (exe == kBinNameMe || exe == kBinNameMpl2mpl) {

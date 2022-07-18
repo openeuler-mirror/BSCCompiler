@@ -96,7 +96,7 @@ class PropOptimizePattern {
     return "propopt";
   }
   virtual void Init() = 0;
-  Insn *FindDefInsn(const VRegVersion *useVersion);
+  Insn *FindDefInsn(const VRegVersion *useVersion) const;
 
   CGFunc &cgFunc;
   CGSSAInfo *optSsaInfo = nullptr;

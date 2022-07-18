@@ -24,6 +24,7 @@
 #include "yieldpoint.h"
 #include "emit.h"
 #include "reg_alloc.h"
+#include "target_info.h"
 #if TARGAARCH64
 #include "aarch64_emitter.h"
 #include "aarch64_cg.h"
@@ -65,7 +66,7 @@ void DumpMIRFunc(MIRFunction &func, const char *msg, bool printAlways = false, c
 
 } /* anonymous namespace */
 
-void CgFuncPM::GenerateOutPutFile(MIRModule &m) {
+void CgFuncPM::GenerateOutPutFile(MIRModule &m) const {
   CHECK_FATAL(cg != nullptr, "cg is null");
   CHECK_FATAL(cg->GetEmitter(), "emitter is null");
   if (!cgOptions->SuppressFileInfo()) {
@@ -97,7 +98,7 @@ bool CgFuncPM::FuncLevelRun(CGFunc &cgFunc, AnalysisDataManager &serialADM) {
   return changed;
 }
 
-void CgFuncPM::PostOutPut(MIRModule &m) {
+void CgFuncPM::PostOutPut(MIRModule &m) const {
   cg->GetEmitter()->EmitHugeSoRoutines(true);
   if (cgOptions->WithDwarf()) {
     cg->GetEmitter()->EmitDIFooter();
@@ -125,6 +126,9 @@ void CollectStaticSymbolInVar(MIRConst *mirConst) {
 }
 
 void MarkUsedStaticSymbol(const StIdx &symbolIdx) {
+  if (!symbolIdx.IsGlobal()) {
+    return;
+  }
   MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(symbolIdx.Idx(), true);
   if (symbol == nullptr) {
     return;
@@ -179,13 +183,13 @@ void CollectStaticSymbolInFunction(MIRFunction &func) {
   RecursiveMarkUsedStaticSymbol(func.GetBody());
 }
 
-void CgFuncPM::SweepUnusedStaticSymbol(MIRModule &m) {
+void CgFuncPM::SweepUnusedStaticSymbol(MIRModule &m) const {
   if (!m.IsCModule()) {
     return;
   }
   size_t size = GlobalTables::GetGsymTable().GetSymbolTableSize();
   for (size_t i = 0; i < size; ++i) {
-    MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(i);
+    MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(static_cast<uint32>(i));
     if (mirSymbol != nullptr && (mirSymbol->GetSKind() == kStVar || mirSymbol->GetSKind() == kStConst) &&
         (mirSymbol->GetStorageClass() == kScFstatic || mirSymbol->GetStorageClass() == kScPstatic)) {
       mirSymbol->SetIsDeleted();
@@ -235,7 +239,10 @@ void CgFuncPM::SweepUnusedStaticSymbol(MIRModule &m) {
 bool CgFuncPM::PhaseRun(MIRModule &m) {
   CreateCGAndBeCommon(m);
   bool changed = false;
-  SweepUnusedStaticSymbol(m);
+  /* reserve static symbol for debugging */
+  if (!cgOptions->WithDwarf()) {
+    SweepUnusedStaticSymbol(m);
+  }
   if (cgOptions->IsRunCG()) {
     GenerateOutPutFile(m);
 
@@ -410,7 +417,7 @@ void CgFuncPM::PrepareLower(MIRModule &m) {
   }
 }
 
-void CgFuncPM::DoFuncCGLower(const MIRModule &m, MIRFunction &mirFunc) {
+void CgFuncPM::DoFuncCGLower(const MIRModule &m, MIRFunction &mirFunc) const {
   if (m.GetFlavor() <= kFeProduced) {
     mirLower->SetLowerCG();
     mirLower->SetMirFunc(&mirFunc);

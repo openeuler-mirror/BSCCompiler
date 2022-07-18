@@ -49,12 +49,12 @@ class CollectIpaInfo {
   void UpdateCaleeParaAboutFloat(MeStmt &meStmt, float paramValue, uint32 index, CallerSummary &summary);
   void UpdateCaleeParaAboutDouble(MeStmt &meStmt, double paramValue, uint32 index, CallerSummary &summary);
   void UpdateCaleeParaAboutInt(MeStmt &meStmt, int64_t paramValue, uint32 index, CallerSummary &summary);
-  bool IsConstKindValue(MeExpr *expr);
+  bool IsConstKindValue(MeExpr *expr) const;
   bool CheckImpExprStmt(const MeStmt &meStmt);
   bool CollectImportantExpression(const MeStmt &meStmt, uint32 &index);
   void TraversalMeStmt(MeStmt &meStmt);
-  bool IsParameterOrUseParameter(const VarMeExpr *varExpr, uint32 &index);
-  void Perform(const MeFunction &func);
+  bool IsParameterOrUseParameter(const VarMeExpr *varExpr, uint32 &index) const;
+  void Perform(MeFunction &func);
 
  private:
   MIRModule &module;

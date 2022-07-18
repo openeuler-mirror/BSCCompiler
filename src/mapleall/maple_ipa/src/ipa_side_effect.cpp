@@ -14,6 +14,7 @@
  */
 #include "ipa_side_effect.h"
 #include "func_desc.h"
+#include "inline_analyzer.h"
 namespace maple {
 const std::map<std::string, FuncDesc> whiteList = {
 #include "func_desc.def"
@@ -192,7 +193,7 @@ void SideEffect::DealWithOperand(MeExpr *expr) {
   return;
 }
 
-void SideEffect::DealWithReturn(const RetMeStmt &retMeStmt) {
+void SideEffect::DealWithReturn(const RetMeStmt &retMeStmt) const {
   if (retMeStmt.NumMeStmtOpnds() == 0) {
     return;
   }
@@ -254,7 +255,7 @@ void SideEffect::DealWithReturn(const RetMeStmt &retMeStmt) {
   }
 }
 
-void SideEffect::SolveVarArgs(MeFunction &f) {
+void SideEffect::SolveVarArgs(MeFunction &f) const {
   MIRFunction *func = f.GetMirFunc();
   if (func->IsVarargs()) {
     for (size_t i = func->GetFormalCount(); i < kMaxParamCount; ++i) {

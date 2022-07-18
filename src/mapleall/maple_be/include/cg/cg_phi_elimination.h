@@ -54,7 +54,7 @@ class PhiEliminate {
   MapleAllocator phiEliAlloc;
 
  private:
-  void PlaceMovInPredBB(uint32 predBBId, Insn &movInsn);
+  void PlaceMovInPredBB(uint32 predBBId, Insn &movInsn) const;
   virtual RegOperand &CreateTempRegForCSSA(RegOperand &oriOpnd) = 0;
   MapleSet<uint32> eliminatedBB;
   /*

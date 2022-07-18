@@ -1187,7 +1187,7 @@ void IPAEscapeAnalysis::DoOptimization() {
   DeleteRedundantRC();
 }
 
-VarMeExpr *IPAEscapeAnalysis::CreateEATempVarWithName(const std::string &name) {
+VarMeExpr *IPAEscapeAnalysis::CreateEATempVarWithName(const std::string &name) const {
   const auto &strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
   VarMeExpr *var = irMap->CreateNewVar(strIdx, PTY_ref, false);
   return var;
@@ -1203,7 +1203,7 @@ OriginalSt *IPAEscapeAnalysis::CreateEARetTempOst() {
   return CreateEATempOstWithName(name);
 }
 
-OriginalSt *IPAEscapeAnalysis::CreateEATempOstWithName(const std::string &name) {
+OriginalSt *IPAEscapeAnalysis::CreateEATempOstWithName(const std::string &name) const {
   MIRSymbol *symbol = func->GetMIRModule().GetMIRBuilder()->CreateLocalDecl(name,
                                                                             *GlobalTables::GetTypeTable().GetRef());
   OriginalSt *ost = ssaTab->CreateSymbolOriginalSt(*symbol, func->GetMirFunc()->GetPuidx(), 0);
@@ -1213,7 +1213,7 @@ OriginalSt *IPAEscapeAnalysis::CreateEATempOstWithName(const std::string &name) 
   return ost;
 }
 
-VarMeExpr *IPAEscapeAnalysis::CreateEATempVarMeExpr(OriginalSt &ost) {
+VarMeExpr *IPAEscapeAnalysis::CreateEATempVarMeExpr(OriginalSt &ost) const {
   VarMeExpr *var = irMap->CreateVarMeExprVersion(&ost);
   return var;
 }

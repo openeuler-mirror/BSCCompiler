@@ -39,7 +39,7 @@ void CGProp::DoTargetProp() {
   }
 }
 
-Insn *PropOptimizePattern::FindDefInsn(const VRegVersion *useVersion) {
+Insn *PropOptimizePattern::FindDefInsn(const VRegVersion *useVersion) const {
   if (!useVersion) {
     return nullptr;
   }
@@ -53,7 +53,7 @@ Insn *PropOptimizePattern::FindDefInsn(const VRegVersion *useVersion) {
 bool CgCopyProp::PhaseRun(maplebe::CGFunc &f) {
   CGSSAInfo *ssaInfo = GET_ANALYSIS(CgSSAConstruct, f);
   LiveIntervalAnalysis *ll = GET_ANALYSIS(CGliveIntervalAnalysis, f);
-  CGProp *cgProp = f.GetCG()->CreateCGProp(*GetPhaseMemPool(),f, *ssaInfo, *ll);
+  CGProp *cgProp = f.GetCG()->CreateCGProp(*GetPhaseMemPool(), f, *ssaInfo, *ll);
   cgProp->DoCopyProp();
   ll->ClearBFS();
   return false;
@@ -68,7 +68,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgCopyProp, cgcopyprop)
 bool CgTargetProp::PhaseRun(maplebe::CGFunc &f) {
   CGSSAInfo *ssaInfo = GET_ANALYSIS(CgSSAConstruct, f);
   LiveIntervalAnalysis *ll = GET_ANALYSIS(CGliveIntervalAnalysis, f);
-  CGProp *cgProp = f.GetCG()->CreateCGProp(*GetPhaseMemPool(),f, *ssaInfo, *ll);
+  CGProp *cgProp = f.GetCG()->CreateCGProp(*GetPhaseMemPool(), f, *ssaInfo, *ll);
   cgProp->DoTargetProp();
   ll->ClearBFS();
   return false;

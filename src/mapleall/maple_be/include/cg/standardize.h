@@ -37,7 +37,7 @@ class Standardize {
    * mop(dest, src) -> mov(dest, src1)
    *                   mop(dest)
    */
-  void AddressMapping(Insn &insn);
+  void AddressMapping(Insn &insn) const;
 
   void DoStandardize();
 

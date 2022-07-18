@@ -47,7 +47,7 @@ class SCCPrepare : public MapleSccPhase<SCCNode<CGNode>>, public MaplePhaseManag
   std::string PhaseName() const override;
   PHASECONSTRUCTOR(SCCPrepare);
   bool PhaseRun(SCCNode<CGNode> &f) override;
-  void Dump(const MeFunction &f, const std::string phaseName);
+  void Dump(const MeFunction &f, const std::string phaseName) const;
   AnalysisDataManager *GetResult() {
     return result;
   }
@@ -62,7 +62,7 @@ class SCCEmit : public MapleSccPhase<SCCNode<CGNode>>, public MaplePhaseManager 
   std::string PhaseName() const override;
   PHASECONSTRUCTOR(SCCEmit);
   bool PhaseRun(SCCNode<CGNode> &f) override;
-  void Dump(const MeFunction &f, const std::string phaseName);
+  void Dump(MeFunction &f, const std::string phaseName) const;
  private:
   void GetAnalysisDependence(maple::AnalysisDep &aDep) const override;
 };

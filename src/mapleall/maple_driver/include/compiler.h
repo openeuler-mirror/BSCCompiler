@@ -60,10 +60,12 @@ class Compiler {
   virtual ErrorCode Compile(MplOptions &options, const Action &action,
                             std::unique_ptr<MIRModule> &theModule);
 
-  virtual void GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
-                                   std::vector<std::string> &tempFiles) const {}
+  virtual void GetTmpFilesToDelete(const MplOptions &mplOptions [[maybe_unused]],
+                                   const Action &action [[maybe_unused]],
+                                   std::vector<std::string> &tempFiles [[maybe_unused]]) const {}
 
-  virtual std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions, const Action &action) const {
+  virtual std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions [[maybe_unused]],
+                                                          const Action &action [[maybe_unused]]) const {
     return std::unordered_set<std::string>();
   }
 
@@ -82,11 +84,12 @@ class Compiler {
     return GetBinName();
   }
 
-  virtual std::string GetInputFileName(const MplOptions &options, const Action &action) const {
+  virtual std::string GetInputFileName(const MplOptions &options [[maybe_unused]], const Action &action) const {
     return action.GetInputFile();
   }
 
-  virtual DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const {
+  virtual DefaultOption GetDefaultOptions(const MplOptions &options [[maybe_unused]],
+                                          const Action &action [[maybe_unused]]) const {
     return DefaultOption();
   }
 
@@ -219,8 +222,8 @@ class MapleCombCompiler : public Compiler {
   void GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
                            std::vector<std::string> &tempFiles) const override;
   ErrorCode MakeMeOptions(const MplOptions &options, DriverRunner &runner);
-  ErrorCode MakeMpl2MplOptions(const MplOptions &options, DriverRunner &runner);
-  std::string DecideOutExe(const MplOptions &options);
+  ErrorCode MakeMpl2MplOptions(const MplOptions &options, DriverRunner &runner) const;
+  std::string DecideOutExe(const MplOptions &options) const;
   std::string GetStringOfSafetyOption() const;
 };
 
@@ -237,7 +240,7 @@ class MplcgCompiler : public Compiler {
  private:
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
   ErrorCode GetMplcgOptions(MplOptions &options, const Action &action, const MIRModule *theModule);
-  ErrorCode MakeCGOptions(const MplOptions &options);
+  ErrorCode MakeCGOptions(const MplOptions &options) const;
   const std::string &GetBinName() const override;
   std::string baseName;
   std::string outputFile;

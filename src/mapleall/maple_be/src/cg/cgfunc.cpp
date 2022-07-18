@@ -1504,7 +1504,7 @@ bool CGFunc::CheckSkipMembarOp(const StmtNode &stmt) {
   return false;
 }
 
-void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos) {
+void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos) const {
   /* insert Insn for .loc before cg for the stmt */
   if (cg->GetCGOptions().WithLoc() && stmt->op != OP_label && stmt->op != OP_comment) {
     /* if original src file location info is availiable for this stmt,

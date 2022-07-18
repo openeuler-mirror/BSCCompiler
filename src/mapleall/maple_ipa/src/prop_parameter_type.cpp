@@ -22,7 +22,7 @@
 #include "me_dominance.h"
 
 namespace maple {
-bool PropParamType::CheckOpndZero(const MeExpr *expr) {
+bool PropParamType::CheckOpndZero(const MeExpr *expr) const {
   if (expr->GetMeOp() == kMeOpConst &&
       static_cast<const ConstMeExpr*>(expr)->IsZero()) {
     return true;

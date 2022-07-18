@@ -64,7 +64,7 @@ void PhiEliminate::UpdateRematInfo() {
   }
 }
 
-void PhiEliminate::PlaceMovInPredBB(uint32 predBBId, Insn &movInsn) {
+void PhiEliminate::PlaceMovInPredBB(uint32 predBBId, Insn &movInsn) const {
   BB *predBB = cgFunc->GetBBFromID(predBBId);
   ASSERT(movInsn.GetOperand(kInsnSecondOpnd).IsRegister(), "unexpect operand");
   if (predBB->GetKind() == BB::kBBFallthru) {

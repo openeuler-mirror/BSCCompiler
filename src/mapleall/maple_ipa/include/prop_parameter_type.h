@@ -33,7 +33,7 @@ class PropParamType {
       : memPool(memPool), alloc(alloc), module(mod), builder(*mod.GetMIRBuilder()),
         cg(cg), dataMap(dataMap), curFunc(nullptr), debug(false) {}
   virtual ~PropParamType() = default;
-  bool CheckOpndZero(const MeExpr *expr);
+  bool CheckOpndZero(const MeExpr *expr) const;
   void ResolveCallStmt(MeStmt &meStmt);
   void InsertNullCheck(CallMeStmt &callStmt, const std::string &funcName, uint32 index, MeExpr &receiver);
   bool CheckCondtionStmt(const MeStmt &meStmt);

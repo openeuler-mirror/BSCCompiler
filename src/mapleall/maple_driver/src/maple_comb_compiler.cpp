@@ -23,7 +23,8 @@
 
 namespace maple {
 
-std::string MapleCombCompiler::GetInputFileName(const MplOptions &options, const Action &action) const {
+std::string MapleCombCompiler::GetInputFileName(const MplOptions &options [[maybe_unused]],
+                                                const Action &action) const {
   if (action.IsItFirstRealAction()) {
     return action.GetInputFile();
   }
@@ -42,10 +43,9 @@ std::string MapleCombCompiler::GetInputFileName(const MplOptions &options, const
   return action.GetFullOutputName() + ".mpl";
 }
 
-void MapleCombCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
+void MapleCombCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions [[maybe_unused]], const Action &action,
                                             std::vector<std::string> &tempFiles) const {
-  std::string filePath;
-  filePath = action.GetFullOutputName() + ".data.muid";
+  std::string filePath = action.GetFullOutputName() + ".data.muid";
   tempFiles.push_back(filePath);
   filePath = action.GetFullOutputName() + ".func.muid";
   tempFiles.push_back(filePath);
@@ -61,7 +61,7 @@ void MapleCombCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, const 
   }
 }
 
-std::unordered_set<std::string> MapleCombCompiler::GetFinalOutputs(const MplOptions &mplOptions,
+std::unordered_set<std::string> MapleCombCompiler::GetFinalOutputs(const MplOptions &mplOptions [[maybe_unused]],
                                                                    const Action &action) const {
   std::unordered_set<std::string> finalOutputs;
   (void)finalOutputs.insert(action.GetFullOutputName() + ".VtableImpl.mpl");
@@ -176,7 +176,7 @@ ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunn
   return kErrorNoError;
 }
 
-ErrorCode MapleCombCompiler::MakeMpl2MplOptions(const MplOptions &options, DriverRunner &runner) {
+ErrorCode MapleCombCompiler::MakeMpl2MplOptions(const MplOptions &options, DriverRunner &runner) const {
   auto it = std::find(options.GetRunningExes().begin(), options.GetRunningExes().end(), kBinNameMpl2mpl);
   if (it == options.GetRunningExes().end()) {
     return kErrorNoError;
@@ -200,7 +200,7 @@ ErrorCode MapleCombCompiler::MakeMpl2MplOptions(const MplOptions &options, Drive
   return kErrorNoError;
 }
 
-std::string MapleCombCompiler::DecideOutExe(const MplOptions &options) {
+std::string MapleCombCompiler::DecideOutExe(const MplOptions &options) const {
   std::string printOutExe = "";
   auto &selectExes = options.GetSelectedExes();
   if (selectExes[selectExes.size() - 1] == kBinNameMapleComb) {

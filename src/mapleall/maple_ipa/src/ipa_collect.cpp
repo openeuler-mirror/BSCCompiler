@@ -21,6 +21,7 @@
 #include "mir_function.h"
 #include "option.h"
 #include "string_utils.h"
+#include "inline_summary.h"
 
 namespace maple {
 void CollectIpaInfo::UpdateCaleeParaAboutFloat(MeStmt &meStmt, float paramValue, uint32 index, CallerSummary &summary) {
@@ -51,7 +52,7 @@ void CollectIpaInfo::UpdateCaleeParaAboutInt(MeStmt &meStmt, int64_t paramValue,
   calleeParamAboutInt[calleeKey][paramValue].emplace_back(summary);
 }
 
-bool CollectIpaInfo::IsConstKindValue(MeExpr *expr) {
+bool CollectIpaInfo::IsConstKindValue(MeExpr *expr) const {
   if (expr->GetMeOp() != kMeOpConst) {
     return false;
   }
@@ -65,7 +66,7 @@ bool CollectIpaInfo::CheckImpExprStmt(const MeStmt &meStmt) {
   return IsConstKindValue(node->GetOpnd(0)) || IsConstKindValue(node->GetOpnd(1));
 }
 
-bool CollectIpaInfo::IsParameterOrUseParameter(const VarMeExpr *varExpr, uint32 &index) {
+bool CollectIpaInfo::IsParameterOrUseParameter(const VarMeExpr *varExpr, uint32 &index) const {
   OriginalSt *sym = varExpr->GetOst();
   MIRSymbol *paramSym = sym->GetMIRSymbol();
   if (sym->IsFormal() && sym->GetIndirectLev() == 0 && varExpr->IsDefByNo() && !varExpr->IsVolatile()) {
@@ -149,7 +150,7 @@ void CollectIpaInfo::TraversalMeStmt(MeStmt &meStmt) {
   }
 }
 
-void CollectIpaInfo::Perform(const MeFunction &func) {
+void CollectIpaInfo::Perform(MeFunction &func) {
   // Pre-order traverse the dominance tree, so that each def is traversed
   // before its use
   Dominance *dom =
@@ -162,6 +163,12 @@ void CollectIpaInfo::Perform(const MeFunction &func) {
     for (auto &meStmt : bb->GetMeStmts()) {
       TraversalMeStmt(meStmt);
     }
+  }
+  if (Options::enableInlineSummary) {
+    auto *meLoop = static_cast<MELoopAnalysis*>(
+        dataMap.GetVaildAnalysisPhase(func.GetUniqueID(), &MELoopAnalysis::id))->GetResult();
+    auto collector = std::make_unique<InlineSummaryCollector>(module.GetInlineSummaryAlloc(), func, *dom, *meLoop);
+    collector->CollectInlineSummary();
   }
 }
 

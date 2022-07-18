@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -15,11 +15,6 @@
 #include "call_graph.h"
 #include "maple_phase.h"
 #include "maple_phase.h"
-#include <iostream>
-#include <fstream>
-#include <queue>
-#include <unordered_set>
-#include <algorithm>
 #include "option.h"
 #include "string_utils.h"
 #include "mir_function.h"
@@ -148,7 +143,7 @@ void PropReturnAttr::PropIvarInferredType(IvarMeExpr &ivar) const {
   }
 }
 
-void PropReturnAttr::VisitVarPhiNode(MePhiNode &varPhi) {
+void PropReturnAttr::VisitVarPhiNode(MePhiNode &varPhi) const {
   MapleVector<ScalarMeExpr*> opnds = varPhi.GetOpnds();
   auto *lhs = varPhi.GetLHS();
   // RegPhiNode cases NYI
@@ -358,7 +353,7 @@ void PropReturnAttr::TraversalMeStmt(MeStmt &meStmt) {
       break;
     }
     CASE_OP_ASSERT_BOUNDARY {
-      auto *assMeStmt = static_cast<AssertMeStmt*>(&meStmt);
+      auto *assMeStmt = static_cast<NaryMeStmt*>(&meStmt);
       VisitMeExpr(assMeStmt->GetOpnd(0));
       VisitMeExpr(assMeStmt->GetOpnd(1));
       break;
@@ -378,6 +373,7 @@ void PropReturnAttr::TraversalMeStmt(MeStmt &meStmt) {
     case OP_membarrelease:
     case OP_membarstoreload:
     case OP_membarstorestore:
+    case OP_callassertnonnull:
       break;
     default:
       CHECK_FATAL(false, "unexpected stmt or NYI");
@@ -396,18 +392,7 @@ void PropReturnAttr::TraversalMeStmt(MeStmt &meStmt) {
   auto *lhsVar = static_cast<VarMeExpr*>(meLHS);
   auto *callMeStmt = static_cast<CallMeStmt*>(&meStmt);
   MIRFunction &called = callMeStmt->GetTargetFunction();
-  if (called.GetInferredReturnTyIdx() != 0u) {
-    lhsVar->SetInferredTyIdx(called.GetInferredReturnTyIdx());
-    if (called.GetRetrunAttrKind() == kRetrunNoNull) {
-      lhsVar->SetMaybeNull(false);
-    }
-    if (PropReturnAttr::debug) {
-      MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsVar->GetInferredTyIdx());
-      LogInfo::MapleLogger() << "[PROP-RETURN-ATTR] [TYPE-INFERRING] mx" << lhsVar->GetExprID() << " ";
-      type->Dump(0, false);
-      LogInfo::MapleLogger() << '\n';
-    }
-  } else if (called.GetRetrunAttrKind() == kRetrunNoNull || called.GetName() == "malloc") {
+  if (called.GetAttr(FUNCATTR_nonnull)) {
     lhsVar->SetMaybeNull(false);
   }
 }
@@ -446,31 +431,32 @@ void PropReturnAttr::Perform(MeFunction &func) {
     return;
   }
   if (retTy == kSeen && !maybeNull) {
-    mirFunc->SetRetrunAttrKind(kRetrunNoNull);
+    mirFunc->SetRetrunAttrKind(kPointerNoNull);
+    mirFunc->SetAttr(FUNCATTR_nonnull);
   }
 }
 
-void PropReturnAttr::Initialize(maple::SCCNode &scc) {
-  for (auto *cgNode : scc.GetCGNodes()) {
+void PropReturnAttr::Initialize(maple::SCCNode<CGNode> &scc) const {
+  for (auto *cgNode : scc.GetNodes()) {
     MIRFunction *func = cgNode->GetMIRFunction();
     if (func->IsEmpty()) {
       continue;
     }
     if (func->GetAttr(FUNCATTR_nonnull)) {
-      func->SetRetrunAttrKind(kRetrunNoNull);
+      func->SetRetrunAttrKind(kPointerNoNull);
     }
   }
 }
 
-void PropReturnAttr::Prop(maple::SCCNode &scc) {
-  for (auto *cgNode : scc.GetCGNodes()) {
+void PropReturnAttr::Prop(maple::SCCNode<CGNode> &scc) {
+  for (auto *cgNode : scc.GetNodes()) {
     retTy = kNotSeen;
     maybeNull = true;
     MIRFunction *func = cgNode->GetMIRFunction();
     if (func->IsEmpty() || func->GetReturnType()->GetKind() != kTypePointer) {
       continue;
     }
-    if (func->GetRetrunAttrKind() == FuncReturnAttr::kRetrunNoNull) {
+    if (func->GetRetrunAttrKind() == PointerAttr::kPointerNoNull) {
       continue;
     }
     MeFunction *meFunc = func->GetMeFunc();
@@ -482,8 +468,8 @@ void SCCPropReturnAttr::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<SCCPrepare>();
 }
 
-bool SCCPropReturnAttr::PhaseRun(maple::SCCNode &scc) {
-  MIRModule *m = ((scc.GetCGNodes()[0])->GetMIRFunction())->GetModule();
+bool SCCPropReturnAttr::PhaseRun(maple::SCCNode<CGNode> &scc) {
+  MIRModule *m = ((scc.GetNodes()[0])->GetMIRFunction())->GetModule();
   auto *memPool = GetPhaseMemPool();
   MapleAllocator alloc = MapleAllocator(memPool);
   MaplePhase *it = GetAnalysisInfoHook()->GetTopLevelAnalyisData<M2MCallGraph, MIRModule>(*m);

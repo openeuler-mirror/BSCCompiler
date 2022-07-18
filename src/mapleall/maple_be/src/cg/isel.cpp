@@ -128,9 +128,9 @@ DEF_TRUNC_MAPPING_INT(8_64)
 DEF_TRUNC_MAPPING_INT(16_32)
 DEF_TRUNC_MAPPING_INT(16_64)
 DEF_TRUNC_MAPPING_INT(32_64)
-#define DEF_TRUNC_MAPPING_TBL(TYPE)                                         \
-MOperator TruncMapping_##TYPE(bool isSigned, uint32 x, uint32 y) {          \
-  return fastTruncMapI_##TYPE[x][y];                                        \
+#define DEF_TRUNC_MAPPING_TBL(TYPE)                                                          \
+MOperator TruncMapping_##TYPE(bool isSigned [[maybe_unused]], uint32 x, uint32 y) {          \
+  return fastTruncMapI_##TYPE[x][y];                                                         \
 }
 DEF_TRUNC_MAPPING_TBL(8_16)
 DEF_TRUNC_MAPPING_TBL(8_32)
@@ -202,7 +202,7 @@ BitIndex GetBitIndex(uint32 bitSize) {
  * fast get MOperator
  * such as : and, or, shl ...
  */
-#define DEF_MOPERATOR_MAPPING_FUNC(TYPE) [](uint32 bitSize) -> MOperator {                                          \
+#define DEF_MOPERATOR_MAPPING_FUNC(TYPE) [](uint32 bitSize)->MOperator {                                            \
   /* 8-bits,                16-bits,                   32-bits,                   64-bits */                        \
   constexpr static std::array<MOperator, kBitIndexEnd> fastMapping_##TYPE =                                         \
       {abstract::MOP_##TYPE##_8, abstract::MOP_##TYPE##_16, abstract::MOP_##TYPE##_32, abstract::MOP_##TYPE##_64};  \
@@ -218,7 +218,7 @@ void HandleDassign(StmtNode &stmt, MPISel &iSel) {
   if (opndRhs == nullptr) {
     return;
   }
-  /*value = 1 operand */
+  /* value = 1 operand */
   iSel.SelectDassign(dassignNode, *opndRhs);
 }
 
@@ -286,7 +286,7 @@ void HandleReturn(StmtNode &stmt, MPISel &iSel) {
   cgFunc->SetCurBB(*cgFunc->StartNewBB(retNode));
 }
 
-void HandleComment(StmtNode &stmt, MPISel &iSel) {
+void HandleComment(StmtNode &stmt [[maybe_unused]], MPISel &iSel [[maybe_unused]]) {
   return;
 }
 
@@ -383,12 +383,12 @@ Operand *HandleMpy(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
                         *iSel.HandleExpr(expr, *expr.Opnd(1)), parent);
 }
 
-Operand *HandleConstStr(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
+Operand *HandleConstStr(const BaseNode &parent [[maybe_unused]], BaseNode &expr, MPISel &iSel) {
   auto &constStrNode = static_cast<ConststrNode&>(expr);
   return iSel.SelectStrLiteral(constStrNode);
 }
 
-Operand *HandleConstVal(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
+Operand *HandleConstVal(const BaseNode &parent [[maybe_unused]], BaseNode &expr, const MPISel &iSel) {
   auto &constValNode = static_cast<ConstvalNode&>(expr);
   MIRConst *mirConst = constValNode.GetConstVal();
   ASSERT(mirConst != nullptr, "get constval of constvalnode failed");
@@ -553,7 +553,7 @@ void MPISel::SelectIassign(const IassignNode &stmt, MPISel &iSel, BaseNode &addr
   if (opndRhs == nullptr || opndAddr == nullptr) {
     return;
   }
-  /* handle Lhs, generate (%Rxx) via Rxx*/
+  /* handle Lhs, generate (%Rxx) via Rxx */
   MIRPtrType *pointerType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(stmt.GetTyIdx()));
   ASSERT(pointerType != nullptr, "expect a pointer type at iassign node");
   MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerType->GetPointedTyIdx());
@@ -578,7 +578,7 @@ void MPISel::SelectIassign(const IassignNode &stmt, MPISel &iSel, BaseNode &addr
   CGRegOperand *regOpndRhs = nullptr;
   PrimType rhsType = rhs.GetPrimType();
   if (opndRhs->IsRegister()) {
-    regOpndRhs = static_cast<CGRegOperand *> (opndRhs);
+    regOpndRhs = static_cast<CGRegOperand *>(opndRhs);
   } else {
     uint32 rhsSize = GetPrimTypeBitSize(rhsType);
     RegType regType;
@@ -610,12 +610,13 @@ void MPISel::SelectIassignoff(const IassignoffNode &stmt) {
   SelectCopy(memOpnd, rhsReg, primType);
 }
 
-CGImmOperand *MPISel::SelectIntConst(MIRIntConst &intConst) {
+CGImmOperand *MPISel::SelectIntConst(MIRIntConst &intConst) const {
   uint32 opndSz = GetPrimTypeSize(intConst.GetType().GetPrimType()) * kBitsPerByte;
   return &cgFunc->GetOpndBuilder()->CreateImm(opndSz, intConst.GetExtValue());
 }
 
-Operand *MPISel::SelectShift(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
+Operand *MPISel::SelectShift(const BinaryNode &node, Operand &opnd0,
+                             Operand &opnd1, const BaseNode &parent [[maybe_unused]]) {
   PrimType dtype = node.GetPrimType();
   bool isSigned = IsSignedInteger(dtype);
   uint32 dsize = GetPrimTypeBitSize(dtype);
@@ -660,7 +661,7 @@ void MPISel::SelectShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, Opcod
   SelectBasicOp(resOpnd, opnd0, opnd1, mOp, primType);
 }
 
-Operand *MPISel::SelectDread(const BaseNode &parent, const AddrofNode &expr) {
+Operand *MPISel::SelectDread(const BaseNode &parent [[maybe_unused]], const AddrofNode &expr) {
   MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(expr.GetStIdx());
   /* Get symbol location */
   CGMemOperand &symbolMem = GetOrCreateMemOpndFromSymbol(*symbol, expr.GetFieldID());
@@ -677,7 +678,8 @@ Operand *MPISel::SelectDread(const BaseNode &parent, const AddrofNode &expr) {
   return &regOpnd;
 }
 
-Operand *MPISel::SelectAdd(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
+Operand *MPISel::SelectAdd(const BinaryNode &node, Operand &opnd0,
+                           Operand &opnd1, const BaseNode &parent [[maybe_unused]]) {
   PrimType dtype = node.GetPrimType();
   bool isSigned = IsSignedInteger(dtype);
   uint32 dsize = GetPrimTypeBitSize(dtype);
@@ -691,7 +693,8 @@ Operand *MPISel::SelectAdd(const BinaryNode &node, Operand &opnd0, Operand &opnd
   return &resReg;
 }
 
-Operand *MPISel::SelectBand(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
+Operand *MPISel::SelectBand(const BinaryNode &node, Operand &opnd0,
+                            Operand &opnd1, const BaseNode &parent [[maybe_unused]]) {
   PrimType dtype = node.GetPrimType();
   bool isSigned = IsSignedInteger(dtype);
   uint32 dsize = GetPrimTypeBitSize(dtype);
@@ -705,7 +708,8 @@ Operand *MPISel::SelectBand(const BinaryNode &node, Operand &opnd0, Operand &opn
   return &resReg;
 }
 
-Operand *MPISel::SelectSub(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
+Operand *MPISel::SelectSub(const BinaryNode &node, Operand &opnd0, Operand &opnd1,
+                           const BaseNode &parent [[maybe_unused]]) {
   PrimType dtype = node.GetPrimType();
   bool isSigned = IsSignedInteger(dtype);
   uint32 dsize = GetPrimTypeBitSize(dtype);
@@ -738,7 +742,8 @@ void MPISel::SelectExtractbits(CGRegOperand &resOpnd, CGRegOperand &opnd0, uint8
   SelectShift(resOpnd, tmpOpnd, imm2Opnd, opcode, primType);
 }
 
-Operand *MPISel::SelectExtractbits(const BaseNode &parent, const ExtractbitsNode &node, Operand &opnd0) {
+Operand *MPISel::SelectExtractbits(const BaseNode &parent [[maybe_unused]],
+                                   const ExtractbitsNode &node, Operand &opnd0) {
   PrimType toType = node.GetPrimType();
   CGRegOperand *resOpnd = nullptr;
   if (IsPrimitiveInteger(toType)) {
@@ -759,7 +764,7 @@ Operand *MPISel::SelectExtractbits(const BaseNode &parent, const ExtractbitsNode
   return resOpnd;
 }
 
-Operand *MPISel::SelectCvt(const BaseNode &parent, const TypeCvtNode &node, Operand &opnd0) {
+Operand *MPISel::SelectCvt(const BaseNode &parent [[maybe_unused]], const TypeCvtNode &node, Operand &opnd0) {
   PrimType fromType = node.FromType();
   PrimType toType = node.GetPrimType();
   if (fromType == toType) {
@@ -775,7 +780,7 @@ Operand *MPISel::SelectCvt(const BaseNode &parent, const TypeCvtNode &node, Oper
   return resOpnd;
 }
 
-void MPISel::SelectIntCvt(maplebe::CGRegOperand &resOpnd, maplebe::Operand &opnd0, maple::PrimType toType) {
+void MPISel::SelectIntCvt(maplebe::CGRegOperand &resOpnd, maplebe::Operand &opnd0, maple::PrimType toType) const {
   uint32 fromSize = opnd0.GetSize();
   uint32 toSize = GetPrimTypeBitSize(toType);
   /*
@@ -812,14 +817,14 @@ void MPISel::SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimTyp
   SelectBasicOp(resOpnd, opnd0, opnd1, mOp, primType);
 }
 
-Operand* MPISel::SelectNeg(const UnaryNode &node, Operand &opnd0, const BaseNode &parent) {
+Operand* MPISel::SelectNeg(const UnaryNode &node, Operand &opnd0, const BaseNode &parent [[maybe_unused]]) {
   PrimType dtype = node.GetPrimType();
 
   CGRegOperand *resOpnd = nullptr;
   if (!IsPrimitiveVector(dtype)) {
     resOpnd = &cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(dtype),
         cgFunc->GetRegTyFromPrimTy(dtype));
-    SelectNeg(*resOpnd, opnd0, dtype);
+    SelectNeg(*resOpnd, opnd0);
   } else {
     /* vector operand */
     CHECK_FATAL(false, "NIY");
@@ -827,14 +832,15 @@ Operand* MPISel::SelectNeg(const UnaryNode &node, Operand &opnd0, const BaseNode
   return resOpnd;
 }
 
-void MPISel::SelectNeg(Operand &resOpnd, Operand &opnd0, PrimType primType) {
+void MPISel::SelectNeg(Operand &resOpnd, Operand &opnd0) const {
   MOperator mOp = abstract::MOP_neg_32;
   Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDescription::GetAbstractId(mOp));
   (void)insn.AddOperandChain(resOpnd).AddOperandChain(opnd0);
   cgFunc->GetCurBB()->AppendInsn(insn);
 }
 
-Operand *MPISel::SelectBior(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
+Operand *MPISel::SelectBior(const BinaryNode &node, Operand &opnd0,
+                            Operand &opnd1, const BaseNode &parent [[maybe_unused]]) {
   PrimType primType = node.GetPrimType();
   CGRegOperand *resOpnd = &cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
       cgFunc->GetRegTyFromPrimTy(primType));
@@ -848,7 +854,8 @@ void MPISel::SelectBior(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimTy
   SelectBasicOp(resOpnd, opnd0, opnd1, mOp, primType);
 }
 
-Operand *MPISel::SelectBxor(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
+Operand *MPISel::SelectBxor(const BinaryNode &node, Operand &opnd0,
+                            Operand &opnd1, const BaseNode &parent [[maybe_unused]]) const {
   PrimType dtype = node.GetPrimType();
   uint32 dsize = GetPrimTypeBitSize(dtype);
   CGRegOperand *resOpnd = nullptr;
@@ -878,7 +885,7 @@ static MIRType *GetPointedToType(const MIRPtrType &pointerType) {
   return mirType;
 }
 
-Operand *MPISel::SelectIread(const BaseNode &parent, const IreadNode &expr, int extraOffset) {
+Operand *MPISel::SelectIread(const BaseNode &parent [[maybe_unused]], const IreadNode &expr, int extraOffset) {
   FieldID fieldId = expr.GetFieldID();
   MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(expr.GetTyIdx());
   MIRPtrType *pointerType = static_cast<MIRPtrType*>(type);
@@ -904,7 +911,7 @@ Operand *MPISel::SelectIread(const BaseNode &parent, const IreadNode &expr, int 
   return &result;
 }
 
-Operand *MPISel::SelectIreadoff(const BaseNode &parent, const IreadoffNode &ireadoff) {
+Operand *MPISel::SelectIreadoff(const BaseNode &parent [[maybe_unused]], const IreadoffNode &ireadoff) {
   int32 offset = ireadoff.GetOffset();
   PrimType primType = ireadoff.GetPrimType();
   uint32 bitSize = GetPrimTypeBitSize(primType);
@@ -918,7 +925,7 @@ Operand *MPISel::SelectIreadoff(const BaseNode &parent, const IreadoffNode &irea
   return &result;
 }
 
-static inline uint64 CreateDepositBitsImm1(uint32 primBitSize, uint8 bitOffset, uint8 bitSize) {
+static inline uint64 CreateDepositBitsImm1(uint8 bitOffset, uint8 bitSize) {
   /* $imm1 = 1(primBitSize - bitSize - bitOffset)0(bitSize)1(bitOffset) */
   uint64 val = UINT64_MAX;      // 0xFFFFFFFFFFFFFFFF
   val <<= (bitSize + bitOffset);
@@ -927,7 +934,7 @@ static inline uint64 CreateDepositBitsImm1(uint32 primBitSize, uint8 bitOffset, 
 }
 
 Operand *MPISel::SelectDepositBits(const DepositbitsNode &node, Operand &opnd0, Operand &opnd1,
-                                   const BaseNode &parent) {
+                                   const BaseNode &parent [[maybe_unused]]) {
   uint8 bitOffset = node.GetBitsOffset();
   uint8 bitSize = node.GetBitsSize();
   PrimType primType = node.GetPrimType();
@@ -938,7 +945,7 @@ Operand *MPISel::SelectDepositBits(const DepositbitsNode &node, Operand &opnd0, 
    * resOpnd = (opnd0 and $imm1) or (opnd1 << bitOffset)
    * $imm1 = 1(primBitSize - bitSize - bitOffset)0(bitSize)1(bitOffset)
    */
-  uint64 imm1Val = CreateDepositBitsImm1(primBitSize, bitOffset, bitSize);
+  uint64 imm1Val = CreateDepositBitsImm1(bitOffset, bitSize);
   CGImmOperand &imm1Opnd = cgFunc->GetOpndBuilder()->CreateImm(primBitSize,
       static_cast<int64>(imm1Val));
   /* and */
@@ -995,7 +1002,8 @@ StmtNode *MPISel::HandleFuncEntry() {
 
 /* This function loads src to a register, the src can be an imm, mem or a label.
  * Once the source and result(destination) types are different,
- * implicit conversion is executed here.*/
+ * implicit conversion is executed here.
+ */
 CGRegOperand &MPISel::SelectCopy2Reg(Operand &src, PrimType dtype) {
   ASSERT(src.GetSize() == GetPrimTypeBitSize(dtype), "NIY");
   if (src.IsRegister()) {
@@ -1021,7 +1029,7 @@ void MPISel::SelectCopy(Operand &dest, Operand &src, PrimType toType, PrimType f
 
 void MPISel::SelectCopy(Operand &dest, Operand &src, PrimType type) {
   ASSERT(dest.GetSize() == src.GetSize(), "NIY");
-  if (dest.GetKind() == Operand::kOpdRegister){
+  if (dest.GetKind() == Operand::kOpdRegister) {
     if (src.GetKind() == Operand::kOpdImmediate) {
       SelectCopyInsn<CGRegOperand, CGImmOperand>(static_cast<CGRegOperand&>(dest),
           static_cast<CGImmOperand&>(src), type);
@@ -1059,7 +1067,7 @@ void MPISel::SelectCopyInsn(destTy &dest, srcTy &src, PrimType type) const {
   cgFunc->GetCurBB()->AppendInsn(insn);
 }
 
-Operand *MPISel::SelectBnot(const UnaryNode &node, Operand &opnd0, const BaseNode &parent) {
+Operand *MPISel::SelectBnot(const UnaryNode &node, Operand &opnd0, const BaseNode &parent [[maybe_unused]]) const {
   PrimType dtype = node.GetPrimType();
   ASSERT(IsPrimitiveInteger(dtype), "bnot expect integer");
   uint32 dsize = GetPrimTypeBitSize(dtype);
@@ -1084,12 +1092,12 @@ Operand *MPISel::SelectBnot(const UnaryNode &node, Operand &opnd0, const BaseNod
   return resOpnd;
 }
 
-CGRegOperand *MPISel::SelectRegread(RegreadNode &expr) const {
+CGRegOperand *MPISel::SelectRegread(RegreadNode &expr [[maybe_unused]]) const {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
 
-void MPISel::HandleFuncExit() {
+void MPISel::HandleFuncExit() const {
   BlockNode *block = cgFunc->GetFunction().GetBody();
   ASSERT(block != nullptr, "get func body block failed in CGFunc::GenerateInstruction");
   cgFunc->GetCurBB()->SetLastStmt(*block->GetLast());

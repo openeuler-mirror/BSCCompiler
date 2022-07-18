@@ -17,7 +17,7 @@
 #include "aarch64_validbit_opt.h"
 
 namespace maplebe {
-Insn *ValidBitPattern::GetDefInsn(const RegOperand &useReg) {
+Insn *ValidBitPattern::GetDefInsn(const RegOperand &useReg) const {
   if (!useReg.IsSSAForm()) {
     return nullptr;
   }
@@ -29,7 +29,7 @@ Insn *ValidBitPattern::GetDefInsn(const RegOperand &useReg) {
   return defInfo == nullptr ? nullptr : defInfo->GetInsn();
 }
 
-InsnSet ValidBitPattern::GetAllUseInsn(const RegOperand &defReg) {
+InsnSet ValidBitPattern::GetAllUseInsn(const RegOperand &defReg) const {
   InsnSet allUseInsn;
   if ((ssaInfo != nullptr) && defReg.IsSSAForm()) {
     VRegVersion *defVersion = ssaInfo->FindSSAVersion(defReg.GetRegisterNumber());

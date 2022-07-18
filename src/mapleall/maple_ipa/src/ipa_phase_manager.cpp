@@ -107,7 +107,7 @@ void IpaSccPM::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   }
 }
 
-void SCCPrepare::Dump(const MeFunction &f, const std::string phaseName) {
+void SCCPrepare::Dump(const MeFunction &f, const std::string phaseName) const {
   if (Options::dumpIPA && (f.GetName() == Options::dumpFunc || f.GetName() == "*")) {
     LogInfo::MapleLogger() << ">>>>> Dump after " << phaseName << " <<<<<\n";
     f.Dump(false);
@@ -127,6 +127,7 @@ bool SCCPrepare::PhaseRun(SCCNode<CGNode> &scc) {
   AddPhase("ssa", true);
   AddPhase("irmapbuild", true);
   AddPhase("hprop", true);
+  AddPhase("identloops", Options::enableInlineSummary);
 
   // Not like other phasemanager which use temp mempool to hold analysis results generated from the sub phases.
   // Here we use GetManagerMemPool which lives longer than this phase(manager) itself to hold all the analysis result.
@@ -151,16 +152,16 @@ bool SCCPrepare::PhaseRun(SCCNode<CGNode> &scc) {
       } else {
         (void)RunTransformPhase<MeFuncOptTy, MeFunction>(*phase, *result, meFunc, 1);
       }
-      Dump(meFunc,phase->PhaseName());
+      Dump(meFunc, phase->PhaseName());
     }
   }
   return false;
 }
 
-void SCCEmit::Dump(const MeFunction &f, const std::string phaseName) {
+void SCCEmit::Dump(MeFunction &f, const std::string phaseName) const {
   if (Options::dumpIPA && (f.GetName() == Options::dumpFunc || f.GetName() == "*")) {
     LogInfo::MapleLogger() << ">>>>> Dump after " << phaseName << " <<<<<\n";
-    f.DumpFunctionNoSSA();
+    f.GetMirFunc()->Dump();
     LogInfo::MapleLogger() << ">>>>> Dump after End <<<<<\n\n";
   }
 }

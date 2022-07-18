@@ -162,7 +162,7 @@ class CGFunc {
   virtual void AssignLmbcFormalParams() = 0;
   LmbcFormalParamInfo *GetLmbcFormalParamInfo(uint32 offset);
   virtual void LmbcGenSaveSpForAlloca() = 0;
-  void GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos);
+  void GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos) const;
   void GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &posDone);
   int32 GetFreqFromStmt(uint32 stmtId);
   void GenerateInstruction();

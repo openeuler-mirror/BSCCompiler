@@ -198,7 +198,7 @@ void IpaClone::CopyFuncInfo(MIRFunction &originalFunction, MIRFunction &newFunc)
   }
 }
 
-bool IpaClone::CheckCostModel(uint32 paramIndex, std::vector<int64_t> &calleeValue, uint32 impSize) {
+bool IpaClone::CheckCostModel(uint32 paramIndex, std::vector<int64_t> &calleeValue, uint32 impSize) const {
   if (impSize >= numOfImpExprHighBound) {
     return true;
   }
@@ -218,7 +218,7 @@ bool IpaClone::CheckCostModel(uint32 paramIndex, std::vector<int64_t> &calleeVal
   return true;
 }
 
-void IpaClone::ReplaceIfCondtion(MIRFunction *newFunc, std::vector<ImpExpr> &result, uint64_t res) {
+void IpaClone::ReplaceIfCondtion(MIRFunction *newFunc, std::vector<ImpExpr> &result, uint64_t res) const {
   ASSERT(newFunc != nullptr, "null ptr check");
   MemPool *currentFunMp = newFunc->GetCodeMempool();
   auto elemPrimType = PTY_u8;
@@ -241,7 +241,7 @@ void IpaClone::ReplaceIfCondtion(MIRFunction *newFunc, std::vector<ImpExpr> &res
   return;
 }
 
-void IpaClone::ModifyParameterSideEffect(MIRFunction *newFunc, uint32 paramIndex) {
+void IpaClone::ModifyParameterSideEffect(MIRFunction *newFunc, uint32 paramIndex) const {
   ASSERT(newFunc != nullptr, "null ptr check");
   auto &desc = newFunc->GetFuncDesc();
   if (paramIndex >= kMaxParamCount) {
@@ -348,6 +348,10 @@ void IpaClone::DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramInd
       }
       for (auto &callSite : calleeInfo[keyPair][value]) {
         MIRFunction *callerFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callSite.GetPuidx());
+        if (callerFunc == nullptr) {
+          CHECK_FATAL(callSite.GetPuidx() != 0, "something wrong in calleeInfo?");
+          continue;  // func has been removed from funcTable by CallGraph, see RemoveFileStaticRootNodes for details
+        }
         uint32 stmtId = callSite.GetStmtId();
         CallNode *oldCallNode = static_cast<CallNode*>(callerFunc->GetStmtNodeFromMeId(stmtId));
         if (oldCallNode == nullptr) {
@@ -366,7 +370,7 @@ void IpaClone::DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramInd
   }
 }
 
-void IpaClone::ComupteValue(const IntVal& value, const IntVal& paramValue, CompareNode *cond, uint64_t &bitRes) {
+void IpaClone::ComupteValue(const IntVal& value, const IntVal& paramValue, CompareNode *cond, uint64_t &bitRes) const {
   if (cond->GetOpCode() == OP_gt) {
     bitRes = (value > paramValue) | (bitRes << 1);
   } else if (cond->GetOpCode() == OP_eq) {
@@ -479,6 +483,10 @@ void IpaClone::CloneNoImportantExpressFunction(MIRFunction *func, uint32 paramIn
   RemoveUnneedParameter(newFunc, paramIndex, value);
   for (auto &callSite : calleeInfo[keyPair][value]) {
     MIRFunction *callerFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callSite.GetPuidx());
+    if (callerFunc == nullptr) {
+      CHECK_FATAL(callSite.GetPuidx() != 0, "something wrong in calleeInfo?");
+      continue;  // func has been removed from funcTable by CallGraph, see RemoveFileStaticRootNodes for details
+    }
     uint32 stmtId = callSite.GetStmtId();
     CallNode *oldCallNode = static_cast<CallNode*>(callerFunc->GetStmtNodeFromMeId(stmtId));
     if (oldCallNode == nullptr) {

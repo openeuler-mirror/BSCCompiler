@@ -55,11 +55,11 @@ class CgFuncPM : public FunctionPM {
   }
  private:
   bool FuncLevelRun(CGFunc &cgFunc, AnalysisDataManager &serialADM);
-  void GenerateOutPutFile(MIRModule &m);
+  void GenerateOutPutFile(MIRModule &m) const;
   void CreateCGAndBeCommon(MIRModule &m);
   void PrepareLower(MIRModule &m);
-  void PostOutPut(MIRModule &m);
-  void DoFuncCGLower(const MIRModule &m, MIRFunction &mirFunc);
+  void PostOutPut(MIRModule &m) const;
+  void DoFuncCGLower(const MIRModule &m, MIRFunction &mirFunc) const;
   /* Tool functions */
   void DumpFuncCGIR(const CGFunc &f, const std::string &phaseName) const;
   /* For Emit */
@@ -69,7 +69,7 @@ class CgFuncPM : public FunctionPM {
   void EmitDebugInfo(const MIRModule &m) const;
   void EmitFastFuncs(const MIRModule &m) const;
   bool IsFramework(MIRModule &m) const;
-  void SweepUnusedStaticSymbol(MIRModule &m);
+  void SweepUnusedStaticSymbol(MIRModule &m) const;
 
   CG *cg = nullptr;
   BECommon *beCommon = nullptr;
