@@ -155,6 +155,30 @@ class IntVal {
     return IntVal(value - val.value, width, sign);
   }
 
+  IntVal &operator++() {
+    ++value;
+    TruncInPlace();
+    return *this;
+  }
+
+  IntVal operator++(int) {
+    IntVal tmp(*this);
+    ++*this;
+    return tmp;
+  }
+
+  IntVal &operator--() {
+    --value;
+    TruncInPlace();
+    return *this;
+  }
+
+  IntVal operator--(int) {
+    IntVal tmp(*this);
+    --*this;
+    return tmp;
+  }
+
   IntVal operator*(const IntVal &val) const {
     ASSERT(width == val.width && sign == val.sign, "bit-width and sign must be the same");
     return IntVal(value * val.value, width, sign);
