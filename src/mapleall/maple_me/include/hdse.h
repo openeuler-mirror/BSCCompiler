@@ -33,7 +33,7 @@ class HDSE {
         postDom(pDom),
         irMap(map),
         aliasInfo(aliasClass),
-        bbRequired(bbVec.size(),false,irMap.GetIRMapAlloc().Adapter()),
+        bbRequired(bbVec.size(), false, irMap.GetIRMapAlloc().Adapter()),
         exprLive(irMap.GetIRMapAlloc().Adapter()),
         decoupleStatic(decouple),
         verstUseCounts(irMap.GetIRMapAlloc().Adapter()) {}
@@ -52,6 +52,32 @@ class HDSE {
 
   bool hdseDebug;
   bool hdseKeepRef = false;
+
+ protected:
+  MIRModule &mirModule;
+  MapleVector<BB*> bbVec;
+  BB &commonEntryBB;
+  BB &commonExitBB;
+  Dominance &postDom;
+  IRMap &irMap;
+  const AliasClass *aliasInfo;
+  MapleVector<bool> bbRequired;
+  MapleVector<bool> exprLive;
+  std::forward_list<MeExpr*> workList;
+  std::unordered_map<MeStmt*, std::vector<MeExpr*>> stmt2NotNullExpr;
+  std::unordered_map<MeExpr*, std::vector<MeStmt*>> notNullExpr2Stmt;
+  // Initial type of all meExpr
+  static const uint8 kExprTypeNormal = 0;
+  // IreadMeExpr
+  static const uint8 kExprTypeIvar = 1;
+  // NPE will be throw if the value of this meExpr is nullptr when stmt is executed
+  // Or the meExpr is opnd of a same type meExpr
+  static const uint8 kExprTypeNotNull = 2;
+  bool decoupleStatic = false;
+  bool needUNClean = false;  // used to record if there's unreachable BB
+  bool removeRedefine = false;  // used to control if run ResolveContinuousRedefine()
+  MapleVector<uint32> verstUseCounts; // index is vstIdx
+  std::forward_list<DassignMeStmt *> backSubsCands; // backward substitution candidates
 
  private:
   void DseInit();
@@ -115,31 +141,6 @@ class HDSE {
     return false;
   }
   virtual void ProcessWhileInfos() {}
- protected:
-  MIRModule &mirModule;
-  MapleVector<BB*> bbVec;
-  BB &commonEntryBB;
-  BB &commonExitBB;
-  Dominance &postDom;
-  IRMap &irMap;
-  const AliasClass *aliasInfo;
-  MapleVector<bool> bbRequired;
-  MapleVector<bool> exprLive;
-  std::forward_list<MeExpr*> workList;
-  std::unordered_map<MeStmt*, std::vector<MeExpr*>> stmt2NotNullExpr;
-  std::unordered_map<MeExpr*, std::vector<MeStmt*>> notNullExpr2Stmt;
-  // Initial type of all meExpr
-  static const uint8 kExprTypeNormal = 0;
-  // IreadMeExpr
-  static const uint8 kExprTypeIvar = 1;
-  // NPE will be throw if the value of this meExpr is nullptr when stmt is executed
-  // Or the meExpr is opnd of a same type meExpr
-  static const uint8 kExprTypeNotNull = 2;
-  bool decoupleStatic = false;
-  bool needUNClean = false;  // used to record if there's unreachable BB
-  bool removeRedefine = false;  // used to control if run ResolveContinuousRedefine()
-  MapleVector<uint32> verstUseCounts; // index is vstIdx
-  std::forward_list<DassignMeStmt *> backSubsCands; // backward substitution candidates
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_HDSE_H

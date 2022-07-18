@@ -353,7 +353,7 @@ class MeFunction : public FuncEmit {
   bool IsAddrTakenSSAValid() const {
     return static_cast<bool>(state & kSSAAddrTaken);
   }
-  bool IsMemSSAValid() {
+  bool IsMemSSAValid() const {
     return IsTopLevelSSAValid() && IsAddrTakenSSAValid();
   }
   bool IsMeIRAvailable() const {
@@ -370,6 +370,14 @@ class MeFunction : public FuncEmit {
   void SetMeFuncState(uint8 s) {
     state |= s;
   }
+
+  uint32 dseRuns = 0;   // number of times dse phase has been run
+  uint32 hdseRuns = 0;  // number of times hdse phase has been run
+  uint32 hpropRuns = 0; // number of times hprop phase has been run
+  uint32 vrpRuns = 0; // number of times vrp phase has been run
+  uint32 jumpThreadingRuns = 0; // number of times jump threading phase has been run
+  bool genLMBC = false; // whether outputing lmbc (low maple bytecode)
+
  private:
   MemPool *memPool;
   StackMemPool &stackMP;
@@ -399,13 +407,6 @@ class MeFunction : public FuncEmit {
   PreMeFunction *preMeFunc;
   MemPool *preMeMp; // used for lfo function
   uint8 state = 0;  // current state : ssa level and ir flavor
- public:
-  uint32 dseRuns = 0;   // number of times dse phase has been run
-  uint32 hdseRuns = 0;  // number of times hdse phase has been run
-  uint32 hpropRuns = 0; // number of times hprop phase has been run
-  uint32 vrpRuns = 0; // number of times vrp phase has been run
-  uint32 jumpThreadingRuns = 0; // number of times jump threading phase has been run
-  bool genLMBC = false; // whether outputing lmbc (low maple bytecode)
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_FUNCTION_H

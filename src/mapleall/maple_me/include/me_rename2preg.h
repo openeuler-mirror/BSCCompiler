@@ -40,22 +40,23 @@ class SSARename2Preg {
   virtual ~SSARename2Preg() = default;
   void RunSelf();
   void PromoteEmptyFunction();
+  uint32 rename2pregCount = 0;
 
  private:
-  const MapleSet<unsigned int> *GetAliasSet(const OriginalSt *ost) {
-    if (ost->GetIndex() >= aliasclass->GetAliasElemCount()) {
-      return nullptr;
-    }
-    return aliasclass->FindAliasElem(*ost)->GetClassSet();
+  const AliasClass::AliasSet *GetAliasSet(const OriginalSt *ost) const {
+    return aliasclass->GetAliasSet(ost->GetIndex());
   }
 
   void Rename2PregStmt(MeStmt *);
   void Rename2PregExpr(MeStmt *, MeExpr *);
   void Rename2PregLeafRHS(MeStmt *, const VarMeExpr *);
   void Rename2PregLeafLHS(MeStmt *, const VarMeExpr *);
+  RegMeExpr *CreatePregForVar(const VarMeExpr *varMeExpr);
+  RegMeExpr *FindOrCreatePregForVarPhiOpnd(const VarMeExpr *varMeExpr);
   void Rename2PregPhi(MePhiNode *, MapleMap<OStIdx, MePhiNode *> &);
-  void UpdateRegPhi(MePhiNode *, MePhiNode *, const RegMeExpr *, const VarMeExpr *);
+  void UpdateRegPhi(MePhiNode *, MePhiNode *, const VarMeExpr *);
   void Rename2PregCallReturn(MapleVector<MustDefMeNode> &);
+  bool VarMeExprIsRenameCandidate(const VarMeExpr &varMeExpr) const;
   RegMeExpr *RenameVar(const VarMeExpr *);
   void UpdateMirFunctionFormal();
   void SetupParmUsed(const VarMeExpr *);
@@ -82,8 +83,6 @@ class SSARename2Preg {
   MapleVector<bool> ostDefedByDassign;
   MapleVector<bool> ostUsedByDread;
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> candsForSSAUpdate;
- public:
-  uint32 rename2pregCount = 0;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(MESSARename2Preg, MeFunction)

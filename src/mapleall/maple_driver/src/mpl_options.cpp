@@ -34,20 +34,19 @@ namespace maple {
 using namespace maplebe;
 
 /* tool -> OptionCategory map: ld -> ldCategory, me -> meCategory and etc... */
-static std::unordered_map<std::string, maplecl::OptionCategory *> exeCategories =
-    {
-      {"maple", &driverCategory},
-      {maple::kBinNameClang, &clangCategory},
-      {maple::kBinNameCpp2mpl, &hir2mplCategory},
-      {maple::kBinNameMpl2mpl, &mpl2mplCategory},
-      {maple::kBinNameMe, &meCategory},
-      {maple::kBinNameMplcg, &cgCategory},
-      {maple::kAsFlag, &asCategory},
-      {maple::kLdFlag, &ldCategory},
-      {maple::kBinNameDex2mpl, &dex2mplCategory},
-      {maple::kBinNameJbc2mpl, &jbc2mplCategory},
-      {maple::kBinNameMplipa, &ipaCategory}
-    };
+static std::unordered_map<std::string, maplecl::OptionCategory *> exeCategories = {
+    {"maple", &driverCategory},
+    {maple::kBinNameClang, &clangCategory},
+    {maple::kBinNameCpp2mpl, &hir2mplCategory},
+    {maple::kBinNameMpl2mpl, &mpl2mplCategory},
+    {maple::kBinNameMe, &meCategory},
+    {maple::kBinNameMplcg, &cgCategory},
+    {maple::kAsFlag, &asCategory},
+    {maple::kLdFlag, &ldCategory},
+    {maple::kBinNameDex2mpl, &dex2mplCategory},
+    {maple::kBinNameJbc2mpl, &jbc2mplCategory},
+    {maple::kBinNameMplipa, &ipaCategory}
+};
 
 #ifdef ANDROID
 const std::string kMapleDriverVersion = "MapleDriver " + std::to_string(Version::GetMajorVersion()) + "." +
