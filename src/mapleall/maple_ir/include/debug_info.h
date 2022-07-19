@@ -52,7 +52,7 @@ class DBGLine {
   DBGLine(uint32 lnum, const char *l) : lineNum(lnum), codeLine(l) {}
   virtual ~DBGLine() {}
 
-  void Dump() {
+  void Dump() const {
     LogInfo::MapleLogger() << "LINE: " << lineNum << " " << codeLine << std::endl;
   }
 
@@ -199,7 +199,7 @@ class DBGExprLoc {
     symLoc = loc;
   }
 
-  void Dump();
+  void Dump() const;
 
  private:
   MIRModule *module;
@@ -216,7 +216,7 @@ class DBGDieAttr {
 
   virtual ~DBGDieAttr() = default;
 
-  size_t SizeOf(DBGDieAttr *attr);
+  size_t SizeOf(DBGDieAttr *attr) const;
 
   void AddSimpLocOpnd(uint64 val) {
     value.ptr->AddSimpLocOpnd(val);
@@ -355,7 +355,7 @@ class DBGDie {
   bool SetAttr(DwAt attr, double val);
   bool SetSimpLocAttr(DwAt attr, int64 val);
   bool SetAttr(DwAt attr, DBGExprLoc *ptr);
-  void ResetParentDie();
+  void ResetParentDie() const;
   void Dump(int indent);
 
   uint32 GetId() const {
@@ -609,6 +609,7 @@ class DebugInfo {
         funcScopeHighs(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
         funcScopeIdStatus(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
         typedefStrIdxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
+        typedefStrIdxTyIdxMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         strps(std::less<uint32>(), m->GetMPAllocator().Adapter()) {
     /* valid entry starting from index 1 as abbrevid starting from 1 as well */
     abbrevVec.push_back(nullptr);
@@ -660,7 +661,7 @@ class DebugInfo {
   void FillTypeAttrWithDieId();
 
   void BuildAbbrev();
-  uint32 GetAbbrevId(DBGAbbrevEntryVec *vec, DBGAbbrevEntry *entry);
+  uint32 GetAbbrevId(DBGAbbrevEntryVec *vec, DBGAbbrevEntry *entry) const;
 
   DBGDie *GetGlobalDie(const GStrIdx &strIdx);
 
@@ -743,7 +744,7 @@ class DebugInfo {
     tyIdxDieIdMap[tyIdx.GetIdx()] = die->GetId();
   }
 
-  DBGDieAttr *CreateAttr(DwAt at, DwForm form, uint64 val);
+  DBGDieAttr *CreateAttr(DwAt at, DwForm form, uint64 val) const;
 
   DBGDie *CreateVarDie(MIRSymbol *sym);
   DBGDie *CreateVarDie(MIRSymbol *sym, GStrIdx strIdx); // use alt name
@@ -762,10 +763,12 @@ class DebugInfo {
   DBGDie *GetOrCreateFuncDeclDie(MIRFunction *func);
   DBGDie *GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum);
   DBGDie *GetOrCreatePrimTypeDie(MIRType *ty);
+  DBGDie *GetOrCreateTypeDie(TyIdx tyidx);
   DBGDie *GetOrCreateTypeDie(MIRType *type);
   DBGDie *GetOrCreatePointTypeDie(const MIRPtrType *ptrType);
   DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *arrayType);
   DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
+  DBGDie *GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx);
 
   void AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap);
   void AddScopeDie(MIRScope *scope);
@@ -804,8 +807,10 @@ class DebugInfo {
     return true;
   }
 
-  // src code type name stridx and aliased maple var
-  DBGDie *GetOrCreateTypeDefDie(GStrIdx stridx, MIRSymbol *var);
+  void AddTypedefMap(GStrIdx stridx, TyIdx tyidx) {
+    typedefStrIdxTyIdxMap[stridx.GetIdx()] = tyidx.GetIdx();
+  }
+  void DumpTypedefMap();
 
  private:
   MIRModule *module;
@@ -845,6 +850,7 @@ class DebugInfo {
 
   /* alias type */
   MapleMap<uint32, uint32> typedefStrIdxDieIdMap;
+  MapleMap<uint32, uint32> typedefStrIdxTyIdxMap;
 
   MapleSet<uint32> strps;
   std::string varPtrPrefix;

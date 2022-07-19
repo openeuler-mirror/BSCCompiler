@@ -60,7 +60,7 @@ DBGDie::DBGDie(MIRModule *m, DwTag tag)
   subDieVec.clear();
 }
 
-void DBGDie::ResetParentDie() {
+void DBGDie::ResetParentDie() const {
   module->GetDbgInfo()->ResetParentDie();
 }
 
@@ -319,17 +319,14 @@ void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap) {
       continue;
     }
 
-    // use src code type name if provided
-    DBGDie *typedefDie = nullptr;
-    if (i.second.srcTypeStrIdx.GetIdx()) {
-      typedefDie = GetOrCreateTypeDefDie(i.second.srcTypeStrIdx, var);
-    }
-
     // create alias die using maple var except name
     DBGDie *vdie = CreateVarDie(var, i.first);
-    if (typedefDie) {
+
+    // use src code type name for type if provided
+    if (i.second.srcTypeStrIdx.GetIdx()) {
+      DBGDie *typedefDie = GetOrCreateTypedefDie(i.second.srcTypeStrIdx, var->GetTyIdx());
       // use negtive number to indicate DIE id instead of tyidx in normal cases
-      vdie->SetAttr(DW_AT_type, -typedefDie->GetId());
+      (void)(vdie->SetAttr(DW_AT_type, -typedefDie->GetId()));
     }
 
     // link vdie's ExprLoc to mdie's
@@ -426,6 +423,7 @@ void DebugInfo::BuildDebugInfo() {
     }
   }
 
+  // setup debug info for global symbols
   for (size_t i = 0; i < GlobalTables::GetGsymTable().GetSymbolTableSize(); ++i) {
     MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(static_cast<uint32>(i));
     if (mirSymbol == nullptr || mirSymbol->IsDeleted() || mirSymbol->GetStorageClass() == kScUnused ||
@@ -436,6 +434,13 @@ void DebugInfo::BuildDebugInfo() {
       DBGDie *vdie = CreateVarDie(mirSymbol);
       compUnit->AddSubVec(vdie);
     }
+  }
+
+  // setup debug info for typedef types
+  for (auto it : typedefStrIdxTyIdxMap) {
+    (void) GetOrCreateTypeDie(TyIdx(it.second));
+    DBGDie *die = GetOrCreateTypedefDie(GStrIdx(it.first), TyIdx(it.second));
+    compUnit->AddSubVec(die);
   }
 
   // setup debug info for functions
@@ -465,7 +470,7 @@ void DebugInfo::BuildDebugInfo() {
   Finish();
 }
 
-DBGDieAttr *DebugInfo::CreateAttr(DwAt at, DwForm form, uint64 val) {
+DBGDieAttr *DebugInfo::CreateAttr(DwAt at, DwForm form, uint64 val) const {
   DBGDieAttr *attr = module->GetMemPool()->New<DBGDieAttr>(kDwAt);
   attr->SetDwAt(at);
   attr->SetDwForm(form);
@@ -479,9 +484,9 @@ void DebugInfo::SetLocalDie(MIRFunction *func, GStrIdx strIdx, const DBGDie *die
 
 DBGDie *DebugInfo::GetGlobalDie(const GStrIdx &strIdx) {
   unsigned idx = strIdx.GetIdx();
-  if (globalStridxDieIdMap.find(idx) != globalStridxDieIdMap.end()) {
-    uint32 id = globalStridxDieIdMap[idx];
-    return idDieMap[id];
+  auto it = globalStridxDieIdMap.find(idx);
+  if (it != globalStridxDieIdMap.end()) {
+    return idDieMap[it->second];
   }
   return nullptr;
 }
@@ -792,6 +797,11 @@ DBGDie *DebugInfo::CreatePointedFuncTypeDie(MIRFuncType *fType) {
   return die;
 }
 
+DBGDie *DebugInfo::GetOrCreateTypeDie(TyIdx tyidx) {
+  MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyidx);
+  return GetOrCreateTypeDie(type);
+}
+
 DBGDie *DebugInfo::GetOrCreateTypeDie(MIRType *type) {
   if (type == nullptr) {
     return nullptr;
@@ -853,26 +863,24 @@ DBGDie *DebugInfo::GetOrCreateTypeDie(MIRType *type) {
   return die;
 }
 
-DBGDie *DebugInfo::GetOrCreateTypeDefDie(GStrIdx stridx, MIRSymbol *var) {
+DBGDie *DebugInfo::GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx) {
   uint32 sid = stridx.GetIdx();
-  if (typedefStrIdxDieIdMap.find(sid) != typedefStrIdxDieIdMap.end()) {
-    uint32 id = typedefStrIdxDieIdMap[sid];
-    return idDieMap[id];
+  auto it = typedefStrIdxDieIdMap.find(sid);
+  if (it != typedefStrIdxDieIdMap.end()) {
+    return idDieMap[it->second];
   }
 
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_typedef);
   compUnit->AddSubVec(die);
 
   die->AddAttr(DW_AT_name, DW_FORM_strp, sid);
-  die->AddAttr(DW_AT_decl_file, DW_FORM_data1, var->GetSrcPosition().FileNum());
-  die->AddAttr(DW_AT_decl_line, DW_FORM_data1, var->GetSrcPosition().LineNum());
-  die->AddAttr(DW_AT_decl_column, DW_FORM_data1, var->GetSrcPosition().Column());
+  die->AddAttr(DW_AT_decl_file, DW_FORM_data1, 0);
+  die->AddAttr(DW_AT_decl_line, DW_FORM_data1, 0);
+  die->AddAttr(DW_AT_decl_column, DW_FORM_data1, 0);
 
-  MIRType *type = var->GetType();
-  DBGDie *tdie = GetOrCreateTypeDie(type);
-
+  DBGDie *tdie = GetOrCreateTypeDie(tyidx);
   // use negative vaule of Die id
-  die->AddAttr(DW_AT_type, DW_FORM_ref4, -tdie->GetId());
+  (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, -tdie->GetId()));
 
   typedefStrIdxDieIdMap[sid] = die->GetId();
   return die;
@@ -1209,7 +1217,7 @@ DBGDie *DebugInfo::CreateInterfaceTypeDie(GStrIdx strIdx, const MIRInterfaceType
   return die1;
 }
 
-uint32 DebugInfo::GetAbbrevId(DBGAbbrevEntryVec *vec, DBGAbbrevEntry *entry) {
+uint32 DebugInfo::GetAbbrevId(DBGAbbrevEntryVec *vec, DBGAbbrevEntry *entry) const {
   for (auto it : vec->GetEntryvec()) {
     if (it->Equalto(entry)) {
       return it->GetAbbrevId();
@@ -1277,9 +1285,9 @@ void DebugInfo::FillTypeAttrWithDieId() {
     for (auto at : die->GetAttrVec()) {
       if (at->GetDwAt() == DW_AT_type) {
         uint32 tid = at->GetId();
-        // handle typedef where die id is already used but with nagetive value
-        if ((int)tid < 0) {
-          at->SetId(-(int)tid);
+        // handle typedef where die id is already used but with negative value
+        if (static_cast<int>(tid) < 0) {
+          at->SetId(-static_cast<int>(tid));
           break;
         }
         MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(tid));
@@ -1309,7 +1317,7 @@ DBGDie *DebugInfo::GetDie(const MIRFunction *func) {
 }
 
 // Methods for calculating Offset and Size of DW_AT_xxx
-size_t DBGDieAttr::SizeOf(DBGDieAttr *attr) {
+size_t DBGDieAttr::SizeOf(DBGDieAttr *attr) const {
   DwForm form = attr->dwForm;
   switch (form) {
     // case DW_FORM_implicitconst:
@@ -1458,7 +1466,16 @@ void DebugInfo::Dump(int indent) {
   return;
 }
 
-void DBGExprLoc::Dump() {
+void DebugInfo::DumpTypedefMap() const {
+  for (auto it : typedefStrIdxTyIdxMap) {
+    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(it.second));
+    LogInfo::MapleLogger() << " " <<
+      GlobalTables::GetStrTable().GetStringFromStrIdx(it.first).c_str() << " " <<
+      type->GetName() << "\n";
+  }
+}
+
+void DBGExprLoc::Dump() const {
   LogInfo::MapleLogger() << " " << HEX(GetOp());
   for (auto it : simpLoc->GetOpnd()) {
     LogInfo::MapleLogger() << " " << HEX(it);
