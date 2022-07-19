@@ -105,7 +105,7 @@ class JBCConst {
     return PreProcessImpl(constPool);
   }
 
-  SimpleXMLElem *GenXMLElem(MapleAllocator &allocIn, uint32 id) {
+  SimpleXMLElem *GenXMLElem(MapleAllocator &allocIn, uint32 id) const {
     return GenXMLElemImpl(allocIn, id);
   }
 
@@ -215,7 +215,7 @@ class JBCConstClass : public JBCConst {
  public:
   JBCConstClass(MapleAllocator &alloc, JBCConstTag t);
   JBCConstClass(MapleAllocator &alloc, JBCConstTag t, JBCConstPoolIdx argNameIdx);
-  ~JBCConstClass();
+  ~JBCConstClass() override;
 
   GStrIdx GetClassNameIdxOrin() const {
     return strIdxOrin;
@@ -289,7 +289,7 @@ class JBCConstNameAndType : public JBCConst {
  public:
   JBCConstNameAndType(MapleAllocator &alloc, JBCConstTag t);
   JBCConstNameAndType(MapleAllocator &alloc, JBCConstTag t, JBCConstPoolIdx argNameIdx, JBCConstPoolIdx argDescIdx);
-  ~JBCConstNameAndType();
+  ~JBCConstNameAndType() override;
 
   const std::string GetName() const {
     CHECK_FATAL(constName != nullptr, "invalid const index");
@@ -320,7 +320,7 @@ class JBCConstRef : public JBCConst {
   JBCConstRef(MapleAllocator &alloc, JBCConstTag t);
   JBCConstRef(MapleAllocator &alloc, JBCConstTag t, JBCConstPoolIdx argClassIdx,
               JBCConstPoolIdx argClassNameAndTypeIdx);
-  ~JBCConstRef();
+  ~JBCConstRef() override;
   bool PrepareFEStructElemInfo();
   const std::string GetName() const;
   const std::string GetDesc() const;
@@ -357,7 +357,7 @@ class JBCConstRef : public JBCConst {
 class JBCConstMethodHandleInfo : public JBCConst {
  public:
   JBCConstMethodHandleInfo(MapleAllocator &alloc, JBCConstTag t);
-  ~JBCConstMethodHandleInfo();
+  ~JBCConstMethodHandleInfo() override;
 
  protected:
   bool ParseFileImpl(BasicIORead &io) override;
@@ -375,7 +375,7 @@ class JBCConstMethodHandleInfo : public JBCConst {
 class JBCConstMethodType : public JBCConst {
  public:
   JBCConstMethodType(MapleAllocator &alloc, JBCConstTag t);
-  ~JBCConstMethodType();
+  ~JBCConstMethodType() override;
 
  protected:
   bool ParseFileImpl(BasicIORead &io) override;
@@ -392,7 +392,7 @@ class JBCConstMethodType : public JBCConst {
 class JBCConstInvokeDynamic : public JBCConst {
  public:
   JBCConstInvokeDynamic(MapleAllocator &alloc, JBCConstTag t);
-  ~JBCConstInvokeDynamic();
+  ~JBCConstInvokeDynamic() override;
   bool PrepareFEStructElemInfo(const std::string &ownerClassName);
   JBCConstPoolIdx GetBSMAttrIdx() const {
     return rawData.bsmAttrIdx;

@@ -75,7 +75,7 @@ class MethodProcessSchedular : public MplScheduler {
  public:
   MethodProcessSchedular(const std::string &name)
       : MplScheduler(name) {}
-  ~MethodProcessSchedular() {
+  ~MethodProcessSchedular() override {
     FEConfigParallel::GetInstance().RunThreadIDCleanUp();
   }
 

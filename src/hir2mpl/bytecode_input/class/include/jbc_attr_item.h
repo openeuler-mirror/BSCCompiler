@@ -61,7 +61,7 @@ class JBCAttrItem {
 class ExceptionTableItem : public JBCAttrItem {
  public:
   ExceptionTableItem();
-  ~ExceptionTableItem();
+  ~ExceptionTableItem() override;
   uint16 GetStartPC() const {
     return startPC;
   }
@@ -108,7 +108,7 @@ enum VerificationTypeInfoTag : uint8 {
 class VerificationTypeInfo : public JBCAttrItem {
  public:
   VerificationTypeInfo();
-  ~VerificationTypeInfo();
+  ~VerificationTypeInfo() override;
   static std::map<VerificationTypeInfoTag, std::string> InitTagNameMap();
   static std::string TagName(VerificationTypeInfoTag t);
   const JBCConstClass &GetClassInfoRef() const {
@@ -172,7 +172,7 @@ class StackMapFrameItemSame : public StackMapFrameItem {
 class StackMapFrameItemSameLocals1 : public StackMapFrameItem {
  public:
   explicit StackMapFrameItemSameLocals1(uint8 frameType);
-  ~StackMapFrameItemSameLocals1();
+  ~StackMapFrameItemSameLocals1() override;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -186,7 +186,7 @@ class StackMapFrameItemSameLocals1 : public StackMapFrameItem {
 class StackMapFrameItemSameLocals1Ex : public StackMapFrameItem {
  public:
   explicit StackMapFrameItemSameLocals1Ex(uint8 frameType);
-  ~StackMapFrameItemSameLocals1Ex();
+  ~StackMapFrameItemSameLocals1Ex() override;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -264,7 +264,7 @@ class StackMapFrameItemFull : public StackMapFrameItem {
 class InnerClassItem : public JBCAttrItem {
  public:
   InnerClassItem();
-  ~InnerClassItem();
+  ~InnerClassItem() override;
   const JBCConstClass *GetConstClassInnerRef() const {
     return constClassInner;
   }
@@ -321,7 +321,7 @@ class LineNumberTableItem : public JBCAttrItem {
 class LocalVariableTableItem : public JBCAttrItem {
  public:
   LocalVariableTableItem();
-  ~LocalVariableTableItem();
+  ~LocalVariableTableItem() override;
   const JBCConstUTF8 *GetConstName() const {
     return constName;
   }
@@ -373,7 +373,7 @@ class LocalVariableTableItem : public JBCAttrItem {
 class LocalVariableTypeTableItem : public JBCAttrItem {
  public:
   LocalVariableTypeTableItem();
-  ~LocalVariableTypeTableItem();
+  ~LocalVariableTypeTableItem() override;
   const JBCConstUTF8 *GetConstName() const {
     return constName;
   }
@@ -440,7 +440,7 @@ class ElementValueItem : public JBCAttrItem {
 class ElementValue : public JBCAttrItem {
  public:
   ElementValue();
-  ~ElementValue();
+  ~ElementValue() override;
   ElementValueKind GetKind() const {
     return kind;
   }
@@ -459,7 +459,7 @@ class ElementValue : public JBCAttrItem {
 class ElementValuePair : public JBCAttrItem {
  public:
   ElementValuePair();
-  ~ElementValuePair();
+  ~ElementValuePair() override;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -476,7 +476,7 @@ class ElementValuePair : public JBCAttrItem {
 class Annotation : public JBCAttrItem {
  public:
   explicit Annotation(MapleAllocator &allocator);
-  ~Annotation();
+  ~Annotation() override;
   const JBCConstUTF8 *GetConstTypeName() const {
     return constTypeName;
   }
@@ -516,7 +516,7 @@ class ParamAnnotationItem : public JBCAttrItem {
 class BootstrapMethodItem : public JBCAttrItem {
  public:
   explicit BootstrapMethodItem(MapleAllocator &allocator);
-  ~BootstrapMethodItem();
+  ~BootstrapMethodItem() override;
   const JBCConstMethodHandleInfo *GetConstMethodHandleInfo() const {
     return methodHandle;
   }
@@ -539,7 +539,7 @@ class BootstrapMethodItem : public JBCAttrItem {
 class MethodParamItem : public JBCAttrItem {
  public:
   MethodParamItem();
-  ~MethodParamItem();
+  ~MethodParamItem() override;
   const JBCConstUTF8 *GetConstName() const {
     return constName;
   }
@@ -560,7 +560,7 @@ class ElementValuePair;
 class ElementValueConst : public ElementValueItem {
  public:
   explicit ElementValueConst(uint8 t);
-  ~ElementValueConst();
+  ~ElementValueConst() override;
   const JBCConst *GetConstValue() const {
     return constValue;
   }
@@ -578,7 +578,7 @@ class ElementValueConst : public ElementValueItem {
 class ElementValueEnum : public ElementValueItem {
  public:
   ElementValueEnum();
-  ~ElementValueEnum();
+  ~ElementValueEnum() override;
   const JBCConstUTF8 *GetConstTypeName() const {
     return constTypeName;
   }
@@ -602,7 +602,7 @@ class ElementValueEnum : public ElementValueItem {
 class ElementValueClassInfo : public ElementValueItem {
  public:
   ElementValueClassInfo();
-  ~ElementValueClassInfo();
+  ~ElementValueClassInfo() override;
   const JBCConstUTF8 *GetConstClassInfo() const {
     return constClassInfo;
   }
@@ -620,7 +620,7 @@ class ElementValueClassInfo : public ElementValueItem {
 class ElementValueAnnotation : public ElementValueItem {
  public:
   ElementValueAnnotation();
-  ~ElementValueAnnotation();
+  ~ElementValueAnnotation() override;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -891,7 +891,7 @@ class TypePath : public JBCAttrItem {
 class TypeAnnotationItem : public JBCAttrItem {
  public:
   explicit TypeAnnotationItem(MapleAllocator &allocator);
-  ~TypeAnnotationItem();
+  ~TypeAnnotationItem() override;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;

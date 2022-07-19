@@ -86,7 +86,7 @@ class JBCAttrMap {
 class JBCAttrRaw : public JBCAttr {
  public:
   JBCAttrRaw(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrRaw();
+  ~JBCAttrRaw() override;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;
@@ -141,7 +141,7 @@ class JBCAttrLocalVariableInfo {
 class JBCAttrConstantValue : public JBCAttr {
  public:
   JBCAttrConstantValue(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrConstantValue();
+  ~JBCAttrConstantValue() override;
   const JBCConst *GetConstValue() const {
     return constValue;
   }
@@ -163,7 +163,7 @@ class JBCOp;
 class JBCAttrCode : public JBCAttr {
  public:
   JBCAttrCode(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrCode();
+  ~JBCAttrCode() override;
   void InitLocalVarInfo();
   void SetLoadStoreType() const;
   const MapleMap<const uint32, JBCOp*> &GetInstMap() const {
@@ -279,7 +279,7 @@ class JBCAttrInnerClass : public JBCAttr {
 class JBCAttrEnclosingMethod : public JBCAttr {
  public:
   JBCAttrEnclosingMethod(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrEnclosingMethod();
+  ~JBCAttrEnclosingMethod() override;
   const JBCConstClass *GetConstClass() const {
     return constClass;
   }
@@ -318,7 +318,7 @@ class JBCAttrSynthetic : public JBCAttr {
 class JBCAttrSignature : public JBCAttr {
  public:
   JBCAttrSignature(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrSignature();
+  ~JBCAttrSignature() override;
   const JBCConstUTF8 *GetConstSignatureName() const {
     return constSignatureName;
   }
@@ -338,7 +338,7 @@ class JBCAttrSignature : public JBCAttr {
 class JBCAttrSourceFile : public JBCAttr {
  public:
   JBCAttrSourceFile(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrSourceFile();
+  ~JBCAttrSourceFile() override;
   const JBCConstUTF8 *GetConstFileName() const {
     return constFileName;
   }
@@ -358,7 +358,7 @@ class JBCAttrSourceFile : public JBCAttr {
 class JBCAttrSourceDebugEx : public JBCAttr {
  public:
   JBCAttrSourceDebugEx(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrSourceDebugEx();
+  ~JBCAttrSourceDebugEx() override;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;
@@ -491,13 +491,13 @@ class JBCAttrRTParamAnnotations : public JBCAttr {
 class JBCAttrRTVisParamAnnotations : public JBCAttrRTParamAnnotations {
  public:
   JBCAttrRTVisParamAnnotations(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrRTVisParamAnnotations() {}
+  ~JBCAttrRTVisParamAnnotations() override {}
 };
 
 class JBCAttrRTInvisParamAnnotations : public JBCAttrRTParamAnnotations {
  public:
   JBCAttrRTInvisParamAnnotations(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrRTInvisParamAnnotations() {}
+  ~JBCAttrRTInvisParamAnnotations() override {}
 };
 
 // RuntimeVisibleTypeAnnotations Attribute
@@ -534,7 +534,7 @@ class JBCAttrRTInvisTypeAnnotations : public JBCAttrRTTypeAnnotations {
 class JBCAttrAnnotationDefault : public JBCAttr {
  public:
   JBCAttrAnnotationDefault(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrAnnotationDefault();
+  ~JBCAttrAnnotationDefault() override;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;

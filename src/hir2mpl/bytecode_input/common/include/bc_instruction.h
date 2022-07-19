@@ -184,7 +184,7 @@ class BCRegType {
     return allocator;
   }
 
-  void SetTypeNameIdx(const GStrIdx &idx) {
+  void SetTypeNameIdx(const GStrIdx &idx) const {
     regTypeItem->typeNameIdx = idx;
   }
 
@@ -192,7 +192,7 @@ class BCRegType {
     return regTypeItem->isIndeterminate;
   }
 
-  void SetIsIndeterminate(bool flag) {
+  void SetIsIndeterminate(bool flag) const {
     regTypeItem->isIndeterminate = flag;
   }
 

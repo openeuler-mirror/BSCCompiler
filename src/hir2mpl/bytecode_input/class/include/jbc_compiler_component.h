@@ -23,7 +23,7 @@ namespace maple {
 class JBCCompilerComponent : public HIR2MPLCompilerComponent {
  public:
   JBCCompilerComponent(MIRModule &module);
-  ~JBCCompilerComponent();
+  ~JBCCompilerComponent() override;
 
  protected:
   bool ParseInputImpl() override;

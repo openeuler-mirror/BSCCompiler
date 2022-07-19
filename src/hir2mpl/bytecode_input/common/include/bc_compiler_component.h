@@ -24,7 +24,7 @@ template <class T>
 class BCCompilerComponent : public HIR2MPLCompilerComponent {
  public:
   explicit BCCompilerComponent(MIRModule &module);
-  ~BCCompilerComponent();
+  ~BCCompilerComponent() override;
 
  protected:
   bool ParseInputImpl() override;

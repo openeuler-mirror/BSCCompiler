@@ -214,7 +214,7 @@ class BCClassMethod : public BCClassElem {
     return methodMp;
   }
 
-  void ReleaseMempool() {
+  void ReleaseMempool() const {
     FEUtils::DeleteMempoolPtr(methodMp);
   }
 
