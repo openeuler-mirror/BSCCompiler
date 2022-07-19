@@ -478,11 +478,10 @@ bool A64ConstProp::BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &con
         MOperator newMop = GetRegImmMOP(curMop, false);
         Operand &newOpnd = cgFunc->CreateImmOperand(PTY_i64, static_cast<int64>(val));
         if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, &newOpnd, kInsnThirdOpnd)) {
-          auto &useReg = static_cast<RegOperand&>(useInsn->GetOperand(kInsnSecondOpnd));
-          VRegVersion *implicitDef = ssaInfo->FindSSAVersion(useReg.GetRegisterNumber() + 1);
-          ASSERT(implicitDef->GetDefInsnInfo()->GetInsn() == useInsn, "check def-use insn");
+          RegOperand *defOpnd = useInsn->GetSSAImpDefOpnd();
+          CHECK_FATAL(defOpnd, "check ssaInfo of the defOpnd");
           Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
-              newMop, *implicitDef->GetSSAvRegOpnd(), useInsn->GetOperand(kInsnFirstOpnd), newOpnd);
+              newMop, *defOpnd, useInsn->GetOperand(kInsnFirstOpnd), newOpnd);
           ReplaceInsnAndUpdateSSA(*useInsn, newInsn);
           return true;
         }
@@ -1322,8 +1321,8 @@ bool ExtendShiftPattern::CheckCondition(Insn &insn) {
   auto &regOperand = static_cast<RegOperand&>(insn.GetOperand(replaceIdx));
   regno_t regNo = regOperand.GetRegisterNumber();
   VRegVersion *useVersion = optSsaInfo->FindSSAVersion(regNo);
-  ASSERT(useVersion != nullptr, "useVersion should not be nullptr");
   defInsn = FindDefInsn(useVersion);
+  // useVersion must not be nullptr when defInsn is nullptr
   if (!defInsn || (useVersion->GetAllUseInsns().size() > 1)) {
     return false;
   }

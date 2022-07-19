@@ -47,14 +47,14 @@ void CGSSAInfo::ConstructSSA() {
 }
 
 void CGSSAInfo::MarkInsnsInSSA(Insn &insn) {
-  CHECK_FATAL(insn.GetId() == 0, "insn is not clean !!"); /* change to assert*/
+  CHECK_FATAL(insn.GetId() == 0, "insn is not clean !!"); /* change to assert */
   insnCount += 2;
   insn.SetId(static_cast<uint32>(insnCount));
 }
 
 void CGSSAInfo::InsertPhiInsn() {
   FOR_ALL_BB(bb, cgFunc) {
-    FOR_BB_INSNS(insn, bb){
+    FOR_BB_INSNS(insn, bb) {
       if (!insn->IsMachineInstruction()) {
         continue;
       }
@@ -101,7 +101,7 @@ void CGSSAInfo::PrunedPhiInsertion(const BB &bb, RegOperand &virtualOpnd) {
         }
       }
       if (!insertSuccess) {
-       phiBB->InsertInsnBegin(phiInsn);
+        phiBB->InsertInsnBegin(phiInsn);
       }
       phiBB->AddPhiInsn(vRegNO, phiInsn);
       PrunedPhiInsertion(*phiBB, virtualOpnd);
@@ -240,6 +240,18 @@ void CGSSAInfo::SetReversePostOrder() {
       reversePostOrder.emplace_back(bb->GetId());
     }
   }
+}
+
+Insn *CGSSAInfo::GetDefInsn(const RegOperand &useReg) {
+  if (!useReg.IsSSAForm()) {
+    return nullptr;
+  }
+  regno_t useRegNO = useReg.GetRegisterNumber();
+  VRegVersion *useVersion = FindSSAVersion(useRegNO);
+  ASSERT(useVersion != nullptr, "useVRegVersion must not be null based on ssa");
+  CHECK_FATAL(!useVersion->IsDeleted(), "deleted version");
+  DUInsnInfo *defInfo = useVersion->GetDefInsnInfo();
+  return defInfo == nullptr ? nullptr : defInfo->GetInsn();
 }
 
 void CGSSAInfo::DumpFuncCGIRinSSAForm() const {

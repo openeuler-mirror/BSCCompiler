@@ -450,7 +450,7 @@ bool CmpCsetVBPattern::CheckCondition(Insn &csetInsn) {
   }
   RegOperand &ccReg = static_cast<RegOperand&>(csetInsn.GetOperand(kInsnThirdOpnd));
   regno_t ccRegNo = ccReg.GetRegisterNumber();
-  cmpInsn = GetDefInsn(ccReg);
+  cmpInsn = ssaInfo->GetDefInsn(ccReg);
   CHECK_NULL_FATAL(cmpInsn);
   MOperator mop = cmpInsn->GetMachineOpcode();
   if ((mop != MOP_wcmpri) && (mop != MOP_xcmpri)) {
@@ -472,7 +472,7 @@ bool CmpCsetVBPattern::CheckCondition(Insn &csetInsn) {
   Operand &cmpFirstOpnd = cmpInsn->GetOperand(kInsnSecondOpnd);
   CHECK_FATAL(cmpFirstOpnd.IsRegister(), "cmpFirstOpnd must be register!");
   RegOperand &cmpReg = static_cast<RegOperand&>(cmpFirstOpnd);
-  Insn *defInsn = GetDefInsn(cmpReg);
+  Insn *defInsn = ssaInfo->GetDefInsn(cmpReg);
   if (defInsn == nullptr) {
     return false;
   }
@@ -539,7 +539,7 @@ bool CmpBranchesPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  prevCmpInsn = GetDefInsn(ccReg);
+  prevCmpInsn = ssaInfo->GetDefInsn(ccReg);
   if (prevCmpInsn == nullptr) {
     return false;
   }

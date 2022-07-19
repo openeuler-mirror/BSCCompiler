@@ -200,7 +200,8 @@ void A64SSAOperandRenameVisitor::Visit(RegOperand *v) {
   if (regOpnd->IsVirtualRegister()) {
     if (opndProp->IsRegDef() && opndProp->IsRegUse()) {        /* both def use */
       insn->SetOperand(idx, *ssaInfo->GetRenamedOperand(*regOpnd, false, *insn, idx));
-      (void)ssaInfo->GetRenamedOperand(*regOpnd, true, *insn, idx);
+      RegOperand *ssaDefOpnd = ssaInfo->GetRenamedOperand(*regOpnd, true, *insn, idx);
+      insn->SetSSAImpDefOpnd(ssaDefOpnd);
     } else {
       insn->SetOperand(idx, *ssaInfo->GetRenamedOperand(*regOpnd, opndProp->IsRegDef(), *insn, idx));
     }
@@ -251,8 +252,8 @@ void A64OpndSSAUpdateVsitor::Visit(RegOperand *v) {
   if (v->IsSSAForm()) {
     if (opndProp->IsRegDef() && opndProp->IsRegUse()) {
       UpdateRegUse(v->GetRegisterNumber());
-      ASSERT(insn->GetOperand(kInsnSecondOpnd).IsRegister(), "Visit: must be.");
-      UpdateRegDef(static_cast<RegOperand&>(insn->GetOperand(kInsnSecondOpnd)).GetRegisterNumber() + 1);
+      ASSERT(insn->GetSSAImpDefOpnd(), "must be");
+      UpdateRegDef(insn->GetSSAImpDefOpnd()->GetRegisterNumber());
     } else {
       if (opndProp->IsRegDef()) {
         UpdateRegDef(v->GetRegisterNumber());

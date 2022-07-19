@@ -246,6 +246,10 @@ class LogicalShiftLeftOperand : public OperandVisitable<LogicalShiftLeftOperand>
     return memPool.Clone<LogicalShiftLeftOperand>(*this);
   }
 
+  bool IsLogicLSLOpnd() const override {
+    return true;
+  }
+
   void Emit(Emitter &emitter, const OpndProp *opndProp) const override {
     (void)opndProp;
     emitter.Emit(" LSL #").Emit(shiftAmount);
@@ -265,6 +269,18 @@ class LogicalShiftLeftOperand : public OperandVisitable<LogicalShiftLeftOperand>
 
     /* The same type. */
     return shiftAmount < rightOpnd->shiftAmount;
+  }
+
+  bool Equals(Operand &opnd) const override {
+    if (!opnd.IsOpdShift()) {
+      return false;
+    }
+    auto &lslOpnd = static_cast<LogicalShiftLeftOperand&>(opnd);
+    return (this == &lslOpnd) || (lslOpnd.GetShiftAmount() == shiftAmount);
+  }
+
+  std::string GetHashContent() const override {
+    return std::to_string(opndKind) + std::to_string(shiftAmount);
   }
 
   uint32 GetShiftAmount() const {
@@ -328,6 +344,10 @@ class ExtendShiftOperand : public OperandVisitable<ExtendShiftOperand> {
     return ((&op == this) || (op.GetExtendOp() == extendOp && op.GetShiftAmount() == shiftAmount));
   }
 
+  std::string GetHashContent() const override {
+    return std::to_string(opndKind) + std::to_string(extendOp) + std::to_string(shiftAmount);
+  }
+
  private:
   ExtendOp extendOp;
   uint32 shiftAmount;
@@ -378,6 +398,10 @@ class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
     }
     auto &op = static_cast<BitShiftOperand&>(operand);
     return ((&op == this) || (op.GetShiftOp() == shiftOp && op.GetShiftAmount() == shiftAmount));
+  }
+
+  std::string GetHashContent() const override {
+    return std::to_string(opndKind) + std::to_string(shiftOp) + std::to_string(shiftAmount);
   }
 
  private:

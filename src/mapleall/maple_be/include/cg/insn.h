@@ -759,10 +759,27 @@ class Insn {
     return registerBinding;
   }
 
+  RegOperand *GetSSAImpDefOpnd() {
+    return ssaImplicitDefOpnd;
+  }
+
+  void SetSSAImpDefOpnd(RegOperand *ssaDef) {
+    ssaImplicitDefOpnd = ssaDef;
+  }
+
+  void SetProcessRHS() {
+    processRHS = true;
+  }
+
+  bool HasProcessedRHS() const {
+    return processRHS;
+  }
+
  protected:
   MOperator mOp;
   MapleAllocator localAlloc;
   MapleVector<Operand*> opnds;
+  RegOperand *ssaImplicitDefOpnd = nullptr;   /* for the opnd is both def and use is ssa */
   Insn *prev = nullptr;
   Insn *next = nullptr;
   BB *bb = nullptr;        /* BB to which this insn belongs */
@@ -799,6 +816,11 @@ class Insn {
 
   /* for multiple architecture */
   const InsnDescription *md = nullptr;
+  /*
+   * for redundant compute elimination phase,
+   * indicate whether the version has been processed.
+   */
+  bool processRHS = false;
 };
 
 struct InsnIdCmp {

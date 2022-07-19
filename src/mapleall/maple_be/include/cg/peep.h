@@ -64,7 +64,6 @@ class CGPeepPattern {
   }
 
   virtual std::string GetPatternName() = 0;
-  Insn *GetDefInsn(const RegOperand &useReg) const;
   void DumpAfterPattern(std::vector<Insn*> &prevInsns, const Insn *replacedInsn, const Insn *newInsn);
   InsnSet GetAllUseInsn(const RegOperand &defReg) const;
   int64 GetLogValueAtBase2(int64 val) const;

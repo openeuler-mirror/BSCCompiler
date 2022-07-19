@@ -28,8 +28,20 @@ bool Insn::IsStore() const {
 bool Insn::IsMove() const {
   return md ? md->IsMove() : false;
 }
+bool Insn::IsCondBranch() const {
+  return md ? md->IsCondBranch() : false;
+}
 bool Insn::IsBasicOp() const {
   return md ? md->IsBasicOp() : false;
+}
+bool Insn::IsConversion() const {
+  return md ? md->IsConversion() : false;
+}
+bool Insn::IsUnaryOp() const {
+  return md ? md->IsUnaryOp() : false;
+}
+bool Insn::IsShift() const {
+  return md ? md->IsShift() : false;
 }
 
 void Insn::CommuteOperands(uint32 dIndex, uint32 sIndex) {
@@ -46,7 +58,6 @@ void Insn::SetMOP(const InsnDescription &idesc) {
 #endif
 
 void Insn::Dump() const {
-
   LogInfo::MapleLogger() << "MOP (";
   if (md) {
     LogInfo::MapleLogger() << md->GetName();
@@ -59,4 +70,12 @@ void Insn::Dump() const {
   }
   LogInfo::MapleLogger() << "\n";
 }
+
+bool Insn::IsCall() const {
+  if(md) {
+    return md->IsCall();
+  }
+  return false;
+}
+
 }

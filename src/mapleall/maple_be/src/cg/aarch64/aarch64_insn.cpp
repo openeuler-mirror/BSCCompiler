@@ -744,6 +744,13 @@ void AArch64Insn::Dump() const {
     LogInfo::MapleLogger() << ")";
   }
 
+  if (ssaImplicitDefOpnd) {
+    LogInfo::MapleLogger() << " (implicitDefOpnd: ";
+    A64OpndDumpVisitor visitor;
+    ssaImplicitDefOpnd->Accept(visitor);
+    LogInfo::MapleLogger() << ")";
+  }
+
   if (IsVectorOp()) {
     auto *vInsn = static_cast<const AArch64VectorInsn*>(this);
     if (vInsn->GetNumOfRegSpec() != 0) {
@@ -1159,7 +1166,8 @@ void A64OpndDumpVisitor::Visit(RegOperand *v) {
   regno_t reg = v->GetRegisterNumber();
   reg = v->IsVirtualRegister() ? reg : (reg - 1);
   uint32 vb = v->GetValidBitsNum();
-  LogInfo::MapleLogger() << (v->IsVirtualRegister() ? "vreg:" : " reg:") << prims[regType] << reg << " " << classes[regType];
+  LogInfo::MapleLogger() << (v->IsVirtualRegister() ? "vreg:" : " reg:") <<
+      prims[regType] << reg << " " << classes[regType];
   if (v->GetValidBitsNum() != v->GetSize()) {
     LogInfo::MapleLogger() << " Vb: [" << vb << "]";
   }

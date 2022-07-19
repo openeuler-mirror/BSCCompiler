@@ -26,6 +26,7 @@
 #include "aarch64_alignment.h"
 #include "aarch64_validbit_opt.h"
 #include "aarch64_reg_coalesce.h"
+#include "aarch64_rce.h"
 
 namespace maplebe {
 constexpr int64 kShortBRDistance = (8 * 1024);
@@ -170,7 +171,7 @@ class AArch64CG : public CG {
   }
   LiveIntervalAnalysis *CreateLLAnalysis(MemPool &mp, CGFunc &f) const override {
     return mp.New<AArch64LiveIntervalAnalysis>(f, mp);
-  };
+  }
   PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
     return mp.New<AArch64PhiEliminate>(f, ssaInfo, mp);
   }
@@ -182,6 +183,9 @@ class AArch64CG : public CG {
   }
   ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
     return mp.New<AArch64ValidBitOpt>(f, ssaInfo);
+  }
+  RedundantComputeElim *CreateRedundantCompElim(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
+    return mp.New<AArch64RedundantComputeElim>(f, ssaInfo);
   }
 
   static const AArch64MD kMd[kMopLast];

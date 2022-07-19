@@ -234,7 +234,7 @@ bool ContinuousCmpCsetPattern::CheckCondition(Insn &insn) {
   }
   reverse = (condOpnd.GetCode() == CC_EQ);
   auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
-  prevCmpInsn = GetDefInsn(ccReg);
+  prevCmpInsn = ssaInfo->GetDefInsn(ccReg);
   if (prevCmpInsn == nullptr) {
     return false;
   }
@@ -251,7 +251,7 @@ bool ContinuousCmpCsetPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &cmpUseReg = static_cast<RegOperand&>(prevCmpInsn->GetOperand(kInsnSecondOpnd));
-  prevCsetInsn1 = GetDefInsn(cmpUseReg);
+  prevCsetInsn1 = ssaInfo->GetDefInsn(cmpUseReg);
   if (prevCsetInsn1 == nullptr) {
     return false;
   }
@@ -264,7 +264,7 @@ bool ContinuousCmpCsetPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &ccReg1 = static_cast<RegOperand&>(prevCsetInsn1->GetOperand(kInsnThirdOpnd));
-  prevCmpInsn1 = GetDefInsn(ccReg1);
+  prevCmpInsn1 = ssaInfo->GetDefInsn(ccReg1);
   if (prevCmpInsn1 == nullptr) {
     return false;
   }
@@ -359,7 +359,7 @@ bool NegCmpToCmnPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
-  prevInsn = GetDefInsn(useReg);
+  prevInsn = ssaInfo->GetDefInsn(useReg);
   if (prevInsn == nullptr) {
     return false;
   }
@@ -578,7 +578,7 @@ bool CsetCbzToBeqPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  prevInsn = GetDefInsn(useReg);
+  prevInsn = ssaInfo->GetDefInsn(useReg);
   if (prevInsn == nullptr) {
     return false;
   }
@@ -657,7 +657,7 @@ void CsetCbzToBeqPattern::Run(BB &bb, Insn &insn) {
 
 bool ExtLslToBitFieldInsertPattern::CheckCondition(Insn &insn) {
   auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  prevInsn = GetDefInsn(useReg);
+  prevInsn = ssaInfo->GetDefInsn(useReg);
   if (prevInsn == nullptr) {
     return false;
   }
@@ -728,7 +728,7 @@ bool CselToCsetPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &useOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  prevMovInsn1 = GetDefInsn(useOpnd1);
+  prevMovInsn1 = ssaInfo->GetDefInsn(useOpnd1);
   if (prevMovInsn1 == nullptr) {
     return false;
   }
@@ -738,7 +738,7 @@ bool CselToCsetPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &useOpnd2 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
-  prevMovInsn2 = GetDefInsn(useOpnd2);
+  prevMovInsn2 = ssaInfo->GetDefInsn(useOpnd2);
   if (prevMovInsn2 == nullptr) {
     return false;
   }
@@ -870,7 +870,7 @@ bool AndCmpBranchesToTbzPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  prevCmpInsn = GetDefInsn(ccReg);
+  prevCmpInsn = ssaInfo->GetDefInsn(ccReg);
   if (prevCmpInsn == nullptr) {
     return false;
   }
@@ -879,7 +879,7 @@ bool AndCmpBranchesToTbzPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &cmpUseReg = static_cast<RegOperand&>(prevCmpInsn->GetOperand(kInsnSecondOpnd));
-  prevAndInsn = GetDefInsn(cmpUseReg);
+  prevAndInsn = ssaInfo->GetDefInsn(cmpUseReg);
   if (prevAndInsn == nullptr) {
     return false;
   }
@@ -999,7 +999,7 @@ bool ZeroCmpBranchesToTbzPattern::CheckCondition(Insn &insn) {
   }
   CHECK_FATAL(insn.GetOperand(kInsnSecondOpnd).IsLabel(), "must be labelOpnd");
   auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  prevInsn = GetDefInsn(ccReg);
+  prevInsn = ssaInfo->GetDefInsn(ccReg);
   if (prevInsn == nullptr) {
     return false;
   }
@@ -1049,7 +1049,7 @@ bool LsrAndToUbfxPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  prevInsn = GetDefInsn(useReg);
+  prevInsn = ssaInfo->GetDefInsn(useReg);
   if (prevInsn == nullptr) {
     return false;
   }
@@ -1123,8 +1123,8 @@ bool MvnAndToBicPattern::CheckCondition(Insn &insn) {
   }
   auto &useReg1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   auto &useReg2 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
-  prevInsn1 = GetDefInsn(useReg1);
-  prevInsn2 = GetDefInsn(useReg2);
+  prevInsn1 = ssaInfo->GetDefInsn(useReg1);
+  prevInsn2 = ssaInfo->GetDefInsn(useReg2);
   MOperator mop = insn.GetMachineOpcode();
   MOperator desMop = mop == MOP_xandrrr ? MOP_xnotrr : MOP_wnotrr;
   op1IsMvnDef = prevInsn1 != nullptr && prevInsn1->GetMachineOpcode() == desMop;
@@ -1166,7 +1166,7 @@ bool AndCbzToTbzPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  prevInsn = ssaInfo ? GetDefInsn(useReg) : insn.GetPreviousMachineInsn();
+  prevInsn = ssaInfo ? ssaInfo->GetDefInsn(useReg) : insn.GetPreviousMachineInsn();
   if (prevInsn == nullptr) {
     return false;
   }
@@ -1235,7 +1235,7 @@ bool CombineSameArithmeticPattern::CheckCondition(Insn &insn) {
   }
   Operand &useOpnd = insn.GetOperand(kInsnSecondOpnd);
   CHECK_FATAL(useOpnd.IsRegister(), "expect regOpnd");
-  prevInsn = GetDefInsn(static_cast<RegOperand&>(useOpnd));
+  prevInsn = ssaInfo->GetDefInsn(static_cast<RegOperand&>(useOpnd));
   if (prevInsn == nullptr) {
     return false;
   }
@@ -1319,9 +1319,9 @@ bool LogicShiftAndOrrToExtrPattern::CheckCondition(Insn &insn) {
   is64Bits = (curDstOpnd.GetSize() == k64BitSize);
   if (curMop == MOP_wiorrrr || curMop == MOP_xiorrrr) {
     auto &useReg1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-    Insn *prevInsn1 = GetDefInsn(useReg1);
+    Insn *prevInsn1 = ssaInfo->GetDefInsn(useReg1);
     auto &useReg2 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
-    Insn *prevInsn2 = GetDefInsn(useReg2);
+    Insn *prevInsn2 = ssaInfo->GetDefInsn(useReg2);
     if (prevInsn1 == nullptr || prevInsn2 == nullptr) {
       return false;
     }
@@ -1350,7 +1350,7 @@ bool LogicShiftAndOrrToExtrPattern::CheckCondition(Insn &insn) {
     shiftValue = prevLsrImmValue;
   } else if (curMop == MOP_wiorrrrs || curMop == MOP_xiorrrrs) {
     auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-    Insn *prevInsn = GetDefInsn(useReg);
+    Insn *prevInsn = ssaInfo->GetDefInsn(useReg);
     if (prevInsn == nullptr) {
       return false;
     }
@@ -1468,7 +1468,7 @@ bool SimplifyMulArithmeticPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &useReg = static_cast<RegOperand&>(insn.GetOperand(static_cast<uint32>(validOpndIdx)));
-  prevInsn = GetDefInsn(useReg);
+  prevInsn = ssaInfo->GetDefInsn(useReg);
   if (prevInsn == nullptr) {
     return false;
   }
@@ -1837,7 +1837,7 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterSameExt(Insn &insn) {
 
 bool ElimSpecificExtensionPattern::CheckCondition(Insn &insn) {
   auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  prevInsn = GetDefInsn(useReg);
+  prevInsn = ssaInfo->GetDefInsn(useReg);
   InsnSet useInsns = GetAllUseInsn(useReg);
   if ((prevInsn == nullptr) || (useInsns.size() != 1)) {
     return false;
@@ -1954,7 +1954,7 @@ bool OneHoleBranchPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  prevInsn = GetDefInsn(useReg);
+  prevInsn = ssaInfo->GetDefInsn(useReg);
   if (prevInsn == nullptr) {
     return false;
   }
@@ -1966,7 +1966,7 @@ bool OneHoleBranchPattern::CheckCondition(Insn &insn) {
 
 bool OneHoleBranchPattern::CheckPrePrevInsn() {
   auto &useReg = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
-  prePrevInsn = GetDefInsn(useReg);
+  prePrevInsn = ssaInfo->GetDefInsn(useReg);
   if (prePrevInsn == nullptr) {
     return false;
   }

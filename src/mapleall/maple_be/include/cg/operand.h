@@ -156,6 +156,10 @@ class Operand {
     return false;
   }
 
+  virtual bool IsLogicLSLOpnd() const {
+    return false;
+  }
+
   virtual Operand *Clone(MemPool &memPool) const = 0;
 
   /*
@@ -168,6 +172,13 @@ class Operand {
 
   bool BasicEquals(const Operand &op) const {
     return opndKind == op.GetKind() && size == op.GetSize();
+  }
+
+  /*
+   *  Operand hash content, ensuring uniqueness
+   */
+  virtual std::string GetHashContent() const {
+    return std::to_string(opndKind) + std::to_string(size);
   }
 
   virtual void Emit(Emitter&, const OpndProp*) const = 0;
@@ -313,6 +324,10 @@ class RegOperand : public OperandVisitable<RegOperand> {
     }
     return (BasicEquals(op) && regNO == op.GetRegisterNumber() && regType == op.GetRegisterType() &&
             IsBBLocalReg() == op.IsBBLocalReg());
+  }
+
+  std::string GetHashContent() const override {
+    return Operand::GetHashContent() + std::to_string(regNO) + std::to_string(regType);
   }
 
   static bool IsSameRegNO(const Operand &firstOpnd, const Operand &secondOpnd) {
@@ -620,6 +635,11 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
     return (BasicEquals(op) && value == op.GetValue() && isSigned == op.IsSignedValue());
   }
 
+  std::string GetHashContent() const override {
+    return std::to_string(opndKind) + std::to_string(value) + std::to_string(isSigned) + std::to_string(isVary) +
+           std::to_string(isFmov);
+  }
+
   bool ValueEquals(const ImmOperand &op) const {
     if (&op == this) {
       return true;
@@ -720,6 +740,10 @@ class OfstOperand : public ImmOperand {
       LogInfo::MapleLogger() << GetSymbolName();
       LogInfo::MapleLogger() << "+offset:" << GetValue();
     }
+  }
+
+  std::string GetHashContent() const override {
+    return ImmOperand::GetHashContent() + std::to_string(offsetType) + std::to_string(relocs);
   }
 
  private:

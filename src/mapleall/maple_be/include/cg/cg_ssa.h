@@ -162,8 +162,8 @@ class CGSSAInfo {
   virtual ~CGSSAInfo() = default;
   void ConstructSSA();
   VRegVersion *FindSSAVersion(regno_t ssaRegNO); /* Get specific ssa info */
-  /* replace insn & update ssaInfo */
-  virtual void ReplaceInsn(Insn &oriInsn, Insn &newInsn) = 0;
+  Insn *GetDefInsn(const RegOperand &useReg);
+  virtual void ReplaceInsn(Insn &oriInsn, Insn &newInsn) = 0; /* replace insn & update ssaInfo */
   virtual void ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *newVersion) = 0;
   virtual void CreateNewInsnSSAInfo(Insn &newInsn) = 0;
   PhiOperand &CreatePhiOperand();

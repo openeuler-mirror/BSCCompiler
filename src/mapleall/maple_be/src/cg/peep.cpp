@@ -80,18 +80,6 @@ InsnSet CGPeepPattern::GetAllUseInsn(const RegOperand &defReg) const {
   return allUseInsn;
 }
 
-Insn *CGPeepPattern::GetDefInsn(const RegOperand &useReg) const {
-  if (!useReg.IsSSAForm()) {
-    return nullptr;
-  }
-  regno_t useRegNO = useReg.GetRegisterNumber();
-  VRegVersion *useVersion = ssaInfo->FindSSAVersion(useRegNO);
-  ASSERT(useVersion != nullptr, "useVRegVersion must not be null based on ssa");
-  CHECK_FATAL(!useVersion->IsDeleted(), "deleted version");
-  DUInsnInfo *defInfo = useVersion->GetDefInsnInfo();
-  return defInfo == nullptr ? nullptr : defInfo->GetInsn();
-}
-
 void CGPeepPattern::DumpAfterPattern(std::vector<Insn*> &prevInsns, const Insn *replacedInsn, const Insn *newInsn) {
   LogInfo::MapleLogger() << ">>>>>>> In " << GetPatternName() << " : <<<<<<<\n";
   if (!prevInsns.empty()) {

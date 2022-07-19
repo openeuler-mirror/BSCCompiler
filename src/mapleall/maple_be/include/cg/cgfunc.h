@@ -182,6 +182,7 @@ class CGFunc {
     return maxRegCount;
   };
   void DumpCFG() const;
+  void DumpBBInfo(const BB *bb) const;
   void DumpCGIR(bool withTargetInfo = false) const;
   virtual void DumpTargetIR(const Insn &insn) const {};
   void DumpLoop() const;

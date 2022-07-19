@@ -45,6 +45,7 @@ class MPISel;
 class Standardize;
 class LiveIntervalAnalysis;
 class ValidBitOpt;
+class RedundantComputeElim;
 
 class Globals {
  public:
@@ -402,9 +403,6 @@ class CG {
   virtual Standardize *CreateStandardize(MemPool &mp, CGFunc &f) const {
     return nullptr;
   }
-  virtual ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const {
-    return nullptr;
-  }
 
   /* Init SubTarget optimization */
   virtual CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const {
@@ -422,6 +420,12 @@ class CG {
   virtual CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const {
     return nullptr;
   };
+  virtual ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const {
+    return nullptr;
+  }
+  virtual RedundantComputeElim *CreateRedundantCompElim(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const {
+    return nullptr;
+  }
 
   /* Object map generation helper */
   std::vector<int64> GetReferenceOffsets64(const BECommon &beCommon, MIRStructType &structType) const;
