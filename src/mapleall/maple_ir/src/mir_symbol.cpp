@@ -13,8 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "mir_symbol.h"
-#include <algorithm>
-#include <unordered_set>
 #include "mir_function.h"
 #include "class_init.h"
 #include "vtable_analysis.h"
@@ -28,6 +26,7 @@ namespace maple {
 using namespace namemangler;
 
 uint32 MIRSymbol::lastPrintedLineNum = 0;
+uint16 MIRSymbol::lastPrintedColumnNum = 0;
 
 bool MIRSymbol::NeedPIC() const {
   return (storageClass == kScGlobal) ||
@@ -315,14 +314,11 @@ bool MIRSymbol::IgnoreRC() const {
 
 void MIRSymbol::Dump(bool isLocal, int32 indent, bool suppressInit, const MIRSymbolTable *localsymtab) const {
   if (sKind == kStVar || sKind == kStFunc) {
-    if (srcPosition.FileNum() != 0 && srcPosition.LineNum() != 0 && srcPosition.LineNum() != lastPrintedLineNum) {
-      LogInfo::MapleLogger() << "LOC " << srcPosition.FileNum() << " " << srcPosition.LineNum() << std::endl;
-      lastPrintedLineNum = srcPosition.LineNum();
-    }
+    srcPosition.DumpLoc(lastPrintedLineNum, lastPrintedColumnNum);
   }
   // exclude unused symbols, formal symbols and extern functions
   if (GetStorageClass() == kScUnused || GetStorageClass() == kScFormal ||
-      (GetStorageClass() == kScExtern && sKind == kStFunc)) {
+      (GetStorageClass() == kScExtern && sKind == kStFunc && !GetFunction()->GetAttr(FUNCATTR_used))) {
     return;
   }
   if (GetIsImported() && !GetAppearsInCode()) {

@@ -1093,7 +1093,7 @@ void BinaryMplExport::WriteEaCgField(EAConnectionGraph *eaCg) {
   }
   Fixup(outNodeSizeIdx, callSiteSize);
 
-  Fixup(totalSizeIdx, buf.size()-totalSizeIdx);
+  Fixup(totalSizeIdx, buf.size() - totalSizeIdx);
   WriteNum(~kBinEaCgStart);
 }
 
@@ -1117,7 +1117,9 @@ void BinaryMplExport::WriteSymField(uint64 contentIdx) {
       MIRSymKind sKind = s->GetSKind();
       if (s->IsDeleted() || storageClass == kScUnused ||
           (s->GetIsImported() && !s->GetAppearsInCode()) ||
-          (sKind == kStFunc && (storageClass == kScExtern || !s->GetAppearsInCode()))) {
+          (sKind == kStFunc && 
+             ((storageClass == kScExtern && !s->GetFunction()->GetAttr(FUNCATTR_used)) || 
+              !s->GetAppearsInCode()))) {
         continue;
       }
       OutputSymbol(s);
@@ -1294,7 +1296,7 @@ void BinaryMplExport::OutputType(TyIdx tyIdx) {
   }
 }
 
-void UpdateMplt::UpdateCgField(BinaryMplt &binMplt, const CallGraph &cg) {
+void UpdateMplt::UpdateCgField(BinaryMplt &binMplt, const CallGraph &cg) const {
   BinaryMplImport &binImport = binMplt.GetBinImport();
   BinaryMplExport &binExport = binMplt.GetBinExport();
   binImport.SetBufI(0);
