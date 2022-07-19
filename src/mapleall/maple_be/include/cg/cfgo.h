@@ -20,10 +20,10 @@
 namespace maplebe {
 
 enum CfgoPhase : maple::uint8 {
-  CfgoDefault,
-  CfgoPreRegAlloc,
-  CfgoPostRegAlloc,
-  PostCfgo,
+  kCfgoDefault,
+  kCfgoPreRegAlloc,
+  kCfgoPostRegAlloc,
+  kPostCfgo,
 };
 
 class ChainingPattern : public OptimizationPattern {
@@ -77,7 +77,7 @@ class FlipBRPattern : public OptimizationPattern {
   void SetPhase(CfgoPhase val) {
     phase = val;
   }
-  CfgoPhase phase = CfgoDefault;
+  CfgoPhase phase = kCfgoDefault;
 
  protected:
   void RelocateThrowBB(BB &curBB) const;
@@ -143,7 +143,7 @@ class CFGOptimizer : public Optimizer {
   void SetPhase(CfgoPhase val) {
     phase = val;
   }
-  CfgoPhase phase = CfgoDefault;
+  CfgoPhase phase = kCfgoDefault;
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgCfgo, maplebe::CGFunc)

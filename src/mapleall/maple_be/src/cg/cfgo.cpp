@@ -43,8 +43,8 @@ void CFGOptimizer::InitOptimizePatterns() {
   }
   diffPassPatterns.emplace_back(memPool->New<SequentialJumpPattern>(*cgFunc));
   FlipBRPattern *brOpt = memPool->New<FlipBRPattern>(*cgFunc);
-  if (GetPhase() == CfgoPostRegAlloc) {
-    brOpt->SetPhase(CfgoPostRegAlloc);
+  if (GetPhase() == kCfgoPostRegAlloc) {
+    brOpt->SetPhase(kCfgoPostRegAlloc);
   }
   diffPassPatterns.emplace_back(brOpt);
   diffPassPatterns.emplace_back(memPool->New<DuplicateBBPattern>(*cgFunc));
@@ -658,7 +658,7 @@ bool FlipBRPattern::Optimize(BB &curBB) {
         ftBB->RemoveInsn(*brInsn);
         ftBB->SetKind(BB::kBBFallthru);
       }
-    } else if (GetPhase() == CfgoPostRegAlloc && ftBB->GetKind() == BB::kBBGoto &&
+    } else if (GetPhase() == kCfgoPostRegAlloc && ftBB->GetKind() == BB::kBBGoto &&
                curBB.GetLoop() != nullptr &&  curBB.GetLoop() == ftBB->GetLoop() &&
                ftBB->IsSoloGoto() &&
                ftBB->GetLoop()->GetHeader() == *(ftBB->GetSuccsBegin()) &&
@@ -904,7 +904,7 @@ bool CgCfgo::PhaseRun(maplebe::CGFunc &f) {
   CFGOptimizer *cfgOptimizer = GetPhaseAllocator()->New<CFGOptimizer>(f, *GetPhaseMemPool());
   if (f.IsAfterRegAlloc()) {
     (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
-    cfgOptimizer->SetPhase(CfgoPostRegAlloc);
+    cfgOptimizer->SetPhase(kCfgoPostRegAlloc);
   }
   const std::string &funcClass = f.GetFunction().GetBaseClassName();
   const std::string &funcName = f.GetFunction().GetBaseFuncName();
