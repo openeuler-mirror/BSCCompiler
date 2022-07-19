@@ -339,6 +339,14 @@ class ASTVar : public ASTDecl {
     return promotedType;
   }
 
+  void SetTypeNameIdx(const GStrIdx &idx) {
+    typeNameIdx = idx;
+  }
+
+  void SetSourceType(MIRType *type) {
+    sourceType = type;
+  }
+
   std::unique_ptr<FEIRVar> Translate2FEIRVar() const;
   MIRSymbol *Translate2MIRSymbol() const;
 
@@ -351,6 +359,8 @@ class ASTVar : public ASTDecl {
   std::string asmAttr;
   ASTExpr *variableArrayExpr = nullptr;
   PrimType promotedType = PTY_void;
+  GStrIdx typeNameIdx;
+  MIRType *sourceType = nullptr;  // typedef type
   bool hasAddedInMIRScope = false;
 };
 

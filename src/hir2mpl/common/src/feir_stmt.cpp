@@ -529,7 +529,7 @@ std::list<StmtNode*> FEIRStmtJavaFillArrayData::GenMIRStmtsImpl(MIRBuilder &mirB
   args.push_back(nodeAddrof);
   uint64 elemPrimTypeSize = GetPrimTypeSize(elemPrimType);
   uint64 val = elemPrimTypeSize * size;
-  BaseNode *nodebytes = mirBuilder.CreateIntConst(static_cast<int64>(val), PTY_i32);
+  BaseNode *nodebytes = mirBuilder.CreateIntConst(val, PTY_i32);
   args.push_back(nodebytes);
   StmtNode *stmt = mirBuilder.CreateStmtIntrinsicCallAssigned(INTRN_JAVA_ARRAY_FILL, std::move(args), nullptr);
   ans.push_back(stmt);
@@ -1588,7 +1588,7 @@ std::list<StmtNode*> FEIRStmtFieldStore::GenMIRStmtsImplForStatic(MIRBuilder &mi
     if (FEOptions::GetInstance().IsAOT()) {
       needMCCForStatic = NeedMCCForStatic(typeID);
       if (!needMCCForStatic) {
-        BaseNode *argNumExpr = mirBuilder.CreateIntConst(static_cast<int32>(typeID), PTY_i32);
+        BaseNode *argNumExpr = mirBuilder.CreateIntConst(typeID, PTY_i32);
         args.push_back(argNumExpr);
       } else {
         const auto &pt = fieldInfo.GetType()->GetPrimType();
@@ -1596,7 +1596,7 @@ std::list<StmtNode*> FEIRStmtFieldStore::GenMIRStmtsImplForStatic(MIRBuilder &mi
         InitPrimTypeFuncNameIdxMap(primTypeFuncNameIdxMap);
         const auto &itorFunc = primTypeFuncNameIdxMap.find(pt);
         CHECK_FATAL(itorFunc != primTypeFuncNameIdxMap.end(), "java type not support %d", pt);
-        args.push_back(mirBuilder.CreateIntConst(static_cast<int32>(fieldInfo.GetFieldID()), PTY_i32));
+        args.push_back(mirBuilder.CreateIntConst(fieldInfo.GetFieldID(), PTY_i32));
         BaseNode *nodeSrc = mirBuilder.CreateExprDread(*symSrc);
         args.push_back(nodeSrc);
         MIRSymbol *retVarSym = nullptr;
@@ -1748,7 +1748,7 @@ std::list<StmtNode*> FEIRStmtFieldLoad::GenMIRStmtsImplForStatic(MIRBuilder &mir
     uint32 typeID = UINT32_MAX;
     needMCCForStatic = NeedMCCForStatic(typeID);
     if (!needMCCForStatic) {
-      BaseNode *argNumExpr = mirBuilder.CreateIntConst(static_cast<int32>(typeID), PTY_i32);
+      BaseNode *argNumExpr = mirBuilder.CreateIntConst(typeID, PTY_i32);
       args.push_back(argNumExpr);
     } else {
       auto pt = fieldInfo.GetType()->GetPrimType();
@@ -1765,7 +1765,7 @@ std::list<StmtNode*> FEIRStmtFieldLoad::GenMIRStmtsImplForStatic(MIRBuilder &mir
       };
       auto itorFunc = primTypeFuncNameIdxMap.find(pt);
       CHECK_FATAL(itorFunc != primTypeFuncNameIdxMap.end(), "java type not support %d", pt);
-      args.push_back(mirBuilder.CreateIntConst(static_cast<int32>(fieldInfo.GetFieldID()), PTY_i32));
+      args.push_back(mirBuilder.CreateIntConst(fieldInfo.GetFieldID(), PTY_i32));
       MIRSymbol *retVarSym = nullptr;
       retVarSym = var->GenerateLocalMIRSymbol(mirBuilder);
       StmtNode *stmtMCC = mirBuilder.CreateStmtCallAssigned(
@@ -2186,7 +2186,7 @@ std::list<StmtNode*> FEIRStmtIntrinsicCallAssign::GenMIRStmtsImpl(MIRBuilder &mi
   if (intrinsicId == INTRN_JAVA_CLINIT_CHECK) {
     MapleVector<BaseNode*> args(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
     if (FEOptions::GetInstance().IsAOT()) {
-      BaseNode *argNumExpr = mirBuilder.CreateIntConst(static_cast<int64>(typeID), PTY_i32);
+      BaseNode *argNumExpr = mirBuilder.CreateIntConst(typeID, PTY_i32);
       args.push_back(argNumExpr);
     }
     stmtCall = mirBuilder.CreateStmtIntrinsicCall(INTRN_JAVA_CLINIT_CHECK, std::move(args),
@@ -2297,7 +2297,7 @@ void FEIRStmtIntrinsicCallAssign::ConstructArgsForInvokePolyMorphic(MIRBuilder &
   dreadExprProtoName->SetPrimType(PTY_ptr);
   intrnCallargs.push_back(dreadExprProtoName);
 
-  BaseNode *argNumExpr = mirBuilder.CreateIntConst(static_cast<int64>(polyArgs->size() - 1), PTY_i32);
+  BaseNode *argNumExpr = mirBuilder.CreateIntConst(static_cast<uint64>(polyArgs->size() - 1), PTY_i32);
   intrnCallargs.push_back(argNumExpr);
 
   bool isAfterMethodHandle = true;
@@ -2305,7 +2305,7 @@ void FEIRStmtIntrinsicCallAssign::ConstructArgsForInvokePolyMorphic(MIRBuilder &
     intrnCallargs.push_back(mirBuilder.CreateExprDread(*(arg->GenerateMIRSymbol(mirBuilder))));
     if (FEOptions::GetInstance().IsAOT() && isAfterMethodHandle) {
       if (isInStaticFunc) {
-        intrnCallargs.push_back(mirBuilder.CreateIntConst(static_cast<int32>(callerClassTypeID), PTY_i32));
+        intrnCallargs.push_back(mirBuilder.CreateIntConst(callerClassTypeID, PTY_i32));
       } else {
         std::unique_ptr<FEIRVar> varThisAsLocalVar = std::make_unique<FEIRVarName>(FEUtils::GetThisIdx(),
                                                                                    FEIRTypeDefault(PTY_ref).Clone());
@@ -2331,9 +2331,8 @@ FEIRExpr::FEIRExpr(FEIRNodeKind argKind, std::unique_ptr<FEIRType> argType)
       isNestable(true),
       isAddrof(false),
       hasException(false),
-      isBoundaryChecking(false) {
-  SetType(std::move(argType));
-}
+      isBoundaryChecking(false),
+      type(std::move(argType)) {}
 
 std::unique_ptr<FEIRExpr> FEIRExpr::Clone() {
   auto expr = CloneImpl();
@@ -2449,7 +2448,7 @@ BaseNode *FEIRExprConst::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
     case PTY_u128:
     case PTY_ref:
     case PTY_ptr:
-      return mirBuilder.CreateIntConst(value.i64, primType);
+      return mirBuilder.CreateIntConst(static_cast<uint64>(value.i64), primType);
     case PTY_f32:
       return mirBuilder.CreateFloatConst(value.f32);
     case PTY_f64:
@@ -3871,24 +3870,24 @@ BaseNode *FEIRExprAtomic::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
     }
   }
   static std::unordered_map<ASTAtomicOp, MIRIntrinsicID> intrinsicIDMap = {
-    {kAtomicOpLoadN, INTRN_C___atomic_load_n},
-    {kAtomicOpLoad, INTRN_C___atomic_load},
-    {kAtomicOpStoreN, INTRN_C___atomic_store_n},
-    {kAtomicOpStore, INTRN_C___atomic_store},
-    {kAtomicOpExchangeN, INTRN_C___atomic_exchange_n},
-    {kAtomicOpExchange, INTRN_C___atomic_exchange},
-    {kAtomicOpAddFetch, INTRN_C___atomic_add_fetch},
-    {kAtomicOpSubFetch, INTRN_C___atomic_sub_fetch},
-    {kAtomicOpAndFetch, INTRN_C___atomic_and_fetch},
-    {kAtomicOpXorFetch, INTRN_C___atomic_xor_fetch},
-    {kAtomicOpOrFetch, INTRN_C___atomic_or_fetch},
-    {kAtomicOpNandFetch, INTRN_C___atomic_nand_fetch},
-    {kAtomicOpFetchAdd, INTRN_C___atomic_fetch_add},
-    {kAtomicOpFetchSub, INTRN_C___atomic_fetch_sub},
-    {kAtomicOpFetchAnd, INTRN_C___atomic_fetch_and},
-    {kAtomicOpFetchXor, INTRN_C___atomic_fetch_xor},
-    {kAtomicOpFetchOr, INTRN_C___atomic_fetch_or},
-    {kAtomicOpFetchNand, INTRN_C___atomic_fetch_nand},
+      {kAtomicOpLoadN, INTRN_C___atomic_load_n},
+      {kAtomicOpLoad, INTRN_C___atomic_load},
+      {kAtomicOpStoreN, INTRN_C___atomic_store_n},
+      {kAtomicOpStore, INTRN_C___atomic_store},
+      {kAtomicOpExchangeN, INTRN_C___atomic_exchange_n},
+      {kAtomicOpExchange, INTRN_C___atomic_exchange},
+      {kAtomicOpAddFetch, INTRN_C___atomic_add_fetch},
+      {kAtomicOpSubFetch, INTRN_C___atomic_sub_fetch},
+      {kAtomicOpAndFetch, INTRN_C___atomic_and_fetch},
+      {kAtomicOpXorFetch, INTRN_C___atomic_xor_fetch},
+      {kAtomicOpOrFetch, INTRN_C___atomic_or_fetch},
+      {kAtomicOpNandFetch, INTRN_C___atomic_nand_fetch},
+      {kAtomicOpFetchAdd, INTRN_C___atomic_fetch_add},
+      {kAtomicOpFetchSub, INTRN_C___atomic_fetch_sub},
+      {kAtomicOpFetchAnd, INTRN_C___atomic_fetch_and},
+      {kAtomicOpFetchXor, INTRN_C___atomic_fetch_xor},
+      {kAtomicOpFetchOr, INTRN_C___atomic_fetch_or},
+      {kAtomicOpFetchNand, INTRN_C___atomic_fetch_nand},
   };
   CHECK(intrinsicIDMap.find(atomicOp) != intrinsicIDMap.end(), "atomic opcode not yet supported!");
   MIRIntrinsicID intrinsicID = intrinsicIDMap[atomicOp];
@@ -4309,8 +4308,8 @@ bool FEIRStmtGCCAsm::HandleConstraintPlusQm(MIRBuilder &mirBuilder, AsmNode *asm
       // '+' means that asm out operand is both read and written, copy the initial value of global var into the
       // local temp var and then add local temp var into the input list.
       auto stmt = FEIRBuilder::CreateStmtDAssign(localAsmOut->Clone(), outputsExprs[index]->Clone());
-      std::list<StmtNode*> node = stmt->GenMIRStmts(mirBuilder);
-      initStmts.splice(initStmts.end(), node);
+      std::list<StmtNode*> nodes = stmt->GenMIRStmts(mirBuilder);
+      initStmts.splice(initStmts.end(), nodes);
     }
     node = static_cast<BaseNode*>(mirBuilder.CreateExprAddrof(fieldID, localSym != nullptr ? *localSym : *sym));
   } else if (outputsExprs[index]->GetKind() == kExprIRead) {

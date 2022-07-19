@@ -328,7 +328,7 @@ class FEIRTypeNative : public FEIRType {
 class FEIRTypePointer : public FEIRType {
  public:
   explicit FEIRTypePointer(std::unique_ptr<FEIRType> argBaseType, PrimType argPrimType = PTY_ref);
-  ~FEIRTypePointer() = default;
+  ~FEIRTypePointer() override = default;
   FEIRTypePointer(const FEIRTypePointer&) = delete;
   FEIRTypePointer &operator=(const FEIRTypePointer&) = delete;
   const UniqueFEIRType &GetBaseType() const {
@@ -348,21 +348,21 @@ class FEIRTypePointer : public FEIRType {
   bool IsScalarImpl() const override;
   TypeDim ArrayIncrDimImpl(TypeDim delta) override;
   TypeDim ArrayDecrDimImpl(TypeDim delta) override;
-  virtual PrimType GetPrimTypeImpl() const override;
-  virtual void SetPrimTypeImpl(PrimType pt) override;
-  virtual bool IsRefImpl() const override {
+  PrimType GetPrimTypeImpl() const override;
+  void SetPrimTypeImpl(PrimType pt) override;
+  bool IsRefImpl() const override {
     return true;  // pointer type is ref
   }
 
-  virtual bool IsArrayImpl() const override {
+  bool IsArrayImpl() const override {
     return baseType->IsArray();
   }
 
-  virtual bool IsPreciseImpl() const override {
+  bool IsPreciseImpl() const override {
     return baseType->IsPrecise();
   }
 
-  virtual bool IsValidImpl() const override {
+  bool IsValidImpl() const override {
     return baseType->IsValid();
   }
 

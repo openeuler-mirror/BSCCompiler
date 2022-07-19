@@ -112,6 +112,11 @@ class FETypeManager {
 
   MIRStructType *GetOrCreateStructType(const std::string &name);
   MIRStructType *CreateStructType(const std::string &name);
+  MIRTypeByName *CreateTypeByNameType(const std::string &name);
+  MIRTypeByName *GetOrCreateTypeByNameType(const std::string &name);
+  MIRTypeByName *GetTypeByNameType(const std::string &name);
+  MIRTypeByName *GetTypeByNameType(const GStrIdx &nameIdx);
+  MIRTypeByName *CreateTypedef(const std::string &name, const MIRType &type);
   MIRType *GetOrCreateComplexStructType(const MIRType &elemType);
   MIRStructType *GetOrCreateClassOrInterfaceType(const GStrIdx &nameIdx, bool isInterface, FETypeFlag typeFlag,
                                                  bool &isCreate);
@@ -274,6 +279,7 @@ class FETypeManager {
   std::unordered_map<GStrIdx, GStrIdx, GStrIdxHash> structNameSrcMap;
   // list<pair<structNameIdx, mpltNameIdx>>
   std::list<std::pair<GStrIdx, GStrIdx>> structSameNameSrcList;
+  std::unordered_map<GStrIdx, MIRTypeByName*, GStrIdxHash> nameTypeMap;
   FETypeSameNamePolicy sameNamePolicy;
   MIRSrcLang srcLang;
 

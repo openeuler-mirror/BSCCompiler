@@ -808,7 +808,7 @@ void FEFunction::PushStmtScope(const SrcPosition &startOfScope, const SrcPositio
     CHECK_NULL_FATAL(parentMIRScope);
     MIRScope *mirScope = mirFunction.GetModule()->GetMemPool()->New<MIRScope>(mirFunction.GetModule());
     mirScope->SetRange(startOfScope, endOfScope);
-    parentMIRScope->AddScope(mirScope);
+    (void)parentMIRScope->AddScope(mirScope);
     feirScope->SetMIRScope(mirScope);
   }
   feirScope->SetIsControllScope(isControllScope);
@@ -851,12 +851,19 @@ UniqueFEIRScope FEFunction::PopTopScope() {
   return nullptr;
 }
 
-void FEFunction::AddAliasInMIRScope(MIRScope *scope, const std::string &srcVarName, const MIRSymbol *symbol) {
+void FEFunction::AddAliasInMIRScope(MIRScope *scope, const std::string &srcVarName, const MIRSymbol *symbol,
+                                    const GStrIdx &typeNameIdx, const MIRType *sourceType) {
   GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(srcVarName);
   MIRAliasVars aliasVar;
-  aliasVar.tyIdx = symbol->GetTyIdx();
   aliasVar.mplStrIdx = symbol->GetNameStrIdx();
   aliasVar.isLocal = symbol->IsLocal();
+  if (sourceType != nullptr) {
+    aliasVar.tyIdx = sourceType->GetTypeIndex();
+  } else if (typeNameIdx != 0) {
+    aliasVar.srcTypeStrIdx = typeNameIdx;
+  } else {
+    aliasVar.tyIdx = symbol->GetTyIdx();
+  }
   scope->SetAliasVarMap(nameIdx, aliasVar);
 };
 

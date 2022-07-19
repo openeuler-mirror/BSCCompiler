@@ -39,7 +39,11 @@ class FEIRScope {
     mirScope = scope;
   }
 
-  MIRScope *GetMIRScope() const {
+  MIRScope *GetMIRScope() {
+    return mirScope;
+  }
+
+  const MIRScope *GetMIRScope() const {
     return mirScope;
   }
 

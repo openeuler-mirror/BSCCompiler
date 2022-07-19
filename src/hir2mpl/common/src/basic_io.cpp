@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include "mpl_logging.h"
+#include "file_utils.h"
 
 namespace maple {
 BasicIOMapFile::BasicIOMapFile(const std::string &name)
@@ -35,7 +36,8 @@ BasicIOMapFile::~BasicIOMapFile() {
 
 bool BasicIOMapFile::OpenAndMapImpl() {
   fd = -1;
-  fd = open(fileName.c_str(), O_RDONLY);
+  std::string realPath = FileUtils::GetRealPath(fileName);
+  fd = open(realPath.c_str(), O_RDONLY);
   if (fd < 0) {
     ERR(kLncErr, "Unable to open %s.\nError %d in open()", fileName.c_str(), errno);
     return false;

@@ -139,7 +139,7 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   if (FEOptions::GetInstance().IsDbgFriendly() && !hasAddedInMIRScope) {
     FEFunction &feFunction = FEManager::GetCurrentFEFunction();
     MIRScope *mirScope = feFunction.GetTopMIRScope();
-    feFunction.AddAliasInMIRScope(mirScope, GetName(), sym);
+    feFunction.AddAliasInMIRScope(mirScope, GetName(), sym, typeNameIdx, sourceType);
     hasAddedInMIRScope = true;
   }
   if (variableArrayExpr != nullptr) {  // vla declaration point

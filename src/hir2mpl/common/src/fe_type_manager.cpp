@@ -213,6 +213,45 @@ MIRStructType *FETypeManager::GetOrCreateStructType(const std::string &name) {
   return structType;
 }
 
+MIRTypeByName *FETypeManager::CreateTypeByNameType(const std::string &name) {
+  GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
+  MIRTypeByName nameType(strIdx);
+  TyIdx tyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&nameType);
+  MIRTypeByName *type = static_cast<MIRTypeByName*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx.GetIdx()));
+  module.PushbackTypeDefOrder(strIdx);
+  nameTypeMap[strIdx] = type;
+  return type;
+}
+
+MIRTypeByName *FETypeManager::GetOrCreateTypeByNameType(const std::string &name) {
+  GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
+  const auto &it  = nameTypeMap.find(nameIdx);
+  if (it != nameTypeMap.cend()) {
+    return it->second;
+  }
+  MIRTypeByName *nameType = CreateTypeByNameType(name);
+  return nameType;
+}
+
+MIRTypeByName *FETypeManager::GetTypeByNameType(const std::string &name) {
+  GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
+  return GetTypeByNameType(nameIdx);
+}
+
+MIRTypeByName *FETypeManager::GetTypeByNameType(const GStrIdx &nameIdx) {
+  const auto &it = nameTypeMap.find(nameIdx);
+  if (it != nameTypeMap.cend()) {
+    return it->second;
+  }
+  return nullptr;
+}
+
+MIRTypeByName *FETypeManager::CreateTypedef(const std::string &name, const MIRType &type) {
+  MIRTypeByName *typdefType = GetOrCreateTypeByNameType(name);
+  module.GetTypeNameTab()->SetGStrIdxToTyIdx(typdefType->GetNameStrIdx(), type.GetTypeIndex());
+  return typdefType;
+}
+
 /*
  * create MIRStructType for complex number, e.g.
  * type $Complex|F <struct {

@@ -93,7 +93,7 @@ class FEInputFileScopeAsmHelper {
 
 class FEInputFieldHelper {
  public:
-  explicit FEInputFieldHelper(MapleAllocator &allocator) {}
+  explicit FEInputFieldHelper(MapleAllocator &allocatorIn) : allocator(allocatorIn) {}
   virtual ~FEInputFieldHelper() = default;
   const FieldPair &GetMIRFieldPair() const {
     return mirFieldPair;
@@ -101,6 +101,10 @@ class FEInputFieldHelper {
 
   bool IsStatic() const {
     return mirFieldPair.second.second.GetAttr(FLDATTR_static);
+  }
+
+  bool ProcessDecl() {
+    return ProcessDecl(allocator);
   }
 
   bool ProcessDecl(MapleAllocator &allocator) {
@@ -126,6 +130,8 @@ class FEInputFieldHelper {
  protected:
   virtual bool ProcessDeclImpl(MapleAllocator &allocator) = 0;
   virtual bool ProcessDeclWithContainerImpl(MapleAllocator &allocator) = 0;
+
+  MapleAllocator &allocator;
   FieldPair mirFieldPair;
 };
 
@@ -363,7 +369,7 @@ class FEInputStructHelper : public FEInputContainer {
   void ProcessPragma();
 
  protected:
-  MIRStructType *GetContainerImpl();
+  virtual MIRStructType *GetContainerImpl();
   virtual bool PreProcessDeclImpl();
   virtual bool ProcessDeclImpl();
   virtual std::string GetStructNameOrinImpl() const = 0;

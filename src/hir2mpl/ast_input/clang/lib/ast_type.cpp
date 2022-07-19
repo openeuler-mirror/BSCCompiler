@@ -114,6 +114,30 @@ bool LibAstFile::TypeHasMayAlias(const clang::QualType srcType) const {
   return false;
 }
 
+MIRType *LibAstFile::CvtTypedef(const clang::QualType &qualType) {
+  const clang::TypedefType *typedefType = llvm::dyn_cast<clang::TypedefType>(qualType);
+  if (typedefType == nullptr) {
+    return nullptr;
+  }
+  const auto *typedefDecl = typedefType->getDecl();
+  std::string typedefName = typedefDecl->getNameAsString();
+  if (typedefName.empty()) {
+    return nullptr;
+  }
+  GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typedefName);
+  MIRType *structType = FEManager::GetTypeManager().GetImportedType(strIdx);
+  if (structType != nullptr) {  // skip same name struct type
+    return structType;
+  }
+  MIRTypeByName *typdefType = nullptr;
+  clang::QualType underlyTy = typedefDecl->getCanonicalDecl()->getUnderlyingType();
+  MIRType *type = CvtType(underlyTy);
+  if (type != nullptr) {
+    typdefType = FEManager::GetTypeManager().CreateTypedef(typedefName, *type);
+  }
+  return typdefType;
+}
+
 MIRType *LibAstFile::CvtType(const clang::QualType qualType) {
   clang::QualType srcType = qualType.getCanonicalType();
   if (srcType.isNull()) {

@@ -134,7 +134,7 @@ class FEStructFieldInfo : public FEStructElemInfo {
  public:
   FEStructFieldInfo(MapleAllocator &allocatorIn, const StructElemNameIdx &argStructElemNameIdx,
                     MIRSrcLang argSrcLang, bool argIsStatic);
-  ~FEStructFieldInfo() {
+  ~FEStructFieldInfo() override {
     fieldType = nullptr;
   }
   GStrIdx GetFieldNameIdx() const {

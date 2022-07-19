@@ -2657,6 +2657,13 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
 
   astVar = ASTDeclsBuilder::ASTVarBuilder(
       allocator, fileName, varName, MapleVector<MIRType*>({varType}, allocator.Adapter()), attrs, varDecl.getID());
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    if (varType->IsScalarType() || ASTUtil::HasTypdefType(qualType)) {
+      std::string typeName = qualType.getAsString();
+      astVar->SetTypeNameIdx(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName));
+    }
+    astVar->SetSourceType(astFile->CvtTypedef(qualType));
+  }
   astVar->SetIsMacro(varDecl.getLocation().isMacroID());
   clang::SectionAttr *sa = varDecl.getAttr<clang::SectionAttr>();
   if (sa != nullptr && !sa->isImplicit()) {

@@ -402,7 +402,7 @@ bool FEUtils::EndsWith(const std::string &value, const std::string &ending) {
 
 // in the search, curfieldid is being decremented until it reaches 1
 MIRConst *FEUtils::TraverseToMIRConst(MIRAggConst *aggConst, const MIRStructType &structType, FieldID &fieldID) {
-  if (aggConst == nullptr || !aggConst->GetConstVec().size()) {
+  if (aggConst == nullptr || aggConst->GetConstVec().size() == 0) {
     return nullptr;
   }
   uint32 fieldIdx = 0;

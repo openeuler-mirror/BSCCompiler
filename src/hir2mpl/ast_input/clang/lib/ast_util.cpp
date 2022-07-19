@@ -339,4 +339,19 @@ std::string ASTUtil::GetRecordLayoutString(const clang::ASTRecordLayout &recordL
   }
   return recordLayoutStr;
 }
+
+bool ASTUtil::HasTypdefType(clang::QualType qualType) {
+  if (llvm::isa<clang::TypedefType>(qualType)) {
+    return true;
+  }
+  auto pointerType = llvm::dyn_cast<clang::PointerType>(qualType);
+  if (pointerType != nullptr) {
+    return HasTypdefType(qualType->getPointeeType());
+  }
+  const auto *arrayType = llvm::dyn_cast<clang::ArrayType>(qualType);
+  if (arrayType != nullptr) {
+    return HasTypdefType(arrayType->getElementType());
+  }
+  return false;
+}
 }  // namespace maple

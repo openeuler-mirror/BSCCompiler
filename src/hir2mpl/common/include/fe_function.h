@@ -32,9 +32,9 @@
 #include "feir_scope.h"
 
 namespace maple {
-#define SET_FUNC_INFO_PAIR(A, B, C, D)                                                          \
-  A.PushbackMIRInfo(MIRInfoPair(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(B), C)); \
-  A.PushbackIsString(D)
+#define SET_FUNC_INFO_PAIR(A, B, C, D)                                                           \
+  (A).PushbackMIRInfo(MIRInfoPair(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(B), C)); \
+  (A).PushbackIsString(D)
 
 class FEFunction {
  public:
@@ -55,7 +55,8 @@ class FEFunction {
   UniqueFEIRScope PopTopScope();
   FEIRScope *GetTopFEIRScopePtr() const;
   MIRScope *GetTopMIRScope() const;
-  void AddAliasInMIRScope(MIRScope *scope, const std::string &srcVarName, const MIRSymbol *symbol);
+  void AddAliasInMIRScope(MIRScope *scope, const std::string &srcVarName, const MIRSymbol *symbol,
+                          const GStrIdx &typeNameIdx, const MIRType *sourceType);
   virtual void AddVLACleanupStmts(std::list<UniqueFEIRStmt> &stmts);
 
   void SetSrcFileName(const std::string &fileName) {

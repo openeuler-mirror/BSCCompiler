@@ -52,6 +52,7 @@ class ASTUtil {
   static bool IsVoidPointerType(const TyIdx &tyIdx);
   static std::string AdjustFuncName(std::string funcName);
   static bool InsertFuncSet(const GStrIdx &idx);
+  static bool HasTypdefType(clang::QualType qualType);
 
   template <typename Range, typename Value = typename Range::value_type>
   static std::string Join(const Range &elements, const char *delimiter) {

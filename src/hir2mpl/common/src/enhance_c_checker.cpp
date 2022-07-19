@@ -32,7 +32,7 @@ void ASTParser::ProcessNonnullFuncPtrAttrs(MapleAllocator &allocator, const clan
   TypeAttrs retAttr = funcType->GetRetAttrs();
   // nonnull with args in function type pointers need marking nonnull arg
   for (const auto *nonNull : valueDecl.specific_attrs<clang::NonNullAttr>()) {
-    if (!nonNull->args_size()) {
+    if (nonNull->args_size() == 0) {
       continue;
     }
     for (const clang::ParamIdx &paramIdx : nonNull->args()) {
@@ -323,7 +323,7 @@ void ASTParser::ProcessBoundaryFuncAttrs(MapleAllocator &allocator, const clang:
     if (lenExpr == nullptr) {
       continue;
     }
-    if (!countAttr->index_size()) {
+    if (countAttr->index_size() == 0) {
       // Lack of attribute index parameters means that only one pointer parameter is
       // implicitly marked as boundary var in func.
       for (unsigned int i = 0; i < astFunc.GetParamDecls().size(); ++i) {
@@ -362,7 +362,7 @@ void ASTParser::ProcessByteBoundaryFuncAttrs(MapleAllocator &allocator, const cl
     if (lenExpr == nullptr) {
       continue;
     }
-    if (!countAttr->index_size()) {
+    if (countAttr->index_size() == 0) {
       // Lack of attribute index parameters means that only one pointer parameter is
       // implicitly marked as boundary var in func.
       for (unsigned int i = 0; i < astFunc.GetParamDecls().size(); ++i) {
@@ -427,7 +427,7 @@ void ASTParser::ProcessBoundaryParamAttrs(MapleAllocator &allocator, const clang
     }
     for (const auto *countAttr : parmDecl->specific_attrs<clang::CountAttr>()) {
       clang::Expr *expr = countAttr->getLenExpr();
-      if (countAttr->index_size()) {
+      if (countAttr->index_size() > 0) {
         continue;  // boundary attrs with index args are only marked function pointers
       }
       ASTExpr *lenExpr = ProcessExpr(allocator, expr);
@@ -438,7 +438,7 @@ void ASTParser::ProcessBoundaryParamAttrs(MapleAllocator &allocator, const clang
     }
     for (const auto *byteCountAttr : parmDecl->specific_attrs<clang::ByteCountAttr>()) {
       clang::Expr *expr = byteCountAttr->getLenExpr();
-      if (byteCountAttr->index_size()) {
+      if (byteCountAttr->index_size() > 0) {
         continue;  // boundary attrs with index args are only marked function pointers
       }
       ASTExpr *lenExpr = ProcessExpr(allocator, expr);
@@ -459,14 +459,14 @@ void ASTParser::ProcessBoundaryParamAttrsByIndex(MapleAllocator &allocator, cons
   for (unsigned int i = 0; i < funcDecl.getNumParams(); ++i) {
     const clang::ParmVarDecl *parmDecl = funcDecl.getParamDecl(i);
     for (const auto *countIndexAttr : parmDecl->specific_attrs<clang::CountIndexAttr>()) {
-      if (countIndexAttr->index_size()) {
+      if (countIndexAttr->index_size() > 0) {
         continue;  // boundary attrs with index args are only marked function pointers
       }
       unsigned int lenIdx = countIndexAttr->getLenVarIndex().getASTIndex();
       ProcessBoundaryLenExprInFunc(allocator, funcDecl, i, astFunc, lenIdx, true);
     }
     for (const auto *byteCountIndexAttr : parmDecl->specific_attrs<clang::ByteCountIndexAttr>()) {
-      if (byteCountIndexAttr->index_size()) {
+      if (byteCountIndexAttr->index_size() > 0) {
         continue;  // boundary attrs with index args are only marked function pointers
       }
       unsigned int lenIdx = byteCountIndexAttr->getLenVarIndex().getASTIndex();
@@ -485,7 +485,7 @@ void ASTParser::ProcessBoundaryVarAttrs(MapleAllocator &allocator, const clang::
     if (lenExpr == nullptr) {
       continue;
     }
-    if (countAttr->index_size()) {
+    if (countAttr->index_size() > 0) {
       continue;  // boundary attrs with index args are only marked function pointers
     }
     ProcessBoundaryLenExprInVar(allocator, astVar, varDecl, lenExpr, true);
@@ -496,7 +496,7 @@ void ASTParser::ProcessBoundaryVarAttrs(MapleAllocator &allocator, const clang::
     if (lenExpr == nullptr) {
       continue;
     }
-    if (byteCountAttr->index_size()) {
+    if (byteCountAttr->index_size() > 0) {
       continue;  // boundary attrs with index args are only marked function pointers
     }
     ProcessBoundaryLenExprInVar(allocator, astVar, varDecl, lenExpr, false);
@@ -560,7 +560,7 @@ bool ASTParser::ProcessBoundaryFuncPtrAttrsForParams(T *attr, MapleAllocator &al
   bool isUpdated = false;
   clang::Expr *expr = attr->getLenExpr();
   ASTExpr *lenExpr = ProcessExpr(allocator, expr);
-  if (!attr->index_size() || lenExpr == nullptr) {
+  if (attr->index_size() == 0 || lenExpr == nullptr) {
     return isUpdated;
   }
   std::vector<TyIdx> typesVec = funcType.GetParamTypeList();
@@ -637,7 +637,7 @@ bool ASTParser::ProcessBoundaryFuncPtrAttrsByIndexForParams(T *attr, ASTDecl &as
   bool isUpdated = false;
   std::vector<TyIdx> typesVec = funcType.GetParamTypeList();
   unsigned int lenIdx = attr->getLenVarIndex().getASTIndex();
-  if (!attr->index_size() || lenIdx >= typesVec.size()) {
+  if (attr->index_size() == 0 || lenIdx >= typesVec.size()) {
     return isUpdated;
   }
   MIRType *lenType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(typesVec[lenIdx]);
@@ -687,7 +687,7 @@ void ASTParser::ProcessBoundaryFieldAttrs(MapleAllocator &allocator, const ASTSt
       if (lenExpr == nullptr) {
         continue;
       }
-      if (!countAttr->index_size()) {
+      if (countAttr->index_size() == 0) {
         ProcessBoundaryLenExprInField(allocator, *astField, structDecl, fieldDecl->getType(), lenExpr, true);
       }
     }
@@ -697,7 +697,7 @@ void ASTParser::ProcessBoundaryFieldAttrs(MapleAllocator &allocator, const ASTSt
       if (lenExpr == nullptr) {
         continue;
       }
-      if (!byteCountAttr->index_size()) {
+      if (byteCountAttr->index_size() == 0) {
         ProcessBoundaryLenExprInField(allocator, *astField, structDecl, fieldDecl->getType(), lenExpr, false);
       }
     }

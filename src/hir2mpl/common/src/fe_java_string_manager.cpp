@@ -197,7 +197,7 @@ MIRAggConst *FEJavaStringManager::CreateByteArrayConst(const std::u16string &str
 #endif  // JAVA_OBJ_IN_MFILE
 
   // @count
-  uint32 strCount = strU16.length() ? static_cast<uint32>((strU16.length() * 2) | compressible) : 0;
+  uint32 strCount = (strU16.length() > 0) ? static_cast<uint32>((strU16.length() * 2) | compressible) : 0;
   AddDataIntoByteArray(*newconst, *mp, currData, strCount, *uInt64);
 
   // @hash
