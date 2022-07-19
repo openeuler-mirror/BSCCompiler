@@ -2665,9 +2665,9 @@ std::vector<Insn*> CombineContiLoadAndStorePattern::FindPrevStrLdr(Insn &insn, r
   return prevContiInsns;
 }
 
-Insn *CombineContiLoadAndStorePattern::FindValidSplitAddInsn(Insn &curInsn, const RegOperand &baseOpnd) const {
+Insn *CombineContiLoadAndStorePattern::FindValidSplitAddInsn(Insn &combineInsn, const RegOperand &baseOpnd) const {
   Insn *splitAdd = nullptr;
-  for (Insn *cursor = curInsn.GetPrev(); cursor != nullptr; cursor = cursor->GetPrev()) {
+  for (Insn *cursor = combineInsn.GetPrev(); cursor != nullptr; cursor = cursor->GetPrev()) {
     if (!cursor->IsMachineInstruction()) {
       continue;
     }
@@ -2709,6 +2709,41 @@ Insn *CombineContiLoadAndStorePattern::FindValidSplitAddInsn(Insn &curInsn, cons
     }
   }
   return splitAdd;
+}
+
+bool CombineContiLoadAndStorePattern::FindTmpRegOnlyUseAfterCombineInsn(const Insn &curInsn) const {
+  /*
+   * avoid the case as following:
+   *   add R16, R20, #28672
+   *   stp R1, R2, [R16, #408]
+   *   ldr R1, [R0, #14032]         add R16, R0, #3, LSL #12
+   *                      ====>     add R16, R16, #1536     (this r16 will clobber use of ldp R2, R3)
+   *                                ldp R1, R0, [R16, #208]
+   *   ldp R2, R3, [R16, #424]
+   *   ldr R0, [R0, #14036]
+   */
+  for (Insn *cursor = curInsn.GetNext(); cursor != nullptr; cursor = cursor->GetNext()) {
+    MOperator mOp = cursor->GetMachineOpcode();
+    if (mOp == MOP_xaddrri12 || mOp == MOP_waddrri12 || mOp == MOP_xaddrri24 || mOp == MOP_waddrri24) {
+      auto &destOpnd = static_cast<RegOperand&>(cursor->GetOperand(kInsnFirstOpnd));
+      if (destOpnd.GetRegisterNumber() == R16) {
+        return false;
+      }
+    }
+    if (!cursor->IsLoad() && !cursor->IsStore() && !cursor->IsLoadStorePair()) {
+      continue;
+    }
+    if (cursor->IsLoadLabel() || cursor->IsLoadAddress()) {
+      continue;
+    }
+    uint32 memIdx = (cursor->IsLoadStorePair() ? kInsnThirdOpnd : kInsnSecondOpnd);
+    auto &curMemOpnd = static_cast<MemOperand&>(cursor->GetOperand(memIdx));
+    RegOperand *baseOpnd = curMemOpnd.GetBaseRegister();
+    if (baseOpnd != nullptr && baseOpnd->GetRegisterNumber() == R16) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool CombineContiLoadAndStorePattern::PlaceSplitAddInsn(const Insn &curInsn, Insn &combineInsn,
@@ -2783,10 +2818,11 @@ bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(const Insn &curI
   auto *opndProp = md->operand[kInsnFirstOpnd];
   auto &aarFunc = static_cast<AArch64CGFunc&>(*cgFunc);
   if (splitAdd == nullptr) {
-    if (combineInsn.IsLoadStorePair()) {
-      if (ofstOpnd->GetOffsetValue() < 0) {
-        return false; /* do not split */
-      }
+    if (combineInsn.IsLoadStorePair() && ofstOpnd->GetOffsetValue() < 0) {
+      return false; /* do not split */
+    }
+    if (FindTmpRegOnlyUseAfterCombineInsn(combineInsn)) {
+      return false;
     }
     /* create and place addInsn */
     return PlaceSplitAddInsn(curInsn, combineInsn, memOperand, *baseRegOpnd, opndProp->GetSize());
