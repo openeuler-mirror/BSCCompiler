@@ -13,12 +13,12 @@
  * See the MulanPSL - 2.0 for more details.
  */
 #include "debug_info.h"
+#include <cstring>
 #include "mir_builder.h"
 #include "printing.h"
 #include "maple_string.h"
 #include "global_tables.h"
 #include "mir_type.h"
-#include <cstring>
 #include "securec.h"
 #include "mpl_logging.h"
 #include "version.h"
@@ -244,11 +244,36 @@ void DebugInfo::Init() {
   }
 }
 
+GStrIdx DebugInfo::GetPrimTypeCName(PrimType pty) {
+  GStrIdx strIdx = GStrIdx(0);
+  switch (pty) {
+#define TYPECNAME(p, n) case PTY_##p: strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(n); break;
+    TYPECNAME(i8,   "char");
+    TYPECNAME(i16,  "short");
+    TYPECNAME(i32,  "int");
+    TYPECNAME(i64,  "long long");
+    TYPECNAME(i128, "int128");
+    TYPECNAME(u8,   "unsigned char");
+    TYPECNAME(u16,  "unsigned short");
+    TYPECNAME(u32,  "unsigned int");
+    TYPECNAME(u64,  "unsigned long long");
+    TYPECNAME(u128, "uint128");
+    TYPECNAME(u1,   "bool");
+    TYPECNAME(f32,  "float");
+    TYPECNAME(f64,  "double");
+    TYPECNAME(f128, "float128");
+    TYPECNAME(c64,  "complex");
+    TYPECNAME(c128, "double complex");
+    default: break;
+  }
+  return strIdx;
+}
+
 void DebugInfo::SetupCU() {
   compUnit->SetWithChildren(true);
   /* Add the Producer (Compiler) Information */
   const char *producer = strdup((std::string("Maple Version ") + Version::GetVersionStr()).c_str());
-  GStrIdx strIdx = module->GetMIRBuilder()->GetOrCreateStringIndex(producer);
+  GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(producer);
   delete producer;
   producer = nullptr;
   compUnit->AddAttr(DW_AT_producer, DW_FORM_strp, strIdx.GetIdx());
@@ -258,8 +283,7 @@ void DebugInfo::SetupCU() {
 
   /* Add the compiled source file information */
   compUnit->AddAttr(DW_AT_name, DW_FORM_strp, mplSrcIdx.GetIdx());
-  strIdx = module->GetMIRBuilder()->GetOrCreateStringIndex("/to/be/done/current/path");
-  compUnit->AddAttr(DW_AT_comp_dir, DW_FORM_strp, strIdx.GetIdx());
+  compUnit->AddAttr(DW_AT_comp_dir, DW_FORM_strp, 0);
 
   compUnit->AddAttr(DW_AT_low_pc, DW_FORM_addr, kDbgDefaultVal);
   compUnit->AddAttr(DW_AT_high_pc, DW_FORM_data8, kDbgDefaultVal);
@@ -759,16 +783,24 @@ DBGDie *DebugInfo::GetOrCreatePrimTypeDie(MIRType *ty) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_base_type);
   die->SetTyIdx(static_cast<uint32>(pty));
 
-  if (ty->GetNameStrIdx().GetIdx() == 0) {
-    const char *name = GetPrimTypeName(ty->GetPrimType());
-    std::string pname = std::string(name);
-    GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(pname);
+  GStrIdx strIdx = ty->GetNameStrIdx();
+  if (strIdx.GetIdx() == 0) {
+    std::string pname = std::string(GetPrimTypeName(ty->GetPrimType()));
+    strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(pname);
     ty->SetNameStrIdx(strIdx);
   }
 
   die->AddAttr(DW_AT_byte_size, DW_FORM_data4, GetPrimTypeSize(pty));
   die->AddAttr(DW_AT_encoding, DW_FORM_data4, GetAteFromPTY(pty));
-  die->AddAttr(DW_AT_name, DW_FORM_strp, ty->GetNameStrIdx().GetIdx());
+
+  // use C type name, int for i32 etc
+  if (module->IsCModule()) {
+    GStrIdx idx = GetPrimTypeCName(ty->GetPrimType());
+    if (idx.GetIdx() != 0) {
+      strIdx = idx;
+    }
+  }
+  die->AddAttr(DW_AT_name, DW_FORM_strp, strIdx.GetIdx());
 
   compUnit->AddSubVec(die);
   tyIdxDieIdMap[static_cast<uint32>(pty)] = die->GetId();
@@ -873,10 +905,10 @@ DBGDie *DebugInfo::GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_typedef);
   compUnit->AddSubVec(die);
 
-  die->AddAttr(DW_AT_name, DW_FORM_strp, sid);
-  die->AddAttr(DW_AT_decl_file, DW_FORM_data1, 0);
-  die->AddAttr(DW_AT_decl_line, DW_FORM_data1, 0);
-  die->AddAttr(DW_AT_decl_column, DW_FORM_data1, 0);
+  (void)(die->AddAttr(DW_AT_name, DW_FORM_strp, sid));
+  (void)(die->AddAttr(DW_AT_decl_file, DW_FORM_data1, 0));
+  (void)(die->AddAttr(DW_AT_decl_line, DW_FORM_data1, 0));
+  (void)(die->AddAttr(DW_AT_decl_column, DW_FORM_data1, 0));
 
   DBGDie *tdie = GetOrCreateTypeDie(tyidx);
   // use negative vaule of Die id
@@ -1469,9 +1501,8 @@ void DebugInfo::Dump(int indent) {
 void DebugInfo::DumpTypedefMap() const {
   for (auto it : typedefStrIdxTyIdxMap) {
     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(it.second));
-    LogInfo::MapleLogger() << " " <<
-      GlobalTables::GetStrTable().GetStringFromStrIdx(it.first).c_str() << " " <<
-      type->GetName() << "\n";
+    LogInfo::MapleLogger() << " " << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first).c_str() << " "
+                           << type->GetName() << "\n";
   }
 }
 
@@ -1524,7 +1555,6 @@ void DBGDie::Dump(int indent) {
     }
   }
   LogInfo::MapleLogger() << std::endl;
-  ;
   for (auto it : attrVec) {
     it->Dump(indent + 1);
   }
