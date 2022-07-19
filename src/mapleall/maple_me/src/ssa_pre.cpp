@@ -193,7 +193,7 @@ void SSAPre::UpdateInsertedPhiOccOpnd() {
             OriginalSt *ost = curLocalRefVar->GetOst();
             localRefVarOpnd = irMap->GetOrCreateZeroVersionVarMeExpr(*ost);
           } else {
-            MapleMap<RegMeExpr*, VarMeExpr*>::iterator mapIt = temp2LocalRefVarMap.find(regOpnd);
+            MapleMap<RegMeExpr*, VarMeExpr*>::const_iterator mapIt = temp2LocalRefVarMap.find(regOpnd);
             if (mapIt == temp2LocalRefVarMap.end()) {
               CHECK_FATAL(curLocalRefVar != nullptr, "null ptr check");
               OriginalSt *ost = curLocalRefVar->GetOst();
@@ -664,11 +664,12 @@ void SSAPre::ComputeCanBeAvail() const {
     if (workCand->Redo2HandleCritEdges() && phiOcc->IsCanBeAvail()) {
       // check critical edges
       bool existCritEdge = false;
-      for (BB *pred : phiOcc->GetBB()->GetPred())
+      for (BB *pred : phiOcc->GetBB()->GetPred()) {
         if (pred->GetSucc().size() > 1) {
           existCritEdge = true;
           break;
         }
+      }
       if (existCritEdge) {
         ResetCanBeAvail(*phiOcc);
       }
@@ -1171,7 +1172,7 @@ void SSAPre::SetVarPhis(MeExpr *meExpr) {
 // provided in order of dt_preorder in ssapre->phiOccs
 void SSAPre::CreateSortedOccs() {
   // merge varPhiDfns to dfPhiDfns
-  dfPhiDfns.insert(varPhiDfns.begin(), varPhiDfns.end());
+  dfPhiDfns.insert(varPhiDfns.cbegin(), varPhiDfns.cend());
   // form phiOpnd_dfns
   std::multiset<uint32> phiOpndDfns;
   for (uint32 dfn : dfPhiDfns) {
@@ -1290,13 +1291,14 @@ void SSAPre::CreateSortedOccs() {
   } while (pickedOcc != nullptr);
   // initialize phiOpnds vector in each MePhiOcc node and defPhiOcc field in
   // each MePhiOpndOcc node
-  for (MePhiOcc *phiOcc : phiOccs)
+  for (MePhiOcc *phiOcc : phiOccs) {
     for (BB *pred : phiOcc->GetBB()->GetPred()) {
       MePhiOpndOcc *phiOpndOcc = bb2PhiOpndMap[pred->GetBBId()].front();
       phiOcc->AddPhiOpnd(*phiOpndOcc);
       phiOpndOcc->SetDefPhiOcc(*phiOcc);
       bb2PhiOpndMap[pred->GetBBId()].pop_front();
     }
+  }
   if (GetSSAPreDebug()) {
     mirModule->GetOut() << "========ssapre candidate " << workCand->GetIndex() <<
         " after phi insert===================\n";
@@ -1417,7 +1419,7 @@ bool SSAPre::CheckIfAnyLocalOpnd(const MeExpr &meExpr) const {
 }
 
 // create a new realOcc based on the meStmt and meExpr
-void SSAPre::CreateRealOcc(MeStmt &meStmt, int seqStmt, MeExpr &meExpr, bool insertSOrted, bool isLHS) {
+void SSAPre::CreateRealOcc(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, bool insertSorted, bool isLHS) {
   uint32 hashIdx = PreWorkCandHashTable::ComputeWorkCandHashIndex(meExpr);
   PreWorkCand *wkCand = preWorkCandHashTable.GetWorkcandFromIndex(hashIdx);
   while (wkCand != nullptr) {
@@ -1434,7 +1436,7 @@ void SSAPre::CreateRealOcc(MeStmt &meStmt, int seqStmt, MeExpr &meExpr, bool ins
     if (wkCand->deletedFromWorkList) {
       return;  // processed earlier; skip doing it again
     }
-    if (insertSOrted) {
+    if (insertSorted) {
       // insert to realOccs in dt_preorder of the BBs and seq in each BB
       wkCand->AddRealOccSorted(*dom, *newOcc, GetPUIdx());
     } else {
@@ -1490,7 +1492,7 @@ void SSAPre::CreateMembarOcc(MeStmt &meStmt, int seqStmt) {
   }
   // go thru all workcands and insert a membar occurrence for each of them
   uint32 cnt = 0;
-  for (PreWorkCand *wkCand : workList) {
+  for (PreWorkCand *wkCand : std::as_const(workList)) {
     ++cnt;
     if (cnt > preLimit) {
       break;
@@ -1513,7 +1515,7 @@ void SSAPre::CreateMembarOcc(MeStmt &meStmt, int seqStmt) {
 void SSAPre::CreateMembarOccAtCatch(BB &bb) {
   // go thru all workcands and insert a membar occurrence for each of them
   uint32 cnt = 0;
-  for (PreWorkCand *wkCand : workList) {
+  for (PreWorkCand *wkCand : std::as_const(workList)) {
     ++cnt;
     if (cnt > preLimit) {
       break;

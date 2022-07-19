@@ -112,7 +112,9 @@ RegassignNode *SeqVectorize::GenDupScalarStmt(BaseNode *scalar, PrimType vecPrim
 
 // v2uint8 v2int8 v2uint16 v2int16 are not added to prim type
 bool SeqVectorize::HasVecType(PrimType sPrimType, uint8 lanes) const {
-  if (lanes == 1) return false;
+  if (lanes == 1) {
+    return false;
+  }
   if ((GetPrimTypeSize(sPrimType) == 1 && lanes < 8) ||
       (GetPrimTypeSize(sPrimType) == 2 && lanes < 4)) {
     return false;
@@ -277,13 +279,17 @@ void SeqVectorize::DumpCandidates(const MeExpr *base, StoreList *storelist) {
 
 void SeqVectorize::CollectStores(IassignNode *iassign) {
   // if no hass information, the node may be changed by loopvec, skip
-  if ((*PreMeStmtExtensionMap)[iassign->GetStmtID()] == nullptr) return;
+  if ((*PreMeStmtExtensionMap)[iassign->GetStmtID()] == nullptr) {
+    return;
+  }
   // if point to type is not integer, skip
   MIRType &mirType = GetTypeFromTyIdx(iassign->GetTyIdx());
   CHECK_FATAL(mirType.GetKind() == kTypePointer, "iassign must have pointer type");
   MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
   PrimType stmtpt = ptrType->GetPointedType()->GetPrimType();
-  if (!IsPrimitiveInteger(stmtpt)) return;
+  if (!IsPrimitiveInteger(stmtpt)) {
+    return;
+  }
   // check lhs and rhs type
   if (iassign->GetRHS()->IsConstval() &&
       (stmtpt != iassign->GetRHS()->GetPrimType()) &&
@@ -407,15 +413,23 @@ bool SeqVectorize::IsIvarExprConsecutiveMem(IvarMeExpr *ivar1, IvarMeExpr *ivar2
   uint32_t base2NumOpnds = base2->GetNumOpnds();
 
   // check type
-  if (ivar1->GetPrimType() != ivar2->GetPrimType()) return false;
+  if (ivar1->GetPrimType() != ivar2->GetPrimType()) {
+    return false;
+  }
   // check opcode
-  if (base1->GetOp() != base2->GetOp()) return false;
+  if (base1->GetOp() != base2->GetOp()) {
+    return false;
+  }
   // check filedID should same
-  if (ivar1->GetFieldID() != ivar2->GetFieldID()) return false;
+  if (ivar1->GetFieldID() != ivar2->GetFieldID()) {
+    return false;
+  }
   // base is array: check array dimensions are same and lower dimension exprs are same
   if (base1->GetOp() == OP_array) {
     // check base opnds number are same
-    if (base1NumOpnds != base2NumOpnds) return false;
+    if (base1NumOpnds != base2NumOpnds) {
+      return false;
+    }
     // check base low dimensions expr are same
     for (uint32_t i = 1; i < base1NumOpnds - 1; i++) {
       if (base1->GetOpnd(i) != base2->GetOpnd(i)) {
@@ -430,7 +444,9 @@ bool SeqVectorize::IsIvarExprConsecutiveMem(IvarMeExpr *ivar1, IvarMeExpr *ivar2
     }
   } else {
     // check base opcode should be ptr here
-    if (base2->GetOp() == OP_array) return false;
+    if (base2->GetOp() == OP_array) {
+      return false;
+    }
     // base is symbol
     uint32_t diff = GetPrimTypeSize(ptrType);
     if (static_cast<uint32>(ivar2->GetOffset() - ivar1->GetOffset()) != diff) {
@@ -610,7 +626,9 @@ void SeqVectorize::LegalityCheckAndTransform(StoreList *storelist) {
     cands.clear();
   }
 
-  if (!needReverse) return;
+  if (!needReverse) {
+    return;
+  }
   ResetRhsStatus(); // reset rhs is const flag
   for (int i = static_cast<int>(len) - 1; i >= 0; --i) {
     IassignNode *store1 = (*storelist)[i];
@@ -636,7 +654,7 @@ void SeqVectorize::CheckAndTransform() {
     return;
   }
   // legality check and merge nodes
-  StoreListMap::iterator mapit = stores.begin();
+  StoreListMap::const_iterator mapit = stores.cbegin();
   for (; mapit != stores.end(); ++mapit) {
     if (enableDebug) {
       DumpCandidates(mapit->first, mapit->second);
@@ -653,7 +671,9 @@ void SeqVectorize::CheckAndTransform() {
 }
 
 void SeqVectorize::VisitNode(StmtNode *stmt) {
-  if (stmt == nullptr) return;
+  if (stmt == nullptr) {
+    return;
+  }
   do {
     StmtNode *nextStmt = stmt->GetNext();
     switch (stmt->GetOpCode()) {

@@ -15,11 +15,11 @@
 #include "alias_class.h"
 #include "mir_builder.h"
 #include "me_irmap_build.h"
-#include "preg_renamer.h"
 #include "union_find.h"
 #include "me_verify.h"
 #include "me_dominance.h"
 #include "me_phase_manager.h"
+#include "preg_renamer.h"
 
 namespace maple {
 void PregRenamer::RunSelf() {
@@ -27,7 +27,6 @@ void PregRenamer::RunSelf() {
   const MapleVector<MeExpr *> &regMeExprTable = meirmap->GetVerst2MeExprTable();
   MIRPregTable *pregTab = func->GetMirFunc()->GetPregTab();
   std::vector<bool> firstAppearTable(pregTab->GetPregTable().size());
-  uint32 renameCount = 0;
   UnionFind unionFind(*mp, regMeExprTable.size());
   auto *cfg = func->GetCfg();
   // iterate all the bbs' phi to setup the union
@@ -36,11 +35,12 @@ void PregRenamer::RunSelf() {
       continue;
     }
     MapleMap<OStIdx, MePhiNode *> &mePhiList =  bb->GetMePhiList();
-    for (auto it = mePhiList.begin(); it != mePhiList.end(); ++it) {
+    for (auto it = mePhiList.cbegin(); it != mePhiList.cend(); ++it) {
       if (!it->second->GetIsLive()) {
         continue;
       }
       OriginalSt *ost = func->GetMeSSATab()->GetOriginalStTable().GetOriginalStFromID(it->first);
+      ASSERT_NOT_NULL(ost);
       if (!ost->IsPregOst()) { // only handle reg phi
         continue;
       }
@@ -58,9 +58,10 @@ void PregRenamer::RunSelf() {
   std::map<uint32, std::vector<uint32> > root2childrenMap;
   for (uint32 i = 0; i < regMeExprTable.size(); ++i) {
     MeExpr *meExpr = regMeExprTable[i];
-    if (meExpr == nullptr || meExpr->GetMeOp() != kMeOpReg)
+    if (meExpr == nullptr || meExpr->GetMeOp() != kMeOpReg) {
       continue;
-    auto *regMeExpr = static_cast<RegMeExpr*> (meExpr);
+    }
+    auto *regMeExpr = static_cast<RegMeExpr*>(meExpr);
     auto *defStmt = regMeExpr->GetDefByMeStmt();
     if (defStmt != nullptr && defStmt->GetOp() == OP_asm) {
       continue;  // it could be binded with other regs or vars in asm so keep them in original format
@@ -86,7 +87,6 @@ void PregRenamer::RunSelf() {
       vec.push_back(i);
     }
   }
-
   for (auto it = root2childrenMap.begin(); it != root2childrenMap.end(); ++it) {
     std::vector<uint32> &vec = it->second;
     bool isIntryOrZerov = false; // in try block or zero version
@@ -143,7 +143,6 @@ void PregRenamer::RunSelf() {
     OriginalStTable &ostTab = func->GetMeSSATab()->GetOriginalStTable();
     // no need to find here, because the newPregIdx is the newest
     OriginalSt *newOst = ostTab.CreatePregOriginalSt(newPregIdx, func->GetMirFunc()->GetPuidx());
-    renameCount++;
     MIRPreg *oldPreg = pregTab->PregFromPregIdx(oldPredIdx);
     if (oldPreg->GetOp() != OP_undef) {
       // carry over fields in MIRPreg to support rematerialization
@@ -158,7 +157,7 @@ void PregRenamer::RunSelf() {
     }
     // reneme all the register
     for (uint32 i = 0; i < vec.size(); ++i) {
-      auto *canRegNode =  static_cast<RegMeExpr*> (regMeExprTable[vec[i]]);
+      auto *canRegNode =  static_cast<RegMeExpr*>(regMeExprTable[vec[i]]);
       canRegNode->SetOst(newOst);  // rename it to a new register
       if (canRegNode->IsDefByPhi()) {
         // update philist key with new ost index
