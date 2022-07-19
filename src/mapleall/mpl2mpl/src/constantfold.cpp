@@ -1425,41 +1425,6 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldTypeCvt(TypeCvtNod
       // the cvt is redundant
       return std::make_pair(p.first, p.second ? IntVal(*p.second, node->GetPrimType()) : p.second);
     }
-  } else if (node->GetOpCode() == OP_cvt && p.second.has_value() && *p.second != 0 &&
-             p.second->GetExtValue() < INT_MAX && p.second->GetSXTValue() > -kMaxOffset &&
-             IsPrimitiveInteger(node->GetPrimType()) && IsSignedInteger(node->FromType()) &&
-             GetPrimTypeSize(node->GetPrimType()) > GetPrimTypeSize(node->FromType())) {
-    bool simplifyCvt = false;
-    // Integer values must not be allowd to wrap, for pointer arithmetic, including array indexing
-    // Therefore, if dest-type of cvt expr is pointer type, like : cvt ptr/ref/a64 (op (expr, constval))
-    // we assume that result of cvt opnd will never wrap
-    if (IsPossible64BitAddress(node->GetPrimType()) && node->GetPrimType() != PTY_u64) {
-      simplifyCvt = true;
-    } else {
-      // Ensure : op(expr, constval) is not overflow
-      // Example :
-      // given a expr like : r = (i + constVal), and its mplIR may be:
-      // cvt i64 i32 (add i32 (cvt i32 i16 (dread i16 i), constval i32 constVal))
-      // expr primtype(i32) range : |I32_MIN--------------------0--------------------I32_MAX|
-      // expr value range(i16)    :               |I16_MIN------0------I16_MAX|
-      // value range difference   : |-------------|                           |-------------|
-      // constVal value range     : [I32_MIN - I16MIN, I32_MAX - I16_MAX], (i + constVal) will never pos/neg overflow.
-      PrimType valuePtyp = GetExprValueRangePtyp(p.first);
-      PrimType exprPtyp = p.first->GetPrimType();
-      int64 constVal = p.second->GetExtValue();
-      // cannot only check (min <= constval && constval <= max) here.
-      // If constval = -1, it will be SIZE_T_MAX when converted to size_t
-      if ((constVal < 0 && constVal >= GetIntPrimTypeMin(exprPtyp) - GetIntPrimTypeMin(valuePtyp)) ||
-          (constVal > 0 && static_cast<size_t>(constVal) <= GetIntPrimTypeMax(exprPtyp) -
-                                                            GetIntPrimTypeMax(valuePtyp))) {
-        simplifyCvt = true;
-      }
-    }
-    if (simplifyCvt) {
-      result = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, node->GetPrimType(),
-                                                                 node->FromType(), p.first);
-      return std::make_pair(result, p.second->TruncOrExtend(node->GetPrimType()));
-    }
   }
   if (result == nullptr) {
     BaseNode *e = PairToExpr(node->Opnd(0)->GetPrimType(), p);

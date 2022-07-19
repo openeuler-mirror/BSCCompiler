@@ -1274,21 +1274,12 @@ MeExpr *IRMap::SimplifyAddExpr(const OpMeExpr *addExpr) {
 
   if (opnd0->GetOp() == OP_cvt) {
     auto *cvtExpr = static_cast<OpMeExpr *>(opnd0);
-    // reassociation effects sign extension
-    if ((IsSignedInteger(cvtExpr->GetOpndType()) != IsSignedInteger(opnd0->GetOpnd(0)->GetPrimType())) &&
-        (GetPrimTypeSize(cvtExpr->GetOpndType()) < GetPrimTypeSize(cvtExpr->GetPrimType()))) {
-      return nullptr;
-    }
     // unsigned overflow is allowed, so we can do noting to
     //   e.g. (cvt u64 u32 (a + b)) + c  when we dont know the value range
-    if (!IsSignedInteger(cvtExpr->GetOpndType()) &&
-        GetPrimTypeSize(cvtExpr->GetOpndType()) < GetPrimTypeSize(cvtExpr->GetPrimType())) {
+    if (GetPrimTypeSize(cvtExpr->GetOpndType()) < GetPrimTypeSize(cvtExpr->GetPrimType())) {
       return nullptr;
     }
     opnd0 = opnd0->GetOpnd(0);
-    if (IsPrimitiveVector(addExpr->GetPrimType())) {
-      return nullptr;
-    }
     if (!IsPrimitiveInteger(opnd0->GetPrimType())) {
       return nullptr;
     }
