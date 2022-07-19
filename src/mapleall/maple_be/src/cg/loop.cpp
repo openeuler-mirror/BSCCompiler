@@ -161,6 +161,10 @@ void CGFuncLoops::PrintLoops(const CGFuncLoops &funcLoop) const {
   }
 }
 
+bool CGFuncLoops::IsBBLoopMember(const BB *bb) const {
+  return (*(std::find(loopMembers.begin(), loopMembers.end(), bb)) == bb);
+}
+
 // partial loop body found with formLoop is NOT really needed in down stream
 //       It should be simplied later
 void LoopFinder::FormLoop(BB* headBB, BB* backBB) {

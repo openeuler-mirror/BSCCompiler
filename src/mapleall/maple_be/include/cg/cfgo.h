@@ -18,6 +18,14 @@
 #include "optimize_common.h"
 
 namespace maplebe {
+
+enum CfgoPhase : maple::uint8 {
+  CfgoDefault,
+  CfgoPreRegAlloc,
+  CfgoPostRegAlloc,
+  PostCfgo,
+};
+
 class ChainingPattern : public OptimizationPattern {
  public:
   explicit ChainingPattern(CGFunc &func) : OptimizationPattern(func) {
@@ -62,6 +70,14 @@ class FlipBRPattern : public OptimizationPattern {
 
   ~FlipBRPattern() override = default;
   bool Optimize(BB &curBB) override;
+
+  CfgoPhase GetPhase() const {
+    return phase;
+  }
+  void SetPhase(CfgoPhase val) {
+    phase = val;
+  }
+  CfgoPhase phase = CfgoDefault;
 
  protected:
   void RelocateThrowBB(BB &curBB) const;
@@ -120,6 +136,14 @@ class CFGOptimizer : public Optimizer {
 
   ~CFGOptimizer() override = default;
   void InitOptimizePatterns() override;
+
+  CfgoPhase GetPhase() const {
+    return phase;
+  }
+  void SetPhase(CfgoPhase val) {
+    phase = val;
+  }
+  CfgoPhase phase = CfgoDefault;
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgCfgo, maplebe::CGFunc)
