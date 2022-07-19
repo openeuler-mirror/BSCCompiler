@@ -1418,16 +1418,11 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
 
   bool hasProEpilogue = cgFunc.GetHasProEpilogue();
   if (!hasProEpilogue) {
-    if (!(currCG->GetMIRModule()->IsCModule() &&
-          currCG->GetCGOptions().WithLoc() &&
-          currCG->GetMIRModule()->IsWithDbgInfo())) {
-      return;
-    }
+    return;
   }
 
   // insert .loc for function
-  if (currCG->GetCGOptions().WithLoc() &&
-      (!currCG->GetMIRModule()->IsCModule() || currCG->GetMIRModule()->IsWithDbgInfo())) {
+  if (currCG->GetCGOptions().WithLoc() && (!currCG->GetMIRModule()->IsCModule())) {
     MIRFunction *func = &cgFunc.GetFunction();
     MIRSymbol *fSym = GlobalTables::GetGsymTable().GetSymbolFromStidx(func->GetStIdx().Idx());
     if (currCG->GetCGOptions().WithSrc()) {
@@ -1454,12 +1449,6 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
       Operand *o2 = cgFunc.CreateDbgImmOperand(0);
       Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1, *o2);
       cgFunc.GetCurBB()->AppendInsn(loc);
-    }
-    if (!hasProEpilogue) {
-      bb.InsertAtBeginning(*aarchCGFunc.GetDummyBB());
-      cgFunc.SetCurBB(*formerCurBB);
-      aarchCGFunc.GetDummyBB()->SetIsProEpilog(false);
-      return;
     }
   }
 

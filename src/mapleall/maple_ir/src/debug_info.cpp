@@ -13,12 +13,12 @@
  * See the MulanPSL - 2.0 for more details.
  */
 #include "debug_info.h"
+#include <cstring>
 #include "mir_builder.h"
 #include "printing.h"
 #include "maple_string.h"
 #include "global_tables.h"
 #include "mir_type.h"
-#include <cstring>
 #include "securec.h"
 #include "mpl_logging.h"
 #include "version.h"
@@ -676,6 +676,11 @@ DBGDie *DebugInfo::GetOrCreateFuncDeclDie(MIRFunction *func) {
     die->AddSubVec(param);
   }
 
+  if (func->IsVarargs()) {
+    DBGDie *varargDie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_unspecified_parameters);
+    die->AddSubVec(varargDie);
+  }
+
   PopParentDie();
 
   return die;
@@ -873,10 +878,10 @@ DBGDie *DebugInfo::GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_typedef);
   compUnit->AddSubVec(die);
 
-  die->AddAttr(DW_AT_name, DW_FORM_strp, sid);
-  die->AddAttr(DW_AT_decl_file, DW_FORM_data1, 0);
-  die->AddAttr(DW_AT_decl_line, DW_FORM_data1, 0);
-  die->AddAttr(DW_AT_decl_column, DW_FORM_data1, 0);
+  (void)(die->AddAttr(DW_AT_name, DW_FORM_strp, sid));
+  (void)(die->AddAttr(DW_AT_decl_file, DW_FORM_data1, 0));
+  (void)(die->AddAttr(DW_AT_decl_line, DW_FORM_data1, 0));
+  (void)(die->AddAttr(DW_AT_decl_column, DW_FORM_data1, 0));
 
   DBGDie *tdie = GetOrCreateTypeDie(tyidx);
   // use negative vaule of Die id
@@ -1469,9 +1474,8 @@ void DebugInfo::Dump(int indent) {
 void DebugInfo::DumpTypedefMap() const {
   for (auto it : typedefStrIdxTyIdxMap) {
     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(it.second));
-    LogInfo::MapleLogger() << " " <<
-      GlobalTables::GetStrTable().GetStringFromStrIdx(it.first).c_str() << " " <<
-      type->GetName() << "\n";
+    LogInfo::MapleLogger() << " " << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first).c_str() << " "
+                           << type->GetName() << "\n";
   }
 }
 
