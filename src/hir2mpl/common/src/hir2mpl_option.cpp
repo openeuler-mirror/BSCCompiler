@@ -203,6 +203,10 @@ maplecl::Option<bool> safeRegion({"-safe-region", "--safe-region"},
                             "  -safe-region           : Enable safe region",
                             {hir2mplCategory});
 
+maplecl::Option<bool> defaultSafe({"-defaultSafe", "--defaultSafe"},
+                                  "  -defaultSafe     : treat unmarked function or blocks as safe region by default",
+                                  {hir2mplCategory});
+
 maplecl::Option<bool> dumpFEIRBB({"-dump-bb", "--dump-bb"},
                             "  -dump-bb               : dump basic blocks info",
                             {hir2mplCategory});

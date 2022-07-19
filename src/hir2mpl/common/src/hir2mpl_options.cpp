@@ -134,6 +134,8 @@ bool HIR2MPLOptions::InitFactory() {
                                          &HIR2MPLOptions::ProcessBoundaryCheckDynamic);
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::safeRegion,
                                          &HIR2MPLOptions::ProcessSafeRegion);
+  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::defaultSafe,
+                                         &HIR2MPLOptions::ProcessDefaultSafe);
 
 #ifdef FIXME
   // O2 does not work, because it generates OP_ror instruction but this instruction is not supported in me
@@ -557,6 +559,11 @@ bool HIR2MPLOptions::ProcessSafeRegion(const maplecl::OptionInterface &) {
   // boundary and npe checking options will be opened, if safe region option is opened
   FEOptions::GetInstance().SetNpeCheckDynamic(true);
   FEOptions::GetInstance().SetBoundaryCheckDynamic(true);
+  return true;
+}
+
+bool HIR2MPLOptions::ProcessDefaultSafe(const maplecl::OptionInterface &) {
+  FEOptions::GetInstance().SetDefaultSafe(true);
   return true;
 }
 

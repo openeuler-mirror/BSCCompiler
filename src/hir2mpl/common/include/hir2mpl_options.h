@@ -120,6 +120,7 @@ class HIR2MPLOptions {
   bool ProcessNpeCheckDynamic(const maplecl::OptionInterface &opt);
   bool ProcessBoundaryCheckDynamic(const maplecl::OptionInterface &opt);
   bool ProcessSafeRegion(const maplecl::OptionInterface &opt);
+  bool ProcessDefaultSafe(const maplecl::OptionInterface &opt);
 
   // symbol resolve
   bool ProcessAOT(const maplecl::OptionInterface &opt);

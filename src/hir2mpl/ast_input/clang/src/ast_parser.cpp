@@ -2524,7 +2524,7 @@ ASTDecl *ASTParser::ProcessDeclFunctionDecl(MapleAllocator &allocator, const cla
   if (FEOptions::GetInstance().IsEnableSafeRegion()) {
     if (funcDecl.getSafeSpecifier() == clang::SS_Unsafe) {
       attrs.SetAttr(GENATTR_unsafed);
-    } else if (funcDecl.getSafeSpecifier() == clang::SS_Safe) {
+    } else if (funcDecl.getSafeSpecifier() == clang::SS_Safe || FEOptions::GetInstance().IsDefaultSafe()) {
       attrs.SetAttr(GENATTR_safed);
     }
   }

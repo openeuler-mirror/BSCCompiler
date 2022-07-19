@@ -443,6 +443,17 @@ class FEOptions {
     return isEnableSafeRegion;
   }
 
+  void SetDefaultSafe(bool flag) {
+    isDefaultSafe = flag;
+  }
+
+  bool IsDefaultSafe() const {
+    if (IsEnableSafeRegion()) {
+      return isDefaultSafe;
+    }
+    return false;
+  }
+
   void SetO2(bool flag) {
     isO2 = flag;
   }
@@ -558,6 +569,7 @@ class FEOptions {
   bool isNpeCheckDynamic = false;
   bool isBoundaryCheckDynamic = false;
   bool isEnableSafeRegion = false;
+  bool isDefaultSafe = false;
 
   uint32 funcInlineSize = 0;
   bool wpaa = false;

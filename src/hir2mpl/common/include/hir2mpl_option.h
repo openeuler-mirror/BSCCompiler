@@ -59,6 +59,7 @@ extern maplecl::Option<std::string> depsamename;
 extern maplecl::Option<bool> npeCheckDynamic;
 extern maplecl::Option<bool> boundaryCheckDynamic;
 extern maplecl::Option<bool> safeRegion;
+extern maplecl::Option<bool> defaultSafe;
 extern maplecl::Option<bool> dumpFEIRBB;
 extern maplecl::Option<std::string> dumpFEIRCFGGraph;
 extern maplecl::Option<bool> wpaa;
