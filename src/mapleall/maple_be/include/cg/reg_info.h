@@ -21,11 +21,11 @@ namespace maplebe {
 
 class RegisterInfo {
  public:
-  explicit RegisterInfo(MapleAllocator &mallocator):
-      memAllocator(&mallocator),
-      allIntRegs(mallocator.Adapter()),
-      allFpRegs(mallocator.Adapter()),
-      allregs(mallocator.Adapter()) {}
+  explicit RegisterInfo(MapleAllocator &mallocator)
+      : memAllocator(&mallocator),
+        allIntRegs(mallocator.Adapter()),
+        allFpRegs(mallocator.Adapter()),
+        allregs(mallocator.Adapter()) {}
 
   virtual ~RegisterInfo() {
     memAllocator = nullptr;

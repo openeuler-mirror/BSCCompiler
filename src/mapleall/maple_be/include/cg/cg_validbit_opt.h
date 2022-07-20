@@ -25,8 +25,7 @@ namespace maplebe {
 #define CG_VALIDBIT_OPT_DUMP CG_DEBUG_FUNC(*cgFunc)
 class ValidBitPattern {
  public:
-  ValidBitPattern(CGFunc &f, CGSSAInfo &info) :
-      cgFunc(&f), ssaInfo(&info) {}
+  ValidBitPattern(CGFunc &f, CGSSAInfo &info) : cgFunc(&f), ssaInfo(&info) {}
   virtual ~ValidBitPattern() {
     cgFunc = nullptr;
     ssaInfo = nullptr;

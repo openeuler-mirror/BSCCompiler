@@ -1082,7 +1082,7 @@ class FmovRegPattern : public CGPeepPattern {
  * use  ireg2.32
  */
 class SbfxOptPattern : public CGPeepPattern {
-public:
+ public:
   SbfxOptPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
   ~SbfxOptPattern() override {
     nextInsn = nullptr;
@@ -1768,13 +1768,13 @@ class CselZeroOneToCsetOpt : public PeepPattern {
   explicit CselZeroOneToCsetOpt(CGFunc &cgFunc) : PeepPattern(cgFunc), cgFunc(&cgFunc) {}
   ~CselZeroOneToCsetOpt() override = default;
   void Run(BB &bb, Insn &insn) override;
+ protected:
+  CGFunc *cgFunc;
  private:
   Insn *trueMovInsn = nullptr;
   Insn *falseMovInsn = nullptr;
   Insn *FindFixedValue(Operand &opnd, BB &bb, Operand *&tempOp, const Insn &insn) const;
   AArch64CC_t GetReverseCond(const CondOperand &cond) const;
- protected:
-  CGFunc *cgFunc;
 };
 
 /*
@@ -1791,7 +1791,7 @@ class ComplexExtendWordLslAArch64 : public PeepPattern {
   ~ComplexExtendWordLslAArch64() override = default;
   void Run(BB &bb, Insn &insn) override;
 
-  private:
+ private:
   bool IsExtendWordLslPattern(const Insn &insn) const;
 };
 

@@ -23,7 +23,7 @@ namespace maplebe {
 #define PROP_DUMP CG_DEBUG_FUNC(cgFunc)
 
 bool MayOverflow(const ImmOperand &value1, const ImmOperand &value2, bool is64Bit, bool isAdd, bool isSigned) {
-  if (value1.GetVary() || value2.GetVary()) {
+  if (value1.GetVary() > 0 || value2.GetVary() > 0) {
     return false;
   }
   int64 cstA = value1.GetValue();
@@ -33,7 +33,7 @@ bool MayOverflow(const ImmOperand &value1, const ImmOperand &value2, bool is64Bi
     if (!isSigned) {
       return static_cast<uint64>(res) < static_cast<uint64>(cstA);
     }
-    auto rightShiftNumToGetSignFlag = (is64Bit ? 64 : 32) - 1;
+    uint32 rightShiftNumToGetSignFlag = (is64Bit ? k64BitSize : k32BitSize) - 1;
     return (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
             static_cast<uint64>(cstA) >> rightShiftNumToGetSignFlag) &&
            (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
@@ -44,7 +44,7 @@ bool MayOverflow(const ImmOperand &value1, const ImmOperand &value2, bool is64Bi
       return cstA < cstB;
     }
     int64 res = static_cast<int64>(static_cast<uint64>(cstA) - static_cast<uint64>(cstB));
-    auto rightShiftNumToGetSignFlag = (is64Bit ? 64 : 32) - 1;
+    uint32 rightShiftNumToGetSignFlag = (is64Bit ? k64BitSize : k32BitSize) - 1;
     return (static_cast<uint64>(cstA) >> rightShiftNumToGetSignFlag !=
             static_cast<uint64>(cstB) >> rightShiftNumToGetSignFlag) &&
            (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
@@ -105,7 +105,8 @@ void A64ConstProp::ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) 
   const AArch64MD *md = &AArch64CG::kMd[(useInsn->GetMachineOpcode())];
   /* special case */
   bool isSpecficCase = useInsn->GetMachineOpcode() == MOP_wbfirri5i5 || useInsn->GetMachineOpcode() == MOP_xbfirri6i6;
-  isSpecficCase &= (useDUInfo.GetOperands().size() == 1) && (useDUInfo.GetOperands().begin()->first == kInsnSecondOpnd);
+  isSpecficCase = (useDUInfo.GetOperands().size() == 1) &&
+      (useDUInfo.GetOperands().begin()->first == kInsnSecondOpnd) && isSpecficCase;
   if (useInsn->IsStore() || md->IsCondDef() || isSpecficCase)  {
     RegOperand &zeroOpnd = cgFunc->GetZeroOpnd(toReplaceReg.GetSize());
     for (auto &opndIt : useDUInfo.GetOperands()) {
@@ -473,7 +474,7 @@ bool A64ConstProp::BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &con
       /*  bit number of the lsb of the destination bitfield */
       auto lsb = static_cast<uint64>(lsbOpnd.GetValue());
       val = val & ((1U << width) - 1U);
-      if (__builtin_popcountl(val) == width) {
+      if (__builtin_popcountl(val) == static_cast<int64>(width)) {
         val = val << lsb;
         MOperator newMop = GetRegImmMOP(curMop, false);
         Operand &newOpnd = cgFunc->CreateImmOperand(PTY_i64, static_cast<int64>(val));
@@ -2087,7 +2088,7 @@ bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &defInsn) {
           return false;
         }
         differOrigNO = differVersion1->GetOriginalRegNO();
-      } else if (!opnd1.Equals(opnd2) && idx != differIdx) {
+      } else if (!opnd1.Equals(opnd2) && static_cast<int32>(idx) != differIdx) {
         return false;
       }
     }

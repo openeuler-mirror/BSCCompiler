@@ -613,12 +613,12 @@ bool AArch64GenProEpilog::BackwardFindDependency(BB &ifbb, std::set<regno_t> &ve
       for (uint32 o = 0; allow && o < insn->GetOperandSize(); ++o) {
         Operand &opnd = insn->GetOperand(o);
         if (insn->OpndIsDef(o)) {
-          allow = allow & !FindRegs(opnd, vecTargetRegs);
-          allow = allow & !FindRegs(opnd, vecSourceRegs);
-          allow = allow & !FindRegs(opnd, vecReturnSourceRegs);
+          allow = allow && !FindRegs(opnd, vecTargetRegs);
+          allow = allow && !FindRegs(opnd, vecSourceRegs);
+          allow = allow && !FindRegs(opnd, vecReturnSourceRegs);
         }
         if (insn->OpndIsUse(o)) {
-          allow = allow & !FindRegs(opnd, vecTargetRegs);
+          allow = allow && !FindRegs(opnd, vecTargetRegs);
         }
       }
       /* if a result_dst not allowed, this insn can be allowed on the condition of mov Rx,R0/R1,

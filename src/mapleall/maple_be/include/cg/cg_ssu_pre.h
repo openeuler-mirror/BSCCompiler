@@ -32,9 +32,11 @@ namespace maplebe {
 // returned to the caller by setting restoreAtEntryBBs and restoreAtExitBBs.
 class SPreWorkCand {
  public:
-  explicit SPreWorkCand(MapleAllocator *alloc):
-     occBBs(alloc->Adapter()), saveBBs(alloc->Adapter()),
-     restoreAtEntryBBs(alloc->Adapter()), restoreAtExitBBs(alloc->Adapter())  {}
+  explicit SPreWorkCand(MapleAllocator *alloc)
+      : occBBs(alloc->Adapter()),
+        saveBBs(alloc->Adapter()),
+        restoreAtEntryBBs(alloc->Adapter()),
+        restoreAtExitBBs(alloc->Adapter()) {}
   // inputs
   MapleSet<BBId> occBBs; // Id's of BBs with appearances of the callee-saved reg
   MapleSet<BBId> saveBBs;  // Id's of BBs with saves of the callee-saved reg

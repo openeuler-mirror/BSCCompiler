@@ -844,8 +844,7 @@ class MemOperand : public OperandVisitable<MemOperand> {
     kPostIndex,  /* base register gets changed after load */
   };
 
-  MemOperand(uint32 size, const MIRSymbol &mirSymbol) :
-      OperandVisitable(Operand::kOpdMem, size), symbol(&mirSymbol) {}
+  MemOperand(uint32 size, const MIRSymbol &mirSymbol) : OperandVisitable(Operand::kOpdMem, size), symbol(&mirSymbol) {}
 
   MemOperand(uint32 size, RegOperand *baseOp, RegOperand *indexOp, ImmOperand *ofstOp, const MIRSymbol *mirSymbol,
              Operand *scaleOp = nullptr)
@@ -1300,9 +1299,9 @@ class LabelOperand : public OperandVisitable<LabelOperand> {
 
 class ListOperand : public OperandVisitable<ListOperand> {
  public:
-  explicit ListOperand(MapleAllocator &allocator) :
-      OperandVisitable(Operand::kOpdList, 0),
-      opndList(allocator.Adapter()) {}
+  explicit ListOperand(MapleAllocator &allocator)
+      : OperandVisitable(Operand::kOpdList, 0),
+        opndList(allocator.Adapter()) {}
 
   ~ListOperand() override = default;
 
@@ -1436,9 +1435,10 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
 
 class CGRegOperand : public OperandVisitable<CGRegOperand> {
  public:
-  CGRegOperand(regno_t regId, uint32 sz, RegType type) : OperandVisitable(kOpdRegister, sz),
-      regNO(regId),
-      regType(type) {}
+  CGRegOperand(regno_t regId, uint32 sz, RegType type)
+      : OperandVisitable(kOpdRegister, sz),
+        regNO(regId),
+        regType(type) {}
   ~CGRegOperand() override = default;
   using OperandVisitable<CGRegOperand>::OperandVisitable;
 
@@ -1604,9 +1604,9 @@ class CGMemOperand : public OperandVisitable<CGMemOperand> {
 
 class CGListOperand : public OperandVisitable<CGListOperand> {
  public:
-  explicit CGListOperand(MapleAllocator &allocator) :
-      OperandVisitable(Operand::kOpdList, 0),
-      opndList(allocator.Adapter()) {}
+  explicit CGListOperand(MapleAllocator &allocator)
+      : OperandVisitable(Operand::kOpdList, 0),
+        opndList(allocator.Adapter()) {}
 
   ~CGListOperand() override = default;
 
@@ -1769,8 +1769,7 @@ enum MemOpndDescProp : maple::uint64 {
 
 class OpndDescription {
  public:
-  OpndDescription(Operand::OperandType t, maple::uint64 p, maple::uint32 s) :
-      opndType(t), property(p), size(s) {}
+  OpndDescription(Operand::OperandType t, maple::uint64 p, maple::uint32 s) : opndType(t), property(p), size(s) {}
   virtual ~OpndDescription() = default;
 
   Operand::OperandType GetOperandType() const {

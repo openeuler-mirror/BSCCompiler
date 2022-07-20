@@ -189,13 +189,13 @@ class LSDACallSiteTable {
     for (int32 i = static_cast<int32>(callSiteTable.size()) - 1; i > -1; --i) {
       if (callSiteTable[i]->csStart.GetEndOffset() != nullptr) {
         if (callSiteTable[i]->csStart.GetEndOffset()->GetLabelIdx() == bb.GetLabIdx()) {
-          callSiteTable.erase(callSiteTable.begin() + i);
+          callSiteTable.erase(callSiteTable.cbegin() + i);
           continue;
         }
       }
       if (callSiteTable[i]->csLandingPad.GetEndOffset() != nullptr) {
         if (callSiteTable[i]->csLandingPad.GetEndOffset()->GetLabelIdx() == bb.GetLabIdx()) {
-          callSiteTable.erase(callSiteTable.begin() + i);
+          callSiteTable.erase(callSiteTable.cbegin() + i);
           continue;
         }
       }

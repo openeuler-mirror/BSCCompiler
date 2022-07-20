@@ -327,7 +327,7 @@ bool VregRename::IsProfitableToRename(const VregRenameInfo *info) const{
 void VregRename::RenameProfitableVreg(RegOperand *ropnd, const CGFuncLoops *loop) {
   regno_t vreg = ropnd->GetRegisterNumber();
   VregRenameInfo *info = (vreg <= maxRegnoSeen) ? renameInfo[vreg] : nullptr;
-  if ((info == nullptr) || loop->GetMultiEntries().size() || (!IsProfitableToRename(info))) {
+  if ((info == nullptr) || loop->GetMultiEntries().size() > 0 || (!IsProfitableToRename(info))) {
     return;
   }
 

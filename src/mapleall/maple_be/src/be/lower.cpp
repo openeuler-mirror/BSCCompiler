@@ -412,10 +412,10 @@ BaseNode *CGLowerer::LowerFarray(ArrayNode &array) {
     if (constvalNode->GetConstVal()->GetKind() == kConstInt) {
       const MIRIntConst *pIntConst = static_cast<const MIRIntConst*>(constvalNode->GetConstVal());
       CHECK_FATAL(JAVALANG || !pIntConst->IsNegative(), "Array index should >= 0.");
-      uint64 eleOffset = pIntConst->GetExtValue() * eSize;
+      uint64 eleOffset = static_cast<uint64>(pIntConst->GetExtValue()) * eSize;
 
       if (farrayType->GetKind() == kTypeJArray) {
-        eleOffset += RTSupport::GetRTSupportInstance().GetArrayContentOffset();
+        eleOffset += static_cast<uint64>(RTSupport::GetRTSupportInstance().GetArrayContentOffset());
       }
 
       BaseNode *baseNode = NodeConvert(array.GetPrimType(), *array.GetBase());
@@ -441,7 +441,7 @@ BaseNode *CGLowerer::LowerFarray(ArrayNode &array) {
 
   if ((farrayType->GetKind() == kTypeJArray) && (resNode->GetOpCode() == OP_constval)) {
     ConstvalNode *idxNode = static_cast<ConstvalNode*>(resNode);
-    uint64 idx = safe_cast<MIRIntConst>(idxNode->GetConstVal())->GetExtValue();
+    uint64 idx = static_cast<uint64>(safe_cast<MIRIntConst>(idxNode->GetConstVal())->GetExtValue());
     MIRIntConst *eConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(idx * eSize, arrayType);
     rMul = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(eConst);
     rMul->SetPrimType(array.GetPrimType());
@@ -491,7 +491,7 @@ BaseNode *CGLowerer::LowerArrayDim(ArrayNode &array, int32 dim) {
       item = NodeConvert(array.GetPrimType(), *array.GetIndex(static_cast<size_t>(static_cast<uint>(i))));
       int64 offsetSize = 1;
       for (int32 j = i + 1; j < dim; ++j) {
-        offsetSize *= arrayType->GetSizeArrayItem(static_cast<uint32>(j));
+        offsetSize *= static_cast<int32>(arrayType->GetSizeArrayItem(static_cast<uint32>(j)));
       }
       MIRIntConst *offsetCst = mirModule.CurFuncCodeMemPool()->New<MIRIntConst>(
           offsetSize, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(array.GetPrimType()));
@@ -652,7 +652,7 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
       uint64 indexVal = 0;
       if (index->op == OP_constval) {
         ConstvalNode *constNode = static_cast<ConstvalNode *>(index);
-        indexVal = (static_cast<MIRIntConst *>(constNode->GetConstVal()))->GetExtValue();
+        indexVal = static_cast<uint64>((static_cast<MIRIntConst *>(constNode->GetConstVal()))->GetExtValue());
         isConst = true;
         MIRIntConst *newConstNode = mirModule.GetMemPool()->New<MIRIntConst>(
             indexVal * mpyDim, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
@@ -714,7 +714,7 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
   if (resNode->op == OP_constval) {
     // index is a constant, we can calculate the offset now
     ConstvalNode *idxNode = static_cast<ConstvalNode *>(resNode);
-    uint64 idx = static_cast<MIRIntConst *>(idxNode->GetConstVal())->GetExtValue();
+    uint64 idx = static_cast<uint64>(static_cast<MIRIntConst *>(idxNode->GetConstVal())->GetExtValue());
     MIRIntConst *econst = mirModule.GetMemPool()->New<MIRIntConst>(
         idx * esize, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
     rMul = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(econst);
@@ -759,8 +759,8 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
     return builder->CreateStmtIassignoff(primType, byteOffset, baseAddr, depositBits);
   }
   // if space not enough in the unit with size of primType, we would make an extra assignment from next bound
-  auto bitsRemained = (bitOffset + bitSize) - primTypeBitSize;
-  auto bitsExtracted = primTypeBitSize - bitOffset;
+  auto bitsRemained = (static_cast<uint32>(bitOffset) + bitSize) - primTypeBitSize;
+  auto bitsExtracted = primTypeBitSize - static_cast<uint32>(bitOffset);
   if (CGOptions::IsBigEndian()) {
     bitOffset = 0;
   }
@@ -796,7 +796,7 @@ BaseNode *CGLowerer::ReadBitField(const std::pair<int32, int32> &byteBitOffsets,
     return builder->CreateExprExtractbits(OP_extractbits, primType, static_cast<uint32>(bitOffset), bitSize, bitField);
   }
   // if space not enough in the unit with size of primType, the result would be binding of two exprs of load
-  auto bitsRemained = (bitOffset + bitSize) - primTypeBitSize;
+  auto bitsRemained = (static_cast<uint32>(bitOffset) + bitSize) - primTypeBitSize;
   if (CGOptions::IsBigEndian()) {
     bitOffset = 0;
   }
@@ -1055,6 +1055,26 @@ DassignNode *CGLowerer::SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID) {
   }
   RegreadNode *regRead = mirModule.GetMIRBuilder()->CreateExprRegread(pType, -kSregRetval0);
   return mirModule.GetMIRBuilder()->CreateStmtDassign(*var, fieldID, regRead);
+}
+
+BaseNode *CGLowerer::LowerExtractBits(ExtractbitsNode &extr) {
+  PrimType nodeType = extr.GetPrimType();
+  PrimType opndType = extr.Opnd(0)->GetPrimType();
+  if (!IsPrimitiveInteger(nodeType) || !IsPrimitiveInteger(opndType) ||
+      GetPrimTypeSize(GetRegPrimType(nodeType)) == GetPrimTypeSize(GetRegPrimType(opndType))) {
+    return &extr;
+  }
+  // instructions hope the reg-sizes of src and dst are same
+  if (GetPrimTypeSize(nodeType) > GetPrimTypeSize(opndType)) {
+    auto *newOpnd = mirBuilder->CreateExprTypeCvt(OP_cvt, GetRegPrimType(nodeType), opndType, *extr.Opnd(0));
+    extr.SetOpnd(newOpnd, 0);
+    return &extr;
+  } else {
+    PrimType newType = IsSignedInteger(nodeType) ? GetSignedPrimType(GetRegPrimType(opndType))
+                                                 : GetUnsignedPrimType(GetRegPrimType(opndType));
+    extr.SetPrimType(newType);
+    return mirBuilder->CreateExprTypeCvt(OP_cvt, nodeType, newType, extr);
+  }
 }
 
 BaseNode *CGLowerer::LowerRem(BaseNode &expr, BlockNode &blk) {
@@ -2764,6 +2784,8 @@ BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkN
     case OP_zext:
     case OP_sext:
       return LowerCastExpr(expr);
+    case OP_extractbits:
+      return LowerExtractBits(static_cast<ExtractbitsNode&>(expr));
     default:
       return &expr;
   }

@@ -97,6 +97,16 @@ class LoopHierarchy {
     next = loop;
   }
   void PrintLoops(const std::string &name) const;
+  MapleSet<BB*, BBIdCmp> GetOtherLoopEntries() const {
+    return otherLoopEntries;
+  }
+
+  void InsertBBToOtherLoopEntries(BB * const &insertBB) {
+    otherLoopEntries.insert(insertBB);
+  }
+  void EraseBBFromOtherLoopEntries(BB * const &eraseBB) {
+    otherLoopEntries.erase(eraseBB);
+  }
 
  protected:
   LoopHierarchy *prev = nullptr;
@@ -105,7 +115,6 @@ class LoopHierarchy {
  private:
   MapleAllocator loopMemPool;
   BB *header = nullptr;
- public:
   MapleSet<BB*, BBIdCmp> otherLoopEntries;
   MapleSet<BB*, BBIdCmp> loopMembers;
   MapleSet<BB*, BBIdCmp> backedge;

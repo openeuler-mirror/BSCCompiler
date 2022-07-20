@@ -37,9 +37,9 @@ constexpr uint32 kPrintedActiveListLength = 10;
 constexpr uint32 kMinRangesSize = 2;
 }
 
-#define IN_SPILL_RANGE                                                                                    \
-  (cgFunc->GetName().find(CGOptions::GetDumpFunc()) != std::string::npos && ++debugSpillCnt &&            \
-   (CGOptions::GetSpillRangesBegin() < debugSpillCnt) && (debugSpillCnt < CGOptions::GetSpillRangesEnd()))
+#define IN_SPILL_RANGE                                                                                          \
+  (cgFunc->GetName().find(CGOptions::GetDumpFunc()) != std::string::npos && (++debugSpillCnt > 0) &&            \
+  (CGOptions::GetSpillRangesBegin() < debugSpillCnt) && (debugSpillCnt < CGOptions::GetSpillRangesEnd()))
 
 #undef LSRA_GRAPH
 
@@ -958,7 +958,7 @@ void LSRALinearScanRegAllocator::ComputeLiveInterval() {
     if (li == nullptr || li->GetRegNO() == 0) {
       continue;
     }
-    if (li->GetIsCall() != nullptr || li->GetPhysUse()) {
+    if (li->GetIsCall() != nullptr || (li->GetPhysUse() > 0)) {
       continue;
     }
     if (li->GetLastUse() > li->GetFirstDef()) {

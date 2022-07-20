@@ -401,7 +401,7 @@ int32 AArch64Ebo::GetOffsetVal(const MemOperand &memOpnd) const {
     val += static_cast<int>(offset->GetOffsetValue());
 
     if (offset->IsSymOffset() || offset->IsSymAndImmOffset()) {
-      val += offset->GetSymbol()->GetStIdx().Idx();
+      val += static_cast<int32>(offset->GetSymbol()->GetStIdx().Idx());
     }
   }
   return val;

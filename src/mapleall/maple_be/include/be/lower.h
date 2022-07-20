@@ -92,7 +92,7 @@ class CGLowerer {
 
   StmtNode *LowerIntrinsicMplCleanupLocalRefVarsSkip(IntrinsiccallNode &intrinCall);
 
-  StmtNode *LowerIntrinsiccall(IntrinsiccallNode &intrinCall, BlockNode&);
+  StmtNode *LowerIntrinsiccall(IntrinsiccallNode &intrinCall, BlockNode &newBlk);
 
   StmtNode *LowerSyncEnterSyncExit(StmtNode &stmt);
 
@@ -171,7 +171,9 @@ class CGLowerer {
   bool LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *&nextStmt, bool &lvar, BlockNode *oldBlk);
   BlockNode *LowerMemop(StmtNode &stmt);
 
-  BaseNode *LowerRem(BaseNode &rem, BlockNode &blk);
+  BaseNode *LowerRem(BaseNode &expr, BlockNode &blk);
+
+  BaseNode *LowerExtractBits(ExtractbitsNode &extr);
 
   void LowerStmt(StmtNode &stmt, BlockNode &newBlk);
 
@@ -194,7 +196,7 @@ class CGLowerer {
   void LowerEntry(MIRFunction &func);
 
   StmtNode *LowerCall(
-      CallNode &callNode, StmtNode *&nextStmt, BlockNode &newBlk, MIRType *retty = nullptr, bool uselvar = false);
+      CallNode &callNode, StmtNode *&nextStmt, BlockNode &newBlk, MIRType *retTy = nullptr, bool uselvar = false);
   void SplitCallArg(CallNode &callNode, BaseNode *newOpnd, size_t i, BlockNode &newBlk);
 
   void CleanupBranches(MIRFunction &func) const;

@@ -88,8 +88,8 @@ class A64OpndSSAUpdateVsitor : public SSAOperandVisitor,
 
 class A64SSAOperandDumpVisitor : public SSAOperandDumpVisitor {
  public:
-  explicit A64SSAOperandDumpVisitor(const MapleUnorderedMap<regno_t, VRegVersion*> &allssa) :
-      SSAOperandDumpVisitor(allssa) {};
+  explicit A64SSAOperandDumpVisitor(const MapleUnorderedMap<regno_t, VRegVersion*> &allssa)
+      : SSAOperandDumpVisitor(allssa) {}
   ~A64SSAOperandDumpVisitor() override = default;
   void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;

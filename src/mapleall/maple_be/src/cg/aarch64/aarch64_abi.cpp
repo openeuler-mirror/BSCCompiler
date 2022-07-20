@@ -157,7 +157,7 @@ PrimType IsVectorArrayType(MIRType *ty, uint32 &arraySize) {
         MIRArrayType *arrayTy = static_cast<MIRArrayType *>(fieldTy);
         MIRType *arrayElemTy = arrayTy->GetElemType();
         arraySize = arrayTy->GetSizeArrayItem(0);
-        if (arrayTy->GetDim() == k1BitSize && arraySize <= static_cast<int32>(k4BitSize) &&
+        if (arrayTy->GetDim() == k1BitSize && arraySize <= k4BitSize &&
             IsPrimitiveVector(arrayElemTy->GetPrimType())) {
           return arrayElemTy->GetPrimType();
         }

@@ -385,10 +385,10 @@ void AArch64MoveRegArgs::LoadStackArgsToVReg(MIRSymbol &mirSym) const {
       aarchCGFunc->PickLdInsn(GetPrimTypeBitSize(stype), stype), dstRegOpnd, memOpnd);
 
   if (aarchCGFunc->GetCG()->GenerateVerboseCG()) {
-    std::string key = "param: %%";
-    key += std::to_string(mirSym.GetPreg()->GetPregNo());
+    std::string str = "param: %%";
+    str += std::to_string(mirSym.GetPreg()->GetPregNo());
     ASSERT(mirSym.GetStorageClass() == kScFormal, "vreg parameters should be kScFormal type.");
-    insn.SetComment(key);
+    insn.SetComment(str);
   }
 
   aarchCGFunc->GetCurBB()->InsertInsnBegin(insn);
@@ -420,9 +420,9 @@ void AArch64MoveRegArgs::MoveArgsToVReg(const CCLocInfo &ploc, MIRSymbol &mirSym
   }
   Insn &insn = aarchCGFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, dstRegOpnd, srcRegOpnd);
   if (aarchCGFunc->GetCG()->GenerateVerboseCG()) {
-    std::string key = "param: %%";
-    key += std::to_string(mirSym.GetPreg()->GetPregNo());
-    insn.SetComment(key);
+    std::string str = "param: %%";
+    str += std::to_string(mirSym.GetPreg()->GetPregNo());
+    insn.SetComment(str);
   }
   aarchCGFunc->GetCurBB()->InsertInsnBegin(insn);
 }

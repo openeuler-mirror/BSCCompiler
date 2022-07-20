@@ -158,9 +158,9 @@ class ImmOperand : public maplebe::OperandVisitable<ImmOperand> {
 
 class SymbolOperand : public maplebe::OperandVisitable<SymbolOperand> {
  public:
-  SymbolOperand(maple::MIRSymbol &mirSymbol, uint8 size) :
-      OperandVisitable(kOpdStImmediate, size),
-      symbol(&mirSymbol) {}
+  SymbolOperand(maple::MIRSymbol &mirSymbol, uint8 size)
+      : OperandVisitable(kOpdStImmediate, size),
+        symbol(&mirSymbol) {}
   ~SymbolOperand() = default;
   using OperandVisitable<SymbolOperand>::OperandVisitable;
 

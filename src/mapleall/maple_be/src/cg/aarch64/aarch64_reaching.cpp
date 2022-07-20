@@ -1147,11 +1147,11 @@ InsnSet AArch64ReachingDefinition::FindUseForMemOpnd(Insn &insn, uint8 index, bo
  * if it is not computed in first time, bb.gen and bb.use must be cleared firstly
  */
 void AArch64ReachingDefinition::InitGenUse(BB &bb, bool firstTime) {
-  if (!firstTime && (mode & kRDRegAnalysis)) {
+  if (!firstTime && (mode & kRDRegAnalysis) != 0) {
     regGen[bb.GetId()]->ResetAllBit();
     regUse[bb.GetId()]->ResetAllBit();
   }
-  if (!firstTime && (mode & kRDMemAnalysis)) {
+  if (!firstTime && ((mode & kRDMemAnalysis) != 0)) {
     memGen[bb.GetId()]->ResetAllBit();
     memUse[bb.GetId()]->ResetAllBit();
   }
@@ -1181,15 +1181,15 @@ void AArch64ReachingDefinition::InitGenUse(BB &bb, bool firstTime) {
     for (uint32 i = 0; i < opndNum; ++i) {
       Operand &opnd = insn->GetOperand(i);
       OpndProp *regProp = md->operand[i];
-      if (opnd.IsList() && (mode & kRDRegAnalysis)) {
+      if (opnd.IsList() && (mode & kRDRegAnalysis) != 0) {
         ASSERT(regProp->IsUse(), "ListOperand is used in insn");
         InitInfoForListOpnd(bb, opnd);
       } else if (opnd.IsMemoryAccessOperand()) {
         InitInfoForMemOperand(*insn, opnd, regProp->IsDef());
-      } else if (opnd.IsConditionCode() && (mode & kRDRegAnalysis)) {
+      } else if (opnd.IsConditionCode() && ((mode & kRDRegAnalysis) != 0)) {
         ASSERT(regProp->IsUse(), "condition code is used in insn");
         InitInfoForConditionCode(bb);
-      } else if (opnd.IsRegister() && (mode & kRDRegAnalysis)) {
+      } else if (opnd.IsRegister() && (mode & kRDRegAnalysis) != 0) {
         InitInfoForRegOpnd(bb, opnd, regProp->IsDef());
       }
     }
@@ -1197,7 +1197,7 @@ void AArch64ReachingDefinition::InitGenUse(BB &bb, bool firstTime) {
 }
 
 void AArch64ReachingDefinition::InitMemInfoForClearStackCall(Insn &callInsn) {
-  if (!(mode & kRDMemAnalysis) || !callInsn.IsClearDesignateStackCall()) {
+  if ((mode & kRDMemAnalysis) == 0 || !callInsn.IsClearDesignateStackCall()) {
     return;
   }
   int64 firstOffset = callInsn.GetClearStackOffset(kFirstClearMemIndex);
@@ -1220,7 +1220,7 @@ void AArch64ReachingDefinition::InitInfoForMemOperand(Insn &insn, Operand &opnd,
   if (base == nullptr) {
     return;
   }
-  if ((mode & kRDMemAnalysis) && IsFrameReg(*base)) {
+  if (((mode & kRDMemAnalysis) != 0) && IsFrameReg(*base)) {
     if (index != nullptr) {
       SetAnalysisMode(kRDRegAnalysis);
       return;

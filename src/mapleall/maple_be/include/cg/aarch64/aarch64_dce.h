@@ -24,7 +24,7 @@ class AArch64Dce : public CGDce {
   ~AArch64Dce() override = default;
 
  private:
-   bool RemoveUnuseDef(VRegVersion &defVersion) override;
+  bool RemoveUnuseDef(VRegVersion &defVersion) override;
 };
 
 class A64DeleteRegUseVisitor : public DeleteRegUseVisitor {

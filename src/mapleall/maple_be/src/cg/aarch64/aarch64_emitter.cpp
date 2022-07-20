@@ -255,8 +255,8 @@ void AArch64AsmEmitter::EmitFullLSDA(FuncEmitInfo &funcEmitInfo) {
     emitter->Emit("\t.byte ").Emit(lsdaAction->GetActionFilter()).Emit("\n");
   }
   emitter->Emit("\t.align 3\n");
-  for (int32 i = ehFunc->GetEHTyTableSize() - 1; i >= 0; i--) {
-    MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ehFunc->GetEHTyTableMember(i));
+  for (size_t i = ehFunc->GetEHTyTableSize(); i > 0; i--) {
+    MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ehFunc->GetEHTyTableMember(i - 1));
     MIRTypeKind typeKind = mirType->GetKind();
     if (((typeKind == kTypeScalar) && (mirType->GetPrimType() == PTY_void)) || (typeKind == kTypeStructIncomplete) ||
         (typeKind == kTypeInterfaceIncomplete)) {
@@ -2109,7 +2109,6 @@ void AArch64AsmEmitter::EmitAArch64DbgInsn(FuncEmitInfo &funcEmitInfo, Emitter &
       cgFunc.GetCG()->GetMIRModule()->GetDbgInfo()->SetFuncScopeIdStatus(&mirFunc, scopeId, status);
       break;
     }
-
     default: {
       (void)emitter.Emit("\t.").Emit(dbgDescr.name);
       for (uint32 i = 0; i < dbgDescr.opndCount; ++i) {

@@ -33,9 +33,7 @@ using BBId = uint32;
 // caller by setting saveAtEntryBBs.
 class SsaPreWorkCand {
  public:
-  explicit SsaPreWorkCand(MapleAllocator *alloc):
-    occBBs(alloc->Adapter()),
-    saveAtEntryBBs(alloc->Adapter()) {}
+  explicit SsaPreWorkCand(MapleAllocator *alloc) : occBBs(alloc->Adapter()), saveAtEntryBBs(alloc->Adapter()) {}
   // inputs
   MapleSet<BBId> occBBs; // Id's of BBs with appearances of the callee-saved reg
   // outputs

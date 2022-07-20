@@ -20,7 +20,7 @@ namespace maplebe {
 
 using PosPair = std::pair<uint32, uint32>;
 class LiveInterval {
-public:
+ public:
   explicit LiveInterval(MapleAllocator &allocator)
       : ranges(allocator.Adapter()),
         conflict(allocator.Adapter()),
@@ -177,7 +177,7 @@ public:
     std::cout << "\n";
   }
 
-private:
+ private:
   MapleMap<uint32, MapleVector<PosPair>> ranges;
   MapleSet<uint32> conflict;
   InsnMapleSet defPoints;

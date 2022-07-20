@@ -429,10 +429,10 @@ class BB {
   void PushFrontSuccs(BB &bb) {
     succs.push_front(&bb);
   }
-  void ErasePreds(MapleList<BB*>::iterator it) {
+  void ErasePreds(MapleList<BB*>::const_iterator it) {
     preds.erase(it);
   }
-  void EraseSuccs(MapleList<BB*>::iterator it) {
+  void EraseSuccs(MapleList<BB*>::const_iterator it) {
     succs.erase(it);
   }
   void RemovePreds(BB &bb) {

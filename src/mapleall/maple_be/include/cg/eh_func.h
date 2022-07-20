@@ -151,8 +151,8 @@ class EHFunc {
     return ehTyTable.size();
   }
 
-  TyIdx &GetEHTyTableMember(int32 index) {
-    CHECK_FATAL(static_cast<size_t>(index) < ehTyTable.size(), "out of ehTyTable");
+  TyIdx &GetEHTyTableMember(size_t index) {
+    CHECK_FATAL(index < ehTyTable.size(), "out of ehTyTable");
     return ehTyTable[index];
   }
 

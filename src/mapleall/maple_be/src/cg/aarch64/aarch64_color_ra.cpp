@@ -303,7 +303,7 @@ void GraphColorRegAllocator::PrintLiveUnitMap(const LiveRange &lr) const {
       continue;
     }
     auto lu = lr.GetLuMap().find(i);
-    if (lu != lr.GetLuMap().end() && (lu->second->GetDefNum() || lu->second->GetUseNum())) {
+    if (lu != lr.GetLuMap().end() && ((lu->second->GetDefNum() > 0) || (lu->second->GetUseNum() > 0))) {
       LogInfo::MapleLogger() << "(" << i << " ";
       lu->second->PrintLiveUnit();
       LogInfo::MapleLogger() << ")";
@@ -1456,9 +1456,9 @@ void GraphColorRegAllocator::BuildInterferenceGraph() {
         int32 lr2UniqueBucketIdx = uniqueBucketIdx[static_cast<uint64>(std::distance(intLrVec.begin(), it2))];
         if (lr1UniqueBucketIdx == -1 && lr2UniqueBucketIdx == -1) {
           CheckInterference(*lr1, *lr2);
-        } else if (((lr1UniqueBucketIdx >= 0) && lr1->GetBBMember()[lr1UniqueBucketIdx] &
-            lr2->GetBBMember()[lr1UniqueBucketIdx]) || ((lr2UniqueBucketIdx >= 0) &&
-            lr1->GetBBMember()[lr2UniqueBucketIdx] & lr2->GetBBMember()[lr2UniqueBucketIdx])) {
+        } else if (((lr1UniqueBucketIdx >= 0) && ((lr1->GetBBMember()[lr1UniqueBucketIdx] &
+            lr2->GetBBMember()[lr1UniqueBucketIdx])) > 0) || ((lr2UniqueBucketIdx >= 0) &&
+            ((lr1->GetBBMember()[lr2UniqueBucketIdx] & lr2->GetBBMember()[lr2UniqueBucketIdx]) > 0))) {
           CheckInterference(*lr1, *lr2);
         }
       }
@@ -1538,7 +1538,7 @@ void GraphColorRegAllocator::Separate() {
     } else if (lr->IsMustAssigned()) {
       mustAssigned.emplace_back(lr);
     } else {
-      if (lr->GetPrefs().size() && lr->GetNumCall() == 0) {
+      if ((lr->GetPrefs().size() > 0) && lr->GetNumCall() == 0) {
         unconstrainedPref.emplace_back(lr);
       } else {
         constrained.emplace_back(lr);
@@ -2163,7 +2163,7 @@ bool GraphColorRegAllocator::SplitLrShouldSplit(LiveRange &lr) {
     BB *bb = bbVec[bbID];
     if (loopID == 0xFFFFFFFF) {
       if (bb->GetLoop() != nullptr) {
-        loopID = static_cast<int32>(bb->GetLoop()->GetHeader()->GetId());
+        loopID = bb->GetLoop()->GetHeader()->GetId();
       } else {
         loopID = 0;
       }
@@ -2301,7 +2301,7 @@ void GraphColorRegAllocator::SplitLrUpdateInterference(LiveRange &lr) {
     LiveRange *confLrVec = lrMap[regNO];
     if (IsBBsetOverlap(lr.GetBBMember(), confLrVec->GetBBMember(), bbBuckets)) {
       /* interfere */
-      if (confLrVec->GetAssignedRegNO() && !lr.GetPregveto(confLrVec->GetAssignedRegNO())) {
+      if ((confLrVec->GetAssignedRegNO() > 0) && !lr.GetPregveto(confLrVec->GetAssignedRegNO())) {
         lr.InsertElemToForbidden(confLrVec->GetAssignedRegNO());
       }
     } else {
@@ -3136,7 +3136,7 @@ Insn *GraphColorRegAllocator::SpillOperand(Insn &insn, const Operand &opnd, bool
     LogInfo::MapleLogger() << "SpillOperand " << regNO << "\n";
   }
   LiveRange *lr = lrMap[regNO];
-  bool isForCallerSave = lr->GetSplitLr() == nullptr && lr->GetNumCall() && !isCalleeReg;
+  bool isForCallerSave = lr->GetSplitLr() == nullptr && (lr->GetNumCall() > 0) && !isCalleeReg;
   uint32 regSize = regOpnd.GetSize();
   bool isOutOfRange = false;
   PrimType stype;
@@ -3268,7 +3268,7 @@ void GraphColorRegAllocator::CollectCannotUseReg(std::unordered_set<regno_t> &ca
      */
     if ((conflictLr->GetAssignedRegNO() > 0) && IsBitArrElemSet(conflictLr->GetBBMember(), insn.GetBB()->GetId())) {
       if (!AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(conflictLr->GetAssignedRegNO())) &&
-          conflictLr->GetNumCall() && !conflictLr->GetProcessed()) {
+          (conflictLr->GetNumCall() > 0) && !conflictLr->GetProcessed()) {
         return;
       }
       (void)cannotUseReg.insert(conflictLr->GetAssignedRegNO());
@@ -3351,7 +3351,7 @@ bool GraphColorRegAllocator::SetRegForSpill(LiveRange &lr, Insn &insn, uint32 sp
   }
 
   bool needSpillLr = false;
-  if (!lr.GetAssignedRegNO()) {
+  if (lr.GetAssignedRegNO() == 0) {
   /*
    * All regs are assigned and none are free.
    * Pick a reg to spill and reuse for this spill.
@@ -3451,7 +3451,7 @@ bool GraphColorRegAllocator::GetSpillReg(Insn &insn, LiveRange &lr, const uint32
 bool GraphColorRegAllocator::EncountPrevRef(const BB &pred, LiveRange &lr, bool isDef, std::vector<bool>& visitedMap) {
   if (!visitedMap[pred.GetId()] && lr.FindInLuMap(pred.GetId()) != lr.EndOfLuMap()) {
     LiveUnit *lu = lr.GetLiveUnitFromLuMap(pred.GetId());
-    if (lu->GetDefNum() || lu->GetUseNum() || lu->HasCall()) {
+    if ((lu->GetDefNum() > 0) || (lu->GetUseNum() > 0) || lu->HasCall()) {
       MapleMap<uint32, uint32> refs = lr.GetRefs(pred.GetId());
       auto it = refs.rbegin();
       bool findPrevRef = (it->second & kIsCall) == 0;
@@ -3465,7 +3465,7 @@ bool GraphColorRegAllocator::EncountPrevRef(const BB &pred, LiveRange &lr, bool 
   bool found = true;
   for (auto predBB: pred.GetPreds()) {
     if (!visitedMap[predBB->GetId()]) {
-      found &= EncountPrevRef(*predBB, lr, isDef, visitedMap);
+      found = EncountPrevRef(*predBB, lr, isDef, visitedMap) && found;
     }
   }
   return found;
@@ -3475,7 +3475,7 @@ bool GraphColorRegAllocator::FoundPrevBeforeCall(Insn &insn, LiveRange &lr, bool
   bool hasFind = true;
   std::vector<bool> visitedMap(bbVec.size() + 1, false);
   for (auto pred: insn.GetBB()->GetPreds()) {
-    hasFind &= EncountPrevRef(*pred, lr, isDef, visitedMap);
+    hasFind = EncountPrevRef(*pred, lr, isDef, visitedMap) && hasFind;
     if (!hasFind) {
       return false;
     }
@@ -3488,7 +3488,7 @@ bool GraphColorRegAllocator::EncountNextRef(const BB &succ, LiveRange &lr, bool 
   if (lr.FindInLuMap(succ.GetId()) != lr.EndOfLuMap()) {
     LiveUnit *lu = lr.GetLiveUnitFromLuMap(succ.GetId());
     bool findNextDef = false;
-    if (lu->GetDefNum() || lu->HasCall()) {
+    if ((lu->GetDefNum() > 0) || lu->HasCall()) {
       MapleMap<uint32, uint32> refs = lr.GetRefs(succ.GetId());
       for (auto it = refs.begin(); it != refs.end(); ++it) {
         if ((it->second & kIsDef) != 0) {
@@ -3512,7 +3512,7 @@ bool GraphColorRegAllocator::EncountNextRef(const BB &succ, LiveRange &lr, bool 
   bool found = true;
   for (auto succBB: succ.GetSuccs()) {
     if (!visitedMap[succBB->GetId()]) {
-      found &= EncountNextRef(*succBB, lr, isDef, visitedMap);
+      found = EncountNextRef(*succBB, lr, isDef, visitedMap) && found;
       if (!found) {
         return false;
       }
@@ -3525,7 +3525,7 @@ bool GraphColorRegAllocator::FoundNextBeforeCall(Insn &insn, LiveRange &lr, bool
   bool haveFind = true;
   std::vector<bool> visitedMap(bbVec.size() + 1, false);
   for (auto succ: insn.GetBB()->GetSuccs()) {
-    haveFind &= EncountNextRef(*succ, lr, isDef, visitedMap);
+    haveFind = EncountNextRef(*succ, lr, isDef, visitedMap) && haveFind;
     if (!haveFind) {
       return false;
     }
@@ -3536,7 +3536,7 @@ bool GraphColorRegAllocator::FoundNextBeforeCall(Insn &insn, LiveRange &lr, bool
 bool GraphColorRegAllocator::HavePrevRefInCurBB(Insn &insn, LiveRange &lr, bool &contSearch) const {
   LiveUnit *lu = lr.GetLiveUnitFromLuMap(insn.GetBB()->GetId());
   bool findPrevRef = false;
-  if (lu->GetDefNum() || lu->GetUseNum() || lu->HasCall()) {
+  if ((lu->GetDefNum() > 0) || (lu->GetUseNum() > 0) || lu->HasCall()) {
     MapleMap<uint32, uint32> refs = lr.GetRefs(insn.GetBB()->GetId());
     for (auto it = refs.rbegin(); it != refs.rend(); ++it) {
       if (it->first >= insn.GetId()) {
@@ -3559,7 +3559,7 @@ bool GraphColorRegAllocator::HavePrevRefInCurBB(Insn &insn, LiveRange &lr, bool 
 bool GraphColorRegAllocator::HaveNextDefInCurBB(Insn &insn, LiveRange &lr, bool &contSearch) const {
   LiveUnit *lu = lr.GetLiveUnitFromLuMap(insn.GetBB()->GetId());
   bool findNextDef = false;
-  if (lu->GetDefNum() || lu->GetUseNum() || lu->HasCall()) {
+  if ((lu->GetDefNum() > 0) || (lu->GetUseNum() > 0) || lu->HasCall()) {
     MapleMap<uint32, uint32> refs = lr.GetRefs(insn.GetBB()->GetId());
     for (auto it = refs.begin(); it != refs.end(); ++it) {
       if (it->first <= insn.GetId()) {
@@ -3672,7 +3672,7 @@ RegOperand *GraphColorRegAllocator::GetReplaceOpnd(Insn &insn, const Operand &op
   }
 
   bool needCallerSave = false;
-  if (lr->GetNumCall() && !isCalleeReg) {
+  if ((lr->GetNumCall() > 0) && !isCalleeReg) {
     if (isDef) {
       needCallerSave = NeedCallerSave(insn, *lr, isDef) && lr->GetRematLevel() == kRematOff;
     } else {
@@ -3705,7 +3705,7 @@ void GraphColorRegAllocator::MarkUsedRegs(Operand &opnd, uint64 &usedRegMask) {
     if (lr->GetAssignedRegNO() != 0) {
       usedRegMask |= (1ULL << (lr->GetAssignedRegNO() - pregInterval));
     }
-    if (lr->GetSplitLr() && lr->GetSplitLr()->GetAssignedRegNO()) {
+    if ((lr->GetSplitLr() != nullptr) && (lr->GetSplitLr()->GetAssignedRegNO() > 0)) {
       usedRegMask |= (1ULL << (lr->GetSplitLr()->GetAssignedRegNO() - pregInterval));
     }
   }
@@ -3738,13 +3738,13 @@ uint64 GraphColorRegAllocator::FinalizeRegisterPreprocess(FinalizeRegisterInfo &
       if (base != nullptr) {
         fInfo.SetBaseOperand(opnd, static_cast<int32>(i));
         MarkUsedRegs(*base, usedRegMask);
-        hasVirtual |= static_cast<RegOperand*>(base)->IsVirtualRegister();
+        hasVirtual = static_cast<RegOperand*>(base)->IsVirtualRegister() || hasVirtual;
       }
       Operand *offset = memOpnd.GetIndexRegister();
       if (offset != nullptr) {
         fInfo.SetOffsetOperand(opnd);
         MarkUsedRegs(*offset, usedRegMask);
-        hasVirtual |= static_cast<RegOperand*>(offset)->IsVirtualRegister();
+        hasVirtual = static_cast<RegOperand*>(offset)->IsVirtualRegister() || hasVirtual;
       }
     } else {
       bool isDef = md->GetOperand(i)->IsRegDef();
@@ -3754,7 +3754,7 @@ uint64 GraphColorRegAllocator::FinalizeRegisterPreprocess(FinalizeRegisterInfo &
          * Need to exclude def also, since it will clobber the result when the
          * original value is reloaded.
          */
-        hasVirtual |= static_cast<RegOperand&>(opnd).IsVirtualRegister();
+        hasVirtual = static_cast<RegOperand&>(opnd).IsVirtualRegister() || hasVirtual;
         MarkUsedRegs(opnd, usedRegMask);
       } else {
         fInfo.SetUseOperand(opnd, static_cast<int32>(i));
@@ -4103,7 +4103,7 @@ void CallerSavePre::CodeMotion() {
   for (auto *occ : allOccs) {
     if (occ->GetOccType() == kOccUse) {
       ++cnt;
-      beyondLimit |= (cnt == limitNum);
+      beyondLimit = (cnt == limitNum) || beyondLimit;
       if (!beyondLimit && dump) {
         LogInfo::MapleLogger() << "opt use occur: ";
         occ->Dump();
@@ -4323,10 +4323,10 @@ void CallerSavePre::ComputeAvail() {
         }
       }
       if (killedCnt == phiOcc->GetPhiOpnds().size()) {
-        changed |= !phiOcc->IsNotAvailable();
+        changed = !phiOcc->IsNotAvailable() || changed;
         phiOcc->SetAvailability(kNotAvailable);
       } else if (killedCnt > 0) {
-        changed |= !phiOcc->IsPartialAvailable();
+        changed = !phiOcc->IsPartialAvailable() || changed;
         phiOcc->SetAvailability(kPartialAvailable);
       } else {} // fully available is default state
     }
@@ -4458,7 +4458,7 @@ void CallerSavePre::BuildWorkList() {
       continue;
     }
     bool isCalleeReg = AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(lr->GetAssignedRegNO()));
-    if (lr->GetSplitLr() == nullptr && lr->GetNumCall() && !isCalleeReg) {
+    if (lr->GetSplitLr() == nullptr && (lr->GetNumCall() > 0) && !isCalleeReg) {
       callSaveLrs.emplace_back(lr);
     }
   }
@@ -4472,7 +4472,7 @@ void CallerSavePre::BuildWorkList() {
     for (auto lr: callSaveLrs) {
       LiveUnit *lu = lr->GetLiveUnitFromLuMap(bb->GetId());
       RegOperand &opnd = func->GetOrCreateVirtualRegisterOperand(lr->GetRegNO());
-      if (lu != nullptr && (lu->GetDefNum() || lu->GetUseNum() || lu->HasCall())) {
+      if (lu != nullptr && ((lu->GetDefNum() > 0) || (lu->GetUseNum() > 0) || lu->HasCall())) {
         MapleMap<uint32, uint32> refs = lr->GetRefs(bb->GetId());
         for (auto it = refs.begin(); it != refs.end(); ++it) {
           if ((it->second & kIsUse) > 0) {

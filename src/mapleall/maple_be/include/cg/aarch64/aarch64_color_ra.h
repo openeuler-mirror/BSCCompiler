@@ -507,7 +507,7 @@ class LiveRange {
       (void)point->emplace(std::pair<uint32, uint32>(pos, mark));
       (void)refMap.emplace(std::pair<uint32, MapleMap<uint32, uint32>*>(bbId, point));
     } else {
-      auto &bbPoint = (refMap.find(bbId))->second;
+      const auto &bbPoint = (refMap.find(bbId))->second;
       if (bbPoint->find(pos) == bbPoint->end()) {
         (void)bbPoint->emplace(std::pair<uint32, uint32>(pos, mark));
       } else {
@@ -530,7 +530,7 @@ class LiveRange {
     return luMap.end();
   }
 
-  MapleMap<uint32, LiveUnit*>::iterator EraseLuMap(MapleMap<uint32, LiveUnit*>::iterator it) {
+  MapleMap<uint32, LiveUnit*>::const_iterator EraseLuMap(MapleMap<uint32, LiveUnit*>::const_iterator it) {
     return luMap.erase(it);
   }
 
@@ -1274,7 +1274,7 @@ class GraphColorRegAllocator : public RegAllocator {
   };
 
   LiveRange *GetLiveRange(regno_t regNO) {
-    auto it = lrMap.find(regNO);
+    const auto it = lrMap.find(regNO);
     if (it != lrMap.end()) {
       return it->second;
     } else {

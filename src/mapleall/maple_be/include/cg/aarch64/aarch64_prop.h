@@ -226,17 +226,17 @@ class FpSpConstProp : public PropOptimizePattern {
  * mov  R203, R202
  */
 class ExtendMovPattern : public PropOptimizePattern {
-public:
+ public:
   ExtendMovPattern(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
   ~ExtendMovPattern() override = default;
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
 
-protected:
+ protected:
   void Init() final;
 
-private:
+ private:
   bool BitNotAffected(const Insn &insn, uint32 validNum); /* check whether significant bits are affected */
   bool CheckSrcReg(regno_t srcRegNo, uint32 validNum);
 
@@ -244,7 +244,7 @@ private:
 };
 
 class ExtendShiftPattern : public PropOptimizePattern {
-public:
+ public:
   ExtendShiftPattern(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
   ~ExtendShiftPattern() override = default;
   bool IsSwapInsn(const Insn &insn) const;
@@ -255,10 +255,10 @@ public:
   void Run() final;
   void DoExtendShiftOpt(Insn &insn);
 
-protected:
+ protected:
   void Init() final;
 
-private:
+ private:
   void SelectExtendOrShift(const Insn &def);
   SuffixType CheckOpType(const Operand &lastOpnd) const;
   void ReplaceUseInsn(Insn &use, const Insn &def, uint32 amount);

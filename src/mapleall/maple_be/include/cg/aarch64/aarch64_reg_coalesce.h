@@ -46,7 +46,7 @@ class AArch64LiveIntervalAnalysis : public LiveIntervalAnalysis {
     return "regcoalesce";
   }
 
-private:
+ private:
   MapleUnorderedSet<regno_t> vregLive;
   MapleSet<regno_t> candidates;
 };

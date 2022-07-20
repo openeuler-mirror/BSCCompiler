@@ -71,12 +71,12 @@ class DUInsnInfo {
 
 class VRegVersion {
  public:
-  VRegVersion(const MapleAllocator &alloc, RegOperand &vReg, uint32 vIdx, regno_t vregNO) :
-      versionAlloc(alloc),
-      ssaRegOpnd(&vReg),
-      versionIdx(vIdx),
-      originalRegNO(vregNO),
-      useInsnInfos(versionAlloc.Adapter()) {}
+  VRegVersion(const MapleAllocator &alloc, RegOperand &vReg, uint32 vIdx, regno_t vregNO)
+      : versionAlloc(alloc),
+        ssaRegOpnd(&vReg),
+        versionIdx(vIdx),
+        originalRegNO(vregNO),
+        useInsnInfos(versionAlloc.Adapter()) {}
   void SetDefInsn(DUInsnInfo *duInfo, SSAOpndDefBy defTy) {
     defInsnInfo = duInfo;
     defType = defTy;
@@ -146,19 +146,19 @@ class VRegVersion {
 
 class CGSSAInfo {
  public:
-  CGSSAInfo(CGFunc &f, DomAnalysis &da, MemPool &mp, MemPool &tmp) :
-      cgFunc(&f),
-      memPool(&mp),
-      tempMp(&tmp),
-      ssaAlloc(&mp),
-      domInfo(&da),
-      renamedBBs(ssaAlloc.Adapter()),
-      vRegDefCount(ssaAlloc.Adapter()),
-      vRegStk(ssaAlloc.Adapter()),
-      allSSAOperands(ssaAlloc.Adapter()),
-      noDefVRegs(ssaAlloc.Adapter()),
-      reversePostOrder(ssaAlloc.Adapter()),
-      safePropInsns(ssaAlloc.Adapter()) {}
+  CGSSAInfo(CGFunc &f, DomAnalysis &da, MemPool &mp, MemPool &tmp)
+      : cgFunc(&f),
+        memPool(&mp),
+        tempMp(&tmp),
+        ssaAlloc(&mp),
+        domInfo(&da),
+        renamedBBs(ssaAlloc.Adapter()),
+        vRegDefCount(ssaAlloc.Adapter()),
+        vRegStk(ssaAlloc.Adapter()),
+        allSSAOperands(ssaAlloc.Adapter()),
+        noDefVRegs(ssaAlloc.Adapter()),
+        reversePostOrder(ssaAlloc.Adapter()),
+        safePropInsns(ssaAlloc.Adapter()) {}
   virtual ~CGSSAInfo() = default;
   void ConstructSSA();
   VRegVersion *FindSSAVersion(regno_t ssaRegNO); /* Get specific ssa info */

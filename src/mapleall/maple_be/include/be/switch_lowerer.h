@@ -61,8 +61,8 @@ class SwitchLowerer {
   maple::CompareNode *BuildCmpNode(Opcode opCode, uint32 idx);
   maple::GotoNode *BuildGotoNode(int32 idx);
   maple::CondGotoNode *BuildCondGotoNode(int32 idx, Opcode opCode, BaseNode &cond);
-  maple::BlockNode *BuildCodeForSwitchItems(int32 start, int32 end, bool lowBNdChecked,
-                                            bool highBNdChecked);
+  maple::BlockNode *BuildCodeForSwitchItems(int32 start, int32 end, bool lowBlockNodeChecked,
+                                            bool highBlockNodeChecked);
 };
 }  /* namespace maplebe */
 

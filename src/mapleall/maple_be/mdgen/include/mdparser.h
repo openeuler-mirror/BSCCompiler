@@ -22,8 +22,7 @@
 namespace MDGen {
 class MDParser {
  public:
-  MDParser(MDClassRange &newKeeper, maple::MemPool *memPool) : dataKeeper(newKeeper), mdMemPool(memPool) {
-  }
+  MDParser(MDClassRange &newKeeper, maple::MemPool *memPool) : dataKeeper(newKeeper), mdMemPool(memPool) {}
   ~MDParser() = default;
 
   bool ParseFile(const std::string &inputFile);

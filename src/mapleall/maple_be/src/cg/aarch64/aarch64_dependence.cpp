@@ -460,9 +460,9 @@ static bool NoOverlap(const MemOperand &leftOpnd, const MemOperand &rightOpnd) {
   int64 ofset1 = leftOpnd.GetOffsetOperand()->GetValue();
   int64 ofset2 = rightOpnd.GetOffsetOperand()->GetValue();
   if (ofset1 < ofset2) {
-    return ((ofset1 + leftOpnd.GetAccessSize()) <= ofset2);
+    return ((ofset1 + static_cast<int8>(leftOpnd.GetAccessSize())) <= ofset2);
   } else {
-    return ((ofset2 + rightOpnd.GetAccessSize()) <= ofset1);
+    return ((ofset2 + static_cast<int8>(rightOpnd.GetAccessSize())) <= ofset1);
   }
 }
 

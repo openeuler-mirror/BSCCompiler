@@ -21,13 +21,13 @@
 namespace maplebe {
 class PhiEliminate {
  public:
-  PhiEliminate(CGFunc &f, CGSSAInfo &ssaAnalysisResult, MemPool &mp) :
-      cgFunc(&f),
-      ssaInfo(&ssaAnalysisResult),
-      phiEliAlloc(&mp),
-      eliminatedBB(phiEliAlloc.Adapter()),
-      replaceVreg(phiEliAlloc.Adapter()),
-      remateInfoAfterSSA(phiEliAlloc.Adapter()) {
+  PhiEliminate(CGFunc &f, CGSSAInfo &ssaAnalysisResult, MemPool &mp)
+      : cgFunc(&f),
+        ssaInfo(&ssaAnalysisResult),
+        phiEliAlloc(&mp),
+        eliminatedBB(phiEliAlloc.Adapter()),
+        replaceVreg(phiEliAlloc.Adapter()),
+        remateInfoAfterSSA(phiEliAlloc.Adapter()) {
     tempRegNO = static_cast<uint32_t>(GetSSAInfo()->GetAllSSAOperands().size()) + CGSSAInfo::ssaRegNObase;
   }
   virtual ~PhiEliminate() = default;

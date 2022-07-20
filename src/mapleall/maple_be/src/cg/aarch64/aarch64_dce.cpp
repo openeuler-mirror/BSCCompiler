@@ -34,7 +34,7 @@ bool AArch64Dce::RemoveUnuseDef(VRegVersion &defVersion) {
     }
     uint32 bothDUIdx = defInsn->GetBothDefUseOpnd();
     if (bothDUIdx == kInsnMaxOpnd ||
-        (defInsnInfo->GetOperands().count(bothDUIdx) && defInsnInfo->GetOperands().at(bothDUIdx) == 1)) {
+        (defInsnInfo->GetOperands().count(bothDUIdx) > 0 && defInsnInfo->GetOperands().at(bothDUIdx) == 1)) {
       defInsn->GetBB()->RemoveInsn(*defInsn);
       if (defInsn->IsPhi()) {
         defInsn->GetBB()->RemovePhiInsn(defVersion.GetOriginalRegNO());

@@ -116,13 +116,10 @@ class VregRenameInfo {
 
 class VregRename {
  public:
-  VregRename(CGFunc *func, MemPool *pool) : cgFunc(func),
-                                            memPool(pool),
-                                            alloc(pool),
-                                            renameInfo(alloc.Adapter()) {
+  VregRename(CGFunc *func, MemPool *pool) : cgFunc(func), memPool(pool), alloc(pool), renameInfo(alloc.Adapter()) {
     renameInfo.resize(cgFunc->GetMaxRegNum());
     ccRegno = static_cast<RegOperand *>(&cgFunc->GetOrCreateRflag())->GetRegisterNumber();
-  };
+  }
   ~VregRename() = default;
 
   void PrintRenameInfo(regno_t regno) const;

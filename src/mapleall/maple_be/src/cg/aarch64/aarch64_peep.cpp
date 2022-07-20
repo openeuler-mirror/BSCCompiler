@@ -1688,14 +1688,14 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterMov(Insn &insn) {
       ReplaceExtWithMov(insn);
     }
   } else if (currMop == MOP_xuxtb32 || currMop == MOP_xuxth32) {
-    if (!(static_cast<uint64>(value) & minRange)) {
+    if ((static_cast<uint64>(value) & minRange) == 0) {
       ReplaceExtWithMov(insn);
     }
   } else if (currMop == MOP_xuxtw64) {
     ReplaceExtWithMov(insn);
   } else {
     /* MOP_xsxtb64 & MOP_xsxth64 & MOP_xsxtw64 */
-    if (!(static_cast<uint64>(value) & minRange) && immMovOpnd.IsSingleInstructionMovable(currDstOpnd.GetSize())) {
+    if ((static_cast<uint64>(value) & minRange) == 0 && immMovOpnd.IsSingleInstructionMovable(currDstOpnd.GetSize())) {
       ReplaceExtWithMov(insn);
     }
   }
@@ -2586,7 +2586,7 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
           int64 curOffset = memOperand.GetOffsetImmediate()->GetOffsetValue();
           if (memOperand.GetSize() == k64BitSize) {
             uint32 memBarrierRange = insn.IsLoadStorePair() ? k16BitSize : k8BitSize;
-            if (curOffset < baseOfst + memBarrierRange && curOffset > baseOfst - memBarrierRange) {
+            if (curOffset < baseOfst + memBarrierRange && curOffset > baseOfst - static_cast<int32>(memBarrierRange)) {
               return true;
             }
           } else if (memOperand.GetSize() == k32BitSize) {
@@ -3008,7 +3008,7 @@ void CombineContiLoadAndStorePattern::RemoveInsnAndKeepComment(BB &bb, Insn &ins
 void EliminateSpecifcSXTAArch64::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   Insn *prevInsn = insn.GetPrev();
-  while (prevInsn != nullptr && !prevInsn->GetMachineOpcode()) {
+  while (prevInsn != nullptr && prevInsn->GetMachineOpcode() == 0) {
     prevInsn = prevInsn->GetPrev();
   }
   if (prevInsn == nullptr) {
@@ -3046,7 +3046,7 @@ void EliminateSpecifcSXTAArch64::Run(BB &bb, Insn &insn) {
           } else if (thisMop == MOP_xsxtw64) {
             flag = 0xFFFFFFFF80000000;      /* specify the flag with thirty-three 1s at top in this case */
           }
-          if (!(static_cast<uint64>(value) & flag) && immOpnd.IsSingleInstructionMovable(regOpnd0.GetSize())) {
+          if ((static_cast<uint64>(value) & flag) == 0 && immOpnd.IsSingleInstructionMovable(regOpnd0.GetSize())) {
             auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
             RegOperand &dstOpnd = aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(
                 static_cast<AArch64reg>(dstMovOpnd.GetRegisterNumber()), k64BitSize, dstMovOpnd.GetRegisterType());
@@ -3115,7 +3115,7 @@ void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
         auto &immOpnd = static_cast<ImmOperand&>(opnd);
         int64 value = immOpnd.GetValue();
         /* check the top 56 bits of value */
-        if (!(static_cast<uint64>(value) & 0xFFFFFFFFFFFFFF00)) {
+        if ((static_cast<uint64>(value) & 0xFFFFFFFFFFFFFF00) == 0) {
           bb.RemoveInsn(insn);
         }
       }
@@ -3136,7 +3136,7 @@ void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
       if (opnd.IsIntImmediate()) {
         auto &immOpnd = static_cast<ImmOperand&>(opnd);
         int64 value = immOpnd.GetValue();
-        if (!(static_cast<uint64>(value) & 0xFFFFFFFFFFFF0000)) {
+        if ((static_cast<uint64>(value) & 0xFFFFFFFFFFFF0000) == 0) {
           bb.RemoveInsn(insn);
         }
       }
@@ -3484,7 +3484,7 @@ MOperator CsetCbzToBeqOptAArch64::SelectMOperator(AArch64CC_t condCode, bool inv
 
 bool ContiLDRorSTRToSameMEMPattern::CheckCondition(Insn &insn) {
   prevInsn = insn.GetPrev();
-  while (prevInsn != nullptr && !prevInsn->GetMachineOpcode() && prevInsn != insn.GetBB()->GetFirstInsn()) {
+  while (prevInsn != nullptr && prevInsn->GetMachineOpcode() == 0 && prevInsn != insn.GetBB()->GetFirstInsn()) {
     prevInsn = prevInsn->GetPrev();
   }
   if (!insn.IsMachineInstruction() || prevInsn == nullptr) {
@@ -3563,7 +3563,7 @@ void ContiLDRorSTRToSameMEMPattern::Run(BB &bb, Insn &insn) {
       newOp = (reg1.GetSize() <= k32BitSize) ? MOP_xvmovs : MOP_xvmovd;
     }
     Insn *nextInsn = insn.GetNext();
-    while (nextInsn != nullptr && !nextInsn->GetMachineOpcode() && nextInsn != bb.GetLastInsn()) {
+    while (nextInsn != nullptr && nextInsn->GetMachineOpcode() == 0 && nextInsn != bb.GetLastInsn()) {
       nextInsn = nextInsn->GetNext();
     }
     bool moveSameReg = false;
@@ -3789,7 +3789,7 @@ bool ReplaceDivToMultiPattern::CheckCondition(Insn &insn) {
   }
   MOperator prevMop = prevInsn->GetMachineOpcode();
   MOperator prePrevMop = prePrevInsn->GetMachineOpcode();
-  if (prevMop && (prevMop == MOP_wmovkri16) && prePrevMop && (prePrevMop == MOP_xmovri32)) {
+  if ((prevMop > 0) && (prevMop == MOP_wmovkri16) && (prePrevMop > 0) && (prePrevMop == MOP_xmovri32)) {
     return true;
   }
   return false;
@@ -4423,7 +4423,7 @@ void ComplexMemOperandAddAArch64::Run(BB &bb, Insn &insn) {
     return;
   }
   MOperator nextMop = nextInsn->GetMachineOpcode();
-  if (nextMop &&
+  if ((nextMop > 0) &&
       ((nextMop >= MOP_wldrsb && nextMop <= MOP_dldr) || (nextMop >= MOP_wstrb && nextMop <= MOP_dstr))) {
     if (!IsMemOperandOptPattern(insn, *nextInsn)) {
       return;
@@ -4730,7 +4730,7 @@ void ReplaceCmpToCmnAArch64::Run(BB &bb, Insn &insn) {
           Operand *opndCmp3 = &(nextInsn->GetOperand(kInsnThirdOpnd));  /* get the third operand of cmp */
           /* if the first operand of mov equals the third operand of cmp, match the pattern. */
           if (opnd1OfMov == opndCmp3) {
-            if (iVal == negOne) {
+            if (iVal == static_cast<int64>(negOne)) {
               iVal = -1;
             }
             ImmOperand &newOpnd = aarch64CGFunc->CreateImmOperand(iVal * (-1), immOpnd->GetSize(), false);
@@ -4890,7 +4890,7 @@ void ComplexMemOperandAArch64::Run(BB &bb, Insn &insn) {
   }
 
   MOperator nextMop = nextInsn->GetMachineOpcode();
-  if (nextMop &&
+  if (nextMop > 0 &&
       ((nextMop >= MOP_wldrsb && nextMop <= MOP_dldp) || (nextMop >= MOP_wstrb && nextMop <= MOP_dstp))) {
     /* Check if base register of nextInsn and the dest operand of insn are identical. */
     MemOperand *memOpnd = static_cast<MemOperand*>(nextInsn->GetMemOpnd());
@@ -4975,7 +4975,7 @@ void ComplexMemOperandPreAddAArch64::Run(BB &bb, Insn &insn) {
     return;
   }
   MOperator nextMop = nextInsn->GetMachineOpcode();
-  if (nextMop &&
+  if (nextMop > 0 &&
       ((nextMop >= MOP_wldrsb && nextMop <= MOP_dldr) || (nextMop >= MOP_wstrb && nextMop <= MOP_dstr))) {
     if (!IsMemOperandOptPattern(insn, *nextInsn)) {
       return;
@@ -5030,7 +5030,7 @@ void ComplexMemOperandLSLAArch64::Run(BB &bb, Insn &insn) {
     return;
   }
   MOperator nextMop = nextInsn->GetMachineOpcode();
-  if (nextMop &&
+  if (nextMop > 0 &&
       ((nextMop >= MOP_wldrsb && nextMop <= MOP_dldr) || (nextMop >= MOP_wstrb && nextMop <= MOP_dstr))) {
     /* Check if base register of nextInsn and the dest operand of insn are identical. */
     MemOperand *memOpnd = static_cast<MemOperand*>(nextInsn->GetMemOpnd());

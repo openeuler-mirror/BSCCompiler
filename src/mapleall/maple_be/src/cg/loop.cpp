@@ -21,9 +21,9 @@ namespace maplebe {
 
 static void PrintLoopInfo(const LoopHierarchy &loop) {
   LogInfo::MapleLogger() << "header " << loop.GetHeader()->GetId();
-  if (loop.otherLoopEntries.size() != 0) {
+  if (loop.GetOtherLoopEntries().size() != 0) {
     LogInfo::MapleLogger() << " multi-header ";
-    for (auto en : loop.otherLoopEntries) {
+    for (auto en : loop.GetOtherLoopEntries()) {
       LogInfo::MapleLogger() << en->GetId() << " ";
     }
   }
@@ -349,10 +349,10 @@ void LoopFinder::MarkExtraEntryAndEncl() {
     // Setup head and extra entries
     for (const auto bb : newEntries) {
       if (bb != nullptr) {
-        loop->otherLoopEntries.insert(bb);
+        loop->InsertBBToOtherLoopEntries(bb);
       }
     }
-    loop->otherLoopEntries.erase(loop->GetHeader());
+    loop->EraseBBFromOtherLoopEntries(loop->GetHeader());
   }
 }
 
@@ -360,11 +360,11 @@ bool LoopFinder::HasSameHeader(const LoopHierarchy *lp1, const LoopHierarchy *lp
   if (lp1->GetHeader() == lp2->GetHeader()) {
     return true;
   }
-  for (auto other1 : lp1->otherLoopEntries) {
+  for (auto other1 : lp1->GetOtherLoopEntries()) {
     if (lp2->GetHeader() == other1) {
       return true;
     }
-    for (auto other2 : lp2->otherLoopEntries) {
+    for (auto other2 : lp2->GetOtherLoopEntries()) {
       if (other2 == other1) {
         return true;
       }
@@ -411,11 +411,11 @@ void LoopFinder::MergeLoops() {
         loopHierarchy1->InsertLoopMembers(*bb);
       }
       if (loopHierarchy1->GetHeader() != loopHierarchy2->GetHeader()) {
-        loopHierarchy1->otherLoopEntries.insert(loopHierarchy2->GetHeader());
+        loopHierarchy1->InsertBBToOtherLoopEntries(loopHierarchy2->GetHeader());
       }
-      for (auto bb : loopHierarchy2->otherLoopEntries) {
+      for (auto bb : loopHierarchy2->GetOtherLoopEntries()) {
         if (loopHierarchy1->GetHeader() != bb) {
-          loopHierarchy1->otherLoopEntries.insert(bb);
+          loopHierarchy1->InsertBBToOtherLoopEntries(bb);
         }
       }
       for (auto *bb : loopHierarchy2->GetBackedge()) {
@@ -577,7 +577,7 @@ void LoopFinder::DetectInnerLoop() {
 
 static void CopyLoopInfo(const LoopHierarchy *from, CGFuncLoops *to, CGFuncLoops *parent, MemPool *memPool) {
   to->SetHeader(*const_cast<BB*>(from->GetHeader()));
-  for (auto bb : from->otherLoopEntries) {
+  for (auto bb : from->GetOtherLoopEntries()) {
     to->AddMultiEntries(*bb);
   }
   for (auto *bb : from->GetLoopMembers()) {

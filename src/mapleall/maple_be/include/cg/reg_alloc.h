@@ -48,10 +48,7 @@ class VirtualRegNode {
 
 class RegAllocator {
  public:
-  RegAllocator(CGFunc &tempCGFunc, MemPool &memPool) :
-      cgFunc(&tempCGFunc),
-      memPool(&memPool),
-      alloc(&memPool) {}
+  RegAllocator(CGFunc &tempCGFunc, MemPool &memPool) : cgFunc(&tempCGFunc), memPool(&memPool), alloc(&memPool) {}
 
   virtual ~RegAllocator() = default;
 

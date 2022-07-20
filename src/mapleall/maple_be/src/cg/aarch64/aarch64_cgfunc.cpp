@@ -478,16 +478,16 @@ std::string AArch64CGFunc::GenerateMemOpndVerbose(const Operand &src) const {
   ASSERT(src.GetKind() == Operand::kOpdMem, "Just checking");
   const MIRSymbol *symSecond = static_cast<const MemOperand*>(&src)->GetSymbol();
   if (symSecond != nullptr) {
-    std::string key;
+    std::string str;
     MIRStorageClass sc = symSecond->GetStorageClass();
     if (sc == kScFormal) {
-      key = "param: ";
+      str = "param: ";
     } else if (sc == kScAuto) {
-      key = "local var: ";
+      str = "local var: ";
     } else {
-      key = "global: ";
+      str = "global: ";
     }
-    return key.append(symSecond->GetName());
+    return str.append(symSecond->GetName());
   }
   return "";
 }
@@ -2240,8 +2240,7 @@ uint32 AArch64CGFunc::LmbcTotalRegsUsed() {
    registers. Argument > 16-bytes are copied to preset space and ptr
    result is loaded into virtual register.
    If blassign is not for argument, this function simply memcpy */
-void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src)
-{
+void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) {
   CHECK_FATAL(src->GetKind() == Operand::kOpdRegister, "blkassign src type not in register");
   std::vector<TyIdx> *parmList;
   if (GetLmbcArgInfo() == nullptr) {
@@ -3248,7 +3247,7 @@ Operand *AArch64CGFunc::SelectIreadfpoff(const BaseNode &parent, IreadFPoffNode 
       }
     } else {
       CHECK_FATAL(primType == info->GetPrimType(), "Incorrect primtype");
-      CHECK_FATAL(offset == info->GetOffset(), "Incorrect offset");
+      CHECK_FATAL(offset == static_cast<int32>(info->GetOffset()), "Incorrect offset");
       if (info->GetRegNO() == 0 || !info->HasRegassign()) {
         result = GenLmbcParamLoad(offset, bytelen, regty, primType);
       } else {
@@ -6139,7 +6138,6 @@ Operand *AArch64CGFunc::SelectJarrayMalloc(JarrayMallocNode &node, Operand &opnd
   CHECK_FATAL(type->GetKind() == kTypeJArray, "expect MIRJarrayType");
   auto jaryType = static_cast<MIRJarrayType*>(type);
   uint64 fixedSize = RTSupport::GetRTSupportInstance().GetArrayContentOffset();
-  uint8 align = RTSupport::GetRTSupportInstance().GetObjectAlignment();
 
   MIRType *elemType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(jaryType->GetElemTyIdx());
   PrimType elemPrimType = elemType->GetPrimType();
@@ -6154,7 +6152,8 @@ Operand *AArch64CGFunc::SelectJarrayMalloc(JarrayMallocNode &node, Operand &opnd
   Operand *opndNElems64 = &static_cast<Operand&>(CreateRegisterOperandOfType(PTY_u64));
   SelectCvtInt2Int(nullptr, opndNElems64, opndNElems, PTY_u32, PTY_u64);
 
-  Operand &opndAlign = CreateImmOperand(PTY_u64, align);
+  Operand &opndAlign = CreateImmOperand(PTY_u64,
+      static_cast<int64>(RTSupport::GetRTSupportInstance().GetObjectAlignment()));
 
   RegOperand &resOpnd = CreateRegisterOperandOfType(retType);
 
@@ -7038,7 +7037,7 @@ bool AArch64CGFunc::GenRetCleanup(const IntrinsiccallNode *cleanupNode, bool for
     int32 refLocBase = memLayout->GetRefLocBaseLoc();
     uint32 refNum = memLayout->GetSizeOfRefLocals() / kOffsetAlign;
     CHECK_FATAL((refLocBase + (refNum - 1) * kIntregBytelen) < std::numeric_limits<int32>::max(), "out of range");
-    int32 refLocEnd = refLocBase + (refNum - 1) * kIntregBytelen;
+    int32 refLocEnd = refLocBase + static_cast<int32>((refNum - 1) * kIntregBytelen);
     int32 realMin = minByteOffset < refLocBase ? refLocBase : minByteOffset;
     int32 realMax = maxByteOffset > refLocEnd ? refLocEnd : maxByteOffset;
     if (forEA) {
@@ -7094,7 +7093,7 @@ bool AArch64CGFunc::GenRetCleanup(const IntrinsiccallNode *cleanupNode, bool for
     srcOpnds->PushOpnd(parmRegOpnd1);
     SelectCopy(parmRegOpnd1, PTY_a64, vReg0, PTY_a64);
 
-    uint32 realRefNum = (realMax - realMin) / kOffsetAlign + 1;
+    uint32 realRefNum = static_cast<uint32>((realMax - realMin) / kOffsetAlign + 1);
 
     ImmOperand &countOpnd = CreateImmOperand(realRefNum, k64BitSize, true);
 
@@ -7489,7 +7488,7 @@ void AArch64CGFunc::SelectParmListDreadSmallAggregate(const MIRSymbol &sym, MIRT
 void AArch64CGFunc::SelectParmListIreadSmallAggregate(const IreadNode &iread, MIRType &structType,
                                                       ListOperand &srcOpnds, int32 offset,
                                                       AArch64CallConvImpl &parmLocator) {
-  int32 symSize = GetBecommon().GetTypeSize(structType.GetTypeIndex().GetIdx());
+  int32 symSize = static_cast<int32>(static_cast<int64>(GetBecommon().GetTypeSize(structType.GetTypeIndex().GetIdx())));
   RegOperand *addrOpnd0 = static_cast<RegOperand*>(HandleExpr(iread, *(iread.Opnd(0))));
   RegOperand *addrOpnd1 = &LoadIntoRegister(*addrOpnd0, iread.Opnd(0)->GetPrimType());
   CCLocInfo ploc;
@@ -9583,17 +9582,18 @@ int32 AArch64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
     int32 offset = static_cast<int32>(symAlloc->GetOffset());
     return offset;
   } else if (sgKind == kMsArgsRegPassed) {
-    int32 baseOffset = memLayout->GetSizeOfLocals() + symAlloc->GetOffset() + memLayout->GetSizeOfRefLocals();
+    int32 baseOffset = symAlloc->GetOffset() +
+        static_cast<int32>(memLayout->GetSizeOfLocals() + memLayout->GetSizeOfRefLocals());
     return baseOffset + sizeofFplr;
   } else if (sgKind == kMsRefLocals) {
-    int32 baseOffset = symAlloc->GetOffset() + memLayout->GetSizeOfLocals();
+    int32 baseOffset = symAlloc->GetOffset() + static_cast<int32>(memLayout->GetSizeOfLocals());
     return baseOffset + sizeofFplr;
   } else if (sgKind == kMsLocals) {
     int32 baseOffset = symAlloc->GetOffset();
     return baseOffset + sizeofFplr;
   } else if (sgKind == kMsSpillReg) {
     if (GetCG()->IsLmbc()) {
-      return symAlloc->GetOffset() + memLayout->SizeOfArgsToStackPass();
+      return symAlloc->GetOffset() + static_cast<int32>(memLayout->SizeOfArgsToStackPass());
     }
     int32 baseOffset = symAlloc->GetOffset() + memLayout->SizeOfArgsRegisterPassed() + memLayout->GetSizeOfLocals() +
                      memLayout->GetSizeOfRefLocals();
