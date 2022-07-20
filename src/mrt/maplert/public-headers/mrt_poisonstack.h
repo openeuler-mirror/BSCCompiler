@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -12,12 +12,20 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "bc_pragma.h"
-namespace maple {
-namespace bc {
-std::vector<MIRPragma*> &BCAnnotationsDirectory::EmitPragmasImpl() {
-  CHECK_FATAL(false, "this method must be overrided!!!");
-  return pragmas;
-}
-}  // namespace bc
-}  // namespace maple
+#ifndef MAPLEALL_MAPLERT_JAVA_ANDROID_MRT_INCLUDE_MRT_POISIONSTACK_H_
+#define MAPLEALL_MAPLERT_JAVA_ANDROID_MRT_INCLUDE_MRT_POISIONSTACK_H_
+
+#include <cstdint>
+#include "mrt_api_common.h"
+#ifdef __cplusplus
+namespace maplert {
+extern "C" {
+#endif // __cplusplus
+
+MRT_EXPORT void MRT_InitPoisonStack(uintptr_t framePtr);
+
+#ifdef __cplusplus
+} // extern "C"
+} // namespace maplert
+#endif // __cplusplus
+#endif
