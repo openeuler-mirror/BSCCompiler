@@ -899,10 +899,11 @@ static bool ContainsConststr(const BaseNode &x) {
   if (x.GetOpCode() == OP_conststr || x.GetOpCode() == OP_conststr16) {
     return true;
   }
-  for (size_t i = 0; i < x.NumOpnds(); ++i)
+  for (size_t i = 0; i < x.NumOpnds(); ++i) {
     if (ContainsConststr(*x.Opnd(i))) {
       return true;
     }
+  }
   return false;
 }
 
@@ -1653,7 +1654,7 @@ void MeCFG::BuildSCCDFS(BB &bb, uint32 &visitIndex, std::vector<SCCOfBBs*> &sccN
   visitStack.push(id);
   inStack[id] = true;
 
-  for (BB *succ : bb.GetSucc()){
+  for (BB *succ : bb.GetSucc()) {
     if (succ == nullptr) {
       continue;
     }
@@ -1835,7 +1836,9 @@ void MeCFG::ConstructEdgeFreqFromBBFreq() {
   auto eIt = valid_end();
   for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
-    if (!bb) continue;
+    if (!bb) {
+      continue;
+    }
     if (bb->GetSucc().size() == 1) {
       bb->PushBackSuccFreq(bb->GetFrequency());
     } else if (bb->GetSucc().size() == 2) {
@@ -1866,8 +1869,12 @@ void MeCFG::ConstructEdgeFreqFromBBFreq() {
 // set bb frequency from stmt record
 void MeCFG::ConstructBBFreqFromStmtFreq() {
   GcovFuncInfo* funcData = func.GetMirFunc()->GetFuncProfData();
-  if (!funcData) return;
-  if (funcData->stmtFreqs.size() == 0) return;
+  if (!funcData) {
+    return;
+  }
+  if (funcData->stmtFreqs.empty()) {
+    return;
+  }
   auto eIt = valid_end();
   for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
     if ((*bIt)->IsEmpty()) continue;
@@ -1902,7 +1909,9 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
 
 void MeCFG::ConstructStmtFreq() {
   GcovFuncInfo* funcData = func.GetMirFunc()->GetFuncProfData();
-  if (!funcData) return;
+  if (!funcData) {
+    return;
+  }
   auto eIt = valid_end();
   // clear stmtFreqs
   funcData->stmtFreqs.clear();

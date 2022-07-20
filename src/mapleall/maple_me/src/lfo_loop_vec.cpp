@@ -27,7 +27,9 @@ namespace maple {
 void LoopVecInfo::UpdateDoloopProfData(MIRFunction *mirFunc,
     DoloopNode *doloop, int32_t vecLanes, bool isRemainder) {
   auto *profData = mirFunc->GetFuncProfData();
-  if (!profData) return;
+  if (!profData) {
+    return;
+  }
   int64_t doloopFreq = profData->GetStmtFreq(doloop->GetStmtID());
   int64_t tempFreq;
   BlockNode *body = doloop->GetDoBody();
@@ -466,8 +468,7 @@ IntrinsicopNode *LoopVectorization::GenSumVecStmt(BaseNode *vecTemp, PrimType ve
 // check opcode is reduction, +/-/*///min/max
 // now only support +/-
 bool LoopVectorization::IsReductionOp(Opcode op) const {
-  if (op == OP_add || op == OP_sub) return true;
-  return false;
+  return op == OP_add || op == OP_sub;
 }
 
 // generate instrinsic node to copy scalar to vector type
@@ -1129,7 +1130,7 @@ BaseNode *LoopVectorization::ConvertNodeType(bool cvtSigned, BaseNode* n) {
 IntrinsicopNode *LoopVectorization::GenVectorNarrowLowNode(BaseNode *opnd, PrimType opndPrimType) {
   MIRIntrinsicID intrnID = INTRN_vector_narrow_low_v2i64;
   MIRType *resType = nullptr;
-  switch(opndPrimType) {
+  switch (opndPrimType) {
     case PTY_v2i64: {
       intrnID = INTRN_vector_narrow_low_v2i64;
       resType = GlobalTables::GetTypeTable().GetV2Int32();
@@ -1299,13 +1300,13 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
         BaseNode *newnode = tp->vecInfo->uniformVecNodes[opnd1];
         vecopnd1.push_back(newnode);
       } else {
-        VectorizeExpr(opnd1, tp, vecopnd1, depth+1);
+        VectorizeExpr(opnd1, tp, vecopnd1, depth + 1);
       }
       if (tp->vecInfo->uniformVecNodes.find(opnd2) != tp->vecInfo->uniformVecNodes.end()) {
         BaseNode *newnode = tp->vecInfo->uniformVecNodes[opnd2];
         vecopnd2.push_back(newnode);
       } else {
-        VectorizeExpr(opnd2, tp, vecopnd2, depth+1);
+        VectorizeExpr(opnd2, tp, vecopnd2, depth + 1);
       }
       CHECK_FATAL(((!vecopnd1.empty()) && !vecopnd2.empty()), "check binary op vectrized node");
       PrimType opnd1PrimType = vecopnd1[0]->GetPrimType();
@@ -1387,7 +1388,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
         node->SetPrimType(unaryNode->Opnd(0)->GetPrimType()); // update primtype of unary op with opnd's type
         vectorizedNode.push_back(node);
       } else {
-        VectorizeExpr(unaryNode->Opnd(0), tp, vecOpnd, depth+1);
+        VectorizeExpr(unaryNode->Opnd(0), tp, vecOpnd, depth + 1);
         CHECK_FATAL(vecOpnd.size() >= 1, "vectorized node should be larger than 1");
         // use abssub to replace subl
         if ((node->GetOpCode() == OP_abs) && (vecOpnd[0]->GetOpCode() == OP_intrinsicop) &&
@@ -1447,7 +1448,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
           if (tp->vecInfo->uniformVecNodes.find(opnd) != tp->vecInfo->uniformVecNodes.end()) {
             vecopnd.push_back(tp->vecInfo->uniformVecNodes[opnd]);
           } else {
-            VectorizeExpr(opnd, tp, vecopnd, depth+1);
+            VectorizeExpr(opnd, tp, vecopnd, depth + 1);
           }
           ASSERT(vecopnd.size() == 1, "NYI::select opnd need expand");
           tnode->SetOpnd(vecopnd[0], i);
@@ -1506,25 +1507,24 @@ void LoopVectorization::VectorizeReductionStmt(StmtNode *stmt, LoopTransPlan *tp
       if (GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType())) >
           GetPrimTypeSize(GetVecElemPrimType(currVecType))) {
         ASSERT(((GetVecEleSize(regReadlhsvec->GetPrimType())) / GetVecEleSize(currVecType) == 2) &&
-               (GetVecLanes(regReadlhsvec->GetPrimType()) * 2 ==  GetVecLanes(currVecType)) , "type check");
-        IntrinsicopNode *pairwiseWidenAddIntrn = GenVectorPairWiseAccumulate(regReadlhsvec,
-            currVecNode, currVecType);
-        RegassignNode *regassign3 = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(),
-            regReadlhsvec->GetRegIdx(), pairwiseWidenAddIntrn);
+               (GetVecLanes(regReadlhsvec->GetPrimType()) * 2 == GetVecLanes(currVecType)), "type check");
+        IntrinsicopNode *pairwiseWidenAddIntrn = GenVectorPairWiseAccumulate(regReadlhsvec, currVecNode, currVecType);
+        RegassignNode *regassign3 =
+            codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(), regReadlhsvec->GetRegIdx(), pairwiseWidenAddIntrn);
         doloopbody->InsertBefore(stmt, regassign3);
       } else {
-        BinaryNode *binaryNode = codeMP->New<BinaryNode>(OP_add, regReadlhsvec->GetPrimType(), regReadlhsvec,
-            currVecNode);
-        RegassignNode *regassign = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(),
-            regReadlhsvec->GetRegIdx(), binaryNode);
+        BinaryNode *binaryNode =
+            codeMP->New<BinaryNode>(OP_add, regReadlhsvec->GetPrimType(), regReadlhsvec, currVecNode);
+        RegassignNode *regassign =
+            codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(), regReadlhsvec->GetRegIdx(), binaryNode);
         doloopbody->InsertBefore(stmt, regassign);
       }
     }
   } else {
-    BinaryNode *binaryNode = codeMP->New<BinaryNode>(OP_add, regReadlhsvec->GetPrimType(), regReadlhsvec,
-        vecOpnd[0]);
-    RegassignNode *regassign1 = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(),
-        regReadlhsvec->GetRegIdx(), binaryNode);
+    BinaryNode *binaryNode =
+        codeMP->New<BinaryNode>(OP_add, regReadlhsvec->GetPrimType(), regReadlhsvec, vecOpnd[0]);
+    RegassignNode *regassign1 =
+        codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(), regReadlhsvec->GetRegIdx(), binaryNode);
     doloopbody->InsertBefore(stmt, regassign1);
   }
   // red = red +/- sum_vec(redvec)
@@ -2206,7 +2206,7 @@ void LoopVectorization::GenConstVar(LoopVecInfo *vecInfo, uint8_t vecLanes) {
     std::string::size_type lastSlash = fileName.find_last_of('/');
     if (lastSlash != std::string::npos &&
         lastDot != std::string::npos) {
-      ivVecName.append("_" + fileName.substr(lastSlash+1, lastDot));
+      ivVecName.append("_" + fileName.substr(lastSlash + 1, lastDot));
     } else if (lastSlash == std::string::npos) {
       ivVecName.append("_" + fileName.substr(0, lastDot));
     }

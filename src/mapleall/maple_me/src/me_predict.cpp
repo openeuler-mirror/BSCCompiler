@@ -26,10 +26,6 @@
 
 namespace {
 using namespace maple;
-// The base value for branch probability notes and edge probabilities.
-constexpr int kProbBase = 10000;
-// The base value for BB frequency.
-constexpr int kFreqBase = 100000;
 constexpr uint32 kScaleDownFactor = 2;
 // kProbVeryUnlikely should be small enough so basic block predicted
 // by it gets below HOT_BB_FREQUENCY_FRACTION.
@@ -464,7 +460,7 @@ void MePrediction::EstimateBBProb(BB &bb) {
     // try fallthrou if taken.
     if (!bb.GetMeStmts().empty() && bb.GetMeStmts().back().GetOp() == OP_try && i == 0) {
       PredEdgeDef(*FindEdge(bb, *dest), kPredTry, kTaken);
-    } else if(sigSucc->GetAttributes(kBBAttrWontExit)) {
+    } else if (sigSucc->GetAttributes(kBBAttrWontExit)) {
       PredEdgeDef(*FindEdge(bb, *dest), kPredWontExit, kNotTaken);
     } else if (!sigSucc->GetMeStmts().empty() && sigSucc->GetMeStmts().back().GetOp() == OP_return) {
       Edge *currEdge = FindEdge(bb, *dest);

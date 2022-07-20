@@ -48,8 +48,9 @@ bool MELfoInjectIV::PhaseRun(MeFunction &f) {
     // find the entry BB as the predecessor of headbb that dominates headbb
     MapleVector<BB*>::iterator predit = headbb->GetPred().begin();
     for (; predit != headbb->GetPred().end(); ++predit) {
-      if (dom->Dominate(**predit, *headbb))
+      if (dom->Dominate(**predit, *headbb)) {
         break;
+      }
     }
     if (predit == headbb->GetPred().end()) {
       continue;  // cannot insert IV for this loop

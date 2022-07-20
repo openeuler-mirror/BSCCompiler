@@ -191,7 +191,7 @@ void CheckCast::TryToResolveFuncArg(MeExpr &expr, AnnotationType &at) {
       GenericNode *declareNode = GetOrCreateGenericNode(gd);
       AddNextNode(*declareNode, *realNode);
     }
-  } else if(at.GetKind() == kExtendType && expr.GetMeOp() == kMeOpVar) {
+  } else if (at.GetKind() == kExtendType && expr.GetMeOp() == kMeOpVar) {
     ExtendGeneric *extendG = static_cast<ExtendGeneric*>(&at);
     CHECK_FATAL(extendG->GetExtendInfo() == kArrayType, "must be");
     if (extendG->GetContainsGeneric()->GetKind() != kGenericDeclare) {

@@ -291,10 +291,11 @@ void MeStmtPre::CollectVarForMeStmt(const MeStmt &meStmt, MeExpr *meExpr, std::v
     case OP_intrinsiccall:
     case OP_callassigned: {
       auto *nStmt = static_cast<const NaryMeStmt*>(&meStmt);
-      for (size_t i = 0; i < nStmt->NumMeStmtOpnds(); ++i)
+      for (size_t i = 0; i < nStmt->NumMeStmtOpnds(); ++i) {
         if (nStmt->GetOpnd(i)->GetMeOp() == kMeOpVar || nStmt->GetOpnd(i)->GetMeOp() == kMeOpReg) {
           varVec.push_back(nStmt->GetOpnd(i));
         }
+      }
       if (meExpr != nullptr) {
         CHECK_FATAL(meExpr->GetMeOp() == kMeOpVar, "CollectVarForMeStmt:bad meExpr field in realocc node");
         varVec.push_back(meExpr);
@@ -737,13 +738,14 @@ void MeStmtPre::CreateSortedOccs() {
   }
   // initialize phiOpnds vector in each MePhiOcc node and defPhiOcc field in
   // each MePhiOpndOcc node
-  for (MePhiOcc *phiOcc : phiOccs)
+  for (MePhiOcc *phiOcc : phiOccs) {
     for (BB *pred : phiOcc->GetBB()->GetPred()) {
       MePhiOpndOcc *phiOpndOcc = bb2PhiOpndMap[pred->GetBBId()].front();
       phiOcc->AddPhiOpnd(*phiOpndOcc);
       phiOpndOcc->SetDefPhiOcc(*phiOcc);
       bb2PhiOpndMap[pred->GetBBId()].pop_front();
     }
+  }
   if (GetSSAPreDebug()) {
     mirModule->GetOut() << "========ssapre candidate " << workCand->GetIndex() <<
         " after phi insert===================\n";

@@ -734,7 +734,7 @@ bool AliasClass::IsGlobalOstTypeUnsafe(const OriginalSt &ost) const {
   if (!hasInited) {
     for (size_t i = 0; i < gSymbolTable.GetSymbolTableSize(); ++i) {
       const MIRSymbol *gSym = gSymbolTable.GetSymbol(i);
-      if(gSym == nullptr) {
+      if (gSym == nullptr) {
         continue;
       }
       // example : typeA *gSym = (typeA*)initVal (assume initVal with typeB*)

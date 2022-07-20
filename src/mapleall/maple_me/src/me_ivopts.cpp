@@ -1672,7 +1672,7 @@ static bool CheckOverflow(const MeExpr *opnd0, const MeExpr *opnd1, Opcode op, P
     return (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
             static_cast<uint64>(const0) >> rightShiftNumToGetSignFlag) &&
            (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
-            static_cast<uint64>(const1) >> rightShiftNumToGetSignFlag );
+            static_cast<uint64>(const1) >> rightShiftNumToGetSignFlag);
   }
   if (op == OP_sub) {
     if (IsUnsignedInteger(ptyp)) {

@@ -2507,7 +2507,7 @@ void ValueRangePropagation::MergeValueRangeOfPhiOperands(const LoopDesc &loop, c
       continue;
     }
     Bound resBound = vrOfInitExpr->GetRangeType() == kOnlyHasLowerBound ?
-        Bound( nullptr, GetMaxNumber(pType), pType) : Bound( nullptr, GetMinNumber(pType), pType);
+        Bound(nullptr, GetMaxNumber(pType), pType) : Bound( nullptr, GetMinNumber(pType), pType);
     bool vrCanBeComputed = true;
     index++;
     bool isAccurateBound = false;
@@ -3061,7 +3061,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CombineTwoValueRange(
                                         Max(leftRange.GetUpper(), rightRange.GetUpper()), kLowerAndUpper);
   } else {
     if (rightRange.GetRangeType() == kOnlyHasLowerBound) {
-      return std::make_unique<ValueRange>(rightRange.GetLower(),Max(leftRange.GetUpper(),
+      return std::make_unique<ValueRange>(rightRange.GetLower(), Max(leftRange.GetUpper(),
           Bound(GetMaxNumber(rightRange.GetUpper().GetPrimType()), rightRange.GetUpper().GetPrimType())),
               kLowerAndUpper, rightRange.IsAccurate());
     }

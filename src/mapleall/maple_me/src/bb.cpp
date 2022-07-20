@@ -131,7 +131,7 @@ const PhiNode *BB::PhiofVerStInserted(const VersionSt &versionSt) const {
 bool BB::InsertPhi(MapleAllocator *alloc, VersionSt *versionSt) {
   PhiNode phiNode(*alloc, *versionSt);
   auto status = phiList.emplace(std::make_pair(versionSt->GetOst()->GetIndex(), phiNode));
-  if (status.second){
+  if (status.second) {
     status.first->second.GetPhiOpnds().resize(pred.size());
     for (int idx = 0; idx < pred.size(); ++idx) {
       status.first->second.SetPhiOpnd(idx, *versionSt);
@@ -277,7 +277,7 @@ void BB::ReplacePred(const BB *old, BB *newPred) {
   for (auto &predElement : pred) {
     if (predElement == old) {
       predElement->RemoveBBFromSucc(*this);
-      if (IsInList(newPred->succ)){
+      if (IsInList(newPred->succ)) {
         RemoveBBFromPred(*predElement, true);
       } else {
         newPred->succ.push_back(this);
@@ -486,7 +486,9 @@ void BB::UpdateEdgeFreqs() {
     succFreqs += GetSuccFreq()[i];
   }
   // early return if frequency is consistent
-  if (len == 0 || succFreqs == GetFrequency()) return;
+  if (len == 0 || succFreqs == GetFrequency()) {
+    return;
+  }
   for (size_t i = 0; i < len; ++i) {
     int64_t sfreq = GetSuccFreq()[i];
     int64_t scalefreq = (succFreqs == 0 ? (frequency / len) : (sfreq * frequency / succFreqs));

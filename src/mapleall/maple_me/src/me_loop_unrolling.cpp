@@ -338,7 +338,7 @@ void LoopUnrolling::ResetFrequency() {
     }
     exitBB->SetFrequency(static_cast<uint32>(exitFreq));
     auto exitEdgeFreq = exitBB->GetEdgeFreq(latchBB) / replicatedLoopNum;
-    if(exitEdgeFreq == 0 && exitBB->GetEdgeFreq(latchBB) != 0) {
+    if (exitEdgeFreq == 0 && exitBB->GetEdgeFreq(latchBB) != 0) {
       exitEdgeFreq = 1;
     }
     exitBB->SetEdgeFreq(latchBB, exitEdgeFreq);
@@ -905,7 +905,7 @@ void LoopUnrolling::CreateIndVarAndCondGotoStmt(CR &cr, CRNode &varNode, BB &pre
         break;
       }
       case kBBGoto: {
-        auto gotoStmt= static_cast<GotoMeStmt*>(bb->GetLastMe());
+        auto gotoStmt = static_cast<GotoMeStmt*>(bb->GetLastMe());
         if (preCondGoto.GetBBLabel() == gotoStmt->GetOffset()) {
           LabelIdx label = func->GetOrCreateBBLabel(*indVarAndTripCountDefBB);
           gotoStmt->SetOffset(label);
@@ -913,7 +913,7 @@ void LoopUnrolling::CreateIndVarAndCondGotoStmt(CR &cr, CRNode &varNode, BB &pre
         break;
       }
       case kBBCondGoto: {
-        auto condGotoStmt= static_cast<CondGotoMeStmt*>(bb->GetLastMe());
+        auto condGotoStmt = static_cast<CondGotoMeStmt*>(bb->GetLastMe());
         if (preCondGoto.GetBBLabel() == condGotoStmt->GetOffset()) {
           LabelIdx label = func->GetOrCreateBBLabel(*indVarAndTripCountDefBB);
           condGotoStmt->SetOffset(label);

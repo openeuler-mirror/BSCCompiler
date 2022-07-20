@@ -88,7 +88,7 @@ BaseNode *SSAProp::SimplifyExpr(BaseNode *expr) const {
 }
 
 // iassign fld1 (addrof fld2 sym) => dassign fld1+fld2 sym
-StmtNode * SSAProp::SimplifyIassignAddrof(IassignNode *iassign, BB *bb) const {
+StmtNode *SSAProp::SimplifyIassignAddrof(IassignNode *iassign, BB *bb) const {
   BaseNode *base = iassign->Opnd(0);
   if (base->GetOpCode() != OP_addrof) {
     return iassign;
@@ -214,8 +214,7 @@ void SSAProp::UpdateDefOfMayDef(const StmtNode &stmt) {
 
 // if lhs is smaller than rhs, insert operation to simulate the truncation
 // effect of rhs being stored into lhs; otherwise, just return rhs
-BaseNode * SSAProp::CheckTruncation(BaseNode *lhs, BaseNode *rhs) const {
-  PrimType lhsPtyp = lhs->GetPrimType();
+BaseNode *SSAProp::CheckTruncation(BaseNode *lhs, BaseNode *rhs) const {
   PrimType rhsPtyp = rhs->GetPrimType();
   if (func->GetMIRModule().IsJavaModule() || !IsPrimitiveInteger(rhsPtyp)) {
     return rhs;
@@ -223,27 +222,33 @@ BaseNode * SSAProp::CheckTruncation(BaseNode *lhs, BaseNode *rhs) const {
   ASSERT(lhs->IsSSANode(), "ssatab must run before!");
   OriginalSt *ost = static_cast<SSANode *>(lhs)->GetSSAVar()->GetOst();
   MIRType *lhsType = ost->GetType();
+  PrimType lhsPtyp = lhsType->GetPrimType();
+  const MIRBuilderPtr builder = func->GetMIRModule().GetMIRBuilder();
   if (lhsType->GetKind() == kTypeBitField) {
     auto *bfType = static_cast<MIRBitFieldType *>(lhsType);
     if (GetPrimTypeBitSize(rhsPtyp) <= bfType->GetFieldSize()) { // no need cvt for : large type <- small type
       return rhs;
     }
     Opcode extOp = IsSignedInteger(lhsPtyp) ? OP_sext : OP_zext;
-    PrimType extPtyp = (bfType->GetFieldSize() <= 32) ? (IsSignedInteger(lhsPtyp) ? PTY_i32 : PTY_u32)
-                                                      : (IsSignedInteger(lhsPtyp) ? PTY_i64 : PTY_i32);
-    return func->GetMIRModule().GetMIRBuilder()->CreateExprExtractbits(extOp, extPtyp, 0, bfType->GetFieldSize(), rhs);
+    PrimType extPtyp = (bfType->GetFieldSize() <= k32BitSize) ? (IsSignedInteger(lhsPtyp) ? PTY_i32 : PTY_u32)
+                                                              : (IsSignedInteger(lhsPtyp) ? PTY_i64 : PTY_u64);
+    return builder->CreateExprExtractbits(extOp, extPtyp, 0, bfType->GetFieldSize(), rhs);
   }
   if (IsPrimitiveInteger(lhsPtyp) != IsPrimitiveInteger(rhsPtyp) ||
-      GetPrimTypeSize(lhsPtyp) < GetPrimTypeSize(rhsPtyp) ||
+      (GetPrimTypeSize(lhsPtyp) < GetPrimTypeSize(rhsPtyp) && GetPrimTypeBitSize(lhsPtyp) > k32BitSize) ||
       (GetPrimTypeSize(lhsPtyp) == GetPrimTypeSize(rhsPtyp) && IsSignedInteger(lhsPtyp) != IsSignedInteger(rhsPtyp))) {
-    return func->GetMIRModule().GetMIRBuilder()->CreateExprTypeCvt(OP_cvt, lhsPtyp, rhsPtyp, *rhs);
+    return builder->CreateExprTypeCvt(OP_cvt, lhsPtyp, rhsPtyp, *rhs);
   }
-
+  if (GetPrimTypeSize(lhsPtyp) < GetPrimTypeSize(rhsPtyp)) {
+    Opcode extOp = IsSignedInteger(lhsPtyp) ? OP_sext : OP_zext;
+    PrimType extPtyp = IsSignedInteger(lhsPtyp) ? PTY_i32 : PTY_u32;
+    return builder->CreateExprExtractbits(extOp, extPtyp, 0, GetPrimTypeBitSize(lhsPtyp), rhs);
+  }
   return rhs;
 }
 
 // if all phiOpnds are the same(after proped), we can prop it, otherwise return nullptr.
-BaseNode * SSAProp::PropPhi(PhiNode *phi) {
+BaseNode *SSAProp::PropPhi(PhiNode *phi) {
   if (!MeOption::propAtPhi) {
     return nullptr;
   }

@@ -1453,16 +1453,16 @@ void ReflectionAnalysis::AppendValueByType(std::string &annoArr, const MIRPragma
 }
 
 #define COMMON_CASE \
-case kValueInt:    \
-case kValueLong:   \
-case kValueDouble: \
-case kValueFloat:  \
-case kValueString: \
-case kValueBoolean:\
-case kValueByte:   \
-case kValueShort:  \
-case kValueChar:   \
-case kValueEnum:   \
+case kValueInt:     \
+case kValueLong:    \
+case kValueDouble:  \
+case kValueFloat:   \
+case kValueString:  \
+case kValueBoolean: \
+case kValueByte:    \
+case kValueShort:   \
+case kValueChar:    \
+case kValueEnum:    \
 case kValueType:
 
 std::string ReflectionAnalysis::GetAnnotationValue(const MapleVector<MIRPragmaElement*> &subelemVector,

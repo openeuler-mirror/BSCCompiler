@@ -234,7 +234,7 @@ SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
       if (mirconst->GetKind() == kConstInt) {
         subsDesc->additiveConst = static_cast<MIRIntConst *>(mirconst)->GetExtValue();
         if (op == OP_sub) {
-          subsDesc->additiveConst = - subsDesc->additiveConst;
+          subsDesc->additiveConst = -subsDesc->additiveConst;
         }
         mainTerm = binNode->Opnd(0);
       }
@@ -391,10 +391,12 @@ void DoloopInfo::CreateArrayAccessDesc(BlockNode *block) {
       case OP_if: {
         CreateRHSArrayAccessDesc(stmt->Opnd(0), stmt);
         IfStmtNode *ifstmtnode = static_cast<IfStmtNode *>(stmt);
-        if (ifstmtnode->GetThenPart())
+        if (ifstmtnode->GetThenPart()) {
           CreateArrayAccessDesc(ifstmtnode->GetThenPart());
-        if (ifstmtnode->GetElsePart())
+        }
+        if (ifstmtnode->GetElsePart()) {
           CreateArrayAccessDesc(ifstmtnode->GetElsePart());
+        }
         break;
       }
       case OP_dowhile:

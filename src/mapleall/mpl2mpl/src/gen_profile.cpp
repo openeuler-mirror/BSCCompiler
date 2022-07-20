@@ -199,7 +199,9 @@ void ProfileGen::CreateFuncProfDesc() {
       GlobalTables::GetTypeTable().GetOrCreateStructType("__mpl_prof_desc_ty", funcProfDescFields, parentFields, mod);
 
   for (MIRFunction *f : validFuncs) {
-    if (f->GetBody() == nullptr) continue;
+    if (f->GetBody() == nullptr) {
+      continue;
+    }
 
     uint64  nCtrs = f->GetNumCtrs();
     MIRSymbol *ctrTblSym = f->GetProfCtrTbl();
@@ -211,7 +213,7 @@ void ProfileGen::CreateFuncProfDesc() {
     MIRAggConst *initCtrTblMirConst = modMP->New<MIRAggConst>(mod, *arrOfUInt64Ty);
 
     if (ctrTblSym && nCtrs > 0) {
-      for (uint32 i=0; i<nCtrs; i++) {
+      for (uint32 i = 0; i < nCtrs; ++i) {
         initCtrTblMirConst->AddItem(zeroMirConst, i);
       }
       ctrTblSym->SetKonst(initCtrTblMirConst);
@@ -337,7 +339,7 @@ void ProfileGen::CreateInitProc() {
   ActArg.push_back(addrModProfDesc);
   CallNode *callGInit = mirBuilder->CreateStmtCall(gccProfInitProtoTy->GetPuidx(), ActArg);
 
-  BlockNode *block =mplProfInit->GetCodeMemPool()->New<BlockNode>();
+  BlockNode *block = mplProfInit->GetCodeMemPool()->New<BlockNode>();
   block->AddStatement(callGInit);
   mplProfInit->SetBody(block);
   mod.AddFunction(mplProfInit);

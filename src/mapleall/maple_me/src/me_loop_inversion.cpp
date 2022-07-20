@@ -206,7 +206,7 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
       if (swapSuccOfLatch) {
         ASSERT(latchBB->GetKind() == kBBCondGoto, "impossible");
         int64_t newftFreq = (latchBB->GetFrequency() == 0 || bb.GetSuccFreq()[1] == 0) ? 0 : 1;
-        int64_t newtgFreq= latchBB->GetFrequency() == 0 ? 0  : (latchBB->GetFrequency() - newftFreq);
+        int64_t newtgFreq = latchBB->GetFrequency() == 0 ? 0 : (latchBB->GetFrequency() - newftFreq);
         latchBB->SetSuccFreq(0, newftFreq);
         latchBB->SetSuccFreq(1, newtgFreq); // loop is changed to do-while format
         int64_t bbsucc0Freq = bb.GetSucc(0)->GetFrequency() - newtgFreq;

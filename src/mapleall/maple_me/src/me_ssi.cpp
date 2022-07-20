@@ -307,7 +307,7 @@ void MeSSI::RenameStartPiBr(DefPoint &newDefPoint) {
     ++index;
   }
   CHECK_FATAL(index < newDefBB->GetPred().size(), "must be");
-  ScalarMeExpr*oldVar = phi->GetOpnd(index);
+  ScalarMeExpr *oldVar = phi->GetOpnd(index);
   phi->SetOpnd(index, newDefPoint.GetLHS());
   if (!phi->IsPiAdded()) {
     if (modifiedPhi.find(phi) == modifiedPhi.end()) {
@@ -639,7 +639,7 @@ void MeSSI::RemoveExtraNodes() {
     MePhiNode *phi = pair.first;
     for (size_t i = 0; i < pair.second.size(); ++i) {
       size_t index = i;
-      ScalarMeExpr*oldVar = pair.second[i];
+      ScalarMeExpr *oldVar = pair.second[i];
       if (oldVar != nullptr) {
         phi->SetOpnd(index, oldVar);
       }

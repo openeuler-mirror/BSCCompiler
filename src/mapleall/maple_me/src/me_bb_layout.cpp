@@ -114,7 +114,7 @@ void BBLayout::BuildChainForLoops() {
   auto &loops = meLoop->GetMeLoops();
   // sort loops from inner most to outer most
   // need use the same sort rules as prediction?
-  std::stable_sort(loops.begin(), loops.end(),[](const LoopDesc *loop1, const LoopDesc *loop2) {
+  std::stable_sort(loops.begin(), loops.end(), [](const LoopDesc *loop1, const LoopDesc *loop2) {
     return loop1->nestDepth > loop2->nestDepth;
   });
   // build chain for loops one by one

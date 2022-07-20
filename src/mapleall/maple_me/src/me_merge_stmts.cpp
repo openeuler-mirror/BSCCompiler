@@ -384,7 +384,7 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
 
   // Remove memcpy stmt
   if (numOf8Byte != 0 || numOf16Byte != 0) {
-    BB * bb = memcpyCallStmt->GetBB();
+    BB *bb = memcpyCallStmt->GetBB();
     bb->RemoveMeStmt(memcpyCallStmt);
   }
 }
@@ -483,7 +483,7 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
   }
   // Remove memset stmt
   if (hasRemainder || numOf16Byte != 0) {
-    BB * bb = memsetCallStmt->GetBB();
+    BB *bb = memsetCallStmt->GetBB();
     bb->RemoveMeStmt(memsetCallStmt);
   }
 }

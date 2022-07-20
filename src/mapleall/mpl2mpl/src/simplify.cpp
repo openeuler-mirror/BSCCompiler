@@ -520,7 +520,7 @@ void Simplify::ProcessStmt(StmtNode &stmt) {
 }
 
 BaseNode *Simplify::SimplifyExpr(BaseNode &expr) {
-  switch(expr.GetOpCode()) {
+  switch (expr.GetOpCode()) {
     case OP_dread: {
       auto &dread = static_cast<DreadNode&>(expr);
       return ReplaceExprWithConst(dread);
@@ -530,7 +530,7 @@ BaseNode *Simplify::SimplifyExpr(BaseNode &expr) {
     }
     default: {
       for (auto i = 0; i < expr.GetNumOpnds(); i++) {
-        if(expr.Opnd(i)) {
+        if (expr.Opnd(i)) {
           expr.SetOpnd(SimplifyExpr(*expr.Opnd(i)), i);
         }
       }
@@ -578,7 +578,7 @@ BaseNode *Simplify::ReplaceExprWithConst(DreadNode &dread) {
   auto *symbol = currFunc->GetLocalOrGlobalSymbol(stIdx);
   auto *symbolConst = symbol->GetKonst();
   if (!currFunc->GetModule()->IsCModule() || !symbolConst ||
-      !stIdx.IsGlobal() || !IsSymbolReplaceableWithConst(*symbol) ) {
+      !stIdx.IsGlobal() || !IsSymbolReplaceableWithConst(*symbol)) {
     return &dread;
   }
   if (fieldId != 0) {

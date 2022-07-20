@@ -63,9 +63,11 @@ bool MEMeProp::PhaseRun(maple::MeFunction &f) {
       }
     }
   }
-  MeProp meProp(*hMap, *dom, *ApplyTempMemPool(), Prop::PropConfig { MeOption::propBase, propIloadRef,
-      MeOption::propGlobalRef, MeOption::propFinaliLoadRef, MeOption::propIloadRefNonParm, MeOption::propAtPhi,
-      MeOption::propWithInverse || f.IsLfo() }, MeOption::propLimit);
+  auto propConfig = Prop::PropConfig {
+      MeOption::propBase, propIloadRef, MeOption::propGlobalRef, MeOption::propFinaliLoadRef,
+      MeOption::propIloadRefNonParm, MeOption::propAtPhi, MeOption::propWithInverse || f.IsLfo()
+  };
+  MeProp meProp(*hMap, *dom, *ApplyTempMemPool(), propConfig, MeOption::propLimit);
   meProp.isLfo = f.IsLfo();
   meProp.TraversalBB(*f.GetCfg()->GetCommonEntryBB());
   if (DEBUGFUNC_NEWPM(f)) {

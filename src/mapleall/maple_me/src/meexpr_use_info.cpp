@@ -44,7 +44,7 @@ void MeExprUseInfo::AddUseSiteOfExpr(MeExpr *expr, T *useSite) {
 MapleList<UseItem> *MeExprUseInfo::GetUseSitesOfExpr(const MeExpr *expr) const {
   if (IsInvalid()) {
     CHECK_FATAL(false, "Expr use info is invalid");
-  } else if (!expr->IsScalar()){
+  } else if (!expr->IsScalar()) {
     CHECK_FATAL(useInfoState == kUseInfoOfAllExpr, "expr is not scalar, use info has not been collected");
   }
 

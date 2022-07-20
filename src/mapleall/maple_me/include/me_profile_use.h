@@ -138,6 +138,8 @@ class MeProfUse : public PGOInstrument<BBUseEdge> {
     return succCalcuAllEdgeFreq;
   }
   bool GcovRun();
+  GcovFuncInfo *GetFuncData();
+  bool CheckSumFail(const uint64 hash, const uint32 expectedCheckSum, const std::string &tag);
  private:
   bool IsAllZero(Profile::BBInfo &result) const;
   void SetEdgeCount(BBUseEdge &edge, size_t value);

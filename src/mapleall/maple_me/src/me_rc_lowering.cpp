@@ -475,7 +475,7 @@ void RCLowering::HandleAssignMeStmtRegLHS(MeStmt &stmt) {
 }
 
 void RCLowering::HandleAssignMeStmtVarLHS(MeStmt &stmt, MeExpr *pendingDec) {
-  const MIRSymbol *lsym =stmt.GetVarLHS()->GetOst()->GetMIRSymbol();
+  const MIRSymbol *lsym = stmt.GetVarLHS()->GetOst()->GetMIRSymbol();
   if (lsym->IgnoreRC()) {
     return;
   }

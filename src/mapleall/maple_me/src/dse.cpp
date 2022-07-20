@@ -263,7 +263,7 @@ void DSE::RemoveNotRequiredStmtsInBB(BB &bb) {
           }
         }
       }
-      if (&stmt == &bb.GetLast() ) {
+      if (&stmt == &bb.GetLast()) {
         bb.SetKind(kBBFallthru);
       }
       bb.RemoveStmtNode(&stmt);

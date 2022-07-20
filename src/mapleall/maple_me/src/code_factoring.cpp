@@ -239,7 +239,7 @@ void FactoringOptimizer::SinkStmtsInCands(std::map<BB *, StmtNode *, cmpByBBID> 
         // add const mov to bb's first so that we can continue to sink the new last stmt
         pair.first->PrependStmtNode(regass);
       }
-      sinkedStmt->SetOpnd(mirBuilder->CreateExprRegread(ptyp, regIdx) ,i);
+      sinkedStmt->SetOpnd(mirBuilder->CreateExprRegread(ptyp, regIdx), i);
     }
   }
   if (dumpDetail) {

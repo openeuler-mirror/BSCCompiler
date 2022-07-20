@@ -159,7 +159,7 @@ void IdentifyLoops::ProcessPreheaderAndLatch(LoopDesc &loop) {
     loop.preheader = loop.head->GetPred(0);
     // loop canon phase may not be called when identloop is used
     if ((loop.preheader->GetKind() != kBBFallthru) &&
-        (loop.preheader->GetKind() != kBBGoto) ) {
+        (loop.preheader->GetKind() != kBBGoto)) {
       loop.SetIsCanonicalLoop(false);
       return;
     }

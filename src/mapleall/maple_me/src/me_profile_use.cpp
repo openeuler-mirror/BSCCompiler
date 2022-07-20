@@ -294,32 +294,41 @@ bool MeProfUse::Run() {
   return true;
 }
 
+GcovFuncInfo *MeProfUse::GetFuncData() {
+  GcovProfileData *gcovData = func->GetMIRModule().GetGcovProfile();
+  if (!gcovData) {
+    return nullptr;
+  }
+  GcovFuncInfo *funcData = gcovData->GetFuncProfile(func->GetUniqueID());
+  return funcData;
+}
+
+bool MeProfUse::CheckSumFail(const uint64 hash, const uint32 expectedCheckSum, const std::string &tag) {
+  uint32 curCheckSum = static_cast<uint32>((hash >> 32) ^ (hash & 0xffffffff));
+  if (curCheckSum != expectedCheckSum) {
+    if (dump) {
+      LogInfo::MapleLogger() << func->GetName() << " " << tag << " checksum doesn't match the expected "
+                             << expectedCheckSum << " with " << tag << " real hash " << curCheckSum << '\n';
+    }
+    return true;
+  }
+  return false;
+}
+
 bool MeProfUse::GcovRun() {
-  GcovProfileData* gcovData = func->GetMIRModule().GetGcovProfile();
-  if (!gcovData) return false;
-  GcovFuncInfo* funcData = gcovData->GetFuncProfile(func->GetUniqueID());
-  if (!funcData) return false;
+  GcovFuncInfo *funcData = GetFuncData();
+  if (!funcData) {
+    return false;
+  }
   func->GetMirFunc()->SetFuncProfData(funcData);
   // early return if lineno fail
-  uint64 linenohash = ComputeLinenoHash();
-  uint32 lineNoChkSum = static_cast<uint32>((linenohash >> 32) ^ (linenohash & 0xffffffff));
-  if (lineNoChkSum != funcData->lineno_checksum) {
-    if (dump) {
-      LogInfo::MapleLogger() << func->GetName() << " lineno checksum doesn't match gcda value  "
-                             << funcData->lineno_checksum << " lineno real hash " << lineNoChkSum << '\n';
-    }
+  if (CheckSumFail(ComputeLinenoHash(), funcData->lineno_checksum, "lineno")) {
     func->GetMirFunc()->SetFuncProfData(nullptr); // clear func profile data
     return false;
   }
   FindInstrumentEdges();
   // early return if cfgchecksum fail
-  uint64 cfghash = ComputeFuncHash();
-  uint32 cfgChkSum = static_cast<uint32>((cfghash >> 32) ^ (cfghash & 0xffffffff));
-  if (cfgChkSum != funcData->cfg_checksum) {
-    if (dump) {
-      LogInfo::MapleLogger() << func->GetName() << " hash doesn't match profile hash "
-                             << funcData->cfg_checksum << " func real hash " << cfgChkSum << '\n';
-    }
+  if (CheckSumFail(ComputeFuncHash(), funcData->cfg_checksum, "func")) {
     return false;
   }
   std::vector<BB*> instrumentBBs;
