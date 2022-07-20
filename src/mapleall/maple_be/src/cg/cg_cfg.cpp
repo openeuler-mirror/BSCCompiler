@@ -349,6 +349,7 @@ void CGCFG::MergeBB(BB &merger, BB &mergee) {
     merger.PushBackSuccs(*bb);
   }
   merger.SetKind(mergee.GetKind());
+  merger.SetNeedRestoreCfi(mergee.IsNeedRestoreCfi());
   mergee.SetNext(nullptr);
   mergee.SetPrev(nullptr);
   mergee.ClearPreds();

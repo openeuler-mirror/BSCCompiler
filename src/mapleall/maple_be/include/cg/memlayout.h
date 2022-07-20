@@ -178,6 +178,10 @@ class MemLayout {
 
   virtual SymbolAlloc *AssignLocationToSpillReg(regno_t vrNum) = 0;
 
+  virtual int32 GetCalleeSaveBaseLoc() const {
+    return 0;
+  }
+
   SymbolAlloc *GetSymAllocInfo(uint32 stIdx) {
     ASSERT(stIdx < symAllocTable.size(), "out of symAllocTable's range");
     return symAllocTable[stIdx];

@@ -59,6 +59,7 @@ class CGOptions {
     kAddFuncProfile = 1ULL << 34,
     kPatchLongBranch = 1ULL << 35,
     kTailCallOpt = 1ULL << 36,
+    kUseUnwindTables = 1ULL << 37,
     /* undocumented */
     kDumpCFG = 1ULL << 61,
     kDumpCgir = 1ULL << 62,
@@ -220,6 +221,10 @@ class CGOptions {
 
   bool IsStackProtectorAll() const {
     return (options & kUseStackProtectorAll) != 0;
+  }
+
+  bool IsUnwindTables() const {
+    return (options & kUseUnwindTables) != 0;
   }
 
   bool WithLoc() const {

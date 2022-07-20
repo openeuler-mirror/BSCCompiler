@@ -538,6 +538,15 @@ class BB {
   void SetFastPath(bool arg) {
     fastPath = arg;
   }
+  bool IsFastPath() const {
+    return fastPath;
+  }
+  void SetFastPathReturn(bool arg) {
+    fastPathReturn = arg;
+  }
+  bool IsFastPathReturn() const {
+    return fastPathReturn;
+  }
   bool IsCatch() const {
     return isCatch;
   }
@@ -567,6 +576,12 @@ class BB {
   }
   void SetHasCfi() {
     hasCfi = true;
+  }
+  bool IsNeedRestoreCfi() const {
+    return needRestoreCfi;
+  }
+  void SetNeedRestoreCfi(bool flag) {
+    needRestoreCfi = flag;
   }
   long GetInternalFlag1() const {
     return internalFlag1;
@@ -775,6 +790,7 @@ class BB {
   bool unreachable = false;
   bool wontExit = false;
   bool fastPath = false;
+  bool fastPathReturn = false;
   bool isCatch = false;  /* part of the catch bb, true does might also mean it is unreachable */
   /*
    * Since isCatch is set early and unreachable detected later, there
@@ -784,6 +800,7 @@ class BB {
   bool isProEpilog = false;  /* Temporary tag for modifying prolog/epilog bb. */
   bool labelTaken = false;  /* Block label is taken indirectly and can be used to jump to it. */
   bool hasCfi = false;  /* bb contain cfi directive. */
+  bool needRestoreCfi = false;  /* add cfi insn to current bb if true */
   /*
    * Different meaning for each data flow analysis.
    * For HandleFunction(), rough estimate of num of insn created.

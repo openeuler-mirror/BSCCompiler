@@ -276,6 +276,10 @@ class CG {
     return cgOption.IsStackProtectorAll();
   }
 
+  bool IsUnwindTables() const {
+    return cgOption.IsUnwindTables();
+  }
+
   bool NeedInsertInstrumentationFunction() const {
     return cgOption.NeedInsertInstrumentationFunction();
   }

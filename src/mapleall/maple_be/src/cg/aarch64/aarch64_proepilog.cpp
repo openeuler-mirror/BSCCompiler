@@ -1933,6 +1933,7 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
 
   GenerateRet(*(cgFunc.GetCurBB()));
   epilogBB.AppendBBInsns(*cgFunc.GetCurBB());
+  epilogBB.SetNeedRestoreCfi(true);;
   if (cgFunc.GetCurBB()->GetHasCfi()) {
     epilogBB.SetHasCfi();
   }
@@ -2018,6 +2019,7 @@ void AArch64GenProEpilog::ConvertToTailCalls(MapleSet<Insn*> &callInsnsMap) {
       }
       CHECK_FATAL(false, "Tailcall in incorrect block");
     }
+    toBB->SetNeedRestoreCfi(true);
     FOR_BB_INSNS_SAFE(insn, fromBB, next) {
       if (insn->IsCfiInsn() || (insn->IsMachineInstruction() && insn->GetMachineOpcode() != MOP_xret)) {
         Insn *newInsn = cgFunc.GetTheCFG()->CloneInsn(*insn);
@@ -2032,6 +2034,7 @@ void AArch64GenProEpilog::ConvertToTailCalls(MapleSet<Insn*> &callInsnsMap) {
   if (bb->GetPreds().size() > 0) {
     return;    /* exit block still needed by other non-tailcall blocks */
   }
+  bb->SetNeedRestoreCfi(false);
   Insn &junk = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(MOP_pseudo_none);
   bb->AppendInsn(junk);
   FOR_BB_INSNS_SAFE(insn, bb, next) {

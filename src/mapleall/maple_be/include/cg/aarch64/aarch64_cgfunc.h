@@ -667,15 +667,15 @@ class AArch64CGFunc : public CGFunc {
     return cg->BuildInstruction<AArch64Insn>(MOP_comment, CreateCommentOperand(comment));
   }
 
-  Insn &CreateCfiRestoreInsn(uint32 reg, uint32 size) {
+  Insn &CreateCfiRestoreInsn(uint32 reg, uint32 size) override {
     return cg->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_restore, CreateCfiRegOperand(reg, size));
   }
 
-  Insn &CreateCfiOffsetInsn(uint32 reg, int64 val, uint32 size) {
+  Insn &CreateCfiOffsetInsn(uint32 reg, int64 val, uint32 size) override {
     return cg->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_offset, CreateCfiRegOperand(reg, size),
                                               CreateCfiImmOperand(val, size));
   }
-  Insn &CreateCfiDefCfaInsn(uint32 reg, int64 val, uint32 size) {
+  Insn &CreateCfiDefCfaInsn(uint32 reg, int64 val, uint32 size) override {
     return cg->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_def_cfa, CreateCfiRegOperand(reg, size),
                                               CreateCfiImmOperand(val, size));
   }

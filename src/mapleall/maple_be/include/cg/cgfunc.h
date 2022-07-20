@@ -411,6 +411,16 @@ class CGFunc {
     return *memPool->New<cfi::StrOperand>(str, *memPool);
   }
 
+  virtual Insn &CreateCfiRestoreInsn(uint32 reg, uint32 size) {
+    CHECK_FATAL(false, "");
+  }
+  virtual Insn &CreateCfiOffsetInsn(uint32 reg, int64 val, uint32 size) {
+    CHECK_FATAL(false, "");
+  }
+  virtual Insn &CreateCfiDefCfaInsn(uint32 reg, int64 val, uint32 size) {
+    CHECK_FATAL(false, "");
+  }
+
   bool IsSpecialPseudoRegister(PregIdx spr) const {
     return spr < 0;
   }
@@ -1084,9 +1094,7 @@ class CGFunc {
 
   virtual InsnVisitor *NewInsnModifier() = 0;
 
-  bool GenCfi() const {
-    return (mirModule.GetSrcLang() != kSrcLangC) || mirModule.IsWithDbgInfo();
-  }
+  bool GenCfi() const;
 
   MapleVector<DBGExprLoc*> &GetDbgCallFrameLocations() {
     return dbgCallFrameLocations;

@@ -93,6 +93,7 @@ class AArch64GenProEpilog : public GenProEpilog {
     return curTailcallExitBB;
   }
   void SetFastPathReturnBB(BB *bb) {
+    bb->SetFastPathReturn(true);
     fastPathReturnBB = bb;
   }
   BB *GetFastPathReturnBB() {

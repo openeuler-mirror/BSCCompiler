@@ -2334,6 +2334,10 @@ void CGFunc::UpdateAllRegisterVregMapping(MapleMap<regno_t, PregIdx> &newMap) {
   }
 }
 
+bool CGFunc::GenCfi() const {
+  return (mirModule.GetSrcLang() != kSrcLangC) || mirModule.IsWithDbgInfo();
+}
+
 bool CgHandleFunction::PhaseRun(maplebe::CGFunc &f) {
   f.HandleFunction();
   if (!f.GetCG()->GetCGOptions().DoEmitCode() || f.GetCG()->GetCGOptions().DoDumpCFG()) {

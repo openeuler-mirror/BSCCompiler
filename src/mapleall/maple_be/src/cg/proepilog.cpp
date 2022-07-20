@@ -32,6 +32,7 @@ using namespace maple;
 
 Insn *GenProEpilog::InsertCFIDefCfaOffset(int32 &cfiOffset, Insn &insertAfter) {
   if (cgFunc.GenCfi() == false) {
+    insertAfter.SetStackDef(true);
     return &insertAfter;
   }
   CG *currCG = cgFunc.GetCG();
@@ -78,7 +79,7 @@ void GenProEpilog::NeedStackProtect() {
 
   /* check if local symbol is vector type */
   auto &mirFunction = cgFunc.GetFunction();
-  uint32 symTabSize = mirFunction.GetSymTab()->GetSymbolTableSize();
+  uint32 symTabSize = static_cast<uint32>(mirFunction.GetSymTab()->GetSymbolTableSize());
   for (uint32 i = 0; i < symTabSize; ++i) {
     MIRSymbol *symbol = mirFunction.GetSymTab()->GetSymbolFromStIdx(i);
     if (symbol == nullptr || symbol->GetStorageClass() != kScAuto || symbol->IsDeleted()) {

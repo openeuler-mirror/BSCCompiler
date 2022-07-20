@@ -16,7 +16,7 @@
 #include "driver_options.h"
 
 #include <bits/stdint-uintn.h>
-#include <stdint.h>
+#include <cstdint>
 #include <string>
 
 namespace opts::cg {
@@ -296,6 +296,12 @@ maplecl::Option<bool> stackProtectorAll({"--stack-protector-all"},
                             "  --no-stack-protector-all\n",
                             {cgCategory},
                             maplecl::DisableWith("--no-stack-protector-all"));
+
+maplecl::Option<bool> unwindTables({"--unwind-tables"},
+                            "  --unwind-tables                 \tgenerate unwind tables for function \n"
+                            "  --no-unwind-tables\n",
+                            {cgCategory},
+                            maplecl::DisableWith("--no-unwind-tables"));
 
 maplecl::Option<bool> debug({"-g", "--g"},
                        "  -g                          \tGenerate debug information\n",

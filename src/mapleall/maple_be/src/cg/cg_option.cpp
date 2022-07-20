@@ -248,6 +248,10 @@ bool CGOptions::SolveOptions(bool isDebug) {
     SetOption(kUseStackProtectorAll);
   }
 
+  if (opts::cg::unwindTables.IsEnabledByUser()) {
+    SetOption(kUseUnwindTables);
+  }
+
   if (opts::cg::debug.IsEnabledByUser()) {
     SetOption(kDebugFriendly);
     SetOption(kWithLoc);

@@ -439,6 +439,14 @@ class Insn {
     isFrameDef = b;
   }
 
+  bool IsStackDef() const {
+    return isStackDef;
+  }
+
+  void SetStackDef(bool flag) {
+    isStackDef = flag;
+  }
+
   bool IsAsmDefCondCode() const {
     return asmDefCondCode;
   }
@@ -810,6 +818,7 @@ class Insn {
   bool isSpill = false;   /* used as hint for optimization */
   bool isReload = false;  /* used as hint for optimization */
   bool isFrameDef = false;
+  bool isStackDef = false;
   bool asmDefCondCode = false;
   bool asmModMem = false;
   bool needSplit = false;

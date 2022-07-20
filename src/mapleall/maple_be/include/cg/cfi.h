@@ -234,5 +234,4 @@ class LabelOperand : public maplebe::OperandVisitable<LabelOperand> {
   LabelIdx labelIndex;
 };
 }  /* namespace cfi */
-
 #endif  /* MAPLEBE_INCLUDE_CG_CFI_H */

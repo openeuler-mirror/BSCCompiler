@@ -576,4 +576,22 @@ int32 AArch64MemLayout::GetVRSaveAreaBaseLoc() const {
   total -= static_cast<int32>(SizeOfArgsToStackPass());
   return total;
 }
+
+int32 AArch64MemLayout::GetCalleeSaveBaseLoc() const {
+  auto offset = StackFrameSize() - static_cast<AArch64CGFunc*>(cgFunc)->SizeOfCalleeSaved();
+  if (cgFunc->GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
+    offset -= GetSizeOfLocals();
+  } else {
+    offset = (offset - SizeOfArgsToStackPass()) + kSizeOfFplr;
+  }
+
+  if (cgFunc->GetMirModule().IsCModule() && cgFunc->GetFunction().GetAttr(FUNCATTR_varargs)) {
+    /* GR/VR save areas are above the callee save area */
+    auto saveareasize = RoundUp(GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
+                        RoundUp(GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize);
+    offset -= saveareasize;
+  }
+
+  return static_cast<int32>(offset);
+}
 }  /* namespace maplebe */

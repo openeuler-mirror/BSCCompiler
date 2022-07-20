@@ -65,6 +65,7 @@ extern maplecl::Option<bool> genCMacroDef;
 extern maplecl::Option<bool> genGctibFile;
 extern maplecl::Option<bool> stackProtectorStrong;
 extern maplecl::Option<bool> stackProtectorAll;
+extern maplecl::Option<bool> unwindTables;
 extern maplecl::Option<bool> debug;
 extern maplecl::Option<bool> gdwarf;
 extern maplecl::Option<bool> gsrc;

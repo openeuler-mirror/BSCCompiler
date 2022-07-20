@@ -67,7 +67,7 @@ bool CfiInsn::Check() const {
 
 #endif
 
-void RegOperand::Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop) const {
+void RegOperand::Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop [[maybe_unused]]) const {
   emitter.Emit(regNO);
 }
 
@@ -75,7 +75,7 @@ void RegOperand::Dump() const {
   LogInfo::MapleLogger() << "reg: " << regNO << "[ size: " << GetSize() << "] ";
 }
 
-void ImmOperand::Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop) const {
+void ImmOperand::Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop [[maybe_unused]]) const {
   emitter.Emit(val);
 }
 
@@ -107,11 +107,3 @@ void LabelOperand::Dump() const {
   LogInfo::MapleLogger() << "label:" << labelIndex;
 }
 }  /* namespace cfi */
-
-namespace maplebe {
-bool CgGenCfi::PhaseRun(maplebe::CGFunc &f) {
-  f.GenerateCfiPrologEpilog();
-  return true;
-}
-MAPLE_TRANSFORM_PHASE_REGISTER(CgGenCfi, gencfi)
-}  /* namespace maplebe */
