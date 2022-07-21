@@ -210,8 +210,7 @@ void LMBCLowerer::LowerAggDassign(const DassignNode *dsnode, MIRType *lhsty,
     offset = symalloc.offset + offset;
   }
   // generate the blkassignoff
-  BlkassignoffNode *bass = mirModule->CurFuncCodeMemPool()->New<BlkassignoffNode>(offset,
-                                                                                  lhsty->GetSize());
+  BlkassignoffNode *bass = mirModule->CurFuncCodeMemPool()->New<BlkassignoffNode>(offset, lhsty->GetSize());
   bass->SetAlign(lhsty->GetAlign());
   bass->SetBOpnd(lhs, 0);
   bass->SetBOpnd(LowerExpr(rhs), 1);
@@ -231,9 +230,13 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
   }
   BaseNode *rhs = LowerExpr(dsnode->Opnd(0));
   if (rhs->GetPrimType() != PTY_agg || rhs->GetOpCode() == OP_regread) {
+    PrimType ptypUsed = symty->GetPrimType();
+    if (ptypUsed == PTY_agg) {
+      ptypUsed = rhs->GetPrimType();
+    }
     if (!symbol->LMBCAllocateOffSpecialReg()) {
       BaseNode *base = mirBuilder->CreateExprDreadoff(OP_addrofoff, LOWERED_PTR_TYPE, *symbol, 0);
-      IassignoffNode *iassignoff = mirBuilder->CreateStmtIassignoff(symty->GetPrimType(),
+      IassignoffNode *iassignoff = mirBuilder->CreateStmtIassignoff(ptypUsed,
                                                                     offset, base, rhs);
       newblk->AddStatement(iassignoff);
       return;
@@ -241,7 +244,7 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
     PregIdx spcreg = GetSpecialRegFromSt(symbol);
     if (spcreg == -kSregFp) {
       IassignFPoffNode *iassignoff = mirBuilder->CreateStmtIassignFPoff(OP_iassignfpoff,
-          symty->GetPrimType(),
+          ptypUsed,
           memlayout->sym_alloc_table[symbol->GetStIndex()].offset + offset, rhs);
       newblk->AddStatement(iassignoff);
     } else {
@@ -249,7 +252,7 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
       SymbolAlloc &symalloc = symbol->IsLocal() ?
           memlayout->sym_alloc_table[symbol->GetStIndex()] :
           globmemlayout->sym_alloc_table[symbol->GetStIndex()];
-      IassignoffNode *iassignoff = mirBuilder->CreateStmtIassignoff(symty->GetPrimType(),
+      IassignoffNode *iassignoff = mirBuilder->CreateStmtIassignoff(ptypUsed,
                                                                     symalloc.offset + offset,
                                                                     rrn,
                                                                     rhs);
@@ -380,14 +383,14 @@ void LMBCLowerer::LowerCall(NaryStmtNode *stmt, BlockNode *newblk) {
     if (stmt->Opnd(i)->GetPrimType() != PTY_agg) {
       stmt->SetOpnd(LowerExpr(stmt->Opnd(i)), i);
       continue;
-    } 
+    }
     bool paramInPrototype = false;
     if (stmt->GetOpCode() != OP_asm) {
       MIRFuncType *funcType = nullptr;
       if (stmt->GetOpCode() == OP_icallproto) {
         IcallNode *icallproto = static_cast<IcallNode*>(stmt);
         funcType = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(icallproto->GetRetTyIdx()));
-        paramInPrototype = (i-1) < funcType->GetParamTypeList().size();
+        paramInPrototype = (i - 1) < funcType->GetParamTypeList().size();
       } else {
         CallNode *callNode = static_cast<CallNode*>(stmt);
         MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode->GetPUIdx());
@@ -398,7 +401,7 @@ void LMBCLowerer::LowerCall(NaryStmtNode *stmt, BlockNode *newblk) {
     if (paramInPrototype) {
       stmt->SetOpnd(LowerExpr(stmt->Opnd(i)), i);
       continue;
-    } 
+    }
     // lower to iread so the type can be provided
     if (stmt->Opnd(i)->GetOpCode() ==  OP_iread) {
       IreadNode *iread = static_cast<IreadNode *>(stmt->Opnd(i));
@@ -417,11 +420,37 @@ void LMBCLowerer::LowerCall(NaryStmtNode *stmt, BlockNode *newblk) {
         MIRType *newType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(addrTyIdx);
         becommon->UpdateTypeTable(*newType);
       }
-      IreadNode *newIread = mirModule->CurFuncCodeMemPool()->New<IreadNode>(OP_iread, PTY_agg, addrTyIdx, fid, LowerExpr(addrof));
+      IreadNode *newIread = mirModule->CurFuncCodeMemPool()->New<IreadNode>(
+          OP_iread, PTY_agg, addrTyIdx, fid, LowerExpr(addrof));
       stmt->SetOpnd(newIread, i);
     }
   }
   newblk->AddStatement(stmt);
+}
+
+void LMBCLowerer::FixPrototype4FirstArgReturn(IcallNode *icall) {
+  MIRFuncType *ftype = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(icall->GetRetTyIdx()));
+  if (!ftype->FirstArgReturn()) {
+    return;
+  }
+  MIRType *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ftype->GetRetTyIdx());
+  if (retType->GetPrimType() == PTY_void) {
+    return;
+  }
+  // insert return type as fake first parameter
+  size_t oldSize = ftype->GetParamTypeList().size();
+  ftype->GetParamTypeList().push_back(TyIdx(0));
+  ftype->GetParamAttrsList().push_back(TypeAttrs());
+  for (size_t i = oldSize; i > 0; i--) {
+    ftype->GetParamTypeList()[i] = ftype->GetParamTypeList()[i-1];
+    ftype->GetParamAttrsList()[i] = ftype->GetParamAttrsList()[i-1];
+  }
+  MIRType *newType = GlobalTables::GetTypeTable().GetOrCreatePointerType(ftype->GetRetTyIdx(), GetExactPtrPrimType(), ftype->GetRetAttrs());
+  ftype->GetParamTypeList()[0] = newType->GetTypeIndex();
+  ftype->GetParamAttrsList()[0] = TypeAttrs();
+  // change return type to void
+  ftype->SetRetTyIdx(GlobalTables::GetTypeTable().GetVoid()->GetTypeIndex());
+  ftype->SetRetAttrs(TypeAttrs());
 }
 
 BlockNode *LMBCLowerer::LowerBlock(BlockNode *block) {
@@ -460,9 +489,11 @@ BlockNode *LMBCLowerer::LowerBlock(BlockNode *block) {
         }
         break;
       }
+      case OP_icallproto:
+        FixPrototype4FirstArgReturn(static_cast<IcallNode *>(stmt));
+        // fall thru
       case OP_asm:
-      case OP_call:
-      case OP_icallproto: {
+      case OP_call: {
         LowerCall(static_cast<NaryStmtNode*>(stmt), newblk);
         break;
       }
