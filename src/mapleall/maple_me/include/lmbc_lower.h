@@ -23,9 +23,9 @@ namespace maple {
 class LMBCLowerer {
  public:
   explicit LMBCLowerer(MIRModule *mod, maplebe::BECommon *becmmn, MIRFunction *f,
-                       GlobalMemLayout *gmemlayout, LMBCMemLayout *lmemlayout) :
-      mirModule(mod), func(f), becommon(becmmn), mirBuilder(mod->GetMIRBuilder()),
-      globmemlayout(gmemlayout), memlayout(lmemlayout) {}
+                       GlobalMemLayout *gmemlayout, LMBCMemLayout *lmemlayout)
+      : mirModule(mod), func(f), becommon(becmmn), mirBuilder(mod->GetMIRBuilder()),
+        globmemlayout(gmemlayout), memlayout(lmemlayout) {}
 
   PregIdx GetSpecialRegFromSt(const MIRSymbol *);
   BaseNode *LowerAddrof(AddrofNode *);
@@ -40,6 +40,7 @@ class LMBCLowerer {
   void LowerIassign(IassignNode *, BlockNode *);
   void LowerAggIassign(IassignNode *, MIRType *type, int32 offset, BlockNode *);
   void LowerReturn(NaryStmtNode *retNode, BlockNode *newblk);
+  void LowerCall(NaryStmtNode *stmt, BlockNode *newblk);
   BlockNode *LowerBlock(BlockNode *);
   void LowerFunction();
 

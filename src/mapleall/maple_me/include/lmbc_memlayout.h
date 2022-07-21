@@ -38,16 +38,9 @@ typedef enum {
 class MemSegment;
 
 // describes where a symbol is allocated
-class SymbolAlloc {
- public:
-  SymbolAlloc() : mem_segment(nullptr), offset(0) {}
-
-  ~SymbolAlloc() {
-    mem_segment = nullptr;
-  }
-
-  MemSegment *mem_segment;
-  int32 offset;
+struct SymbolAlloc {
+  MemSegment *mem_segment = nullptr;
+  int32 offset = 0;
 };  // class SymbolAlloc
 
 // keeps track of the allocation of a memory segment
@@ -61,16 +54,15 @@ class MemSegment {
 
   MemSegmentKind kind;
   int32 size;             // size is negative if allocated offsets are negative
-  SymbolAlloc how_alloc;  // this segment may be allocated inside another segment
 };  // class MemSegment
 
 class LMBCMemLayout {
  public:
   LMBCMemLayout(MIRFunction *f, MemSegment *segGP, MapleAllocator *mallocator)
-    : func(f),
-      seg_GPbased(segGP),
-      seg_FPbased(MS_FPbased),
-      sym_alloc_table(mallocator->Adapter()) {
+      : func(f),
+        seg_GPbased(segGP),
+        seg_FPbased(MS_FPbased),
+        sym_alloc_table(mallocator->Adapter()) {
     sym_alloc_table.resize(f->GetSymTab()->GetSymbolTableSize());
   }
 

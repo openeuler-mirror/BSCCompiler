@@ -149,6 +149,9 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
       if (func->GetBody() == nullptr) {
         continue;
       }
+      if (!IsQuiet()) {
+        LogInfo::MapleLogger() << ">>>> Generating LMBC for Function  < " << func->GetName() << " >\n";
+      }
       m.SetCurFunction(func);
       cgLower.LowerFunc(*func);
       MemPool *layoutMp = memPoolCtrler.NewMemPool("layout mempool", true);

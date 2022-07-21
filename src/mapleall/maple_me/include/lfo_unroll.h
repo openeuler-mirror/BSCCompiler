@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021] Futurewei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -26,10 +26,10 @@ namespace maple {
 
 class LfoUnrollOneLoop {
  public:
-  LfoUnrollOneLoop(PreMeFunction *f, PreMeEmitter *preEm, DoloopInfo *doinfo) :
-      preMeFunc(f), preEmit(preEm), doloopInfo(doinfo), doloop(doinfo->doloop),
-      mirModule(&f->meFunc->GetMIRModule()), codeMP(preEm->GetCodeMP()),
-      mirBuilder(mirModule->GetMIRBuilder()) {}
+  LfoUnrollOneLoop(PreMeFunction *f, PreMeEmitter *preEm, DoloopInfo *doinfo)
+      : preMeFunc(f), preEmit(preEm), doloopInfo(doinfo), doloop(doinfo->doloop),
+        mirModule(&f->meFunc->GetMIRModule()), codeMP(preEm->GetCodeMP()),
+        mirBuilder(mirModule->GetMIRBuilder()) {}
   ~LfoUnrollOneLoop() = default;
   BaseNode *CloneIVNode();
   void ReplaceIV(BaseNode *x, BaseNode *repNode);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021] Futurewei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -502,7 +502,12 @@ void IVCanon::CanonEntryValues() {
     IVDesc *ivdesc = ivvec[i];
     if (ivdesc->initExpr->GetMeOp() == kMeOpVar || ivdesc->initExpr->GetMeOp() == kMeOpReg) {
 #if 1 // create temp var
-      std::string initName = ivdesc->ost->GetMIRSymbol()->GetName();
+      std::string initName = "";
+      if (ivdesc->ost->IsPregOst()) {
+        (void)initName.append("regno").append(std::to_string(ivdesc->ost->GetPregIdx()));
+      } else {
+        (void)initName.append(ivdesc->ost->GetMIRSymbol()->GetName());
+      }
       initName.append(std::to_string(ivdesc->ost->GetFieldID()));
       initName.append(std::to_string(loopID));
       initName.append(std::to_string(i));

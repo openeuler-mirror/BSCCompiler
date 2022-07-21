@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021] Futurewei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -33,7 +33,7 @@ class PreMeEmitter : public AnalysisResult {
         PreMeExprExtensionMap(preMeMPAlloc.Adapter()),
         cfg(f->meFunc->GetCfg()) {}
   virtual ~PreMeEmitter() = default;
-  uint32 EmitPreMeBB(uint32, BlockNode *);
+  uint32 EmitPreMeBB(uint32 curJ, BlockNode *curBlk);
   void SetPreMeStmtExtension(uint32_t stmtID, PreMeMIRExtension* pmeExt) {
     PreMeStmtExtensionMap[stmtID] = pmeExt;
   }
@@ -66,6 +66,7 @@ class PreMeEmitter : public AnalysisResult {
       return nullptr;
     }
     PreMeMIRExtension *pmeExt = it->second;
+    ASSERT_NOT_NULL(pmeExt);
     return pmeExt->meexpr;
   }
   MeStmt *GetMeStmt(uint32_t stmtID) {
@@ -82,13 +83,13 @@ class PreMeEmitter : public AnalysisResult {
 
  private:
   ArrayNode *ConvertToArray(BaseNode *x, TyIdx ptrTyIdx);
-  BaseNode *EmitPreMeExpr(MeExpr*, BaseNode *);
-  StmtNode* EmitPreMeStmt(MeStmt *, BaseNode *);
-  void EmitBB(BB *, BlockNode *);
-  DoloopNode *EmitPreMeDoloop(BB *, BlockNode *, PreMeWhileInfo *);
-  WhileStmtNode *EmitPreMeWhile(BB *, BlockNode *);
-  uint32 Raise2PreMeWhile(uint32, BlockNode *);
-  uint32 Raise2PreMeIf(uint32, BlockNode *);
+  BaseNode *EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent);
+  StmtNode* EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent);
+  void EmitBB(BB *bb, BlockNode *curBlk);
+  DoloopNode *EmitPreMeDoloop(BB *meWhileBB, BlockNode *curBlk, PreMeWhileInfo *whileInfo);
+  WhileStmtNode *EmitPreMeWhile(BB *meWhileBB, BlockNode *curBlk);
+  uint32 Raise2PreMeWhile(uint32 curJ, BlockNode *curBlk);
+  uint32 Raise2PreMeIf(uint32 curJ, BlockNode *curBlk);
 
   MeIRMap *meirmap;
   PreMeFunction *preMeFunc;
