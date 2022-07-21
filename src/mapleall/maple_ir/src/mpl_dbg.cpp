@@ -13,22 +13,26 @@
  * See the MulanPSL - 2.0 for more details.
  */
 
-#include "mir_parser.h"
-#include "debug_info.h"
-#include "bin_mplt.h"
-#include "opcode_info.h"
 #include <cstdlib>
-#include "mir_function.h"
-#include "mir_type.h"
-#include <iostream>
 #include <fstream>
+#include <iostream>
+
+#include "bin_mplt.h"
+#include "debug_info.h"
+#include "mir_function.h"
+#include "mir_parser.h"
+#include "mir_type.h"
+#include "mpl_sighandler.h"
+#include "opcode_info.h"
 
 using namespace maple;
 
 std::unordered_set<std::string> dumpFuncSet = {};
 
 int main(int argc, char **argv) {
-  if (argc < 2) {
+  SigHandler::EnableAll();
+
+  if (argc < k2BitSize) {
     MIR_PRINTF("usage: mpldbg foo.mpl\n");
     exit(1);
   }
@@ -37,17 +41,17 @@ int main(int argc, char **argv) {
   MIRSrcLang srcLang = kSrcLangUnknown;
   // process the options which must come first
   maple::int32 i = 1;
-  while (argv[i][0] == '-' ) {
-    if (argv[i][1] == 'b' && argv[i][2] == '\0') {
+  while (argv[i][0] == '-') {
+    if (argv[i][1] == 'b' && argv[i][k2BitSize] == '\0') {
       useBinary = true;
-    } else if (strncmp(argv[i], "-dumpfunc=", 10) == 0 && strlen(argv[i]) > 10) {
-      std::string funcName(&argv[i][10]);
+    } else if (strncmp(argv[i], "-dumpfunc=", k10BitSize) == 0 && strlen(argv[i]) > k10BitSize) {
+      std::string funcName(&argv[i][k10BitSize]);
       dumpFuncSet.insert(funcName);
-    } else if (strcmp(argv[i], "-srclang=java") == 0 ) {
+    } else if (strcmp(argv[i], "-srclang=java") == 0) {
       srcLang = kSrcLangJava;
-    } else if (strcmp(argv[i], "-srclang=c") == 0 ) {
+    } else if (strcmp(argv[i], "-srclang=c") == 0) {
       srcLang = kSrcLangC;
-    } else if (strcmp(argv[i], "-srclang=c++") == 0 ) {
+    } else if (strcmp(argv[i], "-srclang=c++") == 0) {
       srcLang = kSrcLangCPlusPlus;
     } else {
       ERR(kLncErr, "mpldbg: unrecognized command line option");
@@ -60,10 +64,10 @@ int main(int argc, char **argv) {
     themodule[i] = new maple::MIRModule(argv[i]);
     themodule[i]->SetSrcLang(srcLang);
     std::string::size_type lastdot = themodule[i]->GetFileName().find_last_of(".");
-    bool ismplt = themodule[i]->GetFileName().compare(lastdot, 5, ".mplt") == 0;
-    bool istmpl = themodule[i]->GetFileName().compare(lastdot, 5, ".tmpl") == 0;
-    bool ismpl = themodule[i]->GetFileName().compare(lastdot, 5, ".mpl\0") == 0;
-    bool isbpl = themodule[i]->GetFileName().compare(lastdot, 5, ".bpl\0") == 0;
+    bool ismplt = themodule[i]->GetFileName().compare(lastdot, k5BitSize, ".mplt") == 0;
+    bool istmpl = themodule[i]->GetFileName().compare(lastdot, k5BitSize, ".tmpl") == 0;
+    bool ismpl = themodule[i]->GetFileName().compare(lastdot, k5BitSize, ".mpl\0") == 0;
+    bool isbpl = themodule[i]->GetFileName().compare(lastdot, k5BitSize, ".bpl\0") == 0;
     if (!ismplt && !istmpl && !ismpl && !isbpl) {
       ERR(kLncErr, "mpldbg: input must be .mplt or .mpl or .bpl or .tmpl file");
       return 1;

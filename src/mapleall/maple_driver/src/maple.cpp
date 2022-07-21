@@ -15,10 +15,13 @@
 #include "compiler_factory.h"
 #include "error_code.h"
 #include "mpl_options.h"
+#include "mpl_sighandler.h"
 
 using namespace maple;
 
 int main(int argc, char **argv) {
+  SigHandler::EnableAll();
+
   MplOptions mplOptions;
   int ret = static_cast<int>(mplOptions.Parse(argc, argv));
   if (ret == kErrorNoError) {
