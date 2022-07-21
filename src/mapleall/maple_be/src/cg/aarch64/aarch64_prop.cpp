@@ -157,17 +157,23 @@ MOperator A64ConstProp::GetRegImmMOP(MOperator regregMop, bool withLeftShift) {
     case MOP_wsubrrr: {
       return withLeftShift ? MOP_wsubrri24 : MOP_wsubrri12;
     }
+    case MOP_xandrrr:
     case MOP_xandrrrs:
       return MOP_xandrri13;
+    case MOP_wandrrr:
     case MOP_wandrrrs:
       return MOP_wandrri12;
+    case MOP_xeorrrr:
     case MOP_xeorrrrs:
       return MOP_xeorrri13;
+    case MOP_weorrrr:
     case MOP_weorrrrs:
       return MOP_weorrri12;
+    case MOP_xiorrrr:
     case MOP_xiorrrrs:
     case MOP_xbfirri6i6:
       return MOP_xiorrri13;
+    case MOP_wiorrrr:
     case MOP_wiorrrrs:
     case MOP_wbfirri5i5:
       return MOP_wiorrri12;
@@ -285,60 +291,66 @@ bool A64ConstProp::MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd)
   return false;
 }
 
-/* support add now */
+bool A64ConstProp::ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUInfo,
+                                               ImmOperand &constOpnd, ArithmeticType aT) {
+  MOperator curMop = useInsn.GetMachineOpcode();
+  MOperator newMop = GetRegImmMOP(curMop, false);
+  auto useOpndInfoIt = useDUInfo.GetOperands().begin();
+  uint32 useOpndIdx = useOpndInfoIt->first;
+  CHECK_FATAL(useOpndIdx == kInsnSecondOpnd || useOpndIdx == kInsnThirdOpnd, "check this insn");
+  Insn *newInsn = nullptr;
+  if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, &constOpnd, kInsnThirdOpnd)) {
+    if (useOpndIdx == kInsnThirdOpnd) {
+      newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+        newMop, useInsn.GetOperand(kInsnFirstOpnd), useInsn.GetOperand(kInsnSecondOpnd), constOpnd);
+    } else if (useOpndIdx == kInsnSecondOpnd && aT == kAArch64Add) { /* swap operand due to legality in aarch */
+      newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+        newMop, useInsn.GetOperand(kInsnFirstOpnd), useInsn.GetOperand(kInsnThirdOpnd), constOpnd);
+    }
+  }
+  /* try aggressive opt in aarch64 add and sub */
+  if (newInsn == nullptr && (aT == kAArch64Add || aT == kAArch64Sub)) {
+    auto *tempImm = static_cast<ImmOperand*>(constOpnd.Clone(*constPropMp));
+    /* try aarch64 imm shift mode */
+    tempImm->SetValue(tempImm->GetValue() >> 12);
+    if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, tempImm, kInsnThirdOpnd) &&
+        CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+      ASSERT(false, "NIY");
+    }
+    auto *zeroImm = &(static_cast<AArch64CGFunc*>(cgFunc)->
+      CreateImmOperand(0, constOpnd.GetSize(), true));
+    /* value in immOpnd is signed */
+    if (MayOverflow(*zeroImm, constOpnd, constOpnd.GetSize() == 64, false, true)) {
+      return false;
+    }
+    /* (constA - var) can not reversal to (var + (-constA)) */
+    if (useOpndIdx == kInsnSecondOpnd && aT == kAArch64Sub) {
+      return false;
+    }
+    /* Addition and subtraction reversal */
+    tempImm->SetValue(-constOpnd.GetValue());
+    newMop = GetReversalMOP(newMop);
+    if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, tempImm, kInsnThirdOpnd)) {
+      auto *cgImm = static_cast<ImmOperand*>(tempImm->Clone(*cgFunc->GetMemoryPool()));
+      newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+        newMop, useInsn.GetOperand(kInsnFirstOpnd), useInsn.GetOperand(kInsnSecondOpnd), *cgImm);
+      if (useOpndIdx == kInsnSecondOpnd) { /* swap operand due to legality in aarch */
+        newInsn->SetOperand(kInsnSecondOpnd, useInsn.GetOperand(kInsnThirdOpnd));
+      }
+    }
+  }
+  if (newInsn == nullptr) {
+    return false;
+  }
+  ReplaceInsnAndUpdateSSA(useInsn, *newInsn);
+  return true;
+}
+
 bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT) {
   Insn *useInsn = useDUInfo.GetInsn();
-  MOperator curMop = useInsn->GetMachineOpcode();
+  CHECK_FATAL(useInsn != nullptr, "get useInsn failed");
   if (useDUInfo.GetOperands().size() == 1) {
-    MOperator newMop = GetRegImmMOP(curMop, false);
-    auto useOpndInfoIt = useDUInfo.GetOperands().begin();
-    uint32 useOpndIdx = useOpndInfoIt->first;
-    CHECK_FATAL(useOpndIdx == kInsnSecondOpnd || useOpndIdx == kInsnThirdOpnd, "check this insn");
-    Insn *newInsn = nullptr;
-    if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, &constOpnd, kInsnThirdOpnd)) {
-      if (useOpndIdx == kInsnThirdOpnd) {
-        newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
-            newMop, useInsn->GetOperand(kInsnFirstOpnd), useInsn->GetOperand(kInsnSecondOpnd), constOpnd);
-      } else if (useOpndIdx == kInsnSecondOpnd && aT == kAArch64Add) { /* swap operand due to legality in aarch */
-        newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
-            newMop, useInsn->GetOperand(kInsnFirstOpnd), useInsn->GetOperand(kInsnThirdOpnd), constOpnd);
-      }
-    }
-    /* try aggressive opt in aarch64 add and sub */
-    if (newInsn == nullptr && (aT == kAArch64Add || aT == kAArch64Sub)) {
-      auto *tempImm = static_cast<ImmOperand*>(constOpnd.Clone(*constPropMp));
-      /* try aarch64 imm shift mode */
-      tempImm->SetValue(tempImm->GetValue() >> 12);
-      if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, tempImm, kInsnThirdOpnd) &&
-          CGOptions::GetInstance().GetOptimizeLevel() < 0) {
-        ASSERT(false, "NIY");
-      }
-      auto *zeroImm = &(static_cast<AArch64CGFunc*>(cgFunc)->CreateImmOperand(
-          0, constOpnd.GetSize(), true));
-      /* value in immOpnd is signed */
-      if (MayOverflow(*zeroImm, constOpnd, constOpnd.GetSize() == 64, false, true)) {
-        return false;
-      }
-      /* (constA - var) can not reversal to (var + (-constA)) */
-      if (useOpndIdx == kInsnSecondOpnd && aT == kAArch64Sub) {
-        return false;
-      }
-      /* Addition and subtraction reversal */
-      tempImm->SetValue(-constOpnd.GetValue());
-      newMop = GetReversalMOP(newMop);
-      if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, tempImm, kInsnThirdOpnd)) {
-        auto *cgImm = static_cast<ImmOperand*>(tempImm->Clone(*cgFunc->GetMemoryPool()));
-        newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
-            newMop, useInsn->GetOperand(kInsnFirstOpnd), useInsn->GetOperand(kInsnSecondOpnd), *cgImm);
-        if (useOpndIdx == kInsnSecondOpnd) { /* swap operand due to legality in aarch */
-          newInsn->SetOperand(kInsnSecondOpnd, useInsn->GetOperand(kInsnThirdOpnd));
-        }
-      }
-    }
-    if (newInsn != nullptr) {
-      ReplaceInsnAndUpdateSSA(*useInsn, *newInsn);
-      return true;
-    }
+    return ArithConstReplaceForOneOpnd(*useInsn, useDUInfo, constOpnd, aT);
   } else if (useDUInfo.GetOperands().size() == 2) {
     /* only support add & sub now */
     int64 newValue = 0;
@@ -429,13 +441,21 @@ bool A64ConstProp::ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) {
     case MOP_waddrrr: {
       return ArithmeticConstReplace(useDUInfo, constOpnd, kAArch64Add);
     }
-    case MOP_waddrri12:
-    case MOP_xaddrri12: {
+    case MOP_xaddrri12:
+    case MOP_waddrri12: {
       return ArithmeticConstFold(useDUInfo, constOpnd, kAArch64Add);
     }
     case MOP_xsubrri12:
     case MOP_wsubrri12: {
       return ArithmeticConstFold(useDUInfo, constOpnd, kAArch64Sub);
+    }
+    case MOP_xandrrr:
+    case MOP_wandrrr:
+    case MOP_xeorrrr:
+    case MOP_weorrrr:
+    case MOP_xiorrrr:
+    case MOP_wiorrrr: {
+      return ArithmeticConstReplace(useDUInfo, constOpnd, kAArch64Logic);
     }
     case MOP_xiorrrrs:
     case MOP_wiorrrrs:
@@ -1674,6 +1694,39 @@ bool RedundantPhiProp::CheckCondition(Insn &insn) {
   return false;
 }
 
+bool ValidBitNumberProp::IsImplicitUse(const RegOperand &dstOpnd, const RegOperand &srcOpnd) {
+  for (auto destUseIt : destVersion->GetAllUseInsns()) {
+    Insn *useInsn = destUseIt.second->GetInsn();
+    if (useInsn->GetMachineOpcode() == MOP_xuxtw64) {
+      return true;
+    }
+    if (useInsn->GetMachineOpcode() == MOP_xubfxrri6i6) {
+      auto &lsbOpnd = static_cast<ImmOperand&>(useInsn->GetOperand(kInsnThirdOpnd));
+      auto &widthOpnd = static_cast<ImmOperand&>(useInsn->GetOperand(kInsnFourthOpnd));
+      if (lsbOpnd.GetValue() == k0BitSize && widthOpnd.GetValue() == k32BitSize) {
+        return false;
+      }
+    }
+    if (useInsn->IsPhi()) {
+      auto &defOpnd = static_cast<RegOperand&>(useInsn->GetOperand(kInsnFirstOpnd));
+      if (defOpnd.GetSize() == k32BitSize) {
+        return false;
+      }
+    }
+    /* if srcOpnd upper 32 bits are valid, it can not prop to mop_x */
+    if (srcOpnd.GetSize() == k64BitSize && dstOpnd.GetSize() == k64BitSize) {
+      const AArch64MD *useMD = &AArch64CG::kMd[useInsn->GetMachineOpcode()];
+      for (auto opndUseIt : destUseIt.second->GetOperands()) {
+        OpndProp *useProp = useMD->operand[opndUseIt.first];
+        if (useProp->GetSize() == k64BitSize) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 bool ValidBitNumberProp::CheckCondition(Insn &insn) {
   /* extend to all shift pattern in future */
   RegOperand *destOpnd = nullptr;
@@ -1691,8 +1744,7 @@ bool ValidBitNumberProp::CheckCondition(Insn &insn) {
       return false;
     }
   }
-  if (destOpnd != nullptr && destOpnd->IsSSAForm() &&
-      srcOpnd != nullptr && srcOpnd->IsSSAForm()) {
+  if (destOpnd != nullptr && destOpnd->IsSSAForm() && srcOpnd != nullptr && srcOpnd->IsSSAForm()) {
     destVersion = optSsaInfo->FindSSAVersion(destOpnd->GetRegisterNumber());
     ASSERT(destVersion != nullptr, "find Version failed");
     srcVersion = optSsaInfo->FindSSAVersion(srcOpnd->GetRegisterNumber());
@@ -1700,21 +1752,8 @@ bool ValidBitNumberProp::CheckCondition(Insn &insn) {
     if (destVersion->HasImplicitCvt()) {
       return false;
     }
-    for (auto destUseIt : destVersion->GetAllUseInsns()) {
-      Insn *useInsn = destUseIt.second->GetInsn();
-      if (useInsn->GetMachineOpcode() == MOP_xuxtw64) {
-        return false;
-      }
-      /* if srcOpnd upper 32 bits are valid, it can not prop to mop_x */
-      if (srcOpnd->GetSize() == k64BitSize && destOpnd->GetSize() == k64BitSize) {
-        const AArch64MD *useMD = &AArch64CG::kMd[useInsn->GetMachineOpcode()];
-        for (auto opndUseIt : destUseIt.second->GetOperands()) {
-          OpndProp *useProp = useMD->operand[opndUseIt.first];
-          if (useProp->GetSize() == k64BitSize) {
-            return false;
-          }
-        }
-      }
+    if (IsImplicitUse(*destOpnd, *srcOpnd)) {
+      return false;
     }
     srcVersion->SetImplicitCvt();
     return true;

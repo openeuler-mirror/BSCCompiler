@@ -79,8 +79,7 @@ class A64StrLdrProp {
 enum ArithmeticType {
   kAArch64Add,
   kAArch64Sub,
-  kAArch64Orr,
-  kAArch64Eor,
+  kAArch64Logic,
   kUndefArith
 };
 
@@ -108,6 +107,7 @@ class A64ConstProp {
 
   /* optimization */
   bool MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) const;
+  bool ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT);
   bool ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT);
   bool ArithmeticConstFold(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd, ArithmeticType aT) const;
   bool ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd);
@@ -173,6 +173,7 @@ class ValidBitNumberProp : public PropOptimizePattern {
     srcVersion = nullptr;
   }
  private:
+  bool IsImplicitUse(const RegOperand &dstOpnd, const RegOperand &srcOpnd);
   VRegVersion *destVersion = nullptr;
   VRegVersion *srcVersion = nullptr;
 };
