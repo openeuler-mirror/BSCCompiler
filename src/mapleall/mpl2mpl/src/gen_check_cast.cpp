@@ -418,7 +418,6 @@ void CheckCastGenerator::ConvertCheckCastToIsAssignableFrom(StmtNode &stmt) {
   auto *ptrCheckType = static_cast<MIRPtrType*>(checkType);
   MIRType *ptype = ptrCheckType->GetPointedType();
   MIRTypeKind kd = ptype->GetKind();
-
   if (kd == kTypeClass || kd == kTypeInterface || kd == kTypeJArray) {
     if (funcWithoutCastCheck.find(currFunc->GetName()) != funcWithoutCastCheck.end()) {
       currFunc->GetBody()->RemoveStmt(&stmt);

@@ -441,7 +441,6 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
         const auto *nextLevOstsOfRHS = ssaTab->GetNextLevelOsts(*preLevOfRHSOst);
         auto fieldOstRHS = (nextLevOstsOfRHS == nullptr) ? nullptr :
             ssaTab->GetOriginalStTable().FindExtraLevOriginalSt(*nextLevOstsOfRHS, fieldType, fieldId, bitOffset);
-
         if (fieldOstLHS == nullptr && fieldOstRHS == nullptr) {
           continue;
         }
@@ -994,7 +993,6 @@ void DemandDrivenAliasAnalysis::UpdateAliasInfoOfPegNode(PEGNode *pegNode) {
         OffsetType offsetStartB = OffsetFromPrevLevNode(nextLevNodeOfSrc);
         OffsetType offsetEndB = static_cast<OffsetType>(offsetStartB +
             nextLevOstOfSrc->GetType()->GetSize() * kBitNumInOneByte);
-
         if (MemOverlapAccordingOffset(offsetStartA, offsetEndA, offsetStartB, offsetEndB)) {
           AddAlias(nextLevOstOfTo, nextLevOstOfSrc);
           for (const auto &reachItem : *ReachSetOf(nextLevNodeOfSrc)) {

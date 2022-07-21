@@ -123,7 +123,6 @@ void MeProfGen::InstrumentFunc() {
       MIRSymbol *ctrTblSym = mod->GetMIRBuilder()->CreateGlobalDecl(ctrTblName, *arrOfInt64Ty, kScFstatic);
       ctrTblSym->SetSKind(kStVar);
       func->GetMirFunc()->SetProfCtrTbl(ctrTblSym);
-
     }
     for (auto *bb : instrumentBBs) {
       InstrumentBB(*bb);

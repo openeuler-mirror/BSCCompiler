@@ -1424,8 +1424,6 @@ bool OptimizeBB::CondBranchToSelect() {
   CHECK_FATAL(condStmt, "condStmt is nullptr!");
   MeExpr *trueExpr = (condStmt->GetOp() == OP_brtrue) ? gtRHS : ftRHS;
   MeExpr *falseExpr = (trueExpr == gtRHS) ? ftRHS : gtRHS;
-
-
   MeExpr *condExpr = condStmt->GetOpnd(0);
   if (!IsProfitableForCond2Sel(condExpr, trueExpr, falseExpr)) {
     DEBUG_LOG() << "Abort cond2sel for BB" << LOG_BBID(currBB) << ", because cond2sel is not profitable\n";

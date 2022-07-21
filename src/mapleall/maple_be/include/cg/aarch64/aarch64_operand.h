@@ -360,6 +360,7 @@ class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
     kLSL, /* logical shift left */
     kLSR, /* logical shift right */
     kASR, /* arithmetic shift right */
+    kROR, /* rotate shift right */
   };
 
   /* bitlength is equal to 5 or 6 */

@@ -276,6 +276,7 @@ class ExtendShiftPattern : public PropOptimizePattern {
   bool optSuccess = false;
   ExMOpType exMOpType = kExUndef;
   LsMOpType lsMOpType = kLsUndef;
+  bool is64BitSize = false;
 };
 
 /*

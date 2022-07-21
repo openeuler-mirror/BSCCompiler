@@ -188,7 +188,6 @@ bool MEHdse::PhaseRun(maple::MeFunction &f) {
   auto *hMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_NULL_FATAL(hMap);
 
-
   MeHDSE hdse = MeHDSE(f, *dom, *hMap, aliasClass, DEBUGFUNC_NEWPM(f));
   hdse.hdseKeepRef = MeOption::dseKeepRef;
   if (f.hdseRuns > 2) {

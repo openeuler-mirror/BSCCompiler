@@ -49,7 +49,6 @@ class HDSE {
     removeRedefine = val;
   }
 
-
   bool hdseDebug;
   bool hdseKeepRef = false;
 

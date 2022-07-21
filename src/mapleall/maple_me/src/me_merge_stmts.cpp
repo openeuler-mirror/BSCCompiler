@@ -298,15 +298,14 @@ IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar, MeExpr&
 void MergeStmts::genShortSet(MeExpr *dstMeExpr, uint32 offset, const MIRType *uXTgtMirType, RegMeExpr *srcRegMeExpr,
                              IntrinsiccallMeStmt* memsetCallStmt,
                              const MapleMap<OStIdx, ChiMeNode *> &memsetCallStmtChi) {
-
-    MIRType *uXTgtPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*uXTgtMirType, PTY_ptr);
-    IvarMeExpr iVarBase(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, uXTgtMirType->GetPrimType(),
-        uXTgtPtrType->GetTypeIndex(), 0);
-    iVarBase.SetBase(dstMeExpr);
-    IassignMeStmt *xIassignStmt = genSimdIassign(offset, iVarBase, *srcRegMeExpr, memsetCallStmtChi,
-                                                 uXTgtPtrType->GetTypeIndex());
-    memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, xIassignStmt);
-    xIassignStmt->CopyInfo(*memsetCallStmt);
+  MIRType *uXTgtPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*uXTgtMirType, PTY_ptr);
+  IvarMeExpr iVarBase(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, uXTgtMirType->GetPrimType(),
+                      uXTgtPtrType->GetTypeIndex(), 0);
+  iVarBase.SetBase(dstMeExpr);
+  IassignMeStmt *xIassignStmt = genSimdIassign(offset, iVarBase, *srcRegMeExpr, memsetCallStmtChi,
+                                               uXTgtPtrType->GetTypeIndex());
+  memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, xIassignStmt);
+  xIassignStmt->CopyInfo(*memsetCallStmt);
 }
 
 const int32 simdThreshold = 128;

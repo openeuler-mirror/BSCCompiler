@@ -1997,7 +1997,6 @@ std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::op
     auto srcBitWidth = GetPrimTypeBitSize(expr->GetOpnd(0)->GetPrimType());
     auto bitOffset = static_cast<OpMeExpr *>(expr)->GetBitsOffSet();
     auto bitSize = static_cast<OpMeExpr *>(expr)->GetBitsSize();
-
     if (bitOffset + bitSize > srcBitWidth) {
       return result;
     }
@@ -2244,7 +2243,6 @@ MeExpr *IRMap::SimplifyAshrMeExpr(OpMeExpr *opmeexpr) {
   }
   auto shiftAmt = static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue();
   auto bitWidth = GetPrimTypeBitSize(opmeexpr->GetPrimType());
-
   if (shiftAmt >= bitWidth) {
     return nullptr;
   }

@@ -53,16 +53,18 @@ enum SuffixType : uint8 {
   kLSL,      /* logical shift left */
   kLSR,      /* logical shift right */
   kASR,      /* arithmetic shift right */
+  kROR,      /* rotate shift right */
   kExten     /* ExtendOp */
 };
 
-inline constexpr uint32 kExtenAddShiftNum = 5;
+inline constexpr uint32 kExtenAddShiftNum = 6;
 inline SuffixType kDoOptimizeTable[kExtenAddShiftNum][kExtenAddShiftNum] = {
-    { kNoSuffix, kLSL, kLSR, kASR, kExten },
-    { kNoSuffix, kLSL, kNoSuffix, kNoSuffix, kExten },
-    { kNoSuffix, kNoSuffix, kLSR, kNoSuffix, kNoSuffix },
-    { kNoSuffix, kNoSuffix, kNoSuffix, kASR, kNoSuffix },
-    { kNoSuffix, kNoSuffix, kNoSuffix, kNoSuffix, kExten }
+    { kNoSuffix, kLSL,      kLSR,      kASR,      kROR,      kExten },    /* useType == kNoSuffix */
+    { kNoSuffix, kLSL,      kNoSuffix, kNoSuffix, kNoSuffix, kExten },    /* useType == kLSL */
+    { kNoSuffix, kNoSuffix, kLSR,      kNoSuffix, kNoSuffix, kNoSuffix }, /* useType == kLSR */
+    { kNoSuffix, kNoSuffix, kNoSuffix, kASR,      kNoSuffix, kNoSuffix }, /* useType == kASR */
+    { kNoSuffix, kNoSuffix, kNoSuffix, kNoSuffix, kROR,      kNoSuffix }, /* useType == kROR */
+    { kNoSuffix, kNoSuffix, kNoSuffix, kNoSuffix, kNoSuffix, kExten },    /* useType == kExten */
 };
 }
 

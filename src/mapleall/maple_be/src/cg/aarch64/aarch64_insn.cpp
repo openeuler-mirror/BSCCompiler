@@ -1039,8 +1039,24 @@ void A64OpndEmitVisitor::Visit(ExtendShiftOperand *v) {
 }
 
 void A64OpndEmitVisitor::Visit(BitShiftOperand *v) {
-  (void)emitter.Emit((v->GetShiftOp() == BitShiftOperand::kLSL) ? "LSL #" :
-      ((v->GetShiftOp() == BitShiftOperand::kLSR) ? "LSR #" : "ASR #")).Emit(v->GetShiftAmount());
+  std::string shiftOp;
+  switch (v->GetShiftOp()) {
+    case BitShiftOperand::kLSL:
+      shiftOp = "LSL #";
+      break;
+    case BitShiftOperand::kLSR:
+      shiftOp = "LSR #";
+      break;
+    case BitShiftOperand::kASR:
+      shiftOp = "ASR #";
+      break;
+    case BitShiftOperand::kROR:
+      shiftOp = "ROR #";
+      break;
+    default:
+      CHECK_FATAL(false, "check shiftOp");
+  }
+  (void)emitter.Emit(shiftOp).Emit(v->GetShiftAmount());
 }
 
 void A64OpndEmitVisitor::Visit(StImmOperand *v) {

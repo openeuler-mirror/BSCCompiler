@@ -278,7 +278,6 @@ void ProfileGen::CreateFuncProfDesc() {
 
 void ProfileGen::CreateFuncProfDescTbl() {
   uint tblSize = validFuncs.size();
-
   if (tblSize == 0) {
     funcProfDescTbl = nullptr;
     return;

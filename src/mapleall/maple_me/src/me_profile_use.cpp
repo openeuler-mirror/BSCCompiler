@@ -359,8 +359,6 @@ bool MeProfUse::GcovRun() {
   return true;
 }
 
-
-
 void MEProfUse::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEMeCfg>();
   aDep.SetPreservedAll();

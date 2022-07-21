@@ -2026,7 +2026,6 @@ void IVOptimizer::FindCandSet() {
   // second time start from chosen iv
   TryOptimize(false);
   auto secondSet = std::move(data->set);
-
   if (firstSet == nullptr && secondSet == nullptr) {
   } else if (firstSet == nullptr) {
     data->set = std::move(secondSet);

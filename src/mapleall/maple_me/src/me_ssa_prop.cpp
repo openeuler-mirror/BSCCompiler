@@ -314,8 +314,6 @@ BaseNode *SSAProp::PropExpr(BaseNode *expr, bool &subProp) {
   return newRHS;
 }
 
-
-
 void SSAProp::TraverseStmt(StmtNode *stmt, BB *currBB) {
   Opcode op = stmt->GetOpCode();
   if (op == OP_asm) { // do not prop use in inline asm

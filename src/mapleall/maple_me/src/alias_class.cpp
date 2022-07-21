@@ -475,7 +475,6 @@ void AliasClass::ApplyUnionForFieldsInCopiedAgg() {
           ssaTab.GetOriginalStTable().FindExtraLevOriginalSt(preLevOfLHSOst, fieldType, fieldID, offset);
       auto fieldOstRHS =
           ssaTab.GetOriginalStTable().FindExtraLevOriginalSt(preLevOfRHSOst, fieldType, fieldID, offset);
-
       if (fieldOstLHS == nullptr && fieldOstRHS == nullptr) {
         continue;
       }

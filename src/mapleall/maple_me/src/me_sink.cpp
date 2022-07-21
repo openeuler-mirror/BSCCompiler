@@ -849,7 +849,6 @@ bool MeSink::MergePhiWithPrevAssign(MePhiNode *phi, BB *bb) {
     return false;
   }
 
-
   int domCnt = 0;
   int notDomCnt = 0;
   for (const auto &scalar2defStmt : defStmts) {

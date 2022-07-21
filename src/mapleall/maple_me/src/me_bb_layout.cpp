@@ -1025,7 +1025,6 @@ void BBLayout::OptimiseCFG() {
     }
   }
   (void)cfg->UnreachCodeAnalysis(false);
-
 }
 
 void BBLayout::SetAttrTryForTheCanBeMovedBB(BB &bb, BB &canBeMovedBB) const {

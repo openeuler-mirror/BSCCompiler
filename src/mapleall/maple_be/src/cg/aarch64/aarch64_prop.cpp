@@ -980,6 +980,7 @@ void ExtendShiftPattern::SetExMOpType(const Insn &use) {
     case MOP_xxwaddrrre:
     case MOP_xaddrrrs: {
       exMOpType = kExAdd;
+      is64BitSize = true;
       break;
     }
     case MOP_waddrrr:
@@ -992,6 +993,7 @@ void ExtendShiftPattern::SetExMOpType(const Insn &use) {
     case MOP_xxwsubrrre:
     case MOP_xsubrrrs: {
       exMOpType = kExSub;
+      is64BitSize = true;
       break;
     }
     case MOP_wsubrrr:
@@ -1004,6 +1006,7 @@ void ExtendShiftPattern::SetExMOpType(const Insn &use) {
     case MOP_xwcmnrre:
     case MOP_xcmnrrs: {
       exMOpType = kExCmn;
+      is64BitSize = true;
       break;
     }
     case MOP_wcmnrr:
@@ -1016,6 +1019,7 @@ void ExtendShiftPattern::SetExMOpType(const Insn &use) {
     case MOP_xwcmprre:
     case MOP_xcmprrs: {
       exMOpType = kExCmp;
+      is64BitSize = true;
       break;
     }
     case MOP_wcmprr:
@@ -1036,6 +1040,7 @@ void ExtendShiftPattern::SetLsMOpType(const Insn &use) {
     case MOP_xaddrrr:
     case MOP_xaddrrrs: {
       lsMOpType = kLxAdd;
+      is64BitSize = true;
       break;
     }
     case MOP_waddrrr:
@@ -1046,6 +1051,7 @@ void ExtendShiftPattern::SetLsMOpType(const Insn &use) {
     case MOP_xsubrrr:
     case MOP_xsubrrrs: {
       lsMOpType = kLxSub;
+      is64BitSize = true;
       break;
     }
     case MOP_wsubrrr:
@@ -1056,6 +1062,7 @@ void ExtendShiftPattern::SetLsMOpType(const Insn &use) {
     case MOP_xcmnrr:
     case MOP_xcmnrrs: {
       lsMOpType = kLxCmn;
+      is64BitSize = true;
       break;
     }
     case MOP_wcmnrr:
@@ -1066,6 +1073,7 @@ void ExtendShiftPattern::SetLsMOpType(const Insn &use) {
     case MOP_xcmprr:
     case MOP_xcmprrs: {
       lsMOpType = kLxCmp;
+      is64BitSize = true;
       break;
     }
     case MOP_wcmprr:
@@ -1076,6 +1084,7 @@ void ExtendShiftPattern::SetLsMOpType(const Insn &use) {
     case MOP_xeorrrr:
     case MOP_xeorrrrs: {
       lsMOpType = kLxEor;
+      is64BitSize = true;
       break;
     }
     case MOP_weorrrr:
@@ -1087,6 +1096,7 @@ void ExtendShiftPattern::SetLsMOpType(const Insn &use) {
     case MOP_xinegrrs: {
       lsMOpType = kLxNeg;
       replaceIdx = kInsnSecondOpnd;
+      is64BitSize = true;
       break;
     }
     case MOP_winegrr:
@@ -1098,6 +1108,7 @@ void ExtendShiftPattern::SetLsMOpType(const Insn &use) {
     case MOP_xiorrrr:
     case MOP_xiorrrrs: {
       lsMOpType = kLxIor;
+      is64BitSize = true;
       break;
     }
     case MOP_wiorrrr:
@@ -1136,6 +1147,9 @@ void ExtendShiftPattern::SelectExtendOrShift(const Insn &def) {
       break;
     case MOP_xasrrri6:
     case MOP_wasrrri5: shiftOp = BitShiftOperand::kASR;
+      break;
+    case MOP_wextrrrri5:
+    case MOP_xextrrrri6: shiftOp = BitShiftOperand::kROR;
       break;
     default: {
       extendOp = ExtendShiftOperand::kUndef;
@@ -1218,7 +1232,7 @@ void ExtendShiftPattern::ReplaceUseInsn(Insn &use, const Insn &def, uint32 amoun
     shiftOpnd = &a64CGFunc.CreateExtendShiftOperand(extendOp, amount, static_cast<int32>(k64BitSize));
   } else {
     replaceOp = lsMopTable[lsMOpType];
-    if (amount >= k32BitSize) {
+    if ((is64BitSize && amount >= k64BitSize) || (!is64BitSize && amount >= k32BitSize)) {
       return;
     }
     shiftOpnd = &a64CGFunc.CreateBitShiftOperand(shiftOp, amount, static_cast<int32>(k64BitSize));
@@ -1280,7 +1294,9 @@ void ExtendShiftPattern::Optimize(Insn &insn) {
     amount = lastExtendOpnd.GetShiftAmount();
   }
   if (shiftOp != BitShiftOperand::kUndef) {
-    auto &immOpnd = static_cast<ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
+    auto &immOpnd = (shiftOp == BitShiftOperand::kROR ?
+      static_cast<ImmOperand&>(defInsn->GetOperand(kInsnFourthOpnd)) :
+      static_cast<ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd)));
     offset = static_cast<uint32>(immOpnd.GetValue());
   }
   amount += offset;
@@ -1354,6 +1370,17 @@ bool ExtendShiftPattern::CheckCondition(Insn &insn) {
   }
   Operand &defSrcOpnd = defInsn->GetOperand(kInsnSecondOpnd);
   CHECK_FATAL(defSrcOpnd.IsRegister(), "defSrcOpnd must be register!");
+  if (shiftOp == BitShiftOperand::kROR) {
+    if (lsMOpType != kLxEor && lsMOpType != kLwEor && lsMOpType != kLxIor && lsMOpType != kLwIor) {
+      return false;
+    }
+    Operand &defThirdOpnd = defInsn->GetOperand(kInsnThirdOpnd);
+    CHECK_FATAL(defThirdOpnd.IsRegister(), "defThirdOpnd must be register");
+    if (static_cast<RegOperand&>(defSrcOpnd).GetRegisterNumber() !=
+        static_cast<RegOperand&>(defThirdOpnd).GetRegisterNumber()) {
+      return false;
+    }
+  }
   auto &regDefSrc = static_cast<RegOperand&>(defSrcOpnd);
   if (regDefSrc.IsPhysicalRegister()) {
     return false;
@@ -1380,7 +1407,7 @@ bool ExtendShiftPattern::CheckCondition(Insn &insn) {
   /* check regDefSrc */
   VRegVersion *replaceUseV = optSsaInfo->FindSSAVersion(defSrcRegNo);
   CHECK_FATAL(replaceUseV != nullptr, "useVRegVersion must not be null based on ssa");
-  if (replaceUseV->GetAllUseInsns().size() > 1) {
+  if (replaceUseV->GetAllUseInsns().size() > 1 && shiftOp != BitShiftOperand::kROR) {
     return false;
   }
   return true;
@@ -1396,6 +1423,7 @@ void ExtendShiftPattern::Init() {
   optSuccess = false;
   exMOpType = kExUndef;
   lsMOpType = kLsUndef;
+  is64BitSize = false;
 }
 
 void ExtendShiftPattern::Run() {

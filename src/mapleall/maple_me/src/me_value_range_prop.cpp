@@ -2835,7 +2835,6 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateInitVRForPhi(LoopDesc &
       if ((opMeExpr->GetOp() == OP_ne && loop.Has(*trueBranch) && initRangeType == kNotEqual) ||
           (opMeExpr->GetOp() == OP_eq && loop.Has(*falseBranch) && initRangeType == kNotEqual)) {
         vr = std::make_unique<ValueRange>(Bound(constantValue, opMeExpr->GetOpndType()), kNotEqual);
-
       } else if ((opMeExpr->GetOp() == OP_ne && loop.Has(*falseBranch) && initRangeType == kEqual) ||
                  (opMeExpr->GetOp() == OP_eq && loop.Has(*trueBranch) && initRangeType == kEqual)) {
         vr = std::make_unique<ValueRange>(Bound(constantValue, opMeExpr->GetOpndType()), kEqual);
