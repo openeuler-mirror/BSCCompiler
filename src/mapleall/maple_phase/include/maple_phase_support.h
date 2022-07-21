@@ -24,7 +24,7 @@
 #include "option.h"
 
 namespace maple {
-using MaplePhaseID = const void *;
+using MaplePhaseID = const unsigned int *;
 class MaplePhase;
 using MaplePhaseT = MaplePhase* (*) (MemPool*);
 
@@ -48,7 +48,7 @@ class AnalysisResult {
   }
 
  protected:
-  MemPool *memPool;
+  MemPool *memPool = nullptr;
 };
 
 /* record every phase known by the system */
@@ -133,7 +133,7 @@ class AnalysisDep {
       : allocator(&mp),
         required(allocator.Adapter()),
         preserved(allocator.Adapter()),
-        preservedExcept(allocator.Adapter()) {};
+        preservedExcept(allocator.Adapter()) {}
   virtual ~AnalysisDep() = default;
   template<class PhaseT>
   void AddRequired() {
@@ -144,7 +144,7 @@ class AnalysisDep {
     (void)preserved.emplace(&PhaseT::id);
   }
   template<class PhaseT>
-  void PreservedAllExcept(){
+  void PreservedAllExcept() {
     SetPreservedAll();
     (void)preservedExcept.emplace(&PhaseT::id);
   }

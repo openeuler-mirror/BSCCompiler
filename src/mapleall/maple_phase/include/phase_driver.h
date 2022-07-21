@@ -60,20 +60,20 @@ class PhaseDriver : public MplScheduler {
   explicit PhaseDriver(const std::string &phaseName);
   virtual ~PhaseDriver() = default;
 
-  virtual void RunAll(MIRModule *currModule, int thread, bool bSeq = false);
+  void RunAll(MIRModule *currModule, int thread, bool bSeq = false);
   virtual void RunSerial();
   virtual void RunParallel(int thread, bool bSeq = false);
   virtual PhaseDriverImpl *NewPhase() = 0;
   virtual void RegisterTasks() = 0;
 
  protected:
-  virtual void CallbackThreadMainStart();
-  virtual void CallbackThreadMainEnd();
-  virtual MplTaskParam *CallbackGetTaskRunParam() const {
+  void CallbackThreadMainStart() override;
+  void CallbackThreadMainEnd() override;
+  MplTaskParam *CallbackGetTaskRunParam() const override {
     return phaseImplLocal;
   }
 
-  virtual MplTaskParam *CallbackGetTaskFinishParam() const {
+  MplTaskParam *CallbackGetTaskFinishParam() const override {
     return phaseImplLocal;
   }
 

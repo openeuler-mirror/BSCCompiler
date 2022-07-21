@@ -41,9 +41,6 @@ class MaplePhase {
     }
   };
   void Dump() const;
-  MaplePhaseID GetPhaseID() {
-    return phaseID;
-  }
   const MaplePhaseID GetPhaseID() const {
     return phaseID;
   }
@@ -76,7 +73,7 @@ class MaplePhase {
 
 class MapleModulePhase : public MaplePhase {
  public:
-  MapleModulePhase(MaplePhaseID id, MemPool *mp) : MaplePhase(kModulePhase, id, *mp){}
+  MapleModulePhase(MaplePhaseID id, MemPool *mp) : MaplePhase(kModulePhase, id, *mp) {}
   ~MapleModulePhase() override = default;
 
   virtual bool PhaseRun(MIRModule &m) = 0;
@@ -85,7 +82,7 @@ class MapleModulePhase : public MaplePhase {
 template <class funcT>
 class MapleFunctionPhase : public MaplePhase {
  public:
-  MapleFunctionPhase(MaplePhaseID id, MemPool *mp) : MaplePhase(kFunctionPhase, id, *mp){}
+  MapleFunctionPhase(MaplePhaseID id, MemPool *mp) : MaplePhase(kFunctionPhase, id, *mp) {}
   ~MapleFunctionPhase() override = default;
   virtual bool PhaseRun(funcT &f) = 0;
 };
@@ -93,7 +90,7 @@ class MapleFunctionPhase : public MaplePhase {
 template <class SccT>
 class MapleSccPhase : public MaplePhase {
  public:
-  MapleSccPhase(MaplePhaseID id, MemPool *mp) : MaplePhase(kSccPhase, id, *mp){}
+  MapleSccPhase(MaplePhaseID id, MemPool *mp) : MaplePhase(kSccPhase, id, *mp) {}
   ~MapleSccPhase() override = default;
   virtual bool PhaseRun(SccT &scc) = 0;
   template <class funcT>
@@ -213,12 +210,12 @@ std::string CLASSNAME::PhaseName() const { return #PHASENAME; }                 
 static RegisterPhase<CLASSNAME> MAPLEPHASE_##PHASENAME(#PHASENAME, false, false, true);
 
 #define GET_ANALYSIS(PHASENAME, PHASEKEY)                               \
-static_cast<PHASENAME*>(GetAnalysisInfoHook()->FindAnalysisData((PHASEKEY).GetUniqueID(), this, &PHASENAME::id))-> \
-    GetResult()
+static_cast<PHASENAME*>(                                                \
+    GetAnalysisInfoHook()->FindAnalysisData((PHASEKEY).GetUniqueID(), this, &PHASENAME::id))->GetResult()
 
 #define FORCE_GET(PHASENAME) \
-static_cast<PHASENAME*>(GetAnalysisInfoHook()-> \
-    ForceRunAnalysisPhase<MeFuncOptTy, MeFunction>(&PHASENAME::id, f))->GetResult()
+static_cast<PHASENAME*>(     \
+    GetAnalysisInfoHook()->ForceRunAnalysisPhase<MeFuncOptTy, MeFunction>(&PHASENAME::id, f))->GetResult()
 
 #define FORCE_INVALID(PHASENAME, PHASEKEY) \
 GetAnalysisInfoHook()->ForceEraseAnalysisPhase(PHASEKEY.GetUniqueID(), &PHASENAME::id)

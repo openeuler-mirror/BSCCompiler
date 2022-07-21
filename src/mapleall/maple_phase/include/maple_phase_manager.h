@@ -94,7 +94,7 @@ class MaplePhaseManager {
     AddPhase(PhaseName, condition);                           \
   }
   void AddPhase(const std::string &phaseName, bool condition);
-  AnalysisDep *FindAnalysisDep(const MaplePhase *phase);
+  AnalysisDep *FindAnalysisDep(const MaplePhase &phase);
 
   void SetQuiet(bool value) {
     quiet = value;
@@ -104,14 +104,14 @@ class MaplePhaseManager {
     return quiet;
   }
 
-  void LogDependence(const MaplePhaseInfo *curPhase, int depLev) const {
+  void LogDependence(const MaplePhaseInfo &curPhase, int depLev) const {
     std::string prefix = "";
     while (depLev > 0) {
       prefix += "  ";
       depLev--;
     }
     if (!IsQuiet()) {
-      LogInfo::MapleLogger() << prefix << "  ++ trigger phase [ " << curPhase->PhaseName() << " ]\n";
+      LogInfo::MapleLogger() << prefix << "  ++ trigger phase [ " << curPhase.PhaseName() << " ]\n";
     }
   }
 
@@ -172,19 +172,19 @@ class AnalysisInfoHook {
       : allocator(&memPool),
         adManager(adm),
         bindingPM(bpm),
-        analysisPhasesData(allocator.Adapter()){}
+        analysisPhasesData(allocator.Adapter()) {}
   virtual ~AnalysisInfoHook() = default;
   void AddAnalysisData(uint32 phaseKey, MaplePhaseID id, MaplePhase *phaseImpl) {
     (void)analysisPhasesData.emplace(std::pair<AnalysisMemKey, MaplePhase*>(AnalysisMemKey(phaseKey, id), phaseImpl));
   }
 
   MaplePhase *FindAnalysisData(uint32 phaseKey, const MaplePhase *p, MaplePhaseID id) {
-    auto anaPhaseInfoIt = analysisPhasesData.find(AnalysisMemKey(phaseKey, id));
+    const auto anaPhaseInfoIt = analysisPhasesData.find(AnalysisMemKey(phaseKey, id));
     if (anaPhaseInfoIt != analysisPhasesData.end()) {
       return anaPhaseInfoIt->second;
     } else {
       /* fill all required analysis phase at first time */
-      AnalysisDep *anaDependence = bindingPM->FindAnalysisDep(p);
+      AnalysisDep *anaDependence = bindingPM->FindAnalysisDep(*p);
       for (auto requiredAnaPhase : anaDependence->GetRequiredPhase()) {
         const MaplePhaseInfo *requiredPhase =
             MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(requiredAnaPhase);
@@ -235,7 +235,7 @@ class AnalysisInfoHook {
     if (adManager.IsAnalysisPhaseAvailable(irUnit.GetUniqueID(), curPhase->GetPhaseID())) {
       return adManager.GetVaildAnalysisPhase(irUnit.GetUniqueID(), anaPid);
     }
-    bindingPM->LogDependence(curPhase, depLev);
+    bindingPM->LogDependence(*curPhase, depLev);
     (void)bindingPM->RunAnalysisPhase<PHASEType, IRTemplate>(*curPhase, adManager, irUnit, depLev);
     return adManager.GetVaildAnalysisPhase(irUnit.GetUniqueID(), anaPid);
   }
@@ -243,7 +243,7 @@ class AnalysisInfoHook {
   template <typename PHASEType, typename IRTemplate>
   void ForceRunTransFormPhase(MaplePhaseID anaPid, IRTemplate &irUnit, int depLev = 1) {
     const MaplePhaseInfo *curPhase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(anaPid);
-    bindingPM->LogDependence(curPhase, depLev);
+    bindingPM->LogDependence(*curPhase, depLev);
     (void)bindingPM->RunTransformPhase<PHASEType, IRTemplate>(*curPhase, adManager, irUnit, depLev);
   }
 
@@ -289,8 +289,8 @@ class SccPM : public MapleModulePhase, public MaplePhaseManager {
 template <typename IRType>
 class FunctionPhaseGroup : public MapleFunctionPhase<IRType>, public MaplePhaseManager {
  public:
-  FunctionPhaseGroup(MemPool *mp, MaplePhaseID id) : MapleFunctionPhase<IRType>(&id, mp), MaplePhaseManager(*mp){}
+  FunctionPhaseGroup(MemPool *mp, MaplePhaseID id) : MapleFunctionPhase<IRType>(&id, mp), MaplePhaseManager(*mp) {}
   virtual ~FunctionPhaseGroup() = default;
 };
 }
-#endif //MAPLE_PHASE_MANAGER_H
+#endif // MAPLE_PHASE_MANAGER_H

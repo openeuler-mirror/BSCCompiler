@@ -36,21 +36,21 @@ MemPool *AnalysisDataManager::ApplyMemPoolForAnalysisPhase(uint32 phaseKey, cons
 void AnalysisDataManager::AddAnalysisPhase(uint32 phaseKey, MaplePhase *p) {
   CHECK_FATAL(p != nullptr, "invalid phase when AddAnalysisPhase"); // change to assert after testing
   (void)availableAnalysisPhases.emplace(std::pair<AnalysisMemKey, MaplePhase*>(AnalysisMemKey(phaseKey,
-                                                                                              p->GetPhaseID()), p));
+      p->GetPhaseID()), p));
 }
 
 // Erase phase at O2
 // This is for the actully phase
 void AnalysisDataManager::EraseAnalysisPhase(uint32 phaseKey, MaplePhaseID pid) {
   auto it = analysisPhaseMemPool.find(AnalysisMemKey(phaseKey, pid));
-  auto itanother = availableAnalysisPhases.find(AnalysisMemKey(phaseKey, pid));
-  if (it != analysisPhaseMemPool.end() && itanother != availableAnalysisPhases.end()) {
+  const auto itanother = availableAnalysisPhases.find(AnalysisMemKey(phaseKey, pid));
+  if (it != analysisPhaseMemPool.cend() && itanother != availableAnalysisPhases.cend()) {
     auto resultanother = availableAnalysisPhases.erase(AnalysisMemKey(phaseKey, pid));
-    CHECK_FATAL(resultanother, "Release Failed");
+    CHECK_FATAL(resultanother > 0, "Release Failed");
     delete it->second;
     it->second = nullptr;
     auto result = analysisPhaseMemPool.erase(AnalysisMemKey(phaseKey, pid));  // erase to release mempool ?
-    CHECK_FATAL(result, "Release Failed");
+    CHECK_FATAL(result > 0, "Release Failed");
   }
 }
 
@@ -113,8 +113,8 @@ void AnalysisDataManager::ClearInVaildAnalysisPhase(uint32 phaseKey, AnalysisDep
 }
 
 MaplePhase *AnalysisDataManager::GetVaildAnalysisPhase(uint32 phaseKey, MaplePhaseID pid) {
-  auto it = availableAnalysisPhases.find(AnalysisMemKey(phaseKey, pid));
-  if (it == availableAnalysisPhases.end()) {
+  const auto it = availableAnalysisPhases.find(AnalysisMemKey(phaseKey, pid));
+  if (it == availableAnalysisPhases.cend()) {
     LogInfo::MapleLogger() << "Required " <<
         MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(pid)->PhaseName() << " running before \n";
     CHECK_FATAL(false, "find analysis phase failed");
@@ -125,13 +125,13 @@ MaplePhase *AnalysisDataManager::GetVaildAnalysisPhase(uint32 phaseKey, MaplePha
 }
 
 bool AnalysisDataManager::IsAnalysisPhaseAvailable(uint32 phaseKey, MaplePhaseID pid) {
-  auto it = availableAnalysisPhases.find(AnalysisMemKey(phaseKey, pid));
-  return it != availableAnalysisPhases.end();
+  const auto it = availableAnalysisPhases.find(AnalysisMemKey(phaseKey, pid));
+  return it != availableAnalysisPhases.cend();
 }
 
 void AnalysisDataManager::Dump() {
   LogInfo::MapleLogger() << "availableAnalysisPhases: \n";
-  for (auto &it : availableAnalysisPhases) {
+  for (auto &it : std::as_const(availableAnalysisPhases)) {
     LogInfo::MapleLogger() << "<"
                            << it.first.first
                            << ", "
@@ -141,7 +141,7 @@ void AnalysisDataManager::Dump() {
                            << "\n";
   }
   LogInfo::MapleLogger() << "analysisPhaseMemPool: \n";
-  for (auto &it : analysisPhaseMemPool) {
+  for (auto &it : std::as_const(analysisPhaseMemPool)) {
     LogInfo::MapleLogger() << "<"
                            << it.first.first
                            << ", "
@@ -208,15 +208,15 @@ void MaplePhaseManager::SolveSkipAfter(const std::string &phaseName, size_t &i) 
   skipAfterFlag = false;
 }
 
-AnalysisDep *MaplePhaseManager::FindAnalysisDep(const MaplePhase *phase) {
+AnalysisDep *MaplePhaseManager::FindAnalysisDep(const MaplePhase &phase) {
   AnalysisDep *anDependence = nullptr;
-  auto anDepIt = analysisDepMap.find(phase->GetPhaseID());
-  if (anDepIt != analysisDepMap.end()) {
+  const auto anDepIt = analysisDepMap.find(phase.GetPhaseID());
+  if (anDepIt != analysisDepMap.cend()) {
     anDependence = anDepIt->second;
   } else {
     anDependence = allocator.New<AnalysisDep>(*GetManagerMemPool());
-    phase->AnalysisDepInit(*anDependence);
-    (void)analysisDepMap.emplace(std::pair<MaplePhaseID, AnalysisDep*>(phase->GetPhaseID(), anDependence));
+    phase.AnalysisDepInit(*anDependence);
+    (void)analysisDepMap.emplace(std::pair<MaplePhaseID, AnalysisDep*>(phase.GetPhaseID(), anDependence));
   }
   return anDependence;
 }
@@ -251,13 +251,13 @@ std::unique_ptr<ThreadLocalMemPool> MaplePhaseManager::AllocateMemPoolInPhaseMan
 template <typename phaseT, typename IRTemplate>
 void MaplePhaseManager::RunDependentPhase(const MaplePhase &phase, AnalysisDataManager &adm,
                                           IRTemplate &irUnit, int lev) {
-  AnalysisDep *anaDependence = FindAnalysisDep(&phase);
+  AnalysisDep *anaDependence = FindAnalysisDep(phase);
   for (auto requiredPhase : anaDependence->GetRequiredPhase()) {
     const MaplePhaseInfo *curPhase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(requiredPhase);
     if (adm.IsAnalysisPhaseAvailable(irUnit.GetUniqueID(), curPhase->GetPhaseID())) {
       continue;
     }
-    LogDependence(curPhase, lev);
+    LogDependence(*curPhase, lev);
     if (curPhase->IsAnalysis()) {
       (void)RunAnalysisPhase<phaseT, IRTemplate>(*curPhase, adm, irUnit, lev);
     } else {
@@ -283,7 +283,7 @@ bool MaplePhaseManager::RunTransformPhase(const MaplePhaseInfo &phaseInfo,
     result = phase->PhaseRun(irUnit);
   }
   phase->ClearTempMemPool();
-  adm.ClearInVaildAnalysisPhase(irUnit.GetUniqueID(), *FindAnalysisDep(phase));
+  adm.ClearInVaildAnalysisPhase(irUnit.GetUniqueID(), *FindAnalysisDep(*phase));
   return result;
 }
 

@@ -13,7 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "phase_impl.h"
-#include <cstdlib>
 #include "mpl_timer.h"
 
 namespace maple {
@@ -31,6 +30,7 @@ FuncOptimizeImpl::~FuncOptimizeImpl() {
   }
   klassHierarchy = nullptr;
   currFunc = nullptr;
+  currBlock = nullptr;
   module = nullptr;
 }
 
@@ -42,7 +42,7 @@ void FuncOptimizeImpl::CreateLocalBuilder(pthread_mutex_t &mtx) {
 
 void FuncOptimizeImpl::ProcessFunc(MIRFunction *func) {
   currFunc = func;
-  builder->SetCurrentFunction(*func);
+  SetCurrentFunction(*func);
   if (func->GetBody() != nullptr) {
     ProcessBlock(*func->GetBody());
   }
@@ -51,14 +51,19 @@ void FuncOptimizeImpl::ProcessFunc(MIRFunction *func) {
 void FuncOptimizeImpl::ProcessBlock(StmtNode &stmt) {
   switch (stmt.GetOpCode()) {
     case OP_if: {
+      ProcessStmt(stmt);
       IfStmtNode &ifStmtNode = static_cast<IfStmtNode&>(stmt);
       if (ifStmtNode.GetThenPart() != nullptr) {
         ProcessBlock(*ifStmtNode.GetThenPart());
+      }
+      if (ifStmtNode.GetElsePart() != nullptr) {
+        ProcessBlock(*ifStmtNode.GetElsePart());
       }
       break;
     }
     case OP_while:
     case OP_dowhile: {
+      ProcessStmt(stmt);
       WhileStmtNode &whileStmtNode = static_cast<WhileStmtNode&>(stmt);
       if (whileStmtNode.GetBody() != nullptr) {
         ProcessBlock(*whileStmtNode.GetBody());
@@ -68,8 +73,9 @@ void FuncOptimizeImpl::ProcessBlock(StmtNode &stmt) {
     case OP_block: {
       BlockNode &block = static_cast<BlockNode&>(stmt);
       for (StmtNode *stmtNode = block.GetFirst(), *next = nullptr; stmtNode != nullptr; stmtNode = next) {
-        next = stmtNode->GetNext();
+        SetCurrentBlock(block);
         ProcessBlock(*stmtNode);
+        next = stmtNode->GetNext();
       }
       break;
     }
@@ -106,20 +112,20 @@ void FuncOptimizeIterator::RunSerial() {
   }
 
   CHECK_NULL_FATAL(phaseImpl);
-  for (MIRFunction *func : phaseImpl->GetMIRModule().GetFunctionList()) {
-    auto dumpPhase = [func](bool dump, std::string &&s, const std::string &name) {
-      if (dump &&
-          (Options::dumpFunc == "*" || func->GetName().find(Options::dumpFunc) != std::string::npos) &&
-          (Options::dumpPhase == name || Options::dumpPhase == "*")) {
-        LogInfo::MapleLogger() << ">>>>> Dump " << s << name << " <<<<<\n";
+  for (MIRFunction *func : std::as_const(phaseImpl->GetMIRModule().GetFunctionList())) {
+    auto dumpPhase = [this, func](bool dumpOption, std::string &&s) {
+      if (dumpOption) {
+        LogInfo::MapleLogger() << ">>>>> Dump " << s << schedulerName << " <<<<<\n";
         func->Dump();
-        LogInfo::MapleLogger() << ">>>>> Dump " << s << name << " end <<<<<\n";
+        LogInfo::MapleLogger() << ">>>>> Dump " << s << schedulerName << " end <<<<<\n";
       }
     };
-
-    dumpPhase(Options::dumpBefore, "before ", schedulerName);
+    bool dumpFunc = (Options::dumpFunc == "*" || Options::dumpFunc == func->GetName()) &&
+                    (Options::dumpPhase == "*" || Options::dumpPhase == schedulerName);
+    dumpPhase(Options::dumpBefore && dumpFunc, "before ");
+    phaseImpl->SetDump(dumpFunc);
     phaseImpl->ProcessFunc(func);
-    dumpPhase(Options::dumpAfter, "after ", schedulerName);
+    dumpPhase(Options::dumpAfter && dumpFunc, "after ");
   }
 
   phaseImpl->Finish();
@@ -139,7 +145,7 @@ void FuncOptimizeIterator::RunParallel(uint32 threadNum, bool isSeq) {
   Reset();
 
   CHECK_NULL_FATAL(phaseImpl);
-  for (MIRFunction *func : phaseImpl->GetMIRModule().GetFunctionList()) {
+  for (MIRFunction *func : std::as_const(phaseImpl->GetMIRModule().GetFunctionList())) {
     std::unique_ptr<Task> task = std::make_unique<Task>(*func);
     ASSERT_NOT_NULL(task);
     AddTask(*task.get());

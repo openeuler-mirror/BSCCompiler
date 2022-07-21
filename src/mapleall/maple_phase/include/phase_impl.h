@@ -23,7 +23,7 @@ namespace maple {
 class FuncOptimizeImpl : public MplTaskParam {
  public:
   explicit FuncOptimizeImpl(MIRModule &mod, KlassHierarchy *kh = nullptr, bool currTrace = false);
-  virtual ~FuncOptimizeImpl();
+  ~FuncOptimizeImpl();
   // Each phase needs to implement its own Clone
   virtual FuncOptimizeImpl *Clone() = 0;
   MIRModule &GetMIRModule() {
@@ -93,27 +93,27 @@ class FuncOptimizeIterator : public MplScheduler {
   };
 
   FuncOptimizeIterator(const std::string &phaseName, std::unique_ptr<FuncOptimizeImpl> phaseImpl);
-  virtual ~FuncOptimizeIterator();
+  ~FuncOptimizeIterator();
   virtual void Run(uint32 threadNum = 1, bool isSeq = false);
 
  protected:
   thread_local static FuncOptimizeImpl *phaseImplLocal;
   void RunSerial();
   void RunParallel(uint32 threadNum, bool isSeq = false);
-  virtual MplTaskParam *CallbackGetTaskRunParam() const {
+  MplTaskParam *CallbackGetTaskRunParam() const override {
     return phaseImplLocal;
   }
 
-  virtual MplTaskParam *CallbackGetTaskFinishParam() const {
+  MplTaskParam *CallbackGetTaskFinishParam() const override {
     return phaseImplLocal;
   }
 
-  virtual void CallbackThreadMainStart() {
+  void CallbackThreadMainStart() override {
     phaseImplLocal = phaseImpl->Clone();
     utils::ToRef(phaseImplLocal).CreateLocalBuilder(mutexGlobal);
   }
 
-  virtual void CallbackThreadMainEnd() {
+  void CallbackThreadMainEnd() override {
     delete phaseImplLocal;
     phaseImplLocal = nullptr;
   }
