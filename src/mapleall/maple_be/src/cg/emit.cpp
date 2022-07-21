@@ -520,7 +520,8 @@ void Emitter::EmitCombineBfldValue(StructEmitInfo &structEmitInfo) {
   }
   if (structEmitInfo.GetCombineBitFieldWidth() != 0) {
     EmitAsmLabel(kAsmByte);
-    Emit(std::to_string(structEmitInfo.GetCombineBitFieldValue()));
+    uint64 value = structEmitInfo.GetCombineBitFieldValue() & 0x00000000000000ffUL;
+    Emit(std::to_string(value));
     Emit("\n");
   }
   CHECK_FATAL(charBitWidth != 0, "divide by zero");
@@ -537,7 +538,7 @@ void Emitter::EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mir
                                    uint64 fieldOffset) {
   MIRType &mirType = mirConst.GetType();
   if (fieldOffset > structEmitInfo.GetNextFieldOffset()) {
-    uint8 curFieldOffset = structEmitInfo.GetNextFieldOffset() - structEmitInfo.GetCombineBitFieldWidth();
+    uint16 curFieldOffset = structEmitInfo.GetNextFieldOffset() - structEmitInfo.GetCombineBitFieldWidth();
     structEmitInfo.SetCombineBitFieldWidth(fieldOffset - curFieldOffset);
     EmitCombineBfldValue(structEmitInfo);
     ASSERT(structEmitInfo.GetNextFieldOffset() <= fieldOffset,

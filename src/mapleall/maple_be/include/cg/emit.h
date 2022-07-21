@@ -66,15 +66,15 @@ class StructEmitInfo {
 
   ~StructEmitInfo() = default;
 
-  uint8 GetNextFieldOffset() const {
+  uint16 GetNextFieldOffset() const {
     return nextFieldOffset;
   }
 
-  void SetNextFieldOffset(uint8 offset) {
+  void SetNextFieldOffset(uint16 offset) {
     nextFieldOffset = offset;
   }
 
-  void IncreaseNextFieldOffset(uint8 value) {
+  void IncreaseNextFieldOffset(uint16 value) {
     nextFieldOffset += value;
   }
 
@@ -116,7 +116,7 @@ class StructEmitInfo {
 
  private:
   /* Next field offset in struct. */
-  uint8 nextFieldOffset = 0;
+  uint16 nextFieldOffset = 0;
   uint8 combineBitFieldWidth = 0;
   uint64 combineBitFieldValue = 0;
   /* Total size emitted in current struct. */
