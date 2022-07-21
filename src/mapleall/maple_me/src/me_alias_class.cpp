@@ -48,33 +48,35 @@ void MeAliasClass::PerformTBAAForC() {
   if (!mirModule.IsCModule() || !MeOption::tbaa) {
     return;
   }
-  for (auto ae : Id2AliasElem()) {
-    if (ae->GetClassSet() != nullptr) {
-      auto *oldAliasSet = ae->GetClassSet();
-      MapleSet<unsigned int> *newAliasSet = nullptr;
-      for (auto otherId : *oldAliasSet) {
-        auto aliasedAe = Id2AliasElem()[otherId];
-        if (aliasedAe == ae) {
+  for (auto *ost : func.GetMeSSATab()->GetOriginalStTable()) {
+    auto *aliasSet = GetAliasSet(*ost);
+    if (aliasSet != nullptr) {
+      auto *oldAliasSet = aliasSet;
+      AliasSet *newAliasSet = nullptr;
+      for (auto aliasedOstIdx : *oldAliasSet) {
+        if (aliasedOstIdx == ost->GetIndex()) {
           continue;
         }
         bool alias = false;
-        if (ae->GetClassID() < aliasedAe->GetClassID()) {
-          alias = TypeBasedAliasAnalysis::MayAliasTBAAForC(&ae->GetOriginalSt(),
-                                                           &Id2AliasElem()[otherId]->GetOriginalSt());
+        if (ost->GetIndex() < aliasedOstIdx) {
+          auto *aliasedOst = func.GetMeSSATab()->GetOriginalStFromID(OStIdx(aliasedOstIdx));
+          alias = TypeBasedAliasAnalysis::MayAliasTBAAForC(ost, aliasedOst);
         } else {
-          alias = (aliasedAe->GetClassSet()->find(ae->GetClassID()) != aliasedAe->GetClassSet()->end());
+          auto aliasSetOfAliasedOst = GetAliasSet(OStIdx(aliasedOstIdx));
+          alias = aliasSetOfAliasedOst == nullptr ||
+                  (aliasSetOfAliasedOst->find(ost->GetIndex()) != aliasSetOfAliasedOst->end());
         }
         if (!alias) {
           if (newAliasSet == nullptr) {
             newAliasSet =
-                GetMapleAllocator().GetMemPool()->New<MapleSet<unsigned int>>(GetMapleAllocator().Adapter());
+                GetMapleAllocator().GetMemPool()->New<AliasSet>(GetMapleAllocator().Adapter());
             newAliasSet->insert(oldAliasSet->begin(), oldAliasSet->end());
           }
-          newAliasSet->erase(otherId);
+          newAliasSet->erase(aliasedOstIdx);
         }
       }
       if (newAliasSet != nullptr) {
-        ae->SetClassSet(newAliasSet);
+        SetAliasSet(ost->GetIndex(), newAliasSet);
       }
     }
   }
@@ -89,29 +91,36 @@ void MeAliasClass::PerformDemandDrivenAliasAnalysis() {
   }
 
   DemandDrivenAliasAnalysis ddAlias(&func, func.GetMeSSATab(), localMemPool, enabledDebug);
-  for (auto ae : Id2AliasElem()) {
-    if (ae->GetClassSet() != nullptr) {
-      auto *oldAliasSet = ae->GetClassSet();
-      MapleSet<unsigned int> *newAliasSet = nullptr;
-      for (auto otherId : *ae->GetClassSet()) {
-        auto aliasedAe = Id2AliasElem()[otherId];
-        if (aliasedAe == ae) {
+  for (auto *ost : func.GetMeSSATab()->GetOriginalStTable()) {
+    auto *aliasSet = GetAliasSet(*ost);
+    if (aliasSet != nullptr) {
+      auto *oldAliasSet = aliasSet;
+      AliasSet *newAliasSet = nullptr;
+      for (auto aliasedOstIdx : *aliasSet) {
+        if (aliasedOstIdx == ost->GetIndex()) {
           continue;
         }
-        bool alias = (ae->GetClassID() < aliasedAe->GetClassID())
-            ? ddAlias.MayAlias(&ae->GetOriginalSt(), &Id2AliasElem()[otherId]->GetOriginalSt())
-            : (aliasedAe->GetClassSet()->find(ae->GetClassID()) != aliasedAe->GetClassSet()->end());
+
+        bool alias = false;
+        if (ost->GetIndex() < aliasedOstIdx) {
+          auto *aliasedOst = func.GetMeSSATab()->GetOriginalStFromID(OStIdx(aliasedOstIdx));
+          alias = ddAlias.MayAlias(ost, aliasedOst);
+        } else {
+          auto aliasSetOfAliasedOst = GetAliasSet(OStIdx(aliasedOstIdx));
+          alias = aliasSetOfAliasedOst == nullptr ||
+                  (aliasSetOfAliasedOst->find(ost->GetIndex()) != aliasSetOfAliasedOst->end());
+        }
         if (!alias) {
           if (newAliasSet == nullptr) {
             newAliasSet =
-                GetMapleAllocator().GetMemPool()->New<MapleSet<unsigned int>>(GetMapleAllocator().Adapter());
+                GetMapleAllocator().GetMemPool()->New<AliasSet>(GetMapleAllocator().Adapter());
             newAliasSet->insert(oldAliasSet->begin(), oldAliasSet->end());
           }
-          newAliasSet->erase(otherId);
+          newAliasSet->erase(aliasedOstIdx);
         }
       }
       if (newAliasSet != nullptr) {
-        ae->SetClassSet(newAliasSet);
+        SetAliasSet(ost->GetIndex(), newAliasSet);
       }
     }
   }
@@ -120,12 +129,16 @@ void MeAliasClass::PerformDemandDrivenAliasAnalysis() {
 void MeAliasClass::DoAliasAnalysis() {
   // pass 1 through the program statements
   for (auto bIt = cfg->valid_begin(); bIt != cfg->valid_end(); ++bIt) {
+    const auto &phiList = (*bIt)->GetPhiList();
+    for (const auto &ost2phi : phiList) {
+      ApplyUnionForPhi(ost2phi.second);
+    }
+
     for (auto &stmt : (*bIt)->GetStmtNodes()) {
       ApplyUnionForCopies(stmt);
     }
   }
   ApplyUnionForFieldsInCopiedAgg();
-  UnionAddrofOstOfUnionFields();
   CreateAssignSets();
   PropagateTypeUnsafe();
   if (enabledDebug) {
@@ -147,13 +160,22 @@ void MeAliasClass::DoAliasAnalysis() {
     ReconstructAliasGroups();
   }
   CreateClassSets();
+  if (enabledDebug) {
+    LogInfo::MapleLogger() << "\n============ Alias Info After UBAA ============\n" << std::endl;
+    DumpClassSets();
+  }
   PerformTBAAForC();
+  if (enabledDebug) {
+    LogInfo::MapleLogger() << "\n============ Alias Info After TBAA ============\n" << std::endl;
+    DumpClassSets(false); // every element has its own aliasSet
+  }
   PerformDemandDrivenAliasAnalysis();
   if (enabledDebug) {
     if (MeOption::ddaa) {
       ReinitUnionFind();
     }
-    DumpClassSets();
+    LogInfo::MapleLogger() << "\n============ Alias Info After DDAA ============\n" << std::endl;
+    DumpClassSets(false); // every element has its own aliasSet
   }
   // pass 2 through the program statements
   if (enabledDebug) {
@@ -167,6 +189,7 @@ void MeAliasClass::DoAliasAnalysis() {
     }
   }
 
+  SetAnalyzedOstNum(func.GetMeSSATab()->GetOriginalStTableSize());
   TypeBasedAliasAnalysis::ClearOstTypeUnsafeInfo();
 }
 

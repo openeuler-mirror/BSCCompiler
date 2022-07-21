@@ -1786,19 +1786,21 @@ void AliasElem::Dump() const {
   LogInfo::MapleLogger() << "id" << id << ((notAllDefsSeen) ? "? " : " ");
 }
 
-void AliasClass::DumpClassSets() {
+void AliasClass::DumpClassSets(bool onlyDumpRoot) {
   LogInfo::MapleLogger() << "/////// class sets ///////\n";
   for (auto *ost : ssaTab.GetOriginalStTable()) {
     auto ostIdx = ost->GetIndex();
-    if (!unionFind.Find(ostIdx)) {
-      continue;
-    }
-    if (unionFind.Root(ostIdx) != ostIdx) {
-      continue;
+    if (onlyDumpRoot) {
+      if (!unionFind.Find(ostIdx)) {
+        continue;
+      }
+      if (unionFind.Root(ostIdx) != ostIdx) {
+        continue;
+      }
     }
 
     auto *aliasSet = GetAliasSet(*ost);
-    if (aliasSet == nullptr) {
+    if (aliasSet == nullptr || aliasSet->size() == 1) {
       LogInfo::MapleLogger() << "Alone: ";
       ost->Dump();
       if (IsNotAllDefsSeen(ostIdx)) {

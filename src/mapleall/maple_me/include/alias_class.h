@@ -85,8 +85,9 @@ class AliasElem {
   const MapleSet<unsigned int> *GetClassSet() const {
     return classSet;
   }
-  void AddClassToSet(unsigned int id) {
-    classSet->emplace(id);
+
+  void AddClassToSet(unsigned int classId) {
+    classSet->emplace(classId);
   }
 
   void SetClassSet(MapleSet<unsigned int> *newClassSet) {
@@ -96,8 +97,9 @@ class AliasElem {
   const MapleSet<unsigned int> *GetAssignSet() const {
     return assignSet;
   }
-  void AddAssignToSet(unsigned int id) {
-    assignSet->emplace(id);
+
+  void AddAssignToSet(unsigned int classId) {
+    assignSet->emplace(classId);
   }
 
  private:
@@ -199,7 +201,7 @@ class AliasClass : public AnalysisResult {
   void ReconstructAliasGroups();
   void CollectNotAllDefsSeenAes();
   void CreateClassSets();
-  void DumpClassSets();
+  void DumpClassSets(bool onlyDumpRoot = true);
   void InsertMayDefUseCall(StmtNode &stmt, BBId bbid, bool isDirectCall);
   void GenericInsertMayDefUse(StmtNode &stmt, BBId bbID);
 
