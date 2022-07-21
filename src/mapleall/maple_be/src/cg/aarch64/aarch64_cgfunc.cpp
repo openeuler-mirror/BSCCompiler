@@ -1282,11 +1282,12 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       }
       case OP_add: {
         BinaryNode *addNode = static_cast<BinaryNode*>(node.Opnd(i));
-        Operand *inOpnd = SelectAdd(*addNode, *HandleExpr(*addNode, *addNode->Opnd(0)), *HandleExpr(*addNode, *addNode->Opnd(1)), node);
+        Operand *inOpnd = SelectAdd(*addNode, *HandleExpr(*addNode, *addNode->Opnd(0)),
+                                    *HandleExpr(*addNode, *addNode->Opnd(1)), node);
         listInputOpnd->PushOpnd(static_cast<RegOperand&>(*inOpnd));
         PrimType pType = addNode->GetPrimType();
-        listInRegPrefix->stringList.push_back(
-            static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pType, inOpnd->GetSize(), str))));
+        listInRegPrefix->stringList.push_back(static_cast<StringOperand*>(&CreateStringOperand(
+            GetRegPrefixFromPrimType(pType, inOpnd->GetSize(), str))));
         if (isOutputTempNode) {
           rPlusOpnd.emplace_back(std::make_pair(inOpnd, pType));
         }
@@ -2330,12 +2331,68 @@ void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) {
     IncLmbcTotalArgs();
     /* copy large agg arg to offset below */
   }
-  std::vector<Operand*> opndVec;
-  opndVec.push_back(regResult);                              /* result */
-  opndVec.push_back(PrepareMemcpyParamOpnd(offset, *dest));  /* param 0 */
-  opndVec.push_back(src);                                    /* param 1 */
-  opndVec.push_back(PrepareMemcpyParamOpnd(static_cast<uint64>(static_cast<int64>(bNode.blockSize)))); /* param 2 */
-  SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
+  RegOperand *param0 = PrepareMemcpyParamOpnd(offset, *dest);
+  RegOperand *param1 = static_cast<RegOperand *>(src);
+  RegOperand *param2 = PrepareMemcpyParamOpnd(bNode.blockSize);
+  if (bNode.blockSize > kParmMemcpySize) {
+    std::vector<Operand*> opndVec;
+    opndVec.push_back(regResult); /* result */
+    opndVec.push_back(param0);    /* param 0 */
+    opndVec.push_back(src);       /* param 1 */
+    opndVec.push_back(param2);    /* param 2 */
+    SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
+  } else {
+    int32 copyOffset = 0;
+    int32 inc = 0;
+    bool isPair;
+    for (uint32 sz = bNode.blockSize; sz > 0; ) {
+      isPair = false;
+      MOperator ldOp, stOp;
+      if (sz >= k16ByteSize) {
+        sz -= k16ByteSize;
+        inc = k16ByteSize;
+        ldOp = MOP_xldp;
+        stOp = MOP_xstp;
+        isPair = true;
+      } else if (sz >= k8ByteSize) {
+        sz -= k8ByteSize;
+        inc = k8ByteSize;
+        ldOp = MOP_xldr;
+        stOp = MOP_xstr;
+      } else if (sz >= k4ByteSize) {
+        sz -= k4ByteSize;
+        inc = k4ByteSize;
+        ldOp = MOP_wldr;
+        stOp = MOP_wstr;
+      } else if (sz >= k2ByteSize) {
+        sz -= k2ByteSize;
+        inc = k2ByteSize;
+        ldOp = MOP_wldrh;
+        stOp = MOP_wstrh;
+      } else {
+        sz -= k1ByteSize;
+        inc = k1ByteSize;
+        ldOp = MOP_wldrb;
+        stOp = MOP_wstrb;
+      }
+      AArch64reg ldBaseReg = static_cast<AArch64reg>(param1->GetRegisterNumber());
+      MemOperand &ldMem = CreateMemOpnd(ldBaseReg, copyOffset, k8ByteSize);
+
+      AArch64reg stBaseReg = static_cast<AArch64reg>(param0->GetRegisterNumber());
+      MemOperand &stMem = CreateMemOpnd(stBaseReg, copyOffset, k8ByteSize);
+      if (isPair) {
+        RegOperand &ldResult = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
+        RegOperand &ldResult2 = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(ldOp, ldResult, ldResult2, ldMem));
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(stOp, ldResult, ldResult2, stMem));
+      } else {
+        RegOperand &ldResult = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(ldOp, ldResult, ldMem));
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(stOp, ldResult, stMem));
+      }
+      copyOffset += inc;
+    }
+  }
 }
 
 void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
@@ -3262,7 +3319,7 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr,
     if (pointedType->IsStructType()) {
       MIRStructType *structType = static_cast<MIRStructType*>(pointedType);
       /* size << 3, that is size * 8, change bytes to bits */
-      bitSize = std::min(structType->GetSize(), (size_t)kSizeOfPtr) << 3;
+      bitSize = std::min(structType->GetSize(), static_cast<size_t>(kSizeOfPtr)) << 3;
     } else {
       bitSize = GetPrimTypeBitSize(destType);
     }
