@@ -164,13 +164,13 @@ bool ProfileGenEmit::PhaseRun(maple::MeFunction &f) {
     mirFunction->SetBody(mirFunction->GetCodeMempool()->New<BlockNode>());
     // initialize is_deleted field to true; will reset when emitting Maple IR
     for (size_t k = 1; k < mirFunction->GetSymTab()->GetSymbolTableSize(); ++k) {
-      MIRSymbol *sym = mirFunction->GetSymTab()->GetSymbolFromStIdx(k);
+      MIRSymbol *sym = mirFunction->GetSymTab()->GetSymbolFromStIdx(static_cast<uint32>(k));
       if (sym->GetSKind() == kStVar) {
         sym->SetIsDeleted();
       }
     }
     for (BB *bb : f.GetCfg()->GetAllBBs()) {
-     if (bb == nullptr) {
+      if (bb == nullptr) {
         continue;
       }
       bb->EmitBB(*mirFunction->GetBody(), false);
