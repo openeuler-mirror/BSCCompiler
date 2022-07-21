@@ -411,12 +411,21 @@ std::list<UniqueFEIRStmt> ASTNullStmt::Emit2FEStmtImpl() const {
 // ---------- ASTDeclStmt ----------
 std::list<UniqueFEIRStmt> ASTDeclStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
-  for (auto expr : exprs) {
-    (void)expr->Emit2FEExpr(stmts);
-  }
-  for (auto decl : subDecls) {
-    InsertBoundaryVar(decl, stmts);
-    decl->GenerateInitStmt(stmts);
+  for (auto declInfo : subDeclInfos) {
+    if (std::holds_alternative<ASTExpr*>(declInfo)) {
+      ASTExpr *vlaSizeExpr = std::get<ASTExpr*>(declInfo);
+      if (vlaSizeExpr == nullptr) {
+        continue;
+      }
+      (void)vlaSizeExpr->Emit2FEExpr(stmts);
+    } else {
+      ASTDecl *decl = std::get<ASTDecl*>(declInfo);
+      if (decl == nullptr) {
+        continue;
+      }
+      InsertBoundaryVar(decl, stmts);
+      decl->GenerateInitStmt(stmts);
+    }
   }
   return stmts;
 }

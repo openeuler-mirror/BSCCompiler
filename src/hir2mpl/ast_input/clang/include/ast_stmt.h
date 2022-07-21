@@ -464,14 +464,21 @@ class ASTNullStmt : public ASTStmt {
 class ASTDeclStmt : public ASTStmt {
  public:
   explicit ASTDeclStmt(MapleAllocator &allocatorIn)
-      : ASTStmt(allocatorIn, kASTStmtDecl), subDecls(allocatorIn.Adapter()) {}
+      : ASTStmt(allocatorIn, kASTStmtDecl),
+        subDecls(allocatorIn.Adapter()),
+        subDeclInfos(allocatorIn.Adapter()) {}
   ~ASTDeclStmt() = default;
 
   void SetSubDecl(ASTDecl *decl) {
     subDecls.emplace_back(decl);
+    subDeclInfos.emplace_back(decl);
   }
 
-  const MapleList<ASTDecl*>& GetSubDecls() const {
+  void SetVLASizeExpr(ASTExpr *astExpr) {
+    subDeclInfos.emplace_back(astExpr);
+  }
+
+  const MapleList<ASTDecl*> &GetSubDecls() const {
     return subDecls;
   }
 
@@ -480,6 +487,8 @@ class ASTDeclStmt : public ASTStmt {
   void InsertBoundaryVar(ASTDecl *ptrDecl, std::list<UniqueFEIRStmt> &stmts) const;
 
   MapleList<ASTDecl*> subDecls;
+  // saved vla size exprs before a vla decl
+  MapleList<std::variant<ASTDecl*, ASTExpr*>> subDeclInfos;
 };
 
 class ASTCompoundAssignOperatorStmt : public ASTStmt {

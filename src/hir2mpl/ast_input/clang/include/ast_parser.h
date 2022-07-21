@@ -30,7 +30,7 @@ class ASTParser {
         funcDecles(allocatorIn.Adapter()), recordDecles(allocatorIn.Adapter()),
         globalEnumDecles(allocatorIn.Adapter()), globalTypeDefDecles(allocatorIn.Adapter()),
         globalFileScopeAsm(allocatorIn.Adapter()), astStructs(astStructsIn), astFuncs(astFuncsIn),
-        astVars(astVarsIn), astFileScopeAsms(astFileScopeAsmsIn) {}
+        astVars(astVarsIn), astFileScopeAsms(astFileScopeAsmsIn), vlaSizeMap(allocatorIn.Adapter()) {}
   virtual ~ASTParser() = default;
   bool OpenFile(MapleAllocator &allocator);
   bool Release() const;
@@ -100,7 +100,7 @@ class ASTParser {
   ASTExpr *EvaluateExprAsConst(MapleAllocator &allocator, const clang::Expr *expr);
   bool HasLabelStmt(const clang::Stmt *expr);
   ASTExpr *ProcessExpr(MapleAllocator &allocator, const clang::Expr *expr);
-  ASTExpr *ProcessExprInType(MapleAllocator &allocator, const clang::QualType &qualType);
+  void SaveVLASizeExpr(MapleAllocator &allocator, const clang::QualType &qualType, std::list<ASTExpr*> &vlaSizeExprs);
   ASTBinaryOperatorExpr *AllocBinaryOperatorExpr(MapleAllocator &allocator, const clang::BinaryOperator &bo) const;
   ASTExpr *ProcessExprCastExpr(MapleAllocator &allocator, const clang::CastExpr &expr);
 #define PROCESS_EXPR(CLASS) ProcessExpr##CLASS(MapleAllocator&, const clang::CLASS&)
@@ -259,6 +259,7 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
   MapleList<ASTFunc*> &astFuncs;
   MapleList<ASTVar*> &astVars;
   MapleList<ASTFileScopeAsm*> &astFileScopeAsms;
+  MapleMap<clang::Expr*, ASTExpr*> vlaSizeMap;
 };
 }  // namespace maple
 #endif // HIR2MPL_AST_INPUT_INCLUDE_AST_PARSER_H
