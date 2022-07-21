@@ -770,6 +770,8 @@ class DebugInfo {
   DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
   DBGDie *GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx);
 
+  GStrIdx GetPrimTypeCName(PrimType pty);
+
   void AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap);
   void AddScopeDie(MIRScope *scope);
   void CollectScopePos(MIRFunction *func, MIRScope *scope);
@@ -810,7 +812,7 @@ class DebugInfo {
   void AddTypedefMap(GStrIdx stridx, TyIdx tyidx) {
     typedefStrIdxTyIdxMap[stridx.GetIdx()] = tyidx.GetIdx();
   }
-  void DumpTypedefMap();
+  void DumpTypedefMap() const;
 
  private:
   MIRModule *module;
