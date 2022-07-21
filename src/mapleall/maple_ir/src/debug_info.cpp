@@ -700,6 +700,11 @@ DBGDie *DebugInfo::GetOrCreateFuncDeclDie(MIRFunction *func) {
     die->AddSubVec(param);
   }
 
+  if (func->IsVarargs()) {
+    DBGDie *varargDie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_unspecified_parameters);
+    die->AddSubVec(varargDie);
+  }
+
   PopParentDie();
 
   return die;
