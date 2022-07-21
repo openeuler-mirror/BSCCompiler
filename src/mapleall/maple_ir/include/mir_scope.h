@@ -92,7 +92,7 @@ class MIRScope {
   SrcPosition GetScopeEndPos(const SrcPosition &pos);
   bool AddScope(MIRScope *scope);
 
-  void Dump(int32 indent) const;
+  void Dump(int32 indent, bool isLocal = true) const;
   void Dump() const;
 
  private:

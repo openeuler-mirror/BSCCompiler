@@ -28,6 +28,7 @@ MIRModule::MIRModule(const std::string &fn)
       pragmaMemPool(memPoolCtrler.NewMemPool("pragma mempool", false /* isLcalPool */)),
       memPoolAllocator(memPool),
       pragmaMemPoolAllocator(pragmaMemPool),
+      inlineSummaryAlloc(memPoolCtrler.NewMemPool("inline summary mempool", false)),
       functionList(memPoolAllocator.Adapter()),
       importedMplt(memPoolAllocator.Adapter()),
       typeDefOrder(memPoolAllocator.Adapter()),
@@ -54,6 +55,7 @@ MIRModule::MIRModule(const std::string &fn)
   typeNameTab = memPool->New<MIRTypeNameTable>(memPoolAllocator);
   mirBuilder = memPool->New<MIRBuilder>(this);
   dbgInfo = memPool->New<DebugInfo>(this);
+  scope = memPool->New<MIRScope>(this, nullptr);
   IntrinDesc::InitMIRModule(this);
 }
 
@@ -64,6 +66,10 @@ MIRModule::~MIRModule() {
   ReleasePragmaMemPool();
   delete memPool;
   delete binMplt;
+
+  // inlineSummaryAlloc is supposed to be released just after inlining.
+  // The following code is to ensure unexpected memory leak.
+  ReleaseInlineSummaryAlloc();
 }
 
 MemPool *MIRModule::CurFuncCodeMemPool() const {
@@ -284,6 +290,9 @@ void MIRModule::DumpGlobals(bool emitStructureType) const {
       if (!s->IsDeleted() && !s->GetIsImported() && !s->GetIsImportedDecl()) {
         s->Dump(false, 0);
       }
+    }
+    if (scope) {
+      scope->Dump(0, false);
     }
   }
 }
@@ -579,7 +588,7 @@ void MIRModule::DumpToCxxHeaderFile(std::set<std::string> &leafClasses, const st
   LogInfo::MapleLogger().rdbuf(mpltFile.rdbuf());  // change cout's buffer to that of file
   char *headerGuard = strdup(pathToOutf.c_str());
   CHECK_FATAL(headerGuard != nullptr, "strdup failed");
-  for (char *p = headerGuard; *p != 0; ++p) {
+  for (char *p = headerGuard; p != nullptr && *p != 0; ++p) {
     if (!isalnum(*p)) {
       *p = '_';
     } else if (isalpha(*p) && islower(*p)) {
@@ -673,8 +682,7 @@ void MIRModule::OutputAsciiMpl(const char *phaseName, const char *suffix,
   } else {
     fileStem = fileName.substr(0, lastDot).append(phaseName);
   }
-  std::string outfileName;
-  outfileName = fileStem + suffix;
+  std::string outfileName = fileStem + suffix;
   if (!binaryform) {
     std::ofstream mplFile;
     mplFile.open(outfileName, std::ios::trunc);
@@ -744,7 +752,7 @@ void MIRModule::RemoveClass(TyIdx tyIdx) {
 }
 
 #endif  // MIR_FEATURE_FULL
-void MIRModule::ReleaseCurFuncMemPoolTmp() {
+void MIRModule::ReleaseCurFuncMemPoolTmp() const {
   CurFunction()->ReleaseMemory();
 }
 

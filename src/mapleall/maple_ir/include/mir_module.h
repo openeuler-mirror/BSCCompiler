@@ -40,6 +40,7 @@ namespace maple {
 class CallInfo;  // circular dependency exists, no other choice
 class MIRModule;  // circular dependency exists, no other choice
 class MIRBuilder;  // circular dependency exists, no other choice
+class MIRScope;
 using MIRModulePtr = MIRModule*;
 using MIRBuilderPtr = MIRBuilder*;
 
@@ -189,6 +190,17 @@ class MIRModule {
   }
   const MapleAllocator &GetMPAllocator() const {
     return memPoolAllocator;
+  }
+
+  MapleAllocator &GetInlineSummaryAlloc() {
+    return inlineSummaryAlloc;
+  }
+
+  void ReleaseInlineSummaryAlloc() noexcept {
+    if (inlineSummaryAlloc.GetMemPool() != nullptr) {
+      delete inlineSummaryAlloc.GetMemPool();
+      inlineSummaryAlloc.SetMemPool(nullptr);
+    }
   }
 
   void ReleasePragmaMemPool() {
@@ -361,7 +373,7 @@ class MIRModule {
     return superCallSet.find(func) != superCallSet.end();
   }
 
-  void ReleaseCurFuncMemPoolTmp();
+  void ReleaseCurFuncMemPoolTmp() const;
   void SetUseFuncCodeMemPoolTmp() {
     useFuncCodeMemPoolTmp = true;
   }
@@ -630,6 +642,10 @@ class MIRModule {
     return dbgInfo;
   }
 
+  MIRScope *GetScope() const {
+    return scope;
+  }
+
   void SetWithDbgInfo(bool v) {
     withDbgInfo = v;
   }
@@ -683,6 +699,7 @@ class MIRModule {
   MemPool *pragmaMemPool;
   MapleAllocator memPoolAllocator;
   MapleAllocator pragmaMemPoolAllocator;
+  MapleAllocator inlineSummaryAlloc;  // For allocating function inline summary
   MapleList<MIRFunction*> functionList;  // function table in the order of the appearance of function bodies; it
   // excludes prototype-only functions
   MapleVector<std::string> importedMplt;
@@ -705,6 +722,7 @@ class MIRModule {
 
   DebugInfo *dbgInfo = nullptr;
   bool withDbgInfo = false;
+  MIRScope *scope = nullptr;
 
   // for cg in mplt
   BinaryMplt *binMplt = nullptr;
