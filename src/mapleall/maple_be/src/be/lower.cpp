@@ -2667,7 +2667,7 @@ BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkN
   bool isCvtU1Expr = (expr.GetOpCode() == OP_cvt && expr.GetPrimType() == PTY_u1 &&
       static_cast<TypeCvtNode&>(expr).FromType() != PTY_u1);
   if (expr.GetPrimType() == PTY_u1) {
-    expr.SetPrimType(PTY_u8);
+    expr.SetPrimType(PTY_i32);
   }
   if (expr.GetOpCode() == OP_intrinsicopwithtype) {
     return LowerIntrinsicopwithtype(parent, static_cast<IntrinsicopNode&>(expr), blkNode);
