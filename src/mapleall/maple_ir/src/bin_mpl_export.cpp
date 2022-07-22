@@ -198,7 +198,7 @@ void OutputTypeFunction(const MIRType &ty, BinaryMplExport &mplExport) {
   mplExport.WriteNum(kBinKindTypeFunction);
   mplExport.OutputTypeBase(type);
   mplExport.OutputType(type.GetRetTyIdx());
-  mplExport.WriteNum(type.funcAttrs.GetAttrFlag());
+  mplExport.WriteNum(static_cast<int64_t>(type.funcAttrs.GetAttrFlag()));
   size_t size = type.GetParamTypeList().size();
   mplExport.WriteNum(size);
   for (size_t i = 0; i < size; ++i) {
@@ -760,7 +760,8 @@ void BinaryMplExport::WriteHeaderField(uint64 contentIdx) {
   WriteNum(mod.GetID());
   if (mod.GetFlavor() == kFlavorLmbc) {
     WriteNum(mod.GetGlobalMemSize());
-    WriteNum(mod.IsWithDbgInfo());
+    int64 dbgInfo = mod.IsWithDbgInfo() ? 1 : 0;
+    WriteNum(dbgInfo);
   }
   WriteNum(mod.GetNumFuncs());
   WriteAsciiStr(mod.GetEntryFuncName());
@@ -1063,7 +1064,7 @@ void BinaryMplExport::WriteEaCgField(EAConnectionGraph *eaCg) {
   WriteInt(0);
   // out this function's arg list
   OutputStr(eaCg->GetFuncNameStrIdx());
-  WriteInt(eaCg->GetNodes().size());
+  WriteInt(static_cast<int32>(eaCg->GetNodes().size()));
   OutEaCgNode(*eaCg->GetGlobalObject());
   size_t outNodeSizeIdx = buf.size();
   WriteInt(0);
@@ -1101,7 +1102,7 @@ void BinaryMplExport::WriteEnumField(uint64 contentIdx) {
   if (GlobalTables::GetEnumTable().enumTable.empty()) {
     return;
   }
-  Fixup(contentIdx, buf.size());
+  Fixup(contentIdx, static_cast<int32>(buf.size()));
   WriteNum(kBinEnumStart);
   uint64 totalSizeIdx = buf.size();
   ExpandFourBuffSize();  // total size of this field to ~BIN_SYM_START
@@ -1138,7 +1139,9 @@ void BinaryMplExport::WriteSymField(uint64 contentIdx) {
       MIRSymKind sKind = s->GetSKind();
       if (s->IsDeleted() || storageClass == kScUnused ||
           (s->GetIsImported() && !s->GetAppearsInCode()) ||
-          (sKind == kStFunc && (storageClass == kScExtern || !s->GetAppearsInCode()))) {
+          (sKind == kStFunc && 
+             ((storageClass == kScExtern && !s->GetFunction()->GetAttr(FUNCATTR_used)) || 
+              !s->GetAppearsInCode()))) {
         continue;
       }
       OutputSymbol(s);
@@ -1320,7 +1323,7 @@ void BinaryMplExport::OutputEnumeration(MIREnum *mirEnum) {
   WriteNum(kBinEnumeration);
   Write(static_cast<uint8>(mirEnum->primType));
   OutputStr(mirEnum->nameStrIdx);
-  WriteNum(mirEnum->elements.size());
+  WriteNum(static_cast<int64>(mirEnum->elements.size()));
   for (size_t i = 0; i < mirEnum->elements.size(); ++i) {
     OutputStr(mirEnum->elements[i].first);
     WriteNum(mirEnum->elements[i].second.GetSXTValue());
