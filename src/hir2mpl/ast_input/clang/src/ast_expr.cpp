@@ -2577,7 +2577,7 @@ UniqueFEIRExpr ASTVAArgExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) c
   // The va_arg will be got from GP or FP/SIMD arg reg
   MIRType *sizeType = GlobalTables::GetTypeTable().GetPtrType();
   UniqueFEIRType sizeFEIRType = std::make_unique<FEIRTypeNative>(*sizeType);
-  MIRType *vaArgType = !info.isCopyedMem ? mirType : sizeType;
+  MIRType *vaArgType = !info.isCopyedMem ? mirType : GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirType);
   MIRType *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*vaArgType);
   UniqueFEIRVar vaArgVar = FEIRBuilder::CreateVarNameForC(FEUtils::GetSequentialName("va_arg_"), *ptrType);
   UniqueFEIRExpr dreadVaArgTop = FEIRBuilder::ReadExprField(
@@ -2609,14 +2609,14 @@ UniqueFEIRExpr ASTVAArgExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) c
   UniqueFEIRStmt endLabelStmt = std::make_unique<FEIRStmtLabel>(endStr);
   stmts.emplace_back(std::move(endLabelStmt));
   UniqueFEIRExpr dreadRetVar = FEIRBuilder::CreateExprDRead(vaArgVar->Clone());
+  UniqueFEIRType ptrFEIRType = std::make_unique<FEIRTypeNative>(*ptrType);
   if (info.isCopyedMem) {
-    UniqueFEIRType ptrPtrFEIRType = std::make_unique<FEIRTypeNative>(
-        *GlobalTables::GetTypeTable().GetOrCreatePointerType(*ptrType));
-    dreadRetVar = FEIRBuilder::CreateExprIRead(
-        std::move(sizeFEIRType), std::move(ptrPtrFEIRType), std::move(dreadRetVar));
+    MIRType *tmpType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirType);
+    UniqueFEIRType tmpFETRType = std::make_unique<FEIRTypeNative>(*tmpType);
+    dreadRetVar = FEIRBuilder::CreateExprIRead(tmpFETRType->Clone(), ptrFEIRType->Clone(), std::move(dreadRetVar));
+    ptrFEIRType = std::move(tmpFETRType);
   }
   UniqueFEIRType baseFEIRType = std::make_unique<FEIRTypeNative>(*mirType);
-  UniqueFEIRType ptrFEIRType = std::make_unique<FEIRTypeNative>(*ptrType);
   UniqueFEIRExpr retExpr = FEIRBuilder::CreateExprIRead(
       std::move(baseFEIRType), std::move(ptrFEIRType), std::move(dreadRetVar));
   return retExpr;
