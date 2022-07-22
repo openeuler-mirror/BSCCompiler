@@ -43,6 +43,7 @@ src_libmplir = [
   "src/mir_nodes.cpp",
   "src/mir_symbol.cpp",
   "src/mir_type.cpp",
+  "src/mir_enumeration.cpp",
   "src/opcode_info.cpp",
   "src/option.cpp",
   "src/mpl2mpl_options.cpp",

@@ -61,8 +61,8 @@ class BinaryMplImport {
     imported = importedVal;
   }
 
-  bool Import(const std::string &modid, bool readSymbols = false, bool readSe = false);
-  bool ImportForSrcLang(const std::string &modid, MIRSrcLang &srcLang);
+  bool Import(const std::string &fname, bool readSymbols = false, bool readSe = false);
+  bool ImportForSrcLang(const std::string &fname, MIRSrcLang &srcLang);
   MIRSymbol *GetOrCreateSymbol(TyIdx tyIdx, GStrIdx strIdx, MIRSymKind mclass, MIRStorageClass sclass,
                                MIRFunction *func, uint8 scpID);
   int32 ReadInt();
@@ -91,7 +91,7 @@ class BinaryMplImport {
   void SkipTotalSize();
   void ImportFieldsOfStructType(FieldVector &fields, uint32 methodSize);
   MIRType &InsertInTypeTables(MIRType &ptype);
-  void InsertInHashTable(MIRType &ptype);
+  void InsertInHashTable(MIRType &type);
   void SetupEHRootType();
   void UpdateMethodSymbols();
   void ImportConstBase(MIRConstKind &kind, MIRTypePtr &type);
@@ -118,7 +118,7 @@ class BinaryMplImport {
   void ImportInfoIsStringOfStructType(MIRStructType &type);
   void ImportInfoOfStructType(MIRStructType &type);
   void ImportPragmaOfStructType(MIRStructType &type);
-  void SetClassTyidxOfMethods(MIRStructType &type);
+  void SetClassTyidxOfMethods(MIRStructType &type) const;
   void ImportClassTypeData(MIRClassType &type);
   void ImportInterfaceTypeData(MIRInterfaceType &type);
   PUIdx ImportFunction();
@@ -126,6 +126,7 @@ class BinaryMplImport {
   void ImportInfoVector(MIRInfoVector &infoVector, MapleVector<bool> &infoVectorIsString);
   void ImportLocalTypeNameTable(MIRTypeNameTable *typeNameTab);
   void ImportFuncIdInfo(MIRFunction *func);
+  void ImportEnumeration();
   MIRSymbol *ImportLocalSymbol(MIRFunction *func);
   PregIdx ImportPreg(MIRFunction *func);
   LabelIdx ImportLabel(MIRFunction *func);
@@ -136,9 +137,10 @@ class BinaryMplImport {
   PUIdx ImportFuncViaSym(MIRFunction *func);
   BaseNode *ImportExpression(MIRFunction *func);
   void ImportReturnValues(MIRFunction *func, CallReturnVector *retv);
-  BlockNode *ImportBlockNode(MIRFunction *fn);
+  BlockNode *ImportBlockNode(MIRFunction *func);
   void ReadFunctionBodyField();
-  void ReadFileAt(const std::string &modid, int32 offset);
+  void ReadEnumField();
+  void ReadFileAt(const std::string &name, int32 offset);
   uint8 Read();
   int64 ReadInt64();
   void ReadAsciiStr(std::string &str);

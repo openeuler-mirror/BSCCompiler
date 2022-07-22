@@ -28,6 +28,7 @@
 #include "namemangler.h"
 #include "mir_type.h"
 #include "mir_const.h"
+#include "mir_enumeration.h"
 
 namespace maple {
 using TyIdxFieldAttrPair = std::pair<TyIdx, FieldAttrs>;
@@ -433,8 +434,8 @@ class TypeTable {
     return GetOrCreateClassOrInterface(name, module, false);
   }
 
-  void PushIntoFieldVector(FieldVector &fields, const std::string &name, const MIRType &type);
-  void AddFieldToStructType(MIRStructType &structType, const std::string &fieldName, const MIRType &fieldType);
+  void PushIntoFieldVector(FieldVector &fields, const std::string &name, const MIRType &type) const;
+  void AddFieldToStructType(MIRStructType &structType, const std::string &fieldName, const MIRType &fieldType) const;
 
   TyIdx lastDefaultTyIdx;
  private:
@@ -838,6 +839,10 @@ class GlobalTables {
     return *(globalTables.intConstTablePtr);
   }
 
+  static EnumTable &GetEnumTable() {
+    return globalTables.enumTable;
+  }
+
   GlobalTables(const GlobalTables &globalTables) = delete;
   GlobalTables(const GlobalTables &&globalTables) = delete;
   GlobalTables &operator=(const GlobalTables &globalTables) = delete;
@@ -863,6 +868,7 @@ class GlobalTables {
   StringTable<std::string, GStrIdx> gStringTable;
   StringTable<std::string, UStrIdx> uStrTable;
   StringTable<std::u16string, U16StrIdx> u16StringTable;
+  EnumTable enumTable;
 };
 
 inline MIRType &GetTypeFromTyIdx(TyIdx idx) {

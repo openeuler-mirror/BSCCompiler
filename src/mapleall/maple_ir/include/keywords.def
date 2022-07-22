@@ -23,7 +23,7 @@
 #undef PRIMTYPE
   // intrinsic names
 #undef DEF_MIR_INTRINSIC
-#define DEF_MIR_INTRINSIC(X, NAME, INTRN_CLASS, RETURN_TYPE, ...)  KEYWORD(X)
+#define DEF_MIR_INTRINSIC(X, NAME, NUM_INSN, INTRN_CLASS, RETURN_TYPE, ...)  KEYWORD(X)
 #include "intrinsics.def"
 #undef DEF_MIR_INTRINSIC
   KEYWORD(else)
@@ -32,6 +32,7 @@
   KEYWORD(tempvar)
   KEYWORD(reg)
   KEYWORD(type)
+  KEYWORD(enumeration)
   KEYWORD(func)
   KEYWORD(struct)
   KEYWORD(structincomplete)
