@@ -2333,8 +2333,8 @@ void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) {
   }
   RegOperand *param0 = PrepareMemcpyParamOpnd(offset, *dest);
   RegOperand *param1 = static_cast<RegOperand *>(src);
-  RegOperand *param2 = PrepareMemcpyParamOpnd(bNode.blockSize);
-  if (bNode.blockSize > kParmMemcpySize) {
+  RegOperand *param2 = PrepareMemcpyParamOpnd(static_cast<uint64>(static_cast<int64>(bNode.blockSize)));
+  if (bNode.blockSize > static_cast<int32>(kParmMemcpySize)) {
     std::vector<Operand*> opndVec;
     opndVec.push_back(regResult); /* result */
     opndVec.push_back(param0);    /* param 0 */
@@ -2343,9 +2343,9 @@ void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) {
     SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
   } else {
     int32 copyOffset = 0;
-    int32 inc = 0;
+    uint32 inc = 0;
     bool isPair;
-    for (uint32 sz = bNode.blockSize; sz > 0; ) {
+    for (uint32 sz = static_cast<uint32>(bNode.blockSize); sz > 0;) {
       isPair = false;
       MOperator ldOp, stOp;
       if (sz >= k16ByteSize) {
@@ -2390,7 +2390,7 @@ void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) {
         GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(ldOp, ldResult, ldMem));
         GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(stOp, ldResult, stMem));
       }
-      copyOffset += inc;
+      copyOffset += static_cast<int32>(inc);
     }
   }
 }
@@ -3342,6 +3342,8 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr,
           break;
         default:
           destType = PTY_u64; // when eval agg . a way to round up
+          ASSERT(bitSize == 0, " round up empty agg ");
+          bitSize = k64BitSize;
           break;
       }
     }
