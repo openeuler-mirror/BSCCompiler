@@ -1139,9 +1139,7 @@ void BinaryMplExport::WriteSymField(uint64 contentIdx) {
       MIRSymKind sKind = s->GetSKind();
       if (s->IsDeleted() || storageClass == kScUnused ||
           (s->GetIsImported() && !s->GetAppearsInCode()) ||
-          (sKind == kStFunc && 
-             ((storageClass == kScExtern && !s->GetFunction()->GetAttr(FUNCATTR_used)) || 
-              !s->GetAppearsInCode()))) {
+          (sKind == kStFunc && (storageClass == kScExtern || !s->GetAppearsInCode()))) {
         continue;
       }
       OutputSymbol(s);

@@ -318,7 +318,7 @@ void MIRSymbol::Dump(bool isLocal, int32 indent, bool suppressInit, const MIRSym
   }
   // exclude unused symbols, formal symbols and extern functions
   if (GetStorageClass() == kScUnused || GetStorageClass() == kScFormal ||
-      (GetStorageClass() == kScExtern && sKind == kStFunc && !GetFunction()->GetAttr(FUNCATTR_used))) {
+      (GetStorageClass() == kScExtern && sKind == kStFunc)) {
     return;
   }
   if (GetIsImported() && !GetAppearsInCode()) {

@@ -17,11 +17,12 @@
 
 #include "cgfunc.h"
 #include "cg_phase.h"
+#include "cg_dominance.h"
 
 namespace maplebe {
 class RaOpt {
  public:
-  explicit RaOpt(CGFunc &func, MemPool &pool) : cgFunc(&func), memPool(&pool) {}
+  RaOpt(CGFunc &func, MemPool &pool) : cgFunc(&func), memPool(&pool) {}
 
   virtual ~RaOpt() = default;
 
@@ -38,13 +39,17 @@ class RaOpt {
     return memPool;
   }
 
+  void SetDomInfo(DomAnalysis *curDom) {
+    domInfo = curDom;
+  }
+
  protected:
   CGFunc *cgFunc;
   MemPool *memPool;
+  DomAnalysis *domInfo = nullptr;
 };
 
-MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgRaOpt, maplebe::CGFunc)
-MAPLE_FUNC_PHASE_DECLARE_END
+MAPLE_FUNC_PHASE_DECLARE(CgRaOpt, maplebe::CGFunc)
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_RAOPT_H */

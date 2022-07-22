@@ -98,6 +98,27 @@ class RaX0Opt {
   CGFunc *cgFunc;
 };
 
+class ParamRegOpt {
+ public:
+  ParamRegOpt(CGFunc *func, DomAnalysis *dom) : cgFunc(func), domInfo(dom) {}
+  ~ParamRegOpt() = default;
+
+  void HandleParamReg();
+  void CollectRefBBs(RegOperand &movDest, std::set<uint32> &refBBs);
+  void TryToSplitParamReg(RegOperand &movDest, Insn &posInsn);
+  BB* GetCommondDom(std::set<uint32> &refBBs);
+  bool DominatorAll(uint32 domBB, std::set<uint32> &refBBs);
+  void SplitAtDomBB(RegOperand &movDest, BB &domBB, Insn &posInsn);
+  void SetDumpInfo(bool val) {
+    dumpInfo = val;
+  }
+
+ private:
+  CGFunc *cgFunc;
+  DomAnalysis *domInfo;
+  bool dumpInfo = false;
+};
+
 class VregRenameInfo {
  public:
   VregRenameInfo() = default;

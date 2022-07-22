@@ -17,6 +17,9 @@
 #include "aarch64_ra_opt.h"
 
 namespace maplebe {
+
+#define RAOPT_DUMP CG_DEBUG_FUNC(*cgFunc)
+
 using namespace std;
 bool RaX0Opt::PropagateX0CanReplace(Operand *opnd, regno_t replaceReg) const {
   if (opnd != nullptr) {
@@ -516,9 +519,165 @@ void VregRename::VregLongLiveRename() {
   }
 }
 
+bool ParamRegOpt::DominatorAll(uint32 domBB, std::set<uint32> &refBBs) {
+  for (auto it: refBBs) {
+    if (!domInfo->Dominate(*cgFunc->GetBBFromID(domBB), *cgFunc->GetBBFromID(it))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+BB* ParamRegOpt::GetCommondDom(std::set<uint32> &refBBs) {
+  MapleVector<uint32> &domOrder = domInfo->GetDtPreOrder();
+  uint32 minId = static_cast<uint32>(domOrder.size());
+  for (auto it = domOrder.rbegin(); it != domOrder.rend(); ++it) {
+    uint32 curBBId = *it;
+    if (refBBs.find(curBBId) != refBBs.end()) {
+      minId = curBBId;
+    }
+  }
+  if (DominatorAll(minId, refBBs)) {
+    BB* domBB = cgFunc->GetBBFromID(minId);
+    while (domBB->GetLoop() != nullptr) {
+      domBB = domInfo->GetDom(domBB->GetId());
+    }
+    return domBB;
+  }
+  BB *curBB = domInfo->GetDom(minId);
+  while (curBB != nullptr && curBB != cgFunc->GetFirstBB()) {
+    if (DominatorAll(curBB->GetId(), refBBs)) {
+      break;
+    }
+    curBB = domInfo->GetDom(curBB->GetId());
+  }
+  if (curBB == nullptr || curBB == cgFunc->GetFirstBB()) {
+    return nullptr;
+  }
+  while (curBB->GetLoop() != nullptr) {
+    curBB = domInfo->GetDom(curBB->GetId());
+  }
+  return curBB;
+}
+
+void ParamRegOpt::SplitAtDomBB(RegOperand &movDest, BB &domBB, Insn &posInsn) {
+  if (dumpInfo) {
+    LogInfo::MapleLogger() << "----cand R" << movDest.GetRegisterNumber() <<
+        " to split at BB" << domBB.GetId() << " \n";
+  }
+  uint32 size = (movDest.GetSize() == k64BitSize) ? k8ByteSize : k4ByteSize;
+  regno_t newRegno = cgFunc->NewVReg(movDest.GetRegisterType(), size);
+  RegOperand *renameVreg = &cgFunc->CreateVirtualRegisterOperand(newRegno);
+  MOperator mOp = (movDest.GetRegisterType() == kRegTyInt) ?
+                  ((size == k8BitSize) ? MOP_xmovrr : MOP_wmovrr) :
+                  ((size == k8BitSize) ? MOP_xvmovd : MOP_xvmovs);
+  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, movDest, *renameVreg);
+  domBB.InsertInsnBegin(newInsn);
+  posInsn.SetOperand(kFirstOpnd, *renameVreg);
+}
+
+void ParamRegOpt::CollectRefBBs(RegOperand &movDest, std::set<uint32> &refBBs) {
+  regno_t cand = movDest.GetRegisterNumber();
+  BB* firstBB = cgFunc->GetFirstBB();
+  std::set<uint32> defBBs;
+  std::set<uint32> useBBs;
+  std::set<uint32> crossCallBBs;
+  FOR_ALL_BB(bb, cgFunc) {
+    bool bbHasCall = false;
+    FOR_BB_INSNS(insn, bb) {
+      if (insn->IsImmaterialInsn() || !insn->IsMachineInstruction()) {
+        continue;
+      }
+      bbHasCall = bbHasCall || insn->IsCall();
+      if (static_cast<AArch64Insn*>(insn)->IsRegDefOrUse(cand)) {
+        if (static_cast<AArch64Insn*>(insn)->IsRegDefined(cand)) {
+          (void)defBBs.insert(bb->GetId());
+          if (bbHasCall) {
+            (void)crossCallBBs.insert(bb->GetId());
+          }
+        } else {
+          (void)useBBs.insert(bb->GetId());
+          if (bbHasCall) {
+            (void)crossCallBBs.insert(bb->GetId());
+          }
+        }
+      }
+    }
+    if (bbHasCall && (bb->GetLiveOutRegNO().find(cand) != bb->GetLiveOutRegNO().end() ||
+                      bb->GetLiveInRegNO().find(cand) != bb->GetLiveInRegNO().end())) {
+      (void)crossCallBBs.insert(bb->GetId());
+    }
+  }
+  /* expect single def and cross call */
+  if (defBBs.size() != 1 || crossCallBBs.empty()) {
+    return;
+  }
+  /* single defBB should be the firstBB */
+  if (defBBs.find(firstBB->GetId()) == defBBs.end()) {
+    return;
+  }
+  /* expect no use or call in the firstBB */
+  if (useBBs.find(firstBB->GetId()) != useBBs.end() || crossCallBBs.find(firstBB->GetId()) != crossCallBBs.end()) {
+    return;
+  }
+  useBBs.insert(crossCallBBs.begin(), crossCallBBs.end());
+  refBBs.insert(useBBs.begin(), useBBs.end());
+}
+
+void ParamRegOpt::TryToSplitParamReg(RegOperand &movDest, Insn &posInsn) {
+  std::set<uint32> useBBs;
+  CollectRefBBs(movDest, useBBs);
+  if (useBBs.empty()) {
+    return;
+  }
+  /* common dom */
+  BB* firstBB = cgFunc->GetFirstBB();
+  BB *domBB = GetCommondDom(useBBs);
+  BB *secondBB = nullptr;
+  if (firstBB->GetSuccs().size() == 1) {
+    secondBB = *firstBB->GetSuccs().begin();
+  }
+  if (domBB == nullptr || domBB == firstBB || domBB == secondBB) {
+    return;
+  }
+  /* do split */
+  SplitAtDomBB(movDest, *domBB, posInsn);
+}
+
+void ParamRegOpt::HandleParamReg() {
+  uint32 formalCount = static_cast<uint32>(cgFunc->GetFunction().GetFormalCount());
+  if (formalCount == 0) {
+    return;
+  }
+  BB* firstBB = cgFunc->GetFirstBB();
+  FOR_BB_INSNS(insn, firstBB) {
+    if (!insn->IsMachineInstruction()) {
+      continue;
+    }
+    if (insn->GetMachineOpcode() != MOP_xmovrr && insn->GetMachineOpcode() != MOP_wmovrr &&
+        insn->GetMachineOpcode() != MOP_xvmovd && insn->GetMachineOpcode() != MOP_xvmovs) {
+      return;
+    }
+    RegOperand &movDest = static_cast<RegOperand&>(insn->GetOperand(kFirstOpnd));
+    RegOperand &movSrc = static_cast<RegOperand&>(insn->GetOperand(kSecondOpnd));
+    if (movSrc.IsVirtualRegister()) {
+      return;
+    }
+    TryToSplitParamReg(movDest, *insn);
+  }
+}
+
 void AArch64RaOpt::Run() {
   RaX0Opt x0Opt(cgFunc);
   x0Opt.PropagateX0();
+
+  if (RAOPT_DUMP) {
+    LogInfo::MapleLogger() << "Handle func:" << cgFunc->GetName() << ", funcid: " <<
+        cgFunc->GetFunction().GetPuidx() << " \n";
+  }
+  ParamRegOpt argOpt(cgFunc, domInfo);
+  argOpt.SetDumpInfo(RAOPT_DUMP);
+  argOpt.HandleParamReg();
 
   if (cgFunc->GetMirModule().GetSrcLang() == kSrcLangC && CGOptions::DoVregRename()) {
     /* loop detection considers EH bb.  That is not handled.  So C only for now. */
