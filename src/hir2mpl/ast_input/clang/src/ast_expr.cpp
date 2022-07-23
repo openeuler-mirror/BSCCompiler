@@ -2228,10 +2228,12 @@ UniqueFEIRExpr ASTBinaryOperatorExpr::Emit2FEExprLogicOperate(std::list<UniqueFE
   if (leftFEExpr != nullptr) {
     auto leftCond = FEIRBuilder::CreateExprZeroCompare(OP_ne, std::move(leftFEExpr));
     UniqueFEIRStmt leftCondGoToExpr = std::make_unique<FEIRStmtCondGotoForC>(leftCond->Clone(), op, jumpToLabel);
+    leftCondGoToExpr->SetSrcLoc(leftExpr->GetSrcLoc());
     stmts.emplace_back(std::move(leftCondGoToExpr));
   }
 
   auto rightCondlabelStmt = std::make_unique<FEIRStmtLabel>(rightCondLabel);
+  rightCondlabelStmt->SetSrcLoc(loc);
   stmts.emplace_back(std::move(rightCondlabelStmt));
 
   // brfalse/brtrue label (rightCond)
@@ -2239,7 +2241,9 @@ UniqueFEIRExpr ASTBinaryOperatorExpr::Emit2FEExprLogicOperate(std::list<UniqueFE
   if (rightFEExpr != nullptr) {
     auto rightCond = FEIRBuilder::CreateExprZeroCompare(OP_ne, std::move(rightFEExpr));
     UniqueFEIRStmt rightCondGoToExpr = std::make_unique<FEIRStmtCondGotoForC>(rightCond->Clone(), op, jumpToLabel);
+    rightCondGoToExpr->SetSrcLoc(rightExpr->GetSrcLoc());
     UniqueFEIRStmt goStmt = FEIRBuilder::CreateStmtGoto(fallthrouLabel);
+    goStmt->SetSrcLoc(rightExpr->GetSrcLoc());
     stmts.emplace_back(std::move(rightCondGoToExpr));
     stmts.emplace_back(std::move(goStmt));
   }
@@ -2251,11 +2255,17 @@ UniqueFEIRExpr ASTBinaryOperatorExpr::Emit2FEExprLogicOperate(std::list<UniqueFE
     UniqueFEIRExpr trueConst = FEIRBuilder::CreateExprConstAnyScalar(PTY_u32, 1);
     UniqueFEIRExpr falseConst = FEIRBuilder::CreateExprConstAnyScalar(PTY_u32, 0);
     UniqueFEIRStmt goStmt = FEIRBuilder::CreateStmtGoto(nextLabel);
+    goStmt->SetSrcLoc(rightExpr->GetSrcLoc());
     auto trueCircuit = std::make_unique<FEIRStmtDAssign>(shortCircuit->Clone(), std::move(trueConst), 0);
+    trueCircuit->SetSrcLoc(rightExpr->GetSrcLoc());
     auto falseCircuit = std::make_unique<FEIRStmtDAssign>(shortCircuit->Clone(), std::move(falseConst), 0);
+    falseCircuit->SetSrcLoc(rightExpr->GetSrcLoc());
     auto labelFallthrouStmt = std::make_unique<FEIRStmtLabel>(fallthrouLabel);
+    labelFallthrouStmt->SetSrcLoc(rightExpr->GetSrcLoc());
     auto labelJumpToStmt = std::make_unique<FEIRStmtLabel>(jumpToLabel);
+    labelJumpToStmt->SetSrcLoc(rightExpr->GetSrcLoc());
     auto labelNextStmt = std::make_unique<FEIRStmtLabel>(nextLabel);
+    labelNextStmt->SetSrcLoc(rightExpr->GetSrcLoc());
     stmts.emplace_back(std::move(labelFallthrouStmt));
     stmts.emplace_back(op == OP_brtrue ? std::move(falseCircuit) : std::move(trueCircuit));
     stmts.emplace_back(std::move(goStmt));
