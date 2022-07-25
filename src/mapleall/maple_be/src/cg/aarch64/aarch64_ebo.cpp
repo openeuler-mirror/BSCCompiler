@@ -1239,7 +1239,7 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
           auto &immOpnd = static_cast<ImmOperand&>(insn1->GetOperand(kInsnThirdOpnd));
           uint32 xLslrriBitLen = 6;
           uint32 wLslrriBitLen = 5;
-          Operand &shiftOpnd = aarchFunc->CreateBitShiftOperand(BitShiftOperand::kLSL,
+          Operand &shiftOpnd = aarchFunc->CreateBitShiftOperand(BitShiftOperand::kShiftLSL,
               static_cast<uint32>(immOpnd.GetValue()), static_cast<int32>((
               opCode == MOP_xlslrri6) ? xLslrriBitLen : wLslrriBitLen));
           MOperator mOp = (is64bits ? MOP_xaddrrrs : MOP_waddrrrs);

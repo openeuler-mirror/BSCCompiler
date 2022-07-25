@@ -56,7 +56,7 @@ bool RaX0Opt::PropagateRenameReg(Insn *nInsn, const X0OptInfo &optVal) const {
         memopnd.SetIndexRegister(*renameOpnd);
       }
     } else if (opnd.IsRegister()) {
-      bool isdef = (md->GetOperand(i))->IsRegDef();
+      bool isdef = (md->GetOperand(static_cast<uint32>(i)))->IsRegDef();
       RegOperand &regopnd = static_cast<RegOperand&>(opnd);
       regno_t regCandidate = regopnd.GetRegisterNumber();
       if (isdef) {

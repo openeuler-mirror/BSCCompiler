@@ -533,7 +533,7 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
     uint8 end = 0;
     bool isFound = false;
     CHECK_FATAL(val > 0, "do not perform bit operator operations on signed integers");
-    for (uint32 i = 0; i < k64BitSize; ++i) {
+    for (uint8 i = 0; i < k64BitSize; ++i) {
       /* check whether the ith bit of val is 1 or not */
       if (((static_cast<uint64>(val) >> i) & 0x1) == 0x1) {
         if (!isFound) {
@@ -636,8 +636,8 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
   }
 
   std::string GetHashContent() const override {
-    return std::to_string(opndKind) + std::to_string(value) + std::to_string(isSigned) + std::to_string(isVary) +
-           std::to_string(isFmov);
+    return std::to_string(opndKind) + std::to_string(value) + std::to_string(static_cast<int>(isSigned)) +
+        std::to_string(static_cast<int>(isVary)) + std::to_string(static_cast<int>(isFmov));
   }
 
   bool ValueEquals(const ImmOperand &op) const {
@@ -1733,7 +1733,6 @@ class CGLabelOperand : public OperandVisitable<CGLabelOperand> {
  protected:
   LabelIdx labelIndex;
   const std::string parentFunc;
-
 };
 
 namespace operand {

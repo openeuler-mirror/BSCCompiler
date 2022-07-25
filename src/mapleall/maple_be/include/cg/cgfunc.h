@@ -910,7 +910,7 @@ class CGFunc {
     }
   }
 
-  int16 GetLmbcArgsInRegs(RegType ty) const {
+  int32 GetLmbcArgsInRegs(RegType ty) const {
     return ty == kRegTyInt ? lmbcIntArgs : lmbcFpArgs;
   }
 

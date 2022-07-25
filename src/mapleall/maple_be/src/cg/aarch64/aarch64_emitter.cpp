@@ -987,7 +987,7 @@ static void AsmStringOutputRegNum(
     strToEmit += static_cast<char>(kZeroAsciiNum + tenth);
     newRegno -= (kDecimalMax * tenth);
   }
-  strToEmit += static_cast<int32>(newRegno) + kZeroAsciiNum;
+  strToEmit += static_cast<char>(static_cast<int32>(newRegno) + kZeroAsciiNum);
 }
 
 void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const {

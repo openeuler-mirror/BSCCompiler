@@ -38,7 +38,7 @@ class LmbcArgInfo {
   MapleVector<PrimType> lmbcCallArgTypes;
   MapleVector<int32> lmbcCallArgOffsets;
   MapleVector<int32> lmbcCallArgNumOfRegs; // # of regs needed to complete struct
-  uint32 lmbcTotalStkUsed = -1;    // remove when explicit addr for large agg is available
+  int32 lmbcTotalStkUsed = -1;    // remove when explicit addr for large agg is available
 };
 
 class AArch64CGFunc : public CGFunc {
@@ -212,7 +212,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectBior(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
   void SelectBior(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
   Operand *SelectBxor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
-  void SelectBxor(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType) override;
+  void SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
 
   void SelectBxorShift(Operand &resOpnd, Operand *opnd0, Operand *opnd1, Operand &opnd2, PrimType primType);
   Operand *SelectLand(BinaryNode &node, Operand &lhsOpnd, Operand &rhsOpnd, const BaseNode &parent) override;

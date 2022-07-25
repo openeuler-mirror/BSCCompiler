@@ -384,7 +384,7 @@ bool NegCmpToCmnPattern::CheckCondition(Insn &insn) {
       return false;
     }
     bool findUnsignedCond = false;
-    for (size_t i = 0; i < useInsn->GetOperandSize(); ++i) {
+    for (uint32 i = 0; i < useInsn->GetOperandSize(); ++i) {
       if (useInsn->GetOperand(i).GetKind() == Operand::kOpdCond) {
         AArch64CC_t cond = static_cast<CondOperand&>(useInsn->GetOperand(i)).GetCode();
         /* in case of ignoring v flag
@@ -1361,10 +1361,10 @@ bool LogicShiftAndOrrToExtrPattern::CheckCondition(Insn &insn) {
     int64 prevImm = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd)).GetValue();
     auto &shiftOpnd = static_cast<BitShiftOperand&>(insn.GetOperand(kInsnFourthOpnd));
     uint32 shiftAmount = shiftOpnd.GetShiftAmount();
-    if (shiftOpnd.GetShiftOp() == BitShiftOperand::kLSL && (prevMop == MOP_wlsrrri5 || prevMop == MOP_xlsrrri6)) {
+    if (shiftOpnd.GetShiftOp() == BitShiftOperand::kShiftLSL && (prevMop == MOP_wlsrrri5 || prevMop == MOP_xlsrrri6)) {
       prevLsrInsn = prevInsn;
       shiftValue = prevImm;
-    } else if (shiftOpnd.GetShiftOp() == BitShiftOperand::kLSR &&
+    } else if (shiftOpnd.GetShiftOp() == BitShiftOperand::kShiftLSR &&
                (prevMop == MOP_wlslrri5 || prevMop == MOP_xlslrri6)) {
       prevLslInsn = prevInsn;
       shiftValue = shiftAmount;
@@ -2836,7 +2836,8 @@ bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(const Insn &curI
                   "split with wrong add");
       auto &immOpnd = static_cast<ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
       auto &shiftOpnd = static_cast<LogicalShiftLeftOperand&>(defInsn->GetOperand(kInsnFourthOpnd));
-      addVal = (immOpnd.GetValue() << shiftOpnd.GetShiftAmount()) + addImmOpnd.GetValue();
+      addVal = static_cast<int64>((static_cast<uint64>(immOpnd.GetValue()) << shiftOpnd.GetShiftAmount())) +
+          addImmOpnd.GetValue();
     } else {
       addVal = addImmOpnd.GetValue();
     }
@@ -3872,7 +3873,7 @@ void ReplaceDivToMultiPattern::Run(BB &bb, Insn &insn) {
         aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(sdivOpnd1RegNum),
                                                           k64BitSize, kRegTyInt);
     /* shift bit amount is thirty-one at this insn */
-    BitShiftOperand &addLsrOpnd = aarch64CGFunc->CreateBitShiftOperand(BitShiftOperand::kLSR, 31, 6);
+    BitShiftOperand &addLsrOpnd = aarch64CGFunc->CreateBitShiftOperand(BitShiftOperand::kShiftLSR, 31, 6);
     Insn &addLsrInsn = cg->BuildInstruction<AArch64Insn>(MOP_xaddrrrs, extendSdivOpnd0, tempOpnd,
                                                          extendSdivOpnd1, addLsrOpnd);
     bb.InsertInsnBefore(*prePrevInsn, addLsrInsn);
@@ -4722,7 +4723,7 @@ void ReplaceCmpToCmnAArch64::Run(BB &bb, Insn &insn) {
   if (opnd2OfMov->IsIntImmediate()) {
     ImmOperand *immOpnd = static_cast<ImmOperand*>(opnd2OfMov);
     int64 iVal = immOpnd->GetValue();
-    if ((kNegativeImmLowerLimit <= iVal && iVal < 0) || iVal == negOne) {
+    if ((kNegativeImmLowerLimit <= iVal && iVal < 0) || static_cast<uint64>(iVal) == negOne) {
       Insn *nextInsn = insn.GetNextMachineInsn();  /* get the next insn to judge if it is a cmp instruction. */
       if (nextInsn != nullptr) {
         if (nextInsn->GetMachineOpcode() == nextMop) {

@@ -318,7 +318,7 @@ class A64OpndEmitVisitor : public OpndEmitVisitor {
 
  private:
   void EmitVectorOperand(const RegOperand &v);
-  void EmitIntReg(const RegOperand &v, uint8 opndSz = kMaxSimm32);
+  void EmitIntReg(const RegOperand &v, int32 opndSz = kMaxSimm32);
 
   const OpndProp *opndProp;
 };

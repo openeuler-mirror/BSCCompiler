@@ -118,7 +118,6 @@ class PhiOcc : public Occ {
     LogInfo::MapleLogger() << "]";
   }
 
-
   bool isDownsafe = true;
   bool speculativeDownsafe = false;  // true if set to downsafe via speculation
   bool isCanBeAvail = true;

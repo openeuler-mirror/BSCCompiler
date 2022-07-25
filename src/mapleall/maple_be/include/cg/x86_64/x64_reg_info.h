@@ -21,8 +21,7 @@ namespace maplebe {
 
 class X64RegInfo : public RegisterInfo {
  public:
-  X64RegInfo(MapleAllocator &mallocator): RegisterInfo(mallocator) {
-  }
+  X64RegInfo(MapleAllocator &mallocator): RegisterInfo(mallocator) {}
 
   ~X64RegInfo() override = default;
 

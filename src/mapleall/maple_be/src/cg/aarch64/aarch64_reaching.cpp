@@ -123,7 +123,7 @@ void AArch64ReachingDefinition::InitStartGen() {
 
   for (uint32 i = 0; i < a64CGFunc->GetRefCount(); ++i) {
     MemOperand *memOpnd = a64CGFunc->CreateStackMemOpnd(
-        RFP, static_cast<int32>(a64CGFunc->GetBeginOffset() + i * k8BitSize), k64BitSize);
+        RFP, a64CGFunc->GetBeginOffset() + static_cast<int32>(i * k8BitSize), k64BitSize);
     Insn &pseudoInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_pseudo_ref_init_x, *memOpnd);
 
     bb->InsertInsnBegin(pseudoInsn);

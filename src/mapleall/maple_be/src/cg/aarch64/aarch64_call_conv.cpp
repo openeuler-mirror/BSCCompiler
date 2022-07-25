@@ -436,7 +436,7 @@ int32 AArch64CallConvImpl::ProcessPtyAggWhenLocateNextParm(MIRType &mirType, CCL
    * Note. This is one of a few things iOS diverges from
    * the ARM 64-bit standard. They don't observe the round-up requirement.
    */
-  if (typeAlign == k16ByteSize) {
+  if (typeAlign == k16ByteSizeInt) {
     RoundNGRNUpToNextEven();
   }
 

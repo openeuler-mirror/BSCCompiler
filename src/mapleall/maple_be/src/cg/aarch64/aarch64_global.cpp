@@ -1437,13 +1437,13 @@ void ExtendShiftOptPattern::SelectExtendOrShift(const Insn &def) {
     case MOP_xuxtw64: extendOp = ExtendShiftOperand::kUXTW;
       break;
     case MOP_wlslrri5:
-    case MOP_xlslrri6: shiftOp = BitShiftOperand::kLSL;
+    case MOP_xlslrri6: shiftOp = BitShiftOperand::kShiftLSL;
       break;
     case MOP_xlsrrri6:
-    case MOP_wlsrrri5: shiftOp = BitShiftOperand::kLSR;
+    case MOP_wlsrrri5: shiftOp = BitShiftOperand::kShiftLSR;
       break;
     case MOP_xasrrri6:
-    case MOP_wasrrri5: shiftOp = BitShiftOperand::kASR;
+    case MOP_wasrrri5: shiftOp = BitShiftOperand::kShiftASR;
       break;
     default: {
       extendOp = ExtendShiftOperand::kUndef;
@@ -1477,7 +1477,7 @@ bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, uint32 size) {
       (regDefSrc.GetSize() > regOperand.GetSize() || useDefOpnd.GetSize() != size)) {
     return false;
   }
-  if ((shiftOp == BitShiftOperand::kLSR || shiftOp == BitShiftOperand::kASR) &&
+  if ((shiftOp == BitShiftOperand::kShiftLSR || shiftOp == BitShiftOperand::kShiftASR) &&
       (defSrcOpnd.GetSize() > size)) {
     return false;
   }

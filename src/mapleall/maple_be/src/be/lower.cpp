@@ -189,9 +189,8 @@ BaseNode *CGLowerer::LowerIaddrof(const IreadNode &iaddrof) {
     return iaddrof.Opnd(0);
   }
   uint32 loweredPtrType = static_cast<uint32>(LOWERED_PTR_TYPE);
-  MIRIntConst *offsetConst =
-      GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-          offset, *GlobalTables::GetTypeTable().GetTypeTable().at(loweredPtrType));
+  MIRIntConst *offsetConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+      static_cast<uint64>(static_cast<int64>(offset)), *GlobalTables::GetTypeTable().GetTypeTable().at(loweredPtrType));
   BaseNode *offsetNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(offsetConst);
   offsetNode->SetPrimType(LOWERED_PTR_TYPE);
 
@@ -447,7 +446,7 @@ BaseNode *CGLowerer::LowerFarray(ArrayNode &array) {
     rMul->SetPrimType(array.GetPrimType());
   } else {
     MIRIntConst *eConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        static_cast<int64>(eSize), arrayType);
+        eSize, arrayType);
     BaseNode *eSizeNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(eConst);
     eSizeNode->SetPrimType(array.GetPrimType());
     rMul = mirModule.CurFuncCodeMemPool()->New<BinaryNode>(OP_mul);
@@ -461,7 +460,7 @@ BaseNode *CGLowerer::LowerFarray(ArrayNode &array) {
   if (farrayType->GetKind() == kTypeJArray) {
     BaseNode *jarrayBaseNode = mirModule.CurFuncCodeMemPool()->New<BinaryNode>(OP_add);
     MIRIntConst *arrayHeaderNode = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        RTSupport::GetRTSupportInstance().GetArrayContentOffset(), arrayType);
+        static_cast<uint64>(RTSupport::GetRTSupportInstance().GetArrayContentOffset()), arrayType);
     BaseNode *arrayHeaderCstNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(arrayHeaderNode);
     arrayHeaderCstNode->SetPrimType(array.GetPrimType());
     jarrayBaseNode->SetPrimType(array.GetPrimType());
@@ -559,7 +558,7 @@ BaseNode *CGLowerer::LowerArray(ArrayNode &array, const BaseNode &parent) {
   if (resNode->GetOpCode() == OP_constval) {
     /* index is a constant, we can calculate the offset now */
     ConstvalNode *idxNode = static_cast<ConstvalNode*>(resNode);
-    uint64 idx = safe_cast<MIRIntConst>(idxNode->GetConstVal())->GetExtValue();
+    uint64 idx = static_cast<uint64>(safe_cast<MIRIntConst>(idxNode->GetConstVal())->GetExtValue());
     MIRIntConst *eConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(idx * eSize, arrayTypes);
     rMul = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(eConst);
     rMul->SetPrimType(array.GetPrimType());
@@ -567,8 +566,7 @@ BaseNode *CGLowerer::LowerArray(ArrayNode &array, const BaseNode &parent) {
       opAdd = OP_CG_array_elem_add;
     }
   } else {
-    MIRIntConst *eConst =
-        GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<int64>(eSize), arrayTypes);
+    MIRIntConst *eConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(eSize, arrayTypes);
     BaseNode *tmpNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(eConst);
     tmpNode->SetPrimType(array.GetPrimType());
     rMul = mirModule.CurFuncCodeMemPool()->New<BinaryNode>(OP_mul);
@@ -899,7 +897,7 @@ BlockNode *CGLowerer::LowerReturnStructUsingFakeParm(NaryStmtNode &retNode) {
   if (retSt->IsPreg()) {
     RegreadNode *regNode = mirModule.GetMIRBuilder()->CreateExprRegread(
         LOWERED_PTR_TYPE,
-        curFunc->GetPregTab()->GetPregIdxFromPregno(retSt->GetPreg()->GetPregNo()));
+        curFunc->GetPregTab()->GetPregIdxFromPregno(static_cast<uint32>(retSt->GetPreg()->GetPregNo())));
     iassign->SetOpnd(regNode, 0);
   } else {
     AddrofNode *dreadNode = mirModule.CurFuncCodeMemPool()->New<AddrofNode>(OP_dread);
@@ -2600,7 +2598,7 @@ BaseNode *CGLowerer::MergeToCvtType(PrimType dType, PrimType sType, BaseNode &sr
 
 IreadNode &CGLowerer::GetLenNode(BaseNode &opnd0) {
   MIRIntConst *arrayHeaderNode = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-      RTSupport::GetRTSupportInstance().GetArrayLengthOffset(),
+      static_cast<uint64>(RTSupport::GetRTSupportInstance().GetArrayLengthOffset()),
       *GlobalTables::GetTypeTable().GetTypeFromTyIdx(opnd0.GetPrimType()));
   BaseNode *arrayHeaderCstNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(arrayHeaderNode);
   arrayHeaderCstNode->SetPrimType(opnd0.GetPrimType());
@@ -2742,7 +2740,7 @@ BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkN
       CHECK(static_cast<SizeoftypeNode&>(expr).GetTyIdx() < beCommon.GetSizeOfTypeSizeTable(),
             "index out of range in CGLowerer::LowerExpr");
       int64 typeSize = beCommon.GetTypeSize(static_cast<SizeoftypeNode&>(expr).GetTyIdx());
-      return mirModule.GetMIRBuilder()->CreateIntConst(typeSize, PTY_u32);
+      return mirModule.GetMIRBuilder()->CreateIntConst(static_cast<uint64>(typeSize), PTY_u32);
     }
 
     case OP_fieldsdist: {
@@ -2757,7 +2755,7 @@ BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkN
       int32 i1 = fdNode.GetFiledID1() > 0 ? fdNode.GetFiledID1() - 1 : 0;
       int32 i2 = fdNode.GetFiledID2() > 0 ? fdNode.GetFiledID2() - 1 : 0;
       int64 offset = layout[i2].GetOffset() - layout[i1].GetOffset();
-      return mirModule.GetMIRBuilder()->CreateIntConst(offset, PTY_u32);
+      return mirModule.GetMIRBuilder()->CreateIntConst(static_cast<uint64>(offset), PTY_u32);
     }
 
     case OP_intrinsicop:
@@ -3161,7 +3159,7 @@ BaseNode *CGLowerer::LowerIntrinJavaArrayLength(const BaseNode &parent, Intrinsi
       ((parent.GetOpCode() == OP_regassign) || (parent.GetOpCode() == OP_dassign) || (parent.GetOpCode() == OP_ge))) {
     MIRType *addrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(arrAddr->GetPrimType()));
     MIRIntConst *arrayHeaderNode = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        RTSupport::GetRTSupportInstance().GetArrayLengthOffset(), *addrType);
+        static_cast<uint64>(RTSupport::GetRTSupportInstance().GetArrayLengthOffset()), *addrType);
     BaseNode *arrayHeaderCstNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(arrayHeaderNode);
     arrayHeaderCstNode->SetPrimType(arrAddr->GetPrimType());
 
@@ -3364,7 +3362,7 @@ BaseNode *CGLowerer::GetClassInfoExprFromArrayClassCache(const std::string &clas
   const int32 width = 8;
 #endif  /* USE_32BIT_REF */
   int64 offset = static_cast<int64>(index) * width;
-  ConstvalNode *offsetExpr = mirBuilder->CreateIntConst(offset, PTY_u32);
+  ConstvalNode *offsetExpr = mirBuilder->CreateIntConst(static_cast<uint64>(offset), PTY_u32);
   AddrofNode *baseExpr = mirBuilder->CreateExprAddrof(0, *arrayClassSt, mirModule.GetMemPool());
   MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
   args.emplace_back(baseExpr);
@@ -3473,7 +3471,7 @@ BaseNode *CGLowerer::LowerIntrinsicop(const BaseNode &parent, IntrinsicopNode &i
     BaseNode *opnd = intrinNode.Opnd(0);
     int64 val = (opnd->op == OP_constval || opnd->op == OP_sizeoftype ||
                  opnd->op == OP_conststr || opnd->op == OP_conststr16) ? 1 : 0;
-    return mirModule.GetMIRBuilder()->CreateIntConst(val, PTY_i32);
+    return mirModule.GetMIRBuilder()->CreateIntConst(static_cast<uint64>(val), PTY_i32);
   }
   if (intrnID == INTRN_C___builtin_expect) {
     return intrinNode.Opnd(0);

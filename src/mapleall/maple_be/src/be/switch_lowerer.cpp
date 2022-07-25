@@ -134,7 +134,7 @@ CompareNode *SwitchLowerer::BuildCmpNode(Opcode opCode, uint32 idx) {
 
   MIRType &type = *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(stmt->GetSwitchOpnd()->GetPrimType()));
   MIRConst *constVal =
-      GlobalTables::GetIntConstTable().GetOrCreateIntConst(stmt->GetCasePair(idx).first, type);
+      GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<uint64>(stmt->GetCasePair(idx).first), type);
   ConstvalNode *exprConst = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>();
   exprConst->SetPrimType(stmt->GetSwitchOpnd()->GetPrimType());
   exprConst->SetConstVal(constVal);

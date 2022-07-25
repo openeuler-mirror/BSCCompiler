@@ -357,10 +357,10 @@ class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
  public:
   enum ShiftOp : uint8 {
     kUndef,
-    kLSL, /* logical shift left */
-    kLSR, /* logical shift right */
-    kASR, /* arithmetic shift right */
-    kROR, /* rotate shift right */
+    kShiftLSL, /* logical shift left */
+    kShiftLSR, /* logical shift right */
+    kShiftASR, /* arithmetic shift right */
+    kShiftROR, /* rotate shift right */
   };
 
   /* bitlength is equal to 5 or 6 */
@@ -376,7 +376,7 @@ class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
 
   void Emit(Emitter &emitter, const OpndProp *prop) const override {
     (void)prop;
-    emitter.Emit((shiftOp == kLSL) ? "LSL #" : ((shiftOp == kLSR) ? "LSR #" : "ASR #")).Emit(shiftAmount);
+    emitter.Emit((shiftOp == kShiftLSL) ? "LSL #" : ((shiftOp == kShiftLSR) ? "LSR #" : "ASR #")).Emit(shiftAmount);
   }
 
   bool Less(const Operand &right) const override;

@@ -84,7 +84,6 @@ class SRealOcc : public SOcc {
     LogInfo::MapleLogger() << " classId" << classId;
   }
 
-
   bool redundant = true;
 };
 

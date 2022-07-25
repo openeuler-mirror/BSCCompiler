@@ -23,8 +23,7 @@ using namespace maple;
 
 class X64GenProEpilog : public GenProEpilog {
  public:
-  explicit X64GenProEpilog(CGFunc &func) : GenProEpilog(func) {
-  }
+  explicit X64GenProEpilog(CGFunc &func) : GenProEpilog(func) {}
   ~X64GenProEpilog() override = default;
 
   bool TailCallOpt() override;
@@ -33,6 +32,13 @@ class X64GenProEpilog : public GenProEpilog {
  private:
   void GenerateProlog(BB &bb);
   void GenerateEpilog(BB &bb);
+
+  void GeneratePushRbpInsn();
+  void GenerateMovRspToRbpInsn();
+  void GenerateSubFrameSizeFromRspInsn();
+  void GenerateAddFrameSizeToRspInsn();
+  void GeneratePopInsn();
+  void GenerateRetInsn();
 };
 }  /* namespace maplebe */
 

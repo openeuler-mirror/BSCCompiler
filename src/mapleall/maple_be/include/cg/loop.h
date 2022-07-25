@@ -102,10 +102,10 @@ class LoopHierarchy {
   }
 
   void InsertBBToOtherLoopEntries(BB * const &insertBB) {
-    otherLoopEntries.insert(insertBB);
+    (void)otherLoopEntries.insert(insertBB);
   }
   void EraseBBFromOtherLoopEntries(BB * const &eraseBB) {
-    otherLoopEntries.erase(eraseBB);
+    (void)otherLoopEntries.erase(eraseBB);
   }
 
  protected:

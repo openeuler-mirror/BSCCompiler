@@ -240,7 +240,15 @@ class NegCmpToCmnPattern : public CGPeepPattern {
 class LdrCmpPattern : public CGPeepPattern {
  public:
   LdrCmpPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
-  ~LdrCmpPattern() override = default;
+  ~LdrCmpPattern() override {
+    prevLdr1 = nullptr;
+    prevLdr2 = nullptr;
+    ldr1 = nullptr;
+    ldr2 = nullptr;
+    prevCmp = nullptr;
+    bne1 = nullptr;
+    bne2 = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -1093,7 +1101,7 @@ class SbfxOptPattern : public CGPeepPattern {
     return "SbfxOptPattern";
   }
 
-private:
+ private:
   Insn *nextInsn = nullptr;
   bool toRemove = false;
   std::vector<uint32> cands;

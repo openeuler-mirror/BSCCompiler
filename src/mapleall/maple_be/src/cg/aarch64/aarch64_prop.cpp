@@ -206,15 +206,15 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
       uint32 amount = shiftOpnd.GetShiftAmount();
       BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
       switch (sOp) {
-        case BitShiftOperand::kLSL: {
+        case BitShiftOperand::kShiftLSL: {
           newVal = constVal + static_cast<int64>((static_cast<unsigned>(constVal) << amount));
           break;
         }
-        case BitShiftOperand::kLSR: {
+        case BitShiftOperand::kShiftLSR: {
           newVal = constVal + (static_cast<unsigned>(constVal) >> amount);
           break;
         }
-        case BitShiftOperand::kASR: {
+        case BitShiftOperand::kShiftASR: {
           newVal = constVal + (constVal >> amount);
           break;
         }
@@ -237,15 +237,15 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
       uint32 amount = shiftOpnd.GetShiftAmount();
       BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
       switch (sOp) {
-        case BitShiftOperand::kLSL: {
+        case BitShiftOperand::kShiftLSL: {
           newVal = constVal - static_cast<int64>((static_cast<unsigned>(constVal) << amount));
           break;
         }
-        case BitShiftOperand::kLSR: {
+        case BitShiftOperand::kShiftLSR: {
           newVal = constVal - (static_cast<unsigned>(constVal) >> amount);
           break;
         }
-        case BitShiftOperand::kASR: {
+        case BitShiftOperand::kShiftASR: {
           newVal = constVal - (constVal >> amount);
           break;
         }
@@ -402,11 +402,11 @@ bool A64ConstProp::ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &co
     if (useOpndIdx == kInsnThirdOpnd) {
       auto &shiftBit = static_cast<BitShiftOperand&>(useInsn->GetOperand(kInsnFourthOpnd));
       int64 val = constOpnd.GetValue();
-      if (shiftBit.GetShiftOp() == BitShiftOperand::kLSL) {
+      if (shiftBit.GetShiftOp() == BitShiftOperand::kShiftLSL) {
         val = val << shiftBit.GetShiftAmount();
-      } else if (shiftBit.GetShiftOp() == BitShiftOperand::kLSR) {
+      } else if (shiftBit.GetShiftOp() == BitShiftOperand::kShiftLSR) {
         val = val >> shiftBit.GetShiftAmount();
-      } else if (shiftBit.GetShiftOp() == BitShiftOperand::kASR) {
+      } else if (shiftBit.GetShiftOp() == BitShiftOperand::kShiftASR) {
         val = static_cast<int64>((static_cast<uint64>(val)) >> shiftBit.GetShiftAmount());
       } else {
         CHECK_FATAL(false, "shift type is not defined");
@@ -745,7 +745,7 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const MemOpera
         auto &immOpnd = static_cast<ImmOperand&>(defInsn.GetOperand(kInsnThirdOpnd));
         auto &shiftOpnd = static_cast<LogicalShiftLeftOperand&>(defInsn.GetOperand(kInsnFourthOpnd));
         CHECK_FATAL(shiftOpnd.GetShiftAmount() == 12, "invalid shiftAmount");
-        int64 defVal = (immOpnd.GetValue() << shiftOpnd.GetShiftAmount());
+        int64 defVal = static_cast<int64>(static_cast<uint64>(immOpnd.GetValue()) << shiftOpnd.GetShiftAmount());
         newMemOpnd = HandleArithImmDef(*replace, offset, defVal, currMemOpnd.GetSize());
       }
       break;
@@ -757,7 +757,7 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const MemOpera
         auto &immOpnd = static_cast<ImmOperand&>(defInsn.GetOperand(kInsnThirdOpnd));
         auto &shiftOpnd = static_cast<LogicalShiftLeftOperand&>(defInsn.GetOperand(kInsnFourthOpnd));
         CHECK_FATAL(shiftOpnd.GetShiftAmount() == 12, "invalid shiftAmount");
-        int64 defVal = -(immOpnd.GetValue() << shiftOpnd.GetShiftAmount());
+        int64 defVal = -static_cast<int64>(static_cast<uint64>(immOpnd.GetValue()) << shiftOpnd.GetShiftAmount());
         newMemOpnd = HandleArithImmDef(*replace, offset, defVal, currMemOpnd.GetSize());
       }
       break;
@@ -794,7 +794,7 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const MemOpera
         RegOperand *newIndexOpnd = GetReplaceReg(
             static_cast<RegOperand&>(defInsn.GetOperand(kInsnThirdOpnd)));
         auto &shift = static_cast<BitShiftOperand&>(defInsn.GetOperand(kInsnFourthOpnd));
-        if (shift.GetShiftOp() != BitShiftOperand::kLSL) {
+        if (shift.GetShiftOp() != BitShiftOperand::kShiftLSL) {
           break;
         }
         if (newBaseOpnd != nullptr && newIndexOpnd != nullptr) {
@@ -1140,16 +1140,16 @@ void ExtendShiftPattern::SelectExtendOrShift(const Insn &def) {
     case MOP_xuxtw64: extendOp = ExtendShiftOperand::kUXTW;
       break;
     case MOP_wlslrri5:
-    case MOP_xlslrri6: shiftOp = BitShiftOperand::kLSL;
+    case MOP_xlslrri6: shiftOp = BitShiftOperand::kShiftLSL;
       break;
     case MOP_xlsrrri6:
-    case MOP_wlsrrri5: shiftOp = BitShiftOperand::kLSR;
+    case MOP_wlsrrri5: shiftOp = BitShiftOperand::kShiftLSR;
       break;
     case MOP_xasrrri6:
-    case MOP_wasrrri5: shiftOp = BitShiftOperand::kASR;
+    case MOP_wasrrri5: shiftOp = BitShiftOperand::kShiftASR;
       break;
     case MOP_wextrrrri5:
-    case MOP_xextrrrri6: shiftOp = BitShiftOperand::kROR;
+    case MOP_xextrrrri6: shiftOp = BitShiftOperand::kShiftROR;
       break;
     default: {
       extendOp = ExtendShiftOperand::kUndef;
@@ -1294,7 +1294,7 @@ void ExtendShiftPattern::Optimize(Insn &insn) {
     amount = lastExtendOpnd.GetShiftAmount();
   }
   if (shiftOp != BitShiftOperand::kUndef) {
-    auto &immOpnd = (shiftOp == BitShiftOperand::kROR ?
+    auto &immOpnd = (shiftOp == BitShiftOperand::kShiftROR ?
       static_cast<ImmOperand&>(defInsn->GetOperand(kInsnFourthOpnd)) :
       static_cast<ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd)));
     offset = static_cast<uint32>(immOpnd.GetValue());
@@ -1370,7 +1370,7 @@ bool ExtendShiftPattern::CheckCondition(Insn &insn) {
   }
   Operand &defSrcOpnd = defInsn->GetOperand(kInsnSecondOpnd);
   CHECK_FATAL(defSrcOpnd.IsRegister(), "defSrcOpnd must be register!");
-  if (shiftOp == BitShiftOperand::kROR) {
+  if (shiftOp == BitShiftOperand::kShiftROR) {
     if (lsMOpType != kLxEor && lsMOpType != kLwEor && lsMOpType != kLxIor && lsMOpType != kLwIor) {
       return false;
     }
@@ -1399,7 +1399,7 @@ bool ExtendShiftPattern::CheckCondition(Insn &insn) {
   if (useVersion->HasImplicitCvt() && shiftOp != BitShiftOperand::kUndef) {
     return false;
   }
-  if ((shiftOp == BitShiftOperand::kLSR || shiftOp == BitShiftOperand::kASR) &&
+  if ((shiftOp == BitShiftOperand::kShiftLSR || shiftOp == BitShiftOperand::kShiftASR) &&
       (defSrcOpnd.GetSize() > regOperand.GetSize())) {
     return false;
   }
@@ -1407,7 +1407,7 @@ bool ExtendShiftPattern::CheckCondition(Insn &insn) {
   /* check regDefSrc */
   VRegVersion *replaceUseV = optSsaInfo->FindSSAVersion(defSrcRegNo);
   CHECK_FATAL(replaceUseV != nullptr, "useVRegVersion must not be null based on ssa");
-  if (replaceUseV->GetAllUseInsns().size() > 1 && shiftOp != BitShiftOperand::kROR) {
+  if (replaceUseV->GetAllUseInsns().size() > 1 && shiftOp != BitShiftOperand::kShiftROR) {
     return false;
   }
   return true;

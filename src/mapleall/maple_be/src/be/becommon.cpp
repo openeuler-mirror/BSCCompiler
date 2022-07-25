@@ -152,7 +152,7 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
     uint64 fieldSizeBits = fieldTypeSize * kBitsPerByte;
     auto attrAlign = static_cast<uint8>(fieldAttr.GetAlign());
     auto originAlign = std::max(attrAlign, GetTypeAlign(fieldTyIdx));
-    uint8 fieldAlign = fieldAttr.IsPacked() ? 1 : std::min(originAlign, structPack);
+    uint8 fieldAlign = fieldAttr.IsPacked() ? static_cast<uint8>(1U) : std::min(originAlign, structPack);
     uint64 fieldAlignBits = fieldAlign * kBitsPerByte;
     CHECK_FATAL(fieldAlign != 0, "expect fieldAlign not equal 0");
     MIRStructType *subStructType = fieldType->EmbeddedStructType();
@@ -579,8 +579,9 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
     uint32 fieldTypeSize = GetTypeSize(fieldTyIdx);
     uint64 fieldSizeBits = fieldTypeSize * kBitsPerByte;
     auto originAlign = GetTypeAlign(fieldTyIdx);
-    auto fieldAlign = fieldAttr.IsPacked() ? 1 : std::min(originAlign, structPack);
-    uint64 fieldAlignBits = fieldAlign * kBitsPerByte;
+    uint64 fieldAlign = static_cast<uint64>(
+        static_cast<int64>(fieldAttr.IsPacked() ? 1 : std::min(originAlign, structPack)));
+    uint64 fieldAlignBits = static_cast<uint64>(static_cast<int64>(fieldAlign * kBitsPerByte));
     CHECK_FATAL(fieldAlign != 0, "fieldAlign should not equal 0");
     if (structType.GetKind() != kTypeUnion) {
       if (fieldType->GetKind() == kTypeBitField) {
@@ -606,8 +607,9 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
         }
         /* allocate the bitfield */
         if (curFieldID == fieldID) {
-          return std::pair<int32, int32>((allocedSizeInBits / fieldAlignBits) * fieldAlign,
-                                         allocedSizeInBits % fieldAlignBits);
+          return std::pair<int32, int32>(
+              static_cast<int32>(static_cast<int64>((allocedSizeInBits / fieldAlignBits) * fieldAlign)),
+              static_cast<int32>(static_cast<int64>(allocedSizeInBits % fieldAlignBits)));
         } else {
           ++curFieldID;
         }
@@ -632,7 +634,7 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
         }
 
         if (curFieldID == fieldID) {
-          return std::pair<int32, int32>(offset, 0);
+          return std::pair<int32, int32>(static_cast<int32>(static_cast<int64>(offset)), 0);
         } else {
           MIRStructType *subStructType = fieldType->EmbeddedStructType();
           if (subStructType == nullptr) {
@@ -755,7 +757,8 @@ BaseNode *BECommon::GetAddressOfNode(const BaseNode &node) {
       return mirModule.GetMIRBuilder()->CreateExprBinary(
           OP_add, *GlobalTables::GetTypeTable().GetPrimType(GetAddressPrimType()),
           static_cast<BaseNode*>(iNode.Opnd(0)),
-          mirModule.GetMIRBuilder()->CreateIntConst(byteBitOffset.first, PTY_u32));
+          mirModule.GetMIRBuilder()->CreateIntConst(static_cast<uint64>(static_cast<int64>(byteBitOffset.first)),
+                                                    PTY_u32));
     }
     default:
       return nullptr;

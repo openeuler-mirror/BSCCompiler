@@ -1375,7 +1375,7 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
         if (cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
           stackLoc = &aarchCGFunc.CreateStkTopOpnd(offset + tmpOffset, dataSizeBits);
         } else {
-          stackLoc = aarchCGFunc.GenLmbcFpMemOperand(offset, size);
+          stackLoc = aarchCGFunc.GenLmbcFpMemOperand(static_cast<int32>(offset), size);
         }
         RegOperand &reg =
             aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyFloat);
@@ -1679,18 +1679,18 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg r
   Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
   int32 stackFrameSize = static_cast<int32>(
       static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
-  int64 argsToStkPassSize = cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
+  int32 argsToStkPassSize = static_cast<int32>(cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
   /*
    * ldp/stp's imm should be within -512 and 504;
    * if ldp's imm > 504, we fall back to the ldp-add version
    */
   bool isLmbc = (cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc);
   if (cgFunc.HasVLAOrAlloca() || argsToStkPassSize == 0 || isLmbc) {
-    int lmbcOffset = 0;
+    int32 lmbcOffset = 0;
     if (!isLmbc) {
       stackFrameSize -= argsToStkPassSize;
     } else {
-      lmbcOffset = argsToStkPassSize - (kDivide2 * k8ByteSize);
+      lmbcOffset = argsToStkPassSize - (kDivide2 * k8ByteSizeInt);
     }
     if (stackFrameSize > kStpLdpImm64UpperBound || isLmbc) {
       Operand *o2;

@@ -776,14 +776,14 @@ bool AArch64Insn::IsDestRegAlsoSrcReg() const {
   return prop0->IsRegDef() && prop0->IsRegUse();
 }
 
-void A64OpndEmitVisitor::EmitIntReg(const RegOperand &v, uint8 opndSz) {
+void A64OpndEmitVisitor::EmitIntReg(const RegOperand &v, int32 opndSz) {
   CHECK_FATAL(v.GetRegisterType() == kRegTyInt, "wrong Type");
-  uint8 opndSize = (opndSz == kMaxSimm32) ? v.GetSize() : opndSz;
-  ASSERT((opndSize == k32BitSize || opndSize == k64BitSize), "illegal register size");
+  int32 opndSize = (opndSz == kMaxSimm32) ? static_cast<int32>(v.GetSize()) : opndSz;
+  ASSERT((opndSize == k32BitSizeInt || opndSize == k64BitSizeInt), "illegal register size");
 #ifdef USE_32BIT_REF
-  bool r32 = (opndSize == k32BitSize) || isRefField;
+  bool r32 = (opndSize == k32BitSizeInt) || isRefField;
 #else
-  bool r32 = (opndSize == k32BitSize);
+  bool r32 = (opndSize == k32BitSizeInt);
 #endif  /* USE_32BIT_REF */
   (void)emitter.Emit(AArch64CG::intRegNames[(r32 ? AArch64CG::kR32List : AArch64CG::kR64List)][v.GetRegisterNumber()]);
 }
@@ -793,10 +793,10 @@ void A64OpndEmitVisitor::Visit(maplebe::RegOperand *v) {
          "operand type doesn't match");
   uint32 size = v->GetSize();
   regno_t regNO = v->GetRegisterNumber();
-  uint8 opndSize = (opndProp != nullptr) ? opndProp->GetSize() : size;
+  uint32 opndSize = (opndProp != nullptr) ? opndProp->GetSize() : size;
   switch (v->GetRegisterType()) {
     case kRegTyInt: {
-      EmitIntReg(*v, opndSize);
+      EmitIntReg(*v, static_cast<int32>(opndSize));
       break;
     }
     case kRegTyFloat: {
@@ -807,7 +807,7 @@ void A64OpndEmitVisitor::Visit(maplebe::RegOperand *v) {
       } else {
         /* FP reg cannot be reffield. 8~0, 16~1, 32~2, 64~3. 8 is 1000b, has 3 zero. */
         int32 regSet = __builtin_ctz(static_cast<uint32>(opndSize)) - 3;
-        (void)emitter.Emit(AArch64CG::intRegNames[regSet][regNO]);
+        (void)emitter.Emit(AArch64CG::intRegNames[static_cast<uint32>(regSet)][regNO]);
       }
       break;
     }
@@ -837,7 +837,7 @@ void A64OpndEmitVisitor::Visit(maplebe::ImmOperand *v) {
   int32 exp = static_cast<int32>((((static_cast<uint32>(value) & 0x70) >> 4) ^ 0x4) - 3);
   /* use the lower four bits of value in this expression */
   const float mantissa = 1.0 + (static_cast<float>(static_cast<uint64>(value) & 0xf) / 16.0);
-  float result = std::pow(2, exp) * mantissa;
+  float result = static_cast<float>(std::pow(2, exp)) * mantissa;
 
   std::stringstream ss;
   ss << std::setprecision(10) << result;
@@ -1041,16 +1041,16 @@ void A64OpndEmitVisitor::Visit(ExtendShiftOperand *v) {
 void A64OpndEmitVisitor::Visit(BitShiftOperand *v) {
   std::string shiftOp;
   switch (v->GetShiftOp()) {
-    case BitShiftOperand::kLSL:
+    case BitShiftOperand::kShiftLSL:
       shiftOp = "LSL #";
       break;
-    case BitShiftOperand::kLSR:
+    case BitShiftOperand::kShiftLSR:
       shiftOp = "LSR #";
       break;
-    case BitShiftOperand::kASR:
+    case BitShiftOperand::kShiftASR:
       shiftOp = "ASR #";
       break;
-    case BitShiftOperand::kROR:
+    case BitShiftOperand::kShiftROR:
       shiftOp = "ROR #";
       break;
     default:
@@ -1264,8 +1264,8 @@ void A64OpndDumpVisitor::Visit(StImmOperand *v) {
 void A64OpndDumpVisitor::Visit(BitShiftOperand *v) {
   BitShiftOperand::ShiftOp shiftOp = v->GetShiftOp();
   uint32 shiftAmount = v->GetShiftAmount();
-  LogInfo::MapleLogger() << ((shiftOp == BitShiftOperand::kLSL) ? "LSL: " :
-      ((shiftOp == BitShiftOperand::kLSR) ? "LSR: " : "ASR: "));
+  LogInfo::MapleLogger() << ((shiftOp == BitShiftOperand::kShiftLSL) ? "LSL: " :
+      ((shiftOp == BitShiftOperand::kShiftLSR) ? "LSR: " : "ASR: "));
   LogInfo::MapleLogger() << shiftAmount;
 }
 void A64OpndDumpVisitor::Visit(ExtendShiftOperand *v) {
