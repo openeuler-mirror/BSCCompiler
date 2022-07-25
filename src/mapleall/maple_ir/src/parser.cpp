@@ -27,7 +27,7 @@
 #include "clone.h"
 #include "string_utils.h"
 #include "debug_info.h"
-#include "mir_enumeration.h"
+#include "mir_enum.h"
 
 namespace {
 using namespace maple;
@@ -298,7 +298,7 @@ bool MIRParser::ParseArrayType(TyIdx &arrayTyIdx) {
       Error("expect int value parsing array type after [ but get ");
       return false;
     }
-    int64 val = lexer.GetTheIntVal();
+    int64 val = static_cast<int64>(lexer.GetTheIntVal());
     if (val < 0) {
       Error("expect array value >= 0 ");
       return false;
@@ -378,7 +378,7 @@ bool MIRParser::ParsePragmaElement(MIRPragmaElement &elem) {
     case TK_retype:
     case TK_const:
     case TK_u1:
-      elem.SetI64Val(lexer.GetTheIntVal());
+      elem.SetI64Val(static_cast<int64>(lexer.GetTheIntVal()));
       break;
     case TK_f32:
       elem.SetFloatVal(lexer.GetTheFloatVal());
@@ -424,7 +424,7 @@ bool MIRParser::ParsePragmaElementForArray(MIRPragmaElement &elem) {
     Error("parsing pragma error: expecting int but get ");
     return false;
   }
-  int64 size = lexer.GetTheIntVal();
+  int64 size = static_cast<int64>(lexer.GetTheIntVal());
   tk = lexer.NextToken();
   if (tk != TK_coma && size) {
     Error("parsing pragma error: expecting , but get ");
@@ -470,7 +470,7 @@ bool MIRParser::ParsePragmaElementForAnnotation(MIRPragmaElement &elem) {
     Error("parsing pragma error: expecting int but get ");
     return false;
   }
-  int64 size = lexer.GetTheIntVal();
+  int64 size = static_cast<int64>(lexer.GetTheIntVal());
   tk = lexer.NextToken();
   if (tk != TK_coma && size) {
     Error("parsing pragma error: expecting , but get ");
@@ -1757,6 +1757,7 @@ bool MIRParser::ParseEnumeration() {
   }
   lexer.NextToken();
   GlobalTables::GetEnumTable().enumTable.push_back(mirEnum);
+  delete mirEnum;
   return true;
 }
 
@@ -2595,31 +2596,48 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
   }
   strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
   nameTk = lexer.NextToken();
-  bool isLocal;
   if (nameTk == TK_lname) {
-    isLocal = true;
+    aliasVar.isLocal = true;
   } else if (nameTk == TK_gname) {
-    isLocal = false;
+    aliasVar.isLocal = false;
   } else {
     Error("expect name in ALIAS but get ");
     return false;
   }
   GStrIdx mplStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
   aliasVar.mplStrIdx = mplStrIdx;
-  aliasVar.isLocal = isLocal;
   lexer.NextToken();
   TokenKind tk = lexer.GetTokenKind();
   TyIdx tyIdx(0);
-  if (tk == TK_string || tk == TK_gname) {
+  if (tk == TK_string) {
     // original type name from source code
     std::string typeName = lexer.GetName();
     GStrIdx srcTypeStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName);
-    aliasVar.tyIdx = TyIdx(0);
-    aliasVar.srcTypeStrIdx = srcTypeStrIdx;
+    aliasVar.atk = ATK_string;
+    aliasVar.index = srcTypeStrIdx.GetIdx();
+    lexer.NextToken();
+  } else if (tk == TK_gname) {
+    // type name or enum name
+    std::string typeName = lexer.GetName();
+    GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName);
+    TyIdx tyIdx = mod.GetTypeNameTab()->GetTyIdxFromGStrIdx(strIdx);
+    if (tyIdx.GetIdx() != 0) {
+      aliasVar.atk = ATK_type;
+      aliasVar.index = tyIdx.GetIdx();
+    } else {
+      unsigned size = GlobalTables::GetEnumTable().enumTable.size();
+      for (unsigned i = 0; i < size; ++i) {
+        MIREnum *mirEnum = GlobalTables::GetEnumTable().enumTable[i];
+        if (strIdx == mirEnum->nameStrIdx) {
+          aliasVar.atk = ATK_enum;
+          aliasVar.index = i;
+        }
+      }
+    }
     lexer.NextToken();
   } else if (ParseType(tyIdx)) {
-    aliasVar.tyIdx = tyIdx;
-    aliasVar.srcTypeStrIdx = GStrIdx(0);
+    aliasVar.atk = ATK_type;
+    aliasVar.index = tyIdx.GetIdx();
   } else {
     Error("parseType failed when parsing ALIAS ");
     return false;

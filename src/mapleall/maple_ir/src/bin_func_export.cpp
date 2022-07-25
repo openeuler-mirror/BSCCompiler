@@ -13,13 +13,13 @@
  * See the MulanPSL - 2.0 for more details.
  */
 
+#include <sstream>
+#include <vector>
 #include "mir_function.h"
 #include "opcode_info.h"
 #include "mir_pragma.h"
 #include "mir_builder.h"
 #include "bin_mplt.h"
-#include <sstream>
-#include <vector>
 
 using namespace std;
 namespace maple {
@@ -61,12 +61,13 @@ void BinaryMplExport::OutputLocalSymbol(MIRSymbol *sym) {
     return;
   }
 
+  CHECK_NULL_FATAL(sym);
   WriteNum(kBinSymbol);
   OutputStr(sym->GetNameStrIdx());
   WriteNum(sym->GetSKind());
   WriteNum(sym->GetStorageClass());
   size_t mark = localSymMark.size();
-  localSymMark[sym] = mark;
+  localSymMark[sym] = static_cast<int64_t>(mark);
   OutputTypeAttrs(sym->GetAttrs());
   WriteNum(static_cast<int64>(sym->GetIsTmp()));
   if (sym->GetSKind() == kStVar || sym->GetSKind() == kStFunc) {
@@ -99,7 +100,7 @@ void BinaryMplExport::OutputPreg(MIRPreg *preg) {
   WriteNum(kBinPreg);
   Write(static_cast<uint8>(preg->GetPrimType()));
   size_t mark = localPregMark.size();
-  localPregMark[preg] = mark;
+  localPregMark[preg] = static_cast<int64_t>(mark);
 }
 
 void BinaryMplExport::OutputLabel(LabelIdx lidx) {
@@ -111,7 +112,7 @@ void BinaryMplExport::OutputLabel(LabelIdx lidx) {
 
   WriteNum(kBinLabel);
   size_t mark = labelMark.size();
-  labelMark[lidx] = mark;
+  labelMark[lidx] = static_cast<int64_t>(mark);
 }
 
 void BinaryMplExport::OutputLocalTypeNameTab(const MIRTypeNameTable *typeNameTab) {
@@ -137,7 +138,8 @@ void BinaryMplExport::OutputAliasMap(MapleMap<GStrIdx, MIRAliasVars> &aliasVarMa
   for (std::pair<GStrIdx, MIRAliasVars> it : aliasVarMap) {
     OutputStr(it.first);
     OutputStr(it.second.mplStrIdx);
-    OutputType(it.second.tyIdx);
+    WriteNum(static_cast<uint32>(it.second.atk));
+    WriteNum(it.second.index);
     OutputStr(it.second.sigStrIdx);
   }
 }
@@ -310,7 +312,7 @@ void BinaryMplExport::OutputExpression(BaseNode *e) {
     case OP_array: {
       ArrayNode *arrNode = static_cast<ArrayNode *>(e);
       OutputType(arrNode->GetTyIdx());
-      Write(static_cast<int8>(arrNode->GetBoundsCheck()));
+      Write(static_cast<uint8>(arrNode->GetBoundsCheck()));
       WriteNum(static_cast<int64>(arrNode->NumOpnds()));
       break;
     }
