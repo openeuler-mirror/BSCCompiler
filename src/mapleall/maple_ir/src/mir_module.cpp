@@ -55,6 +55,7 @@ MIRModule::MIRModule(const std::string &fn)
   typeNameTab = memPool->New<MIRTypeNameTable>(memPoolAllocator);
   mirBuilder = memPool->New<MIRBuilder>(this);
   dbgInfo = memPool->New<DebugInfo>(this);
+  scope = memPool->New<MIRScope>(this, nullptr);
   IntrinDesc::InitMIRModule(this);
 }
 
@@ -290,6 +291,9 @@ void MIRModule::DumpGlobals(bool emitStructureType) const {
       if (!s->IsDeleted() && !s->GetIsImported() && !s->GetIsImportedDecl()) {
         s->Dump(false, 0);
       }
+    }
+    if (scope) {
+      scope->Dump(0, false);
     }
   }
 }

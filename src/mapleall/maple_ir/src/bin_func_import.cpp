@@ -153,7 +153,8 @@ void BinaryMplImport::ImportAliasMap(MIRFunction *func) {
     MIRAliasVars aliasvars;
     GStrIdx strIdx = ImportStr();
     aliasvars.mplStrIdx = ImportStr();
-    aliasvars.tyIdx = ImportType();
+    aliasvars.atk = static_cast<AliasTypeKind>(ReadNum());
+    aliasvars.index = static_cast<uint32>(ReadNum());
     (void)ImportStr();  // not assigning to mimic parser
     func->GetAliasVarMap()[strIdx] = aliasvars;
   }
