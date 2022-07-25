@@ -10242,8 +10242,11 @@ void AArch64CGFunc::SelectCAtomicStoreN(const IntrinsiccallNode &intrinsiccallNo
   auto *addr = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(0));
   auto *value = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(1));
   auto *memOrderOpnd = intrinsiccallNode.Opnd(kInsnThirdOpnd);
-  auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
-  auto memOrder = static_cast<std::memory_order>(memOrderConst->GetExtValue());
+  std::memory_order memOrder = std::memory_order_seq_cst;
+  if (memOrderOpnd->IsConstval()) {
+    auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
+    memOrder = static_cast<std::memory_order>(memOrderConst->GetExtValue());
+  }
   SelectAtomicStore(*value, *addr, primType, PickMemOrder(memOrder, false));
 }
 
@@ -10813,8 +10816,11 @@ Operand *AArch64CGFunc::SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) {
   auto *addrOpnd = HandleExpr(intrinsicopNode, *intrinsicopNode.Opnd(0));
   auto *memOrderOpnd = intrinsicopNode.Opnd(1);
   auto primType = intrinsicopNode.GetPrimType();
-  auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
-  auto memOrder = static_cast<std::memory_order>(memOrderConst->GetExtValue());
+  std::memory_order memOrder = std::memory_order_seq_cst;
+  if (memOrderOpnd->IsConstval()) {
+    auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
+    memOrder = static_cast<std::memory_order>(memOrderConst->GetExtValue());
+  }
   return SelectAtomicLoad(*addrOpnd, primType, PickMemOrder(memOrder, true));
 }
 
@@ -10835,8 +10841,11 @@ Operand *AArch64CGFunc::SelectCAtomicExchangeN(IntrinsicopNode &intrinsicopNode)
   auto *addrOpnd = HandleExpr(intrinsicopNode, *intrinsicopNode.Opnd(0));
   auto *valueOpnd = HandleExpr(intrinsicopNode, *intrinsicopNode.Opnd(1));
   auto *memOrderOpnd = intrinsicopNode.Opnd(kInsnThirdOpnd);
-  auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
-  auto memOrder = static_cast<std::memory_order>(memOrderConst->GetExtValue());
+  std::memory_order memOrder = std::memory_order_seq_cst;
+  if (memOrderOpnd->IsConstval()) {
+    auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
+    memOrder = static_cast<std::memory_order>(memOrderConst->GetExtValue());
+  }
   auto *result = SelectAtomicLoad(*addrOpnd, primType, PickMemOrder(memOrder, true));
   SelectAtomicStore(*valueOpnd, *addrOpnd, primType, PickMemOrder(memOrder, false));
   return result;
