@@ -25,6 +25,7 @@ void AArch64ValidBitOpt::DoOpt(BB &bb, Insn &insn) {
     }
     case MOP_xuxtb32:
     case MOP_xuxth32:
+    case MOP_xsxtw64:
     case MOP_wubfxrri5i5:
     case MOP_xubfxrri6i6:
     case MOP_wsbfxrri5i5:
@@ -288,17 +289,23 @@ void AndValidBitPattern::Run(BB &bb, Insn &insn) {
 bool ExtValidBitPattern::CheckCondition(Insn &insn) {
   Operand &dstOpnd = insn.GetOperand(kInsnFirstOpnd);
   Operand &srcOpnd = insn.GetOperand(kInsnSecondOpnd);
+  CHECK_FATAL(dstOpnd.IsRegister() && srcOpnd.IsRegister(), "must be register");
   MOperator mOp = insn.GetMachineOpcode();
   switch (mOp) {
     case MOP_xuxtb32:
     case MOP_xuxth32: {
-      CHECK_FATAL(dstOpnd.IsRegister(), "must be register");
-      CHECK_FATAL(srcOpnd.IsRegister(), "must be register");
       if (static_cast<RegOperand&>(dstOpnd).GetValidBitsNum() !=
           static_cast<RegOperand&>(srcOpnd).GetValidBitsNum()) {
         return false;
       }
       newMop = MOP_wmovrr;
+      break;
+    }
+    case MOP_xsxtw64: {
+      if (static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() >= k32BitSize) {
+        return false;
+      }
+      newMop = MOP_xmovrr;
       break;
     }
     case MOP_wubfxrri5i5:
@@ -340,8 +347,12 @@ void ExtValidBitPattern::Run(BB &bb, Insn &insn) {
   MOperator mOp = insn.GetMachineOpcode();
   switch (mOp) {
     case MOP_xuxtb32:
-    case MOP_xuxth32: {
+    case MOP_xuxth32:
+    case MOP_xsxtw64: {
       insn.SetMOP(newMop);
+      if (newDstOpnd->GetSize() > newSrcOpnd->GetSize()) {
+        ssaInfo->InsertSafePropInsn(insn.GetId());
+      }
       break;
     }
     case MOP_wubfxrri5i5:
