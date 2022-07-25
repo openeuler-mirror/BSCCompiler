@@ -270,6 +270,7 @@ bool AArch64RedundantComputeElim::DoOpt(BB *bb) {
     if (!insn->IsMachineInstruction()) {
       continue;
     }
+    doOpt = true;
     auto iter = candidates.find(insn);
     if (iter != candidates.end()) {
       /* during iteration, avoid repeated processing of insn, which may access wrong duInsnInfo of ssaVersion */
@@ -303,9 +304,11 @@ bool AArch64RedundantComputeElim::DoOpt(BB *bb) {
       isBothDefUse = IsBothDefUseCase(*existDefVer);
       if (isBothDefUse) {
         CheckBothDefAndUseChain(curDstOpnd, existDstOpnd);
-      } else {
-        CheckCondition(*existInsn, *insn);
       }
+      if (!doOpt) {
+        continue;
+      }
+      CheckCondition(*existInsn, *insn);
       if (!doOpt) {
         continue;
       }
