@@ -2577,21 +2577,10 @@ bool MIRParser::ParseOneScope(MIRScope &scope) {
   return true;
 }
 
-bool MIRParser::ParseScope() {
-  MIRScope *scp = nullptr;
-  MIRFunction *func = mod.CurFunction();
-  // check if the first dummy function
-  if (func->GetPuidxOrigin() == 1) {
-    scp = mod.GetScope();
-  } else {
-    scp = func->GetScope();
-  }
+bool MIRParser::ParseScope(StmtNodePtr &stmt [[maybe_unused]]) {
+  MIRScope *scp = mod.CurFunction()->GetScope();
   bool status = ParseOneScope(*scp);
   return status;
-}
-
-bool MIRParser::ParseScopeStmt(StmtNodePtr&) {
-  return ParseScope();
 }
 
 bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
@@ -2601,54 +2590,37 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
     return false;
   }
   nameTk = lexer.NextToken();
-  if (nameTk != TK_lname && nameTk != TK_gname) {
-    Error("expect local or global in ALIAS but get ");
+  if (nameTk != TK_lname) {
+    Error("expect local in ALIAS but get ");
     return false;
   }
   strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
   nameTk = lexer.NextToken();
+  bool isLocal;
   if (nameTk == TK_lname) {
-    aliasVar.isLocal = true;
+    isLocal = true;
   } else if (nameTk == TK_gname) {
-    aliasVar.isLocal = false;
+    isLocal = false;
   } else {
     Error("expect name in ALIAS but get ");
     return false;
   }
   GStrIdx mplStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
   aliasVar.mplStrIdx = mplStrIdx;
+  aliasVar.isLocal = isLocal;
   lexer.NextToken();
   TokenKind tk = lexer.GetTokenKind();
   TyIdx tyIdx(0);
-  if (tk == TK_string) {
+  if (tk == TK_string || tk == TK_gname) {
     // original type name from source code
     std::string typeName = lexer.GetName();
     GStrIdx srcTypeStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName);
-    aliasVar.atk = ATK_string;
-    aliasVar.index = srcTypeStrIdx.GetIdx();
-    lexer.NextToken();
-  } else if (tk == TK_gname) {
-    // type name or enum name
-    std::string typeName = lexer.GetName();
-    GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName);
-    TyIdx tyIdx = mod.GetTypeNameTab()->GetTyIdxFromGStrIdx(strIdx);
-    if (tyIdx.GetIdx() != 0) {
-      aliasVar.atk = ATK_type;
-      aliasVar.index = tyIdx.GetIdx();
-    } else {
-      unsigned size = GlobalTables::GetEnumTable().enumTable.size();
-      for (unsigned i = 0; i < size; ++i) {
-        MIREnum *mirEnum = GlobalTables::GetEnumTable().enumTable[i];
-        if (strIdx == mirEnum->nameStrIdx) {
-          aliasVar.atk = ATK_enum;
-          aliasVar.index = i;
-        }
-      }
-    }
+    aliasVar.tyIdx = TyIdx(0);
+    aliasVar.srcTypeStrIdx = srcTypeStrIdx;
     lexer.NextToken();
   } else if (ParseType(tyIdx)) {
-    aliasVar.atk = ATK_type;
-    aliasVar.index = tyIdx.GetIdx();
+    aliasVar.tyIdx = tyIdx;
+    aliasVar.srcTypeStrIdx = GStrIdx(0);
   } else {
     Error("parseType failed when parsing ALIAS ");
     return false;
@@ -2662,7 +2634,7 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
   return true;
 }
 
-bool MIRParser::ParseAlias() {
+bool MIRParser::ParseAlias(StmtNodePtr &stmt [[maybe_unused]]) {
   GStrIdx strIdx;
   MIRAliasVars aliasVar;
 
@@ -2670,10 +2642,6 @@ bool MIRParser::ParseAlias() {
 
   mod.CurFunction()->SetAliasVarMap(strIdx, aliasVar);
   return true;
-}
-
-bool MIRParser::ParseAliasStmt(StmtNodePtr&) {
-  return ParseAlias();
 }
 
 uint8 *MIRParser::ParseWordsInfo(uint32 size) {
@@ -2860,8 +2828,6 @@ std::map<TokenKind, MIRParser::FuncPtrParseMIRForElem> MIRParser::InitFuncPtrMap
   funcPtrMap[TK_importpath] = &MIRParser::ParseMIRForImportPath;
   funcPtrMap[TK_asmdecl] = &MIRParser::ParseMIRForAsmdecl;
   funcPtrMap[TK_LOC] = &MIRParser::ParseLoc;
-  funcPtrMap[TK_ALIAS] = &MIRParser::ParseAlias;
-  funcPtrMap[TK_SCOPE] = &MIRParser::ParseScope;
   return funcPtrMap;
 }
 

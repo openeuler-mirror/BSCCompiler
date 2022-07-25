@@ -352,9 +352,8 @@ void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap) {
     DBGDie *vdie = CreateVarDie(var, i.first);
 
     // use src code type name for type if provided
-    if (i.second.atk == ATK_string) {
-      GStrIdx idx(i.second.index);
-      DBGDie *typedefDie = GetOrCreateTypedefDie(idx, var->GetTyIdx());
+    if (i.second.srcTypeStrIdx.GetIdx()) {
+      DBGDie *typedefDie = GetOrCreateTypedefDie(i.second.srcTypeStrIdx, var->GetTyIdx());
       // use negtive number to indicate DIE id instead of tyidx in normal cases
       (void)(vdie->SetAttr(DW_AT_type, -typedefDie->GetId()));
     }

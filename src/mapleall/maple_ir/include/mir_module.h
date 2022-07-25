@@ -40,7 +40,6 @@ namespace maple {
 class CallInfo;  // circular dependency exists, no other choice
 class MIRModule;  // circular dependency exists, no other choice
 class MIRBuilder;  // circular dependency exists, no other choice
-class MIRScope;
 using MIRModulePtr = MIRModule*;
 using MIRBuilderPtr = MIRBuilder*;
 
@@ -642,10 +641,6 @@ class MIRModule {
     return dbgInfo;
   }
 
-  MIRScope *GetScope() const {
-    return scope;
-  }
-
   void SetWithDbgInfo(bool v) {
     withDbgInfo = v;
   }
@@ -722,7 +717,6 @@ class MIRModule {
 
   DebugInfo *dbgInfo = nullptr;
   bool withDbgInfo = false;
-  MIRScope *scope = nullptr;
 
   // for cg in mplt
   BinaryMplt *binMplt = nullptr;

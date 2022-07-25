@@ -138,8 +138,7 @@ void BinaryMplExport::OutputAliasMap(MapleMap<GStrIdx, MIRAliasVars> &aliasVarMa
   for (std::pair<GStrIdx, MIRAliasVars> it : aliasVarMap) {
     OutputStr(it.first);
     OutputStr(it.second.mplStrIdx);
-    WriteNum(static_cast<uint32>(it.second.atk));
-    WriteNum(it.second.index);
+    OutputType(it.second.tyIdx);
     OutputStr(it.second.sigStrIdx);
   }
 }

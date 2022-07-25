@@ -858,14 +858,11 @@ void FEFunction::AddAliasInMIRScope(MIRScope *scope, const std::string &srcVarNa
   aliasVar.mplStrIdx = symbol->GetNameStrIdx();
   aliasVar.isLocal = symbol->IsLocal();
   if (sourceType != nullptr) {
-    aliasVar.atk = ATK_type;
-    aliasVar.index = sourceType->GetTypeIndex().GetIdx();
+    aliasVar.tyIdx = sourceType->GetTypeIndex();
   } else if (typeNameIdx != 0) {
-    aliasVar.atk = ATK_string;
-    aliasVar.index = typeNameIdx.GetIdx();
+    aliasVar.srcTypeStrIdx = typeNameIdx;
   } else {
-    aliasVar.atk = ATK_type;
-    aliasVar.index = symbol->GetTyIdx().GetIdx();
+    aliasVar.tyIdx = symbol->GetTyIdx();
   }
   scope->SetAliasVarMap(nameIdx, aliasVar);
 };

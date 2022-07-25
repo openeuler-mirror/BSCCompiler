@@ -86,8 +86,7 @@ bool BCFunction::GenerateAliasVars(const std::string &phaseName) {
           namemangler::EncodeName(std::get<0>(item)));
       MIRAliasVars aliasVar;
       aliasVar.mplStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(localVar->GetName(*mirType));
-      aliasVar.atk = ATK_type;
-      aliasVar.index = mirType->GetTypeIndex().GetIdx();
+      aliasVar.tyIdx = mirType->GetTypeIndex();
       aliasVar.isLocal = !localVar->IsGlobal();
       if (!std::get<2>(item).empty()) {
         aliasVar.sigStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(std::get<2>(item));

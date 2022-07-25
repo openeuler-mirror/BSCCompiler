@@ -48,11 +48,9 @@ class MIRParser {
   bool ParseLocStmt(StmtNodePtr &stmt);
   bool ParsePosition(SrcPosition &pos);
   bool ParseOneScope(MIRScope &scope);
-  bool ParseScope();
-  bool ParseScopeStmt(StmtNodePtr &stmt);
+  bool ParseScope(StmtNodePtr &stmt);
   bool ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar);
-  bool ParseAlias();
-  bool ParseAliasStmt(StmtNodePtr &stmt);
+  bool ParseAlias(StmtNodePtr &stmt);
   uint8 *ParseWordsInfo(uint32 size);
   bool ParseSwitchCase(int64&, LabelIdx&);
   bool ParseExprOneOperand(BaseNodePtr &expr);
