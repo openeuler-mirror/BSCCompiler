@@ -136,7 +136,7 @@ class LiteExpr {
 
   void RemapParamIdx(const std::vector<int32> &paramMapping) {
     if (IsParam()) {
-      int32 oldIdx = GetParamIndex();
+      uint32 oldIdx = GetParamIndex();
       if (oldIdx >= paramMapping.size()) {  // index out of range, no need to remap
         return;
       }
@@ -200,7 +200,7 @@ class LiteExpr {
 
   void SetParamIndex(uint32 newParamIdx) {
     ASSERT(IsParam(), "must be");
-    data.paramIdx = static_cast<int64>(newParamIdx);
+    data.paramIdx = static_cast<int64>(static_cast<int32>(newParamIdx));
   }
 
   MIRConst *GetMIRConst() {
@@ -346,7 +346,7 @@ class Predicate {
 
   Predicate(uint32 condIdx, MapleAllocator &alloc)
       : Predicate(alloc) {
-    asserts.insert(kAssertOne << condIdx);
+    (void)asserts.insert(kAssertOne << condIdx);
   }
 
   bool operator==(const Predicate &rhs) const {
@@ -403,11 +403,11 @@ class Predicate {
     for (auto assert : asserts) {
       Assert newAssert = 0;
       for (uint32 j = 0; j < kMaxNumCondition; ++j) {
-        if (!(assert & (kAssertOne << j))) {
+        if ((assert & (kAssertOne << j)) == 0) {
           continue;
         }
         auto newCondIdx = oldCondIdx2New[j];
-        if (newCondIdx == kCondIdxOverflow) {
+        if (newCondIdx == static_cast<int32>(kCondIdxOverflow)) {
           // condition out of range, we treat it as true condition
           newAssert = 0;
           break;
@@ -437,7 +437,7 @@ class Predicate {
     for (auto assert : asserts) {
       // Skip the first element that is a placeholder for falsePredicate
       for (uint32 i = 1; i < kMaxNumCondition; ++i) {
-        if (!(assert & (kAssertOne << i))) {
+        if ((assert & (kAssertOne << i)) == 0) {
           continue;
         }
         paramsUsed |= conditions[i]->GetParamsUsed();
@@ -455,7 +455,7 @@ class Predicate {
   ExprBoolResult EvaluateAssert(Assert assert, const std::vector<ExprBoolResult> &condResultVec) const {
     bool foundUnknown = false;
     for (uint32 i = 0; i < kMaxNumCondition; ++i) {
-      if (!(assert & (kAssertOne << i))) {
+      if ((assert & (kAssertOne << i)) == 0) {
         continue;
       }
       auto res = condResultVec[i];
@@ -505,7 +505,7 @@ class InlineSummary {
         edgeSummaryMap(summaryAlloc.Adapter()),
         argInfosMap(summaryAlloc.Adapter()) {
     // Init the first cost item: truePredicate
-    costTable.emplace_back(Predicate::TruePredicate(), InlineCost{ 0, 0 });
+    (void)costTable.emplace_back(Predicate::TruePredicate(), InlineCost{ 0, 0 });
   }
 
   void Dump() const;
@@ -519,7 +519,7 @@ class InlineSummary {
   }
 
   int32 NumInsns() const {
-    return size * kInsn2Threshold / kSizeScale;
+    return static_cast<int32>(size * static_cast<int64>(kInsn2Threshold) / static_cast<int64>(kSizeScale));
   }
 
   int32 GetStaticSize() const {
@@ -608,7 +608,7 @@ class InlineSummary {
       costTable[0].second.Add(costSize, costTime);
       return;
     }
-    costTable.emplace_back(&predicate, InlineCost{ costSize, costTime });
+    (void)costTable.emplace_back(&predicate, InlineCost{ costSize, costTime });
   }
 
   void AddArgInfo(uint32 callStmtId, uint32 argIndex, ArgInfo *argInfo) {
@@ -699,19 +699,19 @@ class InlineSummary {
     }
     keyRefreshed = true;
     std::vector<std::pair<uint32, ArgInfoVec*>> copyArgInfos;
-    for (const auto &pair : argInfosMap) {
+    for (const auto &pair : std::as_const(argInfosMap)) {
       auto meStmtId = pair.first;
       auto *callStmt = func->GetStmtNodeFromMeId(meStmtId);
       CHECK_NULL_FATAL(callStmt);
-      copyArgInfos.emplace_back(callStmt->GetStmtID(), pair.second);
+      (void)copyArgInfos.emplace_back(callStmt->GetStmtID(), pair.second);
     }
     argInfosMap.clear();
     for (const auto &pair : copyArgInfos) {
-      argInfosMap.emplace(pair.first, pair.second);
+      (void)argInfosMap.emplace(pair.first, pair.second);
     }
 
     std::vector<std::pair<uint32, InlineEdgeSummary*>> copyEdgeSummaries;
-    for (const auto &pair : edgeSummaryMap) {
+    for (const auto &pair : std::as_const(edgeSummaryMap)) {
       auto meStmtId = pair.first;
       auto *callStmt = func->GetStmtNodeFromMeId(meStmtId);
       CHECK_NULL_FATAL(callStmt);
@@ -841,7 +841,7 @@ class InlineSummaryCollector {
     if (liteExpr == nullptr) {
       return nullptr;
     }
-    exprCache.emplace(&meExpr, std::pair<LiteExpr*, uint32>(liteExpr, paramsUsed));
+    (void)exprCache.emplace(&meExpr, std::pair<LiteExpr*, uint32>(liteExpr, paramsUsed));
     return liteExpr;
   }
 

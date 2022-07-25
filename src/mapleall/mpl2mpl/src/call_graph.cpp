@@ -223,7 +223,7 @@ void CallGraph::DelNode(CGNode &node) {
   if (node.GetMIRFunction() == nullptr) {
     return;
   }
-  for (auto &callSite : node.GetCallee()) {
+  for (const auto &callSite : node.GetCallee()) {
     for (auto &cgIt : *callSite.second) {
       cgIt->DelCaller(&node);
       node.DelCallee(callSite.first, cgIt);
@@ -240,7 +240,7 @@ void CallGraph::DelNode(CGNode &node) {
     size_t j = 0;
     for (; j < mirStructType->GetMethods().size(); ++j) {
       if (mirStructType->GetMethodsElement(j).first == func->GetStIdx()) {
-        mirStructType->GetMethods().erase(mirStructType->GetMethods().begin() + static_cast<ssize_t>(j));
+        mirStructType->GetMethods().erase(mirStructType->GetMethods().cbegin() + static_cast<ssize_t>(j));
         break;
       }
     }
@@ -255,7 +255,8 @@ void CallGraph::DelNode(CGNode &node) {
   }
 }
 
-CallGraph::CallGraph(MIRModule &m, MemPool &memPool, MemPool &templPool, KlassHierarchy &kh, const std::string &fn)
+CallGraph::CallGraph(MIRModule &m, MemPool &memPool, MemPool &templPool,
+                     const KlassHierarchy &kh, const std::string &fn)
     : AnalysisResult(&memPool),
       mirModule(&m),
       cgAlloc(&memPool),
@@ -340,7 +341,7 @@ SCCNode<CGNode> *CallGraph::GetSCCNode(MIRFunction *func) const {
 
 void CallGraph::UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, std::set<PUIdx> &candidate) {
   CGNode *caller = GetCGNode(callerPuIdx);
-  for (auto &pair : caller->GetCallee()) {
+  for (const auto &pair : caller->GetCallee()) {
     auto *callsite = pair.first;
     if (callsite->GetCallStmt() == icall) {
       auto *calleeSet = pair.second;
@@ -356,7 +357,7 @@ void CallGraph::UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, 
 
 void CallGraph::UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, PUIdx calleePuidx, CallNode *call) {
   CGNode *caller = GetCGNode(callerPuIdx);
-  for (auto &pair : caller->GetCallee()) {
+  for (const auto &pair : caller->GetCallee()) {
     auto *callsite = pair.first;
     if (callsite->GetCallStmt() == icall) {
       callsite->SetCallStmt(call);
@@ -947,7 +948,7 @@ static void ResetInferredType(std::vector<MIRSymbol*> &inferredSymbols, MIRSymbo
   for (; i < inferredSymbols.size(); ++i) {
     if (inferredSymbols[i] == symbol) {
       symbol->SetInferredTyIdx(TyIdx());
-      inferredSymbols.erase(inferredSymbols.begin() + static_cast<ssize_t>(i));
+      inferredSymbols.erase(inferredSymbols.cbegin() + static_cast<ssize_t>(i));
       break;
     }
   }
@@ -1014,11 +1015,11 @@ void IPODevirtulize::SearchDefInClinit(const Klass &klass) {
               staticFinalPrivateSymbols[i]->SetInferredTyIdx(rightSymbol->GetInferredTyIdx());
             } else {
               staticFinalPrivateSymbols[i]->SetInferredTyIdx(kInitTyIdx);
-              staticFinalPrivateSymbols.erase(staticFinalPrivateSymbols.begin() + static_cast<ssize_t>(i));
+              staticFinalPrivateSymbols.erase(staticFinalPrivateSymbols.cbegin() + static_cast<ssize_t>(i));
             }
           } else {
             staticFinalPrivateSymbols[i]->SetInferredTyIdx(kInitTyIdx);
-            staticFinalPrivateSymbols.erase(staticFinalPrivateSymbols.begin() + static_cast<ssize_t>(i));
+            staticFinalPrivateSymbols.erase(staticFinalPrivateSymbols.cbegin() + static_cast<ssize_t>(i));
           }
         } else if (dassignNode->GetRHS()->GetOpCode() == OP_gcmalloc) {
           GCMallocNode *gcmallocNode = static_cast<GCMallocNode*>(dassignNode->GetRHS());
@@ -1198,11 +1199,11 @@ void IPODevirtulize::SearchDefInMemberMethods(const Klass &klass) {
                   classType->SetElemInferredTyIdx(fieldID, rightSymbol->GetInferredTyIdx());
                 } else {
                   classType->SetElemInferredTyIdx(fieldID, kInitTyIdx);
-                  finalPrivateFieldID.erase(finalPrivateFieldID.begin() + static_cast<ssize_t>(j));
+                  finalPrivateFieldID.erase(finalPrivateFieldID.cbegin() + static_cast<ssize_t>(j));
                 }
               } else {
                 classType->SetElemInferredTyIdx(fieldID, kInitTyIdx);
-                finalPrivateFieldID.erase(finalPrivateFieldID.begin() + static_cast<ssize_t>(j));
+                finalPrivateFieldID.erase(finalPrivateFieldID.cbegin() + static_cast<ssize_t>(j));
               }
             }
           }
@@ -1612,7 +1613,7 @@ void CallGraph::ReadCallGraphFromMplt() {
         ASSERT(tempNode != nullptr, "calleenode is null in CallGraph::HandleBody");
         node->AddCallsite(*info, tempNode);
       }
-      for (auto &callSite : node->GetCallee()) {
+      for (const auto &callSite : node->GetCallee()) {
         if (callSite.first == info) {
           for (auto &cgIt : *callSite.second) {
             CGNode *tempNode = cgIt;
@@ -1657,14 +1658,14 @@ void CallGraph::GetMatchedCGNode(const TyIdx &idx, std::vector<CGNode*> &result)
 }
 
 void CallGraph::FixIcallCallee() {
-  for (auto &pair : icallToFix) {
+  for (const auto &pair : icallToFix) {
     std::vector<CGNode*> funcs;
     GetMatchedCGNode(pair.first, funcs);
     for (auto &callerCallee : *pair.second) {
       auto puidx = callerCallee.first;
       auto candidate = callerCallee.second;
       CHECK_FATAL(candidate.second->empty(), "Error");
-      candidate.second->insert(funcs.begin(), funcs.end());
+      candidate.second->insert(funcs.cbegin(), funcs.cend());
       StmtNode *stmt = candidate.first->GetCallStmt();
       std::for_each(funcs.begin(), funcs.end(), [puidx, stmt, this](CGNode *elem) {
         CGNode *callerNode = GetOrGenCGNode(puidx);
@@ -1726,7 +1727,7 @@ void CallGraph::FindRootNodes() {
   if (!rootNodes.empty()) {
     CHECK_FATAL(false, "rootNodes has already been set");
   }
-  for (auto const &it : nodesMap) {
+  for (const auto &it : nodesMap) {
     CGNode *node = it.second;
     if (!node->HasCaller()) {
       rootNodes.push_back(node);
@@ -1773,7 +1774,7 @@ void CallGraph::RemoveFileStaticSCC() {
       }
     }
     if (canBeDel) {
-      sccTopologicalVec.erase(sccTopologicalVec.begin() + static_cast<ssize_t>(idx));
+      sccTopologicalVec.erase(sccTopologicalVec.cbegin() + static_cast<ssize_t>(idx));
       for (auto *calleeSCC : sccNode->GetOutScc()) {
         calleeSCC->RemoveInScc(sccNode);
       }

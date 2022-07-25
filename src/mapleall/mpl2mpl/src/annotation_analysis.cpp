@@ -246,12 +246,12 @@ void AnnotationAnalysis::ByPassFollowingInfo(AnnotationParser &aParser, MIRStruc
   CHECK_FATAL(t == kSemiComma, "must be");
 }
 
-AnnotationType *AnnotationParser::GetOrCreateArrayType(AnnotationType *containsType, MemPool &pragmaMemPool) {
-  if (createdArrayType.find(containsType) != createdArrayType.end()) {
-    return createdArrayType[containsType];
+AnnotationType *AnnotationParser::GetOrCreateArrayType(AnnotationType &containsType, MemPool &pragmaMemPool) {
+  if (createdArrayType.find(&containsType) != createdArrayType.end()) {
+    return createdArrayType[&containsType];
   }
   ExtendGeneric *retType = pragmaMemPool.New<ExtendGeneric>(containsType, kArrayType);
-  createdArrayType[containsType] = retType;
+  createdArrayType[&containsType] = retType;
   return retType;
 }
 
@@ -322,15 +322,15 @@ AnnotationType *AnnotationAnalysis::ReadInGenericType(AnnotationParser &aParser,
     }
     case kExtend:
       retType = ReadInGenericType(aParser, sType);
-      retType = pragmaMemPool->New<ExtendGeneric>(retType, kHierarchyExtend);
+      retType = pragmaMemPool->New<ExtendGeneric>(*retType, kHierarchyExtend);
       break;
     case kSuper:
       retType = ReadInGenericType(aParser, sType);
-      retType = pragmaMemPool->New<ExtendGeneric>(retType, kHierarchyHSuper);
+      retType = pragmaMemPool->New<ExtendGeneric>(*retType, kHierarchyHSuper);
       break;
     case kArray:
       retType = ReadInGenericType(aParser, sType);
-      retType = aParser.GetOrCreateArrayType(retType, *pragmaMemPool);
+      retType = aParser.GetOrCreateArrayType(*retType, *pragmaMemPool);
       break;
     case kMatch:
       return genericMatch;
@@ -351,6 +351,7 @@ GenericDeclare *AnnotationAnalysis::ReadInGenericDeclare(AnnotationParser &aPars
   if (aParser.GetCurStrToken() != "") {
     GStrIdx gStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(aParser.GetCurStrToken());
     gDeclare = aParser.GetOrCreateDeclare(gStrIdx, *pragmaMemPool, true, mirStructType);
+    ASSERT_NOT_NULL(gDeclare);
     CHECK_FATAL(gDeclare->GetDefaultType() == nullptr, "must be");
   }
   AnnotationType *at = ReadInGenericType(aParser, mirStructType);
@@ -378,7 +379,7 @@ std::string AnnotationAnalysis::ReadInAllSubString(const MIRPragma &classPragma)
 
 void AnnotationAnalysis::AnalysisAnnotationForFuncLocalVar(MIRFunction &func, AnnotationParser &aParser,
                                                            MIRStructType &structType) {
-  for (auto pair : func.GetAliasVarMap()) {
+  for (const auto pair : func.GetAliasVarMap()) {
     MIRAliasVars aliasVar = pair.second;
     if (aliasVar.sigStrIdx) {
       std::string newSig = GlobalTables::GetStrTable().GetStringFromStrIdx(aliasVar.sigStrIdx);
@@ -504,7 +505,7 @@ void AnnotationAnalysis::AnalysisAnnotation() {
     MIRStructType *structType = klass->GetMIRStructType();
     AAForFuncVarInfo(*structType);
   }
-  for (MIRFunction *func : mirModule->GetFunctionList()) {
+  for (MIRFunction *func : std::as_const(mirModule->GetFunctionList())) {
     if (func->IsEmpty() || analysisedFunc.find(func) != analysisedFunc.end()) {
       continue;
     }
@@ -530,7 +531,7 @@ bool M2MAnnotationAnalysis::PhaseRun(maple::MIRModule &m) {
   auto *kh = GET_ANALYSIS(M2MKlassHierarchy, m);
   ASSERT_NOT_NULL(kh);
   MemPool *pragmaMemPool = GetPhaseMemPool();
-  aa = pragmaMemPool->New<AnnotationAnalysis>(&m, ApplyTempMemPool(), pragmaMemPool, kh);
+  aa = pragmaMemPool->New<AnnotationAnalysis>(&m, ApplyTempMemPool(), *pragmaMemPool, kh);
   aa->Run();
   return false;
 }

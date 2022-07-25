@@ -72,7 +72,7 @@ void ProfileGen::CreateModProfDesc() {
   FieldVector parentFields;
 
   std::string srcFN = mod.GetFileName();
-  std::string useName = flatenName(srcFN);
+  std::string useName = FlatenName(srcFN);
 
   MIRType *modProfDescTy = GlobalTables::GetTypeTable().GetOrCreateStructType(
       namemangler::kprefixProfModDesc + useName + "_ty", modProfDescFields, parentFields, mod);
@@ -269,7 +269,7 @@ void ProfileGen::CreateFuncProfDesc() {
     funcProfDescMirConst->AddItem(arrOfCtrDescMirConst, 6);
 
     MIRSymbol *funcProfDescSym = mod.GetMIRBuilder()->CreateGlobalDecl(
-        namemangler::kprefixProfFuncDesc + flatenName(mod.GetFileName() + "_" + f->GetName()),
+        namemangler::kprefixProfFuncDesc + FlatenName(mod.GetFileName() + "_" + f->GetName()),
         *funcProfDescTy, kScFstatic);
     funcProfDescSym->SetKonst(funcProfDescMirConst);
     funcProfDescs.push_back(funcProfDescSym);
@@ -288,7 +288,7 @@ void ProfileGen::CreateFuncProfDescTbl() {
   MIRType *arrOffuncProfDescPtrTy = GlobalTables::GetTypeTable().GetOrCreateArrayType(*funcProfDescPtrTy, tblSize);
   std::string fileName = mod.GetFileName();
   MIRSymbol *funcProfDescTblSym = mod.GetMIRBuilder()->CreateGlobalDecl(
-      namemangler::kprefixProfFuncDescTbl + flatenName(fileName), *arrOffuncProfDescPtrTy, kScFstatic);
+      namemangler::kprefixProfFuncDescTbl + FlatenName(fileName), *arrOffuncProfDescPtrTy, kScFstatic);
   MIRAggConst *funcDescTblMirConst = mod.GetMemPool()->New<MIRAggConst>(mod, *arrOffuncProfDescPtrTy);
 
   for (size_t i = 0; i < tblSize; ++i) {
@@ -320,7 +320,7 @@ void ProfileGen::CreateInitProc() {
   MIRType *voidTy = GlobalTables::GetTypeTable().GetVoid();
   ArgVector formals(mod.GetMPAllocator().Adapter());
   MIRFunction *mplProfInit = mirBuilder->CreateFunction(
-      namemangler::kprefixProfInit + flatenName(mod.GetFileName()), *voidTy, formals);
+      namemangler::kprefixProfInit + FlatenName(mod.GetFileName()), *voidTy, formals);
   mplProfInit->SetPuidxOrigin(mplProfInit->GetPuidx());
   mplProfInit->SetAttr(FUNCATTR_initialization);
   mirBuilder->SetCurrentFunction(*mplProfInit);
@@ -354,7 +354,7 @@ void ProfileGen::CreateExitProc() {
 
   ArgVector formals(mod.GetMPAllocator().Adapter());
   MIRFunction *mplProfExit = mirBuilder->CreateFunction(
-      namemangler::kprefixProfExit + flatenName(mod.GetFileName()), *voidTy, formals);
+      namemangler::kprefixProfExit + FlatenName(mod.GetFileName()), *voidTy, formals);
   mplProfExit->SetPuidxOrigin(mplProfExit->GetPuidx());
   mplProfExit->SetAttr(FUNCATTR_termination);
   mirBuilder->SetCurrentFunction(*mplProfExit);

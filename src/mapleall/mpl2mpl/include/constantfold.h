@@ -33,7 +33,6 @@ class ConstantFold : public FuncOptimizeImpl {
   BaseNode *Fold(BaseNode *node);
 
   // Simplify a statement
-  //
   // It returns the original statement or the changed statement if a
   // simplification happened. If the statement can be deleted after a
   // simplification, it returns nullptr.
@@ -45,7 +44,9 @@ class ConstantFold : public FuncOptimizeImpl {
   }
 
   void ProcessFunc(MIRFunction *func) override;
-  ~ConstantFold() override = default;
+  ~ConstantFold() override {
+    mirModule = nullptr;
+  }
 
   template <class T> T CalIntValueFromFloatValue(T value, const MIRType &resultType) const;
   MIRConst *FoldFloorMIRConst(const MIRConst&, PrimType, PrimType, bool isFloor = true) const;

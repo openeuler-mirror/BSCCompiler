@@ -35,7 +35,16 @@ class PreCheckCast : public FuncOptimizeImpl {
 class CheckCastGenerator : public FuncOptimizeImpl {
  public:
   CheckCastGenerator(MIRModule &mod, KlassHierarchy *kh, bool dump);
-  ~CheckCastGenerator() override = default;
+  ~CheckCastGenerator() override {
+    pointerObjType = nullptr;
+    pointerClassMetaType = nullptr;
+    classinfoType = nullptr;
+    throwCastException = nullptr;
+    checkCastingNoArray = nullptr;
+    checkCastingArray = nullptr;
+    mccIsAssignableFrom = nullptr;
+    castExceptionFunc = nullptr;
+  }
 
   FuncOptimizeImpl *Clone() override {
     return new CheckCastGenerator(*this);

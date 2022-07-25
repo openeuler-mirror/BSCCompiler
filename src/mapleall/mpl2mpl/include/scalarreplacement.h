@@ -22,7 +22,10 @@ class ScalarReplacement : public FuncOptimizeImpl {
  public:
   ScalarReplacement(MIRModule &mod, KlassHierarchy *kh, bool trace) : FuncOptimizeImpl(mod, kh, trace) {}
 
-  ~ScalarReplacement() override = default;
+  ~ScalarReplacement() override {
+    curSym = nullptr;
+    newScalarSym = nullptr;
+  }
 
   FuncOptimizeImpl *Clone() override {
     return new ScalarReplacement(*this);

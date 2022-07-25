@@ -22,7 +22,6 @@
 #include "gcov_profile.h"
 
 namespace maple {
-using gcov_unsigned_t = unsigned;
 using gcov_position_t = unsigned;
 // counter defined in gcov-counter.def
 enum {
@@ -44,7 +43,7 @@ class GcovVar {
     file = nullptr;
     buffer = nullptr;
   }
-  FILE *file;
+  FILE *file = nullptr;
   gcov_position_t start = 0;
   unsigned offset = 0;
   unsigned length = 0;
@@ -53,7 +52,7 @@ class GcovVar {
   int mode = 0;
   int endian = 0;
   size_t alloc = 0;
-  gcov_unsigned_t* buffer;
+  gcov_unsigned_t* buffer = nullptr;
 };
 
 class MGcovParser : public AnalysisResult {
@@ -62,7 +61,7 @@ class MGcovParser : public AnalysisResult {
       alloc(memPool), localMP(memPool), gcovData(nullptr), dumpDetail(debug) {
     gcovVar = localMP->New<GcovVar>();
   }
-  virtual ~MGcovParser() {
+  ~MGcovParser() override {
     localMP = nullptr;
     gcovData = nullptr;
     gcovVar = nullptr;
@@ -72,11 +71,11 @@ class MGcovParser : public AnalysisResult {
   GcovProfileData *GetGcovData() { return gcovData; }
 
  private:
-  typedef struct {
+  using gcov_bucket_type = struct {
     gcov_unsigned_t num_counters;
     gcov_type min_value;
     gcov_type cum_value;
-  } gcov_bucket_type;
+  };
 
   struct gcov_ctr_summary {
     gcov_unsigned_t num;

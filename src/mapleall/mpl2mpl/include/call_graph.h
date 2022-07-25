@@ -143,7 +143,12 @@ class CGNode : public BaseGraphNode {
         mustNotBeInlined(false),
         vcallCands(alloc->Adapter()) {}
 
-  virtual ~CGNode() = default;
+  ~CGNode() override {
+    alloc = nullptr;
+    sccNode = nullptr;
+    mirFunc = nullptr;
+    originBody = nullptr;
+  }
 
   void Dump(std::ofstream &fout) const;
   void DumpDetail() const;
@@ -231,7 +236,7 @@ class CGNode : public BaseGraphNode {
     callers[caller]->emplace(stmt);
   }
 
-  void DelCaller(CGNode *caller) {
+  void DelCaller(CGNode * const caller) {
     if (callers.find(caller) != callers.end()) {
       callers.erase(caller);
     }
@@ -346,8 +351,8 @@ class CGNode : public BaseGraphNode {
     addrTaken = true;
   }
 
-  void GetOutNodes(std::vector<BaseGraphNode*> &outNodes) override {
-    for (auto &callSite : GetCallee()) {
+  void GetOutNodes(std::vector<BaseGraphNode*> &outNodes) final {
+    for (auto &callSite : std::as_const(GetCallee())) {
       for (auto &cgIt : *callSite.second) {
         CGNode *calleeNode = cgIt;
         outNodes.emplace_back(calleeNode);
@@ -355,14 +360,14 @@ class CGNode : public BaseGraphNode {
     }
   }
 
-  void GetInNodes(std::vector<BaseGraphNode*> &inNodes) override {
-    for (auto pair : GetCaller()) {
+  void GetInNodes(std::vector<BaseGraphNode*> &inNodes) final {
+    for (auto pair : std::as_const(GetCaller())) {
       CGNode *callerNode = pair.first;
       inNodes.emplace_back(callerNode);
     }
   }
 
-  const std::string GetIdentity() override {
+  const std::string GetIdentity() final {
     std::string sccIdentity;
     if (GetMIRFunction() != nullptr) {
       sccIdentity = "function(" + std::to_string(GetMIRFunction()->GetPuidx()) + "): " + GetMIRFunction()->GetName();
@@ -411,7 +416,7 @@ using Caller2Cands = std::pair<PUIdx, Callsite>;
 
 class CallGraph : public AnalysisResult {
  public:
-  CallGraph(MIRModule &m, MemPool &memPool, MemPool &tempPool, KlassHierarchy &kh, const std::string &fn);
+  CallGraph(MIRModule &m, MemPool &memPool, MemPool &tempPool, const KlassHierarchy &kh, const std::string &fn);
   ~CallGraph() = default;
 
   void InitCallExternal() {
@@ -497,7 +502,7 @@ class CallGraph : public AnalysisResult {
   }
 
   void GetNodes(std::vector<CGNode*> &nodes) {
-    for (auto const &it : nodesMap) {
+    for (auto &it : std::as_const(nodesMap)) {
       CGNode *node = it.second;
       nodes.emplace_back(node);
     }
@@ -530,7 +535,7 @@ class CallGraph : public AnalysisResult {
   CGNode *entryNode;  // For main function, nullptr if there is multiple entries
   MapleVector<CGNode*> rootNodes;
   MapleString fileName;  // used for output dot file
-  KlassHierarchy *klassh;
+  const KlassHierarchy *klassh;
   MapleMap<MIRFunction*, CGNode*, NodeComparator> nodesMap;
   MapleVector<SCCNode<CGNode>*> sccTopologicalVec;
   MapleMap<StIdx, BaseNode*> localConstValueMap;  // used to record the local constant value

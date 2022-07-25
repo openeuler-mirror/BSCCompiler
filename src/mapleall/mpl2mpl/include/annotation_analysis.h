@@ -92,7 +92,7 @@ class GenericType : public AnnotationType {
         GenericArg(alloc.Adapter()),
         ArgOrder(alloc.Adapter()) {}
   virtual ~GenericType() = default;
-  void AddGenericPair(GenericDeclare *k, AnnotationType *v) {
+  void AddGenericPair(GenericDeclare * const k, AnnotationType *v) {
     GenericArg[k] = v;
     ArgOrder.push_back(v);
   }
@@ -106,6 +106,9 @@ class GenericType : public AnnotationType {
   }
 
   MIRType *GetMIRType() {
+    return mirStructType;
+  }
+  const MIRType *GetMIRType() const {
     return mirStructType;
   }
 
@@ -138,6 +141,9 @@ class GenericDeclare : public AnnotationType {
   AnnotationType *GetDefaultType() {
     return defaultType;
   }
+  const AnnotationType *GetDefaultType() const {
+    return defaultType;
+  }
 
   void SetDefaultType(AnnotationType *gt) {
     defaultType = gt;
@@ -151,7 +157,7 @@ class GenericDeclare : public AnnotationType {
     }
   }
 
-  virtual void Dump() override;
+  void Dump() override;
 
   void SetBelongToStruct(MIRStructType *s) {
     defKind = defByStruct;
@@ -180,8 +186,8 @@ class GenericDeclare : public AnnotationType {
 
 class ExtendGeneric : public AnnotationType {
  public:
-  ExtendGeneric(AnnotationType *c, EInfo h) : AnnotationType(kExtendType, GStrIdx(0)), contains(c), eInfo(h) {
-    CHECK_FATAL(c->GetKind() != kGenericMatch, "must be");
+  ExtendGeneric(AnnotationType &c, EInfo h) : AnnotationType(kExtendType, GStrIdx(0)), contains(&c), eInfo(h) {
+    CHECK_FATAL(c.GetKind() != kGenericMatch, "must be");
   }
   virtual ~ExtendGeneric() = default;
 
@@ -201,6 +207,9 @@ class ExtendGeneric : public AnnotationType {
   AnnotationType *GetContainsGeneric() {
     return contains;
   }
+  const AnnotationType *GetContainsGeneric() const {
+    return contains;
+  }
  private:
   AnnotationType *contains;
   EInfo eInfo;
@@ -212,7 +221,7 @@ class AnnotationParser {
   ~AnnotationParser() = default;
   ATokenKind GetNextToken(const char *endC = nullptr);
   GenericDeclare *GetOrCreateDeclare(GStrIdx gStrIdx, MemPool &mp, bool check = false, MIRStructType *sType = nullptr);
-  AnnotationType *GetOrCreateArrayType(AnnotationType *containsType, MemPool &pragmaMemPool);
+  AnnotationType *GetOrCreateArrayType(AnnotationType &containsType, MemPool &pragmaMemPool);
   void BackOne() {
     --curIndex;
   }
@@ -245,17 +254,17 @@ class AnnotationAnalysis : public AnalysisResult {
  public:
   static char annoDeclare;
   static char annoSemiColon;
-  AnnotationAnalysis(MIRModule *mod, MemPool *tmpMp, MemPool *pragmaMp, KlassHierarchy *kh)
-      : AnalysisResult(pragmaMp),
+  AnnotationAnalysis(MIRModule *mod, MemPool *tmpMp, MemPool &pragmaMp, KlassHierarchy *kh)
+      : AnalysisResult(&pragmaMp),
         mirModule(mod),
         tmpAllocator(tmpMp),
-        pragmaMemPool(pragmaMp),
-        pragmaAllocator(pragmaMp),
+        pragmaMemPool(&pragmaMp),
+        pragmaAllocator(&pragmaMp),
         klassH(kh) {
-          genericMatch = pragmaMp->New<AnnotationType>(kGenericMatch, GStrIdx(0));
+          genericMatch = pragmaMp.New<AnnotationType>(kGenericMatch, GStrIdx(0));
           GStrIdx strIdx = GlobalTables::GetStrTable().GetStrIdxFromName("Ljava_2Flang_2FObject_3B");
           MIRType &classType = GetTypeFromTyIdx(GlobalTables::GetTypeNameTable().GetTyIdxFromGStrIdx(strIdx));
-          dummyObj = pragmaMp->New<GenericType>(strIdx, &static_cast<MIRStructType&>(classType), pragmaAllocator);
+          dummyObj = pragmaMp.New<GenericType>(strIdx, &static_cast<MIRStructType&>(classType), pragmaAllocator);
         };
   ~AnnotationAnalysis() = default;
   void Run();
@@ -279,7 +288,7 @@ class AnnotationAnalysis : public AnalysisResult {
   MapleSet<MIRStructType*> analysised{tmpAllocator.Adapter()};
   MapleSet<MIRFunction*> analysisedFunc{tmpAllocator.Adapter()};
   AnnotationType *genericMatch = nullptr;
-  GenericType *dummyObj;
+  GenericType *dummyObj = nullptr;
 };
 
 MAPLE_MODULE_PHASE_DECLARE_BEGIN(M2MAnnotationAnalysis)

@@ -43,12 +43,12 @@ class ProfileGenPM : public SccPM {
 class ProfileGen {
  public:
   explicit ProfileGen(MIRModule &module) : mod(module) {
-    for (MIRFunction *f : mod.GetFunctionList()) {
+    for (MIRFunction *f : std::as_const(mod.GetFunctionList())) {
       if (!f->IsEmpty()) { validFuncs.push_back(f); }
     }
-  };
+  }
 
-  std::string flatenName(const std::string &name) const {
+  std::string FlatenName(const std::string &name) const {
     std::string filteredName = name;
     std::replace(filteredName.begin(), filteredName.end(), '.', '_');
     std::replace(filteredName.begin(), filteredName.end(), '-', '_');
