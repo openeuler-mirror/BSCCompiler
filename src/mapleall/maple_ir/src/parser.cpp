@@ -2577,10 +2577,21 @@ bool MIRParser::ParseOneScope(MIRScope &scope) {
   return true;
 }
 
-bool MIRParser::ParseScope(StmtNodePtr &stmt [[maybe_unused]]) {
-  MIRScope *scp = mod.CurFunction()->GetScope();
+bool MIRParser::ParseScope() {
+  MIRScope *scp = nullptr;
+  MIRFunction *func = mod.CurFunction();
+  // check if the first dummy function
+  if (func->GetPuidxOrigin() == 1) {
+    scp = mod.GetScope();
+  } else {
+    scp = func->GetScope();
+  }
   bool status = ParseOneScope(*scp);
   return status;
+}
+
+bool MIRParser::ParseScopeStmt(StmtNodePtr&) {
+  return ParseScope();
 }
 
 bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
@@ -2590,8 +2601,8 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
     return false;
   }
   nameTk = lexer.NextToken();
-  if (nameTk != TK_lname) {
-    Error("expect local in ALIAS but get ");
+  if (nameTk != TK_lname && nameTk != TK_gname) {
+    Error("expect local or global in ALIAS but get ");
     return false;
   }
   strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
@@ -2651,7 +2662,7 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
   return true;
 }
 
-bool MIRParser::ParseAlias(StmtNodePtr &stmt [[maybe_unused]]) {
+bool MIRParser::ParseAlias() {
   GStrIdx strIdx;
   MIRAliasVars aliasVar;
 
@@ -2659,6 +2670,10 @@ bool MIRParser::ParseAlias(StmtNodePtr &stmt [[maybe_unused]]) {
 
   mod.CurFunction()->SetAliasVarMap(strIdx, aliasVar);
   return true;
+}
+
+bool MIRParser::ParseAliasStmt(StmtNodePtr&) {
+  return ParseAlias();
 }
 
 uint8 *MIRParser::ParseWordsInfo(uint32 size) {
@@ -2845,6 +2860,8 @@ std::map<TokenKind, MIRParser::FuncPtrParseMIRForElem> MIRParser::InitFuncPtrMap
   funcPtrMap[TK_importpath] = &MIRParser::ParseMIRForImportPath;
   funcPtrMap[TK_asmdecl] = &MIRParser::ParseMIRForAsmdecl;
   funcPtrMap[TK_LOC] = &MIRParser::ParseLoc;
+  funcPtrMap[TK_ALIAS] = &MIRParser::ParseAlias;
+  funcPtrMap[TK_SCOPE] = &MIRParser::ParseScope;
   return funcPtrMap;
 }
 

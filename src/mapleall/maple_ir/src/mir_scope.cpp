@@ -106,7 +106,7 @@ bool MIRScope::AddScope(MIRScope *scope) {
   return true;
 }
 
-void MIRScope::Dump(int32 indent) const {
+void MIRScope::Dump(int32 indent, bool isLocal) const {
   SrcPosition low = range.first;
   SrcPosition high = range.second;
   PrintIndentation(indent);
@@ -121,7 +121,9 @@ void MIRScope::Dump(int32 indent) const {
 
   for (auto it : aliasVarMap) {
     PrintIndentation(indent + 1);
-    LogInfo::MapleLogger() << "ALIAS %" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first)
+    LogInfo::MapleLogger() << "ALIAS "
+                           << (isLocal ? " %" : " $")
+                           << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first)
                            << ((it.second.isLocal) ? " %" : " $")
                            << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.mplStrIdx) << " ";
     switch (it.second.atk) {

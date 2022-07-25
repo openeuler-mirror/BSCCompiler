@@ -577,7 +577,7 @@ bool MIRParser::ParseSwitchCase(int64 &constVal, LabelIdx &lblIdx) {
     Error("expect intconst in switch but get ");
     return false;
   }
-  constVal = lexer.GetTheIntVal();
+  constVal = static_cast<int64>(lexer.GetTheIntVal());
   if (lexer.NextToken() != TK_colon) {
     Error("expect : in switch but get ");
     return false;
@@ -1877,7 +1877,9 @@ bool MIRParser::ParseStmtBlock(BlockNodePtr &blk) {
   if (mod.GetWithProfileInfo()) {
     StmtNode *stmtt = nullptr;
     if (!ParseStmtCallMcount(stmtt)) {
-      goto tupleSetup;
+      SrcPosition posE(lastFileNum, lastLineNum, lastColumnNum, lexer.GetLineNum());
+      mod.CurFunction()->GetScope()->AddTuple(blk->GetSrcPos(), posB, posE);
+      return retval;
     }
     blk->AddStatement(stmtt);
   }
@@ -1886,20 +1888,21 @@ bool MIRParser::ParseStmtBlock(BlockNodePtr &blk) {
     // calculate the mpl file line number mplNum here to get accurate result
     uint32 mplNum = lexer.GetLineNum();
     if (IsStatement(stmtTk)) {
-
       ParseStmtBlockForSeenComment(blk, mplNum);
       StmtNode *stmt = nullptr;
       if (!ParseStatement(stmt)) {
         Error("ParseStmtBlock failed when parsing a statement");
-        goto tupleSetup;
+        break;
       }
-      if (stmt != nullptr) {  // stmt is nullptr if it is a LOC
-        blk->AddStatement(stmt);
-        // set blk src position
-        if (first) {
-          blk->SetSrcPos(stmt->GetSrcPos());
-          first = false;
-        }
+      if (stmt == nullptr) {  // stmt is nullptr if it is a LOC
+        continue;
+      }
+
+      blk->AddStatement(stmt);
+      // set blk src position
+      if (first) {
+        blk->SetSrcPos(stmt->GetSrcPos());
+        first = false;
       }
     } else {
       std::map<TokenKind, FuncPtrParseStmtBlock>::iterator itFuncPtr = funcPtrMapForParseStmtBlock.find(stmtTk);
@@ -1908,19 +1911,18 @@ bool MIRParser::ParseStmtBlock(BlockNodePtr &blk) {
           ParseStmtBlockForSeenComment(blk, mplNum);
           lexer.NextToken();
           retval = true;
-          goto tupleSetup;
         } else {
           Error("expect } or var or statement for func body but get ");
-          goto tupleSetup;
         }
+        break;
       } else {
         if (!(this->*(itFuncPtr->second))()) {
-          goto tupleSetup;
+          break;
         }
       }
     }
   }
-tupleSetup:
+
   SrcPosition posE(lastFileNum, lastLineNum, lastColumnNum, lexer.GetLineNum());
   mod.CurFunction()->GetScope()->AddTuple(blk->GetSrcPos(), posB, posE);
   return retval;
@@ -1993,7 +1995,7 @@ bool MIRParser::ParseStmtBlockForReg() {
   MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyidx);
   preg->SetMIRType(mirType);
   if (lexer.GetTokenKind() == TK_intconst) {
-    int64 theIntVal = lexer.GetTheIntVal();
+    int64 theIntVal = static_cast<int64>(lexer.GetTheIntVal());
     if (theIntVal != 0 && theIntVal != 1) {
       Error("parseDeclareReg failed");
       return false;
@@ -2022,7 +2024,7 @@ bool MIRParser::ParseStmtBlockForFrameSize() {
     Error("expect integer after frameSize but get ");
     return false;
   }
-  fn->SetFrameSize(lexer.GetTheIntVal());
+  fn->SetFrameSize(static_cast<uint32>(lexer.GetTheIntVal()));
   lexer.NextToken();
   return true;
 }
@@ -2034,7 +2036,7 @@ bool MIRParser::ParseStmtBlockForUpformalSize() {
     Error("expect integer after upFormalSize but get ");
     return false;
   }
-  fn->SetUpFormalSize(lexer.GetTheIntVal());
+  fn->SetUpFormalSize(static_cast<uint32>(lexer.GetTheIntVal()));
   lexer.NextToken();
   return true;
 }
@@ -3477,8 +3479,8 @@ std::map<TokenKind, MIRParser::FuncPtrParseStmt> MIRParser::InitFuncPtrMapForPar
   funcPtrMap[TK_assignassertle] = &MIRParser::ParseNaryStmtAssignAssertLE;
   funcPtrMap[TK_label] = &MIRParser::ParseStmtLabel;
   funcPtrMap[TK_LOC] = &MIRParser::ParseLocStmt;
-  funcPtrMap[TK_SCOPE] = &MIRParser::ParseScope;
-  funcPtrMap[TK_ALIAS] = &MIRParser::ParseAlias;
+  funcPtrMap[TK_ALIAS] = &MIRParser::ParseAliasStmt;
+  funcPtrMap[TK_SCOPE] = &MIRParser::ParseScopeStmt;
   funcPtrMap[TK_asm] = &MIRParser::ParseStmtAsm;
   funcPtrMap[TK_safe] = &MIRParser::ParseStmtSafeRegion;
   funcPtrMap[TK_endsafe] = &MIRParser::ParseStmtSafeRegion;
@@ -3506,7 +3508,7 @@ std::map<TokenKind, MIRParser::FuncPtrParseStmtBlock> MIRParser::InitFuncPtrMapF
   return funcPtrMap;
 }
 
-void MIRParser::SetSrcPos(SrcPosition &srcPosition, uint32 mplNum) {
+void MIRParser::SetSrcPos(SrcPosition &srcPosition, uint32 mplNum) const {
   srcPosition.SetFileNum(lastFileNum);
   srcPosition.SetLineNum(lastLineNum);
   srcPosition.SetColumn(lastColumnNum);
