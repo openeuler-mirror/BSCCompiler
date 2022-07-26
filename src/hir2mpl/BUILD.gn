@@ -203,6 +203,10 @@ executable("hir2mpl") {
       "-ftest-coverage"
     ]
   }
+  if (GPROF == 1) {
+    ldflags += ["-pg"]
+    cflags_cc += ["-pg"]
+  }
 }
 
 include_bytecode_input_jbc_directories = [

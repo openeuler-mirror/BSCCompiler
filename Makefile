@@ -29,6 +29,7 @@ MAST := 0
 ASAN := 0
 ONLY_C := 0
 COV := 0
+GPROF := 0
 ifeq ($(DEBUG),0)
   BUILD_TYPE := RELEASE
 else
@@ -60,7 +61,8 @@ GN_OPTIONS := \
   MAST=$(MAST) \
   ASAN=$(ASAN) \
   ONLY_C=$(ONLY_C) \
-  COV=$(COV)
+  COV=$(COV) \
+  GPROF=$(GPROF)
 
 .PHONY: default
 default: install
