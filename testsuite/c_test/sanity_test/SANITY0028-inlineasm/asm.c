@@ -73,7 +73,7 @@ void test03() {
 #ifdef TEST04
 int test04a(int a, int b) {
   int *e = &a;
-  asm ("mov %w[e], %w[b]" : [b] "=r" (b) : [e] "r" (*e));
+  asm ("mov %w[b], %w[e]" : [b] "=r" (b) : [e] "r" (*e));
   return a;
 }
 void test04() {

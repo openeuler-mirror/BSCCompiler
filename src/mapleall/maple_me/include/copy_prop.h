@@ -15,8 +15,8 @@
 #ifndef MAPLE_ME_INCLUDE_COPY_PROP_H
 #define MAPLE_ME_INCLUDE_COPY_PROP_H
 #include "prop.h"
-#include "me_irmap.h"
-#include "me_phase.h"
+#include "me_irmap_build.h"
+#include "me_dominance.h"
 
 namespace maple {
 class CopyProp : public Prop {
@@ -25,7 +25,9 @@ class CopyProp : public Prop {
            const PropConfig &config)
       : Prop(irMap, dom, memPool, bbVecSize, config),
         func(meFunc) {}
+  virtual ~CopyProp() = default;
 
+  void ReplaceSelfAssign();
  private:
   MeExpr &PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm) override;
   void TraversalMeStmt(MeStmt &meStmt) override;
@@ -35,18 +37,9 @@ class CopyProp : public Prop {
   }
 
   MeFunction *func;
-  int cntOfPropedStmt = 0;
+  uint32 cntOfPropedStmt = 0;
 };
 
-class MeDoCopyProp : public MeFuncPhase {
- public:
-  explicit MeDoCopyProp(MePhaseID id) : MeFuncPhase(id) {}
-
-  virtual ~MeDoCopyProp() = default;
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrm) override;
-  std::string PhaseName() const override {
-    return "copyprop";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MECopyProp, MeFunction)
 } // namespace maple
 #endif  // MAPLE_ME_INCLUDE_COPY_PROP_H

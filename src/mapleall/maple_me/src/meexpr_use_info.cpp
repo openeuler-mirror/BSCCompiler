@@ -38,6 +38,8 @@ void MeExprUseInfo::AddUseSiteOfExpr(MeExpr *expr, T *useSite) {
   UseItem use(useSite);
   if ((*useSites)[uintExprID].second->front() != use) {
     (*useSites)[uintExprID].second->emplace_front(use);
+  } else {
+    (*useSites)[uintExprID].second->front().IncreaseRef();
   }
 }
 

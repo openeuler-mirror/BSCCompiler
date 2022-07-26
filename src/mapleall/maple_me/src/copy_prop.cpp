@@ -114,6 +114,96 @@ static bool ExpectedPropedExpr(const MeExpr &expr) {
   return false;
 }
 
+static bool IsSimpleExprOfOst(MeExpr &rhs, const OStIdx &idx, MeExpr *&preVersion) {
+  static constexpr uint maxDepth = 5;
+  if (rhs.GetDepth() > maxDepth) {
+    return false;
+  }
+  MeExprOp meOp = rhs.GetMeOp();
+  switch (meOp) {
+    case kMeOpReg: {
+      auto &regRead = static_cast<RegMeExpr&>(rhs);
+      if (regRead.GetRegIdx() < 0) {
+        return false;
+      }
+      if (regRead.GetOstIdx() != idx) {
+        return false;
+      }
+      preVersion = &regRead;
+      break;
+    }
+    case kMeOpOp: {
+      if (kOpcodeInfo.NotPure(rhs.GetOp())) {
+        return false;
+      }
+      auto &meopexpr = static_cast<const OpMeExpr &>(rhs);
+      for (uint8 i = 0; i < meopexpr.GetNumOpnds(); ++i) {
+        if (!meopexpr.GetOpnd(i)) {
+          continue;
+        }
+        if (!IsSimpleExprOfOst(*meopexpr.GetOpnd(i), idx, preVersion)) {
+          return false;
+        }
+      }
+      break;
+    }
+    case kMeOpConst:
+      return true;
+    default:
+      return false;
+  }
+  return true;
+}
+
+void CopyProp::ReplaceSelfAssign() {
+  auto& useInfo = irMap.GetExprUseInfo();
+  if (useInfo.IsInvalid()) {
+    useInfo.CollectUseInfoInFunc(&irMap, &dom, kUseInfoOfScalar);
+  }
+  for (auto &useSitesPair : useInfo.GetUseSites()) {
+    auto expr = useSitesPair.first;
+    if (!expr) {
+      continue;
+    }
+    if (expr->GetMeOp() == kMeOpReg) {
+      auto regMeExpr = static_cast<RegMeExpr *>(expr);
+      if (regMeExpr->GetRegIdx() < 0) {
+        continue;
+      }
+      if (!regMeExpr->IsDefByStmt()) {
+        continue;
+      }
+      auto &useSites = *useSitesPair.second;
+      if (useSites.size() != 1) {
+        continue;
+      }
+      auto useItem = useSites.front();
+      if (useItem.GetRef() != 1) {
+        continue;
+      }
+      auto *defStmt = regMeExpr->GetDefStmt();
+      CHECK_NULL_FATAL(defStmt);
+      auto rhs = defStmt->GetRHS();
+      MeExpr* preVersionExpr = nullptr;
+      if (!IsSimpleExprOfOst(*rhs, regMeExpr->GetOstIdx(), preVersionExpr)) {
+        continue;
+      }
+      if (useItem.IsUseByPhi() || useItem.GetStmt()->GetOp() == OP_asm ||
+          kOpcodeInfo.IsCall(useItem.GetStmt()->GetOp())) {
+        continue;
+      }
+      auto stmt = useItem.GetStmt();
+      if (irMap.ReplaceMeExprStmt(*stmt, *regMeExpr, *rhs)) {
+        defStmt->GetBB()->RemoveMeStmt(defStmt);
+        if (preVersionExpr) {
+          useInfo.AddUseSiteOfExpr(preVersionExpr, stmt);
+        }
+      }
+    }
+  }
+  useInfo.SetState(kUseInfoInvalid);
+}
+
 MeExpr &CopyProp::PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm) {
   MeExprOp meOp = meExpr.GetMeOp();
 
@@ -212,7 +302,7 @@ MeExpr &CopyProp::PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm) {
         }
         auto *opnd = naryMeExpr.GetOpnd(i);
         auto &propedExpr = PropMeExpr(utils::ToRef(opnd), subProped, false);
-        if (&propedExpr != &meExpr) {
+        if (&propedExpr != opnd) {
           if ((opnd->GetMeOp() == kMeOpVar || opnd->GetMeOp() == kMeOpReg) && !PropagatableByCopyProp(&propedExpr)) {
             continue;
           }
@@ -343,6 +433,7 @@ bool MECopyProp::PhaseRun(maple::MeFunction &f) {
       MeOption::propAtPhi, MeOption::propWithInverse || f.IsLfo()
   };
   CopyProp copyProp(&f, *hMap, *dom, *ApplyTempMemPool(), f.GetCfg()->NumBBs(), propConfig);
+  copyProp.ReplaceSelfAssign();
   copyProp.TraversalBB(*f.GetCfg()->GetCommonEntryBB());
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== After Copy Propagation  =============" << '\n';

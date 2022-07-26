@@ -52,6 +52,14 @@ public:
   const MePhiNode *GetPhi() const { return Get<MePhiNode>(); }
   MePhiNode *GetPhi() { return Get<MePhiNode>(); }
 
+  uint32 GetRef() {
+    return ref;
+  }
+
+  void IncreaseRef() {
+    ref++;
+  }
+
   bool operator==(const UseItem &other) const {
     return useNode == other.useNode;
   }
@@ -68,6 +76,7 @@ private:
   }
 
   std::variant<MeStmt *, MePhiNode *> useNode;
+  uint32 ref = 1;
 };
 
 enum MeExprUseInfoState {
