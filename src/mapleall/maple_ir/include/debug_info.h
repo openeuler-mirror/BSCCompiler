@@ -769,6 +769,7 @@ class DebugInfo {
   DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *arrayType);
   DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
   DBGDie *GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx);
+  DBGDie *GetOrCreateEnumTypeDie(unsigned idx);
 
   GStrIdx GetPrimTypeCName(PrimType pty);
 
