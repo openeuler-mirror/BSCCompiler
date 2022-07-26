@@ -291,7 +291,7 @@ class MeCFG : public AnalysisResult {
   }
   void BBTopologicalSort(SCCOfBBs &scc);
   void BuildSCC();
-  void UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, MeFunction &func);
+  void UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, MeFunction &meFunc);
   void SwapBBId(BB &bb1, BB &bb2);
   void ConstructBBFreqFromStmtFreq();
   void ConstructStmtFreq();

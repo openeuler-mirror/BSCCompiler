@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -18,8 +18,7 @@
 #include "ssa_mir_nodes.h"
 
 namespace maple {
-
-void VersionSt::DumpDefStmt(const MIRModule*) const {
+void VersionSt::DumpDefStmt() const {
   if (version <= 0) {
     return;
   }
@@ -51,6 +50,7 @@ VersionSt *VersionStTable::CreateNextVersionSt(OriginalSt *ost) {
 }
 
 void VersionStTable::CreateZeroVersionSt(OriginalSt *ost) {
+  ASSERT_NOT_NULL(ost);
   if (ost->GetZeroVersionIndex() != 0) {
     return;  // already created
   }
@@ -63,15 +63,28 @@ void VersionStTable::CreateZeroVersionSt(OriginalSt *ost) {
   return;
 }
 
+VersionSt *VersionStTable::GetOrCreateZeroVersionSt(OriginalSt &ost) {
+  auto zeroVersionIndex = ost.GetZeroVersionIndex();
+  if (zeroVersionIndex == kInvalidVstIdx) {
+    CreateZeroVersionSt(&ost);
+  }
+  auto *zeroVersionVst = GetVersionStVectorItem(ost.GetZeroVersionIndex());
+  ASSERT(zeroVersionVst != nullptr, "failed in creating zero-version-vst of ost");
+  return zeroVersionVst;
+}
+
 void VersionStTable::Dump(const MIRModule *mod) const {
   ASSERT(mod != nullptr, "nullptr check");
   LogInfo::MapleLogger() << "=======version st table entries=======\n";
   for (size_t i = 1; i < versionStVector.size(); ++i) {
     const VersionSt *vst = versionStVector[i];
+    if (vst == nullptr) {
+      continue;
+    }
     vst->Dump();
     if (vst->GetVersion() > 0) {
       LogInfo::MapleLogger() << " defined BB" << vst->GetDefBB()->GetBBId() << ": ";
-      vst->DumpDefStmt(mod);
+      vst->DumpDefStmt();
     } else {
       LogInfo::MapleLogger() << '\n';
     }

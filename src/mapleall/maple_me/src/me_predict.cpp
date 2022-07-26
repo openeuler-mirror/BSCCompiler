@@ -96,8 +96,8 @@ const ConstMeExpr *TryGetConstExprFromMeExpr(const MeExpr *expr) {
 }
 
 // Try to guess whether the value of return means error code.
-Predictor MePrediction::ReturnPrediction(const MeExpr *val, Prediction &prediction) const {
-  auto *constExpr = TryGetConstExprFromMeExpr(val);
+Predictor MePrediction::ReturnPrediction(const MeExpr *meExpr, Prediction &prediction) const {
+  auto *constExpr = TryGetConstExprFromMeExpr(meExpr);
   if (constExpr == nullptr) {
     return kPredNoPrediction;
   }

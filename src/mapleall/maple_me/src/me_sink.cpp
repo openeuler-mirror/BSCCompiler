@@ -56,7 +56,7 @@ class MeSink {
   bool OstHasNotBeenDefined(const OriginalSt *ost);
   bool ScalarHasValidDefStmt(const ScalarMeExpr *scalar);
 
-  bool MergeAssignStmtWithCallAssign(AssignMeStmt *assign, MeStmt *callAssign);
+  bool MergeAssignStmtWithCallAssign(AssignMeStmt *assign, MeStmt *callAssignStmt);
   DefUseInfoOfPhi DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::map<ScalarMeExpr*, MeStmt*> &defStmts);
   DefUseInfoOfPhi DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::map<ScalarMeExpr*, MeStmt*> &defStmts,
       std::set<MePhiNode*> &processedPhi, std::set<const MePhiNode*> &phisUseCurrPhiOpnds);

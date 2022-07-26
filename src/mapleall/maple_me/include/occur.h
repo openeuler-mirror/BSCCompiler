@@ -40,9 +40,9 @@ class MeOccur {
   MeOccur(OccType ty, int cId, MeOccur *df) : occTy(ty), classID(cId), mirBB(nullptr), def(df) {}
   MeOccur(OccType ty, int cId, BB &bb, MeOccur *df) : occTy(ty), classID(cId), mirBB(&bb), def(df) {}
   virtual ~MeOccur() = default;
-  virtual void Dump(const IRMap&) const;
-  void DumpOccur(IRMap&);
-  bool IsDominate(Dominance &dom, MeOccur&);
+  virtual void Dump(const IRMap &irMap) const;
+  void DumpOccur(IRMap &irMap);
+  bool IsDominate(Dominance &dom, MeOccur &occ);
   const BB *GetBB() const {
     return mirBB;
   }
@@ -110,7 +110,7 @@ class MeRealOcc : public MeOccur {
   }
 
   ~MeRealOcc() = default;
-  void Dump(const IRMap&) const override;
+  void Dump(const IRMap &irMap) const override;
   const MeStmt *GetMeStmt() const {
     return meStmt;
   }
@@ -223,7 +223,7 @@ class MeInsertedOcc : public MeOccur {
       : MeOccur(kOccInserted, 0, bb, nullptr), meExpr(expr), meStmt(stmt), savedExpr(nullptr) {}
 
   ~MeInsertedOcc() = default;
-  void Dump(const IRMap&) const override;
+  void Dump(const IRMap &irMap) const override;
   const MeStmt *GetMeStmt() const {
     return meStmt;
   }
@@ -282,7 +282,7 @@ class MePhiOpndOcc : public MeOccur {
 
   ~MePhiOpndOcc() = default;
   bool IsOkToInsert() const;
-  void Dump(const IRMap&) const override;
+  void Dump(const IRMap &irMap) const override;
   bool IsProcessed() const {
     return isProcessed;
   }
@@ -479,7 +479,7 @@ class MePhiOcc : public MeOccur {
   }
 
   bool IsOpndDefByRealOrInserted() const;
-  void Dump(const IRMap&) const;
+  void Dump(const IRMap &irMap) const;
 
  private:
   bool isDownSafe;           // default is true
@@ -623,7 +623,7 @@ class PreWorkCand {
   }
 
  private:
-  void InsertRealOccAt(MeRealOcc &occ, MapleVector<MeRealOcc*>::iterator it, PUIdx pIdx);
+  void InsertRealOccAt(MeRealOcc &occ, const MapleVector<MeRealOcc*>::iterator it, PUIdx pIdx);
   PreWorkCand *next;
   int32 index = 0;
   MapleVector<MeRealOcc*> realOccs;  // maintained in order of dt_preorder

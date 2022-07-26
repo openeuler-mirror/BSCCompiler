@@ -378,8 +378,8 @@ class ABCD {
     return kReduced;
   }
 
-  ProveResult Prove(ESSABaseNode &a, ESSABaseNode &b, InequalEdge &e);
-  ProveResult UpdateCacheResult(ESSABaseNode &a, ESSABaseNode &b, const InequalEdge &e,
+  ProveResult Prove(ESSABaseNode &aNode, ESSABaseNode &bNode, InequalEdge &edge);
+  ProveResult UpdateCacheResult(ESSABaseNode &aNode, ESSABaseNode &bNode, const InequalEdge &edge,
                                 MeetFunction meet);
   void PrintTracing() const;
   InequalityGraph *inequalityGraph;

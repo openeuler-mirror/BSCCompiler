@@ -26,7 +26,7 @@ class MeCfgOpt {
   bool Run(MeCFG &cfg);
 
  private:
-  bool PreCheck(const MeCFG &func) const;
+  bool PreCheck(const MeCFG &cfg) const;
   bool IsOk2Select(const MeExpr &expr0, const MeExpr &expr1) const;
   // collect expensive ops and if there is reference, return true
   static bool IsExpensiveOp(Opcode op);
@@ -48,7 +48,7 @@ class MeCfgOpt {
   }
 
   bool HasFloatCmp(const MeExpr &meExpr) const;
-  const MeStmt *GetCondBrStmtFromBB(const BB &bb) const;
+  MeStmt *GetCondBrStmtFromBB(BB &bb) const;
   MeStmt *GetTheOnlyMeStmtFromBB(BB &bb) const;
   MeStmt *GetTheOnlyMeStmtWithGotoFromBB(BB &bb) const;
   MeIRMap *meIrMap;

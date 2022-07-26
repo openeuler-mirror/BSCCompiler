@@ -426,14 +426,14 @@ uint32 IpaSideEffect::GetOrSetSCCNodeId(MIRFunction &mirfunc) {
   return 0;
 }
 
-bool IpaSideEffect::IsCallingIntoSCC(uint32 id) const {
-  if (id == 0) {
+bool IpaSideEffect::IsCallingIntoSCC(uint32 sccID) const {
+  if (sccID == 0) {
     return false;
   }
   if (sccId == 0) {
     return false;
   }
-  return (id != sccId);
+  return (sccID != sccId);
 }
 
 void IpaSideEffect::UpdateExternalFuncSideEffects(MIRFunction &func) {

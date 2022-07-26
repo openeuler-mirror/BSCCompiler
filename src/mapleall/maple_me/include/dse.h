@@ -65,7 +65,7 @@ class DSE {
 
   // step 3: mark stmt use live
   void MarkStmtUseLive(const StmtNode &stmt);
-  void MarkSingleUseLive(const BaseNode &exprNode);
+  void MarkSingleUseLive(const BaseNode &mirNode);
 
   // step 4: propagate live
   void PropagateLive() {

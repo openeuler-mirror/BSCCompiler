@@ -62,7 +62,7 @@ class VersionSt {
     return defBB;
   }
 
-  void DumpDefStmt(const MIRModule *mod) const;
+  void DumpDefStmt() const;
 
   bool IsInitVersion() const {
     return version == kInitVersion;

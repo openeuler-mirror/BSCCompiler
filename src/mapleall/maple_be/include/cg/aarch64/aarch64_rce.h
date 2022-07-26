@@ -34,11 +34,9 @@ using InsnPtr = Insn*;
  */
 class AArch64RedundantComputeElim : public RedundantComputeElim {
  public:
-  AArch64RedundantComputeElim(CGFunc &f, CGSSAInfo &info) :
-      RedundantComputeElim(f, info) {}
-  ~AArch64RedundantComputeElim() override {
-    candidates.clear();
-  }
+  AArch64RedundantComputeElim(CGFunc &f, CGSSAInfo &info, MemPool &mp) :
+      RedundantComputeElim(f, info, mp), candidates(rceAlloc.Adapter()) {}
+  ~AArch64RedundantComputeElim() override {}
 
   void Run() override;
   void DumpHash() const;
@@ -141,7 +139,7 @@ class AArch64RedundantComputeElim : public RedundantComputeElim {
   DUInsnInfo *GetDefUseInsnInfo(VRegVersion &defVersion);
   MOperator GetNewMop(const RegOperand &curDstOpnd, const RegOperand &existDstOpnd) const;
   void Optimize(BB &curBB, Insn &curInsn, RegOperand &curDstOpnd, RegOperand &existDstOpnd);
-  std::unordered_set<InsnPtr, InsnRHSHash, InsnRHSEqual> candidates;
+  MapleUnorderedSet<InsnPtr, InsnRHSHash, InsnRHSEqual> candidates;
   bool doOpt = true;
   bool isBothDefUse = false;
 };

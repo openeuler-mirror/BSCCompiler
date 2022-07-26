@@ -26,8 +26,8 @@ using InsnSet = std::set<Insn*, InsnIdCmp>;
 static uint32 g_count = 0;
 class RedundantComputeElim {
  public:
-  RedundantComputeElim(CGFunc &f, CGSSAInfo &info) :
-      cgFunc(&f), ssaInfo(&info) {}
+  RedundantComputeElim(CGFunc &f, CGSSAInfo &info, MemPool &mp) :
+      cgFunc(&f), ssaInfo(&info), rceAlloc(&mp) {}
   virtual ~RedundantComputeElim() = default;
 
   std::string PhaseName() const {
@@ -40,6 +40,7 @@ class RedundantComputeElim {
  protected:
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;
+  MapleAllocator rceAlloc;
 };
 MAPLE_FUNC_PHASE_DECLARE(CgRedundantCompElim, maplebe::CGFunc)
 } /* namespace maplebe */

@@ -33,20 +33,20 @@ class GCWriteBarrierOpt {
   ~GCWriteBarrierOpt() = default;
 
   void Prepare();
-  void GCLower(BB&, std::map<OStIdx, std::vector<MeStmt*>>&);
+  void GCLower(BB &bb, std::map<OStIdx, std::vector<MeStmt*>> &writeBarrierMap);
   void Finish();
 
  private:
-  bool IsWriteBarrier(const MeStmt&) const;
-  void ResetMeStmt(IntrinsiccallMeStmt&);
-  OStIdx GetOStIdx(MeExpr&);
-  bool IsCall(const MeStmt&);
-  bool HasYieldPoint(const MeStmt&, const MeStmt&);
-  bool HasCallAfterStmt(const MeStmt&);
-  bool HasCallBeforeStmt(const MeStmt&);
-  bool HasCallBetweenStmt(const MeStmt&, const MeStmt&);
-  bool IsBackEdgeDest(const BB&);
-  bool HasCallInBB(const BB&);
+  bool IsWriteBarrier(const MeStmt &stmt) const;
+  void ResetMeStmt(IntrinsiccallMeStmt &stmt);
+  OStIdx GetOStIdx(MeExpr &meExpr);
+  bool IsCall(const MeStmt &stmt) const;
+  bool HasYieldPoint(const MeStmt &start, const MeStmt &end);
+  bool HasCallAfterStmt(const MeStmt &stmt);
+  bool HasCallBeforeStmt(const MeStmt &stmt);
+  bool HasCallBetweenStmt(const MeStmt &start, const MeStmt &end);
+  bool IsBackEdgeDest(const BB &bb);
+  bool HasCallInBB(const BB &bb);
 
   MeFunction &func;
   MIRModule &mirModule;

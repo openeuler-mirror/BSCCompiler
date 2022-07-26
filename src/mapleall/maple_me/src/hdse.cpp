@@ -388,28 +388,28 @@ void HDSE::MarkPhiRequired(VarOrRegPhiNode &mePhiNode) {
   MarkControlDependenceLive(*mePhiNode.GetDefBB());
 }
 
-void HDSE::MarkVarDefByStmt(VarMeExpr &varExpr) {
-  switch (varExpr.GetDefBy()) {
+void HDSE::MarkVarDefByStmt(VarMeExpr &varMeExpr) {
+  switch (varMeExpr.GetDefBy()) {
     case kDefByNo:
       break;
     case kDefByStmt: {
-      auto *defStmt = varExpr.GetDefStmt();
+      auto *defStmt = varMeExpr.GetDefStmt();
       if (defStmt != nullptr) {
         MarkStmtRequired(*defStmt);
       }
       break;
     }
     case kDefByPhi: {
-      MarkPhiRequired(varExpr.GetDefPhi());
+      MarkPhiRequired(varMeExpr.GetDefPhi());
       break;
     }
     case kDefByChi: {
-      auto &defChi = varExpr.GetDefChi();
+      auto &defChi = varMeExpr.GetDefChi();
       MarkChiNodeRequired(defChi);
       break;
     }
     case kDefByMustDef: {
-      auto *mustDef = &varExpr.GetDefMustDef();
+      auto *mustDef = &varMeExpr.GetDefMustDef();
       if (!mustDef->GetIsLive()) {
         mustDef->SetIsLive(true);
         MarkStmtRequired(*mustDef->GetBase());

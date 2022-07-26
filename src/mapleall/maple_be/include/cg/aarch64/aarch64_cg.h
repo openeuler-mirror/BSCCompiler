@@ -185,7 +185,7 @@ class AArch64CG : public CG {
     return mp.New<AArch64ValidBitOpt>(f, ssaInfo);
   }
   RedundantComputeElim *CreateRedundantCompElim(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
-    return mp.New<AArch64RedundantComputeElim>(f, ssaInfo);
+    return mp.New<AArch64RedundantComputeElim>(f, ssaInfo, mp);
   }
 
   static const AArch64MD kMd[kMopLast];

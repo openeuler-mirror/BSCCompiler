@@ -144,7 +144,7 @@ class PHASENAME : public MapleFunctionPhase<IRTYPE> {                      \
   static MaplePhase *CreatePhase(MemPool *createMP) {                      \
     return createMP->New<PHASENAME>(createMP);                             \
   }                                                                        \
-  bool PhaseRun(IRTYPE &func) override;
+  bool PhaseRun(IRTYPE &f) override;
 
 #define MAPLE_FUNC_PHASE_DECLARE_END \
 };

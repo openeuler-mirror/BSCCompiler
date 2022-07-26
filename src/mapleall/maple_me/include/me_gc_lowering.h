@@ -38,14 +38,14 @@ class GCLowering {
   void Finish();
 
  private:
-  void GCLower(BB&);
-  void HandleAssignMeStmt(MeStmt&);
-  void HandleVarAssignMeStmt(MeStmt&);
-  void HandleIvarAssignMeStmt(MeStmt&);
+  void GCLower(BB &bb);
+  void HandleAssignMeStmt(MeStmt &stmt);
+  void HandleVarAssignMeStmt(MeStmt &stmt);
+  void HandleIvarAssignMeStmt(MeStmt &stmt);
   MeExpr *GetBase(IvarMeExpr &ivar);
-  MIRIntrinsicID SelectWriteBarrier(MeStmt&);
-  MIRIntrinsicID PrepareVolatileCall(const MeStmt&, MIRIntrinsicID);
-  void HandleWriteReferent(const IassignMeStmt&);
+  MIRIntrinsicID SelectWriteBarrier(const MeStmt &stmt);
+  MIRIntrinsicID PrepareVolatileCall(const MeStmt &stmt, MIRIntrinsicID intrnId);
+  void HandleWriteReferent(IassignMeStmt &stmt);
   void CheckRefs();
   void ParseCheckFlag();
   void CheckFormals();

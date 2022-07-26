@@ -22,7 +22,7 @@
 
 namespace maple {
 class BBChain {
-public:
+ public:
   using iterator = MapleVector<BB*>::iterator;
   using const_iterator = MapleVector<BB*>::const_iterator;
   BBChain(MapleAllocator &alloc, MapleVector<BBChain*> &bb2chain, BB *bb, uint32 inputId)
@@ -123,7 +123,7 @@ public:
     }
   }
 
-private:
+ private:
   void MayRecalculateUnlaidPredCnt(const MapleVector<bool> *context) {
     if (isCacheValid) {
       return;  // If cache is trustable, no need to recalculate
@@ -248,7 +248,7 @@ class BBLayout {
   void FixTryBB(BB &startTryBB, BB &nextBB);
   void DealWithStartTryBB();
   void UpdateNewBBWithAttrTry(const BB &bb, BB &fallthru) const;
-  void SetAttrTryForTheCanBeMovedBB(BB &bb, BB &fallthru) const;
+  void SetAttrTryForTheCanBeMovedBB(BB &bb, BB &canBeMovedBB) const;
   void RebuildFreq();
   bool IsBBInCurrContext(const BB &bb, const MapleVector<bool> *context) const;
   void InitBBChains();

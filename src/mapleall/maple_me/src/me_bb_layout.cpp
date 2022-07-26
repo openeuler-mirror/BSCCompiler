@@ -364,27 +364,27 @@ bool BBLayout::BBContainsOnlyCondGoto(const BB &bb) const {
 }
 
 bool BBLayout::ChooseTargetAsFallthru(const BB &bb, const BB &targetBB, const BB &oldFallThru,
-                                      const BB &fallthru) const {
-  if (&targetBB == &fallthru) {
+                                      const BB &fallThru) const {
+  if (&targetBB == &fallThru) {
     return false;
   }
   if (profValid) {
     uint64 freqToTargetBB = bb.GetEdgeFreq(&targetBB);
-    uint64 freqToFallthru = bb.GetEdgeFreq(&fallthru);
+    uint64 freqToFallthru = bb.GetEdgeFreq(&fallThru);
     if (enabledDebug) {
       LogInfo::MapleLogger() << func.GetName() << " " << bb.GetBBId() << "->" << targetBB.GetBBId() << " freq "
-                             << freqToTargetBB << " " << bb.GetBBId() << "->" << fallthru.GetBBId() << " freq "
+                             << freqToTargetBB << " " << bb.GetBBId() << "->" << fallThru.GetBBId() << " freq "
                              << freqToFallthru << '\n';
     }
     if ((freqToTargetBB > freqToFallthru) && BBCanBeMovedBasedProf(targetBB, bb)) {
       if (enabledDebug) {
         LogInfo::MapleLogger() << func.GetName() << bb.GetBBId() << " move targeBB " << targetBB.GetBBId()
-                               << " to fallthru" << '\n';
+                               << " to fallThru" << '\n';
       }
       return true;
     }
   } else {
-    if ((&oldFallThru != &fallthru || fallthru.GetPred().size() > 1) && BBCanBeMoved(targetBB, bb)) {
+    if ((&oldFallThru != &fallThru || fallThru.GetPred().size() > 1) && BBCanBeMoved(targetBB, bb)) {
       return true;
     }
   }

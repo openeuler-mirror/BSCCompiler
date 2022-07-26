@@ -32,7 +32,8 @@ class MeLoopInversion {
  private:
   using Key = std::pair<BB*, BB*>;
   void Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, bool> &swapSuccs);
-  bool NeedConvert(MeFunction *func, BB &bb, BB &pred, MapleAllocator &alloc, MapleMap<Key, bool> &swapSuccs) const;
+  bool NeedConvert(MeFunction *func, BB &bb, BB &pred,
+                   MapleAllocator &localAlloc, MapleMap<Key, bool> &swapSuccs) const;
 
   bool isDebugFunc;
   MemPool *innerMp;

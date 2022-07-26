@@ -423,7 +423,7 @@ MeExpr *MeSSI::NewMeExpr(MeExpr &meExpr) {
   }
 }
 
-MeExpr *MeSSI::ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &meExpr, MeExpr &repExpr) {
+MeExpr *MeSSI::ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &oldVar, MeExpr &repExpr) {
   if (origExpr.IsLeaf()) {
     return &origExpr;
   }
@@ -436,11 +436,11 @@ MeExpr *MeSSI::ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &meExpr, MeExpr &repEx
         if (opMeExpr.GetOpnd(i) == nullptr) {
           continue;
         }
-        if (opMeExpr.GetOpnd(i) == &meExpr) {
+        if (opMeExpr.GetOpnd(i) == &oldVar) {
           needRehash = true;
           newMeExpr.SetOpnd(i, &repExpr);
         } else if (!opMeExpr.GetOpnd(i)->IsLeaf()) {
-          newMeExpr.SetOpnd(i, ReplaceMeExprExpr(*newMeExpr.GetOpnd(i), meExpr, repExpr));
+          newMeExpr.SetOpnd(i, ReplaceMeExprExpr(*newMeExpr.GetOpnd(i), oldVar, repExpr));
           if (newMeExpr.GetOpnd(i) != opMeExpr.GetOpnd(i)) {
             needRehash = true;
           }
@@ -455,11 +455,11 @@ MeExpr *MeSSI::ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &meExpr, MeExpr &repEx
       bool needRehash = false;
       for (size_t i = 0; i < opnds.size(); ++i) {
         MeExpr *opnd = opnds[i];
-        if (opnd == &meExpr) {
+        if (opnd == &oldVar) {
           newMeExpr.SetOpnd(i, &repExpr);
           needRehash = true;
         } else if (!opnd->IsLeaf()) {
-          newMeExpr.SetOpnd(i, ReplaceMeExprExpr(*newMeExpr.GetOpnd(i), meExpr, repExpr));
+          newMeExpr.SetOpnd(i, ReplaceMeExprExpr(*newMeExpr.GetOpnd(i), oldVar, repExpr));
           if (newMeExpr.GetOpnd(i) != opnd) {
             needRehash = true;
           }
@@ -471,18 +471,18 @@ MeExpr *MeSSI::ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &meExpr, MeExpr &repEx
       auto &ivarExpr = static_cast<IvarMeExpr&>(origExpr);
       IvarMeExpr newMeExpr(&irMap->GetIRMapAlloc(), kInvalidExprID, ivarExpr);
       bool needRehash = false;
-      if (ivarExpr.GetBase() == &meExpr) {
+      if (ivarExpr.GetBase() == &oldVar) {
         newMeExpr.SetBase(&repExpr);
         needRehash = true;
       } else if (!ivarExpr.GetBase()->IsLeaf()) {
-        newMeExpr.SetBase(ReplaceMeExprExpr(*newMeExpr.GetBase(), meExpr, repExpr));
+        newMeExpr.SetBase(ReplaceMeExprExpr(*newMeExpr.GetBase(), oldVar, repExpr));
         if (newMeExpr.GetBase() != ivarExpr.GetBase()) {
           needRehash = true;
         }
       }
       size_t i = 0;
       for (auto *mu : ivarExpr.GetMuList()) {
-        if (mu == &meExpr) {
+        if (mu == &oldVar) {
           CHECK_FATAL(repExpr.GetMeOp() == kMeOpVar, "must be");
           newMeExpr.SetMuItem(i, static_cast<VarMeExpr*>(&repExpr));
           needRehash = true;

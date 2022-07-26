@@ -77,17 +77,17 @@ void MeProfUse::InitBBEdgeInfo() {
 }
 
 // If all input edges or output edges determined, caculate BB freq
-void MeProfUse::ComputeBBFreq(BBUseInfo &bbInfo, bool &change) {
+void MeProfUse::ComputeBBFreq(BBUseInfo &bbInfo, bool &changed) {
   uint64 count = 0;
   if (!bbInfo.GetStatus()) {
     if (bbInfo.GetUnknownOutEdges() == 0) {
       count = SumEdgesCount(bbInfo.GetOutEdges());
       bbInfo.SetCount(count);
-      change = true;
+      changed = true;
     } else if (bbInfo.GetUnknownInEdges() == 0) {
       count = SumEdgesCount(bbInfo.GetInEdges());
       bbInfo.SetCount(count);
-      change = true;
+      changed = true;
     }
   }
 }
@@ -161,14 +161,14 @@ void MeProfUse::SetEdgeCount(MapleVector<BBUseEdge*> &edges, uint64 value) {
   CHECK(false, "can't find unkown edge");
 }
 
-void MeProfUse::SetEdgeCount(BBUseEdge &e, size_t value) {
+void MeProfUse::SetEdgeCount(BBUseEdge &edge, size_t value) {
   // edge counter already valid skip
-  if (e.GetStatus()) {
+  if (edge.GetStatus()) {
     return;
   }
-  e.SetCount(value);
-  BBUseInfo *srcInfo = GetBBUseInfo(*(e.GetSrcBB()));
-  BBUseInfo *destInfo = GetBBUseInfo(*(e.GetDestBB()));
+  edge.SetCount(value);
+  BBUseInfo *srcInfo = GetBBUseInfo(*(edge.GetSrcBB()));
+  BBUseInfo *destInfo = GetBBUseInfo(*(edge.GetDestBB()));
   srcInfo->DecreaseUnKnownOutEdges();
   destInfo->DecreaseUnKnownInEdges();
   return;

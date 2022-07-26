@@ -331,7 +331,7 @@ class LoopScalarAnalysisResult {
   TripCountType ComputeTripCount(const MeFunction &func, uint64 &tripCountResult, CRNode *&conditionCRNode, CR *&itCR);
   void PutTheAddrExprAtTheFirstOfVector(std::vector<CRNode*> &crNodeOperands, const MeExpr &addrExpr);
   CRNode &SortCROperand(CRNode &crNode, MeExpr &expr);
-  void SortOperatorCRNode(std::vector<CRNode*> &crNodeOperands, MeExpr &expr);
+  void SortOperatorCRNode(std::vector<CRNode*> &crNodeOperands, MeExpr &addrExpr);
   bool NormalizationWithByteCount(std::vector<CRNode*> &crNodeVector, uint8 byteSize);
   uint8 GetByteSize(std::vector<CRNode*> &crNodeVector);
   PrimType GetPrimType(std::vector<CRNode*> &crNodeVector);

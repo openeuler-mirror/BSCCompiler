@@ -88,14 +88,14 @@ class HDSE {
   void RemoveNotRequiredStmtsInBB(BB &bb);
   template <class VarOrRegPhiNode>
   void MarkPhiRequired(VarOrRegPhiNode &mePhiNode);
-  void MarkMuListRequired(MapleMap<OStIdx, ScalarMeExpr*>&);
+  void MarkMuListRequired(MapleMap<OStIdx, ScalarMeExpr*> &muList);
   void MarkChiNodeRequired(ChiMeNode &chiNode);
   void TraverseChiNodeKilled(ChiMeNode &chiNode);
   bool ExprHasSideEffect(const MeExpr &meExpr) const;
-  bool ExprNonDeletable(const MeExpr &expr) const;
-  bool StmtMustRequired(const MeStmt &stmt, const BB &bb) const;
-  void MarkStmtRequired(MeStmt &stmt);
-  bool HasNonDeletableExpr(const MeStmt &stmt) const;
+  bool ExprNonDeletable(const MeExpr &meExpr) const;
+  bool StmtMustRequired(const MeStmt &meStmt, const BB &bb) const;
+  void MarkStmtRequired(MeStmt &meStmt);
+  bool HasNonDeletableExpr(const MeStmt &meStmt) const;
   void MarkStmtUseLive(MeStmt &meStmt);
   void MarkSingleUseLive(MeExpr &meExpr);
   void MarkControlDependenceLive(BB &bb);
