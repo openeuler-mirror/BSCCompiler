@@ -158,7 +158,7 @@ ErrorCode MplOptions::HandleOptions() {
 ErrorCode MplOptions::HandleEarlyOptions() {
   if (opts::version) {
     LogInfo::MapleLogger() << kMapleDriverVersion << "\n";
-    return kErrorExitHelp;
+    exit(static_cast<int>(kErrorNoError));
   }
 
   if (opts::printDriverPhases) {
@@ -186,7 +186,6 @@ ErrorCode MplOptions::HandleEarlyOptions() {
       opts::o1.IsEnabledByUser() ||
       opts::o2.IsEnabledByUser() ||
       opts::os.IsEnabledByUser()) {
-
     if (opts::run.IsEnabledByUser()) {
       /* -Ox and --run should not appear at the same time */
       LogInfo::MapleLogger(kLlErr) << "Cannot set auto mode and run mode at the same time!\n";
@@ -780,7 +779,6 @@ void MplOptions::UpdateRunningExe(const std::string &args) {
 }
 
 std::string MplOptions::GetInputFileNameForPrint(const Action * const action) const {
-
   auto genInputs = [](const auto &container) {
     std::string inputs;
     for (const auto &in : container) {

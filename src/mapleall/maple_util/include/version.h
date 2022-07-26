@@ -18,6 +18,41 @@
 #include <string>
 #include "securec.h"
 class Version {
+ public:
+  static std::string GetVersionStr() {
+    std::ostringstream oss;
+    oss << kMajorVersion << "." << kMinorVersion << "." << kReleaseVersion;
+
+#ifdef BUILD_VERSION
+    constexpr int BUILD_VERSION_LEN = 5;
+    char buffer[BUILD_VERSION_LEN] = {0};
+    int ret = sprintf_s(buffer, BUILD_VERSION_LEN, "B%03u", kBuildVersion);
+    if (ret >= 0) {
+      oss << "." << buffer;
+    }
+#endif // BUILD_VERSION
+
+#ifdef GIT_REVISION
+    oss << " " << kGitRevision;
+#endif // GIT_REVISION
+    return oss.str();
+  }
+
+  static inline uint32_t GetMajorVersion() {
+    return kMajorVersion;
+  }
+
+  static inline uint32_t GetMinorVersion() {
+    return kMinorVersion;
+  }
+
+  static inline const char* GetReleaseVersion() {
+    return kReleaseVersion;
+  }
+
+  static inline uint32_t GetRuntimeVersion() {
+    return kMinorRuntimeVersion;
+  }
  private:
 #ifdef ANDROID
   // compatible for Android build script
@@ -60,41 +95,5 @@ class Version {
 #else
   static constexpr const uint32_t kMinorRuntimeVersion = 0;
 #endif // kMinorRuntimeVersion
-
- public:
-  static std::string GetVersionStr() {
-    std::ostringstream oss;
-    oss << kMajorVersion << "." << kMinorVersion << "." << kReleaseVersion;
-
-#ifdef BUILD_VERSION
-    constexpr int BUILD_VERSION_LEN = 5;
-    char buffer[BUILD_VERSION_LEN] = {0};
-    int ret = sprintf_s(buffer, BUILD_VERSION_LEN, "B%03d", kBuildVersion);
-    if (ret >= 0) {
-      oss << "." << buffer;
-    }
-#endif // BUILD_VERSION
-
-#ifdef GIT_REVISION
-    oss << " " << kGitRevision;
-#endif // GIT_REVISION
-    return oss.str();
-  }
-
-  static inline uint32_t GetMajorVersion() {
-    return kMajorVersion;
-  }
-
-  static inline uint32_t GetMinorVersion() {
-    return kMinorVersion;
-  }
-
-  static inline const char* GetReleaseVersion() {
-    return kReleaseVersion;
-  }
-
-  static inline uint32_t GetRuntimeVersion() {
-    return kMinorRuntimeVersion;
-  }
 };
 #endif // VERSION_H
