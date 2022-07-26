@@ -760,6 +760,7 @@ MeStmt *IRMapBuild::BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
     lhsIvar = static_cast<IvarMeExpr *>(simplifiedIvar);
   }
   meStmt->SetLHSVal(lhsIvar);
+  meStmt->SetExpandFromArrayOfCharFunc(static_cast<IassignNode &>(stmt).IsExpandedFromArrayOfCharFunc());
 
   irMap->SimplifyCastForAssign(meStmt);
   BuildChiList(*meStmt, ssaPart.GetMayDefNodes(), *(meStmt->GetChiList()));

@@ -120,7 +120,7 @@ class BaseNode : public BaseNodeT {
   }
 
   const char *GetOpName() const;
-  bool MayThrowException();
+  bool MayThrowException() const;
   virtual size_t NumOpnds() const override {
     return numOpnds;
   }
@@ -1208,14 +1208,14 @@ class ArrayNode : public NaryNode {
   const MIRType *GetArrayType(const TypeTable &tt) const;
   MIRType *GetArrayType(const TypeTable &tt);
 
-  BaseNode *GetIndex(size_t i) {
+  BaseNode *GetIndex(size_t i) const {
     return Opnd(i + 1);
   }
 
   const BaseNode *GetDim(const MIRModule &mod, TypeTable &tt, int i) const;
   BaseNode *GetDim(const MIRModule &mod, TypeTable &tt, int i);
 
-  BaseNode *GetBase() {
+  BaseNode *GetBase() const {
     return Opnd(0);
   }
 
@@ -1453,6 +1453,9 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
   virtual bool Verify(VerifyResult &) const override {
     return Verify();
   }
+  // ISO/IEC 9899:1999 7.21
+  // stmt is expanded from ArrayOfChar func defined in <string.h>
+  virtual void SetExpandFromArrayOfCharFunc(bool) {}
 
   const SrcPosition &GetSrcPos() const {
     return srcPosition;
@@ -1586,6 +1589,7 @@ class IassignNode : public StmtNode {
     bn->SetStmtID(stmtIDNext++);
     bn->SetOpnd(addrExpr->CloneTree(allocator), 0);
     bn->SetRHS(rhs->CloneTree(allocator));
+    bn->SetExpandFromArrayOfCharFunc(fromAoCFunc);
     return bn;
   }
 
@@ -1612,9 +1616,18 @@ class IassignNode : public StmtNode {
 
   bool AssigningVolatile() const;
 
+  bool IsExpandedFromArrayOfCharFunc() const {
+    return fromAoCFunc;
+  }
+
+  void SetExpandFromArrayOfCharFunc(bool flag) override {
+    fromAoCFunc = true;
+  }
+
  private:
   TyIdx tyIdx;
   FieldID fieldID;
+  bool fromAoCFunc = false; // Array of char func, defined in <string.h>
  public:
   BaseNode *addrExpr;
   BaseNode *rhs;
@@ -1813,7 +1826,6 @@ class CatchNode : public StmtNode {
   }
 
  private:
-  // TyIdx exception_tyidx;
   MapleVector<TyIdx> exceptionTyIdxVec;
 };
 
@@ -2562,11 +2574,12 @@ class WhileStmtNode : public UnaryStmtNode {
     node->SetStmtID(stmtIDNext++);
     if (fromFreqs.count(GetStmtID()) > 0) {
       int64_t oldFreq = fromFreqs[GetStmtID()];
-      int64_t newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
+      int64_t newFreq = numer == 0 ? 0 : (denom > 0 ?
+          static_cast<int64_t>(static_cast<uint64_t>(oldFreq) * numer / denom) : oldFreq);
       toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? static_cast<uint64_t>(newFreq) : 1;
       if (updateOp & kUpdateOrigFreq) {
         int64_t left = (oldFreq - newFreq) > 0 ? (oldFreq - newFreq) : 1;
-        fromFreqs[GetStmtID()] = left;
+        fromFreqs[GetStmtID()] = static_cast<uint64_t>(left);
       }
     }
     node->SetOpnd(Opnd(0)->CloneTree(allocator), 0);
@@ -2851,8 +2864,8 @@ class IassignoffNode : public BinaryStmtNode {
 
   explicit IassignoffNode(int32 ofst) : BinaryStmtNode(OP_iassignoff), offset(ofst) {}
 
-  IassignoffNode(PrimType primType, int32 offset, BaseNode *addrOpnd, BaseNode *srcOpnd) :
-      IassignoffNode(offset) {
+  IassignoffNode(PrimType primType, int32 offset, BaseNode *addrOpnd, BaseNode *srcOpnd)
+      : IassignoffNode(offset) {
     BaseNodeT::SetPrimType(primType);
     SetBOpnd(addrOpnd, 0);
     SetBOpnd(srcOpnd, 1);
@@ -2890,8 +2903,8 @@ class IassignFPoffNode : public UnaryStmtNode {
 
   explicit IassignFPoffNode(Opcode o, int32 ofst) : UnaryStmtNode(o), offset(ofst) {}
 
-  IassignFPoffNode(Opcode o, PrimType primType, int32 offset, BaseNode *src) :
-      IassignFPoffNode(o, offset) {
+  IassignFPoffNode(Opcode o, PrimType primType, int32 offset, BaseNode *src)
+      : IassignFPoffNode(o, offset) {
     BaseNodeT::SetPrimType(primType);
     UnaryStmtNode::SetOpnd(src, 0);
   }
@@ -2924,15 +2937,19 @@ typedef IassignFPoffNode IassignPCoffNode;
 
 class BlkassignoffNode : public BinaryStmtNode {
  public:
-  BlkassignoffNode() : BinaryStmtNode(OP_blkassignoff) { ptyp = PTY_agg;
-                                                         ptyp = PTY_agg;
-                                                         alignLog2 = 0;
-                                                         offset = 0; }
-  explicit BlkassignoffNode(int32 ofst, int32 bsize) :
-      BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) { ptyp = PTY_agg;
-                                                                        alignLog2 = 0; }
-  explicit BlkassignoffNode(int32 ofst, int32 bsize, BaseNode *dest, BaseNode *src) :
-      BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) {
+  BlkassignoffNode() : BinaryStmtNode(OP_blkassignoff) {
+    ptyp = PTY_agg;
+    ptyp = PTY_agg;
+    alignLog2 = 0;
+    offset = 0;
+  }
+  explicit BlkassignoffNode(int32 ofst, int32 bsize)
+      : BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) {
+    ptyp = PTY_agg;
+    alignLog2 = 0;
+  }
+  explicit BlkassignoffNode(int32 ofst, int32 bsize, BaseNode *dest, BaseNode *src)
+      : BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) {
     ptyp = PTY_agg;
     alignLog2 = 0;
     SetBOpnd(dest, 0);
@@ -3239,6 +3256,8 @@ class CallNode : public NaryStmtNode {
       node->GetReturnVec().push_back(returnValues[i]);
     }
     node->SetNumOpnds(GetNopndSize());
+    // we save old stmtId in meStmtId, this is a workaround, we will fix it after CloneTree enhance
+    node->SetMeStmtID(GetStmtID());
     return node;
   }
 
