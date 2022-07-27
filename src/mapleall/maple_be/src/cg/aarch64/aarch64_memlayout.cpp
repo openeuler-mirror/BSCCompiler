@@ -58,7 +58,9 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
       ty = GlobalTables::GetTypeTable().GetTypeTable()[static_cast<uint32>(opnd->GetPrimType())];
     } else {
       Opcode opndOpcode = opnd->GetOpCode();
-      ASSERT(opndOpcode == OP_dread || opndOpcode == OP_iread, "opndOpcode should be OP_dread or OP_iread");
+      if (be.GetMIRModule().GetFlavor() != kFlavorLmbc) {
+        ASSERT(opndOpcode == OP_dread || opndOpcode == OP_iread, "opndOpcode should be OP_dread or OP_iread");
+      }
       if (opndOpcode == OP_dread) {
         DreadNode *dread = static_cast<DreadNode*>(opnd);
         MIRSymbol *sym = be.GetMIRModule().CurFunction()->GetLocalOrGlobalSymbol(dread->GetStIdx());
@@ -72,8 +74,7 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
             ty = static_cast<MIRClassType*>(ty)->GetFieldType(dread->GetFieldID());
           }
         }
-      } else {
-        /* OP_iread */
+      } else if (opndOpcode == OP_iread) {
         IreadNode *iread = static_cast<IreadNode*>(opnd);
         ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iread->GetTyIdx());
         ASSERT(ty->GetKind() == kTypePointer, "expect pointer");
@@ -87,6 +88,11 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
             ty = static_cast<MIRClassType*>(ty)->GetFieldType(iread->GetFieldID());
           }
         }
+      } else if ((opndOpcode == OP_ireadfpoff || opndOpcode == OP_ireadoff || opndOpcode == OP_dreadoff) && opnd->GetPrimType() == PTY_agg) {
+        ty = static_cast<AArch64CGFunc*>(cgFunc)->GetLmbcStructArgType(stmt, i);
+      }
+      if (ty == nullptr) {   /* type mismatch */
+        continue;
       }
     }
     CCLocInfo ploc;
@@ -190,18 +196,6 @@ void AArch64MemLayout::LayoutVarargParams() {
 }
 
 void AArch64MemLayout::LayoutFormalParams() {
-  bool isLmbc = (be.GetMIRModule().GetFlavor() == kFlavorLmbc);
-  if (isLmbc && mirFunction->GetFormalCount() == 0) {
-    /*
-     * lmbc : upformalsize - size of formals passed from caller's frame into current function
-     *        framesize - total frame size of current function used by Maple IR
-     *        outparmsize - portion of frame size of current function used by call parameters
-     */
-    segArgsStkPassed.SetSize(mirFunction->GetOutParmSize());
-    segArgsRegPassed.SetSize(mirFunction->GetOutParmSize());
-    return;
-  }
-
   AArch64CallConvImpl parmLocator(be);
   CCLocInfo ploc;
   for (size_t i = 0; i < mirFunction->GetFormalCount(); ++i) {
@@ -255,8 +249,6 @@ void AArch64MemLayout::LayoutFormalParams() {
         segArgsRegPassed.SetSize(static_cast<uint32>(RoundUp(segArgsRegPassed.GetSize(), align)));
         symLoc->SetOffset(segArgsRegPassed.GetSize());
         segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + size);
-      } else if (isLmbc) {
-        segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + k8ByteSize);
       }
     } else {  /* stack */
       uint32 size;
@@ -371,11 +363,7 @@ void AArch64MemLayout::LayoutReturnRef(std::vector<MIRSymbol*> &returnDelays,
     symLoc->SetOffset(segRefLocals.GetSize());
     segRefLocals.SetSize(segRefLocals.GetSize() + be.GetTypeSize(tyIdx));
   }
-  if (be.GetMIRModule().GetFlavor() == kFlavorLmbc) {
-    segArgsToStkPass.SetSize(mirFunction->GetOutParmSize() + kDivide2 * k8ByteSize);
-  } else {
-    segArgsToStkPass.SetSize(FindLargestActualArea(structCopySize));
-  }
+  segArgsToStkPass.SetSize(FindLargestActualArea(structCopySize));
   maxParmStackSize = static_cast<int32>(segArgsToStkPass.GetSize());
   if (Globals::GetInstance()->GetOptimLevel() == 0) {
     AssignSpillLocationsToPseudoRegisters();

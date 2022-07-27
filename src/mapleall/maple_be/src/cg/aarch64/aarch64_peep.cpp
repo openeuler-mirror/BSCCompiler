@@ -2515,6 +2515,7 @@ void EnhanceStrLdrAArch64::Run(BB &bb, Insn &insn) {
       auto &ofstOpnd = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
       OfstOperand &offOpnd = static_cast<AArch64CGFunc&>(cgFunc).GetOrCreateOfstOpnd(
           static_cast<uint64>(ofstOpnd.GetValue()), k32BitSize);
+      offOpnd.SetVary(ofstOpnd.GetVary());
       auto *origOffOpnd = concreteMemOpnd.GetOffsetImmediate();
       concreteMemOpnd.SetOffsetOperand(offOpnd);
       if (!static_cast<AArch64CGFunc&>(cgFunc).IsOperandImmValid(insn.GetMachineOpcode(), &memOpnd, kInsnSecondOpnd)) {
