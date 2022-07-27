@@ -137,6 +137,8 @@ class MeExpr {
     return false;
   }
 
+  bool ContainsVolatile() const;
+
   bool IsTheSameWorkcand(const MeExpr&) const;
   virtual void SetDefByStmt(MeStmt&) {}
 
@@ -493,7 +495,7 @@ class MePhiNode {
     return defBB;
   }
 
-  ScalarMeExpr *GetLHS() {
+  ScalarMeExpr *GetLHS() const {
     return lhs;
   }
 
@@ -561,7 +563,7 @@ class ConstMeExpr : public MeExpr {
     if (constVal->GetKind() == kConstInt) {
       auto *intConst = safe_cast<MIRIntConst>(constVal);
       CHECK_NULL_FATAL(intConst);
-      return intConst->GetExtValue();
+      return static_cast<uint32>(intConst->GetExtValue());
     }
     if (constVal->GetKind() == kConstFloatConst) {
       auto *floatConst = safe_cast<MIRFloatConst>(constVal);
@@ -1142,6 +1144,7 @@ class IvarMeExpr : public MeExpr {
   }
 
   bool HasAddressValue() override { return GetType()->GetKind() == kTypePointer; }
+  bool simplifiedWithConstOffset = false;
 
  private:
   IassignMeStmt *defStmt = nullptr;
@@ -1152,9 +1155,6 @@ class IvarMeExpr : public MeExpr {
   int32 offset = 0;
   bool maybeNull = true;  // false if definitely not null
   bool volatileFromBaseSymbol = false;  // volatile due to its base symbol being volatile
- public:
-  bool simplifiedWithConstOffset = false;
- private:
   // muList size must be >= 1, can not be empty
   MapleVector<ScalarMeExpr*> muList;  // vector type ivar may have multiple mu, non-vector type ivar has only 1 mu
 };
@@ -1337,6 +1337,10 @@ class MeStmt {
   }
 
   virtual MapleMap<OStIdx, ChiMeNode*> *GetChiList() {
+    return nullptr;
+  }
+
+  virtual const MapleMap<OStIdx, ChiMeNode*> *GetChiList() const {
     return nullptr;
   }
 
@@ -1790,6 +1794,10 @@ class DassignMeStmt : public AssignMeStmt {
 
   ~DassignMeStmt() = default;
 
+  const MapleMap<OStIdx, ChiMeNode *> *GetChiList() const override {
+    return &chiList;
+  }
+
   MapleMap<OStIdx, ChiMeNode *> *GetChiList() override {
     return &chiList;
   }
@@ -1874,6 +1882,10 @@ class MaydassignMeStmt : public MeStmt {
 
   void SetOpnd(size_t, MeExpr *val) override {
     rhs = val;
+  }
+
+  const MapleMap<OStIdx, ChiMeNode *> *GetChiList() const override {
+    return &chiList;
   }
 
   MapleMap<OStIdx, ChiMeNode *> *GetChiList() override {
@@ -2015,10 +2027,11 @@ class IassignMeStmt : public MeStmt {
     }
   }
 
-  MapleMap<OStIdx, ChiMeNode*> *GetChiList() override{
+  const MapleMap<OStIdx, ChiMeNode*> *GetChiList() const override {
     return &chiList;
   }
-  const MapleMap<OStIdx, ChiMeNode*> *GetChiList() const {
+
+  MapleMap<OStIdx, ChiMeNode*> *GetChiList() override{
     return &chiList;
   }
 
@@ -2091,6 +2104,14 @@ class IassignMeStmt : public MeStmt {
 
   StmtNode &EmitStmt(MapleAllocator &alloc) override;
 
+  void SetExpandFromArrayOfCharFunc(bool flag = true) {
+    fromAoCFunc = flag;
+  }
+
+  bool IsExpandedFromArrayOfCharFunc() const {
+    return fromAoCFunc;
+  }
+
  private:
   TyIdx tyIdx{ 0 };
   IvarMeExpr *lhsVar = nullptr;
@@ -2100,6 +2121,7 @@ class IassignMeStmt : public MeStmt {
   bool needIncref = false;  // to be determined by analyzerc phase
   bool emitIassignoff = false; // Emit Iassignoff instead
   bool omitEmit = false;       // Skip this stmt instead
+  bool fromAoCFunc = false;    // Array of char func, defined in <string.h>
 };
 
 class NaryMeStmt : public MeStmt {
@@ -2259,6 +2281,10 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return &muList;
   }
 
+  const MapleMap<OStIdx, ChiMeNode*> *GetChiList() const override {
+    return &chiList;
+  }
+
   MapleMap<OStIdx, ChiMeNode *> *GetChiList() override {
     return &chiList;
   }
@@ -2371,6 +2397,10 @@ class IcallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
   void Dump(const IRMap*) const override;
   MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() override {
     return &muList;
+  }
+
+  const MapleMap<OStIdx, ChiMeNode*> *GetChiList() const override {
+    return &chiList;
   }
 
   MapleMap<OStIdx, ChiMeNode *> *GetChiList() override {
@@ -2491,6 +2521,10 @@ class IntrinsiccallMeStmt : public NaryMeStmt, public MuChiMePart, public Assign
   void Dump(const IRMap*) const override;
   MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() override {
     return &muList;
+  }
+
+  const MapleMap<OStIdx, ChiMeNode*> *GetChiList() const override {
+    return &chiList;
   }
 
   MapleMap<OStIdx, ChiMeNode *> *GetChiList() override {
@@ -2617,6 +2651,9 @@ class AsmMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
   void Dump(const IRMap*) const override;
   MapleMap<OStIdx, ScalarMeExpr *> *GetMuList() override {
     return &muList;
+  }
+  const MapleMap<OStIdx, ChiMeNode*> *GetChiList() const override {
+    return &chiList;
   }
   MapleMap<OStIdx, ChiMeNode *> *GetChiList() override {
     return &chiList;
@@ -3070,6 +3107,10 @@ class SyncMeStmt : public NaryMeStmt, public MuChiMePart {
   void Dump(const IRMap*) const override;
   MapleMap<OStIdx, ScalarMeExpr *> *GetMuList() override {
     return &muList;
+  }
+
+  const MapleMap<OStIdx, ChiMeNode*> *GetChiList() const override {
+    return &chiList;
   }
 
   MapleMap<OStIdx, ChiMeNode *> *GetChiList() override {

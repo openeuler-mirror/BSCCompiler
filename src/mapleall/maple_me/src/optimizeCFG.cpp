@@ -1590,6 +1590,9 @@ BranchResult InferSuccCondBrFromPredCond(const MeExpr *predCond, const MeExpr *s
   if (!kOpcodeInfo.IsCompare(predCond->GetOp()) || !kOpcodeInfo.IsCompare(succCond->GetOp())) {
     return kBrUnknown;
   }
+  if (predCond->ContainsVolatile() || succCond->ContainsVolatile()) {
+    return kBrUnknown;
+  }
   if (predCond == succCond) {
     return isPredTrueBrSucc ? kBrTrue : kBrFalse;
   }

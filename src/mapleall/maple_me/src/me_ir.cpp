@@ -83,6 +83,19 @@ MeExpr *MeExpr::ResolveMeExprValue() {
   return cmpOpLocal;
 }
 
+// if expr contains volatile subexpr
+bool MeExpr::ContainsVolatile() const {
+  if (GetMeOp() == kMeOpIvar || GetMeOp() == kMeOpVar) {
+    return IsVolatile();
+  }
+  for (size_t i = 0; i < numOpnds; ++i) {
+    if (GetOpnd(i)->ContainsVolatile()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool VarMeExpr::IsSameVariableValue(const VarMeExpr &expr) const {
   if (&expr == this) {
     return true;
@@ -943,6 +956,7 @@ void VarMeExpr::Dump(const IRMap *irMap, int32) const {
 void RegMeExpr::Dump(const IRMap *irMap, int32) const {
   CHECK_NULL_FATAL(irMap);
   LogInfo::MapleLogger() << "REGINDX:" << GetRegIdx();
+  LogInfo::MapleLogger() << " " << GetPrimTypeName(GetPrimType());
   LogInfo::MapleLogger()
       << " %"
       << irMap->GetMIRModule().CurFunction()->GetPregTab()->PregFromPregIdx(GetRegIdx())->GetPregNo();
@@ -970,8 +984,8 @@ void GcmallocMeExpr::Dump(const IRMap*, int32) const {
 }
 
 void ConstMeExpr::Dump(const IRMap*, int32) const {
-  LogInfo::MapleLogger() << "CONST";
-  LogInfo::MapleLogger() << " ";
+  LogInfo::MapleLogger() << "CONST ";
+  LogInfo::MapleLogger() << GetPrimTypeName(constVal->GetType().GetPrimType()) << " ";
   CHECK_FATAL(constVal != nullptr, "constVal is null");
   constVal->Dump();
   LogInfo::MapleLogger() << " mx" << GetExprID();
