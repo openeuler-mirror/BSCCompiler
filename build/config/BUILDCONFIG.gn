@@ -85,11 +85,13 @@ if (GN_BUILD_TYPE == "RELEASE") {
   cflags_cc += [
     "-O2",
     "-fno-strict-aliasing",
+    "-fvisibility=hidden",
     "-D_FORTIFY_SOURCE=2",
   ]
   cflags_c += [
     "-O2",
     "-fno-strict-aliasing",
+    "-fvisibility=hidden",
     "-D_FORTIFY_SOURCE=2",
   ]
 } else if (GN_BUILD_TYPE == "DEBUG") {
@@ -127,7 +129,6 @@ cflags_c += [
   "-fstack-protector-strong",
   "-fPIC",
   "-fPIE",
-  "-fvisibility=hidden",
   "-pipe",
   "-Werror",
   "-Wdate-time",
@@ -140,7 +141,6 @@ cflags_cc += [
   "-fstack-protector-strong",
   "-fPIC",
   "-fPIE",
-  "-fvisibility=hidden",
   "-pipe",
   "-Wno-c99-designator",
   "-Wno-range-loop-construct",
