@@ -344,7 +344,9 @@ void AArch64GenProEpilog::GenStackGuard(BB &bb) {
   cgFunc.GetCurBB()->AppendInsn(insn);
 
   uint64 vArea = 0;
-  if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
+  if (cgFunc.GetMirModule().IsCModule() &&
+      cgFunc.GetFunction().GetAttr(FUNCATTR_varargs) &&
+      cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
     if (ml->GetSizeOfGRSaveArea() > 0) {
       vArea += RoundUp(ml->GetSizeOfGRSaveArea(), kAarch64StackPtrAlignment);
@@ -401,7 +403,9 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   cgFunc.GetCurBB()->AppendInsn(insn);
 
   uint64 vArea = 0;
-  if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
+  if (cgFunc.GetMirModule().IsCModule() &&
+      cgFunc.GetFunction().GetAttr(FUNCATTR_varargs) &&
+      cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
     if (ml->GetSizeOfGRSaveArea() > 0) {
       vArea += RoundUp(ml->GetSizeOfGRSaveArea(), kAarch64StackPtrAlignment);
@@ -1115,9 +1119,6 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrameDebug(AArch64reg reg
     ipoint = cgFunc.GetCurBB()->GetLastInsn();
     cfiOffset = stackFrameSize;
     (void)InsertCFIDefCfaOffset(cfiOffset, *ipoint);
-    if (cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
-      argsToStkPassSize -= (kDivide2 * k8ByteSize);
-    }
     ipoint = &CreateAndAppendInstructionForAllocateCallFrame(argsToStkPassSize, reg0, reg1, rty);
     CHECK_FATAL(ipoint != nullptr, "ipoint should not be nullptr at this point");
     cfiOffset = GetOffsetFromCFA();
@@ -1256,8 +1257,10 @@ void AArch64GenProEpilog::GeneratePushRegs() {
   AArch64MemLayout *memLayout = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
   int32 offset;
   if (cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
-    offset = static_cast<int32>((memLayout->RealStackFrameSize() -
-        aarchCGFunc.SizeOfCalleeSaved()) - memLayout->GetSizeOfLocals());
+    offset = static_cast<int32>(memLayout->RealStackFrameSize() -
+       (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen)/* FP/LR */) -
+       memLayout->GetSizeOfLocals()); /* SizeOfArgsToStackPass not deducted since
+                                         AdjustmentStackPointer() is not called for lmbc */
   } else {
     offset = static_cast<int32>((memLayout->RealStackFrameSize() - (aarchCGFunc.SizeOfCalleeSaved() -
         (kDivide2 * kIntregBytelen))) - memLayout->SizeOfArgsToStackPass());  /* for FP/LR */
@@ -1267,7 +1270,9 @@ void AArch64GenProEpilog::GeneratePushRegs() {
     offset -= kAarch64StackPtrAlignmentInt;
   }
 
-  if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
+  if (cgFunc.GetMirModule().IsCModule() &&
+      cgFunc.GetFunction().GetAttr(FUNCATTR_varargs) &&
+      cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
     /* GR/VR save areas are above the callee save area */
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
     auto saveareasize = static_cast<int32>(RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
@@ -1312,6 +1317,7 @@ void AArch64GenProEpilog::GeneratePushRegs() {
 void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
+  uint32 offset;
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
     AArch64MemLayout *memlayout = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout());
     uint8 size;
@@ -1321,34 +1327,25 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
       size = kSizeOfPtr;
     }
     uint32 dataSizeBits = size * kBitsPerByte;
-    uint32 offset;
     if (cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
       offset = static_cast<uint32>(memlayout->GetGRSaveAreaBaseLoc()); /* SP reference */
-      if ((memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) > 0) {
-        offset += size;  /* End of area should be aligned. Hole between VR and GR area */
-      }
     } else {
-      offset = (UINT32_MAX - memlayout->GetSizeOfGRSaveArea()) + 1;  /* FP reference */
-      if ((memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) > 0) {
-        offset -= size;
-      }
+      offset = static_cast<uint32>(memlayout->GetGRSaveAreaBaseLoc()) +
+               memlayout->SizeOfArgsToStackPass();
     }
-    uint32 grSize = (UINT32_MAX - offset) + 1;
-    uint32 startRegno = k8BitSize - (memlayout->GetSizeOfGRSaveArea() / size);
-    ASSERT(startRegno <= k8BitSize, "Incorrect starting GR regno for GR Save Area");
-    for (uint32 i = startRegno + static_cast<uint32>(R0); i < static_cast<uint32>(R8); i++) {
+    if (memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) {
+      offset += size;  /* End of area should be aligned. Hole between VR and GR area */
+    }
+    uint32 start_regno = k8BitSize - (memlayout->GetSizeOfGRSaveArea() / size);
+    ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for GR Save Area");
+    for (uint32 i = start_regno + static_cast<uint32>(R0); i < static_cast<uint32>(R8); i++) {
       uint32 tmpOffset = 0;
       if (CGOptions::IsBigEndian()) {
         if ((dataSizeBits >> 3) < 8) {
           tmpOffset += 8U - (dataSizeBits >> 3);
         }
       }
-      Operand *stackLoc;
-      if (cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
-        stackLoc = &aarchCGFunc.CreateStkTopOpnd(offset + tmpOffset, dataSizeBits);
-      } else {
-        stackLoc = aarchCGFunc.GenLmbcFpMemOperand(offset, size);
-      }
+      Operand *stackLoc = &aarchCGFunc.CreateStkTopOpnd(offset + tmpOffset, dataSizeBits);
       RegOperand &reg =
           aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyInt);
       Insn &inst =
@@ -1358,25 +1355,21 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
     }
     if (!CGOptions::UseGeneralRegOnly()) {
       if (cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
-        offset = static_cast<uint32>(memlayout->GetVRSaveAreaBaseLoc());
+        offset = static_cast<uint32>(memlayout->GetVRSaveAreaBaseLoc()); /* SP reference */
       } else {
-        offset = (UINT32_MAX - (memlayout->GetSizeOfVRSaveArea() + grSize)) + 1;
+        offset = static_cast<uint32>(memlayout->GetVRSaveAreaBaseLoc()) +
+                 memlayout->SizeOfArgsToStackPass();
       }
-      startRegno = k8BitSize - (memlayout->GetSizeOfVRSaveArea() / (size * k2BitSize));
-      ASSERT(startRegno <= k8BitSize, "Incorrect starting GR regno for VR Save Area");
-      for (uint32 i = startRegno + static_cast<uint32>(V0); i < static_cast<uint32>(V8); i++) {
+      start_regno = k8BitSize - (memlayout->GetSizeOfVRSaveArea() / (size * k2BitSize));
+      ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for VR Save Area");
+      for (uint32 i = start_regno + static_cast<uint32>(V0); i < static_cast<uint32>(V8); i++) {
         uint32 tmpOffset = 0;
         if (CGOptions::IsBigEndian()) {
           if ((dataSizeBits >> 3) < 16) {
             tmpOffset += 16U - (dataSizeBits >> 3);
           }
         }
-        Operand *stackLoc;
-        if (cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
-          stackLoc = &aarchCGFunc.CreateStkTopOpnd(offset + tmpOffset, dataSizeBits);
-        } else {
-          stackLoc = aarchCGFunc.GenLmbcFpMemOperand(static_cast<int32>(offset), size);
-        }
+        Operand *stackLoc = &aarchCGFunc.CreateStkTopOpnd(offset + tmpOffset, dataSizeBits);
         RegOperand &reg =
             aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyFloat);
         Insn &inst =
@@ -1684,13 +1677,13 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg r
    * ldp/stp's imm should be within -512 and 504;
    * if ldp's imm > 504, we fall back to the ldp-add version
    */
-  bool isLmbc = (cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc);
+  bool isLmbc = cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc;
   if (cgFunc.HasVLAOrAlloca() || argsToStkPassSize == 0 || isLmbc) {
     int32 lmbcOffset = 0;
     if (!isLmbc) {
       stackFrameSize -= argsToStkPassSize;
     } else {
-      lmbcOffset = argsToStkPassSize - (kDivide2 * k8ByteSizeInt);
+      lmbcOffset = argsToStkPassSize;
     }
     if (stackFrameSize > kStpLdpImm64UpperBound || isLmbc) {
       Operand *o2;
@@ -1771,8 +1764,10 @@ void AArch64GenProEpilog::GeneratePopRegs() {
   AArch64MemLayout *memLayout = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
   int32 offset;
   if (cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
-    offset = static_cast<int32>((memLayout->RealStackFrameSize() -
-        aarchCGFunc.SizeOfCalleeSaved()) - memLayout->GetSizeOfLocals());
+    offset = static_cast<int32>(memLayout->RealStackFrameSize() -
+        (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen)/* FP/LR */) -
+        memLayout->GetSizeOfLocals()); /* SizeOfArgsToStackPass not deducted since
+                                          AdjustmentStackPointer() is not called for lmbc */
   } else {
     offset = static_cast<int32>((static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
         (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen))) - /* for FP/LR */
@@ -1783,7 +1778,8 @@ void AArch64GenProEpilog::GeneratePopRegs() {
     offset -= kAarch64StackPtrAlignmentInt;
   }
 
-  if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
+  if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs) &&
+      cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
     /* GR/VR save areas are above the callee save area */
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
     auto saveareasize = static_cast<int32>(RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +

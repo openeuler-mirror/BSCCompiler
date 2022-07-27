@@ -1163,7 +1163,7 @@ class CGFunc {
   MapleMap<regno_t, PregIdx> vregsToPregsMap;
   uint32 totalInsns = 0;
   int32 structCopySize = 0;
-  int32 maxParamStackSize;
+  int32 maxParamStackSize = 0;
   static constexpr int kRegIncrStepLen = 80; /* reg number increate step length */
 
   bool hasVLAOrAlloca = false;

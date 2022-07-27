@@ -104,6 +104,7 @@ class AArch64CGFunc : public CGFunc {
 
   MIRType *LmbcGetAggTyFromCallSite(StmtNode *stmt, std::vector<TyIdx> **parmList) const;
   RegOperand &GetOrCreateResOperand(const BaseNode &parent, PrimType primType);
+  MIRStructType *GetLmbcStructArgType(BaseNode &stmt, int32 argNo);
 
   void IntrinsifyGetAndAddInt(ListOperand &srcOpnds, PrimType pty);
   void IntrinsifyGetAndSetInt(ListOperand &srcOpnds, PrimType pty);
@@ -128,7 +129,7 @@ class AArch64CGFunc : public CGFunc {
   MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
   uint32 LmbcFindTotalStkUsed(std::vector<TyIdx> *paramList);
   uint32 LmbcTotalRegsUsed();
-  bool LmbcSmallAggForRet(const BlkassignoffNode &bNode, const Operand *src);
+  bool LmbcSmallAggForRet(BaseNode &bNode, Operand *src);
   bool LmbcSmallAggForCall(BlkassignoffNode &bNode, const Operand *src, std::vector<TyIdx> **parmList);
   void SelectAggDassign(DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
@@ -874,7 +875,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectParmListDreadSmallAggregate(const MIRSymbol &sym, MIRType &structType,
                                          ListOperand &srcOpnds,
                                          int32 offset, AArch64CallConvImpl &parmLocator, FieldID fieldID);
-  void SelectParmListIreadSmallAggregate(const IreadNode &iread, MIRType &structType, ListOperand &srcOpnds,
+  void SelectParmListIreadSmallAggregate(BaseNode &iread, MIRType &structType, ListOperand &srcOpnds,
                                          int32 offset, AArch64CallConvImpl &parmLocator);
   void SelectParmListDreadLargeAggregate(const MIRSymbol &sym, MIRType &structType,
                                          ListOperand &srcOpnds,
@@ -883,12 +884,12 @@ class AArch64CGFunc : public CGFunc {
                                          AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, int32 fromOffset);
   void CreateCallStructMemcpyToParamReg(MIRType &structType, int32 structCopyOffset, AArch64CallConvImpl &parmLocator,
                                         ListOperand &srcOpnds);
-  void SelectParmListForAggregate(BaseNode &argExpr, ListOperand &srcOpnds, AArch64CallConvImpl &parmLocator,
-                                  int32 &structCopyOffset);
+  void SelectParmListForAggregate(BaseNode &parent, BaseNode &argExpr, ListOperand &srcOpnds,
+                                  AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, int32 argNo);
   size_t SelectParmListGetStructReturnSize(StmtNode &naryNode);
   bool MarkParmListCall(BaseNode &expr);
-  void SelectParmListPreprocessLargeStruct(BaseNode &argExpr, int32 &structCopyOffset);
-  void SelectParmListPreprocess(const StmtNode &naryNode, size_t start, std::set<size_t> &specialArgs);
+  void SelectParmListPreprocessLargeStruct(BaseNode &parent, BaseNode &argExpr, int32 &structCopyOffset, int32 argNo);
+  void SelectParmListPreprocess(StmtNode &naryNode, size_t start, std::set<size_t> &specialArgs);
   void SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bool isCallNative = false);
   Operand *SelectClearStackCallParam(const AddrofNode &expr, int64 &offsetValue);
   void SelectClearStackCallParmList(const StmtNode &naryNode, ListOperand &srcOpnds,
