@@ -1183,6 +1183,9 @@ class FEIRExprNary : public FEIRExpr {
   void AddOpnd(std::unique_ptr<FEIRExpr> argOpnd);
   void AddOpnds(const std::vector<std::unique_ptr<FEIRExpr>> &argOpnds);
   void ResetOpnd();
+  const std::vector<std::unique_ptr<FEIRExpr>> &GetOpnds() const {
+    return opnds;
+  }
 
  protected:
   void RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckPoint &checkPoint) override;
@@ -1263,6 +1266,10 @@ class FEIRExprIntrinsicopForC : public FEIRExprNary {
   FEIRExprIntrinsicopForC(std::unique_ptr<FEIRType> exprType, MIRIntrinsicID argIntrinsicID,
                           const std::vector<std::unique_ptr<FEIRExpr>> &argOpnds);
   ~FEIRExprIntrinsicopForC() = default;
+
+  MIRIntrinsicID GetIntrinsicID() const {
+    return intrinsicID;
+  }
 
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
@@ -2057,6 +2064,14 @@ class FEIRStmtCondGotoForC : public FEIRStmt {
 
   std::string GetLabelName() const {
     return labelName;
+  }
+
+  const UniqueFEIRExpr &GetConditionExpr() const {
+    return expr;
+  }
+
+  void SetCondtionExpr(UniqueFEIRExpr &exprIn) {
+    expr = std::move(exprIn);
   }
 
  protected:

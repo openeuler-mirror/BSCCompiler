@@ -170,6 +170,10 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   }
   auto typeAttrs = astVar.GetGenericAttrs().ConvertToTypeAttrs();
   ENCChecker::InsertBoundaryInAtts(typeAttrs, astVar.GetBoundaryInfo());
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    MIRScope *scope = FEManager::GetModule().GetScope();
+    ASTVar::AddAliasInMIRScope(*scope, varName, mirSymbol, astVar.GetSourceType());
+  }
   // do not allow extern var override global var
   if (mirSymbol->GetAttrs().GetAttrFlag() != 0 && typeAttrs.GetAttr(ATTR_extern)) {
     mirSymbol->AddAttrs(typeAttrs);
@@ -207,9 +211,25 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   return true;
 }
 
+// ---------- ASTFileScopeAsm2FEHelper ---------
 bool ASTFileScopeAsm2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   MapleString asmDecl(astAsm.GetAsmStr().c_str(), allocator.GetMemPool());
   FEManager::GetModule().GetAsmDecls().emplace_back(asmDecl);
+  return true;
+}
+
+// ---------- ASTEnum2FEHelper ---------
+bool ASTEnum2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
+  (void)allocator;
+  MIREnum *enumType = FEManager::GetTypeManager().GetOrCreateEnum(
+      astEnum.GetName(), astEnum.GetTypeDesc().front()->GetPrimType());
+  if (!astEnum.GetEnumConstants().empty() && enumType->GetElements().empty()) {
+    for (auto elem : astEnum.GetEnumConstants()) {
+      GStrIdx elemNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(elem->GetName());
+      enumType->NewElement(elemNameIdx, elem->GetValue());
+    }
+    enumType->SetPrimType(astEnum.GetEnumConstants().front()->GetTypeDesc().front()->GetPrimType());
+  }
   return true;
 }
 

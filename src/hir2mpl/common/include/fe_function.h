@@ -55,8 +55,6 @@ class FEFunction {
   UniqueFEIRScope PopTopScope();
   FEIRScope *GetTopFEIRScopePtr() const;
   MIRScope *GetTopMIRScope() const;
-  void AddAliasInMIRScope(MIRScope *scope, const std::string &srcVarName, const MIRSymbol *symbol,
-                          const GStrIdx &typeNameIdx, const MIRType *sourceType);
   virtual void AddVLACleanupStmts(std::list<UniqueFEIRStmt> &stmts);
 
   void SetSrcFileName(const std::string &fileName) {

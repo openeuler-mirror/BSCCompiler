@@ -851,25 +851,6 @@ UniqueFEIRScope FEFunction::PopTopScope() {
   return nullptr;
 }
 
-void FEFunction::AddAliasInMIRScope(MIRScope *scope, const std::string &srcVarName, const MIRSymbol *symbol,
-                                    const GStrIdx &typeNameIdx, const MIRType *sourceType) {
-  GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(srcVarName);
-  MIRAliasVars aliasVar;
-  aliasVar.mplStrIdx = symbol->GetNameStrIdx();
-  aliasVar.isLocal = symbol->IsLocal();
-  if (sourceType != nullptr) {
-    aliasVar.atk = kATKType;
-    aliasVar.index = sourceType->GetTypeIndex().GetIdx();
-  } else if (typeNameIdx != 0) {
-    aliasVar.atk = kATKString;
-    aliasVar.index = typeNameIdx.GetIdx();
-  } else {
-    aliasVar.atk = kATKType;
-    aliasVar.index = symbol->GetTyIdx().GetIdx();
-  }
-  scope->SetAliasVarMap(nameIdx, aliasVar);
-};
-
 void FEFunction::AddVLACleanupStmts(std::list<UniqueFEIRStmt> &stmts) {
   (void)stmts;
   CHECK_FATAL(false, "AddVLACleanupStmts only support astfunction");

@@ -136,6 +136,7 @@ class HIR2MPLCompilerComponent {
   std::list<FEInputMethodHelper*> globalFuncHelpers;
   std::list<FEInputGlobalVarHelper*> globalVarHelpers;
   std::list<FEInputFileScopeAsmHelper*> globalFileScopeAsmHelpers;
+  std::list<FEInputEnumHelper*> enumHelpers;
   std::unique_ptr<FEFunctionPhaseResult> phaseResultTotal;
   std::set<FEFunction*> compileFailedFEFunctions;
 };

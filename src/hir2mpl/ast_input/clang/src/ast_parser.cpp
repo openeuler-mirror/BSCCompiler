@@ -2003,7 +2003,10 @@ ASTExpr *ASTParser::ProcessExprCastExpr(MapleAllocator &allocator, const clang::
   switch (expr.getCastKind()) {
     case clang::CK_NoOp:
     case clang::CK_ToVoid:
+      break;
     case clang::CK_FunctionToPointerDecay:
+      astCastExpr->SetIsFunctionToPointerDecay(true);
+      break;
     case clang::CK_LValueToRValue:
       astCastExpr->SetRValue(true);
       break;
@@ -2395,7 +2398,6 @@ bool ASTParser::PreProcessAST() {
   case clang::Decl::CLASS: {                                                                              \
     ASTDecl *astDeclaration = ProcessDecl##CLASS##Decl(allocator, llvm::cast<clang::CLASS##Decl>(decl));  \
     if (astDeclaration != nullptr) {                                                                      \
-      astDeclaration->SetDeclPos(astFile->GetDeclPosInfo(decl));                                          \
       astDeclaration->SetGlobal(decl.isDefinedOutsideFunctionOrMethod());                                 \
       Loc loc = astFile->GetLOC(decl.getLocation());                                                      \
       astDeclaration->SetSrcLoc(loc);                                                                     \
@@ -2688,11 +2690,21 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   astVar = ASTDeclsBuilder::ASTVarBuilder(
       allocator, fileName, varName, MapleVector<MIRType*>({varType}, allocator.Adapter()), attrs, varDecl.getID());
   if (FEOptions::GetInstance().IsDbgFriendly()) {
-    if (varType->IsScalarType() || ASTUtil::HasTypdefType(qualType)) {
+    MIRType *typedefType = astFile->CvtTypedef(qualType);
+    // The literal name of typeof temporarily saved to ALIAS for dwarf
+    SourceType sty;
+    if (typedefType != nullptr) {
+      sty.typeIdx = typedefType->GetNameStrIdx().GetIdx();
+    } else if (ASTUtil::HasTypdefType(qualType)) {
       std::string typeName = qualType.getAsString();
-      astVar->SetTypeNameIdx(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName));
+      sty.typeIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName).GetIdx();
+    } else if (qualType->isEnumeralType()) {
+      const clang::EnumType *enumTy = llvm::dyn_cast<clang::EnumType>(qualType.getCanonicalType());
+      ASTDecl *enumDecl = ProcessDecl(allocator, *enumTy->getDecl());
+      sty.typeIdx = static_cast<unsigned>(FEManager::GetTypeManager().GetEnumIdx(enumDecl->GetName()));
+      sty.isEnum = true;
     }
-    astVar->SetSourceType(astFile->CvtTypedef(qualType));
+    astVar->SetSourceType(sty);
   }
   astVar->SetIsMacro(varDecl.getLocation().isMacroID());
   clang::SectionAttr *sa = varDecl.getAttr<clang::SectionAttr>();
@@ -2705,7 +2717,7 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   }
   if (varDecl.hasInit()) {
     bool isStaticStorageVar = (varDecl.getStorageDuration() == clang::SD_Static || attrs.GetAttr(GENATTR_tls_static));
-    astVar->SetDeclPos(astFile->GetDeclPosInfo(varDecl));
+    astVar->SetSrcLoc(astFile->GetLOC(varDecl.getLocation()));
     auto initExpr = varDecl.getInit();
     auto astInitExpr = ProcessExpr(allocator, initExpr);
     if (initExpr->getStmtClass() == clang::Stmt::InitListExprClass && astInitExpr->GetASTOp() == kASTOpInitListExpr) {
@@ -2808,21 +2820,61 @@ ASTDecl *ASTParser::ProcessDeclFileScopeAsmDecl(MapleAllocator &allocator, const
   return astAsmDecl;
 }
 
-ASTDecl *ASTParser::ProcessDeclEnumDecl(MapleAllocator &allocator, const clang::EnumDecl &enumDecl) {
-  ASTEnumDecl *localEnumDecl = static_cast<ASTEnumDecl*>(ASTDeclsBuilder::GetASTDecl(enumDecl.getID()));
-  if (localEnumDecl != nullptr) {
-    return localEnumDecl;
+ASTDecl *ASTParser::ProcessDeclEnumDecl(MapleAllocator &allocator, const clang::EnumDecl &rawEnumDecl) {
+  const clang::EnumDecl *enumDecl = rawEnumDecl.getDefinition();
+  if (enumDecl == nullptr) {
+    enumDecl = &rawEnumDecl;
+  }
+  ASTEnumDecl *astEnum = static_cast<ASTEnumDecl*>(ASTDeclsBuilder::GetASTDecl(enumDecl->getID()));
+  if (astEnum != nullptr) {
+    return astEnum;
   }
   GenericAttrs attrs;
-  astFile->CollectAttrs(*clang::dyn_cast<const clang::NamedDecl>(&enumDecl), attrs, kNone);
-  const std::string &enumName = clang::dyn_cast<const clang::NamedDecl>(&enumDecl)->getNameAsString();
-  localEnumDecl = ASTDeclsBuilder::ASTLocalEnumDeclBuilder(allocator, fileName, enumName,
-      MapleVector<MIRType*>({}, allocator.Adapter()), attrs, enumDecl.getID());
-  TraverseDecl(&enumDecl, [&](clang::Decl *child) {
+  astFile->CollectAttrs(*enumDecl, attrs, kNone);
+  std::string enumName = enumDecl->getNameAsString();
+  if (enumName.empty()) {
+    enumName = FEUtils::GetSequentialName("unnamed_enum.");
+  }
+  MIRType *mirType;
+  if (enumDecl->getPromotionType().isNull()) {
+    mirType = GlobalTables::GetTypeTable().GetInt32();
+  } else {
+    mirType = astFile->CvtType(enumDecl->getPromotionType());
+  }
+  astEnum = ASTDeclsBuilder::ASTLocalEnumDeclBuilder(allocator, fileName, enumName,
+      MapleVector<MIRType*>({mirType}, allocator.Adapter()), attrs, enumDecl->getID());
+  TraverseDecl(enumDecl, [&](clang::Decl *child) {
     CHECK_FATAL(child->getKind() == clang::Decl::EnumConstant, "Unsupported decl kind: %u", child->getKind());
-    localEnumDecl->PushConstant(static_cast<ASTEnumConstant*>(ProcessDecl(allocator, *child)));
+    astEnum->PushConstant(static_cast<ASTEnumConstant*>(ProcessDecl(allocator, *child)));
   });
-  return localEnumDecl;
+  if (!enumDecl->isDefinedOutsideFunctionOrMethod()) {
+    auto itor = std::find(astEnums.cbegin(), astEnums.cend(), astEnum);
+    if (itor == astEnums.end()) {
+      (void)astEnums.emplace_back(astEnum);
+    }
+  }
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    // The enumTable index is created before MIRAliasVar gets it. (Note that enumTable do not support parallel)
+    (void)FEManager::GetTypeManager().GetOrCreateEnum(enumName);
+  }
+  return astEnum;
+}
+
+ASTDecl *ASTParser::ProcessDeclEnumConstantDecl(MapleAllocator &allocator, const clang::EnumConstantDecl &decl) {
+  ASTEnumConstant *astConst = static_cast<ASTEnumConstant*>(ASTDeclsBuilder::GetASTDecl(decl.getID()));
+  if (astConst != nullptr) {
+    return astConst;
+  }
+  GenericAttrs attrs;
+  astFile->CollectAttrs(decl, attrs, kNone);
+  const std::string &varName = decl.getNameAsString();
+  MIRType *mirType = astFile->CvtType(decl.getType());
+  CHECK_NULL_FATAL(mirType);
+  astConst = ASTDeclsBuilder::ASTEnumConstBuilder(
+      allocator, fileName, varName, MapleVector<MIRType*>({mirType}, allocator.Adapter()), attrs, decl.getID());
+  IntVal val(decl.getInitVal().getExtValue(), mirType->GetPrimType());
+  astConst->SetValue(val);
+  return astConst;
 }
 
 ASTDecl *ASTParser::ProcessDeclTypedefDecl(MapleAllocator &allocator, const clang::TypedefDecl &typeDefDecl) {
@@ -2837,23 +2889,6 @@ ASTDecl *ASTParser::ProcessDeclTypedefDecl(MapleAllocator &allocator, const clan
     }
   }
   return nullptr;  // skip primitive type and explicit declared type
-}
-
-ASTDecl *ASTParser::ProcessDeclEnumConstantDecl(MapleAllocator &allocator, const clang::EnumConstantDecl &decl) {
-  ASTEnumConstant *astConst = static_cast<ASTEnumConstant*>(ASTDeclsBuilder::GetASTDecl(decl.getID()));
-  if (astConst != nullptr) {
-    return astConst;
-  }
-  GenericAttrs attrs;
-  astFile->CollectAttrs(*clang::dyn_cast<clang::NamedDecl>(&decl), attrs, kNone);
-  const std::string &varName = clang::dyn_cast<clang::NamedDecl>(&decl)->getNameAsString();
-  MIRType *mirType = astFile->CvtType(clang::dyn_cast<clang::ValueDecl>(&decl)->getType());
-  CHECK_NULL_FATAL(mirType);
-  astConst = ASTDeclsBuilder::ASTEnumConstBuilder(
-      allocator, fileName, varName, MapleVector<MIRType*>({mirType}, allocator.Adapter()), attrs, decl.getID());
-  ASSERT_NOT_NULL(astConst);
-  astConst->SetValue(static_cast<int32>(clang::dyn_cast<clang::EnumConstantDecl>(&decl)->getInitVal().getExtValue()));
-  return astConst;
 }
 
 ASTDecl *ASTParser::ProcessDeclLabelDecl(MapleAllocator &allocator, const clang::LabelDecl &decl) {
@@ -2952,6 +2987,18 @@ bool ASTParser::RetrieveFileScopeAsms(MapleAllocator &allocator) {
 bool ASTParser::ProcessGlobalTypeDef(MapleAllocator &allocator) {
   for (auto &gTypeDefDecl : std::as_const(globalTypeDefDecles)) {
     (void)ProcessDecl(allocator, *gTypeDefDecl);
+  }
+  return true;
+}
+
+bool ASTParser::RetrieveEnums(MapleAllocator &allocator) {
+  for (auto &decl : std::as_const(globalEnumDecles)) {
+    clang::EnumDecl *enumDecl = llvm::cast<clang::EnumDecl>(decl->getCanonicalDecl());
+    ASTEnumDecl *astEnum = static_cast<ASTEnumDecl*>(ProcessDecl(allocator, *enumDecl));
+    if (astEnum == nullptr) {
+      return false;
+    }
+    (void)astEnums.emplace_back(astEnum);
   }
   return true;
 }

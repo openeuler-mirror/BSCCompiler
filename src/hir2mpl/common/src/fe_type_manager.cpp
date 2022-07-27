@@ -252,6 +252,36 @@ MIRTypeByName *FETypeManager::CreateTypedef(const std::string &name, const MIRTy
   return typdefType;
 }
 
+MIREnum *FETypeManager::CreateEnum(const std::string &name, PrimType primType) {
+  GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
+  MIREnum *enumType = new MIREnum(primType, strIdx);
+  enumNameMap[strIdx] = GlobalTables::GetEnumTable().enumTable.size();
+  GlobalTables::GetEnumTable().enumTable.push_back(enumType);
+  return enumType;
+}
+
+MIREnum *FETypeManager::GetOrCreateEnum(const std::string &name, PrimType primType) {
+  GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
+  const auto &it  = enumNameMap.find(nameIdx);
+  if (it != enumNameMap.cend()) {
+    CHECK_FATAL(it->second < GlobalTables::GetEnumTable().enumTable.size(), "enumTable out of bounds");
+    MIREnum *enumType = GlobalTables::GetEnumTable().enumTable[it->second];
+    return enumType;
+  }
+  MIREnum *enumType = CreateEnum(name, primType);
+  return enumType;
+}
+
+size_t FETypeManager::GetEnumIdx(const std::string &name) {
+  GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
+  const auto &it  = enumNameMap.find(nameIdx);
+  if (it != enumNameMap.cend()) {
+    return it->second;
+  }
+  CHECK_FATAL(false, "The enum was not found, %s", name.c_str());
+  return 0;
+}
+
 /*
  * create MIRStructType for complex number, e.g.
  * type $Complex|F <struct {

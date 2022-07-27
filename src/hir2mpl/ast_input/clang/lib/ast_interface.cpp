@@ -117,12 +117,6 @@ std::string LibAstFile::GetMangledName(const clang::NamedDecl &decl) const {
   return mangledName;
 }
 
-Pos LibAstFile::GetDeclPosInfo(const clang::Decl &decl) const {
-  clang::FullSourceLoc fullLocation = astContext->getFullLoc(decl.getBeginLoc());
-  return std::make_pair(static_cast<uint32>(fullLocation.getSpellingLineNumber()),
-                        static_cast<uint32>(fullLocation.getSpellingColumnNumber()));
-}
-
 Loc LibAstFile::GetStmtLOC(const clang::Stmt &stmt) const {
   return GetLOC(stmt.getBeginLoc());
 }
@@ -553,8 +547,8 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recordType, std::stringst
   }
 
   if (!recordDecl->isDefinedOutsideFunctionOrMethod()) {
-    Pos p = GetDeclPosInfo(*recordDecl);
-    ss << "_" << p.first << "_" << p.second;
+    Loc l = GetLOC(recordDecl->getLocation());
+    ss << "_" << l.line << "_" << l.column;
   }
 }
 

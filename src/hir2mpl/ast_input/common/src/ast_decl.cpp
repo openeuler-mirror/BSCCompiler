@@ -55,7 +55,7 @@ std::string ASTDecl::GenerateUniqueVarName() const {
       // for macro expansion, variable names of same location need to be unique
       os << "_" << std::to_string(isMacroID);
     } else {
-      os << "_" << std::to_string(pos.first) << "_" << std::to_string(pos.second);
+      os << "_" << std::to_string(loc.line) << "_" << std::to_string(loc.column);
     }
     return os.str();
   }
@@ -139,7 +139,7 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   if (FEOptions::GetInstance().IsDbgFriendly() && !hasAddedInMIRScope) {
     FEFunction &feFunction = FEManager::GetCurrentFEFunction();
     MIRScope *mirScope = feFunction.GetTopMIRScope();
-    feFunction.AddAliasInMIRScope(mirScope, GetName(), sym, typeNameIdx, sourceType);
+    ASTVar::AddAliasInMIRScope(*mirScope, GetName(), sym, sourceType);
     hasAddedInMIRScope = true;
   }
   if (variableArrayExpr != nullptr) {  // vla declaration point
@@ -218,18 +218,36 @@ MIRSymbol *ASTVar::Translate2MIRSymbol() const {
   return mirSymbol;
 }
 
+void ASTVar::AddAliasInMIRScope(MIRScope &scope, const std::string &srcVarName, const MIRSymbol *symbol,
+                                const SourceType &sty) {
+  GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(srcVarName);
+  MIRAliasVars aliasVar;
+  aliasVar.mplStrIdx = symbol->GetNameStrIdx();
+  aliasVar.isLocal = symbol->IsLocal();
+  if (sty.isEnum) {
+    aliasVar.atk = kATKEnum;
+    aliasVar.index = sty.typeIdx;
+  } else if (sty.typeIdx != 0) {
+    aliasVar.atk = kATKString;
+    aliasVar.index = sty.typeIdx;
+  } else {
+    aliasVar.atk = kATKType;
+    aliasVar.index = symbol->GetTyIdx().GetIdx();
+  }
+  scope.SetAliasVarMap(nameIdx, aliasVar);
+};
+
 // ---------- ASTEnumConstant ----------
-void ASTEnumConstant::SetValue(int32 val) {
+void ASTEnumConstant::SetValue(const IntVal &val) {
   value = val;
 }
 
-int32 ASTEnumConstant::GetValue() const {
+const IntVal &ASTEnumConstant::GetValue() const {
   return value;
 }
 
 MIRConst *ASTEnumConstant::Translate2MIRConstImpl() const {
-  return GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-      static_cast<uint64>(static_cast<int64>(value)), *GlobalTables::GetTypeTable().GetPrimType(PTY_i32));
+  return GlobalTables::GetIntConstTable().GetOrCreateIntConst(value, *typeDesc.front());
 }
 
 // ---------- ASTFunc ---------

@@ -630,7 +630,43 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinAlloca(std::list<UniqueFEIRStmt> &stmts) 
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinExpect(std::list<UniqueFEIRStmt> &stmts) const {
   ASSERT(args.size() == 2, "__builtin_expect requires two arguments");
-  return CreateIntrinsicopForC(stmts, INTRN_C___builtin_expect, false);
+  std::list<UniqueFEIRStmt> subStmts;
+  UniqueFEIRExpr feExpr = CreateIntrinsicopForC(subStmts, INTRN_C___builtin_expect, false);
+  bool isOptimized = false;
+  for (auto &stmt : subStmts) {
+    // If there are mutiple conditions combined with logical AND '&&' or logical OR '||' in __builtin_expect, generate
+    // a __builtin_expect intrinsicop for each one condition in mpl
+    if (stmt->GetKind() == FEIRNodeKind::kStmtCondGoto) {
+      isOptimized = true;
+      auto *condGotoStmt = static_cast<FEIRStmtCondGotoForC*>(stmt.get());
+      // skip if condition label name not starts with <kCondGoToStmtLabelNamePrefix>
+      if (condGotoStmt->GetLabelName().rfind(FEUtils::kCondGoToStmtLabelNamePrefix, 0) != 0) {
+        continue;
+      }
+      const auto &conditionExpr = condGotoStmt->GetConditionExpr();
+      // skip if __builtin_expect intrinsicop has been generated for condition expr
+      if (conditionExpr->GetKind() == kExprBinary) {
+        auto &opnd0 = static_cast<FEIRExprBinary*>(conditionExpr.get())->GetOpnd0();
+        if (opnd0->GetKind() == FEIRNodeKind::kExprIntrinsicop &&
+            static_cast<FEIRExprIntrinsicopForC*>(opnd0.get())->GetIntrinsicID() == INTRN_C___builtin_expect) {
+          continue;
+        }
+      }
+      std::vector<std::unique_ptr<FEIRExpr>> argOpnds;
+      auto &builtInExpectArgs = static_cast<FEIRExprIntrinsicopForC*>(feExpr.get())->GetOpnds();
+      auto cvtFeExpr = FEIRBuilder::CreateExprCvtPrim(conditionExpr->Clone(), builtInExpectArgs.front()->GetPrimType());
+      argOpnds.push_back(std::move(cvtFeExpr));
+      argOpnds.push_back(builtInExpectArgs.back()->Clone());
+      auto returnType = std::make_unique<FEIRTypeNative>(*retType);
+      auto builtinExpectExpr = std::make_unique<FEIRExprIntrinsicopForC>(std::move(returnType),
+                                                                         INTRN_C___builtin_expect, argOpnds);
+      auto newConditionExpr = FEIRBuilder::CreateExprZeroCompare(OP_ne, std::move(builtinExpectExpr));
+      condGotoStmt->SetCondtionExpr(newConditionExpr);
+    }
+  }
+  stmts.splice(stmts.end(), subStmts);
+  return isOptimized ? static_cast<FEIRExprIntrinsicopForC*>(feExpr.get())->GetOpnds().front()->Clone()
+                     : feExpr->Clone();
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinAbs(std::list<UniqueFEIRStmt> &stmts) const {

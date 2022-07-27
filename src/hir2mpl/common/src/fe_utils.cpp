@@ -50,6 +50,8 @@ const std::string FEUtils::kMCCStaticFieldSetFloat  = "MCC_StaticFieldSetFloat";
 const std::string FEUtils::kMCCStaticFieldSetDouble = "MCC_StaticFieldSetDouble";
 const std::string FEUtils::kMCCStaticFieldSetObject = "MCC_StaticFieldSetObject";
 
+const std::string FEUtils::kCondGoToStmtLabelNamePrefix = "shortCircuit_";
+
 std::vector<std::string> FEUtils::Split(const std::string &str, char delim) {
   std::vector<std::string> ans;
   std::stringstream ss;

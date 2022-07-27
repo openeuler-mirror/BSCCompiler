@@ -25,12 +25,13 @@ class ASTParser {
  public:
   ASTParser(MapleAllocator &allocatorIn, uint32 fileIdxIn, const std::string &fileNameIn,
             MapleList<ASTStruct*> &astStructsIn, MapleList<ASTFunc*> &astFuncsIn, MapleList<ASTVar*> &astVarsIn,
-            MapleList<ASTFileScopeAsm*> &astFileScopeAsmsIn)
+            MapleList<ASTFileScopeAsm*> &astFileScopeAsmsIn, MapleList<ASTEnumDecl*> &astEnumsIn)
       : fileIdx(fileIdxIn), fileName(fileNameIn, allocatorIn.GetMemPool()), globalVarDecles(allocatorIn.Adapter()),
         funcDecles(allocatorIn.Adapter()), recordDecles(allocatorIn.Adapter()),
         globalEnumDecles(allocatorIn.Adapter()), globalTypeDefDecles(allocatorIn.Adapter()),
         globalFileScopeAsm(allocatorIn.Adapter()), astStructs(astStructsIn), astFuncs(astFuncsIn),
-        astVars(astVarsIn), astFileScopeAsms(astFileScopeAsmsIn), vlaSizeMap(allocatorIn.Adapter()) {}
+        astVars(astVarsIn), astFileScopeAsms(astFileScopeAsmsIn), astEnums(astEnumsIn),
+        vlaSizeMap(allocatorIn.Adapter()) {}
   virtual ~ASTParser() = default;
   bool OpenFile(MapleAllocator &allocator);
   bool Release() const;
@@ -42,8 +43,8 @@ class ASTParser {
   bool RetrieveFuncs(MapleAllocator &allocator);
   bool RetrieveGlobalVars(MapleAllocator &allocator);
   bool RetrieveFileScopeAsms(MapleAllocator &allocator);
-
   bool ProcessGlobalTypeDef(MapleAllocator &allocator);
+  bool RetrieveEnums(MapleAllocator &allocator);
 
   const std::string GetSourceFileName() const;
   const uint32 GetFileIdx() const;
@@ -259,6 +260,7 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
   MapleList<ASTFunc*> &astFuncs;
   MapleList<ASTVar*> &astVars;
   MapleList<ASTFileScopeAsm*> &astFileScopeAsms;
+  MapleList<ASTEnumDecl*> &astEnums;
   MapleMap<clang::Expr*, ASTExpr*> vlaSizeMap;
 };
 }  // namespace maple

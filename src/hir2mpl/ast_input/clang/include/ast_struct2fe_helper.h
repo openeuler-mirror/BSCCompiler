@@ -67,6 +67,18 @@ class ASTFileScopeAsm2FEHelper : public FEInputFileScopeAsmHelper {
   const ASTFileScopeAsm &astAsm;
 };
 
+class ASTEnum2FEHelper : public FEInputEnumHelper {
+ public:
+  ASTEnum2FEHelper(MapleAllocator &allocatorIn, const ASTEnumDecl &astEnumIn)
+      : FEInputEnumHelper(allocatorIn),
+        astEnum(astEnumIn) {}
+  ~ASTEnum2FEHelper() = default;
+
+ protected:
+  bool ProcessDeclImpl(MapleAllocator &allocator) override;
+  const ASTEnumDecl &astEnum;
+};
+
 class ASTStructField2FEHelper : public FEInputFieldHelper {
  public:
   ASTStructField2FEHelper(MapleAllocator &allocator, ASTField &fieldIn, const MIRType &structTypeIn)

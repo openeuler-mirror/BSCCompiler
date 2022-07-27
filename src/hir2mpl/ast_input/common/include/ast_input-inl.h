@@ -21,12 +21,13 @@ template<class T>
 ASTInput<T>::ASTInput(MIRModule &moduleIn, MapleAllocator &allocatorIn)
     : module(moduleIn), allocator(allocatorIn), parserMap(allocatorIn.Adapter()),
       astStructs(allocatorIn.Adapter()), astFuncs(allocatorIn.Adapter()), astVars(allocatorIn.Adapter()),
-      astFileScopeAsms(allocatorIn.Adapter()) {}
+      astFileScopeAsms(allocatorIn.Adapter()), astEnums(allocatorIn.Adapter()) {}
 
 template<class T>
 bool ASTInput<T>::ReadASTFile(MapleAllocator &allocatorIn, uint32 index, const std::string &fileName) {
   T *parser = allocator.GetMemPool()->New<T>(allocator, index, fileName,
-                                             astStructs, astFuncs, astVars, astFileScopeAsms);
+                                             astStructs, astFuncs, astVars,
+                                             astFileScopeAsms, astEnums);
   TRY_DO(parser->OpenFile(allocatorIn));
   TRY_DO(parser->Verify());
   TRY_DO(parser->PreProcessAST());
@@ -34,6 +35,9 @@ bool ASTInput<T>::ReadASTFile(MapleAllocator &allocatorIn, uint32 index, const s
   // so we put `RetrieveFuncs` before `RetrieveStructs`
   TRY_DO(parser->RetrieveFuncs(allocatorIn));
   TRY_DO(parser->RetrieveStructs(allocatorIn));
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    TRY_DO(parser->RetrieveEnums(allocatorIn));
+  }
   TRY_DO(parser->RetrieveGlobalVars(allocatorIn));
   TRY_DO(parser->RetrieveFileScopeAsms(allocatorIn));
   TRY_DO(parser->Release());

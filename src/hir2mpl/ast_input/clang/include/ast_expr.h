@@ -216,6 +216,10 @@ class ASTCastExpr : public ASTExpr {
     isArrayToPointerDecay = flag;
   }
 
+  void SetIsFunctionToPointerDecay(bool flag) {
+    isFunctionToPointerDecay = flag;
+  }
+
   bool IsBuilinFunc() const {
     return isBuilinFunc;
   }
@@ -260,6 +264,7 @@ class ASTCastExpr : public ASTExpr {
   MIRType *complexType = nullptr;
   bool imageZero = false;
   bool isArrayToPointerDecay = false;
+  bool isFunctionToPointerDecay = false;
   bool isBuilinFunc = false;
   bool isUnoinCast = false;
   bool isVectorSplat = false;
@@ -715,7 +720,8 @@ class ASTBinaryOperatorExpr : public ASTExpr {
     (void)allocatorIn;
   }
   explicit ASTBinaryOperatorExpr(MapleAllocator &allocatorIn)
-      : ASTExpr(kASTOpBO), varName(FEUtils::GetSequentialName("shortCircuit_"), allocatorIn.GetMemPool()) {}
+      : ASTExpr(kASTOpBO), varName(FEUtils::GetSequentialName(FEUtils::kCondGoToStmtLabelNamePrefix),
+        allocatorIn.GetMemPool()) {}
 
   ~ASTBinaryOperatorExpr() override = default;
 

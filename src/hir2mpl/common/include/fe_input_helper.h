@@ -91,6 +91,24 @@ class FEInputFileScopeAsmHelper {
   virtual bool ProcessDeclImpl(MapleAllocator &allocator) = 0;
 };
 
+class FEInputEnumHelper {
+ public:
+  explicit FEInputEnumHelper(MapleAllocator &allocatorIn) : allocator(allocatorIn) {}
+  virtual ~FEInputEnumHelper() = default;
+
+  bool ProcessDecl() {
+    return ProcessDecl(allocator);
+  }
+
+  bool ProcessDecl(MapleAllocator &allocatorIn) {
+    return ProcessDeclImpl(allocatorIn);
+  }
+
+ protected:
+  MapleAllocator &allocator;
+  virtual bool ProcessDeclImpl(MapleAllocator &allocator) = 0;
+};
+
 class FEInputFieldHelper {
  public:
   explicit FEInputFieldHelper(MapleAllocator &allocatorIn) : allocator(allocatorIn) {}

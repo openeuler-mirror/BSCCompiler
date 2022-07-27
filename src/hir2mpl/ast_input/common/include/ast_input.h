@@ -70,6 +70,10 @@ class ASTInput {
     astFileScopeAsms.emplace_back(fileScopeAsm);
   }
 
+  const MapleList<ASTEnumDecl*> &GetASTEnums() const {
+    return astEnums;
+  }
+
  private:
   MIRModule &module;
   MapleAllocator &allocator;
@@ -79,6 +83,7 @@ class ASTInput {
   MapleList<ASTFunc*> astFuncs;
   MapleList<ASTVar*> astVars;
   MapleList<ASTFileScopeAsm*> astFileScopeAsms;
+  MapleList<ASTEnumDecl*> astEnums;
 };
 }
 #endif  // HIR2MPL_AST_INPUT_INCLUDE_AST_INPUT_H

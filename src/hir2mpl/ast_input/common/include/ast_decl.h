@@ -24,7 +24,6 @@
 #include "generic_attrs.h"
 
 namespace maple {
-using Pos = std::pair<uint32, uint32>;
 enum DeclKind {
   kUnknownDecl = 0,
   kASTDecl,
@@ -110,10 +109,6 @@ class ASTDecl {
     return GenerateInitStmtImpl(stmts);
   }
 
-  void SetDeclPos(const Pos &p) {
-    pos = p;
-  }
-
   void SetSrcLoc(const Loc &l) {
     loc = l;
   }
@@ -189,7 +184,6 @@ class ASTDecl {
   MapleVector<MIRType*> typeDesc;
   GenericAttrs genAttrs;
   Loc loc = { 0, 0, 0 };
-  Pos pos = {0, 0};
   uint32 isMacroID = false;
   DeclKind declKind = kASTDecl;
   BoundaryInfo boundary;
@@ -301,6 +295,11 @@ class ASTStruct : public ASTDecl {
   MapleList<ASTFunc*> methods;
 };
 
+struct SourceType {
+  unsigned typeIdx = 0;
+  bool isEnum = false;
+};
+
 class ASTVar : public ASTDecl {
  public:
   ASTVar(const MapleString &srcFile, const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn,
@@ -339,16 +338,18 @@ class ASTVar : public ASTDecl {
     return promotedType;
   }
 
-  void SetTypeNameIdx(const GStrIdx &idx) {
-    typeNameIdx = idx;
+  const SourceType &GetSourceType() const {
+    return sourceType;
   }
 
-  void SetSourceType(MIRType *type) {
-    sourceType = type;
+  void SetSourceType(const SourceType &sty) {
+    sourceType = sty;
   }
 
   std::unique_ptr<FEIRVar> Translate2FEIRVar() const;
   MIRSymbol *Translate2MIRSymbol() const;
+  static void AddAliasInMIRScope(MIRScope &scope, const std::string &srcVarName, const MIRSymbol *symbol,
+                                 const SourceType &sty);
 
  private:
   MIRConst *Translate2MIRConstImpl() const override;
@@ -359,8 +360,7 @@ class ASTVar : public ASTDecl {
   std::string asmAttr;
   ASTExpr *variableArrayExpr = nullptr;
   PrimType promotedType = PTY_void;
-  GStrIdx typeNameIdx;
-  MIRType *sourceType = nullptr;  // typedef type
+  SourceType sourceType;
   bool hasAddedInMIRScope = false;
 };
 
@@ -394,15 +394,14 @@ class ASTEnumConstant : public ASTDecl {
   }
   ~ASTEnumConstant() = default;
 
-  void SetValue(int32 val);
-  int32 GetValue() const;
+  void SetValue(const IntVal &val);
+  const IntVal &GetValue() const;
 
  private:
   MIRConst *Translate2MIRConstImpl() const override;
-  int32 value = 0;
+  IntVal value;
 };
 
-// only process local `EnumDecl` here
 class ASTEnumDecl : public ASTDecl {
  public:
   ASTEnumDecl(MapleAllocator &allocatorIn, const MapleString &srcFile, const MapleString &nameIn,
@@ -415,6 +414,10 @@ class ASTEnumDecl : public ASTDecl {
 
   void PushConstant(ASTEnumConstant *c) {
     consts.emplace_back(c);
+  }
+
+  const MapleList<ASTEnumConstant*> &GetEnumConstants() const {
+    return consts;
   }
 
  private:

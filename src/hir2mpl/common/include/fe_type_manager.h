@@ -117,6 +117,9 @@ class FETypeManager {
   MIRTypeByName *GetTypeByNameType(const std::string &name);
   MIRTypeByName *GetTypeByNameType(const GStrIdx &nameIdx);
   MIRTypeByName *CreateTypedef(const std::string &name, const MIRType &type);
+  MIREnum *CreateEnum(const std::string &name, PrimType primType);
+  MIREnum *GetOrCreateEnum(const std::string &name, PrimType primType = PTY_i32);
+  size_t GetEnumIdx(const std::string &name);
   MIRType *GetOrCreateComplexStructType(const MIRType &elemType);
   MIRStructType *GetOrCreateClassOrInterfaceType(const GStrIdx &nameIdx, bool isInterface, FETypeFlag typeFlag,
                                                  bool &isCreate);
@@ -279,7 +282,6 @@ class FETypeManager {
   std::unordered_map<GStrIdx, GStrIdx, GStrIdxHash> structNameSrcMap;
   // list<pair<structNameIdx, mpltNameIdx>>
   std::list<std::pair<GStrIdx, GStrIdx>> structSameNameSrcList;
-  std::unordered_map<GStrIdx, MIRTypeByName*, GStrIdxHash> nameTypeMap;
   FETypeSameNamePolicy sameNamePolicy;
   MIRSrcLang srcLang;
 
@@ -302,6 +304,10 @@ class FETypeManager {
   // ---------- MCC function list  ----------
   std::unordered_map<GStrIdx, MIRFunction*, GStrIdxHash> nameMCCFuncMap;
   MIRFunction *funcMCCGetOrInsertLiteral;
+
+  // ---------- ast C  ----------
+  std::unordered_map<GStrIdx, MIRTypeByName*, GStrIdxHash> nameTypeMap;
+  std::unordered_map<GStrIdx, size_t, GStrIdxHash> enumNameMap;
 
   // ---------- Enhance C  ----------
   std::unordered_map<uint32, UniqueFEIRExpr> boundaryLenExprHashMap;

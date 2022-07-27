@@ -109,6 +109,8 @@ class FEUtils {
   static const std::string kMCCStaticFieldSetDouble;
   static const std::string kMCCStaticFieldSetObject;
 
+  static const std::string kCondGoToStmtLabelNamePrefix;
+
   static inline MemPool *NewMempool(const std::string &name, bool isLocalPool) {
     return memPoolCtrler.NewMemPool(name, isLocalPool);
   }

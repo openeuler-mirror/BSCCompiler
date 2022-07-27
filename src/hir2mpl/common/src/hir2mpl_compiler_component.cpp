@@ -100,6 +100,12 @@ bool HIR2MPLCompilerComponent::ProcessDeclImpl() {
     ASSERT_NOT_NULL(helper);
     success = helper->ProcessDecl() ? success : false;
   }
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    for (FEInputEnumHelper *helper : enumHelpers) {
+      ASSERT_NOT_NULL(helper);
+      success = helper->ProcessDecl() ? success : false;
+    }
+  }
   timer.StopAndDumpTimeMS("HIR2MPLCompilerComponent::ProcessDecl()");
   return success;
 }

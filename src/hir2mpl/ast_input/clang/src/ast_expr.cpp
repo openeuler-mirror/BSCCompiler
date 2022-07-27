@@ -287,7 +287,7 @@ UniqueFEIRExpr ASTDeclRefExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts)
   } else {
     if (refedDecl->GetDeclKind() == kASTEnumConstant) {
       return FEIRBuilder::CreateExprConstAnyScalar(refedDecl->GetTypeDesc().front()->GetPrimType(),
-          static_cast<ASTEnumConstant*>(refedDecl)->GetValue());
+          static_cast<ASTEnumConstant*>(refedDecl)->GetValue().GetExtValue());
     }
     UniqueFEIRVar feirVar =
         FEIRBuilder::CreateVarNameForC(refedDecl->GenerateUniqueVarName(), *mirType, refedDecl->IsGlobal(), false);
@@ -601,7 +601,7 @@ UniqueFEIRExpr ASTCastExpr::Emit2FEExprForComplex(const UniqueFEIRExpr &subExpr,
 UniqueFEIRExpr ASTCastExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   const ASTExpr *childExpr = child;
   CHECK_FATAL(childExpr != nullptr, "childExpr is nullptr");
-  if (isArrayToPointerDecay) {
+  if (isArrayToPointerDecay || isFunctionToPointerDecay) {
     auto childFEExpr = childExpr->Emit2FEExpr(stmts);
     if (childFEExpr->GetKind() == kExprDRead) {
       return std::make_unique<FEIRExprAddrofVar>(
@@ -877,11 +877,6 @@ UniqueFEIRExpr ASTUODerefExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts)
   UniqueFEIRExpr childFEIRExpr = childExpr->Emit2FEExpr(subStmts);
   UniqueFEIRType retType = std::make_unique<FEIRTypeNative>(*uoType);
   UniqueFEIRType ptrType = std::make_unique<FEIRTypeNative>(*subType);
-  if (uoType->GetKind() == kTypePointer &&
-      static_cast<MIRPtrType*>(uoType)->GetPointedType()->GetKind() == kTypeFunction) {
-    stmts.splice(stmts.end(), subStmts);
-    return childFEIRExpr;
-  }
   InsertNonnullChecking(subStmts, childFEIRExpr->Clone());
   if (InsertBoundaryChecking(subStmts, childFEIRExpr->Clone())) {
     childFEIRExpr->SetIsBoundaryChecking(true);
@@ -2219,9 +2214,9 @@ UniqueFEIRExpr ASTBinaryOperatorExpr::Emit2FEExprLogicOperate(std::list<UniqueFE
   }
   rightExpr->SetShortCircuitIdx(trueLabelIdx, falseLabelIdx);
 
-  std::string rightCondLabel = FEUtils::GetSequentialName0("shortCircuit_", rightCondLabelIdx);
-  std::string fallthrouLabel = FEUtils::GetSequentialName0("shortCircuit_", fallthrouLabelIdx);
-  std::string jumpToLabel = FEUtils::GetSequentialName0("shortCircuit_", jumpToLabelIdx);
+  std::string rightCondLabel = FEUtils::GetSequentialName0(FEUtils::kCondGoToStmtLabelNamePrefix, rightCondLabelIdx);
+  std::string fallthrouLabel = FEUtils::GetSequentialName0(FEUtils::kCondGoToStmtLabelNamePrefix, fallthrouLabelIdx);
+  std::string jumpToLabel = FEUtils::GetSequentialName0(FEUtils::kCondGoToStmtLabelNamePrefix, jumpToLabelIdx);
 
   // brfalse/brtrue label (leftCond)
   auto leftFEExpr = leftExpr->Emit2FEExpr(stmts);
@@ -2251,7 +2246,7 @@ UniqueFEIRExpr ASTBinaryOperatorExpr::Emit2FEExprLogicOperate(std::list<UniqueFE
   UniqueFEIRExpr returnValue(nullptr);
   // when reaching the outer layer of a short circuit, return explicit value for each branch
   if (!inShortCircuit) {
-    std::string nextLabel = FEUtils::GetSequentialName("shortCircuit_");
+    std::string nextLabel = FEUtils::GetSequentialName(FEUtils::kCondGoToStmtLabelNamePrefix);
     UniqueFEIRExpr trueConst = FEIRBuilder::CreateExprConstAnyScalar(PTY_u32, 1);
     UniqueFEIRExpr falseConst = FEIRBuilder::CreateExprConstAnyScalar(PTY_u32, 0);
     UniqueFEIRStmt goStmt = FEIRBuilder::CreateStmtGoto(nextLabel);
@@ -2285,7 +2280,7 @@ UniqueFEIRExpr ASTBinaryOperatorExpr::Emit2FEExprLogicOperateSimplify(std::list<
   MIRType *tempVarType = GlobalTables::GetTypeTable().GetInt32();
   UniqueFEIRType tempFeirType = std::make_unique<FEIRTypeNative>(*tempVarType);
   UniqueFEIRVar shortCircuit = FEIRBuilder::CreateVarNameForC(GetVarName(), *tempVarType);
-  std::string labelName = FEUtils::GetSequentialName("shortCircuit_label_");
+  std::string labelName = FEUtils::GetSequentialName(FEUtils::kCondGoToStmtLabelNamePrefix + "label_");
   auto leftFEExpr = leftExpr->Emit2FEExpr(lStmts);
   leftFEExpr = FEIRBuilder::CreateExprZeroCompare(OP_ne, std::move(leftFEExpr));
   auto leftStmt = std::make_unique<FEIRStmtDAssign>(shortCircuit->Clone(), leftFEExpr->Clone(), 0);

@@ -24,7 +24,6 @@
 #include "clang/Basic/AttrKinds.h"
 
 namespace maple {
-using Pos = std::pair<uint32, uint32>;
 enum AccessKind {
   kPublic,
   kProtected,
@@ -99,7 +98,6 @@ class LibAstFile {
     return FEUtils::GetFileNameHashStr(fileName);
   }
 
-  Pos GetDeclPosInfo(const clang::Decl &decl) const;
   Loc GetStmtLOC(const clang::Stmt &stmt) const;
   Loc GetExprLOC(const clang::Expr &expr) const;
   Loc GetLOC(const clang::SourceLocation &srcLoc) const;

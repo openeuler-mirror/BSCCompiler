@@ -79,6 +79,11 @@ bool ASTCompilerComponent<T>::ParseInputImpl() {
         allocator, *astFileScopeAsm);
     globalFileScopeAsmHelpers.emplace_back(asmHelper);
   }
+
+  for (auto &astEnum : astInput.GetASTEnums()) {
+    ASTEnum2FEHelper *enumHelper = allocator.GetMemPool()->New<ASTEnum2FEHelper>(allocator, *astEnum);
+    enumHelpers.emplace_back(enumHelper);
+  }
   timer.StopAndDumpTimeMS("ASTCompilerComponent::ParseInput()");
   return success;
 }
