@@ -17,7 +17,6 @@
 #include <iterator>
 #include <map>
 #include <set>
-#include <stdio.h>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -73,7 +72,7 @@ enum SafetyCheckMode {
 class Compiler;
 
 class InputInfo {
-public:
+ public:
   explicit InputInfo(const std::string &inputFile)
       : inputFile(inputFile) {
     inputFileType = GetInputFileType(inputFile);
@@ -150,7 +149,7 @@ public:
     return fullOutput;
   }
 
-private:
+ private:
   std::string inputFile = "";
   InputFileType inputFileType = InputFileType::kFileTypeNone;
 
@@ -162,7 +161,7 @@ private:
 };
 
 class Action {
-public:
+ public:
   Action(const std::string &tool, const InputInfo *const inputInfo)
       : inputInfo(inputInfo), tool(tool) {}
 
@@ -234,7 +233,7 @@ public:
     return false;
   }
 
-private:
+ private:
   const InputInfo *inputInfo;
 
   std::string tool = "";
@@ -340,7 +339,7 @@ class MplOptions {
   }
 
   SafetyCheckMode GetBoundaryCheckMode() const {
-   return boundaryCheckMode;
+    return boundaryCheckMode;
   }
 
   const std::vector<std::unique_ptr<Action>> &GetActions() const {

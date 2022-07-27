@@ -348,7 +348,7 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
     currentAction = std::move(newAction);
   }
 
-  if (isNeedAs == true) {
+  if (isNeedAs) {
     UpdateRunningExe(kAsFlag);
     newAction = std::make_unique<Action>(kAsFlag, inputInfo, currentAction);
     currentAction = std::move(newAction);
@@ -408,7 +408,7 @@ ErrorCode MplOptions::MFCreateActionByExe(const std::string &exe, std::unique_pt
   ErrorCode ret = kErrorNoError;
 
   if (exe == kBinNameMe || exe == kBinNameMpl2mpl || exe == kBinNameMplcg) {
-    if (wasWrpCombCompilerCreated == false) {
+    if (!wasWrpCombCompilerCreated) {
       auto newAction = std::make_unique<Action>(kBinNameMapleCombWrp, inputInfo, currentAction);
       currentAction = std::move(newAction);
       wasWrpCombCompilerCreated = true;
@@ -430,7 +430,7 @@ ErrorCode MplOptions::SFCreateActionByExe(const std::string &exe, std::unique_pt
   ErrorCode ret = kErrorNoError;
 
   if (exe == kBinNameMe || exe == kBinNameMpl2mpl) {
-    if (isCombCompiler == false) {
+    if (!isCombCompiler) {
       auto newAction = std::make_unique<Action>(kBinNameMapleComb, inputInfo, currentAction);
       currentAction = std::move(newAction);
       isCombCompiler = true;
@@ -465,7 +465,7 @@ ErrorCode MplOptions::DecideRunningPhases(const std::vector<std::string> &runExe
     auto currentAction = std::make_unique<Action>(kInputPhase, inputInfo.get());
 
     for (const auto &exe : runExes) {
-      if (isMultipleFiles == true) {
+      if (isMultipleFiles) {
         ret = MFCreateActionByExe(exe, currentAction, rawInputInfo, wasWrpCombCompilerCreated);
         if (ret != kErrorNoError) {
           return ret;

@@ -19,8 +19,6 @@
 #include "cl_option.h"
 #include "cl_parser.h"
 
-#include <string>
-
 static maplecl::OptionCategory &driverCategory = maplecl::CommandLine::GetCommandLine().defaultCategory;
 
 static maplecl::OptionCategory &clangCategory = maplecl::CommandLine::GetCommandLine().clangCategory;

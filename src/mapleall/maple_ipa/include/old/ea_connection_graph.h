@@ -16,7 +16,7 @@
 #define MAPLEIPA_INCLUDE_ESCAPEANALYSIS_H
 #include <fstream>
 #include <iostream>
-#include <stdlib.h>
+#include <cstdlib>
 #include "call_graph.h"
 #include "me_ir.h"
 #include "irmap.h"
@@ -293,7 +293,7 @@ class EACGBaseNode {
   virtual void SetMeExpr(MeExpr &newExpr) {
     if (IsFieldNode() && newExpr.GetMeOp() != kMeOpIvar && newExpr.GetMeOp() != kMeOpOp) {
       CHECK_FATAL(false, "must be kMeOpIvar or kMeOpOp");
-    } else if (IsReferenceNode() == true && newExpr.GetMeOp() != kMeOpVar && newExpr.GetMeOp() != kMeOpReg &&
+    } else if (IsReferenceNode() && newExpr.GetMeOp() != kMeOpVar && newExpr.GetMeOp() != kMeOpReg &&
                newExpr.GetMeOp() != kMeOpAddrof && newExpr.GetMeOp() != kMeOpConststr) {
       CHECK_FATAL(false, "must be kMeOpVar, kMeOpReg, kMeOpAddrof or kMeOpConststr");
     }
@@ -476,7 +476,7 @@ class EACGObjectNode : public EACGBaseNode {
   };
   ~EACGObjectNode() = default;
   bool IsPhantom() const {
-    return isPhantom == true;
+    return isPhantom;
   };
 
   void SetLocation(Location *loc) {

@@ -17,7 +17,6 @@
 
 #include <vector>
 #include <string>
-#include <cstdlib>
 #include "me_option.h"
 #include "module_phase_manager.h"
 #include "error_code.h"
@@ -69,15 +68,15 @@ class DriverRunner final {
   ErrorCode Run();
   void RunNewPM(const std::string &output, const std::string &vtableImplFile);
   void ProcessCGPhase(const std::string &output, const std::string &originBaseName);
-  void SetCGInfo(CGOptions *cgOptions, const std::string &cgInput) {
-    this->cgOptions = cgOptions;
-    this->cgInput = cgInput;
+  void SetCGInfo(CGOptions *newCgOptions, const std::string &newCgInput) {
+    this->cgOptions = newCgOptions;
+    this->cgInput = newCgInput;
   }
   ErrorCode ParseInput() const;
   ErrorCode ParseSrcLang(MIRSrcLang &srcLang) const;
   void SolveCrossModuleInJava(MIRParser &parser) const;
   void SolveCrossModuleInC(MIRParser &parser) const;
-  void SetPrintOutExe (const std::string outExe) {
+  void SetPrintOutExe(const std::string outExe) {
     printOutExe = outExe;
   }
 

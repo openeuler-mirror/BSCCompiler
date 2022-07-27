@@ -57,7 +57,7 @@ const std::string &MplcgCompiler::GetBinName() const {
   return kBinNameMplcg;
 }
 
-std::string MplcgCompiler::GetInputFile(const MplOptions &options, const Action &action [[maybe_unused]],
+std::string MplcgCompiler::GetInputFile(const MplOptions &options [[maybe_unused]], const Action &action,
                                         const MIRModule *md) const {
   if (action.IsItFirstRealAction()) {
     return action.GetInputFile();
@@ -134,7 +134,7 @@ ErrorCode MplcgCompiler::MakeCGOptions(const MplOptions &options) const {
   }
 
   bool result = cgOption.SolveOptions(opts::debug);
-  if (result == false) {
+  if (!result) {
     LogInfo::MapleLogger() << "Meet error mplcg options\n";
     return kErrorCompileFail;
   }
@@ -142,7 +142,7 @@ ErrorCode MplcgCompiler::MakeCGOptions(const MplOptions &options) const {
 }
 
 ErrorCode MplcgCompiler::GetMplcgOptions(MplOptions &options, const Action &action,
-                                         const MIRModule *theModule) {
+                                         const MIRModule *theModule) const {
   ErrorCode ret;
   if (options.GetRunMode() == kAutoRun) {
     if (theModule == nullptr) {
@@ -195,7 +195,7 @@ ErrorCode MplcgCompiler::Compile(MplOptions &options, const Action &action,
       theParser.reset(new MIRParser(*theModule));
       bool parsed = theParser->ParseMIR(0, cgOption.GetParserOption());
       if (parsed) {
-        if (!CGOptions::IsQuiet() && theParser->GetWarning().size()) {
+        if (!CGOptions::IsQuiet() && (theParser->GetWarning().size() != 0)) {
           theParser->EmitWarning(fileName);
         }
       } else {

@@ -14,9 +14,7 @@
  */
 #ifndef MAPLE_IPA_OPTION_H
 #define MAPLE_IPA_OPTION_H
-#include <cstdlib>
 #include <iostream>
-#include <algorithm>
 #include "mir_parser.h"
 #include "opcode_info.h"
 #include "option.h"

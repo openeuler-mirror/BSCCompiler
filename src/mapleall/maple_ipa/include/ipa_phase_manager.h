@@ -14,7 +14,6 @@
  */
 #ifndef MAPLE_IPA_INCLUDE_IPA_PHASE_MANAGER_H
 #define MAPLE_IPA_INCLUDE_IPA_PHASE_MANAGER_H
-#include <vector>
 #include <string>
 #include "mempool.h"
 #include "mempool_allocator.h"

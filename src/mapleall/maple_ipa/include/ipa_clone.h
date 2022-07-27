@@ -28,7 +28,7 @@ class IpaClone : public AnalysisResult {
  public:
   IpaClone(MIRModule *mod, MemPool *memPool, MIRBuilder &builder)
       : AnalysisResult(memPool), mirModule(mod), allocator(memPool), mirBuilder(builder), curFunc(nullptr) {}
-  ~IpaClone() {
+  ~IpaClone() override {
     mirModule = nullptr;
     curFunc = nullptr;
   }
@@ -44,15 +44,15 @@ class IpaClone : public AnalysisResult {
   void InitParams();
   void CopyFuncInfo(MIRFunction &originalFunction, MIRFunction &newFunc) const;
   void IpaCloneArgument(MIRFunction &originalFunction, ArgVector &argument) const;
-  void RemoveUnneedParameter(MIRFunction *newFunc, uint32 paramIndex, int64_t value);
+  void RemoveUnneedParameter(MIRFunction *newFunc, uint32 paramIndex, int64_t value) const;
   void DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramIndex, std::map<uint32,
                            std::vector<int64_t>> &evalMap);
   void ReplaceIfCondtion(MIRFunction *newFunc, std::vector<ImpExpr> &result, uint64_t res) const;
   void EvalCompareResult(std::vector<ImpExpr> &result, std::map<uint32, std::vector<int64_t>> &evalMap,
-                         std::map<int64_t, std::vector<CallerSummary>> &summary, uint32 index);
+                         std::map<int64_t, std::vector<CallerSummary>> &summary, uint32 index) const;
   void EvalImportantExpression(MIRFunction *func, std::vector<ImpExpr> &result);
   bool CheckCostModel(uint32 paramIndex, std::vector<int64_t> &calleeValue, uint32 impSize) const;
-  void ComupteValue(const IntVal& value, const IntVal& paramValue, CompareNode *cond, uint64_t &bitRes) const;
+  void ComupteValue(const IntVal& value, const IntVal& paramValue, const CompareNode &cond, uint64_t &bitRes) const;
   void CloneNoImportantExpressFunction(MIRFunction *func, uint32 paramIndex);
   void ModifyParameterSideEffect(MIRFunction *newFunc, uint32 paramIndex) const;
 

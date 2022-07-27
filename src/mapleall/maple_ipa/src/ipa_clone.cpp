@@ -25,6 +25,7 @@
 // etc.) and the update of the new func infomation.
 namespace maple {
 void IpaClone::InitParams() {
+  // the option for the clone parameter
   if (Options::optForSize) {
     numOfCloneVersions = 2;
     numOfImpExprLowBound = 2;
@@ -155,7 +156,7 @@ MIRFunction *IpaClone::IpaCloneFunctionWithFreq(MIRFunction &originalFunction,
         newProfData->GetStmtFreqs(), origProfData->GetStmtFreqs(),
         callSiteFreq, /* numer */
         origProfData->GetFuncFrequency(), /* denom */
-        (kKeepOrigFreq | kUpdateFreqbyScale));
+        static_cast<uint32>(kKeepOrigFreq) | static_cast<uint32>(kUpdateFreqbyScale));
     newFunc->SetBody(newbody);
     IpaCloneSymbols(*newFunc, originalFunction);
     IpaCloneLabels(*newFunc, originalFunction);
@@ -254,13 +255,13 @@ void IpaClone::ModifyParameterSideEffect(MIRFunction *newFunc, uint32 paramIndex
   return;
 }
 
-void IpaClone::RemoveUnneedParameter(MIRFunction *newFunc, uint32 paramIndex, int64_t value) {
+void IpaClone::RemoveUnneedParameter(MIRFunction *newFunc, uint32 paramIndex, int64_t value) const {
   ASSERT(newFunc != nullptr, "null ptr check");
   if (newFunc->GetBody() != nullptr) {
     MemPool *newFuncMP = newFunc->GetCodeMempool();
     // Create the const value
     MIRType *type = GlobalTables::GetTypeTable().GetPrimType(PTY_i64);
-    MIRIntConst *constVal = GlobalTables::GetIntConstTable().GetOrCreateIntConst(value, *type);
+    MIRIntConst *constVal = GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<uint64_t>(value), *type);
     ConstvalNode *constNode = newFuncMP->New<ConstvalNode>(constVal->GetType().GetPrimType(), constVal);
     // Create the dassign statement.
     DassignNode *dass = newFuncMP->New<DassignNode>();
@@ -370,24 +371,25 @@ void IpaClone::DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramInd
   }
 }
 
-void IpaClone::ComupteValue(const IntVal& value, const IntVal& paramValue, CompareNode *cond, uint64_t &bitRes) const {
-  if (cond->GetOpCode() == OP_gt) {
-    bitRes = (value > paramValue) | (bitRes << 1);
-  } else if (cond->GetOpCode() == OP_eq) {
-    bitRes = (value == paramValue) | (bitRes << 1);
-  } else if (cond->GetOpCode() == OP_lt) {
-    bitRes = (value < paramValue) | (bitRes << 1);
-  } else if (cond->GetOpCode() == OP_ge) {
-    bitRes = (value >= paramValue) | (bitRes << 1);
-  } else if (cond->GetOpCode() == OP_le) {
-    bitRes = (value <= paramValue) | (bitRes << 1);
-  } else if (cond->GetOpCode() == OP_ne) {
-    bitRes = (value != paramValue) | (bitRes << 1);
+void IpaClone::ComupteValue(const IntVal& value, const IntVal& paramValue,
+                            const CompareNode &cond, uint64_t &bitRes) const {
+  if (cond.GetOpCode() == OP_gt) {
+    bitRes = static_cast<uint64_t>(value > paramValue) | (bitRes << 1);
+  } else if (cond.GetOpCode() == OP_eq) {
+    bitRes = static_cast<uint64_t>(value == paramValue) | (bitRes << 1);
+  } else if (cond.GetOpCode() == OP_lt) {
+    bitRes = static_cast<uint64_t>(value < paramValue) | (bitRes << 1);
+  } else if (cond.GetOpCode() == OP_ge) {
+    bitRes = static_cast<uint64_t>(value >= paramValue) | (bitRes << 1);
+  } else if (cond.GetOpCode() == OP_le) {
+    bitRes = static_cast<uint64_t>(value <= paramValue) | (bitRes << 1);
+  } else if (cond.GetOpCode() == OP_ne) {
+    bitRes = static_cast<uint64_t>(value != paramValue) | (bitRes << 1);
   }
 }
 
-void IpaClone::EvalCompareResult(std::vector<ImpExpr> &result, std::map<uint32, std::vector<int64_t > > &evalMap,
-                                 std::map<int64_t, std::vector<CallerSummary>> &summary, uint32 index) {
+void IpaClone::EvalCompareResult(std::vector<ImpExpr> &result, std::map<uint32, std::vector<int64_t>> &evalMap,
+                                 std::map<int64_t, std::vector<CallerSummary>> &summary, uint32 index) const {
   for (auto &it: summary) {
     int64 value = it.first;
     uint64_t bitRes = 0;
@@ -416,7 +418,7 @@ void IpaClone::EvalCompareResult(std::vector<ImpExpr> &result, std::map<uint32, 
       }
       IntVal paramValue = { constVal->GetValue(), primType };
       IntVal newValue = { static_cast<uint64>(value), primType };
-      ComupteValue(newValue, paramValue, cond, bitRes);
+      ComupteValue(newValue, paramValue, *cond, bitRes);
     }
     if (runFlag) {
       evalMap[bitRes].emplace_back(value);

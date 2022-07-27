@@ -12,10 +12,9 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "compiler.h"
 #include "driver_runner.h"
 #include <iostream>
-#include <sys/stat.h>
+#include "compiler.h"
 #include "mpl_timer.h"
 #include "mir_function.h"
 #include "mir_parser.h"

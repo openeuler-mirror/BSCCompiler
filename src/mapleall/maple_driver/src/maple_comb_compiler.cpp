@@ -104,10 +104,10 @@ void MapleCombCompiler::PrintCommand(const MplOptions &options, const Action &ac
 
 std::string MapleCombCompiler::GetStringOfSafetyOption() const {
   std::string safetyOptionStr = "";
-  if (MeOption::safeRegionMode == true) {
+  if (MeOption::safeRegionMode) {
     safetyOptionStr += "safe-region ";
   }
-  if (MeOption::isNpeCheckAll == true) {
+  if (MeOption::isNpeCheckAll) {
     safetyOptionStr += "npe-check-dynamic-all ";
   }
   switch (MeOption::npeCheckMode) {
@@ -153,7 +153,7 @@ ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunn
   }
 
   bool result = MeOption::GetInstance().SolveOptions(opts::debug);
-  if (result == false) {
+  if (!result) {
     LogInfo::MapleLogger() << "Meet error me options\n";
     return kErrorCompileFail;
   }
@@ -191,7 +191,7 @@ ErrorCode MapleCombCompiler::MakeMpl2MplOptions(const MplOptions &options, Drive
 
   auto &mpl2mplOption = Options::GetInstance();
   bool result = mpl2mplOption.SolveOptions(opts::debug);
-  if (result == false) {
+  if (!result) {
     LogInfo::MapleLogger() << "Meet error mpl2mpl options\n";
     return kErrorCompileFail;
   }

@@ -17,7 +17,7 @@
 #include "default_options.def"
 
 namespace maple {
-std::string LdCompiler::GetBinPath(const MplOptions &mplOptions) const {
+std::string LdCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const {
 #ifdef ANDROID
   return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
 #else
@@ -35,7 +35,7 @@ const std::string &LdCompiler::GetTool() const {
   return kLdFlag;
 }
 
-DefaultOption LdCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
+DefaultOption LdCompiler::GetDefaultOptions(const MplOptions &options, const Action &action [[maybe_unused]]) const {
   uint32_t len = sizeof(kLdDefaultOptions) / sizeof(MplOption);
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
 
@@ -52,13 +52,13 @@ DefaultOption LdCompiler::GetDefaultOptions(const MplOptions &options, const Act
   return defaultOptions;
 }
 
-std::string LdCompiler::GetInputFileName(const MplOptions &options, const Action &action) const {
+std::string LdCompiler::GetInputFileName(const MplOptions &options [[maybe_unused]], const Action &action) const {
     std::string files;
 
     bool isFirstEntry = true;
     for (const auto &file : action.GetLinkFiles()) {
       /* Split Input files with " "; (except first entry) */
-      if (isFirstEntry == true) {
+      if (isFirstEntry) {
         isFirstEntry = false;
       } else {
         files += " ";

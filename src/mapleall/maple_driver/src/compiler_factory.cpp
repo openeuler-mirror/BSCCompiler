@@ -94,7 +94,7 @@ ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions,
         }
       }
 
-      if (isNeedRemove == true) {
+      if (isNeedRemove) {
         (void)FileUtils::Remove(tmpFile);
       }
     }
