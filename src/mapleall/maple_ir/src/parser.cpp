@@ -1757,7 +1757,6 @@ bool MIRParser::ParseEnumeration() {
   }
   lexer.NextToken();
   GlobalTables::GetEnumTable().enumTable.push_back(mirEnum);
-  delete mirEnum;
   return true;
 }
 
@@ -2577,10 +2576,20 @@ bool MIRParser::ParseOneScope(MIRScope &scope) {
   return true;
 }
 
-bool MIRParser::ParseScope(StmtNodePtr &stmt [[maybe_unused]]) {
-  MIRScope *scp = mod.CurFunction()->GetScope();
+bool MIRParser::ParseScope() {
+  MIRScope *scp = nullptr;
+  MIRFunction *func = mod.CurFunction();
+  if (func && func->GetBody()) {
+    scp = func->GetScope();
+  } else {
+    scp = mod.GetScope();
+  }
   bool status = ParseOneScope(*scp);
   return status;
+}
+
+bool MIRParser::ParseScopeStmt(StmtNodePtr&) {
+  return ParseScope();
 }
 
 bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
@@ -2590,37 +2599,54 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
     return false;
   }
   nameTk = lexer.NextToken();
-  if (nameTk != TK_lname) {
-    Error("expect local in ALIAS but get ");
+  if (nameTk != TK_lname && nameTk != TK_gname) {
+    Error("expect local or global in ALIAS but get ");
     return false;
   }
   strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
   nameTk = lexer.NextToken();
-  bool isLocal;
   if (nameTk == TK_lname) {
-    isLocal = true;
+    aliasVar.isLocal = true;
   } else if (nameTk == TK_gname) {
-    isLocal = false;
+    aliasVar.isLocal = false;
   } else {
     Error("expect name in ALIAS but get ");
     return false;
   }
   GStrIdx mplStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
   aliasVar.mplStrIdx = mplStrIdx;
-  aliasVar.isLocal = isLocal;
   lexer.NextToken();
   TokenKind tk = lexer.GetTokenKind();
   TyIdx tyIdx(0);
-  if (tk == TK_string || tk == TK_gname) {
+  if (tk == TK_string) {
     // original type name from source code
     std::string typeName = lexer.GetName();
     GStrIdx srcTypeStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName);
-    aliasVar.tyIdx = TyIdx(0);
-    aliasVar.srcTypeStrIdx = srcTypeStrIdx;
+    aliasVar.atk = kATKString;
+    aliasVar.index = srcTypeStrIdx.GetIdx();
+    lexer.NextToken();
+  } else if (tk == TK_gname) {
+    // type name or enum name
+    std::string typeName = lexer.GetName();
+    GStrIdx typeStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName);
+    tyIdx = mod.GetTypeNameTab()->GetTyIdxFromGStrIdx(typeStrIdx);
+    if (tyIdx.GetIdx() != 0) {
+      aliasVar.atk = kATKType;
+      aliasVar.index = tyIdx.GetIdx();
+    } else {
+      auto size = GlobalTables::GetEnumTable().enumTable.size();
+      for (size_t i = 0; i < size; ++i) {
+        MIREnum *mirEnum = GlobalTables::GetEnumTable().enumTable[i];
+        if (typeStrIdx == mirEnum->GetNameIdx()) {
+          aliasVar.atk = kATKEnum;
+          aliasVar.index = i;
+        }
+      }
+    }
     lexer.NextToken();
   } else if (ParseType(tyIdx)) {
-    aliasVar.tyIdx = tyIdx;
-    aliasVar.srcTypeStrIdx = GStrIdx(0);
+    aliasVar.atk = kATKType;
+    aliasVar.index = tyIdx.GetIdx();
   } else {
     Error("parseType failed when parsing ALIAS ");
     return false;
@@ -2634,7 +2660,7 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
   return true;
 }
 
-bool MIRParser::ParseAlias(StmtNodePtr &stmt [[maybe_unused]]) {
+bool MIRParser::ParseAlias() {
   GStrIdx strIdx;
   MIRAliasVars aliasVar;
 
@@ -2642,6 +2668,10 @@ bool MIRParser::ParseAlias(StmtNodePtr &stmt [[maybe_unused]]) {
 
   mod.CurFunction()->SetAliasVarMap(strIdx, aliasVar);
   return true;
+}
+
+bool MIRParser::ParseAliasStmt(StmtNodePtr&) {
+  return ParseAlias();
 }
 
 uint8 *MIRParser::ParseWordsInfo(uint32 size) {
@@ -2828,6 +2858,8 @@ std::map<TokenKind, MIRParser::FuncPtrParseMIRForElem> MIRParser::InitFuncPtrMap
   funcPtrMap[TK_importpath] = &MIRParser::ParseMIRForImportPath;
   funcPtrMap[TK_asmdecl] = &MIRParser::ParseMIRForAsmdecl;
   funcPtrMap[TK_LOC] = &MIRParser::ParseLoc;
+  funcPtrMap[TK_ALIAS] = &MIRParser::ParseAlias;
+  funcPtrMap[TK_SCOPE] = &MIRParser::ParseScope;
   return funcPtrMap;
 }
 
