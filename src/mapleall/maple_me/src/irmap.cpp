@@ -1254,12 +1254,13 @@ MeExpr *IRMap::SimplifyAddExpr(const OpMeExpr *addExpr) {
     if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
       return FoldConstExpr(addExpr->GetPrimType(), addExpr->GetOp(),
                            static_cast<ConstMeExpr*>(opnd0), static_cast<ConstMeExpr*>(opnd1));
-    } else if (opnd0->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd0)->IsZero()) {
-      return opnd1;
-    } else if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd1)->IsZero()) {
-      return opnd0;
     }
     return nullptr;
+  }
+  if (opnd0->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd0)->IsZero()) {
+    return opnd1;
+  } else if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd1)->IsZero()) {
+    return opnd0;
   }
 
   if (!opnd0->IsLeaf() && !opnd1->IsLeaf()) {

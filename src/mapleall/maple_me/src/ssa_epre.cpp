@@ -115,7 +115,7 @@ void SSAEPre::GenerateSaveLHSRealocc(MeRealOcc &realOcc, ScalarMeExpr &regOrVar)
   newIass->SetBB(savedBB);
   savedBB->InsertMeStmtAfter(rass, newIass);
   // go throu saved_Chi_List to update each chi base to point to newIass
-  for (auto it = newIass->GetChiList()->begin(); it != newIass->GetChiList()->end(); ++it) {
+  for (auto it = newIass->GetChiList()->cbegin(); it != newIass->GetChiList()->cend(); ++it) {
     ChiMeNode *chi = it->second;
     chi->SetBase(newIass);
   }
@@ -446,11 +446,10 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
     case kMeOpIvar: {
       auto *ivarMeExpr = static_cast<IvarMeExpr*>(&meExpr);
       MeExpr *base = ivarMeExpr->GetBase();
-      if (meExpr.GetPrimType() == PTY_agg) {
-        break;
-      }
       if (!base->IsLeaf()) {
         BuildWorkListExpr(meStmt, seqStmt, *ivarMeExpr->GetBase(), isRebuild, tempVar, false, insertSorted);
+      } else if (meExpr.GetPrimType() == PTY_agg) {
+        break;
       } else if (ivarMeExpr->IsVolatile()) {
         break;
       } else if (IsThreadObjField(*ivarMeExpr)) {
