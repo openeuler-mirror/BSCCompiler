@@ -280,6 +280,78 @@ class ExtendShiftPattern : public PropOptimizePattern {
 };
 
 /*
+ * For example:
+ *  1) lsr R102, R101, #1
+ *     lsr R103, R102, #6   ====>   lsr R103, R101, #7
+ *
+ *  2) add R102, R101, #1
+ *     sub R103, R102, #1   ====>   Replace R103 with R101
+ *
+ * Condition:
+ *   the immVal can not be negative
+ */
+class A64ConstFoldPattern : public PropOptimizePattern {
+ public:
+  A64ConstFoldPattern(CGFunc &cgFunc, CGSSAInfo *ssaInfo)
+      : PropOptimizePattern(cgFunc, ssaInfo) {}
+  ~A64ConstFoldPattern() override = default;
+  bool CheckCondition(Insn &insn) final;
+  void Optimize(Insn &insn) final;
+  void Run() final;
+
+ protected:
+  void Init() final {
+    defInsn = nullptr;
+    dstOpnd = nullptr;
+    srcOpnd = nullptr;
+    useFoldType = kFoldUndef;
+    defFoldType = kFoldUndef;
+    optType = kOptUndef;
+    is64Bit = false;
+  }
+
+ private:
+  enum FoldType : uint8 {
+    kAdd,
+    kSub,
+    kLsr,
+    kLsl,
+    kAsr,
+    kFoldUndef
+  };
+  enum OptType : uint8 {
+    kNegativeDef,      /* negative the immVal of defInsn */
+    kNegativeUse,      /* negative the immVal of useInsn */
+    kNegativeBoth,     /* negative the immVal of both defInsn and useInsn */
+    kPositive,         /* do not change the immVal of both defInsn and useInsn */
+    kOptUndef
+  };
+  constexpr static uint32 kFoldTypeSize = 5;
+  OptType constFoldTable[kFoldTypeSize][kFoldTypeSize] = {
+    /* defInsn: kAdd             kSub               kLsr               kLsl              kAsr  */
+    {kPositive,    kNegativeDef,  kOptUndef, kOptUndef, kOptUndef},  /* useInsn == kAdd */
+    {kNegativeUse, kNegativeBoth, kOptUndef, kOptUndef, kOptUndef},  /* useInsn == kSub */
+    {kOptUndef,    kOptUndef,     kPositive, kOptUndef, kOptUndef},  /* useInsn == kLsr */
+    {kOptUndef,    kOptUndef,     kOptUndef, kPositive, kOptUndef},  /* useInsn == kLsl */
+    {kOptUndef,    kOptUndef,     kOptUndef, kOptUndef, kPositive},  /* useInsn == kAsr */
+  };
+
+  std::pair<FoldType, bool> SelectFoldTypeAndCheck64BitSize(const Insn &insn) const;
+  MOperator GetNewMop(bool isNegativeVal, MOperator curMop) const;
+  void ReplaceWithNewInsn(Insn &insn, const ImmOperand &immOpnd, int64 newImmVal);
+  bool IsDefInsnValid(const Insn &curInsn, const Insn &validDefInsn);
+  bool IsPhiInsnValid(const Insn &curInsn, const Insn &phiInsn);
+  Insn *defInsn = nullptr;
+  RegOperand *dstOpnd = nullptr;
+  RegOperand *srcOpnd = nullptr;
+  FoldType useFoldType = kFoldUndef;
+  FoldType defFoldType = kFoldUndef;
+  OptType optType = kOptUndef;
+  bool is64Bit = false;
+  using TypeAndSize = std::pair<FoldType, bool>;
+};
+
+/*
  * optimization for call convention
  * example:
  *                              [BB26]                      [BB43]

@@ -77,7 +77,6 @@ RegOperand *AArch64CGSSAInfo::CreateSSAOperand(RegOperand &virtualOpnd) {
   }
   RegOperand *newVreg = memPool->New<RegOperand>(ssaRegNO,
       virtualOpnd.GetSize(), virtualOpnd.GetRegisterType());
-  newVreg->SetValidBitsNum(virtualOpnd.GetValidBitsNum());
   newVreg->SetOpndSSAForm();
   return newVreg;
 }

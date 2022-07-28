@@ -958,6 +958,7 @@ void AArch64Prop::PropPatternOpt() {
   optManager.Optimize<ExtendShiftPattern>(*cgFunc, GetSSAInfo());
   optManager.Optimize<FpSpConstProp>(*cgFunc, GetSSAInfo());
   optManager.Optimize<A64PregCopyPattern>(*cgFunc, GetSSAInfo());
+  optManager.Optimize<A64ConstFoldPattern>(*cgFunc, GetSSAInfo());
 }
 
 bool ExtendShiftPattern::IsSwapInsn(const Insn &insn) const {
@@ -1986,6 +1987,216 @@ void FpSpConstProp::Optimize(Insn &insn) {
         break;
       default:
         break;
+    }
+  }
+}
+
+A64ConstFoldPattern::TypeAndSize A64ConstFoldPattern::SelectFoldTypeAndCheck64BitSize(const Insn &insn) const {
+  MOperator mOp = insn.GetMachineOpcode();
+  switch (mOp) {
+    case MOP_waddrri12: return std::pair<FoldType, bool>{kAdd, false};
+    case MOP_xaddrri12: return std::pair<FoldType, bool>{kAdd, true};
+    case MOP_wsubrri12: return std::pair<FoldType, bool>{kSub, false};
+    case MOP_xsubrri12: return std::pair<FoldType, bool>{kSub, true};
+    case MOP_wlslrri5: return std::pair<FoldType, bool>{kLsl, false};
+    case MOP_xlslrri6: return std::pair<FoldType, bool>{kLsl, true};
+    case MOP_wlsrrri5: return std::pair<FoldType, bool>{kLsr, false};
+    case MOP_xlsrrri6: return std::pair<FoldType, bool>{kLsr, true};
+    case MOP_wasrrri5: return std::pair<FoldType, bool>{kAsr, false};
+    case MOP_xasrrri6: return std::pair<FoldType, bool>{kAsr, true};
+    default:
+      return std::pair<FoldType, bool>{kFoldUndef, false};
+  }
+}
+
+bool A64ConstFoldPattern::IsDefInsnValid(const Insn &curInsn, const Insn &validDefInsn) {
+  std::pair<FoldType, bool> defInfo = SelectFoldTypeAndCheck64BitSize(validDefInsn);
+  defFoldType = defInfo.first;
+  if (defFoldType == kFoldUndef) {
+    return false;
+  }
+  /* do not optimize MOP_x and MOP_w */
+  if (is64Bit != defInfo.second) {
+    return false;
+  }
+  ASSERT(curInsn.GetOperand(kInsnFirstOpnd).IsRegister() &&
+         validDefInsn.GetOperand(kInsnSecondOpnd).IsRegister(), "must be");
+  dstOpnd = &static_cast<RegOperand&>(curInsn.GetOperand(kInsnFirstOpnd));
+  srcOpnd = &static_cast<RegOperand&>(validDefInsn.GetOperand(kInsnSecondOpnd));
+  if (dstOpnd->IsPhysicalRegister() || srcOpnd->IsPhysicalRegister()) {
+    return false;
+  }
+  optType = constFoldTable[useFoldType][defFoldType];
+  if (optType == kOptUndef) {
+    return false;
+  }
+  return true;
+}
+
+bool A64ConstFoldPattern::IsPhiInsnValid(const Insn &curInsn, const Insn &phiInsn) {
+  std::vector<Insn*> validDefInsns;
+  auto &phiOpnd = static_cast<PhiOperand&>(phiInsn.GetOperand(kInsnSecondOpnd));
+  for (auto useIt : phiOpnd.GetOperands()) {
+    ASSERT(useIt.second != nullptr, "get phiUseOpnd failed");
+    Insn *defPhiInsn = optSsaInfo->GetDefInsn(*useIt.second);
+    /* check only one layer of phi */
+    if (defPhiInsn == nullptr || defPhiInsn->IsPhi()) {
+      return false;
+    }
+    (void)validDefInsns.emplace_back(defPhiInsn);
+  }
+  if (validDefInsns.empty()) {
+    return false;
+  }
+  if (!IsDefInsnValid(curInsn, *validDefInsns[0])) {
+    return false;
+  }
+  MOperator mOp = validDefInsns[0]->GetMachineOpcode();
+  CHECK_FATAL(validDefInsns[0]->GetOperand(kInsnSecondOpnd).IsRegister(), "check this insn");
+  CHECK_FATAL(validDefInsns[0]->GetOperand(kInsnThirdOpnd).IsImmediate(), "check this insn");
+  auto &validSrcOpnd = static_cast<RegOperand&>(validDefInsns[0]->GetOperand(kInsnSecondOpnd));
+  auto &validImmOpnd = static_cast<ImmOperand&>(validDefInsns[0]->GetOperand(kInsnThirdOpnd));
+  uint32 opndNum = validDefInsns[0]->GetOperandSize();
+  for (uint32 insnIdx = 1; insnIdx < validDefInsns.size(); ++insnIdx) {
+    Insn *insn = validDefInsns[insnIdx];
+    if (insn->GetMachineOpcode() != mOp) {
+      return false;
+    }
+    if (insn->GetOperandSize() != opndNum) {
+      return false;
+    }
+    if (!insn->GetOperand(kInsnSecondOpnd).IsRegister() || !insn->GetOperand(kInsnThirdOpnd).IsImmediate()) {
+      return false;
+    }
+    if (!static_cast<RegOperand&>(insn->GetOperand(kInsnSecondOpnd)).Equals(validSrcOpnd) ||
+        !static_cast<ImmOperand&>(insn->GetOperand(kInsnThirdOpnd)).Equals(validImmOpnd)) {
+      return false;
+    }
+  }
+  defInsn = validDefInsns[0];
+  return true;
+}
+
+bool A64ConstFoldPattern::CheckCondition(Insn &insn) {
+  std::pair<FoldType, bool> useInfo = SelectFoldTypeAndCheck64BitSize(insn);
+  useFoldType = useInfo.first;
+  if (useFoldType == kFoldUndef) {
+    return false;
+  }
+  is64Bit = useInfo.second;
+  ASSERT(insn.GetOperand(kInsnSecondOpnd).IsRegister(), "check this insn");
+  auto &useOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  defInsn = optSsaInfo->GetDefInsn(useOpnd);
+  if (defInsn == nullptr) {
+    return false;
+  }
+  if (defInsn->IsPhi()) {
+    return IsPhiInsnValid(insn, *defInsn);
+  } else {
+    return IsDefInsnValid(insn, *defInsn);
+  }
+}
+
+MOperator A64ConstFoldPattern::GetNewMop(bool isNegativeVal, MOperator curMop) const {
+  MOperator newMop = MOP_undef;
+  switch (useFoldType) {
+    case kAdd:
+      newMop = (isNegativeVal ? (is64Bit ? MOP_xsubrri12 : MOP_wsubrri12) : curMop);
+      break;
+    case kSub:
+      newMop = (isNegativeVal ? curMop : (is64Bit ? MOP_xaddrri12 : MOP_waddrri12));
+      break;
+    case kLsl:
+      newMop = (isNegativeVal ? (is64Bit ? MOP_xlsrrri6 : MOP_wlsrrri5) : curMop);
+      break;
+    case kLsr:
+      newMop = (isNegativeVal ? (is64Bit ? MOP_xlslrri6 : MOP_wlslrri5) : curMop);
+      break;
+    case kAsr:
+      newMop = (isNegativeVal ? MOP_undef : curMop);
+      break;
+    default:
+      return MOP_undef;
+  }
+  return newMop;
+}
+
+void A64ConstFoldPattern::ReplaceWithNewInsn(Insn &insn, const ImmOperand &immOpnd, int64 newImmVal) {
+  auto &a64Func = static_cast<AArch64CGFunc&>(cgFunc);
+  MOperator curMop = insn.GetMachineOpcode();
+  MOperator newMop = GetNewMop(newImmVal < 0, curMop);
+  ImmOperand &newImmOpnd = (newImmVal < 0 ?
+    a64Func.CreateImmOperand(-newImmVal, immOpnd.GetSize(), immOpnd.IsSignedValue()) :
+    a64Func.CreateImmOperand(newImmVal, immOpnd.GetSize(), immOpnd.IsSignedValue()));
+  if (!a64Func.IsOperandImmValid(newMop, &newImmOpnd, kInsnThirdOpnd)) {
+    return;
+  }
+  if (useFoldType == kLsl || useFoldType == kLsr || useFoldType == kAsr) {
+    if (newImmVal < 0 || (is64Bit && newImmVal >= k64BitSize) || (!is64Bit && newImmVal >= k32BitSize)) {
+      return;
+    }
+  }
+  Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newMop, *dstOpnd, *srcOpnd, newImmOpnd);
+  insn.GetBB()->ReplaceInsn(insn, newInsn);
+  /* update ssa info */
+  optSsaInfo->ReplaceInsn(insn, newInsn);
+  if (PROP_DUMP) {
+    LogInfo::MapleLogger() << ">>>>>>> In A64ConstFoldPattern : <<<<<<<\n";
+    LogInfo::MapleLogger() << "=======ReplaceInsn :\n";
+    insn.Dump();
+    LogInfo::MapleLogger() << "=======NewInsn :\n";
+    newInsn.Dump();
+  }
+}
+
+void A64ConstFoldPattern::Optimize(Insn &insn) {
+  ASSERT(insn.GetOperand(kInsnThirdOpnd).IsImmediate(), "check this insn");
+  ASSERT(defInsn->GetOperand(kInsnThirdOpnd).IsImmediate(), "check this insn");
+  auto &useImmOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  auto &defImmOpnd = static_cast<ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
+  int64 newImmVal = 0;
+  switch (optType) {
+    case kPositive:
+      newImmVal = useImmOpnd.GetValue() + defImmOpnd.GetValue();
+      break;
+    case kNegativeDef:
+      newImmVal = useImmOpnd.GetValue() - defImmOpnd.GetValue();
+      break;
+    case kNegativeUse:
+      newImmVal = defImmOpnd.GetValue() - useImmOpnd.GetValue();
+      break;
+    case kNegativeBoth:
+      newImmVal = -defImmOpnd.GetValue() - useImmOpnd.GetValue();
+      break;
+    default:
+      CHECK_FATAL(false, "can not be here");
+  }
+
+  if (newImmVal == 0) {
+    VRegVersion *dstVersion = optSsaInfo->FindSSAVersion(dstOpnd->GetRegisterNumber());
+    VRegVersion *srcVersion = optSsaInfo->FindSSAVersion(srcOpnd->GetRegisterNumber());
+    CHECK_FATAL(dstVersion != nullptr, "get dstVersion failed");
+    CHECK_FATAL(srcVersion != nullptr, "get srcVersion failed");
+    if (cgFunc.IsExtendReg(dstOpnd->GetRegisterNumber())) {
+      cgFunc.InsertExtendSet(srcOpnd->GetRegisterNumber());
+    }
+    optSsaInfo->ReplaceAllUse(dstVersion, srcVersion);
+  } else {
+    ReplaceWithNewInsn(insn, defImmOpnd, newImmVal);
+  }
+}
+
+void A64ConstFoldPattern::Run() {
+  FOR_ALL_BB(bb, &cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      Init();
+      if (!CheckCondition(*insn)) {
+        continue;
+      }
+      Optimize(*insn);
     }
   }
 }

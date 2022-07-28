@@ -36,13 +36,6 @@ Insn &AArch64PhiEliminate::CreateMov(RegOperand &destOpnd, RegOperand &fromOpnd)
     insn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
         is64bit ? isFloat ? MOP_xvmovd : MOP_xmovrr : isFloat ? MOP_xvmovs : MOP_wmovrr, destOpnd, fromOpnd);
   }
-  /* restore validBitNum */
-  if (destOpnd.GetValidBitsNum() != k64BitSize && destOpnd.GetValidBitsNum() != k32BitSize) {
-    destOpnd.SetValidBitsNum(destOpnd.GetSize());
-  }
-  if (fromOpnd.GetValidBitsNum() != k64BitSize && fromOpnd.GetValidBitsNum() != k32BitSize) {
-    fromOpnd.SetValidBitsNum(fromOpnd.GetSize());
-  }
   /* copy remat info */
   MaintainRematInfo(destOpnd, fromOpnd, true);
   ASSERT(insn != nullptr, "create move insn failed");
