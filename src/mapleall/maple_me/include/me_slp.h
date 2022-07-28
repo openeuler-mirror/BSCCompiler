@@ -115,10 +115,8 @@ struct MemBasePtrCmp {
 // (2) const offset part: a constant offset
 // Example:
 // For pointer expr `add (add (mx3, sub (mx4, mx5)), 10)`, we get the following MemLoc object:
-//   {
-//     base = { -mx5, mx3, mx4 },
-//     offset = 10
-//   }
+//   base : -mx5, mx3, mx4
+//   offset : 10
 // A negative expr means we should substract this expr
 struct MemLoc {
   MemBasePtr *base = nullptr; // base part
@@ -130,7 +128,7 @@ struct MemLoc {
   void DumpWithoutEndl() const;
   void Dump() const;
   // emit MemLoc to MeExpr
-  MeExpr *Emit(IRMap &irMap) const;
+  MeExpr *Emit() const;
 };
 
 class MemoryHelper {

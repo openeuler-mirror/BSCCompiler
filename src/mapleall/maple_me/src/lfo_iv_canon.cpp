@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Futurewei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021-2022] Futurewei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -12,9 +12,8 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the MulanPSL - 2.0 for more details.
  */
-
-#include <iostream>
 #include "lfo_iv_canon.h"
+#include <iostream>
 #include "me_option.h"
 #include "pme_function.h"
 #include "me_dominance.h"
@@ -501,7 +500,6 @@ void IVCanon::CanonEntryValues() {
   for (uint32 i = 0; i < ivvec.size(); i++) {
     IVDesc *ivdesc = ivvec[i];
     if (ivdesc->initExpr->GetMeOp() == kMeOpVar || ivdesc->initExpr->GetMeOp() == kMeOpReg) {
-#if 1 // create temp var
       std::string initName = "";
       if (ivdesc->ost->IsPregOst()) {
         (void)initName.append("regno").append(std::to_string(ivdesc->ost->GetPregIdx()));
@@ -515,9 +513,6 @@ void IVCanon::CanonEntryValues() {
       GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(initName);
       ScalarMeExpr *scalarMeExpr = func->GetIRMap()->CreateNewVar(strIdx, ivdesc->primType, false);
       scalarMeExpr->GetOst()->storesIVInitValue = true;
-#else // create preg
-      ScalarMeExpr *scalarmeexpr = func->irMap->CreateRegMeExpr(ivdesc->primType);
-#endif
       AssignMeStmt *ass = func->GetIRMap()->CreateAssignMeStmt(*scalarMeExpr, *ivdesc->initExpr, *aloop->preheader);
       aloop->preheader->AddMeStmtLast(ass);
       ivdesc->initExpr = scalarMeExpr;

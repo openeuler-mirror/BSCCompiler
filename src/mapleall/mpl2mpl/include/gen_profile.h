@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2022] Futurewei Technologies, Inc. All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -20,7 +20,6 @@
 #include "bb.h"
 #include "me_irmap.h"
 #include "maple_phase_manager.h"
-
 
 namespace maple {
 static constexpr const uint32_t kMplModProfMergeFuncs = 9;  // gcov reserves 9 slots

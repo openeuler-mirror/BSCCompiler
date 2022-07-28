@@ -52,7 +52,7 @@ void MeFuncPM::DumpMEIR(const MeFunction &f, const std::string phaseName, bool i
   }
 }
 
-bool MeFuncPM::SkipFuncForMe(const MIRModule &m, const MIRFunction &func, uint64 range) {
+bool MeFuncPM::SkipFuncForMe(const MIRFunction &func, uint64 range) {
   if (func.IsEmpty() || (MeOption::useRange && (range < MeOption::range[0] || range > MeOption::range[1]))) {
     return true;
   }
@@ -78,7 +78,7 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
   for (auto func : compFuncList) {
     ++i;
     ASSERT_NOT_NULL(func);
-    if (SkipFuncForMe(m, *func, i - 1)) {
+    if (SkipFuncForMe(*func, i - 1)) {
       if (!func->IsEmpty()) {
         // mir cg lower should not be skipped
         MIRLower mirLower(m, func);

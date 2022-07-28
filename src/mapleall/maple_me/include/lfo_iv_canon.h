@@ -57,8 +57,8 @@ class IVCanon {
       : mp(m), alloc(m), func(f), dominance(dom), ssatab(f->GetMeSSATab()),
         aloop(ldesc), loopID(id), whileInfo(winfo), ivvec(alloc.Adapter()) {}
   virtual ~IVCanon() = default;
-  bool ResolveExprValue(MeExpr *x, ScalarMeExpr *philhs);
-  int32 ComputeIncrAmt(MeExpr *x, ScalarMeExpr *philhs, int32 *appearances, bool &canBePrimary);
+  bool ResolveExprValue(MeExpr *x, ScalarMeExpr *phiLHS);
+  int32 ComputeIncrAmt(MeExpr *x, ScalarMeExpr *phiLHS, int32 *appearances, bool &canBePrimary);
   void CharacterizeIV(ScalarMeExpr *initversion, ScalarMeExpr *loopbackversion, ScalarMeExpr *philhs);
   void FindPrimaryIV();
   bool IsLoopInvariant(MeExpr *x);

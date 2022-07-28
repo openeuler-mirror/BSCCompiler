@@ -114,11 +114,11 @@ class MeFuncPM : public FunctionPM {
 
   bool PhaseRun(MIRModule &m) override;
  private:
-  bool SkipFuncForMe(const MIRModule &m, const MIRFunction &func, uint64 range);
-  bool FuncLevelRun(MeFunction &f, AnalysisDataManager &serialADM);
+  bool SkipFuncForMe(const MIRFunction &func, uint64 range);
+  bool FuncLevelRun(MeFunction &meFunc, AnalysisDataManager &serialADM);
   void GetAnalysisDependence(AnalysisDep &aDep) const override;
   void DumpMEIR(const MeFunction &f, const std::string phaseName, bool isBefore);
-  virtual void DoPhasesPopulate(const MIRModule &m);
+  virtual void DoPhasesPopulate(const MIRModule &mirModule);
 
   std::string meInput = "";
 };

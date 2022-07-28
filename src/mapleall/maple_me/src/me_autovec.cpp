@@ -12,14 +12,12 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "me_autovec.h"
 #include <iostream>
 #include <algorithm>
 #include "me_option.h"
 #include "mir_module.h"
-#include "mir_lower.h"
-#include "mir_builder.h"
 #include "me_loop_analysis.h"
-#include "me_autovec.h"
 #include "lfo_loop_vec.h"
 #include "seqvec.h"
 

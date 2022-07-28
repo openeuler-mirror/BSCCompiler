@@ -26,6 +26,8 @@ constexpr size_t kCodeSizeLimit = 2000;
 constexpr std::uint64_t kInvaliedBound = 0xdeadbeef;
 constexpr size_t kLimitOfLoopNestDepth = 10;
 constexpr size_t kLimitOfLoopBBs = 500;
+static constexpr int32 kProbLikely = 9000;
+static constexpr int32 kProbUnlikely = 1000;
 
 bool Bound::CanBeComparedWith(const Bound &bound) const {
   // Only bounds with same var can be compared
@@ -2040,26 +2042,19 @@ int64 GetRealValue(int64 value, PrimType primType) {
   switch (primType) {
     case PTY_i8:
       return static_cast<int8>(value);
-      break;
     case PTY_i16:
       return static_cast<int16>(value);
-      break;
     case PTY_i32:
       return static_cast<int32>(value);
-      break;
     case PTY_i64:
       return static_cast<int64>(value);
-      break;
     case PTY_u8:
       return static_cast<uint8>(value);
-      break;
     case PTY_u16:
       return static_cast<uint16>(value);
-      break;
     case PTY_u32:
     case PTY_a32:
       return static_cast<uint32>(value);
-      break;
     case PTY_ref:
     case PTY_ptr:
       if (GetPrimTypeSize(primType) == kFourByte) { // 32 bit
@@ -2068,17 +2063,13 @@ int64 GetRealValue(int64 value, PrimType primType) {
         CHECK_FATAL(GetPrimTypeSize(primType) == kEightByte, "must be 64 bit");
         return static_cast<uint64>(value);
       }
-      break;
     case PTY_u64:
     case PTY_a64:
       return static_cast<uint64>(value);
-      break;
     case PTY_u1:
       return static_cast<bool>(value);
-      break;
     default:
       CHECK_FATAL(false, "must not be here");
-      break;
   }
 }
 
@@ -2403,7 +2394,7 @@ void ValueRangePropagation::TravelBBs(std::vector<BB*> &reversePostOrderOfLoopBB
   }
 }
 
-void ValueRangePropagation::CreateVRForPhi(const LoopDesc &loop, const BB &bb) {
+void ValueRangePropagation::CreateVRForPhi(const LoopDesc &loop) {
   onlyPropVRStack.push(onlyPropVR);
   onlyPropVR = true;
   std::vector<BB*> reversePostOrderOfLoopBBs;
@@ -2917,7 +2908,7 @@ void ValueRangePropagation::DealWithPhi(const BB &bb) {
     return;
   }
   onlyRecordValueRangeInTempCache.push(true);
-  CreateVRForPhi(*loop, bb);
+  CreateVRForPhi(*loop);
   MergeValueRangeOfPhiOperands(*loop, bb, valueRangeOfInitExprs, indexOfInitExpr);
   onlyRecordValueRangeInTempCache.pop();
   tempCaches.clear();
@@ -3108,6 +3099,9 @@ void ValueRangePropagation::Insert2UnreachableBBs(BB &unreachableBB) {
 void ValueRangePropagation::AnalysisUnreachableBBOrEdge(BB &bb, BB &unreachableBB, BB &succBB) {
   if (onlyPropVR) {
     return;
+  }
+  for (auto &pred : bb.GetPred()) {
+    UpdateProfile(*pred, bb, unreachableBB);
   }
   Insert2UnreachableBBs(unreachableBB);
   bb.RemoveSucc(unreachableBB);
@@ -3407,6 +3401,51 @@ bool ValueRangePropagation::OnlyHaveOneCondGotoPredBB(const BB &bb, const BB &co
   return bb.GetPred().size() == 1 && bb.GetPred(0) == &condGotoBB;
 }
 
+void ValueRangePropagation::UpdateProfile(BB &pred, BB &bb, const BB &targetBB) const {
+  if (bb.GetKind() != kBBCondGoto || bb.IsMeStmtEmpty() || !bb.GetLastMe()->IsCondBr()) {
+    return;
+  }
+  auto *condGotoStmt = static_cast<CondGotoMeStmt*>(bb.GetLastMe());
+  if (condGotoStmt->GetBranchProb() != kProbLikely && condGotoStmt->GetBranchProb() != kProbUnlikely) {
+    return; // need not update profile
+  }
+  int32 targetBranchProb = 0;
+  if (&targetBB == bb.GetSucc(0)) {
+    targetBranchProb = CondGotoNode::probAll - condGotoStmt->GetBranchProb();
+  } else {
+    ASSERT(&targetBB == bb.GetSucc(1), "must equal");
+    targetBranchProb = condGotoStmt->GetBranchProb();
+  }
+  BB *predCondGoto = &pred;
+  BB *succBB = &bb; // succ of predCondGoto to targetBB
+  while (predCondGoto != nullptr) {
+    if (predCondGoto->GetKind() == kBBCondGoto) {
+      break;
+    }
+    if (predCondGoto->GetPred().size() != 1) {
+      predCondGoto = nullptr;
+      break;
+    }
+    succBB = predCondGoto;
+    predCondGoto = predCondGoto->GetPred(0);
+  }
+  if (!predCondGoto || predCondGoto->IsMeStmtEmpty() || !predCondGoto->GetLastMe()->IsCondBr()) {
+    return;
+  }
+  auto *targetCondGotoStmt = static_cast<CondGotoMeStmt*>(predCondGoto->GetLastMe());
+  if (targetCondGotoStmt->GetBranchProb() == kProbUnlikely || targetCondGotoStmt->GetBranchProb() == kProbLikely) {
+    return;
+  }
+  int size = predCondGoto->GetSuccIndex(*succBB);
+  ASSERT(size != -1, "must find");
+  if (size == 1) {
+    targetCondGotoStmt->SetBranchProb(targetBranchProb);
+  } else {
+    targetCondGotoStmt->SetBranchProb(CondGotoNode::probAll - targetBranchProb);
+  }
+  return;
+}
+
 // If the pred vector of false branch only have one bb, delete the false branch:
 //       condGotoBB          condGotoBB
 //            |                   |
@@ -3429,6 +3468,9 @@ void ValueRangePropagation::RemoveUnreachableBB(
     if (OnlyHaveOneCondGotoPredBB(*succ1, condGotoBB)) {
       AnalysisUnreachableBBOrEdge(condGotoBB, *succ1, trueBranch);
     } else {
+      if (condGotoBB.GetPred().size() == 1) {
+        UpdateProfile(*condGotoBB.GetPred(0), condGotoBB, trueBranch);
+      }
       condGotoBB.SetKind(kBBFallthru);
       condGotoBB.RemoveSucc(*succ1);
       DeleteThePhiNodeWhichOnlyHasOneOpnd(*succ1, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
@@ -3438,6 +3480,9 @@ void ValueRangePropagation::RemoveUnreachableBB(
     if (OnlyHaveOneCondGotoPredBB(*succ0, condGotoBB)) {
       AnalysisUnreachableBBOrEdge(condGotoBB, *succ0, trueBranch);
     } else {
+      if (condGotoBB.GetPred().size() == 1) {
+        UpdateProfile(*condGotoBB.GetPred(0), condGotoBB, trueBranch);
+      }
       condGotoBB.SetKind(kBBFallthru);
       condGotoBB.RemoveSucc(*succ0);
       DeleteThePhiNodeWhichOnlyHasOneOpnd(*succ0, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
@@ -3787,9 +3832,11 @@ bool ValueRangePropagation::ConditionEdgeCanBeDeleted(BB &pred, BB &bb, const Va
   if (BrStmtInRange(bb, *leftRange, *rightRange, op, opndType)) {
     // opnd, tmpPred, tmpBB, reachableBB
     // remove falseBranch
+    UpdateProfile(*tmpPred, *tmpBB, trueBranch);
     return RemoveUnreachableEdge(
         *tmpPred, *tmpBB, trueBranch, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
   } else if (BrStmtInRange(bb, *leftRange, *rightRange, antiOp, opndType)) {
+    UpdateProfile(*tmpPred, *tmpBB, falseBranch);
     return RemoveUnreachableEdge(
         *tmpPred, *tmpBB, falseBranch, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
   }

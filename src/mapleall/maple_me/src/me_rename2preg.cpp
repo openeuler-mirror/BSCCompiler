@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -12,7 +12,6 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "me_alias_class.h"
 #include "me_rename2preg.h"
 #include "mir_builder.h"
 #include "me_irmap_build.h"
@@ -25,113 +24,144 @@
 // because for ref-type variables, their stores have to be left intact.
 
 namespace maple {
-
-RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
-  const OriginalSt *ost = varmeexpr->GetOst();
+bool SSARename2Preg::VarMeExprIsRenameCandidate(const VarMeExpr &varMeExpr) const {
+  if (rename2pregCount >= MeOption::rename2pregLimit) {
+    return false;
+  }
+  const OriginalSt *ost = varMeExpr.GetOst();
   if (ost->GetIndirectLev() != 0) {
-    return nullptr;
+    return false;
   }
   const MIRSymbol *mirst = ost->GetMIRSymbol();
   if (mirst->GetAttr(ATTR_localrefvar) || ost->HasOneElemSimdAttr() || (mirst->GetAsmAttr() != 0)) {
-    return nullptr;
+    return false;
   }
-  if (ost->IsFormal() && varmeexpr->GetPrimType() == PTY_ref) {
-    return nullptr;
+  auto primType = varMeExpr.GetPrimType();
+  if (!IsPrimitiveScalar(primType)) {
+    return false;
   }
-  if (ost->IsVolatile()) {
-    return nullptr;
+  if (ost->IsFormal() && primType == PTY_ref) {
+    return false;
   }
-  if (sym2reg_map.find(ost->GetIndex()) != sym2reg_map.end()) {
-    // replaced previously
-    auto verit = vstidx2reg_map.find(varmeexpr->GetExprID());
-    RegMeExpr *varreg = nullptr;
-    if (verit != vstidx2reg_map.end()) {
-      varreg = verit->second;
-    } else {
-      OriginalSt *pregOst = sym2reg_map[ost->GetIndex()];
-      varreg = meirmap->CreateRegMeExprVersion(*pregOst);
-      (void)vstidx2reg_map.insert(std::make_pair(varmeexpr->GetExprID(), varreg));
+  if (ost->IsVolatile() || ost->IsAddressTaken() ||
+      !aliasclass->OstAnalyzed(ost->GetIndex())) {
+    return false;
+  }
+  if (!mirst->IsLocal() || mirst->GetStorageClass() == kScPstatic || mirst->GetStorageClass() == kScFstatic) {
+    return false;
+  }
+  // local primitive-type symbol with no address taken can be renamed to preg
+  if (ost->GetFieldID() == 0) {
+    return true;
+  }
+  // following check may be time-consuming, keep it as the last check.
+  // var can be renamed to preg if ost of var:
+  // 1. not used by MU or defined by CHI;
+  // 2. aliased-ost of ost is not used anywhere (by MU or dread).
+  //    If defining of aliased-ost defines ost as well.
+  //    There must be a CHI defines ost, and this condition is included in the prev condition.
+  //    Therefore, condition 2 not includes defined-by-CHI.
+  auto *aliasSet = GetAliasSet(ost);
+  if (aliasSet == nullptr) {
+    return true;
+  }
+  for (auto aliasedOstIdx : *aliasSet) {
+    auto aliasedOst = ssaTab->GetOriginalStFromID(OStIdx(aliasedOstIdx));
+    if (aliasedOst == ost) {
+      continue;
     }
-    return varreg;
+    // If an ost aliases with a formal, it is defined at entry by the formal.
+    // Cannot rename the ost to preg.
+    if (aliasedOst->IsFormal()) {
+      return false;
+    }
+    bool aliasedOstUsed = ostUsedByDread[aliasedOst->GetIndex()] || ostDefedByDassign[aliasedOst->GetIndex()];
+    if (aliasedOstUsed && AliasClass::MayAliasBasicAA(ost, aliasedOst)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+RegMeExpr *SSARename2Preg::CreatePregForVar(const VarMeExpr *varMeExpr) {
+  auto primType = varMeExpr->GetPrimType();
+  RegMeExpr *curtemp = nullptr;
+  if (primType != PTY_ref) {
+    curtemp = meirmap->CreateRegMeExpr(primType);
   } else {
-    if (!aliasclass->OstAnalyzed(ost->GetIndex())) {
-      return nullptr;
-    }
-
-    if (ost->IsAddressTaken()) {
-      return nullptr;
-    }
-
-    if (!mirst->IsLocal() || mirst->GetStorageClass() == kScPstatic || mirst->GetStorageClass() == kScFstatic) {
-      return nullptr;
-    }
-
-    // var can be renamed to preg if ost of var:
-    // 1. not used by MU or defined by CHI;
-    // 2. aliased-ost of ost is not used anywhere (by MU or dread).
-    //    If defining of aliased-ost defines ost as well.
-    //    There must be a CHI defines ost, and this condition is included in the prev condition.
-    //    Therefore, condition 2 not includes defined-by-CHI.
-
-    auto *aliasSet = GetAliasSet(ost);
-    if (aliasSet != nullptr) {
-      for (auto aliasedOstIdx : *aliasSet) {
-        auto aliasedOst = ssaTab->GetOriginalStFromID(OStIdx(aliasedOstIdx));
-        if (aliasedOst == ost) {
-          continue;
-        }
-        // If an ost aliases with a formal, it is defined at entry by the formal.
-        // Cannot rename the ost to preg.
-        if (aliasedOst->IsFormal()) {
-          return nullptr;
-        }
-        bool aliasedOstUsed = ostUsedByDread[aliasedOst->GetIndex()] || ostDefedByDassign[aliasedOst->GetIndex()];
-        if (aliasedOstUsed && AliasClass::MayAliasBasicAA(ost, aliasedOst)) {
-          return nullptr;
-        }
-      }
-    }
-    if (rename2pregCount >= MeOption::rename2pregLimit) {
-      return nullptr;
-    }
-    RegMeExpr *curtemp = nullptr;
-    auto primType = varmeexpr->GetPrimType();
-    if (!IsPrimitiveScalar(primType)) {
-      return nullptr;
-    }
-    if (primType != PTY_ref) {
-      curtemp = meirmap->CreateRegMeExpr(primType);
-    } else {
-      curtemp = meirmap->CreateRegMeExpr(*varmeexpr->GetType());
-    }
-    OriginalSt *pregOst = curtemp->GetOst();
-    if (varmeexpr->IsZeroVersion()) {
-      pregOst->SetZeroVersionIndex(curtemp->GetVstIdx());
-    }
-    pregOst->SetIsFormal(ost->IsFormal());
-    sym2reg_map[ost->GetIndex()] = pregOst;
-    (void)vstidx2reg_map.insert(std::make_pair(varmeexpr->GetExprID(), curtemp));
-    // set fields in MIRPreg to support rematerialization
-    MIRPreg *preg = pregOst->GetMIRPreg();
-    preg->SetOp(OP_dread);
-    preg->rematInfo.sym = ost->GetMIRSymbol();
-    preg->fieldID = ost->GetFieldID();
-    if (ost->IsFormal()) {
-      uint32 parmindex = func->GetMirFunc()->GetFormalIndex(mirst);
-      CHECK_FATAL(parm_used_vec[parmindex], "parm_used_vec not set correctly");
-      if (!reg_formal_vec[parmindex]) {
-        reg_formal_vec[parmindex] = curtemp;
-      }
-    }
-    ++rename2pregCount;
-    if (DEBUGFUNC(func)) {
-      ost->Dump();
-      LogInfo::MapleLogger() << "(ost idx " << ost->GetIndex() << ") renamed to ";
-      pregOst->Dump();
-      LogInfo::MapleLogger() << " (count: " << rename2pregCount << ")" << std::endl;
-    }
-    return curtemp;
+    curtemp = meirmap->CreateRegMeExpr(*varMeExpr->GetType());
   }
+  OriginalSt *pregOst = curtemp->GetOst();
+  if (varMeExpr->IsZeroVersion()) {
+    pregOst->SetZeroVersionIndex(curtemp->GetVstIdx());
+  }
+  const OriginalSt *ost = varMeExpr->GetOst();
+  pregOst->SetIsFormal(ost->IsFormal());
+  sym2reg_map[ost->GetIndex()] = pregOst;
+  (void)vstidx2reg_map.emplace(std::make_pair(varMeExpr->GetExprID(), curtemp));
+  // set fields in MIRPreg to support rematerialization
+  MIRPreg *preg = pregOst->GetMIRPreg();
+  preg->SetOp(OP_dread);
+  preg->rematInfo.sym = ost->GetMIRSymbol();
+  preg->fieldID = ost->GetFieldID();
+  if (ost->IsFormal()) {
+    const MIRSymbol *mirst = ost->GetMIRSymbol();
+    uint32 parmindex = func->GetMirFunc()->GetFormalIndex(mirst);
+    CHECK_FATAL(parm_used_vec[parmindex], "parm_used_vec not set correctly");
+    if (!reg_formal_vec[parmindex]) {
+      reg_formal_vec[parmindex] = curtemp;
+    }
+  }
+  ++rename2pregCount;
+  if (DEBUGFUNC(func)) {
+    ost->Dump();
+    LogInfo::MapleLogger() << "(ost idx " << ost->GetIndex() << ") renamed to ";
+    pregOst->Dump();
+    LogInfo::MapleLogger() << " (count: " << rename2pregCount << ")" << std::endl;
+  }
+  return curtemp;
+}
+
+// For VarMeExpr that can be renamed to PregMeExpr, ChiNode is redundant.
+// To construct correct SSA for PregMeExpr, ChiNodes should be bypassed.
+static const VarMeExpr *GetSrcOfRenameableVarMeExpr(const VarMeExpr &varMeExpr) {
+  auto *srcVar = &varMeExpr;
+  while (srcVar->IsDefByChi()) {
+    auto &chiNode = srcVar->GetDefChi();
+    auto *rhs = chiNode.GetRHS();
+    CHECK_FATAL(rhs != nullptr, "null ptr check");
+    CHECK_FATAL(rhs->GetMeOp() == kMeOpVar, "rhs must be VarMeExpr");
+    srcVar = static_cast<const VarMeExpr*>(rhs);
+  }
+  return srcVar;
+}
+
+RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varMeExpr) {
+  CHECK_FATAL(varMeExpr != nullptr, "null ptr check");
+  if (!VarMeExprIsRenameCandidate(*varMeExpr)) {
+    return nullptr;
+  }
+
+  varMeExpr = GetSrcOfRenameableVarMeExpr(*varMeExpr);
+  auto var2regIt = vstidx2reg_map.find(varMeExpr->GetExprID());
+  if (var2regIt != vstidx2reg_map.end()) {
+    // return the RegMeExpr has been created for VarMeExpr
+    return var2regIt->second;
+  }
+
+  auto *ost = varMeExpr->GetOst();
+  CHECK_FATAL(ost != nullptr, "null ptr check");
+  auto varOst2RegOstIt = sym2reg_map.find(ost->GetIndex());
+  RegMeExpr *regForVarMeExpr = nullptr;
+  if (varOst2RegOstIt == sym2reg_map.end()) {
+    regForVarMeExpr = CreatePregForVar(varMeExpr);
+  } else {
+    OriginalSt *pregOst = varOst2RegOstIt->second;
+    CHECK_FATAL(pregOst != nullptr, "null ptr check");
+    regForVarMeExpr = meirmap->CreateRegMeExprVersion(*pregOst);
+    (void)vstidx2reg_map.emplace(std::make_pair(varMeExpr->GetExprID(), regForVarMeExpr));
+  }
+  return regForVarMeExpr;
 }
 
 void SSARename2Preg::Rename2PregCallReturn(MapleVector<MustDefMeNode> &mustdeflist) {
@@ -152,24 +182,34 @@ void SSARename2Preg::Rename2PregCallReturn(MapleVector<MustDefMeNode> &mustdefli
   }
 }
 
+RegMeExpr *SSARename2Preg::FindOrCreatePregForVarPhiOpnd(const VarMeExpr *varMeExpr) {
+  varMeExpr = GetSrcOfRenameableVarMeExpr(*varMeExpr);
+  auto varOst2RegOstIt = sym2reg_map.find(varMeExpr->GetOstIdx());
+  CHECK_FATAL(varOst2RegOstIt != sym2reg_map.end(), "PregOst must have been created for phi");
+
+  auto var2regIt = vstidx2reg_map.find(varMeExpr->GetExprID());
+  if (var2regIt != vstidx2reg_map.end()) {
+    return var2regIt->second;
+  }
+
+  OriginalSt *pregOst = varOst2RegOstIt->second;
+  CHECK_FATAL(pregOst != nullptr, "null ptr check");
+  RegMeExpr *regForVarMeExpr = meirmap->CreateRegMeExprVersion(*pregOst);
+  (void)vstidx2reg_map.emplace(std::make_pair(varMeExpr->GetExprID(), regForVarMeExpr));
+  return regForVarMeExpr;
+}
+
 // update regphinode operands
-void SSARename2Preg::UpdateRegPhi(MePhiNode *mevarphinode, MePhiNode *regphinode, const RegMeExpr *curtemp,
+void SSARename2Preg::UpdateRegPhi(MePhiNode *mevarphinode, MePhiNode *regphinode,
                                   const VarMeExpr *lhs) {
   // update phi's opnds
   for (uint32 i = 0; i < mevarphinode->GetOpnds().size(); i++) {
-    ScalarMeExpr *opndexpr = mevarphinode->GetOpnds()[i];
+    auto *opndexpr = mevarphinode->GetOpnds()[i];
     ASSERT(opndexpr->GetOst()->GetIndex() == lhs->GetOst()->GetIndex(), "phi is not correct");
-    auto verit = vstidx2reg_map.find(opndexpr->GetExprID());
-    RegMeExpr *opndtemp = nullptr;
-    if (verit == vstidx2reg_map.end()) {
-      opndtemp = meirmap->CreateRegMeExprVersion(*curtemp);
-      (void)vstidx2reg_map.insert(std::make_pair(opndexpr->GetExprID(), opndtemp));
-    } else {
-      opndtemp = verit->second;
-    }
+    CHECK_FATAL(opndexpr->GetMeOp() == kMeOpVar, "opnd of Var-PhiNode must be VarMeExpr");
+    RegMeExpr *opndtemp = FindOrCreatePregForVarPhiOpnd(static_cast<VarMeExpr*>(opndexpr));
     regphinode->GetOpnds().push_back(opndtemp);
   }
-  regphinode->GetDefBB()->GetMePhiList().insert(std::make_pair(regphinode->GetLHS()->GetOstIdx(), regphinode));
   (void)lhs;
 }
 
@@ -177,14 +217,16 @@ void SSARename2Preg::Rename2PregPhi(MePhiNode *mevarphinode, MapleMap<OStIdx, Me
   VarMeExpr *lhs = static_cast<VarMeExpr*>(mevarphinode->GetLHS());
   SetupParmUsed(lhs);
   RegMeExpr *lhsreg = RenameVar(lhs);
-  if (lhsreg != nullptr) {
-    MePhiNode *regphinode = meirmap->CreateMePhi(*lhsreg);
-    regphinode->SetDefBB(mevarphinode->GetDefBB());
-    UpdateRegPhi(mevarphinode, regphinode, lhsreg, lhs);
-    regphinode->SetIsLive(mevarphinode->GetIsLive());
-    mevarphinode->SetIsLive(false);
-    (void)regPhiList.insert(std::make_pair(lhsreg->GetOst()->GetIndex(), regphinode));
+  if (lhsreg == nullptr) {
+    return;
   }
+  MePhiNode *regphinode = meirmap->CreateMePhi(*lhsreg);
+  regphinode->SetDefBB(mevarphinode->GetDefBB());
+  UpdateRegPhi(mevarphinode, regphinode, lhs);
+  regphinode->SetIsLive(mevarphinode->GetIsLive());
+  mevarphinode->SetIsLive(false);
+
+  (void)regPhiList.insert(std::make_pair(lhsreg->GetOst()->GetIndex(), regphinode));
 }
 
 void SSARename2Preg::Rename2PregLeafRHS(MeStmt *mestmt, const VarMeExpr *varmeexpr) {
@@ -206,63 +248,54 @@ void SSARename2Preg::Rename2PregLeafRHS(MeStmt *mestmt, const VarMeExpr *varmeex
 void SSARename2Preg::Rename2PregLeafLHS(MeStmt *mestmt, const VarMeExpr *varmeexpr) {
   SetupParmUsed(varmeexpr);
   RegMeExpr *varreg = RenameVar(varmeexpr);
-  if (varreg != nullptr) {
-    Opcode desop = mestmt->GetOp();
-    CHECK_FATAL(desop == OP_dassign || desop == OP_maydassign, "NYI");
-    MeExpr *oldrhs = (desop == OP_dassign) ? (static_cast<DassignMeStmt *>(mestmt)->GetRHS())
-                                           : (static_cast<MaydassignMeStmt *>(mestmt)->GetRHS());
-    TyIdx lhsTyIdx = varmeexpr->GetOst()->GetTyIdx();
-    MIRType *lhsTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx);
-    if (lhsTy->GetKind() == kTypeBitField) {
-      MIRBitFieldType *bitfieldTy = static_cast<MIRBitFieldType *>(lhsTy);
-      if (GetPrimTypeBitSize(oldrhs->GetPrimType()) > bitfieldTy->GetFieldSize()) {
-        Opcode extOp = IsSignedInteger(lhsTy->GetPrimType()) ? OP_sext : OP_zext;
-        PrimType newPrimType = PTY_u32;
-        if (bitfieldTy->GetFieldSize() <= 32) {
-          if (IsSignedInteger(lhsTy->GetPrimType())) {
-            newPrimType = PTY_i32;
-          }
-        } else {
-          if (IsSignedInteger(lhsTy->GetPrimType())) {
-            newPrimType = PTY_i64;
-          } else {
-            newPrimType = PTY_u64;
-          }
-        }
-        OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
-        opmeexpr.SetBitsSize(bitfieldTy->GetFieldSize());
-        opmeexpr.SetOpnd(0, oldrhs);
-        auto *simplifiedExpr = meirmap->SimplifyOpMeExpr(&opmeexpr);
-        oldrhs = simplifiedExpr != nullptr ? simplifiedExpr : meirmap->HashMeExpr(opmeexpr);
-      }
-    } else if (GetPrimTypeSize(oldrhs->GetPrimType()) > GetPrimTypeSize(varreg->GetPrimType())) {
-      // insert integer truncation
-      if (GetPrimTypeSize(varreg->GetPrimType()) >= 4) {
-        oldrhs = meirmap->CreateMeExprTypeCvt(varreg->GetPrimType(), oldrhs->GetPrimType(), *oldrhs);
-      } else {
-        Opcode extOp = IsSignedInteger(varreg->GetPrimType()) ? OP_sext : OP_zext;
-        PrimType newPrimType = PTY_u32;
-        if (IsSignedInteger(varreg->GetPrimType())) {
-          newPrimType = PTY_i32;
-        }
-        OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
-        opmeexpr.SetBitsSize(static_cast<uint8>(GetPrimTypeSize(varreg->GetPrimType()) * 8));
-        opmeexpr.SetOpnd(0, oldrhs);
-        oldrhs = meirmap->HashMeExpr(opmeexpr);
-      }
-    }
-    AssignMeStmt *regssmestmt = meirmap->New<AssignMeStmt>(OP_regassign, varreg, oldrhs);
-    varreg->SetDefByStmt(*regssmestmt);
-    varreg->SetDefBy(kDefByStmt);
-    regssmestmt->CopyBase(*mestmt);
-    mestmt->GetBB()->InsertMeStmtBefore(mestmt, regssmestmt);
-    mestmt->GetBB()->RemoveMeStmt(mestmt);
-    mestmt->SetIsLive(false);
-    if (ostDefedByChi[varmeexpr->GetOstIdx()]) {
-      MeSSAUpdate::InsertOstToSSACands(varreg->GetOstIdx(), *mestmt->GetBB(), &candsForSSAUpdate);
-    }
-    meirmap->SimplifyAssign(regssmestmt);
+  if (varreg == nullptr) {
+    return;
   }
+  Opcode desop = mestmt->GetOp();
+  CHECK_FATAL(desop == OP_dassign || desop == OP_maydassign, "NYI");
+  MeExpr *oldrhs = (desop == OP_dassign) ? (static_cast<DassignMeStmt *>(mestmt)->GetRHS())
+                                         : (static_cast<MaydassignMeStmt *>(mestmt)->GetRHS());
+  TyIdx lhsTyIdx = varmeexpr->GetOst()->GetTyIdx();
+  MIRType *lhsTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx);
+  if (lhsTy->GetKind() == kTypeBitField) {
+    MIRBitFieldType *bitfieldTy = static_cast<MIRBitFieldType *>(lhsTy);
+    if (GetPrimTypeBitSize(oldrhs->GetPrimType()) > bitfieldTy->GetFieldSize()) {
+      Opcode extOp = IsSignedInteger(lhsTy->GetPrimType()) ? OP_sext : OP_zext;
+      PrimType newPrimType = PTY_u32;
+      if (bitfieldTy->GetFieldSize() <= 32) {
+        newPrimType = IsSignedInteger(lhsTy->GetPrimType()) ? PTY_i32 : PTY_u32;
+      } else {
+        newPrimType = IsSignedInteger(lhsTy->GetPrimType()) ? PTY_i64 : PTY_u64;
+      }
+      OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
+      opmeexpr.SetBitsSize(bitfieldTy->GetFieldSize());
+      opmeexpr.SetOpnd(0, oldrhs);
+      auto *simplifiedExpr = meirmap->SimplifyOpMeExpr(&opmeexpr);
+      oldrhs = simplifiedExpr != nullptr ? simplifiedExpr : meirmap->HashMeExpr(opmeexpr);
+    }
+  } else if (GetPrimTypeSize(oldrhs->GetPrimType()) > GetPrimTypeSize(varreg->GetPrimType())) {
+    // insert integer truncation
+    if (GetPrimTypeSize(varreg->GetPrimType()) >= 4) {
+      oldrhs = meirmap->CreateMeExprTypeCvt(varreg->GetPrimType(), oldrhs->GetPrimType(), *oldrhs);
+    } else {
+      Opcode extOp = IsSignedInteger(varreg->GetPrimType()) ? OP_sext : OP_zext;
+      PrimType newPrimType = IsSignedInteger(varreg->GetPrimType()) ? PTY_i32 : PTY_u32;
+      OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
+      opmeexpr.SetBitsSize(static_cast<uint8>(GetPrimTypeSize(varreg->GetPrimType()) * 8));
+      opmeexpr.SetOpnd(0, oldrhs);
+      oldrhs = meirmap->HashMeExpr(opmeexpr);
+    }
+  }
+  auto *regssmestmt = meirmap->New<AssignMeStmt>(OP_regassign, varreg, oldrhs);
+  varreg->SetDefByStmt(*regssmestmt);
+  varreg->SetDefBy(kDefByStmt);
+  regssmestmt->CopyBase(*mestmt);
+  mestmt->GetBB()->ReplaceMeStmt(mestmt, regssmestmt);
+  mestmt->SetIsLive(false);
+  if (ostDefedByChi[varmeexpr->GetOstIdx()]) {
+    MeSSAUpdate::InsertOstToSSACands(varreg->GetOstIdx(), *mestmt->GetBB(), &candsForSSAUpdate);
+  }
+  meirmap->SimplifyAssign(regssmestmt);
 }
 
 void SSARename2Preg::SetupParmUsed(const VarMeExpr *varmeexpr) {

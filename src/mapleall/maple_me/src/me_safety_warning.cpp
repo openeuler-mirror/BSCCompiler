@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_safety_warning.h"
+#include <sstream>
 #include "global_tables.h"
 #include "inline.h"
 #include "me_dominance.h"
@@ -20,7 +21,6 @@
 #include "me_option.h"
 #include "mpl_logging.h"
 #include "opcode_info.h"
-#include <sstream>
 
 namespace maple {
 std::string GetNthStr(size_t index) {

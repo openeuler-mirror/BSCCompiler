@@ -43,7 +43,7 @@ class LoopUnrolling {
   ~LoopUnrolling() = default;
   ReturnKindOfFullyUnroll LoopFullyUnroll(int64 tripCount);
   bool LoopPartialUnrollWithConst(uint64 tripCount);
-  bool LoopPartialUnrollWithVar(CR &cr, CRNode &varNode, uint32 i);
+  bool LoopPartialUnrollWithVar(CR &cr, CRNode &varNode, uint32 j);
   bool LoopUnrollingWithConst(uint64 tripCount, bool onlyFully = false);
 
  private:
@@ -116,7 +116,7 @@ class LoopUnrollingExecutor {
   }
 
  private:
-  void SetNestedLoop(const IdentifyLoops &meloop, std::unordered_map<LoopDesc*, std::set<LoopDesc*>> &parentLoop) const;
+  void SetNestedLoop(const IdentifyLoops &meLoop, std::unordered_map<LoopDesc*, std::set<LoopDesc*>> &parentLoop) const;
   void VerifyCondGotoBB(BB &exitBB) const;
   bool IsDoWhileLoop(const MeFunction &func, LoopDesc &loop) const;
   bool PredIsOutOfLoopBB(const MeFunction &func, LoopDesc &loop) const;

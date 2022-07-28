@@ -12,13 +12,11 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
-#include "factory.h"
 #include "irmap_build.h"
+#include "factory.h"
 #include "prop.h"
 
 // Methods to convert Maple IR to MeIR
-
 namespace maple {
 #ifdef USE_ARM32_MACRO
 static constexpr uint32 kMaxRegParamNum = 4;
@@ -760,6 +758,7 @@ MeStmt *IRMapBuild::BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
     lhsIvar = static_cast<IvarMeExpr *>(simplifiedIvar);
   }
   meStmt->SetLHSVal(lhsIvar);
+  meStmt->SetExpandFromArrayOfCharFunc(static_cast<IassignNode &>(stmt).IsExpandedFromArrayOfCharFunc());
 
   irMap->SimplifyCastForAssign(meStmt);
   BuildChiList(*meStmt, ssaPart.GetMayDefNodes(), *(meStmt->GetChiList()));

@@ -14,11 +14,11 @@
  */
 
 #include "lfo_inject_iv.h"
+#include <string>
 #include "me_dominance.h"
 #include "me_loop_analysis.h"
 #include "me_option.h"
 #include "mir_builder.h"
-#include <string>
 
 namespace maple {
 bool MELfoInjectIV::PhaseRun(MeFunction &f) {

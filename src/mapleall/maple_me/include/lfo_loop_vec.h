@@ -58,11 +58,11 @@ class LoopVecInfo {
     ivConstArraySym = nullptr;
     ivvecIncrStmt = nullptr;
   }
-  void UpdateWidestTypeSize(uint32_t);
+  void UpdateWidestTypeSize(uint32_t newTypesize);
   void ResetStmtRHSTypeSize() { currentRHSTypeSize = 0; }
-  bool UpdateRHSTypeSize(PrimType); // record rhs node typesize
+  bool UpdateRHSTypeSize(PrimType ptype); // record rhs node typesize
   // used when profileUse is true
-  void UpdateDoloopProfData(MIRFunction *, DoloopNode *, int32_t, bool isRemainder = false);
+  void UpdateDoloopProfData(MIRFunction *mirFunc, DoloopNode *doLoop, int32_t vecLanes, bool isRemainder = false);
   uint32_t largestTypeSize;  // largest size type in vectorizable stmtnodes
   uint32_t smallestTypeSize;  // smallest size type in vectorizable stmtnodes
   uint32_t currentRHSTypeSize; // largest size of current stmt's RHS, this is temp value and update for each stmt
@@ -104,8 +104,8 @@ class LoopTransPlan {
   MemPool *localMP = nullptr;    // use to generate local info
   LoopVecInfo *vecInfo = nullptr; // collect loop information
   // function
-  bool Generate(const DoloopNode *, const DoloopInfo *, bool);
-  void GenerateBoundInfo(const DoloopNode *doloop, const DoloopInfo *li);
+  bool Generate(const DoloopNode *doLoop, const DoloopInfo *li, bool enableDebug);
+  void GenerateBoundInfo(const DoloopNode *doLoop, const DoloopInfo *li);
 };
 
 class LoopVectorization {
@@ -133,7 +133,7 @@ class LoopVectorization {
   void VectorizeDoLoop(DoloopNode *, LoopTransPlan*);
   void VectorizeStmt(BaseNode *, LoopTransPlan *);
   void VectorizeExpr(BaseNode *, LoopTransPlan *, MapleVector<BaseNode *>&, uint32_t);
-  MIRType *GenVecType(PrimType, uint8_t) const;
+  MIRType *GenVecType(PrimType sPrimType, uint8_t lanes) const;
   IntrinsicopNode *GenDupScalarExpr(BaseNode *scalar, PrimType vecPrimType);
   bool ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo*, BaseNode *x);
   bool Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo*, BlockNode *block);
@@ -147,28 +147,30 @@ class LoopVectorization {
   bool CanAdjustRhsConstType(PrimType, ConstvalNode *);
   bool IsReductionOp(Opcode op) const;
   bool CanWidenOpcode(const BaseNode *target, PrimType opndType) const;
-  IntrinsicopNode *GenSumVecStmt(BaseNode *, PrimType);
-  IntrinsicopNode *GenVectorGetLow(BaseNode *, PrimType);
-  IntrinsicopNode *GenVectorAddw(BaseNode *, BaseNode *, PrimType, bool);
-  IntrinsicopNode *GenVectorSubl(BaseNode *, BaseNode *, PrimType, bool);
-  IntrinsicopNode *GenVectorWidenIntrn(BaseNode *, BaseNode *, PrimType, bool, Opcode);
-  IntrinsicopNode *GenVectorWidenOpnd(BaseNode *, PrimType, bool);
-  IntrinsicopNode *GenVectorMull(BaseNode *, BaseNode *, PrimType, bool);
-  IntrinsicopNode *GenVectorAbsSubl(BaseNode *, BaseNode *, PrimType, bool);
-  IntrinsicopNode *GenVectorPairWiseAccumulate(BaseNode *, BaseNode *, PrimType);
-  IntrinsicopNode *GenVectorAddl(BaseNode *, BaseNode *, PrimType, bool);
-  IntrinsicopNode *GenVectorNarrowLowNode(BaseNode *, PrimType);
-  void GenWidenBinaryExpr(Opcode, MapleVector<BaseNode *>&, MapleVector<BaseNode *>&, MapleVector<BaseNode *>&);
-  BaseNode* ConvertNodeType(bool, BaseNode*);
+  IntrinsicopNode *GenSumVecStmt(BaseNode *vecTemp, PrimType vecPrimType);
+  IntrinsicopNode *GenVectorGetLow(BaseNode *vecNode, PrimType vecPrimType);
+  IntrinsicopNode *GenVectorAddw(BaseNode *oper0, BaseNode *oper1, PrimType op1Type, bool highPart);
+  IntrinsicopNode *GenVectorSubl(BaseNode *oper0, BaseNode *oper1, PrimType op1Type, bool highPart);
+  IntrinsicopNode *GenVectorWidenIntrn(BaseNode *oper0,
+                                       BaseNode *oper1, PrimType opndType, bool highPart, Opcode op);
+  IntrinsicopNode *GenVectorWidenOpnd(BaseNode *opnd, PrimType vecPrimType, bool highPart);
+  IntrinsicopNode *GenVectorMull(BaseNode *oper0, BaseNode *oper1, PrimType op1Type, bool highPart);
+  IntrinsicopNode *GenVectorAbsSubl(BaseNode *oper0, BaseNode *oper1, PrimType op1Type, bool highPart);
+  IntrinsicopNode *GenVectorPairWiseAccumulate(BaseNode *oper0, BaseNode *oper1, PrimType oper1Type);
+  IntrinsicopNode *GenVectorAddl(BaseNode *oper0, BaseNode *oper1, PrimType op1Type, bool highPart);
+  IntrinsicopNode *GenVectorNarrowLowNode(BaseNode *opnd, PrimType opndPrimType);
+  void GenWidenBinaryExpr(Opcode binOp, MapleVector<BaseNode *>& opnd0Vec,
+                          MapleVector<BaseNode *>& opnd1Vec, MapleVector<BaseNode *>& vectorizedNode);
+  BaseNode* ConvertNodeType(bool cvtSigned, BaseNode *n);
   MIRIntrinsicID GenVectorAbsSublID(MIRIntrinsicID intrnID) const;
   static uint32_t vectorizedLoop;
  private:
-  RegreadNode *GenVectorReductionVar(StmtNode*, LoopTransPlan*);
+  RegreadNode *GenVectorReductionVar(StmtNode *stmt, LoopTransPlan *tp);
   bool IassignIsReduction(IassignNode *iassign, LoopVecInfo* vecInfo);
   RegreadNode *GetorNewVectorReductionVar(StmtNode *stmt, LoopTransPlan *tp);
   MIRType *VectorizeIassignLhs(IassignNode *iassign, LoopTransPlan *tp);
   void VectorizeReductionStmt(StmtNode *stmt, LoopTransPlan *tp);
-  void GenConstVar(LoopVecInfo*, uint8_t);
+  void GenConstVar(LoopVecInfo *vecInfo, uint8_t vecLanes);
  private:
   MIRFunction *mirFunc;
   // point to PreMeStmtExtensionMap of PreMeEmitter, key is stmtID

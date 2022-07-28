@@ -14,7 +14,6 @@
  */
 #include "me_ssa_tab.h"
 #include "me_cfg.h"
-#include <cstdlib>
 #include "mpl_timer.h"
 #include "me_dominance.h"
 #include "ssa_tab.h"

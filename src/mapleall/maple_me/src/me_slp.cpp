@@ -94,7 +94,7 @@ class ExprWithDef {
 // ----------------- //
 //  Memory Location  //
 // ----------------- //
-MeExpr *MemLoc::Emit(IRMap &irMap) const {
+MeExpr *MemLoc::Emit() const {
   return rawExpr;
 }
 
@@ -2878,7 +2878,7 @@ void SetMuListForVectorIvar(IvarMeExpr &ivar, TreeNode *treeNode, IRMap &irMap) 
   ivar.GetMuList().resize(order.size(), nullptr);
   for (size_t i = 0; i < order.size(); ++i) {
     uint32 orderIdx = order[i];
-    auto *mu = static_cast<IvarMeExpr*>(treeNode->GetMemLocs()[i]->Emit(irMap))->GetUniqueMu();
+    auto *mu = static_cast<IvarMeExpr*>(treeNode->GetMemLocs()[i]->Emit())->GetUniqueMu();
     ivar.SetMuItem(orderIdx, mu);
   }
 }
@@ -2901,7 +2901,7 @@ bool SLPVectorizer::DoVectTreeNodeIvar(TreeNode *treeNode) {
   CHECK_NULL_FATAL(vecType);
   auto *minMem = treeNode->GetMinMemLoc();
   auto *vecPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*vecType);
-  auto *addrExpr = minMem->Emit(irMap);
+  auto *addrExpr = minMem->Emit();
   auto *ivarExpr = static_cast<IvarMeExpr*>(addrExpr);
   auto *newBase = ivarExpr->GetBase();
   if (minMem->extraOffset != 0) {
@@ -3061,7 +3061,7 @@ bool SLPVectorizer::DoVectTreeNodeIassign(TreeNode *treeNode) {
     vecType = GetScalarUnsignedTypeBySize(GetPrimTypeBitSize(vecType->GetPrimType()));
   }
   auto *vecPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*vecType);
-  MeExpr *addrExpr = minMem->Emit(irMap);
+  MeExpr *addrExpr = minMem->Emit();
   if (treeNode->GetOp() == OP_dassign) {
     auto &varMeExpr = static_cast<VarMeExpr&>(*addrExpr);
     AddrofMeExpr addrofExpr(-1, PTY_ptr, varMeExpr.GetOst());

@@ -16,6 +16,7 @@
 #define MAPLE_ME_INCLUDE_MERENAME2PREG_H
 #include "me_function.h"
 #include "maple_phase.h"
+#include "me_alias_class.h"
 
 namespace maple {
 class SSARename2Preg {

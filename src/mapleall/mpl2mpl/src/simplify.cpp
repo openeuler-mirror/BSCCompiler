@@ -266,12 +266,13 @@ static StmtNode *SplitAggCopy(const AssignType *assignNode, MIRStructType *struc
     if (fieldType->GetKind() == kTypeBitField && static_cast<MIRBitFieldType *>(fieldType)->GetFieldSize() == 0) {
       continue; // bitfield size is zero
     }
-    auto *newDassign = assignNode->CloneTree(func->GetCodeMemPoolAllocator());
-    newDassign->SetFieldID(assignNode->GetFieldID() + id);
-    auto *newRHS = static_cast<RhsType *>(newDassign->GetRHS());
+    auto *newAssign = assignNode->CloneTree(func->GetCodeMemPoolAllocator());
+    newAssign->SetFieldID(assignNode->GetFieldID() + id);
+    auto *newRHS = static_cast<RhsType *>(newAssign->GetRHS());
     newRHS->SetFieldID(rhsFieldID + id);
     newRHS->SetPrimType(fieldType->GetPrimType());
-    block->InsertAfter(assignNode, newDassign);
+    block->InsertAfter(assignNode, newAssign);
+    newAssign->SetExpandFromArrayOfCharFunc(true);
     if (fieldType->IsMIRUnionType()) {
       id += fieldType->NumberOfFieldIDs();
     }
@@ -1020,7 +1021,7 @@ static StmtNode *ExpandOnSrcSizeGtDstSize(StmtNode &stmt, BlockNode &block, int6
   return callStmt;
 }
 
-static void HandleZeroValueOfDstSize(StmtNode &stmt, BlockNode &block, int64 srcSize, int64 dstSize,
+static void HandleZeroValueOfDstSize(StmtNode &stmt, BlockNode &block, int64 dstSize,
                                      LabelIdx finalLabIdx, LabelIdx dstSizeCheckLabIdx, MIRFunction &func,
                                      bool isDstSizeConst, bool debug) {
   uint32 dstSizeOpndIdx = 1;  // only used by memset_s
@@ -1115,6 +1116,7 @@ bool MemEntry::ExpandMemset(int64 byte, uint64 size, MIRFunction &func,
     } else {
       MIRType *memPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*memType);
       newAssign = mirBuilder->CreateStmtIassign(*memPtrType, 0, addrExpr, rhsExpr);
+      static_cast<IassignNode *>(newAssign)->SetExpandFromArrayOfCharFunc(true);
     }
     InsertAndMayPrintStmt(block, stmt, debug, newAssign);
   } else if (memKind == kMemEntryStruct) {
@@ -1170,6 +1172,7 @@ bool MemEntry::ExpandMemset(int64 byte, uint64 size, MIRFunction &func,
       } else {
         MIRType *memPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*memType);
         fieldAssign = mirBuilder->CreateStmtIassign(*memPtrType, id, addrExpr, rhsExpr);
+        static_cast<IassignNode *>(fieldAssign)->SetExpandFromArrayOfCharFunc(true);
       }
       InsertAndMayPrintStmt(block, stmt, debug, fieldAssign);
     }
@@ -1198,6 +1201,7 @@ bool MemEntry::ExpandMemset(int64 byte, uint64 size, MIRFunction &func,
                                                elemType->GetPrimType(), *mirBuilder);
       MIRType *elemPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*elemType);
       auto *arrayElementAssign = mirBuilder->CreateStmtIassign(*elemPtrType, 0, arrayExpr, newValOpnd);
+      arrayElementAssign->SetExpandFromArrayOfCharFunc(true);
       InsertAndMayPrintStmt(block, stmt, debug, arrayElementAssign);
     }
   } else {
@@ -1382,6 +1386,7 @@ bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, uint64 copySize, MIRFunction
     } else {
       MIRType *memPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*memType);
       newAssign = mirBuilder->CreateStmtIassign(*memPtrType, 0, addrExpr, srcMem.BuildAsRhsExpr(func));
+      static_cast<IassignNode *>(newAssign)->SetExpandFromArrayOfCharFunc(true);
     }
     InsertAndMayPrintStmt(block, stmt, debug, newAssign);
     // split struct agg copy
@@ -1427,6 +1432,7 @@ bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, uint64 copySize, MIRFunction
       auto *rhsArrayExpr = mirBuilder->CreateExprArray(*arrayType, srcMem.addrExpr, indexExpr);
       auto *rhsIreadExpr = mirBuilder->CreateExprIread(*elemType, *elemPtrType, 0, rhsArrayExpr);
       auto *arrayElemAssign = mirBuilder->CreateStmtIassign(*elemPtrType, 0, arrayExpr, rhsIreadExpr);
+      arrayElemAssign->SetExpandFromArrayOfCharFunc(true);
       InsertAndMayPrintStmt(block, stmt, debug, arrayElemAssign);
     }
   } else {
@@ -1589,7 +1595,7 @@ StmtNode *SimplifyMemOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block
       // handle src size error
       auto branchLabNode = mirBuilder->CreateStmtLabel(srcSizeCheckLabIdx);
       InsertAndMayPrintStmt(block, stmt, debug, branchLabNode);
-      HandleZeroValueOfDstSize(stmt, block, srcSize, dstSize, finalLabIdx, dstSizeCheckLabIdx, *func, isDstSizeConst,
+      HandleZeroValueOfDstSize(stmt, block, dstSize, finalLabIdx, dstSizeCheckLabIdx, *func, isDstSizeConst,
                                debug);
       args.pop_back();
       args.push_back(stmt.Opnd(kMemsetSDstSizeOpndIdx));
@@ -1599,7 +1605,7 @@ StmtNode *SimplifyMemOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block
     // handle dst nullptr error
     auto nullptrLabNode = mirBuilder->CreateStmtLabel(nullPtrLabIdx);
     InsertAndMayPrintStmt(block, stmt, debug, nullptrLabNode);
-    HandleZeroValueOfDstSize(stmt, block, srcSize, dstSize, finalLabIdx, dstSizeCheckLabIdx, *func, isDstSizeConst,
+    HandleZeroValueOfDstSize(stmt, block, dstSize, finalLabIdx, dstSizeCheckLabIdx, *func, isDstSizeConst,
                              debug);
     auto gotoFinal = mirBuilder->CreateStmtGoto(OP_goto, finalLabIdx);
     auto errnoAssign = MemEntry::GenMemopRetAssign(stmt, *func, true, MEM_OP_memset_s, ERRNO_INVAL);

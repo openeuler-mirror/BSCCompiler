@@ -814,7 +814,7 @@ class ValueRangePropagation {
   bool DealWithVariableRange(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
   std::unique_ptr<ValueRange> MergeValuerangeOfPhi(std::vector<std::unique_ptr<ValueRange>> &valueRangeOfPhi);
   std::unique_ptr<ValueRange> MakeMonotonicIncreaseOrDecreaseValueRangeForPhi(int stride, Bound &initBound) const;
-  void CreateVRForPhi(const LoopDesc &loop, const BB &bb);
+  void CreateVRForPhi(const LoopDesc &loop);
   void TravelBBs(std::vector<BB *> &reversePostOrderOfLoopBBs);
   std::unique_ptr<ValueRange> CreateInitVRForPhi(LoopDesc &loop, const BB &bb, ScalarMeExpr &init,
       ScalarMeExpr &backedge, const ScalarMeExpr &lhsOfPhi);
@@ -830,6 +830,7 @@ class ValueRangePropagation {
   Opcode GetOpAfterSwapThePositionsOfTwoOperands(Opcode op) const;
   bool TowCompareOperandsAreInSameIterOfLoop(const MeExpr &lhs, const MeExpr &rhs) const;
   bool IsSubOpndOfExpr(const MeExpr &expr, const MeExpr &subExpr) const;
+  void UpdateProfile(BB &pred, BB &bb, const BB &targetBB) const;
 
   MeFunction &func;
   MeIRMap &irMap;

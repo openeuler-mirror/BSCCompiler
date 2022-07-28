@@ -286,7 +286,7 @@ IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar1, IvarMe
   return xIassignStmt;
 }
 
-IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar, MeExpr& valMeExpr,
+IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar, MeExpr &valMeExpr,
                                           const MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx) {
   MeIRMap *irMap = func.GetIRMap();
   iVar.SetOffset(offset);
@@ -388,7 +388,7 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
   }
 }
 
-void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
+void MergeStmts::simdMemset(IntrinsiccallMeStmt *memsetCallStmt) {
   ASSERT(memsetCallStmt->GetIntrinsic() == INTRN_C_memset, "The stmt is NOT intrinsic memset");
 
   ConstMeExpr *numExpr = static_cast<ConstMeExpr*>(memsetCallStmt->GetOpnd(2));

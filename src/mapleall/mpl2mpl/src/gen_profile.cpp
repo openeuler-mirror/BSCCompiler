@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2022] Futurewei Technologies, Inc. All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -12,8 +12,8 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include <ctime>
 #include "gen_profile.h"
+#include <ctime>
 #include "ipa_phase_manager.h"
 #include "namemangler.h"
 
