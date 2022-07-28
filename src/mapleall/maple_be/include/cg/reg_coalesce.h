@@ -32,7 +32,11 @@ class LiveInterval {
     ++numCall;
   }
 
-  MapleMap<uint32, MapleVector<PosPair>> GetRanges() {
+  MapleMap<uint32, MapleVector<PosPair>> &GetRanges() {
+    return ranges;
+  }
+
+  const MapleMap<uint32, MapleVector<PosPair>> &GetRanges() const {
     return ranges;
   }
 
@@ -54,8 +58,8 @@ class LiveInterval {
   }
 
   void MergeRanges(LiveInterval &lr) {
-    auto lrDestRanges = lr.GetRanges();
-    for (auto destRange : lrDestRanges) {
+    const MapleMap<uint32, MapleVector<PosPair>> lrDestRanges = lr.GetRanges();
+    for (auto &destRange : lrDestRanges) {
       uint32 bbid = destRange.first;
       auto &destPosVec = destRange.second;
       auto it = ranges.find(bbid);
@@ -150,9 +154,9 @@ class LiveInterval {
     this->regno = val;
   }
 
-  void Dump() {
+  void Dump() const {
     std::cout << "R" << regno << ": ";
-    for (auto range : ranges) {
+    for (auto &range : GetRanges()) {
       uint32 bbid = range.first;
       std::cout << "BB" << bbid <<  ": < " ;
       for (auto pos : range.second) {
@@ -211,8 +215,8 @@ class LiveIntervalAnalysis {
   void Dump();
   void CoalesceLiveIntervals(LiveInterval &lrDest, LiveInterval &lrSrc);
   LiveInterval *GetLiveInterval(regno_t regno) {
-    auto it = vregIntervals.find(regno);
-    if (it == vregIntervals.end()) {
+    MapleMap<regno_t, LiveInterval*>::const_iterator it = vregIntervals.find(regno);
+    if (it == vregIntervals.cend()) {
       return nullptr;
     } else {
       return it->second;

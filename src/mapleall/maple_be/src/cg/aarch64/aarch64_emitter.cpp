@@ -358,7 +358,7 @@ void AArch64AsmEmitter::RecordRegInfo(FuncEmitInfo &funcEmitInfo) const {
       for (uint32 i = 0; i < opndNum; ++i) {
         if (insn->GetMachineOpcode() == MOP_asm) {
           if (i == kAsmOutputListOpnd || i == kAsmClobberListOpnd) {
-            for (auto opnd : static_cast<ListOperand &>(insn->GetOperand(i)).GetOperands()) {
+            for (auto &opnd : static_cast<const ListOperand &>(insn->GetOperand(i)).GetOperands()) {
               if (opnd->IsRegister()) {
                 referedRegs.insert(static_cast<RegOperand *>(opnd)->GetRegisterNumber());
               }
@@ -992,12 +992,12 @@ static void AsmStringOutputRegNum(
 
 void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const {
   (void)emitter.Emit("\t//Inline asm begin\n\t");
-  auto &list1 = static_cast<ListOperand&>(insn.GetOperand(kAsmOutputListOpnd));
+  auto &list1 = static_cast<const ListOperand&>(insn.GetOperand(kAsmOutputListOpnd));
   std::vector<RegOperand *> outOpnds;
   for (auto *regOpnd : list1.GetOperands()) {
     outOpnds.push_back(regOpnd);
   }
-  auto &list2 = static_cast<ListOperand&>(insn.GetOperand(kAsmInputListOpnd));
+  auto &list2 = static_cast<const ListOperand&>(insn.GetOperand(kAsmInputListOpnd));
   std::vector<RegOperand *> inOpnds;
   for (auto *regOpnd : list2.GetOperands()) {
     inOpnds.push_back(regOpnd);

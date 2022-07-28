@@ -29,8 +29,8 @@ class AArch64LiveAnalysis : public LiveAnalysis {
   void CollectLiveInfo(const BB &bb, const Operand &opnd, bool isDef, bool isUse) const;
   void GenerateReturnBBDefUse(const BB &bb) const;
   void ProcessCallInsnParam(const BB &bb, const Insn &insn) const;
-  void ProcessAsmListOpnd(const BB &bb, Operand &opnd, uint32 idx) const;
-  void ProcessListOpnd(const BB &bb, Operand &opnd) const;
+  void ProcessAsmListOpnd(const BB &bb, const Operand &opnd, uint32 idx) const;
+  void ProcessListOpnd(const BB &bb, const Operand &opnd) const;
   void ProcessMemOpnd(const BB &bb, Operand &opnd) const;
   void ProcessCondOpnd(const BB &bb) const;
 };

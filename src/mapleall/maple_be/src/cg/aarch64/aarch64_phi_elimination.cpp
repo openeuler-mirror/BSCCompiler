@@ -82,9 +82,9 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, const 
     }
     /* case 2 */
     if (defInsn->GetMachineOpcode() == MOP_asm) {
-      auto &inputList = static_cast<ListOperand&>(defInsn->GetOperand(kAsmInputListOpnd));
+      auto &inputList = static_cast<const ListOperand&>(defInsn->GetOperand(kAsmInputListOpnd));
       VRegVersion *lastVersion = nullptr;
-      for (auto inputReg : inputList.GetOperands()) {
+      for (auto &inputReg : inputList.GetOperands()) {
         lastVersion = GetSSAInfo()->FindSSAVersion(inputReg->GetRegisterNumber());
         if (lastVersion != nullptr && lastVersion->GetOriginalRegNO() == ssaVersion->GetOriginalRegNO()) {
           break;

@@ -95,7 +95,7 @@ void AArch64RegSavesOpt::GenerateReturnBBDefUse(const BB &bb) {
   }
 }
 
-void AArch64RegSavesOpt::ProcessAsmListOpnd(const BB &bb, Operand &opnd, uint32 idx) {
+void AArch64RegSavesOpt::ProcessAsmListOpnd(const BB &bb, const Operand &opnd, uint32 idx) {
   bool isDef = false;
   bool isUse = false;
   switch (idx) {
@@ -111,15 +111,15 @@ void AArch64RegSavesOpt::ProcessAsmListOpnd(const BB &bb, Operand &opnd, uint32 
     default:
       return;
   }
-  ListOperand &listOpnd = static_cast<ListOperand&>(opnd);
-  for (auto op : listOpnd.GetOperands()) {
+  auto &listOpnd = static_cast<const ListOperand&>(opnd);
+  for (auto &op : listOpnd.GetOperands()) {
     CollectLiveInfo(bb, *op, isDef, isUse);
   }
 }
 
-void AArch64RegSavesOpt::ProcessListOpnd(const BB &bb, Operand &opnd) {
-  ListOperand &listOpnd = static_cast<ListOperand&>(opnd);
-  for (auto op : listOpnd.GetOperands()) {
+void AArch64RegSavesOpt::ProcessListOpnd(const BB &bb, const Operand &opnd) {
+  auto &listOpnd = static_cast<const ListOperand&>(opnd);
+  for (auto &op : listOpnd.GetOperands()) {
     CollectLiveInfo(bb, *op, false, true);
   }
 }

@@ -103,8 +103,8 @@ void AArch64RedundantComputeElim::CheckCondition(const Insn &existInsn, const In
       auto &existUseOpnd = static_cast<RegOperand&>(existInsn.GetOperand(i));
       Insn *predInsn = ssaInfo->GetDefInsn(existUseOpnd);
       if (predInsn != nullptr && predInsn->IsPhi()) {
-        auto &phiOpnd = static_cast<PhiOperand&>(predInsn->GetOperand(kInsnSecondOpnd));
-        for (auto phiListIt : phiOpnd.GetOperands()) {
+        auto &phiOpnd = static_cast<const PhiOperand&>(predInsn->GetOperand(kInsnSecondOpnd));
+        for (auto &phiListIt : phiOpnd.GetOperands()) {
           if (phiListIt.second == nullptr) {
             continue;
           }
@@ -181,7 +181,7 @@ DUInsnInfo *AArch64RedundantComputeElim::GetDefUseInsnInfo(VRegVersion &defVersi
     ASSERT(duInfoIt.second, "get DUInsnInfo failed");
     Insn *useInsn = duInfoIt.second->GetInsn();
     ASSERT(useInsn, "get useInsn by ssaVersion failed");
-    for (auto opndIt : duInfoIt.second->GetOperands()) {
+    for (auto &opndIt : as_const(duInfoIt.second->GetOperands())) {
       if (opndIt.first == useInsn->GetBothDefUseOpnd()) {
         if (defUseInfo != nullptr) {
           doOpt = false;
@@ -229,7 +229,7 @@ void AArch64RedundantComputeElim::CheckBothDefAndUseChain(RegOperand *curDstOpnd
     doOpt = false;
     return;
   }
-  uint32 opndIdx = existInfo->GetOperands().begin()->first;
+  uint32 opndIdx = existInfo->GetOperands().cbegin()->first;
   Insn *existUseInsn = existInfo->GetInsn();
   Insn *curUseInsn = curInfo->GetInsn();
   CHECK_FATAL(existUseInsn && curUseInsn, "get useInsn failed");
@@ -255,7 +255,7 @@ bool AArch64RedundantComputeElim::IsBothDefUseCase(VRegVersion &version) {
     ASSERT(infoIt.second != nullptr, "get duInsnInfo failed");
     Insn *useInsn = infoIt.second->GetInsn();
     ASSERT(useInsn != nullptr, "get useInsn failed");
-    for (auto opndIt : infoIt.second->GetOperands()) {
+    for (auto &opndIt : as_const(infoIt.second->GetOperands())) {
       if (useInsn->GetBothDefUseOpnd() == opndIt.first) {
         return true;
       }

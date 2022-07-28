@@ -61,7 +61,7 @@ class AArch64ReachingDefinition : public ReachingDefinition {
 
  private:
   void InitInfoForMemOperand(Insn &insn, Operand &opnd, bool isDef);
-  void InitInfoForListOpnd(const BB &bb, Operand &opnd);
+  void InitInfoForListOpnd(const BB &bb, const Operand &opnd);
   void InitInfoForConditionCode(const BB &bb);
   void InitInfoForRegOpnd(const BB &bb, Operand &opnd, bool isDef);
   void InitMemInfoForClearStackCall(Insn &callInsn);

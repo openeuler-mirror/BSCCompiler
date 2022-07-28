@@ -531,7 +531,7 @@ bool ParamRegOpt::DominatorAll(uint32 domBB, std::set<uint32> &refBBs) {
 BB* ParamRegOpt::GetCommondDom(std::set<uint32> &refBBs) {
   MapleVector<uint32> &domOrder = domInfo->GetDtPreOrder();
   uint32 minId = static_cast<uint32>(domOrder.size());
-  for (auto it = domOrder.rbegin(); it != domOrder.rend(); ++it) {
+  for (auto it = domOrder.crbegin(); it != domOrder.crend(); ++it) {
     uint32 curBBId = *it;
     if (refBBs.find(curBBId) != refBBs.end()) {
       minId = curBBId;
@@ -620,8 +620,8 @@ void ParamRegOpt::CollectRefBBs(RegOperand &movDest, std::set<uint32> &refBBs) {
   if (useBBs.find(firstBB->GetId()) != useBBs.end() || crossCallBBs.find(firstBB->GetId()) != crossCallBBs.end()) {
     return;
   }
-  useBBs.insert(crossCallBBs.begin(), crossCallBBs.end());
-  refBBs.insert(useBBs.begin(), useBBs.end());
+  useBBs.insert(crossCallBBs.cbegin(), crossCallBBs.cend());
+  refBBs.insert(useBBs.cbegin(), useBBs.cend());
 }
 
 void ParamRegOpt::TryToSplitParamReg(RegOperand &movDest, Insn &posInsn) {

@@ -32,7 +32,7 @@ class AArch64LiveIntervalAnalysis : public LiveIntervalAnalysis {
   bool IsUnconcernedReg(const RegOperand &regOpnd) const;
   LiveInterval *GetOrCreateLiveInterval(regno_t regNO);
   void UpdateCallInfo();
-  void SetupLiveIntervalByOp(Operand &op, Insn &insn, bool isDef);
+  void SetupLiveIntervalByOp(const Operand &op, Insn &insn, bool isDef);
   void ComputeLiveIntervalsForEachDefOperand(Insn &insn);
   void ComputeLiveIntervalsForEachUseOperand(Insn &insn);
   void SetupLiveIntervalInLiveOut(regno_t liveOut, const BB &bb, uint32 currPoint);

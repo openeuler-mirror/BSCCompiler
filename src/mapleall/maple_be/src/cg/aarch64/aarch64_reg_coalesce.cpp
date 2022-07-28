@@ -62,11 +62,11 @@ void AArch64LiveIntervalAnalysis::UpdateCallInfo() {
   }
 }
 
-void AArch64LiveIntervalAnalysis::SetupLiveIntervalByOp(Operand &op, Insn &insn, bool isDef) {
+void AArch64LiveIntervalAnalysis::SetupLiveIntervalByOp(const Operand &op, Insn &insn, bool isDef) {
   if (!op.IsRegister()) {
     return;
   }
-  auto &regOpnd = static_cast<RegOperand&>(op);
+  auto &regOpnd = static_cast<const RegOperand&>(op);
   uint32 regNO = regOpnd.GetRegisterNumber();
   if (IsUnconcernedReg(regOpnd)) {
     return;
@@ -92,8 +92,8 @@ void AArch64LiveIntervalAnalysis::ComputeLiveIntervalsForEachDefOperand(Insn &in
   uint32 opndNum = insn.GetOperandSize();
   for (uint32 i = 0; i < opndNum; ++i) {
     if (insn.GetMachineOpcode() == MOP_asm && (i == kAsmOutputListOpnd || i == kAsmClobberListOpnd)) {
-      for (auto opnd : static_cast<ListOperand &>(insn.GetOperand(i)).GetOperands()) {
-        SetupLiveIntervalByOp(*static_cast<RegOperand *>(opnd), insn, true);
+      for (auto &opnd : static_cast<const ListOperand &>(insn.GetOperand(i)).GetOperands()) {
+        SetupLiveIntervalByOp(*static_cast<const RegOperand *>(opnd), insn, true);
       }
       continue;
     }
@@ -116,8 +116,8 @@ void AArch64LiveIntervalAnalysis::ComputeLiveIntervalsForEachUseOperand(Insn &in
   uint32 opndNum = insn.GetOperandSize();
   for (uint32 i = 0; i < opndNum; ++i) {
     if (insn.GetMachineOpcode() == MOP_asm && i == kAsmInputListOpnd) {
-      for (auto opnd : static_cast<ListOperand &>(insn.GetOperand(i)).GetOperands()) {
-        SetupLiveIntervalByOp(*static_cast<RegOperand *>(opnd), insn, false);
+      for (auto &opnd : static_cast<const ListOperand &>(insn.GetOperand(i)).GetOperands()) {
+        SetupLiveIntervalByOp(*static_cast<const RegOperand *>(opnd), insn, false);
       }
       continue;
     }
@@ -126,8 +126,8 @@ void AArch64LiveIntervalAnalysis::ComputeLiveIntervalsForEachUseOperand(Insn &in
     }
     Operand &opnd = insn.GetOperand(i);
     if (opnd.IsList()) {
-      auto &listOpnd = static_cast<ListOperand&>(opnd);
-      for (auto op : listOpnd.GetOperands()) {
+      auto &listOpnd = static_cast<const ListOperand&>(opnd);
+      for (auto &op : listOpnd.GetOperands()) {
         SetupLiveIntervalByOp(*op, insn, false);
       }
     } else if (opnd.IsMemoryAccessOperand()) {
@@ -141,8 +141,8 @@ void AArch64LiveIntervalAnalysis::ComputeLiveIntervalsForEachUseOperand(Insn &in
         SetupLiveIntervalByOp(*offset, insn, false);
       }
     } else if (opnd.IsPhi()) {
-      auto &phiOpnd = static_cast<PhiOperand&>(opnd);
-      for (auto opIt : phiOpnd.GetOperands()) {
+      auto &phiOpnd = static_cast<const PhiOperand&>(opnd);
+      for (auto &opIt : phiOpnd.GetOperands()) {
         SetupLiveIntervalByOp(*opIt.second, insn, false);
       }
     } else {
@@ -257,11 +257,11 @@ void AArch64LiveIntervalAnalysis::CheckInterference(LiveInterval &li1, LiveInter
   auto ranges1 = li1.GetRanges();
   auto ranges2 = li2.GetRanges();
   bool conflict = false;
-  for (auto range : ranges1) {
+  for (auto &range : as_const(ranges1)) {
     auto bbid = range.first;
     auto posVec1 = range.second;
-    auto it = ranges2.find(bbid);
-    if (it == ranges2.end()) {
+    MapleMap<uint32, MapleVector<PosPair>>::const_iterator it = ranges2.find(bbid);
+    if (it == ranges2.cend()) {
       continue;
     } else {
       /* check overlap */

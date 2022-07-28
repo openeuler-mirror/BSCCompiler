@@ -109,7 +109,7 @@ void A64ConstProp::ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) 
       (useDUInfo.GetOperands().begin()->first == kInsnSecondOpnd) && isSpecficCase;
   if (useInsn->IsStore() || md->IsCondDef() || isSpecficCase)  {
     RegOperand &zeroOpnd = cgFunc->GetZeroOpnd(toReplaceReg.GetSize());
-    for (auto &opndIt : useDUInfo.GetOperands()) {
+    for (auto &opndIt : as_const(useDUInfo.GetOperands())) {
       if (useInsn->IsStore() && opndIt.first != 0) {
         return;
       }
@@ -276,7 +276,7 @@ bool A64ConstProp::MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd)
     MOperator newMop = GetRegImmMOP(curMop, false);
     Operand &destOpnd = useInsn->GetOperand(kInsnFirstOpnd);
     if (constOpnd.IsSingleInstructionMovable(destOpnd.GetSize())) {
-      auto useOpndInfoIt = useDUInfo.GetOperands().begin();
+      auto useOpndInfoIt = useDUInfo.GetOperands().cbegin();
       uint32 useOpndIdx = useOpndInfoIt->first;
       ASSERT(useOpndIdx == kInsnSecondOpnd, "invalid instruction in ssa form");
       if (useOpndIdx == kInsnSecondOpnd) {
@@ -295,7 +295,7 @@ bool A64ConstProp::ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUI
                                                ImmOperand &constOpnd, ArithmeticType aT) {
   MOperator curMop = useInsn.GetMachineOpcode();
   MOperator newMop = GetRegImmMOP(curMop, false);
-  auto useOpndInfoIt = useDUInfo.GetOperands().begin();
+  auto useOpndInfoIt = useDUInfo.GetOperands().cbegin();
   uint32 useOpndIdx = useOpndInfoIt->first;
   CHECK_FATAL(useOpndIdx == kInsnSecondOpnd || useOpndIdx == kInsnThirdOpnd, "check this insn");
   Insn *newInsn = nullptr;
@@ -397,7 +397,7 @@ bool A64ConstProp::ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &co
   Insn *useInsn = useDUInfo.GetInsn();
   MOperator curMop = useInsn->GetMachineOpcode();
   if (useDUInfo.GetOperands().size() == 1) {
-    auto useOpndInfoIt = useDUInfo.GetOperands().begin();
+    auto useOpndInfoIt = useDUInfo.GetOperands().cbegin();
     uint32 useOpndIdx = useOpndInfoIt->first;
     if (useOpndIdx == kInsnThirdOpnd) {
       auto &shiftBit = static_cast<BitShiftOperand&>(useInsn->GetOperand(kInsnFourthOpnd));
@@ -483,7 +483,7 @@ bool A64ConstProp::BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &con
   Insn *useInsn = useDUInfo.GetInsn();
   MOperator curMop = useInsn->GetMachineOpcode();
   if (useDUInfo.GetOperands().size() == 1) {
-    auto useOpndInfoIt = useDUInfo.GetOperands().begin();
+    auto useOpndInfoIt = useDUInfo.GetOperands().cbegin();
     uint32 useOpndIdx = useOpndInfoIt->first;
     if (useOpndIdx == kInsnSecondOpnd) {
       auto &lsbOpnd = static_cast<ImmOperand&>(useInsn->GetOperand(kInsnThirdOpnd));
@@ -654,7 +654,7 @@ void A64StrLdrProp::DoMemReplace(const RegOperand &replacedReg, MemOperand &newM
   if (replacedV->GetAllUseInsns().empty()) {
     (void)cgDce->RemoveUnuseDef(*replacedV);
   }
-  for (auto &replaceit : replaceVersions) {
+  for (auto &replaceit : as_const(replaceVersions)) {
     replaceit.second->AddUseInsn(*ssaInfo, useInsn, opndIdx);
   }
   useInsn.SetOperand(opndIdx, newMem);
@@ -1694,7 +1694,7 @@ void CopyRegProp::VaildateImplicitCvt(RegOperand &destReg, const RegOperand &src
 
 void RedundantPhiProp::Run() {
   FOR_ALL_BB(bb, &cgFunc) {
-    for (auto phiIt : bb->GetPhiInsns()) {
+    for (auto &phiIt : as_const(bb->GetPhiInsns())) {
       Init();
       if (!CheckCondition(*phiIt.second)) {
         continue;
@@ -1715,7 +1715,7 @@ bool RedundantPhiProp::CheckCondition(Insn &insn) {
     auto &phiDestReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
     destVersion = optSsaInfo->FindSSAVersion(phiDestReg.GetRegisterNumber());
     ASSERT(destVersion != nullptr, "find Version failed");
-    uint32 srcRegNO = phiOpnd.GetOperands().begin()->second->GetRegisterNumber();
+    uint32 srcRegNO = phiOpnd.GetOperands().cbegin()->second->GetRegisterNumber();
     srcVersion = optSsaInfo->FindSSAVersion(srcRegNO);
     ASSERT(srcVersion != nullptr, "find Version failed");
     return true;
@@ -1745,7 +1745,7 @@ bool ValidBitNumberProp::IsImplicitUse(const RegOperand &dstOpnd, const RegOpera
     /* if srcOpnd upper 32 bits are valid, it can not prop to mop_x */
     if (srcOpnd.GetSize() == k64BitSize && dstOpnd.GetSize() == k64BitSize) {
       const AArch64MD *useMD = &AArch64CG::kMd[useInsn->GetMachineOpcode()];
-      for (auto opndUseIt : destUseIt.second->GetOperands()) {
+      for (auto &opndUseIt : as_const(destUseIt.second->GetOperands())) {
         OpndProp *useProp = useMD->operand[opndUseIt.first];
         if (useProp->GetSize() == k64BitSize) {
           return true;
@@ -2257,7 +2257,7 @@ bool A64PregCopyPattern::DFSFindValidDefInsns(Insn *curDefInsn, std::vector<regn
    *                               mov R0, R321
    */
   if (visited[curDefInsn->GetId()] && curDefInsn->IsPhi() && !visitedPhiDefs.empty()) {
-    auto &curPhiOpnd = static_cast<PhiOperand&>(curDefInsn->GetOperand(kInsnSecondOpnd));
+    auto &curPhiOpnd = static_cast<const PhiOperand&>(curDefInsn->GetOperand(kInsnSecondOpnd));
     for (auto &curPhiListIt : curPhiOpnd.GetOperands()) {
       auto &curUseOpnd = static_cast<RegOperand&>(*curPhiListIt.second);
       if (std::find(visitedPhiDefs.begin(), visitedPhiDefs.end(), curUseOpnd.GetRegisterNumber()) !=
@@ -2275,7 +2275,7 @@ bool A64PregCopyPattern::DFSFindValidDefInsns(Insn *curDefInsn, std::vector<regn
     (void)validDefInsns.emplace_back(curDefInsn);
     return true;
   }
-  auto &phiOpnd = static_cast<PhiOperand&>(curDefInsn->GetOperand(kInsnSecondOpnd));
+  auto &phiOpnd = static_cast<const PhiOperand&>(curDefInsn->GetOperand(kInsnSecondOpnd));
   for (auto &phiListIt : phiOpnd.GetOperands()) {
     auto &useOpnd = static_cast<RegOperand&>(*phiListIt.second);
     VRegVersion *useVersion = optSsaInfo->FindSSAVersion(useOpnd.GetRegisterNumber());
@@ -2508,7 +2508,7 @@ Insn &A64PregCopyPattern::CreateNewPhiInsn(std::unordered_map<uint32, RegOperand
  */
 RegOperand *A64PregCopyPattern::CheckAndGetExistPhiDef(Insn &phiInsn, std::vector<regno_t> &validDifferRegNOs) const {
   MapleMap<regno_t, Insn*> &phiInsns = phiInsn.GetBB()->GetPhiInsns();
-  for (auto &phiIt : phiInsns) {
+  for (auto &phiIt : as_const(phiInsns)) {
     auto &def = static_cast<RegOperand&>(phiIt.second->GetOperand(kInsnFirstOpnd));
     VRegVersion *defVersion = optSsaInfo->FindSSAVersion(def.GetRegisterNumber());
     ASSERT(defVersion != nullptr, "defVersion should not be nullptr");
@@ -2526,7 +2526,7 @@ RegOperand *A64PregCopyPattern::CheckAndGetExistPhiDef(Insn &phiInsn, std::vecto
      *           so we need to check whether all phiOpnds have correct ssaRegNO.
      */
     if (defVersion->GetOriginalRegNO() == differOrigNO) {
-      auto &phiOpnd = static_cast<PhiOperand&>(phiIt.second->GetOperand(kInsnSecondOpnd));
+      auto &phiOpnd = static_cast<const PhiOperand&>(phiIt.second->GetOperand(kInsnSecondOpnd));
       if (phiOpnd.GetOperands().size() == validDifferRegNOs.size()) {
         bool exist = true;
         for (auto &phiListIt : phiOpnd.GetOperands()) {
@@ -2555,7 +2555,7 @@ RegOperand &A64PregCopyPattern::DFSBuildPhiInsn(Insn *curInsn, std::unordered_ma
   }
   std::unordered_map<uint32, RegOperand*> differPhiList;
   std::vector<regno_t> validDifferRegNOs;
-  auto &phiOpnd = static_cast<PhiOperand&>(curInsn->GetOperand(kInsnSecondOpnd));
+  auto &phiOpnd = static_cast<const PhiOperand&>(curInsn->GetOperand(kInsnSecondOpnd));
   for (auto &phiListIt : phiOpnd.GetOperands()) {
     auto &useOpnd = static_cast<RegOperand&>(*phiListIt.second);
     VRegVersion *useVersion = optSsaInfo->FindSSAVersion(useOpnd.GetRegisterNumber());
@@ -2705,4 +2705,3 @@ void A64ReplaceRegOpndVisitor::Visit(PhiOperand *v) {
   }
 }
 }
-

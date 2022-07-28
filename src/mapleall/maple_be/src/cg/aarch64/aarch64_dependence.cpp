@@ -853,9 +853,9 @@ void AArch64DepAnalysis::BuildOpndDependency(Insn &insn) {
         BuildDepsBetweenControlRegAndCall(insn, true);
       }
     } else if (opnd.IsList()) {
-      ListOperand &listOpnd = static_cast<ListOperand&>(opnd);
+      auto &listOpnd = static_cast<const ListOperand&>(opnd);
       /* Build true dependences */
-      for (auto lst : listOpnd.GetOperands()) {
+      for (auto &lst : listOpnd.GetOperands()) {
         regno_t regNO = lst->GetRegisterNumber();
         BuildDepsUseReg(insn, regNO);
       }

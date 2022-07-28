@@ -967,8 +967,8 @@ void GraphColorRegAllocator::SetOpndConflict(const Insn &insn, bool onlyDef) {
     Operand &opnd = insn.GetOperand(i);
     if (!onlyDef) {
       if (opnd.IsList()) {
-        auto &listOpnd = static_cast<ListOperand&>(opnd);
-        for (auto op : listOpnd.GetOperands()) {
+        auto &listOpnd = static_cast<const ListOperand&>(opnd);
+        for (auto &op : listOpnd.GetOperands()) {
           ClassifyOperand(pregs, vregs, *op);
         }
       } else if (opnd.IsMemoryAccessOperand()) {
@@ -1032,7 +1032,7 @@ void GraphColorRegAllocator::ComputeLiveRangesForEachDefOperand(Insn &insn, bool
   uint32 opndNum = insn.GetOperandSize();
   for (uint32 i = 0; i < opndNum; ++i) {
     if (insn.GetMachineOpcode() == MOP_asm && (i == kAsmOutputListOpnd || i == kAsmClobberListOpnd)) {
-      for (auto opnd : static_cast<ListOperand &>(insn.GetOperand(i)).GetOperands()) {
+      for (auto &opnd : static_cast<const ListOperand &>(insn.GetOperand(i)).GetOperands()) {
         SetupLiveRangeByOp(*static_cast<RegOperand *>(opnd), insn, true, numUses);
         ++numDefs;
       }
@@ -1065,7 +1065,7 @@ void GraphColorRegAllocator::ComputeLiveRangesForEachUseOperand(Insn &insn) {
   uint32 opndNum = insn.GetOperandSize();
   for (uint32 i = 0; i < opndNum; ++i) {
     if (insn.GetMachineOpcode() == MOP_asm && i == kAsmInputListOpnd) {
-      for (auto opnd : static_cast<ListOperand &>(insn.GetOperand(i)).GetOperands()) {
+      for (auto &opnd : static_cast<const ListOperand &>(insn.GetOperand(i)).GetOperands()) {
         SetupLiveRangeByOp(*static_cast<RegOperand *>(opnd), insn, false, numUses);
       }
       continue;
@@ -1076,7 +1076,7 @@ void GraphColorRegAllocator::ComputeLiveRangesForEachUseOperand(Insn &insn) {
     Operand &opnd = insn.GetOperand(i);
     if (opnd.IsList()) {
       auto &listOpnd = static_cast<ListOperand&>(opnd);
-      for (auto op : listOpnd.GetOperands()) {
+      for (auto &op : listOpnd.GetOperands()) {
         SetupLiveRangeByOp(*op, insn, false, numUses);
       }
     } else if (opnd.IsMemoryAccessOperand()) {
@@ -1110,8 +1110,8 @@ void GraphColorRegAllocator::ComputeLiveRangesUpdateIfInsnIsCall(const Insn &ins
   /* active the parametes */
   Operand &opnd1 = insn.GetOperand(1);
   if (opnd1.IsList()) {
-    auto &srcOpnds = static_cast<ListOperand&>(opnd1);
-    for (auto regOpnd : srcOpnds.GetOperands()) {
+    auto &srcOpnds = static_cast<const ListOperand&>(opnd1);
+    for (auto &regOpnd : srcOpnds.GetOperands()) {
       ASSERT(!regOpnd->IsVirtualRegister(), "not be a virtual register");
       auto physicalReg = static_cast<AArch64reg>(regOpnd->GetRegisterNumber());
       (void)pregLive.insert(physicalReg);
@@ -1183,7 +1183,7 @@ void GraphColorRegAllocator::UpdateCallInfo(uint32 bbId, uint32 currPoint, const
     lr->IncNumCall();
     lr->AddRef(bbId, currPoint, kIsCall);
 
-    auto lu = lr->FindInLuMap(bbId);
+    MapleMap<uint32, LiveUnit*>::const_iterator lu = lr->FindInLuMap(bbId);
     if (lu != lr->EndOfLuMap()) {
       lu->second->SetHasCall(true);
     }
@@ -1204,10 +1204,10 @@ void GraphColorRegAllocator::SetupMustAssignedLiveRanges(const Insn &insn) {
     return;
   }
   if (insn.GetMachineOpcode() == MOP_asm) {
-    for (auto regOpnd : static_cast<ListOperand &>(insn.GetOperand(kAsmOutputListOpnd)).GetOperands()) {
+    for (auto &regOpnd : static_cast<const ListOperand &>(insn.GetOperand(kAsmOutputListOpnd)).GetOperands()) {
       SetLrMustAssign(regOpnd);
     }
-    for (auto regOpnd : static_cast<ListOperand &>(insn.GetOperand(kAsmInputListOpnd)).GetOperands()) {
+    for (auto &regOpnd : static_cast<const ListOperand &>(insn.GetOperand(kAsmInputListOpnd)).GetOperands()) {
       SetLrMustAssign(regOpnd);
     }
     return;
@@ -1390,7 +1390,7 @@ void GraphColorRegAllocator::CheckInterference(LiveRange &lr1, LiveRange &lr2) c
 
 void GraphColorRegAllocator::BuildInterferenceGraphSeparateIntFp(std::vector<LiveRange*> &intLrVec,
                                                                  std::vector<LiveRange*> &fpLrVec) {
-  for (auto it : lrMap) {
+  for (auto &it : std::as_const(lrMap)) {
     LiveRange *lr = it.second;
     if (lr->GetRegNO() == 0) {
       continue;
@@ -1508,7 +1508,7 @@ bool GraphColorRegAllocator::HaveAvailableColor(const LiveRange &lr, uint32 num)
  * Compute a sorted list of constrained LRs based on priority cost.
  */
 void GraphColorRegAllocator::Separate() {
-  for (auto it : lrMap) {
+  for (auto &it : std::as_const(lrMap)) {
     LiveRange *lr = it.second;
 #ifdef USE_LRA
     if (doLRA && IsLocalReg(*lr)) {
@@ -1784,7 +1784,7 @@ void GraphColorRegAllocator::PruneLrForSplit(LiveRange &lr, BB &bb, bool remove,
   }
 
   bb.SetInternalFlag1(true);
-  auto lu = lr.FindInLuMap(bb.GetId());
+  MapleMap<uint32, LiveUnit*>::const_iterator lu = lr.FindInLuMap(bb.GetId());
   uint32 defNum = 0;
   uint32 useNum = 0;
   if (lu != lr.EndOfLuMap()) {
@@ -1867,7 +1867,7 @@ void GraphColorRegAllocator::ComputeBBForNewSplit(LiveRange &newLr, LiveRange &o
   std::set<CGFuncLoops*, CGFuncLoopCmp> defInLoop;
   std::set<BB*, SortedBBCmpFunc> smember;
   ForEachBBArrElem(newLr.GetBBMember(), [this, &smember](uint32 bbID) { (void)smember.insert(bbVec[bbID]); });
-  for (auto bbIt = smember.rbegin(); bbIt != smember.rend(); ++bbIt) {
+  for (auto bbIt = smember.crbegin(); bbIt != smember.crend(); ++bbIt) {
     BB *bb = *bbIt;
     if (bb->GetInternalFlag1() != 0) {
       continue;
@@ -1939,7 +1939,7 @@ void GraphColorRegAllocator::FindUseForSplit(LiveRange &lr, SplitBBInfo &bbInfo,
   }
 
   bb->SetInternalFlag1(true);
-  auto lu = lr.FindInLuMap(bb->GetId());
+  MapleMap<uint32, LiveUnit*>::const_iterator lu = lr.FindInLuMap(bb->GetId());
   uint32 defNum = 0;
   uint32 useNum = 0;
   if (lu != lr.EndOfLuMap()) {
@@ -2117,7 +2117,7 @@ void GraphColorRegAllocator::MoveLrBBInfo(LiveRange &oldLr, LiveRange &newLr, BB
   newLr.SetMemberBitArrElem(bbID);
 
   /* Move LU from old LR to new LR */
-  auto luIt = oldLr.FindInLuMap(bb.GetId());
+  MapleMap<uint32, LiveUnit*>::const_iterator luIt = oldLr.FindInLuMap(bb.GetId());
   if (luIt != oldLr.EndOfLuMap()) {
     newLr.SetElemToLuMap(luIt->first, *(luIt->second));
     oldLr.EraseLuMap(luIt);
@@ -4781,7 +4781,7 @@ void GraphColorRegAllocator::FinalizeRegisters() {
   if (doMultiPass && hasSpill) {
     if (GCRA_DUMP) {
       LogInfo::MapleLogger() << "In this round, spill vregs : \n";
-      for (auto it: lrMap) {
+      for (auto &it: std::as_const(lrMap)) {
         LiveRange *lr = it.second;
         if (lr->IsSpilled()) {
           LogInfo::MapleLogger() << "R" << lr->GetRegNO() << " ";
@@ -4854,12 +4854,12 @@ void GraphColorRegAllocator::FinalizeRegisters() {
         if (insn->GetMachineOpcode() == MOP_asm) {
           const Operand *defOpnd = fInfo->GetDefOperandsElem(i);
           if (defOpnd->IsList()) {
-            ListOperand *outList = const_cast<ListOperand *>(static_cast<const ListOperand *>(defOpnd));
+            auto *outList = static_cast<const ListOperand *>(defOpnd);
             auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
             auto *srcOpndsNew =
                 a64CGFunc->CreateListOpnd(*a64CGFunc->GetFuncScopeAllocator());
             RegOperand *phyOpnd;
-            for (auto opnd : outList->GetOperands()) {
+            for (auto &opnd : outList->GetOperands()) {
               if (opnd->IsPhysicalRegister()) {
                 phyOpnd = opnd;
               } else {
@@ -4886,10 +4886,10 @@ void GraphColorRegAllocator::FinalizeRegisters() {
         if (insn->GetMachineOpcode() == MOP_asm) {
           const Operand *useOpnd = fInfo->GetUseOperandsElem(i);
           if (useOpnd->IsList()) {
-            ListOperand *inList = const_cast<ListOperand *>(static_cast<const ListOperand *>(useOpnd));
+            auto *inList = static_cast<const ListOperand *>(useOpnd);
             auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
             auto *srcOpndsNew = a64CGFunc->CreateListOpnd(*a64CGFunc->GetFuncScopeAllocator());
-            for (auto opnd : inList->GetOperands()) {
+            for (auto &opnd : inList->GetOperands()) {
               if ((static_cast<const RegOperand *>(opnd))->GetRegisterNumber() < kAllRegNum) {
                 srcOpndsNew->PushOpnd(*opnd);
               } else {

@@ -238,8 +238,8 @@ bool AArch64Insn::IsRegDefOrUse(regno_t regNO) const {
   for (uint32 i = 0; i < opndNum; ++i) {
     Operand &opnd = GetOperand(i);
     if (opnd.IsList()) {
-      auto &listOpnd = static_cast<ListOperand&>(opnd);
-      for (auto listElem : listOpnd.GetOperands()) {
+      auto &listOpnd = static_cast<const ListOperand&>(opnd);
+      for (auto &listElem : listOpnd.GetOperands()) {
         RegOperand *regOpnd = static_cast<RegOperand*>(listElem);
         ASSERT(regOpnd != nullptr, "parameter operand must be RegOperand");
         if (regNO == regOpnd->GetRegisterNumber()) {
@@ -283,7 +283,7 @@ std::set<uint32> AArch64Insn::GetDefRegs() const {
       continue;
     }
     if (opnd.IsList()) {
-      for (auto *op : static_cast<ListOperand&>(opnd).GetOperands()) {
+      for (auto *op : static_cast<const ListOperand&>(opnd).GetOperands()) {
         ASSERT(op != nullptr, "invalid operand in list operand");
         defRegNOs.emplace(op->GetRegisterNumber());
       }
@@ -1118,7 +1118,7 @@ void A64OpndEmitVisitor::Visit(ListOperand *v) {
     return;
   }
 
-  for (auto it = v->GetOperands().begin(); it != v->GetOperands().end(); ++it) {
+  for (auto it = v->GetOperands().cbegin(); it != v->GetOperands().cend(); ++it) {
     Visit(*it);
     if (--nLeft >= 1) {
       (void)emitter.Emit(", ");
@@ -1316,7 +1316,7 @@ void A64OpndDumpVisitor::Visit(LogicalShiftLeftOperand *v) {
 }
 void A64OpndDumpVisitor::Visit(PhiOperand *v) {
   auto &phiList = v->GetOperands();
-  for (auto it = phiList.begin(); it != phiList.end();) {
+  for (auto it = phiList.cbegin(); it != phiList.cend();) {
     Visit(it->second);
     LogInfo::MapleLogger() << " fBB<" << it->first << ">";
     LogInfo::MapleLogger() << (++it == phiList.end() ? "" : " ,");
@@ -1324,7 +1324,7 @@ void A64OpndDumpVisitor::Visit(PhiOperand *v) {
 }
 void A64OpndDumpVisitor::Visit(ListOperand *v) {
   auto &opndList = v->GetOperands();
-  for (auto it = opndList.begin(); it != opndList.end();) {
+  for (auto it = opndList.cbegin(); it != opndList.cend();) {
     Visit(*it);
     LogInfo::MapleLogger() << (++it == opndList.end() ? "" : " ,");
   }

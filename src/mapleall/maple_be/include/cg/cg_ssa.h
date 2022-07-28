@@ -50,7 +50,7 @@ class DUInsnInfo {
     defUseInfo[idx] = 0;
   }
   bool HasNoDU() {
-    for (auto it : defUseInfo) {
+    for (auto &it : std::as_const(defUseInfo)) {
       if (it.second != 0) {
         return false;
       }

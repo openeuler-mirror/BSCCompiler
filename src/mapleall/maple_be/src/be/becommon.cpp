@@ -237,7 +237,7 @@ void BECommon::ComputeClassTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx, uint
     /* copy parent's layout plan into my plan */
     if (HasJClassLayout(*parentType)) {  /* parent may have incomplete type definition. */
       const JClassLayout &parentLayout = GetJClassLayout(*parentType);
-      layout->insert(layout->end(), parentLayout.begin(), parentLayout.end());
+      layout->insert(layout->cend(), parentLayout.cbegin(), parentLayout.cend());
       allocedSize += prntSize;
       SetTypeAlign(tyIdx, std::max(GetTypeAlign(tyIdx), prntAlign));
     } else {

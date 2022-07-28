@@ -213,7 +213,7 @@ class BB {
   }
 
   bool IsPredecessor(const BB &predBB) {
-    for (const BB *bb : preds) {
+    for (const BB *bb : std::as_const(preds)) {
       if (bb == &predBB) {
         return true;
       }

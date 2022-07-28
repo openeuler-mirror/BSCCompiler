@@ -548,7 +548,7 @@ void LSRALinearScanRegAllocator::LiveInterval::AddRange(uint32 from, uint32 to) 
     ranges.push_back(std::pair<uint32, uint32>(from, to));
   } else {
     if (to < ranges.front().first) {
-      (void)ranges.insert(ranges.begin(), std::pair<uint32, uint32>(from, to));
+      (void)ranges.insert(ranges.cbegin(), std::pair<uint32, uint32>(from, to));
     } else if (to >= ranges.front().second && from < ranges.front().first) {
       ranges.front().first = from;
       ranges.front().second = to;
@@ -852,8 +852,8 @@ void LSRALinearScanRegAllocator::ComputeLiveIntervalForEachOperand(Insn &insn) {
     Operand &opnd = insn.GetOperand(static_cast<uint32>(i));
     bool isDef = (md->operand[static_cast<uint32>(i)])->IsRegDef();
     if (opnd.IsList()) {
-      auto &listOpnd = static_cast<ListOperand&>(opnd);
-      for (auto op : listOpnd.GetOperands()) {
+      auto &listOpnd = static_cast<const ListOperand&>(opnd);
+      for (auto &op : listOpnd.GetOperands()) {
         SetupLiveInterval(*op, insn, isDef, numUses);
       }
     } else if (opnd.IsMemoryAccessOperand()) {
@@ -1132,7 +1132,7 @@ void LSRALinearScanRegAllocator::RetireFromActive(const Insn &insn) {
     LogInfo::MapleLogger() << "RetireFromActive instr_num " << insnID << "\n";
   }
   /* Retire call from call queue */
-  for (auto it = callList.begin(); it != callList.end();) {
+  for (auto it = callList.cbegin(); it != callList.cend();) {
     auto *li = static_cast<LiveInterval*>(*it);
     if (li->GetFirstDef() > insnID) {
       break;
@@ -1291,7 +1291,7 @@ uint32 LSRALinearScanRegAllocator::FindAvailablePhyRegByFastAlloc(LiveInterval &
 
 bool LSRALinearScanRegAllocator::NeedSaveAcrossCall(LiveInterval &li) {
   bool saveAcrossCall = false;
-  for (const auto *cli : callList) {
+  for (auto *cli : std::as_const(callList)) {
     if (cli->GetFirstDef() > li.GetLastUse()) {
       break;
     }

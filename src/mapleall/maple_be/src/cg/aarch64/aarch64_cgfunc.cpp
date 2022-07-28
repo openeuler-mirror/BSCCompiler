@@ -6220,7 +6220,7 @@ void AArch64CGFunc::ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, I
       std::list<RegOperand*> tempRegStore;
       auto& opndList = static_cast<ListOperand&>(opnd).GetOperands();
       bool needReplace = false;
-      for (auto it = opndList.begin(), end = opndList.end(); it != end; ++it) {
+      for (auto it = opndList.cbegin(), end = opndList.cend(); it != end; ++it) {
         auto *regOpnd = *it;
         if (regOpnd->GetRegisterNumber() == destNO) {
           needReplace = true;
@@ -6236,7 +6236,7 @@ void AArch64CGFunc::ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, I
       }
       if (needReplace) {
         opndList.clear();
-        for (auto newOpnd : tempRegStore) {
+        for (auto &newOpnd : std::as_const(tempRegStore)) {
           static_cast<ListOperand &>(opnd).PushOpnd(*newOpnd);
         }
       }
@@ -8301,7 +8301,7 @@ void AArch64CGFunc::IntrinsifyGetAndAddInt(ListOperand &srcOpnds, PrimType pty) 
   MapleList<RegOperand*> &opnds = srcOpnds.GetOperands();
   /* Unsafe.getAndAddInt has more than 4 parameters */
   ASSERT(opnds.size() >= 4, "ensure the operands number");
-  auto iter = opnds.begin();
+  auto iter = opnds.cbegin();
   RegOperand *objOpnd = *(++iter);
   RegOperand *offOpnd = *(++iter);
   RegOperand *deltaOpnd = *(++iter);
@@ -8332,7 +8332,7 @@ void AArch64CGFunc::IntrinsifyGetAndSetInt(ListOperand &srcOpnds, PrimType pty) 
   MapleList<RegOperand*> &opnds = srcOpnds.GetOperands();
   /* Unsafe.getAndSetInt has 4 parameters */
   ASSERT(opnds.size() == 4, "ensure the operands number");
-  auto iter = opnds.begin();
+  auto iter = opnds.cbegin();
   RegOperand *objOpnd = *(++iter);
   RegOperand *offOpnd = *(++iter);
   RegOperand *newValueOpnd = *(++iter);
@@ -8362,7 +8362,7 @@ void AArch64CGFunc::IntrinsifyCompareAndSwapInt(ListOperand &srcOpnds, PrimType 
   MapleList<RegOperand*> &opnds = srcOpnds.GetOperands();
   /* Unsafe.compareAndSwapInt has more than 5 parameters */
   ASSERT(opnds.size() >= 5, "ensure the operands number");
-  auto iter = opnds.begin();
+  auto iter = opnds.cbegin();
   RegOperand *objOpnd = *(++iter);
   RegOperand *offOpnd = *(++iter);
   RegOperand *expectedValueOpnd = *(++iter);
@@ -8510,7 +8510,7 @@ void AArch64CGFunc::IntrinsifyStringIndexOf(ListOperand &srcOpnds, const MIRSymb
   MapleList<RegOperand*> &opnds = srcOpnds.GetOperands();
   /* String.indexOf opnd size must be more than 2 */
   ASSERT(opnds.size() >= 2, "ensure the operands number");
-  auto iter = opnds.begin();
+  auto iter = opnds.cbegin();
   RegOperand *srcString = *iter;
   RegOperand *patternString = *(++iter);
   GStrIdx gStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(namemangler::kJavaLangStringStr);

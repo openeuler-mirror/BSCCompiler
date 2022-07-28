@@ -377,13 +377,13 @@ bool AArch64ICOIfThenElsePattern::CheckHasSameDest(std::vector<Insn*> &lInsn, st
 
 bool AArch64ICOIfThenElsePattern::CheckModifiedRegister(Insn &insn, std::map<Operand*,
                                                         std::vector<Operand*>> &destSrcMap, std::vector<Operand*> &src,
-                                                        Operand &dest, const Insn *cmpInsn,
+                                                        const Operand &dest, const Insn *cmpInsn,
                                                         const Operand *flagOpnd) const {
 /* src was modified in this blcok earlier */
   for (auto srcOpnd : src) {
     if (srcOpnd->IsRegister()) {
-      RegOperand &srcReg = static_cast<RegOperand&>(*srcOpnd);
-      for (const auto &destSrcPair : destSrcMap) {
+      auto &srcReg = static_cast<const RegOperand&>(*srcOpnd);
+      for (auto &destSrcPair : destSrcMap) {
         ASSERT(destSrcPair.first->IsRegister(), "opnd must be register");
         RegOperand *mapSrcReg = static_cast<RegOperand*>(destSrcPair.first);
         if (mapSrcReg->GetRegisterNumber() == srcReg.GetRegisterNumber()) {
@@ -395,8 +395,8 @@ bool AArch64ICOIfThenElsePattern::CheckModifiedRegister(Insn &insn, std::map<Ope
 
   /* dest register was modified earlier in this block */
   ASSERT(dest.IsRegister(), "opnd must be register");
-  RegOperand &destReg = static_cast<RegOperand&>(dest);
-  for (const auto &destSrcPair : destSrcMap) {
+  auto &destReg = static_cast<const RegOperand&>(dest);
+  for (auto &destSrcPair : destSrcMap) {
     ASSERT(destSrcPair.first->IsRegister(), "opnd must be register");
     RegOperand *mapSrcReg = static_cast<RegOperand*>(destSrcPair.first);
     if (mapSrcReg->GetRegisterNumber() == destReg.GetRegisterNumber()) {
@@ -621,10 +621,10 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joi
   }
 
   /* Insert instructions in branches after cmpInsn */
-  for (auto itr = elseGenerateInsn.rbegin(); itr != elseGenerateInsn.rend(); ++itr) {
+  for (auto itr = elseGenerateInsn.crbegin(); itr != elseGenerateInsn.crend(); ++itr) {
     (void)cmpBB.InsertInsnAfter(*cmpInsn, **itr);
   }
-  for (auto itr = ifGenerateInsn.rbegin(); itr != ifGenerateInsn.rend(); ++itr) {
+  for (auto itr = ifGenerateInsn.crbegin(); itr != ifGenerateInsn.crend(); ++itr) {
     (void)cmpBB.InsertInsnAfter(*cmpInsn, **itr);
   }
 

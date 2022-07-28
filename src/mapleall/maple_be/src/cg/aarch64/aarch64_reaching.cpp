@@ -187,13 +187,13 @@ void AArch64ReachingDefinition::AddRetPseudoInsns() {
 }
 
 void AArch64ReachingDefinition::GenAllAsmDefRegs(BB &bb, Insn &insn, uint32 index) {
-  for (auto reg : static_cast<ListOperand&>(insn.GetOperand(index)).GetOperands()) {
+  for (auto &reg : static_cast<const ListOperand&>(insn.GetOperand(index)).GetOperands()) {
     regGen[bb.GetId()]->SetBit(static_cast<RegOperand *>(reg)->GetRegisterNumber());
   }
 }
 
 void AArch64ReachingDefinition::GenAllAsmUseRegs(BB &bb, Insn &insn, uint32 index) {
-  for (auto reg : static_cast<ListOperand&>(insn.GetOperand(index)).GetOperands()) {
+  for (auto &reg : static_cast<const ListOperand&>(insn.GetOperand(index)).GetOperands()) {
     regUse[bb.GetId()]->SetBit(static_cast<RegOperand *>(reg)->GetRegisterNumber());
   }
 }
@@ -242,7 +242,7 @@ bool AArch64ReachingDefinition::KilledByCallBetweenInsnInSameBB(const Insn &star
 }
 
 static bool SetDefInsnVecForAsm(Insn *insn, uint32 index, uint32 regNO, std::vector<Insn *> &defInsnVec) {
-  for (auto reg : static_cast<ListOperand&>(insn->GetOperand(index)).GetOperands()) {
+  for (auto &reg : static_cast<const ListOperand&>(insn->GetOperand(index)).GetOperands()) {
     if (static_cast<RegOperand *>(reg)->GetRegisterNumber() == regNO) {
       defInsnVec.emplace_back(insn);
       return true;
@@ -356,7 +356,7 @@ std::vector<Insn*> AArch64ReachingDefinition::FindRegDefBetweenInsn(
 }
 
 static bool IsRegInAsmList(Insn *insn, uint32 index, uint32 regNO, InsnSet &insnSet) {
-  for (auto reg : static_cast<ListOperand&>(insn->GetOperand(index)).GetOperands()) {
+  for (auto &reg : static_cast<const ListOperand&>(insn->GetOperand(index)).GetOperands()) {
     if (static_cast<RegOperand *>(reg)->GetRegisterNumber() == regNO) {
       insnSet.insert(insn);
       return true;
@@ -554,7 +554,7 @@ void AArch64ReachingDefinition::DFSFindDefForRegOpnd(const BB &startBB, uint32 r
     if (regGen[predBB->GetId()]->TestBit(regNO) || (regNO == kRFLAG && predBB->HasCall())) {
       defInsnVec.clear();
       defInsnVec = FindRegDefBetweenInsn(regNO, predBB->GetFirstInsn(), predBB->GetLastInsn());
-      defInsnSet.insert(defInsnVec.begin(), defInsnVec.end());
+      defInsnSet.insert(defInsnVec.cbegin(), defInsnVec.cend());
     } else if (regIn[predBB->GetId()]->TestBit(regNO)) {
       DFSFindDefForRegOpnd(*predBB, regNO, visitedBB, defInsnSet);
     }
@@ -595,7 +595,7 @@ void AArch64ReachingDefinition::DFSFindDefForMemOpnd(const BB &startBB, uint32 o
       defInsnVec.clear();
       defInsnVec = FindMemDefBetweenInsn(offset, predBB->GetFirstInsn(), predBB->GetLastInsn());
       ASSERT(!defInsnVec.empty(), "opnd must be defined in this bb");
-      defInsnSet.insert(defInsnVec.begin(), defInsnVec.end());
+      defInsnSet.insert(defInsnVec.cbegin(), defInsnVec.cend());
     } else if (memIn[predBB->GetId()]->TestBit(offset / kMemZoomSize)) {
       DFSFindDefForMemOpnd(*predBB, offset, visitedBB, defInsnSet);
     }
@@ -639,7 +639,7 @@ InsnSet AArch64ReachingDefinition::FindDefForRegOpnd(Insn &insn, uint32 indexOrR
   }
   InsnSet defInsnSet;
   if (!defInsnVec.empty()) {
-    defInsnSet.insert(defInsnVec.begin(), defInsnVec.end());
+    defInsnSet.insert(defInsnVec.cbegin(), defInsnVec.cend());
     return defInsnSet;
   }
   std::vector<VisitStatus> visitedBB(kMaxBBNum, kNotVisited);
@@ -770,7 +770,7 @@ bool AArch64ReachingDefinition::DFSFindRegInfoBetweenBB(const BB startBB, const 
                                                         std::list<bool> &pathStatus, DumpType infoType) const {
   for (auto succBB : startBB.GetSuccs()) {
     if (succBB == &endBB) {
-      for (auto status : pathStatus) {
+      for (auto &status : as_const(pathStatus)) {
         if (!status) {
           return true;
         }
@@ -832,8 +832,8 @@ bool AArch64ReachingDefinition::FindRegUsingBetweenInsn(uint32 regNO, Insn *star
     for (uint32 i = 0; i < opndNum; ++i) {
       Operand &opnd = insn->GetOperand(i);
       if (opnd.IsList()) {
-        auto &listOpnd = static_cast<ListOperand&>(opnd);
-        for (auto listElem : listOpnd.GetOperands()) {
+        auto &listOpnd = static_cast<const ListOperand&>(opnd);
+        for (auto &listElem : listOpnd.GetOperands()) {
           RegOperand *regOpnd = static_cast<RegOperand*>(listElem);
           ASSERT(regOpnd != nullptr, "parameter operand must be RegOperand");
           if (regNO == regOpnd->GetRegisterNumber()) {
@@ -903,9 +903,9 @@ bool AArch64ReachingDefinition::FindRegUseBetweenInsn(uint32 regNO, Insn *startI
     for (uint32 i = 0; i < opndNum; ++i) {
       Operand &opnd = insn->GetOperand(i);
       if (opnd.IsList()) {
-        auto &listOpnd = static_cast<ListOperand&>(opnd);
-        for (auto listElem : listOpnd.GetOperands()) {
-          RegOperand *regOpnd = static_cast<RegOperand*>(listElem);
+        auto &listOpnd = static_cast<const ListOperand&>(opnd);
+        for (auto &listElem : listOpnd.GetOperands()) {
+          auto *regOpnd = static_cast<const RegOperand*>(listElem);
           ASSERT(regOpnd != nullptr, "parameter operand must be RegOperand");
           if (regNO == regOpnd->GetRegisterNumber()) {
             (void)regUseInsnSet.insert(insn);
@@ -1070,7 +1070,7 @@ InsnSet AArch64ReachingDefinition::FindDefForMemOpnd(Insn &insn, uint32 indexOrO
   }
 
   if (!defInsnVec.empty()) {
-    defInsnSet.insert(defInsnVec.begin(), defInsnVec.end());
+    defInsnSet.insert(defInsnVec.cbegin(), defInsnVec.cend());
     return defInsnSet;
   }
   std::vector<VisitStatus> visitedBB(kMaxBBNum, kNotVisited);
@@ -1263,10 +1263,10 @@ void AArch64ReachingDefinition::InitInfoForMemOperand(Insn &insn, Operand &opnd,
   }
 }
 
-void AArch64ReachingDefinition::InitInfoForListOpnd(const BB &bb, Operand &opnd) {
-  ListOperand *listOpnd = static_cast<ListOperand*>(&opnd);
-  for (auto listElem : listOpnd->GetOperands()) {
-    RegOperand *regOpnd = static_cast<RegOperand*>(listElem);
+void AArch64ReachingDefinition::InitInfoForListOpnd(const BB &bb, const Operand &opnd) {
+  auto *listOpnd = static_cast<const ListOperand*>(&opnd);
+  for (auto &listElem : listOpnd->GetOperands()) {
+    auto *regOpnd = static_cast<const RegOperand*>(listElem);
     ASSERT(regOpnd != nullptr, "used Operand in call insn must be Register");
     regUse[bb.GetId()]->SetBit(regOpnd->GetRegisterNumber());
   }

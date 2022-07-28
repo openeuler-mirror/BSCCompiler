@@ -94,8 +94,8 @@ void AArch64LiveAnalysis::GetBBDefUse(BB &bb) {
       } else if (opnd.IsConditionCode()) {
         ProcessCondOpnd(bb);
       } else if (opnd.IsPhi()) {
-        auto &phiOpnd = static_cast<PhiOperand&>(opnd);
-        for (auto opIt : phiOpnd.GetOperands()) {
+        auto &phiOpnd = static_cast<const PhiOperand&>(opnd);
+        for (auto &opIt : phiOpnd.GetOperands()) {
           CollectLiveInfo(bb, *opIt.second, false, true);
         }
       } else {
@@ -159,7 +159,7 @@ void AArch64LiveAnalysis::ProcessCallInsnParam(const BB &bb, const Insn &insn) c
   }
 }
 
-void AArch64LiveAnalysis::ProcessAsmListOpnd(const BB &bb, Operand &opnd, uint32 idx) const {
+void AArch64LiveAnalysis::ProcessAsmListOpnd(const BB &bb, const Operand &opnd, uint32 idx) const {
   bool isDef = false;
   bool isUse = false;
   switch (idx) {
@@ -175,15 +175,15 @@ void AArch64LiveAnalysis::ProcessAsmListOpnd(const BB &bb, Operand &opnd, uint32
     default:
       return;
   }
-  ListOperand &listOpnd = static_cast<ListOperand&>(opnd);
-  for (auto op : listOpnd.GetOperands()) {
+  auto &listOpnd = static_cast<const ListOperand&>(opnd);
+  for (auto &op : listOpnd.GetOperands()) {
     CollectLiveInfo(bb, *op, isDef, isUse);
   }
 }
 
-void AArch64LiveAnalysis::ProcessListOpnd(const BB &bb, Operand &opnd) const {
-  ListOperand &listOpnd = static_cast<ListOperand&>(opnd);
-  for (auto op : listOpnd.GetOperands()) {
+void AArch64LiveAnalysis::ProcessListOpnd(const BB &bb, const Operand &opnd) const {
+  auto &listOpnd = static_cast<const ListOperand&>(opnd);
+  for (auto &op : listOpnd.GetOperands()) {
     CollectLiveInfo(bb, *op, false, true);
   }
 }

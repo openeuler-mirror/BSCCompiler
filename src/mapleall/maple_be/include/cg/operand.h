@@ -1319,6 +1319,10 @@ class ListOperand : public OperandVisitable<ListOperand> {
     return opndList;
   }
 
+  const MapleList<RegOperand*> &GetOperands() const {
+    return opndList;
+  }
+
   void Emit(Emitter &emitter, const OpndProp *opndProp) const override {
     CHECK_FATAL(false, "do not run here");
   }
@@ -1388,9 +1392,13 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
     return phiList;
   }
 
+  const MapleMap<uint32, RegOperand*> &GetOperands() const {
+    return phiList;
+  }
+
   uint32 GetLeastCommonValidBit() {
     uint32 leastCommonVb = 0;
-    for (auto phiOpnd : phiList) {
+    for (auto &phiOpnd : std::as_const(phiList)) {
       uint32 curVb = phiOpnd.second->GetValidBitsNum();
       if (curVb > leastCommonVb) {
         leastCommonVb = curVb;
@@ -1401,7 +1409,7 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
 
   bool IsRedundancy() {
     uint32 srcSsaIdx = 0;
-    for (auto phiOpnd : phiList) {
+    for (auto &phiOpnd : std::as_const(phiList)) {
       if (srcSsaIdx == 0) {
         srcSsaIdx = phiOpnd.second->GetRegisterNumber();
       }

@@ -136,8 +136,8 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   void CollectLiveInfo(const BB &bb, const Operand &opnd, bool isDef, bool isUse);
   void GenerateReturnBBDefUse(const BB &bb);
   void ProcessCallInsnParam(BB &bb);
-  void ProcessAsmListOpnd(const BB &bb, Operand &opnd, uint32 idx);
-  void ProcessListOpnd(const BB &bb, Operand &opnd);
+  void ProcessAsmListOpnd(const BB &bb, const Operand &opnd, uint32 idx);
+  void ProcessListOpnd(const BB &bb, const Operand &opnd);
   void ProcessMemOpnd(const BB &bb, Operand &opnd);
   void ProcessCondOpnd(const BB &bb);
   void GetLocalDefUse();

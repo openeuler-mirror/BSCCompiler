@@ -2549,8 +2549,8 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
   for (uint32 i = 0; i < opndNum; ++i) {
     Operand &opnd = insn.GetOperand(i);
     if (opnd.IsList()) {
-      auto &listOpnd = static_cast<ListOperand&>(opnd);
-      for (auto listElem : listOpnd.GetOperands()) {
+      auto &listOpnd = static_cast<const ListOperand&>(opnd);
+      for (auto &listElem : listOpnd.GetOperands()) {
         RegOperand *regOpnd = static_cast<RegOperand*>(listElem);
         ASSERT(regOpnd != nullptr, "parameter operand must be RegOperand");
         if (regNO == regOpnd->GetRegisterNumber()) {
@@ -4336,7 +4336,7 @@ bool DeleteMovAfterCbzOrCbnzAArch64::NoPreDefine(Insn &testInsn) const {
           return false;
         }
       } else if (opnd.IsList()) {
-        for (auto operand : static_cast<ListOperand&>(opnd).GetOperands()) {
+        for (auto &operand : static_cast<const ListOperand&>(opnd).GetOperands()) {
           if (RegOperand::IsSameRegNO(testInsn.GetOperand(kInsnFirstOpnd), *operand)) {
             return false;
           }

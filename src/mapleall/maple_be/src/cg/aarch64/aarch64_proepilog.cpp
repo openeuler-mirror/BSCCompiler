@@ -466,7 +466,7 @@ bool AArch64GenProEpilog::InsertOpndRegs(Operand &op, std::set<regno_t> &vecRegs
   CHECK_FATAL(opnd != nullptr, "opnd is nullptr in InsertRegs");
   if (opnd->IsList()) {
     MapleList<RegOperand *> pregList = static_cast<ListOperand *>(opnd)->GetOperands();
-    for (auto *preg : pregList) {
+    for (auto *preg : as_const(pregList)) {
       if (preg != nullptr) {
         vecRegs.insert(preg->GetRegisterNumber());
       }
@@ -513,7 +513,7 @@ bool AArch64GenProEpilog::FindRegs(Operand &op, std::set<regno_t> &vecRegs) cons
   }
   if (opnd->IsList()) {
     MapleList<RegOperand*> pregList = static_cast<ListOperand *>(opnd)->GetOperands();
-    for (auto *preg : pregList) {
+    for (auto *preg : as_const(pregList)) {
       if (preg->GetRegisterNumber() == R29 ||
           vecRegs.find(preg->GetRegisterNumber()) != vecRegs.end()) {
         return true;  /* the opReg will overwrite or reread the vecRegs */
@@ -634,7 +634,7 @@ bool AArch64GenProEpilog::BackwardFindDependency(BB &ifbb, std::set<regno_t> &ve
             !FindRegs(*srcOpnd, vecSourceRegs) && !FindRegs(*srcOpnd, vecReturnSourceRegs) &&
             (srcNO < RLR || srcNO > RZR)) {
           allow = true; /* allow on the conditional mov Rx,Rxx */
-          for (auto *exit : existingInsns) {
+          for (auto *exit : as_const(existingInsns)) {
             /* the registers of kOpdMem are complex to be detected */
             for (uint32 o = 0; o < exit->GetOperandSize(); ++o) {
               if (!exit->OpndIsUse(o)) {
@@ -812,7 +812,7 @@ BB *AArch64GenProEpilog::IsolateFastPath(BB &bb) {
   if (!fast) {
     return nullptr;
   }
-  for (auto in : moveInsns) {
+  for (auto &in : as_const(moveInsns)) {
     in->GetBB()->RemoveInsn(*in);
     CHECK_FATAL(coldBB != nullptr, "null ptr check");
     static_cast<void>(coldBB->InsertInsnBegin(*in));
@@ -830,7 +830,7 @@ BB *AArch64GenProEpilog::IsolateFastPath(BB &bb) {
   returnBB->AppendInsn(currCG->BuildInstruction<AArch64Insn>(MOP_xret));
   /* bb is now a retbb and has no succ. */
   returnBB->SetKind(BB::kBBReturn);
-  auto predIt = std::find(tgtBB->GetPredsBegin(), tgtBB->GetPredsEnd(), returnBB);
+  MapleList<BB*>::const_iterator predIt = std::find(tgtBB->GetPredsBegin(), tgtBB->GetPredsEnd(), returnBB);
   tgtBB->ErasePreds(predIt);
   tgtBB->ClearInsns();
   returnBB->ClearSuccs();

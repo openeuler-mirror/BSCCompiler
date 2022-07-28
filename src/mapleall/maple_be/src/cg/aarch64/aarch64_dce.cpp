@@ -64,7 +64,7 @@ void A64DeleteRegUseVisitor::Visit(RegOperand *v) {
   }
 }
 void A64DeleteRegUseVisitor::Visit(ListOperand *v) {
-  for (auto *regOpnd : v->GetOperands()) {
+  for (auto *regOpnd : std::as_const(v->GetOperands())) {
     Visit(regOpnd);
   }
 }
@@ -80,7 +80,7 @@ void A64DeleteRegUseVisitor::Visit(MemOperand *v) {
 }
 
 void A64DeleteRegUseVisitor::Visit(PhiOperand *v) {
-  for (auto phiOpndIt : v->GetOperands()) {
+  for (auto &phiOpndIt : std::as_const(v->GetOperands())) {
     Visit(phiOpndIt.second);
   }
 }

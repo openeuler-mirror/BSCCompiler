@@ -2971,7 +2971,7 @@ StmtNode *CGLowerer::LowerIntrinsicopDassign(const DassignNode &dsNode,
   AddrofNode *addrofNode = mirBuilder->CreateAddrof(*dst, PTY_a32);
   MapleVector<BaseNode*> newOpnd(mirModule.CurFuncCodeMemPoolAllocator()->Adapter());
   newOpnd.emplace_back(addrofNode);
-  (void)newOpnd.insert(newOpnd.end(), nOpnds.begin(), nOpnds.end());
+  (void)newOpnd.insert(newOpnd.cend(), nOpnds.cbegin(), nOpnds.cend());
   CallNode *callStmt = mirModule.CurFuncCodeMemPool()->New<CallNode>(mirModule, OP_call);
   callStmt->SetPUIdx(st->GetFunction()->GetPuidx());
   callStmt->SetNOpnd(newOpnd);
@@ -3029,7 +3029,7 @@ BaseNode *CGLowerer::LowerJavascriptIntrinsicop(IntrinsicopNode &intrinNode, con
     AddrofNode *addrofNode = mirBuilder->CreateAddrof(*tmpSt, PTY_a32);
     MapleVector<BaseNode*> newOpnd(mirModule.CurFuncCodeMemPoolAllocator()->Adapter());
     newOpnd.emplace_back(addrofNode);
-    (void)newOpnd.insert(newOpnd.end(), nOpnds.begin(), nOpnds.end());
+    (void)newOpnd.insert(newOpnd.cend(), nOpnds.cbegin(), nOpnds.cend());
     CallNode *callStmt = mirModule.CurFuncCodeMemPool()->New<CallNode>(mirModule, OP_call);
     callStmt->SetPUIdx(st->GetFunction()->GetPuidx());
     callStmt->SetNOpnd(newOpnd);
