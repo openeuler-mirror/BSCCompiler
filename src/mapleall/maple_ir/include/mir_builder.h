@@ -67,7 +67,7 @@ class MIRBuilder {
     return func;
   }
 
-  MIRModule &GetMirModule() {
+  MIRModule &GetMirModule() const {
     return *mirModule;
   }
 
@@ -100,15 +100,16 @@ class MIRBuilder {
     return GlobalTables::GetStrTable().GetStrIdxFromName(str);
   }
 
-  MIRFunction *GetOrCreateFunction(const std::string&, TyIdx);
-  MIRFunction *GetFunctionFromSymbol(const MIRSymbol &funcst);
+  MIRFunction *GetOrCreateFunction(const std::string &str, TyIdx retTyIdx);
+  MIRFunction *GetFunctionFromSymbol(const MIRSymbol &funcSymbol) const;
   MIRFunction *GetFunctionFromStidx(StIdx stIdx);
-  MIRFunction *GetFunctionFromName(const std::string&);
+  MIRFunction *GetFunctionFromName(const std::string &str);
   // For compiler-generated metadata struct
-  void AddIntFieldConst(const MIRStructType &sType, MIRAggConst &newConst, uint32 fieldID, int64 constValue);
-  void AddAddrofFieldConst(const MIRStructType &sType, MIRAggConst &newConst, uint32 fieldID, const MIRSymbol &fieldSt);
-  void AddAddroffuncFieldConst(const MIRStructType &sType, MIRAggConst &newConst, uint32 fieldID,
-                               const MIRSymbol &funcSt);
+  void AddIntFieldConst(const MIRStructType &sType, MIRAggConst &newConst, uint32 fieldID, int64 constValue) const;
+  void AddAddrofFieldConst(const MIRStructType &structType, MIRAggConst &newConst, uint32 fieldID,
+                           const MIRSymbol &fieldSymbol);
+  void AddAddroffuncFieldConst(const MIRStructType &structType, MIRAggConst &newConst, uint32 fieldID,
+                               const MIRSymbol &funcSymbol);
 
   bool TraverseToNamedField(MIRStructType &structType, GStrIdx nameIdx, uint32 &fieldID);
   bool TraverseToNamedFieldWithTypeAndMatchStyle(MIRStructType &structType, GStrIdx nameIdx, TyIdx typeIdx,
@@ -125,7 +126,7 @@ class MIRBuilder {
   FieldID GetStructFieldIDFromFieldNameParentFirst(MIRType *type, const std::string &name);
 
   void SetStructFieldIDFromFieldName(MIRStructType &structType, const std::string &name, GStrIdx newStrIdx,
-                                     const MIRType &newFieldType);
+                                     const MIRType &newFieldType) const;
   // for creating Function.
   MIRSymbol *GetFunctionArgument(MIRFunction &fun, uint32 index) const {
     CHECK(index < fun.GetFormalCount(), "index out of range in GetFunctionArgument");
@@ -139,24 +140,24 @@ class MIRBuilder {
 
   MIRSymbol *GetSymbolFromEnclosingScope(StIdx stIdx) const;
   virtual MIRSymbol *GetOrCreateLocalDecl(const std::string &str, const MIRType &type);
-  MIRSymbol *GetLocalDecl(const std::string &str);
-  MIRSymbol *CreateLocalDecl(const std::string &str, const MIRType &type);
-  MIRSymbol *GetOrCreateGlobalDecl(const std::string &str, const MIRType &type);
-  MIRSymbol *GetGlobalDecl(const std::string &str);
-  MIRSymbol *GetDecl(const std::string &str);
+  MIRSymbol *GetLocalDecl(const std::string &str) const;
+  MIRSymbol *CreateLocalDecl(const std::string &str, const MIRType &type) const;
+  MIRSymbol *GetOrCreateGlobalDecl(const std::string &str, const MIRType &type) const;
+  MIRSymbol *GetGlobalDecl(const std::string &str) const;
+  MIRSymbol *GetDecl(const std::string &str) const;
   MIRSymbol *CreateGlobalDecl(const std::string &str,
                               const MIRType &type,
-                              MIRStorageClass sc = kScGlobal);
-  MIRSymbol *GetOrCreateDeclInFunc(const std::string &str, const MIRType &type, MIRFunction &func);
+                              MIRStorageClass sc = kScGlobal) const;
+  MIRSymbol *GetOrCreateDeclInFunc(const std::string &str, const MIRType &type, MIRFunction &func) const;
   // for creating Expression
-  ConstvalNode *CreateConstval(MIRConst *constVal);
-  ConstvalNode *CreateIntConst(uint64, PrimType);
+  ConstvalNode *CreateConstval(MIRConst *mirConst);
+  ConstvalNode *CreateIntConst(uint64 val, PrimType pty);
   ConstvalNode *CreateFloatConst(float val);
   ConstvalNode *CreateDoubleConst(double val);
   ConstvalNode *CreateFloat128Const(const uint64 *val);
-  ConstvalNode *GetConstInt(MemPool &memPool, int val);
+  ConstvalNode *GetConstInt(MemPool &memPool, int val) const;
   ConstvalNode *GetConstInt(int val) {
-    return CreateIntConst(val, PTY_i32);
+    return CreateIntConst(static_cast<uint64_t>(val), PTY_i32);
   }
 
   ConstvalNode *GetConstUInt1(bool val) {
@@ -179,15 +180,15 @@ class MIRBuilder {
     return CreateIntConst(val, PTY_u64);
   }
 
-  ConstvalNode *CreateAddrofConst(BaseNode&);
-  ConstvalNode *CreateAddroffuncConst(const BaseNode&);
-  ConstvalNode *CreateStrConst(const BaseNode&);
-  ConstvalNode *CreateStr16Const(const BaseNode&);
+  ConstvalNode *CreateAddrofConst(BaseNode &node);
+  ConstvalNode *CreateAddroffuncConst(const BaseNode &node);
+  ConstvalNode *CreateStrConst(const BaseNode &node);
+  ConstvalNode *CreateStr16Const(const BaseNode &node);
   SizeoftypeNode *CreateExprSizeoftype(const MIRType &type);
   FieldsDistNode *CreateExprFieldsDist(const MIRType &type, FieldID field1, FieldID field2);
   AddrofNode *CreateExprAddrof(FieldID fieldID, const MIRSymbol &symbol, MemPool *memPool = nullptr);
   AddrofNode *CreateExprAddrof(FieldID fieldID, StIdx symbolStIdx, MemPool *memPool = nullptr);
-  AddroffuncNode *CreateExprAddroffunc(PUIdx, MemPool *memPool = nullptr);
+  AddroffuncNode *CreateExprAddroffunc(PUIdx puIdx, MemPool *memPool = nullptr);
   AddrofNode *CreateExprDread(const MIRType &type, FieldID fieldID, const MIRSymbol &symbol);
   AddrofNode *CreateExprDread(PrimType ptyp, FieldID fieldID, const MIRSymbol &symbol);
   virtual AddrofNode *CreateExprDread(MIRType &type, MIRSymbol &symbol);
@@ -210,10 +211,10 @@ class MIRBuilder {
   CompareNode *CreateExprCompare(Opcode opcode, const MIRType &type, const MIRType &opndType, BaseNode *opnd0,
                                  BaseNode *opnd1);
   UnaryNode *CreateExprUnary(Opcode opcode, const MIRType &type, BaseNode *opnd);
-  GCMallocNode *CreateExprGCMalloc(Opcode opcode, const MIRType &ptype, const MIRType &type);
-  JarrayMallocNode *CreateExprJarrayMalloc(Opcode opcode, const MIRType &ptype, const MIRType &type, BaseNode *opnd);
+  GCMallocNode *CreateExprGCMalloc(Opcode opcode, const MIRType &pType, const MIRType &type);
+  JarrayMallocNode *CreateExprJarrayMalloc(Opcode opcode, const MIRType &pType, const MIRType &type, BaseNode *opnd);
   TypeCvtNode *CreateExprTypeCvt(Opcode o, PrimType toPrimType, PrimType fromPrimType, BaseNode &opnd);
-  TypeCvtNode *CreateExprTypeCvt(Opcode o, const MIRType &type, const MIRType &fromtype, BaseNode *opnd);
+  TypeCvtNode *CreateExprTypeCvt(Opcode o, const MIRType &type, const MIRType &fromType, BaseNode *opnd);
   ExtractbitsNode *CreateExprExtractbits(Opcode o, const MIRType &type, uint32 bOffset, uint32 bSize, BaseNode *opnd);
   ExtractbitsNode *CreateExprExtractbits(Opcode o, PrimType type, uint32 bOffset, uint32 bSize, BaseNode *opnd);
   DepositbitsNode *CreateExprDepositbits(Opcode o, PrimType type, uint32 bOffset, uint32 bSize,
@@ -226,7 +227,7 @@ class MIRBuilder {
   ArrayNode *CreateExprArray(const MIRType &arrayType, std::vector<BaseNode *> ops);
   IntrinsicopNode *CreateExprIntrinsicop(MIRIntrinsicID id, Opcode op, PrimType primType, TyIdx tyIdx,
                                          const MapleVector<BaseNode*> &ops);
-  IntrinsicopNode *CreateExprIntrinsicop(MIRIntrinsicID idx, Opcode opcode, const MIRType &type,
+  IntrinsicopNode *CreateExprIntrinsicop(MIRIntrinsicID idx, Opcode opCode, const MIRType &type,
                                          const MapleVector<BaseNode*> &ops);
   // for creating Statement.
   NaryStmtNode *CreateStmtReturn(BaseNode *rVal);
@@ -234,20 +235,21 @@ class MIRBuilder {
   NaryStmtNode *CreateStmtNary(Opcode op, const MapleVector<BaseNode*> &rVals);
   AssertNonnullStmtNode *CreateStmtAssertNonnull(Opcode op, BaseNode *rVal, GStrIdx funcNameIdx);
   CallAssertNonnullStmtNode *CreateStmtCallAssertNonnull(Opcode op, BaseNode *rVal, GStrIdx callFuncNameIdx,
-                                                         size_t index, GStrIdx stmtFuncNameIdx);
+                                                         size_t paramIndex, GStrIdx stmtFuncNameIdx);
   CallAssertBoundaryStmtNode *CreateStmtCallAssertBoundary(Opcode op, const MapleVector<BaseNode*> &rVals,
-                                                           GStrIdx funcNameIdx, size_t index, GStrIdx stmtFuncNameIdx);
+                                                           GStrIdx funcNameIdx, size_t paramIndex,
+                                                           GStrIdx stmtFuncNameIdx);
   AssertBoundaryStmtNode *CreateStmtAssertBoundary(Opcode op, const MapleVector<BaseNode*> &rVals, GStrIdx funcNameIdx);
   UnaryStmtNode *CreateStmtUnary(Opcode op, BaseNode *rVal);
   UnaryStmtNode *CreateStmtThrow(BaseNode *rVal);
-  DassignNode *CreateStmtDassign(const MIRSymbol &var, FieldID fieldID, BaseNode *src);
+  DassignNode *CreateStmtDassign(const MIRSymbol &symbol, FieldID fieldID, BaseNode *src);
   DassignNode *CreateStmtDassign(StIdx sIdx, FieldID fieldID, BaseNode *src);
   RegassignNode *CreateStmtRegassign(PrimType pty, PregIdx regIdx, BaseNode *src);
   IassignNode *CreateStmtIassign(const MIRType &type, FieldID fieldID, BaseNode *addr, BaseNode *src);
-  IassignoffNode *CreateStmtIassignoff(PrimType pty, int32 offset, BaseNode *opnd0, BaseNode *src);
+  IassignoffNode *CreateStmtIassignoff(PrimType pty, int32 offset, BaseNode *addr, BaseNode *src);
   IassignFPoffNode *CreateStmtIassignFPoff(Opcode op, PrimType pty, int32 offset, BaseNode *src);
-  CallNode *CreateStmtCall(PUIdx puIdx, const MapleVector<BaseNode*> &args, Opcode opcode = OP_call);
-  CallNode *CreateStmtCall(const std::string &name, const MapleVector<BaseNode*> &args);
+  CallNode *CreateStmtCall(PUIdx puIdx, const MapleVector<BaseNode*> &args, Opcode opCode = OP_call);
+  CallNode *CreateStmtCall(const std::string &callee, const MapleVector<BaseNode*> &args);
   CallNode *CreateStmtVirtualCall(PUIdx puIdx, const MapleVector<BaseNode*> &args) {
     return CreateStmtCall(puIdx, args, OP_virtualcall);
   }
@@ -268,40 +270,47 @@ class MIRBuilder {
   IntrinsiccallNode *CreateStmtIntrinsicCall(MIRIntrinsicID idx, const MapleVector<BaseNode*> &arguments,
                                              TyIdx tyIdx = TyIdx());
   IntrinsiccallNode *CreateStmtXintrinsicCall(MIRIntrinsicID idx, const MapleVector<BaseNode*> &arguments);
-  CallNode *CreateStmtCallAssigned(PUIdx puidx, const MIRSymbol *ret, Opcode op = OP_callassigned);
-  CallNode *CreateStmtCallAssigned(PUIdx puidx, const MapleVector<BaseNode*> &args, const MIRSymbol *ret,
-                                   Opcode op = OP_callassigned, TyIdx tyIdx = TyIdx());
+  CallNode *CreateStmtCallAssigned(PUIdx puIdx, const MIRSymbol *ret, Opcode op = OP_callassigned);
+  CallNode *CreateStmtCallAssigned(PUIdx puIdx, const MapleVector<BaseNode*> &args, const MIRSymbol *ret,
+                                   Opcode opcode = OP_callassigned, TyIdx tyIdx = TyIdx());
   CallNode *CreateStmtCallRegassigned(PUIdx, PregIdx, Opcode);
-  CallNode *CreateStmtCallRegassigned(PUIdx, PregIdx, Opcode, BaseNode *opnd);
-  CallNode *CreateStmtCallRegassigned(PUIdx, const MapleVector<BaseNode*>&, PregIdx, Opcode);
-  IntrinsiccallNode *CreateStmtIntrinsicCallAssigned(MIRIntrinsicID idx, const MapleVector<BaseNode*> &arguments,
+  CallNode *CreateStmtCallRegassigned(PUIdx puIdx, PregIdx pRegIdx, Opcode opcode, BaseNode *arg);
+  CallNode *CreateStmtCallRegassigned(PUIdx puIdx, const MapleVector<BaseNode*> &args, PregIdx pRegIdx, Opcode opcode);
+  IntrinsiccallNode *CreateStmtIntrinsicCallAssigned(MIRIntrinsicID idx, const MapleVector<BaseNode*> &args,
                                                      PregIdx retPregIdx);
-  IntrinsiccallNode *CreateStmtIntrinsicCallAssigned(MIRIntrinsicID idx, const MapleVector<BaseNode*> &arguments,
+  IntrinsiccallNode *CreateStmtIntrinsicCallAssigned(MIRIntrinsicID idx, const MapleVector<BaseNode*> &args,
                                                      const MIRSymbol *ret, TyIdx tyIdx = TyIdx());
   IntrinsiccallNode *CreateStmtXintrinsicCallAssigned(MIRIntrinsicID idx, const MapleVector<BaseNode*> &args,
                                                       const MIRSymbol *ret);
   IfStmtNode *CreateStmtIf(BaseNode *cond);
   IfStmtNode *CreateStmtIfThenElse(BaseNode *cond);
-  DoloopNode *CreateStmtDoloop(StIdx, bool, BaseNode*, BaseNode*, BaseNode*);
+  DoloopNode *CreateStmtDoloop(StIdx doVarStIdx, bool isPReg, BaseNode *startExp, BaseNode *contExp,
+                               BaseNode *incrExp);
   SwitchNode *CreateStmtSwitch(BaseNode *opnd, LabelIdx defaultLabel, const CaseVector &switchTable);
   GotoNode *CreateStmtGoto(Opcode o, LabelIdx labIdx);
-  JsTryNode *CreateStmtJsTry(Opcode o, LabelIdx cLabIdx, LabelIdx fLabIdx);
+  JsTryNode *CreateStmtJsTry(LabelIdx cLabIdx, LabelIdx fLabIdx);
   TryNode *CreateStmtTry(const MapleVector<LabelIdx> &cLabIdxs);
   CatchNode *CreateStmtCatch(const MapleVector<TyIdx> &tyIdxVec);
-  LabelIdx GetOrCreateMIRLabel(const std::string &name);
-  LabelIdx CreateLabIdx(MIRFunction &mirFunc);
+  LabelIdx GetOrCreateMIRLabel(const std::string &name) const;
+  LabelIdx CreateLabIdx(MIRFunction &mirFunc) const;
   LabelNode *CreateStmtLabel(LabelIdx labIdx);
-  StmtNode *CreateStmtComment(const std::string &comment);
+  StmtNode *CreateStmtComment(const std::string &cmnt);
   CondGotoNode *CreateStmtCondGoto(BaseNode *cond, Opcode op, LabelIdx labIdx);
-  void AddStmtInCurrentFunctionBody(StmtNode &stmt);
-  MIRSymbol *GetSymbol(TyIdx, const std::string&, MIRSymKind, MIRStorageClass, uint8, bool) const;
-  MIRSymbol *GetSymbol(TyIdx, GStrIdx, MIRSymKind, MIRStorageClass, uint8, bool) const;
-  MIRSymbol *GetOrCreateSymbol(TyIdx, const std::string&, MIRSymKind, MIRStorageClass, MIRFunction*, uint8, bool) const;
-  MIRSymbol *GetOrCreateSymbol(TyIdx, GStrIdx, MIRSymKind, MIRStorageClass, MIRFunction*, uint8, bool) const;
-  MIRSymbol *CreatePregFormalSymbol(TyIdx, PregIdx, MIRFunction&) const;
+  void AddStmtInCurrentFunctionBody(StmtNode &stmt) const;
+  MIRSymbol *GetSymbol(TyIdx tyIdx, const std::string &name, MIRSymKind mClass, MIRStorageClass sClass,
+                       uint8 scpID, bool sameType) const;
+  MIRSymbol *GetSymbol(TyIdx tyIdx, GStrIdx strIdx, MIRSymKind mClass, MIRStorageClass sClass,
+                       uint8 scpID, bool sameType) const;
+  MIRSymbol *GetOrCreateSymbol(TyIdx tyIdx, const std::string &name, MIRSymKind mClass, MIRStorageClass sClass,
+                               MIRFunction *func, uint8 scpID, bool sametype) const;
+  MIRSymbol *GetOrCreateSymbol(TyIdx tyIdx, GStrIdx strIdx, MIRSymKind mClass, MIRStorageClass sClass,
+                               MIRFunction *func, uint8 scpID, bool sameType) const;
+  MIRSymbol *CreatePregFormalSymbol(TyIdx tyIdx, PregIdx pRegIdx, MIRFunction &func) const;
   // for creating symbol
-  MIRSymbol *CreateSymbol(TyIdx, const std::string&, MIRSymKind, MIRStorageClass, MIRFunction*, uint8) const;
-  MIRSymbol *CreateSymbol(TyIdx, GStrIdx, MIRSymKind, MIRStorageClass, MIRFunction*, uint8) const;
+  MIRSymbol *CreateSymbol(TyIdx tyIdx, const std::string &name, MIRSymKind mClass, MIRStorageClass sClass,
+                          MIRFunction *func, uint8 scpID) const;
+  MIRSymbol *CreateSymbol(TyIdx tyIdx, GStrIdx strIdx, MIRSymKind mClass, MIRStorageClass sClass,
+                          MIRFunction *func, uint8 scpID) const;
   MIRSymbol *CreateConstStringSymbol(const std::string &symbolName, const std::string &content);
   // for creating nodes
   AddrofNode *CreateAddrof(const MIRSymbol &st, PrimType pty = PTY_ptr);

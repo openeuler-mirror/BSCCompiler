@@ -17,9 +17,10 @@
 
 namespace maple {
 // This is for compiler-generated metadata 1-level struct
-void MIRBuilder::AddIntFieldConst(const MIRStructType &sType, MIRAggConst &newConst, uint32 fieldID, int64 constValue) {
+void MIRBuilder::AddIntFieldConst(const MIRStructType &sType, MIRAggConst &newConst,
+                                  uint32 fieldID, int64 constValue) const {
   auto *fieldConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-      constValue, *sType.GetElemType(fieldID - 1));
+      static_cast<uint64_t>(constValue), *sType.GetElemType(fieldID - 1));
   newConst.AddItem(fieldConst, fieldID);
 }
 
@@ -96,7 +97,6 @@ void MIRBuilder::TraverseToNamedFieldWithType(MIRStructType &structType, GStrIdx
 
 // fieldID is continuously being updated during traversal;
 // when the field is found, its field id is returned via fieldID
-//
 // typeidx: TyIdx(0) means do not check types.
 // matchstyle: 0: do not match but traverse to update fieldID
 //             1: match top level field only
@@ -190,7 +190,7 @@ FieldID MIRBuilder::GetStructFieldIDFromFieldNameParentFirst(MIRType *type, cons
 }
 
 void MIRBuilder::SetStructFieldIDFromFieldName(MIRStructType &structType, const std::string &name, GStrIdx newStrIdx,
-                                               const MIRType &newFieldType) {
+                                               const MIRType &newFieldType) const {
   uint32 fieldID = 0;
   GStrIdx strIdx = GetStringIndex(name);
   while (true) {
@@ -235,7 +235,7 @@ MIRFunction *MIRBuilder::GetOrCreateFunction(const std::string &str, TyIdx retTy
   return fn;
 }
 
-MIRFunction *MIRBuilder::GetFunctionFromSymbol(const MIRSymbol &funcSymbol) {
+MIRFunction *MIRBuilder::GetFunctionFromSymbol(const MIRSymbol &funcSymbol) const {
   ASSERT(funcSymbol.GetSKind() == kStFunc, "Symbol %s is not a function symbol", funcSymbol.GetName().c_str());
   return funcSymbol.GetFunction();
 }
@@ -337,7 +337,7 @@ MIRSymbol *MIRBuilder::GetOrCreateLocalDecl(const std::string &str, TyIdx tyIdx,
   return st;
 }
 
-MIRSymbol *MIRBuilder::GetOrCreateDeclInFunc(const std::string &str, const MIRType &type, MIRFunction &func) {
+MIRSymbol *MIRBuilder::GetOrCreateDeclInFunc(const std::string &str, const MIRType &type, MIRFunction &func) const {
   MIRSymbolTable *symbolTable = func.GetSymTab();
   ASSERT(symbolTable != nullptr, "symbol_table is null");
   bool isCreated = false;
@@ -355,23 +355,23 @@ MIRSymbol *MIRBuilder::GetOrCreateLocalDecl(const std::string &str, const MIRTyp
   return GetOrCreateDeclInFunc(str, type, *currentFunc);
 }
 
-MIRSymbol *MIRBuilder::CreateLocalDecl(const std::string &str, const MIRType &type) {
+MIRSymbol *MIRBuilder::CreateLocalDecl(const std::string &str, const MIRType &type) const {
   MIRFunction *currentFunctionInner = GetCurrentFunctionNotNull();
   return MIRSymbolBuilder::Instance().CreateLocalDecl(*currentFunctionInner->GetSymTab(),
                                                       GetOrCreateStringIndex(str), type);
 }
 
-MIRSymbol *MIRBuilder::GetGlobalDecl(const std::string &str) {
+MIRSymbol *MIRBuilder::GetGlobalDecl(const std::string &str) const {
   return MIRSymbolBuilder::Instance().GetGlobalDecl(GetStringIndex(str));
 }
 
-MIRSymbol *MIRBuilder::GetLocalDecl(const std::string &str) {
+MIRSymbol *MIRBuilder::GetLocalDecl(const std::string &str) const {
   MIRFunction *currentFunctionInner = GetCurrentFunctionNotNull();
   return MIRSymbolBuilder::Instance().GetLocalDecl(*currentFunctionInner->GetSymTab(), GetStringIndex(str));
 }
 
 // search the scope hierarchy
-MIRSymbol *MIRBuilder::GetDecl(const std::string &str) {
+MIRSymbol *MIRBuilder::GetDecl(const std::string &str) const {
   GStrIdx strIdx = GetStringIndex(str);
   MIRSymbol *sym = nullptr;
   if (strIdx != 0u) {
@@ -387,11 +387,11 @@ MIRSymbol *MIRBuilder::GetDecl(const std::string &str) {
   return sym;
 }
 
-MIRSymbol *MIRBuilder::CreateGlobalDecl(const std::string &str, const MIRType &type, MIRStorageClass sc) {
+MIRSymbol *MIRBuilder::CreateGlobalDecl(const std::string &str, const MIRType &type, MIRStorageClass sc) const {
   return MIRSymbolBuilder::Instance().CreateGlobalDecl(GetOrCreateStringIndex(str), type, sc);
 }
 
-MIRSymbol *MIRBuilder::GetOrCreateGlobalDecl(const std::string &str, const MIRType &type) {
+MIRSymbol *MIRBuilder::GetOrCreateGlobalDecl(const std::string &str, const MIRType &type) const {
   bool isCreated = false;
   MIRSymbol *st = GetOrCreateGlobalDecl(str, type.GetTypeIndex(), isCreated);
   ASSERT(st != nullptr, "null ptr check");
@@ -522,8 +522,9 @@ ConstvalNode *MIRBuilder::CreateFloat128Const(const uint64 *val) {
   return GetCurrentFuncCodeMp()->New<ConstvalNode>(PTY_f128, mirConst);
 }
 
-ConstvalNode *MIRBuilder::GetConstInt(MemPool &memPool, int val) {
-  auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(val, *GlobalTables::GetTypeTable().GetInt64());
+ConstvalNode *MIRBuilder::GetConstInt(MemPool &memPool, int val) const {
+  auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+      static_cast<uint64_t>(val), *GlobalTables::GetTypeTable().GetInt64());
   return memPool.New<ConstvalNode>(PTY_i32, mirConst);
 }
 
@@ -1076,7 +1077,7 @@ GotoNode *MIRBuilder::CreateStmtGoto(Opcode o, LabelIdx labIdx) {
   return GetCurrentFuncCodeMp()->New<GotoNode>(o, labIdx);
 }
 
-JsTryNode *MIRBuilder::CreateStmtJsTry(Opcode, LabelIdx cLabIdx, LabelIdx fLabIdx) {
+JsTryNode *MIRBuilder::CreateStmtJsTry(LabelIdx cLabIdx, LabelIdx fLabIdx) {
   return GetCurrentFuncCodeMp()->New<JsTryNode>(static_cast<uint16>(cLabIdx), static_cast<uint16>(fLabIdx));
 }
 
@@ -1108,7 +1109,7 @@ CondGotoNode *MIRBuilder::CreateStmtCondGoto(BaseNode *cond, Opcode op, LabelIdx
   return GetCurrentFuncCodeMp()->New<CondGotoNode>(op, labIdx, cond);
 }
 
-LabelIdx MIRBuilder::GetOrCreateMIRLabel(const std::string &name) {
+LabelIdx MIRBuilder::GetOrCreateMIRLabel(const std::string &name) const {
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
   MIRFunction *currentFunctionInner = GetCurrentFunctionNotNull();
   LabelIdx lableIdx = currentFunctionInner->GetLabelTab()->GetLabelIdxFromStrIdx(strIdx);
@@ -1120,13 +1121,13 @@ LabelIdx MIRBuilder::GetOrCreateMIRLabel(const std::string &name) {
   return lableIdx;
 }
 
-LabelIdx MIRBuilder::CreateLabIdx(MIRFunction &mirFunc) {
+LabelIdx MIRBuilder::CreateLabIdx(MIRFunction &mirFunc) const {
   LabelIdx lableIdx = mirFunc.GetLabelTab()->CreateLabel();
   mirFunc.GetLabelTab()->AddToStringLabelMap(lableIdx);
   return lableIdx;
 }
 
-void MIRBuilder::AddStmtInCurrentFunctionBody(StmtNode &stmt) {
+void MIRBuilder::AddStmtInCurrentFunctionBody(StmtNode &stmt) const {
   MIRFunction *fun = GetCurrentFunctionNotNull();
   stmt.GetSrcPos().CondSetLineNum(lineNum);
   fun->GetBody()->AddStatement(&stmt);

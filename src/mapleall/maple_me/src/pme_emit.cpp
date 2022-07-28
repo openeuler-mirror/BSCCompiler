@@ -32,6 +32,7 @@ ArrayNode *PreMeEmitter::ConvertToArray(BaseNode *x, TyIdx ptrTyIdx) {
     return nullptr;
   }
   BaseNode *opnd0 = x->Opnd(0);
+  ASSERT_NOT_NULL(GetMexpr(opnd0));
   if (!GetMexpr(opnd0)->HasAddressValue()) {
     return nullptr;
   }
@@ -182,7 +183,8 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
         irdNode->SetOpnd(EmitPreMeExpr(baseexpr, irdNode), 0);
       } else {
         MIRType *mirType = GlobalTables::GetTypeTable().GetInt32();
-        MIRIntConst *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(ivarExpr->GetOffset(), *mirType);
+        MIRIntConst *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+            static_cast<uint64>(static_cast<uint32>(ivarExpr->GetOffset())), *mirType);
         ConstvalNode *constValNode = codeMP->New<ConstvalNode>(mirType->GetPrimType(), mirConst);
         PreMeMIRExtension *pmeExt2 = preMeMP->New<PreMeMIRExtension>(irdNode, baseexpr);
         PreMeExprExtensionMap[constValNode] = pmeExt2;
@@ -395,7 +397,8 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
         iassignNode->SetAddrExpr(EmitPreMeExpr(lhsVar->GetBase(), iassignNode));
       } else {
         auto *mirType = GlobalTables::GetTypeTable().GetInt32();
-        auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lhsVar->GetOffset(), *mirType);
+        auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+            static_cast<uint64>(static_cast<uint32>(lhsVar->GetOffset())), *mirType);
         auto *constValNode = codeMP->New<ConstvalNode>(mirType->GetPrimType(), mirConst);
         auto *newAddrNode =
             codeMP->New<BinaryNode>(OP_add, lhsVar->GetBase()->GetPrimType(),
@@ -413,6 +416,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       iassignNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       iassignNode->SetOriginalID(meStmt->GetOriginalId());
       PreMeStmtExtensionMap[iassignNode->GetStmtID()] = pmeExt;
+      iassignNode->SetExpandFromArrayOfCharFunc(iass->IsExpandedFromArrayOfCharFunc());
       return iassignNode;
     }
     case OP_return: {
@@ -519,7 +523,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
           ASSERT_NOT_NULL(sym);
           icallnode->SetRetTyIdx(sym->GetType()->GetTypeIndex());
         } else {
-          PregIdx pregidx = (PregIdx)retpair.second.GetPregIdx();
+          PregIdx pregidx = static_cast<PregIdx>(retpair.second.GetPregIdx());
           MIRPreg *preg = mirFunc->GetPregTab()->PregFromPregIdx(pregidx);
           icallnode->SetRetTyIdx(TyIdx(preg->GetPrimType()));
         }
@@ -813,6 +817,7 @@ void PreMeEmitter::EmitBB(BB *bb, BlockNode *curBlk) {
 
 DoloopNode *PreMeEmitter::EmitPreMeDoloop(BB *meWhileBB, BlockNode *curBlk, PreMeWhileInfo *whileInfo) {
   MeStmt *lastmestmt = meWhileBB->GetLastMe();
+  ASSERT_NOT_NULL(lastmestmt);
   CHECK_FATAL(lastmestmt->GetPrev() == nullptr || dynamic_cast<AssignMeStmt *>(lastmestmt->GetPrev()) == nullptr,
               "EmitPreMeDoLoop: there are other statements at while header bb");
   DoloopNode *Doloopnode = codeMP->New<DoloopNode>();
@@ -853,6 +858,7 @@ DoloopNode *PreMeEmitter::EmitPreMeDoloop(BB *meWhileBB, BlockNode *curBlk, PreM
 
 WhileStmtNode *PreMeEmitter::EmitPreMeWhile(BB *meWhileBB, BlockNode *curBlk) {
   MeStmt *lastmestmt = meWhileBB->GetLastMe();
+  ASSERT_NOT_NULL(lastmestmt);
   CHECK_FATAL(lastmestmt->GetPrev() == nullptr || dynamic_cast<AssignMeStmt *>(lastmestmt->GetPrev()) == nullptr,
               "EmitPreMeWhile: there are other statements at while header bb");
   WhileStmtNode *Whilestmt = codeMP->New<WhileStmtNode>(OP_while);
@@ -913,7 +919,7 @@ uint32 PreMeEmitter::Raise2PreMeWhile(uint32 curJ, BlockNode *curBlk) {
   // set dobody freq
   if (GetFuncProfData()) {
     int64_t freq = (endlblbb == suc0) ? suc1->GetFrequency() : suc0->GetFrequency();
-    GetFuncProfData()->SetStmtFreq(dobody->GetStmtID(), freq);
+    GetFuncProfData()->SetStmtFreq(dobody->GetStmtID(), static_cast<uint64>(freq));
   }
   return curJ;
 }
@@ -963,7 +969,8 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
     // +-----------------------------------------------+
     // | brtrue (1) | expectTrue (1) | expectFalse (0) |
     // | brfalse(0) | expectFalse(0) | expectTrue  (1) |
-    int32 val = !((mestmt->GetOp() == OP_brtrue) ^ (condgoto->GetBranchProb() == kProbLikely));  // XNOR
+    // XNOR
+    uint32 val = !(static_cast<uint32>(mestmt->GetOp() == OP_brtrue) ^ (condgoto->GetBranchProb() == kProbLikely));
     MIRIntConst *constVal = GlobalTables::GetIntConstTable().GetOrCreateIntConst(val, *type);
     ConstvalNode *constNode = codeMP->New<ConstvalNode>(constVal->GetType().GetPrimType(), constVal);
     expectNode->GetNopnd().push_back(constNode);
@@ -1032,8 +1039,8 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
       // set then part/else part frequency
       int64_t ifFreq = GetFuncProfData()->GetStmtFreq(IfstmtNode->GetStmtID());
       int64_t branchFreq = bbvec[curJ + 1]->GetFrequency();
-      GetFuncProfData()->SetStmtFreq(branchBlock->GetStmtID(), branchFreq);
-      GetFuncProfData()->SetStmtFreq(emptyBlock->GetStmtID(), (ifFreq - branchFreq));
+      GetFuncProfData()->SetStmtFreq(branchBlock->GetStmtID(), static_cast<uint64>(branchFreq));
+      GetFuncProfData()->SetStmtFreq(emptyBlock->GetStmtID(), static_cast<uint64>(ifFreq - branchFreq));
     }
     return j;
   }

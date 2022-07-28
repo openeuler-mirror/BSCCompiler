@@ -351,11 +351,17 @@ void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap) {
     // create alias die using maple var except name
     DBGDie *vdie = CreateVarDie(var, i.first);
 
-    // use src code type name for type if provided
-    if (i.second.srcTypeStrIdx.GetIdx()) {
-      DBGDie *typedefDie = GetOrCreateTypedefDie(i.second.srcTypeStrIdx, var->GetTyIdx());
+    if (i.second.atk == kATKString) {
+      // use src code type
+      GStrIdx idx(i.second.index);
+      DBGDie *typedefDie = GetOrCreateTypedefDie(idx, var->GetTyIdx());
       // use negtive number to indicate DIE id instead of tyidx in normal cases
       (void)(vdie->SetAttr(DW_AT_type, -typedefDie->GetId()));
+    } else if (i.second.atk == kATKEnum) {
+      // use src code enum type
+      DBGDie *enumDie = GetOrCreateEnumTypeDie(i.second.index);
+      // use negtive number to indicate DIE id instead of tyidx in normal cases
+      (void)(vdie->SetAttr(DW_AT_type, -enumDie->GetId()));
     }
 
     // link vdie's ExprLoc to mdie's
@@ -469,6 +475,13 @@ void DebugInfo::BuildDebugInfo() {
   for (auto it : typedefStrIdxTyIdxMap) {
     (void) GetOrCreateTypeDie(TyIdx(it.second));
     DBGDie *die = GetOrCreateTypedefDie(GStrIdx(it.first), TyIdx(it.second));
+    compUnit->AddSubVec(die);
+  }
+
+  // setup debug info for enum types
+  unsigned size = GlobalTables::GetEnumTable().enumTable.size();
+  for (unsigned i = 0; i < size; ++i) {
+    DBGDie *die = GetOrCreateEnumTypeDie(i);
     compUnit->AddSubVec(die);
   }
 
@@ -925,6 +938,38 @@ DBGDie *DebugInfo::GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx) {
   (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, -tdie->GetId()));
 
   typedefStrIdxDieIdMap[sid] = die->GetId();
+  return die;
+}
+
+DBGDie *DebugInfo::GetOrCreateEnumTypeDie(unsigned idx) {
+  MIREnum *mirEnum = GlobalTables::GetEnumTable().enumTable[idx];
+  uint32 sid = mirEnum->nameStrIdx.GetIdx();
+  auto it = globalStridxDieIdMap.find(sid);
+  if (it != globalStridxDieIdMap.end()) {
+    return idDieMap[it->second];
+  }
+
+  DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_enumeration_type);
+
+  PrimType pty = mirEnum->primType;
+  (void)(die->AddAttr(DW_AT_name, DW_FORM_strp, sid));
+  (void)(die->AddAttr(DW_AT_encoding, DW_FORM_data4, GetAteFromPTY(pty)));
+  (void)(die->AddAttr(DW_AT_byte_size, DW_FORM_data1, GetPrimTypeSize(pty)));
+  MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pty);
+  (void) GetOrCreateTypeDie(type);
+  (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, type->GetTypeIndex().GetIdx()));
+  (void)(die->AddAttr(DW_AT_decl_file, DW_FORM_data1, 0));
+  (void)(die->AddAttr(DW_AT_decl_line, DW_FORM_data1, 0));
+  (void)(die->AddAttr(DW_AT_decl_column, DW_FORM_data1, 0));
+
+  for (auto it : mirEnum->elements) {
+    DBGDie *elem = module->GetMemPool()->New<DBGDie>(module, DW_TAG_enumerator);
+    (void)(elem->AddAttr(DW_AT_name, DW_FORM_strp, it.first.GetIdx()));
+    (void)(elem->AddAttr(DW_AT_const_value, DW_FORM_data8, it.second.GetExtValue()));
+    die->AddSubVec(elem);
+  }
+
+  globalStridxDieIdMap[sid] = die->GetId();
   return die;
 }
 
