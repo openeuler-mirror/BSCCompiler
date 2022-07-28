@@ -439,13 +439,14 @@ void LMBCLowerer::FixPrototype4FirstArgReturn(IcallNode *icall) {
   }
   // insert return type as fake first parameter
   size_t oldSize = ftype->GetParamTypeList().size();
-  ftype->GetParamTypeList().push_back(TyIdx(0));
-  ftype->GetParamAttrsList().push_back(TypeAttrs());
+  ftype->GetParamTypeList().emplace_back(TyIdx(0));
+  ftype->GetParamAttrsList().emplace_back(TypeAttrs());
   for (size_t i = oldSize; i > 0; i--) {
-    ftype->GetParamTypeList()[i] = ftype->GetParamTypeList()[i-1];
-    ftype->GetParamAttrsList()[i] = ftype->GetParamAttrsList()[i-1];
+    ftype->GetParamTypeList()[i] = ftype->GetParamTypeList()[i - 1];
+    ftype->GetParamAttrsList()[i] = ftype->GetParamAttrsList()[i - 1];
   }
-  MIRType *newType = GlobalTables::GetTypeTable().GetOrCreatePointerType(ftype->GetRetTyIdx(), GetExactPtrPrimType(), ftype->GetRetAttrs());
+  MIRType *newType = GlobalTables::GetTypeTable().GetOrCreatePointerType(
+      ftype->GetRetTyIdx(), GetExactPtrPrimType(), ftype->GetRetAttrs());
   ftype->GetParamTypeList()[0] = newType->GetTypeIndex();
   ftype->GetParamAttrsList()[0] = TypeAttrs();
   // change return type to void
