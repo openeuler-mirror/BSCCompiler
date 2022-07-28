@@ -190,7 +190,7 @@ constexpr Opcode GetReverseCmpOp(Opcode op) {
   }
 }
 
-constexpr bool IsSupportedOpForCopyInPhasesLoopUnrollAndVRP(Opcode op) {
+constexpr bool IsSupportedOpForCopyInPhasesLoopUnrollAndVRP(Opcode op, bool supportSwitch = false) {
   switch (op) {
     case OP_comment:
     case OP_goto:
@@ -224,9 +224,10 @@ constexpr bool IsSupportedOpForCopyInPhasesLoopUnrollAndVRP(Opcode op) {
     case OP_eval:
     case OP_incref:
     case OP_decref:
-    case OP_decrefreset: {
+    case OP_decrefreset:
       return true;
-    }
+    case OP_switch:
+      return supportSwitch;
     default:
       return false;
   }

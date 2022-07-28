@@ -21,10 +21,10 @@
 namespace maple {
 constexpr size_t kNumOperands = 2;
 bool JumpThreading::isDebug = false;
-constexpr uint32 kCodeSizeLimit = 550;
-constexpr size_t kLimitOfVisitedBB = 40;
-constexpr size_t kLimitOfPathLength = 20;
-uint32 JumpThreading::codeSizeOfCopy = 0;
+constexpr int64 kCodeSizeLimit = 10; // Copy up to 10 statements per path.
+constexpr size_t kLimitOfVisitedBB = 40; // A maximum of 40 bbs can be traversed when recursively finding a def point.
+constexpr size_t kLimitOfPathLength = 12; // The maximum length of each path is 12 bbs.
+constexpr size_t kLimitOfPathsSize = 20; // Each function can optimize up to 20 paths.
 
 #define DEBUG_LOG() if (JumpThreading::isDebug)     \
   LogInfo::MapleLogger()
@@ -225,39 +225,85 @@ void JumpThreading::CopyAndConnectPath(std::vector<BB*> &currPath) {
   ConnectNewPath(currPath, old2NewBB, thePosOfSec2LastBB);
 }
 
-// Check whether the path to be optimized is connected and whether the code size after opt is less than threshold.
-bool JumpThreading::PreCopyAndConnectPath(std::vector<BB*> &currPath) {
-  uint32 currSize = 0;
-  for (size_t i = 0; i < currPath.size(); ++i) {
+bool JumpThreading::TraverseBBsOfPath(std::vector<BB*> &currPath, int64 &currSize, bool &optSwitchBB,
+                                      bool &multiBranchInPath, bool &pathThroughLatch) {
+  auto thePositionOfThreadedBB = currPath.size() - 2; // The position of second to last bb.
+  auto *loop = loops->GetBBLoopParent(currPath[0]->GetBBId());
+  for (size_t i = 1; i < currPath.size() - 1; ++i) {
+    if (currPath[i]->GetKind() == kBBSwitch) {
+      if (i == thePositionOfThreadedBB) {
+        optSwitchBB = true;
+      } else {
+        multiBranchInPath = true;
+      }
+    }
     if (i + 1 < currPath.size() && currPath[i]->GetSuccIndex(*currPath[i + 1]) == -1) {
       DEBUG_LOG() << "The path is not connected.\n";
       return false;
     }
+    if (loop && loops->GetBBLoopParent(currPath[i]->GetBBId()) != loop) {
+      DEBUG_LOG() << "The path crosses loops.\n";
+      return false;
+    }
+    pathThroughLatch = (loop != nullptr && currPath[i] == loop->latch);
     for (auto &stmt : currPath[i]->GetMeStmts()) {
-      if (i == currPath.size() - 2 && &stmt == currPath[i]->GetLastMe()) {
+      if (i == thePositionOfThreadedBB && &stmt == currPath[i]->GetLastMe()) {
         // Need not copy the condition stmt of second to last bb.
         break;
       }
-      if (!IsSupportedOpForCopyInPhasesLoopUnrollAndVRP(stmt.GetOp())) {
+      if (!IsSupportedOpForCopyInPhasesLoopUnrollAndVRP(stmt.GetOp(), true)) {
         DEBUG_LOG() << "Is not supported op for copy.\n";
         return false;
       }
-      valueRanges.ComputeCodeSize(stmt, currSize);
+      if (stmt.GetOp() == OP_comment) {
+        continue;
+      }
+      currSize += inlineAnalyzer.GetMeStmtCost(&stmt) / static_cast<int64>(kSizeScale);
+      if (JumpThreading::isDebug) {
+        stmt.Dump(func.GetIRMap());
+      }
     }
   }
-  // The code size is greater than threshold.
-  auto codeSizeLimit = MeOption::optForSize ? 0 : kCodeSizeLimit;
-  if (codeSizeOfCopy + currSize > codeSizeLimit) {
-    DEBUG_LOG() << "Code size is greater than threshold\n";
+  return true;
+}
+
+// Check whether the path to be optimized is connected and whether the code size after opt is less than threshold.
+bool JumpThreading::PreCopyAndConnectPath(std::vector<BB*> &currPath) {
+  bool multiBranchInPath = false;
+  bool optSwitchBB = false;
+  int64 currSize = 0;
+  bool pathThroughLatch = false;
+  auto *loop = loops->GetBBLoopParent(currPath[0]->GetBBId());
+  if (!TraverseBBsOfPath(currPath, currSize, optSwitchBB, multiBranchInPath, pathThroughLatch)) {
     return false;
   }
-  codeSizeOfCopy += currSize;
+  if (multiBranchInPath && !optSwitchBB) {
+    DEBUG_LOG() << "The threaded bb is not switch bb and the path has switch bb.\n";
+    return false;
+  }
+  bool createsIrreducibleLoop = (pathThroughLatch && !dom.Dominate(*currPath.back(), *loop->latch));
+  DEBUG_LOG() << "currStmtSize currPathSize: " << currSize << " " << currPath.size() << "\n";
+  if (!optSwitchBB && createsIrreducibleLoop && (static_cast<uint64>(currSize) > currPath.size())) {
+    DEBUG_LOG() << "In order to control the code size, each bb only can copy one stmt on average.\n";
+    return false;
+  }
+  if (!(multiBranchInPath && optSwitchBB) && currSize > 10) {
+    DEBUG_LOG() << "In order to control the code size of common thread jump, the limit of stmt size is 10.\n";
+    return false;
+  }
+  auto codeSizeLimit = MeOption::optForSize ? 0 : kCodeSizeLimit;
+  if (currSize > codeSizeLimit || static_cast<uint64>(currSize) > currPath.size() * kNumOperands) {
+    DEBUG_LOG() << "Code size "<< currSize << "is greater than threshold\n";
+    return false;
+  }
   return true;
 }
 
 void JumpThreading::ExecuteJumpThreading() {
   std::vector<bool> startBBs(func.GetCfg()->GetAllBBs().size());
+  DEBUG_LOG() << "***************" << func.GetName() << " " << paths.size() << "***************" << "\n";
   for (size_t i = 0; i < paths.size(); ++i) {
+    DEBUG_LOG() << "================" << i << "================" << "\n";
     auto *currPath = paths[i].get();
     if (startBBs[currPath->at(0)->GetBBId()]) {
       // If the start bb of current path has already jumped, do nothing.
@@ -267,6 +313,9 @@ void JumpThreading::ExecuteJumpThreading() {
       // The current path must have more than one bb.
       // If current path only has two bbs, has been optimized in vrp phase now.
       continue;
+    }
+    if (i > kLimitOfPathsSize) {
+      return;
     }
     if (!PreCopyAndConnectPath(*currPath)) {
       DEBUG_LOG() << "Can not jump thread with this path\n";
@@ -661,8 +710,9 @@ bool MEJumpThreading::PhaseRun(maple::MeFunction &f) {
   LoopScalarAnalysisResult sa(*irMap, nullptr);
   sa.SetComputeTripCountForLoopUnroll(false);
   auto *memPool = GetPhaseMemPool();
+  InlineAnalyzer inlineAnalyzer(memPool, f.GetMirFunc());
   ValueRangePropagation valueRangePropagation(f, *irMap, *dom, meLoop, *memPool, cands, sa, false, true);
-  JumpThreading jumpThreading(f, *dom, meLoop, valueRangePropagation, cands);
+  JumpThreading jumpThreading(f, *dom, meLoop, valueRangePropagation, inlineAnalyzer, cands);
   valueRangePropagation.Execute();
   jumpThreading.Execute();
   if (jumpThreading.IsCFGChange()) {

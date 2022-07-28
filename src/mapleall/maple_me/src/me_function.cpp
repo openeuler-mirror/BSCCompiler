@@ -288,6 +288,12 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
         destBB.AddMeStmtLast(newStmt);
         break;
       }
+      case OP_switch: {
+        auto &switchStmt = static_cast<SwitchMeStmt&>(stmt);
+        newStmt = irmap->New<SwitchMeStmt>(switchStmt);
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
       case OP_intrinsiccall:
       case OP_intrinsiccallassigned:
       case OP_intrinsiccallwithtypeassigned:

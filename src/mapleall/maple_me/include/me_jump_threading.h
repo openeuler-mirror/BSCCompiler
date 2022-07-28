@@ -19,6 +19,7 @@
 #include "me_function.h"
 #include "me_cfg.h"
 #include "me_dominance.h"
+#include "inline_analyzer.h"
 #include "me_loop_analysis.h"
 #include "me_value_range_prop.h"
 
@@ -29,9 +30,10 @@ class JumpThreading {
   static bool isDebug;
 
   JumpThreading(MeFunction &meFunc, Dominance &argDom, IdentifyLoops *argLoops,
-                ValueRangePropagation &valueRangePropagation,
+                ValueRangePropagation &valueRangePropagation, InlineAnalyzer &inlAnalyzer,
                 std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &candsTem)
-      : func(meFunc), dom(argDom), loops(argLoops), valueRanges(valueRangePropagation), cands(candsTem) {
+      : func(meFunc), dom(argDom), loops(argLoops), valueRanges(valueRangePropagation),
+        inlineAnalyzer(inlAnalyzer), cands(candsTem) {
     path = std::make_unique<std::vector<BB*>>();
   }
   ~JumpThreading() = default;
@@ -70,17 +72,19 @@ class JumpThreading {
   void SetNewOffsetOfLastMeStmtForNewBB(const BB &oldBB, BB &newBB, const BB &oldSucc, BB &newSucc);
   void InsertOstOfPhi2Cands(BB &bb, size_t i);
   void PrepareForSSAUpdateWhenPredBBIsRemoved(const BB &pred, BB &bb);
+  bool TraverseBBsOfPath(std::vector<BB*> &currPath, int64 &currSize, bool &optSwitchBB,
+                         bool &multiBranchInPath, bool &pathThroughLatch);
 
   MeFunction &func;
   Dominance &dom;
   IdentifyLoops *loops;
   ValueRangePropagation &valueRanges;
+  InlineAnalyzer &inlineAnalyzer;
   std::vector<std::unique_ptr<std::vector<BB*>>> paths;
   std::unique_ptr<std::vector<BB*>> path;
   std::set<BB*> visitedBBs;
   BB *currBB = nullptr;
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands;
-  static uint32 codeSizeOfCopy;
   bool isCFGChange = false;
   LoopDesc *currLoop = nullptr;
 };
