@@ -108,9 +108,13 @@ void ValidBitOpt::RecoverValidBitNum() {
       }
       uint32 opndNum = insn->GetOperandSize();
       for (uint32 i = 0; i < opndNum; ++i) {
-        if (insn->OpndIsDef(i) && insn->GetOperand(i).IsRegister()) {
-          auto &dstOpnd = static_cast<RegOperand&>(insn->GetOperand(i));
-          dstOpnd.SetValidBitsNum(dstOpnd.GetSize());
+        Operand &opnd = insn->GetOperand(i);
+        if (!opnd.IsRegister()) {
+          continue;
+        }
+        auto &regOpnd = static_cast<RegOperand&>(opnd);
+        if (insn->OpndIsDef(i)) {
+          regOpnd.SetValidBitsNum(regOpnd.GetSize());
         }
       }
     }

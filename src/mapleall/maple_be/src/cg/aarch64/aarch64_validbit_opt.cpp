@@ -51,6 +51,16 @@ void AArch64ValidBitOpt::DoOpt(BB &bb, Insn &insn) {
 void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
   MOperator mop = insn.GetMachineOpcode();
   switch (mop) {
+    case MOP_wuxtb_vb:
+    case MOP_wuxth_vb: {
+      auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+      auto &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+      uint32 newVB = (mop == MOP_wuxtb_vb ? k8BitSize : k16BitSize);
+      dstOpnd.SetValidBitsNum(newVB);
+      MOperator recoverMop = (srcOpnd.GetSize() == k32BitSize ? MOP_wmovrr : MOP_xmovrr);
+      insn.SetMOP(recoverMop);
+      break;
+    }
     case MOP_wcsetrc:
     case MOP_xcsetrc: {
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
@@ -68,14 +78,14 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
     }
     case MOP_xmovrr:
     case MOP_wmovrr: {
+      auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
       auto &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-      if (!srcOpnd.IsVirtualRegister()) {
-        break;
+      if (srcOpnd.IsPhysicalRegister() || dstOpnd.IsPhysicalRegister()) {
+        return;
       }
       if (srcOpnd.GetRegisterNumber() == RZR) {
         srcOpnd.SetValidBitsNum(k1BitSize);
       }
-      auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
       if (!(dstOpnd.GetSize() == k64BitSize && srcOpnd.GetSize() == k32BitSize) &&
           !(dstOpnd.GetSize() == k32BitSize && srcOpnd.GetSize() == k64BitSize)) {
         dstOpnd.SetValidBitsNum(srcOpnd.GetValidBitsNum());

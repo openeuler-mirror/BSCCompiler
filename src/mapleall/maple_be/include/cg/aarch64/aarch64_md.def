@@ -167,6 +167,13 @@ DEFINE_MOP(MOP_xuxth32, {mopdReg32ID,mopdReg32IS},ISCONVERSION,kLtAluShift,"uxth
 /* MOP_xuxtw64	Same as mov w0,w0 */
 DEFINE_MOP(MOP_xuxtw64, {mopdReg64ID,mopdReg32IS},ISCONVERSION,kLtAluShift,"uxtw","0,1",1)
 
+/*
+ * User-defined pseudo-instruction, which is used in validbit opt based on ssa,
+ * will recover to mov after validbit opt
+ */
+DEFINE_MOP(MOP_wuxtb_vb, {mopdReg32ID,mopdReg32IS},0,kLtAluShift,"//uxtb_vb","0,1",1)
+DEFINE_MOP(MOP_wuxth_vb, {mopdReg32ID,mopdReg32IS},0,kLtAluShift,"//uxth_vb","0,1",1)
+
 /* MOP_xvcvtfd */
 DEFINE_MOP(MOP_xvcvtfd, {mopdReg32FD,mopdReg64FS},ISCONVERSION,kLtFpalu,"fcvt","0,1",1)
 /* MOP_xvcvtdf */

@@ -395,7 +395,7 @@ void AArch64MoveRegArgs::LoadStackArgsToVReg(MIRSymbol &mirSym) const {
 }
 
 void AArch64MoveRegArgs::MoveArgsToVReg(const CCLocInfo &ploc, MIRSymbol &mirSym) const {
-  AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  auto *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   RegType regType = (ploc.reg0 < V0) ? kRegTyInt : kRegTyFloat;
   PrimType stype = mirSym.GetType()->GetPrimType();
   uint32 byteSize = GetPrimTypeSize(stype);
@@ -410,13 +410,21 @@ void AArch64MoveRegArgs::MoveArgsToVReg(const CCLocInfo &ploc, MIRSymbol &mirSym
   MOperator mOp = aarchCGFunc->PickMovBetweenRegs(stype, stype);
   if (mOp == MOP_vmovvv || mOp == MOP_vmovuu) {
     Insn &insn = aarchCGFunc->GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, dstRegOpnd, srcRegOpnd);
-    AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
-    VectorRegSpec *vecSpec1 = aarch64CGFunc->GetMemoryPool()->New<VectorRegSpec>(srcBitSize >> k3ByteSize, k8BitSize);
-    VectorRegSpec *vecSpec2 = aarch64CGFunc->GetMemoryPool()->New<VectorRegSpec>(srcBitSize >> k3ByteSize, k8BitSize);
+    auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+    auto *vecSpec1 = aarch64CGFunc->GetMemoryPool()->New<VectorRegSpec>(srcBitSize >> k3ByteSize, k8BitSize);
+    auto *vecSpec2 = aarch64CGFunc->GetMemoryPool()->New<VectorRegSpec>(srcBitSize >> k3ByteSize, k8BitSize);
     static_cast<AArch64VectorInsn&>(insn).PushRegSpecEntry(vecSpec1);
     static_cast<AArch64VectorInsn&>(insn).PushRegSpecEntry(vecSpec2);
     aarch64CGFunc->GetCurBB()->InsertInsnBegin(insn);
     return;
+  }
+  if (CGOptions::DoCGSSA() && (mOp == MOP_wmovrr || mOp == MOP_xmovrr)) {
+    uint32 validBit = byteSize * kBitsPerByte;
+    if (validBit == k8BitSize) {
+      mOp = MOP_wuxtb_vb;
+    } else if (validBit == k16BitSize) {
+      mOp = MOP_wuxth_vb;
+    }
   }
   Insn &insn = aarchCGFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, dstRegOpnd, srcRegOpnd);
   if (aarchCGFunc->GetCG()->GenerateVerboseCG()) {
