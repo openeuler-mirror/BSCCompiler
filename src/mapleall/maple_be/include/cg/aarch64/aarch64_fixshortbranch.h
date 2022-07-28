@@ -29,8 +29,8 @@ class AArch64FixShortBranch {
   void FixShortBranches() const;
 
  private:
-  CGFunc *cgFunc;
-  CG *cg;
+  CGFunc *cgFunc = nullptr;
+  CG *cg = nullptr;
   uint32 CalculateAlignRange(const BB &bb, uint32 addr) const;
   void SetInsnId() const;
 };  /* class AArch64ShortBranch */

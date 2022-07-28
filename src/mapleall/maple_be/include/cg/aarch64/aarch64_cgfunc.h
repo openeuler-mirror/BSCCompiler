@@ -179,7 +179,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectAddrof(Operand &result, StImmOperand &stImm, FieldID field = 0);
   void SelectAddrof(Operand &result, MemOperand &memOpnd, FieldID field = 0);
   Operand *SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, bool retBool = false);
-  Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent, bool isAddrofoff = false) override;
+  Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent, bool isAddrofoff) override;
   Operand *SelectAddrofoff(AddrofoffNode &expr, const BaseNode &parent) override;
   Operand &SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) override;
   Operand &SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) override;
@@ -826,7 +826,7 @@ class AArch64CGFunc : public CGFunc {
   bool usedStpSubPairToAllocateCallFrame = false;
   int32 splitStpldpBaseOffset = 0;
   regno_t methodHandleVreg = -1;
-  uint32 alignPow = 5; /* function align pow defaults to 5   i.e. 2^5*/
+  uint32 alignPow = 5;  /* function align pow defaults to 5   i.e. 2^5 */
   LmbcArgInfo *lmbcArgInfo = nullptr;
   MIRType *lmbcCallReturnType = nullptr;
 

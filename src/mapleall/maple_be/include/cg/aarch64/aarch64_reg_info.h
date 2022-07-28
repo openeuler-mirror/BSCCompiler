@@ -42,7 +42,7 @@ class AArch64RegInfo : public RegisterInfo {
   bool IsYieldPointReg(regno_t regno) const override;
   bool IsUnconcernedReg(regno_t regNO) const override;
   bool IsUnconcernedReg(const RegOperand &regOpnd) const override;
-  RegOperand &GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag = 0) override;
+  RegOperand &GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag) override;
   ListOperand *CreateListOperand() override;
   Insn *BuildMovInstruction(Operand &opnd0, Operand &opnd1) override;
 };

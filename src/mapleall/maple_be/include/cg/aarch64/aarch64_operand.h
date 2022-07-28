@@ -376,7 +376,8 @@ class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
 
   void Emit(Emitter &emitter, const OpndProp *prop) const override {
     (void)prop;
-    emitter.Emit((shiftOp == kShiftLSL) ? "LSL #" : ((shiftOp == kShiftLSR) ? "LSR #" : "ASR #")).Emit(shiftAmount);
+    (void)emitter.Emit((shiftOp == kShiftLSL) ?
+        "LSL #" : ((shiftOp == kShiftLSR) ? "LSR #" : "ASR #")).Emit(shiftAmount);
   }
 
   bool Less(const Operand &right) const override;

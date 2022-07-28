@@ -108,7 +108,7 @@ class PeepHoleOptimizer {
 
  private:
   CGFunc *cgFunc;
-  CG *cg;
+  CG *cg = nullptr;
 };  /* class PeepHoleOptimizer */
 
 class PeepPatternMatch {

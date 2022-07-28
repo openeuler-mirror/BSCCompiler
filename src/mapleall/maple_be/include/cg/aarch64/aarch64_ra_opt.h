@@ -154,13 +154,13 @@ class VregRename {
   void UpdateVregInfo(regno_t vreg, BB *bb, bool isInner, bool isDef);
   void VregLongLiveRename();
 
-  CGFunc *cgFunc;
-  MemPool *memPool;
+  CGFunc *cgFunc = nullptr;
+  MemPool *memPool = nullptr;
   MapleAllocator alloc;
   Bfs *bfs = nullptr;
   MapleVector<VregRenameInfo*> renameInfo;
   uint32 maxRegnoSeen = 0;
-  regno_t ccRegno;
+  regno_t ccRegno = 0;
 };
 
 class AArch64RaOpt : public RaOpt {

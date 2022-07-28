@@ -46,22 +46,22 @@ class RTSupport {
   }
 
  protected:
-  uint64_t kObjectAlignment;    /* Word size. Suitable for all Java types. */
-  uint64_t kObjectHeaderSize;   /* java object header used by MM. */
+  uint64_t kObjectAlignment = 0;    /* Word size. Suitable for all Java types. */
+  uint64_t kObjectHeaderSize = 0;   /* java object header used by MM. */
 
 #ifdef USE_32BIT_REF
-  uint32_t kRefFieldSize;       /* reference field in java object */
-  uint32_t kRefFieldAlign;
+  uint32_t kRefFieldSize = 0;       /* reference field in java object */
+  uint32_t kRefFieldAlign = 0;
 #else
-  uint32_t kRefFieldSize;       /* reference field in java object */
-  uint32_t kRefFieldAlign;
+  uint32_t kRefFieldSize = 0;       /* reference field in java object */
+  uint32_t kRefFieldAlign = 0;
 #endif /* USE_32BIT_REF */
   /* The array length offset is fixed since CONTENT_OFFSET is fixed to simplify code */
-  int64_t kArrayLengthOffset;  /* shadow + monitor + [padding] */
+  int64_t kArrayLengthOffset = 0;  /* shadow + monitor + [padding] */
   /* The array content offset is aligned to 8B to alow hosting of size-8B elements */
-  int64_t kArrayContentOffset; /* fixed */
-  int64_t kGcTibOffset;
-  int64_t kGcTibOffsetAbs;
+  int64_t kArrayContentOffset = 0; /* fixed */
+  int64_t kGcTibOffset = 0;
+  int64_t kGcTibOffsetAbs = 0;
 
  private:
   RTSupport() {

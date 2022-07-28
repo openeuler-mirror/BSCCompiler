@@ -31,8 +31,6 @@ class AArch64Insn : public Insn {
 
   ~AArch64Insn() override = default;
 
-  AArch64Insn &operator=(const AArch64Insn &p) = default;
-
   bool IsReturn() const override {
     return mOp == MOP_xret;
   }
@@ -261,7 +259,6 @@ class AArch64cleancallInsn : public AArch64Insn {
       : AArch64Insn(originalInsn, memPool) {
     refSkipIndex = originalInsn.refSkipIndex;
   }
-  AArch64cleancallInsn &operator=(const AArch64cleancallInsn &p) = default;
   ~AArch64cleancallInsn() override = default;
 
   void SetRefSkipIndex(int32 index) {
@@ -269,7 +266,7 @@ class AArch64cleancallInsn : public AArch64Insn {
   }
 
  private:
-  int32 refSkipIndex;
+  int32 refSkipIndex = 0;
 };
 
 class OpndEmitVisitor : public OperandVisitorBase,
@@ -323,7 +320,6 @@ class A64OpndEmitVisitor : public OpndEmitVisitor {
   const OpndProp *opndProp;
 };
 
-/*TODO : Delete */
 class OpndTmpDumpVisitor : public OperandVisitorBase,
                            public OperandVisitors<RegOperand,
                                                   ImmOperand,

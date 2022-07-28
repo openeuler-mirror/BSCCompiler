@@ -65,4 +65,4 @@ class OperandBuilder {
   /* reg bank for multiple use */
 };
 }
-#endif //MAPLEBE_INCLUDE_CG_IRBUILDER_H
+#endif // MAPLEBE_INCLUDE_CG_IRBUILDER_H

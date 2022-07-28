@@ -275,7 +275,7 @@ void BECommon::ComputeClassTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx, uint
     if ((fieldType->GetKind() == kTypePointer) && (fieldType->GetPrimType() == PTY_a64)) {
       /* handle class reference field */
       fieldSize = static_cast<uint32>(RTSupport::GetRTSupportInstance().GetFieldSize());
-      fieldAlign = RTSupport::GetRTSupportInstance().GetFieldAlign();
+      fieldAlign = static_cast<uint8>(RTSupport::GetRTSupportInstance().GetFieldAlign());
     }
 
     /* try to alloc the field in one of previously created padding slots */

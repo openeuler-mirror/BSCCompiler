@@ -246,7 +246,7 @@ class DepNode {
     comments = com;
   }
   void AddComments(Insn &addInsn) {
-    comments.emplace_back(&addInsn);
+    (void)comments.emplace_back(&addInsn);
   }
   void ClearComments() {
     comments.clear();
@@ -270,7 +270,7 @@ class DepNode {
     clinitInsns = insns;
   }
   void AddClinitInsn(Insn &addInsn) {
-    clinitInsns.emplace_back(&addInsn);
+    (void)clinitInsns.emplace_back(&addInsn);
   }
   const RegPressure *GetRegPressure() const {
     return regPressure;

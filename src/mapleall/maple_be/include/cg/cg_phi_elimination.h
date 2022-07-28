@@ -73,4 +73,4 @@ class OperandPhiElmVisitor : public OperandVisitorBase,
 MAPLE_FUNC_PHASE_DECLARE(CgPhiElimination, maplebe::CGFunc)
 }
 
-#endif //MAPLEBE_CG_INCLUDE_CG_PHI_ELIMINATE_H
+#endif // MAPLEBE_CG_INCLUDE_CG_PHI_ELIMINATE_H

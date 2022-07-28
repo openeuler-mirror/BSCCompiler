@@ -320,8 +320,8 @@ class ExtendShiftOptPattern : public OptimizePattern {
   Insn *newInsn = nullptr;
   bool optSuccess = false;
   bool removeDefInsn = false;
-  ExMOpType exMOpType;
-  LsMOpType lsMOpType;
+  ExMOpType exMOpType = kExUndef;
+  LsMOpType lsMOpType = kLsUndef;
 };
 
 /*

@@ -335,15 +335,9 @@ class CGFunc {
   virtual void GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &realCallerSave) = 0;
 
   virtual bool IsFrameReg(const RegOperand &opnd) const = 0;
-  virtual bool IsSPOrFP(const RegOperand &opnd) const {
-    return false;
-  };
-  virtual bool IsReturnReg(const RegOperand &opnd) const {
-    return false;
-  };
-  virtual bool IsSaveReg(const RegOperand &reg, MIRType &mirType, BECommon &cgBeCommon) const {
-    return false;
-  }
+  virtual bool IsSPOrFP(const RegOperand &opnd) const = 0;
+  virtual bool IsReturnReg(const RegOperand &opnd) const = 0;
+  virtual bool IsSaveReg(const RegOperand &reg, MIRType &mirType, BECommon &cgBeCommon) const = 0;
 
   /* For Neon intrinsics */
   virtual RegOperand *SelectVectorAddLong(PrimType rTy, Operand *o1, Operand *o2, PrimType oty, bool isLow) = 0;
@@ -412,15 +406,9 @@ class CGFunc {
     return *memPool->New<cfi::StrOperand>(str, *memPool);
   }
 
-  virtual Insn &CreateCfiRestoreInsn(uint32 reg, uint32 size) {
-    CHECK_FATAL(false, "");
-  }
-  virtual Insn &CreateCfiOffsetInsn(uint32 reg, int64 val, uint32 size) {
-    CHECK_FATAL(false, "");
-  }
-  virtual Insn &CreateCfiDefCfaInsn(uint32 reg, int64 val, uint32 size) {
-    CHECK_FATAL(false, "");
-  }
+  virtual Insn &CreateCfiRestoreInsn(uint32 reg, uint32 size) = 0;
+  virtual Insn &CreateCfiOffsetInsn(uint32 reg, int64 val, uint32 size) = 0;
+  virtual Insn &CreateCfiDefCfaInsn(uint32 reg, int64 val, uint32 size) = 0;
 
   bool IsSpecialPseudoRegister(PregIdx spr) const {
     return spr < 0;

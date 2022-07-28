@@ -1167,14 +1167,14 @@ class LocalRegAllocator {
   }
 
   /* The following local vars keeps track of allocation information in bb. */
-  uint64 *intRegAssigned;  /* in this set if vreg is assigned */
-  uint64 *fpRegAssigned;
+  uint64 *intRegAssigned = nullptr;  /* in this set if vreg is assigned */
+  uint64 *fpRegAssigned = nullptr;
   MapleMap<regno_t, regno_t> intRegAssignmentMap;  /* vreg -> preg map, which preg is the vreg assigned */
   MapleMap<regno_t, regno_t> fpRegAssignmentMap;
   uint64 intPregUsed = 0;  /* pregs used in bb */
   uint64 fpPregUsed  = 0;
-  uint64 *intRegSpilled;   /* on this list if vreg is spilled */
-  uint64 *fpRegSpilled;
+  uint64 *intRegSpilled = nullptr;   /* on this list if vreg is spilled */
+  uint64 *fpRegSpilled = nullptr;
 
   uint64 intPregs = 0;     /* available regs for assignement */
   uint64 fpPregs  = 0;
@@ -1183,7 +1183,7 @@ class LocalRegAllocator {
 
   uint32 numIntPregUsed = 0;
   uint32 numFpPregUsed = 0;
-  uint32 buckets;
+  uint32 buckets = 0;
 };
 
 class SplitBBInfo {

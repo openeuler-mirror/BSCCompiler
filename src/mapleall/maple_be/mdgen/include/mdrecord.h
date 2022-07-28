@@ -246,8 +246,8 @@ class MDClass {
   void BuildFormalTypes(unsigned int memberIdx, bool isVec);
 
  private:
-  unsigned int classIdx;
-  bool isAnonymous;
+  unsigned int classIdx = 0;
+  bool isAnonymous = false;
   std::vector<MDObject> mdObjects;
   std::vector<std::pair<uint, bool>> formalTypes;
   std::set<unsigned int> childObjNames;

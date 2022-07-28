@@ -114,9 +114,9 @@ class GCTIBPattern {
   }
 
  private:
-  int id;
+  int id = 0;
   MapleString name;
-  GCTIBKey *key;
+  GCTIBKey *key = nullptr;
 };
 
 /* sub Target info & implement */

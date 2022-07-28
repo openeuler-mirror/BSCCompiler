@@ -19,7 +19,7 @@
 #include "cg_ssa.h"
 
 namespace maplebe {
-/* dead code elimination*/
+/* dead code elimination */
 class CGDce {
  public:
   CGDce(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo) : memPool(&mp), cgFunc(&f), ssaInfo(&sInfo) {}

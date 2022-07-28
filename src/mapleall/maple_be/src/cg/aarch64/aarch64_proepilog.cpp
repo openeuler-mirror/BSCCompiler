@@ -1347,7 +1347,7 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
       if (cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
         stackLoc = &aarchCGFunc.CreateStkTopOpnd(offset + tmpOffset, dataSizeBits);
       } else {
-        stackLoc = aarchCGFunc.GenLmbcFpMemOperand(offset, size);
+        stackLoc = aarchCGFunc.GenLmbcFpMemOperand(static_cast<int32>(offset), size);
       }
       RegOperand &reg =
           aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyInt);

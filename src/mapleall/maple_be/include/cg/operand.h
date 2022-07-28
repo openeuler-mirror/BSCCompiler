@@ -192,7 +192,7 @@ class Operand {
  protected:
   OperandType opndKind; /* operand type */
   uint32 size;          /* size in bits */
-  uint64 flag = 0;      /* operand property*/
+  uint64 flag = 0;      /* operand property */
 };
 
 /* RegOperand */
@@ -1838,7 +1838,7 @@ class OpndDumpVisitor : public OperandVisitorBase,
                                                CGLabelOperand> {
  public:
   explicit OpndDumpVisitor(const OpndDescription &operandDesc) : opndDesc(&operandDesc) {}
-  virtual ~OpndDumpVisitor() {
+  virtual ~OpndDumpVisitor() override {
     opndDesc = nullptr;
   }
 

@@ -48,4 +48,4 @@ class A64OperandPhiElmVisitor : public OperandPhiElmVisitor {
   uint32 idx;
 };
 }
-#endif //MAPLEBE_CG_INCLUDE_AARCH64_PHI_ELIMINATION_H
+#endif // MAPLEBE_CG_INCLUDE_AARCH64_PHI_ELIMINATION_H

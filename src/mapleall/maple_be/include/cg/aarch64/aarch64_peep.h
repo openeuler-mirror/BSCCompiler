@@ -1437,7 +1437,7 @@ class DeleteMovAfterCbzOrCbnzAArch64 : public PeepPattern {
   bool OpndDefByMovZero(const Insn &insn) const;
   bool NoPreDefine(Insn &testInsn) const;
   void ProcessBBHandle(BB *processBB, const BB &bb, const Insn &insn) const;
-  CGCFG *cgcfg;
+  CGCFG *cgcfg = nullptr;
 };
 
 /*

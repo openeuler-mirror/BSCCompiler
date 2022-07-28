@@ -392,15 +392,9 @@ class CG {
   }
 
   /* Init SubTarget phase */
-  virtual LiveAnalysis *CreateLiveAnalysis(MemPool &mp, CGFunc &f) const {
-    return nullptr;
-  };
-  virtual MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const {
-    return nullptr;
-  };
-  virtual AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const {
-    return nullptr;
-  };
+  virtual LiveAnalysis *CreateLiveAnalysis(MemPool &mp, CGFunc &f) const = 0;
+  virtual MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const  = 0;
+  virtual AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const = 0;
   virtual MPISel *CreateMPIsel(MemPool &mp, CGFunc &f) const {
     return nullptr;
   }
@@ -409,27 +403,13 @@ class CG {
   }
 
   /* Init SubTarget optimization */
-  virtual CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const {
-    return nullptr;
-  };
-  virtual LiveIntervalAnalysis *CreateLLAnalysis(MemPool &mp, CGFunc &f) const {
-    return nullptr;
-  };
-  virtual PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const {
-    return nullptr;
-  };
-  virtual CGProp *CreateCGProp(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo, LiveIntervalAnalysis &ll) const {
-    return nullptr;
-  };
-  virtual CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const {
-    return nullptr;
-  };
-  virtual ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const {
-    return nullptr;
-  }
-  virtual RedundantComputeElim *CreateRedundantCompElim(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const {
-    return nullptr;
-  }
+  virtual CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const = 0;
+  virtual LiveIntervalAnalysis *CreateLLAnalysis(MemPool &mp, CGFunc &f) const = 0;
+  virtual PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
+  virtual CGProp *CreateCGProp(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo, LiveIntervalAnalysis &ll) const = 0;
+  virtual CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
+  virtual ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
+  virtual RedundantComputeElim *CreateRedundantCompElim(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
 
   /* Object map generation helper */
   std::vector<int64> GetReferenceOffsets64(const BECommon &beCommon, MIRStructType &structType) const;
@@ -460,12 +440,12 @@ class CG {
     return mirModule;
   }
 
-  MemPool *memPool;
+  MemPool *memPool = nullptr;
   MapleAllocator allocator;
 
  private:
-  MIRModule *mirModule;
-  Emitter *emitter;
+  MIRModule *mirModule = nullptr;
+  Emitter *emitter = nullptr;
   LabelIDOrder labelOrderCnt;
   static CGFunc *currentCGFunction;  /* current cg function being compiled */
   CGOptions cgOption;
@@ -475,8 +455,8 @@ class CG {
   MIRSymbol *dbgFuncProfile = nullptr;
   MIRSymbol *fileGP;  /* for lmbc, one local %GP per file */
   static std::map<MIRFunction *, std::pair<LabelIdx, LabelIdx>> funcWrapLabels;
-  bool isLibcore;
-  bool isLmbc;
+  bool isLibcore = false;
+  bool isLmbc = false;
 };  /* class CG */
 }  /* namespace maplebe */
 

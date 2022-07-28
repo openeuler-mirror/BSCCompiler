@@ -35,7 +35,7 @@ class AArch64Ebo : public Ebo {
 
  protected:
   MapleVector<RegOperand*> callerSaveRegTable;
-  AArch64CGFunc *a64CGFunc;
+  AArch64CGFunc *a64CGFunc = nullptr;
   int32 GetOffsetVal(const MemOperand &memOpnd) const override;
   OpndInfo *OperandInfoDef(BB &currentBB, Insn &currentInsn, Operand &localOpnd) override;
   const RegOperand &GetRegOperand(const Operand &opnd) const override;

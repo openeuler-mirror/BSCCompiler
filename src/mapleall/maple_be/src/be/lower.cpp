@@ -3565,7 +3565,7 @@ StmtNode *CGLowerer::LowerIntrinsicRCCall(const IntrinsiccallNode &intrinCall) {
   CallNode *callStmt = mirModule.CurFuncCodeMemPool()->New<CallNode>(mirModule, OP_call);
   callStmt->SetPUIdx(intrinFuncIDs.at(intrinDesc));
   for (size_t i = 0; i < intrinCall.GetNopndSize(); ++i) {
-    callStmt->GetNopnd().emplace_back(intrinCall.GetNopndAt(i));
+    (void)callStmt->GetNopnd().emplace_back(intrinCall.GetNopndAt(i));
     callStmt->SetNumOpnds(callStmt->GetNumOpnds() + 1);
   }
   return callStmt;
@@ -3590,8 +3590,8 @@ void CGLowerer::LowerArrayStore(const IntrinsiccallNode &intrinCall, BlockNode &
     beCommon.UpdateTypeTable(*fn->GetMIRFuncType());
     fn->AllocSymTab();
     MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
-    args.emplace_back(intrinCall.Opnd(0));
-    args.emplace_back(intrinCall.Opnd(kNodeThirdOpnd));
+    (void)args.emplace_back(intrinCall.Opnd(0));
+    (void)args.emplace_back(intrinCall.Opnd(kNodeThirdOpnd));
     StmtNode *checkStoreStmt = mirBuilder->CreateStmtCall(fn->GetPuidx(), args);
     newBlk.AddStatement(checkStoreStmt);
   }

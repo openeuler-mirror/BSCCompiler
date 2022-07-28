@@ -51,8 +51,8 @@ class LabelPair {
   }
 
  private:
-  LabelNode *startOffset;
-  LabelNode *endOffset;
+  LabelNode *startOffset = nullptr;
+  LabelNode *endOffset = nullptr;
 };
 
 class LSDAHeader {

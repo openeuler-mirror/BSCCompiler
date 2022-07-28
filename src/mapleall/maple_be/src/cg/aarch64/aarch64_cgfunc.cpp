@@ -914,7 +914,7 @@ MemOperand &AArch64CGFunc::ConstraintOffsetToSafeRegion(uint32 bitLen, const Mem
 ImmOperand &AArch64CGFunc::SplitAndGetRemained(const MemOperand &memOpnd, uint32 bitLen, int64 ofstVal, bool forPair) {
   auto it = hashMemOpndTable.find(memOpnd);
   if (it != hashMemOpndTable.end()) {
-    hashMemOpndTable.erase(memOpnd);
+    (void)hashMemOpndTable.erase(memOpnd);
   }
   /*
    * opndVal == Q0 * 32760(16380) + R0
@@ -1224,7 +1224,7 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       }
       case OP_addrof: {
         auto &addrofNode = static_cast<AddrofNode&>(*node.Opnd(i));
-        Operand *inOpnd = SelectAddrof(addrofNode, node);
+        Operand *inOpnd = SelectAddrof(addrofNode, node, false);
         listInputOpnd->PushOpnd(static_cast<RegOperand&>(*inOpnd));
         PrimType pType = addrofNode.GetPrimType();
         listInRegPrefix->stringList.push_back(
@@ -1336,7 +1336,7 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
         listInRegPrefix->stringList.push_back(static_cast<StringOperand *>(&CreateStringOperand(
             GetRegPrefixFromPrimType(pType, inOpnd->GetSize(), str))));
         if (isOutputTempNode) {
-          rPlusOpnd.emplace_back(std::make_pair(&static_cast<Operand&>(*inOpnd), pType));
+          (void)rPlusOpnd.emplace_back(std::make_pair(&static_cast<Operand&>(*inOpnd), pType));
         }
         break;
       }
@@ -2765,7 +2765,7 @@ void AArch64CGFunc::SelectReturnSendOfStructInRegs(BaseNode *x) {
       offset = static_cast<uint32>(GetBecommon().GetFieldOffset(*structType, iread->GetFieldID()).first);
       isRefField = GetBecommon().IsRefField(*structType, iread->GetFieldID());
     }
-    uint32 typeSize = GetBecommon().GetTypeSize(mirType->GetTypeIndex());
+    uint32 typeSize = static_cast<uint32>(GetBecommon().GetTypeSize(mirType->GetTypeIndex()));
     /* generate move to regs. */
     RegOperand *result[kTwoRegister]; /* maximum 16 bytes, 2 registers */
     uint32 loadSize;
@@ -3188,7 +3188,7 @@ RegOperand *AArch64CGFunc::LmbcStructReturnLoad(int32 offset) {
   MIRFunction &func = GetFunction();
   CHECK_FATAL(func.IsReturnStruct(), "LmbcStructReturnLoad: not struct return");
   MIRType *ty = func.GetReturnType();
-  uint32 sz = GetBecommon().GetTypeSize(ty->GetTypeIndex());
+  uint32 sz = static_cast<uint32>(GetBecommon().GetTypeSize(ty->GetTypeIndex()));
   uint32 fpSize;
   uint32 numFpRegs = FloatParamRegRequired(static_cast<MIRStructType*>(ty), fpSize);
   if (numFpRegs > 0) {
@@ -3327,7 +3327,7 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr,
     if (pointedType->IsStructType()) {
       MIRStructType *structType = static_cast<MIRStructType*>(pointedType);
       /* size << 3, that is size * 8, change bytes to bits */
-      bitSize = std::min(structType->GetSize(), static_cast<size_t>(kSizeOfPtr)) << 3;
+      bitSize = static_cast<uint32>(std::min(structType->GetSize(), static_cast<size_t>(kSizeOfPtr)) << 3);
     } else {
       bitSize = GetPrimTypeBitSize(destType);
     }
@@ -4276,7 +4276,8 @@ void AArch64CGFunc::SelectDiv(Operand &resOpnd, Operand &origOpnd0, Operand &opn
         SelectShift(tmpOpnd, opnd0, CreateImmOperand(dsize - 1, dsize, false), kShiftAright, primType);
         uint32 mopBadd = is64Bits ? MOP_xaddrrrs : MOP_waddrrrs;
         int32 bitLen = is64Bits ? kBitLenOfShift64Bits : kBitLenOfShift32Bits;
-        BitShiftOperand &shiftOpnd = CreateBitShiftOperand(BitShiftOperand::kShiftLSR, dsize - shiftNumber, bitLen);
+        BitShiftOperand &shiftOpnd = CreateBitShiftOperand(BitShiftOperand::kShiftLSR,
+            dsize - static_cast<uint32>(shiftNumber), bitLen);
         GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mopBadd, tmpOpnd, opnd0, tmpOpnd, shiftOpnd));
         SelectShift(resOpnd, tmpOpnd, shiftNum, kShiftAright, primType);
         if (imm->GetValue() < 0) {
@@ -9299,7 +9300,7 @@ MemOperand *AArch64CGFunc::CheckAndCreateExtendMemOpnd(PrimType ptype, const Bas
   CHECK_FATAL(constValNode->GetConstVal()->GetKind() == kConstInt, "expect MIRIntConst");
   MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(constValNode->GetConstVal());
   CHECK_FATAL(mirIntConst != nullptr, "just checking");
-  int32 scale = mirIntConst->GetExtValue();
+  int32 scale = static_cast<int32>(mirIntConst->GetExtValue());
   if (scale < 0) {
     return nullptr;
   }
@@ -9522,25 +9523,25 @@ int32 AArch64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
    * Refer to V2 in aarch64_memlayout.h.
    * Do Not change this unless you know what you do
    */
-  const int32 sizeofFplr = 2 * kIntregBytelen;
+  const int32 sizeofFplr = static_cast<int32>(2 * kIntregBytelen);
   MemSegmentKind sgKind = symAlloc->GetMemSegment()->GetMemSegmentKind();
   AArch64MemLayout *memLayout = static_cast<AArch64MemLayout*>(this->GetMemlayout());
   if (sgKind == kMsArgsStkPassed) {  /* for callees */
     int32 offset = static_cast<int32>(symAlloc->GetOffset());
     return offset;
   } else if (sgKind == kMsArgsRegPassed) {
-    int32 baseOffset = symAlloc->GetOffset() +
+    int32 baseOffset = static_cast<int32>(symAlloc->GetOffset()) +
         static_cast<int32>(memLayout->GetSizeOfLocals() + memLayout->GetSizeOfRefLocals());
     return baseOffset + sizeofFplr;
   } else if (sgKind == kMsRefLocals) {
-    int32 baseOffset = symAlloc->GetOffset() + static_cast<int32>(memLayout->GetSizeOfLocals());
+    int32 baseOffset = static_cast<int32>(symAlloc->GetOffset()) + static_cast<int32>(memLayout->GetSizeOfLocals());
     return baseOffset + sizeofFplr;
   } else if (sgKind == kMsLocals) {
-    int32 baseOffset = symAlloc->GetOffset();
+    int32 baseOffset = static_cast<int32>(symAlloc->GetOffset());
     return baseOffset + sizeofFplr;
   } else if (sgKind == kMsSpillReg) {
     if (GetCG()->IsLmbc()) {
-      return symAlloc->GetOffset() + static_cast<int32>(memLayout->SizeOfArgsToStackPass());
+      return static_cast<int32>(symAlloc->GetOffset()) + static_cast<int32>(memLayout->SizeOfArgsToStackPass());
     }
     int32 baseOffset = symAlloc->GetOffset() + memLayout->SizeOfArgsRegisterPassed() + memLayout->GetSizeOfLocals() +
                      memLayout->GetSizeOfRefLocals();

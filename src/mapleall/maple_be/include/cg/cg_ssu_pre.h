@@ -137,7 +137,7 @@ class SEntryOcc : public SOcc {
   explicit SEntryOcc(BB *bb) : SOcc(kSOccEntry, bb) {}
   virtual ~SEntryOcc() = default;
 
-  void Dump() const {
+  void Dump() const override {
     LogInfo::MapleLogger() << "EntryOcc at bb" << cgbb->GetId();
   }
 };

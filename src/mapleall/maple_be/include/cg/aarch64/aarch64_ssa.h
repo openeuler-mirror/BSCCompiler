@@ -98,4 +98,4 @@ class A64SSAOperandDumpVisitor : public SSAOperandDumpVisitor {
 };
 }
 
-#endif //MAPLEBE_CG_INCLUDE_AARCH64_SSA_H
+#endif // MAPLEBE_CG_INCLUDE_AARCH64_SSA_H

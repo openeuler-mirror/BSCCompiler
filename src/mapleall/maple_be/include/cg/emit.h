@@ -359,14 +359,14 @@ class Emitter {
   CG *cg;
   MOperator currentMop = UINT_MAX;
   MapleUnorderedMap<int, std::string> rangeIdx2PrefixStr;
-  const AsmInfo *asmInfo;
+  const AsmInfo *asmInfo = nullptr;
   std::ofstream outStream;
-  MemPool *memPool;
+  MemPool *memPool = nullptr;
   uint32 arraySize;
   bool isFlexibleArray;
   MapleSet<UStrIdx> stringPtr;
   MapleVector<UStrIdx> localStrPtr;
-#if 1/* REQUIRE TO SEPERATE TARGAARCH64 TARGARM32 */
+#if 1 /* REQUIRE TO SEPERATE TARGAARCH64 TARGARM32 */
 /* Following code is under TARGAARCH64 condition */
   uint64 javaInsnCount = 0;
   uint64 funcInsnCount = 0;

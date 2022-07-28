@@ -80,7 +80,7 @@ class LiveInterval {
               merged = true;
             }
           }
-          /* add it directly when no overlap*/
+          /* add it directly when no overlap */
           if (!merged) {
             srcPosVec.emplace_back(std::pair(pos1.first, pos1.second));
           }
