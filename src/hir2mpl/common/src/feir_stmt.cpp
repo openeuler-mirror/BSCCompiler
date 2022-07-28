@@ -3862,12 +3862,8 @@ BaseNode *FEIRExprAtomic::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
     if (atomicOp == kAtomicOpExchange) {
       args.emplace_back(valExpr2->GenMIRNode(mirBuilder));
     }
-    if (atomicOp == kAtomicOpExchangeN ||
-        (atomicOp >= kAtomicOpAddFetch && atomicOp <= kAtomicOpFetchNand)) {
-      retVoid = false;
-    } else {
-      retVoid = true;
-    }
+    retVoid = (atomicOp == kAtomicOpExchangeN ||
+        (atomicOp >= kAtomicOpAddFetch && atomicOp <= kAtomicOpFetchNand)) ? false : true;
   }
   static std::unordered_map<ASTAtomicOp, MIRIntrinsicID> intrinsicIDMap = {
       {kAtomicOpLoadN, INTRN_C___atomic_load_n},
@@ -3892,13 +3888,12 @@ BaseNode *FEIRExprAtomic::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
   CHECK(intrinsicIDMap.find(atomicOp) != intrinsicIDMap.end(), "atomic opcode not yet supported!");
   MIRIntrinsicID intrinsicID = intrinsicIDMap[atomicOp];
   args.emplace_back(orderExpr->GenMIRNode(mirBuilder));
-  StmtNode *stmt = nullptr;
-  if (!retVoid) {
-    stmt = mirBuilder.CreateStmtIntrinsicCallAssigned(intrinsicID, std::move(args), retVar);
-  } else {
-    stmt = mirBuilder.CreateStmtIntrinsicCall(intrinsicID, std::move(args), TyIdx(0));
+  TyIdx typeIndex(0);
+  if (atomicOp == kAtomicOpStoreN || atomicOp == kAtomicOpExchangeN) {
+    typeIndex = valExpr1->GetType()->GenerateMIRType()->GetTypeIndex();
   }
-  return stmt;
+  return (!retVoid) ? mirBuilder.CreateStmtIntrinsicCallAssigned(intrinsicID, std::move(args), retVar, typeIndex)
+                    : mirBuilder.CreateStmtIntrinsicCall(intrinsicID, std::move(args), typeIndex);
 }
 
 // ---------- FEIRStmtPesudoLabel ----------

@@ -233,7 +233,7 @@ class CGFunc {
   virtual Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinsicopNode, PrimType pty) = 0;
   virtual Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) = 0;
-  virtual Operand *SelectCAtomicExchangeN(IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCAtomicExchangeN(const IntrinsiccallNode &intrinsiccallNode) = 0;
   virtual Operand *SelectCReturnAddress(IntrinsicopNode &intrinsicopNode) = 0;
   virtual void SelectMembar(StmtNode &membar) = 0;
   virtual void SelectComment(CommentNode &comment) = 0;

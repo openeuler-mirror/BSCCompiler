@@ -61,7 +61,7 @@ MOperator ldIsAcq[kSignedDimension][kIntByteSizeDimension] = {
   /* unsigned == 0 */
   { MOP_wldarb, MOP_wldarh, MOP_wldar, MOP_xldar },
   /* signed == 1 */
-  { MOP_undef, MOP_undef, MOP_wldar, MOP_xldar }
+  { MOP_wldarb, MOP_wldarh, MOP_wldar, MOP_xldar }
 };
 
 MOperator stIsRel[kSignedDimension][kIntByteSizeDimension] = {
@@ -10240,7 +10240,7 @@ void AArch64CGFunc::SelectCVaStart(const IntrinsiccallNode &intrnNode) {
  * a store-release would replace str if memorder is not 0
  */
 void AArch64CGFunc::SelectCAtomicStoreN(const IntrinsiccallNode &intrinsiccallNode) {
-  auto primType = intrinsiccallNode.Opnd(1)->GetPrimType();
+  auto primType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(intrinsiccallNode.GetTyIdx())->GetPrimType();
   auto *addr = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(0));
   auto *value = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(1));
   auto *memOrderOpnd = intrinsiccallNode.Opnd(kInsnThirdOpnd);
@@ -10436,6 +10436,13 @@ void AArch64CGFunc::SelectIntrinCall(IntrinsiccallNode &intrinsicCallNode) {
     }
     case INTRN_COMP_AND_SWAPL: {
       IntrinsifyCompareAndSwapInt(*srcOpnds, PTY_i64);
+      break;
+    }
+    case INTRN_C___atomic_exchange_n: {
+      Operand *oldVal = SelectCAtomicExchangeN(intrinsicCallNode);
+      auto primType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(intrinsicCallNode.GetTyIdx())->GetPrimType();
+      uint32 regSize = GetPrimTypeBitSize(primType);
+      SelectCopy(GetOrCreatePhysicalRegisterOperand(R0, regSize, kRegTyInt), primType, *oldVal, primType);
       break;
     }
     default: {
@@ -10838,16 +10845,17 @@ Operand *AArch64CGFunc::SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) {
  * a load-acquire would replace ldr if acquire needed
  * a store-relase would replace str if release needed
  */
-Operand *AArch64CGFunc::SelectCAtomicExchangeN(IntrinsicopNode &intrinsicopNode) {
-  auto primType = intrinsicopNode.GetPrimType();
-  auto *addrOpnd = HandleExpr(intrinsicopNode, *intrinsicopNode.Opnd(0));
-  auto *valueOpnd = HandleExpr(intrinsicopNode, *intrinsicopNode.Opnd(1));
-  auto *memOrderOpnd = intrinsicopNode.Opnd(kInsnThirdOpnd);
+Operand *AArch64CGFunc::SelectCAtomicExchangeN(const IntrinsiccallNode &intrinsiccallNode) {
+  auto primType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(intrinsiccallNode.GetTyIdx())->GetPrimType();
+  auto *addrOpnd = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(0));
+  auto *valueOpnd = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(1));
+  auto *memOrderOpnd = intrinsiccallNode.Opnd(kInsnThirdOpnd);
   std::memory_order memOrder = std::memory_order_seq_cst;
   if (memOrderOpnd->IsConstval()) {
     auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
     memOrder = static_cast<std::memory_order>(memOrderConst->GetExtValue());
   }
+
   auto *result = SelectAtomicLoad(*addrOpnd, primType, PickMemOrder(memOrder, true));
   SelectAtomicStore(*valueOpnd, *addrOpnd, primType, PickMemOrder(memOrder, false));
   return result;

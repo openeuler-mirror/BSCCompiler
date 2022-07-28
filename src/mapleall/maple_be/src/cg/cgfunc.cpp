@@ -649,13 +649,10 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_a64, "strchr");
     case INTRN_C_strrchr:
       return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_a64, "strrchr");
-
     case INTRN_C_rev16_2:
     case INTRN_C_rev_4:
     case INTRN_C_rev_8:
       return cgFunc.SelectBswap(intrinsicopNode, *cgFunc.HandleExpr(expr, *expr.Opnd(0)), parent);
-
-
     case INTRN_C_clz32:
     case INTRN_C_clz64:
       return cgFunc.SelectCclz(intrinsicopNode);
@@ -749,8 +746,6 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       return cgFunc.SelectCSyncSynchronize(intrinsicopNode);
     case INTRN_C___atomic_load_n:
       return cgFunc.SelectCAtomicLoadN(intrinsicopNode);
-    case INTRN_C___atomic_exchange_n:
-      return cgFunc.SelectCAtomicExchangeN(intrinsicopNode);
     case INTRN_C__builtin_return_address:
     case INTRN_C__builtin_extract_return_addr:
       return cgFunc.SelectCReturnAddress(intrinsicopNode);

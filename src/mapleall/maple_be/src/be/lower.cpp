@@ -1165,20 +1165,23 @@ StmtNode *CGLowerer::GenIntrinsiccallNode(const StmtNode &stmt, PUIdx &funcCalle
     PUIdx bFunc = GetBuiltinToUse(origCall.GetIntrinsic());
     if (bFunc != kFuncNotFound) {
       newCall = mirModule.GetMIRBuilder()->CreateStmtCall(bFunc, origCall.GetNopnd());
+      CHECK_FATAL(newCall->GetOpCode() == OP_call, "intrinsicnode except intrinsiccall is not expected");
     } else {
       if (stmt.GetOpCode() == OP_intrinsiccallassigned) {
         newCall = mirModule.GetMIRBuilder()->CreateStmtIntrinsicCall(origCall.GetIntrinsic(), origCall.GetNopnd());
+        CHECK_FATAL(newCall->GetOpCode() == OP_intrinsiccall, "intrinsicnode except intrinsiccall is not expected");
       } else if (stmt.GetOpCode() == OP_xintrinsiccallassigned) {
         newCall = mirModule.GetMIRBuilder()->CreateStmtXintrinsicCall(origCall.GetIntrinsic(), origCall.GetNopnd());
+        CHECK_FATAL(newCall->GetOpCode() == OP_intrinsiccall, "intrinsicnode except intrinsiccall is not expected");
       } else {
         newCall = mirModule.GetMIRBuilder()->CreateStmtIntrinsicCall(origCall.GetIntrinsic(), origCall.GetNopnd(),
             origCall.GetTyIdx());
+        CHECK_FATAL(newCall->GetOpCode() == OP_intrinsiccallwithtype,
+            "intrinsicnode except OP_intrinsiccallwithtype is not expected");
       }
     }
     newCall->SetSrcPos(stmt.GetSrcPos());
     funcCalled = bFunc;
-    CHECK_FATAL((newCall->GetOpCode() == OP_call || newCall->GetOpCode() == OP_intrinsiccall),
-                "xintrinsic and intrinsiccallwithtype call is not expected");
   }
   return newCall;
 }

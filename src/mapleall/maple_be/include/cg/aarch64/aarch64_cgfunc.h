@@ -166,7 +166,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinopNode) override;
   AArch64isa::MemoryOrdering PickMemOrder(std::memory_order memOrder, bool isLdr) const;
   Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCAtomicExchangeN(IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCAtomicExchangeN(const IntrinsiccallNode &intrinsiccallNode) override;
   Operand *SelectAtomicLoad(Operand &addrOpnd, PrimType primType, AArch64isa::MemoryOrdering memOrder);
   Operand *SelectCReturnAddress(IntrinsicopNode &intrinopNode) override;
   void SelectMembar(StmtNode &membar) override;
