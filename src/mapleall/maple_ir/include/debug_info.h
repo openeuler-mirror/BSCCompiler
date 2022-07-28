@@ -769,12 +769,12 @@ class DebugInfo {
   DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *arrayType);
   DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
   DBGDie *GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx);
-  DBGDie *GetOrCreateEnumTypeDie(unsigned idx);
+  DBGDie *GetOrCreateEnumTypeDie(uint32 idx);
 
   GStrIdx GetPrimTypeCName(PrimType pty);
 
-  void AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap);
-  void AddScopeDie(MIRScope *scope);
+  void AddScopeDie(MIRScope *scope, bool isLocal);
+  void AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isLocal);
   void CollectScopePos(MIRFunction *func, MIRScope *scope);
   void GetCrossScopeId(MIRFunction *func,
                        std::unordered_set<uint32> &idSet,
