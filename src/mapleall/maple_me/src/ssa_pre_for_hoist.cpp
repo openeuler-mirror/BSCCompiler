@@ -177,8 +177,8 @@ class ExprHoist {
 
   void UpdateSuccCount(HoistSummary *hs, uint32 whichSucc, MeExpr *expr, MeOccur *occ);
   void AddToHoistWorklist(HoistSummary *hs);
-  MeOccur *GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *occ);
-  void HoistExpr(MapleVector<MeOccur*> &allOccs, int32 candId);
+  MeOccur *GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defOcc);
+  void HoistExpr(const MapleVector<MeOccur*> &allOccs, int32 candId);
   int32 GetHoistedCount() {
     return hoistedCount;
   }
@@ -188,7 +188,7 @@ class ExprHoist {
   bool dumpDetail = false;
   MapleVector<HoistSummary> summaries;
   int32 curCandId = -1;
-  MapleVector<MeOccur*> *occs = nullptr;
+  const MapleVector<MeOccur*> *occs = nullptr;
   HoistSummary *begin = nullptr;  // used to record hs worklist
   HoistSummary *end = nullptr;    // used to record hs worklist
   int32 hoistedCount = 0;
@@ -237,7 +237,7 @@ static MeExpr *GetRealExpr(MeOccur &occ) {
   }
 }
 
-MeOccur *ExprHoist::GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defocc) {
+MeOccur *ExprHoist::GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defOcc) {
   ASSERT(hs->FullyAnticipated(), "GetHoistedOcc: cd is not fully anticipated.");
   ASSERT(hs->candId == curCandId, "GetHoistedOcc: wrong cand.");
   if (hs->candId == curCandId && hs->hoistedOcc) {
@@ -249,15 +249,15 @@ MeOccur *ExprHoist::GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defoc
       hs->cdHS->candId == curCandId &&
       (hs->cdHS->occ == nullptr || (GetRealExpr(*hs->cdHS->occ) == expr)) &&
       hs->cdHS->FullyAnticipated() &&
-      hs->DefoccAllowHoist(defocc)) {
-    hoistedOcc = GetHoistedOcc(hs->cdHS, expr, defocc);
+      hs->DefoccAllowHoist(defOcc)) {
+    hoistedOcc = GetHoistedOcc(hs->cdHS, expr, defOcc);
   } else {  // already at cd chain's root
-    if (defocc &&
-        fDom->Dominate(*defocc->GetBB(), *hs->bb) &&
-        (defocc->GetOccType() == kOccReal ||
-         (defocc->GetOccType() == kOccPhiocc &&
-          static_cast<MePhiOcc*>(defocc)->IsWillBeAvail()))) {  // use defocc
-      hoistedOcc = defocc;
+    if (defOcc &&
+        fDom->Dominate(*defOcc->GetBB(), *hs->bb) &&
+        (defOcc->GetOccType() == kOccReal ||
+         (defOcc->GetOccType() == kOccPhiocc &&
+          static_cast<MePhiOcc*>(defOcc)->IsWillBeAvail()))) {  // use defOcc
+      hoistedOcc = defOcc;
     } else {  // insert a new one
       ASSERT(expr->GetExprID() != kInvalidExprID, "GetHoistedOcc: check expr hashed.");
       auto *fakeStmt = parent->irMap->CreateAssignMeStmt(*parent->irMap->CreateRegMeExpr(expr->GetPrimType()),
@@ -298,13 +298,13 @@ MeOccur *ExprHoist::GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defoc
         break;
       }
       newRealocc->SetIsHoisted(true);
-      if (defocc &&
-          fDom->Dominate(*defocc->GetBB(), *hs->bb) &&
-          defocc->GetOccType() == kOccPhiocc) {
-        newRealocc->SetClassID(defocc->GetClassID());
-        newRealocc->SetDef(defocc);
+      if (defOcc &&
+          fDom->Dominate(*defOcc->GetBB(), *hs->bb) &&
+          defOcc->GetOccType() == kOccPhiocc) {
+        newRealocc->SetClassID(defOcc->GetClassID());
+        newRealocc->SetDef(defOcc);
       } else {
-        newRealocc->SetClassID(parent->classCount++);
+        newRealocc->SetClassID(static_cast<int32>(parent->classCount++));
         newRealocc->SetDef(nullptr);
       }
       hoistedOcc = newRealocc;
@@ -314,7 +314,7 @@ MeOccur *ExprHoist::GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defoc
   return hoistedOcc;
 }
 
-void ExprHoist::HoistExpr(MapleVector<MeOccur*> &allOccs, int32 candId) {
+void ExprHoist::HoistExpr(const MapleVector<MeOccur*> &allOccs, int32 candId) {
   occs = &allOccs;
   curCandId = candId;
   begin = nullptr;

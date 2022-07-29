@@ -268,7 +268,7 @@ bool SeqVectorize::CanAdjustRhsType(PrimType targetType, ConstvalNode *rhs) {
   return res;
 }
 
-void SeqVectorize::DumpCandidates(const MeExpr *base, StoreList *storelist) {
+void SeqVectorize::DumpCandidates(const MeExpr *base, const StoreList *storelist) {
   LogInfo::MapleLogger() << "Dump base node \t";
   base->Dump(meIRMap, 0);
   for (uint32_t i = 0; i < (*storelist).size(); i++) {
@@ -602,7 +602,7 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
   SeqVectorize::seqVecStores++;
 }
 
-void SeqVectorize::LegalityCheckAndTransform(StoreList *storelist) {
+void SeqVectorize::LegalityCheckAndTransform(const StoreList *storelist) {
   MapleVector<IassignNode *> cands(localAlloc.Adapter());
   size_t len = storelist->size();
   bool needReverse = true;

@@ -17,12 +17,6 @@
 
 #include "mpl_logging.h"
 
-#include <cstddef>
-#include <deque>
-#include <iostream>
-#include <string>
-#include <string_view>
-#include <set>
 
 using namespace maplecl;
 
@@ -48,7 +42,7 @@ OptionInterface *CommandLine::CheckJoinedOption(KeyArg &keyArg, OptionCategory &
   return nullptr;
 }
 
-RetCode CommandLine::ParseJoinedOption(ssize_t &argsIndex,
+RetCode CommandLine::ParseJoinedOption(size_t &argsIndex,
                                        const std::deque<std::string_view> &args,
                                        KeyArg &keyArg, OptionCategory &optCategory) {
   OptionInterface *option = CheckJoinedOption(keyArg, optCategory);
@@ -69,9 +63,9 @@ RetCode CommandLine::ParseJoinedOption(ssize_t &argsIndex,
   return RetCode::noError;
 }
 
-RetCode CommandLine::ParseOption(ssize_t &argsIndex,
+RetCode CommandLine::ParseOption(size_t &argsIndex,
                                  const std::deque<std::string_view> &args,
-                                 KeyArg &keyArg, OptionCategory &optCategory,
+                                 KeyArg &keyArg, const OptionCategory &optCategory,
                                  OptionInterface *opt) {
   RetCode err = opt->Parse(argsIndex, args, keyArg);
   if (err != RetCode::noError) {
@@ -86,7 +80,7 @@ RetCode CommandLine::ParseOption(ssize_t &argsIndex,
   return RetCode::noError;
 }
 
-RetCode CommandLine::ParseEqualOption(ssize_t &argsIndex,
+RetCode CommandLine::ParseEqualOption(size_t &argsIndex,
                                       const std::deque<std::string_view> &args,
                                       KeyArg &keyArg, OptionCategory &optCategory,
                                       const OptionsMapType &optMap, ssize_t pos) {
@@ -110,7 +104,7 @@ RetCode CommandLine::ParseEqualOption(ssize_t &argsIndex,
   }
 }
 
-RetCode CommandLine::ParseSimpleOption(ssize_t &argsIndex,
+RetCode CommandLine::ParseSimpleOption(size_t &argsIndex,
                                        const std::deque<std::string_view> &args,
                                        KeyArg &keyArg, OptionCategory &optCategory,
                                        const OptionsMapType &optMap) {
@@ -136,7 +130,7 @@ RetCode CommandLine::HandleInputArgs(const std::deque<std::string_view> &args,
   badCLArgs.clear();
 
   bool wasError = false;
-  for (ssize_t argsIndex = 0; argsIndex < args.size();) {
+  for (size_t argsIndex = 0; argsIndex < args.size();) {
     auto &arg = args[argsIndex];
     if (arg == "") {
       ++argsIndex;

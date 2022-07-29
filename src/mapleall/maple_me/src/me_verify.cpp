@@ -398,10 +398,16 @@ void MeVerify::VerifyAttrTryBB(BB &tryBB, uint64 index) {
       }
       // When the size of gotoBB's succs is more than two, one is targetBB, one is  wontExitBB and the other is catchBB.
       if (currBB->GetKind() == kBBGoto && currBB->GetAttributes(kBBAttrWontExit)) {
-        if (offsetBBId != (*(currBB->GetSucc().rbegin() + i + 1))->GetBBId() &&
-            offsetBBId != (*(currBB->GetSucc().rbegin() + i))->GetBBId()) {
-          CHECK_FATAL(false, "must be equal");
+        bool isEqual = false;
+        if ((*(currBB->GetSucc().rbegin() + i + 1)) != nullptr &&
+            offsetBBId == (*(currBB->GetSucc().rbegin() + i + 1))->GetBBId()) {
+          isEqual = true;
         }
+        if ((*(currBB->GetSucc().rbegin() + i)) != nullptr &&
+            offsetBBId == (*(currBB->GetSucc().rbegin() + i))->GetBBId()) {
+          isEqual = true;
+        }
+        CHECK_FATAL(isEqual, "must be equal");
       } else {
         CHECK_FATAL(offsetBBId == (*(currBB->GetSucc().rbegin() + i))->GetBBId(), "must be equal");
       }

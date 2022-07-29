@@ -44,7 +44,7 @@ using OptionsMapType = std::unordered_map<std::string, OptionInterface *>;
 /* This structure is used to aggregate option information during option parsing.
  * It's a string view from original input command line string. */
 struct KeyArg {
-  explicit KeyArg(std::string_view arg) : rawArg(arg) {}
+  explicit KeyArg(const std::string_view &arg) : rawArg(arg) {}
   const std::string_view rawArg; /* full option, like "--key=value" */
   std::string_view key; /* Extracted key, like "--key" */
   std::string_view val; /* Extracted value, like "value" */
@@ -72,7 +72,7 @@ struct OptionCategory {
     enabledOptionsSet.erase(opt);
     auto it = std::find(enabledOptions.begin(), enabledOptions.end(), opt);
     if (it != enabledOptions.end()) {
-      enabledOptions.erase(it);
+      (void)enabledOptions.erase(it);
     }
   }
 
@@ -83,6 +83,9 @@ struct OptionCategory {
 
 class CommandLine {
  public:
+  CommandLine() {}
+  ~CommandLine() = default;
+
   /* singleton */
   static CommandLine &GetCommandLine();
 
@@ -134,21 +137,19 @@ class CommandLine {
   OptionCategory ipaCategory;
 
  private:
-  CommandLine() = default;
-
   OptionInterface *CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory);
-  RetCode ParseJoinedOption(ssize_t &argsIndex,
+  RetCode ParseJoinedOption(size_t &argsIndex,
                             const std::deque<std::string_view> &args,
                             KeyArg &keyArg, OptionCategory &optCategory);
-  RetCode ParseOption(ssize_t &argsIndex,
+  RetCode ParseOption(size_t &argsIndex,
                       const std::deque<std::string_view> &args,
-                      KeyArg &keyArg, OptionCategory &optCategory,
+                      KeyArg &keyArg, const OptionCategory &optCategory,
                       OptionInterface *opt);
-  RetCode ParseEqualOption(ssize_t &argsIndex,
+  RetCode ParseEqualOption(size_t &argsIndex,
                            const std::deque<std::string_view> &args,
                            KeyArg &keyArg, OptionCategory &optCategory,
                            const OptionsMapType &optMap, ssize_t pos);
-  RetCode ParseSimpleOption(ssize_t &argsIndex,
+  RetCode ParseSimpleOption(size_t &argsIndex,
                             const std::deque<std::string_view> &args,
                             KeyArg &keyArg, OptionCategory &optCategory,
                             const OptionsMapType &optMap);

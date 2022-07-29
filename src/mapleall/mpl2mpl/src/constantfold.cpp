@@ -387,7 +387,7 @@ MIRIntConst *ConstantFold::FoldIntConstComparisonMIRConst(Opcode opcode, PrimTyp
   MIRIntConst *constValue = nullptr;
   if (type.GetPrimType() == PTY_dyni32) {
     constValue = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, type);
-    constValue->SetValue(kJsTypeNumberInHigh32Bit | result);
+    constValue->SetValue(static_cast<int64>(kJsTypeNumberInHigh32Bit | result));
   } else {
     constValue = GlobalTables::GetIntConstTable().GetOrCreateIntConst(result, type);
   }
@@ -492,7 +492,7 @@ MIRConst *ConstantFold::FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resul
   MIRIntConst *constValue = nullptr;
   if (type.GetPrimType() == PTY_dyni32) {
     constValue = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, type);
-    constValue->SetValue(kJsTypeNumberInHigh32Bit | result.GetExtValue());
+    constValue->SetValue(kJsTypeNumberInHigh32Bit | static_cast<uint64>(result.GetExtValue()));
   } else {
     constValue = GlobalTables::GetIntConstTable().GetOrCreateIntConst(result.GetExtValue(), type);
   }
@@ -841,7 +841,7 @@ ConstvalNode *ConstantFold::FoldIntConstUnary(Opcode opcode, PrimType resultType
   MIRIntConst *constValue = nullptr;
   if (type.GetPrimType() == PTY_dyni32) {
     constValue = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, type);
-    constValue->SetValue(kJsTypeNumberInHigh32Bit | result.GetExtValue());
+    constValue->SetValue(kJsTypeNumberInHigh32Bit | static_cast<uint64>(result.GetExtValue()));
   } else {
     constValue = GlobalTables::GetIntConstTable().GetOrCreateIntConst(result.GetExtValue(), type);
   }
@@ -861,11 +861,11 @@ ConstvalNode *ConstantFold::FoldFPConstUnary(Opcode opcode, PrimType resultType,
     case OP_recip:
     case OP_neg:
     case OP_abs: {
-      if (OP_recip == opcode) {
+      if (opcode == OP_recip) {
         constValue = typename T::value_type(1.0 / fpCst->GetValue());
-      } else if (OP_neg == opcode) {
+      } else if (opcode == OP_neg) {
         constValue = typename T::value_type(-fpCst->GetValue());
-      } else if (OP_abs == opcode) {
+      } else if (opcode == OP_abs) {
         constValue = typename T::value_type(fabs(fpCst->GetValue()));
       }
       break;
@@ -904,7 +904,7 @@ ConstvalNode *ConstantFold::FoldConstUnary(Opcode opcode, PrimType resultType, C
     returnValue = FoldFPConstUnary<MIRFloatConst>(opcode, resultType, constNode);
   } else if (resultType == PTY_f64) {
     returnValue = FoldFPConstUnary<MIRDoubleConst>(opcode, resultType, constNode);
-  } else if (PTY_f128 == resultType) {
+  } else if (resultType == PTY_f128) {
   } else {
     ASSERT(false, "Unhandled case for FoldConstUnary");
   }
@@ -1461,7 +1461,7 @@ ConstvalNode *ConstantFold::FoldSignExtend(Opcode opcode, PrimType resultType, u
 }
 
 // check if truncation is redundant due to dread or iread having same effect
-static bool ExtractbitsRedundant(ExtractbitsNode *x, MIRFunction *f) {
+static bool ExtractbitsRedundant(const ExtractbitsNode *x, MIRFunction *f) {
   if (GetPrimTypeSize(x->GetPrimType()) == 8) {
     return false;  // this is trying to be conservative
   }
@@ -1470,6 +1470,7 @@ static bool ExtractbitsRedundant(ExtractbitsNode *x, MIRFunction *f) {
   if (opnd->GetOpCode() == OP_dread) {
     DreadNode *dread = static_cast<DreadNode *>(opnd);
     MIRSymbol *sym = f->GetLocalOrGlobalSymbol(dread->GetStIdx());
+    ASSERT_NOT_NULL(sym);
     mirType = sym->GetType();
     if (dread->GetFieldID() != 0) {
       MIRStructType *structType = dynamic_cast<MIRStructType*>(mirType);
@@ -1989,8 +1990,8 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldDepositbits(Deposi
     uint64 mask0 = (1LLU << (bitsSize + bitsOffset)) - 1;
     uint64 mask1 = (1LLU << bitsOffset) - 1;
     uint64 op0Mask = ~(mask0 ^ mask1);
-    op0ExtractVal = (intConst0->GetExtValue() & op0Mask);
-    op1ExtractVal = (intConst1->GetExtValue() << bitsOffset) &
+    op0ExtractVal = (static_cast<uint64>(intConst0->GetExtValue()) & op0Mask);
+    op1ExtractVal = (static_cast<uint64>(intConst1->GetExtValue()) << bitsOffset) &
                     ((1ULL << (bitsSize + bitsOffset)) - 1);
     constValue = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
         static_cast<int64>(op0ExtractVal | op1ExtractVal), constValue->GetType());
@@ -2307,7 +2308,7 @@ StmtNode *ConstantFold::SimplifySwitch(SwitchNode *node) {
     for (unsigned i = 0; i < node->GetSwitchTable().size(); i++) {
       if (node->GetCasePair(i).first == intConst->GetValue()) {
         isdefault = false;
-        gotoNode->SetOffset((LabelIdx)node->GetCasePair(i).second);
+        gotoNode->SetOffset(static_cast<LabelIdx>(node->GetCasePair(i).second));
         break;
       }
     }
@@ -2446,7 +2447,7 @@ StmtNode *ConstantFold::SimplifyWhile(WhileStmtNode *node) {
       return node;
     }
     if (cst->GetConstVal()->IsZero()) {
-      if (OP_while == node->GetOpCode()) {
+      if (node->GetOpCode() == OP_while) {
         return nullptr;
       } else {
         return node->GetBody();

@@ -739,6 +739,7 @@ void MeCFG::WontExitAnalysis() {
   std::vector<bool> visitedBBs(NumBBs(), false);
   GetCommonExitBB()->FindWillExitBBs(visitedBBs);
   auto eIt = valid_end();
+  std::vector<bool> currVisitedBBs(NumBBs(), false);
   for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
     if (bIt == common_entry()) {
       continue;
@@ -752,6 +753,11 @@ void MeCFG::WontExitAnalysis() {
     if (!MeOption::quiet) {
       LogInfo::MapleLogger() << "#### BB " << idx << " wont exit\n";
     }
+    if (currVisitedBBs[idx]) {
+      // In the loop, only one edge needs to be connected to the common_exit_bb,
+      // and other bbs only need to add attributes.
+      continue;
+    }
     if (bb->GetKind() != kBBGoto && bb->GetKind() != kBBIgoto && bb->GetKind() != kBBFallthru) {
       continue;
     }
@@ -762,7 +768,6 @@ void MeCFG::WontExitAnalysis() {
       }
       bb->AddMeStmtLast(func.GetIRMap()->New<GotoMeStmt>(func.GetOrCreateBBLabel(*bb->GetSucc(0))));
       bb->SetKind(kBBGoto);
-      bb->FindWillExitBBs(visitedBBs);
     }
     // create artificial BB to transition to common_exit_bb
     BB *newBB = NewBasicBlock();
@@ -775,6 +780,7 @@ void MeCFG::WontExitAnalysis() {
     newBB->SetAttributes(kBBAttrArtificial);
     bb->AddSucc(*newBB);
     GetCommonExitBB()->AddExit(*newBB);
+    bb->FindWillExitBBs(currVisitedBBs); // Mark other bbs in the loop as visited.
   }
 }
 

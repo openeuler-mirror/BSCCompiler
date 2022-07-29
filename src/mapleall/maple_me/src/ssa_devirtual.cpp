@@ -130,7 +130,7 @@ void SSADevirtual::ReplaceCall(CallMeStmt &callStmt, const MIRFunction &targetFu
     callStmt.SetOp(OP_callassigned);
     ++optedInterfaceCalls;
   }
-  if (clone != nullptr && OP_callassigned == callStmt.GetOp()) {
+  if (clone != nullptr && callStmt.GetOp() == OP_callassigned) {
     clone->UpdateReturnVoidIfPossible(&callStmt, targetFunc);
   }
   if (SSADevirtual::debug) {
@@ -364,7 +364,7 @@ void SSADevirtual::VisitVarPhiNode(MePhiNode &varPhi) {
   VarMeExpr *lhsVar = static_cast<VarMeExpr*>(varPhi.GetLHS());
 
   auto mapit = inferredTypeCandidatesMap.find(lhsVar->GetExprID());
-  if (mapit == inferredTypeCandidatesMap.end()) {
+  if (mapit == inferredTypeCandidatesMap.cend()) {
     auto tyIdxCandidates = devirtualAlloc.GetMemPool()->New<MapleVector<TyIdx>>(devirtualAlloc.Adapter());
     inferredTypeCandidatesMap[lhsVar->GetExprID()] = tyIdxCandidates;
   }
@@ -527,7 +527,7 @@ void SSADevirtual::TraversalMeStmt(MeStmt &meStmt) {
         VisitMeExpr(opnd);
       }
       (void)DevirtualizeCall(*callMeStmt);
-      if (clone != nullptr && OP_callassigned == callMeStmt->GetOp()) {
+      if (clone != nullptr && callMeStmt->GetOp() == OP_callassigned) {
         MIRFunction &targetFunc = callMeStmt->GetTargetFunction();
         clone->UpdateReturnVoidIfPossible(callMeStmt, targetFunc);
       }
@@ -643,7 +643,7 @@ void SSADevirtual::TraversalBB(BB *bb) {
   bbVisited[bb->GetBBId()] = true;
   // traversal var phi nodes
   MapleMap<OStIdx, MePhiNode*> &mePhiList = bb->GetMePhiList();
-  for (auto it = mePhiList.begin(); it != mePhiList.end(); ++it) {
+  for (auto it = mePhiList.cbegin(); it != mePhiList.cend(); ++it) {
     MePhiNode *phiMeNode = it->second;
     if (phiMeNode == nullptr || phiMeNode->GetLHS()->GetMeOp() != kMeOpVar) {
       continue;

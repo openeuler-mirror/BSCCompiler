@@ -217,7 +217,7 @@ bool Prop::IsFunctionOfCurVersion(ScalarMeExpr *scalar, const ScalarMeExpr *cur)
   return InvertibleOccurrences(scalar, ass->GetRHS()) == 1;
 }
 
-static void Calc(MeExpr *x, uint32 &count) {
+static void Calc(const MeExpr *x, uint32 &count) {
   count++;
   for (uint32 i = 0; i < x->GetNumOpnds(); i++) {
     Calc(x->GetOpnd(i), count);
@@ -667,6 +667,47 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
   return rhs;
 }
 
+MeExpr &Prop::TryPropUnionVar(VarMeExpr &var) {
+  if (!IsPrimitiveInteger(var.GetPrimType())) {
+    return var;
+  }
+  MeStmt *defStmt = var.GetDefByMeStmt();
+  CHECK_NULL_FATAL(defStmt);
+  MeExpr *lhs = defStmt->GetLHS();
+  if (!lhs || !IsPrimitiveInteger(lhs->GetPrimType())) {
+    return var;
+  }
+  auto *realDef = static_cast<VarMeExpr*>(lhs);
+  if (realDef->GetOst()->GetMIRSymbol() != var.GetOst()->GetMIRSymbol()) {
+    return var;
+  }
+  auto *topType = static_cast<MIRStructType*>(var.GetOst()->GetMIRSymbol()->GetType());
+  // check if is covered by def
+  auto defStart = topType->GetBitOffsetFromBaseAddr(realDef->GetFieldID());
+  auto useStart = topType->GetBitOffsetFromBaseAddr(var.GetFieldID());
+  if (useStart < defStart) {
+    return var;
+  }
+  auto *defFieldType = topType->GetFieldType(realDef->GetFieldID());
+  auto *useFieldType = topType->GetFieldType(var.GetFieldID());
+  if (!defFieldType->IsScalarType() || !useFieldType->IsScalarType()) {
+    return var;
+  }
+  auto defSize = defFieldType->GetSize() * CHAR_BIT;
+  auto useSize = useFieldType->GetSize() * CHAR_BIT;
+  if (static_cast<uint64>(defStart) + defSize < static_cast<uint64>(useStart) + useSize) {
+    return var;
+  }
+  OpMeExpr extr(kInvalidExprID, OP_extractbits, topType->GetFieldType(var.GetFieldID())->GetPrimType(), lhs);
+  extr.SetBitsOffSet(static_cast<uint8>(useStart - defStart));
+  extr.SetBitsSize(static_cast<uint8>(useSize));
+  auto *hashed = irMap.HashMeExpr(extr);
+  if (hashed->GetPrimType() != var.GetPrimType()) {
+    hashed = irMap.CreateMeExprTypeCvt(var.GetPrimType(), hashed->GetPrimType(), *hashed);
+  }
+  return *hashed;
+}
+
 // return varMeExpr itself if no propagation opportunity
 MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
   const MIRSymbol *st = varMeExpr.GetOst()->GetMIRSymbol();
@@ -732,6 +773,8 @@ MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
     }
     propsPerformed++;
     return *opndLastProp;
+  } else if (varMeExpr.GetDefBy() == kDefByChi && varMeExpr.GetFieldID() != 0) {
+    return TryPropUnionVar(varMeExpr);
   }
   return varMeExpr;
 }
@@ -775,13 +818,86 @@ MeExpr &Prop::PropReg(RegMeExpr &regMeExpr, bool atParm, bool checkPhi) {
   return regMeExpr;
 }
 
+// Iassign (lhs, rhs)
+// =>
+// regassign tmp rhs;
+// Iassign (lhs, tmp)
+ScalarMeExpr *Prop::CreateTmpAssignForIassignRHS(IvarMeExpr &ivarMeExpr, IassignMeStmt &defStmt) {
+  auto *tmpReg = irMap.CreateRegMeExpr(ivarMeExpr);
+
+  // create new verstStack for new RegMeExpr
+  ASSERT(vstLiveStackVec.size() == tmpReg->GetOstIdx(), "there is prev created ost not tracked");
+  auto *verstStack = propMapAlloc.GetMemPool()->New<MapleStack<MeExpr *>>(propMapAlloc.Adapter());
+  vstLiveStackVec.push_back(verstStack);
+  verstStack->push(tmpReg);
+  MeExpr *rhs = defStmt.GetRHS();
+  auto newRHS = CheckTruncation(&ivarMeExpr, rhs);
+  auto *regassign = irMap.CreateAssignMeStmt(*tmpReg, *newRHS, *defStmt.GetBB());
+  defStmt.SetRHS(tmpReg);
+  defStmt.GetBB()->InsertMeStmtBefore(&defStmt, regassign);
+  RecordSSAUpdateCandidate(tmpReg->GetOstIdx(), *defStmt.GetBB());
+  return tmpReg;
+}
+
+MeExpr &Prop::TryPropUnionIvar(IvarMeExpr &ivar) {
+  if (ivar.GetFieldID() == 0 || ivar.GetOffset() != 0 || ivar.GetMuList().size() > 1 ||
+      !IsPrimitiveInteger(ivar.GetPrimType())) {
+    return ivar;  // not handle multi mu
+  }
+  auto *mu = ivar.GetUniqueMu();
+  if (!mu || !mu->IsDefByChi()) { return ivar; }
+  MeStmt *defStmt = mu->GetDefByMeStmt();
+  CHECK_NULL_FATAL(defStmt);
+  if (defStmt->GetOp() != OP_iassign) {
+    return ivar;  // only find mustdef by its union
+  }
+  IvarMeExpr *realDef = static_cast<IassignMeStmt*>(defStmt)->GetLHSVal();
+  if (realDef->GetFieldID() == 0 || realDef->GetOffset() != 0 || realDef->GetBase() != ivar.GetBase() ||
+      !IsPrimitiveInteger(realDef->GetPrimType())) {
+    return ivar;
+  }
+  auto *defType = static_cast<MIRStructType*>(
+      static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(realDef->GetTyIdx()))->GetPointedType());
+  auto *useType = static_cast<MIRStructType*>(
+      static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(ivar.GetTyIdx()))->GetPointedType());
+  // check if is covered by def
+  if (defType->GetFieldsSize() <= static_cast<uint64>(static_cast<uint32>(realDef->GetFieldID())) ||
+      useType->GetFieldsSize() <= static_cast<uint64>(static_cast<uint32>(ivar.GetFieldID()))) {
+    return ivar;  // skip some retyped cases
+  }
+  auto defStart = defType->GetBitOffsetFromBaseAddr(realDef->GetFieldID());
+  auto useStart = useType->GetBitOffsetFromBaseAddr(ivar.GetFieldID());
+  if (useStart < defStart) { return ivar; }
+  auto *defFieldType = defType->GetFieldType(realDef->GetFieldID());
+  auto *useFieldType = useType->GetFieldType(ivar.GetFieldID());
+  if (!defFieldType->IsScalarType() || !useFieldType->IsScalarType()) {
+    return ivar;
+  }
+  auto defSize = defFieldType->GetSize() * CHAR_BIT;
+  auto useSize = useFieldType->GetSize() * CHAR_BIT;
+  if (static_cast<uint64>(defStart) + defSize < static_cast<uint64>(useStart) + useSize) {
+    return ivar;
+  }
+  MeExpr *newExpr = (realDef->GetUniqueMu() == nullptr) ?
+      static_cast<MeExpr *>(CreateTmpAssignForIassignRHS(*realDef, *static_cast<IassignMeStmt*>(defStmt))) :
+      static_cast<MeExpr *>(realDef);
+  OpMeExpr extr(kInvalidExprID, OP_extractbits, useFieldType->GetPrimType(), newExpr);
+  extr.SetBitsOffSet(static_cast<uint8>(useStart - defStart));
+  extr.SetBitsSize(static_cast<uint8>(useSize));
+  auto *hashed = irMap.HashMeExpr(extr);
+  if (hashed->GetPrimType() != ivar.GetPrimType()) {
+    hashed = irMap.CreateMeExprTypeCvt(ivar.GetPrimType(), hashed->GetPrimType(), *hashed);
+  }
+  return *hashed;
+}
+
 MeExpr &Prop::PropIvar(IvarMeExpr &ivarMeExpr) {
-  if (propsPerformed >= propLimit) {
+  if (propsPerformed >= propLimit || ivarMeExpr.IsVolatile()) {
     return ivarMeExpr;
   }
   IassignMeStmt *defStmt = ivarMeExpr.GetDefStmt();
-  if (defStmt == nullptr || ivarMeExpr.IsVolatile()) {
-    return ivarMeExpr;
+  if (defStmt == nullptr) {
+    return TryPropUnionIvar(ivarMeExpr);
   }
   MeExpr &rhs = utils::ToRef(defStmt->GetRHS());
   if (rhs.GetDepth() <= kPropTreeLevel && Propagatable(&rhs, defStmt->GetBB(), false) != kPropNo) {
@@ -789,20 +905,7 @@ MeExpr &Prop::PropIvar(IvarMeExpr &ivarMeExpr) {
     return *CheckTruncation(&ivarMeExpr, &rhs);
   }
   if (!isLfo && mirModule.IsCModule() && ivarMeExpr.GetPrimType() != PTY_agg) {
-    auto *tmpReg = irMap.CreateRegMeExpr(ivarMeExpr);
-
-    // create new verstStack for new RegMeExpr
-    ASSERT(vstLiveStackVec.size() == tmpReg->GetOstIdx(), "there is prev created ost not tracked");
-    auto *verstStack = propMapAlloc.GetMemPool()->New<MapleStack<MeExpr *>>(propMapAlloc.Adapter());
-    vstLiveStackVec.push_back(verstStack);
-    verstStack->push(tmpReg);
-
-    auto newRHS = CheckTruncation(&ivarMeExpr, &rhs);
-    auto *regassign = irMap.CreateAssignMeStmt(*tmpReg, *newRHS, *defStmt->GetBB());
-    defStmt->SetRHS(tmpReg);
-    defStmt->GetBB()->InsertMeStmtBefore(defStmt, regassign);
-    RecordSSAUpdateCandidate(tmpReg->GetOstIdx(), *defStmt->GetBB());
-    return *tmpReg;
+    return *CreateTmpAssignForIassignRHS(ivarMeExpr, *defStmt);
   }
   return ivarMeExpr;
 }
@@ -875,7 +978,7 @@ MeExpr &Prop::PropMeExpr(MeExpr &meExpr, bool &isProped, bool atParm) {
           propIvarExpr = irMap.CreateMeExprTypeCvt(ivarPrimType, propPrimType, *propIvarExpr);
         }
       }
-
+      ASSERT_NOT_NULL(propIvarExpr);
       if (propIvarExpr->GetMeOp() == kMeOpIvar) {
         auto *equivalentVar = irMap.SimplifyIvar(ivarMeExpr, false);
         if (equivalentVar != nullptr) {
@@ -979,6 +1082,7 @@ bool Prop::NoPropUnionAggField(const MeStmt *meStmt, const StmtNode *stmt, const
       return true;
     }
     OriginalSt *rhsOst = nullptr;
+    ASSERT_NOT_NULL(propedRHS);
     if (propedRHS->GetMeOp() == kMeOpIvar) {
       const auto *ivar = static_cast<const IvarMeExpr*>(propedRHS);
       const MeExpr *base = ivar->GetBase();
@@ -1131,7 +1235,7 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
             if (simplifiedIvar->GetMeOp() == kMeOpVar) {
               auto *lhsVar = static_cast<ScalarMeExpr *>(simplifiedIvar);
               auto newDassign = irMap.CreateAssignMeStmt(*lhsVar, *ivarStmt.GetRHS(), *ivarStmt.GetBB());
-              newDassign->GetChiList()->insert(ivarStmt.GetChiList()->begin(), ivarStmt.GetChiList()->end());
+              newDassign->GetChiList()->insert(ivarStmt.GetChiList()->cbegin(), ivarStmt.GetChiList()->cend());
               newDassign->GetChiList()->erase(lhsVar->GetOstIdx());
               ivarStmt.GetBB()->InsertMeStmtBefore(&ivarStmt, newDassign);
               ivarStmt.GetBB()->RemoveMeStmt(&ivarStmt);

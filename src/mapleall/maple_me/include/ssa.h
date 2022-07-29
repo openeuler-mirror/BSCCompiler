@@ -92,14 +92,16 @@ class SSA {
   virtual ~SSA() = default;
 
   virtual void InsertPhiNode();
-  void RenameAllBBs(MeCFG *cfg);
+  void RenameAllBBs(const MeCFG *cfg);
 
   void UpdateDom(Dominance *dm) {
     dom = dm;
   }
+
+  bool runRenameOnly = false;
  protected:
   void InsertPhiForDefBB(size_t bbid, VersionSt *vst);
-  void InitRenameStack(const OriginalStTable&, const VersionStTable&, MapleAllocator &renameAlloc);
+  void InitRenameStack(const OriginalStTable &oTable, const VersionStTable &verStTab, MapleAllocator &alloc);
   VersionSt *CreateNewVersion(VersionSt &vSym, BB &defBB);
   void ReplaceRenameStackTop(VersionSt &newTop);
   void PushToRenameStack(VersionSt *vSym);
@@ -160,9 +162,6 @@ class SSA {
   MapleVector<BB *> &bbVec;
   Dominance *dom = nullptr;
   SSALevel targetLevel = kSSAInvalid;                // ssa level to build
-
- public:
-  bool runRenameOnly = false;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_SSA_H

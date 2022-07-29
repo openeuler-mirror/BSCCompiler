@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -166,13 +166,14 @@ class LogInfo {
   static std::ostream &MapleLogger(LogLevel level = kLlLog);
   static std::ios::fmtflags Flags();
   void EmitLogForUser(enum LogNumberCode num, enum LogLevel ll, const char *fmt, ...) const;
+  std::string EmitLogToStringForUser(enum LogNumberCode num, enum LogLevel ll, const char *fmt, ...) const;
   void EmitLogForUser(enum LogNumberCode num, enum LogLevel ll, const std::string &message) const;
   void EmitErrorMessage(const std::string &cond, const std::string &file, unsigned int line,
                         const char *fmt, ...) const;
 
  private:
-  void SetLogDevice(FILE &stream) {
-    outStream = &stream;
+  void SetLogDevice(FILE *stream) {
+    outStream = stream;
   }
   void SetLogMode(LogMode lm) {
     outMode = lm;
@@ -187,10 +188,12 @@ class LogInfo {
 #define DEBUG_STMT(x) x
 #define DEBUG_TEST 1
 #define ENABLE_ASSERT 1
+#define EXCEPTION_QUIT abort()
 #else
 #define DEBUG_STMT(x)
 #define DEBUG_TEST 0
 #define ENABLE_ASSERT 0
+#define EXCEPTION_QUIT exit(1)
 #endif  // DEBUG
 
 // for developer
@@ -235,11 +238,7 @@ class LogInfo {
   do {                                                                              \
     if (!(cond)) {                                                                  \
       maple::logInfo.EmitErrorMessage(#cond, __FILE__, __LINE__, fmt "\n", ##__VA_ARGS__); \
-      if (DEBUG_TEST != 0) {                                                        \
-        abort();                                                                    \
-      } else {                                                                         \
-        exit(1);                                                                    \
-      }                                                                             \
+      EXCEPTION_QUIT;                                                               \
     }                                                                               \
   } while (0)
 

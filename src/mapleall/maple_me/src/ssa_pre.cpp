@@ -1079,7 +1079,7 @@ void SSAPre::Rename2() {
         if (!hasSameVersion) {
           phiOpnd->SetDef(nullptr);
           phiOpnd->SetHasRealUse(false);
-          phiOpnd->SetClassID(classCount++);
+          phiOpnd->SetClassID(static_cast<int32>(classCount++));
         }
       } else if (defX->GetOccType() == kOccPhiocc) {
         std::vector<MeExpr*> varVecY;

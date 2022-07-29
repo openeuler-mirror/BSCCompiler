@@ -13,7 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ssa.h"
-#include <iostream>
 #include "ssa_tab.h"
 #include "ssa_mir_nodes.h"
 #include "ver_symbol.h"
@@ -59,6 +58,7 @@ void SSA::InsertPhiForDefBB(size_t bbid, VersionSt *vst) {
 void SSA::InsertPhiNode() {
   for (size_t i = 1; i < ssaTab->GetOriginalStTable().Size(); ++i) {
     OriginalSt *ost = ssaTab->GetOriginalStFromID(OStIdx(i));
+    ASSERT_NOT_NULL(ost);
     if (ost->GetIndirectLev() < 0) {
       continue;
     }
@@ -83,6 +83,7 @@ void SSA::InitRenameStack(const OriginalStTable &oTable, const VersionStTable &v
   vstStacks->resize(oTable.Size());
   for (size_t i = 1; i < oTable.Size(); ++i) {
     const OriginalSt *ost = oTable.GetOriginalStFromID(OStIdx(i));
+    ASSERT_NOT_NULL(ost);
     if (ost->GetIndirectLev() < 0) {
       continue;
     }
@@ -257,7 +258,7 @@ void SSA::RenamePhiUseInSucc(const BB &bb) {
   }
 }
 
-void SSA::RenameAllBBs(MeCFG *cfg) {
+void SSA::RenameAllBBs(const MeCFG *cfg) {
   // renameMP is a tmp mempool, will be release after rename.
   auto renameMP = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "ssa-rename-mempool");
   MapleAllocator renameAlloc(renameMP.get());
