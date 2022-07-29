@@ -479,8 +479,8 @@ void DebugInfo::BuildDebugInfo() {
   }
 
   // setup debug info for enum types
-  unsigned size = GlobalTables::GetEnumTable().enumTable.size();
-  for (unsigned i = 0; i < size; ++i) {
+  auto size = GlobalTables::GetEnumTable().enumTable.size();
+  for (size_t i = 0; i < size; ++i) {
     DBGDie *die = GetOrCreateEnumTypeDie(i);
     compUnit->AddSubVec(die);
   }
@@ -620,6 +620,10 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym) {
   bool isLocal = sym->IsLocal();
   GStrIdx strIdx = sym->GetNameStrIdx();
 
+  if (sym->IsPUStatic()) {
+    strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(sym->GetName());
+  }
+
   if (isLocal) {
     MIRFunction *func = GetCurFunction();
     if ((funcLstrIdxDieIdMap[func]).size() &&
@@ -656,7 +660,15 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym, GStrIdx strIdx) {
 
   bool isLocal = sym->IsLocal();
   if (isLocal) {
-    die->AddSimpLocAttr(DW_AT_location, DW_FORM_exprloc, kDbgDefaultVal);
+    if (sym->IsPUStatic()) {
+      // Use actual internal sym by cg
+      PUIdx pIdx = GetCurFunction()->GetPuidx();
+      std::string ptrName = sym->GetName() + std::to_string(pIdx);
+      uint64 idx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(ptrName).GetIdx();
+      die->AddGlobalLocAttr(DW_AT_location, DW_FORM_exprloc, idx);
+    } else {
+      die->AddSimpLocAttr(DW_AT_location, DW_FORM_exprloc, kDbgDefaultVal);
+    }
   } else {
     // global var just use its name as address in .s
     uint64 idx = strIdx.GetIdx();
@@ -943,7 +955,7 @@ DBGDie *DebugInfo::GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx) {
 
 DBGDie *DebugInfo::GetOrCreateEnumTypeDie(unsigned idx) {
   MIREnum *mirEnum = GlobalTables::GetEnumTable().enumTable[idx];
-  uint32 sid = mirEnum->nameStrIdx.GetIdx();
+  uint32 sid = mirEnum->GetNameIdx().GetIdx();
   auto it = globalStridxDieIdMap.find(sid);
   if (it != globalStridxDieIdMap.end()) {
     return idDieMap[it->second];
@@ -951,7 +963,7 @@ DBGDie *DebugInfo::GetOrCreateEnumTypeDie(unsigned idx) {
 
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_enumeration_type);
 
-  PrimType pty = mirEnum->primType;
+  PrimType pty = mirEnum->GetPrimType();
   (void)(die->AddAttr(DW_AT_name, DW_FORM_strp, sid));
   (void)(die->AddAttr(DW_AT_encoding, DW_FORM_data4, GetAteFromPTY(pty)));
   (void)(die->AddAttr(DW_AT_byte_size, DW_FORM_data1, GetPrimTypeSize(pty)));
@@ -962,10 +974,10 @@ DBGDie *DebugInfo::GetOrCreateEnumTypeDie(unsigned idx) {
   (void)(die->AddAttr(DW_AT_decl_line, DW_FORM_data1, 0));
   (void)(die->AddAttr(DW_AT_decl_column, DW_FORM_data1, 0));
 
-  for (auto it : mirEnum->elements) {
+  for (auto &elemIt : mirEnum->GetElements()) {
     DBGDie *elem = module->GetMemPool()->New<DBGDie>(module, DW_TAG_enumerator);
-    (void)(elem->AddAttr(DW_AT_name, DW_FORM_strp, it.first.GetIdx()));
-    (void)(elem->AddAttr(DW_AT_const_value, DW_FORM_data8, it.second.GetExtValue()));
+    (void)(elem->AddAttr(DW_AT_name, DW_FORM_strp, elemIt.first.GetIdx()));
+    (void)(elem->AddAttr(DW_AT_const_value, DW_FORM_data8, elemIt.second.GetExtValue()));
     die->AddSubVec(elem);
   }
 
