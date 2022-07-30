@@ -62,15 +62,14 @@ class FormalDef {
       : formalStrIdx(sidx), formalSym(s), formalTyIdx(tidx), formalAttrs(at) {}
 };
 
+class InlineSummary;  // circular dependency exists, no other choice
 class MeFunction;  // circular dependency exists, no other choice
 class EAConnectionGraph;  // circular dependency exists, no other choice
 class MIRFunction {
  public:
   MIRFunction(MIRModule *mod, StIdx idx)
       : module(mod),
-        symbolTableIdx(idx) {
-    scope = module->GetMemPool()->New<MIRScope>(module, this);
-  }
+        symbolTableIdx(idx) {}
 
   ~MIRFunction() = default;
 
@@ -78,7 +77,7 @@ class MIRFunction {
   void DumpUpFormal(int32 indent) const;
   void DumpFrame(int32 indent) const;
   void DumpFuncBody(int32 indent);
-  void DumpScope();
+  void DumpScope() const;
   const MIRSymbol *GetFuncSymbol() const;
   MIRSymbol *GetFuncSymbol();
 
@@ -722,29 +721,44 @@ class MIRFunction {
     infoIsString.push_back(isString);
   }
 
+  void SetupScope() {
+    if (!scope) {
+      scope = module->GetMemPool()->New<MIRScope>(module, this);
+    }
+  }
+
   MIRScope *GetScope() {
+    SetupScope();
     return scope;
   }
 
+  void SetScope(MIRScope *scp) {
+    scope = scp;
+  }
+
   bool NeedEmitAliasInfo() const {
-    return !scope->IsEmpty();
+    return scope && !scope->IsEmpty();
   }
 
   MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {
+    SetupScope();
     return scope->GetAliasVarMap();
   }
 
   void SetAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
+    SetupScope();
     scope->SetAliasVarMap(idx, vars);
   }
 
   void AddAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
+    SetupScope();
     scope->AddAliasVarMap(idx, vars);
   }
 
   bool HasVlaOrAlloca() const {
     return hasVlaOrAlloca;
   }
+
   void SetVlaOrAlloca(bool has) {
     hasVlaOrAlloca = has;
   }
@@ -773,7 +787,7 @@ class MIRFunction {
     return *freqLastMap;
   }
 
-  int32 GetFreqFromLastStmt(uint32 stmtId) {
+  int32 GetFreqFromLastStmt(uint32 stmtId) const {
     if (freqLastMap == nullptr) {
       return -1;
     }
@@ -783,7 +797,7 @@ class MIRFunction {
     return static_cast<int32>((*freqLastMap)[stmtId]);
   }
 
-  int32 GetFreqFromFirstStmt(uint32 stmtId) {
+  int32 GetFreqFromFirstStmt(uint32 stmtId) const {
     if (freqFirstMap == nullptr) {
       return -1;
     }
@@ -1247,6 +1261,16 @@ class MIRFunction {
     isVisited = true;
   }
 
+  InlineSummary *GetInlineSummary() {
+    return inlineSummary;
+  }
+
+  const InlineSummary *GetInlineSummary() const {
+    return inlineSummary;
+  }
+
+  InlineSummary *GetOrCreateInlineSummary();
+
   void SetFuncProfData(GcovFuncInfo *data) {
     funcProfData = data;
   }
@@ -1337,8 +1361,8 @@ class MIRFunction {
   // a dynamic memory block that needs reference
   // count; the bitvector's size is given by
   // BlockSize2BitvectorSize(frameSize)
-  // uint16 numlabels; // removed. label table size
-  // StmtNode **lbl2stmt; // lbl2stmt table, removed;
+  // removed. label table size
+  // lbl2stmt table, removed;
   // to hold unmangled class and function names
   MeFunction *meFunc = nullptr;
   EAConnectionGraph *eacg = nullptr;
@@ -1361,6 +1385,7 @@ class MIRFunction {
   uint64 fileLinenoChksum = 0;
   uint64 cfgChksum = 0;
   GcovFuncInfo *funcProfData = nullptr;
+  InlineSummary *inlineSummary = nullptr;
   void DumpFlavorLoweredThanMmpl() const;
   MIRFuncType *ReconstructFormals(const std::vector<MIRSymbol*> &symbols, bool clearOldArgs);
 };

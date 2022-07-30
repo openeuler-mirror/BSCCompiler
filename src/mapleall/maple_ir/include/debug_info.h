@@ -1,5 +1,5 @@
 /*
- * Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+ * Copyright (C) [2021-2022] Futurewei Technologies, Inc. All rights reverved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -769,7 +769,7 @@ class DebugInfo {
   DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *arrayType);
   DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
   DBGDie *GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx);
-  DBGDie *GetOrCreateEnumTypeDie(unsigned idx);
+  DBGDie *GetOrCreateEnumTypeDie(uint32 idx);
 
   GStrIdx GetPrimTypeCName(PrimType pty);
 
