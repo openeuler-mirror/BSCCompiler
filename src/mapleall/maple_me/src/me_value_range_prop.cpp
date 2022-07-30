@@ -52,15 +52,30 @@ bool Bound::operator<(const Bound &bound) const {
   if (*this == MaxBound(primType) || bound == MinBound(primType)) {
     return false;
   }
-  if (*this == MinBound(primType) || bound == MaxBound(primType)) {
-    return true;
-  }
   if (IsPrimitiveUnsigned(primType)) {
     if (var == nullptr && bound.var == nullptr) {
       return static_cast<uint64>(constant) < static_cast<uint64>(bound.GetConstant());
     }
   }
   return constant < bound.GetConstant();
+}
+
+bool Bound::operator<=(const Bound &bound) const {
+  if (!CanBeComparedWith(bound)) {
+    return false;
+  }
+  if (*this == bound) {
+    return true;
+  }
+  if (*this == MinBound(primType) || bound == MaxBound(primType)) {
+    return true;
+  }
+  if (IsPrimitiveUnsigned(primType)) {
+    if (var == nullptr && bound.var == nullptr) {
+      return static_cast<uint64>(constant) <= static_cast<uint64>(bound.GetConstant());
+    }
+  }
+  return (var == bound.var && constant <= bound.GetConstant());
 }
 
 void ValueRangePropagation::Execute() {
@@ -316,11 +331,12 @@ std::unique_ptr<ValueRange> MergeVR(const ValueRange &vr1, const ValueRange &vr2
           } else if (upper1 == lower2) {
             return intersect ? std::make_unique<ValueRange>(lower2, kEqual)
                              : std::make_unique<ValueRange>(lower1, upper2, kLowerAndUpper);
-          } else {
+          } else if (lower1 < upper2 && lower2 < upper1) {
             return intersect ?
                 std::make_unique<ValueRange>(std::max(lower1, lower2), std::min(upper1, upper2), kLowerAndUpper) :
                 std::make_unique<ValueRange>(std::min(lower1, lower2), std::max(upper1, upper2), kLowerAndUpper);
           }
+          return nullptr;
         }
         case kEqual: {
           //                [lower1 ...... upper1]
@@ -332,10 +348,11 @@ std::unique_ptr<ValueRange> MergeVR(const ValueRange &vr1, const ValueRange &vr2
           if (lower1 <= bound && bound <= upper1) {
             return intersect ? std::make_unique<ValueRange>(bound, kEqual)
                              : std::make_unique<ValueRange>(lower1, upper1, kLowerAndUpper);
-          } else { // if (bound < lower1 || upper1 < bound)
+          } else if (bound < lower1 || upper1 < bound) {
             return intersect ? std::make_unique<ValueRange>(kRTEmpty) // always false
                              : nullptr; // can not merge
           }
+          return nullptr;
         }
         case kNotEqual: {
           //                [lower1 ...... upper1]
@@ -352,10 +369,11 @@ std::unique_ptr<ValueRange> MergeVR(const ValueRange &vr1, const ValueRange &vr2
           } else if (bound == lower1) {
             return intersect ? std::make_unique<ValueRange>(++lower1, upper1, kLowerAndUpper)
                              : std::make_unique<ValueRange>(kRTComplete); // always true;
-          } else { // bound == upper1
+          } else if (bound == upper1) {
             return intersect ? std::make_unique<ValueRange>(lower1, --upper1, kLowerAndUpper)
                              : std::make_unique<ValueRange>(kRTComplete); // always true;
           }
+          return nullptr;
         }
         default:
           return nullptr;
@@ -374,16 +392,18 @@ std::unique_ptr<ValueRange> MergeVR(const ValueRange &vr1, const ValueRange &vr2
         case kEqual: {
           if (b1 == b2) {
             return std::make_unique<ValueRange>(b1, kEqual);
-          } else {
+          } else if (b1 < b2 || b2 < b1) {
             return intersect ? std::make_unique<ValueRange>(kRTEmpty) : nullptr;
           }
+          return nullptr;
         }
         case kNotEqual: {
           if (b1 == b2) {
             return intersect ? std::make_unique<ValueRange>(kRTEmpty) : std::make_unique<ValueRange>(kRTComplete);
-          } else {
+          } else if (b1 < b2 || b2 < b1) {
             return intersect ? std::make_unique<ValueRange>(b1, kEqual) : std::make_unique<ValueRange>(b2, kNotEqual);
           }
+          return nullptr;
         }
         default:
           return nullptr;
@@ -403,9 +423,10 @@ std::unique_ptr<ValueRange> MergeVR(const ValueRange &vr1, const ValueRange &vr2
           }
           if (b1 == b2) {
             return std::make_unique<ValueRange>(b1, kNotEqual);
-          } else {
+          } else if (b1 < b2 || b2 < b1) {
             return intersect ? nullptr : std::make_unique<ValueRange>(kRTComplete);
           }
+          return nullptr;
         }
         default:
           return nullptr;

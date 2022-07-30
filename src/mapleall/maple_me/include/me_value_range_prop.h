@@ -191,9 +191,8 @@ class Bound {
 
   bool operator<(const Bound &bound) const;
 
-  bool operator<=(const Bound &bound) const {
-    return (*this) == bound || (*this) < bound;
-  }
+  bool operator<=(const Bound &bound) const;
+
   Bound &operator++() { // prefix inc
     ++constant;
     return *this;
