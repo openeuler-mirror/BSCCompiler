@@ -13,10 +13,10 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "feir_var_reg.h"
-#include "fe_options.h"
 #include <sstream>
 #include <functional>
 #include "mir_type.h"
+#include "fe_options.h"
 
 namespace maple {
 std::string FEIRVarReg::GetNameImpl(const MIRType &mirType) const {

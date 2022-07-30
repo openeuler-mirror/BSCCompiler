@@ -13,7 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "fe_config_parallel.h"
-#include "mpl_logging.h"
 
 namespace maple {
 FEConfigParallel FEConfigParallel::instance;

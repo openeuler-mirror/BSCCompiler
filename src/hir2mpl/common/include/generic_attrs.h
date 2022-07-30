@@ -32,7 +32,7 @@ enum GenericAttrKind {
 #undef TYPE_ATTR
 #undef FIELD_ATTR
 };
-#define MAX_ATTR_NUM 128
+constexpr uint32 kMaxATTRNum = 128;
 
 class GenericAttrs {
  public:
@@ -58,7 +58,7 @@ class GenericAttrs {
   }
 
   void InitContentMap() {
-    contentMap.resize(MAX_ATTR_NUM);
+    contentMap.resize(kMaxATTRNum);
     isInit = true;
   }
 
@@ -96,8 +96,8 @@ class GenericAttrs {
   FuncAttrs ConvertToFuncAttrs();
 
  private:
-  std::bitset<MAX_ATTR_NUM> attrFlag = 0;
-  std::bitset<MAX_ATTR_NUM> contentFlag = 0;
+  std::bitset<kMaxATTRNum> attrFlag = 0;
+  std::bitset<kMaxATTRNum> contentFlag = 0;
   std::vector<AttrContent> contentMap;
   bool isInit = false;
 };

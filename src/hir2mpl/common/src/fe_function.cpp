@@ -208,14 +208,14 @@ std::string FEFunction::GetGeneralFuncName() const {
   return mirFunction.GetName();
 }
 
-void FEFunction::PhaseTimerStart(FETimerNS &timer) {
+void FEFunction::PhaseTimerStart(FETimerNS &timer) const {
   if (!FEOptions::GetInstance().IsDumpPhaseTime()) {
     return;
   }
   timer.Start();
 }
 
-void FEFunction::PhaseTimerStopAndDump(FETimerNS &timer, const std::string &label) {
+void FEFunction::PhaseTimerStopAndDump(FETimerNS &timer, const std::string &label) const {
   if (!FEOptions::GetInstance().IsDumpPhaseTime()) {
     return;
   }
@@ -432,7 +432,7 @@ bool FEFunction::UpdateRegNum2This(const std::string &phaseName) {
   return success;
 }
 
-void FEFunction::OutputStmts() {
+void FEFunction::OutputStmts() const {
   FELinkListNode *node = feirStmtHead->GetNext();
   while (node != feirStmtTail) {
     FEIRStmt *currStmt = static_cast<FEIRStmt*>(node);
@@ -557,7 +557,7 @@ FEIRBB &FEFunction::GetFEIRBBByStmt(const FEIRStmt &stmt) {
   return *(it->second);
 }
 
-bool FEFunction::CheckBBsStmtNoAuxTail(const FEIRBB &bb) {
+bool FEFunction::CheckBBsStmtNoAuxTail(const FEIRBB &bb) const {
   bool bbHasStmtNoAuxTail = (bb.GetStmtNoAuxTail() != nullptr);
   CHECK_FATAL(bbHasStmtNoAuxTail, "Error accured in BuildFEIRBB phase, bb.GetStmtNoAuxTail() should not be nullptr");
   return true;

@@ -18,7 +18,7 @@
 namespace maple {
 TypeAttrs GenericAttrs::ConvertToTypeAttrs() const {
   TypeAttrs attr;
-  for (uint32 i = 0; i < MAX_ATTR_NUM; ++i) {
+  for (uint32 i = 0; i < kMaxATTRNum; ++i) {
     if (attrFlag[i] == 0) {
       continue;
     }
@@ -45,7 +45,7 @@ TypeAttrs GenericAttrs::ConvertToTypeAttrs() const {
 
 FuncAttrs GenericAttrs::ConvertToFuncAttrs() {
   FuncAttrs attr;
-  for (uint32 i = 0; i < MAX_ATTR_NUM; ++i) {
+  for (uint32 i = 0; i < kMaxATTRNum; ++i) {
     if (attrFlag[i] == 0) {
       continue;
     }

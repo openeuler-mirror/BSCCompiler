@@ -42,8 +42,8 @@ class FEFileType {
   FileType GetFileTypeByMagicNumber(uint32 magic) const;
   void Reset();
   void LoadDefault();
-  void RegisterExtName(FileType fileType, const std::string &extName);
-  void RegisterMagicNumber(FileType fileType, uint32 magicNumber);
+  void RegisterExtName(FileType argFileType, const std::string &extName);
+  void RegisterMagicNumber(FileType argFileType, uint32 magicNumber);
   static std::string GetPath(const std::string &pathName);
   static std::string GetName(const std::string &pathName, bool withExt = true);
   static std::string GetExtName(const std::string &pathName);

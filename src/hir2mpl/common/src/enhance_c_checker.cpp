@@ -22,6 +22,7 @@
 #include "fe_macros.h"
 
 namespace maple {
+const std::string kBoundsBuiltFunc = "__builtin_dynamic_bounds_cast";
 void ASTParser::ProcessNonnullFuncPtrAttrs(MapleAllocator &allocator, const clang::ValueDecl &valueDecl,
                                            ASTDecl &astVar) {
   const MIRFuncType *funcType = FEUtils::GetFuncPtrType(*astVar.GetTypeDesc().front());
@@ -771,7 +772,7 @@ void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const cl
     return;
   }
   // parameter stringLiteral -> real parameter decl
-  auto getLenExprFromStringLiteral = [&]() -> ASTExpr* {
+  auto getLenExprFromStringLiteral = [&allocator, &astFunc, lenExpr, ptrDecl]() -> ASTExpr* {
     ASTStringLiteral *strExpr = static_cast<ASTStringLiteral*>(lenExpr);
     std::string lenName(strExpr->GetCodeUnits().begin(), strExpr->GetCodeUnits().end());
     for (size_t i = 0; i < astFunc.GetParamDecls().size(); ++i) {
@@ -843,7 +844,7 @@ void ASTParser::ProcessBoundaryLenExprInVar(MapleAllocator &allocator, ASTDecl &
 void ASTParser::ProcessBoundaryLenExprInVar(MapleAllocator &allocator, ASTDecl &ptrDecl,
                                             const clang::QualType &qualType, ASTExpr *lenExpr, bool isSize) {
   // The StringLiteral is not allowed to use as boundary length of var
-  auto getLenExprFromStringLiteral = [&]() -> ASTExpr* {
+  auto getLenExprFromStringLiteral = [lenExpr]() -> ASTExpr* {
     FE_ERR(kLncErr, lenExpr->GetSrcLoc(), "The StringLiteral is not allowed to use as boundary length of var");
     return nullptr;
   };
@@ -853,7 +854,7 @@ void ASTParser::ProcessBoundaryLenExprInVar(MapleAllocator &allocator, ASTDecl &
 void ASTParser::ProcessBoundaryLenExprInField(MapleAllocator &allocator, ASTDecl &ptrDecl, const ASTStruct &structDecl,
                                               const clang::QualType &qualType, ASTExpr *lenExpr, bool isSize) {
   // boundary length stringLiteral in field -> real field decl
-  auto getLenExprFromStringLiteral = [&]() -> ASTExpr* {
+  auto getLenExprFromStringLiteral = [&allocator, &structDecl, lenExpr]() -> ASTExpr* {
     ASTStringLiteral *strExpr = static_cast<ASTStringLiteral*>(lenExpr);
     std::string lenName(strExpr->GetCodeUnits().begin(), strExpr->GetCodeUnits().end());
     for (ASTField *fieldDecl: structDecl.GetFields()) {
@@ -998,21 +999,21 @@ MIRConst *ENCChecker::GetMIRConstFromExpr(const UniqueFEIRExpr &expr) {
   } else if (expr->GetKind() == kExprAddrofArray) {
     FEIRExprAddrofArray *arrExpr = static_cast<FEIRExprAddrofArray*>(expr.get());
     MIRConst *cst = GetMIRConstFromExpr(arrExpr->GetExprArray());
-    if (cst != nullptr && cst->GetKind() == kConstAggConst) {
-      for (const auto &idxExpr : arrExpr->GetExprIndexs()) {
-        MIRAggConst *aggConst = static_cast<MIRAggConst*>(cst);
-        if (idxExpr->GetKind() != kExprConst) {
-          return nullptr;
-        }
-        uint64 idx = static_cast<FEIRExprConst*>(idxExpr.get())->GetValue().u64;
-        if (idx >= aggConst->GetConstVec().size()) {
-          return nullptr;
-        }
-        cst = aggConst->GetConstVecItem(idx);
-      }
-      return cst;
+    if (cst == nullptr || cst->GetKind() != kConstAggConst) {
+      return nullptr;
     }
-    return nullptr;
+    for (const auto &idxExpr : arrExpr->GetExprIndexs()) {
+      MIRAggConst *aggConst = static_cast<MIRAggConst*>(cst);
+      if (idxExpr->GetKind() != kExprConst) {
+        return nullptr;
+      }
+      uint64 idx = static_cast<FEIRExprConst*>(idxExpr.get())->GetValue().u64;
+      if (idx >= aggConst->GetConstVec().size()) {
+        return nullptr;
+      }
+      cst = aggConst->GetConstVecItem(idx);
+    }
+    return cst;
   }
   return nullptr;
 }
@@ -1046,15 +1047,13 @@ void ENCChecker::AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr 
   auto lIt = curFEFunction.GetBoundaryMap().find(dstExpr->Hash());
   if (lIt != curFEFunction.GetBoundaryMap().end()) {  // The boundary var exists on the l-value
     lBoundaryVarStIdx = lIt->second;
-  } else {
-    if (lRealLenExpr != nullptr) {  // init boundary in func body if a field/global var l-value with boundary attr
-      std::list<UniqueFEIRStmt> stmts;
-      lBoundaryVarStIdx = InitBoundaryVar(*curFunction, dstExpr, lRealLenExpr->Clone(), stmts);
-      for (const auto &stmt : stmts) {
-        std::list<StmtNode*> stmtNodes = stmt->GenMIRStmts(mirBuilder);
-        for (auto stmtNode : stmtNodes) {
-          curFunction->GetBody()->InsertFirst(stmtNode);
-        }
+  } else if (lRealLenExpr != nullptr) {  // init boundary in func body if a field/global var l-value with boundary attr
+    std::list<UniqueFEIRStmt> stmts;
+    lBoundaryVarStIdx = InitBoundaryVar(*curFunction, dstExpr, lRealLenExpr->Clone(), stmts);
+    for (const auto &stmt : stmts) {
+      std::list<StmtNode*> stmtNodes = stmt->GenMIRStmts(mirBuilder);
+      for (auto stmtNode : stmtNodes) {
+        curFunction->GetBody()->InsertFirst(stmtNode);
       }
     }
   }
@@ -1867,26 +1866,7 @@ MapleVector<BaseNode*> ENCChecker::ReplaceBoundaryChecking(MIRBuilder &mirBuilde
         }
         rightNode = rightExpr->GenMIRNode(mirBuilder);
       } else {
-        if (ENCChecker::IsUnsafeRegion(mirBuilder)) {
-          return args;
-        }
-        if (op == OP_callassertle) {
-          auto callAssert = static_cast<const FEIRStmtCallAssertBoundary*>(stmt);
-          FE_ERR(kLncErr, stmt->GetSrcLoc(), "boundaryless pointer passed to %s that requires a boundary pointer for "
-                 "the %s argument", callAssert->GetFuncName().c_str(),
-                 ENCChecker::GetNthStr(callAssert->GetParamIndex()).c_str());
-        } else if (op == OP_returnassertle) {
-          if (curFunction->GetName().compare(kBoundsBuiltFunc) != 0) {
-            FE_ERR(kLncErr, stmt->GetSrcLoc(), "boundaryless pointer returned from %s that requires a boundary pointer",
-                   curFunction->GetName().c_str());
-          }
-        } else if (op == OP_assignassertle) {
-          FE_ERR(kLncErr, stmt->GetSrcLoc(), "r-value requires a boundary pointer");
-        } else if (ENCChecker::IsSafeRegion(mirBuilder) &&
-                   (op == OP_calcassertge ||
-                    (op == OP_assertge && static_cast<const FEIRStmtAssertBoundary*>(stmt)->IsComputable()))) {
-          FE_ERR(kLncErr, stmt->GetSrcLoc(), "calculation with pointer requires bounds in safe region");
-        }
+        ReplaceBoundaryErr(mirBuilder, stmt);
         return args;
       }
     }
@@ -1895,6 +1875,31 @@ MapleVector<BaseNode*> ENCChecker::ReplaceBoundaryChecking(MIRBuilder &mirBuilde
   args.emplace_back(leftNode);
   args.emplace_back(rightNode);
   return args;
+}
+
+void ENCChecker::ReplaceBoundaryErr(const MIRBuilder &mirBuilder, const FEIRStmtNary *stmt) {
+  if (ENCChecker::IsUnsafeRegion(mirBuilder)) {
+    return;
+  }
+  Opcode op = stmt->GetOP();
+  if (op == OP_callassertle) {
+    auto callAssert = static_cast<const FEIRStmtCallAssertBoundary*>(stmt);
+    FE_ERR(kLncErr, stmt->GetSrcLoc(), "boundaryless pointer passed to %s that requires a boundary pointer for "
+           "the %s argument", callAssert->GetFuncName().c_str(),
+           ENCChecker::GetNthStr(callAssert->GetParamIndex()).c_str());
+  } else if (op == OP_returnassertle) {
+    MIRFunction *curFunction = mirBuilder.GetCurrentFunctionNotNull();
+    if (curFunction->GetName() != kBoundsBuiltFunc) {
+      FE_ERR(kLncErr, stmt->GetSrcLoc(), "boundaryless pointer returned from %s that requires a boundary pointer",
+             curFunction->GetName().c_str());
+    }
+  } else if (op == OP_assignassertle) {
+    FE_ERR(kLncErr, stmt->GetSrcLoc(), "r-value requires a boundary pointer");
+  } else if (ENCChecker::IsSafeRegion(mirBuilder) &&
+             (op == OP_calcassertge ||
+              (op == OP_assertge && static_cast<const FEIRStmtAssertBoundary*>(stmt)->IsComputable()))) {
+    FE_ERR(kLncErr, stmt->GetSrcLoc(), "calculation with pointer requires bounds in safe region");
+  }
 }
 
 bool ASTArraySubscriptExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts,

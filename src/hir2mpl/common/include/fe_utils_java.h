@@ -52,7 +52,7 @@ class FEUtilJava {
 
   static GStrIdx &GetJavaThrowableNameMplIdx() {
     static GStrIdx javaThrowableNameMplIdx =
-        GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(namemangler::EncodeName( "Ljava/lang/Throwable;"));
+        GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(namemangler::EncodeName("Ljava/lang/Throwable;"));
     return javaThrowableNameMplIdx;
   }
 

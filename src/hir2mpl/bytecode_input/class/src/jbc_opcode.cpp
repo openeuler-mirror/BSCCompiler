@@ -16,6 +16,7 @@
 #include "jbc_class_const.h"
 #include "jbc_class_const_pool.h"
 #include "jbc_util.h"
+#include "fe_utils_java.h"
 #include "fe_type_manager.h"
 
 namespace maple {
@@ -1152,7 +1153,7 @@ const std::vector<JBCPrimType> &JBCOpInvoke::GetInputTypesFromStackImpl() const 
 std::vector<JBCPrimType> JBCOpInvoke::GetInputTypesFromStackImpl(const JBCConstPool &constPool) const {
   std::vector<JBCPrimType> ans;
   std::string desc = GetMethodDescription(constPool);
-  std::vector<std::string> typeNames = JBCUtil::SolveMethodSignature(desc);
+  std::vector<std::string> typeNames = FEUtilJava::SolveMethodSignature(desc);
   CHECK_FATAL(typeNames.size() > 0, "Invalid method description: %s", desc.c_str());
   if (op != kOpInvokeStatic && op != kOpInvokeDynamic) {
     ans.push_back(kTypeRef);
@@ -1170,7 +1171,7 @@ JBCPrimType JBCOpInvoke::GetOutputTypesToStackImpl() const {
 
 JBCPrimType JBCOpInvoke::GetOutputTypesToStackImpl(const JBCConstPool &constPool) const {
   std::string desc = GetMethodDescription(constPool);
-  std::vector<std::string> typeNames = JBCUtil::SolveMethodSignature(desc);
+  std::vector<std::string> typeNames = FEUtilJava::SolveMethodSignature(desc);
   CHECK_FATAL(typeNames.size() > 0, "Invalid method description: %s", desc.c_str());
   return JBCUtil::GetPrimTypeForName(typeNames[0]);
 }

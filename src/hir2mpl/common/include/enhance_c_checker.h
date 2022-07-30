@@ -21,7 +21,6 @@
 
 namespace maple {
 constexpr int64 kUndefValue = 0xdeadbeef;
-static const char *kBoundsBuiltFunc = "__builtin_dynamic_bounds_cast";
 class ENCChecker {
  public:
   ENCChecker() = default;
@@ -79,6 +78,7 @@ class ENCChecker {
                                           const Loc &loc);
   static void CheckBoundaryLenFinalAddr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr, const Loc &loc);
   static MapleVector<BaseNode*> ReplaceBoundaryChecking(MIRBuilder &mirBuilder, const FEIRStmtNary *stmt);
+  static void ReplaceBoundaryErr(const MIRBuilder &mirBuilder, const FEIRStmtNary *stmt);
   static UniqueFEIRExpr GetBoundaryLenExprCache(uint32 hash);
   static UniqueFEIRExpr GetBoundaryLenExprCache(const TypeAttrs &attr);
   static UniqueFEIRExpr GetBoundaryLenExprCache(const FieldAttrs &attr);

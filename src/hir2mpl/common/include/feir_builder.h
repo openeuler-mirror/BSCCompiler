@@ -118,7 +118,7 @@ class FEIRBuilder {
   static UniqueFEIRStmt CreateStmtJavaInstanceOf(UniqueFEIRVar dstVar, UniqueFEIRVar srcVar, UniqueFEIRType type);
   static UniqueFEIRStmt CreateStmtJavaInstanceOf(UniqueFEIRVar dstVar, UniqueFEIRVar srcVar, UniqueFEIRType type,
                                                                                              uint32 argTypeID);
-  static UniqueFEIRStmt CreateStmtJavaFillArrayData(UniqueFEIRVar argVar, const int8 *arrayData,
+  static UniqueFEIRStmt CreateStmtJavaFillArrayData(UniqueFEIRVar srcVar, const int8 *arrayData,
                                                     uint32 size, const std::string &arrayName);
   static std::list<UniqueFEIRStmt> CreateStmtArrayStore(UniqueFEIRVar varElem, UniqueFEIRVar varArray,
                                                         UniqueFEIRVar varIndex);

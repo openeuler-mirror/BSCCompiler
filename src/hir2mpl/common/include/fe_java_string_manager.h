@@ -32,8 +32,8 @@ class FEJavaStringManager {
   MIRSymbol *GetLiteralPtrVar(const std::string &str) const;
   MIRSymbol *GetLiteralPtrVar(const std::u16string &strU16) const;
   // methods for string
-  MIRSymbol *CreateLiteralVar(MIRBuilder &mirBuilder, const std::string &str, bool isFieldValue);
-  MIRSymbol *CreateLiteralVar(MIRBuilder &mirBuilder, const std::u16string &strU16, bool isFieldValue);
+  MIRSymbol *CreateLiteralVar(MIRBuilder &mirBuilderIn, const std::string &str, bool isFieldValue);
+  MIRSymbol *CreateLiteralVar(MIRBuilder &mirBuilderIn, const std::u16string &strU16, bool isFieldValue);
   MIRSymbol *GetLiteralVar(const std::string &str) const;
   MIRSymbol *GetLiteralVar(const std::u16string &strU16) const;
   static std::string GetLiteralGlobalName(const std::u16string &strU16);
@@ -47,7 +47,7 @@ class FEJavaStringManager {
   };
 
   MIRArrayType *ConstructArrayType4Str(const std::u16string &strU16, bool compressible) const;
-  MIRAggConst *CreateByteArrayConst(const std::u16string &str, MIRArrayType &byteArrayType, bool compressible) const;
+  MIRAggConst *CreateByteArrayConst(const std::u16string &strU16, MIRArrayType &byteArrayType, bool compressible) const;
   static std::vector<uint8> SwapBytes(const std::u16string &strU16);
   static uint16 ExchangeBytesPosition(uint16 input);
   template <typename T>

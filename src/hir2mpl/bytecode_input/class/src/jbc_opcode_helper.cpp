@@ -14,7 +14,7 @@
  */
 #include "jbc_opcode_helper.h"
 #include "jbc_class_const.h"
-#include "jbc_util.h"
+#include "fe_utils_java.h"
 #include "fe_type_manager.h"
 
 namespace maple {
@@ -104,7 +104,7 @@ std::vector<std::string> JBCOpcodeHelper::GetBaseTypeNamesForOPInvoke(const jbc:
   }
   const jbc::JBCConstRef *constRef = static_cast<const jbc::JBCConstRef*>(constItem);
   const std::string desc = constRef->GetDesc();
-  std::vector<std::string> typeNames = jbc::JBCUtil::SolveMethodSignature(desc);
+  std::vector<std::string> typeNames = FEUtilJava::SolveMethodSignature(desc);
   for (const std::string &typeName : typeNames) {
     ans.push_back(FETypeManager::GetBaseTypeName(typeName, false));
   }

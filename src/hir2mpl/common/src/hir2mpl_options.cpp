@@ -12,23 +12,22 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "driver_options.h"
-#include "file_utils.h"
-#include "fe_options.h"
-#include "fe_macros.h"
-#include "fe_file_type.h"
-#include "hir2mpl_option.h"
 #include "hir2mpl_options.h"
-#include "parser_opt.h"
-#include "types_def.h"
-#include "version.h"
-
 #include <cstdint>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <unordered_set>
+#include "driver_options.h"
+#include "file_utils.h"
+#include "fe_options.h"
+#include "fe_macros.h"
+#include "fe_file_type.h"
+#include "hir2mpl_option.h"
+#include "parser_opt.h"
+#include "types_def.h"
+#include "version.h"
 
 namespace maple {
 
@@ -288,7 +287,7 @@ bool HIR2MPLOptions::ProcessInputMpltFromSys(const maplecl::OptionInterface &mpl
 }
 
 bool HIR2MPLOptions::ProcessInputMpltFromApk(const maplecl::OptionInterface &mpltApk) const {
-  std::string arg = mpltApk.GetCommonValue();;
+  std::string arg = mpltApk.GetCommonValue();
   std::list<std::string> listFiles = SplitByComma(arg);
   for (const std::string &fileName : listFiles) {
     FEOptions::GetInstance().AddInputMpltFileFromApk(fileName);

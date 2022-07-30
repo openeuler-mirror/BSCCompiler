@@ -438,6 +438,20 @@ Loc FEUtils::GetSrcLocationForMIRSymbol(const MIRSymbol &symbol) {
   return Loc(symbol.GetSrcPosition().FileNum(), symbol.GetSrcPosition().LineNum(), symbol.GetSrcPosition().Column());
 }
 
+void FEUtils::InitPrimTypeFuncNameIdxMap(std::map<PrimType, GStrIdx> &primTypeFuncNameIdxMap) {
+  primTypeFuncNameIdxMap = {
+      { PTY_u1, GetMCCStaticFieldSetBoolIdx() },
+      { PTY_i8, GetMCCStaticFieldSetByteIdx() },
+      { PTY_i16, GetMCCStaticFieldSetShortIdx() },
+      { PTY_u16, GetMCCStaticFieldSetCharIdx() },
+      { PTY_i32, GetMCCStaticFieldSetIntIdx() },
+      { PTY_i64, GetMCCStaticFieldSetLongIdx() },
+      { PTY_f32, GetMCCStaticFieldSetFloatIdx() },
+      { PTY_f64, GetMCCStaticFieldSetDoubleIdx() },
+      { PTY_ref, GetMCCStaticFieldSetObjectIdx() },
+  };
+}
+
 // ---------- FELinkListNode ----------
 FELinkListNode::FELinkListNode()
     : prev(nullptr), next(nullptr) {}

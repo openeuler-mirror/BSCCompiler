@@ -12,14 +12,14 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#ifndef HIR2MPL_COMMON_INCLUDE_FEIR_SCOPE_H
+#define HIR2MPL_COMMON_INCLUDE_FEIR_SCOPE_H
 #include "mir_scope.h"
 #include "mpl_logging.h"
 #include "src_position.h"
 #include "feir_var.h"
 #include "feir_stmt.h"
 
-#ifndef HIR2MPL_COMMON_INCLUDE_FEIR_SCOPE_H
-#define HIR2MPL_COMMON_INCLUDE_FEIR_SCOPE_H
 namespace maple {
 class FEIRScope;
 using UniqueFEIRScope = std::unique_ptr<FEIRScope>;

@@ -32,9 +32,11 @@
 #include "feir_scope.h"
 
 namespace maple {
-#define SET_FUNC_INFO_PAIR(A, B, C, D)                                                           \
-  (A).PushbackMIRInfo(MIRInfoPair(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(B), C)); \
-  (A).PushbackIsString(D)
+#define SET_FUNC_INFO_PAIR(A, B, C, D)                                                             \
+  do {                                                                                             \
+    (A).PushbackMIRInfo(MIRInfoPair(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(B), C)); \
+    (A).PushbackIsString(D);                                                                       \
+  } while (0)                                                                                      \
 
 class FEFunction {
  public:
@@ -169,8 +171,8 @@ class FEFunction {
   virtual std::string GetGeneralFuncName() const;
   void EmitToMIRStmt();
 
-  void PhaseTimerStart(FETimerNS &timer);
-  void PhaseTimerStopAndDump(FETimerNS &timer, const std::string &label);
+  void PhaseTimerStart(FETimerNS &timer) const;
+  void PhaseTimerStopAndDump(FETimerNS &timer, const std::string &label) const;
   virtual void DumpFEIRCFGGraphForDFGEdge(std::ofstream &file);
   virtual bool HasThis() = 0;
   virtual bool IsNative() = 0;
@@ -199,11 +201,11 @@ class FEFunction {
   MIRFunction &mirFunction;
 
  LLT_PRIVATE:
-  void OutputStmts();
+  void OutputStmts() const;
   bool SetupFEIRStmtGoto(FEIRStmtGoto &stmt);
   bool SetupFEIRStmtSwitch(FEIRStmtSwitch &stmt);
-  const FEIRStmtPesudoLOC *GetLOCForStmt(const FEIRStmt &feStmt) const;
-  void AddLocForStmt(const FEIRStmt &feIRStmt, std::list<StmtNode*> &mirStmts) const;
+  const FEIRStmtPesudoLOC *GetLOCForStmt(const FEIRStmt &feIRStmt) const;
+  void AddLocForStmt(const FEIRStmt &stmt, std::list<StmtNode*> &mirStmts) const;
   void LabelFEIRStmts();  // label fe ir stmts
   FEIRBB *NewFEIRBB(uint32 &id);
   bool IsBBEnd(const FEIRStmt &stmt) const;
@@ -215,7 +217,7 @@ class FEFunction {
   void LinkSwitchBBAndItsTargets(FEIRBB &bb, const FEIRStmt &stmtTail);
   void LinkBB(FEIRBB &predBB, FEIRBB &succBB);
   FEIRBB &GetFEIRBBByStmt(const FEIRStmt &stmt);
-  bool CheckBBsStmtNoAuxTail(const FEIRBB &bb);
+  bool CheckBBsStmtNoAuxTail(const FEIRBB &bb) const;
   void ProcessCheckPoints();
   void InsertCheckPointForBBs();
   void InsertCheckPointForTrys();

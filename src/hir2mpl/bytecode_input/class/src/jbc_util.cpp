@@ -25,45 +25,6 @@ std::string JBCUtil::ClassInternalNameToFullName(const std::string &name) {
   }
 }
 
-std::vector<std::string> JBCUtil::SolveMethodSignature(const std::string &signature) {
-  std::vector<std::string> ans;
-  size_t pos1 = signature.find('(');
-  size_t pos2 = signature.find(')');
-  if (pos1 == std::string::npos || pos2 == std::string::npos || pos1 > pos2) {
-    CHECK_FATAL(false, "invalid method signature %s", signature.c_str());
-  }
-  std::string paramTypeNames = signature.substr(pos1 + 1, pos2 - pos1 - 1);
-  std::string retTypeName = signature.substr(pos2 + 1);
-  ans.push_back(retTypeName);
-  while (paramTypeNames.length() > 0) {
-    std::string typeName = SolveParamName(paramTypeNames);
-    ans.push_back(typeName);
-    paramTypeNames = paramTypeNames.substr(typeName.length());
-  }
-  return ans;
-}
-
-std::string JBCUtil::SolveParamName(const std::string &signature) {
-  if (signature.empty()) {
-    return "";
-  }
-  char c = signature[0];
-  switch (c) {
-    case '[':
-      return "[" + SolveParamName(signature.substr(1));
-    case 'L': {
-      size_t pos = signature.find(';');
-      CHECK_FATAL(pos != std::string::npos, "invalid type %s", signature.c_str());
-      return signature.substr(0, pos + 1);
-    }
-    default: {
-      std::string ans = "";
-      ans.push_back(c);
-      return ans;
-    }
-  }
-}
-
 JBCPrimType JBCUtil::GetPrimTypeForName(const std::string &name) {
   switch (name[0]) {
     case '[':

@@ -126,16 +126,17 @@ Loc LibAstFile::GetExprLOC(const clang::Expr &expr) const {
 }
 
 Loc LibAstFile::GetLOC(const clang::SourceLocation &srcLoc) const {
-  if (srcLoc.isInvalid()) {
+  clang::PresumedLoc pLoc = astContext->getSourceManager().getPresumedLoc(srcLoc);
+  if (pLoc.isInvalid()) {
     return {0, 0, 0};
   }
   if (srcLoc.isFileID()) {
-    std::string fileName = astContext->getSourceManager().getFilename(srcLoc).str();
+    std::string fileName = pLoc.getFilename();
     if (fileName.empty()) {
       return {0, 0, 0};
     }
-    unsigned line = astContext->getSourceManager().getSpellingLineNumber(srcLoc);
-    unsigned colunm = astContext->getSourceManager().getSpellingColumnNumber(srcLoc);
+    unsigned line = pLoc.getLine();
+    unsigned colunm = pLoc.getColumn();
     GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fileName);
     for (const auto &info : FEManager::GetModule().GetSrcFileInfo()) {
       if (info.first == strIdx) {

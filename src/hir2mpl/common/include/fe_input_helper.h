@@ -125,12 +125,12 @@ class FEInputFieldHelper {
     return ProcessDecl(allocator);
   }
 
-  bool ProcessDecl(MapleAllocator &allocator) {
-    return ProcessDeclImpl(allocator);
+  bool ProcessDecl(MapleAllocator &alloc) {
+    return ProcessDeclImpl(alloc);
   }
 
-  bool ProcessDeclWithContainer(MapleAllocator &allocator) {
-    return ProcessDeclWithContainerImpl(allocator);
+  bool ProcessDeclWithContainer(MapleAllocator &alloc) {
+    return ProcessDeclWithContainerImpl(alloc);
   }
 
   static void SetFieldAttribute(const std::string &name, FieldAttrs &attr) {
@@ -242,7 +242,7 @@ class FEInputMethodHelper {
   }
 
  protected:
-  virtual bool ProcessDeclImpl(MapleAllocator &allocator);
+  virtual bool ProcessDeclImpl(MapleAllocator &allocatorIn);
   virtual void SolveReturnAndArgTypesImpl(MapleAllocator &allocator) = 0;
   virtual std::string GetMethodNameImpl(bool inMpl, bool full) const = 0;
   virtual FuncAttrs GetAttrsImpl() const = 0;
@@ -280,7 +280,7 @@ class FEInputStructHelper : public FEInputContainer {
         isSkipped(false),
         srcLang(kSrcLangJava) {}
 
-  virtual ~FEInputStructHelper() {
+  ~FEInputStructHelper() override {
     mirStructType = nullptr;
     mirSymbol = nullptr;
     pragmaHelper = nullptr;
@@ -387,7 +387,7 @@ class FEInputStructHelper : public FEInputContainer {
   void ProcessPragma();
 
  protected:
-  virtual MIRStructType *GetContainerImpl();
+  MIRStructType *GetContainerImpl() override;
   virtual bool PreProcessDeclImpl();
   virtual bool ProcessDeclImpl();
   virtual std::string GetStructNameOrinImpl() const = 0;

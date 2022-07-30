@@ -71,7 +71,7 @@ class FEUtils {
   static FieldID GetStructFieldID(MIRStructType *base, const std::string &fieldName);
   static bool TraverseToNamedField(MIRStructType &structType, const GStrIdx &nameIdx, FieldID &fieldID,
                                    bool isTopLevel = true);
-  static MIRType *GetStructFieldType(const MIRStructType *type, FieldID feildID);
+  static MIRType *GetStructFieldType(const MIRStructType *type, FieldID fieldID);
   static const MIRFuncType *GetFuncPtrType(const MIRType &type);
   static MIRConst *CreateImplicitConst(MIRType *type);
   static PrimType GetVectorElementPrimType(PrimType vectorPrimType);
@@ -277,6 +277,8 @@ class FEUtils {
     return mccStaticFieldSetObjectIdx;
   }
 
+  static void InitPrimTypeFuncNameIdxMap(std::map<PrimType, GStrIdx> &primTypeFuncNameIdxMap);
+
  private:
   static bool LogicXOR(bool v1, bool v2) {
     return (v1 && !v2) || (!v1 && v2);
@@ -367,7 +369,7 @@ class AstLoopUtil {
   }
 
   ~AstLoopUtil() = default;
-  void PushBreak(std::string labelPair);
+  void PushBreak(std::string label);
   std::string GetCurrentBreak();
   void PopCurrentBreak();
   bool IsBreakLabelsEmpty() const;

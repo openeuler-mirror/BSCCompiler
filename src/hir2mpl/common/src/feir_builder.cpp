@@ -375,7 +375,7 @@ UniqueFEIRExpr FEIRBuilder::CreateExprCastPrim(UniqueFEIRExpr srcExpr, PrimType 
   }
 
   // Integer to Integer : 8, 16, 32, 64 bits Integer
-  auto createExprExt = [&]() {
+  auto createExprExt = [&srcExpr, &dstType]() {
     if (FEUtils::IsUnsignedInteger(dstType)) {
       return CreateExprZExt(std::move(srcExpr), dstType);
     } else {

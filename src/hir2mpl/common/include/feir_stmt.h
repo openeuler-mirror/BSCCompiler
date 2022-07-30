@@ -1707,7 +1707,7 @@ class FEIRStmtJavaFillArrayData : public FEIRStmtAssign {
  LLT_PRIVATE:
   PrimType ProcessArrayElemPrimType() const;
   MIRSymbol *ProcessArrayElemData(MIRBuilder &mirBuilder, PrimType elemPrimType) const;
-  MIRAggConst *FillArrayElem(MIRBuilder &mirBuilder, PrimType elemPrimType, MIRType &arrayTypeWithSize,
+  MIRAggConst *FillArrayElem(const MIRBuilder &mirBuilder, PrimType elemPrimType, MIRType &arrayTypeWithSize,
                              uint32 elemSize) const;
 
   std::unique_ptr<FEIRExpr> arrayExpr;
@@ -1881,7 +1881,7 @@ class FEIRStmtPesudoLabel : public FEIRStmt {
  public:
   explicit FEIRStmtPesudoLabel(uint32 argLabelIdx);
   ~FEIRStmtPesudoLabel() = default;
-  void GenerateLabelIdx(MIRBuilder &mirBuilder);
+  void GenerateLabelIdx(const MIRBuilder &mirBuilder);
 
   uint32 GetLabelIdx() const {
     return labelIdx;
@@ -1908,7 +1908,7 @@ class FEIRStmtPesudoLabel2 : public FEIRStmt {
       : FEIRStmt(FEIRNodeKind::kStmtPesudoLabel), labelIdxOuter(qIdx0), labelIdxInner(qIdx1) {}
 
   ~FEIRStmtPesudoLabel2() = default;
-  static LabelIdx GenMirLabelIdx(MIRBuilder &mirBuilder, uint32 qIdx0, uint32 qIdx1);
+  static LabelIdx GenMirLabelIdx(const MIRBuilder &mirBuilder, uint32 qIdx0, uint32 qIdx1);
   std::pair<uint32, uint32> GetLabelIdx() const;
   uint32 GetPos() const {
     return labelIdxInner;
@@ -1999,7 +1999,7 @@ class FEIRStmtGoto2 : public FEIRStmt {
 // ---------- FEIRStmtGoto ----------
 class FEIRStmtGotoForC : public FEIRStmt {
  public:
-  explicit FEIRStmtGotoForC(const std::string &labelName);
+  explicit FEIRStmtGotoForC(const std::string &name);
   virtual ~FEIRStmtGotoForC() = default;
   void SetLabelName(const std::string &name) {
     labelName = name;
@@ -2304,7 +2304,7 @@ class FEIRStmtSwitchForC : public FEIRStmt {
 // ---------- FEIRStmtCaseForC ----------
 class FEIRStmtCaseForC : public FEIRStmt {
  public:
-  explicit FEIRStmtCaseForC(int64 lCaseLabel);
+  explicit FEIRStmtCaseForC(int64 label);
   void AddCaseTag2CaseVec(int64 lCaseTag, int64 rCaseTag);
   ~FEIRStmtCaseForC() = default;
   void AddFeirStmt(UniqueFEIRStmt stmt) {
@@ -2417,7 +2417,6 @@ class FEIRStmtFieldStore : public FEIRStmt {
   bool CalculateDefs4AllUsesForStatic(FEIRStmtCheckPoint &checkPoint, FEIRUseDefChain &udChain);
   bool CalculateDefs4AllUsesForNonStatic(FEIRStmtCheckPoint &checkPoint, FEIRUseDefChain &udChain);
   bool NeedMCCForStatic(uint32 &typeID) const;
-  void InitPrimTypeFuncNameIdxMap(std::map<PrimType, GStrIdx> &primTypeFuncNameIdxMap) const;
   std::list<StmtNode*> GenMIRStmtsImplForStatic(MIRBuilder &mirBuilder) const;
   std::list<StmtNode*> GenMIRStmtsImplForNonStatic(MIRBuilder &mirBuilder) const;
 
@@ -2525,6 +2524,7 @@ class FEIRStmtIntrinsicCallAssign : public FEIRStmtAssign {
 
  private:
   void ConstructArgsForInvokePolyMorphic(MIRBuilder &mirBuilder, MapleVector<BaseNode*> &intrnCallargs) const;
+  std::list<StmtNode*> GenMIRStmtsForFillNewArray(MIRBuilder &mirBuilder) const;
   std::list<StmtNode*> GenMIRStmtsForInvokePolyMorphic(MIRBuilder &mirBuilder) const;
 
   MIRIntrinsicID intrinsicId;
@@ -2833,7 +2833,7 @@ class FEIRStmtContinue : public FEIRStmt {
   FEIRStmtContinue(): FEIRStmt(FEIRNodeKind::kStmtContinue) {}
   ~FEIRStmtContinue() = default;
 
-  void SetLabelName(std::string name){
+  void SetLabelName(std::string name) {
     labelName = std::move(name);
   }
 

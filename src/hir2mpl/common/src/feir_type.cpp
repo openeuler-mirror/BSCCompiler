@@ -444,9 +444,9 @@ void FEIRTypePointer::SetPrimTypeImpl(PrimType pt) {
 }
 
 // ---------- FEIRTypeNative ----------
-FEIRTypeNative::FEIRTypeNative(MIRType &argMIRtype)
+FEIRTypeNative::FEIRTypeNative(MIRType &argMIRType)
     : FEIRType(kFEIRTypeNative),
-      mirType(argMIRtype) {
+      mirType(argMIRType) {
   kind = kFEIRTypeNative;
   // Right now, FEIRTypeNative is only used for c-language.
   srcLang = kSrcLangC;

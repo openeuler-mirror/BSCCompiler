@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "jbc_util.h"
+#include "fe_utils_java.h"
 
 namespace maple {
 namespace jbc {
@@ -25,7 +26,7 @@ TEST(JBCUtil, ClassInternalNameToFullName) {
 
 TEST(JBCUtil, SolveMethodSignature) {
   std::vector<std::string> ans;
-  ans = JBCUtil::SolveMethodSignature("func(Ljava/lang/Object;[II)J");
+  ans = FEUtilJava::SolveMethodSignature("func(Ljava/lang/Object;[II)J");
   ASSERT_EQ(ans.size(), 4);
   EXPECT_EQ(ans[0], "J");
   EXPECT_EQ(ans[1], "Ljava/lang/Object;");

@@ -121,22 +121,23 @@ void FETypeManager::UpdateStructNameTypeMapFromTypeTable(const std::string &mplt
   bool sameNameUseLastest = sameNamePolicy.IsUseLastest();
   GStrIdx mpltNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(mpltName);
   for (MIRType *type : GlobalTables::GetTypeTable().GetTypeTable()) {
-    if ((type != nullptr) && IsStructType(*type)) {
-      MIRStructType *structType = static_cast<MIRStructType*>(type);
-      auto it = structNameTypeMap.insert(std::make_pair(structType->GetNameStrIdx(), std::make_pair(structType, flag)));
-      if (!it.second) {
-        // type is existed
-        structSameNameSrcList.push_back(std::make_pair(structType->GetNameStrIdx(),
-                                                       structNameSrcMap[structType->GetNameStrIdx()]));
-        structSameNameSrcList.push_back(std::make_pair(structType->GetNameStrIdx(), mpltNameIdx));
-        if (sameNameUseLastest) {
-          structNameTypeMap[structType->GetNameStrIdx()] = std::make_pair(structType, flag);
-          structNameSrcMap[structType->GetNameStrIdx()] = mpltNameIdx;
-        }
-      } else {
-        // type is not existed
+    if ((type == nullptr) || !IsStructType(*type)) {
+      continue;
+    }
+    MIRStructType *structType = static_cast<MIRStructType*>(type);
+    auto it = structNameTypeMap.insert(std::make_pair(structType->GetNameStrIdx(), std::make_pair(structType, flag)));
+    if (!it.second) {
+      // type is existed
+      structSameNameSrcList.push_back(std::make_pair(structType->GetNameStrIdx(),
+                                                     structNameSrcMap[structType->GetNameStrIdx()]));
+      structSameNameSrcList.push_back(std::make_pair(structType->GetNameStrIdx(), mpltNameIdx));
+      if (sameNameUseLastest) {
+        structNameTypeMap[structType->GetNameStrIdx()] = std::make_pair(structType, flag);
         structNameSrcMap[structType->GetNameStrIdx()] = mpltNameIdx;
       }
+    } else {
+      // type is not existed
+      structNameSrcMap[structType->GetNameStrIdx()] = mpltNameIdx;
     }
   }
 }
@@ -487,8 +488,8 @@ MIRType *FETypeManager::GetOrCreateArrayType(MIRType &elemType, uint8 dim, PrimT
   }
 }
 
-MIRType *FETypeManager::GetOrCreateJArrayType(MIRType &elem, uint8 dim, PrimType ptyPtr) {
-  MIRType *type = &elem;
+MIRType *FETypeManager::GetOrCreateJArrayType(MIRType &elemType, uint8 dim, PrimType ptyPtr) {
+  MIRType *type = &elemType;
   for (uint8 i = 0; i < dim; i++) {
     type = GlobalTables::GetTypeTable().GetOrCreateJarrayType(*type);
     CHECK_NULL_FATAL(type);
@@ -506,27 +507,27 @@ void FETypeManager::AddClassToModule(const MIRStructType &structType) {
 }
 
 FEStructElemInfo *FETypeManager::RegisterStructFieldInfo(
-    const StructElemNameIdx &structElemNameIdx, MIRSrcLang argSrcLang, bool isStatic) {
+    const StructElemNameIdx &argStructElemNameIdx, MIRSrcLang argSrcLang, bool isStatic) {
   std::lock_guard<std::mutex> lk(feTypeManagerMtx);
-  FEStructElemInfo *ptrInfo = GetStructElemInfo(structElemNameIdx.full);
+  FEStructElemInfo *ptrInfo = GetStructElemInfo(argStructElemNameIdx.full);
   if (ptrInfo != nullptr) {
     return ptrInfo;
   }
-  ptrInfo = allocator.GetMemPool()->New<FEStructFieldInfo>(allocator, structElemNameIdx, argSrcLang, isStatic);
-  CHECK_FATAL(mapStructElemInfo.insert(std::make_pair(structElemNameIdx.full, ptrInfo)).second,
+  ptrInfo = allocator.GetMemPool()->New<FEStructFieldInfo>(allocator, argStructElemNameIdx, argSrcLang, isStatic);
+  CHECK_FATAL(mapStructElemInfo.insert(std::make_pair(argStructElemNameIdx.full, ptrInfo)).second,
               "register struct elem info failed");
   return ptrInfo;
 }
 
 FEStructElemInfo *FETypeManager::RegisterStructMethodInfo(
-    const StructElemNameIdx &structElemNameIdx, MIRSrcLang argSrcLang, bool isStatic) {
+    const StructElemNameIdx &argStructElemNameIdx, MIRSrcLang argSrcLang, bool isStatic) {
   std::lock_guard<std::mutex> lk(feTypeManagerMtx);
-  FEStructElemInfo *ptrInfo = GetStructElemInfo(structElemNameIdx.full);
+  FEStructElemInfo *ptrInfo = GetStructElemInfo(argStructElemNameIdx.full);
   if (ptrInfo != nullptr) {
     return ptrInfo;
   }
-  ptrInfo = allocator.GetMemPool()->New<FEStructMethodInfo>(allocator, structElemNameIdx, argSrcLang, isStatic);
-  CHECK_FATAL(mapStructElemInfo.insert(std::make_pair(structElemNameIdx.full, ptrInfo)).second,
+  ptrInfo = allocator.GetMemPool()->New<FEStructMethodInfo>(allocator, argStructElemNameIdx, argSrcLang, isStatic);
+  CHECK_FATAL(mapStructElemInfo.insert(std::make_pair(argStructElemNameIdx.full, ptrInfo)).second,
               "register struct elem info failed");
   return ptrInfo;
 }

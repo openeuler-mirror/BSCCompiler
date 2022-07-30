@@ -180,7 +180,7 @@ class FEStructMethodInfo : public FEStructElemInfo {
  public:
   FEStructMethodInfo(MapleAllocator &allocatorIn, const StructElemNameIdx &argStructElemNameIdx,
                      MIRSrcLang argSrcLang, bool argIsStatic);
-  ~FEStructMethodInfo();
+  ~FEStructMethodInfo() override;
   PUIdx GetPuIdx() const;
   bool IsConstructor() const {
     return isConstructor;

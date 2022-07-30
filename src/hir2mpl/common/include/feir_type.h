@@ -80,6 +80,7 @@ class FEIRType {
   }
 
   MIRType *GenerateMIRType(MIRSrcLang argSrcLang, bool usePtr) const {
+    (void)argSrcLang;
     return GenerateMIRType(usePtr);
   }
 

@@ -23,8 +23,6 @@ namespace jbc {
 class JBCUtil {
  public:
   static std::string ClassInternalNameToFullName(const std::string &name);
-  static std::vector<std::string> SolveMethodSignature(const std::string &signature);
-  static std::string SolveParamName(const std::string &signature);
   static JBCPrimType GetPrimTypeForName(const std::string &name);
 
  private:

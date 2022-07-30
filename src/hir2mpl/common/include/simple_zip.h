@@ -22,10 +22,6 @@
 #include "basic_io.h"
 
 namespace maple {
-static const uint32 kZipSigLocalFile = 0x04034B50;
-static const uint32 kZipSigDataDescriptor = 0x08074B50;
-static const uint32 kZipSigCentralDir = 0x02014B50;
-
 class ZipLocalFileHeader {
  public:
   ZipLocalFileHeader() = default;
