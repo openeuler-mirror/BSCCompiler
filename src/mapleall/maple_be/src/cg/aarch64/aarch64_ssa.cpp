@@ -181,7 +181,8 @@ void AArch64CGSSAInfo::DumpInsnInSSAForm(const Insn &insn) const {
     A64SSAOperandDumpVisitor a64OpVisitor(GetAllSSAOperands());
     opnd.Accept(a64OpVisitor);
     if (!a64OpVisitor.HasDumped()) {
-      opnd.Dump();
+      A64OpndDumpVisitor dumpVisitor;
+      opnd.Accept(dumpVisitor);
       LogInfo::MapleLogger() << ")";
     }
   }

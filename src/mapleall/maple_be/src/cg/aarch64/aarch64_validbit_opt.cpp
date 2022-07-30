@@ -93,12 +93,10 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       break;
     }
     case MOP_wlsrrri5:
-    case MOP_xlsrrri6:
-    case MOP_wasrrri5:
-    case MOP_xasrrri6: {
+    case MOP_xlsrrri6: {
       Operand &opnd = insn.GetOperand(kInsnThirdOpnd);
       ASSERT(opnd.IsIntImmediate(), "must be ImmOperand");
-      uint32 shiftBits = static_cast<uint32>(static_cast<ImmOperand&>(opnd).GetValue());
+      auto shiftBits = static_cast<uint32>(static_cast<ImmOperand&>(opnd).GetValue());
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
       auto &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
       if ((static_cast<int64>(srcOpnd.GetValidBitsNum()) - shiftBits) <= 0) {
@@ -112,12 +110,30 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
     case MOP_xlslrri6: {
       Operand &opnd = insn.GetOperand(kInsnThirdOpnd);
       ASSERT(opnd.IsIntImmediate(), "must be ImmOperand");
-      uint32 shiftBits = static_cast<uint32>(static_cast<ImmOperand&>(opnd).GetValue());
+      auto shiftBits = static_cast<uint32>(static_cast<ImmOperand&>(opnd).GetValue());
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
       auto &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
       uint32 newVB = ((srcOpnd.GetValidBitsNum() + shiftBits) > srcOpnd.GetSize()) ?
                      srcOpnd.GetSize() : (srcOpnd.GetValidBitsNum() + shiftBits);
       dstOpnd.SetValidBitsNum(newVB);
+      break;
+    }
+    case MOP_wasrrri5:
+    case MOP_xasrrri6: {
+      auto &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+      if ((mop == MOP_wasrrri5 && srcOpnd.GetValidBitsNum() < k32BitSize) ||
+          (mop == MOP_xasrrri6 && srcOpnd.GetValidBitsNum() < k64BitSize)) {
+        Operand &opnd = insn.GetOperand(kInsnThirdOpnd);
+        ASSERT(opnd.IsIntImmediate(), "must be ImmOperand");
+        auto shiftBits = static_cast<uint32>(static_cast<ImmOperand&>(opnd).GetValue());
+        auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+        if ((static_cast<int64>(srcOpnd.GetValidBitsNum()) - shiftBits) <= 0) {
+          dstOpnd.SetValidBitsNum(k1BitSize);
+        } else {
+          dstOpnd.SetValidBitsNum(srcOpnd.GetValidBitsNum() - shiftBits);
+        }
+      }
+      break;
     }
     case MOP_xuxtb32:
     case MOP_xuxth32: {

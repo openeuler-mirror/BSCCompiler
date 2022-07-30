@@ -181,7 +181,7 @@ void CGSSAInfo::RenameSuccPhiUse(const BB &bb) {
 }
 
 uint32 CGSSAInfo::IncreaseVregCount(regno_t vRegNO) {
-  if (!vRegDefCount.count(vRegNO)) {
+  if (vRegDefCount.count(vRegNO) == 0) {
     vRegDefCount.emplace(vRegNO, 0);
   } else {
     vRegDefCount[vRegNO]++;
@@ -257,37 +257,7 @@ Insn *CGSSAInfo::GetDefInsn(const RegOperand &useReg) {
 void CGSSAInfo::DumpFuncCGIRinSSAForm() const {
   LogInfo::MapleLogger() << "\n******  SSA CGIR for " << cgFunc->GetName() << " *******\n";
   FOR_ALL_BB_CONST(bb, cgFunc) {
-    LogInfo::MapleLogger() << "=== BB " << " <" << bb->GetKindName();
-    if (bb->GetLabIdx() != MIRLabelTable::GetDummyLabel()) {
-      LogInfo::MapleLogger() << "[labeled with " << bb->GetLabIdx();
-      LogInfo::MapleLogger() << " ==> @" << cgFunc->GetFunction().GetLabelName(bb->GetLabIdx()) << "]";
-    }
-
-    LogInfo::MapleLogger() << "> <" << bb->GetId() << "> ";
-    if (bb->IsCleanup()) {
-      LogInfo::MapleLogger() << "[is_cleanup] ";
-    }
-    if (bb->IsUnreachable()) {
-      LogInfo::MapleLogger() << "[unreachable] ";
-    }
-    if (bb->GetFirstStmt() == cgFunc->GetCleanupLabel()) {
-      LogInfo::MapleLogger() << "cleanup ";
-    }
-    if (!bb->GetSuccs().empty()) {
-      LogInfo::MapleLogger() << "succs: ";
-      for (auto *succBB : bb->GetSuccs()) {
-        LogInfo::MapleLogger() << succBB->GetId() << " ";
-      }
-    }
-    if (!bb->GetEhSuccs().empty()) {
-      LogInfo::MapleLogger() << "eh_succs: ";
-      for (auto *ehSuccBB : bb->GetEhSuccs()) {
-        LogInfo::MapleLogger() << ehSuccBB->GetId() << " ";
-      }
-    }
-    LogInfo::MapleLogger() << "===\n";
-    LogInfo::MapleLogger() << "frequency:" << bb->GetFrequency() << "\n";
-
+    cgFunc->DumpBBInfo(bb);
     FOR_BB_INSNS_CONST(insn, bb) {
       if (insn->IsCfiInsn() && insn->IsDbgInsn()) {
         insn->Dump();
