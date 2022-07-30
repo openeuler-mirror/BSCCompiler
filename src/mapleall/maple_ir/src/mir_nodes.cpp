@@ -2520,7 +2520,8 @@ bool ConstvalNode::IsSameContent(const BaseNode *node) const {
   }
   if (constVal->GetKind() == kConstInt) {
     // integer may differ in primtype, and they may be different MIRIntConst Node
-    return static_cast<MIRIntConst*>(constVal)->GetValue() == static_cast<const MIRIntConst*>(mirConst)->GetValue();
+    return static_cast<MIRIntConst *>(constVal)->GetExtValue() ==
+           static_cast<const MIRIntConst *>(mirConst)->GetExtValue();
   } else {
     return false;
   }
