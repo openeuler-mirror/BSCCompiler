@@ -78,15 +78,14 @@ DEFINE_MOP(MOP_dadd, {mopdReg64FD,mopdReg64FS,mopdReg64FS},0,kLtFpalu,"fadd","0,
 /* MOP_sadd */
 DEFINE_MOP(MOP_sadd, {mopdReg32FD,mopdReg32FS,mopdReg32FS},0,kLtFpalu,"fadd","0,1,2",1)
 
-/* AARCH64 Arithmetic: sub */
+/* AARCH64 Arithmetic: sub/subs */
+/* MOP newly add to the following group should be related pairs with such order :{ sub, subs } */
 /* MOP_xsubrrr */
 DEFINE_MOP(MOP_xsubrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS},0,kLtAlu,"sub","0,1,2",1)
 /* MOP_xsubsrrr */
 DEFINE_MOP(MOP_xsubsrrr, {mopdRegCCD, mopdReg64ID,mopdReg64IS,mopdReg64IS},0,kLtAlu,"subs","1,2,3",1)
 /* MOP_xsubrrrs */
 DEFINE_MOP(MOP_xsubrrrs, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdBitShift64},0,kLtAluShift,"sub","0,1,2,3",1)
-/* MOP_xxwsubrrre */
-DEFINE_MOP(MOP_xxwsubrrre, {mopdReg64ID,mopdReg64IS,mopdReg32IS,mopdExtendShift64},0,kLtAluShift,"sub","0,1,2,3",1)
 /* MOP_xsubsrrrs */
 DEFINE_MOP(MOP_xsubsrrrs, {mopdRegCCD, mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdBitShift64},0,kLtAluShift,"subs","1,2,3,4",1)
 /* MOP_xsubrri24 */
@@ -103,8 +102,6 @@ DEFINE_MOP(MOP_wsubrrr, {mopdReg32ID,mopdReg32IS,mopdReg32IS},0,kLtAlu,"sub","0,
 DEFINE_MOP(MOP_wsubsrrr, {mopdRegCCD,mopdReg32ID,mopdReg32IS,mopdReg32IS},0,kLtAlu,"subs","1,2,3",1)
 /* MOP_wsubrrrs */
 DEFINE_MOP(MOP_wsubrrrs, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdBitShift32},0,kLtAluShift,"sub","0,1,2,3",1)
-/* MOP_wwwsubrrre */
-DEFINE_MOP(MOP_wwwsubrrre, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdExtendShift64},0,kLtAluShift,"sub","0,1,2,3",1)
 /* MOP_wsubsrrrs */
 DEFINE_MOP(MOP_wsubsrrrs, {mopdRegCCD,mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdBitShift32},0,kLtAluShift,"subs","1,2,3,4",1)
 /* MOP_wsubrri24 */
@@ -115,6 +112,12 @@ DEFINE_MOP(MOP_wsubsrri24, {mopdRegCCD,mopdReg32ID,mopdReg32IS,mopdImm12,mopdLSL
 DEFINE_MOP(MOP_wsubrri12, {mopdReg32ID,mopdReg32IS,mopdImm12},0,kLtAlu,"sub","0,1,2",1)
 /* MOP_wsubsrri12 */
 DEFINE_MOP(MOP_wsubsrri12, {mopdRegCCD,mopdReg32ID,mopdReg32IS,mopdImm12},0,kLtAlu,"subs","1,2,3",1)
+
+/* AARCH64 Arithmetic: sub */
+/* MOP_xxwsubrrre */
+DEFINE_MOP(MOP_xxwsubrrre, {mopdReg64ID,mopdReg64IS,mopdReg32IS,mopdExtendShift64},0,kLtAluShift,"sub","0,1,2,3",1)
+/* MOP_wwwsubrrre */
+DEFINE_MOP(MOP_wwwsubrrre, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdExtendShift64},0,kLtAluShift,"sub","0,1,2,3",1)
 /* MOP_dsub */
 DEFINE_MOP(MOP_dsub, {mopdReg64FD,mopdReg64FS,mopdReg64FS},0,kLtFpalu,"fsub","0,1,2",1)
 /* MOP_ssub */
