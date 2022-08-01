@@ -296,13 +296,15 @@ void DebugInfo::SetupCU() {
   compUnit->AddAttr(DW_AT_stmt_list, DW_FORM_sec_offset, kDbgDefaultVal);
 }
 
-void DebugInfo::AddScopeDie(MIRScope *scope) {
+void DebugInfo::AddScopeDie(MIRScope *scope, bool isLocal) {
   if (scope->IsEmpty()) {
     return;
   }
 
   MIRFunction *func = GetCurFunction();
-  if (scope != func->GetScope()) {
+  // for non-function local scope, add a lexical block
+  bool createBlock = isLocal && (scope != func->GetScope());
+  if (createBlock) {
     DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_lexical_block);
     die->AddAttr(DW_AT_low_pc, DW_FORM_addr, scope->GetId());
     die->AddAttr(DW_AT_high_pc, DW_FORM_data8, scope->GetId());
@@ -314,21 +316,21 @@ void DebugInfo::AddScopeDie(MIRScope *scope) {
   }
 
   // process aliasVarMap
-  AddAliasDies(scope->GetAliasVarMap());
+  AddAliasDies(scope->GetAliasVarMap(), isLocal);
 
   if (scope->GetSubScopes().size() > 0) {
     // process subScopes
     for (auto it : scope->GetSubScopes()) {
-      AddScopeDie(it);
+      AddScopeDie(it, isLocal);
     }
   }
 
-  if (scope != func->GetScope()) {
+  if (createBlock) {
     PopParentDie();
   }
 }
 
-void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap) {
+void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isLocal) {
   MIRFunction *func = GetCurFunction();
   for (auto &i : aliasMap) {
     // maple var
@@ -344,33 +346,48 @@ void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap) {
     }
     // maple var die
     DBGDie *mdie = (var->IsGlobal()) ? GetGlobalDie(mplIdx) : GetLocalDie(mplIdx);
-    if (var->IsGlobal() && mdie == nullptr) {
+    // some global scope var are introduced by system, skip them
+    if (mdie == nullptr) {
       continue;
     }
 
-    // create alias die using maple var except name
-    DBGDie *vdie = CreateVarDie(var, i.first);
+    // for local scope, create alias die using maple var except name and type
+    // for global scope, update type only if needed
+    DBGDie *vdie = isLocal ? CreateVarDie(var, i.first) : GetGlobalDie(mplIdx);
 
-    if (i.second.atk == kATKString) {
-      // use src code type
-      GStrIdx idx(i.second.index);
-      DBGDie *typedefDie = GetOrCreateTypedefDie(idx, var->GetTyIdx());
-      // use negtive number to indicate DIE id instead of tyidx in normal cases
-      (void)(vdie->SetAttr(DW_AT_type, -typedefDie->GetId()));
-    } else if (i.second.atk == kATKEnum) {
-      // use src code enum type
-      DBGDie *enumDie = GetOrCreateEnumTypeDie(i.second.index);
-      // use negtive number to indicate DIE id instead of tyidx in normal cases
-      (void)(vdie->SetAttr(DW_AT_type, -enumDie->GetId()));
+    // get type from alias
+    uint32 index = i.second.index;
+    switch (i.second.atk) {
+      case kATKType: {
+        (void)(vdie->SetAttr(DW_AT_type, index));
+        break;
+      }
+      case kATKString: {
+        // use src code type
+        DBGDie *typedefDie = GetOrCreateTypedefDie(GStrIdx(index), var->GetTyIdx());
+        // use negtive number to indicate DIE id instead of tyidx in normal cases
+        (void)(vdie->SetAttr(DW_AT_type, -typedefDie->GetId()));
+        break;
+      }
+      case kATKEnum: {
+        // use src code enum type
+        DBGDie *enumDie = GetOrCreateEnumTypeDie(index);
+        // use negtive number to indicate DIE id instead of tyidx in normal cases
+        (void)(vdie->SetAttr(DW_AT_type, -enumDie->GetId()));
+        break;
+      }
     }
 
-    // link vdie's ExprLoc to mdie's
-    vdie->LinkExprLoc(mdie);
+    // for local scope
+    if (isLocal) {
+      // link vdie's ExprLoc to mdie's
+      vdie->LinkExprLoc(mdie);
 
-    GetParentDie()->AddSubVec(vdie);
+      GetParentDie()->AddSubVec(vdie);
 
-    // add alias var name to debug_str section
-    strps.insert(i.first.GetIdx());
+      // add alias var name to debug_str section
+      strps.insert(i.first.GetIdx());
+    }
   }
 }
 
@@ -484,6 +501,10 @@ void DebugInfo::BuildDebugInfo() {
     DBGDie *die = GetOrCreateEnumTypeDie(i);
     compUnit->AddSubVec(die);
   }
+
+  // handle global scope
+  MIRScope *scope = module->GetScope();
+  AddScopeDie(scope, /* isLocal */ false);
 
   // setup debug info for functions
   for (auto func : GlobalTables::GetFunctionTable().GetFuncTable()) {
@@ -799,7 +820,7 @@ DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum) {
   }
 
   // add scope die
-  AddScopeDie(func->GetScope());
+  AddScopeDie(func->GetScope(), /* isLocal */ true);
   CollectScopePos(func, func->GetScope());
 
   PopParentDie();
