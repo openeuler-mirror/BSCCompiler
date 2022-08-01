@@ -21,12 +21,19 @@
 
 namespace maple {
 // mapping src variable to mpl variables to display debug info
+enum AliasTypeKind : uint8 {
+  kATKType,
+  kATKString,
+  kATKEnum,
+};
+
 struct MIRAliasVars {
   GStrIdx mplStrIdx;      // maple varialbe name
-  TyIdx tyIdx;
-  GStrIdx srcTypeStrIdx;  // src type name
+  AliasTypeKind atk;
+  unsigned index;
   bool isLocal;
   GStrIdx sigStrIdx;
+  TypeAttrs attrs;
 };
 
 class MIRScope {
@@ -92,7 +99,7 @@ class MIRScope {
   SrcPosition GetScopeEndPos(const SrcPosition &pos);
   bool AddScope(MIRScope *scope);
 
-  void Dump(int32 indent) const;
+  void Dump(int32 indent, bool isLocal = true) const;
   void Dump() const;
 
  private:

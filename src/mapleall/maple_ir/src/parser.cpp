@@ -2579,7 +2579,8 @@ bool MIRParser::ParseOneScope(MIRScope &scope) {
 bool MIRParser::ParseScope() {
   MIRScope *scp = nullptr;
   MIRFunction *func = mod.CurFunction();
-  if (func && func->GetBody()) {
+  CHECK_NULL_FATAL(func);
+  if (func->GetBody()) {
     scp = func->GetScope();
   } else {
     scp = mod.GetScope();
@@ -2649,6 +2650,11 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
     aliasVar.index = tyIdx.GetIdx();
   } else {
     Error("parseType failed when parsing ALIAS ");
+    return false;
+  }
+  // parse type attributes
+  if (!ParseTypeAttrs(aliasVar.attrs)) {
+    Error("bad type attribute for alias at ");
     return false;
   }
   GStrIdx signStrIdx(0);

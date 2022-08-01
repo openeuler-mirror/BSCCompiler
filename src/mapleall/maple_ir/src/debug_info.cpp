@@ -359,23 +359,30 @@ void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isL
     uint32 index = i.second.index;
     switch (i.second.atk) {
       case kATKType: {
-        (void)(vdie->SetAttr(DW_AT_type, index));
+        DBGDie *tdie = GetOrCreateTypeDie(TyIdx(index));
+        DBGDie *newdie = GetOrCreateTypeDie(i.second.attrs, tdie);
+        (void)(vdie->SetAttr(DW_AT_type, -newdie->GetId()));
         break;
       }
       case kATKString: {
         // use src code type
-        DBGDie *typedefDie = GetOrCreateTypedefDie(GStrIdx(index), var->GetTyIdx());
+        DBGDie *tdie = GetOrCreateTypedefDie(GStrIdx(index), var->GetTyIdx());
+        DBGDie *newdie = GetOrCreateTypeDie(i.second.attrs, tdie);
         // use negtive number to indicate DIE id instead of tyidx in normal cases
-        (void)(vdie->SetAttr(DW_AT_type, -typedefDie->GetId()));
+        (void)(vdie->SetAttr(DW_AT_type, -newdie->GetId()));
         break;
       }
       case kATKEnum: {
         // use src code enum type
-        DBGDie *enumDie = GetOrCreateEnumTypeDie(index);
+        DBGDie *tdie = GetOrCreateEnumTypeDie(index);
+        DBGDie *newdie = GetOrCreateTypeDie(i.second.attrs, tdie);
         // use negtive number to indicate DIE id instead of tyidx in normal cases
-        (void)(vdie->SetAttr(DW_AT_type, -enumDie->GetId()));
+        (void)(vdie->SetAttr(DW_AT_type, -newdie->GetId()));
         break;
       }
+      default:
+        ASSERT(false, "unknown alias type kind");
+        break;
     }
 
     // for local scope
@@ -504,7 +511,7 @@ void DebugInfo::BuildDebugInfo() {
 
   // handle global scope
   MIRScope *scope = module->GetScope();
-  AddScopeDie(scope, /* isLocal */ false);
+  AddScopeDie(scope, false);
 
   // setup debug info for functions
   for (auto func : GlobalTables::GetFunctionTable().GetFuncTable()) {
@@ -701,8 +708,10 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym, GStrIdx strIdx) {
   }
 
   MIRType *type = sym->GetType();
-  (void)GetOrCreateTypeDie(type);
-  die->AddAttr(DW_AT_type, DW_FORM_ref4, type->GetTypeIndex().GetIdx());
+  DBGDie *tdie = GetOrCreateTypeDie(type);
+  DBGDie *newdie = GetOrCreateTypeDie(sym->GetAttrs(), tdie);
+  int index = (newdie == tdie ? type->GetTypeIndex().GetIdx() : -newdie->GetId());
+  die->AddAttr(DW_AT_type, DW_FORM_ref4, index);
 
   return die;
 }
@@ -820,7 +829,7 @@ DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum) {
   }
 
   // add scope die
-  AddScopeDie(func->GetScope(), /* isLocal */ true);
+  AddScopeDie(func->GetScope(), true);
   CollectScopePos(func, func->GetScope());
 
   PopParentDie();
@@ -883,6 +892,51 @@ DBGDie *DebugInfo::CreatePointedFuncTypeDie(MIRFuncType *fType) {
 
   tyIdxDieIdMap[fType->GetTypeIndex().GetIdx()] = die->GetId();
   return die;
+}
+
+DBGDie *DebugInfo::GetOrCreateTypeDie(AttrKind attr, DBGDie *tdie) {
+  DBGDie *die = tdie;
+  uint32 did = tdie->GetId();
+  uint32 newid = 0;
+  switch (attr) {
+    case ATTR_const:
+      if (constTypeDieMap.find(did) != constTypeDieMap.end()) {
+        newid = constTypeDieMap[did];
+        die = idDieMap[newid];
+      } else {
+        die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_const_type);
+        (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, -did));
+        compUnit->AddSubVec(die);
+        newid = die->GetId();
+        constTypeDieMap[did] = newid;
+      }
+      break;
+    case ATTR_volatile:
+      if (volatileTypeDieMap.find(did) != volatileTypeDieMap.end()) {
+        newid = volatileTypeDieMap[did];
+        die = idDieMap[newid];
+      } else {
+        die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_volatile_type);
+        (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, -did));
+        compUnit->AddSubVec(die);
+        newid = die->GetId();
+        volatileTypeDieMap[did] = newid;
+      }
+      break;
+    default:
+      break;
+  }
+  return die;
+}
+
+DBGDie *DebugInfo::GetOrCreateTypeDie(TypeAttrs attrs, DBGDie *tdie) {
+  if (attrs.GetAttr(ATTR_const)) {
+    tdie = GetOrCreateTypeDie(ATTR_const, tdie);
+  }
+  if (attrs.GetAttr(ATTR_volatile)) {
+    tdie = GetOrCreateTypeDie(ATTR_volatile, tdie);
+  }
+  return tdie;
 }
 
 DBGDie *DebugInfo::GetOrCreateTypeDie(TyIdx tyidx) {
