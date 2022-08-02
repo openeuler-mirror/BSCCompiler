@@ -834,6 +834,31 @@ class LsrAndToUbfxPattern : public CGPeepPattern {
 };
 
 /*
+ * lsl w1, w2, #m
+ * and w3, w1, #2^n-1    --->    if n > m : ubfiz w3, w2, #m, #n-m
+ *
+ * and w1, w2, #2^n-1    --->    ubfiz w3, w2, #m, #n
+ * lsl w3, w1, #m
+ * Exclude the scenarios that can be optimized by prop.
+ */
+class LslAndToUbfizPattern : public CGPeepPattern {
+ public:
+  LslAndToUbfizPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~LslAndToUbfizPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  Insn *BuildNewInsn(const Insn &andInsn, const Insn &lslInsn, const Insn &useInsn);
+  bool CheckUseInsnMop(const Insn &useInsn);
+  std::string GetPatternName() override {
+    return "LslAndToUbfizPattern";
+  }
+
+ private:
+  Insn *defInsn = nullptr;
+};
+
+/*
  * Optimize the following patterns:
  *  orr  w21, w0, #0  ====> mov  w21, w0
  *  orr  w21, #0, w0  ====> mov  w21, w0
@@ -1272,23 +1297,6 @@ class ReplaceDivToMultiPattern : public CGPeepPattern {
 /*
  * Optimize the following patterns:
  *  and  w0, w0, #imm  ====> tst  w0, #imm
- *  cmp  w0, #0              beq/bne  .label
- *  beq/bne  .label
- *
- *  and  x0, x0, #imm  ====> tst  x0, #imm
- *  cmp  x0, #0              beq/bne  .label
- *  beq/bne  .label
- */
-class AndCmpBranchesToTstAArch64 : public PeepPattern {
- public:
-  explicit AndCmpBranchesToTstAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~AndCmpBranchesToTstAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
-};
-
-/*
- * Optimize the following patterns:
- *  and  w0, w0, #imm  ====> tst  w0, #imm
  *  cbz/cbnz  .label         beq/bne  .label
  */
 class AndCbzBranchesToTstAArch64 : public PeepPattern {
@@ -1442,27 +1450,6 @@ class DeleteMovAfterCbzOrCbnzAArch64 : public PeepPattern {
 
 /*
  * We optimize the following pattern in this function:
- * if w0's valid bits is one
- * uxtb w0, w0
- * eor w0, w0, #1
- * cbz w0, .label
- * =>
- * tbnz w0, .label
- * &&
- * if there exists uxtb w0, w0 and w0's valid bits is
- * less than 8, eliminate it.
- */
-class OneHoleBranchesPreAArch64 : public PeepPattern {
- public:
-  explicit OneHoleBranchesPreAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~OneHoleBranchesPreAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
- private:
-  MOperator FindNewMop(const BB &bb, const Insn &insn) const;
-};
-
-/*
- * We optimize the following pattern in this function:
  * movz x0, #11544, LSL #0
  * movk x0, #21572, LSL #16
  * movk x0, #8699, LSL #32
@@ -1483,18 +1470,6 @@ class LoadFloatPointPattern : public CGPeepPattern {
   bool FindLoadFloatPoint(Insn &insn);
   bool IsPatternMatch();
   std::vector<Insn*> optInsn;
-};
-
-/*
- * Optimize the following patterns:
- *  orr  w21, w0, #0  ====> mov  w21, w0
- *  orr  w21, #0, w0  ====> mov  w21, w0
- */
-class ReplaceOrrToMovAArch64 : public PeepPattern {
- public:
-  explicit ReplaceOrrToMovAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~ReplaceOrrToMovAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
 };
 
 /*
@@ -1598,19 +1573,6 @@ class ComplexMemOperandLSLAArch64 : public PeepPattern {
   explicit ComplexMemOperandLSLAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
   ~ComplexMemOperandLSLAArch64() override = default;
   bool CheckShiftValid(const Insn &insn, const BitShiftOperand &lsl) const;
-  void Run(BB &bb, Insn &insn) override;
-};
-
-/*
- * ldr     x0, label_of_constant_1
- * fmov    d4, x0
- * ==>
- * ldr     d4, label_of_constant_1
- */
-class ComplexMemOperandLabelAArch64 : public PeepPattern {
- public:
-  explicit ComplexMemOperandLabelAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~ComplexMemOperandLabelAArch64() override = default;
   void Run(BB &bb, Insn &insn) override;
 };
 
@@ -1761,28 +1723,6 @@ class RemoveSxtBeforeStrAArch64 : public PeepPattern {
   explicit RemoveSxtBeforeStrAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
   ~RemoveSxtBeforeStrAArch64() override = default;
   void Run(BB &bb, Insn &insn) override;
-};
-
-/*
- * Optimize the following patterns:
- * mov x1, #1
- * csel  x22, xzr, x1, LS   ====> cset x22, HI
- *
- * mov x1, #1
- * csel  x22, x1, xzr, LS   ====> cset x22, LS
- */
-class CselZeroOneToCsetOpt : public PeepPattern {
- public:
-  explicit CselZeroOneToCsetOpt(CGFunc &cgFunc) : PeepPattern(cgFunc), cgFunc(&cgFunc) {}
-  ~CselZeroOneToCsetOpt() override = default;
-  void Run(BB &bb, Insn &insn) override;
- protected:
-  CGFunc *cgFunc;
- private:
-  Insn *trueMovInsn = nullptr;
-  Insn *falseMovInsn = nullptr;
-  Insn *FindFixedValue(Operand &opnd, BB &bb, Operand *&tempOp, const Insn &insn) const;
-  AArch64CC_t GetReverseCond(const CondOperand &cond) const;
 };
 
 /*
