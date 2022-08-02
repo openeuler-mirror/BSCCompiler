@@ -62,7 +62,7 @@ class ASTExpr {
   explicit ASTExpr(ASTOp o) : op(o) {}
   virtual ~ASTExpr() = default;
   UniqueFEIRExpr Emit2FEExpr(std::list<UniqueFEIRStmt> &stmts) const;
-  UniqueFEIRExpr ImplicitInitFieldValue(MIRType *type, std::list<UniqueFEIRStmt> &stmts) const;
+  UniqueFEIRExpr ImplicitInitFieldValue(MIRType &type, std::list<UniqueFEIRStmt> &stmts) const;
 
   virtual MIRType *GetType() const {
     return mirType;
@@ -250,6 +250,8 @@ class ASTCastExpr : public ASTExpr {
 
   UniqueFEIRExpr Emit2FEExprForComplex(const UniqueFEIRExpr &subExpr, const UniqueFEIRType &srcType,
                                        std::list<UniqueFEIRStmt> &stmts) const;
+  UniqueFEIRExpr Emit2FEExprForFunctionOrArray2Pointer(std::list<UniqueFEIRStmt> &stmts) const;
+
  private:
   MIRConst *GenerateMIRDoubleConst() const;
   MIRConst *GenerateMIRFloatConst() const;
@@ -665,11 +667,30 @@ class ASTInitListExpr : public ASTExpr {
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   void ProcessInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
-                       const ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
-  void ProcessArrayInitList(const UniqueFEIRExpr &addrOfArray, const ASTInitListExpr *initList,
+                       const ASTInitListExpr &initList, std::list<UniqueFEIRStmt> &stmts) const;
+  void ProcessArrayInitList(const UniqueFEIRExpr &addrOfArray, const ASTInitListExpr &initList,
                             std::list<UniqueFEIRStmt> &stmts) const;
+  void SolveArrayElementInitWithInitListExpr(const UniqueFEIRExpr &addrOfArray, const UniqueFEIRExpr &addrOfElementExpr,
+                                             const MIRType &elementType, const ASTExpr &subExpr, size_t index,
+                                             std::list<UniqueFEIRStmt> &stmts) const;
+  void HandleImplicitInitSections(const UniqueFEIRExpr &addrOfArray, const ASTInitListExpr &initList,
+                                  const MIRType &elementType, std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
-                             const ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
+                             const ASTInitListExpr &initList, std::list<UniqueFEIRStmt> &stmts) const;
+  void SolveInitListFullOfZero(const MIRStructType &baseStructType, FieldID baseFieldID, const UniqueFEIRVar &var,
+                               const ASTInitListExpr &initList, std::list<UniqueFEIRStmt> &stmts) const;
+  bool SolveInitListPartialOfZero(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
+                                  FieldID fieldID, uint32 &index, const ASTInitListExpr &initList,
+                                  std::list<UniqueFEIRStmt> &stmts) const;
+  void SolveInitListExprOrDesignatedInitUpdateExpr(FieldID fieldID, ASTExpr &initExpr,
+      const UniqueFEIRType &baseStructPtrType, std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
+      std::list<UniqueFEIRStmt> &stmts) const;
+  bool SolveStructFieldOfArrayTypeInitWithStringLiteral(std::tuple<FieldID, uint32, MIRType*> fieldInfo,
+      const ASTExpr &initExpr, const UniqueFEIRType &baseStructPtrType,
+      std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base, std::list<UniqueFEIRStmt> &stmts) const;
+  bool SolveStructFieldOfBasicType(FieldID fieldID, const ASTExpr &initExpr, const UniqueFEIRType &baseStructPtrType,
+                                   std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
+                                   std::list<UniqueFEIRStmt> &stmts) const;
   std::tuple<FieldID, uint32, MIRType*> GetStructFieldInfo(uint32 fieldIndex, FieldID baseFieldID,
                                                            MIRStructType &structMirType) const;
   UniqueFEIRExpr CalculateStartAddressForMemset(const UniqueFEIRVar &varIn, uint32 initSizeIn, FieldID fieldIDIn,
@@ -677,7 +698,7 @@ class ASTInitListExpr : public ASTExpr {
   UniqueFEIRExpr GetAddrofArrayFEExprByStructArrayField(MIRType *fieldType,
                                                         const UniqueFEIRExpr &addrOfArrayField) const;
   void ProcessVectorInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
-                             const ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
+                             const ASTInitListExpr &initList, std::list<UniqueFEIRStmt> &stmts) const;
   MIRIntrinsicID SetVectorSetLane(const MIRType &type) const;
   void ProcessDesignatedInitUpdater(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                                     ASTExpr *expr, std::list<UniqueFEIRStmt> &stmts) const;
@@ -786,6 +807,10 @@ class ASTBinaryOperatorExpr : public ASTExpr {
 
  protected:
   MIRConst *GenerateMIRConstImpl() const override;
+  MIRConst *SolveOpcodeLiorOrCior(const MIRConst &leftConst) const;
+  MIRConst *SolveOpcodeLandOrCand(const MIRConst &leftConst, const MIRConst &rightConst) const;
+  MIRConst *SolveOpcodeAdd(const MIRConst &leftConst, const MIRConst &rightConst) const;
+  MIRConst *SolveOpcodeSub(const MIRConst &leftConst, const MIRConst &rightConst) const;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   UniqueFEIRExpr Emit2FEExprComplexCalculations(std::list<UniqueFEIRStmt> &stmts) const;
   UniqueFEIRExpr Emit2FEExprComplexCompare(std::list<UniqueFEIRStmt> &stmts) const;
@@ -848,7 +873,7 @@ class ASTStringLiteral : public ASTExpr {
       str.clear();
       str.shrink_to_fit();
     }
-    str.insert(str.end(), strIn.cbegin(), strIn.cend());
+    (void)str.insert(str.cend(), strIn.cbegin(), strIn.cend());
   }
 
   const std::string GetStr() const {
@@ -920,6 +945,10 @@ class ASTArraySubscriptExpr : public ASTExpr {
   MIRConst *GenerateMIRConstImpl() const override;
   bool CheckFirstDimIfZero(const MIRType *arrType) const;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
+  MIRType *GetArrayTypeForPointerArray() const;
+  UniqueFEIRExpr SolveMultiDimArray(UniqueFEIRExpr &baseAddrFEExpr, UniqueFEIRType &arrayFEType,
+                                    bool isArrayTypeOpt, std::list<UniqueFEIRStmt> &stmts) const;
+  UniqueFEIRExpr SolveOtherArrayType(const UniqueFEIRExpr &baseAddrFEExpr, std::list<UniqueFEIRStmt> &stmts) const;
   void InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &indexExpr,
                              const UniqueFEIRExpr &baseAddrExpr) const;
   bool InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr indexExpr,
@@ -1015,7 +1044,7 @@ class ASTMemberExpr : public ASTExpr {
  private:
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
-  const ASTMemberExpr *FindFinalMember(const ASTMemberExpr *startExpr, std::list<std::string> &memberNames) const;
+  const ASTMemberExpr &FindFinalMember(const ASTMemberExpr &startExpr, std::list<std::string> &memberNames) const;
   void InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr baseFEExpr) const;
 
   ASTExpr *baseExpr = nullptr;
@@ -1207,6 +1236,11 @@ class ASTCallExpr : public ASTExpr {
   UniqueFEIRExpr CreateIntrinsicCallAssignedForC(std::list<UniqueFEIRStmt> &stmts, MIRIntrinsicID argIntrinsicID) const;
   UniqueFEIRExpr CreateBinaryExpr(std::list<UniqueFEIRStmt> &stmts, Opcode op) const;
   UniqueFEIRExpr EmitBuiltinFunc(std::list<UniqueFEIRStmt> &stmts) const;
+  UniqueFEIRExpr EmitBuiltinVectorLoad(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
+  UniqueFEIRExpr EmitBuiltinVectorStore(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
+  UniqueFEIRExpr EmitBuiltinVectorShli(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
+  UniqueFEIRExpr EmitBuiltinVectorShri(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
+  UniqueFEIRExpr EmitBuiltinVectorShru(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
   UniqueFEIRExpr EmitBuiltinVectorZip(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
   UniqueFEIRExpr EmitBuiltinRotate(std::list<UniqueFEIRStmt> &stmts, PrimType rotType, bool isLeft) const;
 #define EMIT_BUILTIIN_FUNC(FUNC) EmitBuiltin##FUNC(std::list<UniqueFEIRStmt> &stmts) const

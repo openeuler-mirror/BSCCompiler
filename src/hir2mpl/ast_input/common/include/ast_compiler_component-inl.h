@@ -54,7 +54,7 @@ bool ASTCompilerComponent<T>::ParseInputImpl() {
 
   for (auto &astFunc : astInput.GetASTFuncs()) {
     auto iter = std::find_if(std::begin(globalFuncHelpers), std::end(globalFuncHelpers),
-        [&](FEInputMethodHelper* s) -> bool {
+        [&astFunc](FEInputMethodHelper* s) -> bool {
           return (s->GetMethodName(false) == astFunc->GetName());
         });
     if (iter != globalFuncHelpers.end()) {
@@ -62,7 +62,7 @@ bool ASTCompilerComponent<T>::ParseInputImpl() {
       if ((*iter)->HasCode() && !astFunc->HasCode()) {
         continue;
       } else {
-        globalFuncHelpers.erase(iter);
+        (void)globalFuncHelpers.erase(iter);
       }
     }
     FEInputMethodHelper *funcHelper = allocator.GetMemPool()->New<ASTFunc2FEHelper>(allocator, *astFunc);

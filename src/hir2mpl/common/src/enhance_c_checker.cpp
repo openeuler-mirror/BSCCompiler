@@ -734,7 +734,7 @@ void ASTParser::ProcessBoundaryLenExpr(MapleAllocator &allocator, ASTDecl &ptrDe
     if (pointedType->GetPrimType() == PTY_f64) {
       lenSize = 8; // 8 is f64 byte num, because now f128 also cvt to f64
     }
-    lenExpr = GetAddrShiftExpr(allocator, lenExpr, lenSize);
+    lenExpr = GetAddrShiftExpr(allocator, *lenExpr, lenSize);
   }
   ptrDecl.SetBoundaryLenExpr(lenExpr);
   ptrDecl.SetIsBytedLen(!isSize);
@@ -1392,7 +1392,8 @@ UniqueFEIRExpr ENCChecker::GetRealBoundaryLenExprInFuncByIndex(const TypeAttrs &
       CHECK_FATAL(type.IsMIRPtrType(), "Must be ptr type!");
       size_t lenSize = static_cast<const MIRPtrType&>(type).GetPointedType()->GetSize();
       MapleAllocator &allocator = FEManager::GetModule().GetMPAllocator();
-      astLenExpr = ASTParser::GetAddrShiftExpr(allocator, astCallExpr.GetArgsExpr()[idx], static_cast<uint32>(lenSize));
+      astLenExpr = ASTParser::GetAddrShiftExpr(allocator, *(astCallExpr.GetArgsExpr()[idx]),
+                                               static_cast<uint32>(lenSize));
     }
     std::list<UniqueFEIRStmt> nullStmts;
     return astLenExpr->Emit2FEExpr(nullStmts);

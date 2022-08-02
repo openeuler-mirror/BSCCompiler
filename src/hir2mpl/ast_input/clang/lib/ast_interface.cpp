@@ -170,6 +170,7 @@ uint32 LibAstFile::GetMaxAlign(const clang::Decl &decl) const {
 }
 
 uint32 LibAstFile::RetrieveAggTypeAlign(const clang::Type *ty) const {
+  ASSERT_NOT_NULL(ty);
   if (ty->isRecordType()) {
     const auto *recordType = llvm::cast<clang::RecordType>(ty);
     clang::RecordDecl *recordDecl = recordType->getDecl();
@@ -498,7 +499,7 @@ void LibAstFile::EmitQualifierName(const clang::QualType qualType, std::stringst
 
 const std::string LibAstFile::GetOrCreateMappedUnnamedName(uint32_t id) {
   std::map<uint32_t, std::string>::const_iterator it = unnamedSymbolMap.find(id);
-  if (it == unnamedSymbolMap.end()) {
+  if (it == unnamedSymbolMap.cend()) {
     std::string name = FEUtils::GetSequentialName("unNamed");
     unnamedSymbolMap[id] = name;
   }

@@ -253,8 +253,8 @@ const int kDefaultIndent = 1;
 // C: stridx,              D:module->fileinfo_isstring,  E:true;
 #define SET_INFO_PAIR(a, b, c, d, e)                               \
   do {                                                             \
-    a.emplace_back(builder->GetOrCreateStringIndex(b), c);         \
-    d.emplace_back(e)                                              \
+    (a).emplace_back(builder->GetOrCreateStringIndex(b), c);       \
+    (d).emplace_back(e)                                            \
   } while (0)
 } // namespace maple
 #endif  // AST2MPL_INCLUDE_ASTMACROS_H

@@ -248,10 +248,6 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
     return true;
   }
   SolveReturnAndArgTypes(allocator);
-  FuncAttrs attrs = GetAttrs();
-  if (firstArgRet) {
-    attrs.SetAttr(FUNCATTR_firstarg_return);
-  }
   bool isStatic = IsStatic();
   bool isVarg = IsVarg();
   CHECK_FATAL(retMIRType != nullptr, "function must have return type");
@@ -275,12 +271,19 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
     }
     funSym->SetWeakrefAttr(std::pair<bool, UStrIdx> { true, idx });
   }
+  SolveFunctionArguments();
+  SolveFunctionAttributes();
+  func.ClearGenericAttrsContentMap();
+  return true;
+}
+
+void ASTFunc2FEHelper::SolveFunctionArguments() const {
   MapleVector<ASTDecl*> paramDecls = func.GetParamDecls();
   if (firstArgRet) {
     ASTDecl *returnParamVar = ASTDeclsBuilder::ASTVarBuilder(allocator, MapleString("", allocator.GetMemPool()),
         "first_arg_return", MapleVector<MIRType*>({}, allocator.Adapter()), GenericAttrs());
     returnParamVar->SetIsParam(true);
-    paramDecls.insert(paramDecls.cbegin(), returnParamVar);
+    (void)paramDecls.insert(paramDecls.cbegin(), returnParamVar);
   }
   for (uint32 i = 0; i < paramDecls.size(); ++i) {
     MIRSymbol *sym = FEManager::GetMIRBuilder().GetOrCreateDeclInFunc(
@@ -293,6 +296,13 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
     sym->AddAttrs(typeAttrs);
     mirFunc->AddArgument(sym);
   }
+}
+
+void ASTFunc2FEHelper::SolveFunctionAttributes() {
+  FuncAttrs attrs = GetAttrs();
+  if (firstArgRet) {
+    attrs.SetAttr(FUNCATTR_firstarg_return);
+  }
   mirMethodPair.first = mirFunc->GetStIdx();
   mirMethodPair.second.first = mirFunc->GetMIRFuncType()->GetTypeIndex();
   ENCChecker::InsertBoundaryInAtts(attrs, func.GetBoundaryInfo());
@@ -301,8 +311,6 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   if (firstArgRet) {
     mirFunc->GetMIRFuncType()->funcAttrs.SetAttr(FUNCATTR_firstarg_return);
   }
-  func.ClearGenericAttrsContentMap();
-  return true;
 }
 
 const std::string ASTFunc2FEHelper::GetSrcFileName() const {
@@ -314,11 +322,11 @@ void ASTFunc2FEHelper::SolveReturnAndArgTypesImpl(MapleAllocator &allocator) {
   const MapleVector<MIRType*> &returnAndArgTypeNames = func.GetTypeDesc();
   retMIRType = returnAndArgTypeNames[1];
   // skip funcType and returnType
-  argMIRTypes.insert(argMIRTypes.cbegin(), returnAndArgTypeNames.cbegin() + 2, returnAndArgTypeNames.cend());
+  (void)argMIRTypes.insert(argMIRTypes.cbegin(), returnAndArgTypeNames.cbegin() + 2, returnAndArgTypeNames.cend());
   if (retMIRType->GetPrimType() == PTY_agg && retMIRType->GetSize() > 16) {
     firstArgRet = true;
     MIRType *retPointerType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*retMIRType);
-    argMIRTypes.insert(argMIRTypes.cbegin(), retPointerType);
+    (void)argMIRTypes.insert(argMIRTypes.cbegin(), retPointerType);
     retMIRType = GlobalTables::GetTypeTable().GetPrimType(PTY_void);
   }
 }

@@ -699,6 +699,7 @@ ASTStmt *ASTParser::ProcessStmtUnaryExprOrTypeTraitExpr(MapleAllocator &allocato
 }
 
 ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, const clang::Expr *expr) const {
+  ASSERT_NOT_NULL(expr);
   ASTValue *astValue = nullptr;
   clang::Expr::EvalResult result;
   if (expr->getStmtClass() == clang::Stmt::StringLiteralClass &&
@@ -851,6 +852,7 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
 
 ASTValue *ASTParser::TranslateLValue2ASTValue(
     MapleAllocator &allocator, const clang::Expr::EvalResult &result, const clang::Expr *expr) const {
+  ASSERT_NOT_NULL(expr);
   ASTValue *astValue = nullptr;
   const clang::APValue::LValueBase &lvBase = result.Val.getLValueBase();
   if (lvBase.is<const clang::Expr*>()) {
@@ -937,6 +939,7 @@ ASTValue *ASTParser::TranslateExprEval(MapleAllocator &allocator, const clang::E
   }
 
 ASTExpr *ASTParser::EvaluateExprAsConst(MapleAllocator &allocator, const clang::Expr *expr) {
+  ASSERT_NOT_NULL(expr);
   clang::Expr::EvalResult constResult;
   if (!expr->EvaluateAsConstantExpr(constResult, *astFile->GetNonConstAstContext())) {
     return nullptr;
@@ -995,6 +998,7 @@ ASTExpr *ASTParser::EvaluateExprAsConst(MapleAllocator &allocator, const clang::
 }
 
 bool ASTParser::HasLabelStmt(const clang::Stmt *expr) {
+  ASSERT_NOT_NULL(expr);
   if (expr->getStmtClass() == clang::Stmt::LabelStmtClass) {
     return true;
   }
@@ -1322,7 +1326,7 @@ ASTExpr *ASTParser::ProcessExprInitListExpr(MapleAllocator &allocator, const cla
           const clang::Expr *eExpr = le[i];
           ASTExpr *astExpr = ProcessExpr(allocator, eExpr);
           CHECK_FATAL(astExpr != nullptr, "Invalid InitListExpr");
-          evaluatedFlags.insert(astExpr->GetEvaluatedFlag());
+          (void)evaluatedFlags.insert(astExpr->GetEvaluatedFlag());
           astInitListExpr->SetInitExprs(astExpr);
           i++;
         }
@@ -1350,7 +1354,7 @@ ASTExpr *ASTParser::ProcessExprInitListExpr(MapleAllocator &allocator, const cla
       if (astExpr == nullptr) {
         return nullptr;
       }
-      evaluatedFlags.insert(astExpr->GetEvaluatedFlag());
+      (void)evaluatedFlags.insert(astExpr->GetEvaluatedFlag());
       astInitListExpr->SetInitExprs(astExpr);
     }
   }
@@ -1561,15 +1565,15 @@ uint32_t ASTParser::GetAlignOfExpr(const clang::Expr &expr, clang::UnaryExprOrTy
   return static_cast<uint32_t>(alignInCharUnits.getQuantity());
 }
 
-ASTExpr *ASTParser::GetAddrShiftExpr(MapleAllocator &allocator, ASTExpr *expr, uint32 typeSize) {
+ASTExpr *ASTParser::GetAddrShiftExpr(MapleAllocator &allocator, ASTExpr &expr, uint32 typeSize) {
   MIRType *retType = nullptr;
-  if (IsSignedInteger(expr->GetType()->GetPrimType())) {
+  if (IsSignedInteger(expr.GetType()->GetPrimType())) {
     retType = GlobalTables::GetTypeTable().GetInt64();
   } else {
     retType = GlobalTables::GetTypeTable().GetPtr();
   }
-  if (expr->GetASTOp() == kASTIntegerLiteral) {
-    auto intExpr = static_cast<ASTIntegerLiteral*>(expr);
+  if (expr.GetASTOp() == kASTIntegerLiteral) {
+    auto intExpr = static_cast<ASTIntegerLiteral*>(&expr);
     auto retExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
     retExpr->SetVal(intExpr->GetVal() * typeSize);
     retExpr->SetType(retType);
@@ -1579,29 +1583,29 @@ ASTExpr *ASTParser::GetAddrShiftExpr(MapleAllocator &allocator, ASTExpr *expr, u
   ptrSizeExpr->SetVal(typeSize);
   ptrSizeExpr->SetType(retType);
   auto shiftExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
-  shiftExpr->SetLeftExpr(expr);
+  shiftExpr->SetLeftExpr(&expr);
   shiftExpr->SetRightExpr(ptrSizeExpr);
   shiftExpr->SetOpcode(OP_mul);
   shiftExpr->SetRetType(retType);
   shiftExpr->SetCvtNeeded(true);
-  shiftExpr->SetSrcLoc(expr->GetSrcLoc());
+  shiftExpr->SetSrcLoc(expr.GetSrcLoc());
   return shiftExpr;
 }
 
-ASTExpr *ASTParser::GetSizeMulExpr(MapleAllocator &allocator, ASTExpr *expr, ASTExpr *ptrSizeExpr) {
+ASTExpr *ASTParser::GetSizeMulExpr(MapleAllocator &allocator, ASTExpr &expr, ASTExpr &ptrSizeExpr) {
   MIRType *retType = nullptr;
-  if (IsSignedInteger(expr->GetType()->GetPrimType())) {
+  if (IsSignedInteger(expr.GetType()->GetPrimType())) {
     retType = GlobalTables::GetTypeTable().GetInt64();
   } else {
     retType = GlobalTables::GetTypeTable().GetPtr();
   }
   auto shiftExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
-  shiftExpr->SetLeftExpr(expr);
-  shiftExpr->SetRightExpr(ptrSizeExpr);
+  shiftExpr->SetLeftExpr(&expr);
+  shiftExpr->SetRightExpr(&ptrSizeExpr);
   shiftExpr->SetOpcode(OP_mul);
   shiftExpr->SetRetType(retType);
   shiftExpr->SetCvtNeeded(true);
-  shiftExpr->SetSrcLoc(expr->GetSrcLoc());
+  shiftExpr->SetSrcLoc(expr.GetSrcLoc());
   return shiftExpr;
 }
 
@@ -2141,6 +2145,45 @@ ASTExpr *ASTParser::ProcessExprBinaryOperatorComplex(MapleAllocator &allocator, 
   return astBinOpExpr;
 }
 
+ASTExpr *ASTParser::SolvePointerOffsetOperation(MapleAllocator &allocator, const clang::BinaryOperator &bo,
+                                                ASTBinaryOperatorExpr &astBinOpExpr, ASTExpr &astRExpr,
+                                                ASTExpr &astLExpr) {
+  auto boType = bo.getType().getCanonicalType();
+  auto lhsType = bo.getLHS()->getType().getCanonicalType();
+  auto rhsType = bo.getRHS()->getType().getCanonicalType();
+  auto boMirType = astFile->CvtType(boType);
+  auto ptrType = lhsType->isPointerType() ? lhsType : rhsType;
+  auto astSizeExpr = lhsType->isPointerType() ? &astRExpr : &astLExpr;
+  if (ptrType->getPointeeType()->isVariableArrayType()) {
+    ASTExpr *vlaTypeSizeExpr = BuildExprToComputeSizeFromVLA(allocator, ptrType->getPointeeType());
+    astSizeExpr = GetSizeMulExpr(allocator, *astSizeExpr, *vlaTypeSizeExpr);
+  } else {
+    auto typeSize = GetSizeFromQualType(boType->getPointeeType());
+    MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
+        static_cast<MIRPtrType*>(boMirType)->GetPointedTyIdx());
+    if (pointedType->GetPrimType() == PTY_f64) {
+      typeSize = 8; // 8 is f64 byte num, because now f128 also cvt to f64
+    }
+    astSizeExpr = GetAddrShiftExpr(allocator, *astSizeExpr, typeSize);
+  }
+  astBinOpExpr.SetCvtNeeded(false); // the type cannot be cvt.
+  return astSizeExpr;
+}
+
+ASTExpr *ASTParser::SolvePointerSubPointerOperation(MapleAllocator &allocator, const clang::BinaryOperator &bo,
+                                                    ASTBinaryOperatorExpr &astBinOpExpr) const {
+  auto rhsType = bo.getRHS()->getType().getCanonicalType();
+  auto ptrSizeExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
+  ptrSizeExpr->SetType(astBinOpExpr.GetRetType());
+  ptrSizeExpr->SetVal(GetSizeFromQualType(rhsType->getPointeeType()));
+  auto retASTExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
+  retASTExpr->SetLeftExpr(&astBinOpExpr);
+  retASTExpr->SetRightExpr(ptrSizeExpr);
+  retASTExpr->SetOpcode(OP_div);
+  retASTExpr->SetRetType(astBinOpExpr.GetRetType());
+  return retASTExpr;
+}
+
 ASTExpr *ASTParser::ProcessExprBinaryOperator(MapleAllocator &allocator, const clang::BinaryOperator &bo) {
   ASTBinaryOperatorExpr *astBinOpExpr = AllocBinaryOperatorExpr(allocator, bo);
   CHECK_FATAL(astBinOpExpr != nullptr, "astBinOpExpr is nullptr");
@@ -2164,6 +2207,8 @@ ASTExpr *ASTParser::ProcessExprBinaryOperator(MapleAllocator &allocator, const c
   }
   ASTExpr *astRExpr = ProcessExpr(allocator, bo.getRHS());
   ASTExpr *astLExpr = ProcessExpr(allocator, bo.getLHS());
+  ASSERT_NOT_NULL(astRExpr);
+  ASSERT_NOT_NULL(astLExpr);
   if (clangOpCode == clang::BO_Div || clangOpCode == clang::BO_Mul ||
       clangOpCode == clang::BO_DivAssign || clangOpCode == clang::BO_MulAssign) {
     if (astBinOpExpr->GetRetType()->GetPrimType() == PTY_u16 || astBinOpExpr->GetRetType()->GetPrimType() == PTY_u8) {
@@ -2183,22 +2228,7 @@ ASTExpr *ASTParser::ProcessExprBinaryOperator(MapleAllocator &allocator, const c
       ((lhsType->isPointerType() && rhsType->isIntegerType()) ||
        (lhsType->isIntegerType() && rhsType->isPointerType())) &&
       !boType->isVoidPointerType() && GetSizeFromQualType(boType->getPointeeType()) != 1) {
-    auto boMirType = astFile->CvtType(boType);
-    auto ptrType = lhsType->isPointerType() ? lhsType : rhsType;
-    auto astSizeExpr = lhsType->isPointerType() ? astRExpr : astLExpr;
-    if (ptrType->getPointeeType()->isVariableArrayType()) {
-      ASTExpr *vlaTypeSizeExpr = BuildExprToComputeSizeFromVLA(allocator, ptrType->getPointeeType());
-      astSizeExpr = GetSizeMulExpr(allocator, astSizeExpr, vlaTypeSizeExpr);
-    } else {
-      auto typeSize = GetSizeFromQualType(boType->getPointeeType());
-      MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
-          static_cast<MIRPtrType*>(boMirType)->GetPointedTyIdx());
-      if (pointedType->GetPrimType() == PTY_f64) {
-        typeSize = 8; // 8 is f64 byte num, because now f128 also cvt to f64
-      }
-      astSizeExpr = GetAddrShiftExpr(allocator, astSizeExpr, typeSize);
-    }
-    astBinOpExpr->SetCvtNeeded(false); // the type cannot be cvt.
+    ASTExpr *astSizeExpr = SolvePointerOffsetOperation(allocator, bo, *astBinOpExpr, *astRExpr, *astLExpr);
     if (lhsType->isPointerType()) {
       astRExpr = astSizeExpr;
     } else {
@@ -2211,15 +2241,7 @@ ASTExpr *ASTParser::ProcessExprBinaryOperator(MapleAllocator &allocator, const c
   if (clangOpCode == clang::BO_Sub && rhsType->isPointerType() &&
       lhsType->isPointerType() && !rhsType->isVoidPointerType() &&
       GetSizeFromQualType(rhsType->getPointeeType()) != 1) {
-    auto ptrSizeExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-    ptrSizeExpr->SetType(astBinOpExpr->GetRetType());
-    ptrSizeExpr->SetVal(GetSizeFromQualType(rhsType->getPointeeType()));
-    auto retASTExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
-    retASTExpr->SetLeftExpr(astBinOpExpr);
-    retASTExpr->SetRightExpr(ptrSizeExpr);
-    retASTExpr->SetOpcode(OP_div);
-    retASTExpr->SetRetType(astBinOpExpr->GetRetType());
-    astBinOpExpr = retASTExpr;
+    astBinOpExpr = static_cast<ASTBinaryOperatorExpr*>(SolvePointerSubPointerOperation(allocator, bo, *astBinOpExpr));
   }
   if (bo.isCompoundAssignmentOp()) {
     auto assignExpr = ASTDeclsBuilder::ASTExprBuilder<ASTAssignExpr>(allocator);
@@ -2360,7 +2382,8 @@ ASTExpr *ASTParser::ProcessExprGenericSelectionExpr(MapleAllocator &allocator, c
 }
 
 bool ASTParser::PreProcessAST() {
-  TraverseDecl(astUnitDecl, [&](clang::Decl *child) {
+  TraverseDecl(astUnitDecl, [this](clang::Decl *child) {
+    ASSERT_NOT_NULL(child);
     switch (child->getKind()) {
       case clang::Decl::Var: {
         globalVarDecles.emplace_back(child);
@@ -2505,6 +2528,69 @@ ASTDecl *ASTParser::ProcessDeclRecordDecl(MapleAllocator &allocator, const clang
   return curStructOrUnion;
 }
 
+MapleVector<ASTDecl*> ASTParser::SolveFuncParameterDecls(MapleAllocator &allocator,
+                                                         const clang::FunctionDecl &funcDecl,
+                                                         MapleVector<MIRType*> &typeDescIn,
+                                                         std::list<ASTStmt*> &stmts) {
+  MapleVector<ASTDecl*> paramDecls(allocator.Adapter());
+  unsigned int numParam = funcDecl.getNumParams();
+  for (uint32_t i = 0; i < numParam; ++i) {
+    const clang::ParmVarDecl *parmDecl = funcDecl.getParamDecl(i);
+    std::list<ASTExpr*> astExprs;
+    SaveVLASizeExpr(allocator, parmDecl->getOriginalType(), astExprs);
+    ASTStmtDummy *stmt = ASTDeclsBuilder::ASTStmtBuilder<ASTStmtDummy>(allocator);
+    for (auto expr : astExprs) {
+      stmt->SetASTExpr(expr);
+    }
+    stmts.emplace_back(stmt);
+    ASTDecl *parmVarDecl = ProcessDecl(allocator, *parmDecl);
+    paramDecls.push_back(parmVarDecl);
+    typeDescIn.push_back(parmVarDecl->GetTypeDesc().front());
+  }
+  return paramDecls;
+}
+
+GenericAttrs ASTParser::SolveFunctionAttrinutes(const clang::FunctionDecl &funcDecl, std::string &funcName) {
+  GenericAttrs attrs;
+  astFile->CollectFuncAttrs(funcDecl, attrs, kPublic);
+  // for inline optimize
+  if (attrs.GetAttr(GENATTR_static) && FEOptions::GetInstance().GetFuncInlineSize() != 0) {
+    funcName = funcName + astFile->GetAstFileNameHashStr();
+  }
+  // one element vector type in rettype
+  if (LibAstFile::IsOneElementVector(funcDecl.getReturnType())) {
+    attrs.SetAttr(GENATTR_oneelem_simd);
+  }
+  if (FEOptions::GetInstance().IsEnableSafeRegion()) {
+    if (funcDecl.getSafeSpecifier() == clang::SS_Unsafe) {
+      attrs.SetAttr(GENATTR_unsafed);
+    } else if (funcDecl.getSafeSpecifier() == clang::SS_Safe || FEOptions::GetInstance().IsDefaultSafe()) {
+      attrs.SetAttr(GENATTR_safed);
+    }
+  }
+  return attrs;
+}
+
+ASTStmt *ASTParser::SolveFunctionBody(MapleAllocator &allocator,
+                                      const clang::FunctionDecl &funcDecl,
+                                      ASTFunc &astFunc, const std::list<ASTStmt*> &stmts) {
+  ASTStmt *astCompoundStmt = ProcessStmt(allocator, *llvm::cast<clang::CompoundStmt>(funcDecl.getBody()));
+  if (astCompoundStmt != nullptr) {
+    astFunc.SetCompoundStmt(astCompoundStmt);
+    astFunc.InsertStmtsIntoCompoundStmtAtFront(stmts);
+  } else {
+    return nullptr;
+  }
+#ifndef STMTS_AS_BODY_SIZE
+  Loc startLoc = astFile->GetLOC(llvm::cast<clang::CompoundStmt>(funcDecl.getBody())->getBeginLoc());
+  Loc endLoc = astFile->GetLOC(llvm::cast<clang::CompoundStmt>(funcDecl.getBody())->getEndLoc());
+  astFunc.SetSize(static_cast<uint32>(endLoc.line - startLoc.line));
+#else
+  astFunc.SetSize(static_cast<uint32>(static_cast<ASTCompoundStmt*>(astCompoundStmt)->GetASTStmtList().size()));
+#endif
+  return astCompoundStmt;
+}
+
 ASTDecl *ASTParser::ProcessDeclFunctionDecl(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl) {
   ASTFunc *astFunc = static_cast<ASTFunc*>(ASTDeclsBuilder::GetASTDecl(funcDecl.getID()));
   if (astFunc != nullptr) {
@@ -2526,40 +2612,11 @@ ASTDecl *ASTParser::ProcessDeclFunctionDecl(MapleAllocator &allocator, const cla
   if (retType == nullptr) {
     return nullptr;
   }
-  MapleVector<ASTDecl*> paramDecls(allocator.Adapter());
   typeDescIn.push_back(retType);
-  unsigned int numParam = funcDecl.getNumParams();
+
   std::list<ASTStmt*> implicitStmts;
-  for (uint32_t i = 0; i < numParam; ++i) {
-    const clang::ParmVarDecl *parmDecl = funcDecl.getParamDecl(i);
-    std::list<ASTExpr*> astExprs;
-    SaveVLASizeExpr(allocator, parmDecl->getOriginalType(), astExprs);
-    ASTStmtDummy *stmt = ASTDeclsBuilder::ASTStmtBuilder<ASTStmtDummy>(allocator);
-    for (auto expr : astExprs) {
-      stmt->SetASTExpr(expr);
-    }
-    implicitStmts.emplace_back(stmt);
-    ASTDecl *parmVarDecl = ProcessDecl(allocator, *parmDecl);
-    paramDecls.push_back(parmVarDecl);
-    typeDescIn.push_back(parmVarDecl->GetTypeDesc().front());
-  }
-  GenericAttrs attrs;
-  astFile->CollectFuncAttrs(funcDecl, attrs, kPublic);
-  // for inline optimize
-  if (attrs.GetAttr(GENATTR_static) && FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-    funcName = funcName + astFile->GetAstFileNameHashStr();
-  }
-  // one element vector type in rettype
-  if (LibAstFile::IsOneElementVector(qualType)) {
-    attrs.SetAttr(GENATTR_oneelem_simd);
-  }
-  if (FEOptions::GetInstance().IsEnableSafeRegion()) {
-    if (funcDecl.getSafeSpecifier() == clang::SS_Unsafe) {
-      attrs.SetAttr(GENATTR_unsafed);
-    } else if (funcDecl.getSafeSpecifier() == clang::SS_Safe || FEOptions::GetInstance().IsDefaultSafe()) {
-      attrs.SetAttr(GENATTR_safed);
-    }
-  }
+  MapleVector<ASTDecl*> paramDecls = SolveFuncParameterDecls(allocator, funcDecl, typeDescIn, implicitStmts);
+  GenericAttrs attrs = SolveFunctionAttrinutes(funcDecl, funcName);
   astFunc = ASTDeclsBuilder::ASTFuncBuilder(
       allocator, fileName, funcName, typeDescIn, attrs, paramDecls, funcDecl.getID());
   CHECK_FATAL(astFunc != nullptr, "astFunc is nullptr");
@@ -2576,20 +2633,9 @@ ASTDecl *ASTParser::ProcessDeclFunctionDecl(MapleAllocator &allocator, const cla
     astFunc->SetWeakrefAttr(std::pair<bool, std::string>{true, weakrefAttr->getAliasee().str()});
   }
   if (funcDecl.hasBody()) {
-    ASTStmt *astCompoundStmt = ProcessStmt(allocator, *llvm::cast<clang::CompoundStmt>(funcDecl.getBody()));
-    if (astCompoundStmt != nullptr) {
-      astFunc->SetCompoundStmt(astCompoundStmt);
-      astFunc->InsertStmtsIntoCompoundStmtAtFront(implicitStmts);
-    } else {
+    if (SolveFunctionBody(allocator, funcDecl, *astFunc, implicitStmts) == nullptr) {
       return nullptr;
     }
-#ifndef STMTS_AS_BODY_SIZE
-    Loc startLoc = astFile->GetLOC(llvm::cast<clang::CompoundStmt>(funcDecl.getBody())->getBeginLoc());
-    Loc endLoc = astFile->GetLOC(llvm::cast<clang::CompoundStmt>(funcDecl.getBody())->getEndLoc());
-    astFunc->SetSize(static_cast<uint32>(endLoc.line - startLoc.line));
-#else
-    astFunc->SetSize(static_cast<uint32>(static_cast<ASTCompoundStmt*>(astCompoundStmt)->GetASTStmtList().size()));
-#endif
   }
   return astFunc;
 }
@@ -2666,6 +2712,66 @@ ASTDecl *ASTParser::ProcessDeclFieldDecl(MapleAllocator &allocator, const clang:
   return fieldDecl;
 }
 
+void ASTParser::SetInitExprForASTVar(MapleAllocator &allocator, const clang::VarDecl &varDecl,
+                                     const GenericAttrs &attrs, ASTVar &astVar) {
+  bool isStaticStorageVar = (varDecl.getStorageDuration() == clang::SD_Static || attrs.GetAttr(GENATTR_tls_static));
+  astVar.SetSrcLoc(astFile->GetLOC(varDecl.getLocation()));
+  auto initExpr = varDecl.getInit();
+  auto astInitExpr = ProcessExpr(allocator, initExpr);
+  if (initExpr->getStmtClass() == clang::Stmt::InitListExprClass && astInitExpr->GetASTOp() == kASTOpInitListExpr) {
+    static_cast<ASTInitListExpr*>(astInitExpr)->SetInitListVarName(astVar.GenerateUniqueVarName());
+  }
+  EvaluatedFlag flag = astInitExpr->GetEvaluatedFlag();
+  // For thoese global and static local variables initialized with zero or the init list only
+  // has zero, they won't be set initExpr and will be stored into .bss section instead of .data section
+  // to reduce code size. However, when passing '-npe-check-dynamic', initExpr should be always set otherwise
+  // '-npe-check-dynamic' cannot work as expected.
+  if (FEOptions::GetInstance().IsNpeCheckDynamic() || !isStaticStorageVar || flag != kEvaluatedAsZero) {
+    astVar.SetInitExpr(astInitExpr);
+  } else {
+    astVar.SetAttr(GENATTR_static_init_zero); // used to distinguish with uninitialized vars
+  }
+}
+
+void ASTParser::SetAlignmentForASTVar(const clang::VarDecl &varDecl, ASTVar &astVar) {
+  int64 naturalAlignment = astFile->GetContext()->toCharUnitsFromBits(
+      astFile->GetContext()->getTypeUnadjustedAlign(varDecl.getType())).getQuantity();
+  // Get alignment from the decl
+  uint32 alignmentBits = varDecl.getMaxAlignment();
+  if (alignmentBits != 0) {
+    uint32 alignment = alignmentBits / 8;
+    if (alignment > naturalAlignment) {
+      astVar.SetAlign(alignment);
+    }
+  }
+  // Get alignment from the type
+  alignmentBits = astFile->GetContext()->getTypeAlignIfKnown(varDecl.getType());
+  if (alignmentBits != 0) {
+    uint32 alignment = alignmentBits / 8;
+    if (alignment > astVar.GetAlign() && alignment > naturalAlignment) {
+      astVar.SetAlign(alignment);
+    }
+  }
+}
+
+void ASTParser::SetSourceTypeForASTVar(MapleAllocator &allocator, const clang::QualType &qualType, ASTVar &astVar) {
+  MIRType *typedefType = astFile->CvtTypedef(qualType);
+  // The literal name of typeof temporarily saved to ALIAS for dwarf
+  SourceType sty;
+  if (typedefType != nullptr) {
+    sty.typeIdx = typedefType->GetNameStrIdx().GetIdx();
+  } else if (ASTUtil::HasTypdefType(qualType)) {
+    std::string typeName = qualType.getAsString();
+    sty.typeIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName).GetIdx();
+  } else if (qualType->isEnumeralType()) {
+    const clang::EnumType *enumTy = llvm::dyn_cast<clang::EnumType>(qualType.getCanonicalType());
+    ASTDecl *enumDecl = ProcessDecl(allocator, *enumTy->getDecl());
+    sty.typeIdx = static_cast<unsigned>(FEManager::GetTypeManager().GetEnumIdx(enumDecl->GetName()));
+    sty.isEnum = true;
+  }
+  astVar.SetSourceType(sty);
+}
+
 ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::VarDecl &varDecl) {
   ASTVar *astVar = static_cast<ASTVar*>(ASTDeclsBuilder::GetASTDecl(varDecl.getID()));
   if (astVar != nullptr) {
@@ -2686,25 +2792,10 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   if (attrs.GetAttr(GENATTR_static) && FEOptions::GetInstance().GetFuncInlineSize() != 0) {
     varName = varName + astFile->GetAstFileNameHashStr();
   }
-
   astVar = ASTDeclsBuilder::ASTVarBuilder(
       allocator, fileName, varName, MapleVector<MIRType*>({varType}, allocator.Adapter()), attrs, varDecl.getID());
   if (FEOptions::GetInstance().IsDbgFriendly()) {
-    MIRType *typedefType = astFile->CvtTypedef(qualType);
-    // The literal name of typeof temporarily saved to ALIAS for dwarf
-    SourceType sty;
-    if (typedefType != nullptr) {
-      sty.typeIdx = typedefType->GetNameStrIdx().GetIdx();
-    } else if (ASTUtil::HasTypdefType(qualType)) {
-      std::string typeName = qualType.getAsString();
-      sty.typeIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName).GetIdx();
-    } else if (qualType->isEnumeralType()) {
-      const clang::EnumType *enumTy = llvm::dyn_cast<clang::EnumType>(qualType.getCanonicalType());
-      ASTDecl *enumDecl = ProcessDecl(allocator, *enumTy->getDecl());
-      sty.typeIdx = static_cast<unsigned>(FEManager::GetTypeManager().GetEnumIdx(enumDecl->GetName()));
-      sty.isEnum = true;
-    }
-    astVar->SetSourceType(sty);
+    SetSourceTypeForASTVar(allocator, qualType, *astVar);
   }
   astVar->SetIsMacro(varDecl.getLocation().isMacroID());
   clang::SectionAttr *sa = varDecl.getAttr<clang::SectionAttr>();
@@ -2716,48 +2807,13 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
     astVar->SetAsmAttr(ala->getLabel().str());
   }
   if (varDecl.hasInit()) {
-    bool isStaticStorageVar = (varDecl.getStorageDuration() == clang::SD_Static || attrs.GetAttr(GENATTR_tls_static));
-    astVar->SetSrcLoc(astFile->GetLOC(varDecl.getLocation()));
-    auto initExpr = varDecl.getInit();
-    auto astInitExpr = ProcessExpr(allocator, initExpr);
-    if (initExpr->getStmtClass() == clang::Stmt::InitListExprClass && astInitExpr->GetASTOp() == kASTOpInitListExpr) {
-      static_cast<ASTInitListExpr*>(astInitExpr)->SetInitListVarName(astVar->GenerateUniqueVarName());
-    }
-    EvaluatedFlag flag = astInitExpr->GetEvaluatedFlag();
-    // For thoese global and static local variables initialized with zero or the init list only
-    // has zero, they won't be set initExpr and will be stored into .bss section instead of .data section
-    // to reduce code size. However, when passing '-npe-check-dynamic', initExpr should be always set otherwise
-    // '-npe-check-dynamic' cannot work as expected.
-    if (FEOptions::GetInstance().IsNpeCheckDynamic() || !isStaticStorageVar || flag != kEvaluatedAsZero) {
-      astVar->SetInitExpr(astInitExpr);
-    } else {
-      astVar->SetAttr(GENATTR_static_init_zero); // used to distinguish with uninitialized vars
-    }
+    SetInitExprForASTVar(allocator, varDecl, attrs, *astVar);
   }
   if (llvm::isa<clang::VariableArrayType>(qualType.getCanonicalType())) {
     astVar->SetVariableArrayExpr(BuildExprToComputeSizeFromVLA(allocator, qualType.getCanonicalType()));
   }
   if (!varDecl.getType()->isIncompleteType()) {
-    int64 naturalAlignment = astFile->GetContext()->toCharUnitsFromBits(
-        astFile->GetContext()->getTypeUnadjustedAlign(varDecl.getType())).getQuantity();
-
-    // Get alignment from the decl
-    uint32 alignmentBits = varDecl.getMaxAlignment();
-    if (alignmentBits != 0) {
-      uint32 alignment = alignmentBits / 8;
-      if (alignment > naturalAlignment) {
-        astVar->SetAlign(alignment);
-      }
-    }
-
-    // Get alignment from the type
-    alignmentBits = astFile->GetContext()->getTypeAlignIfKnown(varDecl.getType());
-    if (alignmentBits != 0) {
-      uint32 alignment = alignmentBits / 8;
-      if (alignment > astVar->GetAlign() && alignment > naturalAlignment) {
-        astVar->SetAlign(alignment);
-      }
-    }
+    SetAlignmentForASTVar(varDecl, *astVar);
   }
   const auto *valueDecl = llvm::dyn_cast<clang::ValueDecl>(&varDecl);
   if (valueDecl != nullptr) {
@@ -2843,7 +2899,8 @@ ASTDecl *ASTParser::ProcessDeclEnumDecl(MapleAllocator &allocator, const clang::
   }
   astEnum = ASTDeclsBuilder::ASTLocalEnumDeclBuilder(allocator, fileName, enumName,
       MapleVector<MIRType*>({mirType}, allocator.Adapter()), attrs, enumDecl->getID());
-  TraverseDecl(enumDecl, [&](clang::Decl *child) {
+  TraverseDecl(enumDecl, [&astEnum, &allocator, this](clang::Decl *child) {
+    ASSERT_NOT_NULL(child);
     CHECK_FATAL(child->getKind() == clang::Decl::EnumConstant, "Unsupported decl kind: %u", child->getKind());
     astEnum->PushConstant(static_cast<ASTEnumConstant*>(ProcessDecl(allocator, *child)));
   });
@@ -2942,10 +2999,8 @@ bool ASTParser::RetrieveFuncs(MapleAllocator &allocator) {
           Loc loc = astFile->GetLOC(funcDecl->getLocation());
           FE_ERR(kLncWarn, loc, "The function %s declaration and definition security attributes "
                  "are inconsistent.", funcName.c_str());
-        } else {
-          if (funcDecl->getSafeSpecifier() == clang::SS_None) {
-            funcDecl->setSafeSpecifier(spec);
-          }
+        } else if (funcDecl->getSafeSpecifier() == clang::SS_None) {
+          funcDecl->setSafeSpecifier(spec);
         }
       }
     }
@@ -3015,6 +3070,7 @@ void ASTParser::TraverseDecl(const clang::Decl *decl, std::function<void (clang:
   if (decl == nullptr) {
     return;
   }
+  ASSERT_NOT_NULL(clang::dyn_cast<const clang::DeclContext>(decl));
   for (auto *child : clang::dyn_cast<const clang::DeclContext>(decl)->decls()) {
     if (child != nullptr) {
       functor(child);

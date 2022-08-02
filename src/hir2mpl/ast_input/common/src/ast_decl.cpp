@@ -154,7 +154,7 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
       auto stackSaveStmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(INTRN_C_stack_save, nullptr, stackVar->Clone(),
                                                                          std::move(argExprList));
       stackSaveStmt->SetSrcLoc(feirVar->GetSrcLoc());
-      stmts.emplace_back(std::move(stackSaveStmt));
+      (void)stmts.emplace_back(std::move(stackSaveStmt));
       // push saved stack var into scope
       feFunction.GetTopFEIRScopePtr()->SetVLASavedStackVar(std::move(stackVar));
     }
@@ -166,7 +166,7 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
                                                                 std::move(variableArrayFEIRExpr));
     UniqueFEIRStmt allocaStmt = FEIRBuilder::CreateStmtDAssign(feirVar->Clone(), std::move(allocaExpr));
     allocaStmt->SetSrcLoc(feirVar->GetSrcLoc());
-    stmts.emplace_back(std::move(allocaStmt));
+    (void)stmts.emplace_back(std::move(allocaStmt));
     return;
   }
   if (initExpr == nullptr) {
@@ -292,7 +292,7 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
     if (scope->GetVLASavedStackVar() != nullptr) {
       auto stackRestoreStmt = scope->GenVLAStackRestoreStmt();
       stackRestoreStmt->SetSrcLoc(astCpdStmt->GetEndLoc());
-      stmts.emplace_back(std::move(stackRestoreStmt));
+      (void)stmts.emplace_back(std::move(stackRestoreStmt));
     }
     UniqueFEIRExpr retExpr = nullptr;
     PrimType retType = typeDesc[1]->GetPrimType();

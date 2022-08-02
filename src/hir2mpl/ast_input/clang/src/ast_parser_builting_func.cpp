@@ -76,7 +76,7 @@ UniqueFEIRExpr ASTCallExpr::CreateIntrinsicCallAssignedForC(std::list<UniqueFEIR
                                                             MIRIntrinsicID argIntrinsicID) const {
   std::unique_ptr<std::list<UniqueFEIRExpr>> argExprList = std::make_unique<std::list<UniqueFEIRExpr>>();
   for (auto arg : args) {
-    argExprList->emplace_back(arg->Emit2FEExpr(stmts));
+    (void)argExprList->emplace_back(arg->Emit2FEExpr(stmts));
   }
   if (!IsNeedRetExpr()) {
     auto stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(argIntrinsicID, nullptr, nullptr,
@@ -103,23 +103,11 @@ UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts,
   // process a kind of builtinFunc
   std::string prefix = "__builtin_mpl_vector_load";
   if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
-    auto argExpr = args[0]->Emit2FEExpr(stmts);
-    UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*mirType);
-    UniqueFEIRType ptrType = FEIRTypeHelper::CreateTypeNative(
-        *GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirType));
-    isFinish = true;
-    return FEIRBuilder::CreateExprIRead(std::move(type), std::move(ptrType), std::move(argExpr));
+    return EmitBuiltinVectorLoad(stmts, isFinish);
   }
   prefix = "__builtin_mpl_vector_store";
   if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
-    auto arg1Expr = args[0]->Emit2FEExpr(stmts);
-    auto arg2Expr = args[1]->Emit2FEExpr(stmts);
-    UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(
-        *GlobalTables::GetTypeTable().GetOrCreatePointerType(*args[1]->GetType()));
-    auto stmt = FEIRBuilder::CreateStmtIAssign(std::move(type), std::move(arg1Expr), std::move(arg2Expr));
-    stmts.emplace_back(std::move(stmt));
-    isFinish = true;
-    return nullptr;
+    return EmitBuiltinVectorStore(stmts, isFinish);
   }
   prefix = "__builtin_mpl_vector_zip";
   if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
@@ -127,27 +115,15 @@ UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts,
   }
   prefix = "__builtin_mpl_vector_shli";
   if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
-    isFinish = true;
-    UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
-    auto arg1Expr = args[0]->Emit2FEExpr(stmts);
-    auto arg2Expr = args[1]->Emit2FEExpr(stmts);
-    return FEIRBuilder::CreateExprBinary(std::move(type), OP_shl, std::move(arg1Expr), std::move(arg2Expr));
+    return EmitBuiltinVectorShli(stmts, isFinish);
   }
   prefix = "__builtin_mpl_vector_shri";
   if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
-    isFinish = true;
-    UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
-    auto arg1Expr = args[0]->Emit2FEExpr(stmts);
-    auto arg2Expr = args[1]->Emit2FEExpr(stmts);
-    return FEIRBuilder::CreateExprBinary(std::move(type), OP_ashr, std::move(arg1Expr), std::move(arg2Expr));
+    return EmitBuiltinVectorShri(stmts, isFinish);
   }
   prefix = "__builtin_mpl_vector_shru";
   if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
-    isFinish = true;
-    UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
-    auto arg1Expr = args[0]->Emit2FEExpr(stmts);
-    auto arg2Expr = args[1]->Emit2FEExpr(stmts);
-    return FEIRBuilder::CreateExprBinary(std::move(type), OP_lshr, std::move(arg1Expr), std::move(arg2Expr));
+    return EmitBuiltinVectorShru(stmts, isFinish);
   }
   // process a single builtinFunc
   auto ptrFunc = builtingFuncPtrMap.find(GetFuncName());
@@ -182,6 +158,50 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) c
 }
 #include "intrinsic_vector.def"
 #undef DEF_MIR_INTRINSIC
+
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorLoad(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const {
+  auto argExpr = args[0]->Emit2FEExpr(stmts);
+  UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*mirType);
+  UniqueFEIRType ptrType = FEIRTypeHelper::CreateTypeNative(
+      *GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirType));
+  isFinish = true;
+  return FEIRBuilder::CreateExprIRead(std::move(type), std::move(ptrType), std::move(argExpr));
+}
+
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorStore(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const {
+  auto arg1Expr = args[0]->Emit2FEExpr(stmts);
+  auto arg2Expr = args[1]->Emit2FEExpr(stmts);
+  UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(
+      *GlobalTables::GetTypeTable().GetOrCreatePointerType(*args[1]->GetType()));
+  auto stmt = FEIRBuilder::CreateStmtIAssign(std::move(type), std::move(arg1Expr), std::move(arg2Expr));
+  stmts.emplace_back(std::move(stmt));
+  isFinish = true;
+  return nullptr;
+}
+
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorShli(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const {
+  isFinish = true;
+  UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
+  auto arg1Expr = args[0]->Emit2FEExpr(stmts);
+  auto arg2Expr = args[1]->Emit2FEExpr(stmts);
+  return FEIRBuilder::CreateExprBinary(std::move(type), OP_shl, std::move(arg1Expr), std::move(arg2Expr));
+}
+
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorShri(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const {
+  isFinish = true;
+  UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
+  auto arg1Expr = args[0]->Emit2FEExpr(stmts);
+  auto arg2Expr = args[1]->Emit2FEExpr(stmts);
+  return FEIRBuilder::CreateExprBinary(std::move(type), OP_ashr, std::move(arg1Expr), std::move(arg2Expr));
+}
+
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorShru(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const {
+  isFinish = true;
+  UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
+  auto arg1Expr = args[0]->Emit2FEExpr(stmts);
+  auto arg2Expr = args[1]->Emit2FEExpr(stmts);
+  return FEIRBuilder::CreateExprBinary(std::move(type), OP_lshr, std::move(arg1Expr), std::move(arg2Expr));
+}
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorZip(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const {
   std::unique_ptr<std::list<UniqueFEIRExpr>> argExprList = std::make_unique<std::list<UniqueFEIRExpr>>();

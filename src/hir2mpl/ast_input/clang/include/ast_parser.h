@@ -104,6 +104,10 @@ class ASTParser {
   void SaveVLASizeExpr(MapleAllocator &allocator, const clang::QualType &qualType, std::list<ASTExpr*> &vlaSizeExprs);
   ASTBinaryOperatorExpr *AllocBinaryOperatorExpr(MapleAllocator &allocator, const clang::BinaryOperator &bo) const;
   ASTExpr *ProcessExprCastExpr(MapleAllocator &allocator, const clang::CastExpr &expr);
+  ASTExpr *SolvePointerOffsetOperation(MapleAllocator &allocator, const clang::BinaryOperator &bo,
+                                       ASTBinaryOperatorExpr &astBinOpExpr, ASTExpr &astRExpr, ASTExpr &astLExpr);
+  ASTExpr *SolvePointerSubPointerOperation(MapleAllocator &allocator, const clang::BinaryOperator &bo,
+                                           ASTBinaryOperatorExpr &astBinOpExpr) const;
 #define PROCESS_EXPR(CLASS) ProcessExpr##CLASS(MapleAllocator&, const clang::CLASS&)
   ASTExpr *PROCESS_EXPR(UnaryOperator);
   ASTExpr *PROCESS_EXPR(AddrLabelExpr);
@@ -150,7 +154,17 @@ class ASTParser {
   ASTExpr *PROCESS_EXPR(ChooseExpr);
   ASTExpr *PROCESS_EXPR(GenericSelectionExpr);
 
+  MapleVector<ASTDecl*> SolveFuncParameterDecls(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
+                                                MapleVector<MIRType*> &typeDescIn, std::list<ASTStmt*> &stmts);
+  GenericAttrs SolveFunctionAttrinutes(const clang::FunctionDecl &funcDecl, std::string &funcName);
   ASTDecl *ProcessDecl(MapleAllocator &allocator, const clang::Decl &decl);
+  ASTStmt *SolveFunctionBody(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc,
+                             const std::list<ASTStmt*> &stmts);
+
+  void SetInitExprForASTVar(MapleAllocator &allocator, const clang::VarDecl &varDecl, const GenericAttrs &attrs,
+                            ASTVar &astVar);
+  void SetAlignmentForASTVar(const clang::VarDecl &varDecl, ASTVar &astVar);
+  void SetSourceTypeForASTVar(MapleAllocator &allocator, const clang::QualType &qualType, ASTVar &astVar);
 #define PROCESS_DECL(CLASS) ProcessDecl##CLASS##Decl(MapleAllocator &allocator, const clang::CLASS##Decl&)
   ASTDecl *PROCESS_DECL(Field);
   ASTDecl *PROCESS_DECL(Function);
@@ -164,8 +178,8 @@ class ASTParser {
   ASTDecl *PROCESS_DECL(Label);
   ASTDecl *PROCESS_DECL(StaticAssert);
 
-  static ASTExpr *GetAddrShiftExpr(MapleAllocator &allocator, ASTExpr *expr, uint32 typeSize);
-  static ASTExpr *GetSizeMulExpr(MapleAllocator &allocator, ASTExpr *expr, ASTExpr *ptrSizeExpr);
+  static ASTExpr *GetAddrShiftExpr(MapleAllocator &allocator, ASTExpr &expr, uint32 typeSize);
+  static ASTExpr *GetSizeMulExpr(MapleAllocator &allocator, ASTExpr &expr, ASTExpr &ptrSizeExpr);
 
  private:
   void ProcessNonnullFuncAttrs(const clang::FunctionDecl &funcDecl, ASTFunc &astFunc) const;
@@ -223,7 +237,7 @@ static std::map<std::string, FuncPtrBuiltinFunc> InitBuiltinFuncPtrMap();
 ASTExpr *ProcessBuiltinFuncByName(MapleAllocator &allocator, const clang::CallExpr &expr, std::stringstream &ss,
                                   const std::string &name) const;
 ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr, std::stringstream &ss) const;
-#define PARSE_BUILTIIN_FUNC(FUNC) ParseBuiltin##FUNC(MapleAllocator &allocator, const clang::CallExpr &expr,\
+#define PARSE_BUILTIIN_FUNC(FUNC) ParseBuiltin##FUNC(MapleAllocator &allocator, const clang::CallExpr &expr, \
                                                      std::stringstream &ss) const
   ASTExpr *PARSE_BUILTIIN_FUNC(ClassifyType);
   ASTExpr *PARSE_BUILTIIN_FUNC(ConstantP);
