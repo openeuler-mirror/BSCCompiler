@@ -202,6 +202,10 @@ void MeSSALPre::ComputeVarAndDfPhis() {
       SetVarPhis(meExpr);
     }
   }
+  std::set<uint32> tmpVarPhi(varPhiDfns.begin(), varPhiDfns.end());
+  for (uint32 dfn : tmpVarPhi) {
+    GetIterDomFrontier(GetBB(dom->GetDtPreOrderItem(dfn)), &varPhiDfns);
+  }
 }
 
 void MeSSALPre::BuildEntryLHSOcc4Formals() const {

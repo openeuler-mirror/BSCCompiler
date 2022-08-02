@@ -1157,7 +1157,6 @@ void SSAPre::SetVarPhis(MeExpr *meExpr) {
     CHECK(defBBId < dom->GetDtDfnSize(), "defBBId.idx out of range in SSAPre::SetVarPhis");
     if (varPhiDfns.find(dom->GetDtDfnItem(defBBId)) == varPhiDfns.end() && ScreenPhiBB(defBBId)) {
       (void)varPhiDfns.insert(dom->GetDtDfnItem(defBBId));
-      GetIterDomFrontier(phiMeNode->GetDefBB(), &varPhiDfns);
       for (auto opndIt = phiMeNode->GetOpnds().begin(); opndIt != phiMeNode->GetOpnds().end(); ++opndIt) {
         ScalarMeExpr *opnd = *opndIt;
         SetVarPhis(opnd);

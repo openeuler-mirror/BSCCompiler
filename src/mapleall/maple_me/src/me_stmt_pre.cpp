@@ -571,6 +571,10 @@ void MeStmtPre::ComputeVarAndDfPhis() {
         CHECK_FATAL(false, "NYI");
     }
   }
+  std::set<uint32> tmpVarPhi(varPhiDfns.begin(), varPhiDfns.end());
+  for (uint32 dfn : tmpVarPhi) {
+    GetIterDomFrontier(GetBB(dom->GetDtPreOrderItem(dfn)), &varPhiDfns);
+  }
 }
 
 // Based on ssapre->workCand's realOccs and dfPhiDfns (which will privides all
@@ -1022,6 +1026,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
         CHECK_FATAL(ost, "ost is nullptr");
         if (ost->IsFinal()) {
           PreStmtWorkCand *stmtWkCand = CreateStmtRealOcc(stmt, seqStmt);
+          ASSERT_NOT_NULL(stmtWkCand);
           stmtWkCand->SetLHSIsFinal(true);
         } else if (!dassMeStmt.GetRHS()->SymAppears(varMeExpr->GetOstIdx()) && dassMeStmt.GetRHS()->Pure()) {
           if (NoPriorUseInBB(dassMeStmt.GetVarLHS()->GetOstIdx(), &stmt)) {
@@ -1094,6 +1099,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
         const OriginalSt *ost = callAss.GetMustDefList()->front().GetLHS()->GetOst();
         if (ost->IsFinal()) {
           PreStmtWorkCand *stmtWkCand = CreateStmtRealOcc(stmt, seqStmt);
+          ASSERT_NOT_NULL(stmtWkCand);
           stmtWkCand->SetLHSIsFinal(true);
         } else {
           bool allOperandFeasible = true;
