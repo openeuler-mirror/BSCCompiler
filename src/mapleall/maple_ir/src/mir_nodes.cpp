@@ -686,10 +686,11 @@ void AddroflabelNode::Dump(int32 indent [[maybe_unused]]) const {
 void StmtNode::DumpBase(int32 indent) const {
   srcPosition.DumpLoc(lastPrintedLineNum, lastPrintedColumnNum);
   // dump stmtFreqs
-  if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData() &&
-      theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) >= 0) {
-    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq " <<
-        theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
+  if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
+    int64_t freq = static_cast<int64_t>(theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()));
+    if (freq >= 0) {
+      LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq " << freq << "\n";
+    }
   }
   PrintIndentation(indent);
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOpCode()).name;
@@ -1206,8 +1207,14 @@ MIRType *IcallNode::GetCallReturnType() {
     return GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx);
   }
   // icallproto or icallprotoassigned
-  MIRFuncType *funcType = static_cast<MIRFuncType*>(
-      GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx));
+  MIRType *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx);
+  MIRFuncType *funcType = nullptr;
+  if (retType->IsMIRPtrType()) {
+    funcType = static_cast<MIRPtrType*>(retType)->GetPointedFuncType();
+  } else if (retType->IsMIRFuncType()) {
+    funcType = static_cast<MIRFuncType*>(retType);
+  }
+  CHECK_FATAL(funcType != nullptr, "cannot find prototype for icall");
   return GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetRetTyIdx());
 }
 
@@ -1323,8 +1330,10 @@ void BlockNode::Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable
   srcPosition.DumpLoc(lastPrintedLineNum, lastPrintedColumnNum);
   // dump stmtFreqs
   if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
-    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  <<
-        theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
+    int64_t freq = static_cast<int64_t>(theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()));
+    if (freq >= 0) {
+      LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  << freq << "\n";
+    }
   }
   for (auto &stmt : GetStmtNodes()) {
     stmt.Dump(indent + 1);
@@ -1339,8 +1348,10 @@ void LabelNode::Dump(int32 indent [[maybe_unused]]) const {
   }
   // dump stmtFreqs
   if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
-    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  <<
-        theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
+    int64_t freq = static_cast<int64_t>(theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()));
+    if (freq >= 0) {
+      LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  << freq << "\n";
+    }
   }
   LogInfo::MapleLogger() << "@" << theMIRModule->CurFunction()->GetLabelName(labelIdx) << " ";
 }
@@ -2597,5 +2608,13 @@ bool AddroflabelNode::IsSameContent(const BaseNode *node) const {
   } else {
     return false;
   }
+}
+
+MIRType *IassignNode::GetLHSType() const {
+  MIRPtrType *ptrType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx));
+  if (fieldID == 0) {
+    return ptrType->GetPointedType();
+  }
+  return GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrType->GetPointedTyIdxWithFieldID(fieldID));
 }
 }  // namespace maple

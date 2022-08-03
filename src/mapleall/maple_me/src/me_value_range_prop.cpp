@@ -93,6 +93,10 @@ void ValueRangePropagation::Execute() {
     dealWithPhi = true;
     DealWithPhi(**bIt);
     dealWithPhi = false;
+    if (func.GetCfg()->UpdateCFGFreq()) {
+      // update edge frequency
+      (*bIt)->UpdateEdgeFreqs(false);
+    }
     for (auto it = (*bIt)->GetMeStmts().begin(); it != (*bIt)->GetMeStmts().end();) {
       bool deleteStmt = false;
       if (!onlyPropVR) {
@@ -3132,9 +3136,20 @@ void ValueRangePropagation::AnalysisUnreachableBBOrEdge(BB &bb, BB &unreachableB
     UpdateProfile(*pred, bb, unreachableBB);
   }
   Insert2UnreachableBBs(unreachableBB);
+  // update frequency before cfg changed
+  int64_t removedFreq = 0;
+  if (func.GetCfg()->UpdateCFGFreq()) {
+    int idx = bb.GetSuccIndex(unreachableBB);
+    removedFreq = bb.GetSuccFreq()[idx];
+  }
   bb.RemoveSucc(unreachableBB);
   bb.RemoveMeStmt(bb.GetLastMe());
   bb.SetKind(kBBFallthru);
+  if (func.GetCfg()->UpdateCFGFreq()) {
+    bb.SetSuccFreq(0, bb.GetFrequency());
+    succBB.SetFrequency(succBB.GetFrequency() + removedFreq);
+    unreachableBB.SetFrequency(0);
+  }
   auto *loop = loops->GetBBLoopParent(bb.GetBBId());
   if (loop == nullptr) {
     return;
@@ -3505,6 +3520,12 @@ void ValueRangePropagation::RemoveUnreachableBB(
         UpdateProfile(*condGotoBB.GetPred(0), condGotoBB, trueBranch);
       }
       condGotoBB.SetKind(kBBFallthru);
+      // update frequency before cfg changed
+      if (func.GetCfg()->UpdateCFGFreq()) {
+        int64_t removedFreq = condGotoBB.GetSuccFreq()[1];
+        condGotoBB.SetSuccFreq(0, condGotoBB.GetFrequency());
+        succ0->SetFrequency(succ0->GetFrequency() + removedFreq);
+      }
       condGotoBB.RemoveSucc(*succ1);
       DeleteThePhiNodeWhichOnlyHasOneOpnd(*succ1, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
       condGotoBB.RemoveMeStmt(condGotoBB.GetLastMe());
@@ -3517,7 +3538,16 @@ void ValueRangePropagation::RemoveUnreachableBB(
         UpdateProfile(*condGotoBB.GetPred(0), condGotoBB, trueBranch);
       }
       condGotoBB.SetKind(kBBFallthru);
+      int64_t removedFreq = 0;
+      // update frequency before cfg changed
+      if (func.GetCfg()->UpdateCFGFreq()) {
+        removedFreq = condGotoBB.GetSuccFreq()[0];
+      }
       condGotoBB.RemoveSucc(*succ0);
+      if (func.GetCfg()->UpdateCFGFreq()) {
+        condGotoBB.SetSuccFreq(0, condGotoBB.GetFrequency());
+        succ1->SetFrequency(succ1->GetFrequency() + removedFreq);
+      }
       DeleteThePhiNodeWhichOnlyHasOneOpnd(*succ0, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
       condGotoBB.RemoveMeStmt(condGotoBB.GetLastMe());
     }
@@ -3675,10 +3705,22 @@ bool ValueRangePropagation::ChangeTheSuccOfPred2TrueBranch(
   if (exitCopyFallthru != nullptr) {
     PrepareForSSAUpdateWhenPredBBIsRemoved(pred, bb, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
     size_t index = FindBBInSuccs(pred, bb);
+    int64_t edgeFreq = 0;
+    if (func.GetCfg()->UpdateCFGFreq()) {
+      edgeFreq = pred.GetSuccFreq()[index];
+    }
     pred.RemoveSucc(bb);
     DeleteThePhiNodeWhichOnlyHasOneOpnd(bb, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
     pred.AddSucc(*exitCopyFallthru, index);
     CreateLabelForTargetBB(pred, *exitCopyFallthru);
+    if (func.GetCfg()->UpdateCFGFreq()) {
+      exitCopyFallthru->SetFrequency(exitCopyFallthru->GetFrequency() + edgeFreq);
+      pred.AddSuccFreq(edgeFreq, index);
+      // update bb frequency
+      ASSERT(bb.GetFrequency() >= edgeFreq, "sanity check");
+      bb.SetFrequency(bb.GetFrequency() - edgeFreq);
+      bb.UpdateEdgeFreqs();
+    }
     return true;
   }
   if (CodeSizeIsOverflowOrTheOpOfStmtIsNotSupported(bb)) {
@@ -3712,8 +3754,21 @@ bool ValueRangePropagation::ChangeTheSuccOfPred2TrueBranch(
   mergeAllFallthruBBs->AddMeStmtLast(gotoMeStmt);
   PrepareForSSAUpdateWhenPredBBIsRemoved(pred, bb, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
   size_t index = FindBBInSuccs(pred, bb);
+  int64_t edgeFreq = 0;
+  if (func.GetCfg()->UpdateCFGFreq()) {
+    edgeFreq = pred.GetSuccFreq()[index];
+  }
   pred.RemoveSucc(bb);
   pred.AddSucc(*mergeAllFallthruBBs, index);
+  if (func.GetCfg()->UpdateCFGFreq()) {
+    mergeAllFallthruBBs->SetFrequency(edgeFreq);
+    mergeAllFallthruBBs->PushBackSuccFreq(edgeFreq);
+    pred.AddSuccFreq(edgeFreq, index);
+    // update bb frequency
+    ASSERT(bb.GetFrequency() >= edgeFreq, "sanity check");
+    bb.SetFrequency(bb.GetFrequency() - edgeFreq);
+    bb.UpdateEdgeFreqs();
+  }
   mergeAllFallthruBBs->AddSucc(trueBranch);
   DeleteThePhiNodeWhichOnlyHasOneOpnd(bb, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
   CreateLabelForTargetBB(pred, *mergeAllFallthruBBs);
@@ -3778,19 +3833,48 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(
     if (OnlyHaveCondGotoStmt(bb)) {
       PrepareForSSAUpdateWhenPredBBIsRemoved(pred, bb, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
       size_t index = FindBBInSuccs(pred, bb);
+      int64_t edgeFreq = 0;
+      if (func.GetCfg()->UpdateCFGFreq()) {
+        edgeFreq = pred.GetSuccFreq()[index];
+        ASSERT(bb.GetFrequency() >= edgeFreq, "sanity check");
+      }
       pred.RemoveSucc(bb);
       DeleteThePhiNodeWhichOnlyHasOneOpnd(bb, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
       pred.AddSucc(trueBranch, index);
       CreateLabelForTargetBB(pred, trueBranch);
+      if (func.GetCfg()->UpdateCFGFreq()) {
+        bb.SetFrequency(bb.GetFrequency() - edgeFreq);
+        size_t trueBranchIdx = bb.GetSuccIndex(trueBranch);
+        int64_t updatedtrueFreq = bb.GetSuccFreq()[trueBranchIdx] - edgeFreq;
+        // transform may not be consistent with frequency value
+        updatedtrueFreq = updatedtrueFreq > 0 ? updatedtrueFreq : 0;
+        bb.SetSuccFreq(trueBranchIdx, updatedtrueFreq);
+        pred.AddSuccFreq(edgeFreq, index);
+      }
     } else {
       auto *exitCopyFallthru = GetNewCopyFallthruBB(trueBranch, bb);
       if (exitCopyFallthru != nullptr) {
         PrepareForSSAUpdateWhenPredBBIsRemoved(pred, bb, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
         size_t index = FindBBInSuccs(pred, bb);
+        int64_t edgeFreq = 0;
+        if (func.GetCfg()->UpdateCFGFreq()) {
+          edgeFreq = pred.GetSuccFreq()[index];
+          ASSERT(bb.GetFrequency() >= edgeFreq, "sanity check");
+        }
         pred.RemoveSucc(bb);
         DeleteThePhiNodeWhichOnlyHasOneOpnd(bb, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
         pred.AddSucc(*exitCopyFallthru, index);
         CreateLabelForTargetBB(pred, *exitCopyFallthru);
+        if (func.GetCfg()->UpdateCFGFreq()) {
+          bb.SetFrequency(bb.GetFrequency() - edgeFreq);
+          exitCopyFallthru->SetFrequency(edgeFreq);
+          exitCopyFallthru->PushBackSuccFreq(edgeFreq);
+          size_t trueBranchIdx = bb.GetSuccIndex(trueBranch);
+          int64_t updatedtrueFreq = bb.GetSuccFreq()[trueBranchIdx] - edgeFreq;
+          ASSERT(updatedtrueFreq >= 0, "sanity check");
+          bb.SetSuccFreq(trueBranchIdx, updatedtrueFreq);
+          pred.AddSuccFreq(edgeFreq, index);
+        }
         return true;
       }
       auto *newBB = CreateNewGotoBBWithoutCondGotoStmt(bb);
@@ -3804,9 +3888,21 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(
       newBB->AddMeStmtLast(gotoMeStmt);
       PrepareForSSAUpdateWhenPredBBIsRemoved(pred, bb, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
       size_t index = FindBBInSuccs(pred, bb);
+      int64_t edgeFreq = 0;
+      if (func.GetCfg()->UpdateCFGFreq()) {
+        edgeFreq = pred.GetSuccFreq()[index];
+        ASSERT(bb.GetFrequency() >= edgeFreq, "sanity check");
+      }
       pred.RemoveSucc(bb);
       pred.AddSucc(*newBB, index);
       newBB->AddSucc(trueBranch);
+      if (func.GetCfg()->UpdateCFGFreq()) {
+        bb.SetFrequency(bb.GetFrequency() - edgeFreq);
+        bb.UpdateEdgeFreqs();
+        newBB->SetFrequency(edgeFreq);
+        newBB->PushBackSuccFreq(edgeFreq);
+        pred.AddSuccFreq(edgeFreq, index);
+      }
       DeleteThePhiNodeWhichOnlyHasOneOpnd(bb, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
       (void)func.GetOrCreateBBLabel(trueBranch);
       CreateLabelForTargetBB(pred, *newBB);
@@ -5024,6 +5120,13 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
     }
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);
     GetAnalysisInfoHook()->ForceRunTransFormPhase<MeFuncOptTy, MeFunction>(&MELoopCanon::id, f);
+    // update cfg frequency
+    if (f.GetCfg()->UpdateCFGFreq()) {
+      f.GetCfg()->UpdateEdgeFreqWithBBFreq();
+      if (f.GetCfg()->DumpIRProfileFile()) {
+        f.GetCfg()->DumpToFile("after-valuerange" + std::to_string(f.vrpRuns), false, true);
+      }
+    }
   }
   // Run vrp twice when need check boundary and nullable pointer.
   if (MeOption::boundaryCheckMode != kNoCheck || MeOption::npeCheckMode != kNoCheck) {

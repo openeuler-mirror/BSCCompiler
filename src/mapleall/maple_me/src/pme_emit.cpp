@@ -1097,7 +1097,7 @@ bool MEPreMeEmission::PhaseRun(MeFunction &f) {
   mirfunction->SetBody(curblk);
   // restore bb frequency to stmt
   if (Options::profileUse && emitter->GetFuncProfData()) {
-    emitter->GetFuncProfData()->SetStmtFreq(curblk->GetStmtID(), emitter->GetFuncProfData()->entry_freq);
+    emitter->GetFuncProfData()->SetStmtFreq(curblk->GetStmtID(), emitter->GetFuncProfData()->entryFreq);
   }
   uint32 i = 0;
   while (i < f.GetCfg()->GetAllBBs().size()) {

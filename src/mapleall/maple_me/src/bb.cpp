@@ -13,10 +13,13 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "bb.h"
+
+#include <cmath>
+
+#include "me_ir.h"
+#include "me_ssa.h"
 #include "mempool_allocator.h"
 #include "ver_symbol.h"
-#include "me_ssa.h"
-#include "me_ir.h"
 
 namespace maple {
 std::string BB::StrAttribute() const {
@@ -80,8 +83,8 @@ void BB::DumpBBAttribute(const MIRModule *mod) const {
 void BB::DumpHeader(const MIRModule *mod) const {
   mod->GetOut() << "============BB id:" << GetBBId() << " " << StrAttribute() << " [";
   DumpBBAttribute(mod);
-  if (Options::profileUse) {
-    mod->GetOut() << "  freq: " << frequency  << " ";
+  if (Options::profileUse && frequency >= 0) {
+    mod->GetOut() << "  freq: " << frequency << " ";
   }
   mod->GetOut() << "]===============\n";
   mod->GetOut() << "preds: ";
@@ -299,8 +302,8 @@ void BB::MoveAllPredToSucc(BB *newSucc, BB *commonEntry) {
   } else {
     while (!GetPred().empty()) {
       BB *firstPred = GetPred(0);
-      if (IsSuccBB(*firstPred)) {                    // avoid replacing twice
-        firstPred->ReplaceSucc(this, newSucc, true); // firstPred will be removed from this->pred
+      if (IsSuccBB(*firstPred)) {                     // avoid replacing twice
+        firstPred->ReplaceSucc(this, newSucc, true);  // firstPred will be removed from this->pred
       }
     }
   }
@@ -336,8 +339,8 @@ void BB::MoveAllSuccToPred(BB *newPred, BB *commonExit) {
   } else {
     while (!GetSucc().empty()) {
       BB *firstSucc = GetSucc(0);
-      if (IsPredBB(*firstSucc)) {              // avoid replacing twice
-        firstSucc->ReplacePred(this, newPred); // firstSucc will be removed from this->succ
+      if (IsPredBB(*firstSucc)) {               // avoid replacing twice
+        firstSucc->ReplacePred(this, newPred);  // firstSucc will be removed from this->succ
       }
     }
   }
@@ -476,23 +479,31 @@ void BB::DumpMePhiList(const IRMap *irMap) {
   }
 }
 
-// bb frequency is changed in tranform phase
-// update its succ frequency by scaled value
-void BB::UpdateEdgeFreqs() {
+// update edge frequency by scaled value when bb frequency is changed
+void BB::UpdateEdgeFreqs(bool updateBBFreqOfSucc) {
   int len = GetSucc().size();
   ASSERT(len == GetSuccFreq().size(), "sanity check");
   int64_t succFreqs = 0;
   for (int i = 0; i < len; i++) {
     succFreqs += GetSuccFreq()[i];
   }
-  // early return if frequency is consistent
-  if (len == 0 || succFreqs == GetFrequency()) {
-    return;
-  }
-  for (size_t i = 0; i < len; ++i) {
+  int diff = abs(succFreqs - GetFrequency());
+  if (len == 0 || diff <= 1) return;
+  int64_t scaledSum = 0;
+  for (int i = 0; i < len; i++) {
     int64_t sfreq = GetSuccFreq()[i];
     int64_t scalefreq = (succFreqs == 0 ? (frequency / len) : (sfreq * frequency / succFreqs));
+    scaledSum += scalefreq;
     SetSuccFreq(i, scalefreq);
+    // update succ frequency with new difference if needed
+    if (updateBBFreqOfSucc) {
+      auto *succ = GetSucc(i);
+      int64_t diff = scalefreq - sfreq;
+      int64_t succBBnewFreq = succ->GetFrequency() + diff;
+      if (succBBnewFreq >= 0) {
+        succ->SetFrequency(succBBnewFreq);
+      }
+    }
   }
 }
 

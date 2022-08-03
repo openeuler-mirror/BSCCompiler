@@ -14,17 +14,17 @@
  */
 #ifndef MAPLE_ME_INCLUDE_HDSE_H
 #define MAPLE_ME_INCLUDE_HDSE_H
-#include "bb.h"
-#include "irmap.h"
-#include "dominance.h"
 #include "alias_class.h"
+#include "bb.h"
+#include "dominance.h"
+#include "irmap.h"
 
 namespace maple {
 class MeIRMap;
 class HDSE {
  public:
-  HDSE(MIRModule &mod, const MapleVector<BB*> &bbVec, BB &commonEntryBB, BB &commonExitBB,
-       Dominance &pDom, IRMap &map, const AliasClass *aliasClass, bool enabledDebug = false, bool decouple = false)
+  HDSE(MIRModule &mod, const MapleVector<BB*> &bbVec, BB &commonEntryBB, BB &commonExitBB, Dominance &pDom, IRMap &map,
+       const AliasClass *aliasClass, bool enabledDebug = false, bool decouple = false)
       : hdseDebug(enabledDebug),
         mirModule(mod),
         bbVec(bbVec),
@@ -47,6 +47,12 @@ class HDSE {
   }
   void SetRemoveRedefine(bool val) {
     removeRedefine = val;
+  }
+  void SetUpdateFreq(bool update) {
+    updateFreq = update;
+  }
+  bool UpdateFreq() {
+    return updateFreq;
   }
 
   bool hdseDebug;
@@ -73,10 +79,11 @@ class HDSE {
   // Or the meExpr is opnd of a same type meExpr
   static const uint8 kExprTypeNotNull = 2;
   bool decoupleStatic = false;
-  bool needUNClean = false;  // used to record if there's unreachable BB
+  bool needUNClean = false;     // used to record if there's unreachable BB
   bool removeRedefine = false;  // used to control if run ResolveContinuousRedefine()
-  MapleVector<uint32> verstUseCounts; // index is vstIdx
-  std::forward_list<DassignMeStmt *> backSubsCands; // backward substitution candidates
+  bool updateFreq = false;
+  MapleVector<uint32> verstUseCounts;                // index is vstIdx
+  std::forward_list<DassignMeStmt*> backSubsCands;  // backward substitution candidates
 
  private:
   void DseInit();
