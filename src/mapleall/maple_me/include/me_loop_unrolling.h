@@ -14,22 +14,23 @@
  */
 #ifndef MAPLE_ME_INCLUDE_LOOP_UNROLLING_H
 #define MAPLE_ME_INCLUDE_LOOP_UNROLLING_H
-#include "me_scalar_analysis.h"
-#include "me_function.h"
-#include "me_irmap_build.h"
-#include "me_ir.h"
-#include "me_ssa_update.h"
-#include "me_dominance.h"
-#include "me_loop_analysis.h"
-#include "profile.h"
 #include "me_cfg.h"
+#include "me_dominance.h"
+#include "me_function.h"
+#include "me_ir.h"
+#include "me_irmap_build.h"
+#include "me_loop_analysis.h"
+#include "me_scalar_analysis.h"
+#include "me_ssa_update.h"
+#include "profile.h"
 
 namespace maple {
 constexpr uint32 kMaxCost = 100;
-constexpr uint8 unrollTimes[3] = { 8, 4, 2 }; // unrollTimes
+constexpr uint8 unrollTimes[3] = {8, 4, 2};  // unrollTimes
 class LoopUnrolling {
  public:
-  enum ReturnKindOfFullyUnroll {
+  enum ReturnKindOfFullyUnroll
+  {
     kCanFullyUnroll,
     kCanNotSplitCondGoto,
     kCanNotFullyUnroll,
@@ -37,14 +38,26 @@ class LoopUnrolling {
 
   LoopUnrolling(MeFunction &f, LoopDesc &l, MeIRMap &map, const MapleAllocator &alloc,
                 std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &candsTemp)
-      : func(&f), cfg(f.GetCfg()), loop(&l), irMap(&map), mpAllocator(alloc),
-        cands(candsTemp), lastNew2OldBB(mpAllocator.Adapter()),
+      : func(&f),
+        cfg(f.GetCfg()),
+        loop(&l),
+        irMap(&map),
+        mpAllocator(alloc),
+        cands(candsTemp),
+        lastNew2OldBB(mpAllocator.Adapter()),
         profValid(func->IsIRProfValid()) {}
   ~LoopUnrolling() = default;
   ReturnKindOfFullyUnroll LoopFullyUnroll(int64 tripCount);
   bool LoopPartialUnrollWithConst(uint64 tripCount);
   bool LoopPartialUnrollWithVar(CR &cr, CRNode &varNode, uint32 j);
   bool LoopUnrollingWithConst(uint64 tripCount, bool onlyFully = false);
+  void SetInstrumentProf(bool useInstrument) {
+    instrumentProf = useInstrument;
+    profValid = useInstrument;
+  }
+  bool GetInstrumentProf() const {
+    return instrumentProf;
+  }
 
  private:
   bool SplitCondGotoBB();
@@ -53,14 +66,12 @@ class LoopUnrolling {
 
   void SetLabelWithCondGotoOrGotoBB(BB &bb, std::unordered_map<BB*, BB*> &old2NewBB, const BB &exitBB,
                                     LabelIdx oldlabIdx);
-  void ResetOldLabel2NewLabel(std::unordered_map<BB*, BB*> &old2NewBB, BB &bb,
-                              const BB &exitBB, BB &newHeadBB);
-  void ResetOldLabel2NewLabel2(std::unordered_map<BB*, BB*> &old2NewBB, BB &bb,
-                               const BB &exitBB, BB &newHeadBB);
-  void CopyLoopBody(BB &newHeadBB, std::unordered_map<BB*, BB*> &old2NewBB,
-                    std::set<BB*> &labelBBs, const BB &exitBB, bool copyAllLoop);
-  void CopyLoopBodyForProfile(BB &newHeadBB, std::unordered_map<BB*, BB*> &old2NewBB,
-                              std::set<BB*> &labelBBs, const BB &exitBB, bool copyAllLoop);
+  void ResetOldLabel2NewLabel(std::unordered_map<BB*, BB*> &old2NewBB, BB &bb, const BB &exitBB, BB &newHeadBB);
+  void ResetOldLabel2NewLabel2(std::unordered_map<BB*, BB*> &old2NewBB, BB &bb, const BB &exitBB, BB &newHeadBB);
+  void CopyLoopBody(BB &newHeadBB, std::unordered_map<BB*, BB*> &old2NewBB, std::set<BB*> &labelBBs,
+                    const BB &exitBB, bool copyAllLoop);
+  void CopyLoopBodyForProfile(BB &newHeadBB, std::unordered_map<BB*, BB*> &old2NewBB, std::set<BB*> &labelBBs,
+                              const BB &exitBB, bool copyAllLoop);
   void UpdateCondGotoBB(BB &bb, VarMeExpr &indVar, MeExpr &tripCount, MeExpr &unrollTimeExpr);
   void UpdateCondGotoStmt(BB &bb, VarMeExpr &indVar, MeExpr &tripCount, MeExpr &unrollTimeExpr, uint32 offset);
   void CreateIndVarAndCondGotoStmt(CR &cr, CRNode &varNode, BB &preCondGoto, uint32 unrollTime, uint32 i);
@@ -85,7 +96,7 @@ class LoopUnrolling {
 
   bool canUnroll = true;
   MeFunction *func;
-  MeCFG      *cfg;
+  MeCFG *cfg;
   LoopDesc *loop;
   MeIRMap *irMap;
   MapleAllocator mpAllocator;
@@ -100,6 +111,7 @@ class LoopUnrolling {
   bool firstResetForAfterInsertGoto = true;
   bool resetFreqForUnrollWithVar = false;
   bool isUnrollWithVar = false;
+  bool instrumentProf = false;  // use instrumented profiling
 };
 
 class LoopUnrollingExecutor {
@@ -109,8 +121,8 @@ class LoopUnrollingExecutor {
   static bool enableDebug;
   static bool enableDump;
 
-  void ExecuteLoopUnrolling(MeFunction &func, MeIRMap &irMap,
-      std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands, IdentifyLoops &meLoop, const MapleAllocator &alloc);
+  void ExecuteLoopUnrolling(MeFunction &func, MeIRMap &irMap, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands,
+                            IdentifyLoops &meLoop, const MapleAllocator &alloc);
   bool IsCFGChange() const {
     return isCFGChange;
   }

@@ -23,6 +23,9 @@ namespace maple {
 static constexpr int32 kProbAll = 10000;
 static constexpr int32 kProbLikely = 9000;
 static constexpr int32 kProbUnlikely = kProbAll - kProbLikely;
+constexpr uint32 kNodeFirstOpnd = 0;
+constexpr uint32 kNodeSecondOpnd = 1;
+constexpr uint32 kNodeThirdOpnd = 2;
 enum MirLowerPhase : uint8 {
   kLowerUnder,
   kLowerMe,
@@ -69,13 +72,13 @@ class MIRLower {
 
   virtual BlockNode *LowerIfStmt(IfStmtNode &ifStmt, bool recursive);
   BlockNode *LowerSwitchStmt(SwitchNode *switchNode);
-  virtual BlockNode *LowerWhileStmt(WhileStmtNode&);
-  BlockNode *LowerDowhileStmt(WhileStmtNode&);
-  BlockNode *LowerDoloopStmt(DoloopNode&);
-  BlockNode *LowerBlock(BlockNode&);
-  BaseNode *LowerEmbeddedCandCior(BaseNode *x, StmtNode *curstmt, BlockNode *block);
+  virtual BlockNode *LowerWhileStmt(WhileStmtNode &whileStmt);
+  BlockNode *LowerDowhileStmt(WhileStmtNode &doWhileStmt);
+  BlockNode *LowerDoloopStmt(DoloopNode &doloop);
+  BlockNode *LowerBlock(BlockNode &block);
+  BaseNode *LowerEmbeddedCandCior(BaseNode *x, StmtNode *curstmt, BlockNode *blk);
   void LowerCandCior(BlockNode &block);
-  void LowerBuiltinExpect(BlockNode &block);
+  void LowerBuiltinExpect(BlockNode &block) const;
   void LowerFunc(MIRFunction &func);
   BaseNode *LowerFarray(ArrayNode *array);
   BaseNode *LowerCArray(ArrayNode *array);
@@ -85,7 +88,7 @@ class MIRLower {
   DoloopNode *ExpandArrayMrtDoloopBlock(DoloopNode &node);
   ForeachelemNode *ExpandArrayMrtForeachelemBlock(ForeachelemNode &node);
   BlockNode *ExpandArrayMrtBlock(BlockNode &block);
-  void AddArrayMrtMpl(BaseNode &exp, BlockNode &newblk);
+  void AddArrayMrtMpl(BaseNode &exp, BlockNode &newBlock);
   MIRFuncType *FuncTypeFromFuncPtrExpr(BaseNode *x);
   void SetLowerME() {
     lowerPhase |= kShiftLowerMe;
@@ -139,7 +142,9 @@ class MIRLower {
 
   virtual bool InLFO() const { return false; }
 
-  GcovFuncInfo *GetFuncProfData() { return mirFunc->GetFuncProfData(); }
+  FuncProfInfo *GetFuncProfData() const {
+    return mirFunc->GetFuncProfData();
+  }
   void CopyStmtFrequency(StmtNode *newStmt, StmtNode *oldStmt) {
   ASSERT(GetFuncProfData() != nullptr, "nullptr check");
   if (newStmt == oldStmt) return;

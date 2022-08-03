@@ -14,7 +14,7 @@
  */
 #include "ipa_phase_manager.h"
 #include "pme_emit.h"
-#include "gcov_parser.h"
+#include "mpl_profdata_parser.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 #define CLANG (mirModule.IsCModule())
@@ -102,8 +102,8 @@ void IpaSccPM::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddPreserved<M2MCallGraph>();
   aDep.AddPreserved<M2MKlassHierarchy>();
   if (Options::profileUse) {
-    aDep.AddRequired<M2MGcovParser>();
-    aDep.AddPreserved<M2MGcovParser>();
+    aDep.AddRequired<MMplProfDataParser>();
+    aDep.AddPreserved<MMplProfDataParser>();
   }
 }
 

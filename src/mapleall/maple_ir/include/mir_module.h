@@ -22,7 +22,7 @@
 #include "muid.h"
 #include "profile.h"
 #include "namemangler.h"
-#include "gcov_profile.h"
+#include "mpl_profdata.h"
 #if MIR_FEATURE_FULL
 #include <string>
 #include <unordered_set>
@@ -40,6 +40,7 @@ namespace maple {
 class CallInfo;  // circular dependency exists, no other choice
 class MIRModule;  // circular dependency exists, no other choice
 class MIRBuilder;  // circular dependency exists, no other choice
+class MIRScope;
 using MIRModulePtr = MIRModule*;
 using MIRBuilderPtr = MIRBuilder*;
 
@@ -267,11 +268,11 @@ class MIRModule {
     return profile;
   }
 
-  GcovProfileData* GetGcovProfile() {
-    return gcovProfile;
+  MplProfileData* GetMapleProfile() {
+    return mplProfile;
   }
-  void SetGcovProfile(GcovProfileData* info) {
-    gcovProfile = info;
+  void SetMapleProfile(MplProfileData* info) {
+    mplProfile = info;
   }
 
   void SetSomeSymbolNeedForDecl(bool s) {
@@ -340,11 +341,13 @@ class MIRModule {
   }
 
   std::string GetProfileDataFileName() const {
-    std::string profileDataFileName = fileName.substr(0, fileName.find_last_of("."));
-    std::replace(profileDataFileName.begin(), profileDataFileName.end(), '.', '_');
-    std::replace(profileDataFileName.begin(), profileDataFileName.end(), '-', '_');
-    std::replace(profileDataFileName.begin(), profileDataFileName.end(), '/', '_');
-    profileDataFileName = profileDataFileName + namemangler::kProfFileNameExt;
+    std::string profileDataFileName = GetFileName().substr(0, GetFileName().find_last_of("."));
+    char *gcov_path = std::getenv("GCOV_PREFIX");
+    std::string gcov_prefix = gcov_path ? gcov_path : "";
+    if (!gcov_prefix.empty() && (gcov_prefix.back() != '/')) {
+      gcov_prefix.append("/");
+    }
+    profileDataFileName = gcov_prefix + profileDataFileName;
     return profileDataFileName;
   }
 
@@ -641,6 +644,10 @@ class MIRModule {
     return dbgInfo;
   }
 
+  MIRScope *GetScope() const {
+    return scope;
+  }
+
   void SetWithDbgInfo(bool v) {
     withDbgInfo = v;
   }
@@ -705,7 +712,7 @@ class MIRModule {
   MapleSet<StIdx> symbolSet;
   MapleVector<StIdx> symbolDefOrder;
   Profile profile;
-  GcovProfileData* gcovProfile;
+  MplProfileData* mplProfile;
   bool someSymbolNeedForwDecl = false;  // some symbols' addressses used in initialization
 
   std::ostream &out;
@@ -717,6 +724,7 @@ class MIRModule {
 
   DebugInfo *dbgInfo = nullptr;
   bool withDbgInfo = false;
+  MIRScope *scope = nullptr;
 
   // for cg in mplt
   BinaryMplt *binMplt = nullptr;

@@ -49,12 +49,15 @@ src_libmpl2mpl = [
   "src/preme.cpp",
   "src/scalarreplacement.cpp",
   "src/module_phase_manager.cpp",
+  "src/inline_summary.cpp",
   "src/clone.cpp",
   "src/retype.cpp",
   "src/call_graph.cpp",
   "src/inline.cpp",
+  "src/inline_analyzer.cpp",
+  "src/inline_transformer.cpp",
   "src/method_replace.cpp",
-  "src/gcov_parser.cpp",
+  "src/mpl_profdata_parser.cpp",
 ]
 
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]

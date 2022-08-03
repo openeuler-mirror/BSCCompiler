@@ -1271,19 +1271,37 @@ class MIRFunction {
 
   InlineSummary *GetOrCreateInlineSummary();
 
-  void SetFuncProfData(GcovFuncInfo *data) {
+  void SetFuncProfData(FuncProfInfo *data) {
     funcProfData = data;
   }
-  GcovFuncInfo* GetFuncProfData() {
+  FuncProfInfo* GetFuncProfData() {
     return funcProfData;
   }
-  GcovFuncInfo* GetFuncProfData() const {
+  FuncProfInfo* GetFuncProfData() const {
     return funcProfData;
   }
   void SetStmtFreq(uint32_t stmtID, uint64_t freq) {
     ASSERT((funcProfData != nullptr && freq > 0), "nullptr check");
     funcProfData->SetStmtFreq(stmtID, static_cast<int64_t>(freq));
   }
+
+  void SetMayWriteToAddrofStack() {
+    mayWriteToAddrofStack = true;
+  }
+
+  bool GetMayWriteToAddrofStack() const {
+    return mayWriteToAddrofStack;
+  }
+
+  void CheckMayWriteToAddrofStack() {
+    checkedMayWriteToAddrofStack = true;
+  }
+
+  bool IsMayWriteToAddrofStackChecked() const {
+    // record the info about whether writing to address of stack is checked in me
+    return checkedMayWriteToAddrofStack;
+  }
+
  private:
   MIRModule *module;     // the module that owns this function
   PUIdx puIdx = 0;           // the PU index of this function
@@ -1384,10 +1402,12 @@ class MIRFunction {
   uint32 nCtrs = 0; // number of counters
   uint64 fileLinenoChksum = 0;
   uint64 cfgChksum = 0;
-  GcovFuncInfo *funcProfData = nullptr;
+  FuncProfInfo *funcProfData = nullptr;
   InlineSummary *inlineSummary = nullptr;
   void DumpFlavorLoweredThanMmpl() const;
   MIRFuncType *ReconstructFormals(const std::vector<MIRSymbol*> &symbols, bool clearOldArgs);
+  bool mayWriteToAddrofStack = false;
+  bool checkedMayWriteToAddrofStack = false;
 };
 }  // namespace maple
 #endif  // MAPLE_IR_INCLUDE_MIR_FUNCTION_H
