@@ -1039,7 +1039,11 @@ DBGDie *DebugInfo::GetOrCreateEnumTypeDie(unsigned idx) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_enumeration_type);
 
   PrimType pty = mirEnum->GetPrimType();
-  (void)(die->AddAttr(DW_AT_name, DW_FORM_strp, sid));
+  // check if it is an anonymous enum
+  const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(mirEnum->GetNameIdx());
+  size_t pos = name.find("unnamed_enum.");
+  uint32 stridx = (pos == std::string::npos) ? sid : 0;
+  (void)(die->AddAttr(DW_AT_name, DW_FORM_strp, stridx));
   (void)(die->AddAttr(DW_AT_encoding, DW_FORM_data4, GetAteFromPTY(pty)));
   (void)(die->AddAttr(DW_AT_byte_size, DW_FORM_data1, GetPrimTypeSize(pty)));
   MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pty);
