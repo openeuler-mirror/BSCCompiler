@@ -21,7 +21,8 @@ namespace maple {
 // convert loop to do-while format
 class MeLoopCanon {
  public:
-  MeLoopCanon(MeFunction &f, bool enableDebugFunc) : func(f), isDebugFunc(enableDebugFunc) {}
+  MeLoopCanon(MeFunction &f, bool enableDebugFunc, bool updateFreq)
+      : func(f), isDebugFunc(enableDebugFunc), updateFreqs(updateFreq) {}
   virtual ~MeLoopCanon() = default;
   void NormalizationExitOfLoop(IdentifyLoops &meLoop);
   void NormalizationHeadAndPreHeaderOfLoop(Dominance &dom);
@@ -33,6 +34,7 @@ class MeLoopCanon {
   void ResetIsCFGChange() {
     isCFGChange = false;
   }
+
  private:
   void FindHeadBBs(Dominance &dom, const BB *bb, std::map<BBId, std::vector<BB*>> &heads) const;
   void SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, BB *mergedBB);
@@ -44,6 +46,7 @@ class MeLoopCanon {
   MeFunction &func;
   bool isDebugFunc;
   bool isCFGChange = false;
+  bool updateFreqs = false;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(MELoopCanon, MeFunction)

@@ -140,9 +140,9 @@ MIRFunction *IpaClone::IpaCloneFunctionWithFreq(MIRFunction &originalFunction,
   newFunc->SetBaseClassFuncNames(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fullName));
   newFunc->GetFuncSymbol()->SetAppearsInCode(true);
   newFunc->SetPuidxOrigin(newFunc->GetPuidx());
-  GcovFuncInfo *origProfData = originalFunction.GetFuncProfData();
+  FuncProfInfo *origProfData = originalFunction.GetFuncProfData();
   auto *moduleMp = mirBuilder.GetMirModule().GetMemPool();
-  GcovFuncInfo *newProfData = moduleMp->New<GcovFuncInfo>(&mirBuilder.GetMirModule().GetMPAllocator(),
+  FuncProfInfo *newProfData = moduleMp->New<FuncProfInfo>(&mirBuilder.GetMirModule().GetMPAllocator(),
                                   newFunc->GetPuidx(), 0, 0); // skip checksum information
   newFunc->SetFuncProfData(newProfData);
   newProfData->SetFuncFrequency(callSiteFreq);
@@ -309,7 +309,7 @@ void IpaClone::DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramInd
   CalleePair keyPair(puidx, paramIndex);
   auto &calleeInfo = mirModule->GetCalleeParamAboutInt();
   uint32 index = 0;
-  for (auto &eval : evalMap) {
+  for (auto &eval : std::as_const(evalMap)) {
     uint64_t evalValue = eval.first;
     std::vector<int64_t> calleeValue = eval.second;
     if (!CheckCostModel(paramIndex, calleeValue, static_cast<uint32>(result.size()))) {
@@ -390,7 +390,7 @@ void IpaClone::ComupteValue(const IntVal& value, const IntVal& paramValue,
 
 void IpaClone::EvalCompareResult(std::vector<ImpExpr> &result, std::map<uint32, std::vector<int64_t>> &evalMap,
                                  std::map<int64_t, std::vector<CallerSummary>> &summary, uint32 index) const {
-  for (auto &it: summary) {
+  for (auto &it: std::as_const(summary)) {
     int64 value = it.first;
     uint64_t bitRes = 0;
     bool runFlag = false;
@@ -466,8 +466,8 @@ void IpaClone::CloneNoImportantExpressFunction(MIRFunction *func, uint32 paramIn
   MIRFunction *newFunc = nullptr;
   if (Options::profileUse && func->GetFuncProfData()) {
     uint64_t clonedSiteFreqs = 0;
-    int64_t value = calleeInfo[keyPair].begin()->first;
-    for (auto &callSite : calleeInfo[keyPair][value]) {
+    int64_t value = calleeInfo[keyPair].cbegin()->first;
+    for (auto &callSite : std::as_const(calleeInfo[keyPair][value])) {
       MIRFunction *callerFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callSite.GetPuidx());
       uint32 stmtId = callSite.GetStmtId();
       CallNode *oldCallNode = static_cast<CallNode*>(callerFunc->GetStmtNodeFromMeId(stmtId));
