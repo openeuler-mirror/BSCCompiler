@@ -1836,6 +1836,19 @@ void CGFunc::GenerateCfiPrologEpilog() {
     firstBB->AppendInsn(ipoint);
   }
 
+  MIRFunction mirFunc = GetFunction();
+  MIRSymbol *fSym = GlobalTables::GetGsymTable().GetSymbolFromStidx(mirFunc.GetStIdx().Idx());
+  if (fSym && cg->GetCGOptions().WithLoc() && GetMirModule().IsCModule()) {
+    uint32 fileNum = fSym->GetSrcPosition().FileNum();
+    uint32 lineNum = fSym->GetSrcPosition().LineNum();
+    uint32 columnNum = fSym->GetSrcPosition().Column();
+    Operand *fOprnd = CreateDbgImmOperand(fileNum);
+    Operand *lOprnd = CreateDbgImmOperand(lineNum);
+    Operand *cOprnd = CreateDbgImmOperand(columnNum);
+    Insn &loc = GetCG()->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *fOprnd, *lOprnd, *cOprnd);
+    firstBB->InsertInsnBefore(*firstBB->GetFirstInsn(), loc);
+  }
+
 #if !defined(TARGARM32)
   /*
    * always generate ".cfi_personality 155, DW.ref.__mpl_personality_v0" for Java methods.
