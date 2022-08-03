@@ -2835,10 +2835,13 @@ Operand *AArch64CGFunc::SelectDread(const BaseNode &parent, DreadNode &expr) {
 
   uint32 dataSize = GetPrimTypeBitSize(symType);
   uint32 aggSize = 0;
+  PrimType resultType = expr.GetPrimType();
   if (symType == PTY_agg) {
     if (expr.GetPrimType() == PTY_agg) {
       aggSize = static_cast<uint32>(GetBecommon().GetTypeSize(symbol->GetType()->GetTypeIndex().GetIdx()));
       dataSize = ((expr.GetFieldID() == 0) ? kSizeOfPtr : aggSize) << 3;
+      resultType = PTY_u64;
+      symType = resultType;
     } else {
       dataSize = GetPrimTypeBitSize(expr.GetPrimType());
     }
@@ -2880,7 +2883,6 @@ Operand *AArch64CGFunc::SelectDread(const BaseNode &parent, DreadNode &expr) {
     memOpnd = &SplitOffsetWithAddInstruction(*memOpnd, dataSize);
   }
 
-  PrimType resultType = expr.GetPrimType();
   RegOperand &resOpnd = GetOrCreateResOperand(parent, symType);
   /* a local register variable defined with a specified register */
   if (symbol->GetAsmAttr() != UStrIdx(0) &&

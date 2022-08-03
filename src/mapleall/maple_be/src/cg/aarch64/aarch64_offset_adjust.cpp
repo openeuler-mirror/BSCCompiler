@@ -68,7 +68,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGF
             (isLmbc ? 0 : memLayout->SizeOfArgsToStackPass())));
         ofstOpnd->SetVary(kAdjustVary);
       }
-      if (!stackBaseOpnd && (ofstOpnd->GetVary() == kAdjustVary || ofstOpnd->GetVary() == kNotVary)) {
+      if (ofstOpnd->GetVary() == kAdjustVary || ofstOpnd->GetVary() == kNotVary) {
         bool condition = aarchCGFunc.IsOperandImmValid(insn.GetMachineOpcode(), &memOpnd, i);
         if (!condition) {
           MemOperand &newMemOpnd = aarchCGFunc.SplitOffsetWithAddInstruction(
