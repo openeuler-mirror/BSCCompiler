@@ -416,6 +416,7 @@ bool JumpThreading::CanJump2SuccOfCurrBB(
   if (currBB->GetKind() != kBBCondGoto && currBB->GetKind() != kBBSwitch) {
     return false;
   }
+  ASSERT_NOT_NULL(currBB->GetLastMe());
   auto pType = (currBB->GetKind() == kBBCondGoto && currBB->GetLastMe()->GetOpnd(0)->GetMeOp() == kMeOpOp) ?
       static_cast<OpMeExpr*>(currBB->GetLastMe()->GetOpnd(0))->GetOpndType() :
       currBB->GetLastMe()->GetOpnd(0)->GetPrimType();
@@ -428,7 +429,8 @@ bool JumpThreading::CanJump2SuccOfCurrBB(
 
 bool JumpThreading::CanJumpThreadingWithCondGoto(BB &bb, MeExpr *opnd, ValueRange *vrOfOpnd0) {
   auto vrpOfEqualZero = valueRanges.CreateTempValueRangeOfEqualZero(PTY_u1);
-  auto *vrOfOpnd1 = (opnd == nullptr) ? &vrpOfEqualZero : valueRanges.FindValueRange(bb, *opnd);
+  auto *vrOfOpnd1 = (opnd == nullptr) ? &vrpOfEqualZero : valueRanges.FindValueRangeAndInitNumOfRecursion(bb, *opnd);
+  ASSERT_NOT_NULL(currBB->GetLastMe());
   auto op = opnd == nullptr ? OP_ne : currBB->GetLastMe()->GetOpnd(0)->GetOp();
   if (vrOfOpnd0 != nullptr && vrOfOpnd1 != nullptr) {
     BB *trueBranch = nullptr;
@@ -449,13 +451,14 @@ bool JumpThreading::CanJumpThreadingWithSwitch(BB &bb, ValueRange *vrOfOpnd0) {
     return false;
   }
   auto *switchMeStmt = static_cast<SwitchMeStmt*>(currBB->GetLastMe());
+  ASSERT_NOT_NULL(switchMeStmt);
   auto *opnd = switchMeStmt->GetOpnd();
   auto *defalutBB = func.GetCfg()->GetLabelBBAt(switchMeStmt->GetDefaultLabel());
   for (auto &succ : currBB->GetSucc()) {
     if (succ == defalutBB) {
       continue;
     }
-    auto *vrOfCurrCase = valueRanges.FindValueRange(*succ, *opnd);
+    auto *vrOfCurrCase = valueRanges.FindValueRangeAndInitNumOfRecursion(*succ, *opnd);
     if (CanJump2SuccOfCurrBB(bb, vrOfOpnd0, vrOfCurrCase, *succ, OP_eq)) {
       return true;
     }
@@ -475,7 +478,7 @@ bool JumpThreading::CanJumpThreading(BB &bb, MeExpr &opnd0, MeExpr *opnd1) {
   if (currBB->GetKind() != kBBSwitch && currBB->GetKind() != kBBCondGoto) {
     return false;
   }
-  auto *vrOfOpnd0 = valueRanges.FindValueRange(bb, opnd0);
+  auto *vrOfOpnd0 = valueRanges.FindValueRangeAndInitNumOfRecursion(bb, opnd0);
   std::unique_ptr<ValueRange> uniquePtrOfOpnd0 = nullptr;
   if (vrOfOpnd0 == nullptr && opnd0.GetMeOp() == kMeOpConst &&
       static_cast<ConstMeExpr&>(opnd0).GetConstVal()->GetKind() == kConstInt) {
@@ -666,6 +669,7 @@ void JumpThreading::DealWithCondGoto(BB &bb) {
     return;
   }
   auto *condGotoMeStmt = static_cast<CondGotoMeStmt*>(bb.GetLastMe());
+  ASSERT_NOT_NULL(condGotoMeStmt);
   auto *opMeExpr = static_cast<OpMeExpr*>(condGotoMeStmt->GetOpnd());
   if (opMeExpr->GetNumOpnds() == 1) {
     PreFindPath(bb, *opMeExpr);
@@ -678,6 +682,7 @@ void JumpThreading::DealWithCondGoto(BB &bb) {
 }
 
 void JumpThreading::DealWithSwitch(BB &bb) {
+  ASSERT_NOT_NULL(bb.GetLastMe());
   if (bb.GetLastMe()->GetOp() != OP_switch) {
     return;
   }

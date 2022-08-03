@@ -234,10 +234,10 @@ void ValueRangePropagation::DealWithSwitch(BB &bb, MeStmt &stmt) {
   }
   // Delete the default branch when it is unreachable.
   auto *currBB = &bb;
-  auto *valueRange = FindValueRange(*currBB, *opnd);
+  auto *valueRange = FindValueRangeAndInitNumOfRecursion(*currBB, *opnd);
   while (valueRange == nullptr && currBB->GetPred().size() == 1) {
     currBB = currBB->GetPred(0);
-    valueRange = FindValueRange(*currBB, *opnd);
+    valueRange = FindValueRangeAndInitNumOfRecursion(*currBB, *opnd);
   }
   if (valueRange == nullptr || !valueRange->IsConstantRange()) {
     return;
@@ -543,7 +543,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::FindValueRangeInCurrBBOrDomin
   if (res != nullptr) {
     return CopyValueRange(*res);
   }
-  auto *valueRangeOfOpnd = FindValueRange(bb, opnd);
+  auto *valueRangeOfOpnd = FindValueRangeAndInitNumOfRecursion(bb, opnd);
   if (valueRangeOfOpnd != nullptr) {
     return CopyValueRange(*valueRangeOfOpnd);
   }
@@ -751,7 +751,7 @@ bool ValueRangePropagation::TheValueOfOpndIsInvaliedInABCO(
     }
     return true;
   } else {
-    auto *valueRange = FindValueRange(bb, boundOpnd);
+    auto *valueRange = FindValueRangeAndInitNumOfRecursion(bb, boundOpnd);
     if (valueRange != nullptr && valueRange->GetRangeType() != kNotEqual &&
         valueRange->IsConstant() && static_cast<uint64>(valueRange->GetLower().GetConstant()) == kInvaliedBound) {
       if (updateCaches) {
@@ -880,7 +880,7 @@ void ValueRangePropagation::CollectIndexOpndWithBoundInLoop(
     if (!IsLoopVariable(loop, opnd)) {
       index2NewExpr[&opnd] = nullptr;
     } else {
-      auto *valueRange = FindValueRange(bb, opnd);
+      auto *valueRange = FindValueRangeAndInitNumOfRecursion(bb, opnd);
       if (CanNotDoReplaceLoopVarOpt(valueRange)) {
         index2NewExpr[&opnd] = nullptr;
       } else {
@@ -1294,7 +1294,7 @@ bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt, bool i
 
 bool ValueRangePropagation::DealWithAssertNonnull(BB &bb, const MeStmt &meStmt) {
   auto *opnd = static_cast<const UnaryMeStmt&>(meStmt).GetOpnd();
-  auto *valueRange = FindValueRange(bb, *opnd);
+  auto *valueRange = FindValueRangeAndInitNumOfRecursion(bb, *opnd);
   if (valueRange == nullptr) {
     // If the cfg is changed and dom is not update, need find the valuerange in pred bbs
     // when pred bbs are goto or fallthru. The cfg changed like this :
@@ -1308,7 +1308,7 @@ bool ValueRangePropagation::DealWithAssertNonnull(BB &bb, const MeStmt &meStmt) 
       while (IsGotoOrFallthruBB(*pred) && pred->GetPred().size() == 1 && IsGotoOrFallthruBB(*pred->GetPred(0))) {
         pred = pred->GetPred(0);
       }
-      auto *predValueRange = FindValueRange(*pred, *opnd);
+      auto *predValueRange = FindValueRangeAndInitNumOfRecursion(*pred, *opnd);
       if (predValueRange != nullptr && predValueRange->IsNotEqualZero()) {
         return true;
       }
@@ -1348,7 +1348,7 @@ void ValueRangePropagation::CollectMeExpr(
   if (meExpr.GetMeOp() == kMeOpConst) {
     return;
   }
-  auto *valueRangeOfOperand = FindValueRange(bb, meExpr);
+  auto *valueRangeOfOperand = FindValueRangeAndInitNumOfRecursion(bb, meExpr);
   if (valueRangeOfOperand != nullptr && valueRangeOfOperand->IsConstant() &&
       valueRangeOfOperand->GetRangeType() != kNotEqual && stmt.GetOp() != OP_asm) {
     auto rangeType = valueRangeOfOperand->GetRangeType();
@@ -1392,7 +1392,7 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
       auto &ivarMeExpr = static_cast<IvarMeExpr&>(meExpr);
       // prop value range of base
       auto *base = ivarMeExpr.GetBase();
-      auto *valueRange = FindValueRange(bb, *base);
+      auto *valueRange = FindValueRangeAndInitNumOfRecursion(bb, *base);
       if (valueRange == nullptr) {
         (void)Insert2Caches(bb.GetBBId(), base->GetExprID(), CreateValueRangeOfNotEqualZero(base->GetPrimType()));
       } else {
@@ -1425,7 +1425,7 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
       break;
     }
     case kMeOpOp: {
-      auto *vrOfOpMeExpr = FindValueRange(bb, meExpr);
+      auto *vrOfOpMeExpr = FindValueRangeAndInitNumOfRecursion(bb, meExpr);
       if (vrOfOpMeExpr != nullptr) {
         break;
       }
@@ -1444,7 +1444,7 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
           // zext <unsigned-int-type> <bsize> (<opnd>)
           auto *opnd = opMeExpr.GetOpnd(0);
           auto pTypeOpnd = opnd->GetPrimType();
-          auto *valueRange = FindValueRange(bb, *opnd);
+          auto *valueRange = FindValueRangeAndInitNumOfRecursion(bb, *opnd);
           if (valueRange != nullptr && valueRange->GetRangeType() != kNotEqual &&
               (IsPrimitiveUnsigned(pTypeOpnd) || valueRange->IsGreaterThanOrEqualToZero())) {
             auto bSize = opMeExpr.GetBitsSize();
@@ -1476,7 +1476,7 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
           CHECK_FATAL(mirType->IsMIRPtrType(), "must be pointer type");
           auto *pointerType = static_cast<MIRPtrType*>(mirType);
           auto *opnd = opMeExpr.GetOpnd(0);
-          auto *valueRange = FindValueRange(bb, *opnd);
+          auto *valueRange = FindValueRangeAndInitNumOfRecursion(bb, *opnd);
           if (pointerType->GetPointedType()->GetBitOffsetFromBaseAddr(opMeExpr.GetFieldID()) != 0 ||
               (valueRange != nullptr && valueRange->IsNotEqualZero())) {
             (void)Insert2Caches(bb.GetBBId(), opMeExpr.GetExprID(),
@@ -1501,7 +1501,7 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
     case kMeOpAddrof:
     case kMeOpAddroffunc:
     case kMeOpAddroflabel: {
-      auto *valueRangeOfAddrof = FindValueRange(bb, meExpr);
+      auto *valueRangeOfAddrof = FindValueRangeAndInitNumOfRecursion(bb, meExpr);
       if (valueRangeOfAddrof == nullptr) {
         (void)Insert2Caches(bb.GetBBId(), meExpr.GetExprID(), CreateValueRangeOfNotEqualZero(meExpr.GetPrimType()));
       }
@@ -1558,7 +1558,7 @@ bool ValueRangePropagation::DealWithCVT(const BB &bb, MeStmt &stmt, OpMeExpr &op
   if ((fromType == PTY_u1 || fromType == PTY_u8 || fromType == PTY_u16 || fromType == PTY_u32 || fromType == PTY_a32 ||
       ((fromType == PTY_ref || fromType == PTY_ptr) && GetPrimTypeSize(fromType) == 4)) &&
       GetPrimTypeBitSize(toType) > GetPrimTypeBitSize(fromType)) {
-    auto *valueRange = FindValueRange(bb, opMeExpr);
+    auto *valueRange = FindValueRangeAndInitNumOfRecursion(bb, opMeExpr);
     if (valueRange != nullptr) {
       return false;
     }
@@ -1782,7 +1782,7 @@ bool ValueRangePropagation::IsConstant(const BB &bb, MeExpr &expr, int64 &value,
     value = static_cast<ConstMeExpr&>(expr).GetExtIntValue();
     return true;
   }
-  auto *valueRange = FindValueRange(bb, expr);
+  auto *valueRange = FindValueRangeAndInitNumOfRecursion(bb, expr);
   if (valueRange == nullptr) {
     if (expr.GetMeOp() == kMeOpVar && static_cast<VarMeExpr&>(expr).GetDefBy() == kDefByStmt &&
         static_cast<VarMeExpr&>(expr).GetDefStmt()->GetRHS()->GetMeOp() == kMeOpConst &&
@@ -1935,7 +1935,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::RemWithValueRange(const BB &b
   if (remValueRange == nullptr) {
     return nullptr;
   }
-  auto *valueRange = FindValueRange(bb, *opMeExpr.GetOpnd(0));
+  auto *valueRange = FindValueRangeAndInitNumOfRecursion(bb, *opMeExpr.GetOpnd(0));
   if (valueRange == nullptr) {
     return remValueRange;
   }
@@ -2015,13 +2015,13 @@ std::unique_ptr<ValueRange> ValueRangePropagation::DealWithAddOrSub(const BB &bb
       newValueRange = std::make_unique<ValueRange>(Bound(res, opMeExpr.GetPrimType()), kEqual);
     }
   } else if (rhsIsConstant) {
-    auto *valueRange = FindValueRange(bb, *opnd0);
+    auto *valueRange = FindValueRangeAndInitNumOfRecursion(bb, *opnd0);
     if (valueRange == nullptr) {
       return nullptr;
     }
     newValueRange = AddOrSubWithValueRange(opMeExpr.GetOp(), *valueRange, rhsConstant);
   } else if (lhsIsConstant && opMeExpr.GetOp() == OP_add) {
-    auto *valueRange = FindValueRange(bb, *opnd1);
+    auto *valueRange = FindValueRangeAndInitNumOfRecursion(bb, *opnd1);
     if (valueRange == nullptr) {
       return nullptr;
     }
@@ -2033,7 +2033,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::DealWithAddOrSub(const BB &bb
 // Save array length to caches for eliminate array boundary check.
 void ValueRangePropagation::DealWithArrayLength(const BB &bb, MeExpr &lhs, MeExpr &rhs) {
   if (rhs.GetMeOp() == kMeOpVar) {
-    auto *valueRangeOfLength = FindValueRange(bb, rhs);
+    auto *valueRangeOfLength = FindValueRangeAndInitNumOfRecursion(bb, rhs);
     if (valueRangeOfLength == nullptr) {
       (void)Insert2Caches(bb.GetBBId(), lhs.GetExprID(),
                           std::make_unique<ValueRange>(Bound(&rhs, rhs.GetPrimType()), kEqual));
@@ -2168,7 +2168,7 @@ void ValueRangePropagation::DealWithAssign(BB &bb, const MeStmt &stmt) {
   Insert2PairOfExprs(*lhs, *rhs, bb);
   Insert2PairOfExprs(*rhs, *lhs, bb);
   std::unique_ptr<ValueRange> resVR = nullptr;
-  auto *existValueRange = FindValueRange(bb, *rhs);
+  auto *existValueRange = FindValueRangeAndInitNumOfRecursion(bb, *rhs);
   if (existValueRange != nullptr && existValueRange->GetRangeType() != kOnlyHasLowerBound &&
       existValueRange->GetRangeType() != kOnlyHasUpperBound) {
     resVR = CopyValueRange(*existValueRange);
@@ -2436,7 +2436,7 @@ void ValueRangePropagation::CreateVRForPhi(const LoopDesc &loop) {
 
 // Calculate the valuerange of def-operand according to the valuerange of each rhs operand.
 std::unique_ptr<ValueRange> ValueRangePropagation::MergeValueRangeOfPhiOperands(const BB &bb, MePhiNode &mePhiNode) {
-  auto *resValueRange = FindValueRange(*bb.GetPred(0), *mePhiNode.GetOpnd(0));
+  auto *resValueRange = FindValueRangeAndInitNumOfRecursion(*bb.GetPred(0), *mePhiNode.GetOpnd(0));
   if (resValueRange == nullptr || !resValueRange->IsConstant()) {
     return nullptr;
   }
@@ -2444,7 +2444,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::MergeValueRangeOfPhiOperands(
   auto resValueRangePtr = CopyValueRange(*resValueRange);
   for (size_t i = 1; i < mePhiNode.GetOpnds().size(); ++i) {
     auto *operand = mePhiNode.GetOpnd(i);
-    auto *valueRange = FindValueRange(*bb.GetPred(i), *operand);
+    auto *valueRange = FindValueRangeAndInitNumOfRecursion(*bb.GetPred(i), *operand);
     // If one valuerange is nullptr, the result is nullptr.
     if (valueRange == nullptr || !valueRange->IsConstant()) {
       return nullptr;
@@ -2528,7 +2528,7 @@ void ValueRangePropagation::MergeValueRangeOfPhiOperands(const LoopDesc &loop, c
         continue;
       }
       auto *operand = mePhiNode->GetOpnd(i);
-      auto *valueRange = FindValueRange(*bb.GetPred(i), *operand);
+      auto *valueRange = FindValueRangeAndInitNumOfRecursion(*bb.GetPred(i), *operand);
       if (valueRange == nullptr ||
           valueRange->GetRangeType() == kOnlyHasUpperBound ||
           valueRange->GetRangeType() == kOnlyHasLowerBound ||
@@ -2668,7 +2668,7 @@ void ValueRangePropagation::JudgeEqual(MeExpr &expr, ValueRange &vrOfLHS, ValueR
 }
 
 std::unique_ptr<ValueRange> ValueRangePropagation::NegValueRange(const BB &bb, MeExpr &opnd) {
-  auto *valueRange = FindValueRange(bb, opnd);
+  auto *valueRange = FindValueRangeAndInitNumOfRecursion(bb, opnd);
   if (valueRange == nullptr) {
     return nullptr;
   }
@@ -2683,7 +2683,8 @@ std::unique_ptr<ValueRange> ValueRangePropagation::NegValueRange(const BB &bb, M
   return valueRangePtr;
 }
 
-ValueRange *ValueRangePropagation::FindValueRangeWithCompareOp(const BB &bb, MeExpr &expr, MeExpr *preExpr) {
+ValueRange *ValueRangePropagation::FindValueRangeWithCompareOp(
+    const BB &bb, MeExpr &expr, uint32 &numberOfRecursions, MeExpr *preExpr) {
   auto op = expr.GetOp();
   if (op == OP_neg) {
     auto *opnd = expr.GetOpnd(0);
@@ -2703,11 +2704,11 @@ ValueRange *ValueRangePropagation::FindValueRangeWithCompareOp(const BB &bb, MeE
   }
   auto *opnd0 = expr.GetOpnd(0);
   auto *opnd1 = expr.GetOpnd(1);
-  auto *valueRangeOfOpnd0 = FindValueRange(bb, *opnd0);
+  auto *valueRangeOfOpnd0 = FindValueRange(bb, *opnd0, numberOfRecursions);
   if (valueRangeOfOpnd0 == nullptr) {
     return nullptr;
   }
-  auto *valueRangeOfOpnd1 = FindValueRange(bb, *opnd1);
+  auto *valueRangeOfOpnd1 = FindValueRange(bb, *opnd1, numberOfRecursions);
   if (valueRangeOfOpnd1 == nullptr) {
     return nullptr;
   }
@@ -2761,12 +2762,16 @@ bool ValueRangePropagation::IsSubOpndOfExpr(const MeExpr &expr, const MeExpr &su
 }
 
 // When the valueRange of expr is not exist, need find the valueRange of the def point or use points.
-ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr) {
-  auto *valueRange = FindValueRangeInCaches(bb.GetBBId(), expr.GetExprID());
+ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr, uint32 &numberOfRecursionsArg) {
+  if (numberOfRecursionsArg++ > kRecursionThreshold) {
+    return nullptr;
+  }
+  uint32 recursions = 0;
+  auto *valueRange = FindValueRangeInCaches(bb.GetBBId(), expr.GetExprID(), recursions);
   if (valueRange != nullptr) {
     return valueRange;
   }
-  valueRange = FindValueRangeWithCompareOp(bb, expr);
+  valueRange = FindValueRangeWithCompareOp(bb, expr, numberOfRecursionsArg);
   if (valueRange != nullptr) {
     return valueRange;
   }
@@ -2781,7 +2786,8 @@ ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr) {
       continue;
     }
     for (auto itOfExprs = exprs.begin(); itOfExprs != exprs.end(); ++itOfExprs) {
-      valueRange = FindValueRangeInCaches(bb.GetBBId(), (*itOfExprs)->GetExprID());
+      recursions = 0;
+      valueRange = FindValueRangeInCaches(bb.GetBBId(), (*itOfExprs)->GetExprID(), recursions);
       if (valueRange != nullptr && valueRange->IsEqualAfterCVT(expr.GetPrimType(), (*itOfExprs)->GetPrimType())) {
         return valueRange;
       }
@@ -2795,7 +2801,7 @@ ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr) {
         //     opnd[1] = OP cvt i32 i64 mx553
         continue;
       }
-      valueRange = FindValueRangeWithCompareOp(bb, **itOfExprs, &expr);
+      valueRange = FindValueRangeWithCompareOp(bb, **itOfExprs, numberOfRecursionsArg, &expr);
       if (valueRange != nullptr) {
         return valueRange;
       }
@@ -2807,7 +2813,7 @@ ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr) {
 std::unique_ptr<ValueRange> ValueRangePropagation::CreateInitVRForPhi(LoopDesc &loop,
     const BB &bb, ScalarMeExpr &init, ScalarMeExpr &backedge, const ScalarMeExpr &lhsOfPhi) {
   Bound initBound;
-  ValueRange *valueRangeOfInit = FindValueRange(bb, init);
+  ValueRange *valueRangeOfInit = FindValueRangeAndInitNumOfRecursion(bb, init);
   if (valueRangeOfInit != nullptr && valueRangeOfInit->IsConstant() && valueRangeOfInit->GetRangeType() != kNotEqual) {
     auto bound = valueRangeOfInit->GetBound();
     initBound = Bound(GetRealValue(bound.GetConstant(), bound.GetPrimType()), bound.GetPrimType());
@@ -2832,6 +2838,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateInitVRForPhi(LoopDesc &
     MeExpr *opnd1 = opMeExpr->GetOpnd(1);
     BB *trueBranch = nullptr;
     BB *falseBranch = nullptr;
+    ASSERT_NOT_NULL(brMeStmt);
     GetTrueAndFalseBranch(brMeStmt->GetOp(), *exitBB, trueBranch, falseBranch);
     if (opnd0 != &backedge) {
       return nullptr;
@@ -2978,7 +2985,7 @@ bool ValueRangePropagation::LowerInRange(const BB &bb, Bound lowerTemp, Bound lo
   } else {
     if (lowerTemp.GetVar() != nullptr) {
       auto *lowerVar = lowerTemp.GetVar();
-      auto *lowerRangeValue = FindValueRange(bb, *lowerVar);
+      auto *lowerRangeValue = FindValueRangeAndInitNumOfRecursion(bb, *lowerVar);
       if (lowerRangeValue != nullptr && lowerRangeValue->IfLowerEqualToUpper() &&
           lowerRangeValue->GetLower().GetVar() != lowerVar) {
         if (lowerTemp.GetConstant() == 0) {
@@ -3006,7 +3013,7 @@ bool ValueRangePropagation::UpperInRange(const BB &bb, Bound upperTemp, Bound up
     return false;
   }
   auto *upperVar = upperTemp.GetVar();
-  auto *upperRangeValue = FindValueRange(bb, *upperVar);
+  auto *upperRangeValue = FindValueRangeAndInitNumOfRecursion(bb, *upperVar);
   if (upperRangeValue == nullptr) {
     auto *currVar = upperVar;
     while (length2Def.find(currVar) != length2Def.end()) {
@@ -3163,7 +3170,7 @@ bool ValueRangePropagation::BrStmtInRange(const BB &bb, const ValueRange &leftRa
     }
   } else {
     if (leftLower.GetVar() != nullptr) {
-      auto *valueRange = FindValueRange(bb, *leftLower.GetVar());
+      auto *valueRange = FindValueRangeAndInitNumOfRecursion(bb, *leftLower.GetVar());
       if (valueRange == nullptr || !valueRange->IsConstant()) {
         return false;
       }
@@ -3564,6 +3571,7 @@ void ValueRangePropagation::CreateLabelForTargetBB(BB &pred, BB &newBB) {
       CHECK_FATAL(false, "can not be here");
     case kBBCondGoto: {
       auto *condGotoStmt = static_cast<CondGotoMeStmt *>(pred.GetLastMe());
+      ASSERT_NOT_NULL(condGotoStmt);
       if (&newBB == pred.GetSucc().at(1)) {
         condGotoStmt->SetOffset(func.GetOrCreateBBLabel(newBB));
       }
@@ -3571,6 +3579,7 @@ void ValueRangePropagation::CreateLabelForTargetBB(BB &pred, BB &newBB) {
     }
     case kBBSwitch: {
       auto *switchStmt = static_cast<SwitchMeStmt*>(pred.GetLastMe());
+      ASSERT_NOT_NULL(switchStmt);
       LabelIdx oldLabIdx = pred.GetBBLabel();
       LabelIdx label = func.GetOrCreateBBLabel(newBB);
       if (switchStmt->GetDefaultLabel() == oldLabIdx) {
@@ -4046,7 +4055,7 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
   if (realCurrOpnd->GetOp() == OP_cvt) {
     auto *opMeExpr = static_cast<OpMeExpr*>(realCurrOpnd);
     auto *opnd = opMeExpr->GetOpnd(0);
-    auto *valueRangeOfOpnd = FindValueRange(bb, *opnd);
+    auto *valueRangeOfOpnd = FindValueRangeAndInitNumOfRecursion(bb, *opnd);
     if (valueRangeOfOpnd != nullptr && valueRangeOfOpnd->IsConstantLowerAndUpper()) {
       auto toType = opMeExpr->GetPrimType();
       auto fromType = opMeExpr->GetOpndType();
@@ -4067,8 +4076,8 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
   if (realCurrOpnd->GetOp() == OP_zext) {
     auto *opMeExpr = static_cast<OpMeExpr*>(realCurrOpnd);
     auto *opnd = opMeExpr->GetOpnd(0);
-    auto *valueRangeOfOpnd = FindValueRange(bb, *opnd);
-    auto *valueRangeOfOpMeExpr = FindValueRange(bb, *opMeExpr);
+    auto *valueRangeOfOpnd = FindValueRangeAndInitNumOfRecursion(bb, *opnd);
+    auto *valueRangeOfOpMeExpr = FindValueRangeAndInitNumOfRecursion(bb, *opMeExpr);
     if (valueRangeOfOpnd != nullptr && valueRangeOfOpMeExpr != nullptr &&
         valueRangeOfOpnd->IsEqual(valueRangeOfOpMeExpr)) {
       realCurrOpnd = opnd;
@@ -4086,6 +4095,7 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
     auto *useListOfPredOpnd = useInfo->GetUseSitesOfExpr(predOpnd);
     if (useListOfPredOpnd != nullptr && useListOfPredOpnd->size() == 1 && useListOfPredOpnd->front().IsUseByStmt()) {
       auto *useStmt = useListOfPredOpnd->front().GetStmt();
+      ASSERT_NOT_NULL(condGoto.GetLastMe());
       if (condGoto.GetKind() == kBBCondGoto && condGoto.GetLastMe()->IsCondBr() && condGoto.GetLastMe() == useStmt &&
           predOpnd->IsScalar()) {
         // PredOpnd is only used be condGoto stmt, if the condGoto stmt can be deleted, need not update ssa
@@ -4144,7 +4154,7 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
         continue;
       }
     }
-    auto *valueRangeInPred = FindValueRange(*pred, *predOpnd);
+    auto *valueRangeInPred = FindValueRangeAndInitNumOfRecursion(*pred, *predOpnd);
     std::unique_ptr<ValueRange> valueRangeInPredPtr = nullptr;
     if (valueRangeInPred == nullptr) {
       valueRangeInPredPtr = GetValueRangeOfLHS(*pred, bb, *predOpnd);
@@ -4194,6 +4204,7 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
   if (opt) {
     if (condGoto.GetKind() == kBBCondGoto) {
       // vrp modified condgoto, branch probability is no longer trustworthy, so we invalidate it
+      ASSERT_NOT_NULL(condGoto.GetLastMe());
       static_cast<CondGotoMeStmt*>(condGoto.GetLastMe())->InvalidateBranchProb();
       // If the condGoto stmt can not be deleted, need update the ssa of conditional expr
       for (auto &pair : ssaupdateCandsForCondExpr) {
@@ -4236,6 +4247,7 @@ void ValueRangePropagation::ReplaceUsePoints(MePhiNode *phi) {
   phi->GetDefBB()->GetMePhiList().erase(lhs->GetOstIdx());
   auto *replaceMeExpr = static_cast<ScalarMeExpr*>(opnd);
   auto *useListOfPredOpnd = useInfo->GetUseSitesOfExpr(lhs);
+  ASSERT_NOT_NULL(useListOfPredOpnd);
   for (auto &useItem : *useListOfPredOpnd) {
     if (useItem.IsUseByPhi()) {
       auto *usePhi = useItem.GetPhi();
@@ -4296,6 +4308,7 @@ bool ValueRangePropagation::ConditionEdgeCanBeDeleted(BB &bb, MeExpr &opnd0, Val
   if (bb.GetKind() != kBBCondGoto) {
     return false;
   }
+  ASSERT_NOT_NULL(bb.GetLastMe());
   auto *OpMeExpr = static_cast<CondGotoMeStmt*>(bb.GetLastMe())->GetOpnd();
   auto *opnd1 = (OpMeExpr->GetNumOpnds() == kNumOperands) ? OpMeExpr->GetOpnd(1) : nullptr;
   BB *trueBranch = nullptr;
@@ -4316,7 +4329,7 @@ bool ValueRangePropagation::ConditionEdgeCanBeDeleted(BB &bb, MeExpr &opnd0, Val
     //          opnd[0] = REGINDX:3 %3 mx92
     //          opnd[1] = CONST 0 mx1
 
-    auto *valueRangeOfOpnd0 = FindValueRange(bb, opnd0);
+    auto *valueRangeOfOpnd0 = FindValueRangeAndInitNumOfRecursion(bb, opnd0);
     opt = AnalysisValueRangeInPredsOfCondGotoBB(bb, currOpnd, *opnd1, valueRangeOfOpnd0, *falseBranch,
         *trueBranch, opndType, GetOpAfterSwapThePositionsOfTwoOperands(op), bb);
   }
@@ -4432,7 +4445,7 @@ void ValueRangePropagation::DealWithCondGoto(
 
 bool ValueRangePropagation::GetValueRangeOfCondGotoOpnd(const BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd,
     ValueRange *&valueRange, std::unique_ptr<ValueRange> &rightRangePtr) {
-  valueRange = FindValueRange(bb, opnd);
+  valueRange = FindValueRangeAndInitNumOfRecursion(bb, opnd);
   if (valueRange == nullptr) {
     if (opnd.GetMeOp() == kMeOpConst && static_cast<ConstMeExpr&>(opnd).GetConstVal()->GetKind() == kConstInt) {
       rightRangePtr = std::make_unique<ValueRange>(Bound(static_cast<ConstMeExpr&>(opnd).GetExtIntValue(),
@@ -4448,7 +4461,7 @@ bool ValueRangePropagation::GetValueRangeOfCondGotoOpnd(const BB &bb, OpMeExpr &
         return false;
       }
       MeExpr *lhs = static_cast<OpMeExpr&>(opnd).GetOpnd(0);
-      auto *valueRangeOfLHS = FindValueRange(bb, *lhs);
+      auto *valueRangeOfLHS = FindValueRangeAndInitNumOfRecursion(bb, *lhs);
       if (valueRangeOfLHS == nullptr || !valueRangeOfLHS->IsConstant()) {
         valueRange = nullptr;
         return false;
@@ -4679,7 +4692,7 @@ void ValueRangePropagation::DealWithBrStmtWithOneOpnd(BB &bb, const CondGotoMeSt
         Bound(static_cast<ConstMeExpr &>(opnd).GetExtIntValue(), opnd.GetPrimType()), kEqual);
     DealWithCondGoto(bb, op, leftRangePtr.get(), *rightRangePtr.get(), stmt);
   } else {
-    ValueRange *leftRange = FindValueRange(bb, opnd);
+    ValueRange *leftRange = FindValueRangeAndInitNumOfRecursion(bb, opnd);
     DealWithCondGoto(bb, op, leftRange, *rightRangePtr.get(), stmt);
   }
 }

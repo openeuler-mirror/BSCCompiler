@@ -24,6 +24,7 @@
 namespace maple {
 constexpr size_t kFourByte = 4;
 constexpr size_t kEightByte = 8;
+constexpr uint32 kRecursionThreshold = 100;
 
 class ValueRangePropagation;
 class ValueRange;
@@ -519,7 +520,7 @@ class ValueRangePropagation {
   void JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
       const BB &bb, MeExpr &expr, std::set<MeExpr*> &visitedLHS, std::vector<MeStmt*> &stmts);
   bool TheValueOfOpndIsInvaliedInABCO(const BB &bb, const MeStmt *meStmt, MeExpr &boundOpnd, bool updateCaches = true);
-  ValueRange *FindValueRange(const BB &bb, MeExpr &expr);
+  ValueRange *FindValueRange(const BB &bb, MeExpr &expr, uint32 &numberOfRecursions);
   bool BrStmtInRange(const BB &bb, const ValueRange &leftRange, const ValueRange &rightRange, Opcode op,
                      PrimType opndType, bool judgeNotInRange = false);
   std::unique_ptr<ValueRange> CreateValueRangeOfNotEqualZero(PrimType pType) const {
@@ -541,6 +542,11 @@ class ValueRangePropagation {
   void ComputeCodeSize(const MeExpr &meExpr, uint32 &cost);
   void ComputeCodeSize(const MeStmt &meStmt, uint32 &cost);
 
+  ValueRange *FindValueRangeAndInitNumOfRecursion(const BB &bb, MeExpr &expr) {
+    uint32 numOfRecursion = 0;
+    return FindValueRange(bb, expr, numOfRecursion);
+  }
+
  private:
   bool Insert2Caches(BBId bbID, int32 exprID, std::unique_ptr<ValueRange> valueRange);
 
@@ -549,7 +555,10 @@ class ValueRangePropagation {
     return it != caches.at(bbID).end() ? it->second.get() : nullptr;
   }
 
-  ValueRange *FindValueRangeInCaches(BBId bbID, int32 exprID) {
+  ValueRange *FindValueRangeInCaches(BBId bbID, int32 exprID, uint32 &numberOfRecursions) {
+    if (numberOfRecursions++ > kRecursionThreshold) {
+      return nullptr;
+    }
     auto it = caches.at(bbID).find(exprID);
     if (it != caches.at(bbID).end()) {
       return it->second.get();
@@ -564,7 +573,8 @@ class ValueRangePropagation {
       }
     }
     auto *domBB = dom.GetDom(bbID);
-    return (domBB == nullptr || domBB->GetBBId() == 0) ? nullptr : FindValueRangeInCaches(domBB->GetBBId(), exprID);
+    return (domBB == nullptr || domBB->GetBBId() == 0) ?
+        nullptr : FindValueRangeInCaches(domBB->GetBBId(), exprID, numberOfRecursions);
   }
 
   void Insert2AnalysisedArrayChecks(BBId bbID, MeExpr &array, MeExpr &index, Opcode op) {
@@ -661,7 +671,8 @@ class ValueRangePropagation {
 
   // The pairOfExprs map collects the exprs which have the same valueRange in bbs,
   // the pair of expr and preExpr is element of pairOfExprs.
-  ValueRange *FindValueRangeWithCompareOp(const BB &bb, MeExpr &expr, MeExpr *preExpr = nullptr);
+  ValueRange *FindValueRangeWithCompareOp(
+      const BB &bb, MeExpr &expr, uint32 &numberOfRecursions, MeExpr *preExpr = nullptr);
 
   void DealWithPhi(const BB &bb);
   void DealWithCondGoto(BB &bb, MeStmt &stmt);
