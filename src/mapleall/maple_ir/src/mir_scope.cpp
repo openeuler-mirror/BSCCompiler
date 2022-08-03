@@ -106,7 +106,7 @@ bool MIRScope::AddScope(MIRScope *scope) {
   return true;
 }
 
-void MIRScope::Dump(int32 indent) const {
+void MIRScope::Dump(int32 indent, bool isLocal) const {
   SrcPosition low = range.first;
   SrcPosition high = range.second;
   PrintIndentation(indent);
@@ -121,15 +121,33 @@ void MIRScope::Dump(int32 indent) const {
 
   for (auto it : aliasVarMap) {
     PrintIndentation(indent + 1);
-    LogInfo::MapleLogger() << "ALIAS %" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first)
+    LogInfo::MapleLogger() << "ALIAS "
+                           << (isLocal ? " %" : " $")
+                           << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first)
                            << ((it.second.isLocal) ? " %" : " $")
                            << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.mplStrIdx) << " ";
-    if (it.second.tyIdx) {
-      GlobalTables::GetTypeTable().GetTypeFromTyIdx(it.second.tyIdx)->Dump(0);
-    } else {
-      LogInfo::MapleLogger() << "\"" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.srcTypeStrIdx)
-                             << "\"";
+    switch (it.second.atk) {
+      case kATKType: {
+        TyIdx idx(it.second.index);
+        GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(idx))->Dump(0);
+        break;
+      }
+      case kATKString: {
+        GStrIdx idx(it.second.index);
+        LogInfo::MapleLogger() << "\"" << GlobalTables::GetStrTable().GetStringFromStrIdx(idx)
+                               << "\"";
+        break;
+      }
+      case kATKEnum: {
+        MIREnum *mirEnum = GlobalTables::GetEnumTable().enumTable[it.second.index];
+        CHECK_NULL_FATAL(mirEnum);
+        LogInfo::MapleLogger() << "$" << GlobalTables::GetStrTable().GetStringFromStrIdx(mirEnum->GetNameIdx());
+        break;
+      }
+      default :
+        break;
     }
+    it.second.attrs.DumpAttributes();
     if (it.second.sigStrIdx) {
       LogInfo::MapleLogger() << " \"" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.sigStrIdx) << "\"";
     }

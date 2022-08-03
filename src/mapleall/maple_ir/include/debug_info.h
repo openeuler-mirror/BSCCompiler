@@ -588,7 +588,6 @@ class DebugInfo {
         dummyTypeDie(nullptr),
         lexer(nullptr),
         maxId(1),
-        builder(nullptr),
         mplSrcIdx(0),
         debugInfoLength(0),
         curFunction(nullptr),
@@ -610,6 +609,8 @@ class DebugInfo {
         funcScopeIdStatus(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
         typedefStrIdxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         typedefStrIdxTyIdxMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
+        constTypeDieMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
+        volatileTypeDieMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         strps(std::less<uint32>(), m->GetMPAllocator().Adapter()) {
     /* valid entry starting from index 1 as abbrevid starting from 1 as well */
     abbrevVec.push_back(nullptr);
@@ -757,14 +758,13 @@ class DebugInfo {
   DBGDie *CreatePointedFuncTypeDie(MIRFuncType *fType);
 
   DBGDie *GetOrCreateLabelDie(LabelIdx labid);
-  DBGDie *GetOrCreateTypeAttrDie(MIRSymbol *sym);
-  DBGDie *GetOrCreateConstTypeDie(TypeAttrs attr, DBGDie *typedie);
-  DBGDie *GetOrCreateVolatileTypeDie(TypeAttrs attr, DBGDie *typedie);
   DBGDie *GetOrCreateFuncDeclDie(MIRFunction *func);
   DBGDie *GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum);
   DBGDie *GetOrCreatePrimTypeDie(MIRType *ty);
   DBGDie *GetOrCreateTypeDie(TyIdx tyidx);
   DBGDie *GetOrCreateTypeDie(MIRType *type);
+  DBGDie *GetOrCreateTypeDie(AttrKind attr, DBGDie *typedie);
+  DBGDie *GetOrCreateTypeDie(TypeAttrs attrs, DBGDie *typedie);
   DBGDie *GetOrCreatePointTypeDie(const MIRPtrType *ptrType);
   DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *arrayType);
   DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
@@ -821,7 +821,6 @@ class DebugInfo {
   DBGDie *dummyTypeDie;  // workaround for unknown types
   MIRLexer *lexer;
   uint32 maxId;
-  DBGBuilder *builder;
   GStrIdx mplSrcIdx;
   uint32 debugInfoLength;
   MIRFunction *curFunction;
@@ -854,6 +853,8 @@ class DebugInfo {
   /* alias type */
   MapleMap<uint32, uint32> typedefStrIdxDieIdMap;
   MapleMap<uint32, uint32> typedefStrIdxTyIdxMap;
+  MapleMap<uint32, uint32> constTypeDieMap;
+  MapleMap<uint32, uint32> volatileTypeDieMap;
 
   MapleSet<uint32> strps;
   std::string varPtrPrefix;
