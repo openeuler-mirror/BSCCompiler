@@ -127,7 +127,11 @@ bool AArch64CGPeepHole::DoSSAOptimize(BB &bb, Insn &insn) {
       break;
     }
     case MOP_waddrrr:
-    case MOP_xaddrrr:
+    case MOP_xaddrrr: {
+      manager->Optimize<SimplifyMulArithmeticPattern>(true);
+      manager->Optimize<CsetToCincPattern>(true);
+      break;
+    }
     case MOP_dadd:
     case MOP_sadd:
     case MOP_wsubrrr:
@@ -826,6 +830,68 @@ void CselToCsetPattern::Run(BB &bb, Insn &insn) {
     std::vector<Insn*> prevs;
     prevs.emplace_back(prevMovInsn1);
     prevs.emplace_back(prevMovInsn2);
+    DumpAfterPattern(prevs, &insn, newInsn);
+  }
+}
+
+bool CsetToCincPattern::CheckDefInsn(const RegOperand &opnd) {
+  Insn *tempDefInsn = ssaInfo->GetDefInsn(opnd);
+  if (tempDefInsn != nullptr) {
+    InsnSet useInsns = GetAllUseInsn(opnd);
+    if (useInsns.size() != 1) {
+      return false;
+    }
+    MOperator mop = tempDefInsn->GetMachineOpcode();
+    if (mop == MOP_wcsetrc || mop == MOP_xcsetrc) {
+      defInsn = tempDefInsn;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool CsetToCincPattern::CheckCondition(Insn &insn) {
+  RegOperand &opnd2 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  RegOperand &opnd3 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  bool opnd2Cset = CheckDefInsn(opnd2);
+  bool opnd3Cset = CheckDefInsn(opnd3);
+  bool doPattern = (opnd2Cset == opnd3Cset) ? false : true; /* Only one definsn is cset. */
+  if (opnd2Cset && doPattern) {
+    csetOpnd1 = kInsnSecondOpnd;
+    return true;
+  }
+  if (opnd3Cset && doPattern) {
+    csetOpnd1 = kInsnThirdOpnd;
+    return true;
+  }
+  return false;
+}
+
+void CsetToCincPattern::Run(BB &bb, Insn &insn) {
+  RegOperand &opnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  /* Exclude other patterns that have been optimized. */
+  MOperator mop =  ssaInfo->GetDefInsn(opnd1)->GetMachineOpcode();
+  if (mop != MOP_waddrrr && mop != MOP_xaddrrr) {
+    return;
+  }
+  if (!CheckCondition(insn) || defInsn == nullptr || csetOpnd1 == 0) {
+    return;
+  }
+  MOperator newMop = (insn.GetMachineOpcode() == MOP_waddrrr) ? MOP_wcincrc : MOP_xcincrc;
+  int32 cincOpnd2 = (csetOpnd1 == kInsnSecondOpnd) ? kInsnThirdOpnd : kInsnSecondOpnd;
+  RegOperand &opnd2 = static_cast<RegOperand&>(insn.GetOperand(static_cast<uint32>(cincOpnd2)));
+  Operand &condOpnd = defInsn->GetOperand(kInsnSecondOpnd);
+  Operand &rflag = defInsn->GetOperand(kInsnThirdOpnd);
+  Insn *newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, opnd1, opnd2, condOpnd, rflag));
+  bb.ReplaceInsn(insn, *newInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(insn, *newInsn);
+  optSuccess = true;
+  SetCurrInsn(newInsn);
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    (void)prevs.emplace_back(defInsn);
     DumpAfterPattern(prevs, &insn, newInsn);
   }
 }

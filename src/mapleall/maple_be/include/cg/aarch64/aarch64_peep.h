@@ -160,6 +160,30 @@ class CselToCsetPattern : public CGPeepPattern {
 };
 
 /*
+ *  cset w0, HS
+ *  add w2, w1, w0    ===> cinc w2, w1, hs
+ *
+ *  cset w0, HS
+ *  add w2, w0, w1    ===> cinc w2, w1, hs
+ */
+class CsetToCincPattern : public CGPeepPattern {
+ public:
+  CsetToCincPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~CsetToCincPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  bool CheckDefInsn(const RegOperand &opnd);
+  std::string GetPatternName() override {
+    return "CsetToCincPattern";
+  }
+
+ private:
+  Insn *defInsn = nullptr;
+  int32 csetOpnd1 = 0;
+};
+
+/*
  * combine cset & cbz/cbnz ---> beq/bne
  * Example 1)
  *  cset    w0, EQ            or       cset    w0, NE

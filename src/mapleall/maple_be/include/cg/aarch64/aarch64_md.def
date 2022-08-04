@@ -239,6 +239,10 @@ DEFINE_MOP(MOP_xcselrrrc, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdCond,mopdRegC
 DEFINE_MOP(MOP_wcsetrc, {mopdReg32ID,mopdCond,mopdRegCCS},ISCONDSET | ISCONDDEF,kLtAlu,"cset","0,1",1)
 DEFINE_MOP(MOP_xcsetrc, {mopdReg64ID,mopdCond,mopdRegCCS},ISCONDSET | ISCONDDEF,kLtAlu,"cset","0,1",1)
 
+/* MOP_xcinc */
+DEFINE_MOP(MOP_wcincrc, {mopdReg32ID,mopdReg32IS,mopdCond,mopdRegCCS},ISCONDSET | ISCONDDEF,kLtAlu,"cinc","0,1,2",1)
+DEFINE_MOP(MOP_xcincrc, {mopdReg64ID,mopdReg64IS,mopdCond,mopdRegCCS},ISCONDSET | ISCONDDEF,kLtAlu,"cinc","0,1,2",1)
+
 /* MOP_xcsinc */
 DEFINE_MOP(MOP_wcsincrrrc, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdCond,mopdRegCCS},ISCONDDEF,kLtAlu,"csinc","0,1,2,3",1)
 DEFINE_MOP(MOP_xcsincrrrc, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdCond,mopdRegCCS},ISCONDDEF,kLtAlu,"csinc","0,1,2,3",1)
