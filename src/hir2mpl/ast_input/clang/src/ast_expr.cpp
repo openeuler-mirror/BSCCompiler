@@ -644,7 +644,12 @@ UniqueFEIRExpr ASTCastExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) co
     }
     UniqueFEIRType dstType = std::make_unique<FEIRTypeNative>(*dst);
     if (dst->GetKind() == kTypePointer) {
-      return subExpr;
+      MIRType *funcType = static_cast<MIRPtrType*>(dst)->GetPointedFuncType();
+      if (funcType != nullptr) {
+        return std::make_unique<FEIRExprTypeCvt>(std::move(dstType), OP_retype, std::move(subExpr));
+      } else {
+        return subExpr;
+      }
     } else {
       return std::make_unique<FEIRExprTypeCvt>(std::move(dstType), OP_retype, std::move(subExpr));
     }
