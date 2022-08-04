@@ -156,7 +156,10 @@ MIRType *LibAstFile::CvtType(const clang::QualType qualType) {
     if (mirPointeeType == nullptr) {
       return nullptr;
     }
-    TypeAttrs attrs;
+
+    GenericAttrs genAttrs;
+    GetQualAttrs(srcPteType, genAttrs);
+    TypeAttrs attrs = genAttrs.ConvertToTypeAttrs();
     // Get alignment from the pointee type
     uint32 alignmentBits = astContext->getTypeAlignIfKnown(srcPteType);
     if (alignmentBits != 0) {

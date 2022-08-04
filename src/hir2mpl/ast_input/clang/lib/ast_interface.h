@@ -65,6 +65,7 @@ class LibAstFile {
   void GetStorageAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs) const;
   void GetAccessAttrs(AccessKind access, GenericAttrs &genAttrs) const;
   void GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs) const;
+  void GetQualAttrs(const clang::QualType &qualType, GenericAttrs &genAttrs) const;
   void CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   void CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   void CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericAttrs &genAttrs) const;
