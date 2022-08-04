@@ -1634,16 +1634,24 @@ bool VarMeExpr::IsVolatile() const {
     return (ost->GetType()->HasVolatileField());
   }
   MIRType *type = nullptr;
-  if (ost->GetIndirectLev() == 0) {
-    type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx());
-  } else if (ost->GetIndirectLev() > 0) {
-    auto *prevLevOst = ost->GetPrevLevelOst();
-    auto *ptrType = prevLevOst->GetType();
+  if (ost->GetPointerTyIdx() != 0) {
+    auto *ptrType = ost->GetPrevLevelPointerType();
     CHECK_FATAL(ptrType->IsMIRPtrType(), "must be pointer type");
     type = static_cast<MIRPtrType *>(ptrType)->GetPointedType();
+  } else if (ost->GetIndirectLev() == 0) {
+    type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx());
   } else {
     return false;
   }
+
+  if (type->GetKind() == kTypeArray) {
+    type = static_cast<MIRArrayType*>(type)->GetElemType();
+  } else if (type->GetKind() == kTypeFArray ||
+             type->GetKind() == kTypeJArray) {
+    type = static_cast<MIRFarrayType*>(type)->GetElemType();
+  }
+
+  CHECK_FATAL(type->IsStructType(), "must be struct type");
   auto *structType = static_cast<MIRStructType*>(type);
   return structType->IsFieldVolatile(ost->GetFieldID());
 }
