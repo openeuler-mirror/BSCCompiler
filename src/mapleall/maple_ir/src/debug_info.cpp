@@ -333,51 +333,50 @@ void DebugInfo::AddScopeDie(MIRScope *scope, bool isLocal) {
 void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isLocal) {
   MIRFunction *func = GetCurFunction();
   for (auto &i : aliasMap) {
-    // maple var
-    MIRSymbol *var = nullptr;
+    // maple var and die
+    MIRSymbol *mvar = nullptr;
+    DBGDie *mDie = nullptr;
     GStrIdx mplIdx = i.second.mplStrIdx;
     if (i.second.isLocal) {
-      var = func->GetSymTab()->GetSymbolFromStrIdx(mplIdx);
+      mvar = func->GetSymTab()->GetSymbolFromStrIdx(mplIdx);
+      mDie = GetLocalDie(mplIdx);
     } else {
-      var = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(mplIdx);
-    }
-    if (var == nullptr) {
-      continue;
-    }
-    // maple var die
-    DBGDie *mdie = (var->IsGlobal()) ? GetGlobalDie(mplIdx) : GetLocalDie(mplIdx);
-    // some global scope var are introduced by system, skip them
-    if (mdie == nullptr) {
-      continue;
+      mvar = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(mplIdx);
+      mDie = GetGlobalDie(mplIdx);
+      // some global vars are introduced by system, skip them
+      if (mvar == nullptr || mDie == nullptr) {
+        continue;
+      }
     }
 
     // for local scope, create alias die using maple var except name and type
     // for global scope, update type only if needed
-    DBGDie *vdie = isLocal ? CreateVarDie(var, i.first) : GetGlobalDie(mplIdx);
+    bool updateOnly = (isLocal == i.second.isLocal && i.first == mplIdx);
+    DBGDie *vdie = updateOnly ? mDie : CreateVarDie(mvar, i.first);
 
     // get type from alias
     uint32 index = i.second.index;
     switch (i.second.atk) {
       case kATKType: {
-        DBGDie *tdie = GetOrCreateTypeDie(TyIdx(index));
-        DBGDie *newdie = GetOrCreateTypeDie(i.second.attrs, tdie);
-        (void)(vdie->SetAttr(DW_AT_type, -newdie->GetId()));
+        DBGDie *typeDie = GetOrCreateTypeDie(TyIdx(index));
+        DBGDie *newDie = GetOrCreateTypeDie(i.second.attrs, typeDie);
+        (void)(vdie->SetAttr(DW_AT_type, -newDie->GetId()));
         break;
       }
       case kATKString: {
         // use src code type
-        DBGDie *tdie = GetOrCreateTypedefDie(GStrIdx(index), var->GetTyIdx());
-        DBGDie *newdie = GetOrCreateTypeDie(i.second.attrs, tdie);
+        DBGDie *typeDie = GetOrCreateTypedefDie(GStrIdx(index), mvar->GetTyIdx());
+        DBGDie *newDie = GetOrCreateTypeDie(i.second.attrs, typeDie);
         // use negtive number to indicate DIE id instead of tyidx in normal cases
-        (void)(vdie->SetAttr(DW_AT_type, -newdie->GetId()));
+        (void)(vdie->SetAttr(DW_AT_type, -newDie->GetId()));
         break;
       }
       case kATKEnum: {
         // use src code enum type
-        DBGDie *tdie = GetOrCreateEnumTypeDie(index);
-        DBGDie *newdie = GetOrCreateTypeDie(i.second.attrs, tdie);
+        DBGDie *typeDie = GetOrCreateEnumTypeDie(index);
+        DBGDie *newDie = GetOrCreateTypeDie(i.second.attrs, typeDie);
         // use negtive number to indicate DIE id instead of tyidx in normal cases
-        (void)(vdie->SetAttr(DW_AT_type, -newdie->GetId()));
+        (void)(vdie->SetAttr(DW_AT_type, -newDie->GetId()));
         break;
       }
       default:
@@ -385,10 +384,10 @@ void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isL
         break;
     }
 
-    // for local scope
-    if (isLocal) {
-      // link vdie's ExprLoc to mdie's
-      vdie->LinkExprLoc(mdie);
+    // for new var
+    if (!updateOnly) {
+      // link vdie's ExprLoc to mDie's
+      vdie->LinkExprLoc(mDie);
 
       GetParentDie()->AddSubVec(vdie);
 
@@ -708,9 +707,9 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym, GStrIdx strIdx) {
   }
 
   MIRType *type = sym->GetType();
-  DBGDie *tdie = GetOrCreateTypeDie(type);
-  DBGDie *newdie = GetOrCreateTypeDie(sym->GetAttrs(), tdie);
-  int index = (newdie == tdie ? type->GetTypeIndex().GetIdx() : -newdie->GetId());
+  DBGDie *typeDie = GetOrCreateTypeDie(type);
+  DBGDie *newDie = GetOrCreateTypeDie(sym->GetAttrs(), typeDie);
+  int index = (newDie == typeDie ? type->GetTypeIndex().GetIdx() : -newDie->GetId());
   die->AddAttr(DW_AT_type, DW_FORM_ref4, index);
 
   return die;
@@ -883,44 +882,44 @@ DBGDie *DebugInfo::CreatePointedFuncTypeDie(MIRFuncType *fType) {
   compUnit->AddSubVec(die);
 
   for (uint32 i = 0; i < fType->GetParamTypeList().size(); i++) {
-    DBGDie *paramdie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_formal_parameter);
+    DBGDie *paramDie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_formal_parameter);
     MIRType *ptype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fType->GetNthParamType(i));
     (void)GetOrCreateTypeDie(ptype);
-    paramdie->AddAttr(DW_AT_type, DW_FORM_ref4, fType->GetNthParamType(i).GetIdx());
-    die->AddSubVec(paramdie);
+    paramDie->AddAttr(DW_AT_type, DW_FORM_ref4, fType->GetNthParamType(i).GetIdx());
+    die->AddSubVec(paramDie);
   }
 
   tyIdxDieIdMap[fType->GetTypeIndex().GetIdx()] = die->GetId();
   return die;
 }
 
-DBGDie *DebugInfo::GetOrCreateTypeDie(AttrKind attr, DBGDie *tdie) {
-  DBGDie *die = tdie;
-  uint32 did = tdie->GetId();
-  uint32 newid = 0;
+DBGDie *DebugInfo::GetOrCreateTypeDie(AttrKind attr, DBGDie *typeDie) {
+  DBGDie *die = typeDie;
+  uint32 dieId = typeDie->GetId();
+  uint32 newId = 0;
   switch (attr) {
     case ATTR_const:
-      if (constTypeDieMap.find(did) != constTypeDieMap.end()) {
-        newid = constTypeDieMap[did];
-        die = idDieMap[newid];
+      if (constTypeDieMap.find(dieId) != constTypeDieMap.end()) {
+        newId = constTypeDieMap[dieId];
+        die = idDieMap[newId];
       } else {
         die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_const_type);
-        (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, -did));
+        (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, -dieId));
         compUnit->AddSubVec(die);
-        newid = die->GetId();
-        constTypeDieMap[did] = newid;
+        newId = die->GetId();
+        constTypeDieMap[dieId] = newId;
       }
       break;
     case ATTR_volatile:
-      if (volatileTypeDieMap.find(did) != volatileTypeDieMap.end()) {
-        newid = volatileTypeDieMap[did];
-        die = idDieMap[newid];
+      if (volatileTypeDieMap.find(dieId) != volatileTypeDieMap.end()) {
+        newId = volatileTypeDieMap[dieId];
+        die = idDieMap[newId];
       } else {
         die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_volatile_type);
-        (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, -did));
+        (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, -dieId));
         compUnit->AddSubVec(die);
-        newid = die->GetId();
-        volatileTypeDieMap[did] = newid;
+        newId = die->GetId();
+        volatileTypeDieMap[dieId] = newId;
       }
       break;
     default:
@@ -929,14 +928,14 @@ DBGDie *DebugInfo::GetOrCreateTypeDie(AttrKind attr, DBGDie *tdie) {
   return die;
 }
 
-DBGDie *DebugInfo::GetOrCreateTypeDie(TypeAttrs attrs, DBGDie *tdie) {
+DBGDie *DebugInfo::GetOrCreateTypeDie(TypeAttrs attrs, DBGDie *typeDie) {
   if (attrs.GetAttr(ATTR_const)) {
-    tdie = GetOrCreateTypeDie(ATTR_const, tdie);
+    typeDie = GetOrCreateTypeDie(ATTR_const, typeDie);
   }
   if (attrs.GetAttr(ATTR_volatile)) {
-    tdie = GetOrCreateTypeDie(ATTR_volatile, tdie);
+    typeDie = GetOrCreateTypeDie(ATTR_volatile, typeDie);
   }
-  return tdie;
+  return typeDie;
 }
 
 DBGDie *DebugInfo::GetOrCreateTypeDie(TyIdx tyidx) {
@@ -1020,9 +1019,9 @@ DBGDie *DebugInfo::GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx) {
   (void)(die->AddAttr(DW_AT_decl_line, DW_FORM_data1, 0));
   (void)(die->AddAttr(DW_AT_decl_column, DW_FORM_data1, 0));
 
-  DBGDie *tdie = GetOrCreateTypeDie(tyidx);
+  DBGDie *typeDie = GetOrCreateTypeDie(tyidx);
   // use negative vaule of Die id
-  (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, -tdie->GetId()));
+  (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, -typeDie->GetId()));
 
   typedefStrIdxDieIdMap[sid] = die->GetId();
   return die;
@@ -1337,15 +1336,15 @@ DBGDie *DebugInfo::CreateClassTypeDie(GStrIdx strIdx, const MIRClassType *classT
   uint32 ptid = classType->GetParentTyIdx().GetIdx();
   if (ptid != 0) {
     MIRType *parenttype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(classType->GetParentTyIdx());
-    DBGDie *parentdie = GetOrCreateTypeDie(parenttype);
-    if (parentdie) {
-      parentdie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_inheritance);
-      parentdie->AddAttr(DW_AT_name, DW_FORM_strp, parenttype->GetNameStrIdx().GetIdx());
-      parentdie->AddAttr(DW_AT_type, DW_FORM_ref4, ptid);
+    DBGDie *parentDie = GetOrCreateTypeDie(parenttype);
+    if (parentDie) {
+      parentDie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_inheritance);
+      parentDie->AddAttr(DW_AT_name, DW_FORM_strp, parenttype->GetNameStrIdx().GetIdx());
+      parentDie->AddAttr(DW_AT_type, DW_FORM_ref4, ptid);
 
       // set to DW_ACCESS_public for now
-      parentdie->AddAttr(DW_AT_accessibility, DW_FORM_data4, DW_ACCESS_public);
-      die->AddSubVec(parentdie);
+      parentDie->AddAttr(DW_AT_accessibility, DW_FORM_data4, DW_ACCESS_public);
+      die->AddSubVec(parentDie);
     }
   }
 
@@ -1367,18 +1366,18 @@ DBGDie *DebugInfo::CreateInterfaceTypeDie(GStrIdx strIdx, const MIRInterfaceType
   // parents
   for (auto it : interfaceType->GetParentsTyIdx()) {
     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(it);
-    DBGDie *parentdie = GetOrCreateTypeDie(type);
-    if (parentdie) {
+    DBGDie *parentDie = GetOrCreateTypeDie(type);
+    if (parentDie) {
       continue;
     }
-    parentdie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_inheritance);
-    parentdie->AddAttr(DW_AT_name, DW_FORM_strp, type->GetNameStrIdx().GetIdx());
-    parentdie->AddAttr(DW_AT_type, DW_FORM_ref4, it.GetIdx());
-    parentdie->AddAttr(DW_AT_data_member_location, DW_FORM_data4, kDbgDefaultVal);
+    parentDie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_inheritance);
+    parentDie->AddAttr(DW_AT_name, DW_FORM_strp, type->GetNameStrIdx().GetIdx());
+    parentDie->AddAttr(DW_AT_type, DW_FORM_ref4, it.GetIdx());
+    parentDie->AddAttr(DW_AT_data_member_location, DW_FORM_data4, kDbgDefaultVal);
 
     // set to DW_ACCESS_public for now
-    parentdie->AddAttr(DW_AT_accessibility, DW_FORM_data4, DW_ACCESS_public);
-    die->AddSubVec(parentdie);
+    parentDie->AddAttr(DW_AT_accessibility, DW_FORM_data4, DW_ACCESS_public);
+    die->AddSubVec(parentDie);
   }
 
   PopParentDie();
