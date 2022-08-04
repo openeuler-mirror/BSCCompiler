@@ -362,7 +362,7 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
 }
 
 MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
-  if (ivar->HasMultipleMu()) {
+  if (ivar->HasMultipleMu() || ivar->IsVolatile()) {
     return nullptr;
   }
   auto *base = ivar->GetBase();
@@ -428,7 +428,8 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
   }
   auto *siblingOsts = ssaTab.GetNextLevelOsts(ost->GetPointerVstIdx());
   FieldID fld = ivar->GetFieldID() + addrofExpr->GetFieldID();
-  auto fieldOst = ssaTab.GetOriginalStTable().FindExtraLevOriginalSt(*siblingOsts, fieldType, fld, offset);
+  auto fieldOst = ssaTab.GetOriginalStTable().FindExtraLevOriginalSt(*siblingOsts, ost->GetPointerTyIdx(),
+                                                                     fieldType, fld, offset);
   if (fieldOst == nullptr) {
     return nullptr;
   }
@@ -467,7 +468,7 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
 }
 
 MeExpr *IRMap::SimplifyIvarWithIaddrofBase(IvarMeExpr *ivar, bool lhsIvar) {
-  if (ivar->GetOffset() != 0) {
+  if (ivar->GetOffset() != 0 || ivar->IsVolatile()) {
     return nullptr;
   }
 
@@ -503,6 +504,9 @@ MeExpr *IRMap::SimplifyIvarWithIaddrofBase(IvarMeExpr *ivar, bool lhsIvar) {
 }
 
 MeExpr *IRMap::SimplifyIvar(IvarMeExpr *ivar, bool lhsIvar) {
+  if (ivar->IsVolatile()) {
+    return nullptr;
+  }
   auto *simplifiedIvar = SimplifyIvarWithConstOffset(ivar, lhsIvar);
   if (simplifiedIvar != nullptr) {
     return simplifiedIvar;
@@ -1019,7 +1023,8 @@ MeExpr *IRMap::CreateCanonicalizedMeExpr(PrimType primType, Opcode opA,  Opcode 
   }
 
   if (opndA->GetMeOp() == kMeOpConst && opndB->GetMeOp() == kMeOpConst) {
-    auto *constOpnd0 = FoldConstExpr(primType, opB, static_cast<ConstMeExpr*>(opndA), static_cast<ConstMeExpr*>(opndB));
+    auto *constOpnd0 =
+        FoldConstExprBinary(primType, opB, *static_cast<ConstMeExpr *>(opndA), *static_cast<ConstMeExpr *>(opndB));
 
     if (constOpnd0 != nullptr) {
       return CreateMeExprBinary(opA, primType, *constOpnd0, *opndC);
@@ -1045,7 +1050,8 @@ MeExpr *IRMap::CreateCanonicalizedMeExpr(PrimType primType, Opcode opA, MeExpr *
   }
 
   if (opndB->GetMeOp() == kMeOpConst && opndC->GetMeOp() == kMeOpConst) {
-    auto *constOpnd1 = FoldConstExpr(primType, opB, static_cast<ConstMeExpr*>(opndB), static_cast<ConstMeExpr*>(opndC));
+    auto *constOpnd1 =
+        FoldConstExprBinary(primType, opB, *static_cast<ConstMeExpr *>(opndB), *static_cast<ConstMeExpr *>(opndC));
     if (constOpnd1 != nullptr) {
       return CreateMeExprBinary(opA, primType, *opndA, *constOpnd1);
     }
@@ -1066,7 +1072,7 @@ MeExpr *IRMap::CreateCanonicalizedMeExpr(PrimType primType, Opcode opA, Opcode o
                                          Opcode opC, MeExpr *opndC, MeExpr *opndD) {
   MeExpr *newOpnd0 = nullptr;
   if (opndA->GetMeOp() == kMeOpConst && opndB->GetMeOp() == kMeOpConst) {
-    newOpnd0 = FoldConstExpr(primType, opB, static_cast<ConstMeExpr*>(opndA), static_cast<ConstMeExpr*>(opndB));
+    newOpnd0 = FoldConstExprBinary(primType, opB, *static_cast<ConstMeExpr*>(opndA), *static_cast<ConstMeExpr*>(opndB));
   }
   if (newOpnd0 == nullptr) {
     if (primType != opndA->GetPrimType() && !IsNoCvtNeeded(primType, opndA->GetPrimType())) {
@@ -1080,7 +1086,7 @@ MeExpr *IRMap::CreateCanonicalizedMeExpr(PrimType primType, Opcode opA, Opcode o
 
   MeExpr *newOpnd1 = nullptr;
   if (opndC->GetMeOp() == kMeOpConst && opndD->GetMeOp() == kMeOpConst) {
-    newOpnd1 = FoldConstExpr(primType, opC, static_cast<ConstMeExpr*>(opndC), static_cast<ConstMeExpr*>(opndD));
+    newOpnd1 = FoldConstExprBinary(primType, opC, *static_cast<ConstMeExpr*>(opndC), *static_cast<ConstMeExpr*>(opndD));
   }
   if (newOpnd1 == nullptr) {
     if (primType != opndC->GetPrimType() && !IsNoCvtNeeded(primType, opndC->GetPrimType())) {
@@ -1094,38 +1100,105 @@ MeExpr *IRMap::CreateCanonicalizedMeExpr(PrimType primType, Opcode opA, Opcode o
   return CreateMeExprBinary(opA, primType, *newOpnd0, *newOpnd1);
 }
 
-MeExpr *IRMap::FoldConstExpr(PrimType primType, Opcode op, ConstMeExpr *opndA, ConstMeExpr *opndB) {
+MeExpr *IRMap::FoldConstExprBinary(PrimType primType, Opcode op, ConstMeExpr &opndA, ConstMeExpr &opndB) {
   if (!IsPrimitiveInteger(primType)) {
     return nullptr;
   }
 
-  maple::ConstantFold cf(mirModule);
-  auto *constA = static_cast<MIRIntConst*>(opndA->GetConstVal());
-  auto *constB = static_cast<MIRIntConst*>(opndB->GetConstVal());
+  auto *constA = static_cast<MIRIntConst*>(opndA.GetConstVal());
+  auto *constB = static_cast<MIRIntConst*>(opndB.GetConstVal());
   if ((op == OP_div || op == OP_rem) && !IsDivSafe(*constA, *constB, primType)) {
     return nullptr;
   }
-  MIRConst *resconst = cf.FoldIntConstBinaryMIRConst(op, primType, constA, constB);
+  MIRConst *resconst = ConstantFold::FoldIntConstBinaryMIRConst(op, primType, constA, constB);
   return CreateConstMeExpr(primType, *resconst);
 }
+
+MeExpr *IRMap::FoldConstExprUnary(PrimType primType, Opcode op, ConstMeExpr &opnd) {
+  if (!IsPrimitiveInteger(primType)) {
+    return nullptr;
+  }
+
+  auto *constInt = static_cast<MIRIntConst *>(opnd.GetConstVal());
+  MIRConst *resconst = ConstantFold::FoldIntConstUnaryMIRConst(op, primType, constInt);
+  return CreateConstMeExpr(primType, *resconst);
+}
+
+static bool CanDoOutOfShift(const OpMeExpr &shiftExpr, const MeExpr &expr) {
+  switch (expr.GetOp()) {
+    case OP_add:
+      return shiftExpr.GetOp() == OP_shl;
+    // bior/band can also be done out of shift, however it will prevent byte reverse optimize, so it is removed
+    case OP_bxor: {
+      auto c = static_cast<const ConstMeExpr *>(expr.GetOpnd(1))->GetIntValue();
+      return !c.IsMaxValue();
+    }
+    default:
+      return false;
+  }
+}
+
+static MeExpr *SimplifyCommonLogicShift(IRMap &irMap, const OpMeExpr &meExpr) {
+  MeExpr *opnd0 = meExpr.GetOpnd(0);
+  MeExpr *opnd1 = meExpr.GetOpnd(1);
+  if (opnd0->GetMeOp() == kMeOpOp && opnd1->GetMeOp() == kMeOpConst) {
+    auto expr1 = opnd0->GetOpnd(0);
+    auto expr2 = opnd0->GetOpnd(1);
+    if (!expr2 || expr2->GetMeOp() != kMeOpConst) {
+      return nullptr;
+    }
+    // shl (op (opndA, opndB), opndC) -> op (shl (opndA, opndC), shl (opndB, opndC))
+    if (CanDoOutOfShift(meExpr, *opnd0)) {
+      auto newRhs = irMap.FoldConstExprBinary(meExpr.GetPrimType(), meExpr.GetOp(), *static_cast<ConstMeExpr *>(expr2),
+                                              *static_cast<ConstMeExpr *>(opnd1));
+      auto newShift = irMap.CreateMeExprBinary(meExpr.GetOp(), meExpr.GetPrimType(), *expr1, *opnd1);
+      auto res = irMap.CreateMeExprBinary(opnd0->GetOp(), meExpr.GetPrimType(), *newShift, *newRhs);
+      return res;
+    }
+  }
+  return nullptr;
+}
+
+static MeExpr *PullOutZext(IRMap &irMap, const OpMeExpr &meExpr) {
+  MeExpr *opnd0 = meExpr.GetOpnd(0);
+  MeExpr *opnd1 = meExpr.GetOpnd(1);
+  if (opnd0->GetOp() == OP_zext && opnd1->GetMeOp() == kMeOpConst) {
+    auto subExpr1 = opnd0->GetOpnd(0);
+    auto op0 = static_cast<OpMeExpr *>(opnd0);
+    if (op0->GetBitsSize() < GetPrimTypeBitSize(subExpr1->GetPrimType())) {
+      return nullptr;
+    }
+    auto c1 = static_cast<ConstMeExpr *>(opnd1)->GetIntValue();
+    // if c1 == zext(trunc(c1)), we can pull zext out
+    if (c1.GetZXTValue() == c1.Trunc(op0->GetBitsSize(), c1.IsSigned()).GetZXTValue()) {
+      auto newConst = irMap.CreateIntConstMeExpr(c1.Trunc(subExpr1->GetPrimType()), subExpr1->GetPrimType());
+      auto newExpr = irMap.CreateMeExprBinary(meExpr.GetOp(), subExpr1->GetPrimType(), *subExpr1, *newConst);
+      auto res = irMap.CreateMeExprUnary(OP_zext, meExpr.GetPrimType(), *newExpr);
+      static_cast<OpMeExpr *>(res)->SetBitsSize(op0->GetBitsSize());
+      return res;
+    }
+  }
+  return nullptr;
+}
+
+// count coutinuous bit 1 from right hand side
+static int32 CountrOne(uint64 val) {
+  int32 count = 0;
+  while ((val & 1) != 0) {
+    ++count;
+    val >>= 1;
+  }
+  return val == 0 ? count : static_cast<int32>(-1);
+};
 
 MeExpr *IRMap::SimplifyLshrExpr(const OpMeExpr *shrExpr) {
   MeExpr *opnd0 = shrExpr->GetOpnd(0);
   MeExpr *opnd1 = shrExpr->GetOpnd(1);
 
-  // count coutinuous bit 1 from right hand side
-  auto countr_one = [](uint64 val) {
-    int32 count = 0;
-    while ((val & 1) != 0) {
-      ++count;
-      val >>= 1;
-    }
-    return val == 0 ? count : static_cast<int32>(-1);
-  };
   // (a & c1) >> c2 == (a >> c2) & (c1 >> c2)
   // try simplify when (c1 >> c2) is continuous bits 1
   // then (a & c1) >> c2 == extract (bit 1 count) bits from (c2) offset of (a)
-  auto trySimplifyToExtractbits = [this, shrExpr, countr_one](MeExpr *band, ConstMeExpr *shrConst)->MeExpr* {
+  auto trySimplifyToExtractbits = [this, shrExpr](MeExpr *band, ConstMeExpr *shrConst)->MeExpr* {
     auto *opnd0 = band->GetOpnd(0);
     auto *opnd1 = band->GetOpnd(1);
     auto shrOffset = static_cast<ConstMeExpr*>(shrConst)->GetExtIntValue();
@@ -1140,7 +1213,7 @@ MeExpr *IRMap::SimplifyLshrExpr(const OpMeExpr *shrExpr) {
     if (GetPrimTypeSize(opnd0->GetPrimType()) < GetPrimTypeSize(PTY_u64)) {
       const0 = static_cast<int64>(static_cast<uint32>(const0));
     }
-    auto bitOneCount = countr_one(static_cast<uint64>(const0) >> static_cast<uint64>(shrOffset));
+    auto bitOneCount = CountrOne(static_cast<uint64>(const0) >> static_cast<uint64>(shrOffset));
     if (bitOneCount == -1) {
       return nullptr;
     } else if (bitOneCount == 0) {
@@ -1156,64 +1229,146 @@ MeExpr *IRMap::SimplifyLshrExpr(const OpMeExpr *shrExpr) {
     }
   };
   if (opnd0->GetOp() == OP_band && opnd1->GetMeOp() == kMeOpConst) {
-    return trySimplifyToExtractbits(opnd0, static_cast<ConstMeExpr*>(opnd1));
+    if (MeExpr *res = trySimplifyToExtractbits(opnd0, static_cast<ConstMeExpr *>(opnd1))) {
+      return res;
+    }
+  }
+  if (MeExpr *res = SimplifyCommonLogicShift(*this, *shrExpr)) {
+    return res;
+  }
+  if (MeExpr *res = PullOutZext(*this, *shrExpr)) {
+    return res;
   }
   return nullptr;
 }
 
+MeExpr *IRMap::SimplifyShlExpr(const OpMeExpr *shrExpr) {
+  if (MeExpr *res = SimplifyCommonLogicShift(*this, *shrExpr)) {
+    return res;
+  }
+  return nullptr;
+}
+
+static MeExpr *SimplifyBandWithConst(IRMap &irMap, const OpMeExpr &bandExpr) {
+  MeExpr *opnd0 = bandExpr.GetOpnd(0);
+  MeExpr *opnd1 = bandExpr.GetOpnd(1);
+  if (opnd0->GetMeOp() != kMeOpOp || opnd1->GetMeOp() != kMeOpConst) {
+    return nullptr;
+  }
+  auto c1 = static_cast<ConstMeExpr*>(opnd1)->GetIntValue();
+  auto op0 = opnd0->GetOp();
+  // band ( zext u32 size (x), c1)
+  // if (1 << size) > c1, we can remove zext
+  if (op0 == OP_zext || op0 == OP_sext || op0 == OP_extractbits) {
+    auto opExpr = static_cast<OpMeExpr*>(opnd0);
+    auto offset = opExpr->GetBitsOffSet();
+    auto size = opExpr->GetBitsSize();
+    if (offset == 0 && (1ull << size) > c1.GetZXTValue()) {
+      return irMap.CreateMeExprBinary(OP_band, bandExpr.GetPrimType(), *opnd0->GetOpnd(0), *opnd1);
+    }
+  }
+  return nullptr;
+}
+
+// band ( lshr/shl(x, c2), c1)
+// if shl/lshr(~c1, c2) == 0, we can remove band
+static MeExpr *DoBandEliminate(const OpMeExpr &bandExpr) {
+  MeExpr *opnd0 = bandExpr.GetOpnd(0);
+  MeExpr *opnd1 = bandExpr.GetOpnd(1);
+  if (opnd0->GetOp() == OP_cvt) {
+    opnd0 = opnd0->GetOpnd(0);
+  }
+
+  if (opnd1->GetMeOp() != kMeOpConst || !IsLogicalShift(opnd0->GetOp())) {
+    return nullptr;
+  }
+  auto expr1 = opnd0->GetOpnd(0);
+  auto expr2 = opnd0->GetOpnd(1);
+  if (expr2->GetMeOp() != kMeOpConst) {
+    return nullptr;
+  }
+  auto srcType = expr1->GetPrimType();
+  auto c1 = static_cast<ConstMeExpr *>(opnd1)->GetIntValue().TruncOrExtend(srcType);
+  auto c2 = static_cast<ConstMeExpr *>(expr2)->GetIntValue().TruncOrExtend(srcType);
+  auto c3 = ~c1.TruncOrExtend(srcType);
+  if (c2.GetZXTValue() >= GetPrimTypeBitSize(expr1->GetPrimType())) {
+    return nullptr;
+  }
+  if (opnd0->GetOp() == OP_lshr) {
+    c3 = c3.Shl(c2.GetZXTValue(), srcType);
+  } else {
+    c3 = c3.LShr(c2.GetZXTValue(), srcType);
+  }
+  if (c3 == 0) {
+    return opnd0;
+  }
+  return nullptr;
+}
+
+// a & (a | b) == a
+// try to simplify (a | b) & c == (a & c) | (b & c)
+static MeExpr *SimplifyBiorBand(IRMap &irMap, const MeExpr &band, const MeExpr &bior, MeExpr &anotherOpnd) {
+  if (static_cast<const OpMeExpr &>(bior).GetOpnd(0) == &anotherOpnd ||
+      static_cast<const OpMeExpr &>(bior).GetOpnd(1) == &anotherOpnd) {
+    return &anotherOpnd;
+  }
+  // form a & c
+  OpMeExpr distribute1(kInvalidExprID, OP_band, band.GetPrimType(), bior.GetOpnd(0), &anotherOpnd);
+  // form b & c
+  OpMeExpr distribute2(kInvalidExprID, OP_band, band.GetPrimType(), bior.GetOpnd(1), &anotherOpnd);
+  auto *simplified1 = irMap.SimplifyOpMeExpr(&distribute1);
+  auto *simplified2 = irMap.SimplifyOpMeExpr(&distribute2);
+  if (simplified1 && simplified2 && simplified1->GetDepth() + simplified2->GetDepth() + 1 < band.GetDepth()) {
+    return irMap.CreateMeExprBinary(OP_bior, band.GetPrimType(), *simplified1, *simplified2);
+  }
+  return nullptr;
+};
+
 MeExpr *IRMap::SimplifyBandExpr(const OpMeExpr *bandExpr) {
   MeExpr *opnd0 = bandExpr->GetOpnd(0);
   MeExpr *opnd1 = bandExpr->GetOpnd(1);
-  if (opnd0->GetOp() != OP_band && opnd1->GetOp() != OP_band) {
-    return nullptr;
-  }
+
   // fold band with same value
   if (opnd0 == opnd1) {
     return opnd0;
   }
 
+  if (MeExpr *res = SimplifyBandWithConst(*this, *bandExpr)) {
+    return res;
+  }
+
+  if (MeExpr *res = DoBandEliminate(*bandExpr)) {
+    return res;
+  }
+
+  if (MeExpr *res = PullOutZext(*this, *bandExpr)) {
+    return res;
+  }
+
+  if (opnd0->GetOp() != OP_band && opnd1->GetOp() != OP_band) {
+    return nullptr;
+  }
+
   // a & b & a == a & b
   if (opnd0->GetOp() == OP_band) {
-    if (static_cast<OpMeExpr*>(opnd0)->GetOpnd(0) == opnd1 ||
-        static_cast<OpMeExpr*>(opnd0)->GetOpnd(1) == opnd1) {
+    if (static_cast<OpMeExpr *>(opnd0)->GetOpnd(0) == opnd1 || static_cast<OpMeExpr *>(opnd0)->GetOpnd(1) == opnd1) {
       return opnd0;
     }
   }
   if (opnd1->GetOp() == OP_band) {
-    if (static_cast<OpMeExpr*>(opnd1)->GetOpnd(0) == opnd0 ||
-        static_cast<OpMeExpr*>(opnd1)->GetOpnd(1) == opnd0) {
+    if (static_cast<OpMeExpr *>(opnd1)->GetOpnd(0) == opnd0 || static_cast<OpMeExpr *>(opnd1)->GetOpnd(1) == opnd0) {
       return opnd1;
     }
   }
 
-  // a & (a | b) == a
-  // try to simplify (a | b) & c == (a & c) | (b & c)
-  auto simplifyBiorBand = [this, bandExpr](MeExpr *bior, MeExpr *anotherOpnd)->MeExpr* {
-    if (static_cast<OpMeExpr*>(bior)->GetOpnd(0) == anotherOpnd ||
-        static_cast<OpMeExpr*>(bior)->GetOpnd(1) == anotherOpnd) {
-      return anotherOpnd;
-    }
-    // form a & c
-    OpMeExpr distribute1(kInvalidExprID, OP_band, bandExpr->GetPrimType(), bior->GetOpnd(0), anotherOpnd);
-    // form b & c
-    OpMeExpr distribute2(kInvalidExprID, OP_band, bandExpr->GetPrimType(), bior->GetOpnd(1), anotherOpnd);
-    auto *simplified1 = SimplifyOpMeExpr(&distribute1);
-    auto *simplified2 = SimplifyOpMeExpr(&distribute2);
-    if (simplified1 && simplified2 &&
-        simplified1->GetDepth() + simplified2->GetDepth() + 1 < bandExpr->GetDepth()) {
-      return CreateMeExprBinary(OP_bior, bandExpr->GetPrimType(), *simplified1, *simplified2);
-    }
-    return nullptr;
-  };
-
   if (opnd0->GetOp() == OP_bior) {
-    auto *simplified = simplifyBiorBand(opnd0, opnd1);
+    auto *simplified = SimplifyBiorBand(*this, *bandExpr, *opnd0, *opnd1);
     if (simplified) {
       return simplified;
     }
   }
   if (opnd1->GetOp() == OP_bior) {
-    auto *simplified = simplifyBiorBand(opnd1, opnd0);
+    auto *simplified = SimplifyBiorBand(*this, *bandExpr, *opnd1, *opnd0);
     if (simplified) {
       return simplified;
     }
@@ -1252,14 +1407,14 @@ MeExpr *IRMap::SimplifyAddExpr(const OpMeExpr *addExpr) {
   auto *opnd1 = addExpr->GetOpnd(1);
   if (opnd0->IsLeaf() && opnd1->IsLeaf()) {
     if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
-      return FoldConstExpr(addExpr->GetPrimType(), addExpr->GetOp(),
-                           static_cast<ConstMeExpr*>(opnd0), static_cast<ConstMeExpr*>(opnd1));
+      return FoldConstExprBinary(addExpr->GetPrimType(), addExpr->GetOp(), *static_cast<ConstMeExpr *>(opnd0),
+                                 *static_cast<ConstMeExpr *>(opnd1));
     }
     return nullptr;
   }
-  if (opnd0->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd0)->IsZero()) {
+  if (opnd0->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr *>(opnd0)->IsZero()) {
     return opnd1;
-  } else if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd1)->IsZero()) {
+  } else if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr *>(opnd1)->IsZero()) {
     return opnd0;
   }
 
@@ -1452,8 +1607,8 @@ MeExpr *IRMap::SimplifyMulExpr(const OpMeExpr *mulExpr) {
   auto *opnd1 = mulExpr->GetOpnd(1);
   if (opnd0->IsLeaf() && opnd1->IsLeaf()) {
     if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
-      return FoldConstExpr(mulExpr->GetPrimType(), mulExpr->GetOp(),
-                           static_cast<ConstMeExpr*>(opnd0), static_cast<ConstMeExpr*>(opnd1));
+      return FoldConstExprBinary(mulExpr->GetPrimType(), mulExpr->GetOp(), *static_cast<ConstMeExpr *>(opnd0),
+                                 *static_cast<ConstMeExpr *>(opnd1));
     }
     return nullptr;
   }
@@ -1556,8 +1711,8 @@ MeExpr *IRMap::SimplifyMulExpr(const OpMeExpr *mulExpr) {
         opndB = tmp;
       }
       if (opndA->GetPrimType() == opnd1->GetPrimType()) {
-        auto *newConst = FoldConstExpr(opndA->GetPrimType(), OP_mul,
-                                       static_cast<ConstMeExpr*>(opndA), static_cast<ConstMeExpr*>(opnd1));
+        auto *newConst = FoldConstExprBinary(opndA->GetPrimType(), OP_mul, *static_cast<ConstMeExpr *>(opndA),
+                                             *static_cast<ConstMeExpr *>(opnd1));
         return CreateMeExprBinary(OP_mul, mulExpr->GetPrimType(), *opndB, *newConst);
       }
     }
@@ -1863,6 +2018,13 @@ class BitPart {
   BitPart(MeExpr *p, uint32 bitwidth) : provider(p) {
     provenance.resize(bitwidth);
   }
+
+  void Extend(uint32 bitwidth) {
+    if (provenance.size() < bitwidth) {
+      (void)provenance.insert(provenance.end(), bitwidth - provenance.size(), kUnset);
+    }
+  }
+
   // the source oprand.
   MeExpr *provider;
   // provenance[A] = B means that bit A in Provider becomes bit B in the result of expression.
@@ -1872,21 +2034,6 @@ class BitPart {
 };
 
 static constexpr uint32 kBitPartRecursionMaxDepth = 64;
-
-// used when there are implicit cast between parent and oprand. used to expand the size of
-// bitpart.provenance to dstBitWidth.
-static inline void ImplicitBitPartConvert(uint64 dstBitWidth, BitPart &bitpart) {
-  auto srcBitWidth = bitpart.provenance.size();
-  if (dstBitWidth == srcBitWidth) {
-    return;
-  }
-  bitpart.provenance.resize(dstBitWidth);
-  if (dstBitWidth > srcBitWidth) {
-    for (size_t i = srcBitWidth; i < dstBitWidth; ++i) {
-      bitpart.provenance[i] = BitPart::kUnset;
-    }
-  }
-}
 
 // collect expr's BitPart recursively to check if it's possible for bytewise reverse.
 // we can get the BitPart of a expr if the opcode is bit operation related.
@@ -1950,10 +2097,7 @@ std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::op
       return result;
     }
     result = res;
-
-    if (bitwidth > res->provenance.size()) {
-      ImplicitBitPartConvert(bitwidth, *res);
-    }
+    result->Extend(bitwidth);
 
     uint64 bit = 1;
     for (uint8 i = 0; i < bitwidth; ++i, bit <<= 1) {
@@ -1977,6 +2121,7 @@ std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::op
     }
 
     result = res;
+    result->Extend(bitwidth);
 
     // clear the bit that is discarded, and do the same shift of the rest bits.
     auto &bitProvenance = result->provenance;
@@ -2043,11 +2188,30 @@ MeExpr *IRMap::SimplifyOrMeExpr(OpMeExpr *opmeexpr) {
     return nullptr;
   }
 
+  if (MeExpr *res = PullOutZext(*this, *opmeexpr)) {
+    return res;
+  }
+
   auto bitwidth = GetPrimTypeBitSize(opmeexpr->GetPrimType());
   MeExpr *opnd0 = opmeexpr->GetOpnd(0);
   MeExpr *opnd1 = opmeexpr->GetOpnd(1);
   Opcode opcode0 = opnd0->GetOp();
   Opcode opcode1 = opnd1->GetOp();
+
+  // (X ^ C) | Y -> (X | Y) ^ C if Y & C ==0
+  if (opcode0 == OP_bxor && opnd1->GetMeOp() == kMeOpConst) {
+    auto expr1 = opnd0->GetOpnd(1);
+    if (expr1->GetMeOp() != kMeOpConst) {
+      return nullptr;
+    }
+    auto c1 = static_cast<ConstMeExpr *>(opnd1)->GetIntValue();
+    auto c2 = static_cast<ConstMeExpr *>(expr1)->GetIntValue();
+    if ((c1 & c2) == 0) {
+      auto newOpnd0 = CreateMeExprBinary(OP_bior, opmeexpr->GetPrimType(), *opnd0->GetOpnd(0), *opnd1);
+      auto res = CreateMeExprBinary(OP_bxor, opnd0->GetPrimType(), *newOpnd0, *expr1);
+      return res;
+    }
+  }
 
   // (A | B) | C
   bool OrOfOrs = (opcode0 == OP_bior) || (opcode1 == OP_bior);
@@ -2258,6 +2422,51 @@ MeExpr *IRMap::SimplifyAshrMeExpr(OpMeExpr *opmeexpr) {
   return nullptr;
 }
 
+MeExpr *IRMap::SimplifyXorMeExpr(OpMeExpr *opmeexpr) {
+  Opcode opcode = opmeexpr->GetOp();
+  if (opcode != OP_bxor) {
+    return nullptr;
+  }
+
+  if (MeExpr *res = PullOutZext(*this, *opmeexpr)) {
+    return res;
+  }
+
+  auto opnd0 = opmeexpr->GetOpnd(0);
+  auto opnd1 = opmeexpr->GetOpnd(1);
+  // (X & C) ^ (Y & C) --> (X ^ Y) & C
+  if (opnd0->GetOp() == OP_band && opnd1->GetOp() == OP_band) {
+    auto constExpr1 = opnd0->GetOpnd(1);
+    auto constExpr2 = opnd1->GetOpnd(1);
+    if (constExpr1->GetMeOp() != kMeOpConst || constExpr2->GetMeOp() != kMeOpConst) {
+      return nullptr;
+    }
+    auto c1 = static_cast<ConstMeExpr *>(constExpr1)->GetIntValue();
+    auto c2 = static_cast<ConstMeExpr *>(constExpr2)->GetIntValue();
+    if (c1 == c2) {
+      auto xorExpr = CreateMeExprBinary(OP_bxor, opmeexpr->GetPrimType(), *opnd0->GetOpnd(0), *opnd1->GetOpnd(0));
+      auto andExpr = CreateMeExprBinary(OP_band, opmeexpr->GetPrimType(), *xorExpr, *constExpr1);
+      return andExpr;
+    }
+  }
+  // (X | C2) ^ C1 --> (X & ~C2) ^ (C1 ^ C2)
+  if (opnd0->GetOp() == OP_bior && opnd1->GetMeOp() == kMeOpConst) {
+    auto expr1 = opnd0->GetOpnd(0);
+    auto expr2 = opnd0->GetOpnd(1);
+    if (expr2->GetMeOp() != kMeOpConst) {
+      return nullptr;
+    }
+    auto newConstExpr1 = FoldConstExprUnary(opmeexpr->GetPrimType(), OP_bnot, *static_cast<ConstMeExpr *>(expr2));
+    auto newConstExpr2 = FoldConstExprBinary(opmeexpr->GetPrimType(), OP_bxor, *static_cast<ConstMeExpr *>(opnd1),
+                                             *static_cast<ConstMeExpr *>(expr2));
+
+    auto newOpnd0 = CreateMeExprBinary(OP_band, opmeexpr->GetPrimType(), *expr1, *newConstExpr1);
+    auto res = CreateMeExprBinary(OP_bxor, opmeexpr->GetPrimType(), *newOpnd0, *newConstExpr2);
+    return res;
+  }
+  return nullptr;
+}
+
 MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
   if (IsPrimitiveVector(opmeexpr->GetPrimType())) {
     return nullptr;
@@ -2268,10 +2477,9 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
     return simpleCast;
   }
   auto foldConst = [this](MeExpr *opnd0, MeExpr *opnd1, Opcode op, PrimType ptyp) {
-    maple::ConstantFold cf(mirModule);
     MIRIntConst *opnd0const = static_cast<MIRIntConst *>(static_cast<ConstMeExpr *>(opnd0)->GetConstVal());
     MIRIntConst *opnd1const = static_cast<MIRIntConst *>(static_cast<ConstMeExpr *>(opnd1)->GetConstVal());
-    MIRConst *resconst = cf.FoldIntConstBinaryMIRConst(op, ptyp, opnd0const, opnd1const);
+    MIRConst *resconst = ConstantFold::FoldIntConstBinaryMIRConst(op, ptyp, opnd0const, opnd1const);
     return CreateConstMeExpr(ptyp, *resconst);
   };
   switch (opop) {
@@ -2394,7 +2602,13 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
         return revexp;
       }
     }
-    case OP_bxor:
+    case OP_bxor: {
+      MeExpr *xorexp = SimplifyXorMeExpr(opmeexpr);
+      if (xorexp != nullptr) {
+        return xorexp;
+      }
+    }
+      [[fallthrough]];
     case OP_cand:
     case OP_land:
     case OP_cior:
@@ -2404,19 +2618,15 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
       }
       MeExpr *opnd0 = opmeexpr->GetOpnd(0);
       MeExpr *opnd1 = opmeexpr->GetOpnd(1);
-      if (opop == OP_sub && opnd0 == opnd1) {
-        return CreateIntConstMeExpr(0, opmeexpr->GetPrimType());
-      }
       if (opnd0->GetMeOp() != kMeOpConst || opnd1->GetMeOp() != kMeOpConst) {
         return nullptr;
       }
-      maple::ConstantFold cf(mirModule);
       MIRIntConst *opnd0const = static_cast<MIRIntConst *>(static_cast<ConstMeExpr *>(opnd0)->GetConstVal());
       MIRIntConst *opnd1const = static_cast<MIRIntConst *>(static_cast<ConstMeExpr *>(opnd1)->GetConstVal());
       if ((opop == OP_div || opop == OP_rem) && !IsDivSafe(*opnd0const, *opnd1const, opmeexpr->GetPrimType())) {
           return nullptr;
       }
-      MIRConst *resconst = cf.FoldIntConstBinaryMIRConst(opmeexpr->GetOp(),
+      MIRConst *resconst = ConstantFold::FoldIntConstBinaryMIRConst(opmeexpr->GetOp(),
           opmeexpr->GetPrimType(), opnd0const, opnd1const);
       return CreateConstMeExpr(opmeexpr->GetPrimType(), *resconst);
     }

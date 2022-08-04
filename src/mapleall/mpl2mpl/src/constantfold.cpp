@@ -409,7 +409,7 @@ ConstvalNode *ConstantFold::FoldIntConstComparison(Opcode opcode, PrimType resul
 }
 
 MIRConst *ConstantFold::FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resultType, const MIRIntConst *intConst0,
-                                                   const MIRIntConst *intConst1) const {
+                                                   const MIRIntConst *intConst1) {
   IntVal intVal0 = intConst0->GetValue();
   IntVal intVal1 = intConst1->GetValue();
   IntVal result(0, resultType);
@@ -436,15 +436,15 @@ MIRConst *ConstantFold::FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resul
       break;
     }
     case OP_ashr: {
-      result = intVal0.AShr(intVal1.GetZXTValue() % GetPrimTypeBitSize(resultType), resultType);
+      result = intVal0.AShr(intVal1.GetZXTValue() % GetAlignedPrimTypeBitSize(resultType), resultType);
       break;
     }
     case OP_lshr: {
-      result = intVal0.LShr(intVal1.GetZXTValue() % GetPrimTypeBitSize(resultType), resultType);
+      result = intVal0.LShr(intVal1.GetZXTValue() % GetAlignedPrimTypeBitSize(resultType), resultType);
       break;
     }
     case OP_shl: {
-      result = intVal0.Shl(intVal1.GetZXTValue() % GetPrimTypeBitSize(resultType), resultType);
+      result = intVal0.Shl(intVal1.GetZXTValue() % GetAlignedPrimTypeBitSize(resultType), resultType);
       break;
     }
     case OP_max: {
@@ -799,10 +799,8 @@ ConstvalNode *ConstantFold::FoldConstBinary(Opcode opcode, PrimType resultType, 
   return returnValue;
 }
 
-ConstvalNode *ConstantFold::FoldIntConstUnary(Opcode opcode, PrimType resultType, const ConstvalNode *constNode) const {
-  CHECK_NULL_FATAL(constNode);
-  const MIRIntConst *cst = safe_cast<MIRIntConst>(constNode->GetConstVal());
-  ASSERT_NOT_NULL(cst);
+MIRIntConst *ConstantFold::FoldIntConstUnaryMIRConst(Opcode opcode, PrimType resultType, const MIRIntConst *cst) {
+  CHECK_NULL_FATAL(cst);
   IntVal result = cst->GetValue().TruncOrExtend(resultType);
   switch (opcode) {
     case OP_abs: {
@@ -828,11 +826,11 @@ ConstvalNode *ConstantFold::FoldIntConstUnary(Opcode opcode, PrimType resultType
     case OP_extractbits:  // handled in FoldExtractbits
     case OP_recip:
     case OP_sqrt: {
-      ASSERT(false, "Unexpected opcode in FoldIntConstUnary");
+      ASSERT(false, "Unexpected opcode in FoldIntConstUnaryMIRConst");
       break;
     }
     default:
-      ASSERT(false, "Unknown opcode for FoldIntConstUnary");
+      ASSERT(false, "Unknown opcode for FoldIntConstUnaryMIRConst");
       break;
   }
   // determine the type
@@ -845,11 +843,7 @@ ConstvalNode *ConstantFold::FoldIntConstUnary(Opcode opcode, PrimType resultType
   } else {
     constValue = GlobalTables::GetIntConstTable().GetOrCreateIntConst(result.GetExtValue(), type);
   }
-  // form the ConstvalNode
-  ConstvalNode *resultConst = mirModule->CurFuncCodeMemPool()->New<ConstvalNode>();
-  resultConst->SetPrimType(type.GetPrimType());
-  resultConst->SetConstVal(constValue);
-  return resultConst;
+  return constValue;
 }
 
 template <typename T>
@@ -896,14 +890,18 @@ ConstvalNode *ConstantFold::FoldFPConstUnary(Opcode opcode, PrimType resultType,
   return resultConst;
 }
 
-ConstvalNode *ConstantFold::FoldConstUnary(Opcode opcode, PrimType resultType, ConstvalNode *constNode) const {
+ConstvalNode *ConstantFold::FoldConstUnary(Opcode opcode, PrimType resultType, ConstvalNode &constNode) const {
   ConstvalNode *returnValue = nullptr;
   if (IsPrimitiveInteger(resultType) || IsPrimitiveDynInteger(resultType)) {
-    returnValue = FoldIntConstUnary(opcode, resultType, constNode);
+    const MIRIntConst *cst = safe_cast<MIRIntConst>(constNode.GetConstVal());
+    auto constValue = FoldIntConstUnaryMIRConst(opcode, resultType, cst);
+    returnValue = mirModule->CurFuncCodeMemPool()->New<ConstvalNode>();
+    returnValue->SetPrimType(resultType);
+    returnValue->SetConstVal(constValue);
   } else if (resultType == PTY_f32) {
-    returnValue = FoldFPConstUnary<MIRFloatConst>(opcode, resultType, constNode);
+    returnValue = FoldFPConstUnary<MIRFloatConst>(opcode, resultType, &constNode);
   } else if (resultType == PTY_f64) {
-    returnValue = FoldFPConstUnary<MIRDoubleConst>(opcode, resultType, constNode);
+    returnValue = FoldFPConstUnary<MIRDoubleConst>(opcode, resultType, &constNode);
   } else if (resultType == PTY_f128) {
   } else {
     ASSERT(false, "Unhandled case for FoldConstUnary");
@@ -959,7 +957,7 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldUnary(UnaryNode *n
   std::pair<BaseNode*, std::optional<IntVal>> p = DispatchFold(node->Opnd(0));
   ConstvalNode *cst = safe_cast<ConstvalNode>(p.first);
   if (cst != nullptr) {
-    result = FoldConstUnary(node->GetOpCode(), node->GetPrimType(), cst);
+    result = FoldConstUnary(node->GetOpCode(), node->GetPrimType(), *cst);
   } else {
     bool isInt = IsPrimitiveInteger(node->GetPrimType());
     // The neg node will be recreated regardless of whether the folding is successful or not. And the neg node's
@@ -1552,7 +1550,7 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldIread(IreadNode *n
   BaseNode *e = PairToExpr(node->Opnd(0)->GetPrimType(), p);
   node->SetOpnd(e, 0);
   BaseNode *result = node;
-  if (e->GetOpCode() != OP_addrof) {
+  if (e->GetOpCode() != OP_addrof || node->IsVolatile()) {
     return std::make_pair(result, std::nullopt);
   }
 
