@@ -36,13 +36,43 @@ struct MIRAliasVars {
   TypeAttrs attrs;
 };
 
+class MIRAlias {
+ public:
+  explicit MIRAlias(MIRModule *mod) : module(mod) {}
+  ~MIRAlias() = default;
+
+  bool IsEmpty() const {
+    return aliasVarMap.size() == 0;
+  }
+
+  void SetAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
+    aliasVarMap[idx] = vars;
+  }
+
+  void AddAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
+    /* allow same idx, save last aliasVars */
+    aliasVarMap[idx] = vars;
+  }
+
+  MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {
+    return aliasVarMap;
+  }
+
+  void Dump(int32 indent, bool isLocal = true) const;
+
+ private:
+  MIRModule *module;
+  // source to maple variable alias
+  MapleMap<GStrIdx, MIRAliasVars> aliasVarMap { module->GetMPAllocator().Adapter() };
+};
+
 class MIRScope {
  public:
   explicit MIRScope(MIRModule *mod, MIRFunction *f = nullptr);
   ~MIRScope() = default;
 
   bool IsEmpty() const {
-    return aliasVarMap.size() == 0 && subScopes.size() == 0;
+    return (!alias || alias->IsEmpty()) && subScopes.size() == 0;
   }
 
   bool IsSubScope(const MIRScope *scp) const;
@@ -72,16 +102,16 @@ class MIRScope {
   }
 
   void SetAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
-    aliasVarMap[idx] = vars;
+    alias->SetAliasVarMap(idx, vars);
   }
 
   void AddAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
     /* allow same idx, save last aliasVars */
-    aliasVarMap[idx] = vars;
+    alias->AddAliasVarMap(idx, vars);
   }
 
   MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {
-    return aliasVarMap;
+    return alias->GetAliasVarMap();
   }
 
   MapleVector<MIRScope*> &GetSubScopes() {
@@ -107,8 +137,7 @@ class MIRScope {
   MIRFunction *func;
   unsigned id;
   std::pair<SrcPosition, SrcPosition> range;
-  // source to maple variable alias
-  MapleMap<GStrIdx, MIRAliasVars> aliasVarMap { module->GetMPAllocator().Adapter() };
+  MIRAlias *alias = nullptr;
   // subscopes' range should be disjoint
   MapleVector<MIRScope*> subScopes { module->GetMPAllocator().Adapter() };
   MapleVector<std::tuple<SrcPosition, SrcPosition, SrcPosition>> blkSrcPos { module->GetMPAllocator().Adapter() };

@@ -784,6 +784,24 @@ bool MIRParser::ParseFields(MIRStructType &type) {
       tk = lexer.NextToken();
     }
   }
+  // alias
+  while (tk == TK_ALIAS) {
+    MIRAlias *alias = type.GetAlias();
+    if (!alias) {
+      alias = mod.GetMemPool()->New<MIRAlias>(&mod);
+      type.SetAlias(alias);
+    }
+    GStrIdx strIdx;
+    MIRAliasVars aliasVar;
+    bool status = ParseOneAlias(strIdx, aliasVar);
+    if (status) {
+      alias->SetAliasVarMap(strIdx, aliasVar);
+    }
+    tk = lexer.GetTokenKind();
+    if (tk == TK_coma) {
+      tk = lexer.NextToken();
+    }
+  }
   // allow empty class for third party classes we do not have info
   if (tk == TK_rbrace) {
     return true;
@@ -2663,6 +2681,10 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
     lexer.NextToken();
   }
   aliasVar.sigStrIdx = signStrIdx;
+  tk = lexer.GetTokenKind();
+  if (tk == TK_coma) {
+    tk = lexer.NextToken();
+  }
   return true;
 }
 

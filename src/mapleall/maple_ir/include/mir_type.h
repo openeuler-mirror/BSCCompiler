@@ -29,6 +29,7 @@ constexpr uint32 kTypeHashLength = 12289;  // hash length for mirtype, ref: plan
 const std::string kRenameKeyWord = "_MNO";  // A static symbol name will be renamed as oriname_MNOxxx.
 
 class FieldAttrs;  // circular dependency exists, no other choice
+class MIRAlias;
 using TyIdxFieldAttrPair = std::pair<TyIdx, FieldAttrs>;
 using FieldPair = std::pair<GStrIdx, TyIdxFieldAttrPair>;
 using FieldVector = std::vector<FieldPair>;
@@ -67,6 +68,11 @@ constexpr uint32 k64BitSize = 64;
 inline uint32 GetPrimTypeBitSize(PrimType primType) {
   // 1 byte = 8 bits = 2^3 bits
   return GetPrimTypeSize(primType) << 3;
+}
+
+inline uint32 GetAlignedPrimTypeBitSize(PrimType primType) {
+  auto size = GetPrimTypeBitSize(primType);
+  return size <= k32BitSize ? k32BitSize : k64BitSize;
 }
 
 inline uint32 GetPrimTypeActualBitSize(PrimType primType) {
@@ -440,7 +446,7 @@ class FieldAttrs {
   }
 
   void DumpAttributes() const;
-  TypeAttrs ConvertToTypeAttrs();
+  TypeAttrs ConvertToTypeAttrs() const;
 
   const AttrBoundary &GetAttrBoundary() const {
     return attrBoundary;
@@ -833,7 +839,7 @@ class MIRType {
   // return any struct type directly embedded in this type
   virtual MIRStructType *EmbeddedStructType() { return nullptr; }
 
-  virtual int64 GetBitOffsetFromBaseAddr(FieldID fieldID) {
+  virtual int64 GetBitOffsetFromBaseAddr(FieldID fieldID) const {
     (void)fieldID;
     return 0;
   }
@@ -967,8 +973,8 @@ class MIRArrayType : public MIRType {
   uint16 GetDim() const {
     return dim;
   }
-  void SetDim(uint16 dim) {
-    this->dim = dim;
+  void SetDim(uint16 newDim) {
+    this->dim = newDim;
   }
 
   const TypeAttrs &GetTypeAttrs() const {
@@ -1010,7 +1016,7 @@ class MIRArrayType : public MIRType {
     return hIdx % kTypeHashLength;
   }
 
-  int64 GetBitOffsetFromBaseAddr(FieldID fieldID) override {
+  int64 GetBitOffsetFromBaseAddr(FieldID fieldID) const override {
     (void)fieldID;
     return kOffsetUnknown;
   }
@@ -1035,7 +1041,7 @@ class MIRArrayType : public MIRType {
 // flexible array type, must be last field of a top-level struct
 class MIRFarrayType : public MIRType {
  public:
-  MIRFarrayType() : MIRType(kTypeFArray, PTY_agg), elemTyIdx(TyIdx(0)) {};
+  MIRFarrayType() : MIRType(kTypeFArray, PTY_agg), elemTyIdx(TyIdx(0)) {}
 
   explicit MIRFarrayType(TyIdx elemTyIdx) : MIRType(kTypeFArray, PTY_agg), elemTyIdx(elemTyIdx) {}
 
@@ -1075,12 +1081,12 @@ class MIRFarrayType : public MIRType {
   uint32 NumberOfFieldIDs() const override;
   MIRStructType *EmbeddedStructType() override;
 
-  int64 GetBitOffsetFromBaseAddr(FieldID fieldID) override {
+  int64 GetBitOffsetFromBaseAddr(FieldID fieldID) const override {
     (void)fieldID;
     return kOffsetUnknown;
   }
 
-  int64 GetBitOffsetFromArrayAddress(int64 arrayIndex);
+  int64 GetBitOffsetFromArrayAddress(int64 arrayIndex) const;
 
  private:
   TyIdx elemTyIdx;
@@ -1114,8 +1120,8 @@ class MIRStructType : public MIRType {
   const FieldVector &GetFields() const {
     return fields;
   }
-  void SetFields(const FieldVector &fields) {
-    this->fields = fields;
+  void SetFields(const FieldVector &newFields) {
+    this->fields = newFields;
   }
 
   const FieldPair &GetFieldsElemt(size_t n) const {
@@ -1154,8 +1160,8 @@ class MIRStructType : public MIRType {
   FieldVector &GetParentFields() {
     return parentFields;
   }
-  void SetParentFields(const FieldVector &parentFields) {
-    this->parentFields = parentFields;
+  void SetParentFields(const FieldVector &newParentFields) {
+    this->parentFields = newParentFields;
   }
   const FieldVector &GetParentFields() const {
     return parentFields;
@@ -1472,9 +1478,12 @@ class MIRStructType : public MIRType {
   std::string GetCompactMplTypeName() const override;
   FieldPair TraverseToField(FieldID fieldID) const ;
 
-  int64 GetBitOffsetFromBaseAddr(FieldID fieldID) override;
+  int64 GetBitOffsetFromBaseAddr(FieldID fieldID) const override;
 
   bool HasPadding() const;
+
+  void SetAlias(MIRAlias *a) { alias = a; }
+  MIRAlias *GetAlias() const { return alias; }
 
  protected:
   FieldVector fields{};
@@ -1503,8 +1512,9 @@ class MIRStructType : public MIRType {
   FieldPair TraverseToField(GStrIdx fieldStrIdx) const ;
   bool HasVolatileFieldInFields(const FieldVector &fieldsOfStruct) const;
   bool HasTypeParamInFields(const FieldVector &fieldsOfStruct) const;
-  int64 GetBitOffsetFromUnionBaseAddr(FieldID fieldID);
-  int64 GetBitOffsetFromStructBaseAddr(FieldID fieldID);
+  int64 GetBitOffsetFromUnionBaseAddr(FieldID fieldID) const;
+  int64 GetBitOffsetFromStructBaseAddr(FieldID fieldID) const;
+  MIRAlias *alias = nullptr;
 };
 
 // java array type, must not be nested inside another aggregate
@@ -2010,7 +2020,8 @@ class MIRTypeByName : public MIRType {
 
   size_t GetHashIndex() const override {
     constexpr uint8 idxShift = 2;
-    return ((static_cast<size_t>(nameStrIdx) << idxShift) + nameIsLocal + (typeKind << kShiftNumOfTypeKind)) %
+    uint8 nameIsLocalValue = nameIsLocal ? 1 : 0;
+    return ((static_cast<size_t>(nameStrIdx) << idxShift) + nameIsLocalValue + (typeKind << kShiftNumOfTypeKind)) %
            kTypeHashLength;
   }
 };
