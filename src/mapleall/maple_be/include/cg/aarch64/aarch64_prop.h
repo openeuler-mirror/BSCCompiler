@@ -51,20 +51,27 @@ class A64StrLdrProp {
         a64StrLdrAlloc(&mp),
         replaceVersions(a64StrLdrAlloc.Adapter()),
         cgDce(&dce) {}
+  ~A64StrLdrProp() {}
+
+  void Init() {
+    defInsn = nullptr;
+  }
   void DoOpt();
+
  private:
   MemOperand *StrLdrPropPreCheck(const Insn &insn, MemPropMode prevMod = kUndef);
   static MemPropMode SelectStrLdrPropMode(const  MemOperand &currMemOpnd);
-  bool ReplaceMemOpnd(const MemOperand &currMemOpnd, const Insn *defInsn);
-  MemOperand *SelectReplaceMem(const Insn &defInsn, const MemOperand &currMemOpnd);
+  bool ReplaceMemOpnd(const MemOperand &currMemOpnd);
+  MemOperand *SelectReplaceMem(const MemOperand &currMemOpnd);
   RegOperand *GetReplaceReg(RegOperand &a64Reg);
   MemOperand *HandleArithImmDef(RegOperand &replace, Operand *oldOffset, int64 defVal, uint32 memSize) const;
-  MemOperand *SelectReplaceExt(const Insn &defInsn, RegOperand &base, uint32 amount,
-                               bool isSigned, uint32 memSize);
+  MemOperand *SelectReplaceExt(RegOperand &base, uint32 amount, bool isSigned, uint32 memSize);
   bool CheckNewMemOffset(const Insn &insn, MemOperand *newMemOpnd, uint32 opndIdx) const;
   void DoMemReplace(const RegOperand &replacedReg, MemOperand &newMem, Insn &useInsn);
   uint32 GetMemOpndIdx(MemOperand *newMemOpnd, const Insn &insn) const;
-
+  Insn *GetDefInsn(const RegOperand &regOpnd, std::vector<Insn*> &allUseInsns);
+  bool IsSameOpndsOfInsn(const Insn &insn1, const Insn &insn2, uint32 opndIdx);
+  bool IsPhiInsnValid(const Insn &phiInsn);
   bool CheckSameReplace(const RegOperand &replacedReg, const MemOperand *memOpnd) const;
 
   CGFunc *cgFunc;
@@ -74,6 +81,7 @@ class A64StrLdrProp {
   MapleMap<regno_t, VRegVersion*> replaceVersions;
   MemPropMode memPropMode = kUndef;
   CGDce *cgDce = nullptr;
+  Insn *defInsn = nullptr;
 };
 
 enum ArithmeticType {
@@ -304,6 +312,7 @@ class A64ConstFoldPattern : public PropOptimizePattern {
     defInsn = nullptr;
     dstOpnd = nullptr;
     srcOpnd = nullptr;
+    defDstOpnd = nullptr;
     useFoldType = kFoldUndef;
     defFoldType = kFoldUndef;
     optType = kOptUndef;
@@ -317,6 +326,9 @@ class A64ConstFoldPattern : public PropOptimizePattern {
     kLsr,
     kLsl,
     kAsr,
+    kAnd,
+    kOrr,
+    kEor,
     kFoldUndef
   };
   enum OptType : uint8 {
@@ -324,26 +336,44 @@ class A64ConstFoldPattern : public PropOptimizePattern {
     kNegativeUse,      /* negative the immVal of useInsn */
     kNegativeBoth,     /* negative the immVal of both defInsn and useInsn */
     kPositive,         /* do not change the immVal of both defInsn and useInsn */
+    kLogicalAnd,       /* for kAnd */
+    kLogicalOrr,       /* for kOrr */
+    kLogicalEor,       /* for kEor */
     kOptUndef
   };
-  constexpr static uint32 kFoldTypeSize = 5;
+  constexpr static uint32 kFoldTypeSize = 8;
   OptType constFoldTable[kFoldTypeSize][kFoldTypeSize] = {
-    /* defInsn: kAdd             kSub               kLsr               kLsl              kAsr  */
-    {kPositive,    kNegativeDef,  kOptUndef, kOptUndef, kOptUndef},  /* useInsn == kAdd */
-    {kNegativeUse, kNegativeBoth, kOptUndef, kOptUndef, kOptUndef},  /* useInsn == kSub */
-    {kOptUndef,    kOptUndef,     kPositive, kOptUndef, kOptUndef},  /* useInsn == kLsr */
-    {kOptUndef,    kOptUndef,     kOptUndef, kPositive, kOptUndef},  /* useInsn == kLsl */
-    {kOptUndef,    kOptUndef,     kOptUndef, kOptUndef, kPositive},  /* useInsn == kAsr */
+    /* defInsn: kAdd     kSub        kLsr        kLsl       kAsr     kAnd      kOrr    kEor */
+    {kPositive,    kNegativeDef,  kOptUndef, kOptUndef, kOptUndef, kOptUndef,
+     kOptUndef, kOptUndef},      /* useInsn == kAdd */
+    {kNegativeUse, kNegativeBoth, kOptUndef, kOptUndef, kOptUndef, kOptUndef,
+     kOptUndef, kOptUndef},      /* useInsn == kSub */
+    {kOptUndef,    kOptUndef,     kPositive, kOptUndef, kOptUndef, kOptUndef,
+     kOptUndef, kOptUndef},      /* useInsn == kLsr */
+    {kOptUndef,    kOptUndef,     kOptUndef, kPositive, kOptUndef, kOptUndef,
+     kOptUndef, kOptUndef},      /* useInsn == kLsl */
+    {kOptUndef,    kOptUndef,     kOptUndef, kOptUndef, kPositive, kOptUndef,
+     kOptUndef, kOptUndef},      /* useInsn == kAsr */
+    {kOptUndef,    kOptUndef,     kOptUndef, kOptUndef, kOptUndef, kLogicalAnd,
+     kOptUndef, kOptUndef},      /* useInsn == kAnd */
+    {kOptUndef,    kOptUndef,     kOptUndef, kOptUndef, kOptUndef, kOptUndef,
+     kLogicalOrr, kOptUndef},    /* useInsn == kOrr */
+    {kOptUndef,    kOptUndef,     kOptUndef, kOptUndef, kOptUndef, kOptUndef,
+     kOptUndef, kLogicalEor},    /* useInsn == kEor */
   };
 
   std::pair<FoldType, bool> SelectFoldTypeAndCheck64BitSize(const Insn &insn) const;
+  ImmOperand &GetNewImmOpnd(const ImmOperand &immOpnd, int64 newImmVal) const;
   MOperator GetNewMop(bool isNegativeVal, MOperator curMop) const;
+  int64 GetNewImmVal(const Insn &insn, const ImmOperand &defImmOpnd) const;
   void ReplaceWithNewInsn(Insn &insn, const ImmOperand &immOpnd, int64 newImmVal);
   bool IsDefInsnValid(const Insn &curInsn, const Insn &validDefInsn);
   bool IsPhiInsnValid(const Insn &curInsn, const Insn &phiInsn);
+  bool IsCompleteOptimization();
   Insn *defInsn = nullptr;
   RegOperand *dstOpnd = nullptr;
   RegOperand *srcOpnd = nullptr;
+  RegOperand *defDstOpnd = nullptr;
   FoldType useFoldType = kFoldUndef;
   FoldType defFoldType = kFoldUndef;
   OptType optType = kOptUndef;
