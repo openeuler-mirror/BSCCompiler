@@ -3235,8 +3235,13 @@ void ValueRangePropagation::CreateValueRangeForLeOrLt(
         ValueRange::MinBound(newRightUpper.GetPrimType()), newRightUpper, kLowerAndUpper, isAccurate);
     std::unique_ptr<ValueRange> newLeftRange = std::make_unique<ValueRange>(leftRange->GetLower(),
         ValueRange::MaxBound(leftRange->GetLower().GetPrimType()), kLowerAndUpper, isAccurate);
-    (void)Insert2Caches(trueBranch.GetBBId(), opnd.GetExprID(),
-                        CombineTwoValueRange(*leftRange, *newRightRange));
+    if (leftRange->IsConstantLowerAndUpper() && newRightRange->IsConstantLowerAndUpper()) {
+      (void)Insert2Caches(trueBranch.GetBBId(), opnd.GetExprID(),
+                          CombineTwoValueRange(*leftRange, *newRightRange));
+    } else {
+      (void)Insert2Caches(trueBranch.GetBBId(), opnd.GetExprID(), std::make_unique<ValueRange>(
+          leftRange->GetLower(), newRightUpper, kLowerAndUpper, isAccurate));
+    }
     newRightRange = std::make_unique<ValueRange>(
         newRightLower, ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper, isAccurate);
   } else if (leftRange->GetRangeType() == kOnlyHasUpperBound) {
