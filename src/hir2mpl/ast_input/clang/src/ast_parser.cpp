@@ -2321,21 +2321,11 @@ ASTExpr *ASTParser::ProcessExprAtomicExpr(MapleAllocator &allocator,
     {clang::AtomicExpr::AO__atomic_store_n, kAtomicOpStoreN},
     {clang::AtomicExpr::AO__atomic_store, kAtomicOpStore},
     {clang::AtomicExpr::AO__atomic_exchange, kAtomicOpExchange},
-    {clang::AtomicExpr::AO__atomic_exchange_n, kAtomicOpExchangeN},
-    {clang::AtomicExpr::AO__atomic_add_fetch, kAtomicOpAddFetch},
-    {clang::AtomicExpr::AO__atomic_sub_fetch, kAtomicOpSubFetch},
-    {clang::AtomicExpr::AO__atomic_and_fetch, kAtomicOpAndFetch},
-    {clang::AtomicExpr::AO__atomic_xor_fetch, kAtomicOpXorFetch},
-    {clang::AtomicExpr::AO__atomic_or_fetch, kAtomicOpOrFetch},
-    {clang::AtomicExpr::AO__atomic_nand_fetch, kAtomicOpNandFetch},
-    {clang::AtomicExpr::AO__atomic_fetch_add, kAtomicOpFetchAdd},
-    {clang::AtomicExpr::AO__atomic_fetch_sub, kAtomicOpFetchSub},
-    {clang::AtomicExpr::AO__atomic_fetch_and, kAtomicOpFetchAnd},
-    {clang::AtomicExpr::AO__atomic_fetch_xor, kAtomicOpFetchXor},
-    {clang::AtomicExpr::AO__atomic_fetch_or, kAtomicOpFetchOr},
-    {clang::AtomicExpr::AO__atomic_fetch_nand, kAtomicOpFetchNand},
+    {clang::AtomicExpr::AO__atomic_exchange_n, kAtomicOpExchangeN}
   };
-  CHECK(astOpMap.find(atomicExpr.getOp()) != astOpMap.end(), "atomic expr op not supported!");
+  CHECK_FATAL(astOpMap.find(atomicExpr.getOp()) != astOpMap.end(), "%s:%d error: atomic expr op not supported!",
+      FEManager::GetModule().GetFileNameFromFileNum(astFile->GetLOC(atomicExpr.getBuiltinLoc()).fileIdx).c_str(),
+      astFile->GetLOC(atomicExpr.getBuiltinLoc()).line);
   astExpr->SetAtomicOp(astOpMap[atomicExpr.getOp()]);
   return astExpr;
 }
