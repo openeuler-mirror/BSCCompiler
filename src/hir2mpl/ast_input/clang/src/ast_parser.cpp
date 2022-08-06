@@ -2745,19 +2745,15 @@ void ASTParser::SetAlignmentForASTVar(const clang::VarDecl &varDecl, ASTVar &ast
 }
 
 void ASTParser::SetSourceTypeForASTVar(MapleAllocator &allocator, const clang::QualType &qualType, ASTVar &astVar) {
-  MIRType *typedefType = astFile->CvtTypedef(qualType);
-  // The literal name of typeof temporarily saved to ALIAS for dwarf
   SourceType sty;
-  if (typedefType != nullptr) {
-    sty.typeIdx = typedefType->GetNameStrIdx().GetIdx();
-  } else if (ASTUtil::HasTypdefType(qualType)) {
-    std::string typeName = qualType.getAsString();
-    sty.typeIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName).GetIdx();
-  } else if (qualType->isEnumeralType()) {
+  if (qualType->isEnumeralType()) {
     const clang::EnumType *enumTy = llvm::dyn_cast<clang::EnumType>(qualType.getCanonicalType());
     ASTDecl *enumDecl = ProcessDecl(allocator, *enumTy->getDecl());
     sty.typeIdx = static_cast<unsigned>(FEManager::GetTypeManager().GetEnumIdx(enumDecl->GetName()));
     sty.isEnum = true;
+  } else {
+    MIRType *sourceType = astFile->CvtSourceType(qualType);
+    sty.typeIdx = sourceType->GetTypeIndex();
   }
   astVar.SetSourceType(sty);
 }
@@ -2852,6 +2848,9 @@ ASTDecl *ASTParser::ProcessDeclParmVarDecl(MapleAllocator &allocator, const clan
                                            parmVarDecl.getID());
   parmVar->SetIsParam(true);
   parmVar->SetPromotedType(promotedType);
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    SetSourceTypeForASTVar(allocator, parmQualType, *parmVar);
+  }
   const auto *valueDecl = llvm::dyn_cast<clang::ValueDecl>(&parmVarDecl);
   if (valueDecl != nullptr) {
     ProcessNonnullFuncPtrAttrs(allocator, *valueDecl, *parmVar);

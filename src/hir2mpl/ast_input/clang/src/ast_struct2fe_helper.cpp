@@ -295,6 +295,10 @@ void ASTFunc2FEHelper::SolveFunctionArguments() const {
     ENCChecker::InsertBoundaryInAtts(typeAttrs, paramDecls[i]->GetBoundaryInfo());
     sym->AddAttrs(typeAttrs);
     mirFunc->AddArgument(sym);
+    if (FEOptions::GetInstance().IsDbgFriendly() && paramDecls[i]->GetDeclKind() == kASTVar) {
+      ASTVar::AddAliasInMIRScope(*mirFunc->GetScope(), paramDecls[i]->GetName(), sym,
+                                 static_cast<ASTVar*>(paramDecls[i])->GetSourceType());
+    }
   }
 }
 

@@ -138,8 +138,19 @@ MIRType *LibAstFile::CvtTypedef(const clang::QualType &qualType) {
   return typdefType;
 }
 
-MIRType *LibAstFile::CvtType(const clang::QualType qualType) {
+MIRType *LibAstFile::CvtSourceType(const clang::QualType qualType) {
+  return CvtType(qualType, true);
+}
+
+MIRType *LibAstFile::CvtType(const clang::QualType qualType, bool isSourceType) {
   clang::QualType srcType = qualType.getCanonicalType();
+  if (isSourceType) {
+    MIRType *nameType = CvtTypedef(qualType);
+    if (nameType != nullptr) {
+      return nameType;
+    }
+    srcType = qualType;
+  }
   if (srcType.isNull()) {
     return nullptr;
   }
@@ -152,7 +163,7 @@ MIRType *LibAstFile::CvtType(const clang::QualType qualType) {
   // handle pointer types
   const clang::QualType srcPteType = srcType->getPointeeType();
   if (!srcPteType.isNull()) {
-    MIRType *mirPointeeType = CvtType(srcPteType);
+    MIRType *mirPointeeType = CvtType(srcPteType, isSourceType);
     if (mirPointeeType == nullptr) {
       return nullptr;
     }
@@ -191,35 +202,46 @@ MIRType *LibAstFile::CvtType(const clang::QualType qualType) {
     return prtType;
   }
 
-  return CvtOtherType(srcType);
+  return CvtOtherType(srcType, isSourceType);
 }
 
-MIRType *LibAstFile::CvtOtherType(const clang::QualType srcType) {
+MIRType *LibAstFile::CvtOtherType(const clang::QualType srcType, bool isSourceType) {
   MIRType *destType = nullptr;
   if (srcType->isArrayType()) {
-    destType = CvtArrayType(srcType);
+    destType = CvtArrayType(srcType, isSourceType);
   } else if (srcType->isRecordType()) {
     destType = CvtRecordType(srcType);
   // isComplexType() does not include complex integers (a GCC extension)
   } else if (srcType->isAnyComplexType()) {
     destType = CvtComplexType(srcType);
   } else if (srcType->isFunctionType()) {
-    destType = CvtFunctionType(srcType);
+    destType = CvtFunctionType(srcType, isSourceType);
   } else if (srcType->isEnumeralType()) {
-    const clang::EnumType *enumTy = llvm::dyn_cast<clang::EnumType>(srcType);
-    clang::QualType qt = enumTy->getDecl()->getIntegerType();
-    destType = CvtType(qt);
+    destType = CvtEnumType(srcType, isSourceType);
   } else if (srcType->isAtomicType()) {
     const auto *atomicType = llvm::cast<clang::AtomicType>(srcType);
     destType = CvtType(atomicType->getValueType());
   } else if (srcType->isVectorType()) {
     destType = CvtVectorType(srcType);
   }
-  CHECK_NULL_FATAL(destType);
+  CHECK_FATAL(destType != nullptr, "unsuport type %s", srcType.getAsString().c_str());
   return destType;
 }
 
-MIRType *LibAstFile::CvtRecordType(const clang::QualType srcType) {
+MIRType *LibAstFile::CvtEnumType(const clang::QualType &qualType, bool isSourceType) {
+  if (isSourceType) {
+    MIRType *nameType = CvtTypedef(qualType);
+    if (nameType != nullptr) {
+      return nameType;
+    }
+  }
+  const clang::EnumType *enumTy = llvm::dyn_cast<clang::EnumType>(qualType.getCanonicalType());
+  clang::QualType qt = enumTy->getDecl()->getIntegerType();
+  return CvtType(qt, isSourceType);
+}
+
+MIRType *LibAstFile::CvtRecordType(const clang::QualType qualType) {
+  clang::QualType srcType = qualType.getCanonicalType();
   const auto *recordType = llvm::cast<clang::RecordType>(srcType);
   clang::RecordDecl *recordDecl = recordType->getDecl();
   if (!recordDecl->isLambda() && recordDeclSet.emplace(recordDecl).second) {
@@ -249,24 +271,26 @@ MIRType *LibAstFile::CvtRecordType(const clang::QualType srcType) {
   return recordDecl->isLambda() ? GlobalTables::GetTypeTable().GetOrCreatePointerType(*type) : type;
 }
 
-MIRType *LibAstFile::CvtArrayType(const clang::QualType srcType) {
+MIRType *LibAstFile::CvtArrayType(const clang::QualType &srcType, bool isSourceType) {
   MIRType *elemType = nullptr;
   TypeAttrs elemAttrs;
   std::vector<uint32_t> operands;
   uint8_t dim = 0;
   if (srcType->isConstantArrayType()) {
-    CollectBaseEltTypeAndSizesFromConstArrayDecl(srcType, elemType, elemAttrs, operands);
+    CollectBaseEltTypeAndSizesFromConstArrayDecl(srcType, elemType, elemAttrs, operands, isSourceType);
     ASSERT(operands.size() < kMaxArrayDim, "The max array dimension is kMaxArrayDim");
     dim = static_cast<uint8_t>(operands.size());
   } else if (srcType->isIncompleteArrayType()) {
-    const auto *arrayType = llvm::cast<clang::IncompleteArrayType>(srcType);
-    CollectBaseEltTypeAndSizesFromConstArrayDecl(arrayType->getElementType(), elemType, elemAttrs, operands);
+    const clang::ArrayType *arrType = srcType->getAsArrayTypeUnsafe();
+    const auto *inArrType = llvm::cast<clang::IncompleteArrayType>(arrType);
+    CollectBaseEltTypeAndSizesFromConstArrayDecl(
+        inArrType->getElementType(), elemType, elemAttrs, operands, isSourceType);
     dim = static_cast<uint8_t>(operands.size());
     ASSERT(operands.size() < kMaxArrayDim, "The max array dimension is kMaxArrayDim");
   } else if (srcType->isVariableArrayType()) {
-    CollectBaseEltTypeAndDimFromVariaArrayDecl(srcType, elemType, elemAttrs, dim);
+    CollectBaseEltTypeAndDimFromVariaArrayDecl(srcType, elemType, elemAttrs, dim, isSourceType);
   } else if (srcType->isDependentSizedArrayType()) {
-    CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(srcType, elemType, elemAttrs, operands);
+    CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(srcType, elemType, elemAttrs, operands, isSourceType);
     ASSERT(operands.size() < kMaxArrayDim, "The max array dimension is kMaxArrayDim");
     dim = static_cast<uint8_t>(operands.size());
   } else {
@@ -276,6 +300,7 @@ MIRType *LibAstFile::CvtArrayType(const clang::QualType srcType) {
   uint32_t tempSizeArray[kMaxArrayDim];
   MIRType *retType = nullptr;
   if (dim > 0) {
+    CHECK_NULL_FATAL(elemType);
     if (!srcType->isVariableArrayType()) {
       for (uint8_t k = 0; k < dim; ++k) {
         tempSizeArray[k] = operands[k];
@@ -306,17 +331,18 @@ MIRType *LibAstFile::CvtComplexType(const clang::QualType srcType) const {
   return FEManager::GetTypeManager().GetOrCreateComplexStructType(*destElemType);
 }
 
-MIRType *LibAstFile::CvtFunctionType(const clang::QualType srcType) {
-  const auto *funcType = llvm::cast<clang::FunctionType>(srcType);
-  MIRType *retType = CvtType(funcType->getReturnType());
+MIRType *LibAstFile::CvtFunctionType(const clang::QualType srcType, bool isSourceType) {
+  const auto *funcType = srcType.getTypePtr()->castAs<clang::FunctionType>();
+  CHECK_NULL_FATAL(funcType);
+  MIRType *retType = CvtType(funcType->getReturnType(), isSourceType);
   std::vector<TyIdx> argsVec;
   std::vector<TypeAttrs> attrsVec;
-  if (srcType->isFunctionProtoType()) {
-    const auto *funcProtoType = llvm::cast<clang::FunctionProtoType>(srcType);
+  if (funcType->isFunctionProtoType()) {
+    const auto *funcProtoType = funcType->castAs<clang::FunctionProtoType>();
     using ItType = clang::FunctionProtoType::param_type_iterator;
     for (ItType it = funcProtoType->param_type_begin(); it != funcProtoType->param_type_end(); ++it) {
       clang::QualType protoQualType = *it;
-      argsVec.push_back(CvtType(protoQualType)->GetTypeIndex());
+      argsVec.push_back(CvtType(protoQualType, isSourceType)->GetTypeIndex());
       GenericAttrs genAttrs;
       // collect storage class, access, and qual attributes
       // ASTCompiler::GetSClassAttrs(SC_Auto, genAttrs); -- no-op
@@ -335,56 +361,81 @@ MIRType *LibAstFile::CvtFunctionType(const clang::QualType srcType) {
 
 
 void LibAstFile::CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
-                                                              TypeAttrs &elemAttr, std::vector<uint32_t> &operands) {
+                                                              TypeAttrs &elemAttr, std::vector<uint32_t> &operands,
+                                                              bool isSourceType) {
+  if (isSourceType) {
+    MIRType *nameType = CvtTypedef(currQualType);
+    if (nameType != nullptr) {
+      elemType = nameType;
+      return;
+    }
+  }
   const clang::Type *ptrType = currQualType.getTypePtrOrNull();
   ASSERT(ptrType != nullptr, "Null type", currQualType.getAsString().c_str());
   if (ptrType->isArrayType()) {
-    bool asFlag = ptrType->isConstantArrayType();
+    const clang::ArrayType *arrType = ptrType->getAsArrayTypeUnsafe();
+    bool asFlag = arrType->isConstantArrayType();
     ASSERT(asFlag, "Must be a ConstantArrayType", currQualType.getAsString().c_str());
-    const auto *constArrayType = llvm::cast<clang::ConstantArrayType>(ptrType);
+    const auto *constArrayType = llvm::dyn_cast<clang::ConstantArrayType>(arrType);
     ASSERT(constArrayType != nullptr, "ERROR : null pointer!");
     llvm::APInt size = constArrayType->getSize();
     asFlag = size.getSExtValue() >= 0;
     ASSERT(asFlag, "Array Size must be positive or zero", currQualType.getAsString().c_str());
     operands.push_back(size.getSExtValue());
-    CollectBaseEltTypeAndSizesFromConstArrayDecl(constArrayType->getElementType(), elemType, elemAttr, operands);
+    CollectBaseEltTypeAndSizesFromConstArrayDecl(constArrayType->getElementType(), elemType, elemAttr, operands,
+                                                 isSourceType);
   } else {
-    CollectBaseEltTypeFromArrayDecl(currQualType, elemType, elemAttr);
+    CollectBaseEltTypeFromArrayDecl(currQualType, elemType, elemAttr, isSourceType);
   }
 }
 
 void LibAstFile::CollectBaseEltTypeAndDimFromVariaArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
-                                                            TypeAttrs &elemAttr, uint8_t &dim) {
+                                                            TypeAttrs &elemAttr, uint8_t &dim, bool isSourceType) {
+  if (isSourceType) {
+    MIRType *nameType = CvtTypedef(currQualType);
+    if (nameType != nullptr) {
+      elemType = nameType;
+      return;
+    }
+  }
   const clang::Type *ptrType = currQualType.getTypePtrOrNull();
   ASSERT(ptrType != nullptr, "Null type", currQualType.getAsString().c_str());
   if (ptrType->isArrayType()) {
-    const auto *arrayType = llvm::cast<clang::ArrayType>(ptrType);
-    CollectBaseEltTypeAndDimFromVariaArrayDecl(arrayType->getElementType(), elemType, elemAttr, dim);
+    const auto *arrayType = ptrType->getAsArrayTypeUnsafe();
+    CollectBaseEltTypeAndDimFromVariaArrayDecl(arrayType->getElementType(), elemType, elemAttr, dim, isSourceType);
     ++dim;
   } else {
-    CollectBaseEltTypeFromArrayDecl(currQualType, elemType, elemAttr);
+    CollectBaseEltTypeFromArrayDecl(currQualType, elemType, elemAttr, isSourceType);
   }
 }
 
 void LibAstFile::CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(
-    const clang::QualType currQualType, MIRType *&elemType, TypeAttrs &elemAttr, std::vector<uint32_t> &operands) {
+    const clang::QualType currQualType, MIRType *&elemType, TypeAttrs &elemAttr, std::vector<uint32_t> &operands,
+    bool isSourceType) {
+  if (isSourceType) {
+    MIRType *nameType = CvtTypedef(currQualType);
+    if (nameType != nullptr) {
+      elemType = nameType;
+      return;
+    }
+  }
   const clang::Type *ptrType = currQualType.getTypePtrOrNull();
   ASSERT(ptrType != nullptr, "ERROR:null pointer!");
   if (ptrType->isArrayType()) {
-    const auto *arrayType = llvm::dyn_cast<clang::ArrayType>(ptrType);
+    const auto *arrayType = ptrType->getAsArrayTypeUnsafe();
     ASSERT(arrayType != nullptr, "ERROR:null pointer!");
     // variable sized
     operands.push_back(0);
-    CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(arrayType->getElementType(), elemType, elemAttr, operands);
+    CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(arrayType->getElementType(), elemType, elemAttr, operands,
+                                                        isSourceType);
   } else {
-    CollectBaseEltTypeFromArrayDecl(currQualType, elemType, elemAttr);
+    CollectBaseEltTypeFromArrayDecl(currQualType, elemType, elemAttr, isSourceType);
   }
 }
 
 void LibAstFile::CollectBaseEltTypeFromArrayDecl(const clang::QualType &currQualType,
-                                                 MIRType *&elemType,
-                                                 TypeAttrs &elemAttr) {
-  elemType = CvtType(currQualType);
+                                                 MIRType *&elemType, TypeAttrs &elemAttr, bool isSourceType) {
+  elemType = CvtType(currQualType, isSourceType);
   // Get alignment from the element type
   uint32 alignmentBits = astContext->getTypeAlignIfKnown(currQualType);
   if (alignmentBits != 0) {

@@ -228,7 +228,7 @@ void ASTVar::AddAliasInMIRScope(MIRScope &scope, const std::string &srcVarName, 
     aliasVar.atk = kATKEnum;
     aliasVar.index = sty.typeIdx;
   } else if (sty.typeIdx != 0) {
-    aliasVar.atk = kATKString;
+    aliasVar.atk = kATKType;
     aliasVar.index = sty.typeIdx;
   } else {
     aliasVar.atk = kATKType;

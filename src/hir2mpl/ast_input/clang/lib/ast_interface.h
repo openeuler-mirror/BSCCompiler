@@ -53,13 +53,16 @@ class LibAstFile {
   void EmitQualifierName(const clang::QualType qualType, std::stringstream &ss) const;
   std::string GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl) const;
   void CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
-                                                    TypeAttrs &elemAttr, std::vector<uint32_t> &operands);
+                                                    TypeAttrs &elemAttr, std::vector<uint32_t> &operands,
+                                                    bool isSourceType = false);
 
   void CollectBaseEltTypeAndDimFromVariaArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
-                                                  TypeAttrs &elemAttr, uint8_t &dim);
+                                                  TypeAttrs &elemAttr, uint8_t &dim, bool isSourceType = false);
   void CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(const clang::QualType currQualType, MIRType *&elemType,
-                                                           TypeAttrs &elemAttr, std::vector<uint32_t> &operands);
-  void CollectBaseEltTypeFromArrayDecl(const clang::QualType &currQualType, MIRType *&elemType, TypeAttrs &elemAttr);
+                                                           TypeAttrs &elemAttr, std::vector<uint32_t> &operands,
+                                                           bool isSourceType = false);
+  void CollectBaseEltTypeFromArrayDecl(const clang::QualType &currQualType, MIRType *&elemType, TypeAttrs &elemAttr,
+                                       bool isSourceType = false);
   void GetCVRAttrs(uint32_t qualifiers, GenericAttrs &genAttrs) const;
   void GetSClassAttrs(const clang::StorageClass storageClass, GenericAttrs &genAttrs) const;
   void GetStorageAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs) const;
@@ -77,11 +80,13 @@ class LibAstFile {
   void CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   MIRType *CvtPrimType(const clang::QualType qualType) const;
   PrimType CvtPrimType(const clang::BuiltinType::Kind kind) const;
-  MIRType *CvtType(const clang::QualType qualType);
-  MIRType *CvtOtherType(const clang::QualType srcType);
-  MIRType *CvtArrayType(const clang::QualType srcType);
-  MIRType *CvtFunctionType(const clang::QualType srcType);
-  MIRType *CvtRecordType(const clang::QualType srcType);
+  MIRType *CvtSourceType(const clang::QualType qualType);
+  MIRType *CvtType(const clang::QualType qualType, bool isSourceType = false);
+  MIRType *CvtOtherType(const clang::QualType srcType, bool isSourceType = false);
+  MIRType *CvtArrayType(const clang::QualType &srcType, bool isSourceType = false);
+  MIRType *CvtFunctionType(const clang::QualType srcType, bool isSourceType = false);
+  MIRType *CvtEnumType(const clang::QualType &qualType, bool isSourceType = false);
+  MIRType *CvtRecordType(const clang::QualType qualType);
   MIRType *CvtFieldType(const clang::NamedDecl &decl);
   MIRType *CvtComplexType(const clang::QualType srcType) const;
   MIRType *CvtVectorType(const clang::QualType srcType);
