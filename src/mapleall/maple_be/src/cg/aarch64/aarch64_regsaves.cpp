@@ -26,8 +26,21 @@ namespace maplebe {
 #define RS_DUMP GetEnabledDebug()
 #define RS_EXTRA (RS_DUMP && true)
 #define M_LOG LogInfo::MapleLogger()
-#define THRESHOLD 8
-#define ONE_REG_AT_A_TIME 0
+
+#define SKIP_FPLR(REG) \
+  if (REG >= R29 && REG < V8) { \
+    continue; \
+  }
+
+void AArch64RegSavesOpt::CreateReachingBBs(ReachInfo *rp, BB *bb) {
+  (void)visited.insert(bb->GetId());
+  rp->GetBBList().insert(bb->GetId());
+  for (auto succ : bb->GetSuccs()) {
+    if (visited.count(succ->GetId()) == 0) {
+      CreateReachingBBs(rp, succ);
+    }
+  }
+}
 
 void AArch64RegSavesOpt::InitData() {
   calleeBitsDef = cgFunc->GetMemoryPool()->NewArray<CalleeBitsType>(cgFunc->NumBBs());
@@ -36,7 +49,10 @@ void AArch64RegSavesOpt::InitData() {
   calleeBitsUse = cgFunc->GetMemoryPool()->NewArray<CalleeBitsType>(cgFunc->NumBBs());
   errno_t retUse = memset_s(calleeBitsUse, cgFunc->NumBBs() * sizeof(CalleeBitsType),
                             0, cgFunc->NumBBs() * sizeof(CalleeBitsType));
-  CHECK_FATAL(retDef == EOK && retUse == EOK, "memset_s of calleesBits failed");
+  calleeBitsAcc = cgFunc->GetMemoryPool()->NewArray<CalleeBitsType>(cgFunc->NumBBs());
+  errno_t retAccDef = memset_s(calleeBitsAcc, cgFunc->NumBBs() * sizeof(CalleeBitsType),
+                                 0, cgFunc->NumBBs() * sizeof(CalleeBitsType));
+  CHECK_FATAL(retDef == EOK && retUse == EOK && retAccDef == EOK, "memset_s of calleesBits failed");
 
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   const MapleVector<AArch64reg> &sp = aarchCGFunc->GetCalleeSavedRegs();
@@ -141,9 +157,43 @@ void AArch64RegSavesOpt::ProcessCondOpnd(const BB &bb) {
   CollectLiveInfo(bb, rflag, false, true);
 }
 
+void AArch64RegSavesOpt::GenAccDefs() {
+  /* Set up accumulated callee def bits in all blocks */
+  for (auto bb : bfs->sortedBBs) {
+    if (bb->GetPreds().size() == 0) {
+      SetCalleeBit(GetCalleeBitsAcc(), bb->GetId(), GetBBCalleeBits(GetCalleeBitsDef(), bb->GetId()));
+    } else {
+      CalleeBitsType curbbBits = GetBBCalleeBits(GetCalleeBitsDef(), bb->GetId());
+      int64 n = -1;
+      CalleeBitsType tmp = (CalleeBitsType)n;
+      CGFuncLoops *loop = bb->GetLoop();
+      for (auto pred : bb->GetPreds()) {
+        if (loop != nullptr && loop->GetHeader() == bb) {
+          if (find(loop->GetBackedge().begin(), loop->GetBackedge().end(), pred) != loop->GetBackedge().end()) {
+            continue;
+          }
+        }
+        if (pred->GetKind() == BB::kBBGoto) {
+          if (pred->NumInsn() > 1) {
+            Insn *insn = pred->GetLastInsn()->GetPrev();
+            if (insn->GetMachineOpcode() == MOP_xbl) {
+              auto *nameOpnd = static_cast<FuncNameOperand*>(&insn->GetOperand(kInsnFirstOpnd));
+              if (nameOpnd->GetName() == "fancy_abort") {
+                continue;    /* skip unreachable */
+              }
+            }
+          }
+        }
+        tmp &= GetBBCalleeBits(GetCalleeBitsAcc(), pred->GetId());
+      }
+      SetCalleeBit(GetCalleeBitsAcc(), bb->GetId(), curbbBits | tmp );
+    }
+  }
+}
+
 /* Record in each local BB the 1st def and the last use of a callee-saved
    register  */
-void AArch64RegSavesOpt::GetLocalDefUse() {
+void AArch64RegSavesOpt::GenRegDefUse() {
   for (auto bbp : bfs->sortedBBs) {
     BB &bb = *bbp;
     if (bb.GetKind() == BB::kBBReturn) {
@@ -183,11 +233,37 @@ void AArch64RegSavesOpt::GetLocalDefUse() {
     } /* for all insns */
   } /* for all sortedBBs */
 
+  GenAccDefs();
+
   if (RS_DUMP) {
-    for (uint32 i = 0; i < cgFunc->NumBBs(); ++i) {
-      M_LOG << i << " : " << calleeBitsDef[i] << " " << calleeBitsUse[i] << "\n";
+    M_LOG << "CalleeBits for " << cgFunc->GetName() << ":\n";
+    for (BBid i = 1; i < cgFunc->NumBBs(); ++i) {
+      M_LOG << i << " : " << calleeBitsDef[i] << " " << calleeBitsUse[i] << " " << calleeBitsAcc[i] << "\n";
     }
   }
+}
+
+bool AArch64RegSavesOpt::CheckForUseBeforeDefPath() {
+  /* Check if any block has a use without a def as shown in its accumulated
+     calleeBitsDef from above */
+  for (BBid bid = 0; bid < cgFunc->NumBBs(); ++bid) {
+    CalleeBitsType use = GetBBCalleeBits(GetCalleeBitsUse(), bid);
+    CalleeBitsType acc = GetBBCalleeBits(GetCalleeBitsAcc(), bid);
+    if ((use & acc) != use) {
+      if (RS_DUMP) {
+        CalleeBitsType mask = 1;
+        for (uint32 i = 0; i < static_cast<uint32>(sizeof(CalleeBitsType) << 3); ++i) {
+          regno_t reg = ReverseRegBitMap(i);
+          if ((use & mask) != 0 && (acc & mask) == 0) {
+            M_LOG << "R" << reg - 1 << " in BB" << bid << " is in a use before def path\n";
+          }
+          mask <<= 1;
+        }
+      }
+      return true;
+    }
+  }
+  return false;
 }
 
 void AArch64RegSavesOpt::PrintBBs() const {
@@ -196,11 +272,11 @@ void AArch64RegSavesOpt::PrintBBs() const {
     M_LOG << "< === > ";
     M_LOG << bb->GetId();
     M_LOG << " pred:[";
-    for (auto *predBB : bb->GetPreds()) {
+    for (auto predBB : bb->GetPreds()) {
       M_LOG << " " << predBB->GetId();
     }
     M_LOG << "] succs:[";
-    for (auto *succBB : bb->GetSuccs()) {
+    for (auto succBB : bb->GetSuccs()) {
       M_LOG << " " << succBB->GetId();
     }
     M_LOG << "]\n LiveIn of [" << bb->GetId() << "]: ";
@@ -262,6 +338,77 @@ bool AArch64RegSavesOpt::AlreadySavedInDominatorList(const BB *bb, regno_t reg) 
   return false;                      /* not previously saved, to save at bb */
 }
 
+#if REMOVE_DOM_REDUNDANCY
+/* Return true if reg is already to be saved in all paths to target
+   from already saved BBs */
+BB* AArch64RegSavesOpt::RemoveRedundancy(BB *target, regno_t reg) {
+  uint32 cbit = RegBitMap(reg);
+  if (regSavedBBs[cbit] == nullptr) {
+    return target;                                    /* no previously save */
+  }
+  MapleSet<BB*> &saveSet = regSavedBBs[cbit]->GetBBList();
+  BB *targ = target;
+  while (true) {
+    if (targ->GetPreds().empty()) {
+      break;                                          /* entry node */
+    }
+    BBid tbid = targ->GetId();
+    bool change = false;
+    for (BB *from : saveSet) {
+      BBid fbid = from->GetId();
+      if (tbid == fbid) {
+        continue;
+      }
+      ReachInfo *rp = GetReachingEntry(fbid);
+      if (rp->GetBBList().empty()) {
+        (void)visited.clear();
+        CreateReachingBBs(rp, from);
+        if (RS_DUMP) {
+          M_LOG << " --ReachingBBs for BB " << from->GetId() << " created\n";
+        }
+      }
+      if (rp->ContainInReachingBBs(tbid)) {           /* BB reaches curbb */
+        change = true;
+        targ = GetDomInfo()->GetDom(tbid);
+        break;
+      }
+    }
+    if (!change) {
+      break;                                          /* targ is dest */
+    }
+  }
+
+  /* If the newly found blk reaches any already previously saved blocks,
+     remove these blks from bbSavedRegs */
+  ReachInfo *rp = GetReachingEntry(targ->GetId());
+  if (rp->GetBBList().empty()) {
+    if (RS_DUMP) {
+      M_LOG << " --ReachingBBs for BB " << targ->GetId() << " created\n";
+    }
+    CreateReachingBBs(rp, targ);
+  }
+  for (BB *bb : saveSet) {
+    if (bb->GetId() == targ->GetId()) {
+      if (RS_DUMP) {
+        M_LOG << " --R" << reg - 1 << " already saved in BB" << targ->GetId()<< "\n";
+      }
+      continue;
+    } else if (bb->GetPreds().empty()) {
+      continue;
+    }
+    if (rp->ContainInReachingBBs(bb->GetId())) {
+      saveSet.erase(bb);
+      bbSavedRegs[bb->GetId()]->RemoveSaveReg(reg);
+      if (RS_DUMP) {
+        M_LOG << " --R" << (reg - 1) << " save removed from BB" << bb->GetId() << "\n";
+      }
+    }
+  }
+
+  return targ;
+}
+#endif
+
 /* Determine callee-save regs save locations and record them in bbSavedRegs.
    Save is needed for a 1st def callee-save register at its dominator block
    outside any loop. */
@@ -282,10 +429,6 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
       if ((c & mask) != 0) {
         MapleSet<regno_t> &liveIn = bb->GetLiveInRegNO();
         regno_t reg = ReverseRegBitMap(i);
-        if (oneAtaTime && oneAtaTimeReg != reg) {
-          mask <<= 1;
-          continue;
-        }
         if (liveIn.find(reg) == liveIn.end()) { /* not livein */
           BB *bbDom = bb;  /* start from current BB */
           bool done = false;
@@ -302,14 +445,22 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
             continue;
           }
 
+#if REMOVE_DOM_REDUNDANCY
+          bbDom = RemoveRedundancy(bbDom, reg);
+          if (regSavedBBs[i] == nullptr) {
+            regSavedBBs[i] = memPool->New<SavedBBInfo>(alloc);
+          }
+          regSavedBBs[i]->InsertBB(bbDom);
+#endif
+
           /* Check if a dominator of bbDom was already a location to save */
           if (AlreadySavedInDominatorList(bbDom, reg)) {
             mask <<= 1;
             continue;    /* no need to save again, next reg */
           }
 
-          /* Check if the newly found block is a dominator of block(s) in the current
-             to be saved list. If so, remove these blocks from bbSavedRegs */
+          /* If the newly found blk is a dominator of blk(s) in the current
+             to be saved list, remove these blks from bbSavedRegs */
           uint32 creg = i;
           SavedBBInfo *sp = regSavedBBs[creg];
           if (sp == nullptr) {
@@ -332,7 +483,7 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
           }
           regSavedBBs[creg]->InsertBB(bbDom);
 
-          uint32 bid = bbDom->GetId();
+          BBid bid = bbDom->GetId();
           if (RS_DUMP) {
             M_LOG << " --R" << (reg - 1);
             M_LOG << " to save in " << bid << "\n";
@@ -360,20 +511,37 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsPre() {
     M_LOG << "Determining regsave sites using ssa_pre for " << cgFunc->GetName() << ":\n";
   }
   const MapleVector<AArch64reg> &callees = aarchCGFunc->GetCalleeSavedRegs();
+  int32 offset = FindCalleeBase();
   for (auto reg : callees) {
-    if (reg >= R29 && reg < V8) {
-      continue;    /* save/restore in prologue, epilogue */
+    SKIP_FPLR(reg);
+    if (regOffset.find(reg) == regOffset.end()) {
+      regOffset[reg] = static_cast<uint32>(offset);
+      offset += static_cast<int32>(kIntregBytelen);
     }
-    if (oneAtaTime && oneAtaTimeReg != reg) {
-      continue;
+  }
+  /* do 2 regs at a time to force store pairs */
+  for (int i = 0; i < callees.size(); i++) {
+    AArch64reg reg1 = callees[i];
+    SKIP_FPLR(reg1);
+    AArch64reg reg2 = kRinvalid;
+    if ((i+1) < callees.size()) {
+      reg2 = callees[i+1];
+      SKIP_FPLR(reg2);
+      i++;
     }
 
     SsaPreWorkCand wkCand(&sprealloc);
-    for (uint32 bid = 1; bid < static_cast<uint32>(bbSavedRegs.size()); ++bid) {
+    for (BBid bid = 1; bid < static_cast<BBid>(bbSavedRegs.size()); ++bid) {
       /* Set the BB occurrences of this callee-saved register */
-      if (IsCalleeBitSet(GetCalleeBitsDef(), bid, reg) ||
-          IsCalleeBitSet(GetCalleeBitsUse(), bid, reg)) {
+      if (IsCalleeBitSet(GetCalleeBitsDef(), bid, reg1) ||
+          IsCalleeBitSet(GetCalleeBitsUse(), bid, reg1)) {
         (void)wkCand.occBBs.insert(bid);
+      }
+      if (reg2 != kRinvalid) {
+        if (IsCalleeBitSet(GetCalleeBitsDef(), bid, reg2) ||
+            IsCalleeBitSet(GetCalleeBitsUse(), bid, reg2)) {
+          (void)wkCand.occBBs.insert(bid);
+        }
       }
     }
     DoSavePlacementOpt(cgFunc, GetDomInfo(), &wkCand);
@@ -385,21 +553,34 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsPre() {
       /* Save cannot be applied, skip this reg and place save/restore
          in prolog/epilog */
       MapleVector<AArch64reg> &pe = aarchCGFunc->GetProEpilogSavedRegs();
-      if (std::find(pe.begin(), pe.end(), reg) == pe.end()) {
-        pe.push_back(reg);
+      if (std::find(pe.begin(), pe.end(), reg1) == pe.end()) {
+        pe.push_back(reg1);
+      }
+      if (reg2 != kRinvalid && std::find(pe.begin(), pe.end(), reg2) == pe.end()) {
+        pe.push_back(reg2);
       }
       if (RS_DUMP) {
-        M_LOG << "Save R" << (reg - 1) << " n/a, do in Pro/Epilog\n";
+        M_LOG << "Save R" << (reg1 - 1) << " n/a, do in Pro/Epilog\n";
+        if (reg2 != kRinvalid) {
+          M_LOG << "    R  " << (reg2 - 1) << " n/a, do in Pro/Epilog\n";
+        }
       }
       continue;
     }
     if (!wkCand.saveAtEntryBBs.empty()) {
-      for (uint32 entBB : wkCand.saveAtEntryBBs) {
+      for (BBid entBB : wkCand.saveAtEntryBBs) {
         if (RS_DUMP) {
-          std::string r = reg <= R28 ? "r" : "v";
-          M_LOG << "BB " << entBB << " save: " << r << (reg - 1) << "\n";
+          std::string r = reg1 <= R28 ? "R" : "V";
+          M_LOG << "BB " << entBB << " save for : " << r << (reg1 - 1) << "\n";
+          if (reg2 != kRinvalid) {
+            std::string r = reg2 <= R28 ? "R" : "V";
+            M_LOG << "              : " << r << (reg2 - 1) << "\n";
+          }
         }
-        GetbbSavedRegsEntry(entBB)->InsertSaveReg(reg);
+        GetbbSavedRegsEntry(entBB)->InsertSaveReg(reg1);
+        if (reg2 != kRinvalid) {
+          GetbbSavedRegsEntry(entBB)->InsertSaveReg(reg2);
+        }
       }
     }
   }
@@ -415,19 +596,10 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
   }
   const MapleVector<AArch64reg> &callees = aarchCGFunc->GetCalleeSavedRegs();
   for (auto reg : callees) {
-    if (reg >= R29 && reg < V8) {
-      continue;    /* save/restore in prologue, epilogue */
-    }
-    if (oneAtaTime && oneAtaTimeReg != reg) {
-      MapleVector<AArch64reg> &pe = aarchCGFunc->GetProEpilogSavedRegs();
-      if (std::find(pe.begin(), pe.end(), reg) == pe.end()) {
-        pe.push_back(reg);
-      }
-      continue;
-    }
+    SKIP_FPLR(reg);
 
     SPreWorkCand wkCand(&sprealloc);
-    for (uint32 bid = 1; bid < static_cast<uint32>(bbSavedRegs.size()); ++bid) {
+    for (BBid bid = 1; bid < static_cast<uint32>(bbSavedRegs.size()); ++bid) {
       /* Set the saved BB locations of this callee-saved register */
       SavedRegInfo *sp = bbSavedRegs[bid];
       if (sp != nullptr) {
@@ -446,14 +618,19 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
       /* something gone wrong, skip this reg */
       wkCand.restoreAtEpilog = true;
     }
-    /* splitted empty block for critical edge present, skip function */
-    MapleSet<uint32> rset = wkCand.restoreAtEntryBBs;
+    /* splitted empty block for critical edge present, skip reg */
+    MapleSet<BBid> rset = wkCand.restoreAtEntryBBs;
     for (auto bbid : wkCand.restoreAtExitBBs) {
       (void)rset.insert(bbid);
     }
     for (auto bbid : rset) {
       BB *bb = GetId2bb(bbid);
       if (bb->GetKind() == BB::kBBGoto && bb->NumInsn() == 1) {
+        if (RS_DUMP) {
+          M_LOG << "Restores in splitted empty BB" << bbid << "\n";
+        }
+        // wkCand.restoreAtEpilog = true;
+        // break;
         aarchCGFunc->GetProEpilogSavedRegs().clear();
         const MapleVector<AArch64reg> &calleesNew = aarchCGFunc->GetCalleeSavedRegs();
         for (auto areg : calleesNew) {
@@ -463,7 +640,7 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
       }
     }
     if (wkCand.restoreAtEpilog) {
-      /* Restore cannot b3 applied, skip this reg and place save/restore
+      /* Restore cannot be applied, skip this reg and place save/restore
          in prolog/epilog */
       for (size_t bid = 1; bid < bbSavedRegs.size(); ++bid) {
         SavedRegInfo *sp = bbSavedRegs[bid];
@@ -483,14 +660,14 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
       continue;
     }
     if (!wkCand.restoreAtEntryBBs.empty() || !wkCand.restoreAtExitBBs.empty()) {
-      for (uint32 entBB : wkCand.restoreAtEntryBBs) {
+      for (BBid entBB : wkCand.restoreAtEntryBBs) {
         if (RS_DUMP) {
           std::string r = reg <= R28 ? "r" : "v";
           M_LOG << "BB " << entBB << " restore: " << r << (reg - 1) << "\n";
         }
         GetbbSavedRegsEntry(entBB)->InsertEntryReg(reg);
       }
-      for (uint32 exitBB : wkCand.restoreAtExitBBs) {
+      for (BBid exitBB : wkCand.restoreAtExitBBs) {
         BB *bb = GetId2bb(exitBB);
         if (bb->GetKind() == BB::kBBIgoto) {
           CHECK_FATAL(false, "igoto detected");
@@ -525,7 +702,7 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
   return true;
 }
 
-int32 AArch64RegSavesOpt::FindNextOffsetForCalleeSave() const {
+int32 AArch64RegSavesOpt::FindCalleeBase() const {
   int32 offset = static_cast<int32>(
       static_cast<AArch64MemLayout*>(cgFunc->GetMemlayout())->RealStackFrameSize() -
       (static_cast<AArch64CGFunc*>(cgFunc)->SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* FP/LR */) -
@@ -541,16 +718,29 @@ int32 AArch64RegSavesOpt::FindNextOffsetForCalleeSave() const {
   return offset;
 }
 
+void AArch64RegSavesOpt::AdjustRegOffsets() {
+  AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  int32 regsInProEpilog = aarchCGFunc->GetProEpilogSavedRegs().size() - 2;
+  if (regsInProEpilog > 0) {
+    const MapleVector<AArch64reg> &callees = aarchCGFunc->GetCalleeSavedRegs();
+    for (auto reg : callees) {
+      SKIP_FPLR(reg);
+      if (regOffset.find(reg) != regOffset.end()) {
+        regOffset[reg] += regsInProEpilog << 3;
+      }
+    }
+  }
+}
+
 void AArch64RegSavesOpt::InsertCalleeSaveCode() {
-  uint32 bid = 0;
+  BBid bid = 0;
   BB *saveBB = cgFunc->GetCurBB();
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
 
   if (RS_DUMP) {
-    M_LOG << "Inserting Save: \n";
+    M_LOG << "Inserting Save for " << cgFunc->GetName() << ":\n";
   }
-  int32 offset = FindNextOffsetForCalleeSave();
-  offset += static_cast<int32>((aarchCGFunc->GetProEpilogSavedRegs().size() - 2) << 3);  // 2 for R29,RLR 3 for 8 bytes
+  int32 offset = FindCalleeBase();
   for (BB *bb : bfs->sortedBBs) {
     bid = bb->GetId();
     aarchCGFunc->SetSplitBaseOffset(0);
@@ -697,14 +887,14 @@ void AArch64RegSavesOpt::Verify(regno_t reg, BB *bb, std::set<BB*, BBIdCmp> *vis
 }
 
 void AArch64RegSavesOpt::InsertCalleeRestoreCode() {
-  uint32 bid = 0;
+  BBid bid = 0;
   BB *saveBB = cgFunc->GetCurBB();
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
 
   if (RS_DUMP) {
     M_LOG << "Inserting Restore: \n";
   }
-  int32 offset = FindNextOffsetForCalleeSave();
+  int32 offset = FindCalleeBase();
   for (BB *bb : bfs->sortedBBs) {
     bid = bb->GetId();
     aarchCGFunc->SetSplitBaseOffset(0);
@@ -779,15 +969,10 @@ void AArch64RegSavesOpt::InsertCalleeRestoreCode() {
 /* Callee-save registers save/restore placement optimization */
 void AArch64RegSavesOpt::Run() {
   // DotGenerator::GenerateDot("SR", *cgFunc, cgFunc->GetMirModule(), true, cgFunc->GetName());
-  if (Globals::GetInstance()->GetOptimLevel() <= 1) {
+  if (Globals::GetInstance()->GetOptimLevel() <= 1 || !cgFunc->GetMirModule().IsCModule()) {
     return;
   }
-
-#if ONE_REG_AT_A_TIME
-  /* only do reg placement on the following register, others in pro/epilog */
-  oneAtaTime = true;
-  oneAtaTimeReg = R25;
-#endif
+  AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
 
   Bfs localBfs(*cgFunc, *memPool);
   bfs = &localBfs;
@@ -797,26 +982,26 @@ void AArch64RegSavesOpt::Run() {
     PrintBBs();
   }
 
-#ifdef REDUCE_COMPLEXITY
-  CGOptions::EnableRegSavesOpt();
-  for (auto bb : bfs->sortedBBs) {
-    if (bb->GetSuccs().size() > THRESHOLD) {
-      CGOptions::DisableRegSavesOpt();
-      return;
-    }
-  }
-#endif
-
   /* Determined 1st def and last use of all callee-saved registers used
      for all BBs */
   InitData();
-  GetLocalDefUse();
+  GenRegDefUse();
 
-  /* Determine save sites at dominators of 1st def with no live-in and
-     not within loop */
   if (CGOptions::UseSsaPreSave()) {
+    /* Use ssapre */
+    if (CheckForUseBeforeDefPath()) {
+      for (auto reg : aarchCGFunc->GetCalleeSavedRegs()) {
+        if (reg != RFP && reg != RLR) {
+          aarchCGFunc->GetProEpilogSavedRegs().push_back(reg);
+        }
+      }
+      return;
+    }
     DetermineCalleeSaveLocationsPre();
   } else {
+    /* Determine save sites at dominators of 1st def with no live-in and
+       not within loop */
+    /* Obsolete, to be deleted */
     DetermineCalleeSaveLocationsDoms();
   }
 
@@ -839,6 +1024,9 @@ void AArch64RegSavesOpt::Run() {
     }
   }
 #endif
+
+  /* Adjust assigned offsets if there are regs to be saved in prolog */
+  AdjustRegOffsets();
 
   /* Generate callee save instrs at found sites */
   InsertCalleeSaveCode();

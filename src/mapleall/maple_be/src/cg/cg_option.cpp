@@ -774,7 +774,7 @@ void CGOptions::EnableO2() {
   doLocalRefSpill = true;
   doCalleeToSpill = true;
   doRegSavesOpt = false;
-  useSsaPreSave = false;
+  useSsaPreSave = true;
   useSsuPreRestore = true;
   doWriteRefFieldOpt = true;
   SetOption(kProEpilogueOpt);
