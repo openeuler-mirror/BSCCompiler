@@ -784,6 +784,24 @@ bool MIRParser::ParseFields(MIRStructType &type) {
       tk = lexer.NextToken();
     }
   }
+  // alias
+  while (tk == TK_ALIAS) {
+    MIRAlias *alias = type.GetAlias();
+    if (!alias) {
+      alias = mod.GetMemPool()->New<MIRAlias>(&mod);
+      type.SetAlias(alias);
+    }
+    GStrIdx strIdx;
+    MIRAliasVars aliasVar;
+    bool status = ParseOneAlias(strIdx, aliasVar);
+    if (status) {
+      alias->SetAliasVarMap(strIdx, aliasVar);
+    }
+    tk = lexer.GetTokenKind();
+    if (tk == TK_coma) {
+      tk = lexer.NextToken();
+    }
+  }
   // allow empty class for third party classes we do not have info
   if (tk == TK_rbrace) {
     return true;
@@ -1566,7 +1584,7 @@ void MIRParser::FixupForwardReferencedTypeByMap() {
   }
 }
 
-bool MIRParser::ParseTypedef() {
+bool MIRParser::ParseTypeDefine() {
   bool isLocal = paramParseLocalType;
   if (lexer.GetTokenKind() != TK_type) {
     Error("expect type but get ");
@@ -1649,11 +1667,6 @@ bool MIRParser::ParseTypedef() {
     prevTyIdx = mod.GetTypeNameTab()->GetTyIdxFromGStrIdx(strIdx);
     mod.GetTypeNameTab()->SetGStrIdxToTyIdx(strIdx, tyIdx);
     mod.PushbackTypeDefOrder(strIdx);
-
-    // debuginfo for typedef
-    if (mod.IsWithDbgInfo() && strIdx != type->GetNameStrIdx()) {
-      mod.GetDbgInfo()->AddTypedefMap(strIdx, tyIdx);
-    }
   }
 
   if (prevTyIdx != TyIdx(0) && prevTyIdx != tyIdx) {
@@ -1757,6 +1770,29 @@ bool MIRParser::ParseEnumeration() {
   }
   lexer.NextToken();
   GlobalTables::GetEnumTable().enumTable.push_back(mirEnum);
+  return true;
+}
+
+// for debuginfo parsing c typedef
+bool MIRParser::ParseTypedef() {
+  if (lexer.GetTokenKind() != TK_typedef) {
+    Error("expect typedef but get ");
+    return false;
+  }
+  TokenKind tokenKind = lexer.NextToken();
+  if (tokenKind != TK_gname) {
+    Error("expect typedef name but get ");
+    return false;
+  }
+  const std::string &name = lexer.GetName();
+  GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
+  lexer.NextToken();
+  TyIdx tyIdx(0);
+  if (!ParseType(tyIdx)) {
+    Error("expect underlying type name but get ");
+    return false;
+  }
+  GlobalTables::GetTypedefTable().SetTypedefNameMap(strIdx, tyIdx);
   return true;
 }
 
@@ -2663,6 +2699,10 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
     lexer.NextToken();
   }
   aliasVar.sigStrIdx = signStrIdx;
+  tk = lexer.GetTokenKind();
+  if (tk == TK_coma) {
+    tk = lexer.NextToken();
+  }
   return true;
 }
 
@@ -2805,18 +2845,20 @@ bool MIRParser::ParseMIR(uint32 fileIdx, uint32 option, bool isIPA, bool isComb)
   // fix the typedef type
   FixupForwardReferencedTypeByMap();
   // check if any global type name is undefined
-  for (auto it = mod.GetTypeNameTab()->GetGStrIdxToTyIdxMap().begin();
-       it != mod.GetTypeNameTab()->GetGStrIdxToTyIdxMap().end(); ++it) {
-    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(it->second);
-    CHECK_FATAL(type != nullptr, "type is null");
-    if (type->GetKind() == kTypeByName) {
-      std::string strStream;
-      const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(it->first);
-      strStream += "type $";
-      strStream += name;
-      strStream += " used but not defined\n";
-      message += strStream;
-      return false;
+  if (!opts::withDwarf) {
+    for (auto it = mod.GetTypeNameTab()->GetGStrIdxToTyIdxMap().begin();
+         it != mod.GetTypeNameTab()->GetGStrIdxToTyIdxMap().end(); ++it) {
+      MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(it->second);
+      CHECK_FATAL(type != nullptr, "type is null");
+      if (type->GetKind() == kTypeByName) {
+        std::string strStream;
+        const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(it->first);
+        strStream += "type $";
+        strStream += name;
+        strStream += " used but not defined\n";
+        message += strStream;
+        return false;
+      }
     }
   }
   if (!isIPA && isComb) {
@@ -2846,8 +2888,9 @@ std::map<TokenKind, MIRParser::FuncPtrParseMIRForElem> MIRParser::InitFuncPtrMap
   funcPtrMap[TK_var] = &MIRParser::ParseMIRForVar;
   funcPtrMap[TK_javaclass] = &MIRParser::ParseMIRForClass;
   funcPtrMap[TK_javainterface] = &MIRParser::ParseMIRForInterface;
-  funcPtrMap[TK_type] = &MIRParser::ParseTypedef;
+  funcPtrMap[TK_type] = &MIRParser::ParseTypeDefine;
   funcPtrMap[TK_enumeration] = &MIRParser::ParseEnumeration;
+  funcPtrMap[TK_typedef] = &MIRParser::ParseTypedef;
   funcPtrMap[TK_flavor] = &MIRParser::ParseMIRForFlavor;
   funcPtrMap[TK_srclang] = &MIRParser::ParseMIRForSrcLang;
   funcPtrMap[TK_globalmemsize] = &MIRParser::ParseMIRForGlobalMemSize;
@@ -3362,7 +3405,7 @@ bool MIRParser::ParseMPLT(std::ifstream &mpltFile, const std::string &importFile
         break;
       case TK_type:
         paramParseLocalType = false;
-        if (!ParseTypedef()) {
+        if (!ParseTypeDefine()) {
           return false;
         }
         break;

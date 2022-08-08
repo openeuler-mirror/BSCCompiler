@@ -14,6 +14,7 @@
  */
 #include "mir_type.h"
 #include "mir_symbol.h"
+#include "mir_scope.h"
 #include "printing.h"
 #include "namemangler.h"
 #include "global_tables.h"
@@ -629,11 +630,11 @@ std::string MIRType::GetCompactMplTypeName() const {
   return "";
 }
 
-void MIRType::Dump(int indent, bool dontUseName) const {
+void MIRType::Dump(int indent [[maybe_unused]], bool dontUseName [[maybe_unused]]) const {
   LogInfo::MapleLogger() << GetPrimTypeName(primType);
 }
 
-void MIRType::DumpAsCxx(int indent) const {
+void MIRType::DumpAsCxx(int indent [[maybe_unused]]) const {
   switch (primType) {
     case PTY_void:
       LogInfo::MapleLogger() << "void";
@@ -941,7 +942,7 @@ void MIRPtrType::Dump(int indent, bool dontUseName) const {
   }
 }
 
-void MIRBitFieldType::Dump(int indent, bool dontUseName) const {
+void MIRBitFieldType::Dump(int indent [[maybe_unused]], bool dontUseName [[maybe_unused]]) const {
   LogInfo::MapleLogger() << ":" << static_cast<int>(fieldSize) << " " << GetPrimTypeName(primType);
 }
 
@@ -1347,6 +1348,10 @@ void MIRStructType::DumpFieldsAndMethods(int indent, bool hasMethod) const {
     LogInfo::MapleLogger() << ",";
   }
   DumpMethods(methods, indent);
+  if (alias && !alias->IsEmpty()) {
+    LogInfo::MapleLogger() << ",";
+    alias->Dump(indent, true);
+  }
 }
 
 void MIRStructType::Dump(int indent, bool dontUseName) const {
@@ -1466,17 +1471,17 @@ void MIRInterfaceType::Dump(int indent, bool dontUseName) const {
   LogInfo::MapleLogger() << "}>";
 }
 
-void MIRTypeByName::Dump(int indent, bool dontUseName) const {
+void MIRTypeByName::Dump(int indent [[maybe_unused]], bool dontUseName [[maybe_unused]]) const {
   const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(nameStrIdx);
   LogInfo::MapleLogger() << (nameIsLocal ? "<%" : "<$") << name << ">";
 }
 
-void MIRTypeParam::Dump(int indent, bool dontUseName) const {
+void MIRTypeParam::Dump(int indent [[maybe_unused]], bool dontUseName [[maybe_unused]]) const {
   const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(nameStrIdx);
   LogInfo::MapleLogger() << "<!" << name << ">";
 }
 
-void MIRInstantVectorType::Dump(int indent, bool dontUseName) const {
+void MIRInstantVectorType::Dump(int indent [[maybe_unused]], bool dontUseName [[maybe_unused]]) const {
   LogInfo::MapleLogger() << "{";
   for (size_t i = 0; i < instantVec.size(); ++i) {
     TypePair typePair = instantVec[i];
@@ -1648,7 +1653,7 @@ MIRStructType *MIRFarrayType::EmbeddedStructType() {
   return elemType->EmbeddedStructType();
 }
 
-int64 MIRFarrayType::GetBitOffsetFromArrayAddress(int64 arrayIndex) {
+int64 MIRFarrayType::GetBitOffsetFromArrayAddress(int64 arrayIndex) const {
   size_t elemsize = GetElemType()->GetSize();
   if (elemsize == 0 || arrayIndex == 0) {
     return 0;
@@ -1942,7 +1947,7 @@ bool MIRStructType::HasVolatileField() const {
   return HasVolatileFieldInFields(fields) || HasVolatileFieldInFields(parentFields);
 }
 
-int64 MIRStructType::GetBitOffsetFromUnionBaseAddr(FieldID fieldID) {
+int64 MIRStructType::GetBitOffsetFromUnionBaseAddr(FieldID fieldID) const {
   CHECK_FATAL(fieldID <= static_cast<FieldID>(NumberOfFieldIDs()), "GetBitOffsetFromUnionBaseAddr: fieldID too large");
   if (fieldID == 0) {
     return 0;
@@ -1979,7 +1984,7 @@ int64 MIRStructType::GetBitOffsetFromUnionBaseAddr(FieldID fieldID) {
   return kOffsetUnknown;
 }
 
-int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
+int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) const {
   CHECK_FATAL(fieldID <= static_cast<FieldID>(NumberOfFieldIDs()), "GetBitOffsetFromUnionBaseAddr: fieldID too large");
   if (fieldID == 0) {
     return 0;
@@ -2096,7 +2101,7 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
   return kOffsetUnknown;
 }
 
-int64 MIRStructType::GetBitOffsetFromBaseAddr(FieldID fieldID) {
+int64 MIRStructType::GetBitOffsetFromBaseAddr(FieldID fieldID) const {
   CHECK_FATAL(fieldID <= static_cast<FieldID>(NumberOfFieldIDs()), "GetBitOffsetFromBaseAddr: fieldID too large");
   if (fieldID == 0) {
     return 0;
@@ -2223,7 +2228,7 @@ FieldPair MIRClassType::TraverseToFieldRef(FieldID &fieldID) const {
 }
 
 // fields in interface are all static and are global, won't be accessed through fields
-FieldPair MIRInterfaceType::TraverseToFieldRef(FieldID &fieldID) const {
+FieldPair MIRInterfaceType::TraverseToFieldRef(FieldID &fieldID [[maybe_unused]]) const {
   return { GStrIdx(0), TyIdxFieldAttrPair(TyIdx(0), FieldAttrs()) };
 }
 
@@ -2236,15 +2241,7 @@ bool MIRPtrType::IsPointedTypeVolatile(int fieldID) const {
 }
 
 bool MIRPtrType::IsUnsafeType() const {
-  if (GetTypeAttrs().GetAttr(ATTR_may_alias)) {
-    return true;
-  }
-  // Check for <* void>/<* i8/u8>
-  MIRType *pointedType = GetPointedType();
-  while (pointedType->IsMIRPtrType()) {
-    pointedType = static_cast<MIRPtrType*>(pointedType)->GetPointedType();
-  }
-  return (pointedType->GetPrimType() == PTY_void || pointedType->GetSize() == 1);
+  return GetTypeAttrs().GetAttr(ATTR_may_alias);
 }
 
 bool MIRPtrType::IsVoidPointer() const {
@@ -2314,7 +2311,7 @@ uint32 MIRStructType::NumberOfFieldIDs() const {
   return fieldsNum;
 }
 
-TypeAttrs FieldAttrs::ConvertToTypeAttrs() {
+TypeAttrs FieldAttrs::ConvertToTypeAttrs() const {
   TypeAttrs attr;
   constexpr uint32 maxAttrNum = 64;
   for (uint32 i = 0; i < maxAttrNum; ++i) {

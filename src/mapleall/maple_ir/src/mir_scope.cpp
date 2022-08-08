@@ -20,7 +20,52 @@ namespace maple {
 
 static unsigned scopeId = 1;
 
-MIRScope::MIRScope(MIRModule *mod,  MIRFunction *f) : module(mod), func(f), id(scopeId++) {}
+MIRScope::MIRScope(MIRModule *mod,  MIRFunction *f) : module(mod), func(f), id(scopeId++) {
+  alias = module->GetMemPool()->New<MIRAlias>(module);
+}
+
+void MIRAlias::Dump(int32 indent, bool isLocal) const {
+  LogInfo::MapleLogger() << '\n';
+  bool first = true;
+  for (auto it : aliasVarMap) {
+    if (first) {
+      first = false;
+    } else {
+      LogInfo::MapleLogger() << ",\n";
+    }
+    PrintIndentation(indent);
+    LogInfo::MapleLogger() << "ALIAS "
+                           << (isLocal ? "%" : "$")
+                           << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first)
+                           << ((it.second.isLocal) ? " %" : " $")
+                           << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.mplStrIdx) << " ";
+    switch (it.second.atk) {
+      case kATKType: {
+        TyIdx idx(it.second.index);
+        GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(idx))->Dump(0);
+        break;
+      }
+      case kATKString: {
+        GStrIdx idx(it.second.index);
+        LogInfo::MapleLogger() << "\"" << GlobalTables::GetStrTable().GetStringFromStrIdx(idx)
+                               << "\"";
+        break;
+      }
+      case kATKEnum: {
+        MIREnum *mirEnum = GlobalTables::GetEnumTable().enumTable[it.second.index];
+        CHECK_NULL_FATAL(mirEnum);
+        LogInfo::MapleLogger() << "$" << GlobalTables::GetStrTable().GetStringFromStrIdx(mirEnum->GetNameIdx());
+        break;
+      }
+      default :
+        break;
+    }
+    it.second.attrs.DumpAttributes();
+    if (it.second.sigStrIdx) {
+      LogInfo::MapleLogger() << " \"" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.sigStrIdx) << "\"";
+    }
+  }
+}
 
 // scp is a sub scope
 // (low (scp.low, scp.high] high]
@@ -107,6 +152,7 @@ bool MIRScope::AddScope(MIRScope *scope) {
 }
 
 void MIRScope::Dump(int32 indent, bool isLocal) const {
+  LogInfo::MapleLogger() << '\n';
   SrcPosition low = range.first;
   SrcPosition high = range.second;
   PrintIndentation(indent);
@@ -117,43 +163,13 @@ void MIRScope::Dump(int32 indent, bool isLocal) const {
     low.Column() << "), (" <<
     high.FileNum() << ", " <<
     high.LineNum() << ", " <<
-    high.Column() << ")> {\n";
+    high.Column() << ")> {";
 
-  for (auto it : aliasVarMap) {
-    PrintIndentation(indent + 1);
-    LogInfo::MapleLogger() << "ALIAS "
-                           << (isLocal ? " %" : " $")
-                           << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first)
-                           << ((it.second.isLocal) ? " %" : " $")
-                           << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.mplStrIdx) << " ";
-    switch (it.second.atk) {
-      case kATKType: {
-        TyIdx idx(it.second.index);
-        GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(idx))->Dump(0);
-        break;
-      }
-      case kATKString: {
-        GStrIdx idx(it.second.index);
-        LogInfo::MapleLogger() << "\"" << GlobalTables::GetStrTable().GetStringFromStrIdx(idx)
-                               << "\"";
-        break;
-      }
-      case kATKEnum: {
-        MIREnum *mirEnum = GlobalTables::GetEnumTable().enumTable[it.second.index];
-        CHECK_NULL_FATAL(mirEnum);
-        LogInfo::MapleLogger() << "$" << GlobalTables::GetStrTable().GetStringFromStrIdx(mirEnum->GetNameIdx());
-        break;
-      }
-      default :
-        break;
-    }
-    it.second.attrs.DumpAttributes();
-    if (it.second.sigStrIdx) {
-      LogInfo::MapleLogger() << " \"" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.sigStrIdx) << "\"";
-    }
-    LogInfo::MapleLogger() << '\n';
+  alias->Dump(indent + 1, isLocal);
+
+  if (subScopes.size() == 0) {
+    LogInfo::MapleLogger() << "\n";
   }
-
   for (auto it : subScopes) {
     if (!it->IsEmpty()) {
       it->Dump(indent + 1);
