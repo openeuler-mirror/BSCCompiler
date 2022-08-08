@@ -430,8 +430,7 @@ class AArch64CGFunc : public CGFunc {
     return GetOrCreatePhysicalRegisterOperand(reg, kSizeOfPtr * kBitsPerByte, kRegTyInt);
   }
 
-  RegOperand &GenStructParamIndex(RegOperand &base, const BaseNode &indexExpr, int shift, PrimType baseType,
-                                  PrimType targetType);
+  RegOperand &GenStructParamIndex(RegOperand &base, const BaseNode &indexExpr, int shift, PrimType baseType);
   void SelectAddrofAfterRa(Operand &result, StImmOperand &stImm, std::vector<Insn *>& rematInsns);
   MemOperand &GetOrCreateMemOpndAfterRa(const MIRSymbol &symbol, int32 offset, uint32 size,
       bool needLow12, RegOperand *regOp, std::vector<Insn *>& rematInsns);
@@ -658,7 +657,7 @@ class AArch64CGFunc : public CGFunc {
     splitStpldpBaseOffset = val;
   }
 
-  Insn &CreateCommentInsn(const std::string &comment) const {
+  Insn &CreateCommentInsn(const std::string &comment) const override {
     return cg->BuildInstruction<AArch64Insn>(MOP_comment, CreateCommentOperand(comment));
   }
 
