@@ -635,7 +635,7 @@ class CGOptions {
   }
 
   static bool DoCGSSA() {
-    return doCGSSA;
+    return doCGSSA && !flavorLmbc;
   }
 
   static void DisableIPARA() {
@@ -1243,6 +1243,10 @@ class CGOptions {
     return noCommon;
   }
 
+  static void EnableFlavorLmbc() {
+    flavorLmbc = true;
+  }
+
   static void SetAlignMinBBSize(uint32 minBBSize) {
     alignMinBBSize = minBBSize;
   }
@@ -1387,6 +1391,7 @@ class CGOptions {
   static std::string literalProfile;
   static bool fastMath;
   static bool noCommon;
+  static bool flavorLmbc;
   static uint32 alignMinBBSize;
   static uint32 alignMaxBBSize;
   static uint32 loopAlignPow;

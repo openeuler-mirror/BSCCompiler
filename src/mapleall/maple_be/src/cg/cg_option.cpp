@@ -120,6 +120,7 @@ bool CGOptions::doCondBrAlign = false;
 bool CGOptions::cgBigEndian = false;
 bool CGOptions::arm64ilp32 = false;
 bool CGOptions::noCommon = false;
+bool CGOptions::flavorLmbc = false;
 
 CGOptions &CGOptions::GetInstance() {
   static CGOptions instance;
@@ -240,11 +241,11 @@ bool CGOptions::SolveOptions(bool isDebug) {
     SetInsertCall(true);
   }
 
-  if (opts::cg::stackProtectorStrong.IsEnabledByUser()) {
+  if (opts::stackProtectorStrong.IsEnabledByUser()) {
     SetOption(kUseStackProtectorStrong);
   }
 
-  if (opts::cg::stackProtectorAll.IsEnabledByUser()) {
+  if (opts::stackProtectorAll.IsEnabledByUser()) {
     SetOption(kUseStackProtectorAll);
   }
 
@@ -698,6 +699,9 @@ void CGOptions::SetDefaultOptions(const maple::MIRModule &mod) {
   if (mod.IsJavaModule()) {
     generateFlag = generateFlag | kGenYieldPoint | kGenLocalRc | kGrootList | kPrimorList;
   }
+  if (mod.GetFlavor() == MIRFlavor::kFlavorLmbc) {
+    EnableFlavorLmbc();
+  }
   insertYieldPoint = GenYieldPoint();
 }
 
@@ -722,6 +726,7 @@ void CGOptions::EnableO0() {
   doWriteRefFieldOpt = false;
   doAlignAnalysis = false;
   doCondBrAlign = false;
+  SetOption(kUseUnwindTables);
 #if ILP32
   ClearOption(kUseStackProtectorStrong);
   ClearOption(kUseStackProtectorAll);
@@ -741,6 +746,7 @@ void CGOptions::EnableO1() {
   SetOption(kConstFold);
   SetOption(kProEpilogueOpt);
   SetOption(kTailCallOpt);
+  SetOption(kUseUnwindTables);
   ClearOption(kUseStackProtectorStrong);
   ClearOption(kUseStackProtectorAll);
 }
@@ -760,6 +766,7 @@ void CGOptions::EnableO2() {
   doAlignAnalysis = true;
   doCondBrAlign = true;
   SetOption(kConstFold);
+  SetOption(kUseUnwindTables);
   ClearOption(kUseStackProtectorStrong);
   ClearOption(kUseStackProtectorAll);
 #if TARGARM32

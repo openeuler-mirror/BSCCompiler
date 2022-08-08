@@ -521,6 +521,11 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsns(Insn &insn) {
     return false;
   }
   defInsnForSecondOpnd = defInsnVec.back();
+  /* don't prop sp to load/store */
+  if ((defInsnForSecondOpnd->IsLoad() || defInsnForSecondOpnd->IsStore() || defInsnForSecondOpnd->IsLoadStorePair()) &&
+      firstRegNO == RSP && cgFunc.IsAfterRegAlloc()) {
+    return false;
+  }
   /* part defined */
   if ((defInsnForSecondOpnd->GetMachineOpcode() == MOP_xmovkri16) ||
       (defInsnForSecondOpnd->GetMachineOpcode() == MOP_wmovkri16) ||
@@ -568,6 +573,11 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsnsGlobal(Insn &insn) {
     return false;
   }
   defInsnForSecondOpnd = *(defInsnVec.begin());
+  /* don't prop sp to load/store */
+  if ((defInsnForSecondOpnd->IsLoad() || defInsnForSecondOpnd->IsStore() || defInsnForSecondOpnd->IsLoadStorePair()) &&
+      firstRegNO == RSP && cgFunc.IsAfterRegAlloc()) {
+    return false;
+  }
 
   /* ensure that there is no fisrt RegNO def/use between insn and defInsnForSecondOpnd */
   std::vector<Insn*> defInsnVecFirst;

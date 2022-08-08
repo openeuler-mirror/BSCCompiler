@@ -17,19 +17,17 @@
  ADDTARGETPHASE("buildehfunc", true);
  ADDTARGETPHASE("handlefunction", true);
  ADDTARGETPHASE("moveargs", true);
- if (GetMIRModule()->GetFlavor() != MIRFlavor::kFlavorLmbc) {
-   /* SSA PHASES */
-   ADDTARGETPHASE("cgssaconstruct", CGOptions::DoCGSSA());
-   ADDTARGETPHASE("cgcopyprop", CGOptions::DoCGSSA());
-   ADDTARGETPHASE("cgpeephole", CGOptions::DoCGSSA());
-   ADDTARGETPHASE("cgvalidbitopt", CGOptions::DoCGSSA());
-   ADDTARGETPHASE("cgredundantcompelim", CGOptions::DoCGSSA());
-   ADDTARGETPHASE("cgtargetprop", CGOptions::DoCGSSA());
-   ADDTARGETPHASE("cgdeadcodeelimination", CGOptions::DoCGSSA());
-   ADDTARGETPHASE("cgsplitcriticaledge", CGOptions::DoCGSSA());
-   ADDTARGETPHASE("cgphielimination", CGOptions::DoCGSSA());
-   ADDTARGETPHASE("cgregcoalesce", CGOptions::DoCGSSA());
- }
+ /* SSA PHASES */
+ ADDTARGETPHASE("cgssaconstruct", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgcopyprop", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgpeephole", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgvalidbitopt", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgredundantcompelim", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgtargetprop", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgdeadcodeelimination", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgsplitcriticaledge", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgphielimination", CGOptions::DoCGSSA());
+ ADDTARGETPHASE("cgregcoalesce", CGOptions::DoCGSSA());
  /* Normal OPT PHASES */
  ADDTARGETPHASE("cgprepeephole", CGOptions::DoPrePeephole());
  ADDTARGETPHASE("ebo", CGOptions::DoEBO());

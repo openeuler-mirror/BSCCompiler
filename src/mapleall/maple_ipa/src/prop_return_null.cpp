@@ -12,13 +12,13 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "prop_return_null.h"
 #include "call_graph.h"
 #include "maple_phase.h"
 #include "maple_phase.h"
 #include "option.h"
 #include "string_utils.h"
 #include "mir_function.h"
-#include "prop_return_null.h"
 #include "me_dominance.h"
 
 namespace maple {
@@ -308,6 +308,8 @@ void PropReturnAttr::TraversalMeStmt(MeStmt &meStmt) {
       break;
     }
     case OP_icall:
+    case OP_icallproto:
+    case OP_icallprotoassigned:
     case OP_icallassigned: {
       auto *icallMeStmt = static_cast<IcallMeStmt*>(&meStmt);
       const MapleVector<MeExpr*> &opnds = icallMeStmt->GetOpnds();
@@ -403,7 +405,7 @@ void PropReturnAttr::TraversalBB(BB *bb) {
   }
   // traversal var phi nodes
   MapleMap<OStIdx, MePhiNode*> &mePhiList = bb->GetMePhiList();
-  for (auto it = mePhiList.begin(); it != mePhiList.end(); ++it) {
+  for (auto it = mePhiList.cbegin(); it != mePhiList.cend(); ++it) {
     MePhiNode *phiMeNode = it->second;
     if (phiMeNode == nullptr || phiMeNode->GetLHS()->GetMeOp() != kMeOpVar) {
       continue;

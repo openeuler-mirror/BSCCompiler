@@ -1184,8 +1184,15 @@ void A64OpndDumpVisitor::Visit(RegOperand *v) {
   regno_t reg = v->GetRegisterNumber();
   reg = v->IsVirtualRegister() ? reg : (reg - 1);
   uint32 vb = v->GetValidBitsNum();
-  LogInfo::MapleLogger() << (v->IsVirtualRegister() ? "vreg:" : " reg:") <<
-      prims[regType] << reg << " " << classes[regType];
+  LogInfo::MapleLogger() << (v->IsVirtualRegister() ? "vreg:" : " reg:") << prims[regType];
+  if (reg + 1 == RSP && v->IsPhysicalRegister()) {
+    LogInfo::MapleLogger() << "SP";
+  } else if (reg + 1 == RZR && v->IsPhysicalRegister()) {
+    LogInfo::MapleLogger() << "ZR";
+  } else {
+    LogInfo::MapleLogger() << reg ;
+  }
+  LogInfo::MapleLogger() << " " << classes[regType];
   if (v->GetValidBitsNum() != v->GetSize()) {
     LogInfo::MapleLogger() << " Vb: [" << vb << "]";
   }
