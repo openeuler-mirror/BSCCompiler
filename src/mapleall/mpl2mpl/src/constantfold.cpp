@@ -705,7 +705,7 @@ MIRIntConst *ConstantFold::FoldFPConstComparisonMIRConst(Opcode opcode, PrimType
   }
   MIRType &type = *GlobalTables::GetTypeTable().GetPrimType(resultType);
   MIRIntConst *resultConst =
-      GlobalTables::GetIntConstTable().GetOrCreateIntConst(result, type);
+      GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<uint64>(result), type);
   return resultConst;
 }
 

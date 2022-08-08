@@ -49,7 +49,7 @@ ScalarMeExpr* SSAEPre::ResolveAllInjuringDefs(ScalarMeExpr *regx) const {
   return answer;
 }
 
-bool SSAEPre::OpndInDefOcc(const MeExpr *opnd, MeOccur *defocc, uint32 i) {
+bool SSAEPre::OpndInDefOcc(const MeExpr *opnd, MeOccur *defocc, uint32 i) const {
   if (defocc->GetOccType() == kOccReal) {
     MeRealOcc *defrealocc = static_cast<MeRealOcc *>(defocc);
     MeExpr *defexpr = defrealocc->GetMeExpr();
@@ -111,7 +111,7 @@ static int64 GetIncreAmtAndRhsScalar(MeExpr *x, ScalarMeExpr *&rhsScalar) {
   return (opexpr->GetOp() == OP_sub) ? -amt : amt;
 }
 
-MeExpr* SSAEPre::InsertRepairStmt(MeExpr *temp, int64 increAmt, MeStmt *injuringDef) {
+MeExpr* SSAEPre::InsertRepairStmt(MeExpr *temp, int64 increAmt, MeStmt *injuringDef) const {
   MeExpr *rhs = nullptr;
   if (increAmt >= 0) {
     rhs = irMap->CreateMeExprBinary(OP_add, temp->GetPrimType(), *temp,

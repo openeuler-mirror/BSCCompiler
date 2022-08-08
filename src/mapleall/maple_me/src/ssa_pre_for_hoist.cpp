@@ -28,7 +28,7 @@ class HoistSummary {
   void Init(BB *curBB, MapleVector<HoistSummary> &summaries);
   void InitCand(int32 newCandId);
   bool AvailableAtCD(MeExpr *expr);
-  bool DefoccAllowHoist(MeOccur *defocc);
+  bool DefoccAllowHoist(MeOccur *defocc) const;
   bool SuccProcessed(uint32 whichSucc) const {
     return (succCount & (static_cast<uint32>(1) << whichSucc)) == 0;
   }
@@ -37,7 +37,7 @@ class HoistSummary {
     succCount &= ~(static_cast<uint32>(1) << whichSucc);
   }
 
-  bool FullyAnticipated() {
+  bool FullyAnticipated() const {
     return succCount == 0;
   }
 
@@ -139,7 +139,7 @@ bool HoistSummary::AvailableAtCD(MeExpr *expr) {
   }
 }
 
-bool HoistSummary::DefoccAllowHoist(MeOccur *defocc) {
+bool HoistSummary::DefoccAllowHoist(MeOccur *defocc) const {
   if (defocc == nullptr) {
     return true;
   }
@@ -179,7 +179,7 @@ class ExprHoist {
   void AddToHoistWorklist(HoistSummary *hs);
   MeOccur *GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defOcc);
   void HoistExpr(const MapleVector<MeOccur*> &allOccs, int32 candId);
-  int32 GetHoistedCount() {
+  int32 GetHoistedCount() const {
     return hoistedCount;
   }
 

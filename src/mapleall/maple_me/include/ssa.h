@@ -23,7 +23,6 @@ namespace maple {
 class BB;  // circular dependency exists, no other choice
 class MeCFG;  // circular dependency exists, no other choice
 class VersionSt;  // circular dependency exists, no other choice
-class OriginalStTable;  // circular dependency exists, no other choice
 class VersionStTable;  // circular dependency exists, no other choice
 class SSATab;  // circular dependency exists, no other choice
 class Dominance;  // circular dependency exists, no other choice
@@ -103,15 +102,15 @@ class SSA {
   void InsertPhiForDefBB(size_t bbid, VersionSt *vst);
   void InitRenameStack(const OriginalStTable &oTable, const VersionStTable &verStTab, MapleAllocator &alloc);
   VersionSt *CreateNewVersion(VersionSt &vSym, BB &defBB);
-  void ReplaceRenameStackTop(VersionSt &newTop);
+  void ReplaceRenameStackTop(VersionSt &newTop) const;
   void PushToRenameStack(VersionSt *vSym);
   void RenamePhi(BB &bb);
   void RenameDefs(StmtNode &stmt, BB &defBB);
   void RenameMustDefs(const StmtNode &stmt, BB &defBB);
   void RenameExpr(BaseNode &expr);
   void RenameUses(const StmtNode &stmt);
-  void RenamePhiUseInSucc(const BB &bb);
-  void RenameMayUses(const BaseNode &node);
+  void RenamePhiUseInSucc(const BB &bb) const;
+  void RenameMayUses(const BaseNode &node) const;
   void RenameBB(BB &bb);
 
   const MapleVector<MapleStack<VersionSt*>*> &GetVstStacks() const {

@@ -94,7 +94,7 @@ void SSA::InitRenameStack(const OriginalStTable &oTable, const VersionStTable &v
   }
 }
 
-void SSA::ReplaceRenameStackTop(VersionSt &newTop) {
+void SSA::ReplaceRenameStackTop(VersionSt &newTop) const {
   auto *vstStack = GetVstStacks()[newTop.GetOrigIdx()];
   ASSERT(!vstStack->empty(), "Cannot replace top element of an empty stack!");
   vstStack->pop();
@@ -200,7 +200,7 @@ void SSA::RenameMustDefs(const StmtNode &stmt, BB &defBB) {
   }
 }
 
-void SSA::RenameMayUses(const BaseNode &node) {
+void SSA::RenameMayUses(const BaseNode &node) const {
   TypeOfMayUseList &mayUseList = ssaTab->GetStmtsSSAPart().GetMayUseNodesOf(static_cast<const StmtNode&>(node));
   auto it = mayUseList.begin();
   for (; it != mayUseList.end(); ++it) {
@@ -234,7 +234,7 @@ void SSA::RenameUses(const StmtNode &stmt) {
   }
 }
 
-void SSA::RenamePhiUseInSucc(const BB &bb) {
+void SSA::RenamePhiUseInSucc(const BB &bb) const {
   for (BB *succBB : bb.GetSucc()) {
     // find index of bb in succ_bb->pred[]
     size_t index = 0;

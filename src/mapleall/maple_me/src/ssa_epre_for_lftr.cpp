@@ -20,7 +20,7 @@ namespace maple {
 // Find the SSA version of scalar at stmt by search backward for its def.
 // When reaching the beginning of BB, continue with parent BB in the dominator
 // tree.  It is assumed that scalarOst has no alias, so chi lists are skipped.
-ScalarMeExpr *SSAEPre::FindScalarVersion(ScalarMeExpr *scalar, MeStmt *stmt) {
+ScalarMeExpr *SSAEPre::FindScalarVersion(ScalarMeExpr *scalar, MeStmt *stmt) const {
   if (scalar->GetOst()->NumSSAVersions() == 1) {
     return scalar;
   }
@@ -49,8 +49,8 @@ ScalarMeExpr *SSAEPre::FindScalarVersion(ScalarMeExpr *scalar, MeStmt *stmt) {
     }
     // check if there is phi
     MapleMap<OStIdx, MePhiNode*> &mePhiList = bb->GetMePhiList();
-    MapleMap<OStIdx, MePhiNode*>::iterator it = mePhiList.find(scalar->GetOst()->GetIndex());
-    if (it != mePhiList.end()) {
+    MapleMap<OStIdx, MePhiNode*>::const_iterator it = mePhiList.find(scalar->GetOst()->GetIndex());
+    if (it != mePhiList.cend()) {
       return it->second->GetLHS();
     }
     // set bb to its parent in dominator tree
@@ -104,7 +104,7 @@ OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
   ASSERT(j == 0 || j == 1, "FormLFTRCompare: cannot correspond comp occ to workcand");
   // handle the ops corresponding to OpMeExpr::StrengthReducible()
   OpMeExpr newSide(-1, x->GetOp(), x->GetPrimType(), x->GetNumOpnds());
-  newSide.SetOpnd(i, compare->GetOpnd(1-j));
+  newSide.SetOpnd(i, compare->GetOpnd(1 - j));
   switch (x->GetOp()) {
     case OP_cvt: {
       newSide.SetOpndType(x->GetOpndType());
@@ -150,7 +150,7 @@ OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
   OpMeExpr newcompare(-1, compare->GetOp(), compare->GetPrimType(), 2);
   newcompare.SetOpndType(newCmpOpndType);
   newcompare.SetOpnd(j, regorvar);
-  newcompare.SetOpnd(1-j, hashedSide);
+  newcompare.SetOpnd(1 - j, hashedSide);
   return static_cast<OpMeExpr *>(irMap->HashMeExpr(newcompare));
 }
 
@@ -187,7 +187,7 @@ void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool
   }
   // search for worklist candidates set isSRCand such that one of its operands
   // is either compareLHS or compareRHS, and create MeRealOcc for each of them
-  for (PreWorkCand *wkCand : workList) {
+  for (PreWorkCand *wkCand : std::as_const(workList)) {
     if (!wkCand->isSRCand) {
       continue;
     }

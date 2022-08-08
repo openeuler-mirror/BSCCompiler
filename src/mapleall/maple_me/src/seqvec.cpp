@@ -227,8 +227,8 @@ MIRType* SeqVectorize::GenVecType(PrimType sPrimType, uint8 lanes) const {
   return vecType;
 }
 
-bool SeqVectorize::CanAdjustRhsType(PrimType targetType, ConstvalNode *rhs) {
-  MIRIntConst *intConst = static_cast<MIRIntConst*>(rhs->GetConstVal());
+bool SeqVectorize::CanAdjustRhsType(PrimType targetType, const ConstvalNode *rhs) const {
+  const MIRIntConst *intConst = static_cast<const MIRIntConst*>(rhs->GetConstVal());
   int64 v = intConst->GetExtValue();
   bool res = false;
   switch (targetType) {
@@ -268,7 +268,7 @@ bool SeqVectorize::CanAdjustRhsType(PrimType targetType, ConstvalNode *rhs) {
   return res;
 }
 
-void SeqVectorize::DumpCandidates(const MeExpr *base, const StoreList *storelist) {
+void SeqVectorize::DumpCandidates(const MeExpr *base, const StoreList *storelist) const {
   LogInfo::MapleLogger() << "Dump base node \t";
   base->Dump(meIRMap, 0);
   for (uint32_t i = 0; i < (*storelist).size(); i++) {
@@ -322,14 +322,14 @@ void SeqVectorize::CollectStores(IassignNode *iassign) {
   stores[base] = storelist;
 }
 
-bool SeqVectorize::SameIntConstValue(MeExpr *e1, MeExpr *e2) {
+bool SeqVectorize::SameIntConstValue(const MeExpr *e1, const MeExpr *e2) const {
   if (e1->GetOp() == maple::OP_constval && e2->GetOp() == maple::OP_constval &&
       IsPrimitiveInteger(e1->GetPrimType()) &&
       IsPrimitiveInteger(e2->GetPrimType())) {
-    MIRConst *const1 =  (static_cast<ConstMeExpr *>(e1))->GetConstVal();
-    MIRIntConst *intc1 =  static_cast<MIRIntConst *>(const1);
-    MIRConst *const2 =  (static_cast<ConstMeExpr *>(e2))->GetConstVal();
-    MIRIntConst *intc2 =  static_cast<MIRIntConst *>(const2);
+    const MIRConst *const1 =  (static_cast<const ConstMeExpr *>(e1))->GetConstVal();
+    const MIRIntConst *intc1 =  static_cast<const MIRIntConst *>(const1);
+    const MIRConst *const2 =  (static_cast<const ConstMeExpr *>(e2))->GetConstVal();
+    const MIRIntConst *intc2 =  static_cast<const MIRIntConst *>(const2);
     return (intc1->GetExtValue() == intc2->GetExtValue());
   }
   return false;
@@ -372,7 +372,7 @@ bool SeqVectorize::CanSeqVecRhs(MeExpr *rhs1, MeExpr *rhs2) {
   return false;
 }
 
-bool SeqVectorize::IsOpExprConsecutiveMem(MeExpr *off1, MeExpr *off2, int32_t diff) {
+bool SeqVectorize::IsOpExprConsecutiveMem(MeExpr *off1, MeExpr *off2, int32_t diff) const {
   if (off1->GetOp() == off2->GetOp() &&
       off1->GetOp() == OP_add) {
     if (off1->GetOpnd(0) == off2->GetOpnd(0) &&

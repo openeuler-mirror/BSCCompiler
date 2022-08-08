@@ -15,7 +15,7 @@
 #include "ssa_epre.h"
 
 namespace maple {
-MeExpr *SSAEPre::GetTruncExpr(const IvarMeExpr &theLHS, MeExpr &savedRHS) {
+MeExpr *SSAEPre::GetTruncExpr(const IvarMeExpr &theLHS, MeExpr &savedRHS) const {
   MIRType *lhsType = theLHS.GetType();
   if (lhsType->GetKind() != kTypeBitField) {
     return &savedRHS;
