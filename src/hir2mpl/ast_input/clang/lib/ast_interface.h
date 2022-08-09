@@ -63,7 +63,7 @@ class LibAstFile {
                                                            bool isSourceType = false);
   void CollectBaseEltTypeFromArrayDecl(const clang::QualType &currQualType, MIRType *&elemType, TypeAttrs &elemAttr,
                                        bool isSourceType = false);
-  void GetCVRAttrs(uint32_t qualifiers, GenericAttrs &genAttrs) const;
+  void GetCVRAttrs(uint32_t qualifiers, GenericAttrs &genAttrs, bool isConst = true) const;
   void GetSClassAttrs(const clang::StorageClass storageClass, GenericAttrs &genAttrs) const;
   void GetStorageAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs) const;
   void GetAccessAttrs(AccessKind access, GenericAttrs &genAttrs) const;

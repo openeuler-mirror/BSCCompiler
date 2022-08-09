@@ -182,8 +182,8 @@ uint32 LibAstFile::RetrieveAggTypeAlign(const clang::Type *ty) const {
   return 0;
 }
 
-void LibAstFile::GetCVRAttrs(uint32_t qualifiers, GenericAttrs &genAttrs) const {
-  if ((qualifiers & clang::Qualifiers::Const) != 0) {
+void LibAstFile::GetCVRAttrs(uint32_t qualifiers, GenericAttrs &genAttrs, bool isConst) const {
+  if (isConst && (qualifiers & clang::Qualifiers::Const) != 0) {
     genAttrs.SetAttr(GENATTR_const);
   }
   if ((qualifiers & clang::Qualifiers::Restrict) != 0) {
@@ -280,7 +280,7 @@ void LibAstFile::GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAtt
 
 void LibAstFile::GetQualAttrs(const clang::QualType &qualType, GenericAttrs &genAttrs) const {
   uint32_t qualifiers = qualType.getCVRQualifiers();
-  GetCVRAttrs(qualifiers, genAttrs);
+  GetCVRAttrs(qualifiers, genAttrs, false);
 }
 
 void LibAstFile::CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {
