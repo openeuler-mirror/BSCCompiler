@@ -2701,7 +2701,7 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
   aliasVar.sigStrIdx = signStrIdx;
   tk = lexer.GetTokenKind();
   if (tk == TK_coma) {
-    tk = lexer.NextToken();
+    (void)lexer.NextToken();
   }
   return true;
 }
@@ -2851,6 +2851,10 @@ bool MIRParser::ParseMIR(uint32 fileIdx, uint32 option, bool isIPA, bool isComb)
       MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(it->second);
       CHECK_FATAL(type != nullptr, "type is null");
       if (type->GetKind() == kTypeByName) {
+        TyIdx tyIdx = GlobalTables::GetTypedefTable().GetTyIdxFromMap(it->first);
+        if (tyIdx.GetIdx() != 0) {
+          continue;
+        }
         std::string strStream;
         const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(it->first);
         strStream += "type $";
