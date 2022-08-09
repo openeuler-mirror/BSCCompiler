@@ -453,7 +453,7 @@
 {"localtime", {FI::kUnknown, RI::kNoAlias, {PI::kReadMemoryOnly}}},
 {"localtime_r", {FI::kUnknown, RI::kAliasParam1, {PI::kReadMemoryOnly, PI::kWriteMemoryOnly}}},
 {"localtime_s", {FI::kUnknown, RI::kAliasParam1, {PI::kReadMemoryOnly, PI::kWriteMemoryOnly}}},
-{"mktime", {FI::kUnknown, RI::kNoAlias, {PI::kReadMemoryOnly}}},
+{"mktime", {FI::kUnknown, RI::kNoAlias, {PI::kUnknown}}},
 
 //stdalign.h
 {"offsetof", {FI::kPure, RI::kNoAlias, {PI::kReadMemoryOnly, PI::kReadSelfOnly}}},

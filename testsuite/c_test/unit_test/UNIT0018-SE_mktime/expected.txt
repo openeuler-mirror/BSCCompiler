@@ -1,0 +1,2 @@
+mktime set tm_wday is Thursday
+mktime set tm_wday is Thursday

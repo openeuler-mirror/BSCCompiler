@@ -71,8 +71,8 @@ bool IpaSccPM::PhaseRun(MIRModule &m) {
         LogInfo::MapleLogger() << "---Run scc " << (curPhase->IsAnalysis() ? "analysis" : "transform")
                                << " Phase [ " << curPhase->PhaseName() << " ]---\n";
       }
-      changed |= RunAnalysisPhase<MapleSccPhase<SCCNode<CGNode>>, SCCNode<CGNode>>(
-          *curPhase, *serialADM, **it);
+      changed = RunAnalysisPhase<MapleSccPhase<SCCNode<CGNode>>, SCCNode<CGNode>>(
+          *curPhase, *serialADM, **it) || changed;
     }
     serialADM->EraseAllAnalysisPhase();
   }
@@ -108,7 +108,7 @@ void IpaSccPM::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 void SCCPrepare::Dump(const MeFunction &f, const std::string phaseName) const {
-  if (Options::dumpIPA && (f.GetName() == Options::dumpFunc || f.GetName() == "*")) {
+  if (Options::dumpIPA && (Options::dumpFunc == f.GetName() || Options::dumpFunc == "*")) {
     LogInfo::MapleLogger() << ">>>>> Dump after " << phaseName << " <<<<<\n";
     f.Dump(false);
     LogInfo::MapleLogger() << ">>>>> Dump after End <<<<<\n\n";
