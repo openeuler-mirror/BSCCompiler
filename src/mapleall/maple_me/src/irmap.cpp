@@ -361,6 +361,41 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
   return nullptr;
 }
 
+MeExpr *IRMap::GetSimplifiedVarForIvarWithAddrofBase(OriginalSt &ost, IvarMeExpr &ivar) {
+  auto ostIdx = ost.GetIndex();
+
+  auto mu = ivar.GetUniqueMu();
+  if (mu == nullptr) {
+    return nullptr;
+  }
+  if (mu->GetOstIdx() == ostIdx) {
+    return static_cast<VarMeExpr*>(mu);
+  }
+
+  MeStmt *meStmt = mu->GetDefByMeStmt();
+  if (meStmt != nullptr) {
+    auto lhs = meStmt->GetVarLHS();
+    if (lhs != nullptr && lhs->GetOstIdx() == ostIdx) {
+      return static_cast<VarMeExpr *>(lhs);
+    }
+    auto *chiList = meStmt->GetChiList();
+    if (chiList->find(ostIdx) != chiList->end()) {
+      return static_cast<VarMeExpr *>(chiList->at(ostIdx)->GetLHS());
+    }
+  } else if (mu->GetDefBy() == kDefByPhi) {
+    auto *defBBOfPhi = mu->GetDefPhi().GetDefBB();
+    if (defBBOfPhi == nullptr) {
+      return nullptr;
+    }
+    const auto &phiList = defBBOfPhi->GetMePhiList();
+    auto it = phiList.find(ostIdx);
+    return (it != phiList.end()) ? it->second->GetLHS() : nullptr;
+  } else if (mu->GetDefBy() == kDefByNo) {
+    return GetOrCreateZeroVersionVarMeExpr(ost);
+  }
+  return nullptr;
+}
+
 MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
   if (ivar->HasMultipleMu() || ivar->IsVolatile()) {
     return nullptr;
@@ -384,8 +419,16 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
   if (ivar->GetFieldID() > 1) {
     offset += ptrTypeOfIvar->GetPointedType()->GetBitOffsetFromBaseAddr(ivar->GetFieldID());
   }
-
   if (ptrTypeOfIvar->GetPointedTyIdx() != ost->GetTyIdx()) {
+    // Special case: anytype ** <--> anytype **
+    // requirements: pointer to pointers
+    // XXXX (iread a64 <* <* type>> (addrof a64 %a))
+    // simplify to ===>
+    // XXXX (dread a64 %a)
+    bool areBothPtrToPtr = ptrTypeOfIvar->GetPointedType()->IsMIRPtrType() && ost->GetType()->IsMIRPtrType();
+    if (areBothPtrToPtr && ivar->GetOffset() == 0) {
+      return GetSimplifiedVarForIvarWithAddrofBase(*ost, *ivar);
+    }
     //  dassign u64 %b 0 (dread u64 %x)
     //  dassign u32 %c 0 (iread u32 <* u8> 0 (addrof ptr %b, constval u64 1))
     //  simplify to ===>
@@ -433,38 +476,7 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
   if (fieldOst == nullptr) {
     return nullptr;
   }
-  auto ostIdx = fieldOst->GetIndex();
-
-  auto mu = ivar->GetUniqueMu();
-  if (mu == nullptr) {
-    return nullptr;
-  }
-  if (mu->GetOstIdx() == ostIdx) {
-    return static_cast<VarMeExpr*>(mu);
-  }
-
-  MeStmt *meStmt = mu->GetDefByMeStmt();
-  if (meStmt != nullptr) {
-    auto lhs = meStmt->GetVarLHS();
-    if (lhs != nullptr && lhs->GetOstIdx() == ostIdx) {
-      return static_cast<VarMeExpr *>(lhs);
-    }
-    auto *chiList = meStmt->GetChiList();
-    if (chiList->find(ostIdx) != chiList->end()) {
-      return static_cast<VarMeExpr *>(chiList->at(ostIdx)->GetLHS());
-    }
-  } else if (mu->GetDefBy() == kDefByPhi) {
-    auto *defBBOfPhi = mu->GetDefPhi().GetDefBB();
-    if (defBBOfPhi == nullptr) {
-      return nullptr;
-    }
-    const auto &phiList = defBBOfPhi->GetMePhiList();
-    auto it = phiList.find(ostIdx);
-    return (it != phiList.end()) ? it->second->GetLHS() : nullptr;
-  } else if (mu->GetDefBy() == kDefByNo) {
-    return GetOrCreateZeroVersionVarMeExpr(*fieldOst);
-  }
-  return nullptr;
+  return GetSimplifiedVarForIvarWithAddrofBase(*fieldOst, *ivar);
 }
 
 MeExpr *IRMap::SimplifyIvarWithIaddrofBase(IvarMeExpr *ivar, bool lhsIvar) {
@@ -1379,16 +1391,36 @@ MeExpr *IRMap::SimplifyBandExpr(const OpMeExpr *bandExpr) {
 MeExpr *IRMap::SimplifySubExpr(const OpMeExpr *subExpr) {
   MeExpr *opnd0 = subExpr->GetOpnd(0);
   MeExpr *opnd1 = subExpr->GetOpnd(1);
+  auto subExprPrimType = subExpr->GetPrimType();
 
   // a - (a & b) == a & (~b)
   if (opnd1->GetOp() == OP_band) {
     if (opnd1->GetOpnd(0) == opnd0) {
       auto *bnot = CreateMeExprUnary(OP_bnot, opnd1->GetOpnd(1)->GetPrimType(), *opnd1->GetOpnd(1));
-      return CreateMeExprBinary(OP_band, subExpr->GetPrimType(), *opnd0, *bnot);
+      return CreateMeExprBinary(OP_band, subExprPrimType, *opnd0, *bnot);
     }
     if (opnd1->GetOpnd(1) == opnd0) {
       auto *bnot = CreateMeExprUnary(OP_bnot, opnd1->GetOpnd(0)->GetPrimType(), *opnd1->GetOpnd(0));
-      return CreateMeExprBinary(OP_band, subExpr->GetPrimType(), *opnd0, *bnot);
+      return CreateMeExprBinary(OP_band, subExprPrimType, *opnd0, *bnot);
+    }
+  }
+
+  // addrof a64 %a c0 - addrof a64 %a c1 == offset between field_c0 and field_c1
+  if (opnd0->GetOp() == OP_addrof && opnd1->GetOp() == OP_addrof) {
+    auto ost0 = ssaTab.GetOriginalStFromID(static_cast<AddrofMeExpr*>(opnd0)->GetOstIdx());
+    auto prevLevelOfOst0 = ost0->GetPrevLevelOst();
+    auto ost1 = ssaTab.GetOriginalStFromID(static_cast<AddrofMeExpr*>(opnd1)->GetOstIdx());
+    auto prevLevelOfOst1 = ost1->GetPrevLevelOst();
+    bool isPrevLevelOfOstSame = prevLevelOfOst0 != nullptr && prevLevelOfOst1 == prevLevelOfOst0;
+    bool isOffsetValid = !ost0->GetOffset().IsInvalid() && !ost1->GetOffset().IsInvalid();
+    constexpr int kBitNumInOneByte = 8;
+    bool isByteAligned = ((ost0->GetOffset().val % kBitNumInOneByte) == 0) &&
+                         ((ost1->GetOffset().val % kBitNumInOneByte) == 0);
+    if (isPrevLevelOfOstSame && isOffsetValid && isByteAligned) {
+      auto distance = (ost0->GetOffset().val - ost1->GetOffset().val) / kBitNumInOneByte;
+      auto newConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+          static_cast<uint64>(distance), *GlobalTables::GetTypeTable().GetTypeTable()[subExprPrimType]);
+      return CreateConstMeExpr(subExprPrimType, *newConst);
     }
   }
 
@@ -1721,7 +1753,7 @@ MeExpr *IRMap::SimplifyMulExpr(const OpMeExpr *mulExpr) {
 }
 
 bool IRMap::IfMeExprIsU1Type(const MeExpr *expr) const {
-  if (expr == nullptr) {
+  if (expr == nullptr || expr->IsVolatile()) {
     return false;
   }
   // return type of compare expr may be set as its opnd's type, but it is actually u1
