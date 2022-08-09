@@ -589,7 +589,7 @@ class AArch64CGFunc : public CGFunc {
   MemOperand *CreateMemOperand(MemOperand::AArch64AddressingMode mode, uint32 dSize, const MIRSymbol &sym) const;
 
   /* if offset < 0, allocation; otherwise, deallocation */
-  MemOperand &CreateCallFrameOperand(int32 offset, uint32 size);
+  MemOperand &CreateCallFrameOperand(int32 offset, uint32 size) const;
 
   void AppendCall(const MIRSymbol &funcSymbol);
   Insn &AppendCall(const MIRSymbol &sym, ListOperand &srcOpnds, bool isCleanCall = false);

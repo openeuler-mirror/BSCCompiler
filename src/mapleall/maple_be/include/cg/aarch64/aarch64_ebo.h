@@ -51,7 +51,8 @@ class AArch64Ebo : public Ebo {
   void DefineReturnUseRegister(Insn &insn) override;
   void DefineCallUseSpecialRegister(Insn &insn) override;
   void DefineClinitSpecialRegisters(InsnInfo &insnInfo) override;
-  bool CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*> &origInfos, ExtOpTable idx, bool is64bits);
+  bool CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*> &origInfos,
+                               ExtOpTable idx, bool is64bits) const;
   bool SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origInfos) override;
   bool IsMovToSIMDVmov(Insn &insn, const Insn &replaceInsn) const override;
   bool IsPseudoRet(Insn &insn) const override;

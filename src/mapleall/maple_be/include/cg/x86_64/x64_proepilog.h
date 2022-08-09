@@ -26,7 +26,6 @@ class X64GenProEpilog : public GenProEpilog {
   explicit X64GenProEpilog(CGFunc &func) : GenProEpilog(func) {}
   ~X64GenProEpilog() override = default;
 
-  bool TailCallOpt() override;
   bool NeedProEpilog() override;
   void Run() override;
  private:

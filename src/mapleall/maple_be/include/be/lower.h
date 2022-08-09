@@ -43,17 +43,19 @@ class CGLowerer {
   using BuiltinFunctionID = uint32;
   using OptionFlag = uint64;
  public:
-  CGLowerer(MIRModule &mod, BECommon &common, MIRFunction *func = nullptr)
+  CGLowerer(MIRModule &mod, BECommon &common, MemPool &memPool, MIRFunction *func = nullptr)
       : mirModule(mod),
-        beCommon(common) {
+        beCommon(common),
+        simplifyOp(memPool) {
     SetOptions(kGenEh);
     mirBuilder = mod.GetMIRBuilder();
     SetCurrentFunc(func);
   }
 
-  CGLowerer(MIRModule &mod, BECommon &common, bool genEh, bool verboseCG)
+  CGLowerer(MIRModule &mod, BECommon &common, MemPool &memPool, bool genEh, bool verboseCG)
       : mirModule(mod),
-        beCommon(common) {
+        beCommon(common),
+        simplifyOp(memPool) {
     OptionFlag option = 0;
     if (genEh) {
       option |= kGenEh;
@@ -173,7 +175,7 @@ class CGLowerer {
 
   BaseNode *LowerRem(BaseNode &expr, BlockNode &blk);
 
-  BaseNode *LowerExtractBits(ExtractbitsNode &extr);
+  BaseNode *LowerExtractBits(ExtractbitsNode &extr) const;
 
   void LowerStmt(StmtNode &stmt, BlockNode &newBlk);
 
@@ -247,7 +249,7 @@ class CGLowerer {
   BlockNode *currentBlock = nullptr;  /* current block for lowered statements to be inserted to */
   bool checkLoadStore = false;
   int64 seed = 0;
-  SimplifyMemOp simplifyMemOp;
+  SimplifyOp simplifyOp;
   static const std::string kIntrnRetValPrefix;
   static const std::string kUserRetValPrefix;
 
@@ -275,12 +277,12 @@ class CGLowerer {
 
   void SetCurrentFunc(MIRFunction *func) {
     mirModule.SetCurFunction(func);
-    simplifyMemOp.SetFunction(func);
+    simplifyOp.SetFunction(func);
     if (func != nullptr) {
       const std::string &dumpFunc = CGOptions::GetDumpFunc();
       const bool debug = CGOptions::GetDumpPhases().find("cglower") != CGOptions::GetDumpPhases().end() &&
           (dumpFunc == "*" || dumpFunc == func->GetName());
-      simplifyMemOp.SetDebug(debug);
+      simplifyOp.SetDebug(debug);
     }
   }
 

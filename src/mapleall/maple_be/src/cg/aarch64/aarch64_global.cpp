@@ -533,7 +533,8 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsns(Insn &insn) {
       (defInsnForSecondOpnd->GetMachineOpcode() == MOP_asm)) {
     return false;
   }
-  if (defInsnForSecondOpnd->IsPseudoInstruction() || defInsnForSecondOpnd->IsCall()) {
+  if (defInsnForSecondOpnd->IsPseudoInstruction() || defInsnForSecondOpnd->IsCall() ||
+      defInsnForSecondOpnd->IsTailCall()) {
     return false;
   }
   /* unconcerned regs. */
@@ -558,7 +559,7 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsns(Insn &insn) {
   }
   if (cgFunc.IsAfterRegAlloc()) {
     for (auto *usePoint : srcOpndUseInsnSet) {
-      if (usePoint->IsCall()) {
+      if (usePoint->IsCall() || usePoint->IsTailCall()) {
         return false;
       }
     }
@@ -1183,10 +1184,10 @@ bool LocalVarSaveInsnPattern::CheckAndGetUseInsn(Insn &firstInsn) {
   for (auto tmpUseInsn : useInsnSet) {
     if (tmpUseInsn->GetId() != secondInsn->GetId()) {
       useInsn = tmpUseInsn;
-      break;
+      return true;
     }
   }
-  return true;
+  return false;
 }
 
 bool LocalVarSaveInsnPattern::CheckLiveRange(const Insn &firstInsn) {

@@ -35,7 +35,7 @@ void AArch64RedundantComputeElim::Run() {
   }
 }
 
-bool AArch64RedundantComputeElim::CheckFakeOptmization(const Insn &existInsn) {
+bool AArch64RedundantComputeElim::CheckFakeOptmization(const Insn &existInsn) const {
   /* insns such as {movrr & zxt/sxt & ...} are optimized by prop */
   MOperator mop = existInsn.GetMachineOpcode();
   if (mop == MOP_wmovrr || mop == MOP_xmovrr || (mop >= MOP_xsxtb32 && mop <= MOP_xuxtw64)) {
@@ -146,7 +146,7 @@ void AArch64RedundantComputeElim::CheckCondition(const Insn &existInsn, const In
   }
 }
 
-std::size_t AArch64RedundantComputeElim::ComputeDefUseHash(const Insn &insn, RegOperand *replaceOpnd) const {
+std::size_t AArch64RedundantComputeElim::ComputeDefUseHash(const Insn &insn, const RegOperand *replaceOpnd) const {
   std::size_t hashSeed = 0;
   std::string hashS = std::to_string(insn.GetMachineOpcode());
   uint32 opndNum = insn.GetOperandSize();
@@ -250,7 +250,7 @@ void AArch64RedundantComputeElim::CheckBothDefAndUseChain(RegOperand *curDstOpnd
   }
 }
 
-bool AArch64RedundantComputeElim::IsBothDefUseCase(VRegVersion &version) {
+bool AArch64RedundantComputeElim::IsBothDefUseCase(VRegVersion &version) const {
   for (auto infoIt : version.GetAllUseInsns()) {
     ASSERT(infoIt.second != nullptr, "get duInsnInfo failed");
     Insn *useInsn = infoIt.second->GetInsn();
@@ -339,7 +339,8 @@ MOperator AArch64RedundantComputeElim::GetNewMop(const RegOperand &curDstOpnd, c
   return newMop;
 }
 
-void AArch64RedundantComputeElim::Optimize(BB &curBB, Insn &curInsn, RegOperand &curDstOpnd, RegOperand &existDstOpnd) {
+void AArch64RedundantComputeElim::Optimize(BB &curBB, Insn &curInsn,
+                                           RegOperand &curDstOpnd, RegOperand &existDstOpnd) const {
   /*
    * 1) useInsns of existVersion that have both def & use need replace ssaVersion first.
    * 2) other cases can be replaced by mov.

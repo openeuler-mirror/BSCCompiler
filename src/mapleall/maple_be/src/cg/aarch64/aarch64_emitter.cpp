@@ -510,6 +510,9 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     if (bb->IsUnreachable()) {
       continue;
     }
+    if (bb == aarchCGFunc.GetFirstBB() && bb->IsEmpty()) {
+      continue;
+    }
     if (currCG->GenerateVerboseCG()) {
       (void)emitter.Emit("#    freq:").Emit(bb->GetFrequency()).Emit("\n");
     }

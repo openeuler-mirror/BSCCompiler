@@ -519,7 +519,7 @@ void VregRename::VregLongLiveRename() {
   }
 }
 
-bool ParamRegOpt::DominatorAll(uint32 domBB, std::set<uint32> &refBBs) {
+bool ParamRegOpt::DominatorAll(uint32 domBB, std::set<uint32> &refBBs) const {
   for (auto it: refBBs) {
     if (!domInfo->Dominate(*cgFunc->GetBBFromID(domBB), *cgFunc->GetBBFromID(it))) {
       return false;
@@ -560,7 +560,7 @@ BB* ParamRegOpt::GetCommondDom(std::set<uint32> &refBBs) {
   return curBB;
 }
 
-void ParamRegOpt::SplitAtDomBB(RegOperand &movDest, BB &domBB, Insn &posInsn) {
+void ParamRegOpt::SplitAtDomBB(RegOperand &movDest, BB &domBB, Insn &posInsn) const {
   if (dumpInfo) {
     LogInfo::MapleLogger() << "----cand R" << movDest.GetRegisterNumber() <<
         " to split at BB" << domBB.GetId() << " \n";

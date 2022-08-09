@@ -445,8 +445,7 @@ BaseNode *CGLowerer::LowerFarray(ArrayNode &array) {
     rMul = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(eConst);
     rMul->SetPrimType(array.GetPrimType());
   } else {
-    MIRIntConst *eConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        eSize, arrayType);
+    MIRIntConst *eConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(eSize, arrayType);
     BaseNode *eSizeNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(eConst);
     eSizeNode->SetPrimType(array.GetPrimType());
     rMul = mirModule.CurFuncCodeMemPool()->New<BinaryNode>(OP_mul);
@@ -1055,7 +1054,7 @@ DassignNode *CGLowerer::SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID) {
   return mirModule.GetMIRBuilder()->CreateStmtDassign(*var, fieldID, regRead);
 }
 
-BaseNode *CGLowerer::LowerExtractBits(ExtractbitsNode &extr) {
+BaseNode *CGLowerer::LowerExtractBits(ExtractbitsNode &extr) const {
   PrimType nodeType = extr.GetPrimType();
   PrimType opndType = extr.Opnd(0)->GetPrimType();
   if (!IsPrimitiveInteger(nodeType) || !IsPrimitiveInteger(opndType) ||
@@ -1143,8 +1142,8 @@ StmtNode *CGLowerer::GenCallNode(const StmtNode &stmt, PUIdx &funcCalled, CallNo
   } else if (stmt.GetOpCode() == OP_interfacecallassigned) {
     newCall = mirModule.GetMIRBuilder()->CreateStmtInterfaceCall(origCall.GetPUIdx(), origCall.GetNopnd());
   }
-  newCall->SetSrcPos(stmt.GetSrcPos());
   CHECK_FATAL(newCall != nullptr, "nullptr is not expected");
+  newCall->SetSrcPos(stmt.GetSrcPos());
   funcCalled = origCall.GetPUIdx();
   CHECK_FATAL((newCall->GetOpCode() == OP_call || newCall->GetOpCode() == OP_interfacecall),
               "virtual call or super class call are not expected");
@@ -1286,7 +1285,7 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
 
 // try to expand memset and memcpy
 BlockNode *CGLowerer::LowerMemop(StmtNode &stmt) {
-  auto memOpKind = SimplifyMemOp::ComputeMemOpKind(stmt);
+  auto memOpKind = SimplifyOp::ComputeOpKind(stmt);
   if (memOpKind == MEM_OP_unknown) {
     return nullptr;
   }
@@ -1295,7 +1294,7 @@ BlockNode *CGLowerer::LowerMemop(StmtNode &stmt) {
   auto *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   blk->AddStatement(&stmt);
   uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
-  bool success = simplifyMemOp.AutoSimplify(stmt, *blk, true);
+  bool success = simplifyOp.AutoSimplify(stmt, *blk, true);
   uint32 newTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   if (newTypeTableSize != oldTypeTableSize) {
     beCommon.AddNewTypeAfterBecommon(oldTypeTableSize, newTypeTableSize);

@@ -131,14 +131,14 @@ class AArch64RedundantComputeElim : public RedundantComputeElim {
   };
 
   bool DoOpt(BB *bb);
-  bool IsBothDefUseCase(VRegVersion &version);
-  bool CheckFakeOptmization(const Insn &existInsn);
+  bool IsBothDefUseCase(VRegVersion &version) const;
+  bool CheckFakeOptmization(const Insn &existInsn) const;
   void CheckCondition(const Insn &existInsn, const Insn &curInsn);
   void CheckBothDefAndUseChain(RegOperand *curDstOpnd, RegOperand *existDstOpnd);
-  std::size_t ComputeDefUseHash(const Insn &insn, RegOperand *replaceOpnd) const;
+  std::size_t ComputeDefUseHash(const Insn &insn, const RegOperand *replaceOpnd) const;
   DUInsnInfo *GetDefUseInsnInfo(VRegVersion &defVersion);
   MOperator GetNewMop(const RegOperand &curDstOpnd, const RegOperand &existDstOpnd) const;
-  void Optimize(BB &curBB, Insn &curInsn, RegOperand &curDstOpnd, RegOperand &existDstOpnd);
+  void Optimize(BB &curBB, Insn &curInsn, RegOperand &curDstOpnd, RegOperand &existDstOpnd) const;
   MapleUnorderedSet<InsnPtr, InsnRHSHash, InsnRHSEqual> candidates;
   bool doOpt = true;
   bool isBothDefUse = false;

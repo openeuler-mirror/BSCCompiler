@@ -2640,6 +2640,7 @@ void GraphColorRegAllocator::HandleLocalReg(Operand &op, LocalRegAllocator &loca
 }
 
 void GraphColorRegAllocator::LocalRaRegSetEraseReg(LocalRegAllocator &localRa, regno_t regNO) const {
+  CHECK_FATAL(regNO != kRinvalid, "regNO should not be kRinvalid");
   bool isInt = AArch64isa::IsGPRegister(static_cast<AArch64reg>(regNO));
   if (localRa.IsPregAvailable(regNO, isInt)) {
     localRa.ClearPregs(regNO, isInt);

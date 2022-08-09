@@ -158,7 +158,7 @@ class ImmOperand : public maplebe::OperandVisitable<ImmOperand> {
 
 class SymbolOperand : public maplebe::OperandVisitable<SymbolOperand> {
  public:
-  SymbolOperand(maple::MIRSymbol &mirSymbol, uint8 size)
+  SymbolOperand(const maple::MIRSymbol &mirSymbol, uint8 size)
       : OperandVisitable(kOpdStImmediate, size),
         symbol(&mirSymbol) {}
   ~SymbolOperand() = default;
@@ -179,7 +179,7 @@ class SymbolOperand : public maplebe::OperandVisitable<SymbolOperand> {
   void Dump() const override {}
 
  private:
-  maple::MIRSymbol *symbol;
+  const maple::MIRSymbol *symbol;
 };
 
 class StrOperand : public maplebe::OperandVisitable<StrOperand> {

@@ -47,6 +47,7 @@
  ADDTARGETPHASE("raopt", CGOptions::DoPreLSRAOpt());
  ADDTARGETPHASE("cgsplitcriticaledge", GetMIRModule()->IsCModule());
  ADDTARGETPHASE("regalloc", true);
+ ADDTARGETPHASE("tailcallopt", GetMIRModule()->IsCModule());
  ADDTARGETPHASE("regsaves", GetMIRModule()->IsCModule() && CGOptions::DoRegSavesOpt());
  if (GetMIRModule()->GetFlavor() != MIRFlavor::kFlavorLmbc) {
    ADDTARGETPHASE("storeloadopt", GetMIRModule()->IsCModule() && CGOptions::DoStoreLoadOpt());

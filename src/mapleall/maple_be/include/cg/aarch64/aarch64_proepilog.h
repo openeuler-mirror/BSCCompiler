@@ -29,19 +29,17 @@ class AArch64GenProEpilog : public GenProEpilog {
  public:
   AArch64GenProEpilog(CGFunc &func, MemPool &memPool)
       : GenProEpilog(func),
-        tmpAlloc(&memPool),
-        exitBB2CallSitesMap(tmpAlloc.Adapter()) {
-          useFP = func.UseFP();
-          if (func.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
-            stackBaseReg = RFP;
-          } else {
-            stackBaseReg = useFP ? R29 : RSP;
-          }
-          exitBB2CallSitesMap.clear();
-        }
+        tmpAlloc(&memPool) {
+    useFP = func.UseFP();
+    if (func.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
+      stackBaseReg = RFP;
+    } else {
+      stackBaseReg = useFP ? R29 : RSP;
+    }
+  }
+
   ~AArch64GenProEpilog() override = default;
 
-  bool TailCallOpt() override;
   bool NeedProEpilog() override;
   static MemOperand *SplitStpLdpOffsetForCalleeSavedWithAddInstruction(
       CGFunc &cgFunc, const MemOperand &mo, uint32 bitLen, AArch64reg baseRegNum = AArch64reg::kRinvalid);
@@ -53,15 +51,12 @@ class AArch64GenProEpilog : public GenProEpilog {
  private:
   void GenStackGuard(BB &bb);
   BB &GenStackGuardCheckInsn(BB &bb);
-  bool HasLoop();
-  bool OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &exitBB) const;
-  void TailCallBBOpt(BB &bb, MapleSet<Insn*> &callInsns, BB &exitBB);
   bool InsertOpndRegs(Operand &op, std::set<regno_t> &vecRegs) const;
   bool InsertInsnRegs(Insn &insn, bool insertSource, std::set<regno_t> &vecSourceRegs,
                       bool insertTarget, std::set<regno_t> &vecTargetRegs) const;
   bool FindRegs(Operand &op, std::set<regno_t> &vecRegs) const;
   bool BackwardFindDependency(BB &ifbb, std::set<regno_t> &vecReturnSourceRegs, std::list<Insn*> &existingInsns,
-                              std::list<Insn*> &moveInsns);
+                              std::list<Insn*> &moveInsns) const;
   BB *IsolateFastPath(BB &bb);
   void AppendInstructionAllocateCallFrame(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void AppendInstructionAllocateCallFrameDebug(AArch64reg reg0, AArch64reg reg1, RegType rty);
@@ -78,20 +73,12 @@ class AArch64GenProEpilog : public GenProEpilog {
   void AppendJump(const MIRSymbol &funcSymbol);
   void GenerateEpilog(BB &bb);
   void GenerateEpilogForCleanup(BB &bb);
-  void ConvertToTailCalls(MapleSet<Insn*> &callInsnsMap);
+  void AppendBBtoEpilog(BB &epilogBB, BB &newBB);
+
   Insn &CreateAndAppendInstructionForAllocateCallFrame(int64 argsToStkPassSize, AArch64reg reg0, AArch64reg reg1,
                                                        RegType rty);
   Insn &AppendInstructionForAllocateOrDeallocateCallFrame(int64 argsToStkPassSize, AArch64reg reg0, AArch64reg reg1,
                                                           RegType rty, bool isAllocate);
-  MapleMap<BB*, MapleSet<Insn*>> &GetExitBB2CallSitesMap() {
-    return exitBB2CallSitesMap;
-  }
-  void SetCurTailcallExitBB(BB *bb) {
-    curTailcallExitBB = bb;
-  }
-  BB *GetCurTailcallExitBB() {
-    return curTailcallExitBB;
-  }
   void SetFastPathReturnBB(BB *bb) {
     bb->SetFastPathReturn(true);
     fastPathReturnBB = bb;
@@ -102,8 +89,7 @@ class AArch64GenProEpilog : public GenProEpilog {
   MapleAllocator tmpAlloc;
   static constexpr const int32 kOffset8MemPos = 8;
   static constexpr const int32 kOffset16MemPos = 16;
-  MapleMap<BB*, MapleSet<Insn*>> exitBB2CallSitesMap;
-  BB *curTailcallExitBB = nullptr;
+
   BB *fastPathReturnBB = nullptr;
   bool useFP = true;
   /* frame pointer(x29) is available as a general-purpose register if useFP is set as false */

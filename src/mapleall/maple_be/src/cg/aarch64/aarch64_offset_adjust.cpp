@@ -21,7 +21,7 @@ void AArch64FPLROffsetAdjustment::Run() {
   AdjustmentOffsetForFPLR();
 }
 
-void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGFunc &aarchCGFunc) {
+void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGFunc &aarchCGFunc) const {
   bool isLmbc = (aarchCGFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc);
   uint32 opndNum = insn.GetOperandSize();
   MemLayout *memLayout = aarchCGFunc.GetMemlayout();

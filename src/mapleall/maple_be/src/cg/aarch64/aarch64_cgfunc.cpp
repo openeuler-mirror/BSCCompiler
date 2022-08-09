@@ -1887,8 +1887,8 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
           lhsIsLo12 ? MemOperand::kAddrModeLo12Li : MemOperand::kAddrModeBOi;
       MIRSymbol *sym = lhsIsLo12 ? lhsSymbol : nullptr;
       OfstOperand &lhsOfstOpnd = GetOrCreateOfstOpnd(lhsSizeCovered + static_cast<uint64>(lhsOffsetVal), k32BitSize);
-      MemOperand *lhsMemOpnd;
-      lhsMemOpnd = &GetOrCreateMemOpnd(addrMode, newAlignUsed * k8BitSize, lhsBaseReg, nullptr, &lhsOfstOpnd, sym);
+      MemOperand *lhsMemOpnd =
+          &GetOrCreateMemOpnd(addrMode, newAlignUsed * k8BitSize, lhsBaseReg, nullptr, &lhsOfstOpnd, sym);
       lhsMemOpnd = FixLargeMemOpnd(*lhsMemOpnd, newAlignUsed);
       mOp = PickStInsn(newAlignUsed * k8BitSize, PTY_u32);
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *lhsMemOpnd));
@@ -6635,7 +6635,7 @@ void AArch64CGFunc::LmbcGenSaveSpForAlloca() {
 }
 
 /* if offset < 0, allocation; otherwise, deallocation */
-MemOperand &AArch64CGFunc::CreateCallFrameOperand(int32 offset, uint32 size) {
+MemOperand &AArch64CGFunc::CreateCallFrameOperand(int32 offset, uint32 size) const {
   MemOperand *memOpnd = CreateStackMemOpnd(RSP, offset, size);
   memOpnd->SetIndexOpt((offset < 0) ? MemOperand::kPreIndex : MemOperand::kPostIndex);
   return *memOpnd;

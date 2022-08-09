@@ -524,7 +524,7 @@ bool LdrCmpPattern::SetInsns() {
   return true;
 }
 
-bool LdrCmpPattern::CheckInsns() {
+bool LdrCmpPattern::CheckInsns() const {
   auto &label1 = static_cast<LabelOperand&>(bne1->GetOperand(kInsnSecondOpnd));
   auto &label2 = static_cast<LabelOperand&>(bne2->GetOperand(kInsnSecondOpnd));
   if (label1.GetLabelIndex() != label2.GetLabelIndex()) {

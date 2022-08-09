@@ -107,8 +107,8 @@ class ParamRegOpt {
   void CollectRefBBs(RegOperand &movDest, std::set<uint32> &refBBs);
   void TryToSplitParamReg(RegOperand &movDest, Insn &posInsn);
   BB* GetCommondDom(std::set<uint32> &refBBs);
-  bool DominatorAll(uint32 domBB, std::set<uint32> &refBBs);
-  void SplitAtDomBB(RegOperand &movDest, BB &domBB, Insn &posInsn);
+  bool DominatorAll(uint32 domBB, std::set<uint32> &refBBs) const;
+  void SplitAtDomBB(RegOperand &movDest, BB &domBB, Insn &posInsn) const;
   void SetDumpInfo(bool val) {
     dumpInfo = val;
   }

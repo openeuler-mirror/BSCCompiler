@@ -21,6 +21,7 @@
 #include "x64_isa.h"
 #include "x64_MPISel.h"
 #include "x64_standardize.h"
+#include "x64_args.h"
 
 namespace maplebe {
 constexpr int32 kIntRegTypeNum = 5;
@@ -31,14 +32,15 @@ class X64CG : public CG {
 
   static const InsnDescription kMd[x64::kMopLast];
   void EnrollTargetPhases(MaplePhaseManager *pm) const override;
-  const InsnDescription *GetTargetInsnDecription(MOperator opCode) const override;
   /* Init SubTarget phase */
-  /*LiveAnalysis *CreateLiveAnalysis(MemPool &mp, CGFunc &f) const override;
-  MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const override;
-  AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const override;*/
+  MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const override {
+    return mp.New<X64MoveRegArgs>(f);
+  }
+
   MPISel *CreateMPIsel(MemPool &mp, CGFunc &f) const override {
     return mp.New<X64MPIsel>(mp, f);
   }
+
   Standardize *CreateStandardize(MemPool &mp, CGFunc &f) const override {
     return mp.New<X64Standardize>(f);
   }

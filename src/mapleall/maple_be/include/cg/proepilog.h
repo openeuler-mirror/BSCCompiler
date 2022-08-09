@@ -31,10 +31,6 @@ class GenProEpilog {
     return "generateproepilog";
   }
 
-  virtual bool TailCallOpt() {
-    return false;
-  }
-
   virtual bool NeedProEpilog() {
     return true;
   }

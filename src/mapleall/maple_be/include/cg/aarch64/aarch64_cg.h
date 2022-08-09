@@ -27,6 +27,7 @@
 #include "aarch64_validbit_opt.h"
 #include "aarch64_reg_coalesce.h"
 #include "aarch64_rce.h"
+#include "aarch64_tailcall.h"
 
 namespace maplebe {
 constexpr int64 kShortBRDistance = (8 * 1024);
@@ -186,6 +187,9 @@ class AArch64CG : public CG {
   }
   RedundantComputeElim *CreateRedundantCompElim(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
     return mp.New<AArch64RedundantComputeElim>(f, ssaInfo, mp);
+  }
+  TailCallOpt *CreateCGTailCallOpt(MemPool &mp, CGFunc &f) const override {
+    return mp.New<AArch64TailCallOpt>(mp, f);
   }
 
   static const AArch64MD kMd[kMopLast];

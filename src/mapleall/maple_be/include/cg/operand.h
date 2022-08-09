@@ -1846,7 +1846,7 @@ class OpndDumpVisitor : public OperandVisitorBase,
                                                CGLabelOperand> {
  public:
   explicit OpndDumpVisitor(const OpndDescription &operandDesc) : opndDesc(&operandDesc) {}
-  virtual ~OpndDumpVisitor() override {
+  ~OpndDumpVisitor() override {
     opndDesc = nullptr;
   }
 

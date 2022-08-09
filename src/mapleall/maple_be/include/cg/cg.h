@@ -46,6 +46,7 @@ class Standardize;
 class LiveIntervalAnalysis;
 class ValidBitOpt;
 class RedundantComputeElim;
+class TailCallOpt;
 
 class Globals {
  public:
@@ -410,6 +411,7 @@ class CG {
   virtual CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
   virtual ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
   virtual RedundantComputeElim *CreateRedundantCompElim(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
+  virtual TailCallOpt *CreateCGTailCallOpt(MemPool &mp, CGFunc &f) const = 0;
 
   /* Object map generation helper */
   std::vector<int64> GetReferenceOffsets64(const BECommon &beCommon, MIRStructType &structType) const;

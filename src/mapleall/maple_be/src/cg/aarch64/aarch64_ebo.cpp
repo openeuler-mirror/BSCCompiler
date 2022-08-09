@@ -836,7 +836,7 @@ bool AArch64Ebo::ValidPatternForCombineExtAndLoad(OpndInfo *prevOpndInfo, Insn *
 }
 
 bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*> &origInfos,
-                                         ExtOpTable idx, bool is64bits) {
+                                         ExtOpTable idx, bool is64bits) const {
   if (!beforeRegAlloc) {
     return false;
   }
@@ -1096,7 +1096,7 @@ bool AArch64Ebo::CombineExtAnd(Insn &insn, const OpndInfo &opndInfo, bool isFp, 
       return false;
     }
     int64 prevImmVal = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd)).GetValue();
-    if (prevImmVal > immVal) {
+    if (static_cast<uint64>(prevImmVal) > static_cast<uint64>(immVal)) {
       return false;
     }
     Operand &opnd1 = prevInsn->GetOperand(kInsnSecondOpnd);

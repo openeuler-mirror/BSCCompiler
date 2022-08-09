@@ -247,7 +247,7 @@ RegOperand *AArch64ICOIfThenElsePattern::GenerateRegAndTempInsn(Operand &dest, c
 }
 
 void AArch64ICOIfThenElsePattern::GenerateInsnForReg(const Insn &branchInsn, Operand &ifDest, Operand &elseDest,
-                                                     RegOperand &destReg, std::vector<Insn*> &generateInsn) {
+                                                     RegOperand &destReg, std::vector<Insn*> &generateInsn) const {
   RegOperand *tReg = static_cast<RegOperand*>(&ifDest);
   RegOperand *eReg = static_cast<RegOperand*>(&elseDest);
 

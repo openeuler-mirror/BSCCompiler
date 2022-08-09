@@ -280,21 +280,21 @@ class LdrCmpPattern : public CGPeepPattern {
   }
 
  private:
-  bool IsLdr(Insn *insn) {
+  bool IsLdr(const Insn *insn) const {
     if (insn == nullptr) {
       return false;
     }
     return insn->GetMachineOpcode() == MOP_wldr;
   }
 
-  bool IsCmp(Insn *insn) {
+  bool IsCmp(const Insn *insn) const {
     if (insn == nullptr) {
       return false;
     }
     return insn->GetMachineOpcode() == MOP_wcmprr;
   }
 
-  bool IsBne(Insn *insn) {
+  bool IsBne(const Insn *insn) const {
     if (insn == nullptr) {
       return false;
     }
@@ -302,7 +302,7 @@ class LdrCmpPattern : public CGPeepPattern {
   }
 
   bool SetInsns();
-  bool CheckInsns();
+  bool CheckInsns() const;
   bool MemOffet4Bit(const MemOperand &m1, const MemOperand &m2) const;
   Insn *prevLdr1 = nullptr;
   Insn *prevLdr2 = nullptr;

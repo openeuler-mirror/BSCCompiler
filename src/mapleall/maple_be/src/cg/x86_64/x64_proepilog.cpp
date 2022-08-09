@@ -20,14 +20,6 @@
 
 namespace maplebe {
 using namespace maple;
-/*
- *  If a function without callee-saved register, and end with a function call,
- *  then transfer bl/blr to b/br.
- *  Return value: true if function do not need Prologue/Epilogue. false otherwise.
- */
-bool X64GenProEpilog::TailCallOpt() {
-  return false;
-}
 
 bool X64GenProEpilog::NeedProEpilog() {
   return true;
@@ -55,13 +47,15 @@ void X64GenProEpilog::GenerateProlog(BB &bb) {
   cgFunc.GetCurBB()->AppendInsn(copyInsn);
 
   /* sub $framesize, %rsp */
-  MOperator mSubirOp = x64::MOP_subq_i_r;
-  Insn &subInsn = cgFunc.GetInsnBuilder()->BuildInsn(mSubirOp, X64CG::kMd[mSubirOp]);
-  auto *memLayout = static_cast<X64MemLayout*>(cgFunc.GetMemlayout());
-  int64 frameSize = memLayout->StackFrameSize();
-  CGImmOperand &opndImm = cgFunc.GetOpndBuilder()->CreateImm(k32BitSize, frameSize);
-  subInsn.AddOperandChain(opndImm).AddOperandChain(opndSpReg);
-  cgFunc.GetCurBB()->AppendInsn(subInsn);
+  if (cgFunc.GetFunction().HasCall()) {
+    MOperator mSubirOp = x64::MOP_subq_i_r;
+    Insn &subInsn = cgFunc.GetInsnBuilder()->BuildInsn(mSubirOp, X64CG::kMd[mSubirOp]);
+    auto *memLayout = static_cast<X64MemLayout*>(cgFunc.GetMemlayout());
+    int64 frameSize = memLayout->StackFrameSize();
+    CGImmOperand &opndImm = cgFunc.GetOpndBuilder()->CreateImm(k32BitSize, frameSize);
+    subInsn.AddOperandChain(opndImm).AddOperandChain(opndSpReg);
+    cgFunc.GetCurBB()->AppendInsn(subInsn);
+  }
 
   bb.InsertAtBeginning(*x64CGFunc.GetDummyBB());
   x64CGFunc.GetDummyBB()->SetIsProEpilog(false);
@@ -75,15 +69,16 @@ void X64GenProEpilog::GenerateEpilog(BB &bb) {
   cgFunc.SetCurBB(*x64CGFunc.GetDummyBB());
 
   /* add $framesize, %rsp */
-  MOperator mAddirOp = x64::MOP_addq_i_r;
-  Insn &addInsn = cgFunc.GetInsnBuilder()->BuildInsn(mAddirOp, X64CG::kMd[x64::MOP_addq_i_r]);
-  CGRegOperand &opndSpReg = cgFunc.GetOpndBuilder()->CreatePReg(x64::RSP, k64BitSize, kRegTyInt);
-  auto *memLayout = static_cast<X64MemLayout*>(cgFunc.GetMemlayout());
-  int64 frameSize = memLayout->StackFrameSize();
-  CGImmOperand &opndImm = cgFunc.GetOpndBuilder()->CreateImm(k32BitSize, frameSize);
-  addInsn.AddOperandChain(opndImm).AddOperandChain(opndSpReg);
-  cgFunc.GetCurBB()->AppendInsn(addInsn);
-
+  if (cgFunc.GetFunction().HasCall()) {
+    MOperator mAddirOp = x64::MOP_addq_i_r;
+    Insn &addInsn = cgFunc.GetInsnBuilder()->BuildInsn(mAddirOp, X64CG::kMd[x64::MOP_addq_i_r]);
+    CGRegOperand &opndSpReg = cgFunc.GetOpndBuilder()->CreatePReg(x64::RSP, k64BitSize, kRegTyInt);
+    auto *memLayout = static_cast<X64MemLayout*>(cgFunc.GetMemlayout());
+    int64 frameSize = memLayout->StackFrameSize();
+    CGImmOperand &opndImm = cgFunc.GetOpndBuilder()->CreateImm(k32BitSize, frameSize);
+    addInsn.AddOperandChain(opndImm).AddOperandChain(opndSpReg);
+    cgFunc.GetCurBB()->AppendInsn(addInsn);
+  }
   /* pop %rbp */
   MOperator mPoprOp = x64::MOP_popq_r;
   Insn &popInsn = cgFunc.GetInsnBuilder()->BuildInsn(mPoprOp, X64CG::kMd[x64::MOP_popq_r]);

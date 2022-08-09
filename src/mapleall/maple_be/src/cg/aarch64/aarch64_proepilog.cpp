@@ -20,13 +20,7 @@ namespace maplebe {
 using namespace maple;
 
 namespace {
-const std::set<std::string> kFrameWhiteListFunc {
-#include "framewhitelist.def"
-};
 
-bool IsFuncNeedFrame(const std::string &funcName) {
-  return kFrameWhiteListFunc.find(funcName) != kFrameWhiteListFunc.end();
-}
 constexpr int32 kSoeChckOffset = 8192;
 
 enum RegsPushPop : uint8 {
@@ -69,223 +63,6 @@ inline void AppendInstructionTo(Insn &insn, CGFunc &func) {
 }
 }
 
-bool AArch64GenProEpilog::HasLoop() {
-  FOR_ALL_BB(bb, &cgFunc) {
-    if (bb->IsBackEdgeDest()) {
-      return true;
-    }
-    FOR_BB_INSNS_REV(insn, bb) {
-      if (!insn->IsMachineInstruction()) {
-        continue;
-      }
-      if (insn->HasLoop()) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-/*
- *  Remove redundant mov and mark optimizable bl/blr insn in the BB.
- *  Return value: true to call this modified block again.
- */
-bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &exitBB) const {
-  if (bb.NumInsn() == 1 &&
-      (bb.GetLastInsn()->GetMachineOpcode() != MOP_xbr &&
-       bb.GetLastInsn()->GetMachineOpcode() != MOP_xblr &&
-       bb.GetLastInsn()->GetMachineOpcode() != MOP_xbl &&
-       bb.GetLastInsn()->GetMachineOpcode() != MOP_xuncond)) {
-    return false;
-  }
-  FOR_BB_INSNS_REV_SAFE(insn, &bb, prevInsn) {
-    if (!insn->IsMachineInstruction() || insn->IsPseudoInstruction()) {
-      continue;
-    }
-    MOperator insnMop = insn->GetMachineOpcode();
-    switch (insnMop) {
-      case MOP_xldr:
-      case MOP_xldp:
-      case MOP_dldr:
-      case MOP_dldp: {
-        if (bb.GetKind() == BB::kBBReturn) {
-          RegOperand &reg = static_cast<RegOperand&>(insn->GetOperand(0));
-          if (AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(reg.GetRegisterNumber()))) {
-            break;  /* inserted restore from calleeregs-placement, ignore */
-          }
-        }
-        return false;
-      }
-      case MOP_wmovrr:
-      case MOP_xmovrr: {
-        CHECK_FATAL(insn->GetOperand(0).IsRegister(), "operand0 is not register");
-        CHECK_FATAL(insn->GetOperand(1).IsRegister(), "operand1 is not register");
-        auto &reg1 = static_cast<RegOperand&>(insn->GetOperand(0));
-        auto &reg2 = static_cast<RegOperand&>(insn->GetOperand(1));
-
-        if (reg1.GetRegisterNumber() != R0 || reg2.GetRegisterNumber() != R0) {
-          return false;
-        }
-
-        bb.RemoveInsn(*insn);
-        break;
-      }
-      case MOP_xblr: {
-        if (insn->GetOperand(0).IsRegister()) {
-          RegOperand &reg = static_cast<RegOperand&>(insn->GetOperand(0));
-          if (AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(reg.GetRegisterNumber()))) {
-            return false;  /* can't tailcall, register will be overwritten by restore */
-          }
-        }
-        /* flow through */
-      }
-      [[clang::fallthrough]];
-      case MOP_xbl: {
-        callInsns.insert(insn);
-        return false;
-      }
-      case MOP_xuncond: {
-        LabelOperand &bLab = static_cast<LabelOperand&>(insn->GetOperand(0));
-        if (exitBB.GetLabIdx() == bLab.GetLabelIndex()) {
-          break;
-        }
-        return false;
-      }
-      default:
-        return false;
-    }
-  }
-
-  return true;
-}
-
-/* Recursively invoke this function for all predecessors of exitBB */
-void AArch64GenProEpilog::TailCallBBOpt(BB &bb, MapleSet<Insn*> &callInsns, BB &exitBB) {
-  /* callsite also in the return block as in "if () return; else foo();"
-     call in the exit block */
-  if (!bb.IsEmpty() && !OptimizeTailBB(bb, callInsns, exitBB)) {
-    return;
-  }
-
-  for (auto tmpBB : bb.GetPreds()) {
-    if (tmpBB->GetSuccs().size() != 1 || !tmpBB->GetEhSuccs().empty() ||
-        (tmpBB->GetKind() != BB::kBBFallthru && tmpBB->GetKind() != BB::kBBGoto)) {
-      continue;
-    }
-
-    if (OptimizeTailBB(*tmpBB, callInsns, exitBB)) {
-      TailCallBBOpt(*tmpBB, callInsns, exitBB);
-    }
-  }
-}
-
-/*
- *  If a function without callee-saved register, and end with a function call,
- *  then transfer bl/blr to b/br.
- *  Return value: true if function do not need Prologue/Epilogue. false otherwise.
- */
-bool AArch64GenProEpilog::TailCallOpt() {
-  /* Count how many call insns in the whole function. */
-  uint32 nCount = 0;
-  bool hasGetStackClass = false;
-
-  FOR_ALL_BB(bb, &cgFunc) {
-    FOR_BB_INSNS(insn, bb) {
-      if (insn->IsCall()) {
-        if (insn->GetMachineOpcode() == MOP_xbl) {
-          auto &target = static_cast<FuncNameOperand&>(insn->GetOperand(0));
-          if (IsFuncNeedFrame(target.GetName())) {
-            hasGetStackClass = true;
-          }
-        }
-        ++nCount;
-      }
-    }
-  }
-  if ((nCount > 0 && cgFunc.GetFunction().GetAttr(FUNCATTR_interface)) || hasGetStackClass) {
-    return false;
-  }
-
-  if (nCount == 0) {
-    // no bl instr in any bb
-    return true;
-  }
-
-  size_t exitBBSize = cgFunc.GetExitBBsVec().size();
-  /* For now to reduce complexity */
-
-  BB *exitBB = nullptr;
-  if (exitBBSize == 0) {
-    if (cgFunc.GetLastBB()->GetPrev()->GetFirstStmt() == cgFunc.GetCleanupLabel() &&
-        cgFunc.GetLastBB()->GetPrev()->GetPrev() != nullptr) {
-      exitBB = cgFunc.GetLastBB()->GetPrev()->GetPrev();
-    } else {
-      exitBB = cgFunc.GetLastBB()->GetPrev();
-    }
-  } else {
-    exitBB = cgFunc.GetExitBBsVec().front();
-  }
-  uint32 i = 1;
-  size_t optCount = 0;
-  do {
-    MapleSet<Insn*> callInsns(tmpAlloc.Adapter());
-    TailCallBBOpt(*exitBB, callInsns, *exitBB);
-    if (callInsns.size() != 0) {
-      optCount += callInsns.size();
-      (void)exitBB2CallSitesMap.emplace(exitBB, callInsns);
-    }
-    if (i < exitBBSize) {
-      exitBB = cgFunc.GetExitBBsVec()[i];
-      ++i;
-    } else {
-      break;
-    }
-  } while (true);
-
-  /* regular calls exist in function */
-  if (nCount != optCount) {
-    return false;
-  }
-  return true;
-}
-
-static bool IsAddOrSubOp(MOperator mOp) {
-  switch (mOp) {
-    case MOP_xaddrrr:
-    case MOP_xaddrrrs:
-    case MOP_xxwaddrrre:
-    case MOP_xaddrri24:
-    case MOP_xaddrri12:
-    case MOP_xsubrrr:
-    case MOP_xsubrrrs:
-    case MOP_xxwsubrrre:
-    case MOP_xsubrri12:
-      return true;
-    default:
-      return false;
-  }
-}
-
-/* tailcallopt cannot be used if stack address of this function is taken and passed,
-   not checking the passing for now, just taken */
-static bool IsStackAddrTaken(CGFunc &cgFunc) {
-  FOR_ALL_BB(bb, &cgFunc) {
-    FOR_BB_INSNS_REV(insn, bb) {
-      if (IsAddOrSubOp(insn->GetMachineOpcode())) {
-        for (uint32 i = 0; i < insn->GetOperandSize(); i++) {
-          if (insn->GetOperand(i).IsRegister()) {
-            RegOperand &reg = static_cast<RegOperand&>(insn->GetOperand(i));
-            if (reg.GetRegisterNumber() == R29 || reg.GetRegisterNumber() == R31 || reg.GetRegisterNumber() == RSP) {
-              return true;
-            }
-          }
-        }
-      }
-    }
-  }
-  return false;
-}
-
 bool AArch64GenProEpilog::NeedProEpilog() {
   if (cgFunc.GetMirModule().GetSrcLang() != kSrcLangC) {
     return true;
@@ -293,14 +70,11 @@ bool AArch64GenProEpilog::NeedProEpilog() {
     return true;
   }
   bool funcHasCalls = false;
-  if (cgFunc.GetCG()->DoTailCall() && !IsStackAddrTaken(cgFunc) && !stackProtect) {
-    funcHasCalls = !TailCallOpt(); // return value == "no call instr/only or 1 tailcall"
-  } else {
-    FOR_ALL_BB(bb, &cgFunc) {
-      FOR_BB_INSNS_REV(insn, bb) {
-        if (insn->IsCall()) {
-          funcHasCalls = true;
-        }
+  /* note that tailcall insn is not a call */
+  FOR_ALL_BB(bb, &cgFunc) {
+    FOR_BB_INSNS_REV(insn, bb) {
+      if (insn->IsCall()) {
+        funcHasCalls = true;
       }
     }
   }
@@ -544,7 +318,7 @@ bool AArch64GenProEpilog::FindRegs(Operand &op, std::set<regno_t> &vecRegs) cons
 
 bool AArch64GenProEpilog::BackwardFindDependency(BB &ifbb, std::set<regno_t> &vecReturnSourceRegs,
                                                  std::list<Insn*> &existingInsns,
-                                                 std::list<Insn*> &moveInsns) {
+                                                 std::list<Insn*> &moveInsns) const {
   /*
    * Pattern match,(*) instruction are moved down below branch.
    *   ********************
@@ -1525,7 +1299,7 @@ void AArch64GenProEpilog::GenerateRet(BB &bb) {
 }
 
 /*
- * If all the preds of exitBB made the TailcallOpt(replace blr/bl with br/b), return true, we don't create ret insn.
+ * If exitBB made the TailcallOpt(replace blr/bl with br/b), return true, we don't create ret insn.
  * Otherwise, return false, create the ret insn.
  */
 bool AArch64GenProEpilog::TestPredsOfRetBB(const BB &exitBB) {
@@ -1535,24 +1309,12 @@ bool AArch64GenProEpilog::TestPredsOfRetBB(const BB &exitBB) {
        ml->GetSizeOfLocals() > 0 || cgFunc.HasVLAOrAlloca())) {
     return false;
   }
-  for (auto tmpBB : exitBB.GetPreds()) {
-    Insn *firstInsn = tmpBB->GetFirstInsn();
-    if ((firstInsn == nullptr || tmpBB->IsCommentBB()) && (!tmpBB->GetPreds().empty())) {
-      if (!TestPredsOfRetBB(*tmpBB)) {
-        return false;
-      }
-    } else {
-      Insn *lastInsn = tmpBB->GetLastInsn();
-      if (lastInsn == nullptr) {
-        return false;
-      }
-      MOperator insnMop = lastInsn->GetMachineOpcode();
-      if (insnMop != MOP_tail_call_opt_xbl && insnMop != MOP_tail_call_opt_xblr) {
-        return false;
-      }
-    }
+  const Insn *lastInsn = exitBB.GetLastInsn();
+  while (lastInsn != nullptr && (!lastInsn->IsMachineInstruction() || lastInsn->IsPseudoInstruction())) {
+    lastInsn = lastInsn->GetPrev();
   }
-  return true;
+  bool isTailCall = lastInsn == nullptr ? false : lastInsn->IsTailCall();
+  return isTailCall;
 }
 
 void AArch64GenProEpilog::AppendInstructionPopSingle(CGFunc &cgFunc, AArch64reg reg, RegType rty, int32 offset) {
@@ -1693,8 +1455,7 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg r
       lmbcOffset = argsToStkPassSize - (kDivide2 * k8ByteSizeInt);
     }
     if (stackFrameSize > kStpLdpImm64UpperBound || isLmbc) {
-      Operand *o2;
-      o2 = aarchCGFunc.CreateStackMemOpnd(RSP, (isLmbc ? lmbcOffset : 0), kSizeOfPtr * kBitsPerByte);
+      Operand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, (isLmbc ? lmbcOffset : 0), kSizeOfPtr * kBitsPerByte);
       Insn &deallocInsn = currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, *o2);
       cgFunc.GetCurBB()->AppendInsn(deallocInsn);
       if (cgFunc.GenCfi()) {
@@ -1847,9 +1608,37 @@ void AArch64GenProEpilog::AppendJump(const MIRSymbol &funcSymbol) {
   cgFunc.GetCurBB()->AppendInsn(currCG->BuildInstruction<AArch64Insn>(MOP_xuncond, targetOpnd));
 }
 
+void AArch64GenProEpilog::AppendBBtoEpilog(BB &epilogBB, BB &newBB) {
+  if (epilogBB.GetPreds().empty() && cgFunc.GetMirModule().IsCModule() && cgFunc.GetCG()->DoTailCall()) {
+    epilogBB.SetNeedRestoreCfi(false);
+    Insn &junk = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(MOP_pseudo_none);
+    epilogBB.AppendInsn(junk);
+    return;
+  }
+  FOR_BB_INSNS(insn, &newBB) {
+    insn->SetDoNotRemove(true);
+  }
+  Insn *lastInsn = epilogBB.GetLastInsn();
+  while (lastInsn != nullptr && (!lastInsn->IsMachineInstruction() || lastInsn->IsPseudoInstruction())) {
+    lastInsn = lastInsn->GetPrev();
+  }
+  bool isTailCall = lastInsn == nullptr ? false : lastInsn->IsTailCall();
+  if (isTailCall) {
+    Insn *retInsn = newBB.GetLastInsn();
+    if (retInsn != nullptr && retInsn->GetMachineOpcode() == MOP_xret) {
+      newBB.RemoveInsn(*retInsn);
+    }
+    epilogBB.RemoveInsn(*lastInsn);
+    epilogBB.AppendBBInsns(newBB);
+    epilogBB.AppendInsn(*lastInsn);
+  } else {
+    epilogBB.AppendBBInsns(newBB);
+  }
+}
+
 void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
   if (!cgFunc.GetHasProEpilogue()) {
-    if (bb.GetPreds().empty() || !TestPredsOfRetBB(bb)) {
+    if (!bb.GetPreds().empty() && !TestPredsOfRetBB(bb)) {
       GenerateRet(bb);
     }
     return;
@@ -1921,7 +1710,7 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
   }
 
   GenerateRet(*(cgFunc.GetCurBB()));
-  epilogBB.AppendBBInsns(*cgFunc.GetCurBB());
+  AppendBBtoEpilog(epilogBB, *cgFunc.GetCurBB());
   epilogBB.SetNeedRestoreCfi(true);;
   if (cgFunc.GetCurBB()->GetHasCfi()) {
     epilogBB.SetHasCfi();
@@ -1941,95 +1730,6 @@ void AArch64GenProEpilog::GenerateEpilogForCleanup(BB &bb) {
   } else if (aarchCGFunc.NeedCleanup()) {  /* bl to the exit epilogue */
     LabelOperand &targetOpnd = aarchCGFunc.GetOrCreateLabelOperand(cgFunc.GetExitBB(0)->GetLabIdx());
     bb.AppendInsn(currCG->BuildInstruction<AArch64Insn>(MOP_xuncond, targetOpnd));
-  }
-}
-
-
-void AArch64GenProEpilog::ConvertToTailCalls(MapleSet<Insn*> &callInsnsMap) {
-  BB *exitBB = GetCurTailcallExitBB();
-
-  /* ExitBB is filled only by now. If exitBB has restore of SP indicating extra stack space has
-     been allocated, such as a function call with more than 8 args, argument with large aggr etc */
-  FOR_BB_INSNS(insn, exitBB) {
-    if (insn->GetMachineOpcode() == MOP_xaddrri12 || insn->GetMachineOpcode() == MOP_xaddrri24) {
-      RegOperand &reg = static_cast<RegOperand&>(insn->GetOperand(0));
-      if (reg.GetRegisterNumber() == RSP) {
-        return;
-      }
-    }
-  }
-
-  /* Replace all of the call insns. */
-  for (Insn *callInsn : callInsnsMap) {
-    MOperator insnMop = callInsn->GetMachineOpcode();
-    switch (insnMop) {
-      case MOP_xbl: {
-        callInsn->SetMOP(MOP_tail_call_opt_xbl);
-        break;
-      }
-      case MOP_xblr: {
-        callInsn->SetMOP(MOP_tail_call_opt_xblr);
-        break;
-      }
-      default:
-        CHECK_FATAL(false, "Internal error.");
-        break;
-    }
-    BB *bb = callInsn->GetBB();
-    if (bb->GetKind() == BB::kBBGoto) {
-      bb->SetKind(BB::kBBFallthru);
-      if (bb->GetLastInsn()->GetMachineOpcode() == MOP_xuncond) {
-        bb->RemoveInsn(*bb->GetLastInsn());
-      }
-    }
-    for (auto sBB: bb->GetSuccs()) {
-      bb->RemoveSuccs(*sBB);
-      sBB->RemovePreds(*bb);
-      break;
-    }
-  }
-
-  /* copy instrs from exit block */
-  for (Insn *callInsn: callInsnsMap) {
-    BB *toBB = callInsn->GetBB();
-    BB *fromBB = exitBB;
-    if (toBB == fromBB) {
-      /* callsite also in the return exit block, just change the return to branch */
-      Insn *lastInsn = toBB->GetLastInsn();
-      if (lastInsn->GetMachineOpcode() == MOP_xret) {
-        Insn *newInsn = cgFunc.GetTheCFG()->CloneInsn(*callInsn);
-        toBB->ReplaceInsn(*lastInsn, *newInsn);
-        for (Insn *insn = callInsn->GetNextMachineInsn(); insn != newInsn; insn = insn->GetNextMachineInsn()) {
-          ASSERT(insn != nullptr, "insn should not be nullptr");
-          insn->SetDoNotRemove(true);
-        }
-        toBB->RemoveInsn(*callInsn);
-        return;
-      }
-      CHECK_FATAL(false, "Tailcall in incorrect block");
-    }
-    toBB->SetNeedRestoreCfi(true);
-    FOR_BB_INSNS_SAFE(insn, fromBB, next) {
-      if (insn->IsCfiInsn() || (insn->IsMachineInstruction() && insn->GetMachineOpcode() != MOP_xret)) {
-        Insn *newInsn = cgFunc.GetTheCFG()->CloneInsn(*insn);
-        newInsn->SetDoNotRemove(true);
-        toBB->InsertInsnBefore(*callInsn, *newInsn);
-      }
-    }
-  }
-
-  /* remove instrs in exit block */
-  BB *bb = exitBB;
-  if (bb->GetPreds().size() > 0) {
-    return;    /* exit block still needed by other non-tailcall blocks */
-  }
-  bb->SetNeedRestoreCfi(false);
-  Insn &junk = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(MOP_pseudo_none);
-  bb->AppendInsn(junk);
-  FOR_BB_INSNS_SAFE(insn, bb, next) {
-    if (insn->GetMachineOpcode() != MOP_pseudo_none) {
-      bb->RemoveInsn(*insn);
-    }
   }
 }
 
@@ -2072,16 +1772,6 @@ void AArch64GenProEpilog::Run() {
 
   if (cgFunc.GetFunction().IsJava()) {
     GenerateEpilogForCleanup(*(cgFunc.GetCleanupBB()));
-  }
-
-  if (cgFunc.GetMirModule().IsCModule() && !exitBB2CallSitesMap.empty()) {
-    cgFunc.GetTheCFG()->InitInsnVisitor(cgFunc);
-    for (auto pair : exitBB2CallSitesMap) {
-      BB *curExitBB = pair.first;
-      MapleSet<Insn*>& callInsnsMap = pair.second;
-      SetCurTailcallExitBB(curExitBB);
-      ConvertToTailCalls(callInsnsMap);
-    }
   }
 }
 }  /* namespace maplebe */

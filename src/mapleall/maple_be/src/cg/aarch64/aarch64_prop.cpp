@@ -1805,7 +1805,7 @@ bool RedundantPhiProp::CheckCondition(Insn &insn) {
   return false;
 }
 
-bool ValidBitNumberProp::IsImplicitUse(const RegOperand &dstOpnd, const RegOperand &srcOpnd) {
+bool ValidBitNumberProp::IsImplicitUse(const RegOperand &dstOpnd, const RegOperand &srcOpnd) const {
   for (auto destUseIt : destVersion->GetAllUseInsns()) {
     Insn *useInsn = destUseIt.second->GetInsn();
     if (useInsn->GetMachineOpcode() == MOP_xuxtw64) {

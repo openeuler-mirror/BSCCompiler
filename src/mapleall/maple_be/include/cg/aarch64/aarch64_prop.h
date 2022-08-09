@@ -115,7 +115,8 @@ class A64ConstProp {
 
   /* optimization */
   bool MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) const;
-  bool ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT);
+  bool ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUInfo,
+                                   ImmOperand &constOpnd, ArithmeticType aT);
   bool ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT);
   bool ArithmeticConstFold(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd, ArithmeticType aT) const;
   bool ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd);
@@ -131,7 +132,10 @@ class CopyRegProp : public PropOptimizePattern {
  public:
   CopyRegProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo, LiveIntervalAnalysis *ll)
       : PropOptimizePattern(cgFunc, cgssaInfo, ll) {}
-  ~CopyRegProp() override = default;
+  ~CopyRegProp() override {
+    destVersion = nullptr;
+    srcVersion = nullptr;
+  }
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
@@ -151,7 +155,10 @@ class CopyRegProp : public PropOptimizePattern {
 class RedundantPhiProp : public PropOptimizePattern {
  public:
   RedundantPhiProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
-  ~RedundantPhiProp() override = default;
+  ~RedundantPhiProp() override {
+    destVersion = nullptr;
+    srcVersion = nullptr;
+  }
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
@@ -170,7 +177,10 @@ class RedundantPhiProp : public PropOptimizePattern {
 class ValidBitNumberProp : public PropOptimizePattern {
  public:
   ValidBitNumberProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
-  ~ValidBitNumberProp() override = default;
+  ~ValidBitNumberProp() override {
+    destVersion = nullptr;
+    srcVersion = nullptr;
+  }
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
@@ -181,7 +191,7 @@ class ValidBitNumberProp : public PropOptimizePattern {
     srcVersion = nullptr;
   }
  private:
-  bool IsImplicitUse(const RegOperand &dstOpnd, const RegOperand &srcOpnd);
+  bool IsImplicitUse(const RegOperand &dstOpnd, const RegOperand &srcOpnd) const;
   VRegVersion *destVersion = nullptr;
   VRegVersion *srcVersion = nullptr;
 };
@@ -193,7 +203,11 @@ class ValidBitNumberProp : public PropOptimizePattern {
 class FpSpConstProp : public PropOptimizePattern {
  public:
   FpSpConstProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
-  ~FpSpConstProp() override = default;
+  ~FpSpConstProp() override {
+    fpSpBase = nullptr;
+    shiftOpnd = nullptr;
+    replaced = nullptr;
+  }
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
@@ -255,7 +269,11 @@ class ExtendMovPattern : public PropOptimizePattern {
 class ExtendShiftPattern : public PropOptimizePattern {
  public:
   ExtendShiftPattern(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
-  ~ExtendShiftPattern() override = default;
+  ~ExtendShiftPattern() override {
+    defInsn = nullptr;
+    newInsn = nullptr;
+    curInsn = nullptr;
+  }
   bool IsSwapInsn(const Insn &insn) const;
   void SwapOpnd(Insn &insn);
   bool CheckAllOpndCondition(Insn &insn);
@@ -302,7 +320,11 @@ class A64ConstFoldPattern : public PropOptimizePattern {
  public:
   A64ConstFoldPattern(CGFunc &cgFunc, CGSSAInfo *ssaInfo)
       : PropOptimizePattern(cgFunc, ssaInfo) {}
-  ~A64ConstFoldPattern() override = default;
+  ~A64ConstFoldPattern() override {
+    defInsn = nullptr;
+    dstOpnd = nullptr;
+    srcOpnd = nullptr;
+  }
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
