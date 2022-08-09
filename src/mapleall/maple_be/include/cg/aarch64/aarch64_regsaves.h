@@ -169,12 +169,16 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   void ProcessListOpnd(const BB &bb, Operand &opnd);
   void ProcessMemOpnd(const BB &bb, Operand &opnd);
   void ProcessCondOpnd(const BB &bb);
+  void ProcessOperands(Insn *insn, const BB &bb);
   void GenAccDefs();
   void GenRegDefUse();
   bool CheckForUseBeforeDefPath();
   void PrintBBs() const;
   int CheckCriteria(BB *bb, regno_t reg) const;
+  void CheckCriticalEdge(BB *bb, AArch64reg reg);
   bool AlreadySavedInDominatorList(const BB *bb, regno_t reg) const;
+  BB* FindLoopDominator(BB *bb, regno_t reg, bool *done);
+  void CheckAndRemoveBlksFromCurSavedList(SavedBBInfo *sp, BB *bbDom, regno_t reg);
   void DetermineCalleeSaveLocationsDoms();
   void DetermineCalleeSaveLocationsPre();
   bool DetermineCalleeRestoreLocations();
@@ -184,6 +188,7 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   void InsertCalleeRestoreCode();
   void CreateReachingBBs(ReachInfo *rp, BB *bb);
   BB* RemoveRedundancy(BB *startbb, regno_t reg);
+  void PrintSaveLocs(AArch64reg reg);
   void Verify(regno_t reg, BB* bb, std::set<BB*, BBIdCmp> *visited, uint32 *s, uint32 *r);
   void Run() override;
 
