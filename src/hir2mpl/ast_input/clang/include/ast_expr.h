@@ -1160,12 +1160,8 @@ class ASTCallExpr : public ASTExpr {
     return args;
   }
 
-  void SetRetType(MIRType *typeIn) {
-    retType = typeIn;
-  }
-
   MIRType *GetRetType() const {
-    return retType;
+    return mirType;
   }
 
   const std::string GetRetVarName() const {
@@ -1197,12 +1193,12 @@ class ASTCallExpr : public ASTExpr {
   }
 
   bool IsNeedRetExpr() const {
-    return retType->GetPrimType() != PTY_void;
+    return mirType->GetPrimType() != PTY_void;
   }
 
   bool IsFirstArgRet() const {
     // If the return value exceeds 16 bytes, it is passed as the first parameter.
-    return retType->GetPrimType() == PTY_agg && retType->GetSize() > 16;
+    return mirType->GetPrimType() == PTY_agg && mirType->GetSize() > 16;
   }
 
   void SetFuncDecl(ASTFunc *decl) {
@@ -1396,7 +1392,6 @@ UniqueFEIRExpr EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) const;
   static std::unordered_map<std::string, FuncPtrBuiltinFunc> builtingFuncPtrMap;
   MapleVector<ASTExpr*> args;
   ASTExpr *calleeExpr = nullptr;
-  MIRType *retType = nullptr;
   MapleString funcName;
   FuncAttrs funcAttrs;
   bool isIcall = false;

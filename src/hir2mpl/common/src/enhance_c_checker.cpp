@@ -2089,7 +2089,7 @@ void ASTCallExpr::InsertBoundaryVarInRet(std::list<UniqueFEIRStmt> &stmts) const
   }
   // GetCurrentFunction need to be optimized when parallel features
   MIRFunction *curFunction = FEManager::GetMIRBuilder().GetCurrentFunctionNotNull();
-  ENCChecker::InitBoundaryVar(*curFunction, GetRetVarName(), *retType, std::move(realLenExpr), stmts);
+  ENCChecker::InitBoundaryVar(*curFunction, GetRetVarName(), *mirType, std::move(realLenExpr), stmts);
 }
 
 bool ENCChecker::IsSameBoundary(const AttrBoundary &arg1, const AttrBoundary &arg2) {

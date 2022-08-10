@@ -1850,8 +1850,7 @@ ASTExpr *ASTParser::ProcessExprCallExpr(MapleAllocator &allocator, const clang::
   }
   astCallExpr->SetCalleeExpr(astCallee);
   // return
-  MIRType *retType = astFile->CvtType(expr.getCallReturnType(*astFile->GetAstContext()));
-  astCallExpr->SetRetType(retType);
+  astCallExpr->SetType(astFile->CvtType(expr.getType()));
   // return var attrs
   GenericAttrs  returnVarAttrs;
   astFile->CollectFuncReturnVarAttrs(expr, returnVarAttrs);
@@ -1901,7 +1900,6 @@ ASTExpr *ASTParser::ProcessExprCallExpr(MapleAllocator &allocator, const clang::
   } else {
     astCallExpr->SetIcall(true);
   }
-  astCallExpr->SetType(astFile->CvtType(expr.getType()));
   return astCallExpr;
 }
 

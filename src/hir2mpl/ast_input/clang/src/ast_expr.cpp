@@ -332,7 +332,7 @@ void ASTCallExpr::AddArgsExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt, s
     callStmt->AddExprArgReverse(std::move(expr));
   }
   if (IsFirstArgRet()) {
-    UniqueFEIRVar var = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *retType, false, false);
+    UniqueFEIRVar var = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *mirType, false, false);
     UniqueFEIRExpr expr = FEIRBuilder::CreateExprAddrofVar(var->Clone());
     callStmt->AddExprArgReverse(std::move(expr));
   }
@@ -355,7 +355,7 @@ void ASTCallExpr::InsertNonnullCheckingForIcall(const UniqueFEIRExpr &expr, std:
 }
 
 UniqueFEIRExpr ASTCallExpr::AddRetExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt) const {
-  UniqueFEIRVar var = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *retType, false, false);
+  UniqueFEIRVar var = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *mirType, false, false);
   var->SetAttrs(GetReturnVarAttrs());
   UniqueFEIRVar dreadVar = var->Clone();
   if (!IsFirstArgRet()) {
@@ -380,7 +380,7 @@ std::unique_ptr<FEIRStmtAssign> ASTCallExpr::GenCallStmt() const {
     if (IsFirstArgRet()) {
       retTypeInfo = mp->New<FEIRTypeNative>(*GlobalTables::GetTypeTable().GetPrimType(PTY_void));
     } else {
-      retTypeInfo = mp->New<FEIRTypeNative>(*retType);
+      retTypeInfo = mp->New<FEIRTypeNative>(*mirType);
     }
     info->SetReturnType(retTypeInfo);
     Opcode op;

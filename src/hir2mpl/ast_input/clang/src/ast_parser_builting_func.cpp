@@ -84,7 +84,7 @@ UniqueFEIRExpr ASTCallExpr::CreateIntrinsicCallAssignedForC(std::list<UniqueFEIR
     stmts.emplace_back(std::move(stmt));
     return nullptr;
   }
-  UniqueFEIRVar retVar = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *retType, false);
+  UniqueFEIRVar retVar = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *mirType, false);
   auto stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(argIntrinsicID, nullptr, retVar->Clone(),
                                                             std::move(argExprList));
   stmts.emplace_back(std::move(stmt));
@@ -209,9 +209,9 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorZip(std::list<UniqueFEIRStmt> &stmt
     UniqueFEIRExpr expr = arg->Emit2FEExpr(stmts);
     argExprList->emplace_back(std::move(expr));
   }
-  CHECK_NULL_FATAL(retType);
+  CHECK_NULL_FATAL(mirType);
   std::string retName = FEUtils::GetSequentialName("vector_zip_retvar_");
-  UniqueFEIRVar retVar = FEIRBuilder::CreateVarNameForC(retName, *retType);
+  UniqueFEIRVar retVar = FEIRBuilder::CreateVarNameForC(retName, *mirType);
 
 #define VECTOR_INTRINSICCALL_TYPE(OP_NAME, VECTY)                                                \
   if (FEUtils::EndsWith(GetFuncName(), #VECTY)) {                                                \
@@ -677,7 +677,7 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinExpect(std::list<UniqueFEIRStmt> &stmts) 
       auto cvtFeExpr = FEIRBuilder::CreateExprCvtPrim(conditionExpr->Clone(), builtInExpectArgs.front()->GetPrimType());
       argOpnds.push_back(std::move(cvtFeExpr));
       argOpnds.push_back(builtInExpectArgs.back()->Clone());
-      auto returnType = std::make_unique<FEIRTypeNative>(*retType);
+      auto returnType = std::make_unique<FEIRTypeNative>(*mirType);
       auto builtinExpectExpr = std::make_unique<FEIRExprIntrinsicopForC>(std::move(returnType),
                                                                          INTRN_C___builtin_expect, argOpnds);
       auto newConditionExpr = FEIRBuilder::CreateExprZeroCompare(OP_ne, std::move(builtinExpectExpr));
