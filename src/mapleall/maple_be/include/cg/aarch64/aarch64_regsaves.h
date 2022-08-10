@@ -24,7 +24,7 @@
 
 namespace maplebe {
 
-#define BBid uint32
+#define BBID uint32
 
 /* Saved callee-save reg info */
 class SavedRegInfo {
@@ -116,11 +116,11 @@ class ReachInfo {
  public:
   explicit ReachInfo(MapleAllocator &alloc) : bbList (alloc.Adapter()) {}
 
-  MapleSet<BBid> &GetBBList() {
+  MapleSet<BBID> &GetBBList() {
     return bbList;
   }
 
-  bool ContainInReachingBBs(BBid bid) {
+  bool ContainInReachingBBs(BBID bid) {
     if (bbList.find(bid) != bbList.end()) {
       return true;
     }
@@ -128,7 +128,7 @@ class ReachInfo {
   }
 
  private:
-  MapleSet<BBid> bbList;
+  MapleSet<BBID> bbList;
 };
 
 
@@ -169,7 +169,7 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   void ProcessListOpnd(const BB &bb, const Operand &opnd);
   void ProcessMemOpnd(const BB &bb, Operand &opnd);
   void ProcessCondOpnd(const BB &bb);
-  void ProcessOperands(Insn *insn, const BB &bb);
+  void ProcessOperands(const Insn &insn, const BB &bb);
   void GenAccDefs();
   void GenRegDefUse();
   bool CheckForUseBeforeDefPath();
@@ -186,7 +186,7 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   void AdjustRegOffsets();
   void InsertCalleeSaveCode();
   void InsertCalleeRestoreCode();
-  void CreateReachingBBs(ReachInfo *rp, BB *bb);
+  void CreateReachingBBs(ReachInfo &rp, const BB &bb);
   BB* RemoveRedundancy(BB *startbb, regno_t reg);
   void PrintSaveLocs(AArch64reg reg);
   void Verify(regno_t reg, BB* bb, std::set<BB*, BBIdCmp> *visited, uint32 *s, uint32 *r);
@@ -216,27 +216,27 @@ class AArch64RegSavesOpt : public RegSavesOpt {
     return calleeBitsAcc;
   }
 
-  CalleeBitsType GetBBCalleeBits(CalleeBitsType *data, BBid bid) const {
+  CalleeBitsType GetBBCalleeBits(CalleeBitsType *data, BBID bid) const {
     return data[bid];
   }
 
-  void SetCalleeBit(CalleeBitsType *dest, BBid bidD, CalleeBitsType src) {
+  void SetCalleeBit(CalleeBitsType *dest, BBID bidD, CalleeBitsType src) {
     dest[bidD] = src;
   }
 
-  void SetCalleeBit(CalleeBitsType *data, BBid bid, regno_t reg) {
+  void SetCalleeBit(CalleeBitsType *data, BBID bid, regno_t reg) {
     CalleeBitsType mask = 1ULL << RegBitMap(reg);
     if ((GetBBCalleeBits(data, bid) & mask) == 0) {
       data[bid] = GetBBCalleeBits(data, bid) | mask;
     }
   }
 
-  void ResetCalleeBit(CalleeBitsType * data, BBid bid, regno_t reg) {
+  void ResetCalleeBit(CalleeBitsType * data, BBID bid, regno_t reg) {
     CalleeBitsType mask = 1ULL << RegBitMap(reg);
     data[bid] = GetBBCalleeBits(data, bid) & ~mask;
   }
 
-  bool IsCalleeBitSet(CalleeBitsType * data, BBid bid, regno_t reg) const {
+  bool IsCalleeBitSet(CalleeBitsType * data, BBID bid, regno_t reg) const {
     CalleeBitsType mask = 1ULL << RegBitMap(reg);
     return GetBBCalleeBits(data, bid) & mask;
   }
@@ -262,14 +262,14 @@ class AArch64RegSavesOpt : public RegSavesOpt {
     }
   }
 
-  SavedRegInfo *GetbbSavedRegsEntry(BBid bid) {
+  SavedRegInfo *GetbbSavedRegsEntry(BBID bid) {
     if (bbSavedRegs[bid] == nullptr) {
       bbSavedRegs[bid] = memPool->New<SavedRegInfo>(alloc);
     }
     return bbSavedRegs[bid];
   }
 
-  ReachInfo *GetReachingEntry(BBid bid) {
+  ReachInfo *GetReachingEntry(BBID bid) {
     if (reachingBBs[bid] == nullptr) {
       reachingBBs[bid] = memPool->New<ReachInfo>(alloc);
     }
@@ -280,7 +280,7 @@ class AArch64RegSavesOpt : public RegSavesOpt {
     id2bb[bb->GetId()] = bb;
   }
 
-  BB *GetId2bb(BBid bid) {
+  BB *GetId2bb(BBID bid) {
     return id2bb[bid];
   }
 
@@ -295,8 +295,8 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   MapleVector<SavedBBInfo *> regSavedBBs;  /* set of BBs to be saved for a reg */
   MapleVector<ReachInfo *> reachingBBs;    /* set of BBs reachable from a BB */
   MapleMap<regno_t, uint32> regOffset;     /* save offset of each register */
-  MapleSet<BBid> visited;                  /* temp */
-  MapleMap<BBid, BB*> id2bb;               /* bbid to bb* mapping */
+  MapleSet<BBID> visited;                  /* temp */
+  MapleMap<BBID, BB*> id2bb;               /* bbid to bb* mapping */
 };
 }  /* namespace maplebe */
 
