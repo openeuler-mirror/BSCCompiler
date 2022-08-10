@@ -17,6 +17,8 @@
 namespace maple {
 namespace {
 std::unordered_map<MIRStructType *, std::vector<MIRType *>> fieldsTypeCache; // map structType to all its fieldType
+bool IsTypeCompatible(MIRType *typeA, MIRType *typeB);
+
 MIRType *GetFieldType(MIRStructType *strucType, FieldID fld) {
   if (strucType == nullptr) {
     return nullptr;
@@ -24,28 +26,31 @@ MIRType *GetFieldType(MIRStructType *strucType, FieldID fld) {
   std::vector<MIRType *> &fieldsType = fieldsTypeCache[strucType];
   if (!fieldsType.empty()) {
     ASSERT(fld < fieldsType.size(), "field id out of range!");
-    return fieldsType[fld];
+    return fieldsType[static_cast<uint64>(static_cast<uint32>(fld))];
   }
   // construct all fields Info here, not only for fld
   size_t fldNum = strucType->NumberOfFieldIDs() + 1;
   fieldsType.resize(fldNum, nullptr);
   fieldsType[0] = strucType;
-  for (size_t i = 1; i < fldNum; ++i) {
+  size_t i = 1;
+  while (i < fldNum) {
     MIRType *fldType = strucType->GetFieldType(i);
     MIRStructType *structFldType = fldType->EmbeddedStructType();
     if (structFldType != nullptr) {
       (void)GetFieldType(structFldType, 0); // build sub-struct
       std::vector<MIRType *> &subFieldsType = fieldsTypeCache[structFldType];
       std::copy(subFieldsType.begin(), subFieldsType.end(), fieldsType.begin() + i);
-      i += subFieldsType.size() - 1;
+      i += subFieldsType.size();
       continue;
     }
     fieldsType[i] = fldType;
+    ++i;
   }
   ASSERT(fld < fieldsType.size(), "field id out of range!");
   ASSERT(fieldsType[fld] != nullptr, "field type has not been get before!");
-  return fieldsType[fld];
+  return fieldsType[static_cast<uint64>(static_cast<uint32>(fld))];
 }
+
 // if ost is a field of an aggregate type, return the aggregate type, otherwise return nullptr
 MIRType *GetAggTypeOstEmbedded(const OriginalSt *ost) {
   if (ost == nullptr) {
@@ -53,9 +58,22 @@ MIRType *GetAggTypeOstEmbedded(const OriginalSt *ost) {
   }
   MIRType *aggType = nullptr;
   if (ost->GetPrevLevelOst() != nullptr) {
-    MIRType *prevTypeA = ost->GetPrevLevelOst()->GetType();
+    MIRType *prevTypeA = ost->GetPrevLevelPointerType();
     if (prevTypeA->IsMIRPtrType()) {
       aggType = static_cast<MIRPtrType *>(prevTypeA)->GetPointedType();
+    }
+
+    if (aggType == nullptr || aggType->GetPrimType() != PTY_agg) {
+      prevTypeA = ost->GetPrevLevelOst()->GetType();
+      if (!prevTypeA->IsMIRPtrType()) {
+        return nullptr;
+      }
+      aggType = static_cast<MIRPtrType *>(prevTypeA)->GetPointedType();
+      constexpr int32 bitNumPerByte = 8;
+      // offset is out of current AggType, return nullptr
+      if (static_cast<int32>(aggType->GetSize()) * bitNumPerByte <= ost->GetOffset().val) {
+        return nullptr;
+      }
     }
   } else if (ost->GetIndirectLev() == 0 && ost->IsSymbolOst()) {
     // ost is a field of aggType, but has no prevType, we can get this info from its symbol.
@@ -78,6 +96,9 @@ bool IsByteType(const MIRType *type) {
 // example : structA *a; and a[2].fld offset will be greater than size of structA
 void CanonicalizeOffset(OffsetType &offset, int64 typeBitSize) {
   if (offset.IsInvalid()) {
+    return;
+  }
+  if (typeBitSize == 0) {
     return;
   }
   offset.Set(offset.val % typeBitSize);
@@ -171,6 +192,7 @@ bool IsFieldOfStructWithSameSize(MIRStructType *structType, MIRType *checkedType
 
 // checkType has same size as arrayType
 bool IsFieldTypeOfArrayTypeWithSameSize(MIRArrayType *arrayType, MIRType *checkedType) {
+  ASSERT_NOT_NULL(arrayType);
   if (arrayType == checkedType) {
     return true;
   }
@@ -178,6 +200,7 @@ bool IsFieldTypeOfArrayTypeWithSameSize(MIRArrayType *arrayType, MIRType *checke
   if (elemType == checkedType) {
     return true;
   }
+  ASSERT_NOT_NULL(checkedType);
   if (checkedType->GetKind() == kTypeArray) {
     return IsArrayTypeCompatible(arrayType, checkedType);
   }
@@ -220,12 +243,14 @@ bool IsFieldTypeOfStructType(MIRStructType *structType, MIRType *checkedType) {
 static std::unordered_map<MIRType *, std::unordered_map<MIRType *, bool>> compatibleTypeCache;
 
 bool IsFieldTypeOfAggType(MIRType *aggType, MIRType *checkedType) {
+  ASSERT_NOT_NULL(aggType);
   if (aggType == checkedType) {
     return true;
   }
   if (aggType->GetPrimType() != PTY_agg) {
     return false;
   }
+  ASSERT_NOT_NULL(checkedType);
   if (aggType->GetSize() < checkedType->GetSize() || aggType->NumberOfFieldIDs() < checkedType->NumberOfFieldIDs()) {
     return false;
   }
@@ -247,32 +272,95 @@ bool IsFieldTypeOfAggType(MIRType *aggType, MIRType *checkedType) {
   return res;
 }
 
-void GetPossibleFieldID(MIRType *aggType, MIRType *checkedType, std::vector<FieldID> &fldIDs) {
-  if (aggType == checkedType) {
-    fldIDs.push_back(0);
-    return;
-  }
-  size_t checkedSize = checkedType->GetSize();
-  if (aggType->GetSize() < checkedSize) {
-    return;
-  }
-  MIRStructType *structType = aggType->EmbeddedStructType();
-  if (structType == nullptr) {
-    if (aggType->GetKind() == kTypeArray) {
-      if (static_cast<MIRArrayType*>(aggType)->GetElemType() == checkedType) {
-        fldIDs.push_back(0);
-      }
+void GetInitialMemType(const MIRType &type, std::set<const MIRType *> &zeroOffsetType);
+
+// C99 6.7.2.1
+// 13) A pointer to a structure object, suitably converted, points to its initial member (or if that member is a
+//     bit-field, then to the unit in which it resides),, and vice versa
+// 14) A pointer to a union object, suitably converted, points to each of its members (or if a member is a
+//     bit-field, then to the unit in which it resides), and vice versa.
+void GetInitialMemTypeForStruct(const MIRStructType &structType, std::set<const MIRType *> &zeroOffsetType) {
+  const FieldVector &fields = structType.GetFields();
+  if (structType.GetKind() == kTypeUnion) {
+    for (auto fld : fields) {
+      TyIdx tyIdx = fld.second.first;
+      MIRType *fldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+      GetInitialMemType(*fldType, zeroOffsetType);
     }
-    return;
+  } else if (structType.GetKind() == kTypeStruct) {
+    TyIdx tyIdx = fields.front().second.first;
+    MIRType *initialMemberType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+    GetInitialMemType(*initialMemberType, zeroOffsetType);
   }
-  size_t fieldsNum = aggType->NumberOfFieldIDs();
-  (void) GetFieldType(structType, 0); // init fields Type of structType
-  auto &fieldsTypeVec = fieldsTypeCache[structType];
-  for (size_t i = 1; i < fieldsNum; ++i) {
-    if (fieldsTypeVec[i] == checkedType) {
-      fldIDs.emplace_back(i);
-    }
+  (void)zeroOffsetType.emplace(&structType);
+}
+
+// For multi-dimensional array, we only collect element type here, ignoring the lower dimensional array type
+// For example, <*<[][] i32>> will get i32, and ignore <[] i32>
+void GetInitialMemTypeForArray(const MIRArrayType &arrayType, std::set<const MIRType *> &zeroOffsetType) {
+  GetInitialMemType(*arrayType.GetElemType(), zeroOffsetType);
+  (void)zeroOffsetType.emplace(&arrayType);
+}
+
+// get member fields with zero offset
+void GetInitialMemType(const MIRType &type, std::set<const MIRType *> &zeroOffsetType) {
+  if (type.IsStructType()) {
+    GetInitialMemTypeForStruct(static_cast<const MIRStructType &>(type), zeroOffsetType);
+  } else if (type.IsMIRArrayType()) {
+    GetInitialMemTypeForArray(static_cast<const MIRArrayType &>(type), zeroOffsetType);
+  } else if (type.IsMIRBitFieldType()) {
+    MIRType *residesType = GlobalTables::GetTypeTable().GetPrimType(type.GetPrimType());
+    (void)zeroOffsetType.emplace(residesType);
   }
+  (void)zeroOffsetType.emplace(&type);
+}
+
+// Example: struct A { int a; }; struct B { A a; int b; }; struct C { B b[2]; int c; }
+// Pointer to C can convert to type of fields with offset = 0. That is:
+// <* <$struct C>> cvt to <* <$[] <$struct B>>>, <* <$struct B>>, <* <$struct A>>, <* int>
+bool IsPointerInterconvertible(const MIRPtrType &ptrTypeA, const MIRPtrType &ptrTypeB) {
+  if (ptrTypeA.GetTypeIndex() == ptrTypeB.GetTypeIndex()) {
+    return true;
+  }
+  // C99 6.3.2.3
+  // 1) A pointer to void may be converted to or from a pointer to any incomplete or object type.
+  if (ptrTypeA.IsVoidPointer() || ptrTypeB.IsVoidPointer()) {
+    return true;
+  }
+  MIRType *pointedTypeA = ptrTypeA.GetPointedType();
+  MIRType *pointedTypeB = ptrTypeB.GetPointedType();
+  if (!IsTypeCompatible(pointedTypeA, pointedTypeB)) {
+    return false;
+  }
+  if (pointedTypeA->IsScalarType() && pointedTypeB->IsScalarType()) {
+    return true;
+  }
+  if (pointedTypeA->IsMIRArrayType() && pointedTypeB->IsMIRArrayType()) {
+    return IsArrayTypeCompatible(pointedTypeA, pointedTypeB);
+  }
+  // We get element type here to avoid checking lower array type for multi-dimensional array
+  if (pointedTypeA->IsMIRArrayType()) {
+    pointedTypeA = static_cast<MIRArrayType *>(pointedTypeA)->GetElemType();
+  }
+  if (pointedTypeB->IsMIRArrayType()) {
+    pointedTypeB = static_cast<MIRArrayType *>(pointedTypeB)->GetElemType();
+  }
+  // C99 6.7.2.1
+  // 13) A pointer to a structure object, suitably converted, points to its initial member (or if that member is a
+  //     bit-field, then to the unit in which it resides),, and vice versa
+  // 14) A pointer to a union object, suitably converted, points to each of its members (or if a member is a
+  //     bit-field, then to the unit in which it resides), and vice versa.
+  std::set<const MIRType *> initialMemType;
+  GetInitialMemType(*pointedTypeA, initialMemType);
+  if (initialMemType.count(pointedTypeB)) {
+    return true;
+  }
+  initialMemType.clear();
+  GetInitialMemType(*pointedTypeB, initialMemType);
+  if (initialMemType.count(pointedTypeA)) {
+    return true;
+  }
+  return false;
 }
 
 bool IsTypeCompatible(MIRType *typeA, MIRType *typeB) {
@@ -286,7 +374,13 @@ bool IsTypeCompatible(MIRType *typeA, MIRType *typeB) {
   if (IsByteType(typeA) || IsByteType(typeB)) {
     return true;
   }
-  if (typeA->IsScalarType() && typeB->IsScalarType()) {
+
+  if (typeA->IsMIRPtrType() && typeB->IsMIRPtrType()) {
+    return IsPointerInterconvertible(static_cast<MIRPtrType &>(*typeA), static_cast<MIRPtrType &>(*typeB));
+  }
+
+  if (IsPrimitiveScalar(typeA->GetPrimType()) &&
+      IsPrimitiveScalar(typeB->GetPrimType())) {
     // e.g. i32 and v4i32 can be alias, since i32 can be part of v4i32
     if ((IsPrimitiveVector(typeA->GetPrimType()) && IsPrimitiveInteger(typeB->GetPrimType())) ||
         (IsPrimitiveInteger(typeA->GetPrimType()) && IsPrimitiveVector(typeB->GetPrimType()))) {
@@ -303,6 +397,52 @@ bool IsTypeCompatible(MIRType *typeA, MIRType *typeB) {
     return true;
   }
   return false;
+}
+
+static void GetPossibleFieldID(MIRType *aggType, MIRType *checkedType, std::vector<FieldID> &fldIDs) {
+  if (aggType == checkedType) {
+    fldIDs.push_back(0);
+    return;
+  }
+  size_t checkedSize = checkedType->GetSize();
+  if (aggType->GetSize() < checkedSize) {
+    return;
+  }
+  MIRStructType *structType = aggType->EmbeddedStructType();
+  if (structType == checkedType) {
+    fldIDs.push_back(0);
+    return;
+  }
+  if (structType == nullptr) {
+    if (aggType->GetKind() == kTypeArray) {
+      if (static_cast<MIRArrayType*>(aggType)->GetElemType() == checkedType) {
+        fldIDs.push_back(0);
+      }
+    }
+    return;
+  }
+  size_t fieldsNum = aggType->NumberOfFieldIDs();
+  (void) GetFieldType(structType, 0); // init fields Type of structType
+  auto &fieldsTypeVec = fieldsTypeCache[structType];
+  for (size_t i = 1; i <= fieldsNum; ++i) {
+    MIRType *fldType = fieldsTypeVec[i];
+
+    if (fldType == checkedType) {
+      fldIDs.emplace_back(i);
+      continue;
+    }
+    if (IsPrimitiveScalar(checkedType->GetPrimType()) &&
+        fldType->GetPrimType() == checkedType->GetPrimType()) {
+      fldIDs.emplace_back(i);
+      continue;
+    }
+    if (fldType->IsMIRArrayType()) {
+      if (static_cast<MIRArrayType *>(fldType)->GetElemType() == checkedType ||
+          (checkedType->IsMIRArrayType() && IsArrayTypeCompatible(fldType, checkedType))) {
+        fldIDs.emplace_back(i);
+      }
+    }
+  }
 }
 
 // check if fields of aggType may overlap memory (specified by memStart and memBitSize)
@@ -326,7 +466,7 @@ bool MayAliasFieldsAndMem(MIRType *aggType, std::vector<FieldID> &fields, int64 
   for (auto fldID : fields) {
     ASSERT(fldID <= aggType->NumberOfFieldIDs(), "Field id is out of range of aggType's field number");
     MIRType *fldType = GetFieldType(structType, fldID);
-    size_t typeBitSize = GetTypeBitSize(fldType);
+    size_t typeBitSize = static_cast<uint64>(GetTypeBitSize(fldType));
     int64 offsetA = structType->GetBitOffsetFromBaseAddr(fldID);
     if (IsMemoryOverlap(OffsetType(offsetA), typeBitSize, OffsetType(memStart), memBitSize)) {
       return true;
@@ -358,11 +498,11 @@ bool MayAliasFieldsAndFields(MIRType *aggType, std::vector<FieldID> &fieldsA, st
     ASSERT(idA <= structType->NumberOfFieldIDs(), "Field id is out of range of aggType's field number");
     MIRType *fldTypeA = GetFieldType(structType, idA);
     offsetSizeVecA[i].first = structType->GetBitOffsetFromBaseAddr(idA);
-    offsetSizeVecA[i].second = GetTypeBitSize(fldTypeA);
+    offsetSizeVecA[i].second = static_cast<uint64>(GetTypeBitSize(fldTypeA));
   }
   for (auto idB : fieldsB) {
     MIRType *fldTypeB = GetFieldType(structType, idB);
-    size_t typeBBitSize = GetTypeBitSize(fldTypeB);
+    size_t typeBBitSize = static_cast<uint64>(GetTypeBitSize(fldTypeB));
     int64 offsetB = structType->GetBitOffsetFromBaseAddr(idB);
     for (const auto &offsetSizePair : offsetSizeVecA) {
       if (IsMemoryOverlap(OffsetType(offsetSizePair.first), offsetSizePair.second, OffsetType(offsetB), typeBBitSize)) {
@@ -381,6 +521,9 @@ bool MayAliasOstAndFields(const OriginalSt *ost, MIRType *aggType, std::vector<F
   MIRType *type = ost->GetType();
   OffsetType offset = ost->GetOffset();
   CanonicalizeOffset(offset, GetTypeBitSize(aggType));
+  if (offset.IsInvalid() && ost->GetFieldID() != 0) { // if fieldID is valid, calculate offset from fieldID
+    offset = OffsetType(aggType->GetBitOffsetFromBaseAddr(ost->GetFieldID()));
+  }
   if (offset.IsInvalid()) {
     std::vector<FieldID> ostFields{};
     GetPossibleFieldID(aggType, type, ostFields);
@@ -406,10 +549,11 @@ bool TypeWithSameSizeEmbedded(MIRType *aggType, MIRType *checkedType) {
   if (aggType == checkedType) {
     return true;
   }
+  ASSERT_NOT_NULL(aggType);
   if (aggType->GetSize() != checkedType->GetSize()) {
     return false;
   }
-  switch(aggType->GetKind()) {
+  switch (aggType->GetKind()) {
     case kTypeUnion:
       return IsFieldOfUnion(static_cast<MIRStructType*>(aggType), checkedType);
     case kTypeStruct:
@@ -442,11 +586,20 @@ bool MayAliasForAggTypeNest(MIRType *aggTypeA, const OriginalSt *ostA, MIRType *
 // No info abort where checkedType is embedded, so we ASSUME ost and checkedType
 // might be embedded in the same TopType conservatively
 bool MayAliasOstAndType(const OriginalSt *ost, MIRType *checkedType) {
-  MIRType *ostType = ost->GetType();
-  MIRType *aggType = GetAggTypeOstEmbedded(ost);
-  if (ostType == checkedType || checkedType == aggType || IsByteType(checkedType)) {
+  if (IsByteType(checkedType) || IsPrimitiveVector(checkedType->GetPrimType())) {
     return true;
   }
+
+  MIRType *ostType = ost->GetType();
+  if (ostType == checkedType) {
+    return true;
+  }
+
+  MIRType *aggType = GetAggTypeOstEmbedded(ost);
+  if (checkedType == aggType) {
+    return true;
+  }
+  ASSERT_NOT_NULL(aggType);
   size_t sizeA = aggType->GetSize();
   size_t sizeB = checkedType->GetSize();
   size_t fldNumA = aggType->NumberOfFieldIDs();
@@ -465,10 +618,9 @@ bool MayAliasOstAndType(const OriginalSt *ost, MIRType *checkedType) {
         return IsFieldTypeOfArrayTypeWithSameSize(static_cast<MIRArrayType*>(checkedType), aggType);
       }
       return false;
-    } else if (fldNumA > fldNumB) {
-      return TypeWithSameSizeEmbedded(aggType, checkedType);
     } else {
-      return TypeWithSameSizeEmbedded(checkedType, aggType);
+      return (fldNumA > fldNumB) ? TypeWithSameSizeEmbedded(aggType, checkedType)
+                                 : TypeWithSameSizeEmbedded(checkedType, aggType);
     }
   } else { // sizeA > sizeB (fldNumA >= fldNumB is also true implicitly)
     // check if checkedType can be embedded in aggType, and overlap with ost
@@ -481,39 +633,74 @@ bool MayAliasOstAndType(const OriginalSt *ost, MIRType *checkedType) {
       ASSERT(aggType->GetKind() == kTypeArray, "Must be array type of non-struct type!");
       return IsFieldTypeOfArrayType(static_cast<MIRArrayType*>(aggType), checkedType);
     }
-    if (ost->GetOffset().IsInvalid()) {
-      for (FieldID fld = 1; fld < structType->NumberOfFieldIDs(); ++fld) {
-        MIRType *fieldType = GetFieldType(structType, fld);
-        if (fieldType == checkedType) {
-          return true; // conservatively
-        }
-      }
-      return false;
-    }
-    // if aggType is an array of structType, canonicalize offset.
-    OffsetType ostOffset = ost->GetOffset();
-    CanonicalizeOffset(ostOffset, GetTypeBitSize(structType));
-    size_t size = ostType->GetSize() * bitsPerByte;
-    for (FieldID fld = 1; fld < ost->GetFieldID(); ++fld) {
-      MIRType *fieldType = GetFieldType(structType, fld);
-      if (fieldType == checkedType) {
-        if (IsMemoryOverlap(OffsetType(structType->GetBitOffsetFromBaseAddr(fld)), sizeB * bitsPerByte,
-                            ostOffset, size)) {
-          return true;
-        }
-        fld += fldNumB;
-        continue;
-      }
-      if (!IsFieldTypeOfAggType(fieldType, checkedType)) {
-        fld += fieldType->NumberOfFieldIDs(); // skip all fields in this field Type
-      }
-    }
+    // find every field that checkedType may be embedded in, and check if this field can overlap ost.
+    std::vector<FieldID> possibleField;
+    GetPossibleFieldID(structType, checkedType, possibleField);
+    return MayAliasOstAndFields(ost, structType, possibleField);
   }
-  return false;
 }
 } // anonymous namespace
 
-std::vector<bool> TypeBasedAliasAnalysis::ostTypeUnsafe{};
+std::vector<bool> TypeBasedAliasAnalysis::ptrValueTypeUnsafe{};
+
+bool MustAliasAccordingOffset(const OriginalSt &ostA, const OriginalSt &ostB) {
+  if (ostA.GetIndex() == ostB.GetIndex()) {
+    return true;
+  }
+  if (ostA.GetPointerVstIdx() != ostB.GetPointerVstIdx()) {
+    return false;
+  }
+  if (ostA.GetOffset().IsInvalid() || ostB.GetOffset().IsInvalid()) {
+    return false;
+  }
+
+  auto canCheckAliasFromOffset = [](const OriginalSt *prevLevOst) -> bool {
+    if (prevLevOst == nullptr) {
+      return true;
+    }
+    if (prevLevOst->GetIndirectLev() < 0) {
+      return true;
+    }
+    if (prevLevOst->GetIndirectLev() > 0) {
+      return false;
+    }
+    return prevLevOst->IsTopLevelOst();
+  };
+  if (!canCheckAliasFromOffset(ostA.GetPrevLevelOst())) {
+    return false;
+  }
+
+  constexpr uint32 bitNumPerByte = 8;
+  auto typeSizeA = ostA.GetType()->GetSize() * bitNumPerByte;
+  auto typeSizeB = ostB.GetType()->GetSize() * bitNumPerByte;
+  return IsMemoryOverlap(ostA.GetOffset(), static_cast<int64>(typeSizeA),
+                         ostB.GetOffset(), static_cast<int64>(typeSizeB));
+}
+
+static bool IsMemoryOverlap(const OriginalSt &ostA, const OriginalSt &ostB, const MIRType &aggType) {
+  auto fldNumInAgg = static_cast<int32>(aggType.NumberOfFieldIDs());
+  if (fldNumInAgg < ostA.GetFieldID() || fldNumInAgg < ostB.GetFieldID()) {
+    return true;
+  }
+
+  OffsetType offsetA(OffsetType::InvalidOffset());
+  if (ostA.GetFieldID() == 0) {
+    offsetA.Set(ostA.GetOffset().val);
+  } else {
+    offsetA.Set(aggType.GetBitOffsetFromBaseAddr(ostA.GetFieldID()));
+  }
+
+  OffsetType offsetB(OffsetType::InvalidOffset());
+  if (ostB.GetFieldID() == 0) {
+    offsetB.Set(ostB.GetOffset().val);
+  } else {
+    offsetB.Set(aggType.GetBitOffsetFromBaseAddr(ostB.GetFieldID()));
+  }
+
+  int32 bitSizeA = static_cast<int32>(GetTypeBitSize(ostA.GetType()));
+  int32 bitSizeB = static_cast<int32>(GetTypeBitSize(ostB.GetType()));
+  return IsMemoryOverlap(offsetA, bitSizeA, offsetB, bitSizeB);
+}
 
 bool TypeBasedAliasAnalysis::MayAlias(const OriginalSt *ostA, const OriginalSt *ostB) {
   if (!MeOption::tbaa) {
@@ -525,30 +712,75 @@ bool TypeBasedAliasAnalysis::MayAlias(const OriginalSt *ostA, const OriginalSt *
   if (ostA == ostB) {
     return true;
   }
-  OffsetType offsetA = ostA->GetOffset();
-  OffsetType offsetB = ostB->GetOffset();
+
+  if (MustAliasAccordingOffset(*ostA, *ostB)) {
+    return true;
+  }
+
   // Check field alias - If both of ost are fields of the same agg type, check if they overlap
-  if (ostA->GetFieldID() != 0 && ostB->GetFieldID() != 0 && !offsetA.IsInvalid() && !offsetB.IsInvalid()) {
+  if (ostA->GetFieldID() != 0 && ostB->GetFieldID() != 0) {
     MIRType *aggTypeA = GetAggTypeOstEmbedded(ostA);
     MIRType *aggTypeB = GetAggTypeOstEmbedded(ostB);
-    if (aggTypeA == aggTypeB) { // We should check type compatibility here actually
-      if (aggTypeA != nullptr) {
-        CanonicalizeOffset(offsetA, GetTypeBitSize(aggTypeA));
-        CanonicalizeOffset(offsetB, GetTypeBitSize(aggTypeB));
-      }
-      int32 bitSizeA = static_cast<int32>(GetTypeBitSize(ostA->GetType()));
-      int32 bitSizeB = static_cast<int32>(GetTypeBitSize(ostB->GetType()));
-      return IsMemoryOverlap(offsetA, bitSizeA, offsetB, bitSizeB);
+    // We should check type compatibility here actually
+    if (aggTypeA == aggTypeB && aggTypeA != nullptr) {
+      return IsMemoryOverlap(*ostA, *ostB, *aggTypeA);
     }
   }
   return true;
 }
 
 void TypeBasedAliasAnalysis::ClearOstTypeUnsafeInfo() {
-  if (!MeOption::tbaa || ostTypeUnsafe.empty()) {
+  if (!MeOption::tbaa || ptrValueTypeUnsafe.empty()) {
     return;
   }
-  ostTypeUnsafe.clear();
+  ptrValueTypeUnsafe.clear();
+}
+
+static std::pair<MIRStructType*, FieldID> GetInnerMostAggType(MIRStructType &structType, FieldID fld) {
+  FieldID innerFldId = 0;
+  while (fld >= innerFldId) {
+    auto *innerType = structType.GetFieldType(fld - innerFldId);
+    if (innerType->IsStructType() &&
+        innerType->NumberOfFieldIDs() >= static_cast<uint32>(innerFldId)) {
+      return std::make_pair(static_cast<MIRStructType*>(innerType), innerFldId);
+    }
+    ++innerFldId;
+  }
+  return std::make_pair(&structType, fld);
+}
+
+static bool MayAliasForVirtualOstOfVoidPtr(const OriginalSt &ostA, MIRType &aggTypeA,
+                                           const OriginalSt &ostB, MIRType &aggTypeB) {
+  // not analyze candidate of cur method, return false
+  if (!aggTypeA.IsStructType() || !aggTypeB.IsStructType()) {
+    return false;
+  }
+
+  // not analyze candidate of cur method, return false
+  auto voidPtrType = GlobalTables::GetTypeTable().GetVoidPtr();
+  auto *prevLevOstA = ostA.GetPrevLevelOst();
+  if (prevLevOstA == nullptr || prevLevOstA->GetType() != voidPtrType) {
+    auto *prevLevOstB = ostB.GetPrevLevelOst();
+    if (prevLevOstB == nullptr || prevLevOstB->GetType() != voidPtrType) {
+      return false;
+    }
+  }
+
+  auto fldIdA = ostA.GetFieldID();
+  auto fldIdB = ostB.GetFieldID();
+  const auto &typePairA = GetInnerMostAggType(static_cast<MIRStructType&>(aggTypeA), fldIdA);
+  const auto &typePairB = GetInnerMostAggType(static_cast<MIRStructType&>(aggTypeB), fldIdB);
+  if (typePairA.first != typePairB.first) {
+    return false;
+  }
+  // to be conservative, return true for out-of-bound fld
+  if (typePairA.first->NumberOfFieldIDs() < static_cast<uint32>(typePairA.second) ||
+      typePairB.first->NumberOfFieldIDs() < static_cast<uint32>(typePairB.second)) {
+    return true;
+  }
+  OffsetType offsetA(typePairA.first->GetBitOffsetFromBaseAddr(typePairA.second));
+  OffsetType offsetB(typePairB.first->GetBitOffsetFromBaseAddr(typePairB.second));
+  return IsMemoryOverlap(offsetA, GetTypeBitSize(ostA.GetType()), offsetB, GetTypeBitSize(ostB.GetType()));
 }
 
 bool TypeBasedAliasAnalysis::MayAliasTBAAForC(const OriginalSt *ostA, const OriginalSt *ostB) {
@@ -558,10 +790,10 @@ bool TypeBasedAliasAnalysis::MayAliasTBAAForC(const OriginalSt *ostA, const Orig
   if (ostA == nullptr || ostB == nullptr) {
     return false;
   }
-  if (ostA == ostB) {
+  if (MustAliasAccordingOffset(*ostA, *ostB)) {
     return true;
   }
-  if (IsOstTypeUnsafe(*ostA) || IsOstTypeUnsafe(*ostB)) {
+  if (IsMemTypeUnsafe(*ostA) || IsMemTypeUnsafe(*ostB)) {
     return true; // type unsafe, process conservatively
   }
   MIRType *typeA = ostA->GetType();
@@ -584,17 +816,13 @@ bool TypeBasedAliasAnalysis::MayAliasTBAAForC(const OriginalSt *ostA, const Orig
       (aggTypeB->GetKind() == kTypeArray || aggTypeB->GetKind() == kTypeFArray)) {
     return IsArrayTypeCompatible(aggTypeA, aggTypeB);
   }
-  OffsetType offsetA = ostA->GetOffset();
-  OffsetType offsetB = ostB->GetOffset();
-  if (aggTypeA == aggTypeB) {
-    // if aggType is a structType, and its offset is out of its size (e.g. structType is element type of array);
-    // canonicalize offset.
-    int64 aggSize = GetTypeBitSize(aggTypeA);
-    CanonicalizeOffset(offsetA, aggSize);
-    CanonicalizeOffset(offsetB, aggSize);
-    return IsMemoryOverlap(offsetA, GetTypeBitSize(typeA), offsetB, GetTypeBitSize(typeB));
-  }
 
+  if (aggTypeA == aggTypeB) {
+    return IsMemoryOverlap(*ostA, *ostB, *aggTypeA);
+  }
+  if (MayAliasForVirtualOstOfVoidPtr(*ostA, *aggTypeA, *ostB, *aggTypeB)) {
+    return true;
+  }
   if (IsFieldTypeOfAggType(aggTypeA, aggTypeB)) { // aggTypeB is embedded in aggTypeA
     return MayAliasForAggTypeNest(aggTypeA, ostA, aggTypeB, ostB);
   } else if (IsFieldTypeOfAggType(aggTypeB, aggTypeA)) {
