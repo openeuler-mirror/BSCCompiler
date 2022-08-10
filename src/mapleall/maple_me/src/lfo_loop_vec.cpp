@@ -1843,17 +1843,17 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
         PrimType opnd1Type = x->Opnd(1)->GetPrimType();
         // update constval type if needed
         if (isvectorizable && (x->Opnd(1)->GetOpCode() == OP_constval)) {
-           PrimType targetType;
-           if (vecInfo->currentRHSTypeSize != 0 && vecInfo->currentRHSTypeSize < GetPrimTypeSize(opnd1Type)) {
-             targetType = vecInfo->currentRHSTypeSize == 32 ? PTY_i32 :
-                 (vecInfo->currentRHSTypeSize == 16 ? PTY_i16 : PTY_i8);;
-           } else {
-             targetType = x->Opnd(0)->GetPrimType();
-           }
-           if (GetPrimTypeSize(targetType) != GetPrimTypeSize(opnd1Type) &&
-               CanAdjustRhsConstType(targetType, static_cast<ConstvalNode *>(x->Opnd(1)))) {
-             vecInfo->constvalTypes[x->Opnd(1)] = targetType;
-           }
+          PrimType targetType;
+          if (vecInfo->currentRHSTypeSize != 0 && vecInfo->currentRHSTypeSize < GetPrimTypeSize(opnd1Type)) {
+            targetType = vecInfo->currentRHSTypeSize == 32 ? PTY_i32 :
+                (vecInfo->currentRHSTypeSize == 16 ? PTY_i16 : PTY_i8);
+          } else {
+            targetType = x->Opnd(0)->GetPrimType();
+          }
+          if (GetPrimTypeSize(targetType) != GetPrimTypeSize(opnd1Type) &&
+              CanAdjustRhsConstType(targetType, static_cast<ConstvalNode *>(x->Opnd(1)))) {
+            vecInfo->constvalTypes[x->Opnd(1)] = targetType;
+          }
         }
       } else if (ExprVectorizable(doloopInfo, vecInfo, x->Opnd(0)) && ExprVectorizable(doloopInfo, vecInfo,
           x->Opnd(1))) {
@@ -2217,6 +2217,7 @@ void LoopVectorization::GenConstVar(LoopVecInfo *vecInfo, uint8_t vecLanes) {
       constval->AddItem(intconst, 0);
     }
     ivconstSym = mirModule->GetMIRBuilder()->GetOrCreateGlobalDecl(ivVecName, *arrayType);
+    ASSERT_NOT_NULL(ivconstSym);
     ivconstSym->SetKonst(constval);
   }
   vecInfo->ivConstArraySym = ivconstSym;

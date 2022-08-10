@@ -126,6 +126,7 @@ void VtableAnalysis::GenVtableList(const Klass &klass) {
     // first is vtable from parents. since it's single inheritance, we copy it directly
     if (klass.HasSuperKlass()) {
       Klass *superKlass = klass.GetSuperKlass();
+      ASSERT_NOT_NULL(superKlass);
       MIRStructType *partenType = superKlass->GetMIRStructType();
       curType->GetVTableMethods() = partenType->GetVTableMethods();
     }
@@ -277,7 +278,7 @@ void VtableAnalysis::GenItableDefinition(const Klass &klass) {
       secondItab[secondHashCode] = func;
       count++;
     } else {
-      if (secondItab[secondHashCode]) {
+      if (secondItab[secondHashCode] != nullptr) {
         secondConflictList.push_back(secondItab[secondHashCode]);
         secondItab[secondHashCode] = nullptr;
         secondConflictFlag[secondHashCode] = true;
@@ -321,7 +322,7 @@ void VtableAnalysis::GenItableDefinition(const Klass &klass) {
       } else {
         secondItabEmitArray->AddItem(
             GlobalTables::GetIntConstTable().GetOrCreateIntConst(i, *voidPtrType), 0);
-        if (secondItab[i]) {
+        if (secondItab[i] != nullptr) {
           secondItabEmitArray->AddItem(
             GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(secondItab[i]->GetPuidx(), *voidPtrType), 0);
         } else {
@@ -445,8 +446,9 @@ static bool ReplaceStringMethodWithNativeMethod(const StmtNode &stmt, MIRFunctio
       "Native_java_lang_String_intern__",
       "Native_java_lang_String_compareTo__Ljava_lang_String_2"
   };
-  const static std::array<PUIdx, funcNumToReplace> puIdxsToReplaceWith =
-      { GetPUIdxOfMethodStringIntern(), GetPUIdxOfMethodStringCompareTo() };
+  const static std::array<PUIdx, funcNumToReplace> puIdxsToReplaceWith = {
+      GetPUIdxOfMethodStringIntern(), GetPUIdxOfMethodStringCompareTo()
+  };
 
   uint32 funcId = 0;
   for (; funcId < funcNumToReplace; ++funcId) {
@@ -758,7 +760,7 @@ void VtableAnalysis::ReplaceVirtualInvoke(CallNode &stmt) {
       *GlobalTables::GetTypeTable().GetCompactPtr(),
       *GlobalTables::GetTypeTable().GetOrCreatePointerType(*GlobalTables::GetTypeTable().GetCompactPtr()), 0, addrNode);
   stmt.SetOpCode(OP_virtualicallassigned);
-  stmt.GetNopnd().insert(stmt.GetNopnd().begin(), readFuncPtr);
+  stmt.GetNopnd().insert(stmt.GetNopnd().cbegin(), readFuncPtr);
   stmt.SetNumOpnds(stmt.GetNumOpnds() + 1);
 }
 
@@ -808,7 +810,7 @@ void VtableAnalysis::ReplaceInterfaceInvoke(CallNode &stmt) {
       OP_resolveinterfacefunc, GlobalTables::GetTypeTable().GetCompactPtr()->GetPrimType(), stmt.GetPUIdx(),
       tabBaseAddress, tabBaseAddress->Opnd(0));
   stmt.SetOpCode(OP_interfaceicallassigned);
-  stmt.GetNopnd().insert(stmt.GetNopnd().begin(), resolveNode);
+  stmt.GetNopnd().insert(stmt.GetNopnd().cbegin(), resolveNode);
   stmt.SetNumOpnds(stmt.GetNumOpnds() + 1);
 }
 
