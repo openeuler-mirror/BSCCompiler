@@ -129,7 +129,7 @@ class AArch64CGFunc : public CGFunc {
   MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
   uint32 LmbcFindTotalStkUsed(std::vector<TyIdx> *paramList);
   uint32 LmbcTotalRegsUsed();
-  bool LmbcSmallAggForRet(BaseNode &bNode, Operand *src);
+  bool LmbcSmallAggForRet(const BaseNode &bNode, Operand *src);
   bool LmbcSmallAggForCall(BlkassignoffNode &bNode, const Operand *src, std::vector<TyIdx> **parmList);
   void SelectAggDassign(DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
@@ -884,7 +884,7 @@ class AArch64CGFunc : public CGFunc {
                                          AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, int32 fromOffset);
   void CreateCallStructMemcpyToParamReg(MIRType &structType, int32 structCopyOffset, AArch64CallConvImpl &parmLocator,
                                         ListOperand &srcOpnds);
-  void SelectParmListForAggregate(BaseNode &parent, BaseNode &argExpr, ListOperand &srcOpnds,
+  void SelectParmListForAggregate(BaseNode &parent, ListOperand &srcOpnds,
                                   AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, int32 argNo);
   size_t SelectParmListGetStructReturnSize(StmtNode &naryNode);
   bool MarkParmListCall(BaseNode &expr);

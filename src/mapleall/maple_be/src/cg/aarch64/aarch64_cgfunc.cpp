@@ -165,19 +165,19 @@ MIRStructType *AArch64CGFunc::GetLmbcStructArgType(BaseNode &stmt, int32 argNo) 
   if (stmt.GetOpCode() == OP_call) {
     CallNode &callNode = static_cast<CallNode&>(stmt);
     MIRFunction *callFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode.GetPUIdx());
-    if (callFunc->GetFormalCount() < (argNo + 1)) {
+    if (callFunc->GetFormalCount() < static_cast<uint64>(argNo + 1)) {
       return nullptr;   /* formals less than actuals */
     }
-    ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(callFunc->GetFormalDefVec()[argNo].formalTyIdx);
+    ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(callFunc->GetFormalDefVec()[static_cast<uint64>(argNo)].formalTyIdx);
   } else if (stmt.GetOpCode() == OP_icallproto) {
     argNo--;   /* 1st opnd of icallproto is funcname, skip it relative to param list */
     IcallNode &icallproto = static_cast<IcallNode&>(stmt);
     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(icallproto.GetRetTyIdx());
     MIRFuncType *fType = static_cast<MIRFuncType*>(type);
-    if (fType->GetParamTypeList().size() < (argNo + 1)) {
+    if (fType->GetParamTypeList().size() < static_cast<uint64>(argNo + 1)) {
       return nullptr;
     }
-    ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fType->GetNthParamType(argNo));
+    ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fType->GetNthParamType(static_cast<uint64>(argNo)));
   }
   CHECK_FATAL(ty && ty->IsStructType(), "lmbc agg arg error");
   return static_cast<MIRStructType*>(ty);
@@ -2165,7 +2165,7 @@ MIRType *AArch64CGFunc::LmbcGetAggTyFromCallSite(StmtNode *stmt, std::vector<TyI
 }
 
 /* return true if blkassignoff for return, false otherwise */
-bool AArch64CGFunc::LmbcSmallAggForRet(BaseNode &bNode, Operand *src) {
+bool AArch64CGFunc::LmbcSmallAggForRet(const BaseNode &bNode, Operand *src) {
   PrimType pTy;
   uint32 size = 0;
   AArch64reg regno = static_cast<AArch64reg>(static_cast<const RegOperand*>(src)->GetRegisterNumber());
@@ -2175,7 +2175,7 @@ bool AArch64CGFunc::LmbcSmallAggForRet(BaseNode &bNode, Operand *src) {
     /* This blkassignoff is for struct return? */
     uint32 loadSize;
     uint32 numRegs = 0;
-    if (static_cast<StmtNode&>(bNode).GetNext()->GetOpCode() == OP_return) {
+    if (static_cast<const StmtNode&>(bNode).GetNext()->GetOpCode() == OP_return) {
       MIRStructType *ty = static_cast<MIRStructType*>(func->GetReturnType());
       uint32 tySize = GetBecommon().GetTypeSize(ty->GetTypeIndex());
       uint32 fpregs = FloatParamRegRequired(ty, size);
@@ -3197,7 +3197,7 @@ Operand *AArch64CGFunc::SelectIreadoff(const BaseNode &parent, IreadoffNode &ire
     auto &regAssignNode = static_cast<const RegassignNode&>(parent);
     PregIdx pIdx = regAssignNode.GetRegIdx();
     CHECK_FATAL(IsSpecialPseudoRegister(pIdx), "SelectIreadfpoff of agg");
-    LmbcSmallAggForRet(const_cast<BaseNode&>(parent), addrOpnd);
+    (void)LmbcSmallAggForRet(parent, addrOpnd);
     // result not used
   } else {
     auto &memOpnd = CreateMemOpnd(LoadIntoRegister(*addrOpnd, PTY_a64), offset, bitSize);
@@ -3258,7 +3258,7 @@ Operand *AArch64CGFunc::SelectIreadfpoff(const BaseNode &parent, IreadFPoffNode 
   RegType regty = GetRegTyFromPrimTy(primType);
   RegOperand *result = nullptr;
   if (offset > 0) {
-    CHECK_FATAL(0, "Invalid ireadfpoff offset");
+    CHECK_FATAL(false, "Invalid ireadfpoff offset");
   } else {
     if (primType == PTY_agg) {
       /* agg return */
@@ -7889,10 +7889,11 @@ void AArch64CGFunc::CreateCallStructMemcpyToParamReg(MIRType &structType, int32 
   }
 }
 
-void AArch64CGFunc::SelectParmListForAggregate(BaseNode &parent, BaseNode &argExpr, ListOperand &srcOpnds,
+void AArch64CGFunc::SelectParmListForAggregate(BaseNode &parent, ListOperand &srcOpnds,
                                                AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, int32 argNo) {
   uint64 symSize;
   int32 rhsOffset = 0;
+  BaseNode &argExpr = *parent.Opnd(argNo);
   if (argExpr.GetOpCode() == OP_dread) {
     DreadNode &dread = static_cast<DreadNode &>(argExpr);
     MIRSymbol *sym = GetBecommon().GetMIRModule().CurFunction()->GetLocalOrGlobalSymbol(dread.GetStIdx());
@@ -8007,7 +8008,8 @@ size_t AArch64CGFunc::SelectParmListGetStructReturnSize(StmtNode &naryNode) {
   return 0;
 }
 
-void AArch64CGFunc::SelectParmListPreprocessLargeStruct(BaseNode &parent, BaseNode &argExpr, int32 &structCopyOffset, int32 argNo) {
+void AArch64CGFunc::SelectParmListPreprocessLargeStruct(BaseNode &parent, BaseNode &argExpr,
+                                                        int32 &structCopyOffset, int32 argNo) {
   uint64 symSize;
   int32 rhsOffset = 0;
   if (argExpr.GetOpCode() == OP_dread) {
@@ -8058,7 +8060,7 @@ void AArch64CGFunc::SelectParmListPreprocessLargeStruct(BaseNode &parent, BaseNo
     IreadFPoffNode &ireadoff = static_cast<IreadFPoffNode &>(argExpr);
     MIRStructType *ty = GetLmbcStructArgType(parent, argNo);
     symSize = GetBecommon().GetTypeSize(ty->GetTypeIndex());
-    if (symSize > 16 /*kParmMemcpySize*/) {
+    if (symSize > k16ByteSize) { /* kParmMemcpySize */
       RegOperand *rfp = &GetOrCreatePhysicalRegisterOperand(RFP, k64BitSize, kRegTyInt);
       RegOperand *addrOpnd = &CreateRegisterOperandOfType(PTY_a64);
       ImmOperand &immOpnd = CreateImmOperand(ireadoff.GetOffset(), k32BitSize, true);
@@ -8070,11 +8072,10 @@ void AArch64CGFunc::SelectParmListPreprocessLargeStruct(BaseNode &parent, BaseNo
     IreadoffNode &ireadoff = static_cast<IreadoffNode &>(argExpr);
     MIRStructType *ty = GetLmbcStructArgType(parent, argNo);
     symSize = GetBecommon().GetTypeSize(ty->GetTypeIndex());
-    if (symSize > 16 /*kParmMemcpySize*/) {
+    if (symSize > k16ByteSize) { /* kParmMemcpySize */
       RegOperand *addrOpnd = static_cast<RegOperand*>(
                              HandleExpr(ireadoff, *(ireadoff.Opnd(0))));
-      CreateCallStructParamMemcpy(nullptr, addrOpnd,
-        static_cast<uint32>(symSize), structCopyOffset, 0);
+      CreateCallStructParamMemcpy(nullptr, addrOpnd, static_cast<uint32>(symSize), structCopyOffset, 0);
       structCopyOffset += static_cast<int32>(RoundUp(symSize, kSizeOfPtr));
     }
   }
@@ -8121,7 +8122,7 @@ void AArch64CGFunc::SelectParmListPreprocess(StmtNode &naryNode, size_t start, s
     if (primType != PTY_agg) {
       continue;
     }
-    SelectParmListPreprocessLargeStruct(naryNode, *argExpr, structCopyOffset, i);
+    SelectParmListPreprocessLargeStruct(naryNode, *argExpr, structCopyOffset, static_cast<int32>(i));
   }
 }
 
@@ -8222,7 +8223,7 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
     }
     /* use alloca  */
     if (primType == PTY_agg) {
-      SelectParmListForAggregate(naryNode, *argExpr, srcOpnds, parmLocator, structCopyOffset, i);
+      SelectParmListForAggregate(naryNode, srcOpnds, parmLocator, structCopyOffset, static_cast<int32>(i));
       continue;
     }
     ty = GlobalTables::GetTypeTable().GetTypeTable()[static_cast<uint32>(primType)];
@@ -9610,10 +9611,10 @@ int32 AArch64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
   } else if (sgKind == kMsArgsRegPassed) {
     int32 baseOffset;
     if (GetCG()->IsLmbc()) {
-      baseOffset = symAlloc->GetOffset() + memLayout->GetSizeOfRefLocals() +
+      baseOffset = static_cast<int32>(symAlloc->GetOffset()) + memLayout->GetSizeOfRefLocals() +
                    memLayout->SizeOfArgsToStackPass();   /* SP relative */
     } else {
-      baseOffset = memLayout->GetSizeOfLocals() + symAlloc->GetOffset() +
+      baseOffset = memLayout->GetSizeOfLocals() + static_cast<int32>(symAlloc->GetOffset()) +
                    memLayout->GetSizeOfRefLocals();
     }
     return baseOffset + sizeofFplr;
@@ -9629,12 +9630,13 @@ int32 AArch64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
   } else if (sgKind == kMsSpillReg) {
     int32 baseOffset;
     if (GetCG()->IsLmbc()) {
-      baseOffset = symAlloc->GetOffset() + memLayout->SizeOfArgsRegisterPassed() +
-                   memLayout->GetSizeOfRefLocals() +
+      baseOffset = static_cast<int32>(symAlloc->GetOffset()) +
+                   memLayout->SizeOfArgsRegisterPassed() + memLayout->GetSizeOfRefLocals() +
                    memLayout->SizeOfArgsToStackPass();
     } else {
-      baseOffset = symAlloc->GetOffset() + memLayout->SizeOfArgsRegisterPassed() +
-                   memLayout->GetSizeOfLocals() + memLayout->GetSizeOfRefLocals();
+      baseOffset = static_cast<int32>(symAlloc->GetOffset()) +
+                   memLayout->SizeOfArgsRegisterPassed() + memLayout->GetSizeOfLocals() +
+                   memLayout->GetSizeOfRefLocals();
     }
     return baseOffset + sizeofFplr;
   } else if (sgKind == kMsArgsToStkPass) {  /* this is for callers */
@@ -10299,14 +10301,11 @@ void AArch64CGFunc::SelectCVaStart(const IntrinsiccallNode &intrnNode) {
   AArch64CallConvImpl parmLocator(GetBecommon());
   CCLocInfo pLoc;
   uint32 stkSize = 0;
-  uint32 inReg = 0;
   for (uint32 i = 0; i < GetFunction().GetFormalCount(); i++) {
     MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(GetFunction().GetNthParamTyIdx(i));
     parmLocator.LocateNextParm(*ty, pLoc);
     if (pLoc.reg0 == kRinvalid) {  /* on stack */
       stkSize = static_cast<uint32_t>(pLoc.memOffset + pLoc.memSize);
-    } else {
-      inReg++;
     }
   }
   if (CGOptions::IsArm64ilp32()) {

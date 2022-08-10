@@ -344,8 +344,7 @@ void AArch64GenProEpilog::GenStackGuard(BB &bb) {
   cgFunc.GetCurBB()->AppendInsn(insn);
 
   uint64 vArea = 0;
-  if (cgFunc.GetMirModule().IsCModule() &&
-      cgFunc.GetFunction().GetAttr(FUNCATTR_varargs) &&
+  if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs) &&
       cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
     if (ml->GetSizeOfGRSaveArea() > 0) {
@@ -370,7 +369,6 @@ void AArch64GenProEpilog::GenStackGuard(BB &bb) {
   Insn &tmpInsn = currCG->BuildInstruction<AArch64Insn>(mOp, stAddrOpnd, *downStk);
   tmpInsn.SetDoNotRemove(true);
   cgFunc.GetCurBB()->AppendInsn(tmpInsn);
-
   bb.InsertAtBeginning(*aarchCGFunc.GetDummyBB());
   aarchCGFunc.GetDummyBB()->SetIsProEpilog(false);
   cgFunc.SetCurBB(*formerCurBB);
@@ -1258,7 +1256,7 @@ void AArch64GenProEpilog::GeneratePushRegs() {
   int32 offset;
   if (cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
     offset = static_cast<int32>(memLayout->RealStackFrameSize() -
-       (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen)/* FP/LR */) -
+       (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* FP/LR */ ) -
        memLayout->GetSizeOfLocals()); /* SizeOfArgsToStackPass not deducted since
                                          AdjustmentStackPointer() is not called for lmbc */
   } else {
@@ -1336,9 +1334,9 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
     if (memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) {
       offset += size;  /* End of area should be aligned. Hole between VR and GR area */
     }
-    uint32 start_regno = k8BitSize - (memlayout->GetSizeOfGRSaveArea() / size);
-    ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for GR Save Area");
-    for (uint32 i = start_regno + static_cast<uint32>(R0); i < static_cast<uint32>(R8); i++) {
+    uint32 startRegno = k8BitSize - (memlayout->GetSizeOfGRSaveArea() / size);
+    ASSERT(startRegno <= k8BitSize, "Incorrect starting GR regno for GR Save Area");
+    for (uint32 i = startRegno + static_cast<uint32>(R0); i < static_cast<uint32>(R8); i++) {
       uint32 tmpOffset = 0;
       if (CGOptions::IsBigEndian()) {
         if ((dataSizeBits >> 3) < 8) {
@@ -1360,9 +1358,9 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
         offset = static_cast<uint32>(memlayout->GetVRSaveAreaBaseLoc()) +
                  memlayout->SizeOfArgsToStackPass();
       }
-      start_regno = k8BitSize - (memlayout->GetSizeOfVRSaveArea() / (size * k2BitSize));
-      ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for VR Save Area");
-      for (uint32 i = start_regno + static_cast<uint32>(V0); i < static_cast<uint32>(V8); i++) {
+      startRegno = k8BitSize - (memlayout->GetSizeOfVRSaveArea() / (size * k2BitSize));
+      ASSERT(startRegno <= k8BitSize, "Incorrect starting GR regno for VR Save Area");
+      for (uint32 i = startRegno + static_cast<uint32>(V0); i < static_cast<uint32>(V8); i++) {
         uint32 tmpOffset = 0;
         if (CGOptions::IsBigEndian()) {
           if ((dataSizeBits >> 3) < 16) {
@@ -1765,7 +1763,7 @@ void AArch64GenProEpilog::GeneratePopRegs() {
   int32 offset;
   if (cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
     offset = static_cast<int32>(memLayout->RealStackFrameSize() -
-        (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen)/* FP/LR */) -
+        (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* FP/LR */ ) -
         memLayout->GetSizeOfLocals()); /* SizeOfArgsToStackPass not deducted since
                                           AdjustmentStackPointer() is not called for lmbc */
   } else {

@@ -29,7 +29,7 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
   /* instantiate a parm locator */
   AArch64CallConvImpl parmLocator(be);
   uint32 sizeOfArgsToStkPass = 0;
-  size_t i = 0;
+  uint32 i = 0;
   /* An indirect call's first operand is the invocation target */
   if (isIcall) {
     ++i;
@@ -88,7 +88,8 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
             ty = static_cast<MIRClassType*>(ty)->GetFieldType(iread->GetFieldID());
           }
         }
-      } else if ((opndOpcode == OP_ireadfpoff || opndOpcode == OP_ireadoff || opndOpcode == OP_dreadoff) && opnd->GetPrimType() == PTY_agg) {
+      } else if ((opndOpcode == OP_ireadfpoff || opndOpcode == OP_ireadoff ||
+                  opndOpcode == OP_dreadoff) && opnd->GetPrimType() == PTY_agg) {
         ty = static_cast<AArch64CGFunc*>(cgFunc)->GetLmbcStructArgType(stmt, i);
       }
       if (ty == nullptr) {   /* type mismatch */
