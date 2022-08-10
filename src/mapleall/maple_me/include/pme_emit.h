@@ -29,40 +29,40 @@ class PreMeEmitter : public AnalysisResult {
         codeMPAlloc(&f->meFunc->GetMirFunc()->GetCodeMemPoolAllocator()),
         preMeMP(premp),
         preMeMPAlloc(preMeMP),
-        PreMeStmtExtensionMap(preMeMPAlloc.Adapter()),
-        PreMeExprExtensionMap(preMeMPAlloc.Adapter()),
+        preMeStmtExtensionMap(preMeMPAlloc.Adapter()),
+        preMeExprExtensionMap(preMeMPAlloc.Adapter()),
         cfg(f->meFunc->GetCfg()) {}
   virtual ~PreMeEmitter() = default;
   uint32 EmitPreMeBB(uint32 curJ, BlockNode *curBlk);
   void SetPreMeStmtExtension(uint32_t stmtID, PreMeMIRExtension* pmeExt) {
-    PreMeStmtExtensionMap[stmtID] = pmeExt;
+    preMeStmtExtensionMap[stmtID] = pmeExt;
   }
   void SetPreMeExprExtension(BaseNode *expr, PreMeMIRExtension* pmeExt) {
-    PreMeExprExtensionMap[expr] = pmeExt;
+    preMeExprExtensionMap[expr] = pmeExt;
   }
   PreMeMIRExtension* GetPreMeExprExtension(BaseNode *node) {
-    return PreMeExprExtensionMap[node];
+    return preMeExprExtensionMap[node];
   }
   PreMeMIRExtension* GetPreMeStmtExtension(uint32_t stmtID) {
-    return PreMeStmtExtensionMap[stmtID];
+    return preMeStmtExtensionMap[stmtID];
   }
   BaseNode *GetParent(BaseNode *node) {
-    PreMeMIRExtension *pmeExt = PreMeExprExtensionMap[node];
+    PreMeMIRExtension *pmeExt = preMeExprExtensionMap[node];
     if (pmeExt != nullptr) {
       return pmeExt->parent;
     }
     return nullptr;
   }
   BaseNode *GetParent(uint32_t stmtID) {
-    PreMeMIRExtension *pmeExt = PreMeStmtExtensionMap[stmtID];
+    PreMeMIRExtension *pmeExt = preMeStmtExtensionMap[stmtID];
     if (pmeExt != nullptr) {
       return pmeExt->parent;
     }
     return nullptr;
   }
   MeExpr *GetMexpr(BaseNode *node) {
-    MapleMap<BaseNode *, PreMeMIRExtension *>::iterator it = PreMeExprExtensionMap.find(node);
-    if (it == PreMeExprExtensionMap.end()) {
+    MapleMap<BaseNode *, PreMeMIRExtension *>::iterator it = preMeExprExtensionMap.find(node);
+    if (it == preMeExprExtensionMap.end()) {
       return nullptr;
     }
     PreMeMIRExtension *pmeExt = it->second;
@@ -70,15 +70,15 @@ class PreMeEmitter : public AnalysisResult {
     return pmeExt->meexpr;
   }
   MeStmt *GetMeStmt(uint32_t stmtID) {
-    PreMeMIRExtension *pmeExt = PreMeStmtExtensionMap[stmtID];
+    PreMeMIRExtension *pmeExt = preMeStmtExtensionMap[stmtID];
     return pmeExt->mestmt;
   }
   MIRFunction *GetMirFunction() { return mirFunc; }
   MeIRMap *GetMeIRMap() { return meirmap; }
   MemPool *GetCodeMP()  { return codeMP; }
   MapleAllocator* GetCodeMPAlloc() { return codeMPAlloc; }
-  MapleMap<uint32_t, PreMeMIRExtension *> *GetPreMeStmtExtensionMap() { return &PreMeStmtExtensionMap; }
-  MapleMap<BaseNode *, PreMeMIRExtension *> *GetPreMeExprExtensionMap() { return &PreMeExprExtensionMap; }
+  MapleMap<uint32_t, PreMeMIRExtension *> *GetPreMeStmtExtensionMap() { return &preMeStmtExtensionMap; }
+  MapleMap<BaseNode *, PreMeMIRExtension *> *GetPreMeExprExtensionMap() { return &preMeExprExtensionMap; }
   GcovFuncInfo *GetFuncProfData() { return mirFunc->GetFuncProfData(); }
 
  private:
@@ -98,8 +98,8 @@ class PreMeEmitter : public AnalysisResult {
   MapleAllocator *codeMPAlloc;
   MemPool *preMeMP;
   MapleAllocator preMeMPAlloc;
-  MapleMap<uint32_t, PreMeMIRExtension*>  PreMeStmtExtensionMap; // key is stmtID
-  MapleMap<BaseNode*, PreMeMIRExtension*> PreMeExprExtensionMap; // key is BaseNode*
+  MapleMap<uint32_t, PreMeMIRExtension*>  preMeStmtExtensionMap; // key is stmtID
+  MapleMap<BaseNode*, PreMeMIRExtension*> preMeExprExtensionMap; // key is BaseNode*
   MeCFG *cfg;
 };
 

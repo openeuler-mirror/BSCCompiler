@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include<error_code.h>
+#include "mpl_logging.h"
 
 namespace maple {
 void PrintErrorMessage(int ret) {

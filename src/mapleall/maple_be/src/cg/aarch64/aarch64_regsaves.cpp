@@ -704,7 +704,7 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
         if (bb->GetKind() == BB::kBBIgoto) {
           CHECK_FATAL(false, "igoto detected");
         }
-        Insn *lastInsn = bb->GetLastInsn();
+        Insn *lastInsn = bb->GetLastMachineInsn();
         if (lastInsn != nullptr && (lastInsn->IsBranch() || lastInsn->IsTailCall()) &&
             (!lastInsn->GetOperand(0).IsRegister() ||  /* not a reg OR */
             (!AArch64Abi::IsCalleeSavedReg(            /* reg but not cs */

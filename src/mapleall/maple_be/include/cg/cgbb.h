@@ -336,7 +336,7 @@ class BB {
   }
   Insn *GetLastMachineInsn() {
     FOR_BB_INSNS_REV(insn, this) {
-      if (insn->IsMachineInstruction()) {
+      if (insn->IsMachineInstruction() && !insn->IsPseudoInstruction()) {
         return insn;
       }
     }

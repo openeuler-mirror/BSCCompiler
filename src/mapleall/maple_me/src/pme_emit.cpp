@@ -71,13 +71,13 @@ ArrayNode *PreMeEmitter::ConvertToArray(BaseNode *x, TyIdx ptrTyIdx) {
   arryNode->GetNopnd().push_back(indexOpnd);
   // The number of operands of arryNode is set to 2
   arryNode->SetNumOpnds(2);
-  PreMeExprExtensionMap[arryNode] = PreMeExprExtensionMap[x];
+  preMeExprExtensionMap[arryNode] = preMeExprExtensionMap[x];
   // update opnds' parent info if it has
-  if (PreMeExprExtensionMap[opnd0]) {
-    PreMeExprExtensionMap[opnd0]->SetParent(arryNode);
+  if (preMeExprExtensionMap[opnd0]) {
+    preMeExprExtensionMap[opnd0]->SetParent(arryNode);
   }
-  if (PreMeExprExtensionMap[indexOpnd]) {
-    PreMeExprExtensionMap[indexOpnd]->SetParent(arryNode);
+  if (preMeExprExtensionMap[indexOpnd]) {
+    preMeExprExtensionMap[indexOpnd]->SetParent(arryNode);
   }
   return arryNode;
 }
@@ -88,7 +88,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
     case OP_constval: {
       MIRConst *constval = static_cast<ConstMeExpr *>(meExpr)->GetConstVal();
       ConstvalNode *lcvlNode = codeMP->New<ConstvalNode>(constval->GetType().GetPrimType(), constval);
-      PreMeExprExtensionMap[lcvlNode] = pmeExt;
+      preMeExprExtensionMap[lcvlNode] = pmeExt;
       return lcvlNode;
     }
     case OP_dread: {
@@ -99,7 +99,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
       }
       AddrofNode *dreadnode = codeMP->New<AddrofNode>(OP_dread, GetRegPrimType(varmeexpr->GetPrimType()),
                                                       sym->GetStIdx(), varmeexpr->GetOst()->GetFieldID());
-      PreMeExprExtensionMap[dreadnode] = pmeExt;
+      preMeExprExtensionMap[dreadnode] = pmeExt;
       return dreadnode;
     }
     case OP_eq:
@@ -119,7 +119,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
       cmpNode->SetBOpnd(opnd0, 0);
       cmpNode->SetBOpnd(opnd1, 1);
       cmpNode->SetOpndType(cmpNode->GetOpndType());
-      PreMeExprExtensionMap[cmpNode] = pmeExt;
+      preMeExprExtensionMap[cmpNode] = pmeExt;
       return cmpNode;
     }
     case OP_array: {
@@ -132,7 +132,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
         arrNode->GetNopnd().push_back(opnd);
       }
       arrNode->SetNumOpnds(meExpr->GetNumOpnds());
-      PreMeExprExtensionMap[arrNode] = pmeExt;
+      preMeExprExtensionMap[arrNode] = pmeExt;
       return arrNode;
     }
     case OP_ashr:
@@ -156,7 +156,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
       BinaryNode *binNode = codeMP->New<BinaryNode>(meExpr->GetOp(), meExpr->GetPrimType());
       binNode->SetBOpnd(EmitPreMeExpr(opExpr->GetOpnd(0), binNode), 0);
       binNode->SetBOpnd(EmitPreMeExpr(opExpr->GetOpnd(1), binNode), 1);
-      PreMeExprExtensionMap[binNode] = pmeExt;
+      preMeExprExtensionMap[binNode] = pmeExt;
       return binNode;
     }
     case OP_iread: {
@@ -166,7 +166,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
       irdNode->SetOpnd(EmitPreMeExpr(ivarExpr->GetBase(), irdNode), 0);
       irdNode->SetTyIdx(ivarExpr->GetTyIdx());
       irdNode->SetFieldID(ivarExpr->GetFieldID());
-      PreMeExprExtensionMap[irdNode] = pmeExt;
+      preMeExprExtensionMap[irdNode] = pmeExt;
       if (irdNode->Opnd(0)->GetOpCode() != OP_array) {
         ArrayNode *arryNode = ConvertToArray(irdNode->Opnd(0), irdNode->GetTyIdx());
         if (arryNode != nullptr) {
@@ -187,15 +187,15 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
             static_cast<uint64>(static_cast<uint32>(ivarExpr->GetOffset())), *mirType);
         ConstvalNode *constValNode = codeMP->New<ConstvalNode>(mirType->GetPrimType(), mirConst);
         PreMeMIRExtension *pmeExt2 = preMeMP->New<PreMeMIRExtension>(irdNode, baseexpr);
-        PreMeExprExtensionMap[constValNode] = pmeExt2;
+        preMeExprExtensionMap[constValNode] = pmeExt2;
         BinaryNode *newAddrNode =
             codeMP->New<BinaryNode>(OP_add, baseexpr->GetPrimType(), EmitPreMeExpr(baseexpr, irdNode), constValNode);
-        PreMeExprExtensionMap[newAddrNode] = pmeExt2;
+        preMeExprExtensionMap[newAddrNode] = pmeExt2;
         irdNode->SetOpnd(newAddrNode, 0);
       }
       irdNode->SetTyIdx(ivarExpr->GetTyIdx());
       irdNode->SetFieldID(ivarExpr->GetFieldID());
-      PreMeExprExtensionMap[irdNode] = pmeExt;
+      preMeExprExtensionMap[irdNode] = pmeExt;
       return irdNode;
     }
     case OP_addrof: {
@@ -204,20 +204,20 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
       MIRSymbol *sym = ost->GetMIRSymbol();
       AddrofNode *addrofNode =
           codeMP->New<AddrofNode>(OP_addrof, addrMeexpr->GetPrimType(), sym->GetStIdx(), ost->GetFieldID());
-      PreMeExprExtensionMap[addrofNode] = pmeExt;
+      preMeExprExtensionMap[addrofNode] = pmeExt;
       return addrofNode;
     }
     case OP_addroflabel: {
       AddroflabelMeExpr *addroflabelexpr = static_cast<AddroflabelMeExpr *>(meExpr);
       AddroflabelNode *addroflabel = codeMP->New<AddroflabelNode>(addroflabelexpr->labelIdx);
       addroflabel->SetPrimType(meExpr->GetPrimType());
-      PreMeExprExtensionMap[addroflabel] = pmeExt;
+      preMeExprExtensionMap[addroflabel] = pmeExt;
       return addroflabel;
     }
     case OP_addroffunc: {
       AddroffuncMeExpr *addrMeexpr = static_cast<AddroffuncMeExpr *>(meExpr);
       AddroffuncNode *addrfunNode = codeMP->New<AddroffuncNode>(addrMeexpr->GetPrimType(), addrMeexpr->GetPuIdx());
-      PreMeExprExtensionMap[addrfunNode] = pmeExt;
+      preMeExprExtensionMap[addrfunNode] = pmeExt;
       return addrfunNode;
     }
     case OP_gcmalloc:
@@ -227,7 +227,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
       GCMallocNode *gcMnode =
           codeMP->New<GCMallocNode>(meExpr->GetOp(), meExpr->GetPrimType(), gcMeexpr->GetTyIdx());
       gcMnode->SetTyIdx(gcMeexpr->GetTyIdx());
-      PreMeExprExtensionMap[gcMnode] = pmeExt;
+      preMeExprExtensionMap[gcMnode] = pmeExt;
       return gcMnode;
     }
     case OP_retype: {
@@ -236,7 +236,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
       retypeNode->SetFromType(opMeexpr->GetOpndType());
       retypeNode->SetTyIdx(opMeexpr->GetTyIdx());
       retypeNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(0), retypeNode), 0);
-      PreMeExprExtensionMap[retypeNode] = pmeExt;
+      preMeExprExtensionMap[retypeNode] = pmeExt;
       return retypeNode;
     }
     case OP_ceil:
@@ -247,7 +247,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
       TypeCvtNode *tycvtNode = codeMP->New<TypeCvtNode>(meExpr->GetOp(), meExpr->GetPrimType());
       tycvtNode->SetFromType(opMeexpr->GetOpndType());
       tycvtNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(0), tycvtNode), 0);
-      PreMeExprExtensionMap[tycvtNode] = pmeExt;
+      preMeExprExtensionMap[tycvtNode] = pmeExt;
       return tycvtNode;
     }
     case OP_sext:
@@ -258,7 +258,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
       extNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(0), extNode), 0);
       extNode->SetBitsOffset(opMeexpr->GetBitsOffSet());
       extNode->SetBitsSize(opMeexpr->GetBitsSize());
-      PreMeExprExtensionMap[extNode] = pmeExt;
+      preMeExprExtensionMap[extNode] = pmeExt;
       return extNode;
     }
     case OP_depositbits: {
@@ -268,7 +268,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
       depNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(1), depNode), 1);
       depNode->SetBitsOffset(opMeexpr->GetBitsOffSet());
       depNode->SetBitsSize(opMeexpr->GetBitsSize());
-      PreMeExprExtensionMap[depNode] = pmeExt;
+      preMeExprExtensionMap[depNode] = pmeExt;
       return depNode;
     }
     case OP_regread: {
@@ -276,14 +276,14 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
       RegreadNode *regNode = codeMP->New<RegreadNode>();
       regNode->SetPrimType(regMeexpr->GetPrimType());
       regNode->SetRegIdx(regMeexpr->GetRegIdx());
-      PreMeExprExtensionMap[regNode] = pmeExt;
+      preMeExprExtensionMap[regNode] = pmeExt;
       return regNode;
     }
     case OP_sizeoftype: {
       SizeoftypeMeExpr *sizeofMeexpr = static_cast<SizeoftypeMeExpr *>(meExpr);
       SizeoftypeNode *sizeofTynode =
           codeMP->New<SizeoftypeNode>(sizeofMeexpr->GetPrimType(), sizeofMeexpr->GetTyIdx());
-      PreMeExprExtensionMap[sizeofTynode] = pmeExt;
+      preMeExprExtensionMap[sizeofTynode] = pmeExt;
       return sizeofTynode;
     }
     case OP_fieldsdist: {
@@ -291,21 +291,21 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
       FieldsDistNode *fieldsNode =
           codeMP->New<FieldsDistNode>(fdMeexpr->GetPrimType(), fdMeexpr->GetTyIdx(), fdMeexpr->GetFieldID1(),
                                       fdMeexpr->GetFieldID2());
-      PreMeExprExtensionMap[fieldsNode] = pmeExt;
+      preMeExprExtensionMap[fieldsNode] = pmeExt;
       return fieldsNode;
     }
     case OP_conststr: {
       ConststrMeExpr *constrMeexpr = static_cast<ConststrMeExpr *>(meExpr);
       ConststrNode *constrNode =
           codeMP->New<ConststrNode>(constrMeexpr->GetPrimType(), constrMeexpr->GetStrIdx());
-      PreMeExprExtensionMap[constrNode] = pmeExt;
+      preMeExprExtensionMap[constrNode] = pmeExt;
       return constrNode;
     }
     case OP_conststr16: {
       Conststr16MeExpr *constr16Meexpr = static_cast<Conststr16MeExpr *>(meExpr);
       Conststr16Node *constr16Node =
           codeMP->New<Conststr16Node>(constr16Meexpr->GetPrimType(), constr16Meexpr->GetStrIdx());
-      PreMeExprExtensionMap[constr16Node] = pmeExt;
+      preMeExprExtensionMap[constr16Node] = pmeExt;
       return constr16Node;
     }
     case OP_abs:
@@ -319,7 +319,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
       OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meExpr);
       UnaryNode *unNode = codeMP->New<UnaryNode>(meExpr->GetOp(), meExpr->GetPrimType());
       unNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(0), unNode), 0);
-      PreMeExprExtensionMap[unNode] = pmeExt;
+      preMeExprExtensionMap[unNode] = pmeExt;
       return unNode;
     }
     case OP_iaddrof: {
@@ -328,7 +328,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
       ireadNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(0), ireadNode), 0);
       ireadNode->SetTyIdx(opMeexpr->GetTyIdx());
       ireadNode->SetFieldID(opMeexpr->GetFieldID());
-      PreMeExprExtensionMap[ireadNode] = pmeExt;
+      preMeExprExtensionMap[ireadNode] = pmeExt;
       return ireadNode;
     }
     case OP_select: {
@@ -337,7 +337,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
       tNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(0), tNode), 0);
       tNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(1), tNode), 1);
       tNode->SetOpnd(EmitPreMeExpr(opMeexpr->GetOpnd(2), tNode), 2);
-      PreMeExprExtensionMap[tNode] = pmeExt;
+      preMeExprExtensionMap[tNode] = pmeExt;
       return tNode;
     }
     case OP_intrinsicop:
@@ -351,7 +351,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent) {
         intrnNode->GetNopnd().push_back(opnd);
       }
       intrnNode->SetNumOpnds(nMeexpr->GetNumOpnds());
-      PreMeExprExtensionMap[intrnNode] = pmeExt;
+      preMeExprExtensionMap[intrnNode] = pmeExt;
       return intrnNode;
     }
     default:
@@ -372,7 +372,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       dass->SetSrcPos(dsmestmt->GetSrcPosition());
       dass->CopySafeRegionAttr(meStmt->GetStmtAttr());
       dass->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[dass->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[dass->GetStmtID()] = pmeExt;
       return dass;
     }
     case OP_regassign: {
@@ -384,7 +384,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       rssnode->SetSrcPos(asMestmt->GetSrcPosition());
       rssnode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       rssnode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[rssnode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[rssnode->GetStmtID()] = pmeExt;
       return rssnode;
     }
     case OP_iassign: {
@@ -415,7 +415,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       iassignNode->SetSrcPos(iass->GetSrcPosition());
       iassignNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       iassignNode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[iassignNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[iassignNode->GetStmtID()] = pmeExt;
       iassignNode->SetExpandFromArrayOfCharFunc(iass->IsExpandedFromArrayOfCharFunc());
       return iassignNode;
     }
@@ -429,7 +429,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       retNode->SetSrcPos(retMestmt->GetSrcPosition());
       retNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       retNode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[retNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[retNode->GetStmtID()] = pmeExt;
       return retNode;
     }
     case OP_goto: {
@@ -445,7 +445,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       gto->SetSrcPos(gotoStmt->GetSrcPosition());
       gto->CopySafeRegionAttr(meStmt->GetStmtAttr());
       gto->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[gto->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[gto->GetStmtID()] = pmeExt;
       return gto;
     }
     case OP_igoto: {
@@ -455,7 +455,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       igto->SetSrcPos(igotoMeStmt->GetSrcPosition());
       igto->CopySafeRegionAttr(meStmt->GetStmtAttr());
       igto->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[igto->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[igto->GetStmtID()] = pmeExt;
       return igto;
     }
     case OP_comment: {
@@ -465,7 +465,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       cmtNode->SetSrcPos(cmtmeNode->GetSrcPosition());
       cmtNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       cmtNode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[cmtNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[cmtNode->GetStmtID()] = pmeExt;
       return cmtNode;
     }
     case OP_call:
@@ -497,7 +497,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       callnode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       callnode->SetOriginalID(meStmt->GetOriginalId());
       callnode->SetMeStmtID(callMeStmt->GetMeStmtId());
-      PreMeStmtExtensionMap[callnode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[callnode->GetStmtID()] = pmeExt;
       return callnode;
     }
     case OP_icall:
@@ -523,7 +523,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
           ASSERT_NOT_NULL(sym);
           icallnode->SetRetTyIdx(sym->GetType()->GetTypeIndex());
         } else {
-          PregIdx pregidx = static_cast<PregIdx>(retpair.second.GetPregIdx());
+          PregIdx pregidx(retpair.second.GetPregIdx());
           MIRPreg *preg = mirFunc->GetPregTab()->PregFromPregIdx(pregidx);
           icallnode->SetRetTyIdx(TyIdx(preg->GetPrimType()));
         }
@@ -533,7 +533,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       }
       icallnode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       icallnode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[icallnode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[icallnode->GetStmtID()] = pmeExt;
       return icallnode;
     }
     case OP_intrinsiccall:
@@ -557,7 +557,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       }
       callnode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       callnode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[callnode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[callnode->GetStmtID()] = pmeExt;
       return callnode;
     }
     case OP_asm: {
@@ -590,7 +590,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       stmtNode->SetSrcPos(meStmt->GetSrcPosition());
       stmtNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       stmtNode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[stmtNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[stmtNode->GetStmtID()] = pmeExt;
       return stmtNode;
     }
     case OP_retsub: {
@@ -598,7 +598,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       usesStmtNode->SetSrcPos(meStmt->GetSrcPosition());
       usesStmtNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       usesStmtNode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[usesStmtNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[usesStmtNode->GetStmtID()] = pmeExt;
       return usesStmtNode;
     }
     case OP_brfalse:
@@ -612,7 +612,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       CondNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       CondNode->SetOriginalID(meStmt->GetOriginalId());
       CondNode->SetMeStmtID(meStmt->GetMeStmtId());
-      PreMeStmtExtensionMap[CondNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[CondNode->GetStmtID()] = pmeExt;
       return CondNode;
     }
     case OP_cpptry:
@@ -627,7 +627,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       jvTryNode->SetSrcPos(tryMeStmt->GetSrcPosition());
       jvTryNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       jvTryNode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[jvTryNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[jvTryNode->GetStmtID()] = pmeExt;
       return jvTryNode;
     }
     case OP_cppcatch: {
@@ -637,7 +637,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       cppCatchNode->SetSrcPos(catchMestmt->GetSrcPosition());
       cppCatchNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       cppCatchNode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[cppCatchNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[cppCatchNode->GetStmtID()] = pmeExt;
       return cppCatchNode;
     }
     case OP_catch: {
@@ -647,7 +647,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       jvCatchNode->SetSrcPos(catchMestmt->GetSrcPosition());
       jvCatchNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       jvCatchNode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[jvCatchNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[jvCatchNode->GetStmtID()] = pmeExt;
       return jvCatchNode;
     }
     case OP_throw: {
@@ -657,7 +657,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       throwStmtNode->SetSrcPos(throwMeStmt->GetSrcPosition());
       throwStmtNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       throwStmtNode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[throwStmtNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[throwStmtNode->GetStmtID()] = pmeExt;
       return throwStmtNode;
     }
     case OP_callassertnonnull: {
@@ -669,7 +669,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       assertNullNode->SetNumOpnds(1);
       assertNullNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       assertNullNode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[assertNullNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[assertNullNode->GetStmtID()] = pmeExt;
       return assertNullNode;
     }
     case OP_callassertle: {
@@ -684,7 +684,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       assertBoundaryNode->SetNumOpnds(static_cast<uint8>(assertBoundaryNode->GetNopndSize()));
       assertBoundaryNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       assertBoundaryNode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[assertBoundaryNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[assertBoundaryNode->GetStmtID()] = pmeExt;
       return assertBoundaryNode;
     }
     case OP_eval:
@@ -695,7 +695,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       unaryStmtNode->SetSrcPos(uMeStmt->GetSrcPosition());
       unaryStmtNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       unaryStmtNode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[unaryStmtNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[unaryStmtNode->GetStmtID()] = pmeExt;
       return unaryStmtNode;
     }
     case OP_switch: {
@@ -707,7 +707,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       switchNode->SetSrcPos(meSwitch->GetSrcPosition());
       switchNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       switchNode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[switchNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[switchNode->GetStmtID()] = pmeExt;
       return switchNode;
     }
     case OP_assertnonnull:
@@ -721,7 +721,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       assertNullNode->SetNumOpnds(1);
       assertNullNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       assertNullNode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[assertNullNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[assertNullNode->GetStmtID()] = pmeExt;
       return assertNullNode;
     }
     case OP_calcassertge:
@@ -740,7 +740,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       assertBoundaryNode->SetNumOpnds(static_cast<uint8>(assertBoundaryNode->GetNopndSize()));
       assertBoundaryNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       assertBoundaryNode->SetOriginalID(meStmt->GetOriginalId());
-      PreMeStmtExtensionMap[assertBoundaryNode->GetStmtID()] = pmeExt;
+      preMeStmtExtensionMap[assertBoundaryNode->GetStmtID()] = pmeExt;
       return assertBoundaryNode;
     }
     case OP_syncenter:
@@ -771,7 +771,7 @@ void PreMeEmitter::EmitBB(BB *bb, BlockNode *curBlk) {
     lbnode->SetLabelIdx(labidx);
     curBlk->AddStatement(lbnode);
     PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
-    PreMeStmtExtensionMap[lbnode->GetStmtID()] = pmeExt;
+    preMeStmtExtensionMap[lbnode->GetStmtID()] = pmeExt;
     if (GetFuncProfData()) {
       GetFuncProfData()->SetStmtFreq(lbnode->GetStmtID(), bb->GetFrequency());
     }
@@ -798,7 +798,7 @@ void PreMeEmitter::EmitBB(BB *bb, BlockNode *curBlk) {
     StmtNode *endtry = codeMP->New<StmtNode>(OP_endtry);
     curBlk->AddStatement(endtry);
     PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
-    PreMeStmtExtensionMap[endtry->GetStmtID()] = pmeExt;
+    preMeStmtExtensionMap[endtry->GetStmtID()] = pmeExt;
     setLastFreq = true;
   }
   // add stmtnode to last
@@ -823,7 +823,7 @@ DoloopNode *PreMeEmitter::EmitPreMeDoloop(BB *meWhileBB, BlockNode *curBlk, PreM
   DoloopNode *Doloopnode = codeMP->New<DoloopNode>();
   PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
   pmeExt->mestmt = lastmestmt;
-  PreMeStmtExtensionMap[Doloopnode->GetStmtID()] = pmeExt;
+  preMeStmtExtensionMap[Doloopnode->GetStmtID()] = pmeExt;
   Doloopnode->SetDoVarStIdx(whileInfo->ivOst->GetMIRSymbol()->GetStIdx());
   CondGotoMeStmt *condGotostmt = static_cast<CondGotoMeStmt *>(lastmestmt);
   Doloopnode->SetStartExpr(EmitPreMeExpr(whileInfo->initExpr, Doloopnode));
@@ -841,11 +841,11 @@ DoloopNode *PreMeEmitter::EmitPreMeDoloop(BB *meWhileBB, BlockNode *curBlk, PreM
   BlockNode *dobodyNode = codeMP->New<BlockNode>();
   Doloopnode->SetDoBody(dobodyNode);
   PreMeMIRExtension *doloopExt = preMeMP->New<PreMeMIRExtension>(Doloopnode);
-  PreMeStmtExtensionMap[dobodyNode->GetStmtID()] = doloopExt;
+  preMeStmtExtensionMap[dobodyNode->GetStmtID()] = doloopExt;
   MIRIntConst *intConst =
       mirFunc->GetModule()->GetMemPool()->New<MIRIntConst>(whileInfo->stepValue, *whileInfo->ivOst->GetType());
   ConstvalNode *constnode = codeMP->New<ConstvalNode>(intConst->GetType().GetPrimType(), intConst);
-  PreMeExprExtensionMap[constnode] = doloopExt;
+  preMeExprExtensionMap[constnode] = doloopExt;
   Doloopnode->SetIncrExpr(constnode);
   Doloopnode->SetIsPreg(false);
   curBlk->AddStatement(Doloopnode);
@@ -863,12 +863,12 @@ WhileStmtNode *PreMeEmitter::EmitPreMeWhile(BB *meWhileBB, BlockNode *curBlk) {
               "EmitPreMeWhile: there are other statements at while header bb");
   WhileStmtNode *Whilestmt = codeMP->New<WhileStmtNode>(OP_while);
   PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
-  PreMeStmtExtensionMap[Whilestmt->GetStmtID()] = pmeExt;
+  preMeStmtExtensionMap[Whilestmt->GetStmtID()] = pmeExt;
   CondGotoMeStmt *condGotostmt = static_cast<CondGotoMeStmt *>(lastmestmt);
   Whilestmt->SetOpnd(EmitPreMeExpr(condGotostmt->GetOpnd(), Whilestmt), 0);
   BlockNode *whilebodyNode = codeMP->New<BlockNode>();
   PreMeMIRExtension *whilenodeExt = preMeMP->New<PreMeMIRExtension>(Whilestmt);
-  PreMeStmtExtensionMap[whilebodyNode->GetStmtID()] = whilenodeExt;
+  preMeStmtExtensionMap[whilebodyNode->GetStmtID()] = whilenodeExt;
   Whilestmt->SetBody(whilebodyNode);
   // add stmtfreq
   if (GetFuncProfData()) {
@@ -935,7 +935,7 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
     lbnode->SetLabelIdx(labidx);
     curBlk->AddStatement(lbnode);
     PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
-    PreMeStmtExtensionMap[lbnode->GetStmtID()] = pmeExt;
+    preMeStmtExtensionMap[lbnode->GetStmtID()] = pmeExt;
   }
   MeStmt *mestmt = curbb->GetFirstMe();
   while (mestmt->GetOp() != OP_brfalse && mestmt->GetOp() != OP_brtrue) {
@@ -957,7 +957,7 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
   CHECK_FATAL(ifInfo->endLabel != 0, "Raise2PreMeIf: endLabel not found");
   IfStmtNode *IfstmtNode = mirFunc->GetCodeMempool()->New<IfStmtNode>();
   PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
-  PreMeStmtExtensionMap[IfstmtNode->GetStmtID()] = pmeExt;
+  preMeStmtExtensionMap[IfstmtNode->GetStmtID()] = pmeExt;
   BaseNode *condnode = EmitPreMeExpr(condgoto->GetOpnd(), IfstmtNode);
   if (condgoto->IsBranchProbValid() && (condgoto->GetBranchProb() == kProbLikely ||
                                         condgoto->GetBranchProb() == kProbUnlikely)) {
@@ -991,9 +991,9 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
   PreMeMIRExtension *ifpmeExt = preMeMP->New<PreMeMIRExtension>(IfstmtNode);
   if (ifInfo->elseLabel != 0) {  // both else and then are not empty;
     BlockNode *elseBlk = codeMP->New<BlockNode>();
-    PreMeStmtExtensionMap[elseBlk->GetStmtID()] = ifpmeExt;
+    preMeStmtExtensionMap[elseBlk->GetStmtID()] = ifpmeExt;
     BlockNode *thenBlk = codeMP->New<BlockNode>();
-    PreMeStmtExtensionMap[thenBlk->GetStmtID()] = ifpmeExt;
+    preMeStmtExtensionMap[thenBlk->GetStmtID()] = ifpmeExt;
     IfstmtNode->SetThenPart(thenBlk);
     IfstmtNode->SetElsePart(elseBlk);
     BB *elsemebb = cfg->GetLabelBBAt(ifInfo->elseLabel);
@@ -1018,9 +1018,9 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
     return j;
   } else {  // there is only then or else part in this if stmt
     BlockNode *branchBlock = codeMP->New<BlockNode>();
-    PreMeStmtExtensionMap[branchBlock->GetStmtID()] = ifpmeExt;
+    preMeStmtExtensionMap[branchBlock->GetStmtID()] = ifpmeExt;
     BlockNode *emptyBlock = codeMP->New<BlockNode>();
-    PreMeStmtExtensionMap[emptyBlock->GetStmtID()] = ifpmeExt;
+    preMeStmtExtensionMap[emptyBlock->GetStmtID()] = ifpmeExt;
     if (condgoto->GetOp() == OP_brtrue) {
       IfstmtNode->SetElsePart(branchBlock);
       IfstmtNode->SetThenPart(emptyBlock);

@@ -58,7 +58,7 @@ void ClassInit::GenClassInitCheckProfile(MIRFunction &func, const MIRSymbol &cla
 }
 
 void ClassInit::GenPreClassInitCheck(MIRFunction &func, const MIRSymbol &classInfo, const StmtNode *clinit) const {
-  MIRFunction *preClinit = builder->GetOrCreateFunction(kMCCPreClinitCheck, (TyIdx)(PTY_void));
+  MIRFunction *preClinit = builder->GetOrCreateFunction(kMCCPreClinitCheck, TyIdx(PTY_void));
   BaseNode *classInfoNode = builder->CreateExprAddrof(0, classInfo);
   MapleVector<BaseNode*> args(builder->GetCurrentFuncCodeMpAllocator()->Adapter());
   args.push_back(classInfoNode);
@@ -66,8 +66,8 @@ void ClassInit::GenPreClassInitCheck(MIRFunction &func, const MIRSymbol &classIn
   func.GetBody()->InsertBefore(clinit, callPreclinit);
 }
 
-void ClassInit::GenPostClassInitCheck(MIRFunction &func, const MIRSymbol &classInfo, StmtNode *clinit) const {
-  MIRFunction *postClinit = builder->GetOrCreateFunction(kMCCPostClinitCheck, (TyIdx)(PTY_void));
+void ClassInit::GenPostClassInitCheck(MIRFunction &func, const MIRSymbol &classInfo, const StmtNode *clinit) const {
+  MIRFunction *postClinit = builder->GetOrCreateFunction(kMCCPostClinitCheck, static_cast<TyIdx>(PTY_void));
   BaseNode *classInfoNode = builder->CreateExprAddrof(0, classInfo);
   MapleVector<BaseNode*> args(builder->GetCurrentFuncCodeMpAllocator()->Adapter());
   args.push_back(classInfoNode);
@@ -187,8 +187,10 @@ MIRSymbol *ClassInit::GetClassInfo(const std::string &classname) {
   MIRType *classInfoType =
       GlobalTables::GetTypeTable().GetOrCreateClassType(namemangler::kClassMetadataTypeName, GetMIRModule());
   MIRSymbol *classInfo = builder->GetOrCreateGlobalDecl(classInfoName, *classInfoType);
+  ASSERT_NOT_NULL(classInfo);
   Klass *klass = klassHierarchy->GetKlassFromName(classname);
   if (klass == nullptr || !klass->GetMIRStructType()->IsLocal()) {
+    ASSERT_NOT_NULL(classInfo);
     classInfo->SetStorageClass(kScExtern);
   }
   return classInfo;

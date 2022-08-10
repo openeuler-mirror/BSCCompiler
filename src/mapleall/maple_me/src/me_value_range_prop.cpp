@@ -1977,7 +1977,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::DealWithRem(
   int64 rhsConstant = 0;
   bool lhsIsConstant = IsConstant(bb, *opnd0, lhsConstant);
   bool rhsIsConstant = IsConstant(bb, *opnd1, rhsConstant);
-  if (rhsIsConstant == 0) {
+  if (rhsConstant == 0) {
     return nullptr;
   }
   std::unique_ptr<ValueRange> newValueRange;

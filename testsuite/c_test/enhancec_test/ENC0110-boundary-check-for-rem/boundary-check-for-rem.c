@@ -24,6 +24,7 @@ char * parson_strndup(const char *string, size_t n, int x) {
         output_string[x % 5] = '\0';
         return output_string;
     }
+    output_string[0 % 0] = '\0';
     return NULL;
 }
 
