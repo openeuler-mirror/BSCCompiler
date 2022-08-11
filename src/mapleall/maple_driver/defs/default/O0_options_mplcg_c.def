@@ -13,5 +13,6 @@
  * See the Mulan PSL v1 for more details.
  */
 // option name, option value, append maple root path?
+{ "-O0", "", false },
 { "--quiet", "", false  },
 { "--fpic", "", false  },
