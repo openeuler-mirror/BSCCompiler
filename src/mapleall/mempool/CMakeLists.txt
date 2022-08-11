@@ -29,8 +29,10 @@ target_include_directories(mempool PRIVATE
 )
 
 set_target_properties(mempool PROPERTIES 
-    LIBRARY_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/64
     ARCHIVE_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/64
-    RUNTIME_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/64
 )
+
+
+add_executable(MemPool src/MPTest.cpp)
+
 
