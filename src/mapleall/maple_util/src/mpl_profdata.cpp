@@ -13,7 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "mpl_profdata.h"
-
+#include <math.h>
 #include "mpl_logging.h"
 #include "option.h"
 
@@ -55,16 +55,18 @@ void MplProfileData::DumpProfileData() {
 }
 
 void ProfileSummary::ProcessHistogram() {
-  int countsum = 0;
-  int n = histogram.size();
-  for (int i = n - 1; i >= 0; i--) {
-    countsum += histogram[i].countNums;
-    histogram[i].countRatio = ((float)(countsum) / (float)totalCount) * 100;
+  size_t countsum = 0;
+  size_t n = static_cast<int>(histogram.size());
+  enum PERCENTAGE {percent = 100};
+  for (int32 i = n - 1; i >= 0; i--) {
+    countsum += histogram[static_cast<unsigned long>(i)].countNums;
+    histogram[static_cast<unsigned long>(i)].countRatio = std::round(
+      (static_cast<float>(countsum) / static_cast<float>(totalCount)) * percent);
   }
 }
 
-#define HOTRATIO 90
 uint64_t MplProfileData::GetHotThreshold() {
+  enum HOTNESS {HOTRATIO = 90};
   for (auto &it : summary.GetHistogram()) {
     if (it.countRatio >= HOTRATIO) {
       hotCountThreshold = it.startValue;
@@ -76,7 +78,8 @@ uint64_t MplProfileData::GetHotThreshold() {
     }
   }
   // should not be here
-  return 100;
+  const int unlikelyHot = 100;
+  return unlikelyHot;
 }
 
 bool MplProfileData::IsHotCallSite(uint64_t freq) {

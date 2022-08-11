@@ -372,8 +372,8 @@ bool MEProfUse::PhaseRun(maple::MeFunction &f) {
   if (Options::profileUse) {
     result = profUse.MapleProfRun();
     if (result) {
-      result = f.GetCfg()->VerifyBBFreq();
-      if (result > 0 && (DEBUGFUNC_NEWPM(f))) {
+      result = f.GetCfg()->VerifyBBFreq() != 0 ? true : false;
+      if (result && (DEBUGFUNC_NEWPM(f))) {
         LogInfo::MapleLogger() << "func profileUse verification fail" << std::endl;
       }
     }

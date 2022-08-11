@@ -213,7 +213,7 @@ uint32_t GetUnsignedLeb128Decode(const uint8_t **data);
 size_t GetUleb128Size(uint64_t val);
 size_t GetSleb128Size(int32_t val);
 bool NeedConvertUTF16(const std::string &str8);
-uint32_t EncodeSLEB128(int64_t value, std::ofstream &out);
+uint32_t EncodeSLEB128(uint64_t value, std::ofstream &out);
 uint32_t EncodeULEB128(uint64_t value, std::ofstream &out);
 uint64_t DecodeULEB128(const uint8_t *p, unsigned *n = nullptr, const uint8_t *end = nullptr);
 int64_t DecodeSLEB128(const uint8_t *p, unsigned *n = nullptr, const uint8_t *end = nullptr);

@@ -91,18 +91,18 @@ int FunctionProfileImport::ReadFuncProfile(MplProfileData *profData) {
 int MplProfDataParser::ReadMapleProfileData() {
   std::string mprofDataFile = Options::profile;
   if (mprofDataFile.empty()) {
-    if (const char *env_gcovprefix = std::getenv("GCOV_PREFIX")) {
-      mprofDataFile.append(env_gcovprefix);
+    if (const char *envGcovprefix = std::getenv("GCOV_PREFIX")) {
+      static_cast<void>(mprofDataFile.append(envGcovprefix));
       if (mprofDataFile.back() != '/') {
-        mprofDataFile.append("/");
+        static_cast<void>(mprofDataFile.append("/"));
       }
       if (dumpDetail) {
         LogInfo::MapleLogger() << "set env gcov_prefix= " << mprofDataFile << std::endl;
       }
       uint32_t stripnum = 0;
-      if (const char *env_gcovprefixstrip = std::getenv("GCOV_PREFIX_STRIP")) {
-        std::string strip(env_gcovprefixstrip);
-        stripnum = std::stoi(strip);
+      if (const char *envGcovprefixstrip = std::getenv("GCOV_PREFIX_STRIP")) {
+        std::string strip(envGcovprefixstrip);
+        stripnum = static_cast<uint32>(std::stoi(strip));
         if (dumpDetail) {
           LogInfo::MapleLogger() << "set env gcov_prefix_strip=" << strip << std::endl;
         }
@@ -124,7 +124,7 @@ int MplProfDataParser::ReadMapleProfileData() {
         LogInfo::MapleLogger() << "after strip, module profdata Name: " << profDataFileName << std::endl;
       }
       CHECK_FATAL(profDataFileName.size() > 0, "sanity check");
-      mprofDataFile.append(profDataFileName);
+      static_cast<void>(mprofDataFile.append(profDataFileName));
     } else {
       // if gcov_prefix is not set, find .mprofdata according to m.profiledata
       mprofDataFile = m.GetProfileDataFileName();
@@ -133,7 +133,7 @@ int MplProfDataParser::ReadMapleProfileData() {
       }
     }
     // add .mprofdata
-    mprofDataFile.append(namemangler::kMplProfFileNameExt);
+    static_cast<void>(mprofDataFile.append(namemangler::kMplProfFileNameExt));
   }
   ASSERT(!mprofDataFile.empty(), "null check");
   if (dumpDetail) {
@@ -148,18 +148,18 @@ int MplProfDataParser::ReadMapleProfileData() {
     return 1;
   }
   // get length of file
-  inputStream.seekg(0, std::ios::end);
-  uint32_t length = inputStream.tellg();
-  inputStream.seekg(0, std::ios::beg);
+  static_cast<void>(inputStream.seekg(0, std::ios::end));
+  uint32_t length = static_cast<uint32>(inputStream.tellg());
+  static_cast<void>(inputStream.seekg(0, std::ios::beg));
   const uint32_t sizeThreshold = 1024 * 10;
   CHECK_FATAL(length <= sizeThreshold, "NYI::large .mprofdata file size is larger than threashold, do chunk memory\n");
 
   std::unique_ptr<char[]> buffer = std::make_unique<char[]>(length);
-  inputStream.read(buffer.get(), length);
+  static_cast<void>(inputStream.read(buffer.get(), length));
   inputStream.close();
   // read 1st part summary
   ProfileSummaryImport summaryImport(mprofDataFile, inputStream);
-  summaryImport.SetPosition((uint8_t*)(buffer.get()));
+  summaryImport.SetPosition(reinterpret_cast<uint8_t*>(buffer.get()));
   int res = summaryImport.ReadSummary(profData);
   if (res) {
     LogInfo::MapleLogger() << "no summary part\n";

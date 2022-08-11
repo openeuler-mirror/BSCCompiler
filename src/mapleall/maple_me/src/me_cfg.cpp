@@ -1971,9 +1971,9 @@ void MeCFG::UpdateEdgeFreqWithBBFreq() {
           for (auto *pred : bb->GetPred()) {
             int idx = pred->GetSuccIndex(*bb);
             ASSERT(idx >= 0 && idx < pred->GetSuccFreq().size(), "sanity check");
-            inputFreq += pred->GetSuccFreq()[idx];
+            inputFreq += static_cast<int64_t>(pred->GetSuccFreq()[static_cast<unsigned long>(idx)]);
           }
-          bb->SetFrequency(inputFreq);
+          bb->SetFrequency(static_cast<uint32>(inputFreq));
         }
         // make bb frequency and succs frequency consistent
         bb->UpdateEdgeFreqs(false);
@@ -1985,9 +1985,9 @@ void MeCFG::UpdateEdgeFreqWithBBFreq() {
 void MeCFG::ClearFuncFreqInfo() {
   SetUpdateCFGFreq(false);
   func.GetMirFunc()->SetFuncProfData(nullptr);
-  auto &bbVec = GetAllBBs();
-  for (size_t i = 0; i < bbVec.size(); ++i) {  // skip common entry and common exit
-    auto *bb = bbVec[i];
+  auto &bbVecLoc = GetAllBBs();
+  for (size_t i = 0; i < bbVecLoc.size(); ++i) {  // skip common entry and common exit
+    auto *bb = bbVecLoc[i];
     if (bb == nullptr) {
       continue;
     }
@@ -1998,7 +1998,7 @@ void MeCFG::ClearFuncFreqInfo() {
 
 // return value is 0 means pass verification, else has problem
 int MeCFG::VerifyBBFreq(bool checkFatal) {
-  int64_t entryFreq = func.GetMirFunc()->GetFuncProfData()->GetFuncFrequency();
+  int64_t entryFreq = static_cast<int64_t>(func.GetMirFunc()->GetFuncProfData()->GetFuncFrequency());
   ASSERT(entryFreq >= 0, "sanity check");
   bool entryIsZero = entryFreq == 0 ? true : false;
   for (size_t i = 2; i < bbVec.size(); ++i) {  // skip common entry and common exit
@@ -2032,19 +2032,20 @@ int MeCFG::VerifyBBFreq(bool checkFatal) {
     for (auto succFreq : bb->GetSuccFreq()) {
       succSumFreq += succFreq;
     }
-    if (succSumFreq != bb->GetFrequency()) {
-      int diff = succSumFreq - bb->GetFrequency();
-      diff = diff >= 0 ? diff : -diff;
-      if (diff > 1) {
-        if (checkFatal) {
-          LogInfo::MapleLogger() << func.GetName() << "wrong BB " << bb->GetBBId() << std::endl;
-          LogInfo::MapleLogger() << " freq: " << bb->GetFrequency() << ", all succ edge freq sum: " << succSumFreq
-                                 << std::endl;
-          CHECK_FATAL(false, "VerifyFreq failure: bb freq != succ freq sum");
-        } else {
-          ClearFuncFreqInfo();
-          return 1;
-        }
+    if (succSumFreq == bb->GetFrequency()) {
+      continue;
+    }
+    int64 diff = static_cast<int64>(succSumFreq - bb->GetFrequency());
+    diff = diff >= 0 ? diff : -diff;
+    if (diff > 1) {
+      if (checkFatal) {
+        LogInfo::MapleLogger() << func.GetName() << "wrong BB " << bb->GetBBId() << std::endl;
+        LogInfo::MapleLogger() << " freq: " << bb->GetFrequency() << ", all succ edge freq sum: " << succSumFreq
+                               << std::endl;
+        CHECK_FATAL(false, "VerifyFreq failure: bb freq != succ freq sum");
+      } else {
+        ClearFuncFreqInfo();
+        return 1;
       }
     }
   }
@@ -2089,9 +2090,9 @@ bool MEMeCfg::PhaseRun(MeFunction &f) {
     if (theCFG->DumpIRProfileFile()) {
       std::string fileName = "after-mecfgbuild";
       if (f.IsPme()) {
-        fileName.append("-lfo");
+        static_cast<void>(fileName.append("-lfo"));
       } else {
-        fileName.append("-mplme");
+        static_cast<void>(fileName.append("-mplme"));
       }
       theCFG->DumpToFile(fileName, false, true);
     }
@@ -2102,13 +2103,14 @@ bool MEMeCfg::PhaseRun(MeFunction &f) {
 bool MECfgVerifyFrequency::PhaseRun(MeFunction &f) {
   // if transform pass is not fully support, set disableFreqInfo to true
   // function profile information will be deleted after verification phase
-  bool disableFreqInfo = false;
   if (f.GetCfg()->UpdateCFGFreq()) {
-    f.GetCfg()->VerifyBBFreq();
+    static_cast<void>(f.GetCfg()->VerifyBBFreq());
   }
-  if (!disableFreqInfo) return false;
+#ifdef disableFreqInfo
+  //if (!disableFreqInfo) {return falsea};
   // clear function profile information
   f.GetCfg()->ClearFuncFreqInfo();
+#endif
   return false;
 }
 }  // namespace maple

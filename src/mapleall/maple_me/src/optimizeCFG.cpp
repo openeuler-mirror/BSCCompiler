@@ -712,8 +712,7 @@ class OptimizeBB {
   bool repeatOpt = false;  // It will be always set false by OptBBIteratively. If there is some optimization
                            // opportunity for currBB after a/some optimization, we should set it true.
                            // Otherwise it will stop after all optimizations finished and continue to nextBB.
-  enum BBErrStat
-  {
+  enum BBErrStat {
     kBBNoErr,                 // BB is normal
     kBBErrNull,               // BB is nullptr
     kBBErrOOB,                // BB id is out-of-bound
@@ -1763,13 +1762,13 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
     int64_t deletedSuccFreq = 0;
     if (cfg->UpdateCFGFreq()) {
       int idx = succ.GetSuccIndex(*rmBB);
-      deletedSuccFreq = succ.GetSuccFreq()[idx];
+      deletedSuccFreq = static_cast<int64_t>(succ.GetSuccFreq()[static_cast<unsigned long>(idx)]);
     }
     succ.RemoveSucc(*rmBB, true);
     if (cfg->UpdateCFGFreq()) {
       succ.SetSuccFreq(0, succ.GetFrequency());
       auto *succofSucc = succ.GetSucc(0);
-      succofSucc->SetFrequency(succofSucc->GetFrequency() + deletedSuccFreq);
+      succofSucc->SetFrequency(static_cast<uint32>(succofSucc->GetFrequency() + deletedSuccFreq));
     }
     DEBUG_LOG() << "Remove succ BB" << LOG_BBID(rmBB) << " of pred BB" << LOG_BBID(&succ) << "\n";
     return true;
@@ -1835,9 +1834,9 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
       BB *affectedBB = (tfBranch == kBrTrue) ? stfSucc.first : stfSucc.second;
       idx = succ.GetSuccIndex(*affectedBB);
       ASSERT(idx >= 0 && idx < succ.GetSucc().size(), "sanity check");
-      int64_t oldedgeFreq = succ.GetSuccFreq()[idx];
+      int64_t oldedgeFreq = static_cast<int64_t>(succ.GetSuccFreq()[static_cast<unsigned long>(idx)]);
       ASSERT(oldedgeFreq >= freq, "sanity check");
-      succ.SetSuccFreq(idx, (oldedgeFreq - freq));
+      succ.SetSuccFreq(idx, static_cast<uint64>(oldedgeFreq - freq));
     }
     return true;
   }
@@ -2020,13 +2019,13 @@ bool OptimizeBB::MergeGotoBBToPred(BB *succ, BB *pred) {
   int64_t removedFreq = 0;
   if (cfg->UpdateCFGFreq()) {
     int idx = pred->GetSuccIndex(*succ);
-    removedFreq = pred->GetSuccFreq()[idx];
+    removedFreq = static_cast<int64_t>(pred->GetSuccFreq()[static_cast<unsigned long>(idx)]);
   }
   if (pred->IsPredBB(*newTarget)) {
     pred->RemoveSucc(*succ, true);  // one of pred's succ has been newTarget, avoid duplicate succ here
     if (cfg->UpdateCFGFreq()) {
       int idx = pred->GetSuccIndex(*newTarget);
-      pred->SetSuccFreq(idx, pred->GetSuccFreq()[idx] + removedFreq);
+      pred->SetSuccFreq(idx, static_cast<uint64>(pred->GetSuccFreq()[static_cast<unsigned long>(idx)] + removedFreq));
     }
   } else {
     pred->ReplaceSucc(succ, newTarget);  // phi opnd is not removed from currBB's philist, we will remove it later
@@ -2035,7 +2034,7 @@ bool OptimizeBB::MergeGotoBBToPred(BB *succ, BB *pred) {
   if (cfg->UpdateCFGFreq()) {
     int64_t succFreq = succ->GetFrequency();
     ASSERT(succFreq >= removedFreq, "sanity check");
-    succ->SetFrequency(succFreq - removedFreq);
+    succ->SetFrequency(static_cast<uint32>(succFreq - removedFreq));
     succ->SetSuccFreq(0, succ->GetFrequency());
   }
   DEBUG_LOG() << "Merge Uncond BB" << LOG_BBID(succ) << " to its pred BB" << LOG_BBID(pred) << ": BB" << LOG_BBID(pred)

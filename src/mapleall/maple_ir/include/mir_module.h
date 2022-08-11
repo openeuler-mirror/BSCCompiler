@@ -342,12 +342,12 @@ class MIRModule {
 
   std::string GetProfileDataFileName() const {
     std::string profileDataFileName = GetFileName().substr(0, GetFileName().find_last_of("."));
-    char *gcov_path = std::getenv("GCOV_PREFIX");
-    std::string gcov_prefix = gcov_path ? gcov_path : "";
-    if (!gcov_prefix.empty() && (gcov_prefix.back() != '/')) {
-      gcov_prefix.append("/");
+    const char *gcovPath = std::getenv("GCOV_PREFIX");
+    std::string gcovPrefix = gcovPath ? gcovPath : "";
+    if (!gcovPrefix.empty() && (gcovPrefix.back() != '/')) {
+      gcovPrefix.append("/");
     }
-    profileDataFileName = gcov_prefix + profileDataFileName;
+    profileDataFileName = gcovPrefix + profileDataFileName;
     return profileDataFileName;
   }
 

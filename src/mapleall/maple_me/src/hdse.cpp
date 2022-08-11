@@ -250,11 +250,12 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
         }
         bb.SetKind(kBBFallthru);
         if (UpdateFreq()) {
-          int64_t succ0Freq = bb.GetSuccFreq()[0];
+          int64_t succ0Freq = static_cast<int64_t>(bb.GetSuccFreq()[0]);
           bb.GetSuccFreq().resize(1);
           bb.SetSuccFreq(0, bb.GetFrequency());
           ASSERT(bb.GetFrequency() >= succ0Freq, "sanity check");
-          bb.GetSucc(0)->SetFrequency(bb.GetSucc(0)->GetFrequency() + (bb.GetFrequency() - succ0Freq));
+          bb.GetSucc(0)->SetFrequency(static_cast<uint32>(bb.GetSucc(0)->GetFrequency() +
+            (bb.GetFrequency() - succ0Freq)));
         }
       }
       // A ivar contained in stmt
@@ -289,7 +290,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
             // delete the conditional branch
             BB *succbb = bb.GetSucc().back();
             if (UpdateFreq()) {
-              removedFreq = bb.GetSuccFreq().back();
+              removedFreq = static_cast<int64_t>(bb.GetSuccFreq().back());
             }
             succbb->RemoveBBFromPred(bb, false);
             if (succbb->GetPred().empty()) {
@@ -302,7 +303,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
             // change to unconditional branch
             BB *succbb = bb.GetSucc().front();
             if (UpdateFreq()) {
-              removedFreq = bb.GetSuccFreq().front();
+              removedFreq = static_cast<int64_t>(bb.GetSuccFreq().front());
             }
             succbb->RemoveBBFromPred(bb, false);
             if (succbb->GetPred().empty()) {
@@ -316,7 +317,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
           if (UpdateFreq()) {
             bb.GetSuccFreq().resize(1);
             bb.SetSuccFreq(0, bb.GetFrequency());
-            bb.GetSucc(0)->SetFrequency(bb.GetSucc(0)->GetFrequency() + removedFreq);
+            bb.GetSucc(0)->SetFrequency(static_cast<uint32>(bb.GetSucc(0)->GetFrequency() + removedFreq));
           }
         } else {
           DetermineUseCounts(condbr->GetOpnd());
