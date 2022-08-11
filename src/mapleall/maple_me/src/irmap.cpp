@@ -1181,6 +1181,11 @@ static MeExpr *PullOutZext(IRMap &irMap, const OpMeExpr &meExpr) {
       return nullptr;
     }
     auto c1 = static_cast<ConstMeExpr *>(opnd1)->GetIntValue();
+    // It is undefined behavior when shift num not less than bit size of primtype
+    if (IsLogicalShift(meExpr.GetOp()) && GetAlignedPrimTypeBitSize(subExpr1->GetPrimType()) <= c1.GetZXTValue()) {
+      return nullptr;
+    }
+
     // if c1 == zext(trunc(c1)), we can pull zext out
     if (c1.GetZXTValue() == c1.Trunc(op0->GetBitsSize(), c1.IsSigned()).GetZXTValue()) {
       auto newConst = irMap.CreateIntConstMeExpr(c1.Trunc(subExpr1->GetPrimType()), subExpr1->GetPrimType());
