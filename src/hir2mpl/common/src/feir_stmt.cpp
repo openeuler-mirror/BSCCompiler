@@ -3864,9 +3864,18 @@ BaseNode *FEIRExprAtomic::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
       {kAtomicOpStoreN, INTRN_C___atomic_store_n},
       {kAtomicOpStore, INTRN_C___atomic_store},
       {kAtomicOpExchangeN, INTRN_C___atomic_exchange_n},
-      {kAtomicOpExchange, INTRN_C___atomic_exchange}
+      {kAtomicOpAddFetch, INTRN_C___atomic_add_fetch},
+      {kAtomicOpSubFetch, INTRN_C___atomic_sub_fetch},
+      {kAtomicOpAndFetch, INTRN_C___atomic_and_fetch},
+      {kAtomicOpXorFetch, INTRN_C___atomic_xor_fetch},
+      {kAtomicOpOrFetch, INTRN_C___atomic_or_fetch},
+      {kAtomicOpFetchAdd, INTRN_C___atomic_fetch_add},
+      {kAtomicOpFetchSub, INTRN_C___atomic_fetch_sub},
+      {kAtomicOpFetchAnd, INTRN_C___atomic_fetch_and},
+      {kAtomicOpFetchXor, INTRN_C___atomic_fetch_xor},
+      {kAtomicOpFetchOr, INTRN_C___atomic_fetch_or},
   };
-  CHECK_FATAL(intrinsicIDMap.find(atomicOp) != intrinsicIDMap.end(), "atomic opcode not yet supported!");
+  ASSERT(intrinsicIDMap.find(atomicOp) != intrinsicIDMap.end(), "atomic opcode not yet supported!");
   MIRIntrinsicID intrinsicID = intrinsicIDMap[atomicOp];
   args.emplace_back(orderExpr->GenMIRNode(mirBuilder));
   TyIdx typeIndex(0);

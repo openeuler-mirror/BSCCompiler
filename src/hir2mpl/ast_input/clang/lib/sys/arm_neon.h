@@ -97,6 +97,17 @@ int64x2_t __builtin_mpl_vector_abs_v2i64(int64x2_t);
 float32x4_t __builtin_mpl_vector_abs_v4f32(float32x4_t);
 float64x2_t __builtin_mpl_vector_abs_v2f64(float64x2_t);
 
+// vecTy vector_mov_narrow(vecTy src)
+//     copies each element of the operand vector to the corresponding element of the destination vector.
+//     The result element is half the width of the operand element, and values are saturated to the result width.
+//     The results are the same type as the operands.
+uint8x8_t __builtin_mpl_vector_mov_narrow_v8u16(uint16x8_t);
+uint16x4_t __builtin_mpl_vector_mov_narrow_v4u32(uint32x4_t);
+uint32x2_t __builtin_mpl_vector_mov_narrow_v2u64(uint64x2_t);
+int8x8_t __builtin_mpl_vector_mov_narrow_v8i16(int16x8_t);
+int16x4_t __builtin_mpl_vector_mov_narrow_v4i32(int32x4_t);
+int32x2_t __builtin_mpl_vector_mov_narrow_v2i64(int64x2_t);
+
 // vecTy vector_addl_low(vecTy src1, vecTy src2)
 //     Add each element of the source vector to second source
 //     widen the result into the destination vector.
@@ -652,6 +663,14 @@ uint64x2_t __builtin_mpl_vector_subw_high_v2u32(uint64x2_t, uint32x4_t);
 #define vaddvq_f32(a) __builtin_mpl_vector_sum_v4f32(a)
 #define vaddvq_f64(a) __builtin_mpl_vector_sum_v2f64(a)
 
+// vqmovn
+#define vqmovn_u16(a) __builtin_mpl_vector_mov_narrow_v8u16(a)
+#define vqmovn_u32(a) __builtin_mpl_vector_mov_narrow_v4u32(a)
+#define vqmovn_u64(a) __builtin_mpl_vector_mov_narrow_v2u64(a)
+#define vqmovn_s16(a) __builtin_mpl_vector_mov_narrow_v8i16(a)
+#define vqmovn_s32(a) __builtin_mpl_vector_mov_narrow_v4i32(a)
+#define vqmovn_s64(a) __builtin_mpl_vector_mov_narrow_v2i64(a)
+
 // vaddl
 #define vaddl_s8(a, b) __builtin_mpl_vector_addl_low_v8i8(a, b)
 #define vaddl_s16(a, b) __builtin_mpl_vector_addl_low_v4i16(a, b)
@@ -725,6 +744,24 @@ uint64x2_t __builtin_mpl_vector_subw_high_v2u32(uint64x2_t, uint32x4_t);
 #define vandq_u16(a, b) (a & b)
 #define vandq_u32(a, b) (a & b)
 #define vandq_u64(a, b) (a & b)
+
+// vand
+#define vorr_s8(a, b) (a | b)
+#define vorr_s16(a, b) (a | b)
+#define vorr_s32(a, b) (a | b)
+#define vorr_s64(a, b) (a | b)
+#define vorr_u8(a, b) (a | b)
+#define vorr_u16(a, b) (a | b)
+#define vorr_u32(a, b) (a | b)
+#define vorr_u64(a, b) (a | b)
+#define vorrq_s8(a, b) (a | b)
+#define vorrq_s16(a, b) (a | b)
+#define vorrq_s32(a, b) (a | b)
+#define vorrq_s64(a, b) (a | b)
+#define vorrq_u8(a, b) (a | b)
+#define vorrq_u16(a, b) (a | b)
+#define vorrq_u32(a, b) (a | b)
+#define vorrq_u64(a, b) (a | b)
 
 // vdup
 #define vdup_n_s8(a)  __builtin_mpl_vector_from_scalar_v8i8(a)
