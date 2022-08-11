@@ -368,7 +368,12 @@ std::unique_ptr<FEIRStmtAssign> ASTCallExpr::GenCallStmt() const {
   MemPool *mp = FEManager::GetManager().GetStructElemMempool();
   std::unique_ptr<FEIRStmtAssign> callStmt;
   if (isIcall) {
-    callStmt = std::make_unique<FEIRStmtICallAssign>();
+    auto icallStmt = std::make_unique<FEIRStmtICallAssign>();
+    CHECK_FATAL(calleeExpr->GetType()->IsMIRPtrType(), "cannot find func pointer for icall");
+    MIRFuncType *funcType = static_cast<MIRPtrType*>(calleeExpr->GetType())->GetPointedFuncType();
+    CHECK_FATAL(funcType != nullptr, "cannot find func prototype for icall");
+    icallStmt->SetPrototype(FEIRTypeHelper::CreateTypeNative(*funcType));
+    callStmt = std::move(icallStmt);
   } else {
     StructElemNameIdx *nameIdx = mp->New<StructElemNameIdx>(GetFuncName());
     ASSERT_NOT_NULL(nameIdx);

@@ -139,7 +139,7 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   if (FEOptions::GetInstance().IsDbgFriendly() && !hasAddedInMIRScope) {
     FEFunction &feFunction = FEManager::GetCurrentFEFunction();
     MIRScope *mirScope = feFunction.GetTopMIRScope();
-    ASTVar::AddAliasInMIRScope(*mirScope, GetName(), sym, sourceType);
+    FEUtils::AddAliasInMIRScope(*mirScope, GetName(), *sym, sourceType);
     hasAddedInMIRScope = true;
   }
   if (variableArrayExpr != nullptr) {  // vla declaration point
@@ -217,25 +217,6 @@ MIRSymbol *ASTVar::Translate2MIRSymbol() const {
   }
   return mirSymbol;
 }
-
-void ASTVar::AddAliasInMIRScope(MIRScope &scope, const std::string &srcVarName, const MIRSymbol *symbol,
-                                const SourceType &sty) {
-  GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(srcVarName);
-  MIRAliasVars aliasVar;
-  aliasVar.mplStrIdx = symbol->GetNameStrIdx();
-  aliasVar.isLocal = symbol->IsLocal();
-  if (sty.isEnum) {
-    aliasVar.atk = kATKEnum;
-    aliasVar.index = sty.typeIdx;
-  } else if (sty.typeIdx != 0) {
-    aliasVar.atk = kATKType;
-    aliasVar.index = sty.typeIdx;
-  } else {
-    aliasVar.atk = kATKType;
-    aliasVar.index = symbol->GetTyIdx().GetIdx();
-  }
-  scope.SetAliasVarMap(nameIdx, aliasVar);
-};
 
 // ---------- ASTEnumConstant ----------
 void ASTEnumConstant::SetValue(const IntVal &val) {

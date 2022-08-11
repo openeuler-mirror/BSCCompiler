@@ -2697,6 +2697,9 @@ ASTDecl *ASTParser::ProcessDeclFieldDecl(MapleAllocator &allocator, const clang:
     ProcessNonnullFuncPtrAttrs(allocator, *valueDecl, *fieldDecl);
     ProcessBoundaryFuncPtrAttrs(allocator, *valueDecl, *fieldDecl);
   }
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    SetSourceType(allocator, qualType, *fieldDecl);
+  }
   return fieldDecl;
 }
 
@@ -2742,7 +2745,7 @@ void ASTParser::SetAlignmentForASTVar(const clang::VarDecl &varDecl, ASTVar &ast
   }
 }
 
-void ASTParser::SetSourceTypeForASTVar(MapleAllocator &allocator, const clang::QualType &qualType, ASTVar &astVar) {
+void ASTParser::SetSourceType(MapleAllocator &allocator, const clang::QualType &qualType, ASTDecl &astDecl) {
   SourceType sty;
   if (qualType->isEnumeralType()) {
     const clang::EnumType *enumTy = llvm::dyn_cast<clang::EnumType>(qualType.getCanonicalType());
@@ -2753,7 +2756,7 @@ void ASTParser::SetSourceTypeForASTVar(MapleAllocator &allocator, const clang::Q
     MIRType *sourceType = astFile->CvtSourceType(qualType);
     sty.typeIdx = sourceType->GetTypeIndex();
   }
-  astVar.SetSourceType(sty);
+  astDecl.SetSourceType(sty);
 }
 
 ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::VarDecl &varDecl) {
@@ -2779,7 +2782,7 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   astVar = ASTDeclsBuilder::ASTVarBuilder(
       allocator, fileName, varName, MapleVector<MIRType*>({varType}, allocator.Adapter()), attrs, varDecl.getID());
   if (FEOptions::GetInstance().IsDbgFriendly()) {
-    SetSourceTypeForASTVar(allocator, qualType, *astVar);
+    SetSourceType(allocator, qualType, *astVar);
   }
   astVar->SetIsMacro(varDecl.getLocation().isMacroID());
   clang::SectionAttr *sa = varDecl.getAttr<clang::SectionAttr>();
@@ -2847,7 +2850,7 @@ ASTDecl *ASTParser::ProcessDeclParmVarDecl(MapleAllocator &allocator, const clan
   parmVar->SetIsParam(true);
   parmVar->SetPromotedType(promotedType);
   if (FEOptions::GetInstance().IsDbgFriendly()) {
-    SetSourceTypeForASTVar(allocator, parmQualType, *parmVar);
+    SetSourceType(allocator, parmQualType, *parmVar);
   }
   const auto *valueDecl = llvm::dyn_cast<clang::ValueDecl>(&parmVarDecl);
   if (valueDecl != nullptr) {
@@ -2891,11 +2894,9 @@ ASTDecl *ASTParser::ProcessDeclEnumDecl(MapleAllocator &allocator, const clang::
     CHECK_FATAL(child->getKind() == clang::Decl::EnumConstant, "Unsupported decl kind: %u", child->getKind());
     astEnum->PushConstant(static_cast<ASTEnumConstant*>(ProcessDecl(allocator, *child)));
   });
-  if (!enumDecl->isDefinedOutsideFunctionOrMethod()) {
-    auto itor = std::find(astEnums.cbegin(), astEnums.cend(), astEnum);
-    if (itor == astEnums.end()) {
-      (void)astEnums.emplace_back(astEnum);
-    }
+  auto itor = std::find(astEnums.cbegin(), astEnums.cend(), astEnum);
+  if (itor == astEnums.end()) {
+    (void)astEnums.emplace_back(astEnum);
   }
   if (FEOptions::GetInstance().IsDbgFriendly()) {
     // The enumTable index is created before MIRAliasVar gets it. (Note that enumTable do not support parallel)

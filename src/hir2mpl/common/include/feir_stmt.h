@@ -2491,6 +2491,10 @@ class FEIRStmtICallAssign : public FEIRStmtAssign {
   FEIRStmtICallAssign();
   ~FEIRStmtICallAssign() = default;
 
+  void SetPrototype(UniqueFEIRType type) {
+    prototype = std::move(type);
+  }
+
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
   std::string DumpDotStringImpl() const override;
@@ -2500,6 +2504,8 @@ class FEIRStmtICallAssign : public FEIRStmtAssign {
  private:
   void InsertNonnullCheckingInArgs(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
   void InsertNonnullInRetVar(MIRSymbol &retVarSym) const;
+
+  UniqueFEIRType prototype = nullptr;
 };
 
 // ---------- FEIRStmtIntrinsicCallAssign ----------

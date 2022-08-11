@@ -278,9 +278,9 @@ void LibAstFile::GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAtt
   }
 }
 
-void LibAstFile::GetQualAttrs(const clang::QualType &qualType, GenericAttrs &genAttrs) const {
+void LibAstFile::GetQualAttrs(const clang::QualType &qualType, GenericAttrs &genAttrs, bool isSourceType) const {
   uint32_t qualifiers = qualType.getCVRQualifiers();
-  GetCVRAttrs(qualifiers, genAttrs, false);
+  GetCVRAttrs(qualifiers, genAttrs, isSourceType);
 }
 
 void LibAstFile::CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {

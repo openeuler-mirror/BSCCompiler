@@ -54,13 +54,12 @@ class LibAstFile {
   std::string GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl) const;
   void CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
                                                     TypeAttrs &elemAttr, std::vector<uint32_t> &operands,
-                                                    bool isSourceType = false);
-
+                                                    bool isSourceType);
   void CollectBaseEltTypeAndDimFromVariaArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
-                                                  TypeAttrs &elemAttr, uint8_t &dim, bool isSourceType = false);
+                                                  TypeAttrs &elemAttr, uint8_t &dim, bool isSourceType);
   void CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(const clang::QualType currQualType, MIRType *&elemType,
                                                            TypeAttrs &elemAttr, std::vector<uint32_t> &operands,
-                                                           bool isSourceType = false);
+                                                           bool isSourceType);
   void CollectBaseEltTypeFromArrayDecl(const clang::QualType &currQualType, MIRType *&elemType, TypeAttrs &elemAttr,
                                        bool isSourceType = false);
   void GetCVRAttrs(uint32_t qualifiers, GenericAttrs &genAttrs, bool isConst = true) const;
@@ -68,7 +67,7 @@ class LibAstFile {
   void GetStorageAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs) const;
   void GetAccessAttrs(AccessKind access, GenericAttrs &genAttrs) const;
   void GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs) const;
-  void GetQualAttrs(const clang::QualType &qualType, GenericAttrs &genAttrs) const;
+  void GetQualAttrs(const clang::QualType &qualType, GenericAttrs &genAttrs, bool isSourceType) const;
   void CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   void CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   void CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericAttrs &genAttrs) const;
@@ -82,10 +81,10 @@ class LibAstFile {
   PrimType CvtPrimType(const clang::BuiltinType::Kind kind) const;
   MIRType *CvtSourceType(const clang::QualType qualType);
   MIRType *CvtType(const clang::QualType qualType, bool isSourceType = false);
-  MIRType *CvtOtherType(const clang::QualType srcType, bool isSourceType = false);
-  MIRType *CvtArrayType(const clang::QualType &srcType, bool isSourceType = false);
-  MIRType *CvtFunctionType(const clang::QualType srcType, bool isSourceType = false);
-  MIRType *CvtEnumType(const clang::QualType &qualType, bool isSourceType = false);
+  MIRType *CvtOtherType(const clang::QualType srcType, bool isSourceType);
+  MIRType *CvtArrayType(const clang::QualType &srcType, bool isSourceType);
+  MIRType *CvtFunctionType(const clang::QualType srcType, bool isSourceType);
+  MIRType *CvtEnumType(const clang::QualType &qualType, bool isSourceType);
   MIRType *CvtRecordType(const clang::QualType qualType);
   MIRType *CvtFieldType(const clang::NamedDecl &decl);
   MIRType *CvtComplexType(const clang::QualType srcType) const;

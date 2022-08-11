@@ -169,6 +169,10 @@ class ASTDecl {
     genAttrs.ClearContentMap();
   }
 
+  virtual void SetSourceType(const SourceType &sty) {
+    CHECK_FATAL(false, "sourceType is not supported");
+  }
+
  protected:
   virtual MIRConst *Translate2MIRConstImpl() const {
     CHECK_FATAL(false, "Maybe implemented for other ASTDecls");
@@ -203,8 +207,17 @@ class ASTField : public ASTDecl {
     return isAnonymousField;
   }
 
+  const SourceType &GetSourceType() const {
+    return sourceType;
+  }
+
+  void SetSourceType(const SourceType &sty) override {
+    sourceType = sty;
+  }
+
  private:
   bool isAnonymousField = false;
+  SourceType sourceType;
 };
 
 class ASTFunc : public ASTDecl {
@@ -295,11 +308,6 @@ class ASTStruct : public ASTDecl {
   MapleList<ASTFunc*> methods;
 };
 
-struct SourceType {
-  unsigned typeIdx = 0;
-  bool isEnum = false;
-};
-
 class ASTVar : public ASTDecl {
  public:
   ASTVar(const MapleString &srcFile, const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn,
@@ -342,14 +350,12 @@ class ASTVar : public ASTDecl {
     return sourceType;
   }
 
-  void SetSourceType(const SourceType &sty) {
+  void SetSourceType(const SourceType &sty) override {
     sourceType = sty;
   }
 
   std::unique_ptr<FEIRVar> Translate2FEIRVar() const;
   MIRSymbol *Translate2MIRSymbol() const;
-  static void AddAliasInMIRScope(MIRScope &scope, const std::string &srcVarName, const MIRSymbol *symbol,
-                                 const SourceType &sty);
 
  private:
   MIRConst *Translate2MIRConstImpl() const override;

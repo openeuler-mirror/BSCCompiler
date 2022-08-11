@@ -169,7 +169,7 @@ MIRType *LibAstFile::CvtType(const clang::QualType qualType, bool isSourceType) 
     }
 
     GenericAttrs genAttrs;
-    GetQualAttrs(srcPteType, genAttrs);
+    GetQualAttrs(srcPteType, genAttrs, isSourceType);
     TypeAttrs attrs = genAttrs.ConvertToTypeAttrs();
     // Get alignment from the pointee type
     uint32 alignmentBits = astContext->getTypeAlignIfKnown(srcPteType);
@@ -337,6 +337,26 @@ MIRType *LibAstFile::CvtFunctionType(const clang::QualType srcType, bool isSourc
   MIRType *retType = CvtType(funcType->getReturnType(), isSourceType);
   std::vector<TyIdx> argsVec;
   std::vector<TypeAttrs> attrsVec;
+  bool isFirstArgRet = false;
+  const clang::QualType &retQualType = funcType->getReturnType().getCanonicalType();
+  // setup first_arg_retrun if ret struct size > 16
+  if (!isSourceType && retQualType->isRecordType()) {
+    const auto *recordType = llvm::cast<clang::RecordType>(retQualType);
+    clang::RecordDecl *recordDecl = recordType->getDecl();
+    const clang::ASTRecordLayout &layout = astContext->getASTRecordLayout(recordDecl->getDefinition());
+    const unsigned twoByteSize = 16;
+    if (layout.getSize().getQuantity() > twoByteSize) {
+      MIRType *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*retType);
+      GenericAttrs genAttrs;
+      if (IsOneElementVector(retQualType)) {
+        genAttrs.SetAttr(GENATTR_oneelem_simd);
+      }
+      attrsVec.push_back(genAttrs.ConvertToTypeAttrs());
+      argsVec.push_back(ptrType->GetTypeIndex());
+      retType = GlobalTables::GetTypeTable().GetVoid();
+      isFirstArgRet = true;
+    }
+  }
   if (funcType->isFunctionProtoType()) {
     const auto *funcProtoType = funcType->castAs<clang::FunctionProtoType>();
     using ItType = clang::FunctionProtoType::param_type_iterator;
@@ -356,6 +376,9 @@ MIRType *LibAstFile::CvtFunctionType(const clang::QualType srcType, bool isSourc
   }
   MIRType *mirFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(
       retType->GetTypeIndex(), argsVec, attrsVec);
+  if (isFirstArgRet) {
+    static_cast<MIRFuncType*>(mirFuncType)->SetFirstArgReturn();
+  }
   return GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirFuncType);
 }
 

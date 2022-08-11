@@ -81,7 +81,7 @@ class ASTEnum2FEHelper : public FEInputEnumHelper {
 
 class ASTStructField2FEHelper : public FEInputFieldHelper {
  public:
-  ASTStructField2FEHelper(MapleAllocator &allocator, ASTField &fieldIn, const MIRType &structTypeIn)
+  ASTStructField2FEHelper(MapleAllocator &allocator, ASTField &fieldIn, MIRType &structTypeIn)
       : FEInputFieldHelper(allocator),
         field(fieldIn), structType(structTypeIn) {}
   ~ASTStructField2FEHelper() = default;
@@ -90,7 +90,7 @@ class ASTStructField2FEHelper : public FEInputFieldHelper {
   bool ProcessDeclImpl(MapleAllocator &allocator) override;
   bool ProcessDeclWithContainerImpl(MapleAllocator &allocator) override;
   ASTField &field;
-  const MIRType &structType;
+  MIRType &structType;
 };
 
 class ASTFunc2FEHelper : public FEInputMethodHelper {

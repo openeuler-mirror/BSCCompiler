@@ -23,6 +23,7 @@
 #include "global_tables.h"
 #include "mempool.h"
 #include "mir_nodes.h"
+#include "mir_scope.h"
 
 namespace maple {
 struct Loc {
@@ -48,6 +49,11 @@ struct Loc {
       return column < loc.column;
     }
   }
+};
+
+struct SourceType {
+  unsigned typeIdx = 0;
+  bool isEnum = false;
 };
 
 class FEUtils {
@@ -78,6 +84,10 @@ class FEUtils {
   static bool EndsWith(const std::string &value, const std::string &ending);
   static MIRConst *TraverseToMIRConst(MIRAggConst *aggConst, const MIRStructType &structType, FieldID &fieldID);
   static Loc GetSrcLocationForMIRSymbol(const MIRSymbol &symbol);
+  static MIRAliasVars AddAlias(const GStrIdx &mplNameIdx, const SourceType &sty, const TypeAttrs &attrs,
+                               bool isLocal = true);
+  static void AddAliasInMIRScope(MIRScope &scope, const std::string &srcVarName, const MIRSymbol &symbol,
+                                 const SourceType &sty);
 
   static const std::string kBoolean;
   static const std::string kByte;

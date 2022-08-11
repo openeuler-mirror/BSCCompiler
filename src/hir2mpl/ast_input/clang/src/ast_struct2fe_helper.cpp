@@ -106,6 +106,10 @@ MIRStructType *ASTStruct2FEHelper::CreateMIRStructTypeImpl(bool &error) const {
   } else {
     type->SetMIRTypeKind(kTypeStruct);
   }
+  if (FEOptions::GetInstance().IsDbgFriendly() && type->GetAlias() == nullptr) {
+    MIRAlias *alias = allocator.GetMemPool()->New<MIRAlias>(&FEManager::GetModule());
+    type->SetAlias(alias);
+  }
   return type;
 }
 
@@ -147,6 +151,13 @@ bool ASTStructField2FEHelper::ProcessDeclWithContainerImpl(MapleAllocator &alloc
   mirFieldPair.first = idx;
   mirFieldPair.second.first = fieldType->GetTypeIndex();
   mirFieldPair.second.second = attrs;
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    MIRAlias *mirAlias = static_cast<MIRStructType&>(structType).GetAlias();
+    CHECK_NULL_FATAL(mirAlias);
+    TypeAttrs typeAttrs = field.GetGenericAttrs().ConvertToTypeAttrs();
+    MIRAliasVars aliasVar = FEUtils::AddAlias(idx, field.GetSourceType(), typeAttrs);
+    mirAlias->AddAliasVarMap(idx, aliasVar);
+  }
   field.ClearGenericAttrsContentMap();
   return true;
 }
@@ -172,7 +183,7 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   ENCChecker::InsertBoundaryInAtts(typeAttrs, astVar.GetBoundaryInfo());
   if (FEOptions::GetInstance().IsDbgFriendly()) {
     MIRScope *scope = FEManager::GetModule().GetScope();
-    ASTVar::AddAliasInMIRScope(*scope, varName, mirSymbol, astVar.GetSourceType());
+    FEUtils::AddAliasInMIRScope(*scope, varName, *mirSymbol, astVar.GetSourceType());
   }
   // do not allow extern var override global var
   if (mirSymbol->GetAttrs().GetAttrFlag() != 0 && typeAttrs.GetAttr(ATTR_extern)) {
@@ -295,9 +306,10 @@ void ASTFunc2FEHelper::SolveFunctionArguments() const {
     ENCChecker::InsertBoundaryInAtts(typeAttrs, paramDecls[i]->GetBoundaryInfo());
     sym->AddAttrs(typeAttrs);
     mirFunc->AddArgument(sym);
-    if (FEOptions::GetInstance().IsDbgFriendly() && paramDecls[i]->GetDeclKind() == kASTVar) {
-      ASTVar::AddAliasInMIRScope(*mirFunc->GetScope(), paramDecls[i]->GetName(), sym,
-                                 static_cast<ASTVar*>(paramDecls[i])->GetSourceType());
+    if (FEOptions::GetInstance().IsDbgFriendly() && paramDecls[i]->GetDeclKind() == kASTVar &&
+        (!firstArgRet || i != 0)) {
+      FEUtils::AddAliasInMIRScope(*mirFunc->GetScope(), paramDecls[i]->GetName(), *sym,
+                                  static_cast<ASTVar*>(paramDecls[i])->GetSourceType());
     }
   }
 }

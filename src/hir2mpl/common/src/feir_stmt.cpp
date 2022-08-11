@@ -2076,13 +2076,21 @@ std::list<StmtNode*> FEIRStmtICallAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder
     args.push_back(node);
   }
   InsertNonnullCheckingInArgs(mirBuilder, ans);
-  MIRSymbol *retVarSym = nullptr;
+  bool isC = FEManager::GetModule().IsCModule();
+  MIRType *pMIRType = nullptr;
+  if (isC) {
+    CHECK_FATAL(prototype != nullptr, "cannot find prototype for icall");
+    pMIRType = prototype->GenerateMIRTypeAuto();
+    CHECK_NULL_FATAL(pMIRType);
+  }
   if (var != nullptr) {
-    retVarSym = var->GenerateLocalMIRSymbol(mirBuilder);
+    MIRSymbol *retVarSym = var->GenerateLocalMIRSymbol(mirBuilder);
     InsertNonnullInRetVar(*retVarSym);
-    stmtICall = mirBuilder.CreateStmtIcallAssigned(std::move(args), *retVarSym);
+    stmtICall = isC ? mirBuilder.CreateStmtIcallprotoAssigned(std::move(args), *retVarSym, pMIRType->GetTypeIndex()) :
+                      mirBuilder.CreateStmtIcallAssigned(std::move(args), *retVarSym);
   } else {
-    stmtICall = mirBuilder.CreateStmtIcall(std::move(args));
+    stmtICall = isC ? mirBuilder.CreateStmtIcallproto(std::move(args), pMIRType->GetTypeIndex()) :
+                      mirBuilder.CreateStmtIcall(std::move(args));
   }
   ans.push_back(stmtICall);
   return ans;
