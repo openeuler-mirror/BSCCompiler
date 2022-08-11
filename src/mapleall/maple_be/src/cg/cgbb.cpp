@@ -223,8 +223,12 @@ void BB::InsertAtEndMinus1(BB &bb) {
     /* Add between prevLast and lastInsn */
     Insn *realLastInsn = GetLastMachineInsn() != nullptr ? GetLastMachineInsn() : lastInsn;
     Insn *prevLast = realLastInsn->GetPrev();
-    bb.firstInsn->SetPrev(prevLast);
-    prevLast->SetNext(bb.firstInsn);
+    if (prevLast == nullptr) {
+      firstInsn = bb.firstInsn;
+    } else {
+      bb.firstInsn->SetPrev(prevLast);
+      prevLast->SetNext(bb.firstInsn);
+    }
     if (lastInsn == realLastInsn) {
       lastInsn->SetPrev(bb.lastInsn);
       bb.lastInsn->SetNext(lastInsn);

@@ -23,9 +23,15 @@
 namespace maple {
 class ConstantFold : public FuncOptimizeImpl {
  public:
-  ConstantFold(MIRModule &mod, KlassHierarchy *kh, bool trace) : FuncOptimizeImpl(mod, kh, trace), mirModule(&mod) {}
+  struct CFConfig {
+    bool expandIaddrof;
+  };
 
-  explicit ConstantFold(MIRModule &mod) : FuncOptimizeImpl(mod, nullptr, false), mirModule(&mod) {}
+  ConstantFold(MIRModule &mod, KlassHierarchy *kh, bool trace)
+      : FuncOptimizeImpl(mod, kh, trace), mirModule(&mod), cfc({false}) {}
+
+  explicit ConstantFold(MIRModule &mod, CFConfig conf = { false })
+      : FuncOptimizeImpl(mod, nullptr, false), mirModule(&mod), cfc(conf) {}
 
   // Fold an expression.
   // It returns a new expression if there was something to fold, or
@@ -53,10 +59,11 @@ class ConstantFold : public FuncOptimizeImpl {
   MIRConst *FoldRoundMIRConst(const MIRConst&, PrimType, PrimType) const;
   MIRConst *FoldTypeCvtMIRConst(const MIRConst&, PrimType, PrimType) const;
   MIRConst *FoldSignExtendMIRConst(Opcode, PrimType, uint8, const IntVal&) const;
-  MIRConst *FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resultType,
-                                       const MIRIntConst *intConst0, const MIRIntConst *intConst1) const;
+  static MIRConst *FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resultType, const MIRIntConst *intConst0,
+                                              const MIRIntConst *intConst1);
   MIRConst *FoldConstComparisonMIRConst(Opcode, PrimType, PrimType, const MIRConst&, const MIRConst&);
   static bool IntegerOpIsOverflow(Opcode op, PrimType primType, int64 cstA, int64 cstB);
+  static MIRIntConst *FoldIntConstUnaryMIRConst(Opcode opcode, PrimType resultType, const MIRIntConst *constNode);
  private:
   StmtNode *SimplifyBinary(BinaryStmtNode *node);
   StmtNode *SimplifyBlock(BlockNode *node);
@@ -114,8 +121,7 @@ class ConstantFold : public FuncOptimizeImpl {
                                              const MIRConst &leftConst, const MIRConst &rightConst) const;
   ConstvalNode *FoldFPConstBinary(Opcode opcode, PrimType resultType, const ConstvalNode &const0,
                                   const ConstvalNode &const1) const;
-  ConstvalNode *FoldConstUnary(Opcode opcode, PrimType resultType, ConstvalNode *constNode) const;
-  ConstvalNode *FoldIntConstUnary(Opcode opcode, PrimType resultType, const ConstvalNode *constNode) const;
+  ConstvalNode *FoldConstUnary(Opcode opcode, PrimType resultType, ConstvalNode &constNode) const;
   template <typename T>
   ConstvalNode *FoldFPConstUnary(Opcode opcode, PrimType resultType, ConstvalNode *constNode) const;
   BaseNode *NegateTree(BaseNode *node) const;
@@ -130,6 +136,7 @@ class ConstantFold : public FuncOptimizeImpl {
   CompareNode *FoldConstComparisonReverse(Opcode opcode, PrimType resultType, PrimType opndType,
                                           BaseNode &l, BaseNode &r);
   MIRModule *mirModule;
+  CFConfig cfc;
 };
 
 MAPLE_MODULE_PHASE_DECLARE(M2MConstantFold)

@@ -1551,13 +1551,20 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldIread(IreadNode *n
   node->SetOpnd(e, 0);
   BaseNode *result = node;
   if (e->GetOpCode() != OP_addrof || node->IsVolatile()) {
+    if (cfc.expandIaddrof && node->GetOpCode() == OP_iaddrof) {
+      auto *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(node->GetTyIdx());
+      auto *pointedType = static_cast<MIRPtrType*>(type)->GetPointedType();
+      CHECK_FATAL(pointedType != nullptr, "expect a pointed type of iaddrof");
+      auto offset = pointedType->GetBitOffsetFromBaseAddr(node->GetFieldID()) / 8;
+      return std::make_pair(p.first, p.second + IntVal(offset, GetExactPtrPrimType()));
+    }
     return std::make_pair(result, std::nullopt);
   }
 
   AddrofNode *addrofNode = static_cast<AddrofNode*>(e);
   MIRSymbol *msy = mirModule->CurFunction()->GetLocalOrGlobalSymbol(addrofNode->GetStIdx());
   TyIdx typeId = msy->GetTyIdx();
-  CHECK_FATAL(GlobalTables::GetTypeTable().GetTypeTable().empty() == false, "container check");
+  CHECK_FATAL(!GlobalTables::GetTypeTable().GetTypeTable().empty(), "container check");
   MIRType *msyType = GlobalTables::GetTypeTable().GetTypeTable()[typeId];
   if (addrofNode->GetFieldID() != 0 &&
       (msyType->GetKind() == kTypeStruct || msyType->GetKind() == kTypeClass)) {
@@ -1746,7 +1753,12 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldBinary(BinaryNode 
       if (GetPrimTypeSize(primType) > GetPrimTypeSize(lp.first->GetPrimType())) {
         lp.first = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, primType, PTY_i32, lp.first);
       }
-      result = NewBinaryNode(node, OP_mul, primType, lp.first, rConst);
+      if (lp.first->GetOpCode() == OP_neg && cst == -1) {
+        // special case: ((-X) + konst) * (-1) -> the pair [(X), -konst]
+        result = lp.first->Opnd(0);
+      } else {
+        result = NewBinaryNode(node, OP_mul, primType, lp.first, rConst);
+      }
     } else if (op == OP_band && cst == -1) {
       // X & (-1) -> X
       sum = lp.second;
@@ -2477,7 +2489,7 @@ StmtNode *ConstantFold::SimplifyIcall(IcallNode *node) {
     }
   }
   // icall node transform to call node
-  CHECK_FATAL(node->GetNopnd().empty() == false, "container check");
+  CHECK_FATAL(!node->GetNopnd().empty(), "container check");
   switch (node->GetNopndAt(0)->GetOpCode()) {
     case OP_addroffunc: {
       AddroffuncNode *addrofNode = static_cast<AddroffuncNode*>(node->GetNopndAt(0));

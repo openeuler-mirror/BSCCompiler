@@ -17,20 +17,24 @@
 #include "prop.h"
 #include "me_irmap_build.h"
 #include "me_dominance.h"
+#include "me_loop_analysis.h"
 
 namespace maple {
 class CopyProp : public Prop {
  public:
-  CopyProp(MeFunction *meFunc, IRMap &irMap, Dominance &dom, MemPool &memPool, uint32 bbVecSize,
-           const PropConfig &config)
+  CopyProp(MeFunction *meFunc, MeExprUseInfo &ui, IdentifyLoops *loops, IRMap &irMap, Dominance &dom,
+           MemPool &memPool, uint32 bbVecSize, const PropConfig &config)
       : Prop(irMap, dom, memPool, bbVecSize, config),
-        func(meFunc) {}
+        func(meFunc), useInfo(ui), loopInfo(loops) {}
   virtual ~CopyProp() = default;
 
   void ReplaceSelfAssign();
  private:
   MeExpr &PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm) override;
   void TraversalMeStmt(MeStmt &meStmt) override;
+  bool IsSingleUse(const MeExpr *expr);
+  void CheckLiveRange(const MeExpr &expr, int32 &badPropCnt);
+  bool CanPropSingleUse(const ScalarMeExpr &lhs, const MeExpr &rhs);
 
   BB *GetBB(BBId id) override {
     return func->GetCfg()->GetAllBBs()[id];
@@ -38,6 +42,8 @@ class CopyProp : public Prop {
 
   MeFunction *func;
   uint32 cntOfPropedStmt = 0;
+  MeExprUseInfo &useInfo;
+  IdentifyLoops *loopInfo;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(MECopyProp, MeFunction)

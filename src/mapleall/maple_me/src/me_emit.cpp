@@ -132,7 +132,8 @@ bool MEEmit::PhaseRun(maple::MeFunction &f) {
     if (!DEBUGFUNC_NEWPM(f) && f.GetIRMap()) {
       // constantfolding does not update BB's stmtNodeList, which breaks MirCFG::DumpToFile();
       // constantfolding also cannot work on SSANode's
-      ConstantFold cf(f.GetMIRModule());
+      auto config = ConstantFold::CFConfig { !f.GetMIRModule().IsJavaModule() };
+      ConstantFold cf(f.GetMIRModule(), config);
       (void)cf.Simplify(f.GetMirFunc()->GetBody());
     }
     if (DEBUGFUNC_NEWPM(f)) {
