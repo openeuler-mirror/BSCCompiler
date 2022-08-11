@@ -19,7 +19,7 @@
 #include "fe_options.h"
 
 namespace maple {
-MIRType *LibAstFile::CvtPrimType(const clang::QualType qualType) const {
+MIRType *LibAstFile::CvtPrimType(const clang::QualType qualType, bool isSourceType) const {
   clang::QualType srcType = qualType.getCanonicalType();
   if (srcType.isNull()) {
     return nullptr;
@@ -28,22 +28,22 @@ MIRType *LibAstFile::CvtPrimType(const clang::QualType qualType) const {
   MIRType *destType = nullptr;
   if (llvm::isa<clang::BuiltinType>(srcType)) {
     const auto *builtinType = llvm::cast<clang::BuiltinType>(srcType);
-    PrimType primType = CvtPrimType(builtinType->getKind());
+    PrimType primType = CvtPrimType(builtinType->getKind(), isSourceType);
     destType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(primType);
   }
   return destType;
 }
 
-PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind) const {
+PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind, bool isSourceType) const {
   switch (kind) {
     case clang::BuiltinType::Bool:
       return PTY_u1;
     case clang::BuiltinType::Char_U:
-      return FEOptions::GetInstance().IsUseSignedChar() ? PTY_i8 : PTY_u8;
+      return (FEOptions::GetInstance().IsUseSignedChar() || isSourceType) ? PTY_i8 : PTY_u8;
     case clang::BuiltinType::UChar:
       return PTY_u8;
     case clang::BuiltinType::WChar_U:
-      return FEOptions::GetInstance().IsUseSignedChar() ? PTY_i16 : PTY_u16;
+      return (FEOptions::GetInstance().IsUseSignedChar() || isSourceType) ? PTY_i16 : PTY_u16;
     case clang::BuiltinType::UShort:
       return PTY_u16;
     case clang::BuiltinType::UInt:
@@ -119,18 +119,16 @@ MIRType *LibAstFile::CvtTypedef(const clang::QualType &qualType) {
   if (typedefType == nullptr) {
     return nullptr;
   }
-  const auto *typedefDecl = typedefType->getDecl();
-  std::string typedefName = typedefDecl->getNameAsString();
+  return CvtTypedefDecl(*typedefType->getDecl());
+}
+
+MIRType *LibAstFile::CvtTypedefDecl(const clang::TypedefNameDecl &typedefDecl) {
+  std::string typedefName = typedefDecl.getNameAsString();
   if (typedefName.empty()) {
     return nullptr;
   }
-  GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typedefName);
-  MIRType *structType = FEManager::GetTypeManager().GetImportedType(strIdx);
-  if (structType != nullptr) {  // skip same name struct type
-    return structType;
-  }
   MIRTypeByName *typdefType = nullptr;
-  clang::QualType underlyTy = typedefDecl->getCanonicalDecl()->getUnderlyingType();
+  clang::QualType underlyTy = typedefDecl.getCanonicalDecl()->getUnderlyingType();
   MIRType *type = CvtType(underlyTy);
   if (type != nullptr) {
     typdefType = FEManager::GetTypeManager().CreateTypedef(typedefName, *type);
@@ -155,7 +153,7 @@ MIRType *LibAstFile::CvtType(const clang::QualType qualType, bool isSourceType) 
     return nullptr;
   }
 
-  MIRType *destType = CvtPrimType(srcType);
+  MIRType *destType = CvtPrimType(srcType, isSourceType);
   if (destType != nullptr) {
     return destType;
   }
@@ -254,15 +252,6 @@ MIRType *LibAstFile::CvtRecordType(const clang::QualType qualType) {
   std::stringstream ss;
   EmitTypeName(srcType, ss);
   std::string name(ss.str());
-  if (!ASTUtil::IsValidName(name)) {
-    uint32_t id = recordType->getDecl()->getLocation().getRawEncoding();
-    name = GetOrCreateMappedUnnamedName(id);
-  } else if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-    std::string recordLayoutStr = recordDecl->getDefinition() == nullptr ? "" :
-        ASTUtil::GetRecordLayoutString(astContext->getASTRecordLayout(recordDecl->getDefinition()));
-    std::string filename = astContext->getSourceManager().getFilename(recordDecl->getLocation()).str();
-    name = name + FEUtils::GetFileNameHashStr(filename + recordLayoutStr);
-  }
   type = FEManager::GetTypeManager().GetOrCreateStructType(name);
   type->SetMIRTypeKind(srcType->isUnionType() ? kTypeUnion : kTypeStruct);
   if (recordType->isIncompleteType()) {

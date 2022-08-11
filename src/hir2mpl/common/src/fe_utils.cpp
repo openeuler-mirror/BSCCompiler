@@ -239,7 +239,7 @@ bool FEUtils::TraverseToNamedField(MIRStructType &structType, const GStrIdx &nam
 
 FieldID FEUtils::GetStructFieldID(MIRStructType *base, const std::string &fieldName) {
   MIRStructType *type = base;
-  std::vector<std::string> fieldNames = FEUtils::Split(fieldName, '.');
+  std::vector<std::string> fieldNames = FEUtils::Split(fieldName, '$');
   std::reverse(fieldNames.begin(), fieldNames.end());
   FieldID fieldID = 0;
   for (const auto &f: fieldNames) {

@@ -77,8 +77,8 @@ class LibAstFile {
   void CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs &genAttrs) const;
   void CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl) const;
   void CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
-  MIRType *CvtPrimType(const clang::QualType qualType) const;
-  PrimType CvtPrimType(const clang::BuiltinType::Kind kind) const;
+  MIRType *CvtPrimType(const clang::QualType qualType, bool isSourceType = false) const;
+  PrimType CvtPrimType(const clang::BuiltinType::Kind kind, bool isSourceType) const;
   MIRType *CvtSourceType(const clang::QualType qualType);
   MIRType *CvtType(const clang::QualType qualType, bool isSourceType = false);
   MIRType *CvtOtherType(const clang::QualType srcType, bool isSourceType);
@@ -90,6 +90,7 @@ class LibAstFile {
   MIRType *CvtComplexType(const clang::QualType srcType) const;
   MIRType *CvtVectorType(const clang::QualType srcType);
   MIRType *CvtTypedef(const clang::QualType &qualType);
+  MIRType *CvtTypedefDecl(const clang::TypedefNameDecl &typedefDecl);
   bool TypeHasMayAlias(const clang::QualType srcType) const;
   static bool IsOneElementVector(const clang::QualType &qualType);
   static bool IsOneElementVector(const clang::Type &type);

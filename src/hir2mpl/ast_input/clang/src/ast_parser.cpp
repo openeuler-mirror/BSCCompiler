@@ -2469,18 +2469,6 @@ ASTDecl *ASTParser::ProcessDeclRecordDecl(MapleAllocator &allocator, const clang
   GenericAttrs attrs;
   astFile->CollectRecordAttrs(recDecl, attrs);
   std::string structName = recName.str();
-  if (structName.empty() || !ASTUtil::IsValidName(structName)) {
-    structName = astFile->GetTypedefNameFromUnnamedStruct(recDecl);
-    if (structName.empty()) {
-      uint32 id = qType->getAs<clang::RecordType>()->getDecl()->getLocation().getRawEncoding();
-      structName = astFile->GetOrCreateMappedUnnamedName(id);
-    }
-  } else if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-    std::string recordLayoutStr = recDecl.getDefinition() == nullptr ? "" :
-        ASTUtil::GetRecordLayoutString(astFile->GetContext()->getASTRecordLayout(recDecl.getDefinition()));
-    std::string filename = astFile->GetContext()->getSourceManager().getFilename(recDecl.getLocation()).str();
-    structName = structName + FEUtils::GetFileNameHashStr(filename + recordLayoutStr);
-  }
   curStructOrUnion = ASTDeclsBuilder::ASTStructBuilder(allocator,
                                                        fileName,
                                                        structName,
@@ -2938,8 +2926,9 @@ ASTDecl *ASTParser::ProcessDeclEnumConstantDecl(MapleAllocator &allocator, const
 
 ASTDecl *ASTParser::ProcessDeclTypedefDecl(MapleAllocator &allocator, const clang::TypedefDecl &typeDefDecl) {
   clang::QualType underlyCanonicalTy = typeDefDecl.getCanonicalDecl()->getUnderlyingType().getCanonicalType();
-  // For used type completeness
-  // Only process implicit record type here
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    (void)astFile->CvtTypedefDecl(typeDefDecl);
+  }
   if (underlyCanonicalTy->isRecordType()) {
     const auto *recordType = llvm::cast<clang::RecordType>(underlyCanonicalTy);
     clang::RecordDecl *recordDecl = recordType->getDecl();
@@ -2947,7 +2936,7 @@ ASTDecl *ASTParser::ProcessDeclTypedefDecl(MapleAllocator &allocator, const clan
       return ProcessDecl(allocator, *recordDecl);
     }
   }
-  return nullptr;  // skip primitive type and explicit declared type
+  return nullptr;
 }
 
 ASTDecl *ASTParser::ProcessDeclLabelDecl(MapleAllocator &allocator, const clang::LabelDecl &decl) {
@@ -3041,8 +3030,11 @@ bool ASTParser::RetrieveFileScopeAsms(MapleAllocator &allocator) {
   return true;
 }
 
-bool ASTParser::ProcessGlobalTypeDef(MapleAllocator &allocator) {
+bool ASTParser::RetrieveGlobalTypeDef(MapleAllocator &allocator) {
   for (auto &gTypeDefDecl : std::as_const(globalTypeDefDecles)) {
+    if (gTypeDefDecl->isImplicit()) {
+      continue;
+    }
     (void)ProcessDecl(allocator, *gTypeDefDecl);
   }
   return true;

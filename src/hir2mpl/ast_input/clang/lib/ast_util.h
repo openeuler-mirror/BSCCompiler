@@ -43,8 +43,6 @@ class ASTUtil {
 
   static uint32 GetDim(MIRType &type);
   static std::string GetTypeString(MIRType &type);
-
-  static MIRType *CvtPrimType(const clang::QualType type);
   static Opcode CvtUnaryOpcode(uint32_t opcode);
   static Opcode CvtBinaryOpcode(uint32_t opcode, PrimType pty = PTY_begin);
   static Opcode CvtBinaryAssignOpcode(uint32_t opcode);

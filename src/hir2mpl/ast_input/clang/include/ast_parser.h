@@ -43,7 +43,7 @@ class ASTParser {
   bool RetrieveFuncs(MapleAllocator &allocator);
   bool RetrieveGlobalVars(MapleAllocator &allocator);
   bool RetrieveFileScopeAsms(MapleAllocator &allocator);
-  bool ProcessGlobalTypeDef(MapleAllocator &allocator);
+  bool RetrieveGlobalTypeDef(MapleAllocator &allocator);
   bool RetrieveEnums(MapleAllocator &allocator);
 
   const std::string GetSourceFileName() const;

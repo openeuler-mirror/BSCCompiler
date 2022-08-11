@@ -505,7 +505,7 @@ void LibAstFile::EmitQualifierName(const clang::QualType qualType, std::stringst
 const std::string LibAstFile::GetOrCreateMappedUnnamedName(uint32_t id) {
   std::map<uint32_t, std::string>::const_iterator it = unnamedSymbolMap.find(id);
   if (it == unnamedSymbolMap.cend()) {
-    std::string name = FEUtils::GetSequentialName("unNamed");
+    std::string name = FEUtils::GetSequentialName("unnamed.");
     unnamedSymbolMap[id] = name;
   }
   return unnamedSymbolMap[id];
@@ -557,10 +557,21 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recordType, std::stringst
     Loc l = GetLOC(recordDecl->getLocation());
     ss << "_" << l.line << "_" << l.column;
   }
+  if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
+    std::string recordLayoutStr = recordDecl->getDefinition() == nullptr ? "" :
+        ASTUtil::GetRecordLayoutString(astContext->getASTRecordLayout(recordDecl->getDefinition()));
+    std::string filename = astContext->getSourceManager().getFilename(recordDecl->getLocation()).str();
+    ss << FEUtils::GetFileNameHashStr(filename + recordLayoutStr);
+  }
+  CHECK_FATAL(ss.rdbuf()->in_avail() != 0, "stringstream is empty");
 }
 
 // get TypedefDecl name for the unnamed struct, e.g. typedef struct {} foo;
 std::string LibAstFile::GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl) const {
+  // typedef is parsed in debug mode
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    return std::string();
+  }
   auto *defnameDcel = recoDecl.getTypedefNameForAnonDecl();
   if (defnameDcel != nullptr) {
     return defnameDcel->getQualifiedNameAsString();

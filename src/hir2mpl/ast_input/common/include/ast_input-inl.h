@@ -31,12 +31,13 @@ bool ASTInput<T>::ReadASTFile(MapleAllocator &allocatorIn, uint32 index, const s
   TRY_DO(parser->OpenFile(allocatorIn));
   TRY_DO(parser->Verify());
   TRY_DO(parser->PreProcessAST());
-  // Some implicit record decl would be retrieved in func body at use,
+  // Some implicit record or enum decl would be retrieved in func body at use,
   // so we put `RetrieveFuncs` before `RetrieveStructs`
   TRY_DO(parser->RetrieveFuncs(allocatorIn));
   TRY_DO(parser->RetrieveStructs(allocatorIn));
   if (FEOptions::GetInstance().IsDbgFriendly()) {
     TRY_DO(parser->RetrieveEnums(allocatorIn));
+    TRY_DO(parser->RetrieveGlobalTypeDef(allocatorIn));
   }
   TRY_DO(parser->RetrieveGlobalVars(allocatorIn));
   TRY_DO(parser->RetrieveFileScopeAsms(allocatorIn));

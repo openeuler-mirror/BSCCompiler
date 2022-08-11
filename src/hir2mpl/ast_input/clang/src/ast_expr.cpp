@@ -2030,7 +2030,7 @@ UniqueFEIRExpr ASTMemberExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) 
     baseFEExpr = finalMember.baseExpr->Emit2FEExpr(stmts);
     tmpIsArrow = finalMember.isArrow;
     tmpBaseType = finalMember.baseType;
-    fieldName = ASTUtil::Join(memberNameList, ".");
+    fieldName = ASTUtil::Join(memberNameList, "$");  // add structure nesting relationship
   } else {
     baseFEExpr = baseExpr->Emit2FEExpr(stmts);
   }
