@@ -29,8 +29,7 @@ constexpr uint32 kMaxCost = 100;
 constexpr uint8 unrollTimes[3] = {8, 4, 2};  // unrollTimes
 class LoopUnrolling {
  public:
-  enum ReturnKindOfFullyUnroll
-  {
+  enum ReturnKindOfFullyUnroll {
     kCanFullyUnroll,
     kCanNotSplitCondGoto,
     kCanNotFullyUnroll,

@@ -100,8 +100,8 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
     if (updateFreqs) {
       int idx = pred->GetSuccIndex(*splittedBB);
       ASSERT(idx >= 0 && idx < pred->GetSucc().size(), "sanity check");
-      uint64_t freq = pred->GetEdgeFreq(idx);
-      mergedBB->SetFrequency(freq);
+      uint64_t freq = pred->GetEdgeFreq(static_cast<size_t>(idx));
+      mergedBB->SetFrequency(static_cast<uint32>(freq));
       mergedBB->PushBackSuccFreq(freq);
     }
     splittedBB->ReplacePred(pred, mergedBB);
@@ -134,8 +134,8 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
     if (updateFreqs) {
       int idx = pred->GetSuccIndex(*splittedBB);
       ASSERT(idx >= 0 && idx < pred->GetSucc().size(), "sanity check");
-      freq = pred->GetEdgeFreq(idx);
-      mergedBB->SetFrequency(mergedBB->GetFrequency() + freq);
+      freq = pred->GetEdgeFreq(static_cast<size_t>(idx));
+      mergedBB->SetFrequency(static_cast<uint32>(mergedBB->GetFrequency() + freq));
     }
     pred->ReplaceSucc(splittedBB, mergedBB);
     if (updateFreqs) {
@@ -254,38 +254,39 @@ void MeLoopCanon::InsertExitBB(LoopDesc &loop) {
       if (loop.Has(*succ)) {
         inLoopBBs.push(succ);
         traveledBBs.insert(succ);
-      } else {
-        bool needNewExitBB = false;
-        for (auto pred : succ->GetPred()) {
-          if (!loop.Has(*pred)) {
-            needNewExitBB = true;
-            break;
-          }
-        }
-        if (needNewExitBB) {
-          // break the critical edge for code sinking
-          BB *newExitBB = cfg->NewBasicBlock();
-          newExitBB->SetKind(kBBFallthru);
-          auto pos = succ->GetPredIndex(*curBB);
-          uint64_t freq = 0;
-          if (updateFreqs) {
-            int idx = curBB->GetSuccIndex(*succ);
-            freq = curBB->GetSuccFreq()[idx];
-          }
-          curBB->ReplaceSucc(succ, newExitBB);
-          succ->AddPred(*newExitBB, pos);
-          if (updateFreqs) {
-            newExitBB->SetFrequency(freq);
-            newExitBB->PushBackSuccFreq(freq);
-          }
-          if (!curBB->GetMeStmts().empty()) {
-            UpdateTheOffsetOfStmtWhenTargetBBIsChange(*curBB, *succ, *newExitBB);
-          }
-          succ = newExitBB;
-          isCFGChange = true;
-        }
-        loop.InsertInloopBB2exitBBs(*curBB, *succ);
+        continue;
       }
+      bool needNewExitBB = false;
+      for (auto pred : succ->GetPred()) {
+        if (!loop.Has(*pred)) {
+          needNewExitBB = true;
+          break;
+        }
+      }
+      if (needNewExitBB) {
+        // break the critical edge for code sinking
+        BB *newExitBB = cfg->NewBasicBlock();
+        newExitBB->SetKind(kBBFallthru);
+        auto pos = succ->GetPredIndex(*curBB);
+        uint64_t freq = 0;
+        if (updateFreqs) {
+          int idx = curBB->GetSuccIndex(*succ);
+          ASSERT(idx >= 0 && idx < curBB->GetSuccFreq().size(), "sanity check");
+          freq = curBB->GetSuccFreq()[static_cast<unsigned long>(idx)];
+        }
+        curBB->ReplaceSucc(succ, newExitBB);
+        succ->AddPred(*newExitBB, pos);
+        if (updateFreqs) {
+          newExitBB->SetFrequency(static_cast<uint32>(freq));
+          newExitBB->PushBackSuccFreq(freq);
+        }
+        if (!curBB->GetMeStmts().empty()) {
+          UpdateTheOffsetOfStmtWhenTargetBBIsChange(*curBB, *succ, *newExitBB);
+        }
+        succ = newExitBB;
+        isCFGChange = true;
+      }
+      loop.InsertInloopBB2exitBBs(*curBB, *succ);
     }
   }
 }
