@@ -2789,6 +2789,10 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   if (attrs.GetAttr(GENATTR_static) && FEOptions::GetInstance().GetFuncInlineSize() != 0) {
     varName = varName + astFile->GetAstFileNameHashStr();
   }
+  if (varType->IsMIRIncompleteStructType() && !attrs.GetAttr(GENATTR_extern)) {
+    FE_ERR(kLncErr, astFile->GetLOC(varDecl.getLocation()), "tentative definition of variable '%s' has incomplete"
+        " struct type 'struct '%s''", varName.c_str(), varType->GetName().c_str());
+  }
   astVar = ASTDeclsBuilder::ASTVarBuilder(
       allocator, fileName, varName, MapleVector<MIRType*>({varType}, allocator.Adapter()), attrs, varDecl.getID());
   if (FEOptions::GetInstance().IsDbgFriendly()) {

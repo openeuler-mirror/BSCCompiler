@@ -265,7 +265,7 @@ MIRType *LibAstFile::CvtRecordType(const clang::QualType qualType) {
   }
   type = FEManager::GetTypeManager().GetOrCreateStructType(name);
   type->SetMIRTypeKind(srcType->isUnionType() ? kTypeUnion : kTypeStruct);
-  if (recordDecl->getDefinition() == nullptr) {
+  if (recordType->isIncompleteType()) {
     type->SetMIRTypeKind(kTypeStructIncomplete);
   }
   return recordDecl->isLambda() ? GlobalTables::GetTypeTable().GetOrCreatePointerType(*type) : type;
