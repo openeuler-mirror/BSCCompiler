@@ -204,7 +204,7 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
         if (swapSuccOfLatch) {
           // bb fallthru is in loop, frequency of bb -> exitbb is set 0
           // latchBB fallthru is loop exit
-          int fallthrudiff = bb.GetSucc(0)->GetFrequency() - bb.GetFrequency();
+          int fallthrudiff = static_cast<int>(bb.GetSucc(0)->GetFrequency() - bb.GetFrequency());
           if (fallthrudiff >= 0) {
             bb.SetSuccFreq(0, bb.GetFrequency());
             bb.SetSuccFreq(1, 0);
@@ -219,7 +219,7 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
         } else {
           // bb->fallthru is loop exit, edge frequency of  bb ->exitbb is set 0
           // latchBB fallthru is in loop
-          int fallthrudiff = bb.GetSucc(1)->GetFrequency() - bb.GetFrequency();
+          int fallthrudiff = static_cast<int>(bb.GetSucc(1)->GetFrequency() - bb.GetFrequency());
           if (fallthrudiff >= 0) {
             bb.SetSuccFreq(1, bb.GetFrequency());
             bb.SetSuccFreq(0, 0);

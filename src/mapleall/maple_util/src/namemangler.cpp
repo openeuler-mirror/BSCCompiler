@@ -597,7 +597,7 @@ size_t GetSleb128Size(int32_t v) {
 }
 
 // encode signed to output stream
-uint32_t EncodeSLEB128(int64_t value, std::ofstream &out) {
+uint32_t EncodeSLEB128(uint64_t value, std::ofstream &out) {
   bool more;
   uint32_t count = 0;
   do {
@@ -631,64 +631,66 @@ uint32_t EncodeULEB128(uint64_t value, std::ofstream &out) {
 
 // decode a ULEB128 value.
 uint64_t DecodeULEB128(const uint8_t *p, unsigned *n, const uint8_t *end) {
-  const uint8_t *orig_p = p;
+  const uint8_t *origP = p;
   uint64_t value = 0;
   unsigned shift = 0;
+  enum LITERALS {ONEHUNDREDTWENTYEIGHT = 128, SIXTYFOUR = 64, ZERO = 0};
   do {
     if (p == end) {
       if (n) {
-        *n = static_cast<unsigned>(p - orig_p);
+        *n = static_cast<unsigned>(p - origP);
       }
-      return 0;
+      return ZERO;
     }
     uint64_t slice = *p & 0x7f;
-    if ((shift >= 64 && slice != 0) || ((slice << shift) >> shift) != slice) {
+    if ((shift >= SIXTYFOUR && slice != ZERO) || ((slice << shift) >> shift) != slice) {
       if (n) {
-        *n = static_cast<unsigned>(p - orig_p);
+        *n = static_cast<unsigned>(p - origP);
       }
-      return 0;
+      return ZERO;
     }
     value += slice << shift;
     shift += kGreybackOffset;
-  } while (*p++ >= 128);
+  } while (*p++ >= ONEHUNDREDTWENTYEIGHT);
   if (n) {
-    *n = static_cast<unsigned>(p - orig_p);
+    *n = static_cast<unsigned>(p - origP);
   }
   return value;
 }
 
 // decode a SLEB128 value.
 int64_t DecodeSLEB128(const uint8_t *p, unsigned *n, const uint8_t *end) {
-  const uint8_t *orig_p = p;
+  const uint8_t *origP = p;
   int64_t value = 0;
   unsigned shift = 0;
   uint8_t byte;
+  enum LITERALS {ONEHUNDREDTWENTYEIGHT = 128, SIXTYFOUR = 64, SIXTYTHREE = 63, ZERO = 0};
   do {
     if (p == end) {
       if (n) {
-        *n = static_cast<unsigned>(p - orig_p);
+        *n = static_cast<unsigned>(p - origP);
       }
-      return 0;
+      return ZERO;
     }
     byte = *p;
     uint64_t slice = byte & 0x7f;
-    if ((shift >= 64 && slice != (value < 0 ? 0x7f : 0x00)) ||
-        (shift == 63 && slice != 0 && slice != 0x7f)) {
+    if ((shift >= SIXTYFOUR && slice != (value < static_cast<int64_t>(ZERO) ? 0x7f : 0x00)) ||
+        (shift == SIXTYTHREE && slice != ZERO && slice != 0x7f)) {
       if (n) {
-        *n = static_cast<unsigned>(p - orig_p);
+        *n = static_cast<unsigned>(p - origP);
       }
-      return 0;
+      return ZERO;
     }
-    value |= slice << shift;
+    value |= static_cast<int64_t>(slice << shift);
     shift += kGreybackOffset;
     ++p;
-  } while (byte >= 128);
+  } while (byte >= ONEHUNDREDTWENTYEIGHT);
   // Sign extend negative numbers if needed.
-  if (shift < 64 && (byte & 0x40)) {
-    value |= (-1LL) << shift;
+  if (shift < SIXTYFOUR && (byte & 0x40)) {
+    value |= static_cast<unsigned long long>(0xffffffffffffffff) << shift;
   }
   if (n) {
-    *n = static_cast<unsigned>(p - orig_p);
+    *n = static_cast<unsigned>(p - origP);
   }
   return value;
 }
