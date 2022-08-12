@@ -690,6 +690,14 @@ class LiveRange {
     fieldID = lr.fieldID;
   }
 
+  bool GetIsSpSave() const {
+    return isSpSave;
+  }
+
+  void SetIsSpSave() {
+    isSpSave = true;
+  }
+
   bool IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLev) const;
   std::vector<Insn *> Rematerialize(AArch64CGFunc *cgFunc, RegOperand &regOp);
 
@@ -742,6 +750,7 @@ class LiveRange {
   } rematInfo;                        /* info for rematerializing value */
   FieldID fieldID = 0;                /* used only when op is OP_addrof or OP_dread */
   bool addrUpper = false;             /* indicates the upper bits of an addrof */
+  bool isSpSave = false;              /* contain SP in case of alloca */
 };
 
 /* One per bb, to communicate local usage to global RA */
@@ -1393,7 +1402,7 @@ class GraphColorRegAllocator : public RegAllocator {
   MemOperand *GetCommonReuseMem(const uint64 *conflict, const std::set<MemOperand*> &usedMemOpnd, uint32 size,
                                 RegType regType);
   MemOperand *GetReuseMem(uint32 vregNO, uint32 size, RegType regType);
-  MemOperand *GetSpillMem(uint32 vregNO, bool isDest, Insn &insn, AArch64reg regNO, bool &isOutOfRange) const;
+  MemOperand *GetSpillMem(uint32 vregNO, bool isDest, Insn &insn, AArch64reg regNO, bool &isOutOfRange);
   bool SetAvailableSpillReg(std::unordered_set<regno_t> &cannotUseReg, LiveRange &lr, uint64 &usedRegMask);
   void CollectCannotUseReg(std::unordered_set<regno_t> &cannotUseReg, const LiveRange &lr, Insn &insn);
   regno_t PickRegForSpill(uint64 &usedRegMask, RegType regType, uint32 spillIdx, bool &needSpillLr);
@@ -1422,6 +1431,7 @@ class GraphColorRegAllocator : public RegAllocator {
   void GenerateSpillFillRegs(const Insn &insn);
   RegOperand *CreateSpillFillCode(const RegOperand &opnd, Insn &insn, uint32 spillCnt, bool isdef = false);
   bool SpillLiveRangeForSpills();
+  void FinalizeSpSaveReg();
 
   MapleVector<LiveRange*>::iterator GetHighPriorityLr(MapleVector<LiveRange*> &lrSet) const;
   void UpdateForbiddenForNeighbors(const LiveRange &lr) const;

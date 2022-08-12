@@ -234,6 +234,7 @@ class CGFunc {
   virtual Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCAtomicExchangeN(const IntrinsiccallNode &intrinsiccallNode) = 0;
+  virtual Operand *SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) = 0;
   virtual Operand *SelectCReturnAddress(IntrinsicopNode &intrinsicopNode) = 0;
   virtual void SelectMembar(StmtNode &membar) = 0;
   virtual void SelectComment(CommentNode &comment) = 0;
@@ -378,6 +379,7 @@ class CGFunc {
   virtual RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) = 0;
   virtual RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) = 0;
   virtual RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) = 0;
+  virtual RegOperand *SelectVectorMovNarrow(PrimType rType, Operand *opnd, PrimType oType) = 0;
 
   /* For ebo issue. */
   virtual Operand *GetTrueOpnd() {
@@ -409,6 +411,8 @@ class CGFunc {
   virtual Insn &CreateCfiRestoreInsn(uint32 reg, uint32 size) = 0;
   virtual Insn &CreateCfiOffsetInsn(uint32 reg, int64 val, uint32 size) = 0;
   virtual Insn &CreateCfiDefCfaInsn(uint32 reg, int64 val, uint32 size) = 0;
+
+  virtual Insn &CreateCommentInsn(const std::string &comment) const = 0;
 
   bool IsSpecialPseudoRegister(PregIdx spr) const {
     return spr < 0;
@@ -919,6 +923,14 @@ class CGFunc {
     lmbcTotalArgs = 0;
   }
 
+  void SetSpSaveReg(regno_t reg) {
+    spSaveReg = reg;
+  }
+
+  regno_t GetSpSaveReg() {
+    return spSaveReg;
+  }
+
   MapleVector<BB*> &GetAllBBs() {
     return bbVec;
   }
@@ -1272,14 +1284,15 @@ class CGFunc {
 #endif  /* TARGARM32 */
   MapleVector<CGFuncLoops*> loops;
   MapleVector<LmbcFormalParamInfo*> lmbcParamVec;
+  CGCFG *theCFG = nullptr;
   MapleSet<uint32> scpIdSet;
+  const MapleString shortFuncName;
   int32 lmbcIntArgs = 0;
   int32 lmbcFpArgs = 0;
   uint32 lmbcTotalArgs = 0;
-  CGCFG *theCFG = nullptr;
   uint32 nextSpillLocation = 0;
+  regno_t spSaveReg = 0;
 
-  const MapleString shortFuncName;
   bool hasAsm = false;
   bool useFP = true;
   bool seenFP = true;
