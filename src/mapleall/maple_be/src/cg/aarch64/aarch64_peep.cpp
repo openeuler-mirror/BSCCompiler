@@ -834,17 +834,45 @@ void CselToCsetPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
-bool CsetToCincPattern::CheckDefInsn(const RegOperand &opnd) {
+bool CsetToCincPattern::CheckDefInsn(const RegOperand &opnd, Insn &insn) {
   Insn *tempDefInsn = ssaInfo->GetDefInsn(opnd);
-  if (tempDefInsn != nullptr) {
+  if (tempDefInsn != nullptr && tempDefInsn->GetBB()->GetId() == insn.GetBB()->GetId()) {
     InsnSet useInsns = GetAllUseInsn(opnd);
     if (useInsns.size() != 1) {
       return false;
     }
     MOperator mop = tempDefInsn->GetMachineOpcode();
     if (mop == MOP_wcsetrc || mop == MOP_xcsetrc) {
+      /* DefInsn and tempDefInsn are in the same BB. Select a close to useInsn(add) */
+      if (!CheckRegTyCc(*tempDefInsn, insn)) {
+        return false;
+      }
       defInsn = tempDefInsn;
       return true;
+    }
+  }
+  return false;
+}
+
+/* If a new ConditionCode is generated after csetInsn, this optimization is not performed. */
+bool CsetToCincPattern::CheckRegTyCc(const Insn &tempDefInsn, Insn &insn) {
+  bool betweenUseAndDef = false;
+  FOR_BB_INSNS_REV(bbInsn, insn.GetBB()) {
+    if (!bbInsn->IsMachineInstruction()) {
+      continue;
+    }
+    if (bbInsn->GetId() == insn.GetId()) {
+      betweenUseAndDef = true;
+    }
+    if (betweenUseAndDef) {
+      /* Select a close to useInsn(add) */
+      if (defInsn != nullptr && bbInsn->GetId() == defInsn->GetId()) {
+        return false;
+      } else if (bbInsn->GetId() == tempDefInsn.GetId()) {
+        return true;
+      } else if (static_cast<RegOperand&>(bbInsn->GetOperand(kInsnFirstOpnd)).IsOfCC()) {
+        return false;
+      }
     }
   }
   return false;
@@ -853,15 +881,13 @@ bool CsetToCincPattern::CheckDefInsn(const RegOperand &opnd) {
 bool CsetToCincPattern::CheckCondition(Insn &insn) {
   RegOperand &opnd2 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   RegOperand &opnd3 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
-  bool opnd2Cset = CheckDefInsn(opnd2);
-  bool opnd3Cset = CheckDefInsn(opnd3);
-  bool doPattern = (opnd2Cset == opnd3Cset) ? false : true; /* Only one definsn is cset. */
-  if (opnd2Cset && doPattern) {
-    csetOpnd1 = kInsnSecondOpnd;
-    return true;
-  }
-  if (opnd3Cset && doPattern) {
+  bool opnd2Cset = CheckDefInsn(opnd2, insn);
+  bool opnd3Cset = CheckDefInsn(opnd3, insn);
+  if (opnd3Cset) {
     csetOpnd1 = kInsnThirdOpnd;
+    return true;
+  } else if (opnd2Cset) {
+    csetOpnd1 = kInsnSecondOpnd;
     return true;
   }
   return false;
@@ -870,7 +896,11 @@ bool CsetToCincPattern::CheckCondition(Insn &insn) {
 void CsetToCincPattern::Run(BB &bb, Insn &insn) {
   RegOperand &opnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   /* Exclude other patterns that have been optimized. */
-  MOperator mop =  ssaInfo->GetDefInsn(opnd1)->GetMachineOpcode();
+  Insn *newAddInsn = ssaInfo->GetDefInsn(opnd1);
+  if (newAddInsn == nullptr) {
+    return;
+  }
+  MOperator mop = newAddInsn->GetMachineOpcode();
   if (mop != MOP_waddrrr && mop != MOP_xaddrrr) {
     return;
   }

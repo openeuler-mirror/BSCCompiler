@@ -173,7 +173,8 @@ class CsetToCincPattern : public CGPeepPattern {
   ~CsetToCincPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
-  bool CheckDefInsn(const RegOperand &opnd);
+  bool CheckDefInsn(const RegOperand &opnd, Insn &insn);
+  bool CheckRegTyCc(const Insn &tempDefInsn, Insn &insn);
   std::string GetPatternName() override {
     return "CsetToCincPattern";
   }
