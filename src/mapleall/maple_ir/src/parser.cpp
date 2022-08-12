@@ -1699,7 +1699,7 @@ bool MIRParser::ParseTypeDefine() {
 }
 
 bool MIRParser::ParseEnumeration() {
-  if (lexer.GetTokenKind() != TK_enumeration) {
+  if (lexer.GetTokenKind() != TK_ENUMERATION) {
     Error("expect enum but get ");
     return false;
   }
@@ -1775,7 +1775,7 @@ bool MIRParser::ParseEnumeration() {
 
 // for debuginfo parsing c typedef
 bool MIRParser::ParseTypedef() {
-  if (lexer.GetTokenKind() != TK_typedef) {
+  if (lexer.GetTokenKind() != TK_TYPEDEF) {
     Error("expect typedef but get ");
     return false;
   }
@@ -2701,7 +2701,7 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
   aliasVar.sigStrIdx = signStrIdx;
   tk = lexer.GetTokenKind();
   if (tk == TK_coma) {
-    tk = lexer.NextToken();
+    (void)lexer.NextToken();
   }
   return true;
 }
@@ -2851,6 +2851,10 @@ bool MIRParser::ParseMIR(uint32 fileIdx, uint32 option, bool isIPA, bool isComb)
       MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(it->second);
       CHECK_FATAL(type != nullptr, "type is null");
       if (type->GetKind() == kTypeByName) {
+        TyIdx tyIdx = GlobalTables::GetTypedefTable().GetTyIdxFromMap(it->first);
+        if (tyIdx.GetIdx() != 0) {
+          continue;
+        }
         std::string strStream;
         const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(it->first);
         strStream += "type $";
@@ -2889,8 +2893,6 @@ std::map<TokenKind, MIRParser::FuncPtrParseMIRForElem> MIRParser::InitFuncPtrMap
   funcPtrMap[TK_javaclass] = &MIRParser::ParseMIRForClass;
   funcPtrMap[TK_javainterface] = &MIRParser::ParseMIRForInterface;
   funcPtrMap[TK_type] = &MIRParser::ParseTypeDefine;
-  funcPtrMap[TK_enumeration] = &MIRParser::ParseEnumeration;
-  funcPtrMap[TK_typedef] = &MIRParser::ParseTypedef;
   funcPtrMap[TK_flavor] = &MIRParser::ParseMIRForFlavor;
   funcPtrMap[TK_srclang] = &MIRParser::ParseMIRForSrcLang;
   funcPtrMap[TK_globalmemsize] = &MIRParser::ParseMIRForGlobalMemSize;
@@ -2909,6 +2911,8 @@ std::map<TokenKind, MIRParser::FuncPtrParseMIRForElem> MIRParser::InitFuncPtrMap
   funcPtrMap[TK_LOC] = &MIRParser::ParseLoc;
   funcPtrMap[TK_ALIAS] = &MIRParser::ParseAlias;
   funcPtrMap[TK_SCOPE] = &MIRParser::ParseScope;
+  funcPtrMap[TK_ENUMERATION] = &MIRParser::ParseEnumeration;
+  funcPtrMap[TK_TYPEDEF] = &MIRParser::ParseTypedef;
   return funcPtrMap;
 }
 

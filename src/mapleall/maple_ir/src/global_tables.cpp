@@ -249,7 +249,7 @@ MIRType *TypeTable::GetOrCreateStructOrUnion(const std::string &name, const Fiel
   return typeTable.at(tyIdx);
 }
 
-void TypeTable::PushIntoFieldVector(FieldVector &fields, const std::string &name, const MIRType &type) {
+void TypeTable::PushIntoFieldVector(FieldVector &fields, const std::string &name, const MIRType &type) const {
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
   fields.push_back(FieldPair(strIdx, TyIdxFieldAttrPair(type.GetTypeIndex(), FieldAttrs())));
 }
@@ -276,7 +276,7 @@ MIRType *TypeTable::GetOrCreateClassOrInterface(const std::string &name, MIRModu
 }
 
 void TypeTable::AddFieldToStructType(MIRStructType &structType, const std::string &fieldName,
-                                     const MIRType &fieldType) {
+                                     const MIRType &fieldType) const {
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fieldName);
   FieldAttrs fieldAttrs;
   fieldAttrs.SetAttr(FLDATTR_final);  // Mark compiler-generated struct fields as final to improve AliasAnalysis
@@ -482,6 +482,17 @@ void GSymbolTable::Dump(bool isLocal, int32 indent) const {
     if (symbol != nullptr) {
       symbol->Dump(isLocal, indent);
     }
+  }
+}
+
+void TypedefTable::Dump() const {
+  for (auto it = typedefNameMap.cbegin(); it != typedefNameMap.cend(); ++it) {
+    const std::string name = GlobalTables::GetStrTable().GetStringFromStrIdx(it->first);
+    MIRType *underlyingType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(it->second);
+    CHECK_NULL_FATAL(underlyingType);
+    LogInfo::MapleLogger() << "TYPEDEF $" << name << " ";
+    underlyingType->Dump(1);
+    LogInfo::MapleLogger() << "\n";
   }
 }
 

@@ -32,7 +32,6 @@
   KEYWORD(tempvar)
   KEYWORD(reg)
   KEYWORD(type)
-  KEYWORD(enumeration)
   KEYWORD(func)
   KEYWORD(struct)
   KEYWORD(structincomplete)
@@ -95,9 +94,11 @@
   KEYWORD(importpath)
   // source position information
   KEYWORD(LOC)
-  // scope and source var to mpl var mapping
+  // dwarf related
   KEYWORD(SCOPE)
   KEYWORD(ALIAS)
+  KEYWORD(ENUMERATION)
+  KEYWORD(TYPEDEF)
   // storage class
   KEYWORD(pstatic)
   KEYWORD(fstatic)
