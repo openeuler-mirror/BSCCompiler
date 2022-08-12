@@ -993,8 +993,8 @@ DBGDie *DebugInfo::GetOrCreateTypeDie(MIRType *type) {
 
 DBGDie *DebugInfo::GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx) {
   uint32 sid = stridx.GetIdx();
-  auto it = typedefStrIdxDieIdMap.find(sid);
-  if (it != typedefStrIdxDieIdMap.end()) {
+  auto it = stridxDieIdMap.find(sid);
+  if (it != stridxDieIdMap.end()) {
     return idDieMap[it->second];
   }
 
@@ -1009,7 +1009,7 @@ DBGDie *DebugInfo::GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx) {
   DBGDie *typeDie = GetOrCreateTypeDie(tyidx);
   (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, typeDie->GetId()));
 
-  typedefStrIdxDieIdMap[sid] = die->GetId();
+  stridxDieIdMap[sid] = die->GetId();
   return die;
 }
 

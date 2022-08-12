@@ -607,7 +607,6 @@ class DebugInfo {
         funcScopeLows(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
         funcScopeHighs(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
         funcScopeIdStatus(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
-        typedefStrIdxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         typedefStrIdxTyIdxMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         constTypeDieMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         volatileTypeDieMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
@@ -848,7 +847,6 @@ class DebugInfo {
   MapleMap<MIRFunction *, std::map<uint32, uint8>> funcScopeIdStatus;
 
   /* alias type */
-  MapleMap<uint32, uint32> typedefStrIdxDieIdMap;
   MapleMap<uint32, uint32> typedefStrIdxTyIdxMap;
   MapleMap<uint32, uint32> constTypeDieMap;
   MapleMap<uint32, uint32> volatileTypeDieMap;
