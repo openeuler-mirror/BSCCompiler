@@ -189,7 +189,8 @@ void CGCFG::CheckCFG() {
 void CGCFG::CheckCFGFreq() {
   auto verifyBBFreq = [this](const BB *bb, uint32 succFreq) {
     uint32 res = bb->GetFrequency();
-    if ((res != 0 && abs(static_cast<int>(res - succFreq)) / res > 1.0) || (res == 0 && res != succFreq)) {
+    if ((res != 0 && static_cast<uint32>(abs(static_cast<int>(res - succFreq)) / res > 1.0)) ||
+        (res == 0 && res != succFreq)) {
       // Not included
       if (bb->GetSuccs().size() > 1 && bb->GetPreds().size() > 1) {
         return;
@@ -584,7 +585,7 @@ BB *CGCFG::GetTargetSuc(BB &curBB, bool branchOnly, bool isGotoIf) {
 }
 
 bool CGCFG::InLSDA(LabelIdx label, const EHFunc &ehFunc) {
-  if (!label || ehFunc.GetLSDACallSiteTable() == nullptr) {
+  if ((label == 0) || ehFunc.GetLSDACallSiteTable() == nullptr) {
     return false;
   }
   if (label == ehFunc.GetLSDACallSiteTable()->GetCSTable().GetEndOffset()->GetLabelIdx() ||
@@ -595,7 +596,7 @@ bool CGCFG::InLSDA(LabelIdx label, const EHFunc &ehFunc) {
 }
 
 bool CGCFG::InSwitchTable(LabelIdx label, const CGFunc &func) {
-  if (!label) {
+  if (label == 0) {
     return false;
   }
   for (auto &it : func.GetEmitStVec()) {
@@ -900,7 +901,6 @@ void CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
       MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
       if (succ.GetLabIdx() == lblConst->GetValue()) {
         arrayConst->SetConstVecItem(i, *mirConst);
-        break;
       }
     }
   } else {
