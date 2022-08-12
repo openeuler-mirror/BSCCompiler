@@ -15,3 +15,6 @@
 
 
 add_subdirectory(mempool)
+add_subdirectory(maple_util)
+
+
