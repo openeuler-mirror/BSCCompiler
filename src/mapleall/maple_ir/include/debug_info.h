@@ -658,9 +658,6 @@ class DebugInfo {
   // also insert DW_AT_sibling attributes when needed
   void BuildDieTree();
 
-  // replace type idx with die id in DW_AT_type attributes
-  void FillTypeAttrWithDieId();
-
   void BuildAbbrev();
   uint32 GetAbbrevId(DBGAbbrevEntryVec *vec, DBGAbbrevEntry *entry) const;
 
@@ -763,8 +760,8 @@ class DebugInfo {
   DBGDie *GetOrCreatePrimTypeDie(MIRType *ty);
   DBGDie *GetOrCreateTypeDie(TyIdx tyidx);
   DBGDie *GetOrCreateTypeDie(MIRType *type);
-  DBGDie *GetOrCreateTypeDie(AttrKind attr, DBGDie *typedie);
-  DBGDie *GetOrCreateTypeDie(TypeAttrs attrs, DBGDie *typedie);
+  DBGDie *GetOrCreateTypeDie(AttrKind attr, DBGDie *typeDie);
+  DBGDie *GetOrCreateTypeDie(TypeAttrs attrs, DBGDie *typeDie);
   DBGDie *GetOrCreatePointTypeDie(const MIRPtrType *ptrType);
   DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *arrayType);
   DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
