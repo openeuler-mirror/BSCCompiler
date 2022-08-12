@@ -765,6 +765,7 @@ void CGOptions::EnableO2() {
   doSchedule = true;
   doAlignAnalysis = true;
   doCondBrAlign = true;
+  doRetMerge = true;
   SetOption(kConstFold);
   SetOption(kUseUnwindTables);
   ClearOption(kUseStackProtectorStrong);

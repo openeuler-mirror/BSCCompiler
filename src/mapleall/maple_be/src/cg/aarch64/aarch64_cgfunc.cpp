@@ -6876,6 +6876,12 @@ void AArch64CGFunc::MergeReturn() {
   if ((exitBBSize == 1) && GetExitBB(0) == GetCurBB()) {
     return;
   }
+
+  /* for reduce cfgo and rd phase time, given merge limit value */
+  constexpr uint32 maxExitBBNumLimit = 100;
+  if (exitBBSize > maxExitBBNumLimit) {
+    return;
+  }
   if (exitBBSize == 1) {
     BB *onlyExitBB = GetExitBB(0);
     BB *onlyExitBBNext = onlyExitBB->GetNext();
