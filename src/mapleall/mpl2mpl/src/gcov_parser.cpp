@@ -253,7 +253,6 @@ void MGcovParser::GcovReadSummary (struct gcov_summary *summary) {
 
 static unsigned object_runs;
 static unsigned program_count;
-//static unsigned bbg_stamp = 0;
 // reference
 int MGcovParser::ReadGcdaFile() {
   std::string gcovDataFile = Options::profile;
@@ -311,8 +310,8 @@ int MGcovParser::ReadGcdaFile() {
       funcInfo = localMP->New<GcovFuncInfo>(&alloc, ident, lineno_checksum, cfg_checksum);
       (gcovData->funcsCounter)[ident] = funcInfo;
     } else if (tag == GCOV_TAG_FOR_COUNTER (GCOV_COUNTER_ARCS)) {
-      funcInfo->num_counts = GCOV_TAG_COUNTER_NUM(length);
-      for (int ix = 0; ix != funcInfo->num_counts; ix++) {
+      funcInfo->numCounts = GCOV_TAG_COUNTER_NUM(length);
+      for (int ix = 0; ix != funcInfo->numCounts; ix++) {
         funcInfo->counts.push_back(GcovReadCounter());
       }
     }
@@ -330,10 +329,10 @@ void MGcovParser::DumpFuncInfo() {
   for (auto &it : gcovData->funcsCounter) {
     GcovFuncInfo *funcInfo = it.second;
     LogInfo::MapleLogger() << "\nfunction ident " << std::dec << funcInfo->ident;
-    LogInfo::MapleLogger() << "  lino_checksum 0x" << std::hex << funcInfo->lineno_checksum;
-    LogInfo::MapleLogger() << "  cfg_checksum 0x" << std::hex <<  funcInfo->cfg_checksum << "\n";
-    LogInfo::MapleLogger() << "  num_counts " <<  std::dec << funcInfo->num_counts << " : ";
-    for (int i = 0; i < funcInfo->num_counts; i++) {
+    LogInfo::MapleLogger() << "  lino_checksum 0x" << std::hex << funcInfo->linenoChecksum;
+    LogInfo::MapleLogger() << "  cfg_checksum 0x" << std::hex <<  funcInfo->cfgChecksum << "\n";
+    LogInfo::MapleLogger() << "  numCounts " <<  std::dec << funcInfo->numCounts << " : ";
+    for (int i = 0; i < funcInfo->numCounts; i++) {
       LogInfo::MapleLogger() << std::dec << "  " << funcInfo->counts[i];
     }
   }

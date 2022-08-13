@@ -81,7 +81,7 @@ bool MEEmit::PhaseRun(maple::MeFunction &f) {
       mirFunction->SetBody(mirFunction->GetCodeMempool()->New<BlockNode>());
       if (Options::profileUse && mirFunction->GetFuncProfData()) {
         mirFunction->GetFuncProfData()->SetStmtFreq(mirFunction->GetBody()->GetStmtID(),
-            mirFunction->GetFuncProfData()->entry_freq);
+            mirFunction->GetFuncProfData()->entryFreq);
       }
       // initialize is_deleted field to true; will reset when emitting Maple IR
       for (size_t k = 1; k < mirFunction->GetSymTab()->GetSymbolTableSize(); ++k) {

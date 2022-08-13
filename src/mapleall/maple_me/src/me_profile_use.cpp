@@ -322,13 +322,13 @@ bool MeProfUse::GcovRun() {
   }
   func->GetMirFunc()->SetFuncProfData(funcData);
   // early return if lineno fail
-  if (CheckSumFail(ComputeLinenoHash(), funcData->lineno_checksum, "lineno")) {
+  if (CheckSumFail(ComputeLinenoHash(), funcData->linenoChecksum, "lineno")) {
     func->GetMirFunc()->SetFuncProfData(nullptr); // clear func profile data
     return false;
   }
   FindInstrumentEdges();
   // early return if cfgchecksum fail
-  if (CheckSumFail(ComputeFuncHash(), funcData->cfg_checksum, "func")) {
+  if (CheckSumFail(ComputeFuncHash(), funcData->cfgChecksum, "func")) {
     return false;
   }
   std::vector<BB*> instrumentBBs;
@@ -336,10 +336,10 @@ bool MeProfUse::GcovRun() {
   if (dump) {
     DumpEdgeInfo();
   }
-  if (instrumentBBs.size() != funcData->num_counts) {
+  if (instrumentBBs.size() != funcData->numCounts) {
     if (dump) {
       LogInfo::MapleLogger() << func->GetName() << " counter doesn't match profile counter "
-                             << funcData->num_counts << " func real counter " <<  instrumentBBs.size() << '\n';
+                             << funcData->numCounts << " func real counter " <<  instrumentBBs.size() << '\n';
     }
     func->GetMirFunc()->SetFuncProfData(nullptr); // clear func profile data
     return false;

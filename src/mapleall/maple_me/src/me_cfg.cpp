@@ -1802,6 +1802,7 @@ void MeCFG::UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, M
     LabelIdx label = meFunc.GetOrCreateBBLabel(newTarget);
     if (forMeIR) {
       auto *switchStmt = static_cast<SwitchMeStmt*>(currBB.GetLastMe());
+      ASSERT_NOT_NULL(switchStmt);
       if (switchStmt->GetDefaultLabel() == oldLabelIdx) {
         switchStmt->SetDefaultLabel(label);
       }
@@ -1924,8 +1925,8 @@ void MeCFG::ConstructStmtFreq() {
   for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     if (bIt == common_entry()) {
-      funcData->entry_freq = bb->GetFrequency();
-      funcData->real_entryfreq = funcData->entry_freq;
+      funcData->entryFreq = bb->GetFrequency();
+      funcData->real_entryfreq = funcData->entryFreq;
     }
     for (auto &stmt : bb->GetStmtNodes()) {
       Opcode op = stmt.GetOpCode();

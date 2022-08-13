@@ -37,26 +37,26 @@ enum UpdateFreqOp {
 
 class GcovFuncInfo {
  public:
-  GcovFuncInfo(MapleAllocator* alloc, unsigned funcIdent, unsigned lineno_cs, unsigned cfg_cs) :
-      ident(funcIdent), lineno_checksum(lineno_cs), cfg_checksum(cfg_cs), counts(alloc->Adapter()) {};
+  GcovFuncInfo(MapleAllocator* alloc, unsigned funcIdent, unsigned linenoCs, unsigned cfgCs) :
+      ident(funcIdent), linenoChecksum(linenoCs), cfgChecksum(cfgCs), counts(alloc->Adapter()) {};
   ~GcovFuncInfo() = default;
 
-  int64_t GetFuncFrequency() const { return entry_freq; }
-  void SetFuncFrequency(int64_t freq) { entry_freq = freq; }
+  uint64_t GetFuncFrequency() const { return entryFreq; }
+  void SetFuncFrequency(uint64_t freq) { entryFreq = freq; }
 
-  int64_t GetFuncRealFrequency() const { return real_entryfreq; }
-  void SetFuncRealFrequency(int64_t freq)  { real_entryfreq = freq; }
+  uint64_t GetFuncRealFrequency() const { return real_entryfreq; }
+  void SetFuncRealFrequency(uint64_t freq)  { real_entryfreq = freq; }
 
   std::unordered_map<uint32_t, uint64_t>& GetStmtFreqs() {
     return stmtFreqs;
   }
-  int64_t GetStmtFreq(uint32_t stmtID) {
+  uint64_t GetStmtFreq(uint32_t stmtID) {
     if (stmtFreqs.count(stmtID) > 0) {
       return stmtFreqs[stmtID];
     }
     return -1; // unstored
   }
-  void SetStmtFreq(uint32_t stmtID, int64_t freq) {
+  void SetStmtFreq(uint32_t stmtID, uint64_t freq) {
     stmtFreqs[stmtID] = freq;
   }
   void EraseStmtFreq(uint32_t stmtID) {
@@ -71,22 +71,22 @@ class GcovFuncInfo {
   }
   bool IsHotCallSite(uint32_t stmtID) {
     if (stmtFreqs.count(stmtID) > 0) {
-      uint64 freq = stmtFreqs[stmtID];
+      uint64_t freq = stmtFreqs[stmtID];
       return (freq >= HOTCALLSITEFREQ);
     }
     ASSERT(0, "should not be here");
     return false;
   }
   unsigned ident;
-  unsigned lineno_checksum;
-  unsigned cfg_checksum;
+  unsigned linenoChecksum;
+  unsigned cfgChecksum;
 
   // Raw arc coverage counts.
-  unsigned num_counts;
+  unsigned numCounts;
   MapleVector<gcov_type> counts;
-  int64_t entry_freq; // record entry bb frequence
+  uint64_t entryFreq; // record entry bb frequence
   std::unordered_map<uint32_t, uint64_t> stmtFreqs; // stmt_id is key, counter value
-  int64_t real_entryfreq; // function prof data may be modified after clone/inline
+  uint64_t real_entryfreq; // function prof data may be modified after clone/inline
 };
 
 class GcovProfileData {
