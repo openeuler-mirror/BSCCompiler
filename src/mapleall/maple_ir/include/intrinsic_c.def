@@ -19,9 +19,11 @@ DEF_MIR_INTRINSIC(C_strcmp,\
 DEF_MIR_INTRINSIC(C_strncmp,\
                   "strncmp", 1, INTRNNOSIDEEFFECT | INTRNISPURE, kArgTyI32, kArgTyPtr, kArgTyPtr, kArgTyU32)
 DEF_MIR_INTRINSIC(C_strcpy,\
-                  "strcpy", 1, 0, kArgTyVoid, kArgTyPtr, kArgTyPtr)
+                  "strcpy", 1, INTRNWRITEFIRSTOPND | INTRNREADSECONDOPND, \
+                  kArgTyPtr, kArgTyPtr, kArgTyPtr)
 DEF_MIR_INTRINSIC(C_strncpy,\
-                  "strncpy", 1, 0, kArgTyVoid, kArgTyPtr, kArgTyPtr, kArgTyU64)
+                  "strncpy", 1, INTRNWRITEFIRSTOPND | INTRNREADSECONDOPND | INTRNREADTHIRDOPND, \
+                  kArgTyPtr, kArgTyPtr, kArgTyPtr, kArgTyU64)
 DEF_MIR_INTRINSIC(C_strlen,\
                   "strlen", 1, INTRNNOSIDEEFFECT | INTRNISPURE, kArgTyU64, kArgTyPtr)
 DEF_MIR_INTRINSIC(C_strchr,\
@@ -31,11 +33,13 @@ DEF_MIR_INTRINSIC(C_strrchr,\
 DEF_MIR_INTRINSIC(C_memcmp,\
                   "memcmp", 1, INTRNNOSIDEEFFECT | INTRNISPURE, kArgTyI32, kArgTyPtr, kArgTyPtr, kArgTyU64)
 DEF_MIR_INTRINSIC(C_memcpy,\
-                  "memcpy", 1, 0, kArgTyVoid, kArgTyPtr, kArgTyPtr, kArgTyU64)
+                  "memcpy", 1, INTRNWRITEFIRSTOPND | INTRNREADSECONDOPND | INTRNREADTHIRDOPND, \
+                  kArgTyPtr, kArgTyPtr, kArgTyPtr, kArgTyU64)
 DEF_MIR_INTRINSIC(C_memmove,\
-                  "memmove", 1, 0, kArgTyVoid, kArgTyPtr, kArgTyPtr, kArgTyU64)
+                  "memmove", 1, 0, kArgTyPtr, kArgTyPtr, kArgTyPtr, kArgTyU64)
 DEF_MIR_INTRINSIC(C_memset,\
-                  "memset", 1, 0, kArgTyVoid, kArgTyPtr, kArgTyI32, kArgTyU64)
+                  "memset", 1, INTRNWRITEFIRSTOPND | INTRNREADSECONDOPND | INTRNREADTHIRDOPND, \
+                  kArgTyPtr, kArgTyPtr, kArgTyI32, kArgTyU64)
 DEF_MIR_INTRINSIC(C_acosf,\
                   "acosf", 1, INTRNISPURE, kArgTyF32, kArgTyF32)
 DEF_MIR_INTRINSIC(C_asinf,\
@@ -79,7 +83,9 @@ DEF_MIR_INTRINSIC(C_sinh,\
 DEF_MIR_INTRINSIC(C_ffs,\
                   "ffs", 4, INTRNISPURE, kArgTyI32, kArgTyI32)
 DEF_MIR_INTRINSIC(C_va_start,\
-                  "va_start", 10, INTRNISPURE | INTRNISSPECIAL, kArgTyVoid, kArgTyPtr, kArgTyI32)
+                  "va_start", 10,\
+                  INTRNISPURE | INTRNISSPECIAL | INTRNWRITEFIRSTOPND | INTRNREADSECONDOPND, \
+                  kArgTyVoid, kArgTyPtr, kArgTyI32)
 DEF_MIR_INTRINSIC(C_constant_p,\
                   "constant_p", 0, 0, kArgTyI32, kArgTyDynany)
 DEF_MIR_INTRINSIC(C_clz32,\
