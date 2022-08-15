@@ -954,7 +954,7 @@ bool OptimizeBB::BranchBB2UncondBB(BB &bb) {
     EliminateEmptyConnectingBB(&bb, bb.GetSucc(static_cast<size_t>(i)), destBB, *cfg);
   }
   while (bb.GetSucc().size() != 1) {  // bb is an unconditional bb now, and its successor num should be 1
-    ASSERT(bb.GetSucc().back() == destBB, "[FUNC: %s]Goto BB%d has different destination", funcName, LOG_BBID(&bb));
+    ASSERT(bb.GetSucc().back() == destBB, "[FUNC: %s]Goto BB%d has different destination", funcName.c_str(), LOG_BBID(&bb));
     bb.RemoveSucc(*bb.GetSucc().back());
   }
   if (cfg->UpdateCFGFreq()) {
@@ -1299,8 +1299,8 @@ bool OptimizeBB::IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeE
   if (trueExpr == falseExpr) {
     return true;
   }
-  ASSERT(IsSafeExpr(trueExpr), "[FUNC: %s]Please check for safety first", funcName);
-  ASSERT(IsSafeExpr(falseExpr), "[FUNC: %s]Please check for safety first", funcName);
+  ASSERT(IsSafeExpr(trueExpr), "[FUNC: %s]Please check for safety first", funcName.c_str());
+  ASSERT(IsSafeExpr(falseExpr), "[FUNC: %s]Please check for safety first", funcName.c_str());
   // try to simplify select expr
   MeExpr *selExpr = irmap->CreateMeExprSelect(trueExpr->GetPrimType(), *condExpr, *trueExpr, *falseExpr);
   MeExpr *simplifiedSel = irmap->SimplifyMeExpr(selExpr);
@@ -1806,7 +1806,7 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
     }
     BB *replacedSucc = isPredTrueBrSucc ? ptfSucc.first : ptfSucc.second;
     EliminateEmptyConnectingBB(&pred, replacedSucc, &succ, *cfg);
-    ASSERT(pred.IsPredBB(succ), "[FUNC: %s]After eliminate connecting BB, pred must be predecessor of succ", funcName);
+    ASSERT(pred.IsPredBB(succ), "[FUNC: %s]After eliminate connecting BB, pred must be predecessor of succ", funcName.c_str());
     int predPredIdx = succ.GetPredIndex(pred);  // before replace succ, record predidx for UpdatePhiForMovingPred
     pred.ReplaceSucc(&succ, newBB, false);      // do not update phi here, UpdatePhiForMovingPred will do it
     DEBUG_LOG() << "Replace succ BB" << LOG_BBID(replacedSucc) << " with BB" << LOG_BBID(newBB) << ": BB"
@@ -2081,7 +2081,7 @@ bool OptimizeBB::OptimizeUncondBB() {
   }
   // wont exit BB and has an edge to commonExit, if we merge it to pred and delete it, the egde will be cut off
   if (currBB->GetSucc().size() == 2) {  // 2 succ : first is gotoTarget, second is edge to commonExit
-    ASSERT(currBB->GetAttributes(kBBAttrWontExit), "[FUNC: %s]GotoBB%d is not wontexitBB, but has two succ", funcName,
+    ASSERT(currBB->GetAttributes(kBBAttrWontExit), "[FUNC: %s]GotoBB%d is not wontexitBB, but has two succ", funcName.c_str(),
            LOG_BBID(currBB));
     return false;
   }
