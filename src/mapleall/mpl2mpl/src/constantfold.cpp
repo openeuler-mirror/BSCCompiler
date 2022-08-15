@@ -1503,7 +1503,7 @@ static bool ExtractbitsRedundant(const ExtractbitsNode *x, MIRFunction *f) {
   }
   return IsPrimitiveInteger(mirType->GetPrimType()) &&
          mirType->GetSize() * 8 == x->GetBitsSize() &&
-         IsSignedInteger(mirType->GetPrimType()) == IsSignedInteger(x->GetPrimType());
+         mirType->GetPrimType() == x->GetPrimType();
 }
 
 // sext and zext also handled automatically
