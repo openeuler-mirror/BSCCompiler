@@ -89,6 +89,10 @@ class ASTExpr {
     value = val;
   }
 
+  void SetIsConstantFolded(bool flag) {
+    isConstantFolded = flag;
+  }
+
   bool IsConstantFolded() const {
     return isConstantFolded;
   }

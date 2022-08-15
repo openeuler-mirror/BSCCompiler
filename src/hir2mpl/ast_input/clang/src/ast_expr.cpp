@@ -824,7 +824,10 @@ MIRConst *ASTUOAddrOfExpr::GenerateMIRConstImpl() const {
       static_cast<ASTCompoundLiteralExpr*>(expr)->SetAddrof(true);
       return expr->GenerateMIRConst();
     }
-    case kASTOpRef:
+    case kASTOpRef: {
+      expr->SetIsConstantFolded(false);
+      return expr->GenerateMIRConst();
+    }
     case kASTSubscriptExpr:
     case kASTMemberExpr: {
       return expr->GenerateMIRConst();
