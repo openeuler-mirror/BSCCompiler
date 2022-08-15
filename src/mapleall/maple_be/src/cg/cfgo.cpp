@@ -488,7 +488,7 @@ void FlipBRPattern::RelocateThrowBB(BB &curBB) const {
   CGCFG *theCFG = cgFunc->GetTheCFG();
   CHECK_FATAL(theCFG != nullptr, "nullptr check");
   BB *retBB = theCFG->FindLastRetBB();
-  CHECK_FATAL(retBB != nullptr, "must have a return BB");
+  retBB = (retBB == nullptr ? cgFunc->GetLastBB() : retBB);
   if (ftBB->GetKind() != BB::kBBThrow || !ftBB->GetEhSuccs().empty() ||
       IsLabelInLSDAOrSwitchTable(ftBB->GetLabIdx()) || !retBB->GetEhSuccs().empty()) {
     return;

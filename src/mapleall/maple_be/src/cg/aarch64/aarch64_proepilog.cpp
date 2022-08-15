@@ -1662,7 +1662,7 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
   }
 
   /* Hack: exit bb should always be reachable, since we need its existance for ".cfi_remember_state" */
-  if (&epilogBB != cgFunc.GetLastBB() && epilogBB.GetNext() != nullptr) {
+  if (&epilogBB != cgFunc.GetLastBB() && epilogBB.GetNext() != nullptr && !cgFunc.GetMirModule().IsCModule()) {
     BB *nextBB = epilogBB.GetNext();
     do {
       if (nextBB == cgFunc.GetLastBB() || !nextBB->IsEmpty()) {

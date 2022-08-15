@@ -671,7 +671,8 @@ void CGCFG::UnreachCodeAnalysis() const {
   while (bb != nullptr) {
     /* Check if bb is the first or the last BB of the function */
     if (bb->GetFirstStmt() == cgFunc->GetCleanupLabel() || InSwitchTable(bb->GetLabIdx(), *cgFunc) ||
-        bb == cgFunc->GetFirstBB() || bb == cgFunc->GetLastBB() || bb->GetKind() == BB::kBBReturn) {
+        bb == cgFunc->GetFirstBB() || bb == cgFunc->GetLastBB() ||
+        (bb->GetKind() == BB::kBBReturn && !cgFunc->GetMirModule().IsCModule())) {
       toBeAnalyzedBBs.push_front(bb);
     } else {
       (void)unreachBBs.insert(bb);
@@ -708,7 +709,7 @@ void CGCFG::UnreachCodeAnalysis() const {
   for (it = unreachBBs.begin(); it != unreachBBs.end(); it++) {
     BB *unreachBB = *it;
     ASSERT(unreachBB != nullptr, "unreachBB must not be nullptr");
-    if (cgFunc->IsExitBB(*unreachBB)) {
+    if (cgFunc->IsExitBB(*unreachBB) && !cgFunc->GetMirModule().IsCModule()) {
       unreachBB->SetUnreachable(false);
     }
     EHFunc* ehFunc = cgFunc->GetEHFunc();
@@ -864,7 +865,7 @@ void CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
     newBB->SetKind(BB::kBBFallthru);
   } else {
     BB *exitBB = cgFunc->GetExitBBsVec().size() == 0 ? nullptr : cgFunc->GetExitBB(0);
-    if (exitBB == nullptr) {
+    if (exitBB == nullptr || exitBB->IsUnreachable()) {
       cgFunc->GetLastBB()->AppendBB(*newBB);
       cgFunc->SetLastBB(*newBB);
     } else {
