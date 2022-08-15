@@ -691,23 +691,22 @@ void ReflectionAnalysis::GetSignatureTypeNames(std::string &signature, std::vect
   ConvertMethodSig(signature);
   size_t sigLen = signature.length();
   size_t i = 0;
-  const char *methodSignature = signature.c_str();
   ++i;
-  while (i < sigLen && methodSignature[i] != ')') {
+  while (i < sigLen && signature.at(i) != ')') {
     std::string descriptor;
-    if (methodSignature[i] != 'L' && methodSignature[i] != '[') {
-      descriptor += methodSignature[i];
+    if (signature.at(i) != 'L' && signature.at(i) != '[') {
+      descriptor += signature.at(i);
     } else {
-      if (methodSignature[i] == '[') {
-        while (methodSignature[i] == '[') {
-          descriptor += methodSignature[i++];
+      if (signature.at(i) == '[') {
+        while (signature.at(i) == '[') {
+          descriptor += signature.at(i++);
         }
       }
-      if (methodSignature[i] != 'L') {
-        descriptor += methodSignature[i];
+      if (signature.at(i) != 'L') {
+        descriptor += signature.at(i);
       } else {
-        while (methodSignature[i] != ';') {
-          descriptor += methodSignature[i++];
+        while (signature.at(i) != ';') {
+          descriptor += signature.at(i++);
         }
         descriptor += ';';
       }
@@ -717,7 +716,7 @@ void ReflectionAnalysis::GetSignatureTypeNames(std::string &signature, std::vect
   }
   // Return type.
   ++i;
-  typeNames.push_back(methodSignature + i);
+  typeNames.emplace_back(signature.c_str() + i);
 }
 
 struct HashCodeComparator {
@@ -876,6 +875,7 @@ MIRSymbol *ReflectionAnalysis::GenMethodsMeta(const Klass &klass,
   int idx = 0;
   for (auto &methodInfo : methodInfoVec) {
     MIRSymbol *funcSym = GlobalTables::GetGsymTable().GetSymbolFromStidx(methodInfo.first->first.Idx());
+    ASSERT_NOT_NULL(funcSym);
     reflectionMuidStr += funcSym->GetName();
     GenMethodMeta(klass, methodsInfoType, *funcSym, *aggConst, idx++, baseNameMp, fullNameMp);
   }
@@ -1048,6 +1048,7 @@ MIRSymbol *ReflectionAnalysis::GenMethodsMetaCompact(const Klass &klass,
   int idx = 0;
   for (auto &methodInfo : methodInfoVec) {
     MIRSymbol *funcSym = GlobalTables::GetGsymTable().GetSymbolFromStidx(methodInfo.first->first.Idx());
+    ASSERT_NOT_NULL(funcSym);
     reflectionMuidStr += funcSym->GetName();
     GenMethodMetaCompact(klass, methodsInfoCompactType, idx++, *funcSym, *aggConst,
                          allDeclaringClassOffset, baseNameMp, fullNameMp);
@@ -1631,10 +1632,9 @@ uint32 ReflectionAnalysis::GetAnnoCstrIndex(std::map<int, int> &idxNumMap, const
 }
 
 uint32 ReflectionAnalysis::BKDRHash(const std::string &strName, uint32 seed) {
-  const char *name = strName.c_str();
   uint32 hash = 0;
-  while (*name) {
-    uint8_t uName = *name++;
+  for (auto name : strName) {
+    auto uName = static_cast<uint8_t>(name);
     hash = hash * seed + uName;
   }
   return hash;

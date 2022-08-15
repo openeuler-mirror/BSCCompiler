@@ -19,7 +19,7 @@
 namespace maple {
 namespace {
 bool debug = false;
-const char *funcName = nullptr;
+std::string funcName;
 std::string phaseName;
 
 #define LOG_BBID(BB) ((BB)->GetBBId().GetIdx())
@@ -231,7 +231,7 @@ bool IsAllOpndsNotDefByCurrBB(const MeExpr &expr, const BB &currBB, std::set<con
       return false;
   }
   // never reach here
-  CHECK_FATAL(false, "[FUNC: %s] Should never reach here!", funcName);
+  CHECK_FATAL(false, "[FUNC: %s] Should never reach here!", funcName.c_str());
   return false;
 }
 
@@ -421,7 +421,7 @@ MeExpr *FindCond2SelRHSFromPhiNode(BB *condBB, const BB *ftOrGtBB, BB *jointBB, 
     return nullptr;
   }
   int predIdx = GetRealPredIdx(*jointBB, *condBB);
-  ASSERT(predIdx != -1, "[FUNC: %s]ftBB is not a pred of jointBB", funcName);
+  ASSERT(predIdx != -1, "[FUNC: %s]ftBB is not a pred of jointBB", funcName.c_str());
   auto &phiList = jointBB->GetMePhiList();
   auto it = phiList.find(ostIdx);
   if (it == phiList.end()) {
@@ -950,7 +950,8 @@ bool OptimizeBB::BranchBB2UncondBB(BB &bb) {
     EliminateEmptyConnectingBB(&bb, bb.GetSucc(static_cast<size_t>(i)), destBB, *cfg);
   }
   while (bb.GetSucc().size() != 1) { // bb is an unconditional bb now, and its successor num should be 1
-    ASSERT(bb.GetSucc().back() == destBB, "[FUNC: %s]Goto BB%d has different destination", funcName, LOG_BBID(&bb));
+    ASSERT(bb.GetSucc().back() == destBB,
+           "[FUNC: %s]Goto BB%d has different destination", funcName.c_str(), LOG_BBID(&bb));
     bb.RemoveSucc(*bb.GetSucc().back());
   }
   if (Options::profileUse && !bb.GetSuccFreq().empty()) {
@@ -962,6 +963,7 @@ bool OptimizeBB::BranchBB2UncondBB(BB &bb) {
   if (GetFallthruPredNum(*destBB) > 1) {
     LabelIdx label = f.GetOrCreateBBLabel(*destBB);
     if (isMeIR) {
+      ASSERT_NOT_NULL(bb.GetLastMe());
       auto *gotoStmt = irmap->CreateGotoMeStmt(label, &bb, &bb.GetLastMe()->GetSrcPosition());
       bb.RemoveLastMeStmt();
       bb.AddMeStmtLast(gotoStmt);
@@ -1004,6 +1006,7 @@ bool OptimizeBB::OptimizeCondBB2UnCond() {
   uint64_t removedSuccFreq = 0;
   if (isMeIR) {
     MeStmt *brStmt = currBB->GetLastMe();
+    ASSERT_NOT_NULL(brStmt);
     MeExpr *condExpr = brStmt->GetOpnd(0);
     if (condExpr->GetMeOp() == kMeOpConst) {
       CHECK_FATAL(brStmt, "brStmt is nullptr!");
@@ -1171,11 +1174,13 @@ BB *OptimizeBB::MergeSuccIntoPred(BB *pred, BB *succ) {
   if (pred->GetKind() == kBBGoto && (!IsMeEmptyBB(*succ) || !IsMplEmptyBB(*succ))) {
     if (isMeIR) {
       // remove last mestmt
-      ASSERT(pred->GetLastMe()->GetOp() == OP_goto, "[FUNC: %s]GotoBB has no goto stmt as its terminator", funcName);
+      ASSERT(pred->GetLastMe()->GetOp() == OP_goto,
+             "[FUNC: %s]GotoBB has no goto stmt as its terminator", funcName.c_str());
       pred->RemoveLastMeStmt();
     } else {
       // remove last stmt
-      ASSERT(pred->GetLast().GetOpCode() == OP_goto, "[FUNC: %s]GotoBB has no goto stmt as its terminator", funcName);
+      ASSERT(pred->GetLast().GetOpCode() == OP_goto,
+             "[FUNC: %s]GotoBB has no goto stmt as its terminator", funcName.c_str());
       pred->RemoveLastStmt();
     }
     pred->SetKind(kBBFallthru);
@@ -1284,8 +1289,8 @@ bool OptimizeBB::IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeE
   if (trueExpr == falseExpr) {
     return true;
   }
-  ASSERT(IsSafeExpr(trueExpr), "[FUNC: %s]Please check for safety first", funcName) ;
-  ASSERT(IsSafeExpr(falseExpr), "[FUNC: %s]Please check for safety first", funcName) ;
+  ASSERT(IsSafeExpr(trueExpr), "[FUNC: %s]Please check for safety first", funcName.c_str()) ;
+  ASSERT(IsSafeExpr(falseExpr), "[FUNC: %s]Please check for safety first", funcName.c_str()) ;
   // try to simplify select expr
   MeExpr *selExpr = irmap->CreateMeExprSelect(trueExpr->GetPrimType(), *condExpr, *trueExpr, *falseExpr);
   MeExpr *simplifiedSel = irmap->SimplifyMeExpr(selExpr);
@@ -1478,7 +1483,7 @@ bool OptimizeBB::CondBranchToSelect() {
     // set phi opnd as resLHS
     MePhiNode *phiNode = jointBB->GetMePhiList()[resLHS->GetOstIdx()];
     int predIdx = GetRealPredIdx(*jointBB, *currBB);
-    ASSERT(predIdx != -1, "[FUNC: %s]currBB is not a pred of jointBB", funcName);
+    ASSERT(predIdx != -1, "[FUNC: %s]currBB is not a pred of jointBB", funcName.c_str());
     phiNode->SetOpnd(static_cast<size_t>(predIdx), resLHS);
   }
   // if newAssStmt is an dassign, copy old chilist to it
@@ -1737,7 +1742,7 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
       succ.SetKind(kBBGoto);
       DEBUG_LOG() << "SkipRedundantCond : Replace condBr in BB" << LOG_BBID(&succ) << " with an uncond goto\n";
       EliminateEmptyConnectingBB(&succ, succ.GetSucc(1), newTarget, *cfg);
-      ASSERT(succ.GetSucc(1) == newTarget, "[FUNC: %s] newTarget should be successor of succ!", funcName);
+      ASSERT(succ.GetSucc(1) == newTarget, "[FUNC: %s] newTarget should be successor of succ!", funcName.c_str());
     } else {
       succ.RemoveLastMeStmt();
       succ.SetKind(kBBFallthru);
@@ -1781,7 +1786,8 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
     }
     BB *replacedSucc = isPredTrueBrSucc ? ptfSucc.first : ptfSucc.second;
     EliminateEmptyConnectingBB(&pred, replacedSucc, &succ, *cfg);
-    ASSERT(pred.IsPredBB(succ), "[FUNC: %s]After eliminate connecting BB, pred must be predecessor of succ", funcName);
+    ASSERT(pred.IsPredBB(succ),
+           "[FUNC: %s]After eliminate connecting BB, pred must be predecessor of succ", funcName.c_str());
     int predPredIdx = succ.GetPredIndex(pred); // before replace succ, record predidx for UpdatePhiForMovingPred
     pred.ReplaceSucc(&succ, newBB, false); // do not update phi here, UpdatePhiForMovingPred will do it
     DEBUG_LOG() << "Replace succ BB" << LOG_BBID(replacedSucc) << " with BB" << LOG_BBID(newBB) << ": BB"
@@ -1898,8 +1904,9 @@ void OptimizeBB::UpdatePhiForMovingPred(int predIdxForCurr, const BB *pred, BB *
     for (auto &phi : succPhiList) {
       OStIdx ostIdx = phi.first;
       auto it = currPhilist.find(ostIdx);
-      ASSERT(predPredIdx != -1, "[FUNC: %s]pred BB%d is not a predecessor of succ BB%d yet", funcName, LOG_BBID(pred),
-             LOG_BBID(succ));
+      ASSERT(predPredIdx != -1,
+             "[FUNC: %s]pred BB%d is not a predecessor of succ BB%d yet", funcName.c_str(),
+             LOG_BBID(pred), LOG_BBID(succ));
       auto &phiOpnds = phi.second->GetOpnds();
       if (it != currPhilist.end()) {
         // curr has phiNode for this ost, we copy pred's corresponding phiOpnd in curr to succ
@@ -2033,8 +2040,8 @@ bool OptimizeBB::OptimizeUncondBB() {
   }
   // wont exit BB and has an edge to commonExit, if we merge it to pred and delete it, the egde will be cut off
   if (currBB->GetSucc().size() == 2) { // 2 succ : first is gotoTarget, second is edge to commonExit
-    ASSERT(currBB->GetAttributes(kBBAttrWontExit), "[FUNC: %s]GotoBB%d is not wontexitBB, but has two succ", funcName,
-           LOG_BBID(currBB));
+    ASSERT(currBB->GetAttributes(kBBAttrWontExit),
+           "[FUNC: %s]GotoBB%d is not wontexitBB, but has two succ", funcName.c_str(), LOG_BBID(currBB));
     return false;
   }
   bool changed = false;
@@ -2096,7 +2103,7 @@ bool OptimizeBB::OptimizeSwitchBB() {
   }
   auto *swConstExpr = static_cast<ConstMeExpr *>(swStmt->GetOpnd());
   MIRConst *swConstVal = swConstExpr->GetConstVal();
-  ASSERT(swConstVal->GetKind() == kConstInt, "[FUNC: %s]switch is only legal for integer val", funcName);
+  ASSERT(swConstVal->GetKind() == kConstInt, "[FUNC: %s]switch is only legal for integer val", funcName.c_str());
   int64 val = static_cast<MIRIntConst*>(swConstVal)->GetExtValue();
   BB *survivor = currBB->GetSucc(0); // init as default BB
   for (size_t i = 0; i < swStmt->GetSwitchTable().size(); ++i) {
@@ -2475,7 +2482,7 @@ bool OptimizeFuntionCFG::OptimizeOnFunc() {
 // so that if irmap is not built, this interface will do nothing.
 // ssaCand, mp, ma are used to collect ost whose version need to be updated for ssa-updater
 bool OptimizeMeFuncCFG(maple::MeFunction &f, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCand = nullptr) {
-  funcName = f.GetName().c_str();
+  funcName = f.GetName();
   if (SkipOptimizeCFG(f)) {
     DEBUG_LOG() << "Skip OptimizeBB phase because of igotoBB\n";
     return false;

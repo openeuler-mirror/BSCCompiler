@@ -23,6 +23,7 @@
 #include "factory.h"
 #include "debug_info.h"
 #include "optimize_common.h"
+#include "me_function.h"
 
 namespace maplebe {
 using namespace maple;
@@ -568,6 +569,12 @@ Operand *HandleVectorWiden(const IntrinsicopNode &intrnNode, CGFunc &cgFunc, boo
   return cgFunc.SelectVectorWiden(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), isLow);
 }
 
+Operand *HandleVectorMovNarrow(const IntrinsicopNode &intrinsicNode, CGFunc &cgFunc) {
+  PrimType rType = intrinsicNode.GetPrimType();                            /* result operand */
+  Operand *opnd = cgFunc.HandleExpr(intrinsicNode, *intrinsicNode.Opnd(0));   /* vector opnd 1 */
+  return cgFunc.SelectVectorMovNarrow(rType, opnd, intrinsicNode.Opnd(0)->GetPrimType());
+}
+
 Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   auto &intrinsicopNode = static_cast<IntrinsicopNode&>(expr);
   switch (intrinsicopNode.GetIntrinsic()) {
@@ -746,6 +753,27 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       return cgFunc.SelectCSyncSynchronize(intrinsicopNode);
     case INTRN_C___atomic_load_n:
       return cgFunc.SelectCAtomicLoadN(intrinsicopNode);
+    case INTRN_C___atomic_fetch_add:
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_add, true);
+    case INTRN_C___atomic_fetch_sub:
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_sub, true);
+    case INTRN_C___atomic_fetch_and:
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_band, true);
+    case INTRN_C___atomic_fetch_or:
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_bior, true);
+    case INTRN_C___atomic_fetch_xor:
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_bxor, true);
+    case INTRN_C___atomic_add_fetch:
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_add, false);
+    case INTRN_C___atomic_sub_fetch:
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_sub, false);
+    case INTRN_C___atomic_and_fetch:
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_band, false);
+    case INTRN_C___atomic_or_fetch:
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_bior, false);
+    case INTRN_C___atomic_xor_fetch:
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_bxor, false);
+
     case INTRN_C__builtin_return_address:
     case INTRN_C__builtin_extract_return_addr:
       return cgFunc.SelectCReturnAddress(intrinsicopNode);
@@ -945,6 +973,10 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_widen_high_v2u32: case INTRN_vector_widen_high_v2i32:
       return HandleVectorWiden(intrinsicopNode, cgFunc, false);
 
+    case INTRN_vector_mov_narrow_v2i64: case INTRN_vector_mov_narrow_v2u64:
+    case INTRN_vector_mov_narrow_v4i32: case INTRN_vector_mov_narrow_v4u32:
+    case INTRN_vector_mov_narrow_v8i16: case INTRN_vector_mov_narrow_v8u16:
+      return HandleVectorMovNarrow(intrinsicopNode, cgFunc);
     default:
       ASSERT(false, "Should not reach here.");
       return nullptr;
@@ -1413,6 +1445,9 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
   firstNonPregVRegNO = vRegCount;
   /* maximum register count initial be increased by 1024 */
   maxRegCount = vRegCount + 1024;
+  if (func.GetMayWriteToAddrofStack()) {
+    SetStackProtectInfo(kAddrofStack);
+  }
 
   insnBuilder = memPool.New<InsnBuilder>(memPool);
   opndBuilder = memPool.New<OperandBuilder>(memPool);
@@ -1838,7 +1873,7 @@ void CGFunc::GenerateCfiPrologEpilog() {
 
   MIRFunction mirFunc = GetFunction();
   MIRSymbol *fSym = GlobalTables::GetGsymTable().GetSymbolFromStidx(mirFunc.GetStIdx().Idx());
-  if (fSym && cg->GetCGOptions().WithLoc() && GetMirModule().IsCModule()) {
+  if (fSym && cg->GetCGOptions().WithLoc() && GetMirModule().IsCModule() && (fSym->GetSrcPosition().FileNum() != 0)) {
     uint32 fileNum = fSym->GetSrcPosition().FileNum();
     uint32 lineNum = fSym->GetSrcPosition().LineNum();
     uint32 columnNum = fSym->GetSrcPosition().Column();
@@ -1846,7 +1881,7 @@ void CGFunc::GenerateCfiPrologEpilog() {
     Operand *lOprnd = CreateDbgImmOperand(lineNum);
     Operand *cOprnd = CreateDbgImmOperand(columnNum);
     Insn &loc = GetCG()->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *fOprnd, *lOprnd, *cOprnd);
-    firstBB->InsertInsnBefore(*firstBB->GetFirstInsn(), loc);
+    (void)(firstBB->InsertInsnBefore(*firstBB->GetFirstInsn(), loc));
   }
 
 #if !defined(TARGARM32)
@@ -2156,6 +2191,7 @@ void CGFunc::HandleFunction() {
   if (CGOptions::DoEnableHotColdSplit()) {
     theCFG->CheckCFGFreq();
   }
+  NeedStackProtect();
 }
 
 void CGFunc::AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc) {
@@ -2344,6 +2380,77 @@ void CGFunc::UpdateAllRegisterVregMapping(MapleMap<regno_t, PregIdx> &newMap) {
 
 bool CGFunc::GenCfi() const {
   return (mirModule.GetSrcLang() != kSrcLangC) || mirModule.IsWithDbgInfo();
+}
+
+static bool IncludeArray(const MIRType &type) {
+  ASSERT(type.IsStructType(), "agg must be one of class/struct/union");
+  auto &structType = static_cast<const MIRStructType&>(type);
+  /* all elements of struct. */
+  auto num = static_cast<uint8>(structType.GetFieldsSize());
+  for (uint32 i = 0; i < num; ++i) {
+    MIRType *elemType = structType.GetElemType(i);
+    if (elemType->GetKind() == kTypeArray) {
+      return true;
+    }
+    if (elemType->IsStructType() && IncludeArray(*elemType)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/* there are two stack protector:
+ * 1. stack protector all: for all function
+ * 2. stack protector strong: for some functon that
+ *   <1> invoke alloca functon;
+ *   <2> use stack address;
+ *   <3> callee use return stack slot;
+ *   <4> local symbol is vector type;
+ * */
+void CGFunc::NeedStackProtect() {
+  ASSERT(GetNeedStackProtect() == false, "no stack protect default");
+  CG *currCG = GetCG();
+  if (currCG->IsStackProtectorAll()) {
+    SetNeedStackProtect(true);
+    return;
+  }
+
+  if (!currCG->IsStackProtectorStrong()) {
+    return;
+  }
+
+  if (HasAlloca()) {
+    SetNeedStackProtect(true);
+    return;
+  }
+
+  /* check if function use stack address or callee function return stack slot */
+  auto stackProInfo = GetStackProtectInfo();
+  if ((stackProInfo & kAddrofStack) != 0 || (stackProInfo & kRetureStackSlot) != 0) {
+    SetNeedStackProtect(true);
+    return;
+  }
+
+  /* check if local symbol is vector type */
+  auto &mirFunction = GetFunction();
+  uint32 symTabSize = static_cast<uint32>(mirFunction.GetSymTab()->GetSymbolTableSize());
+  for (uint32 i = 0; i < symTabSize; ++i) {
+    MIRSymbol *symbol = mirFunction.GetSymTab()->GetSymbolFromStIdx(i);
+    if (symbol == nullptr || symbol->GetStorageClass() != kScAuto || symbol->IsDeleted()) {
+      continue;
+    }
+    TyIdx tyIdx = symbol->GetTyIdx();
+    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+    if (type->GetKind() == kTypeArray) {
+      SetNeedStackProtect(true);
+      return;
+    }
+
+    if (type->IsStructType() && IncludeArray(*type)) {
+      SetNeedStackProtect(true);
+      return;
+    }
+  }
 }
 
 bool CgHandleFunction::PhaseRun(maplebe::CGFunc &f) {

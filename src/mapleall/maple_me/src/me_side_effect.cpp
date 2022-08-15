@@ -1105,15 +1105,15 @@ void IpaSideEffect::DoAnalysis() {
   }
   // Delete redundant callinfo. func+callType+allargsarelocal
   std::unordered_set<uint64> callInfoHash;
-  for (auto callSite = cgNode->GetCallee().begin(); callSite != cgNode->GetCallee().end(); ++callSite) {
+  for (auto callSite = cgNode->GetCallee().begin(); callSite != cgNode->GetCallee().end();) {
     uint64 key = (static_cast<uint64>(callSite->first->GetFunc()->GetPuidx()) << 32) + // leftshift 32 bits
                  (static_cast<uint64>(callSite->first->GetCallType()) << 16) + // leftshift 16 bits
                  (callSite->first->AreAllArgsLocal() ? 1 : 0);
     if (callInfoHash.find(key) != callInfoHash.end()) {
-      (void)cgNode->GetCallee().erase(callSite);
-      --callSite;
+      callSite = cgNode->GetCallee().erase(callSite);
     } else {
       (void)callInfoHash.insert(key);
+      ++callSite;
     }
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2022] Futurewei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2022] Huawei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -35,77 +35,6 @@ bool TailCallOpt::IsStackAddrTaken() {
           }
         }
       }
-    }
-  }
-  return false;
-}
-
-/* there are two stack protector:
- * 1. stack protector all: for all function
- * 2. stack protector strong: for some functon that
- *   <1> invoke alloca functon;
- *   <2> use stack address;
- *   <3> callee use return stack slot;
- *   <4> local symbol is vector type;
- * */
-void TailCallOpt::NeedStackProtect() {
-  ASSERT(stackProtect == false, "no stack protect default");
-  CG *currCG = cgFunc.GetCG();
-  if (currCG->IsStackProtectorAll()) {
-    stackProtect = true;
-    return;
-  }
-
-  if (!currCG->IsStackProtectorStrong()) {
-    return;
-  }
-
-  if (cgFunc.HasAlloca()) {
-    stackProtect = true;
-    return;
-  }
-
-  /* check if function use stack address or callee function return stack slot */
-  auto stackProtectInfo = cgFunc.GetStackProtectInfo();
-  if ((stackProtectInfo & kAddrofStack) != 0 || (stackProtectInfo & kRetureStackSlot) != 0) {
-    stackProtect = true;
-    return;
-  }
-
-  /* check if local symbol is vector type */
-  auto &mirFunction = cgFunc.GetFunction();
-  uint32 symTabSize = static_cast<uint32>(mirFunction.GetSymTab()->GetSymbolTableSize());
-  for (uint32 i = 0; i < symTabSize; ++i) {
-    MIRSymbol *symbol = mirFunction.GetSymTab()->GetSymbolFromStIdx(i);
-    if (symbol == nullptr || symbol->GetStorageClass() != kScAuto || symbol->IsDeleted()) {
-      continue;
-    }
-    TyIdx tyIdx = symbol->GetTyIdx();
-    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
-    if (type->GetKind() == kTypeArray) {
-      stackProtect = true;
-      return;
-    }
-
-    if (type->IsStructType() && IncludeArray(*type)) {
-      stackProtect = true;
-      return;
-    }
-  }
-}
-
-bool TailCallOpt::IncludeArray(const MIRType &type) const {
-  ASSERT(type.IsStructType(), "agg must be one of class/struct/union");
-  auto &structType = static_cast<const MIRStructType&>(type);
-  /* all elements of struct. */
-  auto num = static_cast<uint8>(structType.GetFieldsSize());
-  for (uint32 i = 0; i < num; ++i) {
-    MIRType *elemType = structType.GetElemType(i);
-    if (elemType->GetKind() == kTypeArray) {
-      return true;
-    }
-    if (elemType->IsStructType() && IncludeArray(*elemType)) {
-      return true;
     }
   }
   return false;
@@ -304,6 +233,7 @@ void TailCallOpt::TideExitBB() {
 }
 
 void TailCallOpt::Run() {
+  stackProtect = cgFunc.GetNeedStackProtect();
   if (cgFunc.GetCG()->DoTailCall() && !IsStackAddrTaken() && !stackProtect) {
     (void)DoTailCallOpt(); // return value == "no call instr/only or 1 tailcall"
   }

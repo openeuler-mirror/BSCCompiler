@@ -677,6 +677,7 @@ void MeStmtPre::CreateSortedOccs() {
       switch (pickedOcc->GetOccType()) {
         case kOccUse: {
           // get the next use occ
+          ASSERT(useDfnIt != useDfns->end(), "check useDfnIt");
           ++useDfnIt;
           if (useDfnIt != useDfns->end()) {
             CHECK_NULL_FATAL(GetBB(dom->GetDtPreOrderItem(*useDfnIt)));
@@ -689,6 +690,7 @@ void MeStmtPre::CreateSortedOccs() {
         case kOccReal:
         case kOccMembar:
           // get the next real occ
+          ASSERT(realOccIt != workCand->GetRealOccs().end(), "check realOccIt");
           ++realOccIt;
           if (realOccIt != workCand->GetRealOccs().end()) {
             nextRealOcc = *realOccIt;
@@ -698,6 +700,7 @@ void MeStmtPre::CreateSortedOccs() {
           realOccInserted = true;
           break;
         case kOccExit:
+          ASSERT(exitOccIt != exitOccs.end(), "check exitOccIt");
           ++exitOccIt;
           if (exitOccIt != exitOccs.end()) {
             nextExitOcc = *exitOccIt;
@@ -707,6 +710,7 @@ void MeStmtPre::CreateSortedOccs() {
           break;
         case kOccPhiocc:
           phiOccs.push_back(static_cast<MePhiOcc*>(pickedOcc));
+          ASSERT(phiDfnIt != dfPhiDfns.end(), "check phiDfnIt");
           ++phiDfnIt;
           if (phiDfnIt != dfPhiDfns.end()) {
             nextPhiOcc = perCandMemPool->New<MePhiOcc>(*GetBB(dom->GetDtPreOrderItem(*phiDfnIt)), perCandAllocator);
@@ -715,6 +719,7 @@ void MeStmtPre::CreateSortedOccs() {
           }
           break;
         case kOccPhiopnd:
+          ASSERT(phiOpndDfnIt != phiOpndDfns.end(), "check phiOpndDfnIt");
           ++phiOpndDfnIt;
           if (phiOpndDfnIt != phiOpndDfns.end()) {
             nextPhiOpndOcc = perCandMemPool->New<MePhiOpndOcc>(*GetBB(dom->GetDtPreOrderItem(*phiOpndDfnIt)));

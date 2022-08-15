@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2022] Futurewei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2022] Huawei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -39,9 +39,6 @@ class TailCallOpt {
   void Run();
   bool DoTailCallOpt();
   void TideExitBB();
-  /* check if a type include array */
-  bool IncludeArray(const MIRType &type) const;
-  void NeedStackProtect();
   bool OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &exitBB) const;
   void TailCallBBOpt(BB &bb, MapleSet<Insn*> &callInsns, BB &exitBB);
   void ConvertToTailCalls(MapleSet<Insn*> &callInsnsMap);
@@ -55,9 +52,6 @@ class TailCallOpt {
     return curTailcallExitBB;
   }
 
-  const CGFunc *GetCGFunc() const {
-    return &cgFunc;
-  }
   const MemPool *GetMemPool() const {
     return memPool;
   }

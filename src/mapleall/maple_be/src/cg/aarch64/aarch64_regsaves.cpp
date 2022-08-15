@@ -1006,7 +1006,7 @@ void AArch64RegSavesOpt::Run() {
 
   if (CGOptions::UseSsaPreSave()) {
     /* Use ssapre */
-    if (CheckForUseBeforeDefPath()) {
+    if (cgFunc->GetNeedStackProtect() || CheckForUseBeforeDefPath()) {
       for (auto reg : aarchCGFunc->GetCalleeSavedRegs()) {
         if (reg != RFP && reg != RLR) {
           aarchCGFunc->GetProEpilogSavedRegs().push_back(reg);

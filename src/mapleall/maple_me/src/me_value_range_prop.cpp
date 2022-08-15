@@ -1121,7 +1121,7 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
 // If error in Compile return false, else return true.
 bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt, bool isNullablePtr) const {
   auto srcPosition = stmt.GetSrcPosition();
-  const char *fileName = func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str();
+  const std::string &fileName = func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum());
   switch (stmt.GetOp()) {
     case OP_calcassertlt:
     case OP_calcassertge: {
@@ -1131,18 +1131,18 @@ bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt, bool i
       if (curFuncNameIdx == stmtFuncNameIdx) {
         if (stmt.GetOp() == OP_calcassertlt) {
           WARN(kLncWarn, "%s:%d warning: the pointer >= the upper bounds after calculation",
-               fileName, srcPosition.LineNum());
+               fileName.c_str(), srcPosition.LineNum());
         } else if (stmt.GetOp() == OP_calcassertge) {
           WARN(kLncWarn, "%s:%d warning: the pointer < the lower bounds after calculation",
-               fileName, srcPosition.LineNum());
+               fileName.c_str(), srcPosition.LineNum());
         }
       } else {
         if (stmt.GetOp() == OP_calcassertlt) {
           WARN(kLncWarn, "%s:%d warning: the pointer >= the upper bounds after calculation when inlined to %s",
-               fileName, srcPosition.LineNum(), func->GetName().c_str());
+               fileName.c_str(), srcPosition.LineNum(), func->GetName().c_str());
         } else if (stmt.GetOp() == OP_calcassertge) {
           WARN(kLncWarn, "%s:%d warning: the pointer < the lower bounds after calculation when inlined to %s",
-               fileName, srcPosition.LineNum(), func->GetName().c_str());
+               fileName.c_str(), srcPosition.LineNum(), func->GetName().c_str());
         }
       }
       return true;
@@ -1157,48 +1157,49 @@ bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt, bool i
         if (isNullablePtr) {
           if (stmt.GetOp() == OP_assertnonnull) {
             FATAL(kLncFatal, "%s:%d error: Dereference of nullable pointer in safe region",
-                  fileName, srcPosition.LineNum());
+                  fileName.c_str(), srcPosition.LineNum());
           } else if (stmt.GetOp() == OP_returnassertnonnull) {
             FATAL(kLncFatal, "%s:%d error: %s return nonnull but got nullable pointer in safe region",
-                  fileName, srcPosition.LineNum(), newStmt.GetFuncName().c_str());
+                  fileName.c_str(), srcPosition.LineNum(), newStmt.GetFuncName().c_str());
           } else {
             FATAL(kLncFatal, "%s:%d error: nullable pointer assignment of nonnull pointer in safe region",
-                  fileName, srcPosition.LineNum());
+                  fileName.c_str(), srcPosition.LineNum());
           }
         } else {
           if (stmt.GetOp() == OP_assertnonnull) {
-            FATAL(kLncFatal, "%s:%d error: Dereference of null pointer", fileName, srcPosition.LineNum());
+            FATAL(kLncFatal, "%s:%d error: Dereference of null pointer", fileName.c_str(), srcPosition.LineNum());
           } else if (stmt.GetOp() == OP_returnassertnonnull) {
-            FATAL(kLncFatal, "%s:%d error: %s return nonnull but got null pointer", fileName, srcPosition.LineNum(),
-                  newStmt.GetFuncName().c_str());
+            FATAL(kLncFatal, "%s:%d error: %s return nonnull but got null pointer", fileName.c_str(),
+                  srcPosition.LineNum(), newStmt.GetFuncName().c_str());
           } else {
-            FATAL(kLncFatal, "%s:%d error: null assignment of nonnull pointer", fileName, srcPosition.LineNum());
+            FATAL(kLncFatal, "%s:%d error: null assignment of nonnull pointer", fileName.c_str(),
+                  srcPosition.LineNum());
           }
         }
       } else {
         if (isNullablePtr) {
           if (stmt.GetOp() == OP_assertnonnull) {
             FATAL(kLncFatal, "%s:%d error: Dereference of nullable pointer in safe region when inlined to %s",
-                  fileName, srcPosition.LineNum(), func->GetName().c_str());
+                  fileName.c_str(), srcPosition.LineNum(), func->GetName().c_str());
           } else if (stmt.GetOp() == OP_returnassertnonnull) {
             FATAL(kLncFatal,
                   "%s:%d error: %s return nonnull but got nullable pointer in safe region when inlined to %s",
-                  fileName, srcPosition.LineNum(), newStmt.GetFuncName().c_str(), func->GetName().c_str());
+                  fileName.c_str(), srcPosition.LineNum(), newStmt.GetFuncName().c_str(), func->GetName().c_str());
           } else {
             FATAL(kLncFatal,
                   "%s:%d error: nullable pointer assignment of nonnull pointer in safe region when inlined to %s",
-                  fileName, srcPosition.LineNum(), func->GetName().c_str());
+                  fileName.c_str(), srcPosition.LineNum(), func->GetName().c_str());
           }
         } else {
           if (stmt.GetOp() == OP_assertnonnull) {
             FATAL(kLncFatal, "%s:%d error: Dereference of null pointer when inlined to %s",
-                  fileName, srcPosition.LineNum(), func->GetName().c_str());
+                  fileName.c_str(), srcPosition.LineNum(), func->GetName().c_str());
           } else if (stmt.GetOp() == OP_returnassertnonnull) {
             FATAL(kLncFatal, "%s:%d error: %s return nonnull but got null pointer when inlined to %s",
-                  fileName, srcPosition.LineNum(), newStmt.GetFuncName().c_str(), func->GetName().c_str());
+                  fileName.c_str(), srcPosition.LineNum(), newStmt.GetFuncName().c_str(), func->GetName().c_str());
           } else {
             FATAL(kLncFatal, "%s:%d error: null assignment of nonnull pointer when inlined to %s",
-                  fileName, srcPosition.LineNum(), func->GetName().c_str());
+                  fileName.c_str(), srcPosition.LineNum(), func->GetName().c_str());
           }
         }
       }
@@ -1211,20 +1212,21 @@ bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt, bool i
       if (curFuncNameIdx == stmtFuncNameIdx) {
         if (isNullablePtr) {
           FATAL(kLncFatal, "%s:%d error: nullable pointer passed to %s that requires a nonnull pointer "\
-                "for %s argument in safe region", fileName, srcPosition.LineNum(), callStmt.GetFuncName().c_str(),
-                GetNthStr(callStmt.GetParamIndex()).c_str());
+                "for %s argument in safe region", fileName.c_str(), srcPosition.LineNum(),
+                callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
         } else {
-          FATAL(kLncFatal, "%s:%d error: NULL passed to %s that requires a nonnull pointer for %s argument", fileName,
-                srcPosition.LineNum(), callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
+          FATAL(kLncFatal, "%s:%d error: NULL passed to %s that requires a nonnull pointer for %s argument",
+                fileName.c_str(), srcPosition.LineNum(), callStmt.GetFuncName().c_str(),
+                GetNthStr(callStmt.GetParamIndex()).c_str());
         }
       } else {
         if (isNullablePtr) {
           FATAL(kLncFatal, "%s:%d error: nullable pointer passed to %s that requires a nonnull pointer "\
-                "for %s argument in safe region when inlined to %s", fileName, srcPosition.LineNum(),
+                "for %s argument in safe region when inlined to %s", fileName.c_str(), srcPosition.LineNum(),
                 callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str(), func->GetName().c_str());
         } else {
           FATAL(kLncFatal, "%s:%d error: NULL passed to %s that requires a nonnull pointer for %s argument "\
-                "when inlined to %s", fileName, srcPosition.LineNum(), callStmt.GetFuncName().c_str(),
+                "when inlined to %s", fileName.c_str(), srcPosition.LineNum(), callStmt.GetFuncName().c_str(),
                 GetNthStr(callStmt.GetParamIndex()).c_str(), func->GetName().c_str());
         }
       }
@@ -1240,32 +1242,32 @@ bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt, bool i
       if (curFuncNameIdx == stmtFuncNameIdx) {
         if (stmt.GetOp() == OP_assertlt) {
           FATAL(kLncFatal, "%s:%d error: the pointer >= the upper bounds when accessing the memory",
-                fileName, srcPosition.LineNum());
+                fileName.c_str(), srcPosition.LineNum());
         } else if (stmt.GetOp() == OP_assertge) {
           FATAL(kLncFatal, "%s:%d error: the pointer < the lower bounds when accessing the memory",
-                fileName, srcPosition.LineNum());
+                fileName.c_str(), srcPosition.LineNum());
         } else if (stmt.GetOp() == OP_assignassertle) {
-          FATAL(kLncFatal, "%s:%d error: l-value boundary should not be larger than r-value boundary", fileName,
-                srcPosition.LineNum());
+          FATAL(kLncFatal, "%s:%d error: l-value boundary should not be larger than r-value boundary",
+                fileName.c_str(), srcPosition.LineNum());
         } else {
           FATAL(kLncFatal, "%s:%d error: return value's bounds does not match the function declaration for %s",
-                fileName, srcPosition.LineNum(), newStmt.GetFuncName().c_str());
+                fileName.c_str(), srcPosition.LineNum(), newStmt.GetFuncName().c_str());
         }
       } else {
         if (stmt.GetOp() == OP_assertlt) {
           FATAL(kLncFatal, "%s:%d error: the pointer >= the upper bounds when accessing the memory and inlined to %s",
-                fileName, srcPosition.LineNum(), func->GetName().c_str());
+                fileName.c_str(), srcPosition.LineNum(), func->GetName().c_str());
         } else if (stmt.GetOp() == OP_assertge) {
           FATAL(kLncFatal, "%s:%d error: the pointer < the lower bounds when accessing the memory and inlined to %s",
-                fileName, srcPosition.LineNum(), func->GetName().c_str());
+                fileName.c_str(), srcPosition.LineNum(), func->GetName().c_str());
         } else if (stmt.GetOp() == OP_assignassertle) {
           FATAL(kLncFatal,
                 "%s:%d error: l-value boundary should not be larger than r-value boundary when inlined to %s",
-                fileName, srcPosition.LineNum(), func->GetName().c_str());
+                fileName.c_str(), srcPosition.LineNum(), func->GetName().c_str());
         } else {
           FATAL(kLncFatal,
                 "%s:%d error: return value's bounds does not match the function declaration for %s when inlined to %s",
-                fileName, srcPosition.LineNum(), newStmt.GetFuncName().c_str(), func->GetName().c_str());
+                fileName.c_str(), srcPosition.LineNum(), newStmt.GetFuncName().c_str(), func->GetName().c_str());
         }
       }
       break;
@@ -1281,7 +1283,7 @@ bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt, bool i
               callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
       } else {
         FATAL(kLncFatal, "%s:%d error: the pointer's bounds does not match the function %s declaration "\
-              "for the %s argument when inlined to %s", fileName, srcPosition.LineNum(),
+              "for the %s argument when inlined to %s", fileName.c_str(), srcPosition.LineNum(),
               callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str(), func->GetName().c_str());
       }
       break;

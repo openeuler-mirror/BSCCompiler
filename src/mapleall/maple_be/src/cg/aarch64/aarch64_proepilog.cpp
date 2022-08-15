@@ -1736,7 +1736,7 @@ void AArch64GenProEpilog::GenerateEpilogForCleanup(BB &bb) {
 void AArch64GenProEpilog::Run() {
   CHECK_FATAL(cgFunc.GetFunction().GetBody()->GetFirst()->GetOpCode() == OP_label,
               "The first statement should be a label");
-  NeedStackProtect();
+  stackProtect = cgFunc.GetNeedStackProtect();
   cgFunc.SetHasProEpilogue(NeedProEpilog());
   if (cgFunc.GetHasProEpilogue()) {
     GenStackGuard(*(cgFunc.GetFirstBB()));

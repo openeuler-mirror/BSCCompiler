@@ -49,10 +49,6 @@ class GenProEpilog {
   Insn *InsertCFIDefCfaOffset(int32 &cfiOffset, Insn &insertAfter); /* cfiOffset in-out */
 
  protected:
-  /* check if the current funtion need stack protect code */
-  void NeedStackProtect();
-  /* check if a type include array */
-  bool IncludeArray(const MIRType &type) const;
 
   CGFunc &cgFunc;
   int64 offsetFromCfa = 0; /* SP offset from Call Frame Address */

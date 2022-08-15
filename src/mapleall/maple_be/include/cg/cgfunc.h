@@ -152,6 +152,7 @@ class CGFunc {
   }
 
   EHFunc *BuildEHFunc();
+  void NeedStackProtect();
   virtual void GenSaveMethodInfoCode(BB &bb) = 0;
   virtual void GenerateCleanupCode(BB &bb) = 0;
   virtual bool NeedCleanup() = 0;
@@ -234,6 +235,7 @@ class CGFunc {
   virtual Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCAtomicExchangeN(const IntrinsiccallNode &intrinsiccallNode) = 0;
+  virtual Operand *SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) = 0;
   virtual Operand *SelectCReturnAddress(IntrinsicopNode &intrinsicopNode) = 0;
   virtual void SelectMembar(StmtNode &membar) = 0;
   virtual void SelectComment(CommentNode &comment) = 0;
@@ -378,6 +380,7 @@ class CGFunc {
   virtual RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) = 0;
   virtual RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) = 0;
   virtual RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) = 0;
+  virtual RegOperand *SelectVectorMovNarrow(PrimType rType, Operand *opnd, PrimType oType) = 0;
 
   /* For ebo issue. */
   virtual Operand *GetTrueOpnd() {
@@ -409,6 +412,8 @@ class CGFunc {
   virtual Insn &CreateCfiRestoreInsn(uint32 reg, uint32 size) = 0;
   virtual Insn &CreateCfiOffsetInsn(uint32 reg, int64 val, uint32 size) = 0;
   virtual Insn &CreateCfiDefCfaInsn(uint32 reg, int64 val, uint32 size) = 0;
+
+  virtual Insn &CreateCommentInsn(const std::string &comment) const = 0;
 
   bool IsSpecialPseudoRegister(PregIdx spr) const {
     return spr < 0;
@@ -1130,6 +1135,14 @@ class CGFunc {
     return stackProtectInfo;
   }
 
+  void SetNeedStackProtect(bool val) {
+    needStackProtect = val;
+  }
+
+  bool GetNeedStackProtect() const {
+    return needStackProtect;
+  }
+
  protected:
   uint32 firstMapleIrVRegNO = 200;        /* positioned after physical regs */
   uint32 firstNonPregVRegNO;
@@ -1286,6 +1299,7 @@ class CGFunc {
 
   /* save stack protect kinds which can trigger stack protect */
   uint8 stackProtectInfo = 0;
+  bool needStackProtect = false;
 };  /* class CGFunc */
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLayoutFrame, maplebe::CGFunc)
