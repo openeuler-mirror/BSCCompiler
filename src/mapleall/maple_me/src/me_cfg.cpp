@@ -676,9 +676,10 @@ void MeCFG::ConvertPhiList2IdentityAssigns(BB &meBB) const {
       const MIRSymbol *st = ost->GetMIRSymbol();
       MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(st->GetTyIdx());
       AddrofNode *dread = func.GetMIRModule().GetMIRBuilder()->CreateDread(*st, GetRegPrimType(type->GetPrimType()));
+      dread->SetFieldID(ost->GetFieldID());
       auto *dread2 = func.GetMirFunc()->GetCodeMemPool()->New<AddrofSSANode>(*dread);
       dread2->SetSSAVar(*(*phiIt).second.GetPhiOpnd(0));
-      DassignNode *dassign = func.GetMIRModule().GetMIRBuilder()->CreateStmtDassign(*st, 0, dread2);
+      DassignNode *dassign = func.GetMIRModule().GetMIRBuilder()->CreateStmtDassign(*st, ost->GetFieldID(), dread2);
       func.GetMeSSATab()->GetStmtsSSAPart().SetSSAPartOf(
           *dassign, func.GetMeSSATab()->GetStmtsSSAPart().GetSSAPartMp()->New<MayDefPartWithVersionSt>(
               &func.GetMeSSATab()->GetStmtsSSAPart().GetSSAPartAlloc()));
