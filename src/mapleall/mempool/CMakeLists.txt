@@ -19,8 +19,8 @@ set(src_libmempool
   src/mempool.cpp
 )
 
-add_library(mempool STATIC ${src_libmempool})
-target_include_directories(mempool PRIVATE
+add_library(libmempool STATIC ${src_libmempool})
+target_include_directories(libmempool PRIVATE
     ${MAPLEALL_ROOT}/maple_ir/include
     ${MAPLEALL_ROOT}/maple_util/include
     ${MAPLEALL_ROOT}/maple_driver/include
@@ -28,11 +28,30 @@ target_include_directories(mempool PRIVATE
     include 
 )
 
-set_target_properties(mempool PROPERTIES 
-    ARCHIVE_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/64
+set_target_properties(libmempool PROPERTIES 
+    ARCHIVE_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}
 )
 
-
 add_executable(MemPool src/MPTest.cpp)
-
-
+target_include_directories(MemPool PRIVATE
+    ${MAPLEALL_ROOT}/maple_ir/include
+    ${MAPLEALL_ROOT}/maple_util/include
+    ${MAPLEALL_ROOT}/maple_driver/include
+    ${THIRD_PARTY_ROOT}/bounds_checking_function/include
+    include
+)
+add_dependencies(MemPool
+    libmempool
+    libmplutil
+    libcommandline
+    libHWSecureC
+)
+target_link_libraries(MemPool
+    libmempool
+    libmplutil
+    libcommandline
+    libHWSecureC
+)
+set_target_properties(MemPool PROPERTIES
+     RUNTIME_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/bin
+)
