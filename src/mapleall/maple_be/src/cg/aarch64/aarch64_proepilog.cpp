@@ -1254,14 +1254,17 @@ void AArch64GenProEpilog::GeneratePushRegs() {
 
   AArch64MemLayout *memLayout = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
   int32 offset;
+  int32 tmp;
   if (cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
-    offset = static_cast<int32>(memLayout->RealStackFrameSize() -
-       (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* FP/LR */ ) -
-       memLayout->GetSizeOfLocals()); /* SizeOfArgsToStackPass not deducted since
-                                         AdjustmentStackPointer() is not called for lmbc */
+    tmp = static_cast<int32>(memLayout->RealStackFrameSize() -
+       (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* FP/LR */ ));
+    offset = static_cast<int32>(tmp - memLayout->GetSizeOfLocals());
+             /* SizeOfArgsToStackPass not deducted since
+                AdjustmentStackPointer() is not called for lmbc */
   } else {
-    offset = static_cast<int32>((memLayout->RealStackFrameSize() - (aarchCGFunc.SizeOfCalleeSaved() -
-        (kDivide2 * kIntregBytelen))) - memLayout->SizeOfArgsToStackPass());  /* for FP/LR */
+    tmp = static_cast<int32>(memLayout->RealStackFrameSize() -
+          (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* FP/LR */ ));
+    offset = static_cast<int32>(tmp - memLayout->SizeOfArgsToStackPass());
   }
 
   if (cgFunc.GetCG()->IsStackProtectorStrong() || cgFunc.GetCG()->IsStackProtectorAll()) {
@@ -1761,15 +1764,17 @@ void AArch64GenProEpilog::GeneratePopRegs() {
 
   AArch64MemLayout *memLayout = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
   int32 offset;
+  int32 tmp;
   if (cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
-    offset = static_cast<int32>(memLayout->RealStackFrameSize() -
-        (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* FP/LR */ ) -
-        memLayout->GetSizeOfLocals()); /* SizeOfArgsToStackPass not deducted since
-                                          AdjustmentStackPointer() is not called for lmbc */
+    tmp = static_cast<int32>(memLayout->RealStackFrameSize() -
+          (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* FP/LR */ ));
+    offset = static_cast<int32>(tmp - memLayout->GetSizeOfLocals());
+             /* SizeOfArgsToStackPass not deducted since
+                AdjustmentStackPointer() is not called for lmbc */
   } else {
-    offset = static_cast<int32>((static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
-        (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen))) - /* for FP/LR */
-        memLayout->SizeOfArgsToStackPass());
+    tmp = static_cast<int32>(static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
+          (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* for FP/LR */ ));
+    offset = static_cast<int32>(tmp - memLayout->SizeOfArgsToStackPass());
   }
 
   if (cgFunc.GetCG()->IsStackProtectorStrong() || cgFunc.GetCG()->IsStackProtectorAll()) {
