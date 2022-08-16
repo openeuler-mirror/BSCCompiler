@@ -16,7 +16,7 @@
 #include "me_phase_manager.h"
 #include "ipa_phase_manager.h"
 #include "ipa_side_effect.h"
-#include "mpl_profdata_parser.h"
+#include "gcov_parser.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 #define CLANG (mirModule.IsCModule())
@@ -109,7 +109,7 @@ MAPLE_ANALYSIS_PHASE_REGISTER(M2MCallGraph, callgraph)
 MAPLE_ANALYSIS_PHASE_REGISTER(M2MKlassHierarchy, classhierarchy)
 MAPLE_ANALYSIS_PHASE_REGISTER(M2MAnnotationAnalysis, annotationanalysis)
 MAPLE_ANALYSIS_PHASE_REGISTER(ProfileGenPM, ProfileGenPM)
-MAPLE_ANALYSIS_PHASE_REGISTER(MMplProfDataParser, grofDataParser)
+MAPLE_ANALYSIS_PHASE_REGISTER(M2MGcovParser, gcovparser)
 
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MInline, inline)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MIPODevirtualize, ipodevirtulize)

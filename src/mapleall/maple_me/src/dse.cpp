@@ -312,13 +312,14 @@ void DSE::PropagateUseLive(const VersionSt &vst) {
     const StmtNode *assign = vst.GetAssignNode();
     MarkStmtRequired(ToRef(assign), ToRef(dfBB));
   } else if (vst.GetDefType() == VersionSt::kPhi) {
-    const PhiNode *phi = vst.GetPhi();
+    PhiNode *phi = vst.GetPhi();
     ASSERT(phi->GetResult() == &vst, "MarkVst: wrong corresponding version st in phi");
     MarkControlDependenceLive(ToRef(dfBB));
     for (size_t i = 0; i < phi->GetPhiOpnds().size(); ++i) {
       const VersionSt *verSt = phi->GetPhiOpnds()[i];
       AddToWorkList(verSt);
     }
+    phi->SetIsLive(true);
   } else if (vst.GetDefType() == VersionSt::kMayDef) {
     const MayDefNode *mayDef = vst.GetMayDef();
     ASSERT(mayDef->GetResult() == &vst, "MarkVst: wrong corresponding version st in maydef");
@@ -551,6 +552,15 @@ void DSE::CollectNotNullNode(StmtNode &stmt, BaseNode &node, BB &bb, uint8 nodeT
 void DSE::Init() {
   bbRequired[commonEntryBB.GetBBId()] = true;
   bbRequired[commonExitBB.GetBBId()] = true;
+  for (auto *bb : bbVec) {
+    if (bb == nullptr) {
+      continue;
+    }
+    // mark phi nodes dead
+    for (auto &phiPair : bb->GetPhiList()) {
+      phiPair.second.SetIsLive(false);
+    }
+  }
 }
 
 void DSE::DoDSE() {

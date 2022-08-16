@@ -14,6 +14,7 @@
  */
 #include "call_graph.h"
 
+
 #include "option.h"
 #include "retype.h"
 #include "string_utils.h"
@@ -189,7 +190,7 @@ bool CGNode::IsCalleeOf(CGNode *func) const {
 }
 
 uint64_t CGNode::GetCallsiteFrequency(const StmtNode *callstmt) const {
-  FuncProfInfo *funcInfo = mirFunc->GetFuncProfData();
+  GcovFuncInfo *funcInfo = mirFunc->GetFuncProfData();
   if (funcInfo->stmtFreqs.count(callstmt->GetStmtID()) > 0) {
     return funcInfo->stmtFreqs[callstmt->GetStmtID()];
   }
@@ -198,9 +199,9 @@ uint64_t CGNode::GetCallsiteFrequency(const StmtNode *callstmt) const {
 }
 
 uint64_t CGNode::GetFuncFrequency() const {
-  FuncProfInfo *funcInfo = mirFunc->GetFuncProfData();
+  GcovFuncInfo *funcInfo = mirFunc->GetFuncProfData();
   if (funcInfo) {
-    return funcInfo->GetFuncRealFrequency();
+    return funcInfo->GetFuncFrequency();
   }
   ASSERT(0, "should not be here");
   return 0;
@@ -256,8 +257,8 @@ void CallGraph::DelNode(CGNode &node) {
   }
 }
 
-CallGraph::CallGraph(MIRModule &m, MemPool &memPool, MemPool &templPool, const KlassHierarchy &kh,
-                     const std::string &fn)
+CallGraph::CallGraph(MIRModule &m, MemPool &memPool, MemPool &templPool,
+                     const KlassHierarchy &kh, const std::string &fn)
     : AnalysisResult(&memPool),
       mirModule(&m),
       cgAlloc(&memPool),
@@ -523,7 +524,7 @@ void CallGraph::RecordLocalConstValue(const StmtNode *stmt) {
 
 CallNode *CallGraph::ReplaceIcallToCall(BlockNode &body, IcallNode *icall, PUIdx newPUIdx) {
   MapleVector<BaseNode*> opnds(icall->GetNopnd().begin() + 1, icall->GetNopnd().end(),
-                                CurFunction()->GetCodeMPAllocator().Adapter());
+                               CurFunction()->GetCodeMPAllocator().Adapter());
   CallNode *newCall = nullptr;
   if (icall->GetOpCode() == OP_icall) {
     newCall = mirBuilder->CreateStmtCall(newPUIdx, opnds, OP_call);
@@ -746,8 +747,8 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
     icallToFix.insert({funcType->GetTypeIndex(), tempSet});
   }
   CHECK_FATAL(CurFunction()->GetPuidx() == node.GetPuIdx(), "Error");
-  Callsite callSite = {callInfo, node.GetCallee().at(callInfo)};
-  icallToFix.at(funcType->GetTypeIndex())->insert({node.GetPuIdx(), callSite});
+  Callsite callSite = { callInfo, node.GetCallee().at(callInfo) };
+  icallToFix.at(funcType->GetTypeIndex())->insert({ node.GetPuIdx(), callSite });
 }
 
 void CallGraph::HandleBody(MIRFunction &func, BlockNode &body, CGNode &node, uint32 loopDepth) {
@@ -1234,7 +1235,7 @@ void DoDevirtual(const Klass &klass, const KlassHierarchy &klassh) {
       Opcode op = stmt->GetOpCode();
       switch (op) {
         case OP_comment:
-          CASE_OP_ASSERT_NONNULL
+        CASE_OP_ASSERT_NONNULL
         case OP_brtrue:
         case OP_brfalse:
         case OP_try:
@@ -1503,7 +1504,7 @@ void DoDevirtual(const Klass &klass, const KlassHierarchy &klassh) {
             }
           }
         }
-          [[clang::fallthrough]];
+        [[clang::fallthrough]];
         case OP_call:
         case OP_callassigned: {
           CallNode *callNode = static_cast<CallNode*>(stmt);
@@ -1558,9 +1559,8 @@ void IPODevirtulize::DevirtualFinal() {
         if (GlobalTables::GetGsymTable().GetSymbolFromStrIdx(classType->GetStaticFieldsGStrIdx(i)) == nullptr) {
           continue;
         }
-        TyIdx tyIdx = GlobalTables::GetGsymTable()
-                          .GetSymbolFromStrIdx(classType->GetStaticFieldsPair(i).first)
-                          ->GetInferredTyIdx();
+        TyIdx tyIdx = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
+            classType->GetStaticFieldsPair(i).first)->GetInferredTyIdx();
         if (tyIdx != kInitTyIdx && tyIdx != kNoneTyIdx) {
           CHECK_FATAL(attribute.GetAttr(FLDATTR_final), "Must be final private");
           if (debugFlag) {
@@ -1744,13 +1744,13 @@ void CallGraph::RemoveFileStaticRootNodes() {
   std::vector<CGNode*> staticRoots;
   std::copy_if(rootNodes.begin(), rootNodes.end(), std::inserter(staticRoots, staticRoots.begin()),
                [](const CGNode *root) {
-                 // root means no caller, we should also make sure that root is not be used in addroffunc
-                 auto mirFunc = root->GetMIRFunction();
-                 return root != nullptr && mirFunc != nullptr &&  // remove before
-                        // if static functions or inline but not extern modified functions are not used anymore,
-                        // they can be removed safely.
-                        !root->IsAddrTaken() && (mirFunc->IsStatic() || (mirFunc->IsInline() && !mirFunc->IsExtern()));
-               });
+    // root means no caller, we should also make sure that root is not be used in addroffunc
+    auto mirFunc = root->GetMIRFunction();
+    return root != nullptr && mirFunc != nullptr && // remove before
+    // if static functions or inline but not extern modified functions are not used anymore,
+    // they can be removed safely.
+    !root->IsAddrTaken() && (mirFunc->IsStatic() || (mirFunc->IsInline() && !mirFunc->IsExtern()));
+  });
   for (auto *root : staticRoots) {
     // DFS delete root and its callee that is static and have no caller after root is deleted
     DelNode(*root);

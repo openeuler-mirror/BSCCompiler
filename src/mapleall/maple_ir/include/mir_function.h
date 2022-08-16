@@ -1271,13 +1271,13 @@ class MIRFunction {
 
   InlineSummary *GetOrCreateInlineSummary();
 
-  void SetFuncProfData(FuncProfInfo *data) {
+  void SetFuncProfData(GcovFuncInfo *data) {
     funcProfData = data;
   }
-  FuncProfInfo* GetFuncProfData() {
+  GcovFuncInfo* GetFuncProfData() {
     return funcProfData;
   }
-  FuncProfInfo* GetFuncProfData() const {
+  GcovFuncInfo* GetFuncProfData() const {
     return funcProfData;
   }
   void SetStmtFreq(uint32_t stmtID, uint64_t freq) {
@@ -1402,7 +1402,7 @@ class MIRFunction {
   uint32 nCtrs = 0; // number of counters
   uint64 fileLinenoChksum = 0;
   uint64 cfgChksum = 0;
-  FuncProfInfo *funcProfData = nullptr;
+  GcovFuncInfo *funcProfData = nullptr;
   InlineSummary *inlineSummary = nullptr;
   void DumpFlavorLoweredThanMmpl() const;
   MIRFuncType *ReconstructFormals(const std::vector<MIRSymbol*> &symbols, bool clearOldArgs);

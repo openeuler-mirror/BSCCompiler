@@ -190,7 +190,6 @@ static constexpr const char kBindingProtectedRegionStr[] = "__BindingProtectRegi
 static constexpr const char kClassNamePrefixStr[] = "L";
 static constexpr const char kClassMethodSplitterStr[] = "_3B";
 static constexpr const char kFuncGetCurrentCl[] = "MCC_GetCurrentClassLoader";
-static constexpr const char kMplProfFileNameExt[] = ".mprofdata";
 // Serve as a global flag to indicate whether frequent strings have been compressed
 extern bool doCompression;
 
@@ -213,10 +212,6 @@ uint32_t GetUnsignedLeb128Decode(const uint8_t **data);
 size_t GetUleb128Size(uint64_t val);
 size_t GetSleb128Size(int32_t val);
 bool NeedConvertUTF16(const std::string &str8);
-uint32_t EncodeSLEB128(uint64_t value, std::ofstream &out);
-uint32_t EncodeULEB128(uint64_t value, std::ofstream &out);
-uint64_t DecodeULEB128(const uint8_t *p, unsigned *n = nullptr, const uint8_t *end = nullptr);
-int64_t DecodeSLEB128(const uint8_t *p, unsigned *n = nullptr, const uint8_t *end = nullptr);
 } // namespace namemangler
 
 #endif

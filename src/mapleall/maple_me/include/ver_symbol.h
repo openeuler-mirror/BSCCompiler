@@ -24,8 +24,6 @@ class BB;  // circular dependency exists, no other choice
 class PhiNode;  // circular dependency exists, no other choice
 class MayDefNode;  // circular dependency exists, no other choice
 class MustDefNode;  // circular dependency exists, no other choice
-class VersionStTable;  // circular dependency exists, no other choice
-class OriginalSt;  // circular dependency exists, no other choice
 
 constexpr size_t kInvalidVstIdx = 0;
 class VersionSt {
@@ -100,10 +98,7 @@ class VersionSt {
     defStmt.assign = assignNode;
   }
 
-  const PhiNode *GetPhi() const {
-    return defStmt.phi;
-  }
-  PhiNode *GetPhi() {
+  PhiNode *GetPhi() const {
     return defStmt.phi;
   }
   void SetPhi(PhiNode *phiNode) {

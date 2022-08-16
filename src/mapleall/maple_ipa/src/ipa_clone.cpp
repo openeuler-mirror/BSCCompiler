@@ -140,9 +140,9 @@ MIRFunction *IpaClone::IpaCloneFunctionWithFreq(MIRFunction &originalFunction,
   newFunc->SetBaseClassFuncNames(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fullName));
   newFunc->GetFuncSymbol()->SetAppearsInCode(true);
   newFunc->SetPuidxOrigin(newFunc->GetPuidx());
-  FuncProfInfo *origProfData = originalFunction.GetFuncProfData();
+  GcovFuncInfo *origProfData = originalFunction.GetFuncProfData();
   auto *moduleMp = mirBuilder.GetMirModule().GetMemPool();
-  FuncProfInfo *newProfData = moduleMp->New<FuncProfInfo>(&mirBuilder.GetMirModule().GetMPAllocator(),
+  GcovFuncInfo *newProfData = moduleMp->New<GcovFuncInfo>(&mirBuilder.GetMirModule().GetMPAllocator(),
                                   newFunc->GetPuidx(), 0, 0); // skip checksum information
   newFunc->SetFuncProfData(newProfData);
   newProfData->SetFuncFrequency(callSiteFreq);

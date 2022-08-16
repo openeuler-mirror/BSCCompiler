@@ -686,11 +686,10 @@ void AddroflabelNode::Dump(int32 indent [[maybe_unused]]) const {
 void StmtNode::DumpBase(int32 indent) const {
   srcPosition.DumpLoc(lastPrintedLineNum, lastPrintedColumnNum);
   // dump stmtFreqs
-  if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
-    int64_t freq = static_cast<int64_t>(theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()));
-    if (freq >= 0) {
-      LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq " << freq << "\n";
-    }
+  if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData() &&
+      theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) >= 0) {
+    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq " <<
+        theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
   }
   PrintIndentation(indent);
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOpCode()).name;
@@ -1330,10 +1329,8 @@ void BlockNode::Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable
   srcPosition.DumpLoc(lastPrintedLineNum, lastPrintedColumnNum);
   // dump stmtFreqs
   if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
-    int64_t freq = static_cast<int64_t>(theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()));
-    if (freq >= 0) {
-      LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  << freq << "\n";
-    }
+    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  <<
+        theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
   }
   for (auto &stmt : GetStmtNodes()) {
     stmt.Dump(indent + 1);
@@ -1348,10 +1345,8 @@ void LabelNode::Dump(int32 indent [[maybe_unused]]) const {
   }
   // dump stmtFreqs
   if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
-    int64_t freq = static_cast<int64_t>(theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()));
-    if (freq >= 0) {
-      LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  << freq << "\n";
-    }
+    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  <<
+        theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
   }
   LogInfo::MapleLogger() << "@" << theMIRModule->CurFunction()->GetLabelName(labelIdx) << " ";
 }

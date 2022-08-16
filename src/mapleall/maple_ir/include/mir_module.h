@@ -22,7 +22,7 @@
 #include "muid.h"
 #include "profile.h"
 #include "namemangler.h"
-#include "mpl_profdata.h"
+#include "gcov_profile.h"
 #if MIR_FEATURE_FULL
 #include <string>
 #include <unordered_set>
@@ -268,11 +268,11 @@ class MIRModule {
     return profile;
   }
 
-  MplProfileData* GetMapleProfile() {
-    return mplProfile;
+  GcovProfileData* GetGcovProfile() {
+    return gcovProfile;
   }
-  void SetMapleProfile(MplProfileData* info) {
-    mplProfile = info;
+  void SetGcovProfile(GcovProfileData* info) {
+    gcovProfile = info;
   }
 
   void SetSomeSymbolNeedForDecl(bool s) {
@@ -341,13 +341,11 @@ class MIRModule {
   }
 
   std::string GetProfileDataFileName() const {
-    std::string profileDataFileName = GetFileName().substr(0, GetFileName().find_last_of("."));
-    const char *gcovPath = std::getenv("GCOV_PREFIX");
-    std::string gcovPrefix = gcovPath ? gcovPath : "";
-    if (!gcovPrefix.empty() && (gcovPrefix.back() != '/')) {
-      gcovPrefix.append("/");
-    }
-    profileDataFileName = gcovPrefix + profileDataFileName;
+    std::string profileDataFileName = fileName.substr(0, fileName.find_last_of("."));
+    std::replace(profileDataFileName.begin(), profileDataFileName.end(), '.', '_');
+    std::replace(profileDataFileName.begin(), profileDataFileName.end(), '-', '_');
+    std::replace(profileDataFileName.begin(), profileDataFileName.end(), '/', '_');
+    profileDataFileName = profileDataFileName + namemangler::kProfFileNameExt;
     return profileDataFileName;
   }
 
@@ -712,7 +710,7 @@ class MIRModule {
   MapleSet<StIdx> symbolSet;
   MapleVector<StIdx> symbolDefOrder;
   Profile profile;
-  MplProfileData* mplProfile;
+  GcovProfileData* gcovProfile;
   bool someSymbolNeedForwDecl = false;  // some symbols' addressses used in initialization
 
   std::ostream &out;

@@ -57,7 +57,7 @@ src_libmpl2mpl = [
   "src/inline_analyzer.cpp",
   "src/inline_transformer.cpp",
   "src/method_replace.cpp",
-  "src/mpl_profdata_parser.cpp",
+  "src/gcov_parser.cpp",
 ]
 
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]

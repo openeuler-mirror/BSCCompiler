@@ -74,10 +74,19 @@ class PhiNode {
     phiOpnds = phiOpndsPara;
   }
 
+  void SetIsLive(bool isLiveVal) {
+    isLive = isLiveVal;
+  }
+
+  bool GetIsLive() const {
+    return isLive;
+  }
+
  private:
   VersionSt *result;
   static constexpr uint32 kNumOpnds = 2;
   MapleVector<VersionSt*> phiOpnds;
+  bool isLive = true;
 };
 
 class SSA {

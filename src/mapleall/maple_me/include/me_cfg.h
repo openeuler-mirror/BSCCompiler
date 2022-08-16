@@ -14,13 +14,12 @@
  */
 #ifndef MAPLE_ME_INCLUDE_ME_CFG_H
 #define MAPLE_ME_INCLUDE_ME_CFG_H
-#include "maple_phase.h"
 #include "me_function.h"
+#include "maple_phase.h"
 
 namespace maple {
 class MeCFG : public AnalysisResult {
   using BBPtrHolder = MapleVector<BB*>;
-
  public:
   using value_type = BBPtrHolder::value_type;
   using size_type = BBPtrHolder::size_type;
@@ -87,9 +86,7 @@ class MeCFG : public AnalysisResult {
     hasDoWhile = hdw;
   }
 
-  MapleAllocator &GetAlloc() {
-    return mecfgAlloc;
-  }
+  MapleAllocator &GetAlloc() { return mecfgAlloc; }
 
   void SetNextBBId(uint32 currNextBBId) {
     nextBBId = currNextBBId;
@@ -101,9 +98,7 @@ class MeCFG : public AnalysisResult {
     --nextBBId;
   }
 
-  MapleVector<BB*> &GetAllBBs() {
-    return bbVec;
-  }
+  MapleVector<BB*> &GetAllBBs() { return bbVec; }
 
   iterator begin() {
     return bbVec.begin();
@@ -301,19 +296,8 @@ class MeCFG : public AnalysisResult {
   void ConstructBBFreqFromStmtFreq();
   void ConstructStmtFreq();
   void ConstructEdgeFreqFromBBFreq();
-  void UpdateEdgeFreqWithBBFreq();
-  int VerifyBBFreq(bool checkFatal = false);
-  void SetUpdateCFGFreq(bool b) {
-    updateFreq = b;
-  }
-  bool UpdateCFGFreq() const {
-    return updateFreq;
-  }
-  bool DumpIRProfileFile() const {
-    return dumpIRProfileFile;
-  }
-  void ClearFuncFreqInfo();
-
+  void UpdateEdgeFreqWithNewBBFreq();
+  void VerifyBBFreq();
  private:
   void AddCatchHandlerForTryBB(BB &bb, MapleVector<BB*> &exitBlocks);
   std::string ConstructFileNameToDump(const std::string &prefix) const;
@@ -332,14 +316,11 @@ class MeCFG : public AnalysisResult {
   MapleAllocator mecfgAlloc;
   MeFunction &func;
   MapleSet<LabelIdx> patternSet;
-  BBPtrHolder bbVec;
+  BBPtrHolder  bbVec;
   MapleUnorderedMap<LabelIdx, BB*> labelBBIdMap;
   MapleUnorderedMap<BB*, StmtNode*> bbTryNodeMap;  // maps isTry bb to its try stmt
   MapleUnorderedMap<BB*, BB*> endTryBB2TryBB;      // maps endtry bb to its try bb
   bool hasDoWhile = false;
-  // following 2 variable are used in profileUse
-  bool updateFreq = false;         // true to maintain cfg frequency in transform phase
-  bool dumpIRProfileFile = false;  // true to dump cfg to files
   uint32 nextBBId = 0;
 
   // BB SCC
@@ -350,10 +331,10 @@ class MeCFG : public AnalysisResult {
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(MEMeCfg, MeFunction)
-MeCFG *GetResult() {
-  return theCFG;
-}
-MeCFG *theCFG = nullptr;
+  MeCFG *GetResult() {
+    return theCFG;
+  }
+  MeCFG *theCFG = nullptr;
 MAPLE_MODULE_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(MECfgVerifyFrequency, MeFunction)
 MAPLE_FUNC_PHASE_DECLARE_END

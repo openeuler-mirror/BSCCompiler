@@ -142,7 +142,7 @@ class MIRLower {
 
   virtual bool InLFO() const { return false; }
 
-  FuncProfInfo *GetFuncProfData() const {
+  GcovFuncInfo *GetFuncProfData() const {
     return mirFunc->GetFuncProfData();
   }
   void CopyStmtFrequency(StmtNode *newStmt, StmtNode *oldStmt) {

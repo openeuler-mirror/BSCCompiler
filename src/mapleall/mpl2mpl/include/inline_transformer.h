@@ -55,9 +55,7 @@ class InlineTransformer {
         callee(callee),
         callStmt(callStmt),
         dumpDetail(dumpDetail),
-        cg(cg),
-        updateFreq(Options::profileUse && caller.GetFuncProfData() && callee.GetFuncProfData()){};
-
+        cg(cg) {}
   bool PerformInline(BlockNode &enclosingBlk);
   static void ReplaceSymbols(BaseNode*, uint32, const std::vector<uint32>*);
   static void ConvertPStaticToFStatic(MIRFunction &func);
@@ -93,7 +91,6 @@ class InlineTransformer {
   LabelIdx returnLabelIdx = 0;    // The lableidx where the code will jump when the callee returns.
   StmtNode *labelStmt = nullptr;  // The LabelNode we created for the callee, if needed.
   CallGraph *cg = nullptr;
-  bool updateFreq = false;
 };
 }  // namespace maple
 #endif  // MPL2MPL_INCLUDE_INLINE_TRANSFORMER_H

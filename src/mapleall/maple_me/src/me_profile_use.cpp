@@ -13,12 +13,10 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_profile_use.h"
-
 #include <iostream>
-
 #include "me_cfg.h"
-#include "me_function.h"
 #include "me_option.h"
+#include "me_function.h"
 
 namespace maple {
 BBUseInfo *MeProfUse::GetOrCreateBBUseInfo(const BB &bb) {
@@ -208,8 +206,8 @@ bool MeProfUse::BuildEdgeCount() {
   uint64 hash = ComputeFuncHash();
   if (hash != result.funcHash) {
     if (dump) {
-      LogInfo::MapleLogger() << func->GetName() << " hash doesn't match profile hash " << result.funcHash
-                             << " func real hash " << hash << '\n';
+      LogInfo::MapleLogger() << func->GetName() << " hash doesn't match profile hash "
+                             << result.funcHash << " func real hash " << hash << '\n';
     }
     return false;
   }
@@ -220,8 +218,8 @@ bool MeProfUse::BuildEdgeCount() {
   }
   if (instrumentBBs.size() != result.totalCounter) {
     if (dump) {
-      LogInfo::MapleLogger() << func->GetName() << " counter doesn't match profile counter " << result.totalCounter
-                             << " func real counter " << instrumentBBs.size() << '\n';
+      LogInfo::MapleLogger() << func->GetName() << " counter doesn't match profile counter "
+                             << result.totalCounter << " func real counter " <<  instrumentBBs.size() << '\n';
     }
     return false;
   }
@@ -296,12 +294,12 @@ bool MeProfUse::Run() {
   return true;
 }
 
-FuncProfInfo *MeProfUse::GetFuncData() {
-  MplProfileData *profData = func->GetMIRModule().GetMapleProfile();
-  if (!profData) {
+GcovFuncInfo *MeProfUse::GetFuncData() {
+  GcovProfileData *gcovData = func->GetMIRModule().GetGcovProfile();
+  if (!gcovData) {
     return nullptr;
   }
-  FuncProfInfo *funcData = profData->GetFuncProfile(func->GetUniqueID());
+  GcovFuncInfo *funcData = gcovData->GetFuncProfile(func->GetUniqueID());
   return funcData;
 }
 
@@ -317,15 +315,15 @@ bool MeProfUse::CheckSumFail(const uint64 hash, const uint32 expectedCheckSum, c
   return false;
 }
 
-bool MeProfUse::MapleProfRun() {
-  FuncProfInfo *funcData = GetFuncData();
+bool MeProfUse::GcovRun() {
+  GcovFuncInfo *funcData = GetFuncData();
   if (!funcData) {
     return false;
   }
   func->GetMirFunc()->SetFuncProfData(funcData);
   // early return if lineno fail
   if (CheckSumFail(ComputeLinenoHash(), funcData->linenoChecksum, "lineno")) {
-    func->GetMirFunc()->SetFuncProfData(nullptr);  // clear func profile data
+    func->GetMirFunc()->SetFuncProfData(nullptr); // clear func profile data
     return false;
   }
   FindInstrumentEdges();
@@ -338,12 +336,12 @@ bool MeProfUse::MapleProfRun() {
   if (dump) {
     DumpEdgeInfo();
   }
-  if (instrumentBBs.size() != funcData->edgeCounts) {
+  if (instrumentBBs.size() != funcData->numCounts) {
     if (dump) {
-      LogInfo::MapleLogger() << func->GetName() << " counter doesn't match profile counter " << funcData->edgeCounts
-                             << " func real counter " << instrumentBBs.size() << '\n';
+      LogInfo::MapleLogger() << func->GetName() << " counter doesn't match profile counter "
+                             << funcData->numCounts << " func real counter " <<  instrumentBBs.size() << '\n';
     }
-    func->GetMirFunc()->SetFuncProfData(nullptr);  // clear func profile data
+    func->GetMirFunc()->SetFuncProfData(nullptr); // clear func profile data
     return false;
   }
   size_t i = 0;
@@ -370,23 +368,16 @@ bool MEProfUse::PhaseRun(maple::MeFunction &f) {
   MeProfUse profUse(f, *GetPhaseMemPool(), DEBUGFUNC_NEWPM(f));
   bool result = true;
   if (Options::profileUse) {
-    result = profUse.MapleProfRun();
-    if (result) {
-      result = f.GetCfg()->VerifyBBFreq() != 0 ? true : false;
-      if (result && (DEBUGFUNC_NEWPM(f))) {
-        LogInfo::MapleLogger() << "func profileUse verification fail" << std::endl;
-      }
-    }
+    result = profUse.GcovRun();
+    f.GetCfg()->VerifyBBFreq();
   } else {
     profUse.Run();
   }
 
-  if (DEBUGFUNC_NEWPM(f)) {
+  if (result) {
     LogInfo::MapleLogger() << "******************after profile use  dump function******************\n";
     profUse.DumpFuncCFGEdgeFreq();
-  }
-  if (f.GetCfg()->DumpIRProfileFile()) {
-    f.GetCfg()->DumpToFile("after-ProfileUse", false, true);
+    f.GetCfg()->DumpToFile("afterProfileUse", false, true);
   }
   return true;
 }

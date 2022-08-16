@@ -307,7 +307,7 @@ GotoNode *InlineTransformer::DoUpdateReturnStmts(BlockNode &newBody, StmtNode &s
       dStmt = builder.CreateStmtRegassign(mirPreg->GetPrimType(), pregIdx, currBaseNode);
     }
     dStmt->SetSrcPos(stmt.GetSrcPos());
-    if (updateFreq) {
+    if (Options::profileUse) {
       caller.GetFuncProfData()->CopyStmtFreq(dStmt->GetStmtID(), stmt.GetStmtID());
       caller.GetFuncProfData()->CopyStmtFreq(gotoNode->GetStmtID(), stmt.GetStmtID());
       caller.GetFuncProfData()->EraseStmtFreq(stmt.GetStmtID());
@@ -315,7 +315,7 @@ GotoNode *InlineTransformer::DoUpdateReturnStmts(BlockNode &newBody, StmtNode &s
     newBody.ReplaceStmt1WithStmt2(&stmt, dStmt);
     newBody.InsertAfter(dStmt, gotoNode);
   } else {
-    if (updateFreq) {
+    if (Options::profileUse) {
       caller.GetFuncProfData()->CopyStmtFreq(gotoNode->GetStmtID(), stmt.GetStmtID());
       caller.GetFuncProfData()->EraseStmtFreq(stmt.GetStmtID());
     }
@@ -458,9 +458,10 @@ BlockNode *InlineTransformer::CloneFuncBody(BlockNode &funcBody, bool recursiveF
   if (callee.IsFromMpltInline()) {
     return funcBody.CloneTree(theMIRModule->GetCurFuncCodeMPAllocator());
   }
-  if (updateFreq) {
+  if (Options::profileUse) {
     auto *callerProfData = caller.GetFuncProfData();
     auto *calleeProfData = callee.GetFuncProfData();
+    ASSERT(callerProfData && calleeProfData, "nullptr check");
     uint64_t callsiteFreq = callerProfData->GetStmtFreq(callStmt.GetStmtID());
     uint64_t calleeEntryFreq = calleeProfData->GetFuncFrequency();
     uint32_t updateOp = (kKeepOrigFreq | kUpdateFreqbyScale);
@@ -561,7 +562,7 @@ void InlineTransformer::AssignActualsToFormals(BlockNode &newBody, uint32 stIdxO
     CHECK_NULL_FATAL(currBaseNode);
     CHECK_NULL_FATAL(formal);
     AssignActualToFormal(newBody, stIdxOff, regIdxOff, *currBaseNode, *formal);
-    if (updateFreq) {
+    if (Options::profileUse) {
       caller.GetFuncProfData()->CopyStmtFreq(newBody.GetFirst()->GetStmtID(), callStmt.GetStmtID());
     }
   }
@@ -605,7 +606,7 @@ void InlineTransformer::HandleReturn(BlockNode &newBody) {
       }
     }
   }
-  if (updateFreq && (labelStmt != nullptr) && (newBody.GetLast() == labelStmt)) {
+  if (Options::profileUse && (labelStmt != nullptr) && (newBody.GetLast() == labelStmt)) {
     caller.GetFuncProfData()->CopyStmtFreq(labelStmt->GetStmtID(), callStmt.GetStmtID());
   }
 }
@@ -622,7 +623,7 @@ void InlineTransformer::ReplaceCalleeBody(BlockNode &enclosingBlk, BlockNode &ne
     beginCmt += callee.GetName();
     StmtNode *commNode = builder.CreateStmtComment(beginCmt.c_str());
     enclosingBlk.InsertBefore(&callStmt, commNode);
-    if (updateFreq) {
+    if (Options::profileUse) {
       caller.GetFuncProfData()->CopyStmtFreq(commNode->GetStmtID(), callStmt.GetStmtID());
     }
     // end inlining function
@@ -638,7 +639,7 @@ void InlineTransformer::ReplaceCalleeBody(BlockNode &enclosingBlk, BlockNode &ne
     }
     commNode = builder.CreateStmtComment(endCmt.c_str());
     enclosingBlk.InsertAfter(&callStmt, commNode);
-    if (updateFreq) {
+    if (Options::profileUse) {
       caller.GetFuncProfData()->CopyStmtFreq(commNode->GetStmtID(), callStmt.GetStmtID());
     }
     CHECK_FATAL(callStmt.GetNext() != nullptr, "null ptr check");
@@ -662,7 +663,7 @@ void InlineTransformer::GenReturnLabel(BlockNode &newBody, uint32 inlinedTimes) 
     // record the created label
     labelStmt = builder.CreateStmtLabel(returnLabelIdx);
     newBody.AddStatement(labelStmt);
-    if (updateFreq) {
+    if (Options::profileUse) {
       caller.GetFuncProfData()->CopyStmtFreq(labelStmt->GetStmtID(), callStmt.GetStmtID());
     }
   }

@@ -137,7 +137,8 @@ class MeProfUse : public PGOInstrument<BBUseEdge> {
   bool IsSuccUseProf() const {
     return succCalcuAllEdgeFreq;
   }
-  bool MapleProfRun();
+  bool GcovRun();
+  GcovFuncInfo *GetFuncData();
   bool CheckSumFail(const uint64 hash, const uint32 expectedCheckSum, const std::string &tag);
  private:
   bool IsAllZero(Profile::BBInfo &result) const;
@@ -146,8 +147,6 @@ class MeProfUse : public PGOInstrument<BBUseEdge> {
   void ComputeEdgeFreq();
   void InitBBEdgeInfo();
   void ComputeBBFreq(BBUseInfo &bbInfo, bool &changed);
-  FuncProfInfo *GetFuncData();
-
   uint64 SumEdgesCount(const MapleVector<BBUseEdge*> &edges) const;
   BBUseInfo *GetBBUseInfo(const BB &bb) const;
   BBUseInfo *GetOrCreateBBUseInfo(const BB &bb) ;
