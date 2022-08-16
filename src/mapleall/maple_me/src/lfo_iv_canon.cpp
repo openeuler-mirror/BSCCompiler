@@ -158,6 +158,7 @@ void IVCanon::FindPrimaryIV() {
       } else {
         // verify its increment is the last statement in loop body
         BB *tailbb = aloop->tail;
+        ASSERT_NOT_NULL(tailbb->GetLastMe());
         MeStmt *laststmt = tailbb->GetLastMe()->GetPrev(); // skipping the branch stmt
         if (laststmt == nullptr || laststmt->GetOp() != OP_dassign) {
           continue;
@@ -236,6 +237,7 @@ bool IVCanon::IsLoopInvariant(MeExpr *x) {
 // IV before it's increment/decrement, then change the test to be based on the
 // IV.  Return true if change has taken place.
 bool IVCanon::CheckPostIncDecFixUp(CondGotoMeStmt *condbr) {
+  ASSERT_NOT_NULL(condbr);
   OpMeExpr *testExpr = static_cast<OpMeExpr *>(condbr->GetOpnd());
   ScalarMeExpr *scalar = testExpr->GetOpnd(0)->IsScalar() ? static_cast<ScalarMeExpr *>(testExpr->GetOpnd(0))
                                                           : nullptr;
@@ -644,7 +646,7 @@ void IVCanon::PerformIVCanon() {
     ScalarMeExpr *philhs = mapEntry.second->GetLHS();
     ScalarMeExpr *initVersion = mapEntry.second->GetOpnd(phiOpndIdxOfInit);
     ScalarMeExpr *loopbackVersion = mapEntry.second->GetOpnd(phiOpndIdxOfLoopBack);
-    if (ResolveExprValue(loopbackVersion, philhs)) {
+    if (loopbackVersion != philhs && ResolveExprValue(loopbackVersion, philhs)) {
       CharacterizeIV(initVersion, loopbackVersion, philhs);
     }
   }
