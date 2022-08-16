@@ -2382,30 +2382,12 @@ bool CGFunc::GenCfi() const {
   return (mirModule.GetSrcLang() != kSrcLangC) || mirModule.IsWithDbgInfo();
 }
 
-static bool IncludeArray(const MIRType &type) {
-  ASSERT(type.IsStructType(), "agg must be one of class/struct/union");
-  auto &structType = static_cast<const MIRStructType&>(type);
-  /* all elements of struct. */
-  auto num = static_cast<uint8>(structType.GetFieldsSize());
-  for (uint32 i = 0; i < num; ++i) {
-    MIRType *elemType = structType.GetElemType(i);
-    if (elemType->GetKind() == kTypeArray) {
-      return true;
-    }
-    if (elemType->IsStructType() && IncludeArray(*elemType)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 /* there are two stack protector:
  * 1. stack protector all: for all function
  * 2. stack protector strong: for some functon that
  *   <1> invoke alloca functon;
- *   <2> use stack address;
+ *   <2> use stack address (address of or array symbol);
  *   <3> callee use return stack slot;
- *   <4> local symbol is vector type;
  * */
 void CGFunc::NeedStackProtect() {
   ASSERT(GetNeedStackProtect() == false, "no stack protect default");
@@ -2429,27 +2411,6 @@ void CGFunc::NeedStackProtect() {
   if ((stackProInfo & kAddrofStack) != 0 || (stackProInfo & kRetureStackSlot) != 0) {
     SetNeedStackProtect(true);
     return;
-  }
-
-  /* check if local symbol is vector type */
-  auto &mirFunction = GetFunction();
-  uint32 symTabSize = static_cast<uint32>(mirFunction.GetSymTab()->GetSymbolTableSize());
-  for (uint32 i = 0; i < symTabSize; ++i) {
-    MIRSymbol *symbol = mirFunction.GetSymTab()->GetSymbolFromStIdx(i);
-    if (symbol == nullptr || symbol->GetStorageClass() != kScAuto || symbol->IsDeleted()) {
-      continue;
-    }
-    TyIdx tyIdx = symbol->GetTyIdx();
-    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
-    if (type->GetKind() == kTypeArray) {
-      SetNeedStackProtect(true);
-      return;
-    }
-
-    if (type->IsStructType() && IncludeArray(*type)) {
-      SetNeedStackProtect(true);
-      return;
-    }
   }
 }
 

@@ -729,11 +729,10 @@ void CGOptions::EnableO0() {
   SetOption(kUseUnwindTables);
 #if ILP32
   ClearOption(kUseStackProtectorStrong);
-  ClearOption(kUseStackProtectorAll);
 #else
   SetOption(kUseStackProtectorStrong);
-  SetOption(kUseStackProtectorAll);
 #endif
+  ClearOption(kUseStackProtectorAll);
   ClearOption(kConstFold);
   ClearOption(kProEpilogueOpt);
   ClearOption(kTailCallOpt);
