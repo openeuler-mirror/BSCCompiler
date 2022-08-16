@@ -13,11 +13,13 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_loop_canon.h"
-#include <iostream>
+
 #include <algorithm>
+#include <iostream>
+
 #include "me_cfg.h"
-#include "me_option.h"
 #include "me_dominance.h"
+#include "me_option.h"
 #include "me_phase_manager.h"
 
 namespace maple {
@@ -39,8 +41,7 @@ void MeLoopCanon::FindHeadBBs(Dominance &dom, const BB *bb, std::map<BBId, std::
   }
   // backedge is constructed by igoto
   if (bb->GetBBLabel() != 0) {
-    const MapleUnorderedSet<LabelIdx> &addrTakenLabels =
-        func.GetMirFunc()->GetLabelTab()->GetAddrTakenLabels();
+    const MapleUnorderedSet<LabelIdx> &addrTakenLabels = func.GetMirFunc()->GetLabelTab()->GetAddrTakenLabels();
     if (addrTakenLabels.find(bb->GetBBLabel()) != addrTakenLabels.end()) {
       hasIgoto = true;
     }
@@ -71,8 +72,7 @@ void MeLoopCanon::UpdateTheOffsetOfStmtWhenTargetBBIsChange(BB &curBB, const BB 
       static_cast<CondGotoMeStmt&>(lastStmt).GetOffset() == oldSuccBB.GetBBLabel()) {
     auto label = func.GetOrCreateBBLabel(newSuccBB);
     static_cast<CondGotoMeStmt&>(lastStmt).SetOffset(label);
-  } else if (lastStmt.GetOp() == OP_goto &&
-             static_cast<GotoMeStmt&>(lastStmt).GetOffset() == oldSuccBB.GetBBLabel()) {
+  } else if (lastStmt.GetOp() == OP_goto && static_cast<GotoMeStmt&>(lastStmt).GetOffset() == oldSuccBB.GetBBLabel()) {
     auto label = func.GetOrCreateBBLabel(newSuccBB);
     static_cast<GotoMeStmt&>(lastStmt).SetOffset(label);
   } else if (lastStmt.GetOp() == OP_switch) {
@@ -96,8 +96,19 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
     // quick split
     auto *pred = splitList[0];
     auto index = pred->GetSuccIndex(*splittedBB);
+    // add frequency to mergedBB
+    if (updateFreqs) {
+      int idx = pred->GetSuccIndex(*splittedBB);
+      ASSERT(idx >= 0 && idx < pred->GetSucc().size(), "sanity check");
+      uint64_t freq = pred->GetEdgeFreq(static_cast<size_t>(idx));
+      mergedBB->SetFrequency(static_cast<uint32>(freq));
+      mergedBB->PushBackSuccFreq(freq);
+    }
     splittedBB->ReplacePred(pred, mergedBB);
     pred->AddSucc(*mergedBB, static_cast<uint64>(static_cast<int64>(index)));
+    if (updateFreqs) {
+      pred->AddSuccFreq(mergedBB->GetFrequency(), static_cast<uint64>(static_cast<int64>(index)));
+    }
     if (!pred->GetMeStmts().empty()) {
       UpdateTheOffsetOfStmtWhenTargetBBIsChange(*pred, *splittedBB, *mergedBB);
     }
@@ -112,6 +123,7 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
     mergedBB->GetMePhiList().emplace(latchLhs->GetOstIdx(), latchPhi);
     phiIter.second->GetOpnds().push_back(latchLhs);
   }
+  uint64_t freq = 0;
   for (BB *pred : splitList) {
     auto pos = splittedBB->GetPredIndex(*pred);
     for (auto &phiIter : mergedBB->GetMePhiList()) {
@@ -119,7 +131,17 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
       phiIter.second->GetOpnds().push_back(splittedBB->GetMePhiList().at(phiIter.first)->GetOpnd(pos));
     }
     splittedBB->RemovePhiOpnd(pos);
+    if (updateFreqs) {
+      int idx = pred->GetSuccIndex(*splittedBB);
+      ASSERT(idx >= 0 && idx < pred->GetSucc().size(), "sanity check");
+      freq = pred->GetEdgeFreq(static_cast<size_t>(idx));
+      mergedBB->SetFrequency(static_cast<uint32>(mergedBB->GetFrequency() + freq));
+    }
     pred->ReplaceSucc(splittedBB, mergedBB);
+    if (updateFreqs) {
+      int idx = pred->GetSuccIndex(*mergedBB);
+      pred->SetSuccFreq(idx, freq);
+    }
     if (pred->GetMeStmts().empty()) {
       continue;
     }
@@ -141,6 +163,9 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
     }
   }
   splittedBB->AddPred(*mergedBB);
+  if (updateFreqs) {
+    mergedBB->PushBackSuccFreq(mergedBB->GetFrequency());
+  }
   isCFGChange = true;
 }
 
@@ -151,16 +176,14 @@ void MeLoopCanon::Merge(const std::map<BBId, std::vector<BB*>> &heads) {
     BB *head = cfg->GetBBFromID(iter->first);
     // skip case : check latch bb is already added
     // one pred is preheader bb and the other is latch bb
-    if ((head->GetPred().size() == 2) &&
-        (head->GetPred(0)->GetAttributes(kBBAttrArtificial)) &&
-        (head->GetPred(0)->GetKind() == kBBFallthru) &&
-        (head->GetPred(1)->GetAttributes(kBBAttrArtificial)) &&
+    if ((head->GetPred().size() == 2) && (head->GetPred(0)->GetAttributes(kBBAttrArtificial)) &&
+        (head->GetPred(0)->GetKind() == kBBFallthru) && (head->GetPred(1)->GetAttributes(kBBAttrArtificial)) &&
         (head->GetPred(1)->GetKind() == kBBFallthru)) {
       continue;
     }
     auto *latchBB = cfg->NewBasicBlock();
     latchBB->SetAttributes(kBBAttrArtificial);
-    latchBB->SetAttributes(kBBAttrIsInLoop); // latchBB is inloop
+    latchBB->SetAttributes(kBBAttrIsInLoop);  // latchBB is inloop
     latchBB->SetKind(kBBFallthru);
     SplitPreds(iter->second, head, latchBB);
   }
@@ -231,29 +254,39 @@ void MeLoopCanon::InsertExitBB(LoopDesc &loop) {
       if (loop.Has(*succ)) {
         inLoopBBs.push(succ);
         traveledBBs.insert(succ);
-      } else {
-        bool needNewExitBB = false;
-        for (auto pred : succ->GetPred()) {
-          if (!loop.Has(*pred)) {
-            needNewExitBB = true;
-            break;
-          }
-        }
-        if (needNewExitBB) {
-          // break the critical edge for code sinking
-          BB *newExitBB = cfg->NewBasicBlock();
-          newExitBB->SetKind(kBBFallthru);
-          auto pos = succ->GetPredIndex(*curBB);
-          curBB->ReplaceSucc(succ, newExitBB);
-          succ->AddPred(*newExitBB, pos);
-          if (!curBB->GetMeStmts().empty()) {
-            UpdateTheOffsetOfStmtWhenTargetBBIsChange(*curBB, *succ, *newExitBB);
-          }
-          succ = newExitBB;
-          isCFGChange = true;
-        }
-        loop.InsertInloopBB2exitBBs(*curBB, *succ);
+        continue;
       }
+      bool needNewExitBB = false;
+      for (auto pred : succ->GetPred()) {
+        if (!loop.Has(*pred)) {
+          needNewExitBB = true;
+          break;
+        }
+      }
+      if (needNewExitBB) {
+        // break the critical edge for code sinking
+        BB *newExitBB = cfg->NewBasicBlock();
+        newExitBB->SetKind(kBBFallthru);
+        auto pos = succ->GetPredIndex(*curBB);
+        uint64_t freq = 0;
+        if (updateFreqs) {
+          int idx = curBB->GetSuccIndex(*succ);
+          ASSERT(idx >= 0 && idx < curBB->GetSuccFreq().size(), "sanity check");
+          freq = curBB->GetSuccFreq()[static_cast<unsigned long>(idx)];
+        }
+        curBB->ReplaceSucc(succ, newExitBB);
+        succ->AddPred(*newExitBB, pos);
+        if (updateFreqs) {
+          newExitBB->SetFrequency(static_cast<uint32>(freq));
+          newExitBB->PushBackSuccFreq(freq);
+        }
+        if (!curBB->GetMeStmts().empty()) {
+          UpdateTheOffsetOfStmtWhenTargetBBIsChange(*curBB, *succ, *newExitBB);
+        }
+        succ = newExitBB;
+        isCFGChange = true;
+      }
+      loop.InsertInloopBB2exitBBs(*curBB, *succ);
     }
   }
 }
@@ -299,7 +332,8 @@ bool MELoopCanon::PhaseRun(maple::MeFunction &f) {
   auto *dom = GET_ANALYSIS(MEDominance, f);
   ASSERT(dom != nullptr, "dom is null in MeDoLoopCanon::Run");
   MemPool *loopCanonMp = GetPhaseMemPool();
-  auto *meLoopCanon = loopCanonMp->New<MeLoopCanon>(f, DEBUGFUNC_NEWPM(f));
+  bool updateFrequency = (Options::profileUse && f.GetMirFunc()->GetFuncProfData());
+  auto *meLoopCanon = loopCanonMp->New<MeLoopCanon>(f, DEBUGFUNC_NEWPM(f), updateFrequency);
 
   // 1. Add preheaderBB and normalization headBB for loop.
   meLoopCanon->NormalizationHeadAndPreHeaderOfLoop(*dom);
@@ -316,6 +350,9 @@ bool MELoopCanon::PhaseRun(maple::MeFunction &f) {
   meLoopCanon->NormalizationExitOfLoop(*meLoop);
   if (meLoopCanon->IsCFGChange()) {
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
+    if (updateFrequency && (f.GetCfg()->DumpIRProfileFile())) {
+      f.GetCfg()->DumpToFile("after-loopcanon", false, true);
+    }
   }
   return true;
 }

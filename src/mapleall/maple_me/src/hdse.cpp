@@ -13,20 +13,22 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "hdse.h"
+
 #include <iostream>
-#include "ssa_mir_nodes.h"
-#include "ver_symbol.h"
+
 #include "irmap.h"
-#include "opcode_info.h"
 #include "mir_preg.h"
+#include "opcode_info.h"
+#include "ssa_mir_nodes.h"
 #include "utils.h"
+#include "ver_symbol.h"
 
 namespace maple {
 using namespace utils;
 
 void HDSE::DetermineUseCounts(MeExpr *x) {
   if (x->GetMeOp() == kMeOpVar) {
-    VarMeExpr *varmeexpr = static_cast<VarMeExpr *>(x);
+    VarMeExpr *varmeexpr = static_cast<VarMeExpr*>(x);
     verstUseCounts[varmeexpr->GetVstIdx()]++;
     return;
   }
@@ -42,7 +44,7 @@ void HDSE::CheckBackSubsCandidacy(DassignMeStmt *dass) {
   if (dass->GetRHS()->GetMeOp() != kMeOpVar && dass->GetRHS()->GetMeOp() != kMeOpReg) {
     return;
   }
-  ScalarMeExpr *lhsscalar = static_cast<ScalarMeExpr *>(dass->GetLHS());
+  ScalarMeExpr *lhsscalar = static_cast<ScalarMeExpr*>(dass->GetLHS());
   OriginalSt *ost = lhsscalar->GetOst();
   if (!ost->IsLocal()) {
     return;
@@ -51,7 +53,7 @@ void HDSE::CheckBackSubsCandidacy(DassignMeStmt *dass) {
   if (ty->GetPrimType() == PTY_agg && ty->GetSize() <= 16) {
     return;
   }
-  ScalarMeExpr *rhsscalar = static_cast<ScalarMeExpr *>(dass->GetRHS());
+  ScalarMeExpr *rhsscalar = static_cast<ScalarMeExpr*>(dass->GetRHS());
   if (rhsscalar->GetDefBy() != kDefByMustDef) {
     return;
   }
@@ -181,7 +183,9 @@ void HDSE::ResolveReassign(MeStmt &assign) {
     if (cur->GetOp() == OP_iassign && assign.GetOp() == OP_iassign) {
       auto *prevIvar = static_cast<IassignMeStmt*>(cur)->GetLHSVal();
       auto *postIvar = static_cast<IassignMeStmt&>(assign).GetLHSVal();
-      if (prevIvar->IsUseSameSymbol(*postIvar) && prevIvar->GetBase() == postIvar->GetBase()) {
+      if (prevIvar->GetPrimType() == postIvar->GetPrimType() &&
+          prevIvar->IsUseSameSymbol(*postIvar) &&
+          prevIvar->GetBase() == postIvar->GetBase()) {
         cur->SetIsLive(false);
         continue;
       }
@@ -216,7 +220,7 @@ void HDSE::ResolveContinuousRedefine() {
     auto &meStmtNodes = bb->GetMeStmts();
     for (auto itStmt = meStmtNodes.rbegin(); itStmt != meStmtNodes.rend(); ++itStmt) {
       MeStmt *pStmt = to_ptr(itStmt);
-      if (!pStmt->GetIsLive()) {
+      if (!pStmt->GetIsLive() || HasNonDeletableExpr(*pStmt)) {
         continue;
       }
       ResolveReassign(*pStmt);
@@ -245,6 +249,14 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
           }
         }
         bb.SetKind(kBBFallthru);
+        if (UpdateFreq()) {
+          int64_t succ0Freq = static_cast<int64_t>(bb.GetSuccFreq()[0]);
+          bb.GetSuccFreq().resize(1);
+          bb.SetSuccFreq(0, bb.GetFrequency());
+          ASSERT(bb.GetFrequency() >= succ0Freq, "sanity check");
+          bb.GetSucc(0)->SetFrequency(static_cast<uint32>(bb.GetSucc(0)->GetFrequency() +
+            (bb.GetFrequency() - succ0Freq)));
+        }
       }
       // A ivar contained in stmt
       if (stmt2NotNullExpr.find(mestmt) != stmt2NotNullExpr.end()) {
@@ -267,8 +279,9 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
     } else {
       // skip fold conditional branch because it may break recorded IfInfo.
       bool isPme = mirModule.CurFunction()->GetMeFunc()->GetPreMeFunc() != nullptr;
-      if (mestmt->IsCondBr() && !isPme) { // see if foldable to unconditional branch
-        CondGotoMeStmt *condbr = static_cast<CondGotoMeStmt *>(mestmt);
+      if (mestmt->IsCondBr() && !isPme) {  // see if foldable to unconditional branch
+        CondGotoMeStmt *condbr = static_cast<CondGotoMeStmt*>(mestmt);
+        int64_t removedFreq = 0;
         if (!mirModule.IsJavaModule() && condbr->GetOpnd()->GetMeOp() == kMeOpConst) {
           CHECK_FATAL(IsPrimitiveInteger(condbr->GetOpnd()->GetPrimType()),
                       "MeHDSE::DseProcess: branch condition must be integer type");
@@ -276,6 +289,9 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
               (condbr->GetOp() == OP_brfalse && !condbr->GetOpnd()->IsZero())) {
             // delete the conditional branch
             BB *succbb = bb.GetSucc().back();
+            if (UpdateFreq()) {
+              removedFreq = static_cast<int64_t>(bb.GetSuccFreq().back());
+            }
             succbb->RemoveBBFromPred(bb, false);
             if (succbb->GetPred().empty()) {
               needUNClean = true;
@@ -286,6 +302,9 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
           } else {
             // change to unconditional branch
             BB *succbb = bb.GetSucc().front();
+            if (UpdateFreq()) {
+              removedFreq = static_cast<int64_t>(bb.GetSuccFreq().front());
+            }
             succbb->RemoveBBFromPred(bb, false);
             if (succbb->GetPred().empty()) {
               needUNClean = true;
@@ -295,6 +314,11 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
             GotoMeStmt *gotomestmt = irMap.New<GotoMeStmt>(condbr->GetOffset());
             bb.ReplaceMeStmt(condbr, gotomestmt);
           }
+          if (UpdateFreq()) {
+            bb.GetSuccFreq().resize(1);
+            bb.SetSuccFreq(0, bb.GetFrequency());
+            bb.GetSucc(0)->SetFrequency(static_cast<uint32>(bb.GetSucc(0)->GetFrequency() + removedFreq));
+          }
         } else {
           DetermineUseCounts(condbr->GetOpnd());
         }
@@ -303,17 +327,17 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
           DetermineUseCounts(mestmt->GetOpnd(i));
         }
         if (mestmt->GetOp() == OP_dassign) {
-          CheckBackSubsCandidacy(static_cast<DassignMeStmt *>(mestmt));
+          CheckBackSubsCandidacy(static_cast<DassignMeStmt*>(mestmt));
         }
       }
     }
     mestmt = nextstmt;
   }
   // update verstUseCOunts for uses in phi operands
-  for (std::pair<OStIdx, MePhiNode *> phipair : bb.GetMePhiList()) {
+  for (std::pair<OStIdx, MePhiNode*> phipair : bb.GetMePhiList()) {
     if (phipair.second->GetIsLive()) {
       for (ScalarMeExpr *phiOpnd : phipair.second->GetOpnds()) {
-        VarMeExpr *varx = dynamic_cast<VarMeExpr *>(phiOpnd);
+        VarMeExpr *varx = dynamic_cast<VarMeExpr*>(phiOpnd);
         if (varx) {
           verstUseCounts[varx->GetVstIdx()]++;
         }
@@ -332,7 +356,7 @@ bool HDSE::NeedNotNullCheck(MeExpr &meExpr, const BB &bb) {
   if (meExpr.GetOp() == OP_addrof) {
     return false;
   }
-  if (meExpr.GetOp() == OP_iaddrof && static_cast<OpMeExpr &>(meExpr).GetFieldID() > 0) {
+  if (meExpr.GetOp() == OP_iaddrof && static_cast<OpMeExpr&>(meExpr).GetFieldID() > 0) {
     return false;
   }
 
@@ -444,8 +468,7 @@ void HDSE::MarkRegDefByStmt(RegMeExpr &regMeExpr) {
       MarkPhiRequired(regMeExpr.GetDefPhi());
       break;
     case kDefByChi: {
-      ASSERT(regMeExpr.GetOst()->GetIndirectLev() > 0,
-             "MarkRegDefByStmt: preg cannot be defined by chi");
+      ASSERT(regMeExpr.GetOst()->GetIndirectLev() > 0, "MarkRegDefByStmt: preg cannot be defined by chi");
       auto &defChi = regMeExpr.GetDefChi();
       MarkChiNodeRequired(defChi);
       break;
@@ -585,8 +608,7 @@ bool HDSE::ExprNonDeletable(const MeExpr &meExpr) const {
     }
     case kMeOpVar: {
       auto &varMeExpr = static_cast<const VarMeExpr&>(meExpr);
-      return varMeExpr.IsVolatile() ||
-             (decoupleStatic && varMeExpr.GetOst()->GetMIRSymbol()->IsGlobal());
+      return varMeExpr.IsVolatile() || (decoupleStatic && varMeExpr.GetOst()->GetMIRSymbol()->IsGlobal());
     }
     case kMeOpIvar: {
       auto &opIvar = static_cast<const IvarMeExpr&>(meExpr);
@@ -616,7 +638,7 @@ bool HDSE::HasNonDeletableExpr(const MeStmt &meStmt) const {
   switch (op) {
     case OP_dassign: {
       auto &dasgn = static_cast<const DassignMeStmt&>(meStmt);
-      VarMeExpr *varMeExpr = static_cast<VarMeExpr *>(dasgn.GetVarLHS());
+      VarMeExpr *varMeExpr = static_cast<VarMeExpr*>(dasgn.GetVarLHS());
       return (varMeExpr != nullptr && varMeExpr->IsVolatile()) || ExprNonDeletable(*dasgn.GetRHS()) ||
              (hdseKeepRef && dasgn.Propagated()) || dasgn.GetWasMayDassign() ||
              (decoupleStatic && varMeExpr != nullptr && varMeExpr->GetOst()->GetMIRSymbol()->IsGlobal());
@@ -630,8 +652,8 @@ bool HDSE::HasNonDeletableExpr(const MeStmt &meStmt) const {
     case OP_iassign: {
       auto &iasgn = static_cast<const IassignMeStmt&>(meStmt);
       auto &ivarMeExpr = static_cast<IvarMeExpr&>(*iasgn.GetLHSVal());
-      return ivarMeExpr.IsVolatile() || ivarMeExpr.IsFinal() ||
-          ExprNonDeletable(*iasgn.GetLHSVal()->GetBase()) || ExprNonDeletable(*iasgn.GetRHS());
+      return ivarMeExpr.IsVolatile() || ivarMeExpr.IsFinal() || ExprNonDeletable(*iasgn.GetLHSVal()->GetBase()) ||
+             ExprNonDeletable(*iasgn.GetRHS());
     }
     default:
       return false;
@@ -860,4 +882,4 @@ void HDSE::DoHDSE() {
   }
   RemoveNotRequiredStmts();
 }
-} // namespace maple
+}  // namespace maple

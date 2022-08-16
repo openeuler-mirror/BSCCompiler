@@ -13,11 +13,13 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_loop_inversion.h"
-#include <iostream>
+
 #include <algorithm>
+#include <iostream>
+
 #include "me_cfg.h"
-#include "me_option.h"
 #include "me_dominance.h"
+#include "me_option.h"
 #include "me_phase_manager.h"
 
 namespace maple {
@@ -121,8 +123,7 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
   // if bb->fallthru is in loopbody, latchBB need convert condgoto and make original target as its fallthru
   bool swapSuccOfLatch = (swapSuccs.find(std::make_pair(&bb, &pred)) != swapSuccs.end());
   if (isDebugFunc) {
-    LogInfo::MapleLogger() << "***loop convert: backedge bb->id " << bb.GetBBId() << " pred->id "
-                           << pred.GetBBId();
+    LogInfo::MapleLogger() << "***loop convert: backedge bb->id " << bb.GetBBId() << " pred->id " << pred.GetBBId();
     if (swapSuccOfLatch) {
       LogInfo::MapleLogger() << " need swap succs\n";
     } else {
@@ -132,9 +133,9 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
   // new latchBB
   BB *latchBB = func.GetCfg()->NewBasicBlock();
   latchBB->SetAttributes(kBBAttrArtificial);
-  latchBB->SetAttributes(kBBAttrIsInLoop); // latchBB is inloop
+  latchBB->SetAttributes(kBBAttrIsInLoop);  // latchBB is inloop
   // update newBB frequency : copy predBB succFreq as latch frequency
-  if (Options::profileUse && func.GetMirFunc()->GetFuncProfData()) {
+  if (func.GetCfg()->UpdateCFGFreq()) {
     int idx = pred.GetSuccIndex(bb);
     ASSERT(idx >= 0 && idx < pred.GetSucc().size(), "sanity check");
     uint64_t freq = pred.GetEdgeFreq(idx);
@@ -144,7 +145,7 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
     bb.SetFrequency(bb.GetFrequency() - freq);
   }
   // update pred bb
-  pred.ReplaceSucc(&bb, latchBB); // replace pred.succ with latchBB and set pred of latchBB
+  pred.ReplaceSucc(&bb, latchBB);  // replace pred.succ with latchBB and set pred of latchBB
   // update pred stmt if needed
   if (pred.GetKind() == kBBGoto) {
     ASSERT(pred.GetAttributes(kBBAttrIsTry) || pred.GetSucc().size() == 1, "impossible");
@@ -194,42 +195,64 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
   }
   latchBB->SetKind(bb.GetKind());
   // update succFreq
-  if (Options::profileUse && func.GetMirFunc()->GetFuncProfData()) {
-    int succFreqSize = bb.GetSuccFreq().size();
-    ASSERT(latchBB->GetSucc().size() == succFreqSize, "sanity check");
-    // copy bb succFreq as latch frequency
-    for (int i = 0; i < succFreqSize; i++) {
-      latchBB->PushBackSuccFreq(bb.GetSuccFreq()[i]);
-    }
-    if (bb.GetFrequency() > 0) {
-      // swap frequency and fixed the frequency value
-      if (swapSuccOfLatch) {
-        ASSERT(latchBB->GetKind() == kBBCondGoto, "impossible");
-        int64_t newftFreq = (latchBB->GetFrequency() == 0 || bb.GetSuccFreq()[1] == 0) ? 0 : 1;
-        int64_t newtgFreq = latchBB->GetFrequency() == 0 ? 0 : (latchBB->GetFrequency() - newftFreq);
-        latchBB->SetSuccFreq(0, newftFreq);
-        latchBB->SetSuccFreq(1, newtgFreq); // loop is changed to do-while format
-        int64_t bbsucc0Freq = bb.GetSucc(0)->GetFrequency() - newtgFreq;
-        int64_t bbsucc1Freq = bb.GetFrequency() - bbsucc0Freq;
-        bb.SetSuccFreq(0, bbsucc0Freq);
-        bb.SetSuccFreq(1, bbsucc1Freq);
-      } else if (latchBB->GetKind() == kBBCondGoto) {
-        int64_t newftFreq = (latchBB->GetFrequency() == 0 || bb.GetSuccFreq()[0] == 0) ? 0 : 1;
-        int64_t newtgFreq = latchBB->GetFrequency() == 0 ? 0 : (latchBB->GetFrequency() - newftFreq);
-        latchBB->SetSuccFreq(0, newftFreq);  // freq to exit BB
-        latchBB->SetSuccFreq(1, newtgFreq); // loop is changed to do-while format
-        // update bb succ frequency
-        int64_t bbsucc0Freq = bb.GetSucc(0)->GetFrequency() - newftFreq;
-        int64_t bbsucc1Freq = bb.GetFrequency() - bbsucc0Freq;
-        bb.SetSuccFreq(0, bbsucc0Freq);
-        bb.SetSuccFreq(1, bbsucc1Freq);
-      } else if (latchBB->GetKind() == kBBFallthru || latchBB->GetKind() == kBBGoto) {
-        int64_t newsuccFreq = (latchBB->GetFrequency() == 0) ? 0 : latchBB->GetSuccFreq()[0] - 1;
-        latchBB->SetSuccFreq(0, newsuccFreq); // loop is changed to do-while format
-        bb.SetSuccFreq(0, bb.GetFrequency());
+  if (func.GetCfg()->UpdateCFGFreq()) {
+    if (latchBB->GetKind() == kBBCondGoto) {
+      BB *succInloop = swapSuccOfLatch ? bb.GetSucc(0) : bb.GetSucc(1);
+      if ((latchBB->GetFrequency() != 0) && (succInloop->GetFrequency() > 0)) {
+        // loop is executed
+        int64_t latchFreq = latchBB->GetFrequency();
+        if (swapSuccOfLatch) {
+          // bb fallthru is in loop, frequency of bb -> exitbb is set 0
+          // latchBB fallthru is loop exit
+          int fallthrudiff = static_cast<int>(bb.GetSucc(0)->GetFrequency() - bb.GetFrequency());
+          if (fallthrudiff >= 0) {
+            bb.SetSuccFreq(0, bb.GetFrequency());
+            bb.SetSuccFreq(1, 0);
+            latchBB->PushBackSuccFreq(latchFreq - fallthrudiff);
+            latchBB->PushBackSuccFreq(fallthrudiff);
+          } else {  // assume loop body executed only once
+            bb.SetSuccFreq(0, bb.GetSucc(0)->GetFrequency());
+            bb.SetSuccFreq(1, bb.GetFrequency() - bb.GetSucc(0)->GetFrequency());
+            latchBB->PushBackSuccFreq(latchBB->GetFrequency());
+            latchBB->PushBackSuccFreq(0);
+          }
+        } else {
+          // bb->fallthru is loop exit, edge frequency of  bb ->exitbb is set 0
+          // latchBB fallthru is in loop
+          int fallthrudiff = static_cast<int>(bb.GetSucc(1)->GetFrequency() - bb.GetFrequency());
+          if (fallthrudiff >= 0) {
+            bb.SetSuccFreq(1, bb.GetFrequency());
+            bb.SetSuccFreq(0, 0);
+            latchBB->PushBackSuccFreq(latchFreq - fallthrudiff);
+            latchBB->PushBackSuccFreq(fallthrudiff);
+          } else {
+            bb.SetSuccFreq(1, bb.GetSucc(0)->GetFrequency());
+            bb.SetSuccFreq(0, bb.GetFrequency() - bb.GetSucc(0)->GetFrequency());
+            latchBB->PushBackSuccFreq(0);
+            latchBB->PushBackSuccFreq(latchBB->GetFrequency());
+          }
+        }
       } else {
-        ASSERT(0, "NYI:: unexpected bb type");
+        // loop is not executed
+        if (latchBB->GetFrequency() != 0) {
+          if (swapSuccOfLatch) {
+            bb.SetSuccFreq(0, 0);
+            bb.SetSuccFreq(1, bb.GetFrequency());
+          } else {
+            bb.SetSuccFreq(0, bb.GetFrequency());
+            bb.SetSuccFreq(1, 0);
+          }
+        }
+        ASSERT(latchBB->GetFrequency() == 0, "sanity check");
+        latchBB->PushBackSuccFreq(0);
+        latchBB->PushBackSuccFreq(0);
       }
+    } else if (latchBB->GetKind() == kBBFallthru || latchBB->GetKind() == kBBGoto) {
+      int64_t newsuccFreq = (latchBB->GetFrequency() == 0) ? 0 : latchBB->GetSuccFreq()[0] - 1;
+      latchBB->SetSuccFreq(0, newsuccFreq);  // loop is changed to do-while format
+      bb.SetSuccFreq(0, bb.GetFrequency());
+    } else {
+      ASSERT(0, "NYI:: unexpected bb type");
     }
   }
   // swap latchBB's succ if needed
@@ -332,8 +355,8 @@ void MeLoopInversion::ExecuteLoopInversion(MeFunction &func, Dominance &dom) {
           }
           if ((NeedConvert(&func, *succ, *tmpPred, localAlloc, swapSuccs))) {
             if (isDebugFunc) {
-              LogInfo::MapleLogger() << "find new backedge " << succ->GetBBId()
-                                     << " <-- " << tmpPred->GetBBId() << '\n';
+              LogInfo::MapleLogger() << "find new backedge " << succ->GetBBId() << " <-- " << tmpPred->GetBBId()
+                                     << '\n';
             }
             backEdges.push_back(std::make_pair(succ, tmpPred));
           }
@@ -362,6 +385,9 @@ bool MELoopInversion::PhaseRun(maple::MeFunction &f) {
   if (meLoopInversion->IsCFGChange()) {
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);
+    if (f.GetCfg()->UpdateCFGFreq() && (f.GetCfg()->DumpIRProfileFile())) {
+      f.GetCfg()->DumpToFile("after-loopinversion", false, true);
+    }
   }
   return true;
 }

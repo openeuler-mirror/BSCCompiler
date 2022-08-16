@@ -13,13 +13,14 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_bb_layout.h"
-#include "me_cfg.h"
+
 #include "bb.h"
+#include "maple_phase.h"
+#include "me_cfg.h"
+#include "me_critical_edge.h"
 #include "me_irmap.h"
 #include "me_option.h"
 #include "me_predict.h"
-#include "maple_phase.h"
-#include "me_critical_edge.h"
 
 // This BB layout strategy strictly obeys source ordering when inside try blocks.
 // This Optimization will reorder the bb layout. it start from the first bb of func.
@@ -114,12 +115,10 @@ void BBLayout::BuildChainForLoops() {
   auto &loops = meLoop->GetMeLoops();
   // sort loops from inner most to outer most
   // need use the same sort rules as prediction?
-  std::stable_sort(loops.begin(), loops.end(), [](const LoopDesc *loop1, const LoopDesc *loop2) {
-    return loop1->nestDepth > loop2->nestDepth;
-  });
+  std::stable_sort(loops.begin(), loops.end(),
+                   [](const LoopDesc *loop1, const LoopDesc *loop2) { return loop1->nestDepth > loop2->nestDepth; });
   // build chain for loops one by one
-  auto *context =
-      layoutAlloc.GetMemPool()->New<MapleVector<bool>>(cfg->NumBBs(), false, layoutAlloc.Adapter());
+  auto *context = layoutAlloc.GetMemPool()->New<MapleVector<bool>>(cfg->NumBBs(), false, layoutAlloc.Adapter());
   for (auto *loop : loops) {
     BuildChainForLoop(loop, context);
   }
@@ -188,13 +187,13 @@ void BBLayout::DoBuildChain(const BB &header, BBChain &chain, const MapleVector<
 }
 
 bool BBLayout::IsCandidateSucc(const BB &bb, const BB &succ, const MapleVector<bool> *context) {
-  if (!IsBBInCurrContext(succ, context)) { // succ must be in the current context (current loop or current func)
+  if (!IsBBInCurrContext(succ, context)) {  // succ must be in the current context (current loop or current func)
     return false;
   }
-  if (bb2chain[succ.GetBBId()] == bb2chain[bb.GetBBId()]) { // bb and succ should belong to different chains
+  if (bb2chain[succ.GetBBId()] == bb2chain[bb.GetBBId()]) {  // bb and succ should belong to different chains
     return false;
   }
-  if (succ.GetBBId() == 1) { // special case, exclude common exit BB
+  if (succ.GetBBId() == 1) {  // special case, exclude common exit BB
     return false;
   }
   return true;
@@ -240,7 +239,7 @@ BB *BBLayout::GetBestSucc(BB &bb, const BBChain &chain, const MapleVector<bool> 
       continue;
     }
     uint32 currEdgeFreq = static_cast<uint32>(bb.GetEdgeFreq(i));  // attention: entryBB->succFreq[i] is always 0
-    if (bb.GetBBId() == 0) {  // special case for common entry BB
+    if (bb.GetBBId() == 0) {                                       // special case for common entry BB
       CHECK_FATAL(bb.GetSucc().size() == 1, "common entry BB should not have more than 1 succ");
       bestSucc = succ;
       break;
@@ -253,7 +252,7 @@ BB *BBLayout::GetBestSucc(BB &bb, const BBChain &chain, const MapleVector<bool> 
   if (bestSucc != nullptr) {
     if (debugChainLayout) {
       LogInfo::MapleLogger() << "Select [range1 succ ]: ";
-      LogInfo::MapleLogger() << bb.GetBBId() <<  " -> " << bestSucc->GetBBId() << std::endl;
+      LogInfo::MapleLogger() << bb.GetBBId() << " -> " << bestSucc->GetBBId() << std::endl;
     }
     return bestSucc;
   }
@@ -267,12 +266,12 @@ BB *BBLayout::GetBestSucc(BB &bb, const BBChain &chain, const MapleVector<bool> 
       continue;
     }
     bool useBBFreq = false;
-    if (useBBFreq) { // use bb freq
+    if (useBBFreq) {                            // use bb freq
       if (header->GetFrequency() > bestFreq) {  // find max bb freq
         bestFreq = header->GetFrequency();
         bestSucc = header;
       }
-    } else { // use edge freq
+    } else {  // use edge freq
       uint32 subBestFreq = 0;
       for (auto *pred : header->GetPred()) {
         uint32 curFreq = static_cast<uint32>(pred->GetEdgeFreq(header));
@@ -595,8 +594,7 @@ void BBLayout::OptimizeBranchTarget(BB &bb) {
     // condgoto's succ layout: [0] fallthru succ, [1] target succ, [2-...] eh succ/wontexit succ
     // goto's succ layout: [0] target succ, [1-...] eh succ/wontexit succ
     BB *brTargetBB = bb.GetKind() == kBBCondGoto ? bb.GetSucc(1) : bb.GetSucc(0);
-    CHECK_FATAL((bb.GetKind() != kBBCondGoto || bb.GetSucc(1) != bb.GetSucc(0)),
-                "target is same as fallthru");
+    CHECK_FATAL((bb.GetKind() != kBBCondGoto || bb.GetSucc(1) != bb.GetSucc(0)), "target is same as fallthru");
     if (brTargetBB->GetAttributes(kBBAttrWontExit)) {
       return;
     }
@@ -608,8 +606,7 @@ void BBLayout::OptimizeBranchTarget(BB &bb) {
     bbVisited[bb.GetBBId().GetIdx()] = true;
     OptimizeBranchTarget(*brTargetBB);
     // optimize stmt
-    BB *newTargetBB =
-        (brTargetBB->GetKind() == kBBCondGoto) ? brTargetBB->GetSucc(1) : brTargetBB->GetSucc(0);
+    BB *newTargetBB = (brTargetBB->GetKind() == kBBCondGoto) ? brTargetBB->GetSucc(1) : brTargetBB->GetSucc(0);
     if (newTargetBB == brTargetBB) {
       return;
     }
@@ -682,11 +679,12 @@ void BBLayout::AddBB(BB &bb) {
   // If the pred bb is goto bb and the target bb of goto bb is the current bb which is be added to layoutBBs, change the
   // goto bb to fallthru bb.
   if (layoutBBs.size() > 1) {
-    BB *predBB = layoutBBs.at(layoutBBs.size() - 2); // Get the pred of bb.
+    BB *predBB = layoutBBs.at(layoutBBs.size() - 2);  // Get the pred of bb.
     if (predBB->GetKind() != kBBGoto) {
       return;
     }
     if (func.GetIRMap() != nullptr) {
+      ASSERT_NOT_NULL(predBB->GetLastMe());
       if (predBB->GetLastMe()->GetOp() == OP_throw) {
         return;
       }
@@ -879,7 +877,6 @@ void BBLayout::RemoveUnreachable(BB &bb) {
   }
 }
 
-
 void BBLayout::UpdateNewBBWithAttrTry(const BB &bb, BB &fallthru) const {
   auto tryBB = &bb;
   fallthru.SetAttributes(kBBAttrIsTry);
@@ -944,6 +941,9 @@ BB *BBLayout::CreateGotoBBAfterCondBB(BB &bb, BB &fallthru) {
   index--;
   fallthru.AddPred(*newFallthru, index);
   newFallthru->SetFrequency(fallthru.GetFrequency());
+  if (cfg->UpdateCFGFreq()) {
+    newFallthru->PushBackSuccFreq(fallthru.GetFrequency());
+  }
   if (enabledDebug) {
     LogInfo::MapleLogger() << "Created fallthru and goto original fallthru" << '\n';
   }
@@ -953,7 +953,9 @@ BB *BBLayout::CreateGotoBBAfterCondBB(BB &bb, BB &fallthru) {
 }
 
 void BBLayout::OptimizeEmptyFallThruBB(BB &bb) {
-  if (needDealWithTryBB) { return; }
+  if (needDealWithTryBB) {
+    return;
+  }
   auto *fallthru = bb.GetSucc().front();
   while (fallthru && (fallthru->GetPred().size() == 1) &&
          (BBEmptyAndFallthru(*fallthru) || BBContainsOnlyGoto(*fallthru)) &&
@@ -963,7 +965,7 @@ void BBLayout::OptimizeEmptyFallThruBB(BB &bb) {
       bb.ReplaceSucc(fallthru, newFallthru);
       ASSERT(fallthru->GetPred().empty(), "fallthru should not has other pred");
       ChangeToFallthruFromCondGoto(bb);
-      bb.GetSucc().resize(1); // resize succ to 1
+      bb.GetSucc().resize(1);  // resize succ to 1
     } else if (newFallthru->GetPred().size() == 1) {
       if (newFallthru->GetBBLabel() != 0) {
         // reset newFallthru label
@@ -981,7 +983,7 @@ void BBLayout::OptimizeEmptyFallThruBB(BB &bb) {
 }
 
 void BBLayout::DumpBBPhyOrder() const {
-  LogInfo::MapleLogger() << func.GetName() << " final BB order " <<  '\n';
+  LogInfo::MapleLogger() << func.GetName() << " final BB order " << '\n';
   for (auto bb : layoutBBs) {
     LogInfo::MapleLogger() << bb->GetBBId();
     if (bb != layoutBBs.back()) {
@@ -1058,8 +1060,7 @@ void BBLayout::LayoutWithoutProf() {
       }
       ASSERT(!(isTry && GetTryOutstanding()), "cannot emit another try if last try has not been ended");
       if (nextBB->GetAttributes(kBBAttrIsTryEnd)) {
-        ASSERT(cfg->GetTryBBFromEndTryBB(nextBB) == nextBB ||
-               IsBBLaidOut(cfg->GetTryBBFromEndTryBB(nextBB)->GetBBId()),
+        ASSERT(cfg->GetTryBBFromEndTryBB(nextBB) == nextBB || IsBBLaidOut(cfg->GetTryBBFromEndTryBB(nextBB)->GetBBId()),
                "cannot emit endtry bb before its corresponding try bb");
       }
     }
@@ -1203,8 +1204,8 @@ void BBLayout::BuildEdges() {
       allEdges.emplace_back(layoutAlloc.GetMemPool()->New<BBEdge>(bb, dest, w));
     }
   }
-  std::stable_sort(allEdges.begin(), allEdges.end(), [](const BBEdge *edge1, const BBEdge *edge2) {
-      return edge1->GetWeight() > edge2->GetWeight(); });
+  std::stable_sort(allEdges.begin(), allEdges.end(),
+                   [](const BBEdge *edge1, const BBEdge *edge2) { return edge1->GetWeight() > edge2->GetWeight(); });
 }
 
 BB *BBLayout::GetBBFromEdges() {
@@ -1213,8 +1214,8 @@ BB *BBLayout::GetBBFromEdges() {
     BB *srcBB = edge->GetSrcBB();
     BB *destBB = edge->GetDestBB();
     if (enabledDebug) {
-      LogInfo::MapleLogger() << srcBB->GetBBId() << "->" << destBB->GetBBId() << " freq "
-                             << srcBB->GetEdgeFreq(destBB) << '\n';
+      LogInfo::MapleLogger() << srcBB->GetBBId() << "->" << destBB->GetBBId() << " freq " << srcBB->GetEdgeFreq(destBB)
+                             << '\n';
     }
 
     if (!laidOut[srcBB->GetBBId()]) {
@@ -1251,7 +1252,7 @@ BB *BBLayout::NextBBProf(BB &bb) {
     return NextBBProf(*succBB);
   }
   // max freq intial
-  uint64 maxFreq  = 0;
+  uint64 maxFreq = 0;
   size_t idx = 0;
   bool found = false;
   for (size_t i = 0; i < bb.GetSucc().size(); ++i) {
@@ -1281,11 +1282,14 @@ void BBLayout::RebuildFreq() {
   auto *hook = phase->GetAnalysisInfoHook();
   hook->ForceEraseAnalysisPhase(func.GetUniqueID(), &MEDominance::id);
   hook->ForceEraseAnalysisPhase(func.GetUniqueID(), &MELoopAnalysis::id);
-  dom = static_cast<MEDominance*>(
-      hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MEDominance::id, func))->GetResult();
+  dom = static_cast<MEDominance*>(hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MEDominance::id, func))
+            ->GetResult();
   meLoop = static_cast<MELoopAnalysis*>(
-      hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MELoopAnalysis::id, func))->GetResult();
-  MePrediction::RebuildFreq(func, *dom, *meLoop);
+               hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MELoopAnalysis::id, func))
+               ->GetResult();
+  if (!cfg->UpdateCFGFreq()) {
+    MePrediction::RebuildFreq(func, *dom, *meLoop);
+  }
 }
 
 void BBLayout::LayoutWithProf(bool useChainLayout) {
@@ -1345,8 +1349,7 @@ void BBLayout::VerifyBB() {
     if (bb->GetKind() == kBBCondGoto) {
       auto *fallthru = bb->GetSucc(0);
       auto *targetBB = bb->GetSucc(1);
-      if (fallthru == targetBB ||
-          (BBEmptyAndFallthru(*fallthru) && (fallthru->GetSucc(0) == targetBB))) {
+      if (fallthru == targetBB || (BBEmptyAndFallthru(*fallthru) && (fallthru->GetSucc(0) == targetBB))) {
         LogInfo::MapleLogger() << "WARN: cond BB " << bb->GetBBId() << " has same target";
       }
     }
@@ -1374,11 +1377,15 @@ bool MEBBLayout::PhaseRun(maple::MeFunction &f) {
   bbLayout->RunLayout();
   f.SetLaidOutBBs(bbLayout->GetBBs());
 
-  if (DEBUGFUNC_NEWPM(f)) {
+  if (DEBUGFUNC_NEWPM(f) || Options::profileUse) {
     // verify CFG : check condBB's succs should be different
     bbLayout->VerifyBB();
     bbLayout->DumpBBPhyOrder();
-    cfg->DumpToFile("afterBBLayout", false);
+    if (cfg->UpdateCFGFreq() && cfg->DumpIRProfileFile()) {
+      cfg->DumpToFile("after-bblayout", false, true);
+    } else {
+      cfg->DumpToFile("afterBBLayout", false);
+    }
   }
   return true;
 }

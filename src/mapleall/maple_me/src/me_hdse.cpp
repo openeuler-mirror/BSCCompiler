@@ -13,11 +13,13 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_hdse.h"
+
 #include <iostream>
+
+#include "hdse.h"
+#include "me_ssa.h"
 #include "ssa_mir_nodes.h"
 #include "ver_symbol.h"
-#include "me_ssa.h"
-#include "hdse.h"
 
 // The hdse phase performs dead store elimination using the well-known algorithm
 // based on SSA.  The algorithm works as follows:
@@ -55,7 +57,7 @@ void MeHDSE::ProcessWhileInfos() {
   if (preMeFunc == nullptr) {
     return;
   }
-  MapleMap<LabelIdx, PreMeWhileInfo *>::iterator it = preMeFunc->label2WhileInfo.begin();
+  MapleMap<LabelIdx, PreMeWhileInfo*>::iterator it = preMeFunc->label2WhileInfo.begin();
   for (; it != preMeFunc->label2WhileInfo.end(); ++it) {
     if (it->second->initExpr != nullptr &&
         (it->second->initExpr->GetMeOp() == maple::kMeOpVar || it->second->initExpr->GetMeOp() == maple::kMeOpReg)) {
@@ -66,7 +68,7 @@ void MeHDSE::ProcessWhileInfos() {
 
 void MeHDSE::BackwardSubstitution() {
   for (DassignMeStmt *dass : backSubsCands) {
-    ScalarMeExpr *rhsscalar = static_cast<ScalarMeExpr *>(dass->GetRHS());
+    ScalarMeExpr *rhsscalar = static_cast<ScalarMeExpr*>(dass->GetRHS());
     if (verstUseCounts[rhsscalar->GetVstIdx()] != 1) {
       continue;
     }
@@ -110,9 +112,8 @@ void MakeEmptyTrysUnreachable(MeFunction &func) {
     }
     BB *endTry = *endTryIt;
     auto &meStmts = tryBB->GetMeStmts();
-    if (tryBB->GetAttributes(kBBAttrIsTry) && !meStmts.empty() &&
-        meStmts.front().GetOp() == OP_try && tryBB->GetMePhiList().empty() &&
-        endTry->GetAttributes(kBBAttrIsTryEnd) && endTry->IsMeStmtEmpty()) {
+    if (tryBB->GetAttributes(kBBAttrIsTry) && !meStmts.empty() && meStmts.front().GetOp() == OP_try &&
+        tryBB->GetMePhiList().empty() && endTry->GetAttributes(kBBAttrIsTryEnd) && endTry->IsMeStmtEmpty()) {
       // we found a try BB followed by an empty endtry BB
       BB *targetBB = endTry->GetSucc(0);
       while (!tryBB->GetPred().empty()) {
@@ -190,6 +191,7 @@ bool MEHdse::PhaseRun(maple::MeFunction &f) {
 
   MeHDSE hdse = MeHDSE(f, *dom, *hMap, aliasClass, DEBUGFUNC_NEWPM(f));
   hdse.hdseKeepRef = MeOption::dseKeepRef;
+  hdse.SetUpdateFreq(Options::profileUse && f.GetMirFunc()->GetFuncProfData());
   if (f.hdseRuns > 2) {
     hdse.SetRemoveRedefine(true);
   }
@@ -198,6 +200,13 @@ bool MEHdse::PhaseRun(maple::MeFunction &f) {
   MakeEmptyTrysUnreachable(f);
   (void)f.GetCfg()->UnreachCodeAnalysis(true);
   f.GetCfg()->WontExitAnalysis();
+  // update frequency
+  if (hdse.UpdateFreq()) {
+    f.GetCfg()->UpdateEdgeFreqWithBBFreq();
+    if (f.GetCfg()->DumpIRProfileFile()) {
+      f.GetCfg()->DumpToFile("after-HDSE" + std::to_string(f.hdseRuns), false, true);
+    }
+  }
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== HDSE =============" << '\n';
     f.Dump(false);

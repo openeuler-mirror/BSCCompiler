@@ -13,30 +13,33 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_cfg.h"
-#include <iostream>
+
 #include <algorithm>
+#include <iostream>
 #include <string>
+
 #include "bb.h"
-#include "ssa_mir_nodes.h"
-#include "me_irmap.h"
-#include "mir_builder.h"
 #include "me_critical_edge.h"
+#include "me_irmap.h"
 #include "me_loop_canon.h"
+#include "mir_builder.h"
 #include "mir_lower.h"
+#include "ssa_mir_nodes.h"
 
 namespace {
 constexpr int kFuncNameLenLimit = 80;
 }
 
 namespace maple {
-#define MATCH_STMT(stmt, kOpCode) do {                                           \
-  while ((stmt) != nullptr && (stmt)->GetOpCode() == OP_comment) {               \
-    (stmt) = (stmt)->GetNext();                                                  \
-  }                                                                              \
-  if ((stmt) == nullptr || (stmt)->GetOpCode() != (kOpCode)) {                   \
-    return false;                                                                \
-  }                                                                              \
-} while (0) // END define
+#define MATCH_STMT(stmt, kOpCode)                                    \
+  do {                                                               \
+    while ((stmt) != nullptr && (stmt)->GetOpCode() == OP_comment) { \
+      (stmt) = (stmt)->GetNext();                                    \
+    }                                                                \
+    if ((stmt) == nullptr || (stmt)->GetOpCode() != (kOpCode)) {     \
+      return false;                                                  \
+    }                                                                \
+  } while (0)  // END define
 // determine if need to be replaced by assertnonnull
 bool MeCFG::IfReplaceWithAssertNonNull(const BB &bb) const {
   const StmtNode *stmt = bb.GetStmtNodes().begin().d();
@@ -308,7 +311,7 @@ bool MeCFG::FindUse(const StmtNode &stmt, StIdx stIdx) const {
         return FindExprUse(*iNode.GetRHS(), stIdx);
       }
     }
-    CASE_OP_ASSERT_NONNULL
+      CASE_OP_ASSERT_NONNULL
     case OP_eval:
     case OP_free:
     case OP_switch: {
@@ -511,7 +514,6 @@ void MeCFG::FixMirCFG() {
   }
 }
 
-
 // replace "if() throw NPE()" with assertnonnull
 void MeCFG::ReplaceWithAssertnonnull() {
   constexpr char rnnTypeName[] =
@@ -682,7 +684,7 @@ void MeCFG::ConvertPhiList2IdentityAssigns(BB &meBB) const {
       DassignNode *dassign = func.GetMIRModule().GetMIRBuilder()->CreateStmtDassign(*st, ost->GetFieldID(), dread2);
       func.GetMeSSATab()->GetStmtsSSAPart().SetSSAPartOf(
           *dassign, func.GetMeSSATab()->GetStmtsSSAPart().GetSSAPartMp()->New<MayDefPartWithVersionSt>(
-              &func.GetMeSSATab()->GetStmtsSSAPart().GetSSAPartAlloc()));
+                        &func.GetMeSSATab()->GetStmtsSSAPart().GetSSAPartAlloc()));
       auto *theSSAPart =
           static_cast<MayDefPartWithVersionSt*>(func.GetMeSSATab()->GetStmtsSSAPart().SSAPartOf(*dassign));
       theSSAPart->SetSSAVar(*((*phiIt).second.GetResult()));
@@ -701,15 +703,15 @@ void MeCFG::ConvertMePhiList2IdentityAssigns(BB &meBB) const {
     CHECK_FATAL(ost, "ost is nullptr!");
     if (ost->IsSymbolOst() && ost->GetIndirectLev() == 0) {
       MePhiNode *varPhi = phiIt->second;
-      auto *dassign = func.GetIRMap()->NewInPool<DassignMeStmt>(
-          static_cast<VarMeExpr*>(varPhi->GetLHS()), varPhi->GetOpnd(0));
+      auto *dassign =
+          func.GetIRMap()->NewInPool<DassignMeStmt>(static_cast<VarMeExpr*>(varPhi->GetLHS()), varPhi->GetOpnd(0));
       dassign->SetBB(varPhi->GetDefBB());
       dassign->SetIsLive(varPhi->GetIsLive());
       meBB.PrependMeStmt(dassign);
     } else if (ost->IsPregOst()) {
       MePhiNode *regPhi = phiIt->second;
-      auto *regAss = func.GetIRMap()->New<AssignMeStmt>(
-          OP_regassign, static_cast<RegMeExpr*>(regPhi->GetLHS()), regPhi->GetOpnd(0));
+      auto *regAss = func.GetIRMap()->New<AssignMeStmt>(OP_regassign, static_cast<RegMeExpr*>(regPhi->GetLHS()),
+                                                        regPhi->GetOpnd(0));
       regPhi->GetLHS()->SetDefByStmt(*regAss);
       regPhi->GetLHS()->SetDefBy(kDefByStmt);
       regAss->SetBB(regPhi->GetDefBB());
@@ -780,6 +782,10 @@ void MeCFG::WontExitAnalysis() {
     newBB->SetKindReturn();
     newBB->SetAttributes(kBBAttrArtificial);
     bb->AddSucc(*newBB);
+    // newBB is added as succ of bb, set freq 0 as its edge frequency
+    if (updateFreq) {
+      bb->PushBackSuccFreq(0);
+    }
     GetCommonExitBB()->AddExit(*newBB);
     bb->FindWillExitBBs(currVisitedBBs); // Mark other bbs in the loop as visited.
   }
@@ -836,15 +842,13 @@ void MeCFG::VerifyLabels() const {
       if (stmtNodes.back().GetOpCode() == OP_throw) {
         continue;
       }
-      ASSERT(
-          GetLabelBBAt(static_cast<GotoNode&>(stmtNodes.back()).GetOffset())->GetBBLabel() ==
-              static_cast<GotoNode&>(stmtNodes.back()).GetOffset(),
-          "undefined label in goto");
+      ASSERT(GetLabelBBAt(static_cast<GotoNode&>(stmtNodes.back()).GetOffset())->GetBBLabel() ==
+                 static_cast<GotoNode&>(stmtNodes.back()).GetOffset(),
+             "undefined label in goto");
     } else if (mirBB->GetKind() == kBBCondGoto) {
-      ASSERT(
-          GetLabelBBAt(static_cast<CondGotoNode&>(stmtNodes.back()).GetOffset())->GetBBLabel() ==
-              static_cast<CondGotoNode&>(stmtNodes.back()).GetOffset(),
-          "undefined label in conditional branch");
+      ASSERT(GetLabelBBAt(static_cast<CondGotoNode&>(stmtNodes.back()).GetOffset())->GetBBLabel() ==
+                 static_cast<CondGotoNode&>(stmtNodes.back()).GetOffset(),
+             "undefined label in conditional branch");
     } else if (mirBB->GetKind() == kBBSwitch) {
       auto &switchStmt = static_cast<SwitchNode&>(stmtNodes.back());
       LabelIdx targetLabIdx = switchStmt.GetDefaultLabel();
@@ -967,7 +971,7 @@ void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs, bool dumpEdge
     return;
   }
   std::ofstream cfgFile;
-  std::streambuf *coutBuf = LogInfo::MapleLogger().rdbuf(); // keep original cout buffer
+  std::streambuf *coutBuf = LogInfo::MapleLogger().rdbuf();  // keep original cout buffer
   std::streambuf *buf = cfgFile.rdbuf();
   LogInfo::MapleLogger().rdbuf(buf);
   const std::string &fileName = ConstructFileNameToDump(prefix);
@@ -981,7 +985,8 @@ void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs, bool dumpEdge
     if (bIt == common_exit()) {
       // specical case for common_exit_bb
       for (auto it = bb->GetPred().begin(); it != bb->GetPred().end(); ++it) {
-        cfgFile << "BB" << (*it)->GetBBId()<< " -> " << "BB" << bb->GetBBId() << "[style=dotted];\n";
+        cfgFile << "BB" << (*it)->GetBBId() << " -> "
+                << "BB" << bb->GetBBId() << "[style=dotted];\n";
       }
       continue;
     }
@@ -990,7 +995,8 @@ void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs, bool dumpEdge
     }
 
     for (auto it = bb->GetSucc().begin(); it != bb->GetSucc().end(); ++it) {
-      cfgFile << "BB" << bb->GetBBId() << " -> " << "BB" << (*it)->GetBBId();
+      cfgFile << "BB" << bb->GetBBId() << " -> "
+              << "BB" << (*it)->GetBBId();
       if (bb == GetCommonEntryBB()) {
         cfgFile << "[style=dotted]";
         continue;
@@ -1014,20 +1020,19 @@ void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs, bool dumpEdge
     }
   }
   if (laidOut != nullptr) {
-    static std::vector<std::string> colors = {
-        "indianred1", "darkorange1", "lightyellow1", "green3", "cyan", "dodgerblue2", "purple2"
-    };
+    static std::vector<std::string> colors = {"indianred1", "darkorange1", "lightyellow1", "green3",
+                                              "cyan",       "dodgerblue2", "purple2"};
     uint32 colorIdx = 0;
     size_t clusterSize = laidOut->size() / colors.size();
     uint32 cnt = 0;
     for (uint32 i = 0; i < laidOut->size(); ++i) {
       auto *bb = (*laidOut)[i];
       auto bbId = bb->GetBBId();
-      std::string bbNameLabel = dumpEdgeFreq ?
-        "BB" + std::to_string(bbId.GetIdx()) + "_freq_" + std::to_string(bb->GetFrequency()) :
-        "BB" + std::to_string(bbId.GetIdx());
-      cfgFile << "BB" << bbId << "[style=filled, color=" << colors[colorIdx % colors.size()] << ", label=" <<
-          bbNameLabel << "__" << i << "]\n";
+      std::string bbNameLabel =
+          dumpEdgeFreq ? "BB" + std::to_string(bbId.GetIdx()) + "_freq_" + std::to_string(bb->GetFrequency())
+                       : "BB" + std::to_string(bbId.GetIdx());
+      cfgFile << "BB" << bbId << "[style=filled, color=" << colors[colorIdx % colors.size()]
+              << ", label=" << bbNameLabel << "__" << i << "]\n";
       ++cnt;
       if (cnt > clusterSize) {
         cnt = 0;
@@ -1148,8 +1153,8 @@ bool MeCFG::UnifyRetBBs() {
   if (func.GetMirFunc()->IsReturnVoid()) {
     newRetBB->SetFirst(mirBuilder->CreateStmtReturn(nullptr));
   } else {
-    unifiedFuncRet = mirBuilder->CreateSymbol(func.GetMirFunc()->GetReturnTyIdx(), "unified_func_ret",
-                                              kStVar, kScAuto, func.GetMirFunc(), kScopeLocal);
+    unifiedFuncRet = mirBuilder->CreateSymbol(func.GetMirFunc()->GetReturnTyIdx(), "unified_func_ret", kStVar, kScAuto,
+                                              func.GetMirFunc(), kScopeLocal);
     newRetBB->SetFirst(mirBuilder->CreateStmtReturn(mirBuilder->CreateExprDread(*unifiedFuncRet)));
   }
   newRetBB->SetLast(newRetBB->GetStmtNodes().begin().d());
@@ -1365,8 +1370,8 @@ void MeCFG::CreateBasicBlocks() {
           }
           break;
         }
-      // fall thru to handle as return
-      [[clang::fallthrough]];
+        // fall thru to handle as return
+        [[clang::fallthrough]];
       case OP_gosub:
       case OP_retsub:
       case OP_return: {
@@ -1398,7 +1403,7 @@ void MeCFG::CreateBasicBlocks() {
           if (!curBB->IsEmpty()) {
             StmtNode *lastStmt = stmt->GetPrev();
             ASSERT(curBB->GetStmtNodes().rbegin().base().d() == nullptr ||
-                   curBB->GetStmtNodes().rbegin().base().d() == lastStmt,
+                       curBB->GetStmtNodes().rbegin().base().d() == lastStmt,
                    "something wrong building BB");
             curBB->SetLast(lastStmt);
             if (curBB->GetKind() == kBBUnknown) {
@@ -1431,7 +1436,7 @@ void MeCFG::CreateBasicBlocks() {
           // prepare a new bb
           StmtNode *lastStmt = stmt->GetPrev();
           ASSERT(curBB->GetStmtNodes().rbegin().base().d() == nullptr ||
-                 curBB->GetStmtNodes().rbegin().base().d() == lastStmt,
+                     curBB->GetStmtNodes().rbegin().base().d() == lastStmt,
                  "something wrong building BB");
           curBB->SetLast(lastStmt);
           if (curBB->GetKind() == kBBUnknown) {
@@ -1462,7 +1467,7 @@ void MeCFG::CreateBasicBlocks() {
           // prepare a new bb
           StmtNode *lastStmt = stmt->GetPrev();
           ASSERT(curBB->GetStmtNodes().rbegin().base().d() == nullptr ||
-                 curBB->GetStmtNodes().rbegin().base().d() == lastStmt,
+                     curBB->GetStmtNodes().rbegin().base().d() == lastStmt,
                  "something wrong building BB");
           curBB->SetLast(lastStmt);
           if (curBB->GetKind() == kBBUnknown) {
@@ -1593,7 +1598,7 @@ void MeCFG::CreateBasicBlocks() {
       }
     }
   } while (nextStmt != nullptr);
-  ASSERT(tryStmt == nullptr, "unclosed try");    // tryandendtry should be one-one mapping
+  ASSERT(tryStmt == nullptr, "unclosed try");      // tryandendtry should be one-one mapping
   ASSERT(lastTryBB == nullptr, "unclosed tryBB");  // tryandendtry should be one-one mapping
   auto *lastBB = curBB;
   if (lastBB->IsEmpty()) {
@@ -1623,8 +1628,7 @@ void MeCFG::BBTopologicalSort(SCCOfBBs &scc) {
       if (succ == nullptr) {
         continue;
       }
-      if (inQueue.find(succ) != inQueue.end() ||
-          std::find(bbs.begin(), bbs.end(), succ) == bbs.end()) {
+      if (inQueue.find(succ) != inQueue.end() || std::find(bbs.begin(), bbs.end(), succ) == bbs.end()) {
         continue;
       }
       bool predAllVisited = true;
@@ -1652,8 +1656,8 @@ void MeCFG::BBTopologicalSort(SCCOfBBs &scc) {
 }
 
 void MeCFG::BuildSCCDFS(BB &bb, uint32 &visitIndex, std::vector<SCCOfBBs*> &sccNodes,
-                        std::vector<uint32> &visitedOrder, std::vector<uint32> &lowestOrder,
-                        std::vector<bool> &inStack, std::stack<uint32> &visitStack) {
+                        std::vector<uint32> &visitedOrder, std::vector<uint32> &lowestOrder, std::vector<bool> &inStack,
+                        std::stack<uint32> &visitStack) {
   uint32 id = bb.UintID();
   visitedOrder[id] = visitIndex;
   lowestOrder[id] = visitIndex;
@@ -1781,7 +1785,7 @@ void MeCFG::UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, M
     }
   } else if (currBB.GetKind() == kBBCondGoto) {
     if (currBB.GetSucc(0) == &newTarget) {
-      return; // no need to update offset for fallthru BB
+      return;  // no need to update offset for fallthru BB
     }
     BB *gotoBB = currBB.GetSucc().at(1);
     ASSERT(gotoBB == &newTarget, "[FUNC: %s]newTarget is not one of CondGoto's succ BB", func.GetName().c_str());
@@ -1819,7 +1823,7 @@ void MeCFG::UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, M
         switchStmt.SetDefaultLabel(label);
       }
       for (size_t i = 0; i < switchStmt.GetSwitchTable().size(); ++i) {
-        LabelIdx  caseLabel = switchStmt.GetSwitchTable().at(i).second;
+        LabelIdx caseLabel = switchStmt.GetSwitchTable().at(i).second;
         if (caseLabel == oldLabelIdx) {
           switchStmt.UpdateCaseLabelAt(i, label);
         }
@@ -1876,7 +1880,7 @@ void MeCFG::ConstructEdgeFreqFromBBFreq() {
 
 // set bb frequency from stmt record
 void MeCFG::ConstructBBFreqFromStmtFreq() {
-  GcovFuncInfo* funcData = func.GetMirFunc()->GetFuncProfData();
+  FuncProfInfo *funcData = func.GetMirFunc()->GetFuncProfData();
   if (!funcData) {
     return;
   }
@@ -1886,13 +1890,14 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
   auto eIt = valid_end();
   for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
     if ((*bIt)->IsEmpty()) continue;
-    StmtNode& first = (*bIt)->GetFirst();
+    StmtNode &first = (*bIt)->GetFirst();
     if (funcData->stmtFreqs.count(first.GetStmtID()) > 0) {
       (*bIt)->SetFrequency(funcData->stmtFreqs[first.GetStmtID()]);
     } else if (funcData->stmtFreqs.count((*bIt)->GetLast().GetStmtID()) > 0) {
       (*bIt)->SetFrequency(funcData->stmtFreqs[(*bIt)->GetLast().GetStmtID()]);
     } else {
-      LogInfo::MapleLogger() << "ERROR::  bb " << (*bIt)->GetBBId() << "frequency is not set" << "\n";
+      LogInfo::MapleLogger() << "ERROR::  bb " << (*bIt)->GetBBId() << "frequency is not set"
+                             << "\n";
       ASSERT(0, "no freq set");
     }
   }
@@ -1913,10 +1918,13 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
   ConstructEdgeFreqFromBBFreq();
   // clear stmtFreqs since cfg frequency is create
   funcData->stmtFreqs.clear();
+
+  // set updateFrequency with true
+  updateFreq = true;
 }
 
 void MeCFG::ConstructStmtFreq() {
-  GcovFuncInfo* funcData = func.GetMirFunc()->GetFuncProfData();
+  FuncProfInfo *funcData = func.GetMirFunc()->GetFuncProfData();
   if (!funcData) {
     return;
   }
@@ -1927,13 +1935,12 @@ void MeCFG::ConstructStmtFreq() {
     auto *bb = *bIt;
     if (bIt == common_entry()) {
       funcData->entryFreq = bb->GetFrequency();
-      funcData->real_entryfreq = funcData->entryFreq;
+      funcData->realEntryfreq = funcData->entryFreq;
     }
     for (auto &stmt : bb->GetStmtNodes()) {
       Opcode op = stmt.GetOpCode();
       // record bb start/end stmt
-      if (stmt.GetStmtID() == bb->GetFirst().GetStmtID() ||
-          stmt.GetStmtID() == bb->GetLast().GetStmtID() ||
+      if (stmt.GetStmtID() == bb->GetFirst().GetStmtID() || stmt.GetStmtID() == bb->GetLast().GetStmtID() ||
           IsCallAssigned(op) || op == OP_call) {
         funcData->stmtFreqs[stmt.GetStmtID()] = bb->GetFrequency();
       }
@@ -1943,39 +1950,106 @@ void MeCFG::ConstructStmtFreq() {
 
 // bb frequency may be changed in transform phase,
 // update edgeFreq with new BB frequency by scale
-void MeCFG::UpdateEdgeFreqWithNewBBFreq() {
-  for (size_t idx = 0; idx < bbVec.size(); ++idx) {
-    BB *currBB = bbVec[idx];
-    if (currBB == nullptr || currBB->GetSucc().empty()) {
-      continue;
+void MeCFG::UpdateEdgeFreqWithBBFreq() {
+  BuildSCC();
+  for (size_t i = 0; i < GetSccTopologicalVec().size(); ++i) {
+    SCCOfBBs *scc = GetSccTopologicalVec()[i];
+    CHECK_FATAL(scc != nullptr, "scc must not be null");
+    if (scc->GetBBs().size() > 1) {
+      BBTopologicalSort(*scc);
     }
-    // make bb frequency and succs frequency consistent
-    currBB->UpdateEdgeFreqs();
+    const uint32 maxLoopCount = 2;
+    unsigned loopCount = scc->GetBBs().size() > 1 ? maxLoopCount : 1;
+    for (unsigned j = 0; j < loopCount; ++j) {
+      for (BB *bb : scc->GetBBs()) {
+        if (bb == nullptr) {
+          continue;
+        }
+        // collect pred total except entry
+        if (!bb->GetAttributes(kBBAttrIsEntry)) {
+          int64_t inputFreq = 0;
+          for (auto *pred : bb->GetPred()) {
+            int idx = pred->GetSuccIndex(*bb);
+            ASSERT(idx >= 0 && idx < pred->GetSuccFreq().size(), "sanity check");
+            inputFreq += static_cast<int64_t>(pred->GetSuccFreq()[static_cast<unsigned long>(idx)]);
+          }
+          bb->SetFrequency(static_cast<uint32>(inputFreq));
+        }
+        // make bb frequency and succs frequency consistent
+        bb->UpdateEdgeFreqs(false);
+      }
+    }
   }
 }
 
-void MeCFG::VerifyBBFreq() {
+void MeCFG::ClearFuncFreqInfo() {
+  SetUpdateCFGFreq(false);
+  func.GetMirFunc()->SetFuncProfData(nullptr);
+  auto &bbVecLoc = GetAllBBs();
+  for (size_t i = 0; i < bbVecLoc.size(); ++i) {  // skip common entry and common exit
+    auto *bb = bbVecLoc[i];
+    if (bb == nullptr) {
+      continue;
+    }
+    bb->SetFrequency(0);
+    bb->GetSuccFreq().clear();
+  }
+}
+
+// return value is 0 means pass verification, else has problem
+int MeCFG::VerifyBBFreq(bool checkFatal) {
+  int64_t entryFreq = static_cast<int64_t>(func.GetMirFunc()->GetFuncProfData()->GetFuncFrequency());
+  ASSERT(entryFreq >= 0, "sanity check");
+  bool entryIsZero = entryFreq == 0 ? true : false;
   for (size_t i = 2; i < bbVec.size(); ++i) {  // skip common entry and common exit
     auto *bb = bbVec[i];
     if (bb == nullptr || bb->GetAttributes(kBBAttrIsEntry) || bb->GetAttributes(kBBAttrIsExit)) {
       continue;
     }
-    // wontexit bb may has wrong succ, skip it
-    if (bb->GetSuccFreq().size() != bb->GetSucc().size() && !bb->GetAttributes(kBBAttrWontExit)) {
-      CHECK_FATAL(false, "VerifyBBFreq: succFreq size != succ size");
+    // check case 1: entry count is zero, internal bb has frequency value > 0
+    if (entryIsZero && bb->GetFrequency() > 0) {
+      if (checkFatal) {
+        LogInfo::MapleLogger() << func.GetName() << "wrong BB " << bb->GetBBId() << std::endl;
+        CHECK_FATAL(false, "VerifyBBFreq: function entryFreq is zero but internal bb frequency > 0");
+      } else {
+        ClearFuncFreqInfo();
+        return 1;
+      }
     }
-    // bb freq == sum(out edge freq)
+    // check case 2: bb succ frequence numbers should be equal to succ number except wontexit bb
+    // may has wrong succ, skip it
+    if (bb->GetSuccFreq().size() != bb->GetSucc().size() && !bb->GetAttributes(kBBAttrWontExit)) {
+      if (checkFatal) {
+        LogInfo::MapleLogger() << func.GetName() << "wrong BB " << bb->GetBBId() << std::endl;
+        CHECK_FATAL(false, "VerifyBBFreq: succFreq size != succ size");
+      } else {
+        ClearFuncFreqInfo();
+        return 1;
+      }
+    }
+    // check case 3: bb freq == sum(out edge freq)
     uint64 succSumFreq = 0;
     for (auto succFreq : bb->GetSuccFreq()) {
       succSumFreq += succFreq;
     }
-    if (succSumFreq != bb->GetFrequency()) {
-      LogInfo::MapleLogger() << "[VerifyFreq failure] BB" << bb->GetBBId() << " freq: " <<
-          bb->GetFrequency() << ", all succ edge freq sum: " << succSumFreq << std::endl;
-      LogInfo::MapleLogger() << func.GetName() << std::endl;
-      CHECK_FATAL(false, "VerifyFreq failure: bb freq != succ freq sum");
+    if (succSumFreq == bb->GetFrequency()) {
+      continue;
+    }
+    int64 diff = static_cast<int64>(succSumFreq - bb->GetFrequency());
+    diff = diff >= 0 ? diff : -diff;
+    if (diff > 1) {
+      if (checkFatal) {
+        LogInfo::MapleLogger() << func.GetName() << "wrong BB " << bb->GetBBId() << std::endl;
+        LogInfo::MapleLogger() << " freq: " << bb->GetFrequency() << ", all succ edge freq sum: " << succSumFreq
+                               << std::endl;
+        CHECK_FATAL(false, "VerifyFreq failure: bb freq != succ freq sum");
+      } else {
+        ClearFuncFreqInfo();
+        return 1;
+      }
     }
   }
+  return 0;
 }
 
 bool MEMeCfg::PhaseRun(MeFunction &f) {
@@ -2009,31 +2083,34 @@ bool MEMeCfg::PhaseRun(MeFunction &f) {
   if (!f.GetMIRModule().IsJavaModule() && MeOption::unifyRets) {
     theCFG->UnifyRetBBs();
   }
+  theCFG->Verify();
   // construct bb freq from stmt freq
   if (Options::profileUse && f.GetMirFunc()->GetFuncProfData()) {
     theCFG->ConstructBBFreqFromStmtFreq();
+    if (theCFG->DumpIRProfileFile()) {
+      std::string fileName = "after-mecfgbuild";
+      if (f.IsPme()) {
+        static_cast<void>(fileName.append("-lfo"));
+      } else {
+        static_cast<void>(fileName.append("-mplme"));
+      }
+      theCFG->DumpToFile(fileName, false, true);
+    }
   }
-  theCFG->Verify();
   return false;
 }
 
 bool MECfgVerifyFrequency::PhaseRun(MeFunction &f) {
-  if (Options::profileUse && f.GetMirFunc()->GetFuncProfData()) {
-    f.GetCfg()->VerifyBBFreq();
+  // if transform pass is not fully support, set disableFreqInfo to true
+  // function profile information will be deleted after verification phase
+  if (f.GetCfg()->UpdateCFGFreq()) {
+    static_cast<void>(f.GetCfg()->VerifyBBFreq());
   }
-  // hack code here: no use profile data after verifycation pass since
-  // following tranform phases related of cfg change are not touched
-  f.GetMirFunc()->SetFuncProfData(nullptr);
-  auto &bbVec = f.GetCfg()->GetAllBBs();
-  for (size_t i = 0; i < bbVec.size(); ++i) {  // skip common entry and common exit
-    auto *bb = bbVec[i];
-    if (bb == nullptr) {
-      continue;
-    }
-    bb->SetFrequency(0);
-    bb->GetSuccFreq().clear();
-  }
-
+#ifdef disableFreqInfo
+  //if (!disableFreqInfo) {return falsea};
+  // clear function profile information
+  f.GetCfg()->ClearFuncFreqInfo();
+#endif
   return false;
 }
 }  // namespace maple
