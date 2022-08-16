@@ -607,7 +607,6 @@ class DebugInfo {
         funcScopeLows(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
         funcScopeHighs(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
         funcScopeIdStatus(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
-        typedefStrIdxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         typedefStrIdxTyIdxMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         constTypeDieMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         volatileTypeDieMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
@@ -657,9 +656,6 @@ class DebugInfo {
   // build tree to populate withChildren, sibling, firstChild
   // also insert DW_AT_sibling attributes when needed
   void BuildDieTree();
-
-  // replace type idx with die id in DW_AT_type attributes
-  void FillTypeAttrWithDieId();
 
   void BuildAbbrev();
   uint32 GetAbbrevId(DBGAbbrevEntryVec *vec, DBGAbbrevEntry *entry) const;
@@ -763,8 +759,8 @@ class DebugInfo {
   DBGDie *GetOrCreatePrimTypeDie(MIRType *ty);
   DBGDie *GetOrCreateTypeDie(TyIdx tyidx);
   DBGDie *GetOrCreateTypeDie(MIRType *type);
-  DBGDie *GetOrCreateTypeDie(AttrKind attr, DBGDie *typedie);
-  DBGDie *GetOrCreateTypeDie(TypeAttrs attrs, DBGDie *typedie);
+  DBGDie *GetOrCreateTypeDie(AttrKind attr, DBGDie *typeDie);
+  DBGDie *GetOrCreateTypeDie(TypeAttrs attrs, DBGDie *typeDie);
   DBGDie *GetOrCreatePointTypeDie(const MIRPtrType *ptrType);
   DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *arrayType);
   DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
@@ -851,7 +847,6 @@ class DebugInfo {
   MapleMap<MIRFunction *, std::map<uint32, uint8>> funcScopeIdStatus;
 
   /* alias type */
-  MapleMap<uint32, uint32> typedefStrIdxDieIdMap;
   MapleMap<uint32, uint32> typedefStrIdxTyIdxMap;
   MapleMap<uint32, uint32> constTypeDieMap;
   MapleMap<uint32, uint32> volatileTypeDieMap;
