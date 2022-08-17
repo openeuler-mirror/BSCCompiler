@@ -449,29 +449,27 @@ void DebugInfo::Finish() {
   ComputeSizeAndOffsets();
 }
 
-void DebugInfo::BuildDebugInfo() {
-  ASSERT(module->GetDbgInfo(), "null dbgInfo");
-
-  Init();
-
-  // setup debug info for enum types
+void DebugInfo::BuildDebugInfoEnums() {
   auto size = GlobalTables::GetEnumTable().enumTable.size();
   for (size_t i = 0; i < size; ++i) {
     DBGDie *die = GetOrCreateEnumTypeDie(i);
     compUnit->AddSubVec(die);
   }
+}
 
-  // setup debug info for typedef types
+void DebugInfo::BuildDebugInfoTypedefs() {
   for (auto it : GlobalTables::GetTypedefTable().GetTypedefNameMap()) {
     module->GetDbgInfo()->AddTypedefMap(it.first, it.second);
   }
+
   for (auto it : typedefStrIdxTyIdxMap) {
     (void)GetOrCreateTypeDie(TyIdx(it.second));
     DBGDie *die = GetOrCreateTypedefDie(GStrIdx(it.first), TyIdx(it.second));
     compUnit->AddSubVec(die);
   }
+}
 
-  // containner types
+void DebugInfo::BuildDebugInfoContainers() {
   for (auto it : module->GetTypeNameTab()->GetGStrIdxToTyIdxMap()) {
     TyIdx tyIdx = it.second;
     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx.GetIdx());
@@ -493,8 +491,9 @@ void DebugInfo::BuildDebugInfo() {
         break;
     }
   }
+}
 
-  // setup debug info for global symbols
+void DebugInfo::BuildDebugInfoGlobalSymbols() {
   for (size_t i = 0; i < GlobalTables::GetGsymTable().GetSymbolTableSize(); ++i) {
     MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(static_cast<uint32>(i));
     if (mirSymbol == nullptr || mirSymbol->IsDeleted() || mirSymbol->GetStorageClass() == kScUnused ||
@@ -506,12 +505,9 @@ void DebugInfo::BuildDebugInfo() {
       compUnit->AddSubVec(vdie);
     }
   }
+}
 
-  // handle global scope
-  MIRScope *scope = module->GetScope();
-  AddScopeDie(scope, false);
-
-  // setup debug info for functions
+void DebugInfo::BuildDebugInfoFunctions() {
   for (auto func : GlobalTables::GetFunctionTable().GetFuncTable()) {
     // the first one in funcTable is nullptr
     if (!func) {
@@ -527,12 +523,36 @@ void DebugInfo::BuildDebugInfo() {
     }
     // function def
     if (funcDefStrIdxDieIdMap.find(func->GetNameStrIdx().GetIdx()) == funcDefStrIdxDieIdMap.end()) {
-      DBGDie *fdie = GetOrCreateFuncDefDie(func, 0);
+      DBGDie *fdie = GetOrCreateFuncDefDie(func);
       if (!func->GetClassTyIdx().GetIdx() && func->GetBody()) {
         compUnit->AddSubVec(fdie);
       }
     }
   }
+}
+
+void DebugInfo::BuildDebugInfo() {
+  ASSERT(module->GetDbgInfo(), "null dbgInfo");
+
+  Init();
+
+  // setup debug info for enum types
+  BuildDebugInfoEnums();
+
+  // setup debug info for typedef types
+  BuildDebugInfoTypedefs();
+
+  // containner types
+  BuildDebugInfoContainers();
+
+  // setup debug info for global symbols
+  BuildDebugInfoGlobalSymbols();
+
+  // handle global scope
+  AddScopeDie(module->GetScope(), false);
+
+  // setup debug info for functions
+  BuildDebugInfoFunctions();
 
   // finalize debug info
   Finish();
@@ -770,7 +790,25 @@ bool LIsCompilerGenerated(const MIRFunction *func) {
   return ((func->GetName().c_str())[0] != 'L');
 }
 
-DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum) {
+void DebugInfo::CreateFuncLocalSymbolsDies(MIRFunction *func, DBGDie *die) {
+  if (func->GetSymTab()) {
+    // local variables, start from 1
+    for (uint32 i = 1; i < func->GetSymTab()->GetSymbolTableSize(); i++) {
+      MIRSymbol *var = func->GetSymTab()->GetSymbolFromStIdx(i);
+      DBGDie *vdie = CreateVarDie(var);
+      if (vdie == nullptr) {
+        continue;
+      }
+      die->AddSubVec(vdie);
+      // for C, source variable names will be used instead of mangloed maple variables
+      if (module->IsCModule()) {
+        vdie->SetKeep(false);
+      }
+    }
+  }
+}
+
+DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func) {
   uint32 funcnameidx = func->GetNameStrIdx().GetIdx();
   if (funcDefStrIdxDieIdMap.find(funcnameidx) != funcDefStrIdxDieIdMap.end()) {
     uint32 id = funcDefStrIdxDieIdMap[funcnameidx];
@@ -783,7 +821,7 @@ DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum) {
   funcDefStrIdxDieIdMap[funcnameidx] = die->GetId();
 
   die->AddAttr(DW_AT_specification, DW_FORM_ref4, funcdecldie->GetId());
-  die->AddAttr(DW_AT_decl_line, DW_FORM_data4, lnum);
+  die->AddAttr(DW_AT_decl_line, DW_FORM_data4, 0);
 
   if (!func->IsReturnVoid()) {
     auto returnType = func->GetReturnType();
@@ -808,21 +846,7 @@ DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum) {
     die->AddSubVec(pdie);
   }
 
-  if (func->GetSymTab()) {
-    // local variables, start from 1
-    for (uint32 i = 1; i < func->GetSymTab()->GetSymbolTableSize(); i++) {
-      MIRSymbol *var = func->GetSymTab()->GetSymbolFromStIdx(i);
-      DBGDie *vdie = CreateVarDie(var);
-      if (vdie == nullptr) {
-        continue;
-      }
-      die->AddSubVec(vdie);
-      // for C, source variable names will be used instead of mangloed maple variables
-      if (module->IsCModule()) {
-        vdie->SetKeep(false);
-      }
-    }
-  }
+  CreateFuncLocalSymbolsDies(func, die);
 
   // add scope die
   AddScopeDie(func->GetScope(), true);
@@ -952,11 +976,10 @@ DBGDie *DebugInfo::GetOrCreateTypeDie(MIRType *type) {
   }
 
   uint32 sid = type->GetNameStrIdx().GetIdx();
-  if (sid != 0)
-    if (stridxDieIdMap.find(sid) != stridxDieIdMap.end()) {
-      uint32 id = stridxDieIdMap[sid];
-      return idDieMap[id];
-    }
+  if (sid != 0 && stridxDieIdMap.find(sid) != stridxDieIdMap.end()) {
+    uint32 id = stridxDieIdMap[sid];
+    return idDieMap[id];
+  }
 
   if (type->GetTypeIndex() == static_cast<uint32>(type->GetPrimType())) {
     return GetOrCreatePrimTypeDie(type);
@@ -1245,7 +1268,70 @@ DBGDie *DebugInfo::GetOrCreateStructTypeDie(const MIRType *type) {
   return die;
 }
 
-// shared between struct and union
+void DebugInfo::CreateStructTypeFieldsDies(const MIRStructType *structType, DBGDie *die) {
+  uint32 prevBits = 0;
+  for (size_t i = 0; i < structType->GetFieldsSize(); i++) {
+    MIRType *ety = structType->GetElemType(static_cast<uint32>(i));
+    FieldPair fp = structType->GetFieldsElemt(i);
+    if (ety->IsMIRBitFieldType()) {
+      MIRBitFieldType *bfty = static_cast<MIRBitFieldType*>(ety);
+      DBGDie *bfdie = CreateBitfieldDie(bfty, fp.first, prevBits);
+      die->AddSubVec(bfdie);
+      if (die->GetTag() == DW_TAG_union_type) {
+        continue;
+      }
+
+      prevBits = (prevBits + bfty->GetFieldSize()) < GetPrimTypeSize(bfty->GetPrimType()) * k8BitSize ?
+                 (prevBits + bfty->GetFieldSize()) : 0;
+    } else {
+      prevBits = 0;
+      DBGDie *fdie = CreateFieldDie(fp, 0);
+      die->AddSubVec(fdie);
+
+      // update field type with alias info
+      MIRAlias *alias = structType->GetAlias();
+      if (!alias) {
+        continue;
+      }
+
+      for (auto &a : alias->GetAliasVarMap()) {
+        GStrIdx mplIdx = a.first;
+        if (a.first == fp.first) {
+          DBGDie *tdie = GetAliasVarTypeDie(a.second, fp.second.first);
+          (void)(fdie->SetAttr(DW_AT_type, tdie->GetId()));
+          break;
+        }
+      }
+    }
+  }
+}
+
+void DebugInfo::CreateStructTypeParentFieldsDies(const MIRStructType *structType, DBGDie *die) {
+  for (size_t i = 0; i < structType->GetParentFieldsSize(); i++) {
+    FieldPair fp = structType->GetParentFieldsElemt(i);
+    DBGDie *fdie = CreateFieldDie(fp, 0);
+    die->AddSubVec(fdie);
+  }
+}
+
+void DebugInfo::CreateStructTypeMethodsDies(const MIRStructType *structType, DBGDie *die) {
+  // member functions decl
+  for (auto fp : structType->GetMethods()) {
+    MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(fp.first.Idx());
+    ASSERT((symbol != nullptr) && symbol->GetSKind() == kStFunc, "member function symbol not exist");
+    MIRFunction *func = symbol->GetValue().mirFunc;
+    ASSERT(func, "member function not exist");
+    DBGDie *fdie = GetOrCreateFuncDeclDie(func);
+    die->AddSubVec(fdie);
+    if (func->GetBody()) {
+      // member functions defination, these die are global
+      DBGDie *fdie = GetOrCreateFuncDefDie(func);
+      compUnit->AddSubVec(fdie);
+    }
+  }
+}
+
+// shared between struct and union, also used as part by class and interface
 DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *structType, bool update) {
   DBGDie *die = nullptr;
 
@@ -1273,72 +1359,15 @@ DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *stru
   PushParentDie(die);
 
   // fields
-  uint32 prevBits = 0;
-  for (size_t i = 0; i < structType->GetFieldsSize(); i++) {
-    MIRType *ety = structType->GetElemType(static_cast<uint32>(i));
-    FieldPair fp = structType->GetFieldsElemt(i);
-    if (ety->IsMIRBitFieldType()) {
-      MIRBitFieldType *bfty = static_cast<MIRBitFieldType*>(ety);
-      DBGDie *bfdie = CreateBitfieldDie(bfty, fp.first, prevBits);
-      die->AddSubVec(bfdie);
-      if (die->GetTag() == DW_TAG_union_type) {
-        continue;
-      }
-
-      prevBits = (prevBits + bfty->GetFieldSize()) < GetPrimTypeSize(bfty->GetPrimType()) * k8BitSize ?
-                 (prevBits + bfty->GetFieldSize()) : 0;
-    } else {
-      prevBits = 0;
-      DBGDie *fdie = CreateFieldDie(fp, 0);
-
-      // update field type with alias info
-      MIRAlias *alias = structType->GetAlias();
-      if (alias) {
-        for (auto &a : alias->GetAliasVarMap()) {
-          GStrIdx mplIdx = a.first;
-          if (a.first == fp.first) {
-            DBGDie *tdie = GetAliasVarTypeDie(a.second, fp.second.first);
-            (void)(fdie->SetAttr(DW_AT_type, tdie->GetId()));
-            break;
-          }
-        }
-      }
-
-      die->AddSubVec(fdie);
-    }
-  }
+  CreateStructTypeFieldsDies(structType, die);
 
   // parentFields
-  for (size_t i = 0; i < structType->GetParentFieldsSize(); i++) {
-    FieldPair fp = structType->GetParentFieldsElemt(i);
-    DBGDie *fdie = CreateFieldDie(fp, 0);
-    die->AddSubVec(fdie);
-  }
+  CreateStructTypeParentFieldsDies(structType, die);
 
-  // member functions decl
-  for (auto fp : structType->GetMethods()) {
-    MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(fp.first.Idx());
-    ASSERT((symbol != nullptr) && symbol->GetSKind() == kStFunc, "member function symbol not exist");
-    MIRFunction *func = symbol->GetValue().mirFunc;
-    ASSERT(func, "member function not exist");
-    DBGDie *fdie = GetOrCreateFuncDeclDie(func);
-    die->AddSubVec(fdie);
-  }
+  // member functions
+  CreateStructTypeMethodsDies(structType, die);
 
   PopParentDie();
-
-  // member functions defination, these die are global
-  for (auto fp : structType->GetMethods()) {
-    MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(fp.first.Idx());
-    ASSERT(symbol && symbol->GetSKind() == kStFunc, "member function symbol not exist");
-    MIRFunction *func = symbol->GetValue().mirFunc;
-    if (!func->GetBody()) {
-      continue;
-    }
-    ASSERT(func, "member function not exist");
-    DBGDie *fdie = GetOrCreateFuncDefDie(func, 0);
-    compUnit->AddSubVec(fdie);
-  }
 
   return die;
 }
@@ -1587,6 +1616,23 @@ void DebugInfo::ComputeSizeAndOffset(DBGDie *die, uint32 &cuOffset) {
     // Each child chain is terminated with a zero byte, adjust the offset.
     cuOffset += sizeof(int8);
   }
+}
+
+bool DebugInfo::IsScopeIdEmited(MIRFunction *func, uint32 scopeId) {
+  auto it = funcScopeIdStatus.find(func);
+  if (it == funcScopeIdStatus.end()) {
+    return false;
+  }
+
+  auto scopeIdIt = it->second.find(scopeId);
+  if (scopeIdIt == it->second.end()) {
+    return false;
+  }
+
+  if (scopeIdIt->second != kAllEmited) {
+    return false;
+  }
+  return true;
 }
 
 void DebugInfo::ClearDebugInfo() {

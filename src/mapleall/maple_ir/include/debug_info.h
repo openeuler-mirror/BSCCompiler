@@ -619,94 +619,58 @@ class DebugInfo {
 
   virtual ~DebugInfo() {}
 
+  void BuildDebugInfo();
   void ClearDebugInfo();
+  void Dump(int indent);
 
-  void InitMsg() {
-    compileMsg = module->GetMemPool()->New<DBGCompileMsgInfo>();
-  }
+  DBGDie *GetDie(const MIRFunction *func);
+  DBGDie *GetLocalDie(MIRFunction *func, GStrIdx strIdx);
+  DBGDieAttr *CreateAttr(DwAt at, DwForm form, uint64 val) const;
 
-  void UpdateMsg(uint32 lnum, const char *line) {
-    compileMsg->UpdateMsg(lnum, line);
-  }
+  bool IsScopeIdEmited(MIRFunction *func, uint32 scopeId);
 
-  void SetErrPos(uint32 lnum, uint32 cnum) {
-    compileMsg->SetErrPos(lnum, cnum);
-  }
+  void GetCrossScopeId(MIRFunction *func,
+                       std::unordered_set<uint32> &idSet,
+                       bool isLow,
+                       const SrcPosition &oldSrcPos,
+                       const SrcPosition &newSrcPos);
 
-  void EmitMsg() {
-    compileMsg->EmitMsg();
-  }
+  void ComputeSizeAndOffsets();
 
   DBGDie *GetDie(uint32 id) {
     return idDieMap[id];
-  }
-
-  DBGDie *GetDummyTypeDie() {
-    return dummyTypeDie;
-  }
-
-  DBGDie *GetDie(const MIRFunction *func);
-
-  void Init();
-  void Finish();
-  void SetupCU();
-  void BuildDebugInfo();
-  void Dump(int indent);
-
-  // build tree to populate withChildren, sibling, firstChild
-  // also insert DW_AT_sibling attributes when needed
-  void BuildDieTree();
-
-  void BuildAbbrev();
-  uint32 GetAbbrevId(DBGAbbrevEntryVec *vec, DBGAbbrevEntry *entry) const;
-
-  DBGDie *GetGlobalDie(const GStrIdx &strIdx);
-
-  void SetLocalDie(GStrIdx strIdx, const DBGDie *die);
-  void SetLocalDie(MIRFunction *func, GStrIdx strIdx, const DBGDie *die);
-  DBGDie *GetLocalDie(GStrIdx strIdx);
-  DBGDie *GetLocalDie(MIRFunction *func, GStrIdx strIdx);
-
-  LabelIdx GetLabelIdx(GStrIdx strIdx);
-  LabelIdx GetLabelIdx(MIRFunction *func, GStrIdx strIdx);
-  void SetLabelIdx(GStrIdx strIdx, LabelIdx labIdx);
-  void SetLabelIdx(MIRFunction *func, GStrIdx strIdx, LabelIdx labIdx);
-
-  uint32 GetMaxId() const {
-    return maxId;
-  }
-
-  uint32 GetIncMaxId() {
-    return maxId++;
-  }
-
-  DBGDie *GetIdDieMapAt(uint32 i) {
-    return idDieMap[i];
   }
 
   void SetIdDieMap(uint32 i, DBGDie *die) {
     idDieMap[i] = die;
   }
 
-  size_t GetParentDieSize() const {
-    return parentDieStack.size();
+  DBGDie *GetDummyTypeDie() {
+    return dummyTypeDie;
   }
 
   DBGDie *GetParentDie() {
     return parentDieStack.top();
   }
 
-  void PushParentDie(DBGDie *die) {
-    parentDieStack.push(die);
-  }
-
-  void PopParentDie() {
-    parentDieStack.pop();
-  }
-
   void ResetParentDie() {
     parentDieStack.clear();
     parentDieStack.push(compUnit);
+  }
+
+  uint32 GetDebugInfoLength() const {
+    return debugInfoLength;
+  }
+
+  void SetFuncScopeIdStatus(MIRFunction *func, uint32 scopeId, EmitStatus status) {
+    if (funcScopeIdStatus[func].find(scopeId) == funcScopeIdStatus[func].end()) {
+      funcScopeIdStatus[func][scopeId] = 0;
+    }
+    funcScopeIdStatus[func][scopeId] |= (1 << status);
+  }
+
+  MapleVector<DBGAbbrevEntry *> &GetAbbrevVec() {
+    return abbrevVec;
   }
 
   void AddStrps(uint32 val) {
@@ -717,100 +681,33 @@ class DebugInfo {
     return strps;
   }
 
-  uint32 GetDebugInfoLength() const {
-    return debugInfoLength;
+  uint32 GetMaxId() const {
+    return maxId;
   }
 
-  MapleVector<DBGAbbrevEntry *> &GetAbbrevVec() {
-    return abbrevVec;
+  uint32 GetIncMaxId() {
+    return maxId++;
   }
 
   DBGDie *GetCompUnit() const {
     return compUnit;
   }
 
-  MIRFunction *GetCurFunction() {
-    return curFunction;
+  size_t GetParentDieSize() const {
+    return parentDieStack.size();
   }
 
-  void SetCurFunction(MIRFunction *func) {
-    curFunction = func;
+  void SetErrPos(uint32 lnum, uint32 cnum) {
+    compileMsg->SetErrPos(lnum, cnum);
   }
 
-  void SetTyidxDieIdMap(const TyIdx tyIdx, const DBGDie *die) {
-    tyIdxDieIdMap[tyIdx.GetIdx()] = die->GetId();
+  void UpdateMsg(uint32 lnum, const char *line) {
+    compileMsg->UpdateMsg(lnum, line);
   }
 
-  DBGDieAttr *CreateAttr(DwAt at, DwForm form, uint64 val) const;
-
-  DBGDie *CreateVarDie(MIRSymbol *sym);
-  DBGDie *CreateVarDie(MIRSymbol *sym, GStrIdx strIdx); // use alt name
-  DBGDie *CreateFormalParaDie(MIRFunction *func, MIRType *type, MIRSymbol *sym);
-  DBGDie *CreateFieldDie(maple::FieldPair pair, uint32 lnum);
-  DBGDie *CreateBitfieldDie(const MIRBitFieldType *type, GStrIdx sidx, uint32 prevBits);
-  DBGDie *CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *structType, bool update = false);
-  DBGDie *CreateClassTypeDie(GStrIdx strIdx, const MIRClassType *classType);
-  DBGDie *CreateInterfaceTypeDie(GStrIdx strIdx, const MIRInterfaceType *interfaceType);
-  DBGDie *CreatePointedFuncTypeDie(MIRFuncType *fType);
-
-  DBGDie *GetOrCreateLabelDie(LabelIdx labid);
-  DBGDie *GetOrCreateFuncDeclDie(MIRFunction *func);
-  DBGDie *GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum);
-  DBGDie *GetOrCreatePrimTypeDie(MIRType *ty);
-  DBGDie *GetOrCreateTypeDie(TyIdx tyidx);
-  DBGDie *GetOrCreateTypeDie(MIRType *type);
-  DBGDie *GetOrCreateTypeDie(AttrKind attr, DBGDie *typeDie);
-  DBGDie *GetOrCreateTypeDie(TypeAttrs attrs, DBGDie *typeDie);
-  DBGDie *GetOrCreatePointTypeDie(const MIRPtrType *ptrType);
-  DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *arrayType);
-  DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
-  DBGDie *GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx);
-  DBGDie *GetOrCreateEnumTypeDie(uint32 idx);
-
-  GStrIdx GetPrimTypeCName(PrimType pty);
-
-  void AddScopeDie(MIRScope *scope, bool isLocal);
-  DBGDie *GetAliasVarTypeDie(MIRAliasVars &a, TyIdx tyidx);
-  void AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isLocal);
-  void CollectScopePos(MIRFunction *func, MIRScope *scope);
-  void GetCrossScopeId(MIRFunction *func,
-                       std::unordered_set<uint32> &idSet,
-                       bool isLow,
-                       const SrcPosition &oldSrcPos,
-                       const SrcPosition &newSrcPos);
-
-  // Functions for calculating the size and offset of each DW_TAG_xxx and DW_AT_xxx
-  void ComputeSizeAndOffsets();
-  void ComputeSizeAndOffset(DBGDie *die, uint32 &cuOffset);
-
-  void SetFuncScopeIdStatus(MIRFunction *func, uint32 scopeId, EmitStatus status) {
-    if (funcScopeIdStatus[func].find(scopeId) == funcScopeIdStatus[func].end()) {
-      funcScopeIdStatus[func][scopeId] = 0;
-    }
-    funcScopeIdStatus[func][scopeId] |= (1 << status);
+  void EmitMsg() {
+    compileMsg->EmitMsg();
   }
-
-  bool IsScopeIdEmited(MIRFunction *func, uint32 scopeId) {
-    auto it = funcScopeIdStatus.find(func);
-    if (it == funcScopeIdStatus.end()) {
-      return false;
-    }
-
-    auto scopeIdIt = it->second.find(scopeId);
-    if (scopeIdIt == it->second.end()) {
-      return false;
-    }
-
-    if (scopeIdIt->second != kAllEmited) {
-      return false;
-    }
-    return true;
-  }
-
-  void AddTypedefMap(GStrIdx stridx, TyIdx tyidx) {
-    typedefStrIdxTyIdxMap[stridx.GetIdx()] = tyidx.GetIdx();
-  }
-  void DumpTypedefMap() const;
 
  private:
   MIRModule *module;
@@ -854,6 +751,106 @@ class DebugInfo {
 
   MapleSet<uint32> strps;
   std::string varPtrPrefix;
+
+  void InitMsg() {
+    compileMsg = module->GetMemPool()->New<DBGCompileMsgInfo>();
+  }
+
+  void Init();
+  void Finish();
+  void SetupCU();
+
+  void BuildDebugInfoEnums();
+  void BuildDebugInfoTypedefs();
+  void BuildDebugInfoContainers();
+  void BuildDebugInfoGlobalSymbols();
+  void BuildDebugInfoFunctions();
+
+  // build tree to populate withChildren, sibling, firstChild
+  // also insert DW_AT_sibling attributes when needed
+  void BuildDieTree();
+
+  void BuildAbbrev();
+
+  uint32 GetAbbrevId(DBGAbbrevEntryVec *vec, DBGAbbrevEntry *entry) const;
+
+  DBGDie *GetGlobalDie(const GStrIdx &strIdx);
+
+  void SetLocalDie(GStrIdx strIdx, const DBGDie *die);
+  void SetLocalDie(MIRFunction *func, GStrIdx strIdx, const DBGDie *die);
+  DBGDie *GetLocalDie(GStrIdx strIdx);
+
+  LabelIdx GetLabelIdx(GStrIdx strIdx);
+  LabelIdx GetLabelIdx(MIRFunction *func, GStrIdx strIdx);
+  void SetLabelIdx(GStrIdx strIdx, LabelIdx labIdx);
+  void SetLabelIdx(MIRFunction *func, GStrIdx strIdx, LabelIdx labIdx);
+
+  DBGDie *GetIdDieMapAt(uint32 i) {
+    return idDieMap[i];
+  }
+
+  void PushParentDie(DBGDie *die) {
+    parentDieStack.push(die);
+  }
+
+  void PopParentDie() {
+    parentDieStack.pop();
+  }
+
+  MIRFunction *GetCurFunction() {
+    return curFunction;
+  }
+
+  void SetCurFunction(MIRFunction *func) {
+    curFunction = func;
+  }
+
+  void SetTyidxDieIdMap(const TyIdx tyIdx, const DBGDie *die) {
+    tyIdxDieIdMap[tyIdx.GetIdx()] = die->GetId();
+  }
+
+  DBGDie *CreateVarDie(MIRSymbol *sym);
+  DBGDie *CreateVarDie(MIRSymbol *sym, GStrIdx strIdx); // use alt name
+  DBGDie *CreateFormalParaDie(MIRFunction *func, MIRType *type, MIRSymbol *sym);
+  DBGDie *CreateFieldDie(maple::FieldPair pair, uint32 lnum);
+  DBGDie *CreateBitfieldDie(const MIRBitFieldType *type, GStrIdx sidx, uint32 prevBits);
+  void CreateStructTypeFieldsDies(const MIRStructType *structType, DBGDie *die);
+  void CreateStructTypeParentFieldsDies(const MIRStructType *structType, DBGDie *die);
+  void CreateStructTypeMethodsDies(const MIRStructType *structType, DBGDie *die);
+  DBGDie *CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *structType, bool update = false);
+  DBGDie *CreateClassTypeDie(GStrIdx strIdx, const MIRClassType *classType);
+  DBGDie *CreateInterfaceTypeDie(GStrIdx strIdx, const MIRInterfaceType *interfaceType);
+  DBGDie *CreatePointedFuncTypeDie(MIRFuncType *fType);
+  void CreateFuncLocalSymbolsDies(MIRFunction *func, DBGDie *die);
+
+  DBGDie *GetOrCreateLabelDie(LabelIdx labid);
+  DBGDie *GetOrCreateFuncDeclDie(MIRFunction *func);
+  DBGDie *GetOrCreateFuncDefDie(MIRFunction *func);
+  DBGDie *GetOrCreatePrimTypeDie(MIRType *ty);
+  DBGDie *GetOrCreateTypeDie(TyIdx tyidx);
+  DBGDie *GetOrCreateTypeDie(MIRType *type);
+  DBGDie *GetOrCreateTypeDie(AttrKind attr, DBGDie *typeDie);
+  DBGDie *GetOrCreateTypeDie(TypeAttrs attrs, DBGDie *typeDie);
+  DBGDie *GetOrCreatePointTypeDie(const MIRPtrType *ptrType);
+  DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *arrayType);
+  DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
+  DBGDie *GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx);
+  DBGDie *GetOrCreateEnumTypeDie(uint32 idx);
+
+  GStrIdx GetPrimTypeCName(PrimType pty);
+
+  void AddScopeDie(MIRScope *scope, bool isLocal);
+  DBGDie *GetAliasVarTypeDie(MIRAliasVars &a, TyIdx tyidx);
+  void AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isLocal);
+  void CollectScopePos(MIRFunction *func, MIRScope *scope);
+
+  // Functions for calculating the size and offset of each DW_TAG_xxx and DW_AT_xxx
+  void ComputeSizeAndOffset(DBGDie *die, uint32 &cuOffset);
+
+  void AddTypedefMap(GStrIdx stridx, TyIdx tyidx) {
+    typedefStrIdxTyIdxMap[stridx.GetIdx()] = tyidx.GetIdx();
+  }
+  void DumpTypedefMap() const;
 };
 } // namespace maple
 #endif // MAPLE_IR_INCLUDE_DBG_INFO_H
