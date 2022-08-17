@@ -747,6 +747,8 @@ void CGCFG::UnreachCodeAnalysis() const {
     unreachBB->ClearSuccs();
     unreachBB->ClearEhSuccs();
 
+    cgFunc->ClearBBInVec(unreachBB->GetId());
+
     /* Clear insns in GOT Map. */
     cgFunc->ClearUnreachableGotInfos(*unreachBB);
     cgFunc->ClearUnreachableConstInfos(*unreachBB);
