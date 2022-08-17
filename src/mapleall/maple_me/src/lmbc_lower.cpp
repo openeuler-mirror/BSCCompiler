@@ -20,6 +20,7 @@ namespace maple {
 using namespace std;
 
 PregIdx LMBCLowerer::GetSpecialRegFromSt(const MIRSymbol *sym) {
+  ASSERT_NOT_NULL(sym);
   MIRStorageClass storageClass = sym->GetStorageClass();
   PregIdx specreg = 0;
   if (storageClass == kScAuto) {
@@ -42,6 +43,7 @@ PregIdx LMBCLowerer::GetSpecialRegFromSt(const MIRSymbol *sym) {
 
 BaseNode *LMBCLowerer::LowerAddrof(AddrofNode *expr) {
   MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(expr->GetStIdx());
+  ASSERT_NOT_NULL(symbol);
   symbol->ResetIsDeleted();
   int32 offset = 0;
   if (expr->GetFieldID() != 0) {
@@ -63,6 +65,7 @@ BaseNode *LMBCLowerer::LowerAddrof(AddrofNode *expr) {
 
 BaseNode *LMBCLowerer::LowerDread(AddrofNode *expr) {
   MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(expr->GetStIdx());
+  ASSERT_NOT_NULL(symbol);
   symbol->ResetIsDeleted();
   PrimType symty = symbol->GetType()->GetPrimType();
   int32 offset = 0;
@@ -75,25 +78,35 @@ BaseNode *LMBCLowerer::LowerDread(AddrofNode *expr) {
   if (!symbol->LMBCAllocateOffSpecialReg()) {
     BaseNode *base = mirBuilder->CreateExprDreadoff(OP_addrofoff, LOWERED_PTR_TYPE, *symbol, 0);
     IreadoffNode *ireadoff = mirBuilder->CreateExprIreadoff(symty, offset, base);
-    return ireadoff;
+    if (GetPrimTypeSize(ireadoff->GetPrimType()) == GetPrimTypeSize(expr->GetPrimType())) {
+      return ireadoff;
+    }
+    return mirBuilder->CreateExprTypeCvt(OP_cvt, expr->GetPrimType(), GetRegPrimType(ireadoff->GetPrimType()), *ireadoff);
   }
   PregIdx spcreg = GetSpecialRegFromSt(symbol);
   if (spcreg == -kSregFp) {
     CHECK_FATAL(symbol->IsLocal(), "load from fp non local?");
     IreadFPoffNode *ireadoff = mirBuilder->CreateExprIreadFPoff(
         symty, memlayout->sym_alloc_table[symbol->GetStIndex()].offset + offset);
-    return ireadoff;
+    if (GetPrimTypeSize(ireadoff->GetPrimType()) == GetPrimTypeSize(expr->GetPrimType())) {
+      return ireadoff;
+    }
+    return mirBuilder->CreateExprTypeCvt(OP_cvt, expr->GetPrimType(), GetRegPrimType(ireadoff->GetPrimType()), *ireadoff);
   } else {
     BaseNode *rrn = mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, spcreg);
     SymbolAlloc &symalloc = symbol->IsLocal() ? memlayout->sym_alloc_table[symbol->GetStIndex()]
                                               : globmemlayout->sym_alloc_table[symbol->GetStIndex()];
     IreadoffNode *ireadoff = mirBuilder->CreateExprIreadoff(symty, symalloc.offset + offset, rrn);
-    return ireadoff;
+    if (GetPrimTypeSize(ireadoff->GetPrimType()) == GetPrimTypeSize(expr->GetPrimType())) {
+      return ireadoff;
+    }
+    return mirBuilder->CreateExprTypeCvt(OP_cvt, expr->GetPrimType(), GetRegPrimType(ireadoff->GetPrimType()), *ireadoff);
   }
 }
 
 BaseNode *LMBCLowerer::LowerDreadoff(DreadoffNode *dreadoff) {
   MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dreadoff->stIdx);
+  ASSERT_NOT_NULL(symbol);
   symbol->ResetIsDeleted();
   if (!symbol->LMBCAllocateOffSpecialReg()) {
     return dreadoff;
@@ -137,7 +150,10 @@ BaseNode *LMBCLowerer::LowerIread(IreadNode *expr) {
     type = structty->GetFieldType(expr->GetFieldID());
   }
   BaseNode *ireadoff = mirBuilder->CreateExprIreadoff(type->GetPrimType(), offset, expr->Opnd(0));
-  return ireadoff;
+  if (GetPrimTypeSize(ireadoff->GetPrimType()) == GetPrimTypeSize(expr->GetPrimType())) {
+    return ireadoff;
+  }
+  return mirBuilder->CreateExprTypeCvt(OP_cvt, expr->GetPrimType(), GetRegPrimType(ireadoff->GetPrimType()), *ireadoff);
 }
 
 BaseNode *LMBCLowerer::LowerIaddrof(IaddrofNode *expr) {
@@ -200,6 +216,7 @@ void LMBCLowerer::LowerAggDassign(const DassignNode *dsnode, MIRType *lhsty,
   // generate lhs address expression
   BaseNode *lhs = nullptr;
   MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dsnode->GetStIdx());
+  ASSERT_NOT_NULL(symbol);
   symbol->ResetIsDeleted();
   if (!symbol->LMBCAllocateOffSpecialReg()) {
     lhs = mirBuilder->CreateExprDreadoff(OP_addrofoff, LOWERED_PTR_TYPE, *symbol, offset);
@@ -224,6 +241,7 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
   int32 offset = 0;
   if (dsnode->GetFieldID() != 0) {
     MIRStructType *structty = static_cast<MIRStructType *>(symbol->GetType());
+    ASSERT_NOT_NULL(structty);
     FieldPair thepair = structty->TraverseToField(dsnode->GetFieldID());
     symty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
     offset = becommon->GetFieldOffset(*structty, dsnode->GetFieldID()).first;
@@ -265,6 +283,7 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
 
 void LMBCLowerer::LowerDassignoff(DassignoffNode *dsnode, BlockNode *newblk) {
   MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dsnode->stIdx);
+  ASSERT_NOT_NULL(symbol);
   symbol->ResetIsDeleted();
   CHECK_FATAL(dsnode->Opnd(0)->GetPrimType() != PTY_agg, "LowerDassignoff: agg primitive type NYI");
   BaseNode *rhs = LowerExpr(dsnode->Opnd(0));
@@ -413,6 +432,7 @@ void LMBCLowerer::LowerCall(NaryStmtNode *stmt, BlockNode *newblk) {
       addrof->SetPrimType(GetExactPtrPrimType());
       addrof->SetFieldID(0);
       MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(addrof->GetStIdx());
+      ASSERT_NOT_NULL(symbol);
       MIRPtrType ptrType(symbol->GetTyIdx(), GetExactPtrPrimType());
       ptrType.SetTypeAttrs(symbol->GetAttrs());
       TyIdx addrTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&ptrType);
@@ -515,6 +535,7 @@ void LMBCLowerer::LowerFunction() {
   MapleVector<StIdx>::const_iterator sit = mirModule->GetSymbolDefOrder().begin();
   for (; sit != mirModule->GetSymbolDefOrder().end(); ++sit) {
     MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx(sit->Idx());
+    ASSERT_NOT_NULL(s);
     if (s->GetSKind() == kStVar && s->GetStorageClass() == kScExtern && !s->HasPotentialAssignment()) {
       s->SetIsDeleted();
     }
