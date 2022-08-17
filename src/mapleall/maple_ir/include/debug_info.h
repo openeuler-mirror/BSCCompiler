@@ -35,7 +35,7 @@ namespace maple {
 #define YEL "\x1B[33m"
 
 const uint32 kDbgDefaultVal = 0xdeadbeef;
-#define HEX(val) std::hex << "0x" << val << std::dec
+#define HEX(val) std::hex << "0x" << (val) << std::dec
 
 class MIRModule;
 class MIRType;
@@ -83,12 +83,12 @@ class DBGCompileMsgInfo {
 
 enum DBGDieKind { kDwTag, kDwAt, kDwOp, kDwAte, kDwForm, kDwCfa };
 
-typedef uint32 DwTag;   // for DW_TAG_*
-typedef uint32 DwAt;    // for DW_AT_*
-typedef uint32 DwOp;    // for DW_OP_*
-typedef uint32 DwAte;   // for DW_ATE_*
-typedef uint32 DwForm;  // for DW_FORM_*
-typedef uint32 DwCfa;   // for DW_CFA_*
+using DwTag = uint32;   // for DW_TAG_*
+using DwAt = uint32;    // for DW_AT_*
+using DwOp = uint32;    // for DW_OP_*
+using DwAte = uint32;   // for DW_ATE_*
+using DwForm = uint32;  // for DW_FORM_*
+using DwCfa = uint32;   // for DW_CFA_*
 
 class DBGDieAttr;
 
@@ -770,6 +770,7 @@ class DebugInfo {
   GStrIdx GetPrimTypeCName(PrimType pty);
 
   void AddScopeDie(MIRScope *scope, bool isLocal);
+  DBGDie *GetAliasVarTypeDie(MIRAliasVars &a, TyIdx tyidx);
   void AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isLocal);
   void CollectScopePos(MIRFunction *func, MIRScope *scope);
   void GetCrossScopeId(MIRFunction *func,
