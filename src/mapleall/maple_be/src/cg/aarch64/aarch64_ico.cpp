@@ -123,6 +123,10 @@ AArch64CC_t AArch64ICOPattern::Encode(MOperator mOp, bool inverse) const {
       return inverse ? CC_GE : CC_LT;
     case MOP_ble:
       return inverse ? CC_GT : CC_LE;
+    case MOP_bcs:
+      return inverse ? CC_CC : CC_CS;
+    case MOP_bcc:
+      return inverse ? CC_CS : CC_CC;
     case MOP_beq:
       return inverse ? CC_NE : CC_EQ;
     case MOP_bne:
@@ -634,6 +638,10 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joi
   }
   if (elseBB != nullptr) {
     cgFunc->GetTheCFG()->RemoveBB(*elseBB);
+  }
+  /* maintain won't exit bb info. */
+  if ((ifBB != nullptr && ifBB->IsWontExit()) || (elseBB != nullptr && elseBB->IsWontExit())) {
+    cgFunc->GetCommonExitBB()->PushBackPreds(cmpBB);
   }
 
   if (cmpBB.GetKind() != BB::kBBIf && cmpBB.GetNext() == &joinBB &&

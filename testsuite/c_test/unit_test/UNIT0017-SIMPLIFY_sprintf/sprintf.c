@@ -15,6 +15,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 extern void abort();
 int test(char *s) {
   return sprintf_s(s, 4, "123"); // replace with memcpy(s, "123", 3)
@@ -69,6 +70,12 @@ int test12(char *s) {
   return sprintf_s(s, 5, "string %u", 1); // fmt string is not only "%s", no need replace
 }
 
+char *test13() {
+  static char Result_PATH[300] = {'l', 'e', '/', 'C', 'V', 'S', 'A', '/', 'T', 'E', 'S', 'T', 'S', 'R', 'C', '/', 'P'};
+  sprintf(Result_PATH, "%s", "running.path");
+  return Result_PATH;
+}
+
 int main() {
   char s[10];
   int a = test(s);
@@ -97,6 +104,10 @@ int main() {
   }
   a = test7(s);
   if (a != -1) {
+    abort();
+  }
+  char *res = test13();
+  if (strcmp(res, "running.path") != 0) {
     abort();
   }
   return 0;
