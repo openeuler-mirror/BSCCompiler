@@ -502,13 +502,16 @@ void LibAstFile::EmitQualifierName(const clang::QualType qualType, std::stringst
   }
 }
 
-const std::string LibAstFile::GetOrCreateMappedUnnamedName(uint32_t id) {
-  std::map<uint32_t, std::string>::const_iterator it = unnamedSymbolMap.find(id);
+const std::string LibAstFile::GetOrCreateMappedUnnamedName(const clang::Decl &decl) {
+  uint32 uid;
+  std::map<int64, uint32>::const_iterator it = unnamedSymbolMap.find(decl.getID());
   if (it == unnamedSymbolMap.cend()) {
-    std::string name = FEUtils::GetSequentialName("unnamed.");
-    unnamedSymbolMap[id] = name;
+    uid = FEUtils::GetSequentialNumber();
+    unnamedSymbolMap[decl.getID()] = uid;
+  } else {
+    uid = it->second;
   }
-  return unnamedSymbolMap[id];
+  return FEUtils::GetSequentialName0("unnamed.", uid);
 }
 
 void LibAstFile::EmitTypeName(const clang::RecordType &recordType, std::stringstream &ss) {
@@ -544,13 +547,11 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recordType, std::stringst
       nameStr = GetTypedefNameFromUnnamedStruct(*recordDecl);
     }
     if (nameStr.empty()) {
-      uint32_t id = recordType.getDecl()->getLocation().getRawEncoding();
-      nameStr = GetOrCreateMappedUnnamedName(id);
+      nameStr = GetOrCreateMappedUnnamedName(*recordDecl);
     }
     ss << nameStr;
   } else {
-    uint32_t id = recordType.getDecl()->getLocation().getRawEncoding();
-    ss << GetOrCreateMappedUnnamedName(id);
+    ss << GetOrCreateMappedUnnamedName(*recordDecl);
   }
 
   if (!recordDecl->isDefinedOutsideFunctionOrMethod()) {

@@ -33,10 +33,11 @@ enum AccessKind {
 
 class LibAstFile {
  public:
-  explicit LibAstFile(MapleAllocator &allocatorIn, MapleList<clang::Decl*> &recordDeclesIn)
-      : recordDeclMap(allocatorIn.Adapter()), recordDeclSet(allocatorIn.Adapter()),
+  explicit LibAstFile(MapleAllocator &allocatorIn, MapleList<clang::Decl*> &recordDeclesIn,
+                      MapleList<clang::Decl*> &enumDeclesIn)
+      : recordDeclSet(allocatorIn.Adapter()),
         unnamedSymbolMap(allocatorIn.Adapter()), compoundLiteralExprInitSymbolMap(allocatorIn.Adapter()),
-        recordDecles(recordDeclesIn), astFileName("", allocatorIn.GetMemPool()) {}
+        recordDecles(recordDeclesIn), enumDecles(enumDeclesIn), astFileName("", allocatorIn.GetMemPool()) {}
   ~LibAstFile() = default;
 
   bool Open(const MapleString &fileName,
@@ -46,7 +47,7 @@ class LibAstFile {
   AstASTContext *GetNonConstAstContext() const;
   const AstUnitDecl *GetAstUnitDecl() const;
   std::string GetMangledName(const clang::NamedDecl &decl) const;
-  const std::string GetOrCreateMappedUnnamedName(uint32_t id);
+  const std::string GetOrCreateMappedUnnamedName(const clang::Decl &decl);
 
   void EmitTypeName(const clang::QualType qualType, std::stringstream &ss);
   void EmitTypeName(const clang::RecordType &recordType, std::stringstream &ss);
@@ -111,14 +112,13 @@ class LibAstFile {
   uint32 RetrieveAggTypeAlign(const clang::Type *ty) const;
 
  private:
-  using RecordDeclMap = MapleMap<TyIdx, const clang::RecordDecl*>;
-  RecordDeclMap recordDeclMap;
-  MapleSet<const clang::RecordDecl*> recordDeclSet;
-  MapleMap<uint32_t, std::string> unnamedSymbolMap;
+  MapleSet<const clang::Decl*> recordDeclSet;
+  MapleMap<int64, uint32> unnamedSymbolMap;
   MapleMap<uint32_t, std::string> compoundLiteralExprInitSymbolMap;
   MIRModule *module = nullptr;
 
   MapleList<clang::Decl*> &recordDecles;
+  MapleList<clang::Decl*> &enumDecles;
 
   clang::ASTContext *astContext = nullptr;
   clang::TranslationUnitDecl *astUnitDecl = nullptr;

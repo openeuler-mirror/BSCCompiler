@@ -164,7 +164,6 @@ class ASTParser {
   void SetInitExprForASTVar(MapleAllocator &allocator, const clang::VarDecl &varDecl, const GenericAttrs &attrs,
                             ASTVar &astVar);
   void SetAlignmentForASTVar(const clang::VarDecl &varDecl, ASTVar &astVar);
-  void SetSourceType(MapleAllocator &allocator, const clang::QualType &qualType, ASTDecl &astDecl);
 #define PROCESS_DECL(CLASS) ProcessDecl##CLASS##Decl(MapleAllocator &allocator, const clang::CLASS##Decl&)
   ASTDecl *PROCESS_DECL(Field);
   ASTDecl *PROCESS_DECL(Function);

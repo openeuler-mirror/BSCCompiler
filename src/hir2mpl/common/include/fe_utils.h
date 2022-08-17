@@ -51,11 +51,6 @@ struct Loc {
   }
 };
 
-struct SourceType {
-  unsigned typeIdx = 0;
-  bool isEnum = false;
-};
-
 class FEUtils {
  public:
   FEUtils() = default;
@@ -84,10 +79,10 @@ class FEUtils {
   static bool EndsWith(const std::string &value, const std::string &ending);
   static MIRConst *TraverseToMIRConst(MIRAggConst *aggConst, const MIRStructType &structType, FieldID &fieldID);
   static Loc GetSrcLocationForMIRSymbol(const MIRSymbol &symbol);
-  static MIRAliasVars AddAlias(const GStrIdx &mplNameIdx, const SourceType &sty, const TypeAttrs &attrs,
+  static MIRAliasVars AddAlias(const GStrIdx &mplNameIdx, const MIRType *sourceType, const TypeAttrs &attrs,
                                bool isLocal = true);
   static void AddAliasInMIRScope(MIRScope &scope, const std::string &srcVarName, const MIRSymbol &symbol,
-                                 const SourceType &sty);
+                                 const MIRType *sourceType);
 
   static const std::string kBoolean;
   static const std::string kByte;

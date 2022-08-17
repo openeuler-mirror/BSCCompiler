@@ -452,27 +452,26 @@ void FEUtils::InitPrimTypeFuncNameIdxMap(std::map<PrimType, GStrIdx> &primTypeFu
   };
 }
 
-MIRAliasVars FEUtils::AddAlias(const GStrIdx &mplNameIdx, const SourceType &sty, const TypeAttrs &attrs, bool isLocal) {
+MIRAliasVars FEUtils::AddAlias(const GStrIdx &mplNameIdx, const MIRType *sourceType, const TypeAttrs &attrs,
+                               bool isLocal) {
   MIRAliasVars aliasVar;
   aliasVar.mplStrIdx = mplNameIdx;
   aliasVar.isLocal = isLocal;
   aliasVar.attrs = attrs;
-  if (sty.isEnum) {
-    aliasVar.atk = kATKEnum;
-    aliasVar.index = sty.typeIdx;
-  } else {
-    CHECK_FATAL(sty.typeIdx != 0, "unknown type of %s",
-                GlobalTables::GetStrTable().GetStringFromStrIdx(mplNameIdx).c_str());
+  if (sourceType != nullptr) {
     aliasVar.atk = kATKType;
-    aliasVar.index = sty.typeIdx;
+    aliasVar.index = sourceType->GetTypeIndex();
+  } else {
+    CHECK_FATAL(false, "unknown source type of %s",
+                GlobalTables::GetStrTable().GetStringFromStrIdx(mplNameIdx).c_str());
   }
   return aliasVar;
 };
 
 void FEUtils::AddAliasInMIRScope(MIRScope &scope, const std::string &srcVarName, const MIRSymbol &symbol,
-                                 const SourceType &sty) {
+                                 const MIRType *sourceType) {
   GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(srcVarName);
-  MIRAliasVars aliasVar = FEUtils::AddAlias(symbol.GetNameStrIdx(), sty, symbol.GetAttrs(), symbol.IsLocal());
+  MIRAliasVars aliasVar = FEUtils::AddAlias(symbol.GetNameStrIdx(), sourceType, symbol.GetAttrs(), symbol.IsLocal());
   scope.SetAliasVarMap(nameIdx, aliasVar);
 };
 

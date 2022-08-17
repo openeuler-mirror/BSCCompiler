@@ -30,7 +30,7 @@ namespace maple {
 std::map<int64, ASTDecl*> ASTDeclsBuilder::declesTable;
 
 bool ASTParser::OpenFile(MapleAllocator &allocator) {
-  astFile = allocator.GetMemPool()->New<LibAstFile>(allocator, recordDecles);
+  astFile = allocator.GetMemPool()->New<LibAstFile>(allocator, recordDecles, globalEnumDecles);
   bool res = astFile->Open(fileName, 0, 0);
   if (!res) {
     return false;
@@ -1704,8 +1704,7 @@ ASTExpr *ASTParser::ProcessExprMemberExpr(MapleAllocator &allocator, const clang
   astMemberExpr->SetBaseType(astFile->CvtType(expr.getBase()->getType()));
   auto memberName = expr.getMemberDecl()->getNameAsString();
   if (memberName.empty()) {
-    uint32 id = expr.getMemberDecl()->getLocation().getRawEncoding();
-    memberName = astFile->GetOrCreateMappedUnnamedName(id);
+    memberName = astFile->GetOrCreateMappedUnnamedName(*expr.getMemberDecl());
   }
   astMemberExpr->SetMemberName(memberName);
   astMemberExpr->SetMemberType(astFile->CvtType(expr.getMemberDecl()->getType()));
@@ -2662,8 +2661,7 @@ ASTDecl *ASTParser::ProcessDeclFieldDecl(MapleAllocator &allocator, const clang:
   bool isAnonymousField = false;
   if (fieldName.empty()) {
     isAnonymousField = true;
-    uint32 id = decl.getLocation().getRawEncoding();
-    fieldName = astFile->GetOrCreateMappedUnnamedName(id);
+    fieldName = astFile->GetOrCreateMappedUnnamedName(decl);
   }
   CHECK_FATAL(!fieldName.empty(), "fieldName is empty");
   MIRType *fieldType = astFile->CvtType(qualType);
@@ -2696,7 +2694,8 @@ ASTDecl *ASTParser::ProcessDeclFieldDecl(MapleAllocator &allocator, const clang:
     ProcessBoundaryFuncPtrAttrs(allocator, *valueDecl, *fieldDecl);
   }
   if (FEOptions::GetInstance().IsDbgFriendly()) {
-    SetSourceType(allocator, qualType, *fieldDecl);
+    MIRType *sourceType = astFile->CvtSourceType(qualType);
+    fieldDecl->SetSourceType(sourceType);
   }
   return fieldDecl;
 }
@@ -2743,20 +2742,6 @@ void ASTParser::SetAlignmentForASTVar(const clang::VarDecl &varDecl, ASTVar &ast
   }
 }
 
-void ASTParser::SetSourceType(MapleAllocator &allocator, const clang::QualType &qualType, ASTDecl &astDecl) {
-  SourceType sty;
-  if (qualType->isEnumeralType()) {
-    const clang::EnumType *enumTy = llvm::dyn_cast<clang::EnumType>(qualType.getCanonicalType());
-    ASTDecl *enumDecl = ProcessDecl(allocator, *enumTy->getDecl());
-    sty.typeIdx = static_cast<unsigned>(FEManager::GetTypeManager().GetEnumIdx(enumDecl->GetName()));
-    sty.isEnum = true;
-  } else {
-    MIRType *sourceType = astFile->CvtSourceType(qualType);
-    sty.typeIdx = sourceType->GetTypeIndex();
-  }
-  astDecl.SetSourceType(sty);
-}
-
 ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::VarDecl &varDecl) {
   ASTVar *astVar = static_cast<ASTVar*>(ASTDeclsBuilder::GetASTDecl(varDecl.getID()));
   if (astVar != nullptr) {
@@ -2784,7 +2769,8 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   astVar = ASTDeclsBuilder::ASTVarBuilder(
       allocator, fileName, varName, MapleVector<MIRType*>({varType}, allocator.Adapter()), attrs, varDecl.getID());
   if (FEOptions::GetInstance().IsDbgFriendly()) {
-    SetSourceType(allocator, qualType, *astVar);
+    MIRType *sourceType = astFile->CvtSourceType(qualType);
+    astVar->SetSourceType(sourceType);
   }
   astVar->SetIsMacro(varDecl.getLocation().isMacroID());
   clang::SectionAttr *sa = varDecl.getAttr<clang::SectionAttr>();
@@ -2852,7 +2838,8 @@ ASTDecl *ASTParser::ProcessDeclParmVarDecl(MapleAllocator &allocator, const clan
   parmVar->SetIsParam(true);
   parmVar->SetPromotedType(promotedType);
   if (FEOptions::GetInstance().IsDbgFriendly()) {
-    SetSourceType(allocator, parmQualType, *parmVar);
+    MIRType *sourceType = astFile->CvtSourceType(parmQualType);
+    parmVar->SetSourceType(sourceType);
   }
   const auto *valueDecl = llvm::dyn_cast<clang::ValueDecl>(&parmVarDecl);
   if (valueDecl != nullptr) {
@@ -2881,7 +2868,7 @@ ASTDecl *ASTParser::ProcessDeclEnumDecl(MapleAllocator &allocator, const clang::
   astFile->CollectAttrs(*enumDecl, attrs, kNone);
   std::string enumName = enumDecl->getNameAsString();
   if (enumName.empty()) {
-    enumName = FEUtils::GetSequentialName("unnamed_enum.");
+    enumName = astFile->GetOrCreateMappedUnnamedName(*enumDecl);
   }
   MIRType *mirType;
   if (enumDecl->getPromotionType().isNull()) {

@@ -129,7 +129,7 @@ MIRType *LibAstFile::CvtTypedefDecl(const clang::TypedefNameDecl &typedefDecl) {
   }
   MIRTypeByName *typdefType = nullptr;
   clang::QualType underlyTy = typedefDecl.getCanonicalDecl()->getUnderlyingType();
-  MIRType *type = CvtType(underlyTy);
+  MIRType *type = CvtType(underlyTy, true);
   if (type != nullptr) {
     typdefType = FEManager::GetTypeManager().CreateTypedef(typedefName, *type);
   }
@@ -227,15 +227,29 @@ MIRType *LibAstFile::CvtOtherType(const clang::QualType srcType, bool isSourceTy
 }
 
 MIRType *LibAstFile::CvtEnumType(const clang::QualType &qualType, bool isSourceType) {
-  if (isSourceType) {
-    MIRType *nameType = CvtTypedef(qualType);
-    if (nameType != nullptr) {
-      return nameType;
-    }
-  }
   const clang::EnumType *enumTy = llvm::dyn_cast<clang::EnumType>(qualType.getCanonicalType());
-  clang::QualType qt = enumTy->getDecl()->getIntegerType();
-  return CvtType(qt, isSourceType);
+  CHECK_NULL_FATAL(enumTy);
+  clang::EnumDecl *enumDecl = enumTy->getDecl();
+  if (enumDecl->getDefinition() != nullptr) {
+    enumDecl = enumDecl->getDefinition();
+  }
+  MIRType *type;
+  if (isSourceType) {
+    auto itor = std::find(enumDecles.cbegin(), enumDecles.cend(), enumDecl);
+    if (itor == enumDecles.end()) {
+      (void)enumDecles.emplace_back(enumDecl);
+    }
+    std::string enumName = enumDecl->getNameAsString();
+    if (enumName.empty()) {
+      enumName = GetOrCreateMappedUnnamedName(*enumDecl);
+    }
+    MIRTypeByName *typdefType = FEManager::GetTypeManager().GetOrCreateTypeByNameType(enumName);
+    type = typdefType;
+  } else {
+    clang::QualType qt = enumDecl->getIntegerType();
+    type = CvtType(qt, isSourceType);
+  }
+  return type;
 }
 
 MIRType *LibAstFile::CvtRecordType(const clang::QualType qualType) {
