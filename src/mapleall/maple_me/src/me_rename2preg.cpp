@@ -51,7 +51,7 @@ bool SSARename2Preg::VarMeExprIsRenameCandidate(const VarMeExpr &varMeExpr) cons
     return false;
   }
   // local primitive-type symbol with no address taken can be renamed to preg
-  if (ost->GetFieldID() == 0) {
+  if (ost->GetFieldID() == 0 && ost->GetOffset().val == 0) {
     return true;
   }
   // following check may be time-consuming, keep it as the last check.
@@ -132,6 +132,7 @@ static const VarMeExpr *GetSrcOfRenameableVarMeExpr(const VarMeExpr &varMeExpr) 
     CHECK_FATAL(rhs != nullptr, "null ptr check");
     CHECK_FATAL(rhs->GetMeOp() == kMeOpVar, "rhs must be VarMeExpr");
     srcVar = static_cast<const VarMeExpr*>(rhs);
+    (void) chiNode.GetBase()->GetChiList()->erase(varMeExpr.GetOstIdx());
   }
   return srcVar;
 }
@@ -213,12 +214,12 @@ void SSARename2Preg::UpdateRegPhi(MePhiNode *mevarphinode, MePhiNode *regphinode
   (void)lhs;
 }
 
-void SSARename2Preg::Rename2PregPhi(MePhiNode *mevarphinode, MapleMap<OStIdx, MePhiNode *> &regPhiList) {
+bool SSARename2Preg::Rename2PregPhi(MePhiNode *mevarphinode, MapleMap<OStIdx, MePhiNode *> &regPhiList) {
   VarMeExpr *lhs = static_cast<VarMeExpr*>(mevarphinode->GetLHS());
   SetupParmUsed(lhs);
   RegMeExpr *lhsreg = RenameVar(lhs);
   if (lhsreg == nullptr) {
-    return;
+    return false;
   }
   MePhiNode *regphinode = meirmap->CreateMePhi(*lhsreg);
   regphinode->SetDefBB(mevarphinode->GetDefBB());
@@ -226,7 +227,8 @@ void SSARename2Preg::Rename2PregPhi(MePhiNode *mevarphinode, MapleMap<OStIdx, Me
   regphinode->SetIsLive(mevarphinode->GetIsLive());
   mevarphinode->SetIsLive(false);
 
-  (void)regPhiList.insert(std::make_pair(lhsreg->GetOst()->GetIndex(), regphinode));
+  (void) regPhiList.insert(std::make_pair(lhsreg->GetOst()->GetIndex(), regphinode));
+  return true;
 }
 
 void SSARename2Preg::Rename2PregLeafRHS(MeStmt *mestmt, const VarMeExpr *varmeexpr) {
@@ -339,49 +341,47 @@ void SSARename2Preg::Rename2PregExpr(MeStmt *mestmt, MeExpr *meexpr) {
 }
 
 void SSARename2Preg::Rename2PregStmt(MeStmt *stmt) {
+  for (uint32 i = 0; i < stmt->NumMeStmtOpnds(); ++i) {
+    Rename2PregExpr(stmt, stmt->GetOpnd(i));
+  }
+
+  MapleVector<MustDefMeNode> *mustdeflist = stmt->GetMustDefList();
+  if (mustdeflist != nullptr) {
+    Rename2PregCallReturn(*mustdeflist);
+  }
+
+  auto *chiList = stmt->GetChiList();
+  if (chiList != nullptr && !chiList->empty()) {
+    auto chiListIt = chiList->begin();
+    while (chiListIt != chiList->end()) {
+      auto *lhs = chiListIt->second->GetLHS();
+      if (lhs->GetMeOp() == kMeOpVar &&
+          VarMeExprIsRenameCandidate(*static_cast<VarMeExpr*>(lhs))) {
+        chiListIt = chiList->erase(chiListIt);
+        continue;
+      }
+      ++chiListIt;
+    }
+  }
+
+  auto *muList = stmt->GetMuList();
+  if (muList != nullptr && !muList->empty()) {
+    auto muListIt = muList->begin();
+    while (muListIt != muList->end()) {
+      auto *mayUsedVar = muListIt->second;
+      if (mayUsedVar->GetMeOp() == kMeOpVar &&
+          VarMeExprIsRenameCandidate(*static_cast<VarMeExpr*>(mayUsedVar))) {
+        muListIt = muList->erase(muListIt);
+        continue;
+      }
+      ++muListIt;
+    }
+  }
+
   Opcode op = stmt->GetOp();
-  switch (op) {
-    case OP_dassign:
-    case OP_maydassign: {
-      CHECK_FATAL(stmt->GetRHS() && stmt->GetVarLHS(), "null ptr check");
-      Rename2PregExpr(stmt, stmt->GetRHS());
-      Rename2PregLeafLHS(stmt, static_cast<VarMeExpr *>(stmt->GetVarLHS()));
-      break;
-    }
-    case OP_asm:
-    case OP_callassigned:
-    case OP_virtualcallassigned:
-    case OP_virtualicallassigned:
-    case OP_superclasscallassigned:
-    case OP_interfacecallassigned:
-    case OP_interfaceicallassigned:
-    case OP_customcallassigned:
-    case OP_polymorphiccallassigned:
-    case OP_icallassigned:
-    case OP_icallprotoassigned:
-    case OP_intrinsiccallassigned:
-    case OP_xintrinsiccallassigned:
-    case OP_intrinsiccallwithtypeassigned: {
-      for (uint32 i = 0; i < stmt->NumMeStmtOpnds(); ++i) {
-        Rename2PregExpr(stmt, stmt->GetOpnd(i));
-      }
-      MapleVector<MustDefMeNode> *mustdeflist = stmt->GetMustDefList();
-      if (mustdeflist != nullptr) {
-        Rename2PregCallReturn(*mustdeflist);
-      }
-      break;
-    }
-    case OP_iassign: {
-      IassignMeStmt *ivarstmt = static_cast<IassignMeStmt *>(stmt);
-      Rename2PregExpr(stmt, ivarstmt->GetRHS());
-      Rename2PregExpr(stmt, ivarstmt->GetLHSVal()->GetBase());
-      break;
-    }
-    default:
-      for (uint32 i = 0; i < stmt->NumMeStmtOpnds(); ++i) {
-        Rename2PregExpr(stmt, stmt->GetOpnd(i));
-      }
-      break;
+  if (op == OP_dassign || op == OP_maydassign) {
+    CHECK_FATAL(stmt->GetRHS() && stmt->GetVarLHS(), "null ptr check");
+    Rename2PregLeafLHS(stmt, static_cast<VarMeExpr *>(stmt->GetVarLHS()));
   }
 }
 
@@ -487,10 +487,18 @@ void SSARename2Preg::RunSelf() {
     }
     MapleMap<OStIdx, MePhiNode *> &phiList = mebb->GetMePhiList();
     MapleMap<OStIdx, MePhiNode *> regPhiList(func->GetIRMap()->GetIRMapAlloc().Adapter());
-    for (std::pair<const OStIdx, MePhiNode *> apair : phiList) {
-      if (!apair.second->UseReg()) {
-        Rename2PregPhi(apair.second, regPhiList);
+    auto phiListIt = phiList.begin();
+    while (phiListIt != phiList.end()) {
+      if (phiListIt->second->UseReg()) {
+        ++phiListIt;
+        continue;
       }
+      if (!Rename2PregPhi(phiListIt->second, regPhiList)) {
+        ++phiListIt;
+        continue;
+      }
+      phiListIt->second->SetIsLive(false);
+      phiListIt = phiList.erase(phiListIt);
     }
     phiList.insert(regPhiList.begin(), regPhiList.end());
 
