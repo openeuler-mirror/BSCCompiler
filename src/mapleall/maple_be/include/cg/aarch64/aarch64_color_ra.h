@@ -14,6 +14,7 @@
  */
 #ifndef MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_COLOR_RA_H
 #define MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_COLOR_RA_H
+#include <cmath>
 #include "reg_alloc.h"
 #include "aarch64_operand.h"
 #include "aarch64_insn.h"

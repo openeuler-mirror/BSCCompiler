@@ -15,7 +15,6 @@
 #include "aarch64_color_ra.h"
 #include <iostream>
 #include <fstream>
-#include <cmath>
 #include "aarch64_cg.h"
 #include "mir_lower.h"
 #include "securec.h"
