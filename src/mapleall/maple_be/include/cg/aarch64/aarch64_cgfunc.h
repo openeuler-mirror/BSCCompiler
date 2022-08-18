@@ -886,9 +886,9 @@ class AArch64CGFunc : public CGFunc {
                                          AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, int32 fromOffset);
   void CreateCallStructMemcpyToParamReg(MIRType &structType, int32 structCopyOffset, AArch64CallConvImpl &parmLocator,
                                         ListOperand &srcOpnds);
-  void GenAggParmForDread(BaseNode &parent, ListOperand &srcOpnds, AArch64CallConvImpl &parmLocator,
+  void GenAggParmForDread(const BaseNode &parent, ListOperand &srcOpnds, AArch64CallConvImpl &parmLocator,
                           int32 &structCopyOffset, size_t argNo);
-  void GenAggParmForIread(BaseNode &parent, ListOperand &srcOpnds,
+  void GenAggParmForIread(const BaseNode &parent, ListOperand &srcOpnds,
                           AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, size_t argNo);
   void GenAggParmForIreadoff(BaseNode &parent, ListOperand &srcOpnds,
                              AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, size_t argNo);

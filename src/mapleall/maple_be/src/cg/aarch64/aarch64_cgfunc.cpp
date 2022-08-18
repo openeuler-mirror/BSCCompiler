@@ -7931,7 +7931,7 @@ void AArch64CGFunc::CreateCallStructMemcpyToParamReg(MIRType &structType, int32 
   }
 }
 
-void AArch64CGFunc::GenAggParmForDread(BaseNode &parent, ListOperand &srcOpnds,
+void AArch64CGFunc::GenAggParmForDread(const BaseNode &parent, ListOperand &srcOpnds,
                                        AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, size_t argNo) {
   int32 rhsOffset = 0;
   BaseNode &argExpr = *parent.Opnd(argNo);
@@ -7954,7 +7954,7 @@ void AArch64CGFunc::GenAggParmForDread(BaseNode &parent, ListOperand &srcOpnds,
   }
 }
 
-void AArch64CGFunc::GenAggParmForIread(BaseNode &parent, ListOperand &srcOpnds,
+void AArch64CGFunc::GenAggParmForIread(const BaseNode &parent, ListOperand &srcOpnds,
                                        AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, size_t argNo) {
   int32 rhsOffset = 0;
   BaseNode &argExpr = *parent.Opnd(argNo);
@@ -8022,7 +8022,8 @@ void AArch64CGFunc::GenAggParmForIreadfpoff(BaseNode &parent, ListOperand &srcOp
 }
 
 void AArch64CGFunc::SelectParmListForAggregate(BaseNode &parent, ListOperand &srcOpnds,
-                                               AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, size_t argNo) {
+                                               AArch64CallConvImpl &parmLocator, int32 &structCopyOffset,
+                                               size_t argNo) {
   BaseNode &argExpr = *parent.Opnd(argNo);
   if (argExpr.GetOpCode() == OP_dread) {
     GenAggParmForDread(parent, srcOpnds, parmLocator, structCopyOffset, argNo);
@@ -8124,7 +8125,8 @@ void AArch64CGFunc::GenLargeStructCopyForIread(BaseNode &argExpr, int32 &structC
   }
 }
 
-void AArch64CGFunc::GenLargeStructCopyForIreadfpoff(BaseNode &parent, BaseNode &argExpr, int32 &structCopyOffset, size_t argNo) {
+void AArch64CGFunc::GenLargeStructCopyForIreadfpoff(BaseNode &parent, BaseNode &argExpr,
+                                                    int32 &structCopyOffset, size_t argNo) {
   IreadFPoffNode &ireadoff = static_cast<IreadFPoffNode &>(argExpr);
   MIRStructType *ty = GetLmbcStructArgType(parent, argNo);
   uint64 symSize = GetBecommon().GetTypeSize(ty->GetTypeIndex());
@@ -8138,7 +8140,8 @@ void AArch64CGFunc::GenLargeStructCopyForIreadfpoff(BaseNode &parent, BaseNode &
   }
 }
 
-void AArch64CGFunc::GenLargeStructCopyForIreadoff(BaseNode &parent, BaseNode &argExpr, int32 &structCopyOffset, size_t argNo) {
+void AArch64CGFunc::GenLargeStructCopyForIreadoff(BaseNode &parent, BaseNode &argExpr,
+                                                  int32 &structCopyOffset, size_t argNo) {
   IreadoffNode &ireadoff = static_cast<IreadoffNode &>(argExpr);
   MIRStructType *ty = GetLmbcStructArgType(parent, argNo);
   uint64 symSize = GetBecommon().GetTypeSize(ty->GetTypeIndex());
@@ -8204,7 +8207,7 @@ void AArch64CGFunc::SelectParmListPreprocess(StmtNode &naryNode, size_t start, s
     if (primType != PTY_agg) {
       continue;
     }
-    SelectParmListPreprocessLargeStruct(naryNode, *argExpr, structCopyOffset, static_cast<int32>(i));
+    SelectParmListPreprocessLargeStruct(naryNode, *argExpr, structCopyOffset, i);
   }
 }
 
@@ -8311,7 +8314,7 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
     }
     /* use alloca  */
     if (primType == PTY_agg) {
-      SelectParmListForAggregate(naryNode, srcOpnds, parmLocator, structCopyOffset, static_cast<int32>(i));
+      SelectParmListForAggregate(naryNode, srcOpnds, parmLocator, structCopyOffset, i);
       continue;
     }
     ty = GlobalTables::GetTypeTable().GetTypeTable()[static_cast<uint32>(primType)];
@@ -9699,11 +9702,11 @@ int32 AArch64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
   } else if (sgKind == kMsArgsRegPassed) {
     int32 baseOffset;
     if (GetCG()->IsLmbc()) {
-      baseOffset = static_cast<int32>(symAlloc->GetOffset()) + memLayout->GetSizeOfRefLocals() +
-                   memLayout->SizeOfArgsToStackPass();   /* SP relative */
+      baseOffset = static_cast<int32>(symAlloc->GetOffset() + memLayout->GetSizeOfRefLocals() +
+                   memLayout->SizeOfArgsToStackPass());   /* SP relative */
     } else {
-      baseOffset = memLayout->GetSizeOfLocals() + static_cast<int32>(symAlloc->GetOffset()) +
-                   memLayout->GetSizeOfRefLocals();
+      baseOffset = static_cast<int32>(memLayout->GetSizeOfLocals() + symAlloc->GetOffset() +
+                   memLayout->GetSizeOfRefLocals());
     }
     return baseOffset + sizeofFplr;
   } else if (sgKind == kMsRefLocals) {
@@ -9718,13 +9721,13 @@ int32 AArch64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
   } else if (sgKind == kMsSpillReg) {
     int32 baseOffset;
     if (GetCG()->IsLmbc()) {
-      baseOffset = static_cast<int32>(symAlloc->GetOffset()) +
+      baseOffset = static_cast<int32>(symAlloc->GetOffset() +
                    memLayout->SizeOfArgsRegisterPassed() + memLayout->GetSizeOfRefLocals() +
-                   memLayout->SizeOfArgsToStackPass();
+                   memLayout->SizeOfArgsToStackPass());
     } else {
-      baseOffset = static_cast<int32>(symAlloc->GetOffset()) +
+      baseOffset = static_cast<int32>(symAlloc->GetOffset() +
                    memLayout->SizeOfArgsRegisterPassed() + memLayout->GetSizeOfLocals() +
-                   memLayout->GetSizeOfRefLocals();
+                   memLayout->GetSizeOfRefLocals());
     }
     return baseOffset + sizeofFplr;
   } else if (sgKind == kMsArgsToStkPass) {  /* this is for callers */
