@@ -40,7 +40,7 @@ void AArch64RegSavesOpt::CreateReachingBBs(ReachInfo &rp, const BB &bb) {
     }
   }
 #if RS_DUMP
-  M_LOG << " --ReachingBBs for BB " << bb->GetId() << " created\n";
+  M_LOG << " --ReachingBBs for BB " << bb.GetId() << " created\n";
 #endif
 }
 

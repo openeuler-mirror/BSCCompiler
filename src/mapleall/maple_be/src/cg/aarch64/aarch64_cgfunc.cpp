@@ -173,7 +173,12 @@ MIRStructType *AArch64CGFunc::GetLmbcStructArgType(BaseNode &stmt, size_t argNo)
     argNo--;   /* 1st opnd of icallproto is funcname, skip it relative to param list */
     IcallNode &icallproto = static_cast<IcallNode&>(stmt);
     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(icallproto.GetRetTyIdx());
-    MIRFuncType *fType = static_cast<MIRFuncType*>(type);
+    MIRFuncType *fType = nullptr;
+    if (type->IsMIRPtrType()) {
+      fType = static_cast<MIRPtrType*>(type)->GetPointedFuncType();
+    } else {
+      fType = static_cast<MIRFuncType*>(type);
+    }
     if (fType->GetParamTypeList().size() < (argNo + 1UL)) {
       return nullptr;
     }
@@ -2074,8 +2079,13 @@ MemOperand *AArch64CGFunc::GenLmbcFpMemOperand(int32 offset, uint32 byteSize, AA
   if (offset < kMinSimm32) {
     RegOperand *baseOpnd = &CreateRegisterOperandOfType(PTY_a64);
     ImmOperand &immOpnd = CreateImmOperand(offset, k32BitSize, true);
-    Insn &addInsn = GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *baseOpnd, *rfp, immOpnd);
-    GetCurBB()->AppendInsn(addInsn);
+    if (immOpnd.IsSingleInstructionMovable()) {
+      Insn &addInsn = GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *baseOpnd, *rfp, immOpnd);
+      GetCurBB()->AppendInsn(addInsn);
+    } else {
+      SelectCopyImm(*baseOpnd, immOpnd, PTY_i64);
+      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrrr, *baseOpnd, *rfp, *baseOpnd));
+    }
     OfstOperand *offsetOpnd = &CreateOfstOpnd(0, k32BitSize);
     memOpnd = &GetOrCreateMemOpnd(MemOperand::kAddrModeBOi, bitlen, baseOpnd, nullptr, offsetOpnd, nullptr);
   } else {
@@ -2108,16 +2118,32 @@ void AArch64CGFunc::SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) {
     for (uint32 i = 0 ; i < numRegs; ++i) {
       MemOperand *memOpnd = GenLmbcFpMemOperand(offset + static_cast<int32>(i * byteSize), byteSize);
       RegOperand &srcOpnd = GetOrCreatePhysicalRegisterOperand(AArch64reg(V0 + i), bitlen, kRegTyFloat);
-      MOperator mOp = PickStInsn(bitlen, primType);
-      Insn &store = GetCG()->BuildInstruction<AArch64Insn>(mOp, srcOpnd, *memOpnd);
-      GetCurBB()->AppendInsn(store);
+      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(bitlen, primType), srcOpnd, *memOpnd));
     }
   } else {
-    Operand &srcOpnd = LoadIntoRegister(opnd, primType);
-    MemOperand *memOpnd = GenLmbcFpMemOperand(offset, byteSize);
-    MOperator mOp = PickStInsn(bitlen, primType);
-    Insn &store = GetCG()->BuildInstruction<AArch64Insn>(mOp, srcOpnd, *memOpnd);
-    GetCurBB()->AppendInsn(store);
+    if (primType != PTY_agg) {
+      Operand &srcOpnd = LoadIntoRegister(opnd, primType);
+      MemOperand *memOpnd = GenLmbcFpMemOperand(offset, byteSize);
+      Insn &store = GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(bitlen, primType), srcOpnd, *memOpnd);
+      GetCurBB()->AppendInsn(store);
+    } else {
+      byteSize = rType->GetSize();
+      MemOperand *memOpnd;
+      RegOperand *srcOpnd;
+      if (byteSize > k8ByteSize) {
+        memOpnd = GenLmbcFpMemOperand(offset, k8ByteSize);
+        srcOpnd = &GetOrCreatePhysicalRegisterOperand(AArch64reg(R0), k64BitSize, kRegTyInt);
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(k64BitSize, PTY_u64), *srcOpnd, *memOpnd));
+        byteSize -= k8ByteSize;
+      }
+      PrimType pTy = (byteSize > k4ByteSize) ? PTY_u64 :
+                      ((byteSize > k2ByteSize) ? PTY_u32 :
+                       ((byteSize > k1ByteSize) ? PTY_u16 : PTY_u8));
+      bitlen = GetPrimTypeSize(pTy) * kBitsPerByte;
+      srcOpnd = &GetOrCreatePhysicalRegisterOperand(AArch64reg(R1), bitlen, kRegTyInt);
+      memOpnd = GenLmbcFpMemOperand(offset + k8ByteSize, byteSize);
+      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(bitlen, pTy), *srcOpnd, *memOpnd));
+    }
   }
 }
 
@@ -6794,24 +6820,42 @@ void AArch64CGFunc::GenSaveMethodInfoCode(BB &bb) {
   }
 }
 
+bool AArch64CGFunc::OpndHasStackLoadStore(Insn &insn, Operand &opnd) {
+  if (!opnd.IsMemoryAccessOperand()) {
+    return false;
+  }
+  auto &memOpnd = static_cast<MemOperand&>(opnd);
+  Operand *base = memOpnd.GetBaseRegister();
+  if ((base != nullptr) && base->IsRegister()) {
+    RegOperand *regOpnd = static_cast<RegOperand*>(base);
+    RegType regType = regOpnd->GetRegisterType();
+    uint32 regNO = regOpnd->GetRegisterNumber();
+    if (((regType != kRegTyCc) && ((regNO == RFP) || (regNO == RSP))) || (regType == kRegTyVary)) {
+      return true;
+    }
+    if (GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
+      return false;
+    }
+    /* lmbc uses ireadoff, not dread. Need to check for previous insn */
+    Insn *prevInsn = insn.GetPrev();
+    if (prevInsn && prevInsn->GetMachineOpcode() == MOP_xaddrri12) {
+      RegOperand *pOpnd = static_cast<RegOperand*>(&prevInsn->GetOperand(1));
+      if (pOpnd->GetRegisterType() == kRegTyVary) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 bool AArch64CGFunc::HasStackLoadStore() {
   FOR_ALL_BB(bb, this) {
     FOR_BB_INSNS(insn, bb) {
       uint32 opndNum = insn->GetOperandSize();
       for (uint32 i = 0; i < opndNum; ++i) {
         Operand &opnd = insn->GetOperand(i);
-        if (opnd.IsMemoryAccessOperand()) {
-          auto &memOpnd = static_cast<MemOperand&>(opnd);
-          Operand *base = memOpnd.GetBaseRegister();
-
-          if ((base != nullptr) && base->IsRegister()) {
-            RegOperand *regOpnd = static_cast<RegOperand*>(base);
-            RegType regType = regOpnd->GetRegisterType();
-            uint32 regNO = regOpnd->GetRegisterNumber();
-            if (((regType != kRegTyCc) && ((regNO == RFP) || (regNO == RSP))) || (regType == kRegTyVary)) {
-              return true;
-            }
-          }
+        if (OpndHasStackLoadStore(*insn, opnd)) {
+            return true;
         }
       }
     }

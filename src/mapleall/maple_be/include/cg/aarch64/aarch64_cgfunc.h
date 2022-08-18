@@ -649,6 +649,7 @@ class AArch64CGFunc : public CGFunc {
   ImmOperand &SplitAndGetRemained(const MemOperand &memOpnd, uint32 bitLen, int64 ofstVal, bool forPair = false);
   MemOperand &CreateReplacementMemOperand(uint32 bitLen, RegOperand &baseReg, int64 offset);
 
+  bool OpndHasStackLoadStore(Insn &insn, Operand &opnd);
   bool HasStackLoadStore();
 
   MemOperand &LoadStructCopyBase(const MIRSymbol &symbol, int64 offset, int dataSize);
