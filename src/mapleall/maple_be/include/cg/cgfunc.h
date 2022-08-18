@@ -924,6 +924,14 @@ class CGFunc {
     lmbcTotalArgs = 0;
   }
 
+  void SetSpSaveReg(regno_t reg) {
+    spSaveReg = reg;
+  }
+
+  regno_t GetSpSaveReg() {
+    return spSaveReg;
+  }
+
   MapleVector<BB*> &GetAllBBs() {
     return bbVec;
   }
@@ -1285,14 +1293,15 @@ class CGFunc {
 #endif  /* TARGARM32 */
   MapleVector<CGFuncLoops*> loops;
   MapleVector<LmbcFormalParamInfo*> lmbcParamVec;
+  CGCFG *theCFG = nullptr;
   MapleSet<uint32> scpIdSet;
+  const MapleString shortFuncName;
   int32 lmbcIntArgs = 0;
   int32 lmbcFpArgs = 0;
   uint32 lmbcTotalArgs = 0;
-  CGCFG *theCFG = nullptr;
   uint32 nextSpillLocation = 0;
+  regno_t spSaveReg = 0;
 
-  const MapleString shortFuncName;
   bool hasAsm = false;
   bool useFP = true;
   bool seenFP = true;

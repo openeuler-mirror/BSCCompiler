@@ -346,7 +346,13 @@ void AArch64MoveRegArgs::MoveRegisterArgs() {
     GenerateStrInsn(firstArgInfo, pairReg[firstIndex], numFpRegs[firstIndex], fpSize[firstIndex]);
   }
 
-  aarchCGFunc->GetFirstBB()->InsertAtBeginning(*aarchCGFunc->GetDummyBB());
+  if (cgFunc->GetCG()->IsLmbc() && cgFunc->GetSpSaveReg()) {
+    /* lmbc uses vreg act as SP when alloca is present due to usage of FP for - offset */
+    aarchCGFunc->GetFirstBB()->InsertAtEnd(*aarchCGFunc->GetDummyBB());
+  } else {
+    /* Java requires insertion at begining as it has fast unwind and other features */
+    aarchCGFunc->GetFirstBB()->InsertAtBeginning(*aarchCGFunc->GetDummyBB());
+  }
   aarchCGFunc->SetCurBB(*formerCurBB);
 }
 
@@ -476,7 +482,13 @@ void AArch64MoveRegArgs::MoveVRegisterArgs() const {
     }
   }
 
-  aarchCGFunc->GetFirstBB()->InsertAtBeginning(*aarchCGFunc->GetDummyBB());
+  if (cgFunc->GetCG()->IsLmbc() && cgFunc->GetSpSaveReg()) {
+    /* lmbc uses vreg act as SP when alloca is present due to usage of FP for - offset */
+    aarchCGFunc->GetFirstBB()->InsertAtEnd(*aarchCGFunc->GetDummyBB());
+  } else {
+    /* Java requires insertion at begining as it has fast unwind and other features */
+    aarchCGFunc->GetFirstBB()->InsertAtBeginning(*aarchCGFunc->GetDummyBB());
+  }
   aarchCGFunc->SetCurBB(*formerCurBB);
 }
 }  /* namespace maplebe */

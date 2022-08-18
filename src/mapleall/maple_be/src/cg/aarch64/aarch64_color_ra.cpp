@@ -15,6 +15,7 @@
 #include "aarch64_color_ra.h"
 #include <iostream>
 #include <fstream>
+#include <cmath>
 #include "aarch64_cg.h"
 #include "mir_lower.h"
 #include "securec.h"
@@ -454,9 +455,20 @@ void GraphColorRegAllocator::CalculatePriority(LiveRange &lr) const {
   uint32 numUses = 0;
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   CG *cg = a64CGFunc->GetCG();
+  bool isSpSave = false;
 
   if (cgFunc->GetCG()->IsLmbc()) {
     lr.SetRematLevel(kRematOff);
+    regno_t spSaveReg = cgFunc->GetSpSaveReg();
+    if (spSaveReg && lr.GetRegNO() == spSaveReg) {
+      /*  For lmbc, %fp and %sp are frame pointer and stack pointer respectively, unlike
+       *  non-lmbc where %fp and %sp can be of the same.
+       *  With alloca() potentially changing %sp, lmbc creates another register to act
+       *  as %sp before alloca().  This register cannot be spilled as it is used to
+       *  generate spill/fill instructions.
+       */
+      isSpSave = true;
+    }
   } else {
     if (cg->GetRematLevel() >= kRematConst && lr.IsRematerializable(*a64CGFunc, kRematConst)) {
       lr.SetRematLevel(kRematConst);
@@ -514,6 +526,10 @@ void GraphColorRegAllocator::CalculatePriority(LiveRange &lr) const {
   lr.SetPriority(pri);
   lr.SetNumDefs(numDefs);
   lr.SetNumUses(numUses);
+  if (isSpSave) {
+    lr.SetPriority(MAXFLOAT);
+    return;
+  }
   if (lr.GetPriority() > 0 && numDefs <= kPriorityDefThreashold && numUses <= kPriorityUseThreashold &&
       cgFunc->NumBBs() > kPriorityBBThreashold &&
       (static_cast<float>(lr.GetNumBBMembers()) / cgFunc->NumBBs()) > kPriorityRatioThreashold) {
@@ -2946,9 +2962,31 @@ MemOperand *GraphColorRegAllocator::GetReuseMem(uint32 vregNO, uint32 size, RegT
 }
 
 MemOperand *GraphColorRegAllocator::GetSpillMem(uint32 vregNO, bool isDest, Insn &insn, AArch64reg regNO,
-                                                bool &isOutOfRange) const {
+                                                bool &isOutOfRange) {
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   MemOperand *memOpnd = a64CGFunc->GetOrCreatSpillMem(vregNO);
+  if (cgFunc->GetCG()->IsLmbc() && cgFunc->GetSpSaveReg()) {
+    LiveRange *lr = lrMap[cgFunc->GetSpSaveReg()];
+    RegOperand *baseReg = nullptr;
+    if (lr == nullptr) {
+      BB *firstBB = cgFunc->GetFirstBB();
+      FOR_BB_INSNS(bbInsn, firstBB) {
+        if (bbInsn->GetMachineOpcode() == MOP_xmovrr && bbInsn->GetOperand(kInsnSecondOpnd).IsRegister() &&
+            static_cast<RegOperand&>(bbInsn->GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == RSP) {
+          baseReg = static_cast<RegOperand *>(&bbInsn->GetOperand(kInsnFirstOpnd));
+          CHECK_FATAL(baseReg->IsPhysicalRegister(), "Incorrect dest register for SP move");
+          break;
+        }
+      }
+      CHECK_FATAL(baseReg, "Cannot find dest register for SP move");
+    } else {
+      baseReg = &static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(
+          static_cast<AArch64reg>(lr->GetAssignedRegNO()), k64BitSize, kRegTyInt);
+    }
+    MemOperand *newmemOpnd = (static_cast<MemOperand *>(memOpnd)->Clone(*cgFunc->GetMemoryPool()));
+    newmemOpnd->SetBaseRegister(*baseReg);
+    return (a64CGFunc->AdjustMemOperandIfOffsetOutOfRange(newmemOpnd, vregNO, isDest, insn, regNO, isOutOfRange));
+  }
   return (a64CGFunc->AdjustMemOperandIfOffsetOutOfRange(memOpnd, vregNO, isDest, insn, regNO, isOutOfRange));
 }
 
@@ -4077,6 +4115,41 @@ bool GraphColorRegAllocator::SpillLiveRangeForSpills() {
   return done;
 }
 
+void GraphColorRegAllocator::FinalizeSpSaveReg() {
+  if (!cgFunc->GetCG()->IsLmbc() || cgFunc->GetSpSaveReg() == 0) {
+    return;
+  }
+  LiveRange *lr = lrMap[cgFunc->GetSpSaveReg()];
+  if (lr == nullptr) {
+    return;
+  }
+  RegOperand &preg = static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(
+      static_cast<AArch64reg>(lr->GetAssignedRegNO()), k64BitSize, kRegTyInt);
+  BB *firstBB = cgFunc->GetFirstBB();
+  FOR_BB_INSNS(insn, firstBB) {
+    if (insn->GetMachineOpcode() == MOP_xmovrr && insn->GetOperand(kInsnSecondOpnd).IsRegister() &&
+        static_cast<RegOperand&>(insn->GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == RSP) {
+      if (!static_cast<RegOperand&>(insn->GetOperand(kInsnFirstOpnd)).IsVirtualRegister()) {
+        break;
+      }
+      insn->SetOperand(kInsnFirstOpnd, preg);
+      break;
+    }
+  }
+  for (auto *retBB : cgFunc->GetExitBBsVec()) {
+    FOR_BB_INSNS(insn, retBB) {
+      if (insn->GetMachineOpcode() == MOP_xmovrr &&
+          static_cast<RegOperand&>(insn->GetOperand(kInsnFirstOpnd)).GetRegisterNumber() == RSP) {
+        if (!static_cast<RegOperand&>(insn->GetOperand(kInsnSecondOpnd)).IsVirtualRegister()) {
+          break;
+        }
+        insn->SetOperand(kInsnSecondOpnd, preg);
+        break;
+      }
+    }
+  }
+}
+
 static bool ReloadAtCallee(CgOccur *occ) {
   auto *defOcc = occ->GetDef();
   if (defOcc == nullptr || defOcc->GetOccType() != kOccStore) {
@@ -4568,6 +4641,9 @@ void GraphColorRegAllocator::SplitVregAroundLoop(const CGFuncLoops &loop, const 
     if (!AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(lr->GetAssignedRegNO()))) {
       continue;
     }
+    if (cgFunc->GetCG()->IsLmbc() && lr->GetIsSpSave()) {
+      continue;
+    }
     bool hasRef = false;
     for (auto *bb : loop.GetLoopMembers()) {
       LiveUnit *lu = lr->GetLiveUnitFromLuMap(bb->GetId());
@@ -4792,6 +4868,7 @@ void GraphColorRegAllocator::FinalizeRegisters() {
     }
     bool done = SpillLiveRangeForSpills();
     if (done) {
+      FinalizeSpSaveReg();
       return;
     }
   }

@@ -663,6 +663,9 @@ void ParamRegOpt::HandleParamReg() {
     if (movSrc.IsVirtualRegister()) {
       return;
     }
+    if (movSrc.IsPhysicalRegister() && movSrc.GetRegisterNumber() == RSP) {
+      return;
+    }
     TryToSplitParamReg(movDest, *insn);
   }
 }

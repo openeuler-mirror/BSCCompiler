@@ -6655,7 +6655,9 @@ void AArch64CGFunc::LmbcGenSaveSpForAlloca() {
     return;
   }
   Operand &spOpnd = GetOrCreatePhysicalRegisterOperand(RSP, k64BitSize, kRegTyInt);
-  RegOperand &spSaveOpnd = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, kSizeOfPtr));
+  regno_t regno = NewVReg(kRegTyInt, kSizeOfPtr);
+  RegOperand &spSaveOpnd = CreateVirtualRegisterOperand(regno);
+  SetSpSaveReg(regno);
   Insn &save = GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovrr, spSaveOpnd, spOpnd);
   GetFirstBB()->AppendInsn(save);
   for (auto *retBB : GetExitBBsVec()) {
