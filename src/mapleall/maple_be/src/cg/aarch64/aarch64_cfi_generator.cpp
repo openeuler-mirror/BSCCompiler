@@ -49,7 +49,7 @@ void AArch64GenCfi::GenereateRegisterSaveDirective(BB &bb) {
 
   /* callee save register cfi offset */
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  auto &regsToSave = (!CGOptions::DoRegSavesOpt()) ?
+  auto &regsToSave = (aarchCGFunc.GetProEpilogSavedRegs().empty()) ?
       aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
   if (regsToSave.empty()) {
     return;
@@ -74,7 +74,7 @@ void AArch64GenCfi::GenereateRegisterSaveDirective(BB &bb) {
 
 void AArch64GenCfi::GenereateRegisterRestoreDirective(BB &bb) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  auto &regsToSave = (!CGOptions::DoRegSavesOpt()) ?
+  auto &regsToSave = (aarchCGFunc.GetProEpilogSavedRegs().empty()) ?
       aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
 
   Insn &returnInsn = FindReturnInsn(bb);

@@ -79,7 +79,7 @@ bool AArch64GenProEpilog::NeedProEpilog() {
     }
   }
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  const MapleVector<AArch64reg> &regsToRestore = (!CGOptions::DoRegSavesOpt()) ?
+  const MapleVector<AArch64reg> &regsToRestore = (aarchCGFunc.GetProEpilogSavedRegs().empty()) ?
       aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
   size_t calleeSavedRegSize = kTwoRegister;
   CHECK_FATAL(regsToRestore.size() >= calleeSavedRegSize, "Forgot FP and LR ?");
@@ -959,7 +959,7 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrameDebug(AArch64reg reg
 void AArch64GenProEpilog::GeneratePushRegs() {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
-  const MapleVector<AArch64reg> &regsToSave = (!CGOptions::DoRegSavesOpt()) ?
+  const MapleVector<AArch64reg> &regsToSave = (aarchCGFunc.GetProEpilogSavedRegs().empty()) ?
       aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
 
   CHECK_FATAL(!regsToSave.empty(), "FP/LR not added to callee-saved list?");
@@ -1221,7 +1221,7 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
     }
   }
 
-  const MapleVector<AArch64reg> &regsToSave = (!CGOptions::DoRegSavesOpt()) ?
+  const MapleVector<AArch64reg> &regsToSave = (aarchCGFunc.GetProEpilogSavedRegs().empty()) ?
       aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
   if (!regsToSave.empty()) {
     /*
@@ -1499,7 +1499,7 @@ void AArch64GenProEpilog::GeneratePopRegs() {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
 
-  const MapleVector<AArch64reg> &regsToRestore = (!CGOptions::DoRegSavesOpt()) ?
+  const MapleVector<AArch64reg> &regsToRestore = (aarchCGFunc.GetProEpilogSavedRegs().empty()) ?
       aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
 
   CHECK_FATAL(!regsToRestore.empty(), "FP/LR not added to callee-saved list?");
@@ -1681,7 +1681,7 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
     }
   }
 
-  const MapleVector<AArch64reg> &regsToSave = (!CGOptions::DoRegSavesOpt()) ?
+  const MapleVector<AArch64reg> &regsToSave = (aarchCGFunc.GetProEpilogSavedRegs().empty()) ?
       aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
   if (!regsToSave.empty()) {
     GeneratePopRegs();

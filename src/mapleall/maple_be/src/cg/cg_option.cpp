@@ -780,7 +780,7 @@ void CGOptions::EnableO2() {
   doPreLSRAOpt = true;
   doLocalRefSpill = true;
   doCalleeToSpill = true;
-  doRegSavesOpt = false;
+  doRegSavesOpt = true;
   useSsaPreSave = true;
   useSsuPreRestore = true;
   doWriteRefFieldOpt = true;
