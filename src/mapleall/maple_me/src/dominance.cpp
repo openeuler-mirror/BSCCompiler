@@ -300,9 +300,9 @@ void Dominance::ComputePdomFrontiers() {
     }
     for (BB *suc : bb->GetSucc()) {
       BB *runner = suc;
-      while (runner != pdoms[bb->GetBBId()] && runner != &commonEntryBB) {
+      while (runner != pdoms[bb->GetBBId()] && runner != &commonEntryBB &&
+             pdoms[runner->GetBBId()] != nullptr) {  // add infinite loop code limit
         pdomFrontier[runner->GetBBId()].insert(bb->GetBBId());
-        ASSERT(pdoms[runner->GetBBId()] != nullptr, "ComputePdomFrontiers: pdoms[] is nullptr");
         runner = pdoms[runner->GetBBId()];
       }
     }
