@@ -181,10 +181,6 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   }
   auto typeAttrs = astVar.GetGenericAttrs().ConvertToTypeAttrs();
   ENCChecker::InsertBoundaryInAtts(typeAttrs, astVar.GetBoundaryInfo());
-  if (FEOptions::GetInstance().IsDbgFriendly()) {
-    MIRScope *scope = FEManager::GetModule().GetScope();
-    FEUtils::AddAliasInMIRScope(*scope, varName, *mirSymbol, astVar.GetSourceType());
-  }
   // do not allow extern var override global var
   if (mirSymbol->GetAttrs().GetAttrFlag() != 0 && typeAttrs.GetAttr(ATTR_extern)) {
     mirSymbol->AddAttrs(typeAttrs);
@@ -211,6 +207,10 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   }
   if (!astVar.GetAsmAttr().empty()) {
     mirSymbol->SetAsmAttr(GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(astVar.GetAsmAttr()));
+  }
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    MIRScope *scope = FEManager::GetModule().GetScope();
+    FEUtils::AddAliasInMIRScope(*scope, varName, *mirSymbol, astVar.GetSourceType());
   }
   const ASTExpr *initExpr = astVar.GetInitExpr();
   MIRConst *cst = nullptr;

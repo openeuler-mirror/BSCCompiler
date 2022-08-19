@@ -376,6 +376,12 @@ MIRType *LibAstFile::CvtFunctionType(const clang::QualType srcType, bool isSourc
       }
       attrsVec.push_back(genAttrs.ConvertToTypeAttrs());
     }
+    // The 'void' is allowed only as a single parameter to a function with no other parameters (C99 6.7.5.3p10).
+    // e.g. 'int foo(void)'. But parameter list of FunctionProtoType is empty.
+    // The void parameter source type is needs to be recorded in the debuginfo.
+    if (isSourceType && argsVec.empty()) {
+      argsVec.push_back(GlobalTables::GetTypeTable().GetVoid()->GetTypeIndex());
+    }
   }
   MIRType *mirFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(
       retType->GetTypeIndex(), argsVec, attrsVec);
