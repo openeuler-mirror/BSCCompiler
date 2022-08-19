@@ -46,8 +46,6 @@ class GenProEpilog {
     return offsetFromCfa;
   }
 
-  Insn *InsertCFIDefCfaOffset(int32 &cfiOffset, Insn &insertAfter); /* cfiOffset in-out */
-
  protected:
 
   CGFunc &cgFunc;

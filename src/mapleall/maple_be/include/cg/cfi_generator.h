@@ -54,10 +54,14 @@ class GenCfi {
   static constexpr const int32 kOffset8MemPos = 8;
 
  private:
-  void GenereateStartDirective(BB &bb);
-  void GenereateEndDirective(BB &bb);
-  virtual void GenereateRegisterSaveDirective(BB &bb) {}
-  virtual void GenereateRegisterRestoreDirective(BB &bb) {}
+  void GenerateStartDirective(BB &bb);
+  void GenerateEndDirective(BB &bb);
+  void GenerateRegisterStateDirective(BB &bb);
+  virtual void GenerateRegisterSaveDirective(BB &bb) {}
+  virtual void GenerateRegisterRestoreDirective(BB &bb) {}
+
+  /* It is do insert a start location information for each function in debugging mode */
+  void InsertFirstLocation(BB &bb);
 };
 }  /* namespace maplebe */
 #endif  /* MAPLEBE_INCLUDE_CG_CFI_GENERATOR_H */

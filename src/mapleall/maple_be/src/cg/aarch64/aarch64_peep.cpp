@@ -2947,6 +2947,9 @@ bool CombineContiLoadAndStorePattern::FindTmpRegOnlyUseAfterCombineInsn(const In
    *   ldr R0, [R0, #14036]
    */
   for (Insn *cursor = curInsn.GetNext(); cursor != nullptr; cursor = cursor->GetNext()) {
+    if (!cursor->IsMachineInstruction()) {
+      continue;
+    }
     MOperator mOp = cursor->GetMachineOpcode();
     if (mOp == MOP_xaddrri12 || mOp == MOP_waddrri12 || mOp == MOP_xaddrri24 || mOp == MOP_waddrri24) {
       auto &destOpnd = static_cast<RegOperand&>(cursor->GetOperand(kInsnFirstOpnd));

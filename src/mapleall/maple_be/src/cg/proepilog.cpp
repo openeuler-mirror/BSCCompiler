@@ -30,21 +30,6 @@
 namespace maplebe {
 using namespace maple;
 
-Insn *GenProEpilog::InsertCFIDefCfaOffset(int32 &cfiOffset, Insn &insertAfter) {
-  if (cgFunc.GenCfi() == false) {
-    insertAfter.SetStackDef(true);
-    return &insertAfter;
-  }
-  CG *currCG = cgFunc.GetCG();
-  ASSERT(currCG != nullptr, "get cg failed in InsertCFIDefCfaOffset");
-  cfiOffset = AddtoOffsetFromCFA(cfiOffset);
-  Insn &cfiInsn = currCG->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_def_cfa_offset,
-                                                         cgFunc.CreateCfiImmOperand(cfiOffset, k64BitSize));
-  Insn *newIPoint = cgFunc.GetCurBB()->InsertInsnAfter(insertAfter, cfiInsn);
-  cgFunc.SetDbgCallFrameOffset(cfiOffset);
-  return newIPoint;
-}
-
 bool CgGenProEpiLog::PhaseRun(maplebe::CGFunc &f) {
   GenProEpilog *genPE = nullptr;
 #if TARGAARCH64 || TARGRISCV64

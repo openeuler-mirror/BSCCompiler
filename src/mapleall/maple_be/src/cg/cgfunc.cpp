@@ -1859,48 +1859,6 @@ MIRSymbol *CGFunc::GetRetRefSymbol(BaseNode &expr) {
   return nullptr;
 }
 
-void CGFunc::GenerateCfiPrologEpilog() {
-  if (GenCfi() == false) {
-    return;
-  }
-  Insn &ipoint = GetCG()->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_startproc);
-  /* prolog */
-  if (firstBB->GetFirstInsn() != nullptr) {
-    firstBB->InsertInsnBefore(*firstBB->GetFirstInsn(), ipoint);
-  } else {
-    firstBB->AppendInsn(ipoint);
-  }
-
-  MIRFunction mirFunc = GetFunction();
-  MIRSymbol *fSym = GlobalTables::GetGsymTable().GetSymbolFromStidx(mirFunc.GetStIdx().Idx());
-  if (fSym && cg->GetCGOptions().WithLoc() && GetMirModule().IsCModule() && (fSym->GetSrcPosition().FileNum() != 0)) {
-    uint32 fileNum = fSym->GetSrcPosition().FileNum();
-    uint32 lineNum = fSym->GetSrcPosition().LineNum();
-    uint32 columnNum = fSym->GetSrcPosition().Column();
-    Operand *fOprnd = CreateDbgImmOperand(fileNum);
-    Operand *lOprnd = CreateDbgImmOperand(lineNum);
-    Operand *cOprnd = CreateDbgImmOperand(columnNum);
-    Insn &loc = GetCG()->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *fOprnd, *lOprnd, *cOprnd);
-    (void)(firstBB->InsertInsnBefore(*firstBB->GetFirstInsn(), loc));
-  }
-
-#if !defined(TARGARM32)
-  /*
-   * always generate ".cfi_personality 155, DW.ref.__mpl_personality_v0" for Java methods.
-   * we depend on this to tell whether it is a java method.
-   */
-  if (mirModule.IsJavaModule() && func.IsJava()) {
-    Insn &personality = GetCG()->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_personality_symbol,
-                                                                CreateCfiImmOperand(EHFunc::kTypeEncoding, k8BitSize),
-                                                                CreateCfiStrOperand("DW.ref.__mpl_personality_v0"));
-    firstBB->InsertInsnAfter(ipoint, personality);
-  }
-#endif
-
-  /* epilog */
-  lastBB->AppendInsn(GetCG()->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_endproc));
-}
-
 void CGFunc::TraverseAndClearCatchMark(BB &bb) {
   /* has bb been visited */
   if (bb.GetInternalFlag3() != 0) {
@@ -2376,10 +2334,6 @@ void CGFunc::UpdateAllRegisterVregMapping(MapleMap<regno_t, PregIdx> &newMap) {
   for (auto it : newMap) {
     vregsToPregsMap[it.first] = it.second;
   }
-}
-
-bool CGFunc::GenCfi() const {
-  return (mirModule.GetSrcLang() != kSrcLangC) || mirModule.IsWithDbgInfo();
 }
 
 /* there are two stack protector:

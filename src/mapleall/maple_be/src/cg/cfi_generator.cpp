@@ -22,11 +22,13 @@ namespace maplebe {
 Insn &GenCfi::FindStackDefNextInsn(BB &bb) const {
   FOR_BB_INSNS(insn, &bb) {
     if (insn->IsStackDef()) {
-      CHECK_NULL_FATAL(insn->GetNext());
+      if (insn->GetNext() == nullptr) {
+        bb.AppendInsn(cgFunc.CreateCommentInsn("stack alloc end"));
+      }
       return *(insn->GetNext());
     }
   }
-  return *(bb.GetLastInsn());
+  CHECK_FATAL(false, "bb need a stackdef insn");
 }
 
 Insn &GenCfi::FindReturnInsn(BB &bb) const {
@@ -41,22 +43,77 @@ void GenCfi::InsertCFIDefCfaOffset(BB &bb, Insn &insn, int32 &cfiOffset) {
   cgFunc.SetDbgCallFrameOffset(cfiOffset);
 }
 
-void GenCfi::GenereateStartDirective(BB &bb) {
+void GenCfi::GenerateStartDirective(BB &bb) {
   Insn &startprocInsn = cg.BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_startproc);
   if (bb.GetFirstInsn() != nullptr) {
     (void)bb.InsertInsnBefore(*bb.GetFirstInsn(), startprocInsn);
   } else {
     bb.AppendInsn(startprocInsn);
   }
+
+#if !defined(TARGARM32)
+  /*
+   * always generate ".cfi_personality 155, DW.ref.__mpl_personality_v0" for Java methods.
+   * we depend on this to tell whether it is a java method. (maybe we can get a function attribute to determine it)
+   */
+  if (cgFunc.GetFunction().IsJava()) {
+    Insn &personality = cg.BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_personality_symbol,
+                                                          cgFunc.CreateCfiImmOperand(EHFunc::kTypeEncoding, k8BitSize),
+                                                          cgFunc.CreateCfiStrOperand("DW.ref.__mpl_personality_v0"));
+    bb.InsertInsnAfter(startprocInsn, personality);
+  }
+#endif
 }
 
-void GenCfi::GenereateEndDirective(BB &bb) {
+void GenCfi::GenerateEndDirective(BB &bb) {
   bb.AppendInsn(cg.BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_endproc));
+}
+
+void GenCfi::GenerateRegisterStateDirective(BB &bb) {
+  if (cg.GetMIRModule()->IsCModule()) {
+    return;
+  }
+
+  if (&bb == cgFunc.GetLastBB() || bb.GetNext() == nullptr) {
+    return;
+  }
+
+  BB *nextBB = bb.GetNext();
+  do {
+    if (nextBB == cgFunc.GetLastBB() || !nextBB->IsEmpty()) {
+      break;
+    }
+    nextBB = nextBB->GetNext();
+  } while (nextBB != nullptr);
+
+  if (nextBB != nullptr && !nextBB->IsEmpty()) {
+    bb.InsertInsnBegin(cg.BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_remember_state));
+    nextBB->InsertInsnBegin(cg.BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_restore_state));
+  }
+}
+
+void GenCfi::InsertFirstLocation(BB &bb) {
+  MIRSymbol *fSym = GlobalTables::GetGsymTable().GetSymbolFromStidx(cgFunc.GetFunction().GetStIdx().Idx());
+
+  if (fSym == nullptr || !cg.GetCGOptions().WithLoc() || !cg.GetMIRModule()->IsCModule() ||
+      (fSym->GetSrcPosition().FileNum() == 0)) {
+    return;
+  }
+
+  uint32 fileNum = fSym->GetSrcPosition().FileNum();
+  uint32 lineNum = fSym->GetSrcPosition().LineNum();
+  uint32 columnNum = fSym->GetSrcPosition().Column();
+  Operand *fileNumOpnd = cgFunc.CreateDbgImmOperand(fileNum);
+  Operand *lineNumOpnd = cgFunc.CreateDbgImmOperand(lineNum);
+  Operand *columnNumOpnd = cgFunc.CreateDbgImmOperand(columnNum);
+  Insn &loc = cg.BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *fileNumOpnd, *lineNumOpnd, *columnNumOpnd);
+  (void)(bb.InsertInsnBefore(*bb.GetFirstInsn(), loc));
 }
 
 void GenCfi::Run() {
   auto *prologBB = cgFunc.GetFirstBB();
-  GenereateStartDirective(*prologBB);
+  GenerateStartDirective(*prologBB);
+  InsertFirstLocation(*prologBB);
 
   if (cgFunc.GetHasProEpilogue()) {
     if (prologBB->IsFastPath()) {
@@ -67,26 +124,23 @@ void GenCfi::Run() {
         }
       }
     }
-    GenereateRegisterSaveDirective(*prologBB);
+    GenerateRegisterSaveDirective(*prologBB);
 
     FOR_ALL_BB(bb, &cgFunc) {
       if (!bb->IsFastPathReturn() && bb->IsNeedRestoreCfi()) {
-        GenereateRegisterRestoreDirective(*bb);
+        GenerateRegisterStateDirective(*bb);
+        GenerateRegisterRestoreDirective(*bb);
       }
     }
   }
 
-  GenereateEndDirective(*(cgFunc.GetLastBB()));
+  GenerateEndDirective(*(cgFunc.GetLastBB()));
 }
 
 bool CgGenCfi::PhaseRun(maplebe::CGFunc &f) {
-  f.GenerateCfiPrologEpilog();
 #if TARGAARCH64
-  if (f.GetCG()->GetMIRModule()->IsCModule() && CGOptions::GetInstance().IsUnwindTables() &&
-      !f.GetCG()->GetMIRModule()->IsWithDbgInfo()) {
-    GenCfi *genCfi = GetPhaseAllocator()->New<AArch64GenCfi>(f);
-    genCfi->Run();
-  }
+  GenCfi *genCfi = GetPhaseAllocator()->New<AArch64GenCfi>(f);
+  genCfi->Run();
 #endif
   return true;
 }

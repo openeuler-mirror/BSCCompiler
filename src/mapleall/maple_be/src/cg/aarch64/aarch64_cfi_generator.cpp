@@ -16,7 +16,7 @@
 #include "aarch64_memlayout.h"
 #include "aarch64_cgfunc.h"
 namespace maplebe {
-void AArch64GenCfi::GenereateRegisterSaveDirective(BB &bb) {
+void AArch64GenCfi::GenerateRegisterSaveDirective(BB &bb) {
   int32 stackFrameSize = static_cast<int32>(
       static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
   int32 argsToStkPassSize = static_cast<int32>(cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
@@ -72,7 +72,7 @@ void AArch64GenCfi::GenereateRegisterSaveDirective(BB &bb) {
   }
 }
 
-void AArch64GenCfi::GenereateRegisterRestoreDirective(BB &bb) {
+void AArch64GenCfi::GenerateRegisterRestoreDirective(BB &bb) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   auto &regsToSave = (aarchCGFunc.GetProEpilogSavedRegs().empty()) ?
       aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();

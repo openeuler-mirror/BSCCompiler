@@ -518,7 +518,6 @@ class CGFunc {
   }
 
   MIRSymbol *GetRetRefSymbol(BaseNode &expr);
-  void GenerateCfiPrologEpilog();
 
   void PatchLongBranch();
 
@@ -1095,8 +1094,6 @@ class CGFunc {
   }
 
   virtual InsnVisitor *NewInsnModifier() = 0;
-
-  bool GenCfi() const;
 
   MapleVector<DBGExprLoc*> &GetDbgCallFrameLocations() {
     return dbgCallFrameLocations;
