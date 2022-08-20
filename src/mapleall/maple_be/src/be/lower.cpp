@@ -1190,8 +1190,7 @@ StmtNode *CGLowerer::GenIcallNode(PUIdx &funcCalled, IcallNode &origCall) {
   if (origCall.GetOpCode() == OP_icallassigned) {
     newCall = mirModule.GetMIRBuilder()->CreateStmtIcall(origCall.GetNopnd());
   } else {
-    newCall = mirModule.GetMIRBuilder()->CreateStmtIcallproto(origCall.GetNopnd());
-    static_cast<IcallNode *>(newCall)->SetRetTyIdx(static_cast<IcallNode&>(origCall).GetRetTyIdx());
+    newCall = mirModule.GetMIRBuilder()->CreateStmtIcallproto(origCall.GetNopnd(), origCall.GetRetTyIdx());
   }
   newCall->SetSrcPos(origCall.GetSrcPos());
   CHECK_FATAL(newCall != nullptr, "nullptr is not expected");
@@ -1538,8 +1537,7 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
       if (stmt->GetOpCode() == OP_icallassigned) {
         icallStmt = mirModule.GetMIRBuilder()->CreateStmtIcall(icallNode->GetNopnd());
       } else {
-        icallStmt = mirModule.GetMIRBuilder()->CreateStmtIcallproto(icallNode->GetNopnd());
-        icallStmt->SetRetTyIdx(icallNode->GetRetTyIdx());
+        icallStmt = mirModule.GetMIRBuilder()->CreateStmtIcallproto(icallNode->GetNopnd(), icallNode->GetRetTyIdx());
       }
       icallStmt->SetSrcPos(icallNode->GetSrcPos());
       newBlk.AddStatement(icallStmt);
@@ -2796,7 +2794,13 @@ BaseNode *CGLowerer::LowerDread(DreadNode &dread) {
   if (dread.GetPrimType() == PTY_u1) {
     dread.SetPrimType(PTY_u8);
   }
-  return (dread.GetFieldID() == 0 ? LowerDreadToThreadLocal(dread) : LowerDreadBitfield(dread));
+  auto *result = LowerDreadToThreadLocal(dread);
+  if (result->GetOpCode() == OP_iread) {
+    return LowerIread(static_cast<IreadNode &>(*result));
+  } else if (dread.GetFieldID() != 0) {
+    return LowerDreadBitfield(static_cast<DreadNode &>(*result));
+  }
+  return result;
 }
 
 void CGLowerer::LowerRegassign(RegassignNode &regNode, BlockNode &newBlk) {
@@ -2829,16 +2833,18 @@ BaseNode *CGLowerer::LowerDreadToThreadLocal(BaseNode &expr) {
   }
   auto dread = static_cast<DreadNode&>(expr);
   StIdx stIdx = dread.GetStIdx();
-  if (!stIdx.IsGlobal()) {
-    return result;
-  }
-  MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx(), true);
+  MIRSymbol *symbol = stIdx.IsGlobal() ?
+      GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx(), true) :
+      GetCurrentFunc()->GetSymbolTabItem(stIdx.Idx());
   ASSERT(symbol != nullptr, "symbol should not be nullptr");
   if (symbol->IsThreadLocal()) {
     //  iread <* u32> 0 (regread u64 %addr)
     auto addr = ExtractSymbolAddress(stIdx);
-    auto ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*symbol->GetType());
-    auto iread = mirModule.GetMIRBuilder()->CreateExprIread(*symbol->GetType(), *ptrType, dread.GetFieldID(), addr);
+    auto fieldId = dread.GetFieldID();
+    auto symbolType = symbol->GetType();
+    auto readType = fieldId == 0 ? symbolType : static_cast<MIRStructType *>(symbolType)->GetFieldType(fieldId);
+    auto ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*symbolType);
+    auto iread = mirModule.GetMIRBuilder()->CreateExprIread(*readType, *ptrType, fieldId, addr);
     result = iread;
   }
   uint32 newTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
@@ -4090,6 +4096,10 @@ void CGLowerer::LowerFunc(MIRFunction &func) {
   CHECK_FATAL(origBody != nullptr, "origBody should not be nullptr");
 
   BlockNode *newBody = LowerBlock(*origBody);
+  if (newBody->GetLast()->GetOpCode() == OP_call) {
+    // the call does not return; insert a dummy return to satisfy mplcg
+    newBody->AddStatement(mirBuilder->CreateStmtReturn(nullptr));
+  }
   func.SetBody(newBody);
   if (needBranchCleanup) {
     CleanupBranches(func);

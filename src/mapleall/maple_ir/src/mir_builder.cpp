@@ -837,10 +837,11 @@ IcallNode *MIRBuilder::CreateStmtIcall(const MapleVector<BaseNode*> &args) {
   return stmt;
 }
 
-IcallNode *MIRBuilder::CreateStmtIcallproto(const MapleVector<BaseNode*> &args) {
+IcallNode *MIRBuilder::CreateStmtIcallproto(const MapleVector<BaseNode*> &args, const TyIdx &prototypeIdx) {
   auto *stmt = GetCurrentFuncCodeMp()->New<IcallNode>(*GetCurrentFuncCodeMpAllocator(), OP_icallproto);
   ASSERT(stmt != nullptr, "stmt is null");
   stmt->SetOpnds(args);
+  stmt->SetRetTyIdx(prototypeIdx);
   return stmt;
 }
 
@@ -861,7 +862,8 @@ IcallNode *MIRBuilder::CreateStmtIcallAssigned(const MapleVector<BaseNode*> &arg
   return stmt;
 }
 
-IcallNode *MIRBuilder::CreateStmtIcallprotoAssigned(const MapleVector<BaseNode*> &args, const MIRSymbol &ret) {
+IcallNode *MIRBuilder::CreateStmtIcallprotoAssigned(const MapleVector<BaseNode*> &args, const MIRSymbol &ret,
+                                                    const TyIdx &prototypeIdx) {
   auto *stmt = GetCurrentFuncCodeMp()->New<IcallNode>(*GetCurrentFuncCodeMpAllocator(), OP_icallprotoassigned);
   CallReturnVector nrets(GetCurrentFuncCodeMpAllocator()->Adapter());
   CHECK_FATAL((ret.GetStorageClass() == kScAuto || ret.GetStorageClass() == kScFormal ||
@@ -874,7 +876,7 @@ IcallNode *MIRBuilder::CreateStmtIcallprotoAssigned(const MapleVector<BaseNode*>
   for (size_t i = 0; i < stmt->GetNopndSize(); ++i) {
     stmt->SetNOpndAt(i, args.at(i));
   }
-  stmt->SetRetTyIdx(ret.GetTyIdx());
+  stmt->SetRetTyIdx(prototypeIdx);
   return stmt;
 }
 
@@ -982,7 +984,9 @@ IntrinsiccallNode *MIRBuilder::CreateStmtXintrinsicCallAssigned(MIRIntrinsicID i
 NaryStmtNode *MIRBuilder::CreateStmtReturn(BaseNode *rVal) {
   auto *stmt = GetCurrentFuncCodeMp()->New<NaryStmtNode>(*GetCurrentFuncCodeMpAllocator(), OP_return);
   ASSERT(stmt != nullptr, "stmt is null");
-  stmt->PushOpnd(rVal);
+  if (rVal != nullptr) {
+    stmt->PushOpnd(rVal);
+  }
   return stmt;
 }
 
