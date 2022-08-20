@@ -4094,6 +4094,10 @@ void CGLowerer::LowerFunc(MIRFunction &func) {
   CHECK_FATAL(origBody != nullptr, "origBody should not be nullptr");
 
   BlockNode *newBody = LowerBlock(*origBody);
+  if (newBody->GetLast()->GetOpCode() == OP_call) {
+    // the call does not return; insert a dummy return to satisfy mplcg
+    newBody->AddStatement(mirBuilder->CreateStmtReturn(nullptr));
+  }
   func.SetBody(newBody);
   if (needBranchCleanup) {
     CleanupBranches(func);
