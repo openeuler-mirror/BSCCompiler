@@ -40,7 +40,7 @@ void AArch64RegSavesOpt::CreateReachingBBs(ReachInfo &rp, const BB &bb) {
     }
   }
 #if RS_DUMP
-  M_LOG << " --ReachingBBs for BB " << bb->GetId() << " created\n";
+  M_LOG << " --ReachingBBs for BB " << bb.GetId() << " created\n";
 #endif
 }
 
@@ -195,19 +195,6 @@ static bool IsBackEdge(BB* bb, BB* targ) {
   return false;
 }
 
-static bool BBHasTerminalCall(BB &bb) {
-  if (bb.GetKind() == BB::kBBGoto && bb.NumInsn() > 1) {
-    Insn *insn = bb.GetLastInsn()->GetPrev();
-    if (insn->GetMachineOpcode() == MOP_xbl) {
-      auto *nameOpnd = static_cast<FuncNameOperand*>(&insn->GetOperand(kInsnFirstOpnd));
-      if (nameOpnd->GetName() == "fancy_abort") {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 void AArch64RegSavesOpt::GenAccDefs() {
   /* Set up accumulated callee def bits in all blocks */
   for (auto bb : bfs->sortedBBs) {
@@ -219,9 +206,6 @@ void AArch64RegSavesOpt::GenAccDefs() {
       CalleeBitsType tmp = static_cast<CalleeBitsType>(n);
       for (auto pred : bb->GetPreds()) {
         if (IsBackEdge(bb, pred)) {
-          continue;
-        }
-        if (BBHasTerminalCall(*pred)) {
           continue;
         }
         tmp &= GetBBCalleeBits(GetCalleeBitsAcc(), pred->GetId());
@@ -653,25 +637,6 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
     if (wkCand.saveBBs.empty()) {
       /* something gone wrong, skip this reg */
       wkCand.restoreAtEpilog = true;
-    }
-    /* splitted empty block for critical edge present, skip reg */
-    MapleSet<BBID> rset = wkCand.restoreAtEntryBBs;
-    for (auto bbid : wkCand.restoreAtExitBBs) {
-      (void)rset.insert(bbid);
-    }
-    for (auto bbid : rset) {
-      BB *bb = GetId2bb(bbid);
-      if (bb->GetKind() == BB::kBBGoto && bb->NumInsn() == 1) {
-#if RS_DUMP
-        M_LOG << "Restores in splitted empty BB" << bbid << "\n";
-#endif
-        aarchCGFunc->GetProEpilogSavedRegs().clear();
-        const MapleVector<AArch64reg> &calleesNew = aarchCGFunc->GetCalleeSavedRegs();
-        for (auto areg : calleesNew) {
-          aarchCGFunc->GetProEpilogSavedRegs().push_back(areg);
-        }
-        return false;
-      }
     }
     if (wkCand.restoreAtEpilog) {
       /* Restore cannot be applied, skip this reg and place save/restore
