@@ -332,26 +332,26 @@ void DebugInfo::AddScopeDie(MIRScope *scope, bool isLocal) {
   }
 }
 
-DBGDie *DebugInfo::GetAliasVarTypeDie(MIRAliasVars &a, TyIdx tyidx) {
-  DBGDie *tdie = nullptr;
-  uint32 index = a.index;
-  switch (a.atk) {
+DBGDie *DebugInfo::GetAliasVarTypeDie(const MIRAliasVars &aliasVar, TyIdx tyidx) {
+  DBGDie *typeDie = nullptr;
+  uint32 index = aliasVar.index;
+  switch (aliasVar.atk) {
     case kATKType:
-      tdie = GetOrCreateTypeDie(TyIdx(index));
+      typeDie = GetOrCreateTypeDie(TyIdx(index));
       break;
     case kATKString:
-      tdie = GetOrCreateTypedefDie(GStrIdx(index), tyidx);
+      typeDie = GetOrCreateTypedefDie(GStrIdx(index), tyidx);
       break;
     case kATKEnum:
-      tdie = GetOrCreateEnumTypeDie(index);
+      typeDie = GetOrCreateEnumTypeDie(index);
       break;
     default:
       ASSERT(false, "unknown alias type kind");
       break;
   }
 
-  ASSERT(tdie, "null alias type DIE");
-  return GetOrCreateTypeDie(a.attrs, tdie);
+  ASSERT(typeDie, "null alias type DIE");
+  return GetOrCreateTypeDieWithAttr(aliasVar.attrs, typeDie);
 }
 
 void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isLocal) {
@@ -380,8 +380,8 @@ void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isL
     DBGDie *vdie = updateOnly ? mplDie : CreateVarDie(mplVar, i.first);
 
     // get type from alias
-    DBGDie *tdie = GetAliasVarTypeDie(i.second, mplVar->GetTyIdx());
-    (void)(vdie->SetAttr(DW_AT_type, tdie->GetId()));
+    DBGDie *typeDie = GetAliasVarTypeDie(i.second, mplVar->GetTyIdx());
+    (void)(vdie->SetAttr(DW_AT_type, typeDie->GetId()));
 
     // for new var
     if (!updateOnly) {
@@ -481,13 +481,21 @@ void DebugInfo::BuildDebugInfoContainers() {
       case kTypeInterfaceIncomplete:
       case kTypeStruct:
       case kTypeStructIncomplete:
-      case kTypeUnion: {
+      case kTypeUnion:
         (void) GetOrCreateStructTypeDie(type);
         break;
-      }
+      case kTypeByName:
+        if (typedefStrIdxTyIdxMap.find(it.first.GetIdx()) == typedefStrIdxTyIdxMap.end()) {
+#ifdef DEBUG
+          // not typedef
+          LogInfo::MapleLogger() << "named type "
+                                 << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first).c_str()
+                                 << "\n";
+#endif /* DEBUG */
+        }
+        break;
       default:
-        LogInfo::MapleLogger() << "named type " << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first).c_str()
-            << "\n";
+        ASSERT(false, "unknown case in BuildDebugInfoContainers()");
         break;
     }
   }
@@ -516,16 +524,16 @@ void DebugInfo::BuildDebugInfoFunctions() {
     SetCurFunction(func);
     // function decl
     if (stridxDieIdMap.find(func->GetNameStrIdx().GetIdx()) == stridxDieIdMap.end()) {
-      DBGDie *fdie = GetOrCreateFuncDeclDie(func);
+      DBGDie *funcDie = GetOrCreateFuncDeclDie(func);
       if (!func->GetClassTyIdx().GetIdx() && func->GetBody()) {
-        compUnit->AddSubVec(fdie);
+        compUnit->AddSubVec(funcDie);
       }
     }
     // function def
     if (funcDefStrIdxDieIdMap.find(func->GetNameStrIdx().GetIdx()) == funcDefStrIdxDieIdMap.end()) {
-      DBGDie *fdie = GetOrCreateFuncDefDie(func);
+      DBGDie *funcDie = GetOrCreateFuncDefDie(func);
       if (!func->GetClassTyIdx().GetIdx() && func->GetBody()) {
-        compUnit->AddSubVec(fdie);
+        compUnit->AddSubVec(funcDie);
       }
     }
   }
@@ -726,7 +734,7 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym, GStrIdx strIdx) {
 
   MIRType *type = sym->GetType();
   DBGDie *typeDie = GetOrCreateTypeDie(type);
-  DBGDie *newDie = GetOrCreateTypeDie(sym->GetAttrs(), typeDie);
+  DBGDie *newDie = GetOrCreateTypeDieWithAttr(sym->GetAttrs(), typeDie);
   die->AddAttr(DW_AT_type, DW_FORM_ref4, newDie->GetId());
 
   return die;
@@ -898,6 +906,7 @@ DBGDie *DebugInfo::CreatePointedFuncTypeDie(MIRFuncType *fType) {
   die->AddAttr(DW_AT_prototyped, DW_FORM_data4, static_cast<int>(fType->GetParamTypeList().size() > 0));
   MIRType *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fType->GetRetTyIdx());
   DBGDie *retTypeDie = GetOrCreateTypeDie(retType);
+  retTypeDie = GetOrCreateTypeDieWithAttr(fType->GetRetAttrs(), retTypeDie);
   die->AddAttr(DW_AT_type, DW_FORM_ref4, retTypeDie->GetId());
 
   compUnit->AddSubVec(die);
@@ -914,7 +923,7 @@ DBGDie *DebugInfo::CreatePointedFuncTypeDie(MIRFuncType *fType) {
   return die;
 }
 
-DBGDie *DebugInfo::GetOrCreateTypeDie(AttrKind attr, DBGDie *typeDie) {
+DBGDie *DebugInfo::GetOrCreateTypeDieWithAttr(AttrKind attr, DBGDie *typeDie) {
   DBGDie *die = typeDie;
   uint32 dieId = typeDie->GetId();
   uint32 newId = 0;
@@ -949,12 +958,12 @@ DBGDie *DebugInfo::GetOrCreateTypeDie(AttrKind attr, DBGDie *typeDie) {
   return die;
 }
 
-DBGDie *DebugInfo::GetOrCreateTypeDie(TypeAttrs attrs, DBGDie *typeDie) {
+DBGDie *DebugInfo::GetOrCreateTypeDieWithAttr(TypeAttrs attrs, DBGDie *typeDie) {
   if (attrs.GetAttr(ATTR_const)) {
-    typeDie = GetOrCreateTypeDie(ATTR_const, typeDie);
+    typeDie = GetOrCreateTypeDieWithAttr(ATTR_const, typeDie);
   }
   if (attrs.GetAttr(ATTR_volatile)) {
-    typeDie = GetOrCreateTypeDie(ATTR_volatile, typeDie);
+    typeDie = GetOrCreateTypeDieWithAttr(ATTR_volatile, typeDie);
   }
   return typeDie;
 }
@@ -1070,9 +1079,9 @@ DBGDie *DebugInfo::GetOrCreateEnumTypeDie(unsigned idx) {
   PrimType pty = mirEnum->GetPrimType();
   // check if it is an anonymous enum
   const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(mirEnum->GetNameIdx());
-  size_t pos = name.find("unnamed.");
-  uint32 stridx = (pos == std::string::npos) ? sid : 0;
-  (void)(die->AddAttr(DW_AT_name, DW_FORM_strp, stridx));
+  bool keep = (name.find("unnamed.") == std::string::npos);
+
+  (void)(die->AddAttr(DW_AT_name, DW_FORM_strp, sid, keep));
   (void)(die->AddAttr(DW_AT_encoding, DW_FORM_data4, GetAteFromPTY(pty)));
   (void)(die->AddAttr(DW_AT_byte_size, DW_FORM_data1, GetPrimTypeSize(pty)));
   MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pty);
@@ -1102,6 +1111,7 @@ DBGDie *DebugInfo::GetOrCreatePointTypeDie(const MIRPtrType *ptrType) {
 
   MIRType *type = ptrType->GetPointedType();
   DBGDie *typeDie = GetOrCreateTypeDie(type);
+  typeDie = GetOrCreateTypeDieWithAttr(ptrType->GetTypeAttrs(), typeDie);
   // for <* void> and <func >
   if ((type != nullptr) &&
       (type->GetPrimType() == PTY_void || type->GetKind() == kTypeFunction)) {
@@ -1163,6 +1173,7 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arrayType) {
 
   MIRType *type = arrayType->GetElemType();
   DBGDie *typeDie = GetOrCreateTypeDie(type);
+  typeDie = GetOrCreateTypeDieWithAttr(arrayType->GetTypeAttrs(), typeDie);
 
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_array_type);
   die->AddAttr(DW_AT_byte_size, DW_FORM_data4, k8BitSize);
@@ -1177,13 +1188,14 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arrayType) {
   if (theMIRModule->IsCModule() || theMIRModule->IsJavaModule()) {
     dim = arrayType->GetDim();
   }
+  typeDie = GetOrCreateTypeDie(TyIdx(PTY_u32));
+  bool keep = !arrayType->IsIncompleteArray();
   for (auto i = 0; i < dim; ++i) {
     DBGDie *rangeDie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_subrange_type);
     (void)GetOrCreatePrimTypeDie(GlobalTables::GetTypeTable().GetUInt32());
-    typeDie = GetOrCreateTypeDie(TyIdx(PTY_u32));
-    rangeDie->AddAttr(DW_AT_type, DW_FORM_ref4, typeDie->GetId());
+    rangeDie->AddAttr(DW_AT_type, DW_FORM_ref4, typeDie->GetId(), keep);
     // The default lower bound value for C, C++, or Java is 0
-    (void)rangeDie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arrayType->GetSizeArrayItem(i) - 1);
+    (void)rangeDie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arrayType->GetSizeArrayItem(i) - 1, keep);
     die->AddSubVec(rangeDie);
   }
 
@@ -1193,10 +1205,9 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arrayType) {
 DBGDie *DebugInfo::CreateFieldDie(maple::FieldPair pair, uint32 lnum) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_member);
 
-  bool keep = true;
-  if (GlobalTables::GetStrTable().GetStringFromStrIdx(pair.first).find("unnamed.") != std::string::npos) {
-    keep = false;
-  }
+  const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(pair.first);
+  bool keep = (name.find("unnamed.") == std::string::npos);
+
   die->AddAttr(DW_AT_name, DW_FORM_strp, pair.first.GetIdx(), keep);
   die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx(), keep);
   die->AddAttr(DW_AT_decl_line, DW_FORM_data4, lnum, keep);
@@ -1258,8 +1269,11 @@ DBGDie *DebugInfo::GetOrCreateStructTypeDie(const MIRType *type) {
       die = CreateStructTypeDie(strIdx, static_cast<const MIRStructType *>(type), false);
       break;
     default:
-      LogInfo::MapleLogger() << "named type " << GlobalTables::GetStrTable().GetStringFromStrIdx(strIdx).c_str()
-          << "\n";
+#ifdef DEBUG
+      LogInfo::MapleLogger() << "named type "
+                             << GlobalTables::GetStrTable().GetStringFromStrIdx(strIdx).c_str()
+                             << "\n";
+#endif /* DEBUG */
       break;
   }
 
@@ -1271,22 +1285,22 @@ DBGDie *DebugInfo::GetOrCreateStructTypeDie(const MIRType *type) {
 void DebugInfo::CreateStructTypeFieldsDies(const MIRStructType *structType, DBGDie *die) {
   uint32 prevBits = 0;
   for (size_t i = 0; i < structType->GetFieldsSize(); i++) {
-    MIRType *ety = structType->GetElemType(static_cast<uint32>(i));
+    MIRType *elemType = structType->GetElemType(static_cast<uint32>(i));
     FieldPair fp = structType->GetFieldsElemt(i);
-    if (ety->IsMIRBitFieldType()) {
-      MIRBitFieldType *bfty = static_cast<MIRBitFieldType*>(ety);
-      DBGDie *bfdie = CreateBitfieldDie(bfty, fp.first, prevBits);
-      die->AddSubVec(bfdie);
+    if (elemType->IsMIRBitFieldType()) {
+      MIRBitFieldType *bitFieldType = static_cast<MIRBitFieldType*>(elemType);
+      DBGDie *bfDie = CreateBitfieldDie(bitFieldType, fp.first, prevBits);
+      die->AddSubVec(bfDie);
       if (die->GetTag() == DW_TAG_union_type) {
         continue;
       }
 
-      prevBits = (prevBits + bfty->GetFieldSize()) < GetPrimTypeSize(bfty->GetPrimType()) * k8BitSize ?
-                 (prevBits + bfty->GetFieldSize()) : 0;
+      prevBits = (prevBits + bitFieldType->GetFieldSize()) < GetPrimTypeSize(bitFieldType->GetPrimType()) * k8BitSize ?
+                 (prevBits + bitFieldType->GetFieldSize()) : 0;
     } else {
       prevBits = 0;
-      DBGDie *fdie = CreateFieldDie(fp, 0);
-      die->AddSubVec(fdie);
+      DBGDie *fieldDie = CreateFieldDie(fp, 0);
+      die->AddSubVec(fieldDie);
 
       // update field type with alias info
       MIRAlias *alias = structType->GetAlias();
@@ -1294,11 +1308,10 @@ void DebugInfo::CreateStructTypeFieldsDies(const MIRStructType *structType, DBGD
         continue;
       }
 
-      for (auto &a : alias->GetAliasVarMap()) {
-        GStrIdx mplIdx = a.first;
-        if (a.first == fp.first) {
-          DBGDie *tdie = GetAliasVarTypeDie(a.second, fp.second.first);
-          (void)(fdie->SetAttr(DW_AT_type, tdie->GetId()));
+      for (auto &aliasVar : alias->GetAliasVarMap()) {
+        if (aliasVar.first == fp.first) {
+          DBGDie *typeDie = GetAliasVarTypeDie(aliasVar.second, fp.second.first);
+          (void)(fieldDie->SetAttr(DW_AT_type, typeDie->GetId()));
           break;
         }
       }
@@ -1309,8 +1322,8 @@ void DebugInfo::CreateStructTypeFieldsDies(const MIRStructType *structType, DBGD
 void DebugInfo::CreateStructTypeParentFieldsDies(const MIRStructType *structType, DBGDie *die) {
   for (size_t i = 0; i < structType->GetParentFieldsSize(); i++) {
     FieldPair fp = structType->GetParentFieldsElemt(i);
-    DBGDie *fdie = CreateFieldDie(fp, 0);
-    die->AddSubVec(fdie);
+    DBGDie *fieldDie = CreateFieldDie(fp, 0);
+    die->AddSubVec(fieldDie);
   }
 }
 
@@ -1321,12 +1334,12 @@ void DebugInfo::CreateStructTypeMethodsDies(const MIRStructType *structType, DBG
     ASSERT((symbol != nullptr) && symbol->GetSKind() == kStFunc, "member function symbol not exist");
     MIRFunction *func = symbol->GetValue().mirFunc;
     ASSERT(func, "member function not exist");
-    DBGDie *fdie = GetOrCreateFuncDeclDie(func);
-    die->AddSubVec(fdie);
+    DBGDie *funDeclDie = GetOrCreateFuncDeclDie(func);
+    die->AddSubVec(funDeclDie);
     if (func->GetBody()) {
       // member functions defination, these die are global
-      DBGDie *fdie = GetOrCreateFuncDefDie(func);
-      compUnit->AddSubVec(fdie);
+      DBGDie *funDefDie = GetOrCreateFuncDefDie(func);
+      compUnit->AddSubVec(funDefDie);
     }
   }
 }
@@ -1344,6 +1357,7 @@ DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *stru
     die = module->GetMemPool()->New<DBGDie>(module, tag);
     tyIdxDieIdMap[structType->GetTypeIndex().GetIdx()] = die->GetId();
   }
+  die = GetOrCreateTypeDieWithAttr(structType->GetTypeAttrs(), die);
 
   if (strIdx.GetIdx() != 0) {
     stridxDieIdMap[strIdx.GetIdx()] = die->GetId();
@@ -1351,8 +1365,11 @@ DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *stru
 
   compUnit->AddSubVec(die);
 
+  const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(strIdx);
+  bool keep = (name.find("unnamed.") == std::string::npos);
+
   die->AddAttr(DW_AT_decl_line, DW_FORM_data4, kStructDBGSize);
-  die->AddAttr(DW_AT_name, DW_FORM_strp, strIdx.GetIdx());
+  die->AddAttr(DW_AT_name, DW_FORM_strp, strIdx.GetIdx(), keep);
   die->AddAttr(DW_AT_byte_size, DW_FORM_data4, kDbgDefaultVal);
   die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx());
 

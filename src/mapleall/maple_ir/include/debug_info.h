@@ -829,8 +829,8 @@ class DebugInfo {
   DBGDie *GetOrCreatePrimTypeDie(MIRType *ty);
   DBGDie *GetOrCreateTypeDie(TyIdx tyidx);
   DBGDie *GetOrCreateTypeDie(MIRType *type);
-  DBGDie *GetOrCreateTypeDie(AttrKind attr, DBGDie *typeDie);
-  DBGDie *GetOrCreateTypeDie(TypeAttrs attrs, DBGDie *typeDie);
+  DBGDie *GetOrCreateTypeDieWithAttr(AttrKind attr, DBGDie *typeDie);
+  DBGDie *GetOrCreateTypeDieWithAttr(TypeAttrs attrs, DBGDie *typeDie);
   DBGDie *GetOrCreatePointTypeDie(const MIRPtrType *ptrType);
   DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *arrayType);
   DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
@@ -840,7 +840,7 @@ class DebugInfo {
   GStrIdx GetPrimTypeCName(PrimType pty);
 
   void AddScopeDie(MIRScope *scope, bool isLocal);
-  DBGDie *GetAliasVarTypeDie(MIRAliasVars &a, TyIdx tyidx);
+  DBGDie *GetAliasVarTypeDie(const MIRAliasVars &aliasVar, TyIdx tyidx);
   void AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isLocal);
   void CollectScopePos(MIRFunction *func, MIRScope *scope);
 
