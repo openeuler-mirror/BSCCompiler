@@ -15,9 +15,6 @@
 #include "cl_option.h"
 #include "cl_parser.h"
 
-#include "mpl_logging.h"
-
-#include <climits>
 #include <cstdint>
 #include <ostream>
 #include <string>
@@ -31,7 +28,7 @@ using namespace maplecl;
 /* Anonymous namespace to restrict visibility of utility functions */
 namespace {
 
-bool IsPrefixDetected(std::string_view opt) {
+bool IsPrefixDetected(const std::string_view &opt) {
   if (opt.substr(0, 2) == "--") {
     return true;
   }
@@ -42,11 +39,11 @@ bool IsPrefixDetected(std::string_view opt) {
 
 /* NOTE: Returning ssize_t parameter is used to show how many command line arguments
  * handled with this key. argsIndex must be incremented with this parameter outside of ExtractValue. */
-std::pair<RetCode, ssize_t> ExtractValue(ssize_t argsIndex,
-                                         const std::deque<std::string_view> &args,
-                                         const OptionInterface &opt, KeyArg &keyArg) {
+std::pair<RetCode, size_t> ExtractValue(size_t argsIndex,
+                                        const std::deque<std::string_view> &args,
+                                        const OptionInterface &opt, KeyArg &keyArg) {
   /* The option like "--key= " does not contain a value after equal symbol */
-  if (keyArg.isEqualOpt == true && keyArg.val.empty()) {
+  if (keyArg.isEqualOpt && keyArg.val.empty()) {
     return {RetCode::valueEmpty, 0};
   }
 
@@ -70,7 +67,7 @@ std::pair<RetCode, ssize_t> ExtractValue(ssize_t argsIndex,
 
     /* localArgsIndex is used to be sure that nobody breaks the logic by
      * changing argsIndex to reference. original argsIndex must be not changed here. */
-    ssize_t localArgsIndex = argsIndex + 1;
+    size_t localArgsIndex = argsIndex + 1;
     /* Second command line argument does not exist */
     if (localArgsIndex >= args.size() || args[localArgsIndex].empty()) {
       RetCode ret = (opt.ExpectedVal() == ValueExpectedType::kValueRequired) ?
@@ -89,7 +86,7 @@ std::pair<RetCode, ssize_t> ExtractValue(ssize_t argsIndex,
  * Option Value Parsers Implementation
  * ################################################################ */
 
-template <> RetCode Option<bool>::ParseBool(ssize_t &argsIndex,
+template <> RetCode Option<bool>::ParseBool(size_t &argsIndex,
                                             const std::deque<std::string_view> &args) {
   /* DisabledName should set it to false, like --fno-omit-framepointer vs --fomit-framepointer */
   SetValue(GetDisabledName() != args[argsIndex]);
@@ -99,11 +96,11 @@ template <> RetCode Option<bool>::ParseBool(ssize_t &argsIndex,
 }
 
 /* NOTE: argsIndex must be incremented only if option is handled successfully */
-template <> RetCode Option<std::string>::ParseString(ssize_t &argsIndex,
+template <> RetCode Option<std::string>::ParseString(size_t &argsIndex,
                                                      const std::deque<std::string_view> &args,
                                                      KeyArg &keyArg) {
   RetCode err = RetCode::noError;
-  ssize_t indexIncCnt = 0;
+  size_t indexIncCnt = 0;
   std::tie(err, indexIncCnt) = ExtractValue(argsIndex, args, *this, keyArg);
   if (err != RetCode::noError) {
     return err;
@@ -138,13 +135,13 @@ template <> RetCode Option<std::string>::ParseString(ssize_t &argsIndex,
 
 /* NOTE: argsIndex must be incremented only if option is handled successfully */
 template <typename T>
-RetCode Option<T>::ParseDigit(ssize_t &argsIndex,
+RetCode Option<T>::ParseDigit(size_t &argsIndex,
                               const std::deque<std::string_view> &args,
                               KeyArg &keyArg) {
   static_assert(digitalCheck<T>, "Expected (u)intXX types");
 
   RetCode err = RetCode::noError;
-  ssize_t indexIncCnt = 0;
+  size_t indexIncCnt = 0;
   std::tie(err, indexIncCnt) = ExtractValue(argsIndex, args, *this, keyArg);
   if (err != RetCode::noError) {
     return err;
@@ -189,7 +186,6 @@ RetCode Option<T>::ParseDigit(ssize_t &argsIndex,
   bool u8Type = std::is_same<T, uint8_t>::value;
   bool i16Type = std::is_same<T, int16_t>::value;
   bool i8Type = std::is_same<T, int8_t>::value;
-
 
   if (*endStrPtr != '\0') {
     return RetCode::incorrectValue;

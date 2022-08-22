@@ -405,6 +405,12 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
         destBB.AddMeStmtLast(newStmt);
         break;
       }
+      case OP_return: {
+        auto &oldStmt = static_cast<RetMeStmt&>(stmt);
+        newStmt = irmap->New<RetMeStmt>(oldStmt);
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
       default:
         LogInfo::MapleLogger() << "stmt with op :"<< stmt.GetOp() << " is not implemented yet\n";
         CHECK_FATAL(false, "NYI");

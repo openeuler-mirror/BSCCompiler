@@ -541,6 +541,7 @@ class ValueRangePropagation {
 
   void ComputeCodeSize(const MeExpr &meExpr, uint32 &cost);
   void ComputeCodeSize(const MeStmt &meStmt, uint32 &cost);
+  bool TowCompareOperandsAreInSameIterOfLoop(const MeExpr &lhs, const MeExpr &rhs) const;
 
   ValueRange *FindValueRangeAndInitNumOfRecursion(const BB &bb, MeExpr &expr) {
     uint32 numOfRecursion = 0;
@@ -548,7 +549,8 @@ class ValueRangePropagation {
   }
 
  private:
-  bool Insert2Caches(BBId bbID, int32 exprID, std::unique_ptr<ValueRange> valueRange);
+  bool Insert2Caches(const BBId &bbID, int32 exprID, std::unique_ptr<ValueRange> valueRange,
+      const MeExpr *opnd = nullptr);
 
   ValueRange *FindValueRangeInCurrentBB(BBId bbID, int32 exprID) {
     auto it = caches.at(bbID).find(exprID);
@@ -818,6 +820,8 @@ class ValueRangePropagation {
       const MeExpr &opnd0, ValueRange &rightRange, const BB &falseBranch, const BB &trueBranch);
   bool CodeSizeIsOverflowOrTheOpOfStmtIsNotSupported(const BB &bb);
   void DealWithSwitch(BB &bb, MeStmt &stmt);
+  bool DealWithSwitchWhenOpndIsConstant(BB &bb, BB *defaultBB, const ValueRange *valueRange,
+      const SwitchMeStmt &switchMeStmt);
   bool AnalysisUnreachableForGeOrGt(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
   bool AnalysisUnreachableForLeOrLt(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
   bool AnalysisUnreachableForEqOrNe(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
@@ -838,9 +842,13 @@ class ValueRangePropagation {
   MeExpr &GetVersionOfOpndInPred(const BB &pred, const BB &bb, MeExpr &expr) const;
   std::unique_ptr<ValueRange> GetValueRangeOfLHS(const BB &pred, const BB &bb, MeExpr &expr) const;
   Opcode GetOpAfterSwapThePositionsOfTwoOperands(Opcode op) const;
-  bool TowCompareOperandsAreInSameIterOfLoop(const MeExpr &lhs, const MeExpr &rhs) const;
   bool IsSubOpndOfExpr(const MeExpr &expr, const MeExpr &subExpr) const;
   void UpdateProfile(BB &pred, BB &bb, const BB &targetBB) const;
+  bool TheValueRangeOfOpndAndSubOpndAreEqual(const MeExpr &opnd) const;
+  void CalculateVROfSubOpnd(BBId bbID, const MeExpr &opnd, ValueRange &valueRange);
+  void CreateValueRangeForSubOpnd(const MeExpr &opnd, const BB &trueBranch, const BB &falseBranch,
+      ValueRange &resTrueBranchVR, ValueRange &resFalseBranchVR);
+  ValueRange *DealWithNegWhenFindValueRange(const BB &bb, const MeExpr &expr, const MeExpr *preExpr);
 
   MeFunction &func;
   MeIRMap &irMap;

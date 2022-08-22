@@ -19,7 +19,6 @@
 #include "muid.h"
 #include <cstring>
 #include "securec.h"
-
 /*
  * Basic MUID functions.
  */
@@ -42,7 +41,7 @@
 #if defined(__i386__) || defined(__x86_64__) || defined(__vax__)
 #define DECODE(n, input, output) \
     ((output)[(n)] = \
-    (*reinterpret_cast<unsigned int*>(const_cast<unsigned char*>(&input[(n) * 4]))))
+    (*reinterpret_cast<unsigned int*>(const_cast<unsigned char*>(&(input)[(n) * 4]))))
 #else
 #define DECODE(n, input, output) \
     ((output)[(n)] = \
@@ -56,10 +55,10 @@
  * Encode function.
  */
 #define ENCODE(dst, src) \
-    (dst)[0] = (unsigned char)(src); \
-    (dst)[1] = (unsigned char)((src) >> 8); \
-    (dst)[2] = (unsigned char)((src) >> 16); \
-    (dst)[3] = (unsigned char)((src) >> 24);
+    (dst)[0] = static_cast<unsigned char>(src); \
+    (dst)[1] = static_cast<unsigned char>((src) >> 8); \
+    (dst)[2] = static_cast<unsigned char>((src) >> 16); \
+    (dst)[3] = static_cast<unsigned char>((src) >> 24);
 
 /*
  * Body of transformation.
@@ -68,7 +67,7 @@ static const unsigned char *MuidTransform(MuidContext &status, const unsigned ch
   unsigned int a, b, c, d;
   auto *result = &data;
 
-  while (count--) {
+  while ((count--) != 0) {
     for (unsigned int i = 0; i < kBlockLength; i++) {
       DECODE(i, result, status.block);
     }

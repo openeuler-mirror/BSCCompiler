@@ -2275,7 +2275,6 @@ StmtNode *ConstantFold::SimplifyCondGoto(CondGotoNode *node) {
       return nullptr;
     }
   }
-  return node;
 }
 
 StmtNode *ConstantFold::SimplifyCondGotoSelect(CondGotoNode *node) const {

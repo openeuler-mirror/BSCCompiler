@@ -21,10 +21,14 @@
 namespace maple {
 constexpr size_t kNumOperands = 2;
 bool JumpThreading::isDebug = false;
+size_t JumpThreading::pathSize = 0;
+int64 JumpThreading::codeSizeOfCopy = 0;
 constexpr int64 kCodeSizeLimit = 10; // Copy up to 10 statements per path.
 constexpr size_t kLimitOfVisitedBB = 40; // A maximum of 40 bbs can be traversed when recursively finding a def point.
 constexpr size_t kLimitOfPathLength = 12; // The maximum length of each path is 12 bbs.
 constexpr size_t kLimitOfPathsSize = 20; // Each function can optimize up to 20 paths.
+constexpr int64 kModuleCodeSizeLimit = 155;
+constexpr size_t kLimitOfModulePathSize = 25;
 
 #define DEBUG_LOG() if (JumpThreading::isDebug)     \
   LogInfo::MapleLogger()
@@ -190,7 +194,7 @@ void JumpThreading::ConnectNewPath(std::vector<BB*> &currPath, std::vector<std::
         old2NewBB[idxOfCurrBB].second->AddSucc(*newTemp);
       }
       // Set label for new bb.
-      SetNewOffsetOfLastMeStmtForNewBB(*currentBB, *old2NewBB[idxOfCurrBB].second, *currentSucc, *newTemp);
+      SetNewOffsetOfLastMeStmtForNewBB(*currentBB, *old2NewBB[idxOfCurrBB].second, *temp, *newTemp);
     }
     idxOfCurrBB = i;
     currentBB = currPath[i];
@@ -292,10 +296,13 @@ bool JumpThreading::PreCopyAndConnectPath(std::vector<BB*> &currPath) {
     return false;
   }
   auto codeSizeLimit = MeOption::optForSize ? 0 : kCodeSizeLimit;
-  if (currSize > codeSizeLimit || static_cast<uint64>(currSize) > currPath.size() * kNumOperands) {
+  if (currSize > codeSizeLimit || static_cast<uint64>(currSize) > currPath.size() * kNumOperands ||
+      codeSizeOfCopy + currSize > kModuleCodeSizeLimit) {
     DEBUG_LOG() << "Code size "<< currSize << "is greater than threshold\n";
     return false;
   }
+  codeSizeOfCopy += currSize;
+  DEBUG_LOG() << codeSizeOfCopy << "\n";
   return true;
 }
 
@@ -314,7 +321,7 @@ void JumpThreading::ExecuteJumpThreading() {
       // If current path only has two bbs, has been optimized in vrp phase now.
       continue;
     }
-    if (i > kLimitOfPathsSize) {
+    if (i > kLimitOfPathsSize || pathSize > kLimitOfModulePathSize) {
       return;
     }
     if (!PreCopyAndConnectPath(*currPath)) {
@@ -330,6 +337,7 @@ void JumpThreading::ExecuteJumpThreading() {
     }
     startBBs[currPath->at(0)->GetBBId()] = true;
     DEBUG_LOG() << "============path " << i << "end\n";
+    ++pathSize;
   }
 }
 
@@ -497,6 +505,12 @@ void JumpThreading::FindPathWhenDefPointInCurrBB(BB &defBB, BB &predBB, MeExpr &
   path->pop_back();
 }
 
+void JumpThreading::FindPathWhenDefByIsNotStmtAndPhi(BB &defBB, BB &predBB, CompareOpnds &cmpOpnds) {
+  path->push_back(&predBB);
+  FindPath(defBB, cmpOpnds);
+  path->pop_back();
+}
+
 void JumpThreading::FindPathWhenDefPointIsNotInCurrBB(BB &defBB, BB &useBB, MeExpr &opnd0, MeExpr *opnd1) {
   size_t lengthOfSubPath = 0;
   if (!PushSubPath2Path(defBB, useBB, lengthOfSubPath)) {
@@ -632,9 +646,7 @@ void JumpThreading::FindPath(BB &bb, CompareOpnds &cmpOpnds) {
   }
   for (size_t i = 0; i < bb.GetPred().size(); ++i) {
     auto *pred = bb.GetPred(i);
-    if (!cmpOpnds.first->IsScalar() && cmpOpnds.second != nullptr && !cmpOpnds.second->IsScalar()) {
-      continue;
-    }
+    auto currPathsSize = paths.size();
     if (cmpOpnds.first->IsScalar() && cmpOpnds.second != nullptr && cmpOpnds.second->IsScalar()) {
       FindPathWithTwoOperandsAreScalarMeExpr(bb, *pred, cmpOpnds, i);
     } else if (cmpOpnds.first->IsScalar()) {
@@ -649,6 +661,26 @@ void JumpThreading::FindPath(BB &bb, CompareOpnds &cmpOpnds) {
       } else if (static_cast<ScalarMeExpr*>(cmpOpnds.second)->GetDefBy() == kDefByStmt) {
         FindPathWhenDefByStmt(bb, cmpOpnds, false);
       }
+    }
+    if (currPathsSize + 1 == paths.size()) {
+      continue; // This path has been optimized.
+    }
+    if (cmpOpnds.second != nullptr &&
+        !valueRanges.TowCompareOperandsAreInSameIterOfLoop(*cmpOpnds.first, *cmpOpnds.second)) {
+      continue;
+    }
+    // If currBB dom pred, can not do opt continue, because the value range of opnd in pred is come from currBB.
+    // For example:
+    // The loop has bb0, currBB, pred in the cfg:
+    //       |
+    //     currBB
+    //     / ^ \
+    //    v  |  v
+    //  bb0  | bb1
+    //     \ |
+    //      pred
+    if (!dom.Dominate(*currBB, *pred)) {
+      FindPathWhenDefByIsNotStmtAndPhi(*pred, bb, cmpOpnds);
     }
   }
 }

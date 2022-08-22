@@ -115,7 +115,6 @@ constexpr bool IsStmtMustRequire(Opcode opcode) {
     case OP_icallassigned:
     case OP_icallproto:
     case OP_icallprotoassigned:
-    case OP_intrinsiccall:
     case OP_xintrinsiccall:
     case OP_intrinsiccallassigned:
     case OP_xintrinsiccallassigned:
@@ -192,6 +191,7 @@ constexpr Opcode GetReverseCmpOp(Opcode op) {
 
 constexpr bool IsSupportedOpForCopyInPhasesLoopUnrollAndVRP(Opcode op, bool supportSwitch = false) {
   switch (op) {
+    case OP_return:
     case OP_comment:
     case OP_goto:
     case OP_dassign:

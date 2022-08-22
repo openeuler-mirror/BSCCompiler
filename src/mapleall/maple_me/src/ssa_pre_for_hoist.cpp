@@ -282,7 +282,7 @@ MeOccur *ExprHoist::GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defOc
       }
       CHECK_NULL_FATAL(newRealocc);
       // keep dt_preorder
-      for (auto iter = parent->allOccs.begin(); iter != parent->allOccs.end(); iter++) {
+      for (auto iter = parent->allOccs.begin(); iter != parent->allOccs.end(); ++iter) {
         auto *occ = *iter;
         if (fDom->GetDtDfnItem(occ->GetBB()->GetBBId()) <
             fDom->GetDtDfnItem(newRealocc->GetBB()->GetBBId())) {

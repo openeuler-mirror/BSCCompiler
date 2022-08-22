@@ -162,12 +162,10 @@ RetCode CommandLine::HandleInputArgs(const std::deque<std::string_view> &args,
       }
       continue;
     }
-
-    ++argsIndex;
     continue;
   }
 
-  if (wasError == true) {
+  if (wasError) {
     return RetCode::parsingErr;
   }
 

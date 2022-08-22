@@ -60,6 +60,7 @@ class JumpThreading {
   bool CanJumpThreadingWithCondGoto(BB &bb, MeExpr *opnd1, ValueRange *vrOfOpnd0);
   void FindPathWhenDefPointInCurrBB(BB &defBB, BB &predBB, MeExpr &opnd0, MeExpr *opnd1 = nullptr);
   void FindPathWhenDefPointIsNotInCurrBB(BB &defBB, BB &useBB, MeExpr &opnd0, MeExpr *opnd1 = nullptr);
+  void FindPathWhenDefByIsNotStmtAndPhi(BB &defBB, BB &predBB, CompareOpnds &cmpOpnds);
   void FindPathFromUse2DefWhenOneOpndIsDefByPhi(BB &bb, BB &pred, CompareOpnds &cmpOpnds,
                                                 size_t i, bool theFirstCmpOpndIsDefByPhi);
   void FindPathWhenDefByStmt(BB &useBB, CompareOpnds &cmpOpnds, bool theFirstCmpOpndIsDefByPhi);
@@ -87,6 +88,8 @@ class JumpThreading {
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands;
   bool isCFGChange = false;
   LoopDesc *currLoop = nullptr;
+  static int64 codeSizeOfCopy;
+  static size_t pathSize;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(MEJumpThreading, MeFunction)
