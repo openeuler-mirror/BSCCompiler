@@ -585,15 +585,17 @@ std::unique_ptr<ValueRange> ValueRangePropagation::FindValueRangeInCurrBBOrDomin
 }
 
 void SafetyCheckWithBoundaryError::HandleAssignWithDeadBeef(
-    const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd,
+    BB &bb, MeStmt &meStmt, MeExpr &indexOpnd,
     MeExpr &boundOpnd) {
   std::set<MeExpr*> visitedLHS;
   std::vector<MeStmt*> stmts{ &meStmt };
-  vrp.JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, indexOpnd, visitedLHS, stmts);
+  bool crossPhiNode = false;
+  vrp.JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, indexOpnd, visitedLHS, stmts, crossPhiNode);
   visitedLHS.clear();
   stmts.clear();
   stmts.push_back(&meStmt);
-  vrp.JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, boundOpnd, visitedLHS, stmts);
+  crossPhiNode = false;
+  vrp.JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, boundOpnd, visitedLHS, stmts, crossPhiNode);
 }
 
 // Deal with this case :
@@ -804,9 +806,20 @@ bool ValueRangePropagation::TheValueOfOpndIsInvaliedInABCO(
 //    p = GetBoundarylessPtr
 // error: p + i
 void ValueRangePropagation::JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
-    const BB &bb, MeExpr &expr, std::set<MeExpr*> &visitedLHS, std::vector<MeStmt*> &stmts) {
+    BB &bb, MeExpr &expr, std::set<MeExpr*> &visitedLHS, std::vector<MeStmt*> &stmts, bool &crossPhiNode) {
   if (TheValueOfOpndIsInvaliedInABCO(bb, nullptr, expr, false)) {
-    std::string errorLog = "error: pointer assigned from multibranch requires the boundary info for all branches.\n";
+    std::string errorLog = "";
+    if (!crossPhiNode) {
+      if (stmts[0]->IsInSafeRegion() &&
+          (stmts[0]->GetOp() == OP_calcassertge || stmts[0]->GetOp() == OP_calcassertlt)) {
+        errorLog += "error: the pointer has no boundary info.\n";
+      } else {
+        bb.RemoveMeStmt(stmts[0]);
+        return;
+      }
+    } else {
+      errorLog += "error: pointer assigned from multibranch requires the boundary info for all branches.\n";
+    }
     for (size_t i = 0; i < stmts.size(); ++i) {
       if (i == 0) {
         errorLog += "Where the pointer is used at the statement:\n";
@@ -822,7 +835,7 @@ void ValueRangePropagation::JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
   }
   if (!expr.IsScalar()) {
     for (size_t i = 0; i < expr.GetNumOpnds(); ++i) {
-      JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *expr.GetOpnd(i), visitedLHS, stmts);
+      JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *expr.GetOpnd(i), visitedLHS, stmts, crossPhiNode);
     }
     return;
   }
@@ -832,17 +845,18 @@ void ValueRangePropagation::JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
     if (visitedLHS.find(scalar.GetDefStmt()->GetRHS()) != visitedLHS.end()) {
       return;
     }
-    JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *scalar.GetDefStmt()->GetRHS(), visitedLHS, stmts);
+    JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *scalar.GetDefStmt()->GetRHS(), visitedLHS, stmts, crossPhiNode);
     stmts.pop_back();
     visitedLHS.insert(scalar.GetDefStmt()->GetRHS());
   } else if (scalar.GetDefBy() == kDefByPhi) {
+    crossPhiNode = true;
     MePhiNode &phi = scalar.GetDefPhi();
     if (visitedLHS.find(phi.GetLHS()) != visitedLHS.end()) {
       return;
     }
     visitedLHS.insert(phi.GetLHS());
     for (auto &opnd : phi.GetOpnds()) {
-      JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *opnd, visitedLHS, stmts);
+      JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *opnd, visitedLHS, stmts, crossPhiNode);
     }
   }
 }

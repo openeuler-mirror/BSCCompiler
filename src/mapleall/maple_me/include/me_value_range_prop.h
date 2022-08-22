@@ -35,7 +35,7 @@ class SafetyCheck {
   virtual ~SafetyCheck() = default;
 
   bool NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt, bool isNullablePtr = false) const;
-  virtual void HandleAssignWithDeadBeef(const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) {}
+  virtual void HandleAssignWithDeadBeef(BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) {}
   virtual void HandleAssertNonnull(const MeStmt &meStmt, const ValueRange *valueRangeOfIndex) {}
   virtual bool HandleAssertError(const MeStmt &meStmt) {
     return false;
@@ -62,7 +62,7 @@ class SafetyCheckWithBoundaryError : public SafetyCheck {
   SafetyCheckWithBoundaryError(MeFunction &f, ValueRangePropagation &valueRangeProp)
       : SafetyCheck(f), vrp(valueRangeProp) {}
   ~SafetyCheckWithBoundaryError() override = default;
-  void HandleAssignWithDeadBeef(const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) override;
+  void HandleAssignWithDeadBeef(BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) override;
   bool HandleAssertError(const MeStmt &meStmt) override;
   bool HandleAssertltOrAssertle(const MeStmt &meStmt, Opcode op, int64 indexValue, int64 lengthValue) override;
 
@@ -518,7 +518,7 @@ class ValueRangePropagation {
   }
 
   void JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
-      const BB &bb, MeExpr &expr, std::set<MeExpr*> &visitedLHS, std::vector<MeStmt*> &stmts);
+      BB &bb, MeExpr &expr, std::set<MeExpr*> &visitedLHS, std::vector<MeStmt*> &stmts, bool &crossPhiNode);
   bool TheValueOfOpndIsInvaliedInABCO(const BB &bb, const MeStmt *meStmt, MeExpr &boundOpnd, bool updateCaches = true);
   ValueRange *FindValueRange(const BB &bb, MeExpr &expr, uint32 &numberOfRecursions);
   bool BrStmtInRange(const BB &bb, const ValueRange &leftRange, const ValueRange &rightRange, Opcode op,
