@@ -468,7 +468,9 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   std::string funcStName = funcSt->GetName();
   if (funcSt->GetFunction()->GetAttr(FUNCATTR_weak)) {
     (void)emitter.Emit("\t.weak\t" + funcStName + "\n");
-    (void)emitter.Emit("\t.hidden\t" + funcStName + "\n");
+    if (currCG->GetMIRModule()->IsJavaModule()) {
+      (void)emitter.Emit("\t.hidden\t" + funcStName + "\n");
+    }
   } else if (funcSt->GetFunction()->GetAttr(FUNCATTR_local)) {
     (void)emitter.Emit("\t.local\t" + funcStName + "\n");
   } else if (funcSt->GetFunction() && (!funcSt->GetFunction()->IsJava()) && funcSt->GetFunction()->IsStatic()) {
@@ -1901,26 +1903,32 @@ void AArch64AsmEmitter::EmitCTlsDescRel(Emitter &emitter, const Insn &insn) cons
   Operand *src = &insn.GetOperand(kInsnSecondOpnd);
   Operand *symbol = &insn.GetOperand(kInsnThirdOpnd);
   auto stImmOpnd = static_cast<StImmOperand*>(symbol);
+  std::string symName = stImmOpnd->GetName();
+  symName += stImmOpnd->GetSymbol()->GetStorageClass() == kScPstatic ?
+      std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()) : "";
   A64OpndEmitVisitor resultVisitor(emitter, md->operand[0]);
   A64OpndEmitVisitor srcVisitor(emitter, md->operand[1]);
   (void)emitter.Emit("\t").Emit("add").Emit("\t");
   result->Accept(resultVisitor);
   (void)emitter.Emit(", ");
   src->Accept(srcVisitor);
-  (void)emitter.Emit(", #:tprel_hi12:").Emit(stImmOpnd->GetName()).Emit(", lsl #12\n");
+  (void)emitter.Emit(", #:tprel_hi12:").Emit(symName).Emit(", lsl #12\n");
   (void)emitter.Emit("\t").Emit("add").Emit("\t");
   result->Accept(resultVisitor);
   (void)emitter.Emit(", ");
   result->Accept(resultVisitor);
-  (void)emitter.Emit(", #:tprel_lo12_nc:").Emit(stImmOpnd->GetName()).Emit("\n");
+  (void)emitter.Emit(", #:tprel_lo12_nc:").Emit(symName).Emit("\n");
 }
+
 void AArch64AsmEmitter::EmitCTlsDescCall(Emitter &emitter, const Insn &insn) const {
   const AArch64MD *md = &AArch64CG::kMd[MOP_tls_desc_call];
   Operand *func = &insn.GetOperand(kInsnFirstOpnd);
   Operand *symbol = &insn.GetOperand(kInsnThirdOpnd);
   OpndProp *prop = md->operand[kInsnFirstOpnd];
   auto stImmOpnd = static_cast<StImmOperand*>(symbol);
-  const std::string &symName = stImmOpnd->GetName();
+  std::string symName = stImmOpnd->GetName();
+  symName += stImmOpnd->GetSymbol()->GetStorageClass() == kScPstatic ?
+      std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()) : "";
   A64OpndEmitVisitor funcVisitor(emitter, prop);
   /*  adrp    x0, :tlsdesc:symbol */
   (void)emitter.Emit("\t").Emit("adrp\tx0, :tlsdesc:").Emit(symName).Emit("\n");
@@ -1937,6 +1945,7 @@ void AArch64AsmEmitter::EmitCTlsDescCall(Emitter &emitter, const Insn &insn) con
   func->Accept(funcVisitor);
   (void)emitter.Emit("\n");
 }
+
 void AArch64AsmEmitter::EmitSyncLockTestSet(Emitter &emitter, const Insn &insn) const {
   const AArch64MD *md = &AArch64CG::kMd[insn.GetMachineOpcode()];
   auto *result = &insn.GetOperand(kInsnFirstOpnd);
