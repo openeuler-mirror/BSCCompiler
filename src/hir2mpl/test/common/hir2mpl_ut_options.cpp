@@ -13,10 +13,12 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "cl_option.h"
+#include "driver_options.h"
 #include "hir2mpl_ut_options.h"
 #include <iostream>
 #include "mpl_logging.h"
 #include "parser_opt.h"
+#include "triple.h"
 
 namespace maple {
 
@@ -86,6 +88,7 @@ bool HIR2MPLUTOptions::SolveArgs(int argc, char **argv) {
 
   maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv,
                                           opts::hir2mplut::hir2mplUTCategory);
+
   if (opts::hir2mplut::help) {
     DumpUsage();
     return false;

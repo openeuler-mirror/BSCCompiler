@@ -35,14 +35,6 @@ config("mapleallcompilecfg") {
     ]
   }
 
-  if (TARGET == "aarch64_ilp32") {
-    cflags_cc += [
-      "-DTARGAARCH64",
-      "-DILP32",
-      "-DMAPLE_ROOT=\"${MAPLE_ROOT}\"",
-    ]
-  }
-
   if (TARGET == "x86_64") {
     cflags_cc += [
       "-DTARGX86_64",

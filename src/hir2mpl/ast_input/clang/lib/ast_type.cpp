@@ -17,6 +17,8 @@
 #include "ast_util.h"
 #include "fe_manager.h"
 #include "fe_options.h"
+#include "driver_options.h"
+#include "triple.h"
 
 namespace maple {
 MIRType *LibAstFile::CvtPrimType(const clang::QualType qualType, bool isSourceType) const {
@@ -49,11 +51,11 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind, bool isSou
     case clang::BuiltinType::UInt:
       return PTY_u32;
     case clang::BuiltinType::ULong:
-#if defined(ILP32) && ILP32
-      return PTY_u32;
-#else
-      return PTY_u64;
-#endif
+      if (Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) {
+        return PTY_u32;
+      } else {
+        return PTY_u64;
+      }
     case clang::BuiltinType::ULongLong:
       return PTY_u64;
     case clang::BuiltinType::UInt128:
@@ -69,11 +71,11 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind, bool isSou
     case clang::BuiltinType::Int:
       return PTY_i32;
     case clang::BuiltinType::Long:
-#if defined(ILP32) && ILP32
-      return PTY_i32;
-#else
-      return PTY_i64;
-#endif
+      if (Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) {
+        return PTY_i32;
+      } else {
+        return PTY_i64;
+      }
     case clang::BuiltinType::LongLong:
       return PTY_i64;
     case clang::BuiltinType::Int128:

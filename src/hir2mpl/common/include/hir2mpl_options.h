@@ -100,7 +100,7 @@ class HIR2MPLOptions {
 
   // ast compiler options
   bool ProcessUseSignedChar(const maplecl::OptionInterface &opt) const;
-  bool ProcessBigEndian(const maplecl::OptionInterface &opt) const;
+  bool ProcessBigEndian() const;
 
   // general stmt/bb/cfg options
   bool ProcessDumpFEIRBB(const maplecl::OptionInterface &opt) const;

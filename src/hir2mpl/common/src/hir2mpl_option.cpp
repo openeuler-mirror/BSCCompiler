@@ -136,10 +136,6 @@ maplecl::Option<bool> usesignedchar({"-usesignedchar", "--usesignedchar"},
                                "  -usesignedchar         : use signed char",
                                {hir2mplCategory});
 
-maplecl::Option<bool> be({"-be", "--be"},
-                    "  -be                    : enable big endian",
-                    {hir2mplCategory});
-
 maplecl::Option<bool> o2({"-O2", "--O2"},
                     "  -O2                    : enable hir2mpl O2 optimize",
                     {hir2mplCategory});

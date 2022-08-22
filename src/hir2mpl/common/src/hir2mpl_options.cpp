@@ -26,6 +26,7 @@
 #include "fe_file_type.h"
 #include "hir2mpl_option.h"
 #include "parser_opt.h"
+#include "triple.h"
 #include "types_def.h"
 #include "version.h"
 
@@ -115,8 +116,7 @@ bool HIR2MPLOptions::InitFactory() {
   // ast compiler options
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::usesignedchar,
                                          &HIR2MPLOptions::ProcessUseSignedChar);
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::be,
-                                         &HIR2MPLOptions::ProcessBigEndian);
+
   // On Demand Type Creation
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::xbootclasspath,
                                          &HIR2MPLOptions::ProcessXbootclasspath);
@@ -154,6 +154,16 @@ bool HIR2MPLOptions::InitFactory() {
 }
 
 bool HIR2MPLOptions::SolveOptions(bool isDebug) {
+  if (opts::target.IsEnabledByUser()) {
+    Triple::GetTriple().Init(opts::target.GetValue());
+  } else {
+    Triple::GetTriple().Init();
+  }
+
+  if (Triple::GetTriple().IsBigEndian()) {
+    ProcessBigEndian();
+  }
+
   for (const auto &opt : hir2mplCategory.GetEnabledOptions()) {
     std::string printOpt;
     if (isDebug) {
@@ -436,7 +446,7 @@ bool HIR2MPLOptions::ProcessUseSignedChar(const maplecl::OptionInterface &) cons
   return true;
 }
 
-bool HIR2MPLOptions::ProcessBigEndian(const maplecl::OptionInterface &) const {
+bool HIR2MPLOptions::ProcessBigEndian() const {
   FEOptions::GetInstance().SetBigEndian(true);
   return true;
 }
