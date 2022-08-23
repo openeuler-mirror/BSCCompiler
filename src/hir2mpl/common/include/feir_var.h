@@ -126,7 +126,6 @@ class FEIRVar {
     if (mirSym->GetSrcPosition().LineNum() == 0) {
       mirSym->SetSrcPosition(loc.Emit2SourcePosition());
     }
-    builder.GetMirModule().InsertInlineGlobal(mirSym->GetStIdx().Idx());
     return mirSym;
   }
 

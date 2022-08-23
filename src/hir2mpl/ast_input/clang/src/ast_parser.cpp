@@ -649,7 +649,7 @@ ASTStmt *ASTParser::ProcessStmtDeclStmt(MapleAllocator &allocator, const clang::
       (void)decls.emplace_back(*it);
     }
   }
-  for (const clang::Decl *decl : decls) {
+  for (auto decl : std::as_const(decls)) {
     // save vla size expr
     std::list<ASTExpr*> astExprs;
     if (decl->getKind() == clang::Decl::Var) {
@@ -659,7 +659,7 @@ ASTStmt *ASTParser::ProcessStmtDeclStmt(MapleAllocator &allocator, const clang::
       clang::QualType underType = llvm::cast<clang::TypedefNameDecl>(decl)->getUnderlyingType();
       SaveVLASizeExpr(allocator, underType, astExprs);
     }
-    for (auto expr : astExprs) {
+    for (auto expr : std::as_const(astExprs)) {
       astStmt->SetVLASizeExpr(expr);
     }
     ASTDecl *ad = ProcessDecl(allocator, *decl);
@@ -978,9 +978,7 @@ ASTExpr *ASTParser::EvaluateExprAsConst(MapleAllocator &allocator, const clang::
       floatExpr->SetVal(val);
     } else if (&fltSem == &llvm::APFloat::IEEEquad() || &fltSem == &llvm::APFloat::x87DoubleExtended()) {
       bool losesInfo;
-      (void)floatVal.convert(llvm::APFloat::IEEEdouble(),
-                             llvm::APFloatBase::rmNearestTiesToAway,
-                             &losesInfo);
+      (void)floatVal.convert(llvm::APFloat::IEEEdouble(), llvm::APFloatBase::rmNearestTiesToAway, &losesInfo);
       val = static_cast<double>(floatVal.convertToDouble());
       floatExpr->SetKind(FloatKind::F64);
       floatExpr->SetVal(val);
@@ -1620,7 +1618,7 @@ ASTExpr *ASTParser::BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, con
       if (sizeExpr == nullptr) {
         return nullptr;
       }
-      auto iter = vlaSizeMap.find(sizeExpr);
+      MapleMap<clang::Expr*, ASTExpr*>::const_iterator iter = vlaSizeMap.find(sizeExpr);
       if (iter != vlaSizeMap.cend()) {
         return iter->second;
       }
@@ -2524,18 +2522,19 @@ MapleVector<ASTDecl*> ASTParser::SolveFuncParameterDecls(MapleAllocator &allocat
     std::list<ASTExpr*> astExprs;
     SaveVLASizeExpr(allocator, parmDecl->getOriginalType(), astExprs);
     ASTStmtDummy *stmt = ASTDeclsBuilder::ASTStmtBuilder<ASTStmtDummy>(allocator);
-    for (auto expr : astExprs) {
+    for (auto expr : std::as_const(astExprs)) {
       stmt->SetASTExpr(expr);
     }
-    stmts.emplace_back(stmt);
+    (void)stmts.emplace_back(stmt);
     ASTDecl *parmVarDecl = ProcessDecl(allocator, *parmDecl);
+    ASSERT_NOT_NULL(parmVarDecl);
     paramDecls.push_back(parmVarDecl);
     typeDescIn.push_back(parmVarDecl->GetTypeDesc().front());
   }
   return paramDecls;
 }
 
-GenericAttrs ASTParser::SolveFunctionAttrinutes(const clang::FunctionDecl &funcDecl, std::string &funcName) {
+GenericAttrs ASTParser::SolveFunctionAttrinutes(const clang::FunctionDecl &funcDecl, std::string &funcName) const {
   GenericAttrs attrs;
   astFile->CollectFuncAttrs(funcDecl, attrs, kPublic);
   // for inline optimize
@@ -2566,13 +2565,6 @@ ASTStmt *ASTParser::SolveFunctionBody(MapleAllocator &allocator,
   } else {
     return nullptr;
   }
-#ifndef STMTS_AS_BODY_SIZE
-  Loc startLoc = astFile->GetLOC(llvm::cast<clang::CompoundStmt>(funcDecl.getBody())->getBeginLoc());
-  Loc endLoc = astFile->GetLOC(llvm::cast<clang::CompoundStmt>(funcDecl.getBody())->getEndLoc());
-  astFunc.SetSize(static_cast<uint32>(endLoc.line - startLoc.line));
-#else
-  astFunc.SetSize(static_cast<uint32>(static_cast<ASTCompoundStmt*>(astCompoundStmt)->GetASTStmtList().size()));
-#endif
   return astCompoundStmt;
 }
 
@@ -2706,6 +2698,7 @@ void ASTParser::SetInitExprForASTVar(MapleAllocator &allocator, const clang::Var
   astVar.SetSrcLoc(astFile->GetLOC(varDecl.getLocation()));
   auto initExpr = varDecl.getInit();
   auto astInitExpr = ProcessExpr(allocator, initExpr);
+  ASSERT_NOT_NULL(astInitExpr);
   if (initExpr->getStmtClass() == clang::Stmt::InitListExprClass && astInitExpr->GetASTOp() == kASTOpInitListExpr) {
     static_cast<ASTInitListExpr*>(astInitExpr)->SetInitListVarName(astVar.GenerateUniqueVarName());
   }
@@ -2721,7 +2714,7 @@ void ASTParser::SetInitExprForASTVar(MapleAllocator &allocator, const clang::Var
   }
 }
 
-void ASTParser::SetAlignmentForASTVar(const clang::VarDecl &varDecl, ASTVar &astVar) {
+void ASTParser::SetAlignmentForASTVar(const clang::VarDecl &varDecl, ASTVar &astVar) const {
   int64 naturalAlignment = astFile->GetContext()->toCharUnitsFromBits(
       astFile->GetContext()->getTypeUnadjustedAlign(varDecl.getType())).getQuantity();
   // Get alignment from the decl

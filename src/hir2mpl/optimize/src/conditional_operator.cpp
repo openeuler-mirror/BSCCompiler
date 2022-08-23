@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -43,20 +43,21 @@ bool ConditionalOptimize::DeleteRedundantTmpVar(const UniqueFEIRExpr &expr, std:
     return false;
   }
 
-  auto ReplaceBackStmt = [&](std::list<UniqueFEIRStmt> &stmts, const FEIRStmt &srcStmt) {
+  auto ReplaceBackStmt = [dstPty, fieldID, &var](std::list<UniqueFEIRStmt> &stmts, const FEIRStmt &srcStmt) {
     auto dassignStmt = static_cast<FEIRStmtDAssign*>(stmts.back().get());
     UniqueFEIRExpr srcExpr = dassignStmt->GetExpr()->Clone();
     PrimType srcPty = srcExpr->GetPrimType();
     if (srcPty != dstPty && srcPty != PTY_agg && srcPty != PTY_void) {
+      PrimType newDstPty = dstPty;
       if (srcPty == PTY_f32 || srcPty == PTY_f64) {
         if (dstPty == PTY_u8 || dstPty == PTY_u16) {
-          dstPty = PTY_u32;
+          newDstPty = PTY_u32;
         }
         if (dstPty == PTY_i8 || dstPty == PTY_i16) {
-          dstPty = PTY_i32;
+          newDstPty = PTY_i32;
         }
       }
-      srcExpr = FEIRBuilder::CreateExprCastPrim(std::move(srcExpr), dstPty);
+      srcExpr = FEIRBuilder::CreateExprCastPrim(std::move(srcExpr), newDstPty);
     }
 
     auto stmt = std::make_unique<FEIRStmtDAssign>(var->Clone(), srcExpr->Clone(), fieldID);
@@ -76,7 +77,7 @@ bool ConditionalOptimize::DeleteRedundantTmpVar(const UniqueFEIRExpr &expr, std:
     return false;
   }
 
-  auto ReplaceBackStmt = [&](std::list<UniqueFEIRStmt> &stmts, const FEIRStmt &srcStmt) {
+  auto ReplaceBackStmt = [](std::list<UniqueFEIRStmt> &stmts, const FEIRStmt &srcStmt) {
     auto dassignStmt = static_cast<FEIRStmtDAssign*>(stmts.back().get());
     auto stmt = std::make_unique<FEIRStmtReturn>(dassignStmt->GetExpr()->Clone());
     stmt->SetSrcLoc(srcStmt.GetSrcLoc());

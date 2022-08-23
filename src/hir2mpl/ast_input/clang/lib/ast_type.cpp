@@ -408,13 +408,11 @@ void LibAstFile::CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualT
   ASSERT(ptrType != nullptr, "Null type", currQualType.getAsString().c_str());
   if (ptrType->isArrayType()) {
     const clang::ArrayType *arrType = ptrType->getAsArrayTypeUnsafe();
-    bool asFlag = arrType->isConstantArrayType();
-    ASSERT(asFlag, "Must be a ConstantArrayType", currQualType.getAsString().c_str());
+    ASSERT(arrType->isConstantArrayType(), "Must be a ConstantArrayType", currQualType.getAsString().c_str());
     const auto *constArrayType = llvm::dyn_cast<clang::ConstantArrayType>(arrType);
     ASSERT(constArrayType != nullptr, "ERROR : null pointer!");
     llvm::APInt size = constArrayType->getSize();
-    asFlag = size.getSExtValue() >= 0;
-    ASSERT(asFlag, "Array Size must be positive or zero", currQualType.getAsString().c_str());
+    ASSERT(size.getSExtValue() >= 0, "Array Size must be positive or zero", currQualType.getAsString().c_str());
     operands.push_back(size.getSExtValue());
     CollectBaseEltTypeAndSizesFromConstArrayDecl(constArrayType->getElementType(), elemType, elemAttr, operands,
                                                  isSourceType);

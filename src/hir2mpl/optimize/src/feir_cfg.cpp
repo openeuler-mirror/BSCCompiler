@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -134,8 +134,8 @@ bool FEIRCFG::BuildCFG() {
       bbNext->AddPredBB(bb);
     }
     for (FEIRStmt *stmt : locStmtTail->GetExtraSuccs()) {
-      auto itBB = mapTargetStmtBB.find(stmt);
-      CHECK_FATAL(itBB != mapTargetStmtBB.end(), "Target BB is not found");
+      std::map<const FEIRStmt*, FEIRBB*>::const_iterator itBB = mapTargetStmtBB.find(stmt);
+      CHECK_FATAL(itBB != mapTargetStmtBB.cend(), "Target BB is not found");
       FEIRBB *bbNext = itBB->second;
       bb->AddSuccBB(bbNext);
       bbNext->AddPredBB(bb);
@@ -162,7 +162,7 @@ const FEIRBB *FEIRCFG::GetNextBB() {
   return static_cast<FEIRBB*>(currBBNode);
 }
 
-void FEIRCFG::LabelStmtID() {
+void FEIRCFG::LabelStmtID() const {
   FELinkListNode *nodeStmt = stmtHead;
   uint32 idx = 0;
   while (nodeStmt != nullptr) {
@@ -173,7 +173,7 @@ void FEIRCFG::LabelStmtID() {
   }
 }
 
-void FEIRCFG::LabelBBID() {
+void FEIRCFG::LabelBBID() const {
   FELinkListNode *nodeBB = bbHead.get();
   uint32 idx = 0;
   while (nodeBB != nullptr) {
@@ -216,7 +216,7 @@ void FEIRCFG::DumpCFGGraph(std::ofstream &file) {
   file << "}" << std::endl;
 }
 
-void FEIRCFG::DumpCFGGraphForBB(std::ofstream &file, const FEIRBB &bb) {
+void FEIRCFG::DumpCFGGraphForBB(std::ofstream &file, const FEIRBB &bb) const {
   file << "  BB" << bb.GetID() << " [shape=record,label=\"{\n";
   const FELinkListNode *nodeStmt = bb.GetStmtHead();
   while (nodeStmt != nullptr) {

@@ -1382,10 +1382,12 @@ void ASTInitListExpr::SolveInitListFullOfZero(const MIRStructType &baseStructTyp
     // first field in the nested struct or union), because even though these two addresses have the same value,
     // they have different pointer type.
     UniqueFEIRExpr addrOfExpr = std::make_unique<FEIRExprAddrofVar>(var->Clone(), fieldID - 1);
-    ProcessImplicitInit(addrOfExpr->Clone(), 0, currStructType->GetSize(), 1, stmts, initList.GetSrcLoc());
+    ProcessImplicitInit(addrOfExpr->Clone(), 0, static_cast<uint32>(currStructType->GetSize()), 1, stmts,
+                        initList.GetSrcLoc());
   } else { // kTypeUnion
     UniqueFEIRExpr addrOfExpr = std::make_unique<FEIRExprAddrofVar>(var->Clone(), 0);
-    ProcessImplicitInit(addrOfExpr->Clone(), 0, currStructType->GetSize(), 1, stmts, initList.GetSrcLoc());
+    ProcessImplicitInit(addrOfExpr->Clone(), 0, static_cast<uint32>(currStructType->GetSize()), 1, stmts,
+                        initList.GetSrcLoc());
   }
 }
 
@@ -1425,11 +1427,11 @@ bool ASTInitListExpr::SolveInitListPartialOfZero(std::variant<std::pair<UniqueFE
   }
   // consider struct alignment
   int64 fieldsBitSize =
-      (baseStructMirType->GetBitOffsetFromBaseAddr(fieldIdOfLastZero) + fieldSizeOfLastZero * 8) - initBitSize;
-  if (fieldsCount >= 2 && fieldsBitSize % 8 == 0 && (fieldsBitSize / 8) % 4 == 0) {
+      (baseStructMirType->GetBitOffsetFromBaseAddr(fieldIdOfLastZero) + fieldSizeOfLastZero * kOneByte) - initBitSize;
+  if (fieldsCount >= 2 && fieldsBitSize % kOneByte == 0 && (fieldsBitSize / kOneByte) % 4 == 0) {
     auto addrOfExpr = CalculateStartAddressForMemset(var, static_cast<uint32>(initBitSize / 8), fieldID, base);
-    ProcessImplicitInit(addrOfExpr->Clone(), 0, static_cast<uint32>(fieldsBitSize / 8), 1, stmts,
-        initList.initExprs[start]->GetSrcLoc());
+    ProcessImplicitInit(addrOfExpr->Clone(), 0, static_cast<uint32>(fieldsBitSize / kOneByte), 1, stmts,
+                        initList.initExprs[start]->GetSrcLoc());
     --index;
     return true;
   } else {
@@ -1458,52 +1460,50 @@ void ASTInitListExpr::SolveInitListExprOrDesignatedInitUpdateExpr(FieldID fieldI
   }
 }
 
-bool ASTInitListExpr::SolveStructFieldOfArrayTypeInitWithStringLiteral(std::tuple<FieldID, uint32, MIRType*> fieldInfo,
+void ASTInitListExpr::SolveStructFieldOfArrayTypeInitWithStringLiteral(std::tuple<FieldID, uint32, MIRType*> fieldInfo,
     const ASTExpr &initExpr, const UniqueFEIRType &baseStructPtrType,
     std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base, std::list<UniqueFEIRStmt> &stmts) const {
   auto elemExpr = initExpr.Emit2FEExpr(stmts);
   if (elemExpr == nullptr) {
-    return false;
+    return;
   }
   FieldID fieldID = std::get<0>(fieldInfo);
   MIRType *fieldMirType = std::get<2>(fieldInfo);
   if (std::holds_alternative<UniqueFEIRExpr>(base)) {
     auto addrOfElement = std::make_unique<FEIRExprIAddrof>(baseStructPtrType->Clone(), fieldID,
                                                            std::get<UniqueFEIRExpr>(base)->Clone());
-    auto addrOfArrayExpr =  GetAddrofArrayFEExprByStructArrayField(fieldMirType, addrOfElement->Clone());
+    auto addrOfArrayExpr =  GetAddrofArrayFEExprByStructArrayField(*fieldMirType, addrOfElement->Clone());
     ProcessStringLiteralInitList(addrOfArrayExpr->Clone(), elemExpr->Clone(),
                                  static_cast<const ASTStringLiteral*>(&initExpr)->GetLength(), stmts);
   } else {
     auto subVar = std::get<std::pair<UniqueFEIRVar, FieldID>>(base).first->Clone();
     auto addrOfElement = std::make_unique<FEIRExprAddrofVar>(subVar->Clone());
     addrOfElement->SetFieldID(fieldID);
-    auto addrOfArrayExpr =  GetAddrofArrayFEExprByStructArrayField(fieldMirType, addrOfElement->Clone());
+    auto addrOfArrayExpr =  GetAddrofArrayFEExprByStructArrayField(*fieldMirType, addrOfElement->Clone());
     ProcessStringLiteralInitList(addrOfArrayExpr->Clone(), elemExpr->Clone(),
                                  static_cast<const ASTStringLiteral*>(&initExpr)->GetLength(), stmts);
   }
-  return true;
 }
 
-bool ASTInitListExpr::SolveStructFieldOfBasicType(FieldID fieldID, const ASTExpr &initExpr,
+void ASTInitListExpr::SolveStructFieldOfBasicType(FieldID fieldID, const ASTExpr &initExpr,
                                                   const UniqueFEIRType &baseStructPtrType,
                                                   std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                                                   std::list<UniqueFEIRStmt> &stmts) const {
   auto elemExpr = initExpr.Emit2FEExpr(stmts);
   if (elemExpr == nullptr) {
-    return false;
+    return;
   }
   if (std::holds_alternative<UniqueFEIRExpr>(base)) {
     auto stmt = std::make_unique<FEIRStmtIAssign>(baseStructPtrType->Clone(), std::get<UniqueFEIRExpr>(base)->Clone(),
                                                   elemExpr->Clone(), fieldID);
     stmt->SetSrcLoc(initExpr.GetSrcLoc());
-    stmts.emplace_back(std::move(stmt));
+    (void)stmts.emplace_back(std::move(stmt));
   } else {
     auto subVar = std::get<std::pair<UniqueFEIRVar, FieldID>>(base).first->Clone();
     auto stmt = std::make_unique<FEIRStmtDAssign>(subVar->Clone(), elemExpr->Clone(), fieldID);
     stmt->SetSrcLoc(initExpr.GetSrcLoc());
-    stmts.emplace_back(std::move(stmt));
+    (void)stmts.emplace_back(std::move(stmt));
   }
-  return true;
 }
 
 void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
@@ -1536,7 +1536,8 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
 
   if (initList.initExprs.size() == 0) {
     UniqueFEIRExpr addrOfExpr = std::make_unique<FEIRExprAddrofVar>(var->Clone(), 0);
-    ProcessImplicitInit(addrOfExpr->Clone(), 0, curStructMirType->GetSize(), 1, stmts, initList.GetSrcLoc());
+    ProcessImplicitInit(addrOfExpr->Clone(), 0, static_cast<uint32>(curStructMirType->GetSize()), 1, stmts,
+                        initList.GetSrcLoc());
     return;
   }
 
@@ -1566,7 +1567,7 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
         curStructMirType->GetKind() == kTypeStruct &&
         fieldMirType->GetKind() != kTypeBitField && // skip bitfield type field because it not follows byte alignment
         initList.initExprs[i]->GetEvaluatedFlag() == kEvaluatedAsZero &&
-        (baseStructMirType->GetBitOffsetFromBaseAddr(fieldID) / 8) % 4 == 0) {
+        (baseStructMirType->GetBitOffsetFromBaseAddr(fieldID) / kOneByte) % 4 == 0) {
         if (SolveInitListPartialOfZero(base, fieldID, i, initList, stmts)) {
           continue;
         }
@@ -1582,17 +1583,11 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
     if (initList.initExprs[i]->GetASTOp() == kASTOpInitListExpr ||
         initList.initExprs[i]->GetASTOp() == kASTASTDesignatedInitUpdateExpr) {
       SolveInitListExprOrDesignatedInitUpdateExpr(fieldID, *(initList.initExprs[i]), baseStructFEPtrType, base, stmts);
+    } else if (fieldMirType->GetKind() == kTypeArray && initList.initExprs[i]->GetASTOp() == kASTStringLiteral) {
+      SolveStructFieldOfArrayTypeInitWithStringLiteral(fieldInfo, *(initList.initExprs[i]),
+                                                       baseStructFEPtrType, base, stmts);
     } else {
-      if (fieldMirType->GetKind() == kTypeArray && initList.initExprs[i]->GetASTOp() == kASTStringLiteral) {
-        if (!SolveStructFieldOfArrayTypeInitWithStringLiteral(fieldInfo, *(initList.initExprs[i]),
-                                                              baseStructFEPtrType, base, stmts)) {
-          continue;
-        }
-      } else {
-        if (!SolveStructFieldOfBasicType(fieldID, *(initList.initExprs[i]), baseStructFEPtrType, base, stmts)) {
-          continue;
-        }
-      }
+      SolveStructFieldOfBasicType(fieldID, *(initList.initExprs[i]), baseStructFEPtrType, base, stmts);
     }
   }
 
@@ -1604,10 +1599,10 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
   }
 }
 
-UniqueFEIRExpr ASTInitListExpr::GetAddrofArrayFEExprByStructArrayField(MIRType *fieldType,
+UniqueFEIRExpr ASTInitListExpr::GetAddrofArrayFEExprByStructArrayField(MIRType &fieldType,
                                                                        const UniqueFEIRExpr &addrOfArrayField) const {
-  CHECK_FATAL(fieldType->GetKind() == kTypeArray, "invalid field type");
-  auto arrayFEType = FEIRTypeHelper::CreateTypeNative(*fieldType);
+  CHECK_FATAL(fieldType.GetKind() == kTypeArray, "invalid field type");
+  auto arrayFEType = FEIRTypeHelper::CreateTypeNative(fieldType);
   std::list<UniqueFEIRExpr> indexExprs;
   auto indexExpr = FEIRBuilder::CreateExprConstI32(0);
   indexExprs.emplace_back(std::move(indexExpr));
@@ -1629,7 +1624,8 @@ void ASTInitListExpr::SolveArrayElementInitWithInitListExpr(const UniqueFEIRExpr
       UniqueFEIRExpr offsetSizeExpr = FEIRBuilder::CreateExprBinary(OP_mul, std::move(idxExpr), elemSizeExpr->Clone());
       realAddr = FEIRBuilder::CreateExprBinary(OP_add, std::move(realAddr), offsetSizeExpr->Clone());
     }
-    ProcessImplicitInit(realAddr->Clone(), 0, elementType.GetSize(), 1, stmts, subExpr.GetSrcLoc());
+    ProcessImplicitInit(realAddr->Clone(), 0, static_cast<uint32>(elementType.GetSize()), 1, stmts,
+                        subExpr.GetSrcLoc());
   } else {
     ProcessInitList(base, *(static_cast<const ASTInitListExpr*>(&subExpr)), stmts);
   }
@@ -1642,7 +1638,7 @@ void ASTInitListExpr::HandleImplicitInitSections(const UniqueFEIRExpr &addrOfArr
   auto elemSize = elementType.GetSize();
   CHECK_FATAL(elemSize != 0, "elemSize should not 0");
   auto allElemCnt = allSize / elemSize;
-  ProcessImplicitInit(addrOfArray->Clone(), initList.initExprs.size(), allElemCnt, elemSize, stmts,
+  ProcessImplicitInit(addrOfArray->Clone(), static_cast<uint32>(initList.initExprs.size()), allElemCnt, elemSize, stmts,
                       initList.GetSrcLoc());
 }
 
@@ -1664,7 +1660,8 @@ void ASTInitListExpr::ProcessArrayInitList(const UniqueFEIRExpr &addrOfArray, co
   auto elementPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*elementType);
   CHECK_FATAL(initExprs.size() <= INT_MAX, "invalid index");
   if (!FEOptions::GetInstance().IsNpeCheckDynamic() && initList.GetEvaluatedFlag() == kEvaluatedAsZero) {
-    ProcessImplicitInit(addrOfArray->Clone(), 0, arrayMirType->GetSize(), 1, stmts, initList.GetSrcLoc());
+    ProcessImplicitInit(addrOfArray->Clone(), 0, static_cast<uint32>(arrayMirType->GetSize()), 1, stmts,
+                        initList.GetSrcLoc());
     return;
   }
   for (size_t i = 0; i < initList.initExprs.size(); ++i) {
@@ -1897,7 +1894,7 @@ UniqueFEIRExpr ASTArraySubscriptExpr::SolveMultiDimArray(UniqueFEIRExpr &baseAdd
   if (baseAddrFEExpr->GetKind() == kExprAddrofArray && !isArrayTypeOpt) {
     auto baseArrayExpr = static_cast<FEIRExprAddrofArray*>(baseAddrFEExpr.get());
     for (auto &e : baseArrayExpr->GetExprIndexs()) {
-      feIdxExprs.emplace_back(e->Clone());
+      (void)feIdxExprs.emplace_back(e->Clone());
     }
     arrayFEType = baseArrayExpr->GetTypeArray()->Clone();
     baseAddrFEExpr = baseArrayExpr->GetExprArray()->Clone();
@@ -1906,7 +1903,7 @@ UniqueFEIRExpr ASTArraySubscriptExpr::SolveMultiDimArray(UniqueFEIRExpr &baseAdd
   if (isArrayTypeOpt) {
     InsertNonnullChecking(stmts, feIdxExpr, baseAddrFEExpr);
   }
-  feIdxExprs.emplace_back(std::move(feIdxExpr));
+  (void)feIdxExprs.emplace_back(std::move(feIdxExpr));
   return FEIRBuilder::CreateExprAddrofArray(arrayFEType->Clone(), baseAddrFEExpr->Clone(), "", feIdxExprs);
 }
 
@@ -1927,7 +1924,7 @@ UniqueFEIRExpr ASTArraySubscriptExpr::SolveOtherArrayType(const UniqueFEIRExpr &
     auto typeSizeExpr = std::make_unique<FEIRExprConst>(mirType->GetSize(), sizeType->GetPrimType());
     feIdxExpr = FEIRBuilder::CreateExprBinary(sizeType->Clone(), OP_mul, std::move(feIdxExpr), std::move(typeSizeExpr));
   }
-  offsetExprs.emplace_back(std::move(feIdxExpr));
+  (void)offsetExprs.emplace_back(std::move(feIdxExpr));
   if (offsetExprs.size() != 0) {
     offsetExpr = std::move(offsetExprs[0]);
     for (size_t i = 1; i < offsetExprs.size(); i++) {

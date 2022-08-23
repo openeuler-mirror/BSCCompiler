@@ -17,6 +17,7 @@
 #include "fe_manager.h"
 #include "fe_file_type.h"
 #include "fe_timer.h"
+#include "inline_mplt.h"
 #ifndef ONLY_C
 #include "rc_setter.h"
 #endif
@@ -224,7 +225,11 @@ void HIR2MPLCompiler::ExportMplFile() {
     }
     module.OutputAsciiMpl("", ".mpl", nullptr, emitStructureType, false);
     if (FEOptions::GetInstance().GetFuncInlineSize() != 0 && !FEOptions::GetInstance().GetWPAA()) {
-      module.DumpInlineCandidateToFile(outNameWithoutType + ".mplt_inline");
+      std::unique_ptr<InlineMplt> modInline = std::make_unique<InlineMplt>(module);
+      bool isInlineNeeded = modInline->CollectInlineInfo(FEOptions::GetInstance().GetFuncInlineSize());
+      if (isInlineNeeded) {
+        modInline->DumpInlineCandidateToFile(outNameWithoutType + ".mplt_inline");
+      }
     }
     timer.StopAndDumpTimeMS("Output mpl");
   }

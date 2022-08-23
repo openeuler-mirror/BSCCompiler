@@ -246,14 +246,6 @@ class ASTFunc : public ASTDecl {
     return weakrefAttr;
   }
 
-  uint32 GetSize() const {
-    return bodySize;
-  }
-
-  void SetSize(uint32 size) {
-    bodySize = size;
-  }
-
   bool HasCode() const {
     if (compound == nullptr) {
       return false;
@@ -266,7 +258,6 @@ class ASTFunc : public ASTDecl {
   ASTStmt *compound = nullptr;  // func body
   MapleVector<ASTDecl*> paramDecls;
   std::pair<bool, std::string> weakrefAttr;
-  uint32 bodySize = 0;
 };
 
 class ASTStruct : public ASTDecl {
