@@ -471,11 +471,11 @@ class ASTDeclStmt : public ASTStmt {
 
   void SetSubDecl(ASTDecl *decl) {
     subDecls.emplace_back(decl);
-    subDeclInfos.emplace_back(decl);
+    (void)subDeclInfos.emplace_back(decl);
   }
 
   void SetVLASizeExpr(ASTExpr *astExpr) {
-    subDeclInfos.emplace_back(astExpr);
+    (void)subDeclInfos.emplace_back(astExpr);
   }
 
   const MapleList<ASTDecl*> &GetSubDecls() const {

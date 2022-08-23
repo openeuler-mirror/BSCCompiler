@@ -176,7 +176,7 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
     if (feirScope->GetVLASavedStackVar() != nullptr) {
       auto stkRestoreStmt = feirScope->GenVLAStackRestoreStmt();
       stkRestoreStmt->SetSrcLoc(endLoc);
-      stmts.emplace_back(std::move(stkRestoreStmt));
+      (void)stmts.emplace_back(std::move(stkRestoreStmt));
     }
     hasEmitted2MIRScope = true;
   }
@@ -249,9 +249,9 @@ std::list<UniqueFEIRStmt> ASTDoStmt::Emit2FEStmtImpl() const {
   UniqueFEIRStmt whileStmt = std::make_unique<FEIRStmtDoWhile>(OP_dowhile, std::move(condFEExpr),
                                                                std::move(bodyFEStmts));
   whileStmt->SetSrcLoc(loc);
-  feStmts.emplace_back(std::move(whileStmt));
+  (void)feStmts.emplace_back(std::move(whileStmt));
   if (AstLoopUtil::Instance().IsCurrentBreakLabelUsed()) {
-    feStmts.emplace_back(std::move(labelLoopEndStmt));
+    (void)feStmts.emplace_back(std::move(labelLoopEndStmt));
   }
   AstLoopUtil::Instance().PopCurrentBreak();
   AstLoopUtil::Instance().PopCurrentContinue();

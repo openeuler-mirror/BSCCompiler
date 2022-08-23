@@ -174,7 +174,7 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorStore(std::list<UniqueFEIRStmt> &st
   UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(
       *GlobalTables::GetTypeTable().GetOrCreatePointerType(*args[1]->GetType()));
   auto stmt = FEIRBuilder::CreateStmtIAssign(std::move(type), std::move(arg1Expr), std::move(arg2Expr));
-  stmts.emplace_back(std::move(stmt));
+  (void)stmts.emplace_back(std::move(stmt));
   isFinish = true;
   return nullptr;
 }
@@ -217,7 +217,7 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorZip(std::list<UniqueFEIRStmt> &stmt
   if (FEUtils::EndsWith(GetFuncName(), #VECTY)) {                                                \
     stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(                                        \
         INTRN_vector_##OP_NAME##_##VECTY, nullptr, retVar->Clone(), std::move(argExprList));     \
-    }
+  }
   UniqueFEIRStmt stmt;
 
   VECTOR_INTRINSICCALL_TYPE(zip, v2i32)
@@ -653,7 +653,7 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinExpect(std::list<UniqueFEIRStmt> &stmts) 
   std::list<UniqueFEIRStmt> subStmts;
   UniqueFEIRExpr feExpr = CreateIntrinsicopForC(subStmts, INTRN_C___builtin_expect, false);
   bool isOptimized = false;
-  for (auto &stmt : subStmts) {
+  for (auto &stmt : std::as_const(subStmts)) {
     // If there are mutiple conditions combined with logical AND '&&' or logical OR '||' in __builtin_expect, generate
     // a __builtin_expect intrinsicop for each one condition in mpl
     if (stmt->GetKind() == FEIRNodeKind::kStmtCondGoto) {

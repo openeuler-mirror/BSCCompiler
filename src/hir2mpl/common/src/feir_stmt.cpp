@@ -1871,21 +1871,15 @@ std::list<StmtNode*> FEIRStmtCallAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder)
     BaseNode *node = exprArg->GenMIRNode(mirBuilder);
     args.push_back(node);
   }
-  PUIdx puIdx = methodInfo.GetPuIdx();
-  // for inline optimize
-  if (FEManager::GetModule().IsOptFunc(mirBuilder.GetCurrentFunction()) ||
-      mirBuilder.GetCurrentFunction()->GetAttr(FUNCATTR_static)) {
-    FEManager::GetModule().InsertInlineGlobal(puIdx);
-  }
   MIRSymbol *retVarSym = nullptr;
   if (!methodInfo.IsReturnVoid() && var != nullptr) {
     retVarSym = var->GenerateLocalMIRSymbol(mirBuilder);
     InsertNonnullInRetVar(*retVarSym);
   }
   if (retVarSym == nullptr) {
-    stmtCall = mirBuilder.CreateStmtCall(puIdx, std::move(args), mirOp);
+    stmtCall = mirBuilder.CreateStmtCall(methodInfo.GetPuIdx(), std::move(args), mirOp);
   } else {
-    stmtCall = mirBuilder.CreateStmtCallAssigned(puIdx, std::move(args), retVarSym, mirOp);
+    stmtCall = mirBuilder.CreateStmtCallAssigned(methodInfo.GetPuIdx(), std::move(args), retVarSym, mirOp);
   }
   ans.push_back(stmtCall);
   return ans;
@@ -2614,7 +2608,6 @@ BaseNode *FEIRExprAddrofConstArray::GenMIRNodeImpl(MIRBuilder &mirBuilder) const
   MIRSymbol *arrayVar = mirBuilder.GetOrCreateGlobalDecl(arrayName, *arrayTypeWithSize);
   arrayVar->SetAttr(ATTR_readonly);
   arrayVar->SetStorageClass(kScFstatic);
-  FEManager::GetModule().InsertInlineGlobal(arrayVar->GetStIdx().Idx());
   MIRModule &module = mirBuilder.GetMirModule();
   MIRAggConst *val = module.GetMemPool()->New<MIRAggConst>(module, *arrayTypeWithSize);
   for (uint32 i = 0; i < array.size(); ++i) {
@@ -2701,10 +2694,6 @@ BaseNode *FEIRExprAddrofFunc::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
   GStrIdx strIdx = GlobalTables::GetStrTable().GetStrIdxFromName(funcAddr);
   MIRFunction *mirFunc = FEManager::GetTypeManager().GetMIRFunction(strIdx, false);
   CHECK_FATAL(mirFunc != nullptr, "can not get MIRFunction");
-  if (FEManager::GetModule().IsOptFunc(mirBuilder.GetCurrentFunction()) ||
-      mirBuilder.GetCurrentFunction()->GetAttr(FUNCATTR_static)) {
-    mirBuilder.GetMirModule().InsertInlineGlobal(mirFunc->GetPuidx());
-  }
   return mirBuilder.CreateExprAddroffunc(mirFunc->GetPuidx(),
                                          mirBuilder.GetMirModule().GetMemPool());
 }

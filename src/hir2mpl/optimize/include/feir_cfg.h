@@ -35,12 +35,12 @@ class FEIRCFG {
   void GenerateCFG();
   const FEIRBB *GetHeadBB();
   const FEIRBB *GetNextBB();
-  void LabelStmtID();
-  void LabelBBID();
+  void LabelStmtID() const;
+  void LabelBBID() const;
   bool HasDeadBB() const;
   void DumpBBs();
   void DumpCFGGraph(std::ofstream &file);
-  void DumpCFGGraphForBB(std::ofstream &file, const FEIRBB &bb);
+  void DumpCFGGraphForBB(std::ofstream &file, const FEIRBB &bb) const;
   void DumpCFGGraphForEdge(std::ofstream &file);
 
   FEIRBB *GetDummyHead() const {

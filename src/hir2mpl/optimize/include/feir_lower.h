@@ -18,7 +18,7 @@
 #include "feir_stmt.h"
 
 namespace maple {
-class FEFunction;
+class FEFunction; // circular dependency exists, no other choice
 class FEIRLower {
  public:
   explicit FEIRLower(FEFunction &funcIn);
@@ -39,12 +39,12 @@ class FEIRLower {
   void Clear();
   FEIRStmt *CreateHeadAndTail();
   FEIRStmt *RegisterAuxFEIRStmt(UniqueFEIRStmt stmt);
-  FEIRStmt *RegisterAndInsertFEIRStmt(UniqueFEIRStmt stmt, FEIRStmt *ptrTail, Loc loc = {0, 0, 0});
+  FEIRStmt *RegisterAndInsertFEIRStmt(UniqueFEIRStmt stmt, FEIRStmt *ptrTail, const Loc loc = {0, 0, 0});
   void LowerIfStmt(FEIRStmtIf &ifStmt, FEIRStmt *ptrTail);
   void ProcessLoopStmt(FEIRStmtDoWhile &stmt, FEIRStmt *ptrTail);
-  void LowerWhileStmt(FEIRStmtDoWhile &whileStmt, FEIRStmt *bodyHead, FEIRStmt *bodyTail, FEIRStmt *ptrTail);
-  void LowerDoWhileStmt(FEIRStmtDoWhile &doWhileStmt, FEIRStmt *bodyHead, FEIRStmt *bodyTail, FEIRStmt *ptrTail);
-  void CreateAndInsertCondStmt(Opcode op, FEIRStmtIf &ifStmt, FEIRStmt *head, FEIRStmt *tail, FEIRStmt *ptrTail);
+  void LowerWhileStmt(const FEIRStmtDoWhile &whileStmt, FEIRStmt *bodyHead, FEIRStmt *bodyTail, FEIRStmt *ptrTail);
+  void LowerDoWhileStmt(const FEIRStmtDoWhile &doWhileStmt, FEIRStmt *bodyHead, FEIRStmt *bodyTail, FEIRStmt *ptrTail);
+  void CreateAndInsertCondStmt(Opcode op, const FEIRStmtIf &ifStmt, FEIRStmt *head, FEIRStmt *tail, FEIRStmt *ptrTail);
 
   FEFunction &func;
   FEIRStmt *lowerStmtHead;
