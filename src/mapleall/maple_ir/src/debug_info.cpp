@@ -1021,14 +1021,13 @@ DBGDie *DebugInfo::GetOrCreateTypeDie(MIRType *type) {
       break;
     case kTypeByName: {
       // look for the enum first
-      std::vector<MIREnum*> table = GlobalTables::GetEnumTable().enumTable;
-      auto iter = std::find_if(table.begin(), table.end(),
-          [&type](MIREnum *s) -> bool {
-            return (s->GetNameIdx() == type->GetNameStrIdx());
-          });
-      if (iter != table.end()) {
-        die = GetOrCreateEnumTypeDie(static_cast<unsigned>(std::distance(table.begin(), iter)));
-      } else {
+      for (auto &it : GlobalTables::GetEnumTable().enumTable) {
+        if (it->GetNameIdx() == type->GetNameStrIdx()) {
+          die = GetOrCreateEnumTypeDie(it);
+          break;
+        }
+      }
+      if (!die) {
         // look for the typedef
         TyIdx undlyingTypeIdx = GlobalTables::GetTypedefTable().GetTyIdxFromMap(type->GetNameStrIdx());
         CHECK_FATAL(undlyingTypeIdx != TyIdx(0), "typedef not found in TypedefTable");
@@ -1068,6 +1067,10 @@ DBGDie *DebugInfo::GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx) {
 
 DBGDie *DebugInfo::GetOrCreateEnumTypeDie(unsigned idx) {
   MIREnum *mirEnum = GlobalTables::GetEnumTable().enumTable[idx];
+  return GetOrCreateEnumTypeDie(mirEnum);
+}
+
+DBGDie *DebugInfo::GetOrCreateEnumTypeDie(MIREnum *mirEnum) {
   uint32 sid = mirEnum->GetNameIdx().GetIdx();
   auto it = stridxDieIdMap.find(sid);
   if (it != stridxDieIdMap.end()) {
@@ -1220,7 +1223,7 @@ DBGDie *DebugInfo::CreateFieldDie(maple::FieldPair pair, uint32 lnum) {
   return die;
 }
 
-DBGDie *DebugInfo::CreateBitfieldDie(const MIRBitFieldType *type, const GStrIdx &sidx, uint32 prevBits) {
+DBGDie *DebugInfo::CreateBitfieldDie(const MIRBitFieldType *type, const GStrIdx &sidx, uint32 &prevBits) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_member);
 
   (void)die->AddAttr(DW_AT_name, DW_FORM_strp, sidx.GetIdx());
@@ -1234,8 +1237,10 @@ DBGDie *DebugInfo::CreateBitfieldDie(const MIRBitFieldType *type, const GStrIdx 
   (void)die->AddAttr(DW_AT_byte_size, DW_FORM_data4, GetPrimTypeSize(type->GetPrimType()));
   (void)die->AddAttr(DW_AT_bit_size, DW_FORM_data4, type->GetFieldSize());
 
-  uint32 offset = GetPrimTypeSize(type->GetPrimType()) * k8BitSize > type->GetFieldSize() + prevBits ?
-                  GetPrimTypeSize(type->GetPrimType()) * k8BitSize - type->GetFieldSize() - prevBits : 0;
+  uint32 typeSize = GetPrimTypeSize(type->GetPrimType()) * k8BitSize;
+  prevBits = type->GetFieldSize() + prevBits > typeSize ? type->GetFieldSize() : type->GetFieldSize() + prevBits;
+  uint32 offset = typeSize - prevBits;
+
   (void)die->AddAttr(DW_AT_bit_offset, DW_FORM_data4, offset);
   (void)die->AddAttr(DW_AT_data_member_location, DW_FORM_data4, 0);
 
@@ -1287,17 +1292,16 @@ void DebugInfo::CreateStructTypeFieldsDies(const MIRStructType *structType, DBGD
     MIRType *elemType = structType->GetElemType(static_cast<uint32>(i));
     FieldPair fp = structType->GetFieldsElemt(i);
     if (elemType->IsMIRBitFieldType()) {
+      if (die->GetTag() == DW_TAG_union_type) {
+        prevBits = 0;
+      }
       MIRBitFieldType *bitFieldType = static_cast<MIRBitFieldType*>(elemType);
       DBGDie *bfDie = CreateBitfieldDie(bitFieldType, fp.first, prevBits);
       die->AddSubVec(bfDie);
-      if (die->GetTag() == DW_TAG_union_type) {
-        continue;
-      }
-
-      prevBits = (prevBits + bitFieldType->GetFieldSize()) < GetPrimTypeSize(bitFieldType->GetPrimType()) * k8BitSize ?
-                 (prevBits + bitFieldType->GetFieldSize()) : 0;
     } else {
-      prevBits = 0;
+      if (die->GetTag() != DW_TAG_union_type) {
+        prevBits = GetPrimTypeSize(elemType->GetPrimType()) * k8BitSize;
+      }
       DBGDie *fieldDie = CreateFieldDie(fp, 0);
       die->AddSubVec(fieldDie);
 

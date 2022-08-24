@@ -45,6 +45,7 @@ class MIRTypeNameTable;
 class DBGBuilder;
 class DBGCompileMsgInfo;
 class MIRLexer;
+class MIREnum;
 
 // for compiletime warnings
 class DBGLine {
@@ -813,7 +814,7 @@ class DebugInfo {
   DBGDie *CreateVarDie(MIRSymbol *sym, const GStrIdx &strIdx); // use alt name
   DBGDie *CreateFormalParaDie(MIRFunction *func, MIRType *type, MIRSymbol *sym);
   DBGDie *CreateFieldDie(maple::FieldPair pair, uint32 lnum);
-  DBGDie *CreateBitfieldDie(const MIRBitFieldType *type, const GStrIdx &sidx, uint32 prevBits);
+  DBGDie *CreateBitfieldDie(const MIRBitFieldType *type, const GStrIdx &sidx, uint32 &prevBits);
   void CreateStructTypeFieldsDies(const MIRStructType *structType, DBGDie *die);
   void CreateStructTypeParentFieldsDies(const MIRStructType *structType, DBGDie *die);
   void CreateStructTypeMethodsDies(const MIRStructType *structType, DBGDie *die);
@@ -836,6 +837,7 @@ class DebugInfo {
   DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
   DBGDie *GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx);
   DBGDie *GetOrCreateEnumTypeDie(uint32 idx);
+  DBGDie *GetOrCreateEnumTypeDie(MIREnum *mirEnum);
 
   GStrIdx GetPrimTypeCName(PrimType pty);
 
