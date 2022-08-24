@@ -163,7 +163,7 @@ class CGFunc {
   virtual void AssignLmbcFormalParams() = 0;
   LmbcFormalParamInfo *GetLmbcFormalParamInfo(uint32 offset);
   virtual void LmbcGenSaveSpForAlloca() = 0;
-  void GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos) const;
+  void GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos);
   void GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &posDone);
   int32 GetFreqFromStmt(uint32 stmtId);
   void GenerateInstruction();
@@ -184,8 +184,7 @@ class CGFunc {
   };
   void DumpCFG() const;
   void DumpBBInfo(const BB *bb) const;
-  void DumpCGIR(bool withTargetInfo = false) const;
-  virtual void DumpTargetIR(const Insn &insn) const {};
+  void DumpCGIR() const;
   void DumpLoop() const;
   void ClearLoopInfo();
   Operand *HandleExpr(const BaseNode &parent, BaseNode &expr);
@@ -336,6 +335,9 @@ class CGFunc {
   virtual void CleanupDeadMov(bool dump) = 0;
   virtual void GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &realCallerSave) = 0;
 
+  /* ra */
+  virtual void AddtoCalleeSaved(regno_t reg) = 0;
+
   virtual bool IsFrameReg(const RegOperand &opnd) const = 0;
   virtual bool IsSPOrFP(const RegOperand &opnd) const = 0;
   virtual bool IsReturnReg(const RegOperand &opnd) const = 0;
@@ -352,8 +354,7 @@ class CGFunc {
   virtual RegOperand *SelectVectorCompareZero(Operand *o1, PrimType oty1, Operand *o2, Opcode opc) = 0;
   virtual RegOperand *SelectVectorCompare(Operand *o1, PrimType oty1,  Operand *o2, PrimType oty2, Opcode opc) = 0;
   virtual RegOperand *SelectVectorFromScalar(PrimType pType, Operand *opnd, PrimType sType) = 0;
-  virtual RegOperand *SelectVectorGetHigh(PrimType rType, Operand *src) = 0;
-  virtual RegOperand *SelectVectorGetLow(PrimType rType, Operand *src) = 0;
+  virtual RegOperand *SelectVectorDup(PrimType rType, Operand *src, bool getLow) = 0;
   virtual RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) = 0;
   virtual RegOperand *SelectVectorAbsSubL(PrimType rType, Operand *o1, Operand *o2, PrimType oTy, bool isLow) = 0;
   virtual RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, Operand *o3,
@@ -394,8 +395,6 @@ class CGFunc {
   };
   LabelIdx CreateLabel();
 
-  virtual Operand &CreateFPImmZero(PrimType primType) = 0;
-
   RegOperand *GetVirtualRegisterOperand(regno_t vRegNO) {
     auto it = vRegOperandTable.find(vRegNO);
     return it == vRegOperandTable.end() ? nullptr : it->second;
@@ -408,12 +407,6 @@ class CGFunc {
   Operand &CreateCfiStrOperand(const std::string &str) const {
     return *memPool->New<cfi::StrOperand>(str, *memPool);
   }
-
-  virtual Insn &CreateCfiRestoreInsn(uint32 reg, uint32 size) = 0;
-  virtual Insn &CreateCfiOffsetInsn(uint32 reg, int64 val, uint32 size) = 0;
-  virtual Insn &CreateCfiDefCfaInsn(uint32 reg, int64 val, uint32 size) = 0;
-
-  virtual Insn &CreateCommentInsn(const std::string &comment) const = 0;
 
   bool IsSpecialPseudoRegister(PregIdx spr) const {
     return spr < 0;
@@ -500,9 +493,15 @@ class CGFunc {
     return vRegTable[rNum].GetType();
   }
 
+#if TARGX86_64
+  uint32 GetMaxVReg() const {
+    return vRegCount + opndBuilder->GetCurrentVRegNum();
+  }
+#else
   uint32 GetMaxVReg() const {
     return vRegCount;
   }
+#endif
 
   uint32 GetSSAvRegCount() const {
     return ssaVRegCount;
@@ -529,6 +528,10 @@ class CGFunc {
     return;
   }
 
+  virtual LabelIdx GetLabelInInsn(Insn &insn) {
+    return 0;
+  }
+
   Operand *CreateDbgImmOperand(int64 val) const {
     return memPool->New<mpldbg::ImmOperand>(val);
   }
@@ -553,7 +556,7 @@ class CGFunc {
   }
 
   uint32 GetTotalNumberOfInstructions() const {
-    return totalInsns;
+    return totalInsns + insnBuilder->GetCreatedInsnNum();
   }
 
   int32 GetStructCopySize() const {
@@ -871,11 +874,61 @@ class CGFunc {
   }
 
   void AddEmitSt(uint32 id, MIRSymbol &symbol) {
+    CHECK_FATAL(symbol.GetKonst()->GetKind() == kConstAggConst, "not a kConstAggConst");
+    MIRAggConst *arrayConst = safe_cast<MIRAggConst>(symbol.GetKonst());
+    for (size_t i = 0; i < arrayConst->GetConstVec().size(); ++i) {
+      CHECK_FATAL(arrayConst->GetConstVecItem(i)->GetKind() == kConstLblConst, "not a kConstLblConst");
+      MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
+      ++switchLabelCnt[lblConst->GetValue()];
+    }
     emitStVec[id] = &symbol;
   }
 
+  void UpdateEmitSt(BB &bb, LabelIdx oldLabelIdx, LabelIdx newLabelIdx) {
+    MIRSymbol *st = GetEmitSt(bb.GetId());
+    MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
+    MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_a64));
+    MIRConst *mirConst = GetMemoryPool()->New<MIRLblConst>(newLabelIdx,
+        GetFunction().GetPuidx(), *etype);
+    for (size_t i = 0; i < arrayConst->GetConstVec().size(); ++i) {
+      CHECK_FATAL(arrayConst->GetConstVecItem(i)->GetKind() == kConstLblConst, "not a kConstLblConst");
+      MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
+      if (oldLabelIdx == lblConst->GetValue()) {
+        arrayConst->SetConstVecItem(i, *mirConst);
+        ++switchLabelCnt[newLabelIdx];
+
+        CHECK_FATAL(switchLabelCnt[oldLabelIdx] > 0, "error labelIdx");
+        --switchLabelCnt[oldLabelIdx];
+        if (switchLabelCnt[oldLabelIdx] == 0) {
+          switchLabelCnt.erase(oldLabelIdx);
+        }
+      }
+    }
+  }
+
   void DeleteEmitSt(uint32 id) {
+    MIRSymbol &symbol = *emitStVec[id];
+    CHECK_FATAL(symbol.GetKonst()->GetKind() == kConstAggConst, "not a kConstAggConst");
+    MIRAggConst *arrayConst = safe_cast<MIRAggConst>(symbol.GetKonst());
+    for (size_t i = 0; i < arrayConst->GetConstVec().size(); ++i) {
+      CHECK_FATAL(arrayConst->GetConstVecItem(i)->GetKind() == kConstLblConst, "not a kConstLblConst");
+      MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
+
+      LabelIdx labelIdx = lblConst->GetValue();
+      CHECK_FATAL(switchLabelCnt[labelIdx] > 0, "error labelIdx");
+      --switchLabelCnt[labelIdx];
+      if (switchLabelCnt[labelIdx] == 0) {
+        switchLabelCnt.erase(labelIdx);
+      }
+    }
     (void)emitStVec.erase(id);
+  }
+
+  bool InSwitchTable(LabelIdx label) const {
+    if (switchLabelCnt.empty()) {
+      return false;
+    }
+    return (switchLabelCnt.find(label) != switchLabelCnt.end());
   }
 
   MapleVector<CGFuncLoops*> &GetLoops() {
@@ -970,6 +1023,10 @@ class CGFunc {
 
   CGCFG *GetTheCFG() {
     return theCFG;
+  }
+
+  void SetTheCFG(CGCFG *cfg) {
+    theCFG = cfg;
   }
 
   const CGCFG *GetTheCFG() const {
@@ -1132,6 +1189,10 @@ class CGFunc {
     return firstMapleIrVRegNO;
   }
 
+  void SetHasAsm() {
+    hasAsm = true;
+  }
+
   void SetStackProtectInfo(StackProtectKind kind) {
     stackProtectInfo |= kind;
   }
@@ -1249,9 +1310,6 @@ class CGFunc {
     return false;
   }
 
-  void SetHasAsm() {
-    hasAsm = true;
-  }
  private:
   CGFunc &operator=(const CGFunc &cgFunc);
   CGFunc(const CGFunc&);
@@ -1284,6 +1342,7 @@ class CGFunc {
   RegisterInfo *targetRegInfo = nullptr;
   MapleAllocator *funcScopeAllocator;
   MapleMap<uint32, MIRSymbol*> emitStVec;  /* symbol that needs to be emit as a local symbol. i.e, switch table */
+  MapleUnorderedMap<LabelIdx, int32> switchLabelCnt;  /* label in switch table */
 #if TARGARM32
   MapleVector<BB*> sortedBBs;
   MapleVector<LiveRange*> lrVec;

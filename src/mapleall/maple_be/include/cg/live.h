@@ -41,6 +41,12 @@ class LiveAnalysis : public AnalysisResult {
   void ResetLiveSet();
   void ClearInOutDataInfo();
   void EnlargeSpaceForLiveAnalysis(BB &currBB);
+  void GetBBDefUse(BB &bb);
+  void ProcessAsmListOpnd(BB &bb, Operand &opnd, uint32 idx) const;
+  void ProcessListOpnd(BB &bb, Operand &opnd, bool isDef) const;
+  void ProcessMemOpnd(BB &bb, Operand &opnd) const;
+  void ProcessCondOpnd(BB &bb) const;
+  void CollectLiveInfo(BB &bb, const Operand &opnd, bool isDef, bool isUse) const;
 
   DataInfo *NewLiveIn(uint32 maxRegCount) {
     return memPool->New<DataInfo>(maxRegCount, alloc);
@@ -58,8 +64,9 @@ class LiveAnalysis : public AnalysisResult {
     return memPool->New<DataInfo>(maxRegCount, alloc);
   }
 
-  virtual void GetBBDefUse(BB &bb) = 0;
-  virtual bool CleanupBBIgnoreReg(uint32 reg) = 0;
+  virtual void GenerateReturnBBDefUse(BB &bb) const = 0;
+  virtual void ProcessCallInsnParam(BB &bb, const Insn &insn) const = 0;
+  virtual bool CleanupBBIgnoreReg(regno_t reg) = 0;
   virtual void InitEhDefine(BB &bb) = 0;
 
  protected:

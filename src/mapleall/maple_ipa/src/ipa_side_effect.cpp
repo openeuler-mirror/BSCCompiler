@@ -85,7 +85,8 @@ void SideEffect::PropInfoFromOpnd(MeExpr &opnd, const PI &calleeParamInfo) {
 void SideEffect::PropParamInfoFromCallee(const MeStmt &call, MIRFunction &callee) {
   const FuncDesc &desc = callee.GetFuncDesc();
   size_t skipFirstOpnd = kOpcodeInfo.IsICall(call.GetOp()) ? 1 : 0;
-  for (size_t formalIdx = 0; formalIdx < callee.GetFormalCount(); ++formalIdx) {
+  size_t actualParaCount = call.NumMeStmtOpnds() - skipFirstOpnd;
+  for (size_t formalIdx = 0; formalIdx < actualParaCount; ++formalIdx) {
     MeExpr *opnd = call.GetOpnd(formalIdx + skipFirstOpnd);
     PropInfoFromOpnd(*opnd, desc.GetParamInfo(formalIdx));
   }
@@ -143,7 +144,7 @@ void SideEffect::DealWithStmt(MeStmt &stmt) {
   }
   // this may cause some kWriteMemoryOnly regard as kReadWriteMemory.
   // Example: {a.f = b} mulist in return stmt will regard param a as used.
-  for (auto &mu : *stmt.GetMuList()) {
+  for (auto &mu : std::as_const(*stmt.GetMuList())) {
     DealWithOst(mu.first);
   }
 }
@@ -424,7 +425,7 @@ bool SCCSideEffect::PhaseRun(SCCNode<CGNode> &scc) {
       MaplePhase *it = GetAnalysisInfoHook()->GetOverIRAnalyisData<M2MCallGraph, MIRModule>(*func->GetModule());
       CallGraph *cg = static_cast<M2MCallGraph*>(it)->GetResult();
       SideEffect se(meFunc, dom, alias, cg);
-      changed |= se.Perform(*meFunc);
+      changed = changed || se.Perform(*meFunc);
     }
   }
   if (Options::dumpIPA) {

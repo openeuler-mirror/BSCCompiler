@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -192,6 +192,128 @@ void LiveAnalysis::InsertInOutOfCleanupBB() {
   }
 }
 
+/*
+ * entry of get def/use of bb.
+ * getting the def or use info of each regopnd as parameters of CollectLiveInfo().
+*/
+void LiveAnalysis::GetBBDefUse(BB &bb) {
+  if (bb.GetKind() == BB::kBBReturn) {
+    GenerateReturnBBDefUse(bb);
+  }
+  if (bb.IsEmpty()) {
+    return;
+  }
+  bb.DefResetAllBit();
+  bb.UseResetAllBit();
+
+  FOR_BB_INSNS_REV(insn, &bb) {
+    if (!insn->IsMachineInstruction() && !insn->IsPhi()) {
+      continue;
+    }
+
+    bool isAsm = insn->IsAsmInsn();
+    const InsnDesc *md = insn->GetDesc();
+    if (insn->IsCall() || insn->IsTailCall()) {
+      ProcessCallInsnParam(bb, *insn);
+    }
+    uint32 opndNum = insn->GetOperandSize();
+    for (uint32 i = 0; i < opndNum; ++i) {
+      const OpndDesc *opndDesc = md->GetOpndDes(i);
+      ASSERT(opndDesc != nullptr, "null ptr check");
+      Operand &opnd = insn->GetOperand(i);
+      if (opnd.IsList()) {
+        if (isAsm) {
+          ProcessAsmListOpnd(bb, opnd, i);
+        } else {
+          ProcessListOpnd(bb, opnd, opndDesc->IsDef());
+        }
+      } else if (opnd.IsMemoryAccessOperand()) {
+        ProcessMemOpnd(bb, opnd);
+      } else if (opnd.IsConditionCode()) {
+        ProcessCondOpnd(bb);
+      } else if (opnd.IsPhi()) {
+        auto &phiOpnd = static_cast<PhiOperand &>(opnd);
+        for (auto opIt : phiOpnd.GetOperands()) {
+          CollectLiveInfo(bb, *opIt.second, false, true);
+        }
+      } else {
+        bool isDef = opndDesc->IsRegDef();
+        bool isUse = opndDesc->IsRegUse();
+        CollectLiveInfo(bb, opnd, isDef, isUse);
+      }
+    }
+  }
+}
+
+/* build use and def sets of each BB according to the type of regOpnd. */
+void LiveAnalysis::CollectLiveInfo(BB &bb, const Operand &opnd, bool isDef, bool isUse) const {
+  if (!opnd.IsRegister()) {
+    return;
+  }
+  const RegOperand &regOpnd = static_cast<const RegOperand&>(opnd);
+  regno_t regNO = regOpnd.GetRegisterNumber();
+  RegType regType = regOpnd.GetRegisterType();
+  if (regType == kRegTyVary) {
+    return;
+  }
+  if (isDef) {
+    bb.SetDefBit(regNO);
+    if (!isUse) {
+      bb.UseResetBit(regNO);
+    }
+  }
+  if (isUse) {
+    bb.SetUseBit(regNO);
+    bb.DefResetBit(regNO);
+  }
+}
+
+void LiveAnalysis::ProcessAsmListOpnd(BB &bb, Operand &opnd, uint32 idx) const {
+  bool isDef = false;
+  bool isUse = false;
+  switch (idx) {
+    case kAsmOutputListOpnd:
+    case kAsmClobberListOpnd: {
+      isDef = true;
+      break;
+    }
+    case kAsmInputListOpnd: {
+      isUse = true;
+      break;
+    }
+    default:
+      return;
+  }
+  ListOperand &listOpnd = static_cast<ListOperand&>(opnd);
+  for (auto op : listOpnd.GetOperands()) {
+    CollectLiveInfo(bb, *op, isDef, isUse);
+  }
+}
+
+void LiveAnalysis::ProcessListOpnd(BB &bb, Operand &opnd, bool isDef) const {
+  ListOperand &listOpnd = static_cast<ListOperand&>(opnd);
+  for (auto op : listOpnd.GetOperands()) {
+    CollectLiveInfo(bb, *op, isDef, !isDef);
+  }
+}
+
+void LiveAnalysis::ProcessMemOpnd(BB &bb, Operand &opnd) const {
+  auto &memOpnd = static_cast<MemOperand&>(opnd);
+  Operand *base = memOpnd.GetBaseRegister();
+  Operand *offset = memOpnd.GetIndexRegister();
+  if (base != nullptr) {
+    CollectLiveInfo(bb, *base, !memOpnd.IsIntactIndexed(), true);
+  }
+  if (offset != nullptr) {
+    CollectLiveInfo(bb, *offset, false, true);
+  }
+}
+
+void LiveAnalysis::ProcessCondOpnd(BB &bb) const {
+  Operand &rflag = cgFunc->GetOrCreateRflag();
+  CollectLiveInfo(bb, rflag, false, true);
+}
+
 /* dump the current info of def/use/livein/liveout */
 void LiveAnalysis::Dump() const {
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(cgFunc->GetFunction().GetStIdx().Idx());
@@ -298,6 +420,7 @@ void LiveAnalysis::EnlargeSpaceForLiveAnalysis(BB &currBB) {
 bool CgLiveAnalysis::PhaseRun(maplebe::CGFunc &f) {
   MemPool *liveMemPool = GetPhaseMemPool();
   live = f.GetCG()->CreateLiveAnalysis(*liveMemPool, f);
+  CHECK_FATAL(live != nullptr, "NIY");
   live->AnalysisLive();
   if (LIVE_ANALYZE_DUMP_NEWPM) {
     live->Dump();

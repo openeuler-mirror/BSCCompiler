@@ -141,6 +141,9 @@ struct FuncDesc {
   }
 
   const PI GetParamInfo(size_t index) const {
+    if (index >= kMaxParamCount) {
+      return PI::kUnknown;
+    }
     return paramInfo[index];
   }
 

@@ -15,11 +15,7 @@
 #include "cfgo.h"
 #include "cgbb.h"
 #include "cg.h"
-#if TARGAARCH64
-#include "aarch64_insn.h"
-#elif TARGRISCV64
-#include "riscv64_insn.h"
-#endif
+#include "loop.h"
 #include "mpl_logging.h"
 
 /*
@@ -34,20 +30,6 @@ namespace maplebe {
 using namespace maple;
 
 #define CFGO_DUMP_NEWPM CG_DEBUG_FUNC(f)
-
-/* Initialize cfg optimization patterns */
-void CFGOptimizer::InitOptimizePatterns() {
-  diffPassPatterns.emplace_back(memPool->New<ChainingPattern>(*cgFunc));
-  diffPassPatterns.emplace_back(memPool->New<SequentialJumpPattern>(*cgFunc));
-  FlipBRPattern *brOpt = memPool->New<FlipBRPattern>(*cgFunc);
-  if (GetPhase() == kCfgoPostRegAlloc) {
-    brOpt->SetPhase(kCfgoPostRegAlloc);
-  }
-  diffPassPatterns.emplace_back(brOpt);
-  diffPassPatterns.emplace_back(memPool->New<DuplicateBBPattern>(*cgFunc));
-  diffPassPatterns.emplace_back(memPool->New<UnreachBBPattern>(*cgFunc));
-  diffPassPatterns.emplace_back(memPool->New<EmptyBBPattern>(*cgFunc));
-}
 
 /* return true if to is put after from and there is no real insns between from and to, */
 bool ChainingPattern::NoInsnBetween(const BB &from, const BB &to) const {
@@ -179,7 +161,7 @@ bool ChainingPattern::ClearCurBBAndResetTargetBB(BB &curBB, BB &sucBB) {
   }
   Insn *brInsn = nullptr;
   for (brInsn = curBB.GetLastInsn(); brInsn != nullptr; brInsn = brInsn->GetPrev()) {
-    if (brInsn->IsGoto()) {
+    if (brInsn->IsUnCondBranch()){
       break;
     }
   }
@@ -190,7 +172,7 @@ bool ChainingPattern::ClearCurBBAndResetTargetBB(BB &curBB, BB &sucBB) {
   if (newTarget->GetKind() == BB::kBBGoto) {
     Insn *br = nullptr;
     for (br = newTarget->GetLastInsn(); br != newTarget->GetFirstInsn()->GetPrev(); br = br->GetPrev()) {
-      if (br->IsGoto()) {
+      if (br->IsUnCondBranch()){
         break;
       }
     }
@@ -238,7 +220,7 @@ bool ChainingPattern::Optimize(BB &curBB) {
 
   if (curBB.GetKind() == BB::kBBGoto && !curBB.IsEmpty()) {
     Insn* last = curBB.GetLastInsn();
-    if (last->GetMachineOpcode() == MOP_tail_call_opt_xbl || last->GetMachineOpcode() == MOP_tail_call_opt_xblr) {
+    if (last->IsTailCall()) {
       return false;
     }
 
@@ -262,9 +244,9 @@ bool ChainingPattern::Optimize(BB &curBB) {
       return MergeGotoBB(curBB, *sucBB);
     } else if (sucBB != &curBB &&
                curBB.GetNext() != sucBB &&
+               sucBB != cgFunc->GetLastBB() &&
                !sucBB->IsPredecessor(*sucBB->GetPrev()) &&
-               !(sucBB->GetNext() != nullptr &&
-                 sucBB->GetNext()->IsPredecessor(*sucBB)) &&
+               !(sucBB->GetNext() != nullptr && sucBB->GetNext()->IsPredecessor(*sucBB)) &&
                !IsLabelInLSDAOrSwitchTable(sucBB->GetLabIdx()) &&
                sucBB->GetEhSuccs().empty() &&
                sucBB->GetKind() != BB::kBBThrow) {
@@ -380,8 +362,6 @@ void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) const {
   BB *gotoTarget = cgFunc->GetTheCFG()->GetTargetSuc(sucBB);
   CHECK_FATAL(gotoTarget != nullptr, "gotoTarget is null in SequentialJumpPattern::UpdateSwitchSucc");
   const MapleVector<LabelIdx> &labelVec = curBB.GetRangeGotoLabelVec();
-  uint32 index = 0;
-  LabelIdx targetLable = gotoTarget->GetLabIdx();
   bool isPred = false;
   for (auto label: labelVec) {
     if (label == gotoTarget->GetLabIdx()) {
@@ -389,23 +369,13 @@ void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) const {
       break;
     }
   }
-  for (auto label: labelVec) {
-    if (label == sucBB.GetLabIdx()) {
-      curBB.SetRangeGotoLabel(index, targetLable);
-    }
-    index++;
-  }
-  MIRSymbol *st = cgFunc->GetEmitSt(curBB.GetId());
-  MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
-  MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_a64));
-  MIRConst *mirConst = cgFunc->GetMemoryPool()->New<MIRLblConst>(targetLable, cgFunc->GetFunction().GetPuidx(), *etype);
-  for (size_t i = 0; i < arrayConst->GetConstVec().size(); ++i) {
-    CHECK_FATAL(arrayConst->GetConstVecItem(i)->GetKind() == kConstLblConst, "not a kConstLblConst");
-    MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
-    if (sucBB.GetLabIdx() == lblConst->GetValue()) {
-      arrayConst->SetConstVecItem(i, *mirConst);
+  for (size_t i = 0; i < labelVec.size(); ++i) {
+    if (labelVec[i] == sucBB.GetLabIdx()) {
+      curBB.SetRangeGotoLabel(i, gotoTarget->GetLabIdx());
     }
   }
+  cgFunc->UpdateEmitSt(curBB, sucBB.GetLabIdx(), gotoTarget->GetLabIdx());
+
   /* connect curBB, gotoTarget */
   for (auto it = gotoTarget->GetPredsBegin(); it != gotoTarget->GetPredsEnd(); ++it) {
     if (*it == &sucBB) {
@@ -479,7 +449,7 @@ void SequentialJumpPattern::SkipSucBB(BB &curBB, BB &sucBB) const {
  * retBB:                      ftBB:
  *       ...                         bl throwfunc
  */
-void FlipBRPattern::RelocateThrowBB(BB &curBB) const {
+void FlipBRPattern::RelocateThrowBB(BB &curBB) {
   BB *ftBB = curBB.GetNext();
   CHECK_FATAL(ftBB != nullptr, "ifBB has a fall through BB");
   CGCFG *theCFG = cgFunc->GetTheCFG();
@@ -494,8 +464,10 @@ void FlipBRPattern::RelocateThrowBB(BB &curBB) const {
   if (brBB != ftBB->GetNext()) {
     return;
   }
-  if (cgFunc->GetEHFunc() != nullptr && cgFunc->GetEHFunc()->GetLSDACallSiteTable() != nullptr) {
-    const MapleVector<LSDACallSite*> &callsiteTable = cgFunc->GetEHFunc()->GetLSDACallSiteTable()->GetCallSiteTable();
+
+  EHFunc *ehFunc = cgFunc->GetEHFunc();
+  if (ehFunc != nullptr && ehFunc->GetLSDACallSiteTable() != nullptr) {
+    const MapleVector<LSDACallSite*> &callsiteTable = ehFunc->GetLSDACallSiteTable()->GetCallSiteTable();
     for (size_t i = 0; i < callsiteTable.size(); ++i) {
       LSDACallSite *lsdaCallsite = callsiteTable[i];
       BB *endTry = cgFunc->GetBBFromLab2BBMap(lsdaCallsite->csLength.GetEndOffset()->GetLabelIdx());
@@ -518,10 +490,10 @@ void FlipBRPattern::RelocateThrowBB(BB &curBB) const {
   CHECK_FATAL(curBBBranchInsn != nullptr, "curBB(it is a kBBif) has no branch");
 
   /* Reverse the branch */
-  uint32 targetIdx = 1;
-  MOperator mOp = curBBBranchInsn->FlipConditionOp(curBBBranchInsn->GetMachineOpcode(), targetIdx);
+  uint32 targetIdx = GetJumpTargetIdx(*curBBBranchInsn);
+  MOperator mOp = FlipConditionOp(curBBBranchInsn->GetMachineOpcode());
   LabelOperand &brTarget = cgFunc->GetOrCreateLabelOperand(*ftBB);
-  curBBBranchInsn->SetMOP(mOp);
+  curBBBranchInsn->SetMOP(cgFunc->GetCG()->GetTargetMd(mOp));
   curBBBranchInsn->SetOperand(targetIdx, brTarget);
 
   /* move ftBB after retBB */
@@ -578,15 +550,15 @@ bool FlipBRPattern::Optimize(BB &curBB) {
       ASSERT(curBBBranchInsn != nullptr, "FlipBRPattern: curBB has no branch");
       Insn *brInsn = nullptr;
       for (brInsn = ftBB->GetLastInsn(); brInsn != nullptr; brInsn = brInsn->GetPrev()) {
-        if (brInsn->IsGoto()) {
+        if (brInsn->IsUnCondBranch()) {
           break;
         }
       }
       ASSERT(brInsn != nullptr, "FlipBRPattern: ftBB has no branch");
 
       /* Reverse the branch */
-      uint32 targetIdx = brInsn->GetJumpTargetIdx();
-      MOperator mOp = curBBBranchInsn->FlipConditionOp(curBBBranchInsn->GetMachineOpcode(), targetIdx);
+      uint32 targetIdx = GetJumpTargetIdx(*curBBBranchInsn);
+      MOperator mOp = FlipConditionOp(curBBBranchInsn->GetMachineOpcode());
       if (mOp == 0) {
         return false;
       }
@@ -596,8 +568,8 @@ bool FlipBRPattern::Optimize(BB &curBB) {
           (ftBB->IsSoloGoto() ||
            (!IsLabelInLSDAOrSwitchTable(tgtBB->GetLabIdx()) &&
             cgFunc->GetTheCFG()->CanMerge(*ftBB, *tgtBB)))) {
-        curBBBranchInsn->SetMOP(mOp);
-        Operand &brTarget = brInsn->GetOperand(brInsn->GetJumpTargetIdx());
+        curBBBranchInsn->SetMOP(cgFunc->GetCG()->GetTargetMd(mOp));
+        Operand &brTarget = brInsn->GetOperand(GetJumpTargetIdx(*brInsn));
         curBBBranchInsn->SetOperand(targetIdx, brTarget);
         /* Insert ftBB's insn at the beginning of tgtBB. */
         if (!ftBB->IsSoloGoto()) {
@@ -637,7 +609,7 @@ bool FlipBRPattern::Optimize(BB &curBB) {
         ftBB->SetKind(BB::kBBFallthru);
       } else if (!IsLabelInLSDAOrSwitchTable(ftBB->GetLabIdx()) &&
                  !tgtBB->IsPredecessor(*tgtBB->GetPrev())) {
-        curBBBranchInsn->SetMOP(mOp);
+        curBBBranchInsn->SetMOP(cgFunc->GetCG()->GetTargetMd(mOp));
         LabelIdx tgtLabIdx = ftBB->GetLabIdx();
         if (ftBB->GetLabIdx() == MIRLabelTable::GetDummyLabel()) {
           tgtLabIdx = cgFunc->CreateLabel();
@@ -659,8 +631,8 @@ bool FlipBRPattern::Optimize(BB &curBB) {
                curBB.GetLoop() != nullptr &&  curBB.GetLoop() == ftBB->GetLoop() &&
                ftBB->IsSoloGoto() &&
                ftBB->GetLoop()->GetHeader() == *(ftBB->GetSuccsBegin()) &&
-               curBB.GetLoop()->IsBBLoopMember((curBB.GetSuccs().front() == ftBB) ?
-                   curBB.GetSuccs().back() : curBB.GetSuccs().front()) == false) {
+               !curBB.GetLoop()->IsBBLoopMember((curBB.GetSuccs().front() == ftBB) ?
+                                                curBB.GetSuccs().back() : curBB.GetSuccs().front())) {
       Insn *curBBBranchInsn = nullptr;
       for (curBBBranchInsn = curBB.GetLastInsn(); curBBBranchInsn != nullptr;
            curBBBranchInsn = curBBBranchInsn->GetPrev()) {
@@ -671,20 +643,20 @@ bool FlipBRPattern::Optimize(BB &curBB) {
       ASSERT(curBBBranchInsn != nullptr, "FlipBRPattern: curBB has no branch");
       Insn *brInsn = nullptr;
       for (brInsn = ftBB->GetLastInsn(); brInsn != nullptr; brInsn = brInsn->GetPrev()) {
-        if (brInsn->IsGoto()) {
+        if (brInsn->IsUnCondBranch()) {
           break;
         }
       }
       ASSERT(brInsn != nullptr, "FlipBRPattern: ftBB has no branch");
-      uint32 condTargetIdx = curBBBranchInsn->GetJumpTargetIdx();
+      uint32 condTargetIdx = GetJumpTargetIdx(*curBBBranchInsn);
       LabelOperand &condTarget = static_cast<LabelOperand&>(curBBBranchInsn->GetOperand(condTargetIdx));
-      MOperator mOp = curBBBranchInsn->FlipConditionOp(curBBBranchInsn->GetMachineOpcode(), condTargetIdx);
+      MOperator mOp = FlipConditionOp(curBBBranchInsn->GetMachineOpcode());
       if (mOp == 0) {
         return false;
       }
-      uint32 gotoTargetIdx = brInsn->GetJumpTargetIdx();
+      uint32 gotoTargetIdx = GetJumpTargetIdx(*brInsn);
       LabelOperand &gotoTarget = static_cast<LabelOperand&>(brInsn->GetOperand(gotoTargetIdx));
-      curBBBranchInsn->SetMOP(mOp);
+      curBBBranchInsn->SetMOP(cgFunc->GetCG()->GetTargetMd(mOp));
       curBBBranchInsn->SetOperand(condTargetIdx, gotoTarget);
       brInsn->SetOperand(gotoTargetIdx, condTarget);
       auto it = ftBB->GetSuccsBegin();
@@ -719,11 +691,9 @@ bool EmptyBBPattern::Optimize(BB &curBB) {
     if (checkOnly) {
       return false;
     }
-    if (cgFunc->GetTheCFG()->GetTargetSuc(curBB) == nullptr) {
-      ERR(kLncErr, "null ptr check");
-      return false;
-    }
-    if (cgFunc->GetTheCFG()->GetTargetSuc(curBB)->GetFirstStmt() == cgFunc->GetCleanupLabel()) {
+
+    BB *sucBB = cgFunc->GetTheCFG()->GetTargetSuc(curBB);
+    if (sucBB == nullptr || sucBB->GetFirstStmt() == cgFunc->GetCleanupLabel()) {
       return false;
     }
     cgFunc->GetTheCFG()->RemoveBB(curBB);
@@ -745,8 +715,6 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
       return false;
     }
     /* if curBB in exitbbsvec,return false. */
-    EHFunc *ehFunc = cgFunc->GetEHFunc();
-    ASSERT(ehFunc != nullptr, "get ehfunc failed in UnreachBBPattern::Optimize");
     if (cgFunc->IsExitBB(curBB)) {
       curBB.SetUnreachable(false);
       return false;
@@ -756,8 +724,10 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
       return false;
     }
 
+    EHFunc *ehFunc = cgFunc->GetEHFunc();
     /* if curBB InLSDA ,replace curBB's label with nextReachableBB before remove it. */
-    if (ehFunc->NeedFullLSDA() && cgFunc->GetTheCFG()->InLSDA(curBB.GetLabIdx(), *ehFunc)) {
+    if (ehFunc != nullptr && ehFunc->NeedFullLSDA() &&
+        cgFunc->GetTheCFG()->InLSDA(curBB.GetLabIdx(), *ehFunc)) {
       /* find nextReachableBB */
       BB *nextReachableBB = nullptr;
       for (BB *bb = &curBB; bb != nullptr; bb = bb->GetNext()) {
@@ -780,10 +750,12 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
       return false;
     }
 
-    ASSERT(curBB.GetPrev() != nullptr, "nullptr check");
-    curBB.GetPrev()->SetNext(curBB.GetNext());
-    ASSERT(curBB.GetNext() != nullptr, "nullptr check");
-    curBB.GetNext()->SetPrev(curBB.GetPrev());
+    if (curBB.GetPrev() != nullptr) {
+      curBB.GetPrev()->SetNext(curBB.GetNext());
+    }
+    if (curBB.GetNext() != nullptr) {
+      curBB.GetNext()->SetPrev(curBB.GetPrev());
+    }
 
     /* flush after remove; */
     for (BB *bb : curBB.GetSuccs()) {
@@ -898,7 +870,7 @@ bool DuplicateBBPattern::Optimize(BB &curBB) {
 
 /* === new pm === */
 bool CgCfgo::PhaseRun(maplebe::CGFunc &f) {
-  CFGOptimizer *cfgOptimizer = GetPhaseAllocator()->New<CFGOptimizer>(f, *GetPhaseMemPool());
+  CFGOptimizer *cfgOptimizer = f.GetCG()->CreateCFGOptimizer(*GetPhaseMemPool(), f);
   if (f.IsAfterRegAlloc()) {
     (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
     cfgOptimizer->SetPhase(kCfgoPostRegAlloc);
@@ -921,7 +893,7 @@ bool CgCfgo::PhaseRun(maplebe::CGFunc &f) {
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgCfgo, cfgo)
 
 bool CgPostCfgo::PhaseRun(maplebe::CGFunc &f) {
-  CFGOptimizer *cfgOptimizer = GetPhaseAllocator()->New<CFGOptimizer>(f, *GetPhaseMemPool());
+  CFGOptimizer *cfgOptimizer = f.GetCG()->CreateCFGOptimizer(*GetPhaseMemPool(), f);
   const std::string &funcClass = f.GetFunction().GetBaseClassName();
   const std::string &funcName = f.GetFunction().GetBaseFuncName();
   const std::string &name = funcClass + funcName;
