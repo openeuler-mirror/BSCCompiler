@@ -25,7 +25,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/mempool/include/",
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
 ]
-src_mapleallUT = [ "cl_ut_test.cpp", "int_val_test.cpp" ]
+src_mapleallUT = [ "cl_ut_test.cpp", "int_val_test.cpp", "stacktrace_test.cpp" ]
 
 executable("mapleallUT") {
   sources = src_mapleallUT
@@ -47,6 +47,7 @@ executable("mapleallUT") {
     "${MAPLE_ROOT}/tools/gtest_lib/lib/libgtest.a",
     "${MAPLE_ROOT}/tools/gtest_lib/lib/libgtest_main.a",
     "pthread",
+    "dl"
   ]
 }
 
