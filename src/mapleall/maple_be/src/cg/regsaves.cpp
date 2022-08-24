@@ -24,7 +24,8 @@ namespace maplebe {
 using namespace maple;
 
 bool CgRegSavesOpt::PhaseRun(maplebe::CGFunc &f) {
-  if (Globals::GetInstance()->GetOptimLevel() <= CGOptions::kLevel1 || f.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
+  if (Globals::GetInstance()->GetOptimLevel() <= CGOptions::kLevel1 ||
+      f.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
     return false;
   }
 

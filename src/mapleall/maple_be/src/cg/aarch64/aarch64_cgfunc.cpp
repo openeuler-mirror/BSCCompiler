@@ -2111,6 +2111,9 @@ void AArch64CGFunc::SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) {
   MIRType *rType = GetLmbcCallReturnType();
   bool isPureFpStruct = false;
   uint32 numRegs = 0;
+  if (rType == nullptr) {
+    return;
+  }
   if (rType && rType->GetPrimType() == PTY_agg && opnd.IsRegister() &&
       static_cast<RegOperand&>(opnd).IsPhysicalRegister()) {
     CHECK_FATAL(rType->GetSize() <= k16BitSize, "SelectIassignfpoff invalid agg size");
@@ -2136,21 +2139,20 @@ void AArch64CGFunc::SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) {
       Insn &store = GetInsnBuilder()->BuildInsn(PickStInsn(bitlen, primType), srcOpnd, *memOpnd);
       GetCurBB()->AppendInsn(store);
     } else {
-      byteSize = rType->GetSize();
-      MemOperand *memOpnd;
-      RegOperand *srcOpnd;
+      byteSize = static_cast<uint32>(rType->GetSize());
+      MemOperand *memOpnd = nullptr;
+      RegOperand *srcOpnd = nullptr;
       if (byteSize > k8ByteSize) {
         memOpnd = GenLmbcFpMemOperand(offset, k8ByteSize);
         srcOpnd = &GetOrCreatePhysicalRegisterOperand(AArch64reg(R0), k64BitSize, kRegTyInt);
         GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(PickStInsn(k64BitSize, PTY_u64), *srcOpnd, *memOpnd));
         byteSize -= k8ByteSize;
       }
-      PrimType pTy = (byteSize > k4ByteSize) ? PTY_u64 :
-                      ((byteSize > k2ByteSize) ? PTY_u32 :
-                       ((byteSize > k1ByteSize) ? PTY_u16 : PTY_u8));
+      PrimType pTy = (byteSize > k4ByteSize) ? PTY_u64 : ((byteSize > k2ByteSize) ? PTY_u32 :
+          ((byteSize > k1ByteSize) ? PTY_u16 : PTY_u8));
       bitlen = GetPrimTypeSize(pTy) * kBitsPerByte;
       srcOpnd = &GetOrCreatePhysicalRegisterOperand(AArch64reg(R1), bitlen, kRegTyInt);
-      memOpnd = GenLmbcFpMemOperand(offset + k8ByteSize, byteSize);
+      memOpnd = GenLmbcFpMemOperand(offset + k8BitSizeInt, byteSize);
       GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(PickStInsn(bitlen, pTy), *srcOpnd, *memOpnd));
     }
   }
