@@ -24,7 +24,7 @@ namespace maplebe {
 using namespace maple;
 
 bool CgRegSavesOpt::PhaseRun(maplebe::CGFunc &f) {
-  if (Globals::GetInstance()->GetOptimLevel() <= 1) {
+  if (Globals::GetInstance()->GetOptimLevel() <= CGOptions::kLevel1 || f.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
     return false;
   }
 
@@ -43,7 +43,7 @@ bool CgRegSavesOpt::PhaseRun(maplebe::CGFunc &f) {
   /* Perform dom analysis, result to be inserted into AArch64RegSavesOpt object */
   DomAnalysis *dom = nullptr;
   PostDomAnalysis *pdom = nullptr;
-  if (Globals::GetInstance()->GetOptimLevel() >= 1 &&
+  if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel1 &&
       f.GetCG()->GetCGOptions().DoColoringBasedRegisterAllocation()) {
     MaplePhase *phase = GetAnalysisInfoHook()->
         ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgDomAnalysis::id, f);

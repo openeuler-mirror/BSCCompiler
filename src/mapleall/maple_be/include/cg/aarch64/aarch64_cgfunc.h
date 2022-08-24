@@ -48,7 +48,6 @@ class AArch64CGFunc : public CGFunc {
       : CGFunc(mod, c, f, b, memPool, stackMp, mallocator, funcId),
         calleeSavedRegs(mallocator.Adapter()),
         proEpilogSavedRegs(mallocator.Adapter()),
-        formalRegList(mallocator.Adapter()),
         phyRegOperandTable(mallocator.Adapter()),
         hashLabelOpndTable(mallocator.Adapter()),
         hashOfstOpndTable(mallocator.Adapter()),
@@ -71,14 +70,6 @@ class AArch64CGFunc : public CGFunc {
   }
 
   ~AArch64CGFunc() override = default;
-
-  const MapleVector<AArch64reg> &GetFormalRegList() const {
-    return formalRegList;
-  }
-
-  void PushElemIntoFormalRegList(AArch64reg reg) {
-    formalRegList.emplace_back(reg);
-  }
 
   uint32 GetRefCount() const {
     return refCount;
@@ -274,7 +265,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectGCMalloc(GCMallocNode &node) override;
   Operand *SelectJarrayMalloc(JarrayMallocNode &node, Operand &opnd0) override;
   void SelectSelect(Operand &resOpnd, Operand &condOpnd, Operand &trueOpnd, Operand &falseOpnd, PrimType dtype,
-                    PrimType ctype, bool hasCompare = false, AArch64CC_t cc = CC_NE);
+                    PrimType ctype, bool hasCompare = false, ConditionCode cc = CC_NE);
   void SelectAArch64Select(Operand &dest, Operand &opnd0, Operand &opnd1, CondOperand &cond, bool isIntType,
                            uint32 is64bits);
   void SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOpnd) override;
@@ -330,8 +321,7 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectVectorRegMov(PrimType rType, Operand *src, PrimType sType);
   RegOperand *SelectVectorFromScalar(PrimType rType, Operand *src, PrimType sType) override;
   RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) override;
-  RegOperand *SelectVectorGetHigh(PrimType rType, Operand *src) override;
-  RegOperand *SelectVectorGetLow(PrimType rType, Operand *src) override;
+  RegOperand *SelectVectorDup(PrimType rType, Operand *src, bool getLow) override;
   RegOperand *SelectVectorAbsSubL(PrimType rType, Operand *o1, Operand *o2, PrimType oTy, bool isLow) override;
   RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2,
                                Operand *o3, PrimType oTyp3) override;
@@ -377,12 +367,13 @@ class AArch64CGFunc : public CGFunc {
   }
 
   ImmOperand &CreateImmOperand(PrimType ptyp, int64 val) override {
+    if (ptyp == PTY_f32 || ptyp == PTY_f64) {
+      ASSERT(val == 0, "val must be 0!");
+      return CreateImmOperand(Operand::kOpdFPImmediate, 0, static_cast<uint8>(GetPrimTypeBitSize(ptyp)), false);
+    }
     return CreateImmOperand(val, GetPrimTypeBitSize(ptyp), IsSignedInteger(ptyp));
   }
 
-  Operand &CreateFPImmZero(PrimType ptyp) override {
-    return GetOrCreateFpZeroOperand(GetPrimTypeBitSize(ptyp));
-  }
 
   const Operand *GetFloatRflag() const override {
     return nullptr;
@@ -393,12 +384,12 @@ class AArch64CGFunc : public CGFunc {
     return *memPool->New<ImmOperand>(val, size, isSigned, varyType, isFmov);
   }
 
-  ListOperand *CreateListOpnd(MapleAllocator &allocator) const {
-    return memPool->New<ListOperand>(allocator);
+  ImmOperand &CreateImmOperand(Operand::OperandType type, int64 val, uint32 size, bool isSigned) {
+    return *memPool->New<ImmOperand>(type, val, size, isSigned);
   }
 
-  ImmFPZeroOperand &GetOrCreateFpZeroOperand(uint8 size) const {
-    return *ImmFPZeroOperand::Allocate(size);
+  ListOperand *CreateListOpnd(MapleAllocator &allocator) {
+    return memPool->New<ListOperand>(allocator);
   }
 
   OfstOperand &GetOrCreateOfstOpnd(uint64 offset, uint32 size);
@@ -430,7 +421,7 @@ class AArch64CGFunc : public CGFunc {
     } else {
       reg = RFP;
     }
-    return GetOrCreatePhysicalRegisterOperand(reg, kSizeOfPtr * kBitsPerByte, kRegTyInt);
+    return GetOrCreatePhysicalRegisterOperand(reg, GetPointerSize() * kBitsPerByte, kRegTyInt);
   }
 
   RegOperand &GenStructParamIndex(RegOperand &base, const BaseNode &indexExpr, int shift, PrimType baseType);
@@ -452,7 +443,7 @@ class AArch64CGFunc : public CGFunc {
   MemOperand &GetOrCreateMemOpnd(MemOperand &oldMem);
 
   MemOperand &CreateMemOpnd(AArch64reg reg, int64 offset, uint32 size) {
-    RegOperand &baseOpnd = GetOrCreatePhysicalRegisterOperand(reg, kSizeOfPtr * kBitsPerByte, kRegTyInt);
+    RegOperand &baseOpnd = GetOrCreatePhysicalRegisterOperand(reg, GetPointerSize() * kBitsPerByte, kRegTyInt);
     return CreateMemOpnd(baseOpnd, offset, size);
   }
 
@@ -466,18 +457,11 @@ class AArch64CGFunc : public CGFunc {
   MemOperand *CreateMemOpndOrNull(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int64 offset = 0,
                                   AArch64isa::MemoryOrdering memOrd = AArch64isa::kMoNone);
 
-  CondOperand &GetCondOperand(AArch64CC_t op) const {
-    ASSERT(op < kCcLast, "op must be lower than kCcLast");
+  CondOperand &GetCondOperand(ConditionCode op) const {
     return ccOperands[op];
   }
 
-  LogicalShiftLeftOperand *GetLogicalShiftLeftOperand(uint32 shiftAmount, bool is64bits) const {
-    /* num(0, 16, 32, 48) >> 4 is num1(0, 1, 2, 3), num1 & (~3) == 0 */
-    ASSERT((!shiftAmount || ((shiftAmount >> 4) & ~static_cast<uint32>(3)) == 0),
-           "shift amount should be one of 0, 16, 32, 48");
-    /* movkLslOperands[4]~movkLslOperands[7] is for 64 bits */
-    return &movkLslOperands[(shiftAmount >> 4) + (is64bits ? 4 : 0)];
-  }
+  BitShiftOperand *GetLogicalShiftLeftOperand(uint32 shiftAmount, bool is64bits) const;
 
   BitShiftOperand &CreateBitShiftOperand(BitShiftOperand::ShiftOp op, uint32 amount, int32 bitLen) const {
     return *memPool->New<BitShiftOperand>(op, amount, bitLen);
@@ -521,16 +505,18 @@ class AArch64CGFunc : public CGFunc {
     return *memPool->New<StringOperand>(s.c_str(), *memPool);
   }
 
-  void AddtoCalleeSaved(AArch64reg reg) {
+  void AddtoCalleeSaved(regno_t reg) override {
     if (!UseFP() && reg == R29) {
       reg = RFP;
     }
     if (find(calleeSavedRegs.begin(), calleeSavedRegs.end(), reg) != calleeSavedRegs.end()) {
       return;
     }
-    calleeSavedRegs.emplace_back(reg);
-    ASSERT((AArch64isa::IsGPRegister(reg) || AArch64isa::IsFPSIMDRegister(reg)), "Int or FP registers are expected");
-    if (AArch64isa::IsGPRegister(reg)) {
+    calleeSavedRegs.emplace_back(static_cast<AArch64reg>(reg));
+    ASSERT((AArch64isa::IsGPRegister(static_cast<AArch64reg>(reg)) ||
+            AArch64isa::IsFPSIMDRegister(static_cast<AArch64reg>(reg))),
+            "Int or FP registers are expected");
+    if (AArch64isa::IsGPRegister(static_cast<AArch64reg>(reg))) {
       ++numIntregToCalleeSave;
     } else {
       ++numFpregToCalleeSave;
@@ -595,7 +581,7 @@ class AArch64CGFunc : public CGFunc {
   MemOperand &CreateCallFrameOperand(int32 offset, uint32 size) const;
 
   void AppendCall(const MIRSymbol &funcSymbol);
-  Insn &AppendCall(const MIRSymbol &sym, ListOperand &srcOpnds, bool isCleanCall = false);
+  Insn &AppendCall(const MIRSymbol &sym, ListOperand &srcOpnds);
 
   static constexpr uint32 kDwarfFpRegBegin = 64;
   static constexpr int32 kBitLenOfShift64Bits = 6; /* for 64 bits register, shift amount is 0~63, use 6 bits to store */
@@ -649,6 +635,7 @@ class AArch64CGFunc : public CGFunc {
   ImmOperand &SplitAndGetRemained(const MemOperand &memOpnd, uint32 bitLen, int64 ofstVal, bool forPair = false);
   MemOperand &CreateReplacementMemOperand(uint32 bitLen, RegOperand &baseReg, int64 offset);
 
+  bool OpndHasStackLoadStore(Insn &insn, Operand &opnd);
   bool HasStackLoadStore();
 
   MemOperand &LoadStructCopyBase(const MIRSymbol &symbol, int64 offset, int dataSize);
@@ -660,25 +647,31 @@ class AArch64CGFunc : public CGFunc {
     splitStpldpBaseOffset = val;
   }
 
-  Insn &CreateCommentInsn(const std::string &comment) const override {
-    return cg->BuildInstruction<AArch64Insn>(MOP_comment, CreateCommentOperand(comment));
+  Insn &CreateCommentInsn(const std::string &comment) {
+    Insn &insn = GetInsnBuilder()->BuildInsn(abstract::MOP_comment, InsnDesc::GetAbstractId(abstract::MOP_comment));
+    insn.AddOperand(CreateCommentOperand(comment));
+    return insn;
   }
 
-  Insn &CreateCommentInsn(const MapleString &comment) const {
-    return cg->BuildInstruction<AArch64Insn>(MOP_comment, CreateCommentOperand(comment));
+  Insn &CreateCommentInsn(const MapleString &comment) {
+    Insn &insn = GetInsnBuilder()->BuildInsn(abstract::MOP_comment, InsnDesc::GetAbstractId(abstract::MOP_comment));
+    insn.AddOperand(CreateCommentOperand(comment));
+    return insn;
   }
 
-  Insn &CreateCfiRestoreInsn(uint32 reg, uint32 size) override {
-    return cg->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_restore, CreateCfiRegOperand(reg, size));
+  Insn &CreateCfiRestoreInsn(uint32 reg, uint32 size) {
+    return GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_restore).AddOpndChain(CreateCfiRegOperand(reg, size));
   }
 
-  Insn &CreateCfiOffsetInsn(uint32 reg, int64 val, uint32 size) override {
-    return cg->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_offset, CreateCfiRegOperand(reg, size),
-                                              CreateCfiImmOperand(val, size));
+  Insn &CreateCfiOffsetInsn(uint32 reg, int64 val, uint32 size) {
+    return GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_offset).
+                                          AddOpndChain(CreateCfiRegOperand(reg, size)).
+                                          AddOpndChain(CreateCfiImmOperand(val, size));
   }
-  Insn &CreateCfiDefCfaInsn(uint32 reg, int64 val, uint32 size) override {
-    return cg->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_def_cfa, CreateCfiRegOperand(reg, size),
-                                              CreateCfiImmOperand(val, size));
+  Insn &CreateCfiDefCfaInsn(uint32 reg, int64 val, uint32 size) {
+    return GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_def_cfa).
+                                          AddOpndChain(CreateCfiRegOperand(reg, size)).
+                                          AddOpndChain(CreateCfiImmOperand(val, size));
   }
 
   InsnVisitor *NewInsnModifier() override {
@@ -782,11 +775,10 @@ class AArch64CGFunc : public CGFunc {
   };
 
   static constexpr int32 kMaxMovkLslEntries = 8;
-  using MovkLslOperandArray = std::array<LogicalShiftLeftOperand, kMaxMovkLslEntries>;
+  using MovkLslOperandArray = std::array<BitShiftOperand, kMaxMovkLslEntries>;
 
   MapleVector<AArch64reg> calleeSavedRegs;
   MapleVector<AArch64reg> proEpilogSavedRegs;
-  MapleVector<AArch64reg> formalRegList; /* store the parameters register used by this function */
   uint32 refCount = 0;  /* Ref count number. 0 if function don't have "bl MCC_InitializeLocalStackRef" */
   int32 beginOffset = 0;        /* Begin offset based x29. */
   Insn *yieldPointInsn = nullptr;   /* The insn of yield point at the entry of the func. */
@@ -820,7 +812,6 @@ class AArch64CGFunc : public CGFunc {
 
   static CondOperand ccOperands[kCcLast];
   static MovkLslOperandArray movkLslOperands;
-  static LogicalShiftLeftOperand addSubLslOperand;
   uint32 numIntregToCalleeSave = 0;
   uint32 numFpregToCalleeSave = 0;
   bool fplrAddedToCalleeSaved = false;
@@ -967,10 +958,8 @@ class AArch64CGFunc : public CGFunc {
   bool IsStoreMop(MOperator mOp) const;
   bool IsImmediateValueInRange(MOperator mOp, int64 immVal, bool is64Bits,
                                bool isIntactIndexed, bool isPostIndexed, bool isPreIndexed) const;
-  Insn &GenerateGlobalLongCallAfterInsn(const MIRSymbol &func, ListOperand &srcOpnds,
-                                        bool isCleanCall = false);
-  Insn &GenerateLocalLongCallAfterInsn(const MIRSymbol &func, ListOperand &srcOpnds,
-                                       bool isCleanCall = false);
+  Insn &GenerateGlobalLongCallAfterInsn(const MIRSymbol &func, ListOperand &srcOpnds);
+  Insn &GenerateLocalLongCallAfterInsn(const MIRSymbol &func, ListOperand &srcOpnds);
   bool IsDuplicateAsmList(const MIRSymbol &sym) const;
   RegOperand *CheckStringIsCompressed(BB &bb, RegOperand &str, int32 countOffset, PrimType countPty,
                                       LabelIdx jumpLabIdx);
@@ -988,6 +977,9 @@ class AArch64CGFunc : public CGFunc {
   Insn *AggtStrLdrInsert(bool bothUnion, Insn *lastStrLdr, Insn &newStrLdr);
   MemOperand &CreateMemOpndForStatic(const MIRSymbol &symbol, int64 offset, uint32 size, bool needLow12,
                                      RegOperand *regOp);
+  LabelIdx GetLabelInInsn(Insn &insn) override {
+    return static_cast<LabelOperand&>(insn.GetOperand(AArch64isa::GetJumpTargetIdx(insn))).GetLabelIndex();
+  }
 };
 }  /* namespace maplebe */
 

@@ -40,7 +40,7 @@ void AArch64RegSavesOpt::CreateReachingBBs(ReachInfo &rp, const BB &bb) {
     }
   }
 #if RS_DUMP
-  M_LOG << " --ReachingBBs for BB " << bb->GetId() << " created\n";
+  M_LOG << " --ReachingBBs for BB " << bb.GetId() << " created\n";
 #endif
 }
 
@@ -160,13 +160,13 @@ void AArch64RegSavesOpt::ProcessCondOpnd(const BB &bb) {
 }
 
 void AArch64RegSavesOpt::ProcessOperands(const Insn &insn, const BB &bb) {
-  const AArch64MD *md = &AArch64CG::kMd[static_cast<const AArch64Insn&>(insn).GetMachineOpcode()];
+  const InsnDesc *md = insn.GetDesc();
   bool isAsm = (insn.GetMachineOpcode() == MOP_asm);
 
   uint32 opndNum = insn.GetOperandSize();
   for (uint32 i = 0; i < opndNum; ++i) {
     Operand &opnd = insn.GetOperand(i);
-    OpndProp *regProp = md->operand[i];
+    auto *regProp = md->opndMD[i];
     bool isDef = regProp->IsRegDef();
     bool isUse = regProp->IsRegUse();
     if (opnd.IsList()) {
@@ -738,8 +738,8 @@ int32 AArch64RegSavesOpt::FindCalleeBase() const {
   if (cgFunc->GetFunction().GetAttr(FUNCATTR_varargs)) {
     /* GR/VR save areas are above the callee save area */
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc->GetMemlayout());
-    int saveareasize = static_cast<int>(RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
-        RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize));
+    int saveareasize = static_cast<int>(RoundUp(ml->GetSizeOfGRSaveArea(), GetPointerSize() * k2BitSize) +
+        RoundUp(ml->GetSizeOfVRSaveArea(), GetPointerSize() * k2BitSize));
     offset -= saveareasize;
   }
   return offset;
@@ -986,7 +986,7 @@ void AArch64RegSavesOpt::InsertCalleeRestoreCode() {
 /* Callee-save registers save/restore placement optimization */
 void AArch64RegSavesOpt::Run() {
   // DotGenerator::GenerateDot("SR", *cgFunc, cgFunc->GetMirModule(), true, cgFunc->GetName());
-  if (Globals::GetInstance()->GetOptimLevel() <= 1 || !cgFunc->GetMirModule().IsCModule()) {
+  if (Globals::GetInstance()->GetOptimLevel() <= CGOptions::kLevel1 || !cgFunc->GetMirModule().IsCModule()) {
     return;
   }
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
