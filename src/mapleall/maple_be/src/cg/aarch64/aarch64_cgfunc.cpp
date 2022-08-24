@@ -2111,9 +2111,6 @@ void AArch64CGFunc::SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) {
   MIRType *rType = GetLmbcCallReturnType();
   bool isPureFpStruct = false;
   uint32 numRegs = 0;
-  if (rType == nullptr) {
-    return;
-  }
   if (rType && rType->GetPrimType() == PTY_agg && opnd.IsRegister() &&
       static_cast<RegOperand&>(opnd).IsPhysicalRegister()) {
     CHECK_FATAL(rType->GetSize() <= k16BitSize, "SelectIassignfpoff invalid agg size");
