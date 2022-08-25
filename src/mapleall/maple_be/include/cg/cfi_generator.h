@@ -32,7 +32,6 @@ class GenCfi {
  protected:
   void InsertCFIDefCfaOffset(BB &bb, Insn &insn, int32 &cfiOffset); /* cfiOffset in-out */
   Insn &FindStackDefNextInsn(BB &bb) const;
-  Insn &FindReturnInsn(BB &bb) const;
 
   /* CFI related routines */
   int64 GetOffsetFromCFA() const {

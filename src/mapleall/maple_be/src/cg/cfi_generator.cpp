@@ -16,14 +16,16 @@
 #include "cgfunc.h"
 #if TARGAARCH64
 #include "aarch64_cfi_generator.h"
+#include "aarch64_cgfunc.h"
 #endif
 
 namespace maplebe {
 Insn &GenCfi::FindStackDefNextInsn(BB &bb) const {
+  auto &a64CgFunc = static_cast<AArch64CGFunc&>(cgFunc);
   FOR_BB_INSNS(insn, &bb) {
     if (insn->IsStackDef()) {
       if (insn->GetNext() == nullptr) {
-        bb.AppendInsn(cgFunc.CreateCommentInsn("stack alloc end"));
+        bb.AppendInsn(a64CgFunc.CreateCommentInsn("stack alloc end"));
       }
       return *(insn->GetNext());
     }
@@ -31,20 +33,16 @@ Insn &GenCfi::FindStackDefNextInsn(BB &bb) const {
   CHECK_FATAL(false, "bb need a stackdef insn");
 }
 
-Insn &GenCfi::FindReturnInsn(BB &bb) const {
-  return *(bb.GetLastInsn());
-}
-
 void GenCfi::InsertCFIDefCfaOffset(BB &bb, Insn &insn, int32 &cfiOffset) {
   cfiOffset = AddtoOffsetFromCFA(cfiOffset);
-  Insn &cfiInsn = cg.BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_def_cfa_offset,
-                                                    cgFunc.CreateCfiImmOperand(cfiOffset, k64BitSize));
+  Insn &cfiInsn = cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_def_cfa_offset).AddOpndChain(
+      cgFunc.CreateCfiImmOperand(cfiOffset, k64BitSize));
   (void)bb.InsertInsnBefore(insn, cfiInsn);
   cgFunc.SetDbgCallFrameOffset(cfiOffset);
 }
 
 void GenCfi::GenerateStartDirective(BB &bb) {
-  Insn &startprocInsn = cg.BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_startproc);
+  Insn &startprocInsn = cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_startproc);
   if (bb.GetFirstInsn() != nullptr) {
     (void)bb.InsertInsnBefore(*bb.GetFirstInsn(), startprocInsn);
   } else {
@@ -57,16 +55,16 @@ void GenCfi::GenerateStartDirective(BB &bb) {
    * we depend on this to tell whether it is a java method. (maybe we can get a function attribute to determine it)
    */
   if (cgFunc.GetFunction().IsJava()) {
-    Insn &personality = cg.BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_personality_symbol,
-                                                          cgFunc.CreateCfiImmOperand(EHFunc::kTypeEncoding, k8BitSize),
-                                                          cgFunc.CreateCfiStrOperand("DW.ref.__mpl_personality_v0"));
+    Insn &personality = cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_personality_symbol).AddOpndChain(
+        cgFunc.CreateCfiImmOperand(EHFunc::kTypeEncoding, k8BitSize)).AddOpndChain(
+        cgFunc.CreateCfiStrOperand("DW.ref.__mpl_personality_v0"));
     bb.InsertInsnAfter(startprocInsn, personality);
   }
 #endif
 }
 
 void GenCfi::GenerateEndDirective(BB &bb) {
-  bb.AppendInsn(cg.BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_endproc));
+  bb.AppendInsn(cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_endproc));
 }
 
 void GenCfi::GenerateRegisterStateDirective(BB &bb) {
@@ -87,8 +85,8 @@ void GenCfi::GenerateRegisterStateDirective(BB &bb) {
   } while (nextBB != nullptr);
 
   if (nextBB != nullptr && !nextBB->IsEmpty()) {
-    bb.InsertInsnBegin(cg.BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_remember_state));
-    nextBB->InsertInsnBegin(cg.BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_restore_state));
+    bb.InsertInsnBegin(cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_remember_state));
+    nextBB->InsertInsnBegin(cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_restore_state));
   }
 }
 
@@ -106,7 +104,8 @@ void GenCfi::InsertFirstLocation(BB &bb) {
   Operand *fileNumOpnd = cgFunc.CreateDbgImmOperand(fileNum);
   Operand *lineNumOpnd = cgFunc.CreateDbgImmOperand(lineNum);
   Operand *columnNumOpnd = cgFunc.CreateDbgImmOperand(columnNum);
-  Insn &loc = cg.BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *fileNumOpnd, *lineNumOpnd, *columnNumOpnd);
+  Insn &loc = cgFunc.GetInsnBuilder()->BuildDbgInsn(mpldbg::OP_DBG_loc).AddOpndChain(
+      *fileNumOpnd).AddOpndChain(*lineNumOpnd).AddOpndChain(*columnNumOpnd);
   (void)(bb.InsertInsnBefore(*bb.GetFirstInsn(), loc));
 }
 
