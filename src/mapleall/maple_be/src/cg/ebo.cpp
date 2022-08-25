@@ -188,14 +188,16 @@ bool Ebo::RegForwardCheck(Insn &insn, const Operand &opnd, const Operand *opndRe
         !insn.IsMove())) {
     return false;
   }
-  if (!((insn.GetResultNum() == 0) ||
-        (((insn.GetResult(0) != nullptr) && !RegistersIdentical(opnd, *(insn.GetResult(0)))) || !beforeRegAlloc))) {
+  std::set<regno_t> defRegs = insn.GetDefRegs();
+  if (!(defRegs.empty() ||
+      ((opnd.IsRegister() && !defRegs.count(static_cast<const RegOperand&>(opnd).GetRegisterNumber())) ||
+      !beforeRegAlloc))) {
     return false;
   }
   if (!(beforeRegAlloc || !IsFrameReg(oldOpnd))) {
     return false;
   }
-  if (insn.IsDestRegAlsoSrcReg()) {
+  if (insn.GetBothDefUseOpnd() != kInsnMaxOpnd) {
     return false;
   }
   if (IsPseudoRet(insn)) {
@@ -373,7 +375,7 @@ InsnInfo *Ebo::GetNewInsnInfo(Insn &insn) {
   return insnInfo;
 }
 
-uint32 Ebo::ComputeHashVal(const Insn &insn, const MapleVector<OpndInfo*> &opndInfos) const {
+uint32 Ebo::ComputeHashVal(Insn &insn, const MapleVector<OpndInfo*> &opndInfos) const {
   uint32 hashVal = 0;
   if (insn.AccessMem()) {
     hashVal = kEboDefaultMemHash;
@@ -387,7 +389,7 @@ uint32 Ebo::ComputeHashVal(const Insn &insn, const MapleVector<OpndInfo*> &opndI
         hashVal = kEboSpillMemHash;
       }
     }
-  } else if (insn.IsEffectiveCopy()) {
+  } else if (Globals::GetInstance()->GetTarget()->IsEffectiveCopy(insn)) {
     hashVal = kEboCopyInsnHash;
   } else {
     uint32 opndNum = insn.GetOperandSize();
@@ -603,8 +605,8 @@ bool Ebo::ForwardPropagateOpnd(Insn &insn, Operand *&opnd, uint32 opndIndex,
     return false;
   }
   /* Copies to and from the same register are not needed. */
-  if (!beforeRegAlloc && insn.IsEffectiveCopy() && (static_cast<uint32>(insn.CopyOperands()) == opndIndex) &&
-      RegistersIdentical(*opnd, *(insn.GetResult(0)))) {
+  if (!beforeRegAlloc && Globals::GetInstance()->GetTarget()->IsEffectiveCopy(insn) && (opndIndex == kInsnSecondOpnd) &&
+      RegistersIdentical(*opnd, insn.GetOperand(kInsnFirstOpnd)) && !LiveOutOfBB(*opnd, *(insn.GetBB()))) {
     if (EBO_DUMP) {
       LogInfo::MapleLogger() << "===replace operand " << opndIndex << " of insn: \n";
       insn.Dump();
@@ -654,26 +656,26 @@ void Ebo::SimplifyInsn(Insn &insn, bool &insnReplaced, bool opndsConstant,
     }
     return;
   }
-  if (insn.IsEffectiveCopy()) {
+  if (Globals::GetInstance()->GetTarget()->IsEffectiveCopy(insn)) {
     if (!insnReplaced) {
       insnReplaced = SpecialSequence(insn, opndInfos);
     }
     return;
   }
   if (!insnReplaced && !insn.HasSideEffects()) {
-    uint32 opndNum = insn.GetOpndNum();
+    uint32 opndNum = insn.GetOperandSize();
     if (opndsConstant && (opndNum > 1)) {
-      if (insn.GetResultNum() >= 1) {
+      if (!insn.GetDefRegs().empty()) {
         insnReplaced = Csel2Cset(insn, opnds);
       }
     }
     if (insnReplaced) {
       return;
     }
-    if (opndNum >= 1) {
+    if (opndNum >= 2) {
       /* special case */
-      if (insn.GetResultNum() > 0 && ResIsNotDefAndUse(insn)) {
-        if ((opndNum == 2) && (insn.GetResultNum() == 1) &&
+      if (!insn.GetDefRegs().empty() && ResIsNotDefAndUse(insn)) {
+        if ((opndNum == 3) && (insn.GetDefRegs().size() == 1) &&
             (((kInsnSecondOpnd < opnds.size()) && (opnds[kInsnSecondOpnd] != nullptr) &&
               IsConstantImmOrReg(*opnds[kInsnSecondOpnd])) ||
              ((kInsnThirdOpnd < opnds.size()) && (opnds[kInsnThirdOpnd] != nullptr) &&
@@ -702,20 +704,19 @@ void Ebo::FindRedundantInsns(BB &bb, Insn *&insn, const Insn *prev, bool insnRep
     CHECK_FATAL(origInfos.size() != 0, "null ptr check");
     CHECK_FATAL(opndInfos.size() != 0, "null ptr check");
     HashInsn(*insn, origInfos, opndInfos);
-    uint32 resultNum = insn->GetResultNum();
     /* Processing the result of the insn. */
-    if (insn->IsEffectiveCopy() || (resultNum && !insn->AccessMem())) {
-      Operand *res = insn->GetResult(0);
-      int32 index = insn->CopyOperands();
+    if ((Globals::GetInstance()->GetTarget()->IsEffectiveCopy(*insn) ||
+        !insn->GetDefRegs().empty()) && !insn->IsSpecialIntrinsic()) {
+      Operand *res = &insn->GetOperand(kInsnFirstOpnd);
       if ((res != nullptr) && (res != TRUE_OPND) && (res != GetZeroOpnd(res->GetSize()))) {
         CHECK_FATAL(lastInsnInfo != nullptr, "lastInsnInfo is null!");
         OpndInfo *opndInfo = lastInsnInfo->result[0];
         /* Don't propagate for fmov insns. */
-        if ((index >= 0) && (opndInfo != nullptr) && !IsFmov(*insn)) {
+        if (Globals::GetInstance()->GetTarget()->IsEffectiveCopy(*insn) && (opndInfo != nullptr) && !IsFmov(*insn)) {
           CHECK_FATAL(!opnds.empty(), "null container!");
-          opndInfo->replacementOpnd = opnds[index];
-          opndInfo->replacementInfo = opndInfos[index];
-        } else if (insn->IsDestRegAlsoSrcReg() && (opndInfo != nullptr)) {
+          opndInfo->replacementOpnd = opnds[kInsnSecondOpnd];
+          opndInfo->replacementInfo = opndInfos[kInsnSecondOpnd];
+        } else if (insn->GetBothDefUseOpnd() != kInsnMaxOpnd && (opndInfo != nullptr)) {
           opndInfo->replacementOpnd = nullptr;
           opndInfo->replacementInfo = nullptr;
         }
@@ -731,9 +732,7 @@ void Ebo::FindRedundantInsns(BB &bb, Insn *&insn, const Insn *prev, bool insnRep
 }
 
 void Ebo::PreProcessSpecialInsn(Insn &insn) {
-  if (insn.IsReturn()) {
-    DefineReturnUseRegister(insn);
-  }
+  DefineReturnUseRegister(insn);
 
   if (insn.IsCall() || insn.IsClinit()) {
     DefineCallUseSpecialRegister(insn);
@@ -752,6 +751,10 @@ void Ebo::BuildAllInfo(BB &bb) {
   }
   Insn *insn = bb.GetFirstInsn();
   while ((insn != nullptr) && (insn != bb.GetLastInsn()->GetNext())) {
+    if (!insn->IsTargetInsn()) {
+      insn = insn->GetNext();
+      continue;
+    }
     PreProcessSpecialInsn(*insn);
     uint32 opndNum = insn->GetOperandSize();
     if (!insn->IsMachineInstruction () || opndNum == 0) {
@@ -923,7 +926,7 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
       break;
     }
 
-    uint32 resNum = insn->GetResultNum();
+    uint32 resNum = insn->GetDefRegs().size();
     if (IsLastAndBranch(bb, *insn)) {
       goto insn_is_needed;
     }
@@ -933,7 +936,7 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
     }
 
     if ((resNum == 0) || IsGlobalNeeded(*insn) || insn->IsStore() ||
-        insn->IsDecoupleStaticOp() || insn->IsPartDef()) {
+        IsDecoupleStaticOp(*insn) || insn->GetBothDefUseOpnd() != kInsnMaxOpnd) {
       goto insn_is_needed;
     }
 
@@ -962,139 +965,21 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
         continue;
       }
 /* this part optimize some spacial case after RA. */
-#if TARGAARCH64 || TARGRISCV64
-      if (!beforeRegAlloc && insn->IsEffectiveCopy() && !CGOptions::DoCGSSA()) {
-        int32 idx = insn->CopyOperands();
-        OpndInfo *opInfo = insnInfo->origOpnd[idx];
-        /*
-         * mov(12) (opnd0:  reg:R12 class: [I] validBitNum: [32] ) (opnd1:  reg:V45 class: [F] validBitNum: [32] )
-         * mov(12) (opnd0:  reg:R23 class: [I] validBitNum: [32] ) (opnd1:  reg:V45 class: [F] validBitNum: [32] )
-         * cmp(233) (opnd0: vreg:C156 class: [CC] validBitNum: [32] )
-         *          (opnd1:  reg:R12 class: [I] validBitNum: [32] )
-         *          (opnd2:  reg:R27 class: [I] validBitNum: [32] )
-         */
-        InsnInfo *prevInfo = insnInfo->prev;
-        if (opInfo == nullptr) {
-          prevInfo = nullptr;
-        } else {
-          prevInfo = LocateInsnInfo(*opInfo);
-        }
-        if ((opInfo != nullptr) && (prevInfo != nullptr) && (opInfo->insn != nullptr) && opInfo->opnd->IsRegister()) {
-          Insn *prev = opInfo->insn;
-          RegOperand *reg = static_cast<RegOperand*>(opInfo->opnd);
-          Operand *res1 = insn->GetResult(0);
-          ASSERT(res1 != nullptr, "null ptr check");
-          if (!cgFunc->IsSPOrFP(*reg) && !cgFunc->IsReturnReg(*reg) &&
-              (prev->IsLoad() || IsAdd(*prev)) && (!LiveOutOfBB(*reg, bb) || opInfo->redefinedInBB)) {
-            /*
-             * pattern 1:
-             * ldr(154) (opnd0: vreg:R105 class: [I]) (opnd1: Mem:base: reg:R29 class: [I]offset:ofst:96)
-             * mov(1) (opnd0:  reg:R0 class: [I]) (opnd1: vreg:R105 class: [I])
-             * ==> ldr R0, R29, 96
-             * pattern 2:
-             * ldr(154) (opnd0: vreg:R105 class: [I]) (opnd1: Mem:base: reg:R29 class: [I]offset:ofst:96)
-             * mov(1) (opnd0:  reg:R0 class: [I]) (opnd1: vreg:R105 class: [I])
-             * add(17) (opnd0: vreg:R106 class: [I]) (opnd1: vreg:R105 class: [I]) (opnd2: imm:16)
-             * ==> ldr R0, R29, 96
-             *     add R106, R0, 16
-             * pattern 3:
-             * add(23) (opnd0: vreg:R125 class: [I] validBitNum: [32] ) (opnd1: vreg:R107 class: [I] validBitNum: [32] )
-             * (opnd2: imm:1) mov(2) (opnd0: vreg:R107 class: [I] validBitNum: [32] ) (opnd1: vreg:R125 class: [I]
-             * validBitNum: [32] )
-             * ===> add R107, R107, 1
-             * pattern 4:
-             * ldr R146, Mem:base:vreg:R101, offset:ofst:8
-             * mov R103 R146
-             * ldr R147 Mem:base:vreg:R146, offset:ofst:16
-             * ===> ldr R103, R101, 8
-             *      ldr R147, R103, 16
-             *
-             * prev->next == insn to make sure that the operand used in prev has not been redefined between prev and
-             * insn.
-             */
-            if (prev->IsDefinition() && insn->IsDefinition() && (prev->GetBB() == &bb) && (prev->GetNext() == insn)) {
-              OpndInfo *resInfo = insnInfo->result[0];
-              ASSERT(resInfo != nullptr, "null ptr check");
-              if (res1->IsRegister()) {
-                InsnInfo *nextInfo = insnInfo->next;
-                Insn *next = nullptr;
-                bool pattern1 = false;
-                bool pattern2 = false;
-                bool pattern3 = false;
-                bool pattern4 = false;
-                if (opInfo->refCount == 1) {
-                  if (IsOfSameClass(*reg, *res1) && insn->IsMove()) {
-                    pattern3 = true;
-                    pattern1 = true;
-                  } else if (prev->IsLoad() && ChangeLdrMop(*prev, *res1)) {
-                    pattern1 = true;
-                  }
-                }
-                if ((nextInfo != nullptr) && (nextInfo->insn != nullptr)) {
-                  next = nextInfo->insn;
-                  /*
-                   * ldr     x8, [x29,#280]  // param: _this
-                   * fmov    d8, x8          //  FMOV to simd 117 caller
-                   * add     x0, x8, #88     ==/=> can't be changed to  "add     x0, d8, #88"
-                   */
-                  if ((next != nullptr) && prev->IsLoad() && IsOfSameClass(*reg, *res1) && (opInfo->refCount == 2)) {
-                    if ((nextInfo->origOpnd[kInsnSecondOpnd] == opInfo) && IsAdd(*next)) {
-                      pattern2 = true;
-                    }
-                    if (next->IsLoad()) {
-                      MemOpndInfo *memInfo = static_cast<MemOpndInfo*>(GetMemInfo(*nextInfo));
-                      if ((memInfo != nullptr) && (memInfo->GetBaseInfo() == opInfo)) {
-                        pattern4 = true;
-                        memInfo->SetBaseInfo(*resInfo);
-                        resInfo->refCount++;
-                      }
-                    }
-                  }
-                }
-                if (pattern1 || pattern2 || pattern3 || pattern4) {
-                  prev->SetOperand(0, *res1);
-                  resInfo->insn = prev;
-                  prevInfo->result[0] = resInfo;
-                  if (insnInfo->mustNotBeRemoved) {
-                    prevInfo->mustNotBeRemoved = true;
-                  }
-                  if (pattern2) {
-                    next->SetOperand(1, *res1);
-                    nextInfo->origOpnd[1] = resInfo;
-                    resInfo->refCount++;
-                  } else if (pattern4) {
-                    Operand *nextMem = next->GetMemOpnd();
-                    ASSERT(nextMem != nullptr, "mem for a load is null in Ebo::RemoveUnusedInsns");
-                    MemOperand *memOpnd = static_cast<MemOperand*>(nextMem->Clone(*cgFunc->GetMemoryPool()));
-                    ASSERT(memOpnd != nullptr, "memOpnd is null in Ebo::RemoveUnusedInsns");
-                    memOpnd->SetBaseRegister(*static_cast<RegOperand*>(res1));
-                    next->SetOperand(1, *memOpnd);
-                  }
-                  goto can_be_removed;
-                }
-              }
-            }
-          }
-        }
-      }
-
-      if (!beforeRegAlloc && insn->IsEffectiveCopy() && opndInfo != nullptr &&
+      if (!beforeRegAlloc && Globals::GetInstance()->GetTarget()->IsEffectiveCopy(*insn) && opndInfo  &&
           insn->GetOperand(kInsnSecondOpnd).IsImmediate() && IsSameRedefine(bb, *insn, *opndInfo)) {
         goto can_be_removed;
       }
-#endif
       /* end special case optimize */
       if ((beforeRegAlloc && IsPhysicalReg(*opnd)) || (IsSaveReg(*opnd) && !opndInfo->redefinedInBB)) {
         goto insn_is_needed;
       }
       /* Copies to and from the same register are not needed. */
-      if (insn->IsEffectiveCopy()) {
-        int32 idx = insn->CopyOperands();
-        if (HasAssignedReg(*opnd) && HasAssignedReg(insn->GetOperand(static_cast<uint32>(idx))) &&
-            RegistersIdentical(*opnd, insn->GetOperand(static_cast<uint32>(idx)))) {
+      if (Globals::GetInstance()->GetTarget()->IsEffectiveCopy(*insn)) {
+        if (HasAssignedReg(*opnd) && HasAssignedReg(insn->GetOperand(kInsnSecondOpnd)) &&
+            RegistersIdentical(*opnd, insn->GetOperand(kInsnSecondOpnd))) {
           /* We may be able to get rid of the copy, but be sure that the operand is marked live into this block. */
-          if ((insnInfo->origOpnd[idx] != nullptr) && (&bb != insnInfo->origOpnd[idx]->bb)) {
-            MarkOpndLiveIntoBB(*opnd, bb, *insnInfo->origOpnd[idx]->bb);
+          if ((insnInfo->origOpnd[kInsnSecondOpnd] != nullptr) && (&bb != insnInfo->origOpnd[kInsnSecondOpnd]->bb)) {
+            MarkOpndLiveIntoBB(*opnd, bb, *insnInfo->origOpnd[kInsnSecondOpnd]->bb);
           }
           /* propagate use count for this opnd to it's input operand. */
           if (opndInfo->same != nullptr) {
@@ -1132,7 +1017,8 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
         goto insn_is_needed;
       }
 
-      if (opndInfo->redefinedInBB && opndInfo->redefinedInsn != nullptr && opndInfo->redefinedInsn->IsPartDef()) {
+      if (opndInfo->redefinedInBB && opndInfo->redefinedInsn != nullptr &&
+          opndInfo->redefinedInsn->GetBothDefUseOpnd() != kInsnMaxOpnd) {
         goto insn_is_needed;
       }
     }
