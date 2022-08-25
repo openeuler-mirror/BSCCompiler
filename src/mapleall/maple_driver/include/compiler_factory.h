@@ -16,12 +16,75 @@
 #define MAPLE_DRIVER_INCLUDE_COMPILER_FACTORY_H
 #include <unordered_set>
 #include "compiler.h"
-#include "compiler_selector.h"
 #include "error_code.h"
 #include "mir_module.h"
 #include "mir_parser.h"
+#include "triple.h"
 
 namespace maple {
+
+class Toolchain {
+  using SupportedCompilers = std::unordered_map<std::string, std::unique_ptr<Compiler>>;
+  SupportedCompilers compilers;
+
+ public:
+  Compiler *Find(const std::string &toolName) {
+    auto it = compilers.find(toolName);
+    if (it != compilers.end()) {
+      return it->second.get();
+    }
+    return nullptr;
+  }
+
+  const SupportedCompilers &GetSupportedCompilers() const {
+    return compilers;
+  }
+
+  virtual ~Toolchain() = default;
+
+ protected:
+  template<typename T>
+  void AddCompiler(const std::string &toolName) {
+    compilers.insert({toolName, std::make_unique<T>(toolName)});
+  }
+};
+
+class Aarch64Toolchain : public Toolchain {
+ public:
+  Aarch64Toolchain() {
+    AddCompiler<Jbc2MplCompiler>("jbc2mpl");
+    AddCompiler<Dex2MplCompiler>("dex2mpl");
+    AddCompiler<Cpp2MplCompiler>("hir2mpl");
+    AddCompiler<ClangCompiler>("clang");
+    AddCompiler<IpaCompiler>("mplipa");
+    AddCompiler<MapleCombCompiler>("me");
+    AddCompiler<MapleCombCompiler>("mpl2mpl");
+    AddCompiler<MplcgCompiler>("mplcg");
+    AddCompiler<MapleCombCompiler>("maplecomb");
+    AddCompiler<MapleCombCompilerWrp>("maplecombwrp");
+    AddCompiler<AsCompiler>("as");
+    AddCompiler<LdCompiler>("ld");
+  }
+};
+
+class Aarch64BeILP32Toolchain : public Toolchain {
+ public:
+  Aarch64BeILP32Toolchain() {
+    AddCompiler<Jbc2MplCompiler>("jbc2mpl");
+    AddCompiler<Dex2MplCompiler>("dex2mpl");
+    AddCompiler<Cpp2MplCompiler>("hir2mpl");
+    AddCompiler<ClangCompilerBeILP32>("clang");
+    AddCompiler<IpaCompiler>("mplipa");
+    AddCompiler<MapleCombCompiler>("me");
+    AddCompiler<MapleCombCompiler>("mpl2mpl");
+    AddCompiler<MplcgCompiler>("mplcg");
+    AddCompiler<MapleCombCompiler>("maplecomb");
+    AddCompiler<MapleCombCompilerWrp>("maplecombwrp");
+    AddCompiler<AsCompilerBeILP32>("as");
+    AddCompiler<LdCompilerBeILP32>("ld");
+  }
+};
+
 class CompilerFactory {
  public:
   static CompilerFactory &GetInstance();
@@ -29,18 +92,22 @@ class CompilerFactory {
   CompilerFactory(CompilerFactory&&) = delete;
   CompilerFactory &operator=(const CompilerFactory&) = delete;
   CompilerFactory &operator=(CompilerFactory&&) = delete;
-  ~CompilerFactory();
+  ~CompilerFactory() = default;
+
   ErrorCode Compile(MplOptions &mplOptions);
+  Toolchain *GetToolChain();
 
  private:
-  bool compileFinished = false;
-  CompilerFactory();
-  void Insert(const std::string &name, Compiler *value);
+  CompilerFactory() = default;
+
+  ErrorCode Select(const MplOptions &mplOptions, std::vector<Action*> &selectedActions);
+  ErrorCode Select(Action &action, std::vector<Action*> &selectedActions);
   ErrorCode DeleteTmpFiles(const MplOptions &mplOptions,
                            const std::vector<std::string> &tempFiles) const;
-  SupportedCompilers supportedCompilers;
-  CompilerSelector *compilerSelector;
+
+  bool compileFinished = false;
   std::unique_ptr<MIRModule> theModule;
+  std::unique_ptr<Toolchain> toolchain;
 };
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_COMPILER_FACTORY_H

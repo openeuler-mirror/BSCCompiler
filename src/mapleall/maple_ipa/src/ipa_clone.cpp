@@ -140,9 +140,9 @@ MIRFunction *IpaClone::IpaCloneFunctionWithFreq(MIRFunction &originalFunction,
   newFunc->SetBaseClassFuncNames(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fullName));
   newFunc->GetFuncSymbol()->SetAppearsInCode(true);
   newFunc->SetPuidxOrigin(newFunc->GetPuidx());
-  GcovFuncInfo *origProfData = originalFunction.GetFuncProfData();
+  FuncProfInfo *origProfData = originalFunction.GetFuncProfData();
   auto *moduleMp = mirBuilder.GetMirModule().GetMemPool();
-  GcovFuncInfo *newProfData = moduleMp->New<GcovFuncInfo>(&mirBuilder.GetMirModule().GetMPAllocator(),
+  FuncProfInfo *newProfData = moduleMp->New<FuncProfInfo>(&mirBuilder.GetMirModule().GetMPAllocator(),
                                   newFunc->GetPuidx(), 0, 0); // skip checksum information
   newFunc->SetFuncProfData(newProfData);
   newProfData->SetFuncFrequency(callSiteFreq);
@@ -304,7 +304,7 @@ void IpaClone::RemoveUnneedParameter(MIRFunction *newFunc, uint32 paramIndex, in
 // 1. clone Function && replace the condtion
 // 2. modify the callsite and update the call_graph
 void IpaClone::DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramIndex,
-                                   std::map<uint32, std::vector<int64_t>> &evalMap) {
+                                   std::map<uint32, std::vector<int64_t>> &evalMap) const {
   uint32 puidx = curFunc->GetPuidx();
   CalleePair keyPair(puidx, paramIndex);
   auto &calleeInfo = mirModule->GetCalleeParamAboutInt();
@@ -407,7 +407,7 @@ void IpaClone::EvalCompareResult(std::vector<ImpExpr> &result, std::map<uint32, 
         cond = static_cast<CompareNode*>(static_cast<IntrinsicopNode*>(cond->Opnd(0))->Opnd(0));
       }
       PrimType primType = cond->GetOpndType();
-      BaseNode *opnd1 = cond->Opnd(1);
+      BaseNode *opnd1 = cond->Opnd(0)->GetOpCode() == OP_constval ? cond->Opnd(0) : cond->Opnd(1);
       ConstvalNode *constNode = static_cast<ConstvalNode*>(opnd1);
       MIRIntConst *constVal = safe_cast<MIRIntConst>(constNode->GetConstVal());
       ASSERT(constVal, "invalid const type");
@@ -437,7 +437,7 @@ void IpaClone::EvalImportantExpression(MIRFunction *func, std::vector<ImpExpr> &
       continue;
     }
     std::map<uint32, std::vector<int64_t > > evalMap;
-    EvalCompareResult(result, evalMap , calleeInfo[keyPair], static_cast<uint32>(index));
+    EvalCompareResult(result, evalMap, calleeInfo[keyPair], static_cast<uint32>(index));
     // Later: Now we just the consider one parameter important expression
     std::vector<ImpExpr> filterRes;
     if (!evalMap.empty()) {
@@ -457,7 +457,7 @@ void IpaClone::EvalImportantExpression(MIRFunction *func, std::vector<ImpExpr> &
   }
 }
 
-void IpaClone::CloneNoImportantExpressFunction(MIRFunction *func, uint32 paramIndex) {
+void IpaClone::CloneNoImportantExpressFunction(MIRFunction *func, uint32 paramIndex) const {
   uint32 puidx = curFunc->GetPuidx();
   CalleePair keyPair(puidx, paramIndex);
   auto &calleeInfo = mirModule->GetCalleeParamAboutInt();

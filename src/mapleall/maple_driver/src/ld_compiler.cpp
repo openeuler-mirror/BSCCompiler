@@ -14,9 +14,38 @@
  */
 #include "compiler.h"
 #include "file_utils.h"
+#include "triple.h"
 #include "default_options.def"
 
 namespace maple {
+
+static const std::string kAarch64BeIlp32Gcc = "aarch64_be-linux-gnuilp32-gcc";
+static const std::string kAarch64BeGcc = "aarch64_be-linux-gnu-gcc";
+
+std::string LdCompilerBeILP32::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const {
+  std::string gccPath = FileUtils::SafeGetenv(kGccBePathEnv) + "/";
+  const std::string &gccTool = Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::GNUILP32 ?
+                               kAarch64BeIlp32Gcc : kAarch64BeGcc;
+  std::string gccToolPath = gccPath + gccTool;
+
+  if (!FileUtils::IsFileExists(gccToolPath)) {
+    LogInfo::MapleLogger(kLlErr) << kGccBePathEnv << " environment variable must be set as the path to "
+                                 << gccTool << "\n";
+    CHECK_FATAL(false, "%s environment variable must be set as the path to %s\n",
+                kGccBePathEnv, gccTool.c_str());
+  }
+
+  return gccPath;
+}
+
+const std::string &LdCompilerBeILP32::GetBinName() const {
+  if (Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
+    return kAarch64BeIlp32Gcc;
+  } else {
+    return kAarch64BeGcc;
+  }
+}
+
 std::string LdCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const {
 #ifdef ANDROID
   return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";

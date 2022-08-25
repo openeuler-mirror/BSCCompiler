@@ -14,10 +14,62 @@
  */
 #include "compiler.h"
 #include "file_utils.h"
+#include "triple.h"
 #include "default_options.def"
 
 namespace maple {
-std::string AsCompiler::GetBinPath(const MplOptions &mplOptions) const {
+static const std::string kAarch64BeIlp32As = "aarch64_be-linux-gnuilp32-as";
+static const std::string kAarch64BeAs = "aarch64_be-linux-gnu-as";
+
+std::string AsCompilerBeILP32::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const {
+  std::string gccPath = FileUtils::SafeGetenv(kGccBePathEnv) + "/";
+  const std::string &gccTool = Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::GNUILP32 ?
+                               kAarch64BeIlp32As : kAarch64BeAs;
+  std::string gccToolPath = gccPath + gccTool;
+
+  if (!FileUtils::IsFileExists(gccToolPath)) {
+    LogInfo::MapleLogger(kLlErr) << kGccBePathEnv << " environment variable must be set as the path to "
+                                 << gccTool << "\n";
+    CHECK_FATAL(false, "%s environment variable must be set as the path to %s\n",
+                kGccBePathEnv, gccTool.c_str());
+  }
+
+  return gccPath;
+}
+
+const std::string &AsCompilerBeILP32::GetBinName() const {
+  if (Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
+    return kAarch64BeIlp32As;
+  } else {
+    return kAarch64BeAs;
+  }
+}
+
+DefaultOption AsCompilerBeILP32::GetDefaultOptions(const MplOptions &options, const Action &action) const {
+  auto &triple = Triple::GetTriple();
+  if (triple.GetArch() != Triple::ArchType::aarch64_be ||
+      triple.GetEnvironment() == Triple::EnvironmentType::UnknownEnvironment) {
+    CHECK_FATAL(false, "ClangCompilerBeILP32 supports only aarch64_be GNU/GNUILP32 targets\n");
+  }
+
+  uint32_t len = 1; // for -o option
+  if (triple.GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
+    ++len; // for -mabi=ilp32
+  }
+  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
+
+  defaultOptions.mplOptions[0].SetKey("-o");
+  defaultOptions.mplOptions[0].SetValue(action.GetFullOutputName() + ".o");
+
+  if (triple.GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
+    defaultOptions.mplOptions[1].SetKey("-mabi=ilp32");
+    defaultOptions.mplOptions[1].SetValue("");
+  }
+
+  return defaultOptions;
+}
+
+std::string AsCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const {
 #ifdef ANDROID
   return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
 #else
@@ -35,35 +87,25 @@ const std::string &AsCompiler::GetTool() const {
 }
 
 DefaultOption AsCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
-  uint32_t len = sizeof(kAsDefaultOptions) / sizeof(MplOption);
+  uint32_t len = 1; // for -o option
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
 
-  for (uint32_t i = 0; i < len; ++i) {
-    defaultOptions.mplOptions[i] = kAsDefaultOptions[i];
-  }
-
-  CHECK_FATAL((len > 0), "Option is hardcoded in O0_options_as.def file \n");
+  defaultOptions.mplOptions[0].SetKey("-o");
   defaultOptions.mplOptions[0].SetValue(action.GetFullOutputName() + ".o");
 
-  for (uint32_t i = 0; i < defaultOptions.length; ++i) {
-    defaultOptions.mplOptions[i].SetValue(
-        FileUtils::AppendMapleRootIfNeeded(defaultOptions.mplOptions[i].GetNeedRootPath(),
-                                           defaultOptions.mplOptions[i].GetValue(),
-                                           options.GetExeFolder()));
-  }
   return defaultOptions;
 }
 
-std::string AsCompiler::GetInputFileName(const MplOptions &options, const Action &action) const {
+std::string AsCompiler::GetInputFileName(const MplOptions &options [[maybe_unused]], const Action &action) const {
   return action.GetFullOutputName() + ".s";
 }
 
-void AsCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
+void AsCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions [[maybe_unused]], const Action &action,
                                      std::vector<std::string> &tempFiles) const {
   tempFiles.push_back(action.GetFullOutputName() + ".o");
 }
 
-std::unordered_set<std::string> AsCompiler::GetFinalOutputs(const MplOptions &mplOptions,
+std::unordered_set<std::string> AsCompiler::GetFinalOutputs(const MplOptions &mplOptions [[maybe_unused]],
                                                             const Action &action) const {
   auto finalOutputs = std::unordered_set<std::string>();
   (void)finalOutputs.insert(action.GetFullOutputName() + ".o");

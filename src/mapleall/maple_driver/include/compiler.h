@@ -51,6 +51,10 @@ const std::string kBinNameAs = kMachine + kOperatingSystem + kAsFlag;
 const std::string kBinNameGcc = kMachine + kOperatingSystem + kGccFlag;
 const std::string kBinNameGpp = kMachine + kOperatingSystem + kGppFlag;
 
+constexpr char kGccBeIlp32SysrootPathEnv[] = "GCC_BIGEND_ILP32_SYSROOT_PATH";
+constexpr char kGccBeSysrootPathEnv[] = "GCC_BIGEND_SYSROOT_PATH";
+constexpr char kGccBePathEnv[] = "GCC_BIGEND_PATH";
+
 class Compiler {
  public:
   explicit Compiler(const std::string &name) : name(name) {}
@@ -150,6 +154,13 @@ class ClangCompiler : public Compiler {
   void AppendOutputOption(std::vector<MplOption> &finalOptions, const std::string &name) const override;
 };
 
+class ClangCompilerBeILP32 : public ClangCompiler {
+ public:
+  explicit ClangCompilerBeILP32(const std::string &name) : ClangCompiler(name) {}
+ private:
+  DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
+};
+
 class Cpp2MplCompiler : public Compiler {
  public:
   explicit Cpp2MplCompiler(const std::string &name) : Compiler(name) {}
@@ -221,7 +232,7 @@ class MapleCombCompiler : public Compiler {
                                                   const Action &action) const override;
   void GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
                            std::vector<std::string> &tempFiles) const override;
-  ErrorCode MakeMeOptions(const MplOptions &options, DriverRunner &runner);
+  ErrorCode MakeMeOptions(const MplOptions &options, DriverRunner &runner) const;
   ErrorCode MakeMpl2MplOptions(const MplOptions &options, DriverRunner &runner) const;
   std::string DecideOutExe(const MplOptions &options) const;
   std::string GetStringOfSafetyOption() const;
@@ -239,7 +250,7 @@ class MplcgCompiler : public Compiler {
   std::string GetInputFile(const MplOptions &options, const Action &action, const MIRModule *md) const;
  private:
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
-  ErrorCode GetMplcgOptions(MplOptions &options, const Action &action, const MIRModule *theModule);
+  ErrorCode GetMplcgOptions(MplOptions &options, const Action &action, const MIRModule *theModule) const;
   ErrorCode MakeCGOptions(const MplOptions &options) const;
   const std::string &GetBinName() const override;
   std::string baseName;
@@ -283,6 +294,15 @@ class AsCompiler : public Compiler {
   void AppendOutputOption(std::vector<MplOption> &finalOptions, const std::string &name) const override;
 };
 
+class AsCompilerBeILP32 : public AsCompiler {
+ public:
+  explicit AsCompilerBeILP32(const std::string &name) : AsCompiler(name) {}
+ private:
+  std::string GetBinPath(const MplOptions &mplOptions) const override;
+  const std::string &GetBinName() const override;
+  DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
+};
+
 // Build .o to .so
 class LdCompiler : public Compiler {
  public:
@@ -298,5 +318,14 @@ class LdCompiler : public Compiler {
   std::string GetInputFileName(const MplOptions &options, const Action &action) const override;
   void AppendOutputOption(std::vector<MplOption> &finalOptions, const std::string &name) const override;
 };
+
+class LdCompilerBeILP32 : public LdCompiler {
+ public:
+  explicit LdCompilerBeILP32(const std::string &name) : LdCompiler(name) {}
+ private:
+  std::string GetBinPath(const MplOptions &mplOptions) const override;
+  const std::string &GetBinName() const override;
+};
+
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_COMPILER_H

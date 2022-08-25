@@ -28,6 +28,7 @@
 #include "option.h"
 #include "cg_option.h"
 #include "driver_options.h"
+#include "triple.h"
 
 
 namespace maple {
@@ -113,6 +114,12 @@ ErrorCode MplOptions::HandleOptions() {
     StringUtils::Split(opts::saveTempOpt, saveFiles, ',');
   }
 
+  if (opts::target.IsEnabledByUser()) {
+    Triple::GetTriple().Init(opts::target.GetValue());
+  } else {
+    Triple::GetTriple().Init();
+  }
+
   if (!opts::safeRegionOption) {
     if (opts::npeNoCheck) {
       npeCheckMode = SafetyCheckMode::kNoCheck;
@@ -158,7 +165,11 @@ ErrorCode MplOptions::HandleOptions() {
 ErrorCode MplOptions::HandleEarlyOptions() {
   if (opts::version) {
     LogInfo::MapleLogger() << kMapleDriverVersion << "\n";
-    exit(static_cast<int>(kErrorNoError));
+
+    /* exit, if only one "version" option is set. Else: continue compilation */
+    if (driverCategory.GetEnabledOptions().size() == 1) {
+      return kErrorExitHelp;
+    }
   }
 
   if (opts::printDriverPhases) {
@@ -257,7 +268,7 @@ void MplOptions::HandleExtraOptions() {
   // A workaround to pass --general-reg-only from the cg options to global options
   auto it = exeOptions.find(kBinNameMplcg);
   if (it != exeOptions.end()) {
-    for (const auto &opt : it->second) {
+    for (auto &opt : std::as_const(it->second)) {
       if (opt == "--general-reg-only") {
         generalRegOnly = true;
         break;
@@ -320,10 +331,8 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
       break;
     case InputFileType::kFileTypeNone:
       return nullptr;
-      break;
     default:
       return nullptr;
-      break;
   }
 
   if (opts::maplePhase == true) {
@@ -513,7 +522,8 @@ void MplOptions::DumpActionTree(const Action &action, int indents) const {
 std::string MplOptions::GetCommonOptionsStr() const {
   std::string driverOptions;
   static const std::vector<maplecl::OptionInterface *> extraExclude = {
-      &opts::run, &opts::optionOpt, &opts::infile, &opts::mpl2mplOpt, &opts::meOpt, &opts::mplcgOpt
+      &opts::run, &opts::optionOpt, &opts::infile, &opts::mpl2mplOpt, &opts::meOpt,&opts::mplcgOpt,
+      &opts::o0, &opts::o1, &opts::o2, &opts::os
   };
 
   for (auto const &opt : driverCategory.GetEnabledOptions()) {
@@ -572,7 +582,9 @@ ErrorCode MplOptions::CheckInputFiles() {
       inputInfos.push_back(std::make_unique<InputInfo>(arg.first));
     } else {
       LogInfo::MapleLogger(kLlErr) << "Unknown option or non-existent input file: " << arg.first << "\n";
-      return kErrorInvalidParameter;
+      if (!opts::ignoreUnkOpt) {
+        return kErrorInvalidParameter;
+      }
     }
   }
 
@@ -853,7 +865,7 @@ void MplOptions::ConnectOptStr(std::string &optionStr, const std::string &exeNam
       firstComb = false;
     }
     auto it = exeOptions.find(exeName);
-    for (const auto &opt : it->second) {
+    for (auto &opt : std::as_const(it->second)) {
       optionStr += (" " + opt);
     }
   }

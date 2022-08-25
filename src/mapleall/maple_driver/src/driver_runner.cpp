@@ -307,7 +307,7 @@ void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &output, const st
   }
 }
 
-void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &originBaseName) {
+void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &originBaseName) const {
   CHECK_MODULE();
   theMIRModule = theModule;
   if (withDwarf && !theModule->IsWithDbgInfo()) {

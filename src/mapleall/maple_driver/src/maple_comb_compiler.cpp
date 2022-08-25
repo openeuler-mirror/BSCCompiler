@@ -139,7 +139,7 @@ std::string MapleCombCompiler::GetStringOfSafetyOption() const {
   return safetyOptionStr;
 }
 
-ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunner &runner) {
+ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunner &runner) const {
   auto it = std::find(options.GetRunningExes().begin(), options.GetRunningExes().end(), kBinNameMe);
   if (it == options.GetRunningExes().end()) {
     return kErrorNoError;
@@ -165,7 +165,7 @@ ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunn
   if (MeOption::optLevel == 0) {
     std::string safetyOptionStr = GetStringOfSafetyOption();
     if (!safetyOptionStr.empty()) {
-      safetyOptionStr.erase(safetyOptionStr.end() - 1);
+      safetyOptionStr.erase(safetyOptionStr.cend() - 1);
       WARN(kLncWarn, "warning: The safety option %s must be used in conjunction with O2 mode",
            safetyOptionStr.c_str());
     }

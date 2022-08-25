@@ -18,10 +18,53 @@
 #include "compiler.h"
 #include "file_utils.h"
 #include "mpl_timer.h"
+#include "triple.h"
 #include "default_options.def"
 
 namespace maple {
-std::string ClangCompiler::GetBinPath(const MplOptions &mplOptions) const{
+
+DefaultOption ClangCompilerBeILP32::GetDefaultOptions(const MplOptions &options,
+                                                      const Action &action) const {
+  auto &triple = Triple::GetTriple();
+  if (triple.GetArch() != Triple::ArchType::aarch64_be ||
+      triple.GetEnvironment() == Triple::EnvironmentType::UnknownEnvironment) {
+    CHECK_FATAL(false, "ClangCompilerBeILP32 supports only aarch64_be GNU/GNUILP32 targets\n");
+  }
+
+  uint32_t additionalLen = 4; // -o and --target
+  uint32_t fullLen = (sizeof(kClangDefaultOptions) / sizeof(MplOption)) + additionalLen;
+  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(fullLen), fullLen };
+
+  defaultOptions.mplOptions[0].SetKey("-o");
+  defaultOptions.mplOptions[0].SetValue(action.GetFullOutputName() + ".ast");
+
+  defaultOptions.mplOptions[1].SetKey("-target");
+  defaultOptions.mplOptions[1].SetValue(triple.Str());
+
+  if (triple.GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
+    defaultOptions.mplOptions[2].SetKey("--sysroot=" + FileUtils::SafeGetenv(kGccBeIlp32SysrootPathEnv));
+  } else {
+    defaultOptions.mplOptions[2].SetKey("--sysroot=" + FileUtils::SafeGetenv(kGccBeSysrootPathEnv));
+  }
+  defaultOptions.mplOptions[2].SetValue("");
+
+  defaultOptions.mplOptions[3].SetKey("-U__SIZEOF_INT128__");
+  defaultOptions.mplOptions[3].SetValue("");
+
+  for (uint32_t i = additionalLen, j = 0; i < fullLen; ++i, ++j) {
+    defaultOptions.mplOptions[i] = kClangDefaultOptions[j];
+  }
+  for (uint32_t i = additionalLen; i < fullLen; ++i) {
+    defaultOptions.mplOptions[i].SetValue(
+        FileUtils::AppendMapleRootIfNeeded(defaultOptions.mplOptions[i].GetNeedRootPath(),
+                                           defaultOptions.mplOptions[i].GetValue(),
+                                           options.GetExeFolder()));
+  }
+
+  return defaultOptions;
+}
+
+std::string ClangCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const{
   return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
 }
 
@@ -33,31 +76,29 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
                                      const Action &action) {
   uint32_t additionalLen = 1; // for -o option
 
-  /*
-   * 1. Add check for the target architecture and OS environment.
-   * 2. Currently it supports only aarch64 and linux-gnu-
-   */
-  if (kOperatingSystem == "linux-gnu-" && kMachine == "aarch64-") {
-    additionalLen += k3BitSize;
-    opt = std::make_unique<MplOption[]>(additionalLen);
-
-    opt[0].SetKey("-isystem");
-    opt[0].SetValue(FileUtils::SafeGetenv(kMapleRoot) +
-                    "/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include");
-
-    opt[1].SetKey("-isystem");
-    opt[1].SetValue(FileUtils::SafeGetenv(kMapleRoot) +
-                    "/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include");
-
-    opt[2].SetKey("-target");
-    opt[2].SetValue("aarch64");
-  } else {
-    CHECK_FATAL(false, "Only linux-gnu OS and aarch64 target are supported \n");
+  auto &triple = Triple::GetTriple();
+  if (triple.GetArch() != Triple::ArchType::aarch64 ||
+      triple.GetEnvironment() != Triple::EnvironmentType::GNU) {
+    CHECK_FATAL(false, "Use -target option to select another toolchain\n");
   }
 
+  additionalLen += 3; // 3 options are filled below
+  opt = std::make_unique<MplOption[]>(additionalLen);
+
+  opt[0].SetKey("-isystem");
+  opt[0].SetValue(FileUtils::SafeGetenv(kMapleRoot) +
+                  "/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include");
+
+  opt[1].SetKey("-isystem");
+  opt[1].SetValue(FileUtils::SafeGetenv(kMapleRoot) +
+                  "/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include");
+
+  opt[2].SetKey("-target");
+  opt[2].SetValue(triple.Str());
+
   /* Set last option as -o option */
-  opt[additionalLen-1].SetKey("-o");
-  opt[additionalLen-1].SetValue(action.GetFullOutputName() + ".ast");
+  opt[additionalLen - 1].SetKey("-o");
+  opt[additionalLen - 1].SetValue(action.GetFullOutputName() + ".ast");
 
   return additionalLen;
 }
@@ -92,12 +133,12 @@ DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options, const 
   return defaultOptions;
 }
 
-void ClangCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
+void ClangCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions [[maybe_unused]], const Action &action,
                                         std::vector<std::string> &tempFiles) const {
   tempFiles.push_back(action.GetFullOutputName() + ".ast");
 }
 
-std::unordered_set<std::string> ClangCompiler::GetFinalOutputs(const MplOptions &mplOptions,
+std::unordered_set<std::string> ClangCompiler::GetFinalOutputs(const MplOptions &mplOptions [[maybe_unused]],
                                                                const Action &action) const {
   std::unordered_set<std::string> finalOutputs;
   (void)finalOutputs.insert(action.GetFullOutputName() + ".ast");

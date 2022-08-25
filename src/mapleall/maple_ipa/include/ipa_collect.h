@@ -22,9 +22,13 @@
 #include "dominance.h"
 #include "class_hierarchy.h"
 #include "maple_phase.h"
-#include "ipa_phase_manager.h"
 #include "mir_module.h"
+#include "stmt_identify.h"
+#include "maple_phase_manager.h"
 namespace maple {
+using StmtIndex = size_t;
+using StmtInfoId = size_t;
+
 union ParamValue {
   bool valueBool;
   int64_t valueInt;
@@ -41,26 +45,72 @@ enum ValueType {
 
 class CollectIpaInfo {
  public:
-  CollectIpaInfo(MIRModule &mod, AnalysisDataManager &dataMap)
-      : module(mod), builder(*mod.GetMIRBuilder()),
-        dataMap(dataMap), curFunc(nullptr) {}
+  CollectIpaInfo(MIRModule &mod, MemPool &memPool)
+      : module(mod),
+        builder(*mod.GetMIRBuilder()),
+        curFunc(nullptr),
+        allocator(&memPool),
+        stmtInfoToIntegerMap(allocator.Adapter()),
+        integerString(allocator.Adapter()),
+        stmtInfoVector(allocator.Adapter()) {}
   virtual ~CollectIpaInfo() = default;
-  void RunOnScc(maple::SCCNode<CGNode> &scc);
+
+  void RunOnScc(SCCNode<CGNode> &scc);
+  void TraverseStmtInfo(size_t position);
   void UpdateCaleeParaAboutFloat(MeStmt &meStmt, float paramValue, uint32 index, CallerSummary &summary);
   void UpdateCaleeParaAboutDouble(MeStmt &meStmt, double paramValue, uint32 index, CallerSummary &summary);
   void UpdateCaleeParaAboutInt(MeStmt &meStmt, int64_t paramValue, uint32 index, CallerSummary &summary);
   bool IsConstKindValue(MeExpr *expr) const;
-  bool CheckImpExprStmt(const MeStmt &meStmt);
-  bool CollectImportantExpression(const MeStmt &meStmt, uint32 &index);
-  void TraversalMeStmt(MeStmt &meStmt);
+  bool CheckImpExprStmt(const MeStmt &meStmt) const;
+  bool CollectImportantExpression(const MeStmt &meStmt, uint32 &index) const;
+  void TransformStmtToIntegerSeries(MeStmt &meStmt);
+  DefUsePositions &GetDefUsePositions(OriginalSt &ost, StmtInfoId position);
+  void CollectDefUsePosition(ScalarMeExpr &var, StmtInfoId position);
+  void CollectJumpInfo(MeStmt &meStmt);
+  void SetLabel(size_t currStmtInfoId, LabelIdx label);
+  StmtInfoId GetRealFirstStmtInfoId(BB &bb);
+  void TraverseMeExpr(MeExpr &meExpr, StmtInfoId position);
+  void TraverseMeStmt(MeStmt &meStmt);
   bool IsParameterOrUseParameter(const VarMeExpr *varExpr, uint32 &index) const;
+  void ReplaceMeStmtWithStmtNode(StmtNode *stmt, StmtInfoId position);
   void Perform(MeFunction &func);
+  void Dump();
 
+  void PushInvalidKeyBack(uint invalidKey) {
+    integerString.emplace_back(invalidKey);
+    stmtInfoVector.emplace_back(StmtInfo(nullptr, -1u));
+  }
+
+  MapleVector<size_t> &GetIntegerString() {
+    return integerString;
+  }
+
+  MapleVector<StmtInfo> &GetStmtInfo() {
+    return stmtInfoVector;
+  }
+
+  uint GetCurrNewStmtIndex() {
+    return ++currNewStmtIndex;
+  }
+
+  uint GetTotalStmtInfoCount() {
+    return currNewStmtIndex;
+  }
+
+  void SetDataMap(AnalysisDataManager *map) {
+    dataMap = map;
+  }
  private:
   MIRModule &module;
   MIRBuilder &builder;
-  AnalysisDataManager &dataMap;
   MIRFunction *curFunc;
+  AnalysisDataManager *dataMap;
+  MapleAllocator allocator;
+  MapleUnorderedMap<StmtInfo, StmtIndex, StmtInfoHash> stmtInfoToIntegerMap;
+  MapleVector<StmtIndex> integerString;
+  MapleVector<StmtInfo> stmtInfoVector;
+  std::unordered_set<ScalarMeExpr *> *cycleCheck;
+  StmtIndex currNewStmtIndex = 0;
 };
 MAPLE_SCC_PHASE_DECLARE_BEGIN(SCCCollectIpaInfo, maple::SCCNode<CGNode>)
 OVERRIDE_DEPENDENCE
