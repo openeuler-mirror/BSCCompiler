@@ -3621,12 +3621,6 @@ void ValueRangePropagation::RemoveUnreachableBB(
         UpdateProfile(*condGotoBB.GetPred(0), condGotoBB, trueBranch);
       }
       condGotoBB.SetKind(kBBFallthru);
-      // update frequency before cfg changed
-      if (func.GetCfg()->UpdateCFGFreq()) {
-        int64_t removedFreq = static_cast<int64_t>(condGotoBB.GetSuccFreq()[1]);
-        condGotoBB.SetSuccFreq(0, condGotoBB.GetFrequency());
-        succ0->SetFrequency(static_cast<uint32>(succ0->GetFrequency() + removedFreq));
-      }
       condGotoBB.RemoveSucc(*succ1);
       DeleteThePhiNodeWhichOnlyHasOneOpnd(*succ1, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
       condGotoBB.RemoveMeStmt(condGotoBB.GetLastMe());
@@ -3639,16 +3633,10 @@ void ValueRangePropagation::RemoveUnreachableBB(
         UpdateProfile(*condGotoBB.GetPred(0), condGotoBB, trueBranch);
       }
       condGotoBB.SetKind(kBBFallthru);
-      int64_t removedFreq = 0;
-      // update frequency before cfg changed
       if (func.GetCfg()->UpdateCFGFreq()) {
-        removedFreq = static_cast<int64_t>(condGotoBB.GetSuccFreq()[0]);
+        condGotoBB.SetSuccFreq(0, condGotoBB.GetSuccFreq()[1]);
       }
       condGotoBB.RemoveSucc(*succ0);
-      if (func.GetCfg()->UpdateCFGFreq()) {
-        condGotoBB.SetSuccFreq(0, condGotoBB.GetFrequency());
-        succ1->SetFrequency(static_cast<uint32>(succ1->GetFrequency() + removedFreq));
-      }
       DeleteThePhiNodeWhichOnlyHasOneOpnd(*succ0, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
       condGotoBB.RemoveMeStmt(condGotoBB.GetLastMe());
     }

@@ -295,7 +295,7 @@ void MeLoopCanon::NormalizationHeadAndPreHeaderOfLoop(Dominance &dom) {
   if (isDebugFunc) {
     LogInfo::MapleLogger() << "-----------------Dump mefunction before loop normalization----------\n";
     func.Dump(true);
-    func.GetCfg()->DumpToFile("cfgbeforLoopNormalization");
+    func.GetCfg()->DumpToFile("cfgbeforLoopNormalization", false, func.GetCfg()->UpdateCFGFreq());
   }
   std::map<BBId, std::vector<BB*>> heads;
   isCFGChange = false;
@@ -316,7 +316,7 @@ void MeLoopCanon::NormalizationExitOfLoop(IdentifyLoops &meLoop) {
   if (isDebugFunc) {
     LogInfo::MapleLogger() << "-----------------Dump mefunction after loop normalization-----------\n";
     func.Dump(true);
-    func.GetCfg()->DumpToFile("cfgafterLoopNormalization");
+    func.GetCfg()->DumpToFile("cfgafterLoopNormalization", false, func.GetCfg()->UpdateCFGFreq());
   }
 }
 
