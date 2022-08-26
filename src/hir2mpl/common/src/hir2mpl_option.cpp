@@ -186,21 +186,21 @@ maplecl::Option<std::string> depsamename({"-depsamename", "--depsamename"},
                                     {hir2mplCategory});
 
 maplecl::Option<bool> npeCheckDynamic({"-npe-check-dynamic", "--npe-check-dynamic"},
-                                 "  -npe-check-dynamic     : Nonnull pointr dynamic checking",
+                                 "  --npe-check-dynamic     : Nonnull pointr dynamic checking",
                                  {hir2mplCategory});
 
 maplecl::Option<bool> boundaryCheckDynamic({"-boundary-check-dynamic", "--boundary-check-dynamic"},
-                                      "  -boundary-check-dynamic\n"     \
+                                      "  --boundary-check-dynamic\n"     \
                                       "                         : Boundary dynamic checking",
                                       {hir2mplCategory});
 
 maplecl::Option<bool> safeRegion({"-safe-region", "--safe-region"},
-                            "  -boundary-check-dynamic\n"               \
-                            "  -safe-region           : Enable safe region",
+                            "  --boundary-check-dynamic\n"               \
+                            "  --safe-region           : Enable safe region",
                             {hir2mplCategory});
 
 maplecl::Option<bool> defaultSafe({"-defaultSafe", "--defaultSafe"},
-                                  "  -defaultSafe     : treat unmarked function or blocks as safe region by default",
+                                  "  --defaultSafe     : treat unmarked function or blocks as safe region by default",
                                   {hir2mplCategory});
 
 maplecl::Option<bool> dumpFEIRBB({"-dump-bb", "--dump-bb"},
