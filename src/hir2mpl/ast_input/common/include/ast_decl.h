@@ -34,6 +34,7 @@ enum DeclKind {
   kASTEnumConstant,
   kASTEnumDecl,
   kASTFileScopeAsm,
+  kASTTypedefDecl,
 };
 
 struct BoundaryInfo {
@@ -290,6 +291,8 @@ class ASTStruct : public ASTDecl {
   }
 
  private:
+  void GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) override;
+
   bool isUnion = false;
   MapleList<ASTField*> fields;
   MapleList<ASTFunc*> methods;
@@ -405,7 +408,34 @@ class ASTEnumDecl : public ASTDecl {
   }
 
  private:
+  void GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) override;
+
   MapleList<ASTEnumConstant*> consts;
+};
+
+class ASTTypedefDecl : public ASTDecl {
+ public:
+  ASTTypedefDecl(const MapleString &srcFile, const MapleString &nameIn,
+                 const MapleVector<MIRType*> &typeDescIn, const GenericAttrs &genAttrsIn)
+      : ASTDecl(srcFile, nameIn, typeDescIn) {
+    genAttrs = genAttrsIn;
+    declKind = kASTTypedefDecl;
+  }
+  ~ASTTypedefDecl() = default;
+
+  void SetSubTypedefDecl(ASTTypedefDecl *decl) {
+    subTypedefDecl = decl;
+  }
+
+  const ASTTypedefDecl *GetSubTypedefDecl() const {
+    return subTypedefDecl;
+  }
+
+ private:
+  void GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) override;
+
+  ASTTypedefDecl* subTypedefDecl = nullptr;
+
 };
 }  // namespace maple
 #endif // HIR2MPL_AST_INPUT_INCLUDE_AST_DECL_H

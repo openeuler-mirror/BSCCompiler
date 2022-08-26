@@ -125,10 +125,7 @@ MIRType *LibAstFile::CvtTypedef(const clang::QualType &qualType) {
 }
 
 MIRType *LibAstFile::CvtTypedefDecl(const clang::TypedefNameDecl &typedefDecl) {
-  std::string typedefName = typedefDecl.getNameAsString();
-  if (typedefName.empty()) {
-    return nullptr;
-  }
+  std::string typedefName = GetDeclName(typedefDecl, true);
   MIRTypeByName *typdefType = nullptr;
   clang::QualType underlyTy = typedefDecl.getCanonicalDecl()->getUnderlyingType();
   MIRType *type = CvtType(underlyTy, true);
@@ -241,10 +238,7 @@ MIRType *LibAstFile::CvtEnumType(const clang::QualType &qualType, bool isSourceT
     if (itor == enumDecles.end()) {
       (void)enumDecles.emplace_back(enumDecl);
     }
-    std::string enumName = enumDecl->getNameAsString();
-    if (enumName.empty()) {
-      enumName = GetOrCreateMappedUnnamedName(*enumDecl);
-    }
+    std::string enumName = GetDeclName(*enumDecl, true);
     MIRTypeByName *typdefType = FEManager::GetTypeManager().GetOrCreateTypeByNameType(enumName);
     type = typdefType;
   } else {
@@ -268,6 +262,12 @@ MIRType *LibAstFile::CvtRecordType(const clang::QualType qualType) {
   std::stringstream ss;
   EmitTypeName(srcType, ss);
   std::string name(ss.str());
+  if (!recordDecl->isDefinedOutsideFunctionOrMethod()) {
+    Loc l = GetLOC(recordDecl->getLocation());
+    std::stringstream ss;
+    ss << name << "_" << l.line << "_" << l.column;
+    name = ss.str();
+  }
   type = FEManager::GetTypeManager().GetOrCreateStructType(name);
   type->SetMIRTypeKind(srcType->isUnionType() ? kTypeUnion : kTypeStruct);
   if (recordType->isIncompleteType()) {

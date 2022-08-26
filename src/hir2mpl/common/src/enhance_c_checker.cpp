@@ -1156,6 +1156,17 @@ std::pair<StIdx, StIdx> ENCChecker::InsertBoundaryVar(MIRBuilder &mirBuilder, co
   return boundaryVarStIdx;
 }
 
+void ENCChecker::InsertBoundaryVar(const ASTDecl &ptrDecl, std::list<UniqueFEIRStmt> &stmts) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() ||
+      ptrDecl.GetBoundaryLenExpr() == nullptr) {
+    return;
+  }
+  // GetCurrentFunction need to be optimized when parallel features
+  MIRFunction *curFunction = FEManager::GetMIRBuilder().GetCurrentFunctionNotNull();
+  UniqueFEIRExpr lenFEExpr = ptrDecl.GetBoundaryLenExpr()->Emit2FEExpr(stmts);
+  ENCChecker::InitBoundaryVar(*curFunction, ptrDecl, std::move(lenFEExpr), stmts);
+}
+
 std::string ENCChecker::GetBoundaryName(const UniqueFEIRExpr &expr) {
   std::string boundaryName;
   if (expr == nullptr) {

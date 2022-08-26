@@ -48,7 +48,7 @@ class LibAstFile {
   const AstUnitDecl *GetAstUnitDecl() const;
   std::string GetMangledName(const clang::NamedDecl &decl) const;
   const std::string GetOrCreateMappedUnnamedName(const clang::Decl &decl);
-
+  const std::string GetDeclName(const clang::NamedDecl &decl, bool isRename = false);
   void EmitTypeName(const clang::QualType qualType, std::stringstream &ss);
   void EmitTypeName(const clang::RecordType &recordType, std::stringstream &ss);
   void EmitQualifierName(const clang::QualType qualType, std::stringstream &ss) const;

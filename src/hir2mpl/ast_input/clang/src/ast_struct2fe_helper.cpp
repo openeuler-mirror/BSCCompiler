@@ -99,7 +99,7 @@ MIRStructType *ASTStruct2FEHelper::CreateMIRStructTypeImpl(bool &error) const {
     ERR(kLncErr, "class name is empty");
     return nullptr;
   }
-  MIRStructType *type = FEManager::GetTypeManager().GetOrCreateStructType(name);
+  MIRStructType *type = FEManager::GetTypeManager().GetOrCreateStructType(astStruct.GenerateUniqueVarName());
   error = false;
   if (astStruct.IsUnion()) {
     type->SetMIRTypeKind(kTypeUnion);
@@ -233,7 +233,7 @@ bool ASTFileScopeAsm2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
 bool ASTEnum2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   (void)allocator;
   MIREnum *enumType = FEManager::GetTypeManager().GetOrCreateEnum(
-      astEnum.GetName(), astEnum.GetTypeDesc().front()->GetPrimType());
+      astEnum.GenerateUniqueVarName(), astEnum.GetTypeDesc().front()->GetPrimType());
   if (!astEnum.GetEnumConstants().empty() && enumType->GetElements().empty()) {
     for (auto elem : astEnum.GetEnumConstants()) {
       GStrIdx elemNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(elem->GetName());

@@ -484,7 +484,6 @@ class ASTDeclStmt : public ASTStmt {
 
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
-  void InsertBoundaryVar(ASTDecl *ptrDecl, std::list<UniqueFEIRStmt> &stmts) const;
 
   MapleList<ASTDecl*> subDecls;
   // saved vla size exprs before a vla decl

@@ -167,8 +167,8 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
     UniqueFEIRStmt allocaStmt = FEIRBuilder::CreateStmtDAssign(feirVar->Clone(), std::move(allocaExpr));
     allocaStmt->SetSrcLoc(feirVar->GetSrcLoc());
     (void)stmts.emplace_back(std::move(allocaStmt));
-    return;
   }
+  ENCChecker::InsertBoundaryVar(*this, stmts);
   if (initExpr == nullptr) {
     return;
   }
@@ -296,5 +296,46 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
 // ---------- ASTStruct ----------
 std::string ASTStruct::GetStructName(bool mapled) const {
   return mapled ? namemangler::EncodeName(GetName()) : GetName();
+}
+
+void ASTStruct::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
+  (void)stmts;
+  if (!FEOptions::GetInstance().IsDbgFriendly()) {
+    return;
+  }
+  FEFunction &feFunction = FEManager::GetCurrentFEFunction();
+  MIRScope *mirScope = feFunction.GetTopMIRScope();
+  mirScope->SetTypeAlias(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetName()),
+                         typeDesc.front()->GetTypeIndex());
+}
+
+// ---------- ASTEnumDecl ----------
+void ASTEnumDecl::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
+  (void)stmts;
+  if (!FEOptions::GetInstance().IsDbgFriendly()) {
+    return;
+  }
+  FEFunction &feFunction = FEManager::GetCurrentFEFunction();
+  MIRScope *mirScope = feFunction.GetTopMIRScope();
+  MIRTypeByName *type = FEManager::GetTypeManager().GetOrCreateTypeByNameType(GenerateUniqueVarName());
+  mirScope->SetTypeAlias(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetName()), type->GetTypeIndex());
+}
+
+// ---------- ASTTypedefDecl ----------
+void ASTTypedefDecl::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
+  (void)stmts;
+  if (!FEOptions::GetInstance().IsDbgFriendly()) {
+    return;
+  }
+  FEFunction &feFunction = FEManager::GetCurrentFEFunction();
+  MIRScope *mirScope = feFunction.GetTopMIRScope();
+  const ASTTypedefDecl *astTypedef = this;
+  while (astTypedef != nullptr && !astTypedef->isGlobalDecl) {
+    MIRTypeByName *type = FEManager::GetTypeManager().CreateTypedef(
+        astTypedef->GenerateUniqueVarName(), *astTypedef->GetTypeDesc().front());
+    mirScope->SetTypeAlias(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
+        astTypedef->GetName()), type->GetTypeIndex());
+    astTypedef = astTypedef->GetSubTypedefDecl();
+  }
 }
 }  // namespace maple

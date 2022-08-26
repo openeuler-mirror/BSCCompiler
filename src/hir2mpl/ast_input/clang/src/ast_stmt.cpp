@@ -423,22 +423,10 @@ std::list<UniqueFEIRStmt> ASTDeclStmt::Emit2FEStmtImpl() const {
       if (decl == nullptr) {
         continue;
       }
-      InsertBoundaryVar(decl, stmts);
       decl->GenerateInitStmt(stmts);
     }
   }
   return stmts;
-}
-
-void ASTDeclStmt::InsertBoundaryVar(ASTDecl *ptrDecl, std::list<UniqueFEIRStmt> &stmts) const {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() ||
-      ptrDecl == nullptr || ptrDecl->GetBoundaryLenExpr() == nullptr) {
-    return;
-  }
-  // GetCurrentFunction need to be optimized when parallel features
-  MIRFunction *curFunction = FEManager::GetMIRBuilder().GetCurrentFunctionNotNull();
-  UniqueFEIRExpr lenFEExpr = ptrDecl->GetBoundaryLenExpr()->Emit2FEExpr(stmts);
-  ENCChecker::InitBoundaryVar(*curFunction, *ptrDecl, std::move(lenFEExpr), stmts);
 }
 
 // ---------- ASTCallExprStmt ----------
