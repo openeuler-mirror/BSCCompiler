@@ -339,14 +339,12 @@ class DBGDie {
  public:
   DBGDie(MIRModule *m, DwTag tag);
   virtual ~DBGDie() {}
-  void AddAttr(DBGDieAttr *attr);
   void AddSubVec(DBGDie *die);
-
-  DBGDieAttr *AddAttr(DwAt at, DwForm form, uint64 val);
-  DBGDieAttr *AddAttr(DwAt at, DwForm form, uint64 val, bool keep);
-  DBGDieAttr *AddSimpLocAttr(DwAt at, DwForm form, uint64 val);
-  DBGDieAttr *AddGlobalLocAttr(DwAt at, DwForm form, uint64 val);
-  DBGDieAttr *AddFrmBaseAttr(DwAt at, DwForm form);
+  void AddAttr(DBGDieAttr *attr);
+  void AddAttr(DwAt at, DwForm form, uint64 val, bool keep = true);
+  void AddSimpLocAttr(DwAt at, DwForm form, uint64 val);
+  void AddGlobalLocAttr(DwAt at, DwForm form, uint64 val);
+  void AddFrmBaseAttr(DwAt at, DwForm form);
   DBGExprLoc *GetExprLoc();
   bool SetAttr(DwAt attr, uint64 val);
   bool SetAttr(DwAt attr, int64 val);
@@ -354,8 +352,8 @@ class DBGDie {
   bool SetAttr(DwAt attr, int32 val);
   bool SetAttr(DwAt attr, float val);
   bool SetAttr(DwAt attr, double val);
-  bool SetSimpLocAttr(DwAt attr, int64 val);
   bool SetAttr(DwAt attr, DBGExprLoc *ptr);
+  bool SetSimpLocAttr(DwAt attr, int64 val);
   void ResetParentDie() const;
   void Dump(int indent);
 
@@ -813,7 +811,7 @@ class DebugInfo {
   DBGDie *CreateVarDie(MIRSymbol *sym);
   DBGDie *CreateVarDie(MIRSymbol *sym, const GStrIdx &strIdx); // use alt name
   DBGDie *CreateFormalParaDie(MIRFunction *func, MIRType *type, MIRSymbol *sym);
-  DBGDie *CreateFieldDie(maple::FieldPair pair, uint32 lnum);
+  DBGDie *CreateFieldDie(maple::FieldPair pair);
   DBGDie *CreateBitfieldDie(const MIRBitFieldType *type, const GStrIdx &sidx, uint32 &prevBits);
   void CreateStructTypeFieldsDies(const MIRStructType *structType, DBGDie *die);
   void CreateStructTypeParentFieldsDies(const MIRStructType *structType, DBGDie *die);

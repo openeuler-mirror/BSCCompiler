@@ -64,45 +64,36 @@ void DBGDie::ResetParentDie() const {
   module->GetDbgInfo()->ResetParentDie();
 }
 
-DBGDieAttr *DBGDie::AddAttr(DwAt at, DwForm form, uint64 val, bool keepFlag) {
-  DBGDieAttr *attr = AddAttr(at, form, val);
-  attr->SetKeep(keepFlag);
-  return attr;
-}
-
-DBGDieAttr *DBGDie::AddAttr(DwAt at, DwForm form, uint64 val) {
+void DBGDie::AddAttr(DwAt at, DwForm form, uint64 val, bool keepFlag) {
   // collect strps which need label
   if (form == DW_FORM_strp) {
     module->GetDbgInfo()->AddStrps(static_cast<uint32>(val));
   }
   DBGDieAttr *attr = module->GetDbgInfo()->CreateAttr(at, form, val);
+  attr->SetKeep(keepFlag);
   AddAttr(attr);
-  return attr;
 }
 
-DBGDieAttr *DBGDie::AddSimpLocAttr(DwAt at, DwForm form, uint64 val) {
+void DBGDie::AddSimpLocAttr(DwAt at, DwForm form, uint64 val) {
   DBGExprLoc *p = module->GetMemPool()->New<DBGExprLoc>(module, DW_OP_fbreg);
   if (val != kDbgDefaultVal) {
     p->AddSimpLocOpnd(val);
   }
   DBGDieAttr *attr = module->GetDbgInfo()->CreateAttr(at, form, reinterpret_cast<uint64>(p));
   AddAttr(attr);
-  return attr;
 }
 
-DBGDieAttr *DBGDie::AddGlobalLocAttr(DwAt at, DwForm form, uint64 val) {
+void DBGDie::AddGlobalLocAttr(DwAt at, DwForm form, uint64 val) {
   DBGExprLoc *p = module->GetMemPool()->New<DBGExprLoc>(module, DW_OP_addr);
   p->SetGvarStridx(static_cast<int>(val));
   DBGDieAttr *attr = module->GetDbgInfo()->CreateAttr(at, form, reinterpret_cast<uint64>(p));
   AddAttr(attr);
-  return attr;
 }
 
-DBGDieAttr *DBGDie::AddFrmBaseAttr(DwAt at, DwForm form) {
+void DBGDie::AddFrmBaseAttr(DwAt at, DwForm form) {
   DBGExprLoc *p = module->GetMemPool()->New<DBGExprLoc>(module, DW_OP_call_frame_cfa);
   DBGDieAttr *attr = module->GetDbgInfo()->CreateAttr(at, form, reinterpret_cast<uint64>(p));
   AddAttr(attr);
-  return attr;
 }
 
 DBGExprLoc *DBGDie::GetExprLoc() {
@@ -283,19 +274,19 @@ void DebugInfo::SetupCU() {
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(producer);
   delete producer;
   producer = nullptr;
-  (void)compUnit->AddAttr(DW_AT_producer, DW_FORM_strp, strIdx.GetIdx());
+  compUnit->AddAttr(DW_AT_producer, DW_FORM_strp, strIdx.GetIdx());
 
   /* Source Languate  */
-  (void)compUnit->AddAttr(DW_AT_language, DW_FORM_data4, DW_LANG_C99);
+  compUnit->AddAttr(DW_AT_language, DW_FORM_data4, DW_LANG_C99);
 
   /* Add the compiled source file information */
-  (void)compUnit->AddAttr(DW_AT_name, DW_FORM_strp, mplSrcIdx.GetIdx());
-  (void)compUnit->AddAttr(DW_AT_comp_dir, DW_FORM_strp, 0);
+  compUnit->AddAttr(DW_AT_name, DW_FORM_strp, mplSrcIdx.GetIdx());
+  compUnit->AddAttr(DW_AT_comp_dir, DW_FORM_strp, 0);
 
-  (void)compUnit->AddAttr(DW_AT_low_pc, DW_FORM_addr, kDbgDefaultVal);
-  (void)compUnit->AddAttr(DW_AT_high_pc, DW_FORM_data8, kDbgDefaultVal);
+  compUnit->AddAttr(DW_AT_low_pc, DW_FORM_addr, kDbgDefaultVal);
+  compUnit->AddAttr(DW_AT_high_pc, DW_FORM_data8, kDbgDefaultVal);
 
-  (void)compUnit->AddAttr(DW_AT_stmt_list, DW_FORM_sec_offset, kDbgDefaultVal);
+  compUnit->AddAttr(DW_AT_stmt_list, DW_FORM_sec_offset, kDbgDefaultVal);
 }
 
 void DebugInfo::AddScopeDie(MIRScope *scope, bool isLocal) {
@@ -308,8 +299,8 @@ void DebugInfo::AddScopeDie(MIRScope *scope, bool isLocal) {
   bool createBlock = isLocal && (scope != func->GetScope());
   if (createBlock) {
     DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_lexical_block);
-    (void)die->AddAttr(DW_AT_low_pc, DW_FORM_addr, scope->GetId());
-    (void)die->AddAttr(DW_AT_high_pc, DW_FORM_data8, scope->GetId());
+    die->AddAttr(DW_AT_low_pc, DW_FORM_addr, scope->GetId());
+    die->AddAttr(DW_AT_high_pc, DW_FORM_data8, scope->GetId());
 
     // add die to parent
     GetParentDie()->AddSubVec(die);
@@ -381,7 +372,7 @@ void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isL
 
     // get type from alias
     DBGDie *typeDie = GetAliasVarTypeDie(i.second, mplVar->GetTyIdx());
-    (void)(vdie->SetAttr(DW_AT_type, typeDie->GetId()));
+    vdie->SetAttr(DW_AT_type, typeDie->GetId());
 
     // for new var
     if (!updateOnly) {
@@ -426,7 +417,7 @@ void DebugInfo::GetCrossScopeId(MIRFunction *func,
   if (isLow) {
     for (auto &it : funcScopeLows[func]) {
       if (oldSrcPos.IsBf(it.pos) && (it.pos).IsBfOrEq(newSrcPos)) {
-        (void)idSet.insert(it.id);
+        idSet.insert(it.id);
       }
     }
   } else {
@@ -435,7 +426,7 @@ void DebugInfo::GetCrossScopeId(MIRFunction *func,
     }
     for (auto &it : funcScopeHighs[func]) {
       if (oldSrcPos.IsBfOrEq(it.pos) && (it.pos).IsBf(newSrcPos)) {
-        (void)idSet.insert(it.id);
+        idSet.insert(it.id);
       }
     }
   }
@@ -482,7 +473,7 @@ void DebugInfo::BuildDebugInfoContainers() {
       case kTypeStruct:
       case kTypeStructIncomplete:
       case kTypeUnion:
-        (void) GetOrCreateStructTypeDie(type);
+        (void)GetOrCreateStructTypeDie(type);
         break;
       case kTypeByName:
         if (typedefStrIdxTyIdxMap.find(it.first.GetIdx()) == typedefStrIdxTyIdxMap.end()) {
@@ -630,10 +621,10 @@ DBGDie *DebugInfo::CreateFormalParaDie(MIRFunction *func, MIRType *type, MIRSymb
 
   /* var Name */
   if (sym) {
-    (void)die->AddAttr(DW_AT_name, DW_FORM_strp, sym->GetNameStrIdx().GetIdx());
-    (void)die->AddAttr(DW_AT_decl_file, DW_FORM_data4, sym->GetSrcPosition().FileNum());
-    (void)die->AddAttr(DW_AT_decl_line, DW_FORM_data4, sym->GetSrcPosition().LineNum());
-    (void)die->AddAttr(DW_AT_decl_column, DW_FORM_data4, sym->GetSrcPosition().Column());
+    die->AddAttr(DW_AT_name, DW_FORM_strp, sym->GetNameStrIdx().GetIdx());
+    die->AddAttr(DW_AT_decl_file, DW_FORM_data4, sym->GetSrcPosition().FileNum());
+    die->AddAttr(DW_AT_decl_line, DW_FORM_data4, sym->GetSrcPosition().LineNum());
+    die->AddAttr(DW_AT_decl_column, DW_FORM_data4, sym->GetSrcPosition().Column());
     die->AddSimpLocAttr(DW_AT_location, DW_FORM_exprloc, kDbgDefaultVal);
     SetLocalDie(func, sym->GetNameStrIdx(), die);
   }
@@ -650,10 +641,10 @@ DBGDie *DebugInfo::GetOrCreateLabelDie(LabelIdx labid) {
   }
 
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_label);
-  (void)die->AddAttr(DW_AT_name, DW_FORM_strp, strid.GetIdx());
-  (void)die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx());
-  (void)die->AddAttr(DW_AT_decl_line, DW_FORM_data4, lexer->GetLineNum());
-  (void)die->AddAttr(DW_AT_low_pc, DW_FORM_addr, kDbgDefaultVal);
+  die->AddAttr(DW_AT_name, DW_FORM_strp, strid.GetIdx());
+  die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx());
+  die->AddAttr(DW_AT_decl_line, DW_FORM_data4, lexer->GetLineNum());
+  die->AddAttr(DW_AT_low_pc, DW_FORM_addr, kDbgDefaultVal);
   GetParentDie()->AddSubVec(die);
   SetLocalDie(strid, die);
   SetLabelIdx(strid, labid);
@@ -706,10 +697,10 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym, const GStrIdx &strIdx) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_variable);
 
   /* var Name */
-  (void)die->AddAttr(DW_AT_name, DW_FORM_strp, strIdx.GetIdx());
-  (void)die->AddAttr(DW_AT_decl_file, DW_FORM_data4, sym->GetSrcPosition().FileNum());
-  (void)die->AddAttr(DW_AT_decl_line, DW_FORM_data4, sym->GetSrcPosition().LineNum());
-  (void)die->AddAttr(DW_AT_decl_column, DW_FORM_data4, sym->GetSrcPosition().Column());
+  die->AddAttr(DW_AT_name, DW_FORM_strp, strIdx.GetIdx());
+  die->AddAttr(DW_AT_decl_file, DW_FORM_data4, sym->GetSrcPosition().FileNum());
+  die->AddAttr(DW_AT_decl_line, DW_FORM_data4, sym->GetSrcPosition().LineNum());
+  die->AddAttr(DW_AT_decl_column, DW_FORM_data4, sym->GetSrcPosition().Column());
 
   bool isLocal = sym->IsLocal();
   if (isLocal) {
@@ -735,7 +726,7 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym, const GStrIdx &strIdx) {
   MIRType *type = sym->GetType();
   DBGDie *typeDie = GetOrCreateTypeDie(type);
   DBGDie *newDie = GetOrCreateTypeDieWithAttr(sym->GetAttrs(), typeDie);
-  (void)die->AddAttr(DW_AT_type, DW_FORM_ref4, newDie->GetId());
+  die->AddAttr(DW_AT_type, DW_FORM_ref4, newDie->GetId());
 
   return die;
 }
@@ -750,15 +741,15 @@ DBGDie *DebugInfo::GetOrCreateFuncDeclDie(MIRFunction *func) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_subprogram);
   stridxDieIdMap[funcnameidx] = die->GetId();
 
-  (void)die->AddAttr(DW_AT_external, DW_FORM_flag_present, 1);
+  die->AddAttr(DW_AT_external, DW_FORM_flag_present, 1);
 
   // Function Name
   MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(func->GetStIdx().Idx());
 
-  (void)die->AddAttr(DW_AT_name, DW_FORM_strp, funcnameidx);
-  (void)die->AddAttr(DW_AT_decl_file, DW_FORM_data4, sym->GetSrcPosition().FileNum());
-  (void)die->AddAttr(DW_AT_decl_line, DW_FORM_data4, sym->GetSrcPosition().LineNum());
-  (void)die->AddAttr(DW_AT_decl_column, DW_FORM_data4, sym->GetSrcPosition().Column());
+  die->AddAttr(DW_AT_name, DW_FORM_strp, funcnameidx);
+  die->AddAttr(DW_AT_decl_file, DW_FORM_data4, sym->GetSrcPosition().FileNum());
+  die->AddAttr(DW_AT_decl_line, DW_FORM_data4, sym->GetSrcPosition().LineNum());
+  die->AddAttr(DW_AT_decl_column, DW_FORM_data4, sym->GetSrcPosition().Column());
 
   // Attributes for DW_AT_accessibility
   uint32 access = 0;
@@ -770,10 +761,10 @@ DBGDie *DebugInfo::GetOrCreateFuncDeclDie(MIRFunction *func) {
     access = DW_ACCESS_protected;
   }
   if (access != 0) {
-    (void)die->AddAttr(DW_AT_accessibility, DW_FORM_data4, access);
+    die->AddAttr(DW_AT_accessibility, DW_FORM_data4, access);
   }
 
-  (void)die->AddAttr(DW_AT_GNU_all_tail_call_sites, DW_FORM_flag_present, kDbgDefaultVal);
+  die->AddAttr(DW_AT_GNU_all_tail_call_sites, DW_FORM_flag_present, kDbgDefaultVal);
 
   PushParentDie(die);
 
@@ -828,22 +819,23 @@ DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func) {
   // update funcDefStrIdxDieIdMap and leave stridxDieIdMap for the func decl
   funcDefStrIdxDieIdMap[funcnameidx] = die->GetId();
 
-  (void)die->AddAttr(DW_AT_specification, DW_FORM_ref4, funcdecldie->GetId());
-  (void)die->AddAttr(DW_AT_decl_line, DW_FORM_data4, 0);
+  die->AddAttr(DW_AT_specification, DW_FORM_ref4, funcdecldie->GetId());
+  MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(func->GetStIdx().Idx());
+  die->AddAttr(DW_AT_decl_line, DW_FORM_data4, sym->GetSrcPosition().LineNum());
 
   if (!func->IsReturnVoid()) {
     auto returnType = func->GetReturnType();
     DBGDie *typeDie = GetOrCreateTypeDie(returnType);
-    (void)die->AddAttr(DW_AT_type, DW_FORM_ref4, typeDie->GetId());
+    die->AddAttr(DW_AT_type, DW_FORM_ref4, typeDie->GetId());
   }
 
-  (void)die->AddAttr(DW_AT_low_pc, DW_FORM_addr, kDbgDefaultVal);
-  (void)die->AddAttr(DW_AT_high_pc, DW_FORM_data8, kDbgDefaultVal);
-  (void)die->AddFrmBaseAttr(DW_AT_frame_base, DW_FORM_exprloc);
+  die->AddAttr(DW_AT_low_pc, DW_FORM_addr, kDbgDefaultVal);
+  die->AddAttr(DW_AT_high_pc, DW_FORM_data8, kDbgDefaultVal);
+  die->AddFrmBaseAttr(DW_AT_frame_base, DW_FORM_exprloc);
   if (!func->IsStatic() && !LIsCompilerGenerated(func)) {
-    (void)die->AddAttr(DW_AT_object_pointer, DW_FORM_ref4, kDbgDefaultVal);
+    die->AddAttr(DW_AT_object_pointer, DW_FORM_ref4, kDbgDefaultVal);
   }
-  (void)die->AddAttr(DW_AT_GNU_all_tail_call_sites, DW_FORM_flag_present, kDbgDefaultVal);
+  die->AddAttr(DW_AT_GNU_all_tail_call_sites, DW_FORM_flag_present, kDbgDefaultVal);
 
   PushParentDie(die);
 
@@ -883,8 +875,8 @@ DBGDie *DebugInfo::GetOrCreatePrimTypeDie(MIRType *ty) {
     ty->SetNameStrIdx(strIdx);
   }
 
-  (void)die->AddAttr(DW_AT_byte_size, DW_FORM_data4, GetPrimTypeSize(pty));
-  (void)die->AddAttr(DW_AT_encoding, DW_FORM_data4, GetAteFromPTY(pty));
+  die->AddAttr(DW_AT_byte_size, DW_FORM_data4, GetPrimTypeSize(pty));
+  die->AddAttr(DW_AT_encoding, DW_FORM_data4, GetAteFromPTY(pty));
 
   // use C type name, int for i32 etc
   if (module->IsCModule()) {
@@ -893,7 +885,7 @@ DBGDie *DebugInfo::GetOrCreatePrimTypeDie(MIRType *ty) {
       strIdx = idx;
     }
   }
-  (void)die->AddAttr(DW_AT_name, DW_FORM_strp, strIdx.GetIdx());
+  die->AddAttr(DW_AT_name, DW_FORM_strp, strIdx.GetIdx());
 
   compUnit->AddSubVec(die);
   tyIdxDieIdMap[static_cast<uint32>(pty)] = die->GetId();
@@ -903,11 +895,11 @@ DBGDie *DebugInfo::GetOrCreatePrimTypeDie(MIRType *ty) {
 DBGDie *DebugInfo::CreatePointedFuncTypeDie(MIRFuncType *fType) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_subroutine_type);
 
-  (void)die->AddAttr(DW_AT_prototyped, DW_FORM_data4, static_cast<int>(fType->GetParamTypeList().size() > 0));
+  die->AddAttr(DW_AT_prototyped, DW_FORM_data4, static_cast<int>(fType->GetParamTypeList().size() > 0));
   MIRType *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fType->GetRetTyIdx());
   DBGDie *retTypeDie = GetOrCreateTypeDie(retType);
   retTypeDie = GetOrCreateTypeDieWithAttr(fType->GetRetAttrs(), retTypeDie);
-  (void)die->AddAttr(DW_AT_type, DW_FORM_ref4, retTypeDie->GetId());
+  die->AddAttr(DW_AT_type, DW_FORM_ref4, retTypeDie->GetId());
 
   compUnit->AddSubVec(die);
 
@@ -915,7 +907,7 @@ DBGDie *DebugInfo::CreatePointedFuncTypeDie(MIRFuncType *fType) {
     DBGDie *paramDie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_formal_parameter);
     MIRType *paramType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fType->GetNthParamType(i));
     DBGDie *paramTypeDie = GetOrCreateTypeDie(paramType);
-    (void)paramDie->AddAttr(DW_AT_type, DW_FORM_ref4, paramTypeDie->GetId());
+    paramDie->AddAttr(DW_AT_type, DW_FORM_ref4, paramTypeDie->GetId());
     die->AddSubVec(paramDie);
   }
 
@@ -934,7 +926,7 @@ DBGDie *DebugInfo::GetOrCreateTypeDieWithAttr(AttrKind attr, DBGDie *typeDie) {
         die = idDieMap[newId];
       } else {
         die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_const_type);
-        (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, dieId));
+        die->AddAttr(DW_AT_type, DW_FORM_ref4, dieId);
         compUnit->AddSubVec(die);
         newId = die->GetId();
         constTypeDieMap[dieId] = newId;
@@ -946,7 +938,7 @@ DBGDie *DebugInfo::GetOrCreateTypeDieWithAttr(AttrKind attr, DBGDie *typeDie) {
         die = idDieMap[newId];
       } else {
         die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_volatile_type);
-        (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, dieId));
+        die->AddAttr(DW_AT_type, DW_FORM_ref4, dieId);
         compUnit->AddSubVec(die);
         newId = die->GetId();
         volatileTypeDieMap[dieId] = newId;
@@ -1053,13 +1045,13 @@ DBGDie *DebugInfo::GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_typedef);
   compUnit->AddSubVec(die);
 
-  (void)(die->AddAttr(DW_AT_name, DW_FORM_strp, sid));
-  (void)(die->AddAttr(DW_AT_decl_file, DW_FORM_data1, 0));
-  (void)(die->AddAttr(DW_AT_decl_line, DW_FORM_data1, 0));
-  (void)(die->AddAttr(DW_AT_decl_column, DW_FORM_data1, 0));
+  die->AddAttr(DW_AT_name, DW_FORM_strp, sid);
+  die->AddAttr(DW_AT_decl_file, DW_FORM_data1, 0);
+  die->AddAttr(DW_AT_decl_line, DW_FORM_data1, 0);
+  die->AddAttr(DW_AT_decl_column, DW_FORM_data1, 0);
 
   DBGDie *typeDie = GetOrCreateTypeDie(tyidx);
-  (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, typeDie->GetId()));
+  die->AddAttr(DW_AT_type, DW_FORM_ref4, typeDie->GetId());
 
   stridxDieIdMap[sid] = die->GetId();
   return die;
@@ -1084,20 +1076,17 @@ DBGDie *DebugInfo::GetOrCreateEnumTypeDie(MIREnum *mirEnum) {
   const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(mirEnum->GetNameIdx());
   bool keep = (name.find("unnamed.") == std::string::npos);
 
-  (void)(die->AddAttr(DW_AT_name, DW_FORM_strp, sid, keep));
-  (void)(die->AddAttr(DW_AT_encoding, DW_FORM_data4, GetAteFromPTY(pty)));
-  (void)(die->AddAttr(DW_AT_byte_size, DW_FORM_data1, GetPrimTypeSize(pty)));
+  die->AddAttr(DW_AT_name, DW_FORM_strp, sid, keep);
+  die->AddAttr(DW_AT_encoding, DW_FORM_data4, GetAteFromPTY(pty));
+  die->AddAttr(DW_AT_byte_size, DW_FORM_data1, GetPrimTypeSize(pty));
   MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pty);
   DBGDie *typeDie = GetOrCreateTypeDie(type);
-  (void)(die->AddAttr(DW_AT_type, DW_FORM_ref4, typeDie->GetId()));
-  (void)(die->AddAttr(DW_AT_decl_file, DW_FORM_data1, 0));
-  (void)(die->AddAttr(DW_AT_decl_line, DW_FORM_data1, 0));
-  (void)(die->AddAttr(DW_AT_decl_column, DW_FORM_data1, 0));
+  die->AddAttr(DW_AT_type, DW_FORM_ref4, typeDie->GetId());
 
   for (auto &elemIt : mirEnum->GetElements()) {
     DBGDie *elem = module->GetMemPool()->New<DBGDie>(module, DW_TAG_enumerator);
-    (void)(elem->AddAttr(DW_AT_name, DW_FORM_strp, elemIt.first.GetIdx()));
-    (void)(elem->AddAttr(DW_AT_const_value, DW_FORM_data8, elemIt.second.GetExtValue()));
+    elem->AddAttr(DW_AT_name, DW_FORM_strp, elemIt.first.GetIdx());
+    elem->AddAttr(DW_AT_const_value, DW_FORM_data8, elemIt.second.GetExtValue());
     die->AddSubVec(elem);
   }
 
@@ -1195,30 +1184,28 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arrayType) {
   bool keep = !arrayType->IsIncompleteArray();
   for (auto i = 0; i < dim; ++i) {
     DBGDie *rangeDie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_subrange_type);
-    (void)GetOrCreatePrimTypeDie(GlobalTables::GetTypeTable().GetUInt32());
     rangeDie->AddAttr(DW_AT_type, DW_FORM_ref4, typeDie->GetId(), keep);
     // The default lower bound value for C, C++, or Java is 0
-    (void)rangeDie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arrayType->GetSizeArrayItem(i) - 1, keep);
+    rangeDie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arrayType->GetSizeArrayItem(i) - 1, keep);
     die->AddSubVec(rangeDie);
   }
 
   return die;
 }
 
-DBGDie *DebugInfo::CreateFieldDie(maple::FieldPair pair, uint32 lnum) {
+DBGDie *DebugInfo::CreateFieldDie(maple::FieldPair pair) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_member);
 
   const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(pair.first);
   bool keep = (name.find("unnamed.") == std::string::npos);
-  (void)die->AddAttr(DW_AT_name, DW_FORM_strp, pair.first.GetIdx(), keep);
-  (void)die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx(), keep);
-  (void)die->AddAttr(DW_AT_decl_line, DW_FORM_data4, lnum, keep);
+  die->AddAttr(DW_AT_name, DW_FORM_strp, pair.first.GetIdx(), keep);
+  die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx(), keep);
 
   MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pair.second.first);
   DBGDie *typeDie = GetOrCreateTypeDie(type);
   die->AddAttr(DW_AT_type, DW_FORM_ref4, typeDie->GetId());
 
-  (void)die->AddAttr(DW_AT_data_member_location, DW_FORM_data4, kDbgDefaultVal);
+  die->AddAttr(DW_AT_data_member_location, DW_FORM_data4, kDbgDefaultVal);
 
   return die;
 }
@@ -1226,23 +1213,22 @@ DBGDie *DebugInfo::CreateFieldDie(maple::FieldPair pair, uint32 lnum) {
 DBGDie *DebugInfo::CreateBitfieldDie(const MIRBitFieldType *type, const GStrIdx &sidx, uint32 &prevBits) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_member);
 
-  (void)die->AddAttr(DW_AT_name, DW_FORM_strp, sidx.GetIdx());
-  (void)die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx());
-  (void)die->AddAttr(DW_AT_decl_line, DW_FORM_data4, 0);
+  die->AddAttr(DW_AT_name, DW_FORM_strp, sidx.GetIdx());
+  die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx());
 
   MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(type->GetPrimType());
   DBGDie *typeDie = GetOrCreateTypeDie(ty);
   die->AddAttr(DW_AT_type, DW_FORM_ref4, typeDie->GetId());
 
-  (void)die->AddAttr(DW_AT_byte_size, DW_FORM_data4, GetPrimTypeSize(type->GetPrimType()));
-  (void)die->AddAttr(DW_AT_bit_size, DW_FORM_data4, type->GetFieldSize());
+  die->AddAttr(DW_AT_byte_size, DW_FORM_data4, GetPrimTypeSize(type->GetPrimType()));
+  die->AddAttr(DW_AT_bit_size, DW_FORM_data4, type->GetFieldSize());
 
   uint32 typeSize = GetPrimTypeSize(type->GetPrimType()) * k8BitSize;
   prevBits = type->GetFieldSize() + prevBits > typeSize ? type->GetFieldSize() : type->GetFieldSize() + prevBits;
   uint32 offset = typeSize - prevBits;
 
-  (void)die->AddAttr(DW_AT_bit_offset, DW_FORM_data4, offset);
-  (void)die->AddAttr(DW_AT_data_member_location, DW_FORM_data4, 0);
+  die->AddAttr(DW_AT_bit_offset, DW_FORM_data4, offset);
+  die->AddAttr(DW_AT_data_member_location, DW_FORM_data4, 0);
 
   return die;
 }
@@ -1302,7 +1288,7 @@ void DebugInfo::CreateStructTypeFieldsDies(const MIRStructType *structType, DBGD
       if (die->GetTag() != DW_TAG_union_type) {
         prevBits = GetPrimTypeSize(elemType->GetPrimType()) * k8BitSize;
       }
-      DBGDie *fieldDie = CreateFieldDie(fp, 0);
+      DBGDie *fieldDie = CreateFieldDie(fp);
       die->AddSubVec(fieldDie);
 
       // update field type with alias info
@@ -1314,7 +1300,7 @@ void DebugInfo::CreateStructTypeFieldsDies(const MIRStructType *structType, DBGD
       for (auto &aliasVar : alias->GetAliasVarMap()) {
         if (aliasVar.first == fp.first) {
           DBGDie *typeDie = GetAliasVarTypeDie(aliasVar.second, fp.second.first);
-          (void)(fieldDie->SetAttr(DW_AT_type, typeDie->GetId()));
+          fieldDie->SetAttr(DW_AT_type, typeDie->GetId());
           break;
         }
       }
@@ -1325,7 +1311,7 @@ void DebugInfo::CreateStructTypeFieldsDies(const MIRStructType *structType, DBGD
 void DebugInfo::CreateStructTypeParentFieldsDies(const MIRStructType *structType, DBGDie *die) {
   for (size_t i = 0; i < structType->GetParentFieldsSize(); i++) {
     FieldPair fp = structType->GetParentFieldsElemt(i);
-    DBGDie *fieldDie = CreateFieldDie(fp, 0);
+    DBGDie *fieldDie = CreateFieldDie(fp);
     die->AddSubVec(fieldDie);
   }
 }
@@ -1512,7 +1498,7 @@ void DebugInfo::BuildDieTree() {
         DBGDie *it1 = die->GetSubDieVecAt(i + 1);
         if (it0->GetSubDieVecSize() != 0) {
           it0->SetSibling(it1);
-          (void)it0->AddAttr(DW_AT_sibling, DW_FORM_ref4, it1->GetId());
+          it0->AddAttr(DW_AT_sibling, DW_FORM_ref4, it1->GetId());
         }
       }
     }
