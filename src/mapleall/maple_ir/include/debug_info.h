@@ -666,7 +666,7 @@ class DebugInfo {
     if (funcScopeIdStatus[func].find(scopeId) == funcScopeIdStatus[func].end()) {
       funcScopeIdStatus[func][scopeId] = 0;
     }
-    funcScopeIdStatus[func][scopeId] |= (1 << status);
+    funcScopeIdStatus[func][scopeId] |= (1U << status);
   }
 
   MapleVector<DBGAbbrevEntry *> &GetAbbrevVec() {
@@ -782,8 +782,8 @@ class DebugInfo {
 
   LabelIdx GetLabelIdx(GStrIdx strIdx);
   LabelIdx GetLabelIdx(MIRFunction *func, GStrIdx strIdx);
-  void SetLabelIdx(GStrIdx strIdx, LabelIdx labIdx);
-  void SetLabelIdx(MIRFunction *func, GStrIdx strIdx, LabelIdx labIdx);
+  void SetLabelIdx(const GStrIdx &strIdx, LabelIdx labIdx);
+  void SetLabelIdx(MIRFunction *func, const GStrIdx &strIdx, LabelIdx labIdx);
 
   DBGDie *GetIdDieMapAt(uint32 i) {
     return idDieMap[i];
@@ -810,16 +810,16 @@ class DebugInfo {
   }
 
   DBGDie *CreateVarDie(MIRSymbol *sym);
-  DBGDie *CreateVarDie(MIRSymbol *sym, GStrIdx strIdx); // use alt name
+  DBGDie *CreateVarDie(MIRSymbol *sym, const GStrIdx &strIdx); // use alt name
   DBGDie *CreateFormalParaDie(MIRFunction *func, MIRType *type, MIRSymbol *sym);
   DBGDie *CreateFieldDie(maple::FieldPair pair, uint32 lnum);
-  DBGDie *CreateBitfieldDie(const MIRBitFieldType *type, GStrIdx sidx, uint32 prevBits);
+  DBGDie *CreateBitfieldDie(const MIRBitFieldType *type, const GStrIdx &sidx, uint32 prevBits);
   void CreateStructTypeFieldsDies(const MIRStructType *structType, DBGDie *die);
   void CreateStructTypeParentFieldsDies(const MIRStructType *structType, DBGDie *die);
   void CreateStructTypeMethodsDies(const MIRStructType *structType, DBGDie *die);
   DBGDie *CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *structType, bool update = false);
-  DBGDie *CreateClassTypeDie(GStrIdx strIdx, const MIRClassType *classType);
-  DBGDie *CreateInterfaceTypeDie(GStrIdx strIdx, const MIRInterfaceType *interfaceType);
+  DBGDie *CreateClassTypeDie(const GStrIdx &strIdx, const MIRClassType *classType);
+  DBGDie *CreateInterfaceTypeDie(const GStrIdx &strIdx, const MIRInterfaceType *interfaceType);
   DBGDie *CreatePointedFuncTypeDie(MIRFuncType *fType);
   void CreateFuncLocalSymbolsDies(MIRFunction *func, DBGDie *die);
 
@@ -829,8 +829,8 @@ class DebugInfo {
   DBGDie *GetOrCreatePrimTypeDie(MIRType *ty);
   DBGDie *GetOrCreateTypeDie(TyIdx tyidx);
   DBGDie *GetOrCreateTypeDie(MIRType *type);
-  DBGDie *GetOrCreateTypeDie(AttrKind attr, DBGDie *typeDie);
-  DBGDie *GetOrCreateTypeDie(TypeAttrs attrs, DBGDie *typeDie);
+  DBGDie *GetOrCreateTypeDieWithAttr(AttrKind attr, DBGDie *typeDie);
+  DBGDie *GetOrCreateTypeDieWithAttr(TypeAttrs attrs, DBGDie *typeDie);
   DBGDie *GetOrCreatePointTypeDie(const MIRPtrType *ptrType);
   DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *arrayType);
   DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
@@ -840,7 +840,7 @@ class DebugInfo {
   GStrIdx GetPrimTypeCName(PrimType pty);
 
   void AddScopeDie(MIRScope *scope, bool isLocal);
-  DBGDie *GetAliasVarTypeDie(MIRAliasVars &a, TyIdx tyidx);
+  DBGDie *GetAliasVarTypeDie(const MIRAliasVars &aliasVar, TyIdx tyidx);
   void AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isLocal);
   void CollectScopePos(MIRFunction *func, MIRScope *scope);
 
