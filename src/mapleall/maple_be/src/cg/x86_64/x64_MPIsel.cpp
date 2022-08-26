@@ -76,7 +76,7 @@ void X64MPIsel::SelectReturn(NaryStmtNode &retNode, Operand &opnd) {
   if (retMech.GetRegCount() == 0) {
     return;
   }
-
+  std::vector<RegOperand*> retRegs;
   if (!cgFunc->GetFunction().StructReturnedInRegs() ||
       retNode.Opnd(0)->GetOpCode() == OP_constval) {
     PrimType oriPrimType = retMech.GetPrimTypeOfReg0();
@@ -84,6 +84,7 @@ void X64MPIsel::SelectReturn(NaryStmtNode &retNode, Operand &opnd) {
     ASSERT(retReg != kRinvalid, "NIY");
     RegOperand &retOpnd = cgFunc->GetOpndBuilder()->CreatePReg(retReg, GetPrimTypeBitSize(oriPrimType),
         cgFunc->GetRegTyFromPrimTy(oriPrimType));
+    retRegs.push_back(&retOpnd);
     SelectCopy(retOpnd, opnd, oriPrimType, retNode.Opnd(0)->GetPrimType());
   } else {
     CHECK_FATAL(opnd.IsMemoryAccessOperand(), "NIY");
@@ -99,6 +100,7 @@ void X64MPIsel::SelectReturn(NaryStmtNode &retNode, Operand &opnd) {
     MemOperand &rhsMemOpnd0 = cgFunc->GetOpndBuilder()->CreateMem(GetPrimTypeBitSize(oriPrimType0));
     rhsMemOpnd0.SetBaseRegister(*baseOpnd);
     rhsMemOpnd0.SetOffsetOperand(*offsetOpnd);
+    retRegs.push_back(&retOpnd0);
     SelectCopy(retOpnd0, rhsMemOpnd0, oriPrimType0);
 
     regno_t retReg1 = retMech.GetReg1();
@@ -111,22 +113,24 @@ void X64MPIsel::SelectReturn(NaryStmtNode &retNode, Operand &opnd) {
       newOffsetOpnd.SetValue(newOffsetOpnd.GetValue() + GetPrimTypeSize(oriPrimType0));
       rhsMemOpnd1.SetBaseRegister(*baseOpnd);
       rhsMemOpnd1.SetOffsetOperand(newOffsetOpnd);
+      retRegs.push_back(&retOpnd1);
       SelectCopy(retOpnd1, rhsMemOpnd1, oriPrimType1);
     }
+  }
+  /* for optimization ,insert pseudo ret ,in case rax,rdx is removed*/
+  SelectPseduoForReturn(retRegs);
+}
+
+void X64MPIsel::SelectPseduoForReturn(std::vector<RegOperand*> &retRegs) {
+  for (auto retReg : retRegs) {
+    MOperator mop = x64::MOP_pseudo_ret_int;
+    Insn &pInsn = cgFunc->GetInsnBuilder()->BuildInsn(mop, X64CG::kMd[mop]);
+    cgFunc->GetCurBB()->AppendInsn(pInsn);
+    pInsn.AddOpndChain(*retReg);
   }
 }
 
 void X64MPIsel::SelectReturn() {
-  /* for optimization ,insert pseudo ret ,in case rax,rdx is removed*/
-  MOperator mop = x64::MOP_pseudo_ret_int;
-  Insn &pInsnRax = cgFunc->GetInsnBuilder()->BuildInsn(mop, X64CG::kMd[mop]);
-  RegOperand &rax = cgFunc->GetOpndBuilder()->CreatePReg(x64::RAX, k64BitSize, kRegTyInt);
-  pInsnRax.AddOpndChain(rax);
-  cgFunc->GetCurBB()->AppendInsn(pInsnRax);
-  Insn &pInsnRdx = cgFunc->GetInsnBuilder()->BuildInsn(mop, X64CG::kMd[mop]);
-  RegOperand &rdx = cgFunc->GetOpndBuilder()->CreatePReg(x64::RDX, k64BitSize, kRegTyInt);
-  pInsnRdx.AddOpndChain(rdx);
-  cgFunc->GetCurBB()->AppendInsn(pInsnRdx);
   /* jump to epilogue */
   MOperator mOp = x64::MOP_jmpq_l;
   LabelNode *endLabel = cgFunc->GetEndLabel();

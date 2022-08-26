@@ -85,6 +85,7 @@ class X64MPIsel : public MPISel {
   void SelectLibCallNoReturn(const std::string &funcName, std::vector<Operand*> &opndVec, PrimType primType);
   void SelectLibCallNArg(const std::string &funcName, std::vector<Operand*> &opndVec,
                          std::vector<PrimType> pt);
+  void SelectPseduoForReturn(std::vector<RegOperand*> &retRegs);
   RegOperand *PrepareMemcpyParm(MemOperand &memOperand,  MOperator mOp);
   RegOperand *PrepareMemcpyParm(uint64 copySize);
 
