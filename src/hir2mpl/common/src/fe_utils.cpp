@@ -475,6 +475,13 @@ void FEUtils::AddAliasInMIRScope(MIRScope &scope, const std::string &srcVarName,
   scope.SetAliasVarMap(nameIdx, aliasVar);
 };
 
+SrcPosition FEUtils::CvtLoc2SrcPosition(const Loc &loc) {
+  SrcPosition srcPos;
+  srcPos.SetFileNum(static_cast<uint16>(loc.fileIdx));
+  srcPos.SetLineNum(loc.line);
+  srcPos.SetColumn(static_cast<uint16>(loc.column));
+  return srcPos;
+}
 // ---------- FELinkListNode ----------
 FELinkListNode::FELinkListNode()
     : prev(nullptr), next(nullptr) {}

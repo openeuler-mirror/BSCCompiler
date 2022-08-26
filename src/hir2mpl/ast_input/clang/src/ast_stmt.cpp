@@ -74,7 +74,7 @@ std::list<UniqueFEIRStmt> ASTCompoundStmt::Emit2FEStmtImpl() const {
   insertStmt(false);
   FEFunction &feFunction = FEManager::GetCurrentFEFunction();
   if (!hasEmitted2MIRScope) {
-    feFunction.PushStmtScope(GetSrcLoc().Emit2SourcePosition(), GetEndLoc().Emit2SourcePosition());
+    feFunction.PushStmtScope(FEUtils::CvtLoc2SrcPosition(GetSrcLoc()), FEUtils::CvtLoc2SrcPosition(GetEndLoc()));
   }
   for (auto it : astStmts) {
     stmts.splice(stmts.end(), it->Emit2FEStmt());
@@ -135,7 +135,8 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
   auto labelLoopEndStmt = std::make_unique<FEIRStmtLabel>(loopEndLabelName);
   FEFunction &feFunction = FEManager::GetCurrentFEFunction();
   if (!hasEmitted2MIRScope) {
-    feFunction.PushStmtScope(GetSrcLoc().Emit2SourcePosition(), GetEndLoc().Emit2SourcePosition(), true);
+    feFunction.PushStmtScope(FEUtils::CvtLoc2SrcPosition(GetSrcLoc()),
+                             FEUtils::CvtLoc2SrcPosition(GetEndLoc()), true);
   }
   if (initStmt != nullptr) {
     std::list<UniqueFEIRStmt> feStmts = initStmt->Emit2FEStmt();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -124,7 +124,7 @@ class FEIRVar {
   MIRSymbol *GenerateGlobalMIRSymbol(MIRBuilder &builder) const {
     MIRSymbol *mirSym = GenerateGlobalMIRSymbolImpl(builder);
     if (mirSym->GetSrcPosition().LineNum() == 0) {
-      mirSym->SetSrcPosition(loc.Emit2SourcePosition());
+      mirSym->SetSrcPosition(FEUtils::CvtLoc2SrcPosition(loc));
     }
     return mirSym;
   }
@@ -132,7 +132,7 @@ class FEIRVar {
   MIRSymbol *GenerateLocalMIRSymbol(MIRBuilder &builder) const {
     MIRSymbol *mirSym = GenerateLocalMIRSymbolImpl(builder);
     if (mirSym->GetSrcPosition().LineNum() == 0) {
-      mirSym->SetSrcPosition(loc.Emit2SourcePosition());
+      mirSym->SetSrcPosition(FEUtils::CvtLoc2SrcPosition(loc));
     }
     return mirSym;
   }

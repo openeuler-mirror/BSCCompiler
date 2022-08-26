@@ -90,7 +90,6 @@ static_library("lib_hir2mpl_common") {
     "${HIR2MPL_ROOT}/common/src/fe_utils.cpp",
     "${HIR2MPL_ROOT}/common/src/fe_utils_ast.cpp",
     "${HIR2MPL_ROOT}/common/src/fe_utils_java.cpp",
-    "${HIR2MPL_ROOT}/common/src/fe_diag_manager.cpp",
     "${HIR2MPL_ROOT}/common/src/feir_builder.cpp",
     "${HIR2MPL_ROOT}/common/src/feir_stmt.cpp",
     "${HIR2MPL_ROOT}/common/src/feir_type.cpp",

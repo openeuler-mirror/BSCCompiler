@@ -26,29 +26,12 @@
 #include "mir_scope.h"
 
 namespace maple {
-struct Loc {
-  uint32 fileIdx;
-  uint32 line;
-  uint32 column;
-  Loc(uint32 fileIdxIn, uint32 lineIn, uint32 columnIn) : fileIdx(fileIdxIn),  line(lineIn), column(columnIn) {}
 
-  SrcPosition Emit2SourcePosition() const {
-    SrcPosition srcPos;
-    srcPos.SetFileNum(static_cast<uint16>(fileIdx));
-    srcPos.SetLineNum(line);
-    srcPos.SetColumn(static_cast<uint16>(column));
-    return srcPos;
-  }
-
-  bool operator < (Loc const &loc) const {
-    if (fileIdx != loc.fileIdx) {
-      return fileIdx < loc.fileIdx;
-    } else if (line != loc.line) {
-      return line < loc.line;
-    } else {
-      return column < loc.column;
-    }
-  }
+enum FEErrno : int {
+  kNoError = 0,
+  kCmdParseError = 1,
+  kNoValidInput = 2,
+  kFEError = 3,
 };
 
 class FEUtils {
@@ -83,6 +66,7 @@ class FEUtils {
                                bool isLocal = true);
   static void AddAliasInMIRScope(MIRScope &scope, const std::string &srcVarName, const MIRSymbol &symbol,
                                  const MIRType *sourceType);
+  static SrcPosition CvtLoc2SrcPosition(const Loc &loc);
 
   static const std::string kBoolean;
   static const std::string kByte;

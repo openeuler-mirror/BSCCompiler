@@ -1783,18 +1783,16 @@ void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const Uniqu
   if (fieldID == 0) {
     MIRSymbol *dstSym = var->GenerateMIRSymbol(mirBuilder);
     if (dstSym->GetAttr(ATTR_final_boundary_size)) {
-      WARN(kLncWarn, "%s:%d warning: this var specified as the global or field boundary length is "
-           "assigned or token address. [Use __Unsafe__ to eliminate the warning]",
-           FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
+      FE_WARN(kLncWarn, loc, "this var specified as the global or field boundary length is "
+              "assigned or token address. [Use __Unsafe__ to eliminate the warning]");
     }
   } else {
     FieldID tmpID = fieldID;
     MIRStructType *structType = static_cast<MIRStructType*>(var->GetType()->GenerateMIRTypeAuto());
     FieldPair fieldPair = structType->TraverseToFieldRef(tmpID);
     if (fieldPair.second.second.GetAttr(FLDATTR_final_boundary_size)) {
-      WARN(kLncWarn, "%s:%d warning: this field specified as the global or field boundary length is "
-           "assigned or token address. [Use __Unsafe__ to eliminate the warning]",
-           FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
+      FE_WARN(kLncWarn, loc, "this field specified as the global or field boundary length is "
+              "assigned or token address. [Use __Unsafe__ to eliminate the warning]");
     }
   }
 }
@@ -1816,9 +1814,8 @@ void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const Uniqu
   FieldID tmpID = fieldID;
   FieldPair fieldPair = static_cast<MIRStructType*>(baseType)->TraverseToFieldRef(tmpID);
   if (fieldPair.second.second.GetAttr(FLDATTR_final_boundary_size)) {
-    WARN(kLncWarn, "%s:%d warning: this field specified as the global or field boundary length is "
-         "assigned or token address. [Use __Unsafe__ to eliminate the warning]",
-         FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
+    FE_WARN(kLncWarn, loc, "this field specified as the global or field boundary length is "
+            "assigned or token address. [Use __Unsafe__ to eliminate the warning]");
   }
 }
 

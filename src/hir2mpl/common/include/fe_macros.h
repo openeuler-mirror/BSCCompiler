@@ -63,13 +63,22 @@
   CHECK_FATAL(run, "%s", #run); \
 } while (0)
 
-#define FE_ERR(num, loc, fmt, ...) do {                                                                            \
-  if (PRINT_LEVEL_USER <= kLlErr) {                                                                                \
-      std::ostringstream ss;                                                                                       \
-      ss << FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx) << ":" << loc.line << " error: " << fmt;    \
-      FEManager::GetDiagManager().InsertFeError(loc, logInfo.EmitLogToStringForUser(num, kLlErr, ss.str().c_str(), \
-                                                ##__VA_ARGS__));                                                   \
-  }                                                                                                                \
-  FEManager::GetDiagManager().IncErrNum();                                                                         \
+// for user
+#define FE_ERR(num, loc, fmt, ...) do {                                                                             \
+  if (PRINT_LEVEL_USER <= kLlErr) {                                                                                 \
+      std::ostringstream ss;                                                                                        \
+      ss << FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx) << ":" << loc.line << " error: " << fmt;     \
+      logInfo.InsertUserErrorMessage(                                                                               \
+          loc, logInfo.EmitLogToStringForUser(num, kLlErr, ss.str().c_str(), ##__VA_ARGS__));                       \
+  }                                                                                                                 \
+} while (0)
+
+#define FE_WARN(num, loc, fmt, ...) do {                                                                            \
+  if (PRINT_LEVEL_USER <= kLlWarn) {                                                                                \
+      std::ostringstream ss;                                                                                        \
+      ss << FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx) << ":" << loc.line << " warning: " << fmt;   \
+      logInfo.InsertUserWarnMessage(                                                                                \
+          loc, logInfo.EmitLogToStringForUser(num, kLlWarn, ss.str().c_str(), ##__VA_ARGS__));                      \
+  }                                                                                                                 \
 } while (0)
 #endif  // ~HIR2MPL_INCLUDE_FE_MACROS_H

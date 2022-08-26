@@ -257,8 +257,8 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
   }
   const ASTCompoundStmt *astCpdStmt = static_cast<const ASTCompoundStmt*>(astStmt);
   FEFunction &feFunction = FEManager::GetCurrentFEFunction();
-  feFunction.PushFuncScope(astCpdStmt->GetSrcLoc().Emit2SourcePosition(),
-                           astCpdStmt->GetEndLoc().Emit2SourcePosition());
+  feFunction.PushFuncScope(FEUtils::CvtLoc2SrcPosition(astCpdStmt->GetSrcLoc()),
+                           FEUtils::CvtLoc2SrcPosition(astCpdStmt->GetEndLoc()));
   const MapleList<ASTStmt*> &astStmtList = astCpdStmt->GetASTStmtList();
   for (auto stmtNode : astStmtList) {
     std::list<UniqueFEIRStmt> childStmts = stmtNode->Emit2FEStmt();
