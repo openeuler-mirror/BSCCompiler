@@ -103,7 +103,7 @@ void MeSSA::InsertIdentifyAssignments(IdentifyLoops *identloops) {
     if (aloop->exitBB == nullptr) {
       continue;
     }
-    MapleMap<LabelIdx, PreMeWhileInfo*>::iterator it = preMeFunc->label2WhileInfo.find(headbb->GetBBLabel());
+    auto it = preMeFunc->label2WhileInfo.find(headbb->GetBBLabel());
     if (it == preMeFunc->label2WhileInfo.end()) {
       continue;
     }
@@ -112,7 +112,7 @@ void MeSSA::InsertIdentifyAssignments(IdentifyLoops *identloops) {
     }
     // collect the symbols for inserting identity assignments
     std::set<OriginalSt *, OriginalSt::OriginalStPtrComparator> ostSet;
-    for (auto& mapEntry: (headbb->GetPhiList())) {
+    for (auto &mapEntry: std::as_const(headbb->GetPhiList())) {
       OriginalSt *ost = func->GetMeSSATab()->GetOriginalStFromID(mapEntry.first);
       CHECK_FATAL(ost, "ost is nullptr");
       if (ost->IsIVCandidate()) {

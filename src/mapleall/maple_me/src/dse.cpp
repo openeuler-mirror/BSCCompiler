@@ -134,7 +134,7 @@ bool DSE::HasNonDeletableExpr(const StmtNode &stmt) const {
     case OP_iassign: {
       auto *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
       auto &mayDefList = ssaPart->GetMayDefNodes();
-      for (auto &mayDefPair : mayDefList) {
+      for (auto &mayDefPair : std::as_const(mayDefList)) {
         if (mayDefPair.second.GetResult()->GetOst()->IsVolatile()) {
           return true;
         }
@@ -144,6 +144,20 @@ bool DSE::HasNonDeletableExpr(const StmtNode &stmt) const {
       return (ty.IsPointedTypeVolatile(node.GetFieldID()) ||
               ExprNonDeletable(ToRef(node.Opnd(0))) ||
               ExprNonDeletable(ToRef(node.GetRHS())));
+    }
+    case OP_intrinsiccall: {
+      auto *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
+      auto &mayDefList = ssaPart->GetMayDefNodes();
+      for (auto &mayDefPair: mayDefList) {
+        if (mayDefPair.second.GetResult()->GetOst()->IsVolatile()) {
+          return true;
+        }
+      }
+      bool opndNonDeletable = false;
+      for (size_t i = 0; i < stmt.NumOpnds(); ++i) {
+        opndNonDeletable |= ExprNonDeletable(ToRef(stmt.Opnd(i)));
+      }
+      return opndNonDeletable;
     }
     default:
       return false;
@@ -155,6 +169,13 @@ bool DSE::StmtMustRequired(const StmtNode &stmt, const BB &bb) const {
   // special opcode stmt cannot be eliminated
   if (IsStmtMustRequire(op)) {
     return true;
+  }
+  // atomic intrinsic call cannot be eliminated
+  if (op == OP_intrinsiccall) {
+    IntrinDesc *intrinDesc = &IntrinDesc::intrinTable[static_cast<const IntrinsiccallNode &>(stmt).GetIntrinsic()];
+    if (intrinDesc->IsAtomic()) {
+      return true;
+    }
   }
 
   // control flow in an infinite loop cannot be eliminated
@@ -458,7 +479,7 @@ void DSE::MarkStmtRequired(const StmtNode &stmt, const BB &bb) {
 }
 
 void DSE::MarkSpecialStmtRequired() {
-  for (auto bIt = bbVec.rbegin(); bIt != bbVec.rend(); ++bIt) {
+  for (auto bIt = bbVec.crbegin(); bIt != bbVec.crend(); ++bIt) {
     auto *bb = *bIt;
     if (bb == nullptr) {
       continue;

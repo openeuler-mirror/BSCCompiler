@@ -75,7 +75,7 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
   auto userDefinedOptLevel = MeOption::optLevel;
   DoPhasesPopulate(m);
   size_t i = 0;
-  for (auto func : compFuncList) {
+  for (auto &func : std::as_const(compFuncList)) {
     ++i;
     ASSERT_NOT_NULL(func);
     if (SkipFuncForMe(*func, i - 1)) {
@@ -142,10 +142,10 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
     m.SetFlavor(kFlavorLmbc);
     GlobalMemLayout globalMemLayout(&m, &m.GetMPAllocator());
     maplebe::BECommon beCommon(m);
-    maplebe::CGLowerer cgLower(m, beCommon, false, false);
+    maplebe::CGLowerer cgLower(m, beCommon, *GetPhaseMemPool(), false, false);
     cgLower.RegisterBuiltIns();
     cgLower.RegisterExternalLibraryFunctions();
-    for (auto func : compFuncList) {
+    for (auto &func : std::as_const(compFuncList)) {
       if (func->GetBody() == nullptr) {
         continue;
       }

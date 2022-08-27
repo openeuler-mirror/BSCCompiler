@@ -28,7 +28,7 @@ void May2Dassign::DoIt() {
       auto &mass = static_cast<MaydassignMeStmt&>(stmt);
       // chiList for Maydassign has only 1 element
       CHECK_FATAL(!mass.GetChiList()->empty(), "chiList is empty in DoIt");
-      VarMeExpr *theLhs = static_cast<VarMeExpr *>(mass.GetChiList()->begin()->second->GetLHS());
+      VarMeExpr *theLhs = static_cast<VarMeExpr *>(mass.GetChiList()->cbegin()->second->GetLHS());
       ASSERT(mass.GetMayDassignSym() == theLhs->GetOst(),
              "MeDoMay2Dassign: cannot find maydassign lhs");
       auto *dass = static_cast<DassignMeStmt*>(irMap->CreateAssignMeStmt(*theLhs, *mass.GetRHS(), *bb));
@@ -42,10 +42,14 @@ void May2Dassign::DoIt() {
   }
 }
 
-AnalysisResult *MeDoMay2Dassign::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  (void)(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
-  May2Dassign may2Dassign(*func);
+void MEMay2Dassign::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.SetPreservedAll();
+}
+
+bool MEMay2Dassign::PhaseRun(maple::MeFunction &f) {
+  May2Dassign may2Dassign(f);
   may2Dassign.DoIt();
-  return nullptr;
+  return true;
 }
 }  // namespace maple

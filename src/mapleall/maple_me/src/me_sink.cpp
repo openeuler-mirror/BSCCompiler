@@ -100,7 +100,7 @@ void MeSink::Init() {
   defStmtsSinkToBottom.resize(func->GetCfg()->NumBBs());
   auto ostNum = func->GetMeSSATab()->GetOriginalStTableSize();
   versionStack.resize(ostNum);
-  defineCnt.insert(defineCnt.end(), ostNum, 0);
+  defineCnt.insert(defineCnt.cend(), ostNum, 0);
   for (size_t ostId = 0; ostId < ostNum; ++ostId) {
     versionStack[ostId] = std::make_unique<std::list<ScalarMeExpr*>>();
     auto *ost = func->GetMeSSATab()->GetOriginalStFromID(OStIdx(ostId));
@@ -130,7 +130,7 @@ void MeSink::AddNewDefinedScalar(ScalarMeExpr *scalar) {
 
   if (scalarHasValidDef.size() <= static_cast<uint32>(scalar->GetExprID())) {
     constexpr uint32 bufferSize = 10;
-    scalarHasValidDef.insert(scalarHasValidDef.end(),
+    scalarHasValidDef.insert(scalarHasValidDef.cend(),
         bufferSize + static_cast<uint32>(scalar->GetExprID()) - scalarHasValidDef.size(), false);
   }
   scalarHasValidDef[static_cast<uint32>(scalar->GetExprID())] = true;
@@ -198,7 +198,7 @@ bool MeSink::OstHasNotBeenDefined(const OriginalSt *ost) {
   if (versions == nullptr || versions->empty()) {
     return true;
   }
-  for (auto *ver : *versions) {
+  for (auto *ver : std::as_const(*versions)) {
     if (ver == nullptr) {
       continue;
     }
@@ -259,7 +259,7 @@ bool MeSink::MergeAssignStmtWithCallAssign(AssignMeStmt *assign, MeStmt *callAss
     auto *chiList = assign->GetChiList();
     if (chiList != nullptr) {
       auto *chiListOfCall = assign->GetChiList();
-      for (auto &ost2chi : *chiList) {
+      for (auto &ost2chi : std::as_const(*chiList)) {
         auto it = chiListOfCall->find(ost2chi.first);
         if (it == chiListOfCall->end()) {
           (void)chiListOfCall->emplace(ost2chi.first, ost2chi.second);
@@ -289,7 +289,7 @@ DefUseInfoOfPhi MeSink::DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::map<ScalarM
     if (useSitesOfOpnd == nullptr) {
       return {false, false, false, false, nullptr};
     }
-    for (const auto &useSite : *useSitesOfOpnd) {
+    for (auto &useSite : std::as_const(*useSitesOfOpnd)) {
       if (!useSite.IsUseByPhi()) {
         defInfo.allOpndsUsedOnlyInPhi = false;
         break;
@@ -434,7 +434,7 @@ bool MeSink::PhiCanBeReplacedWithDataFlowOfScalar(const ScalarMeExpr *scalar, co
   if (domTree->Dominate(*domBBOfDefStmts, *defBBOfTopVer)) {
     return false;
   }
-  for (const auto &scalar2defStmt : defStmtsOfPhiOpnds) {
+  for (auto &scalar2defStmt : std::as_const(defStmtsOfPhiOpnds)) {
     auto *defStmtOfScalar = scalar2defStmt.second;
     auto *bbOfDefStmt = defStmtOfScalar->GetBB();
     if (defBBOfTopVer == bbOfDefStmt || !domTree->Dominate(*defBBOfTopVer, *bbOfDefStmt)) {
@@ -458,7 +458,7 @@ bool MeSink::PhiCanBeReplacedWithDataFlowOfScalar(const ScalarMeExpr *scalar, co
   if (topVer != nullptr) {
     auto *useSitesOfTopVer = useInfoOfExprs->GetUseSitesOfExpr(topVer);
     if (useSitesOfTopVer != nullptr) {
-      for (const auto &useSite : *useSitesOfTopVer) {
+      for (auto &useSite : std::as_const(*useSitesOfTopVer)) {
         if (useSite.IsUseByStmt()) {
           auto *bbOfUseSite = useSite.GetStmt()->GetBB();
           if (domTree->Dominate(*domBBOfDefStmts, *bbOfUseSite)) {
@@ -627,7 +627,7 @@ void MeSink::ProcessStmt(MeStmt *stmt) {
 
   auto *chiList = stmt->GetChiList();
   if (chiList != nullptr) {
-    for (const auto &ost2Chi : *chiList) {
+    for (auto &ost2Chi : std::as_const(*chiList)) {
       AddNewDefinedScalar(ost2Chi.second->GetLHS());
     }
   }
@@ -776,7 +776,7 @@ bool MeSink::ScalarOnlyUsedInCurStmt(const ScalarMeExpr *scalar, const MeStmt *s
     return true;
   }
 
-  for (auto &useItem : *useSitesOfExpr) {
+  for (auto &useItem : std::as_const(*useSitesOfExpr)) {
     if (useItem.IsUseByStmt()) {
       auto *useStmt = useItem.GetStmt();
       if (stmt != useStmt) {
@@ -851,7 +851,7 @@ bool MeSink::MergePhiWithPrevAssign(MePhiNode *phi, BB *bb) {
 
   int domCnt = 0;
   int notDomCnt = 0;
-  for (const auto &scalar2defStmt : defStmts) {
+  for (const auto &scalar2defStmt : std::as_const(defStmts)) {
     if (!domTree->PostDominate(*bb, *scalar2defStmt.second->GetBB())) {
       ++notDomCnt;
     } else {
@@ -1186,12 +1186,12 @@ void MeSink::ProcessPhiList(BB *bb) {
     return;
   }
 
-  for (auto &ost2Phi : phiList) {
+  for (auto &ost2Phi : std::as_const(phiList)) {
     versionStack[ost2Phi.first]->push_front(ost2Phi.second->GetLHS());
     AddNewDefinedScalar(ost2Phi.second->GetLHS());
   }
 
-  for (auto &ost2Phi : phiList) {
+  for (auto &ost2Phi : std::as_const(phiList)) {
     if (!ost2Phi.second->GetIsLive()) {
       continue;
     }
@@ -1213,8 +1213,7 @@ void MeSink::SinkStmtsToHeaderOfBB(BB *bb) {
       return;
     }
 
-    for (auto it = sinkCands->begin(); it != sinkCands->end(); ++it) {
-      auto *defStmt = *it;
+    for (auto &defStmt : std::as_const(*sinkCands)) {
       if (defStmt->GetBB() == bb) {
         continue;
       }
@@ -1283,8 +1282,7 @@ void MeSink::SinkStmtsToBottomOfBB(BB *bb) {
       return;
     }
 
-    for (auto it = sinkCands->begin(); it != sinkCands->end(); ++it) {
-      auto *stmt = *it;
+    for (auto &stmt : std::as_const(*sinkCands)) {
       if (!stmt->GetIsLive()) {
         continue;
       }

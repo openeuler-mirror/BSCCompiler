@@ -302,7 +302,7 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
         newStmt =
             irmap->NewInPool<IntrinsiccallMeStmt>(static_cast<const NaryMeStmt*>(intrnStmt), intrnStmt->GetIntrinsic(),
                                                   intrnStmt->GetTyIdx(), intrnStmt->GetReturnPrimType());
-        for (auto &mu : *intrnStmt->GetMuList()) {
+        for (auto &mu : std::as_const(*intrnStmt->GetMuList())) {
           newStmt->GetMuList()->emplace(mu.first, mu.second);
         }
         destBB.AddMeStmtLast(newStmt);
@@ -315,7 +315,7 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
         auto *icallStmt = static_cast<IcallMeStmt*>(&stmt);
         newStmt = irmap->NewInPool<IcallMeStmt>(static_cast<NaryMeStmt*>(icallStmt),
                                                 icallStmt->GetRetTyIdx(), icallStmt->GetStmtID());
-        for (auto &mu : *icallStmt->GetMuList()) {
+        for (auto &mu : std::as_const(*icallStmt->GetMuList())) {
           newStmt->GetMuList()->emplace(mu.first, mu.second);
         }
         destBB.AddMeStmtLast(newStmt);
@@ -324,7 +324,7 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
       case OP_asm: {
         auto *asmStmt = static_cast<AsmMeStmt*>(&stmt);
         newStmt = irmap->NewInPool<AsmMeStmt>(asmStmt);
-        for (auto &mu : *asmStmt->GetMuList()) {
+        for (auto &mu : std::as_const(*asmStmt->GetMuList())) {
           newStmt->GetMuList()->emplace(mu.first, mu.second);
         }
         destBB.AddMeStmtLast(newStmt);
@@ -339,7 +339,7 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
         auto *callStmt = static_cast<CallMeStmt*>(&stmt);
         newStmt =
             irmap->NewInPool<CallMeStmt>(static_cast<NaryMeStmt*>(callStmt), callStmt->GetPUIdx());
-        for (auto &mu : *callStmt->GetMuList()) {
+        for (auto &mu : std::as_const(*callStmt->GetMuList())) {
           newStmt->GetMuList()->emplace(mu.first, mu.second);
         }
         destBB.AddMeStmtLast(newStmt);
@@ -378,7 +378,7 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
         auto &unaryStmt = static_cast<UnaryMeStmt&>(stmt);
         newStmt = irmap->New<UnaryMeStmt>(static_cast<UnaryMeStmt&>(stmt));
         if (unaryStmt.GetMuList() != nullptr) {
-          for (auto &mu : *unaryStmt.GetMuList()) {
+          for (auto &mu : std::as_const(*unaryStmt.GetMuList())) {
             newStmt->GetMuList()->emplace(mu.first, mu.second);
           }
         }

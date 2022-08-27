@@ -127,7 +127,7 @@ void RCLowering::UpdateRefVarVersions(BB &bb) {
 }
 
 void RCLowering::RecordVarPhiVersions(std::map<OStIdx, size_t> &savedStackSize, const BB &bb) {
-  for (const auto &item : varOStMap) {
+  for (auto &item : std::as_const(varOStMap)) {
     if (!item.second->IsLocal()) {
       continue;
     }
@@ -191,7 +191,7 @@ void RCLowering::TraverseAllStmts(BB &bb) {
 }
 
 void RCLowering::RestoreVersionRecords(std::map<OStIdx, size_t> &savedStackSize) {
-  for (const auto &item : varOStMap) {
+  for (auto &item : std::as_const(varOStMap)) {
     if (!item.second->IsLocal()) {
       continue;
     }
@@ -203,7 +203,7 @@ void RCLowering::RestoreVersionRecords(std::map<OStIdx, size_t> &savedStackSize)
 }
 
 void RCLowering::UnmarkNotNeedDecRefOpnds() {
-  for (auto item : decOpnds) {
+  for (auto &item : std::as_const(decOpnds)) {
     if (item.first->GetLHSRef(false)->GetMeOp() == kMeOpVar) {
       auto *var = static_cast<VarMeExpr*>(item.second);
       OriginalSt *ost = varOStMap[var->GetOstIdx()];
@@ -221,7 +221,7 @@ void RCLowering::CreateCleanupIntrinsics() {
       continue;
     }
     std::vector<MeExpr*> opnds;
-    for (const auto &item : cleanUpVars) {
+    for (auto &item : std::as_const(cleanUpVars)) {
       if (!varOStMap[item.first]->IsLocal() || varOStMap[item.first]->IsFormal()) {
         continue;
       }
@@ -825,7 +825,7 @@ void RCLowering::InitializedObjectFields(MeStmt &stmt) {
     initializedFields.emplace(firstOpnd, std::set<FieldID>());
     const auto *origFieldSet = mirModule.GetPUIdxFieldInitializedMapItem(call.GetPUIdx());
     if (origFieldSet != nullptr) {
-      initializedFields[firstOpnd].insert(origFieldSet->begin(), origFieldSet->end());
+      initializedFields[firstOpnd].insert(origFieldSet->cbegin(), origFieldSet->cend());
     }
   } else {
     for (auto iter : call.GetOpnds()) {
@@ -1448,7 +1448,7 @@ void RCLowering::FastBBLower(BB &bb) {
     }
   }
 
-  for (auto iter : exceptionAllocsites) {
+  for (auto &iter : std::as_const(exceptionAllocsites)) {
     MeStmt *stmt = iter.second;
     AssignMeStmt *backup = irMap.CreateAssignMeStmt(*CreateNewTmpVarMeExpr(true), *stmt->GetLHS(), *stmt->GetBB());
     stmt->GetBB()->InsertMeStmtAfter(stmt, backup);
@@ -1466,7 +1466,7 @@ void RCLowering::FastLowerThrowStmt(MeStmt &stmt, MapleMap<uint32, MeStmt*> &exc
   if (throwVal->GetMeOp() == kMeOpVar) {
     auto *var = static_cast<VarMeExpr*>(throwVal);
     auto iter = exceptionAllocsites.find(var->GetVstIdx());
-    if (iter != exceptionAllocsites.end()) {
+    if (iter != exceptionAllocsites.cend()) {
       exceptionAllocsites.erase(iter);
     }
   }

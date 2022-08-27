@@ -161,8 +161,8 @@ void MeLowerGlobals::Run() {
         chiNode->SetRHS(static_cast<ScalarMeExpr*>(zeroVersionVar));
         iass->GetChiList()->insert(std::make_pair(ost->GetIndex(), chiNode));
         auto chiList = dass.GetChiList();
-        iass->GetChiList()->insert(chiList->begin(), chiList->end());
-        for (auto &ostIdx2ChiNode : *iass->GetChiList()) {
+        iass->GetChiList()->insert(chiList->cbegin(), chiList->cend());
+        for (auto &ostIdx2ChiNode : std::as_const(*iass->GetChiList())) {
           auto *chi = ostIdx2ChiNode.second;
           chi->SetBase(iass);
         }
@@ -197,8 +197,8 @@ void MeLowerGlobals::Run() {
         for (MeExpr *o : callStmt.GetOpnds()) {
           icallStmt->PushBackOpnd(o);
         }
-        icallStmt->GetMuList()->insert(callStmt.GetMuList()->begin(), callStmt.GetMuList()->end());
-        icallStmt->GetChiList()->insert(callStmt.GetChiList()->begin(), callStmt.GetChiList()->end());
+        icallStmt->GetMuList()->insert(callStmt.GetMuList()->cbegin(), callStmt.GetMuList()->cend());
+        icallStmt->GetChiList()->insert(callStmt.GetChiList()->cbegin(), callStmt.GetChiList()->cend());
         if (func.GetMIRModule().IsCModule()) {
           icallStmt->SetRetTyIdx(callee.GetMIRFuncType()->GetTypeIndex());
         } else {

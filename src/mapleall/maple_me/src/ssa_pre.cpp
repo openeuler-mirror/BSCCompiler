@@ -193,7 +193,7 @@ void SSAPre::UpdateInsertedPhiOccOpnd() {
             OriginalSt *ost = curLocalRefVar->GetOst();
             localRefVarOpnd = irMap->GetOrCreateZeroVersionVarMeExpr(*ost);
           } else {
-            MapleMap<RegMeExpr*, VarMeExpr*>::const_iterator mapIt = temp2LocalRefVarMap.find(regOpnd);
+            auto mapIt = temp2LocalRefVarMap.find(regOpnd);
             if (mapIt == temp2LocalRefVarMap.end()) {
               CHECK_FATAL(curLocalRefVar != nullptr, "null ptr check");
               OriginalSt *ost = curLocalRefVar->GetOst();

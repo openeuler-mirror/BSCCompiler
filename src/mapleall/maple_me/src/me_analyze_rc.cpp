@@ -165,7 +165,7 @@ void AnalyzeRC::IdentifyRCStmts() {
             ivarMeExpr.SetBase(lhsIvar->GetBase());
             // form mu from chiList
             auto &iass = static_cast<IassignMeStmt&>(stmt);
-            MapleMap<OStIdx, ChiMeNode*>::iterator xit = iass.GetChiList()->begin();
+            auto xit = iass.GetChiList()->cbegin();
             for (; xit != iass.GetChiList()->end(); ++xit) {
               ChiMeNode *chi = xit->second;
               if (chi->GetRHS()->GetOst() == ost) {
@@ -200,7 +200,7 @@ void AnalyzeRC::CreateCleanupIntrinsics() {
       continue;
     }
     std::vector<MeExpr*> opnds;
-    for (const auto &mapItem : rcItemsMap) {
+    for (auto &mapItem : std::as_const(rcItemsMap)) {
       RCItem *rcItem = mapItem.second;
       if (rcItem->nonLocal || rcItem->isFormal) {
         continue;
@@ -240,7 +240,7 @@ void AnalyzeRC::RenameRefPtrs(BB *bb) {
   }
   std::map<RCItem*, size_t> savedStacksize;  // to record stack size
   // in each RCItem for stack pop-ups
-  for (const auto &mapItem : rcItemsMap) {
+  for (const auto &mapItem : std::as_const(rcItemsMap)) {
     RCItem *rcItem = mapItem.second;
     if (rcItem->nonLocal) {
       continue;
@@ -262,7 +262,7 @@ void AnalyzeRC::RenameRefPtrs(BB *bb) {
     RenameRefPtrs(cfg->GetAllBBs().at(childBBId));
   }
   // restore the stacks to their size at entry to this function invocation
-  for (const auto &mapItem : rcItemsMap) {
+  for (auto &mapItem : std::as_const(rcItemsMap)) {
     RCItem *rcItem = mapItem.second;
     if (rcItem->nonLocal) {
       continue;

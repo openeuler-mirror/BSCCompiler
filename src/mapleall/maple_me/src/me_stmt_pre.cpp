@@ -69,7 +69,7 @@ void MeStmtPre::CodeMotion() {
           }
           auto *chiList = realOcc->GetMeStmt()->GetChiList();
           if (chiList != nullptr) {
-            for (const auto &ostIdx2Chi : *chiList) {
+            for (auto &ostIdx2Chi : std::as_const(*chiList)) {
               OStIdx ostIdx = ostIdx2Chi.first;
               if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
                 candsForSSAUpdate.emplace(ostIdx, std::make_unique<std::set<BBId>>(std::less<BBId>()));
@@ -593,7 +593,7 @@ void MeStmtPre::CreateSortedOccs() {
        stmtWkCand->GetTheMeStmt()->GetVarLHS() != nullptr && !stmtWkCand->LHSIsFinal()) {
     VarMeExpr *lhsVar = static_cast<VarMeExpr*>(stmtWkCand->GetTheMeStmt()->GetVarLHS());
     OStIdx ostIdx = lhsVar->GetOstIdx();
-    MapleMap<OStIdx, MapleSet<uint32>*>::iterator uMapIt = useOccurMap.find(ostIdx);
+    auto uMapIt = useOccurMap.find(ostIdx);
     CHECK_FATAL(uMapIt != useOccurMap.end(), "MeStmtPre::CreateSortedOccs: missing entry in useOccurMap");
     useDfns = uMapIt->second;
   } else {
@@ -601,7 +601,7 @@ void MeStmtPre::CreateSortedOccs() {
     useDfns = perCandMemPool->New<MapleSet<uint32>>(perCandAllocator.Adapter());
   }
   // merge varPhiDfns to dfPhiDfns
-  dfPhiDfns.insert(varPhiDfns.begin(), varPhiDfns.end());
+  dfPhiDfns.insert(varPhiDfns.cbegin(), varPhiDfns.cend());
   // form phiopnd_dfns
   std::multiset<uint32> phiOpndDfns;
   for (uint32 dfn : dfPhiDfns) {
@@ -782,7 +782,7 @@ void MeStmtPre::ConstructUseOccurMapExpr(uint32 bbDfn, const MeExpr &meExpr) {
 }
 
 void MeStmtPre::ConstructUseOccurMap() {
-  for (PreWorkCand *wkCand : workList) {
+  for (PreWorkCand *wkCand : std::as_const(workList)) {
     auto *stmtWkCand = static_cast<PreStmtWorkCand*>(wkCand);
     if (stmtWkCand->GetTheMeStmt()->GetOp() != OP_dassign && stmtWkCand->GetTheMeStmt()->GetOp() != OP_callassigned) {
       continue;
@@ -888,8 +888,8 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
   }
   // traverse var phi nodes to update versionStack
   MapleMap<OStIdx, MePhiNode*> &mePhiList = bb->GetMePhiList();
-  for (auto it = mePhiList.begin(); it != mePhiList.end(); ++it) {
-    MePhiNode *phiMeNode = it->second;
+  for (auto &it : std::as_const(mePhiList)) {
+    MePhiNode *phiMeNode = it.second;
     const OriginalSt *ost = phiMeNode->GetLHS()->GetOst();
     if (!ost->IsSymbolOst() || ost->GetIndirectLev() != 0) {
       continue;
@@ -1188,7 +1188,7 @@ void MeStmtPre::RemoveUnnecessaryAssign(MeStmt &meStmt) {
   if (chiList == nullptr) {
     return;
   }
-  for (auto &chi : *chiList) {
+  for (auto &chi : std::as_const(*chiList)) {
     MeSSAUpdate::InsertOstToSSACands(chi.first, *bb, &candsForSSAUpdate);
   }
 }

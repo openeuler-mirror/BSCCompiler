@@ -527,7 +527,7 @@ void MeSSUPre::ApplySSUPre() {
     LogInfo::MapleLogger() << "------ worklist initial size " << workCandMap.size() << '\n';
   }
   int32 candNum = 0;
-  for (std::pair<OStIdx, SpreWorkCand*> wkCandPair : workCandMap) {
+  for (auto &wkCandPair : std::as_const(workCandMap)) {
     if (preKind == kStorePre) {
       if (!wkCandPair.second->GetHasStoreOcc()) {
         continue;

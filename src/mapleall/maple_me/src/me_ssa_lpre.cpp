@@ -66,8 +66,8 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     // create new dassign for original lhs
     MeStmt *newDassign = irMap->CreateAssignMeStmt(*theLHS, *regOrVar, *savedBB);
     auto *oldChiList = realOcc.GetMeStmt()->GetChiList();
-    newDassign->GetChiList()->insert(oldChiList->begin(), oldChiList->end());
-    for (auto &ostIdx2ChiNode : *newDassign->GetChiList()) {
+    newDassign->GetChiList()->insert(oldChiList->cbegin(), oldChiList->cend());
+    for (auto &ostIdx2ChiNode : std::as_const(*newDassign->GetChiList())) {
       auto *chiNode = ostIdx2ChiNode.second;
       chiNode->SetBase(newDassign);
     }
@@ -306,7 +306,7 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
 void MeSSALPre::CreateMembarOccAtCatch(BB &bb) {
   // go thru all workcands and insert a membar occurrence for each of them
   uint32 cnt = 0;
-  for (PreWorkCand *wkCand : workList) {
+  for (PreWorkCand *wkCand : std::as_const(workList)) {
     ++cnt;
     if (cnt > preLimit) {
       break;

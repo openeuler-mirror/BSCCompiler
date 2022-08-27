@@ -661,7 +661,7 @@ void PlacementRC::CreatePhiOcc(const OStIdx &ostIdx, BB &bb, MePhiNode &phi, Var
 // Create a new real occurrence for the def of a localrefvar
 void PlacementRC::CreateRealOcc(const OStIdx &ostIdx, MeStmt *meStmt, VarMeExpr &var, bool causedByDef) {
   SpreWorkCand *wkCand = nullptr;
-  MapleMap<OStIdx, SpreWorkCand*>::iterator mapIt = workCandMap.find(ostIdx);
+  auto mapIt = workCandMap.find(ostIdx);
   if (mapIt != workCandMap.end()) {
     wkCand = mapIt->second;
   } else {
@@ -851,7 +851,7 @@ void PlacementRC::BuildWorkListBB(BB *bb) {
 
   TraverseStatementsBackwards(*bb);
 
-  for (auto it = bb->GetMePhiList().rbegin(); it != bb->GetMePhiList().rend(); ++it) {
+  for (auto it = bb->GetMePhiList().crbegin(); it != bb->GetMePhiList().crend(); ++it) {
     MePhiNode *phi = it->second;
     if (!phi->GetIsLive()) {
       continue;

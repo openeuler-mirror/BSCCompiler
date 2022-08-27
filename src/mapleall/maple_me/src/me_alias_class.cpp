@@ -34,6 +34,7 @@ bool MeAliasClass::HasWriteToStaticFinal() const {
         const auto &dassignNode = static_cast<const DassignNode&>(stmt);
         if (dassignNode.GetStIdx().IsGlobal()) {
           const MIRSymbol *sym = mirModule.CurFunction()->GetLocalOrGlobalSymbol(dassignNode.GetStIdx());
+          ASSERT_NOT_NULL(sym);
           if (sym->IsFinal()) {
             return true;
           }
@@ -70,7 +71,7 @@ void MeAliasClass::PerformTBAAForC() {
           if (newAliasSet == nullptr) {
             newAliasSet =
                 GetMapleAllocator().GetMemPool()->New<AliasSet>(GetMapleAllocator().Adapter());
-            newAliasSet->insert(oldAliasSet->begin(), oldAliasSet->end());
+            newAliasSet->insert(oldAliasSet->cbegin(), oldAliasSet->cend());
           }
           newAliasSet->erase(aliasedOstIdx);
         }
@@ -114,7 +115,7 @@ void MeAliasClass::PerformDemandDrivenAliasAnalysis() {
           if (newAliasSet == nullptr) {
             newAliasSet =
                 GetMapleAllocator().GetMemPool()->New<AliasSet>(GetMapleAllocator().Adapter());
-            newAliasSet->insert(oldAliasSet->begin(), oldAliasSet->end());
+            newAliasSet->insert(oldAliasSet->cbegin(), oldAliasSet->cend());
           }
           newAliasSet->erase(aliasedOstIdx);
         }

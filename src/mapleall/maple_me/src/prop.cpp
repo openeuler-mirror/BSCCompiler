@@ -764,7 +764,7 @@ MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
       return varMeExpr;
     }
     MapleVector<ScalarMeExpr *> opndsVec = defPhi.GetOpnds();
-    for (auto it = opndsVec.rbegin() + 1; it != opndsVec.rend(); ++it) {
+    for (auto it = opndsVec.crbegin() + 1; it != opndsVec.crend(); ++it) {
       VarMeExpr *phiOpnd = static_cast<VarMeExpr*>(*it);
       MeExpr &opndProp = PropVar(utils::ToRef(phiOpnd), atParm, false);
       if (&opndProp != opndLastProp) {
@@ -1240,7 +1240,7 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
               ivarStmt.GetBB()->InsertMeStmtBefore(&ivarStmt, newDassign);
               ivarStmt.GetBB()->RemoveMeStmt(&ivarStmt);
               lhsExpr->SetDefStmt(nullptr);
-              for (auto &ostIdx2Chi : *newDassign->GetChiList()) {
+              for (auto &ostIdx2Chi : std::as_const(*newDassign->GetChiList())) {
                 auto chi = ostIdx2Chi.second;
                 chi->SetBase(newDassign);
               }
@@ -1360,8 +1360,8 @@ void Prop::TraversalBB(BB &bb) {
   GrowVstLiveStack();
 
   // update var phi nodes
-  for (auto it = bb.GetMePhiList().begin(); it != bb.GetMePhiList().end(); ++it) {
-    PropUpdateDef(utils::ToRef(it->second->GetLHS()));
+  for (auto &it : std::as_const(bb.GetMePhiList())) {
+    PropUpdateDef(utils::ToRef(it.second->GetLHS()));
   }
 
   // traversal on stmt
@@ -1370,8 +1370,7 @@ void Prop::TraversalBB(BB &bb) {
   }
 
   auto &domChildren = dom.GetDomChildren(bb.GetBBId());
-  for (auto it = domChildren.begin(); it != domChildren.end(); ++it) {
-    BBId childbbid = *it;
+  for (auto &childbbid : std::as_const(domChildren)) {
     TraversalBB(*GetBB(childbbid));
   }
   // every vstLiveStack pop one layer to recover as before when entering BB.

@@ -458,7 +458,7 @@ void SSARename2Preg::CollectDefUseInfoOfOst() {
 
       auto *chiList = stmt.GetChiList();
       if (chiList != nullptr) {
-        for (const auto &chi : *chiList) {
+        for (auto &chi : std::as_const(*chiList)) {
           ostDefedByChi[chi.first] = true;
         }
       }
@@ -487,8 +487,8 @@ void SSARename2Preg::RunSelf() {
     }
     MapleMap<OStIdx, MePhiNode *> &phiList = mebb->GetMePhiList();
     MapleMap<OStIdx, MePhiNode *> regPhiList(func->GetIRMap()->GetIRMapAlloc().Adapter());
-    auto phiListIt = phiList.begin();
-    while (phiListIt != phiList.end()) {
+    auto phiListIt = phiList.cbegin();
+    while (phiListIt != phiList.cend()) {
       if (phiListIt->second->UseReg()) {
         ++phiListIt;
         continue;
@@ -500,7 +500,7 @@ void SSARename2Preg::RunSelf() {
       phiListIt->second->SetIsLive(false);
       phiListIt = phiList.erase(phiListIt);
     }
-    phiList.insert(regPhiList.begin(), regPhiList.end());
+    phiList.insert(regPhiList.cbegin(), regPhiList.cend());
 
     if (DEBUGFUNC(func)) {
       LogInfo::MapleLogger() << " working on stmt part of BB" << mebb->GetBBId() << std::endl;

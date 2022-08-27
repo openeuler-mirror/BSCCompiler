@@ -49,7 +49,7 @@ ScalarMeExpr *SSAEPre::FindScalarVersion(ScalarMeExpr *scalar, MeStmt *stmt) con
     }
     // check if there is phi
     MapleMap<OStIdx, MePhiNode*> &mePhiList = bb->GetMePhiList();
-    MapleMap<OStIdx, MePhiNode*>::const_iterator it = mePhiList.find(scalar->GetOst()->GetIndex());
+    auto it = mePhiList.find(scalar->GetOst()->GetIndex());
     if (it != mePhiList.cend()) {
       return it->second->GetLHS();
     }

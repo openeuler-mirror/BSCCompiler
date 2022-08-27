@@ -12,6 +12,7 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v1 for more details.
  */
+#include "triple.h"
 #include "simplify.h"
 #include <functional>
 #include <initializer_list>
@@ -632,33 +633,30 @@ MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst *mirCon
   MIRConst *resultConst = nullptr;
   auto originAggConst = static_cast<MIRAggConst *>(mirConst);
   auto originAggType = static_cast<MIRStructType &>(originAggConst->GetType());
-  bool hasReached = false;
+  bool reached = false;
   bool isUpperLayerUnion = false;
   std::function<void(MIRConst *)> traverseAgg = [&] (MIRConst *currConst) {
     if (isUpperLayerUnion && (!currConst || currConst->GetKind() != kConstAggConst)) {
-      if (currFieldId == fieldId) {
-        resultConst = currConst;
-        return;
-      }
-      auto fieldPrimType = originAggType.GetFieldType(fieldId)->GetPrimType();
-      auto resultPrimType = IsPrimitiveInteger(fieldPrimType) ? fieldPrimType :
-          GetPrimTypeBitSize(fieldPrimType) > k32BitSize ? PTY_u64 : PTY_u32;
-      auto *resultType = GlobalTables::GetTypeTable().GetPrimType(resultPrimType);
-      resultConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *resultType);
+      reached = currFieldId == fieldId;
+      resultConst = reached ? currConst : resultConst;
       return;
     }
     auto *currAggConst = safe_cast<MIRAggConst>(currConst);
     ASSERT_NOT_NULL(currAggConst);
     auto *currAggType = safe_cast<MIRStructType>(currAggConst->GetType());
     ASSERT_NOT_NULL(currAggType);
-    for (unsigned iter = 0; iter < currAggType->GetFieldsSize() && !hasReached; ++iter) {
-      unsigned constIdx = currAggType->GetKind() == kTypeUnion ? 1 : iter + 1;
+    for (size_t iter = 0; iter < currAggType->GetFieldsSize() && !reached; ++iter) {
+      size_t constIdx = currAggType->GetKind() == kTypeUnion ? 1 : iter + 1;
       auto *fieldConst = currAggConst->GetAggConstElement(constIdx);
       auto *fieldType = originAggType.GetFieldType(currFieldId);
 
       if (currFieldId == fieldId) {
-        resultConst = TruncateUnionConstant(*currAggType, fieldConst, *fieldType);
-        hasReached = true;
+        if (auto *truncCst = TruncateUnionConstant(*currAggType, fieldConst, *fieldType)) {
+          resultConst = truncCst;
+        } else {
+          resultConst = TruncateUnionConstant(*currAggType, fieldConst, *fieldType);
+        }
+        reached = true;
         return;
       }
 
@@ -672,7 +670,13 @@ MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst *mirCon
     }
   };
   traverseAgg(mirConst);
-  CHECK_FATAL(hasReached, "const not found");
+  if (!reached) {
+    auto fieldPrimType = originAggType.GetFieldType(fieldId)->GetPrimType();
+    auto resultPrimType = IsPrimitiveInteger(fieldPrimType) ? fieldPrimType :
+        GetPrimTypeBitSize(fieldPrimType) > k32BitSize ? PTY_u64 : PTY_u32;
+    auto *resultType = GlobalTables::GetTypeTable().GetPrimType(resultPrimType);
+    resultConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *resultType);
+  }
   return resultConst;
 }
 
@@ -752,7 +756,7 @@ static void SplitMemoryIntoBlocks(size_t totalMemorySize, std::vector<uint32> &b
   size_t curBlockSize = kMaxMemoryBlockSizeToAssign;  // max block size in byte
   while (curBlockSize > 0) {
     size_t n = leftSize / curBlockSize;
-    blocks.insert(blocks.end(), n, curBlockSize);
+    blocks.insert(blocks.cend(), n, curBlockSize);
     leftSize -= (n * curBlockSize);
     curBlockSize = curBlockSize >> 1;
   }

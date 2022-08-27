@@ -27,7 +27,7 @@ void MeExprUseInfo::AddUseSiteOfExpr(MeExpr *expr, T *useSite) {
   auto uintExprID = static_cast<uint32>(expr->GetExprID());
   if (useSites->size() <= uintExprID) {
     constexpr uint32 bufferSize = 50;
-    useSites->insert(useSites->end(), uintExprID + bufferSize, {nullptr, nullptr});
+    useSites->insert(useSites->cend(), uintExprID + bufferSize, {nullptr, nullptr});
   }
   if ((*useSites)[uintExprID].second == nullptr) {
     auto *newList = allocator.New<MapleList<UseItem>>(allocator.Adapter());
@@ -94,7 +94,7 @@ void MeExprUseInfo::CollectUseInfoInStmt(MeStmt *stmt) {
 
   auto *muList = stmt->GetMuList();
   if (muList != nullptr) {
-    for (const auto &ost2mu : *muList) {
+    for (auto &ost2mu : std::as_const(*muList)) {
       AddUseSiteOfExpr(ost2mu.second, stmt);
     }
   }
@@ -106,7 +106,7 @@ void MeExprUseInfo::CollectUseInfoInBB(BB *bb) {
   }
 
   auto &phiList = bb->GetMePhiList();
-  for (const auto &ost2phi : phiList) {
+  for (auto &ost2phi : std::as_const(phiList)) {
     auto *phi = ost2phi.second;
     if (!phi->GetIsLive()) {
       continue;

@@ -48,7 +48,7 @@ void VectorVersionStacks::InsertZeroVersion2RenameStack(SSATab &ssaTab, IRMap &i
 }
 
 void MapVersionStacks::InsertZeroVersion2RenameStack(SSATab &ssaTab, IRMap &irMap) {
-  for (auto &renameWithMapStack : renameWithMapStacks) {
+  for (auto &renameWithMapStack : std::as_const(renameWithMapStacks)) {
     OriginalSt *ost = ssaTab.GetOriginalStFromID(renameWithMapStack.first);
     ScalarMeExpr *zeroVersScalar =
         (ost->IsSymbolOst()) ? irMap.GetOrCreateZeroVersionVarMeExpr(*ost) : irMap.CreateRegMeExprVersion(*ost);
@@ -80,7 +80,7 @@ void VectorVersionStacks::RecordCurrentStackSize(std::vector<std::pair<uint32, O
 void MapVersionStacks::RecordCurrentStackSize(std::vector<std::pair<uint32, OStIdx >> &origStackSize) {
   origStackSize.resize(renameWithMapStacks.size());
   uint32 stackId = 0;
-  for (const auto &ost2stack : renameWithMapStacks) {
+  for (auto &ost2stack : std::as_const(renameWithMapStacks)) {
     origStackSize[stackId] = std::make_pair(ost2stack.second->size(), ost2stack.first);
     ++stackId;
   }
@@ -99,7 +99,7 @@ void VectorVersionStacks::RecoverStackSize(std::vector<std::pair<uint32, OStIdx 
 
 void MapVersionStacks::RecoverStackSize(std::vector<std::pair<uint32, OStIdx >> &origStackSize) {
   uint32 stackId = 0;
-  for (const auto &ost2stack : renameWithMapStacks) {
+  for (auto &ost2stack : std::as_const(renameWithMapStacks)) {
     ASSERT(ost2stack.first == origStackSize[stackId].second,
            "OStIdx must be equal, element of renameWithMapStacks should not be changed");
     while (ost2stack.second->size() > origStackSize[stackId].first) {
@@ -120,7 +120,7 @@ void MeSSAUpdate::InsertPhis() {
     }
     dfSet.clear();
     for (const auto &bbId : *it->second) {
-      dfSet.insert(dom.iterDomFrontier[bbId].begin(), dom.iterDomFrontier[bbId].end());
+      dfSet.insert(dom.iterDomFrontier[bbId].cbegin(), dom.iterDomFrontier[bbId].cend());
     }
     for (const auto &bbId : dfSet) {
       // insert a phi node
@@ -270,7 +270,7 @@ void MeSSAUpdate::RenameStmts(BB &bb) {
     // process mayDef
     MapleMap<OStIdx, ChiMeNode*> *chiList = stmt.GetChiList();
     if (chiList != nullptr) {
-      for (auto &chi : *chiList) {
+      for (auto &chi : std::as_const(*chiList)) {
         auto *renameStack = rename->GetRenameStack(chi.first);
         if (renameStack != nullptr && chi.second != nullptr) {
           chi.second->SetRHS(renameStack->top());
@@ -309,7 +309,7 @@ void MeSSAUpdate::RenamePhiOpndsInSucc(const BB &bb) {
     }
     auto predIdx = static_cast<size_t>(succ->GetPredIndex(bb));
     CHECK_FATAL(predIdx < succ->GetPred().size(), "RenamePhiOpndsinSucc: cannot find corresponding pred");
-    for (auto &pair : succ->GetMePhiList()) {
+    for (auto &pair : std::as_const(succ->GetMePhiList())) {
       auto *renameStack = rename->GetRenameStack(pair.first);
       if (renameStack == nullptr) {
         continue;
@@ -361,7 +361,7 @@ void MeSSAUpdate::InsertOstToSSACands(OStIdx ostIdx, const BB &defBB,
 void MeSSAUpdate::InsertDefPointsOfBBToSSACands(
     BB &defBB, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &ssaCands, const OStIdx updateSSAExceptTheOstIdx) {
   // Insert the ost of philist to defBB.
-  for (auto &it : defBB.GetMePhiList()) {
+  for (auto &it : std::as_const(defBB.GetMePhiList())) {
     if (it.first == updateSSAExceptTheOstIdx) {
       continue;
     }
@@ -376,7 +376,7 @@ void MeSSAUpdate::InsertDefPointsOfBBToSSACands(
       MeSSAUpdate::InsertOstToSSACands(meStmt.GetLHS()->GetOstIdx(), defBB, &ssaCands);
     }
     if (meStmt.GetChiList() != nullptr) {
-      for (auto &chi : *meStmt.GetChiList()) {
+      for (auto &chi : std::as_const(*meStmt.GetChiList())) {
         auto *lhs = chi.second->GetLHS();
         const OStIdx &ostIdx = lhs->GetOstIdx();
         MeSSAUpdate::InsertOstToSSACands(ostIdx, defBB, &ssaCands);

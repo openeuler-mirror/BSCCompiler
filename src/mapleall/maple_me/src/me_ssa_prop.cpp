@@ -122,7 +122,7 @@ StmtNode *SSAProp::SimplifyIassignAddrof(IassignNode *iassign, BB *bb) const {
     // copy other item of original may def list.
     TypeOfMayDefList &newMayDefList = ssaPart.GetMayDefNodesOf(*dassign);
     ASSERT(newMayDefList.empty(), "A new iassign should not be set maydef list before");
-    newMayDefList.insert(oldMayDefList.begin(), oldMayDefList.end());
+    newMayDefList.insert(oldMayDefList.cbegin(), oldMayDefList.cend());
     newMayDefList.erase(newOst->GetIndex());
     // note: should update maydefNode's def info, otherwise it will be associated with old stmt.
     std::for_each(newMayDefList.begin(), newMayDefList.end(), [dassign](std::pair<const OStIdx, MayDefNode> &item) {
@@ -259,7 +259,7 @@ BaseNode *SSAProp::PropPhi(PhiNode *phi) {
   if (opndLastProp == nullptr) {
     return nullptr;
   }
-  for (auto it = phiOpnds.rbegin() + 1; it != phiOpnds.rend(); ++it) {
+  for (auto it = phiOpnds.crbegin() + 1; it != phiOpnds.crend(); ++it) {
     BaseNode *opnd = PropVst(*it, false);
     if (!IsSameContent(opnd, opndLastProp, true)) {
       return nullptr;

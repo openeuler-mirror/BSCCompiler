@@ -136,7 +136,7 @@ bool InequalityGraph::HasNode(int64 value) const {
 void InequalityGraph::ConnectTrivalEdge() {
   int64 prevValue = 0;
   ESSABaseNode* prevNode = nullptr;
-  for (auto &pair : constNodes) {
+  for (auto &pair : std::as_const(constNodes)) {
     int64 value = pair.first;
     ESSABaseNode* node = pair.second.get();
     if (prevNode == nullptr) {

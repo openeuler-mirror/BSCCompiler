@@ -13,13 +13,15 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_loop_unrolling.h"
-#include <iostream>
+
 #include <algorithm>
+#include <iostream>
+
 #include "me_cfg.h"
 #include "me_option.h"
-#include "mir_module.h"
-#include "mir_builder.h"
 #include "me_phase_manager.h"
+#include "mir_builder.h"
+#include "mir_module.h"
 
 namespace maple {
 bool LoopUnrollingExecutor::enableDebug = false;
@@ -36,13 +38,15 @@ bool ProfileCheck(const maple::MeFunction &f) {
   auto &profile = f.GetMIRModule().GetProfile();
   if (!profile.IsValid()) {
     if (LoopUnrollingExecutor::enableDebug) {
-      LogInfo::MapleLogger() << "DeCompress failed in loopUnrolling" << "\n";
+      LogInfo::MapleLogger() << "DeCompress failed in loopUnrolling"
+                             << "\n";
     }
     return false;
   }
   if (!profile.CheckFuncHot(f.GetName())) {
     if (LoopUnrollingExecutor::enableDebug) {
-      LogInfo::MapleLogger() << "func is not hot" << "\n";
+      LogInfo::MapleLogger() << "func is not hot"
+                             << "\n";
     }
     return false;
   }
@@ -69,12 +73,12 @@ void LoopUnrolling::ComputeCodeSize(const MeStmt &meStmt, uint32 &cost) {
     case OP_brfalse:
     case OP_brtrue:
     case OP_maydassign:
-    CASE_OP_ASSERT_BOUNDARY {
-      cost += kTwoInsn;
-      break;
-    }
+      CASE_OP_ASSERT_BOUNDARY {
+        cost += kTwoInsn;
+        break;
+      }
     case OP_iassign:
-    CASE_OP_ASSERT_NONNULL
+      CASE_OP_ASSERT_NONNULL
     case OP_membaracquire: {
       cost += kThreeInsn;
       break;
@@ -99,7 +103,7 @@ void LoopUnrolling::ComputeCodeSize(const MeStmt &meStmt, uint32 &cost) {
     }
     default:
       if (LoopUnrollingExecutor::enableDebug) {
-        LogInfo::MapleLogger() << "consider this op :"<< meStmt.GetOp() << "\n";
+        LogInfo::MapleLogger() << "consider this op :" << meStmt.GetOp() << "\n";
       }
       canUnroll = false;
       break;
@@ -126,7 +130,7 @@ void LoopUnrolling::SetLabelWithCondGotoOrGotoBB(BB &bb, std::unordered_map<BB*,
     }
     bool inLastNew2OldBB = false;
     if (old2NewBB.find(succ) == old2NewBB.end()) {
-      for (auto it : lastNew2OldBB) {
+      for (auto &it : std::as_const(lastNew2OldBB)) {
         if (it.second == succ) {
           inLastNew2OldBB = true;
           break;
@@ -152,8 +156,8 @@ void LoopUnrolling::SetLabelWithCondGotoOrGotoBB(BB &bb, std::unordered_map<BB*,
 }
 
 // When loop unroll times is two, use this function to update the preds and succs of the duplicate loopbody.
-void LoopUnrolling::ResetOldLabel2NewLabel(std::unordered_map<BB*, BB*> &old2NewBB, BB &bb,
-                                           const BB &exitBB, BB &newHeadBB) {
+void LoopUnrolling::ResetOldLabel2NewLabel(std::unordered_map<BB*, BB*> &old2NewBB, BB &bb, const BB &exitBB,
+                                           BB &newHeadBB) {
   if (bb.GetKind() == kBBCondGoto) {
     CHECK_FATAL(!bb.GetMeStmts().empty(), "must not be empty");
     CondGotoMeStmt &condGotoNode = static_cast<CondGotoMeStmt&>(bb.GetMeStmts().back());
@@ -174,8 +178,8 @@ void LoopUnrolling::ResetOldLabel2NewLabel(std::unordered_map<BB*, BB*> &old2New
 }
 
 // When loop unroll times more than two, use this function to update the preds and succs of duplicate loopbodys.
-void LoopUnrolling::ResetOldLabel2NewLabel2(std::unordered_map<BB*, BB*> &old2NewBB, BB &bb,
-                                            const BB &exitBB, BB &newHeadBB) {
+void LoopUnrolling::ResetOldLabel2NewLabel2(std::unordered_map<BB*, BB*> &old2NewBB, BB &bb, const BB &exitBB,
+                                            BB &newHeadBB) {
   if (bb.GetKind() == kBBCondGoto) {
     CHECK_FATAL(!bb.GetMeStmts().empty(), "must not be empty");
     CondGotoMeStmt &condGotoNode = static_cast<CondGotoMeStmt&>(bb.GetMeStmts().back());
@@ -194,23 +198,22 @@ void LoopUnrolling::ResetOldLabel2NewLabel2(std::unordered_map<BB*, BB*> &old2Ne
   }
 }
 
-void LoopUnrolling::ResetFrequency(const BB &curBB, const BB &succ, const BB &exitBB,
-                                   BB &curCopyBB, bool copyAllLoop) {
+void LoopUnrolling::ResetFrequency(const BB &curBB, const BB &succ, const BB &exitBB, BB &curCopyBB, bool copyAllLoop) {
   if (resetFreqForUnrollWithVar && copyAllLoop) {
     if (&curBB == &exitBB && &succ == *loop->inloopBB2exitBBs.begin()->second->begin()) {
       curCopyBB.PushBackSuccFreq(loop->head->GetFrequency() % replicatedLoopNum == 0 ? 0 : 1);
     }
     if ((&curBB == loop->latch && &succ == loop->head) || (&curBB == &exitBB && &succ == loop->latch)) {
-      curCopyBB.PushBackSuccFreq(loop->head->GetFrequency() % replicatedLoopNum == 0 ? 0 :
-          loop->head->GetFrequency() % replicatedLoopNum - 1);
+      curCopyBB.PushBackSuccFreq(
+          loop->head->GetFrequency() % replicatedLoopNum == 0 ? 0 : loop->head->GetFrequency() % replicatedLoopNum - 1);
     } else {
       curCopyBB.PushBackSuccFreq(curBB.GetEdgeFreq(&succ) % replicatedLoopNum);
     }
   } else {
-    profValid && resetFreqForAfterInsertGoto ?
-        curCopyBB.PushBackSuccFreq(curBB.GetEdgeFreq(&succ) - 1 == 0 ? curBB.GetEdgeFreq(&succ) :
-            curBB.GetEdgeFreq(&succ) - 1) :
-        curCopyBB.PushBackSuccFreq(curBB.GetEdgeFreq(&succ));
+    profValid &&resetFreqForAfterInsertGoto
+        ? curCopyBB.PushBackSuccFreq(curBB.GetEdgeFreq(&succ) - 1 == 0 ? curBB.GetEdgeFreq(&succ)
+                                                                       : curBB.GetEdgeFreq(&succ) - 1)
+        : curCopyBB.PushBackSuccFreq(curBB.GetEdgeFreq(&succ));
   }
 }
 
@@ -252,10 +255,9 @@ void LoopUnrolling::CopyLoopBodyForProfile(BB &newHeadBB, std::unordered_map<BB*
             newBB->SetFrequency(succ->GetFrequency() % replicatedLoopNum);
           }
         } else {
-          resetFreqForAfterInsertGoto ?
-              newBB->SetFrequency(succ->GetFrequency() - 1 == 0 ? succ->GetFrequency() :
-                                                                  succ->GetFrequency() - 1) :
-              newBB->SetFrequency(succ->GetFrequency());
+          resetFreqForAfterInsertGoto
+              ? newBB->SetFrequency(succ->GetFrequency() - 1 == 0 ? succ->GetFrequency() : succ->GetFrequency() - 1)
+              : newBB->SetFrequency(succ->GetFrequency());
         }
         curCopyBB->AddSucc(*newBB);
         ResetFrequency(*curBB, *succ, exitBB, *curCopyBB, copyAllLoop);
@@ -272,8 +274,8 @@ void LoopUnrolling::CopyLoopBodyForProfile(BB &newHeadBB, std::unordered_map<BB*
   }
 }
 
-void LoopUnrolling::CopyLoopBody(BB &newHeadBB, std::unordered_map<BB*, BB*> &old2NewBB,
-                                 std::set<BB*> &labelBBs, const BB &exitBB, bool copyAllLoop) {
+void LoopUnrolling::CopyLoopBody(BB &newHeadBB, std::unordered_map<BB*, BB*> &old2NewBB, std::set<BB*> &labelBBs,
+                                 const BB &exitBB, bool copyAllLoop) {
   CreateLableAndInsertLabelBB(newHeadBB, labelBBs);
   std::queue<BB*> bbQue;
   bbQue.push(loop->head);
@@ -308,13 +310,13 @@ void LoopUnrolling::CopyLoopBody(BB &newHeadBB, std::unordered_map<BB*, BB*> &ol
 // Update frequency of old BB.
 void LoopUnrolling::ResetFrequency(BB &bb) {
   auto freq = bb.GetFrequency() / replicatedLoopNum;
-  if (freq == 0 && partialCount == 0 && bb.GetFrequency() != 0) {
+  if ((!instrumentProf) && freq == 0 && partialCount == 0 && bb.GetFrequency() != 0) {
     freq = 1;
   }
   bb.SetFrequency(static_cast<uint32>(freq + partialCount));
   for (size_t i = 0; i < bb.GetSucc().size(); ++i) {
     auto currFreq = bb.GetEdgeFreq(i) / replicatedLoopNum;
-    if (currFreq == 0 && partialCount == 0 && bb.GetFrequency() != 0) {
+    if ((!instrumentProf) && currFreq == 0 && partialCount == 0 && bb.GetFrequency() != 0) {
       currFreq = 1;
     }
     bb.SetEdgeFreq(bb.GetSucc(i), currFreq + partialCount);
@@ -355,7 +357,7 @@ void LoopUnrolling::ResetFrequency() {
 void LoopUnrolling::AddEdgeForExitBBLastNew2OldBBEmpty(BB &exitBB, std::unordered_map<BB*, BB*> &old2NewBB,
                                                        BB &newHeadBB) {
   if (!exitBB.GetPred().empty()) {
-    for (auto &it : exitBB.GetMePhiList()) {
+    for (auto &it : std::as_const(exitBB.GetMePhiList())) {
       MeSSAUpdate::InsertOstToSSACands(it.first, *exitBB.GetPred(0), &cands);
     }
   }
@@ -366,10 +368,10 @@ void LoopUnrolling::AddEdgeForExitBBLastNew2OldBBEmpty(BB &exitBB, std::unordere
     bb->ReplaceSucc(&exitBB, &newHeadBB);
     exitBB.AddPred(*old2NewBB[bb], idx);
     if (profValid) {
-      resetFreqForAfterInsertGoto ?
-          (bb->GetEdgeFreq(idx) - 1 == 0 ? old2NewBB[bb]->PushBackSuccFreq(bb->GetEdgeFreq(idx)) :
-              old2NewBB[bb]->PushBackSuccFreq(bb->GetEdgeFreq(idx) - 1)) :
-          old2NewBB[bb]->PushBackSuccFreq(bb->GetEdgeFreq(idx));
+      resetFreqForAfterInsertGoto
+          ? (bb->GetEdgeFreq(idx) - 1 == 0 ? old2NewBB[bb]->PushBackSuccFreq(bb->GetEdgeFreq(idx))
+                                           : old2NewBB[bb]->PushBackSuccFreq(bb->GetEdgeFreq(idx) - 1))
+          : old2NewBB[bb]->PushBackSuccFreq(bb->GetEdgeFreq(idx));
     }
     ResetOldLabel2NewLabel(old2NewBB, *bb, exitBB, newHeadBB);
   }
@@ -383,10 +385,10 @@ void LoopUnrolling::AddEdgeForExitBB(BB &exitBB, std::unordered_map<BB*, BB*> &o
     bb->ReplaceSucc(&exitBB, &newHeadBB);
     exitBB.AddPred(*old2NewBB[lastNew2OldBB[bb]], idx);
     if (profValid) {
-      (resetFreqForAfterInsertGoto && firstResetForAfterInsertGoto) ?
-          (bb->GetEdgeFreq(idx) - 1 == 0 ? old2NewBB[lastNew2OldBB[bb]]->PushBackSuccFreq(bb->GetEdgeFreq(idx)) :
-              old2NewBB[lastNew2OldBB[bb]]->PushBackSuccFreq(bb->GetEdgeFreq(idx) - 1)) :
-              old2NewBB[lastNew2OldBB[bb]]->PushBackSuccFreq(bb->GetEdgeFreq(idx));
+      (resetFreqForAfterInsertGoto && firstResetForAfterInsertGoto)
+          ? (bb->GetEdgeFreq(idx) - 1 == 0 ? old2NewBB[lastNew2OldBB[bb]]->PushBackSuccFreq(bb->GetEdgeFreq(idx))
+                                           : old2NewBB[lastNew2OldBB[bb]]->PushBackSuccFreq(bb->GetEdgeFreq(idx) - 1))
+          : old2NewBB[lastNew2OldBB[bb]]->PushBackSuccFreq(bb->GetEdgeFreq(idx));
       firstResetForAfterInsertGoto = false;
     }
     ResetOldLabel2NewLabel2(old2NewBB, *bb, exitBB, newHeadBB);
@@ -403,14 +405,14 @@ void LoopUnrolling::CopyAndInsertBB(bool isPartial) {
     ResetFrequency(*loop->head);
     ResetFrequency();
   }
-  profValid && resetFreqForAfterInsertGoto ?
-      (loop->head->GetFrequency() - 1 == 0 ? newHeadBB->SetFrequency(loop->head->GetFrequency()) :
-          newHeadBB->SetFrequency(loop->head->GetFrequency() - 1)) :
-          newHeadBB->SetFrequency(loop->head->GetFrequency());
+  profValid &&resetFreqForAfterInsertGoto
+      ? (loop->head->GetFrequency() - 1 == 0 ? newHeadBB->SetFrequency(loop->head->GetFrequency())
+                                             : newHeadBB->SetFrequency(loop->head->GetFrequency() - 1))
+      : newHeadBB->SetFrequency(loop->head->GetFrequency());
   (void)old2NewBB.emplace(loop->head, newHeadBB);
   std::set<BB*> labelBBs;
-  profValid ? CopyLoopBodyForProfile(*newHeadBB, old2NewBB, labelBBs, *exitBB, false) :
-              CopyLoopBody(*newHeadBB, old2NewBB, labelBBs, *exitBB, false);
+  profValid ? CopyLoopBodyForProfile(*newHeadBB, old2NewBB, labelBBs, *exitBB, false)
+            : CopyLoopBody(*newHeadBB, old2NewBB, labelBBs, *exitBB, false);
   if (isPartial) {
     partialSuccHead = newHeadBB;
   }
@@ -456,7 +458,7 @@ void LoopUnrolling::RemoveCondGoto() {
 
 bool LoopUnrolling::SplitCondGotoBB() {
   auto *exitBB = func->GetCfg()->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
-  auto *exitedBB = *(loop->inloopBB2exitBBs.begin()->second->begin());
+  auto *exitedBB = *(loop->inloopBB2exitBBs.cbegin()->second->cbegin());
   MeStmt *lastStmt = exitBB->GetLastMe();
   ASSERT_NOT_NULL(lastStmt);
   if (lastStmt->GetOp() == OP_igoto || lastStmt->GetOp() == OP_switch) {
@@ -540,7 +542,7 @@ void LoopUnrolling::ResetFrequency(BB &newCondGotoBB, BB &exitingBB, const BB &e
 void LoopUnrolling::InsertCondGotoBB() {
   CHECK_NULL_FATAL(partialSuccHead);
   BB *exitingBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
-  BB *exitedBB = *(loop->inloopBB2exitBBs.begin()->second->begin());
+  BB *exitedBB = *(loop->inloopBB2exitBBs.cbegin()->second->cbegin());
   BB *newCondGotoBB = CopyBB(*exitingBB, true);
   auto headFreq = loop->head->GetFrequency();
   ResetFrequency(*newCondGotoBB, *exitingBB, *exitedBB, headFreq);
@@ -592,7 +594,7 @@ bool LoopUnrolling::DetermineUnrollTimes(uint32 &index, bool isConst) {
   uint32 unrollTime = unrollTimes[index];
   for (auto bbId : loop->loopBBs) {
     BB *bb = cfg->GetBBFromID(bbId);
-    auto exitBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
+    auto exitBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.cbegin()->first);
     if (bb == exitBB) {
       continue;
     }
@@ -654,7 +656,8 @@ bool LoopUnrolling::LoopPartialUnrollWithConst(uint64 tripCount) {
   uint32 index = 0;
   if (!DetermineUnrollTimes(index, true)) {
     if (LoopUnrollingExecutor::enableDebug) {
-      LogInfo::MapleLogger() << "CodeSize is too large" << "\n";
+      LogInfo::MapleLogger() << "CodeSize is too large"
+                             << "\n";
     }
     return false;
   }
@@ -710,8 +713,8 @@ void LoopUnrolling::CopyLoopForPartialAndPre(BB *&newHead, BB *&newExiting) {
   (void)old2NewBB.emplace(loop->head, newHeadBB);
   std::set<BB*> labelBBs;
   resetFreqForUnrollWithVar = true;
-  profValid ? CopyLoopBodyForProfile(*newHeadBB, old2NewBB, labelBBs, *exitBB, true) :
-              CopyLoopBody(*newHeadBB, old2NewBB, labelBBs, *exitBB, true);
+  profValid ? CopyLoopBodyForProfile(*newHeadBB, old2NewBB, labelBBs, *exitBB, true)
+            : CopyLoopBody(*newHeadBB, old2NewBB, labelBBs, *exitBB, true);
   resetFreqForUnrollWithVar = false;
   for (auto bb : labelBBs) {
     if (bb->GetKind() == kBBCondGoto) {
@@ -742,8 +745,8 @@ VarMeExpr *LoopUnrolling::CreateIndVarOrTripCountWithName(const std::string &nam
 }
 
 // i < tripcount / unrollTime
-void LoopUnrolling::UpdateCondGotoStmt(BB &bb, VarMeExpr &indVar, MeExpr &tripCount,
-                                       MeExpr &unrollTimeExpr, uint32 offset) {
+void LoopUnrolling::UpdateCondGotoStmt(BB &bb, VarMeExpr &indVar, MeExpr &tripCount, MeExpr &unrollTimeExpr,
+                                       uint32 offset) {
   for (auto &stmt : bb.GetMeStmts()) {
     bb.RemoveMeStmt(&stmt);
   }
@@ -815,8 +818,8 @@ void LoopUnrolling::CopyLoopForPartial(BB &partialCondGoto, BB &exitedBB, BB &ex
   partialCondGoto.AddSucc(*partialHead);
   if (profValid) {
     partialCondGoto.PushBackSuccFreq(loop->head->GetFrequency() % replicatedLoopNum);
-    partialCondGoto.SetFrequency(static_cast<uint32>(partialCondGoto.GetEdgeFreq(static_cast<size_t>(0)) +
-        partialCondGoto.GetEdgeFreq(1)));
+    partialCondGoto.SetFrequency(
+        static_cast<uint32>(partialCondGoto.GetEdgeFreq(static_cast<size_t>(0)) + partialCondGoto.GetEdgeFreq(1)));
   }
   CHECK_FATAL(partialCondGoto.GetKind() == kBBCondGoto, "must be partialCondGoto");
   CHECK_FATAL(!partialCondGoto.GetMeStmts().empty(), "must not be empty");
@@ -882,7 +885,7 @@ void LoopUnrolling::CreateIndVarAndCondGotoStmt(CR &cr, CRNode &varNode, BB &pre
   MeSSAUpdate::InsertOstToSSACands(indVar->GetOstIdx(), *indVarAndTripCountDefBB, &cands);
 
   // create stmt : tripCount = (n - start) / stride.
-  BB *exitingBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
+  BB *exitingBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.cbegin()->first);
   auto opnd0 = CreateExprWithCRNode(*cr.GetOpnd(0));
   auto opnd1 = CreateExprWithCRNode(*cr.GetOpnd(1));
   MeExpr *conditionExpr = CreateExprWithCRNode(varNode);
@@ -932,8 +935,8 @@ void LoopUnrolling::CreateIndVarAndCondGotoStmt(CR &cr, CRNode &varNode, BB &pre
 }
 
 void LoopUnrolling::CopyLoopForPartial(CR &cr, CRNode &varNode, uint32 j, uint32 unrollTime) {
-  BB *exitingBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
-  BB *exitedBB = *loop->inloopBB2exitBBs.begin()->second->begin();
+  BB *exitingBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.cbegin()->first);
+  BB *exitedBB = *loop->inloopBB2exitBBs.cbegin()->second->cbegin();
   BB *partialCondGoto = CopyBB(*exitingBB, false);
   replicatedLoopNum = unrollTime;
   CopyLoopForPartial(*partialCondGoto, *exitedBB, *exitingBB);
@@ -976,17 +979,19 @@ bool LoopUnrolling::LoopPartialUnrollWithVar(CR &cr, CRNode &varNode, uint32 j) 
   uint32 index = 0;
   if (!DetermineUnrollTimes(index, false)) {
     if (LoopUnrollingExecutor::enableDebug) {
-      LogInfo::MapleLogger() << "codesize is too large" << "\n";
+      LogInfo::MapleLogger() << "codesize is too large"
+                             << "\n";
     }
     return false;
   }
   if (LoopUnrollingExecutor::enableDebug) {
-    LogInfo::MapleLogger() << "partial unrolling with var" << "\n";
+    LogInfo::MapleLogger() << "partial unrolling with var"
+                           << "\n";
   }
   if (LoopUnrollingExecutor::enableDump) {
     irMap->Dump();
-    profValid ? cfg->DumpToFile("cfgIncludeFreqInfobeforeLoopPartialWithVarUnrolling", false, true) :
-                cfg->DumpToFile("cfgbeforeLoopPartialWithVarUnrolling");
+    profValid ? cfg->DumpToFile("cfgIncludeFreqInfobeforeLoopPartialWithVarUnrolling", false, true)
+              : cfg->DumpToFile("cfgbeforeLoopPartialWithVarUnrolling");
   }
   if (!SplitCondGotoBB()) {
     return false;
@@ -1007,8 +1012,8 @@ bool LoopUnrolling::LoopPartialUnrollWithVar(CR &cr, CRNode &varNode, uint32 j) 
   }
   if (LoopUnrollingExecutor::enableDump) {
     irMap->Dump();
-    profValid ? cfg->DumpToFile("cfgIncludeFreqInfoafterLoopPartialWithVarUnrolling", false, true) :
-                cfg->DumpToFile("cfgafterLoopPartialWithVarUnrolling");
+    profValid ? cfg->DumpToFile("cfgIncludeFreqInfoafterLoopPartialWithVarUnrolling", false, true)
+              : cfg->DumpToFile("cfgafterLoopPartialWithVarUnrolling");
   }
   return true;
 }
@@ -1022,7 +1027,7 @@ void LoopUnrollingExecutor::SetNestedLoop(const IdentifyLoops &meLoop,
     CHECK_NULL_FATAL(loop->parent);
     auto it = parentLoop.find(loop->parent);
     if (it == parentLoop.end()) {
-      parentLoop[loop->parent] = { loop };
+      parentLoop[loop->parent] = {loop};
     } else {
       parentLoop[loop->parent].insert(loop);
     }
@@ -1065,7 +1070,8 @@ bool LoopUnrollingExecutor::PredIsOutOfLoopBB(const MeFunction &func, LoopDesc &
   return false;
 }
 
-bool LoopUnrollingExecutor::IsCanonicalAndOnlyOneExitLoop(const MeFunction &func, LoopDesc &loop,
+bool LoopUnrollingExecutor::IsCanonicalAndOnlyOneExitLoop(
+    const MeFunction &func, LoopDesc &loop,
     const std::unordered_map<LoopDesc*, std::set<LoopDesc*>> &parentLoop) const {
   // Only handle one nested loop.
   if (parentLoop.find(&loop) != parentLoop.end() && ProfileCheck(func)) {
@@ -1079,11 +1085,12 @@ bool LoopUnrollingExecutor::IsCanonicalAndOnlyOneExitLoop(const MeFunction &func
   CHECK_NULL_FATAL(loop.preheader);
   CHECK_NULL_FATAL(loop.latch);
   auto headBB = loop.head;
-  auto exitBB = func.GetCfg()->GetBBFromID(loop.inloopBB2exitBBs.begin()->first);
+  auto exitBB = func.GetCfg()->GetBBFromID(loop.inloopBB2exitBBs.cbegin()->first);
   CHECK_FATAL(headBB->GetPred().size() == 2, "head must has two preds");
   if (!IsDoWhileLoop(func, loop)) {
     if (enableDebug) {
-      LogInfo::MapleLogger() << "While-do loop" << "\n";
+      LogInfo::MapleLogger() << "While-do loop"
+                             << "\n";
     }
     return false;
   }
@@ -1100,19 +1107,20 @@ bool LoopUnrollingExecutor::IsCanonicalAndOnlyOneExitLoop(const MeFunction &func
 bool LoopUnrolling::LoopUnrollingWithConst(uint64 tripCount, bool onlyFully) {
   if (tripCount == kInvalidTripCount) {
     if (LoopUnrollingExecutor::enableDebug) {
-      LogInfo::MapleLogger() << "tripCount is invalid" << "\n";
+      LogInfo::MapleLogger() << "tripCount is invalid"
+                             << "\n";
     }
     return false;
   }
   if (LoopUnrollingExecutor::enableDebug) {
-    LogInfo::MapleLogger() << "start unrolling with const" << "\n";
+    LogInfo::MapleLogger() << "start unrolling with const"
+                           << "\n";
     LogInfo::MapleLogger() << "tripCount: " << tripCount << "\n";
   }
   if (LoopUnrollingExecutor::enableDebug) {
     irMap->Dump();
-    func->IsIRProfValid() ? func->GetCfg()->DumpToFile("cfgIncludeFreqInfobeforLoopUnrolling", false, true) :
-                            func->GetCfg()->DumpToFile("cfgbeforLoopUnrolling" +
-                                                       std::to_string(loop->head->GetBBId()));
+    func->IsIRProfValid() ? func->GetCfg()->DumpToFile("cfgIncludeFreqInfobeforLoopUnrolling", false, true)
+                          : func->GetCfg()->DumpToFile("cfgbeforLoopUnrolling" + std::to_string(loop->head->GetBBId()));
   }
   // fully unroll
   ReturnKindOfFullyUnroll returnKind = LoopFullyUnroll(static_cast<int64>(tripCount));
@@ -1121,13 +1129,14 @@ bool LoopUnrolling::LoopUnrollingWithConst(uint64 tripCount, bool onlyFully) {
   }
   if (returnKind == LoopUnrolling::kCanFullyUnroll) {
     if (LoopUnrollingExecutor::enableDebug) {
-      LogInfo::MapleLogger() << "fully unrolling" << "\n";
+      LogInfo::MapleLogger() << "fully unrolling"
+                             << "\n";
     }
     if (LoopUnrollingExecutor::enableDebug) {
       irMap->Dump();
-      func->IsIRProfValid() ? func->GetCfg()->DumpToFile("cfgIncludeFreqInfoafterLoopFullyUnrolling", false, true) :
-                              func->GetCfg()->DumpToFile("cfgafterLoopFullyUnrolling" +
-                                                         std::to_string(loop->head->GetBBId()));
+      func->IsIRProfValid()
+          ? func->GetCfg()->DumpToFile("cfgIncludeFreqInfoafterLoopFullyUnrolling", false, true)
+          : func->GetCfg()->DumpToFile("cfgafterLoopFullyUnrolling" + std::to_string(loop->head->GetBBId()));
     }
     return true;
   }
@@ -1137,12 +1146,13 @@ bool LoopUnrolling::LoopUnrollingWithConst(uint64 tripCount, bool onlyFully) {
   // partial unroll with const
   if (LoopPartialUnrollWithConst(tripCount)) {
     if (LoopUnrollingExecutor::enableDebug) {
-      LogInfo::MapleLogger() << "partial unrolling with const" << "\n";
+      LogInfo::MapleLogger() << "partial unrolling with const"
+                             << "\n";
     }
     if (LoopUnrollingExecutor::enableDebug) {
       irMap->Dump();
-      func->IsIRProfValid() ? func->GetCfg()->DumpToFile("cfgIncludeFreqInfoafterLoopPartialWithConst", false, true) :
-                              func->GetCfg()->DumpToFile("cfgafterLoopPartialWithConstUnrolling");
+      func->IsIRProfValid() ? func->GetCfg()->DumpToFile("cfgIncludeFreqInfoafterLoopPartialWithConst", false, true)
+                            : func->GetCfg()->DumpToFile("cfgafterLoopPartialWithConstUnrolling");
     }
     return true;
   }
@@ -1150,7 +1160,8 @@ bool LoopUnrolling::LoopUnrollingWithConst(uint64 tripCount, bool onlyFully) {
 }
 
 void LoopUnrollingExecutor::ExecuteLoopUnrolling(MeFunction &func, MeIRMap &irMap,
-    std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands, IdentifyLoops &meLoop, const MapleAllocator &alloc) {
+                                                 std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands,
+                                                 IdentifyLoops &meLoop, const MapleAllocator &alloc) {
   if (enableDebug) {
     LogInfo::MapleLogger() << func.GetName() << "\n";
   }
@@ -1168,6 +1179,9 @@ void LoopUnrollingExecutor::ExecuteLoopUnrolling(MeFunction &func, MeIRMap &irMa
       }
       LoopScalarAnalysisResult sa(irMap, loop);
       LoopUnrolling loopUnrolling(func, *loop, irMap, alloc, cands);
+      if (func.GetCfg()->UpdateCFGFreq()) {
+        loopUnrolling.SetInstrumentProf(true);
+      }
       uint64 tripCount = 0;
       CRNode *conditionCRNode = nullptr;
       CR *itCR = nullptr;
@@ -1236,6 +1250,9 @@ bool MELoopUnrolling::PhaseRun(maple::MeFunction &f) {
     MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands);
     ssaUpdate.Run();
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);
+    if (f.GetCfg()->UpdateCFGFreq() && f.GetCfg()->DumpIRProfileFile()) {
+      f.GetCfg()->DumpToFile("after-meloopunroll", false, true);
+    }
   }
   if (DEBUGFUNC_NEWPM(f)) {
     f.GetCfg()->DumpToFile("afterloopunrolling", false);

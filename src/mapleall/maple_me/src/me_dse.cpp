@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_dse.h"
+
 #include <iostream>
 
 namespace maple {
@@ -27,13 +28,13 @@ void MeDSE::VerifyPhi() const {
       continue;
     }
     size_t predBBNums = bb->GetPred().size();
-    for (auto &pair : bb->GetPhiList()) {
+    for (auto &pair : std::as_const(bb->GetPhiList())) {
       if (IsSymbolLived(*pair.second.GetResult())) {
         if (predBBNums <= 1) {  // phi is live and non-virtual in bb with 0 or 1 pred
           const OriginalSt *ost = func.GetMeSSATab()->GetOriginalStFromID(pair.first);
           CHECK_FATAL(ost, "ost is nullptr!");
           CHECK_FATAL(!ost->IsSymbolOst() || ost->GetIndirectLev() != 0,
-              "phi is live and non-virtual in bb with zero or one pred");
+                      "phi is live and non-virtual in bb with zero or one pred");
         } else if (pair.second.GetPhiOpnds().size() != predBBNums) {
           ASSERT(false, "phi opnd num is not consistent with pred bb num(need update phi)");
         }
@@ -71,8 +72,11 @@ bool MEDse::PhaseRun(maple::MeFunction &f) {
     f.Verify();
     // cfg change , invalid results in MeFuncResultMgr
     if (dse.UpdatedCfg()) {
-      if (Options::profileUse && f.GetMirFunc()->GetFuncProfData()) {
-        f.GetCfg()->UpdateEdgeFreqWithNewBBFreq();
+      if (f.GetCfg()->UpdateCFGFreq()) {
+        f.GetCfg()->UpdateEdgeFreqWithBBFreq();
+        if (f.GetCfg()->DumpIRProfileFile()) {
+          f.GetCfg()->DumpToFile(("after-dse" + std::to_string(f.dseRuns)), false, true);
+        }
       }
       GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
     }

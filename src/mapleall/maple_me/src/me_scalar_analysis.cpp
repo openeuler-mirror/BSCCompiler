@@ -73,7 +73,7 @@ void CRNode::PutTheSubNode2Vector(std::vector<CRNode*> &curVector) {
       break;
     case kCRAddNode:
       auto *crAddNode = static_cast<CRAddNode*>(this);
-      curVector.insert(curVector.end(), crAddNode->GetOpnds().begin(), crAddNode->GetOpnds().end());
+      curVector.insert(curVector.cend(), crAddNode->GetOpnds().cbegin(), crAddNode->GetOpnds().cend());
       break;
   }
 }
@@ -509,13 +509,13 @@ CRNode *LoopScalarAnalysisResult::GetCRAddNode(MeExpr *expr, std::vector<CRNode*
       if (crAddOpnds.size() == kNumOpnds) {
         return crAddOpnds[0];
       }
-      crAddOpnds.erase(crAddOpnds.begin() + 1);
+      crAddOpnds.erase(crAddOpnds.cbegin() + 1);
       constLHS = static_cast<CRConstNode*>(crAddOpnds[0]);
     }
     // After merge constCRNode, if crAddOpnds[0] is 0, delete it from crAddOpnds vector
     // 0 + X -> X
     if (constLHS->GetConstValue() == 0) {
-      crAddOpnds.erase(crAddOpnds.begin());
+      crAddOpnds.erase(crAddOpnds.cbegin());
       --index;
     }
     if (crAddOpnds.size() == 1) {
@@ -531,10 +531,10 @@ CRNode *LoopScalarAnalysisResult::GetCRAddNode(MeExpr *expr, std::vector<CRNode*
   }
   if (addCRIndex < crAddOpnds.size()) {
     while (crAddOpnds[addCRIndex]->GetCRType() == kCRAddNode) {
-      crAddOpnds.insert(crAddOpnds.end(),
-                        static_cast<CRAddNode*>(crAddOpnds[addCRIndex])->GetOpnds().begin(),
-                        static_cast<CRAddNode*>(crAddOpnds[addCRIndex])->GetOpnds().end());
-      crAddOpnds.erase(crAddOpnds.begin() + addCRIndex);
+      crAddOpnds.insert(crAddOpnds.cend(),
+                        static_cast<CRAddNode*>(crAddOpnds[addCRIndex])->GetOpnds().cbegin(),
+                        static_cast<CRAddNode*>(crAddOpnds[addCRIndex])->GetOpnds().cend());
+      crAddOpnds.erase(crAddOpnds.cbegin() + addCRIndex);
     }
     return GetCRAddNode(expr, crAddOpnds);
   }
@@ -548,12 +548,12 @@ CRNode *LoopScalarAnalysisResult::GetCRAddNode(MeExpr *expr, std::vector<CRNode*
     // X + { Y, + , Z } -> { X + Y, + , Z }
     if (crIndex != 0) {
       std::vector<CRNode*> startOpnds(crAddOpnds.begin(), crAddOpnds.begin() + crIndex);
-      crAddOpnds.erase(crAddOpnds.begin(), crAddOpnds.begin() + crIndex);
+      crAddOpnds.erase(crAddOpnds.cbegin(), crAddOpnds.cbegin() + crIndex);
       startOpnds.push_back(static_cast<CR*>(crAddOpnds[crIndex])->GetOpnd(0));
       CRNode *start = GetCRAddNode(nullptr, startOpnds);
       std::vector<CRNode*> newCROpnds{ start };
-      newCROpnds.insert(newCROpnds.end(), static_cast<CR*>(crAddOpnds[crIndex])->GetOpnds().begin() + 1,
-                        static_cast<CR*>(crAddOpnds[crIndex])->GetOpnds().end());
+      newCROpnds.insert(newCROpnds.cend(), static_cast<CR*>(crAddOpnds[crIndex])->GetOpnds().cbegin() + 1,
+                        static_cast<CR*>(crAddOpnds[crIndex])->GetOpnds().cend());
       CR *newCR = static_cast<CR*>(GetOrCreateCR(expr, newCROpnds));
       if (crAddOpnds.size() == 1) {
         return static_cast<CRNode*>(newCR);
@@ -572,7 +572,7 @@ CRNode *LoopScalarAnalysisResult::GetCRAddNode(MeExpr *expr, std::vector<CRNode*
       if (crAddOpnds.size() == kNumOpnds) {
         return crAddOpnds[0];
       }
-      crAddOpnds.erase(crAddOpnds.begin() + 1);
+      crAddOpnds.erase(crAddOpnds.cbegin() + 1);
       crLHS = static_cast<CR*>(crAddOpnds[0]);
     }
     if (crAddOpnds.size() == 1) {
@@ -599,13 +599,13 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
       if (crMulOpnds.size() == kNumOpnds) {
         return crMulOpnds[0];
       }
-      crMulOpnds.erase(crMulOpnds.begin() + 1);
+      crMulOpnds.erase(crMulOpnds.cbegin() + 1);
       constLHS = static_cast<CRConstNode*>(crMulOpnds[0]);
     }
     // After merge constCRNode, if crMulOpnds[0] is 1, delete it from crMulOpnds vector
     // 1 * X -> X
     if (constLHS->GetConstValue() == 1) {
-      crMulOpnds.erase(crMulOpnds.begin());
+      crMulOpnds.erase(crMulOpnds.cbegin());
       --index;
     }
     // After merge constCRNode, if crMulOpnds[0] is 0, return crMulOpnds[0]
@@ -626,10 +626,10 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
   }
   if (mulCRIndex < crMulOpnds.size()) {
     while (crMulOpnds[mulCRIndex]->GetCRType() == kCRMulNode) {
-      crMulOpnds.insert(crMulOpnds.end(),
-                        static_cast<CRAddNode*>(crMulOpnds[mulCRIndex])->GetOpnds().begin(),
-                        static_cast<CRAddNode*>(crMulOpnds[mulCRIndex])->GetOpnds().end());
-      crMulOpnds.erase(crMulOpnds.begin() + mulCRIndex);
+      crMulOpnds.insert(crMulOpnds.cend(),
+                        static_cast<CRAddNode*>(crMulOpnds[mulCRIndex])->GetOpnds().cbegin(),
+                        static_cast<CRAddNode*>(crMulOpnds[mulCRIndex])->GetOpnds().cend());
+      crMulOpnds.erase(crMulOpnds.cbegin() + mulCRIndex);
     }
     return GetCRMulNode(expr, crMulOpnds);
   }
@@ -662,9 +662,9 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
         auto constantOfMulOperand = static_cast<CRConstNode*>(crMulOpnds[0])->GetConstValue();
         if (constantOfMulOperand == constantOfDivOperand) {
           // 8 * (X / 8) -> X
-          crMulOpnds.insert(crMulOpnds.end(), divCRNode->GetLHS());
-          crMulOpnds.erase(crMulOpnds.begin() + divCRIndex);
-          crMulOpnds.erase(crMulOpnds.begin());
+          crMulOpnds.insert(crMulOpnds.cend(), divCRNode->GetLHS());
+          crMulOpnds.erase(crMulOpnds.cbegin() + divCRIndex);
+          crMulOpnds.erase(crMulOpnds.cbegin());
           if (crMulOpnds.size() == 1) {
             return crMulOpnds[0];
           }
@@ -673,19 +673,19 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
           if (rem == 0) {
             // 8 * (X / 4) -> X * 2
             auto res = constantOfMulOperand / constantOfDivOperand;
-            crMulOpnds.insert(crMulOpnds.end(), divCRNode->GetLHS());
-            crMulOpnds.erase(crMulOpnds.begin() + divCRIndex);
-            crMulOpnds.erase(crMulOpnds.begin());
-            crMulOpnds.insert(crMulOpnds.end(), GetOrCreateCRConstNode(nullptr, res));
+            crMulOpnds.insert(crMulOpnds.cend(), divCRNode->GetLHS());
+            crMulOpnds.erase(crMulOpnds.cbegin() + divCRIndex);
+            crMulOpnds.erase(crMulOpnds.cbegin());
+            crMulOpnds.insert(crMulOpnds.cend(), GetOrCreateCRConstNode(nullptr, res));
           }
         } else {
           auto rem = constantOfDivOperand % constantOfMulOperand;
           if (rem == 0) {
             // 4 * (X / 8) -> X / 2
             auto res = constantOfDivOperand / constantOfMulOperand;
-            crMulOpnds.erase(crMulOpnds.begin() + divCRIndex);
-            crMulOpnds.erase(crMulOpnds.begin());
-            crMulOpnds.insert(crMulOpnds.end(),
+            crMulOpnds.erase(crMulOpnds.cbegin() + divCRIndex);
+            crMulOpnds.erase(crMulOpnds.cbegin());
+            crMulOpnds.insert(crMulOpnds.cend(),
                               GetOrCreateCRDivNode(nullptr,
                                                    *divCRNode->GetLHS(),
                                                    *GetOrCreateCRConstNode(nullptr, res)));
@@ -709,7 +709,7 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
       std::vector<CRNode*> newCROpnds;
       CR *currCR = static_cast<CR*>(crMulOpnds[crIndex]);
       std::vector<CRNode*> crOpnds(crMulOpnds.begin(), crMulOpnds.begin() + crIndex);
-      crMulOpnds.erase(crMulOpnds.begin(), crMulOpnds.begin() + crIndex);
+      crMulOpnds.erase(crMulOpnds.cbegin(), crMulOpnds.cbegin() + crIndex);
       for (size_t i = 0; i < currCR->GetOpndsSize(); ++i) {
         std::vector<CRNode*> currOpnds(crOpnds);
         currOpnds.push_back(currCR->GetOpnd(i));
@@ -788,9 +788,9 @@ CR *LoopScalarAnalysisResult::AddCRWithCR(CR &lhsCR, CR &rhsCR) {
     crOpnds.push_back(GetCRAddNode(nullptr, crAddOpnds));
   }
   if (i < lhsCR.GetOpndsSize()) {
-    crOpnds.insert(crOpnds.end(), lhsCR.GetOpnds().begin() + i, lhsCR.GetOpnds().end());
+    crOpnds.insert(crOpnds.cend(), lhsCR.GetOpnds().begin() + i, lhsCR.GetOpnds().end());
   } else if (i < rhsCR.GetOpndsSize()) {
-    crOpnds.insert(crOpnds.end(), rhsCR.GetOpnds().begin() + i, rhsCR.GetOpnds().end());
+    crOpnds.insert(crOpnds.cend(), rhsCR.GetOpnds().begin() + i, rhsCR.GetOpnds().end());
   }
   crPtr->SetOpnds(crOpnds);
   return crPtr;
@@ -1045,7 +1045,17 @@ CRNode *LoopScalarAnalysisResult::DealWithMeOpOp(MeExpr &currOpMeExpr, MeExpr &e
       }
       return ComputeCRNodeWithOperator(expr, *lhsCR, *rhsCR, opMeExpr.GetOp());
     }
-    case OP_cvt:
+    case OP_cvt: {
+      if (!computeTripCountForLoopUnroll) {
+        return GetOrCreateCRNode(*opMeExpr.GetOpnd(0));
+      }
+      auto toType = opMeExpr.GetPrimType();
+      auto fromType = opMeExpr.GetOpndType();
+      if (GetPrimTypeBitSize(toType) > GetPrimTypeBitSize(fromType) && IsUnsignedInteger(fromType)) {
+        return nullptr;
+      }
+      return GetOrCreateCRNode(*opMeExpr.GetOpnd(0));
+    }
     case OP_zext: {
       if (!computeTripCountForLoopUnroll) {
         return GetOrCreateCRNode(*opMeExpr.GetOpnd(0));
@@ -1315,7 +1325,7 @@ void LoopScalarAnalysisResult::PutTheAddrExprAtTheFirstOfVector(
     ++it;
   }
   if (find) {
-    crNodeOperands.insert(crNodeOperands.begin(), crNode);
+    crNodeOperands.insert(crNodeOperands.cbegin(), crNode);
   }
 }
 

@@ -357,7 +357,7 @@ void MeStorePre::BuildWorkListBB(BB *bb) {
       NaryMeStmt *naryMeStmt = safe_cast<NaryMeStmt>(to_ptr(stmt));
       if (naryMeStmt != nullptr) {
         CHECK_NULL_FATAL(naryMeStmt->GetMuList());
-        for (std::pair<OStIdx, ScalarMeExpr*> muPair : *(naryMeStmt->GetMuList())) {
+        for (auto &muPair : std::as_const(*(naryMeStmt->GetMuList()))) {
           CreateSpreUseOccsThruAliasing(*muPair.second->GetOst(), *bb);
         }
       }
