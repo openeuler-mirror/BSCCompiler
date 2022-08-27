@@ -80,8 +80,11 @@ class OriginalSt {
         return true;
       }
       if (fieldID != 0) {
-        MIRStructType *structType = static_cast<MIRStructType*>(
-            GlobalTables::GetTypeTable().GetTypeFromTyIdx(symOrPreg.mirSt->GetTyIdx()));
+        auto type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(symOrPreg.mirSt->GetTyIdx());
+        if (type->IsMIRArrayType()) {
+          type = static_cast<MIRArrayType*>(type)->GetElemType();
+        }
+        MIRStructType *structType = static_cast<MIRStructType*>(type);
         FieldAttrs fattrs = structType->GetFieldAttrs(fieldID);
         if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
           return true;
@@ -184,7 +187,7 @@ class OriginalSt {
     zeroVersionIndex = zeroVersionIndexParam;
   }
 
-  TyIdx GetTyIdx() const {
+  const TyIdx &GetTyIdx() const {
     return tyIdx;
   }
 
@@ -268,6 +271,23 @@ class OriginalSt {
     return pointerVstIdx;
   }
 
+  const TyIdx &GetPointerTyIdx() const {
+    if (tyIdxOfPointer == 0 && prevLevOst != nullptr) {
+      return prevLevOst->GetTyIdx();
+    }
+    return tyIdxOfPointer;
+  }
+
+  MIRType *GetPrevLevelPointerType() const {
+    auto ptrTyIdx = GetPointerTyIdx();
+    CHECK_FATAL(ptrTyIdx != 0, "No ptr-type variable points to current ost");
+    return GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrTyIdx);
+  }
+
+  void SetPointerTyIdx(const TyIdx &idx) {
+    tyIdxOfPointer = idx;
+  }
+
   void SetPointerVst(const VersionSt *vst);
 
   uint32 NumSSAVersions() const {
@@ -317,11 +337,11 @@ class OriginalSt {
   bool isPrivate = false;        // if the field has private attribute, only when fieldID != 0
   bool ignoreRC = false;         // base on MIRSymbol's IgnoreRC()
   bool epreLocalRefVar = false;  // is a localrefvar temp created by epre phase
- private:
   SymOrPreg symOrPreg;
   PUIdx puIdx;
   size_t pointerVstIdx = 0;
   OriginalSt *prevLevOst = nullptr;
+  TyIdx tyIdxOfPointer{0}; // TyIdx of the pointer of virtual-ost
 };
 
 class SymbolFieldPair {
@@ -457,14 +477,16 @@ class OriginalStTable {
 
   void Dump();
   OriginalSt *FindOrCreateAddrofSymbolOriginalSt(OriginalSt *ost);
-  OriginalSt *FindOrCreateExtraLevOriginalSt(const VersionSt *vst, const TyIdx &ptyidx, FieldID fld,
+  OriginalSt *FindOrCreateExtraLevOriginalSt(const VersionSt *vst, const TyIdx &ptyIdx, FieldID fld,
                                              const OffsetType &offset = OffsetType(kOffsetUnknown));
   OriginalSt *FindOrCreateExtraLevSymOrRegOriginalSt(const VersionSt *vst, TyIdx tyIdx, FieldID fld,
                                                      const OffsetType &offset = OffsetType(kOffsetUnknown),
                                                      const KlassHierarchy *klassHierarchy = nullptr);
-  OriginalSt *FindExtraLevOriginalSt(const MapleVector<OriginalSt*> &nextLevelOsts, const MIRType *type, FieldID fld,
+  OriginalSt *FindExtraLevOriginalSt(const MapleVector<OriginalSt*> &nextLevelOsts,
+                                     const TyIdx &tyIdxOfPtr, const MIRType *type, FieldID fld,
                                      const OffsetType &offset = OffsetType(kOffsetUnknown)) const;
-  OriginalSt *FindExtraLevOriginalSt(const VersionSt *vst, const MIRType *type, FieldID fld,
+  OriginalSt *FindExtraLevOriginalSt(const VersionSt *vst, const TyIdx &tyIdxOfPtr,
+                                     const MIRType *typeOfOst, FieldID fld,
                                      const OffsetType &offset = OffsetType(kOffsetUnknown)) const;
   MapleVector<OriginalSt*> *GetNextLevelOstsOfVst(size_t vstIdx) const;
   MapleVector<OriginalSt*> *GetNextLevelOstsOfVst(const VersionSt *vst) const;
