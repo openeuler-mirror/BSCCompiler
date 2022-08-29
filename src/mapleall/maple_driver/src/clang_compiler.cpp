@@ -64,7 +64,7 @@ DefaultOption ClangCompilerBeILP32::GetDefaultOptions(const MplOptions &options,
   return defaultOptions;
 }
 
-std::string ClangCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const{
+std::string ClangCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const {
   return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
 }
 
@@ -147,7 +147,7 @@ std::unordered_set<std::string> ClangCompiler::GetFinalOutputs(const MplOptions 
 
 void ClangCompiler::AppendOutputOption(std::vector<MplOption> &finalOptions,
                                        const std::string &name) const {
-  finalOptions.emplace_back("-o", name);
+  (void)finalOptions.emplace_back("-o", name);
 }
 
 }

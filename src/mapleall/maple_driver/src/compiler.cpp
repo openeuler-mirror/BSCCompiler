@@ -102,7 +102,7 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
   auto it = exeOptions.find(binName);
   if (it != exeOptions.end()) {
     for (auto &opt : it->second) {
-      finalOptions.emplace_back(opt, "");
+      (void)finalOptions.emplace_back(opt, "");
       if (isDebug) {
         LogInfo::MapleLogger() << opt << " ";
       }
@@ -115,7 +115,12 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
   /* Append options setting directly for special category. Example: --verbose */
   for (const auto &opt : category->GetEnabledOptions()) {
     for (const auto &val : opt->GetRawValues()) {
-      finalOptions.emplace_back(opt->GetName(), val);
+      if (opt->GetEqualType() == maplecl::EqualType::kWithEqual) {
+        (void)finalOptions.emplace_back(opt->GetName() + "=" + val, "");
+      } else {
+        (void)finalOptions.emplace_back(opt->GetName(), val);
+      }
+
       if (isDebug) {
         LogInfo::MapleLogger() << opt->GetName() << " " << val << " ";
       }

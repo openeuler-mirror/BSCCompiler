@@ -114,7 +114,7 @@ std::unordered_set<std::string> AsCompiler::GetFinalOutputs(const MplOptions &mp
 
 void AsCompiler::AppendOutputOption(std::vector<MplOption> &finalOptions,
                                     const std::string &name) const {
-  finalOptions.emplace_back("-o", name);
+  (void)finalOptions.emplace_back("-o", name);
 }
 
 }  // namespace maple

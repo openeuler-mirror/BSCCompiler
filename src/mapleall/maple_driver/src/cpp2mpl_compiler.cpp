@@ -18,7 +18,7 @@
 #include "default_options.def"
 
 namespace maple {
-std::string Cpp2MplCompiler::GetBinPath(const MplOptions &mplOptions) const{
+std::string Cpp2MplCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const{
   return FileUtils::SafeGetenv(kMapleRoot) + "/output/" +
       FileUtils::SafeGetenv("MAPLE_BUILD_TYPE") + "/bin/";
 }
@@ -27,7 +27,7 @@ const std::string &Cpp2MplCompiler::GetBinName() const {
   return kBinNameCpp2mpl;
 }
 
-std::string Cpp2MplCompiler::GetInputFileName(const MplOptions &options, const Action &action) const {
+std::string Cpp2MplCompiler::GetInputFileName(const MplOptions &options [[maybe_unused]], const Action &action) const {
   if (action.IsItFirstRealAction()) {
     return action.GetInputFile();
   }
@@ -40,7 +40,8 @@ std::string Cpp2MplCompiler::GetInputFileName(const MplOptions &options, const A
   return action.GetOutputFolder() + outputName + ".ast";
 }
 
-DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
+DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options,
+                                                 const Action &action [[maybe_unused]]) const {
   uint32_t len = sizeof(kCpp2MplDefaultOptionsForAst) / sizeof(MplOption);
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
 
@@ -57,13 +58,13 @@ DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options, cons
     return defaultOptions;
 }
 
-void Cpp2MplCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
+void Cpp2MplCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions [[maybe_unused]], const Action &action,
                                           std::vector<std::string> &tempFiles) const {
   tempFiles.push_back(action.GetFullOutputName() + ".mpl");
   tempFiles.push_back(action.GetFullOutputName() + ".mplt");
 }
 
-std::unordered_set<std::string> Cpp2MplCompiler::GetFinalOutputs(const MplOptions &mplOptions,
+std::unordered_set<std::string> Cpp2MplCompiler::GetFinalOutputs(const MplOptions &mplOptions [[maybe_unused]],
                                                                  const Action &action) const {
   std::unordered_set<std::string> finalOutputs;
   (void)finalOutputs.insert(action.GetFullOutputName() + ".mpl");
@@ -73,7 +74,7 @@ std::unordered_set<std::string> Cpp2MplCompiler::GetFinalOutputs(const MplOption
 
 void Cpp2MplCompiler::AppendOutputOption(std::vector<MplOption> &finalOptions,
                                          const std::string &name) const {
-  finalOptions.emplace_back("-o", name);
+  (void)finalOptions.emplace_back("-o", name);
 }
 
 }  // namespace maple

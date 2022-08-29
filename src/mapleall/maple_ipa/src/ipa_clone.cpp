@@ -171,7 +171,7 @@ MIRFunction *IpaClone::IpaCloneFunctionWithFreq(MIRFunction &originalFunction,
 void IpaClone::IpaCloneArgument(MIRFunction &originalFunction, ArgVector &argument) const {
   for (size_t i = 0; i < originalFunction.GetFormalCount(); ++i) {
     auto &formalName = originalFunction.GetFormalName(i);
-    argument.push_back(ArgPair(formalName, originalFunction.GetNthParamType(i)));
+    argument.emplace_back(ArgPair(formalName, originalFunction.GetNthParamType(i)));
   }
 }
 
@@ -421,7 +421,7 @@ void IpaClone::EvalCompareResult(std::vector<ImpExpr> &result, std::map<uint32, 
       ComupteValue(newValue, paramValue, *cond, bitRes);
     }
     if (runFlag) {
-      evalMap[bitRes].emplace_back(value);
+      (void)evalMap[bitRes].emplace_back(value);
     }
   }
   return;
@@ -444,7 +444,7 @@ void IpaClone::EvalImportantExpression(MIRFunction *func, std::vector<ImpExpr> &
       for (auto &expr : result) {
         if (expr.GetParamIndex() == static_cast<uint32>(index) &&
             func->GetStmtNodeFromMeId(expr.GetStmtId()) != nullptr) {
-          filterRes.emplace_back(expr);
+          (void)filterRes.emplace_back(expr);
           // Resolve most numOfImpExprUpper important expression
           if (filterRes.size() > kNumOfImpExprUpper) {
             break;

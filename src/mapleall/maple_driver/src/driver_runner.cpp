@@ -78,7 +78,7 @@ ErrorCode DriverRunner::Run() {
   }
   std::string originBaseName = baseName;
   outputFile = baseName;
-  outputFile.append(GetPostfix());
+  (void)outputFile.append(GetPostfix());
   if (mpl2mplOptions != nullptr || meOptions != nullptr) {
     std::string vtableImplFile = originBaseName;
     std::string postFix = "";
@@ -87,8 +87,8 @@ ErrorCode DriverRunner::Run() {
     } else {
       postFix = ".VtableImpl";
     }
-    vtableImplFile.append(postFix + ".mpl");
-    originBaseName.append(postFix);
+    (void)vtableImplFile.append(postFix + ".mpl");
+    (void)originBaseName.append(postFix);
     ProcessMpl2mplAndMePhases(outputFile, vtableImplFile);
   }
   return kErrorNoError;

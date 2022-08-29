@@ -21,51 +21,9 @@
 
 using namespace maple;
 
-#define ADD_COMPILER(NAME, CLASSNAME)        \
-  do {                                       \
-    Insert((NAME), new (CLASSNAME)((NAME))); \
-  } while (0);
-
 CompilerFactory &CompilerFactory::GetInstance() {
   static CompilerFactory instance;
   return instance;
-}
-
-CompilerFactory::CompilerFactory() {
-  // Supported compilers
-  ADD_COMPILER("jbc2mpl", Jbc2MplCompiler)
-  ADD_COMPILER("dex2mpl", Dex2MplCompiler)
-  ADD_COMPILER("hir2mpl", Cpp2MplCompiler)
-  ADD_COMPILER("clang", ClangCompiler)
-  ADD_COMPILER("mplipa", IpaCompiler)
-  ADD_COMPILER("me", MapleCombCompiler)
-  ADD_COMPILER("mpl2mpl", MapleCombCompiler)
-  ADD_COMPILER("maplecomb", MapleCombCompiler)
-  ADD_COMPILER("maplecombwrp", MapleCombCompilerWrp)
-  ADD_COMPILER("mplcg", MplcgCompiler)
-  ADD_COMPILER("as", AsCompiler)
-  ADD_COMPILER("ld", LdCompiler)
-  compilerSelector = new CompilerSelectorImpl();
-}
-
-CompilerFactory::~CompilerFactory() {
-  auto it = supportedCompilers.begin();
-  while (it != supportedCompilers.end()) {
-    if (it->second != nullptr) {
-      delete it->second;
-      it->second = nullptr;
-    }
-    ++it;
-  }
-  supportedCompilers.clear();
-  if (compilerSelector != nullptr) {
-    delete compilerSelector;
-    compilerSelector = nullptr;
-  }
-}
-
-void CompilerFactory::Insert(const std::string &name, Compiler *value) {
-  (void)supportedCompilers.insert(make_pair(name, value));
 }
 
 ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions,
@@ -102,6 +60,78 @@ ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions,
   return ret == 0 ? kErrorNoError : kErrorFileNotFound;
 }
 
+Toolchain *CompilerFactory::GetToolChain() {
+  if (toolchain == nullptr) {
+    if (maple::Triple::GetTriple().GetArch() == Triple::ArchType::aarch64_be) {
+      toolchain = std::make_unique<Aarch64BeILP32Toolchain>();
+    } else {
+      toolchain = std::make_unique<Aarch64Toolchain>();
+    }
+  }
+
+  return toolchain.get();
+}
+
+ErrorCode CompilerFactory::Select(Action &action, std::vector<Action*> &selectedActions) {
+  ErrorCode ret = kErrorNoError;
+
+  /* Traverse Action tree recursively and select compilers in
+   * "from leaf(clang) to root(ld)" order */
+  for (const std::unique_ptr<Action> &a : action.GetInputActions()) {
+    if (a == nullptr) {
+      LogInfo::MapleLogger(kLlErr) << "Action is not Initialized\n";
+      return kErrorToolNotFound;
+    }
+
+    ret = Select(*a, selectedActions);
+    if (ret != kErrorNoError) {
+      return ret;
+    }
+  }
+
+  Toolchain *toolChain = GetToolChain();
+  if (toolChain == nullptr) {
+    LogInfo::MapleLogger(kLlErr) << "Wrong ToolChain\n";
+    return kErrorToolNotFound;
+  }
+  Compiler *compiler = toolChain->Find(action.GetTool());
+
+  if (compiler == nullptr) {
+    if (action.GetTool() != "input") {
+      LogInfo::MapleLogger(kLlErr) << "Fatal error: " <<  action.GetTool()
+                                   << " tool is not supported" << "\n";
+      LogInfo::MapleLogger(kLlErr) << "Supported Tool: ";
+
+      auto print = [](const auto &supportedComp) { std::cout << " " << supportedComp.first; };
+      (void)std::for_each(toolChain->GetSupportedCompilers().begin(),
+                          toolChain->GetSupportedCompilers().end(), print);
+      LogInfo::MapleLogger(kLlErr) << "\n";
+
+      return kErrorToolNotFound;
+    }
+  } else {
+    action.SetCompiler(compiler);
+    selectedActions.push_back(&action);
+  }
+
+  return ret;
+}
+
+ErrorCode CompilerFactory::Select(const MplOptions &mplOptions, std::vector<Action*> &selectedActions) {
+  for (const std::unique_ptr<Action> &action : mplOptions.GetActions()) {
+    if (action == nullptr) {
+      LogInfo::MapleLogger(kLlErr) << "Action is not Initialized\n";
+      return kErrorToolNotFound;
+    }
+    ErrorCode ret = Select(*action, selectedActions);
+    if (ret != kErrorNoError) {
+      return ret;
+    }
+  }
+
+  return selectedActions.empty() ? kErrorToolNotFound : kErrorNoError;
+}
+
 ErrorCode CompilerFactory::Compile(MplOptions &mplOptions) {
   if (compileFinished) {
     LogInfo::MapleLogger() <<
@@ -111,11 +141,7 @@ ErrorCode CompilerFactory::Compile(MplOptions &mplOptions) {
 
   /* Actions owner is MplOption, so while MplOption is alive we can use raw pointers here */
   std::vector<Action*> actions;
-  if (compilerSelector == nullptr) {
-    LogInfo::MapleLogger() << "Failed! Compiler is null." << "\n";
-    return kErrorCompileFail;
-  }
-  ErrorCode ret = compilerSelector->Select(supportedCompilers, mplOptions, actions);
+  ErrorCode ret = Select(mplOptions, actions);
   if (ret != kErrorNoError) {
     return ret;
   }

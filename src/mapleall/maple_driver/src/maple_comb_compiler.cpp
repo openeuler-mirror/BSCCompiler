@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -165,7 +165,7 @@ ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunn
   if (MeOption::optLevel == 0) {
     std::string safetyOptionStr = GetStringOfSafetyOption();
     if (!safetyOptionStr.empty()) {
-      safetyOptionStr.erase(safetyOptionStr.cend() - 1);
+      (void)safetyOptionStr.erase(safetyOptionStr.cend() - 1);
       WARN(kLncWarn, "warning: The safety option %s must be used in conjunction with O2 mode",
            safetyOptionStr.c_str());
     }
@@ -270,6 +270,7 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, const Action &action,
     PrintCommand(options, action);
   }
   ErrorCode nErr = runner.Run();
+  logInfo.PrintUserWarnMessages();
   return nErr;
 }
 }  // namespace maple

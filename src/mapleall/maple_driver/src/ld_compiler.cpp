@@ -100,7 +100,7 @@ std::string LdCompiler::GetInputFileName(const MplOptions &options [[maybe_unuse
 
 void LdCompiler::AppendOutputOption(std::vector<MplOption> &finalOptions,
                                     const std::string &name) const {
-  finalOptions.emplace_back("-o", name);
+  (void)finalOptions.emplace_back("-o", name);
 }
 
 }  // namespace maple

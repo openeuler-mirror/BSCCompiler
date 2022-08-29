@@ -45,7 +45,7 @@ class Toolchain {
  protected:
   template<typename T>
   void AddCompiler(const std::string &toolName) {
-    compilers.insert({toolName, std::make_unique<T>(toolName)});
+    (void)compilers.emplace(std::make_pair(toolName, std::make_unique<T>(toolName)));
   }
 };
 

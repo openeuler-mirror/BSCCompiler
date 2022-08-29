@@ -267,7 +267,7 @@ void SideEffect::SolveVarArgs(MeFunction &f) const {
 }
 
 void SideEffect::CollectAllLevelOst(size_t vstIdx, std::set<size_t> &result) {
-  result.insert(vstIdx);
+  (void)result.insert(vstIdx);
   auto *nextLevelOsts = meFunc->GetMeSSATab()->GetNextLevelOsts(vstIdx);
   if (nextLevelOsts == nullptr) {
     return;
