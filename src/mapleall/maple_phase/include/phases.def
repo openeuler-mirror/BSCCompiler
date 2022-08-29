@@ -12,9 +12,11 @@ ADDMODULEPHASE("inline", Options::O2 && Options::useInline && !Options::profileU
 // run callgraph again to delete fully inlined static function
 ADDMODULEPHASE("callgraph", Options::O2 && Options::useInline && !Options::profileUse)
 ADDMODULEPHASE("simplify", Options::O2 && !Options::genLMBC)
+ADDMODULEPHASE("simplify", CLANG && Options::profileGen)
 ADDMODULEPHASE("ConstantFold", Options::O2)
 // ipa phase manager
 ADDMODULEPHASE("IpaSccPM", CLANG && (Options::O2 || Options::profileGen || Options::profileUse))
+ADDMODULEPHASE("outline", CLANG && Options::doOutline)
 ADDMODULEPHASE("inline", Options::O2 && Options::useInline && !Options::profileUse && Options::enableInlineSummary)
 ADDMODULEPHASE("inline", CLANG && (Options::O2 && Options::useInline && Options::profileUse))
 ADDMODULEPHASE("ipaclone", CLANG && Options::O2 && Options::enableIPAClone)
@@ -26,7 +28,7 @@ ADDMODULEPHASE("VtableImpl", JAVALANG)
 ADDMODULEPHASE("CodeReLayout", MeOption::optLevel == 2 && JAVALANG)
 ADDMODULEPHASE("javaehlower", JAVALANG)
 ADDMODULEPHASE("MUIDReplacement", JAVALANG)
-ADDMODULEPHASE("ConstantFold", JAVALANG)
+ADDMODULEPHASE("ConstantFold", JAVALANG || Options::O2)
 #endif
 
 #ifdef ME_PHASE
