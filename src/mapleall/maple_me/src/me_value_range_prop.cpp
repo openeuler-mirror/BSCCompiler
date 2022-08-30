@@ -3238,11 +3238,6 @@ void ValueRangePropagation::AnalysisUnreachableBBOrEdge(BB &bb, BB &unreachableB
   bb.RemoveSucc(unreachableBB);
   bb.RemoveMeStmt(bb.GetLastMe());
   bb.SetKind(kBBFallthru);
-  if (func.GetCfg()->UpdateCFGFreq()) {
-    bb.SetSuccFreq(0, bb.GetFrequency());
-    succBB.SetFrequency(succBB.GetFrequency() + removedFreq);
-    unreachableBB.SetFrequency(0);
-  }
   auto *loop = loops->GetBBLoopParent(bb.GetBBId());
   if (loop == nullptr) {
     return;
