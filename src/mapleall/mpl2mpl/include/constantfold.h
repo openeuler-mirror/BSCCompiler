@@ -64,6 +64,9 @@ class ConstantFold : public FuncOptimizeImpl {
   MIRConst *FoldConstComparisonMIRConst(Opcode, PrimType, PrimType, const MIRConst&, const MIRConst&);
   static bool IntegerOpIsOverflow(Opcode op, PrimType primType, int64 cstA, int64 cstB);
   static MIRIntConst *FoldIntConstUnaryMIRConst(Opcode opcode, PrimType resultType, const MIRIntConst *constNode);
+
+  static MeExpr *FoldCmpExpr(IRMap &irMap, const MeExpr &cmp1, const MeExpr &cmp2, bool isAnd);
+  static MeExpr *FoldOrOfAnds(IRMap &irMap, const MeExpr &and1, const MeExpr &and2);
  private:
   StmtNode *SimplifyBinary(BinaryStmtNode *node);
   StmtNode *SimplifyBlock(BlockNode *node);

@@ -1,3 +1,4 @@
+
 /*
  * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
@@ -13,8 +14,9 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "optimizeCFG.h"
-#include "me_phase_manager.h"
+
 #include "factory.h"
+#include "me_phase_manager.h"
 
 namespace maple {
 namespace {
@@ -23,27 +25,27 @@ std::string funcName;
 std::string phaseName;
 
 #define LOG_BBID(BB) ((BB)->GetBBId().GetIdx())
-#define DEBUG_LOG() if (debug)            \
-LogInfo::MapleLogger() << "[" << phaseName << "] "
+#define DEBUG_LOG() \
+  if (debug) LogInfo::MapleLogger() << "[" << phaseName << "] "
 
 // return {trueBB, falseBB}
-std::pair<BB *, BB *> GetTrueFalseBrPair(BB *bb) {
+std::pair<BB*, BB*> GetTrueFalseBrPair(BB *bb) {
   if (bb == nullptr) {
-    return { nullptr, nullptr };
+    return {nullptr, nullptr};
   }
   if (bb->GetKind() == kBBCondGoto) {
     auto *condBr = static_cast<CondGotoMeStmt*>(bb->GetLastMe());
     CHECK_FATAL(condBr, "condBr is nullptr!");
     if (condBr->GetOp() == OP_brtrue) {
-      return { bb->GetSucc(1), bb->GetSucc(0) };
+      return {bb->GetSucc(1), bb->GetSucc(0)};
     } else {
       ASSERT(condBr->GetOp() == OP_brfalse, "only support brtrue/brfalse");
-      return { bb->GetSucc(0), bb->GetSucc(1) };
+      return {bb->GetSucc(0), bb->GetSucc(1)};
     }
   } else if (bb->GetKind() == kBBGoto) {
-    return { bb->GetSucc(0), nullptr };
+    return {bb->GetSucc(0), nullptr};
   }
-  return { nullptr, nullptr };
+  return {nullptr, nullptr};
 }
 
 // Only one fallthru is allowed for a bb at most , but a bb may have be more than one fallthru pred
@@ -82,7 +84,7 @@ void CollectUnsafeExpr(MeExpr *expr, std::set<MeExpr*> &exprSet) {
   if (expr->GetMeOp() == kMeOpConst || expr->GetMeOp() == kMeOpVar) {
     return;
   }
-  if (expr->GetMeOp() == kMeOpIvar) { // do not use HasIvar here for efficiency reasons
+  if (expr->GetMeOp() == kMeOpIvar) {  // do not use HasIvar here for efficiency reasons
     exprSet.insert(expr);
   }
   if (expr->GetOp() == OP_div || expr->GetOp() == OP_rem) {
@@ -100,7 +102,7 @@ void CollectUnsafeExpr(MeExpr *expr, std::set<MeExpr*> &exprSet) {
 
 // expr not throw exception
 bool IsSafeExpr(const MeExpr *expr) {
-  if (expr->GetMeOp() == kMeOpIvar) { // do not use HasIvar here for efficiency reasons
+  if (expr->GetMeOp() == kMeOpIvar) {  // do not use HasIvar here for efficiency reasons
     return false;
   }
   if (expr->GetOp() == OP_div || expr->GetOp() == OP_rem) {
@@ -123,8 +125,7 @@ bool IsSafeExpr(const MeExpr *expr) {
 bool IsSimpleImm(uint64 imm) {
   return ((imm & (static_cast<uint64>(0xffff) << 48u)) == imm) ||
          ((imm & (static_cast<uint64>(0xffff) << 32u)) == imm) ||
-         ((imm & (static_cast<uint64>(0xffff) << 16u)) == imm) ||
-         ((imm & (static_cast<uint64>(0xffff))) == imm) ||
+         ((imm & (static_cast<uint64>(0xffff) << 16u)) == imm) || ((imm & (static_cast<uint64>(0xffff))) == imm) ||
          (((~imm) & (static_cast<uint64>(0xffff) << 48u)) == ~imm) ||
          (((~imm) & (static_cast<uint64>(0xffff) << 32u)) == ~imm) ||
          (((~imm) & (static_cast<uint64>(0xffff) << 16u)) == ~imm) ||
@@ -135,12 +136,12 @@ bool IsSimpleImm(uint64 imm) {
 // if non-simple imm exist, return it, otherwise return 0
 int64 GetNonSimpleImm(MeExpr *expr) {
   if (expr->GetMeOp() == kMeOpConst && IsPrimitiveInteger(expr->GetPrimType())) {
-    int64 imm = static_cast<MIRIntConst *>(static_cast<ConstMeExpr *>(expr)->GetConstVal())->GetExtValue();
+    int64 imm = static_cast<MIRIntConst*>(static_cast<ConstMeExpr*>(expr)->GetConstVal())->GetExtValue();
     if (!IsSimpleImm(static_cast<uint64>(imm))) {
       return imm;
     }
   }
-  return 0; // 0 is a simple imm
+  return 0;  // 0 is a simple imm
 }
 
 // Check if ftBB has only one regassign stmt, if regassign exists, return it, otherwise return nullptr
@@ -150,7 +151,7 @@ AssignMeStmt *GetSingleAssign(BB *bb) {
   while (stmt != nullptr && stmt->GetOp() == OP_comment) {
     stmt = stmt->GetNextMeStmt();
   }
-  if (stmt == nullptr) { // empty bb or has only comment stmt
+  if (stmt == nullptr) {  // empty bb or has only comment stmt
     return nullptr;
   }
   if (stmt->GetOp() == OP_regassign || stmt->GetOp() == OP_dassign) {
@@ -193,7 +194,7 @@ bool IsAllOpndsNotDefByCurrBB(const MeExpr &expr, const BB &currBB, std::set<con
             // we should find its real def thru use-def chain
             // If use-def chain in a loop of phinodes, we can be sure that its real def is in its ancestors.
             auto result = infLoopCheck.emplace(&scalarExpr);
-            if (!result.second) { // element is in infLoopCheck, all the def are phinode
+            if (!result.second) {  // element is in infLoopCheck, all the def are phinode
               return true;
             }
             if (bb->GetPred().empty() && bb->GetSucc().empty() && phiNode.GetOpnds().size() == 1) {
@@ -207,7 +208,7 @@ bool IsAllOpndsNotDefByCurrBB(const MeExpr &expr, const BB &currBB, std::set<con
       return stmt->GetBB() != &currBB;
     }
     case kMeOpIvar: {
-      auto &ivar = static_cast<const IvarMeExpr &>(expr);
+      auto &ivar = static_cast<const IvarMeExpr&>(expr);
       if (!IsAllOpndsNotDefByCurrBB(*ivar.GetBase(), currBB, infLoopCheck)) {
         return false;
       }
@@ -249,8 +250,8 @@ bool IsAllOpndsNotDefByCurrBB(const MeStmt &stmt) {
 
 MeExpr *GetInvertCond(MeIRMap *irmap, MeExpr *cond) {
   if (IsCompareHasReverseOp(cond->GetOp())) {
-    return irmap->CreateMeExprBinary(GetReverseCmpOp(cond->GetOp()), cond->GetPrimType(),
-                                     *cond->GetOpnd(0), *cond->GetOpnd(1));
+    return irmap->CreateMeExprBinary(GetReverseCmpOp(cond->GetOp()), cond->GetPrimType(), *cond->GetOpnd(0),
+                                     *cond->GetOpnd(1));
   }
   return irmap->CreateMeExprUnary(OP_lnot, cond->GetPrimType(), *cond);
 }
@@ -258,8 +259,7 @@ MeExpr *GetInvertCond(MeIRMap *irmap, MeExpr *cond) {
 // Is subSet a subset of superSet?
 template <class T>
 inline bool IsSubset(const std::set<T> &subSet, const std::set<T> &superSet) {
-  return std::includes(superSet.begin(), superSet.end(),
-                       subSet.begin(), subSet.end());
+  return std::includes(superSet.begin(), superSet.end(), subSet.begin(), subSet.end());
 }
 
 // before : predCond ---> succCond
@@ -269,7 +269,7 @@ bool IsSafeToMergeCond(MeExpr *predCond, MeExpr *succCond) {
   // Make sure succCond is not dependent on predCond
   // e.g. if (ptr != nullptr) if (*ptr), the second condition depends on the first one
   if (predCond == succCond) {
-    return true; // same expr
+    return true;  // same expr
   }
   if (!IsSafeExpr(succCond)) {
     std::set<MeExpr*> predSet;
@@ -316,9 +316,9 @@ std::unique_ptr<ValueRange> GetVRForSimpleCmpExpr(const MeExpr &expr) {
   if (!IsPrimitiveInteger(opndType)) {
     return nullptr;
   }
-  Bound opnd1Bound(nullptr, 0, opndType); // bound of expr's opnd1
+  Bound opnd1Bound(nullptr, 0, opndType);  // bound of expr's opnd1
   if (expr.GetOpnd(1)->GetMeOp() == kMeOpConst) {
-    MIRConst *constVal = static_cast<ConstMeExpr *>(expr.GetOpnd(1))->GetConstVal();
+    MIRConst *constVal = static_cast<ConstMeExpr*>(expr.GetOpnd(1))->GetConstVal();
     if (constVal->GetKind() != kConstInt) {
       return nullptr;
     }
@@ -380,7 +380,7 @@ BB *GetCommonDest(BB *predBB, BB *succBB) {
   }
 
   if (psucc0 != succBB && psucc1 != succBB) {
-    return nullptr; // predBB has no branch to succBB
+    return nullptr;  // predBB has no branch to succBB
   }
   BB *commonBB = (psucc0 == succBB) ? psucc1 : psucc0;
   if (commonBB == nullptr) {
@@ -517,7 +517,7 @@ bool UnreachBBAnalysis(const maple::MeFunction &f) {
   }
   return false;
 }
-} // anonymous namespace
+}  // anonymous namespace
 
 // contains only one valid goto stmt
 bool HasOnlyMeGotoStmt(BB &bb) {
@@ -600,8 +600,8 @@ bool IsMplEmptyBB(BB &bb) {
 // connectingBB has only one pred and succ, and has no stmt (except a single gotoStmt) in it
 bool IsConnectingBB(BB &bb) {
   return (bb.GetPred().size() == 1 && bb.GetSucc().size() == 1) &&
-         (IsMeEmptyBB(bb) || HasOnlyMeGotoStmt(bb)) && // for meir, if no meir exist, it is empty
-         (IsMplEmptyBB(bb) || HasOnlyMplGotoStmt(bb)); // for mplir, if no mplir exist, it is empty
+         (IsMeEmptyBB(bb) || HasOnlyMeGotoStmt(bb)) &&  // for meir, if no meir exist, it is empty
+         (IsMplEmptyBB(bb) || HasOnlyMplGotoStmt(bb));  // for mplir, if no mplir exist, it is empty
 }
 
 // RealSucc is a non-connecting BB which is not empty (or has just a single gotoStmt).
@@ -664,8 +664,8 @@ void EliminateEmptyConnectingBB(const BB *predBB, BB *emptyBB, const BB *stopBB,
   while (emptyBB != nullptr && emptyBB != stopBB && IsConnectingBB(*emptyBB)) {
     BB *succ = emptyBB->GetSucc(0);
     BB *pred = emptyBB->GetPred(0);
-    DEBUG_LOG() << "Delete empty connecting : BB" << LOG_BBID(pred) << "->BB" << LOG_BBID(emptyBB)
-                << "(deleted)->BB" << LOG_BBID(succ) << "\n";
+    DEBUG_LOG() << "Delete empty connecting : BB" << LOG_BBID(pred) << "->BB" << LOG_BBID(emptyBB) << "(deleted)->BB"
+                << LOG_BBID(succ) << "\n";
     if (pred->IsPredBB(*succ)) {
       pred->RemoveSucc(*emptyBB, true);
       emptyBB->RemoveSucc(*succ, true);
@@ -688,26 +688,31 @@ bool HasFallthruPred(const BB &bb) {
 class OptimizeBB {
  public:
   OptimizeBB(BB *bb, MeFunction &func, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *candidates)
-      : currBB(bb), f(func), cfg(func.GetCfg()), irmap(func.GetIRMap()),
-        irBuilder(func.GetMIRModule().GetMIRBuilder()), isMeIR(irmap != nullptr), cands(candidates) {}
+      : currBB(bb),
+        f(func),
+        cfg(func.GetCfg()),
+        irmap(func.GetIRMap()),
+        irBuilder(func.GetMIRModule().GetMIRBuilder()),
+        isMeIR(irmap != nullptr),
+        cands(candidates) {}
   // optimize each currBB until no change occur
   bool OptBBIteratively();
   // initial factory to create corresponding optimizer for currBB according to BBKind.
   void InitBBOptFactory();
 
  private:
-  BB *currBB = nullptr;     // BB we currently perform optimization on
-  MeFunction &f;            // function we currently perform optimization on
-  MeCFG *cfg = nullptr;     // requiring cfg to find pattern to optimize current BB
-  MeIRMap *irmap = nullptr; // used to create new MeExpr/MeStmt
-  MIRBuilder *irBuilder = nullptr; // used to create new BaseNode(expr)/StmtNode
+  BB *currBB = nullptr;             // BB we currently perform optimization on
+  MeFunction &f;                    // function we currently perform optimization on
+  MeCFG *cfg = nullptr;             // requiring cfg to find pattern to optimize current BB
+  MeIRMap *irmap = nullptr;         // used to create new MeExpr/MeStmt
+  MIRBuilder *irBuilder = nullptr;  // used to create new BaseNode(expr)/StmtNode
   bool isMeIR = false;
-  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *cands = nullptr; // candidates ost need to be updated ssa
-  std::map<BBId, std::set<OStIdx>> candsOstInBB; // bb with ost needed to be updated
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *cands = nullptr;  // candidates ost need to be updated ssa
+  std::map<BBId, std::set<OStIdx>> candsOstInBB;                       // bb with ost needed to be updated
 
-  bool repeatOpt = false; // It will be always set false by OptBBIteratively. If there is some optimization
-                          // opportunity for currBB after a/some optimization, we should set it true.
-                          // Otherwise it will stop after all optimizations finished and continue to nextBB.
+  bool repeatOpt = false;  // It will be always set false by OptBBIteratively. If there is some optimization
+                           // opportunity for currBB after a/some optimization, we should set it true.
+                           // Otherwise it will stop after all optimizations finished and continue to nextBB.
   enum BBErrStat {
     kBBNoErr,                 // BB is normal
     kBBErrNull,               // BB is nullptr
@@ -757,6 +762,7 @@ class OptimizeBB {
   // merge two bb, if merged, return combinedBB, Otherwise return nullptr
   BB *MergeSuccIntoPred(BB *pred, BB *succ);
   bool CondBranchToSelect();
+  bool FoldCondBranch();
   bool IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeExpr *falseExpr);
   // for OptimizeUncondBB
   bool MergeGotoBBToPred(BB *gotoBB, BB *pred);
@@ -792,23 +798,23 @@ class OptimizeBB {
     repeatOpt = false;
   }
 #define CHECK_CURR_BB() \
-if (!CheckCurrBB()) {   \
-  return false;         \
-}
+  if (!CheckCurrBB()) { \
+    return false;       \
+  }
 
 #define ONLY_FOR_MEIR() \
-if (!isMeIR) {          \
-  return false;         \
-}
+  if (!isMeIR) {        \
+    return false;       \
+  }
 };
 
-using OptBBFatory = FunctionFactory<BBKind, bool, OptimizeBB *>;
+using OptBBFatory = FunctionFactory<BBKind, bool, OptimizeBB*>;
 
 bool OptimizeBB::CheckCurrBB() {
-  if (bbErrStat != kBBNoErr) { // has been checked before
+  if (bbErrStat != kBBNoErr) {  // has been checked before
     return false;
   }
-  if  (currBB == nullptr) {
+  if (currBB == nullptr) {
     bbErrStat = kBBErrNull;
     return false;
   }
@@ -832,9 +838,9 @@ bool OptimizeBB::CheckCurrBB() {
 void OptimizeBB::UpdateBBIdInSSACand(const BBId &oldBBID, const BBId &newBBID) {
   auto it = candsOstInBB.find(oldBBID);
   if (it == candsOstInBB.end()) {
-    return; // no item to update
+    return;  // no item to update
   }
-  auto &ostSet = candsOstInBB[newBBID]; // find or create
+  auto &ostSet = candsOstInBB[newBBID];  // find or create
   ostSet.insert(it->second.begin(), it->second.end());
   candsOstInBB.erase(it);
   for (auto &cand : *cands) {
@@ -854,7 +860,7 @@ void OptimizeBB::UpdateSSACandForBBPhiList(BB *bb, const BB *newBB) {
   if (!isMeIR || bb == nullptr || bb->GetMePhiList().empty()) {
     return;
   }
-  if (newBB == nullptr) { // if not specified, newBB is bb itself
+  if (newBB == nullptr) {  // if not specified, newBB is bb itself
     newBB = bb;
   }
   std::set<OStIdx> &ostSet = candsOstInBB[newBB->GetBBId()];
@@ -942,8 +948,8 @@ bool OptimizeBB::BranchBB2UncondBB(BB &bb) {
     }
   }
 
-  DEBUG_LOG() << "BranchBB2UncondBB : " << (bb.GetKind() == kBBCondGoto ? "Conditional " : "Switch ")
-              << "BB" << LOG_BBID(&bb) << " to unconditional BB\n";
+  DEBUG_LOG() << "BranchBB2UncondBB : " << (bb.GetKind() == kBBCondGoto ? "Conditional " : "Switch ") << "BB"
+              << LOG_BBID(&bb) << " to unconditional BB\n";
   // delete all empty bb between bb and destBB
   // note : bb and destBB will be connected after empty BB is deleted
   for (int i = static_cast<int>(bb.GetSucc().size()) - 1; i >= 0; --i) {
@@ -954,7 +960,7 @@ bool OptimizeBB::BranchBB2UncondBB(BB &bb) {
            "[FUNC: %s]Goto BB%d has different destination", funcName.c_str(), LOG_BBID(&bb));
     bb.RemoveSucc(*bb.GetSucc().back());
   }
-  if (Options::profileUse && !bb.GetSuccFreq().empty()) {
+  if (cfg->UpdateCFGFreq()) {
     ASSERT(bb.GetSuccFreq().size() == bb.GetSucc().size(), "sanity check");
     bb.SetSuccFreq(0, bb.GetFrequency());
   }
@@ -1012,30 +1018,32 @@ bool OptimizeBB::OptimizeCondBB2UnCond() {
       CHECK_FATAL(brStmt, "brStmt is nullptr!");
       bool isCondTrue = (!condExpr->IsZero());
       bool isBrtrue = (brStmt->GetOp() == OP_brtrue);
-      if (isCondTrue != isBrtrue) { // goto fallthru BB
+      if (isCondTrue != isBrtrue) {  // goto fallthru BB
         currBB->RemoveLastMeStmt();
         currBB->SetKind(kBBFallthru);
-        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+        if (cfg->UpdateCFGFreq()) {
           removedSuccFreq = currBB->GetSuccFreq()[1];
         }
         currBB->RemoveSucc(*gtBB, true);
         // update frequency
-        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+        if (cfg->UpdateCFGFreq()) {
           currBB->SetSuccFreq(0, currBB->GetFrequency());
           ftBB->SetFrequency(ftBB->GetFrequency() + removedSuccFreq);
+          ftBB->UpdateEdgeFreqs(false);
         }
       } else {
         MeStmt *gotoStmt = irmap->CreateGotoMeStmt(f.GetOrCreateBBLabel(*gtBB), currBB, &brStmt->GetSrcPosition());
         currBB->ReplaceMeStmt(brStmt, gotoStmt);
         currBB->SetKind(kBBGoto);
         // update frequency
-        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+        if (cfg->UpdateCFGFreq()) {
           removedSuccFreq = currBB->GetSuccFreq()[0];
         }
         currBB->RemoveSucc(*ftBB, true);
-        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+        if (cfg->UpdateCFGFreq()) {
           currBB->SetSuccFreq(0, currBB->GetFrequency());
           gtBB->SetFrequency(gtBB->GetFrequency() + removedSuccFreq);
+          gtBB->UpdateEdgeFreqs(false);
         }
       }
       SetBBRunAgain();
@@ -1051,25 +1059,27 @@ bool OptimizeBB::OptimizeCondBB2UnCond() {
       if (isCondTrue != isBrTrue) {
         currBB->RemoveLastStmt();
         currBB->SetKind(kBBFallthru);
-        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+        if (cfg->UpdateCFGFreq()) {
           removedSuccFreq = currBB->GetSuccFreq()[1];
         }
         currBB->RemoveSucc(*gtBB);
-        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+        if (cfg->UpdateCFGFreq()) {
           currBB->SetSuccFreq(0, currBB->GetFrequency());
           ftBB->SetFrequency(ftBB->GetFrequency() + removedSuccFreq);
+          ftBB->UpdateEdgeFreqs(false);
         }
       } else {
         StmtNode *gotoStmt = irBuilder->CreateStmtGoto(OP_goto, f.GetOrCreateBBLabel(*gtBB));
         currBB->ReplaceStmt(&brStmt, gotoStmt);
         currBB->SetKind(kBBGoto);
-        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+        if (cfg->UpdateCFGFreq()) {
           removedSuccFreq = currBB->GetSuccFreq()[0];
         }
         currBB->RemoveSucc(*ftBB);
-        if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
+        if (cfg->UpdateCFGFreq()) {
           currBB->SetSuccFreq(0, currBB->GetFrequency());
           gtBB->SetFrequency(gtBB->GetFrequency() + removedSuccFreq);
+          gtBB->UpdateEdgeFreqs(false);
         }
       }
       SetBBRunAgain();
@@ -1152,11 +1162,15 @@ bool OptimizeBB::RemoveSuccFromNoReturnBB() {
           if (phiNode->GetOpnds().size() < 1) {
             break;
           }
-          phiNode->GetOpnds().push_back(phiNode->GetOpnd(0)); // to maintain opnd num and predNum
+          phiNode->GetOpnds().push_back(phiNode->GetOpnd(0));  // to maintain opnd num and predNum
         }
       }
       (void)EliminateRedundantPhiList(retBB);
       ResetBBRunAgain();
+      // add edge Frequency to exitbb
+      if (cfg->UpdateCFGFreq()) {
+        currBB->PushBackSuccFreq(0);
+      }
     }
     return true;
   }
@@ -1210,15 +1224,14 @@ BB *OptimizeBB::MergeSuccIntoPred(BB *pred, BB *succ) {
     }
   }
   // update succFreqs before update succs
-  if (Options::profileUse && f.GetMirFunc()->GetFuncProfData() &&
-      !succ->GetSuccFreq().empty()) {
+  if (cfg->UpdateCFGFreq() && !succ->GetSuccFreq().empty()) {
     // copy succFreqs of succ to pred
     for (int i = 0; i < succ->GetSuccFreq().size(); i++) {
       pred->PushBackSuccFreq(succ->GetSuccFreq()[i]);
     }
   }
   succ->MoveAllSuccToPred(pred, cfg->GetCommonExitBB());
-  pred->RemoveSucc(*succ, false); // philist will not be associated with pred BB, no need to update phi here.
+  pred->RemoveSucc(*succ, false);  // philist will not be associated with pred BB, no need to update phi here.
   if (!isSuccEmpty) {
     // only when we move stmt from succ to pred should we set attr and kind here
     pred->SetAttributes(succ->GetAttributes());
@@ -1242,11 +1255,11 @@ BB *OptimizeBB::MergeSuccIntoPred(BB *pred, BB *succ) {
     // update bbid : tell ssa-updater to update with new BBID
     UpdateBBIdInSSACand(succ->GetBBId(), pred->GetBBId());
   }
-  DEBUG_LOG() << "Merge BB" << LOG_BBID(succ) << " to BB" << LOG_BBID(pred)
-              << ", and delete BB" << LOG_BBID(succ) << "\n";
+  DEBUG_LOG() << "Merge BB" << LOG_BBID(succ) << " to BB" << LOG_BBID(pred) << ", and delete BB" << LOG_BBID(succ)
+              << "\n";
   UpdateSSACandForBBPhiList(succ, pred);
   DeleteBB(succ);
-  succ->SetBBId(pred->GetBBId()); // succ has been merged to pred, and reference to succ should be set to pred too.
+  succ->SetBBId(pred->GetBBId());  // succ has been merged to pred, and reference to succ should be set to pred too.
   return pred;
 }
 
@@ -1289,13 +1302,13 @@ bool OptimizeBB::IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeE
   if (trueExpr == falseExpr) {
     return true;
   }
-  ASSERT(IsSafeExpr(trueExpr), "[FUNC: %s]Please check for safety first", funcName.c_str()) ;
-  ASSERT(IsSafeExpr(falseExpr), "[FUNC: %s]Please check for safety first", funcName.c_str()) ;
+  ASSERT(IsSafeExpr(trueExpr), "[FUNC: %s]Please check for safety first", funcName.c_str());
+  ASSERT(IsSafeExpr(falseExpr), "[FUNC: %s]Please check for safety first", funcName.c_str());
   // try to simplify select expr
   MeExpr *selExpr = irmap->CreateMeExprSelect(trueExpr->GetPrimType(), *condExpr, *trueExpr, *falseExpr);
   MeExpr *simplifiedSel = irmap->SimplifyMeExpr(selExpr);
   if (simplifiedSel != selExpr) {
-    return true; // can be simplified
+    return true;  // can be simplified
   }
 
   // We can check for every opnd of opndExpr, and calculate their cost according to cg's insn
@@ -1320,30 +1333,30 @@ bool OptimizeBB::IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeE
   return true;
 }
 
- // Ignoring connecting BB, two cases can be turn into select
- //     condBB        condBB
- //     /   \         /    \
+// Ignoring connecting BB, two cases can be turn into select
+//     condBB        condBB
+//     /   \         /    \
  //   ftBB  gtBB     |   gtBB/ftBB
- //   x<-   x<-      |     x<-
- //     \   /         \     /
- //     jointBB       jointBB
+//   x<-   x<-      |     x<-
+//     \   /         \     /
+//     jointBB       jointBB
 bool OptimizeBB::CondBranchToSelect() {
   CHECK_CURR_BB();
-  BB *ftBB = FindFirstRealSucc(currBB->GetSucc(0)); // fallthruBB
-  BB *gtBB = FindFirstRealSucc(currBB->GetSucc(1)); // gotoBB
+  BB *ftBB = FindFirstRealSucc(currBB->GetSucc(0));  // fallthruBB
+  BB *gtBB = FindFirstRealSucc(currBB->GetSucc(1));  // gotoBB
   if (ftBB == gtBB) {
     (void)BranchBB2UncondBB(*currBB);
     return true;
   }
   // if ftBB or gtBB itself is jointBB, just return itself; otherwise return real succ
-  BB *ftTargetBB = (ftBB->GetPred().size() == 1 && ftBB->GetSucc().size() == 1) ? FindFirstRealSucc(ftBB->GetSucc(0))
-                                                                                : ftBB;
-  BB *gtTargetBB = (gtBB->GetPred().size() == 1 && gtBB->GetSucc().size() == 1) ? FindFirstRealSucc(gtBB->GetSucc(0))
-                                                                                : gtBB;
+  BB *ftTargetBB =
+      (ftBB->GetPred().size() == 1 && ftBB->GetSucc().size() == 1) ? FindFirstRealSucc(ftBB->GetSucc(0)) : ftBB;
+  BB *gtTargetBB =
+      (gtBB->GetPred().size() == 1 && gtBB->GetSucc().size() == 1) ? FindFirstRealSucc(gtBB->GetSucc(0)) : gtBB;
   if (ftTargetBB != gtTargetBB) {
     return false;
   }
-  BB *jointBB = ftTargetBB; // common succ
+  BB *jointBB = ftTargetBB;  // common succ
   // Check if ftBB has only one assign stmt, set ftStmt if a assign stmt exist
   AssignMeStmt *ftStmt = nullptr;
   if (ftBB != jointBB) {
@@ -1368,7 +1381,7 @@ bool OptimizeBB::CondBranchToSelect() {
   // Here we found a pattern, collect select opnds and result reg
   ScalarMeExpr *ftLHS = nullptr;
   MeExpr *ftRHS = nullptr;
-  std::set<ScalarMeExpr*> chiListCands; // collect chilist if assign stmt has one
+  std::set<ScalarMeExpr*> chiListCands;  // collect chilist if assign stmt has one
   if (ftStmt != nullptr) {
     ftLHS = static_cast<ScalarMeExpr*>(ftStmt->GetLHS());
     ftRHS = ftStmt->GetRHS();
@@ -1416,9 +1429,9 @@ bool OptimizeBB::CondBranchToSelect() {
     DEBUG_LOG() << "Abort cond2sel for BB" << LOG_BBID(currBB) << ", because two ost assigned are not the same\n";
     return false;
   }
-  DEBUG_LOG() << "Candidate cond2sel BB" << LOG_BBID(currBB) << "(cond)->{BB" << LOG_BBID(currBB->GetSucc(0))
-              << ", BB" << LOG_BBID(currBB->GetSucc(1)) << "}->BB" << LOG_BBID(ftTargetBB) << "(jointBB)\n";
-  if (ftRHS != gtRHS) { // if ftRHS is the same as gtRHS, they can be simplified, and no need to check safety
+  DEBUG_LOG() << "Candidate cond2sel BB" << LOG_BBID(currBB) << "(cond)->{BB" << LOG_BBID(currBB->GetSucc(0)) << ", BB"
+              << LOG_BBID(currBB->GetSucc(1)) << "}->BB" << LOG_BBID(ftTargetBB) << "(jointBB)\n";
+  if (ftRHS != gtRHS) {  // if ftRHS is the same as gtRHS, they can be simplified, and no need to check safety
     // black list
     if (!IsSafeExpr(ftRHS) || !IsSafeExpr(gtRHS)) {
       DEBUG_LOG() << "Abort cond2sel for BB" << LOG_BBID(currBB) << ", because trueExpr or falseExpr is not safe\n";
@@ -1437,7 +1450,7 @@ bool OptimizeBB::CondBranchToSelect() {
   DEBUG_LOG() << "Condition To Select : BB" << LOG_BBID(currBB) << "(cond)->[BB" << LOG_BBID(ftBB) << "(ft), BB"
               << LOG_BBID(gtBB) << "(gt)]->BB" << LOG_BBID(jointBB) << "(joint)\n";
   ScalarMeExpr *resLHS = nullptr;
-  if (jointBB->GetPred().size() == 2) { // if jointBB has only ftBB and gtBB as its pred.
+  if (jointBB->GetPred().size() == 2) {  // if jointBB has only ftBB and gtBB as its pred.
     // use phinode lhs as result
     auto it = jointBB->GetMePhiList().find(ftLHS->GetOstIdx());
     if (it == jointBB->GetMePhiList().end()) {
@@ -1451,7 +1464,7 @@ bool OptimizeBB::CondBranchToSelect() {
   // It is profitable for instruction selection if select opnd is a compare expression
   // select condExpr, trueExpr, falseExpr => select cmpExpr, trueExpr, falseExpr
   if (condExpr->IsScalar() && condExpr->GetPrimType() != PTY_u1) {
-    auto *scalarExpr = static_cast<ScalarMeExpr *>(condExpr);
+    auto *scalarExpr = static_cast<ScalarMeExpr*>(condExpr);
     if (scalarExpr->GetDefBy() == kDefByStmt) {
       MeStmt *defStmt = scalarExpr->GetDefStmt();
       MeExpr *rhs = defStmt->GetRHS();
@@ -1476,7 +1489,7 @@ bool OptimizeBB::CondBranchToSelect() {
   }
   (void)BranchBB2UncondBB(*currBB);
   // update phi
-  if (jointBB->GetPred().size() == 1) { // jointBB has only currBB as its pred
+  if (jointBB->GetPred().size() == 1) {  // jointBB has only currBB as its pred
     // just remove phinode
     jointBB->GetMePhiList().erase(resLHS->GetOstIdx());
   } else {
@@ -1503,6 +1516,77 @@ bool OptimizeBB::CondBranchToSelect() {
   return true;
 }
 
+static MeExpr *FoldCmpOfBitOps(IRMap &irmap, const MeExpr &cmp1, const MeExpr &cmp2) {
+  if (cmp1.GetOp() != cmp2.GetOp() || cmp1.GetOpnd(1) != cmp2.GetOpnd(1)) {
+    return nullptr;
+  }
+  auto opnd1 = cmp1.GetOpnd(1);
+  if (!opnd1 || opnd1->GetMeOp() != kMeOpConst) {
+    return nullptr;
+  }
+  if (!IsPrimitiveInteger(cmp1.GetOpnd(1)->GetPrimType())) {
+    return nullptr;
+  }
+  auto val = static_cast<ConstMeExpr *>(cmp1.GetOpnd(1))->GetIntValue();
+  if (!(cmp1.GetOp() == OP_ne && val == 0)) {
+    return nullptr;
+  }
+  auto op0OfCmp1 = cmp1.GetOpnd(0);
+  auto op0OfCmp2 = cmp2.GetOpnd(0);
+  return ConstantFold::FoldOrOfAnds(irmap, *op0OfCmp1, *op0OfCmp2);
+}
+
+// fold 2 sequential condbranch if they are semantically logical and/or
+// cond1                cond3
+//   |   \                |\
+// cond2  \      ->       | \
+//   |   \ \          fallth br
+// fallth \|
+//   |    br
+bool OptimizeBB::FoldCondBranch() {
+  CHECK_CURR_BB();
+  auto succBB = currBB->GetSucc(0);
+  if (succBB->GetKind() != kBBCondGoto) {
+    return false;
+  }
+  auto realBrOfCurr = FindFirstRealSucc(currBB->GetSucc(1));
+  auto realBrOfSucc = FindFirstRealSucc(succBB->GetSucc(1));
+  if (realBrOfCurr != realBrOfSucc) {
+    return false;
+  }
+  auto stmt1 = static_cast<CondGotoMeStmt *>(currBB->GetLastMe());
+  auto stmt2 = static_cast<CondGotoMeStmt *>(succBB->GetFirstMe());
+  if (stmt1->GetOp() != stmt2->GetOp()) {
+    return false;
+  }
+  MeExpr *foldExpr = nullptr;
+
+  do {
+    bool isAnd = false;
+    if (stmt1->GetOp() == OP_brfalse) {
+      isAnd = true;
+    }
+
+    if (!isAnd && (foldExpr = FoldCmpOfBitOps(*irmap, *stmt1->GetOpnd(), *stmt2->GetOpnd())) != nullptr) {
+      break;
+    }
+
+    if ((foldExpr = ConstantFold::FoldCmpExpr(*irmap, *stmt1->GetOpnd(), *stmt2->GetOpnd(), isAnd)) != nullptr) {
+      break;
+    }
+  } while (0);
+
+  if (foldExpr) {
+    stmt1->SetOpnd(0, foldExpr);
+    stmt1->SetBranchProb(stmt2->GetBranchProb());
+    succBB->RemoveLastMeStmt();
+    succBB->SetKind(kBBFallthru);
+    succBB->RemoveBBFromSucc(*succBB->GetSucc(1));
+    return true;
+  }
+  return false;
+}
+
 bool IsExprSameLexicalally(MeExpr *expr1, MeExpr *expr2) {
   if (expr1 == expr2) {
     return true;
@@ -1520,11 +1604,11 @@ bool IsExprSameLexicalally(MeExpr *expr1, MeExpr *expr2) {
       if (const1->GetKind() == kConstInt) {
         return static_cast<MIRIntConst*>(const1)->GetExtValue() == static_cast<MIRIntConst*>(const2)->GetExtValue();
       } else if (const1->GetKind() == kConstFloatConst) {
-        return IsFloatingPointNumBitsSame<float>(static_cast<MIRFloatConst *>(const1)->GetValue(),
-                                                 static_cast<MIRFloatConst *>(const2)->GetValue());
+        return IsFloatingPointNumBitsSame<float>(static_cast<MIRFloatConst*>(const1)->GetValue(),
+                                                 static_cast<MIRFloatConst*>(const2)->GetValue());
       } else if (const1->GetKind() == kConstDoubleConst) {
-        return IsFloatingPointNumBitsSame<double>(static_cast<MIRDoubleConst *>(const1)->GetValue(),
-                                                  static_cast<MIRDoubleConst *>(const2)->GetValue());
+        return IsFloatingPointNumBitsSame<double>(static_cast<MIRDoubleConst*>(const1)->GetValue(),
+                                                  static_cast<MIRDoubleConst*>(const2)->GetValue());
       }
       return false;
     }
@@ -1710,18 +1794,18 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
   }
   MeExpr *predCond = predBr->GetOpnd(0);
   MeExpr *succCond = succBr->GetOpnd(0);
-  auto ptfSucc = GetTrueFalseBrPair(&pred); // pred true and false
-  auto stfSucc = GetTrueFalseBrPair(&succ); // succ true and false
+  auto ptfSucc = GetTrueFalseBrPair(&pred);  // pred true and false
+  auto stfSucc = GetTrueFalseBrPair(&succ);  // succ true and false
   // Try to infer result of succCond from predCond
   bool isPredTrueBrSucc = (FindFirstRealSucc(ptfSucc.first) == &succ);
   BranchResult tfBranch = InferSuccCondBrFromPredCond(predCond, succCond, isPredTrueBrSucc);
-  if (tfBranch == kBrUnknown) { // succCond cannot be inferred from predCond
+  if (tfBranch == kBrUnknown) {  // succCond cannot be inferred from predCond
     return false;
   }
   // if succ's cond can be inferred from pred's cond, pred can skip succ and branches to newTarget directly
   BB *newTarget = (tfBranch == kBrTrue) ? FindFirstRealSucc(stfSucc.first) : FindFirstRealSucc(stfSucc.second);
   if (newTarget == nullptr || newTarget == &succ) {
-    return  false;
+    return false;
   }
   DEBUG_LOG() << "Condition in BB" << LOG_BBID(&succ) << " is redundant, since it has been checked in BB"
               << LOG_BBID(&pred) << ", BB" << LOG_BBID(&pred) << " can branch to BB" << LOG_BBID(newTarget) << "\n";
@@ -1731,7 +1815,7 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
   //      succ  ...
   //      /  \
   //    ftBB  gtBB
-  if (succ.GetPred().size() == 1) { // succ has only one pred
+  if (succ.GetPred().size() == 1) {  // succ has only one pred
     // if newTarget is succ's gotoBB, and it has fallthru pred, we should add a goto stmt to succ's last
     // to replace condGoto stmt. Otherwise, newTarget will have two fallthru pred
     if (newTarget == FindFirstRealSucc(succ.GetSucc(1)) && HasFallthruPred(*newTarget)) {
@@ -1749,7 +1833,17 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
       DEBUG_LOG() << "SkipRedundantCond : Remove condBr in BB" << LOG_BBID(&succ) << ", turn it to fallthruBB\n";
     }
     BB *rmBB = (FindFirstRealSucc(succ.GetSucc(0)) == newTarget) ? succ.GetSucc(1) : succ.GetSucc(0);
+    int64_t deletedSuccFreq = 0;
+    if (cfg->UpdateCFGFreq()) {
+      int idx = succ.GetSuccIndex(*rmBB);
+      deletedSuccFreq = static_cast<int64_t>(succ.GetSuccFreq()[static_cast<uint32>(idx)]);
+    }
     succ.RemoveSucc(*rmBB, true);
+    if (cfg->UpdateCFGFreq()) {
+      succ.SetSuccFreq(0, succ.GetFrequency());
+      auto *succofSucc = succ.GetSucc(0);
+      succofSucc->SetFrequency(static_cast<uint32>(succofSucc->GetFrequency() + deletedSuccFreq));
+    }
     DEBUG_LOG() << "Remove succ BB" << LOG_BBID(rmBB) << " of pred BB" << LOG_BBID(&succ) << "\n";
     return true;
   } else {
@@ -1791,15 +1885,16 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
     int predPredIdx = succ.GetPredIndex(pred); // before replace succ, record predidx for UpdatePhiForMovingPred
     pred.ReplaceSucc(&succ, newBB, false); // do not update phi here, UpdatePhiForMovingPred will do it
     DEBUG_LOG() << "Replace succ BB" << LOG_BBID(replacedSucc) << " with BB" << LOG_BBID(newBB) << ": BB"
-                << LOG_BBID(&pred) << "->...->BB" << LOG_BBID(&succ) << "(skipped)" << " => BB" << LOG_BBID(&pred)
-                << "->BB" << LOG_BBID(newBB) << "(new)->BB" << LOG_BBID(newTarget) << "\n";
+                << LOG_BBID(&pred) << "->...->BB" << LOG_BBID(&succ) << "(skipped)"
+                << " => BB" << LOG_BBID(&pred) << "->BB" << LOG_BBID(newBB) << "(new)->BB" << LOG_BBID(newTarget)
+                << "\n";
     if (pred.GetSucc(1) == newBB) {
       cfg->UpdateBranchTarget(pred, succ, *newBB, f);
     }
     newTarget->AddPred(*newBB);
     UpdatePhiForMovingPred(predPredIdx, newBB, &succ, newTarget);
     // update newBB frequency : copy predBB succFreq as newBB frequency
-    if (Options::profileUse && f.GetMirFunc()->GetFuncProfData()) {
+    if (cfg->UpdateCFGFreq()) {
       int idx = pred.GetSuccIndex(*newBB);
       ASSERT(idx >= 0 && idx < pred.GetSucc().size(), "sanity check");
       uint64_t freq = pred.GetEdgeFreq(idx);
@@ -1810,6 +1905,13 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
       uint32_t freqOfSucc = succ.GetFrequency();
       ASSERT(freqOfSucc >= freq, "sanity check");
       succ.SetFrequency(freqOfSucc - freq);
+      // update edge frequency
+      BB *affectedBB = (tfBranch == kBrTrue) ? stfSucc.first : stfSucc.second;
+      idx = succ.GetSuccIndex(*affectedBB);
+      ASSERT(idx >= 0 && idx < succ.GetSucc().size(), "sanity check");
+      int64_t oldedgeFreq = static_cast<int64_t>(succ.GetSuccFreq()[static_cast<uint32>(idx)]);
+      ASSERT(oldedgeFreq >= freq, "sanity check");
+      succ.SetSuccFreq(idx, static_cast<uint64>(oldedgeFreq) - freq);
     }
     return true;
   }
@@ -1859,6 +1961,10 @@ bool OptimizeBB::OptimizeCondBB() {
     SetBBRunAgain();
     return true;
   }
+  if (FoldCondBranch()) {
+    SetBBRunAgain();
+    return true;
+  }
   return change;
 }
 
@@ -1898,7 +2004,7 @@ void OptimizeBB::UpdatePhiForMovingPred(int predIdxForCurr, const BB *pred, BB *
       // create a new version for new phi
       phiMeNode->SetLHS(irmap->CreateRegOrVarMeExprVersion(ostIdx));
     }
-    UpdateSSACandForBBPhiList(succ); // new philist has been created in succ
+    UpdateSSACandForBBPhiList(succ);  // new philist has been created in succ
   } else {
     // succ has other pred besides curr
     for (auto &phi : succPhiList) {
@@ -1929,7 +2035,7 @@ void OptimizeBB::UpdatePhiForMovingPred(int predIdxForCurr, const BB *pred, BB *
       } else {
         auto *phiMeNode = irmap->NewInPool<MePhiNode>();
         phiMeNode->SetDefBB(succ);
-        resPair.first->second = phiMeNode; // replace nullptr inserted before
+        resPair.first->second = phiMeNode;  // replace nullptr inserted before
         auto &phiOpnds = phiMeNode->GetOpnds();
         // insert opnd into New phiNode : all phiOpnds (except for pred) are phiNode lhs in curr
         phiOpnds.insert(phiOpnds.end(), succ->GetPred().size(), phi.second->GetLHS());
@@ -1968,7 +2074,7 @@ bool OptimizeBB::MergeGotoBBToPred(BB *succ, BB *pred) {
   if (!HasOnlyMeGotoStmt(*succ)) {
     return false;
   }
-  BB *newTarget = succ->GetSucc(0); // succ must have only one succ, because it is uncondBB
+  BB *newTarget = succ->GetSucc(0);  // succ must have only one succ, because it is uncondBB
   if (newTarget == succ) {
     // succ goto itself, no need to update goto target to newTarget
     return false;
@@ -1980,8 +2086,8 @@ bool OptimizeBB::MergeGotoBBToPred(BB *succ, BB *pred) {
   // pred is moved to newTarget
   if (pred->GetKind() == kBBFallthru) {
     CHECK_FATAL(succ->GetLastMe(), "LastMe is nullptr!");
-    GotoMeStmt *gotoMeStmt = irmap->CreateGotoMeStmt(newTarget->GetBBLabel(), pred,
-                                                     &succ->GetLastMe()->GetSrcPosition());
+    GotoMeStmt *gotoMeStmt =
+        irmap->CreateGotoMeStmt(newTarget->GetBBLabel(), pred, &succ->GetLastMe()->GetSrcPosition());
     pred->AddMeStmtLast(gotoMeStmt);
     pred->SetKind(kBBGoto);
     DEBUG_LOG() << "Insert Uncond stmt to fallthru BB" << LOG_BBID(currBB) << ", and goto BB" << LOG_BBID(newTarget)
@@ -1989,15 +2095,29 @@ bool OptimizeBB::MergeGotoBBToPred(BB *succ, BB *pred) {
   }
   int predIdx = succ->GetPredIndex(*pred);
   bool needUpdatePhi = false;
+  int64_t removedFreq = 0;
+  if (cfg->UpdateCFGFreq()) {
+    int idx = pred->GetSuccIndex(*succ);
+    removedFreq = static_cast<int64_t>(pred->GetSuccFreq()[static_cast<uint32>(idx)]);
+  }
   if (pred->IsPredBB(*newTarget)) {
-    pred->RemoveSucc(*succ, true); // one of pred's succ has been newTarget, avoid duplicate succ here
+    pred->RemoveSucc(*succ, true);  // one of pred's succ has been newTarget, avoid duplicate succ here
+    if (cfg->UpdateCFGFreq()) {
+      int idx = pred->GetSuccIndex(*newTarget);
+      pred->SetSuccFreq(idx, pred->GetSuccFreq()[static_cast<uint32>(idx)] + static_cast<uint64>(removedFreq));
+    }
   } else {
-    pred->ReplaceSucc(succ, newTarget); // phi opnd is not removed from currBB's philist, we will remove it later
+    pred->ReplaceSucc(succ, newTarget);  // phi opnd is not removed from currBB's philist, we will remove it later
     needUpdatePhi = true;
   }
-
-  DEBUG_LOG() << "Merge Uncond BB" << LOG_BBID(succ) << " to its pred BB" << LOG_BBID(pred)
-              << ": BB" << LOG_BBID(pred) << "->BB" << LOG_BBID(succ) << "(merged)->BB" << LOG_BBID(newTarget) << "\n";
+  if (cfg->UpdateCFGFreq()) {
+    int64_t succFreq = succ->GetFrequency();
+    ASSERT(succFreq >= removedFreq, "sanity check");
+    succ->SetFrequency(static_cast<uint32>(succFreq - removedFreq));
+    succ->SetSuccFreq(0, succ->GetFrequency());
+  }
+  DEBUG_LOG() << "Merge Uncond BB" << LOG_BBID(succ) << " to its pred BB" << LOG_BBID(pred) << ": BB" << LOG_BBID(pred)
+              << "->BB" << LOG_BBID(succ) << "(merged)->BB" << LOG_BBID(newTarget) << "\n";
   cfg->UpdateBranchTarget(*pred, *succ, *newTarget, f);
   if (needUpdatePhi) {
     // remove phiOpnd in succ, and add phiOpnd to newTarget
@@ -2101,11 +2221,11 @@ bool OptimizeBB::OptimizeSwitchBB() {
   if (swStmt->GetOpnd()->GetMeOp() != kMeOpConst) {
     return false;
   }
-  auto *swConstExpr = static_cast<ConstMeExpr *>(swStmt->GetOpnd());
+  auto *swConstExpr = static_cast<ConstMeExpr*>(swStmt->GetOpnd());
   MIRConst *swConstVal = swConstExpr->GetConstVal();
   ASSERT(swConstVal->GetKind() == kConstInt, "[FUNC: %s]switch is only legal for integer val", funcName.c_str());
   int64 val = static_cast<MIRIntConst*>(swConstVal)->GetExtValue();
-  BB *survivor = currBB->GetSucc(0); // init as default BB
+  BB *survivor = currBB->GetSucc(0);  // init as default BB
   for (size_t i = 0; i < swStmt->GetSwitchTable().size(); ++i) {
     int64 caseVal = swStmt->GetSwitchTable().at(i).first;
     if (caseVal == val) {
@@ -2162,8 +2282,8 @@ MeExpr *OptimizeBB::CombineCondByOffset(const MeExpr &expr) {
   MeExpr *geConst = geExpr->GetOpnd(1);
   PrimType lePtyp = leConst->GetPrimType();
   PrimType gePtyp = geConst->GetPrimType();
-  if (leConst->GetOp() != OP_constval || geConst->GetOp() != OP_constval ||
-      lePtyp != gePtyp || !IsPrimitiveInteger(lePtyp)) { // only allowed for integer, because float cannot wrap around
+  if (leConst->GetOp() != OP_constval || geConst->GetOp() != OP_constval || lePtyp != gePtyp ||
+      !IsPrimitiveInteger(lePtyp)) {  // only allowed for integer, because float cannot wrap around
     return nullptr;
   }
   int64 leVal = static_cast<MIRIntConst*>(static_cast<ConstMeExpr*>(leConst)->GetConstVal())->GetExtValue();
@@ -2179,9 +2299,9 @@ MeExpr *OptimizeBB::CombineCondByOffset(const MeExpr &expr) {
       (IsPrimitiveUnsigned(lePtyp) && static_cast<uint64>(leVal) > static_cast<uint64>(newGeVal))) {
     // e.g. x < 3 || x > 2 <==> true
     return irmap->CreateIntConstMeExpr(1, PTY_u1);
-  } else if (leVal == newGeVal) { // e.g. x < 3 || x > 3 <==> x != 3
-    return irmap->CreateMeExprCompare(
-        OP_ne, PTY_u1, opndPtyp, *sameExpr, *irmap->CreateIntConstMeExpr(newGeVal, lePtyp));
+  } else if (leVal == newGeVal) {  // e.g. x < 3 || x > 3 <==> x != 3
+    return irmap->CreateMeExprCompare(OP_ne, PTY_u1, opndPtyp, *sameExpr,
+                                      *irmap->CreateIntConstMeExpr(newGeVal, lePtyp));
   }
   // (x < val1 || x > val2) <==> ((unsigned)(x - val1) > (val2 - val1))
   MeExpr *newLeConst = irmap->CreateIntConstMeExpr(leVal, opndPtyp);
@@ -2260,15 +2380,15 @@ bool OptimizeBB::FoldBranchToCommonDest(BB *pred, BB *succ) {
     return false;
   }
   if (!IsProfitableToMergeCond(predCond, succCond)) {
-    DEBUG_LOG() << "Abort Merging Two CondBB : Condition in successor BB"
-                << LOG_BBID(succ) << " is not simple enough and not profitable\n";
+    DEBUG_LOG() << "Abort Merging Two CondBB : Condition in successor BB" << LOG_BBID(succ)
+                << " is not simple enough and not profitable\n";
     return false;
   }
   // Start trying to merge two condition together if possible
-  auto ptfBrPair = GetTrueFalseBrPair(pred); // pred's true and false branches
-  auto stfBrPair = GetTrueFalseBrPair(succ); // succ's true and false branches
+  auto ptfBrPair = GetTrueFalseBrPair(pred);  // pred's true and false branches
+  auto stfBrPair = GetTrueFalseBrPair(succ);  // succ's true and false branches
   Opcode combinedCondOp = OP_undef;
-  bool invertSuccCond = false; // invert second condition, e.g. (cond1 && !cond2)
+  bool invertSuccCond = false;  // invert second condition, e.g. (cond1 && !cond2)
   // all cases are listed as follow:
   //  | case | predBB -> common | succBB -> common | invertSuccCond | or/and |
   //  | ---- | ---------------- | ---------------- | -------------- | ------ |
@@ -2280,16 +2400,16 @@ bool OptimizeBB::FoldBranchToCommonDest(BB *pred, BB *succ) {
   // pred's false branch to succ, so true branch to common
   bool isPredTrueToCommon = (FindFirstRealSucc(ptfBrPair.second) == succ);
   bool isSuccTrueToCommon = (FindFirstRealSucc(stfBrPair.first) == commonBB);
-  if (isPredTrueToCommon && isSuccTrueToCommon) { // case 1
+  if (isPredTrueToCommon && isSuccTrueToCommon) {  // case 1
     invertSuccCond = false;
     combinedCondOp = OP_lior;
-  } else if (!isPredTrueToCommon && !isSuccTrueToCommon) { // case 2
+  } else if (!isPredTrueToCommon && !isSuccTrueToCommon) {  // case 2
     invertSuccCond = false;
     combinedCondOp = OP_land;
-  } else if (isPredTrueToCommon && !isSuccTrueToCommon) { // case 3
+  } else if (isPredTrueToCommon && !isSuccTrueToCommon) {  // case 3
     invertSuccCond = true;
     combinedCondOp = OP_lior;
-  } else if (!isPredTrueToCommon && isSuccTrueToCommon) { // case 4
+  } else if (!isPredTrueToCommon && isSuccTrueToCommon) {  // case 4
     invertSuccCond = true;
     combinedCondOp = OP_land;
   } else {
@@ -2316,7 +2436,7 @@ bool OptimizeBB::FoldBranchToCommonDest(BB *pred, BB *succ) {
   // remove succ and update cfg
   BB *exitBB = isSuccTrueToCommon ? stfBrPair.second : stfBrPair.first;
   pred->ReplaceSucc(succ, exitBB);
-  exitBB->RemovePred(*succ, false); // not update phi here, because its phi opnd is the same as before.
+  exitBB->RemovePred(*succ, false);  // not update phi here, because its phi opnd is the same as before.
   // we should eliminate edge from succ to commonBB
   BB *toEliminateBB = isSuccTrueToCommon ? stfBrPair.first : stfBrPair.second;
   EliminateEmptyConnectingBB(succ, toEliminateBB, commonBB /* stop here */, *cfg);
@@ -2359,6 +2479,11 @@ bool OptimizeBB::FoldBranchToCommonDest() {
 bool OptimizeBB::OptBBOnce() {
   CHECK_CURR_BB();
   DEBUG_LOG() << "Try to optimize BB" << LOG_BBID(currBB) << "...\n";
+  // bb frequency may be updated, make bb frequency and succs frequency consistent
+  // skip deadBB
+  if (cfg->UpdateCFGFreq() && (!currBB->GetPred().empty()) && (currBB->GetUniquePred() != currBB)) {
+    currBB->UpdateEdgeFreqs(false);
+  }
   bool everChanged = false;
   // eliminate dead BB :
   // 1.BB has no pred(expect then entry block)
@@ -2421,7 +2546,7 @@ class OptimizeFuntionCFG {
  private:
   MeFunction &f;
 
-  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *cands = nullptr; // candidates ost need to update ssa
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *cands = nullptr;  // candidates ost need to update ssa
   bool OptimizeFuncCFGIteratively();
   bool OptimizeCFGForBB(BB *currBB);
 };
@@ -2443,10 +2568,6 @@ bool OptimizeFuntionCFG::OptimizeFuncCFGIteratively() {
       BB *currBB = bbVec[idx];
       if (currBB == nullptr) {
         continue;
-      }
-      // bb frequency may be updated, make bb frequency and succs frequency consistent
-      if (Options::profileUse && !currBB->GetSuccFreq().empty()) {
-        currBB->UpdateEdgeFreqs();
       }
       changed |= OptimizeCFGForBB(currBB);
     }
@@ -2493,15 +2614,14 @@ bool OptimizeMeFuncCFG(maple::MeFunction &f, std::map<OStIdx, std::unique_ptr<st
   }
   uint32 bbNumBefore = f.GetCfg()->ValidBBNum();
   // optimization entry
-  bool change = OptimizeFuntionCFG(f, ssaCand)
-      .OptimizeOnFunc();
+  bool change = OptimizeFuntionCFG(f, ssaCand).OptimizeOnFunc();
   if (change) {
     f.GetCfg()->WontExitAnalysis();
     if (debug) {
       uint32 bbNumAfter = f.GetCfg()->ValidBBNum();
       if (bbNumBefore != bbNumAfter) {
-        DEBUG_LOG() << "BBs' number " << (bbNumBefore > bbNumAfter ? "reduce" : "increase")
-                    << " from " << bbNumBefore << " to " << bbNumAfter << "\n";
+        DEBUG_LOG() << "BBs' number " << (bbNumBefore > bbNumAfter ? "reduce" : "increase") << " from " << bbNumBefore
+                    << " to " << bbNumAfter << "\n";
       } else {
         DEBUG_LOG() << "BBs' number keep the same as before (num = " << bbNumAfter << ")\n";
       }
@@ -2522,6 +2642,9 @@ bool MEOptimizeCFGNoSSA::PhaseRun(MeFunction &f) {
   debug = DEBUGFUNC_NEWPM(f);
   phaseName = PhaseName();
   bool change = OptimizeMeFuncCFG(f, nullptr);
+  if (change && f.GetCfg()->DumpIRProfileFile()) {
+    f.GetCfg()->DumpToFile("after-OptimizeCFGNOSSA", false, f.GetCfg()->UpdateCFGFreq());
+  }
   return change;
 }
 
@@ -2547,7 +2670,10 @@ bool MEOptimizeCFG::PhaseRun(maple::MeFunction &f) {
       MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands);
       ssaUpdate.Run();
     }
+    if (f.GetCfg()->DumpIRProfileFile()) {
+      f.GetCfg()->DumpToFile("after-OptimizeCFG", false, f.GetCfg()->UpdateCFGFreq());
+    }
   }
   return change;
 }
-} // namespace maple
+}  // namespace maple

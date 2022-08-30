@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_analyze_rc.h"
+#include "me_phase_manager.h"
 #include "me_option.h"
 #include "me_dominance.h"
 #include "me_cond_based_rc.h"

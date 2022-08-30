@@ -14,7 +14,7 @@
  */
 #ifndef MAPLE_ME_INCLUDE_MEMeSink_H
 #define MAPLE_ME_INCLUDE_MEMeSink_H
-#include "me_phase_manager.h"
+#include "maple_phase_manager.h"
 
 namespace maple {
 MAPLE_FUNC_PHASE_DECLARE(MEMeSink, MeFunction)

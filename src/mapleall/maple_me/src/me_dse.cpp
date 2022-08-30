@@ -16,7 +16,16 @@
 
 #include <iostream>
 
+#include "me_phase_manager.h"
+
 namespace maple {
+
+MeDSE::MeDSE(MeFunction &func, Dominance *dom, const AliasClass *aliasClass, bool enabledDebug)
+    : DSE(std::vector<BB *>(func.GetCfg()->GetAllBBs().begin(), func.GetCfg()->GetAllBBs().end()),
+          *func.GetCfg()->GetCommonEntryBB(), *func.GetCfg()->GetCommonExitBB(), *func.GetMeSSATab(), *dom, aliasClass,
+          enabledDebug, MeOption::decoupleStatic, func.IsLfo()),
+      func(func),
+      cfg(func.GetCfg()) {}
 void MeDSE::VerifyPhi() const {
   auto eIt = cfg->valid_end();
   for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {

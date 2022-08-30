@@ -15,7 +15,6 @@
 #ifndef MAPLE_ME_INCLUDE_MEANALYZERC_H
 #define MAPLE_ME_INCLUDE_MEANALYZERC_H
 #include "me_function.h"
-#include "me_phase.h"
 #include "me_alias_class.h"
 #include "me_irmap.h"
 
@@ -93,15 +92,6 @@ class AnalyzeRC {
   bool skipLocalRefVars;
 };
 
-class MeDoAnalyzeRC : public MeFuncPhase {
- public:
-  explicit MeDoAnalyzeRC(MePhaseID id) : MeFuncPhase(id) {}
-
-  virtual ~MeDoAnalyzeRC() = default;
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrm) override;
-  std::string PhaseName() const override {
-    return "analyzerc";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MEAnalyzeRC, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_MEANALYZERC_H

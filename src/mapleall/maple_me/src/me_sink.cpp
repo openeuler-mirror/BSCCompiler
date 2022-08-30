@@ -14,6 +14,7 @@
  */
 
 #include "me_sink.h"
+#include "me_phase_manager.h"
 #include "meexpr_use_info.h"
 
 namespace maple {

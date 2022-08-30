@@ -2533,4 +2533,305 @@ bool M2MConstantFold::PhaseRun(maple::MIRModule &m) {
   }
   return true;
 }
+
+// an interval of [lower, upper)
+// particularly, when lower = upper = INT_MAX, it represent for a single INT_MAX
+class ConstIntSet {
+ public:
+  void DoNegation() {
+    if (isEmpty || isFull) {
+      std::swap(isEmpty, isFull);
+    } else if (lower.IsMinValue()) {
+      lower = upper;
+      upper.SetMaxValue();
+    } else if (upper.IsMaxValue()) {
+      upper = lower;
+      lower.SetMinValue();
+    } else {
+      std::swap(lower, upper);
+    }
+  }
+
+  IntVal lower;
+  IntVal upper;
+  bool isFull = false;
+  bool isEmpty = false;
+};
+
+// generate an interval from meExpr
+std::optional<ConstIntSet> GenerateIntSet(const OpMeExpr &meExpr, PrimType type) {
+  auto opnd1 = meExpr.GetOpnd(1);
+  auto intVal = static_cast<ConstMeExpr *>(opnd1)->GetIntValue().TruncOrExtend(type);
+  auto res = std::make_optional<ConstIntSet>();
+  bool isSigned = intVal.IsSigned();
+  uint8 width = intVal.GetBitWidth();
+  switch (meExpr.GetOp()) {
+    case OP_lt:
+      if (intVal.IsMinValue()) {
+        res->isEmpty = true;
+      } else {
+        res->lower.SetMinValue(isSigned, width);
+        res->upper = intVal;
+      }
+      break;
+    case OP_le:
+      if (intVal.IsMaxValue()) {
+        res->isFull = true;
+      } else {
+        res->lower.SetMinValue(isSigned, width);
+        res->upper = intVal + 1;
+      }
+      break;
+    case OP_gt:
+      if (intVal.IsMaxValue()) {
+        res->isEmpty = true;
+      } else {
+        res->lower = intVal + 1;
+        res->upper.SetMaxValue(isSigned, width);
+      }
+      break;
+    case OP_ge:
+      if (intVal.IsMinValue()) {
+        res->isFull = true;
+      } else {
+        res->lower = intVal;
+        res->upper.SetMaxValue(isSigned, width);
+      }
+      break;
+    case OP_eq:
+      res->lower = intVal;
+      res->upper = intVal.IsMaxValue() ? intVal : intVal + 1;
+      break;
+    case OP_ne:
+      if (intVal.IsMaxValue()) {
+        res->lower.SetMinValue(isSigned, width);
+      } else {
+        res->lower = intVal + 1;
+      }
+      res->upper = intVal;
+      break;
+    default:
+      CHECK_FATAL(false, "unexpected op");
+      break;
+  }
+  return res;
+}
+
+// calculate union of two interval
+std::optional<ConstIntSet> Union(ConstIntSet s1, ConstIntSet s2) {
+  std::optional<ConstIntSet> s3 = std::make_optional<ConstIntSet>();
+  if (s1.isFull || s2.isFull) {
+    s3->isFull = true;
+    return s3;
+  }
+  if (s1.isEmpty || s2.isEmpty) {
+    s3 = s1.isEmpty ? s2 : s1;
+    return s3;
+  }
+
+  if (s2.lower > s2.upper || s1.upper.IsMaxValue()) {
+    std::swap(s1, s2);
+  }
+
+  if (s2.lower == s2.upper && s2.upper.IsMaxValue()) {
+    if (s1.upper == s2.upper || s1.upper + 1 == s2.upper) {
+      s3->upper = s2.upper;
+      s3->lower = s1.lower;
+      return s3;
+    }
+    return std::nullopt;
+  }
+
+  if (s1.lower.IsMinValue() && s2.upper.IsMaxValue()) {
+    // ----l
+    //        u----
+    s3->upper = s1.upper;
+    s3->lower = s2.lower;
+    if (s3->lower <= s3->upper) {
+      // ----l
+      //   u----
+      s3->isFull = true;
+    }
+    return s3;
+  }
+  if (s1.lower < s1.upper && s2.lower < s2.upper) {
+    if (s1.upper < s2.lower || s1.lower > s2.upper) {
+      // l------u
+      //            l------u
+      // not continuous, return null
+      return std::nullopt;
+    } else {
+      // l------u
+      //    l------u
+      s3->lower = std::min(s1.lower, s2.lower);
+      s3->upper = std::max(s1.upper, s2.upper);
+    }
+  } else if (s1.lower > s1.upper && s2.lower < s2.upper) {
+    if (s2.upper <= s1.upper || s2.lower >= s1.lower) {
+      //       ---u  l---
+      // l------u      l------u
+      s3 = s1;
+    } else if (s2.lower <= s1.upper && s2.upper >= s1.lower) {
+      //  ---u   l---
+      //   l------u
+      s3->isFull = true;
+    } else if (s2.lower > s1.upper && s2.upper >= s1.lower) {
+      // ---u    l---
+      //       l------u
+      s3->lower = s2.lower;
+      s3->upper = s1.upper;
+    } else if (s2.lower <= s1.upper && s2.upper < s1.lower) {
+      //   ---u    l---
+      //  l------u
+      s3->lower = s1.lower;
+      s3->upper = s2.upper;
+    } else {
+      // not continuous, return null
+      return std::nullopt;
+    }
+  } else if (s1.lower > s1.upper && s2.lower > s2.upper) {
+    if (s2.lower <= s1.upper || s2.upper >= s1.lower) {
+      // ---u l---             ---u l---
+      //    ---u l---     ---u l---
+      s3->isFull = true;
+    } else {
+      s3->lower = std::min(s1.lower, s2.lower);
+      s3->upper = std::max(s1.upper, s2.upper);
+    }
+  }
+  return s3;
+}
+
+// generate a MeExpr according to the interval @s and use @value as the first opnd
+MeExpr *IntSet2MeExpr(IRMap &irMap, MeExpr &value, const ConstIntSet &s) {
+  if (s.isFull) {
+    return irMap.CreateIntConstMeExpr(1, PTY_u1);
+  }
+  if (s.isEmpty) {
+    return irMap.CreateIntConstMeExpr(0, PTY_u1);
+  }
+  auto primType = value.GetPrimType();
+  auto lowerValExpr = irMap.CreateIntConstMeExpr(s.lower, primType);
+  auto upperValExpr = irMap.CreateIntConstMeExpr(s.upper, primType);
+  if (s.upper == s.lower + 1) {
+    return irMap.CreateMeExprCompare(OP_eq, PTY_u1, primType, value, *lowerValExpr);
+  }
+  if (s.lower == s.upper + 1) {
+    return irMap.CreateMeExprCompare(OP_ne, PTY_u1, primType, value, *upperValExpr);
+  }
+  if (s.lower.IsMinValue()) {
+    return irMap.CreateMeExprCompare(OP_lt, PTY_u1, primType, value, *upperValExpr);
+  }
+  if (s.upper.IsMaxValue()) {
+    return irMap.CreateMeExprCompare(OP_ge, PTY_u1, primType, value, *lowerValExpr);
+  }
+  MeExpr *newValue = nullptr;
+  MeExpr *newConstVal = nullptr;
+  Opcode op;
+  if (s.upper >= s.lower + 1) {
+    newValue = irMap.CreateMeExprBinary(OP_sub, primType, value, *lowerValExpr);
+    newConstVal = irMap.CreateIntConstMeExpr(s.upper - s.lower - 1, primType);
+    op = OP_le;
+  } else {
+    newValue = irMap.CreateMeExprBinary(OP_sub, primType, value, *upperValExpr);
+    newConstVal = irMap.CreateIntConstMeExpr(s.lower - s.upper, primType);
+    op = OP_ge;
+  }
+  return irMap.CreateMeExprCompare(op, PTY_u1, GetUnsignedPrimType(primType), *newValue, *newConstVal);
+}
+
+static bool CmpFoldCondCHeck(const MeExpr &cmp1, const MeExpr &cmp2) {
+  if (!IsCompareHasReverseOp(cmp1.GetOp()) || !IsCompareHasReverseOp(cmp2.GetOp())) {
+    return false;
+  }
+  // the first opnd of cmp1 and cmp2 must be same
+  if (cmp1.GetOpnd(0) != cmp2.GetOpnd(0)) {
+    return false;
+  }
+  if (!IsPrimitiveInteger(cmp1.GetOpnd(0)->GetPrimType())) {
+    return false;
+  }
+  if (cmp1.GetOpnd(kSecondOpnd)->GetMeOp() != kMeOpConst || cmp2.GetOpnd(kSecondOpnd)->GetMeOp() != kMeOpConst) {
+    return false;
+  }
+  return true;
+}
+
+// fold and/or of two compare exprs to one if possible
+// for example:
+// cmp (v, n1) && cmp (v, n2) -> cmp (v', n3)
+MeExpr *ConstantFold::FoldCmpExpr(IRMap &irMap, const MeExpr &cmp1, const MeExpr &cmp2, bool isAnd) {
+  if (!CmpFoldCondCHeck(cmp1, cmp2)) {
+    return nullptr;
+  }
+  auto value = cmp1.GetOpnd(0);
+  auto type = value->GetPrimType();
+  auto constValType = cmp1.GetOpnd(1)->GetPrimType();
+  if (type != constValType && IsUnsignedInteger(constValType)) {
+    type = constValType;
+  }
+  auto s1 = GenerateIntSet(static_cast<const OpMeExpr &>(cmp1), type);
+  auto s2 = GenerateIntSet(static_cast<const OpMeExpr &>(cmp2), type);
+  if (!s1 || !s2) {
+    return nullptr;
+  }
+  if (s1->lower.IsSigned() != s2->lower.IsSigned()) {
+    return nullptr;
+  }
+  // if foldType is AND, we could do union instead of intersection
+  if (isAnd) {
+    s1->DoNegation();
+    s2->DoNegation();
+  }
+  auto s3 = Union(*s1, *s2);
+  if (!s3) {
+    // s3 is not continuous, the size of s1 and s2 must be same
+    if (s1->upper - s1->lower != s2->upper - s2->lower) {
+      return nullptr;
+    }
+    if (s1->lower >= s1->upper || s2->lower >= s2->upper) {
+      return nullptr;
+    }
+    if (s1->lower.GetZXTValue() > s2->lower.GetZXTValue()) {
+      std::swap(s1, s2);
+    }
+    auto diff = s2->lower - s1->lower;
+    // if diff is power of 2, there may be only one bit difference between the second opnd of cmp1 and cmp2
+    if (!diff.IsPowerOf2()) {
+      return nullptr;
+    }
+    IntVal offset(0, type);
+    if ((s1->lower ^ diff) != s2->lower) {
+      offset = s1->lower;
+    }
+    s3 = std::make_optional<ConstIntSet>();
+    s3->lower = s1->lower - offset;
+    s3->upper = s1->upper - offset;
+    value = irMap.CreateMeExprBinary(OP_sub, type, *value, *irMap.CreateIntConstMeExpr(offset, type));
+    value = irMap.CreateMeExprBinary(OP_band, type, *value, *irMap.CreateIntConstMeExpr(~diff, type));
+  }
+  if (isAnd) {
+    s3->DoNegation();
+  }
+  return IntSet2MeExpr(irMap, *value, *s3);
+}
+
+MeExpr *ConstantFold::FoldOrOfAnds(IRMap &irMap, const MeExpr &and1, const MeExpr &and2) {
+  if (and1.GetOp() != and2.GetOp() || and1.GetOp() != OP_band) {
+    return nullptr;
+  }
+  if (and1.GetOpnd(0) != and2.GetOpnd(0)) {
+    return nullptr;
+  }
+  if (and1.GetOpnd(1)->GetMeOp() != kMeOpConst || and2.GetOpnd(1)->GetMeOp() != kMeOpConst) {
+    return nullptr;
+  }
+  auto value = and1.GetOpnd(0);
+  auto c1 = static_cast<ConstMeExpr*>(and1.GetOpnd(1))->GetIntValue();
+  auto c2 = static_cast<ConstMeExpr*>(and2.GetOpnd(1))->GetIntValue();
+  auto c3 = c1 | c2;
+  return irMap.CreateMeExprBinary(OP_band, value->GetPrimType(), *value,
+                                  *irMap.CreateIntConstMeExpr(c3, value->GetPrimType()));
+}
+
 }  // namespace maple

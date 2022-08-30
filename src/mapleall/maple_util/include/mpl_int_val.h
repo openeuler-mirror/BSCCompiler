@@ -55,7 +55,10 @@ class IntVal {
   }
 
   IntVal &operator=(uint64 other) {
+    ASSERT(width != 0, "can't be assigned to value with unknown size");
     value = other;
+    TruncInPlace();
+
     return *this;
   }
 
@@ -102,6 +105,11 @@ class IntVal {
     return value == (allOnes >> (valBitSize - width));
   }
 
+  /// @return true if value is a power of 2 > 0
+  bool IsPowerOf2() {
+    return value && !(value & (value - 1));
+  }
+
   /// @return true if the value is maximum considering its signedness
   bool IsMaxValue() const {
     return sign ? value == ((uint64(1) << (width - 1)) - 1) : AreAllBitsOne();
@@ -110,6 +118,26 @@ class IntVal {
   /// @return true if the value is minimum considering its signedness
   bool IsMinValue() const {
     return sign ? value == (uint64(1) << (width - 1)) : value == 0;
+  }
+
+  void SetMaxValue() {
+    value = sign ? ((uint64(1) << (width - 1)) - 1) : (allOnes >> (valBitSize - width));
+  }
+
+  void SetMaxValue(bool isSigned, uint8 bitWidth) {
+    sign = isSigned;
+    width = bitWidth;
+    value = sign ? ((uint64(1) << (width - 1)) - 1) : (allOnes >> (valBitSize - width));
+  }
+
+  void SetMinValue() {
+    value = sign ? (uint64(1) << (width - 1)) : 0;
+  }
+
+  void SetMinValue(bool isSigned, uint8 bitWidth) {
+    sign = isSigned;
+    width = bitWidth;
+    value = sign ? (uint64(1) << (width - 1)) : 0;
   }
 
   //
@@ -385,6 +413,10 @@ class IntVal {
     return Trunc(GetPrimTypeActualBitSize(newType), IsSignedInteger(newType));
   }
 
+  IntVal Trunc(uint8 newWidth, bool isSigned) const {
+    return { value, newWidth, isSigned };
+  }
+
   /// @return sign or zero extended value depending on its signedness
   /// @note returned value will have bit-width and sign obtained from newType
   IntVal Extend(PrimType newType) const {
@@ -405,10 +437,6 @@ class IntVal {
   bool GetBit(uint8 bit) const {
     ASSERT(bit < width, "Required bit is out of value range");
     return (value & (uint64(1) << bit)) != 0;
-  }
-
-  IntVal Trunc(uint8 newWidth, bool isSigned) const {
-    return { value, newWidth, isSigned };
   }
 
   IntVal Extend(uint8 newWidth, bool isSigned) const {

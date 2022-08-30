@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_subsum_rc.h"
+#include "me_phase_manager.h"
 
 namespace maple {
 void SubsumRC::SetCantSubsum() {

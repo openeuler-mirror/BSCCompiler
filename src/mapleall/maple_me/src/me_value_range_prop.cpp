@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -1178,19 +1178,17 @@ bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt, bool i
       GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(newStmt.GetFuncName().c_str());
       if (curFuncNameIdx == stmtFuncNameIdx) {
         if (stmt.GetOp() == OP_calcassertlt) {
-          WARN(kLncWarn, "%s:%d warning: the pointer >= the upper bounds after calculation",
-               fileName.c_str(), srcPosition.LineNum());
+          WARN_USER(kLncWarn, srcPosition, func->GetMIRModule(), "the pointer >= the upper bounds after calculation");
         } else if (stmt.GetOp() == OP_calcassertge) {
-          WARN(kLncWarn, "%s:%d warning: the pointer < the lower bounds after calculation",
-               fileName.c_str(), srcPosition.LineNum());
+          WARN_USER(kLncWarn, srcPosition, func->GetMIRModule(), "the pointer < the lower bounds after calculation");
         }
       } else {
         if (stmt.GetOp() == OP_calcassertlt) {
-          WARN(kLncWarn, "%s:%d warning: the pointer >= the upper bounds after calculation when inlined to %s",
-               fileName.c_str(), srcPosition.LineNum(), func->GetName().c_str());
+          WARN_USER(kLncWarn, srcPosition, func->GetMIRModule(),
+               "the pointer >= the upper bounds after calculation when inlined to %s", func->GetName().c_str());
         } else if (stmt.GetOp() == OP_calcassertge) {
-          WARN(kLncWarn, "%s:%d warning: the pointer < the lower bounds after calculation when inlined to %s",
-               fileName.c_str(), srcPosition.LineNum(), func->GetName().c_str());
+          WARN_USER(kLncWarn, srcPosition, func->GetMIRModule(),
+               "the pointer < the lower bounds after calculation when inlined to %s", func->GetName().c_str());
         }
       }
       return true;
@@ -1915,6 +1913,10 @@ bool ValueRangePropagation::AddOrSubWithBound(Bound oldBound, Bound &resBound, i
 std::unique_ptr<ValueRange> ValueRangePropagation::AddOrSubWithValueRange(
     Opcode op, ValueRange &valueRange, int64 rhsConstant) {
   if (valueRange.GetRangeType() == kLowerAndUpper) {
+    if (valueRange.IsConstantLowerAndUpper() &&
+        valueRange.GetLower().IsGreaterThan(valueRange.GetUpper(), valueRange.GetPrimType())) {
+      return nullptr;
+    }
     Bound lower;
     if (!AddOrSubWithBound(valueRange.GetLower(), lower, rhsConstant, op)) {
       return nullptr;
@@ -2145,6 +2147,11 @@ int64 GetRealValue(int64 value, PrimType primType) {
 }
 
 std::unique_ptr<ValueRange> ValueRangePropagation::CopyValueRange(ValueRange &valueRange, PrimType primType) {
+  if (primType != PTY_begin && (!valueRange.GetLower().IsEqualAfterCVT(valueRange.GetPrimType(), primType) ||
+                                !valueRange.GetUpper().IsEqualAfterCVT(valueRange.GetPrimType(), primType))) {
+    // When the valueRange changes after conversion according to the parameter primType, return nullptr.
+    return nullptr;
+  }
   switch (valueRange.GetRangeType()) {
     case kEqual:
     case kNotEqual:

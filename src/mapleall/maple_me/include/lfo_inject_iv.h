@@ -15,7 +15,7 @@
 
 #ifndef MAPLE_ME_INCLUDE_LFO_INJECT_IV_H
 #define MAPLE_ME_INCLUDE_LFO_INJECT_IV_H
-#include "me_phase_manager.h"
+#include "maple_phase_manager.h"
 
 namespace maple {
 /* emit ir to specified file */

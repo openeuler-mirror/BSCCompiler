@@ -1362,6 +1362,10 @@ MeExpr *IRMap::SimplifyBandExpr(const OpMeExpr *bandExpr) {
     return res;
   }
 
+  if (IsCompareHasReverseOp(opnd0->GetOp()) || IsCompareHasReverseOp(opnd1->GetOp())) {
+    return ConstantFold::FoldCmpExpr(*this, *opnd0, *opnd1, true);
+  }
+
   if (opnd0->GetOp() != OP_band && opnd1->GetOp() != OP_band) {
     return nullptr;
   }
@@ -1958,26 +1962,6 @@ MeExpr *IRMap::SimplifyCmpExpr(OpMeExpr *cmpExpr) {
           return CreateMeExprCompare(cmpop, PTY_u1, subOpnd0->GetPrimType(), *subOpnd0, *subOpnd1);
         }
       }
-
-      // case of:
-      // ne (bxor (op0, op1), 0) ==> ne (op0, op1)
-      // ne (sub (op0, op1), 0) ==> ne (op0, op1)
-      if (cmpop == OP_ne && IsPrimitiveInteger(cmpExpr->GetOpndType()) &&
-          (opnd0->GetOp() == OP_bxor || opnd1->GetOp() == OP_bxor ||
-           opnd0->GetOp() == OP_sub || opnd1->GetOp() == OP_sub)) {
-        if (opnd1->GetOp() == OP_bxor || opnd1->GetOp() == OP_sub) {
-          auto *tmp = opnd1;
-          opnd1 = opnd0;
-          opnd0 = tmp;
-        }
-        if (opnd1->GetMeOp() != kMeOpConst || !static_cast<ConstMeExpr*>(opnd1)->GetConstVal()->IsZero()) {
-          return nullptr;
-        }
-        auto *newcmp =
-            CreateMeExprCompare(OP_ne, PTY_u1, opnd0->GetPrimType(), *opnd0->GetOpnd(0), *opnd0->GetOpnd(1));
-        auto *simplified = SimplifyCmpExpr(static_cast<OpMeExpr*>(newcmp));
-        return simplified == nullptr ? newcmp : simplified;
-      }
       break;
     }
     case OP_lt:
@@ -2174,7 +2158,7 @@ std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::op
   }
 
   if (opcode == OP_zext || opcode == OP_extractbits) {
-    if (!GetPrimitiveTypeProperty(expr->GetPrimType()).isUnsigned) {
+    if (!GetPrimitiveTypeProperty(expr->GetPrimType()).IsUnsigned()) {
       return result;
     }
     auto srcBitWidth = GetPrimTypeBitSize(expr->GetOpnd(0)->GetPrimType());
@@ -2234,6 +2218,14 @@ MeExpr *IRMap::SimplifyOrMeExpr(OpMeExpr *opmeexpr) {
   MeExpr *opnd1 = opmeexpr->GetOpnd(1);
   Opcode opcode0 = opnd0->GetOp();
   Opcode opcode1 = opnd1->GetOp();
+
+  if (IsCompareHasReverseOp(opnd0->GetOp()) || IsCompareHasReverseOp(opnd1->GetOp())) {
+    return ConstantFold::FoldCmpExpr(*this, *opnd0, *opnd1, false);
+  }
+
+  if (MeExpr *res = ConstantFold::FoldOrOfAnds(*this, *opnd0, *opnd1)) {
+    return res;
+  }
 
   // (X ^ C) | Y -> (X | Y) ^ C if Y & C ==0
   if (opcode0 == OP_bxor && opnd1->GetMeOp() == kMeOpConst) {
