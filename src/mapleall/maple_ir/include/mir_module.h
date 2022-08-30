@@ -14,35 +14,35 @@
  */
 #ifndef MAPLE_IR_INCLUDE_MIR_MODULE_H
 #define MAPLE_IR_INCLUDE_MIR_MODULE_H
-#include "types_def.h"
-#include "prim_types.h"
 #include "intrinsics.h"
-#include "opcodes.h"
 #include "mpl_logging.h"
+#include "mpl_profdata.h"
 #include "muid.h"
-#include "profile.h"
 #include "namemangler.h"
-#include "gcov_profile.h"
+#include "prim_types.h"
+#include "profile.h"
+#include "types_def.h"
 #if MIR_FEATURE_FULL
-#include <string>
-#include <unordered_set>
-#include <shared_mutex>
-#include <thread>
-#include <mutex>
 #include <map>
-#include "thread_env.h"
+#include <mutex>
+#include <shared_mutex>
+#include <string>
+#include <thread>
+#include <unordered_set>
+
+#include "maple_string.h"
 #include "mempool.h"
 #include "mempool_allocator.h"
-#include "maple_string.h"
+#include "thread_env.h"
 #endif  // MIR_FEATURE_FULL
 
 namespace maple {
-class CallInfo;  // circular dependency exists, no other choice
-class MIRModule;  // circular dependency exists, no other choice
+class CallInfo;    // circular dependency exists, no other choice
+class MIRModule;   // circular dependency exists, no other choice
 class MIRBuilder;  // circular dependency exists, no other choice
 class MIRScope;
-using MIRModulePtr = MIRModule*;
-using MIRBuilderPtr = MIRBuilder*;
+using MIRModulePtr = MIRModule *;
+using MIRBuilderPtr = MIRBuilder *;
 
 enum MIRFlavor {
   kFlavorUnknown,
@@ -52,10 +52,9 @@ enum MIRFlavor {
   kFlavorMbc,
   kMmpl,
   kCmplV1,
-  kCmpl, // == CMPLv2
+  kCmpl,  // == CMPLv2
   kFlavorLmbc,
 };
-
 
 enum MIRSrcLang {
   kSrcLangUnknown,
@@ -69,11 +68,11 @@ enum MIRSrcLang {
 
 class CalleePair {
  public:
-  CalleePair(PUIdx id, int32_t index)
-      : id(id), index(index) {}
-  bool operator < (const CalleePair &func) const {
-    if (id < func.id)
+  CalleePair(PUIdx id, int32_t index) : id(id), index(index) {}
+  bool operator<(const CalleePair &func) const {
+    if (id < func.id){
       return true;
+    }
     else if (id == func.id && index < func.index) {
       return true;
     } else {
@@ -88,10 +87,13 @@ class CalleePair {
 
 class CallerSummary {
  public:
-  CallerSummary(PUIdx id, uint32 stmtId)
-      : id(id), stmtId(stmtId) {}
-  PUIdx GetPuidx() const { return id; };
-  uint32 GetStmtId() const { return stmtId; }
+  CallerSummary(PUIdx id, uint32 stmtId) : id(id), stmtId(stmtId) {}
+  PUIdx GetPuidx() const {
+    return id;
+  };
+  uint32 GetStmtId() const {
+    return stmtId;
+  }
 
  private:
   PUIdx id;
@@ -101,10 +103,13 @@ class CallerSummary {
 // This data structure is for the ipa-cp. Important expresstion is about the condtion statement.
 class ImpExpr {
  public:
-  ImpExpr(uint32 stmtId, uint32 paramIndex)
-      : stmtId(stmtId), paramIndex(paramIndex) {}
-  uint32 GetStmtId() const { return stmtId; }
-  uint32 GetParamIndex() const { return paramIndex; }
+  ImpExpr(uint32 stmtId, uint32 paramIndex) : stmtId(stmtId), paramIndex(paramIndex) {}
+  uint32 GetStmtId() const {
+    return stmtId;
+  }
+  uint32 GetParamIndex() const {
+    return paramIndex;
+  }
 
  private:
   uint32 stmtId;
@@ -120,15 +125,15 @@ static inline uint32 BlockSize2BitVectorSize(uint32 blkSize) {
 }
 
 #if MIR_FEATURE_FULL
-class MIRType;  // circular dependency exists, no other choice
-class MIRFunction;  // circular dependency exists, no other choice
-class MIRSymbol;  // circular dependency exists, no other choice
-class MIRSymbolTable;  // circular dependency exists, no other choice
-class MIRFloatConst;  // circular dependency exists, no other choice
-class MIRDoubleConst;  // circular dependency exists, no other choice
-class MIRBuilder;  // circular dependency exists, no other choice
-class DebugInfo;  // circular dependency exists, no other choice
-class BinaryMplt;  // circular dependency exists, no other choice
+class MIRType;            // circular dependency exists, no other choice
+class MIRFunction;        // circular dependency exists, no other choice
+class MIRSymbol;          // circular dependency exists, no other choice
+class MIRSymbolTable;     // circular dependency exists, no other choice
+class MIRFloatConst;      // circular dependency exists, no other choice
+class MIRDoubleConst;     // circular dependency exists, no other choice
+class MIRBuilder;         // circular dependency exists, no other choice
+class DebugInfo;          // circular dependency exists, no other choice
+class BinaryMplt;         // circular dependency exists, no other choice
 class EAConnectionGraph;  // circular dependency exists, no other choice
 using MIRInfoPair = std::pair<GStrIdx, uint32>;
 using MIRInfoVector = MapleVector<MIRInfoPair>;
@@ -136,13 +141,12 @@ using MIRDataPair = std::pair<GStrIdx, std::vector<uint8>>;
 using MIRDataVector = MapleVector<MIRDataPair>;
 constexpr int kMaxEncodedValueLen = 10;
 struct EncodedValue {
-  uint8 encodedValue[kMaxEncodedValueLen] = { 0 };
+  uint8 encodedValue[kMaxEncodedValueLen] = {0};
 };
 
 class MIRTypeNameTable {
  public:
-  explicit MIRTypeNameTable(MapleAllocator &allocator)
-      : gStrIdxToTyIdxMap(std::less<GStrIdx>(), allocator.Adapter()) {}
+  explicit MIRTypeNameTable(MapleAllocator &allocator) : gStrIdxToTyIdxMap(std::less<GStrIdx>(), allocator.Adapter()) {}
 
   ~MIRTypeNameTable() = default;
 
@@ -165,6 +169,7 @@ class MIRTypeNameTable {
   size_t Size() const {
     return gStrIdxToTyIdxMap.size();
   }
+
  private:
   MapleMap<GStrIdx, TyIdx> gStrIdxToTyIdxMap;
 };
@@ -247,7 +252,7 @@ class MIRModule {
       std::lock_guard<std::mutex> guard(curFunctionMutex);
       auto tid = std::this_thread::get_id();
       curFunctionMap[tid] = f;
-      return; // DO NOT delete the return statement
+      return;  // DO NOT delete the return statement
     }
     curFunction = f;
   }
@@ -268,11 +273,11 @@ class MIRModule {
     return profile;
   }
 
-  GcovProfileData* GetGcovProfile() {
-    return gcovProfile;
+  MplProfileData *GetMapleProfile() {
+    return mplProfile;
   }
-  void SetGcovProfile(GcovProfileData* info) {
-    gcovProfile = info;
+  void SetMapleProfile(MplProfileData *info) {
+    mplProfile = info;
   }
 
   void SetSomeSymbolNeedForDecl(bool s) {
@@ -328,8 +333,8 @@ class MIRModule {
   MIRFunction *FindEntryFunction();
   uint32 GetFileinfo(GStrIdx strIdx) const;
   void OutputAsciiMpl(const char *phaseName, const char *suffix,
-                      const std::unordered_set<std::string> *dumpFuncSet = nullptr,
-                      bool emitStructureType = true, bool binaryform = false);
+                      const std::unordered_set<std::string> *dumpFuncSet = nullptr, bool emitStructureType = true,
+                      bool binaryform = false);
   void OutputFunctionListAsciiMpl(const std::string &phaseName);
   const std::string &GetFileName() const {
     return fileName;
@@ -341,11 +346,13 @@ class MIRModule {
   }
 
   std::string GetProfileDataFileName() const {
-    std::string profileDataFileName = fileName.substr(0, fileName.find_last_of("."));
-    std::replace(profileDataFileName.begin(), profileDataFileName.end(), '.', '_');
-    std::replace(profileDataFileName.begin(), profileDataFileName.end(), '-', '_');
-    std::replace(profileDataFileName.begin(), profileDataFileName.end(), '/', '_');
-    profileDataFileName = profileDataFileName + namemangler::kProfFileNameExt;
+    std::string profileDataFileName = GetFileName().substr(0, GetFileName().find_last_of("."));
+    const char *gcovPath = std::getenv("GCOV_PREFIX");
+    std::string gcovPrefix = gcovPath ? gcovPath : "";
+    if (!gcovPrefix.empty() && (gcovPrefix.back() != '/')) {
+      gcovPrefix.append("/");
+    }
+    profileDataFileName = gcovPrefix + profileDataFileName;
     return profileDataFileName;
   }
 
@@ -620,7 +627,7 @@ class MIRModule {
   bool HasTargetHash(PUIdx idx, uint32 key) const {
     auto it = method2TargetHash.find(idx);
     if (it == method2TargetHash.end()) {
-        return false;
+      return false;
     }
     return it->second.find(key) != it->second.end();
   }
@@ -699,7 +706,7 @@ class MIRModule {
   MemPool *pragmaMemPool;
   MapleAllocator memPoolAllocator;
   MapleAllocator pragmaMemPoolAllocator;
-  MapleAllocator inlineSummaryAlloc;  // For allocating function inline summary
+  MapleAllocator inlineSummaryAlloc;      // For allocating function inline summary
   MapleList<MIRFunction*> functionList;  // function table in the order of the appearance of function bodies; it
   // excludes prototype-only functions
   MapleVector<std::string> importedMplt;
@@ -710,7 +717,7 @@ class MIRModule {
   MapleSet<StIdx> symbolSet;
   MapleVector<StIdx> symbolDefOrder;
   Profile profile;
-  GcovProfileData* gcovProfile;
+  MplProfileData *mplProfile;
   bool someSymbolNeedForwDecl = false;  // some symbols' addressses used in initialization
 
   std::ostream &out;
@@ -735,8 +742,8 @@ class MIRModule {
   MIRFlavor flavor = kFlavorUnknown;
   MIRSrcLang srcLang = kSrcLangUnknown;  // the source language
   uint16 id = 0xffff;
-  uint32 globalMemSize = 0;  // size of storage space for all global variables
-  uint8 *globalBlkMap = nullptr;   // the memory map of the block containing all the
+  uint32 globalMemSize = 0;       // size of storage space for all global variables
+  uint8 *globalBlkMap = nullptr;  // the memory map of the block containing all the
   // globals, for specifying static initializations
   uint8 *globalWordsTypeTagged = nullptr;  // bit vector where the Nth bit tells whether
   // the Nth word in globalBlkMap has typetag;

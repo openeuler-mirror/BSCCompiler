@@ -15,6 +15,7 @@
 #ifndef MAPLE_IR_INCLUDE_MIR_LOWER_H
 #define MAPLE_IR_INCLUDE_MIR_LOWER_H
 #include <iostream>
+
 #include "mir_builder.h"
 #include "opcodes.h"
 
@@ -140,20 +141,25 @@ class MIRLower {
 
   static bool ShouldOptArrayMrt(const MIRFunction &func);
 
-  virtual bool InLFO() const { return false; }
+  virtual bool InLFO() const {
+    return false;
+  }
 
-  GcovFuncInfo *GetFuncProfData() const {
+  FuncProfInfo *GetFuncProfData() const {
     return mirFunc->GetFuncProfData();
   }
   void CopyStmtFrequency(StmtNode *newStmt, StmtNode *oldStmt) {
-  ASSERT(GetFuncProfData() != nullptr, "nullptr check");
-  if (newStmt == oldStmt) return;
-  int64_t freq = GetFuncProfData()->GetStmtFreq(oldStmt->GetStmtID());
-  GetFuncProfData()->SetStmtFreq(newStmt->GetStmtID(), freq);
-}
+    ASSERT(GetFuncProfData() != nullptr, "nullptr check");
+    if (newStmt == oldStmt) {
+      return;
+    }
+    uint64_t freq = GetFuncProfData()->GetStmtFreq(oldStmt->GetStmtID());
+    GetFuncProfData()->SetStmtFreq(newStmt->GetStmtID(), freq);
+  }
 
  protected:
   MIRModule &mirModule;
+
  private:
   MIRFunction *mirFunc;
   MIRBuilder *mirBuilder = nullptr;

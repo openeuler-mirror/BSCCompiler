@@ -121,7 +121,7 @@ class BaseNode : public BaseNodeT {
 
   const char *GetOpName() const;
   bool MayThrowException() const;
-  virtual size_t NumOpnds() const override {
+  size_t NumOpnds() const override {
     return numOpnds;
   }
 
@@ -168,6 +168,10 @@ class BaseNode : public BaseNodeT {
 
   bool IsConstval() const {
     return op == OP_constval;
+  }
+
+  bool IsConstExpr() const {
+    return op == OP_constval || op == OP_conststr || op == OP_conststr16;
   }
 
   virtual bool Verify() const {
@@ -571,10 +575,10 @@ class IreadPCoffNode : public IreadFPoffNode {
     ptyp = typ;
     numOpnds = numopns;
   }
-  virtual ~IreadPCoffNode() override {}
+  ~IreadPCoffNode() override {}
 };
 
-typedef IreadPCoffNode AddroffPCNode;
+using AddroffPCNode = IreadPCoffNode;
 
 class BinaryOpnds {
  public:
@@ -1281,6 +1285,8 @@ class AddrofNode : public BaseNode {
   bool IsVolatile(const MIRModule &mod) const;
 
   bool IsSameContent(const BaseNode *node) const override;
+
+  bool AccessSameMemory(const BaseNode *node) const;
  private:
   StIdx stIdx;
   FieldID fieldID = 0;
@@ -1439,23 +1445,27 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
   void InsertAfterThis(StmtNode &pos);
   void InsertBeforeThis(StmtNode &pos);
 
-  virtual StmtNode *CloneTree(MapleAllocator &allocator) const override {
+  StmtNode *CloneTree(MapleAllocator &allocator) const override {
     auto *s = allocator.GetMemPool()->New<StmtNode>(*this);
     s->SetStmtID(stmtIDNext++);
     s->SetMeStmtID(meStmtID);
     return s;
   }
 
-  virtual bool Verify() const override {
+  bool Verify() const override {
     return true;
   }
 
-  virtual bool Verify(VerifyResult &) const override {
+  bool Verify(VerifyResult &) const override {
     return Verify();
   }
   // ISO/IEC 9899:1999 7.21
   // stmt is expanded from ArrayOfChar func defined in <string.h>
   virtual void SetExpandFromArrayOfCharFunc(bool) {}
+
+  virtual bool IsExpandedFromArrayOfCharFunc() const {
+    return false;
+  }
 
   const SrcPosition &GetSrcPos() const {
     return srcPosition;
@@ -1523,6 +1533,18 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
     return stmtAttrs;
   }
 
+  void SetStmtInfoId(size_t index) {
+    stmtInfoId = index;
+  }
+
+  const uint32 GetStmtInfoId() const {
+    return stmtInfoId;
+  }
+
+  bool operator==(const StmtNode &rhs) {
+    return this == &rhs;
+  }
+
  protected:
   SrcPosition srcPosition;
 
@@ -1530,6 +1552,7 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
   uint32 stmtID;  // a unique ID assigned to it
   uint32 stmtOriginalID; // first define id, no change when clone, need copy when emit from MeStmt
   uint32 meStmtID = 0; // Need copy when emit from MeStmt, attention:this just for two stmt(if && call)
+  uint32 stmtInfoId = -1u;
   mutable bool isLive = false;  // only used for dse to save compile time
                                 // mutable to keep const-ness at most situation
   StmtAttrs stmtAttrs;
@@ -1549,6 +1572,8 @@ class IassignNode : public StmtNode {
   TyIdx GetTyIdx() const {
     return tyIdx;
   }
+
+  MIRType *GetLHSType() const;
 
   void SetTyIdx(TyIdx idx) {
     tyIdx = idx;
@@ -1616,12 +1641,12 @@ class IassignNode : public StmtNode {
 
   bool AssigningVolatile() const;
 
-  bool IsExpandedFromArrayOfCharFunc() const {
+  bool IsExpandedFromArrayOfCharFunc() const override {
     return fromAoCFunc;
   }
 
   void SetExpandFromArrayOfCharFunc(bool flag) override {
-    fromAoCFunc = true;
+    fromAoCFunc = flag;
   }
 
  private:
@@ -2077,7 +2102,6 @@ class UnaryStmtNode : public StmtNode {
 
  private:
   bool VerifyThrowable(VerifyResult &verifyResult) const;
-
   BaseNode *uOpnd = nullptr;
 };
 
@@ -2933,7 +2957,7 @@ class IassignFPoffNode : public UnaryStmtNode {
   int32 offset = 0;
 };
 
-typedef IassignFPoffNode IassignPCoffNode;
+using IassignPCoffNode = IassignFPoffNode;
 
 class BlkassignoffNode : public BinaryStmtNode {
  public:
@@ -3069,8 +3093,12 @@ class SafetyCheckStmtNode {
  public:
   explicit SafetyCheckStmtNode(GStrIdx funcNameIdx)
       : funcNameIdx(funcNameIdx) {}
-  explicit SafetyCheckStmtNode(const SafetyCheckStmtNode& stmtNode)
+  SafetyCheckStmtNode(const SafetyCheckStmtNode& stmtNode)
       : funcNameIdx(stmtNode.GetFuncNameIdx()) {}
+  SafetyCheckStmtNode& operator=(const SafetyCheckStmtNode& stmtNode) {
+    funcNameIdx = stmtNode.GetFuncNameIdx();
+    return *this;
+  }
 
   virtual ~SafetyCheckStmtNode() = default;
 
@@ -3127,7 +3155,7 @@ class CallAssertNonnullStmtNode : public UnaryStmtNode, public SafetyCallCheckSt
  public:
   CallAssertNonnullStmtNode(Opcode o, GStrIdx callFuncNameIdx, size_t paramIndex, GStrIdx stmtFuncNameIdx)
       : UnaryStmtNode(o), SafetyCallCheckStmtNode(callFuncNameIdx, paramIndex, stmtFuncNameIdx) {}
-  virtual ~CallAssertNonnullStmtNode() override {}
+  ~CallAssertNonnullStmtNode() override {}
 
   void Dump(int32 indent) const override;
 
@@ -3144,7 +3172,7 @@ class AssertNonnullStmtNode : public UnaryStmtNode, public SafetyCheckStmtNode {
  public:
   AssertNonnullStmtNode(Opcode o, GStrIdx funcNameIdx)
       : UnaryStmtNode(o), SafetyCheckStmtNode(funcNameIdx) {}
-  virtual ~AssertNonnullStmtNode() override {}
+  ~AssertNonnullStmtNode() override {}
 
   void Dump(int32 indent) const override;
 
@@ -3161,7 +3189,7 @@ class AssertBoundaryStmtNode : public NaryStmtNode, public SafetyCheckStmtNode {
  public:
   AssertBoundaryStmtNode(MapleAllocator &allocator, Opcode o, GStrIdx funcNameIdx)
       : NaryStmtNode(allocator, o), SafetyCheckStmtNode(funcNameIdx) {}
-  virtual ~AssertBoundaryStmtNode() override {}
+  ~AssertBoundaryStmtNode() override {}
 
   AssertBoundaryStmtNode(MapleAllocator &allocator, const AssertBoundaryStmtNode& stmtNode)
       : NaryStmtNode(allocator, stmtNode), SafetyCheckStmtNode(stmtNode) {}
@@ -3188,7 +3216,7 @@ class CallAssertBoundaryStmtNode : public NaryStmtNode, public SafetyCallCheckSt
   CallAssertBoundaryStmtNode(MapleAllocator &allocator, Opcode o, GStrIdx funcNameIdx, size_t paramIndex,
                              GStrIdx stmtFuncNameIdx)
       : NaryStmtNode(allocator, o), SafetyCallCheckStmtNode(funcNameIdx, paramIndex, stmtFuncNameIdx) {}
-  virtual ~CallAssertBoundaryStmtNode() override {}
+  ~CallAssertBoundaryStmtNode() override {}
 
   CallAssertBoundaryStmtNode(MapleAllocator &allocator, const CallAssertBoundaryStmtNode& stmtNode)
       : NaryStmtNode(allocator, stmtNode), SafetyCallCheckStmtNode(stmtNode) {}
@@ -3672,6 +3700,7 @@ class AsmNode : public NaryStmtNode {
     return hasWriteInputs;
   }
 
+  bool IsSameContent(const BaseNode *node) const override;
   void DumpOutputs(int32 indent, std::string &uStr) const;
   void DumpInputOperands(int32 indent, std::string &uStr) const;
   void Dump(int32 indent) const override;
