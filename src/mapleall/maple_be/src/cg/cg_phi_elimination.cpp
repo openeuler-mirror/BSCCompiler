@@ -46,7 +46,7 @@ void PhiEliminate::TranslateTSSAToCSSA() {
 
   FOR_ALL_BB(bb, cgFunc) {
     FOR_BB_INSNS(insn, bb) {
-      CHECK_FATAL(eliminatedBB.count(bb->GetId()), "still have phi");
+      CHECK_FATAL(eliminatedBB.count(bb->GetId()) != 0, "still have phi");
       if (!insn->IsMachineInstruction()) {
         continue;
       }
@@ -73,6 +73,39 @@ void PhiEliminate::PlaceMovInPredBB(uint32 predBBId, Insn &movInsn) const {
   } else {
     AppendMovAfterLastVregDef(*predBB, movInsn);
   }
+}
+
+regno_t PhiEliminate::RecursiveBothDU(RegOperand &ssaOpnd) {
+  if (!ssaOpnd.IsSSAForm()) {
+    return ssaOpnd.GetRegisterNumber();
+  }
+  VRegVersion *ssaVersion = GetSSAInfo()->FindSSAVersion(ssaOpnd.GetRegisterNumber());
+  ASSERT(ssaVersion != nullptr, "find ssaVersion failed");
+  ASSERT(!ssaVersion->IsDeleted(), "ssaVersion has been deleted");
+  RegOperand *regForRecreate = &ssaOpnd;
+  if (GetSSAInfo()->IsNoDefVReg(ssaOpnd.GetRegisterNumber())) {
+    regForRecreate = MakeRoomForNoDefVreg(ssaOpnd);
+  } else {
+    ASSERT(regForRecreate->IsSSAForm(), "Opnd is not in ssa form");
+  }
+  DUInsnInfo *defInfo = ssaVersion->GetDefInsnInfo();
+  Insn *defInsn = defInfo != nullptr ? defInfo->GetInsn() : nullptr;
+  if (defInsn != nullptr) {
+    uint32 defUseIdx = defInsn->GetBothDefUseOpnd();
+    if (defUseIdx != kInsnMaxOpnd) {
+      if (defInfo->GetOperands().count(defUseIdx) > 0) {
+        CHECK_FATAL(defInfo->GetOperands()[defUseIdx] == 1, "multiple definiation");
+        Operand &preOpnd = defInsn->GetOperand(defUseIdx);
+        ASSERT(preOpnd.IsRegister(), "unexpect operand type");
+        return RecursiveBothDU(static_cast<RegOperand&>(preOpnd));
+      }
+    }
+    CHECK_FATAL(defInsn->GetMachineOpcode() != MOP_asm,  "not implement yet");
+    CHECK_FATAL(ssaVersion->GetOriginalRegNO() != kRFLAG,  "not implement yet");
+  } else {
+    return ssaVersion->GetOriginalRegNO();
+  }
+  return regForRecreate->GetRegisterNumber();
 }
 
 regno_t PhiEliminate::GetAndIncreaseTempRegNO() {

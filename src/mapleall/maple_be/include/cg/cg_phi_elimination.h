@@ -44,6 +44,7 @@ class PhiEliminate {
   virtual void AppendMovAfterLastVregDef(BB &bb, Insn &movInsn) const = 0;
   void UpdateRematInfo();
   regno_t GetAndIncreaseTempRegNO();
+  regno_t RecursiveBothDU(RegOperand &ssaOpnd);
   RegOperand *MakeRoomForNoDefVreg(RegOperand &conflictReg);
   void RecordRematInfo(regno_t vRegNO, PregIdx pIdx);
   PregIdx FindRematInfo(regno_t vRegNO) {

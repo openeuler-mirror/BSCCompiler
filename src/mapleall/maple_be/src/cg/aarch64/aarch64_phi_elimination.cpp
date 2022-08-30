@@ -27,13 +27,13 @@ Insn &AArch64PhiEliminate::CreateMov(RegOperand &destOpnd, RegOperand &fromOpnd)
   Insn *insn = nullptr;
   if (destOpnd.GetSize() == k128BitSize) {
     ASSERT(isFloat, "unexpect 128bit int operand in aarch64");
-    insn = &cgFunc->GetCG()->BuildInstruction<AArch64VectorInsn>(MOP_vmovvv, destOpnd, fromOpnd);
+    insn = &cgFunc->GetInsnBuilder()->BuildVectorInsn(MOP_vmovvv, AArch64CG::kMd[MOP_vmovvv]);
+    insn->AddOpndChain(destOpnd).AddOpndChain(fromOpnd);
     auto *vecSpecSrc = cgFunc->GetMemoryPool()->New<VectorRegSpec>(k128BitSize >> k3ByteSize, k8BitSize);
     auto *vecSpecDest = cgFunc->GetMemoryPool()->New<VectorRegSpec>(k128BitSize >> k3ByteSize, k8BitSize);
-    static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
-    static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecSrc);
+    static_cast<VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecSrc);
   } else {
-    insn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+    insn = &cgFunc->GetInsnBuilder()->BuildInsn(
         is64bit ? isFloat ? MOP_xvmovd : MOP_xmovrr : isFloat ? MOP_xvmovs : MOP_wmovrr, destOpnd, fromOpnd);
   }
   /* copy remat info */
@@ -75,9 +75,9 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, const 
     if (defUseIdx != kInsnMaxOpnd) {
       if (defInfo->GetOperands().count(defUseIdx) > 0) {
         CHECK_FATAL(defInfo->GetOperands()[defUseIdx] == 1, "multiple definiation");
-        Operand &preRegOpnd = defInsn->GetOperand(defUseIdx);
-        ASSERT(preRegOpnd.IsRegister(), "unexpect operand type");
-        newReg.SetRegisterNumber(static_cast<RegOperand&>(preRegOpnd).GetRegisterNumber());
+        Operand &preOpnd = defInsn->GetOperand(defUseIdx);
+        ASSERT(preOpnd.IsRegister(), "unexpect operand type");
+        newReg.SetRegisterNumber(RecursiveBothDU(static_cast<RegOperand&>(preOpnd)));
       }
     }
     /* case 2 */
