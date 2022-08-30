@@ -122,6 +122,8 @@ class AArch64CGFunc : public CGFunc {
   uint32 LmbcTotalRegsUsed();
   bool LmbcSmallAggForRet(const BaseNode &bNode, Operand *src);
   bool LmbcSmallAggForCall(BlkassignoffNode &bNode, const Operand *src, std::vector<TyIdx> **parmList);
+  bool GetNumReturnRegsForIassignfpoff(MIRType *rType, PrimType &primType, uint32 &numRegs);
+  void GenIassignfpoffStore(Operand &srcOpnd, int32 offset, uint32 byteSize, PrimType primType);
   void SelectAggDassign(DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
   void SelectIassignoff(IassignoffNode &stmt) override;
