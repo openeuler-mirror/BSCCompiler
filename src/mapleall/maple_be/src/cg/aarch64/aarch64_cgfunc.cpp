@@ -2105,6 +2105,32 @@ MemOperand *AArch64CGFunc::GenLmbcFpMemOperand(int32 offset, uint32 byteSize, AA
   return memOpnd;
 }
 
+bool AArch64CGFunc::GetNumReturnRegsForIassignfpoff(MIRType *rType, PrimType &primType, uint32 &numRegs) {
+  bool isPureFp = false;
+  uint32 rSize = rType->GetSize();
+  CHECK_FATAL(rSize <= k16ByteSize, "SelectIassignfpoff invalid agg size");
+  uint32 fpSize;
+  numRegs = FloatParamRegRequired(static_cast<MIRStructType*>(rType), fpSize);
+  if (numRegs > 0) {
+    primType = (fpSize == k4ByteSize) ? PTY_f32 : PTY_f64;
+    isPureFp = true;
+  } else if (rSize > k8ByteSize) {
+    primType = PTY_u64;
+    numRegs = kTwoRegister;
+  } else {
+    primType = PTY_u64;
+    numRegs = kOneRegister;
+  }
+  return isPureFp;
+}
+
+void AArch64CGFunc::GenIassignfpoffStore(Operand &srcOpnd, int32 offset, uint32 byteSize, PrimType primType) {
+  MemOperand *memOpnd = GenLmbcFpMemOperand(offset, byteSize);
+  MOperator mOp = PickStInsn(byteSize * kBitsPerByte, primType);
+  Insn &store = GetInsnBuilder()->BuildInsn(mOp, srcOpnd, *memOpnd);
+  GetCurBB()->AppendInsn(store);
+}
+
 void AArch64CGFunc::SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) {
   int32 offset = stmt.GetOffset();
   PrimType primType = stmt.GetPrimType();
@@ -2113,45 +2139,22 @@ void AArch64CGFunc::SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) {
   uint32 numRegs = 0;
   if (rType && rType->GetPrimType() == PTY_agg && opnd.IsRegister() &&
       static_cast<RegOperand&>(opnd).IsPhysicalRegister()) {
-    CHECK_FATAL(rType->GetSize() <= k16BitSize, "SelectIassignfpoff invalid agg size");
-    uint32 fpSize;
-    numRegs = FloatParamRegRequired(static_cast<MIRStructType*>(rType), fpSize);
-    if (numRegs > 0) {
-      primType = (fpSize == k4ByteSize) ? PTY_f32 : PTY_f64;
-      isPureFpStruct = true;
-    }
+    isPureFpStruct = GetNumReturnRegsForIassignfpoff(rType, primType, numRegs);
   }
   uint32 byteSize = GetPrimTypeSize(primType);
-  uint32 bitlen = byteSize * kBitsPerByte;
   if (isPureFpStruct) {
     for (uint32 i = 0 ; i < numRegs; ++i) {
-      MemOperand *memOpnd = GenLmbcFpMemOperand(offset + static_cast<int32>(i * byteSize), byteSize);
-      RegOperand &srcOpnd = GetOrCreatePhysicalRegisterOperand(AArch64reg(V0 + i), bitlen, kRegTyFloat);
-      GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(PickStInsn(bitlen, primType), srcOpnd, *memOpnd));
+      RegOperand &srcOpnd = GetOrCreatePhysicalRegisterOperand(AArch64reg(V0 + i), byteSize * kBitsPerByte, kRegTyFloat);
+      GenIassignfpoffStore(srcOpnd, offset + static_cast<int32>(i * byteSize), byteSize, primType);
+    }
+  } else if (numRegs) {
+    for (uint32 i = 0 ; i < numRegs; ++i) {
+      RegOperand &srcOpnd = GetOrCreatePhysicalRegisterOperand(AArch64reg(R0 + i), byteSize * kBitsPerByte, kRegTyInt);
+      GenIassignfpoffStore(srcOpnd, offset + static_cast<int32>(i * byteSize), byteSize, primType);
     }
   } else {
-    if (primType != PTY_agg) {
-      Operand &srcOpnd = LoadIntoRegister(opnd, primType);
-      MemOperand *memOpnd = GenLmbcFpMemOperand(offset, byteSize);
-      Insn &store = GetInsnBuilder()->BuildInsn(PickStInsn(bitlen, primType), srcOpnd, *memOpnd);
-      GetCurBB()->AppendInsn(store);
-    } else {
-      byteSize = static_cast<uint32>(rType->GetSize());
-      MemOperand *memOpnd = nullptr;
-      RegOperand *srcOpnd = nullptr;
-      if (byteSize > k8ByteSize) {
-        memOpnd = GenLmbcFpMemOperand(offset, k8ByteSize);
-        srcOpnd = &GetOrCreatePhysicalRegisterOperand(AArch64reg(R0), k64BitSize, kRegTyInt);
-        GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(PickStInsn(k64BitSize, PTY_u64), *srcOpnd, *memOpnd));
-        byteSize -= k8ByteSize;
-      }
-      PrimType pTy = (byteSize > k4ByteSize) ? PTY_u64 : ((byteSize > k2ByteSize) ? PTY_u32 :
-          ((byteSize > k1ByteSize) ? PTY_u16 : PTY_u8));
-      bitlen = GetPrimTypeSize(pTy) * kBitsPerByte;
-      srcOpnd = &GetOrCreatePhysicalRegisterOperand(AArch64reg(R1), bitlen, kRegTyInt);
-      memOpnd = GenLmbcFpMemOperand(offset + k8BitSizeInt, byteSize);
-      GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(PickStInsn(bitlen, pTy), *srcOpnd, *memOpnd));
-    }
+    Operand &srcOpnd = LoadIntoRegister(opnd, primType);
+    GenIassignfpoffStore(srcOpnd, offset, byteSize, primType);
   }
 }
 
