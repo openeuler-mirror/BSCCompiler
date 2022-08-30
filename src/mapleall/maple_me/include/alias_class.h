@@ -87,7 +87,7 @@ class AliasElem {
   }
 
   void AddClassToSet(unsigned int classId) {
-    classSet->emplace(classId);
+    (void)classSet->emplace(classId);
   }
 
   void SetClassSet(MapleSet<unsigned int> *newClassSet) {
@@ -99,7 +99,7 @@ class AliasElem {
   }
 
   void AddAssignToSet(unsigned int classId) {
-    assignSet->emplace(classId);
+    (void)assignSet->emplace(classId);
   }
 
  private:
@@ -121,7 +121,7 @@ class AliasInfo {
 
   AliasInfo() : vst(nullptr), fieldID(0), offset(kOffsetUnknown) {}
   AliasInfo(VersionSt *vst0, FieldID fld) : vst(vst0), fieldID(fld), offset(kOffsetUnknown) {}
-  AliasInfo(VersionSt *vst0, FieldID fld, OffsetType offset) : vst(vst0), fieldID(fld), offset(offset) {}
+  AliasInfo(VersionSt *vst0, FieldID fld, const OffsetType &offset) : vst(vst0), fieldID(fld), offset(offset) {}
   ~AliasInfo() {}
 };
 
@@ -174,6 +174,7 @@ class AliasClass : public AnalysisResult {
   }
 
   void ApplyUnionForPhi(const PhiNode &phi);
+  void ApplyUnionForIntrinsicCall(const IntrinsiccallNode &intrinsicCall);
   void ApplyUnionForCopies(StmtNode &stmt);
   void ApplyUnionForFieldsInCopiedAgg();
   bool IsGlobalOstTypeUnsafe(const OriginalSt &ost) const;
@@ -183,7 +184,6 @@ class AliasClass : public AnalysisResult {
   bool IsAddrTypeConsistent(MIRType *typeA, MIRType *typeB) const;
   void SetTypeUnsafeForAddrofUnion(const VersionSt *vst) const;
   void SetTypeUnsafeForTypeConversion(const VersionSt *lhsVst, BaseNode *rhsExpr);
-  void SetTypeUnsafeIfBaseTypeCvt(OriginalSt *memOst, const TyIdx &accessTyIdx, BaseNode *baseNode);
   void CreateAssignSets();
   void DumpAssignSets();
   void GetValueAliasSetOfVst(size_t vstIdx, std::set<size_t> &result);
@@ -223,7 +223,7 @@ class AliasClass : public AnalysisResult {
     return false;
   }
 
-  AliasSet *GetAliasSet(OStIdx ostIdx) const {
+  AliasSet *GetAliasSet(const OStIdx &ostIdx) const {
     if (ostIdx >= aliasSetOfOst.size()) {
       return nullptr;
     }
@@ -239,7 +239,7 @@ class AliasClass : public AnalysisResult {
     return true;
   }
 
-  void SetAliasSet(OStIdx ostIdx, AliasSet *aliasSet) {
+  void SetAliasSet(const OStIdx &ostIdx, AliasSet *aliasSet) {
     if (aliasSetOfOst.size() <= ostIdx) {
       constexpr size_t bufferSize = 10;
       size_t incNum = ostIdx - aliasSetOfOst.size() + bufferSize;
@@ -272,14 +272,16 @@ class AliasClass : public AnalysisResult {
   void CollectMayDefForMustDefs(const StmtNode &stmt, OstPtrSet &mayDefOsts);
   void CollectMayUseForNextLevel(const VersionSt &vst, OstPtrSet &mayUseOsts,
                                  const StmtNode &stmt, bool isFirstOpnd);
-  void CollectMayUseForCallOpnd(const StmtNode &stmt, OstPtrSet &mayUseOsts);
+  void CollectMayUseForIntrnCallOpnd(const StmtNode &stmt, OstPtrSet &mayDefOsts, OstPtrSet &mayUseOsts);
+  void CollectMayDefUseForIthOpnd(const VersionSt &vst, OstPtrSet &mayUseOsts,
+                                  const StmtNode &stmt, bool isFirstOpnd);
   void CollectMayDefUseForCallOpnd(const StmtNode &stmt,
                                    OstPtrSet &mayDefOsts, OstPtrSet &mayUseOsts,
                                    OstPtrSet &mustNotDefOsts, OstPtrSet &mustNotUseOsts);
   void InsertMayDefNodeForCall(OstPtrSet &mayDefOsts, AccessSSANodes *ssaPart,
                                StmtNode &stmt, BBId bbid, bool hasNoPrivateDefEffect);
   void InsertMayUseExpr(BaseNode &expr);
-  void CollectMayUseFromFormals(OstPtrSet &mayUseOsts);
+  void CollectMayUseFromFormals(OstPtrSet &mayUseOsts, bool needToBeRestrict);
   void CollectMayUseFromGlobalsAffectedByCalls(OstPtrSet &mayUseOsts);
   void CollectMayUseFromDefinedFinalField(OstPtrSet &mayUseOsts);
   void InsertMayUseNode(OstPtrSet &mayUseOsts, AccessSSANodes *ssaPart);
@@ -333,14 +335,14 @@ class AliasClass : public AnalysisResult {
     vstNextLevNotAllDefsSeen[vstIdx] = true;
   }
 
-  bool IsNotAllDefsSeen(OStIdx ostIdx) {
+  bool IsNotAllDefsSeen(const OStIdx &ostIdx) {
     if (ostIdx >= ostNotAllDefsSeen.size()) {
       return false;
     }
     return ostNotAllDefsSeen[ostIdx];
   }
 
-  void SetNotAllDefsSeen(OStIdx ostIdx) {
+  void SetNotAllDefsSeen(const OStIdx &ostIdx) {
     if (ostIdx >= ostNotAllDefsSeen.size()) {
       size_t bufferSize = 5;
       size_t incNum = ostIdx + bufferSize - ostNotAllDefsSeen.size();

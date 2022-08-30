@@ -940,6 +940,34 @@ void AliasClass::SetTypeUnsafeForTypeConversion(const VersionSt *lhsVst, BaseNod
   }
 }
 
+void AliasClass::ApplyUnionForIntrinsicCall(const IntrinsiccallNode &intrinsicCall) {
+  auto intrinsicId = intrinsicCall.GetIntrinsic();
+  bool opndsNextLevNADS = (intrinsicId == INTRN_JAVA_POLYMORPHIC_CALL);
+  for (uint32 i = 0; i < intrinsicCall.NumOpnds(); ++i) {
+    auto opnd = intrinsicCall.Opnd(i);
+    const AliasInfo &ainfo = CreateAliasInfoExpr(*opnd);
+    if (opndsNextLevNADS) {
+      SetPtrOpndNextLevNADS(*opnd, ainfo.vst, false);
+    }
+
+    // intrinsic call memset/memcpy return value of first opnd.
+    // create copy relation between first opnd and the returned value.
+    if (i == 0 && intrinsicCall.GetOpCode() == OP_intrinsiccallassigned &&
+        (intrinsicId == INTRN_C_memset || intrinsicId == INTRN_C_memcpy)) {
+      auto &mustDefs = ssaTab.GetStmtsSSAPart().GetMustDefNodesOf(intrinsicCall);
+      if (mustDefs.empty()) {
+        continue;
+      }
+      CHECK_FATAL(mustDefs.size() == 1, "multi-assign-part for C_memset/memcpy not supported");
+      auto *assignedPtr = mustDefs.front().GetResult();
+      if (ainfo.vst == nullptr) {
+        continue;
+      }
+      ApplyUnionForDassignCopy(*ainfo.vst, assignedPtr, *opnd);
+    }
+  }
+}
+
 void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
   switch (stmt.GetOpCode()) {
     case OP_maydassign:
@@ -1061,13 +1089,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
     }
     case OP_intrinsiccall:
     case OP_intrinsiccallassigned: {
-      bool opndsNextLevNADS = static_cast<IntrinsiccallNode&>(stmt).GetIntrinsic() == INTRN_JAVA_POLYMORPHIC_CALL;
-      for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
-        const AliasInfo &ainfo = CreateAliasInfoExpr(*stmt.Opnd(i));
-        if (opndsNextLevNADS) {
-          SetPtrOpndNextLevNADS(*stmt.Opnd(i), ainfo.vst, false);
-        }
-      }
+      ApplyUnionForIntrinsicCall(static_cast<IntrinsiccallNode&>(stmt));
       break;
     }
     default: {
@@ -1988,11 +2010,11 @@ void AliasClass::InsertMayUseNode(OstPtrSet &mayUseOsts, AccessSSANodes *ssaPart
   }
 }
 
-void AliasClass::CollectMayUseFromFormals(OstPtrSet &mayUseOsts) {
+void AliasClass::CollectMayUseFromFormals(OstPtrSet &mayUseOsts, bool needToBeRestrict) {
   auto *curFunc = mirModule.CurFunction();
   for (size_t formalId = 0; formalId < curFunc->GetFormalCount(); ++formalId) {
     auto *formal = curFunc->GetFormal(formalId);
-    if (formal->GetAttr(ATTR_restrict)) {
+    if (!needToBeRestrict || formal->GetAttr(ATTR_restrict)) {
       auto *restrictFormalOst = ssaTab.GetOriginalStTable().FindSymbolOriginalSt(*formal);
       if (restrictFormalOst == nullptr) {
         continue;
@@ -2036,7 +2058,7 @@ void AliasClass::InsertMayUseReturn(const StmtNode &stmt) {
   mayUseOsts.insert(nadsOsts.begin(), nadsOsts.end());
   // 2. collect mayUses caused by globals_affected_by_call.
   CollectMayUseFromGlobalsAffectedByCalls(mayUseOsts);
-  CollectMayUseFromFormals(mayUseOsts);
+  CollectMayUseFromFormals(mayUseOsts, true);
   // 3. collect mayUses caused by defined final field for constructor
   if (mirModule.CurFunction()->IsConstructor()) {
     CollectMayUseFromDefinedFinalField(mayUseOsts);
@@ -2404,6 +2426,12 @@ void AliasClass::CollectMayUseForIntrnCallOpnd(const StmtNode &stmt,
                                                OstPtrSet &mayDefOsts, OstPtrSet &mayUseOsts) {
   auto &intrinNode = static_cast<const IntrinsiccallNode&>(stmt);
   IntrinDesc *intrinDesc = &IntrinDesc::intrinTable[intrinNode.GetIntrinsic()];
+  if (intrinDesc->IsAtomic()) {
+    // No matter which memorder is selected or whether the atomic operation defines ost or not,
+    // args or globals will be considered as being rewritten by other threads and hence need to be reloaded
+    CollectMayUseFromGlobalsAffectedByCalls(mayDefOsts);
+    CollectMayUseFromFormals(mayDefOsts, false);
+  }
   for (uint32 opndId = 0; opndId < stmt.NumOpnds(); ++opndId) {
     BaseNode *expr = stmt.Opnd(opndId);
     expr = RemoveTypeConversionIfExist(expr);
