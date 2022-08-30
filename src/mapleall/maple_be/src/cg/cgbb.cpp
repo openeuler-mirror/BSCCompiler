@@ -354,7 +354,7 @@ bool BB::IsSoloGoto() const {
     if (!insn->IsMachineInstruction()) {
       continue;
     }
-    return (insn->IsGoto());
+    return (insn->IsUnCondBranch());
   }
   return false;
 }
@@ -507,7 +507,9 @@ void Bfs::ComputeBlockOrder() {
     }
   }
   for (BB *bb = cleanupBB; bb != nullptr; bb = bb->GetNext()) {
-    bb->SetInternalFlag1(1);
+    if (bb->IsCleanup()) {
+      bb->SetInternalFlag1(1);
+    }
   }
 
   bool changed;

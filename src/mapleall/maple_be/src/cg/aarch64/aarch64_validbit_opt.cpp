@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "aarch64_validbit_opt.h"
+#include "aarch64_cg.h"
 
 namespace maplebe {
 void AArch64ValidBitOpt::DoOpt(BB &bb, Insn &insn) {
@@ -58,7 +59,7 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       uint32 newVB = (mop == MOP_wuxtb_vb ? k8BitSize : k16BitSize);
       dstOpnd.SetValidBitsNum(newVB);
       MOperator recoverMop = (srcOpnd.GetSize() == k32BitSize ? MOP_wmovrr : MOP_xmovrr);
-      insn.SetMOP(recoverMop);
+      insn.SetMOP(AArch64CG::kMd[recoverMop]);
       break;
     }
     case MOP_wcsetrc:
@@ -67,7 +68,7 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       dstOpnd.SetValidBitsNum(k1BitSize);
       break;
     }
-    case MOP_xmovri32:
+    case MOP_wmovri32:
     case MOP_xmovri64: {
       Operand &srcOpnd = insn.GetOperand(kInsnSecondOpnd);
       ASSERT(srcOpnd.IsIntImmediate(), "must be ImmOperand");
@@ -297,13 +298,11 @@ void AndValidBitPattern::Run(BB &bb, Insn &insn) {
   if (!CheckCondition(insn)) {
     return;
   }
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, *desReg, *srcReg);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, *desReg, *srcReg);
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
-  if (desReg->GetSize() < srcReg->GetSize()) {
-    ssaInfo->InsertSafePropInsn(newInsn.GetId());
-  }
+  ssaInfo->InsertSafePropInsn(newInsn.GetId());
   /* dump pattern info */
   if (CG_VALIDBIT_OPT_DUMP) {
     std::vector<Insn*> prevs;
@@ -375,7 +374,7 @@ void ExtValidBitPattern::Run(BB &bb, Insn &insn) {
     case MOP_xuxtb32:
     case MOP_xuxth32:
     case MOP_xsxtw64: {
-      insn.SetMOP(newMop);
+      insn.SetMOP(AArch64CG::kMd[newMop]);
       if (newDstOpnd->GetSize() > newSrcOpnd->GetSize()) {
         ssaInfo->InsertSafePropInsn(insn.GetId());
       }
@@ -385,7 +384,7 @@ void ExtValidBitPattern::Run(BB &bb, Insn &insn) {
     case MOP_xubfxrri6i6:
     case MOP_wsbfxrri5i5:
     case MOP_xsbfxrri6i6: {
-      Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, *newDstOpnd, *newSrcOpnd);
+      Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, *newDstOpnd, *newSrcOpnd);
       bb.ReplaceInsn(insn, newInsn);
       /* update ssa info */
       ssaInfo->ReplaceInsn(insn, newInsn);
@@ -451,7 +450,7 @@ bool CmpCsetVBPattern::OpndDefByOneValidBit(const Insn &defInsn) const {
     case MOP_wcsetrc:
     case MOP_xcsetrc:
       return true;
-    case MOP_xmovri32:
+    case MOP_wmovri32:
     case MOP_xmovri64: {
       Operand &defOpnd = defInsn.GetOperand(kInsnSecondOpnd);
       ASSERT(defOpnd.IsIntImmediate(), "expects ImmOperand");
@@ -535,12 +534,12 @@ void CmpCsetVBPattern::Run(BB &bb, Insn &csetInsn) {
   /* cmpFirstOpnd == 1 */
   if ((cmpConstVal == 0 && cond.GetCode() == CC_NE) || (cmpConstVal == 1 && cond.GetCode() == CC_EQ)) {
     MOperator mopCode = (cmpFirstOpnd.GetSize() == k64BitSize) ? MOP_xmovrr : MOP_wmovrr;
-    newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mopCode, csetFirstOpnd, cmpFirstOpnd);
+    newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(mopCode, csetFirstOpnd, cmpFirstOpnd);
   } else if ((cmpConstVal == 1 && cond.GetCode() == CC_NE) || (cmpConstVal == 0 && cond.GetCode() == CC_EQ)) {
     /* cmpFirstOpnd == 0 */
     MOperator mopCode = (cmpFirstOpnd.GetSize() == k64BitSize) ? MOP_xeorrri13 : MOP_weorrri12;
     ImmOperand &one = static_cast<AArch64CGFunc*>(cgFunc)->CreateImmOperand(1, k8BitSize, false);
-    newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mopCode, csetFirstOpnd, cmpFirstOpnd, one);
+    newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(mopCode, csetFirstOpnd, cmpFirstOpnd, one);
   }
   if (newInsn == nullptr) {
     return;
@@ -606,7 +605,7 @@ void CmpBranchesPattern::Run(BB &bb, Insn &insn) {
   auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
   auto &labelOpnd = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
   ImmOperand &newImmOpnd = aarFunc->CreateImmOperand(newImmVal, k8BitSize, false);
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, prevCmpInsn->GetOperand(kInsnSecondOpnd),
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, prevCmpInsn->GetOperand(kInsnSecondOpnd),
                                                                  newImmOpnd, labelOpnd);
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */

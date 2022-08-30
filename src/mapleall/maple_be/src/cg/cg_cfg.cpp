@@ -33,7 +33,7 @@ namespace {
 using namespace maplebe;
 bool CanBBThrow(const BB &bb) {
   FOR_BB_INSNS_CONST(insn, &bb) {
-    if (insn->CanThrow()) {
+    if (insn->IsTargetInsn() && insn->CanThrow()) {
       return true;
     }
   }
@@ -48,7 +48,6 @@ void CGCFG::BuildCFG() {
    * Link preds/succs in the BBs
    */
   BB *firstBB = cgFunc->GetFirstBB();
-  EHFunc *ehFunc = cgFunc->GetEHFunc();
   for (BB *curBB = firstBB; curBB != nullptr; curBB = curBB->GetNext()) {
     BB::BBKind kind = curBB->GetKind();
     switch (kind) {
@@ -128,6 +127,7 @@ void CGCFG::BuildCFG() {
         break;
     }  /* end switch */
 
+    EHFunc *ehFunc = cgFunc->GetEHFunc();
     /* Check exception table. If curBB is in a try block, add catch BB to its succs */
     if (ehFunc != nullptr && ehFunc->GetLSDACallSiteTable() != nullptr) {
       /* Determine if insn in bb can actually except */
@@ -369,7 +369,7 @@ void CGCFG::FindAndMarkUnreachable(CGFunc &func) {
   BB *firstBB = func.GetFirstBB();
   std::stack<BB*> toBeAnalyzedBBs;
   toBeAnalyzedBBs.push(firstBB);
-  std::set<BB*, BBIdCmp> instackBBs;
+  std::unordered_set<uint32> instackBBs;
 
   BB *bb = firstBB;
   /* set all bb's unreacable to true */
@@ -388,20 +388,20 @@ void CGCFG::FindAndMarkUnreachable(CGFunc &func) {
   while (!toBeAnalyzedBBs.empty()) {
     bb = toBeAnalyzedBBs.top();
     toBeAnalyzedBBs.pop();
-    (void)instackBBs.insert(bb);
+    (void)instackBBs.insert(bb->GetId());
 
     bb->SetUnreachable(false);
 
     for (BB *succBB : bb->GetSuccs()) {
-      if (instackBBs.count(succBB) == 0) {
+      if (instackBBs.count(succBB->GetId()) == 0) {
         toBeAnalyzedBBs.push(succBB);
-        (void)instackBBs.insert(succBB);
+        (void)instackBBs.insert(succBB->GetId());
       }
     }
     for (BB *succBB : bb->GetEhSuccs()) {
-      if (instackBBs.count(succBB) == 0) {
+      if (instackBBs.count(succBB->GetId()) == 0) {
         toBeAnalyzedBBs.push(succBB);
-        (void)instackBBs.insert(succBB);
+        (void)instackBBs.insert(succBB->GetId());
       }
     }
   }
@@ -480,15 +480,14 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) const {
       fallthruSuc = succ;
       break;
     }
-
     ASSERT(fallthruSuc == curBB.GetNext(), "fallthru succ should be its next bb.");
     if (fallthruSuc != nullptr) {
       fallthruSuc->RemovePreds(curBB);
     }
   }
-
   for (BB *preBB : curBB.GetPreds()) {
     if (preBB->GetKind() == BB::kBBIgoto) {
+      sucBB->PushBackPreds(curBB);
       return;
     }
     /*
@@ -526,10 +525,9 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) const {
   curBB.GetNext()->SetPrev(curBB.GetPrev());
   cgFunc->ClearBBInVec(curBB.GetId());
   /* remove callsite */
-  EHFunc* ehFunc = cgFunc->GetEHFunc();
-  ASSERT(ehFunc != nullptr, "get ehfunc in cgfunc failed");
+  EHFunc *ehFunc = cgFunc->GetEHFunc();
   /* only java try has ehFunc->GetLSDACallSiteTable */
-  if (ehFunc->GetLSDACallSiteTable() != nullptr) {
+  if (ehFunc != nullptr && ehFunc->GetLSDACallSiteTable() != nullptr) {
     ehFunc->GetLSDACallSiteTable()->RemoveCallSite(curBB);
   }
 }
@@ -599,19 +597,7 @@ bool CGCFG::InSwitchTable(LabelIdx label, const CGFunc &func) {
   if (label == 0) {
     return false;
   }
-  for (auto &it : func.GetEmitStVec()) {
-    MIRSymbol *st = it.second;
-    CHECK_FATAL(st->GetKonst()->GetKind() == kConstAggConst, "not a kConstAggConst");
-    MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
-    for (size_t i = 0; i < arrayConst->GetConstVec().size(); ++i) {
-      CHECK_FATAL(arrayConst->GetConstVecItem(i)->GetKind() == kConstLblConst, "not a kConstLblConst");
-      MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
-      if (label == lblConst->GetValue()) {
-        return true;
-      }
-    }
-  }
-  return false;
+  return func.InSwitchTable(label);
 }
 
 bool CGCFG::IsCompareAndBranchInsn(const Insn &insn) const {
@@ -700,10 +686,7 @@ void CGCFG::UnreachCodeAnalysis() const {
       unreachBBs.erase(succBB);
     }
   }
-  /* Don't remove unreach code if withDwarf is enabled. */
-  if (cgFunc->GetCG()->GetCGOptions().WithDwarf()) {
-    return;
-  }
+
   /* remove unreachable bb */
   std::set<BB*, BBIdCmp>::iterator it;
   for (it = unreachBBs.begin(); it != unreachBBs.end(); it++) {
@@ -712,10 +695,10 @@ void CGCFG::UnreachCodeAnalysis() const {
     if (cgFunc->IsExitBB(*unreachBB) && !cgFunc->GetMirModule().IsCModule()) {
       unreachBB->SetUnreachable(false);
     }
-    EHFunc* ehFunc = cgFunc->GetEHFunc();
-    ASSERT(ehFunc != nullptr, "get ehfunc in cgfunc failed");
+    EHFunc *ehFunc = cgFunc->GetEHFunc();
     /* if unreachBB InLSDA ,replace unreachBB's label with nextReachableBB before remove it. */
-    if (ehFunc->NeedFullLSDA() && cgFunc->GetTheCFG()->InLSDA(unreachBB->GetLabIdx(), *ehFunc)) {
+    if (ehFunc != nullptr && ehFunc->NeedFullLSDA() &&
+        cgFunc->GetTheCFG()->InLSDA(unreachBB->GetLabIdx(), *ehFunc)) {
       /* find next reachable BB */
       BB* nextReachableBB = nullptr;
       for (BB* curBB = unreachBB; curBB != nullptr; curBB = curBB->GetNext()) {
@@ -873,39 +856,27 @@ void CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
     } else {
       exitBB->AppendBB(*newBB);
     }
-    newBB->AppendInsn(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
-        MOP_xuncond, cgFunc->GetOrCreateLabelOperand(succ.GetLabIdx())));
+    newBB->AppendInsn(
+        cgFunc->GetInsnBuilder()->BuildInsn(MOP_xuncond, cgFunc->GetOrCreateLabelOperand(succ.GetLabIdx())));
   }
 
   /* update offset if succ is goto target */
   if (pred.GetKind() == BB::kBBIf) {
     Insn *brInsn = FindLastCondBrInsn(pred);
     ASSERT(brInsn != nullptr, "null ptr check");
-    LabelOperand &brTarget = static_cast<LabelOperand&>(brInsn->GetOperand(brInsn->GetJumpTargetIdx()));
+    LabelOperand &brTarget = static_cast<LabelOperand&>(brInsn->GetOperand(AArch64isa::GetJumpTargetIdx(*brInsn)));
     if (brTarget.GetLabelIndex() == succ.GetLabIdx()) {
-      brInsn->SetOperand(brInsn->GetJumpTargetIdx(), cgFunc->GetOrCreateLabelOperand(newLblIdx));
+      brInsn->SetOperand(AArch64isa::GetJumpTargetIdx(*brInsn), cgFunc->GetOrCreateLabelOperand(newLblIdx));
     }
   } else if (pred.GetKind() == BB::kBBRangeGoto) {
     const MapleVector<LabelIdx> &labelVec = pred.GetRangeGotoLabelVec();
-    uint32 index = 0;
-    for (auto label: labelVec) {
-      /* single edge for multi jump target, so have to replace all. */
-      if (label == succ.GetLabIdx()) {
-        pred.SetRangeGotoLabel(index, newLblIdx);
-      }
-      index++;
-    }
-    MIRSymbol *st = cgFunc->GetEmitSt(pred.GetId());
-    MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
-    MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_a64));
-    MIRConst *mirConst = cgFunc->GetMemoryPool()->New<MIRLblConst>(newLblIdx, cgFunc->GetFunction().GetPuidx(), *etype);
-    for (size_t i = 0; i < arrayConst->GetConstVec().size(); ++i) {
-      CHECK_FATAL(arrayConst->GetConstVecItem(i)->GetKind() == kConstLblConst, "not a kConstLblConst");
-      MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
-      if (succ.GetLabIdx() == lblConst->GetValue()) {
-        arrayConst->SetConstVecItem(i, *mirConst);
+    for (size_t i = 0; i < labelVec.size(); ++i) {
+      if (labelVec[i] == succ.GetLabIdx()) {
+        /* single edge for multi jump target, so have to replace all. */
+        pred.SetRangeGotoLabel(i, newLblIdx);
       }
     }
+    cgFunc->UpdateEmitSt(pred, succ.GetLabIdx(), newLblIdx);
   } else {
     ASSERT(0, "unexpeced bb kind in BreakCriticalEdge");
   }
@@ -914,4 +885,14 @@ void CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
   UpdatePredsSuccsAfterSplit(pred, succ, *newBB);
 }
 #endif
+
+bool CgHandleCFG::PhaseRun(maplebe::CGFunc &f) {
+  CGCFG *cfg = f.GetMemoryPool()->New<CGCFG>(f);
+  f.SetTheCFG(cfg);
+  /* build control flow graph */
+  f.GetTheCFG()->BuildCFG();
+  return false;
+}
+MAPLE_TRANSFORM_PHASE_REGISTER(CgHandleCFG, handlecfg)
+
 }  /* namespace maplebe */

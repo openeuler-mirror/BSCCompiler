@@ -745,11 +745,6 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
 
       ehFunc->GetLSDACallSiteTable()->UpdateCallSite(curBB, *nextReachableBB);
     }
-
-    if (curBB.GetSuccs().empty() && curBB.GetEhSuccs().empty()) {
-      return false;
-    }
-
     if (curBB.GetPrev() != nullptr) {
       curBB.GetPrev()->SetNext(curBB.GetNext());
     }
@@ -768,7 +763,7 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
     }
     curBB.ClearSuccs();
     curBB.ClearEhSuccs();
-    return true;
+    /* return always be false */
   }
   return false;
 }

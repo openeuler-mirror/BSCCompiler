@@ -355,11 +355,11 @@ void PostDomAnalysis::ComputePdomFrontiers() {
     }
     for (BB *suc : bb->GetSuccs()) {
       BB *runner = suc;
-      while (runner != GetPdom(bb->GetId()) && runner != &commonEntryBB) {
+      while (runner != GetPdom(bb->GetId()) && runner != &commonEntryBB &&
+          GetPdom(runner->GetId()) != nullptr) {   // add infinite loop code limit
         if (!HasPdomFrontier(runner->GetId(), bb->GetId())) {
           pdomFrontier[runner->GetId()].push_back(bb->GetId());
         }
-        ASSERT(GetPdom(runner->GetId()) != nullptr, "ComputePdomFrontiers: pdoms[] is nullptr");
         runner = GetPdom(runner->GetId());
       }
     }

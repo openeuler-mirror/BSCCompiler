@@ -96,7 +96,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
       if (immOpnd.GetValue() < 0) {
         immOpnd.Negate();
       }
-      insn.SetMOP(A64ConstProp::GetReversalMOP(insn.GetMachineOpcode()));
+      insn.SetMOP(AArch64CG::kMd[A64ConstProp::GetReversalMOP(insn.GetMachineOpcode())]);
     } else {
       immOpnd.Add(ofst);
     }
@@ -114,10 +114,10 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
       if (immOpnd.IsSingleInstructionMovable()) {
         RegOperand &tempReg = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
         bool is64bit = insn.GetOperand(kInsnFirstOpnd).GetSize() == k64BitSize;
-        MOperator tempMovOp = is64bit ? MOP_xmovri64 : MOP_xmovri32;
-        Insn &tempMov = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(tempMovOp, tempReg, immOpnd);
+        MOperator tempMovOp = is64bit ? MOP_xmovri64 : MOP_wmovri32;
+        Insn &tempMov = cgFunc->GetInsnBuilder()->BuildInsn(tempMovOp, tempReg, immOpnd);
         insn.SetOperand(index, tempReg);
-        insn.SetMOP(is64bit ? MOP_xsubrrr : MOP_wsubrrr);
+        insn.SetMOP(is64bit ? AArch64CG::kMd[MOP_xsubrrr] : AArch64CG::kMd[MOP_wsubrrr]);
         (void)insn.GetBB()->InsertInsnBefore(insn, tempMov);
       }
     } else {
@@ -169,8 +169,10 @@ void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn, AArch64CGFu
       case MOP_xaddrri12: {
         ASSERT(static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == RSP,
             "regNumber should be changed in AdjustmentOffsetForOpnd");
-        ImmOperand &addend = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
-        addend.SetValue(addend.GetValue() + offset);
+        auto *newAddImmOpnd = static_cast<ImmOperand*>(
+            static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd)).Clone(*cgFunc->GetMemoryPool()));
+        newAddImmOpnd->SetValue(newAddImmOpnd->GetValue() + offset);
+        insn.SetOperand(kInsnThirdOpnd, *newAddImmOpnd);
         AdjustmentOffsetForImmOpnd(insn, kInsnThirdOpnd, aarchCGFunc); /* legalize imm opnd */
         break;
       }
