@@ -363,6 +363,31 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs 
     genAttrs.SetAttr(GENATTR_destructor_priority);
     genAttrs.InsertIntContentMap(GENATTR_destructor_priority, destructorAttr->getPriority());
   }
+  // one element vector type in rettype
+  if (LibAstFile::IsOneElementVector(decl.getReturnType())) {
+    genAttrs.SetAttr(GENATTR_oneelem_simd);
+  }
+  if (FEOptions::GetInstance().IsEnableSafeRegion()) {
+    if (decl.getSafeSpecifier() == clang::SS_Unsafe) {
+      genAttrs.SetAttr(GENATTR_unsafed);
+    } else if (decl.getSafeSpecifier() == clang::SS_Safe || FEOptions::GetInstance().IsDefaultSafe()) {
+      genAttrs.SetAttr(GENATTR_safed);
+    }
+  }
+  // If a non-static function defined with inline has non-static and non-inline function declaration, it should be
+  // an externally visible function.
+  if (decl.isThisDeclarationADefinition() && genAttrs.GetAttr(GENATTR_inline) && !genAttrs.GetAttr(GENATTR_static)) {
+    bool isExternallyVisible = false;
+    for (const clang::FunctionDecl *funcDecl : decl.redecls()) {
+      if (!funcDecl->isThisDeclarationADefinition() && !funcDecl->isInlineSpecified()) {
+        isExternallyVisible = true;
+        break;
+      }
+    }
+    if (isExternallyVisible) {
+      genAttrs.SetAttr(GENATTR_extern);
+    }
+  }
   CheckUnsupportedFuncAttrs(decl);
 }
 

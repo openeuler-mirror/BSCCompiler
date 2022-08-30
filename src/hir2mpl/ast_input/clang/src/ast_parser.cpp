@@ -1882,12 +1882,7 @@ ASTExpr *ASTParser::ProcessExprCallExpr(MapleAllocator &allocator, const clang::
       funcName = ss.str();
     }
 
-    GenericAttrs attrs;
-    astFile->CollectFuncAttrs(*funcDecl, attrs, kPublic);
-    // for inline optimize
-    if (attrs.GetAttr(GENATTR_static) && FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-      funcName = funcName + astFile->GetAstFileNameHashStr();
-    }
+    GenericAttrs attrs = SolveFunctionAttributes(*funcDecl, funcName);
     astCallExpr->SetFuncName(funcName);
     astCallExpr->SetFuncAttrs(attrs.ConvertToFuncAttrs());
     ASTFunc *astFunc = static_cast<ASTFunc*>(ASTDeclsBuilder::GetASTDecl(funcDecl->getID()));
@@ -2536,23 +2531,12 @@ MapleVector<ASTDecl*> ASTParser::SolveFuncParameterDecls(MapleAllocator &allocat
   return paramDecls;
 }
 
-GenericAttrs ASTParser::SolveFunctionAttrinutes(const clang::FunctionDecl &funcDecl, std::string &funcName) const {
+GenericAttrs ASTParser::SolveFunctionAttributes(const clang::FunctionDecl &funcDecl, std::string &funcName) const {
   GenericAttrs attrs;
   astFile->CollectFuncAttrs(funcDecl, attrs, kPublic);
   // for inline optimize
   if (attrs.GetAttr(GENATTR_static) && FEOptions::GetInstance().GetFuncInlineSize() != 0) {
     funcName = funcName + astFile->GetAstFileNameHashStr();
-  }
-  // one element vector type in rettype
-  if (LibAstFile::IsOneElementVector(funcDecl.getReturnType())) {
-    attrs.SetAttr(GENATTR_oneelem_simd);
-  }
-  if (FEOptions::GetInstance().IsEnableSafeRegion()) {
-    if (funcDecl.getSafeSpecifier() == clang::SS_Unsafe) {
-      attrs.SetAttr(GENATTR_unsafed);
-    } else if (funcDecl.getSafeSpecifier() == clang::SS_Safe || FEOptions::GetInstance().IsDefaultSafe()) {
-      attrs.SetAttr(GENATTR_safed);
-    }
   }
   return attrs;
 }
@@ -2595,7 +2579,7 @@ ASTDecl *ASTParser::ProcessDeclFunctionDecl(MapleAllocator &allocator, const cla
 
   std::list<ASTStmt*> implicitStmts;
   MapleVector<ASTDecl*> paramDecls = SolveFuncParameterDecls(allocator, funcDecl, typeDescIn, implicitStmts);
-  GenericAttrs attrs = SolveFunctionAttrinutes(funcDecl, funcName);
+  GenericAttrs attrs = SolveFunctionAttributes(funcDecl, funcName);
   astFunc = ASTDeclsBuilder::ASTFuncBuilder(
       allocator, fileName, funcName, typeDescIn, attrs, paramDecls, funcDecl.getID());
   CHECK_FATAL(astFunc != nullptr, "astFunc is nullptr");
