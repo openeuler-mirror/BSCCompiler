@@ -58,6 +58,9 @@ bool MEIRMapBuild::PhaseRun(maple::MeFunction &f) {
   }
   if (DEBUGFUNC_NEWPM(f)) {
     irMap->Dump();
+    if (f.GetCfg()->UpdateCFGFreq()) {
+      f.GetCfg()->DumpToFile("irmapbuild", true, true);
+    }
   }
 
   // delete mempool for meirmap temporaries

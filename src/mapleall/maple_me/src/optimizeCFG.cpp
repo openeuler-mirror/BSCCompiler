@@ -2670,8 +2670,11 @@ bool MEOptimizeCFG::PhaseRun(maple::MeFunction &f) {
       MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands);
       ssaUpdate.Run();
     }
-    if (f.GetCfg()->DumpIRProfileFile()) {
-      f.GetCfg()->DumpToFile("after-OptimizeCFG", false, f.GetCfg()->UpdateCFGFreq());
+    if (f.GetCfg()->UpdateCFGFreq()) {
+      f.GetCfg()->UpdateEdgeFreqWithBBFreq();
+      if (f.GetCfg()->DumpIRProfileFile()) {
+        f.GetCfg()->DumpToFile("after-OptimizeCFG", false, f.GetCfg()->UpdateCFGFreq());
+      }
     }
   }
   return change;

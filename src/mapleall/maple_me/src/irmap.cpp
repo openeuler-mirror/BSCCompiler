@@ -1942,7 +1942,7 @@ MeExpr *IRMap::SimplifyCmpExpr(OpMeExpr *cmpExpr) {
           return opnd0;
         } else if ((cmpop == OP_ne && opnd1const->IsOne()) || (cmpop == OP_eq && opnd1const->IsZero())) {
           if (IsCompareHasReverseOp(opnd0->GetOp())) {
-            OpMeExpr reverseMeExpr(kInvalidExprID, GetReverseCmpOp(opnd0->GetOp()), PTY_u1, opnd0->GetNumOpnds());
+            OpMeExpr reverseMeExpr(kInvalidExprID, GetReverseCmpOp(opnd0->GetOp()), PTY_i32, opnd0->GetNumOpnds());
             reverseMeExpr.SetOpnd(0, opnd0->GetOpnd(0));
             reverseMeExpr.SetOpnd(1, opnd0->GetOpnd(1));
             reverseMeExpr.SetOpndType(static_cast<OpMeExpr*>(opnd0)->GetOpndType());
@@ -1959,7 +1959,7 @@ MeExpr *IRMap::SimplifyCmpExpr(OpMeExpr *cmpExpr) {
         if (constVal->GetKind() == kConstInt && constVal->IsZero()) {
           auto *subOpnd0 = opnd0->GetOpnd(0);
           auto *subOpnd1 = opnd0->GetOpnd(1);
-          return CreateMeExprCompare(cmpop, PTY_u1, subOpnd0->GetPrimType(), *subOpnd0, *subOpnd1);
+          return CreateMeExprCompare(cmpop, PTY_i32, subOpnd0->GetPrimType(), *subOpnd0, *subOpnd1);
         }
       }
       break;
@@ -1976,13 +1976,13 @@ MeExpr *IRMap::SimplifyCmpExpr(OpMeExpr *cmpExpr) {
         }
         // we prefer ne/eq in following optimizations
         if (opnd0->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd0)->GetConstVal()->IsZero()) {
-          auto *newcmp = CreateMeExprCompare(cmpop == OP_ge ? OP_eq : OP_ne, PTY_u1, cmpExpr->GetOpndType(),
+          auto *newcmp = CreateMeExprCompare(cmpop == OP_ge ? OP_eq : OP_ne, PTY_i32, cmpExpr->GetOpndType(),
                                              *opnd1, *CreateIntConstMeExpr(0, cmpExpr->GetOpndType()));
           auto *simplified = SimplifyCmpExpr(static_cast<OpMeExpr*>(newcmp));
           return simplified == nullptr ? newcmp : simplified;
         }
         if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd1)->GetConstVal()->IsOne()) {
-          auto *newcmp = CreateMeExprCompare(cmpop == OP_ge ? OP_ne : OP_eq, PTY_u1, cmpExpr->GetOpndType(),
+          auto *newcmp = CreateMeExprCompare(cmpop == OP_ge ? OP_ne : OP_eq, PTY_i32, cmpExpr->GetOpndType(),
                                              *opnd0, *CreateIntConstMeExpr(0, cmpExpr->GetOpndType()));
           auto *simplified = SimplifyCmpExpr(static_cast<OpMeExpr*>(newcmp));
           return simplified == nullptr ? newcmp : simplified;
@@ -2002,13 +2002,13 @@ MeExpr *IRMap::SimplifyCmpExpr(OpMeExpr *cmpExpr) {
         }
         // we prefer ne/eq in following optimizations
         if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd1)->GetConstVal()->IsZero()) {
-          auto *newcmp = CreateMeExprCompare(cmpop == OP_gt ? OP_ne : OP_eq, PTY_u1, cmpExpr->GetOpndType(),
+          auto *newcmp = CreateMeExprCompare(cmpop == OP_gt ? OP_ne : OP_eq, PTY_i32, cmpExpr->GetOpndType(),
                                              *opnd0, *CreateIntConstMeExpr(0, cmpExpr->GetOpndType()));
           auto *simplified = SimplifyCmpExpr(static_cast<OpMeExpr*>(newcmp));
           return simplified == nullptr ? newcmp : simplified;
         }
         if (opnd0->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd0)->GetConstVal()->IsOne()) {
-          auto *newcmp = CreateMeExprCompare(cmpop == OP_gt ? OP_eq : OP_ne, PTY_u1, cmpExpr->GetOpndType(),
+          auto *newcmp = CreateMeExprCompare(cmpop == OP_gt ? OP_eq : OP_ne, PTY_i32, cmpExpr->GetOpndType(),
                                              *opnd1, *CreateIntConstMeExpr(0, cmpExpr->GetOpndType()));
           auto *simplified = SimplifyCmpExpr(static_cast<OpMeExpr*>(newcmp));
           return simplified == nullptr ? newcmp : simplified;
@@ -2599,7 +2599,7 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
     case OP_lnot: {
       MeExpr *opnd0 = opmeexpr->GetOpnd(0);
       if (IsCompareHasReverseOp(opnd0->GetOp())) {
-        OpMeExpr reverseMeExpr(kInvalidExprID, GetReverseCmpOp(opnd0->GetOp()), PTY_u1, opnd0->GetNumOpnds());
+        OpMeExpr reverseMeExpr(kInvalidExprID, GetReverseCmpOp(opnd0->GetOp()), PTY_i32, opnd0->GetNumOpnds());
         reverseMeExpr.SetOpnd(0, opnd0->GetOpnd(0));
         reverseMeExpr.SetOpnd(1, opnd0->GetOpnd(1));
         reverseMeExpr.SetOpndType(opnd0->GetOpnd(0)->GetPrimType());

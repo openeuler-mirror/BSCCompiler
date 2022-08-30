@@ -18,6 +18,7 @@
 #include "me_options.h"
 #include "mpl_logging.h"
 #include "string_utils.h"
+#include "triple.h"
 
 namespace maple {
 
@@ -130,6 +131,7 @@ bool MeOption::isNpeCheckAll = false;
 SafetyCheckMode MeOption::boundaryCheckMode = SafetyCheckMode::kNoCheck;
 bool MeOption::safeRegionMode = false;
 bool MeOption::unifyRets = false;
+bool MeOption::dumpCfgOfPhases = false;
 #if MIR_JAVA
 std::string MeOption::acquireFuncName = "Landroid/location/LocationManager;|requestLocationUpdates|";
 std::string MeOption::releaseFuncName = "Landroid/location/LocationManager;|removeUpdates|";
@@ -195,7 +197,13 @@ bool MeOption::SolveOptions(bool isDebug) {
 
   maplecl::CopyIfEnabled(dumpBefore, opts::me::dumpBefore);
   maplecl::CopyIfEnabled(dumpAfter, opts::me::dumpAfter);
-  maplecl::CopyIfEnabled(isBigEndian, opts::bigEndian);
+
+  /* big endian can be set with several options: --target, -Be.
+   * Triple takes to account all these options and allows to detect big endian with IsBigEndian() interface */
+  if (Triple::GetTriple().IsBigEndian()) {
+    isBigEndian = true;
+  }
+
   maplecl::CopyIfEnabled(dumpFunc, opts::me::dumpFunc);
   maplecl::CopyIfEnabled(skipFrom, opts::me::skipFrom);
   maplecl::CopyIfEnabled(skipAfter, opts::me::skipAfter);
@@ -306,6 +314,7 @@ bool MeOption::SolveOptions(bool isDebug) {
   maplecl::CopyIfEnabled(dseKeepRef, opts::me::dsekeepref);
   maplecl::CopyIfEnabled(lessThrowAlias, opts::me::lessthrowalias);
   maplecl::CopyIfEnabled(propBase, opts::me::propbase);
+  maplecl::CopyIfEnabled(dumpCfgOfPhases, opts::me::dumpCfgOfPhases);
 
   if (opts::me::propiloadref.IsEnabledByUser()) {
     propIloadRef = opts::me::propiloadref;

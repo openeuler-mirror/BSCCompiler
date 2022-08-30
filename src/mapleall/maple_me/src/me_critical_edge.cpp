@@ -13,13 +13,15 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_critical_edge.h"
+
 #include <iostream>
+
 #include "me_cfg.h"
-#include "me_option.h"
 #include "me_dominance.h"
 #include "me_function.h"
-#include "me_loop_analysis.h"
 #include "me_irmap.h"
+#include "me_loop_analysis.h"
+#include "me_option.h"
 
 // This phase finds critical edges and split them into two, because their
 // presence would restrict the optimizations performed by SSAPRE-based phases.
@@ -98,8 +100,8 @@ void MeSplitCEdge::UpdateCaseLabel(BB &newBB, MeFunction &func, BB &pred, BB &su
   }
 }
 
-void MeSplitCEdge::DealWithTryBB(const MeFunction &func, BB &pred,
-                                 BB &succ, BB *&newBB, bool &isInsertAfterPred) const {
+void MeSplitCEdge::DealWithTryBB(const MeFunction &func, BB &pred, BB &succ, BB *&newBB,
+                                 bool &isInsertAfterPred) const {
   if ((!succ.GetStmtNodes().empty() && succ.GetStmtNodes().front().GetOpCode() == OP_try) ||
       (!succ.IsMeStmtEmpty() && succ.GetFirstMe()->GetOp() == OP_try)) {
     newBB = &func.GetCfg()->InsertNewBasicBlock(pred, false);
@@ -117,8 +119,8 @@ void MeSplitCEdge::DealWithTryBB(const MeFunction &func, BB &pred,
 
 void MeSplitCEdge::BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) const {
   if (isDebugFunc) {
-    LogInfo::MapleLogger() << "******before break : critical edge : BB" << pred.GetBBId() << " -> BB" <<
-        succ.GetBBId() << "\n";
+    LogInfo::MapleLogger() << "******before break : critical edge : BB" << pred.GetBBId() << " -> BB" << succ.GetBBId()
+                           << "\n";
     pred.Dump(&func.GetMIRModule());
     succ.Dump(&func.GetMIRModule());
   }
@@ -160,8 +162,7 @@ void MeSplitCEdge::BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) const
   newBB->SetAttributes(kBBAttrArtificial);
 
   // update newBB frequency : copy predBB succFreq as newBB frequency
-  if (Options::profileUse && func.GetMirFunc()->GetFuncProfData() &&
-      (!(func.IsPme() || func.IsLfo()))) {
+  if (cfg->UpdateCFGFreq() && (!(func.IsPme() || func.IsLfo()))) {
     int idx = pred.GetSuccIndex(*newBB);
     ASSERT(idx >= 0 && idx < pred.GetSucc().size(), "sanity check");
     uint64_t freq = pred.GetEdgeFreq(idx);
@@ -189,8 +190,7 @@ void MeSplitCEdge::BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) const
   }
   // profileGen invokes MESplitCEdge to remove critical edges without going through ME completely
   // newBB needs to be materialized
-  if (Options::profileGen ||
-      (Options::profileUse && (func.IsPme() || func.IsLfo()))) {
+  if (Options::profileGen || (Options::profileUse && (func.IsPme() || func.IsLfo()))) {
     LabelIdx succLabel = succ.GetBBLabel();
     ASSERT(succLabel != 0, "succ's label missed");
     if (func.GetIRMap() != nullptr) {
@@ -306,12 +306,15 @@ bool MESplitCEdge::PhaseRun(maple::MeFunction &f) {
   mscedge.SplitCriticalEdgeForMeFunc(f);
   if (Options::profileUse) {
     if ((f.IsPme() || f.IsLfo()) && f.GetPreMeFunc()) {
-      // new inserted BB will break while/if label information and IR layout
+      // new inserted BB break cached while/if label information and IR layout
       f.GetPreMeFunc()->label2IfInfo.clear();
       f.GetPreMeFunc()->label2WhileInfo.clear();
       f.GetPreMeFunc()->pmeCreatedIfLabelSet.clear();
       f.GetPreMeFunc()->pmeCreatedWhileLabelSet.clear();
     }
+  }
+  if (f.GetCfg()->UpdateCFGFreq() && (f.GetCfg()->DumpIRProfileFile())) {
+    f.GetCfg()->DumpToFile("after-splitcriticaledge", false, true);
   }
   return false;
 }
