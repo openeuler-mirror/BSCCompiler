@@ -109,7 +109,7 @@ class PGOInstrument {
         bbs.push_back(dest);
       } else {
         if (func->GetMIRModule().IsCModule()) {
-          if (src->GetKind() == kBBIgoto) {
+          if (src->GetKind() == kBBIgoto || src->GetKind() == kBBGoto) {
             if (visitedBBs.find(dest) == visitedBBs.end()) {
               // In this case, we have to instrument it anyway
               bbs.push_back(dest);
