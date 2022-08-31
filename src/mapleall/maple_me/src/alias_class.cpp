@@ -2456,7 +2456,12 @@ void AliasClass::CollectMayUseForIntrnCallOpnd(const StmtNode &stmt,
       RecordAliasAnalysisInfo(*zeroVersionOfNextLevOst);
       // add this into nads
       (void)nadsOsts.insert(nextLevOst);
-      (void)mayDefUseOsts.insert(nextLevOst);
+      for (auto *nadsOst : nadsOsts) {
+        if (!TypeBasedAliasAnalysis::MayAliasTBAAForC(nextLevOst, nadsOst)) {
+          continue;
+        }
+        (void) mayDefUseOsts.insert(nadsOst);
+      }
     }
     if (writeOpnd) {
       mayDefOsts.insert(mayDefUseOsts.begin(), mayDefUseOsts.end());
