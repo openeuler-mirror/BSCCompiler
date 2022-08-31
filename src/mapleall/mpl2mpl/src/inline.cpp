@@ -92,7 +92,7 @@ void MInline::InitParams() {
 }
 
 void MInline::InitProfile() const {
-  // gcov use different profile data, return
+  // maple profile use different profile data, return
   if (Options::profileUse) {
     return;
   }
@@ -140,27 +140,40 @@ void MInline::InitExcludedCallee() {
     (void)excludedCallee.insert(strIdx);
   }
   std::set<std::string> setArrayHotFunc = {
-      std::string("Landroid_2Ficu_2Fimpl_2Fduration_2FBasicDurationFormat_3B_7CformatDuration_7C_28Ljava_2Flang_2FObject_3B_29Ljava_2Flang_2FString_3B"),
-      std::string("Landroid_2Fapp_2FIActivityManager_24Stub_3B_7ConTransact_7C_28ILandroid_2Fos_2FParcel_3BLandroid_2Fos_2FParcel_3BI_29Z"),
-      std::string("Landroid_2Fcontent_2Fpm_2FIPackageManager_24Stub_3B_7ConTransact_7C_28ILandroid_2Fos_2FParcel_3BLandroid_2Fos_2FParcel_3BI_29Z"),
-      std::string("Landroid_2Fcontent_2FIContentService_24Stub_3B_7ConTransact_7C_28ILandroid_2Fos_2FParcel_3BLandroid_2Fos_2FParcel_3BI_29Z"),
-      std::string("Lcom_2Fandroid_2Fserver_2Fam_2FHwActivityManagerService_3B_7ConTransact_7C_28ILandroid_2Fos_2FParcel_3BLandroid_2Fos_2FParcel_3BI_29Z"),
-      std::string("Lcom_2Fandroid_2Fserver_2Fam_2FActivityManagerService_3B_7ConTransact_7C_28ILandroid_2Fos_2FParcel_3BLandroid_2Fos_2FParcel_3BI_29Z"),
-      std::string("Ljava_2Flang_2Freflect_2FMethod_3B_7Cinvoke_7C_28Ljava_2Flang_2FObject_3BALjava_2Flang_2FObject_3B_29Ljava_2Flang_2FObject_3B"),
+      std::string("Landroid_2Ficu_2Fimpl_2Fduration_2FBasicDurationFormat_3B_7CformatDuration_7C_28Ljava_2Flang_"
+                  "2FObject_3B_29Ljava_2Flang_2FString_3B"),
+      std::string("Landroid_2Fapp_2FIActivityManager_24Stub_3B_7ConTransact_7C_28ILandroid_2Fos_2FParcel_3BLandroid_"
+                  "2Fos_2FParcel_3BI_29Z"),
+      std::string("Landroid_2Fcontent_2Fpm_2FIPackageManager_24Stub_3B_7ConTransact_7C_28ILandroid_2Fos_2FParcel_"
+                  "3BLandroid_2Fos_2FParcel_3BI_29Z"),
+      std::string("Landroid_2Fcontent_2FIContentService_24Stub_3B_7ConTransact_7C_28ILandroid_2Fos_2FParcel_3BLandroid_"
+                  "2Fos_2FParcel_3BI_29Z"),
+      std::string("Lcom_2Fandroid_2Fserver_2Fam_2FHwActivityManagerService_3B_7ConTransact_7C_28ILandroid_2Fos_"
+                  "2FParcel_3BLandroid_2Fos_2FParcel_3BI_29Z"),
+      std::string("Lcom_2Fandroid_2Fserver_2Fam_2FActivityManagerService_3B_7ConTransact_7C_28ILandroid_2Fos_2FParcel_"
+                  "3BLandroid_2Fos_2FParcel_3BI_29Z"),
+      std::string("Ljava_2Flang_2Freflect_2FMethod_3B_7Cinvoke_7C_28Ljava_2Flang_2FObject_3BALjava_2Flang_2FObject_3B_"
+                  "29Ljava_2Flang_2FObject_3B"),
       std::string("Lcom_2Fandroid_2Fserver_2FSystemServer_3B_7Crun_7C_28_29V"),
-      std::string("Lcom_2Fandroid_2Finternal_2Ftelephony_2FIPhoneStateListener_24Stub_24Proxy_3B_7ConMessageWaitingIndicatorChanged_7C_28Z_29V"),
+      std::string("Lcom_2Fandroid_2Finternal_2Ftelephony_2FIPhoneStateListener_24Stub_24Proxy_3B_"
+                  "7ConMessageWaitingIndicatorChanged_7C_28Z_29V"),
       std::string("Landroid_2Fview_2Fanimation_2FTransformation_3B_7C_3Cinit_3E_7C_28_29V"),
       std::string("Lcom_2Fandroid_2Fserver_2FSystemServer_3B_7CstartOtherServices_7C_28_29V"),
       std::string("Lcom_2Fandroid_2Fserver_2Fpm_2FSettings_3B_7CreadLPw_7C_28Ljava_2Futil_2FList_3B_29Z"),
       std::string("Lcom_2Fandroid_2Fserver_2Fam_2FActivityManagerService_3B_7CupdateOomAdjLocked_7C_28_29V"),
-      std::string("Lcom_2Fandroid_2Fserver_2Fpm_2FHwPackageManagerService_3B_7ConTransact_7C_28ILandroid_2Fos_2FParcel_3BLandroid_2Fos_2FParcel_3BI_29Z"),
-      std::string("Lcom_2Fandroid_2Fserver_2Fpm_2FPackageManagerService_3B_7CgeneratePackageInfo_7C_28Lcom_2Fandroid_2Fserver_2Fpm_2FPackageSetting_3BII_29Landroid_2Fcontent_2Fpm_2FPackageInfo_3B"),
-      std::string("Ljava_2Flang_2FThrowable_3B_7CprintStackTrace_7C_28Ljava_2Flang_2FThrowable_24PrintStreamOrWriter_3B_29V"),
+      std::string("Lcom_2Fandroid_2Fserver_2Fpm_2FHwPackageManagerService_3B_7ConTransact_7C_28ILandroid_2Fos_2FParcel_"
+                  "3BLandroid_2Fos_2FParcel_3BI_29Z"),
+      std::string("Lcom_2Fandroid_2Fserver_2Fpm_2FPackageManagerService_3B_7CgeneratePackageInfo_7C_28Lcom_2Fandroid_"
+                  "2Fserver_2Fpm_2FPackageSetting_3BII_29Landroid_2Fcontent_2Fpm_2FPackageInfo_3B"),
+      std::string(
+          "Ljava_2Flang_2FThrowable_3B_7CprintStackTrace_7C_28Ljava_2Flang_2FThrowable_24PrintStreamOrWriter_3B_29V"),
       std::string("Lcom_2Fandroid_2Fserver_2FSystemServer_3B_7CstartBootstrapServices_7C_28_29V"),
       std::string("Ljava_2Flang_2FThrowable_3B_7CgetOurStackTrace_7C_28_29ALjava_2Flang_2FStackTraceElement_3B"),
       std::string("Ldalvik_2Fsystem_2FVMStack_3B_7CgetStackClass2_7C_28_29Ljava_2Flang_2FClass_3B"),
-      std::string("Lcom_2Fandroid_2Fserver_2Fam_2FActivityManagerService_3B_7CattachApplicationLocked_7C_28Landroid_2Fapp_2FIApplicationThread_3BI_29Z"),
-      std::string("Lcom_2Fandroid_2Fserver_2FInputMethodManagerService_3B_7ChideCurrentInputLocked_7C_28ILandroid_2Fos_2FResultReceiver_3B_29Z"),
+      std::string("Lcom_2Fandroid_2Fserver_2Fam_2FActivityManagerService_3B_7CattachApplicationLocked_7C_28Landroid_"
+                  "2Fapp_2FIApplicationThread_3BI_29Z"),
+      std::string("Lcom_2Fandroid_2Fserver_2FInputMethodManagerService_3B_7ChideCurrentInputLocked_7C_28ILandroid_2Fos_"
+                  "2FResultReceiver_3B_29Z"),
   };
   for (auto it = setArrayHotFunc.begin(); it != setArrayHotFunc.end(); ++it) {
     GStrIdx strIdx = GlobalTables::GetStrTable().GetStrIdxFromName(*it);
@@ -421,17 +434,19 @@ bool MInline::IsHotCallSite(const MIRFunction &caller, const MIRFunction &callee
     LogInfo::MapleLogger() << "[CHECK_HOT] " << callee.GetName() << " to " << caller.GetName() << " op "
                            << callStmt.GetOpCode() << '\n';
   }
-  // use gcov profile
+  // use maple instrument profile
   if (Options::profileUse) {
-    return caller.GetFuncProfData()->IsHotCallSite(callStmt.GetStmtID());
+    if (!caller.GetFuncProfData()) {return false;}
+    int64_t freq = static_cast<int64_t>(caller.GetFuncProfData()->GetStmtFreq(callStmt.GetStmtID()));
+    ASSERT(freq > 0, "sanity check");
+    return module.GetMapleProfile()->IsHotCallSite(static_cast<uint64_t>(freq));
   }
   return module.GetProfile().CheckFuncHot(caller.GetName());
 }
 
 bool MInline::FuncInlinable(const MIRFunction &func) const {
   std::string name = func.GetName();
-  if (StringUtils::StartsWith(name, kReflectionClassStr) ||
-      StringUtils::StartsWith(name, kJavaLangClassesStr) ||
+  if (StringUtils::StartsWith(name, kReflectionClassStr) || StringUtils::StartsWith(name, kJavaLangClassesStr) ||
       StringUtils::StartsWith(name, kJavaLangReferenceStr)) {
     return false;
   }
@@ -686,7 +701,7 @@ static InlineResult GetInlineResult(uint32 threshold, uint32 thresholdType, uint
 }
 
 void MInline::AdjustInlineThreshold(const MIRFunction &caller, const MIRFunction &callee, const CallNode &callStmt,
-    uint32 &threshold, uint32 &thresholdType) {
+                                    uint32 &threshold, uint32 &thresholdType) {
   // Update threshold if this callsite is hot, or dealing with recursive function
   if (inlineWithProfile && IsHotCallSite(caller, callee, callStmt)) {
     threshold = hotFuncThreshold;
@@ -705,9 +720,7 @@ void MInline::AdjustInlineThreshold(const MIRFunction &caller, const MIRFunction
     threshold <<= kRelaxThresholdForInlineHint;
   }
   // We don't always inline called_once callee to avoid super big caller
-  if (module.GetSrcLang() == kSrcLangC &&
-      callee.GetAttr(FUNCATTR_called_once) &&
-      callee.GetAttr(FUNCATTR_static)) {
+  if (module.GetSrcLang() == kSrcLangC && callee.GetAttr(FUNCATTR_called_once) && callee.GetAttr(FUNCATTR_static)) {
     threshold <<= kRelaxThresholdForCalledOnce;
   }
 }
@@ -801,7 +814,7 @@ void MInline::InlineCallsBlockInternal(MIRFunction &func, BlockNode &enclosingBl
 }
 
 void MInline::ComputeTotalSize() {
-  for (auto it = cg->Begin(); it != cg->End(); ++it) {
+  for (auto it = cg->CBegin(); it != cg->CEnd(); ++it) {
     CGNode *caller = it->second;
     totalSize += caller->GetNodeCount();
   }
@@ -876,11 +889,6 @@ void MInline::CleanupInline() {
           func->ReleaseCodeMemory();
           func->ReleaseMemory();
         }
-      }
-      if (func != nullptr && IsExternInlineFunc(*func)) {
-        func->SetBody(nullptr);
-        func->ReleaseCodeMemory();
-        func->ReleaseMemory();
       }
     }
   }

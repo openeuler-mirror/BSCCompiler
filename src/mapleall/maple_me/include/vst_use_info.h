@@ -150,7 +150,7 @@ void VstUseInfo::AddUseSiteOfVst(const VersionSt *vst, T *useSite) {
     (*useSites)[vstIdx] = allocator.New<MapleList<VstUseItem>>(allocator.Adapter());
   }
   VstUseItem use(useSite);
-  if ((*useSites)[vstIdx]->front() != use) {
+  if ((*useSites)[vstIdx]->empty() || (*useSites)[vstIdx]->front() != use) {
     (*useSites)[vstIdx]->emplace_front(use);
   }
 }
