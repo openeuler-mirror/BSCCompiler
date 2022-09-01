@@ -166,7 +166,7 @@ void JumpThreading::ConnectNewPath(std::vector<BB*> &currPath, std::vector<std::
       if (func.GetCfg()->UpdateCFGFreq()) {
         uint64 freqUsed = old2NewBB[idxOfCurrBB].second->GetFrequency();
         old2NewBB[idxOfCurrBB].second->PushBackSuccFreq(freqUsed);
-        newSuccBB->SetFrequency(freqUsed);
+        newSuccBB->SetFrequency(static_cast<uint32>(freqUsed));
       }
       break;
     }
@@ -189,7 +189,7 @@ void JumpThreading::ConnectNewPath(std::vector<BB*> &currPath, std::vector<std::
           currentBB->ReplaceSucc(temp, newTemp, true);
           if (func.GetCfg()->UpdateCFGFreq()) {
             int idxInSucc = currentBB->GetSuccIndex(*newTemp);
-            newTemp->SetFrequency(currentBB->GetSuccFreq()[idxInSucc]);
+            newTemp->SetFrequency(static_cast<uint32>(currentBB->GetSuccFreq()[idxInSucc]));
           }
         } else {
           old2NewBB[idxOfCurrBB].second->AddSucc(*newTemp);
