@@ -804,7 +804,7 @@ MIRIntConst *ConstantFold::FoldIntConstUnaryMIRConst(Opcode opcode, PrimType res
   IntVal result = cst->GetValue().TruncOrExtend(resultType);
   switch (opcode) {
     case OP_abs: {
-      if (result.IsSigned() && result.GetSignBit()) {
+      if (IsSignedInteger(cst->GetType().GetPrimType()) && result.GetSignBit()) {
         result = -result;
       }
       break;
