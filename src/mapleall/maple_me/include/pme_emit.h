@@ -17,6 +17,7 @@
 #define MAPLE_ME_INCLUDE_PME_EMIT_H
 #include "mir_nodes.h"
 #include "me_irmap_build.h"
+#include "ipa_collect.h"
 
 namespace maple {
 class PreMeEmitter : public AnalysisResult {
@@ -79,8 +80,10 @@ class PreMeEmitter : public AnalysisResult {
   MapleAllocator* GetCodeMPAlloc() { return codeMPAlloc; }
   MapleMap<uint32_t, PreMeMIRExtension *> *GetPreMeStmtExtensionMap() { return &preMeStmtExtensionMap; }
   MapleMap<BaseNode *, PreMeMIRExtension *> *GetPreMeExprExtensionMap() { return &preMeExprExtensionMap; }
-  GcovFuncInfo *GetFuncProfData() { return mirFunc->GetFuncProfData(); }
-
+  FuncProfInfo *GetFuncProfData() { return mirFunc->GetFuncProfData(); }
+  void SetIpaInfo(CollectIpaInfo *info) { ipaInfo = info; }
+  void UpdateStmtInfo(const MeStmt &meStmt, StmtNode &stmt, BlockNode &currBlock, uint64 frequency);
+  void UpdateStmtInfoForLabelNode(LabelNode &label, BB &bb);
  private:
   ArrayNode *ConvertToArray(BaseNode *x, TyIdx ptrTyIdx);
   BaseNode *EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent);
@@ -98,13 +101,15 @@ class PreMeEmitter : public AnalysisResult {
   MapleAllocator *codeMPAlloc;
   MemPool *preMeMP;
   MapleAllocator preMeMPAlloc;
-  MapleMap<uint32_t, PreMeMIRExtension*>  preMeStmtExtensionMap; // key is stmtID
+  MapleMap<uint32_t, PreMeMIRExtension*> preMeStmtExtensionMap; // key is stmtID
   MapleMap<BaseNode*, PreMeMIRExtension*> preMeExprExtensionMap; // key is BaseNode*
   MeCFG *cfg;
+  CollectIpaInfo *ipaInfo = nullptr;
 };
 
 /* emit ir to specified file */
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(MEPreMeEmission, MeFunction)
+  void SetIpaInfo(MIRFunction &mirFunc);
   PreMeEmitter *GetResult() {
     return emitter;
   }

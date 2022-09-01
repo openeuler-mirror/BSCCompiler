@@ -482,11 +482,11 @@ void BB::DumpMePhiList(const IRMap *irMap) {
 void BB::UpdateEdgeFreqs(bool updateBBFreqOfSucc) {
   int len = GetSucc().size();
   ASSERT(len == GetSuccFreq().size(), "sanity check");
-  int64_t succFreqs = 0;
+  uint64 succFreqs = 0;
   for (int i = 0; i < len; i++) {
     succFreqs += GetSuccFreq()[i];
   }
-  int diff = static_cast<int>(abs(succFreqs - GetFrequency()));
+  uint64 diff = abs(succFreqs - GetFrequency());
   if (len == 0 ||
       (len == 1 && diff == 0) ||
       (len > 1 && diff <= 1)) {
@@ -502,7 +502,7 @@ void BB::UpdateEdgeFreqs(bool updateBBFreqOfSucc) {
       int64_t diffFreq = scalefreq - sfreq;
       int64_t succBBnewFreq = succBBLoc->GetFrequency() + diffFreq;
       if (succBBnewFreq >= 0) {
-        succBBLoc->SetFrequency(static_cast<uint32>(succBBnewFreq));
+        succBBLoc->SetFrequency(succBBnewFreq);
       }
     }
   }

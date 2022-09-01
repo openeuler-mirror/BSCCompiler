@@ -1831,7 +1831,7 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
     if (cfg->UpdateCFGFreq()) {
       succ.SetSuccFreq(0, succ.GetFrequency());
       auto *succofSucc = succ.GetSucc(0);
-      succofSucc->SetFrequency(static_cast<uint32>(succofSucc->GetFrequency() + deletedSuccFreq));
+      succofSucc->SetFrequency(succofSucc->GetFrequency() + deletedSuccFreq);
     }
     DEBUG_LOG() << "Remove succ BB" << LOG_BBID(rmBB) << " of pred BB" << LOG_BBID(&succ) << "\n";
     return true;
@@ -1886,12 +1886,12 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
     if (cfg->UpdateCFGFreq()) {
       int idx = pred.GetSuccIndex(*newBB);
       ASSERT(idx >= 0 && idx < pred.GetSucc().size(), "sanity check");
-      uint64_t freq = pred.GetEdgeFreq(idx);
+      uint64 freq = pred.GetEdgeFreq(idx);
       newBB->SetFrequency(freq);
       newBB->PushBackSuccFreq(freq);
       // update frequency of succ because one of its pred is removed
       // frequency of
-      uint32_t freqOfSucc = succ.GetFrequency();
+      uint64 freqOfSucc = succ.GetFrequency();
       ASSERT(freqOfSucc >= freq, "sanity check");
       succ.SetFrequency(freqOfSucc - freq);
       // update edge frequency
@@ -2100,9 +2100,9 @@ bool OptimizeBB::MergeGotoBBToPred(BB *succ, BB *pred) {
     needUpdatePhi = true;
   }
   if (cfg->UpdateCFGFreq()) {
-    int64_t succFreq = succ->GetFrequency();
+    uint64 succFreq = succ->GetFrequency();
     ASSERT(succFreq >= removedFreq, "sanity check");
-    succ->SetFrequency(static_cast<uint32>(succFreq - removedFreq));
+    succ->SetFrequency(succFreq - removedFreq);
     succ->SetSuccFreq(0, succ->GetFrequency());
   }
   DEBUG_LOG() << "Merge Uncond BB" << LOG_BBID(succ) << " to its pred BB" << LOG_BBID(pred) << ": BB" << LOG_BBID(pred)
