@@ -66,13 +66,47 @@ class MIRAlias {
   MapleMap<GStrIdx, MIRAliasVars> aliasVarMap { module->GetMPAllocator().Adapter() };
 };
 
+class MIRTypeAliasTable {
+ public:
+  explicit MIRTypeAliasTable(MIRModule *mod) : module(mod) {}
+  virtual ~MIRTypeAliasTable() = default;
+
+  bool IsEmpty() const {
+    return typeAliasMap.size() == 0;
+  }
+
+  const MapleMap<GStrIdx, TyIdx> &GetTypeAliasMap() const {
+    return typeAliasMap;
+  }
+
+  TyIdx GetTyIdxFromMap(GStrIdx idx) const {
+    auto it = typeAliasMap.find(idx);
+    if (it == typeAliasMap.cend()) {
+      return TyIdx(0);
+    }
+    return it->second;
+  }
+
+  void SetTypeAliasMap(GStrIdx gStrIdx, TyIdx tyIdx) {
+    typeAliasMap[gStrIdx] = tyIdx;
+  }
+
+  void Dump(int32 indent) const;
+
+ private:
+  MIRModule *module;
+  MapleMap<GStrIdx, TyIdx> typeAliasMap { module->GetMPAllocator().Adapter() };
+};
+
 class MIRScope {
  public:
   explicit MIRScope(MIRModule *mod, MIRFunction *f = nullptr);
   ~MIRScope() = default;
 
   bool IsEmpty() const {
-    return (!alias || alias->IsEmpty()) && subScopes.size() == 0;
+    return (alias == nullptr || alias->IsEmpty()) &&
+           (typeAlias == nullptr || typeAlias->IsEmpty()) &&
+           subScopes.size() == 0;
   }
 
   bool IsSubScope(const MIRScope *scp) const;
@@ -129,6 +163,17 @@ class MIRScope {
   SrcPosition GetScopeEndPos(const SrcPosition &pos);
   bool AddScope(MIRScope *scope);
 
+  void SetTypeAlias(GStrIdx gStrIdx, TyIdx tyIdx) {
+    if (typeAlias == nullptr) {
+      typeAlias = module->GetMemPool()->New<MIRTypeAliasTable>(module);
+    }
+    typeAlias->SetTypeAliasMap(gStrIdx, tyIdx);
+  }
+
+  const MIRTypeAliasTable *GetTypeAliasTable() const {
+    return typeAlias;
+  }
+
   void Dump(int32 indent, bool isLocal = true) const;
   void Dump() const;
 
@@ -138,6 +183,7 @@ class MIRScope {
   unsigned id;
   std::pair<SrcPosition, SrcPosition> range;
   MIRAlias *alias = nullptr;
+  MIRTypeAliasTable *typeAlias = nullptr;
   // subscopes' range should be disjoint
   MapleVector<MIRScope*> subScopes { module->GetMPAllocator().Adapter() };
   MapleVector<std::tuple<SrcPosition, SrcPosition, SrcPosition>> blkSrcPos { module->GetMPAllocator().Adapter() };

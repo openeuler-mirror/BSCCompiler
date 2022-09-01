@@ -841,7 +841,8 @@ class DebugInfo {
 
   void AddScopeDie(MIRScope *scope, bool isLocal);
   DBGDie *GetAliasVarTypeDie(const MIRAliasVars &aliasVar, TyIdx tyidx);
-  void AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isLocal);
+  void HandleTypeAlias(MIRScope *scope, bool isLocal);
+  void AddAliasDies(MIRScope *scope, bool isLocal);
   void CollectScopePos(MIRFunction *func, MIRScope *scope);
 
   // Functions for calculating the size and offset of each DW_TAG_xxx and DW_AT_xxx
