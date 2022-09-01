@@ -1336,15 +1336,17 @@ void DebugInfo::CreateStructTypeMethodsDies(const MIRStructType *structType, DBG
 // shared between struct and union, also used as part by class and interface
 DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *structType, bool update) {
   DBGDie *die = nullptr;
+  uint32 tid = structType->GetTypeIndex().GetIdx();
 
   if (update) {
-    uint32 id = tyIdxDieIdMap[structType->GetTypeIndex().GetIdx()];
+    ASSERT(tyIdxDieIdMap.find(tid) != tyIdxDieIdMap.end(), "update type die not exist");
+    uint32 id = tyIdxDieIdMap[tid];
     die = idDieMap[id];
     ASSERT(die, "update type die not exist");
   } else {
     DwTag tag = structType->GetKind() == kTypeStruct ? DW_TAG_structure_type : DW_TAG_union_type;
     die = module->GetMemPool()->New<DBGDie>(module, tag);
-    tyIdxDieIdMap[structType->GetTypeIndex().GetIdx()] = die->GetId();
+    tyIdxDieIdMap[tid] = die->GetId();
   }
   die = GetOrCreateTypeDieWithAttr(structType->GetTypeAttrs(), die);
 
@@ -1361,6 +1363,8 @@ DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *stru
   die->AddAttr(DW_AT_name, DW_FORM_strp, strIdx.GetIdx(), keep);
   die->AddAttr(DW_AT_byte_size, DW_FORM_data4, kDbgDefaultVal);
   die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx());
+  // store tid for cg emitter
+  die->AddAttr(DW_AT_type, DW_FORM_data4, tid, false);
 
   PushParentDie(die);
 
