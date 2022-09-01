@@ -14,18 +14,18 @@
  */
 #ifndef MAPLE_ME_INCLUDE_BB_H
 #define MAPLE_ME_INCLUDE_BB_H
-#include "utils.h"
 #include "mpl_number.h"
-#include "ptr_list_ref.h"
 #include "orig_symbol.h"
-#include "ver_symbol.h"
+#include "ptr_list_ref.h"
 #include "ssa.h"
+#include "utils.h"
+#include "ver_symbol.h"
 
 namespace maple {
-class MeStmt;  // circular dependency exists, no other choice
-class MePhiNode;  // circular dependency exists, no other choice
+class MeStmt;          // circular dependency exists, no other choice
+class MePhiNode;       // circular dependency exists, no other choice
 class PiassignMeStmt;  // circular dependency exists, no other choice
-class IRMap;  // circular dependency exists, no other choice
+class IRMap;           // circular dependency exists, no other choice
 enum BBKind {
   kBBUnknown,  // uninitialized
   kBBCondGoto,
@@ -336,11 +336,11 @@ class BB {
     bbLabel = idx;
   }
 
-  uint32 GetFrequency() const {
+  uint64 GetFrequency() const {
     return frequency;
   }
 
-  void SetFrequency(uint32 f) {
+  void SetFrequency(uint64 f) {
     frequency = f;
   }
 
@@ -406,8 +406,17 @@ class BB {
     ASSERT(idx >= 0 && idx <= succFreq.size(), "sanity check");
     succFreq[static_cast<size_t>(idx)] = freq;
   }
+  void AddSuccFreq(uint64 freq, size_t pos = UINT32_MAX) {
+    ASSERT((pos <= succFreq.size() || pos == UINT32_MAX), "Invalid position.");
+    if (pos == UINT32_MAX) {
+      succFreq.push_back(freq);
+    } else {
+      succFreq.insert(succFreq.begin() + pos, freq);
+    }
+  }
+
   // update edge frequency
-  void UpdateEdgeFreqs();
+  void UpdateEdgeFreqs(bool updateSuccFreq = true);
 
   const MapleVector<BB*> &GetSucc() const {
     return succ;
@@ -487,7 +496,7 @@ class BB {
     auto iter = std::find(succ.begin(), succ.end(), bb);
     CHECK_FATAL(iter != std::end(succ), "%d is not the successor of %d", bb->UintID(), this->UintID());
     CHECK_FATAL(succ.size() == succFreq.size(), "succfreq size %d doesn't match succ size %d", succFreq.size(),
-        succ.size());
+                succ.size());
     const size_t idx = static_cast<size_t>(std::distance(succ.begin(), iter));
     succFreq[idx] = freq;
   }
@@ -496,7 +505,7 @@ class BB {
     succFreq.resize(succ.size());
   }
 
-  BB* GetGroup() const {
+  BB *GetGroup() const {
     return group;
   }
 
@@ -524,12 +533,13 @@ class BB {
   int GetPredIndex(const BB &predBB) const;
   int GetSuccIndex(const BB &succBB) const;
   void RemovePhiOpnd(int index);
+
  private:
   bool IsInList(const MapleVector<BB*> &bbList) const;
   int RemoveBBFromVector(MapleVector<BB*> &bbVec) const;
 
   BBId id;
-  LabelIdx bbLabel = 0;       // the BB's label
+  LabelIdx bbLabel = 0;    // the BB's label
   MapleVector<BB*> pred;  // predecessor list
   MapleVector<BB*> succ;  // successor list
   // record the edge freq from curBB to succ BB
@@ -537,11 +547,13 @@ class BB {
   MapleMap<OStIdx, PhiNode> phiList;
   MapleMap<OStIdx, MePhiNode*> mePhiList;
   MapleMap<BB*, std::vector<PiassignMeStmt*>> meVarPiList;
-  uint32 frequency = 0;
+  uint64 frequency = 0;
   BBKind kind = kBBUnknown;
   uint32 attributes = 0;
+
  public:
   StmtNodes stmtNodeList;
+
  private:
   MeStmts meStmtList;
   BB *group;
@@ -586,6 +598,7 @@ class SCCOfBBs {
   BB *GetEntry() {
     return entry;
   }
+
  private:
   uint32 id;
   BB *entry;

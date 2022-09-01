@@ -20,6 +20,11 @@
 #include "me_loop_analysis.h"
 
 namespace maple {
+// The base value for branch probability notes and edge probabilities.
+constexpr int kProbBase = 10000;
+// The base value for BB frequency.
+constexpr uint64 kFreqBase = 100000;
+
 // Information about each branch predictor.
 struct PredictorInfo {
   const char *name;   // Name used in the debugging dumps.

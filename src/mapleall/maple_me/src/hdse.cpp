@@ -254,8 +254,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
           bb.GetSuccFreq().resize(1);
           bb.SetSuccFreq(0, bb.GetFrequency());
           ASSERT(bb.GetFrequency() >= succ0Freq, "sanity check");
-          bb.GetSucc(0)->SetFrequency(static_cast<uint32>(bb.GetSucc(0)->GetFrequency() +
-            (bb.GetFrequency() - succ0Freq)));
+          bb.GetSucc(0)->SetFrequency(bb.GetSucc(0)->GetFrequency() + (bb.GetFrequency() - succ0Freq));
         }
       }
       // A ivar contained in stmt
@@ -317,7 +316,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
           if (UpdateFreq()) {
             bb.GetSuccFreq().resize(1);
             bb.SetSuccFreq(0, bb.GetFrequency());
-            bb.GetSucc(0)->SetFrequency(static_cast<uint32>(bb.GetSucc(0)->GetFrequency() + removedFreq));
+            bb.GetSucc(0)->SetFrequency(bb.GetSucc(0)->GetFrequency() + removedFreq);
           }
         } else {
           DetermineUseCounts(condbr->GetOpnd());
