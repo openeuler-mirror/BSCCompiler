@@ -31,7 +31,6 @@ const std::unordered_map<clang::attr::Kind, std::string> kUnsupportedFuncAttrsMa
     {clang::attr::AllocAlign, "alloc_align"},
     {clang::attr::AssumeAligned, "assume_aligned"},
     {clang::attr::Flatten, "flatten"},
-    {clang::attr::GNUInline, "gnu_inline"},
     {clang::attr::Cold, "cold"},
     {clang::attr::IFunc, "ifunc"},
     {clang::attr::NoSanitize, "no_sanitize"},

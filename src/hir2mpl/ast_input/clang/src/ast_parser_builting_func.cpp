@@ -633,6 +633,10 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinAtomicExchangeN(std::list<UniqueFEIRStmt>
   return CreateIntrinsicCallAssignedForC(stmts, INTRN_C___atomic_exchange_n);
 }
 
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinObjectSize(std::list<UniqueFEIRStmt> &stmts) const {
+  return CreateIntrinsicCallAssignedForC(stmts, INTRN_C___builtin_object_size);
+}
+
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinReturnAddress(std::list<UniqueFEIRStmt> &stmts) const {
   return CreateIntrinsicopForC(stmts, INTRN_C__builtin_return_address);
 }
@@ -1040,23 +1044,5 @@ ASTExpr *ASTParser::ParseBuiltinCopysign(MapleAllocator &allocator, const clang:
 ASTExpr *ASTParser::ParseBuiltinCopysignl(MapleAllocator &allocator, const clang::CallExpr &expr,
                                           std::stringstream &ss) const {
   return ProcessBuiltinFuncByName(allocator, expr, ss, "copysignl");
-}
-
-ASTExpr *ASTParser::ParseBuiltinObjectsize(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                           std::stringstream &ss) const {
-  (void)ss;
-  uint32 objSizeType = expr.getArg(1)->EvaluateKnownConstInt(*astFile->GetContext()).getZExtValue();
-  // GCC size_t __builtin_object_size(void *ptr, int type) type range is 0 ~ 3
-  ASSERT(objSizeType <= 3, "unexpected type");
-  uint64 objSize;
-  bool canEval = expr.getArg(0)->tryEvaluateObjectSize(objSize, *astFile->GetNonConstAstContext(), objSizeType);
-  if (!canEval) {
-    // type 0 and 1 need return -1, type 2 and 3 need return 0
-    objSize = (objSizeType & 2) != 0 ? 0 : -1;
-  }
-  ASTIntegerLiteral *astIntegerLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-  astIntegerLiteral->SetVal(static_cast<int64>(objSize));
-  astIntegerLiteral->SetType(astFile->CvtType(expr.getType()));
-  return astIntegerLiteral;
 }
 } // namespace maple

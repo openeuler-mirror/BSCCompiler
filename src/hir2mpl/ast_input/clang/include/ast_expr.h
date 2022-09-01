@@ -1382,6 +1382,8 @@ class ASTCallExpr : public ASTExpr {
 
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(AtomicExchangeN);
 
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ObjectSize);
+
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ReturnAddress);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ExtractReturnAddr);
 
