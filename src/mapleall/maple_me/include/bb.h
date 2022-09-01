@@ -337,11 +337,11 @@ class BB {
     bbLabel = idx;
   }
 
-  uint32 GetFrequency() const {
+  uint64 GetFrequency() const {
     return frequency;
   }
 
-  void SetFrequency(uint32 f) {
+  void SetFrequency(uint64 f) {
     frequency = f;
   }
 
@@ -548,7 +548,7 @@ class BB {
   MapleMap<OStIdx, PhiNode> phiList;
   MapleMap<OStIdx, MePhiNode*> mePhiList;
   MapleMap<BB*, std::vector<PiassignMeStmt*>> meVarPiList;
-  uint32 frequency = 0;
+  uint64 frequency = 0;
   BBKind kind = kBBUnknown;
   uint32 attributes = 0;
 

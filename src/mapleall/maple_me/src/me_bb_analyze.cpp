@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -16,7 +16,7 @@
 
 namespace maple {
   void BBAnalyze::SetHotAndColdBBCountThreshold() {
-    std::vector<uint32> times;
+    std::vector<uint64> times;
     auto eIt = cfg->valid_end();
     for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
       auto *bb = *bIt;
@@ -49,6 +49,7 @@ namespace maple {
     return coldBBCountThreshold;
   }
 
+#ifdef NOT_USED
   AnalysisResult *MeDoBBAnalyze::Run(MeFunction *func, MeFuncResultMgr *, ModuleResultMgr*) {
     MemPool *meBBAnalyze = NewMemPool();
     BBAnalyze *bbAnalyze = meBBAnalyze->New<BBAnalyze>(*meBBAnalyze, *func);
@@ -58,4 +59,5 @@ namespace maple {
     }
     return nullptr;
   }
+#endif
 }  // namespace maple
