@@ -15,6 +15,8 @@
 #include "irmap.h"
 #include <bitset>
 #include <queue>
+#include "me_ir.h"
+#include "opcodes.h"
 #include "ssa.h"
 #include "mir_builder.h"
 #include "constantfold.h"
@@ -910,6 +912,14 @@ UnaryMeStmt *IRMap::CreateUnaryMeStmt(Opcode op, MeExpr *opnd, BB *bb, const Src
   unaryMeStmt->SetBB(bb);
   unaryMeStmt->SetSrcPos(*src);
   return unaryMeStmt;
+}
+
+RetMeStmt *IRMap::CreateRetMeStmt(MeExpr *opnd) {
+  RetMeStmt *retMeStmt = static_cast<RetMeStmt *>(NewInPool<NaryMeStmt>(OP_return));
+  if (opnd != nullptr) {
+    retMeStmt->PushBackOpnd(opnd);
+  }
+  return retMeStmt;
 }
 
 GotoMeStmt *IRMap::CreateGotoMeStmt(uint32 offset, BB *bb, const SrcPosition *src) {

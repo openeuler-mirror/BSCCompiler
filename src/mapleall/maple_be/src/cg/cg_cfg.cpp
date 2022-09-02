@@ -520,9 +520,13 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) const {
   for (BB *ehPred : curBB.GetEhPreds()) {
     ehPred->RemoveEhSuccs(curBB);
   }
-  curBB.GetNext()->RemovePreds(curBB);
+  if (curBB.GetNext() != nullptr) {
+    curBB.GetNext()->RemovePreds(curBB);
+    curBB.GetNext()->SetPrev(curBB.GetPrev());
+  } else {
+    cgFunc->SetLastBB(*curBB.GetPrev());
+  }
   curBB.GetPrev()->SetNext(curBB.GetNext());
-  curBB.GetNext()->SetPrev(curBB.GetPrev());
   cgFunc->ClearBBInVec(curBB.GetId());
   /* remove callsite */
   EHFunc *ehFunc = cgFunc->GetEHFunc();

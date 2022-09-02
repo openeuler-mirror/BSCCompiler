@@ -1567,7 +1567,7 @@ void ASTFunc::InsertBoundaryCheckingInRet(std::list<UniqueFEIRStmt> &stmts) cons
   exprs.emplace_back(std::move(baseExpr));
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertBoundary>(OP_returnassertle, std::move(exprs));
   stmt->SetSrcLoc(stmts.back()->GetSrcLoc());
-  stmts.insert(--stmts.end(), std::move(stmt));
+  stmts.insert(--stmts.cend(), std::move(stmt));
 }
 
 void ENCChecker::InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans,
@@ -1731,7 +1731,7 @@ void FEIRStmtDAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
     if (stmt != nullptr) {
       stmt->SetSrcLoc(loc);
       std::list<StmtNode*> stmtnodes = stmt->GenMIRStmts(mirBuilder);
-      ans.insert(ans.end(), stmtnodes.begin(), stmtnodes.end());
+      ans.insert(ans.cend(), stmtnodes.cbegin(), stmtnodes.cend());
     }
   }
   ENCChecker::AssignBoundaryVar(mirBuilder, dstExpr, expr, lenExpr, ans);
@@ -1762,7 +1762,7 @@ void FEIRStmtIAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
     if (stmt != nullptr) {
       stmt->SetSrcLoc(loc);
       std::list<StmtNode*> stmtnodes = stmt->GenMIRStmts(mirBuilder);
-      ans.insert(ans.end(), stmtnodes.begin(), stmtnodes.end());
+      ans.insert(ans.cend(), stmtnodes.cbegin(), stmtnodes.cend());
     }
   }
   ENCChecker::AssignBoundaryVar(mirBuilder, dstExpr, baseExpr, lenExpr, ans);

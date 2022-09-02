@@ -302,7 +302,7 @@ void FEInputStructHelper::ProcessExtraFields() {
       }
     }
     // insert at the beginning
-    structType->GetFields().insert(structType->GetFields().begin(),
+    structType->GetFields().insert(structType->GetFields().cbegin(),
         FieldPair(fieldStrIdx, TyIdxFieldAttrPair(fieldType->GetTypeIndex(), typeAttrs)));
   }
 }

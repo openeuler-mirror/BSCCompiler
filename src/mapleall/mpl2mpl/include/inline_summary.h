@@ -64,11 +64,18 @@ class ArgInfo {
     return lower == upper && lower != nullptr;
   }
 
-  MIRConst *GetLower() const {
+  const MIRConst *GetLower() const {
     return lower;
   }
 
-  MIRConst *GetUpper() const {
+  MIRConst *GetLower() {
+    return lower;
+  }
+
+  const MIRConst *GetUpper() const {
+    return upper;
+  }
+  MIRConst *GetUpper() {
     return upper;
   }
 

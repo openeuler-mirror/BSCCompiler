@@ -881,6 +881,7 @@ bool CgCfgo::PhaseRun(maplebe::CGFunc &f) {
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLoopAnalysis::id);
   }
   if (CFGO_DUMP_NEWPM) {
+    f.GetTheCFG()->CheckCFG();
     DotGenerator::GenerateDot("after-cfgo", f, f.GetMirModule());
   }
   return false;

@@ -306,7 +306,7 @@ void HIR2MPLCompiler::ProcessFunctions() {
     funcSize += comp->GetFunctionsSize();
     if (!success) {
       const std::set<FEFunction*> &failedFEFunctions = comp->GetCompileFailedFEFunctions();
-      compileFailedFEFunctions.insert(failedFEFunctions.begin(), failedFEFunctions.end());
+      compileFailedFEFunctions.insert(failedFEFunctions.cbegin(), failedFEFunctions.cend());
     }
     if (FEOptions::GetInstance().IsDumpPhaseTime()) {
       comp->DumpPhaseTimeTotal();

@@ -23,7 +23,7 @@ std::vector<std::string> FEUtilJava::SolveMethodSignature(const std::string &sig
   if (pos1 == std::string::npos || pos2 == std::string::npos || pos1 > pos2) {
     CHECK_FATAL(false, "invalid method signature %s", signature.c_str());
   }
-  std::string paramTypeNames = signature.substr(pos1 + 1, pos2 - pos1 - 1);
+  std::string paramTypeNames = signature.substr(pos1 + 1, (pos2 - pos1) - 1);
   std::string retTypeName = signature.substr(pos2 + 1);
   ans.push_back(retTypeName);
   while (paramTypeNames.length() > 0) {

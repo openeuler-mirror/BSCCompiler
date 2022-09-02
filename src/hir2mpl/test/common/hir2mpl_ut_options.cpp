@@ -86,8 +86,7 @@ bool HIR2MPLUTOptions::SolveArgs(int argc, char **argv) {
   }
   runAll = false;
 
-  maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv,
-                                          opts::hir2mplut::hir2mplUTCategory);
+  maplecl::CommandLine::GetCommandLine().Parse(argc, argv, opts::hir2mplut::hir2mplUTCategory);
 
   if (opts::hir2mplut::help) {
     DumpUsage();

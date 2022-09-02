@@ -1315,7 +1315,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
           (tp->vecInfo->currentLHSTypeSize > GetPrimTypeSize(GetVecElemPrimType(opnd1PrimType))) &&
           CanWidenOpcode(node, GetVecElemPrimType(opnd1PrimType))) {
         GenWidenBinaryExpr(binNode->GetOpCode(), vecopnd1, vecopnd2, vectorizedNode);
-      } else if ((PTY_begin != GetVecElemPrimType(opnd2PrimType)) &&
+      } else if ((GetVecElemPrimType(opnd2PrimType) != PTY_begin) &&
                  (GetPrimTypeSize(GetVecElemPrimType(opnd2PrimType)) >
                  GetPrimTypeSize(GetVecElemPrimType(opnd1PrimType)))) {
         // opnd2 is uniform scalar and type is different from opnd1
@@ -1933,7 +1933,6 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
           return false;
         }
       }
-      //TODO:: enable OP_select after cg support vector type in OP_select
       return false;
     }
     default: ;

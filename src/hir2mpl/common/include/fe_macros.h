@@ -15,8 +15,6 @@
 #ifndef HIR2MPL_INCLUDE_FE_MACROS_H
 #define HIR2MPL_INCLUDE_FE_MACROS_H
 #include <cstdio>
-#include <cstdlib>
-#include <ctime>
 #include <sys/time.h>
 #include <iostream>
 #include <sstream>

@@ -71,7 +71,7 @@ MIRType *FEIRType::GenerateMIRTypeAuto(MIRSrcLang argSrcLang) const {
 MIRType *FEIRType::GenerateMIRTypeAutoImpl(MIRSrcLang argSrcLang) const {
   HIR2MPL_PARALLEL_FORBIDDEN();
   auto it = langConfig.find(argSrcLang);
-  if (it == langConfig.end()) {
+  if (it == langConfig.cend()) {
     CHECK_FATAL(false, "unsupported language");
     return nullptr;
   }

@@ -15,8 +15,14 @@
  */
 #include "optimizeCFG.h"
 
+#include "bb.h"
 #include "factory.h"
+#include "global_tables.h"
 #include "me_phase_manager.h"
+#include "mir_symbol.h"
+#include "mpl_logging.h"
+#include "orig_symbol.h"
+#include "types_def.h"
 
 namespace maple {
 namespace {
@@ -1118,7 +1124,7 @@ bool OptimizeBB::RemoveSuccFromNoReturnBB() {
     DEBUG_LOG() << "RemoveSuccFromNoReturnBB : Remove all successors from pred BB" << LOG_BBID(currBB)
                 << ", and remove all stmts after noreturn stmt\n";
     if ((currBB->IsPredBB(*cfg->GetCommonExitBB()) && currBB->GetLastMe() == exceptionStmt) ||
-        (currBB->GetAttributes(kBBAttrWontExit) && currBB->GetSucc(0)->GetKind() == kBBReturn)) {
+        (currBB->GetKind() == kBBNoReturn)) {
       // it has been dealt with before or it has been connected to commonExit, do nothing
       return false;
     }
@@ -1146,31 +1152,14 @@ bool OptimizeBB::RemoveSuccFromNoReturnBB() {
         currBB->AddMeStmtLast(evalStmt);
       }
     }
-    // make currBB connect to common exit for post dominance updating
-    currBB->SetAttributes(kBBAttrWontExit);
-    BB *retBB = GetFirstReturnBB();
-    if (retBB != currBB) {
-      DEBUG_LOG() << "Connect BB" << LOG_BBID(currBB) << " to return BB" << LOG_BBID(retBB) << "\n";
-      CHECK_FATAL(retBB, "retBB is nullptr!");
-      currBB->AddSucc(*retBB);
-      auto *gotoStmt = irmap->CreateGotoMeStmt(f.GetOrCreateBBLabel(*retBB), currBB);
-      currBB->AddMeStmtLast(gotoStmt);
-      currBB->SetKind(kBBGoto);
-      if (!retBB->GetMePhiList().empty()) {
-        for (auto &phi : retBB->GetMePhiList()) {
-          MePhiNode *phiNode = phi.second;
-          if (phiNode->GetOpnds().size() < 1) {
-            break;
-          }
-          phiNode->GetOpnds().push_back(phiNode->GetOpnd(0));  // to maintain opnd num and predNum
-        }
-      }
-      (void)EliminateRedundantPhiList(retBB);
-      ResetBBRunAgain();
-      // add edge Frequency to exitbb
-      if (cfg->UpdateCFGFreq()) {
-        currBB->PushBackSuccFreq(0);
-      }
+    currBB->SetKind(kBBNoReturn);
+    // connect to exit for postdom
+    cfg->GetCommonExitBB()->AddExit(*currBB);
+    currBB->SetAttributes(kBBAttrIsExit);
+    ResetBBRunAgain();
+    // add edge Frequency to exitbb
+    if (cfg->UpdateCFGFreq()) {
+      currBB->PushBackSuccFreq(0);
     }
     return true;
   }

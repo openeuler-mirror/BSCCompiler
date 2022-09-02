@@ -226,14 +226,12 @@ void FEFunction::PhaseTimerStopAndDump(FETimerNS &timer, const std::string &labe
 bool FEFunction::UpdateFormal(const std::string &phaseName) {
   phaseResult.RegisterPhaseNameAndStart(phaseName);
   HIR2MPL_PARALLEL_FORBIDDEN();
-  uint32 idx = 0;
   mirFunction.ClearFormals();
   FEManager::GetMIRBuilder().SetCurrentFunction(mirFunction);
   for (const std::unique_ptr<FEIRVar> &argVar : argVarList) {
     MIRSymbol *sym = argVar->GenerateMIRSymbol(FEManager::GetMIRBuilder());
     sym->SetStorageClass(kScFormal);
     mirFunction.AddArgument(sym);
-    idx++;
   }
   return phaseResult.Finish();
 }
@@ -346,7 +344,7 @@ bool FEFunction::SetupFEIRStmtJavaTry(const std::string &phaseName) {
       FEIRStmtPesudoJavaTry *stmtJavaTry = static_cast<FEIRStmtPesudoJavaTry*>(stmt);
       for (uint32 labelIdx : stmtJavaTry->GetCatchLabelIdxVec()) {
         auto it = mapLabelStmt.find(labelIdx);
-        CHECK_FATAL(it != mapLabelStmt.end(), "label is not found");
+        CHECK_FATAL(it != mapLabelStmt.cend(), "label is not found");
         stmtJavaTry->AddCatchTarget(*(it->second));
       }
     }
@@ -380,7 +378,7 @@ bool FEFunction::SetupFEIRStmtBranch(const std::string &phaseName) {
 
 bool FEFunction::SetupFEIRStmtGoto(FEIRStmtGoto &stmt) {
   auto it = mapLabelStmt.find(stmt.GetLabelIdx());
-  if (it == mapLabelStmt.end()) {
+  if (it == mapLabelStmt.cend()) {
     ERR(kLncErr, "target not found for stmt goto");
     return false;
   }
@@ -391,7 +389,7 @@ bool FEFunction::SetupFEIRStmtGoto(FEIRStmtGoto &stmt) {
 bool FEFunction::SetupFEIRStmtSwitch(FEIRStmtSwitch &stmt) {
   // default target
   auto itDefault = mapLabelStmt.find(stmt.GetDefaultLabelIdx());
-  if (itDefault == mapLabelStmt.end()) {
+  if (itDefault == mapLabelStmt.cend()) {
     ERR(kLncErr, "target not found for stmt goto");
     return false;
   }
@@ -400,7 +398,7 @@ bool FEFunction::SetupFEIRStmtSwitch(FEIRStmtSwitch &stmt) {
   // value targets
   for (const auto &itItem : stmt.GetMapValueLabelIdx()) {
     auto itTarget = mapLabelStmt.find(itItem.second);
-    if (itTarget == mapLabelStmt.end()) {
+    if (itTarget == mapLabelStmt.cend()) {
       ERR(kLncErr, "target not found for stmt goto");
       return false;
     }

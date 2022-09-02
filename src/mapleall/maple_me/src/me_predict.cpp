@@ -17,6 +17,7 @@
 #include <queue>
 #include <unordered_set>
 #include <algorithm>
+#include "bb.h"
 #include "me_ir.h"
 #include "me_irmap_build.h"
 #include "me_irmap.h"
@@ -738,6 +739,7 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
     double cyclicProb = 0;
     for (BB *pred : bb.GetPred()) {
       Edge *edge = FindEdge(*pred, bb);
+      ASSERT_NOT_NULL(edge);
       if (IsBackEdge(*edge) && &edge->dest == &bb) {
         cyclicProb += backEdgeProb[edge];
       } else {
@@ -1015,7 +1017,7 @@ void MePrediction::VerifyFreq(const MeFunction &meFunc) {
       LogInfo::MapleLogger() << "[VerifyFreq failure] BB" << bb->GetBBId() << " freq: " <<
           bb->GetFrequency() << ", all succ edge freq sum: " << succSumFreq << std::endl;
       LogInfo::MapleLogger() << meFunc.GetName() << std::endl;
-      CHECK_FATAL(false, "VerifyFreq failure: bb freq != succ freq sum");
+      CHECK_FATAL(bb->GetKind() == kBBNoReturn, "VerifyFreq failure: bb freq != succ freq sum");
     }
   }
 }

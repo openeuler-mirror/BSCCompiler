@@ -335,7 +335,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
   }
   // update verstUseCOunts for uses in phi operands
   for (auto &phipair : std::as_const(bb.GetMePhiList())) {
-   if (phipair.second->GetIsLive()) {
+    if (phipair.second->GetIsLive()) {
       for (ScalarMeExpr *phiOpnd : phipair.second->GetOpnds()) {
         VarMeExpr *varx = dynamic_cast<VarMeExpr*>(phiOpnd);
         if (varx) {

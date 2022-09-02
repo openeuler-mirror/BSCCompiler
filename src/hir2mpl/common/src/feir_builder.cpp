@@ -676,7 +676,6 @@ UniqueFEIRStmt FEIRBuilder::CreateStmtRetype(UniqueFEIRVar varDst, const UniqueF
     UniqueFEIRExpr expr = std::make_unique<FEIRExprTypeCvt>(varDst->GetType()->Clone(), OP_cvt, std::move(dreadExpr));
     return FEIRBuilder::CreateStmtDAssign(std::move(varDst), std::move(expr), false);
   }
-  return nullptr;  // Cannot retype, maybe introduced by redundant phi.
 }
 
 UniqueFEIRStmt FEIRBuilder::CreateStmtComment(const std::string &comment) {

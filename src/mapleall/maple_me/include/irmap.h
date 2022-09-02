@@ -127,6 +127,7 @@ class IRMap : public AnalysisResult {
   MeExpr *CreateMeExprExt(Opcode, PrimType, uint32, MeExpr&);
   UnaryMeStmt *CreateUnaryMeStmt(Opcode op, MeExpr *opnd);
   UnaryMeStmt *CreateUnaryMeStmt(Opcode op, MeExpr *opnd, BB *bb, const SrcPosition *src);
+  RetMeStmt *CreateRetMeStmt(MeExpr *opnd);
   GotoMeStmt *CreateGotoMeStmt(uint32 offset, BB *bb, const SrcPosition *src = nullptr);
   IntrinsiccallMeStmt *CreateIntrinsicCallMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds,
                                                  TyIdx tyIdx = TyIdx());
@@ -138,9 +139,11 @@ class IRMap : public AnalysisResult {
                                     Opcode opB, MeExpr *opndB, MeExpr *opndC);
   MeExpr *CreateCanonicalizedMeExpr(PrimType primType, Opcode opA, Opcode opB, MeExpr *opndA, MeExpr *opndB,
                                     Opcode opC, MeExpr *opndC, MeExpr *opndD);
-  MeExpr *FoldConstExpr(PrimType primType, Opcode op, ConstMeExpr *opndA, ConstMeExpr *opndB);
+  MeExpr *FoldConstExprBinary(PrimType primType, Opcode op, ConstMeExpr &opndA, ConstMeExpr &opndB);
+  MeExpr *FoldConstExprUnary(PrimType primType, Opcode op, ConstMeExpr &opnd);
   MeExpr *SimplifyBandExpr(const OpMeExpr *bandExpr);
   MeExpr *SimplifyLshrExpr(const OpMeExpr *shrExpr);
+  MeExpr *SimplifyShlExpr(const OpMeExpr *shrExpr);
   MeExpr *SimplifySubExpr(const OpMeExpr *subExpr);
   MeExpr *SimplifyAddExpr(const OpMeExpr *addExpr);
   MeExpr *SimplifyMulExpr(const OpMeExpr *mulExpr);
@@ -149,6 +152,7 @@ class IRMap : public AnalysisResult {
   MeExpr *SimplifyOpMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyOrMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyAshrMeExpr(OpMeExpr *opmeexpr);
+  MeExpr *SimplifyXorMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyDepositbits(const OpMeExpr &opmeexpr);
   MeExpr *SimplifyExtractbits(const OpMeExpr &opmeexpr);
   MeExpr *SimplifyMeExpr(MeExpr *x);
@@ -157,6 +161,7 @@ class IRMap : public AnalysisResult {
   MeExpr *SimplifyCast(MeExpr *expr);
   MeExpr* SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar);
   MeExpr *SimplifyIvarWithAddrofBase(IvarMeExpr *ivar);
+  MeExpr *GetSimplifiedVarForIvarWithAddrofBase(OriginalSt &ost, IvarMeExpr &ivar);
   MeExpr *SimplifyIvarWithIaddrofBase(IvarMeExpr *ivar, bool lhsIvar);
   MeExpr *SimplifyIvar(IvarMeExpr *ivar, bool lhsIvar);
   void UpdateIncDecAttr(MeStmt &meStmt);
@@ -203,7 +208,7 @@ class IRMap : public AnalysisResult {
     return verst2MeExprTable;
   }
 
-  MeExpr *GetVerst2MeExprTableItem(uint32 i) {
+  MeExpr *GetVerst2MeExprTableItem(uint32 i) const {
     if (i >= verst2MeExprTable.size()) {
       return nullptr;
     }

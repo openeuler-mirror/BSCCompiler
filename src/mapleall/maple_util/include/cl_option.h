@@ -27,6 +27,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include "mpl_logging.h"
 
 namespace maplecl {
 
@@ -59,6 +60,17 @@ enum class OptionVisibilityType {
   kHidedOption    /* an Option will be NOT visible in Help */
 };
 
+/* This enum is used as the option attribute to detect "=" in the original option.
+ * It can be useful to forward original option in an external tool.
+ * As example: user sets maple -std=gnu11 ; In this case, maple will forward -std
+ * option in clang, but clang can detect this option only with "=":
+ * clang -std=gnu11 (NOT clang -std gnu11). So this attribute is used for correct forwarding.
+ */
+enum class EqualType {
+  kWithEqual,
+  kWithoutEqual
+};
+
 /* These constexpr are needed to use short name in option description, like this:
  * maplecl::Option<int32_t> option({"--option"}, "Description", optionalValue);
  * instead of:
@@ -86,18 +98,23 @@ struct DisableWith {
   const std::string &disableWith;
   explicit DisableWith(const std::string &val) : disableWith(val) {}
 };
+struct DisableEvery {
+  const std::vector<std::string> &disableEvery;
+  explicit DisableEvery(const std::vector<std::string> &val) : disableEvery(val) {}
+};
 
 using OptionCategoryRefWrp = std::reference_wrapper<OptionCategory>;
 
 class OptionWrp {
  public:
   template <typename T>
-  /* implicit */ OptionWrp(T v) : val(v) {}
+  /* implicit */
+  OptionWrp(T v) : val(v) {}
 
   template <typename T>
-  operator T() {
-    T *pval = std::any_cast<T>(&val);
-    assert(pval);
+  operator T() const {
+    const T *pval = std::any_cast<const T>(&val);
+    ASSERT_NOT_NULL(pval);
     return *pval;
   }
 
@@ -109,11 +126,11 @@ class OptionInterface {
  public:
   virtual ~OptionInterface() = default;
 
-  virtual RetCode Parse(ssize_t &argsIndex,
+  virtual RetCode Parse(size_t &argsIndex,
                         const std::deque<std::string_view> &args, KeyArg &keyArg) = 0;
   virtual void Clear() = 0;
   virtual std::vector<std::string> GetRawValues() = 0;
-  virtual OptionWrp GetCommonValue() const = 0;
+  virtual const OptionWrp GetCommonValue() const = 0;
 
   void FinalizeInitialization(const std::vector<std::string> &optnames,
                               const std::string &descr,
@@ -135,7 +152,7 @@ class OptionInterface {
     return (visibleOption == OptionVisibilityType::kVisibleOption);
   }
 
-  const std::string &GetDisabledName() const {
+  const std::vector<std::string> &GetDisabledName() const {
     return disableWith;
   }
 
@@ -148,19 +165,29 @@ class OptionInterface {
     return optDescription;
   }
 
+  EqualType GetEqualType() const {
+    return equalSign;
+  }
+
+  void SetEqualType(EqualType equal) {
+    equalSign = equal;
+  }
+
   std::string rawKey;
   std::vector<OptionCategory *> optCategories; // The option is registred in these categories
 
  protected:
   std::vector<std::string> names; // names of the option
   std::string optDescription;     // overview of option
-  std::string disableWith;        // name to disable the option
+  std::vector<std::string> disableWith;        // name to disable the option
 
   bool isEnabledByUser = false;   // it's set if the option is in command line
 
   ValueExpectedType valueExpected = ValueExpectedType::kValueRequired;  // whether the value is expected
   ValueJoinedType valueJoined = ValueJoinedType::kValueSeparated;     // Joined option like -DMACRO
   OptionVisibilityType visibleOption = OptionVisibilityType::kVisibleOption; // Visible in Help
+
+  EqualType equalSign = EqualType::kWithoutEqual;
 };
 
 /* Option class describes command line option */
@@ -199,12 +226,12 @@ class Option : public OptionInterface {
   /* Conversation operator is needed to use the option like this:
    * strding test = option1; or int dig = option2 - here will be implicit conversation.
    */
-  /*implicit*/ operator T()
-  {
+  /* implicit */
+  operator T() {
     return GetValue();
   }
 
-  RetCode Parse(ssize_t &argsIndex, const std::deque<std::string_view> &args,
+  RetCode Parse(size_t &argsIndex, const std::deque<std::string_view> &args,
                 KeyArg &keyArg) override {
     RetCode err = RetCode::noError;
     auto &key = args[argsIndex];
@@ -216,7 +243,7 @@ class Option : public OptionInterface {
       err = ParseBool(argsIndex, args);
     } else {
       /* Type dependent static_assert. Simple static_assert(false") does not work */
-      static_assert(false && sizeof(T), "T not supported");
+      static_assert(false && (sizeof(T) != 0), "T not supported");
     }
 
     if (err == RetCode::noError) {
@@ -238,7 +265,7 @@ class Option : public OptionInterface {
         value = false;
       } else {
         /* Type dependent static_assert. Simple static_assert(false") does not work */
-        static_assert(false && sizeof(T), "T not supported");
+        static_assert(false && (sizeof(T) != 0), "T not supported");
       }
     }
 
@@ -258,7 +285,7 @@ class Option : public OptionInterface {
   std::string GetName() const override {
     if constexpr (std::is_same_v<bool, T>) {
       assert(names.size() > 0);
-      return ((value == true) ? names[0] : this->GetDisabledName());
+      return (value ? names[0] : this->GetDisabledName()[0]);
     } else {
       return OptionInterface::GetName();
     }
@@ -268,7 +295,7 @@ class Option : public OptionInterface {
     return value;
   }
 
-  OptionWrp GetCommonValue() const override {
+  const OptionWrp GetCommonValue() const override {
     return value;
   }
 
@@ -277,20 +304,20 @@ class Option : public OptionInterface {
   }
 
  protected:
-  RetCode ParseDigit(ssize_t &argsIndex, const std::deque<std::string_view> &args, KeyArg &keyArg);
-  RetCode ParseString(ssize_t &argsIndex, const std::deque<std::string_view> &args, KeyArg &keyArg);
-  RetCode ParseBool(ssize_t &argsIndex, const std::deque<std::string_view> &args);
+  RetCode ParseDigit(size_t &argsIndex, const std::deque<std::string_view> &args, KeyArg &keyArg);
+  RetCode ParseString(size_t &argsIndex, const std::deque<std::string_view> &args, KeyArg &keyArg);
+  RetCode ParseBool(size_t &argsIndex, const std::deque<std::string_view> &args);
 
   void FillVal(const T &val, std::vector<std::string> &vals) {
     if constexpr(digitalCheck<T>) {
-      vals.emplace_back(std::to_string(val));
+      (void)vals.emplace_back(std::to_string(val));
     } else if constexpr (std::is_same_v<std::string, T>) {
-      vals.emplace_back(val);
+      (void)vals.emplace_back(val);
     } else if constexpr (std::is_same_v<bool, T>) {
-      vals.emplace_back("");
+      (void)vals.emplace_back("");
     } else {
       /* Type dependent static_assert. Simple static_assert(false") does not work */
-      static_assert(false && sizeof(T), "T not supported");
+      static_assert(false && (sizeof(T) != 0), "T not supported");
     }
   }
 
@@ -311,6 +338,8 @@ class Option : public OptionInterface {
       SetVisibilityAttribute(arg);
     } else if constexpr (std::is_same_v<DisableWith, ArgT>) {
       SetDisablingAttribute(arg);
+    } else if constexpr (std::is_same_v<DisableEvery, ArgT>) {
+      SetDisablingAttribute(arg);
     } else {
       SetDefaultAttribute(arg);
     }
@@ -328,20 +357,26 @@ class Option : public OptionInterface {
     defaultValue.defaultValue = value;
   }
 
-  void SetExpectingAttribute(ValueExpectedType value) {
-    valueExpected = value;
+  void SetExpectingAttribute(ValueExpectedType valueExpectedType) {
+    valueExpected = valueExpectedType;
   }
 
-  void SetJoinAttribute(ValueJoinedType value) {
-    valueJoined = value;
+  void SetJoinAttribute(ValueJoinedType valueJoinedType) {
+    valueJoined = valueJoinedType;
   }
 
-  void SetVisibilityAttribute(OptionVisibilityType value) {
-    visibleOption = value;
+  void SetVisibilityAttribute(OptionVisibilityType optionVisibilityType) {
+    visibleOption = optionVisibilityType;
   }
 
-  void SetDisablingAttribute(const DisableWith &value) {
-    disableWith = value.disableWith;
+  void SetDisablingAttribute(const DisableWith &disableWithArg) {
+    disableWith.push_back(disableWithArg.disableWith);
+  }
+
+  void SetDisablingAttribute(const DisableEvery &disableWithArg) {
+    for (auto &val : disableWithArg.disableEvery) {
+      disableWith.push_back(val);
+    }
   }
 
   T value;
@@ -377,7 +412,7 @@ void CopyIfEnabled(T &dst, maplecl::Option<T> &src) {
 }
 
 template <typename T>
-void CopyIfEnabled(T &dst, const T &src, OptionInterface &opt) {
+void CopyIfEnabled(T &dst, const T &src, const OptionInterface &opt) {
   if (opt.IsEnabledByUser()) {
     dst = src;
   }
@@ -419,7 +454,7 @@ class List : public Option<T> {
   }
 
   const T &GetValue() const {
-    static_assert(false && sizeof(T), "GetValue must be not used for List");
+    static_assert(false && (sizeof(T) != 0), "GetValue must be not used for List");
     return T();
   }
 
