@@ -3931,12 +3931,14 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(
     pred.AddSucc(trueBranch, index);
     CreateLabelForTargetBB(pred, trueBranch);
     if (func.GetCfg()->UpdateCFGFreq()) {
-      bb.SetFrequency(static_cast<uint32>(bb.GetFrequency() - edgeFreq));
-      size_t trueBranchIdx = static_cast<uint32>(bb.GetSuccIndex(trueBranch));
-      int64_t updatedtrueFreq = static_cast<int64_t>(bb.GetSuccFreq()[trueBranchIdx] - static_cast<uint64>(edgeFreq));
-      // transform may not be consistent with frequency value
-      updatedtrueFreq = updatedtrueFreq > 0 ? updatedtrueFreq : 0;
-      bb.SetSuccFreq(static_cast<int>(trueBranchIdx), static_cast<uint64>(updatedtrueFreq));
+      if ((static_cast<int32>(bb.GetFrequency()) - edgeFreq) > 0) {
+        bb.SetFrequency(static_cast<uint32>(bb.GetFrequency() - edgeFreq));
+        size_t trueBranchIdx = static_cast<uint32>(bb.GetSuccIndex(trueBranch));
+        int64_t updatedtrueFreq = static_cast<int64_t>(bb.GetSuccFreq()[trueBranchIdx] - static_cast<uint64>(edgeFreq));
+        // transform may not be consistent with frequency value
+        updatedtrueFreq = updatedtrueFreq > 0 ? updatedtrueFreq : 0;
+        bb.SetSuccFreq(static_cast<int>(trueBranchIdx), static_cast<uint64>(updatedtrueFreq));
+      }
       pred.AddSuccFreq(static_cast<uint64>(edgeFreq), index);
     }
   } else {
@@ -3954,14 +3956,16 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(
       pred.AddSucc(*exitCopyFallthru, index);
       CreateLabelForTargetBB(pred, *exitCopyFallthru);
       if (func.GetCfg()->UpdateCFGFreq()) {
-        bb.SetFrequency(static_cast<uint32>(bb.GetFrequency() - edgeFreq));
-        exitCopyFallthru->SetFrequency(static_cast<uint32>(edgeFreq));
-        exitCopyFallthru->PushBackSuccFreq(static_cast<uint64>(edgeFreq));
-        size_t trueBranchIdx = static_cast<uint32>(bb.GetSuccIndex(trueBranch));
-        int64_t updatedtrueFreq = static_cast<int64_t>(
-            bb.GetSuccFreq()[trueBranchIdx] - static_cast<uint64>(edgeFreq));
-        ASSERT(updatedtrueFreq >= 0, "sanity check");
-        bb.SetSuccFreq(static_cast<int>(trueBranchIdx), static_cast<uint64>(updatedtrueFreq));
+        if ((static_cast<int32>(bb.GetFrequency()) - edgeFreq) > 0) {
+          bb.SetFrequency(static_cast<uint32>(bb.GetFrequency() - edgeFreq));
+          exitCopyFallthru->SetFrequency(static_cast<uint32>(edgeFreq));
+          exitCopyFallthru->PushBackSuccFreq(static_cast<uint64>(edgeFreq));
+          size_t trueBranchIdx = static_cast<uint32>(bb.GetSuccIndex(trueBranch));
+          int64_t updatedtrueFreq = static_cast<int64_t>(
+              bb.GetSuccFreq()[trueBranchIdx] - static_cast<uint64>(edgeFreq));
+          ASSERT(updatedtrueFreq >= 0, "sanity check");
+          bb.SetSuccFreq(static_cast<int>(trueBranchIdx), static_cast<uint64>(updatedtrueFreq));
+        }
         pred.AddSuccFreq(static_cast<uint64>(edgeFreq), index);
       }
       return true;
@@ -3986,10 +3990,12 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(
     pred.AddSucc(*newBB, index);
     newBB->AddSucc(trueBranch);
     if (func.GetCfg()->UpdateCFGFreq()) {
-      bb.SetFrequency(static_cast<uint32>(bb.GetFrequency() - edgeFreq));
-      bb.UpdateEdgeFreqs();
-      newBB->SetFrequency(static_cast<uint32>(edgeFreq));
-      newBB->PushBackSuccFreq(static_cast<uint64>(edgeFreq));
+      if ((static_cast<int32>(bb.GetFrequency()) - edgeFreq) > 0) {
+        bb.SetFrequency(static_cast<uint32>(bb.GetFrequency() - edgeFreq));
+        bb.UpdateEdgeFreqs();
+        newBB->SetFrequency(static_cast<uint32>(edgeFreq));
+        newBB->PushBackSuccFreq(static_cast<uint64>(edgeFreq));
+      }
       pred.AddSuccFreq(static_cast<uint64>(edgeFreq), index);
     }
     DeleteThePhiNodeWhichOnlyHasOneOpnd(bb, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
@@ -5207,7 +5213,6 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
     GetAnalysisInfoHook()->ForceRunTransFormPhase<MeFuncOptTy, MeFunction>(&MELoopCanon::id, f);
     // update cfg frequency
     if (f.GetCfg()->UpdateCFGFreq()) {
-      f.GetCfg()->UpdateEdgeFreqWithBBFreq();
       if (f.GetCfg()->DumpIRProfileFile()) {
         f.GetCfg()->DumpToFile("after-valuerange" + std::to_string(f.vrpRuns), false, true);
       }
