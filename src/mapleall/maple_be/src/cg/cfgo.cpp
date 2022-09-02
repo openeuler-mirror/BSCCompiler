@@ -684,7 +684,8 @@ bool EmptyBBPattern::Optimize(BB &curBB) {
     return false;
   }
   /* Empty bb but do not have cleanup label. */
-  if (curBB.GetPrev() != nullptr && curBB.GetFirstStmt() != cgFunc->GetCleanupLabel() &&
+  if (curBB.GetPrev() != nullptr &&
+      (cgFunc->GetCleanupLabel() == nullptr || curBB.GetFirstStmt() != cgFunc->GetCleanupLabel()) &&
       curBB.GetFirstInsn() == nullptr && curBB.GetLastInsn() == nullptr && &curBB != cgFunc->GetLastBB() &&
       curBB.GetKind() != BB::kBBReturn && !IsLabelInLSDAOrSwitchTable(curBB.GetLabIdx())) {
     Log(curBB.GetId());
@@ -693,7 +694,8 @@ bool EmptyBBPattern::Optimize(BB &curBB) {
     }
 
     BB *sucBB = cgFunc->GetTheCFG()->GetTargetSuc(curBB);
-    if (sucBB == nullptr || sucBB->GetFirstStmt() == cgFunc->GetCleanupLabel()) {
+    if (sucBB == nullptr ||
+        (cgFunc->GetCleanupLabel() != nullptr && sucBB->GetFirstStmt() == cgFunc->GetCleanupLabel())) {
       return false;
     }
     cgFunc->GetTheCFG()->RemoveBB(curBB);
@@ -727,7 +729,7 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
     EHFunc *ehFunc = cgFunc->GetEHFunc();
     /* if curBB InLSDA ,replace curBB's label with nextReachableBB before remove it. */
     if (ehFunc != nullptr && ehFunc->NeedFullLSDA() &&
-        cgFunc->GetTheCFG()->InLSDA(curBB.GetLabIdx(), *ehFunc)) {
+        cgFunc->GetTheCFG()->InLSDA(curBB.GetLabIdx(), ehFunc)) {
       /* find nextReachableBB */
       BB *nextReachableBB = nullptr;
       for (BB *bb = &curBB; bb != nullptr; bb = bb->GetNext()) {

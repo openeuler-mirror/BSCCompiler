@@ -46,12 +46,12 @@ bool TailCallOpt::IsStackAddrTaken() {
  */
 bool TailCallOpt::OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &exitBB) const {
   Insn *lastInsn = bb.GetLastInsn();
-  if (bb.NumInsn() == 1 && lastInsn->IsMachineInstruction() && !lastInsn->IsPseudoInstruction() &&
-    !InsnIsCallCand(*bb.GetLastInsn())) {
+  if (bb.NumInsn() == 1 && lastInsn->IsMachineInstruction() &&
+      !AArch64isa::IsPseudoInstruction(lastInsn->GetMachineOpcode()) && !InsnIsCallCand(*bb.GetLastInsn())) {
     return false;
   }
   FOR_BB_INSNS_REV_SAFE(insn, &bb, prevInsn) {
-    if (!insn->IsMachineInstruction() || insn->IsPseudoInstruction()) {
+    if (!insn->IsMachineInstruction() || AArch64isa::IsPseudoInstruction(insn->GetMachineOpcode())) {
       continue;
     }
     if (InsnIsLoadPair(*insn)) {
@@ -151,7 +151,8 @@ bool TailCallOpt::DoTailCallOpt() {
 
   BB *exitBB = nullptr;
   if (exitBBSize == 0) {
-    if (cgFunc.GetLastBB()->GetPrev()->GetFirstStmt() == cgFunc.GetCleanupLabel() &&
+    if (cgFunc.GetCleanupLabel() != nullptr &&
+        cgFunc.GetLastBB()->GetPrev()->GetFirstStmt() == cgFunc.GetCleanupLabel() &&
         cgFunc.GetLastBB()->GetPrev()->GetPrev() != nullptr) {
       exitBB = cgFunc.GetLastBB()->GetPrev()->GetPrev();
     } else {

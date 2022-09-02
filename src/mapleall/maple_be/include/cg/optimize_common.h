@@ -44,8 +44,9 @@ class OptimizationPattern {
   }
 
   bool IsLabelInLSDAOrSwitchTable(LabelIdx label) const {
-    return cgFunc->GetTheCFG()->InLSDA(label, *cgFunc->GetEHFunc()) ||
-           cgFunc->GetTheCFG()->InSwitchTable(label, *cgFunc);
+    EHFunc *ehFunc = cgFunc->GetEHFunc();
+    return (ehFunc != nullptr && cgFunc->GetTheCFG()->InLSDA(label, ehFunc)) ||
+            cgFunc->GetTheCFG()->InSwitchTable(label, *cgFunc);
   }
 
   void Search2Op(bool noOptimize);
@@ -70,7 +71,7 @@ class Optimizer {
         alloc(&memPool),
         diffPassPatterns(alloc.Adapter()),
         singlePassPatterns(alloc.Adapter()) {
-        func.GetTheCFG()->InitInsnVisitor(func);
+    func.GetTheCFG()->InitInsnVisitor(func);
   }
 
   virtual ~Optimizer() = default;

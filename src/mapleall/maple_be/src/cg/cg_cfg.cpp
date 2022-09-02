@@ -375,7 +375,8 @@ void CGCFG::FindAndMarkUnreachable(CGFunc &func) {
   /* set all bb's unreacable to true */
   while (bb != nullptr) {
     /* Check if bb is the first or the last BB of the function */
-    if (bb->GetFirstStmt() == func.GetCleanupLabel() || InSwitchTable(bb->GetLabIdx(), func) ||
+    if ((func.GetCleanupLabel() != nullptr && bb->GetFirstStmt() == func.GetCleanupLabel()) ||
+        InSwitchTable(bb->GetLabIdx(), func) ||
         bb == func.GetFirstBB() || bb == func.GetLastBB()) {
       toBeAnalyzedBBs.push(bb);
     } else if (bb->IsLabelTaken() == false) {
@@ -417,7 +418,8 @@ void CGCFG::FlushUnReachableStatusAndRemoveRelations(BB &bb, const CGFunc &func)
   /* Check if bb is the first or the last BB of the function */
   bool isFirstBBInfunc = (&bb == func.GetFirstBB());
   bool isLastBBInfunc = (&bb == func.GetLastBB());
-  if (bb.GetFirstStmt() == func.GetCleanupLabel() || InSwitchTable(bb.GetLabIdx(), func) || isFirstBBInfunc ||
+  if ((func.GetCleanupLabel() != nullptr && bb.GetFirstStmt() == func.GetCleanupLabel()) ||
+      InSwitchTable(bb.GetLabIdx(), func) || isFirstBBInfunc ||
       isLastBBInfunc) {
     return;
   }
@@ -433,7 +435,7 @@ void CGCFG::FlushUnReachableStatusAndRemoveRelations(BB &bb, const CGFunc &func)
     isFirstBBInfunc = (it == func.GetFirstBB());
     isLastBBInfunc = (it == func.GetLastBB());
     bool needFlush = !isFirstBBInfunc && !isLastBBInfunc &&
-                     it->GetFirstStmt() != func.GetCleanupLabel() &&
+                     (func.GetCleanupLabel() == nullptr || it->GetFirstStmt() != func.GetCleanupLabel()) &&
                      (it->GetPreds().empty() || (it->GetPreds().size() == 1 && it->GetEhPreds().front() == it)) &&
                      it->GetEhPreds().empty() &&
                      !InSwitchTable(it->GetLabIdx(), *cgFunc) &&
@@ -586,15 +588,20 @@ BB *CGCFG::GetTargetSuc(BB &curBB, bool branchOnly, bool isGotoIf) {
   return nullptr;
 }
 
-bool CGCFG::InLSDA(LabelIdx label, const EHFunc &ehFunc) {
-  if ((label == 0) || ehFunc.GetLSDACallSiteTable() == nullptr) {
+bool CGCFG::InLSDA(LabelIdx label, const EHFunc *ehFunc) {
+  /* the function have no exception handle module */
+  if (ehFunc == nullptr) {
     return false;
   }
-  if (label == ehFunc.GetLSDACallSiteTable()->GetCSTable().GetEndOffset()->GetLabelIdx() ||
-      label == ehFunc.GetLSDACallSiteTable()->GetCSTable().GetStartOffset()->GetLabelIdx()) {
+
+  if ((label == 0) || ehFunc->GetLSDACallSiteTable() == nullptr) {
+    return false;
+  }
+  if (label == ehFunc->GetLSDACallSiteTable()->GetCSTable().GetEndOffset()->GetLabelIdx() ||
+      label == ehFunc->GetLSDACallSiteTable()->GetCSTable().GetStartOffset()->GetLabelIdx()) {
     return true;
   }
-  return ehFunc.GetLSDACallSiteTable()->InCallSiteTable(label);
+  return ehFunc->GetLSDACallSiteTable()->InCallSiteTable(label);
 }
 
 bool CGCFG::InSwitchTable(LabelIdx label, const CGFunc &func) {
@@ -660,7 +667,8 @@ void CGCFG::UnreachCodeAnalysis() const {
   /* set all bb's unreacable to true */
   while (bb != nullptr) {
     /* Check if bb is the first or the last BB of the function */
-    if (bb->GetFirstStmt() == cgFunc->GetCleanupLabel() || InSwitchTable(bb->GetLabIdx(), *cgFunc) ||
+    if (cgFunc->GetCleanupLabel() != nullptr ||
+        bb->GetFirstStmt() == cgFunc->GetCleanupLabel() || InSwitchTable(bb->GetLabIdx(), *cgFunc) ||
         bb == cgFunc->GetFirstBB() || bb == cgFunc->GetLastBB() ||
         (bb->GetKind() == BB::kBBReturn && !cgFunc->GetMirModule().IsCModule())) {
       toBeAnalyzedBBs.push_front(bb);
@@ -702,7 +710,7 @@ void CGCFG::UnreachCodeAnalysis() const {
     EHFunc *ehFunc = cgFunc->GetEHFunc();
     /* if unreachBB InLSDA ,replace unreachBB's label with nextReachableBB before remove it. */
     if (ehFunc != nullptr && ehFunc->NeedFullLSDA() &&
-        cgFunc->GetTheCFG()->InLSDA(unreachBB->GetLabIdx(), *ehFunc)) {
+        cgFunc->GetTheCFG()->InLSDA(unreachBB->GetLabIdx(), ehFunc)) {
       /* find next reachable BB */
       BB* nextReachableBB = nullptr;
       for (BB* curBB = unreachBB; curBB != nullptr; curBB = curBB->GetNext()) {

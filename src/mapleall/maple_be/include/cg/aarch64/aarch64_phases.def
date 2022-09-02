@@ -14,7 +14,7 @@
  */
  ADDTARGETPHASE("layoutstackframe", true);
  ADDTARGETPHASE("createstartendlabel", true);
- ADDTARGETPHASE("buildehfunc", true);
+ ADDTARGETPHASE("buildehfunc", !GetMIRModule()->IsCModule());
  ADDTARGETPHASE("handlefunction", true);
  ADDTARGETPHASE("moveargs", true);
  /* SSA PHASES */

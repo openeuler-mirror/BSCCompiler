@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "aarch64_proepilog.h"
+#include "aarch64_cg.h"
 #include "cg_option.h"
 #include "cgfunc.h"
 
@@ -73,7 +74,7 @@ bool AArch64GenProEpilog::NeedProEpilog() {
   /* note that tailcall insn is not a call */
   FOR_ALL_BB(bb, &cgFunc) {
     FOR_BB_INSNS_REV(insn, bb) {
-      if (insn->IsCall()) {
+      if (insn->IsMachineInstruction() && insn->IsCall()) {
         funcHasCalls = true;
       }
     }
@@ -96,7 +97,6 @@ void AArch64GenProEpilog::GenStackGuard(BB &bb) {
     return;
   }
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  CG *currCG = cgFunc.GetCG();
   BB *formerCurBB = cgFunc.GetCurBB();
   aarchCGFunc.GetDummyBB()->ClearInsns();
   aarchCGFunc.GetDummyBB()->SetIsProEpilog(true);
@@ -106,14 +106,14 @@ void AArch64GenProEpilog::GenStackGuard(BB &bb) {
       GlobalTables::GetStrTable().GetStrIdxFromName(std::string("__stack_chk_guard")));
   StImmOperand &stOpnd = aarchCGFunc.CreateStImmOperand(*stkGuardSym, 0, 0);
   RegOperand &stAddrOpnd =
-    aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, kSizeOfPtr * kBitsPerByte, kRegTyInt);
+    aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, GetPointerSize() * kBitsPerByte, kRegTyInt);
   aarchCGFunc.SelectAddrof(stAddrOpnd, stOpnd);
 
   MemOperand *guardMemOp =
-    aarchCGFunc.CreateMemOperand(MemOperand::kAddrModeBOi, kSizeOfPtr * kBitsPerByte,
+    aarchCGFunc.CreateMemOperand(MemOperand::kAddrModeBOi, GetPointerSize() * kBitsPerByte,
         stAddrOpnd, nullptr, &aarchCGFunc.GetOrCreateOfstOpnd(0, k32BitSize), stkGuardSym);
   MOperator mOp = aarchCGFunc.PickLdInsn(k64BitSize, PTY_u64);
-  Insn &insn = currCG->BuildInstruction<AArch64Insn>(mOp, stAddrOpnd, *guardMemOp);
+  Insn &insn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, stAddrOpnd, *guardMemOp);
   insn.SetDoNotRemove(true);
   cgFunc.GetCurBB()->AppendInsn(insn);
 
@@ -133,13 +133,13 @@ void AArch64GenProEpilog::GenStackGuard(BB &bb) {
     stkSize -= static_cast<int32>(static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass());
   }
   int32 memSize = (stkSize - kOffset8MemPos) - static_cast<int32>(vArea);
-  MemOperand *downStk = aarchCGFunc.CreateStackMemOpnd(stackBaseReg, memSize, kSizeOfPtr * kBitsPerByte);
+  MemOperand *downStk = aarchCGFunc.CreateStackMemOpnd(stackBaseReg, memSize, GetPointerSize() * kBitsPerByte);
   if (downStk->GetMemVaryType() == kNotVary &&
       aarchCGFunc.IsImmediateOffsetOutOfRange(*downStk, k64BitSize)) {
     downStk = &aarchCGFunc.SplitOffsetWithAddInstruction(*downStk, k64BitSize, R10);
   }
-  mOp = aarchCGFunc.PickStInsn(kSizeOfPtr * kBitsPerByte, PTY_u64);
-  Insn &tmpInsn = currCG->BuildInstruction<AArch64Insn>(mOp, stAddrOpnd, *downStk);
+  mOp = aarchCGFunc.PickStInsn(GetPointerSize() * kBitsPerByte, PTY_u64);
+  Insn &tmpInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, stAddrOpnd, *downStk);
   tmpInsn.SetDoNotRemove(true);
   cgFunc.GetCurBB()->AppendInsn(tmpInsn);
 
@@ -153,7 +153,6 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
     return bb;
   }
 
-  CG *currCG = cgFunc.GetCG();
   BB *formerCurBB = cgFunc.GetCurBB();
   cgFunc.GetDummyBB()->ClearInsns();
   cgFunc.SetCurBB(*(cgFunc.GetDummyBB()));
@@ -162,15 +161,15 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   const MIRSymbol *stkGuardSym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
       GlobalTables::GetStrTable().GetStrIdxFromName(std::string("__stack_chk_guard")));
   StImmOperand &stOpnd = aarchCGFunc.CreateStImmOperand(*stkGuardSym, 0, 0);
-  RegOperand &stAddrOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, kSizeOfPtr * kBitsPerByte, kRegTyInt);
+  RegOperand &stAddrOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, GetPointerSize() * kBitsPerByte, kRegTyInt);
   aarchCGFunc.SelectAddrof(stAddrOpnd, stOpnd);
 
   MemOperand *guardMemOp = aarchCGFunc.CreateMemOperand(MemOperand::kAddrModeBOi,
-      kSizeOfPtr * kBitsPerByte, stAddrOpnd, nullptr,
+      GetPointerSize() * kBitsPerByte, stAddrOpnd, nullptr,
       &aarchCGFunc.GetOrCreateOfstOpnd(0, k32BitSize),
       stkGuardSym);
   MOperator mOp = aarchCGFunc.PickLdInsn(k64BitSize, PTY_u64);
-  Insn &insn = currCG->BuildInstruction<AArch64Insn>(mOp, stAddrOpnd, *guardMemOp);
+  Insn &insn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, stAddrOpnd, *guardMemOp);
   insn.SetDoNotRemove(true);
   cgFunc.GetCurBB()->AppendInsn(insn);
 
@@ -187,18 +186,18 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   }
 
   RegOperand &checkOp =
-      aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R10, kSizeOfPtr * kBitsPerByte, kRegTyInt);
+      aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R10, GetPointerSize() * kBitsPerByte, kRegTyInt);
   int32 stkSize = static_cast<int32>(static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
   if (useFP) {
     stkSize -= static_cast<int32>(static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass());
   }
   int32 memSize = (stkSize - kOffset8MemPos) - static_cast<int32>(vArea);
-  MemOperand *downStk = aarchCGFunc.CreateStackMemOpnd(stackBaseReg, memSize, kSizeOfPtr * kBitsPerByte);
+  MemOperand *downStk = aarchCGFunc.CreateStackMemOpnd(stackBaseReg, memSize, GetPointerSize() * kBitsPerByte);
   if (downStk->GetMemVaryType() == kNotVary && aarchCGFunc.IsImmediateOffsetOutOfRange(*downStk, k64BitSize)) {
     downStk = &aarchCGFunc.SplitOffsetWithAddInstruction(*downStk, k64BitSize, R10);
   }
-  mOp = aarchCGFunc.PickLdInsn(kSizeOfPtr * kBitsPerByte, PTY_u64);
-  Insn &newInsn = currCG->BuildInstruction<AArch64Insn>(mOp, checkOp, *downStk);
+  mOp = aarchCGFunc.PickLdInsn(GetPointerSize() * kBitsPerByte, PTY_u64);
+  Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, checkOp, *downStk);
   newInsn.SetDoNotRemove(true);
   cgFunc.GetCurBB()->AppendInsn(newInsn);
 
@@ -362,6 +361,16 @@ bool AArch64GenProEpilog::BackwardFindDependency(BB &ifbb, std::set<regno_t> &ve
   bool bl = false; /* Indicates whether a branch insn exists */
   do {
     FOR_BB_INSNS_REV(insn, pred) {
+      /* code sinking */
+      if (insn->IsImmaterialInsn()) {
+        moveInsns.push_back(insn);
+        continue;
+      }
+      /* code sinking */
+      if (!insn->IsMachineInstruction()) {
+        moveInsns.push_back(insn);
+        continue;
+      }
       /* code sinking fails, the insns must be retained in the ifBB */
       if (ifPred || insn == ifbb.GetLastInsn() || insn->IsBranch() || insn->IsCall() ||
           insn->IsStore() || insn->IsStorePair()) {
@@ -372,16 +381,6 @@ bool AArch64GenProEpilog::BackwardFindDependency(BB &ifbb, std::set<regno_t> &ve
         }
         InsertInsnRegs(*insn, true, vecSourceRegs, true, vecTargetRegs);
         existingInsns.push_back(insn);
-        continue;
-      }
-      /* code sinking */
-      if (insn->IsImmaterialInsn()) {
-        moveInsns.push_back(insn);
-        continue;
-      }
-      /* code sinking */
-      if (!insn->IsMachineInstruction()) {
-        moveInsns.push_back(insn);
         continue;
       }
       bool allow = true;  /* whether allow this insn move into the codeBB */
@@ -494,7 +493,6 @@ BB *AArch64GenProEpilog::IsolateFastPath(BB &bb) {
   BB *ifBB = nullptr;
   BB *returnBB = nullptr;
   BB *coldBB = nullptr;
-  CG *currCG = cgFunc.GetCG();
   {
     BB *curBB = &bb;
     /* Look for straight line code */
@@ -563,6 +561,9 @@ BB *AArch64GenProEpilog::IsolateFastPath(BB &bb) {
   CHECK_FATAL(returnBB != nullptr, "null ptr check");
   std::set<regno_t> vecReturnSourceRegs;
   FOR_BB_INSNS_REV(insn, returnBB) {
+    if (!insn->IsMachineInstruction()) {
+      continue;
+    }
     if (insn->IsBranch() || insn->IsCall() || insn->IsStore() || insn->IsStorePair()) {
       return nullptr;
     }
@@ -570,6 +571,9 @@ BB *AArch64GenProEpilog::IsolateFastPath(BB &bb) {
     existingInsns.push_back(insn);
   }
   FOR_BB_INSNS_REV(insn, returnBB->GetSuccs().front()) {
+    if (!insn->IsMachineInstruction()) {
+      continue;
+    }
     if (insn->IsBranch() || insn->IsCall() || insn->IsStore() || insn->IsStorePair()) {
       return nullptr;
     }
@@ -602,7 +606,7 @@ BB *AArch64GenProEpilog::IsolateFastPath(BB &bb) {
   FOR_BB_INSNS(insn, tgtBB) {
     returnBB->AppendInsn(*insn);  /* add the insns such as MOP_xret */
   }
-  returnBB->AppendInsn(currCG->BuildInstruction<AArch64Insn>(MOP_xret));
+  returnBB->AppendInsn(cgFunc.GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_xret));
   /* bb is now a retbb and has no succ. */
   returnBB->SetKind(BB::kBBReturn);
   MapleList<BB*>::const_iterator predIt = std::find(tgtBB->GetPredsBegin(), tgtBB->GetPredsEnd(), returnBB);
@@ -643,18 +647,17 @@ MemOperand *AArch64GenProEpilog::SplitStpLdpOffsetForCalleeSavedWithAddInstructi
 void AArch64GenProEpilog::AppendInstructionPushPair(CGFunc &cgFunc,
     AArch64reg reg0, AArch64reg reg1, RegType rty, int32 offset) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  CG *currCG = cgFunc.GetCG();
   MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopPair];
-  Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
-  Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
-  Operand *o2 = &aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset), kSizeOfPtr * kBitsPerByte);
+  Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, GetPointerSize() * kBitsPerByte, rty);
+  Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, GetPointerSize() * kBitsPerByte, rty);
+  Operand *o2 = &aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset), GetPointerSize() * kBitsPerByte);
 
-  uint32 dataSize = kSizeOfPtr * kBitsPerByte;
+  uint32 dataSize = GetPointerSize() * kBitsPerByte;
   CHECK_FATAL(offset >= 0, "offset must >= 0");
   if (offset > kStpLdpImm64UpperBound) {
     o2 = SplitStpLdpOffsetForCalleeSavedWithAddInstruction(cgFunc, *static_cast<MemOperand*>(o2), dataSize, R16);
   }
-  Insn &pushInsn = currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, *o2);
+  Insn &pushInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
   std::string comment = "SAVE CALLEE REGISTER PAIR";
   pushInsn.SetComment(comment);
   AppendInstructionTo(pushInsn, cgFunc);
@@ -663,19 +666,18 @@ void AArch64GenProEpilog::AppendInstructionPushPair(CGFunc &cgFunc,
 void AArch64GenProEpilog::AppendInstructionPushSingle(CGFunc &cgFunc,
     AArch64reg reg, RegType rty, int32 offset) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  CG *currCG = cgFunc.GetCG();
   MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopSingle];
-  Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg, kSizeOfPtr * kBitsPerByte, rty);
-  Operand *o1 = &aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset), kSizeOfPtr * kBitsPerByte);
+  Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg, GetPointerSize() * kBitsPerByte, rty);
+  Operand *o1 = &aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset), GetPointerSize() * kBitsPerByte);
 
   MemOperand *aarchMemO1 = static_cast<MemOperand*>(o1);
-  uint32 dataSize = kSizeOfPtr * kBitsPerByte;
+  uint32 dataSize = GetPointerSize() * kBitsPerByte;
   if (aarchMemO1->GetMemVaryType() == kNotVary &&
       aarchCGFunc.IsImmediateOffsetOutOfRange(*aarchMemO1, dataSize)) {
     o1 = &aarchCGFunc.SplitOffsetWithAddInstruction(*aarchMemO1, dataSize, R9);
   }
 
-  Insn &pushInsn = currCG->BuildInstruction<AArch64Insn>(mOp, o0, *o1);
+  Insn &pushInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, *o1);
   std::string comment = "SAVE CALLEE REGISTER";
   pushInsn.SetComment(comment);
   AppendInstructionTo(pushInsn, cgFunc);
@@ -685,24 +687,23 @@ Insn &AArch64GenProEpilog::AppendInstructionForAllocateOrDeallocateCallFrame(int
                                                                              AArch64reg reg0, AArch64reg reg1,
                                                                              RegType rty, bool isAllocate) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  CG *currCG = cgFunc.GetCG();
   MOperator mOp = isAllocate ? pushPopOps[kRegsPushOp][rty][kPushPopPair] : pushPopOps[kRegsPopOp][rty][kPushPopPair];
   uint8 size;
   if (CGOptions::IsArm64ilp32()) {
     size = k8ByteSize;
   } else {
-    size = kSizeOfPtr;
+    size = GetPointerSize();
   }
   if (argsToStkPassSize <= kStrLdrImm64UpperBound - kOffset8MemPos) {
     mOp = isAllocate ? pushPopOps[kRegsPushOp][rty][kPushPopSingle] : pushPopOps[kRegsPopOp][rty][kPushPopSingle];
     RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, size * kBitsPerByte, rty);
     MemOperand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize), size * kBitsPerByte);
-    Insn &insn1 = currCG->BuildInstruction<AArch64Insn>(mOp, o0, *o2);
+    Insn &insn1 = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, *o2);
     AppendInstructionTo(insn1, cgFunc);
     RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, size * kBitsPerByte, rty);
     o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize + size),
                                         size * kBitsPerByte);
-    Insn &insn2 = currCG->BuildInstruction<AArch64Insn>(mOp, o1, *o2);
+    Insn &insn2 = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o1, *o2);
     AppendInstructionTo(insn2, cgFunc);
     return insn2;
   } else {
@@ -713,14 +714,14 @@ Insn &AArch64GenProEpilog::AppendInstructionForAllocateOrDeallocateCallFrame(int
     RegOperand &rsp = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, size * kBitsPerByte, kRegTyInt);
     MemOperand *mo = aarchCGFunc.CreateMemOperand(
         MemOperand::kAddrModeBOrX, size * kBitsPerByte, rsp, oo, 0);
-    Insn &insn1 = currCG->BuildInstruction<AArch64Insn>(isAllocate ? MOP_xstr : MOP_xldr, o0, *mo);
+    Insn &insn1 = cgFunc.GetInsnBuilder()->BuildInsn(isAllocate ? MOP_xstr : MOP_xldr, o0, *mo);
     AppendInstructionTo(insn1, cgFunc);
     ImmOperand &io2 = aarchCGFunc.CreateImmOperand(size, k64BitSize, true);
     aarchCGFunc.SelectAdd(oo, oo, io2, PTY_i64);
     RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, size * kBitsPerByte, rty);
     mo = aarchCGFunc.CreateMemOperand(MemOperand::kAddrModeBOrX,
                                       size * kBitsPerByte, rsp, oo, 0);
-    Insn &insn2 = currCG->BuildInstruction<AArch64Insn>(isAllocate ? MOP_xstr : MOP_xldr, o1, *mo);
+    Insn &insn2 = cgFunc.GetInsnBuilder()->BuildInsn(isAllocate ? MOP_xstr : MOP_xldr, o1, *mo);
     AppendInstructionTo(insn2, cgFunc);
     return insn2;
   }
@@ -736,11 +737,11 @@ Insn &AArch64GenProEpilog::CreateAndAppendInstructionForAllocateCallFrame(int64 
   if (argsToStkPassSize > kStpLdpImm64UpperBound) {
     allocInsn = &AppendInstructionForAllocateOrDeallocateCallFrame(argsToStkPassSize, reg0, reg1, rty, true);
   } else {
-    Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
-    Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
+    Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, GetPointerSize() * kBitsPerByte, rty);
+    Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, GetPointerSize() * kBitsPerByte, rty);
     Operand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize),
-                                                 kSizeOfPtr * kBitsPerByte);
-    allocInsn = &currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, *o2);
+                                                 GetPointerSize() * kBitsPerByte);
+    allocInsn = &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
     AppendInstructionTo(*allocInsn, cgFunc);
   }
   if (currCG->NeedInsertInstrumentationFunction()) {
@@ -795,10 +796,10 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrame(AArch64reg reg0, AA
       offset = stackFrameSize;
     }
     MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopPair];
-    RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
-    RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
-    MemOperand &o2 = aarchCGFunc.CreateCallFrameOperand(static_cast<int32>(-offset), kSizeOfPtr * kBitsPerByte);
-    ipoint = &currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, o2);
+    RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, GetPointerSize() * kBitsPerByte, rty);
+    RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, GetPointerSize() * kBitsPerByte, rty);
+    MemOperand &o2 = aarchCGFunc.CreateCallFrameOperand(static_cast<int32>(-offset), GetPointerSize() * kBitsPerByte);
+    ipoint = &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, o2);
     AppendInstructionTo(*ipoint, cgFunc);
     if (currCG->NeedInsertInstrumentationFunction()) {
       aarchCGFunc.AppendCall(*currCG->GetInstrumentationFunction());
@@ -859,20 +860,20 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrameDebug(AArch64reg reg
       ipoint->SetStackDef(true);
     } else {
       MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopPair];
-      RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
-      RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
-      MemOperand &o2 = aarchCGFunc.CreateCallFrameOperand(-stackFrameSize, kSizeOfPtr * kBitsPerByte);
-      ipoint = &currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, o2);
+      RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, GetPointerSize() * kBitsPerByte, rty);
+      RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, GetPointerSize() * kBitsPerByte, rty);
+      MemOperand &o2 = aarchCGFunc.CreateCallFrameOperand(-stackFrameSize, GetPointerSize() * kBitsPerByte);
+      ipoint = &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, o2);
       AppendInstructionTo(*ipoint, cgFunc);
       ipoint->SetStackDef(true);
     }
 
     if (useStpSub) {
       MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopPair];
-      RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
-      RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
-      MemOperand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, 0, kSizeOfPtr * kBitsPerByte);
-      ipoint = &currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, *o2);
+      RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, GetPointerSize() * kBitsPerByte, rty);
+      RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, GetPointerSize() * kBitsPerByte, rty);
+      MemOperand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, 0, GetPointerSize() * kBitsPerByte);
+      ipoint = &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
       AppendInstructionTo(*ipoint, cgFunc);
     }
 
@@ -982,8 +983,8 @@ void AArch64GenProEpilog::GeneratePushRegs() {
       cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
     /* GR/VR save areas are above the callee save area */
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
-    auto saveareasize = static_cast<int32>(RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
-        RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize));
+    auto saveareasize = static_cast<int32>(RoundUp(ml->GetSizeOfGRSaveArea(), GetPointerSize() * k2BitSize) +
+        RoundUp(ml->GetSizeOfVRSaveArea(), GetPointerSize() * k2BitSize));
     offset -= saveareasize;
   }
 
@@ -1023,7 +1024,6 @@ void AArch64GenProEpilog::GeneratePushRegs() {
 
 void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  CG *currCG = cgFunc.GetCG();
   uint32 offset;
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
     AArch64MemLayout *memlayout = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout());
@@ -1031,7 +1031,7 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
     if (CGOptions::IsArm64ilp32()) {
       size = k8ByteSize;
     } else {
-      size = kSizeOfPtr;
+      size = GetPointerSize();
     }
     uint32 dataSizeBits = size * kBitsPerByte;
     if (cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
@@ -1055,8 +1055,7 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
       Operand *stackLoc = &aarchCGFunc.CreateStkTopOpnd(offset + tmpOffset, dataSizeBits);
       RegOperand &reg =
           aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyInt);
-      Insn &inst =
-          currCG->BuildInstruction<AArch64Insn>(aarchCGFunc.PickStInsn(dataSizeBits, PTY_i64), reg, *stackLoc);
+      Insn &inst = cgFunc.GetInsnBuilder()->BuildInsn(aarchCGFunc.PickStInsn(dataSizeBits, PTY_i64), reg, *stackLoc);
       cgFunc.GetCurBB()->AppendInsn(inst);
       offset += size;
     }
@@ -1079,8 +1078,7 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
         Operand *stackLoc = &aarchCGFunc.CreateStkTopOpnd(offset + tmpOffset, dataSizeBits);
         RegOperand &reg =
             aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyFloat);
-        Insn &inst =
-            currCG->BuildInstruction<AArch64Insn>(aarchCGFunc.PickStInsn(dataSizeBits, PTY_f64), reg, *stackLoc);
+        Insn &inst = cgFunc.GetInsnBuilder()->BuildInsn(aarchCGFunc.PickStInsn(dataSizeBits, PTY_f64), reg, *stackLoc);
         cgFunc.GetCurBB()->AppendInsn(inst);
         offset += (size * k2BitSize);
       }
@@ -1100,7 +1098,7 @@ void AArch64GenProEpilog::AppendInstructionStackCheck(AArch64reg reg, RegType rt
   /* ldr wzr, [x16] */
   auto &wzr = cgFunc.GetZeroOpnd(k32BitSize);
   auto &refX16 = aarchCGFunc.CreateMemOpnd(reg, 0, k64BitSize);
-  auto &soeInstr = currCG->BuildInstruction<AArch64Insn>(MOP_wldr, wzr, refX16);
+  auto &soeInstr = cgFunc.GetInsnBuilder()->BuildInsn(MOP_wldr, wzr, refX16);
   if (currCG->GenerateVerboseCG()) {
     soeInstr.SetComment("soerror");
   }
@@ -1140,14 +1138,16 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
         }
         Operand *o1 = cgFunc.CreateDbgImmOperand(lineNum);
         Operand *o2 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().Column());
-        Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1, *o2);
+        Insn &loc = cgFunc.GetInsnBuilder()->BuildDbgInsn(
+            mpldbg::OP_DBG_loc).AddOpndChain(*o0).AddOpndChain(*o1).AddOpndChain(*o2);
         cgFunc.GetCurBB()->AppendInsn(loc);
       }
     } else {
       Operand *o0 = cgFunc.CreateDbgImmOperand(1);
       Operand *o1 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().MplLineNum());
       Operand *o2 = cgFunc.CreateDbgImmOperand(0);
-      Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1, *o2);
+      Insn &loc = cgFunc.GetInsnBuilder()->BuildDbgInsn(
+          mpldbg::OP_DBG_loc).AddOpndChain(*o0).AddOpndChain(*o1).AddOpndChain(*o2);
       cgFunc.GetCurBB()->AppendInsn(loc);
     }
   }
@@ -1207,8 +1207,7 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
 }
 
 void AArch64GenProEpilog::GenerateRet(BB &bb) {
-  CG *currCG = cgFunc.GetCG();
-  bb.AppendInsn(currCG->BuildInstruction<AArch64Insn>(MOP_xret));
+  bb.AppendInsn(cgFunc.GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_xret));
 }
 
 /*
@@ -1223,7 +1222,8 @@ bool AArch64GenProEpilog::TestPredsOfRetBB(const BB &exitBB) {
     return false;
   }
   const Insn *lastInsn = exitBB.GetLastInsn();
-  while (lastInsn != nullptr && (!lastInsn->IsMachineInstruction() || lastInsn->IsPseudoInstruction())) {
+  while (lastInsn != nullptr && (!lastInsn->IsMachineInstruction() ||
+                                 AArch64isa::IsPseudoInstruction(lastInsn->GetMachineOpcode()))) {
     lastInsn = lastInsn->GetPrev();
   }
   bool isTailCall = lastInsn == nullptr ? false : lastInsn->IsTailCall();
@@ -1232,17 +1232,16 @@ bool AArch64GenProEpilog::TestPredsOfRetBB(const BB &exitBB) {
 
 void AArch64GenProEpilog::AppendInstructionPopSingle(CGFunc &cgFunc, AArch64reg reg, RegType rty, int32 offset) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  CG *currCG = cgFunc.GetCG();
   MOperator mOp = pushPopOps[kRegsPopOp][rty][kPushPopSingle];
-  Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg, kSizeOfPtr * kBitsPerByte, rty);
-  Operand *o1 = &aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset), kSizeOfPtr * kBitsPerByte);
+  Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg, GetPointerSize() * kBitsPerByte, rty);
+  Operand *o1 = &aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset), GetPointerSize() * kBitsPerByte);
   MemOperand *aarchMemO1 = static_cast<MemOperand*>(o1);
-  uint32 dataSize = kSizeOfPtr * kBitsPerByte;
+  uint32 dataSize = GetPointerSize() * kBitsPerByte;
   if (aarchMemO1->GetMemVaryType() == kNotVary && aarchCGFunc.IsImmediateOffsetOutOfRange(*aarchMemO1, dataSize)) {
     o1 = &aarchCGFunc.SplitOffsetWithAddInstruction(*aarchMemO1, dataSize, R9);
   }
 
-  Insn &popInsn = currCG->BuildInstruction<AArch64Insn>(mOp, o0, *o1);
+  Insn &popInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, *o1);
   popInsn.SetComment("RESTORE");
   cgFunc.GetCurBB()->AppendInsn(popInsn);
 }
@@ -1250,19 +1249,18 @@ void AArch64GenProEpilog::AppendInstructionPopSingle(CGFunc &cgFunc, AArch64reg 
 void AArch64GenProEpilog::AppendInstructionPopPair(CGFunc &cgFunc,
     AArch64reg reg0, AArch64reg reg1, RegType rty, int32 offset) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  CG *currCG = cgFunc.GetCG();
   MOperator mOp = pushPopOps[kRegsPopOp][rty][kPushPopPair];
-  Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
-  Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
-  Operand *o2 = &aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset), kSizeOfPtr * kBitsPerByte);
+  Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, GetPointerSize() * kBitsPerByte, rty);
+  Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, GetPointerSize() * kBitsPerByte, rty);
+  Operand *o2 = &aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset), GetPointerSize() * kBitsPerByte);
 
-  uint32 dataSize = kSizeOfPtr * kBitsPerByte;
+  uint32 dataSize = GetPointerSize() * kBitsPerByte;
   CHECK_FATAL(offset >= 0, "offset must >= 0");
   if (offset > kStpLdpImm64UpperBound) {
     o2 = SplitStpLdpOffsetForCalleeSavedWithAddInstruction(cgFunc,
         static_cast<MemOperand&>(*o2), dataSize, R16);
   }
-  Insn &popInsn = currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, *o2);
+  Insn &popInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
   popInsn.SetComment("RESTORE RESTORE");
   cgFunc.GetCurBB()->AppendInsn(popInsn);
 }
@@ -1270,10 +1268,9 @@ void AArch64GenProEpilog::AppendInstructionPopPair(CGFunc &cgFunc,
 
 void AArch64GenProEpilog::AppendInstructionDeallocateCallFrame(AArch64reg reg0, AArch64reg reg1, RegType rty) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  CG *currCG = cgFunc.GetCG();
   MOperator mOp = pushPopOps[kRegsPopOp][rty][kPushPopPair];
-  Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
-  Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
+  Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, GetPointerSize() * kBitsPerByte, rty);
+  Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, GetPointerSize() * kBitsPerByte, rty);
   int32 stackFrameSize = static_cast<int32>(
       static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
   int64 argsToStkPassSize = cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
@@ -1286,7 +1283,7 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrame(AArch64reg reg0, 
 
   Operand *o2 = nullptr;
   if (!cgFunc.HasVLAOrAlloca() && argsToStkPassSize > 0) {
-    o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize), kSizeOfPtr * kBitsPerByte);
+    o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize), GetPointerSize() * kBitsPerByte);
   } else {
     if (stackFrameSize > kStpLdpImm64UpperBound) {
       useLdpAdd = true;
@@ -1295,7 +1292,7 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrame(AArch64reg reg0, 
     } else {
       offset = stackFrameSize;
     }
-    o2 = &aarchCGFunc.CreateCallFrameOperand(offset, kSizeOfPtr * kBitsPerByte);
+    o2 = &aarchCGFunc.CreateCallFrameOperand(offset, GetPointerSize() * kBitsPerByte);
   }
 
   if (useLdpAdd) {
@@ -1309,24 +1306,23 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrame(AArch64reg reg0, 
     if (argsToStkPassSize > kStpLdpImm64UpperBound) {
       (void)AppendInstructionForAllocateOrDeallocateCallFrame(argsToStkPassSize, reg0, reg1, rty, false);
     } else {
-      Insn &deallocInsn = currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, *o2);
+      Insn &deallocInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
       cgFunc.GetCurBB()->AppendInsn(deallocInsn);
     }
     Operand &spOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, k64BitSize, kRegTyInt);
     Operand &immOpnd = aarchCGFunc.CreateImmOperand(stackFrameSize, k32BitSize, true);
     aarchCGFunc.SelectAdd(spOpnd, spOpnd, immOpnd, PTY_u64);
   } else {
-    Insn &deallocInsn = currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, *o2);
+    Insn &deallocInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
     cgFunc.GetCurBB()->AppendInsn(deallocInsn);
   }
 }
 
 void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg reg0, AArch64reg reg1, RegType rty) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  CG *currCG = cgFunc.GetCG();
   MOperator mOp = pushPopOps[kRegsPopOp][rty][kPushPopPair];
-  Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
-  Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
+  Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, GetPointerSize() * kBitsPerByte, rty);
+  Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, GetPointerSize() * kBitsPerByte, rty);
   int32 stackFrameSize = static_cast<int32>(
       static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
   int32 argsToStkPassSize = static_cast<int32>(cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
@@ -1343,23 +1339,23 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg r
       lmbcOffset = argsToStkPassSize;
     }
     if (stackFrameSize > kStpLdpImm64UpperBound || isLmbc) {
-      Operand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, (isLmbc ? lmbcOffset : 0), kSizeOfPtr * kBitsPerByte);
-      Insn &deallocInsn = currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, *o2);
+      Operand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, (isLmbc ? lmbcOffset : 0), GetPointerSize() * kBitsPerByte);
+      Insn &deallocInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
       cgFunc.GetCurBB()->AppendInsn(deallocInsn);
       Operand &spOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, k64BitSize, kRegTyInt);
       Operand &immOpnd = aarchCGFunc.CreateImmOperand(stackFrameSize, k32BitSize, true);
       aarchCGFunc.SelectAdd(spOpnd, spOpnd, immOpnd, PTY_u64);
     } else {
-      MemOperand &o2 = aarchCGFunc.CreateCallFrameOperand(stackFrameSize, kSizeOfPtr * kBitsPerByte);
-      Insn &deallocInsn = currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, o2);
+      MemOperand &o2 = aarchCGFunc.CreateCallFrameOperand(stackFrameSize, GetPointerSize() * kBitsPerByte);
+      Insn &deallocInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, o2);
       cgFunc.GetCurBB()->AppendInsn(deallocInsn);
     }
   } else {
-    Operand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize), kSizeOfPtr * kBitsPerByte);
+    Operand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize), GetPointerSize() * kBitsPerByte);
     if (argsToStkPassSize > kStpLdpImm64UpperBound) {
       (void)AppendInstructionForAllocateOrDeallocateCallFrame(argsToStkPassSize, reg0, reg1, rty, false);
     } else {
-      Insn &deallocInsn = currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, *o2);
+      Insn &deallocInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
       cgFunc.GetCurBB()->AppendInsn(deallocInsn);
     }
 
@@ -1423,8 +1419,8 @@ void AArch64GenProEpilog::GeneratePopRegs() {
       cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
     /* GR/VR save areas are above the callee save area */
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
-    auto saveareasize = static_cast<int32>(RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
-        RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize));
+    auto saveareasize = static_cast<int32>(RoundUp(ml->GetSizeOfGRSaveArea(), GetPointerSize() * k2BitSize) +
+        RoundUp(ml->GetSizeOfVRSaveArea(), GetPointerSize() * k2BitSize));
     offset -= saveareasize;
   }
 
@@ -1476,15 +1472,14 @@ void AArch64GenProEpilog::GeneratePopRegs() {
 
 void AArch64GenProEpilog::AppendJump(const MIRSymbol &funcSymbol) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  CG *currCG = cgFunc.GetCG();
   Operand &targetOpnd = aarchCGFunc.GetOrCreateFuncNameOpnd(funcSymbol);
-  cgFunc.GetCurBB()->AppendInsn(currCG->BuildInstruction<AArch64Insn>(MOP_xuncond, targetOpnd));
+  cgFunc.GetCurBB()->AppendInsn(cgFunc.GetInsnBuilder()->BuildInsn(MOP_xuncond, targetOpnd));
 }
 
 void AArch64GenProEpilog::AppendBBtoEpilog(BB &epilogBB, BB &newBB) {
   if (epilogBB.GetPreds().empty() && cgFunc.GetMirModule().IsCModule() && cgFunc.GetCG()->DoTailCall()) {
     epilogBB.SetNeedRestoreCfi(false);
-    Insn &junk = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(MOP_pseudo_none);
+    Insn &junk = cgFunc.GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_pseudo_none);
     epilogBB.AppendInsn(junk);
     return;
   }
@@ -1492,7 +1487,8 @@ void AArch64GenProEpilog::AppendBBtoEpilog(BB &epilogBB, BB &newBB) {
     insn->SetDoNotRemove(true);
   }
   Insn *lastInsn = epilogBB.GetLastInsn();
-  while (lastInsn != nullptr && (!lastInsn->IsMachineInstruction() || lastInsn->IsPseudoInstruction())) {
+  while (lastInsn != nullptr && (!lastInsn->IsMachineInstruction() ||
+                                 AArch64isa::IsPseudoInstruction(lastInsn->GetMachineOpcode()))) {
     lastInsn = lastInsn->GetPrev();
   }
   bool isTailCall = lastInsn == nullptr ? false : lastInsn->IsTailCall();
@@ -1507,6 +1503,7 @@ void AArch64GenProEpilog::AppendBBtoEpilog(BB &epilogBB, BB &newBB) {
   } else {
     epilogBB.AppendBBInsns(newBB);
   }
+  epilogBB.SetNeedRestoreCfi(true);;
 }
 
 void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
@@ -1563,7 +1560,6 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
 
   GenerateRet(*(cgFunc.GetCurBB()));
   AppendBBtoEpilog(epilogBB, *cgFunc.GetCurBB());
-  epilogBB.SetNeedRestoreCfi(true);;
   if (cgFunc.GetCurBB()->GetHasCfi()) {
     epilogBB.SetHasCfi();
   }
@@ -1574,14 +1570,13 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
 
 void AArch64GenProEpilog::GenerateEpilogForCleanup(BB &bb) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  CG *currCG = cgFunc.GetCG();
   CHECK_FATAL(!cgFunc.GetExitBBsVec().empty(), "exit bb size is zero!");
   if (cgFunc.GetExitBB(0)->IsUnreachable()) {
     /* if exitbb is unreachable then exitbb can not be generated */
     GenerateEpilog(bb);
   } else if (aarchCGFunc.NeedCleanup()) {  /* bl to the exit epilogue */
     LabelOperand &targetOpnd = aarchCGFunc.GetOrCreateLabelOperand(cgFunc.GetExitBB(0)->GetLabIdx());
-    bb.AppendInsn(currCG->BuildInstruction<AArch64Insn>(MOP_xuncond, targetOpnd));
+    bb.AppendInsn(cgFunc.GetInsnBuilder()->BuildInsn(MOP_xuncond, targetOpnd));
   }
 }
 
@@ -1600,7 +1595,8 @@ void AArch64GenProEpilog::Run() {
   }
 
   if (cgFunc.IsExitBBsVecEmpty()) {
-    if (cgFunc.GetLastBB()->GetPrev()->GetFirstStmt() == cgFunc.GetCleanupLabel() &&
+    if (cgFunc.GetCleanupLabel() != nullptr &&
+        cgFunc.GetLastBB()->GetPrev()->GetFirstStmt() == cgFunc.GetCleanupLabel() &&
         cgFunc.GetLastBB()->GetPrev()->GetPrev()) {
       cgFunc.PushBackExitBBsVec(*cgFunc.GetLastBB()->GetPrev()->GetPrev());
     } else {

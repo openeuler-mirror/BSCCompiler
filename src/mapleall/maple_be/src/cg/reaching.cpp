@@ -70,9 +70,11 @@ void ReachingDefinition::ClearDefUseInfo() {
     /* Keep return pseudo to extend the return register liveness to 'ret'.
      * Backward propagation can move the return register definition far from the return.
      */
-    if (insn->IsReturnPseudoInstruction()) {
+#ifndef TARGX86_64
+    if (insn->GetMachineOpcode() == MOP_pseudo_ret_int || insn->GetMachineOpcode() == MOP_pseudo_ret_float) {
       continue;
     }
+#endif
     insn->GetBB()->RemoveInsn(*insn);
   }
   FOR_ALL_BB(bb, cgFunc) {
@@ -572,7 +574,7 @@ void ReachingDefinition::Initialize() {
     InitOut(*bb);
 
     if (bb->IsCleanup()) {
-      if (bb->GetFirstStmt() == cgFunc->GetCleanupLabel()) {
+      if (cgFunc->GetCleanupLabel() != nullptr && bb->GetFirstStmt() == cgFunc->GetCleanupLabel()) {
         firstCleanUpBB = bb;
       }
       (void)cleanUpBBSet.insert(bb);
@@ -978,6 +980,59 @@ bool ReachingDefinition::RegIsLiveBetweenInsn(uint32 regNO, Insn &startInsn, Ins
   return IsLiveInAllPathBB(regNO, *startInsn.GetBB(), *endInsn.GetBB(), visitedBB, isFirstNo);
 }
 
+static bool SetDefInsnVecForAsm(Insn *insn, uint32 index, uint32 regNO, std::vector<Insn *> &defInsnVec) {
+  for (auto reg : static_cast<ListOperand&>(insn->GetOperand(index)).GetOperands()) {
+    if (static_cast<RegOperand *>(reg)->GetRegisterNumber() == regNO) {
+      defInsnVec.emplace_back(insn);
+      return true;
+    }
+  }
+  return false;
+}
+
+std::vector<Insn*> ReachingDefinition::FindRegDefBetweenInsn(
+      uint32 regNO, Insn *startInsn, Insn *endInsn, bool findAll, bool analysisDone) const {
+  std::vector<Insn*> defInsnVec;
+  if (startInsn == nullptr || endInsn == nullptr) {
+    return defInsnVec;
+  }
+
+  ASSERT(startInsn->GetBB() == endInsn->GetBB(), "two insns must be in a same BB");
+  if (analysisDone && !regGen[startInsn->GetBB()->GetId()]->TestBit(regNO)) {
+    return defInsnVec;
+  }
+
+  for (Insn *insn = endInsn; insn != nullptr && insn != startInsn->GetPrev(); insn = insn->GetPrev()) {
+    if (!insn->IsMachineInstruction()) {
+      continue;
+    }
+
+    if (insn->IsAsmInsn()) {
+      if (SetDefInsnVecForAsm(insn, kAsmOutputListOpnd, regNO, defInsnVec) ||
+          SetDefInsnVecForAsm(insn, kAsmClobberListOpnd, regNO, defInsnVec)) {
+        if (findAll) {
+          defInsnVec.emplace_back(insn);
+        } else {
+          return defInsnVec;
+        }
+      }
+    }
+    if (insn->IsCall() && IsRegKilledByCallInsn(*insn, regNO)) {
+      defInsnVec.emplace_back(insn);
+      if (!findAll) {
+        return defInsnVec;
+      }
+    }
+    if (insn->IsRegDefined(regNO)) {
+      defInsnVec.emplace_back(insn);
+      if (!findAll) {
+        return defInsnVec;
+      }
+    }
+  }
+  return defInsnVec;
+}
+
 bool ReachingDefinition::RegIsUsedOrDefBetweenInsn(uint32 regNO, Insn &startInsn, Insn &endInsn) const {
   ASSERT(&startInsn != &endInsn, "startInsn is not equal to endInsn");
   if (startInsn.GetBB() == endInsn.GetBB()) {
@@ -1120,7 +1175,7 @@ bool ReachingDefinition::IsUseOrDefInAllPathBB(uint32 regNO, const BB &startBB, 
 bool ReachingDefinition::HasCallBetweenInsnInSameBB(const Insn &startInsn, const Insn &endInsn) const {
   ASSERT(startInsn.GetBB() == endInsn.GetBB(), "two insns must be in same bb");
   for (const Insn *insn = &startInsn; insn != endInsn.GetNext(); insn = insn->GetNext()) {
-    if (insn->IsCall()) {
+    if (insn->IsMachineInstruction() && insn->IsCall()) {
       return true;
     }
   }

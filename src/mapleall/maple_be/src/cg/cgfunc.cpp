@@ -434,13 +434,13 @@ Operand *HandleVectorMerge(const IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
 Operand *HandleVectorGetHigh(const IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   PrimType rType = intrnNode.GetPrimType();                            /* result operand */
   Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand */
-  return cgFunc.SelectVectorGetHigh(rType, opnd1);
+  return cgFunc.SelectVectorDup(rType, opnd1, false);
 }
 
 Operand *HandleVectorGetLow(const IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   PrimType rType = intrnNode.GetPrimType();                            /* result operand */
   Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand */
-  return cgFunc.SelectVectorGetLow(rType, opnd1);
+  return cgFunc.SelectVectorDup(rType, opnd1, true);
 }
 
 Operand *HandleVectorGetElement(const IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
@@ -1110,7 +1110,7 @@ void HandleCondbr(StmtNode &stmt, CGFunc &cgFunc) {
       zeroOpnd = &cgFunc.CreateImmOperand(primType, 0);
     } else {
       ASSERT(((PTY_f32 == primType) || (PTY_f64 == primType)), "we don't support half-precision FP operands yet");
-      zeroOpnd = &cgFunc.CreateFPImmZero(primType);
+      zeroOpnd = &cgFunc.CreateImmOperand(primType, 0);
     }
     cgFunc.SelectCondGoto(condGotoNode, *opnd0, *zeroOpnd);
     cgFunc.SetCurBB(*cgFunc.StartNewBB(condGotoNode));
@@ -1431,6 +1431,7 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
       beCommon(beCommon),
       funcScopeAllocator(&allocator),
       emitStVec(allocator.Adapter()),
+      switchLabelCnt(allocator.Adapter()),
 #if TARGARM32
       sortedBBs(allocator.Adapter()),
       lrVec(allocator.Adapter()),
@@ -1450,7 +1451,7 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
   }
 
   insnBuilder = memPool.New<InsnBuilder>(memPool);
-  opndBuilder = memPool.New<OperandBuilder>(memPool);
+  opndBuilder = memPool.New<OperandBuilder>(memPool, func.GetPregTab()->Size());
 
   vRegTable.resize(maxRegCount);
   /* func.GetPregTab()->_preg_table[0] is nullptr, so skip it */
@@ -1534,7 +1535,7 @@ bool CGFunc::CheckSkipMembarOp(const StmtNode &stmt) {
   return false;
 }
 
-void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos) const {
+void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos) {
   /* insert Insn for .loc before cg for the stmt */
   if (cg->GetCGOptions().WithLoc() && stmt->op != OP_label && stmt->op != OP_comment) {
     /* if original src file location info is availiable for this stmt,
@@ -1551,7 +1552,8 @@ void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &l
       Operand *o0 = CreateDbgImmOperand(newSrcPos.FileNum());
       Operand *o1 = CreateDbgImmOperand(newSrcPos.LineNum());
       Operand *o2 = CreateDbgImmOperand(newSrcPos.Column());
-      Insn &loc = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1, *o2);
+      Insn &loc =
+          GetInsnBuilder()->BuildDbgInsn(mpldbg::OP_DBG_loc).AddOpndChain(*o0).AddOpndChain(*o1).AddOpndChain(*o2);
       curBB->AppendInsn(loc);
       lastSrcPos.UpdateWith(newSrcPos);
       hasLoc = true;
@@ -1561,7 +1563,8 @@ void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &l
       Operand *o0 = CreateDbgImmOperand(1);
       Operand *o1 = CreateDbgImmOperand(newSrcPos.MplLineNum());
       Operand *o2 = CreateDbgImmOperand(0);
-      Insn &loc = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1, *o2);
+      Insn &loc =
+          GetInsnBuilder()->BuildDbgInsn(mpldbg::OP_DBG_loc).AddOpndChain(*o0).AddOpndChain(*o1).AddOpndChain(*o2);
       curBB->AppendInsn(loc);
       lastMplPos.UpdateWith(newSrcPos);
     }
@@ -1594,7 +1597,7 @@ void CGFunc::GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &p
       }
       Operand *o0 = CreateDbgImmOperand(id);
       Operand *o1 = CreateDbgImmOperand(1);
-      Insn &scope = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_scope, *o0, *o1);
+      Insn &scope = GetInsnBuilder()->BuildDbgInsn(mpldbg::OP_DBG_scope).AddOpndChain(*o0).AddOpndChain(*o1);
       curBB->AppendInsn(scope);
       (void)scpIdSet.erase(id);
     }
@@ -1605,7 +1608,7 @@ void CGFunc::GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &p
       }
       Operand *o0 = CreateDbgImmOperand(id);
       Operand *o1 = CreateDbgImmOperand(0);
-      Insn &scope = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_scope, *o0, *o1);
+      Insn &scope = GetInsnBuilder()->BuildDbgInsn(mpldbg::OP_DBG_scope).AddOpndChain(*o0).AddOpndChain(*o1);
       curBB->AppendInsn(scope);
       (void)scpIdSet.insert(id);
     }
@@ -1825,7 +1828,9 @@ void CGFunc::GenerateInstruction() {
   curBB->SetLastStmt(*block->GetLast());
   curBB->SetFrequency(frequency);
   lastBB = curBB;
-  cleanupBB = lastBB->GetPrev();
+  if (this->cleanupLabel != nullptr) {
+    cleanupBB = lastBB->GetPrev();
+  }
   /* All stmts are handled */
   frequency = 0;
 }
@@ -1917,6 +1922,9 @@ void CGFunc::MarkCatchBBs() {
  * No ehSuccs or eh_prevs between cleanup bbs.
  */
 void CGFunc::MarkCleanupEntryBB() {
+  if (this->cleanupLabel == nullptr) {
+    return;
+  }
   BB *cleanupEntry = nullptr;
   FOR_ALL_BB(bb, this) {
     bb->SetIsCleanup(0);      /* Use to mark cleanup bb */
@@ -2036,7 +2044,7 @@ void CGFunc::MakeupScopeLabels(BB &bb) {
     for (rit=scpIdSet.rbegin(); rit != scpIdSet.rend(); ++rit) {
       Operand *o0 = CreateDbgImmOperand(*rit);
       Operand *o1 = CreateDbgImmOperand(1);
-      Insn &scope = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_scope, *o0, *o1);
+      Insn &scope = GetInsnBuilder()->BuildDbgInsn(mpldbg::OP_DBG_scope).AddOpndChain(*o0).AddOpndChain(*o1);
       bb.AppendInsn(scope);
     }
   }
@@ -2045,8 +2053,14 @@ void CGFunc::MakeupScopeLabels(BB &bb) {
 void CGFunc::ProcessExitBBVec() {
   if (exitBBVec.empty()) {
     LabelIdx newLabelIdx = CreateLabel();
-    BB *retBB = CreateNewBB(newLabelIdx, cleanupBB->IsUnreachable(), BB::kBBReturn, cleanupBB->GetFrequency());
-    cleanupBB->PrependBB(*retBB);
+    BB *retBB = nullptr;
+    if (cleanupBB != nullptr) {
+      retBB = CreateNewBB(newLabelIdx, cleanupBB->IsUnreachable(), BB::kBBReturn, cleanupBB->GetFrequency());
+      cleanupBB->PrependBB(*retBB);
+    } else {
+      retBB = CreateNewBB(newLabelIdx, lastBB->IsUnreachable(), BB::kBBReturn, lastBB->GetFrequency());
+      lastBB->PrependBB(*retBB);
+    }
     exitBBVec.emplace_back(retBB);
     MakeupScopeLabels(*retBB);
     return;
@@ -2252,7 +2266,7 @@ void CGFunc::DumpBBInfo(const BB *bb) const {
   LogInfo::MapleLogger() << "frequency:" << bb->GetFrequency() << "\n";
 }
 
-void CGFunc::DumpCGIR(bool withTargetInfo) const {
+void CGFunc::DumpCGIR() const {
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());
   ASSERT(funcSt != nullptr, "null ptr check");
   LogInfo::MapleLogger() << "\n******  CGIR for " << funcSt->GetName() << " *******\n";
@@ -2262,11 +2276,7 @@ void CGFunc::DumpCGIR(bool withTargetInfo) const {
     }
     DumpBBInfo(bb);
     FOR_BB_INSNS_CONST(insn, bb) {
-      if (withTargetInfo) {
-        DumpTargetIR(*insn);
-      } else {
-        insn->Dump();
-      }
+      insn->Dump();
     }
   }
 }
@@ -2316,12 +2326,11 @@ void CGFunc::PatchLongBranch() {
     if (bb->GetKind() != BB::kBBIf && bb->GetKind() != BB::kBBGoto) {
       continue;
     }
-    Insn * insn = bb->GetLastMachineInsn();
+    Insn *insn = bb->GetLastMachineInsn();
     while (insn->IsImmaterialInsn()) {
       insn = insn->GetPrev();
     }
-    LabelIdx labidx = static_cast<LabelOperand&>(insn->GetOperand(insn->GetJumpTargetIdx())).GetLabelIndex();
-    BB *tbb = GetBBFromLab2BBMap(labidx);
+    BB *tbb = GetBBFromLab2BBMap(GetLabelInInsn(*insn));
     if ((tbb->GetInternalFlag1() - bb->GetInternalFlag1()) < MaxCondBranchDistance()) {
       continue;
     }

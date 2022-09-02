@@ -97,7 +97,7 @@ class CGCFG {
   void RetargetJump(BB &srcBB, BB &targetBB) const;
 
   /* Loop up if the given label is in the exception tables in LSDA */
-  static bool InLSDA(LabelIdx label, const EHFunc &ehFunc);
+  static bool InLSDA(LabelIdx label, const EHFunc *ehFunc);
   static bool InSwitchTable(LabelIdx label, const CGFunc &func);
 
   RegOperand *CreateVregFromReg(const RegOperand &pReg) const;
@@ -119,10 +119,12 @@ class CGCFG {
   void BreakCriticalEdge(BB &pred, BB &succ);
  /* cgcfgvisitor */
  private:
-  CGFunc *cgFunc;
+  CGFunc *cgFunc = nullptr;
   static InsnVisitor *insnVisitor;
   static void MergeBB(BB &merger, BB &mergee);
 };  /* class CGCFG */
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgHandleCFG, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_CG_CFG_H */

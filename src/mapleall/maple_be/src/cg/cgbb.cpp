@@ -502,7 +502,7 @@ void Bfs::ComputeBlockOrder() {
   FOR_ALL_BB(bb, cgfunc) {
     bb->SetInternalFlag1(0);
     bb->SetInternalFlag2(1);
-    if (bb->GetFirstStmt() == cgfunc->GetCleanupLabel()) {
+    if (cgfunc->GetCleanupLabel() != nullptr && bb->GetFirstStmt() == cgfunc->GetCleanupLabel()) {
       cleanupBB = bb;
     }
   }

@@ -6947,8 +6947,6 @@ RegOperand &AArch64CGFunc::CreateRflagOperand() {
 }
 
 void AArch64CGFunc::MergeReturn() {
-  ASSERT(GetCurBB()->GetPrev()->GetFirstStmt() == GetCleanupLabel(), "must be");
-
   uint32 exitBBSize = GetExitBBsVec().size();
   if (exitBBSize == 0) {
     return;
@@ -6967,7 +6965,7 @@ void AArch64CGFunc::MergeReturn() {
     BB *onlyExitBBNext = onlyExitBB->GetNext();
     StmtNode *stmt = onlyExitBBNext->GetFirstStmt();
     /* only deal with the return_BB in the middle */
-    if (stmt != GetCleanupLabel()) {
+    if (GetCleanupLabel() != nullptr && stmt != GetCleanupLabel()) {
       LabelIdx labidx = CreateLabel();
       BB *retBB = CreateNewBB(labidx, onlyExitBB->IsUnreachable(), BB::kBBReturn, onlyExitBB->GetFrequency());
       onlyExitBB->AppendBB(*retBB);
@@ -6991,7 +6989,11 @@ void AArch64CGFunc::MergeReturn() {
     freq += tmpBB->GetFrequency();
   }
   BB *retBB = CreateNewBB(labidx, false, BB::kBBReturn, freq);
-  GetCleanupBB()->PrependBB(*retBB);
+  if (GetCleanupBB() != nullptr) {
+    GetCleanupBB()->PrependBB(*retBB);
+  } else {
+    GetLastBB()->PrependBB(*retBB);
+  }
 
   GetExitBBsVec().clear();
   GetExitBBsVec().emplace_back(retBB);
