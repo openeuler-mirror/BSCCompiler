@@ -129,7 +129,6 @@ bool ChainingPattern::MoveSuccBBAsCurBBNext(BB &curBB, BB &sucBB) {
     sucBB.GetNext()->SetPrev(sucBB.GetPrev());
   }
   sucBB.SetNext(curBB.GetNext());
-  ASSERT(curBB.GetNext() != nullptr, "current goto BB will not be the last bb");
   curBB.GetNext()->SetPrev(&sucBB);
   sucBB.SetPrev(&curBB);
   curBB.SetNext(&sucBB);
@@ -249,7 +248,7 @@ bool ChainingPattern::Optimize(BB &curBB) {
                !(sucBB->GetNext() != nullptr && sucBB->GetNext()->IsPredecessor(*sucBB)) &&
                !IsLabelInLSDAOrSwitchTable(sucBB->GetLabIdx()) &&
                sucBB->GetEhSuccs().empty() &&
-               sucBB->GetKind() != BB::kBBThrow) {
+               sucBB->GetKind() != BB::kBBThrow && curBB.GetNext() != nullptr) {
       return MoveSuccBBAsCurBBNext(curBB, *sucBB);
     }
     /*
