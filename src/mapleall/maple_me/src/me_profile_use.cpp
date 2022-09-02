@@ -305,14 +305,13 @@ FuncProfInfo *MeProfUse::GetFuncData() {
   return funcData;
 }
 
-bool MeProfUse::CheckSumFail(const uint64 hash, const uint32 expectedCheckSum, const std::string &tag) {
+void MeProfUse::CheckSumFail(const uint64 hash, const uint32 expectedCheckSum, const std::string &tag) {
   uint32 curCheckSum = static_cast<uint32>((hash >> 32) ^ (hash & 0xffffffff));
   if (curCheckSum != expectedCheckSum) {
     LogInfo::MapleLogger() << func->GetName() << "() " << tag << " checksum " << curCheckSum
                            << " doesn't match the expected " << expectedCheckSum << "; aborting\n";
     abort();
   }
-  return false;
 }
 
 bool MeProfUse::MapleProfRun() {
@@ -321,15 +320,13 @@ bool MeProfUse::MapleProfRun() {
     return false;
   }
   func->GetMirFunc()->SetFuncProfData(funcData);
-  // early return if lineno fail
-  if (CheckSumFail(ComputeLinenoHash(), funcData->linenoChecksum, "lineno")) {
-    return false;
-  }
+  // Abort if lineno fail
+  CheckSumFail(ComputeLinenoHash(), funcData->linenoChecksum, "lineno");
+
   FindInstrumentEdges();
-  // early return if cfgchecksum fail
-  if (CheckSumFail(ComputeFuncHash(), funcData->cfgChecksum, "function")) {
-    return false;
-  }
+  // Abort if cfgchecksum fail
+  CheckSumFail(ComputeFuncHash(), funcData->cfgChecksum, "function");
+
   std::vector<BB*> instrumentBBs;
   GetInstrumentBBs(instrumentBBs);
   if (dump) {
