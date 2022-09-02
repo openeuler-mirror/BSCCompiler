@@ -556,8 +556,8 @@ void X64MPIsel::SelectIcall(IcallNode &iCallNode, Operand &opnd0) {
 
   MIRType *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iCallNode.GetRetTyIdx());
   if (iCallNode.GetOpCode() == OP_icallproto) {
-    CHECK_FATAL((retType->GetKind() == kTypeFunction), "NIY, must be func");
-    auto calleeType = static_cast<MIRFuncType*>(retType);
+    MIRPtrType *ptrType = static_cast<MIRPtrType *>(retType);
+    MIRFuncType *calleeType = static_cast<MIRFuncType*>(ptrType->GetPointedType());
     retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(calleeType->GetRetTyIdx());
   }
   ListOperand &retOpnds = cgFunc->GetOpndBuilder()->CreateList();

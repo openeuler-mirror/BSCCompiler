@@ -2410,6 +2410,7 @@ class BlockNode : public StmtNode {
     for (auto &stmt : stmtNodeList) {
       StmtNode *newStmt = static_cast<StmtNode*>(stmt.CloneTree(allocator));
       ASSERT(newStmt != nullptr, "null ptr check");
+      newStmt->SetMeStmtID(stmt.GetMeStmtID());
       newStmt->SetPrev(nullptr);
       newStmt->SetNext(nullptr);
       blk->AddStatement(newStmt);
@@ -3431,7 +3432,9 @@ class IcallNode : public NaryStmtNode {
   }
 
  private:
-  TyIdx retTyIdx;  // for icall: return type for callee; for icallproto: the prototye
+  TyIdx retTyIdx;
+  // for icall: return type for callee;
+  // for icallproto: return ptr for callee function type
   // the 0th operand is the function pointer
   CallReturnVector returnValues;
 };

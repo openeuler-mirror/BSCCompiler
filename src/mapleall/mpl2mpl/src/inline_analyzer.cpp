@@ -13,14 +13,11 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "inline_analyzer.h"
-
 #include <fstream>
 #include <iostream>
-
 #include "factory.h"
 #include "global_tables.h"
 #include "mpl_logging.h"
-#include "ssa_tab.h"
 
 namespace maple {
 
