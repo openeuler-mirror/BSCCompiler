@@ -30,10 +30,29 @@ MIRType *LibAstFile::CvtPrimType(const clang::QualType qualType, bool isSourceTy
   MIRType *destType = nullptr;
   if (llvm::isa<clang::BuiltinType>(srcType)) {
     const auto *builtinType = llvm::cast<clang::BuiltinType>(srcType);
+    if (isSourceType) {
+      MIRType *sourceType = CvtPrimType2SourceType(builtinType->getKind());
+      if (sourceType != nullptr) {
+        return sourceType;
+      }
+    }
     PrimType primType = CvtPrimType(builtinType->getKind(), isSourceType);
     destType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(primType);
   }
   return destType;
+}
+
+MIRType *LibAstFile::CvtPrimType2SourceType(const clang::BuiltinType::Kind kind) const {
+  switch (kind) {
+    case clang::BuiltinType::ULong:
+      return FEManager::GetTypeManager().GetOrCreateTypeByNameType(kDbgULong);
+    case clang::BuiltinType::Long:
+      return FEManager::GetTypeManager().GetOrCreateTypeByNameType(kDbgLong);
+    case clang::BuiltinType::LongDouble:
+      return FEManager::GetTypeManager().GetOrCreateTypeByNameType(kDbgLongDouble);
+    default:
+      return nullptr;
+  }
 }
 
 PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind, bool isSourceType) const {
@@ -51,11 +70,7 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind, bool isSou
     case clang::BuiltinType::UInt:
       return PTY_u32;
     case clang::BuiltinType::ULong:
-      if (Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) {
-        return PTY_u32;
-      } else {
-        return PTY_u64;
-      }
+      return Triple::GetTriple().GetEnvironment() == Triple::GNUILP32 ? PTY_u32 : PTY_u64;
     case clang::BuiltinType::ULongLong:
       return PTY_u64;
     case clang::BuiltinType::UInt128:
@@ -71,11 +86,7 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind, bool isSou
     case clang::BuiltinType::Int:
       return PTY_i32;
     case clang::BuiltinType::Long:
-      if (Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) {
-        return PTY_i32;
-      } else {
-        return PTY_i64;
-      }
+      return Triple::GetTriple().GetEnvironment() == Triple::GNUILP32 ? PTY_i32 : PTY_i64;
     case clang::BuiltinType::LongLong:
       return PTY_i64;
     case clang::BuiltinType::Int128:
