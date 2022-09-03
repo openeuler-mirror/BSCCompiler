@@ -22,6 +22,7 @@
 #include "mir_builder.h"
 #include "factory.h"
 #include "debug_info.h"
+#include "cfgo.h"
 #include "optimize_common.h"
 #include "me_function.h"
 
@@ -1426,6 +1427,7 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
       stackMp(stackMp),
       func(mirFunc),
       exitBBVec(allocator.Adapter()),
+      noReturnCallBBVec(allocator.Adapter()),
       extendSet(allocator.Adapter()),
       lab2BBMap(allocator.Adapter()),
       beCommon(beCommon),
@@ -1533,6 +1535,19 @@ bool CGFunc::CheckSkipMembarOp(const StmtNode &stmt) {
   }
 #endif /* TARGAARCH64 */
   return false;
+}
+
+void CGFunc::RemoveUnreachableBB() {
+  OptimizationPattern *pattern = memPool->New<UnreachBBPattern>(*this);
+  for (BB *bb = firstBB; bb != nullptr; bb = bb->GetNext()) {
+    pattern->Optimize(*bb);
+    if (bb->GetPreds().size() == 0 && bb->GetSuccs().size() == 0) {
+      auto it = find(noReturnCallBBVec.begin(), noReturnCallBBVec.end(), bb);
+      if (it != noReturnCallBBVec.end()) {
+        noReturnCallBBVec.erase(it);
+      }
+    }
+  }
 }
 
 void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos) {
@@ -2091,11 +2106,6 @@ void CGFunc::ProcessExitBBVec() {
 }
 
 void CGFunc::AddCommonExitBB() {
-  uint32 i = 0;
-  while (exitBBVec[i]->IsUnreachable() && i < exitBBVec.size()) {
-    i++;
-  }
-  ASSERT(i < exitBBVec.size(), "all exit BBs are unreachable");
   // create fake commonExitBB
   commonExitBB = CreateNewBB(true, BB::kBBFallthru, 0);
   ASSERT(commonExitBB != nullptr, "cannot create fake commonExitBB");
@@ -2103,6 +2113,9 @@ void CGFunc::AddCommonExitBB() {
     if (!cgbb->IsUnreachable()) {
       commonExitBB->PushBackPreds(*cgbb);
     }
+  }
+  for (BB *cgbb : noReturnCallBBVec) {
+    commonExitBB->PushBackPreds(*cgbb);
   }
 }
 
@@ -2143,6 +2156,7 @@ void CGFunc::HandleFunction() {
   /* build control flow graph */
   theCFG = memPool->New<CGCFG>(*this);
   theCFG->BuildCFG();
+  RemoveUnreachableBB();
   AddCommonExitBB();
   if (mirModule.GetSrcLang() != kSrcLangC) {
     MarkCatchBBs();

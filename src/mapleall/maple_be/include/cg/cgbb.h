@@ -15,7 +15,11 @@
 #ifndef MAPLEBE_INCLUDE_CG_CGBB_H
 #define MAPLEBE_INCLUDE_CG_CGBB_H
 
+#if TARGAARCH64
+#include "aarch64/aarch64_isa.h"
+#elif TARGX86_64
 #include "isa.h"
+#endif
 #include "insn.h"
 #include "datainfo.h"
 
@@ -79,6 +83,7 @@ class BB {
     kBBGoto,      /* unconditional branch */
     kBBIgoto,
     kBBReturn,
+    kBBNoReturn,
     kBBIntrinsic,  /* BB created by inlining intrinsics; shares a lot with BB_if */
     kBBRangeGoto,
     kBBThrow,      /* For call __java_throw_* and call exit, which will run out of function. */
@@ -336,7 +341,11 @@ class BB {
   }
   Insn *GetLastMachineInsn() {
     FOR_BB_INSNS_REV(insn, this) {
-      if (insn->IsMachineInstruction() && !insn->IsPseudoInstruction()) {
+#if TARGAARCH64
+      if (insn->IsMachineInstruction() && !AArch64isa::IsPseudoInstruction(insn->GetMachineOpcode())) {
+#elif TARGX86_64
+      if (insn->IsMachineInstruction()) {
+#endif
         return insn;
       }
     }

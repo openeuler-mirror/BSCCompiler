@@ -317,6 +317,14 @@ void BB::Dump() const {
   if (unreachable) {
     LogInfo::MapleLogger() << "[unreachable] ";
   }
+  LogInfo::MapleLogger() << "succs ";
+  for (auto *bb : succs) {
+    LogInfo::MapleLogger() << bb->id << " ";
+  }
+  LogInfo::MapleLogger() << "preds ";
+  for (auto *bb : preds) {
+    LogInfo::MapleLogger() << bb->id << " ";
+  }
   LogInfo::MapleLogger() << "frequency:" << frequency << "===\n";
 
   Insn *insn = firstInsn;

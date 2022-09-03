@@ -129,7 +129,14 @@ bool ChainingPattern::MoveSuccBBAsCurBBNext(BB &curBB, BB &sucBB) {
     sucBB.GetNext()->SetPrev(sucBB.GetPrev());
   }
   sucBB.SetNext(curBB.GetNext());
-  curBB.GetNext()->SetPrev(&sucBB);
+  if (curBB.GetNext() != nullptr) {
+    curBB.GetNext()->SetPrev(&sucBB);
+  }
+  if (sucBB.GetId() == cgFunc->GetLastBB()->GetId()) {
+    cgFunc->SetLastBB(*(sucBB.GetPrev()));
+  } else if (curBB.GetId() == cgFunc->GetLastBB()->GetId()) {
+    cgFunc->SetLastBB(sucBB);
+  }
   sucBB.SetPrev(&curBB);
   curBB.SetNext(&sucBB);
   curBB.RemoveInsn(*curBB.GetLastInsn());
@@ -717,7 +724,8 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
     }
     /* if curBB in exitbbsvec,return false. */
     if (cgFunc->IsExitBB(curBB)) {
-      curBB.SetUnreachable(false);
+      /* In C some bb follow noreturn calls should remain unreachable */
+      curBB.SetUnreachable(cgFunc->GetMirModule().GetSrcLang() == kSrcLangC);
       return false;
     }
 
@@ -751,6 +759,8 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
     }
     if (curBB.GetNext() != nullptr) {
       curBB.GetNext()->SetPrev(curBB.GetPrev());
+    } else {
+      cgFunc->SetLastBB(*(curBB.GetPrev()));
     }
 
     /* flush after remove; */

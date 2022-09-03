@@ -141,7 +141,7 @@ void EHThrow::ConvertThrowToRethrow(CGFunc &cgFunc) const {
 
 void EHThrow::Lower(CGFunc &cgFunc) {
   BaseNode *opnd0 = rethrow->Opnd(0);
-  ASSERT(((opnd0->GetPrimType() == LOWERED_PTR_TYPE) || (opnd0->GetPrimType() == PTY_ref)),
+  ASSERT(((opnd0->GetPrimType() == GetLoweredPtrType()) || (opnd0->GetPrimType() == PTY_ref)),
          "except a dread of a pointer to get its type");
   MIRFunction &mirFunc = cgFunc.GetFunction();
   MIRModule *mirModule = mirFunc.GetModule();
@@ -183,7 +183,7 @@ void EHThrow::Lower(CGFunc &cgFunc) {
     case OP_regread: {
       RegreadNode *rrNode = static_cast<RegreadNode*>(opnd0);
       MIRPreg *pReg = mirFunc.GetPregTab()->PregFromPregIdx(rrNode->GetRegIdx());
-      ASSERT(pReg->GetPrimType() == LOWERED_PTR_TYPE, "must be a pointer type");
+      ASSERT(pReg->GetPrimType() == GetLoweredPtrType(), "must be a pointer type");
       pstType = pReg->GetMIRType();
       arg = rrNode->CloneTree(mirModule->GetCurFuncCodeMPAllocator());
       break;
@@ -366,8 +366,8 @@ void EHFunc::LowerThrow() {
       }
       case OP_regread: {
         RegreadNode *rrNode = static_cast<RegreadNode*>(opnd0);
-        ASSERT(mirFunc.GetPregTab()->PregFromPregIdx(rrNode->GetRegIdx())->GetPrimType() == LOWERED_PTR_TYPE,
-               "expect LOWERED_PTR_TYPE");
+        ASSERT(mirFunc.GetPregTab()->PregFromPregIdx(rrNode->GetRegIdx())->GetPrimType() == GetLoweredPtrType(),
+               "expect GetLoweredPtrType()");
         ASSERT(mirFunc.GetPregTab()->PregFromPregIdx(rrNode->GetRegIdx())->GetMIRType()->GetKind() == kTypePointer,
                "expect pointer type");
         rethrow->ConvertThrowToRuntime(*cgFunc, *rrNode->CloneTree(
@@ -512,6 +512,7 @@ void EHFunc::InsertDefaultLabelAndAbortFunc(BlockNode &blkNode, SwitchNode &swit
   StmtNode *dfLabStmt = mirModule.GetMIRBuilder()->CreateStmtLabel(dfLabIdx);
   blkNode.InsertAfter(&beforeEndLabel, dfLabStmt);
   MIRFunction *calleeFunc = mirModule.GetMIRBuilder()->GetOrCreateFunction("abort", static_cast<TyIdx>(PTY_void));
+  calleeFunc->SetAttr(FUNCATTR_noreturn);
   cgFunc->GetBecommon().UpdateTypeTable(*calleeFunc->GetMIRFuncType());
   MapleVector<BaseNode*> args(mirModule.GetMIRBuilder()->GetCurrentFuncCodeMpAllocator()->Adapter());
   CallNode *callExit = mirModule.GetMIRBuilder()->CreateStmtCall(calleeFunc->GetPuidx(), args);
@@ -574,7 +575,7 @@ void EHFunc::InsertEHSwitchTable() {
     blockNode->InsertBlockAfter(*switchLower.LowerSwitch(), endLabelPrevNode);
     ehTry->SetFallthruGoto(endLabelPrevNode->GetNext());
   }
-  if (!cgFunc->GetCG()->IsQuiet()) {
+  if (!CGOptions::IsQuiet()) {
     cgFunc->GetFunction().Dump();
   }
 }
@@ -599,7 +600,7 @@ void EHFunc::InsertCxaAfterEachCatch(const std::vector<std ::pair<LabelIdx, Catc
     cgFunc->GetBecommon().UpdateTypeTable(*calleeFunc->GetMIRFuncType());
     RegreadNode *retRegRead0 = mirModule.CurFuncCodeMemPool()->New<RegreadNode>();
     retRegRead0->SetRegIdx(-kSregRetval0);
-    retRegRead0->SetPrimType(LOWERED_PTR_TYPE);
+    retRegRead0->SetPrimType(GetLoweredPtrType());
     MapleVector<BaseNode*> args(mirModule.GetMIRBuilder()->GetCurrentFuncCodeMpAllocator()->Adapter());
     args.emplace_back(retRegRead0);
     CallNode *callAssign = mirModule.GetMIRBuilder()->CreateStmtCall(calleeFunc->GetPuidx(), args);

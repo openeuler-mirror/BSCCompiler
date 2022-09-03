@@ -163,6 +163,7 @@ class CGFunc {
   virtual void AssignLmbcFormalParams() = 0;
   LmbcFormalParamInfo *GetLmbcFormalParamInfo(uint32 offset);
   virtual void LmbcGenSaveSpForAlloca() = 0;
+  void RemoveUnreachableBB();
   void GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos);
   void GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &posDone);
   int32 GetFreqFromStmt(uint32 stmtId);
@@ -803,6 +804,10 @@ class CGFunc {
     return exitBBVec.at(index);
   }
 
+  void PushBackNoReturnCallBBsVec(BB &bb) {
+    noReturnCallBBVec.emplace_back(&bb);
+  }
+
   void SetLab2BBMap(int32 index, BB &bb) {
     lab2BBMap[index] = &bb;
   }
@@ -1335,6 +1340,7 @@ class CGFunc {
   BB *commonExitBB = nullptr;  /* this post-dominate all BBs */
   Insn *volReleaseInsn = nullptr;  /* use to record the release insn for volatile strore */
   MapleVector<BB*> exitBBVec;
+  MapleVector<BB*> noReturnCallBBVec;
   MapleSet<regno_t> extendSet;  /* use to mark regs which spilled 32 bits but loaded 64 bits. */
   MapleUnorderedMap<LabelIdx, BB*> lab2BBMap;
   BECommon &beCommon;
