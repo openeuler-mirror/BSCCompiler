@@ -595,6 +595,7 @@ class DebugInfo {
         idDieMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         abbrevVec(m->GetMPAllocator().Adapter()),
         tagAbbrevMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
+        baseTypeMap(std::less<GStrIdx>(), m->GetMPAllocator().Adapter()),
         tyIdxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         stridxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         globalStridxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
@@ -725,6 +726,7 @@ class DebugInfo {
   MapleMap<uint32, DBGDie *> idDieMap;
   MapleVector<DBGAbbrevEntry *> abbrevVec;  // valid entry starting from index 1
   MapleMap<uint32, DBGAbbrevEntryVec *> tagAbbrevMap;
+  MapleMap<GStrIdx, std::pair<GStrIdx, PrimType>> baseTypeMap;  // baseTypeMap: <InputName, OutputName, PrimType>
 
   // to be used when derived type references a base type die
   MapleMap<uint32, uint32> tyIdxDieIdMap;
@@ -756,6 +758,7 @@ class DebugInfo {
   }
 
   void Init();
+  void InitBaseTypeMap();
   void Finish();
   void SetupCU();
 
@@ -783,6 +786,7 @@ class DebugInfo {
   LabelIdx GetLabelIdx(MIRFunction *func, GStrIdx strIdx);
   void SetLabelIdx(const GStrIdx &strIdx, LabelIdx labIdx);
   void SetLabelIdx(MIRFunction *func, const GStrIdx &strIdx, LabelIdx labIdx);
+  void InsertBaseTypeMap(const std::string &inputName, const std::string &outpuName, PrimType type);
 
   DBGDie *GetIdDieMapAt(uint32 i) {
     return idDieMap[i];
@@ -826,6 +830,7 @@ class DebugInfo {
   DBGDie *GetOrCreateFuncDeclDie(MIRFunction *func);
   DBGDie *GetOrCreateFuncDefDie(MIRFunction *func);
   DBGDie *GetOrCreatePrimTypeDie(MIRType *ty);
+  DBGDie *GetOrCreateBaseTypeDie(const MIRType *type);
   DBGDie *GetOrCreateTypeDie(TyIdx tyidx);
   DBGDie *GetOrCreateTypeDie(MIRType *type);
   DBGDie *GetOrCreateTypeDieWithAttr(AttrKind attr, DBGDie *typeDie);
@@ -841,7 +846,8 @@ class DebugInfo {
 
   void AddScopeDie(MIRScope *scope, bool isLocal);
   DBGDie *GetAliasVarTypeDie(const MIRAliasVars &aliasVar, TyIdx tyidx);
-  void AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isLocal);
+  void HandleTypeAlias(MIRScope *scope, bool isLocal);
+  void AddAliasDies(MIRScope *scope, bool isLocal);
   void CollectScopePos(MIRFunction *func, MIRScope *scope);
 
   // Functions for calculating the size and offset of each DW_TAG_xxx and DW_AT_xxx

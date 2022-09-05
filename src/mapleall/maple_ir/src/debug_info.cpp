@@ -22,6 +22,7 @@
 #include "securec.h"
 #include "mpl_logging.h"
 #include "version.h"
+#include "triple.h"
 
 namespace maple {
 extern const char *GetDwTagName(unsigned n);
@@ -235,6 +236,7 @@ void DebugInfo::Init() {
   if (module->GetSrcLang() == kSrcLangC) {
     varPtrPrefix = "";
   }
+  InitBaseTypeMap();
 }
 
 GStrIdx DebugInfo::GetPrimTypeCName(PrimType pty) {
@@ -265,6 +267,18 @@ GStrIdx DebugInfo::GetPrimTypeCName(PrimType pty) {
       break;
   }
   return strIdx;
+}
+
+void DebugInfo::InsertBaseTypeMap(const std::string &inputName, const std::string &outpuName, PrimType type) {
+  baseTypeMap[GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(inputName)] = std::make_pair(
+      GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(outpuName), type);
+}
+
+void DebugInfo::InitBaseTypeMap() {
+  InsertBaseTypeMap(kDbgLong, "long", Triple::GetTriple().GetEnvironment() == Triple::GNUILP32 ? PTY_i32 : PTY_i64);
+  InsertBaseTypeMap(kDbgULong, "unsigned long",
+                    Triple::GetTriple().GetEnvironment() == Triple::GNUILP32 ? PTY_u32 : PTY_u64);
+  InsertBaseTypeMap(kDbgLongDouble, "long double", PTY_f64);
 }
 
 void DebugInfo::SetupCU() {
@@ -308,8 +322,11 @@ void DebugInfo::AddScopeDie(MIRScope *scope, bool isLocal) {
     PushParentDie(die);
   }
 
-  // process aliasVarMap
-  AddAliasDies(scope->GetAliasVarMap(), isLocal);
+  // process type alias
+  HandleTypeAlias(scope, isLocal);
+
+  // process alias
+  AddAliasDies(scope, isLocal);
 
   if (scope->GetSubScopes().size() > 0) {
     // process subScopes
@@ -345,9 +362,26 @@ DBGDie *DebugInfo::GetAliasVarTypeDie(const MIRAliasVars &aliasVar, TyIdx tyidx)
   return GetOrCreateTypeDieWithAttr(aliasVar.attrs, typeDie);
 }
 
-void DebugInfo::AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isLocal) {
+void DebugInfo::HandleTypeAlias(MIRScope *scope, bool isLocal) {
+  const MIRTypeAliasTable *table = scope->GetTypeAliasTable();
+  if (table) {
+    for (auto &i : table->GetTypeAliasMap()) {
+      uint32 tid = i.second.GetIdx();
+      if (tyIdxDieIdMap.find(tid) == tyIdxDieIdMap.end()) {
+        ASSERT(false, "type alias type not in tyIdxDieIdMap");
+        continue;
+      }
+      uint32 id = tyIdxDieIdMap[tid];
+      DBGDie *die = idDieMap[id];
+      die->SetAttr(DW_AT_name, i.first.GetIdx());
+      AddStrps(i.first.GetIdx());
+    }
+  }
+}
+
+void DebugInfo::AddAliasDies(MIRScope *scope, bool isLocal) {
   MIRFunction *func = GetCurFunction();
-  for (auto &i : aliasMap) {
+  for (auto &i : scope->GetAliasVarMap()) {
     // maple var and die
     MIRSymbol *mplVar = nullptr;
     DBGDie *mplDie = nullptr;
@@ -457,6 +491,13 @@ void DebugInfo::BuildDebugInfoTypedefs() {
     (void)GetOrCreateTypeDie(TyIdx(it.second));
     DBGDie *die = GetOrCreateTypedefDie(GStrIdx(it.first), TyIdx(it.second));
     compUnit->AddSubVec(die);
+    // associate typedef's type with die
+    for (auto i : module->GetTypeNameTab()->GetGStrIdxToTyIdxMap()) {
+      if (i.first.GetIdx() == it.first) {
+        tyIdxDieIdMap[i.second.GetIdx()] = die->GetId();
+        break;
+      }
+    }
   }
 }
 
@@ -892,6 +933,29 @@ DBGDie *DebugInfo::GetOrCreatePrimTypeDie(MIRType *ty) {
   return die;
 }
 
+// At present, in order to solve the inaccurate expression of GetOrCreatePrimTypeDie for base types,
+// e.g. long or long long. We can consider using this interface uniformly for base types in the future.
+DBGDie *DebugInfo::GetOrCreateBaseTypeDie(const MIRType *type) {
+  uint32 tid = type->GetTypeIndex().GetIdx();
+  if (tyIdxDieIdMap.find(tid) != tyIdxDieIdMap.end()) {
+    uint32 id = tyIdxDieIdMap[tid];
+    return idDieMap[id];
+  }
+
+  auto iter = baseTypeMap.find(type->GetNameStrIdx());
+  if (iter == baseTypeMap.cend()) {
+    return nullptr;
+  }
+  DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_base_type);
+  die->AddAttr(DW_AT_name, DW_FORM_strp, iter->second.first.GetIdx());
+  die->AddAttr(DW_AT_byte_size, DW_FORM_data4, GetPrimTypeSize(iter->second.second));
+  die->AddAttr(DW_AT_encoding, DW_FORM_data4, GetAteFromPTY(iter->second.second));
+
+  compUnit->AddSubVec(die);
+  tyIdxDieIdMap[type->GetTypeIndex().GetIdx()] = die->GetId();
+  return die;
+}
+
 DBGDie *DebugInfo::CreatePointedFuncTypeDie(MIRFuncType *fType) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_subroutine_type);
 
@@ -1012,6 +1076,10 @@ DBGDie *DebugInfo::GetOrCreateTypeDie(MIRType *type) {
     case kTypeBitField:
       break;
     case kTypeByName: {
+      die = GetOrCreateBaseTypeDie(type);
+      if (die != nullptr) {
+        break;
+      }
       // look for the enum first
       for (auto &it : GlobalTables::GetEnumTable().enumTable) {
         if (it->GetNameIdx() == type->GetNameStrIdx()) {
@@ -1030,6 +1098,10 @@ DBGDie *DebugInfo::GetOrCreateTypeDie(MIRType *type) {
     default:
       CHECK_FATAL(false, "TODO: support type");
       break;
+  }
+
+  if (die) {
+    tyIdxDieIdMap[tid] = die->GetId();
   }
 
   return die;
@@ -1238,8 +1310,9 @@ DBGDie *DebugInfo::GetOrCreateStructTypeDie(const MIRType *type) {
   GStrIdx strIdx = type->GetNameStrIdx();
   ASSERT(strIdx.GetIdx(), "struture type missing name");
 
-  if (tyIdxDieIdMap.find(type->GetTypeIndex().GetIdx()) != tyIdxDieIdMap.end()) {
-    uint32 id = tyIdxDieIdMap[type->GetTypeIndex().GetIdx()];
+  uint32 tid = type->GetTypeIndex().GetIdx();
+  if (tyIdxDieIdMap.find(tid) != tyIdxDieIdMap.end()) {
+    uint32 id = tyIdxDieIdMap[tid];
     return idDieMap[id];
   }
 
@@ -1269,6 +1342,9 @@ DBGDie *DebugInfo::GetOrCreateStructTypeDie(const MIRType *type) {
 
   GlobalTables::GetTypeNameTable().SetGStrIdxToTyIdx(strIdx, type->GetTypeIndex());
 
+  if (die) {
+    tyIdxDieIdMap[type->GetTypeIndex().GetIdx()] = die->GetId();
+  }
   return die;
 }
 
@@ -1336,15 +1412,17 @@ void DebugInfo::CreateStructTypeMethodsDies(const MIRStructType *structType, DBG
 // shared between struct and union, also used as part by class and interface
 DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *structType, bool update) {
   DBGDie *die = nullptr;
+  uint32 tid = structType->GetTypeIndex().GetIdx();
 
   if (update) {
-    uint32 id = tyIdxDieIdMap[structType->GetTypeIndex().GetIdx()];
+    ASSERT(tyIdxDieIdMap.find(tid) != tyIdxDieIdMap.end(), "update type die not exist");
+    uint32 id = tyIdxDieIdMap[tid];
     die = idDieMap[id];
     ASSERT(die, "update type die not exist");
   } else {
     DwTag tag = structType->GetKind() == kTypeStruct ? DW_TAG_structure_type : DW_TAG_union_type;
     die = module->GetMemPool()->New<DBGDie>(module, tag);
-    tyIdxDieIdMap[structType->GetTypeIndex().GetIdx()] = die->GetId();
+    tyIdxDieIdMap[tid] = die->GetId();
   }
   die = GetOrCreateTypeDieWithAttr(structType->GetTypeAttrs(), die);
 
@@ -1361,6 +1439,8 @@ DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *stru
   die->AddAttr(DW_AT_name, DW_FORM_strp, strIdx.GetIdx(), keep);
   die->AddAttr(DW_AT_byte_size, DW_FORM_data4, kDbgDefaultVal);
   die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx());
+  // store tid for cg emitter
+  die->AddAttr(DW_AT_type, DW_FORM_data4, tid, false);
 
   PushParentDie(die);
 
