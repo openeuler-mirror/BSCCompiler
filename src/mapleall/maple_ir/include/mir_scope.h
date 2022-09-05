@@ -170,7 +170,7 @@ class MIRScope {
     typeAlias->SetTypeAliasMap(gStrIdx, tyIdx);
   }
 
-  const MIRTypeAliasTable *GetTypeAliasTable() const {
+  const MIRTypeAliasTable *GetTypAliasTable() const {
     return typeAlias;
   }
 

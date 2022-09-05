@@ -1570,7 +1570,7 @@ bool OptimizeBB::FoldCondBranch() {
     stmt1->SetBranchProb(stmt2->GetBranchProb());
     succBB->RemoveLastMeStmt();
     succBB->SetKind(kBBFallthru);
-    succBB->RemoveBBFromSucc(*succBB->GetSucc(1));
+    succBB->RemoveSucc(*succBB->GetSucc(1));
     return true;
   }
   return false;

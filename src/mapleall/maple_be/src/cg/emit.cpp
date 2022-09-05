@@ -3560,13 +3560,14 @@ void Emitter::FillInClassByteSize(DBGDie *die, DBGDieAttr *byteSizeAttr) const {
          "Unknown FORM value for DW_AT_byte_size");
   if (static_cast<uint32>(byteSizeAttr->GetI()) == kDbgDefaultVal) {
     /* get class size */
-    DBGDieAttr *typeAttr = LFindDieAttr(die, DW_AT_type);
-    CHECK_FATAL(typeAttr != nullptr, "at_type is nullptr in Emitter::FillInClassByteSize");
-    /* hope this is a global type */
-    uint32 tid = typeAttr->GetId();
-    CHECK_FATAL(tid < Globals::GetInstance()->GetBECommon()->GetSizeOfTypeSizeTable(),
+    DBGDieAttr *nameAttr = LFindDieAttr(die, DW_AT_name);
+    CHECK_FATAL(nameAttr != nullptr, "name_attr is nullptr in Emitter::FillInClassByteSize");
+    /* hope this is a global string index as it is a type name */
+    TyIdx tyIdx =
+        GlobalTables::GetTypeNameTable().GetTyIdxFromGStrIdx(GStrIdx(nameAttr->GetId()));
+    CHECK_FATAL(tyIdx.GetIdx() < Globals::GetInstance()->GetBECommon()->GetSizeOfTypeSizeTable(),
                 "index out of range in Emitter::FillInClassByteSize");
-    int64_t byteSize = static_cast<int64_t>(Globals::GetInstance()->GetBECommon()->GetTypeSize(tid));
+    int64_t byteSize = static_cast<int64_t>(Globals::GetInstance()->GetBECommon()->GetTypeSize(tyIdx.GetIdx()));
     LUpdateAttrValue(byteSizeAttr, byteSize);
   }
 }
@@ -3601,11 +3602,12 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
         if (byteSizeAttr) {
           emitter->FillInClassByteSize(die, byteSizeAttr);
         }
-        /* get the type from tid instead of name as it could be changed by type alias */
-        DBGDieAttr *typeAttr = LFindDieAttr(die, DW_AT_type);
-        CHECK_FATAL(typeAttr != nullptr, "at_type is null in Emitter::SetupDBGInfo");
-        uint32 tid = typeAttr->GetId();
-        MIRType *mty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tid);
+        /* get the name */
+        DBGDieAttr *atName = LFindDieAttr(die, DW_AT_name);
+        CHECK_FATAL(atName != nullptr, "at_name is null in Emitter::SetupDBGInfo");
+        /* get the type from string name */
+        TyIdx ctyIdx = GlobalTables::GetTypeNameTable().GetTyIdxFromGStrIdx(GStrIdx(atName->GetId()));
+        MIRType *mty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ctyIdx);
         MIRStructType *sty = static_cast<MIRStructType *>(mty);
         CHECK_FATAL(sty != nullptr, "pointer cast failed");
         CHECK_FATAL(sty->GetTypeIndex().GetIdx() <
