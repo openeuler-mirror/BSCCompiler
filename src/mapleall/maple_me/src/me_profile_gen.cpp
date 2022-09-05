@@ -187,7 +187,12 @@ bool MeProfGen::CanInstrument() const {
     }
     auto *bb = *bIt;
     if (bb->GetAttributes(kBBAttrIsTry) || bb->GetAttributes(kBBAttrWontExit)) {
-      return false;
+      if (func->GetMIRModule().IsCModule()) {
+        // Consider the case of non-exit as a special program
+        continue;
+      } else {
+        return false;
+      }
     }
   }
   return true;
