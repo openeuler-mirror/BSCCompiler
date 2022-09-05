@@ -307,11 +307,8 @@ FuncProfInfo *MeProfUse::GetFuncData() {
 
 void MeProfUse::CheckSumFail(const uint64 hash, const uint32 expectedCheckSum, const std::string &tag) {
   uint32 curCheckSum = static_cast<uint32>((hash >> 32) ^ (hash & 0xffffffff));
-  if (curCheckSum != expectedCheckSum) {
-    LogInfo::MapleLogger() << func->GetName() << "() " << tag << " checksum " << curCheckSum
-                           << " doesn't match the expected " << expectedCheckSum << "; aborting\n";
-    abort();
-  }
+  CHECK_FATAL(curCheckSum == expectedCheckSum, "%s() %s checksum %u doesn't match the expected %u; aborting\n",
+              func->GetName().c_str(), tag.c_str(), curCheckSum, expectedCheckSum);
 }
 
 bool MeProfUse::MapleProfRun() {
@@ -320,13 +317,11 @@ bool MeProfUse::MapleProfRun() {
     return false;
   }
   func->GetMirFunc()->SetFuncProfData(funcData);
-  // Abort if lineno fail
+  // abort if lineno fail
   CheckSumFail(ComputeLinenoHash(), funcData->linenoChecksum, "lineno");
-
   FindInstrumentEdges();
-  // Abort if cfgchecksum fail
+  // abort if cfgchecksum fail
   CheckSumFail(ComputeFuncHash(), funcData->cfgChecksum, "function");
-
   std::vector<BB*> instrumentBBs;
   GetInstrumentBBs(instrumentBBs);
   if (dump) {
