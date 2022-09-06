@@ -492,17 +492,17 @@ void BB::UpdateEdgeFreqs(bool updateBBFreqOfSucc) {
       (len > 1 && diff <= 1)) {
     return;
   }
-  for (uint32 i = 0; i < len; ++i) {
-    int64_t sfreq = GetSuccFreq()[static_cast<unsigned long>(i)];
-    int64_t scalefreq = (succFreqs == 0 ? (frequency / len) : (sfreq * frequency / succFreqs));
-    SetSuccFreq(static_cast<int>(i), scalefreq);
+  for (int i = 0; i < len; ++i) {
+    uint64 sfreq = GetSuccFreq()[i];
+    uint64 scalefreq = (succFreqs == 0 ? (frequency / len) : (sfreq * frequency / succFreqs));
+    SetSuccFreq(i, scalefreq);
     // update succ frequency with new difference if needed
     if (updateBBFreqOfSucc) {
-      auto *succBBLoc = GetSucc(static_cast<size_t>(i));
+      auto *succBBLoc = GetSucc(i);
       int64_t diffFreq = scalefreq - sfreq;
       int64_t succBBnewFreq = succBBLoc->GetFrequency() + diffFreq;
       if (succBBnewFreq >= 0) {
-        succBBLoc->SetFrequency(succBBnewFreq);
+        succBBLoc->SetFrequency(static_cast<uint64>(succBBnewFreq));
       }
     }
   }
