@@ -250,7 +250,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
         }
         bb.SetKind(kBBFallthru);
         if (UpdateFreq()) {
-          int64_t succ0Freq = static_cast<int64_t>(bb.GetSuccFreq()[0]);
+          uint64 succ0Freq = static_cast<int64_t>(bb.GetSuccFreq()[0]);
           bb.GetSuccFreq().resize(1);
           bb.SetSuccFreq(0, bb.GetFrequency());
           ASSERT(bb.GetFrequency() >= succ0Freq, "sanity check");
@@ -280,7 +280,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
       bool isPme = mirModule.CurFunction()->GetMeFunc()->GetPreMeFunc() != nullptr;
       if (mestmt->IsCondBr() && !isPme) {  // see if foldable to unconditional branch
         CondGotoMeStmt *condbr = static_cast<CondGotoMeStmt*>(mestmt);
-        int64_t removedFreq = 0;
+        uint64 removedFreq = 0;
         if (!mirModule.IsJavaModule() && condbr->GetOpnd()->GetMeOp() == kMeOpConst) {
           CHECK_FATAL(IsPrimitiveInteger(condbr->GetOpnd()->GetPrimType()),
                       "MeHDSE::DseProcess: branch condition must be integer type");

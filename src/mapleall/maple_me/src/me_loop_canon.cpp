@@ -105,9 +105,9 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
       mergedBB->PushBackSuccFreq(freq);
     }
     splittedBB->ReplacePred(pred, mergedBB);
-    pred->AddSucc(*mergedBB, index);
+    pred->AddSucc(*mergedBB, static_cast<size_t>(index));
     if (updateFreqs) {
-      pred->AddSuccFreq(mergedBB->GetFrequency(), index);
+      pred->AddSuccFreq(mergedBB->GetFrequency(), static_cast<size_t>(index));
     }
     if (!pred->GetMeStmts().empty()) {
       UpdateTheOffsetOfStmtWhenTargetBBIsChange(*pred, *splittedBB, *mergedBB);
@@ -134,7 +134,7 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
     if (updateFreqs) {
       int idx = pred->GetSuccIndex(*splittedBB);
       ASSERT(idx >= 0 && idx < pred->GetSucc().size(), "sanity check");
-      freq = pred->GetEdgeFreq(idx);
+      freq = pred->GetEdgeFreq(static_cast<size_t>(idx));
       mergedBB->SetFrequency(mergedBB->GetFrequency() + freq);
     }
     pred->ReplaceSucc(splittedBB, mergedBB);

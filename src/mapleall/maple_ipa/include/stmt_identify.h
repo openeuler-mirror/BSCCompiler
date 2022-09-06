@@ -177,11 +177,11 @@ class StmtInfo {
     return puIdx;
   }
 
-  const uint32 GetFrequency() const {
+  const uint64 GetFrequency() const {
     return frequency;
   }
 
-  void SetFrequency(uint32 freq) {
+  void SetFrequency(uint64 freq) {
     frequency = freq;
   }
 
@@ -214,7 +214,7 @@ class StmtInfo {
   BlockNode *currBlock = nullptr;
   MeStmt *meStmt = nullptr;
   PUIdx puIdx = kInvalidPuIdx;
-  uint32 frequency = 0;
+  uint64 frequency = 0;
   bool valid = true;
   std::vector<uint32> hashCandidate;
   std::unordered_map<StIdx, DefUsePositions> symbolDefUse;
