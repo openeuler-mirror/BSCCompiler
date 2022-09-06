@@ -749,7 +749,7 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
       cyclicProb = 1 - std::numeric_limits<double>::epsilon();
     }
     // Floating-point numbers have precision problems, consider using integers to represent backEdgeProb?
-    bb.SetFrequency(freq / (1 - cyclicProb));
+    bb.SetFrequency(static_cast<uint64>(static_cast<uint32>(freq / (1 - cyclicProb))));
   }
   // 2. calculate frequencies of bb's out edges
   if (predictDebug) {
