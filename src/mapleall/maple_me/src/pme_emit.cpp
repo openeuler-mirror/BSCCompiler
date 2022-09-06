@@ -1065,10 +1065,10 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
     CHECK_FATAL(j < bbvec.size(), "");
     if (GetFuncProfData()) {
       // set then part/else part frequency
-      int64_t ifFreq = GetFuncProfData()->GetStmtFreq(ifStmtNode->GetStmtID());
-      int64_t branchFreq = bbvec[curJ + 1]->GetFrequency();
-      GetFuncProfData()->SetStmtFreq(branchBlock->GetStmtID(), static_cast<uint64>(branchFreq));
-      GetFuncProfData()->SetStmtFreq(emptyBlock->GetStmtID(), static_cast<uint64>(ifFreq - branchFreq));
+      uint64 ifFreq = GetFuncProfData()->GetStmtFreq(ifStmtNode->GetStmtID());
+      uint64 branchFreq = bbvec[curJ + 1]->GetFrequency();
+      GetFuncProfData()->SetStmtFreq(branchBlock->GetStmtID(), branchFreq);
+      GetFuncProfData()->SetStmtFreq(emptyBlock->GetStmtID(), ifFreq - branchFreq);
     }
     return j;
   }

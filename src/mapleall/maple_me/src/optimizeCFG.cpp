@@ -1833,10 +1833,10 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
       DEBUG_LOG() << "SkipRedundantCond : Remove condBr in BB" << LOG_BBID(&succ) << ", turn it to fallthruBB\n";
     }
     BB *rmBB = (FindFirstRealSucc(succ.GetSucc(0)) == newTarget) ? succ.GetSucc(1) : succ.GetSucc(0);
-    int64_t deletedSuccFreq = 0;
+    uint64 deletedSuccFreq = 0;
     if (cfg->UpdateCFGFreq()) {
       int idx = succ.GetSuccIndex(*rmBB);
-      deletedSuccFreq = static_cast<int64_t>(succ.GetSuccFreq()[static_cast<uint32>(idx)]);
+      deletedSuccFreq = succ.GetSuccFreq()[static_cast<uint32>(idx)];
     }
     succ.RemoveSucc(*rmBB, true);
     if (cfg->UpdateCFGFreq()) {
@@ -2095,16 +2095,16 @@ bool OptimizeBB::MergeGotoBBToPred(BB *succ, BB *pred) {
   }
   int predIdx = succ->GetPredIndex(*pred);
   bool needUpdatePhi = false;
-  int64_t removedFreq = 0;
+  uint64 removedFreq = 0;
   if (cfg->UpdateCFGFreq()) {
     int idx = pred->GetSuccIndex(*succ);
-    removedFreq = static_cast<int64_t>(pred->GetSuccFreq()[static_cast<uint32>(idx)]);
+    removedFreq = pred->GetSuccFreq()[static_cast<uint32>(idx)];
   }
   if (pred->IsPredBB(*newTarget)) {
     pred->RemoveSucc(*succ, true);  // one of pred's succ has been newTarget, avoid duplicate succ here
     if (cfg->UpdateCFGFreq()) {
       int idx = pred->GetSuccIndex(*newTarget);
-      pred->SetSuccFreq(idx, pred->GetSuccFreq()[static_cast<uint32>(idx)] + static_cast<uint64>(removedFreq));
+      pred->SetSuccFreq(idx, pred->GetSuccFreq()[static_cast<uint32>(idx)] + removedFreq);
     }
   } else {
     pred->ReplaceSucc(succ, newTarget);  // phi opnd is not removed from currBB's philist, we will remove it later
