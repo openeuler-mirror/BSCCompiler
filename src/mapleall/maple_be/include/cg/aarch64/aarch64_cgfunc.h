@@ -120,7 +120,7 @@ class AArch64CGFunc : public CGFunc {
   MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
   uint32 LmbcFindTotalStkUsed(std::vector<TyIdx> *paramList);
   uint32 LmbcTotalRegsUsed();
-  bool LmbcSmallAggForRet(const BaseNode &bNode, Operand *src);
+  bool LmbcSmallAggForRet(const BaseNode &bNode, Operand *src, int32 offset = 0, bool skip1 = false);
   bool LmbcSmallAggForCall(BlkassignoffNode &bNode, const Operand *src, std::vector<TyIdx> **parmList);
   bool GetNumReturnRegsForIassignfpoff(MIRType *rType, PrimType &primType, uint32 &numRegs);
   void GenIassignfpoffStore(Operand &srcOpnd, int32 offset, uint32 byteSize, PrimType primType);
@@ -862,8 +862,8 @@ class AArch64CGFunc : public CGFunc {
                                              int32 offset, uint32 parmNum);
   void CreateCallStructParamPassByReg(regno_t regno, MemOperand &memOpnd, ListOperand &srcOpnds,
                                       FpParamState state);
-  void CreateCallStructParamMemcpy(const MIRSymbol *sym, RegOperand *addropnd,
-                                   uint32 structSize, int32 copyOffset, int32 fromOffset);
+  void CreateCallStructParamMemcpy(const MIRSymbol &sym, uint32 structSize, int32 copyOffset, int32 fromOffset);
+  void CreateCallStructParamMemcpy(RegOperand &addropnd, uint32 structSize, int32 copyOffset, int32 fromOffset);
   RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, const MIRSymbol *sym, RegOperand *addrOpd,
                                                int32 copyOffset, int32 fromOffset, const CCLocInfo &ploc);
   RegOperand *LoadIreadAddrForSamllAgg(BaseNode &iread);

@@ -284,26 +284,6 @@ bool ContinuousCmpCsetPattern::CheckCondition(Insn &insn) {
   return true;
 }
 
-AArch64CC_t ContinuousCmpCsetPattern::GetReverseCondCode(const CondOperand &condOpnd) const {
-  switch (condOpnd.GetCode()) {
-    case CC_NE:
-      return CC_EQ;
-    case CC_EQ:
-      return CC_NE;
-    case CC_LT:
-      return CC_GE;
-    case CC_GE:
-      return CC_LT;
-    case CC_GT:
-      return CC_LE;
-    case CC_LE:
-      return CC_GT;
-    default:
-      CHECK_FATAL(false, "Not support yet.");
-  }
-  return kCcLast;
-}
-
 void ContinuousCmpCsetPattern::Run(BB &bb, Insn &insn) {
   if (!CheckCondition(insn)) {
     return;
@@ -315,12 +295,12 @@ void ContinuousCmpCsetPattern::Run(BB &bb, Insn &insn) {
   if (reverse) {
     MOperator prevCsetMop = prevCsetInsn1->GetMachineOpcode();
     auto &prevCsetCondOpnd = static_cast<CondOperand&>(prevCsetInsn1->GetOperand(kInsnSecondOpnd));
-    CondOperand &newCondOpnd = aarFunc->GetCondOperand(GetReverseCondCode(prevCsetCondOpnd));
+    CondOperand &newCondOpnd = aarFunc->GetCondOperand(GetReverseCC(prevCsetCondOpnd.GetCode()));
     regno_t tmpRegNO = 0;
     auto *tmpDefOpnd = aarFunc->CreateVirtualRegisterOperand(tmpRegNO,
         resOpnd.GetSize(), static_cast<RegOperand&>(resOpnd).GetRegisterType());
     tmpDefOpnd->SetValidBitsNum(k1BitSize);
-    newCsetInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+    newCsetInsn = &cgFunc->GetInsnBuilder()->BuildInsn(
         prevCsetMop, *tmpDefOpnd, newCondOpnd, prevCsetInsn1->GetOperand(kInsnThirdOpnd));
     BB *prevCsetBB = prevCsetInsn1->GetBB();
     (void)prevCsetBB->InsertInsnAfter(*prevCsetInsn1, *newCsetInsn);
@@ -338,11 +318,11 @@ void ContinuousCmpCsetPattern::Run(BB &bb, Insn &insn) {
   MOperator newMop = (curMop == MOP_wcsetrc) ? MOP_wmovrr : MOP_xmovrr;
   Insn *newInsn = nullptr;
   if (newCsetInsn == nullptr) {
-    newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, insn.GetOperand(kInsnFirstOpnd),
-                                                              prevCsetInsn1->GetOperand(kInsnFirstOpnd));
+    newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(
+        newMop, insn.GetOperand(kInsnFirstOpnd), prevCsetInsn1->GetOperand(kInsnFirstOpnd));
   } else {
-    newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, insn.GetOperand(kInsnFirstOpnd),
-                                                              newCsetInsn->GetOperand(kInsnFirstOpnd));
+    newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(
+        newMop, insn.GetOperand(kInsnFirstOpnd), newCsetInsn->GetOperand(kInsnFirstOpnd));
   }
   bb.ReplaceInsn(insn, *newInsn);
   /* update ssa info */
@@ -396,7 +376,7 @@ bool NegCmpToCmnPattern::CheckCondition(Insn &insn) {
     bool findUnsignedCond = false;
     for (uint32 i = 0; i < useInsn->GetOperandSize(); ++i) {
       if (useInsn->GetOperand(i).GetKind() == Operand::kOpdCond) {
-        AArch64CC_t cond = static_cast<CondOperand&>(useInsn->GetOperand(i)).GetCode();
+        ConditionCode cond = static_cast<CondOperand&>(useInsn->GetOperand(i)).GetCode();
         /* in case of ignoring v flag
          *  adds xt, x0, x1 (0x8000000000000000) -> not set v
          *  ==>
@@ -429,12 +409,12 @@ void NegCmpToCmnPattern::Run(BB &bb, Insn &insn) {
   Insn *newInsn = nullptr;
   if (prevMop == MOP_winegrr || prevMop == MOP_xinegrr) {
     MOperator newMop = (currMop == MOP_wcmprr) ? MOP_wcmnrr : MOP_xcmnrr;
-    newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, ccReg, opnd1, opnd2));
+    newInsn = &(cgFunc->GetInsnBuilder()->BuildInsn(newMop, ccReg, opnd1, opnd2));
   } else {
     /* prevMop == MOP_winegrrs || prevMop == MOP_xinegrrs */
     MOperator newMop = (currMop == MOP_wcmprr) ? MOP_wcmnrrs : MOP_xcmnrrs;
     Operand &shiftOpnd = prevInsn->GetOperand(kInsnThirdOpnd);
-    newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, ccReg, opnd1, opnd2, shiftOpnd));
+    newInsn = &(cgFunc->GetInsnBuilder()->BuildInsn(newMop, ccReg, opnd1, opnd2, shiftOpnd));
   }
   CHECK_FATAL(newInsn != nullptr, "must create newInsn");
   bb.ReplaceInsn(insn, *newInsn);
@@ -458,9 +438,9 @@ void LdrCmpPattern::Run(BB &bb, Insn &insn) {
   bb.RemoveInsn(*ldr1);
   bb.RemoveInsn(insn);
   bb.RemoveInsn(*bne1);
-  prevLdr1->SetMOP(MOP_xldr);
-  prevLdr2->SetMOP(MOP_xldr);
-  prevCmp->SetMOP(MOP_xcmprr);
+  prevLdr1->SetMOP(AArch64CG::kMd[MOP_xldr]);
+  prevLdr2->SetMOP(AArch64CG::kMd[MOP_xldr]);
+  prevCmp->SetMOP(AArch64CG::kMd[MOP_xcmprr]);
 }
 
 bool LdrCmpPattern::CheckCondition(Insn &insn) {
@@ -603,7 +583,7 @@ bool CsetCbzToBeqPattern::CheckCondition(Insn &insn) {
   return true;
 }
 
-MOperator CsetCbzToBeqPattern::SelectNewMop(AArch64CC_t condCode, bool inverse) const {
+MOperator CsetCbzToBeqPattern::SelectNewMop(ConditionCode condCode, bool inverse) const {
   switch (condCode) {
     case CC_NE:
       return inverse ? MOP_beq : MOP_bne;
@@ -650,8 +630,7 @@ void CsetCbzToBeqPattern::Run(BB &bb, Insn &insn) {
   auto &condOpnd = static_cast<CondOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
   MOperator newMop = SelectNewMop(condOpnd.GetCode(), reverse);
   ASSERT(newMop != MOP_undef, "unknown condition code");
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, prevInsn->GetOperand(kInsnThirdOpnd),
-                                                                 labelOpnd);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, prevInsn->GetOperand(kInsnThirdOpnd), labelOpnd);
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
@@ -692,8 +671,8 @@ void ExtLslToBitFieldInsertPattern::Run(BB &bb, Insn &insn) {
   auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
   auto &newImmOpnd1 = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
   ImmOperand &newImmOpnd2 = aarFunc->CreateImmOperand(k32BitSize, k6BitSize, false);
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, insn.GetOperand(kInsnFirstOpnd),
-                                                                 prevSrcReg, newImmOpnd1, newImmOpnd2);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(
+      newMop, insn.GetOperand(kInsnFirstOpnd), prevSrcReg, newImmOpnd1, newImmOpnd2);
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
@@ -713,7 +692,7 @@ bool CselToCsetPattern::IsOpndDefByZero(const Insn &insn) const {
     case MOP_wmovrr: {
       return IsZeroRegister(insn.GetOperand(kInsnSecondOpnd));
     }
-    case MOP_xmovri32:
+    case MOP_wmovri32:
     case MOP_xmovri64: {
       auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnSecondOpnd));
       return immOpnd.GetValue() == 0;
@@ -725,7 +704,7 @@ bool CselToCsetPattern::IsOpndDefByZero(const Insn &insn) const {
 
 bool CselToCsetPattern::IsOpndDefByOne(const Insn &insn) const {
   MOperator movMop = insn.GetMachineOpcode();
-  if ((movMop != MOP_xmovri32) && (movMop != MOP_xmovri64)) {
+  if ((movMop != MOP_wmovri32) && (movMop != MOP_xmovri64)) {
     return false;
   }
   auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnSecondOpnd));
@@ -743,7 +722,7 @@ bool CselToCsetPattern::CheckCondition(Insn &insn) {
     return false;
   }
   MOperator prevMop1 = prevMovInsn1->GetMachineOpcode();
-  if (prevMop1 != MOP_xmovri32 && prevMop1 != MOP_xmovri64 &&
+  if (prevMop1 != MOP_wmovri32 && prevMop1 != MOP_xmovri64 &&
       prevMop1 != MOP_wmovrr && prevMop1 != MOP_xmovrr) {
     return false;
   }
@@ -753,47 +732,11 @@ bool CselToCsetPattern::CheckCondition(Insn &insn) {
     return false;
   }
   MOperator prevMop2 = prevMovInsn2->GetMachineOpcode();
-  if (prevMop2 != MOP_xmovri32 && prevMop2 != MOP_xmovri64 &&
+  if (prevMop2 != MOP_wmovri32 && prevMop2 != MOP_xmovri64 &&
       prevMop2 != MOP_wmovrr && prevMop2 != MOP_xmovrr) {
     return false;
   }
   return true;
-}
-
-AArch64CC_t CselToCsetPattern::GetInversedCondCode(const CondOperand &condOpnd) const {
-  switch (condOpnd.GetCode()) {
-    case CC_NE:
-      return CC_EQ;
-    case CC_EQ:
-      return CC_NE;
-    case CC_HS:
-      return CC_LO;
-    case CC_LO:
-      return CC_HS;
-    case CC_MI:
-      return CC_PL;
-    case CC_PL:
-      return CC_MI;
-    case CC_VS:
-      return CC_VC;
-    case CC_VC:
-      return CC_VS;
-    case CC_HI:
-      return CC_LS;
-    case CC_LS:
-      return CC_HI;
-    case CC_LT:
-      return CC_GE;
-    case CC_GE:
-      return CC_LT;
-    case CC_GT:
-      return CC_LE;
-    case CC_LE:
-      return CC_GT;
-    default:
-      CHECK_FATAL(false, "Not support yet.");
-  }
-  return kCcLast;
 }
 
 void CselToCsetPattern::Run(BB &bb, Insn &insn) {
@@ -806,16 +749,16 @@ void CselToCsetPattern::Run(BB &bb, Insn &insn) {
   Operand &rflag = insn.GetOperand(kInsnFifthOpnd);
   Insn *newInsn = nullptr;
   if (IsOpndDefByOne(*prevMovInsn1) && IsOpndDefByZero(*prevMovInsn2)) {
-    newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, dstOpnd, condOpnd, rflag));
+    newInsn = &(cgFunc->GetInsnBuilder()->BuildInsn(newMop, dstOpnd, condOpnd, rflag));
   } else if (IsOpndDefByZero(*prevMovInsn1) && IsOpndDefByOne(*prevMovInsn2)) {
     auto &origCondOpnd = static_cast<CondOperand&>(condOpnd);
-    AArch64CC_t inverseCondCode = GetInversedCondCode(origCondOpnd);
+    ConditionCode inverseCondCode = GetReverseCC(origCondOpnd.GetCode());
     if (inverseCondCode == kCcLast) {
       return;
     }
     auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
     CondOperand &inverseCondOpnd = aarFunc->GetCondOperand(inverseCondCode);
-    newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, dstOpnd, inverseCondOpnd, rflag));
+    newInsn = &(cgFunc->GetInsnBuilder()->BuildInsn(newMop, dstOpnd, inverseCondOpnd, rflag));
   }
   if (newInsn == nullptr) {
     return;
@@ -912,7 +855,7 @@ void CsetToCincPattern::Run(BB &bb, Insn &insn) {
   RegOperand &opnd2 = static_cast<RegOperand&>(insn.GetOperand(static_cast<uint32>(cincOpnd2)));
   Operand &condOpnd = defInsn->GetOperand(kInsnSecondOpnd);
   Operand &rflag = defInsn->GetOperand(kInsnThirdOpnd);
-  Insn *newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, opnd1, opnd2, condOpnd, rflag));
+  Insn *newInsn = &(cgFunc->GetInsnBuilder()->BuildInsn(newMop, opnd1, opnd2, condOpnd, rflag));
   bb.ReplaceInsn(insn, *newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, *newInsn);
@@ -1004,8 +947,8 @@ void AndCmpBranchesToTbzPattern::Run(BB &bb, Insn &insn) {
   auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
   auto &labelOpnd = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
   ImmOperand &tbzImmOpnd = aarFunc->CreateImmOperand(tbzImmVal, k8BitSize, false);
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, prevAndInsn->GetOperand(kInsnSecondOpnd),
-                                                                 tbzImmOpnd, labelOpnd);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(
+      newMop, prevAndInsn->GetOperand(kInsnSecondOpnd), tbzImmOpnd, labelOpnd);
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
@@ -1124,8 +1067,7 @@ void ZeroCmpBranchesToTbzPattern::Run(BB &bb, Insn &insn) {
   ImmOperand &bitOpnd = aarFunc->CreateImmOperand(
       (regOpnd->GetSize() <= k32BitSize) ? (k32BitSize - 1) : (k64BitSize - 1), k8BitSize, false);
   auto &labelOpnd = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, *static_cast<RegOperand*>(regOpnd),
-                                                                 bitOpnd, labelOpnd);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, *static_cast<RegOperand*>(regOpnd), bitOpnd, labelOpnd);
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
@@ -1203,8 +1145,7 @@ void LsrAndToUbfxPattern::Run(BB &bb, Insn &insn) {
   Operand &immOpnd2 = is64Bits ? aarFunc->CreateImmOperand(immVal2, kMaxImmVal6Bits, false) :
                       aarFunc->CreateImmOperand(immVal2, kMaxImmVal5Bits, false);
   MOperator newMop = (is64Bits ? MOP_xubfxrri6i6 : MOP_wubfxrri5i5);
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, resOpnd, srcOpnd,
-                                                                 immOpnd1, immOpnd2);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, resOpnd, srcOpnd, immOpnd1, immOpnd2);
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
@@ -1355,8 +1296,7 @@ Insn *LslAndToUbfizPattern::BuildNewInsn(const Insn &andInsn, const Insn &lslIns
       val = nValue - mValue;
     }
     ImmOperand &ubfizOpnd4 = aarFunc->CreateImmOperand(val, size, false);
-    Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
-        newMop, ubfizOpnd1, ubfizOpnd2, ubfizOpnd3, ubfizOpnd4);
+    Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, ubfizOpnd1, ubfizOpnd2, ubfizOpnd3, ubfizOpnd4);
     return &newInsn;
   }
   return nullptr;
@@ -1391,7 +1331,7 @@ void MvnAndToBicPattern::Run(BB &bb, Insn &insn) {
   auto &opnd0 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   auto &opnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   auto &opnd2 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(
       newMop, opnd0, op1IsMvnDef ? opnd2 : opnd1, prevOpnd1);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
@@ -1457,8 +1397,8 @@ void AndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
   }
   auto &labelOpnd = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
   ImmOperand &tbzImm = aarchFunc->CreateImmOperand(tbzVal, k8BitSize, false);
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, prevInsn->GetOperand(kInsnSecondOpnd),
-                                                                 tbzImm, labelOpnd);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, prevInsn->GetOperand(kInsnSecondOpnd),
+                                                      tbzImm, labelOpnd);
   bb.ReplaceInsn(insn, newInsn);
   if (ssaInfo) {
     /* update ssa info */
@@ -1539,10 +1479,10 @@ void CombineSameArithmeticPattern::Run(BB &bb, Insn &insn) {
   if (!CheckCondition(insn)) {
     return;
   }
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(insn.GetMachineOpcode(),
-                                                                 insn.GetOperand(kInsnFirstOpnd),
-                                                                 prevInsn->GetOperand(kInsnSecondOpnd),
-                                                                 *newImmOpnd);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(insn.GetMachineOpcode(),
+                                                      insn.GetOperand(kInsnFirstOpnd),
+                                                      prevInsn->GetOperand(kInsnSecondOpnd),
+                                                      *newImmOpnd);
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
@@ -1607,10 +1547,10 @@ bool LogicShiftAndOrrToExtrPattern::CheckCondition(Insn &insn) {
     int64 prevImm = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd)).GetValue();
     auto &shiftOpnd = static_cast<BitShiftOperand&>(insn.GetOperand(kInsnFourthOpnd));
     uint32 shiftAmount = shiftOpnd.GetShiftAmount();
-    if (shiftOpnd.GetShiftOp() == BitShiftOperand::kShiftLSL && (prevMop == MOP_wlsrrri5 || prevMop == MOP_xlsrrri6)) {
+    if (shiftOpnd.GetShiftOp() == BitShiftOperand::kLSL && (prevMop == MOP_wlsrrri5 || prevMop == MOP_xlsrrri6)) {
       prevLsrInsn = prevInsn;
       shiftValue = prevImm;
-    } else if (shiftOpnd.GetShiftOp() == BitShiftOperand::kShiftLSR &&
+    } else if (shiftOpnd.GetShiftOp() == BitShiftOperand::kLSR &&
                (prevMop == MOP_wlslrri5 || prevMop == MOP_xlslrri6)) {
       prevLslInsn = prevInsn;
       shiftValue = shiftAmount;
@@ -1643,8 +1583,7 @@ void LogicShiftAndOrrToExtrPattern::Run(BB &bb, Insn &insn) {
   ImmOperand &immOpnd = is64Bits ? aarFunc->CreateImmOperand(shiftValue, kMaxImmVal6Bits, false) :
       aarFunc->CreateImmOperand(shiftValue, kMaxImmVal5Bits, false);
   MOperator newMop = is64Bits ? MOP_xextrrrri6 : MOP_wextrrrri5;
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, insn.GetOperand(kInsnFirstOpnd),
-                                                                 opnd1, opnd2, immOpnd);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, insn.GetOperand(kInsnFirstOpnd), opnd1, opnd2, immOpnd);
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
@@ -1757,11 +1696,11 @@ void SimplifyMulArithmeticPattern::DoOptimize(BB &currBB, Insn &currInsn) {
   MOperator newMop = is64Bits ? curMop2NewMopTable[arithType][1] : curMop2NewMopTable[arithType][0];
   Insn *newInsn = nullptr;
   if (arithType == kNeg || arithType == kFNeg) {
-    newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, resOpnd, opndMulOpnd1, opndMulOpnd2));
+    newInsn = &(cgFunc->GetInsnBuilder()->BuildInsn(newMop, resOpnd, opndMulOpnd1, opndMulOpnd2));
   } else {
     Operand &opnd3 = (validOpndIdx == kInsnSecondOpnd) ? currInsn.GetOperand(kInsnThirdOpnd) :
         currInsn.GetOperand(kInsnSecondOpnd);
-    newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, resOpnd, opndMulOpnd1, opndMulOpnd2, opnd3));
+    newInsn = &(cgFunc->GetInsnBuilder()->BuildInsn(newMop, resOpnd, opndMulOpnd1, opndMulOpnd2, opnd3));
   }
   CHECK_FATAL(newInsn != nullptr, "must create newInsn");
   currBB.ReplaceInsn(currInsn, *newInsn);
@@ -1858,7 +1797,7 @@ void ElimSpecificExtensionPattern::SetOptSceneType() {
       sceneType = kSceneLoad;
       break;
     }
-    case MOP_xmovri32:
+    case MOP_wmovri32:
     case MOP_xmovri64: {
       sceneType = kSceneMov;
       break;
@@ -1884,7 +1823,7 @@ void ElimSpecificExtensionPattern::ReplaceExtWithMov(Insn &currInsn) {
   auto &prevDstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
   auto &currDstOpnd = static_cast<RegOperand&>(currInsn.GetOperand(kInsnFirstOpnd));
   MOperator newMop = is64Bits ? MOP_xmovrr : MOP_wmovrr;
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, currDstOpnd, prevDstOpnd);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, currDstOpnd, prevDstOpnd);
   currBB->ReplaceInsn(currInsn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(currInsn, newInsn);
@@ -1963,7 +1902,7 @@ bool ElimSpecificExtensionPattern::IsValidLoadExtPattern(MOperator oldMop, MOper
   if (shiftAmount == 0) {
     return true;
   }
-  const AArch64MD *md = &AArch64CG::kMd[newMop];
+  const InsnDesc *md = &AArch64CG::kMd[newMop];
   uint32 memSize = md->GetOperandSize() / k8BitSize;
   uint32 validShiftAmount = ((memSize == k8BitSize) ? k3BitSize : ((memSize == k4BitSize) ? k2BitSize :
       ((memSize == k2BitSize) ? k1BitSize : k0BitSize)));
@@ -2032,7 +1971,7 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterLoad(Insn &insn) {
     }
 
     prevInsn->SetMemOpnd(newMemOp);
-    prevInsn->SetMOP(prevNewMop);
+    prevInsn->SetMOP(AArch64CG::kMd[prevNewMop]);
 
     if ((prevOrigMop != prevNewMop) && CG_PEEP_DUMP) {
       LogInfo::MapleLogger() << "======= NewPrevInsn : \n";
@@ -2041,8 +1980,8 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterLoad(Insn &insn) {
     }
 
     MOperator movMop = is64Bits ? MOP_xmovrr : MOP_wmovrr;
-    Insn &newMovInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(movMop, insn.GetOperand(kInsnFirstOpnd),
-                                                                      prevInsn->GetOperand(kInsnFirstOpnd));
+    Insn &newMovInsn = cgFunc->GetInsnBuilder()->BuildInsn(movMop, insn.GetOperand(kInsnFirstOpnd),
+                                                           prevInsn->GetOperand(kInsnFirstOpnd));
     currBB->ReplaceInsn(insn, newMovInsn);
     /* update ssa info */
     ssaInfo->ReplaceInsn(insn, newMovInsn);
@@ -2155,7 +2094,7 @@ void OneHoleBranchPattern::Run(BB &bb, Insn &insn) {
                   (static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd)).GetValidBitsNum() <= k8BitSize ||
                    static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd)).GetValidBitsNum() <= k8BitSize);
   if (pattern1) {
-    Insn &newCbzInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+    Insn &newCbzInsn = cgFunc->GetInsnBuilder()->BuildInsn(
         insn.GetMachineOpcode(), prevInsn->GetOperand(kInsnSecondOpnd), label);
     bb.ReplaceInsn(insn, newCbzInsn);
     ssaInfo->ReplaceInsn(insn, newCbzInsn);
@@ -2177,7 +2116,7 @@ void OneHoleBranchPattern::Run(BB &bb, Insn &insn) {
     AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
     ImmOperand &oneHoleOpnd = aarch64CGFunc->CreateImmOperand(0, k8BitSize, false);
     auto &regOperand = static_cast<RegOperand&>(prePrevInsn->GetOperand(kInsnSecondOpnd));
-    Insn &newTbzInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newOp, regOperand, oneHoleOpnd, label);
+    Insn &newTbzInsn = cgFunc->GetInsnBuilder()->BuildInsn(newOp, regOperand, oneHoleOpnd, label);
     bb.ReplaceInsn(insn, newTbzInsn);
     ssaInfo->ReplaceInsn(insn, newTbzInsn);
     optSuccess = true;
@@ -2231,7 +2170,7 @@ void OrrToMovPattern::Run(BB &bb, Insn &insn) {
     return;
   }
   RegOperand *reg1 = &static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, *reg1, *reg2);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, *reg1, *reg2);
   bb.ReplaceInsn(insn, newInsn);
   ssaInfo->ReplaceInsn(insn, newInsn);
   optSuccess = true;
@@ -2488,7 +2427,7 @@ void AArch64PrePeepHole::InitOpts() {
 void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   switch (thisMop) {
-    case MOP_xmovri32:
+    case MOP_wmovri32:
     case MOP_xmovri64: {
       (static_cast<ReplaceCmpToCmnAArch64*>(optimizations[kReplaceCmpToCmnOpt]))->Run(bb, insn);
       break;
@@ -2736,7 +2675,7 @@ void EnhanceStrLdrAArch64::Run(BB &bb, Insn &insn) {
       concreteMemOpnd.SetBaseRegister(
           static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd)));
       auto &ofstOpnd = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
-      OfstOperand &offOpnd = static_cast<AArch64CGFunc&>(cgFunc).GetOrCreateOfstOpnd(
+      OfstOperand &offOpnd = static_cast<AArch64CGFunc&>(cgFunc).CreateOfstOpnd(
           static_cast<uint64>(ofstOpnd.GetValue()), k32BitSize);
       offOpnd.SetVary(ofstOpnd.GetVary());
       auto *origOffOpnd = concreteMemOpnd.GetOffsetImmediate();
@@ -2882,7 +2821,7 @@ std::vector<Insn*> CombineContiLoadAndStorePattern::FindPrevStrLdr(Insn &insn, r
     if (curInsn->GetMachineOpcode() == MOP_asm) {
       return prevContiInsns;
     }
-    if (static_cast<AArch64Insn*>(curInsn)->IsRegDefOrUse(destRegNO)) {
+    if (curInsn->ScanReg(destRegNO)) {
       return prevContiInsns;
     }
   }
@@ -2960,7 +2899,8 @@ bool CombineContiLoadAndStorePattern::FindTmpRegOnlyUseAfterCombineInsn(const In
     if (!cursor->IsLoad() && !cursor->IsStore() && !cursor->IsLoadStorePair()) {
       continue;
     }
-    if (cursor->IsLoadLabel() || cursor->IsLoadAddress()) {
+    const InsnDesc *md = &AArch64CG::kMd[cursor->GetMachineOpcode()];
+    if (cursor->IsLoadLabel() || md->IsLoadAddress()) {
       continue;
     }
     uint32 memIdx = (cursor->IsLoadStorePair() ? kInsnThirdOpnd : kInsnSecondOpnd);
@@ -3041,8 +2981,8 @@ bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(const Insn &curI
     return false;
   }
   Insn *splitAdd = FindValidSplitAddInsn(combineInsn, *baseRegOpnd);
-  const AArch64MD *md = &AArch64CG::kMd[combineInsn.GetMachineOpcode()];
-  auto *opndProp = md->operand[kInsnFirstOpnd];
+  const InsnDesc *md = &AArch64CG::kMd[combineInsn.GetMachineOpcode()];
+  auto *opndProp = md->opndMD[kInsnFirstOpnd];
   auto &aarFunc = static_cast<AArch64CGFunc&>(*cgFunc);
   if (splitAdd == nullptr) {
     if (combineInsn.IsLoadStorePair() && ofstOpnd->GetOffsetValue() < 0) {
@@ -3062,7 +3002,7 @@ bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(const Insn &curI
       CHECK_FATAL(defInsn->GetMachineOpcode() == MOP_xaddrri24 || defInsn->GetMachineOpcode() == MOP_waddrri24,
                   "split with wrong add");
       auto &immOpnd = static_cast<ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
-      auto &shiftOpnd = static_cast<LogicalShiftLeftOperand&>(defInsn->GetOperand(kInsnFourthOpnd));
+      auto &shiftOpnd = static_cast<BitShiftOperand&>(defInsn->GetOperand(kInsnFourthOpnd));
       addVal = static_cast<int64>((static_cast<uint64>(immOpnd.GetValue()) << shiftOpnd.GetShiftAmount())) +
           addImmOpnd.GetValue();
     } else {
@@ -3116,8 +3056,8 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
     OfstOperand *prevOffsetOpnd = prevMemOpnd->GetOffsetImmediate();
     CHECK_FATAL(offsetOpnd != nullptr && prevOffsetOpnd != nullptr, "both conti str/ldr have no offset");
     auto &prevDestOpnd = static_cast<RegOperand&>(prevContiInsn->GetOperand(kInsnFirstOpnd));
-    uint32 memSize = static_cast<const AArch64Insn&>(insn).GetLoadStoreSize();
-    uint32 prevMemSize = static_cast<const AArch64Insn&>(*prevContiInsn).GetLoadStoreSize();
+    uint32 memSize = insn.GetMemoryByteSize();
+    uint32 prevMemSize = prevContiInsn->GetMemoryByteSize();
     if (prevDestOpnd.GetRegisterType() != destOpnd.GetRegisterType()) {
       continue;
     }
@@ -3136,12 +3076,11 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
       RegOperand &newPrevDest = static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(
           static_cast<AArch64reg>(prevDestRegNO), k64BitSize, prevDestOpnd.GetRegisterType());
       MemOperand *combineMemOpnd = (offsetVal < prevOffsetVal) ? memOpnd : prevMemOpnd;
-      CG *cg = cgFunc->GetCG();
       MOperator mopPair = (destOpnd.GetRegisterType() == kRegTyInt) ? MOP_xstp : MOP_dstp;
       if ((static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(mopPair, combineMemOpnd, kInsnThirdOpnd))) {
         Insn &combineInsn = (offsetVal < prevOffsetVal) ?
-                            cg->BuildInstruction<AArch64Insn>(mopPair, newDest, newPrevDest, *combineMemOpnd) :
-                            cg->BuildInstruction<AArch64Insn>(mopPair, newPrevDest, newDest, *combineMemOpnd);
+                            cgFunc->GetInsnBuilder()->BuildInsn(mopPair, newDest, newPrevDest, *combineMemOpnd):
+                            cgFunc->GetInsnBuilder()->BuildInsn(mopPair, newPrevDest, newDest, *combineMemOpnd);
         bb.InsertInsnAfter(*prevContiInsn, combineInsn);
         RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
         return;
@@ -3156,12 +3095,11 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
       if ((memSize == k8ByteSize && diffVal == k8BitSize) ||
           (memSize == k4ByteSize && diffVal == k4BitSize) ||
           (memSize == k16ByteSize && diffVal == k16BitSize)) {
-        CG *cg = cgFunc->GetCG();
         MOperator mopPair = GetMopPair(thisMop);
         MemOperand *combineMemOpnd = (offsetVal < prevOffsetVal) ? memOpnd : prevMemOpnd;
         Insn &combineInsn = (offsetVal < prevOffsetVal) ?
-                            cg->BuildInstruction<AArch64Insn>(mopPair, destOpnd, prevDestOpnd, *combineMemOpnd) :
-                            cg->BuildInstruction<AArch64Insn>(mopPair, prevDestOpnd, destOpnd, *combineMemOpnd);
+                            cgFunc->GetInsnBuilder()->BuildInsn(mopPair, destOpnd, prevDestOpnd, *combineMemOpnd) :
+                            cgFunc->GetInsnBuilder()->BuildInsn(mopPair, prevDestOpnd, destOpnd, *combineMemOpnd);
         bb.InsertInsnAfter(*prevContiInsn, combineInsn);
         if (!(static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(mopPair, combineMemOpnd, kInsnThirdOpnd)) &&
             !SplitOfstWithAddToCombine(insn, combineInsn, *combineMemOpnd)) {
@@ -3175,18 +3113,17 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
     /* do combination strb/ldrb -> strh/ldrh -> str/ldr */
     if (destRegNO == prevDestRegNO && destRegNO == RZR && prevDestRegNO == RZR) {
       if ((memSize == k1ByteSize && diffVal == k1ByteSize) ||  (memSize == k2ByteSize && diffVal == k2ByteSize)) {
-        CG *cg = cgFunc->GetCG();
         MOperator mopPair = GetMopHigherByte(thisMop);
         if (offsetVal < prevOffsetVal) {
           if (static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(mopPair, memOpnd, kInsnSecondOpnd)) {
-            Insn &combineInsn = cg->BuildInstruction<AArch64Insn>(mopPair, destOpnd, *memOpnd);
+            Insn &combineInsn = cgFunc->GetInsnBuilder()->BuildInsn(mopPair, destOpnd, *memOpnd);
             bb.InsertInsnAfter(*prevContiInsn, combineInsn);
             RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
             return;
           }
         } else {
           if (static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(mopPair, prevMemOpnd, kInsnSecondOpnd)) {
-            Insn &combineInsn = cg->BuildInstruction<AArch64Insn>(mopPair, prevDestOpnd, *prevMemOpnd);
+            Insn &combineInsn = cgFunc->GetInsnBuilder()->BuildInsn(mopPair, prevDestOpnd, *prevMemOpnd);
             bb.InsertInsnAfter(*prevContiInsn, combineInsn);
             RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
             return;
@@ -3246,7 +3183,7 @@ void EliminateSpecifcSXTAArch64::Run(BB &bb, Insn &insn) {
   auto &regOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   if (&insn != bb.GetFirstInsn() && regOpnd0.GetRegisterNumber() == regOpnd1.GetRegisterNumber() &&
       prevInsn->IsMachineInstruction()) {
-    if (prevInsn->GetMachineOpcode() == MOP_xmovri32 || prevInsn->GetMachineOpcode() == MOP_xmovri64) {
+    if (prevInsn->GetMachineOpcode() == MOP_wmovri32 || prevInsn->GetMachineOpcode() == MOP_xmovri64) {
       auto &dstMovOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
       if (dstMovOpnd.GetRegisterNumber() != regOpnd1.GetRegisterNumber()) {
         return;
@@ -3279,7 +3216,7 @@ void EliminateSpecifcSXTAArch64::Run(BB &bb, Insn &insn) {
             RegOperand &dstOpnd = aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(
                 static_cast<AArch64reg>(dstMovOpnd.GetRegisterNumber()), k64BitSize, dstMovOpnd.GetRegisterType());
             prevInsn->SetOperand(kInsnFirstOpnd, dstOpnd);
-            prevInsn->SetMOP(MOP_xmovri64);
+            prevInsn->SetMOP(AArch64CG::kMd[MOP_xmovri64]);
             bb.RemoveInsn(insn);
           }
         }
@@ -3333,7 +3270,7 @@ void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
     return;
   }
   if (thisMop == MOP_xuxtb32) {
-    if (prevInsn->GetMachineOpcode() == MOP_xmovri32 || prevInsn->GetMachineOpcode() == MOP_xmovri64) {
+    if (prevInsn->GetMachineOpcode() == MOP_wmovri32 || prevInsn->GetMachineOpcode() == MOP_xmovri64) {
       auto &dstMovOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
       if (!IsSameRegisterOperation(dstMovOpnd, regOpnd1, regOpnd0)) {
         return;
@@ -3355,7 +3292,7 @@ void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
       bb.RemoveInsn(insn);
     }
   } else if (thisMop == MOP_xuxth32) {
-    if (prevInsn->GetMachineOpcode() == MOP_xmovri32 || prevInsn->GetMachineOpcode() == MOP_xmovri64) {
+    if (prevInsn->GetMachineOpcode() == MOP_wmovri32 || prevInsn->GetMachineOpcode() == MOP_xmovri64) {
       auto &dstMovOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
       if (!IsSameRegisterOperation(dstMovOpnd, regOpnd1, regOpnd0)) {
         return;
@@ -3377,7 +3314,7 @@ void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
     }
   } else {
     /* this_mop == MOP_xuxtw64 */
-    if (prevInsn->GetMachineOpcode() == MOP_xmovri32 || prevInsn->GetMachineOpcode() == MOP_wldrsb ||
+    if (prevInsn->GetMachineOpcode() == MOP_wmovri32 || prevInsn->GetMachineOpcode() == MOP_wldrsb ||
         prevInsn->GetMachineOpcode() == MOP_wldrb || prevInsn->GetMachineOpcode() == MOP_wldrsh ||
         prevInsn->GetMachineOpcode() == MOP_wldrh || prevInsn->GetMachineOpcode() == MOP_wldr) {
       auto &dstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
@@ -3428,7 +3365,6 @@ void FmovRegPattern::Run(BB &bb, Insn &insn) {
   }
   auto &curDstRegOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   regno_t curDstReg = curDstRegOpnd.GetRegisterNumber();
-  CG *cg = cgFunc->GetCG();
   /* optimize case 1 */
   auto &prevDstRegOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
   regno_t prevDstReg = prevDstRegOpnd.GetRegisterNumber();
@@ -3437,7 +3373,7 @@ void FmovRegPattern::Run(BB &bb, Insn &insn) {
       aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(curDstReg), doOpt, kRegTyInt);
   RegOperand &src =
       aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(prevDstReg), doOpt, kRegTyInt);
-  Insn &newInsn = cg->BuildInstruction<AArch64Insn>(newMop, dst, src);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, dst, src);
   bb.InsertInsnBefore(insn, newInsn);
   bb.RemoveInsn(insn);
   RegOperand &newOpnd =
@@ -3467,8 +3403,7 @@ void FmovRegPattern::Run(BB &bb, Insn &insn) {
       }
     } else if (opnd.IsRegister()) {
       /* Check if it is a source operand. */
-      const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(nextInsn)->GetMachineOpcode()];
-      auto *regProp = md->operand[opndIdx];
+      auto *regProp = nextInsn->GetDesc()->opndMD[opndIdx];
       if (regProp->IsUse()) {
         auto &reg = static_cast<RegOperand&>(opnd);
         if (reg.GetRegisterNumber() == curDstReg) {
@@ -3486,7 +3421,7 @@ bool SbfxOptPattern::CheckCondition(Insn &insn) {
   }
   auto &curDstRegOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   uint32 opndNum = nextInsn->GetOperandSize();
-  const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(nextInsn)->GetMachineOpcode()];
+  const InsnDesc *md = nextInsn->GetDesc();
   for (uint32 opndIdx = 0; opndIdx < opndNum; ++opndIdx) {
     Operand &opnd = nextInsn->GetOperand(opndIdx);
     /* Check if it is a source operand. */
@@ -3494,7 +3429,7 @@ bool SbfxOptPattern::CheckCondition(Insn &insn) {
       return false;
     } else if (opnd.IsRegister()) {
       auto &reg = static_cast<RegOperand&>(opnd);
-      auto *regProp = md->operand[opndIdx];
+      auto *regProp = md->opndMD[opndIdx];
       if (reg.GetRegisterNumber() == curDstRegOpnd.GetRegisterNumber()) {
         if (reg.GetSize() != k32BitSize) {
           return false;
@@ -3547,7 +3482,7 @@ bool CbnzToCbzPattern::CheckCondition(Insn &insn) {
     return false;
   }
   MOperator movInsnMop = movInsn->GetMachineOpcode();
-  if (movInsnMop != MOP_xmovri32 && movInsnMop != MOP_xmovri64) {
+  if (movInsnMop != MOP_wmovri32 && movInsnMop != MOP_xmovri64) {
     return false;
   }
   auto &movDest = static_cast<RegOperand&>(movInsn->GetOperand(kInsnFirstOpnd));
@@ -3595,9 +3530,9 @@ void CbnzToCbzPattern::Run(BB &bb, Insn &insn) {
   Operand &brTarget = brInsn->GetOperand(kInsnFirstOpnd);
   insn.SetOperand(kInsnSecondOpnd, brTarget);
   if (thisMop == MOP_wcbnz) {
-    insn.SetMOP(MOP_wcbz);
+    insn.SetMOP(AArch64CG::kMd[MOP_wcbz]);
   } else {
-    insn.SetMOP(MOP_xcbz);
+    insn.SetMOP(AArch64CG::kMd[MOP_xcbz]);
   }
   nextBB->RemoveInsn(*movInsn);
   nextBB->RemoveInsn(*brInsn);
@@ -3668,12 +3603,12 @@ void CsetCbzToBeqOptAArch64::Run(BB &bb, Insn &insn) {
   auto &cond = static_cast<CondOperand&>(insn1->GetOperand(kInsnSecondOpnd));
   MOperator jmpOperator = SelectMOperator(cond.GetCode(), reverse);
   CHECK_FATAL((jmpOperator != MOP_undef), "unknown condition code");
-  Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(jmpOperator, rflag, label);
+  Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(jmpOperator, rflag, label);
   bb.RemoveInsn(*insn1);
   bb.ReplaceInsn(insn, newInsn);
 }
 
-MOperator CsetCbzToBeqOptAArch64::SelectMOperator(AArch64CC_t condCode, bool inverse) const {
+MOperator CsetCbzToBeqOptAArch64::SelectMOperator(ConditionCode condCode, bool inverse) const {
   switch (condCode) {
     case CC_NE:
       return inverse ? MOP_beq : MOP_bne;
@@ -3804,8 +3739,7 @@ void ContiLDRorSTRToSameMEMPattern::Run(BB &bb, Insn &insn) {
       }
     }
     if (!moveSameReg) {
-      CG *cg = cgFunc->GetCG();
-      bb.InsertInsnAfter(*prevInsn, cg->BuildInstruction<AArch64Insn>(newOp, reg1, reg2));
+      bb.InsertInsnAfter(*prevInsn, cgFunc->GetInsnBuilder()->BuildInsn(newOp, reg1, reg2));
     }
     bb.RemoveInsn(insn);
   } else if (reg1.GetRegisterNumber() == reg2.GetRegisterNumber() &&
@@ -3864,7 +3798,6 @@ void InlineReadBarriersPattern::Run(BB &bb, Insn &insn) {
     return;
   }
   const std::string &barrierName = GetReadBarrierName(insn);
-  CG *cg = cgFunc->GetCG();
   if (barrierName == kMccDummy) {
     /* remove dummy call. */
     bb.RemoveInsn(insn);
@@ -3879,13 +3812,13 @@ void InlineReadBarriersPattern::Run(BB &bb, Insn &insn) {
     RegOperand &regOp = aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(R0, refSize, kRegTyInt);
     AArch64reg addrReg = isStatic ? R0 : R1;
     MemOperand &addr = aarch64CGFunc->CreateMemOpnd(addrReg, 0, refSize);
-    Insn &loadInsn = cg->BuildInstruction<AArch64Insn>(loadOp, regOp, addr);
+    Insn &loadInsn = cgFunc->GetInsnBuilder()->BuildInsn(loadOp, regOp, addr);
     bb.ReplaceInsn(insn, loadInsn);
   }
   bool isTailCall = (insn.GetMachineOpcode() == MOP_tail_call_opt_xbl);
   if (isTailCall) {
     /* add 'ret' instruction for tail call optimized load barrier. */
-    Insn &retInsn = cg->BuildInstruction<AArch64Insn>(MOP_xret);
+    Insn &retInsn = cgFunc->GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_xret);
     bb.AppendInsn(retInsn);
     bb.SetKind(BB::kBBReturn);
   }
@@ -3905,7 +3838,7 @@ bool ReplaceDivToMultiPattern::CheckCondition(Insn &insn) {
   }
   MOperator prevMop = prevInsn->GetMachineOpcode();
   MOperator prePrevMop = prePrevInsn->GetMachineOpcode();
-  if ((prevMop > 0) && (prevMop == MOP_wmovkri16) && (prePrevMop > 0) && (prePrevMop == MOP_xmovri32)) {
+  if ((prevMop > 0) && (prevMop == MOP_wmovkri16) && (prePrevMop > 0) && (prePrevMop == MOP_wmovri32)) {
     return true;
   }
   return false;
@@ -3920,7 +3853,7 @@ void ReplaceDivToMultiPattern::Run(BB &bb, Insn &insn) {
         (&(prePrevInsn->GetOperand(kInsnFirstOpnd)) != &sdivOpnd2)) {
       return;
     }
-    auto &prevLsl = static_cast<LogicalShiftLeftOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
+    auto &prevLsl = static_cast<BitShiftOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
     if (prevLsl.GetShiftAmount() != k16BitSize) {
       return;
     }
@@ -3934,13 +3867,12 @@ void ReplaceDivToMultiPattern::Run(BB &bb, Insn &insn) {
       return;
     }
     auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
-    CG *cg = cgFunc->GetCG();
     /* mov   w16, #0x588f */
     RegOperand &tempOpnd = aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16),
                                                                              k64BitSize, kRegTyInt);
     /* create a immedate operand with this specific value */
     ImmOperand &multiplierLow = aarch64CGFunc->CreateImmOperand(0x588f, k32BitSize, false);
-    Insn &multiplierLowInsn = cg->BuildInstruction<AArch64Insn>(MOP_xmovri32, tempOpnd, multiplierLow);
+    Insn &multiplierLowInsn = cgFunc->GetInsnBuilder()->BuildInsn(MOP_wmovri32, tempOpnd, multiplierLow);
     bb.InsertInsnBefore(*prePrevInsn, multiplierLowInsn);
 
     /*
@@ -3948,49 +3880,48 @@ void ReplaceDivToMultiPattern::Run(BB &bb, Insn &insn) {
      * create a immedate operand with this specific value
      */
     ImmOperand &multiplierHigh = aarch64CGFunc->CreateImmOperand(0x4f8b, k32BitSize, false);
-    LogicalShiftLeftOperand *multiplierHighLsl = aarch64CGFunc->GetLogicalShiftLeftOperand(k16BitSize, true);
+    BitShiftOperand *multiplierHighLsl = aarch64CGFunc->GetLogicalShiftLeftOperand(k16BitSize, true);
     Insn &multiplierHighInsn =
-        cg->BuildInstruction<AArch64Insn>(MOP_wmovkri16, tempOpnd, multiplierHigh, *multiplierHighLsl);
+        cgFunc->GetInsnBuilder()->BuildInsn(MOP_wmovkri16, tempOpnd, multiplierHigh, *multiplierHighLsl);
     bb.InsertInsnBefore(*prePrevInsn, multiplierHighInsn);
 
     /* smull   x16, w0, w16 */
     Insn &newSmullInsn =
-        cg->BuildInstruction<AArch64Insn>(MOP_xsmullrrr, tempOpnd, sdivOpnd1, tempOpnd);
+        cgFunc->GetInsnBuilder()->BuildInsn(MOP_xsmullrrr, tempOpnd, sdivOpnd1, tempOpnd);
     bb.InsertInsnBefore(*prePrevInsn, newSmullInsn);
 
     /* asr     x16, x16, #32 */
     ImmOperand &dstLsrImmHigh = aarch64CGFunc->CreateImmOperand(k32BitSize, k32BitSize, false);
     Insn &dstLsrInsnHigh =
-        cg->BuildInstruction<AArch64Insn>(MOP_xasrrri6, tempOpnd, tempOpnd, dstLsrImmHigh);
+        cgFunc->GetInsnBuilder()->BuildInsn(MOP_xasrrri6, tempOpnd, tempOpnd, dstLsrImmHigh);
     bb.InsertInsnBefore(*prePrevInsn, dstLsrInsnHigh);
 
     /* add     x16, x16, w0, SXTW */
     Operand &sxtw = aarch64CGFunc->CreateExtendShiftOperand(ExtendShiftOperand::kSXTW, 0, 3);
     Insn &addInsn =
-        cg->BuildInstruction<AArch64Insn>(MOP_xxwaddrrre, tempOpnd, tempOpnd, sdivOpnd1, sxtw);
+        cgFunc->GetInsnBuilder()->BuildInsn(MOP_xxwaddrrre, tempOpnd, tempOpnd, sdivOpnd1, sxtw);
     bb.InsertInsnBefore(*prePrevInsn, addInsn);
 
     /* asr     x16, x16, #17 */
     ImmOperand &dstLsrImmChange = aarch64CGFunc->CreateImmOperand(17, k32BitSize, false);
     Insn &dstLsrInsnChange =
-        cg->BuildInstruction<AArch64Insn>(MOP_xasrrri6, tempOpnd, tempOpnd, dstLsrImmChange);
+        cgFunc->GetInsnBuilder()->BuildInsn(MOP_xasrrri6, tempOpnd, tempOpnd, dstLsrImmChange);
     bb.InsertInsnBefore(*prePrevInsn, dstLsrInsnChange);
 
     /* add     x2, x16, x0, LSR #31 */
     auto &sdivOpnd0 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
     regno_t sdivOpnd0RegNO = sdivOpnd0.GetRegisterNumber();
-    RegOperand &extendSdivOpnd0 =
+    RegOperand &extSdivO0 =
         aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(sdivOpnd0RegNO),
                                                           k64BitSize, kRegTyInt);
 
     regno_t sdivOpnd1RegNum = sdivOpnd1.GetRegisterNumber();
-    RegOperand &extendSdivOpnd1 =
+    RegOperand &extSdivO1 =
         aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(sdivOpnd1RegNum),
                                                           k64BitSize, kRegTyInt);
     /* shift bit amount is thirty-one at this insn */
-    BitShiftOperand &addLsrOpnd = aarch64CGFunc->CreateBitShiftOperand(BitShiftOperand::kShiftLSR, 31, 6);
-    Insn &addLsrInsn = cg->BuildInstruction<AArch64Insn>(MOP_xaddrrrs, extendSdivOpnd0, tempOpnd,
-                                                         extendSdivOpnd1, addLsrOpnd);
+    BitShiftOperand &addLsrOpnd = aarch64CGFunc->CreateBitShiftOperand(BitShiftOperand::kLSR, 31, 6);
+    Insn &addLsrInsn = cgFunc->GetInsnBuilder()->BuildInsn(MOP_xaddrrrs, extSdivO0, tempOpnd, extSdivO1, addLsrOpnd);
     bb.InsertInsnBefore(*prePrevInsn, addLsrInsn);
 
     /*
@@ -4023,8 +3954,8 @@ Insn *AndCmpBranchesToCsetAArch64::FindPreviousCmp(Insn &insn) const {
     /*
      * if any def/use of CC or insn defReg between insn and curInsn, stop searching and return nullptr.
      */
-    if (static_cast<AArch64Insn*>(curInsn)->IsRegDefOrUse(defRegNO) ||
-        static_cast<AArch64Insn*>(curInsn)->IsRegDefOrUse(kRFLAG)) {
+    if (curInsn->ScanReg(defRegNO) ||
+        curInsn->ScanReg(kRFLAG)) {
       return nullptr;
     }
   }
@@ -4092,11 +4023,10 @@ void AndCmpBranchesToCsetAArch64::Run(BB &bb, Insn &insn) {
       }
       auto &dstReg = static_cast<RegOperand&>(csetReg);
       auto &srcReg = static_cast<RegOperand&>(prevInsnSecondReg);
-      CG *cg = cgFunc.GetCG();
       auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
       ImmOperand &bitPos = aarch64CGFunc->CreateImmOperand(n, k8BitSize, false);
       ImmOperand &bitSize = aarch64CGFunc->CreateImmOperand(1, k8BitSize, false);
-      Insn &ubfxInsn = cg->BuildInstruction<AArch64Insn>(ubfxOp, dstReg, srcReg, bitPos, bitSize);
+      Insn &ubfxInsn = cgFunc.GetInsnBuilder()->BuildInsn(ubfxOp, dstReg, srcReg, bitPos, bitSize);
       bb.InsertInsnBefore(*prevPrevInsn, ubfxInsn);
       bb.RemoveInsn(insn);
       bb.RemoveInsn(*prevInsn);
@@ -4134,7 +4064,7 @@ void AndCbzBranchesToTstAArch64::Run(BB &bb, Insn &insn) {
     newTstOp = (andRegOp2.GetSize() <= k32BitSize && andRegOp3.GetSize() <= k32BitSize) ? MOP_wtstri32 : MOP_xtstri64;
   }
   Operand &rflag = static_cast<AArch64CGFunc*>(&cgFunc)->GetOrCreateRflag();
-  Insn &newInsnTst = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newTstOp, rflag, andRegOp2, andOpnd3);
+  Insn &newInsnTst = cgFunc.GetInsnBuilder()->BuildInsn(newTstOp, rflag, andRegOp2, andOpnd3);
   if (andOpnd3.IsImmediate()) {
     if (!static_cast<ImmOperand&>(andOpnd3).IsBitmaskImmediate(andRegOp2.GetSize())) {
       return;
@@ -4145,7 +4075,7 @@ void AndCbzBranchesToTstAArch64::Run(BB &bb, Insn &insn) {
   bool reverse = (opCode == MOP_xcbz || opCode == MOP_wcbz);
   auto &label = static_cast<LabelOperand&>(nextInsn->GetOperand(kInsnSecondOpnd));
   MOperator jmpOperator = reverse ? MOP_beq : MOP_bne;
-  Insn &newInsnJmp = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(jmpOperator, rflag, label);
+  Insn &newInsnJmp = cgFunc.GetInsnBuilder()->BuildInsn(jmpOperator, rflag, label);
   bb.ReplaceInsn(insn, newInsnTst);
   bb.ReplaceInsn(*nextInsn, newInsnJmp);
 }
@@ -4229,12 +4159,11 @@ void ZeroCmpBranchesAArch64::Run(BB &bb, Insn &insn) {
     default:
       return;
   }
-  CG *cg = cgFunc.GetCG();
   auto aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
   ImmOperand &bitp = aarch64CGFunc->CreateImmOperand(
       (regOpnd->GetSize() <= k32BitSize) ? (k32BitSize - 1) : (k64BitSize - 1), k8BitSize, false);
   bb.InsertInsnAfter(
-      insn, cg->BuildInstruction<AArch64Insn>(newOp, *static_cast<RegOperand*>(regOpnd), bitp, *label));
+      insn, cgFunc.GetInsnBuilder()->BuildInsn(newOp, *static_cast<RegOperand*>(regOpnd), bitp, *label));
   bb.RemoveInsn(insn);
   bb.RemoveInsn(*prevInsn);
 }
@@ -4299,16 +4228,16 @@ void ElimDuplicateExtensionAArch64::Run(BB &bb, Insn &insn) {
       regno_t dest = static_cast<RegOperand&>(prevDestOpnd).GetRegisterNumber();
       regno_t src = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber();
       if (dest == src) {
-        insn.SetMOP(is32bits ? MOP_wmovrr : MOP_xmovrr);
+        insn.SetMOP(is32bits ? AArch64CG::kMd[MOP_wmovrr] : AArch64CG::kMd[MOP_xmovrr]);
         if (upper == kSizeOfSextMopTable &&
             static_cast<RegOperand&>(prevDestOpnd).GetValidBitsNum() !=
             static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetValidBitsNum()) {
           if (is32bits) {
             insn.GetOperand(kInsnFirstOpnd).SetSize(k64BitSize);
-            insn.SetMOP(MOP_xmovrr);
+            insn.SetMOP(AArch64CG::kMd[MOP_xmovrr]);
           } else {
             prevDestOpnd.SetSize(k64BitSize);
-            prevInsn->SetMOP(prevMop == MOP_xsxtb32 ? MOP_xsxtb64 : MOP_xsxth64);
+            prevInsn->SetMOP(prevMop == MOP_xsxtb32 ? AArch64CG::kMd[MOP_xsxtb64] : AArch64CG::kMd[MOP_xsxth64]);
           }
         }
       }
@@ -4350,7 +4279,7 @@ bool DeleteMovAfterCbzOrCbnzAArch64::PredBBCheck(BB &bb, bool checkCbz, const Op
 bool DeleteMovAfterCbzOrCbnzAArch64::OpndDefByMovZero(const Insn &insn) const {
   MOperator defMop = insn.GetMachineOpcode();
   switch (defMop) {
-    case MOP_xmovri32:
+    case MOP_wmovri32:
     case MOP_xmovri64: {
       Operand &defOpnd = insn.GetOperand(kInsnSecondOpnd);
       ASSERT(defOpnd.IsIntImmediate(), "expects ImmOperand");
@@ -4382,12 +4311,11 @@ bool DeleteMovAfterCbzOrCbnzAArch64::NoPreDefine(Insn &testInsn) const {
       continue;
     }
     ASSERT(!insn->IsCall(), "CG internal error, call insn should not be at the middle of the BB.");
-    const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
+    const InsnDesc *md = insn->GetDesc();
     uint32 opndNum = insn->GetOperandSize();
     for (uint32 i = 0; i < opndNum; ++i) {
       Operand &opnd = insn->GetOperand(i);
-      OpndProp *regProp = md->operand[i];
-      if (!regProp->IsDef()) {
+      if (!md->opndMD[i]->IsDef()) {
         continue;
       }
       if (opnd.IsMemoryAccessOperand()) {
@@ -4596,12 +4524,10 @@ bool LoadFloatPointPattern::IsPatternMatch() {
        static_cast<RegOperand&>(insn4->GetOperand(kInsnFirstOpnd)).GetRegisterNumber())) {
     return false;
   }
-  if ((static_cast<LogicalShiftLeftOperand&>(insn1->GetOperand(kInsnThirdOpnd)).GetShiftAmount() != 0) ||
-      (static_cast<LogicalShiftLeftOperand&>(insn2->GetOperand(kInsnThirdOpnd)).GetShiftAmount() !=
-       k16BitSize) ||
-      (static_cast<LogicalShiftLeftOperand&>(insn3->GetOperand(kInsnThirdOpnd)).GetShiftAmount() !=
-       k32BitSize) ||
-      (static_cast<LogicalShiftLeftOperand&>(insn4->GetOperand(kInsnThirdOpnd)).GetShiftAmount() !=
+  if ((static_cast<BitShiftOperand&>(insn1->GetOperand(kInsnThirdOpnd)).GetShiftAmount() != 0) ||
+      (static_cast<BitShiftOperand&>(insn2->GetOperand(kInsnThirdOpnd)).GetShiftAmount() != k16BitSize) ||
+      (static_cast<BitShiftOperand&>(insn3->GetOperand(kInsnThirdOpnd)).GetShiftAmount() != k32BitSize) ||
+      (static_cast<BitShiftOperand&>(insn4->GetOperand(kInsnThirdOpnd)).GetShiftAmount() !=
        (k16BitSize + k32BitSize))) {
     return false;
   }
@@ -4637,7 +4563,7 @@ void LoadFloatPointPattern::Run(BB &bb, Insn &insn) {
     AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
     LabelOperand &target = aarch64CGFunc->GetOrCreateLabelOperand(lableIdx);
     cgFunc->InsertLabelMap(lableIdx, value);
-    Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_xldli, insn4->GetOperand(kInsnFirstOpnd),
+    Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(MOP_xldli, insn4->GetOperand(kInsnFirstOpnd),
                                                                   target);
     bb.InsertInsnAfter(*insn4, newInsn);
     bb.RemoveInsn(*insn1);
@@ -4654,7 +4580,7 @@ void ReplaceCmpToCmnAArch64::Run(BB &bb, Insn &insn) {
   MOperator newMop = MOP_undef;
   uint64 negOne = UINT64_MAX;
   switch (thisMop) {
-    case MOP_xmovri32: {
+    case MOP_wmovri32: {
       nextMop = MOP_wcmprr;
       newMop = MOP_wcmnri;
       negOne = UINT32_MAX;
@@ -4686,8 +4612,7 @@ void ReplaceCmpToCmnAArch64::Run(BB &bb, Insn &insn) {
             }
             ImmOperand &newOpnd = aarch64CGFunc->CreateImmOperand(iVal * (-1), immOpnd->GetSize(), false);
             Operand &regFlag = nextInsn->GetOperand(kInsnFirstOpnd);
-            bb.ReplaceInsn(*nextInsn, cgFunc.GetCG()->BuildInstruction<AArch64Insn>(MOperator(newMop), regFlag,
-                                                                                    *opndCmp2, newOpnd));
+            bb.ReplaceInsn(*nextInsn, cgFunc.GetInsnBuilder()->BuildInsn(newMop, regFlag, *opndCmp2, newOpnd));
           }
         }
       }
@@ -4819,10 +4744,10 @@ bool LongIntCompareWithZPattern::CheckCondition(Insn &insn) {
 void LongIntCompareWithZPattern::Run(BB &bb, Insn &insn) {
   /* found pattern */
   if (CheckCondition(insn)) {
-    Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(optInsn[3]->GetMachineOpcode(),
-                                                                   optInsn[3]->GetOperand(kInsnFirstOpnd),
-                                                                   optInsn[3]->GetOperand(kInsnSecondOpnd),
-                                                                   optInsn[3]->GetOperand(kInsnThirdOpnd));
+    Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(optInsn[3]->GetMachineOpcode(),
+                                                        optInsn[3]->GetOperand(kInsnFirstOpnd),
+                                                        optInsn[3]->GetOperand(kInsnSecondOpnd),
+                                                        optInsn[3]->GetOperand(kInsnThirdOpnd));
     /* use newInsn to replace  the third optInsn */
     bb.ReplaceInsn(*optInsn[0], newInsn);
     optInsn.clear();
@@ -4959,12 +4884,12 @@ bool ComplexMemOperandLSLAArch64::CheckShiftValid(const Insn &insn,
   uint32 lslAmount = lsl.GetShiftAmount();
   constexpr uint8 twoShiftBits = 2;
   constexpr uint8 threeShiftBits = 3;
-  uint8 memSize = static_cast<const AArch64Insn&>(insn).GetLoadStoreSize();
-  if ((memSize == k32BitSize && (lsl.GetShiftAmount() != 0 && lslAmount != twoShiftBits)) ||
-      (memSize == k64BitSize && (lsl.GetShiftAmount() != 0 && lslAmount != threeShiftBits))) {
+  uint32 memSize = insn.GetMemoryByteSize();
+  if ((memSize == k4ByteSize && (lsl.GetShiftAmount() != 0 && lslAmount != twoShiftBits)) ||
+      (memSize == k8ByteSize && (lsl.GetShiftAmount() != 0 && lslAmount != threeShiftBits))) {
     return false;
   }
-  if (memSize != (k8BitSize << lslAmount)) {
+  if (memSize != (k5BitSize << lslAmount)) {
     return false;
   }
   return true;
@@ -5105,7 +5030,7 @@ bool WriteFieldCallPattern::WriteFieldCallOptPatternMatch(const Insn &writeField
 }
 
 bool WriteFieldCallPattern::IsWriteRefFieldCallInsn(const Insn &insn) const {
-  if (!insn.IsCall() || insn.IsIndirectCall()) {
+  if (!insn.IsCall() || insn.GetMachineOpcode() == MOP_xblr) {
     return false;
   }
   Operand *targetOpnd = insn.GetCallTargetOperand();
@@ -5160,7 +5085,7 @@ void WriteFieldCallPattern::Run(BB &bb, Insn &insn) {
   auto *aarCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   MemOperand &addr =
       aarCGFunc->CreateMemOpnd(*currentCallParam.fieldBaseOpnd, currentCallParam.fieldOffset, k64BitSize);
-  Insn &strInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_xstr, *currentCallParam.fieldValue, addr);
+  Insn &strInsn = cgFunc->GetInsnBuilder()->BuildInsn(MOP_xstr, *currentCallParam.fieldValue, addr);
   strInsn.AppendComment("store reference field");
   strInsn.MarkAsAccessRefField(true);
   bb.InsertInsnAfter(insn, strInsn);
@@ -5263,7 +5188,7 @@ void OneHoleBranchesAArch64::Run(BB &bb, Insn &insn) {
       break;
   }
   ImmOperand &oneHoleOpnd = aarch64CGFunc->CreateImmOperand(n, k8BitSize, false);
-  (void)bb.InsertInsnAfter(insn, cgFunc.GetCG()->BuildInstruction<AArch64Insn>(
+  (void)bb.InsertInsnAfter(insn, cgFunc.GetInsnBuilder()->BuildInsn(
       newOp, prevInsn->GetOperand(kInsnSecondOpnd), oneHoleOpnd, label));
   bb.RemoveInsn(insn);
 }
@@ -5384,7 +5309,7 @@ void AndCmpBranchesToTbzAArch64::Run(BB &bb, Insn &insn) {
         break;
     }
     ImmOperand &newImm = aarch64CGFunc->CreateImmOperand(n, k8BitSize, false);
-    (void)bb.InsertInsnAfter(insn, cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mopNew,
+    (void)bb.InsertInsnAfter(insn, cgFunc.GetInsnBuilder()->BuildInsn(mopNew,
         prevPrevInsn->GetOperand(kInsnSecondOpnd), newImm, label));
     bb.RemoveInsn(insn);
     bb.RemoveInsn(*prevInsn);
@@ -5422,7 +5347,7 @@ void AndCmpBranchesToTbzAArch64::Run(BB &bb, Insn &insn) {
         break;
     }
     ImmOperand &newImm = aarch64CGFunc->CreateImmOperand(n, k8BitSize, false);
-    (void)bb.InsertInsnAfter(insn, cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mopNew,
+    (void)bb.InsertInsnAfter(insn, cgFunc.GetInsnBuilder()->BuildInsn(mopNew,
         prevPrevInsn->GetOperand(kInsnSecondOpnd), newImm, label));
     bb.RemoveInsn(insn);
     bb.RemoveInsn(*prevInsn);
@@ -5463,7 +5388,7 @@ void UbfxToUxtwPattern::Run(BB &bb, Insn &insn) {
   if (!CheckCondition(insn)) {
     return;
   }
-  Insn *newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+  Insn *newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(
       MOP_xuxtw64, insn.GetOperand(kInsnFirstOpnd), insn.GetOperand(kInsnSecondOpnd));
   bb.ReplaceInsn(insn, *newInsn);
   if (CG_PEEP_DUMP) {
@@ -5505,7 +5430,7 @@ void UbfxAndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
   if (newMop == MOP_undef) {
     return;
   }
-  Insn *newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, opnd2, imm3, label);
+  Insn *newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(newMop, opnd2, imm3, label);
   BB *useInsnBB = useInsn->GetBB();
   useInsnBB->ReplaceInsn(*useInsn, *newInsn);
   /* update ssa info */
@@ -5580,7 +5505,7 @@ void ComplexExtendWordLslAArch64::Run(BB &bb, Insn &insn) {
   auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
   RegOperand &reg1 = aarch64CGFunc->GetOrCreateVirtualRegisterOperand(regNO1);
   ImmOperand &newImm = aarch64CGFunc->CreateImmOperand(k32BitSize, k6BitSize, false);
-  Insn &newInsnSbfiz = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mopNew,
+  Insn &newInsnSbfiz = cgFunc.GetInsnBuilder()->BuildInsn(mopNew,
       nextOpnd0, reg1, nextOpnd2, newImm);
   bb.RemoveInsn(*nextInsn);
   bb.ReplaceInsn(insn, newInsnSbfiz);
