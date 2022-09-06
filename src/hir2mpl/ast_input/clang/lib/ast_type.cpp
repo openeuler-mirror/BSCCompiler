@@ -17,6 +17,8 @@
 #include "ast_util.h"
 #include "fe_manager.h"
 #include "fe_options.h"
+#include "driver_options.h"
+#include "triple.h"
 
 namespace maple {
 MIRType *LibAstFile::CvtPrimType(const clang::QualType qualType, bool isSourceType) const {
@@ -28,10 +30,29 @@ MIRType *LibAstFile::CvtPrimType(const clang::QualType qualType, bool isSourceTy
   MIRType *destType = nullptr;
   if (llvm::isa<clang::BuiltinType>(srcType)) {
     const auto *builtinType = llvm::cast<clang::BuiltinType>(srcType);
+    if (isSourceType) {
+      MIRType *sourceType = CvtPrimType2SourceType(builtinType->getKind());
+      if (sourceType != nullptr) {
+        return sourceType;
+      }
+    }
     PrimType primType = CvtPrimType(builtinType->getKind(), isSourceType);
     destType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(primType);
   }
   return destType;
+}
+
+MIRType *LibAstFile::CvtPrimType2SourceType(const clang::BuiltinType::Kind kind) const {
+  switch (kind) {
+    case clang::BuiltinType::ULong:
+      return FEManager::GetTypeManager().GetOrCreateTypeByNameType(kDbgULong);
+    case clang::BuiltinType::Long:
+      return FEManager::GetTypeManager().GetOrCreateTypeByNameType(kDbgLong);
+    case clang::BuiltinType::LongDouble:
+      return FEManager::GetTypeManager().GetOrCreateTypeByNameType(kDbgLongDouble);
+    default:
+      return nullptr;
+  }
 }
 
 PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind, bool isSourceType) const {
@@ -49,11 +70,7 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind, bool isSou
     case clang::BuiltinType::UInt:
       return PTY_u32;
     case clang::BuiltinType::ULong:
-#if defined(ILP32) && ILP32
-      return PTY_u32;
-#else
-      return PTY_u64;
-#endif
+      return Triple::GetTriple().GetEnvironment() == Triple::GNUILP32 ? PTY_u32 : PTY_u64;
     case clang::BuiltinType::ULongLong:
       return PTY_u64;
     case clang::BuiltinType::UInt128:
@@ -69,11 +86,7 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind, bool isSou
     case clang::BuiltinType::Int:
       return PTY_i32;
     case clang::BuiltinType::Long:
-#if defined(ILP32) && ILP32
-      return PTY_i32;
-#else
-      return PTY_i64;
-#endif
+      return Triple::GetTriple().GetEnvironment() == Triple::GNUILP32 ? PTY_i32 : PTY_i64;
     case clang::BuiltinType::LongLong:
       return PTY_i64;
     case clang::BuiltinType::Int128:
@@ -123,10 +136,7 @@ MIRType *LibAstFile::CvtTypedef(const clang::QualType &qualType) {
 }
 
 MIRType *LibAstFile::CvtTypedefDecl(const clang::TypedefNameDecl &typedefDecl) {
-  std::string typedefName = typedefDecl.getNameAsString();
-  if (typedefName.empty()) {
-    return nullptr;
-  }
+  std::string typedefName = GetDeclName(typedefDecl, true);
   MIRTypeByName *typdefType = nullptr;
   clang::QualType underlyTy = typedefDecl.getCanonicalDecl()->getUnderlyingType();
   MIRType *type = CvtType(underlyTy, true);
@@ -239,10 +249,7 @@ MIRType *LibAstFile::CvtEnumType(const clang::QualType &qualType, bool isSourceT
     if (itor == enumDecles.end()) {
       (void)enumDecles.emplace_back(enumDecl);
     }
-    std::string enumName = enumDecl->getNameAsString();
-    if (enumName.empty()) {
-      enumName = GetOrCreateMappedUnnamedName(*enumDecl);
-    }
+    std::string enumName = GetDeclName(*enumDecl, true);
     MIRTypeByName *typdefType = FEManager::GetTypeManager().GetOrCreateTypeByNameType(enumName);
     type = typdefType;
   } else {
@@ -266,6 +273,12 @@ MIRType *LibAstFile::CvtRecordType(const clang::QualType qualType) {
   std::stringstream ss;
   EmitTypeName(srcType, ss);
   std::string name(ss.str());
+  if (!recordDecl->isDefinedOutsideFunctionOrMethod()) {
+    Loc l = GetLOC(recordDecl->getLocation());
+    std::stringstream ss;
+    ss << name << "_" << l.line << "_" << l.column;
+    name = ss.str();
+  }
   type = FEManager::GetTypeManager().GetOrCreateStructType(name);
   type->SetMIRTypeKind(srcType->isUnionType() ? kTypeUnion : kTypeStruct);
   if (recordType->isIncompleteType()) {
@@ -406,13 +419,11 @@ void LibAstFile::CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualT
   ASSERT(ptrType != nullptr, "Null type", currQualType.getAsString().c_str());
   if (ptrType->isArrayType()) {
     const clang::ArrayType *arrType = ptrType->getAsArrayTypeUnsafe();
-    bool asFlag = arrType->isConstantArrayType();
-    ASSERT(asFlag, "Must be a ConstantArrayType", currQualType.getAsString().c_str());
+    ASSERT(arrType->isConstantArrayType(), "Must be a ConstantArrayType", currQualType.getAsString().c_str());
     const auto *constArrayType = llvm::dyn_cast<clang::ConstantArrayType>(arrType);
     ASSERT(constArrayType != nullptr, "ERROR : null pointer!");
     llvm::APInt size = constArrayType->getSize();
-    asFlag = size.getSExtValue() >= 0;
-    ASSERT(asFlag, "Array Size must be positive or zero", currQualType.getAsString().c_str());
+    ASSERT(size.getSExtValue() >= 0, "Array Size must be positive or zero", currQualType.getAsString().c_str());
     operands.push_back(size.getSExtValue());
     CollectBaseEltTypeAndSizesFromConstArrayDecl(constArrayType->getElementType(), elemType, elemAttr, operands,
                                                  isSourceType);

@@ -50,6 +50,7 @@ class ENCChecker {
   static std::string GetBoundaryName(const UniqueFEIRExpr &expr);
   static bool IsGlobalVarInExpr(const UniqueFEIRExpr &expr);
   static std::pair<StIdx, StIdx> InsertBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr);
+  static void InsertBoundaryVar(const ASTDecl &ptrDecl, std::list<UniqueFEIRStmt> &stmts);
   static bool IsConstantIndex(const UniqueFEIRExpr &expr);
   static void PeelNestedBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &baseExpr);
   static void ReduceBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &expr);

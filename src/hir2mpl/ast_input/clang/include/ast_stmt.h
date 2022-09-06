@@ -471,11 +471,11 @@ class ASTDeclStmt : public ASTStmt {
 
   void SetSubDecl(ASTDecl *decl) {
     subDecls.emplace_back(decl);
-    subDeclInfos.emplace_back(decl);
+    (void)subDeclInfos.emplace_back(decl);
   }
 
   void SetVLASizeExpr(ASTExpr *astExpr) {
-    subDeclInfos.emplace_back(astExpr);
+    (void)subDeclInfos.emplace_back(astExpr);
   }
 
   const MapleList<ASTDecl*> &GetSubDecls() const {
@@ -484,7 +484,6 @@ class ASTDeclStmt : public ASTStmt {
 
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
-  void InsertBoundaryVar(ASTDecl *ptrDecl, std::list<UniqueFEIRStmt> &stmts) const;
 
   MapleList<ASTDecl*> subDecls;
   // saved vla size exprs before a vla decl

@@ -26,6 +26,7 @@
 #include "fe_file_type.h"
 #include "hir2mpl_option.h"
 #include "parser_opt.h"
+#include "triple.h"
 #include "types_def.h"
 #include "version.h"
 
@@ -115,8 +116,7 @@ bool HIR2MPLOptions::InitFactory() {
   // ast compiler options
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::usesignedchar,
                                          &HIR2MPLOptions::ProcessUseSignedChar);
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::be,
-                                         &HIR2MPLOptions::ProcessBigEndian);
+
   // On Demand Type Creation
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::xbootclasspath,
                                          &HIR2MPLOptions::ProcessXbootclasspath);
@@ -136,11 +136,9 @@ bool HIR2MPLOptions::InitFactory() {
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::defaultSafe,
                                          &HIR2MPLOptions::ProcessDefaultSafe);
 
-#ifdef FIXME
   // O2 does not work, because it generates OP_ror instruction but this instruction is not supported in me
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::o2,
                                          &HIR2MPLOptions::ProcessO2);
-#endif
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::simplifyShortCircuit,
                                          &HIR2MPLOptions::ProcessSimplifyShortCircuit);
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::enableVariableArray,
@@ -154,6 +152,16 @@ bool HIR2MPLOptions::InitFactory() {
 }
 
 bool HIR2MPLOptions::SolveOptions(bool isDebug) {
+  if (opts::target.IsEnabledByUser()) {
+    Triple::GetTriple().Init(opts::target.GetValue());
+  } else {
+    Triple::GetTriple().Init();
+  }
+
+  if (Triple::GetTriple().IsBigEndian()) {
+    (void)ProcessBigEndian();
+  }
+
   for (const auto &opt : hir2mplCategory.GetEnabledOptions()) {
     std::string printOpt;
     if (isDebug) {
@@ -175,7 +183,7 @@ bool HIR2MPLOptions::SolveOptions(bool isDebug) {
 }
 
 bool HIR2MPLOptions::SolveArgs(int argc, char **argv) {
-  maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, hir2mplCategory);
+  maplecl::CommandLine::GetCommandLine().Parse(argc, argv, hir2mplCategory);
   bool result = SolveOptions(opts::hir2mpl::debug);
   if (!result) {
     return result;
@@ -200,8 +208,6 @@ bool HIR2MPLOptions::SolveArgs(int argc, char **argv) {
     DumpUsage();
     return false;
   }
-
-  return true;
 }
 
 void HIR2MPLOptions::DumpUsage() const {
@@ -328,7 +334,7 @@ bool HIR2MPLOptions::ProcessNoMplFile(const maplecl::OptionInterface &) const {
 }
 
 bool HIR2MPLOptions::ProcessDumpLevel(const maplecl::OptionInterface &outputName) const {
-  uint32_t arg = outputName.GetCommonValue();
+  int arg = outputName.GetCommonValue();
   FEOptions::GetInstance().SetDumpLevel(arg);
   return true;
 }
@@ -436,7 +442,7 @@ bool HIR2MPLOptions::ProcessUseSignedChar(const maplecl::OptionInterface &) cons
   return true;
 }
 
-bool HIR2MPLOptions::ProcessBigEndian(const maplecl::OptionInterface &) const {
+bool HIR2MPLOptions::ProcessBigEndian() const {
   FEOptions::GetInstance().SetBigEndian(true);
   return true;
 }
@@ -567,7 +573,7 @@ bool HIR2MPLOptions::ProcessDefaultSafe(const maplecl::OptionInterface &) const 
 }
 
 bool HIR2MPLOptions::ProcessO2(const maplecl::OptionInterface &) const {
-  FEOptions::GetInstance().SetO2(true);
+  FEOptions::GetInstance().SetO2(false);
   return true;
 }
 

@@ -45,7 +45,6 @@ extern maplecl::Option<bool> dumpPhaseTimeDetail;
 extern maplecl::Option<bool> rc;
 extern maplecl::Option<bool> nobarrier;
 extern maplecl::Option<bool> usesignedchar;
-extern maplecl::Option<bool> be;
 extern maplecl::Option<bool> o2;
 extern maplecl::Option<bool> simplifyShortCircuit;
 extern maplecl::Option<bool> enableVariableArray;

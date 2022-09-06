@@ -40,10 +40,6 @@ bool ASTFunction::GenerateAliasVars(const std::string &phaseName) {
 bool ASTFunction::EmitToFEIRStmt(const std::string &phaseName) {
   phaseResult.RegisterPhaseNameAndStart(phaseName);
   std::list<UniqueFEIRStmt> feirStmts = astFunc.EmitASTStmtToFEIR();
-  if ((astFunc.GetSize() <= FEOptions::GetInstance().GetFuncInlineSize() &&
-       !astFunc.GetGenericAttrs().GetAttr(GENATTR_noinline)) || astFunc.GetGenericAttrs().GetAttr(GENATTR_static)) {
-    FEManager::GetModule().AddOptFuncs(&mirFunction);
-  }
   AppendFEIRStmts(feirStmts);
   AppendFEIRStmts(vlaCleanupStmts);
   return phaseResult.Finish(true);

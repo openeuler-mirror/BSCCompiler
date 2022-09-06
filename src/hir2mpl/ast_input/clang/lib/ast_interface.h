@@ -48,7 +48,7 @@ class LibAstFile {
   const AstUnitDecl *GetAstUnitDecl() const;
   std::string GetMangledName(const clang::NamedDecl &decl) const;
   const std::string GetOrCreateMappedUnnamedName(const clang::Decl &decl);
-
+  const std::string GetDeclName(const clang::NamedDecl &decl, bool isRename = false);
   void EmitTypeName(const clang::QualType qualType, std::stringstream &ss);
   void EmitTypeName(const clang::RecordType &recordType, std::stringstream &ss);
   void EmitQualifierName(const clang::QualType qualType, std::stringstream &ss) const;
@@ -80,6 +80,7 @@ class LibAstFile {
   void CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   MIRType *CvtPrimType(const clang::QualType qualType, bool isSourceType = false) const;
   PrimType CvtPrimType(const clang::BuiltinType::Kind kind, bool isSourceType) const;
+  MIRType *CvtPrimType2SourceType(const clang::BuiltinType::Kind kind) const;
   MIRType *CvtSourceType(const clang::QualType qualType);
   MIRType *CvtType(const clang::QualType qualType, bool isSourceType = false);
   MIRType *CvtOtherType(const clang::QualType srcType, bool isSourceType);

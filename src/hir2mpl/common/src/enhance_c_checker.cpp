@@ -1156,6 +1156,17 @@ std::pair<StIdx, StIdx> ENCChecker::InsertBoundaryVar(MIRBuilder &mirBuilder, co
   return boundaryVarStIdx;
 }
 
+void ENCChecker::InsertBoundaryVar(const ASTDecl &ptrDecl, std::list<UniqueFEIRStmt> &stmts) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() ||
+      ptrDecl.GetBoundaryLenExpr() == nullptr) {
+    return;
+  }
+  // GetCurrentFunction need to be optimized when parallel features
+  MIRFunction *curFunction = FEManager::GetMIRBuilder().GetCurrentFunctionNotNull();
+  UniqueFEIRExpr lenFEExpr = ptrDecl.GetBoundaryLenExpr()->Emit2FEExpr(stmts);
+  ENCChecker::InitBoundaryVar(*curFunction, ptrDecl, std::move(lenFEExpr), stmts);
+}
+
 std::string ENCChecker::GetBoundaryName(const UniqueFEIRExpr &expr) {
   std::string boundaryName;
   if (expr == nullptr) {
@@ -1556,7 +1567,7 @@ void ASTFunc::InsertBoundaryCheckingInRet(std::list<UniqueFEIRStmt> &stmts) cons
   exprs.emplace_back(std::move(baseExpr));
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertBoundary>(OP_returnassertle, std::move(exprs));
   stmt->SetSrcLoc(stmts.back()->GetSrcLoc());
-  stmts.insert(--stmts.end(), std::move(stmt));
+  stmts.insert(--stmts.cend(), std::move(stmt));
 }
 
 void ENCChecker::InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans,
@@ -1720,7 +1731,7 @@ void FEIRStmtDAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
     if (stmt != nullptr) {
       stmt->SetSrcLoc(loc);
       std::list<StmtNode*> stmtnodes = stmt->GenMIRStmts(mirBuilder);
-      ans.insert(ans.end(), stmtnodes.begin(), stmtnodes.end());
+      ans.insert(ans.cend(), stmtnodes.cbegin(), stmtnodes.cend());
     }
   }
   ENCChecker::AssignBoundaryVar(mirBuilder, dstExpr, expr, lenExpr, ans);
@@ -1751,7 +1762,7 @@ void FEIRStmtIAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
     if (stmt != nullptr) {
       stmt->SetSrcLoc(loc);
       std::list<StmtNode*> stmtnodes = stmt->GenMIRStmts(mirBuilder);
-      ans.insert(ans.end(), stmtnodes.begin(), stmtnodes.end());
+      ans.insert(ans.cend(), stmtnodes.cbegin(), stmtnodes.cend());
     }
   }
   ENCChecker::AssignBoundaryVar(mirBuilder, dstExpr, baseExpr, lenExpr, ans);
@@ -1772,18 +1783,16 @@ void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const Uniqu
   if (fieldID == 0) {
     MIRSymbol *dstSym = var->GenerateMIRSymbol(mirBuilder);
     if (dstSym->GetAttr(ATTR_final_boundary_size)) {
-      WARN(kLncWarn, "%s:%d warning: this var specified as the global or field boundary length is "
-           "assigned or token address. [Use __Unsafe__ to eliminate the warning]",
-           FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
+      FE_WARN(kLncWarn, loc, "this var specified as the global or field boundary length is "
+              "assigned or token address. [Use __Unsafe__ to eliminate the warning]");
     }
   } else {
     FieldID tmpID = fieldID;
     MIRStructType *structType = static_cast<MIRStructType*>(var->GetType()->GenerateMIRTypeAuto());
     FieldPair fieldPair = structType->TraverseToFieldRef(tmpID);
     if (fieldPair.second.second.GetAttr(FLDATTR_final_boundary_size)) {
-      WARN(kLncWarn, "%s:%d warning: this field specified as the global or field boundary length is "
-           "assigned or token address. [Use __Unsafe__ to eliminate the warning]",
-           FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
+      FE_WARN(kLncWarn, loc, "this field specified as the global or field boundary length is "
+              "assigned or token address. [Use __Unsafe__ to eliminate the warning]");
     }
   }
 }
@@ -1805,9 +1814,8 @@ void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const Uniqu
   FieldID tmpID = fieldID;
   FieldPair fieldPair = static_cast<MIRStructType*>(baseType)->TraverseToFieldRef(tmpID);
   if (fieldPair.second.second.GetAttr(FLDATTR_final_boundary_size)) {
-    WARN(kLncWarn, "%s:%d warning: this field specified as the global or field boundary length is "
-         "assigned or token address. [Use __Unsafe__ to eliminate the warning]",
-         FEManager::GetModule().GetFileNameFromFileNum(loc.fileIdx).c_str(), loc.line);
+    FE_WARN(kLncWarn, loc, "this field specified as the global or field boundary length is "
+            "assigned or token address. [Use __Unsafe__ to eliminate the warning]");
   }
 }
 

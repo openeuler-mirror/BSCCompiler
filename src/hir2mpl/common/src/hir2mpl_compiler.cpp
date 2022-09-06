@@ -17,6 +17,7 @@
 #include "fe_manager.h"
 #include "fe_file_type.h"
 #include "fe_timer.h"
+#include "inline_mplt.h"
 #ifndef ONLY_C
 #include "rc_setter.h"
 #endif
@@ -78,8 +79,9 @@ int HIR2MPLCompiler::Run() {
   CHECK_FATAL(success, "Compile Error");
   ExportMpltFile();
   ExportMplFile();
-  FEManager::GetDiagManager().PrintFeErrorMessages();
-  int res = FEManager::GetDiagManager().GetDiagRes();
+  logInfo.PrintUserWarnMessages();
+  logInfo.PrintUserErrorMessages();
+  int res = logInfo.GetUserErrorsNum() > 0 ? FEErrno::kFEError : FEErrno::kNoError;
   HIR2MPLEnv::GetInstance().Finish();
   Release();
   return res;
@@ -224,7 +226,11 @@ void HIR2MPLCompiler::ExportMplFile() {
     }
     module.OutputAsciiMpl("", ".mpl", nullptr, emitStructureType, false);
     if (FEOptions::GetInstance().GetFuncInlineSize() != 0 && !FEOptions::GetInstance().GetWPAA()) {
-      module.DumpInlineCandidateToFile(outNameWithoutType + ".mplt_inline");
+      std::unique_ptr<InlineMplt> modInline = std::make_unique<InlineMplt>(module);
+      bool isInlineNeeded = modInline->CollectInlineInfo(FEOptions::GetInstance().GetFuncInlineSize());
+      if (isInlineNeeded) {
+        modInline->DumpInlineCandidateToFile(outNameWithoutType + ".mplt_inline");
+      }
     }
     timer.StopAndDumpTimeMS("Output mpl");
   }
@@ -300,7 +306,7 @@ void HIR2MPLCompiler::ProcessFunctions() {
     funcSize += comp->GetFunctionsSize();
     if (!success) {
       const std::set<FEFunction*> &failedFEFunctions = comp->GetCompileFailedFEFunctions();
-      compileFailedFEFunctions.insert(failedFEFunctions.begin(), failedFEFunctions.end());
+      compileFailedFEFunctions.insert(failedFEFunctions.cbegin(), failedFEFunctions.cend());
     }
     if (FEOptions::GetInstance().IsDumpPhaseTime()) {
       comp->DumpPhaseTimeTotal();

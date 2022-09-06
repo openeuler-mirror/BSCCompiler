@@ -35,7 +35,7 @@ class JBCBBPesudoCatchPred : public FEIRBB {
   static const uint8 kBBKindPesudoCatchPred = FEIRBBKind::kBBKindExt + 1;
   JBCBBPesudoCatchPred()
       : FEIRBB(kBBKindPesudoCatchPred) {}
-  ~JBCBBPesudoCatchPred() = default;
+  ~JBCBBPesudoCatchPred() override = default;
 };  // class JBCBBPesudoCatchPred
 
 class JBCFunction : public FEFunction {

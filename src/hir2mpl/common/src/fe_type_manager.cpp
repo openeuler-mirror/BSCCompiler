@@ -798,10 +798,7 @@ MIRFunction *FETypeManager::GetMCCFunction(const std::string &funcName) const {
 
 MIRFunction *FETypeManager::GetMCCFunction(const GStrIdx &funcNameIdx) const {
   auto it = nameMCCFuncMap.find(funcNameIdx);
-  if (it == nameMCCFuncMap.end()) {
-    return nullptr;
-  } else {
-    return it->second;
-  }
+  CHECK_FATAL(it != nameMCCFuncMap.cend(), "The specified MCCFunc was not found");
+  return it->second;
 }
 }  // namespace maple

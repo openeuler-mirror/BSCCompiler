@@ -31,7 +31,6 @@ const std::unordered_map<clang::attr::Kind, std::string> kUnsupportedFuncAttrsMa
     {clang::attr::AllocAlign, "alloc_align"},
     {clang::attr::AssumeAligned, "assume_aligned"},
     {clang::attr::Flatten, "flatten"},
-    {clang::attr::GNUInline, "gnu_inline"},
     {clang::attr::Cold, "cold"},
     {clang::attr::IFunc, "ifunc"},
     {clang::attr::NoSanitize, "no_sanitize"},
@@ -363,6 +362,31 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs 
     genAttrs.SetAttr(GENATTR_destructor_priority);
     genAttrs.InsertIntContentMap(GENATTR_destructor_priority, destructorAttr->getPriority());
   }
+  // one element vector type in rettype
+  if (LibAstFile::IsOneElementVector(decl.getReturnType())) {
+    genAttrs.SetAttr(GENATTR_oneelem_simd);
+  }
+  if (FEOptions::GetInstance().IsEnableSafeRegion()) {
+    if (decl.getSafeSpecifier() == clang::SS_Unsafe) {
+      genAttrs.SetAttr(GENATTR_unsafed);
+    } else if (decl.getSafeSpecifier() == clang::SS_Safe || FEOptions::GetInstance().IsDefaultSafe()) {
+      genAttrs.SetAttr(GENATTR_safed);
+    }
+  }
+  // If a non-static function defined with inline has non-static and non-inline function declaration, it should be
+  // an externally visible function.
+  if (decl.isThisDeclarationADefinition() && genAttrs.GetAttr(GENATTR_inline) && !genAttrs.GetAttr(GENATTR_static)) {
+    bool isExternallyVisible = false;
+    for (const clang::FunctionDecl *funcDecl : decl.redecls()) {
+      if (!funcDecl->isThisDeclarationADefinition() && !funcDecl->isInlineSpecified()) {
+        isExternallyVisible = true;
+        break;
+      }
+    }
+    if (isExternallyVisible) {
+      genAttrs.SetAttr(GENATTR_extern);
+    }
+  }
   CheckUnsupportedFuncAttrs(decl);
 }
 
@@ -514,6 +538,20 @@ const std::string LibAstFile::GetOrCreateMappedUnnamedName(const clang::Decl &de
   return FEUtils::GetSequentialName0("unnamed.", uid);
 }
 
+const std::string LibAstFile::GetDeclName(const clang::NamedDecl &decl, bool isRename) {
+  std::string name = decl.getNameAsString();
+  if (name.empty()) {
+    name = GetOrCreateMappedUnnamedName(decl);
+  }
+  if (isRename && !decl.isDefinedOutsideFunctionOrMethod()) {
+    Loc l = GetLOC(decl.getLocation());
+    std::stringstream ss;
+    ss << name << "_" << l.line << "_" << l.column;
+    name = ss.str();
+  }
+  return name;
+}
+
 void LibAstFile::EmitTypeName(const clang::RecordType &recordType, std::stringstream &ss) {
   clang::RecordDecl *recordDecl = recordType.getDecl();
   std::string str = recordType.desugar().getAsString();
@@ -552,11 +590,6 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recordType, std::stringst
     ss << nameStr;
   } else {
     ss << GetOrCreateMappedUnnamedName(*recordDecl);
-  }
-
-  if (!recordDecl->isDefinedOutsideFunctionOrMethod()) {
-    Loc l = GetLOC(recordDecl->getLocation());
-    ss << "_" << l.line << "_" << l.column;
   }
   if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
     std::string recordLayoutStr = recordDecl->getDefinition() == nullptr ? "" :

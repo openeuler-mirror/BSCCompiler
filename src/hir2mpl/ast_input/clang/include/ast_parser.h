@@ -156,14 +156,14 @@ class ASTParser {
 
   MapleVector<ASTDecl*> SolveFuncParameterDecls(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
                                                 MapleVector<MIRType*> &typeDescIn, std::list<ASTStmt*> &stmts);
-  GenericAttrs SolveFunctionAttrinutes(const clang::FunctionDecl &funcDecl, std::string &funcName);
+  GenericAttrs SolveFunctionAttributes(const clang::FunctionDecl &funcDecl, std::string &funcName) const;
   ASTDecl *ProcessDecl(MapleAllocator &allocator, const clang::Decl &decl);
   ASTStmt *SolveFunctionBody(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc,
                              const std::list<ASTStmt*> &stmts);
 
   void SetInitExprForASTVar(MapleAllocator &allocator, const clang::VarDecl &varDecl, const GenericAttrs &attrs,
                             ASTVar &astVar);
-  void SetAlignmentForASTVar(const clang::VarDecl &varDecl, ASTVar &astVar);
+  void SetAlignmentForASTVar(const clang::VarDecl &varDecl, ASTVar &astVar) const;
 #define PROCESS_DECL(CLASS) ProcessDecl##CLASS##Decl(MapleAllocator &allocator, const clang::CLASS##Decl&)
   ASTDecl *PROCESS_DECL(Field);
   ASTDecl *PROCESS_DECL(Function);

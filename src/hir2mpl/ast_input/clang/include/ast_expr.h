@@ -689,17 +689,17 @@ class ASTInitListExpr : public ASTExpr {
   void SolveInitListExprOrDesignatedInitUpdateExpr(FieldID fieldID, ASTExpr &initExpr,
       const UniqueFEIRType &baseStructPtrType, std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
       std::list<UniqueFEIRStmt> &stmts) const;
-  bool SolveStructFieldOfArrayTypeInitWithStringLiteral(std::tuple<FieldID, uint32, MIRType*> fieldInfo,
+  void SolveStructFieldOfArrayTypeInitWithStringLiteral(std::tuple<FieldID, uint32, MIRType*> fieldInfo,
       const ASTExpr &initExpr, const UniqueFEIRType &baseStructPtrType,
       std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base, std::list<UniqueFEIRStmt> &stmts) const;
-  bool SolveStructFieldOfBasicType(FieldID fieldID, const ASTExpr &initExpr, const UniqueFEIRType &baseStructPtrType,
+  void SolveStructFieldOfBasicType(FieldID fieldID, const ASTExpr &initExpr, const UniqueFEIRType &baseStructPtrType,
                                    std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                                    std::list<UniqueFEIRStmt> &stmts) const;
   std::tuple<FieldID, uint32, MIRType*> GetStructFieldInfo(uint32 fieldIndex, FieldID baseFieldID,
                                                            MIRStructType &structMirType) const;
   UniqueFEIRExpr CalculateStartAddressForMemset(const UniqueFEIRVar &varIn, uint32 initSizeIn, FieldID fieldIDIn,
       const std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &baseIn) const;
-  UniqueFEIRExpr GetAddrofArrayFEExprByStructArrayField(MIRType *fieldType,
+  UniqueFEIRExpr GetAddrofArrayFEExprByStructArrayField(MIRType &fieldType,
                                                         const UniqueFEIRExpr &addrOfArrayField) const;
   void ProcessVectorInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                              const ASTInitListExpr &initList, std::list<UniqueFEIRStmt> &stmts) const;
@@ -1381,6 +1381,8 @@ class ASTCallExpr : public ASTExpr {
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncSynchronize);
 
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(AtomicExchangeN);
+
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ObjectSize);
 
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ReturnAddress);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ExtractReturnAddr);

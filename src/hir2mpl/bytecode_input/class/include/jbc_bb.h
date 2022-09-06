@@ -23,7 +23,7 @@ class JBCBB : public FEIRBB {
  public:
   JBCBB(const jbc::JBCConstPool &argConstPool);
   JBCBB(uint8 argBBKind, const jbc::JBCConstPool &argConstPool);
-  ~JBCBB() = default;
+  ~JBCBB() override = default;
   bool InitForFuncHeader();
   bool InitForCatch();
   bool UpdateStack();

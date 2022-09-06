@@ -74,7 +74,7 @@ std::list<UniqueFEIRStmt> ASTCompoundStmt::Emit2FEStmtImpl() const {
   insertStmt(false);
   FEFunction &feFunction = FEManager::GetCurrentFEFunction();
   if (!hasEmitted2MIRScope) {
-    feFunction.PushStmtScope(GetSrcLoc().Emit2SourcePosition(), GetEndLoc().Emit2SourcePosition());
+    feFunction.PushStmtScope(FEUtils::CvtLoc2SrcPosition(GetSrcLoc()), FEUtils::CvtLoc2SrcPosition(GetEndLoc()));
   }
   for (auto it : astStmts) {
     stmts.splice(stmts.end(), it->Emit2FEStmt());
@@ -135,7 +135,8 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
   auto labelLoopEndStmt = std::make_unique<FEIRStmtLabel>(loopEndLabelName);
   FEFunction &feFunction = FEManager::GetCurrentFEFunction();
   if (!hasEmitted2MIRScope) {
-    feFunction.PushStmtScope(GetSrcLoc().Emit2SourcePosition(), GetEndLoc().Emit2SourcePosition(), true);
+    feFunction.PushStmtScope(FEUtils::CvtLoc2SrcPosition(GetSrcLoc()),
+                             FEUtils::CvtLoc2SrcPosition(GetEndLoc()), true);
   }
   if (initStmt != nullptr) {
     std::list<UniqueFEIRStmt> feStmts = initStmt->Emit2FEStmt();
@@ -176,7 +177,7 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
     if (feirScope->GetVLASavedStackVar() != nullptr) {
       auto stkRestoreStmt = feirScope->GenVLAStackRestoreStmt();
       stkRestoreStmt->SetSrcLoc(endLoc);
-      stmts.emplace_back(std::move(stkRestoreStmt));
+      (void)stmts.emplace_back(std::move(stkRestoreStmt));
     }
     hasEmitted2MIRScope = true;
   }
@@ -249,9 +250,9 @@ std::list<UniqueFEIRStmt> ASTDoStmt::Emit2FEStmtImpl() const {
   UniqueFEIRStmt whileStmt = std::make_unique<FEIRStmtDoWhile>(OP_dowhile, std::move(condFEExpr),
                                                                std::move(bodyFEStmts));
   whileStmt->SetSrcLoc(loc);
-  feStmts.emplace_back(std::move(whileStmt));
+  (void)feStmts.emplace_back(std::move(whileStmt));
   if (AstLoopUtil::Instance().IsCurrentBreakLabelUsed()) {
-    feStmts.emplace_back(std::move(labelLoopEndStmt));
+    (void)feStmts.emplace_back(std::move(labelLoopEndStmt));
   }
   AstLoopUtil::Instance().PopCurrentBreak();
   AstLoopUtil::Instance().PopCurrentContinue();
@@ -423,22 +424,10 @@ std::list<UniqueFEIRStmt> ASTDeclStmt::Emit2FEStmtImpl() const {
       if (decl == nullptr) {
         continue;
       }
-      InsertBoundaryVar(decl, stmts);
       decl->GenerateInitStmt(stmts);
     }
   }
   return stmts;
-}
-
-void ASTDeclStmt::InsertBoundaryVar(ASTDecl *ptrDecl, std::list<UniqueFEIRStmt> &stmts) const {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() ||
-      ptrDecl == nullptr || ptrDecl->GetBoundaryLenExpr() == nullptr) {
-    return;
-  }
-  // GetCurrentFunction need to be optimized when parallel features
-  MIRFunction *curFunction = FEManager::GetMIRBuilder().GetCurrentFunctionNotNull();
-  UniqueFEIRExpr lenFEExpr = ptrDecl->GetBoundaryLenExpr()->Emit2FEExpr(stmts);
-  ENCChecker::InitBoundaryVar(*curFunction, *ptrDecl, std::move(lenFEExpr), stmts);
 }
 
 // ---------- ASTCallExprStmt ----------

@@ -45,7 +45,7 @@ FEIRStmt *FEIRLower::CreateHeadAndTail() {
   return head;
 }
 
-FEIRStmt *FEIRLower::RegisterAndInsertFEIRStmt(UniqueFEIRStmt stmt, FEIRStmt *ptrTail, Loc loc) {
+FEIRStmt *FEIRLower::RegisterAndInsertFEIRStmt(UniqueFEIRStmt stmt, FEIRStmt *ptrTail, const Loc loc) {
   stmt->SetSrcLoc(loc);
   FEIRStmt *prtStmt = func.RegisterFEIRStmt(std::move(stmt));
   ptrTail->InsertBefore(prtStmt);
@@ -180,7 +180,7 @@ void FEIRLower::ProcessLoopStmt(FEIRStmtDoWhile &stmt, FEIRStmt *ptrTail) {
  * goto <whilelabel>
  * label <endlabel>
  */
-void FEIRLower::LowerWhileStmt(FEIRStmtDoWhile &whileStmt, FEIRStmt *bodyHead,
+void FEIRLower::LowerWhileStmt(const FEIRStmtDoWhile &whileStmt, FEIRStmt *bodyHead,
                                FEIRStmt *bodyTail, FEIRStmt *ptrTail) {
   std::string whileLabelName = FEUtils::CreateLabelName();
   // label <whilelabel>
@@ -212,7 +212,7 @@ void FEIRLower::LowerWhileStmt(FEIRStmtDoWhile &whileStmt, FEIRStmt *bodyHead,
  * <body>
  * brtrue <cond> <bodylabel>
  */
-void FEIRLower::LowerDoWhileStmt(FEIRStmtDoWhile &doWhileStmt, FEIRStmt *bodyHead,
+void FEIRLower::LowerDoWhileStmt(const FEIRStmtDoWhile &doWhileStmt, FEIRStmt *bodyHead,
                                  FEIRStmt *bodyTail, FEIRStmt *ptrTail) {
   std::string bodyLabelName = FEUtils::CreateLabelName();
   // label <bodylabel>
@@ -230,7 +230,7 @@ void FEIRLower::LowerDoWhileStmt(FEIRStmtDoWhile &doWhileStmt, FEIRStmt *bodyHea
   bodyLabelStmt->AddExtraPred(*condStmt);
 }
 
-void FEIRLower::CreateAndInsertCondStmt(Opcode op, FEIRStmtIf &ifStmt,
+void FEIRLower::CreateAndInsertCondStmt(Opcode op, const FEIRStmtIf &ifStmt,
                                         FEIRStmt *head, FEIRStmt *tail, FEIRStmt *ptrTail) {
   std::string labelName = FEUtils::CreateLabelName();
   UniqueFEIRStmt condFEStmt = std::make_unique<FEIRStmtCondGotoForC>(ifStmt.GetCondExpr()->Clone(), op, labelName);

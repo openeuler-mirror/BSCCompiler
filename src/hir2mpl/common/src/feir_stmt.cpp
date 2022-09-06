@@ -167,12 +167,12 @@ std::set<UniqueFEIRVar*> &FEIRStmtCheckPoint::CalcuDef(UniqueFEIRVar &use) {
   CHECK_NULL_FATAL(use);
   auto itLocal = localUD.find(&use);
   // search localUD
-  if (itLocal != localUD.end()) {
+  if (itLocal != localUD.cend()) {
     return itLocal->second;
   }
   // search cacheUD
   auto itCache = cacheUD.find(FEIRDFGNode(use));
-  if (itCache != cacheUD.end()) {
+  if (itCache != cacheUD.cend()) {
     return itCache->second;
   }
   // search by DFS
@@ -545,7 +545,7 @@ PrimType FEIRStmtJavaFillArrayData::ProcessArrayElemPrimType() const {
   return elemPrimType;
 }
 
-MIRSymbol *FEIRStmtJavaFillArrayData::ProcessArrayElemData(MIRBuilder &mirBuilder, PrimType elemPrimType) const {
+MIRSymbol *FEIRStmtJavaFillArrayData::ProcessArrayElemData(const MIRBuilder &mirBuilder, PrimType elemPrimType) const {
   // specify size for const array
   uint32 sizeIn = size;
   MIRType *arrayTypeWithSize = GlobalTables::GetTypeTable().GetOrCreateArrayType(
@@ -665,7 +665,7 @@ std::list<StmtNode*> FEIRStmtJavaMultiANewArray::GenMIRStmtsImpl(MIRBuilder &mir
   // const class
   FEIRStmtJavaConstClass feStmtConstClass(GetVarClass()->Clone(), elemType->Clone());
   std::list<StmtNode*> stmtsConstClass = feStmtConstClass.GenMIRStmts(mirBuilder);
-  (void)ans.insert(ans.end(), stmtsConstClass.begin(), stmtsConstClass.end());
+  (void)ans.insert(ans.cend(), stmtsConstClass.cbegin(), stmtsConstClass.cend());
   // invoke newInstance
   UniqueFEIRVar varRetCall = var->Clone();
   varRetCall->SetType(FETypeManager::kFEIRTypeJavaObject->Clone());
@@ -680,7 +680,7 @@ std::list<StmtNode*> FEIRStmtJavaMultiANewArray::GenMIRStmtsImpl(MIRBuilder &mir
   FEIRStmtJavaTypeCheck feStmtCheck(var->Clone(), std::move(expr), arrayType->Clone(),
                                     FEIRStmtJavaTypeCheck::kCheckCast);
   std::list<StmtNode*> stmtsCheck = feStmtCheck.GenMIRStmts(mirBuilder);
-  (void)ans.insert(ans.end(), stmtsCheck.begin(), stmtsCheck.end());
+  (void)ans.insert(ans.cend(), stmtsCheck.cbegin(), stmtsCheck.cend());
   return ans;
 }
 
@@ -972,7 +972,7 @@ void FEIRStmtGotoForC::GenVLACleanup(MIRBuilder &mirBuilder, std::list<StmtNode*
     }
     // emit vla stack restore stmt
     auto vlaStmt = FEIRBuilder::CreateVLAStackRestore(pair.second->Clone())->GenMIRStmts(mirBuilder);
-    (void)ans.insert(ans.end(), vlaStmt.begin(), vlaStmt.end());
+    (void)ans.insert(ans.cend(), vlaStmt.cbegin(), vlaStmt.cend());
   }
 }
 
@@ -1582,7 +1582,7 @@ std::list<StmtNode*> FEIRStmtFieldStore::GenMIRStmtsImplForStatic(MIRBuilder &mi
         std::map<PrimType, GStrIdx> primTypeFuncNameIdxMap;
         FEUtils::InitPrimTypeFuncNameIdxMap(primTypeFuncNameIdxMap);
         const auto &itorFunc = primTypeFuncNameIdxMap.find(pt);
-        CHECK_FATAL(itorFunc != primTypeFuncNameIdxMap.end(), "java type not support %d", pt);
+        CHECK_FATAL(itorFunc != primTypeFuncNameIdxMap.cend(), "java type not support %d", pt);
         args.push_back(mirBuilder.CreateIntConst(fieldInfo.GetFieldID(), PTY_i32));
         BaseNode *nodeSrc = mirBuilder.CreateExprDread(*symSrc);
         args.push_back(nodeSrc);
@@ -1742,7 +1742,7 @@ std::list<StmtNode*> FEIRStmtFieldLoad::GenMIRStmtsImplForStatic(MIRBuilder &mir
       std::map<PrimType, GStrIdx> primTypeFuncNameIdxMap;
       FEUtils::InitPrimTypeFuncNameIdxMap(primTypeFuncNameIdxMap);
       auto itorFunc = primTypeFuncNameIdxMap.find(pt);
-      CHECK_FATAL(itorFunc != primTypeFuncNameIdxMap.end(), "java type not support %d", pt);
+      CHECK_FATAL(itorFunc != primTypeFuncNameIdxMap.cend(), "java type not support %d", pt);
       args.push_back(mirBuilder.CreateIntConst(fieldInfo.GetFieldID(), PTY_i32));
       MIRSymbol *retVarSym = nullptr;
       retVarSym = var->GenerateLocalMIRSymbol(mirBuilder);
@@ -1871,21 +1871,15 @@ std::list<StmtNode*> FEIRStmtCallAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder)
     BaseNode *node = exprArg->GenMIRNode(mirBuilder);
     args.push_back(node);
   }
-  PUIdx puIdx = methodInfo.GetPuIdx();
-  // for inline optimize
-  if (FEManager::GetModule().IsOptFunc(mirBuilder.GetCurrentFunction()) ||
-      mirBuilder.GetCurrentFunction()->GetAttr(FUNCATTR_static)) {
-    FEManager::GetModule().InsertInlineGlobal(puIdx);
-  }
   MIRSymbol *retVarSym = nullptr;
   if (!methodInfo.IsReturnVoid() && var != nullptr) {
     retVarSym = var->GenerateLocalMIRSymbol(mirBuilder);
     InsertNonnullInRetVar(*retVarSym);
   }
   if (retVarSym == nullptr) {
-    stmtCall = mirBuilder.CreateStmtCall(puIdx, std::move(args), mirOp);
+    stmtCall = mirBuilder.CreateStmtCall(methodInfo.GetPuIdx(), std::move(args), mirOp);
   } else {
-    stmtCall = mirBuilder.CreateStmtCallAssigned(puIdx, std::move(args), retVarSym, mirOp);
+    stmtCall = mirBuilder.CreateStmtCallAssigned(methodInfo.GetPuIdx(), std::move(args), retVarSym, mirOp);
   }
   ans.push_back(stmtCall);
   return ans;
@@ -1970,12 +1964,12 @@ std::list<StmtNode*> FEIRStmtCallAssign::GenMIRStmtsUseZeroReturn(MIRBuilder &mi
 Opcode FEIRStmtCallAssign::AdjustMIROp() const {
   if (methodInfo.IsReturnVoid()) {
     auto it = mapOpAssignToOp.find(mirOp);
-    if (it != mapOpAssignToOp.end()) {
+    if (it != mapOpAssignToOp.cend()) {
       return it->second;
     }
   } else {
     auto it = mapOpToOpAssign.find(mirOp);
-    if (it != mapOpToOpAssign.end()) {
+    if (it != mapOpToOpAssign.cend()) {
       return it->second;
     }
   }
@@ -2614,7 +2608,6 @@ BaseNode *FEIRExprAddrofConstArray::GenMIRNodeImpl(MIRBuilder &mirBuilder) const
   MIRSymbol *arrayVar = mirBuilder.GetOrCreateGlobalDecl(arrayName, *arrayTypeWithSize);
   arrayVar->SetAttr(ATTR_readonly);
   arrayVar->SetStorageClass(kScFstatic);
-  FEManager::GetModule().InsertInlineGlobal(arrayVar->GetStIdx().Idx());
   MIRModule &module = mirBuilder.GetMirModule();
   MIRAggConst *val = module.GetMemPool()->New<MIRAggConst>(module, *arrayTypeWithSize);
   for (uint32 i = 0; i < array.size(); ++i) {
@@ -2701,10 +2694,6 @@ BaseNode *FEIRExprAddrofFunc::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
   GStrIdx strIdx = GlobalTables::GetStrTable().GetStrIdxFromName(funcAddr);
   MIRFunction *mirFunc = FEManager::GetTypeManager().GetMIRFunction(strIdx, false);
   CHECK_FATAL(mirFunc != nullptr, "can not get MIRFunction");
-  if (FEManager::GetModule().IsOptFunc(mirBuilder.GetCurrentFunction()) ||
-      mirBuilder.GetCurrentFunction()->GetAttr(FUNCATTR_static)) {
-    mirBuilder.GetMirModule().InsertInlineGlobal(mirFunc->GetPuidx());
-  }
   return mirBuilder.CreateExprAddroffunc(mirFunc->GetPuidx(),
                                          mirBuilder.GetMirModule().GetMemPool());
 }
@@ -2877,7 +2866,7 @@ std::unique_ptr<FEIRExpr> FEIRExprTypeCvt::CloneImpl() const {
 
 BaseNode *FEIRExprTypeCvt::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
   auto ptrFunc = funcPtrMapForParseExpr.find(op);
-  ASSERT(ptrFunc != funcPtrMapForParseExpr.end(), "unsupported op: %s", kOpcodeInfo.GetName(op).c_str());
+  ASSERT(ptrFunc != funcPtrMapForParseExpr.cend(), "unsupported op: %s", kOpcodeInfo.GetName(op).c_str());
   return (this->*(ptrFunc->second))(mirBuilder);
 }
 
@@ -2974,7 +2963,7 @@ std::unique_ptr<FEIRExpr> FEIRExprExtractBits::CloneImpl() const {
 
 BaseNode *FEIRExprExtractBits::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
   auto ptrFunc = funcPtrMapForParseExpr.find(op);
-  ASSERT(ptrFunc != funcPtrMapForParseExpr.end(), "unsupported op: %s", kOpcodeInfo.GetName(op).c_str());
+  ASSERT(ptrFunc != funcPtrMapForParseExpr.cend(), "unsupported op: %s", kOpcodeInfo.GetName(op).c_str());
   return (this->*(ptrFunc->second))(mirBuilder);
 }
 
@@ -3069,7 +3058,7 @@ std::unique_ptr<FEIRExpr> FEIRExprBinary::CloneImpl() const {
 
 BaseNode *FEIRExprBinary::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
   auto ptrFunc = funcPtrMapForGenMIRNode.find(op);
-  ASSERT(ptrFunc != funcPtrMapForGenMIRNode.end(), "unsupported op: %s", kOpcodeInfo.GetName(op).c_str());
+  ASSERT(ptrFunc != funcPtrMapForGenMIRNode.cend(), "unsupported op: %s", kOpcodeInfo.GetName(op).c_str());
   return (this->*(ptrFunc->second))(mirBuilder);
 }
 

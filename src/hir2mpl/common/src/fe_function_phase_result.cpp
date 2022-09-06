@@ -34,7 +34,7 @@ void FEFunctionPhaseResult::Combine(const FEFunctionPhaseResult &result) {
 void FEFunctionPhaseResult::Dump() {
   for (const std::string &name :phaseNames) {
     auto it = phaseTimes.find(name);
-    CHECK_FATAL(it != phaseTimes.end(), "phase time is undefined for %s", name.c_str());
+    CHECK_FATAL(it != phaseTimes.cend(), "phase time is undefined for %s", name.c_str());
     INFO(kLncInfo, "[PhaseTime]  %s: %lld ns", name.c_str(), it->second);
   }
 }
@@ -42,7 +42,7 @@ void FEFunctionPhaseResult::Dump() {
 void FEFunctionPhaseResult::DumpMS() {
   for (const std::string &name :phaseNames) {
     auto it = phaseTimes.find(name);
-    CHECK_FATAL(it != phaseTimes.end(), "phase time is undefined for %s", name.c_str());
+    CHECK_FATAL(it != phaseTimes.cend(), "phase time is undefined for %s", name.c_str());
     INFO(kLncInfo, "[PhaseTime]  %s: %.2lf ms", name.c_str(), it->second / 1000000.0);  // 1ms = 1000000 ns
   }
 }

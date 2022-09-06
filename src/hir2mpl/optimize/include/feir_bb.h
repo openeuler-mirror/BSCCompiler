@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -33,7 +33,7 @@ class FEIRBB : public FELinkListNode {
  public:
   FEIRBB();
   explicit FEIRBB(uint8 argKind);
-  virtual ~FEIRBB();
+  ~FEIRBB() override;
 
   uint8 GetBBKind() const {
     return kind;
@@ -49,7 +49,7 @@ class FEIRBB : public FELinkListNode {
     id = arg;
   }
 
-  FEIRStmt *GetStmtHead() const {
+  const FEIRStmt *GetStmtHead() const {
     return stmtHead;
   }
 
@@ -57,7 +57,7 @@ class FEIRBB : public FELinkListNode {
     stmtHead = stmtHeadIn;
   }
 
-  FEIRStmt *GetStmtTail() const {
+  const FEIRStmt *GetStmtTail() const {
     return stmtTail;
   }
 
@@ -75,11 +75,11 @@ class FEIRBB : public FELinkListNode {
     stmtTail = newTail;
   }
 
-  FEIRStmt *GetStmtNoAuxHead() const {
+  const FEIRStmt *GetStmtNoAuxHead() const {
     return stmtNoAuxHead;
   }
 
-  FEIRStmt *GetStmtNoAuxTail() const {
+  const FEIRStmt *GetStmtNoAuxTail() const {
     return stmtNoAuxTail;
   }
 

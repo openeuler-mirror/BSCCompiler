@@ -65,15 +65,15 @@ FuncAttrs GenericAttrs::ConvertToFuncAttrs() {
     }
   }
   if (GetContentFlag(GENATTR_alias)) {
-      std::string name = GlobalTables::GetStrTable().GetStringFromStrIdx(std::get<GStrIdx>(contentMap[GENATTR_alias]));
-      attr.SetAliasFuncName(name);
-    }
-    if (GetContentFlag(GENATTR_constructor_priority)) {
-      attr.SetConstructorPriority(std::get<int>(contentMap[GENATTR_constructor_priority]));
-    }
-    if (GetContentFlag(GENATTR_destructor_priority)) {
-      attr.SetDestructorPriority(std::get<int>(contentMap[GENATTR_destructor_priority]));
-    }
+    std::string name = GlobalTables::GetStrTable().GetStringFromStrIdx(std::get<GStrIdx>(contentMap[GENATTR_alias]));
+    attr.SetAliasFuncName(name);
+  }
+  if (GetContentFlag(GENATTR_constructor_priority)) {
+    attr.SetConstructorPriority(std::get<int>(contentMap[GENATTR_constructor_priority]));
+  }
+  if (GetContentFlag(GENATTR_destructor_priority)) {
+    attr.SetDestructorPriority(std::get<int>(contentMap[GENATTR_destructor_priority]));
+  }
   return attr;
 }
 

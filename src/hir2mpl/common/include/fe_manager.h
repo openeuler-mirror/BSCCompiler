@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -19,7 +19,6 @@
 #include "mir_builder.h"
 #include "fe_type_manager.h"
 #include "fe_java_string_manager.h"
-#include "fe_diag_manager.h"
 #include "fe_function.h"
 
 namespace maple {
@@ -38,11 +37,6 @@ class FEManager {
   static FEJavaStringManager &GetJavaStringManager() {
     ASSERT(manager != nullptr, "manager is not initialize");
     return manager->javaStringManager;
-  }
-
-  static FEDiagManager &GetDiagManager() {
-    ASSERT(manager != nullptr, "manager is not initialize");
-    return manager->diagManager;
   }
 
   static MIRBuilder &GetMIRBuilder() {
@@ -140,7 +134,6 @@ class FEManager {
   static FEManager *manager;
   MIRModule &module;
   FETypeManager typeManager;
-  FEDiagManager diagManager;
   MIRBuilder builder;
   FEFunction *curFEFunction = nullptr;
   FEJavaStringManager javaStringManager;

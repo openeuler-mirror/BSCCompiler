@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -110,7 +110,7 @@ bool Ror::IsRorLshrOpnd(const UniqueFEIRExpr &expr, bool inShl) {
     return false;
   }
 
-  auto SetShiftBaseExpr = [&](const UniqueFEIRExpr &expr) {
+  auto SetShiftBaseExpr = [inShl, this](const UniqueFEIRExpr &expr) {
     if (inShl) {
       lShiftBaseExpr = expr->Clone();
     } else {

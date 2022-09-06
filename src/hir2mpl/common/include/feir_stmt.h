@@ -1706,7 +1706,7 @@ class FEIRStmtJavaFillArrayData : public FEIRStmtAssign {
 
  LLT_PRIVATE:
   PrimType ProcessArrayElemPrimType() const;
-  MIRSymbol *ProcessArrayElemData(MIRBuilder &mirBuilder, PrimType elemPrimType) const;
+  MIRSymbol *ProcessArrayElemData(const MIRBuilder &mirBuilder, PrimType elemPrimType) const;
   MIRAggConst *FillArrayElem(const MIRBuilder &mirBuilder, PrimType elemPrimType, MIRType &arrayTypeWithSize,
                              uint32 elemSize) const;
 

@@ -99,7 +99,7 @@ MIRStructType *ASTStruct2FEHelper::CreateMIRStructTypeImpl(bool &error) const {
     ERR(kLncErr, "class name is empty");
     return nullptr;
   }
-  MIRStructType *type = FEManager::GetTypeManager().GetOrCreateStructType(name);
+  MIRStructType *type = FEManager::GetTypeManager().GetOrCreateStructType(astStruct.GenerateUniqueVarName());
   error = false;
   if (astStruct.IsUnion()) {
     type->SetMIRTypeKind(kTypeUnion);
@@ -177,7 +177,7 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
     mirSymbol->SetTyIdx(type->GetTypeIndex());
   }
   if (mirSymbol->GetSrcPosition().LineNum() == 0) {
-    mirSymbol->SetSrcPosition(astVar.GetSrcLoc().Emit2SourcePosition());
+    mirSymbol->SetSrcPosition(FEUtils::CvtLoc2SrcPosition(astVar.GetSrcLoc()));
   }
   auto typeAttrs = astVar.GetGenericAttrs().ConvertToTypeAttrs();
   ENCChecker::InsertBoundaryInAtts(typeAttrs, astVar.GetBoundaryInfo());
@@ -233,7 +233,7 @@ bool ASTFileScopeAsm2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
 bool ASTEnum2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   (void)allocator;
   MIREnum *enumType = FEManager::GetTypeManager().GetOrCreateEnum(
-      astEnum.GetName(), astEnum.GetTypeDesc().front()->GetPrimType());
+      astEnum.GenerateUniqueVarName(), astEnum.GetTypeDesc().front()->GetPrimType());
   if (!astEnum.GetEnumConstants().empty() && enumType->GetElements().empty()) {
     for (auto elem : astEnum.GetEnumConstants()) {
       GStrIdx elemNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(elem->GetName());
@@ -268,7 +268,7 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   }
   mirFunc = FEManager::GetTypeManager().CreateFunction(methodNameIdx, retMIRType->GetTypeIndex(),
                                                        argsTypeIdx, isVarg, isStatic);
-  mirFunc->SetSrcPosition(func.GetSrcLoc().Emit2SourcePosition());
+  mirFunc->SetSrcPosition(FEUtils::CvtLoc2SrcPosition(func.GetSrcLoc()));
   MIRSymbol *funSym = mirFunc->GetFuncSymbol();
   ASSERT_NOT_NULL(funSym);
   if (!func.GetSectionAttr().empty()) {

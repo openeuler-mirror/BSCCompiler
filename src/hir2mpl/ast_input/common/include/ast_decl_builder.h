@@ -88,6 +88,18 @@ class ASTDeclsBuilder {
     return static_cast<ASTFunc*>(declesTable[id]);
   }
 
+  static ASTTypedefDecl *ASTTypedefBuilder(const MapleAllocator &allocator, const MapleString &srcFile,
+      const std::string &varName, const MapleVector<MIRType*> &desc,
+      const GenericAttrs &genAttrsIn, int64 id = INT64_MAX) {
+    MapleString varNameStr(varName, allocator.GetMemPool());
+    if (id == INT64_MAX) {
+      return allocator.GetMemPool()->New<ASTTypedefDecl>(srcFile, varNameStr, desc, genAttrsIn);
+    } else if (declesTable[id] == nullptr) {
+      declesTable[id] = allocator.GetMemPool()->New<ASTTypedefDecl>(srcFile, varNameStr, desc, genAttrsIn);
+    }
+    return static_cast<ASTTypedefDecl*>(declesTable[id]);
+  }
+
   template<typename T>
   static T *ASTStmtBuilder(MapleAllocator &allocator) {
     return allocator.GetMemPool()->New<T>(allocator);
