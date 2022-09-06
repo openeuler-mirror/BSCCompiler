@@ -628,10 +628,18 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joi
 
   /* Remove branches and merge join */
   if (ifBB != nullptr) {
+    BB *prevLast = ifBB->GetPrev();
     cgFunc->GetTheCFG()->RemoveBB(*ifBB);
+    if (ifBB->GetId() == cgFunc->GetLastBB()->GetId()) {
+      cgFunc->SetLastBB(*prevLast);
+    }
   }
   if (elseBB != nullptr) {
+    BB *prevLast = elseBB->GetPrev();
     cgFunc->GetTheCFG()->RemoveBB(*elseBB);
+    if (elseBB->GetId() == cgFunc->GetLastBB()->GetId()) {
+      cgFunc->SetLastBB(*prevLast);
+    }
   }
   /* maintain won't exit bb info. */
   if ((ifBB != nullptr && ifBB->IsWontExit()) || (elseBB != nullptr && elseBB->IsWontExit())) {

@@ -147,6 +147,7 @@ void CGCFG::BuildCFG() {
       }
     }
   }
+  FindAndMarkUnreachable(*cgFunc);
 }
 
 void CGCFG::CheckCFG() {
@@ -300,7 +301,11 @@ bool CGCFG::AreCommentAllPreds(const BB &bb) {
 
 /* Merge sucBB into curBB. */
 void CGCFG::MergeBB(BB &merger, BB &mergee, CGFunc &func) {
+  BB *prevLast = mergee.GetPrev();
   MergeBB(merger, mergee);
+  if (func.GetLastBB()->GetId() == mergee.GetId()) {
+    func.SetLastBB(*prevLast);
+  }
   if (mergee.GetKind() == BB::kBBReturn) {
     for (size_t i = 0; i < func.ExitBBsVecSize(); ++i) {
       if (func.GetExitBB(i) == &mergee) {
@@ -403,6 +408,18 @@ void CGCFG::FindAndMarkUnreachable(CGFunc &func) {
       if (instackBBs.count(succBB->GetId()) == 0) {
         toBeAnalyzedBBs.push(succBB);
         (void)instackBBs.insert(succBB->GetId());
+      }
+    }
+  }
+  FOR_ALL_BB(bb, &func) {
+    for (MapleList<BB*>::iterator predIt = bb->GetPredsBegin(); predIt != bb->GetPredsEnd(); ++predIt) {
+      if ((*predIt)->IsUnreachable()) {
+        bb->ErasePreds(predIt);
+      }
+    }
+    for (MapleList<BB*>::iterator predIt = bb->GetEhPredsBegin(); predIt != bb->GetEhPredsEnd(); ++predIt) {
+      if ((*predIt)->IsUnreachable()) {
+        bb->ErasePreds(predIt);
       }
     }
   }
@@ -867,6 +884,9 @@ void CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
       cgFunc->SetLastBB(*newBB);
     } else {
       exitBB->AppendBB(*newBB);
+      if (cgFunc->GetLastBB() == exitBB) {
+        cgFunc->SetLastBB(*newBB);
+      }
     }
     newBB->AppendInsn(
         cgFunc->GetInsnBuilder()->BuildInsn(MOP_xuncond, cgFunc->GetOrCreateLabelOperand(succ.GetLabIdx())));

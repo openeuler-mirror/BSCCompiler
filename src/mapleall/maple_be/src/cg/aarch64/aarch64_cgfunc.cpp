@@ -8900,6 +8900,10 @@ void AArch64CGFunc::SelectCall(CallNode &callNode) {
       GetCurBB()->ClearInsns();
       GetCurBB()->SetUnreachable(true);
     }
+    if (fn->GetAttr(FUNCATTR_noreturn)) {
+      GetCurBB()->SetKind(BB::kBBNoReturn);
+      PushBackNoReturnCallBBsVec(*GetCurBB());
+    }
     return;
   }
   if ((fsym->GetName() == "MCC_ThrowException") || (fsym->GetName() == "MCC_RethrowException") ||
