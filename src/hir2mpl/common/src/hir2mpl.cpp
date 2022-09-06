@@ -12,11 +12,14 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "hir2mpl_compiler.h"
 #include "fe_utils.h"
+#include "hir2mpl_compiler.h"
+#include "mpl_sighandler.h"
 using namespace maple;
 
 int main(int argc, char **argv) {
+  SigHandler::EnableAll();
+
   MPLTimer timer;
   timer.Start();
   HIR2MPLOptions &options = HIR2MPLOptions::GetInstance();

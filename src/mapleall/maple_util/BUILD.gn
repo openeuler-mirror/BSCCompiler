@@ -27,6 +27,9 @@ src_libmplutil = [
   "src/error_code.cpp",
   "src/thread_env.cpp",
   "src/mpl_int_val.cpp",
+  "src/mpl_profdata.cpp",
+  "src/suffix_array.cpp",
+  "src/mpl_posix_sighandler.cpp"
 ]
 
 src_libcommandline = [
@@ -52,7 +55,7 @@ configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
 static_library("libmplutil") {
   sources = src_libmplutil
   include_dirs = include_libmplutil
-  libs = [ "pthread" ]
+  libs = [ "pthread", "dl" ]
   output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
 }
 

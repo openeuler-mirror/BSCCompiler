@@ -13,8 +13,10 @@
  * See the Mulan PSL v2 for more details.
  */
 #include <getopt.h>
-#include "mdparser.h"
+
 #include "mdgenerator.h"
+#include "mdparser.h"
+#include "mpl_sighandler.h"
 
 using namespace MDGen;
 namespace {
@@ -69,6 +71,8 @@ bool GenSchedFiles(const std::string &fileName, const std::string &fileDir) {
 }
 
 int main(int argc, char **argv) {
+  SigHandler::EnableAll();
+
   constexpr int minimumArgNum = 2;
   if (argc <= minimumArgNum) {
     return PrintHelpAndExit();
