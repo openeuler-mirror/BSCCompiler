@@ -78,7 +78,7 @@ void AArch64Prop::TargetProp(Insn &insn) {
 }
 
 void A64ConstProp::DoOpt() {
-  if (curInsn->GetMachineOpcode() == MOP_xmovri32 || curInsn->GetMachineOpcode() == MOP_xmovri64) {
+  if (curInsn->GetMachineOpcode() == MOP_wmovri32 || curInsn->GetMachineOpcode() == MOP_xmovri64) {
     Operand &destOpnd = curInsn->GetOperand(kInsnFirstOpnd);
     CHECK_FATAL(destOpnd.IsRegister(), "must be reg operand");
     auto &destReg = static_cast<RegOperand&>(destOpnd);
@@ -101,8 +101,8 @@ void A64ConstProp::DoOpt() {
 }
 
 void A64ConstProp::ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) const {
-  auto *useInsn = static_cast<AArch64Insn*>(useDUInfo.GetInsn());
-  const AArch64MD *md = &AArch64CG::kMd[(useInsn->GetMachineOpcode())];
+  auto *useInsn = useDUInfo.GetInsn();
+  const InsnDesc *md = &AArch64CG::kMd[(useInsn->GetMachineOpcode())];
   /* special case */
   bool isSpecficCase = useInsn->GetMachineOpcode() == MOP_wbfirri5i5 || useInsn->GetMachineOpcode() == MOP_xbfirri6i6;
   isSpecficCase = (useDUInfo.GetOperands().size() == 1) &&
@@ -181,7 +181,7 @@ MOperator A64ConstProp::GetRegImmMOP(MOperator regregMop, bool withLeftShift) {
       return MOP_xmovri64;
     }
     case MOP_wmovrr: {
-      return MOP_xmovri32;
+      return MOP_wmovri32;
     }
     default:
       CHECK_FATAL(false, "NYI");
@@ -197,7 +197,7 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
     case MOP_waddrrr:
     case MOP_xaddrrr: {
       newVal = constVal + constVal;
-      newMop = (arithMop == MOP_waddrrr) ? MOP_xmovri32 : MOP_xmovri64;
+      newMop = (arithMop == MOP_waddrrr) ? MOP_wmovri32 : MOP_xmovri64;
       break;
     }
     case MOP_waddrrrs:
@@ -206,15 +206,15 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
       uint32 amount = shiftOpnd.GetShiftAmount();
       BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
       switch (sOp) {
-        case BitShiftOperand::kShiftLSL: {
+        case BitShiftOperand::kLSL: {
           newVal = constVal + static_cast<int64>((static_cast<unsigned>(constVal) << amount));
           break;
         }
-        case BitShiftOperand::kShiftLSR: {
+        case BitShiftOperand::kLSR: {
           newVal = constVal + (static_cast<unsigned>(constVal) >> amount);
           break;
         }
-        case BitShiftOperand::kShiftASR: {
+        case BitShiftOperand::kASR: {
           newVal = constVal + (constVal >> amount);
           break;
         }
@@ -222,13 +222,13 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
           CHECK_FATAL(false, "NYI");
           break;
       }
-      newMop = (arithMop == MOP_waddrrrs) ? MOP_xmovri32 : MOP_xmovri64;
+      newMop = (arithMop == MOP_waddrrrs) ? MOP_wmovri32 : MOP_xmovri64;
       break;
     }
     case MOP_wsubrrr:
     case MOP_xsubrrr: {
       newVal = 0;
-      newMop = (arithMop == MOP_wsubrrr) ? MOP_xmovri32 : MOP_xmovri64;
+      newMop = (arithMop == MOP_wsubrrr) ? MOP_wmovri32 : MOP_xmovri64;
       break;
     }
     case MOP_wsubrrrs:
@@ -237,15 +237,15 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
       uint32 amount = shiftOpnd.GetShiftAmount();
       BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
       switch (sOp) {
-        case BitShiftOperand::kShiftLSL: {
+        case BitShiftOperand::kLSL: {
           newVal = constVal - static_cast<int64>((static_cast<unsigned>(constVal) << amount));
           break;
         }
-        case BitShiftOperand::kShiftLSR: {
+        case BitShiftOperand::kLSR: {
           newVal = constVal - (static_cast<unsigned>(constVal) >> amount);
           break;
         }
-        case BitShiftOperand::kShiftASR: {
+        case BitShiftOperand::kASR: {
           newVal = constVal - (constVal >> amount);
           break;
         }
@@ -253,7 +253,7 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
           CHECK_FATAL(false, "NYI");
           break;
       }
-      newMop = (arithMop == MOP_wsubrrrs) ? MOP_xmovri32 : MOP_xmovri64;
+      newMop = (arithMop == MOP_wsubrrrs) ? MOP_wmovri32 : MOP_xmovri64;
       break;
     }
     default:
@@ -280,7 +280,7 @@ bool A64ConstProp::MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd)
       uint32 useOpndIdx = useOpndInfoIt->first;
       ASSERT(useOpndIdx == kInsnSecondOpnd, "invalid instruction in ssa form");
       if (useOpndIdx == kInsnSecondOpnd) {
-        Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, destOpnd, constOpnd);
+        Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, destOpnd, constOpnd);
         ReplaceInsnAndUpdateSSA(*useInsn, newInsn);
         return true;
       }
@@ -301,10 +301,10 @@ bool A64ConstProp::ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUI
   Insn *newInsn = nullptr;
   if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, &constOpnd, kInsnThirdOpnd)) {
     if (useOpndIdx == kInsnThirdOpnd) {
-      newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+      newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(
         newMop, useInsn.GetOperand(kInsnFirstOpnd), useInsn.GetOperand(kInsnSecondOpnd), constOpnd);
     } else if (useOpndIdx == kInsnSecondOpnd && aT == kAArch64Add) { /* swap operand due to legality in aarch */
-      newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+      newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(
         newMop, useInsn.GetOperand(kInsnFirstOpnd), useInsn.GetOperand(kInsnThirdOpnd), constOpnd);
     }
   }
@@ -314,7 +314,7 @@ bool A64ConstProp::ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUI
     /* try aarch64 imm shift mode */
     tempImm->SetValue(tempImm->GetValue() >> 12);
     if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, tempImm, kInsnThirdOpnd) &&
-        CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+        CGOptions::GetInstance().GetOptimizeLevel() < CGOptions::kLevel0) {
       ASSERT(false, "NIY");
     }
     auto *zeroImm = &(static_cast<AArch64CGFunc*>(cgFunc)->
@@ -332,7 +332,7 @@ bool A64ConstProp::ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUI
     newMop = GetReversalMOP(newMop);
     if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, tempImm, kInsnThirdOpnd)) {
       auto *cgImm = static_cast<ImmOperand*>(tempImm->Clone(*cgFunc->GetMemoryPool()));
-      newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+      newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(
         newMop, useInsn.GetOperand(kInsnFirstOpnd), useInsn.GetOperand(kInsnSecondOpnd), *cgImm);
       if (useOpndIdx == kInsnSecondOpnd) { /* swap operand due to legality in aarch */
         newInsn->SetOperand(kInsnSecondOpnd, useInsn.GetOperand(kInsnThirdOpnd));
@@ -361,7 +361,7 @@ bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &con
     tempImm->SetSigned(isSigned);
     if (tempImm->IsSingleInstructionMovable()) {
       auto *newImmOpnd = static_cast<ImmOperand*>(tempImm->Clone(*cgFunc->GetMemoryPool()));
-      auto &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+      auto &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(
           newMop, useInsn->GetOperand(kInsnFirstOpnd), *newImmOpnd);
       ReplaceInsnAndUpdateSSA(*useInsn, newInsn);
       return true;
@@ -384,8 +384,8 @@ bool A64ConstProp::ArithmeticConstFold(DUInsnInfo &useDUInfo, const ImmOperand &
     bool is64Bit = destOpnd.GetSize() == k64BitSize;
     ImmOperand *foldConst = CanDoConstFold(constOpnd, static_cast<ImmOperand&>(existedImm), aT, is64Bit);
     if (foldConst != nullptr) {
-      MOperator newMop = is64Bit ? MOP_xmovri64 : MOP_xmovri32;
-      Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, destOpnd, *foldConst);
+      MOperator newMop = is64Bit ? MOP_xmovri64 : MOP_wmovri32;
+      Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, destOpnd, *foldConst);
       ReplaceInsnAndUpdateSSA(*useInsn, newInsn);
       return true;
     }
@@ -402,11 +402,11 @@ bool A64ConstProp::ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &co
     if (useOpndIdx == kInsnThirdOpnd) {
       auto &shiftBit = static_cast<BitShiftOperand&>(useInsn->GetOperand(kInsnFourthOpnd));
       int64 val = constOpnd.GetValue();
-      if (shiftBit.GetShiftOp() == BitShiftOperand::kShiftLSL) {
+      if (shiftBit.GetShiftOp() == BitShiftOperand::kLSL) {
         val = val << shiftBit.GetShiftAmount();
-      } else if (shiftBit.GetShiftOp() == BitShiftOperand::kShiftLSR) {
+      } else if (shiftBit.GetShiftOp() == BitShiftOperand::kLSR) {
         val = val >> shiftBit.GetShiftAmount();
-      } else if (shiftBit.GetShiftOp() == BitShiftOperand::kShiftASR) {
+      } else if (shiftBit.GetShiftOp() == BitShiftOperand::kASR) {
         val = static_cast<int64>((static_cast<uint64>(val)) >> shiftBit.GetShiftAmount());
       } else {
         CHECK_FATAL(false, "shift type is not defined");
@@ -416,7 +416,7 @@ bool A64ConstProp::ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &co
       MOperator newMop = GetRegImmMOP(curMop, false);
       if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, newImm, kInsnThirdOpnd)) {
         auto *cgNewImm = static_cast<ImmOperand*>(constOpnd.Clone(*cgFunc->GetMemoryPool()));
-        Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+        Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(
             newMop, useInsn->GetOperand(kInsnFirstOpnd), useInsn->GetOperand(kInsnSecondOpnd), *cgNewImm);
         ReplaceInsnAndUpdateSSA(*useInsn, newInsn);
         return true;
@@ -501,7 +501,7 @@ bool A64ConstProp::BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &con
         if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, &newOpnd, kInsnThirdOpnd)) {
           RegOperand *defOpnd = useInsn->GetSSAImpDefOpnd();
           CHECK_FATAL(defOpnd, "check ssaInfo of the defOpnd");
-          Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+          Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(
               newMop, *defOpnd, useInsn->GetOperand(kInsnFirstOpnd), newOpnd);
           ReplaceInsnAndUpdateSSA(*useInsn, newInsn);
           return true;
@@ -593,16 +593,9 @@ bool A64StrLdrProp::IsSameOpndsOfInsn(const Insn &insn1, const Insn &insn2, uint
       break;
     }
     case Operand::kOpdShift: {
-      if (opnd.IsLogicLSLOpnd()) {
-        if (!static_cast<LogicalShiftLeftOperand&>(opnd).Equals(
-            static_cast<LogicalShiftLeftOperand&>(insn1.GetOperand(opndIdx)))) {
-          return false;
-        }
-      } else {
-        if (!static_cast<BitShiftOperand&>(opnd).Equals(
-            static_cast<BitShiftOperand&>(insn1.GetOperand(opndIdx)))) {
-          return false;
-        }
+      if (!static_cast<BitShiftOperand&>(opnd).Equals(
+          static_cast<BitShiftOperand&>(insn1.GetOperand(opndIdx)))) {
+        return false;
       }
       break;
     }
@@ -826,7 +819,7 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const MemOperand &currMemOpnd) {
       RegOperand *replace = GetReplaceReg(static_cast<RegOperand&>(defInsn->GetOperand(kInsnSecondOpnd)));
       if (replace != nullptr) {
         auto &immOpnd = static_cast<ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
-        auto &shiftOpnd = static_cast<LogicalShiftLeftOperand&>(defInsn->GetOperand(kInsnFourthOpnd));
+        auto &shiftOpnd = static_cast<BitShiftOperand&>(defInsn->GetOperand(kInsnFourthOpnd));
         CHECK_FATAL(shiftOpnd.GetShiftAmount() == 12, "invalid shiftAmount");
         auto defVal = static_cast<int64>(static_cast<uint64>(immOpnd.GetValue()) << shiftOpnd.GetShiftAmount());
         newMemOpnd = HandleArithImmDef(*replace, offset, defVal, currMemOpnd.GetSize());
@@ -838,7 +831,7 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const MemOperand &currMemOpnd) {
       RegOperand *replace = GetReplaceReg(static_cast<RegOperand&>(defInsn->GetOperand(kInsnSecondOpnd)));
       if (replace != nullptr) {
         auto &immOpnd = static_cast<ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
-        auto &shiftOpnd = static_cast<LogicalShiftLeftOperand&>(defInsn->GetOperand(kInsnFourthOpnd));
+        auto &shiftOpnd = static_cast<BitShiftOperand&>(defInsn->GetOperand(kInsnFourthOpnd));
         CHECK_FATAL(shiftOpnd.GetShiftAmount() == 12, "invalid shiftAmount");
         int64 defVal = -static_cast<int64>(static_cast<uint64>(immOpnd.GetValue()) << shiftOpnd.GetShiftAmount());
         newMemOpnd = HandleArithImmDef(*replace, offset, defVal, currMemOpnd.GetSize());
@@ -855,11 +848,11 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const MemOperand &currMemOpnd) {
         if (!ofstOpnd->IsZero()) {
           break;
         }
-        RegOperand *replace = GetReplaceReg(
-            static_cast<RegOperand&>(defInsn->GetOperand(kInsnSecondOpnd)));
-        RegOperand *newOfst = GetReplaceReg(static_cast<RegOperand&>(defInsn->GetOperand(kInsnThirdOpnd)));
+
+        RegOperand *replace = GetReplaceReg(static_cast<RegOperand &>(defInsn->GetOperand(kInsnSecondOpnd)));
+        RegOperand *newOfst = GetReplaceReg(static_cast<RegOperand &>(defInsn->GetOperand(kInsnThirdOpnd)));
         if (replace != nullptr && newOfst != nullptr) {
-          newMemOpnd = static_cast<AArch64CGFunc*>(cgFunc)->CreateMemOperand(
+          newMemOpnd = static_cast<AArch64CGFunc *>(cgFunc)->CreateMemOperand(
               MemOperand::kAddrModeBOrX, currMemOpnd.GetSize(), *replace, newOfst, nullptr, nullptr);
         }
       }
@@ -877,7 +870,7 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const MemOperand &currMemOpnd) {
         RegOperand *newIndexOpnd = GetReplaceReg(
             static_cast<RegOperand&>(defInsn->GetOperand(kInsnThirdOpnd)));
         auto &shift = static_cast<BitShiftOperand&>(defInsn->GetOperand(kInsnFourthOpnd));
-        if (shift.GetShiftOp() != BitShiftOperand::kShiftLSL) {
+        if (shift.GetShiftOp() != BitShiftOperand::kLSL) {
           break;
         }
         if (newBaseOpnd != nullptr && newIndexOpnd != nullptr) {
@@ -918,7 +911,7 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const MemOperand &currMemOpnd) {
       break;
     }
     /* do this in const prop ? */
-    case MOP_xmovri32:
+    case MOP_wmovri32:
     case MOP_xmovri64: {
       if (memPropMode == kPropOffset) {
         auto *imm = static_cast<ImmOperand*>(&defInsn->GetOperand(kInsnSecondOpnd));
@@ -1223,16 +1216,16 @@ void ExtendShiftPattern::SelectExtendOrShift(const Insn &def) {
     case MOP_xuxtw64: extendOp = ExtendShiftOperand::kUXTW;
       break;
     case MOP_wlslrri5:
-    case MOP_xlslrri6: shiftOp = BitShiftOperand::kShiftLSL;
+    case MOP_xlslrri6: shiftOp = BitShiftOperand::kLSL;
       break;
     case MOP_xlsrrri6:
-    case MOP_wlsrrri5: shiftOp = BitShiftOperand::kShiftLSR;
+    case MOP_wlsrrri5: shiftOp = BitShiftOperand::kLSR;
       break;
     case MOP_xasrrri6:
-    case MOP_wasrrri5: shiftOp = BitShiftOperand::kShiftASR;
+    case MOP_wasrrri5: shiftOp = BitShiftOperand::kASR;
       break;
     case MOP_wextrrrri5:
-    case MOP_xextrrrri6: shiftOp = BitShiftOperand::kShiftROR;
+    case MOP_xextrrrri6: shiftOp = BitShiftOperand::kROR;
       break;
     default: {
       extendOp = ExtendShiftOperand::kUndef;
@@ -1329,11 +1322,10 @@ void ExtendShiftPattern::ReplaceUseInsn(Insn &use, const Insn &def, uint32 amoun
   Operand *secondOpnd = &use.GetOperand(kInsnSecondOpnd);
   if (replaceIdx == kInsnSecondOpnd) { /* replace neg insn */
     secondOpnd = &def.GetOperand(kInsnSecondOpnd);
-    replaceUseInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(replaceOp, firstOpnd, *secondOpnd, *shiftOpnd);
+    replaceUseInsn = &cgFunc.GetInsnBuilder()->BuildInsn(replaceOp, firstOpnd, *secondOpnd, *shiftOpnd);
   } else {
     Operand &thirdOpnd = def.GetOperand(kInsnSecondOpnd);
-    replaceUseInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(replaceOp, firstOpnd, *secondOpnd,
-                                                                    thirdOpnd, *shiftOpnd);
+    replaceUseInsn = &cgFunc.GetInsnBuilder()->BuildInsn(replaceOp, firstOpnd, *secondOpnd, thirdOpnd, *shiftOpnd);
   }
   use.GetBB()->ReplaceInsn(use, *replaceUseInsn);
   if (PROP_DUMP) {
@@ -1377,7 +1369,7 @@ void ExtendShiftPattern::Optimize(Insn &insn) {
     amount = lastExtendOpnd.GetShiftAmount();
   }
   if (shiftOp != BitShiftOperand::kUndef) {
-    auto &immOpnd = (shiftOp == BitShiftOperand::kShiftROR ?
+    auto &immOpnd = (shiftOp == BitShiftOperand::kROR ?
       static_cast<ImmOperand&>(defInsn->GetOperand(kInsnFourthOpnd)) :
       static_cast<ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd)));
     offset = static_cast<uint32>(immOpnd.GetValue());
@@ -1398,10 +1390,10 @@ void ExtendShiftPattern::DoExtendShiftOpt(Insn &insn) {
 }
 
 void ExtendShiftPattern::SwapOpnd(Insn &insn) {
-  Insn *swapInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(insn.GetMachineOpcode(),
-                                                                  insn.GetOperand(kInsnFirstOpnd),
-                                                                  insn.GetOperand(kInsnThirdOpnd),
-                                                                  insn.GetOperand(kInsnSecondOpnd));
+  Insn *swapInsn = &cgFunc.GetInsnBuilder()->BuildInsn(insn.GetMachineOpcode(),
+                                                       insn.GetOperand(kInsnFirstOpnd),
+                                                       insn.GetOperand(kInsnThirdOpnd),
+                                                       insn.GetOperand(kInsnSecondOpnd));
   insn.GetBB()->ReplaceInsn(insn, *swapInsn);
   optSsaInfo->ReplaceInsn(insn, *swapInsn);
   curInsn = swapInsn;
@@ -1453,7 +1445,7 @@ bool ExtendShiftPattern::CheckCondition(Insn &insn) {
   }
   Operand &defSrcOpnd = defInsn->GetOperand(kInsnSecondOpnd);
   CHECK_FATAL(defSrcOpnd.IsRegister(), "defSrcOpnd must be register!");
-  if (shiftOp == BitShiftOperand::kShiftROR) {
+  if (shiftOp == BitShiftOperand::kROR) {
     if (lsMOpType != kLxEor && lsMOpType != kLwEor && lsMOpType != kLxIor && lsMOpType != kLwIor) {
       return false;
     }
@@ -1482,7 +1474,7 @@ bool ExtendShiftPattern::CheckCondition(Insn &insn) {
   if (useVersion->HasImplicitCvt() && shiftOp != BitShiftOperand::kUndef) {
     return false;
   }
-  if ((shiftOp == BitShiftOperand::kShiftLSR || shiftOp == BitShiftOperand::kShiftASR) &&
+  if ((shiftOp == BitShiftOperand::kLSR || shiftOp == BitShiftOperand::kASR) &&
       (defSrcOpnd.GetSize() > regOperand.GetSize())) {
     return false;
   }
@@ -1490,7 +1482,7 @@ bool ExtendShiftPattern::CheckCondition(Insn &insn) {
   /* check regDefSrc */
   VRegVersion *replaceUseV = optSsaInfo->FindSSAVersion(defSrcRegNo);
   CHECK_FATAL(replaceUseV != nullptr, "useVRegVersion must not be null based on ssa");
-  if (replaceUseV->GetAllUseInsns().size() > 1 && shiftOp != BitShiftOperand::kShiftROR) {
+  if (replaceUseV->GetAllUseInsns().size() > 1 && shiftOp != BitShiftOperand::kROR) {
     return false;
   }
   return true;
@@ -1651,7 +1643,7 @@ void ExtendMovPattern::Init() {
 }
 
 void ExtendMovPattern::Optimize(Insn &insn) {
-  insn.SetMOP(replaceMop);
+  insn.SetMOP(AArch64CG::kMd[replaceMop]);
 }
 
 void CopyRegProp::Run() {
@@ -1711,7 +1703,7 @@ bool CopyRegProp::IsValidCopyProp(const RegOperand &dstReg, const RegOperand &sr
 }
 
 bool CopyRegProp::CheckCondition(Insn &insn) {
-  if (insn.IsEffectiveCopy()) {
+  if (Globals::GetInstance()->GetTarget()->IsEffectiveCopy(insn)) {
     MOperator mOp = insn.GetMachineOpcode();
     if (mOp == MOP_xmovrr || mOp == MOP_wmovrr || mOp == MOP_xvmovs || mOp == MOP_xvmovd) {
       Operand &destOpnd = insn.GetOperand(kInsnFirstOpnd);
@@ -1720,7 +1712,7 @@ bool CopyRegProp::CheckCondition(Insn &insn) {
       auto &destReg = static_cast<RegOperand &>(destOpnd);
       auto &srcReg = static_cast<RegOperand &>(srcOpnd);
       if (srcReg.GetRegisterNumber() == RZR) {
-        insn.SetMOP(mOp == MOP_xmovrr ? MOP_xmovri64 : MOP_xmovri32);
+        insn.SetMOP(AArch64CG::kMd[mOp == MOP_xmovrr ? MOP_xmovri64 : MOP_wmovri32]);
         insn.SetOperand(kInsnSecondOpnd, cgFunc.CreateImmOperand(PTY_u64, 0));
       }
       if (destReg.IsSSAForm() && srcReg.IsSSAForm()) {
@@ -1763,9 +1755,9 @@ void CopyRegProp::Optimize(Insn &insn) {
 void CopyRegProp::VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn) {
   ASSERT(movInsn.GetMachineOpcode() == MOP_xmovrr || movInsn.GetMachineOpcode() == MOP_wmovrr, "NIY explicit CVT");
   if (destReg.GetSize() == k64BitSize && srcReg.GetSize() == k32BitSize) {
-    movInsn.SetMOP(MOP_xuxtw64);
+    movInsn.SetMOP(AArch64CG::kMd[MOP_xuxtw64]);
   } else if (destReg.GetSize() == k32BitSize && srcReg.GetSize() == k64BitSize) {
-    movInsn.SetMOP(MOP_xubfxrri6i6);
+    movInsn.SetMOP(AArch64CG::kMd[MOP_xubfxrri6i6]);
     movInsn.AddOperand(cgFunc.CreateImmOperand(PTY_i64, 0));
     movInsn.AddOperand(cgFunc.CreateImmOperand(PTY_i64, k32BitSize));
   } else {
@@ -1826,9 +1818,9 @@ bool ValidBitNumberProp::IsImplicitUse(const RegOperand &dstOpnd, const RegOpera
     }
     /* if srcOpnd upper 32 bits are valid, it can not prop to mop_x */
     if (srcOpnd.GetSize() == k64BitSize && dstOpnd.GetSize() == k64BitSize) {
-      const AArch64MD *useMD = &AArch64CG::kMd[useInsn->GetMachineOpcode()];
+      const InsnDesc *useMD = &AArch64CG::kMd[useInsn->GetMachineOpcode()];
       for (auto &opndUseIt : as_const(destUseIt.second->GetOperands())) {
-        OpndProp *useProp = useMD->operand[opndUseIt.first];
+        const OpndDesc *useProp = useMD->GetOpndDes(opndUseIt.first);
         if (useProp->GetSize() == k64BitSize) {
           return true;
         }
@@ -1908,18 +1900,17 @@ void FpSpConstProp::Run() {
 }
 
 bool FpSpConstProp::CheckCondition(Insn &insn) {
-  auto &a64Insn = static_cast<AArch64Insn&>(insn);
-  std::set<uint32> defRegs = a64Insn.GetDefRegs();
+  std::set<uint32> defRegs = insn.GetDefRegs();
   auto &a64CGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   if (defRegs.size() <= 1) {
-    if (a64Insn.IsRegDefOrUse(RSP)) {
+    if (insn.ScanReg(RSP)) {
       fpSpBase = &a64CGFunc.GetOrCreatePhysicalRegisterOperand(RSP, k64BitSize, kRegTyInt);
       /* not safe due to varied sp in alloca */
       if (cgFunc.HasVLAOrAlloca()) {
         return false;
       }
     }
-    if (a64Insn.IsRegDefOrUse(RFP)) {
+    if (insn.ScanReg(RFP)) {
       ASSERT(fpSpBase == nullptr, " unexpect for both sp fp using ");
       fpSpBase = &a64CGFunc.GetOrCreatePhysicalRegisterOperand(RFP, k64BitSize, kRegTyInt);
     }
@@ -2028,7 +2019,7 @@ void FpSpConstProp::PropInArith(DUInsnInfo &useDUInfo, Insn &useInsn, Arithmetic
     }
     if (static_cast<AArch64CGFunc&>(cgFunc).IsOperandImmValid(useMop, &newVal, kInsnThirdOpnd)) {
       Insn &newInsn =
-          cgFunc.GetCG()->BuildInstruction<AArch64Insn>(useMop, useInsn.GetOperand(kInsnFirstOpnd), *fpSpBase, newVal);
+          cgFunc.GetInsnBuilder()->BuildInsn(useMop, useInsn.GetOperand(kInsnFirstOpnd), *fpSpBase, newVal);
       useInsn.GetBB()->ReplaceInsn(useInsn, newInsn);
       optSsaInfo->ReplaceInsn(useInsn, newInsn);
     }
@@ -2042,8 +2033,7 @@ void FpSpConstProp::PropInCopy(DUInsnInfo &useDUInfo, Insn &useInsn, MOperator o
     ASSERT(useDUInfo.GetOperands().begin()->first == kInsnSecondOpnd, "NIY");
     ASSERT(useDUInfo.GetOperands().begin()->second == 1, "multiple use in add/sub");
     auto &newVal = *static_cast<ImmOperand*>(shiftOpnd->Clone(*cgFunc.GetMemoryPool()));
-    Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(
-        oriMop, useInsn.GetOperand(kInsnFirstOpnd), *fpSpBase, newVal);
+    Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(oriMop, useInsn.GetOperand(kInsnFirstOpnd), *fpSpBase, newVal);
     useInsn.GetBB()->ReplaceInsn(useInsn, newInsn);
     optSsaInfo->ReplaceInsn(useInsn, newInsn);
   } else {
@@ -2267,7 +2257,7 @@ void A64ConstFoldPattern::ReplaceWithNewInsn(Insn &insn, const ImmOperand &immOp
       return;
     }
   }
-  Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newMop, *dstOpnd, *srcOpnd, newImmOpnd);
+  Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(newMop, *dstOpnd, *srcOpnd, newImmOpnd);
   insn.GetBB()->ReplaceInsn(insn, newInsn);
   /* update ssa info */
   optSsaInfo->ReplaceInsn(insn, newInsn);
@@ -2518,6 +2508,9 @@ bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &defInsn) {
       return false;
     }
   }
+  if (differIdx == -1) {
+    return false;
+  }
   return true;
 }
 
@@ -2567,7 +2560,7 @@ bool A64PregCopyPattern::CheckUselessDefInsn(const Insn *defInsn) const {
 }
 
 bool A64PregCopyPattern::CheckValidDefInsn(const Insn *defInsn) {
-  const AArch64MD *md = &AArch64CG::kMd[defInsn->GetMachineOpcode()];
+  const auto *md = defInsn->GetDesc();
   CHECK_FATAL(md != nullptr, "expect valid AArch64MD");
   /* this pattern applies to all basicOps */
   if (md->IsMove() || md->IsStore() || md->IsLoad() || md->IsLoadStorePair() || md->IsLoadAddress() || md->IsCall() ||
@@ -2743,7 +2736,7 @@ void A64PregCopyPattern::Optimize(Insn &insn) {
   Insn *defInsn = *validDefInsns.begin();
   MOperator newMop = defInsn->GetMachineOpcode();
   Operand &dstOpnd = insn.GetOperand(kInsnFirstOpnd);
-  Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newMop);
+  Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(newMop, AArch64CG::kMd[newMop]);
   uint32 opndNum = defInsn->GetOperandSize();
   newInsn.ResizeOpnds(opndNum);
   if (!isCrossPhi) {
