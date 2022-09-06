@@ -411,15 +411,15 @@ void CGCFG::FindAndMarkUnreachable(CGFunc &func) {
       }
     }
   }
-  FOR_ALL_BB(bb, &func) {
-    for (MapleList<BB*>::iterator predIt = bb->GetPredsBegin(); predIt != bb->GetPredsEnd(); ++predIt) {
+  FOR_ALL_BB(tmpBB, &func) {
+    for (MapleList<BB*>::iterator predIt = tmpBB->GetPredsBegin(); predIt != tmpBB->GetPredsEnd(); ++predIt) {
       if ((*predIt)->IsUnreachable()) {
-        bb->ErasePreds(predIt);
+        tmpBB->ErasePreds(predIt);
       }
     }
-    for (MapleList<BB*>::iterator predIt = bb->GetEhPredsBegin(); predIt != bb->GetEhPredsEnd(); ++predIt) {
+    for (MapleList<BB*>::iterator predIt = tmpBB->GetEhPredsBegin(); predIt != tmpBB->GetEhPredsEnd(); ++predIt) {
       if ((*predIt)->IsUnreachable()) {
-        bb->ErasePreds(predIt);
+        tmpBB->ErasePreds(predIt);
       }
     }
   }

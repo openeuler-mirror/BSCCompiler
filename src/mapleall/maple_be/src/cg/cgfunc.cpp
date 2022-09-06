@@ -1540,11 +1540,11 @@ bool CGFunc::CheckSkipMembarOp(const StmtNode &stmt) {
 void CGFunc::RemoveUnreachableBB() {
   OptimizationPattern *pattern = memPool->New<UnreachBBPattern>(*this);
   for (BB *bb = firstBB; bb != nullptr; bb = bb->GetNext()) {
-    pattern->Optimize(*bb);
+    (void)pattern->Optimize(*bb);
     if (bb->GetPreds().size() == 0 && bb->GetSuccs().size() == 0) {
       auto it = find(noReturnCallBBVec.begin(), noReturnCallBBVec.end(), bb);
       if (it != noReturnCallBBVec.end()) {
-        noReturnCallBBVec.erase(it);
+        (void)noReturnCallBBVec.erase(it);
       }
     }
   }
