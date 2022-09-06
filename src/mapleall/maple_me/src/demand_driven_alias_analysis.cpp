@@ -187,12 +187,16 @@ PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfIread(const IreadSSANode 
   MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iread->GetTyIdx());
   CHECK_FATAL(mirType->GetKind() == kTypePointer, "CreateAliasInfoExpr: ptr type expected in iread");
   auto *pointedType = static_cast<MIRPtrType*>(mirType)->GetPointedType();
+  OffsetType offset(ptrNode.offset);
   if (iread->GetFieldID() > 0) {
+    offset += pointedType->GetBitOffsetFromBaseAddr(iread->GetFieldID());
     pointedType = static_cast<MIRStructType *>(pointedType)->GetFieldType(iread->GetFieldID());
   }
+
   bool typeHasBeenCasted =
       AliasClass::IreadedMemInconsistentWithPointedType(iread->GetPrimType(), pointedType->GetPrimType());
-  OffsetType offset = typeHasBeenCasted ? OffsetType::InvalidOffset() : ptrNode.offset;
+  offset = typeHasBeenCasted ? OffsetType::InvalidOffset() : offset;
+
   auto *vstOfBase = ptrNode.pegNode->vst;
   auto *mayUsedOst =
       AliasClass::FindOrCreateExtraLevOst(ssaTab, vstOfBase, iread->GetTyIdx(), iread->GetFieldID(), offset);
@@ -427,6 +431,7 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
         return;
       }
       auto *structType = static_cast<MIRStructType *>(lhsType);
+      auto tyIdxOfPrevLevOst = preLevOfLHSOst->GetOst()->GetTyIdx();
       for (int32 fieldId = 1; fieldId <= static_cast<int32>(structType->NumberOfFieldIDs()); ++fieldId) {
         auto *fieldType = structType->GetFieldType(fieldId);
         if (!IsAddress(fieldType->GetPrimType())) {
@@ -436,11 +441,13 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
 
         const auto *nextLevOstsOfLHS = ssaTab->GetNextLevelOsts(*preLevOfLHSOst);
         auto fieldOstLHS = (nextLevOstsOfLHS == nullptr) ? nullptr :
-            ssaTab->GetOriginalStTable().FindExtraLevOriginalSt(*nextLevOstsOfLHS, fieldType, fieldId, bitOffset);
+            ssaTab->GetOriginalStTable().FindExtraLevOriginalSt(
+                *nextLevOstsOfLHS, tyIdxOfPrevLevOst, fieldType, fieldId, bitOffset);
 
         const auto *nextLevOstsOfRHS = ssaTab->GetNextLevelOsts(*preLevOfRHSOst);
         auto fieldOstRHS = (nextLevOstsOfRHS == nullptr) ? nullptr :
-            ssaTab->GetOriginalStTable().FindExtraLevOriginalSt(*nextLevOstsOfRHS, fieldType, fieldId, bitOffset);
+            ssaTab->GetOriginalStTable().FindExtraLevOriginalSt(
+                *nextLevOstsOfRHS, tyIdxOfPrevLevOst, fieldType, fieldId, bitOffset);
         if (fieldOstLHS == nullptr && fieldOstRHS == nullptr) {
           continue;
         }
