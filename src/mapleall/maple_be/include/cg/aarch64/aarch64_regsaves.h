@@ -111,6 +111,7 @@ class SavedBBInfo {
   MapleSet<BB *> bbList;
 };
 
+#ifdef REMOVE_DOM_REDUNDANCY
 /* Info for BBs reachable from current BB */
 class ReachInfo {
  public:
@@ -130,7 +131,7 @@ class ReachInfo {
  private:
   MapleSet<BBID> bbList;
 };
-
+#endif
 
 class AArch64RegSavesOpt : public RegSavesOpt {
  public:
@@ -140,22 +141,26 @@ class AArch64RegSavesOpt : public RegSavesOpt {
         pDomInfo(&pdom),
         bbSavedRegs(alloc.Adapter()),
         regSavedBBs(alloc.Adapter()),
+#ifdef REMOVE_DOM_REDUNDANCY
         reachingBBs(alloc.Adapter()),
+#endif
         regOffset(alloc.Adapter()),
         visited(alloc.Adapter()),
         id2bb(alloc.Adapter()) {
     bbSavedRegs.resize(func.NumBBs());
-    regSavedBBs.resize(sizeof(CalleeBitsType)<<3);
     for (size_t i = 0; i < bbSavedRegs.size(); ++i) {
       bbSavedRegs[i] = nullptr;
     }
+    regSavedBBs.resize(sizeof(CalleeBitsType)<<3);
     for (size_t i = 0; i < regSavedBBs.size(); ++i) {
       regSavedBBs[i] = nullptr;
     }
+#ifdef REMOVE_DOM_REDUNDANCY
     reachingBBs.resize(func.NumBBs());
     for (size_t i = 0; i < bbSavedRegs.size(); ++i) {
       reachingBBs[i] = nullptr;
     }
+#endif
   }
   ~AArch64RegSavesOpt() override = default;
 
@@ -180,14 +185,17 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   BB* FindLoopDominator(BB *bb, regno_t reg, bool *done);
   void CheckAndRemoveBlksFromCurSavedList(SavedBBInfo *sp, BB *bbDom, regno_t reg);
   void DetermineCalleeSaveLocationsDoms();
+  void RevertToRestoreAtEpilog(AArch64reg reg);
   void DetermineCalleeSaveLocationsPre();
   bool DetermineCalleeRestoreLocations();
   int32 FindCalleeBase() const;
   void AdjustRegOffsets();
   void InsertCalleeSaveCode();
   void InsertCalleeRestoreCode();
+#ifdef REMOVE_DOM_REDUNDANCY
   void CreateReachingBBs(ReachInfo &rp, const BB &bb);
   BB* RemoveRedundancy(BB *startbb, regno_t reg);
+#endif
   void PrintSaveLocs(AArch64reg reg);
   void Verify(regno_t reg, BB* bb, std::set<BB*, BBIdCmp> *visited, uint32 *s, uint32 *r);
   void Run() override;
@@ -269,12 +277,14 @@ class AArch64RegSavesOpt : public RegSavesOpt {
     return bbSavedRegs[bid];
   }
 
+#ifdef REMOVE_DOM_REDUNDANCY
   ReachInfo *GetReachingEntry(BBID bid) {
     if (reachingBBs[bid] == nullptr) {
       reachingBBs[bid] = memPool->New<ReachInfo>(alloc);
     }
     return reachingBBs[bid];
   }
+#endif
 
   void SetId2bb(BB *bb) {
     id2bb[bb->GetId()] = bb;
@@ -293,7 +303,9 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   CalleeBitsType *calleeBitsAcc = nullptr;
   MapleVector<SavedRegInfo *> bbSavedRegs; /* set of regs to be saved in a BB */
   MapleVector<SavedBBInfo *> regSavedBBs;  /* set of BBs to be saved for a reg */
+#ifdef REMOVE_DOM_REDUNDANCY
   MapleVector<ReachInfo *> reachingBBs;    /* set of BBs reachable from a BB */
+#endif
   MapleMap<regno_t, uint32> regOffset;     /* save offset of each register */
   MapleSet<BBID> visited;                  /* temp */
   MapleMap<BBID, BB*> id2bb;               /* bbid to bb* mapping */

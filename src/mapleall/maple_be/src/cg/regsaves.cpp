@@ -44,7 +44,7 @@ bool CgRegSavesOpt::PhaseRun(maplebe::CGFunc &f) {
   DomAnalysis *dom = nullptr;
   PostDomAnalysis *pdom = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() >= 1 &&
-      f.GetCG()->GetCGOptions().DoColoringBasedRegisterAllocation()) {
+      f.GetCG()->GetCGOptions().DoRegSavesOpt()) {
     MaplePhase *phase = GetAnalysisInfoHook()->
         ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgDomAnalysis::id, f);
     dom = static_cast<CgDomAnalysis*>(phase)->GetResult();
