@@ -331,6 +331,9 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs 
   if (decl.hasAttr<clang::AlwaysInlineAttr>()) {
     genAttrs.SetAttr(GENATTR_always_inline);
   }
+  if (decl.hasAttr<clang::GNUInlineAttr>()) {
+    genAttrs.SetAttr(GENATTR_gnu_inline);
+  }
   if (decl.isDefaulted()) {
     genAttrs.SetAttr(GENATTR_default);
   }
@@ -386,6 +389,13 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs 
     if (isExternallyVisible) {
       genAttrs.SetAttr(GENATTR_extern);
     }
+  }
+  // If a function is defined with attrinute 'gnu_inline' but without 'extern', the 'extern' from function declarations
+  // should be ignored.
+  if (decl.isThisDeclarationADefinition() && genAttrs.GetAttr(GENATTR_gnu_inline) &&
+      (decl.getStorageClass() != clang::SC_Extern) && (decl.getStorageClass() != clang::SC_PrivateExtern) &&
+      genAttrs.GetAttr(GENATTR_extern)) {
+    genAttrs.ResetAttr(GENATTR_extern);
   }
   CheckUnsupportedFuncAttrs(decl);
 }
