@@ -21,7 +21,7 @@
 #include "isa.h"
 #endif
 #include "insn.h"
-#include "datainfo.h"
+#include "sparse_datainfo.h"
 
 /* Maple IR headers */
 #include "mir_nodes.h"
@@ -662,22 +662,22 @@ class BB {
   void SetLastLoc(const Insn *arg) {
     lastLoc = arg;
   }
-  DataInfo *GetLiveIn() {
+  SparseDataInfo *GetLiveIn() {
     return liveIn;
   }
-  const DataInfo *GetLiveIn() const {
+  const SparseDataInfo *GetLiveIn() const {
     return liveIn;
   }
-  void SetLiveIn(DataInfo &arg) {
+  void SetLiveIn(SparseDataInfo &arg) {
     liveIn = &arg;
   }
   void SetLiveInBit(uint32 arg) const {
     liveIn->SetBit(arg);
   }
-  void SetLiveInInfo(const DataInfo &arg) const {
+  void SetLiveInInfo(const SparseDataInfo &arg) const {
     *liveIn = arg;
   }
-  void LiveInOrBits(const DataInfo &arg) const {
+  void LiveInOrBits(const SparseDataInfo &arg) const {
     liveIn->OrBits(arg);
   }
   void LiveInEnlargeCapacity(uint32 arg) const {
@@ -687,19 +687,19 @@ class BB {
     liveIn->ClearDataInfo();
     liveIn = nullptr;
   }
-  DataInfo *GetLiveOut() {
+  SparseDataInfo *GetLiveOut() {
     return liveOut;
   }
-  const DataInfo *GetLiveOut() const {
+  const SparseDataInfo *GetLiveOut() const {
     return liveOut;
   }
-  void SetLiveOut(DataInfo &arg) {
+  void SetLiveOut(SparseDataInfo &arg) {
     liveOut = &arg;
   }
   void SetLiveOutBit(uint32 arg) const {
     liveOut->SetBit(arg);
   }
-  void LiveOutOrBits(const DataInfo &arg) const {
+  void LiveOutOrBits(const SparseDataInfo &arg) const {
     liveOut->OrBits(arg);
   }
   void LiveOutEnlargeCapacity(uint32 arg) const {
@@ -709,10 +709,10 @@ class BB {
     liveOut->ClearDataInfo();
     liveOut = nullptr;
   }
-  const DataInfo *GetDef() const {
+  const SparseDataInfo *GetDef() const {
     return def;
   }
-  void SetDef(DataInfo &arg) {
+  void SetDef(SparseDataInfo &arg) {
     def = &arg;
   }
   void SetDefBit(uint32 arg) const {
@@ -728,10 +728,10 @@ class BB {
     def->ClearDataInfo();
     def = nullptr;
   }
-  const DataInfo *GetUse() const {
+  const SparseDataInfo *GetUse() const {
     return use;
   }
-  void SetUse(DataInfo &arg) {
+  void SetUse(SparseDataInfo &arg) {
     use = &arg;
   }
   void SetUseBit(uint32 arg) const {
@@ -847,10 +847,10 @@ class BB {
 
   const Insn *firstLoc = nullptr;
   const Insn *lastLoc = nullptr;
-  DataInfo *liveIn = nullptr;
-  DataInfo *liveOut = nullptr;
-  DataInfo *def = nullptr;
-  DataInfo *use = nullptr;
+  SparseDataInfo *liveIn = nullptr;
+  SparseDataInfo *liveOut = nullptr;
+  SparseDataInfo *def = nullptr;
+  SparseDataInfo *use = nullptr;
 
   bool needAlign = false;
   uint32 alignPower = 0;

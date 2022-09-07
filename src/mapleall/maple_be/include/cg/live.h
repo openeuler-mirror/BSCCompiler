@@ -18,7 +18,7 @@
 #include "cg_phase.h"
 #include "insn.h"
 #include "cgbb.h"
-#include "datainfo.h"
+#include "sparse_datainfo.h"
 #include "cgfunc.h"
 
 namespace maplebe {
@@ -30,7 +30,7 @@ class LiveAnalysis : public AnalysisResult {
 
   void AnalysisLive();
   void Dump() const;
-  void DumpInfo(const DataInfo &info) const;
+  void DumpInfo(const SparseDataInfo &info) const;
   void InitBB(BB &bb);
   void InitAndGetDefUse();
   bool GenerateLiveOut(BB &bb) const;
@@ -48,20 +48,20 @@ class LiveAnalysis : public AnalysisResult {
   void ProcessCondOpnd(BB &bb) const;
   void CollectLiveInfo(BB &bb, const Operand &opnd, bool isDef, bool isUse) const;
 
-  DataInfo *NewLiveIn(uint32 maxRegCount) {
-    return memPool->New<DataInfo>(maxRegCount, alloc);
+  SparseDataInfo *NewLiveIn(uint32 maxRegCount) {
+    return memPool->New<SparseDataInfo>(maxRegCount, alloc);
   }
 
-  DataInfo *NewLiveOut(uint32 maxRegCount) {
-    return memPool->New<DataInfo>(maxRegCount, alloc);
+  SparseDataInfo *NewLiveOut(uint32 maxRegCount) {
+    return memPool->New<SparseDataInfo>(maxRegCount, alloc);
   }
 
-  DataInfo *NewDef(uint32 maxRegCount) {
-    return memPool->New<DataInfo>(maxRegCount, alloc);
+  SparseDataInfo *NewDef(uint32 maxRegCount) {
+    return memPool->New<SparseDataInfo>(maxRegCount, alloc);
   }
 
-  DataInfo *NewUse(uint32 maxRegCount) {
-    return memPool->New<DataInfo>(maxRegCount, alloc);
+  SparseDataInfo *NewUse(uint32 maxRegCount) {
+    return memPool->New<SparseDataInfo>(maxRegCount, alloc);
   }
 
   virtual void GenerateReturnBBDefUse(BB &bb) const = 0;

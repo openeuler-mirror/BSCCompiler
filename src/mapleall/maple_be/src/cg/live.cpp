@@ -49,7 +49,7 @@ void LiveAnalysis::InitAndGetDefUse() {
 
 /* Out[BB] = Union all of In[Succs(BB)] */
 bool LiveAnalysis::GenerateLiveOut(BB &bb) const {
-  const MapleVector<uint64>bbLiveOutBak(bb.GetLiveOut()->GetInfo());
+  const auto bbLiveOutBak(bb.GetLiveOut()->GetInfo());
   for (auto succBB : bb.GetSuccs()) {
     if (succBB->GetLiveInChange() && !succBB->GetLiveIn()->NoneBit()) {
       bb.LiveOutOrBits(*succBB->GetLiveIn());
@@ -71,12 +71,12 @@ bool LiveAnalysis::GenerateLiveOut(BB &bb) const {
 /* In[BB] = use[BB] Union (Out[BB]-def[BB]) */
 bool LiveAnalysis::GenerateLiveIn(BB &bb) {
   LocalMapleAllocator allocator(stackMp);
-  const MapleVector<uint64> bbLiveInBak(bb.GetLiveIn()->GetInfo(), allocator.Adapter());
+  const auto bbLiveInBak(bb.GetLiveIn()->GetInfo());
   if (!bb.GetInsertUse()) {
     bb.SetLiveInInfo(*bb.GetUse());
     bb.SetInsertUse(true);
   }
-  DataInfo &bbLiveOut = bb.GetLiveOut()->Clone(allocator);
+  SparseDataInfo &bbLiveOut = bb.GetLiveOut()->Clone(allocator);
   if (!bbLiveOut.NoneBit()) {
     bbLiveOut.Difference(*bb.GetDef());
     bb.LiveInOrBits(bbLiveOut);
@@ -84,7 +84,7 @@ bool LiveAnalysis::GenerateLiveIn(BB &bb) {
 
   if (!bb.GetEhSuccs().empty()) {
     /* If bb has eh successors, check if multi-gen exists. */
-    DataInfo allInOfEhSuccs(cgFunc->GetMaxVReg(), allocator);
+    SparseDataInfo allInOfEhSuccs(cgFunc->GetMaxVReg(), allocator);
     for (auto ehSucc : bb.GetEhSuccs()) {
       allInOfEhSuccs.OrBits(*ehSucc->GetLiveIn());
     }
@@ -171,7 +171,7 @@ void LiveAnalysis::InsertInOutOfCleanupBB() {
   if (cleanupBB->GetLiveIn() == nullptr || cleanupBB->GetLiveIn()->NoneBit()) {
     return;
   }
-  DataInfo cleanupBBLi = *(cleanupBB->GetLiveIn());
+  SparseDataInfo cleanupBBLi = *(cleanupBB->GetLiveIn());
   /* registers need to be ignored: (reg < 8) || (29 <= reg && reg <= 32) */
   for (uint32 i = 1; i < 8; ++i) {
     cleanupBBLi.ResetBit(i);
@@ -343,22 +343,22 @@ void LiveAnalysis::Dump() const {
       LogInfo::MapleLogger() << "]\n";
     }
 
-    const DataInfo *infoDef = nullptr;
+    const SparseDataInfo *infoDef = nullptr;
     LogInfo::MapleLogger() << "    DEF: ";
     infoDef = bb->GetDef();
     DumpInfo(*infoDef);
 
-    const DataInfo *infoUse = nullptr;
+    const SparseDataInfo *infoUse = nullptr;
     LogInfo::MapleLogger() << "\n    USE: ";
     infoUse = bb->GetUse();
     DumpInfo(*infoUse);
 
-    const DataInfo *infoLiveIn = nullptr;
+    const SparseDataInfo *infoLiveIn = nullptr;
     LogInfo::MapleLogger() << "\n    Live IN: ";
     infoLiveIn = bb->GetLiveIn();
     DumpInfo(*infoLiveIn);
 
-    const DataInfo *infoLiveOut = nullptr;
+    const SparseDataInfo *infoLiveOut = nullptr;
     LogInfo::MapleLogger() << "\n    Live OUT: ";
     infoLiveOut = bb->GetLiveOut();
     DumpInfo(*infoLiveOut);
@@ -367,19 +367,18 @@ void LiveAnalysis::Dump() const {
   LogInfo::MapleLogger() << "---------------------------\n";
 }
 
-void LiveAnalysis::DumpInfo(const DataInfo &info) const {
+void LiveAnalysis::DumpInfo(const SparseDataInfo &info) const {
   uint32 count = 1;
-  for (size_t i = 0; i != info.Size(); ++i) {
-    if (info.TestBit(i)) {
-      ++count;
-      LogInfo::MapleLogger() << i << " ";
-      /* 20 output one line */
-      if ((count % 20) == 0) {
-        LogInfo::MapleLogger() << "\n";
-      }
+  std::set<uint32> res;
+  info.GetInfo().ConvertToSet(res);
+  for (uint32 x : res) {
+    LogInfo::MapleLogger() << x << " ";
+    ++count;
+    /* 20 output one line */
+    if ((count % 20) == 0) {
+      LogInfo::MapleLogger() << "\n";
     }
   }
-
   LogInfo::MapleLogger() << '\n';
 }
 
