@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -19,44 +19,54 @@
 #include "mir_lower.h"
 #include "securec.h"
 #include "reg_alloc_basic.h"
+#include "reg_alloc_lsra.h"
 #include "cg.h"
 #if TARGAARCH64
-#include "aarch64_lsra.h"
 #include "aarch64_color_ra.h"
 #endif
 
 namespace maplebe {
 
-bool RegAllocator::IsYieldPointReg(regno_t regNO) const {
-#if TARGAARCH64
-  if (cgFunc->GetCG()->GenYieldPoint()) {
-    return (regNO == RYP);
-  }
-#endif
-  return false;
+#ifdef RA_PERF_ANALYSIS
+static long loopAnalysisUS = 0;
+static long liveAnalysisUS = 0;
+static long createRAUS = 0;
+static long raUS = 0;
+static long cleanupUS = 0;
+static long totalUS = 0;
+extern void printRATime() {
+  std::cout << "============================================================\n";
+  std::cout << "               RA sub-phase time information              \n";
+  std::cout << "============================================================\n";
+  std::cout << "loop analysis cost: " << loopAnalysisUS << "us \n";
+  std::cout << "live analysis cost: " << liveAnalysisUS << "us \n";
+  std::cout << "create RA cost: " << createRAUS << "us \n";
+  std::cout << "doRA cost: " << raUS << "us \n";
+  std::cout << "cleanup cost: " << cleanupUS << "us \n";
+  std::cout << "RA total cost: " << totalUS << "us \n";
+  std::cout << "============================================================\n";
 }
-
-/* Those registers can not be overwrite. */
-bool RegAllocator::IsUntouchableReg(regno_t regNO) const {
-#if TARGAARCH64
-  if ((regNO == RSP) || (regNO == RFP)) {
-    return true;
-  }
-
-  /* when yieldpoint is enabled, the RYP(x19) can not be used. */
-  if (cgFunc->GetCG()->GenYieldPoint() && (regNO == RYP)) {
-    return true;
-  }
 #endif
-  return false;
-}
 
 bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
   bool success = false;
-  (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
+
+#ifdef RA_PERF_ANALYSIS
+  auto begin = std::chrono::system_clock::now();
+#endif
+
+  /* loop Analysis */
+#ifdef RA_PERF_ANALYSIS
+  auto start = std::chrono::system_clock::now();
+#endif
+  if (Globals::GetInstance()->GetOptimLevel() > CGOptions::kLevel0) {
+    (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
+  }
+
 #if TARGAARCH64
+  /* dom Analysis */
   DomAnalysis *dom = nullptr;
-  if (Globals::GetInstance()->GetOptimLevel() >= 1 &&
+  if (Globals::GetInstance()->GetOptimLevel() > CGOptions::kLevel0 &&
       f.GetCG()->GetCGOptions().DoColoringBasedRegisterAllocation()) {
     MaplePhase *it = GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(
         &CgDomAnalysis::id, f);
@@ -64,11 +74,20 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
     CHECK_FATAL(dom != nullptr, "null ptr check");
   }
 #endif
+
+#ifdef RA_PERF_ANALYSIS
+  auto end = std::chrono::system_clock::now();
+  loopAnalysisUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+#endif
+
   while (success == false) {
     MemPool *phaseMp = GetPhaseMemPool();
+#ifdef RA_PERF_ANALYSIS
+    start = std::chrono::system_clock::now();
+#endif
+    /* live analysis */
     LiveAnalysis *live = nullptr;
-    /* It doesn't need live range information when -O1, because the register will not live out of bb. */
-    if (Globals::GetInstance()->GetOptimLevel() >= 1) {
+    if (Globals::GetInstance()->GetOptimLevel() > CGOptions::kLevel0) {
       MaplePhase *it = GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(
           &CgLiveAnalysis::id, f);
       live = static_cast<CgLiveAnalysis*>(it)->GetResult();
@@ -76,33 +95,84 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
       /* revert liveanalysis result container. */
       live->ResetLiveSet();
     }
+#ifdef RA_PERF_ANALYSIS
+    end = std::chrono::system_clock::now();
+    liveAnalysisUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+#endif
 
+#ifdef RA_PERF_ANALYSIS
+    start = std::chrono::system_clock::now();
+#endif
+    /* create register allocator */
     RegAllocator *regAllocator = nullptr;
-    if (Globals::GetInstance()->GetOptimLevel() == 0) {
+    MemPool *tempMP = nullptr;
+    if (Globals::GetInstance()->GetOptimLevel() == CGOptions::kLevel0) {
       regAllocator = phaseMp->New<DefaultO0RegAllocator>(f, *phaseMp);
+    } else if (Globals::GetInstance()->GetOptimLevel() == CGOptions::kLevelLiteCG) {
+#if TARGX86_64
+      regAllocator = phaseMp->New<LSRALinearScanRegAllocator>(f, *phaseMp);
+#endif
+#if TARGAARCH64
+      maple::LogInfo::MapleLogger(kLlErr) << "Error: -LiteCG option is unsupported for aarch64.\n";
+#endif
     } else {
 #if TARGAARCH64
       if (f.GetCG()->GetCGOptions().DoLinearScanRegisterAllocation()) {
         regAllocator = phaseMp->New<LSRALinearScanRegAllocator>(f, *phaseMp);
       } else if (f.GetCG()->GetCGOptions().DoColoringBasedRegisterAllocation()) {
-        regAllocator = phaseMp->New<GraphColorRegAllocator>(f, *phaseMp, *dom);
+        tempMP = memPoolCtrler.NewMemPool("colrRA", true);
+        regAllocator = phaseMp->New<GraphColorRegAllocator>(f, *tempMP, *dom);
       } else {
         maple::LogInfo::MapleLogger(kLlErr) <<
             "Warning: We only support Linear Scan and GraphColor register allocation\n";
       }
 #endif
+#if TARGX86_64
+      maple::LogInfo::MapleLogger(kLlErr) <<
+          "Error: We only support -O0, and -LiteCG for x64.\n";
+#endif
     }
+#ifdef RA_PERF_ANALYSIS
+    end = std::chrono::system_clock::now();
+    createRAUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+#endif
 
+#ifdef RA_PERF_ANALYSIS
+    start = std::chrono::system_clock::now();
+#endif
+    /* do register allocation */
     CHECK_FATAL(regAllocator != nullptr, "regAllocator is null in CgDoRegAlloc::Run");
     f.SetIsAfterRegAlloc();
     success = regAllocator->AllocateRegisters();
+#ifdef RA_PERF_ANALYSIS
+    end = std::chrono::system_clock::now();
+    raUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+#endif
+
+#ifdef RA_PERF_ANALYSIS
+    start = std::chrono::system_clock::now();
+#endif
     /* the live range info may changed, so invalid the info. */
     if (live != nullptr) {
       live->ClearInOutDataInfo();
     }
-    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLiveAnalysis::id);
+    if (Globals::GetInstance()->GetOptimLevel() > CGOptions::kLevel0) {
+      GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLiveAnalysis::id);
+    }
+#ifdef RA_PERF_ANALYSIS
+    end = std::chrono::system_clock::now();
+    cleanupUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+#endif
+    memPoolCtrler.DeleteMemPool(tempMP);
   }
-  GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLoopAnalysis::id);
+  if (Globals::GetInstance()->GetOptimLevel() > CGOptions::kLevel0) {
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLoopAnalysis::id);
+  }
+
+#ifdef RA_PERF_ANALYSIS
+  end = std::chrono::system_clock::now();
+  totalUS += std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
+#endif
   return false;
 }
 }  /* namespace maplebe */
