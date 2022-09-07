@@ -793,10 +793,10 @@ void AArch64CGFunc::SelectCopy(Operand &dest, PrimType dtype, Operand &src, Prim
         CHECK_FATAL(IsPrimitiveVector(dtype), "invalid vectreg to vectreg move");
         MOperator mop = (dsize <= k64BitSize) ? MOP_vmovuu : MOP_vmovvv;
         VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
-        vInsn.AddOpndChain(dest).AddOpndChain(src);
+        (void)vInsn.AddOpndChain(dest).AddOpndChain(src);
         auto *vecSpecSrc = GetMemoryPool()->New<VectorRegSpec>(dsize >> k3ByteSize, k8BitSize);
         auto *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(dsize >> k3ByteSize, k8BitSize);
-        vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecSrc);
+        (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecSrc);
         GetCurBB()->AppendInsn(vInsn);
         break;
       }
@@ -1201,7 +1201,7 @@ void AArch64CGFunc::SelectAbort() {
   GetCurBB()->AppendInsn(movXzr);
   GetCurBB()->AppendInsn(loadRef);
   SetCurBBKind(BB::kBBReturn);
-  GetExitBBsVec().emplace_back(GetCurBB());
+  (void)GetExitBBsVec().emplace_back(GetCurBB());
 }
 
 static std::string GetRegPrefixFromPrimType(PrimType pType, uint32 size, const std::string &constraint) {
@@ -9219,22 +9219,22 @@ void AArch64CGFunc::SelectAddrofAfterRa(Operand &result, StImmOperand &stImm, st
   const MIRSymbol *symbol = stImm.GetSymbol();
   ASSERT ((symbol->GetStorageClass() != kScAuto) || (symbol->GetStorageClass() != kScFormal), "");
   Operand *srcOpnd = &result;
-  rematInsns.emplace_back(&GetInsnBuilder()->BuildInsn(MOP_xadrp, result, stImm));
+  (void)rematInsns.emplace_back(&GetInsnBuilder()->BuildInsn(MOP_xadrp, result, stImm));
   if (CGOptions::IsPIC() && symbol->NeedPIC()) {
     /* ldr     x0, [x0, #:got_lo12:Ljava_2Flang_2FSystem_3B_7Cout] */
     OfstOperand &offset = CreateOfstOpnd(*stImm.GetSymbol(), stImm.GetOffset(), stImm.GetRelocs());
     MemOperand &memOpnd = GetOrCreateMemOpnd(MemOperand::kAddrModeBOi, GetPointerSize() * kBitsPerByte,
         static_cast<RegOperand*>(srcOpnd), nullptr, &offset, nullptr);
-    rematInsns.emplace_back(&GetInsnBuilder()->BuildInsn(
+    (void)rematInsns.emplace_back(&GetInsnBuilder()->BuildInsn(
         memOpnd.GetSize() == k64BitSize ? MOP_xldr : MOP_wldr, result, memOpnd));
 
     if (stImm.GetOffset() > 0) {
       ImmOperand &immOpnd = CreateImmOperand(stImm.GetOffset(), result.GetSize(), false);
-      rematInsns.emplace_back(&GetInsnBuilder()->BuildInsn(MOP_xaddrri12, result, result, immOpnd));
+      (void)rematInsns.emplace_back(&GetInsnBuilder()->BuildInsn(MOP_xaddrri12, result, result, immOpnd));
       return;
     }
   } else {
-    rematInsns.emplace_back(&GetInsnBuilder()->BuildInsn(MOP_xadrpl12, result, *srcOpnd, stImm));
+    (void)rematInsns.emplace_back(&GetInsnBuilder()->BuildInsn(MOP_xadrpl12, result, *srcOpnd, stImm));
   }
 }
 
@@ -11438,8 +11438,8 @@ RegOperand *AArch64CGFunc::SelectVectorAbs(PrimType rType, Operand *o1) {
 
   MOperator mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vabsvv : MOP_vabsuu;
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -11457,8 +11457,8 @@ RegOperand *AArch64CGFunc::SelectVectorAddLong(PrimType rType, Operand *o1, Oper
     mOp = IsUnsignedInteger(rType) ? MOP_vuaddl2vvv : MOP_vsaddl2vvv;
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -11476,8 +11476,8 @@ RegOperand *AArch64CGFunc::SelectVectorAddWiden(Operand *o1, PrimType otyp1, Ope
     mOp = IsUnsignedInteger(otyp1) ? MOP_vuaddw2vvv : MOP_vsaddw2vvv;
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -11504,8 +11504,8 @@ RegOperand *AArch64CGFunc::SelectVectorImmMov(PrimType rType, Operand *src, Prim
   }
 
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*src);
-  vInsn.PushRegSpecEntry(vecSpec);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*src);
+  (void)vInsn.PushRegSpecEntry(vecSpec);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -11522,8 +11522,8 @@ RegOperand *AArch64CGFunc::SelectVectorRegMov(PrimType rType, Operand *src, Prim
   }
 
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*src);
-  vInsn.PushRegSpecEntry(vecSpec);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*src);
+  (void)vInsn.PushRegSpecEntry(vecSpec);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -11545,8 +11545,8 @@ RegOperand *AArch64CGFunc::SelectVectorDup(PrimType rType, Operand *src, bool ge
   VectorRegSpec *vecSpecSrc = GetMemoryPool()->New<VectorRegSpec>(k2ByteSize, k64BitSize, getLow ? 0 : 1);
 
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(MOP_vduprv, AArch64CG::kMd[MOP_vduprv]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*src);
-  vInsn.PushRegSpecEntry(vecSpecSrc);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*src);
+  (void)vInsn.PushRegSpecEntry(vecSpecSrc);
   GetCurBB()->AppendInsn(vInsn);
   if (oType != rType) {
     res = AdjustOneElementVectorOperand(oType, res);
@@ -11569,8 +11569,8 @@ RegOperand *AArch64CGFunc::SelectVectorGetElement(PrimType rType, Operand *src, 
   }
 
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*src);
-  vInsn.PushRegSpecEntry(vecSpecSrc);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*src);
+  (void)vInsn.PushRegSpecEntry(vecSpecSrc);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -11606,8 +11606,8 @@ RegOperand *AArch64CGFunc::SelectVectorPairwiseAdalp(Operand *src1, PrimType sty
   }
 
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*src2);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecSrc);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*src2);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecSrc);
   GetCurBB()->AppendInsn(vInsn);
   if (!IsPrimitiveVector(sty1)) {
     res = AdjustOneElementVectorOperand(sty1, res);
@@ -11634,9 +11634,9 @@ RegOperand *AArch64CGFunc::SelectVectorPairwiseAdd(PrimType rType, Operand *src,
   }
 
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*src);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*src);
   /* dest pushed first, popped first */
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecSrc);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecSrc);
   GetCurBB()->AppendInsn(vInsn);
   if (oType != rType) {
     res = AdjustOneElementVectorOperand(oType, res);
@@ -11661,8 +11661,8 @@ RegOperand *AArch64CGFunc::SelectVectorSetElement(Operand *eOpnd, PrimType eType
   }
 
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*vOpnd).AddOpndChain(*reg);
-  vInsn.PushRegSpecEntry(vecSpecSrc);
+  (void)vInsn.AddOpndChain(*vOpnd).AddOpndChain(*reg);
+  (void)vInsn.PushRegSpecEntry(vecSpecSrc);
   GetCurBB()->AppendInsn(vInsn);
   return static_cast<RegOperand*>(vOpnd);
 }
@@ -11681,8 +11681,8 @@ RegOperand *AArch64CGFunc::SelectVectorAbsSubL(PrimType rType, Operand *o1, Oper
     mop = IsPrimitiveUnSignedVector(rType) ? MOP_vuabdl2vvv : MOP_vsabdl2vvv;
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecOpd1).PushRegSpecEntry(vecSpecOpd2);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecOpd1).PushRegSpecEntry(vecSpecOpd2);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -11701,8 +11701,8 @@ RegOperand *AArch64CGFunc::SelectVectorMerge(PrimType rType, Operand *o1, Operan
 
   MOperator mOp = (GetPrimTypeSize(rType) > k8ByteSize) ? MOP_vextvvvi : MOP_vextuuui;
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2).AddOpndChain(*imm);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecOpd1).PushRegSpecEntry(vecSpecOpd2);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2).AddOpndChain(*imm);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecOpd1).PushRegSpecEntry(vecSpecOpd2);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -11721,8 +11721,8 @@ RegOperand *AArch64CGFunc::SelectVectorReverse(PrimType rType, Operand *src, Pri
     CHECK_FATAL(false, "should not be here");
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*src);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecSrc);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*src);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecSrc);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -11741,16 +11741,16 @@ RegOperand *AArch64CGFunc::SelectVectorSum(PrimType rType, Operand *o1, PrimType
     mOp = eSize <= k8BitSize ? MOP_vbaddvru : (eSize <= k16BitSize ? MOP_vhaddvru : MOP_vsaddvru);
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*iOpnd).AddOpndChain(*o1);
-  vInsn.PushRegSpecEntry(vecSpec1);
+  (void)vInsn.AddOpndChain(*iOpnd).AddOpndChain(*o1);
+  (void)vInsn.PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(vInsn);
 
   mOp = eSize > k32BitSize ? MOP_vxmovrv : MOP_vwmovrv;
   VectorInsn &vInsn2 = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   auto *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(oType);
-  vInsn2.AddOpndChain(*res).AddOpndChain(*iOpnd);
+  (void)vInsn2.AddOpndChain(*res).AddOpndChain(*iOpnd);
   vecSpec2->vecLane = 0;
-  vInsn2.PushRegSpecEntry(vecSpec2);
+  (void)vInsn2.PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn2);
   return res;
 }
@@ -11790,8 +11790,8 @@ void AArch64CGFunc::PrepareVectorOperands(Operand **o1, PrimType &oty1, Operand 
     }
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*opd);
-  vInsn.PushRegSpecEntry(vecSpec);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*opd);
+  (void)vInsn.PushRegSpecEntry(vecSpec);
   GetCurBB()->AppendInsn(vInsn);
   if (!IsPrimitiveVector(oty2)) {
     *o2 = static_cast<Operand*>(res);
@@ -11813,15 +11813,15 @@ void AArch64CGFunc::SelectVectorCvt(Operand *res, PrimType rType, Operand *o1, P
     mOp = IsUnsignedInteger(rType) ? MOP_vushllvvi : MOP_vshllvvi;
     ImmOperand *imm = &CreateImmOperand(0, k8BitSize, true);
     insn = &GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-    insn->AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*imm);
+    (void)insn->AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*imm);
   } else if (GetPrimTypeSize(rType) < GetPrimTypeSize(oType)) {
     /* extract, similar to vqmovn_XX() intrinsics */
     insn = &GetInsnBuilder()->BuildVectorInsn(MOP_vxtnuv, AArch64CG::kMd[MOP_vxtnuv]);
-    insn->AddOpndChain(*res).AddOpndChain(*o1);
+    (void)insn->AddOpndChain(*res).AddOpndChain(*o1);
   } else {
     CHECK_FATAL(false, "Invalid cvt between 2 operands of the same size");
   }
-  insn->PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
+  (void)insn->PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(*insn);
 }
 
@@ -11855,8 +11855,8 @@ RegOperand *AArch64CGFunc::SelectVectorCompareZero(Operand *o1, PrimType oty1, O
       CHECK_FATAL(false, "Invalid cc in vector compare");
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(vInsn);
   if (opc == OP_ne) {
     res = SelectVectorNot(oty1, res);
@@ -11908,11 +11908,11 @@ RegOperand *AArch64CGFunc::SelectVectorCompare(Operand *o1, PrimType oty1, Opera
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   if (opc == OP_lt || opc == OP_le) {
-    vInsn.AddOpndChain(*res).AddOpndChain(*o2).AddOpndChain(*o1);
+    (void)vInsn.AddOpndChain(*res).AddOpndChain(*o2).AddOpndChain(*o1);
   } else {
-    vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
+    (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
   }
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
   if (opc == OP_ne) {
     res = SelectVectorNot(oty1, res);
@@ -11947,8 +11947,8 @@ RegOperand *AArch64CGFunc::SelectVectorShift(PrimType rType, Operand *o1, PrimTy
     o2 = SelectVectorNeg(rType, o2);
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -12008,8 +12008,8 @@ RegOperand *AArch64CGFunc::SelectVectorShiftImm(PrimType rType, Operand *o1, Ope
     /* Dup constant to vector reg */
     MOperator mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vmovvi : MOP_vmovui;
     VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-    vInsn.AddOpndChain(*res).AddOpndChain(*imm);
-    vInsn.PushRegSpecEntry(vecSpecDest);
+    (void)vInsn.AddOpndChain(*res).AddOpndChain(*imm);
+    (void)vInsn.PushRegSpecEntry(vecSpecDest);
     GetCurBB()->AppendInsn(vInsn);
     res = SelectVectorShift(rType, o1, rType, res, rType, opc);
     return res;
@@ -12029,8 +12029,8 @@ RegOperand *AArch64CGFunc::SelectVectorShiftImm(PrimType rType, Operand *o1, Ope
     }
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*imm);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*imm);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -12043,8 +12043,8 @@ RegOperand *AArch64CGFunc::SelectVectorTableLookup(PrimType rType, Operand *o1, 
   vecSpec1->compositeOpnds = 1;                                             /* composite operand */
 
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(MOP_vtbl1vvv, AArch64CG::kMd[MOP_vtbl1vvv]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -12057,8 +12057,8 @@ RegOperand *AArch64CGFunc::SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand
 
   MOperator mop = IsPrimitiveUnSignedVector(oTyp1) ? MOP_vumaddvvv : MOP_vsmaddvvv;
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
-  vInsn.AddOpndChain(*o1).AddOpndChain(*o2).AddOpndChain(*o3);
-  vInsn.PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2).PushRegSpecEntry(vecSpec3);
+  (void)vInsn.AddOpndChain(*o1).AddOpndChain(*o2).AddOpndChain(*o3);
+  (void)vInsn.PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2).PushRegSpecEntry(vecSpec3);
   GetCurBB()->AppendInsn(vInsn);
   return static_cast<RegOperand*>(o1);
 }
@@ -12077,8 +12077,8 @@ RegOperand *AArch64CGFunc::SelectVectorMull(PrimType rType, Operand *o1, PrimTyp
     mop = IsPrimitiveUnSignedVector(rType) ? MOP_vumull2vvv : MOP_vsmull2vvv;
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -12104,9 +12104,9 @@ RegOperand *AArch64CGFunc::SelectVectorBinOp(PrimType rType, Operand *o1, PrimTy
     CHECK_FATAL(false, "Invalid opcode for SelectVectorBinOp");
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
   /* dest pushed first, popped first */
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -12132,8 +12132,8 @@ RegOperand *AArch64CGFunc::SelectVectorBitwiseOp(PrimType rType, Operand *o1, Pr
     CHECK_FATAL(false, "Invalid opcode for SelectVectorBitwiseOp");
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -12144,8 +12144,8 @@ RegOperand *AArch64CGFunc::SelectVectorNarrow(PrimType rType, Operand *o1, PrimT
   VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(otyp);      /* vector operand */
 
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(MOP_vxtnuv, AArch64CG::kMd[MOP_vxtnuv]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -12157,8 +12157,8 @@ RegOperand *AArch64CGFunc::SelectVectorNarrow2(PrimType rType, Operand *o1, Prim
   VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(oty2);      /* vector opnd2 */
 
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(MOP_vxtn2uv, AArch64CG::kMd[MOP_vxtn2uv]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o2);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec2);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o2);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -12170,8 +12170,8 @@ RegOperand *AArch64CGFunc::SelectVectorNot(PrimType rType, Operand *o1) {
 
   MOperator mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vnotvv : MOP_vnotuu;
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1);
-  vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -12183,9 +12183,9 @@ RegOperand *AArch64CGFunc::SelectVectorNeg(PrimType rType, Operand *o1) {
 
   MOperator mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vnegvv : MOP_vneguu;
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1);
-  vInsn.PushRegSpecEntry(vecSpecDest);
-  vInsn.PushRegSpecEntry(vecSpec1);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest);
+  (void)vInsn.PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -12203,10 +12203,10 @@ RegOperand *AArch64CGFunc::SelectVectorSelect(Operand &cond, PrimType rType, Ope
 
   uint32 mOp = GetPrimTypeBitSize(rType) > k64BitSize ? MOP_vbslvvv : MOP_vbsluuu;
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(o0).AddOpndChain(o1);
-  vInsn.PushRegSpecEntry(vecSpecDest);
-  vInsn.PushRegSpecEntry(vecSpec1);
-  vInsn.PushRegSpecEntry(vecSpec2);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(o0).AddOpndChain(o1);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest);
+  (void)vInsn.PushRegSpecEntry(vecSpec1);
+  (void)vInsn.PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -12225,9 +12225,9 @@ RegOperand *AArch64CGFunc::SelectVectorShiftRNarrow(PrimType rType, Operand *o1,
     CHECK_FATAL(false, "NYI: vshrn_high_");
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*imm);
-  vInsn.PushRegSpecEntry(vecSpecDest);
-  vInsn.PushRegSpecEntry(vecSpec1);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*imm);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest);
+  (void)vInsn.PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -12254,10 +12254,10 @@ RegOperand *AArch64CGFunc::SelectVectorSubWiden(PrimType resType, Operand *o1, P
     }
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
-  vInsn.PushRegSpecEntry(vecSpecDest);
-  vInsn.PushRegSpecEntry(vecSpec1);
-  vInsn.PushRegSpecEntry(vecSpec2);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest);
+  (void)vInsn.PushRegSpecEntry(vecSpec1);
+  (void)vInsn.PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -12270,17 +12270,17 @@ void AArch64CGFunc::SelectVectorZip(PrimType rType, Operand *o1, Operand *o2) {
   VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(rType);          /* vector operand 2 */
 
   VectorInsn &vInsn1 = GetInsnBuilder()->BuildVectorInsn(MOP_vzip1vvv, AArch64CG::kMd[MOP_vzip1vvv]);
-  vInsn1.AddOpndChain(*res1).AddOpndChain(*o1).AddOpndChain(*o2);
-  vInsn1.PushRegSpecEntry(vecSpecDest);
-  vInsn1.PushRegSpecEntry(vecSpec1);
-  vInsn1.PushRegSpecEntry(vecSpec2);
+  (void)vInsn1.AddOpndChain(*res1).AddOpndChain(*o1).AddOpndChain(*o2);
+  (void)vInsn1.PushRegSpecEntry(vecSpecDest);
+  (void)vInsn1.PushRegSpecEntry(vecSpec1);
+  (void)vInsn1.PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn1);
 
   VectorInsn &vInsn2 = GetInsnBuilder()->BuildVectorInsn(MOP_vzip2vvv, AArch64CG::kMd[MOP_vzip2vvv]);
-  vInsn2.AddOpndChain(*res2).AddOpndChain(*o1).AddOpndChain(*o2);
-  vInsn2.PushRegSpecEntry(vecSpecDest);
-  vInsn2.PushRegSpecEntry(vecSpec1);
-  vInsn2.PushRegSpecEntry(vecSpec2);
+  (void)vInsn2.AddOpndChain(*res2).AddOpndChain(*o1).AddOpndChain(*o2);
+  (void)vInsn2.PushRegSpecEntry(vecSpecDest);
+  (void)vInsn2.PushRegSpecEntry(vecSpec1);
+  (void)vInsn2.PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn2);
 
   if (GetPrimTypeSize(rType) <= k16ByteSize) {
@@ -12303,9 +12303,9 @@ RegOperand *AArch64CGFunc::SelectVectorWiden(PrimType rType, Operand *o1, PrimTy
     mOp = IsPrimitiveUnSignedVector(rType) ? MOP_vuxtl2vv : MOP_vsxtl2vv;
   }
   VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  vInsn.AddOpndChain(*res).AddOpndChain(*o1);
-  vInsn.PushRegSpecEntry(vecSpecDest);
-  vInsn.PushRegSpecEntry(vecSpec1);
+  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest);
+  (void)vInsn.PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(vInsn);
   return res;
 }
@@ -12317,9 +12317,9 @@ RegOperand *AArch64CGFunc::SelectVectorMovNarrow(PrimType rType, Operand *opnd, 
 
   MOperator mOp = IsPrimitiveUnSignedVector(rType) ? MOP_vuqxtnuv : MOP_vsqxtnuv;
   VectorInsn &insn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
-  insn.AddOpndChain(*res).AddOpndChain(*opnd);
-  insn.PushRegSpecEntry(vecSpecDest);
-  insn.PushRegSpecEntry(vecSpec1);
+  (void)insn.AddOpndChain(*res).AddOpndChain(*opnd);
+  (void)insn.PushRegSpecEntry(vecSpecDest);
+  (void)insn.PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(insn);
   return res;
 }

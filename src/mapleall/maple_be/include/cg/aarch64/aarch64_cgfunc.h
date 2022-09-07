@@ -514,7 +514,7 @@ class AArch64CGFunc : public CGFunc {
     if (find(calleeSavedRegs.begin(), calleeSavedRegs.end(), reg) != calleeSavedRegs.end()) {
       return;
     }
-    calleeSavedRegs.emplace_back(static_cast<AArch64reg>(reg));
+    (void)calleeSavedRegs.emplace_back(static_cast<AArch64reg>(reg));
     ASSERT((AArch64isa::IsGPRegister(static_cast<AArch64reg>(reg)) ||
             AArch64isa::IsFPSIMDRegister(static_cast<AArch64reg>(reg))),
             "Int or FP registers are expected");

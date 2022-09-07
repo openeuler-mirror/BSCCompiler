@@ -28,10 +28,10 @@ Insn &AArch64PhiEliminate::CreateMov(RegOperand &destOpnd, RegOperand &fromOpnd)
   if (destOpnd.GetSize() == k128BitSize) {
     ASSERT(isFloat, "unexpect 128bit int operand in aarch64");
     insn = &cgFunc->GetInsnBuilder()->BuildVectorInsn(MOP_vmovvv, AArch64CG::kMd[MOP_vmovvv]);
-    insn->AddOpndChain(destOpnd).AddOpndChain(fromOpnd);
+    (void)insn->AddOpndChain(destOpnd).AddOpndChain(fromOpnd);
     auto *vecSpecSrc = cgFunc->GetMemoryPool()->New<VectorRegSpec>(k128BitSize >> k3ByteSize, k8BitSize);
     auto *vecSpecDest = cgFunc->GetMemoryPool()->New<VectorRegSpec>(k128BitSize >> k3ByteSize, k8BitSize);
-    static_cast<VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecSrc);
+    (void)static_cast<VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecSrc);
   } else {
     insn = &cgFunc->GetInsnBuilder()->BuildInsn(
         is64bit ? isFloat ? MOP_xvmovd : MOP_xmovrr : isFloat ? MOP_xvmovs : MOP_wmovrr, destOpnd, fromOpnd);

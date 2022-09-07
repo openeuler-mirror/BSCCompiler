@@ -905,7 +905,7 @@ class CGFunc {
         CHECK_FATAL(switchLabelCnt[oldLabelIdx] > 0, "error labelIdx");
         --switchLabelCnt[oldLabelIdx];
         if (switchLabelCnt[oldLabelIdx] == 0) {
-          switchLabelCnt.erase(oldLabelIdx);
+          (void)switchLabelCnt.erase(oldLabelIdx);
         }
       }
     }
@@ -923,7 +923,7 @@ class CGFunc {
       CHECK_FATAL(switchLabelCnt[labelIdx] > 0, "error labelIdx");
       --switchLabelCnt[labelIdx];
       if (switchLabelCnt[labelIdx] == 0) {
-        switchLabelCnt.erase(labelIdx);
+        (void)switchLabelCnt.erase(labelIdx);
       }
     }
     (void)emitStVec.erase(id);

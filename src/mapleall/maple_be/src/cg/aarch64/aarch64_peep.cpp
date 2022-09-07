@@ -3739,7 +3739,7 @@ void ContiLDRorSTRToSameMEMPattern::Run(BB &bb, Insn &insn) {
       }
     }
     if (!moveSameReg) {
-      bb.InsertInsnAfter(*prevInsn, cgFunc->GetInsnBuilder()->BuildInsn(newOp, reg1, reg2));
+      (void)bb.InsertInsnAfter(*prevInsn, cgFunc->GetInsnBuilder()->BuildInsn(newOp, reg1, reg2));
     }
     bb.RemoveInsn(insn);
   } else if (reg1.GetRegisterNumber() == reg2.GetRegisterNumber() &&

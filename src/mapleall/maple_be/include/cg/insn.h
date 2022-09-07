@@ -32,7 +32,7 @@ class BB;
 class CG;
 class Emitter;
 class DepNode;
-struct InsnDescription;
+struct InsnDesc;
 class Insn {
  public:
   enum RetType : uint8 {
@@ -79,19 +79,14 @@ class Insn {
   MOperator GetMachineOpcode() const {
     return mOp;
   }
-#ifdef TARGX86_64
-  void SetMOP(const InsnDescription &idesc);
-#else
-  void SetMOP(MOperator mOperator) {
-    this->mOp = mOperator;
-  }
-#endif
+
+  void SetMOP(const InsnDesc &idesc);
 
   void AddOperand(Operand &opnd) {
     opnds.emplace_back(&opnd);
   }
 
-  Insn &AddOperandChain(Operand &opnd) {
+  Insn &AddOpndChain(Operand &opnd) {
     AddOperand(opnd);
     return *this;
   }
@@ -123,11 +118,6 @@ class Insn {
     opnds[index] = &opnd;
   }
 
-  virtual void SetResult(uint32 index, Operand &res) {
-    (void)index;
-    (void)res;
-  }
-
   void SetRetSize(uint32 size) {
     ASSERT(IsCall(), "Insn should be a call.");
     retSize = size;
@@ -140,241 +130,65 @@ class Insn {
 
   virtual bool IsMachineInstruction() const;
 
-  virtual bool IsPseudoInstruction() const {
-    return false;
-  }
+  bool OpndIsDef(uint32 id) const;
 
-  virtual bool IsReturnPseudoInstruction() const {
-    return false;
-  }
-
-  virtual bool OpndIsDef(uint32) const {
-    return false;
-  }
-
-  virtual bool OpndIsUse(uint32) const {
-    return false;
-  }
-
-  virtual bool OpndIsMayDef(uint32) const {
-    return false;
-  }
-
-  virtual bool IsEffectiveCopy() const {
-    return false;
-  }
-
-  virtual int32 CopyOperands() const {
-    return -1;
-  }
-
-  virtual bool IsSameRes() {
-    return false;
-  }
+  bool OpndIsUse(uint32 id) const;
 
   virtual bool IsPCLoad() const {
     return false;
   }
 
-  virtual uint32 GetOpndNum() const {
-    return 0;
-  }
+  Operand *GetMemOpnd() const;
 
-  virtual uint32 GetResultNum() const {
-    return 0;
-  }
+  void SetMemOpnd(MemOperand *memOpnd);
 
-  virtual Operand *GetOpnd(uint32 index) const {
-    (void)index;
-    return nullptr;
-  }
+  bool IsCall() const;
+  bool IsTailCall() const;
+  bool IsAsmInsn() const;
+  bool IsClinit() const;
+  bool CanThrow() const;
+  bool MayThrow() const;
+  bool IsBranch() const;
+  bool IsCondBranch() const;
+  bool IsUnCondBranch() const;
+  bool IsMove() const;
+  bool IsBasicOp() const;
+  bool IsUnaryOp() const;
+  bool IsShift() const;
+  bool IsPhi() const;
+  bool IsLoad() const;
+  bool IsStore() const;
+  bool IsConversion() const;
+  bool IsAtomic() const;
 
-  virtual Operand *GetMemOpnd() const {
-    return nullptr;
-  }
-
-  virtual void SetMemOpnd(MemOperand *memOpnd) {
-    (void)memOpnd;
-  }
-
-  virtual Operand *GetResult(uint32 index) const{
-    (void)index;
-    return nullptr;
-  }
-
-  virtual void SetOpnd(uint32 index, Operand &opnd) {
-    (void)index;
-    (void)opnd;
-  }
-
-  virtual bool IsGlobal() const {
-    return false;
-  }
-
-  virtual bool IsDecoupleStaticOp() const {
-    return false;
-  }
-
-  virtual bool IsCall() const;
-
-  virtual bool IsAsmInsn() const {
-    return false;
-  }
-
-  virtual bool IsTailCall() const {
-    return false;
-  }
-
-  virtual bool IsClinit() const {
-    return false;
-  }
-
-  virtual bool IsLazyLoad() const {
-    return false;
-  }
-
-  virtual bool IsAdrpLdr() const {
-    return false;
-  }
-
-  virtual bool IsArrayClassCache() const {
-    return false;
-  }
-
-  virtual bool IsReturn() const {
-    return false;
-  }
-
-  virtual bool IsFixedInsn() const {
-    return false;
-  }
-
-  virtual bool CanThrow() const {
-    return false;
-  }
-
-  virtual bool MayThrow() {
-    return false;
-  }
-
-  virtual bool IsIndirectCall() const {
-    return false;
-  }
-
-  virtual bool IsCallToFunctionThatNeverReturns() {
-    return false;
-  }
-
-  virtual bool IsLoadLabel() const {
-    return false;
-  }
-
-  virtual bool IsBranch() const {
-    return false;
-  }
-
-  virtual bool IsCondBranch() const;
-
-  virtual bool IsUnCondBranch() const {
-    return false;
-  }
-
-  virtual bool IsMove() const;
-
-  virtual bool IsMoveRegReg() const {
-    return false;
-  }
-
-  virtual bool IsBasicOp() const;
-
-  virtual bool IsUnaryOp() const;
-
-  virtual bool IsShift() const;
-
-  virtual bool IsPhi() const{
-    return false;
-  }
-
-  virtual bool IsLoad() const;
-
-  virtual bool IsStore() const;
-
-  virtual bool IsConversion() const;
-
-  virtual bool IsLoadPair() const {
-    return false;
-  }
-
-  virtual bool IsStorePair() const {
-    return false;
-  }
-
-  virtual bool IsLoadStorePair() const {
-    return false;
-  }
-
-  virtual bool IsLoadAddress() const {
-    return false;
-  }
-
-  virtual bool IsAtomic() const {
-    return false;
-  }
+  bool IsLoadPair() const;
+  bool IsStorePair() const;
+  bool IsLoadStorePair() const;
+  bool IsLoadLabel() const;
 
   virtual bool NoAlias() const {
     return false;
   }
 
-  virtual bool NoOverlap() const {
-    return false;
-  }
+  bool IsVolatile() const;
 
-  virtual bool IsVolatile() const {
-    return false;
-  }
+  bool IsMemAccessBar() const;
 
-  virtual bool IsMemAccessBar() const {
-    return false;
-  }
-
-  virtual bool IsMemAccess() const {
-    return false;
-  }
+  bool IsMemAccess() const;
 
   virtual bool HasSideEffects() const {
     return false;
   }
 
-  virtual bool HasLoop() const {
-    return false;
-  }
+  bool HasLoop() const;
 
-  virtual bool IsSpecialIntrinsic() const {
-    return false;
-  }
+  virtual bool IsSpecialIntrinsic() const;
 
-  virtual bool IsComment() const {
-    return false;
-  }
-
-  virtual bool IsGoto() const {
-    return false;
-  }
-
-  virtual bool IsImmaterialInsn() const {
-    return false;
-  }
-
-  virtual bool IsYieldPoint() const {
-    return false;
-  }
-
-  virtual bool IsPartDef() const {
-    return false;
-  }
+  bool IsComment() const;
+  bool IsImmaterialInsn() const;
 
   virtual bool IsTargetInsn() const {
-    return false;
+    return true;
   }
 
   virtual bool IsCfiInsn() const {
@@ -385,25 +199,13 @@ class Insn {
     return false;
   }
 
-  virtual bool IsFallthruCall() const {
-    return false;
-  }
+  bool IsDMBInsn() const;
 
-  virtual bool IsDMBInsn() const {
-    return false;
-  }
+  bool IsVectorOp() const;
 
-  virtual bool IsVectorOp() const {
-    return false;
-  }
+  virtual Operand *GetCallTargetOperand() const;
 
-  virtual Operand *GetCallTargetOperand() const {
-    return nullptr;
-  }
-
-  virtual uint32 GetAtomicNum() const {
-    return 1;
-  }
+  uint32 GetAtomicNum() const;
   /*
    * returns a ListOperand
    * Note that we don't really need this for Emit
@@ -411,10 +213,7 @@ class Insn {
    * correctly state the live ranges for operands
    * use for passing call arguments
    */
-  virtual ListOperand *GetCallArgumentOperand() {
-    return nullptr;
-  }
-
+  virtual ListOperand *GetCallArgumentOperand();
   bool IsAtomicStore() const {
     return IsStore() && IsAtomic();
   }
@@ -467,19 +266,10 @@ class Insn {
     return 0;
   }
 
-#if TARGAARCH64 || TARGRISCV64
-  virtual void Dump() const = 0;
-#else
   virtual void Dump() const;
-#endif
 
-#if !RELEASE
-  virtual bool Check() const {
-    return true;
-  }
-
-#else
-  virtual bool Check() const = 0;
+#if DEBUG
+  virtual void Check() const;
 #endif
 
   void SetComment(const std::string &str) {
@@ -516,22 +306,6 @@ class Insn {
     return ((flags & kOpAccessRefField) != 0);
   }
 
-#if TARGAARCH64 || TARGRISCV64
-  virtual bool IsRegDefined(regno_t regNO) const = 0;
-
-  virtual std::set<uint32> GetDefRegs() const = 0;
-
-  virtual uint32 GetBothDefUseOpnd() const {
-    CHECK_FATAL(false, "impl in sub");
-  };
-
-  virtual bool IsDefinition() const = 0;
-#endif
-
-  virtual bool IsDestRegAlsoSrcReg() const {
-    return false;
-  }
-
   Insn *GetPreviousMachineInsn() const {
     for (Insn *returnInsn = prev; returnInsn != nullptr; returnInsn = returnInsn->prev) {
       ASSERT(returnInsn->bb == bb, "insn and it's prev insn must have same bb");
@@ -552,24 +326,7 @@ class Insn {
     return nullptr;
   }
 
-  virtual uint32 GetLatencyType() const {
-    return 0;
-  }
-
-  virtual uint32 GetJumpTargetIdx() const {
-    return 0;
-  }
-
-  virtual uint32 GetJumpTargetIdxFromMOp(MOperator mOperator) const {
-    (void)mOperator;
-    return 0;
-  }
-
-  virtual MOperator FlipConditionOp(MOperator flippedOp, uint32 &targetIdx) {
-    (void)flippedOp;
-    (void)targetIdx;
-    return 0;
-  }
+  uint32 GetLatencyType() const;
 
   void SetPrev(Insn *prevInsn) {
     this->prev = prevInsn;
@@ -729,33 +486,13 @@ class Insn {
     return isPhiMovInsn;
   }
 
-  void InitWithOriginalInsn(const Insn &originalInsn, MemPool &memPool) {
-    prev = originalInsn.prev;
-    next = originalInsn.next;
-    bb = originalInsn.bb;
-    flags = originalInsn.flags;
-    mOp = originalInsn.mOp;
-    uint32 opndNum = originalInsn.GetOperandSize();
-    for (uint32 i = 0; i < opndNum; i++) {
-      opnds.emplace_back(originalInsn.opnds[i]->Clone(memPool));
-    }
-  }
+  Insn *Clone(MemPool &memPool) const;
 
-  std::vector<LabelOperand*> GetLabelOpnd() const {
-    std::vector<LabelOperand*> labelOpnds;
-    for (uint32 i = 0; i < opnds.size(); i++) {
-      if (opnds[i]->IsLabelOpnd()) {
-        labelOpnds.emplace_back(static_cast<LabelOperand*>(opnds[i]));
-      }
-    }
-    return labelOpnds;
-  }
-
-  void SetInsnDescrption(const InsnDescription &newMD) {
+  void SetInsnDescrption(const InsnDesc &newMD) {
     md = &newMD;
   }
 
-  const InsnDescription *GetInsnDescrption() const {
+  const InsnDesc *GetDesc() const {
     return md;
   }
 
@@ -766,6 +503,22 @@ class Insn {
   const MapleMap<uint32, uint32>& GetRegBinding() const {
     return registerBinding;
   }
+
+  void SetRefSkipIdx(int32 index) {
+    refSkipIdx = index;
+  }
+
+  /* Get Size of memory write/read by insn */
+  uint32 GetMemoryByteSize() const;
+
+  /* return ture if register appears */
+  virtual bool ScanReg(regno_t regNO) const;
+
+  virtual bool IsRegDefined(regno_t regNO) const;
+
+  virtual std::set<uint32> GetDefRegs() const;
+
+  virtual uint32 GetBothDefUseOpnd() const;
 
   RegOperand *GetSSAImpDefOpnd() {
     return ssaImplicitDefOpnd;
@@ -823,13 +576,77 @@ class Insn {
   bool asmModMem = false;
   bool needSplit = false;
 
+  /* for dynamic language to mark reference counting */
+  int32 refSkipIdx = -1;
+
   /* for multiple architecture */
-  const InsnDescription *md = nullptr;
+  const InsnDesc *md = nullptr;
   /*
    * for redundant compute elimination phase,
    * indicate whether the version has been processed.
    */
   bool processRHS = false;
+};
+
+struct VectorRegSpec {
+  VectorRegSpec() : vecLane(-1), vecLaneMax(0), vecElementSize(0), compositeOpnds(0) {}
+
+  VectorRegSpec(PrimType type, int16 lane = -1, uint16 compositeOpnds = 0) :
+      vecLane(lane),
+      vecLaneMax(GetVecLanes(type)),
+      vecElementSize(GetVecEleSize(type)),
+      compositeOpnds(compositeOpnds) {}
+
+  VectorRegSpec(uint16 laneNum, uint16 eleSize, int16 lane = -1, uint16 compositeOpnds = 0) :
+      vecLane(lane),
+      vecLaneMax(laneNum),
+      vecElementSize(eleSize),
+      compositeOpnds(compositeOpnds) {}
+
+  int16 vecLane;         /* -1 for whole reg, 0 to 15 to specify individual lane */
+  uint16 vecLaneMax;     /* Maximum number of lanes for this vregister */
+  uint16 vecElementSize; /* element size in each Lane */
+  uint16 compositeOpnds; /* Number of enclosed operands within this composite operand */
+};
+
+class VectorInsn : public Insn {
+ public:
+  VectorInsn(MemPool &memPool, MOperator opc)
+      : Insn(memPool, opc),
+        regSpecList(localAlloc.Adapter()) {
+    regSpecList.clear();
+  }
+
+  ~VectorInsn() override = default;
+
+  void ClearRegSpecList() {
+    regSpecList.clear();
+  }
+
+  VectorRegSpec *GetAndRemoveRegSpecFromList();
+
+  size_t GetNumOfRegSpec() const {
+    if (IsVectorOp() && !regSpecList.empty()) {
+      return regSpecList.size();
+    }
+    return 0;
+  }
+
+  MapleVector<VectorRegSpec*> &GetRegSpecList() {
+    return regSpecList;
+  }
+
+  void SetRegSpecList(const MapleVector<VectorRegSpec*> &vec) {
+    regSpecList = vec;
+  }
+
+  VectorInsn &PushRegSpecEntry(VectorRegSpec *v) {
+    (void)regSpecList.emplace(regSpecList.begin(), v);
+    return *this;
+  }
+
+ private:
+  MapleVector<VectorRegSpec*> regSpecList;
 };
 
 struct InsnIdCmp {

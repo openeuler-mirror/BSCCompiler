@@ -237,7 +237,7 @@ void BECommon::ComputeClassTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx, uint
     /* copy parent's layout plan into my plan */
     if (HasJClassLayout(*parentType)) {  /* parent may have incomplete type definition. */
       const JClassLayout &parentLayout = GetJClassLayout(*parentType);
-      layout->insert(layout->cend(), parentLayout.cbegin(), parentLayout.cend());
+      (void)layout->insert(layout->cend(), parentLayout.cbegin(), parentLayout.cend());
       allocedSize += prntSize;
       SetTypeAlign(tyIdx, std::max(GetTypeAlign(tyIdx), prntAlign));
     } else {
@@ -357,7 +357,7 @@ void BECommon::ComputeTypeSizesAligns(MIRType &ty, uint8 align) {
   }
 
   if ((ty.GetPrimType() == PTY_ptr) || (ty.GetPrimType() == PTY_ref)) {
-    ty.SetPrimType(LOWERED_PTR_TYPE);
+    ty.SetPrimType(GetLoweredPtrType());
   }
 
   switch (ty.GetKind()) {
@@ -702,7 +702,7 @@ void BECommon::AddElementToFuncReturnType(MIRFunction &func, const TyIdx tyIdx) 
 }
 
 MIRType *BECommon::BeGetOrCreatePointerType(const MIRType &pointedType) {
-  MIRType *newType = GlobalTables::GetTypeTable().GetOrCreatePointerType(pointedType, LOWERED_PTR_TYPE);
+  MIRType *newType = GlobalTables::GetTypeTable().GetOrCreatePointerType(pointedType, GetLoweredPtrType());
   if (TyIsInSizeAlignTable(*newType)) {
     return newType;
   }
@@ -752,7 +752,7 @@ BaseNode *BECommon::GetAddressOfNode(const BaseNode &node) {
       std::pair<int32, int32> byteBitOffset =
           GetFieldOffset(static_cast<MIRStructType&>(*pointedType), iNode.GetFieldID());
 #if TARGAARCH64 || TARGRISCV64
-      ASSERT(GetAddressPrimType() == LOWERED_PTR_TYPE, "incorrect address type, expect a LOWERED_PTR_TYPE");
+      ASSERT(GetAddressPrimType() == GetLoweredPtrType(), "incorrect address type, expect a GetLoweredPtrType()");
 #endif
       return mirModule.GetMIRBuilder()->CreateExprBinary(
           OP_add, *GlobalTables::GetTypeTable().GetPrimType(GetAddressPrimType()),

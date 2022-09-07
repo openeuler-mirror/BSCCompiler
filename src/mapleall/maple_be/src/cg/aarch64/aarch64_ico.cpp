@@ -893,7 +893,7 @@ bool AArch64ICOMorePredsPattern::MovToCsel(std::vector<Insn*> &movInsn, std::vec
     MOperator mOpCode = isIntTy ? (dSize == k64BitSize ? MOP_xcselrrrc : MOP_wcselrrrc)
                                 : (dSize == k64BitSize ? MOP_dcselrrrc : (dSize == k32BitSize ?
                                                                           MOP_scselrrrc : MOP_hcselrrrc));
-    cselInsn.emplace_back(&cgFunc->GetInsnBuilder()->BuildInsn(mOpCode, opnd0, opnd1, opnd0, cond, rflag));
+    (void)cselInsn.emplace_back(&cgFunc->GetInsnBuilder()->BuildInsn(mOpCode, opnd0, opnd1, opnd0, cond, rflag));
   }
   if (cselInsn.size() < 1) {
     return false;
