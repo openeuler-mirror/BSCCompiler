@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -25,8 +25,9 @@ class SrcPosition {
     u.fileColumn.column = 0;
     u.word0 = 0;
   }
-  explicit SrcPosition(uint32 fnum, uint32 lnum, uint32 cnum, uint32 mlnum)
-    : lineNum(lnum), mplLineNum(mlnum) {
+  SrcPosition(uint16 fnum, uint32 lnum, uint16 cnum, uint32 mlnum)
+      : lineNum(lnum),
+        mplLineNum(mlnum) {
     u.fileColumn.fileNum = fnum;
     u.fileColumn.column = cnum;
   }
@@ -37,11 +38,11 @@ class SrcPosition {
     return u.word0;
   }
 
-  uint32 FileNum() const {
+  uint16 FileNum() const {
     return u.fileColumn.fileNum;
   }
 
-  uint32 Column() const {
+  uint16 Column() const {
     return u.fileColumn.column;
   }
 
@@ -89,28 +90,32 @@ class SrcPosition {
     mplLineNum = pos.MplLineNum();
   }
 
+  bool IsSameFile(const SrcPosition &pos) const {
+    return pos.FileNum() == FileNum();
+  }
+
   // as you read: pos0->IsBf(pos) "pos0 Is Before pos"
-  bool IsBf(SrcPosition pos) const {
+  bool IsBf(const SrcPosition &pos) const {
     return (pos.FileNum() == FileNum() &&
            ((LineNum() < pos.LineNum()) ||
             ((LineNum() == pos.LineNum()) && (Column() < pos.Column()))));
   }
 
-  bool IsBfMpl(SrcPosition pos) const {
+  bool IsBfMpl(const SrcPosition &pos) const {
     return (pos.FileNum() == FileNum() &&
            ((MplLineNum() < pos.MplLineNum()) ||
             ((MplLineNum() == pos.MplLineNum()) && (Column() < pos.Column()))));
   }
 
-  bool IsEq(SrcPosition pos) const {
+  bool IsEq(const SrcPosition &pos) const {
     return FileNum() == pos.FileNum() && LineNum() == pos.LineNum() && Column() == pos.Column();
   }
 
-  bool IsBfOrEq(SrcPosition pos) const {
+  bool IsBfOrEq(const SrcPosition &pos) const {
     return IsBf(pos) || IsEq(pos);
   }
 
-  bool IsEqMpl(SrcPosition pos) const {
+  bool IsEqMpl(const SrcPosition &pos) const {
     return MplLineNum() == pos.MplLineNum();
   }
 
@@ -143,6 +148,11 @@ class SrcPosition {
     std::stringstream ss;
     ss << "LOC " << FileNum() << " " << LineNum() << " " << Column();
     return ss.str();
+  }
+
+  Loc GetSrcLoc() const {
+    Loc loc(static_cast<uint32>(FileNum()), static_cast<uint32>(LineNum()), static_cast<uint32>(Column()));
+    return loc;
   }
 
  private:

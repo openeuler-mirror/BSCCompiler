@@ -2691,9 +2691,8 @@ void ASTParser::SetInitExprForASTVar(MapleAllocator &allocator, const clang::Var
   EvaluatedFlag flag = astInitExpr->GetEvaluatedFlag();
   // For thoese global and static local variables initialized with zero or the init list only
   // has zero, they won't be set initExpr and will be stored into .bss section instead of .data section
-  // to reduce code size. However, when passing '-npe-check-dynamic', initExpr should be always set otherwise
-  // '-npe-check-dynamic' cannot work as expected.
-  if (FEOptions::GetInstance().IsNpeCheckDynamic() || !isStaticStorageVar || flag != kEvaluatedAsZero) {
+  // to reduce code size.
+  if (!isStaticStorageVar || flag != kEvaluatedAsZero) {
     astVar.SetInitExpr(astInitExpr);
   } else {
     astVar.SetAttr(GENATTR_static_init_zero); // used to distinguish with uninitialized vars

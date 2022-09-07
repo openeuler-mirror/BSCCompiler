@@ -2309,7 +2309,8 @@ FEIRExpr::FEIRExpr(FEIRNodeKind argKind)
       isNestable(true),
       isAddrof(false),
       hasException(false),
-      isBoundaryChecking(false) {
+      isBoundaryChecking(false),
+      isEnhancedChecking(true) {
   type = std::make_unique<FEIRTypeDefault>();
 }
 
@@ -2319,6 +2320,7 @@ FEIRExpr::FEIRExpr(FEIRNodeKind argKind, std::unique_ptr<FEIRType> argType)
       isAddrof(false),
       hasException(false),
       isBoundaryChecking(false),
+      isEnhancedChecking(true),
       type(std::move(argType)) {}
 
 std::unique_ptr<FEIRExpr> FEIRExpr::Clone() {
@@ -2327,6 +2329,7 @@ std::unique_ptr<FEIRExpr> FEIRExpr::Clone() {
   expr->isAddrof = IsAddrof();
   expr->hasException = HasException();
   expr->isBoundaryChecking = IsBoundaryChecking();
+  expr->isEnhancedChecking = IsEnhancedChecking();
   expr->SetLoc(loc);
   return expr;
 }

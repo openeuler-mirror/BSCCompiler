@@ -56,8 +56,8 @@ void test_field() {
   pa->i = &i;   // CHECK-NOT: [[# @LINE ]] error
 }
 
-struct A g_a1 = {NULL,  // CHECK-NOT: [[# @LINE ]] error
-                 NULL};  // CHECK: [[# @LINE ]] error
+struct A g_a1 = {NULL,  // CHECK: [[# @LINE ]] error
+                 NULL};  // CHECK-NOT: [[# @LINE ]] error
 
 struct A g_a2 = {&i, 
                  &i};  // CHECK-NOT: [[# @LINE ]] error

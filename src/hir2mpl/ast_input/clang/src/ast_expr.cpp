@@ -2594,6 +2594,8 @@ UniqueFEIRExpr ASTConditionalOperator::Emit2FEExprImpl(std::list<UniqueFEIRStmt>
   if (retType->GetKind() == kTypeBitField) {
     retType = GlobalTables::GetTypeTable().GetPrimType(retType->GetPrimType());
   }
+  trueFEIRExpr->SetIsEnhancedChecking(false);
+  falseFEIRExpr->SetIsEnhancedChecking(false);
   UniqueFEIRVar tempVar = FEIRBuilder::CreateVarNameForC(varName, *retType);
   UniqueFEIRVar tempVarCloned1 = tempVar->Clone();
   UniqueFEIRVar tempVarCloned2 = tempVar->Clone();
@@ -2606,6 +2608,7 @@ UniqueFEIRExpr ASTConditionalOperator::Emit2FEExprImpl(std::list<UniqueFEIRStmt>
   UniqueFEIRStmt stmtIf = FEIRBuilder::CreateStmtIf(std::move(condFEIRExpr), trueStmts, falseStmts);
   stmts.emplace_back(std::move(stmtIf));
   UniqueFEIRExpr expr = FEIRBuilder::CreateExprDRead(std::move(tempVarCloned2));
+  expr->SetIsEnhancedChecking(false);
   if (!FEOptions::GetInstance().IsNpeCheckDynamic() || !FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
     expr->SetKind(kExprTernary);
   }

@@ -314,6 +314,7 @@ class FEIRStmt : public FELinkListNode {
   bool isAuxPre = false;
   bool isAuxPost = false;
   bool isThrowable = false;
+  bool isEnhancedChecking = true;
   std::vector<FEIRStmt*> extraPreds;
   std::vector<FEIRStmt*> extraSuccs;
 };
@@ -405,6 +406,14 @@ class FEIRExpr {
 
   bool IsBoundaryChecking() const {
     return isBoundaryChecking;
+  }
+
+  void SetIsEnhancedChecking(bool flag) {
+    isEnhancedChecking = flag;
+  }
+
+  bool IsEnhancedChecking() const {
+    return isEnhancedChecking;
   }
 
   void SetType(std::unique_ptr<FEIRType> argType) {
@@ -521,6 +530,7 @@ class FEIRExpr {
   bool isAddrof : 1;
   bool hasException : 1;
   bool isBoundaryChecking : 1;
+  bool isEnhancedChecking : 1;
   std::unique_ptr<FEIRType> type;
   Loc loc = {0, 0, 0};
 };  // class FEIRExpr

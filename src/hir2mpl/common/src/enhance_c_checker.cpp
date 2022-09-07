@@ -97,16 +97,25 @@ bool ENCChecker::HasNullExpr(const UniqueFEIRExpr &expr) {
 }
 
 void ENCChecker::CheckNonnullGlobalVarInit(const MIRSymbol &sym, const MIRConst *cst) {
-  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || !sym.GetAttr(ATTR_nonnull)) {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
     return;
   }
-  if (cst == nullptr) {
-    FE_ERR(kLncErr, FEUtils::GetSrcLocationForMIRSymbol(sym), "nonnull parameter is uninitialized when defined");
-    return;
-  }
-  if (cst->IsZero()) {
-    FE_ERR(kLncErr, FEUtils::GetSrcLocationForMIRSymbol(sym), "null assignment of nonnull pointer");
-    return;
+  if (sym.GetAttr(ATTR_nonnull)) {
+    if ((cst != nullptr && cst->IsZero()) || (cst == nullptr && sym.GetAttr(ATTR_static_init_zero))) {
+      FE_ERR(kLncErr, FEUtils::GetSrcLocationForMIRSymbol(sym), "null assignment of nonnull pointer");
+    } else if (cst == nullptr) {
+      FE_ERR(kLncErr, FEUtils::GetSrcLocationForMIRSymbol(sym), "nonnull parameter is uninitialized when defined");
+    }
+  } else if (sym.GetAttr(ATTR_static_init_zero) && HasNonnullFieldInStruct(*sym.GetType())) {
+    auto *structType = static_cast<MIRStructType*>(sym.GetType());
+    for (size_t i = 0; i < structType->GetFieldsSize(); ++i) {
+      if (!structType->GetFieldsElemt(i).second.second.GetAttr(FLDATTR_nonnull)) {
+        continue;
+      }
+      FE_ERR(kLncErr, FEUtils::GetSrcLocationForMIRSymbol(sym),
+             "null assignment of nonnull field pointer. [field name: %s]",
+             GlobalTables::GetStrTable().GetStringFromStrIdx(structType->GetFieldsElemt(i).first).c_str());
+    }
   }
 }
 
@@ -128,12 +137,24 @@ void ENCChecker::CheckNullFieldInGlobalStruct(MIRType &type, MIRAggConst &cst, c
 }
 
 void ENCChecker::CheckNonnullLocalVarInit(const MIRSymbol &sym, const ASTExpr *initExpr) {
-  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || !sym.GetAttr(ATTR_nonnull)) {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || initExpr != nullptr) {
     return;
   }
-  if (initExpr == nullptr) {
-    FE_ERR(kLncErr, FEUtils::GetSrcLocationForMIRSymbol(sym), "error: nonnull parameter is uninitialized when defined");
-    return;
+  if (sym.GetAttr(ATTR_nonnull)) {
+    if (sym.GetAttr(ATTR_static_init_zero)) {
+      FE_ERR(kLncErr, FEUtils::GetSrcLocationForMIRSymbol(sym), "null assignment of nonnull pointer");
+    } else {
+      FE_ERR(kLncErr, FEUtils::GetSrcLocationForMIRSymbol(sym),
+             "error: nonnull parameter is uninitialized when defined");
+    }
+  } else if (sym.GetAttr(ATTR_static_init_zero) && HasNonnullFieldInStruct(*sym.GetType())) {
+    auto *structType = static_cast<MIRStructType*>(sym.GetType());
+    for (size_t i = 0; i < structType->GetFieldsSize(); ++i) {
+      if (structType->GetFieldsElemt(i).second.second.GetAttr(FLDATTR_nonnull)) {
+        FE_ERR(kLncErr, FEUtils::GetSrcLocationForMIRSymbol(sym),
+               "null assignment of nonnull field pointer. [field name: %s]",
+               GlobalTables::GetStrTable().GetStringFromStrIdx(structType->GetFieldsElemt(i).first).c_str());}
+    }
   }
 }
 
@@ -182,7 +203,7 @@ std::string ENCChecker::PrintParamIdx(const std::list<size_t> &idxs) {
 
 void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
                                                   const Loc &loc) {
-  if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || !srcExpr->IsEnhancedChecking()) {
     return;
   }
   const MIRFuncType *funcType = FEUtils::GetFuncPtrType(dstType);
@@ -2118,6 +2139,9 @@ bool ENCChecker::IsSameBoundary(const AttrBoundary &arg1, const AttrBoundary &ar
 
 void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
                                                    const Loc &loc) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || !srcExpr->IsEnhancedChecking()) {
+    return;
+  }
   const MIRFuncType *funcType = FEUtils::GetFuncPtrType(dstType);
   if (funcType == nullptr) {
     return;

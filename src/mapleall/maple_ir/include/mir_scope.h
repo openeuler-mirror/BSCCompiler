@@ -130,7 +130,8 @@ class MIRScope {
   }
 
   void SetRange(SrcPosition low, SrcPosition high) {
-    ASSERT(low.IsBfOrEq(high), "wrong order of low and high");
+    // The two positions that were changed by the #line directive may be not in the same file.
+    ASSERT(!low.IsSameFile(high) || low.IsBfOrEq(high), "wrong order of low and high");
     range.first = low;
     range.second = high;
   }
@@ -170,7 +171,7 @@ class MIRScope {
     typeAlias->SetTypeAliasMap(gStrIdx, tyIdx);
   }
 
-  const MIRTypeAliasTable *GetTypAliasTable() const {
+  const MIRTypeAliasTable *GetTypeAliasTable() const {
     return typeAlias;
   }
 
