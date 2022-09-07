@@ -3993,9 +3993,9 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(
       if ((static_cast<int32>(bb.GetFrequency()) - edgeFreq) > 0) {
         bb.SetFrequency(static_cast<uint32>(bb.GetFrequency() - edgeFreq));
         bb.UpdateEdgeFreqs();
-        newBB->SetFrequency(static_cast<uint32>(edgeFreq));
-        newBB->PushBackSuccFreq(static_cast<uint64>(edgeFreq));
       }
+      newBB->SetFrequency(static_cast<uint32>(edgeFreq));
+      newBB->PushBackSuccFreq(static_cast<uint64>(edgeFreq));
       pred.AddSuccFreq(static_cast<uint64>(edgeFreq), index);
     }
     DeleteThePhiNodeWhichOnlyHasOneOpnd(bb, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
