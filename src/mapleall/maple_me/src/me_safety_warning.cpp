@@ -45,11 +45,9 @@ inline static bool HandleAssertNonnull(const MeStmt &stmt, const MIRModule &mod,
   GStrIdx curFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(func.GetName().c_str());
   GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(newStmt.GetFuncName().c_str());
   if (curFuncNameIdx == stmtFuncNameIdx) {
-    WARN(kLncWarn, "%s:%d warning: Dereference of nullable pointer",
-         mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum());
+    WARN_USER(kLncWarn, srcPosition, mod, "Dereference of nullable pointer");
   } else {
-    WARN(kLncWarn, "%s:%d warning: Dereference of nullable pointer when inlined to %s",
-         mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+    WARN_USER(kLncWarn, srcPosition, mod, "Dereference of nullable pointer when inlined to %s",
          newStmt.GetFuncName().c_str());
   }
   return !MeOption::isNpeCheckAll || MeOption::npeCheckMode == SafetyCheckMode::kStaticCheck;
@@ -66,8 +64,7 @@ inline static bool HandleReturnAssertNonnull(const MeStmt &stmt, const MIRModule
             mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
             returnStmt.GetFuncName().c_str());
     } else {
-      WARN(kLncWarn, "%s:%d warning: %s return nonnull but got nullable pointer",
-           mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+      WARN_USER(kLncWarn, srcPosition, mod, "%s return nonnull but got nullable pointer",
            returnStmt.GetFuncName().c_str());
     }
   } else {
@@ -76,8 +73,7 @@ inline static bool HandleReturnAssertNonnull(const MeStmt &stmt, const MIRModule
             mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
             returnStmt.GetFuncName().c_str(), func.GetName().c_str());
     } else {
-      WARN(kLncWarn, "%s:%d warning: %s return nonnull but got nullable pointer when inlined to %s",
-           mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+      WARN_USER(kLncWarn, srcPosition, mod, "%s return nonnull but got nullable pointer when inlined to %s",
            returnStmt.GetFuncName().c_str(), func.GetName().c_str());
     }
   }
@@ -95,16 +91,15 @@ inline static bool HandleAssignAssertNonnull(const MeStmt &stmt, const MIRModule
       FATAL(kLncFatal, "%s:%d error: nullable pointer assignment of nonnull pointer in safe region",
             mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum());
     } else {
-      WARN(kLncWarn, "%s:%d warning: nullable pointer assignment of nonnull pointer",
-           mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum());
+      WARN_USER(kLncWarn, srcPosition, mod, "nullable pointer assignment of nonnull pointer");
     }
   } else {
     if (MeOption::safeRegionMode && stmt.IsInSafeRegion()) {
       FATAL(kLncFatal, "%s:%d error: nullable pointer assignment of nonnull pointer in safe region when inlined to %s",
             mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(), func.GetName().c_str());
     } else {
-      WARN(kLncWarn, "%s:%d warning: nullable pointer assignment of nonnull pointer when inlined to %s",
-           mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(), func.GetName().c_str());
+      WARN_USER(kLncWarn, srcPosition, mod, "nullable pointer assignment of nonnull pointer when inlined to %s",
+           func.GetName().c_str());
     }
   }
   return MeOption::npeCheckMode == SafetyCheckMode::kStaticCheck;
@@ -116,13 +111,11 @@ inline static bool HandleCallAssertNonnull(const MeStmt &stmt, const MIRModule &
   GStrIdx curFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(func.GetName().c_str());
   GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(callStmt.GetStmtFuncName().c_str());
   if (curFuncNameIdx == stmtFuncNameIdx) {
-    WARN(kLncWarn, "%s:%d warning: nullable pointer passed to %s that requires nonnull for %s argument",
-         mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+    WARN_USER(kLncWarn, srcPosition, mod, "nullable pointer passed to %s that requires nonnull for %s argument",
          callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
   } else {
-    WARN(kLncWarn,
-         "%s:%d warning: nullable pointer passed to %s that requires nonnull for %s argument when inlined to %s",
-         mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+    WARN_USER(kLncWarn, srcPosition, mod,
+         "nullable pointer passed to %s that requires nonnull for %s argument when inlined to %s",
          callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str(), func.GetName().c_str());
   }
   return MeOption::npeCheckMode == SafetyCheckMode::kStaticCheck;
@@ -136,19 +129,18 @@ static bool HandleCalculationAssert(const MeStmt &stmt, const MIRModule &mod, co
   std::ostringstream oss;
   if (curFuncNameIdx == stmtFuncNameIdx) {
     if (kOpcodeInfo.IsAssertUpperBoundary(stmt.GetOp())) {
-      oss << "%s:%d warning: can't prove the pointer < the upper bounds after calculation";
+      oss << "can't prove the pointer < the upper bounds after calculation";
     } else {
-      oss << "%s:%d warning: can't prove the pointer >= the lower bounds after calculation";
+      oss << "can't prove the pointer >= the lower bounds after calculation";
     }
-    WARN(kLncWarn, oss.str().c_str(), mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum());
+    WARN_USER(kLncWarn, srcPosition, mod, oss.str().c_str());
   } else {
     if (kOpcodeInfo.IsAssertUpperBoundary(stmt.GetOp())) {
-      oss << "%s:%d warning: can't prove the pointer < the upper bounds after calculation when inlined to %s";
+      oss << "can't prove the pointer < the upper bounds after calculation when inlined to %s";
     } else {
-      oss << "%s:%d warning: can't prove the pointer >= the lower bounds after calculation when inlined to %s";
+      oss << "can't prove the pointer >= the lower bounds after calculation when inlined to %s";
     }
-    WARN(kLncWarn, oss.str().c_str(), mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
-         func.GetName().c_str());
+    WARN_USER(kLncWarn, srcPosition, mod, oss.str().c_str(), func.GetName().c_str());
   }
   return true;
 }
@@ -161,19 +153,18 @@ static bool HandleMemoryAccessAssert(const MeStmt &stmt, const MIRModule &mod, c
   std::ostringstream oss;
   if (curFuncNameIdx == stmtFuncNameIdx) {
     if (kOpcodeInfo.IsAssertUpperBoundary(stmt.GetOp())) {
-      oss << "%s:%d warning: can't prove the pointer < the upper bounds when accessing the memory";
+      oss << "can't prove the pointer < the upper bounds when accessing the memory";
     } else {
-      oss << "%s:%d warning: can't prove the pointer >= the lower bounds when accessing the memory";
+      oss << "can't prove the pointer >= the lower bounds when accessing the memory";
     }
-    WARN(kLncWarn, oss.str().c_str(), mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum());
+    WARN_USER(kLncWarn, srcPosition, mod, oss.str().c_str());
   } else {
     if (kOpcodeInfo.IsAssertUpperBoundary(stmt.GetOp())) {
-      oss << "%s:%d warning: can't prove the pointer < the upper bounds when accessing the memory and inlined to %s";
+      oss << "can't prove the pointer < the upper bounds when accessing the memory and inlined to %s";
     } else {
-      oss << "%s:%d warning: can't prove the pointer >= the lower bounds when accessing the memory and inlined to %s";
+      oss << "can't prove the pointer >= the lower bounds when accessing the memory and inlined to %s";
     }
-    WARN(kLncWarn, oss.str().c_str(), mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
-         func.GetName().c_str());
+    WARN_USER(kLncWarn, srcPosition, mod, oss.str().c_str(), func.GetName().c_str());
   }
   return MeOption::boundaryCheckMode == SafetyCheckMode::kStaticCheck;
 }
@@ -184,11 +175,10 @@ static bool HandleBoundaryCheckAssertAssign(const MeStmt &stmt, const MIRModule 
   GStrIdx curFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(func.GetName().c_str());
   GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(newStmt.GetFuncName().c_str());
   if (curFuncNameIdx == stmtFuncNameIdx) {
-    WARN(kLncWarn, "%s:%d warning: can't prove l-value's upper bounds <= r-value's upper bounds",
-         mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum());
+    WARN_USER(kLncWarn, srcPosition, mod, "can't prove l-value's upper bounds <= r-value's upper bounds");
   } else {
-    WARN(kLncWarn, "%s:%d warning: can't prove l-value's upper bounds <= r-value's upper bounds when inlined to %s",
-         mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(), func.GetName().c_str());
+    WARN_USER(kLncWarn, srcPosition, mod, "can't prove l-value's upper bounds <= r-value's upper bounds when inlined to %s",
+         func.GetName().c_str());
   }
 
   return MeOption::boundaryCheckMode == SafetyCheckMode::kStaticCheck;
@@ -200,12 +190,12 @@ inline static bool HandleBoundaryCheckAssertCall(const MeStmt &stmt, const MIRMo
   GStrIdx curFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(func.GetName().c_str());
   GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(callStmt.GetStmtFuncName().c_str());
   if (curFuncNameIdx == stmtFuncNameIdx) {
-    WARN(kLncWarn, "%s:%d warning: can't prove pointer's bounds match the function %s declaration for the %s argument",
-         mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+    WARN_USER(kLncWarn, srcPosition, mod,
+         "can't prove pointer's bounds match the function %s declaration for the %s argument",
          callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
   } else {
-    WARN(kLncWarn, "%s:%d warning: can't prove pointer's bounds match the function %s declaration for the %s argument "\
-         "when inlined to %s", mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+    WARN_USER(kLncWarn, srcPosition, mod,
+         "can't prove pointer's bounds match the function %s declaration for the %s argument when inlined to %s",
          callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str(), func.GetName().c_str());
   }
   return MeOption::boundaryCheckMode == SafetyCheckMode::kStaticCheck;
@@ -217,13 +207,11 @@ inline static bool HandleBoundaryCheckAssertReturn(const MeStmt &stmt, const MIR
   GStrIdx curFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(func.GetName().c_str());
   GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(returnStmt.GetFuncName().c_str());
   if (curFuncNameIdx == stmtFuncNameIdx) {
-    WARN(kLncWarn, "%s:%d warning: can't prove return value's bounds match the function declaration for %s",
-         mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+    WARN_USER(kLncWarn, srcPosition, mod, "can't prove return value's bounds match the function declaration for %s",
          returnStmt.GetFuncName().c_str());
   } else {
-    WARN(kLncWarn,
-         "%s:%d warning: can't prove return value's bounds match the function declaration for %s when inlined to %s",
-         mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+    WARN_USER(kLncWarn, srcPosition, mod,
+         "can't prove return value's bounds match the function declaration for %s when inlined to %s",
          returnStmt.GetFuncName().c_str(), func.GetName().c_str());
   }
   return MeOption::boundaryCheckMode == SafetyCheckMode::kStaticCheck;
@@ -295,10 +283,12 @@ SafetyWarningHandler *MESafetyWarning::FindHandler(Opcode op) {
 }
 
 bool MESafetyWarning::PhaseRun(MeFunction &meFunction) {
-  auto *dom = GET_ANALYSIS(MEDominance, meFunction);
   auto &mod = meFunction.GetMIRModule();
   MapleVector<MeStmt*> removeStmts(mod.GetMPAllocator().Adapter());
-  for (auto *bb : dom->GetReversePostOrder()) {
+  for (auto *bb : meFunction.GetCfg()->GetAllBBs()) {
+    if (bb == nullptr) {
+      continue;
+    }
     for (auto &stmt : bb->GetMeStmts()) {
       auto *handle = FindHandler(stmt.GetOp());
       if (handle != nullptr) {
