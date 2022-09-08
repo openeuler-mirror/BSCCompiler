@@ -20,10 +20,10 @@
 
 namespace maplebe {
 #include "immvalid.def"
-#include "aarch64_opnd.def"
 #define DEFINE_MOP(...) {__VA_ARGS__},
-const AArch64MD AArch64CG::kMd[kMopLast] = {
+const InsnDesc AArch64CG::kMd[kMopLast] = {
 #include "aarch64_md.def"
+#include "aarch64_mem_md.def"
 };
 #undef DEFINE_MOP
 
@@ -171,6 +171,48 @@ namespace wordsMap {
     }
   }
 }
+
+bool AArch64CG::IsTargetInsn(MOperator mOp) const {
+  return (mOp > MOP_undef && mOp <= MOP_nop);
+}
+bool AArch64CG::IsClinitInsn(MOperator mOp) const {
+  return (mOp == MOP_clinit || mOp == MOP_clinit_tail || mOp == MOP_adrp_ldr);
+}
+
+bool AArch64CG::IsEffectiveCopy(Insn &insn) const {
+  MOperator mOp = insn.GetMachineOpcode();
+  if (mOp >= MOP_xmovrr  && mOp <= MOP_xvmovrv) {
+    return true;
+  }
+  if (mOp == MOP_vmovuu || mOp == MOP_vmovvv) {
+    return true;
+  }
+  if ((mOp >= MOP_xaddrrr && mOp <= MOP_ssub) || (mOp >= MOP_xlslrri6 && mOp <= MOP_wlsrrrr)) {
+    Operand &opnd2 = insn.GetOperand(kInsnThirdOpnd);
+    if (opnd2.IsIntImmediate()) {
+      auto &immOpnd = static_cast<ImmOperand&>(opnd2);
+      if (immOpnd.IsZero()) {
+        return true;
+      }
+    }
+  }
+  if (mOp > MOP_xmulrrr && mOp <= MOP_xvmuld) {
+    Operand &opnd2 = insn.GetOperand(kInsnThirdOpnd);
+    if (opnd2.IsIntImmediate()) {
+      auto &immOpnd = static_cast<ImmOperand&>(opnd2);
+      if (immOpnd.GetValue() == 1) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+void AArch64CG::DumpTargetOperand(Operand &opnd, const OpndDesc &opndDesc) const {
+  A64OpndDumpVisitor visitor(opndDesc);
+  opnd.Accept(visitor);
+}
+
 /*
  * Find if there exist same GCTIB (both rcheader and bitmap are same)
  * for different class. If ture reuse, if not emit and record new GCTIB.
@@ -221,7 +263,7 @@ void AArch64CG::FindOrCreateRepresentiveSym(std::vector<uint64> &bitmapWords, ui
 
     /* Emit each bitmap word */
     for (const auto &bitmapWord : bitmapWords) {
-      if (!IsQuiet()) {
+      if (!CGOptions::IsQuiet()) {
         LogInfo::MapleLogger() << "  bitmap_word: 0x"<< bitmapWord << " " << PRIx64 << "\n";
       }
       emitter->Emit("\t.quad ");  /* AArch64-specific. Generate a 64-bit value. */
@@ -264,12 +306,12 @@ std::string AArch64CG::FindGCTIBPatternName(const std::string &name) const {
 }
 
 void AArch64CG::GenerateObjectMaps(BECommon &beCommon) {
-  if (!IsQuiet()) {
+  if (!CGOptions::IsQuiet()) {
     LogInfo::MapleLogger() << "DEBUG: Generating object maps...\n";
   }
 
   for (auto &tyId : GetMIRModule()->GetClassList()) {
-    if (!IsQuiet()) {
+    if (!CGOptions::IsQuiet()) {
       LogInfo::MapleLogger() << "Class tyIdx: " << tyId << "\n";
     }
     TyIdx tyIdx(tyId);
@@ -287,7 +329,7 @@ void AArch64CG::GenerateObjectMaps(BECommon &beCommon) {
     const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(nameIdx);
 
     /* Emit for a class */
-    if (!IsQuiet()) {
+    if (!CGOptions::IsQuiet()) {
       LogInfo::MapleLogger() << "  name: " << name << "\n";
     }
 
@@ -318,7 +360,7 @@ Insn &AArch64CG::BuildPhiInsn(RegOperand &defOpnd, Operand &listParam) {
     mop = defOpnd.IsOfIntClass() ? is64bit ? MOP_xphirr : MOP_wphirr : is64bit ? MOP_xvphid : MOP_xvphis;
   }
   ASSERT(mop != MOP_nop, "unexpect 128bit int operand in aarch64");
-  return BuildInstruction<AArch64Insn>(mop, defOpnd, listParam);
+  return GetCurCGFuncNoConst()->GetInsnBuilder()->BuildInsn(mop, defOpnd, listParam);
 }
 
 PhiOperand &AArch64CG::CreatePhiOperand(MemPool &mp, MapleAllocator &mAllocator) {

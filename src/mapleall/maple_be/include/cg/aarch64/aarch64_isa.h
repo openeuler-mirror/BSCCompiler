@@ -20,6 +20,7 @@
 #define DEFINE_MOP(op, ...) op,
 enum AArch64MOP_t : maple::uint32 {
 #include "aarch64_md.def"
+#include "aarch64_mem_md.def"
   kMopLast
 };
 #undef DEFINE_MOP
@@ -55,14 +56,6 @@ enum StrLdrImmUpperBound : int64 {
   kStrLdrImm64UpperBound = 32760, /* must be a multiple of 8 */
   kStrbLdrbImmUpperBound = 4095,
   kStrhLdrhImmUpperBound = 8190
-};
-
-/* AArch64 Condition Code Suffixes */
-enum AArch64CC_t {
-#define CONDCODE(a) CC_##a,
-#include "aarch64_cc.def"
-#undef CONDCODE
-  kCcLast
 };
 
 /*
@@ -119,6 +112,8 @@ enum AArch64reg : uint32 {
 #undef FP_SIMD_REG_ALIAS
 };
 
+class Insn;
+
 namespace AArch64isa {
 static inline bool IsGPRegister(AArch64reg r) {
   return R0 <= r && r <= RZR;
@@ -151,135 +146,22 @@ enum MemoryOrdering : uint32 {
   kMoRelease = (1ULL << 3),     /* ARMv8 */
   kMoLorelease = (1ULL << 4)    /* ARMv8.1 */
 };
+
+static inline bool IsPseudoInstruction(MOperator mOp) {
+  return (mOp >= MOP_pseudo_param_def_x && mOp <= MOP_pseudo_eh_def_x);
+}
+
+/*
+ * Precondition: The given insn is a jump instruction.
+ * Get the jump target label operand index from the given instruction.
+ * Note: MOP_xbr is a jump instruction, but the target is unknown at compile time,
+ * because a register instead of label. So we don't take it as a branching instruction.
+ * However for special long range branch patch, the label is installed in this case.
+ */
+uint32 GetJumpTargetIdx(const Insn &insn);
+
+MOperator FlipConditionOp(MOperator flippedOp);
 } /* namespace AArch64isa */
-
-struct AArch64MD {
-  MOperator opc;
-  std::vector<OpndProp*> operand;
-  uint64 properties;
-  uint32 latencyType;
-  const std::string &name;
-  const std::string &format;
-  uint32 atomicNum; /* indicate how many asm instructions it will emit. */
-
-  uint32 GetAtomicNum() const {
-    return atomicNum;
-  }
-
-  bool IsCall() const {
-    return (properties & ISCALL) != 0;
-  }
-
-  bool IsPhi() const {
-    return (properties & ISPHI) != 0;
-  }
-
-  bool HasLoop() const {
-    return (properties & HASLOOP) != 0;
-  }
-
-  bool CanThrow() const {
-    return (properties & CANTHROW) != 0;
-  }
-
-  OpndProp *GetOperand(uint32 nth) const {
-    ASSERT(nth < operand.size(), "index of Operand should not be bigger than MaxOperandNum");
-    return operand[nth];
-  }
-
-  uint32 GetOperandSize() const {
-    if ((properties & (ISLOAD | ISSTORE)) > 0) {
-      /* use memory operand */
-      return GetOperand(1U)->GetOperandSize();
-    }
-    /* use dest operand */
-    return GetOperand(0U)->GetOperandSize();
-  }
-
-  bool Is64Bit() const {
-    return GetOperandSize() == k64BitSize;
-  }
-
-  bool IsVolatile() const {
-    return ((properties & HASRELEASE) != 0) || ((properties & HASACQUIRE) != 0);
-  }
-
-  bool IsMemAccessBar() const {
-    return (properties & (HASRELEASE | HASACQUIRE | HASACQUIRERCPC | HASLOACQUIRE | HASLORELEASE)) != 0;
-  }
-
-  bool IsMemAccess() const {
-    return (properties & (ISLOAD | ISSTORE | ISLOADPAIR | ISSTOREPAIR)) != 0;
-  }
-
-  bool IsBranch() const {
-    return (properties & (ISCONDBRANCH | ISUNCONDBRANCH)) != 0;
-  }
-
-  bool IsCondBranch() const {
-    return (properties & (ISCONDBRANCH)) != 0;
-  }
-
-  bool IsUnCondBranch() const {
-    return (properties & (ISUNCONDBRANCH)) != 0;
-  }
-
-  bool IsMove() const {
-    return (properties & (ISMOVE)) != 0;
-  }
-
-  bool IsDMB() const {
-    return (properties & (ISDMB)) != 0;
-  }
-
-  bool IsLoad() const {
-    return (properties & (ISLOAD)) != 0;
-  }
-
-  bool IsStore() const {
-    return (properties & (ISSTORE)) != 0;
-  }
-
-  bool IsLoadPair() const {
-    return (properties & (ISLOADPAIR)) != 0;
-  }
-
-  bool IsStorePair() const {
-    return (properties & (ISSTOREPAIR)) != 0;
-  }
-
-  bool IsLoadStorePair() const {
-    return (properties & (ISLOADPAIR | ISSTOREPAIR)) != 0;
-  }
-
-  bool IsLoadAddress() const {
-    return (properties & (ISLOADADDR)) != 0;
-  }
-
-  bool IsAtomic() const {
-    return (properties & ISATOMIC) != 0;
-  }
-
-  bool IsCondDef() const {
-    return (properties & ISCONDDEF) != 0;
-  }
-
-  bool IsPartDef() const {
-    return (properties & ISPARTDEF) != 0;
-  }
-
-  bool IsVectorOp() const {
-    return (properties & ISVECTOR) != 0;
-  }
-
-  bool IsNop() const {
-    return (properties & ISNOP) != 0;
-  }
-
-  uint32 GetLatencyType() const {
-    return latencyType;
-  }
-};
 
 /*
  * We save callee-saved registers from lower stack area to upper stack area.
