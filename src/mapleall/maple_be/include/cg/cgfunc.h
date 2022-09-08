@@ -575,7 +575,7 @@ class CGFunc {
     debugInfo = dbgInfo;
   }
 
-  void AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc);
+  void AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc, bool isParam);
 
   virtual void DBGFixCallFrameLocationOffsets() {};
 
@@ -1157,8 +1157,8 @@ class CGFunc {
 
   virtual InsnVisitor *NewInsnModifier() = 0;
 
-  MapleVector<DBGExprLoc*> &GetDbgCallFrameLocations() {
-    return dbgCallFrameLocations;
+  MapleVector<DBGExprLoc*> &GetDbgCallFrameLocations(bool isParam) {
+    return isParam ? dbgParamCallFrameLocations : dbgLocalCallFrameLocations;
   }
 
   bool HasAsm() const {
@@ -1248,7 +1248,8 @@ class CGFunc {
   bool hasTakenLabel = false;
   uint32 frequency = 0;
   DebugInfo *debugInfo = nullptr;  /* debugging info */
-  MapleVector<DBGExprLoc*> dbgCallFrameLocations;
+  MapleVector<DBGExprLoc*> dbgParamCallFrameLocations;
+  MapleVector<DBGExprLoc*> dbgLocalCallFrameLocations;
   RegOperand *aggParamReg = nullptr;
   ReachingDefinition *reachingDef = nullptr;
 

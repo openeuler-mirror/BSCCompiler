@@ -9843,8 +9843,18 @@ void AArch64CGFunc::AppendCall(const MIRSymbol &funcSymbol) {
   AppendCall(funcSymbol, *srcOpnds);
 }
 
+#define PARAMCOPYSIZE 8
 void AArch64CGFunc::DBGFixCallFrameLocationOffsets() {
-  for (DBGExprLoc *el : GetDbgCallFrameLocations()) {
+  unsigned idx = 0;
+  for (DBGExprLoc *el : GetDbgCallFrameLocations(/* isParam */ true)) {
+    if (el && el->GetSimpLoc() && el->GetSimpLoc()->GetDwOp() == DW_OP_fbreg) {
+      SymbolAlloc *symloc = static_cast<SymbolAlloc*>(el->GetSymLoc());
+      int32 offset = GetBaseOffset(*symloc) - ((idx < PARAMCOPYSIZE) ? GetDbgCallFrameOffset() : 0);
+      el->SetFboffset(offset);
+    }
+    idx++;
+  }
+  for (DBGExprLoc *el : GetDbgCallFrameLocations(/* isParam */ false)) {
     if (el->GetSimpLoc()->GetDwOp() == DW_OP_fbreg) {
       SymbolAlloc *symloc = static_cast<SymbolAlloc*>(el->GetSymLoc());
       int32 offset = GetBaseOffset(*symloc) - GetDbgCallFrameOffset();
