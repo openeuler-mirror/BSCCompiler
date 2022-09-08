@@ -139,7 +139,7 @@ bool OptimizePattern::OpndDefByOneOrZero(Insn &insn, int32 useIdx) const {
 bool OptimizePattern::InsnDefOne(const Insn &insn) {
   MOperator defMop = insn.GetMachineOpcode();
   switch (defMop) {
-    case MOP_xmovri32:
+    case MOP_wmovri32:
     case MOP_xmovri64: {
       Operand &srcOpnd = insn.GetOperand(1);
       ASSERT(srcOpnd.IsIntImmediate(), "expects ImmOperand");
@@ -159,7 +159,7 @@ bool OptimizePattern::InsnDefOne(const Insn &insn) {
 bool OptimizePattern::InsnDefZero(const Insn &insn) {
   MOperator defMop = insn.GetMachineOpcode();
   switch (defMop) {
-    case MOP_xmovri32:
+    case MOP_wmovri32:
     case MOP_xmovri64: {
       Operand &srcOpnd = insn.GetOperand(kInsnSecondOpnd);
       ASSERT(srcOpnd.IsIntImmediate(), "expects ImmOperand");
@@ -185,7 +185,7 @@ bool OptimizePattern::InsnDefOneOrZero(const Insn &insn) {
     case MOP_wcsetrc:
     case MOP_xcsetrc:
       return true;
-    case MOP_xmovri32:
+    case MOP_wmovri32:
     case MOP_xmovri64: {
       Operand &defOpnd = insn.GetOperand(kInsnSecondOpnd);
       ASSERT(defOpnd.IsIntImmediate(), "expects ImmOperand");
@@ -239,11 +239,11 @@ void OptimizePattern::ReplaceAllUsedOpndWithNewOpnd(const InsnSet &useInsnSet, u
     if (useInsn->GetMachineOpcode() == MOP_asm) {
       ReplaceAsmListReg(useInsn, kAsmInputListOpnd, regNO, &newOpnd);
     }
-    const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(useInsn)->GetMachineOpcode()];
+    const InsnDesc *md = useInsn->GetDesc();
     uint32 opndNum = useInsn->GetOperandSize();
     for (uint32 i = 0; i < opndNum; ++i) {
       Operand &opnd = useInsn->GetOperand(i);
-      OpndProp *regProp = md->operand[i];
+      auto *regProp = md->opndMD[i];
       if (!regProp->IsRegUse() && !opnd.IsMemoryAccessOperand()) {
         continue;
       }
@@ -351,11 +351,11 @@ void ForwardPropPattern::Optimize(Insn &insn) {
       cgFunc.GetRD()->InitGenUse(*useInsn->GetBB(), false);
       continue;
     }
-    const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(useInsn)->GetMachineOpcode()];
+    const InsnDesc *md = useInsn->GetDesc();
     uint32 opndNum = useInsn->GetOperandSize();
     for (uint32 i = 0; i < opndNum; ++i) {
       Operand &opnd = useInsn->GetOperand(i);
-      const OpndProp *regProp = md->GetOperand(i);
+      const OpndDesc *regProp = md->GetOpndDes(i);
       if (!regProp->IsRegUse() && !opnd.IsMemoryAccessOperand()) {
         continue;
       }
@@ -443,7 +443,7 @@ void ForwardPropPattern::Run() {
         Init();
         if (!CheckCondition(*insn)) {
           if (insn->GetMachineOpcode() == MOP_xmovrr_uxtw) {
-            insn->SetMOP(MOP_xuxtw64);
+            insn->SetMOP(AArch64CG::kMd[MOP_xuxtw64]);
           }
           continue;
         }
@@ -533,7 +533,7 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsns(Insn &insn) {
       (defInsnForSecondOpnd->GetMachineOpcode() == MOP_asm)) {
     return false;
   }
-  if (defInsnForSecondOpnd->IsPseudoInstruction() || defInsnForSecondOpnd->IsCall() ||
+  if (AArch64isa::IsPseudoInstruction(defInsnForSecondOpnd->GetMachineOpcode()) || defInsnForSecondOpnd->IsCall() ||
       defInsnForSecondOpnd->IsTailCall()) {
     return false;
   }
@@ -660,7 +660,7 @@ bool BackPropPattern::CheckReplacedUseInsn(Insn &insn) {
     };
     /* ensure that the use insns to be replaced is defined by defInsnForSecondOpnd only */
     if (useInsn->IsMemAccess() && static_cast<MemOperand *>(
-        static_cast<AArch64Insn *>(useInsn)->GetMemOpnd())->GetIndexOpt() != MemOperand::kIntact) {
+        useInsn->GetMemOpnd())->GetIndexOpt() != MemOperand::kIntact) {
       return false;
     }
     InsnSet defInsnVecOfSrcOpnd = cgFunc.GetRD()->FindDefForRegOpnd(*useInsn, secondRegNO, true);
@@ -743,12 +743,11 @@ void BackPropPattern::Optimize(Insn &insn) {
   Operand &firstOpnd = insn.GetOperand(kInsnFirstOpnd);
   ReplaceAllUsedOpndWithNewOpnd(srcOpndUseInsnSet, secondRegNO, firstOpnd, true);
   /* replace define insn */
-  const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(defInsnForSecondOpnd)->GetMachineOpcode()];
+  const InsnDesc *md = defInsnForSecondOpnd->GetDesc();
   uint32 opndNum = defInsnForSecondOpnd->GetOperandSize();
   for (uint32 i = 0; i < opndNum; ++i) {
     Operand &opnd = defInsnForSecondOpnd->GetOperand(i);
-    OpndProp *regProp = md->operand[i];
-    if (!regProp->IsRegDef() && !opnd.IsMemoryAccessOperand()) {
+    if (!md->opndMD[i]->IsRegDef() && !opnd.IsMemoryAccessOperand()) {
       continue;
     }
 
@@ -888,7 +887,7 @@ void CmpCsetPattern::Optimize(Insn &insn) {
       bb.RemoveInsn(*csetInsn);
     } else {
       MOperator mopCode = (cmpFirstOpnd->GetSize() == k64BitSize) ? MOP_xmovrr : MOP_wmovrr;
-      Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mopCode, *csetFirstOpnd, *cmpFirstOpnd);
+      Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(mopCode, *csetFirstOpnd, *cmpFirstOpnd);
       newInsn.SetId(insn.GetId());
       bb.ReplaceInsn(insn, newInsn);
       bb.RemoveInsn(*csetInsn);
@@ -899,7 +898,7 @@ void CmpCsetPattern::Optimize(Insn &insn) {
     constexpr int64 eorImm = 1;
     auto &aarch64CGFunc = static_cast<AArch64CGFunc&>(cgFunc);
     ImmOperand &one = aarch64CGFunc.CreateImmOperand(eorImm, k8BitSize, false);
-    Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mopCode, *csetFirstOpnd, *cmpFirstOpnd, one);
+    Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(mopCode, *csetFirstOpnd, *cmpFirstOpnd, one);
     newInsn.SetId(insn.GetId());
     bb.ReplaceInsn(insn, newInsn);
     bb.RemoveInsn(*csetInsn);
@@ -926,25 +925,6 @@ void CmpCsetPattern::Run() {
   }
 }
 
-AArch64CC_t CselPattern::GetInverseCondCode(const CondOperand &cond) const {
-  switch (cond.GetCode()) {
-    case CC_NE:
-      return CC_EQ;
-    case CC_EQ:
-      return CC_NE;
-    case CC_LT:
-      return CC_GE;
-    case CC_GE:
-      return CC_LT;
-    case CC_GT:
-      return CC_LE;
-    case CC_LE:
-      return CC_GT;
-    default:
-      return kCcLast;
-  }
-}
-
 bool CselPattern::CheckCondition(Insn &insn) {
   MOperator mopCode = insn.GetMachineOpcode();
   if ((mopCode != MOP_xcselrrrc) && (mopCode != MOP_wcselrrrc)) {
@@ -960,19 +940,19 @@ void CselPattern::Optimize(Insn &insn) {
   MOperator newMop = ((opnd0.GetSize()) == k64BitSize ? MOP_xcsetrc : MOP_wcsetrc);
   Operand &rflag = cgFunc.GetOrCreateRflag();
   if (OpndDefByOne(insn, kInsnSecondOpnd) && OpndDefByZero(insn, kInsnThirdOpnd)) {
-    Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newMop, opnd0, cond, rflag);
+    Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(newMop, opnd0, cond, rflag);
     newInsn.SetId(insn.GetId());
     bb.ReplaceInsn(insn, newInsn);
     cgFunc.GetRD()->InitGenUse(bb, false);
   } else if (OpndDefByZero(insn, kInsnSecondOpnd) && OpndDefByOne(insn, kInsnThirdOpnd)) {
-    CondOperand &originCond = static_cast<CondOperand&>(cond);
-    AArch64CC_t inverseCondCode = GetInverseCondCode(originCond);
+    auto &originCond = static_cast<CondOperand&>(cond);
+    ConditionCode inverseCondCode = GetReverseCC(originCond.GetCode());
     if (inverseCondCode == kCcLast) {
       return;
     }
     auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
     CondOperand &inverseCond = aarchCGFunc.GetCondOperand(inverseCondCode);
-    Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newMop, opnd0, inverseCond, rflag);
+    Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(newMop, opnd0, inverseCond, rflag);
     newInsn.SetId(insn.GetId());
     bb.ReplaceInsn(insn, newInsn);
     cgFunc.GetRD()->InitGenUse(bb, false);
@@ -1011,7 +991,7 @@ uint32 RedundantUxtPattern::GetInsnValidBit(const Insn &insn) {
       nRet = k16BitSize;
       break;
     case MOP_wmovrr:
-    case MOP_xmovri32:
+    case MOP_wmovri32:
     case MOP_wldrsb:
     case MOP_wldrsh:
     case MOP_wldli:
@@ -1251,7 +1231,7 @@ bool LocalVarSaveInsnPattern::CheckCondition(Insn &firstInsn) {
 void LocalVarSaveInsnPattern::Optimize(Insn &insn) {
   /* insert ldr insn before useInsn */
   MOperator ldrOpCode = secondInsnSrcOpnd->GetSize() == k64BitSize ? MOP_xldr : MOP_wldr;
-  Insn &ldrInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(ldrOpCode, *secondInsnSrcOpnd, *secondInsnDestOpnd);
+  Insn &ldrInsn = cgFunc.GetInsnBuilder()->BuildInsn(ldrOpCode, *secondInsnSrcOpnd, *secondInsnDestOpnd);
   ldrInsn.SetId(useInsn->GetId() - 1);
   useInsn->GetBB()->InsertInsnBefore(*useInsn, ldrInsn);
   cgFunc.GetRD()->UpdateInOut(*useInsn->GetBB(), true);
@@ -1276,6 +1256,9 @@ void LocalVarSaveInsnPattern::Run() {
       continue;
     }
     FOR_BB_INSNS(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
       if (!insn->IsCall()) {
         continue;
       }
@@ -1448,13 +1431,13 @@ void ExtendShiftOptPattern::SelectExtendOrShift(const Insn &def) {
     case MOP_xuxtw64: extendOp = ExtendShiftOperand::kUXTW;
       break;
     case MOP_wlslrri5:
-    case MOP_xlslrri6: shiftOp = BitShiftOperand::kShiftLSL;
+    case MOP_xlslrri6: shiftOp = BitShiftOperand::kLSL;
       break;
     case MOP_xlsrrri6:
-    case MOP_wlsrrri5: shiftOp = BitShiftOperand::kShiftLSR;
+    case MOP_wlsrrri5: shiftOp = BitShiftOperand::kLSR;
       break;
     case MOP_xasrrri6:
-    case MOP_wasrrri5: shiftOp = BitShiftOperand::kShiftASR;
+    case MOP_wasrrri5: shiftOp = BitShiftOperand::kASR;
       break;
     default: {
       extendOp = ExtendShiftOperand::kUndef;
@@ -1488,7 +1471,7 @@ bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, uint32 size) {
       (regDefSrc.GetSize() > regOperand.GetSize() || useDefOpnd.GetSize() != size)) {
     return false;
   }
-  if ((shiftOp == BitShiftOperand::kShiftLSR || shiftOp == BitShiftOperand::kShiftASR) &&
+  if ((shiftOp == BitShiftOperand::kLSR || shiftOp == BitShiftOperand::kASR) &&
       (defSrcOpnd.GetSize() > size)) {
     return false;
   }
@@ -1500,7 +1483,7 @@ bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, uint32 size) {
     return false;
   }
   Insn *defSrcInsn = *defSrcSet.begin();
-  const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(defSrcInsn)->GetMachineOpcode()];
+  const InsnDesc *md = defSrcInsn->GetDesc();
   if ((size != regOperand.GetSize()) && md->IsMove()) {
     return false;
   }
@@ -1600,11 +1583,10 @@ void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, const Insn &def, uint32 am
   Operand *secondOpnd = &use.GetOperand(kInsnSecondOpnd);
   if (replaceIdx == kInsnSecondOpnd) { /* replace neg insn */
     secondOpnd = &def.GetOperand(kInsnSecondOpnd);
-    replaceUseInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(replaceOp, firstOpnd, *secondOpnd, *shiftOpnd);
+    replaceUseInsn = &cgFunc.GetInsnBuilder()->BuildInsn(replaceOp, firstOpnd, *secondOpnd, *shiftOpnd);
   } else {
     Operand &thirdOpnd = def.GetOperand(kInsnSecondOpnd);
-    replaceUseInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(replaceOp, firstOpnd, *secondOpnd,
-                                                                    thirdOpnd, *shiftOpnd);
+    replaceUseInsn = &cgFunc.GetInsnBuilder()->BuildInsn(replaceOp, firstOpnd, *secondOpnd, thirdOpnd, *shiftOpnd);
   }
   use.GetBB()->ReplaceInsn(use, *replaceUseInsn);
   if (GLOBAL_DUMP) {
@@ -1681,6 +1663,7 @@ void ExtendShiftOptPattern::DoExtendShiftOpt(Insn &insn) {
 bool ExtendShiftOptPattern::CheckCondition(Insn &insn) {
   SetLsMOpType(insn);
   SetExMOpType(insn);
+  MOperator mOp = insn.GetMachineOpcode();
   if ((exMOpType == kExUndef) && (lsMOpType == kLsUndef)) {
     return false;
   }
@@ -1692,7 +1675,10 @@ bool ExtendShiftOptPattern::CheckCondition(Insn &insn) {
   InsnSet regDefInsnSet = cgFunc.GetRD()->FindDefForRegOpnd(insn, regNo, true);
   Operand &firstOpnd = insn.GetOperand(kInsnFirstOpnd);
   Operand &secondOpnd = insn.GetOperand(kInsnSecondOpnd);
-  if (regDefInsnSet.size() != k1BitSize || firstOpnd.GetSize() != secondOpnd.GetSize()) {
+  if (firstOpnd.GetSize() != secondOpnd.GetSize() && (mOp == MOP_xcmprr || mOp == MOP_xcmnrr)) {
+    return false;
+  }
+  if (regDefInsnSet.size() != k1BitSize) {
     return false;
   }
   defInsn = *regDefInsnSet.begin();
@@ -1752,15 +1738,15 @@ void ExtenToMovPattern::Run() {
 
 /* Check for Implicit uxtw */
 bool ExtenToMovPattern::CheckHideUxtw(const Insn &insn, regno_t regno) const {
-  const AArch64MD *md = &AArch64CG::kMd[insn.GetMachineOpcode()];
+  const InsnDesc *md = &AArch64CG::kMd[insn.GetMachineOpcode()];
   if (md->IsMove()) {
     return false;
   }
   uint32 optSize = insn.GetOperandSize();
   for (uint32 i = 0; i < optSize; ++i) {
     if (regno == static_cast<RegOperand&>(insn.GetOperand(i)).GetRegisterNumber()) {
-      OpndProp *curOpndProp = md->GetOperand(i);
-      if (curOpndProp->IsDef() && curOpndProp->GetSize() == k32BitSize) {
+      auto *curOpndDescription = md->GetOpndDes(i);
+      if (curOpndDescription->IsDef() && curOpndDescription->GetSize() == k32BitSize) {
         return true;
       }
       break;
@@ -1888,7 +1874,7 @@ void ExtenToMovPattern::Init() {
 }
 
 void ExtenToMovPattern::Optimize(Insn &insn) {
-  insn.SetMOP(replaceMop);
+  insn.SetMOP(AArch64CG::kMd[replaceMop]);
 }
 
 void SameDefPattern::Run() {
@@ -2092,8 +2078,7 @@ void AndCbzPattern::Optimize(Insn &insn) {
   }
   auto &label = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
   ImmOperand &tbzImm = aarchFunc.CreateImmOperand(tbzVal, k8BitSize, false);
-  Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newMop, prevInsn->GetOperand(kInsnSecondOpnd),
-                                                                tbzImm, label);
+  Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(newMop, prevInsn->GetOperand(kInsnSecondOpnd), tbzImm, label);
   newInsn.SetId(insn.GetId());
   bb->ReplaceInsn(insn, newInsn);
   if (GLOBAL_DUMP) {
@@ -2122,7 +2107,7 @@ void AndCbzPattern::Run() {
 void SameRHSPropPattern::Init() {
   prevInsn = nullptr;
   candidates = {MOP_waddrri12, MOP_xaddrri12, MOP_wsubrri12, MOP_xsubrri12,
-                MOP_xmovri32, MOP_xmovri64, MOP_wmovrr, MOP_xmovrr};
+                MOP_wmovri32, MOP_xmovri64, MOP_wmovrr, MOP_xmovrr};
 }
 
 bool SameRHSPropPattern::IsSameOperand(Operand *opnd1, Operand *opnd2) const {
@@ -2238,7 +2223,7 @@ void SameRHSPropPattern::Optimize(Insn &insn) {
   Operand &destOpnd = insn.GetOperand(kInsnFirstOpnd);
   uint32 bitSize = static_cast<RegOperand&>(destOpnd).GetSize();
   MOperator mOp = (bitSize == k64BitSize ? MOP_xmovrr : MOP_wmovrr);
-  Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mOp, destOpnd, prevInsn->GetOperand(kInsnFirstOpnd));
+  Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, destOpnd, prevInsn->GetOperand(kInsnFirstOpnd));
   newInsn.SetId(insn.GetId());
   bb->ReplaceInsn(insn, newInsn);
   if (GLOBAL_DUMP) {
