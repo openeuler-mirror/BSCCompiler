@@ -486,7 +486,8 @@ void BB::UpdateEdgeFreqs(bool updateBBFreqOfSucc) {
   for (int i = 0; i < len; i++) {
     succFreqs += GetSuccFreq()[i];
   }
-  uint64 diff = abs(succFreqs - GetFrequency());
+  int64 diff = succFreqs - GetFrequency();
+  diff = abs(diff);
   if (len == 0 ||
       (len == 1 && diff == 0) ||
       (len > 1 && diff <= 1)) {
