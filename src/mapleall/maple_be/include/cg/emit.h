@@ -38,6 +38,7 @@ namespace maple {
 const char *GetDwTagName(unsigned n);
 const char *GetDwFormName(unsigned n);
 const char *GetDwAtName(unsigned n);
+const char *GetDwOpName(unsigned n);
 }  /* namespace maple */
 
 #if TARGRISCV64
@@ -205,9 +206,11 @@ class Emitter {
   void MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec) const;
   void EmitArrayConstant(MIRConst &mirConst);
   void EmitStructConstant(MIRConst &mirConst);
+  void EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCounts);
   void EmitVectorConstant(MIRConst &mirConst);
   void EmitLocalVariable(const CGFunc &cgFunc);
   void EmitUninitializedSymbolsWithPrefixSection(const MIRSymbol &symbol, const std::string &sectionName);
+  void EmitUninitializedSymbol(const MIRSymbol &mirSymbol);
   void EmitGlobalVariable();
   void EmitGlobalRootList(const MIRSymbol &mirSymbol);
   void EmitMuidTable(const std::vector<MIRSymbol*> &vec, const std::map<GStrIdx, MIRType*> &strIdx2Type,
@@ -375,6 +378,26 @@ class Emitter {
 #endif
   MapleMap<DBGDie*, LabelIdx> labdie2labidxTable;
   MapleMap<uint32_t, std::string> fileMap;
+};
+
+class OpndEmitVisitor : public OperandVisitorBase,
+                        public OperandVisitors<RegOperand,
+                                               ImmOperand,
+                                               MemOperand,
+                                               OfstOperand,
+                                               ListOperand,
+                                               LabelOperand,
+                                               FuncNameOperand,
+                                               StImmOperand,
+                                               CondOperand,
+                                               BitShiftOperand,
+                                               ExtendShiftOperand,
+                                               CommentOperand> {
+ public:
+  explicit OpndEmitVisitor(Emitter &asmEmitter): emitter(asmEmitter) {}
+  virtual ~OpndEmitVisitor() = default;
+ protected:
+  Emitter &emitter;
 };
 }  /* namespace maplebe */
 

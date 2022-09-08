@@ -1702,7 +1702,6 @@ void Emitter::EmitArrayConstant(MIRConst &mirConst) {
       Emit("\t.zero\t").Emit(static_cast<int64>(size)).Emit("\n");
     }
   }
-  Emit("\n");
 }
 
 void Emitter::EmitVectorConstant(MIRConst &mirConst) {
@@ -1728,7 +1727,7 @@ void Emitter::EmitVectorConstant(MIRConst &mirConst) {
 }
 
 void Emitter::EmitStructConstant(MIRConst &mirConst) {
-  uint32_t subStructFieldCounts = 0;
+  uint32 subStructFieldCounts = 0;
   EmitStructConstant(mirConst, subStructFieldCounts);
 }
 
@@ -1746,15 +1745,16 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
   } else {
     num = static_cast<uint8>(structType.GetFieldsSize());
   }
+  BECommon *beCommon = Globals::GetInstance()->GetBECommon();
   /* total size of emitted elements size. */
-  uint32 size = Globals::GetInstance()->GetBECommon()->GetTypeSize(structType.GetTypeIndex());
+  uint32 size = beCommon->GetTypeSize(structType.GetTypeIndex());
   uint32 fieldIdx = 1;
   if (structType.GetKind() == kTypeUnion) {
     fieldIdx = structCt.GetFieldIdItem(0);
   }
   for (uint32 i = 0; i < num; ++i) {
     if (((i + 1) == num) && cg->GetMIRModule()->GetSrcLang() == kSrcLangC) {
-      isFlexibleArray = Globals::GetInstance()->GetBECommon()->GetHasFlexibleArray(mirType.GetTypeIndex().GetIdx());
+      isFlexibleArray = beCommon->GetHasFlexibleArray(mirType.GetTypeIndex().GetIdx());
       arraySize = 0;
     }
     MIRConst *elemConst;
@@ -1771,19 +1771,16 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
     if (i != static_cast<uint32>(num - 1)) {
       nextElemType = structType.GetElemType(i + 1);
     }
-    uint64 elemSize = Globals::GetInstance()->GetBECommon()->GetTypeSize(elemType->GetTypeIndex());
+    uint64 elemSize = beCommon->GetTypeSize(elemType->GetTypeIndex());
     uint8 charBitWidth = GetPrimTypeSize(PTY_i8) * kBitsPerByte;
     if (elemType->GetKind() == kTypeBitField) {
       if (elemConst == nullptr) {
         MIRIntConst *zeroFill = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *elemType);
         elemConst = zeroFill;
       }
-      uint64 fieldOffset =
-          static_cast<uint64>(static_cast<int64>(
-              Globals::GetInstance()->GetBECommon()->GetFieldOffset(structType, fieldIdx).first)) *
-          static_cast<uint64>(charBitWidth) +
-          static_cast<uint64>(static_cast<int64>(
-              Globals::GetInstance()->GetBECommon()->GetFieldOffset(structType, fieldIdx).second));
+      uint64 fieldOffset = static_cast<uint64>(static_cast<int64>(beCommon->GetFieldOffset(
+          structType, fieldIdx).first)) * static_cast<uint64>(charBitWidth) + static_cast<uint64>(
+          static_cast<int64>(beCommon->GetFieldOffset(structType, fieldIdx).second));
       EmitBitFieldConstant(*sEmitInfo, *elemConst, nextElemType, fieldOffset);
     } else {
       if (elemConst != nullptr) {
@@ -1830,6 +1827,8 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
   if (structType.GetKind() == kTypeStruct) {
     /* The reason of subtracting one is that fieldIdx adds one at the end of the cycle. */
     subStructFieldCounts = fieldIdx - 1;
+  } else if (structType.GetKind() == kTypeUnion) {
+    subStructFieldCounts = static_cast<uint32>(beCommon->GetStructFieldCount(structType.GetTypeIndex()));
   }
 
   isFlexibleArray = false;
@@ -3310,23 +3309,33 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
       switch (elp->GetOp()) {
         case DW_OP_call_frame_cfa:
           EmitHexUnsigned(1);
+          Emit(CMNT "size");
           Emit("\n\t.byte    ");
           EmitHexUnsigned(elp->GetOp());
+          Emit(CMNT);
+          Emit(maple::GetDwOpName(elp->GetOp()));
           break;
         case DW_OP_addr:
           EmitHexUnsigned(k9ByteSize);
+          Emit(CMNT "size");
           Emit("\n\t.byte    ");
           EmitHexUnsigned(elp->GetOp());
+          Emit(CMNT);
+          Emit(maple::GetDwOpName(elp->GetOp()));
           Emit("\n\t.8byte   ");
           (void)Emit(GlobalTables::GetStrTable().GetStringFromStrIdx(
               static_cast<uint32>(elp->GetGvarStridx())).c_str());
           break;
         case DW_OP_fbreg:
           EmitHexUnsigned(1 + namemangler::GetSleb128Size(elp->GetFboffset()));
+          Emit(CMNT "uleb128 size");
           Emit("\n\t.byte    ");
           EmitHexUnsigned(elp->GetOp());
+          Emit(CMNT);
+          Emit(maple::GetDwOpName(elp->GetOp()));
           Emit("\n\t.sleb128 ");
           EmitDecSigned(elp->GetFboffset());
+          Emit(CMNT "fboffset");
           break;
         default:
           EmitHexUnsigned(uintptr_t(elp));
@@ -3560,14 +3569,13 @@ void Emitter::FillInClassByteSize(DBGDie *die, DBGDieAttr *byteSizeAttr) const {
          "Unknown FORM value for DW_AT_byte_size");
   if (static_cast<uint32>(byteSizeAttr->GetI()) == kDbgDefaultVal) {
     /* get class size */
-    DBGDieAttr *nameAttr = LFindDieAttr(die, DW_AT_name);
-    CHECK_FATAL(nameAttr != nullptr, "name_attr is nullptr in Emitter::FillInClassByteSize");
-    /* hope this is a global string index as it is a type name */
-    TyIdx tyIdx =
-        GlobalTables::GetTypeNameTable().GetTyIdxFromGStrIdx(GStrIdx(nameAttr->GetId()));
-    CHECK_FATAL(tyIdx.GetIdx() < Globals::GetInstance()->GetBECommon()->GetSizeOfTypeSizeTable(),
+    DBGDieAttr *typeAttr = LFindDieAttr(die, DW_AT_type);
+    CHECK_FATAL(typeAttr != nullptr, "at_type is nullptr in Emitter::FillInClassByteSize");
+    /* hope this is a global type */
+    uint32 tid = typeAttr->GetId();
+    CHECK_FATAL(tid < Globals::GetInstance()->GetBECommon()->GetSizeOfTypeSizeTable(),
                 "index out of range in Emitter::FillInClassByteSize");
-    int64_t byteSize = static_cast<int64_t>(Globals::GetInstance()->GetBECommon()->GetTypeSize(tyIdx.GetIdx()));
+    int64_t byteSize = static_cast<int64_t>(Globals::GetInstance()->GetBECommon()->GetTypeSize(tid));
     LUpdateAttrValue(byteSizeAttr, byteSize);
   }
 }
@@ -3602,12 +3610,11 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
         if (byteSizeAttr) {
           emitter->FillInClassByteSize(die, byteSizeAttr);
         }
-        /* get the name */
-        DBGDieAttr *atName = LFindDieAttr(die, DW_AT_name);
-        CHECK_FATAL(atName != nullptr, "at_name is null in Emitter::SetupDBGInfo");
-        /* get the type from string name */
-        TyIdx ctyIdx = GlobalTables::GetTypeNameTable().GetTyIdxFromGStrIdx(GStrIdx(atName->GetId()));
-        MIRType *mty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ctyIdx);
+        /* get the type from tid instead of name as it could be changed by type alias */
+        DBGDieAttr *typeAttr = LFindDieAttr(die, DW_AT_type);
+        CHECK_FATAL(typeAttr != nullptr, "at_type is null in Emitter::SetupDBGInfo");
+        uint32 tid = typeAttr->GetId();
+        MIRType *mty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tid);
         MIRStructType *sty = static_cast<MIRStructType *>(mty);
         CHECK_FATAL(sty != nullptr, "pointer cast failed");
         CHECK_FATAL(sty->GetTypeIndex().GetIdx() <
