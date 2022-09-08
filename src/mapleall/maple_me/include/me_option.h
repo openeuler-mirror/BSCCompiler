@@ -20,19 +20,15 @@
 #include "mempool_allocator.h"
 #include "mpl_options.h"
 #include "types_def.h"
-#include "driver_option_common.h"
-#include "option_parser.h"
 
 namespace maple {
-class MeOption : public MapleDriverOptionBase {
+class MeOption {
  public:
   static MeOption &GetInstance();
 
-  MeOption();
-
   ~MeOption() = default;
 
-  bool SolveOptions(const std::deque<mapleOption::Option> &opts, bool isDebug);
+  bool SolveOptions(bool isDebug);
 
   void ParseOptions(int argc, char **argv, std::string &fileName);
 
@@ -188,6 +184,7 @@ class MeOption : public MapleDriverOptionBase {
   static uint8 rematLevel;
   static bool layoutWithPredict;
   static bool unifyRets;
+  static bool dumpCfgOfPhases;
 // safety check option begin
   static SafetyCheckMode npeCheckMode;
   static bool isNpeCheckAll;
@@ -203,7 +200,7 @@ class MeOption : public MapleDriverOptionBase {
   static bool skipVirtualMethod;
 #endif
  private:
-  void DecideMeRealLevel(const std::deque<mapleOption::Option> &inputOptions) const;
+  void DecideMeRealLevel() const;
 };
 
 #ifndef DEBUGFUNC

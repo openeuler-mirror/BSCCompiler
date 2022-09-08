@@ -487,7 +487,11 @@ void BB::UpdateEdgeFreqs(bool updateBBFreqOfSucc) {
     succFreqs += GetSuccFreq()[i];
   }
   int diff = static_cast<int>(abs(succFreqs - GetFrequency()));
-  if (len == 0 || diff <= 1) {return;}
+  if (len == 0 ||
+      (len == 1 && diff == 0) ||
+      (len > 1 && diff <= 1)) {
+    return;
+  }
   for (uint32 i = 0; i < len; ++i) {
     int64_t sfreq = GetSuccFreq()[static_cast<unsigned long>(i)];
     int64_t scalefreq = (succFreqs == 0 ? (frequency / len) : (sfreq * frequency / succFreqs));

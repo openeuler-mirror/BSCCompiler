@@ -134,6 +134,7 @@ extern maplecl::Option<uint32_t> warning;
 extern maplecl::Option<uint8_t> remat;
 extern maplecl::Option<bool> unifyrets;
 extern maplecl::Option<bool> lfo;
+extern maplecl::Option<bool> dumpCfgOfPhases;
 
 }
 

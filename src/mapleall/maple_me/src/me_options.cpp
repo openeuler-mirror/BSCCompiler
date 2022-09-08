@@ -695,4 +695,8 @@ maplecl::Option<bool> lfo({"--lfo"},
                      {meCategory},
                      maplecl::DisableWith("--no-lfo"));
 
+maplecl::Option<bool> dumpCfgOfPhases({"--dumpcfgofphases"},
+                     "  --dumpcfgofphases       \tDump CFG from various phases to .dot files\n",
+                     {meCategory});
+
 }

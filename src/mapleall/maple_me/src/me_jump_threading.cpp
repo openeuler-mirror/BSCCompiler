@@ -163,6 +163,11 @@ void JumpThreading::ConnectNewPath(std::vector<BB*> &currPath, std::vector<std::
     }
     if (idxOfCurrBB == thePosOfSec2LastBB) {
       old2NewBB[idxOfCurrBB].second->AddSucc(*newSuccBB);
+      if (func.GetCfg()->UpdateCFGFreq()) {
+        uint64 freqUsed = old2NewBB[idxOfCurrBB].second->GetFrequency();
+        old2NewBB[idxOfCurrBB].second->PushBackSuccFreq(freqUsed);
+        newSuccBB->SetFrequency(static_cast<uint32>(freqUsed));
+      }
       break;
     }
     for (auto *temp : currentBB->GetSucc()) {
@@ -182,8 +187,16 @@ void JumpThreading::ConnectNewPath(std::vector<BB*> &currPath, std::vector<std::
         newTemp = newSuccBB;
         if (currentBB == old2NewBB[idxOfCurrBB].second) {
           currentBB->ReplaceSucc(temp, newTemp, true);
+          if (func.GetCfg()->UpdateCFGFreq()) {
+            int idxInSucc = currentBB->GetSuccIndex(*newTemp);
+            newTemp->SetFrequency(static_cast<uint32>(currentBB->GetSuccFreq()[idxInSucc]));
+          }
         } else {
           old2NewBB[idxOfCurrBB].second->AddSucc(*newTemp);
+          if (func.GetCfg()->UpdateCFGFreq()) {
+            old2NewBB[idxOfCurrBB].second->PushBackSuccFreq(0);
+            newTemp->SetFrequency(0);
+          }
         }
       } else if (currentBB != old2NewBB[idxOfCurrBB].second) {
         // Deal with the case like the succ of currentBB is not in path.
@@ -192,6 +205,9 @@ void JumpThreading::ConnectNewPath(std::vector<BB*> &currPath, std::vector<std::
         }
         // Push the temp to the succ of new copied bb of currentBB.
         old2NewBB[idxOfCurrBB].second->AddSucc(*newTemp);
+        if (func.GetCfg()->UpdateCFGFreq()) {
+          old2NewBB[idxOfCurrBB].second->PushBackSuccFreq(newTemp->GetFrequency());
+        }
       }
       // Set label for new bb.
       SetNewOffsetOfLastMeStmtForNewBB(*currentBB, *old2NewBB[idxOfCurrBB].second, *temp, *newTemp);
