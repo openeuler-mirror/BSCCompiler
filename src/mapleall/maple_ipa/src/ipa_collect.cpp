@@ -80,7 +80,7 @@ bool CollectIpaInfo::IsParameterOrUseParameter(const VarMeExpr *varExpr, uint32 
 }
 
 // Now we just resolve two cases, we will collect more case in the future.
-bool CollectIpaInfo::CollectImportantExpression(const MeStmt &meStmt, uint32 &index) const {
+bool CollectIpaInfo::CollectBrImportantExpression(const MeStmt &meStmt, uint32 &index) const {
   auto *opnd = meStmt.GetOpnd(0);
   if (opnd->GetOp() == OP_eq || opnd->GetOp() == OP_ne || opnd->GetOp() == OP_gt ||
       opnd->GetOp() == OP_ge || opnd->GetOp() == OP_lt || opnd->GetOp() == OP_le) {
@@ -98,12 +98,31 @@ bool CollectIpaInfo::CollectImportantExpression(const MeStmt &meStmt, uint32 &in
   return false;
 }
 
+bool CollectIpaInfo::CollectSwitchImportantExpression(const MeStmt &meStmt, uint32 &index) const {
+  auto *expr = meStmt.GetOpnd(0);
+  if (expr->GetOp() == OP_neg) {
+    expr = expr->GetOpnd(0);
+  }
+  if (expr->GetOp() == OP_dread) {
+    return IsParameterOrUseParameter(static_cast<VarMeExpr*>(expr), index);
+  }
+  return false;
+}
+
+bool CollectIpaInfo::CollectImportantExpression(const MeStmt &meStmt, uint32 &index) const {
+  if (meStmt.GetOp() == OP_switch) {
+    return CollectSwitchImportantExpression(meStmt, index);
+  } else {
+    return CollectBrImportantExpression(meStmt, index);
+  }
+}
+
 void CollectIpaInfo::TraverseMeStmt(MeStmt &meStmt) {
   if (Options::doOutline) {
     TransformStmtToIntegerSeries(meStmt);
   }
   Opcode op = meStmt.GetOp();
-  if (meStmt.GetOp() == OP_brfalse || meStmt.GetOp() == OP_brtrue) {
+  if (meStmt.GetOp() == OP_brfalse || meStmt.GetOp() == OP_brtrue || meStmt.GetOp() == OP_switch) {
     uint32 index = 0;
     if (CollectImportantExpression(meStmt, index)) {
       ImpExpr imp(meStmt.GetMeStmtId(), index);
@@ -188,6 +207,10 @@ void CollectIpaInfo::Perform(MeFunction &func) {
 }
 
 void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId stmtInfoId) {
+  if (cycleCheck->find(&scalar) != cycleCheck->end()) {
+    return;
+  }
+  (void)cycleCheck->insert(&scalar);
   auto *ost = scalar.GetOst();
   if (!ost->IsLocal() || ost->GetIndirectLev() != 0) {
     return;
@@ -201,10 +224,6 @@ void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId stmt
       break;
     }
     case kDefByPhi: {
-      if (cycleCheck->find(&scalar) != cycleCheck->end()) {
-        break;
-      }
-      (void)cycleCheck->insert(&scalar);
       for (auto *scalarOpnd : scalar.GetDefPhi().GetOpnds()) {
         CollectDefUsePosition(static_cast<ScalarMeExpr&>(*scalarOpnd), stmtInfoId);
       }
@@ -213,12 +232,12 @@ void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId stmt
     default: {
       auto defStmtInfoId = scalar.GetDefByMeStmt()->GetStmtInfoId();
       defUsePosition.definePositions.push_back(defStmtInfoId);
-      if (scalar.GetDefBy() == kDefByChi) {
-        CollectDefUsePosition(*scalar.GetDefChi().GetRHS(), stmtInfoId);
+      if (scalar.GetDefBy() != kDefByChi) {
+        auto &defUsePositionOfDefStmt = stmtInfoVector[defStmtInfoId].GetDefUsePositions(*ost);
+        defUsePositionOfDefStmt.usePositions.push_back(stmtInfoId);
         break;
       }
-      auto &defUsePositionOfDefStmt = stmtInfoVector[defStmtInfoId].GetDefUsePositions(*ost);
-      defUsePositionOfDefStmt.usePositions.push_back(stmtInfoId);
+      CollectDefUsePosition(*scalar.GetDefChi().GetRHS(), stmtInfoId);
       break;
     }
   }
