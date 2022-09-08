@@ -1570,7 +1570,16 @@ bool OptimizeBB::FoldCondBranch() {
     stmt1->SetBranchProb(stmt2->GetBranchProb());
     succBB->RemoveLastMeStmt();
     succBB->SetKind(kBBFallthru);
-    succBB->RemoveSucc(*succBB->GetSucc(1));
+    if (cfg->UpdateCFGFreq()) {
+      uint64 freqToMove = succBB->GetSuccFreq()[1];
+      currBB->SetSuccFreq(0, currBB->GetSuccFreq()[0] - freqToMove);
+      succBB->SetFrequency(succBB->GetFrequency() - freqToMove);
+      currBB->SetSuccFreq(1, currBB->GetSuccFreq()[1] + freqToMove);
+      currBB->GetSucc(1)->SetFrequency(currBB->GetSucc(1)->GetFrequency() + freqToMove);
+    }
+    BB *succOfSuccBB = succBB->GetSucc(1);
+    succBB->RemoveBBFromSucc(*succOfSuccBB);
+    succOfSuccBB->RemoveBBFromPred(*succBB, true);
     return true;
   }
   return false;
@@ -2157,7 +2166,7 @@ bool OptimizeBB::OptimizeUncondBB() {
   // try to move pred from currBB to newTarget
   for (size_t i = 0; i < currBB->GetPred().size();) {
     BB *pred = currBB->GetPred(i);
-    if (pred == nullptr || pred->GetLastMe() == nullptr) {
+    if (pred == nullptr || pred->GetLastMe() == nullptr || pred->GetPred().empty()) {
       ++i;
       continue;
     }
@@ -2659,11 +2668,8 @@ bool MEOptimizeCFG::PhaseRun(maple::MeFunction &f) {
       MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands);
       ssaUpdate.Run();
     }
-    if (f.GetCfg()->UpdateCFGFreq()) {
-      f.GetCfg()->UpdateEdgeFreqWithBBFreq();
-      if (f.GetCfg()->DumpIRProfileFile()) {
-        f.GetCfg()->DumpToFile("after-OptimizeCFG", false, f.GetCfg()->UpdateCFGFreq());
-      }
+    if (f.GetCfg()->DumpIRProfileFile()) {
+      f.GetCfg()->DumpToFile("after-OptimizeCFG", false, f.GetCfg()->UpdateCFGFreq());
     }
   }
   return change;
