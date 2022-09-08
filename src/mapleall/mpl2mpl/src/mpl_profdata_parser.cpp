@@ -43,10 +43,7 @@ T ProfDataBinaryImportBase::ReadNum() {
 void ProfileSummaryImport::ReadSummary(MplProfileData *profData) {
   CHECK_FATAL(profData != nullptr, "sanity check");
   uint64_t magicNum = ReadNum<uint64_t>();
-  if (magicNum != kMapleProfDataMagicNumber) {
-    LogInfo::MapleLogger() << "magic number error, quit\n";
-    abort();
-  }
+  CHECK_FATAL(magicNum == kMapleProfDataMagicNumber, "magic number error, quit\n");
   uint64_t checksum = ReadNum<uint64_t>();
   uint32_t runtimes = ReadNum<uint32_t>();
   uint32_t numofCounts = ReadNum<uint32_t>();
@@ -139,10 +136,7 @@ int MplProfDataParser::ReadMapleProfileData() {
   profData = mempool->New<MplProfileData>(mempool, &alloc);
   // read .mprofdata
   std::ifstream inputStream(mprofDataFile, (std::ios::in | std::ios::binary));
-  if (!inputStream) {
-    LogInfo::MapleLogger() << "Could not open the file " << mprofDataFile << "\n";
-    abort();
-  }
+  CHECK_FATAL(inputStream, "Could not open the file %s, quit\n", mprofDataFile.c_str());
   // get length of file
   static_cast<void>(inputStream.seekg(0, std::ios::end));
   uint32_t length = static_cast<uint32>(inputStream.tellg());

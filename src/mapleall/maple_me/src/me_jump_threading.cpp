@@ -189,7 +189,8 @@ void JumpThreading::ConnectNewPath(std::vector<BB*> &currPath, std::vector<std::
           currentBB->ReplaceSucc(temp, newTemp, true);
           if (func.GetCfg()->UpdateCFGFreq()) {
             int idxInSucc = currentBB->GetSuccIndex(*newTemp);
-            newTemp->SetFrequency(static_cast<uint32>(currentBB->GetSuccFreq()[idxInSucc]));
+            CHECK_FATAL(idxInSucc != -1, "idxInSucc can not be -1");
+            newTemp->SetFrequency(currentBB->GetSuccFreq()[static_cast<uint32>(idxInSucc)]);
           }
         } else {
           old2NewBB[idxOfCurrBB].second->AddSucc(*newTemp);
