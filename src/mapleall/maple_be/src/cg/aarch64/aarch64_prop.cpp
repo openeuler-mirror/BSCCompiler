@@ -2508,6 +2508,9 @@ bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &defInsn) {
       return false;
     }
   }
+  if (differIdx == -1) {
+    return false;
+  }
   return true;
 }
 
