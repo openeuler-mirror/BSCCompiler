@@ -309,11 +309,11 @@ void LoopUnrolling::CopyLoopBody(BB &newHeadBB, std::unordered_map<BB*, BB*> &ol
 
 // Update frequency of old BB.
 void LoopUnrolling::ResetFrequency(BB &bb) {
-  auto freq = bb.GetFrequency() / replicatedLoopNum;
+  uint64 freq = bb.GetFrequency() / replicatedLoopNum;
   if ((!instrumentProf) && freq == 0 && partialCount == 0 && bb.GetFrequency() != 0) {
     freq = 1;
   }
-  bb.SetFrequency(static_cast<uint32>(freq + partialCount));
+  bb.SetFrequency(freq + partialCount);
   for (size_t i = 0; i < bb.GetSucc().size(); ++i) {
     auto currFreq = bb.GetEdgeFreq(i) / replicatedLoopNum;
     if ((!instrumentProf) && currFreq == 0 && partialCount == 0 && bb.GetFrequency() != 0) {
@@ -328,17 +328,17 @@ void LoopUnrolling::ResetFrequency() {
   auto exitBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   auto latchBB = loop->latch;
   if (isUnrollWithVar) {
-    auto latchFreq = loop->head->GetFrequency() % replicatedLoopNum - loop->preheader->GetFrequency();
-    exitBB->SetFrequency(static_cast<uint32>(loop->head->GetFrequency() % replicatedLoopNum - latchFreq));
+    uint64 latchFreq = loop->head->GetFrequency() % replicatedLoopNum - loop->preheader->GetFrequency();
+    exitBB->SetFrequency(loop->head->GetFrequency() % replicatedLoopNum - latchFreq);
     exitBB->SetEdgeFreq(latchBB, latchFreq);
-    latchBB->SetFrequency(static_cast<uint32>(latchFreq));
+    latchBB->SetFrequency(latchFreq);
     latchBB->SetEdgeFreq(loop->head, latchFreq);
   } else {
-    auto exitFreq = exitBB->GetFrequency() / replicatedLoopNum;
+    uint64 exitFreq = exitBB->GetFrequency() / replicatedLoopNum;
     if (exitFreq == 0 && exitBB->GetFrequency() != 0) {
       exitFreq = 1;
     }
-    exitBB->SetFrequency(static_cast<uint32>(exitFreq));
+    exitBB->SetFrequency(exitFreq);
     auto exitEdgeFreq = exitBB->GetEdgeFreq(latchBB) / replicatedLoopNum;
     if (exitEdgeFreq == 0 && exitBB->GetEdgeFreq(latchBB) != 0) {
       exitEdgeFreq = 1;
@@ -348,7 +348,7 @@ void LoopUnrolling::ResetFrequency() {
     if (latchFreq == 0 && latchBB->GetFrequency() != 0) {
       latchFreq = 1;
     }
-    latchBB->SetFrequency(static_cast<uint32>(latchFreq));
+    latchBB->SetFrequency(latchFreq);
     latchBB->SetEdgeFreq(loop->head, latchFreq);
   }
 }
@@ -532,7 +532,7 @@ LoopUnrolling::ReturnKindOfFullyUnroll LoopUnrolling::LoopFullyUnroll(int64 trip
   return kCanFullyUnroll;
 }
 
-void LoopUnrolling::ResetFrequency(BB &newCondGotoBB, BB &exitingBB, const BB &exitedBB, uint32 headFreq) {
+void LoopUnrolling::ResetFrequency(BB &newCondGotoBB, BB &exitingBB, const BB &exitedBB, uint64 headFreq) {
   if (profValid) {
     newCondGotoBB.SetFrequency(headFreq);
     exitingBB.SetEdgeFreq(&exitedBB, 0);
@@ -544,7 +544,7 @@ void LoopUnrolling::InsertCondGotoBB() {
   BB *exitingBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   BB *exitedBB = *(loop->inloopBB2exitBBs.cbegin()->second->cbegin());
   BB *newCondGotoBB = CopyBB(*exitingBB, true);
-  auto headFreq = loop->head->GetFrequency();
+  uint64 headFreq = loop->head->GetFrequency();
   ResetFrequency(*newCondGotoBB, *exitingBB, *exitedBB, headFreq);
   MeStmt *lastMeStmt = newCondGotoBB->GetLastMe();
   CHECK_FATAL(lastMeStmt != nullptr, "last meStmt must not be nullptr");
@@ -642,7 +642,7 @@ void LoopUnrolling::AddPreHeader(BB *oldPreHeader, BB *head) {
   head->AddPred(*preheader, index);
   if (profValid) {
     preheader->PushBackSuccFreq(preheaderFreq);
-    preheader->SetFrequency(static_cast<uint32>(preheaderFreq));
+    preheader->SetFrequency(preheaderFreq);
   }
   CondGotoMeStmt *condGotoStmt = static_cast<CondGotoMeStmt*>(oldPreHeader->GetLastMe());
   LabelIdx oldlabIdx = condGotoStmt->GetOffset();
@@ -818,8 +818,7 @@ void LoopUnrolling::CopyLoopForPartial(BB &partialCondGoto, BB &exitedBB, BB &ex
   partialCondGoto.AddSucc(*partialHead);
   if (profValid) {
     partialCondGoto.PushBackSuccFreq(loop->head->GetFrequency() % replicatedLoopNum);
-    partialCondGoto.SetFrequency(
-        static_cast<uint32>(partialCondGoto.GetEdgeFreq(static_cast<size_t>(0)) + partialCondGoto.GetEdgeFreq(1)));
+    partialCondGoto.SetFrequency(partialCondGoto.GetEdgeFreq(static_cast<size_t>(0)) + partialCondGoto.GetEdgeFreq(1));
   }
   CHECK_FATAL(partialCondGoto.GetKind() == kBBCondGoto, "must be partialCondGoto");
   CHECK_FATAL(!partialCondGoto.GetMeStmts().empty(), "must not be empty");

@@ -610,6 +610,8 @@ bool MIRParser::ParseStmtSwitch(StmtNodePtr &stmt) {
   }
   if (lexer.NextToken() == TK_label) {
     switchNode->SetDefaultLabel(mod.CurFunction()->GetOrCreateLableIdxFromName(lexer.GetName()));
+  } else if (lexer.GetTokenKind() == TK_intconst && lexer.GetTheIntVal() == 0) {
+    switchNode->SetDefaultLabel(0);
   } else {
     Error("expect label in switch but get ");
     return false;
@@ -990,7 +992,7 @@ bool MIRParser::ParseStmtIntrinsiccall(StmtNodePtr &stmt, bool isAssigned) {
                                                                              : OP_xintrinsiccallassigned);
   auto *intrnCallNode = mod.CurFuncCodeMemPool()->New<IntrinsiccallNode>(mod, o);
   lexer.NextToken();
-  if (o == (isAssigned == 0) ? OP_intrinsiccall : OP_intrinsiccallassigned) {
+  if (o == (!isAssigned) ? OP_intrinsiccall : OP_intrinsiccallassigned) {
     intrnCallNode->SetIntrinsic(GetIntrinsicID(lexer.GetTokenKind()));
   } else {
     intrnCallNode->SetIntrinsic(static_cast<MIRIntrinsicID>(lexer.GetTheIntVal()));
@@ -2011,7 +2013,7 @@ bool MIRParser::ParseStmtBlockForReg() {
 
 bool MIRParser::ParseStmtBlockForType() {
   paramParseLocalType = true;
-  if (!ParseTypedef()) {
+  if (!ParseTypeDefine()) {
     return false;
   }
   return true;
