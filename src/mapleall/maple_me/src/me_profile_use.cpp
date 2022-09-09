@@ -244,7 +244,7 @@ void MeProfUse::SetFuncEdgeInfo() {
   for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     auto *bbInfo = GetBBUseInfo(*bb);
-    bb->SetFrequency(bbInfo->GetCount());
+    bb->SetFrequency(static_cast<uint32>(bbInfo->GetCount()));
     if (bIt == cfg->common_entry() || bIt == cfg->common_exit()) {
       continue;
     }

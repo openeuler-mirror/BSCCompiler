@@ -776,44 +776,44 @@ class MIRFunction {
     return freqFirstMap != nullptr;
   }
 
-  const MapleMap<uint32, uint64> &GetFirstFreqMap() const {
+  const MapleMap<uint32, uint32> &GetFirstFreqMap() const {
     return *freqFirstMap;
   }
 
-  void SetFirstFreqMap(uint32 stmtID, uint64 freq) {
+  void SetFirstFreqMap(uint32 stmtID, uint32 freq) {
     if (freqFirstMap == nullptr) {
-      freqFirstMap = module->GetMemPool()->New<MapleMap<uint32, uint64>>(module->GetMPAllocator().Adapter());
+      freqFirstMap = module->GetMemPool()->New<MapleMap<uint32, uint32>>(module->GetMPAllocator().Adapter());
     }
     (*freqFirstMap)[stmtID] = freq;
   }
 
-  const MapleMap<uint32, uint64> &GetLastFreqMap() const {
+  const MapleMap<uint32, uint32> &GetLastFreqMap() const {
     return *freqLastMap;
   }
 
-  int64 GetFreqFromLastStmt(uint32 stmtId) const {
+  int32 GetFreqFromLastStmt(uint32 stmtId) const {
     if (freqLastMap == nullptr) {
       return -1;
     }
     if ((*freqLastMap).find(stmtId) == (*freqLastMap).end()) {
       return -1;
     }
-    return (*freqLastMap)[stmtId];
+    return static_cast<int32>((*freqLastMap)[stmtId]);
   }
 
-  int64 GetFreqFromFirstStmt(uint32 stmtId) const {
+  int32 GetFreqFromFirstStmt(uint32 stmtId) const {
     if (freqFirstMap == nullptr) {
       return -1;
     }
     if ((*freqFirstMap).find(stmtId) == (*freqFirstMap).end()) {
       return -1;
     }
-    return (*freqFirstMap)[stmtId];
+    return static_cast<int32>((*freqFirstMap)[stmtId]);
   }
 
-  void SetLastFreqMap(uint32 stmtID, uint64 freq) {
+  void SetLastFreqMap(uint32 stmtID, uint32 freq) {
     if (freqLastMap == nullptr) {
-      freqLastMap = module->GetMemPool()->New<MapleMap<uint32, uint64>>(module->GetMPAllocator().Adapter());
+      freqLastMap = module->GetMemPool()->New<MapleMap<uint32, uint32>>(module->GetMPAllocator().Adapter());
     }
     (*freqLastMap)[stmtID] = freq;
   }
@@ -1344,8 +1344,8 @@ class MIRFunction {
   MIRInfoVector info{module->GetMPAllocator().Adapter()};
   MapleVector<bool> infoIsString{module->GetMPAllocator().Adapter()};  // tells if an entry has string value
   MIRScope *scope = nullptr;
-  MapleMap<uint32, uint64> *freqFirstMap = nullptr;  // save bb frequency in its first_stmt, key is stmtId
-  MapleMap<uint32, uint64> *freqLastMap = nullptr;  // save bb frequency in its last_stmt, key is stmtId
+  MapleMap<uint32, uint32> *freqFirstMap = nullptr;  // save bb frequency in its first_stmt, key is stmtId
+  MapleMap<uint32, uint32> *freqLastMap = nullptr;  // save bb frequency in its last_stmt, key is stmtId
   MapleSet<uint32> referedPregs{module->GetMPAllocator().Adapter()};
   bool referedRegsValid = false;
   bool hasVlaOrAlloca = false;

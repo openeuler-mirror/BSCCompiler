@@ -23,7 +23,7 @@ namespace maple {
 // The base value for branch probability notes and edge probabilities.
 constexpr int kProbBase = 10000;
 // The base value for BB frequency.
-constexpr uint64 kFreqBase = 100000;
+constexpr int kFreqBase = 100000;
 
 // Information about each branch predictor.
 struct PredictorInfo {

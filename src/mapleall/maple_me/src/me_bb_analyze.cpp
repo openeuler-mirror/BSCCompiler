@@ -16,7 +16,7 @@
 
 namespace maple {
   void BBAnalyze::SetHotAndColdBBCountThreshold() {
-    std::vector<uint64> times;
+    std::vector<uint32> times;
     auto eIt = cfg->valid_end();
     for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
       auto *bb = *bIt;

@@ -95,19 +95,19 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
   if (splitList.size() == 1) {
     // quick split
     auto *pred = splitList[0];
-    int index = pred->GetSuccIndex(*splittedBB);
+    auto index = pred->GetSuccIndex(*splittedBB);
     // add frequency to mergedBB
     if (updateFreqs) {
       int idx = pred->GetSuccIndex(*splittedBB);
       ASSERT(idx >= 0 && idx < pred->GetSucc().size(), "sanity check");
       uint64_t freq = pred->GetEdgeFreq(static_cast<uint32>(idx));
-      mergedBB->SetFrequency(freq);
+      mergedBB->SetFrequency(static_cast<uint32>(freq));
       mergedBB->PushBackSuccFreq(freq);
     }
     splittedBB->ReplacePred(pred, mergedBB);
-    pred->AddSucc(*mergedBB, static_cast<size_t>(index));
+    pred->AddSucc(*mergedBB, static_cast<uint64>(static_cast<int64>(index)));
     if (updateFreqs) {
-      pred->AddSuccFreq(mergedBB->GetFrequency(), static_cast<size_t>(index));
+      pred->AddSuccFreq(mergedBB->GetFrequency(), static_cast<uint64>(static_cast<int64>(index)));
     }
     if (!pred->GetMeStmts().empty()) {
       UpdateTheOffsetOfStmtWhenTargetBBIsChange(*pred, *splittedBB, *mergedBB);
@@ -134,8 +134,8 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
     if (updateFreqs) {
       int idx = pred->GetSuccIndex(*splittedBB);
       ASSERT(idx >= 0 && idx < pred->GetSucc().size(), "sanity check");
-      freq = pred->GetEdgeFreq(static_cast<size_t>(idx));
-      mergedBB->SetFrequency(mergedBB->GetFrequency() + freq);
+      freq = pred->GetEdgeFreq(static_cast<uint32>(idx));
+      mergedBB->SetFrequency(static_cast<uint32>(mergedBB->GetFrequency() + freq));
     }
     pred->ReplaceSucc(splittedBB, mergedBB);
     if (updateFreqs) {
@@ -277,7 +277,7 @@ void MeLoopCanon::InsertExitBB(LoopDesc &loop) {
         curBB->ReplaceSucc(succ, newExitBB);
         succ->AddPred(*newExitBB, pos);
         if (updateFreqs) {
-          newExitBB->SetFrequency(freq);
+          newExitBB->SetFrequency(static_cast<uint32>(freq));
           newExitBB->PushBackSuccFreq(freq);
         }
         if (!curBB->GetMeStmts().empty()) {

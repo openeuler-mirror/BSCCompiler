@@ -80,7 +80,7 @@ class LoopUnrolling {
   MeExpr *CreateExprWithCRNode(CRNode &crNode);
   void InsertCondGotoBB();
   void ResetFrequency(BB &bb);
-  void ResetFrequency(BB &newCondGotoBB, BB &exitingBB, const BB &exitedBB, uint64 headFreq);
+  void ResetFrequency(BB &newCondGotoBB, BB &exitingBB, const BB &exitedBB, uint32 headFreq);
   void ResetFrequency();
   void ResetFrequency(const BB &curBB, const BB &succ, const BB &exitBB, BB &curCopyBB, bool copyAllLoop);
   BB *CopyBB(BB &bb, bool isInLoop);

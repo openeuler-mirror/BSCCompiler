@@ -610,8 +610,6 @@ bool MIRParser::ParseStmtSwitch(StmtNodePtr &stmt) {
   }
   if (lexer.NextToken() == TK_label) {
     switchNode->SetDefaultLabel(mod.CurFunction()->GetOrCreateLableIdxFromName(lexer.GetName()));
-  } else if (lexer.GetTokenKind() == TK_intconst && lexer.GetTheIntVal() == 0) {
-    switchNode->SetDefaultLabel(0);
   } else {
     Error("expect label in switch but get ");
     return false;

@@ -735,7 +735,7 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
         return false;
       }
     }
-    uint64 freq = 0;
+    uint32 freq = 0;
     double cyclicProb = 0;
     for (BB *pred : bb.GetPred()) {
       Edge *edge = FindEdge(*pred, bb);
@@ -750,7 +750,7 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
       cyclicProb = 1 - std::numeric_limits<double>::epsilon();
     }
     // Floating-point numbers have precision problems, consider using integers to represent backEdgeProb?
-    bb.SetFrequency(static_cast<uint64>(static_cast<uint32>(freq / (1 - cyclicProb))));
+    bb.SetFrequency(static_cast<uint32>(freq / (1 - cyclicProb)));
   }
   // 2. calculate frequencies of bb's out edges
   if (predictDebug) {
@@ -758,7 +758,7 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
   }
   bbVisited[bb.GetBBId()] = true;
   uint32 tmp = 0;
-  uint64 total = 0;
+  uint32 total = 0;
   Edge *bestEdge = nullptr;
   for (size_t i = 0; i < bb.GetSucc().size(); ++i) {
     Edge *edge = FindEdge(bb, *bb.GetSucc(i));

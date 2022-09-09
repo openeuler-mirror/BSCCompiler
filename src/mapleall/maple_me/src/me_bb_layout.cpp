@@ -206,15 +206,15 @@ bool BBLayout::HasBetterLayoutPred(const BB &bb, BB &succ) {
   if (predList.size() <= 1) {
     return false;
   }
-  uint64 sumEdgeFreq = succ.GetFrequency();
+  uint32 sumEdgeFreq = succ.GetFrequency();
   const double hotEdgeFreqPercent = 0.8;  // should further fine tuning
-  uint64 hotEdgeFreq = static_cast<uint64>(sumEdgeFreq * hotEdgeFreqPercent);
+  uint32 hotEdgeFreq = static_cast<uint32>(sumEdgeFreq * hotEdgeFreqPercent);
   // if edge freq(bb->succ) contribute more than 80% to succ block freq, no better layout pred than bb
   for (uint32 i = 0; i < predList.size(); ++i) {
     if (predList[i] == &bb) {
       continue;
     }
-    uint64 edgeFreq = predList[i]->GetEdgeFreq(&succ);
+    uint32 edgeFreq = static_cast<uint32>(predList[i]->GetEdgeFreq(&succ));
     if (edgeFreq > (sumEdgeFreq - hotEdgeFreq)) {
       return true;
     }
@@ -258,7 +258,7 @@ BB *BBLayout::GetBestSucc(BB &bb, const BBChain &chain, const MapleVector<bool> 
   }
 
   // (2) search in readyToLayoutChains
-  uint64 bestFreq = 0;
+  uint32 bestFreq = 0;
   for (auto it = readyToLayoutChains.begin(); it != readyToLayoutChains.end(); ++it) {
     BBChain *readyChain = *it;
     BB *header = readyChain->GetHeader();
