@@ -482,27 +482,28 @@ void BB::DumpMePhiList(const IRMap *irMap) {
 void BB::UpdateEdgeFreqs(bool updateBBFreqOfSucc) {
   int len = GetSucc().size();
   ASSERT(len == GetSuccFreq().size(), "sanity check");
-  int64_t succFreqs = 0;
+  uint64 succFreqs = 0;
   for (int i = 0; i < len; i++) {
     succFreqs += GetSuccFreq()[i];
   }
-  int diff = static_cast<int>(abs(succFreqs - GetFrequency()));
+  int64 diff = succFreqs - GetFrequency();
+  diff = abs(diff);
   if (len == 0 ||
       (len == 1 && diff == 0) ||
       (len > 1 && diff <= 1)) {
     return;
   }
-  for (uint32 i = 0; i < len; ++i) {
-    int64_t sfreq = GetSuccFreq()[static_cast<unsigned long>(i)];
-    int64_t scalefreq = (succFreqs == 0 ? (frequency / len) : (sfreq * frequency / succFreqs));
-    SetSuccFreq(static_cast<int>(i), scalefreq);
+  for (int i = 0; i < len; ++i) {
+    uint64 sfreq = GetSuccFreq()[i];
+    uint64 scalefreq = (succFreqs == 0 ? (frequency / len) : (sfreq * frequency / succFreqs));
+    SetSuccFreq(i, scalefreq);
     // update succ frequency with new difference if needed
     if (updateBBFreqOfSucc) {
-      auto *succBBLoc = GetSucc(static_cast<size_t>(i));
+      auto *succBBLoc = GetSucc(i);
       int64_t diffFreq = scalefreq - sfreq;
       int64_t succBBnewFreq = succBBLoc->GetFrequency() + diffFreq;
       if (succBBnewFreq >= 0) {
-        succBBLoc->SetFrequency(static_cast<uint32>(succBBnewFreq));
+        succBBLoc->SetFrequency(static_cast<uint64>(succBBnewFreq));
       }
     }
   }

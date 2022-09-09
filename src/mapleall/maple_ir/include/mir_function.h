@@ -547,6 +547,10 @@ class MIRFunction {
     return module;
   }
 
+  void SetCurrentFunctionToThis() {
+    module->SetCurFunction(this);
+  }
+
   PUIdx GetPuidx() const {
     return puIdx;
   }
@@ -750,7 +754,7 @@ class MIRFunction {
     scope->SetAliasVarMap(idx, vars);
   }
 
-  void AddAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
+  void AddAliasVarMap(const GStrIdx &idx, const MIRAliasVars &vars) {
     SetupScope();
     scope->AddAliasVarMap(idx, vars);
   }
@@ -772,44 +776,44 @@ class MIRFunction {
     return freqFirstMap != nullptr;
   }
 
-  const MapleMap<uint32, uint32> &GetFirstFreqMap() const {
+  const MapleMap<uint32, uint64> &GetFirstFreqMap() const {
     return *freqFirstMap;
   }
 
-  void SetFirstFreqMap(uint32 stmtID, uint32 freq) {
+  void SetFirstFreqMap(uint32 stmtID, uint64 freq) {
     if (freqFirstMap == nullptr) {
-      freqFirstMap = module->GetMemPool()->New<MapleMap<uint32, uint32>>(module->GetMPAllocator().Adapter());
+      freqFirstMap = module->GetMemPool()->New<MapleMap<uint32, uint64>>(module->GetMPAllocator().Adapter());
     }
     (*freqFirstMap)[stmtID] = freq;
   }
 
-  const MapleMap<uint32, uint32> &GetLastFreqMap() const {
+  const MapleMap<uint32, uint64> &GetLastFreqMap() const {
     return *freqLastMap;
   }
 
-  int32 GetFreqFromLastStmt(uint32 stmtId) const {
+  int64 GetFreqFromLastStmt(uint32 stmtId) const {
     if (freqLastMap == nullptr) {
       return -1;
     }
     if ((*freqLastMap).find(stmtId) == (*freqLastMap).end()) {
       return -1;
     }
-    return static_cast<int32>((*freqLastMap)[stmtId]);
+    return (*freqLastMap)[stmtId];
   }
 
-  int32 GetFreqFromFirstStmt(uint32 stmtId) const {
+  int64 GetFreqFromFirstStmt(uint32 stmtId) const {
     if (freqFirstMap == nullptr) {
       return -1;
     }
     if ((*freqFirstMap).find(stmtId) == (*freqFirstMap).end()) {
       return -1;
     }
-    return static_cast<int32>((*freqFirstMap)[stmtId]);
+    return (*freqFirstMap)[stmtId];
   }
 
-  void SetLastFreqMap(uint32 stmtID, uint32 freq) {
+  void SetLastFreqMap(uint32 stmtID, uint64 freq) {
     if (freqLastMap == nullptr) {
-      freqLastMap = module->GetMemPool()->New<MapleMap<uint32, uint32>>(module->GetMPAllocator().Adapter());
+      freqLastMap = module->GetMemPool()->New<MapleMap<uint32, uint64>>(module->GetMPAllocator().Adapter());
     }
     (*freqLastMap)[stmtID] = freq;
   }
@@ -1128,6 +1132,7 @@ class MIRFunction {
         }
         case OP_callassigned:
         case OP_call:
+        case OP_switch:
         case OP_brtrue:
         case OP_brfalse: {
           if (stmt->GetMeStmtID() == stmtId) {
@@ -1269,15 +1274,19 @@ class MIRFunction {
     return inlineSummary;
   }
 
+  void DiscardInlineSummary() {
+    inlineSummary = nullptr;
+  }
+
   InlineSummary *GetOrCreateInlineSummary();
 
-  void SetFuncProfData(GcovFuncInfo *data) {
+  void SetFuncProfData(FuncProfInfo *data) {
     funcProfData = data;
   }
-  GcovFuncInfo* GetFuncProfData() {
+  FuncProfInfo* GetFuncProfData() {
     return funcProfData;
   }
-  GcovFuncInfo* GetFuncProfData() const {
+  FuncProfInfo* GetFuncProfData() const {
     return funcProfData;
   }
   void SetStmtFreq(uint32_t stmtID, uint64_t freq) {
@@ -1335,8 +1344,8 @@ class MIRFunction {
   MIRInfoVector info{module->GetMPAllocator().Adapter()};
   MapleVector<bool> infoIsString{module->GetMPAllocator().Adapter()};  // tells if an entry has string value
   MIRScope *scope = nullptr;
-  MapleMap<uint32, uint32> *freqFirstMap = nullptr;  // save bb frequency in its first_stmt, key is stmtId
-  MapleMap<uint32, uint32> *freqLastMap = nullptr;  // save bb frequency in its last_stmt, key is stmtId
+  MapleMap<uint32, uint64> *freqFirstMap = nullptr;  // save bb frequency in its first_stmt, key is stmtId
+  MapleMap<uint32, uint64> *freqLastMap = nullptr;  // save bb frequency in its last_stmt, key is stmtId
   MapleSet<uint32> referedPregs{module->GetMPAllocator().Adapter()};
   bool referedRegsValid = false;
   bool hasVlaOrAlloca = false;
@@ -1402,7 +1411,7 @@ class MIRFunction {
   uint32 nCtrs = 0; // number of counters
   uint64 fileLinenoChksum = 0;
   uint64 cfgChksum = 0;
-  GcovFuncInfo *funcProfData = nullptr;
+  FuncProfInfo *funcProfData = nullptr;
   InlineSummary *inlineSummary = nullptr;
   void DumpFlavorLoweredThanMmpl() const;
   MIRFuncType *ReconstructFormals(const std::vector<MIRSymbol*> &symbols, bool clearOldArgs);

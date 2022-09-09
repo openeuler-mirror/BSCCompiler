@@ -19,6 +19,7 @@
 #include "mir_lower.h"
 #include "constantfold.h"
 #include "inline_summary.h"
+#include "ipa_phase_manager.h"
 
 namespace maple {
 // convert x to use OP_array if possible; return nullptr if unsuccessful;
@@ -707,6 +708,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
       switchNode->SetSrcPos(meSwitch->GetSrcPosition());
       switchNode->CopySafeRegionAttr(meStmt->GetStmtAttr());
       switchNode->SetOriginalID(meStmt->GetOriginalId());
+      switchNode->SetMeStmtID(meStmt->GetMeStmtId());
       preMeStmtExtensionMap[switchNode->GetStmtID()] = pmeExt;
       return switchNode;
     }
@@ -758,6 +760,24 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
   }
 }
 
+void PreMeEmitter::UpdateStmtInfoForLabelNode(LabelNode &label, BB &bb) {
+  if (ipaInfo == nullptr) {
+    return;
+  }
+  label.SetStmtInfoId(ipaInfo->GetRealFirstStmtInfoId(bb));
+}
+
+void PreMeEmitter::UpdateStmtInfo(const MeStmt &meStmt, StmtNode &stmt, BlockNode &currBlock, uint64 frequency) {
+  if (ipaInfo == nullptr || meStmt.GetStmtInfoId() == kInvalidIndex) {
+    return;
+  }
+  auto &stmtInfo = ipaInfo->GetStmtInfo()[meStmt.GetStmtInfoId()];
+  stmtInfo.SetStmtNode(&stmt);
+  stmtInfo.SetCurrBlock(&currBlock);
+  stmtInfo.SetFrequency(frequency);
+  stmt.SetStmtInfoId(meStmt.GetStmtInfoId());
+}
+
 void PreMeEmitter::EmitBB(BB *bb, BlockNode *curBlk) {
   CHECK_FATAL(curBlk != nullptr, "null ptr check");
   bool setFirstFreq = (GetFuncProfData() != nullptr);
@@ -768,6 +788,7 @@ void PreMeEmitter::EmitBB(BB *bb, BlockNode *curBlk) {
   if (labidx != 0 && !preMeFunc->WhileLabelCreatedByPreMe(labidx) && !preMeFunc->IfLabelCreatedByPreMe(labidx)) {
     // not a empty bb
     LabelNode *lbnode = codeMP->New<LabelNode>();
+    UpdateStmtInfoForLabelNode(*lbnode, *bb);
     lbnode->SetLabelIdx(labidx);
     curBlk->AddStatement(lbnode);
     PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
@@ -782,8 +803,9 @@ void PreMeEmitter::EmitBB(BB *bb, BlockNode *curBlk) {
       // can be null i.e, a goto to a label that was created by lno lower
       continue;
     }
+    UpdateStmtInfo(mestmt, *stmt, *curBlk, bb->GetFrequency());
     curBlk->AddStatement(stmt);
-    // add <stmtID, freq> for first stmt in bb in curBlk
+    // add <stmtID, freq> for first stmt in bb in curblk
     if (GetFuncProfData() != nullptr) {
       if (setFirstFreq || (stmt->GetOpCode() == OP_call) || IsCallAssigned(stmt->GetOpCode())) {
         GetFuncProfData()->SetStmtFreq(stmt->GetStmtID(), bb->GetFrequency());
@@ -892,20 +914,24 @@ uint32 PreMeEmitter::Raise2PreMeWhile(uint32 curJ, BlockNode *curBlk) {
   CondGotoMeStmt *condgotomestmt = static_cast<CondGotoMeStmt *>(laststmt);
   BB *endlblbb = condgotomestmt->GetOffset() == suc1->GetBBLabel() ? suc1 : suc0;
   BlockNode *dobody = nullptr;
+  StmtNode *loop = nullptr;
+  ++curJ;
   if (whileInfo->canConvertDoloop) {  // emit doloop
-    DoloopNode *doloopnode = EmitPreMeDoloop(curbb, curBlk, whileInfo);
-    ++curJ;
-    dobody = static_cast<BlockNode *>(doloopnode->GetDoBody());
+    auto *doloopNode = EmitPreMeDoloop(curbb, curBlk, whileInfo);
+    loop = doloopNode;
+    dobody = doloopNode->GetDoBody();
   } else { // emit while loop
-    WhileStmtNode *whileNode = EmitPreMeWhile(curbb, curBlk);
-    ++curJ;
-    dobody = static_cast<BlockNode *>(whileNode->GetBody());
+    auto *whileNode = EmitPreMeWhile(curbb, curBlk);
+    loop = whileNode;
+    dobody = whileNode->GetBody();
   }
+  UpdateStmtInfo(*laststmt, *loop, *curBlk, curbb->GetFrequency());
+
   // emit loop body
   while (bbvec[curJ]->GetBBId() != endlblbb->GetBBId()) {
     curJ = EmitPreMeBB(curJ, dobody);
     while (bbvec[curJ] == nullptr) {
-      curJ++;
+      ++curJ;
     }
   }
   if (whileInfo->canConvertDoloop) {  // delete the increment statement
@@ -932,6 +958,7 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
   LabelIdx labidx = curbb->GetBBLabel();
   if (labidx != 0 && !preMeFunc->IfLabelCreatedByPreMe(labidx)) {
     LabelNode *lbnode = mirFunc->GetCodeMempool()->New<LabelNode>();
+    UpdateStmtInfoForLabelNode(*lbnode, *curbb);
     lbnode->SetLabelIdx(labidx);
     curBlk->AddStatement(lbnode);
     PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
@@ -940,6 +967,7 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
   MeStmt *mestmt = curbb->GetFirstMe();
   while (mestmt->GetOp() != OP_brfalse && mestmt->GetOp() != OP_brtrue) {
     StmtNode *stmt = EmitPreMeStmt(mestmt, curBlk);
+    UpdateStmtInfo(*mestmt, *stmt, *curBlk, curbb->GetFrequency());
     curBlk->AddStatement(stmt);
     if (GetFuncProfData() &&
         (setFirstFreq || (stmt->GetOpCode() == OP_call) || IsCallAssigned(stmt->GetOpCode()))) {
@@ -955,10 +983,10 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
   CondGotoMeStmt *condgoto = static_cast <CondGotoMeStmt *>(mestmt);
   PreMeIfInfo *ifInfo = preMeFunc->label2IfInfo[condgoto->GetOffset()];
   CHECK_FATAL(ifInfo->endLabel != 0, "Raise2PreMeIf: endLabel not found");
-  IfStmtNode *IfstmtNode = mirFunc->GetCodeMempool()->New<IfStmtNode>();
+  IfStmtNode *ifStmtNode = mirFunc->GetCodeMempool()->New<IfStmtNode>();
   PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
-  preMeStmtExtensionMap[IfstmtNode->GetStmtID()] = pmeExt;
-  BaseNode *condnode = EmitPreMeExpr(condgoto->GetOpnd(), IfstmtNode);
+  preMeStmtExtensionMap[ifStmtNode->GetStmtID()] = pmeExt;
+  BaseNode *condnode = EmitPreMeExpr(condgoto->GetOpnd(), ifStmtNode);
   if (condgoto->IsBranchProbValid() && (condgoto->GetBranchProb() == kProbLikely ||
                                         condgoto->GetBranchProb() == kProbUnlikely)) {
     IntrinsicopNode *expectNode = codeMP->New<IntrinsicopNode>(*mirFunc->GetModule(), OP_intrinsicop, PTY_i64);
@@ -981,21 +1009,22 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
         codeMP->New<CompareNode>(OP_ne, PTY_i32, PTY_i32, expectNode, constZeroNode);
     condnode = cmpNode;
   }
-  IfstmtNode->SetOpnd(condnode, 0);
-  IfstmtNode->SetMeStmtID(condgoto->GetMeStmtId());
-  curBlk->AddStatement(IfstmtNode);
+  ifStmtNode->SetOpnd(condnode, 0);
+  ifStmtNode->SetMeStmtID(condgoto->GetMeStmtId());
+  UpdateStmtInfo(*mestmt, *ifStmtNode, *curBlk, curbb->GetFrequency());
+  curBlk->AddStatement(ifStmtNode);
   if (GetFuncProfData()) {
     // set ifstmt freq
-    GetFuncProfData()->SetStmtFreq(IfstmtNode->GetStmtID(), curbb->GetFrequency());
+    GetFuncProfData()->SetStmtFreq(ifStmtNode->GetStmtID(), curbb->GetFrequency());
   }
-  PreMeMIRExtension *ifpmeExt = preMeMP->New<PreMeMIRExtension>(IfstmtNode);
+  PreMeMIRExtension *ifpmeExt = preMeMP->New<PreMeMIRExtension>(ifStmtNode);
   if (ifInfo->elseLabel != 0) {  // both else and then are not empty;
     BlockNode *elseBlk = codeMP->New<BlockNode>();
     preMeStmtExtensionMap[elseBlk->GetStmtID()] = ifpmeExt;
     BlockNode *thenBlk = codeMP->New<BlockNode>();
     preMeStmtExtensionMap[thenBlk->GetStmtID()] = ifpmeExt;
-    IfstmtNode->SetThenPart(thenBlk);
-    IfstmtNode->SetElsePart(elseBlk);
+    ifStmtNode->SetThenPart(thenBlk);
+    ifStmtNode->SetElsePart(elseBlk);
     BB *elsemebb = cfg->GetLabelBBAt(ifInfo->elseLabel);
     BB *endmebb = cfg->GetLabelBBAt(ifInfo->endLabel);
     CHECK_FATAL(elsemebb, "Raise2PreMeIf: cannot find else BB");
@@ -1022,11 +1051,11 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
     BlockNode *emptyBlock = codeMP->New<BlockNode>();
     preMeStmtExtensionMap[emptyBlock->GetStmtID()] = ifpmeExt;
     if (condgoto->GetOp() == OP_brtrue) {
-      IfstmtNode->SetElsePart(branchBlock);
-      IfstmtNode->SetThenPart(emptyBlock);
+      ifStmtNode->SetElsePart(branchBlock);
+      ifStmtNode->SetThenPart(emptyBlock);
     } else {
-      IfstmtNode->SetThenPart(branchBlock);
-      IfstmtNode->SetElsePart(emptyBlock);
+      ifStmtNode->SetThenPart(branchBlock);
+      ifStmtNode->SetElsePart(emptyBlock);
     }
     BB *endmebb = cfg->GetLabelBBAt(ifInfo->endLabel);
     uint32 j = curJ + 1;
@@ -1037,10 +1066,10 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
     CHECK_FATAL(j < bbvec.size(), "");
     if (GetFuncProfData()) {
       // set then part/else part frequency
-      int64_t ifFreq = GetFuncProfData()->GetStmtFreq(IfstmtNode->GetStmtID());
-      int64_t branchFreq = bbvec[curJ + 1]->GetFrequency();
-      GetFuncProfData()->SetStmtFreq(branchBlock->GetStmtID(), static_cast<uint64>(branchFreq));
-      GetFuncProfData()->SetStmtFreq(emptyBlock->GetStmtID(), static_cast<uint64>(ifFreq - branchFreq));
+      uint64 ifFreq = GetFuncProfData()->GetStmtFreq(ifStmtNode->GetStmtID());
+      uint64 branchFreq = bbvec[curJ + 1]->GetFrequency();
+      GetFuncProfData()->SetStmtFreq(branchBlock->GetStmtID(), branchFreq);
+      GetFuncProfData()->SetStmtFreq(emptyBlock->GetStmtID(), ifFreq - branchFreq);
     }
     return j;
   }
@@ -1077,6 +1106,15 @@ uint32 PreMeEmitter::EmitPreMeBB(uint32 curJ, BlockNode *curBlk) {
   return ++curJ;
 }
 
+void MEPreMeEmission::SetIpaInfo(MIRFunction &mirFunc) {
+  if (!mirFunc.GetModule()->IsInIPA() || !Options::doOutline) {
+    return;
+  }
+  auto sccEmitPm = dynamic_cast<MaplePhase*>(GetAnalysisInfoHook()->GetBindingPM());
+  auto *ipaInfo = static_cast<IpaSccPM*>(sccEmitPm->GetAnalysisInfoHook()->GetBindingPM())->GetResult();
+  emitter->SetIpaInfo(ipaInfo);
+}
+
 bool MEPreMeEmission::PhaseRun(MeFunction &f) {
   if (f.GetCfg()->NumBBs() == 0) {
     f.SetLfo(false);
@@ -1093,6 +1131,7 @@ bool MEPreMeEmission::PhaseRun(MeFunction &f) {
   mirfunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR from preemission::Emit()"));
   MemPool *preMeMP = GetPhaseMemPool();
   emitter = preMeMP->New<PreMeEmitter>(hmap, f.GetPreMeFunc(), preMeMP);
+  SetIpaInfo(*mirfunction);
   BlockNode *curblk = mirfunction->GetCodeMempool()->New<BlockNode>();
   mirfunction->SetBody(curblk);
   // restore bb frequency to stmt
@@ -1106,15 +1145,13 @@ bool MEPreMeEmission::PhaseRun(MeFunction &f) {
 
   f.SetLfo(false);
   f.SetPme(false);
-  ConstantFold cf(f.GetMIRModule());
-  (void)cf.Simplify(mirfunction->GetBody());
 
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n**** After premeemit phase ****\n";
     mirfunction->Dump(false);
   }
 
-  if (Options::enableInlineSummary) {
+  if (Options::enableGInline) {
     auto *inlineSummary = f.GetMirFunc()->GetInlineSummary();
     if (inlineSummary != nullptr) {
       inlineSummary->RefreshMapKeyIfNeeded();
