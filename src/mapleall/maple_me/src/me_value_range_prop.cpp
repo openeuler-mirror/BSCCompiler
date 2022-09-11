@@ -3849,9 +3849,10 @@ bool ValueRangePropagation::ChangeTheSuccOfPred2TrueBranch(
     mergeAllFallthruBBs->PushBackSuccFreq(edgeFreq);
     pred.AddSuccFreq(edgeFreq, index);
     // update bb frequency
-    ASSERT(bb.GetFrequency() >= edgeFreq, "sanity check");
-    bb.SetFrequency(bb.GetFrequency() - edgeFreq);
-    bb.UpdateEdgeFreqs();
+    if (bb.GetFrequency() >= edgeFreq) {
+      bb.SetFrequency(bb.GetFrequency() - edgeFreq);
+      bb.UpdateEdgeFreqs();
+    }
   }
   mergeAllFallthruBBs->AddSucc(trueBranch);
   DeleteThePhiNodeWhichOnlyHasOneOpnd(bb, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
