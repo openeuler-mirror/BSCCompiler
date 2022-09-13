@@ -1060,6 +1060,12 @@ void HandleLabel(StmtNode &stmt, CGFunc &cgFunc) {
   }
   cgFunc.SetLab2BBMap(newBB->GetLabIdx(), *newBB);
   cgFunc.SetCurBB(*newBB);
+
+  if (cgFunc.GetCleanupLabel() == &label) {
+    cgFunc.SetCleanupBB(*newBB);
+  } else if (cgFunc.GetReturnLabel() == &label) {
+    cgFunc.SetReturnBB(*newBB);
+  }
 }
 
 void HandleGoto(StmtNode &stmt, CGFunc &cgFunc) {
@@ -1180,7 +1186,7 @@ void HandleReturn(StmtNode &stmt, CGFunc &cgFunc) {
     }
   }
   cgFunc.SelectReturn(opnd);
-  cgFunc.SetCurBBKind(BB::kBBReturn);
+  cgFunc.SetCurBBKind(BB::kBBGoto);
   cgFunc.SetCurBB(*cgFunc.StartNewBB(retNode));
 }
 
@@ -1420,7 +1426,8 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
       labelMap(std::less<LabelIdx>(), allocator.Adapter()),
       vregsToPregsMap(std::less<regno_t>(), allocator.Adapter()),
       hasVLAOrAlloca(mirFunc.HasVlaOrAlloca()),
-      dbgCallFrameLocations(allocator.Adapter()),
+      dbgParamCallFrameLocations(allocator.Adapter()),
+      dbgLocalCallFrameLocations(allocator.Adapter()),
       cg(&cg),
       mirModule(mod),
       memPool(&memPool),
@@ -1843,9 +1850,6 @@ void CGFunc::GenerateInstruction() {
   curBB->SetLastStmt(*block->GetLast());
   curBB->SetFrequency(frequency);
   lastBB = curBB;
-  if (this->cleanupLabel != nullptr) {
-    cleanupBB = lastBB->GetPrev();
-  }
   /* All stmts are handled */
   frequency = 0;
 }
@@ -1906,7 +1910,7 @@ void CGFunc::MarkCatchBBs() {
   }
   /* Eliminate cleanup section from catch */
   FOR_ALL_BB(bb, this) {
-    if (bb->GetFirstStmt() == cleanupLabel) {
+    if (bb->IsCleanup()) {
       bb->SetIsCatch(false);
       ASSERT(bb->GetSuccs().size() <= 1, "MarkCatchBBs incorrect cleanup label");
       BB *succ = nullptr;
@@ -1932,67 +1936,38 @@ void CGFunc::MarkCatchBBs() {
 }
 
 /*
- * Mark CleanupEntryBB
- * Note: Cleanup bbs and func body bbs are seperated, no edges between them.
+ * Mark CleanupBB
+ * Note: Cleanup bb and func body bbs are seperated, no edges between them.
  * No ehSuccs or eh_prevs between cleanup bbs.
  */
-void CGFunc::MarkCleanupEntryBB() {
-  if (this->cleanupLabel == nullptr) {
+void CGFunc::MarkCleanupBB() const {
+  /* there is no cleanup BB in the function */
+  if (cleanupBB == nullptr) {
     return;
   }
-  BB *cleanupEntry = nullptr;
-  FOR_ALL_BB(bb, this) {
-    bb->SetIsCleanup(0);      /* Use to mark cleanup bb */
-    bb->SetInternalFlag3(0);  /* Use to mark if visited. */
-    if (bb->GetFirstStmt() == this->cleanupLabel) {
-      cleanupEntry = bb;
-    }
-  }
-  /* If a function without cleanup bb, return. */
-  if (cleanupEntry == nullptr) {
-    return;
-  }
-  /* after merge bb, update cleanupBB. */
-  if (cleanupEntry->GetSuccs().empty()) {
-    this->cleanupBB = cleanupEntry;
-  }
-  SetCleanupLabel(*cleanupEntry);
-  ASSERT(cleanupEntry->GetEhSuccs().empty(), "CG internal error. Cleanup bb should not have ehSuccs.");
+  ASSERT(ExitbbNotInCleanupArea(*cleanupBB), "exitBB created in cleanupArea.");
+  ASSERT(cleanupBB->GetEhSuccs().empty(), "CG internal error. Cleanup bb should not have ehSuccs.");
+
 #if DEBUG  /* Please don't remove me. */
   /* Check if all of the cleanup bb is at bottom of the function. */
   bool isCleanupArea = true;
   if (!mirModule.IsCModule()) {
-    FOR_ALL_BB_REV(bb, this) {
+    FOR_ALL_BB_REV_CONST(bb, this) {
+      if (bb == GetLastBB()) {
+        continue;
+      }
       if (isCleanupArea) {
         ASSERT(bb->IsCleanup(), "CG internal error, cleanup BBs should be at the bottom of the function.");
       } else {
         ASSERT(!bb->IsCleanup(), "CG internal error, cleanup BBs should be at the bottom of the function.");
       }
 
-      if (bb == cleanupEntry) {
+      if (bb == cleanupBB) {
         isCleanupArea = false;
       }
     }
   }
 #endif  /* DEBUG */
-  this->cleanupEntryBB = cleanupEntry;
-}
-
-/* Tranverse from current bb's successor and set isCleanup true. */
-void CGFunc::SetCleanupLabel(BB &cleanupEntry) {
-  /* If bb hasn't been visited, return. */
-  if (cleanupEntry.GetInternalFlag3() != 0) {
-    return;
-  }
-  cleanupEntry.SetInternalFlag3(1);
-  cleanupEntry.SetIsCleanup(1);
-  for (auto tmpBB : cleanupEntry.GetSuccs()) {
-    if (tmpBB->GetKind() != BB::kBBReturn) {
-      SetCleanupLabel(*tmpBB);
-    } else {
-      ASSERT(ExitbbNotInCleanupArea(cleanupEntry), "exitBB created in cleanupArea.");
-    }
-  }
 }
 
 bool CGFunc::ExitbbNotInCleanupArea(const BB &bb) const {
@@ -2066,43 +2041,8 @@ void CGFunc::MakeupScopeLabels(BB &bb) {
 }
 
 void CGFunc::ProcessExitBBVec() {
-  if (exitBBVec.empty()) {
-    LabelIdx newLabelIdx = CreateLabel();
-    BB *retBB = nullptr;
-    if (cleanupBB != nullptr) {
-      retBB = CreateNewBB(newLabelIdx, cleanupBB->IsUnreachable(), BB::kBBReturn, cleanupBB->GetFrequency());
-      cleanupBB->PrependBB(*retBB);
-    } else {
-      retBB = CreateNewBB(newLabelIdx, lastBB->IsUnreachable(), BB::kBBReturn, lastBB->GetFrequency());
-      lastBB->PrependBB(*retBB);
-    }
-    exitBBVec.emplace_back(retBB);
-    MakeupScopeLabels(*retBB);
-    return;
-  }
-  /* split an empty exitBB */
-  BB *bb = exitBBVec[0];
-  if (bb->NumInsn() > 0) {
-    BB *retBBPart = CreateNewBB(false, BB::kBBFallthru, bb->GetFrequency());
-    ASSERT(retBBPart != nullptr, "retBBPart should not be nullptr");
-    LabelIdx retBBPartLabelIdx = bb->GetLabIdx();
-    if (retBBPartLabelIdx != MIRLabelTable::GetDummyLabel()) {
-      retBBPart->AddLabel(retBBPartLabelIdx);
-      lab2BBMap[retBBPartLabelIdx] = retBBPart;
-    }
-    Insn *insn = bb->GetFirstInsn();
-    while (insn != nullptr) {
-      bb->RemoveInsn(*insn);
-      retBBPart->AppendInsn(*insn);
-      insn = bb->GetFirstInsn();
-    }
-    bb->PrependBB(*retBBPart);
-    LabelIdx newLabelIdx = CreateLabel();
-    bb->AddLabel(newLabelIdx);
-    lab2BBMap[newLabelIdx] = bb;
-    curBB = bb;
-  }
-  MakeupScopeLabels(*bb);
+  ASSERT(exitBBVec.size() == 1, "there must be one BB_return in func");
+  MakeupScopeLabels(*exitBBVec[0]);
 }
 
 void CGFunc::AddCommonExitBB() {
@@ -2137,13 +2077,6 @@ void CGFunc::UpdateCallBBFrequency() {
 void CGFunc::HandleFunction() {
   /* select instruction */
   GenerateInstruction();
-  /* merge multi return */
-  if (!func.GetModule()->IsCModule() || CGOptions::DoRetMerge() || CGOptions::OptimizeForSize()) {
-    MergeReturn();
-  }
-  if (func.IsJava()) {
-    ASSERT(exitBBVec.size() <= 1, "there are more than one BB_return in func");
-  }
   ProcessExitBBVec();
   LmbcGenSaveSpForAlloca();
 
@@ -2161,7 +2094,7 @@ void CGFunc::HandleFunction() {
   if (mirModule.GetSrcLang() != kSrcLangC) {
     MarkCatchBBs();
   }
-  MarkCleanupEntryBB();
+  MarkCleanupBB();
   DetermineReturnTypeofCall();
   theCFG->MarkLabelTakenBB();
   theCFG->UnreachCodeAnalysis();
@@ -2180,7 +2113,7 @@ void CGFunc::HandleFunction() {
   NeedStackProtect();
 }
 
-void CGFunc::AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc) {
+void CGFunc::AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc, bool isParam) {
   ASSERT(debugInfo != nullptr, "debugInfo is null!");
   ASSERT(loc->GetMemSegment() != nullptr, "only support those variable that locate at stack now");
   DBGDie *sdie = debugInfo->GetLocalDie(&func, sym->GetNameStrIdx());
@@ -2192,7 +2125,7 @@ void CGFunc::AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc) {
   CHECK_FATAL(exprloc != nullptr, "exprloc is null in CGFunc::AddDIESymbolLocation");
   exprloc->SetSymLoc(loc);
 
-  GetDbgCallFrameLocations().push_back(exprloc);
+  GetDbgCallFrameLocations(isParam).push_back(exprloc);
 }
 
 void CGFunc::DumpCFG() const {
@@ -2248,9 +2181,6 @@ void CGFunc::DumpBBInfo(const BB *bb) const {
   }
   if (bb->IsUnreachable()) {
     LogInfo::MapleLogger() << "[unreachable] ";
-  }
-  if (bb->GetFirstStmt() == cleanupLabel) {
-    LogInfo::MapleLogger() << "cleanup ";
   }
   if (!bb->GetSuccs().empty()) {
     LogInfo::MapleLogger() << "succs: ";

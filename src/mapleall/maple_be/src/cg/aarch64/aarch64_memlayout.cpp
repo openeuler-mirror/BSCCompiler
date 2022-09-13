@@ -101,7 +101,7 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
     if (ploc.reg0 != 0) {
       continue;  /* passed in register, so no effect on actual area */
     }
-    sizeOfArgsToStkPass = RoundUp(ploc.memOffset + ploc.memSize, kSizeOfPtr);
+    sizeOfArgsToStkPass = RoundUp(ploc.memOffset + ploc.memSize, GetPointerSize());
   }
   return sizeOfArgsToStkPass;
 }
@@ -113,8 +113,8 @@ void AArch64MemLayout::SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint
       align = k8ByteSize;
       size = k8ByteSize;
     } else {
-      align = kSizeOfPtr;
-      size = kSizeOfPtr;
+      align = GetPointerSize();
+      size = GetPointerSize();
     }
   } else {
     align = be.GetTypeAlign(typeIdx);
@@ -129,7 +129,7 @@ void AArch64MemLayout::SetSegmentSize(AArch64SymbolAlloc &symbolAlloc, MemSegmen
   segment.SetSize(static_cast<uint32>(RoundUp(static_cast<uint64>(segment.GetSize()), align)));
   symbolAlloc.SetOffset(segment.GetSize());
   segment.SetSize(segment.GetSize() + size);
-  segment.SetSize(static_cast<uint32>(RoundUp(static_cast<uint64>(segment.GetSize()), kSizeOfPtr)));
+  segment.SetSize(static_cast<uint32>(RoundUp(static_cast<uint64>(segment.GetSize()), GetPointerSize())));
 }
 
 void AArch64MemLayout::LayoutVarargParams() {
@@ -182,7 +182,7 @@ void AArch64MemLayout::LayoutVarargParams() {
     if (CGOptions::IsArm64ilp32()) {
       SetSizeOfGRSaveArea((k8BitSize - nIntRegs) * k8ByteSize);
     } else {
-      SetSizeOfGRSaveArea((k8BitSize - nIntRegs) * kSizeOfPtr);
+      SetSizeOfGRSaveArea((k8BitSize - nIntRegs) * GetPointerSize());
     }
     if (CGOptions::UseGeneralRegOnly()) {
       SetSizeOfVRSaveArea(0);
@@ -190,7 +190,7 @@ void AArch64MemLayout::LayoutVarargParams() {
       if (CGOptions::IsArm64ilp32()) {
         SetSizeOfVRSaveArea((k8BitSize - nFpRegs) * k8ByteSize * k2ByteSize);
       } else {
-        SetSizeOfVRSaveArea((k8BitSize - nFpRegs) * kSizeOfPtr * k2ByteSize);
+        SetSizeOfVRSaveArea((k8BitSize - nFpRegs) * GetPointerSize() * k2ByteSize);
       }
     }
   }
@@ -213,7 +213,7 @@ void AArch64MemLayout::LayoutFormalParams() {
           if (CGOptions::IsArm64ilp32()) {
             segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + k8ByteSize);
           } else {
-            segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + kSizeOfPtr);
+            segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + GetPointerSize());
           }
         }
         continue;
@@ -239,7 +239,7 @@ void AArch64MemLayout::LayoutFormalParams() {
           if (CGOptions::IsArm64ilp32()) {
             align = k8ByteSize;
           } else {
-            align = kSizeOfPtr;
+            align = GetPointerSize();
           }
         }
         uint32 tSize = 0;
@@ -263,7 +263,7 @@ void AArch64MemLayout::LayoutFormalParams() {
       if (CGOptions::IsArm64ilp32()) {
         segArgsStkPassed.SetSize(static_cast<uint32>(RoundUp(segArgsStkPassed.GetSize(), k8ByteSize)));
       } else {
-        segArgsStkPassed.SetSize(static_cast<uint32>(RoundUp(segArgsStkPassed.GetSize(), kSizeOfPtr)));
+        segArgsStkPassed.SetSize(static_cast<uint32>(RoundUp(segArgsStkPassed.GetSize(), GetPointerSize())));
       }
       if (!cgFunc->GetMirModule().IsCModule() && mirFunction->GetNthParamAttr(i).GetAttr(ATTR_localrefvar)) {
         SetLocalRegLocInfo(sym->GetStIdx(), *symLoc);
@@ -274,7 +274,7 @@ void AArch64MemLayout::LayoutFormalParams() {
       }
     }
     if (cgFunc->GetCG()->GetCGOptions().WithDwarf() && (symLoc->GetMemSegment() != nullptr)) {
-      cgFunc->AddDIESymbolLocation(sym, symLoc);
+      cgFunc->AddDIESymbolLocation(sym, symLoc, /* isParam */ true);
     }
   }
 }
@@ -330,7 +330,7 @@ void AArch64MemLayout::LayoutLocalVariables(std::vector<MIRSymbol*> &tempVar, st
       segLocals.SetSize(segLocals.GetSize() + be.GetTypeSize(tyIdx));
     }
     if (cgFunc->GetCG()->GetCGOptions().WithDwarf()) {
-      cgFunc->AddDIESymbolLocation(sym, symLoc);
+      cgFunc->AddDIESymbolLocation(sym, symLoc, /* isParam */ false);
     }
   }
 }
@@ -366,18 +366,18 @@ void AArch64MemLayout::LayoutReturnRef(std::vector<MIRSymbol*> &returnDelays,
   }
   segArgsToStkPass.SetSize(FindLargestActualArea(structCopySize));
   maxParmStackSize = static_cast<int32>(segArgsToStkPass.GetSize());
-  if (Globals::GetInstance()->GetOptimLevel() == 0) {
+  if (Globals::GetInstance()->GetOptimLevel() == CGOptions::kLevel0) {
     AssignSpillLocationsToPseudoRegisters();
   } else {
     AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
     /* 8-VirtualRegNode occupy byte number */
     aarchCGFunc->SetCatchRegno(cgFunc->NewVReg(kRegTyInt, 8));
   }
-  segRefLocals.SetSize(static_cast<uint32>(RoundUp(segRefLocals.GetSize(), kSizeOfPtr)));
+  segRefLocals.SetSize(static_cast<uint32>(RoundUp(segRefLocals.GetSize(), GetPointerSize())));
   if (CGOptions::IsArm64ilp32()) {
     segLocals.SetSize(static_cast<uint32>(RoundUp(segLocals.GetSize(), k8ByteSize)));
   } else {
-    segLocals.SetSize(static_cast<uint32>(RoundUp(segLocals.GetSize(), kSizeOfPtr)));
+    segLocals.SetSize(static_cast<uint32>(RoundUp(segLocals.GetSize(), GetPointerSize())));
   }
 }
 
@@ -432,8 +432,8 @@ void AArch64MemLayout::LayoutStackFrame(int32 &structCopySize, int32 &maxParmSta
     /* we do need this as SP has to be aligned at a 16-bytes bounardy */
     segArgsStkPassed.SetSize(RoundUp(segArgsStkPassed.GetSize(), k8ByteSize + k8ByteSize));
   } else {
-    segArgsRegPassed.SetSize(RoundUp(segArgsRegPassed.GetSize(), kSizeOfPtr));
-    segArgsStkPassed.SetSize(RoundUp(segArgsStkPassed.GetSize(), kSizeOfPtr + kSizeOfPtr));
+    segArgsRegPassed.SetSize(RoundUp(segArgsRegPassed.GetSize(), GetPointerSize()));
+    segArgsStkPassed.SetSize(RoundUp(segArgsStkPassed.GetSize(), GetPointerSize() + GetPointerSize()));
   }
   /* allocate the local variables in the stack */
   std::vector<MIRSymbol*> eaTempVar;
@@ -482,7 +482,7 @@ void AArch64MemLayout::AssignSpillLocationsToPseudoRegisters() {
   if (CGOptions::IsArm64ilp32()) {
     segLocals.SetSize(RoundUp(segLocals.GetSize(), k8ByteSize));
   } else {
-    segLocals.SetSize(RoundUp(segLocals.GetSize(), kSizeOfPtr));
+    segLocals.SetSize(RoundUp(segLocals.GetSize(), GetPointerSize()));
   }
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   RegOperand &baseOpnd = aarchCGFunc->GetOrCreateStackBaseRegOperand();
@@ -497,7 +497,7 @@ void AArch64MemLayout::AssignSpillLocationsToPseudoRegisters() {
   if (CGOptions::IsArm64ilp32()) {
     segLocals.SetSize(segLocals.GetSize() + k8ByteSize);
   } else {
-    segLocals.SetSize(segLocals.GetSize() + kSizeOfPtr);
+    segLocals.SetSize(segLocals.GetSize() + GetPointerSize());
   }
 }
 
@@ -576,8 +576,8 @@ int32 AArch64MemLayout::GetCalleeSaveBaseLoc() const {
 
   if (cgFunc->GetMirModule().IsCModule() && cgFunc->GetFunction().GetAttr(FUNCATTR_varargs)) {
     /* GR/VR save areas are above the callee save area */
-    auto saveareasize = RoundUp(GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
-                        RoundUp(GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize);
+    auto saveareasize = RoundUp(GetSizeOfGRSaveArea(), GetPointerSize() * k2BitSize) +
+                        RoundUp(GetSizeOfVRSaveArea(), GetPointerSize() * k2BitSize);
     offset -= saveareasize;
   }
 

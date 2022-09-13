@@ -177,7 +177,7 @@ class CGFunc {
   virtual void MergeReturn() = 0;
   void TraverseAndClearCatchMark(BB &bb);
   void MarkCatchBBs();
-  void MarkCleanupEntryBB();
+  void MarkCleanupBB() const;
   void SetCleanupLabel(BB &cleanupEntry);
   bool ExitbbNotInCleanupArea(const BB &bb) const;
   uint32 GetMaxRegNum() const {
@@ -575,7 +575,7 @@ class CGFunc {
     debugInfo = dbgInfo;
   }
 
-  void AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc);
+  void AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc, bool isParam);
 
   virtual void DBGFixCallFrameLocationOffsets() {};
 
@@ -675,6 +675,14 @@ class CGFunc {
     cleanupLabel = &node;
   }
 
+  const LabelNode *GetReturnLabel() const {
+    return returnLabel;
+  }
+
+  void SetReturnLabel(LabelNode &label) {
+    returnLabel = &label;
+  }
+
   BB *GetFirstBB() {
     return firstBB;
   }
@@ -697,14 +705,7 @@ class CGFunc {
 
   void SetCleanupBB(BB &bb) {
     cleanupBB = &bb;
-  }
-
-  const BB *GetCleanupEntryBB() const {
-    return cleanupEntryBB;
-  }
-
-  void SetCleanupEntryBB(BB &bb) {
-    cleanupEntryBB = &bb;
+    cleanupBB->SetIsCleanup(true);
   }
 
   BB *GetLastBB() {
@@ -717,6 +718,20 @@ class CGFunc {
 
   void SetLastBB(BB &bb) {
     lastBB = &bb;
+  }
+
+  BB *GetReturnBB() {
+    return returnBB;
+  }
+
+  const BB *GetReturnBB() const {
+    return returnBB;
+  }
+
+  void SetReturnBB(BB &bb) {
+    returnBB = &bb;
+    returnBB->SetKind(BB::kBBReturn);
+    GetExitBBsVec().emplace_back(returnBB);
   }
 
   BB *GetCurBB() {
@@ -1157,8 +1172,8 @@ class CGFunc {
 
   virtual InsnVisitor *NewInsnModifier() = 0;
 
-  MapleVector<DBGExprLoc*> &GetDbgCallFrameLocations() {
-    return dbgCallFrameLocations;
+  MapleVector<DBGExprLoc*> &GetDbgCallFrameLocations(bool isParam) {
+    return isParam ? dbgParamCallFrameLocations : dbgLocalCallFrameLocations;
   }
 
   bool HasAsm() const {
@@ -1248,7 +1263,8 @@ class CGFunc {
   bool hasTakenLabel = false;
   uint32 frequency = 0;
   DebugInfo *debugInfo = nullptr;  /* debugging info */
-  MapleVector<DBGExprLoc*> dbgCallFrameLocations;
+  MapleVector<DBGExprLoc*> dbgParamCallFrameLocations;
+  MapleVector<DBGExprLoc*> dbgLocalCallFrameLocations;
   RegOperand *aggParamReg = nullptr;
   ReachingDefinition *reachingDef = nullptr;
 
@@ -1329,11 +1345,13 @@ class CGFunc {
   uint32 bbCnt = 0;
   uint32 labelIdx = 0;          /* local label index number */
   LabelNode *startLabel = nullptr;    /* start label of the function */
-  LabelNode *endLabel = nullptr;      /* end label of the function */
+  LabelNode *returnLabel = nullptr;   /* return label of the function */
   LabelNode *cleanupLabel = nullptr;  /* label to indicate the entry of cleanup code. */
+  LabelNode *endLabel = nullptr;      /* end label of the function */
+
   BB *firstBB = nullptr;
+  BB *returnBB = nullptr;
   BB *cleanupBB = nullptr;
-  BB *cleanupEntryBB = nullptr;
   BB *lastBB = nullptr;
   BB *curBB = nullptr;
   BB *dummyBB;   /* use this bb for add some instructions to bb that is no curBB. */

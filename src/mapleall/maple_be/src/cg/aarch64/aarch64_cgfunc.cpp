@@ -416,6 +416,12 @@ void AArch64CGFunc::SelectCopyImm(Operand &dest, ImmOperand &src, PrimType dtype
   ASSERT(IsPrimitiveInteger(dtype), "The type of destination operand must be Integer");
   ASSERT(((dsize == k8BitSize) || (dsize == k16BitSize) || (dsize == k32BitSize) || (dsize == k64BitSize)),
          "The destination operand must be >= 8-bit");
+  if (src.GetSize() == k32BitSize && dsize == k64BitSize && src.IsSingleInstructionMovable()) {
+    auto tempReg = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, dsize), dsize, kRegTyInt);
+    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_wmovri32, *tempReg, src));
+    SelectCopy(dest, dtype, *tempReg, PTY_u32);
+    return;
+  }
   if (src.IsSingleInstructionMovable()) {
     MOperator mOp = (dsize == k32BitSize) ? MOP_wmovri32 : MOP_xmovri64;
     GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mOp, dest, src));
@@ -1200,8 +1206,9 @@ void AArch64CGFunc::SelectAbort() {
   movXzr.SetDoNotRemove(true);
   GetCurBB()->AppendInsn(movXzr);
   GetCurBB()->AppendInsn(loadRef);
-  SetCurBBKind(BB::kBBReturn);
-  (void)GetExitBBsVec().emplace_back(GetCurBB());
+  SetCurBBKind(BB::kBBGoto);
+  LabelOperand &targetOpnd = GetOrCreateLabelOperand(GetReturnLabel()->GetLabelIdx());
+  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xuncond, targetOpnd));
 }
 
 static std::string GetRegPrefixFromPrimType(PrimType pType, uint32 size, const std::string &constraint) {
@@ -6494,31 +6501,32 @@ bool AArch64CGFunc::NeedCleanup() {
 void AArch64CGFunc::GenerateCleanupCodeForExtEpilog(BB &bb) {
   ASSERT(GetLastBB()->GetPrev()->GetFirstStmt() == GetCleanupLabel(), "must be");
 
-  if (NeedCleanup()) {
-    /* this is necessary for code insertion. */
-    SetCurBB(bb);
-
-    RegOperand &regOpnd0 =
-        GetOrCreatePhysicalRegisterOperand(R0, GetPointerSize() * kBitsPerByte, GetRegTyFromPrimTy(PTY_a64));
-    RegOperand &regOpnd1 =
-        GetOrCreatePhysicalRegisterOperand(R1, GetPointerSize() * kBitsPerByte, GetRegTyFromPrimTy(PTY_a64));
-    /* allocate 16 bytes to store reg0 and reg1 (each reg has 8 bytes) */
-    MemOperand &frameAlloc = CreateCallFrameOperand(-16, GetPointerSize() * kBitsPerByte);
-    Insn &allocInsn = GetInsnBuilder()->BuildInsn(MOP_xstp, regOpnd0, regOpnd1, frameAlloc);
-    allocInsn.SetDoNotRemove(true);
-    AppendInstructionTo(allocInsn, *this);
-
-    /* invoke MCC_CleanupLocalStackRef(). */
-    HandleRCCall(false);
-    /* deallocate 16 bytes which used to store reg0 and reg1 */
-    MemOperand &frameDealloc = CreateCallFrameOperand(16, GetPointerSize() * kBitsPerByte);
-    GenRetCleanup(cleanEANode, true);
-    Insn &deallocInsn = GetInsnBuilder()->BuildInsn(MOP_xldp, regOpnd0, regOpnd1, frameDealloc);
-    deallocInsn.SetDoNotRemove(true);
-    AppendInstructionTo(deallocInsn, *this);
-    /* Update cleanupbb since bb may have been splitted */
-    SetCleanupBB(*GetCurBB());
+  if (!NeedCleanup()) {
+    return;
   }
+  /* this is necessary for code insertion. */
+  SetCurBB(bb);
+
+  RegOperand &regOpnd0 =
+    GetOrCreatePhysicalRegisterOperand(R0, GetPointerSize() * kBitsPerByte, GetRegTyFromPrimTy(PTY_a64));
+  RegOperand &regOpnd1 =
+    GetOrCreatePhysicalRegisterOperand(R1, GetPointerSize() * kBitsPerByte, GetRegTyFromPrimTy(PTY_a64));
+  /* allocate 16 bytes to store reg0 and reg1 (each reg has 8 bytes) */
+  MemOperand &frameAlloc = CreateCallFrameOperand(-16, GetPointerSize() * kBitsPerByte);
+  Insn &allocInsn = GetInsnBuilder()->BuildInsn(MOP_xstp, regOpnd0, regOpnd1, frameAlloc);
+  allocInsn.SetDoNotRemove(true);
+  AppendInstructionTo(allocInsn, *this);
+
+  /* invoke MCC_CleanupLocalStackRef(). */
+  HandleRCCall(false);
+  /* deallocate 16 bytes which used to store reg0 and reg1 */
+  MemOperand &frameDealloc = CreateCallFrameOperand(16, GetPointerSize() * kBitsPerByte);
+  GenRetCleanup(cleanEANode, true);
+  Insn &deallocInsn = GetInsnBuilder()->BuildInsn(MOP_xldp, regOpnd0, regOpnd1, frameDealloc);
+  deallocInsn.SetDoNotRemove(true);
+  AppendInstructionTo(deallocInsn, *this);
+
+  CHECK_FATAL(GetCurBB() == &bb, "cleanup BB can't be splitted, it is only one cleanup BB");
 }
 
 /*
@@ -6578,8 +6586,7 @@ void AArch64CGFunc::GenerateCleanupCode(BB &bb) {
   GetCurBB()->AppendInsn(nop);
   GetCurBB()->SetHasCall();
 
-  /* Update cleanupbb since bb may have been splitted */
-  SetCleanupBB(*GetCurBB());
+  CHECK_FATAL(GetCurBB() == &bb, "cleanup BB can't be splitted, it is only one cleanup BB");
 }
 
 uint32 AArch64CGFunc::FloatParamRegRequired(MIRStructType *structType, uint32 &fpSize) {
@@ -6953,55 +6960,7 @@ RegOperand &AArch64CGFunc::CreateRflagOperand() {
 
 void AArch64CGFunc::MergeReturn() {
   uint32 exitBBSize = GetExitBBsVec().size();
-  if (exitBBSize == 0) {
-    return;
-  }
-  if ((exitBBSize == 1) && GetExitBB(0) == GetCurBB()) {
-    return;
-  }
-
-  /* for reduce cfgo and rd phase time, given merge limit value */
-  constexpr uint32 maxExitBBNumLimit = 100;
-  if (exitBBSize > maxExitBBNumLimit) {
-    return;
-  }
-  if (exitBBSize == 1) {
-    BB *onlyExitBB = GetExitBB(0);
-    BB *onlyExitBBNext = onlyExitBB->GetNext();
-    StmtNode *stmt = onlyExitBBNext->GetFirstStmt();
-    /* only deal with the return_BB in the middle */
-    if (GetCleanupLabel() != nullptr && stmt != GetCleanupLabel()) {
-      LabelIdx labidx = CreateLabel();
-      BB *retBB = CreateNewBB(labidx, onlyExitBB->IsUnreachable(), BB::kBBReturn, onlyExitBB->GetFrequency());
-      onlyExitBB->AppendBB(*retBB);
-      /* modify the original return BB. */
-      ASSERT(onlyExitBB->GetKind() == BB::kBBReturn, "Error: suppose to merge multi return bb");
-      onlyExitBB->SetKind(BB::kBBFallthru);
-
-      GetExitBBsVec().pop_back();
-      GetExitBBsVec().emplace_back(retBB);
-      return;
-    }
-  }
-
-  LabelIdx labidx = CreateLabel();
-  LabelOperand &targetOpnd = GetOrCreateLabelOperand(labidx);
-  uint32 freq = 0;
-  for (auto *tmpBB : GetExitBBsVec()) {
-    ASSERT(tmpBB->GetKind() == BB::kBBReturn, "Error: suppose to merge multi return bb");
-    tmpBB->SetKind(BB::kBBGoto);
-    tmpBB->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xuncond, targetOpnd));
-    freq += tmpBB->GetFrequency();
-  }
-  BB *retBB = CreateNewBB(labidx, false, BB::kBBReturn, freq);
-  if (GetCleanupBB() != nullptr) {
-    GetCleanupBB()->PrependBB(*retBB);
-  } else {
-    GetLastBB()->PrependBB(*retBB);
-  }
-
-  GetExitBBsVec().clear();
-  GetExitBBsVec().emplace_back(retBB);
+  CHECK_FATAL(exitBBSize == 1, "allow one returnBB only");
 }
 
 void AArch64CGFunc::HandleRetCleanup(NaryStmtNode &retNode) {
@@ -9033,7 +8992,9 @@ void AArch64CGFunc::SelectReturn(Operand *opnd0) {
       CHECK_FATAL(false, "nyi");
     }
   }
-  GetExitBBsVec().emplace_back(GetCurBB());
+
+  LabelOperand &targetOpnd = GetOrCreateLabelOperand(GetReturnLabel()->GetLabelIdx());
+  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xuncond, targetOpnd));
 }
 
 RegOperand &AArch64CGFunc::GetOrCreateSpecialRegisterOperand(PregIdx sregIdx, PrimType primType) {
@@ -9843,8 +9804,18 @@ void AArch64CGFunc::AppendCall(const MIRSymbol &funcSymbol) {
   AppendCall(funcSymbol, *srcOpnds);
 }
 
+#define PARAMCOPYSIZE 8
 void AArch64CGFunc::DBGFixCallFrameLocationOffsets() {
-  for (DBGExprLoc *el : GetDbgCallFrameLocations()) {
+  unsigned idx = 0;
+  for (DBGExprLoc *el : GetDbgCallFrameLocations(/* isParam */ true)) {
+    if (el && el->GetSimpLoc() && el->GetSimpLoc()->GetDwOp() == DW_OP_fbreg) {
+      SymbolAlloc *symloc = static_cast<SymbolAlloc*>(el->GetSymLoc());
+      int32 offset = GetBaseOffset(*symloc) - ((idx < PARAMCOPYSIZE) ? GetDbgCallFrameOffset() : 0);
+      el->SetFboffset(offset);
+    }
+    idx++;
+  }
+  for (DBGExprLoc *el : GetDbgCallFrameLocations(/* isParam */ false)) {
     if (el->GetSimpLoc()->GetDwOp() == DW_OP_fbreg) {
       SymbolAlloc *symloc = static_cast<SymbolAlloc*>(el->GetSymLoc());
       int32 offset = GetBaseOffset(*symloc) - GetDbgCallFrameOffset();
