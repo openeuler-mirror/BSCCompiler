@@ -51,7 +51,7 @@ bool SSARename2Preg::VarMeExprIsRenameCandidate(const VarMeExpr &varMeExpr) cons
     return false;
   }
   // local primitive-type symbol with no address taken can be renamed to preg
-  if (ost->GetFieldID() == 0 && ost->GetOffset().val == 0) {
+  if (ost->GetFieldID() == 0 && ost->GetOffset().val == 0 && ost->GetTyIdx() == ost->GetMIRSymbol()->GetTyIdx()) {
     return true;
   }
   // following check may be time-consuming, keep it as the last check.

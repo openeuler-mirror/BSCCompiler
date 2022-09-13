@@ -2245,6 +2245,10 @@ MeExpr *IRMap::SimplifyOrMeExpr(OpMeExpr *opmeexpr) {
     }
     auto c1 = static_cast<ConstMeExpr *>(opnd1)->GetIntValue();
     auto c2 = static_cast<ConstMeExpr *>(expr1)->GetIntValue();
+    if (c1.IsSigned() != c2.IsSigned()) {
+      c1.Assign(IntVal(c1, false));
+      c2.Assign(IntVal(c2, false));
+    }
     if ((c1 & c2) == 0) {
       auto newOpnd0 = CreateMeExprBinary(OP_bior, opmeexpr->GetPrimType(), *opnd0->GetOpnd(0), *opnd1);
       auto res = CreateMeExprBinary(OP_bxor, opnd0->GetPrimType(), *newOpnd0, *expr1);
