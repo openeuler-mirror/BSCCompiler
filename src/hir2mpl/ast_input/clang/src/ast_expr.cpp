@@ -1144,12 +1144,12 @@ MIRConst *ASTInitListExpr::GenerateMIRConstImpl() const {
 }
 
 MIRConst *ASTInitListExpr::GenerateMIRConstForArray() const {
-  if (initExprs.size() == 1 && initExprs[0]->GetASTOp() == kASTStringLiteral) {
+  CHECK_FATAL(initListType->GetKind() == kTypeArray, "Must be array type");
+  auto arrayMirType = static_cast<MIRArrayType*>(initListType);
+  if (arrayMirType->GetDim() == 1 && initExprs.size() == 1 && initExprs[0]->GetASTOp() == kASTStringLiteral) {
     return initExprs[0]->GenerateMIRConst();
   }
   MIRAggConst *aggConst = FEManager::GetModule().GetMemPool()->New<MIRAggConst>(FEManager::GetModule(), *initListType);
-  CHECK_FATAL(initListType->GetKind() == kTypeArray, "Must be array type");
-  auto arrayMirType = static_cast<MIRArrayType*>(initListType);
   CHECK_FATAL(initExprs.size() <= arrayMirType->GetSizeArrayItem(0), "InitExpr size must less or equal array size");
   for (size_t i = 0; i < initExprs.size(); ++i) {
     auto konst = initExprs[i]->GenerateMIRConst();

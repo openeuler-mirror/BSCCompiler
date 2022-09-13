@@ -8,3 +8,17 @@
 6
 7
 8
+g_d[0].a=abc, g_d[1].a=def, g_d[2].a=
+g_d[0].b[0]=abcd, g_d[1].b[0]=efgh, g_d[2].b[0]=
+g_d[0].b[1]=, g_d[1].b[1]=igkl,  g_d[2].b[1]=
+g_d[0].c=1, g_d[1].c=2, g_dd[2].c=3
+g_d[0].d[0]=abc, g_d[1].d[0]=abc, g_d[2].d[0]=
+g_d[0].info.j[0]=34, g_d[1].info.j[0]=78, g_d[2].info.j[0]=
+g_d[0].info.j[1]=, g_d[1].info.j[1]=910, g_d[2].info.j[1]=
+d[0].a=abc, d[1].a=def, d[2].a=
+d[0].b[0]=abcd, d[1].b[0]=efgh, d[2].b[0]=
+d[0].b[1]=, d[1].b[1]=igkl, d[2].b[1]=
+d[0].c=1, d[1].c=2, d[2].c=3
+d[0].d[0]=abc, d[1].d[0]=abc, d[2].d[0]=
+d[0].info.j[0]=34, d[1].info.j[0]=78, d[2].info.j[0]=
+d[0].info.j[1]=, d[1].info.j[1]=910, d[2].info.j[1]=
