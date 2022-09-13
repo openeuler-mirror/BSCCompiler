@@ -68,9 +68,36 @@ const std::string CallInfo::GetCallTypeName() const {
   }
 }
 
+void CallInfo::Dump() const {
+  LogInfo::MapleLogger() << caller->GetName() << "->" << callee->GetName() << " (id: " << id << ", callStmtId: "
+      << callStmt->GetStmtID() << ")" << std::endl;
+}
+
+const char *GetInlineFailedStr(InlineFailedCode code) {
+#undef DEF_IF
+#define DEF_IF(code, type, desc) (desc),
+  static const char *inlineFailedStrTable[kIFC_End] = {
+#include "inline_failed.def"
+  };
+#undef DEF_IF
+  ASSERT(static_cast<uint32>(code) < static_cast<uint32>(kIFC_End), "out of range");
+  return inlineFailedStrTable[code];
+}
+
+InlineFailedType GetInlineFailedType(InlineFailedCode code) {
+#undef DEF_IF
+#define DEF_IF(code, type, desc) (type),
+  static InlineFailedType inlineFailedTypeTable[kIFC_End] = {
+#include "inline_failed.def"
+  };
+#undef DEF_IF
+  ASSERT(static_cast<uint32>(code) < static_cast<uint32>(kIFC_End), "out of range");
+  return inlineFailedTypeTable[code];
+}
+
 const std::string CallInfo::GetCalleeName() const {
   if ((cType >= kCallTypeCall) && (cType <= kCallTypeInterfaceCall)) {
-    MIRFunction &mirf = *mirFunc;
+    MIRFunction &mirf = *GetCallee();
     return mirf.GetName();
   } else if (cType == kCallTypeIcall) {
     return "IcallUnknown";
@@ -156,6 +183,12 @@ void CGNode::Dump(std::ofstream &fout) const {
   }
 }
 
+CallInfo *CallGraph::AddCallsite(CallType type, CGNode &caller, CGNode &callee, CallNode &call) {
+  auto *callInfo = GenCallInfo(type, *caller.GetMIRFunction(), *callee.GetMIRFunction(), call);
+  caller.AddCallsite(*callInfo, &callee);
+  return callInfo;
+}
+
 void CGNode::AddCallsite(CallInfo *ci, MapleSet<CGNode*, Comparator<CGNode>> *callee) {
   (void)callees.insert(std::pair<CallInfo*, MapleSet<CGNode*, Comparator<CGNode>>*>(ci, callee));
 }
@@ -171,17 +204,34 @@ void CGNode::AddCallsite(CallInfo &ci, CGNode *node) {
   (void)callees.emplace(&ci, cgVector);
 }
 
-void CGNode::RemoveCallsite(const CallInfo *ci, CGNode *node) {
-  for (auto &callSite : GetCallee()) {
-    if (callSite.first == ci) {
-      auto cgIt = callSite.second->find(node);
-      if (cgIt != callSite.second->end()) {
-        callSite.second->erase(cgIt);
-        return;
-      }
-      CHECK_FATAL(false, "node isn't in ci");
+void CGNode::RemoveCallsite(uint32 stmtID) {
+  for (auto &callSite : std::as_const(GetCallee())) {
+    if (callSite.first->GetID() != stmtID) {
+      continue;
     }
+    for (auto *node : *callSite.second) {
+      node->DelCaller(this);
+      node->DecreaseNumRefs();
+    }
+    callSite.second->clear();
+    return;
   }
+  CHECK_FATAL_FALSE("node doesn't exist.");
+}
+
+void CGNode::RemoveCallsite(const CallInfo *ci) {
+  for (auto &callSite : std::as_const(GetCallee())) {
+    if (callSite.first != ci) {
+      continue;
+    }
+    for (auto *node : *callSite.second) {
+      node->DelCaller(this);
+      node->DecreaseNumRefs();
+    }
+    callSite.second->clear();
+    return;
+  }
+  CHECK_FATAL_FALSE("node isn't in ci");
 }
 
 bool CGNode::IsCalleeOf(CGNode *func) const {
@@ -222,7 +272,7 @@ void CallGraph::DelNode(CGNode &node) {
   if (node.GetMIRFunction() == nullptr) {
     return;
   }
-  for (const auto &callSite : node.GetCallee()) {
+  for (auto &callSite : std::as_const(node.GetCallee())) {
     for (auto &cgIt : *callSite.second) {
       cgIt->DelCaller(&node);
       node.DelCallee(callSite.first, cgIt);
@@ -244,7 +294,7 @@ void CallGraph::DelNode(CGNode &node) {
       }
     }
   }
-  GlobalTables::GetFunctionTable().SetFunctionItem(func->GetPuidx(), nullptr);
+  func->SetBody(nullptr);
   // func will be erased, so the coressponding symbol should be set as Deleted
   ASSERT_NOT_NULL(func);
   ASSERT_NOT_NULL(func->GetFuncSymbol());
@@ -342,7 +392,7 @@ SCCNode<CGNode> *CallGraph::GetSCCNode(MIRFunction *func) const {
 
 void CallGraph::UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, std::set<PUIdx> &candidate) {
   CGNode *caller = GetCGNode(callerPuIdx);
-  for (const auto &pair : caller->GetCallee()) {
+  for (auto &pair : std::as_const(caller->GetCallee())) {
     auto *callsite = pair.first;
     if (callsite->GetCallStmt() == icall) {
       auto *calleeSet = pair.second;
@@ -358,7 +408,7 @@ void CallGraph::UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, 
 
 void CallGraph::UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, PUIdx calleePuidx, CallNode *call) {
   CGNode *caller = GetCGNode(callerPuIdx);
-  for (const auto &pair : caller->GetCallee()) {
+  for (auto &pair : std::as_const(caller->GetCallee())) {
     auto *callsite = pair.first;
     if (callsite->GetCallStmt() == icall) {
       callsite->SetCallStmt(call);
@@ -543,7 +593,7 @@ CallNode *CallGraph::ReplaceIcallToCall(BlockNode &body, IcallNode *icall, PUIdx
   return newCall;
 }
 
-void CallGraph::HandleCall(CGNode &node, StmtNode *stmt, uint32 loopDepth) {
+void CallGraph::HandleCall(BlockNode &body, CGNode &node, StmtNode *stmt, uint32 loopDepth) {
   PUIdx calleePUIdx = (static_cast<CallNode*>(stmt))->GetPUIdx();
   MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(calleePUIdx);
   // Ignore clinit
@@ -554,6 +604,8 @@ void CallGraph::HandleCall(CGNode &node, StmtNode *stmt, uint32 loopDepth) {
     calleeNode->AddCaller(&node, stmt);
     node.AddCallsite(*callInfo, calleeNode);
   }
+  // record the enclosingblock of callstmt
+  static_cast<CallNode*>(stmt)->SetEnclosingBlock(&body);
 }
 
 MIRType *CallGraph::GetFuncTypeFromFuncAddr(const BaseNode *base) {
@@ -618,7 +670,7 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
         if (symbol->GetKonst()->GetKind() == kConstAddrofFunc) {
           auto *addrofFuncConst = static_cast<MIRAddroffuncConst*>(symbol->GetKonst());
           stmt = ReplaceIcallToCall(body, icall, addrofFuncConst->GetValue());
-          HandleCall(node, stmt, loopDepth);
+          HandleCall(body, node, stmt, loopDepth);
           return;
         }
         if (symbol->GetKonst()->GetKind() == kConstAggConst) {
@@ -627,7 +679,7 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
           if (elem->GetKind() == kConstAddrofFunc) {
             auto *addrofFuncConst = static_cast<MIRAddroffuncConst*>(elem);
             stmt = ReplaceIcallToCall(body, icall, addrofFuncConst->GetValue());
-            HandleCall(node, stmt, loopDepth);
+            HandleCall(body, node, stmt, loopDepth);
             return;
           }
         }
@@ -641,7 +693,7 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
           if (rhsNode != nullptr && rhsNode->GetOpCode() == OP_addroffunc) {
             auto *funcNode = static_cast<AddroffuncNode*>(rhsNode);
             stmt = ReplaceIcallToCall(body, icall, funcNode->GetPUIdx());
-            HandleCall(node, stmt, loopDepth);
+            HandleCall(body, node, stmt, loopDepth);
             return;
           }
         }
@@ -690,7 +742,7 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
           CHECK_FATAL(result->GetKind() == kConstAddrofFunc, "Must be");
           auto *constValue = static_cast<MIRAddroffuncConst*>(result);
           stmt = ReplaceIcallToCall(body, icall, constValue->GetValue());
-          HandleCall(node, stmt, loopDepth);
+          HandleCall(body, node, stmt, loopDepth);
           return;
         }
       }
@@ -722,7 +774,7 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
     case OP_addroffunc: {
       auto *funcNode = static_cast<AddroffuncNode*>(funcAddr);
       stmt = ReplaceIcallToCall(body, icall, funcNode->GetPUIdx());
-      HandleCall(node, stmt, loopDepth);
+      HandleCall(body, node, stmt, loopDepth);
       return;
     }
     default: {
@@ -777,6 +829,8 @@ void CallGraph::HandleBody(MIRFunction &func, BlockNode &body, CGNode &node, uin
       switch (ct) {
         case kCallTypeVirtualCall: {
           PUIdx calleePUIdx = (static_cast<CallNode*>(stmt))->GetPUIdx();
+          // init CallNode enclosingBlock for inlininig
+          static_cast<CallNode*>(stmt)->SetEnclosingBlock(&body);
           MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(calleePUIdx);
           CallInfo *callInfo = GenCallInfo(kCallTypeVirtualCall, calleeFunc, stmt, loopDepth, stmt->GetStmtID());
           // Retype makes object type more inaccurate.
@@ -830,6 +884,8 @@ void CallGraph::HandleBody(MIRFunction &func, BlockNode &body, CGNode &node, uin
         }
         case kCallTypeInterfaceCall: {
           PUIdx calleePUIdx = (static_cast<CallNode*>(stmt))->GetPUIdx();
+          // init CallNode enclosingBlock for inlininig
+          static_cast<CallNode*>(stmt)->SetEnclosingBlock(&body);
           MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(calleePUIdx);
           CallInfo *callInfo = GenCallInfo(kCallTypeInterfaceCall, calleeFunc, stmt, loopDepth, stmt->GetStmtID());
           // Add a call node whether or not the calleeFunc has its body
@@ -850,11 +906,13 @@ void CallGraph::HandleBody(MIRFunction &func, BlockNode &body, CGNode &node, uin
           break;
         }
         case kCallTypeCall: {
-          HandleCall(node, stmt, loopDepth);
+          HandleCall(body, node, stmt, loopDepth);
           break;
         }
         case kCallTypeSuperCall: {
           PUIdx calleePUIdx = (static_cast<CallNode*>(stmt))->GetPUIdx();
+          // init CallNode enclosingBlock for inlininig
+          static_cast<CallNode*>(stmt)->SetEnclosingBlock(&body);
           MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(calleePUIdx);
           Klass *klass = klassh->GetKlassFromFunc(calleeFunc);
           if (klass == nullptr) {  // Fix CI
@@ -1617,7 +1675,7 @@ void CallGraph::ReadCallGraphFromMplt() {
         ASSERT(tempNode != nullptr, "calleenode is null in CallGraph::HandleBody");
         node->AddCallsite(*info, tempNode);
       }
-      for (const auto &callSite : node->GetCallee()) {
+      for (auto &callSite : std::as_const(node->GetCallee())) {
         if (callSite.first == info) {
           for (auto &cgIt : *callSite.second) {
             CGNode *tempNode = cgIt;
@@ -1662,7 +1720,7 @@ void CallGraph::GetMatchedCGNode(const TyIdx &idx, std::vector<CGNode*> &result)
 }
 
 void CallGraph::FixIcallCallee() {
-  for (const auto &pair : icallToFix) {
+  for (auto &pair : std::as_const(icallToFix)) {
     std::vector<CGNode*> funcs;
     GetMatchedCGNode(pair.first, funcs);
     for (auto &callerCallee : *pair.second) {
@@ -1731,7 +1789,7 @@ void CallGraph::FindRootNodes() {
   if (!rootNodes.empty()) {
     CHECK_FATAL(false, "rootNodes has already been set");
   }
-  for (const auto &it : nodesMap) {
+  for (auto &it : std::as_const(nodesMap)) {
     CGNode *node = it.second;
     if (!node->HasCaller()) {
       rootNodes.push_back(node);

@@ -99,6 +99,7 @@ void AArch64GenCfi::GenerateRegisterRestoreDirective(BB &bb) {
     }
     (void)bb.InsertInsnBefore(*returnInsn, aarchCGFunc.CreateCfiRestoreInsn(RLR, k64BitSize));
   }
-  (void)bb.InsertInsnBefore(*returnInsn, aarchCGFunc.CreateCfiDefCfaInsn(RSP, 0, k64BitSize));
+  /* in aarch64 R31 is sp */
+  (void)bb.InsertInsnBefore(*returnInsn, aarchCGFunc.CreateCfiDefCfaInsn(R31, 0, k64BitSize));
 }
 } /* maplebe */

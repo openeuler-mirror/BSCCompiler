@@ -3309,33 +3309,33 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
       switch (elp->GetOp()) {
         case DW_OP_call_frame_cfa:
           EmitHexUnsigned(1);
-          Emit(CMNT "size");
+          (void)Emit(CMNT "size");
           Emit("\n\t.byte    ");
           EmitHexUnsigned(elp->GetOp());
-          Emit(CMNT);
-          Emit(maple::GetDwOpName(elp->GetOp()));
+          (void)Emit(CMNT);
+          (void)Emit(maple::GetDwOpName(elp->GetOp()));
           break;
         case DW_OP_addr:
           EmitHexUnsigned(k9ByteSize);
-          Emit(CMNT "size");
+          (void)Emit(CMNT "size");
           Emit("\n\t.byte    ");
           EmitHexUnsigned(elp->GetOp());
           Emit(CMNT);
-          Emit(maple::GetDwOpName(elp->GetOp()));
+          (void)Emit(maple::GetDwOpName(elp->GetOp()));
           Emit("\n\t.8byte   ");
           (void)Emit(GlobalTables::GetStrTable().GetStringFromStrIdx(
               static_cast<uint32>(elp->GetGvarStridx())).c_str());
           break;
         case DW_OP_fbreg:
           EmitHexUnsigned(1 + namemangler::GetSleb128Size(elp->GetFboffset()));
-          Emit(CMNT "uleb128 size");
+          (void)Emit(CMNT "uleb128 size");
           Emit("\n\t.byte    ");
           EmitHexUnsigned(elp->GetOp());
-          Emit(CMNT);
-          Emit(maple::GetDwOpName(elp->GetOp()));
+          (void)Emit(CMNT);
+          (void)Emit(maple::GetDwOpName(elp->GetOp()));
           Emit("\n\t.sleb128 ");
           EmitDecSigned(elp->GetFboffset());
-          Emit(CMNT "fboffset");
+          (void)Emit(CMNT "fboffset");
           break;
         default:
           EmitHexUnsigned(uintptr_t(elp));
