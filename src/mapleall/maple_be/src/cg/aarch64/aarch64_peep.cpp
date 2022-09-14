@@ -2473,7 +2473,6 @@ void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
 
 void AArch64PrePeepHole1::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
-  optimizations[kOneHoleBranchesOpt] = optOwnMemPool->New<OneHoleBranchesAArch64>(cgFunc);
   optimizations[kAndCmpBranchesToTbzOpt] = optOwnMemPool->New<AndCmpBranchesToTbzAArch64>(cgFunc);
   optimizations[kComplexExtendWordLslOpt] = optOwnMemPool->New<ComplexExtendWordLslAArch64>(cgFunc);
 }
@@ -2494,10 +2493,6 @@ void AArch64PrePeepHole1::Run(BB &bb, Insn &insn) {
       case MOP_wcbz:
       case MOP_wcbnz:
       case MOP_xcbz:
-      case MOP_xcbnz: {
-        (static_cast<OneHoleBranchesAArch64*>(optimizations[kOneHoleBranchesOpt]))->Run(bb, insn);
-        break;
-      }
       case MOP_beq:
       case MOP_bne: {
         (static_cast<AndCmpBranchesToTbzAArch64*>(optimizations[kAndCmpBranchesToTbzOpt]))->Run(bb, insn);
@@ -5127,69 +5122,6 @@ void RemoveDecRefPattern::Run(BB &bb, Insn &insn) {
     return;
   }
   bb.RemoveInsn(*prevInsn);
-  bb.RemoveInsn(insn);
-}
-
-/*
- * We optimize the following pattern in this function:
- * and x1, x1, #imm (is n power of 2)
- * cbz/cbnz x1, .label
- * =>
- * and x1, x1, #imm (is n power of 2)
- * tbnz/tbz x1, #n, .label
- */
-void OneHoleBranchesAArch64::Run(BB &bb, Insn &insn) {
-  AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
-  if (&insn != bb.GetLastInsn()) {
-    return;
-  }
-  /* check cbz/cbnz insn */
-  MOperator thisMop = insn.GetMachineOpcode();
-  if (thisMop != MOP_wcbz && thisMop != MOP_wcbnz && thisMop != MOP_xcbz && thisMop != MOP_xcbnz) {
-    return;
-  }
-  /* check and insn */
-  Insn *prevInsn = insn.GetPreviousMachineInsn();
-  if (prevInsn == nullptr) {
-    return;
-  }
-  MOperator prevMop = prevInsn->GetMachineOpcode();
-  if (prevMop != MOP_wandrri12 && prevMop != MOP_xandrri13) {
-    return;
-  }
-  /* check opearnd of two insns */
-  if (&(prevInsn->GetOperand(kInsnFirstOpnd)) != &(insn.GetOperand(kInsnFirstOpnd))) {
-    return;
-  }
-  auto &imm = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
-  int n = LogValueAtBase2(imm.GetValue());
-  if (n < 0) {
-    return;
-  }
-
-  /* replace insn */
-  auto &label = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  MOperator newOp = MOP_undef;
-  switch (thisMop) {
-    case MOP_wcbz:
-      newOp = MOP_wtbz;
-      break;
-    case MOP_wcbnz:
-      newOp = MOP_wtbnz;
-      break;
-    case MOP_xcbz:
-      newOp = MOP_xtbz;
-      break;
-    case MOP_xcbnz:
-      newOp = MOP_xtbnz;
-      break;
-    default:
-      CHECK_FATAL(false, "can not touch here");
-      break;
-  }
-  ImmOperand &oneHoleOpnd = aarch64CGFunc->CreateImmOperand(n, k8BitSize, false);
-  (void)bb.InsertInsnAfter(insn, cgFunc.GetInsnBuilder()->BuildInsn(
-      newOp, prevInsn->GetOperand(kInsnSecondOpnd), oneHoleOpnd, label));
   bb.RemoveInsn(insn);
 }
 

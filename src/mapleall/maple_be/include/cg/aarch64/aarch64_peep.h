@@ -22,75 +22,17 @@
 #include "mir_builder.h"
 
 namespace maplebe {
-class PeepOptimizeManager {
+class AArch64CGPeepHole : CGPeepHole {
  public:
   /* normal constructor */
-  PeepOptimizeManager(CGFunc &f, BB &bb, Insn &insn)
-      : cgFunc(&f),
-        currBB(&bb),
-        currInsn(&insn),
-        ssaInfo(nullptr) {}
+  AArch64CGPeepHole(CGFunc &f, MemPool *memPool) : CGPeepHole(f, memPool) {};
   /* constructor for ssa */
-  PeepOptimizeManager(CGFunc &f, BB &bb, Insn &insn, CGSSAInfo &info)
-      : cgFunc(&f),
-        currBB(&bb),
-        currInsn(&insn),
-        ssaInfo(&info) {}
-  ~PeepOptimizeManager() = default;
-  template<typename OptimizePattern>
-  void Optimize(bool patternEnable = false) {
-    if (!patternEnable) {
-      return;
-    }
-    OptimizePattern optPattern(*cgFunc, *currBB, *currInsn, *ssaInfo);
-    optPattern.Run(*currBB, *currInsn);
-    optSuccess = optPattern.GetPatternRes();
-    if (optSuccess && optPattern.GetCurrInsn() != nullptr) {
-      currInsn = optPattern.GetCurrInsn();
-    }
-  }
-  template<typename OptimizePattern>
-  void NormalPatternOpt(bool patternEnable = false) const {
-    if (!patternEnable) {
-      return;
-    }
-    OptimizePattern optPattern(*cgFunc, *currBB, *currInsn);
-    optPattern.Run(*currBB, *currInsn);
-  }
-  bool OptSuccess() const {
-    return optSuccess;
-  }
- private:
-  CGFunc *cgFunc;
-  BB *currBB;
-  Insn *currInsn;
-  CGSSAInfo *ssaInfo;
-  bool optSuccess = false;
-};
-
-class AArch64CGPeepHole {
- public:
-  /* normal constructor */
-  AArch64CGPeepHole(CGFunc &f, MemPool *memPool)
-      : cgFunc(&f),
-        peepMemPool(memPool),
-        ssaInfo(nullptr) {}
-  /* constructor for ssa */
-  AArch64CGPeepHole(CGFunc &f, MemPool *memPool, CGSSAInfo *cgssaInfo)
-      : cgFunc(&f),
-        peepMemPool(memPool),
-        ssaInfo(cgssaInfo) {}
+  AArch64CGPeepHole(CGFunc &f, MemPool *memPool, CGSSAInfo *cgssaInfo) : CGPeepHole(f, memPool, cgssaInfo) {};
   ~AArch64CGPeepHole() = default;
 
-  void Run();
-  bool DoSSAOptimize(BB &bb, Insn &insn);
-  void DoNormalOptimize(BB &bb, Insn &insn);
-
- protected:
-  CGFunc *cgFunc;
-  MemPool *peepMemPool;
-  CGSSAInfo *ssaInfo;
-  PeepOptimizeManager *manager = nullptr;
+  void Run() override;
+  bool DoSSAOptimize(BB &bb, Insn &insn) override;
+  void DoNormalOptimize(BB &bb, Insn &insn) override;
 };
 
 /*
@@ -117,7 +59,6 @@ class ContinuousCmpCsetPattern : public CGPeepPattern {
 
  private:
   bool CheckCondCode(const CondOperand &condOpnd) const;
-  AArch64CC_t GetReverseCondCode(const CondOperand &condOpnd) const;
   Insn *prevCmpInsn = nullptr;
   Insn *prevCsetInsn1 = nullptr;
   Insn *prevCmpInsn1 = nullptr;
@@ -154,7 +95,6 @@ class CselToCsetPattern : public CGPeepPattern {
  private:
   bool IsOpndDefByZero(const Insn &insn) const;
   bool IsOpndDefByOne(const Insn &insn) const;
-  AArch64CC_t GetInversedCondCode(const CondOperand &condOpnd) const;
   Insn *prevMovInsn1 = nullptr;
   Insn *prevMovInsn2 = nullptr;
 };
@@ -212,7 +152,7 @@ class CsetCbzToBeqPattern : public CGPeepPattern {
   void Run(BB &bb, Insn &insn) override;
 
  private:
-  MOperator SelectNewMop(AArch64CC_t condCode, bool inverse) const;
+  MOperator SelectNewMop(ConditionCode condCode, bool inverse) const;
   Insn *prevInsn = nullptr;
 };
 
@@ -1203,7 +1143,7 @@ class CsetCbzToBeqOptAArch64 : public PeepPattern {
   explicit CsetCbzToBeqOptAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
   ~CsetCbzToBeqOptAArch64() override = default;
   void Run(BB &bb, Insn &insn) override;
-  MOperator SelectMOperator(AArch64CC_t condCode, bool inverse) const;
+  MOperator SelectMOperator(ConditionCode condCode, bool inverse) const;
 };
 
 /* When exist load after load or load after store, and [MEM] is
@@ -1663,21 +1603,6 @@ class RemoveDecRefPattern : public CGPeepPattern {
 
  private:
   Insn *prevInsn = nullptr;
-};
-
-/*
- * We optimize the following pattern in this function:
- * and x1, x1, #imm (is n power of 2)
- * cbz/cbnz x1, .label
- * =>
- * and x1, x1, #imm (is n power of 2)
- * tbnz/tbz x1, #n, .label
- */
-class OneHoleBranchesAArch64 : public PeepPattern {
- public:
-  explicit OneHoleBranchesAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~OneHoleBranchesAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
 };
 
 /*
