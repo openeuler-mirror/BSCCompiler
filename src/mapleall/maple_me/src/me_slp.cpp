@@ -1636,6 +1636,7 @@ void BlockScheduling::VerifyScheduleResult(uint32 firstOrderId, uint32 lastOrder
 
 // `end` may be nullptr
 void BlockScheduling::RebuildUseInfo(MeStmt *begin, MeStmt *end, MapleAllocator &alloc) {
+  CHECK_NULL_FATAL(begin);
   CHECK_FATAL(begin->GetBB() == bb, "begin stmt must belong to current BB");
   exprUseInfo = alloc.New<MeExprUseInfo>(alloc.GetMemPool());
   auto *useSites = alloc.New<MapleVector<ExprUseInfoPair>>(alloc.Adapter());
@@ -1846,7 +1847,8 @@ MIRType* GenVecType(PrimType sPrimType, uint8 lanes) {
       }
       break;
     }
-    case PTY_u32: {
+    case PTY_u32:
+    case PTY_a32: {
       if (lanes == 4) {
         vecType = GlobalTables::GetTypeTable().GetV4UInt32();
       } else if (lanes == 2) {
@@ -2423,6 +2425,11 @@ void SLPVectorizer::ReplaceStmts(const std::vector<MeStmt*> &origStmtVec, std::l
     }
     if (toBeRemoved.find(orderId) == toBeRemoved.end()) {
       newStmtList.push_back(origStmtVec[i]);
+    } else {
+      auto *removeStmt = origStmtVec[i];
+      if (removeStmt->GetOp() == OP_iassign) {
+        static_cast<IassignMeStmt*>(removeStmt)->GetLHSVal()->SetDefStmt(nullptr);
+      }
     }
   }
 }

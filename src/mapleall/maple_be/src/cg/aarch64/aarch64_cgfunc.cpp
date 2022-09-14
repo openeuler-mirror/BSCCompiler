@@ -9493,6 +9493,9 @@ MemOperand *AArch64CGFunc::CheckAndCreateExtendMemOpnd(PrimType ptype, const Bas
       auto *indexReg = SelectRegread(*static_cast<RegreadNode *>(addendExpr));
       MemOperand *memOpnd = &GetOrCreateMemOpnd(MemOperand::kAddrModeBOrX, GetPrimTypeBitSize(ptype), baseReg, indexReg,
                                                 nullptr, nullptr);
+      if (CGOptions::IsArm64ilp32() && IsSignedInteger(addendExpr->GetPrimType())) {
+        memOpnd->SetExtend(memOpnd->GetExtend() | MemOperand::ExtendInfo::kSignExtend);
+      }
       return memOpnd;
       /* case 4 */
     } else if (addendExpr->GetOpCode() == OP_cvt && addendExpr->GetNumOpnds() == 1) {
