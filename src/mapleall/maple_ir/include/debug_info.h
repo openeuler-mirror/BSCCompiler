@@ -342,7 +342,7 @@ class DBGDie {
   void AddSubVec(DBGDie *die);
   void AddAttr(DBGDieAttr *attr);
   void AddAttr(DwAt at, DwForm form, uint64 val, bool keep = true);
-  void AddSimpLocAttr(DwAt at, DwForm form, uint64 val);
+  void AddSimpLocAttr(DwAt at, DwForm form, DwOp op, uint64 val);
   void AddGlobalLocAttr(DwAt at, DwForm form, uint64 val);
   void AddFrmBaseAttr(DwAt at, DwForm form);
   DBGExprLoc *GetExprLoc();
@@ -814,7 +814,7 @@ class DebugInfo {
 
   DBGDie *CreateVarDie(MIRSymbol *sym);
   DBGDie *CreateVarDie(MIRSymbol *sym, const GStrIdx &strIdx); // use alt name
-  DBGDie *CreateFormalParaDie(MIRFunction *func, MIRType *type, MIRSymbol *sym);
+  DBGDie *CreateFormalParaDie(MIRFunction *func, uint32 idx, bool isDef);
   DBGDie *CreateFieldDie(maple::FieldPair pair);
   DBGDie *CreateBitfieldDie(const MIRBitFieldType *type, const GStrIdx &sidx, uint32 &prevBits);
   void CreateStructTypeFieldsDies(const MIRStructType *structType, DBGDie *die);
@@ -841,12 +841,14 @@ class DebugInfo {
   DBGDie *GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx);
   DBGDie *GetOrCreateEnumTypeDie(uint32 idx);
   DBGDie *GetOrCreateEnumTypeDie(MIREnum *mirEnum);
+  DBGDie *GetOrCreateTypeByNameDie(const MIRType &type);
 
   GStrIdx GetPrimTypeCName(PrimType pty);
 
   void AddScopeDie(MIRScope *scope, bool isLocal);
   DBGDie *GetAliasVarTypeDie(const MIRAliasVars &aliasVar, TyIdx tyidx);
-  void AddAliasDies(MapleMap<GStrIdx, MIRAliasVars> &aliasMap, bool isLocal);
+  void HandleTypeAlias(const MIRScope &scope);
+  void AddAliasDies(MIRScope &scope, bool isLocal);
   void CollectScopePos(MIRFunction *func, MIRScope *scope);
 
   // Functions for calculating the size and offset of each DW_TAG_xxx and DW_AT_xxx
