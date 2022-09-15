@@ -1570,7 +1570,16 @@ bool OptimizeBB::FoldCondBranch() {
     stmt1->SetBranchProb(stmt2->GetBranchProb());
     succBB->RemoveLastMeStmt();
     succBB->SetKind(kBBFallthru);
-    succBB->RemoveSucc(*succBB->GetSucc(1));
+    if (cfg->UpdateCFGFreq()) {
+      uint64 freqToMove = succBB->GetSuccFreq()[1];
+      currBB->SetSuccFreq(0, currBB->GetSuccFreq()[0] - freqToMove);
+      succBB->SetFrequency(succBB->GetFrequency() - freqToMove);
+      currBB->SetSuccFreq(1, currBB->GetSuccFreq()[1] + freqToMove);
+      currBB->GetSucc(1)->SetFrequency(currBB->GetSucc(1)->GetFrequency() + freqToMove);
+    }
+    BB *succOfSuccBB = succBB->GetSucc(1);
+    succBB->RemoveBBFromSucc(*succOfSuccBB);
+    succOfSuccBB->RemoveBBFromPred(*succBB, true);
     return true;
   }
   return false;
@@ -1822,16 +1831,16 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
       DEBUG_LOG() << "SkipRedundantCond : Remove condBr in BB" << LOG_BBID(&succ) << ", turn it to fallthruBB\n";
     }
     BB *rmBB = (FindFirstRealSucc(succ.GetSucc(0)) == newTarget) ? succ.GetSucc(1) : succ.GetSucc(0);
-    int64_t deletedSuccFreq = 0;
+    uint64 deletedSuccFreq = 0;
     if (cfg->UpdateCFGFreq()) {
       int idx = succ.GetSuccIndex(*rmBB);
-      deletedSuccFreq = static_cast<int64_t>(succ.GetSuccFreq()[static_cast<uint32>(idx)]);
+      deletedSuccFreq = succ.GetSuccFreq()[static_cast<uint32>(idx)];
     }
     succ.RemoveSucc(*rmBB, true);
     if (cfg->UpdateCFGFreq()) {
       succ.SetSuccFreq(0, succ.GetFrequency());
       auto *succofSucc = succ.GetSucc(0);
-      succofSucc->SetFrequency(static_cast<uint32>(succofSucc->GetFrequency() + deletedSuccFreq));
+      succofSucc->SetFrequency(succofSucc->GetFrequency() + deletedSuccFreq);
     }
     DEBUG_LOG() << "Remove succ BB" << LOG_BBID(rmBB) << " of pred BB" << LOG_BBID(&succ) << "\n";
     return true;
@@ -1886,12 +1895,12 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
     if (cfg->UpdateCFGFreq()) {
       int idx = pred.GetSuccIndex(*newBB);
       ASSERT(idx >= 0 && idx < pred.GetSucc().size(), "sanity check");
-      uint64_t freq = pred.GetEdgeFreq(idx);
+      uint64 freq = pred.GetEdgeFreq(idx);
       newBB->SetFrequency(freq);
       newBB->PushBackSuccFreq(freq);
       // update frequency of succ because one of its pred is removed
       // frequency of
-      uint32_t freqOfSucc = succ.GetFrequency();
+      uint64 freqOfSucc = succ.GetFrequency();
       ASSERT(freqOfSucc >= freq, "sanity check");
       succ.SetFrequency(freqOfSucc - freq);
       // update edge frequency
@@ -2084,26 +2093,27 @@ bool OptimizeBB::MergeGotoBBToPred(BB *succ, BB *pred) {
   }
   int predIdx = succ->GetPredIndex(*pred);
   bool needUpdatePhi = false;
-  int64_t removedFreq = 0;
+  uint64 removedFreq = 0;
   if (cfg->UpdateCFGFreq()) {
     int idx = pred->GetSuccIndex(*succ);
-    removedFreq = static_cast<int64_t>(pred->GetSuccFreq()[static_cast<uint32>(idx)]);
+    removedFreq = pred->GetSuccFreq()[static_cast<uint32>(idx)];
   }
   if (pred->IsPredBB(*newTarget)) {
     pred->RemoveSucc(*succ, true);  // one of pred's succ has been newTarget, avoid duplicate succ here
     if (cfg->UpdateCFGFreq()) {
       int idx = pred->GetSuccIndex(*newTarget);
-      pred->SetSuccFreq(idx, pred->GetSuccFreq()[static_cast<uint32>(idx)] + static_cast<uint64>(removedFreq));
+      pred->SetSuccFreq(idx, pred->GetSuccFreq()[static_cast<uint32>(idx)] + removedFreq);
     }
   } else {
     pred->ReplaceSucc(succ, newTarget);  // phi opnd is not removed from currBB's philist, we will remove it later
     needUpdatePhi = true;
   }
   if (cfg->UpdateCFGFreq()) {
-    int64_t succFreq = succ->GetFrequency();
-    ASSERT(succFreq >= removedFreq, "sanity check");
-    succ->SetFrequency(static_cast<uint32>(succFreq - removedFreq));
-    succ->SetSuccFreq(0, succ->GetFrequency());
+    uint64 succFreq = succ->GetFrequency();
+    if (succFreq >= removedFreq) {
+      succ->SetFrequency(succFreq - removedFreq);
+      succ->SetSuccFreq(0, succ->GetFrequency());
+    }
   }
   DEBUG_LOG() << "Merge Uncond BB" << LOG_BBID(succ) << " to its pred BB" << LOG_BBID(pred) << ": BB" << LOG_BBID(pred)
               << "->BB" << LOG_BBID(succ) << "(merged)->BB" << LOG_BBID(newTarget) << "\n";
@@ -2157,7 +2167,7 @@ bool OptimizeBB::OptimizeUncondBB() {
   // try to move pred from currBB to newTarget
   for (size_t i = 0; i < currBB->GetPred().size();) {
     BB *pred = currBB->GetPred(i);
-    if (pred == nullptr || pred->GetLastMe() == nullptr) {
+    if (pred == nullptr || pred->GetLastMe() == nullptr || pred->GetPred().empty()) {
       ++i;
       continue;
     }
@@ -2659,11 +2669,8 @@ bool MEOptimizeCFG::PhaseRun(maple::MeFunction &f) {
       MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands);
       ssaUpdate.Run();
     }
-    if (f.GetCfg()->UpdateCFGFreq()) {
-      f.GetCfg()->UpdateEdgeFreqWithBBFreq();
-      if (f.GetCfg()->DumpIRProfileFile()) {
-        f.GetCfg()->DumpToFile("after-OptimizeCFG", false, f.GetCfg()->UpdateCFGFreq());
-      }
+    if (f.GetCfg()->DumpIRProfileFile()) {
+      f.GetCfg()->DumpToFile("after-OptimizeCFG", false, f.GetCfg()->UpdateCFGFreq());
     }
   }
   return change;
