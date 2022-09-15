@@ -2110,10 +2110,9 @@ bool OptimizeBB::MergeGotoBBToPred(BB *succ, BB *pred) {
   }
   if (cfg->UpdateCFGFreq()) {
     uint64 succFreq = succ->GetFrequency();
-    if (succFreq >= removedFreq) {
-      succ->SetFrequency(succFreq - removedFreq);
-      succ->SetSuccFreq(0, succ->GetFrequency());
-    }
+    ASSERT(succFreq >= removedFreq, "sanity check");
+    succ->SetFrequency(succFreq - removedFreq);
+    succ->SetSuccFreq(0, succ->GetFrequency());
   }
   DEBUG_LOG() << "Merge Uncond BB" << LOG_BBID(succ) << " to its pred BB" << LOG_BBID(pred) << ": BB" << LOG_BBID(pred)
               << "->BB" << LOG_BBID(succ) << "(merged)->BB" << LOG_BBID(newTarget) << "\n";

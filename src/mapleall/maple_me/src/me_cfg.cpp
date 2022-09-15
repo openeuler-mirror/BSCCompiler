@@ -2009,10 +2009,11 @@ int MeCFG::VerifyBBFreq(bool checkFatal) {
     }
     // check case 1: entry count is zero, internal bb has frequency value > 0
     if (entryIsZero && bb->GetFrequency() > 0) {
-      LogInfo::MapleLogger() << func.GetName() << ": entry freq is 0 but freq of BB " << bb->GetBBId() << " is " << bb->GetFrequency() << std::endl;
       if (checkFatal) {
-        CHECK_FATAL(false, "VerifyBBFreq: verification fails");
+        LogInfo::MapleLogger() << func.GetName() << "wrong BB " << bb->GetBBId() << std::endl;
+        CHECK_FATAL(false, "VerifyBBFreq: function entryFreq is zero but internal bb frequency > 0");
       } else {
+        ClearFuncFreqInfo();
         return 1;
       }
     }

@@ -1776,7 +1776,8 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldBinary(BinaryNode 
             bsize++;
             ucst >>= 1;
           } while (ucst != 0);
-          if (shrAmt + bsize <= GetPrimTypeSize(primType) * 8) {
+          if (shrAmt + bsize <= GetPrimTypeSize(primType) * k8BitSize &&
+              static_cast<uint64>(shrAmt) < GetPrimTypeSize(primType) * k8BitSize) {
             fold2extractbits = true;
             // change to use extractbits
             result = mirModule->GetMIRBuilder()->CreateExprExtractbits(OP_extractbits,

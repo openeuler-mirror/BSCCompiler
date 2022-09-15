@@ -335,7 +335,6 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
     }
     ASSERT(newStmt != nullptr, "null ptr check");
     newStmt->SetSrcPos(stmt.GetSrcPos());
-    newStmt->SetMeStmtID(stmt.GetMeStmtID());
     newStmt->SetPrev(nullptr);
     newStmt->SetNext(nullptr);
     nnode->AddStatement(newStmt);
