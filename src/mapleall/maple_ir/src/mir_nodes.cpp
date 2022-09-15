@@ -27,6 +27,7 @@
 
 namespace maple {
 MIRModule *theMIRModule = nullptr;
+std::list<BlockCallBack*> BlockCallBackMgr::callBackList;
 std::atomic<uint32> StmtNode::stmtIDNext(1);  // 0 is reserved
 uint32 StmtNode::lastPrintedLineNum = 0;
 uint16 StmtNode::lastPrintedColumnNum = 0;
@@ -245,6 +246,41 @@ void BlockNode::InsertBlockAfter(BlockNode &inblock, const StmtNode *stmt1) {
   stmtNodeList.splice(stmt1, inblock.GetStmtNodes());
 }
 
+BlockNode *BlockNode::CloneTree(MapleAllocator &allocator) const {
+  auto *blk = allocator.GetMemPool()->New<BlockNode>();
+  blk->SetStmtID(stmtIDNext++);
+  for (auto &stmt : stmtNodeList) {
+    StmtNode *newStmt = stmt.CloneTree(allocator);
+    ASSERT(newStmt != nullptr, "null ptr check");
+    newStmt->SetMeStmtID(stmt.GetMeStmtID());
+    newStmt->SetPrev(nullptr);
+    newStmt->SetNext(nullptr);
+    blk->AddStatement(newStmt);
+    BlockCallBackMgr::InvokeCallBacks(*this, *blk, stmt, *newStmt);
+  }
+  return blk;
+}
+
+BlockNode *BlockNode::CloneTreeWithSrcPosition(const MIRModule &mod, const GStrIdx &idx, bool setInlinedPos,
+                                               const SrcPosition & inlinedPosition) {
+  MapleAllocator &allocator = mod.GetCurFuncCodeMPAllocator();
+  auto *blk = allocator.GetMemPool()->New<BlockNode>();
+  blk->SetStmtID(stmtIDNext++);
+  for (auto &stmt : stmtNodeList) {
+    StmtNode *newStmt = stmt.CloneTree(allocator);
+    ASSERT(newStmt != nullptr, "null ptr check");
+    newStmt->SetSrcPos(stmt.GetSrcPos());
+    if (setInlinedPos) {
+      newStmt->SetInlinedSrcPos(inlinedPosition.LineNum(), inlinedPosition.FileNum(), idx);
+    }
+    newStmt->SetPrev(nullptr);
+    newStmt->SetNext(nullptr);
+    blk->AddStatement(newStmt);
+    BlockCallBackMgr::InvokeCallBacks(*this, *blk, stmt, *newStmt);
+  }
+  return blk;
+}
+
 BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
     std::unordered_map<uint32_t, uint64_t>& toFreqs,
     std::unordered_map<uint32_t, uint64_t>& fromFreqs,
@@ -299,9 +335,11 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
     }
     ASSERT(newStmt != nullptr, "null ptr check");
     newStmt->SetSrcPos(stmt.GetSrcPos());
+    newStmt->SetMeStmtID(stmt.GetMeStmtID());
     newStmt->SetPrev(nullptr);
     newStmt->SetNext(nullptr);
     nnode->AddStatement(newStmt);
+    BlockCallBackMgr::InvokeCallBacks(*this, *nnode, stmt, *newStmt);
   }
   return nnode;
 }
@@ -686,10 +724,11 @@ void AddroflabelNode::Dump(int32 indent [[maybe_unused]]) const {
 void StmtNode::DumpBase(int32 indent) const {
   srcPosition.DumpLoc(lastPrintedLineNum, lastPrintedColumnNum);
   // dump stmtFreqs
-  if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData() &&
-      theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) >= 0) {
-    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq " <<
-        theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
+  if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
+    int64_t freq = static_cast<int64_t>(theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()));
+    if (freq >= 0) {
+      LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq " << freq << "\n";
+    }
   }
   PrintIndentation(indent);
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOpCode()).name;
@@ -1329,8 +1368,10 @@ void BlockNode::Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable
   srcPosition.DumpLoc(lastPrintedLineNum, lastPrintedColumnNum);
   // dump stmtFreqs
   if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
-    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  <<
-        theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
+    int64_t freq = static_cast<int64_t>(theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()));
+    if (freq >= 0) {
+      LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  << freq << "\n";
+    }
   }
   for (auto &stmt : GetStmtNodes()) {
     stmt.Dump(indent + 1);
@@ -1345,8 +1386,10 @@ void LabelNode::Dump(int32 indent [[maybe_unused]]) const {
   }
   // dump stmtFreqs
   if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
-    LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  <<
-        theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()) << "\n";
+    int64_t freq = static_cast<int64_t>(theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()));
+    if (freq >= 0) {
+      LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq "  << freq << "\n";
+    }
   }
   LogInfo::MapleLogger() << "@" << theMIRModule->CurFunction()->GetLabelName(labelIdx) << " ";
 }
@@ -1406,6 +1449,35 @@ void EmitStr(const MapleString &mplStr) {
   }
 
   LogInfo::MapleLogger() << "\"\n";
+}
+
+bool AsmNode::IsSameContent(const BaseNode *node) const {
+  if (node->GetOpCode() != GetOpCode()) {
+    return false;
+  }
+  auto *asmNode = static_cast<const AsmNode*>(node);
+  if (asmNode->NumOpnds() != NumOpnds()) {
+    return false;
+  }
+  if (asmNode->asmString != asmString) {
+    return false;
+  }
+  for (size_t i = 0; i < inputConstraints.size(); ++i) {
+    if (asmNode->inputConstraints[i] != inputConstraints[i]) {
+      return false;
+    }
+  }
+  for (size_t i = 0; i < outputConstraints.size(); ++i) {
+    if (asmNode->outputConstraints[i] != outputConstraints[i]) {
+      return false;
+    }
+  }
+  for (size_t i = 0; i < clobberList.size(); ++i) {
+    if (asmNode->clobberList[i] != clobberList[i]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 AsmNode *AsmNode::CloneTree(MapleAllocator &allocator) const {
@@ -2526,8 +2598,9 @@ bool ConstvalNode::IsSameContent(const BaseNode *node) const {
   }
   if (constVal->GetKind() == kConstInt) {
     // integer may differ in primtype, and they may be different MIRIntConst Node
-    return static_cast<MIRIntConst *>(constVal)->GetExtValue() ==
-           static_cast<const MIRIntConst *>(mirConst)->GetExtValue();
+    auto &thisValue = static_cast<MIRIntConst *>(constVal)->GetValue();
+    auto &rightValue = static_cast<const MIRIntConst *>(mirConst)->GetValue();
+    return thisValue.Equal(rightValue, GetPrimType()) && thisValue.Equal(rightValue, node->GetPrimType());
   } else {
     return false;
   }
@@ -2550,11 +2623,14 @@ bool Conststr16Node::IsSameContent(const BaseNode *node) const {
 }
 
 bool AddrofNode::IsSameContent(const BaseNode *node) const {
+  return (GetOpCode() == node->GetOpCode()) && (GetPrimType() == node->GetPrimType()) && MayAccessSameMemory(node);
+}
+
+bool AddrofNode::MayAccessSameMemory(const BaseNode *node) const {
   auto *addrofNode = dynamic_cast<const AddrofNode*>(node);
   if ((this == addrofNode) ||
-      (addrofNode != nullptr && (GetOpCode() == addrofNode->GetOpCode()) &&
-       (GetPrimType() == addrofNode->GetPrimType()) && (GetNumOpnds() == addrofNode->GetNumOpnds()) &&
-       (stIdx.FullIdx() == addrofNode->GetStIdx().FullIdx()) && (fieldID == addrofNode->GetFieldID()))) {
+      (addrofNode != nullptr && (GetNumOpnds() == addrofNode->GetNumOpnds()) &&
+      (stIdx.FullIdx() == addrofNode->GetStIdx().FullIdx()) && (fieldID == addrofNode->GetFieldID()))) {
     return true;
   } else {
     return false;
