@@ -3230,11 +3230,6 @@ void ValueRangePropagation::AnalysisUnreachableBBOrEdge(BB &bb, BB &unreachableB
   }
   Insert2UnreachableBBs(unreachableBB);
   // update frequency before cfg changed
-  uint64 removedFreq = 0;
-  if (func.GetCfg()->UpdateCFGFreq()) {
-    int idx = bb.GetSuccIndex(unreachableBB);
-    removedFreq = bb.GetSuccFreq()[static_cast<uint32>(idx)];
-  }
   bb.RemoveSucc(unreachableBB);
   bb.RemoveMeStmt(bb.GetLastMe());
   bb.SetKind(kBBFallthru);
@@ -3932,7 +3927,7 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(
     pred.AddSucc(trueBranch, index);
     CreateLabelForTargetBB(pred, trueBranch);
     if (func.GetCfg()->UpdateCFGFreq()) {
-      if ((static_cast<int32>(bb.GetFrequency()) - edgeFreq) > 0) {
+      if (bb.GetFrequency() > edgeFreq) {
         bb.SetFrequency(static_cast<uint32>(bb.GetFrequency() - edgeFreq));
         size_t trueBranchIdx = static_cast<uint32>(bb.GetSuccIndex(trueBranch));
         int64_t updatedtrueFreq = static_cast<int64_t>(bb.GetSuccFreq()[trueBranchIdx] - static_cast<uint64>(edgeFreq));
@@ -3957,7 +3952,7 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(
       pred.AddSucc(*exitCopyFallthru, index);
       CreateLabelForTargetBB(pred, *exitCopyFallthru);
       if (func.GetCfg()->UpdateCFGFreq()) {
-        if ((static_cast<int32>(bb.GetFrequency()) - edgeFreq) > 0) {
+        if (bb.GetFrequency() > edgeFreq) {
           bb.SetFrequency(static_cast<uint32>(bb.GetFrequency() - edgeFreq));
           exitCopyFallthru->SetFrequency(static_cast<uint32>(edgeFreq));
           exitCopyFallthru->PushBackSuccFreq(static_cast<uint64>(edgeFreq));
@@ -3991,7 +3986,7 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(
     pred.AddSucc(*newBB, index);
     newBB->AddSucc(trueBranch);
     if (func.GetCfg()->UpdateCFGFreq()) {
-      if ((static_cast<int32>(bb.GetFrequency()) - edgeFreq) > 0) {
+      if (bb.GetFrequency() > edgeFreq) {
         bb.SetFrequency(static_cast<uint32>(bb.GetFrequency() - edgeFreq));
         bb.UpdateEdgeFreqs();
       }
