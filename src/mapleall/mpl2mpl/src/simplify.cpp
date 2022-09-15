@@ -42,6 +42,7 @@ constexpr uint64_t kSecurecMemMaxLen = 0x7fffffffUL;
 static constexpr int32 kProbUnlikely = 1000;
 constexpr uint32_t kMemOpDstOpndIdx = 0;
 constexpr uint32_t kMemOpSDstSizeOpndIdx = 1;
+constexpr uint32_t kMemOpSrcOpndIdx = 2;
 constexpr uint32_t kMemOpSSrcOpndIdx = 2;
 constexpr uint32_t kMemOpSSrcSizeOpndIdx = 3;
 constexpr uint32_t kSprintfFmtOpndIdx = 1;
@@ -54,6 +55,9 @@ constexpr uint32_t kDstSizeOpndIdx = 1;
 constexpr uint32_t kSprintfDstOpndIdx = 0;
 constexpr int32 kSprintfErrNum = -1;
 constexpr int32 kTruncate = -1;
+constexpr std::string_view kTempAddrStr = "tempAddr";
+constexpr std::string_view kUnderlineStr = "_";
+constexpr std::string_view kVerticalLineStr = "__";
 // Truncate the constant field of 'union' if it's written as scalar type (e.g. int),
 // but accessed as bit-field type with smaller size.
 // Return the truncated constant or the original constant 'fieldCst' if the constant doesn't need to be truncated.
@@ -788,6 +792,22 @@ static bool IsComplexExpr(const BaseNode *expr, MIRFunction &func) {
   return true;
 }
 
+// if addr is never nullptr
+static bool IsAddrSafe(const BaseNode &expr) {
+  if (expr.GetOpCode() == OP_addrof) {
+    return true;
+  }
+  if (expr.GetOpCode() == OP_iaddrof) {
+    auto iaddrExpr = static_cast<const IaddrofNode &>(expr);
+    auto type = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(iaddrExpr.GetTyIdx()))
+                    ->GetPointedType();
+    if (type->IsMIRStructType()) {
+      return static_cast<MIRStructType *>(type)->GetBitOffsetFromBaseAddr(iaddrExpr.GetFieldID()) != 0;
+    }
+  }
+  return false;
+}
+
 // Input a address expr, output a memEntry to abstract this expr
 bool MemEntry::ComputeMemEntry(BaseNode &expr, MIRFunction &func, MemEntry &memEntry, bool isLowLevel) {
   Opcode op = expr.GetOpCode();
@@ -1050,6 +1070,42 @@ static BaseNode *TryToExtractComplexExpr(BaseNode *expr, MIRFunction &func, Bloc
   InsertBeforeAndMayPrintStmt(block, anchor, debug, regassign);
   auto *extractedExpr = mirBuilder->CreateExprRegread(PTY_ptr, pregIdx);
   return extractedExpr;
+}
+
+static BaseNode *TryExtractExpr(BaseNode &expr, MIRFunction &func, BlockNode &block, const StmtNode &anchor, bool isSrc,
+                                bool debug) {
+  static int extractIdx = 0;
+  if (IsComplexExpr(&expr, func)) {
+    auto mirBuilder = func.GetModule()->GetMIRBuilder();
+    MemEntry dstMemEntry;
+    bool valid = MemEntry::ComputeMemEntry(expr, func, dstMemEntry, false);
+    if (!valid) {
+      return nullptr;
+    }
+    // if src expr is array type, do not extract it to avoid redundant inst
+    if (isSrc && dstMemEntry.memType->IsMIRArrayType()) {
+      return nullptr;
+    }
+    std::string tempAddrName(kUnderlineStr);
+    (void)tempAddrName.append(std::to_string(func.GetPuidx()))
+        .append(kUnderlineStr)
+        .append(std::to_string(anchor.GetStmtID()))
+        .append(kVerticalLineStr)
+        .append(kTempAddrStr)
+        .append(kUnderlineStr)
+        .append(std::to_string(extractIdx++));
+    if (GlobalTables::GetStrTable().GetStrIdxFromName(tempAddrName) != 0) {
+      return nullptr;
+    }
+    MIRPtrType ty(dstMemEntry.memType->GetTypeIndex());
+    auto tIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&ty);
+    auto symb = mirBuilder->CreateSymbol(tIdx, tempAddrName, kStVar, kScAuto, &func, kScopeLocal);
+    symb->SetIsTmp(true);
+    auto dAssignStmt = mirBuilder->CreateStmtDassign(symb->GetStIdx(), 0, &expr);
+    InsertBeforeAndMayPrintStmt(block, anchor, debug, dAssignStmt);
+    return mirBuilder->CreateExprDread(*symb);
+  }
+  return nullptr;
 }
 
 void MemEntry::ExpandMemsetLowLevel(int64 byte, uint64 size, MIRFunction &func, StmtNode &stmt, BlockNode &block,
@@ -1337,12 +1393,13 @@ bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, uint64 copySize, MIRFunction
     return true;
   }
 
-  if (memKind == kMemEntryPrimitive || memKind == kMemEntryStruct) {
-    // Do low level expand for all struct memcpy for now
-    if (memKind == kMemEntryStruct) {
-      MayPrintLog(debug, false, memOpKind, "Do low level expand for all struct memcpy for now");
-      return false;
-    }
+  // Do low level expand for all struct memcpy for now
+  if (memKind == kMemEntryStruct) {
+    MayPrintLog(debug, false, memOpKind, "Do low level expand for all struct memcpy for now");
+    return false;
+  }
+
+  if (memKind == kMemEntryPrimitive) {
     if (addrExpr->GetOpCode() == OP_addrof) {  // We prefer dassign to iassign
       auto *addrof = static_cast<AddrofNode*>(addrExpr);
       auto *symbol = func.GetLocalOrGlobalSymbol(addrof->GetStIdx());
@@ -1355,16 +1412,6 @@ bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, uint64 copySize, MIRFunction
       static_cast<IassignNode *>(newAssign)->SetExpandFromArrayOfCharFunc(true);
     }
     InsertBeforeAndMayPrintStmt(block, stmt, debug, newAssign);
-    // split struct agg copy
-    if (memKind == kMemEntryStruct) {
-      if (newAssign->GetOpCode() == OP_dassign) {
-        (void)SplitDassignAggCopy(static_cast<DassignNode*>(newAssign), &block, &func);
-      } else if (newAssign->GetOpCode() == OP_iassign) {
-        (void)SplitIassignAggCopy(static_cast<IassignNode*>(newAssign), &block, &func);
-      } else {
-        CHECK_FATAL(false, "impossible");
-      }
-    }
   } else if (memKind == kMemEntryArray) {
     // We only consider array with dim == 1 now, and element type must be primitive type
     auto *arrayType = static_cast<MIRArrayType*>(memType);
@@ -1851,6 +1898,13 @@ StmtNode *SimplifyOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block) c
   }
 
   MIRBuilder *mirBuilder = func->GetModule()->GetMIRBuilder();
+  auto dstOpnd = stmt.Opnd(kMemOpDstOpndIdx);
+  bool isDstAddrSafe = IsAddrSafe(*dstOpnd);
+  auto newExpr = TryExtractExpr(*dstOpnd, *func, block, stmt, false, debug);
+  if (newExpr) {
+    stmt.SetOpnd(newExpr, kMemOpDstOpndIdx);
+  }
+
   BlockOperationHelper helper(stmt, *func, block, false, debug);
   LabelIdx finalLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('f');
   if (errNum != ERRNO_OK || (isSrcSizeConst && isDstSizeConst && dstSize == 0 && srcSize == 0)) {
@@ -1869,15 +1923,19 @@ StmtNode *SimplifyOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block) c
     }
 
     // check if dst is nullptr
-    nullPtrLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('n');  // 'n' means nullptr
-    helper.CreateAndInsertCheckStmt(OP_eq, stmt.Opnd(kMemOpDstOpndIdx), ConstructConstvalNode(0, PTY_u64, *mirBuilder),
-                                    nullPtrLabIdx);
+    if (!isDstAddrSafe) {
+      nullPtrLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('n');  // 'n' means nullptr
+      helper.CreateAndInsertCheckStmt(OP_eq, stmt.Opnd(kMemOpDstOpndIdx),
+                                      ConstructConstvalNode(0, PTY_u64, *mirBuilder), nullPtrLabIdx);
+    }
 
     if (isDstSizeConst && isSrcSizeConst) {
       if (srcSize > dstSize) {
         auto *callStmt = helper.InsertMemsetCallStmt(stmt.Opnd(kMemOpDstOpndIdx), stmt.Opnd(kMemOpSSrcOpndIdx));
         helper.InsertRetAssignAndGoto(finalLabIdx, MEM_OP_memset_s, ERRNO_RANGE_AND_RESET);
-        helper.HandleError(nullPtrLabIdx, finalLabIdx, ERRNO_INVAL, MEM_OP_memset_s);
+        if (!isDstAddrSafe) {
+          helper.HandleError(nullPtrLabIdx, finalLabIdx, ERRNO_INVAL, MEM_OP_memset_s);
+        }
         helper.InsertLableNode(finalLabIdx);
         block.RemoveStmt(&stmt);
         return callStmt;
@@ -1908,8 +1966,10 @@ StmtNode *SimplifyOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block) c
 
     // handle dst nullptr error
     // in memset_s, we need check if dstSize is 0 before handle dst == nullptr
-    helper.HandleErrorWithDstSizeCheck(nullPtrLabIdx, dstSizeCheckLabIdx, finalLabIdx, MEM_OP_memset_s, ERRNO_INVAL,
-                                       isDstSizeConst, dstSize);
+    if (!isDstAddrSafe) {
+      helper.HandleErrorWithDstSizeCheck(nullPtrLabIdx, dstSizeCheckLabIdx, finalLabIdx, MEM_OP_memset_s, ERRNO_INVAL,
+                                         isDstSizeConst, dstSize);
+    }
 
     if (!isDstSizeConst) {
       // handle dst size error
@@ -1948,6 +2008,11 @@ bool SimplifyOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowLeve
     memsetCallStmt = PartiallyExpandMemsetS(stmt, block);
     if (!memsetCallStmt) {
       return true;  // Expand memset_s completely, no extra memset is generated, so just return true
+    }
+  } else if (!isLowLevel) {
+    auto newExpr = TryExtractExpr(*stmt.Opnd(kMemOpDstOpndIdx), *func, block, stmt, false, debug);
+    if (newExpr) {
+      stmt.SetOpnd(newExpr, kMemOpDstOpndIdx);
     }
   }
 
@@ -2041,6 +2106,19 @@ StmtNode *SimplifyOp::PartiallyExpandMemcpyS(StmtNode &stmt, BlockNode &block) {
   }
 
   MIRBuilder *mirBuilder = func->GetModule()->GetMIRBuilder();
+  auto dstOpnd = stmt.Opnd(kMemOpDstOpndIdx);
+  auto srcOpnd = stmt.Opnd(kMemOpSSrcOpndIdx);
+  bool isDstAddrSafe = IsAddrSafe(*dstOpnd);
+  bool isSrcAddrSafe = IsAddrSafe(*srcOpnd);
+  auto newDst = TryExtractExpr(*dstOpnd, *func, block, stmt, false, debug);
+  if (newDst) {
+    stmt.SetOpnd(newDst, kMemOpDstOpndIdx);
+  }
+  auto newSrc = TryExtractExpr(*srcOpnd, *func, block, stmt, true, debug);
+  if (newSrc) {
+    stmt.SetOpnd(newSrc, kMemOpSSrcOpndIdx);
+  }
+
   BlockOperationHelper helper(stmt, *func, block, false, debug);
   LabelIdx finalLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('f');
   if (errNum != ERRNO_OK || (isSrcSizeConst && isDstSizeConst && dstSize == 0 && srcSize == 0)) {
@@ -2063,13 +2141,17 @@ StmtNode *SimplifyOp::PartiallyExpandMemcpyS(StmtNode &stmt, BlockNode &block) {
     }
 
     // check if dst is nullptr
-    dstNullPtrLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('n');  // 'n' means nullptr
-    helper.CreateAndInsertCheckStmt(OP_eq, stmt.Opnd(kMemOpDstOpndIdx), ConstructConstvalNode(0, PTY_u64, *mirBuilder),
-                                    dstNullPtrLabIdx);
+    if (!isDstAddrSafe) {
+      dstNullPtrLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('n');  // 'n' means nullptr
+      helper.CreateAndInsertCheckStmt(OP_eq, stmt.Opnd(kMemOpDstOpndIdx),
+                                      ConstructConstvalNode(0, PTY_u64, *mirBuilder), dstNullPtrLabIdx);
+    }
     // check if src is nullptr
-    srcNullPtrLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('n');  // 'n' means nullptr
-    helper.CreateAndInsertCheckStmt(OP_eq, stmt.Opnd(kMemOpSSrcOpndIdx), ConstructConstvalNode(0, PTY_u64, *mirBuilder),
-                                    srcNullPtrLabIdx);
+    if (!isSrcAddrSafe) {
+      srcNullPtrLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('n');  // 'n' means nullptr
+      helper.CreateAndInsertCheckStmt(OP_eq, stmt.Opnd(kMemOpSSrcOpndIdx),
+                                      ConstructConstvalNode(0, PTY_u64, *mirBuilder), srcNullPtrLabIdx);
+    }
 
     if (isDstSizeConst && isSrcSizeConst) {
       if (srcSize > dstSize) {
@@ -2078,9 +2160,13 @@ StmtNode *SimplifyOp::PartiallyExpandMemcpyS(StmtNode &stmt, BlockNode &block) {
             helper.InsertMemsetCallStmt(stmt.Opnd(kMemOpDstOpndIdx), ConstructConstvalNode(0, PTY_i32, *mirBuilder));
         helper.InsertRetAssignAndGoto(finalLabIdx, MEM_OP_memcpy_s, ERRNO_RANGE_AND_RESET);
         // handle src = nullptr
-        helper.HandleErrorAndReset(srcNullPtrLabIdx, finalLabIdx, MEM_OP_memcpy_s, ERRNO_INVAL_AND_RESET);
+        if (!isSrcAddrSafe) {
+          helper.HandleErrorAndReset(srcNullPtrLabIdx, finalLabIdx, MEM_OP_memcpy_s, ERRNO_INVAL_AND_RESET);
+        }
         // handle dst = nullptr
-        helper.HandleError(dstNullPtrLabIdx, finalLabIdx, ERRNO_INVAL, MEM_OP_memcpy_s);
+        if (!isDstAddrSafe) {
+          helper.HandleError(dstNullPtrLabIdx, finalLabIdx, ERRNO_INVAL, MEM_OP_memcpy_s);
+        }
         helper.InsertLableNode(finalLabIdx);
         block.RemoveStmt(&stmt);
         return callStmt;
@@ -2125,10 +2211,14 @@ StmtNode *SimplifyOp::PartiallyExpandMemcpyS(StmtNode &stmt, BlockNode &block) {
     }
 
     // handle src nullptr error
-    helper.HandleErrorAndReset(srcNullPtrLabIdx, finalLabIdx, MEM_OP_memcpy_s, ERRNO_INVAL_AND_RESET);
+    if (!isSrcAddrSafe) {
+      helper.HandleErrorAndReset(srcNullPtrLabIdx, finalLabIdx, MEM_OP_memcpy_s, ERRNO_INVAL_AND_RESET);
+    }
 
     // handle dst nullptr error
-    helper.HandleError(dstNullPtrLabIdx, finalLabIdx, ERRNO_INVAL, MEM_OP_memcpy_s);
+    if (!isDstAddrSafe) {
+      helper.HandleError(dstNullPtrLabIdx, finalLabIdx, ERRNO_INVAL, MEM_OP_memcpy_s);
+    }
 
     if (!isDstSizeConst) {
       // handle dst size error
@@ -2159,6 +2249,15 @@ bool SimplifyOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLeve
     memcpyCallStmt = PartiallyExpandMemcpyS(stmt, block);
     if (!memcpyCallStmt) {
       return true;  // Expand memcpy_s completely, no extra memcpy is generated, so just return true
+    }
+  } else if (!isLowLevel) {
+    auto newDst = TryExtractExpr(*stmt.Opnd(kMemOpDstOpndIdx), *func, block, stmt, false, debug);
+    if (newDst) {
+      stmt.SetOpnd(newDst, kMemOpDstOpndIdx);
+    }
+    auto newSrc = TryExtractExpr(*stmt.Opnd(kMemOpSrcOpndIdx), *func, block, stmt, true, debug);
+    if (newSrc) {
+      stmt.SetOpnd(newSrc, kMemOpSrcOpndIdx);
     }
   }
 
