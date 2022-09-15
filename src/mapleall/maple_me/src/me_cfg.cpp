@@ -1588,6 +1588,24 @@ void MeCFG::CreateBasicBlocks() {
         curBB = newBB;
         break;
       }
+      case OP_call: {
+        CallNode *callStmt = static_cast<CallNode*>(stmt);
+        MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt->GetPUIdx());
+        if (callee->GetFuncAttrs().GetAttr(FUNCATTR_noreturn)) {
+          if (curBB->IsEmpty()) {
+            curBB->SetFirst(stmt);
+          }
+          curBB->SetLast(stmt);
+          curBB->SetKindReturn();
+          if (nextStmt != nullptr) {
+            BB *newBB = NewBasicBlock();
+            curBB = newBB;
+          }
+          break;
+        }
+        // fall thru to handle as default
+        [[clang::fallthrough]];
+      }
       default: {
         if (curBB->IsEmpty()) {
           curBB->SetFirst(stmt);
