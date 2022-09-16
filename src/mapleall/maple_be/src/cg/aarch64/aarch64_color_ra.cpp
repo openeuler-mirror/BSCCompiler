@@ -361,10 +361,19 @@ void GraphColorRegAllocator::PrintLiveRange(const LiveRange &lr, const std::stri
     LogInfo::MapleLogger() << "S0(nodef)";
   }
   LogInfo::MapleLogger() << "\tnumCall " << lr.GetNumCall();
+  if (lr.GetCrossCall()) {
+    LogInfo::MapleLogger() << "\tcrossCall ";
+  }
   LogInfo::MapleLogger() << "\tpriority " << lr.GetPriority();
   LogInfo::MapleLogger() << "\tforbidden: ";
   for (regno_t preg = kInvalidRegNO; preg < kMaxRegNum; preg++) {
     if (lr.GetForbidden(preg)) {
+      LogInfo::MapleLogger() << preg << ",";
+    }
+  }
+  LogInfo::MapleLogger() << "\tcalldef: ";
+  for (regno_t preg = kInvalidRegNO; preg < kMaxRegNum; preg++) {
+    if (lr.GetCallDef(preg)) {
       LogInfo::MapleLogger() << preg << ",";
     }
   }

@@ -332,7 +332,7 @@ void AArch64AsmEmitter::RecordRegInfo(FuncEmitInfo &funcEmitInfo) const {
       if (insn->IsCall() || insn->IsTailCall()) {
         auto *targetOpnd = insn->GetCallTargetOperand();
         bool safeCheck = false;
-        CHECK_FATAL(targetOpnd != nullptr, "target is null in AArch64Insn::IsCallToFunctionThatNeverReturns");
+        CHECK_FATAL(targetOpnd != nullptr, "target is null in AArch64Emitter::IsCallToFunctionThatNeverReturns");
         if (targetOpnd->IsFuncNameOpnd()) {
           FuncNameOperand *target = static_cast<FuncNameOperand*>(targetOpnd);
           const MIRSymbol *funcSt = target->GetFunctionSymbol();
@@ -354,7 +354,7 @@ void AArch64AsmEmitter::RecordRegInfo(FuncEmitInfo &funcEmitInfo) const {
         break;
       }
       uint32 opndNum = insn->GetOperandSize();
-      const AArch64MD *md = &AArch64CG::kMd[insn->GetMachineOpcode()];
+      const InsnDesc *md = &AArch64CG::kMd[insn->GetMachineOpcode()];
       for (uint32 i = 0; i < opndNum; ++i) {
         if (insn->GetMachineOpcode() == MOP_asm) {
           if (i == kAsmOutputListOpnd || i == kAsmClobberListOpnd) {
@@ -380,7 +380,7 @@ void AArch64AsmEmitter::RecordRegInfo(FuncEmitInfo &funcEmitInfo) const {
           if (regType == kRegTyCc || regType == kRegTyVary) {
             continue;
           }
-          bool isDef = md->GetOperand(i)->IsRegDef();
+          bool isDef = md->GetOpndDes(i)->IsRegDef();
           if (isDef) {
             referedRegs.insert(static_cast<RegOperand&>(opnd).GetRegisterNumber());
           }
@@ -493,7 +493,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     FOR_BB_INSNS_REV(insn, bb) {
       if (insn->IsMachineInstruction()) {
         if (insn->IsCall()) {
-          Insn &newInsn = currCG->BuildInstruction<AArch64Insn>(MOP_nop);
+          Insn &newInsn = aarchCGFunc.GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_nop);
           bb->InsertInsnAfter(*insn, newInsn);
         }
         found = true;
@@ -689,9 +689,9 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
 void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) const {
   MOperator mOp = insn.GetMachineOpcode();
   emitter.SetCurrentMOP(mOp);
-  const AArch64MD *md = &AArch64CG::kMd[mOp];
+  const InsnDesc *md = insn.GetDesc();
 
-  if (!GetCG()->GenerateVerboseAsm() && !GetCG()->GenerateVerboseCG() && mOp == MOP_comment) {
+  if (!GetCG()->GenerateVerboseAsm() && !GetCG()->GenerateVerboseCG() && insn.IsComment()) {
     return;
   }
 
@@ -766,8 +766,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
       EmitStringIndexOf(emitter, insn);
       return;
     }
-    case MOP_pseudo_none:
-    case MOP_pseduo_tls_release: {
+    case MOP_pseudo_none: {
       return;
     }
     case MOP_tls_desc_call: {
@@ -814,7 +813,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
   }
 
   bool isRefField = (opndSize == 0) ? false : CheckInsnRefField(insn, static_cast<size_t>(static_cast<uint>(seq[0])));
-  if (mOp != MOP_comment) {
+  if (insn.IsComment()) {
     emitter.IncreaseJavaInsnCount();
   }
   uint32 compositeOpnds = 0;
@@ -840,7 +839,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
     auto *opnd = &insn.GetOperand(static_cast<uint32>(seq[i]));
     if (opnd && opnd->IsRegister()) {
       auto *regOpnd = static_cast<RegOperand*>(opnd);
-      if ((md->operand[static_cast<uint32>(seq[i])])->IsVectorOperand()) {
+      if ((md->opndMD[static_cast<uint32>(seq[i])])->IsVectorOperand()) {
         regOpnd->SetVecLanePosition(-1);
         regOpnd->SetVecLaneSize(0);
         regOpnd->SetVecElementSize(0);
@@ -852,7 +851,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
         }
       }
     }
-    A64OpndEmitVisitor visitor(emitter, md->operand[static_cast<uint32>(seq[i])]);
+    A64OpndEmitVisitor visitor(emitter, md->opndMD[static_cast<uint32>(seq[i])]);
 
     insn.GetOperand(static_cast<uint32>(seq[i])).Accept(visitor);
     if (compositeOpnds == 1) {
@@ -891,7 +890,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
       emitter.IncreaseJavaInsnCount(1);
     }
   }
-  if (GetCG()->GenerateVerboseCG() || (GetCG()->GenerateVerboseAsm() && mOp == MOP_comment)) {
+  if (GetCG()->GenerateVerboseCG() || (GetCG()->GenerateVerboseAsm() && insn.IsComment())) {
     const char *comment = insn.GetComment().c_str();
     if (comment != nullptr && strlen(comment) > 0) {
       (void)emitter.Emit("\t\t// ").Emit(comment);
@@ -912,14 +911,14 @@ void AArch64AsmEmitter::EmitClinit(Emitter &emitter, const Insn &insn) const {
    * ldr x3, [x3,#112]
    * ldr wzr, [x3]
    */
-  const AArch64MD *md = &AArch64CG::kMd[MOP_clinit];
+  const InsnDesc *md = &AArch64CG::kMd[MOP_clinit];
 
   Operand *opnd0 = &insn.GetOperand(kInsnFirstOpnd);
   Operand *opnd1 = &insn.GetOperand(kInsnSecondOpnd);
-  OpndProp *prop0 = md->operand[0];
+  const OpndDesc *prop0 = md->opndMD[0];
   A64OpndEmitVisitor visitor(emitter, prop0);
   auto *stImmOpnd = static_cast<StImmOperand*>(opnd1);
-  CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Insn::EmitClinit");
+  CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Emitter::EmitClinit");
   /* emit nop for breakpoint */
   if (GetCG()->GetCGOptions().WithDwarf()) {
     (void)emitter.Emit("\t").Emit("nop").Emit("\n");
@@ -1112,11 +1111,11 @@ void AArch64AsmEmitter::EmitClinitTail(Emitter &emitter, const Insn &insn) const
    * ldr x17, [xs, #112]
    * ldr wzr, [x17]
    */
-  const AArch64MD *md = &AArch64CG::kMd[MOP_clinit_tail];
+  const InsnDesc *md = &AArch64CG::kMd[MOP_clinit_tail];
 
   Operand *opnd0 = &insn.GetOperand(kInsnFirstOpnd);
 
-  OpndProp *prop0 = md->operand[0];
+  const OpndDesc *prop0 = md->opndMD[0];
   A64OpndEmitVisitor visitor(emitter, prop0);
 
   /* emit "ldr  x17,[xs,#112]" */
@@ -1136,29 +1135,31 @@ void AArch64AsmEmitter::EmitLazyLoad(Emitter &emitter, const Insn &insn) const {
    * ldr wd, [xs]  # xd and xs should be differenct register
    * ldr wd, [xd]
    */
-  const AArch64MD *md = &AArch64CG::kMd[MOP_lazy_ldr];
+  const InsnDesc *md = &AArch64CG::kMd[MOP_lazy_ldr];
 
   Operand *opnd0 = &insn.GetOperand(kInsnFirstOpnd);
   Operand *opnd1 = &insn.GetOperand(kInsnSecondOpnd);
-  OpndProp *prop0 = md->operand[0];
-  OpndProp *prop1 = md->operand[1];
+  const OpndDesc *prop0 = md->opndMD[0];
+  const OpndDesc *prop1 = md->opndMD[1];
+  A64OpndEmitVisitor visitor(emitter, prop0);
+  A64OpndEmitVisitor visitor1(emitter, prop1);
 
   /* emit  "ldr wd, [xs]" */
   (void)emitter.Emit("\t").Emit("ldr\t");
 #ifdef USE_32BIT_REF
-  opnd0->Emit(emitter, prop0);
+  opnd0->Accept(visitor);
 #else
-  opnd0->Emit(emitter, prop1);
+  opnd0->Accept(visitor1);
 #endif
   (void)emitter.Emit(", [");
-  opnd1->Emit(emitter, prop1);
+  opnd1->Accept(visitor1);
   (void)emitter.Emit("]\t// lazy load.\n");
 
   /* emit "ldr wd, [xd]" */
   (void)emitter.Emit("\t").Emit("ldr\t");
-  opnd0->Emit(emitter, prop0);
+  opnd0->Accept(visitor);
   (void)emitter.Emit(", [");
-  opnd0->Emit(emitter, prop1);
+  opnd1->Accept(visitor1);
   (void)emitter.Emit("]\t// lazy load.\n");
 }
 
@@ -1169,14 +1170,14 @@ void AArch64AsmEmitter::EmitCounter(Emitter &emitter, const Insn &insn) const {
    * add     w17, w17, #1
    * str     w17, [x1, #:lo12:__profile_bb_table$$GetBoolean_dex+4]
    */
-  const AArch64MD *md = &AArch64CG::kMd[MOP_counter];
+  const InsnDesc *md = &AArch64CG::kMd[MOP_counter];
 
   Operand *opnd0 = &insn.GetOperand(kInsnFirstOpnd);
   Operand *opnd1 = &insn.GetOperand(kInsnSecondOpnd);
-  OpndProp *prop0 = md->operand[kInsnFirstOpnd];
+  const OpndDesc *prop0 = md->opndMD[kInsnFirstOpnd];
   A64OpndEmitVisitor visitor(emitter, prop0);
   StImmOperand *stImmOpnd = static_cast<StImmOperand*>(opnd1);
-  CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Insn::EmitCounter");
+  CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Emitter::EmitCounter");
   /* emit nop for breakpoint */
   if (GetCG()->GetCGOptions().WithDwarf()) {
     (void)emitter.Emit("\t").Emit("nop").Emit("\n");
@@ -1216,11 +1217,11 @@ void AArch64AsmEmitter::EmitAdrpLabel(Emitter &emitter, const Insn &insn) const 
   /* adrp    xd, label
    * add     xd, xd, #lo12:label
    */
-  const AArch64MD *md = &AArch64CG::kMd[MOP_adrp_label];
+  const InsnDesc *md = &AArch64CG::kMd[MOP_adrp_label];
 
   Operand *opnd0 = &insn.GetOperand(kInsnFirstOpnd);
   Operand *opnd1 = &insn.GetOperand(kInsnSecondOpnd);
-  OpndProp *prop0 = md->operand[0];
+  const OpndDesc *prop0 = md->opndMD[0];
   A64OpndEmitVisitor visitor(emitter, prop0);
   auto lidx = static_cast<ImmOperand *>(opnd1)->GetValue();
 
@@ -1249,13 +1250,13 @@ void AArch64AsmEmitter::EmitAdrpLdr(Emitter &emitter, const Insn &insn) const {
    * adrp    xd, _PTR__cinf_Ljava_2Futil_2Fconcurrent_2Fatomic_2FAtomicInteger_3B
    * ldr     xd, [xd, #:lo12:_PTR__cinf_Ljava_2Futil_2Fconcurrent_2Fatomic_2FAtomicInteger_3B]
    */
-  const AArch64MD *md = &AArch64CG::kMd[MOP_adrp_ldr];
+  const InsnDesc *md = &AArch64CG::kMd[MOP_adrp_ldr];
   Operand *opnd0 = &insn.GetOperand(kInsnFirstOpnd);
   Operand *opnd1 = &insn.GetOperand(kInsnSecondOpnd);
-  OpndProp *prop0 = md->operand[0];
+  const OpndDesc *prop0 = md->opndMD[0];
   A64OpndEmitVisitor visitor(emitter, prop0);
   auto *stImmOpnd = static_cast<StImmOperand*>(opnd1);
-  CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Insn::EmitAdrpLdr");
+  CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Emitter::EmitAdrpLdr");
   /* emit nop for breakpoint */
   if (GetCG()->GetCGOptions().WithDwarf()) {
     (void)emitter.Emit("\t").Emit("nop").Emit("\n");
@@ -1293,17 +1294,18 @@ void AArch64AsmEmitter::EmitLazyLoadStatic(Emitter &emitter, const Insn &insn) c
    * ldr wd, [xd, #:got_lo12:__staticDecoupleValueOffset$$xxx+offset]
    * ldr wzr, [xd]
    */
-  const AArch64MD *md = &AArch64CG::kMd[MOP_lazy_ldr_static];
+  const InsnDesc *md = &AArch64CG::kMd[MOP_lazy_ldr_static];
 
   Operand *opnd0 = &insn.GetOperand(kInsnFirstOpnd);
   Operand *opnd1 = &insn.GetOperand(kInsnSecondOpnd);
-  OpndProp *prop0 = md->GetOperand(0);
+  const OpndDesc *prop0 = md->GetOpndDes(0);
+  A64OpndEmitVisitor visitor(emitter, prop0);
   auto *stImmOpnd = static_cast<StImmOperand*>(opnd1);
-  CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Insn::EmitLazyLoadStatic");
+  CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Emitter::EmitLazyLoadStatic");
 
   /* emit "adrp xd, :got:__staticDecoupleValueOffset$$xxx+offset" */
   (void)emitter.Emit("\t").Emit("adrp").Emit("\t");
-  opnd0->Emit(emitter, prop0);
+  opnd0->Accept(visitor);
   (void)emitter.Emit(", ");
   (void)emitter.Emit(stImmOpnd->GetName());
   if (stImmOpnd->GetOffset() != 0) {
@@ -1315,15 +1317,15 @@ void AArch64AsmEmitter::EmitLazyLoadStatic(Emitter &emitter, const Insn &insn) c
   (void)emitter.Emit("\tldr\t");
   static_cast<RegOperand*>(opnd0)->SetRefField(true);
 #ifdef USE_32BIT_REF
-  OpndProp prop2(prop0->GetOperandType(), prop0->GetRegProp(), prop0->GetSize() / 2);
+  const OpndDesc prop2(prop0->GetOperandType(), prop0->GetRegProp(), prop0->GetSize() / 2);
   opnd0->Emit(emitter, &prop2); /* ldr wd, ... for emui */
 #else
-  opnd0->Emit(emitter, prop0);  /* ldr xd, ... for qemu */
+  opnd0->Accept(visitor);  /* ldr xd, ... for qemu */
 #endif /* USE_32BIT_REF */
   static_cast<RegOperand*>(opnd0)->SetRefField(false);
   (void)emitter.Emit(", ");
   (void)emitter.Emit("[");
-  opnd0->Emit(emitter, prop0);
+  opnd0->Accept(visitor);
   (void)emitter.Emit(",");
   (void)emitter.Emit("#");
   (void)emitter.Emit(":lo12:").Emit(stImmOpnd->GetName());
@@ -1334,7 +1336,7 @@ void AArch64AsmEmitter::EmitLazyLoadStatic(Emitter &emitter, const Insn &insn) c
 
   /* emit "ldr wzr, [xd]" */
   (void)emitter.Emit("\t").Emit("ldr\twzr, [");
-  opnd0->Emit(emitter, prop0);
+  opnd0->Accept(visitor);
   (void)emitter.Emit("]\t// lazy load static.\n");
 }
 
@@ -1343,13 +1345,13 @@ void AArch64AsmEmitter::EmitArrayClassCacheLoad(Emitter &emitter, const Insn &in
    * ldr wd, [xd, #:got_lo12:__arrayClassCacheTable$$xxx+offset]
    * ldr wzr, [xd]
    */
-  const AArch64MD *md = &AArch64CG::kMd[MOP_arrayclass_cache_ldr];
+  const InsnDesc *md = &AArch64CG::kMd[MOP_arrayclass_cache_ldr];
   Operand *opnd0 = &insn.GetOperand(kInsnFirstOpnd);
   Operand *opnd1 = &insn.GetOperand(kInsnSecondOpnd);
-  OpndProp *prop0 = md->GetOperand(kInsnFirstOpnd);
+  const OpndDesc *prop0 = md->GetOpndDes(kInsnFirstOpnd);
   A64OpndEmitVisitor visitor(emitter, prop0);
   auto *stImmOpnd = static_cast<StImmOperand*>(opnd1);
-  CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Insn::EmitLazyLoadStatic");
+  CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Emitter::EmitLazyLoadStatic");
 
   /* emit "adrp xd, :got:__arrayClassCacheTable$$xxx+offset" */
   (void)emitter.Emit("\t").Emit("adrp").Emit("\t");
@@ -1365,7 +1367,7 @@ void AArch64AsmEmitter::EmitArrayClassCacheLoad(Emitter &emitter, const Insn &in
   (void)emitter.Emit("\tldr\t");
   static_cast<RegOperand*>(opnd0)->SetRefField(true);
 #ifdef USE_32BIT_REF
-  OpndProp prop2(prop0->GetOperandType(), prop0->GetRegProp(), prop0->GetSize() / 2);
+  const OpndDesc prop2(prop0->GetOperandType(), prop0->GetRegProp(), prop0->GetSize() / 2);
   A64OpndEmitVisitor visitor2(emitter, prop2);
   opnd0->Accept(visitor2); /* ldr wd, ... for emui */
 #else
@@ -1422,8 +1424,8 @@ void AArch64AsmEmitter::EmitGetAndAddInt(Emitter &emitter, const Insn &insn) con
   (void)emitter.Emit(":\n");
   Operand *retVal = &insn.GetOperand(kInsnFirstOpnd);
   const MOperator mOp = insn.GetMachineOpcode();
-  const AArch64MD *md = &AArch64CG::kMd[mOp];
-  OpndProp *retProp = md->operand[kInsnFirstOpnd];
+  const InsnDesc *md = &AArch64CG::kMd[mOp];
+  const OpndDesc *retProp = md->opndMD[kInsnFirstOpnd];
   A64OpndEmitVisitor retVisitor(emitter, retProp);
   /* emit ldaxr */
   (void)emitter.Emit("\t").Emit("ldaxr").Emit("\t");
@@ -1833,7 +1835,7 @@ void AArch64AsmEmitter::EmitCompareAndSwapInt(Emitter &emitter, const Insn &insn
   /* MOP_compare_and_swapI and MOP_compare_and_swapL have 8 operands */
   ASSERT(insn.GetOperandSize() > kInsnEighthOpnd, "ensure the operands number");
   const MOperator mOp = insn.GetMachineOpcode();
-  const AArch64MD *md = &AArch64CG::kMd[mOp];
+  const InsnDesc *md = &AArch64CG::kMd[mOp];
   Operand *temp0 = &insn.GetOperand(kInsnSecondOpnd);
   Operand *temp1 = &insn.GetOperand(kInsnThirdOpnd);
   Operand *obj = &insn.GetOperand(kInsnFourthOpnd);
@@ -1858,7 +1860,7 @@ void AArch64AsmEmitter::EmitCompareAndSwapInt(Emitter &emitter, const Insn &insn
   temp0->Accept(visitor);
   (void)emitter.Emit("]\n");
   Operand *expectedValue = &insn.GetOperand(kInsnSixthOpnd);
-  OpndProp *expectedValueProp = md->operand[kInsnSixthOpnd];
+  const OpndDesc *expectedValueProp = md->opndMD[kInsnSixthOpnd];
   /* cmp       ws, w3 */
   (void)emitter.Emit("\tcmp\t");
   temp1->Accept(visitor);
@@ -1898,7 +1900,7 @@ void AArch64AsmEmitter::EmitCompareAndSwapInt(Emitter &emitter, const Insn &insn
 }
 
 void AArch64AsmEmitter::EmitCTlsDescRel(Emitter &emitter, const Insn &insn) const {
-  const AArch64MD *md = &AArch64CG::kMd[MOP_tls_desc_rel];
+  const InsnDesc *md = &AArch64CG::kMd[MOP_tls_desc_rel];
   Operand *result = &insn.GetOperand(kInsnFirstOpnd);
   Operand *src = &insn.GetOperand(kInsnSecondOpnd);
   Operand *symbol = &insn.GetOperand(kInsnThirdOpnd);
@@ -1906,8 +1908,8 @@ void AArch64AsmEmitter::EmitCTlsDescRel(Emitter &emitter, const Insn &insn) cons
   std::string symName = stImmOpnd->GetName();
   symName += stImmOpnd->GetSymbol()->GetStorageClass() == kScPstatic ?
       std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()) : "";
-  A64OpndEmitVisitor resultVisitor(emitter, md->operand[0]);
-  A64OpndEmitVisitor srcVisitor(emitter, md->operand[1]);
+  A64OpndEmitVisitor resultVisitor(emitter, md->opndMD[0]);
+  A64OpndEmitVisitor srcVisitor(emitter, md->opndMD[1]);
   (void)emitter.Emit("\t").Emit("add").Emit("\t");
   result->Accept(resultVisitor);
   (void)emitter.Emit(", ");
@@ -1921,11 +1923,11 @@ void AArch64AsmEmitter::EmitCTlsDescRel(Emitter &emitter, const Insn &insn) cons
 }
 
 void AArch64AsmEmitter::EmitCTlsDescCall(Emitter &emitter, const Insn &insn) const {
-  const AArch64MD *md = &AArch64CG::kMd[MOP_tls_desc_call];
-  Operand *func = &insn.GetOperand(kInsnFirstOpnd);
+  const InsnDesc *md = &AArch64CG::kMd[MOP_tls_desc_call];
+  Operand *func = &insn.GetOperand(kInsnSecondOpnd);
   Operand *symbol = &insn.GetOperand(kInsnThirdOpnd);
-  OpndProp *prop = md->operand[kInsnFirstOpnd];
-  auto stImmOpnd = static_cast<StImmOperand*>(symbol);
+  const OpndDesc *prop = md->opndMD[kInsnSecondOpnd];
+  auto *stImmOpnd = static_cast<StImmOperand*>(symbol);
   std::string symName = stImmOpnd->GetName();
   symName += stImmOpnd->GetSymbol()->GetStorageClass() == kScPstatic ?
       std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()) : "";
@@ -1947,17 +1949,17 @@ void AArch64AsmEmitter::EmitCTlsDescCall(Emitter &emitter, const Insn &insn) con
 }
 
 void AArch64AsmEmitter::EmitSyncLockTestSet(Emitter &emitter, const Insn &insn) const {
-  const AArch64MD *md = &AArch64CG::kMd[insn.GetMachineOpcode()];
+  const InsnDesc *md = &AArch64CG::kMd[insn.GetMachineOpcode()];
   auto *result = &insn.GetOperand(kInsnFirstOpnd);
   auto *temp = &insn.GetOperand(kInsnSecondOpnd);
   auto *addr = &insn.GetOperand(kInsnThirdOpnd);
   auto *value = &insn.GetOperand(kInsnFourthOpnd);
   auto *label = &insn.GetOperand(kInsnFifthOpnd);
-  A64OpndEmitVisitor resultVisitor(emitter, md->operand[kInsnFirstOpnd]);
-  A64OpndEmitVisitor tempVisitor(emitter, md->operand[kInsnSecondOpnd]);
-  A64OpndEmitVisitor addrVisitor(emitter, md->operand[kInsnThirdOpnd]);
-  A64OpndEmitVisitor valueVisitor(emitter, md->operand[kInsnFourthOpnd]);
-  A64OpndEmitVisitor labelVisitor(emitter, md->operand[kInsnFifthOpnd]);
+  A64OpndEmitVisitor resultVisitor(emitter, md->opndMD[kInsnFirstOpnd]);
+  A64OpndEmitVisitor tempVisitor(emitter, md->opndMD[kInsnSecondOpnd]);
+  A64OpndEmitVisitor addrVisitor(emitter, md->opndMD[kInsnThirdOpnd]);
+  A64OpndEmitVisitor valueVisitor(emitter, md->opndMD[kInsnFourthOpnd]);
+  A64OpndEmitVisitor labelVisitor(emitter, md->opndMD[kInsnFifthOpnd]);
   /* label: */
   label->Accept(labelVisitor);
   (void)emitter.Emit(":\n");
@@ -2010,10 +2012,11 @@ void AArch64AsmEmitter::EmitCheckThrowPendingException(Emitter &emitter) const {
 
 void AArch64AsmEmitter::EmitLazyBindingRoutine(Emitter &emitter, const Insn &insn) const {
   /* ldr xzr, [xs] */
-  const AArch64MD *md = &AArch64CG::kMd[MOP_adrp_ldr];
+  const InsnDesc *md = &AArch64CG::kMd[MOP_adrp_ldr];
 
   Operand *opnd0 = &insn.GetOperand(kInsnFirstOpnd);
-  OpndProp *prop0 = md->operand[0];
+  const OpndDesc *prop0 = md->opndMD[0];
+  A64OpndEmitVisitor visitor(emitter, prop0);
 
   /* emit "ldr  xzr,[xs]" */
 #ifdef USE_32BIT_REF
@@ -2021,13 +2024,13 @@ void AArch64AsmEmitter::EmitLazyBindingRoutine(Emitter &emitter, const Insn &ins
 #else
   (void)emitter.Emit("\t").Emit("ldr").Emit("\txzr, [");
 #endif /* USE_32BIT_REF */
-  opnd0->Emit(emitter, prop0);
+  opnd0->Accept(visitor);
   (void)emitter.Emit("]");
   (void)emitter.Emit("\t// Lazy binding\n");
 }
 
 void AArch64AsmEmitter::PrepareVectorOperand(RegOperand *regOpnd, uint32 &compositeOpnds, Insn &insn) const {
-  VectorRegSpec* vecSpec = static_cast<AArch64VectorInsn&>(insn).GetAndRemoveRegSpecFromList();
+  VectorRegSpec* vecSpec = static_cast<VectorInsn&>(insn).GetAndRemoveRegSpecFromList();
   compositeOpnds = (vecSpec->compositeOpnds > 0) ? vecSpec->compositeOpnds : compositeOpnds;
   regOpnd->SetVecLanePosition(vecSpec->vecLane);
   switch (insn.GetMachineOpcode()) {
@@ -2082,7 +2085,8 @@ void AArch64AsmEmitter::EmitAArch64CfiInsn(Emitter &emitter, const Insn &insn) c
   for (uint32 i = 0; i < cfiDescr.opndCount; ++i) {
     (void)emitter.Emit(" ");
     Operand &curOperand = insn.GetOperand(i);
-    curOperand.Emit(emitter, nullptr);
+    cfi::CFIOpndEmitVisitor cfiOpndEmitVisitor(emitter);
+    curOperand.Accept(cfiOpndEmitVisitor);
     if (i < (cfiDescr.opndCount - 1)) {
       (void)emitter.Emit(",");
     }
@@ -2126,7 +2130,8 @@ void AArch64AsmEmitter::EmitAArch64DbgInsn(FuncEmitInfo &funcEmitInfo, Emitter &
       for (uint32 i = 0; i < dbgDescr.opndCount; ++i) {
         (void)emitter.Emit(" ");
         Operand &curOperand = insn.GetOperand(i);
-        curOperand.Emit(emitter, nullptr);
+        mpldbg::DBGOpndEmitVisitor dbgOpndEmitVisitor(emitter);
+    curOperand.Accept(dbgOpndEmitVisitor);
       }
       break;
     }
@@ -2135,8 +2140,8 @@ void AArch64AsmEmitter::EmitAArch64DbgInsn(FuncEmitInfo &funcEmitInfo, Emitter &
 }
 
 bool AArch64AsmEmitter::CheckInsnRefField(const Insn &insn, size_t opndIndex) const {
-  if (insn.IsAccessRefField() && static_cast<const AArch64Insn&>(insn).AccessMem()) {
-    Operand &opnd0 = insn.GetOperand(static_cast<uint32>(opndIndex));
+  if (insn.IsAccessRefField() && insn.AccessMem()) {
+    Operand &opnd0 = insn.GetOperand(opndIndex);
     if (opnd0.IsRegister()) {
       static_cast<RegOperand&>(opnd0).SetRefField(true);
       return true;

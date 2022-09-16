@@ -10514,8 +10514,6 @@ void AArch64CGFunc::SelectCTlsGlobalDesc(Operand &result, StImmOperand &stImm) {
   RegOperand *tlsAddr = &CreateRegisterOperandOfType(PTY_u64);
   RegOperand *specialFunc = &CreateRegisterOperandOfType(PTY_u64);
   GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_tls_desc_call, r0opnd, *tlsAddr, stImm));
-  /* release tls address */
-  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_pseduo_tls_release, *tlsAddr));
   //  mrs xn, tpidr_el0
   //  add x0, x0, xn
   auto tpidr = &CreateCommentOperand("tpidr_el0");
