@@ -162,13 +162,13 @@ void AArch64RegSavesOpt::ProcessCondOpnd(const BB &bb) {
 }
 
 void AArch64RegSavesOpt::ProcessOperands(const Insn &insn, const BB &bb) {
-  const AArch64MD *md = &AArch64CG::kMd[static_cast<const AArch64Insn&>(insn).GetMachineOpcode()];
+  const InsnDesc *md = insn.GetDesc();
   bool isAsm = (insn.GetMachineOpcode() == MOP_asm);
 
   uint32 opndNum = insn.GetOperandSize();
   for (uint32 i = 0; i < opndNum; ++i) {
     Operand &opnd = insn.GetOperand(i);
-    OpndProp *regProp = md->operand[i];
+    auto *regProp = md->opndMD[i];
     bool isDef = regProp->IsRegDef();
     bool isUse = regProp->IsRegUse();
     if (opnd.IsList()) {
@@ -629,7 +629,7 @@ void AArch64RegSavesOpt::RevertToRestoreAtEpilog(AArch64reg reg) {
 
 /* Determine calleesave regs restore locations by calling ssu-pre,
    previous bbSavedRegs memory is cleared and restore locs recorded in it */
-bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
+void AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   MapleAllocator sprealloc(memPool);
 #if RS_DUMP
@@ -700,7 +700,6 @@ bool AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
       }
     }
   }
-  return true;
 }
 
 int32 AArch64RegSavesOpt::FindCalleeBase() const {
@@ -712,8 +711,8 @@ int32 AArch64RegSavesOpt::FindCalleeBase() const {
   if (cgFunc->GetFunction().GetAttr(FUNCATTR_varargs)) {
     /* GR/VR save areas are above the callee save area */
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc->GetMemlayout());
-    int saveareasize = static_cast<int>(RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
-        RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize));
+    int saveareasize = static_cast<int>(RoundUp(ml->GetSizeOfGRSaveArea(), GetPointerSize() * k2BitSize) +
+        RoundUp(ml->GetSizeOfVRSaveArea(), GetPointerSize() * k2BitSize));
     offset -= saveareasize;
   }
   return offset;
@@ -960,7 +959,7 @@ void AArch64RegSavesOpt::InsertCalleeRestoreCode() {
 /* Callee-save registers save/restore placement optimization */
 void AArch64RegSavesOpt::Run() {
   // DotGenerator::GenerateDot("SR", *cgFunc, cgFunc->GetMirModule(), true, cgFunc->GetName());
-  if (Globals::GetInstance()->GetOptimLevel() <= 1 || !cgFunc->GetMirModule().IsCModule()) {
+  if (Globals::GetInstance()->GetOptimLevel() <= CGOptions::kLevel1 || !cgFunc->GetMirModule().IsCModule()) {
     return;
   }
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
@@ -995,11 +994,8 @@ void AArch64RegSavesOpt::Run() {
     /* Obsolete, to be deleted */
     DetermineCalleeSaveLocationsDoms();
   }
-
   /* Determine restore sites */
-  if (!DetermineCalleeRestoreLocations()) {
-    return;
-  }
+  DetermineCalleeRestoreLocations();
 
 #ifdef VERIFY
   /* Verify saves/restores are in pair */
