@@ -3337,6 +3337,24 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           EmitDecSigned(elp->GetFboffset());
           (void)Emit(CMNT "fboffset");
           break;
+        case DW_OP_breg0:
+        case DW_OP_breg1:
+        case DW_OP_breg2:
+        case DW_OP_breg3:
+        case DW_OP_breg4:
+        case DW_OP_breg5:
+        case DW_OP_breg6:
+        case DW_OP_breg7:
+          EmitHexUnsigned(2);
+          Emit(CMNT "size");
+          Emit("\n\t.byte    ");
+          EmitHexUnsigned(elp->GetOp());
+          Emit(CMNT);
+          Emit(maple::GetDwOpName(elp->GetOp()));
+          Emit("\n\t.sleb128 ");
+          EmitDecSigned(0);
+          Emit(CMNT "offset");
+          break;
         default:
           EmitHexUnsigned(uintptr_t(elp));
           break;
