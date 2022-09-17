@@ -2130,4 +2130,10 @@ bool MECfgVerifyFrequency::PhaseRun(MeFunction &f) {
 #endif
   return false;
 }
+
+void GdbDumpToFile(MeCFG *cfg, bool dumpEdgeFreq) {
+  std::string fileName = "cfgfromgdb";
+  cfg->DumpToFile(fileName, false, dumpEdgeFreq, nullptr);
+}
+
 }  // namespace maple

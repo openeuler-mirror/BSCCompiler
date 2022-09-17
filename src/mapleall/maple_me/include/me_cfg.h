@@ -361,5 +361,7 @@ MeCFG *theCFG = nullptr;
 MAPLE_MODULE_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(MECfgVerifyFrequency, MeFunction)
 MAPLE_FUNC_PHASE_DECLARE_END
+
+void GdbDumpToFile(MeCFG *cfg, bool dumpEdgeFreq);
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_CFG_H

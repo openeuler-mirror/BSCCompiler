@@ -571,6 +571,9 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
       RegreadNode *regreadNode = codeMP->New<RegreadNode>(vecType->GetPrimType(), dupScalarStmt->GetRegIdx());
       blockParent->InsertBefore(iassign, dupScalarStmt);
       iassign->SetRHS(regreadNode);
+      if (Options::profileUse && mirFunc->GetFuncProfData()) {
+        mirFunc->GetFuncProfData()->CopyStmtFreq(dupScalarStmt->GetStmtID(), iassign->GetStmtID());
+      }
     } else if (iassign->GetRHS()->GetOpCode() == OP_iread) {
       // rhs is iread
       IreadNode *ireadnode = static_cast<IreadNode *>(iassign->GetRHS());
