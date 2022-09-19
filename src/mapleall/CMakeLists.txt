@@ -17,5 +17,4 @@
 add_subdirectory(mempool)
 add_subdirectory(maple_util)
 add_subdirectory(maple_be)
-
-
+add_subdirectory(maple_ipa)
