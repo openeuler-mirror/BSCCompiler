@@ -40,18 +40,15 @@ target_include_directories(MemPool PRIVATE
     ${THIRD_PARTY_ROOT}/bounds_checking_function/include
     include
 )
-add_dependencies(MemPool
+
+set(deps_MemPool
     libmempool
     libmplutil
     libcommandline
     libHWSecureC
 )
-target_link_libraries(MemPool
-    libmempool
-    libmplutil
-    libcommandline
-    libHWSecureC
-)
+add_dependencies(MemPool ${deps_MemPool})
+target_link_libraries(MemPool ${deps_MemPool})
 set_target_properties(MemPool PROPERTIES
      RUNTIME_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/bin
 )
