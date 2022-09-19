@@ -248,6 +248,10 @@ MIRConst *ASTExpr::GenerateMIRConstImpl() const {
   return value->Translate2MIRConst();
 }
 
+ASTExpr *ASTExpr::IgnoreParensImpl() {
+  return this;
+}
+
 // ---------- ASTDeclRefExpr ---------
 MIRConst *ASTDeclRefExpr::GenerateMIRConstImpl() const {
   MIRType *mirType = refedDecl->GetTypeDesc().front();
@@ -425,14 +429,8 @@ MIRConst *ASTCastExpr::GenerateMIRConstImpl() const {
   if (isArrayToPointerDecay && feExpr->GetKind() == FEIRNodeKind::kExprAddrof) {
     return FEManager::GetModule().GetMemPool()->New<MIRStrConst>(
         GetConstantValue()->val.strIdx, *GlobalTables::GetTypeTable().GetPrimType(PTY_a64));
-  } else if (isArrayToPointerDecay && child->GetASTOp() == kASTOpRef) {
-    ASTDecl *astDecl = static_cast<ASTDeclRefExpr*>(child)->GetASTDecl();
-    CHECK_FATAL(astDecl->GetDeclKind() == kASTVar, "Invalid");
-    MIRSymbol *mirSymbol = static_cast<ASTVar*>(astDecl)->Translate2MIRSymbol();
-    return FEManager::GetModule().GetMemPool()->New<MIRAddrofConst>(mirSymbol->GetStIdx(), 0,
-                                                                    *(astDecl->GetTypeDesc().front()));
-  } else if (isArrayToPointerDecay && child->GetASTOp() == kASTOpCompoundLiteralExpr) {
-    static_cast<ASTCompoundLiteralExpr*>(child)->SetAddrof(true);
+  } else if (isArrayToPointerDecay && child->IgnoreParens()->GetASTOp() == kASTOpCompoundLiteralExpr) {
+    static_cast<ASTCompoundLiteralExpr*>(child->IgnoreParens())->SetAddrof(true);
     return child->GenerateMIRConst();
   } else if (isNeededCvt) {
     if (dst->GetPrimType() == PTY_f64) {

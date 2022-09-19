@@ -16,6 +16,12 @@
 
 int *g_ptr = (int [4]) { 4, 8, 16, 32 };
 double *g_ptr1 = (double [4]) { 1.1, 1.2, 1.3, 1.4 };
+int *g_ptr2 = ((((int [4]) { 4, 8, 16, 32 })));
+int arr[] = {1,2,3,4};
+int *g_ptr3 = arr;
+int *g_ptr4 = &((arr));
+double *g_ptr5 = &((double [4]) { 1.1, 1.2, 1.3, 1.4 });
+
 
 int *g_a = &(int){6};
 int main() {

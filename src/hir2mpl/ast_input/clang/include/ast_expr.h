@@ -144,12 +144,17 @@ class ASTExpr {
 
   virtual void SetShortCircuitIdx(uint32 leftIdx, uint32 rightIdx) {}
 
+  ASTExpr *IgnoreParens() {
+    return IgnoreParensImpl();
+  }
+
  protected:
   virtual ASTValue *GetConstantValueImpl() const {
     return value;
   }
   virtual MIRConst *GenerateMIRConstImpl() const;
   virtual UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const = 0;
+  virtual ASTExpr *IgnoreParensImpl();
 
   virtual ASTDecl *GetASTDeclImpl() const {
     return refedDecl;
@@ -1425,6 +1430,10 @@ class ASTParenExpr : public ASTExpr {
  protected:
   MIRConst *GenerateMIRConstImpl() const override {
     return child->GenerateMIRConst();
+  }
+
+  ASTExpr *IgnoreParensImpl() override {
+    return child->IgnoreParens();
   }
 
  private:

@@ -59,6 +59,31 @@ struct D {
 } d;
 struct F *pf = &d.e.f;
 
+enum X {
+  ONE,
+  TWO,
+  THREE,
+  FOUR,
+  FIVE
+};
+
+struct G {
+  int a;
+  int b;
+  union {
+    int c;
+    enum X *x;
+  } d;
+  double f;
+};
+struct G gg = {
+  .b = 2,
+  .d.x = ((const enum X[]) {FIVE, ONE, THREE}),
+  .f = 3.14,
+};
+
+struct G gg1 = {.d.x = (const enum X[]) {FIVE, ONE, THREE}};
+
 int main() {
   printf("a.i[0] = %d\na.i[1] = %d\n", a.i[0], a.i[1]);
   printf("i[0] = %d\ni[1] = %d\ni[2] = %d\n", i[0], i[1], i[2]);
