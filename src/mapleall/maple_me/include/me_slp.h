@@ -21,6 +21,7 @@
 namespace maple {
 MIRType* GenVecType(PrimType sPrimType, uint8 lanes);
 MIRType *GetScalarUnsignedTypeBySize(uint32 typeSize);
+ScalarMeExpr* FindPreVersionByAlias(ScalarMeExpr &aliasPreVersion, ScalarMeExpr &curVersion);
 
 // ----------------- //
 //  Memory Location  //

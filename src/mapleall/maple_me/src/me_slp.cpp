@@ -637,6 +637,126 @@ bool SwapChiForSameOstIfNeeded(MeStmt &stmt1, MeStmt &stmt2) {
   return swapped;
 }
 
+using VisitedPhiOpnds = std::map<size_t, ScalarMeExpr*>;
+
+ScalarMeExpr* DoFindPreVersionByAlias(ScalarMeExpr &aliasPreVersion, ScalarMeExpr &curVersion,
+    VisitedPhiOpnds &visitedPhiOpnds, bool &foundLoop);
+
+ScalarMeExpr* DoFindPreVersionByAliasInPhi(ScalarMeExpr &aliasPreVersion, ScalarMeExpr &curVersion,
+    VisitedPhiOpnds &visitedPhiOpnds, bool &foundLoop) {
+  OStIdx targetOstIdx = curVersion.GetOstIdx();
+  auto &aliasPhi = aliasPreVersion.GetDefPhi();
+  auto &phiList = aliasPhi.GetDefBB()->GetMePhiList();
+  auto it = phiList.find(targetOstIdx);
+  if (it != phiList.end()) {
+    return it->second->GetLHS();
+  }
+  auto &phiOpnds = aliasPhi.GetOpnds();
+  for (ScalarMeExpr *opnd : phiOpnds) {
+    if (opnd == aliasPhi.GetLHS()) {
+      continue;
+    }
+    auto retPair = visitedPhiOpnds.try_emplace(visitedPhiOpnds.size(), opnd);
+    if (!retPair.second) {
+      // found loop
+      foundLoop = true;
+      return nullptr;
+    }
+    size_t oldMaxId = visitedPhiOpnds.size() - 1;
+    auto *result = DoFindPreVersionByAlias(*opnd, curVersion, visitedPhiOpnds, foundLoop);
+    if (!foundLoop) {
+      return result;
+    }
+    foundLoop = false;
+    for (size_t i = visitedPhiOpnds.size() - 1; i > oldMaxId; --i) {
+      (void)visitedPhiOpnds.erase(i);
+    }
+  }
+  CHECK_FATAL_FALSE("should not be here, wrong alias?");
+}
+
+ScalarMeExpr* DoFindPreVersionByAlias(ScalarMeExpr &aliasPreVersion, ScalarMeExpr &curVersion,
+    VisitedPhiOpnds &visitedPhiOpnds, bool &foundLoop) {
+  OStIdx targetOstIdx = curVersion.GetOstIdx();
+  auto defType = aliasPreVersion.GetDefBy();
+  if (defType == kDefByNo) {
+    return nullptr;
+  }
+  if (defType == kDefByPhi) {
+    return DoFindPreVersionByAliasInPhi(aliasPreVersion, curVersion, visitedPhiOpnds, foundLoop);
+  }
+
+  auto *defStmt = aliasPreVersion.GetDefByMeStmt();
+  CHECK_NULL_FATAL(defStmt);  // kDefByChi, kDefByStmt or kDefByMustDef
+  // Search defStmt lhs
+  if (defStmt->GetOp() == OP_dassign) {
+    auto *dassignLhs = static_cast<DassignMeStmt*>(defStmt)->GetLHS();
+    if (dassignLhs->GetOstIdx() == targetOstIdx) {
+      return dassignLhs;
+    }
+  }
+  // Search defStmt chiList
+  ScalarMeExpr *nextExpr = nullptr;
+  auto *chiList = defStmt->GetChiList();
+  if (chiList != nullptr) {
+    auto it = chiList->find(targetOstIdx);
+    if (it != chiList->end()) {
+      return it->second->GetRHS();
+    }
+    nextExpr = aliasPreVersion.GetDefChi().GetRHS();
+  }
+  // Search defStmt mustDefList
+  auto *mustDefList = defStmt->GetMustDefList();
+  if (mustDefList != nullptr) {
+    for (auto &mustDef : *mustDefList) {
+      if (mustDef.GetLHS()->GetOstIdx() == targetOstIdx) {
+        return mustDef.GetLHS();
+      }
+    }
+  }
+  CHECK_NULL_FATAL(nextExpr);
+  return DoFindPreVersionByAlias(*nextExpr, curVersion, visitedPhiOpnds, foundLoop);
+}
+
+// Try to find previous version of `curVersion` by searching all possible defs of `aliasPreVersion`.
+// Return preVersion if found, otherwise return nullptr.
+ScalarMeExpr* FindPreVersionByAlias(ScalarMeExpr &aliasPreVersion, ScalarMeExpr &curVersion) {
+  VisitedPhiOpnds visitedPhiOpnds;
+  bool foundLoop = false;
+  return DoFindPreVersionByAlias(aliasPreVersion, curVersion, visitedPhiOpnds, foundLoop);
+}
+
+// Find previous version of dassignStmt lhsVar
+static ScalarMeExpr *FindPreVersionOfDassignLhs(DassignMeStmt &dassignStmt, IRMap &irMap) {
+  auto *curVersion = dassignStmt.GetLHS();
+  auto *dassignChiList = dassignStmt.GetChiList();
+  CHECK_NULL_FATAL(dassignChiList);
+  CHECK_FATAL(!dassignChiList->empty(), "chiList empty");
+  ChiMeNode *aliasChi = dassignChiList->begin()->second;
+  ScalarMeExpr *aliasPreVersion = aliasChi->GetRHS();
+  auto *preVersion = FindPreVersionByAlias(*aliasPreVersion, *curVersion);
+  if (preVersion == nullptr) {
+    preVersion = irMap.GetOrCreateZeroVersionVarMeExpr(*curVersion->GetOst());
+  }
+  return preVersion;
+}
+
+static void MovDefsFromDassignsToVecIassign(MapleVector<MeStmt*> &dassignStmts, IassignMeStmt &vecIassign,
+    IRMap &irMap) {
+  for (auto *stmt : dassignStmts) {
+    CHECK_FATAL(stmt->GetOp() == OP_dassign, "must be");
+    auto *dassign = static_cast<DassignMeStmt*>(stmt);
+    auto *curVersion = dassign->GetLHS();
+    auto *preVersion = FindPreVersionOfDassignLhs(*dassign, irMap);
+    auto *newChi = irMap.New<ChiMeNode>(&vecIassign);
+    newChi->SetLHS(curVersion);
+    newChi->SetRHS(preVersion);
+    curVersion->SetDefBy(kDefByChi);
+    curVersion->SetDefChi(*newChi);
+    (void)vecIassign.GetChiList()->emplace(curVersion->GetOstIdx(), newChi);
+  }
+}
+
 // ------------------------ //
 //  Block Level Scheduling  //
 // ------------------------ //
@@ -3204,7 +3324,14 @@ bool SLPVectorizer::VectorizeTreeNode(TreeNode *treeNode) {
     }
     case OP_dassign:
     case OP_iassign: {
-      return DoVectTreeNodeIassign(treeNode);
+      bool ret = DoVectTreeNodeIassign(treeNode);
+      if (ret && treeNode->GetOp() == OP_dassign) {
+        auto &dassignStmts = treeNode->GetStmts();
+        auto *vecIassign = treeNode->GetOutStmts().back();
+        CHECK_FATAL(vecIassign->GetOp() == OP_iassign, "must be");
+        MovDefsFromDassignsToVecIassign(dassignStmts, static_cast<IassignMeStmt&>(*vecIassign), irMap);
+      }
+      return ret;
     }
     default: {
       SLP_FAILURE_DEBUG(os << "unsupported op: " << GetOpName(treeNode->GetOp()) << std::endl);
