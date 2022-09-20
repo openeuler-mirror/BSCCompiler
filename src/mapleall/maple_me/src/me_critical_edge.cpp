@@ -304,15 +304,6 @@ bool MESplitCEdge::PhaseRun(maple::MeFunction &f) {
   bool enableDebug = DEBUGFUNC_NEWPM(f);
   MeSplitCEdge mscedge = MeSplitCEdge(enableDebug);
   mscedge.SplitCriticalEdgeForMeFunc(f);
-  if (Options::profileUse) {
-    if ((f.IsPme() || f.IsLfo()) && f.GetPreMeFunc()) {
-      // new inserted BB break cached while/if label information and IR layout
-      f.GetPreMeFunc()->label2IfInfo.clear();
-      f.GetPreMeFunc()->label2WhileInfo.clear();
-      f.GetPreMeFunc()->pmeCreatedIfLabelSet.clear();
-      f.GetPreMeFunc()->pmeCreatedWhileLabelSet.clear();
-    }
-  }
   if (f.GetCfg()->UpdateCFGFreq() && (f.GetCfg()->DumpIRProfileFile())) {
     f.GetCfg()->DumpToFile("after-splitcriticaledge", false, true);
   }
