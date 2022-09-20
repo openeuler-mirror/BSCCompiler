@@ -14,24 +14,34 @@
  */
 #include "ipa_phase_manager.h"
 #include "pme_emit.h"
-#include "gcov_parser.h"
+#include "mpl_profdata_parser.h"
+#include "ipa_collect.h"
+#include "ipa_side_effect.h"
+#include "prop_return_null.h"
+#include "prop_parameter_type.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 #define CLANG (mirModule.IsCModule())
 
 namespace maple {
+void IpaSccPM::Init(MIRModule &m) {
+  SetQuiet(true);
+  m.SetInIPA(true);
+  MeOption::mergeStmts = false;
+  MeOption::propDuringBuild = false;
+  MeOption::layoutWithPredict = false;
+  ipaInfo = GetPhaseAllocator()->New<CollectIpaInfo>(m, *GetPhaseMemPool());
+  DoPhasesPopulate(m);
+}
+
 bool IpaSccPM::PhaseRun(MIRModule &m) {
   if (theMIRModule->HasPartO2List()) {
     return false;
   }
-  SetQuiet(true);
   bool oldProp = MeOption::propDuringBuild;
   bool oldMerge = MeOption::mergeStmts;
   bool oldLayout = MeOption::layoutWithPredict;
-  MeOption::mergeStmts = false;
-  MeOption::propDuringBuild = false;
-  MeOption::layoutWithPredict = false;
-  DoPhasesPopulate(m);
+  Init(m);
   bool changed = false;
   auto admMempool = AllocateMemPoolInPhaseManager("Ipa Phase Manager's Analysis Data Manager mempool");
   auto *serialADM = GetManagerMemPool()->New<AnalysisDataManager>(*(admMempool.get()));
@@ -71,14 +81,14 @@ bool IpaSccPM::PhaseRun(MIRModule &m) {
         LogInfo::MapleLogger() << "---Run scc " << (curPhase->IsAnalysis() ? "analysis" : "transform")
                                << " Phase [ " << curPhase->PhaseName() << " ]---\n";
       }
-      changed = RunAnalysisPhase<MapleSccPhase<SCCNode<CGNode>>, SCCNode<CGNode>>(
-          *curPhase, *serialADM, **it) || changed;
+      changed |= RunAnalysisPhase<MapleSccPhase<SCCNode<CGNode>>, SCCNode<CGNode>>(*curPhase, *serialADM, **it);
     }
     serialADM->EraseAllAnalysisPhase();
   }
   MeOption::mergeStmts = oldMerge;
   MeOption::propDuringBuild = oldProp;
   MeOption::layoutWithPredict = oldLayout;
+  m.SetInIPA(false);
   return changed;
 }
 
@@ -102,8 +112,8 @@ void IpaSccPM::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddPreserved<M2MCallGraph>();
   aDep.AddPreserved<M2MKlassHierarchy>();
   if (Options::profileUse) {
-    aDep.AddRequired<M2MGcovParser>();
-    aDep.AddPreserved<M2MGcovParser>();
+    aDep.AddRequired<MMplProfDataParser>();
+    aDep.AddPreserved<MMplProfDataParser>();
   }
 }
 
@@ -126,8 +136,9 @@ bool SCCPrepare::PhaseRun(SCCNode<CGNode> &scc) {
   AddPhase("aliasclass", true);
   AddPhase("ssa", true);
   AddPhase("irmapbuild", true);
+  AddPhase("objSize", true);
   AddPhase("hprop", true);
-  AddPhase("identloops", Options::enableInlineSummary);
+  AddPhase("identloops", Options::enableGInline);  // for me_predict when collecting inline summary
 
   // Not like other phasemanager which use temp mempool to hold analysis results generated from the sub phases.
   // Here we use GetManagerMemPool which lives longer than this phase(manager) itself to hold all the analysis result.
@@ -159,7 +170,7 @@ bool SCCPrepare::PhaseRun(SCCNode<CGNode> &scc) {
 }
 
 void SCCEmit::Dump(MeFunction &f, const std::string phaseName) const {
-  if (Options::dumpIPA && (f.GetName() == Options::dumpFunc || f.GetName() == "*")) {
+  if (Options::dumpIPA && (f.GetName() == Options::dumpFunc || Options::dumpFunc == "*")) {
     LogInfo::MapleLogger() << ">>>>> Dump after " << phaseName << " <<<<<\n";
     f.GetMirFunc()->Dump();
     LogInfo::MapleLogger() << ">>>>> Dump after End <<<<<\n\n";

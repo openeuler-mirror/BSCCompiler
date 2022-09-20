@@ -8,7 +8,7 @@ ADDMODULEPHASE("GenNativeStubFunc", JAVALANG)
 ADDMODULEPHASE("gencheckcast", JAVALANG)
 ADDMODULEPHASE("javaintrnlowering", JAVALANG)
 ADDMODULEPHASE("callgraph", !Options::profileUse)
-ADDMODULEPHASE("inline", Options::O2 && Options::useInline && !Options::profileUse && !Options::enableInlineSummary)
+ADDMODULEPHASE("inline", Options::O2 && Options::useInline && !Options::profileUse)
 // run callgraph again to delete fully inlined static function
 ADDMODULEPHASE("callgraph", Options::O2 && Options::useInline && !Options::profileUse)
 ADDMODULEPHASE("simplify", (Options::O2 && !Options::genLMBC) || (CLANG && Options::profileGen))
@@ -16,7 +16,14 @@ ADDMODULEPHASE("ConstantFold", Options::O2)
 // ipa phase manager
 ADDMODULEPHASE("IpaSccPM", CLANG && (Options::O2 || Options::profileGen || Options::profileUse))
 ADDMODULEPHASE("outline", CLANG && Options::doOutline)
-ADDMODULEPHASE("inline", Options::O2 && Options::useInline && !Options::profileUse && Options::enableInlineSummary)
+
+// ginline
+ADDMODULEPHASE("ginline", CLANG && Options::O2 && Options::useInline && !Options::profileUse && Options::enableGInline)
+// run callgraph, simplify, constantfold again after ginline
+ADDMODULEPHASE("callgraph", CLANG && Options::O2 && Options::useInline && Options::enableGInline)
+ADDMODULEPHASE("simplify", CLANG && Options::O2 && !Options::genLMBC && Options::enableGInline)
+ADDMODULEPHASE("ConstantFold", CLANG && Options::O2 && Options::enableGInline)
+
 ADDMODULEPHASE("inline", CLANG && (Options::O2 && Options::useInline && Options::profileUse))
 ADDMODULEPHASE("ipaclone", CLANG && Options::O2 && Options::enableIPAClone)
 ADDMODULEPHASE("ProfileGenPM", CLANG && Options::profileGen)
