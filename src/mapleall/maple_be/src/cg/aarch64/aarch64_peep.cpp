@@ -82,7 +82,7 @@ void AArch64CGPeepHole::Run() {
         continue;
       }
       if (ssaInfo != nullptr) {
-        optSuccess = DoSSAOptimize(*bb, *insn);
+        optSuccess |= DoSSAOptimize(*bb, *insn);
       } else {
         DoNormalOptimize(*bb, *insn);
       }
@@ -96,6 +96,7 @@ void AArch64CGPeepHole::Run() {
 bool AArch64CGPeepHole::DoSSAOptimize(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   manager = peepMemPool->New<PeepOptimizeManager>(*cgFunc, bb, insn, *ssaInfo);
+  manager->SetOptSuccess(false);
   switch (thisMop) {
     case MOP_xandrrr:
     case MOP_wandrrr: {
@@ -2473,7 +2474,6 @@ void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
 
 void AArch64PrePeepHole1::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
-  optimizations[kAndCmpBranchesToTbzOpt] = optOwnMemPool->New<AndCmpBranchesToTbzAArch64>(cgFunc);
   optimizations[kComplexExtendWordLslOpt] = optOwnMemPool->New<ComplexExtendWordLslAArch64>(cgFunc);
 }
 
@@ -2487,20 +2487,6 @@ void AArch64PrePeepHole1::Run(BB &bb, Insn &insn) {
     }
     default:
       break;
-  }
-  if (&insn == bb.GetLastInsn()) {
-    switch (thisMop) {
-      case MOP_wcbz:
-      case MOP_wcbnz:
-      case MOP_xcbz:
-      case MOP_beq:
-      case MOP_bne: {
-        (static_cast<AndCmpBranchesToTbzAArch64*>(optimizations[kAndCmpBranchesToTbzOpt]))->Run(bb, insn);
-        break;
-      }
-      default:
-        break;
-    }
   }
 }
 
@@ -5161,130 +5147,6 @@ void ReplaceIncDecWithIncPattern::Run(BB &bb, Insn &insn) {
   }
   bb.RemoveInsn(*prevInsn);
   target->SetFunctionSymbol(*st);
-}
-
-
-void AndCmpBranchesToTbzAArch64::Run(BB &bb, Insn &insn) {
-  AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
-  if (&insn != bb.GetLastInsn()) {
-    return;
-  }
-  MOperator mopB = insn.GetMachineOpcode();
-  if (mopB != MOP_beq && mopB != MOP_bne) {
-    return;
-  }
-  auto &label = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  /* get the instruction before bne/beq, expects its type is cmp. */
-  Insn *prevInsn = insn.GetPreviousMachineInsn();
-  if (prevInsn == nullptr) {
-    return;
-  }
-  MOperator prevMop = prevInsn->GetMachineOpcode();
-  if (prevMop != MOP_wcmpri && prevMop != MOP_xcmpri) {
-    return;
-  }
-
-  /* get the instruction before "cmp", expect its type is "and". */
-  Insn *prevPrevInsn = prevInsn->GetPreviousMachineInsn();
-  if (prevPrevInsn == nullptr) {
-    return;
-  }
-  MOperator mopAnd = prevPrevInsn->GetMachineOpcode();
-  if (mopAnd != MOP_wandrri12 && mopAnd != MOP_xandrri13) {
-    return;
-  }
-
-  /*
-   * check operand
-   *
-   * the real register of "cmp" and "and" must be the same.
-   */
-  if (&(prevInsn->GetOperand(kInsnSecondOpnd)) != &(prevPrevInsn->GetOperand(kInsnFirstOpnd))) {
-    return;
-  }
-
-  uint32 opndIdx = 2;
-  if (!prevPrevInsn->GetOperand(opndIdx).IsIntImmediate() || !prevInsn->GetOperand(opndIdx).IsIntImmediate()) {
-    return;
-  }
-  auto &immAnd = static_cast<ImmOperand&>(prevPrevInsn->GetOperand(opndIdx));
-  auto &immCmp = static_cast<ImmOperand&>(prevInsn->GetOperand(opndIdx));
-  if (immCmp.GetValue() == 0) {
-    int n = LogValueAtBase2(immAnd.GetValue());
-    if (n < 0) {
-      return;
-    }
-    /* judge whether the flag_reg and "w0" is live later. */
-    auto &flagReg = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
-    auto &cmpReg = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
-    if (FindRegLiveOut(flagReg, *prevInsn->GetBB()) || FindRegLiveOut(cmpReg, *prevInsn->GetBB())) {
-      return;
-    }
-    MOperator mopNew = MOP_undef;
-    switch (mopB) {
-      case MOP_beq:
-        if (mopAnd == MOP_wandrri12) {
-          mopNew = MOP_wtbz;
-        } else if (mopAnd == MOP_xandrri13) {
-          mopNew = MOP_xtbz;
-        }
-        break;
-      case MOP_bne:
-        if (mopAnd == MOP_wandrri12) {
-          mopNew = MOP_wtbnz;
-        } else if (mopAnd == MOP_xandrri13) {
-          mopNew = MOP_xtbnz;
-        }
-        break;
-      default:
-        CHECK_FATAL(false, "expects beq or bne insn");
-        break;
-    }
-    ImmOperand &newImm = aarch64CGFunc->CreateImmOperand(n, k8BitSize, false);
-    (void)bb.InsertInsnAfter(insn, cgFunc.GetInsnBuilder()->BuildInsn(mopNew,
-        prevPrevInsn->GetOperand(kInsnSecondOpnd), newImm, label));
-    bb.RemoveInsn(insn);
-    bb.RemoveInsn(*prevInsn);
-    bb.RemoveInsn(*prevPrevInsn);
-  } else {
-    int n = LogValueAtBase2(immAnd.GetValue());
-    int m = LogValueAtBase2(immCmp.GetValue());
-    if (n < 0 || m < 0 || n != m) {
-      return;
-    }
-    /* judge whether the flag_reg and "w0" is live later. */
-    auto &flagReg = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
-    auto &cmpReg = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
-    if (FindRegLiveOut(flagReg, *prevInsn->GetBB()) || FindRegLiveOut(cmpReg, *prevInsn->GetBB())) {
-      return;
-    }
-    MOperator mopNew = MOP_undef;
-    switch (mopB) {
-      case MOP_beq:
-        if (mopAnd == MOP_wandrri12) {
-          mopNew = MOP_wtbnz;
-        } else if (mopAnd == MOP_xandrri13) {
-          mopNew = MOP_xtbnz;
-        }
-        break;
-      case MOP_bne:
-        if (mopAnd == MOP_wandrri12) {
-          mopNew = MOP_wtbz;
-        } else if (mopAnd == MOP_xandrri13) {
-          mopNew = MOP_xtbz;
-        }
-        break;
-      default:
-        CHECK_FATAL(false, "expects beq or bne insn");
-        break;
-    }
-    ImmOperand &newImm = aarch64CGFunc->CreateImmOperand(n, k8BitSize, false);
-    (void)bb.InsertInsnAfter(insn, cgFunc.GetInsnBuilder()->BuildInsn(mopNew,
-        prevPrevInsn->GetOperand(kInsnSecondOpnd), newImm, label));
-    bb.RemoveInsn(insn);
-    bb.RemoveInsn(*prevInsn);
-    bb.RemoveInsn(*prevPrevInsn);
-  }
 }
 
 void RemoveSxtBeforeStrAArch64::Run(BB &bb, Insn &insn) {

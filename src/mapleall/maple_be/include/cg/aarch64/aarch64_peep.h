@@ -1633,35 +1633,6 @@ class ReplaceIncDecWithIncPattern : public CGPeepPattern {
 
 /*
  * Optimize the following patterns:
- *  and  w0, w6, #1  ====> tbz  w6, 0, .label
- *  cmp  w0, #1
- *  bne  .label
- *
- *  and  w0, w6, #16  ====> tbz  w6, 4, .label
- *  cmp  w0, #16
- *  bne  .label
- *
- *  and  w0, w6, #32  ====> tbnz  w6, 5, .label
- *  cmp  w0, #32
- *  beq  .label
- *
- *  and  x0, x6, #32  ====> tbz  x6, 5, .label
- *  cmp  x0, #0
- *  beq  .label
- *
- *  and  x0, x6, #32  ====> tbnz  x6, 5, .label
- *  cmp  x0, #0
- *  bne  .label
- */
-class AndCmpBranchesToTbzAArch64 : public PeepPattern {
- public:
-  explicit AndCmpBranchesToTbzAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~AndCmpBranchesToTbzAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
-};
-
-/*
- * Optimize the following patterns:
  * sxth  r4, r4         ====> strh r4, [r0, r3]
  * strh  r4, [r0, r3]
  *

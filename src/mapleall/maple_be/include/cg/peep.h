@@ -25,6 +25,80 @@ enum ReturnType : uint8 {
   kResNotFind
 };
 
+class PeepOptimizeManager {
+ public:
+  /* normal constructor */
+  PeepOptimizeManager(CGFunc &f, BB &bb, Insn &insn)
+      : cgFunc(&f),
+        currBB(&bb),
+        currInsn(&insn),
+        ssaInfo(nullptr) {}
+  /* constructor for ssa */
+  PeepOptimizeManager(CGFunc &f, BB &bb, Insn &insn, CGSSAInfo &info)
+      : cgFunc(&f),
+        currBB(&bb),
+        currInsn(&insn),
+        ssaInfo(&info) {}
+  ~PeepOptimizeManager() = default;
+  template<typename OptimizePattern>
+  void Optimize(bool patternEnable = false) {
+    if (!patternEnable) {
+      return;
+    }
+    OptimizePattern optPattern(*cgFunc, *currBB, *currInsn, *ssaInfo);
+    optPattern.Run(*currBB, *currInsn);
+    optSuccess |= optPattern.GetPatternRes();
+    if (optSuccess && optPattern.GetCurrInsn() != nullptr) {
+      currInsn = optPattern.GetCurrInsn();
+    }
+  }
+  template<typename OptimizePattern>
+  void NormalPatternOpt(bool patternEnable = false) {
+    if (!patternEnable) {
+      return;
+    }
+    OptimizePattern optPattern(*cgFunc, *currBB, *currInsn);
+    optPattern.Run(*currBB, *currInsn);
+  }
+  void SetOptSuccess(bool optRes) {
+    optSuccess = optRes;
+  }
+  bool OptSuccess() const {
+    return optSuccess;
+  }
+ private:
+  CGFunc *cgFunc;
+  BB *currBB;
+  Insn *currInsn;
+  CGSSAInfo *ssaInfo;
+  bool optSuccess = false;
+};
+
+class CGPeepHole {
+ public:
+  /* normal constructor */
+  CGPeepHole(CGFunc &f, MemPool *memPool)
+      : cgFunc(&f),
+        peepMemPool(memPool),
+        ssaInfo(nullptr) {}
+  /* constructor for ssa */
+  CGPeepHole(CGFunc &f, MemPool *memPool, CGSSAInfo *cgssaInfo)
+      : cgFunc(&f),
+        peepMemPool(memPool),
+        ssaInfo(cgssaInfo) {}
+  ~CGPeepHole() = default;
+
+  virtual void Run() = 0;
+  virtual bool DoSSAOptimize(BB &bb, Insn &insn) = 0;
+  virtual void DoNormalOptimize(BB &bb, Insn &insn) = 0;
+
+ protected:
+  CGFunc *cgFunc;
+  MemPool *peepMemPool;
+  CGSSAInfo *ssaInfo;
+  PeepOptimizeManager *manager = nullptr;
+};
+
 class PeepPattern {
  public:
   explicit PeepPattern(CGFunc &oneCGFunc) : cgFunc(oneCGFunc) {}
