@@ -130,6 +130,10 @@ bool TailCallOpt::DoTailCallOpt() {
   FOR_ALL_BB(bb, &cgFunc) {
     FOR_BB_INSNS(insn, bb) {
       if (insn->IsCall()) {
+        /*
+         * lib call "savectx, vfork, getcontext" which might cause fault
+         * not in whitelist yet
+         */
         if (InsnIsCall(*insn) && IsFuncNeedFrame(*insn)) {
           hasGetStackClass = true;
         }
@@ -151,10 +155,8 @@ bool TailCallOpt::DoTailCallOpt() {
 
   BB *exitBB = nullptr;
   if (exitBBSize == 0) {
-    if (cgFunc.GetCleanupLabel() != nullptr &&
-        cgFunc.GetLastBB()->GetPrev()->GetFirstStmt() == cgFunc.GetCleanupLabel() &&
-        cgFunc.GetLastBB()->GetPrev()->GetPrev() != nullptr) {
-      exitBB = cgFunc.GetLastBB()->GetPrev()->GetPrev();
+    if (cgFunc.GetCleanupBB() != nullptr && cgFunc.GetCleanupBB()->GetPrev() != nullptr) {
+      exitBB = cgFunc.GetCleanupBB()->GetPrev();
     } else {
       exitBB = cgFunc.GetLastBB()->GetPrev();
     }
