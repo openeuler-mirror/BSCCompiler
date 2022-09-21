@@ -51,13 +51,6 @@ class AArch64GenProEpilog : public GenProEpilog {
  private:
   void GenStackGuard(BB &bb);
   BB &GenStackGuardCheckInsn(BB &bb);
-  bool InsertOpndRegs(Operand &op, std::set<regno_t> &vecRegs) const;
-  bool InsertInsnRegs(Insn &insn, bool insertSource, std::set<regno_t> &vecSourceRegs,
-                      bool insertTarget, std::set<regno_t> &vecTargetRegs) const;
-  bool FindRegs(Operand &op, std::set<regno_t> &vecRegs) const;
-  bool BackwardFindDependency(BB &ifbb, std::set<regno_t> &vecReturnSourceRegs, std::list<Insn*> &existingInsns,
-                              std::list<Insn*> &moveInsns) const;
-  BB *IsolateFastPath(BB &bb);
   void AppendInstructionAllocateCallFrame(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void AppendInstructionAllocateCallFrameDebug(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void GeneratePushRegs();

@@ -728,6 +728,14 @@ class CGFunc {
     return returnBB;
   }
 
+  void SetPrologureBB(BB &bb) {
+    prologureBB = &bb;
+  }
+
+  BB *GetPrologureBB() {
+    return prologureBB != nullptr ? prologureBB : firstBB;
+  }
+
   void SetReturnBB(BB &bb) {
     returnBB = &bb;
     returnBB->SetKind(BB::kBBReturn);
@@ -1350,12 +1358,14 @@ class CGFunc {
   LabelNode *endLabel = nullptr;      /* end label of the function */
 
   BB *firstBB = nullptr;
+  BB *prologureBB = nullptr;  /* the BB to placing prologure's instructions(callee save/cfi) */
   BB *returnBB = nullptr;
   BB *cleanupBB = nullptr;
   BB *lastBB = nullptr;
   BB *curBB = nullptr;
   BB *dummyBB;   /* use this bb for add some instructions to bb that is no curBB. */
   BB *commonExitBB = nullptr;  /* this post-dominate all BBs */
+
   Insn *volReleaseInsn = nullptr;  /* use to record the release insn for volatile strore */
   MapleVector<BB*> exitBBVec;
   MapleVector<BB*> noReturnCallBBVec;
@@ -1402,6 +1412,8 @@ MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgEmission, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgGenProEpiLog, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_END
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgIsolateFastPath, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 #endif  /* MAPLEBE_INCLUDE_CG_CGFUNC_H */

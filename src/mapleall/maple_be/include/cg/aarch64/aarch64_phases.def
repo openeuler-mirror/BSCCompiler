@@ -54,6 +54,7 @@
    ADDTARGETPHASE("globalopt", CGOptions::DoCGSSA());
  }
  ADDTARGETPHASE("clearrdinfo", GetMIRModule()->IsCModule() && (CGOptions::DoStoreLoadOpt() || CGOptions::DoGlobalOpt()));
+ ADDTARGETPHASE("isolatefastpath", CGOptions::DoIsolateFastPath());
  ADDTARGETPHASE("generateproepilog", true);
  ADDTARGETPHASE("framefinalize", true);
  ADDTARGETPHASE("cfgo", GetMIRModule()->IsCModule() && CGOptions::DoCFGO());

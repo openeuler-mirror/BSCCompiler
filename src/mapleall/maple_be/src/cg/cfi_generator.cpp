@@ -110,20 +110,12 @@ void GenCfi::InsertFirstLocation(BB &bb) {
 }
 
 void GenCfi::Run() {
-  auto *prologBB = cgFunc.GetFirstBB();
-  GenerateStartDirective(*prologBB);
-  InsertFirstLocation(*prologBB);
+  auto *startBB = cgFunc.GetFirstBB();
+  GenerateStartDirective(*startBB);
+  InsertFirstLocation(*startBB);
 
   if (cgFunc.GetHasProEpilogue()) {
-    if (prologBB->IsFastPath()) {
-      FOR_ALL_BB(bb, &cgFunc) {
-        if (bb != prologBB && bb->IsFastPath()) {
-          prologBB = bb;
-          break;
-        }
-      }
-    }
-    GenerateRegisterSaveDirective(*prologBB);
+    GenerateRegisterSaveDirective(*(cgFunc.GetPrologureBB()));
 
     FOR_ALL_BB(bb, &cgFunc) {
       if (!bb->IsFastPathReturn() && bb->IsNeedRestoreCfi()) {

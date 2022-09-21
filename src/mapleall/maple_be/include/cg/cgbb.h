@@ -42,8 +42,8 @@ namespace maplebe {
 
 #define FOR_ALL_BB_CONST(BASE, FUNC) FOR_BB_BETWEEN_CONST(BASE, FIRST_BB_OF_FUNC(FUNC), nullptr, GetNext)
 #define FOR_ALL_BB(BASE, FUNC) FOR_BB_BETWEEN(BASE, FIRST_BB_OF_FUNC(FUNC), nullptr, GetNext)
+#define FOR_ALL_BB_REV_CONST(BASE, FUNC) FOR_BB_BETWEEN_CONST(BASE, LAST_BB_OF_FUNC(FUNC), nullptr, GetPrev)
 #define FOR_ALL_BB_REV(BASE, FUNC) FOR_BB_BETWEEN(BASE, LAST_BB_OF_FUNC(FUNC), nullptr, GetPrev)
-
 
 /* For get insn */
 #define FIRST_INSN(BLOCK) (BLOCK)->GetFirstInsn()
@@ -544,12 +544,6 @@ class BB {
   void SetWontExit(bool arg) {
     wontExit = arg;
   }
-  void SetFastPath(bool arg) {
-    fastPath = arg;
-  }
-  bool IsFastPath() const {
-    return fastPath;
-  }
   void SetFastPathReturn(bool arg) {
     fastPathReturn = arg;
   }
@@ -798,7 +792,6 @@ class BB {
   bool hasCall = false;
   bool unreachable = false;
   bool wontExit = false;
-  bool fastPath = false;
   bool fastPathReturn = false;
   bool isCatch = false;  /* part of the catch bb, true does might also mean it is unreachable */
   /*

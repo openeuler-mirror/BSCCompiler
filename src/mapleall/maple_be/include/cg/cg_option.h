@@ -79,8 +79,9 @@ class CGOptions {
 
   enum OptimizeLevel : uint8 {
     kLevel0 = 0,
-    kLevel1 = 1,
-    kLevel2 = 2,
+    kLevelLiteCG = 1,
+    kLevel1 = 2,
+    kLevel2 = 3,
   };
 
   enum ABIType : uint8 {
@@ -151,6 +152,7 @@ class CGOptions {
   void EnableO0();
   void EnableO1();
   void EnableO2();
+  void EnableLiteCG();
 
   bool GenDef() const {
     return generateFlag & kCMacroDef;
@@ -703,6 +705,11 @@ class CGOptions {
 
   static bool DoICO() {
     return doICO;
+  }
+
+  static bool DoIsolateFastPath() {
+    return (CGOptions::GetInstance().DoPrologueEpilogue()) &&
+           (CGOptions::GetInstance().GetOptimizeLevel() == CGOptions::kLevel2);
   }
 
   static void EnableStoreLoadOpt() {

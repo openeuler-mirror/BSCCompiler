@@ -25,6 +25,7 @@
 #include "emit.h"
 #include "reg_alloc.h"
 #include "target_info.h"
+#include "standardize.h"
 #if TARGAARCH64
 #include "aarch64_emitter.h"
 #include "aarch64_cg.h"
@@ -53,11 +54,9 @@ namespace {
 void DumpMIRFunc(MIRFunction &func, const char *msg, bool printAlways = false, const char* extraMsg = nullptr) {
   bool dumpAll = (CGOptions::GetDumpPhases().find("*") != CGOptions::GetDumpPhases().end());
   bool dumpFunc = CGOptions::FuncFilter(func.GetName());
-
   if (printAlways || (dumpAll && dumpFunc)) {
     LogInfo::MapleLogger() << msg << '\n';
     func.Dump();
-
     if (extraMsg) {
       LogInfo::MapleLogger() << extraMsg << '\n';
     }
@@ -88,9 +87,9 @@ bool CgFuncPM::FuncLevelRun(CGFunc &cgFunc, AnalysisDataManager &serialADM) {
                              << " Phase [ " << curPhase->PhaseName() << " ]---\n";
     }
     if (curPhase->IsAnalysis()) {
-      changed |= RunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(*curPhase, serialADM, cgFunc);
+      changed = RunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(*curPhase, serialADM, cgFunc) || changed;
     } else  {
-      changed |= RunTransformPhase<MapleFunctionPhase<CGFunc>, CGFunc>(*curPhase, serialADM, cgFunc);
+      changed = RunTransformPhase<MapleFunctionPhase<CGFunc>, CGFunc>(*curPhase, serialADM, cgFunc) || changed;
       DumpFuncCGIR(cgFunc, curPhase->PhaseName());
     }
     SolveSkipAfter(CGOptions::GetSkipAfterPhase(), i);
@@ -227,7 +226,7 @@ void CgFuncPM::SweepUnusedStaticSymbol(MIRModule &m) const {
    * find addrof static const */
   auto &symbolSet = m.GetSymbolSet();
   for (auto sit = symbolSet.begin(); sit != symbolSet.end(); ++sit) {
-    MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx(sit->Idx());
+    MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx(sit->Idx(), true);
     if (s->IsConst()) {
       MIRConst *mirConst = s->GetKonst();
       CollectStaticSymbolInVar(mirConst);
@@ -236,6 +235,11 @@ void CgFuncPM::SweepUnusedStaticSymbol(MIRModule &m) const {
 }
 
 /* =================== new phase manager ===================  */
+#ifdef RA_PERF_ANALYSIS
+extern void printLSRATime();
+extern void printRATime();
+#endif
+
 bool CgFuncPM::PhaseRun(MIRModule &m) {
   CreateCGAndBeCommon(m);
   bool changed = false;
@@ -313,6 +317,12 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
       CGOptions::DisableInRange();
     }
     PostOutPut(m);
+#ifdef RA_PERF_ANALYSIS
+    if (cgOptions->IsEnableTimePhases()) {
+      printLSRATime();
+      printRATime();
+    }
+#endif
   } else {
     LogInfo::MapleLogger(kLlErr) << "Skipped generating .s because -no-cg is given" << '\n';
   }
@@ -324,11 +334,7 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
 void CgFuncPM::DumpFuncCGIR(const CGFunc &f, const std::string &phaseName) const {
   if (CGOptions::DumpPhase(phaseName) && CGOptions::FuncFilter(f.GetName())) {
     LogInfo::MapleLogger() << "\n******** CG IR After " << phaseName << ": *********\n";
-#ifdef TARGX86_64
-    f.DumpCGIR(true);
-#else
     f.DumpCGIR();
-#endif
   }
 }
 
@@ -368,9 +374,7 @@ void CgFuncPM::CreateCGAndBeCommon(MIRModule &m) {
 #else
 #error "unknown platform"
 #endif
-  if (CGOptions::IsTargetX86_64()) {
 
-  }
 
   /*
    * Must be done before creating any BECommon instances.
@@ -386,6 +390,7 @@ void CgFuncPM::CreateCGAndBeCommon(MIRModule &m) {
    */
   beCommon = new BECommon(m);
   Globals::GetInstance()->SetBECommon(*beCommon);
+  Globals::GetInstance()->SetTarget(*cg);
 
   /* If a metadata generation pass depends on object layout it must be done after creating BECommon. */
   cg->GenExtraTypeMetadata(cgOptions->GetClassListFile(), m.GetBaseName());
@@ -405,7 +410,7 @@ void CgFuncPM::PrepareLower(MIRModule &m) {
   mirLower = GetManagerMemPool()->New<MIRLower>(m, nullptr);
   mirLower->Init();
   cgLower = GetManagerMemPool()->New<CGLowerer>(m,
-      *beCommon, cg->GenerateExceptionHandlingCode(), cg->GenerateVerboseCG());
+      *beCommon, *GetPhaseMemPool(), cg->GenerateExceptionHandlingCode(), cg->GenerateVerboseCG());
   cgLower->RegisterBuiltIns();
   if (m.IsJavaModule()) {
     cgLower->InitArrayClassCacheTableIndex();
@@ -426,7 +431,7 @@ void CgFuncPM::DoFuncCGLower(const MIRModule &m, MIRFunction &mirFunc) const {
     mirLower->LowerFunc(mirFunc);
   }
 
-  bool isNotQuiet = !cg->IsQuiet();
+  bool isNotQuiet = !CGOptions::IsQuiet();
   DumpMIRFunc(mirFunc, "************* before CGLowerer **************", isNotQuiet);
 
   cgLower->LowerFunc(mirFunc);
@@ -452,11 +457,11 @@ void CgFuncPM::EmitDuplicatedAsmFunc(MIRModule &m) const {
   bool isFramework = IsFramework(m);
 
   while (getline(duplicateAsmFileFD, contend)) {
-    if (!contend.compare("#Libframework_start")) {
+    if (contend.compare("#Libframework_start") == 0) {
       onlyForFramework = true;
     }
 
-    if (!contend.compare("#Libframework_end")) {
+    if (contend.compare("#Libframework_end") == 0) {
       onlyForFramework = false;
     }
 
@@ -522,10 +527,12 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgFuncPM, cgFuncPhaseManager)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgLayoutFrame, layoutstackframe)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgCreateLabel, createstartendlabel)
 MAPLE_TRANSFORM_PHASE_REGISTER(InstructionSelector, instructionselector)
+MAPLE_TRANSFORM_PHASE_REGISTER(InstructionStandardize, instructionstandardize)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgMoveRegArgs, moveargs)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgRegAlloc, regalloc)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgAlignAnalysis, alignanalysis)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFrameFinalize, framefinalize)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgYieldPointInsertion, yieldpoint)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgGenProEpiLog, generateproepilog)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgIsolateFastPath, isolatefastpath)
 }  /* namespace maplebe */
