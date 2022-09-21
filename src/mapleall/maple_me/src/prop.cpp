@@ -986,7 +986,7 @@ MeExpr &Prop::PropMeExpr(MeExpr &meExpr, bool &isProped, bool atParm) {
           auto ivarPrimType = ivarMeExpr->GetPrimType();
           auto propPrimType = propedExpr->GetPrimType();
           if (ivarPrimType != propPrimType) {
-            propedExpr = irMap.CreateMeExprTypeCvt(ivarPrimType, propPrimType, *propIvarExpr);
+            propedExpr = irMap.CreateMeExprTypeCvt(ivarPrimType, propPrimType, *propedExpr);
           }
           isProped = true;
           return *propedExpr;

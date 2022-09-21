@@ -34,7 +34,7 @@
 #include "mpl_logging.h"
 #include "opcodes.h"
 #include "region_identify.h"
-#include "inline_analyzer.h"
+#include "stmt_cost_analyzer.h"
 #include "stmt_identify.h"
 #include "types_def.h"
 
@@ -45,10 +45,10 @@ static constexpr char kOutlinePhase[] = "outline";
 
 static bool ShareSameParameter(const BaseNode &lhs, const BaseNode &rhs) {
   if (lhs.GetOpCode() == OP_addrof) {
-    return static_cast<const AddrofNode &>(lhs).AccessSameMemory(&rhs);
+    return static_cast<const AddrofNode &>(lhs).MayAccessSameMemory(&rhs);
   }
   if (rhs.GetOpCode() == OP_addrof) {
-    return static_cast<const AddrofNode &>(rhs).AccessSameMemory(&lhs);
+    return static_cast<const AddrofNode &>(rhs).MayAccessSameMemory(&lhs);
   }
   return lhs.IsSameContent(&rhs);
 }
@@ -107,8 +107,11 @@ class OutlineInfoCollector {
         }
         break;
       }
+      case OP_addrof: {
+        candidate->InsertIntoParameterList(node);
+        break;
+      }
       case OP_dread:
-      case OP_addrof:
       case OP_regread: {
         CollectParameter(node);
         break;
@@ -509,27 +512,27 @@ void OutlineGroup::EraseOutlineRegion() {
   }
 }
 
-static size_t GetBenefit(OutlineGroup &group, InlineAnalyzer &inlineAnalyzer) {
+static size_t GetBenefit(OutlineGroup &group, StmtCostAnalyzer &stmtCostAnalyzer) {
   auto &outlineCandidate = group.GetOutlineRegions().front();
   auto *region = outlineCandidate.GetRegionCandidate();
-  inlineAnalyzer.SetFunction(region->GetFunction());
+  stmtCostAnalyzer.SetFunction(region->GetFunction());
   size_t cost = 0;
   for (auto *currStmt = region->GetStart()->GetStmtNode(); currStmt != nullptr; currStmt = currStmt->GetNext()) {
     if (currStmt->GetStmtInfoId() > region->GetEndId()) {
       break;
     }
-    cost += static_cast<size_t>(inlineAnalyzer.GetStmtCost(currStmt));
+    cost += static_cast<size_t>(stmtCostAnalyzer.GetStmtCost(currStmt));
   }
   return cost * (group.GetOutlineRegions().size() - 1);
 }
 
-static size_t GetCost(OutlineGroup &group, InlineAnalyzer &inlineAnalyzer) {
+static size_t GetCost(OutlineGroup &group, StmtCostAnalyzer &stmtCostAnalyzer) {
   auto &outlineCandidate = group.GetOutlineRegions().front();
   auto *region = outlineCandidate.GetRegionCandidate();
-  inlineAnalyzer.SetFunction(region->GetFunction());
+  stmtCostAnalyzer.SetFunction(region->GetFunction());
   size_t cost = kOneInsn;
   for (auto *expr : outlineCandidate.GetParameters()) {
-    cost += static_cast<size_t>(inlineAnalyzer.GetExprCost(expr));
+    cost += static_cast<size_t>(stmtCostAnalyzer.GetExprCost(expr));
   }
   return cost * group.GetOutlineRegions().size();
 }
@@ -564,7 +567,7 @@ void OutLine::Run() {
   RegionIdentify identifier(ipaInfo);
   identifier.RegionInit();
   auto &candidateGroups = identifier.GetRegionGroups();
-  auto inlineAnalyzer = InlineAnalyzer(memPool);
+  auto stmtCostAnalyzer = StmtCostAnalyzer(memPool);
   std::sort(candidateGroups.begin(), candidateGroups.end(), RegionGroupComparator);
   for (auto &group : candidateGroups) {
     PruneCandidateRegionsOverlapWithOutlinedRegion(group);
@@ -578,8 +581,8 @@ void OutLine::Run() {
       continue;
     }
 
-    auto cost = GetCost(outlineGroup, inlineAnalyzer);
-    auto benefit = GetBenefit(outlineGroup, inlineAnalyzer);
+    auto cost = GetCost(outlineGroup, stmtCostAnalyzer);
+    auto benefit = GetBenefit(outlineGroup, stmtCostAnalyzer);
     if (benefit - cost < Options::outlineThreshold) {
       continue;
     }

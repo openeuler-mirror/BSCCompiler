@@ -2625,6 +2625,7 @@ bool AddrofNode::IsSameContent(const BaseNode *node) const {
   return (GetOpCode() == node->GetOpCode()) && (GetPrimType() == node->GetPrimType()) && MayAccessSameMemory(node);
 }
 
+// identify dread and address of nodes that may use same memory localtion
 bool AddrofNode::MayAccessSameMemory(const BaseNode *node) const {
   auto *addrofNode = dynamic_cast<const AddrofNode*>(node);
   if ((this == addrofNode) ||
