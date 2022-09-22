@@ -185,6 +185,12 @@ void HandleLabel(StmtNode &stmt, MPISel &iSel) {
   newBB->AddLabel(label.GetLabelIdx());
   cgFunc->SetLab2BBMap(static_cast<int32>(newBB->GetLabIdx()), *newBB);
   cgFunc->SetCurBB(*newBB);
+
+  if (cgFunc->GetCleanupLabel() == &label) {
+    cgFunc->SetCleanupBB(*newBB);
+  } else if (cgFunc->GetReturnLabel() == &label) {
+    cgFunc->SetReturnBB(*newBB);
+  }
 }
 
 void HandleGoto(StmtNode &stmt, MPISel &iSel) {
@@ -434,6 +440,9 @@ Operand *HandleSelect(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
   Operand &trueOpnd = *iSel.HandleExpr(expr, *expr.Opnd(1));
   Operand &falseOpnd = *iSel.HandleExpr(expr, *expr.Opnd(2));
   Operand &condOpnd = *iSel.HandleExpr(expr, *expr.Opnd(0));
+  if (condOpnd.IsImmediate()) {
+    return (static_cast<ImmOperand&>(condOpnd).GetValue() == 0) ? &falseOpnd : &trueOpnd;
+  }
   return iSel.SelectSelect(static_cast<TernaryNode&>(expr), condOpnd, trueOpnd, falseOpnd, parent);
 }
 
@@ -688,13 +697,17 @@ void MPISel::SelectIassign(const IassignNode &stmt, Operand &opndAddr, Operand &
   /* mirSymbol info */
   MirTypeInfo symbolInfo = GetMirTypeInfoFromMirNode(stmt);
   /* handle Lhs, generate (%Rxx) via Rxx */
+  PrimType memType = symbolInfo.primType;
+  if (memType == PTY_agg) {
+    memType = PTY_a64;
+  }
   RegOperand &lhsBaseOpnd = SelectCopy2Reg(opndAddr, stmt.Opnd(0)->GetPrimType());
   MemOperand &lhsMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(lhsBaseOpnd, symbolInfo.offset,
-      GetPrimTypeBitSize(symbolInfo.primType));
+      GetPrimTypeBitSize(memType));
   /* handle Rhs, get R## from Rhs */
   PrimType rhsType = stmt.GetRHS()->GetPrimType();
   /* mov %R##, (%Rxx) */
-  SelectCopy(lhsMemOpnd, opndRhs, symbolInfo.primType, rhsType);
+  SelectCopy(lhsMemOpnd, opndRhs, memType, rhsType);
 }
 
 void MPISel::SelectIassignoff(const IassignoffNode &stmt) {
@@ -1370,7 +1383,6 @@ void MPISel::HandleFuncExit() const {
   cgFunc->SetLastBB(*cgFunc->GetCurBB());
   /* the last BB is return BB */
   cgFunc->GetLastBB()->SetKind(BB::kBBReturn);
-  cgFunc->SetCleanupBB(*cgFunc->GetCurBB()->GetPrev());
 }
 
 bool InstructionSelector::PhaseRun(maplebe::CGFunc &f) {
