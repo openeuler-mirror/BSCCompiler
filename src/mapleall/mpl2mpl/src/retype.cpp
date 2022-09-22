@@ -81,7 +81,7 @@ void Retype::RetypeStmt(MIRFunction &func) {
 }
 
 void Retype::DoRetype() {
-  for (MIRFunction *func : mirModule->GetFunctionList()) {
+  for (MIRFunction *func : std::as_const(mirModule->GetFunctionList())) {
     if (func->IsEmpty()) {
       continue;
     }

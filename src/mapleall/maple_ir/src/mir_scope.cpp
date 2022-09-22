@@ -20,16 +20,18 @@ namespace maple {
 
 static unsigned scopeId = 1;
 
-MIRScope::MIRScope(MIRModule *mod,  MIRFunction *f) : module(mod), func(f), id(scopeId++) {
+MIRScope::MIRScope(MIRModule *mod,  MIRFunction *f)
+  : module(mod), func(f), id(scopeId++), isLocal(true) {
   alias = module->GetMemPool()->New<MIRAlias>(module);
+  typeAlias = module->GetMemPool()->New<MIRTypeAlias>(module);
 }
 
 void MIRAlias::Dump(int32 indent, bool isLocal) const {
-  LogInfo::MapleLogger() << '\n';
   bool first = true;
   for (auto it : aliasVarMap) {
     if (first) {
       first = false;
+      LogInfo::MapleLogger() << '\n';
     } else {
       LogInfo::MapleLogger() << ",\n";
     }
@@ -64,6 +66,24 @@ void MIRAlias::Dump(int32 indent, bool isLocal) const {
     if (it.second.sigStrIdx) {
       LogInfo::MapleLogger() << " \"" << GlobalTables::GetStrTable().GetStringFromStrIdx(it.second.sigStrIdx) << "\"";
     }
+  }
+}
+
+void MIRTypeAlias::Dump(int32 indent) const {
+  bool first = true;
+  for (auto it = typeAliasMap.cbegin(); it != typeAliasMap.cend(); ++it) {
+    if (first) {
+      first = false;
+      LogInfo::MapleLogger() << '\n';
+    } else {
+      LogInfo::MapleLogger() << ",\n";
+    }
+    PrintIndentation(indent);
+    const std::string name = GlobalTables::GetStrTable().GetStringFromStrIdx(it->first);
+    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(it->second);
+    CHECK_NULL_FATAL(type);
+    LogInfo::MapleLogger() << "TYPEALIAS $" << name << " ";
+    type->Dump(1);
   }
 }
 
@@ -151,7 +171,7 @@ bool MIRScope::AddScope(MIRScope *scope) {
   return true;
 }
 
-void MIRScope::Dump(int32 indent, bool isLocal) const {
+void MIRScope::Dump(int32 indent) const {
   LogInfo::MapleLogger() << '\n';
   SrcPosition low = range.first;
   SrcPosition high = range.second;
@@ -165,8 +185,11 @@ void MIRScope::Dump(int32 indent, bool isLocal) const {
     high.LineNum() << ", " <<
     high.Column() << ")> {";
 
+  typeAlias->Dump(indent + 1);
+  if (!typeAlias->IsEmpty() && !alias->IsEmpty()) {
+    LogInfo::MapleLogger() << ",";
+  }
   alias->Dump(indent + 1, isLocal);
-
   if (subScopes.size() == 0) {
     LogInfo::MapleLogger() << "\n";
   }

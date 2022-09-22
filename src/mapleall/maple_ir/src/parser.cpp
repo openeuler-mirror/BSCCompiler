@@ -1699,7 +1699,7 @@ bool MIRParser::ParseTypeDefine() {
 }
 
 bool MIRParser::ParseEnumeration() {
-  if (lexer.GetTokenKind() != TK_enumeration) {
+  if (lexer.GetTokenKind() != TK_ENUMERATION) {
     Error("expect enum but get ");
     return false;
   }
@@ -1768,31 +1768,8 @@ bool MIRParser::ParseEnumeration() {
     Error("expect right brace but get ");
     return false;
   }
-  lexer.NextToken();
+  (void)lexer.NextToken();
   GlobalTables::GetEnumTable().enumTable.push_back(mirEnum);
-  return true;
-}
-
-// for debuginfo parsing c typedef
-bool MIRParser::ParseTypedef() {
-  if (lexer.GetTokenKind() != TK_typedef) {
-    Error("expect typedef but get ");
-    return false;
-  }
-  TokenKind tokenKind = lexer.NextToken();
-  if (tokenKind != TK_gname) {
-    Error("expect typedef name but get ");
-    return false;
-  }
-  const std::string &name = lexer.GetName();
-  GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
-  lexer.NextToken();
-  TyIdx tyIdx(0);
-  if (!ParseType(tyIdx)) {
-    Error("expect underlying type name but get ");
-    return false;
-  }
-  GlobalTables::GetTypedefTable().SetTypedefNameMap(strIdx, tyIdx);
   return true;
 }
 
@@ -2578,6 +2555,10 @@ bool MIRParser::ParseOneScope(MIRScope &scope) {
         }
         break;
       }
+      case TK_TYPEALIAS: {
+        status = ParseTypeAlias(scope);
+        break;
+      }
       case TK_SCOPE: {
         MIRScope *scp = mod.GetMemPool()->New<MIRScope>(&mod, mod.CurFunction());
         status = ParseOneScope(*scp);
@@ -2585,7 +2566,7 @@ bool MIRParser::ParseOneScope(MIRScope &scope) {
           if (scope.GetRangeLow().IsEq(scp->GetRangeLow()) &&
               scope.GetRangeHigh().IsEq(scp->GetRangeHigh())) {
             for (auto it : scp->GetAliasVarMap()) {
-              scope.AddAliasVarMap(it.first, it.second);
+              scope.SetAliasVarMap(it.first, it.second);
             }
             for (auto it : scp->GetSubScopes()) {
               (void)scope.AddScope(it);
@@ -2701,7 +2682,7 @@ bool MIRParser::ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar) {
   aliasVar.sigStrIdx = signStrIdx;
   tk = lexer.GetTokenKind();
   if (tk == TK_coma) {
-    tk = lexer.NextToken();
+    (void)lexer.NextToken();
   }
   return true;
 }
@@ -2718,6 +2699,35 @@ bool MIRParser::ParseAlias() {
 
 bool MIRParser::ParseAliasStmt(StmtNodePtr&) {
   return ParseAlias();
+}
+
+bool MIRParser::ParseTypeAlias(MIRScope &scope) {
+  if (lexer.GetTokenKind() != TK_TYPEALIAS) {
+    Error("expect typealias but get ");
+    return false;
+  }
+  TokenKind tokenKind = lexer.NextToken();
+  if (tokenKind != TK_gname) {
+    Error("expect typealias name but get ");
+    return false;
+  }
+  const std::string &name = lexer.GetName();
+  GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
+  lexer.NextToken();
+  TyIdx tyIdx(0);
+  if (!ParseType(tyIdx)) {
+    Error("expect underlying type name but get ");
+    return false;
+  }
+  scope.SetTypeAliasMap(strIdx, tyIdx);
+  if (!scope.IsLocal()) {
+    mod.GetScope()->GetTypeAlias()->SetTypeAliasMap(strIdx, tyIdx);
+  }
+  TokenKind tk = lexer.GetTokenKind();
+  if (tk == TK_coma) {
+    (void)lexer.NextToken();
+  }
+  return true;
 }
 
 uint8 *MIRParser::ParseWordsInfo(uint32 size) {
@@ -2851,6 +2861,10 @@ bool MIRParser::ParseMIR(uint32 fileIdx, uint32 option, bool isIPA, bool isComb)
       MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(it->second);
       CHECK_FATAL(type != nullptr, "type is null");
       if (type->GetKind() == kTypeByName) {
+        TyIdx tyIdx = mod.GetScope()->GetTypeAlias()->GetTyIdxFromMap(it->first);
+        if (tyIdx.GetIdx() != 0) {
+          continue;
+        }
         std::string strStream;
         const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(it->first);
         strStream += "type $";
@@ -2889,8 +2903,6 @@ std::map<TokenKind, MIRParser::FuncPtrParseMIRForElem> MIRParser::InitFuncPtrMap
   funcPtrMap[TK_javaclass] = &MIRParser::ParseMIRForClass;
   funcPtrMap[TK_javainterface] = &MIRParser::ParseMIRForInterface;
   funcPtrMap[TK_type] = &MIRParser::ParseTypeDefine;
-  funcPtrMap[TK_enumeration] = &MIRParser::ParseEnumeration;
-  funcPtrMap[TK_typedef] = &MIRParser::ParseTypedef;
   funcPtrMap[TK_flavor] = &MIRParser::ParseMIRForFlavor;
   funcPtrMap[TK_srclang] = &MIRParser::ParseMIRForSrcLang;
   funcPtrMap[TK_globalmemsize] = &MIRParser::ParseMIRForGlobalMemSize;
@@ -2909,6 +2921,7 @@ std::map<TokenKind, MIRParser::FuncPtrParseMIRForElem> MIRParser::InitFuncPtrMap
   funcPtrMap[TK_LOC] = &MIRParser::ParseLoc;
   funcPtrMap[TK_ALIAS] = &MIRParser::ParseAlias;
   funcPtrMap[TK_SCOPE] = &MIRParser::ParseScope;
+  funcPtrMap[TK_ENUMERATION] = &MIRParser::ParseEnumeration;
   return funcPtrMap;
 }
 
@@ -2929,7 +2942,7 @@ bool MIRParser::ParseMIRForFunc() {
   return true;
 }
 
-bool MIRParser::TypeCompatible(TyIdx typeIdx1, TyIdx typeIdx2) const {
+bool MIRParser::TypeCompatible(const TyIdx &typeIdx1, const TyIdx &typeIdx2) const {
   if (typeIdx1 == typeIdx2) {
     return true;
   }

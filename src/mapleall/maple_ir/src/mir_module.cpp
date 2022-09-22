@@ -56,6 +56,7 @@ MIRModule::MIRModule(const std::string &fn)
   mirBuilder = memPool->New<MIRBuilder>(this);
   dbgInfo = memPool->New<DebugInfo>(this);
   scope = memPool->New<MIRScope>(this, nullptr);
+  scope->SetIsLocal(false);
   IntrinDesc::InitMIRModule(this);
 }
 
@@ -293,7 +294,7 @@ void MIRModule::DumpGlobals(bool emitStructureType) const {
       }
     }
     if (scope && !scope->IsEmpty()) {
-      scope->Dump(0, /* isLocal */ false);
+      scope->Dump(0);
     }
   }
 }
@@ -332,6 +333,8 @@ void MIRModule::Emit(const std::string &outFileName) const {
 }
 
 void MIRModule::DumpFunctionList(const std::unordered_set<std::string> *dumpFuncSet) const {
+  MIRSymbol::LastPrintedLineNumRef() = 0;
+  MIRSymbol::LastPrintedColumnNumRef() = 0;
   for (MIRFunction *mirFunc : functionList) {
     if (dumpFuncSet == nullptr || dumpFuncSet->empty()) {
       mirFunc->Dump();

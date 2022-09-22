@@ -607,7 +607,7 @@ class DebugInfo {
         funcScopeLows(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
         funcScopeHighs(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
         funcScopeIdStatus(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
-        typedefStrIdxTyIdxMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
+        globalTypeAliasMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         constTypeDieMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         volatileTypeDieMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
         strps(std::less<uint32>(), m->GetMPAllocator().Adapter()) {
@@ -746,7 +746,7 @@ class DebugInfo {
   MapleMap<MIRFunction *, std::map<uint32, uint8>> funcScopeIdStatus;
 
   /* alias type */
-  MapleMap<uint32, uint32> typedefStrIdxTyIdxMap;
+  MapleMap<uint32, uint32> globalTypeAliasMap;
   MapleMap<uint32, uint32> constTypeDieMap;
   MapleMap<uint32, uint32> volatileTypeDieMap;
 
@@ -763,7 +763,6 @@ class DebugInfo {
   void SetupCU();
 
   void BuildDebugInfoEnums();
-  void BuildDebugInfoTypedefs();
   void BuildDebugInfoContainers();
   void BuildDebugInfoGlobalSymbols();
   void BuildDebugInfoFunctions();
@@ -845,19 +844,14 @@ class DebugInfo {
 
   GStrIdx GetPrimTypeCName(PrimType pty);
 
-  void AddScopeDie(MIRScope *scope, bool isLocal);
+  void AddScopeDie(MIRScope *scope);
   DBGDie *GetAliasVarTypeDie(const MIRAliasVars &aliasVar, TyIdx tyidx);
-  void HandleTypeAlias(const MIRScope &scope);
-  void AddAliasDies(MIRScope &scope, bool isLocal);
+  void HandleTypeAlias(MIRScope *scope);
+  void AddAliasDies(MIRScope *scope, bool isLocal);
   void CollectScopePos(MIRFunction *func, MIRScope *scope);
 
   // Functions for calculating the size and offset of each DW_TAG_xxx and DW_AT_xxx
   void ComputeSizeAndOffset(DBGDie *die, uint32 &cuOffset);
-
-  void AddTypedefMap(GStrIdx stridx, TyIdx tyidx) {
-    typedefStrIdxTyIdxMap[stridx.GetIdx()] = tyidx.GetIdx();
-  }
-  void DumpTypedefMap() const;
 };
 } // namespace maple
 #endif // MAPLE_IR_INCLUDE_DBG_INFO_H

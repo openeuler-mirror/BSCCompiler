@@ -28,7 +28,7 @@
 #include "namemangler.h"
 #include "mir_type.h"
 #include "mir_const.h"
-#include "mir_enumeration.h"
+#include "mir_enum.h"
 
 namespace maple {
 using TyIdxFieldAttrPair = std::pair<TyIdx, FieldAttrs>;

@@ -53,6 +53,7 @@ class MIRParser {
   bool ParseOneAlias(GStrIdx &strIdx, MIRAliasVars &aliasVar);
   bool ParseAlias();
   bool ParseAliasStmt(StmtNodePtr &stmt);
+  bool ParseTypeAlias(MIRScope &scope);
   uint8 *ParseWordsInfo(uint32 size);
   bool ParseSwitchCase(int64&, LabelIdx&);
   bool ParseExprOneOperand(BaseNodePtr &expr);
@@ -218,7 +219,7 @@ class MIRParser {
   // funcName and paramIndex is out parameter
   bool ParseCallAssertInfo(std::string &funcName, int *paramIndex, std::string &stmtFuncName);
   bool ParseAssertInfo(std::string &funcName);
-  bool ParseTypedef();
+  bool ParseTypeDefine();
   bool ParseJavaClassInterface(MIRSymbol &symbol, bool isClass);
   bool ParseIntrinsicId(IntrinsicopNode &intrnOpNode);
   void Error(const std::string &str);
@@ -250,7 +251,7 @@ class MIRParser {
   static std::map<TokenKind, FuncPtrParseMIRForElem> funcPtrMapForParseMIR;
   static std::map<TokenKind, FuncPtrParseMIRForElem> InitFuncPtrMapForParseMIR();
 
-  bool TypeCompatible(TyIdx typeIdx1, TyIdx typeIdx2) const;
+  bool TypeCompatible(const TyIdx &typeIdx1, const TyIdx &typeIdx2) const;
   bool IsTypeIncomplete(MIRType *type) const;
 
   // func for ParseMIR
@@ -327,7 +328,7 @@ class MIRParser {
   uint32 firstLineNum = 0;                   // to track function starting line
   std::map<TyIdx, TyIdx> typeDefIdxMap;      // map previous declared tyIdx
   bool firstImport = true;                   // Mark the first imported mplt file
-  bool paramParseLocalType = false;          // param for ParseTypedef
+  bool paramParseLocalType = false;          // param for ParseTypeDefine
   uint32 paramFileIdx = 0;                   // param for ParseMIR()
   bool paramIsIPA = false;
   bool paramIsComb = false;
