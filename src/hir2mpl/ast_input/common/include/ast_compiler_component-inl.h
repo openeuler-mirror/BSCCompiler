@@ -47,27 +47,8 @@ bool ASTCompilerComponent<T>::ParseInputImpl() {
   }
   success = success && astInput.ReadASTFiles(allocator, inputNames);
   CHECK_FATAL(success, "ASTCompilerComponent::ParseInput failed. Exit.");
-  for (auto &astStruct : astInput.GetASTStructs()) {
-    FEInputStructHelper *structHelper = allocator.GetMemPool()->New<ASTStruct2FEHelper>(allocator, *astStruct);
-    structHelpers.emplace_back(structHelper);
-  }
-
-  for (auto &astFunc : astInput.GetASTFuncs()) {
-    auto iter = std::find_if(std::begin(globalFuncHelpers), std::end(globalFuncHelpers),
-        [&astFunc](FEInputMethodHelper* s) -> bool {
-          return (s->GetMethodName(false) == astFunc->GetName());
-        });
-    if (iter != globalFuncHelpers.end()) {
-      // save the function with funcbody
-      if ((*iter)->HasCode() && !astFunc->HasCode()) {
-        continue;
-      } else {
-        (void)globalFuncHelpers.erase(iter);
-      }
-    }
-    FEInputMethodHelper *funcHelper = allocator.GetMemPool()->New<ASTFunc2FEHelper>(allocator, *astFunc);
-    globalFuncHelpers.emplace_back(funcHelper);
-  }
+  ParseInputStructs();
+  ParseInputFuncs();
 
   for (auto &astVar : astInput.GetASTVars()) {
     FEInputGlobalVarHelper *varHelper = allocator.GetMemPool()->New<ASTGlobalVar2FEHelper>(allocator, *astVar);
@@ -86,6 +67,44 @@ bool ASTCompilerComponent<T>::ParseInputImpl() {
   }
   timer.StopAndDumpTimeMS("ASTCompilerComponent::ParseInput()");
   return success;
+}
+
+template<class T>
+void ASTCompilerComponent<T>::ParseInputStructs() {
+  for (auto &astStruct : astInput.GetASTStructs()) {
+    std::string structName = astStruct->GenerateUniqueVarName();
+    // skip same name structs
+    if (structNameSet.find(structName) != structNameSet.cend()) {
+      continue;
+    }
+    FEInputStructHelper *structHelper = allocator.GetMemPool()->New<ASTStruct2FEHelper>(allocator, *astStruct);
+    structHelpers.emplace_back(structHelper);
+    structNameSet.insert(structName);
+  }
+}
+
+template<class T>
+void ASTCompilerComponent<T>::ParseInputFuncs() {
+  for (auto &astFunc : astInput.GetASTFuncs()) {
+    auto it = funcNameMap.find(astFunc->GetName());
+    if (it != funcNameMap.cend()) {
+      // save the function with funcbody
+      if (it->second->HasCode() && !astFunc->HasCode()) {
+        continue;
+      } else {
+        (void)funcNameMap.erase(it);
+        auto itHelper = std::find_if(std::begin(globalFuncHelpers), std::end(globalFuncHelpers),
+            [&astFunc](FEInputMethodHelper *s) -> bool {
+              return (s->GetMethodName(false) == astFunc->GetName());
+            });
+        CHECK_FATAL(itHelper != globalFuncHelpers.end(), "astFunc not found");
+        (void)globalFuncHelpers.erase(itHelper);
+      }
+    }
+    FEInputMethodHelper *funcHelper = allocator.GetMemPool()->New<ASTFunc2FEHelper>(allocator, *astFunc);
+    globalFuncHelpers.emplace_back(funcHelper);
+    funcNameMap.insert(std::make_pair(astFunc->GetName(), funcHelper));
+  }
 }
 
 template<class T>

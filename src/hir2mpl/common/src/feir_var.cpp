@@ -123,14 +123,15 @@ MIRSymbol *FEIRVar::GenerateGlobalMIRSymbolImpl(MIRBuilder &builder) const {
   HIR2MPL_PARALLEL_FORBIDDEN();
   MIRType *mirType = type->GenerateMIRTypeAuto();
   std::string name = GetName(*mirType);
-  GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
-  MIRSymbol *gSymbol = builder.GetOrCreateGlobalDecl(name, *mirType);
   auto attrs = genAttrs.ConvertToTypeAttrs();
   ENCChecker::InsertBoundaryLenExprInAtts(attrs, boundaryLenExpr);
   // do not allow extern var override global var
-  if (gSymbol->GetAttrs().GetAttrFlag() != 0 && attrs.GetAttr(ATTR_extern)) {
-    return  gSymbol;
+  MIRSymbol *gSymbol = builder.GetGlobalDecl(name);
+  if (gSymbol != nullptr && attrs.GetAttr(ATTR_extern)) {
+    return gSymbol;
   }
+  GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
+  gSymbol = builder.GetOrCreateGlobalDecl(name, *mirType);
   // Set global var attr once
   std::size_t pos = name.find("_7C");
   if (pos != std::string::npos) {

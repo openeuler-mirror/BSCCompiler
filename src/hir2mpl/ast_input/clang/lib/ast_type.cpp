@@ -21,6 +21,7 @@
 #include "triple.h"
 
 namespace maple {
+std::map<Loc, uint32> LibAstFile::unnamedLocMap;
 MIRType *LibAstFile::CvtPrimType(const clang::QualType qualType, bool isSourceType) const {
   clang::QualType srcType = qualType.getCanonicalType();
   if (srcType.isNull()) {

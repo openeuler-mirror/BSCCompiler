@@ -17,9 +17,12 @@
 
 #include <string>
 #include <cstdio>
-#include <stdarg.h>
 #include <sstream>
 #include <iostream>
+#include <vector>
+#include <map>
+#include <cstdint>
+#include <mutex>
 
 // This file defines the APIs that govern all messaging-styled output from
 // a running program under MAPLE, which can be a compiler or a runtime component.
@@ -151,6 +154,34 @@ enum LogNumberCode {
   kLncMax = 99
 };
 
+struct Loc {
+  std::uint32_t fileIdx;
+  std::uint32_t line;
+  std::uint32_t column;
+  Loc(std::uint32_t fileIdxIn, std::uint32_t lineIn, std::uint32_t columnIn)
+      : fileIdx(fileIdxIn),  line(lineIn), column(columnIn) {}
+
+  bool operator<(Loc const &loc) const {
+    if (fileIdx != loc.fileIdx) {
+      return fileIdx < loc.fileIdx;
+    } else if (line != loc.line) {
+      return line < loc.line;
+    } else {
+      return column < loc.column;
+    }
+  }
+
+  bool operator==(Loc const &loc) const {
+    return (fileIdx == loc.fileIdx) && (line == loc.line) && (column == loc.column);
+  }
+
+  std::string Dump() const {
+    std::stringstream ss;
+    ss << "fileIdx:" << fileIdx << ", line:" << line << ", column:" << column << "\n";
+    return ss.str();
+  }
+};
+
 class LogInfo {
  public:
   LogInfo() : outStream(stdout), outMode(kLmComplex) {}
@@ -170,6 +201,17 @@ class LogInfo {
   void EmitLogForUser(enum LogNumberCode num, enum LogLevel ll, const std::string &message) const;
   void EmitErrorMessage(const std::string &cond, const std::string &file, unsigned int line,
                         const char *fmt, ...) const;
+  void InsertUserWarnMessage(const Loc &loc, const std::string &message);
+  void PrintUserWarnMessages();
+  void InsertUserErrorMessage(const Loc &loc, const std::string &err);
+  void PrintUserErrorMessages();
+  uint GetUserWarnsNum() const {
+    return warnsNum;
+  }
+
+  uint GetUserErrorsNum() const {
+    return errsNum;
+  }
 
  private:
   void SetLogDevice(FILE *stream) {
@@ -182,6 +224,12 @@ class LogInfo {
                          int line, const char *fmt, ...);
   FILE *outStream;
   LogMode outMode;
+  std::map<Loc, std::vector<std::string>> userErrsMap;
+  std::map<Loc, std::vector<std::string>> userWarnsMap;
+  uint errsNum = 0;
+  uint warnsNum = 0;
+  std::mutex warnsMtx;
+  std::mutex errsMtx;
 };
 
 #ifdef DEBUG
@@ -234,12 +282,23 @@ class LogInfo {
     DEBUG_STMT(CHECK(cond, fmt, ##__VA_ARGS__)); \
   } while (0)
 
-#define CHECK_FATAL(cond, fmt, ...)                                                 \
-  do {                                                                              \
-    if (!(cond)) {                                                                  \
+// To shut down the codecheck warning: boolean condition for 'if' always evaluates to 'true'
+#define CHECK_FATAL_FALSE(fmt, ...)                                                        \
+  do {                                                                                     \
+    maple::logInfo.EmitErrorMessage("false", __FILE__, __LINE__, fmt "\n", ##__VA_ARGS__); \
+    maple::logInfo.PrintUserWarnMessages();                                                \
+    maple::logInfo.PrintUserErrorMessages();                                               \
+    EXCEPTION_QUIT;                                                                        \
+  } while (0)
+
+#define CHECK_FATAL(cond, fmt, ...)                                                        \
+  do {                                                                                     \
+    if (!(cond)) {                                                                         \
       maple::logInfo.EmitErrorMessage(#cond, __FILE__, __LINE__, fmt "\n", ##__VA_ARGS__); \
-      EXCEPTION_QUIT;                                                               \
-    }                                                                               \
+      maple::logInfo.PrintUserWarnMessages();                                              \
+      maple::logInfo.PrintUserErrorMessages();                                             \
+      EXCEPTION_QUIT;                                                                      \
+    }                                                                                      \
   } while (0)
 
 #define CHECK_NULL_FATAL(ptr) CHECK_FATAL(ptr != nullptr, "Failed with nullptr.")
@@ -276,11 +335,21 @@ class LogInfo {
     }                                                           \
   }
 
-#define WARN(num, fmt, ...)                                     \
-  do {                                                          \
-    if (PRINT_LEVEL_USER <= kLlWarn) {                          \
-      logInfo.EmitLogForUser(num, kLlWarn, fmt, ##__VA_ARGS__); \
-    }                                                             \
+#define WARN_USER(num, pos, mod, fmt, ...)                                                                         \
+  do {                                                                                                             \
+    if (PRINT_LEVEL_USER <= kLlWarn) {                                                                             \
+      std::ostringstream ss;                                                                                       \
+      ss << mod.GetFileNameFromFileNum(pos.FileNum()) << ":" << pos.LineNum() << " warning: " << fmt;              \
+      logInfo.InsertUserWarnMessage(                                                                               \
+          pos.GetSrcLoc(), logInfo.EmitLogToStringForUser(num, kLlWarn, ss.str().c_str(), ##__VA_ARGS__));         \
+    }                                                                                                              \
+  } while (0)
+
+#define WARN(num, fmt, ...)                                                                                        \
+  do {                                                                                                             \
+    if (PRINT_LEVEL_USER <= kLlWarn) {                                                                             \
+      logInfo.EmitLogForUser(num, kLlWarn, fmt, ##__VA_ARGS__);                                                    \
+    }                                                                                                              \
   } while (0)
 
 #define ERR(num, fmt, ...)                                     \
@@ -295,6 +364,8 @@ class LogInfo {
     if (PRINT_LEVEL_USER <= kLlFatal) {                          \
       logInfo.EmitLogForUser(num, kLlFatal, fmt, ##__VA_ARGS__); \
     }                                                            \
+    logInfo.PrintUserWarnMessages();                             \
+    logInfo.PrintUserErrorMessages();                            \
     if (DEBUG_TEST != 0) {                                       \
       abort();                                                   \
     } else {                                                     \

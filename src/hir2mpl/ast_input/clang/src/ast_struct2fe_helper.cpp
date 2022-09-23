@@ -167,7 +167,19 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   (void)allocator;
   const std::string varName = astVar.GetName();
   MIRType *type = astVar.GetTypeDesc().front();
-  MIRSymbol *mirSymbol = FEManager::GetMIRBuilder().GetOrCreateGlobalDecl(varName, *type);
+  TypeAttrs typeAttrs = astVar.GetGenericAttrs().ConvertToTypeAttrs();
+  ENCChecker::InsertBoundaryInAtts(typeAttrs, astVar.GetBoundaryInfo());
+  MIRSymbol *mirSymbol = FEManager::GetMIRBuilder().GetGlobalDecl(varName);
+  if (mirSymbol != nullptr) {
+    // do not allow extern var override global var
+    if (mirSymbol->GetStorageClass() != MIRStorageClass::kScExtern && typeAttrs.GetAttr(ATTR_extern)) {
+      typeAttrs.ResetAttr(ATTR_extern);
+    } else if (mirSymbol->GetStorageClass() == MIRStorageClass::kScExtern && !typeAttrs.GetAttr(ATTR_extern)) {
+      mirSymbol->SetStorageClass(MIRStorageClass::kScGlobal);
+    }
+  } else {
+    mirSymbol = FEManager::GetMIRBuilder().GetOrCreateGlobalDecl(varName, *type);
+  }
   if (mirSymbol == nullptr) {
     return false;
   }
@@ -178,19 +190,6 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   }
   if (mirSymbol->GetSrcPosition().LineNum() == 0) {
     mirSymbol->SetSrcPosition(FEUtils::CvtLoc2SrcPosition(astVar.GetSrcLoc()));
-  }
-  auto typeAttrs = astVar.GetGenericAttrs().ConvertToTypeAttrs();
-  ENCChecker::InsertBoundaryInAtts(typeAttrs, astVar.GetBoundaryInfo());
-  // do not allow extern var override global var
-  if (mirSymbol->GetAttrs().GetAttrFlag() != 0 && typeAttrs.GetAttr(ATTR_extern)) {
-    mirSymbol->AddAttrs(typeAttrs);
-    const ASTExpr *initExpr = astVar.GetInitExpr();
-    if (initExpr == nullptr) {
-      return true;
-    }
-    MIRConst *cst = initExpr->GenerateMIRConst();
-    mirSymbol->SetKonst(cst);
-    return true;
   }
   if (typeAttrs.GetAttr(ATTR_extern)) {
     mirSymbol->SetStorageClass(MIRStorageClass::kScExtern);

@@ -24,6 +24,10 @@ class ASTStruct2FEHelper : public FEInputStructHelper {
   ASTStruct2FEHelper(MapleAllocator &allocator, ASTStruct &structIn);
   ~ASTStruct2FEHelper() = default;
 
+  const ASTStruct &GetASTStruct() const {
+    return astStruct;
+  }
+
  protected:
   bool ProcessDeclImpl() override;
   void InitFieldHelpersImpl() override;

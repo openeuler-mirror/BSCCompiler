@@ -49,6 +49,11 @@ class ASTCompilerComponent : public HIR2MPLCompilerComponent {
   MemPool *mp;
   MapleAllocator allocator;
   ASTInput<T> astInput;
+  std::unordered_set<std::string> structNameSet;
+  std::unordered_map<std::string, FEInputMethodHelper*> funcNameMap;
+
+  void ParseInputStructs();
+  void ParseInputFuncs();
 };  // class ASTCompilerComponent
 }  // namespace maple
 #endif  // HIR2MPL_AST_INPUT_INCLUDE_AST_COMPILER_COMPONENT_H

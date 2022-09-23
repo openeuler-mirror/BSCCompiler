@@ -329,17 +329,6 @@ bool ASTUtil::InsertFuncSet(const GStrIdx &idx) {
   return funcIdxSet.insert(idx).second;
 }
 
-std::string ASTUtil::GetRecordLayoutString(const clang::ASTRecordLayout &recordLayout) {
-  std::string recordLayoutStr = "";
-  unsigned int fieldCount = recordLayout.getFieldCount();
-  uint64_t recordSize = static_cast<uint64_t>(recordLayout.getSize().getQuantity());
-  recordLayoutStr += (std::to_string(fieldCount) + std::to_string(recordSize));
-  for (unsigned int i = 0; i < fieldCount; ++i) {
-    recordLayoutStr += std::to_string(recordLayout.getFieldOffset(i));
-  }
-  return recordLayoutStr;
-}
-
 bool ASTUtil::HasTypdefType(clang::QualType qualType) {
   if (llvm::isa<clang::TypedefType>(qualType)) {
     return true;

@@ -66,7 +66,6 @@ class ASTUtil {
     }
     return os.str();
   }
-  static std::string GetRecordLayoutString(const clang::ASTRecordLayout &recordLayout);
 };
 }  // namespace maple
 #endif  // AST2MPL_INCLUDE_ASTUTIL_H_

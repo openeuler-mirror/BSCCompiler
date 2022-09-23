@@ -53,6 +53,7 @@ class LibAstFile {
   void EmitTypeName(const clang::RecordType &recordType, std::stringstream &ss);
   void EmitQualifierName(const clang::QualType qualType, std::stringstream &ss) const;
   std::string GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl) const;
+  std::string GetRecordLayoutString(const clang::RecordDecl &recordDecl);
   void CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
                                                     TypeAttrs &elemAttr, std::vector<uint32_t> &operands,
                                                     bool isSourceType);
@@ -127,6 +128,7 @@ class LibAstFile {
   CXTranslationUnit translationUnit = nullptr;
   CXIndex index = nullptr;
   MapleString astFileName;
+  static std::map<Loc, uint32> unnamedLocMap;
 };
 } // namespace maple
 #endif // HIR2MPL_AST_FILE_INCLUDE_AST_INTERFACE_H

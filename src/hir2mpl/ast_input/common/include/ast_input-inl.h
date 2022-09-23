@@ -50,8 +50,13 @@ template<class T>
 bool ASTInput<T>::ReadASTFiles(MapleAllocator &allocatorIn, const std::vector<std::string> &fileNames) {
   bool res = true;
   for (uint32 i = 0; res && i < fileNames.size(); ++i) {
+    FETimer timer;
+    std::stringstream ss;
+    ss << "ReadASTFile[" << (i + 1) << "/" << fileNames.size() << "]: " << fileNames[i];
+    timer.StartAndDump(ss.str());
     res = res && ReadASTFile(allocatorIn, i, fileNames[i]);
     RegisterFileInfo(fileNames[i]);
+    timer.StopAndDumpTimeMS(ss.str());
   }
   return res;
 }

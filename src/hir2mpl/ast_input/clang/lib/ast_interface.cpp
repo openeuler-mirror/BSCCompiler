@@ -538,6 +538,19 @@ void LibAstFile::EmitQualifierName(const clang::QualType qualType, std::stringst
 
 const std::string LibAstFile::GetOrCreateMappedUnnamedName(const clang::Decl &decl) {
   uint32 uid;
+  if (FEOptions::GetInstance().GetFuncInlineSize() != 0 && !decl.getLocation().isMacroID()) {
+    // use loc as key for wpaa mode
+    Loc l = GetLOC(decl.getLocation());
+    CHECK_FATAL(l.fileIdx != 0, "loc is invaild");
+    std::map<Loc, uint32>::const_iterator itLoc = unnamedLocMap.find(l);
+    if (itLoc == unnamedLocMap.cend()) {
+      uid = FEUtils::GetSequentialNumber();
+      unnamedLocMap[l] = uid;
+    } else {
+      uid = itLoc->second;
+    }
+    return FEUtils::GetSequentialName0("unnamed.", uid);
+  }
   std::map<int64, uint32>::const_iterator it = unnamedSymbolMap.find(decl.getID());
   if (it == unnamedSymbolMap.cend()) {
     uid = FEUtils::GetSequentialNumber();
@@ -602,12 +615,30 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recordType, std::stringst
     ss << GetOrCreateMappedUnnamedName(*recordDecl);
   }
   if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-    std::string recordLayoutStr = recordDecl->getDefinition() == nullptr ? "" :
-        ASTUtil::GetRecordLayoutString(astContext->getASTRecordLayout(recordDecl->getDefinition()));
+    std::string recordStr = recordDecl->getDefinition() == nullptr ? "" : GetRecordLayoutString(*recordDecl);
     std::string filename = astContext->getSourceManager().getFilename(recordDecl->getLocation()).str();
-    ss << FEUtils::GetFileNameHashStr(filename + recordLayoutStr);
+    ss << FEUtils::GetFileNameHashStr(filename + recordStr);
   }
   CHECK_FATAL(ss.rdbuf()->in_avail() != 0, "stringstream is empty");
+}
+
+std::string LibAstFile::GetRecordLayoutString(const clang::RecordDecl &recordDecl) {
+  std::stringstream recordLayoutStr;
+  const clang::ASTRecordLayout &recordLayout = GetContext()->getASTRecordLayout(&recordDecl);
+  unsigned int fieldCount = recordLayout.getFieldCount();
+  uint64_t recordSize = static_cast<uint64_t>(recordLayout.getSize().getQuantity());
+  recordLayoutStr << std::to_string(fieldCount) << std::to_string(recordSize);
+  clang::RecordDecl::field_iterator it = recordDecl.field_begin();
+  for (unsigned i = 0, e = recordLayout.getFieldCount(); i != e; ++i, ++it) {
+    const clang::FieldDecl *fieldDecl = *it;
+    recordLayoutStr << std::to_string(recordLayout.getFieldOffset(i));
+    std::string fieldName = GetMangledName(*fieldDecl);
+    if (fieldName.empty()) {
+      fieldName = GetOrCreateMappedUnnamedName(*fieldDecl);
+    }
+    recordLayoutStr << fieldName;
+  }
+  return recordLayoutStr.str();
 }
 
 // get TypedefDecl name for the unnamed struct, e.g. typedef struct {} foo;
