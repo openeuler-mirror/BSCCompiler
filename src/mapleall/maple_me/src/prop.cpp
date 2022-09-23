@@ -685,17 +685,23 @@ MeExpr &Prop::TryPropUnionVar(VarMeExpr &var) {
   // check if is covered by def
   auto defStart = topType->GetBitOffsetFromBaseAddr(realDef->GetFieldID());
   auto useStart = topType->GetBitOffsetFromBaseAddr(var.GetFieldID());
-  if (useStart < defStart) {
-    return var;
-  }
   auto *defFieldType = topType->GetFieldType(realDef->GetFieldID());
   auto *useFieldType = topType->GetFieldType(var.GetFieldID());
+
   if (!defFieldType->IsScalarType() || !useFieldType->IsScalarType()) {
     return var;
   }
+
   auto defSize = defFieldType->GetSize() * CHAR_BIT;
   auto useSize = useFieldType->GetSize() * CHAR_BIT;
-  if (static_cast<uint64>(defStart) + defSize < static_cast<uint64>(useStart) + useSize) {
+
+  if (MeOption::IsBigEndian()) {
+    auto unionSize = static_cast<int64>(topType->GetSize()) * CHAR_BIT;
+    defStart = unionSize - (static_cast<int64>(defSize) + defStart);
+    useStart = unionSize - (static_cast<int64>(useSize) + useStart);
+  }
+
+  if ((useStart < defStart) || (static_cast<uint64>(defStart) + defSize < static_cast<uint64>(useStart) + useSize)) {
     return var;
   }
   OpMeExpr extr(kInvalidExprID, OP_extractbits, topType->GetFieldType(var.GetFieldID())->GetPrimType(), lhs);

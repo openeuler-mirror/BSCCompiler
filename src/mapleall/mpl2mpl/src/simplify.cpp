@@ -487,6 +487,13 @@ StmtNode *Simplify::SimplifyBitFieldWrite(const IassignNode &iass) {
         mirBuiler->CreateIntConst(static_cast<uint64>(bfe.byteOffset), PTY_a64));
   }
   auto *readIvar = mirBuiler->CreateExprIread(*bfe.extractType, *newIvarType, 0, base);
+
+  if (MeOption::IsBigEndian()) {
+    auto extractSize = GetPrimTypeBitSize(bfe.extractType->GetPrimType());
+    ASSERT(bfe.extractStart + bfe.extractSize <= extractSize, "bit offset is out-of-range");
+    bfe.extractStart = extractSize - (bfe.extractStart + bfe.extractSize);
+  }
+
   auto *deposit = mirBuiler->CreateExprDepositbits(OP_depositbits, bfe.extractType->GetPrimType(),
       static_cast<uint32>(bfe.extractStart), static_cast<uint32>(bfe.extractSize), readIvar, iass.GetRHS());
   auto *newIass = mirBuiler->CreateStmtIassign(*newIvarType, 0, base, deposit);
@@ -587,6 +594,12 @@ BaseNode *Simplify::SimplifyBitFieldRead(IreadNode &iread) {
         mirBuiler->CreateIntConst(static_cast<uint64>(bfe.byteOffset), PTY_a64));
   }
   auto *readIvar = mirBuiler->CreateExprIread(*bfe.extractType, *newIvarType, 0, base);
+
+  if (MeOption::IsBigEndian()) {
+    ASSERT(bfe.extractStart + bfe.extractSize <= GetPrimTypeBitSize(extractPtyp), "bit offset is out-of-range");
+    bfe.extractStart = GetPrimTypeBitSize(extractPtyp) - (bfe.extractStart + bfe.extractSize);
+  }
+
   auto *extract = mirBuiler->CreateExprExtractbits(OP_extractbits, extractPtyp, static_cast<uint32>(bfe.extractStart),
                                                    static_cast<uint32>(bfe.extractSize), readIvar);
   if (extractPtyp != iread.GetPrimType()) {
