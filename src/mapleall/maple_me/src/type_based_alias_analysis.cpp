@@ -139,8 +139,7 @@ bool IsFieldTypeOfArrayType(ArrayType *arrayType, MIRType *checkedType) {
   }
   // check if checkedType is simd type, e.g. v4i32 and <[N] i32> may be the same.
   if (elemType->IsScalarType() && checkedType->IsScalarType()) {
-    return (IsPrimitiveVector(elemType->GetPrimType()) && IsPrimitiveInteger(checkedType->GetPrimType())) ||
-           (IsPrimitiveVector(checkedType->GetPrimType()) && IsPrimitiveInteger(elemType->GetPrimType()));
+    return IsTypeCompatible(elemType, checkedType);
   }
   // Only need to check if elemType is a MIRArrayType or MIRStructType, elemType will never be MIRFarrayType
   if (IsFieldTypeOfStructType(elemType->EmbeddedStructType(), checkedType)) {
@@ -370,10 +369,6 @@ bool IsTypeCompatible(MIRType *typeA, MIRType *typeB) {
   if (typeA == typeB) {
     return true;
   }
-  // we assume i8/u8 can alias with any other type
-  if (IsByteType(typeA) || IsByteType(typeB)) {
-    return true;
-  }
 
   if (typeA->IsMIRPtrType() && typeB->IsMIRPtrType()) {
     return IsPointerInterconvertible(static_cast<MIRPtrType &>(*typeA), static_cast<MIRPtrType &>(*typeB));
@@ -571,11 +566,10 @@ bool MayAliasForAggTypeNest(MIRType *aggTypeA, const OriginalSt *ostA, MIRType *
   if (IsFieldTypeOfAggType(typeA, aggTypeB)) { // aggTypeB is field type of typeA
     return true;
   }
-  OffsetType offsetB = ostB->GetOffset();
   FieldID fldIDB = ostB->GetFieldID();
   std::vector<FieldID> possibleFldIDs{};
   GetPossibleFieldID(aggTypeA, aggTypeB, possibleFldIDs); // all possible fields that aggTypeB may embed
-  if (!offsetB.IsInvalid() && fldIDB != 0) {
+  if (fldIDB != 0) {
     std::for_each(possibleFldIDs.begin(), possibleFldIDs.end(), [fldIDB](FieldID &id) {
       id += fldIDB;
     });
@@ -586,7 +580,7 @@ bool MayAliasForAggTypeNest(MIRType *aggTypeA, const OriginalSt *ostA, MIRType *
 // No info abort where checkedType is embedded, so we ASSUME ost and checkedType
 // might be embedded in the same TopType conservatively
 bool MayAliasOstAndType(const OriginalSt *ost, MIRType *checkedType) {
-  if (IsByteType(checkedType) || IsPrimitiveVector(checkedType->GetPrimType())) {
+  if (IsPrimitiveVector(checkedType->GetPrimType())) {
     return true;
   }
 
@@ -647,7 +641,7 @@ bool MustAliasAccordingOffset(const OriginalSt &ostA, const OriginalSt &ostB) {
   if (ostA.GetIndex() == ostB.GetIndex()) {
     return true;
   }
-  if (ostA.GetPointerVstIdx() != ostB.GetPointerVstIdx()) {
+  if (ostA.GetPointerVstIdx() != ostB.GetPointerVstIdx() || ostA.GetPointerVstIdx() == 0) {
     return false;
   }
   if (ostA.GetOffset().IsInvalid() || ostB.GetOffset().IsInvalid()) {
@@ -757,11 +751,10 @@ static bool MayAliasForVirtualOstOfVoidPtr(const OriginalSt &ostA, MIRType &aggT
   }
 
   // not analyze candidate of cur method, return false
-  auto voidPtrType = GlobalTables::GetTypeTable().GetVoidPtr();
   auto *prevLevOstA = ostA.GetPrevLevelOst();
-  if (prevLevOstA == nullptr || prevLevOstA->GetType() != voidPtrType) {
+  if (prevLevOstA == nullptr || !prevLevOstA->GetType()->IsVoidPointer()) {
     auto *prevLevOstB = ostB.GetPrevLevelOst();
-    if (prevLevOstB == nullptr || prevLevOstB->GetType() != voidPtrType) {
+    if (prevLevOstB == nullptr || !prevLevOstB->GetType()->IsVoidPointer()) {
       return false;
     }
   }
@@ -800,6 +793,26 @@ bool TypeBasedAliasAnalysis::MayAliasTBAAForC(const OriginalSt *ostA, const Orig
   MIRType *typeB = ostB->GetType();
   MIRType *aggTypeA = GetAggTypeOstEmbedded(ostA);
   MIRType *aggTypeB = GetAggTypeOstEmbedded(ostB);
+  // using an lvalue expression (typically, dereferencing a pointer) of character type is legal
+  // which means an object derefereced from (char *) may alias with any other type
+  auto dereferencedByteType = [](const OriginalSt &ost) {
+    return ost.GetIndirectLev() > 0 && IsByteType(ost.GetType());
+  };
+  // after prop, ost with non-zero indirectLevel may present as zero-indirectleveled ost
+  auto propedFromDereferencedByteType = [](const OriginalSt &ost) {
+    auto *ostType = ost.GetType();
+    if (!ost.IsSymbolOst()) {
+      return false;
+    }
+    auto *symbolType = ost.GetMIRSymbol()->GetType();
+    return ost.GetIndirectLev() == 0 && (ostType != symbolType) && IsByteType(ostType);
+  };
+  if (dereferencedByteType(*ostA) || dereferencedByteType(*ostB)) {
+    return true;
+  }
+  if (propedFromDereferencedByteType(*ostA) || propedFromDereferencedByteType(*ostB)) {
+    return true;
+  }
   // We are not sure where they are embedded, check if they are compatible.
   if (aggTypeA == nullptr && aggTypeB == nullptr) {
     return IsTypeCompatible(typeA, typeB);

@@ -76,6 +76,7 @@ void OutlineCandidate::InsertIntoParameterList(BaseNode &expr) {
     exprToParameterIndex[&expr] = i;
     if (expr.GetOpCode() == OP_addrof) {
       parameters[i]->SetOpCode(OP_addrof);
+      parameters[i]->SetPrimType(expr.GetPrimType());
     }
     return;
   }

@@ -51,34 +51,35 @@ void MeAliasClass::PerformTBAAForC() {
   }
   for (auto *ost : func.GetMeSSATab()->GetOriginalStTable()) {
     auto *aliasSet = GetAliasSet(*ost);
-    if (aliasSet != nullptr) {
-      auto *oldAliasSet = aliasSet;
-      AliasSet *newAliasSet = nullptr;
-      for (auto aliasedOstIdx : *oldAliasSet) {
-        if (aliasedOstIdx == ost->GetIndex()) {
-          continue;
-        }
-        bool alias = false;
-        if (ost->GetIndex() < aliasedOstIdx) {
-          auto *aliasedOst = func.GetMeSSATab()->GetOriginalStFromID(OStIdx(aliasedOstIdx));
-          alias = TypeBasedAliasAnalysis::MayAliasTBAAForC(ost, aliasedOst);
-        } else {
-          auto aliasSetOfAliasedOst = GetAliasSet(OStIdx(aliasedOstIdx));
-          alias = aliasSetOfAliasedOst == nullptr ||
-                  (aliasSetOfAliasedOst->find(ost->GetIndex()) != aliasSetOfAliasedOst->end());
-        }
-        if (!alias) {
-          if (newAliasSet == nullptr) {
-            newAliasSet =
-                GetMapleAllocator().GetMemPool()->New<AliasSet>(GetMapleAllocator().Adapter());
-            newAliasSet->insert(oldAliasSet->cbegin(), oldAliasSet->cend());
-          }
-          newAliasSet->erase(aliasedOstIdx);
-        }
+    if (aliasSet == nullptr) {
+      continue;
+    }
+    auto *oldAliasSet = aliasSet;
+    AliasSet *newAliasSet = nullptr;
+    for (auto aliasedOstIdx : *oldAliasSet) {
+      if (aliasedOstIdx == ost->GetIndex()) {
+        continue;
       }
-      if (newAliasSet != nullptr) {
-        SetAliasSet(ost->GetIndex(), newAliasSet);
+      bool alias = false;
+      if (ost->GetIndex() < aliasedOstIdx) {
+        auto *aliasedOst = func.GetMeSSATab()->GetOriginalStFromID(OStIdx(aliasedOstIdx));
+        alias = TypeBasedAliasAnalysis::MayAliasTBAAForC(ost, aliasedOst);
+      } else {
+        auto aliasSetOfAliasedOst = GetAliasSet(OStIdx(aliasedOstIdx));
+        alias = aliasSetOfAliasedOst == nullptr ||
+                (aliasSetOfAliasedOst->find(ost->GetIndex()) != aliasSetOfAliasedOst->end());
       }
+      if (alias) {
+        continue;
+      }
+      if (newAliasSet == nullptr) {
+        newAliasSet = GetMapleAllocator().GetMemPool()->New<AliasSet>(GetMapleAllocator().Adapter());
+        newAliasSet->insert(oldAliasSet->cbegin(), oldAliasSet->cend());
+      }
+      newAliasSet->erase(aliasedOstIdx);
+    }
+    if (newAliasSet != nullptr) {
+      SetAliasSet(ost->GetIndex(), newAliasSet);
     }
   }
 }
