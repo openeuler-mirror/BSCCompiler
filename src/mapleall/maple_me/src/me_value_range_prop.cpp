@@ -2693,11 +2693,12 @@ bool ValueRangePropagation::Insert2Caches(
     valueRange->SetRangeType(kEqual);
     valueRange->SetBound(valueRange->GetLower());
   }
+
   if (onlyRecordValueRangeInTempCache.top()) {
     if (opnd != nullptr && TheValueRangeOfOpndAndSubOpndAreEqual(*opnd)) {
       (void)tempCaches[bbID].insert(std::make_pair(opnd->GetOpnd(0)->GetExprID(), CopyValueRange(*valueRange)));
     }
-    (void)tempCaches[bbID].insert(std::make_pair(exprID, std::move(valueRange)));
+    tempCaches[bbID][exprID] = std::move(valueRange);
   } else {
     if (opnd != nullptr && TheValueRangeOfOpndAndSubOpndAreEqual(*opnd)) {
       caches.at(bbID)[opnd->GetOpnd(0)->GetExprID()] = CopyValueRange(*valueRange);
