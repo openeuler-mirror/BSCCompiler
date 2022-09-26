@@ -365,7 +365,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
   switch (meStmt->GetOp()) {
     case OP_dassign: {
       DassignMeStmt *dsmestmt = static_cast<DassignMeStmt *>(meStmt);
-      if (dsmestmt->GetRHS()->GetMeOp() == kMeOpVar && 
+      if (dsmestmt->GetRHS()->GetMeOp() == kMeOpVar &&
           static_cast<VarMeExpr*>(dsmestmt->GetRHS())->GetOst() == dsmestmt->GetLHS()->GetOst()) {
         return nullptr;  // identity assignment introduced by LFO
       }
