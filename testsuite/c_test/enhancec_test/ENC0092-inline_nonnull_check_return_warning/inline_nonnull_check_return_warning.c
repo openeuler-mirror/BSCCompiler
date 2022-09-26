@@ -17,9 +17,11 @@
 #include <stdlib.h>
 
 unsigned int* __attribute__((returns_nonnull)) func_a(int*  __attribute__((nonnull)) p) ;
-
+unsigned int* __attribute__((returns_nonnull)) func_b(int p) ;
 unsigned int g_b = 0;
-unsigned int* func_a(int* p)
+
+
+inline unsigned int* func_a(int* p)
 {
     int a = *p;
     *p = a + 1;
@@ -29,7 +31,19 @@ unsigned int* func_a(int* p)
     if (a > 1) {
         ret = NULL;
     }
-    return ret; // CHECK: [[# @LINE ]] warning: func_a return nonnull but got nullable pointer
+    return ret; // CHECK: [[# @LINE ]] warning: func_a return nonnull but got nullable pointer when inlined to main
+}
+
+unsigned int* func_b(int p)
+{
+    g_b = g_b + 1;
+    unsigned int* ret = (unsigned int*) malloc(sizeof(unsigned int));
+    if (p > 1) {
+        ret = NULL;
+    } else {
+        ret = &g_b;
+    }
+    return ret; // CHECK: [[# @LINE ]] warning: func_b return nonnull but got nullable pointer
 }
 
 int main(int argc, char* argv[])
@@ -39,10 +53,18 @@ int main(int argc, char* argv[])
     if (argc == 1) {
         c = 23;
         cPtr = &c;
+    } else {
+        c = 1;
+        cPtr = &c;
     }
     if (cPtr != NULL) {
         unsigned int* __attribute__((nonnull)) ret = func_a(cPtr);
         printf("%d, %d\n", *ret, c);
     }
+    c = 1;
+    cPtr = &c;
+    unsigned int* __attribute__((nonnull)) ret = func_b(1);
+    printf("%d, %d\n", *ret, c);
+
     return 0;
 }

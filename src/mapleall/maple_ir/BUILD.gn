@@ -43,7 +43,7 @@ src_libmplir = [
   "src/mir_nodes.cpp",
   "src/mir_symbol.cpp",
   "src/mir_type.cpp",
-  "src/mir_enumeration.cpp",
+  "src/mir_enum.cpp",
   "src/opcode_info.cpp",
   "src/option.cpp",
   "src/mpl2mpl_options.cpp",
@@ -83,7 +83,6 @@ executable("irbuild") {
   include_dirs = include_directories
   deps = [
     ":libmplir",
-    "${MAPLEALL_ROOT}/maple_phase:libmplphase",
     "${MAPLEALL_ROOT}/maple_phase:libmplphase",
     "${MAPLEALL_ROOT}/maple_util:libmplutil",
     "${MAPLEALL_ROOT}/maple_util:libcommandline",

@@ -17,33 +17,14 @@
 #include <stdlib.h>
 
 unsigned int* __attribute__((returns_nonnull)) func_a(int*  __attribute__((nonnull)) p) ;
-unsigned int* __attribute__((returns_nonnull)) func_b(int p) ;
-unsigned int g_b = 0;
-inline unsigned int* func_a(int* p)
+unsigned int* func_a(int* p)
 {
-    int a = *p;
-    *p = a + 1;
-    g_b = g_b + 1;
     unsigned int* ret = (unsigned int*) malloc(sizeof(unsigned int));
-    ret = &g_b;
-    if (a > 1) {
-        ret = NULL;
-    }
-    return ret; // CHECK: [[# @LINE ]] error: func_a return nonnull but got null pointer when inlined to main
+    ret = NULL;
+    return ret; // CHECK: [[# @LINE ]] error: func_a return nonnull but got null pointer
 }
 
 int main(int argc, char* argv[])
 {
-    int c = 0;
-    int* cPtr = NULL;
-    if (argc == 1) {
-        c = 23;
-        cPtr = &c;
-    }
-    if (cPtr != NULL) {
-        unsigned int* __attribute__((nonnull)) ret = func_a(cPtr);
-        printf("%d, %d\n", *ret, c);
-    }
-
     return 0;
 }

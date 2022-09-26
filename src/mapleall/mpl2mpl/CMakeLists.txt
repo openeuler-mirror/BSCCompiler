@@ -1,0 +1,77 @@
+#
+# Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
+#
+# OpenArkCompiler is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+# http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN AS IS BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+# FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+#
+
+set(inc_libmpl2mpl
+    ${MAPLEALL_ROOT}/maple_ir/include
+    ${MAPLEALL_ROOT}/maple_me/include
+    ${MAPLEALL_ROOT}/maple_ipa/include
+    ${MAPLEALL_ROOT}/maple_ipa/include/old
+    ${MAPLEALL_ROOT}/maple_phase/include
+    ${MAPLEALL_ROOT}/maple_util/include
+    ${MAPLEALL_ROOT}/maple_driver/include
+    ${MAPLEALL_ROOT}/mpl2mpl/include
+    ${MAPLEALL_ROOT}/mpl2mpl/include/aarch64
+    ${MAPLEALL_ROOT}/mempool/include
+    ${THIRD_PARTY_ROOT}/bounds_checking_function/include
+)
+
+set(src_libmpl2mpl
+    src/class_init.cpp
+    src/gen_check_cast.cpp
+    src/barrierinsertion.cpp
+    src/muid_replacement.cpp
+    src/reflection_analysis.cpp
+    src/vtable_analysis.cpp
+    src/java_intrn_lowering.cpp
+    src/simplify.cpp
+    src/openProfile.cpp
+    src/update_mplt.cpp
+    src/java_eh_lower.cpp
+    src/native_stub_func.cpp
+    src/vtable_impl.cpp
+    src/class_hierarchy.cpp
+    src/class_hierarchy_phase.cpp
+    src/constantfold.cpp
+    src/ext_constantfold.cpp
+    src/coderelayout.cpp
+    src/annotation_analysis.cpp
+    src/gen_profile.cpp
+    src/preme.cpp
+    src/scalarreplacement.cpp
+    src/module_phase_manager.cpp
+    src/inline_summary.cpp
+    src/clone.cpp
+    src/retype.cpp
+    src/call_graph.cpp
+    src/inline.cpp
+    src/ginline.cpp
+    src/stmt_cost_analyzer.cpp
+    src/inline_analyzer.cpp
+    src/inline_transformer.cpp
+    src/inline_mplt.cpp
+    src/outline.cpp
+    src/method_replace.cpp
+    src/mpl_profdata_parser.cpp
+    src/target_info.cpp
+)
+
+#libmpl2mpl
+add_library(libmpl2mpl STATIC ${src_libmpl2mpl})
+set_target_properties(libmpl2mpl PROPERTIES
+    COMPILE_FLAGS ""
+    INCLUDE_DIRECTORIES "${inc_libmpl2mpl}"
+    LINK_LIBRARIES ""
+    ARCHIVE_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}
+)

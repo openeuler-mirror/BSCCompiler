@@ -14,7 +14,11 @@
 #
 
 
-add_subdirectory(mempool)
 add_subdirectory(maple_util)
-add_subdirectory(maple_be)
 add_subdirectory(maple_ipa)
+add_subdirectory(maple_phase)
+add_subdirectory(mpl2mpl)
+add_subdirectory(mempool)
+add_subdirectory(maple_be)
+add_subdirectory(maple_driver)
+add_subdirectory(maple_ir)

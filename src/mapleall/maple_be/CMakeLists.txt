@@ -124,6 +124,8 @@ set(src_libcgaarch64
     src/cg/aarch64/aarch64_cg.cpp
     src/cg/aarch64/aarch64_validbit_opt.cpp
     src/cg/aarch64/aarch64_rce.cpp
+    src/cg/aarch64/aarch64_cfgo.cpp
+    src/cg/aarch64/aarch64_isolate_fastpath.cpp
 )
 set(src_libcgx8664
     src/cg/x86_64/x64_cg.cpp
@@ -137,6 +139,12 @@ set(src_libcgx8664
     src/cg/x86_64/x64_reg_info.cpp
     src/cg/x86_64/x64_proepilog.cpp
     src/cg/x86_64/x64_args.cpp
+    src/cg/x86_64/x64_peep.cpp
+    src/cg/x86_64/x64_reaching.cpp
+    src/cg/x86_64/x64_local_opt.cpp
+    src/cg/x86_64/x64_cfgo.cpp
+    src/cg/x86_64/x64_isa.cpp
+    src/cg/x86_64/x64_optimize_common.cpp
 )
 set(src_libcgriscv64
     src/cg/riscv64/mpl_atomic.cpp
