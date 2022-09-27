@@ -377,37 +377,13 @@ size_t OBJSize::DealWithDread(const MeExpr &opnd, int64 type, bool getMaxSizeOfO
   return size;
 }
 
-MIRType *OBJSize::GetArrayElemType(const MeExpr &opnd) const {
-  MIRType *type = nullptr;
-  switch (opnd.GetOp()) {
-    case OP_addrof: {
-      type = static_cast<MIRPtrType*>(static_cast<const AddrofMeExpr&>(opnd).GetOst()->GetType())->GetPointedType();
-      break;
-    }
-    case OP_iaddrof: {
-      auto &opMeExpr = static_cast<const OpMeExpr&>(opnd);
-      MIRPtrType *ptrType =
-          static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(opMeExpr.GetTyIdx()));
-      type = (opMeExpr.GetFieldID() == 0) ? ptrType->GetPointedType() :
-          GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrType->GetPointedTyIdxWithFieldID(opMeExpr.GetFieldID()));
-      break;
-    }
-    default:
-      return nullptr;
-  }
-  if (type == nullptr) {
-    return nullptr;
-  }
-  return (type->GetKind() == kTypeArray) ? static_cast<MIRArrayType*>(type)->GetElemType() : type;
-}
-
 size_t OBJSize::DealWithArray(const MeExpr &opnd, int64 type) const {
   if (opnd.GetNumOpnds() != kNumOperands) {
     return kInvalidDestSize;
   }
   auto opnd0 = opnd.GetOpnd(0);
   auto opnd1 = opnd.GetOpnd(1);
-  MIRType *elemType = GetArrayElemType(*opnd0);
+  MIRType *elemType = IRMap::GetArrayElemType(*opnd0);
   if (elemType == nullptr) {
     return kInvalidDestSize;
   }

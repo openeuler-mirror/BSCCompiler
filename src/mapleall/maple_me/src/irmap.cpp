@@ -2794,4 +2794,28 @@ MeExpr *IRMap::SimplifyMeExpr(MeExpr *x) {
   }
   return x;
 }
+
+MIRType *IRMap::GetArrayElemType(const MeExpr &opnd) {
+  MIRType *type = nullptr;
+  switch (opnd.GetOp()) {
+    case OP_addrof: {
+      type = static_cast<MIRPtrType*>(static_cast<const AddrofMeExpr&>(opnd).GetOst()->GetType())->GetPointedType();
+      break;
+    }
+    case OP_iaddrof: {
+      auto &opMeExpr = static_cast<const OpMeExpr&>(opnd);
+      MIRPtrType *ptrType =
+          static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(opMeExpr.GetTyIdx()));
+      type = (opMeExpr.GetFieldID() == 0) ? ptrType->GetPointedType() :
+          GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrType->GetPointedTyIdxWithFieldID(opMeExpr.GetFieldID()));
+      break;
+    }
+    default:
+      return nullptr;
+  }
+  if (type == nullptr) {
+    return nullptr;
+  }
+  return (type->GetKind() == kTypeArray) ? static_cast<MIRArrayType*>(type)->GetElemType() : type;
+}
 }  // namespace maple

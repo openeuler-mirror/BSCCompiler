@@ -165,6 +165,7 @@ class IRMap : public AnalysisResult {
   MeExpr *SimplifyIvarWithIaddrofBase(IvarMeExpr *ivar, bool lhsIvar);
   MeExpr *SimplifyIvar(IvarMeExpr *ivar, bool lhsIvar);
   void UpdateIncDecAttr(MeStmt &meStmt);
+  static MIRType *GetArrayElemType(const MeExpr &opnd);
 
   template <class T, typename... Arguments>
   T *NewInPool(Arguments&&... args) {

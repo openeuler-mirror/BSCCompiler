@@ -48,7 +48,6 @@ class OBJSize {
 
   MeExpr *GetStrMeExpr(MeExpr &expr);
   void ComputeObjectSize(MeStmt &meStmt);
-  MIRType *GetArrayElemType(const MeExpr &opnd) const;
   void ERRWhenSizeTypeIsInvalid(const MeStmt &meStmt) const;
   void DealWithBuiltinObjectSize(BB &bb, MeStmt &meStmt);
   size_t ComputeObjectSizeWithType(MeExpr &opnd, int64 type) const;
