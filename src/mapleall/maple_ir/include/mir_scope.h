@@ -49,11 +49,6 @@ class MIRAlias {
     aliasVarMap[idx] = vars;
   }
 
-  void AddAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
-    /* allow same idx, save last aliasVars */
-    aliasVarMap[idx] = vars;
-  }
-
   MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {
     return aliasVarMap;
   }
@@ -66,13 +61,17 @@ class MIRAlias {
   MapleMap<GStrIdx, MIRAliasVars> aliasVarMap { module->GetMPAllocator().Adapter() };
 };
 
-class MIRTypeAliasTable {
+class MIRTypeAlias {
  public:
-  explicit MIRTypeAliasTable(MIRModule *mod) : module(mod) {}
-  virtual ~MIRTypeAliasTable() = default;
+  explicit MIRTypeAlias(MIRModule *mod) : module(mod) {}
+  virtual ~MIRTypeAlias() = default;
 
   bool IsEmpty() const {
     return typeAliasMap.size() == 0;
+  }
+
+  bool Exist(GStrIdx idx) const {
+    return typeAliasMap.find(idx) != typeAliasMap.end();
   }
 
   const MapleMap<GStrIdx, TyIdx> &GetTypeAliasMap() const {
@@ -140,11 +139,6 @@ class MIRScope {
     alias->SetAliasVarMap(idx, vars);
   }
 
-  void AddAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
-    /* allow same idx, save last aliasVars */
-    alias->AddAliasVarMap(idx, vars);
-  }
-
   MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {
     return alias->GetAliasVarMap();
   }
@@ -164,27 +158,38 @@ class MIRScope {
   SrcPosition GetScopeEndPos(const SrcPosition &pos);
   bool AddScope(MIRScope *scope);
 
-  void SetTypeAlias(GStrIdx gStrIdx, TyIdx tyIdx) {
-    if (typeAlias == nullptr) {
-      typeAlias = module->GetMemPool()->New<MIRTypeAliasTable>(module);
-    }
+  void SetTypeAliasMap(GStrIdx gStrIdx, TyIdx tyIdx) {
     typeAlias->SetTypeAliasMap(gStrIdx, tyIdx);
   }
 
-  const MIRTypeAliasTable *GetTypeAliasTable() const {
+  MIRTypeAlias *GetTypeAlias() {
     return typeAlias;
   }
 
-  void Dump(int32 indent, bool isLocal = true) const;
+  const MIRTypeAlias *GetTypeAlias() const {
+    return typeAlias;
+  }
+
+  void SetIsLocal(bool b) {
+    isLocal = b;
+  }
+
+  bool IsLocal() const {
+    return isLocal;
+  }
+
+  void DumpTypedef(int32 indent) const;
+  void Dump(int32 indent) const;
   void Dump() const;
 
  private:
   MIRModule *module;
   MIRFunction *func;
   unsigned id;
+  bool isLocal;
   std::pair<SrcPosition, SrcPosition> range;
   MIRAlias *alias = nullptr;
-  MIRTypeAliasTable *typeAlias = nullptr;
+  MIRTypeAlias *typeAlias = nullptr;
   // subscopes' range should be disjoint
   MapleVector<MIRScope*> subScopes { module->GetMPAllocator().Adapter() };
   MapleVector<std::tuple<SrcPosition, SrcPosition, SrcPosition>> blkSrcPos { module->GetMPAllocator().Adapter() };

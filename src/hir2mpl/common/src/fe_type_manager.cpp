@@ -248,8 +248,8 @@ MIRTypeByName *FETypeManager::GetTypeByNameType(const GStrIdx &nameIdx) {
 
 MIRTypeByName *FETypeManager::CreateTypedef(const std::string &name, const MIRType &type) {
   MIRTypeByName *typdefType = GetOrCreateTypeByNameType(name);
-  if (GlobalTables::GetTypedefTable().GetTyIdxFromMap(typdefType->GetNameStrIdx()) == TyIdx(0)) {
-    GlobalTables::GetTypedefTable().SetTypedefNameMap(typdefType->GetNameStrIdx(), type.GetTypeIndex());
+  if (!module.GetScope()->GetTypeAlias()->Exist(typdefType->GetNameStrIdx())) {
+    module.GetScope()->SetTypeAliasMap(typdefType->GetNameStrIdx(), type.GetTypeIndex());
   }
   return typdefType;
 }

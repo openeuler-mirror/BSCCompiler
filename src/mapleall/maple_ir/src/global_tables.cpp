@@ -249,7 +249,7 @@ MIRType *TypeTable::GetOrCreateStructOrUnion(const std::string &name, const Fiel
   return typeTable.at(tyIdx);
 }
 
-void TypeTable::PushIntoFieldVector(FieldVector &fields, const std::string &name, const MIRType &type) {
+void TypeTable::PushIntoFieldVector(FieldVector &fields, const std::string &name, const MIRType &type) const {
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
   fields.push_back(FieldPair(strIdx, TyIdxFieldAttrPair(type.GetTypeIndex(), FieldAttrs())));
 }
@@ -276,7 +276,7 @@ MIRType *TypeTable::GetOrCreateClassOrInterface(const std::string &name, MIRModu
 }
 
 void TypeTable::AddFieldToStructType(MIRStructType &structType, const std::string &fieldName,
-                                     const MIRType &fieldType) {
+                                     const MIRType &fieldType) const {
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fieldName);
   FieldAttrs fieldAttrs;
   fieldAttrs.SetAttr(FLDATTR_final);  // Mark compiler-generated struct fields as final to improve AliasAnalysis
@@ -297,7 +297,10 @@ void FPConstTable::PostInit() {
 }
 
 MIRIntConst *IntConstTable::GetOrCreateIntConst(const IntVal &val, MIRType &type) {
-  return GetOrCreateIntConst(static_cast<uint64>(val.GetExtValue()), type);
+  if (ThreadEnv::IsMeParallel()) {
+    return DoGetOrCreateIntConstTreadSafe(static_cast<uint64>(val.GetExtValue()), type);
+  }
+  return DoGetOrCreateIntConst(static_cast<uint64>(val.GetExtValue()), type);
 }
 
 MIRIntConst *IntConstTable::GetOrCreateIntConst(uint64 val, MIRType &type) {

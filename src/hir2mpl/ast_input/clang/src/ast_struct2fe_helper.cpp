@@ -156,7 +156,7 @@ bool ASTStructField2FEHelper::ProcessDeclWithContainerImpl(MapleAllocator &alloc
     CHECK_NULL_FATAL(mirAlias);
     TypeAttrs typeAttrs = field.GetGenericAttrs().ConvertToTypeAttrs();
     MIRAliasVars aliasVar = FEUtils::AddAlias(idx, field.GetSourceType(), typeAttrs);
-    mirAlias->AddAliasVarMap(idx, aliasVar);
+    mirAlias->SetAliasVarMap(idx, aliasVar);
   }
   field.ClearGenericAttrsContentMap();
   return true;

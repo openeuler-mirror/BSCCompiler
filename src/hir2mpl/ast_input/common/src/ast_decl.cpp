@@ -305,7 +305,7 @@ void ASTStruct::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   }
   FEFunction &feFunction = FEManager::GetCurrentFEFunction();
   MIRScope *mirScope = feFunction.GetTopMIRScope();
-  mirScope->SetTypeAlias(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetName()),
+  mirScope->SetTypeAliasMap(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetName()),
                          typeDesc.front()->GetTypeIndex());
 }
 
@@ -318,7 +318,7 @@ void ASTEnumDecl::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   FEFunction &feFunction = FEManager::GetCurrentFEFunction();
   MIRScope *mirScope = feFunction.GetTopMIRScope();
   MIRTypeByName *type = FEManager::GetTypeManager().GetOrCreateTypeByNameType(GenerateUniqueVarName());
-  mirScope->SetTypeAlias(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetName()), type->GetTypeIndex());
+  mirScope->SetTypeAliasMap(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetName()), type->GetTypeIndex());
 }
 
 // ---------- ASTTypedefDecl ----------
@@ -333,7 +333,7 @@ void ASTTypedefDecl::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   while (astTypedef != nullptr && !astTypedef->isGlobalDecl) {
     MIRTypeByName *type = FEManager::GetTypeManager().CreateTypedef(
         astTypedef->GenerateUniqueVarName(), *astTypedef->GetTypeDesc().front());
-    mirScope->SetTypeAlias(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
+    mirScope->SetTypeAliasMap(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
         astTypedef->GetName()), type->GetTypeIndex());
     astTypedef = astTypedef->GetSubTypedefDecl();
   }

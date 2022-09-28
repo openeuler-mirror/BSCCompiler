@@ -303,11 +303,12 @@ void DebugInfo::SetupCU() {
   compUnit->AddAttr(DW_AT_stmt_list, DW_FORM_sec_offset, kDbgDefaultVal);
 }
 
-void DebugInfo::AddScopeDie(MIRScope *scope, bool isLocal) {
-  if (scope->IsEmpty()) {
+void DebugInfo::AddScopeDie(MIRScope *scope) {
+  if (!scope || scope->IsEmpty()) {
     return;
   }
 
+  bool isLocal = scope->IsLocal();
   MIRFunction *func = GetCurFunction();
   // for non-function local scope, add a lexical block
   bool createBlock = isLocal && (scope != func->GetScope());
@@ -323,15 +324,15 @@ void DebugInfo::AddScopeDie(MIRScope *scope, bool isLocal) {
   }
 
   // process type alias
-  HandleTypeAlias(*scope);
+  HandleTypeAlias(scope);
 
   // process alias
-  AddAliasDies(*scope, isLocal);
+  AddAliasDies(scope, isLocal);
 
   if (scope->GetSubScopes().size() > 0) {
     // process subScopes
     for (auto it : scope->GetSubScopes()) {
-      AddScopeDie(it, isLocal);
+      AddScopeDie(it);
     }
   }
 
@@ -377,40 +378,60 @@ DBGDie *DebugInfo::GetOrCreateTypeByNameDie(const MIRType &type) {
   }
   if (!die) {
     // look for the typedef
-    TyIdx undlyingTypeIdx = GlobalTables::GetTypedefTable().GetTyIdxFromMap(type.GetNameStrIdx());
-    CHECK_FATAL(undlyingTypeIdx != TyIdx(0), "typedef not found in TypedefTable");
+    TyIdx undlyingTypeIdx = module->GetScope()->GetTypeAlias()->GetTyIdxFromMap(type.GetNameStrIdx());
+    CHECK_FATAL(undlyingTypeIdx != TyIdx(0), "typedef not found in TypeAliasTable");
     die = GetOrCreateTypedefDie(type.GetNameStrIdx(), undlyingTypeIdx);
   }
   return die;
 }
 
-void DebugInfo::HandleTypeAlias(const MIRScope &scope) {
-  const MIRTypeAliasTable *table = scope.GetTypeAliasTable();
-  if (table == nullptr) {
+void DebugInfo::HandleTypeAlias(MIRScope *scope) {
+  const MIRTypeAlias *typeAlias = scope->GetTypeAlias();
+  if (typeAlias == nullptr) {
     return;
   }
-  for (auto &i : table->GetTypeAliasMap()) {
-    uint32 tid = i.second.GetIdx();
-    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tid);
-    CHECK_NULL_FATAL(type);
-    DBGDie *die = nullptr;
-    if (type->GetKind() == kTypeByName) {
-      die = GetOrCreateTypeByNameDie(*type);
-    } else if (tyIdxDieIdMap.find(tid) != tyIdxDieIdMap.end()) {
-      uint32 id = tyIdxDieIdMap[tid];
-      die = idDieMap[id];
-    } else {
-      ASSERT(false, "type alias type not in tyIdxDieIdMap");
-      continue;
+
+  if (scope->IsLocal()) {
+    for (auto &i : typeAlias->GetTypeAliasMap()) {
+      uint32 tid = i.second.GetIdx();
+      MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tid);
+      CHECK_NULL_FATAL(type);
+      DBGDie *die = nullptr;
+      if (type->GetKind() == kTypeByName) {
+        die = GetOrCreateTypeByNameDie(*type);
+      } else if (tyIdxDieIdMap.find(tid) != tyIdxDieIdMap.end()) {
+        uint32 id = tyIdxDieIdMap[tid];
+        die = idDieMap[id];
+      } else {
+        ASSERT(false, "type alias type not in tyIdxDieIdMap");
+        continue;
+      }
+      (void)die->SetAttr(DW_AT_name, i.first.GetIdx());
+      AddStrps(i.first.GetIdx());
     }
-    (void)die->SetAttr(DW_AT_name, i.first.GetIdx());
-    AddStrps(i.first.GetIdx());
+  } else {
+    for (auto it : typeAlias->GetTypeAliasMap()) {
+      globalTypeAliasMap[it.first.GetIdx()] = it.second.GetIdx();
+    }
+
+    for (auto it : globalTypeAliasMap) {
+      (void)GetOrCreateTypeDie(TyIdx(it.second));
+      DBGDie *die = GetOrCreateTypedefDie(GStrIdx(it.first), TyIdx(it.second));
+      compUnit->AddSubVec(die);
+      // associate typedef's type with die
+      for (auto i : module->GetTypeNameTab()->GetGStrIdxToTyIdxMap()) {
+        if (i.first.GetIdx() == it.first) {
+          tyIdxDieIdMap[i.second.GetIdx()] = die->GetId();
+          break;
+        }
+      }
+    }
   }
 }
 
-void DebugInfo::AddAliasDies(MIRScope &scope, bool isLocal) {
+void DebugInfo::AddAliasDies(MIRScope *scope, bool isLocal) {
   MIRFunction *func = GetCurFunction();
-  for (auto &i : scope.GetAliasVarMap()) {
+  for (auto &i : scope->GetAliasVarMap()) {
     // maple var and die
     MIRSymbol *mplVar = nullptr;
     DBGDie *mplDie = nullptr;
@@ -423,7 +444,7 @@ void DebugInfo::AddAliasDies(MIRScope &scope, bool isLocal) {
       mplDie = GetGlobalDie(mplIdx);
     }
     // some global vars are introduced by system, and
-    // some local vars are discarded in O2, skip all them
+    // some local vars are discarded in O2, skip them
     if (mplVar == nullptr || mplDie == nullptr) {
       continue;
     }
@@ -511,25 +532,6 @@ void DebugInfo::BuildDebugInfoEnums() {
   }
 }
 
-void DebugInfo::BuildDebugInfoTypedefs() {
-  for (auto it : GlobalTables::GetTypedefTable().GetTypedefNameMap()) {
-    module->GetDbgInfo()->AddTypedefMap(it.first, it.second);
-  }
-
-  for (auto it : typedefStrIdxTyIdxMap) {
-    (void)GetOrCreateTypeDie(TyIdx(it.second));
-    DBGDie *die = GetOrCreateTypedefDie(GStrIdx(it.first), TyIdx(it.second));
-    compUnit->AddSubVec(die);
-    // associate typedef's type with die
-    for (auto i : module->GetTypeNameTab()->GetGStrIdxToTyIdxMap()) {
-      if (i.first.GetIdx() == it.first) {
-        tyIdxDieIdMap[i.second.GetIdx()] = die->GetId();
-        break;
-      }
-    }
-  }
-}
-
 void DebugInfo::BuildDebugInfoContainers() {
   for (auto it : module->GetTypeNameTab()->GetGStrIdxToTyIdxMap()) {
     TyIdx tyIdx = it.second;
@@ -546,7 +548,7 @@ void DebugInfo::BuildDebugInfoContainers() {
         (void)GetOrCreateStructTypeDie(type);
         break;
       case kTypeByName:
-        if (typedefStrIdxTyIdxMap.find(it.first.GetIdx()) == typedefStrIdxTyIdxMap.end()) {
+        if (globalTypeAliasMap.find(it.first.GetIdx()) == globalTypeAliasMap.end()) {
 #ifdef DEBUG
           // not typedef
           LogInfo::MapleLogger() << "named type "
@@ -609,8 +611,8 @@ void DebugInfo::BuildDebugInfo() {
   // setup debug info for enum types
   BuildDebugInfoEnums();
 
-  // setup debug info for typedef types
-  BuildDebugInfoTypedefs();
+  // setup debug info for global type alias
+  HandleTypeAlias(module->GetScope());
 
   // containner types
   BuildDebugInfoContainers();
@@ -619,7 +621,7 @@ void DebugInfo::BuildDebugInfo() {
   BuildDebugInfoGlobalSymbols();
 
   // handle global scope
-  AddScopeDie(module->GetScope(), false);
+  AddScopeDie(module->GetScope());
 
   // setup debug info for functions
   BuildDebugInfoFunctions();
@@ -684,23 +686,24 @@ LabelIdx DebugInfo::GetLabelIdx(GStrIdx strIdx) {
   return labidx;
 }
 
-// passing pointer instead if strct size larger than this
-#define STRUCT2PTRSIZE 8
-
 static DwOp GetBreg(unsigned i) {
-  DwOp op = DW_OP_breg0;
-  switch (i) {
-    case 0: op = DW_OP_breg0; break;
-    case 1: op = DW_OP_breg1; break;
-    case 2: op = DW_OP_breg2; break;
-    case 3: op = DW_OP_breg3; break;
-    case 4: op = DW_OP_breg4; break;
-    case 5: op = DW_OP_breg5; break;
-    case 6: op = DW_OP_breg6; break;
-    case 7: op = DW_OP_breg7; break;
-    default: break;
+  constexpr DwOp baseOpRegs[] = {
+      DW_OP_breg0,
+      DW_OP_breg1,
+      DW_OP_breg2,
+      DW_OP_breg3,
+      DW_OP_breg4,
+      DW_OP_breg5,
+      DW_OP_breg6,
+      DW_OP_breg7,
+  };
+
+  // struct parameters size larger than 8 are converted into pointers
+  constexpr uint32 struct2PtrSize = 8;
+  if (i < struct2PtrSize) {
+    return baseOpRegs[i];
   }
-  return op;
+  return DW_OP_breg0;
 }
 
 DBGDie *DebugInfo::CreateFormalParaDie(MIRFunction *func, uint32 idx, bool isDef) {
@@ -719,8 +722,7 @@ DBGDie *DebugInfo::CreateFormalParaDie(MIRFunction *func, uint32 idx, bool isDef
     die->AddAttr(DW_AT_decl_line, DW_FORM_data4, sym->GetSrcPosition().LineNum());
     die->AddAttr(DW_AT_decl_column, DW_FORM_data4, sym->GetSrcPosition().Column());
     DwOp op = DW_OP_fbreg;
-    // struct parameters size larger than 8 are converted into pointers
-    if (type->IsStructType() && (static_cast<MIRStructType *>(type)->GetSize() > STRUCT2PTRSIZE)) {
+    if (type->IsStructType() && (static_cast<MIRStructType *>(type)->GetSize() > k64BitSize)) {
       op = GetBreg(idx);
     }
     die->AddSimpLocAttr(DW_AT_location, DW_FORM_exprloc, op, kDbgDefaultVal);
@@ -868,7 +870,7 @@ DBGDie *DebugInfo::GetOrCreateFuncDeclDie(MIRFunction *func) {
 
   // formal parameter
   for (uint32 i = 0; i < func->GetFormalCount(); i++) {
-    DBGDie *param = CreateFormalParaDie(func, i, /* isDef */ false);
+    DBGDie *param = CreateFormalParaDie(func, i, false);
     die->AddSubVec(param);
   }
 
@@ -938,14 +940,14 @@ DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func) {
 
   // formal parameter
   for (uint32 i = 0; i < func->GetFormalCount(); i++) {
-    DBGDie *pdie = CreateFormalParaDie(func, i, /* isDef */ true);
+    DBGDie *pdie = CreateFormalParaDie(func, i, true);
     die->AddSubVec(pdie);
   }
 
   CreateFuncLocalSymbolsDies(func, die);
 
   // add scope die
-  AddScopeDie(func->GetScope(), true);
+  AddScopeDie(func->GetScope());
   CollectScopePos(func, func->GetScope());
 
   PopParentDie();
@@ -1805,14 +1807,6 @@ void DebugInfo::Dump(int indent) {
   }
   LogInfo::MapleLogger() << "}" << std::endl;
   return;
-}
-
-void DebugInfo::DumpTypedefMap() const {
-  for (auto it : typedefStrIdxTyIdxMap) {
-    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(it.second));
-    LogInfo::MapleLogger() << " " << GlobalTables::GetStrTable().GetStringFromStrIdx(it.first).c_str() << " "
-                           << type->GetName() << "\n";
-  }
 }
 
 void DBGExprLoc::Dump() const {
