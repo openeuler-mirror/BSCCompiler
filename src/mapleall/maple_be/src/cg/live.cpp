@@ -135,7 +135,7 @@ void LiveAnalysis::AnalysisLive() {
 }
 
 void LiveAnalysis::DealWithInOutOfCleanupBB() {
-  const BB *cleanupBB = cgFunc->GetCleanupEntryBB();
+  const BB *cleanupBB = cgFunc->GetCleanupBB();
   if (cleanupBB == nullptr) {
     return;
   }
@@ -164,14 +164,15 @@ void LiveAnalysis::DealWithInOutOfCleanupBB() {
 }
 
 void LiveAnalysis::InsertInOutOfCleanupBB() {
-  const BB *cleanupBB = cgFunc->GetCleanupEntryBB();
+  LocalMapleAllocator allocator(stackMp);
+  const BB *cleanupBB = cgFunc->GetCleanupBB();
   if (cleanupBB == nullptr) {
     return;
   }
   if (cleanupBB->GetLiveIn() == nullptr || cleanupBB->GetLiveIn()->NoneBit()) {
     return;
   }
-  SparseDataInfo cleanupBBLi = *(cleanupBB->GetLiveIn());
+  SparseDataInfo &cleanupBBLi = cleanupBB->GetLiveIn()->Clone(allocator);
   /* registers need to be ignored: (reg < 8) || (29 <= reg && reg <= 32) */
   for (uint32 i = 1; i < 8; ++i) {
     cleanupBBLi.ResetBit(i);

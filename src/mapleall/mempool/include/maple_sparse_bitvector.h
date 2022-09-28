@@ -154,16 +154,25 @@ template <unsigned bitVectorSize = 64> struct MapleSparseBitVectorElement {
 
 template <unsigned bitVectorSize = 64>
 class MapleSparseBitVector {
-  using ElementList = std::list<MapleSparseBitVectorElement<bitVectorSize>>;
+  using ElementList = MapleList<MapleSparseBitVectorElement<bitVectorSize>>;
   using ElementListIterator = typename ElementList::iterator;
   using ElementListConstIterator = typename ElementList::const_iterator;
   using BitWord =  unsigned long long;
 
  public:
-  MapleSparseBitVector() : elementList(), currIter(elementList.begin()) {}
+  explicit MapleSparseBitVector(MapleAllocator &alloc)
+      : allocator(alloc),
+        elementList(allocator.Adapter()),
+        currIter(elementList.begin()) {}
 
-  explicit MapleSparseBitVector(const MapleSparseBitVector &rhs)
-      : elementList(rhs.elementList),
+  explicit MapleSparseBitVector(const MapleSparseBitVector &rhs, MapleAllocator &alloc)
+      : allocator(alloc),
+        elementList(rhs.elementList, allocator.Adapter()),
+        currIter(elementList.begin()) {}
+
+  MapleSparseBitVector(const MapleSparseBitVector &rhs)
+      : allocator(rhs.allocator),
+        elementList(rhs.elementList, allocator.Adapter()),
         currIter(elementList.begin()) {}
 
   void Set(unsigned bitNO) {
@@ -216,6 +225,7 @@ class MapleSparseBitVector {
     if (this == &rhs) {
       return *this;
     }
+    allocator = rhs.allocator;
     elementList = rhs.elementList;
     currIter = elementList.begin();
     return *this;
@@ -300,6 +310,7 @@ class MapleSparseBitVector {
 
   void Clear() {
     elementList.clear();
+    currIter = elementList.begin();
   }
 
   bool operator==(const MapleSparseBitVector &rhs) const {
@@ -313,7 +324,7 @@ class MapleSparseBitVector {
     return iter1 == elementList.end() && iter2 == rhs.elementList.end();
   }
 
-  bool operator!=(MapleSparseBitVector &rhs) {
+  bool operator!=(const MapleSparseBitVector &rhs) {
     return !(*this == rhs);
   }
 
@@ -426,6 +437,7 @@ class MapleSparseBitVector {
     return LowerBoundForImpl(idx);
   }
 
+  MapleAllocator allocator;
   ElementList elementList;
   mutable ElementListIterator currIter;
 };

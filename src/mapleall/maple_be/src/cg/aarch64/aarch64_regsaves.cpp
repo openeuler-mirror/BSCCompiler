@@ -994,6 +994,7 @@ void AArch64RegSavesOpt::Run() {
     /* Obsolete, to be deleted */
     DetermineCalleeSaveLocationsDoms();
   }
+
   /* Determine restore sites */
   DetermineCalleeRestoreLocations();
 

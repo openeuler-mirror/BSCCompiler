@@ -30,19 +30,36 @@ class SparseDataInfo {
   */
  public:
   SparseDataInfo(uint32 bitNum, MapleAllocator &alloc)
-      : info(),
+      : allocator(alloc),
+        info(allocator),
         maxRegNum(bitNum) {}
 
   SparseDataInfo(const SparseDataInfo &other, MapleAllocator &alloc)
-      : info(other.info),
+      : allocator(alloc),
+        info(other.info, allocator),
         maxRegNum(other.maxRegNum) {}
 
-  SparseDataInfo &Clone(MapleAllocator &alloc) {
+  SparseDataInfo(const SparseDataInfo &other)
+    : allocator(other.allocator),
+      info(other.info, allocator),
+      maxRegNum(other.maxRegNum) {}
+
+  SparseDataInfo &Clone(MapleAllocator &alloc) const {
     auto *dataInfo = alloc.New<SparseDataInfo>(*this, alloc);
     return *dataInfo;
   }
 
   ~SparseDataInfo() = default;
+
+  SparseDataInfo &operator=(const SparseDataInfo &other) {
+    if (this == &other) {
+      return *this;
+    }
+    allocator = other.GetAllocator();
+    info = other.GetInfo();
+    maxRegNum = other.GetMaxRegNum();
+    return *this;
+  }
 
   void SetBit(uint32 bitNO) {
     info.Set(bitNO);
@@ -64,8 +81,16 @@ class SparseDataInfo {
     return maxRegNum;
   }
 
+  const MapleAllocator &GetAllocator() const {
+    return allocator;
+  }
+
   const MapleSparseBitVector<> &GetInfo() const {
     return info;
+  }
+
+  uint32 GetMaxRegNum() const {
+    return maxRegNum;
   }
 
   bool IsEqual(const SparseDataInfo &secondInfo) const {
@@ -107,6 +132,7 @@ class SparseDataInfo {
   }
 
  private:
+  MapleAllocator allocator;
   MapleSparseBitVector<> info;
   uint32 maxRegNum;
 };
