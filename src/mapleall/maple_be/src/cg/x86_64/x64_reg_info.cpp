@@ -12,8 +12,8 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "x64_cgfunc.h"
 #include "becommon.h"
+#include "x64_cgfunc.h"
 #include "x64_reg_info.h"
 
 namespace maplebe {
@@ -55,13 +55,6 @@ bool X64RegInfo::IsSpecialReg(regno_t regno) const {
   if (IsYieldPointReg(reg)) {
     return true;
   }
-
-  const auto *x64CGFunc = static_cast<X64CGFunc*>(GetCurrFunction());
-  for (const auto &it : x64CGFunc->GetFormalRegList()) {
-    if (it == reg) {
-      return true;
-    }
-  }
   return false;
 }
 
@@ -81,12 +74,9 @@ bool X64RegInfo::IsUnconcernedReg(regno_t regNO) const {
   return false;
 }
 
-bool X64RegInfo::IsUnconcernedReg(const CGRegOperand &regOpnd) const {
+bool X64RegInfo::IsUnconcernedReg(const RegOperand &regOpnd) const {
   RegType regType = regOpnd.GetRegisterType();
   if (regType == kRegTyCc || regType == kRegTyVary) {
-    return true;
-  }
-  if (regOpnd.IsConstReg()) {
     return true;
   }
   uint32 regNO = regOpnd.GetRegisterNumber();
@@ -96,18 +86,79 @@ bool X64RegInfo::IsUnconcernedReg(const CGRegOperand &regOpnd) const {
 void X64RegInfo::Fini() {
 }
 
-RegOperand &X64RegInfo::GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag) {
-  CHECK_FATAL(false, "NIY");
-  RegOperand *a;
-  return *a;
-}
-
 ListOperand* X64RegInfo::CreateListOperand() {
+  CHECK_FATAL(false, "CreateListOperand, unsupported");
   return nullptr;
 }
 
 Insn *X64RegInfo::BuildMovInstruction(Operand &opnd0, Operand &opnd1) {
+  CHECK_FATAL(false, "BuildMovInstruction, unsupported");
   return nullptr;
+}
+
+RegOperand *X64RegInfo::GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag) {
+  return &(GetCurrFunction()->GetOpndBuilder()->CreatePReg(regNO, size, kind));
+}
+
+Insn *X64RegInfo::BuildStrInsn(uint32 regSize, PrimType stype, RegOperand &phyOpnd, MemOperand &memOpnd) {
+  X64MOP_t mOp = x64::MOP_begin;
+  switch (regSize) {
+    case k8BitSize:
+      mOp = x64::MOP_movb_r_m;
+      break;
+    case k16BitSize:
+      mOp = x64::MOP_movw_r_m;
+      break;
+    case k32BitSize:
+      mOp = x64::MOP_movl_r_m;
+      break;
+    case k64BitSize:
+      mOp = x64::MOP_movq_r_m;
+      break;
+    default:
+      CHECK_FATAL(false, "NIY");
+      break;
+  }
+  Insn &insn = GetCurrFunction()->GetInsnBuilder()->BuildInsn(mOp, X64CG::kMd[mOp]);
+  insn.AddOpndChain(phyOpnd).AddOpndChain(memOpnd);
+  return &insn;
+}
+
+Insn *X64RegInfo::BuildLdrInsn(uint32 regSize, PrimType stype, RegOperand &phyOpnd, MemOperand &memOpnd) {
+  X64MOP_t mOp = x64::MOP_begin;
+  switch (regSize) {
+    case k8BitSize:
+      mOp = x64::MOP_movb_m_r;
+      break;
+    case k16BitSize:
+      mOp = x64::MOP_movw_m_r;
+      break;
+    case k32BitSize:
+      mOp = x64::MOP_movl_m_r;
+      break;
+    case k64BitSize:
+      mOp = x64::MOP_movq_m_r;
+      break;
+    default:
+      CHECK_FATAL(false, "NIY");
+      break;
+  }
+  Insn &insn = GetCurrFunction()->GetInsnBuilder()->BuildInsn(mOp, X64CG::kMd[mOp]);
+  insn.AddOpndChain(memOpnd).AddOpndChain(phyOpnd);
+  return &insn;
+}
+
+Insn *X64RegInfo::BuildCommentInsn(const std::string &comment) {
+  CHECK_FATAL(false, "Comment Insn, unsupported");
+  CommentOperand *commentOpnd = &(GetCurrFunction()->GetOpndBuilder()->CreateComment(comment));
+  commentOpnd = nullptr;
+  return nullptr;
+}
+
+MemOperand *X64RegInfo::AdjustMemOperandIfOffsetOutOfRange(MemOperand *memOpnd, regno_t vrNum,
+    bool isDest, Insn &insn, regno_t regNum, bool &isOutOfRange) {
+  isOutOfRange = false;
+  return memOpnd;
 }
 
 }  /* namespace maplebe */

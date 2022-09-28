@@ -64,7 +64,13 @@ void A64OpndEmitVisitor::Visit(maplebe::RegOperand *v) {
 
 void A64OpndEmitVisitor::Visit(maplebe::ImmOperand *v) {
   if (v->IsOfstImmediate()) {
-    return Visit(static_cast<OfstOperand*>(v));
+    Visit(static_cast<OfstOperand*>(v));
+    return;
+  }
+
+  if (v->IsStImmediate()) {
+    Visit(*v->GetSymbol(), v->GetValue());
+    return;
   }
 
   int64 value = v->GetValue();
@@ -309,11 +315,14 @@ void A64OpndEmitVisitor::Visit(BitShiftOperand *v) {
 }
 
 void A64OpndEmitVisitor::Visit(StImmOperand *v) {
+  Visit(*v->GetSymbol(), v->GetOffset());
+}
+
+void A64OpndEmitVisitor::Visit(const MIRSymbol &symbol, int64 offset) {
   CHECK_FATAL(opndProp != nullptr, "opndProp is nullptr in  StImmOperand::Emit");
-  const MIRSymbol *symbol = v->GetSymbol();
-  const bool isThreadLocal = symbol->IsThreadLocal();
+  const bool isThreadLocal = symbol.IsThreadLocal();
   const bool isLiteralLow12 = opndProp->IsLiteralLow12();
-  const bool hasGotEntry = CGOptions::IsPIC() && symbol->NeedPIC();
+  const bool hasGotEntry = CGOptions::IsPIC() && symbol.NeedPIC();
   bool hasPrefix = false;
   if (isThreadLocal) {
     (void)emitter.Emit(":tlsdesc");
@@ -331,20 +340,20 @@ void A64OpndEmitVisitor::Visit(StImmOperand *v) {
   if (hasPrefix) {
     (void)emitter.Emit(":");
   }
-  if (symbol->GetAsmAttr() != UStrIdx(0) &&
-      (symbol->GetStorageClass() == kScPstatic || symbol->GetStorageClass() == kScPstatic)) {
-    std::string asmSection = GlobalTables::GetUStrTable().GetStringFromStrIdx(symbol->GetAsmAttr());
+  if (symbol.GetAsmAttr() != UStrIdx(0) &&
+      (symbol.GetStorageClass() == kScPstatic || symbol.GetStorageClass() == kScPstatic)) {
+    std::string asmSection = GlobalTables::GetUStrTable().GetStringFromStrIdx(symbol.GetAsmAttr());
     (void)emitter.Emit(asmSection);
   } else {
-    if (symbol->GetStorageClass() == kScPstatic && symbol->GetSKind() != kStConst) {
-      (void)emitter.Emit(symbol->GetName() +
+    if (symbol.GetStorageClass() == kScPstatic && symbol.GetSKind() != kStConst) {
+      (void)emitter.Emit(symbol.GetName() +
           std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()));
     } else {
-      (void)emitter.Emit(v->GetName());
+      (void)emitter.Emit(symbol.GetName());
     }
   }
-  if (!hasGotEntry && v->GetOffset() != 0) {
-    (void)emitter.Emit("+" + std::to_string(v->GetOffset()));
+  if (!hasGotEntry && offset != 0) {
+    (void)emitter.Emit("+" + std::to_string(offset));
   }
 }
 
@@ -445,7 +454,12 @@ void A64OpndDumpVisitor::Visit(RegOperand *v) {
 }
 
 void A64OpndDumpVisitor::Visit(ImmOperand *v) {
-  LogInfo::MapleLogger() << "imm:" << v->GetValue();
+  if (v->IsStImmediate()) {
+    LogInfo::MapleLogger() << v->GetName();
+    LogInfo::MapleLogger() << "+offset:" << v->GetValue();
+  } else {
+    LogInfo::MapleLogger() << "imm:" << v->GetValue();
+  }
 }
 
 void A64OpndDumpVisitor::Visit(MemOperand *a64v) {

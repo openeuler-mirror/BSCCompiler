@@ -14,15 +14,14 @@
  */
 #ifndef MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_COLOR_RA_H
 #define MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_COLOR_RA_H
-#include <cmath>
+
 #include "reg_alloc.h"
-#include "aarch64_operand.h"
-#include "aarch64_insn.h"
-#include "aarch64_abi.h"
-#include "aarch64_cgfunc.h"
+#include "operand.h"
+#include "cgfunc.h"
 #include "loop.h"
 #include "cg_dominance.h"
 #include "cg_pre.h"
+#include "rematerialize.h"
 
 namespace maplebe {
 #define RESERVED_REGS
@@ -39,17 +38,7 @@ namespace maplebe {
 #undef CONSISTENT_MEMOPND
 #undef RANDOM_PRIORITY
 
-constexpr uint32 k32 = sizeof(int) * CHAR_BIT;
-constexpr uint32 k64 = sizeof(int64) * CHAR_BIT;
 constexpr uint32 kU64 = sizeof(uint64) * CHAR_BIT;
-
-enum RematLevel {
-  kRematOff = 0,
-  kRematConst = 1,
-  kRematAddr = 2,
-  kRematDreadLocal = 3,
-  kRematDreadGlobal = 4
-};
 
 template <typename T, typename Comparator = std::less<T>>
 inline bool FindNotIn(const std::set<T, Comparator> &set, const T &item) {
@@ -651,44 +640,28 @@ class LiveRange {
     this->isNonLocal = isNonLocalVal;
   }
 
-  void SetRematLevel(uint32 val) {
-    this->rematLevel = val;
+  void SetRematLevel(RematLevel val) {
+    rematerializer->SetRematLevel(val);
   }
 
-  uint32 GetRematLevel() const {
-    return this->rematLevel;
+  RematLevel GetRematLevel() const {
+    return rematerializer->GetRematLevel();
   }
 
   Opcode GetOp() const {
-    return op;
-  }
-
-  const MIRSymbol *GetRematSymbol() const {
-    ASSERT(op == OP_dread || op == OP_addrof, "Remat symbol is invalid");
-    return rematInfo.sym;
-  }
-
-  FieldID GetRematFieldID() const {
-    ASSERT(op == OP_dread || op == OP_addrof, "Remat field ID is invalid");
-    return fieldID;
+    return rematerializer->GetOp();
   }
 
   void SetRematerializable(const MIRConst *c) {
-    op = OP_constval;
-    rematInfo.mirConst = c;
+    rematerializer->SetRematerializable(c);
   }
 
   void SetRematerializable(Opcode opcode, const MIRSymbol *symbol, FieldID fieldId, bool addrUp) {
-    this->op = opcode;
-    rematInfo.sym = symbol;
-    this->fieldID = fieldId;
-    this->addrUpper = addrUp;
+    rematerializer->SetRematerializable(opcode, symbol, fieldId, addrUp);
   }
 
   void CopyRematerialization(const LiveRange &lr) {
-    op = lr.op;
-    rematInfo = lr.rematInfo;
-    fieldID = lr.fieldID;
+    *rematerializer = *lr.GetRematerializer();
   }
 
   bool GetIsSpSave() const {
@@ -699,8 +672,20 @@ class LiveRange {
     isSpSave = true;
   }
 
-  bool IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLev) const;
-  std::vector<Insn *> Rematerialize(AArch64CGFunc *cgFunc, RegOperand &regOp);
+  bool IsRematerializable(CGFunc &cgFunc, RematLevel rematLev) const {
+    return rematerializer->IsRematerializable(cgFunc, rematLev, *this);
+  }
+  std::vector<Insn*> Rematerialize(CGFunc &cgFunc, RegOperand &regOp) {
+    return rematerializer->Rematerialize(cgFunc, regOp, *this);
+  }
+
+  void SetRematerializer(Rematerializer *remat) {
+    rematerializer = remat;
+  }
+
+  Rematerializer *GetRematerializer() const {
+    return rematerializer;
+  }
 
  private:
   MapleAllocator *lrAlloca;
@@ -743,15 +728,8 @@ class LiveRange {
   bool hasDefUse = false;               /* has regDS */
   bool proccessed = false;
   bool isNonLocal = false;
-  uint32 rematLevel = 0;
-  Opcode op = OP_undef;               /* OP_constval, OP_addrof or OP_dread if rematerializable */
-  union RematInfo {
-    const MIRConst *mirConst;
-    const MIRSymbol *sym;
-  } rematInfo;                        /* info for rematerializing value */
-  FieldID fieldID = 0;                /* used only when op is OP_addrof or OP_dread */
-  bool addrUpper = false;             /* indicates the upper bits of an addrof */
   bool isSpSave = false;              /* contain SP in case of alloca */
+  Rematerializer *rematerializer = nullptr;
 };
 
 /* One per bb, to communicate local usage to global RA */
@@ -1341,11 +1319,8 @@ class GraphColorRegAllocator : public RegAllocator {
 
   uint32 MaxIntPhysRegNum() const;
   uint32 MaxFloatPhysRegNum() const;
-  bool IsReservedReg(AArch64reg regNO) const;
+  bool IsReservedReg(regno_t regNO) const;
   void InitFreeRegPool();
-  void InitCCReg();
-  bool IsUnconcernedReg(regno_t regNO) const;
-  bool IsUnconcernedReg(const RegOperand &regOpnd) const;
   LiveRange *NewLiveRange();
   void CalculatePriority(LiveRange &lr) const;
   bool CreateLiveRangeHandleLocal(regno_t regNO, const BB &bb, bool isDef);
@@ -1403,7 +1378,8 @@ class GraphColorRegAllocator : public RegAllocator {
   MemOperand *GetCommonReuseMem(const uint64 *conflict, const std::set<MemOperand*> &usedMemOpnd, uint32 size,
                                 RegType regType);
   MemOperand *GetReuseMem(uint32 vregNO, uint32 size, RegType regType);
-  MemOperand *GetSpillMem(uint32 vregNO, bool isDest, Insn &insn, AArch64reg regNO, bool &isOutOfRange);
+  MemOperand *GetSpillMem(uint32 vregNO, bool isDest, Insn &insn, regno_t regNO,
+                          bool &isOutOfRange);
   bool SetAvailableSpillReg(std::unordered_set<regno_t> &cannotUseReg, LiveRange &lr, uint64 &usedRegMask);
   void CollectCannotUseReg(std::unordered_set<regno_t> &cannotUseReg, const LiveRange &lr, Insn &insn);
   regno_t PickRegForSpill(uint64 &usedRegMask, RegType regType, uint32 spillIdx, bool &needSpillLr);
@@ -1503,7 +1479,6 @@ class GraphColorRegAllocator : public RegAllocator {
   uint32 intRegNum = 0;   /* total available int preg */
   uint32 fpRegNum = 0;    /* total available fp preg */
   uint32 numVregs = 0;    /* number of vregs when starting */
-  regno_t ccReg = 0;
   /* For spilling of spill register if there are none available
    *   Example, all 3 operands spilled
    *                          sp_reg1 -> [spillMemOpnds[1]]

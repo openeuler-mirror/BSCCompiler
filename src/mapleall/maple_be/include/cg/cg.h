@@ -45,8 +45,12 @@ class MPISel;
 class Standardize;
 class LiveIntervalAnalysis;
 class ValidBitOpt;
+class CG;
+class LocalOpt;
+class CFGOptimizer;
 class RedundantComputeElim;
 class TailCallOpt;
+class Rematerializer;
 
 class Globals {
  public:
@@ -89,24 +93,14 @@ class Globals {
     return optimLevel;
   }
 
-  void ReleaseMAD() {
-    if (mad != nullptr) {
-      delete mad;
-      mad = nullptr;
-    }
-  }
-
-  void ReleaseBECommon() {
-    if (beCommon != nullptr) {
-      delete beCommon;
-      beCommon = nullptr;
-    }
-  }
+  void SetTarget(CG &target);
+  const CG *GetTarget() const ;
 
  private:
   BECommon *beCommon = nullptr;
   MAD *mad = nullptr;
   int32 optimLevel = 0;
+  CG *cg = nullptr;
   Globals() = default;
 };
 
@@ -140,81 +134,6 @@ class CG {
   void GenPrimordialObjectList(const std::string &outputBaseName);
   const std::string ExtractFuncName(const std::string &str) const;
 
-  template <typename I>
-  Insn &BuildInstruction(MOperator opCode) const {
-    currentCGFunction->IncTotalNumberOfInstructions();
-    MemPool *newMemPool = currentCGFunction->GetMemoryPool();
-    Insn *insn = newMemPool->New<I>(*newMemPool, opCode);
-    return *insn;
-  }
-
-  template <typename I>
-  Insn &BuildInstruction(MOperator opCode, Operand &opnd0) const {
-    currentCGFunction->IncTotalNumberOfInstructions();
-    MemPool *newMemPool = currentCGFunction->GetMemoryPool();
-    Insn *insn = newMemPool->New<I>(*newMemPool, opCode);
-    insn->AddOperand(opnd0);
-    return *insn;
-  }
-
-  template <typename I>
-  Insn &BuildInstruction(MOperator opCode, Operand &opnd0, Operand &opnd1) const {
-    currentCGFunction->IncTotalNumberOfInstructions();
-    MemPool *newMemPool = currentCGFunction->GetMemoryPool();
-    Insn *insn = newMemPool->New<I>(*newMemPool, opCode);
-    insn->AddOperand(opnd0);
-    insn->AddOperand(opnd1);
-    return *insn;
-  }
-
-  template <typename I>
-  Insn &BuildInstruction(MOperator opCode, Operand &opnd0, Operand &opnd1, Operand &opnd2) const {
-    currentCGFunction->IncTotalNumberOfInstructions();
-    MemPool *newMemPool = currentCGFunction->GetMemoryPool();
-    Insn *insn = newMemPool->New<I>(*newMemPool, opCode);
-    insn->AddOperand(opnd0);
-    insn->AddOperand(opnd1);
-    insn->AddOperand(opnd2);
-    return *insn;
-  }
-
-  template <typename I>
-  Insn &BuildInstruction(MOperator opCode, Operand &opnd0, Operand &opnd1, Operand &opnd2, Operand &opnd3) const {
-    currentCGFunction->IncTotalNumberOfInstructions();
-    MemPool *newMemPool = currentCGFunction->GetMemoryPool();
-    Insn *insn = newMemPool->New<I>(*newMemPool, opCode);
-    insn->AddOperand(opnd0);
-    insn->AddOperand(opnd1);
-    insn->AddOperand(opnd2);
-    insn->AddOperand(opnd3);
-    return *insn;
-  }
-
-  template <typename I>
-  Insn &BuildInstruction(MOperator opCode, Operand &opnd0, Operand &opnd1, Operand &opnd2, Operand &opnd3,
-                         Operand &opnd4) const {
-    currentCGFunction->IncTotalNumberOfInstructions();
-    MemPool *newMemPool = currentCGFunction->GetMemoryPool();
-    Insn *insn = newMemPool->New<I>(*newMemPool, opCode);
-    insn->AddOperand(opnd0);
-    insn->AddOperand(opnd1);
-    insn->AddOperand(opnd2);
-    insn->AddOperand(opnd3);
-    insn->AddOperand(opnd4);
-    return *insn;
-  }
-
-  template <typename I>
-  Insn &BuildInstruction(MOperator opCode, std::vector<Operand*> &opnds) const {
-    currentCGFunction->IncTotalNumberOfInstructions();
-    MemPool *newMemPool = currentCGFunction->GetMemoryPool();
-    Insn *insn = newMemPool->New<I>(*newMemPool, opCode);
-    for (auto *opnd : opnds) {
-      insn->AddOperand(*opnd);
-    }
-    return *insn;
-  }
-
   virtual Insn &BuildPhiInsn(RegOperand &defOpnd, Operand &listParam) = 0;
   virtual PhiOperand &CreatePhiOperand(MemPool &mp, MapleAllocator &mAllocator) = 0;
 
@@ -223,10 +142,6 @@ class CG {
 
   bool IsExclusiveEH() const {
     return CGOptions::IsExclusiveEH();
-  }
-
-  bool IsQuiet() const {
-    return CGOptions::IsQuiet();
   }
 
   virtual bool IsExclusiveFunc(MIRFunction &mirFunc) = 0;
@@ -344,18 +259,6 @@ class CG {
     return labelOrderCnt;
   }
 
-  static void SetCurCGFunc(CGFunc &cgFunc) {
-    currentCGFunction = &cgFunc;
-  }
-
-  static const CGFunc *GetCurCGFunc() {
-    return currentCGFunction;
-  }
-
-  static CGFunc *GetCurCGFuncNoConst() {
-    return currentCGFunction;
-  }
-
   const CGOptions &GetCGOptions() const {
     return cgOption;
   }
@@ -394,6 +297,9 @@ class CG {
 
   /* Init SubTarget phase */
   virtual LiveAnalysis *CreateLiveAnalysis(MemPool &mp, CGFunc &f) const = 0;
+  virtual ReachingDefinition *CreateReachingDefinition(MemPool &mp, CGFunc &f) const {
+    return nullptr;
+  };
   virtual MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const  = 0;
   virtual AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const = 0;
   virtual MPISel *CreateMPIsel(MemPool &mp, CGFunc &f) const {
@@ -412,6 +318,16 @@ class CG {
   virtual ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
   virtual RedundantComputeElim *CreateRedundantCompElim(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
   virtual TailCallOpt *CreateCGTailCallOpt(MemPool &mp, CGFunc &f) const = 0;
+  virtual LocalOpt *CreateLocalOpt(MemPool &mp, CGFunc &f, ReachingDefinition&) const {
+    return nullptr;
+  };
+  virtual CFGOptimizer *CreateCFGOptimizer(MemPool &mp, CGFunc &f) const {
+    return nullptr;
+  }
+
+  virtual Rematerializer *CreateRematerializer(MemPool &mp) const {
+    return nullptr;
+  }
 
   /* Object map generation helper */
   std::vector<int64> GetReferenceOffsets64(const BECommon &beCommon, MIRStructType &structType) const;
@@ -436,6 +352,23 @@ class CG {
   static std::map<MIRFunction*, std::pair<LabelIdx, LabelIdx>> &GetFuncWrapLabels() {
     return funcWrapLabels;
   }
+  static void SetCurCGFunc(CGFunc &cgFunc) {
+    currentCGFunction = &cgFunc;
+  }
+
+  static const CGFunc *GetCurCGFunc() {
+    return currentCGFunction;
+  }
+
+  static CGFunc *GetCurCGFuncNoConst() {
+    return currentCGFunction;
+  }
+
+  virtual const InsnDesc &GetTargetMd(MOperator mOp) const = 0;
+  virtual bool IsEffectiveCopy(Insn &insn) const = 0;
+  virtual bool IsTargetInsn(MOperator mOp) const = 0;
+  virtual bool IsClinitInsn(MOperator mOp) const = 0;
+  virtual void DumpTargetOperand(Operand &opnd, const OpndDesc &opndDesc) const = 0;
 
  protected:
   MIRModule *GetMIRModule() const {

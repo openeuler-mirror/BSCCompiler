@@ -14,6 +14,7 @@
  */
 #ifndef MAPLEBE_INCLUDE_CG_REG_ALLOC_BASIC_H
 #define MAPLEBE_INCLUDE_CG_REG_ALLOC_BASIC_H
+
 #include "reg_alloc.h"
 #include "operand.h"
 #include "cgfunc.h"
@@ -30,7 +31,6 @@ class DefaultO0RegAllocator : public RegAllocator {
         allocatedSet(std::less<Operand*>(), alloc.Adapter()),
         regLiveness(alloc.Adapter()),
         rememberRegs(alloc.Adapter()) {
-    regInfo = cgFunc.GetTargetRegInfo();
     availRegSet.resize(regInfo->GetAllRegNum());
   }
 
@@ -42,31 +42,16 @@ class DefaultO0RegAllocator : public RegAllocator {
 
   void InitAvailReg();
 
-#ifdef TARGX86_64
-  bool AllocatePhysicalRegister(const CGRegOperand &opnd);
-#else
   bool AllocatePhysicalRegister(const RegOperand &opnd);
-#endif
   void ReleaseReg(regno_t reg);
-#ifdef TARGX86_64
-  void ReleaseReg(const CGRegOperand &regOpnd);
-#else
   void ReleaseReg(const RegOperand &regOpnd);
-#endif
-  void GetPhysicalRegisterBank(RegType regTy, uint8 &begin, uint8 &end) const;
+  void GetPhysicalRegisterBank(RegType regType, regno_t &start, regno_t &end) const;
   void AllocHandleDestList(Insn &insn, Operand &opnd, uint32 idx);
   void AllocHandleDest(Insn &insn, Operand &opnd, uint32 idx);
   void AllocHandleSrcList(Insn &insn, Operand &opnd, uint32 idx);
   void AllocHandleSrc(Insn &insn, Operand &opnd, uint32 idx);
-#ifndef TARGX86_64
-  void AllocHandleCallee(Insn &insn);
-#endif
   bool IsSpecialReg(regno_t reg) const;
-#ifdef TARGX86_64
-  void SaveCalleeSavedReg(const CGRegOperand &opnd);
-#else
-  void SaveCalleeSavedReg(const RegOperand &regOpnd);
-#endif
+  void SaveCalleeSavedReg(const RegOperand &opnd);
 
  protected:
   Operand *HandleRegOpnd(Operand &opnd);
@@ -74,19 +59,20 @@ class DefaultO0RegAllocator : public RegAllocator {
   Operand *AllocSrcOpnd(Operand &opnd);
   Operand *AllocDestOpnd(Operand &opnd, const Insn &insn);
   uint32 GetRegLivenessId(regno_t regNo);
+  bool CheckRangesOverlap(const std::pair<uint32, uint32> &range1,
+                          const MapleVector<std::pair<uint32, uint32>> &ranges2) const;
   void SetupRegLiveness(BB *bb);
+  void SetupRegLiveness(MemOperand &opnd, uint32 insnId);
+  void SetupRegLiveness(ListOperand &opnd, uint32 insnId, bool isDef);
+  void SetupRegLiveness(RegOperand &opnd, uint32 insnId, bool isDef);
 
-  RegisterInfo *regInfo = nullptr;
   MapleSet<regno_t> calleeSaveUsed;
   MapleVector<bool> availRegSet;
-  MapleMap<uint32, regno_t> regMap;  /* virtual-register-to-physical-register map */
+  MapleMap<uint32, regno_t> regMap;     /* virtual-register-to-physical-register map */
   MapleSet<uint8> liveReg;              /* a set of currently live physical registers */
   MapleSet<Operand*> allocatedSet;      /* already allocated */
-  MapleMap<regno_t, std::pair<uint32, uint32>> regLiveness;
+  MapleMap<regno_t, MapleVector<std::pair<uint32, uint32>>> regLiveness;
   MapleVector<regno_t> rememberRegs;
-
- private:
-  void UpdateRegLiveness(regno_t regNo, uint32 insnId);
 };
 }  /* namespace maplebe */
 

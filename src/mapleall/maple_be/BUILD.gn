@@ -128,6 +128,7 @@ src_libcgaarch64 = [
   "src/cg/aarch64/aarch64_rce.cpp",
   "src/cg/aarch64/aarch64_cfgo.cpp",
   "src/cg/aarch64/aarch64_isolate_fastpath.cpp",
+  "src/cg/aarch64/aarch64_rematerialize.cpp",
 ]
 
 src_libcgx86phases = [
@@ -222,6 +223,7 @@ src_libcgphases = [
   "src/cg/alignment.cpp",
   "src/cg/cg_validbit_opt.cpp",
   "src/cg/cg_rce.cpp",
+  "src/cg/rematerialize.cpp",
 ]
 
 src_libcg = [

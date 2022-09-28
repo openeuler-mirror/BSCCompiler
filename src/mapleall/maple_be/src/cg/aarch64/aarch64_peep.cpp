@@ -3829,9 +3829,13 @@ void ReplaceDivToMultiPattern::Run(BB &bb, Insn &insn) {
   if (CheckCondition(insn)) {
     auto &sdivOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
     auto &sdivOpnd2 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
-  /* Check if dest operand of insn is idential with  register of prevInsn and prePrevInsn. */
-    if ((&(prevInsn->GetOperand(kInsnFirstOpnd)) != &sdivOpnd2) ||
-        (&(prePrevInsn->GetOperand(kInsnFirstOpnd)) != &sdivOpnd2)) {
+    /* Check if dest operand of insn is idential with  register of prevInsn and prePrevInsn. */
+    auto &prevReg = prevInsn->GetOperand(kInsnFirstOpnd);
+    auto &prePrevReg = prePrevInsn->GetOperand(kInsnFirstOpnd);
+    if (!prevReg.IsRegister() ||
+        !prePrevReg.IsRegister() ||
+        static_cast<RegOperand&>(prevReg).GetRegisterNumber() != sdivOpnd2.GetRegisterNumber() ||
+        static_cast<RegOperand&>(prePrevReg).GetRegisterNumber() != sdivOpnd2.GetRegisterNumber()) {
       return;
     }
     auto &prevLsl = static_cast<BitShiftOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));

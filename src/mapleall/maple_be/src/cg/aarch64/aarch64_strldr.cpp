@@ -64,7 +64,7 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
     insnState[ldrInsn] = true;
   }
   for (auto *ldrInsn : memUseInsnSet) {
-    if (!ldrInsn->IsLoad() || (ldrInsn->GetResultNum() > 1) || ldrInsn->GetBB()->IsCleanup()) {
+    if (!ldrInsn->IsLoad() || (ldrInsn->GetDefRegs().size() > 1) || ldrInsn->GetBB()->IsCleanup()) {
       continue;
     }
 
@@ -117,7 +117,7 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
     if (insnState[curInsn] == false) {
       continue;
     }
-    if (!curInsn->IsLoad() || (curInsn->GetResultNum() > 1) || curInsn->GetBB()->IsCleanup()) {
+    if (!curInsn->IsLoad() || (curInsn->GetDefRegs().size() > 1) || curInsn->GetBB()->IsCleanup()) {
       continue;
     }
     InsnSet memDefInsnSet = cgFunc.GetRD()->FindDefForMemOpnd(*curInsn, kInsnSecondOpnd);
@@ -135,7 +135,7 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
       if (prevInsn->GetBB() != curInsn->GetBB()) {
         break;
       }
-      if (!prevInsn->IsLoad() || (prevInsn->GetResultNum() > 1) || prevInsn->GetBB()->IsCleanup()) {
+      if (!prevInsn->IsLoad() || (prevInsn->GetDefRegs().size() > 1) || prevInsn->GetBB()->IsCleanup()) {
         continue;
       }
       InsnSet memoryDefInsnSet = cgFunc.GetRD()->FindDefForMemOpnd(*curInsn, kInsnSecondOpnd);
@@ -172,11 +172,12 @@ void AArch64StoreLoadOpt::GenerateMoveLiveInsn(RegOperand &resRegOpnd, RegOperan
   if (str2MovMap[&strInsn][memSeq] != nullptr && !cgFunc.IsAfterRegAlloc()) {
     Insn *movInsnOfStr = str2MovMap[&strInsn][memSeq];
     auto &vregOpnd = static_cast<RegOperand&>(movInsnOfStr->GetOperand(kInsnFirstOpnd));
-    movInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(movMop, resRegOpnd, vregOpnd);
+    movInsn = &cgFunc.GetInsnBuilder()->BuildInsn(movMop, resRegOpnd, vregOpnd);
   } else {
-    movInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(movMop, resRegOpnd, srcRegOpnd);
+    movInsn = &cgFunc.GetInsnBuilder()->BuildInsn(movMop, resRegOpnd, srcRegOpnd);
   }
-  if (&resRegOpnd == &srcRegOpnd && cgFunc.IsAfterRegAlloc()) {
+  if (resRegOpnd.GetRegisterNumber() == srcRegOpnd.GetRegisterNumber() &&
+      cgFunc.IsAfterRegAlloc()) {
     ldrInsn.GetBB()->RemoveInsn(ldrInsn);
     cgFunc.GetRD()->InitGenUse(*ldrInsn.GetBB(), false);
     return;
@@ -215,7 +216,7 @@ void AArch64StoreLoadOpt::GenerateMoveDeadInsn(RegOperand &resRegOpnd, RegOperan
     }
     vregOpnd = &cgFunc.CreateVirtualRegisterOperand(vRegNO);
     MOperator newMop = SelectMovMop(resRegOpnd.IsOfFloatOrSIMDClass(), resRegOpnd.GetSize() == k64BitSize);
-    newMovInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newMop, *vregOpnd, srcRegOpnd);
+    newMovInsn = &cgFunc.GetInsnBuilder()->BuildInsn(newMop, *vregOpnd, srcRegOpnd);
     newMovInsn->SetId(strInsn.GetId() + memSeq + 1);
     strInsn.GetBB()->InsertInsnAfter(strInsn, *newMovInsn);
     str2MovMap[&strInsn][memSeq] = newMovInsn;
@@ -226,7 +227,7 @@ void AArch64StoreLoadOpt::GenerateMoveDeadInsn(RegOperand &resRegOpnd, RegOperan
     vregOpnd = &static_cast<RegOperand&>(newMovInsn->GetOperand(kInsnFirstOpnd));
   }
   MOperator movMop = SelectMovMop(resRegOpnd.IsOfFloatOrSIMDClass(), resRegOpnd.GetSize() == k64BitSize);
-  Insn &movInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(movMop, resRegOpnd, *vregOpnd);
+  Insn &movInsn = cgFunc.GetInsnBuilder()->BuildInsn(movMop, resRegOpnd, *vregOpnd);
   movInsn.SetId(ldrInsn.GetId());
   ldrInsn.GetBB()->ReplaceInsn(ldrInsn, movInsn);
   if (CG_DEBUG_FUNC(cgFunc)) {
@@ -256,7 +257,7 @@ bool AArch64StoreLoadOpt::HasMemBarrier(const Insn &ldrInsn, const Insn &strInsn
     if (currInsn == nullptr) {
       return false;
     }
-    if (currInsn->IsCall()) {
+    if (currInsn->IsMachineInstruction() && currInsn->IsCall()) {
       return true;
     }
     currInsn = currInsn->GetNext();
@@ -284,7 +285,7 @@ void AArch64StoreLoadOpt::DoLoadZeroToMoveTransfer(const Insn &strInsn, short st
   /* comment for strInsn should be only added once */
   for (auto *ldrInsn : memUseInsnSet) {
     /* Currently we don't support useInsn is ldp insn. */
-    if (!ldrInsn->IsLoad() || ldrInsn->GetResultNum() > 1) {
+    if (!ldrInsn->IsLoad() || ldrInsn->GetDefRegs().size() > 1) {
       continue;
     }
     if (HasMemBarrier(*ldrInsn, strInsn)) {
@@ -305,7 +306,7 @@ void AArch64StoreLoadOpt::DoLoadZeroToMoveTransfer(const Insn &strInsn, short st
     }
     RegOperand &resRegOpnd = static_cast<RegOperand&>(resOpnd);
     MOperator movMop = SelectMovMop(resRegOpnd.IsOfFloatOrSIMDClass(), resRegOpnd.GetSize() == k64BitSize);
-    Insn &movInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(movMop, resOpnd, srcOpnd);
+    Insn &movInsn = cgFunc.GetInsnBuilder()->BuildInsn(movMop, resOpnd, srcOpnd);
     movInsn.SetId(ldrInsn->GetId());
     ldrInsn->GetBB()->ReplaceInsn(*ldrInsn, movInsn);
 
@@ -632,7 +633,7 @@ MemOperand *AArch64StoreLoadOpt::SelectReplaceMem(Insn &defInsn, Insn &curInsn,
       }
       break;
     }
-    case MOP_xmovri32:
+    case MOP_wmovri32:
     case MOP_xmovri64: {
       if (propMode == kPropOffset) {
         ImmOperand *imm = static_cast<ImmOperand*>(&defInsn.GetOperand(kInsnSecondOpnd));
@@ -915,8 +916,7 @@ void AArch64StoreLoadOpt::StrLdrIndexModeOpt(Insn &currInsn) {
   auto *curMemopnd = static_cast<MemOperand*>(currInsn.GetMemOpnd());
   ASSERT(curMemopnd != nullptr, " get memopnd failed");
   /* one instruction cannot define one register twice */
-  if (!CanDoIndexOpt(*curMemopnd) ||
-      static_cast<AArch64Insn&>(currInsn).IsRegDefined(curMemopnd->GetBaseRegister()->GetRegisterNumber())) {
+  if (!CanDoIndexOpt(*curMemopnd) || currInsn.IsRegDefined(curMemopnd->GetBaseRegister()->GetRegisterNumber())) {
     return;
   }
   MemOperand *newMemopnd = SelectIndexOptMode(currInsn, *curMemopnd);
@@ -1062,7 +1062,7 @@ void AArch64StoreLoadOpt::ProcessStr(Insn &insn) {
     return;
   }
 
-  auto *regOpnd = static_cast<RegOperand*>(insn.GetOpnd(regIndex));
+  auto *regOpnd = static_cast<RegOperand*>(&insn.GetOperand(regIndex));
   CHECK_NULL_FATAL(regOpnd);
   if (regOpnd->GetRegisterNumber() == RZR) {
     DoLoadZeroToMoveTransfer(insn, regIndex, memUseInsnSet);

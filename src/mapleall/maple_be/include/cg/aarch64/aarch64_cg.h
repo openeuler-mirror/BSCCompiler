@@ -22,12 +22,15 @@
 #include "aarch64_prop.h"
 #include "aarch64_dce.h"
 #include "aarch64_live.h"
+#include "aarch64_reaching.h"
 #include "aarch64_args.h"
 #include "aarch64_alignment.h"
 #include "aarch64_validbit_opt.h"
 #include "aarch64_reg_coalesce.h"
 #include "aarch64_rce.h"
 #include "aarch64_tailcall.h"
+#include "aarch64_cfgo.h"
+#include "aarch64_rematerialize.h"
 
 namespace maplebe {
 constexpr int64 kShortBRDistance = (8 * 1024);
@@ -161,6 +164,9 @@ class AArch64CG : public CG {
   LiveAnalysis *CreateLiveAnalysis(MemPool &mp, CGFunc &f) const override {
     return mp.New<AArch64LiveAnalysis>(f, mp);
   }
+  ReachingDefinition *CreateReachingDefinition(MemPool &mp, CGFunc &f) const override {
+    return mp.New<AArch64ReachingDefinition>(f, mp);
+  }
   MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const override {
     return mp.New<AArch64MoveRegArgs>(f);
   }
@@ -191,8 +197,26 @@ class AArch64CG : public CG {
   TailCallOpt *CreateCGTailCallOpt(MemPool &mp, CGFunc &f) const override {
     return mp.New<AArch64TailCallOpt>(mp, f);
   }
+  CFGOptimizer *CreateCFGOptimizer(MemPool &mp, CGFunc &f) const override {
+    return mp.New<AArch64CFGOptimizer>(f, mp);
+  }
+  Rematerializer *CreateRematerializer(MemPool &mp) const override {
+    return mp.New<AArch64Rematerializer>();
+  }
+  /* Return the copy operand id of reg1 if it is an insn who just do copy from reg1 to reg2.
+ * i. mov reg2, reg1
+ * ii. add/sub reg2, reg1, 0/zero register
+ * iii. mul reg2, reg1, 1
+ */
+  bool IsEffectiveCopy(Insn &insn) const final;
+  bool IsTargetInsn(MOperator mOp) const final;
+  bool IsClinitInsn(MOperator mOp) const final;
+  void DumpTargetOperand(Operand &opnd, const OpndDesc &opndDesc) const final;
+  const InsnDesc &GetTargetMd(MOperator mOp) const final {
+    return kMd[mOp];
+  }
 
-  static const AArch64MD kMd[kMopLast];
+  static const InsnDesc kMd[kMopLast];
   enum : uint8 {
     kR8List,
     kR16List,

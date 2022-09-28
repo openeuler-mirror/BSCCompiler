@@ -9636,7 +9636,7 @@ const Operand *AArch64CGFunc::GetRflag() const {
   return rcc;
 }
 
-Operand &AArch64CGFunc::GetOrCreatevaryreg() {
+RegOperand &AArch64CGFunc::GetOrCreatevaryreg() {
   if (vary == nullptr) {
     regno_t vRegNO = NewVReg(kRegTyVary, k8ByteSize);
     vary = &CreateVirtualRegisterOperand(vRegNO);
@@ -9732,7 +9732,7 @@ void AArch64CGFunc::SelectLibCallNArg(const std::string &funcName, std::vector<O
   }
 }
 
-Operand *AArch64CGFunc::GetBaseReg(const AArch64SymbolAlloc &symAlloc) {
+RegOperand *AArch64CGFunc::GetBaseReg(const SymbolAlloc &symAlloc) {
   MemSegmentKind sgKind = symAlloc.GetMemSegment()->GetMemSegmentKind();
   ASSERT(((sgKind == kMsArgsRegPassed) || (sgKind == kMsLocals) || (sgKind == kMsRefLocals) ||
       (sgKind == kMsArgsToStkPass) || (sgKind == kMsArgsStkPassed)), "NYI");
@@ -9995,14 +9995,6 @@ MemOperand *AArch64CGFunc::GetPseudoRegisterSpillMemoryOperand(PregIdx i) {
   }
   (void)pRegSpillMemOperands.emplace(std::pair<PregIdx, MemOperand*>(i, &memOpnd));
   return &memOpnd;
-}
-
-MIRPreg *AArch64CGFunc::GetPseudoRegFromVirtualRegNO(const regno_t vRegNO, bool afterSSA) const {
-  PregIdx pri = afterSSA ? VRegNOToPRegIdx(vRegNO) : GetPseudoRegIdxFromVirtualRegNO(vRegNO);
-  if (pri == -1) {
-    return nullptr;
-  }
-  return GetFunction().GetPregTab()->PregFromPregIdx(pri);
 }
 
 /* Get the number of return register of current function. */

@@ -21,7 +21,6 @@
 #include "memlayout.h"
 #include "reg_info.h"
 #include "cgbb.h"
-#include "reg_alloc.h"
 #include "cfi.h"
 #include "dbg.h"
 #include "reaching.h"
@@ -32,6 +31,7 @@
 #include "mir_parser.h"
 #include "mir_function.h"
 #include "debug_info.h"
+#include "maple_phase_manager.h"
 
 /* Maple MP header */
 #include "mempool_allocator.h"
@@ -48,6 +48,33 @@ struct MemOpndCmp {
     }
     return (lhs->Less(*rhs));
   }
+};
+
+class VirtualRegNode {
+ public:
+  VirtualRegNode() = default;
+
+  VirtualRegNode(RegType type, uint32 size)
+      : regType(type), size(size), regNO(kInvalidRegNO) {}
+
+  virtual ~VirtualRegNode() = default;
+
+  void AssignPhysicalRegister(regno_t phyRegNO) {
+    regNO = phyRegNO;
+  }
+
+  RegType GetType() const {
+    return regType;
+  }
+
+  uint32 GetSize() const {
+    return size;
+  }
+
+ private:
+  RegType regType = kRegTyUndef;
+  uint32 size     = 0;              /* size in bytes */
+  regno_t regNO   = kInvalidRegNO;  /* physical register assigned by register allocation */
 };
 
 class SpillMemOperandSet {
@@ -157,7 +184,8 @@ class CGFunc {
   virtual void GenerateCleanupCode(BB &bb) = 0;
   virtual bool NeedCleanup() = 0;
   virtual void GenerateCleanupCodeForExtEpilog(BB &bb) = 0;
-
+  virtual MemOperand *GetOrCreatSpillMem(regno_t vrNum) = 0;
+  virtual void FreeSpillRegMem(regno_t vrNum) = 0;
   void CreateLmbcFormalParamInfo();
   virtual uint32 FloatParamRegRequired(MIRStructType *structType, uint32 &fpSize) = 0;
   virtual void AssignLmbcFormalParams() = 0;
@@ -327,6 +355,7 @@ class CGFunc {
   virtual RegOperand &GetOrCreateVirtualRegisterOperand(RegOperand &regOpnd) = 0;
   virtual RegOperand &GetOrCreateFramePointerRegOperand() = 0;
   virtual RegOperand &GetOrCreateStackBaseRegOperand() = 0;
+  virtual RegOperand *GetBaseReg(const SymbolAlloc &symAlloc) = 0;
   virtual int32 GetBaseOffset(const SymbolAlloc &symbolAlloc) = 0;
   virtual RegOperand &GetZeroOpnd(uint32 size) = 0;
   virtual Operand &CreateCfiRegOperand(uint32 reg, uint32 size) = 0;
@@ -1237,6 +1266,27 @@ class CGFunc {
     return needStackProtect;
   }
 
+  MIRPreg *GetPseudoRegFromVirtualRegNO(const regno_t vRegNO, bool afterSSA = false) const {
+    PregIdx pri = afterSSA ? VRegNOToPRegIdx(vRegNO) : GetPseudoRegIdxFromVirtualRegNO(vRegNO);
+    if (pri == -1) {
+      return nullptr;
+    }
+    return GetFunction().GetPregTab()->PregFromPregIdx(pri);
+  }
+
+  Insn &CreateCommentInsn(const std::string &comment) {
+    Insn &insn = GetInsnBuilder()->BuildInsn(abstract::MOP_comment,
+        InsnDesc::GetAbstractId(abstract::MOP_comment));
+    insn.AddOperand(GetOpndBuilder()->CreateComment(comment));
+    return insn;
+  }
+
+  Insn &CreateCommentInsn(const MapleString &comment) {
+    Insn &insn = GetInsnBuilder()->BuildInsn(abstract::MOP_comment,
+        InsnDesc::GetAbstractId(abstract::MOP_comment));
+    insn.AddOperand(GetOpndBuilder()->CreateComment(comment));
+    return insn;
+  }
  protected:
   uint32 firstMapleIrVRegNO = 200;        /* positioned after physical regs */
   uint32 firstNonPregVRegNO;

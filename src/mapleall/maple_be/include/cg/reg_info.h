@@ -16,27 +16,23 @@
 #define MAPLEBE_INCLUDE_CG_REG_INFO_H
 
 #include "isa.h"
+#include "insn.h"
 
 namespace maplebe {
 
 class RegisterInfo {
  public:
   explicit RegisterInfo(MapleAllocator &mallocator)
-      : memAllocator(&mallocator),
-        allIntRegs(mallocator.Adapter()),
+      : allIntRegs(mallocator.Adapter()),
         allFpRegs(mallocator.Adapter()),
         allregs(mallocator.Adapter()) {}
 
   virtual ~RegisterInfo() {
-    memAllocator = nullptr;
     cgFunc = nullptr;
   }
 
   virtual void Init() = 0;
   virtual void Fini() = 0;
-  bool IsUntouchableReg(uint32 regNO) const;
-  virtual uint32 GetAllRegNum() = 0;
-  virtual uint32 GetInvalidReg() = 0;
   void AddToAllRegs(regno_t regNo) {
     (void)allregs.insert(regNo);
   }
@@ -61,23 +57,43 @@ class RegisterInfo {
   CGFunc *GetCurrFunction() const {
     return cgFunc;
   }
-  virtual RegOperand &GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag) = 0;
+  virtual RegOperand *GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag = 0) = 0;
   virtual ListOperand *CreateListOperand() = 0;
   virtual Insn *BuildMovInstruction(Operand &opnd0, Operand &opnd1) = 0;
+  virtual bool IsGPRegister(regno_t regNO) const = 0;
+  virtual bool IsPreAssignedReg(regno_t regNO) const = 0;
+  virtual uint32 GetIntParamRegIdx(regno_t regNO) const = 0;
+  virtual uint32 GetFpParamRegIdx(regno_t regNO) const = 0;
   virtual bool IsSpecialReg(regno_t regno) const = 0;
+  virtual bool IsAvailableReg(regno_t regNO) const = 0;
   virtual bool IsCalleeSavedReg(regno_t regno) const = 0;
   virtual bool IsYieldPointReg(regno_t regNO) const = 0;
+  virtual bool IsUntouchableReg(uint32 regNO) const = 0;
   virtual bool IsUnconcernedReg(regno_t regNO) const = 0;
   virtual bool IsUnconcernedReg(const RegOperand &regOpnd) const = 0;
+  virtual bool IsVirtualRegister(const RegOperand &regOpnd) = 0;
+  virtual bool IsVirtualRegister(regno_t regno) = 0;
   virtual void SaveCalleeSavedReg(MapleSet<regno_t> savedRegs) = 0;
-  virtual bool IsVirtualRegister(const CGRegOperand &regOpnd) {
-    return false;
-  }
-  virtual bool IsUnconcernedReg(const CGRegOperand &regOpnd) const {
-    return false;
-  }
+  virtual uint32 GetIntRegsParmsNum() = 0;
+  virtual uint32 GetIntRetRegsNum() = 0;
+  virtual uint32 GetFpRetRegsNum() = 0;
+  virtual uint32 GetFloatRegsParmsNum() = 0;
+  virtual regno_t GetLastParamsIntReg() = 0;
+  virtual regno_t GetLastParamsFpReg() = 0;
+  virtual regno_t GetIntRetReg(uint32 idx)  = 0;
+  virtual regno_t GetFpRetReg(uint32 idx)  = 0;
+  virtual uint32 GetReservedSpillReg() = 0;
+  virtual uint32 GetSecondReservedSpillReg() = 0;
+  virtual uint32 GetAllRegNum() = 0;
+  virtual uint32 GetNormalUseOperandNum() = 0;
+  virtual regno_t GetInvalidReg() = 0;
+  virtual bool IsSpillRegInRA(regno_t regNO, bool has3RegOpnd) = 0;
+  virtual Insn *BuildStrInsn(uint32 regSize, PrimType stype, RegOperand &phyOpnd, MemOperand &memOpnd) = 0;
+  virtual Insn *BuildLdrInsn(uint32 regSize, PrimType stype, RegOperand &phyOpnd, MemOperand &memOpnd) = 0;
+  virtual Insn *BuildCommentInsn(const std::string &comment) = 0;
+  virtual MemOperand *AdjustMemOperandIfOffsetOutOfRange(MemOperand *memOpnd, regno_t vrNum,
+      bool isDest, Insn &insn, regno_t regNum, bool &isOutOfRange) = 0;
  private:
-  MapleAllocator *memAllocator;
   MapleSet<regno_t> allIntRegs;
   MapleSet<regno_t> allFpRegs;
   MapleSet<regno_t> allregs;

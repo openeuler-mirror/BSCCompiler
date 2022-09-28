@@ -20,10 +20,6 @@
 
 namespace maplebe {
 /* null implementation yet */
-InsnVisitor *X64CGFunc::NewInsnModifier() {
-  CHECK_FATAL(false, "NIY");
-  return nullptr;
-}
 void X64CGFunc::GenSaveMethodInfoCode(BB &bb) {
   CHECK_FATAL(false, "NIY");
 }
@@ -35,6 +31,16 @@ bool X64CGFunc::NeedCleanup() {
   return false;
 }
 void X64CGFunc::GenerateCleanupCodeForExtEpilog(BB &bb) {
+  CHECK_FATAL(false, "NIY");
+}
+uint32 X64CGFunc::FloatParamRegRequired(MIRStructType *structType, uint32 &fpSize) {
+  CHECK_FATAL(false, "NIY");
+  return 0;
+}
+void X64CGFunc::AssignLmbcFormalParams() {
+  CHECK_FATAL(false, "NIY");
+}
+void X64CGFunc::LmbcGenSaveSpForAlloca() {
   CHECK_FATAL(false, "NIY");
 }
 void X64CGFunc::MergeReturn() {
@@ -52,7 +58,7 @@ void X64CGFunc::HandleRetCleanup(NaryStmtNode &retNode) {
 void X64CGFunc::SelectDassign(DassignNode &stmt, Operand &opnd0) {
   CHECK_FATAL(false, "NIY");
 }
-void X64CGFunc::SelectDassignoff(DassignoffNode &stmt, Operand &opnd0){
+void X64CGFunc::SelectDassignoff(DassignoffNode &stmt, Operand &opnd0) {
   CHECK_FATAL(false, "NIY");
 }
 void X64CGFunc::SelectRegassign(RegassignNode &stmt, Operand &opnd0) {
@@ -76,7 +82,19 @@ void X64CGFunc::SelectIassign(IassignNode &stmt) {
 void X64CGFunc::SelectIassignoff(IassignoffNode &stmt) {
   CHECK_FATAL(false, "NIY");
 }
+void X64CGFunc::SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) {
+  CHECK_FATAL(false, "NIY");
+}
+void X64CGFunc::SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd) {
+  CHECK_FATAL(false, "NIY");
+}
+void X64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) {
+  CHECK_FATAL(false, "NIY");
+}
 void X64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) {
+  CHECK_FATAL(false, "NIY");
+}
+void X64CGFunc::SelectReturnSendOfStructInRegs(BaseNode *x) {
   CHECK_FATAL(false, "NIY");
 }
 void X64CGFunc::SelectReturn(Operand *opnd) {
@@ -142,11 +160,11 @@ Operand *X64CGFunc::SelectCaligndown(IntrinsicopNode &intrinopNode) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
-Operand *X64CGFunc::SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) {
+Operand *X64CGFunc::SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
-Operand *X64CGFunc::SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) {
+Operand *X64CGFunc::SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -155,10 +173,6 @@ Operand *X64CGFunc::SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimTy
   return nullptr;
 }
 Operand *X64CGFunc::SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
-  return nullptr;
-}
-Operand *X64CGFunc::SelectCSyncLockRelease(IntrinsicopNode &intrinopNode, PrimType pty) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -174,7 +188,11 @@ Operand *X64CGFunc::SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
-Operand *X64CGFunc::SelectCAtomicExchangeN(IntrinsicopNode &intrinsicopNode) {
+Operand *X64CGFunc::SelectCAtomicExchangeN(const IntrinsiccallNode &intrinsiccallNode) {
+  CHECK_FATAL(false, "NIY");
+  return nullptr;
+}
+Operand *X64CGFunc::SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -199,10 +217,15 @@ RegOperand *X64CGFunc::SelectRegread(RegreadNode &expr) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
-Operand *X64CGFunc::SelectAddrof(AddrofNode &expr, const BaseNode &parent) {
+Operand *X64CGFunc::SelectAddrof(AddrofNode &expr, const BaseNode &parent, bool isAddrofoff) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
+Operand *X64CGFunc::SelectAddrofoff(AddrofoffNode &expr, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+  return nullptr;
+}
+
 Operand &X64CGFunc::SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) {
   CHECK_FATAL(false, "NIY");
   Operand *a;
@@ -219,6 +242,10 @@ Operand *X64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr, int ext
   return nullptr;
 }
 Operand *X64CGFunc::SelectIreadoff(const BaseNode &parent, IreadoffNode &ireadoff) {
+  CHECK_FATAL(false, "NIY");
+  return nullptr;
+}
+Operand *X64CGFunc::SelectIreadfpoff(const BaseNode &parent, IreadFPoffNode &ireadoff) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -470,9 +497,9 @@ const LabelOperand *X64CGFunc::GetLabelOperand(LabelIdx labIdx) const {
   return nullptr;
 }
 LabelOperand &X64CGFunc::GetOrCreateLabelOperand(LabelIdx labIdx) {
-  CHECK_FATAL(false, "NIY");
-  LabelOperand *a;
-  return *a;
+  std::string lableName = ".L." + std::to_string(GetUniqueID()) +
+      "__" + std::to_string(labIdx);
+  return GetOpndBuilder()->CreateLabel(lableName.c_str(), labIdx);
 }
 LabelOperand &X64CGFunc::GetOrCreateLabelOperand(BB &bb) {
   CHECK_FATAL(false, "NIY");
@@ -500,9 +527,7 @@ RegOperand &X64CGFunc::GetOrCreateFramePointerRegOperand() {
   return *a;
 }
 RegOperand &X64CGFunc::GetOrCreateStackBaseRegOperand() {
-  CHECK_FATAL(false, "NIY");
-  RegOperand *a;
-  return *a;
+  return GetOpndBuilder()->CreatePReg(x64::RBP, GetPointerSize() * kBitsPerByte, kRegTyInt);
 }
 RegOperand &X64CGFunc::GetZeroOpnd(uint32 size) {
   CHECK_FATAL(false, "NIY");
@@ -571,11 +596,7 @@ RegOperand *X64CGFunc::SelectVectorFromScalar(PrimType pType, Operand *opnd, Pri
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
-RegOperand *X64CGFunc::SelectVectorGetHigh(PrimType rType, Operand *src) {
-  CHECK_FATAL(false, "NIY");
-  return nullptr;
-}
-RegOperand *X64CGFunc::SelectVectorGetLow(PrimType rType, Operand *src) {
+RegOperand *X64CGFunc::SelectVectorDup(PrimType rType, Operand *src, bool getLow) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -664,10 +685,9 @@ RegOperand *X64CGFunc::SelectVectorWiden(PrimType rType, Operand *o1, PrimType o
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
-Operand &X64CGFunc::CreateFPImmZero(PrimType primType) {
+RegOperand *X64CGFunc::SelectVectorMovNarrow(PrimType rType, Operand *opnd, PrimType oType) {
   CHECK_FATAL(false, "NIY");
-  Operand *a;
-  return *a;
+  return nullptr;
 }
 Operand *X64CGFunc::SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinopNode, PrimType retType,
                                                  const std::string &name) {
@@ -689,19 +709,29 @@ int32 X64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
   /* Call Frame layout of X64
    * Refer to layout in x64_memlayout.h.
    * Do Not change this unless you know what you do
+   * memlayout like this
+   * rbp position
+   * ArgsReg  --
+   * Locals     | -- FrameSize
+   * Spill      |
+   * ArgsStk  --
    */
-  const int32 sizeofFplr = 2 * kIntregBytelen;
+  constexpr const int32 sizeofFplr = 2 * kIntregBytelen;
+  // baseOffset is the offset of this symbol based on the rbp position.
+  int32 baseOffset = symAlloc->GetOffset();
   MemSegmentKind sgKind = symAlloc->GetMemSegment()->GetMemSegmentKind();
   auto *memLayout = static_cast<X64MemLayout*>(this->GetMemlayout());
-  if (sgKind == kMsLocals) {
-    // baseOffset is the offset of this symbol based on the rbp position.
-    int32 baseOffset = symAlloc->GetOffset();
-    return baseOffset - memLayout->StackFrameSize();
+  if (sgKind == kMsSpillReg) {
+    /* spill = -(Locals + ArgsReg + baseOffset + kSizeOfPtr) */
+    return -(memLayout->GetSizeOfLocals() + memLayout->SizeOfArgsRegisterPassed() + baseOffset + GetPointerSize());
+  }
+  else if (sgKind == kMsLocals) {
+    /* Locals = baseOffset-(Locals + ArgsReg) */
+    return baseOffset - (memLayout->GetSizeOfLocals() + memLayout->SizeOfArgsRegisterPassed());
   } else if (sgKind == kMsArgsRegPassed) {
-    int32 baseOffset = symAlloc->GetOffset();
-    return baseOffset + memLayout->GetSizeOfLocals() - memLayout->StackFrameSize();
+    /* ArgsReg = baseOffset-(ArgsReg) */
+    return baseOffset - memLayout->SizeOfArgsRegisterPassed();
   } else if (sgKind == kMsArgsStkPassed) {
-    int32 baseOffset = static_cast<int32>(symAlloc->GetOffset());
     return baseOffset + sizeofFplr;
   } else {
     CHECK_FATAL(false, "sgKind check");
@@ -709,66 +739,125 @@ int32 X64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
   return 0;
 }
 
-CGRegOperand *X64CGFunc::GetBaseReg(const maplebe::SymbolAlloc &symAlloc) {
+RegOperand *X64CGFunc::GetBaseReg(const maplebe::SymbolAlloc &symAlloc) {
   MemSegmentKind sgKind = symAlloc.GetMemSegment()->GetMemSegmentKind();
   ASSERT(((sgKind == kMsArgsRegPassed) || (sgKind == kMsLocals) || (sgKind == kMsRefLocals) ||
       (sgKind == kMsArgsToStkPass) || (sgKind == kMsArgsStkPassed)), "NIY");
   if (sgKind == kMsLocals || sgKind == kMsArgsRegPassed || sgKind == kMsArgsStkPassed) {
-    return &GetOpndBuilder()->CreatePReg(x64::RBP, kSizeOfPtr * kBitsPerByte, kRegTyInt);
+    return &GetOpndBuilder()->CreatePReg(x64::RBP, GetPointerSize() * kBitsPerByte, kRegTyInt);
   } else {
     CHECK_FATAL(false, "NIY sgKind");
   }
   return nullptr;
 }
 
-void X64CGFunc::DumpTargetIR(const Insn &insn) const {
-  const InsnDescription &curMd =  X64CG::kMd[insn.GetMachineOpcode()];
-  LogInfo::MapleLogger() << "MOP (" << curMd.GetName() << ")";
-  for (size_t i = 0; i < insn.GetOperandSize(); ++i) {
-    const OpndDescription *curOpndDesc = curMd.GetOpndDes(i);
-    X64OpndDumpVistor odv(*curOpndDesc);
-    insn.GetOperand(i).Accept(odv);
+void X64CGFunc::FreeSpillRegMem(regno_t vrNum) {
+  MemOperand *memOpnd = nullptr;
+
+  auto p = spillRegMemOperands.find(vrNum);
+  if (p != spillRegMemOperands.end()) {
+    memOpnd = p->second;
   }
-  LogInfo::MapleLogger() << "\n";
+
+  if ((memOpnd == nullptr) && IsVRegNOForPseudoRegister(vrNum)) {
+    auto pSecond = pRegSpillMemOperands.find(GetPseudoRegIdxFromVirtualRegNO(vrNum));
+    if (pSecond != pRegSpillMemOperands.end()) {
+      memOpnd = pSecond->second;
+    }
+  }
+
+  if (memOpnd == nullptr) {
+    ASSERT(false, "free spillreg have no mem");
+    return;
+  }
+
+  uint32 size = memOpnd->GetSize();
+  MapleUnorderedMap<uint32, SpillMemOperandSet*>::iterator iter;
+  if ((iter = reuseSpillLocMem.find(size)) != reuseSpillLocMem.end()) {
+    iter->second->Add(*memOpnd);
+  } else {
+    reuseSpillLocMem[size] = memPool->New<SpillMemOperandSet>(*GetFuncScopeAllocator());
+    reuseSpillLocMem[size]->Add(*memOpnd);
+  }
 }
 
-void X64OpndDumpVistor::Visit(maplebe::CGRegOperand *v) {
+MemOperand *X64CGFunc::GetOrCreatSpillMem(regno_t vrNum) {
+  /* NOTES: must used in RA, not used in other place. */
+  if (IsVRegNOForPseudoRegister(vrNum)) {
+    auto p = pRegSpillMemOperands.find(GetPseudoRegIdxFromVirtualRegNO(vrNum));
+    if (p != pRegSpillMemOperands.end()) {
+      return p->second;
+    }
+  }
+
+  auto p = spillRegMemOperands.find(vrNum);
+  if (p == spillRegMemOperands.end()) {
+    uint32 memBitSize = k64BitSize;
+    auto it = reuseSpillLocMem.find(memBitSize);
+    if (it != reuseSpillLocMem.end()) {
+      MemOperand *memOpnd = it->second->GetOne();
+      if (memOpnd != nullptr) {
+        spillRegMemOperands.emplace(std::pair<regno_t, MemOperand*>(vrNum, memOpnd));
+        return memOpnd;
+      }
+    }
+
+    RegOperand &baseOpnd = GetOrCreateStackBaseRegOperand();
+    int32 offset = GetOrCreatSpillRegLocation(vrNum);
+    MemOperand *memOpnd = &GetOpndBuilder()->CreateMem(baseOpnd, offset, memBitSize);
+    spillRegMemOperands.emplace(std::pair<regno_t, MemOperand*>(vrNum, memOpnd));
+    return memOpnd;
+  } else {
+    return p->second;
+  }
+}
+
+void X64OpndDumpVisitor::Visit(maplebe::RegOperand *v) {
   DumpOpndPrefix();
   LogInfo::MapleLogger() << "reg ";
   DumpRegInfo(*v);
   DumpSize(*v);
-  const OpndDescription *regDesc = GetOpndDesc();
+  const OpndDesc *regDesc = GetOpndDesc();
   LogInfo::MapleLogger() << " [";
   if (regDesc->IsRegDef()) {
-    LogInfo::MapleLogger() << "DEF,";
+    LogInfo::MapleLogger() << "DEF ";
   }
   if (regDesc->IsRegUse()) {
-    LogInfo::MapleLogger() << "USE,";
+    LogInfo::MapleLogger() << "USE";
   }
   LogInfo::MapleLogger() << "]";
   DumpOpndSuffix();
 }
-void X64OpndDumpVistor::Visit(maplebe::CGImmOperand *v) {
+
+void X64OpndDumpVisitor::Visit(CommentOperand *v) {
+  LogInfo::MapleLogger() << ":#" << v->GetComment();
+}
+
+void X64OpndDumpVisitor::Visit(maplebe::ImmOperand *v) {
   DumpOpndPrefix();
-  LogInfo::MapleLogger() << "imm ";
-  LogInfo::MapleLogger() << v->GetValue();
+  if (v->IsStImmediate()) {
+    LogInfo::MapleLogger() << v->GetName();
+    LogInfo::MapleLogger() << "+offset:" << v->GetValue();
+  } else {
+    LogInfo::MapleLogger() << "imm:" << v->GetValue();
+  }
   DumpSize(*v);
   DumpOpndSuffix();
 }
 
-void X64OpndDumpVistor::Visit(maplebe::CGMemOperand *v) {
+void X64OpndDumpVisitor::Visit(maplebe::MemOperand *v) {
   DumpOpndPrefix();
   LogInfo::MapleLogger() << "mem ";
   if (v->GetBaseRegister() != nullptr) {
     DumpRegInfo(*v->GetBaseRegister());
-    if (v->GetBaseOfst() != nullptr) {
-      LogInfo::MapleLogger() << " + " << v->GetBaseOfst()->GetValue();
+    if (v->GetOffsetOperand() != nullptr) {
+      LogInfo::MapleLogger() << " + " << v->GetOffsetOperand()->GetValue();
     }
   }
   DumpSize(*v);
   DumpOpndSuffix();
 }
-void X64OpndDumpVistor::DumpRegInfo(maplebe::CGRegOperand &v) {
+void X64OpndDumpVisitor::DumpRegInfo(maplebe::RegOperand &v) {
   if (v.GetRegisterNumber() > kBaseVirtualRegNO) {
     LogInfo::MapleLogger() << "V" << v.GetRegisterNumber();
   } else {
@@ -776,10 +865,9 @@ void X64OpndDumpVistor::DumpRegInfo(maplebe::CGRegOperand &v) {
     LogInfo::MapleLogger() << "%"
                            << X64CG::intRegNames[(r32 ? X64CG::kR32List : X64CG::kR64List)][v.GetRegisterNumber()];
   }
-
 }
 
-void X64OpndDumpVistor::Visit(maplebe::CGFuncNameOperand *v) {
+void X64OpndDumpVisitor::Visit(maplebe::FuncNameOperand *v) {
   DumpOpndPrefix();
   LogInfo::MapleLogger() << "funcname ";
   LogInfo::MapleLogger() << v->GetName();
@@ -787,11 +875,11 @@ void X64OpndDumpVistor::Visit(maplebe::CGFuncNameOperand *v) {
   DumpOpndSuffix();
 }
 
-void X64OpndDumpVistor::Visit(maplebe::CGListOperand *v) {
+void X64OpndDumpVisitor::Visit(maplebe::ListOperand *v) {
   DumpOpndPrefix();
   LogInfo::MapleLogger() << "list ";
 
-  MapleList<CGRegOperand*> opndList = v->GetOperands();
+  MapleList<RegOperand*> opndList = v->GetOperands();
   for (auto it = opndList.begin(); it != opndList.end();) {
     (*it)->Dump();
     LogInfo::MapleLogger() << (++it == opndList.end() ? "" : " ,");
@@ -800,11 +888,28 @@ void X64OpndDumpVistor::Visit(maplebe::CGListOperand *v) {
   DumpOpndSuffix();
 }
 
-void X64OpndDumpVistor::Visit(maplebe::CGLabelOperand *v) {
+void X64OpndDumpVisitor::Visit(maplebe::LabelOperand *v) {
   DumpOpndPrefix();
   LogInfo::MapleLogger() << "label ";
   LogInfo::MapleLogger() << v->GetLabelIndex();
   DumpSize(*v);
   DumpOpndSuffix();
+}
+
+void X64OpndDumpVisitor::Visit(PhiOperand *v) {
+  CHECK_FATAL(false, "NIY");
+}
+
+void X64OpndDumpVisitor::Visit(CondOperand *v) {
+  CHECK_FATAL(false, "do not use this operand, it will be eliminated soon");
+}
+void X64OpndDumpVisitor::Visit(StImmOperand *v) {
+  CHECK_FATAL(false, "do not use this operand, it will be eliminated soon");
+}
+void X64OpndDumpVisitor::Visit(BitShiftOperand *v) {
+  CHECK_FATAL(false, "do not use this operand, it will be eliminated soon");
+}
+void X64OpndDumpVisitor::Visit(ExtendShiftOperand *v) {
+  CHECK_FATAL(false, "do not use this operand, it will be eliminated soon");
 }
 }

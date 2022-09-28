@@ -291,13 +291,13 @@ class AArch64CGFunc : public CGFunc {
   Operand &GetTargetRetOperand(PrimType primType, int32 sReg) override;
   Operand &GetOrCreateRflag() override;
   const Operand *GetRflag() const override;
-  Operand &GetOrCreatevaryreg();
+  RegOperand &GetOrCreatevaryreg();
   RegOperand &CreateRegisterOperandOfType(PrimType primType);
   RegOperand &CreateRegisterOperandOfType(RegType regType, uint32 byteLen);
   RegOperand &CreateRflagOperand();
   RegOperand &GetOrCreateSpecialRegisterOperand(PregIdx sregIdx, PrimType primType);
-  MemOperand *GetOrCreatSpillMem(regno_t vrNum);
-  void FreeSpillRegMem(regno_t vrNum);
+  MemOperand *GetOrCreatSpillMem(regno_t vrNum) override;
+  void FreeSpillRegMem(regno_t vrNum) override;
   RegOperand &GetOrCreatePhysicalRegisterOperand(AArch64reg regNO, uint32 size, RegType kind, uint32 flag = 0);
   RegOperand &GetOrCreatePhysicalRegisterOperand(std::string &asmAttr);
   RegOperand *CreateVirtualRegisterOperand(regno_t vRegNO, uint32 size, RegType kind, uint32 flg = 0) const;
@@ -488,7 +488,7 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *GenLmbcParamLoad(int32 offset, uint32 byteSize, RegType regType,
                                PrimType primType, AArch64reg baseRegno = RFP);
   RegOperand *LmbcStructReturnLoad(int32 offset);
-  Operand *GetBaseReg(const AArch64SymbolAlloc &symAlloc);
+  RegOperand *GetBaseReg(const SymbolAlloc &symAlloc) override;
   int32 GetBaseOffset(const SymbolAlloc &symbolAlloc) override;
 
   Operand &CreateCommentOperand(const std::string &s) const {
@@ -649,18 +649,6 @@ class AArch64CGFunc : public CGFunc {
     splitStpldpBaseOffset = val;
   }
 
-  Insn &CreateCommentInsn(const std::string &comment) {
-    Insn &insn = GetInsnBuilder()->BuildInsn(abstract::MOP_comment, InsnDesc::GetAbstractId(abstract::MOP_comment));
-    insn.AddOperand(CreateCommentOperand(comment));
-    return insn;
-  }
-
-  Insn &CreateCommentInsn(const MapleString &comment) {
-    Insn &insn = GetInsnBuilder()->BuildInsn(abstract::MOP_comment, InsnDesc::GetAbstractId(abstract::MOP_comment));
-    insn.AddOperand(CreateCommentOperand(comment));
-    return insn;
-  }
-
   Insn &CreateCfiRestoreInsn(uint32 reg, uint32 size) {
     return GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_restore).AddOpndChain(CreateCfiRegOperand(reg, size));
   }
@@ -687,8 +675,6 @@ class AArch64CGFunc : public CGFunc {
   }
 
   void InsertJumpPad(Insn *insn) override;
-
-  MIRPreg *GetPseudoRegFromVirtualRegNO(const regno_t vRegNO, bool afterSSA = false) const;
 
   MapleVector<AArch64reg> &GetProEpilogSavedRegs() {
     return proEpilogSavedRegs;
@@ -809,8 +795,8 @@ class AArch64CGFunc : public CGFunc {
     kStateUnknown,
   };
   Operand *rcc = nullptr;
-  Operand *vary = nullptr;
-  Operand *fsp = nullptr;  /* used to point the address of local variables and formal parameters */
+  RegOperand *vary = nullptr;
+  RegOperand *fsp = nullptr;  /* used to point the address of local variables and formal parameters */
 
   static CondOperand ccOperands[kCcLast];
   static MovkLslOperandArray movkLslOperands;

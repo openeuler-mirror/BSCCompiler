@@ -19,6 +19,7 @@
 #include "x64_memlayout.h"
 #include "x64_isa.h"
 #include "x64_reg_info.h"
+#include "x64_optimize_common.h"
 
 namespace maplebe {
 class X64CGFunc : public CGFunc {
@@ -26,19 +27,23 @@ class X64CGFunc : public CGFunc {
   X64CGFunc(MIRModule &mod, CG &c, MIRFunction &f, BECommon &b,
       MemPool &memPool, StackMemPool &stackMp, MapleAllocator &mallocator, uint32 funcId)
       : CGFunc(mod, c, f, b, memPool, stackMp, mallocator, funcId),
-        calleeSavedRegs(mallocator.Adapter()),
-        formalRegList(mallocator.Adapter()) {
+        calleeSavedRegs(mallocator.Adapter()) {
     CGFunc::SetMemlayout(*memPool.New<X64MemLayout>(b, f, mallocator));
     CGFunc::GetMemlayout()->SetCurrFunction(*this);
     CGFunc::SetTargetRegInfo(*memPool.New<X64RegInfo>(mallocator));
     CGFunc::GetTargetRegInfo()->SetCurrFunction(*this);
   }
   /* null implementation yet */
-  InsnVisitor *NewInsnModifier() override;
+  InsnVisitor *NewInsnModifier() override {
+    return memPool->New<X64InsnVisitor>(*this);
+  }
   void GenSaveMethodInfoCode(BB &bb) override;
   void GenerateCleanupCode(BB &bb) override;
   bool NeedCleanup() override;
   void GenerateCleanupCodeForExtEpilog(BB &bb) override;
+  uint32 FloatParamRegRequired(MIRStructType *structType, uint32 &fpSize) override;
+  void AssignLmbcFormalParams() override;
+  void LmbcGenSaveSpForAlloca() override;
   void MergeReturn() override;
   void DetermineReturnTypeofCall() override;
   void HandleRCCall(bool begin, const MIRSymbol *retRef = nullptr) override;
@@ -52,7 +57,11 @@ class X64CGFunc : public CGFunc {
   void SelectAggDassign(DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
   void SelectIassignoff(IassignoffNode &stmt) override;
+  void SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) override;
+  void SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd) override;
+  void SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) override;
   void SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) override;
+  void SelectReturnSendOfStructInRegs(BaseNode *x) override;
   void SelectReturn(Operand *opnd) override;
   void SelectIgoto(Operand *opnd0) override;
   void SelectCondGoto(CondGotoNode &stmt, Operand &opnd0, Operand &opnd1) override;
@@ -74,23 +83,25 @@ class X64CGFunc : public CGFunc {
   Operand *SelectCSyncFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) override;
   Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCAtomicExchangeN(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) override;
-  Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) override;
+  Operand *SelectCAtomicExchangeN(const IntrinsiccallNode &intrinsiccallNode) override;
+  Operand *SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) override;
+  Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode) override;
+  Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimType pty) override;
-  Operand *SelectCSyncLockRelease(IntrinsicopNode &intrinopNode, PrimType pty) override;
   Operand *SelectCReturnAddress(IntrinsicopNode &intrinopNode) override;
   void SelectMembar(StmtNode &membar) override;
   void SelectComment(CommentNode &comment) override;
   void HandleCatch() override;
   Operand *SelectDread(const BaseNode &parent, AddrofNode &expr) override;
   RegOperand *SelectRegread(RegreadNode &expr) override;
-  Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent, bool isAddrofoff = false) override;
+  Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent, bool isAddrofoff) override;
+  Operand *SelectAddrofoff(AddrofoffNode &expr, const BaseNode &parent) override;
   Operand &SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) override;
   Operand &SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) override;
   Operand *SelectIread(const BaseNode &parent, IreadNode &expr, int extraOffset = 0,
       PrimType finalBitFieldDestType = kPtyInvalid) override;
   Operand *SelectIreadoff(const BaseNode &parent, IreadoffNode &ireadoff) override;
+  Operand *SelectIreadfpoff(const BaseNode &parent, IreadFPoffNode &ireadoff) override;
   Operand *SelectIntConst(MIRIntConst &intConst) override;
   Operand *SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &parent) override;
   Operand *SelectDoubleConst(MIRDoubleConst &doubleConst, const BaseNode &parent) override;
@@ -183,8 +194,7 @@ class X64CGFunc : public CGFunc {
   RegOperand *SelectVectorCompareZero(Operand *o1, PrimType oty1, Operand *o2, Opcode opc) override;
   RegOperand *SelectVectorCompare(Operand *o1, PrimType oty1,  Operand *o2, PrimType oty2, Opcode opc) override;
   RegOperand *SelectVectorFromScalar(PrimType pType, Operand *opnd, PrimType sType) override;
-  RegOperand *SelectVectorGetHigh(PrimType rType, Operand *src) override;
-  RegOperand *SelectVectorGetLow(PrimType rType, Operand *src) override;
+  RegOperand *SelectVectorDup(PrimType rType, Operand *src, bool getLow) override;
   RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) override;
   RegOperand *SelectVectorAbsSubL(PrimType rType, Operand *o1, Operand *o2, PrimType oTy, bool isLow) override;
   RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, Operand *o3,
@@ -210,47 +220,84 @@ class X64CGFunc : public CGFunc {
   RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) override;
   RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) override;
   RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) override;
+  RegOperand *SelectVectorMovNarrow(PrimType rType, Operand *opnd, PrimType oType) override;
   Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinopNode, PrimType retType,
                                         const std::string &name) override;
-  Operand &CreateFPImmZero(PrimType primType) override;
   void ProcessLazyBinding() override;
   void DBGFixCallFrameLocationOffsets() override;
   MemOperand *GetPseudoRegisterSpillMemoryOperand(PregIdx idx) override;
 
+  RegOperand *GetBaseReg(const SymbolAlloc &symAlloc) override;
   int32 GetBaseOffset(const SymbolAlloc &symbolAlloc) override;
-  CGRegOperand *GetBaseReg(const SymbolAlloc &symAlloc);
 
-  const MapleVector<x64::X64reg> &GetFormalRegList() const {
-    return formalRegList;
+  void AddtoCalleeSaved(regno_t reg) override {
+    const auto &[_, flag] = calleeSavedRegs.insert(static_cast<X64reg>(reg));
+    ASSERT((IsGPRegister(static_cast<X64reg>(reg)) ||
+        IsFPSIMDRegister(static_cast<X64reg>(reg))), "Int or FP registers are expected");
+    if (flag) {
+      if (IsGPRegister(static_cast<X64reg>(reg))) {
+        ++numIntregToCalleeSave;
+      } else {
+        ++numFpregToCalleeSave;
+      }
+    }
   }
 
-  void PushElemIntoFormalRegList(x64::X64reg reg) {
-    formalRegList.emplace_back(reg);
-  }
-  void AddtoCalleeSaved(x64::X64reg reg) {
-    return;
+  const MapleSet<x64::X64reg> &GetCalleeSavedRegs() const {
+    return calleeSavedRegs;
   }
 
+  uint32 SizeOfCalleeSaved() const {
+    uint32 size = numIntregToCalleeSave * kIntregBytelen + numFpregToCalleeSave * kFpregBytelen;
+    return RoundUp(size, GetMemlayout()->GetStackPtrAlignment());
+  }
+
+  bool IsSPOrFP(const RegOperand &opnd) const override {
+    (void)opnd;
+    return false;
+  };
+  bool IsReturnReg(const RegOperand &opnd) const override {
+    (void)opnd;
+    return false;
+  }
+  bool IsSaveReg(const RegOperand &reg, MIRType &mirType, BECommon &cgBeCommon) const override {
+    (void)reg;
+    (void)mirType;
+    (void)cgBeCommon;
+    return false;
+  };
+
+  MemOperand *GetOrCreatSpillMem(regno_t vrNum) override;
+  void FreeSpillRegMem(regno_t vrNum) override;
+  int64 GetOrCreatSpillRegLocation(regno_t vrNum) {
+    auto symLoc = GetMemlayout()->GetLocOfSpillRegister(vrNum);
+    return static_cast<int64>(GetBaseOffset(*symLoc));
+  }
  private:
-  MapleVector<x64::X64reg> calleeSavedRegs;
-  MapleVector<x64::X64reg> formalRegList; /* store the parameters register used by this function */
-  void DumpTargetIR(const Insn &insn) const override;
+  MapleSet<x64::X64reg> calleeSavedRegs;
+  uint32 numIntregToCalleeSave = 0;
+  uint32 numFpregToCalleeSave = 0;
 };
 
-class X64OpndDumpVistor : public OpndDumpVisitor {
+class X64OpndDumpVisitor : public OpndDumpVisitor {
  public:
-  explicit X64OpndDumpVistor(const OpndDescription &operandDesc) : OpndDumpVisitor(operandDesc) {};
-  ~X64OpndDumpVistor() override = default;
-
-  void Visit(CGRegOperand *v) final;
-  void Visit(CGImmOperand *v) final;
-  void Visit(CGMemOperand *v) final;
-  void Visit(CGFuncNameOperand *v) final;
-  void Visit(CGListOperand *v) final;
-  void Visit(CGLabelOperand *v) final;
+  explicit X64OpndDumpVisitor(const OpndDesc &operandDesc) : OpndDumpVisitor(operandDesc) {};
+  ~X64OpndDumpVisitor() override = default;
 
  private:
-  void DumpRegInfo(CGRegOperand &v);
+  void Visit(RegOperand *v) final;
+  void Visit(ImmOperand *v) final;
+  void Visit(MemOperand *v) final;
+  void Visit(ListOperand *v) final;
+  void Visit(CondOperand *v) final;
+  void Visit(CommentOperand *v) final;
+  void Visit(StImmOperand *v) final;
+  void Visit(BitShiftOperand *v) final;
+  void Visit(ExtendShiftOperand *v) final;
+  void Visit(LabelOperand *v) final;
+  void Visit(FuncNameOperand *v) final;
+  void Visit(PhiOperand *v) final;
+  void DumpRegInfo(RegOperand &v);
 };
 } /* namespace maplebe */
 #endif  /* MAPLEBE_INCLUDE_CG_X86_64_CGFUNC_H */

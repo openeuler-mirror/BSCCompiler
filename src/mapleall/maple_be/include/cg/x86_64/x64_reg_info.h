@@ -16,24 +16,17 @@
 #define MAPLEBE_INCLUDE_CG_X64_X64_REG_INFO_H
 #include "reg_info.h"
 #include "x64_abi.h"
+#include "x64_cg.h"
 
 namespace maplebe {
+static const std::map<regno_t, uint32> x64IntParamsRegIdx =
+    {{x64::RAX, 0}, {x64::RDI, 1}, {x64::RSI, 2}, {x64::RDX, 3}, {x64::RCX, 4}, {x64::R8, 5}, {x64::R9, 6}};
 
 class X64RegInfo : public RegisterInfo {
  public:
   X64RegInfo(MapleAllocator &mallocator): RegisterInfo(mallocator) {}
 
   ~X64RegInfo() override = default;
-
-  uint32 GetAllRegNum() override {
-    return x64::kAllRegNum;
-  };
-  uint32 GetInvalidReg() override {
-    return x64::kRinvalid;
-  };
-  bool IsVirtualRegister(const CGRegOperand &regOpnd) override {
-    return regOpnd.GetRegisterNumber() > x64::kAllRegNum;
-  }
 
   void Init() override;
   void Fini() override;
@@ -42,13 +35,98 @@ class X64RegInfo : public RegisterInfo {
   bool IsCalleeSavedReg(regno_t regno) const override;
   bool IsYieldPointReg(regno_t regNO) const override;
   bool IsUnconcernedReg(regno_t regNO) const override;
-  bool IsUnconcernedReg(const RegOperand &regOpnd) const override {
-    return false;
-  }
-  bool IsUnconcernedReg(const CGRegOperand &regOpnd) const override;
-  RegOperand &GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag = 0) override;
+  bool IsUnconcernedReg(const RegOperand &regOpnd) const override;
+  RegOperand *GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag) override;
   ListOperand *CreateListOperand() override;
   Insn *BuildMovInstruction(Operand &opnd0, Operand &opnd1) override;
+  Insn *BuildStrInsn(uint32 regSize, PrimType stype, RegOperand &phyOpnd, MemOperand &memOpnd) override;
+  Insn *BuildLdrInsn(uint32 regSize, PrimType stype, RegOperand &phyOpnd, MemOperand &memOpnd) override;
+  Insn *BuildCommentInsn(const std::string &comment) override;
+  MemOperand *AdjustMemOperandIfOffsetOutOfRange(MemOperand *memOpnd, regno_t vrNum,
+      bool isDest, Insn &insn, regno_t regNum, bool &isOutOfRange) override;
+  bool IsGPRegister(regno_t regNO) const override {
+    return x64::IsGPRegister(static_cast<X64reg>(regNO));
+  }
+  /* Those registers can not be overwrite. */
+  bool IsUntouchableReg(regno_t regNO) const override{
+    return false;
+  }
+  /* Refactor later: Integrate parameters and return Reg */
+  uint32 GetIntRegsParmsNum() override {
+    /*Parms: rdi, rsi, rdx, rcx, r8, r9; Ret: rax, rdx */
+    return x64::kNumIntParmRegs + 1;
+  }
+  uint32 GetIntRetRegsNum() override {
+    return x64::kNumIntReturnRegs;
+  }
+  uint32 GetFpRetRegsNum() override {
+    return x64::kNumFloatReturnRegs;
+  }
+  regno_t GetLastParamsIntReg() override {
+    return x64::R9;
+  }
+  uint32 GetNormalUseOperandNum() override {
+    return 0;
+  }
+  regno_t GetIntRetReg(uint32 idx) override {
+    CHECK_FATAL(idx <= x64::kNumIntReturnRegs, "index out of range in IntRetReg");
+    return static_cast<regno_t>(x64::kIntReturnRegs[idx]);
+  }
+  regno_t GetFpRetReg(uint32 idx) override {
+    CHECK_FATAL(idx <= x64::kNumFloatReturnRegs, "index out of range in IntRetReg");
+    return static_cast<regno_t>(x64::kFloatReturnRegs[idx]);
+  }
+  /* phys reg which can be pre-Assignment:
+   * INT param regs -- rdi, rsi, rdx, rcx, r8, r9
+   * INT return regs -- rdx, rax
+   * FP param regs -- xmm0 ~ xmm7
+   * FP return regs -- xmm0 ~ xmm1
+   */
+  bool IsPreAssignedReg(regno_t regNO) const override {
+    return x64::IsParamReg(static_cast<X64reg>(regNO)) ||
+           regNO == x64::RAX || regNO == x64::RDX;
+  }
+  uint32 GetIntParamRegIdx(regno_t regNO) const override {
+    const std::map<regno_t, uint32>::const_iterator iter = x64IntParamsRegIdx.find(regNO);
+    CHECK_FATAL(iter != x64IntParamsRegIdx.end(), "index out of range in IntParamsRegs");
+    return iter->second;
+  }
+  uint32 GetFpParamRegIdx(regno_t regNO) const override {
+    return static_cast<uint32>(regNO - x64::V0);
+  }
+  regno_t GetLastParamsFpReg() override {
+    return x64::kRinvalid;
+  }
+  uint32 GetFloatRegsParmsNum() override {
+    return x64::kNumFloatParmRegs;
+  }
+  uint32 GetFloatRegsRetsNum() {
+    return x64::kNumFloatReturnRegs;
+  }
+  uint32 GetAllRegNum() override {
+    return x64::kAllRegNum;
+  }
+  regno_t GetInvalidReg() override {
+    return x64::kRinvalid;
+  }
+  bool IsAvailableReg(regno_t regNO) const override {
+    return x64::IsAvailableReg(static_cast<X64reg>(regNO));
+  }
+  bool IsVirtualRegister(const RegOperand &regOpnd) override {
+    return regOpnd.GetRegisterNumber() > kAllRegNum;
+  }
+  bool IsVirtualRegister(regno_t regno) override {
+    return regno > kAllRegNum;
+  }
+  uint32 GetReservedSpillReg() override {
+    return x64::kRinvalid;
+  }
+  uint32 GetSecondReservedSpillReg() override {
+    return x64::kRinvalid;
+  }
+  bool IsSpillRegInRA(regno_t regNO, bool has3RegOpnd) override {
+    return x64::IsSpillRegInRA(static_cast<X64reg>(regNO), has3RegOpnd);
+  }
 };
 }  /* namespace maplebe */
 

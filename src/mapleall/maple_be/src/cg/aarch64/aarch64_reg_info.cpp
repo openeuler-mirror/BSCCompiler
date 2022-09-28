@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "aarch64_cgfunc.h"
+#include "aarch64_cg.h"
 #include "becommon.h"
 
 namespace maplebe {
@@ -21,7 +22,7 @@ using namespace maple;
 void AArch64RegInfo::Init() {
   for (regno_t regNO = kRinvalid; regNO < kMaxRegNum; ++regNO) {
     /* when yieldpoint is enabled, x19 is reserved. */
-    if (IsYieldPointReg(static_cast<AArch64reg>(regNO))) {
+    if (IsYieldPointReg(regNO)) {
       continue;
     }
     if (regNO == R29 && !GetCurrFunction()->UseFP()) {
@@ -66,37 +67,31 @@ bool AArch64RegInfo::IsSpecialReg(regno_t regno) const {
     return true;
   }
 
-  const auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(GetCurrFunction());
-  for (const auto &it : aarch64CGFunc->GetFormalRegList()) {
-    if (it == reg) {
-      return true;
-    }
-  }
   return false;
 }
-
+bool AArch64RegInfo::IsSpillRegInRA(regno_t regNO, bool has3RegOpnd) {
+  return AArch64Abi::IsSpillRegInRA(static_cast<AArch64reg>(regNO), has3RegOpnd);
+}
 bool AArch64RegInfo::IsCalleeSavedReg(regno_t regno) const {
   return AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(regno));
 }
-
 bool AArch64RegInfo::IsYieldPointReg(regno_t regno) const {
+  /* when yieldpoint is enabled, x19 is reserved. */
   if (GetCurrFunction()->GetCG()->GenYieldPoint()) {
     return (static_cast<AArch64reg>(regno) == RYP);
   }
   return false;
 }
-
 bool AArch64RegInfo::IsUnconcernedReg(regno_t regNO) const {
-  /* RFP = 32, RLR = 31, RSP = 33, RZR = 34, ccReg */
-  if ((regNO >= RLR && regNO <= RZR) || regNO == RFP) {
+  /* RFP = 32, RLR = 31, RSP = 33, RZR = 34, ccReg = 68 */
+  if ((regNO >= RLR && regNO <= RZR) || regNO == RFP || regNO == kRFLAG) {
     return true;
   }
 
   /* when yieldpoint is enabled, the RYP(x19) can not be used. */
-  if (IsYieldPointReg(static_cast<AArch64reg>(regNO))) {
+  if (IsYieldPointReg(regNO)) {
     return true;
   }
-
   return false;
 }
 
@@ -105,30 +100,49 @@ bool AArch64RegInfo::IsUnconcernedReg(const RegOperand &regOpnd) const {
   if (regType == kRegTyCc || regType == kRegTyVary) {
     return true;
   }
-  if (regOpnd.IsConstReg()) {
+  uint32 regNO = regOpnd.GetRegisterNumber();
+  if (regNO == RZR) {
     return true;
   }
-  uint32 regNO = regOpnd.GetRegisterNumber();
   return IsUnconcernedReg(regNO);
 }
 
-RegOperand& AArch64RegInfo::GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag) {
+RegOperand *AArch64RegInfo::GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, maplebe::RegType kind, uint32 flag) {
   AArch64CGFunc *aarch64CgFunc = static_cast<AArch64CGFunc*>(GetCurrFunction());
-  return aarch64CgFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regNO), size, kind, flag);
+  return &aarch64CgFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regNO), size, kind, flag);
 }
 
 ListOperand* AArch64RegInfo::CreateListOperand() {
   AArch64CGFunc *aarch64CgFunc = static_cast<AArch64CGFunc*>(GetCurrFunction());
-  return static_cast<ListOperand*>(aarch64CgFunc->GetMemoryPool()->New<AArch64ListOperand>
-      (*aarch64CgFunc->GetFuncScopeAllocator()));
+  return (aarch64CgFunc->CreateListOpnd(*aarch64CgFunc->GetFuncScopeAllocator()));
 }
 
 Insn *AArch64RegInfo::BuildMovInstruction(Operand &opnd0, Operand &opnd1) {
   AArch64CGFunc *a64CGFunc = static_cast<AArch64CGFunc*>(GetCurrFunction());
   MOperator mop = a64CGFunc->PickMovInsn(static_cast<const RegOperand &>(opnd0),
                                          static_cast<const RegOperand &>(opnd1));
-  Insn *newInsn = &a64CGFunc->GetCG()->BuildInstruction<AArch64Insn>(mop, opnd0, opnd1);
+  Insn *newInsn = &a64CGFunc->GetInsnBuilder()->BuildInsn(mop, opnd0, opnd1);
   return newInsn;
 }
 
+Insn *AArch64RegInfo::BuildStrInsn(uint32 regSize, PrimType stype, RegOperand &phyOpnd, MemOperand &memOpnd) {
+  AArch64CGFunc *a64CGFunc = static_cast<AArch64CGFunc*>(GetCurrFunction());
+  return &a64CGFunc->GetInsnBuilder()->BuildInsn(a64CGFunc->PickStInsn(regSize, stype), phyOpnd, memOpnd);
+}
+
+Insn *AArch64RegInfo::BuildLdrInsn(uint32 regSize, PrimType stype, RegOperand &phyOpnd, MemOperand &memOpnd) {
+  AArch64CGFunc *a64CGFunc = static_cast<AArch64CGFunc*>(GetCurrFunction());
+  return &a64CGFunc->GetInsnBuilder()->BuildInsn(a64CGFunc->PickLdInsn(regSize, stype), phyOpnd, memOpnd);
+}
+
+Insn *AArch64RegInfo::BuildCommentInsn(const std::string &comment) {
+  return &(static_cast<AArch64CGFunc*>(GetCurrFunction())->CreateCommentInsn("split around loop begin"));
+}
+
+MemOperand *AArch64RegInfo::AdjustMemOperandIfOffsetOutOfRange(MemOperand *memOpnd, regno_t vrNum,
+    bool isDest, Insn &insn, regno_t regNum, bool &isOutOfRange) {
+  AArch64CGFunc *a64CGFunc = static_cast<AArch64CGFunc*>(GetCurrFunction());
+  return a64CGFunc->AdjustMemOperandIfOffsetOutOfRange(memOpnd, static_cast<AArch64reg>(vrNum), isDest, insn,
+      static_cast<AArch64reg>(regNum), isOutOfRange);
+}
 }  /* namespace maplebe */

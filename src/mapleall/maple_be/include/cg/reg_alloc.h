@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -15,40 +15,17 @@
 #ifndef MAPLEBE_INCLUDE_CG_REG_ALLOC_H
 #define MAPLEBE_INCLUDE_CG_REG_ALLOC_H
 
-#include "isa.h"
-#include "cg_phase.h"
+#include "cgfunc.h"
 #include "maple_phase_manager.h"
 
 namespace maplebe {
-class VirtualRegNode {
- public:
-  VirtualRegNode() = default;
-
-  VirtualRegNode(RegType type, uint32 size) : regType(type), size(size), regNO(kInvalidRegNO) {}
-
-  virtual ~VirtualRegNode() = default;
-
-  void AssignPhysicalRegister(regno_t phyRegNO) {
-    regNO = phyRegNO;
-  }
-
-  RegType GetType() const {
-    return regType;
-  }
-
-  uint32 GetSize() const {
-    return size;
-  }
-
- private:
-  RegType regType = kRegTyUndef;
-  uint32 size     = 0;              /* size in bytes */
-  regno_t regNO   = kInvalidRegNO;  /* physical register assigned by register allocation */
-};
-
 class RegAllocator {
  public:
-  RegAllocator(CGFunc &tempCGFunc, MemPool &memPool) : cgFunc(&tempCGFunc), memPool(&memPool), alloc(&memPool) {}
+  RegAllocator(CGFunc &tempCGFunc, MemPool &memPool)
+      : cgFunc(&tempCGFunc),
+        memPool(&memPool),
+        alloc(&memPool),
+        regInfo(tempCGFunc.GetTargetRegInfo()) {}
 
   virtual ~RegAllocator() = default;
 
@@ -62,9 +39,10 @@ class RegAllocator {
   }
 
  protected:
-  CGFunc *cgFunc;
-  MemPool *memPool;
+  CGFunc *cgFunc = nullptr;
+  MemPool *memPool = nullptr;
   MapleAllocator alloc;
+  RegisterInfo *regInfo = nullptr;
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgRegAlloc, maplebe::CGFunc)
