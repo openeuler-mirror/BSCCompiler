@@ -1309,14 +1309,6 @@ void MeCFG::CreateBasicBlocks() {
       }
       case OP_dassign: {
         DassignNode *dass = static_cast<DassignNode*>(stmt);
-        // delete identity assignments inserted by LFO
-        if (dass->GetRHS()->GetOpCode() == OP_dread) {
-          DreadNode *dread = static_cast<DreadNode*>(dass->GetRHS());
-          if (dass->GetStIdx() == dread->GetStIdx() && dass->GetFieldID() == dread->GetFieldID()) {
-            func.CurFunction()->GetBody()->RemoveStmt(stmt);
-            break;
-          }
-        }
         if (curBB->IsEmpty()) {
           curBB->SetFirst(stmt);
         }
@@ -1539,8 +1531,9 @@ void MeCFG::CreateBasicBlocks() {
             SetBBTryNodeMap(*newBB, *tryStmt);
           }
           curBB = newBB;
-        } else if (func.GetPreMeFunc() && (func.GetPreMeFunc()->label2WhileInfo.find(labelIdx) !=
-                                           func.GetPreMeFunc()->label2WhileInfo.end())) {
+        } else if (func.GetPreMeFunc() &&
+                   (func.GetPreMeFunc()->label2WhileInfo.find(labelIdx) !=
+                    func.GetPreMeFunc()->label2WhileInfo.end())) {
           curBB->SetKind(kBBFallthru);
           BB *newBB = NewBasicBlock();
           if (tryStmt != nullptr) {
@@ -1625,6 +1618,10 @@ void MeCFG::CreateBasicBlocks() {
     lastBB->SetFirst(func.GetMIRModule().GetMIRBuilder()->CreateStmtReturn(nullptr));
     lastBB->SetLast(lastBB->GetStmtNodes().begin().d());
     lastBB->SetKindReturn();
+    if (updateFreq) {
+      FuncProfInfo *funcData = func.GetMirFunc()->GetFuncProfData();
+      funcData->stmtFreqs[lastBB->GetLast().GetStmtID()] = 0;
+    }
   } else if (lastBB->GetKind() == kBBUnknown) {
     lastBB->SetKindReturn();
     lastBB->SetAttributes(kBBAttrIsExit);
@@ -1878,15 +1875,25 @@ void MeCFG::ConstructEdgeFreqFromBBFreq() {
       if (fallthru->GetPred().size() == 1) {
         auto succ0Freq = fallthru->GetFrequency();
         bb->PushBackSuccFreq(succ0Freq);
-        ASSERT(bb->GetFrequency() >= succ0Freq, "sanity check");
+        ASSERT(bb->GetFrequency() + 1 >= succ0Freq, "sanity check");
         bb->PushBackSuccFreq(bb->GetFrequency() - succ0Freq);
       } else if (targetBB->GetPred().size() == 1) {
         auto succ1Freq = targetBB->GetFrequency();
         ASSERT(bb->GetFrequency() >= succ1Freq, "sanity check");
-        bb->PushBackSuccFreq(bb->GetFrequency() - succ1Freq);
-        bb->PushBackSuccFreq(succ1Freq);
+        if (bb->GetAttributes(kBBAttrWontExit) && bb->GetSuccFreq().size() == 1) {
+          // special case: WontExitAnalysis() has pushed 0 to bb->succFreq
+          bb->GetSuccFreq()[0] = bb->GetFrequency();
+          bb->PushBackSuccFreq(0);
+        } else {
+          bb->PushBackSuccFreq(bb->GetFrequency() - succ1Freq);
+          bb->PushBackSuccFreq(succ1Freq);
+        }
+      } else if (fallthru->GetFrequency() > targetBB->GetFrequency()) {
+        bb->PushBackSuccFreq(bb->GetFrequency());
+        bb->PushBackSuccFreq(0);
       } else {
-        CHECK_FATAL(false, "ConstructEdgeFreqFromBBFreq::NYI critical edge");
+        bb->PushBackSuccFreq(0);
+        bb->PushBackSuccFreq(bb->GetFrequency());
       }
     } else if (bb->GetSucc().size() > 2) {
       // switch case, no critical edge is supposted
@@ -1937,9 +1944,6 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
   ConstructEdgeFreqFromBBFreq();
   // clear stmtFreqs since cfg frequency is create
   funcData->stmtFreqs.clear();
-
-  // set updateFrequency with true
-  updateFreq = true;
 }
 
 void MeCFG::ConstructStmtFreq() {
@@ -2027,7 +2031,8 @@ int MeCFG::VerifyBBFreq(bool checkFatal) {
     }
     // check case 1: entry count is zero, internal bb has frequency value > 0
     if (entryIsZero && bb->GetFrequency() > 0) {
-      LogInfo::MapleLogger() << func.GetName() << ": entry freq is 0 but freq of BB " << bb->GetBBId() << " is " << bb->GetFrequency() << std::endl;
+      LogInfo::MapleLogger() << func.GetName() << ": entry freq is 0 but freq of BB " << bb->GetBBId()
+          << " is " << bb->GetFrequency() << std::endl;
       if (checkFatal) {
         CHECK_FATAL(false, "VerifyBBFreq: verification fails");
       } else {
@@ -2085,6 +2090,10 @@ bool MEMeCfg::PhaseRun(MeFunction &f) {
   MemPool *meCfgMp = GetPhaseMemPool();
   theCFG = meCfgMp->New<MeCFG>(meCfgMp, f);
   f.SetTheCfg(theCFG);
+
+  if (Options::profileUse && f.GetMirFunc()->GetFuncProfData()) {
+    theCFG->SetUpdateCFGFreq(true);
+  }
   theCFG->CreateBasicBlocks();
   if (theCFG->NumBBs() == 0) {
     /* there's no basicblock generated */
@@ -2103,7 +2112,7 @@ bool MEMeCfg::PhaseRun(MeFunction &f) {
   }
   theCFG->Verify();
   // construct bb freq from stmt freq
-  if (Options::profileUse && f.GetMirFunc()->GetFuncProfData()) {
+  if (theCFG->UpdateCFGFreq()) {
     theCFG->ConstructBBFreqFromStmtFreq();
     if (theCFG->DumpIRProfileFile()) {
       std::string fileName = "after-mecfgbuild";
@@ -2131,9 +2140,9 @@ bool MECfgVerifyFrequency::PhaseRun(MeFunction &f) {
   return false;
 }
 
-void GdbDumpToFile(MeCFG *cfg, bool dumpEdgeFreq) {
+void GdbDumpToFile(const MeCFG &cfg, bool dumpEdgeFreq) {
   std::string fileName = "cfgfromgdb";
-  cfg->DumpToFile(fileName, false, dumpEdgeFreq, nullptr);
+  cfg.DumpToFile(fileName, false, dumpEdgeFreq, nullptr);
 }
 
 }  // namespace maple
