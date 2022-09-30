@@ -2636,7 +2636,7 @@ Insn &A64PregCopyPattern::CreateNewPhiInsn(std::unordered_map<uint32, RegOperand
   BB *bb = curInsn->GetBB();
   (void)bb->InsertInsnBefore(*curInsn, phiInsn);
   /* <phiDef-ssaRegNO, phiInsn> */
-  bb->AddPhiInsn(static_cast<RegOperand&>(phiInsn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber(), phiInsn);
+  bb->AddPhiInsn(differOrigNO, phiInsn);
   return phiInsn;
 }
 
