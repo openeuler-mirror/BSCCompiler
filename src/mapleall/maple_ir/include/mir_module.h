@@ -70,10 +70,9 @@ class CalleePair {
  public:
   CalleePair(PUIdx id, int32_t index) : id(id), index(index) {}
   bool operator<(const CalleePair &func) const {
-    if (id < func.id){
+    if (id < func.id) {
       return true;
-    }
-    else if (id == func.id && index < func.index) {
+    } else if (id == func.id && index < func.index) {
       return true;
     } else {
       return false;
@@ -280,6 +279,10 @@ class MIRModule {
     mplProfile = info;
   }
 
+  LiteProfile &GetLiteProfile() {
+    return liteProfile;
+  }
+
   void SetSomeSymbolNeedForDecl(bool s) {
     someSymbolNeedForwDecl = s;
   }
@@ -341,19 +344,9 @@ class MIRModule {
   }
 
   std::string GetFileNameAsPostfix() const;
+  std::string GetFileNameWithPath() const;
   void SetFileName(const std::string &name) {
     fileName = name;
-  }
-
-  std::string GetProfileDataFileName() const {
-    std::string profileDataFileName = GetFileName().substr(0, GetFileName().find_last_of("."));
-    const char *gcovPath = std::getenv("GCOV_PREFIX");
-    std::string gcovPrefix = gcovPath ? gcovPath : "";
-    if (!gcovPrefix.empty() && (gcovPrefix.back() != '/')) {
-      gcovPrefix.append("/");
-    }
-    profileDataFileName = gcovPrefix + profileDataFileName;
-    return profileDataFileName;
   }
 
   bool IsJavaModule() const {
@@ -718,6 +711,7 @@ class MIRModule {
   MapleVector<StIdx> symbolDefOrder;
   Profile profile;
   MplProfileData *mplProfile;
+  LiteProfile liteProfile;
   bool someSymbolNeedForwDecl = false;  // some symbols' addressses used in initialization
 
   std::ostream &out;

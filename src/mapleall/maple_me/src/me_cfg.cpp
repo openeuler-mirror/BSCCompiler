@@ -1875,15 +1875,20 @@ void MeCFG::ConstructEdgeFreqFromBBFreq() {
       if (fallthru->GetPred().size() == 1) {
         auto succ0Freq = fallthru->GetFrequency();
         bb->PushBackSuccFreq(succ0Freq);
-        ASSERT(bb->GetFrequency() + 1 >= succ0Freq, "sanity check");
-        bb->PushBackSuccFreq(bb->GetFrequency() - succ0Freq);
+        if (bb->GetFrequency() > succ0Freq) {
+          bb->PushBackSuccFreq(bb->GetFrequency() - succ0Freq);
+        } else {
+          bb->PushBackSuccFreq(0);
+        }
       } else if (targetBB->GetPred().size() == 1) {
         auto succ1Freq = targetBB->GetFrequency();
-        ASSERT(bb->GetFrequency() >= succ1Freq, "sanity check");
         if (bb->GetAttributes(kBBAttrWontExit) && bb->GetSuccFreq().size() == 1) {
           // special case: WontExitAnalysis() has pushed 0 to bb->succFreq
           bb->GetSuccFreq()[0] = bb->GetFrequency();
           bb->PushBackSuccFreq(0);
+        } else if (bb->GetFrequency() >= succ1Freq) {  // tolerate inaccuracy
+          bb->PushBackSuccFreq(0);
+          bb->PushBackSuccFreq(bb->GetFrequency());
         } else {
           bb->PushBackSuccFreq(bb->GetFrequency() - succ1Freq);
           bb->PushBackSuccFreq(succ1Freq);
@@ -1917,10 +1922,11 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
   for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
     if ((*bIt)->IsEmpty()) continue;
     StmtNode &first = (*bIt)->GetFirst();
+    StmtNode &last = (*bIt)->GetLast();
     if (funcData->stmtFreqs.count(first.GetStmtID()) > 0) {
       (*bIt)->SetFrequency(funcData->stmtFreqs[first.GetStmtID()]);
-    } else if (funcData->stmtFreqs.count((*bIt)->GetLast().GetStmtID()) > 0) {
-      (*bIt)->SetFrequency(funcData->stmtFreqs[(*bIt)->GetLast().GetStmtID()]);
+    } else if (funcData->stmtFreqs.count(last.GetStmtID()) > 0) {
+      (*bIt)->SetFrequency(funcData->stmtFreqs[last.GetStmtID()]);
     } else {
       LogInfo::MapleLogger() << "ERROR::  bb " << (*bIt)->GetBBId() << "frequency is not set"
                              << "\n";

@@ -103,8 +103,9 @@ void ProfileGen::CreateModProfDesc() {
   MIRIntConst *checksumMirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(cfgChkSum, *u32Ty);
   modProfDescSymMirConst->AddItem(checksumMirConst, 5);
 
+  std::string fileNameWithPath = mod.GetFileNameWithPath();
   // Make the profile file name as fileName.gcda
-  std::string profFileName = mod.GetFileName().substr(0, mod.GetFileName().find_last_of(".")) + namemangler::kProfFileNameExt;
+  std::string profFileName = fileNameWithPath.substr(0, fileNameWithPath.find_last_of(".")) + namemangler::kProfFileNameExt;
   auto *profileFNMirConst =
     modMP->New<MIRStrConst>(profFileName, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_a64)));
   modProfDescSymMirConst->AddItem(profileFNMirConst, 6);

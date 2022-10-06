@@ -24,8 +24,12 @@ maplecl::Option<bool> version({"--version", "-v"},
                          "  --version [command]         \tPrint version and exit.\n",
                          {driverCategory});
 
+maplecl::Option<bool> ignoreUnkOpt({"--ignore-unknown-options"},
+                              "  --ignore-unknown-options    \tIgnore unknown compilation options\n",
+                              {driverCategory});
+
 maplecl::Option<bool> o0({"--O0", "-O0"},
-                    "  -O0                         \tNo optimization.\n",
+                    "  -O0                         \tNo optimization. (Default)\n",
                     {driverCategory});
 
 maplecl::Option<bool> o1({"--O1", "-O1"},
@@ -33,7 +37,7 @@ maplecl::Option<bool> o1({"--O1", "-O1"},
                     {driverCategory});
 
 maplecl::Option<bool> o2({"--O2", "-O2"},
-                    "  -O2                         \tDo more optimization. (Default)\n",
+                    "  -O2                         \tDo more optimization.\n",
                     {driverCategory});
 
 maplecl::Option<bool> os({"--Os", "-Os"},
@@ -49,12 +53,6 @@ maplecl::Option<bool> decoupleStatic({"--decouple-static", "-decouple-static"},
                                 "  --no-decouple-static        \tDon't decouple the static method and field\n",
                                 {driverCategory, dex2mplCategory, meCategory, mpl2mplCategory},
                                 maplecl::DisableWith("--no-decouple-static"));
-
-maplecl::Option<bool> bigEndian({"-Be", "--BigEndian"},
-                           "  --BigEndian/-Be            \tUsing BigEndian\n"
-                           "  --no-BigEndian             \tUsing LittleEndian\n",
-                           {driverCategory, meCategory, mpl2mplCategory, cgCategory},
-                           maplecl::DisableWith("--no-BigEndian"));
 
 maplecl::Option<bool> gcOnly({"--gconly", "-gconly"},
                         "  --gconly                     \tMake gconly is enable\n"
@@ -154,7 +152,7 @@ maplecl::Option<bool> ldStatic({"-static", "--static"},
 maplecl::Option<bool> maplePhase({"--maple-phase"},
                             "  --maple-phase               \tRun maple phase only\n  --no-maple-phase\n",
                             {driverCategory},
-                            maplecl::DisableWith("--no-maple-phase"),
+                            maplecl::DisableWith("--maple-toolchain"),
                             maplecl::Init(true));
 
 maplecl::Option<bool> genMapleBC({"--genmaplebc"},
@@ -173,8 +171,25 @@ maplecl::Option<bool> profileUse({"--profileUse"},
                             "  --profileUse                \tOptimize static languages with profile data\n",
                             {driverCategory, mpl2mplCategory});
 
-/* ##################### STRING Options ############################################################### */
+maplecl::Option<bool> missingProfDataIsError({"--missing-profdata-is-error"},
+                            "  --missing-profdata-is-error \tTreat missing profile data file as error\n"
+                            "  --no-missing-profdata-is-error \tOnly warn on missing profile data file\n",
+                          {driverCategory},
+                          maplecl::DisableWith("--no-missing-profdata-is-error"),
+                          maplecl::Init(true));
+maplecl::Option<bool> stackProtectorStrong({"--stack-protector-strong"},
+                                           "  --stack-protector-strong        \tadd stack guard for some function\n",
+                                           {driverCategory, meCategory, cgCategory});
 
+maplecl::Option<bool> stackProtectorAll({"--stack-protector-all"},
+                                        "  --stack-protector-all        \tadd stack guard for all functions\n",
+                                        {driverCategory, meCategory, cgCategory});
+
+maplecl::Option<bool> inlineAsWeak({"-inline-as-weak", "--inline-as-weak"},
+                                   "  --inline-as-weak              \tSet inline functions as weak symbols"
+                                   " as it's in C++\n", {driverCategory, hir2mplCategory});
+
+/* ##################### STRING Options ############################################################### */
 maplecl::Option<std::string> help({"--help", "-h"},
                              "  --help                   \tPrint help\n",
                              {driverCategory},
@@ -296,6 +311,11 @@ maplecl::Option<std::string> saveTempOpt({"--save-temps"},
                                     "                              \ttarget files.\n",
                                     {driverCategory},
                                     maplecl::optionalValue);
+
+maplecl::Option<std::string> target({"--target", "-target"},
+                               "  --target=<arch><abi>        \tDescribe target platform\n"
+                               "  \t\t\t\tExample: --target=aarch64-gnu or --target=aarch64_be-gnuilp32\n",
+                               {driverCategory, hir2mplCategory, dex2mplCategory, ipaCategory});
 
 /* ##################### DIGITAL Options ############################################################### */
 
