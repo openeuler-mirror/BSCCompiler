@@ -747,6 +747,23 @@ std::string MIRModule::GetFileNameAsPostfix() const {
   return fileNameStr;
 }
 
+std::string MIRModule::GetFileNameWithPath() const {
+  MIRInfoPair fileInfoElem = fileInfo.front();
+  std::string fileNameWithoutPath = GlobalTables::GetStrTable().GetStringFromStrIdx(fileInfoElem.second);
+  // strip out the suffix
+  fileNameWithoutPath = fileNameWithoutPath.substr(0, fileNameWithoutPath.find_last_of("."));
+  std::string fileNameWithPath;
+  // find the right entry because some entries are for included files
+  for (size_t i = 0; i < srcFileInfo.size(); ++i) {
+    MIRInfoPair infoElem = srcFileInfo[i];
+    fileNameWithPath = GlobalTables::GetStrTable().GetStringFromStrIdx(infoElem.first);
+    if (fileNameWithPath.find(fileNameWithoutPath) != std::string::npos) {
+      break;
+    }
+  }
+  return fileNameWithPath;
+}
+
 void MIRModule::AddClass(TyIdx tyIdx) {
   (void)classList.insert(tyIdx);
 }

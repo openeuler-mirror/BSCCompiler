@@ -3921,7 +3921,6 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(
     uint64 edgeFreq = 0;
     if (func.GetCfg()->UpdateCFGFreq()) {
       edgeFreq = pred.GetSuccFreq()[index];
-      ASSERT(bb.GetFrequency() >= edgeFreq, "sanity check");
     }
     pred.RemoveSucc(bb);
     DeleteThePhiNodeWhichOnlyHasOneOpnd(bb, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);

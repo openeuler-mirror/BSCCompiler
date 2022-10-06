@@ -38,6 +38,7 @@ namespace opts {
 /* ##################### BOOL Options ############################################################### */
 
 extern maplecl::Option<bool> version;
+extern maplecl::Option<bool> ignoreUnkOpt;
 extern maplecl::Option<bool> o0;
 extern maplecl::Option<bool> o1;
 extern maplecl::Option<bool> o2;
@@ -71,6 +72,9 @@ extern maplecl::Option<bool> genMapleBC;
 extern maplecl::Option<bool> genLMBC;
 extern maplecl::Option<bool> profileGen;
 extern maplecl::Option<bool> profileUse;
+extern maplecl::Option<bool> missingProfDataIsError;
+extern maplecl::Option<bool> stackProtectorStrong;
+extern maplecl::Option<bool> stackProtectorAll;
 
 /* ##################### STRING Options ############################################################### */
 
@@ -99,6 +103,7 @@ extern maplecl::List<std::string> includeDir;
 extern maplecl::List<std::string> includeSystem;
 extern maplecl::Option<std::string> output;
 extern maplecl::Option<std::string> saveTempOpt;
+extern maplecl::Option<std::string> target;
 
 /* ##################### DIGITAL Options ############################################################### */
 
