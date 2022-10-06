@@ -73,8 +73,7 @@ BlockNode *PreMeMIRLower::LowerWhileStmt(WhileStmtNode &whileStmt) {
   if (GetFuncProfData()) {
     int64_t freq = GetFuncProfData()->GetStmtFreq(whileStmt.GetStmtID()) -
                    GetFuncProfData()->GetStmtFreq(whilegotonode->GetStmtID());
-    ASSERT(freq >= 0, "sanity check");
-    GetFuncProfData()->SetStmtFreq(endlblstmt->GetStmtID(), freq);
+    GetFuncProfData()->SetStmtFreq(endlblstmt->GetStmtID(), freq > 0 ? freq : 0);
   }
   return blk;
 }

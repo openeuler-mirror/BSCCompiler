@@ -1750,6 +1750,11 @@ DoloopNode *LoopVectorization::PrepareDoloop(DoloopNode *doloop, LoopTransPlan *
     ASSERT(parent && (parent->GetOpCode() ==  OP_block), "nullptr check");
     BlockNode *pblock = static_cast<BlockNode *>(parent);
     pblock->InsertAfter(doloop, edoloop);
+    auto *profData = mirFunc->GetFuncProfData();
+    if (profData) {
+      profData->SetStmtFreq(edoloop->GetStmtID(), 0);
+      profData->SetStmtFreq(edoloop->GetDoBody()->GetStmtID(), 0);
+    }
   }
   return doloop;
 }
