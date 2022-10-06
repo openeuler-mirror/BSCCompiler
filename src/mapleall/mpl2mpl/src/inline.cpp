@@ -539,8 +539,13 @@ void MInline::InlineCallsBlockInternal(MIRFunction &func, BaseNode &baseNode, bo
   InlineResult result;
   result.reason = GetInlineFailedStr(failCode);
   if (canInline) {
-    result = AnalyzeCallee(func, *callee, callStmt);
-    canInline = result.canInline;
+    if (Options::profileUse && callee->GetFuncProfData() == nullptr) {
+      // callee is never executed according to profile data
+      canInline = false;
+    } else {
+      result = AnalyzeCallee(func, *callee, callStmt);
+      canInline = result.canInline;
+    }
   }
   if (canInline) {
     module.SetCurFunction(&func);

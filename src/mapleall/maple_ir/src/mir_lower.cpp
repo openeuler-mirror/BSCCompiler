@@ -408,6 +408,9 @@ BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
   if (GetFuncProfData()) {
     doloopnodeFreq = static_cast<int64_t>(GetFuncProfData()->GetStmtFreq(doloop.GetStmtID()));
     bodynodeFreq = static_cast<int64_t>(GetFuncProfData()->GetStmtFreq(doloop.GetDoBody()->GetStmtID()));
+    if (doloopnodeFreq < bodynodeFreq) {
+      doloopnodeFreq = bodynodeFreq;
+    }
   }
   auto *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   if (doloop.IsPreg()) {
