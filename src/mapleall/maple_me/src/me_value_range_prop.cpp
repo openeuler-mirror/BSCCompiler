@@ -87,20 +87,21 @@ void ValueRangePropagation::Execute() {
   // be calculated before and need not calculate the range of use points repeatedly.
   for (auto bIt = dom.GetReversePostOrder().begin(); bIt != dom.GetReversePostOrder().end(); ++bIt) {
     currItOfTravelReversePostOrder = bIt;
-    if (unreachableBBs.find(*bIt) != unreachableBBs.end()) {
+    auto curBB = func.GetCfg()->GetBBFromID(BBId((*bIt)->GetID()));
+    if (unreachableBBs.find(curBB) != unreachableBBs.end()) {
       continue;
     }
     dealWithPhi = true;
-    DealWithPhi(**bIt);
+    DealWithPhi(*curBB);
     dealWithPhi = false;
     if (func.GetCfg()->UpdateCFGFreq()) {
       // update edge frequency
-      (*bIt)->UpdateEdgeFreqs(false);
+      curBB->UpdateEdgeFreqs(false);
     }
-    for (auto it = (*bIt)->GetMeStmts().begin(); it != (*bIt)->GetMeStmts().end();) {
+    for (auto it = curBB->GetMeStmts().begin(); it != curBB->GetMeStmts().end();) {
       bool deleteStmt = false;
       if (!onlyPropVR) {
-        ReplaceOpndWithConstMeExpr(**bIt, *it);
+        ReplaceOpndWithConstMeExpr(*curBB, *it);
       }
       bool isNotNeededPType = false;
       for (size_t i = 0; i < it->NumMeStmtOpnds(); ++i) {
@@ -108,7 +109,7 @@ void ValueRangePropagation::Execute() {
           isNotNeededPType = true;
           continue;
         }
-        DealWithOperand(**bIt, *it, *it->GetOpnd(i));
+        DealWithOperand(*curBB, *it, *it->GetOpnd(i));
       }
       if (isNotNeededPType) {
         ++it;
@@ -132,13 +133,13 @@ void ValueRangePropagation::Execute() {
           if (it->GetLHS() != nullptr && it->GetLHS()->IsVolatile()) {
             break;
           }
-          DealWithAssign(**bIt, *it);
+          DealWithAssign(*curBB, *it);
           break;
         }
         case OP_brfalse:
         case OP_brtrue: {
-          DealWithCondGoto(**bIt, *it);
-          InsertValueRangeOfCondExpr2Caches(**bIt, *it);
+          DealWithCondGoto(*curBB, *it);
+          InsertValueRangeOfCondExpr2Caches(*curBB, *it);
           break;
         }
         CASE_OP_ASSERT_NONNULL {
@@ -148,7 +149,7 @@ void ValueRangePropagation::Execute() {
           // If the option safeRegion is open and the stmt is not in safe region, delete it.
           if (MeOption::safeRegionMode && !it->IsInSafeRegion()) {
             deleteStmt = true;
-          } else if (DealWithAssertNonnull(**bIt, *it)) {
+          } else if (DealWithAssertNonnull(*curBB, *it)) {
             if (ValueRangePropagation::isDebug) {
               LogInfo::MapleLogger() << "=========delete assert nonnull=========\n";
               it->Dump(&irMap);
@@ -165,7 +166,7 @@ void ValueRangePropagation::Execute() {
           // If the option safeRegion is open and the stmt is not in safe region, delete it.
           if (MeOption::safeRegionMode && !it->IsInSafeRegion()) {
             deleteStmt = true;
-          } else if (DealWithBoundaryCheck(**bIt, *it)) {
+          } else if (DealWithBoundaryCheck(*curBB, *it)) {
             if (ValueRangePropagation::isDebug) {
               LogInfo::MapleLogger() << "=========delete boundary check=========\n";
               it->Dump(&irMap);
@@ -176,11 +177,11 @@ void ValueRangePropagation::Execute() {
           break;
         }
         case OP_callassigned: {
-          DealWithCallassigned(**bIt, *it);
+          DealWithCallassigned(*curBB, *it);
           break;
         }
         case OP_switch: {
-          DealWithSwitch(**bIt, *it);
+          DealWithSwitch(*curBB, *it);
           break;
         }
         case OP_igoto:
@@ -188,7 +189,7 @@ void ValueRangePropagation::Execute() {
           break;
       }
       if (deleteStmt) {
-        (*bIt)->GetMeStmts().erase(it++);
+        curBB->GetMeStmts().erase(it++);
       } else {
         ++it;
       }
@@ -897,8 +898,8 @@ bool ValueRangePropagation::ThePhiLHSIsLoopVariable(const LoopDesc &loop, const 
   auto &defPhi = static_cast<const ScalarMeExpr&>(opnd).GetDefPhi();
   MeStmt *defStmt = nullptr;
   if (defPhi.GetOpnds().size() == kNumOperands) {
-    auto *defBBOfOpnd0 = defPhi.GetOpnd(0)->GetDefByBBMeStmt(dom, defStmt);
-    auto *defBBOfOpnd1 = defPhi.GetOpnd(1)->GetDefByBBMeStmt(dom, defStmt);
+    auto *defBBOfOpnd0 = defPhi.GetOpnd(0)->GetDefByBBMeStmt(*func.GetCfg(), defStmt);
+    auto *defBBOfOpnd1 = defPhi.GetOpnd(1)->GetDefByBBMeStmt(*func.GetCfg(), defStmt);
     // if the def bb of opnd0 is out of loop and the def bb of opnd1 is in loop, the opnd is loop variable.
     if (defPhi.GetDefBB() == loop.head && !loop.Has(*defBBOfOpnd0) && loop.Has(*defBBOfOpnd1)) {
       return true;
@@ -1656,7 +1657,7 @@ void ValueRangePropagation::InsertOstOfPhi2Cands(
     }
     auto *opnd = it.second->GetOpnd(i);
     MeStmt *stmt = nullptr;
-    auto *defBB = opnd->GetDefByBBMeStmt(dom, stmt);
+    auto *defBB = opnd->GetDefByBBMeStmt(*func.GetCfg(), stmt);
     // At the time of optimizing redundant branches, when the all preds of condgoto BB can jump directly to
     // the successors of condgoto BB and the conditional expr is only used for conditional stmt, after opt,
     // the ssa of expr not need to be updated, otherwise the ssa of epr still needs to be updated.
@@ -2481,8 +2482,9 @@ void ValueRangePropagation::CreateVRForPhi(const LoopDesc &loop) {
     if (reversePostOrderOfLoopBBs.size() == loop.loopBBs.size()) {
       break;
     }
-    if (loop.Has(**it)) {
-      reversePostOrderOfLoopBBs.push_back(*it);
+    auto bb = func.GetCfg()->GetBBFromID(BBId((*it)->GetID()));
+    if (loop.Has(*bb)) {
+      reversePostOrderOfLoopBBs.push_back(bb);
     }
   }
   // Travels loop bbs.
@@ -3006,7 +3008,7 @@ void ValueRangePropagation::DealWithPhi(const BB &bb) {
     for (size_t i = 0; i < pair.second->GetOpnds().size(); ++i) {
       MeStmt *defStmt = nullptr;
       auto *opnd = pair.second->GetOpnd(i);
-      BB *defBB = opnd->GetDefByBBMeStmt(dom, defStmt);
+      BB *defBB = opnd->GetDefByBBMeStmt(*func.GetCfg(), defStmt);
       if (!loop->Has(*defBB)) {
         initExprsOfPhi.insert(opnd);
         if (indexOfInitExpr == -1) {
@@ -3921,7 +3923,6 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(
     uint64 edgeFreq = 0;
     if (func.GetCfg()->UpdateCFGFreq()) {
       edgeFreq = pred.GetSuccFreq()[index];
-      ASSERT(bb.GetFrequency() >= edgeFreq, "sanity check");
     }
     pred.RemoveSucc(bb);
     DeleteThePhiNodeWhichOnlyHasOneOpnd(bb, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
@@ -4155,7 +4156,7 @@ MeExpr &ValueRangePropagation::GetVersionOfOpndInPred(const BB &pred, const BB &
   }
   auto &scalar = static_cast<ScalarMeExpr&>(expr);
   MeStmt *defStmt = nullptr;
-  auto *defBB = scalar.GetDefByBBMeStmt(dom, defStmt);
+  auto *defBB = scalar.GetDefByBBMeStmt(*func.GetCfg(), defStmt);
   if (dom.Dominate(*defBB, pred)) {
     return expr;
   }
@@ -4210,8 +4211,8 @@ bool ValueRangePropagation::TowCompareOperandsAreInSameIterOfLoop(const MeExpr &
   auto &lhsScalar = static_cast<const ScalarMeExpr&>(lhs);
   auto &rhsScalar = static_cast<const ScalarMeExpr&>(rhs);
   MeStmt *defStmt = nullptr;
-  auto *lhsDefBB = lhsScalar.GetDefByBBMeStmt(dom, defStmt);
-  auto *rhsDefBB = rhsScalar.GetDefByBBMeStmt(dom, defStmt);
+  auto *lhsDefBB = lhsScalar.GetDefByBBMeStmt(*func.GetCfg(), defStmt);
+  auto *rhsDefBB = rhsScalar.GetDefByBBMeStmt(*func.GetCfg(), defStmt);
   auto *loopOfLHS = loops->GetBBLoopParent(lhsDefBB->GetBBId());
   auto *loopOfRHS = loops->GetBBLoopParent(rhsDefBB->GetBBId());
   if (loopOfLHS != nullptr && loopOfLHS == loopOfRHS) {
@@ -4335,9 +4336,9 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
     //       |  /\
     //       | /  \
     //      true  false
-    if (bb.GetBBId() < dom.iterDomFrontier.size() && !dom.Dominate(*pred, bb)) {
-      MapleSet<BBId> &frontier = dom.iterDomFrontier[bb.GetBBId()];
-      if (frontier.find(pred->GetBBId()) != frontier.end()) {
+    if (bb.GetBBId() < dom.GetIterDomFrontierSize() && !dom.Dominate(*pred, bb)) {
+      auto &frontier = dom.GetIterDomFrontier(bb.GetID());
+      if (frontier.find(pred->GetID()) != frontier.end()) {
         ++i;
         continue;
       }
@@ -5160,7 +5161,7 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
   f.vrpRuns++;
   auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_FATAL(irMap != nullptr, "irMap phase has problem");
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   CHECK_FATAL(dom != nullptr, "dominance phase has problem");
   auto *meLoop = GET_ANALYSIS(MELoopAnalysis, f);
   if (ValueRangePropagation::isDebug) {
@@ -5188,7 +5189,7 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
       f.GetCfg()->DumpToFile("valuerange-after" + std::to_string(f.vrpRuns));
     }
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
-    dom = FORCE_GET(MEDominance);
+    dom = FORCE_EXEC(MEDominance)->GetDomResult();
     if (valueRangePropagation.NeedUpdateSSA()) {
       MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands);
       MPLTimer timer;
@@ -5218,7 +5219,7 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
   if (MeOption::boundaryCheckMode != kNoCheck || MeOption::npeCheckMode != kNoCheck) {
     auto *hook = GetAnalysisInfoHook();
     dom = static_cast<MEDominance*>(
-        hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MEDominance::id, f))->GetResult();
+        hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MEDominance::id, f))->GetDomResult();
     meLoop = static_cast<MELoopAnalysis*>(
         hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MELoopAnalysis::id, f))->GetResult();
     ValueRangePropagation valueRangePropagationWithOPTAssert(

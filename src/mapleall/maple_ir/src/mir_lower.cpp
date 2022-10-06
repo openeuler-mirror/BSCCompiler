@@ -118,7 +118,7 @@ void LowerCondGotoStmtWithBuiltinExpect(CondGotoNode &brStmt) {
   }
 }
 
-void MIRLower::LowerBuiltinExpect(BlockNode &block) {
+void MIRLower::LowerBuiltinExpect(BlockNode &block) const {
   auto *stmt = block.GetFirst();
   auto *last = block.GetLast();
   while (stmt != last) {
@@ -157,9 +157,9 @@ void MIRLower::CreateBrFalseStmt(BlockNode &blk, const IfStmtNode &ifStmt) {
   // set stmtfreqs
   if (GetFuncProfData()) {
     ASSERT(GetFuncProfData()->GetStmtFreq(ifStmt.GetThenPart()->GetStmtID()) >= 0, "sanity check");
-    int64_t freq = GetFuncProfData()->GetStmtFreq(ifStmt.GetStmtID()) -
-                      GetFuncProfData()->GetStmtFreq(ifStmt.GetThenPart()->GetStmtID());
-    GetFuncProfData()->SetStmtFreq(lableStmt->GetStmtID(), freq);
+    int64_t freq = static_cast<int64_t>(GetFuncProfData()->GetStmtFreq(ifStmt.GetStmtID()) -
+        GetFuncProfData()->GetStmtFreq(ifStmt.GetThenPart()->GetStmtID()));
+    GetFuncProfData()->SetStmtFreq(lableStmt->GetStmtID(), static_cast<uint64_t>(freq));
   }
 }
 
@@ -171,9 +171,9 @@ void MIRLower::CreateBrTrueStmt(BlockNode &blk, const IfStmtNode &ifStmt) {
   // set stmtfreqs
   if (GetFuncProfData()) {
     ASSERT(GetFuncProfData()->GetStmtFreq(ifStmt.GetElsePart()->GetStmtID()) >= 0, "sanity check");
-    int64_t freq = GetFuncProfData()->GetStmtFreq(ifStmt.GetStmtID()) -
-                      GetFuncProfData()->GetStmtFreq(ifStmt.GetElsePart()->GetStmtID());
-    GetFuncProfData()->SetStmtFreq(lableStmt->GetStmtID(), freq);
+    int64_t freq = static_cast<int64_t>(GetFuncProfData()->GetStmtFreq(ifStmt.GetStmtID()) -
+        GetFuncProfData()->GetStmtFreq(ifStmt.GetElsePart()->GetStmtID()));
+    GetFuncProfData()->SetStmtFreq(lableStmt->GetStmtID(), static_cast<uint64_t>(freq));
   }
 }
 
@@ -275,6 +275,9 @@ static bool ConsecutiveCaseValsAndSameTarget(const CaseVector *switchTable) {
 // return the optimized multiple statements; otherwise, return nullptr
 BlockNode *MIRLower::LowerSwitchStmt(SwitchNode *switchNode) {
   CaseVector *switchTable = &switchNode->GetSwitchTable();
+  if (switchNode->GetDefaultLabel() == 0) {
+    return nullptr;
+  }
   if (switchTable->empty()) {  // goto @defaultLabel
     BlockNode *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
     LabelIdx defaultLabel = switchNode->GetDefaultLabel();
@@ -293,8 +296,8 @@ BlockNode *MIRLower::LowerSwitchStmt(SwitchNode *switchNode) {
   int64 maxCaseVal = switchTable->back().first;
   BaseNode *switchOpnd = switchNode->Opnd(0);
   MIRBuilder *builder = mirModule.GetMIRBuilder();
-  ConstvalNode *minCaseNode = builder->CreateIntConst(minCaseVal, switchOpnd->GetPrimType());
-  ConstvalNode *maxCaseNode = builder->CreateIntConst(maxCaseVal, switchOpnd->GetPrimType());
+  ConstvalNode *minCaseNode = builder->CreateIntConst(static_cast<uint64>(minCaseVal), switchOpnd->GetPrimType());
+  ConstvalNode *maxCaseNode = builder->CreateIntConst(static_cast<uint64>(maxCaseVal), switchOpnd->GetPrimType());
   if (minCaseVal == maxCaseVal) {
     // brtrue (x == minCaseVal) @case_goto_label
     // goto @default_label
@@ -376,10 +379,10 @@ BlockNode *MIRLower::LowerWhileStmt(WhileStmtNode &whileStmt) {
   lableStmt->SetLabelIdx(lalbeIdx);
   blk->AddStatement(lableStmt);
   if (GetFuncProfData()) {
-    int64_t freq = GetFuncProfData()->GetStmtFreq(whileStmt.GetStmtID()) -
-                   GetFuncProfData()->GetStmtFreq(blk->GetLast()->GetStmtID());
+    int64_t freq = static_cast<int64_t>(GetFuncProfData()->GetStmtFreq(whileStmt.GetStmtID()) -
+        GetFuncProfData()->GetStmtFreq(blk->GetLast()->GetStmtID()));
     ASSERT(freq >= 0, "sanity check");
-    GetFuncProfData()->SetStmtFreq(lableStmt->GetStmtID(), freq);
+    GetFuncProfData()->SetStmtFreq(lableStmt->GetStmtID(), static_cast<uint64_t>(freq));
   }
   return blk;
 }
@@ -396,10 +399,14 @@ BlockNode *MIRLower::LowerWhileStmt(WhileStmtNode &whileStmt) {
 BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
   ASSERT(doloop.GetDoBody() != nullptr, "nullptr check");
   doloop.SetDoBody(LowerBlock(*doloop.GetDoBody()));
-  int64_t doloopnodeFreq = 0, bodynodeFreq = 0;
+  int64_t doloopnodeFreq = 0;
+  int64_t bodynodeFreq = 0;
   if (GetFuncProfData()) {
-    doloopnodeFreq = GetFuncProfData()->GetStmtFreq(doloop.GetStmtID());
-    bodynodeFreq= GetFuncProfData()->GetStmtFreq(doloop.GetDoBody()->GetStmtID());
+    doloopnodeFreq = static_cast<int64_t>(GetFuncProfData()->GetStmtFreq(doloop.GetStmtID()));
+    bodynodeFreq = static_cast<int64_t>(GetFuncProfData()->GetStmtFreq(doloop.GetDoBody()->GetStmtID()));
+    if (doloopnodeFreq < bodynodeFreq) {
+      doloopnodeFreq = bodynodeFreq;
+    }
   }
   auto *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   if (doloop.IsPreg()) {
@@ -421,7 +428,7 @@ BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
     blk->AddStatement(startDassign);
   }
   if (GetFuncProfData()) {
-    GetFuncProfData()->SetStmtFreq(blk->GetLast()->GetStmtID(), doloopnodeFreq - bodynodeFreq);
+    GetFuncProfData()->SetStmtFreq(blk->GetLast()->GetStmtID(), static_cast<uint64_t>(doloopnodeFreq - bodynodeFreq));
   }
   auto *brFalseStmt = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(OP_brfalse);
   brFalseStmt->SetOpnd(doloop.GetCondExpr(), 0);
@@ -431,7 +438,7 @@ BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
   blk->AddStatement(brFalseStmt);
   // udpate stmtFreq
   if (GetFuncProfData()) {
-    GetFuncProfData()->SetStmtFreq(brFalseStmt->GetStmtID(), (doloopnodeFreq - bodynodeFreq));
+    GetFuncProfData()->SetStmtFreq(brFalseStmt->GetStmtID(), static_cast<uint64_t>(doloopnodeFreq - bodynodeFreq));
   }
   LabelIdx bodyLabelIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
   mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(bodyLabelIdx);
@@ -440,7 +447,7 @@ BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
   blk->AddStatement(labelStmt);
   // udpate stmtFreq
   if (GetFuncProfData()) {
-    GetFuncProfData()->SetStmtFreq(labelStmt->GetStmtID(), bodynodeFreq);
+    GetFuncProfData()->SetStmtFreq(labelStmt->GetStmtID(), static_cast<uint64_t>(bodynodeFreq));
   }
   blk->AppendStatementsFromBlock(*doloop.GetDoBody());
   if (doloop.IsPreg()) {
@@ -476,14 +483,14 @@ BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
   blk->AddStatement(brTrueStmt);
   // udpate stmtFreq
   if (GetFuncProfData()) {
-    GetFuncProfData()->SetStmtFreq(brTrueStmt->GetStmtID(), bodynodeFreq);
+    GetFuncProfData()->SetStmtFreq(brTrueStmt->GetStmtID(), static_cast<uint64_t>(bodynodeFreq));
   }
   labelStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   labelStmt->SetLabelIdx(lIdx);
   blk->AddStatement(labelStmt);
   // udpate stmtFreq
   if (GetFuncProfData()) {
-    GetFuncProfData()->SetStmtFreq(labelStmt->GetStmtID(), (doloopnodeFreq - bodynodeFreq));
+    GetFuncProfData()->SetStmtFreq(labelStmt->GetStmtID(), static_cast<uint64_t>(doloopnodeFreq - bodynodeFreq));
   }
   return blk;
 }
@@ -664,7 +671,7 @@ do {
 void MIRLower::LowerFunc(MIRFunction &func) {
   if (GetOptLevel() > 0) {
     ExtConstantFold ecf(func.GetModule());
-    (void)ecf.ExtSimplify(func.GetBody());;
+    (void)ecf.ExtSimplify(func.GetBody());
   }
 
   mirModule.SetCurFunction(&func);
@@ -692,7 +699,7 @@ BaseNode *MIRLower::LowerFarray(ArrayNode *array) {
     if (constvalNode->GetConstVal()->GetKind() == kConstInt) {
       const MIRIntConst *pIntConst = static_cast<const MIRIntConst*>(constvalNode->GetConstVal());
       CHECK_FATAL(mirModule.IsJavaModule() || !pIntConst->IsNegative(), "Array index should >= 0.");
-      int64 eleOffset = pIntConst->GetExtValue() * eSize;
+      int64 eleOffset = pIntConst->GetExtValue() * static_cast<int64_t>(eSize);
 
       BaseNode *baseNode = array->GetBase();
       if (eleOffset == 0) {
@@ -700,7 +707,7 @@ BaseNode *MIRLower::LowerFarray(ArrayNode *array) {
       }
 
       MIRIntConst *eleConst =
-          GlobalTables::GetIntConstTable().GetOrCreateIntConst(eleOffset, arrayType);
+          GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<uint64_t>(eleOffset), arrayType);
       BaseNode *offsetNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(eleConst);
       offsetNode->SetPrimType(array->GetPrimType());
 
@@ -790,7 +797,7 @@ BaseNode *MIRLower::LowerCArray(ArrayNode *array) {
       uint64 indexVal = 0;
       if (index->op == OP_constval) {
         ConstvalNode *constNode = static_cast<ConstvalNode *>(index);
-        indexVal = (static_cast<MIRIntConst *>(constNode->GetConstVal()))->GetExtValue();
+        indexVal = static_cast<uint64>((static_cast<MIRIntConst *>(constNode->GetConstVal()))->GetExtValue());
         isConst = true;
         MIRIntConst *newConstNode = mirModule.GetMemPool()->New<MIRIntConst>(
             indexVal * mpyDim, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array->GetPrimType())));
