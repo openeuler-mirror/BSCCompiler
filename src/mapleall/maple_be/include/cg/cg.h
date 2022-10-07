@@ -214,7 +214,7 @@ class CG {
   }
 
   bool DoPatchLongBranch() const {
-    return cgOption.DoPatchLongBranch();
+    return cgOption.DoPatchLongBranch() || (Globals::GetInstance()->GetOptimLevel() == CGOptions::kLevel0);
   }
 
   uint8 GetRematLevel() const {
