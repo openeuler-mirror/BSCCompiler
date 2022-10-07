@@ -103,7 +103,7 @@ void MeProfUse::ComputeEdgeFreq() {
   while (change) {
     change = false;
     pass++;
-    CHECK_FATAL(pass != UINT8_MAX, "parse all edges fail");
+    CHECK_FATAL(pass != UINT16_MAX, "too many passes in MeProfUse::ComputeEdgeFreq: %d", pass);
     /*
      * use the bb edge to infer the bb's count,when all bb's count is valid
      * then all edges count is valid
@@ -244,7 +244,7 @@ void MeProfUse::SetFuncEdgeInfo() {
   for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     auto *bbInfo = GetBBUseInfo(*bb);
-    bb->SetFrequency(static_cast<uint32>(bbInfo->GetCount()));
+    bb->SetFrequency(bbInfo->GetCount());
     if (bIt == cfg->common_entry() || bIt == cfg->common_exit()) {
       continue;
     }
