@@ -1908,8 +1908,11 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
       idx = succ.GetSuccIndex(*affectedBB);
       ASSERT(idx >= 0 && idx < succ.GetSucc().size(), "sanity check");
       int64_t oldedgeFreq = static_cast<int64_t>(succ.GetSuccFreq()[static_cast<uint32>(idx)]);
-      ASSERT(oldedgeFreq >= freq, "sanity check");
-      succ.SetSuccFreq(idx, static_cast<uint64>(oldedgeFreq) - freq);
+      if (oldedgeFreq >= freq) {
+        succ.SetSuccFreq(idx, static_cast<uint64>(oldedgeFreq) - freq);
+      } else {
+        succ.SetSuccFreq(idx, 0);
+      }
     }
     return true;
   }

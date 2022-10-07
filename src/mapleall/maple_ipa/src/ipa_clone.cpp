@@ -395,6 +395,9 @@ void IpaClone::DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramInd
           if (oldCallNode == nullptr) {
             continue;
           }
+          if (callerFunc->GetFuncProfData() == nullptr) {
+            continue;
+          }
           uint64_t callsiteFreq = callerFunc->GetFuncProfData()->GetStmtFreq(stmtId);
           clonedSiteFreqs += callsiteFreq;
         }
@@ -544,6 +547,9 @@ void IpaClone::CloneNoImportantExpressFunction(MIRFunction *func, uint32 paramIn
       uint32 stmtId = callSite.GetStmtId();
       CallNode *oldCallNode = static_cast<CallNode*>(callerFunc->GetStmtNodeFromMeId(stmtId));
       if (oldCallNode == nullptr) {
+        continue;
+      }
+      if (callerFunc->GetFuncProfData() == nullptr) {
         continue;
       }
       uint64_t callsiteFreq = callerFunc->GetFuncProfData()->GetStmtFreq(stmtId);

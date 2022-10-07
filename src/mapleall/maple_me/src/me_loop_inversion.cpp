@@ -243,7 +243,6 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
             bb.SetSuccFreq(1, 0);
           }
         }
-        ASSERT(latchBB->GetFrequency() == 0, "sanity check");
         latchBB->PushBackSuccFreq(0);
         latchBB->PushBackSuccFreq(0);
       }
@@ -272,7 +271,7 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
   }
 }
 
-void MeLoopInversion::ExecuteLoopInversion(MeFunction &func, Dominance &dom) {
+void MeLoopInversion::ExecuteLoopInversion(MeFunction &func, const Dominance &dom) {
   // set MeCFG's has_do_while flag
   MeCFG *cfg = func.GetCfg();
   auto eIt = cfg->valid_end();
@@ -377,7 +376,7 @@ void MELoopInversion::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MELoopInversion::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   ASSERT(dom != nullptr, "dom is null in MeDoLoopCanon::Run");
   MemPool *loopInversionMp = GetPhaseMemPool();
   auto *meLoopInversion = loopInversionMp->New<MeLoopInversion>(DEBUGFUNC_NEWPM(f), *loopInversionMp);
