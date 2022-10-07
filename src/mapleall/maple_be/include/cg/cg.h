@@ -51,6 +51,7 @@ class CFGOptimizer;
 class RedundantComputeElim;
 class TailCallOpt;
 class Rematerializer;
+class CGProfGen;
 
 class Globals {
  public:
@@ -116,7 +117,6 @@ class CG {
         emitter(nullptr),
         labelOrderCnt(0),
         cgOption(cgOptions),
-        instrumentationFunction(nullptr),
         fileGP(nullptr) {
     const std::string &internalNameLiteral = namemangler::GetInternalNameLiteral(namemangler::kJavaLangObjectStr);
     GStrIdx strIdxFromName = GlobalTables::GetStrTable().GetStrIdxFromName(internalNameLiteral);
@@ -196,25 +196,12 @@ class CG {
     return cgOption.IsUnwindTables();
   }
 
-  bool NeedInsertInstrumentationFunction() const {
-    return cgOption.NeedInsertInstrumentationFunction();
-  }
-
-  void SetInstrumentationFunction(const std::string &name);
-  const MIRSymbol *GetInstrumentationFunction() const {
-    return instrumentationFunction;
-  }
-
   bool InstrumentWithDebugTraceCall() const {
     return cgOption.InstrumentWithDebugTraceCall();
   }
 
-  bool InstrumentWithProfile() const {
-    return cgOption.InstrumentWithProfile();
-  }
-
   bool DoPatchLongBranch() const {
-    return cgOption.DoPatchLongBranch();
+    return cgOption.DoPatchLongBranch() || (Globals::GetInstance()->GetOptimLevel() == CGOptions::kLevel0);
   }
 
   uint8 GetRematLevel() const {
@@ -324,6 +311,9 @@ class CG {
   virtual CFGOptimizer *CreateCFGOptimizer(MemPool &mp, CGFunc &f) const {
     return nullptr;
   }
+  virtual CGProfGen *CreateCGProfGen(MemPool &mp, CGFunc &f) const {
+    return nullptr;
+  }
 
   virtual Rematerializer *CreateRematerializer(MemPool &mp) const {
     return nullptr;
@@ -384,7 +374,6 @@ class CG {
   LabelIDOrder labelOrderCnt;
   static CGFunc *currentCGFunction;  /* current cg function being compiled */
   CGOptions cgOption;
-  MIRSymbol *instrumentationFunction;
   MIRSymbol *dbgTraceEnter = nullptr;
   MIRSymbol *dbgTraceExit = nullptr;
   MIRSymbol *dbgFuncProfile = nullptr;
