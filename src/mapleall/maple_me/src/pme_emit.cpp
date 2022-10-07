@@ -833,7 +833,7 @@ void PreMeEmitter::EmitBB(BB *bb, BlockNode *curBlk) {
     if (setLastFreq) {
       GetFuncProfData()->SetStmtFreq(curBlk->GetLast()->GetStmtID(), bb->GetFrequency());
     } else if (bbIsEmpty) {
-      LogInfo::MapleLogger() << " bb " << bb->GetBBId() << "no stmt used to add frequency, add commentnode\n";
+      LogInfo::MapleLogger() << " bb " << bb->GetBBId() << ": no stmt used to add frequency; added comment node\n";
       CommentNode *commentNode = codeMP->New<CommentNode>(*(mirFunc->GetModule()));
       commentNode->SetComment("freqStmt"+std::to_string(commentNode->GetStmtID()));
       GetFuncProfData()->SetStmtFreq(commentNode->GetStmtID(), bb->GetFrequency());
@@ -1134,9 +1134,7 @@ bool MEPreMeEmission::PhaseRun(MeFunction &f) {
   ASSERT(hmap != nullptr, "irmapbuild has problem");
 
   MIRFunction *mirfunction = f.GetMirFunc();
-  if (mirfunction->GetCodeMempool() != nullptr) {
-    memPoolCtrler.DeleteMemPool(mirfunction->GetCodeMempool());
-  }
+  mirfunction->ReleaseCodeMemory();
   mirfunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR from preemission::Emit()"));
   MemPool *preMeMP = GetPhaseMemPool();
   emitter = preMeMP->New<PreMeEmitter>(hmap, f.GetPreMeFunc(), preMeMP);
