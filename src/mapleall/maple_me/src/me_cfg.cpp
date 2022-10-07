@@ -1546,9 +1546,9 @@ void MeCFG::CreateBasicBlocks() {
         curBB->SetBBLabel(labelIdx);
         // label node is not real node in bb, get frequency information to bb
         if (Options::profileUse && func.GetMirFunc()->GetFuncProfData()) {
-          auto freq = func.GetMirFunc()->GetFuncProfData()->GetStmtFreq(stmt->GetStmtID());
+          int64 freq = func.GetMirFunc()->GetFuncProfData()->GetStmtFreq(stmt->GetStmtID());
           if (freq >= 0) {
-            curBB->SetFrequency(freq);
+            curBB->SetFrequency(static_cast<uint64>(freq));
           }
         }
         break;
@@ -1928,9 +1928,18 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
     } else if (funcData->stmtFreqs.count(last.GetStmtID()) > 0) {
       (*bIt)->SetFrequency(funcData->stmtFreqs[last.GetStmtID()]);
     } else {
-      LogInfo::MapleLogger() << "ERROR::  bb " << (*bIt)->GetBBId() << "frequency is not set"
-                             << "\n";
-      ASSERT(0, "no freq set");
+      bool foundFreq = false;
+      for (StmtNode &stmt : (*bIt)->GetStmtNodes()) {
+        if (funcData->stmtFreqs.count(stmt.GetStmtID()) > 0) {
+          (*bIt)->SetFrequency(funcData->stmtFreqs[stmt.GetStmtID()]);
+          foundFreq = true;
+          break;
+        }
+      }
+      if (not foundFreq) {
+        LogInfo::MapleLogger() << "ERROR::  bb " << (*bIt)->GetBBId() << " has not stmt with set freq" << "\n";
+        CHECK_FATAL(0, "MeCFG::ConstructBBFreqFromStmtFreq: cannot set BB freq");
+      }
     }
   }
   // add common entry and common exit

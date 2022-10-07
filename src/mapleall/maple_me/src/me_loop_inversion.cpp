@@ -243,7 +243,6 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
             bb.SetSuccFreq(1, 0);
           }
         }
-        ASSERT(latchBB->GetFrequency() == 0, "sanity check");
         latchBB->PushBackSuccFreq(0);
         latchBB->PushBackSuccFreq(0);
       }

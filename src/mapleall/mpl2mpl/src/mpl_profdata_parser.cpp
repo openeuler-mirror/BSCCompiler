@@ -146,8 +146,8 @@ int MplProfDataParser::ReadMapleProfileData() {
   static_cast<void>(inputStream.seekg(0, std::ios::end));
   uint32_t length = static_cast<uint32>(inputStream.tellg());
   static_cast<void>(inputStream.seekg(0, std::ios::beg));
-  const uint32_t sizeThreshold = 1024 * 10;
-  CHECK_FATAL(length <= sizeThreshold, "NYI::large .mprofdata file size is larger than threashold, do chunk memory\n");
+//const uint32_t sizeThreshold = 1024 * 10;
+//CHECK_FATAL(length <= sizeThreshold, "NYI::large .mprofdata file size is larger than threashold, do chunk memory\n");
 
   std::unique_ptr<char[]> buffer = std::make_unique<char[]>(length);
   static_cast<void>(inputStream.read(buffer.get(), length));
