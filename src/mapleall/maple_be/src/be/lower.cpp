@@ -89,6 +89,10 @@ const std::string kFileSymbolNamePrefix = "symname";
 const std::string CGLowerer::kIntrnRetValPrefix = "__iret";
 const std::string CGLowerer::kUserRetValPrefix = "__uret";
 
+static bool CasePairKeyLessThan(const CasePair &left, const CasePair &right) {
+  return left.first < right.first;
+}
+
 std::string CGLowerer::GetFileNameSymbolName(const std::string &fileName) const {
   return kFileSymbolNamePrefix + std::regex_replace(fileName, std::regex("-"), "_");
 }
@@ -1725,6 +1729,26 @@ void CGLowerer::AddElemToPrintf(MapleVector<BaseNode*> &argsPrintf, int num, ...
   va_end(argPtr);
 }
 
+bool CGLowerer::CheckSwitchTableContinuous(SwitchNode &stmt) const {
+  if (!stmt.GetSwitchTable().empty()) {
+    stmt.SortCasePair(CasePairKeyLessThan);
+    if (static_cast<uint64>(((stmt.GetSwitchTable().end() - 1)->first - stmt.GetSwitchTable().begin()->first) + 1) >
+        stmt.GetSwitchTable().size()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool CGLowerer::IsSwitchToRangeGoto(const BlockNode &blk) const {
+  for (const StmtNode *stmt = blk.GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
+    if (stmt->GetOpCode() == OP_rangegoto) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void CGLowerer::SwitchAssertBoundary(StmtNode &stmt, MapleVector<BaseNode *> &argsPrintf) {
   MIRSymbol *errMsg;
   MIRSymbol *fileNameSym;
@@ -1845,8 +1869,18 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
         LowerSwitchOpnd(*stmt, *newBlk);
         auto switchMp = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "switchlowere");
         MapleAllocator switchAllocator(switchMp.get());
+        LabelNode *defaultLabel = nullptr;
+        LabelIdx newLabelIdx = 0;
+        if (!CheckSwitchTableContinuous(static_cast<SwitchNode&>(*stmt)) &&
+            static_cast<SwitchNode*>(stmt)->GetDefaultLabel() == 0) {
+          newLabelIdx = GetLabelIdx(*mirModule.CurFunction());
+          defaultLabel = mirBuilder->CreateStmtLabel(newLabelIdx);
+        }
         SwitchLowerer switchLowerer(mirModule, static_cast<SwitchNode&>(*stmt), switchAllocator);
-        BlockNode *blk = switchLowerer.LowerSwitch();
+	BlockNode *blk = switchLowerer.LowerSwitch(newLabelIdx);
+        if (blk->GetFirst() != nullptr && defaultLabel != nullptr && IsSwitchToRangeGoto(*blk)) {
+          blk->AddStatement(defaultLabel);
+        }
         if (blk->GetFirst() != nullptr) {
           newBlk->AppendStatementsFromBlock(*blk);
         }

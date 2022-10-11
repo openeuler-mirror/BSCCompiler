@@ -130,6 +130,10 @@ class CGLowerer {
 
   void AddElemToPrintf(MapleVector<BaseNode*> &argsPrintf, int num, ...) const;
 
+  bool CheckSwitchTableContinuous(SwitchNode &stmt) const;
+
+  bool IsSwitchToRangeGoto(const BlockNode &blk) const;
+
   std::string AssertBoundaryGetFileName(StmtNode &stmt) {
     size_t pos = mirModule.GetFileNameFromFileNum(stmt.GetSrcPos().FileNum()).rfind('/');
     return mirModule.GetFileNameFromFileNum(stmt.GetSrcPos().FileNum()).substr(pos + 1);
@@ -191,7 +195,7 @@ class CGLowerer {
 
   void LowerTryCatchBlocks(BlockNode &body);
 
-#if TARGARM32 || TARGAARCH64 || TARGRISCV64
+#if TARGARM32 || TARGAARCH64 || TARGRISCV64 || TARGX86_64
   BlockNode *LowerReturnStructUsingFakeParm(NaryStmtNode &retNode);
 #endif
   BlockNode *LowerReturn(NaryStmtNode &retNode);

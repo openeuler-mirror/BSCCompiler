@@ -32,7 +32,7 @@ class SwitchLowerer {
 
   ~SwitchLowerer() = default;
 
-  maple::BlockNode *LowerSwitch();
+  maple::BlockNode *LowerSwitch(LabelIdx newLabelIdx = 0);
 
  private:
   using Cluster = std::pair<maple::int32, maple::int32>;
@@ -57,12 +57,12 @@ class SwitchLowerer {
 
   void FindClusters(MapleVector<Cluster> &clusters) const;
   void InitSwitchItems(MapleVector<Cluster> &clusters);
-  maple::RangeGotoNode *BuildRangeGotoNode(int32 startIdx, int32 endIdx);
+  maple::RangeGotoNode *BuildRangeGotoNode(int32 startIdx, int32 endIdx, LabelIdx newLabelIdx);
   maple::CompareNode *BuildCmpNode(Opcode opCode, uint32 idx);
   maple::GotoNode *BuildGotoNode(int32 idx);
   maple::CondGotoNode *BuildCondGotoNode(int32 idx, Opcode opCode, BaseNode &cond);
   maple::BlockNode *BuildCodeForSwitchItems(int32 start, int32 end, bool lowBlockNodeChecked,
-                                            bool highBlockNodeChecked);
+                                            bool highBlockNodeChecked, LabelIdx newLabelIdx = 0);
 };
 }  /* namespace maplebe */
 

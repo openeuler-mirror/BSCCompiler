@@ -47,10 +47,6 @@
 #include "mir_lower.h"  /* "../../../maple_ir/include/mir_lower.h" */
 
 namespace maplebe {
-static bool CasePairKeyLessThan(const CasePair &left, const CasePair &right) {
-  return left.first < right.first;
-}
-
 void SwitchLowerer::FindClusters(MapleVector<Cluster> &clusters) const {
   int32 length = static_cast<int>(stmt->GetSwitchTable().size());
   int32 i = 0;
@@ -95,7 +91,7 @@ void SwitchLowerer::InitSwitchItems(MapleVector<Cluster> &clusters) {
   }
 }
 
-RangeGotoNode *SwitchLowerer::BuildRangeGotoNode(int32 startIdx, int32 endIdx) {
+RangeGotoNode *SwitchLowerer::BuildRangeGotoNode(int32 startIdx, int32 endIdx, LabelIdx newLabelIdx) {
   RangeGotoNode *node = mirModule.CurFuncCodeMemPool()->New<RangeGotoNode>(mirModule);
   node->SetOpnd(stmt->GetSwitchOpnd(), 0);
 
@@ -114,6 +110,8 @@ RangeGotoNode *SwitchLowerer::BuildRangeGotoNode(int32 startIdx, int32 endIdx) {
       curTag = static_cast<uint32>(static_cast<int32>(++lastCaseTag) - node->GetTagOffset());
       if (stmt->GetDefaultLabel() != 0) {
         node->AddRangeGoto(curTag, stmt->GetDefaultLabel());
+      } else if (newLabelIdx != 0) {
+        node->AddRangeGoto(curTag, newLabelIdx);
       }
     }
     curTag = static_cast<uint32>(stmt->GetCasePair(static_cast<size_t>(i)).first - node->GetTagOffset());
@@ -173,7 +171,7 @@ CondGotoNode *SwitchLowerer::BuildCondGotoNode(int32 idx, Opcode opCode, BaseNod
 
 /* start and end is with respect to switchItems */
 BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool lowBlockNodeChecked,
-                                                  bool highBlockNodeChecked) {
+                                                  bool highBlockNodeChecked, LabelIdx newLabelIdx) {
   ASSERT(start >= 0, "invalid args start");
   ASSERT(end >= 0, "invalid args end");
   BlockNode *localBlk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
@@ -198,7 +196,7 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
         }
       }
     }
-    rangeGoto = BuildRangeGotoNode(switchItems[start].first, switchItems[start].second);
+    rangeGoto = BuildRangeGotoNode(switchItems[start].first, switchItems[start].second, newLabelIdx);
     if (stmt->GetDefaultLabel() == 0) {
       localBlk->AddStatement(rangeGoto);
     } else {
@@ -222,7 +220,7 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
       }
       highBlockNodeChecked = true;
     }
-    rangeGoto = BuildRangeGotoNode(switchItems[end].first, switchItems[end].second);
+    rangeGoto = BuildRangeGotoNode(switchItems[end].first, switchItems[end].second, newLabelIdx);
     if (stmt->GetDefaultLabel() == 0) {
       localBlk->AddStatement(rangeGoto);
     } else {
@@ -328,7 +326,7 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
   return localBlk;
 }
 
-BlockNode *SwitchLowerer::LowerSwitch() {
+BlockNode *SwitchLowerer::LowerSwitch(LabelIdx newLabelIdx) {
   if (stmt->GetSwitchTable().empty()) {  /* change to goto */
     BlockNode *localBlk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
     GotoNode *gotoDft = BuildGotoNode(-1);
@@ -345,10 +343,9 @@ BlockNode *SwitchLowerer::LowerSwitch() {
   }
 
   MapleVector<Cluster> clusters(ownAllocator->Adapter());
-  stmt->SortCasePair(CasePairKeyLessThan);
   FindClusters(clusters);
   InitSwitchItems(clusters);
-  BlockNode *blkNode = BuildCodeForSwitchItems(0, static_cast<int>(switchItems.size()) - 1, false, false);
+  BlockNode *blkNode = BuildCodeForSwitchItems(0, static_cast<int>(switchItems.size()) - 1, false, false, newLabelIdx);
   if (!jumpToDefaultBlockGenerated) {
     GotoNode *gotoDft = BuildGotoNode(-1);
     if (gotoDft != nullptr) {
