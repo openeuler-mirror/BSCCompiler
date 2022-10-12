@@ -13,7 +13,7 @@
 # See the Mulan PSL v2 for more details.
 #
 
-set(inc_maple
+set(inc_libmaple
   ${MAPLEALL_ROOT}
   ${MAPLEALL_ROOT}/maple_be/include
   ${MAPLEALL_ROOT}/maple_be/include/cg
@@ -37,7 +37,7 @@ set(inc_maple
   ${THIRD_PARTY_ROOT}/llvm_modified/llvm/include/llvm/BinaryFormat
 )
 
-set(src_maple
+set(src_libmaple
   src/as_compiler.cpp
   src/compiler.cpp
   src/compiler_factory.cpp
@@ -56,31 +56,13 @@ set(src_maple
   src/hided_options.cpp
 )
 
-set(deps_maple
-  libdriver_option
-  libmaple_driver
-  libcg
-  libmplad
-  libmplbe
-  libmplipa
-  libmplir
-  libmplme
-  libmplmewpo
-  libmplphase
-  libmplutil
-  libcommandline
-  libmempool
-  libmpl2mpl
-  libHWSecureC
-)
-
-#maple
-add_executable(maple "${src_maple}")
-set_target_properties(maple PROPERTIES
+#libmaple
+add_library(libmaple STATIC ${src_libmaple})
+set_target_properties(libmaple PROPERTIES
   COMPILE_FLAGS ""
-  INCLUDE_DIRECTORIES "${inc_maple}"
-  LINK_LIBRARIES "${deps_maple}"
-  RUNTIME_OUTPUT_DIRECTORY "${MAPLE_BUILD_OUTPUT}/bin"
+  INCLUDE_DIRECTORIES "${inc_libmaple}"
+  LINK_LIBRARIES ""
+  RUNTIME_OUTPUT_DIRECTORY "${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}"
 )
 
 set(src_libmaple_driver
@@ -98,7 +80,7 @@ set_target_properties(libmaple_driver PROPERTIES
   COMPILE_FLAGS ""
   INCLUDE_DIRECTORIES "${inc_libmaple_driver}"
   LINK_LIBRARIES ""
-  ARCHIVE_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}
+  ARCHIVE_OUTPUT_DIRECTORY "${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}"
 )
 
 set(src_libdriver_option
@@ -116,7 +98,7 @@ set_target_properties(libdriver_option PROPERTIES
   COMPILE_FLAGS ""
   INCLUDE_DIRECTORIES "${inc_libdriver_option}"
   LINK_LIBRARIES ""
-  ARCHIVE_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}
+  ARCHIVE_OUTPUT_DIRECTORY "${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}"
 )
 
 
