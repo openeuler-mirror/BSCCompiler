@@ -1849,7 +1849,7 @@ ASTExpr *ASTParser::ProcessExprCallExpr(MapleAllocator &allocator, const clang::
   // return
   astCallExpr->SetType(astFile->CvtType(expr.getType()));
   // return var attrs
-  GenericAttrs  returnVarAttrs;
+  GenericAttrs returnVarAttrs;
   astFile->CollectFuncReturnVarAttrs(expr, returnVarAttrs);
   astCallExpr->SetReturnVarAttrs(returnVarAttrs);
   // args
@@ -1885,7 +1885,7 @@ ASTExpr *ASTParser::ProcessExprCallExpr(MapleAllocator &allocator, const clang::
     GenericAttrs attrs = SolveFunctionAttributes(*funcDecl, funcName);
     astCallExpr->SetFuncName(funcName);
     astCallExpr->SetFuncAttrs(attrs.ConvertToFuncAttrs());
-    ASTFunc *astFunc = static_cast<ASTFunc*>(ASTDeclsBuilder::GetASTDecl(funcDecl->getID()));
+    ASTFunc *astFunc = static_cast<ASTFunc*>(ProcessDecl(allocator, *funcDecl));
     if (astFunc != nullptr) {
       astCallExpr->SetFuncDecl(astFunc);
     }
