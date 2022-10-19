@@ -32,12 +32,14 @@ class LoopHierarchy {
   };
 
   explicit LoopHierarchy(MemPool &memPool)
-      : loopMemPool(&memPool),
-        otherLoopEntries(loopMemPool.Adapter()),
-        loopMembers(loopMemPool.Adapter()),
-        backedge(loopMemPool.Adapter()),
-        exits(loopMemPool.Adapter()),
-        innerLoops(loopMemPool.Adapter()) {}
+      : loopMp(memPool),
+        loopAlloc(&memPool),
+        otherLoopEntries(loopAlloc.Adapter()),
+        loopMembers(loopAlloc.Adapter()),
+        backedge(loopAlloc.Adapter()),
+        backBBEdges(loopAlloc.Adapter()),
+        exits(loopAlloc.Adapter()),
+        innerLoops(loopAlloc.Adapter()) {}
 
   virtual ~LoopHierarchy() = default;
 
@@ -49,6 +51,9 @@ class LoopHierarchy {
   }
   const MapleSet<BB*, BBIdCmp> &GetBackedge() const {
     return backedge;
+  }
+  const MapleUnorderedMap<BB*, MapleSet<BB*>*> &GetBackBBEdges() const {
+    return backBBEdges;
   }
   MapleSet<BB*, BBIdCmp> &GetBackedgeNonConst() {
     return backedge;
@@ -77,6 +82,16 @@ class LoopHierarchy {
   }
   void InsertBackedge(BB &bb) {
     (void)backedge.insert(&bb);
+  }
+  void InsertBackBBEdge(BB &backBB, BB &headerBB) {
+    auto backIt = backBBEdges.find(&backBB);
+    if (backIt == backBBEdges.end()) {
+      auto *headBBSPtr = loopMp.New<MapleSet<BB*>>(loopAlloc.Adapter());
+      headBBSPtr->insert(&headerBB);
+      backBBEdges.emplace(&backBB, headBBSPtr);
+    } else {
+      backIt->second->insert(&headerBB);
+    }
   }
   void InsertExit(BB &bb) {
     (void)exits.insert(&bb);
@@ -113,11 +128,13 @@ class LoopHierarchy {
   LoopHierarchy *next = nullptr;
 
  private:
-  MapleAllocator loopMemPool;
+  MemPool &loopMp;
+  MapleAllocator loopAlloc;
   BB *header = nullptr;
   MapleSet<BB*, BBIdCmp> otherLoopEntries;
   MapleSet<BB*, BBIdCmp> loopMembers;
   MapleSet<BB*, BBIdCmp> backedge;
+  MapleUnorderedMap<BB*, MapleSet<BB*>*> backBBEdges; // <backBB, headerBBs>
   MapleSet<BB*, BBIdCmp> exits;
   MapleSet<LoopHierarchy*, HeadIDCmp> innerLoops;
   LoopHierarchy *outerLoop = nullptr;
@@ -172,6 +189,7 @@ class CGFuncLoops {
         multiEntries(loopMemPool.Adapter()),
         loopMembers(loopMemPool.Adapter()),
         backedge(loopMemPool.Adapter()),
+        backBBEdges(loopMemPool.Adapter()),
         exits(loopMemPool.Adapter()),
         innerLoops(loopMemPool.Adapter()) {}
 
@@ -182,8 +200,23 @@ class CGFuncLoops {
   void CheckLoops() const;
   void PrintLoops(const CGFuncLoops &loops) const;
   bool IsBBLoopMember(const BB *bb) const;
+  bool IsBackEdge(const BB &fromBB, const BB &toBB) const {
+    auto backIt = backBBEdges.find(fromBB.GetId());
+    if (backIt == backBBEdges.end()) {
+      return false;
+    }
+    for (auto headId : backIt->second) {
+      if (toBB.GetId() == headId) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   const BB *GetHeader() const {
+    return header;
+  }
+  BB *GetHeader() {
     return header;
   }
   const MapleVector<BB*> &GetMultiEntries() const {
@@ -194,6 +227,9 @@ class CGFuncLoops {
   }
   const MapleVector<BB*> &GetBackedge() const {
     return backedge;
+  }
+  const MapleUnorderedMap<uint32, MapleSet<uint32>> &GetBackBBEdges() const {
+    return backBBEdges;
   }
   const MapleVector<BB*> &GetExits() const {
     return exits;
@@ -207,7 +243,6 @@ class CGFuncLoops {
   uint32 GetLoopLevel() const {
     return loopLevel;
   }
-
   void AddMultiEntries(BB &bb) {
     multiEntries.emplace_back(&bb);
   }
@@ -216,6 +251,16 @@ class CGFuncLoops {
   }
   void AddBackedge(BB &bb) {
     backedge.emplace_back(&bb);
+  }
+  void AddBackBBEdge(BB &backBB, BB &headerBB) {
+    auto backIt = backBBEdges.find(backBB.GetId());
+    if (backIt == backBBEdges.end()) {
+      MapleSet<uint32> toBBs(loopMemPool.Adapter());
+      toBBs.insert(headerBB.GetId());
+      backBBEdges.emplace(backBB.GetId(), toBBs);
+    } else {
+      backIt->second.insert(headerBB.GetId());
+    }
   }
   void AddExit(BB &bb) {
     exits.emplace_back(&bb);
@@ -239,6 +284,7 @@ class CGFuncLoops {
   MapleVector<BB*> multiEntries;
   MapleVector<BB*> loopMembers;
   MapleVector<BB*> backedge;
+  MapleUnorderedMap<uint32, MapleSet<uint32>> backBBEdges; // <backBBId, headerBBIds> (<fromBBId, toBBIds>)
   MapleVector<BB*> exits;
   MapleVector<CGFuncLoops*> innerLoops;
   CGFuncLoops *outerLoop = nullptr;

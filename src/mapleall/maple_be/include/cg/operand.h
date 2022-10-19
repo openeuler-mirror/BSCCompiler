@@ -29,7 +29,7 @@
 #include "memlayout.h"
 
 namespace maplebe {
-class OpndProp;
+class OpndDesc;
 class Emitter;
 
 bool IsBitSizeImmediate(uint64 val, uint32 bitLen, uint32 nLowerZeroBits);
@@ -60,7 +60,6 @@ class Operand {
     kOpdCond,     /*  for condition code */
     kOpdPhi,      /*  for phi operand */
     kOpdFPImmediate,
-    kOpdFPZeroImmediate,
     kOpdStImmediate, /* use the symbol name as the offset */
     kOpdOffset,      /* for the offset operand in MemOperand */
     kOpdBBAddress,
@@ -92,8 +91,7 @@ class Operand {
   }
 
   bool IsConstImmediate() const {
-    return opndKind == kOpdImmediate || opndKind == kOpdOffset || opndKind == kOpdFPImmediate ||
-           opndKind == kOpdFPZeroImmediate;
+    return opndKind == kOpdImmediate || opndKind == kOpdOffset || opndKind == kOpdFPImmediate;
   }
 
   bool IsOfstImmediate() const {
@@ -180,8 +178,6 @@ class Operand {
   virtual std::string GetHashContent() const {
     return std::to_string(opndKind) + std::to_string(size);
   }
-
-  virtual void Emit(Emitter&, const OpndProp*) const = 0;
 
   virtual void Dump() const = 0;
 
@@ -279,11 +275,10 @@ class RegOperand : public OperandVisitable<RegOperand> {
     regNO = regNum;
   }
 
-  void Emit(Emitter &emitter, const OpndProp *opndProp) const override {
-    CHECK_FATAL(false, "do not run here");
-  };
   void Dump() const override {
-    CHECK_FATAL(false, "do not run here");
+    LogInfo::MapleLogger() << "reg ";
+    LogInfo::MapleLogger() << "size : " << GetSize();
+    LogInfo::MapleLogger() << " NO_" << GetRegisterNumber();
   };
 
   bool Less(const Operand &right) const override {
@@ -406,6 +401,14 @@ class RegOperand : public OperandVisitable<RegOperand> {
     return vecElementSize;
   }
 
+  void SetHigh8Bit() {
+    isHigh8Bit = true;
+  }
+
+  bool IsHigh8Bit() {
+    return isHigh8Bit;
+  }
+
   bool operator==(const RegOperand &o) const;
 
   bool operator<(const RegOperand &o) const;
@@ -429,6 +432,7 @@ class RegOperand : public OperandVisitable<RegOperand> {
   uint16 vecLaneSize = 0; /* Number of lanes */
   uint64 vecElementSize = 0;  /* size of vector element in each lane */
   bool if64Vec = false;   /* operand returning 64x1's int value in FP/Simd register */
+  bool isHigh8Bit = false;
 }; /* class RegOperand */
 
 enum VaryType : uint8 {
@@ -443,12 +447,26 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
       : OperandVisitable(kOpdImmediate, size), value(val), isSigned(isSigned), isVary(isVar), isFmov(isFloat) {}
   ImmOperand(OperandType type, int64 val, uint32 size, bool isSigned, VaryType isVar = kNotVary, bool isFloat = false)
       : OperandVisitable(type, size), value(val), isSigned(isSigned), isVary(isVar), isFmov(isFloat) {}
-
+  ImmOperand(const MIRSymbol &symbol, int64 val, int32 relocs, bool isSigned, VaryType isVar = kNotVary,
+      bool isFloat = false) : OperandVisitable(kOpdStImmediate, 0), value(val), isSigned(isSigned), isVary(isVar),
+      isFmov(isFloat), symbol(&symbol), relocs(relocs) {}
   ~ImmOperand() override = default;
   using OperandVisitable<ImmOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<ImmOperand>(*this);
+  }
+
+  const MIRSymbol *GetSymbol() const {
+    return symbol;
+  }
+
+  const std::string &GetName() const {
+    return symbol->GetName();
+  }
+
+  int32 GetRelocs() const {
+    return relocs;
   }
 
   bool IsInBitSize(uint8 size, uint8 nLowerZeroBits) const {
@@ -594,10 +612,6 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
     return (value == iOpnd.value && isSigned == iOpnd.isSigned && size == iOpnd.GetSize());
   }
 
-  void Emit(Emitter &emitter, const OpndProp *prop) const override {
-    CHECK_FATAL(false, "do not run here");
-  }
-
   void Dump() const override;
 
   bool Less(const Operand &right) const override {
@@ -655,6 +669,8 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
   bool isSigned;
   VaryType isVary;
   bool isFmov = false;
+  const MIRSymbol *symbol; /* for Immediate in symbol form */
+  int32 relocs;
 };
 
 class OfstOperand : public ImmOperand {
@@ -728,10 +744,6 @@ class OfstOperand : public ImmOperand {
             (offsetType == opnd.offsetType && symbol < opnd.symbol) ||
             (offsetType == opnd.offsetType && symbol == opnd.symbol && GetValue() < opnd.GetValue()));
   }
-
-  void Emit(Emitter &emitter, const OpndProp *prop) const override {
-    CHECK_FATAL(false, "dont run here");
-  };
 
   void Dump() const override {
     if (IsImmOffset()) {
@@ -844,10 +856,12 @@ class MemOperand : public OperandVisitable<MemOperand> {
     kPostIndex,  /* base register gets changed after load */
   };
 
+  MemOperand(uint32 size) :
+      OperandVisitable(Operand::kOpdMem, size) {}
   MemOperand(uint32 size, const MIRSymbol &mirSymbol) : OperandVisitable(Operand::kOpdMem, size), symbol(&mirSymbol) {}
 
   MemOperand(uint32 size, RegOperand *baseOp, RegOperand *indexOp, ImmOperand *ofstOp, const MIRSymbol *mirSymbol,
-             Operand *scaleOp = nullptr)
+             ImmOperand *scaleOp = nullptr)
       : OperandVisitable(Operand::kOpdMem, size),
         baseOpnd(baseOp),
         indexOpnd(indexOp),
@@ -945,7 +959,6 @@ class MemOperand : public OperandVisitable<MemOperand> {
     return memPool.Clone<MemOperand>(*this);
   }
 
-  void Emit(Emitter &emitter, const OpndProp *opndProp) const override {};
   void Dump() const override {};
 
   RegOperand *GetBaseRegister() const {
@@ -972,8 +985,12 @@ class MemOperand : public OperandVisitable<MemOperand> {
     offsetOpnd = &oftOpnd;
   }
 
-  const Operand *GetScaleOperand() const {
+  const ImmOperand *GetScaleOperand() const {
     return scaleOpnd;
+  }
+
+  void SetScaleOperand(ImmOperand &scaOpnd) {
+    scaleOpnd = &scaOpnd;
   }
 
   const MIRSymbol *GetSymbol() const {
@@ -988,7 +1005,7 @@ class MemOperand : public OperandVisitable<MemOperand> {
     return (memoryOrder & memOrder) != 0;
   }
 
-  void SetAccessSize(uint8 size) {
+  void SetAccessSize(uint32 size) {
     accessSize = size;
   }
 
@@ -1062,18 +1079,25 @@ class MemOperand : public OperandVisitable<MemOperand> {
     ASSERT(dSize >= k8BitSize, "error val:dSize");
     ASSERT(dSize <= k128BitSize, "error val:dSize");
     ASSERT((dSize & (dSize - 1)) == 0, "error val:dSize");
-    if (dSize == k8BitSize || addrMode != kAddrModeBOi) {
+    if (dSize == k8BitSize) {
       return false;
     }
     OfstOperand *ofstOpnd = GetOffsetImmediate();
     if (!ofstOpnd) {
       return false;
     }
-    if (ofstOpnd->GetOffsetValue() >= kMinSimm32 && ofstOpnd->GetOffsetValue() <= kMaxSimm32) {
-      return false;
+    int64 ofstVal = ofstOpnd->GetOffsetValue();
+    if (addrMode == kAddrModeBOi) {
+      if (ofstVal >= kMinSimm32 && ofstVal <= kMaxSimm32) {
+        return false;
+      }
+      return ((static_cast<uint32>(ofstOpnd->GetOffsetValue()) &
+              static_cast<uint32>((1U << static_cast<uint32>(GetImmediateOffsetAlignment(dSize))) - 1)) != 0);
+    } else if (addrMode == kAddrModeLo12Li) {
+      uint32 alignByte = (dSize / k8BitSize);
+      return ((ofstVal % alignByte) != k0BitSize);
     }
-    return ((static_cast<uint32>(ofstOpnd->GetOffsetValue()) &
-             static_cast<uint32>((1U << static_cast<uint32>(GetImmediateOffsetAlignment(dSize))) - 1)) != 0);
+    return false;
   }
 
   static bool IsSIMMOffsetOutOfRange(int64 offset, bool is64bit, bool isLDSTPair) {
@@ -1210,7 +1234,7 @@ class MemOperand : public OperandVisitable<MemOperand> {
   RegOperand *baseOpnd = nullptr;    /* base register */
   RegOperand *indexOpnd = nullptr;   /* index register */
   ImmOperand *offsetOpnd = nullptr; /* offset immediate */
-  Operand *scaleOpnd = nullptr;
+  ImmOperand *scaleOpnd = nullptr;
   const MIRSymbol *symbol; /* AddrMode_Literal */
   uint32 memoryOrder = 0;
   uint8 accessSize = 0; /* temp, must be set right before use everytime. */
@@ -1224,8 +1248,8 @@ class MemOperand : public OperandVisitable<MemOperand> {
 
 class LabelOperand : public OperandVisitable<LabelOperand> {
  public:
-  LabelOperand(const char *parent, LabelIdx labIdx)
-      : OperandVisitable(kOpdBBAddress, 0), labelIndex(labIdx), parentFunc(parent), orderID(-1u) {}
+  LabelOperand(const char *parent, LabelIdx labIdx, MemPool &mp)
+      : OperandVisitable(kOpdBBAddress, 0), labelIndex(labIdx), parentFunc(parent, &mp), orderID(-1u) {}
 
   ~LabelOperand() override = default;
   using OperandVisitable<LabelOperand>::OperandVisitable;
@@ -1242,7 +1266,7 @@ class LabelOperand : public OperandVisitable<LabelOperand> {
     return labelIndex;
   }
 
-  const std::string GetParentFunc() const {
+  const MapleString &GetParentFunc() const {
     return parentFunc;
   }
 
@@ -1252,10 +1276,6 @@ class LabelOperand : public OperandVisitable<LabelOperand> {
 
   void SetLabelOrder(LabelIDOrder idx) {
     orderID = idx;
-  }
-
-  void Emit(Emitter &emitter, const OpndProp *opndProp) const override {
-    CHECK_FATAL(false, "do not run here");
   }
 
   void Dump() const override;
@@ -1272,7 +1292,7 @@ class LabelOperand : public OperandVisitable<LabelOperand> {
 
     auto *rightOpnd = static_cast<const LabelOperand*>(&right);
 
-    int32 nRes = strcmp(parentFunc, rightOpnd->parentFunc);
+    int32 nRes = strcmp(parentFunc.c_str(), rightOpnd->parentFunc.c_str());
     if (nRes == 0) {
       return labelIndex < rightOpnd->labelIndex;
     } else {
@@ -1290,7 +1310,7 @@ class LabelOperand : public OperandVisitable<LabelOperand> {
 
  protected:
   LabelIdx labelIndex;
-  const char *parentFunc;
+  const MapleString parentFunc;
 
  private:
   /* this index records the order this label is defined during code emit. */
@@ -1323,10 +1343,6 @@ class ListOperand : public OperandVisitable<ListOperand> {
     return opndList;
   }
 
-  void Emit(Emitter &emitter, const OpndProp *opndProp) const override {
-    CHECK_FATAL(false, "do not run here");
-  }
-
   void Dump() const override {
     for (auto it = opndList.begin(); it != opndList.end();) {
       (*it)->Dump();
@@ -1356,6 +1372,258 @@ class ListOperand : public OperandVisitable<ListOperand> {
   MapleList<RegOperand*> opndList;
 };
 
+/* representing for global variables address */
+class StImmOperand : public OperandVisitable<StImmOperand> {
+ public:
+  StImmOperand(const MIRSymbol &symbol, int64 offset, int32 relocs)
+      : OperandVisitable(kOpdStImmediate, 0), symbol(&symbol), offset(offset), relocs(relocs) {}
+
+  ~StImmOperand() override = default;
+  using OperandVisitable<StImmOperand>::OperandVisitable;
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<StImmOperand>(*this);
+  }
+
+  const MIRSymbol *GetSymbol() const {
+    return symbol;
+  }
+
+  const std::string &GetName() const {
+    return symbol->GetName();
+  }
+
+  int64 GetOffset() const {
+    return offset;
+  }
+
+  void SetOffset(int64 newOffset) {
+    offset = newOffset;
+  }
+
+  int32 GetRelocs() const {
+    return relocs;
+  }
+
+  bool operator==(const StImmOperand &opnd) const {
+    return (symbol == opnd.symbol && offset == opnd.offset && relocs == opnd.relocs);
+  }
+
+  bool operator<(const StImmOperand &opnd) const {
+    return (symbol < opnd.symbol || (symbol == opnd.symbol && offset < opnd.offset) ||
+            (symbol == opnd.symbol && offset == opnd.offset && relocs < opnd.relocs));
+  }
+
+  bool Less(const Operand &right) const override;
+
+  void Dump() const override {
+    CHECK_FATAL(false, "dont run here");
+  }
+
+ private:
+  const MIRSymbol *symbol;
+  int64 offset;
+  int32 relocs;
+};
+
+class ExtendShiftOperand : public OperandVisitable<ExtendShiftOperand> {
+ public:
+  /* if and only if at least one register is WSP, ARM Recommends use of the LSL operator name rathe than UXTW */
+  enum ExtendOp : uint8 {
+    kUndef,
+    kUXTB,
+    kUXTH,
+    kUXTW, /* equal to lsl in 32bits */
+    kUXTX, /* equal to lsl in 64bits */
+    kSXTB,
+    kSXTH,
+    kSXTW,
+    kSXTX,
+  };
+
+  ExtendShiftOperand(ExtendOp op, uint32 amt, int32 bitLen)
+      : OperandVisitable(Operand::kOpdExtend, bitLen), extendOp(op), shiftAmount(amt) {}
+
+  ~ExtendShiftOperand() override = default;
+  using OperandVisitable<ExtendShiftOperand>::OperandVisitable;
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<ExtendShiftOperand>(*this);
+  }
+
+  uint32 GetShiftAmount() const {
+    return shiftAmount;
+  }
+
+  ExtendOp GetExtendOp() const {
+    return extendOp;
+  }
+
+  bool Less(const Operand &right) const override;
+
+  void Dump() const override {
+    CHECK_FATAL(false, "dont run here");
+  }
+
+  bool Equals(Operand &operand) const override {
+    if (!operand.IsOpdExtend()) {
+      return false;
+    }
+    auto &op = static_cast<ExtendShiftOperand&>(operand);
+    return ((&op == this) || (op.GetExtendOp() == extendOp && op.GetShiftAmount() == shiftAmount));
+  }
+
+  std::string GetHashContent() const override {
+    return std::to_string(opndKind) + std::to_string(extendOp) + std::to_string(shiftAmount);
+  }
+
+ private:
+  ExtendOp extendOp;
+  uint32 shiftAmount;
+};
+
+class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
+ public:
+  enum ShiftOp : uint8 {
+    kUndef,
+    kLSL, /* logical shift left */
+    kLSR, /* logical shift right */
+    kASR, /* arithmetic shift right */
+    kROR, /* rotate shift right */
+  };
+
+  /* bitlength is equal to 5 or 6 */
+  BitShiftOperand(ShiftOp op, uint32 amt, int32 bitLen)
+      : OperandVisitable(Operand::kOpdShift, bitLen), shiftOp(op), shiftAmount(amt) {}
+
+  ~BitShiftOperand() override = default;
+  using OperandVisitable<BitShiftOperand>::OperandVisitable;
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<BitShiftOperand>(*this);
+  }
+
+  bool Less(const Operand &right) const override {
+    if (&right == this) {
+      return false;
+    }
+
+    /* For different type. */
+    if (GetKind() != right.GetKind()) {
+      return GetKind() < right.GetKind();
+    }
+
+    const BitShiftOperand *rightOpnd = static_cast<const BitShiftOperand*>(&right);
+
+    /* The same type. */
+    if (shiftOp != rightOpnd->shiftOp) {
+      return shiftOp < rightOpnd->shiftOp;
+    }
+    return shiftAmount < rightOpnd->shiftAmount;
+  }
+
+  uint32 GetShiftAmount() const {
+    return shiftAmount;
+  }
+
+  ShiftOp GetShiftOp() const {
+    return shiftOp;
+  }
+
+  void Dump() const override {
+    CHECK_FATAL(false, "dont run here");
+  }
+
+  bool Equals(Operand &operand) const override {
+    if (!operand.IsOpdShift()) {
+      return false;
+    }
+    auto &op = static_cast<BitShiftOperand&>(operand);
+    return ((&op == this) || (op.GetShiftOp() == shiftOp && op.GetShiftAmount() == shiftAmount));
+  }
+
+  std::string GetHashContent() const override {
+    return std::to_string(opndKind) + std::to_string(shiftOp) + std::to_string(shiftAmount);
+  }
+
+ private:
+  ShiftOp shiftOp;
+  uint32 shiftAmount;
+};
+
+class CommentOperand : public OperandVisitable<CommentOperand> {
+ public:
+  CommentOperand(const char *str, MemPool &memPool)
+      : OperandVisitable(Operand::kOpdString, 0), comment(str, &memPool) {}
+
+  CommentOperand(const std::string &str, MemPool &memPool)
+      : OperandVisitable(Operand::kOpdString, 0), comment(str, &memPool) {}
+
+  ~CommentOperand() override = default;
+  using OperandVisitable<CommentOperand>::OperandVisitable;
+
+  const MapleString &GetComment() const {
+    return comment;
+  }
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<CommentOperand>(*this);
+  }
+
+  bool IsCommentOpnd() const override {
+    return true;
+  }
+
+  bool Less(const Operand &right) const override {
+    /* For different type. */
+    return GetKind() < right.GetKind();
+  }
+
+  void Dump() const override {
+    LogInfo::MapleLogger() << "# ";
+    if (!comment.empty()) {
+      LogInfo::MapleLogger() << comment;
+    }
+  }
+
+ private:
+  const MapleString comment;
+};
+
+using StringOperand = CommentOperand;
+
+class ListConstraintOperand : public OperandVisitable<ListConstraintOperand> {
+ public:
+  explicit ListConstraintOperand(MapleAllocator &allocator)
+      : OperandVisitable(Operand::kOpdString, 0),
+        stringList(allocator.Adapter()) {};
+
+  ~ListConstraintOperand() override = default;
+  using OperandVisitable<ListConstraintOperand>::OperandVisitable;
+
+  void Dump() const override {
+    for (auto *str : stringList) {
+      LogInfo::MapleLogger() << "(" << str->GetComment().c_str() << ")";
+    }
+  }
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<ListConstraintOperand>(*this);
+  }
+
+  bool Less(const Operand &right) const override {
+    /* For different type. */
+    if (opndKind != right.GetKind()) {
+      return opndKind < right.GetKind();
+    }
+
+    ASSERT(false, "We don't need to compare list operand.");
+    return false;
+  }
+
+  MapleVector<StringOperand*> stringList;
+};
+
 /* for cg ssa analysis */
 class PhiOperand : public OperandVisitable<PhiOperand> {
  public:
@@ -1368,10 +1636,6 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
 
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<PhiOperand>(*this);
-  }
-
-  void Emit(Emitter &emitter, const OpndProp *opndProp) const override  {
-    CHECK_FATAL(false, "a CPU support phi?");
   }
 
   void Dump() const override {
@@ -1396,29 +1660,9 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
     return phiList;
   }
 
-  uint32 GetLeastCommonValidBit() {
-    uint32 leastCommonVb = 0;
-    for (auto &phiOpnd : std::as_const(phiList)) {
-      uint32 curVb = phiOpnd.second->GetValidBitsNum();
-      if (curVb > leastCommonVb) {
-        leastCommonVb = curVb;
-      }
-    }
-    return leastCommonVb;
-  }
+  uint32 GetLeastCommonValidBit() const;
 
-  bool IsRedundancy() {
-    uint32 srcSsaIdx = 0;
-    for (auto &phiOpnd : std::as_const(phiList)) {
-      if (srcSsaIdx == 0) {
-        srcSsaIdx = phiOpnd.second->GetRegisterNumber();
-      }
-      if (srcSsaIdx != phiOpnd.second->GetRegisterNumber()) {
-        return false;
-      }
-    }
-    return true;
-  }
+  bool IsRedundancy() const;
 
   bool Less(const Operand &right) const override {
     /* For different type. */
@@ -1441,226 +1685,23 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
   MapleMap<uint32, RegOperand*> phiList; /* ssa-operand && BBId */
 };
 
-class CGRegOperand : public OperandVisitable<CGRegOperand> {
+/* Use StImmOperand instead? */
+class FuncNameOperand : public OperandVisitable<FuncNameOperand> {
  public:
-  CGRegOperand(regno_t regId, uint32 sz, RegType type)
-      : OperandVisitable(kOpdRegister, sz),
-        regNO(regId),
-        regType(type) {}
-  ~CGRegOperand() override = default;
-  using OperandVisitable<CGRegOperand>::OperandVisitable;
-
-  regno_t GetRegisterNumber() const {
-    return regNO;
-  }
-  bool IsOfIntClass() const {
-    return regType == kRegTyInt;
-  }
-
-  bool IsOfFloatOrSIMDClass() const {
-    return regType == kRegTyFloat;
-  }
-
-  bool IsOfCC() const {
-    return regType == kRegTyCc;
-  }
-
-  bool IsOfVary() const {
-    return regType == kRegTyVary;
-  }
-
-  RegType GetRegisterType() const {
-    return regType;
-  }
-
-  void SetRegisterType(RegType newTy) {
-    regType = newTy;
-  }
-
-  Operand *Clone(MemPool &memPool) const override {
-    return memPool.New<CGRegOperand>(*this);
-  }
-  bool Less(const Operand &right) const override {
-    return GetKind() < right.GetKind();
-  }
-  /* delete soon */
-  void Emit(Emitter&, const OpndProp*) const override {}
-
-  void Dump() const override {
-    LogInfo::MapleLogger() << "reg ";
-    LogInfo::MapleLogger() << "size : " << GetSize();
-    LogInfo::MapleLogger() << " NO_" << GetRegisterNumber();
-  }
- private:
-  regno_t regNO;
-  RegType regType;
-};
-
-class CGImmOperand : public OperandVisitable<CGImmOperand> {
- public:
-  CGImmOperand(uint32 sz, int64 value) : OperandVisitable(kOpdImmediate, sz), val(value), symbol(nullptr), relocs(0) {}
-  CGImmOperand(const MIRSymbol &symbol, int64 value, int32 relocs)
-      : OperandVisitable(kOpdStImmediate, 0), val(value), symbol(&symbol), relocs(relocs) {}
-  ~CGImmOperand() override {
-    symbol = nullptr;
-  }
-  using OperandVisitable<CGImmOperand>::OperandVisitable;
-
-  int64 GetValue() const {
-    return val;
-  }
-  const MIRSymbol *GetSymbol() const {
-    return symbol;
-  }
-  const std::string &GetName() const {
-    return symbol->GetName();
-  }
-  int32 GetRelocs() const {
-    return relocs;
-  }
-
-  Operand *Clone(MemPool &memPool) const override {
-    return memPool.New<CGImmOperand>(*this);
-  }
-  bool Less(const Operand &right) const override {
-    return GetKind() < right.GetKind();
-  }
-
-  /* delete soon */
-  void Emit(Emitter&, const OpndProp*) const override {}
-
-  void Dump() const override {
-    if (GetSymbol() != nullptr && GetSize() == 0) {
-      /* for symbol form */
-      LogInfo::MapleLogger() << "symbol : " << GetName();
-    } else {
-      LogInfo::MapleLogger() << "imm ";
-      LogInfo::MapleLogger() << "size : " << GetSize();
-      LogInfo::MapleLogger() << " value : " << GetValue();
-    }
-  }
- private:
-  int64 val;
-  const MIRSymbol *symbol; /* for Immediate in symbol form */
-  int32 relocs;
-};
-
-class CGMemOperand : public OperandVisitable<CGMemOperand> {
- public:
-  explicit CGMemOperand(uint32 sz) : OperandVisitable(kOpdMem, sz) {}
-  ~CGMemOperand() override {
-    baseReg = nullptr;
-    indexReg = nullptr;
-    baseOfst = nullptr;
-    scaleFactor = nullptr;
-  }
-  using OperandVisitable<CGMemOperand>::OperandVisitable;
-
-  void Dump() const override {
-    LogInfo::MapleLogger() << "mem ";
-    LogInfo::MapleLogger() << "size : " << GetSize();
-  }
-
-  Operand *Clone(MemPool &memPool) const override {
-    return memPool.New<CGMemOperand>(*this);
-  }
-
-  bool Less(const Operand &right) const override {
-    return GetKind() < right.GetKind();
-  }
-  /* delete soon */
-  void Emit(Emitter&, const OpndProp*) const override {}
-
-  CGRegOperand *GetBaseRegister() const {
-    return baseReg;
-  }
-
-  void SetBaseRegister(CGRegOperand &newReg) {
-    baseReg = &newReg;
-  }
-
-  CGRegOperand *GetIndexRegister() const {
-    return indexReg;
-  }
-
-  void SetIndexRegister(CGRegOperand &newIndex) {
-    indexReg = &newIndex;
-  }
-
-  CGImmOperand *GetBaseOfst() const {
-    return baseOfst;
-  }
-
-  void SetBaseOfst(CGImmOperand &newOfst) {
-    baseOfst = &newOfst;
-  }
-
-  CGImmOperand *GetScaleFactor() const {
-    return scaleFactor;
-  }
-
-  void SetScaleFactor(CGImmOperand &scale) {
-    scaleFactor = &scale;
-  }
-
- private:
-  CGRegOperand *baseReg = nullptr;
-  CGRegOperand *indexReg = nullptr;
-  CGImmOperand *baseOfst = nullptr;
-  CGImmOperand *scaleFactor = nullptr;
-};
-
-class CGListOperand : public OperandVisitable<CGListOperand> {
- public:
-  explicit CGListOperand(MapleAllocator &allocator)
-      : OperandVisitable(Operand::kOpdList, 0),
-        opndList(allocator.Adapter()) {}
-
-  ~CGListOperand() override = default;
-
-  using OperandVisitable<CGListOperand>::OperandVisitable;
-
-  void PushOpnd(CGRegOperand &opnd) {
-    opndList.push_back(&opnd);
-  }
-
-  MapleList<CGRegOperand*> &GetOperands() {
-    return opndList;
-  }
-
-  Operand *Clone(MemPool &memPool) const override {
-    return memPool.New<CGListOperand>(*this);
-  }
-
-  bool Less(const Operand &right) const override {
-    return GetKind() < right.GetKind();
-  }
-  /* delete soon */
-  void Emit(Emitter&, const OpndProp*) const override {}
-
-  void Dump() const override {
-    for (auto it = opndList.begin(); it != opndList.end();) {
-      (*it)->Dump();
-      LogInfo::MapleLogger() << (++it == opndList.end() ? "" : " ,");
-    }
-  }
-
- protected:
-  MapleList<CGRegOperand*> opndList;
-};
-
-class CGFuncNameOperand : public OperandVisitable<CGFuncNameOperand> {
- public:
-  explicit CGFuncNameOperand(const MIRSymbol &fsym) : OperandVisitable(kOpdBBAddress, 0),
+  explicit FuncNameOperand(const MIRSymbol &fsym) : OperandVisitable(kOpdBBAddress, 0),
       symbol(&fsym) {}
 
-  ~CGFuncNameOperand() override {
+  ~FuncNameOperand() override {
     symbol = nullptr;
   }
-  using OperandVisitable<CGFuncNameOperand>::OperandVisitable;
+  using OperandVisitable<FuncNameOperand>::OperandVisitable;
 
   const std::string &GetName() const {
     return symbol->GetName();
+  }
+
+  bool IsFuncNameOpnd() const override {
+    return true;
   }
 
   const MIRSymbol *GetFunctionSymbol() const {
@@ -1672,15 +1713,22 @@ class CGFuncNameOperand : public OperandVisitable<CGFuncNameOperand> {
   }
 
   Operand *Clone(MemPool &memPool) const override {
-    return memPool.New<CGFuncNameOperand>(*this);
+    return memPool.New<FuncNameOperand>(*this);
   }
 
   bool Less(const Operand &right) const override {
-    return GetKind() < right.GetKind();
-  }
+    if (&right == this) {
+      return false;
+    }
+    /* For different type. */
+    if (GetKind() != right.GetKind()) {
+      return GetKind() < right.GetKind();
+    }
 
-  /* delete soon */
-  void Emit(Emitter&, const OpndProp*) const override {}
+    auto *rightOpnd = static_cast<const FuncNameOperand*>(&right);
+
+    return static_cast<const void*>(symbol) < static_cast<const void*>(rightOpnd->symbol);
+  }
 
   void Dump() const override {
     LogInfo::MapleLogger() << GetName();
@@ -1688,59 +1736,6 @@ class CGFuncNameOperand : public OperandVisitable<CGFuncNameOperand> {
 
  private:
   const MIRSymbol *symbol;
-};
-
-class CGLabelOperand : public OperandVisitable<CGLabelOperand> {
- public:
-  CGLabelOperand(const char *parent, LabelIdx labIdx)
-      : OperandVisitable(kOpdBBAddress, 0), labelIndex(labIdx), parentFunc(parent) {}
-
-  ~CGLabelOperand() override = default;
-  using OperandVisitable<CGLabelOperand>::OperandVisitable;
-
-  Operand *Clone(MemPool &memPool) const override {
-    return memPool.Clone<CGLabelOperand>(*this);
-  }
-
-  LabelIdx GetLabelIndex() const {
-    return labelIndex;
-  }
-
-  const std::string &GetParentFunc() const {
-    return parentFunc;
-  }
-
-  void Emit(Emitter &emitter, const OpndProp *opndProp) const override {}
-
-  void Dump() const override {
-    LogInfo::MapleLogger() << "label ";
-    LogInfo::MapleLogger() << "name : " << GetParentFunc();
-    LogInfo::MapleLogger() << " Idx: " << GetLabelIndex();
-  }
-
-  bool Less(const Operand &right) const override {
-    if (&right == this) {
-      return false;
-    }
-
-    /* For different type. */
-    if (opndKind != right.GetKind()) {
-      return opndKind < right.GetKind();
-    }
-
-    auto *rightOpnd = static_cast<const CGLabelOperand*>(&right);
-
-    int32 nRes = strcmp(parentFunc.c_str(), rightOpnd->parentFunc.c_str());
-    if (nRes == 0) {
-      return labelIndex < rightOpnd->labelIndex;
-    } else {
-      return nRes < 0;
-    }
-  }
-
- protected:
-  LabelIdx labelIndex;
-  const std::string parentFunc;
 };
 
 namespace operand {
@@ -1774,10 +1769,10 @@ enum MemOpndDescProp : maple::uint64 {
 };
 }
 
-class OpndDescription {
+class OpndDesc {
  public:
-  OpndDescription(Operand::OperandType t, maple::uint64 p, maple::uint32 s) : opndType(t), property(p), size(s) {}
-  virtual ~OpndDescription() = default;
+  OpndDesc(Operand::OperandType t, maple::uint64 p, maple::uint32 s) : opndType(t), property(p), size(s) {}
+  virtual ~OpndDesc() = default;
 
   Operand::OperandType GetOperandType() const {
     return opndType;
@@ -1827,7 +1822,11 @@ class OpndDescription {
     return (property & operand::kIsLoadLiteral) != 0;
   }
 
-#define DEFINE_MOP(op, ...) static const OpndDescription op;
+  bool IsVectorOperand() const {
+    return (property & operand::kIsVector);
+  }
+
+#define DEFINE_MOP(op, ...) static const OpndDesc op;
 #include "operand.def"
 #undef DEFINE_MOP
 
@@ -1837,15 +1836,48 @@ class OpndDescription {
   maple::uint32 size;
 };
 
-class OpndDumpVisitor : public OperandVisitorBase,
-                        public OperandVisitors<CGRegOperand,
-                                               CGImmOperand,
-                                               CGMemOperand,
-                                               CGFuncNameOperand,
-                                               CGListOperand,
-                                               CGLabelOperand> {
+class CondOperand : public OperandVisitable<CondOperand> {
  public:
-  explicit OpndDumpVisitor(const OpndDescription &operandDesc) : opndDesc(&operandDesc) {}
+  explicit CondOperand(maplebe::ConditionCode cc) : OperandVisitable(Operand::kOpdCond, k4ByteSize), cc(cc) {}
+
+  ~CondOperand() override = default;
+  using OperandVisitable<CondOperand>::OperandVisitable;
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.New<CondOperand>(cc);
+  }
+
+  ConditionCode GetCode() const {
+    return cc;
+  }
+
+  bool Less(const Operand &right) const override;
+
+  void Dump() const override {
+    CHECK_FATAL(false, "dont run here");
+  }
+
+  static const char *ccStrs[kCcLast];
+
+ private:
+  ConditionCode cc;
+};
+
+class OpndDumpVisitor : public OperandVisitorBase,
+                        public OperandVisitors<RegOperand,
+                                               ImmOperand,
+                                               MemOperand,
+                                               LabelOperand,
+                                               FuncNameOperand,
+                                               ListOperand,
+                                               StImmOperand,
+                                               CondOperand,
+                                               CommentOperand,
+                                               BitShiftOperand,
+                                               ExtendShiftOperand,
+                                               PhiOperand> {
+ public:
+  explicit OpndDumpVisitor(const OpndDesc &operandDesc) : opndDesc(&operandDesc) {}
   ~OpndDumpVisitor() override {
     opndDesc = nullptr;
   }
@@ -1860,12 +1892,12 @@ class OpndDumpVisitor : public OperandVisitorBase,
   void DumpSize(const Operand &opnd) const {
     LogInfo::MapleLogger() << " [size:" << opnd.GetSize() << "]";
   }
-  const OpndDescription *GetOpndDesc() const {
+  const OpndDesc *GetOpndDesc() const {
     return opndDesc;
   }
 
  private:
-  const OpndDescription *opndDesc;
+  const OpndDesc *opndDesc;
 };
 } /* namespace maplebe */
 

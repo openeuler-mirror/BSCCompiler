@@ -20,7 +20,7 @@
 #include "mir_function.h"
 
 namespace maple {
-MIRSymbol *GetOrCreateProfSymForFunc(MIRFunction *func, uint32 elemCnt);
+MIRSymbol *GetOrCreateProfSymForFunc(MIRFunction &func, uint32 elemCnt);
 
 template<typename BB>
 class BBEdge {
@@ -62,6 +62,22 @@ class BBEdge {
     inMST = true;
   }
 
+  int32 GetCondition() const {
+    return condition;
+  }
+
+  void SetCondition(int32 cond) {
+    condition = cond;
+  }
+
+  bool IsBackEdge() const {
+    return isBackEdge;
+  }
+
+  void SetIsBackEdge() {
+    isBackEdge = true;
+  }
+
  private:
   BB *srcBB;
   BB *destBB;
@@ -69,6 +85,8 @@ class BBEdge {
   bool inMST;
   bool isCritical;
   bool isFake;
+  int32 condition = -1;
+  bool isBackEdge = false;
 };
 
 template<typename BB>
@@ -97,7 +115,7 @@ class BBUseEdge : public BBEdge<BB> {
 template<class IRBB, class Edge>
 class PGOInstrumentTemplate {
  public:
-  PGOInstrumentTemplate(MemPool &mp) : mst(mp) {}
+  explicit PGOInstrumentTemplate(MemPool &mp) : mst(mp) {}
 
   void GetInstrumentBBs(std::vector<IRBB*> &bbs, IRBB *commonEnty) const;
   void PrepareInstrumentInfo(IRBB *commonEntry, IRBB* commmonExit) {

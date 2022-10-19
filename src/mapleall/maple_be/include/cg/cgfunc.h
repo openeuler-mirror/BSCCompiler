@@ -1045,6 +1045,10 @@ class CGFunc {
     return bbVec;
   }
 
+  std::size_t GetAllBBSize() const {
+    return bbVec.size();
+  }
+
   BB *GetBBFromID(uint32 id) {
     return bbVec[id];
   }

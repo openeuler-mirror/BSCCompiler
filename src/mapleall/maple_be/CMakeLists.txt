@@ -21,6 +21,7 @@ set(deps_maple
   libcommandline
   libmplutil
   libmempool
+  libmaplepgo
   libHWSecureC
   libcg
   libmplad
@@ -40,6 +41,7 @@ set(inc_dirs
     ${MAPLEALL_ROOT}/maple_be/include/ad/target
     ${MAPLEALL_ROOT}/maple_be/include/be
     ${MAPLEALL_ROOT}/maple_driver/include
+    ${MAPLEALL_ROOT}/maple_pgo/include
     ${MAPLEALL_ROOT}/maple_util/include
     ${MAPLEALL_ROOT}/maple_ir/include
     ${MAPLEALL_ROOT}/maple_me/include
@@ -67,6 +69,7 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/aarch64/aarch64_cfi_generator.cpp
         src/cg/aarch64/aarch64_cgfunc.cpp
         src/cg/aarch64/aarch64_dependence.cpp
+        src/cg/aarch64/aarch64_data_dep_base.cpp
         src/cg/aarch64/aarch64_ebo.cpp
         src/cg/aarch64/aarch64_emitter.cpp
         src/cg/aarch64/aarch64_fixshortbranch.cpp
@@ -102,6 +105,7 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/aarch64/aarch64_validbit_opt.cpp
         src/cg/aarch64/aarch64_rce.cpp
         src/cg/aarch64/aarch64_cfgo.cpp
+        src/cg/aarch64/aarch64_pgo_gen.cpp
         src/cg/aarch64/aarch64_isolate_fastpath.cpp
         src/cg/aarch64/aarch64_rematerialize.cpp
         src/cg/cfi_generator.cpp
@@ -110,6 +114,8 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/ebo.cpp
         src/cg/ra_opt.cpp
         src/cg/tailcall.cpp
+        src/cg/cg_pgo_gen.cpp
+        src/cg/cg_pgo_use.cpp
         src/cg/cg_ssa.cpp
         src/cg/cg_prop.cpp
         src/cg/cg_dce.cpp
@@ -133,6 +139,10 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/cg_validbit_opt.cpp
         src/cg/cg_rce.cpp
         src/cg/rematerialize.cpp
+        src/cg/control_dep_analysis.cpp
+        src/cg/data_dep_base.cpp
+        src/cg/data_dep_analysis.cpp
+        src/cg/global_schedule.cpp
     )
 endif()
 

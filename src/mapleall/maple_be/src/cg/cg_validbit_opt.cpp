@@ -80,7 +80,7 @@ void ValidBitOpt::RectifyValidBitNum() {
     }
   }
   bool iterate;
-  /* Use inverse postorder to converge with minimal iterations */
+  /* Use reverse postorder to converge with minimal iterations */
   do {
     iterate = false;
     MapleVector<uint32> reversePostOrder = ssaInfo->GetReversePostOrder();

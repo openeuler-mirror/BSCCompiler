@@ -186,6 +186,7 @@ class PostDomAnalysis : public DominanceBase {
   uint32 ComputePdtPreorder(const BB &bb, uint32 &num);
   bool PostDominate(const BB &bb1, const BB &bb2);  // true if bb1 postdominates bb2
   void Dump();
+  void GeneratePdomTreeDot();
 
   auto &GetPdomFrontierItem(size_t idx) {
     return pdomFrontier[idx];
@@ -201,6 +202,10 @@ class PostDomAnalysis : public DominanceBase {
 
   auto &GetPdomChildrenItem(size_t idx) {
     return pdomChildren[idx];
+  }
+
+  std::size_t GetPdomTreeVecSize() const {
+    return pdomChildren.size();
   }
 
   void ResizePdtPreOrder(size_t n) {

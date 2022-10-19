@@ -69,7 +69,7 @@ void CGCFG::BuildCFG() {
         CHECK_FATAL(branchInsn != nullptr, "machine instruction must be exist in ifBB");
         ASSERT(branchInsn->IsCondBranch(), "must be a conditional branch generated from an intrinsic");
         /* Assume the last non-null operand is the branch target */
-        int lastOpndIndex = curBB->GetLastInsn()->GetOperandSize() - 1;
+        int lastOpndIndex = curBB->GetLastMachineInsn()->GetOperandSize() - 1;
         ASSERT(lastOpndIndex > -1, "lastOpndIndex's opnd is greater than -1");
         Operand &lastOpnd = branchInsn->GetOperand(static_cast<uint32>(lastOpndIndex));
         ASSERT(lastOpnd.IsLabelOpnd(), "label Operand must be exist in branch insn");
@@ -227,6 +227,7 @@ void CGCFG::CheckCFGFreq() {
       }
     }
   }
+  LogInfo::MapleLogger() << "Check Frequency for " << cgFunc->GetName() << " success!\n";
 }
 
 InsnVisitor *CGCFG::insnVisitor;
@@ -314,6 +315,14 @@ void CGCFG::MergeBB(BB &merger, BB &mergee, CGFunc &func) {
     }
     func.PushBackExitBBsVec(merger);
   }
+  /* if mergee is infinite loop */
+  BB *commonExit =  func.GetCommonExitBB();
+  auto exitPredIt = std::find(commonExit->GetPredsBegin(), commonExit->GetPredsEnd(), &mergee);
+  if (exitPredIt != commonExit->GetPredsEnd()) {
+    commonExit->ErasePreds(exitPredIt);
+    commonExit->PushBackPreds(merger);
+  }
+
   if (mergee.GetKind() == BB::kBBRangeGoto) {
     func.AddEmitSt(merger.GetId(), *func.GetEmitSt(mergee.GetId()));
     func.DeleteEmitSt(mergee.GetId());
@@ -379,10 +388,8 @@ void CGCFG::FindAndMarkUnreachable(CGFunc &func) {
   BB *bb = firstBB;
   /* set all bb's unreacable to true */
   while (bb != nullptr) {
-    /* Check if bb is the first or the last BB of the function */
-    if ((func.GetCleanupLabel() != nullptr && bb->GetFirstStmt() == func.GetCleanupLabel()) ||
-        InSwitchTable(bb->GetLabIdx(), func) ||
-        bb == func.GetFirstBB() || bb == func.GetLastBB()) {
+    /* Check if bb is the cleanupBB/switchTableBB/firstBB/lastBB of the function */
+    if (bb->IsCleanup() || InSwitchTable(bb->GetLabIdx(), func) || bb == func.GetFirstBB() || bb == func.GetLastBB()) {
       toBeAnalyzedBBs.push(bb);
     } else if (bb->IsLabelTaken() == false) {
       bb->SetUnreachable(true);
@@ -432,12 +439,10 @@ void CGCFG::FindAndMarkUnreachable(CGFunc &func) {
  * @param func
  */
 void CGCFG::FlushUnReachableStatusAndRemoveRelations(BB &bb, const CGFunc &func) const {
-  /* Check if bb is the first or the last BB of the function */
   bool isFirstBBInfunc = (&bb == func.GetFirstBB());
   bool isLastBBInfunc = (&bb == func.GetLastBB());
-  if ((func.GetCleanupLabel() != nullptr && bb.GetFirstStmt() == func.GetCleanupLabel()) ||
-      InSwitchTable(bb.GetLabIdx(), func) || isFirstBBInfunc ||
-      isLastBBInfunc) {
+  /* Check if bb is the cleanupBB/switchTableBB/firstBB/lastBB of the function */
+  if (bb.IsCleanup() || InSwitchTable(bb.GetLabIdx(), func) || isFirstBBInfunc || isLastBBInfunc) {
     return;
   }
   std::stack<BB*> toBeAnalyzedBBs;
@@ -451,8 +456,7 @@ void CGCFG::FlushUnReachableStatusAndRemoveRelations(BB &bb, const CGFunc &func)
     /* Check if bb is the first or the last BB of the function */
     isFirstBBInfunc = (it == func.GetFirstBB());
     isLastBBInfunc = (it == func.GetLastBB());
-    bool needFlush = !isFirstBBInfunc && !isLastBBInfunc &&
-                     (func.GetCleanupLabel() == nullptr || it->GetFirstStmt() != func.GetCleanupLabel()) &&
+    bool needFlush = !isFirstBBInfunc && !isLastBBInfunc && !it->IsCleanup() &&
                      (it->GetPreds().empty() || (it->GetPreds().size() == 1 && it->GetEhPreds().front() == it)) &&
                      it->GetEhPreds().empty() &&
                      !InSwitchTable(it->GetLabIdx(), *cgFunc) &&
@@ -533,6 +537,7 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) const {
     }
     preBB->RemoveSuccs(curBB);
   }
+
   for (BB *ehSucc : curBB.GetEhSuccs()) {
     ehSucc->RemoveEhPreds(curBB);
   }
@@ -540,6 +545,7 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) const {
     ehPred->RemoveEhSuccs(curBB);
   }
   if (curBB.GetNext() != nullptr) {
+    cgFunc->GetCommonExitBB()->RemovePreds(curBB);
     curBB.GetNext()->RemovePreds(curBB);
     curBB.GetNext()->SetPrev(curBB.GetPrev());
   } else {
@@ -683,9 +689,8 @@ void CGCFG::UnreachCodeAnalysis() const {
   BB *bb = firstBB;
   /* set all bb's unreacable to true */
   while (bb != nullptr) {
-    /* Check if bb is the first or the last BB of the function */
-    if (cgFunc->GetCleanupLabel() != nullptr ||
-        bb->GetFirstStmt() == cgFunc->GetCleanupLabel() || InSwitchTable(bb->GetLabIdx(), *cgFunc) ||
+    /* Check if bb is the firstBB/cleanupBB/returnBB/lastBB of the function */
+    if (bb->IsCleanup() || InSwitchTable(bb->GetLabIdx(), *cgFunc) ||
         bb == cgFunc->GetFirstBB() || bb == cgFunc->GetLastBB() ||
         (bb->GetKind() == BB::kBBReturn && !cgFunc->GetMirModule().IsCModule())) {
       toBeAnalyzedBBs.push_front(bb);
@@ -864,7 +869,7 @@ void CGCFG::UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) const {
 }
 
 #if TARGAARCH64
-void CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
+BB *CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
   LabelIdx newLblIdx = cgFunc->CreateLabel();
   BB *newBB = cgFunc->CreateNewBB(newLblIdx, false, BB::kBBGoto, pred.GetFrequency());
   newBB->SetCritical(true);
@@ -915,6 +920,57 @@ void CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
 
   /* update pred, succ */
   UpdatePredsSuccsAfterSplit(pred, succ, *newBB);
+  return newBB;
+}
+
+void CGCFG::ReverseCriticalEdge(BB &cbb) {
+  CHECK_FATAL(cbb.GetPreds().size() == 1, "critical edge bb has more than 1 preds");
+  CHECK_FATAL(cbb.GetSuccs().size() == 1, "critical edge bb has more than 1 succs");
+
+  BB *pred = *cbb.GetPreds().begin();
+  BB *succ = *cbb.GetSuccs().begin();
+
+  if (pred->GetKind() == BB::kBBIf) {
+    Insn *brInsn = FindLastCondBrInsn(*pred);
+    ASSERT(brInsn != nullptr, "null ptr check");
+    LabelOperand &brTarget = static_cast<LabelOperand&>(brInsn->GetOperand(AArch64isa::GetJumpTargetIdx(*brInsn)));
+    if (brTarget.GetLabelIndex() == cbb.GetLabIdx()) {
+      CHECK_FATAL(succ->GetLabIdx() != MIRLabelTable::GetDummyLabel(), "unexpect label");
+      brInsn->SetOperand(AArch64isa::GetJumpTargetIdx(*brInsn), cgFunc->GetOrCreateLabelOperand(succ->GetLabIdx()));
+    } else {
+      CHECK_FATAL(false, "pred of critical edge bb do not goto cbb");
+    }
+  } else if (pred->GetKind() == BB::kBBRangeGoto) {
+    const MapleVector<LabelIdx> &labelVec = pred->GetRangeGotoLabelVec();
+    uint32 index = 0;
+    CHECK_FATAL(succ->GetLabIdx() != MIRLabelTable::GetDummyLabel(), "unexpect label");
+    for (auto label: labelVec) {
+      /* single edge for multi jump target, so have to replace all. */
+      if (label == cbb.GetLabIdx()) {
+        pred->SetRangeGotoLabel(index, succ->GetLabIdx());
+      }
+      index++;
+    }
+    MIRSymbol *st = cgFunc->GetEmitSt(pred->GetId());
+    MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
+    MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_a64));
+    MIRConst *mirConst = cgFunc->GetMemoryPool()->New<MIRLblConst>(succ->GetLabIdx(), cgFunc->GetFunction().GetPuidx(),
+        *etype);
+    for (size_t i = 0; i < arrayConst->GetConstVec().size(); ++i) {
+      CHECK_FATAL(arrayConst->GetConstVecItem(i)->GetKind() == kConstLblConst, "not a kConstLblConst");
+      MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
+      if (cbb.GetLabIdx() == lblConst->GetValue()) {
+        arrayConst->SetConstVecItem(i, *mirConst);
+      }
+    }
+  } else {
+    ASSERT(0, "unexpeced bb kind in BreakCriticalEdge");
+  }
+
+  pred->RemoveSuccs(cbb);
+  pred->PushBackSuccs(*succ);
+  succ->RemovePreds(cbb);
+  succ->PushBackPreds(*pred);
 }
 #endif
 

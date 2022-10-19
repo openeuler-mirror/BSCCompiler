@@ -15,10 +15,11 @@
 #ifndef MAPLEBE_INCLUDE_CG_SCHEDULE_H
 #define MAPLEBE_INCLUDE_CG_SCHEDULE_H
 
+#include "data_dep_base.h"
+#include "data_dep_analysis.h"
 #include "insn.h"
-#include "mad.h"
-#include "dependence.h"
 #include "live.h"
+#include "mad.h"
 
 namespace maplebe {
 #define LIST_SCHED_DUMP_NEWPM CG_DEBUG_FUNC(f)
@@ -139,7 +140,7 @@ class Schedule {
                                  MapleVector<DepNode*> &optimizedScheduledNodes) = 0;
   virtual void UpdateReadyList(DepNode &targetNode, MapleVector<DepNode*> &readyList, bool updateEStart) = 0;
   virtual void ListScheduling(bool beforeRA) = 0;
-  virtual void FinalizeScheduling(BB &bb, const DepAnalysis &depAnalysis) = 0;
+  virtual void FinalizeScheduling(BB &bb, const DataDepBase &dataDepBase) = 0;
 
  protected:
   virtual void Init() = 0;
@@ -171,7 +172,8 @@ class Schedule {
   MemPool &memPool;
   MapleAllocator alloc;
   LiveAnalysis &live;
-  DepAnalysis *depAnalysis = nullptr;
+  DataDepBase *ddb = nullptr;
+  IntraDataDepAnalysis *intraDDA = nullptr;
   MAD *mad = nullptr;
   uint32 lastSeparatorIndex = 0;
   uint32 nodeSize = 0;

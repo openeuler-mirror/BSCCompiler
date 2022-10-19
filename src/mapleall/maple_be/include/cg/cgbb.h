@@ -74,6 +74,7 @@ namespace maplebe {
 
 class CGFuncLoops;
 class CGFunc;
+class CDGNode;
 
 class BB {
  public:
@@ -100,6 +101,7 @@ class BB {
         ehSuccs(mallocator.Adapter()),
         loopPreds(mallocator.Adapter()),
         loopSuccs(mallocator.Adapter()),
+        succsFreq(mallocator.Adapter()),
         liveInRegNO(mallocator.Adapter()),
         liveOutRegNO(mallocator.Adapter()),
         callInsns(mallocator.Adapter()),
@@ -374,6 +376,9 @@ class BB {
   }
   const MapleList<BB*> &GetSuccs() const {
     return succs;
+  }
+  const std::size_t GetSuccsSize() const {
+    return succs.size();
   }
   const MapleList<BB*> &GetEhPreds() const {
     return ehPreds;
@@ -759,6 +764,45 @@ class BB {
   uint32 GetAlignNopNum() const {
     return alignNopNum;
   }
+  CDGNode *GetCDGNode() {
+    return cdgNode;
+  }
+  void SetCDGNode(CDGNode *node) {
+    cdgNode = node;
+  }
+
+  void InitEdgeFreq() {
+    succsFreq.resize(succs.size());
+  }
+
+  uint64 GetEdgeFreq(const BB &bb) const {
+    auto iter = std::find(succs.begin(), succs.end(), &bb);
+    if (iter == std::end(succs) || succs.size() > succsFreq.size()) {
+      return 0;
+    }
+    CHECK_FATAL(iter != std::end(succs), "%d is not the successor of %d", bb.GetId(), this->GetId());
+    CHECK_FATAL(succs.size() == succsFreq.size(), "succfreq size doesn't match succ size");
+    const size_t idx = static_cast<size_t>(std::distance(succs.begin(), iter));
+    return succsFreq[idx];
+  }
+
+  uint64 GetEdgeFreq(size_t idx) const {
+    if (idx >= succsFreq.size()) {
+      return 0;
+    }
+    CHECK_FATAL(idx < succsFreq.size(), "out of range in BB::GetEdgeFreq");
+    CHECK_FATAL(succs.size() == succsFreq.size(), "succfreq size doesn't match succ size");
+    return succsFreq[idx];
+  }
+
+  void SetEdgeFreq(const BB &bb, uint64 freq) {
+    auto iter = std::find(succs.begin(), succs.end(), &bb);
+    CHECK_FATAL(iter != std::end(succs), "%d is not the successor of %d", bb.GetId(), this->GetId());
+    CHECK_FATAL(succs.size() == succsFreq.size(), "succfreq size %d doesn't match succ size %d", succsFreq.size(),
+                succs.size());
+    const size_t idx = static_cast<size_t>(std::distance(succs.begin(), iter));
+    succsFreq[idx] = freq;
+  }
 
  private:
   static const std::string bbNames[kBBLast];
@@ -781,6 +825,8 @@ class BB {
   MapleList<BB*> ehSuccs;
   MapleList<BB*> loopPreds;
   MapleList<BB*> loopSuccs;
+
+  MapleVector<uint64> succsFreq;
 
   /* this is for live in out analysis */
   MapleSet<regno_t> liveInRegNO;
@@ -848,6 +894,8 @@ class BB {
   bool needAlign = false;
   uint32 alignPower = 0;
   uint32 alignNopNum = 0;
+
+  CDGNode *cdgNode = nullptr;
 };  /* class BB */
 
 struct BBIdCmp {

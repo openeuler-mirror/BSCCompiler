@@ -198,6 +198,7 @@ void LoopFinder::FormLoop(BB* headBB, BB* backBB) {
   simpleLoop->InsertLoopMembers(*backBB);
   simpleLoop->SetHeader(*headBB);
   simpleLoop->InsertBackedge(*backBB);
+  simpleLoop->InsertBackBBEdge(*backBB, *headBB);
 
   if (loops) {
     loops->SetPrev(simpleLoop);
@@ -587,12 +588,19 @@ static void CopyLoopInfo(const LoopHierarchy *from, CGFuncLoops *to, CGFuncLoops
   for (auto *bb : from->GetBackedge()) {
     to->AddBackedge(*bb);
   }
+  for (auto &backPair : from->GetBackBBEdges()) {
+    CHECK_FATAL(backPair.first != nullptr, "get invalid backEdge info");
+    CHECK_FATAL(!backPair.second->empty(), "get invalid backEdge info");
+    for (auto headers : *(backPair.second)) {
+      to->AddBackBBEdge(*backPair.first, *headers);
+    }
+  }
   for (auto *bb : from->GetExits()) {
     to->AddExit(*bb);
   }
   if (!from->GetInnerLoops().empty()) {
     for (auto *inner : from->GetInnerLoops()) {
-      CGFuncLoops *floop = memPool->New<CGFuncLoops>(*memPool);
+      auto *floop = memPool->New<CGFuncLoops>(*memPool);
       to->AddInnerLoops(*floop);
       floop->SetLoopLevel(to->GetLoopLevel() + 1);
       CopyLoopInfo(inner, floop, to, memPool);
@@ -605,7 +613,7 @@ static void CopyLoopInfo(const LoopHierarchy *from, CGFuncLoops *to, CGFuncLoops
 
 void LoopFinder::UpdateCGFunc() const {
   for (LoopHierarchy *loop = loops; loop != nullptr; loop = loop->GetNext()) {
-    CGFuncLoops *floop = cgFunc->GetMemoryPool()->New<CGFuncLoops>(*cgFunc->GetMemoryPool());
+    auto *floop = cgFunc->GetMemoryPool()->New<CGFuncLoops>(*cgFunc->GetMemoryPool());
     cgFunc->PushBackLoops(*floop);
     floop->SetLoopLevel(1);    /* top level */
     CopyLoopInfo(loop, floop, nullptr, cgFunc->GetMemoryPool());

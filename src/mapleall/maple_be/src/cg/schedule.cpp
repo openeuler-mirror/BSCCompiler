@@ -232,7 +232,7 @@ bool RegPressureSchedule::IsLastUse(const DepNode &node, regno_t regNO) {
   RegList *regList = node.GetRegUses(i);
 
   /*
-   * except the node, if there are insn that has no scheduled in regNO'sregList,
+   * except the node, if there are insn that has no scheduled in regNO's regList,
    * then it is not the last time using the regNO, return false.
    */
   while (regList != nullptr) {

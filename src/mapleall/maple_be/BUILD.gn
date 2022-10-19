@@ -16,6 +16,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_be/include/cg",
   "${MAPLEALL_ROOT}/maple_be/include/ad",
   "${MAPLE_BUILD_OUTPUT}/common/target",
+  "${MAPLEALL_ROOT}/maple_pgo/include",
   "${MAPLEALL_ROOT}/maple_be/include/ad/target",
   "${MAPLEALL_ROOT}/maple_be/include/be",
   "${MAPLEALL_ROOT}/maple_driver/include",
@@ -31,7 +32,7 @@ include_directories = [
   "${THIRD_PARTY_ROOT}/llvm_modified/llvm/include/llvm/BinaryFormat",
 ]
 
-deps_libcg = []
+deps_libcg = [ "${MAPLEALL_ROOT}/maple_pgo:libmplpgo" ]
 
 deps_libmplbe = [ ":libcglowerer" ]
 
@@ -92,6 +93,7 @@ src_libcgaarch64 = [
   "src/cg/aarch64/aarch64_cfi_generator.cpp",
   "src/cg/aarch64/aarch64_cgfunc.cpp",
   "src/cg/aarch64/aarch64_dependence.cpp",
+  "src/cg/aarch64/aarch64_data_dep_base.cpp",
   "src/cg/aarch64/aarch64_ebo.cpp",
   "src/cg/aarch64/aarch64_emitter.cpp",
   "src/cg/aarch64/aarch64_fixshortbranch.cpp",
@@ -102,6 +104,7 @@ src_libcgaarch64 = [
   "src/cg/aarch64/aarch64_reg_info.cpp",
   "src/cg/aarch64/aarch64_ssa.cpp",
   "src/cg/aarch64/aarch64_prop.cpp",
+  "src/cg/aarch64/aarch64_pgo_gen.cpp",
   "src/cg/aarch64/aarch64_dce.cpp",
   "src/cg/aarch64/aarch64_phi_elimination.cpp",
   "src/cg/aarch64/aarch64_reg_coalesce.cpp",
@@ -218,12 +221,18 @@ src_libcgphases = [
   "src/cg/cg_occur.cpp",
   "src/cg/cg_ssu_pre.cpp",
   "src/cg/cg_ssa_pre.cpp",
+  "src/cg/cg_pgo_gen.cpp",
+  "src/cg/cg_pgo_use.cpp",
   "src/cg/regsaves.cpp",
   "src/cg/cg_critical_edge.cpp",
   "src/cg/alignment.cpp",
   "src/cg/cg_validbit_opt.cpp",
   "src/cg/cg_rce.cpp",
   "src/cg/rematerialize.cpp",
+  "src/cg/control_dep_analysis.cpp",
+  "src/cg/data_dep_base.cpp",
+  "src/cg/data_dep_analysis.cpp",
+  "src/cg/global_schedule.cpp",
 ]
 
 src_libcg = [
