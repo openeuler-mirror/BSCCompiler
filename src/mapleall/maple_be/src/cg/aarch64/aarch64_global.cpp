@@ -284,34 +284,7 @@ void OptimizePattern::ReplaceAllUsedOpndWithNewOpnd(const InsnSet &useInsnSet, u
   }
 }
 
-bool ForwardPropPattern::CheckCondition(Insn &insn) {
-  if (!insn.IsMachineInstruction()) {
-    return false;
-  }
-  if ((insn.GetMachineOpcode() != MOP_xmovrr) && (insn.GetMachineOpcode() != MOP_wmovrr) &&
-      (insn.GetMachineOpcode() != MOP_xmovrr_uxtw)) {
-    return false;
-  }
-  Operand &firstOpnd = insn.GetOperand(kInsnFirstOpnd);
-  Operand &secondOpnd = insn.GetOperand(kInsnSecondOpnd);
-  if (firstOpnd.GetSize() != secondOpnd.GetSize() && insn.GetMachineOpcode() != MOP_xmovrr_uxtw) {
-    return false;
-  }
-  RegOperand &firstRegOpnd = static_cast<RegOperand&>(firstOpnd);
-  RegOperand &secondRegOpnd = static_cast<RegOperand&>(secondOpnd);
-  uint32 firstRegNO = firstRegOpnd.GetRegisterNumber();
-  uint32 secondRegNO = secondRegOpnd.GetRegisterNumber();
-  if (IsZeroRegister(firstRegOpnd) || !firstRegOpnd.IsVirtualRegister() || !secondRegOpnd.IsVirtualRegister()) {
-    return false;
-  }
-  firstRegUseInsnSet = cgFunc.GetRD()->FindUseForRegOpnd(insn, firstRegNO, true);
-  if (firstRegUseInsnSet.empty()) {
-    return false;
-  }
-  InsnSet secondRegDefInsnSet = cgFunc.GetRD()->FindDefForRegOpnd(insn, secondRegNO, true);
-  if (secondRegDefInsnSet.size() != 1 || RegOperand::IsSameReg(firstOpnd, secondOpnd)) {
-    return false;
-  }
+bool ForwardPropPattern::IsUseInsnSetValid(Insn &insn, regno_t firstRegNO, regno_t secondRegNO) {
   bool toDoOpt = true;
   for (auto useInsn : firstRegUseInsnSet) {
     if (!cgFunc.GetRD()->RegIsLiveBetweenInsn(secondRegNO, insn, *useInsn)) {
@@ -319,8 +292,8 @@ bool ForwardPropPattern::CheckCondition(Insn &insn) {
       break;
     }
     /* part defined */
-    if ((useInsn->GetMachineOpcode() == MOP_xmovkri16) ||
-        (useInsn->GetMachineOpcode() == MOP_wmovkri16)) {
+    if ((useInsn->GetMachineOpcode() == MOP_xmovkri16) || (useInsn->GetMachineOpcode() == MOP_wmovkri16) ||
+        (useInsn->GetMachineOpcode() == MOP_wbfirri5i5) || (useInsn->GetMachineOpcode() == MOP_xbfirri6i6)) {
       toDoOpt = false;
       break;
     }
@@ -338,6 +311,37 @@ bool ForwardPropPattern::CheckCondition(Insn &insn) {
     }
   }
   return toDoOpt;
+}
+
+bool ForwardPropPattern::CheckCondition(Insn &insn) {
+  if (!insn.IsMachineInstruction()) {
+    return false;
+  }
+  if ((insn.GetMachineOpcode() != MOP_xmovrr) && (insn.GetMachineOpcode() != MOP_wmovrr) &&
+      (insn.GetMachineOpcode() != MOP_xmovrr_uxtw)) {
+    return false;
+  }
+  Operand &firstOpnd = insn.GetOperand(kInsnFirstOpnd);
+  Operand &secondOpnd = insn.GetOperand(kInsnSecondOpnd);
+  if (firstOpnd.GetSize() != secondOpnd.GetSize() && insn.GetMachineOpcode() != MOP_xmovrr_uxtw) {
+    return false;
+  }
+  auto &firstRegOpnd = static_cast<RegOperand&>(firstOpnd);
+  auto &secondRegOpnd = static_cast<RegOperand&>(secondOpnd);
+  uint32 firstRegNO = firstRegOpnd.GetRegisterNumber();
+  uint32 secondRegNO = secondRegOpnd.GetRegisterNumber();
+  if (IsZeroRegister(firstRegOpnd) || !firstRegOpnd.IsVirtualRegister() || !secondRegOpnd.IsVirtualRegister()) {
+    return false;
+  }
+  firstRegUseInsnSet = cgFunc.GetRD()->FindUseForRegOpnd(insn, firstRegNO, true);
+  if (firstRegUseInsnSet.empty()) {
+    return false;
+  }
+  InsnSet secondRegDefInsnSet = cgFunc.GetRD()->FindDefForRegOpnd(insn, secondRegNO, true);
+  if (secondRegDefInsnSet.size() != 1 || RegOperand::IsSameReg(firstOpnd, secondOpnd)) {
+    return false;
+  }
+  return IsUseInsnSetValid(insn, firstRegNO, secondRegNO);
 }
 
 void ForwardPropPattern::Optimize(Insn &insn) {
@@ -1779,6 +1783,10 @@ bool ExtenToMovPattern::CheckSrcReg(Insn &insn, regno_t srcRegNo, uint32 validNu
   InsnSet srcDefSet = cgFunc.GetRD()->FindDefForRegOpnd(insn, srcRegNo, true);
   for (auto defInsn : srcDefSet) {
     CHECK_FATAL((defInsn != nullptr), "defInsn is null!");
+    /* for loop, def insn might be the same insn */
+    if (defInsn == &insn) {
+      continue;
+    }
     MOperator mOp = defInsn->GetMachineOpcode();
     switch (mOp) {
       case MOP_wiorrri12:

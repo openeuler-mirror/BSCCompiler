@@ -1745,8 +1745,70 @@ bool CopyRegProp::CheckCondition(Insn &insn) {
   return false;
 }
 
+bool CopyRegProp::IsNotSpecialOptimizedInsn(const Insn &insn) {
+  MOperator curMop = insn.GetMachineOpcode();
+  if (curMop != MOP_wbfirri5i5 && curMop != MOP_xbfirri6i6) {
+    return true;
+  }
+  auto &useOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  VRegVersion *version = optSsaInfo->FindSSAVersion(useOpnd.GetRegisterNumber());
+  CHECK_FATAL(version != nullptr, "get SSAVersion failed");
+  Insn *defInsn = FindDefInsn(version);
+  if (defInsn == nullptr) {
+    return true;
+  }
+  MOperator defMop = defInsn->GetMachineOpcode();
+  if (defMop == MOP_wmovri32 || defMop == MOP_xmovri64) {
+    return false;
+  }
+
+  bool hasCrossDUUse = false;
+  int32 bothDUId = -1;
+  for (auto duInfoIt : srcVersion->GetAllUseInsns()) {
+    CHECK_FATAL(duInfoIt.second != nullptr, "get DUInsnInfo failed");
+    Insn *useInsn = duInfoIt.second->GetInsn();
+    MOperator useMop = useInsn->GetMachineOpcode();
+    if (useInsn->GetSSAImpDefOpnd() != nullptr) {
+      bothDUId = static_cast<int32>(useInsn->GetId());
+    }
+    if (useInsn->GetSSAImpDefOpnd() == nullptr && useMop != MOP_xmovrr && useMop != MOP_wmovrr &&
+        useMop != MOP_xvmovs && useMop != MOP_xvmovd && bothDUId > -1 &&
+        useInsn->GetId() > static_cast<uint32>(bothDUId)) {
+      hasCrossDUUse = true;
+      break;
+    }
+  }
+  return hasCrossDUUse;
+}
+
+void CopyRegProp::ReplaceAllUseForCopyProp() {
+  MapleUnorderedMap<uint32, DUInsnInfo*> &useList = destVersion->GetAllUseInsns();
+  Insn *srcRegDefInsn = FindDefInsn(srcVersion);
+  for (auto it = useList.begin(); it != useList.end();) {
+    Insn *useInsn = it->second->GetInsn();
+    if (srcRegDefInsn != nullptr && srcRegDefInsn->GetSSAImpDefOpnd() != nullptr &&
+        useInsn->GetSSAImpDefOpnd() != nullptr) {
+      if (IsNotSpecialOptimizedInsn(*useInsn)) {
+        ++it;
+        continue;
+      }
+    }
+    auto *a64SSAInfo = static_cast<AArch64CGSSAInfo*>(optSsaInfo);
+    a64SSAInfo->CheckAsmDUbinding(*useInsn, destVersion, srcVersion);
+    for (auto &opndIt : it->second->GetOperands()) {
+      Operand &opnd = useInsn->GetOperand(opndIt.first);
+      A64ReplaceRegOpndVisitor replaceRegOpndVisitor(cgFunc, *useInsn, opndIt.first,
+                                                     *destVersion->GetSSAvRegOpnd(), *srcVersion->GetSSAvRegOpnd());
+      opnd.Accept(replaceRegOpndVisitor);
+      srcVersion->AddUseInsn(*optSsaInfo, *useInsn, opndIt.first);
+      it->second->ClearDU(opndIt.first);
+    }
+    it = useList.erase(it);
+  }
+}
+
 void CopyRegProp::Optimize(Insn &insn) {
-  optSsaInfo->ReplaceAllUse(destVersion, srcVersion);
+  ReplaceAllUseForCopyProp();
   if (cgFunc.IsExtendReg(destVersion->GetSSAvRegOpnd()->GetRegisterNumber())) {
     cgFunc.InsertExtendSet(srcVersion->GetSSAvRegOpnd()->GetRegisterNumber());
   }
@@ -2644,6 +2706,11 @@ Insn &A64PregCopyPattern::CreateNewPhiInsn(std::unordered_map<uint32, RegOperand
  * Check whether the required phi is available, do not insert phi repeatedly.
  */
 RegOperand *A64PregCopyPattern::CheckAndGetExistPhiDef(Insn &phiInsn, std::vector<regno_t> &validDifferRegNOs) const {
+  std::set<regno_t> validDifferOrigRegNOs;
+  for (regno_t ssaRegNO : validDifferRegNOs) {
+    VRegVersion *version = optSsaInfo->FindSSAVersion(ssaRegNO);
+    (void)validDifferOrigRegNOs.insert(version->GetOriginalRegNO());
+  }
   MapleMap<regno_t, Insn*> &phiInsns = phiInsn.GetBB()->GetPhiInsns();
   for (auto &phiIt : as_const(phiInsns)) {
     auto &def = static_cast<RegOperand&>(phiIt.second->GetOperand(kInsnFirstOpnd));
@@ -2667,8 +2734,9 @@ RegOperand *A64PregCopyPattern::CheckAndGetExistPhiDef(Insn &phiInsn, std::vecto
       if (phiOpnd.GetOperands().size() == validDifferRegNOs.size()) {
         bool exist = true;
         for (auto &phiListIt : phiOpnd.GetOperands()) {
-          if (std::find(validDifferRegNOs.begin(), validDifferRegNOs.end(),
-                        static_cast<RegOperand*>(phiListIt.second)->GetRegisterNumber()) == validDifferRegNOs.end()) {
+          VRegVersion *phiUseVersion = optSsaInfo->FindSSAVersion(
+              static_cast<RegOperand*>(phiListIt.second)->GetRegisterNumber());
+          if (validDifferOrigRegNOs.find(phiUseVersion->GetOriginalRegNO()) == validDifferOrigRegNOs.end()) {
             exist = false;
             break;
           }

@@ -91,6 +91,7 @@ class ForwardPropPattern : public OptimizePattern {
  private:
   InsnSet firstRegUseInsnSet;
   void RemoveMopUxtwToMov(Insn &insn);
+  bool IsUseInsnSetValid(Insn &insn, regno_t firstRegNO, regno_t secondRegNO);
   std::set<BB*, BBIdCmp> modifiedBB;
 };
 
@@ -209,9 +210,6 @@ class CselPattern : public OptimizePattern {
 
  protected:
   void Init() final {}
-
- private:
-  AArch64CC_t GetInverseCondCode(const CondOperand &cond) const;
 };
 
 /*

@@ -29,17 +29,17 @@ class AArch64CGSSAInfo : public CGSSAInfo {
   void ReplaceInsn(Insn &oriInsn, Insn &newInsn) override;
   void ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *newVersion) override;
   void CreateNewInsnSSAInfo(Insn &newInsn) override;
+  void CheckAsmDUbinding(Insn &insn, const VRegVersion *toBeReplaced, VRegVersion *newVersion);
 
  private:
   void RenameInsn(Insn &insn) override;
   VRegVersion *RenamedOperandSpecialCase(RegOperand &vRegOpnd, Insn &curInsn, uint32 idx);
   RegOperand *CreateSSAOperand(RegOperand &virtualOpnd) override;
-  void CheckAsmDUbinding(Insn &insn, const VRegVersion *toBeReplaced, VRegVersion *newVersion);
 };
 
 class A64SSAOperandRenameVisitor : public SSAOperandVisitor {
  public:
-  A64SSAOperandRenameVisitor(AArch64CGSSAInfo &cssaInfo, Insn &cInsn, OpndProp &cProp, uint32 idx)
+  A64SSAOperandRenameVisitor(AArch64CGSSAInfo &cssaInfo, Insn &cInsn, const OpndDesc &cProp, uint32 idx)
       : SSAOperandVisitor(cInsn, cProp, idx), ssaInfo(&cssaInfo) {}
   ~A64SSAOperandRenameVisitor() override = default;
   void Visit(RegOperand *v) final;

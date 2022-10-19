@@ -214,7 +214,8 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
     if (opndProp->IsMemLow12()) {
       (void)emitter.Emit("#:lo12:");
     }
-    (void)emitter.Emit(v->GetSymbol()->GetName());
+    PUIdx pIdx = emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
+    (void)emitter.Emit(v->GetSymbol()->GetName() + std::to_string(pIdx));
   } else if (addressMode == MemOperand::kAddrModeLo12Li) {
     (void)emitter.Emit("[");
     EmitIntReg(*v->GetBaseRegister());
@@ -437,17 +438,17 @@ void A64OpndDumpVisitor::Visit(RegOperand *v) {
 
   regno_t reg = v->GetRegisterNumber();
   reg = v->IsVirtualRegister() ? reg : (reg - 1);
-  uint32 vb = v->GetValidBitsNum();
   LogInfo::MapleLogger() << (v->IsVirtualRegister() ? "vreg:" : " reg:") << prims[regType];
   if (reg + 1 == RSP && v->IsPhysicalRegister()) {
     LogInfo::MapleLogger() << "SP";
   } else if (reg + 1 == RZR && v->IsPhysicalRegister()) {
     LogInfo::MapleLogger() << "ZR";
   } else {
-    LogInfo::MapleLogger() << reg ;
+    LogInfo::MapleLogger() << reg;
   }
   LogInfo::MapleLogger() << " " << classes[regType];
-  if (v->GetValidBitsNum() != v->GetSize()) {
+  uint32 vb = v->GetValidBitsNum();
+  if (vb != v->GetSize()) {
     LogInfo::MapleLogger() << " Vb: [" << vb << "]";
   }
   LogInfo::MapleLogger() << " Sz: [" << v->GetSize() << "]" ;
@@ -469,9 +470,12 @@ void A64OpndDumpVisitor::Visit(MemOperand *a64v) {
   switch (a64v->GetAddrMode()) {
     case MemOperand::kAddrModeBOi: {
       LogInfo::MapleLogger() << "base:";
+      ASSERT(a64v->GetBaseRegister(), " lack of base register");
       Visit(a64v->GetBaseRegister());
       LogInfo::MapleLogger() << "offset:";
-      Visit(a64v->GetOffsetOperand());
+      if (a64v->GetOffsetOperand()) {
+        Visit(a64v->GetOffsetOperand());
+      }
       switch (a64v->GetIndexOpt()) {
         case MemOperand::kIntact:
           LogInfo::MapleLogger() << "  intact";
