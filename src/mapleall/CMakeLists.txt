@@ -13,6 +13,23 @@
 # See the Mulan PSL v2 for more details.
 #
 
+# Version Info
+if(NOT ${MAJOR_VERSION} STREQUAL "")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMAJOR_VERSION=${MAJOR_VERSION}")
+endif()
+if(NOT ${MINOR_VERSION} STREQUAL "")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMINOR_VERSION=${MINOR_VERSION}")
+endif()
+if(NOT ${RELEASE_VERSION} STREQUAL "")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DRELEASE_VERSION=\\\"${RELEASE_VERSION}\\\"")
+endif()
+if(NOT ${BUILD_VERSION} STREQUAL "")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DBUILD_VERSION=${BUILD_VERSION}")
+endif()
+if(NOT ${GIT_REVISION} STREQUAL "")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DGIT_REVISION=\\\"${GIT_REVISION}\\\"")
+endif()
+
 
 add_subdirectory(maple_util)
 add_subdirectory(mempool)
