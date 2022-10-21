@@ -922,29 +922,6 @@ class RemoveIdenticalLoadAndStorePattern : public CGPeepPattern {
   Insn *nextInsn = nullptr;
 };
 
-/* ======== CGPeepPattern End ======== */
-/*
- * Looking for identical mem insn to eliminate.
- * If two back-to-back is:
- * 1. str + str
- * 2. str + ldr
- * And the [MEM] is pattern of [base + offset]
- * 1. The [MEM] operand is exactly same then first
- *    str can be eliminate.
- * 2. The [MEM] operand is exactly same and src opnd
- *    of str is same as the dest opnd of ldr then
- *    ldr can be eliminate
- */
-class RemoveIdenticalLoadAndStoreAArch64 : public PeepPattern {
- public:
-  explicit RemoveIdenticalLoadAndStoreAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~RemoveIdenticalLoadAndStoreAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
-
- private:
-  bool IsMemOperandsIdentical(const Insn &insn1, const Insn &insn2) const;
-};
-
 /* Remove redundant mov which src and dest opnd is exactly same */
 class RemoveMovingtoSameRegPattern : public CGPeepPattern {
  public:
@@ -1028,11 +1005,21 @@ class EnhanceStrLdrAArch64 : public PeepPattern {
  * i)  mov w0, #imm (#imm is not out of range)
  * ii) ldrs[b|h] w0, [MEM]
  */
-class EliminateSpecifcSXTAArch64 : public PeepPattern {
+class EliminateSpecifcSXTPattern : public CGPeepPattern {
  public:
-  explicit EliminateSpecifcSXTAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~EliminateSpecifcSXTAArch64() override = default;
+  EliminateSpecifcSXTPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~EliminateSpecifcSXTPattern() override {
+    prevInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "EliminateSpecifcSXTPattern";
+  }
+
+ private:
+  Insn *prevInsn = nullptr;
 };
 
 /* Eliminate the uxt[b|h|w] w0, w0;when w0 is satisify following:
@@ -1123,27 +1110,6 @@ class CbnzToCbzPattern : public CGPeepPattern {
   BB *nextBB = nullptr;
   Insn *movInsn = nullptr;
   Insn *brInsn = nullptr;
-};
-
-/* i.   cset    w0, EQ
- *      cbnz    w0, .label    ===> beq .label
- *
- * ii.  cset    w0, EQ
- *      cbz    w0, .label     ===> bne .label
- *
- * iii. cset    w0, NE
- *      cbnz    w0, .label    ===> bne .label
- *
- * iiii.cset    w0, NE
- *      cbz    w0, .label     ===> beq .label
- * ... ...
- */
-class CsetCbzToBeqOptAArch64 : public PeepPattern {
- public:
-  explicit CsetCbzToBeqOptAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~CsetCbzToBeqOptAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
-  MOperator SelectMOperator(ConditionCode condCode, bool inverse) const;
 };
 
 /* When exist load after load or load after store, and [MEM] is
@@ -1318,64 +1284,6 @@ class AndCmpBranchesToCsetAArch64 : public PeepPattern {
 
  private:
   Insn *FindPreviousCmp(Insn &insn) const;
-};
-/*
- * We optimize the following pattern in this function:
- * cmp w[0-9]*, wzr  ====> tbz w[0-9]*, #31, .label
- * bge .label
- *
- * cmp wzr, w[0-9]*  ====> tbz w[0-9]*, #31, .label
- * ble .label
- *
- * cmp w[0-9]*,wzr   ====> tbnz w[0-9]*, #31, .label
- * blt .label
- *
- * cmp wzr, w[0-9]*  ====> tbnz w[0-9]*, #31, .label
- * bgt .label
- *
- * cmp w[0-9]*, #0   ====> tbz w[0-9]*, #31, .label
- * bge .label
- *
- * cmp w[0-9]*, #0   ====> tbnz w[0-9]*, #31, .label
- * blt .label
- */
-class ZeroCmpBranchesAArch64 : public PeepPattern {
- public:
-  explicit ZeroCmpBranchesAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~ZeroCmpBranchesAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
-};
-
-/*
- * Look for duplicate or overlapping zero or sign extensions.
- * Examples:
- *   sxth x1, x2   ====> sxth x1, x2
- *   sxth x3, x1         mov  x3, x1
- *
- *   sxtb x1, x2   ====> sxtb x1, x2
- *   sxth x3, x1         mov  x3, x1
- */
-class ElimDuplicateExtensionAArch64 : public PeepPattern {
- public:
-  explicit ElimDuplicateExtensionAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~ElimDuplicateExtensionAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
-};
-
-/*
- *  add     x0, x1, x0
- *  ldr     x2, [x0]
- *  ==>
- *  ldr     x2, [x1, x0]
- */
-class ComplexMemOperandAddAArch64 : public PeepPattern {
- public:
-  explicit ComplexMemOperandAddAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~ComplexMemOperandAddAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
- private:
-
-  bool IsExpandBaseOpnd(const Insn &insn, const Insn &prevInsn) const;
 };
 
 /*
