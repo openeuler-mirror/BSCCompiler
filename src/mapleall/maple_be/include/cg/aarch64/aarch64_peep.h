@@ -1436,20 +1436,6 @@ class ComplexMemOperandPreAddAArch64 : public PeepPattern {
 };
 
 /*
- * add     x0, x0, x1, LSL #2
- * ldr     x2, [x0]
- * ==>
- * ldr     x2, [x0,x1,LSL #2]
- */
-class ComplexMemOperandLSLAArch64 : public PeepPattern {
- public:
-  explicit ComplexMemOperandLSLAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~ComplexMemOperandLSLAArch64() override = default;
-  bool CheckShiftValid(const Insn &insn, const BitShiftOperand &lsl) const;
-  void Run(BB &bb, Insn &insn) override;
-};
-
-/*
  * mov R0, vreg1 / R0         mov R0, vreg1
  * add vreg2, vreg1, #imm1    add vreg2, vreg1, #imm1
  * mov R1, vreg2              mov R1, vreg2

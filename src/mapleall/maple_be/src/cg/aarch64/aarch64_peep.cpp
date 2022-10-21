@@ -2387,7 +2387,6 @@ void AArch64PrePeepHole::InitOpts() {
   optimizations[kReplaceCmpToCmnOpt] = optOwnMemPool->New<ReplaceCmpToCmnAArch64>(cgFunc);
   optimizations[kComplexMemOperandOpt] = optOwnMemPool->New<ComplexMemOperandAArch64>(cgFunc);
   optimizations[kComplexMemOperandPreOptAdd] = optOwnMemPool->New<ComplexMemOperandPreAddAArch64>(cgFunc);
-  optimizations[kComplexMemOperandOptLSL] = optOwnMemPool->New<ComplexMemOperandLSLAArch64>(cgFunc);
   optimizations[kEnhanceStrLdrAArch64Opt] = optOwnMemPool->New<EnhanceStrLdrAArch64>(cgFunc);
 }
 
@@ -2405,10 +2404,6 @@ void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
     }
     case MOP_xaddrrr: {
       (static_cast<ComplexMemOperandPreAddAArch64*>(optimizations[kComplexMemOperandPreOptAdd]))->Run(bb, insn);
-      break;
-    }
-    case MOP_xaddrrrs: {
-      (static_cast<ComplexMemOperandLSLAArch64*>(optimizations[kComplexMemOperandOptLSL]))->Run(bb, insn);
       break;
     }
     case MOP_xldr:
@@ -4465,87 +4460,6 @@ void ComplexMemOperandPreAddAArch64::Run(BB &bb, Insn &insn) {
                                             &newIndexOpnd, newOfstOpnd, nullptr);
       nextInsn->SetOperand(kInsnSecondOpnd, newMemOpnd);
     }
-    bb.RemoveInsn(insn);
-  }
-}
-
-bool ComplexMemOperandLSLAArch64::CheckShiftValid(const Insn &insn,
-                                                  const BitShiftOperand &lsl) const {
-  /* check if shift amount is valid */
-  uint32 lslAmount = lsl.GetShiftAmount();
-  constexpr uint8 twoShiftBits = 2;
-  constexpr uint8 threeShiftBits = 3;
-  uint32 memSize = insn.GetMemoryByteSize();
-  if ((memSize == k4ByteSize && (lsl.GetShiftAmount() != 0 && lslAmount != twoShiftBits)) ||
-      (memSize == k8ByteSize && (lsl.GetShiftAmount() != 0 && lslAmount != threeShiftBits))) {
-    return false;
-  }
-  if (memSize != (k5BitSize << lslAmount)) {
-    return false;
-  }
-  return true;
-}
-
-void ComplexMemOperandLSLAArch64::Run(BB &bb, Insn &insn) {
-  AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
-  Insn *nextInsn = insn.GetNextMachineInsn();
-  if (nextInsn == nullptr) {
-    return;
-  }
-  MOperator thisMop = insn.GetMachineOpcode();
-  if (thisMop != MOP_xaddrrrs) {
-    return;
-  }
-  MOperator nextMop = nextInsn->GetMachineOpcode();
-  if (nextMop > 0 &&
-      ((nextMop >= MOP_wldrsb && nextMop <= MOP_dldr) || (nextMop >= MOP_wstrb && nextMop <= MOP_dstr))) {
-    /* Check if base register of nextInsn and the dest operand of insn are identical. */
-    MemOperand *memOpnd = static_cast<MemOperand*>(nextInsn->GetMemOpnd());
-    ASSERT(memOpnd != nullptr, "null ptr check");
-
-    /* Only for AddrMode_B_OI addressing mode. */
-    if (memOpnd->GetAddrMode() != MemOperand::kAddrModeBOi) {
-      return;
-    }
-
-    /* Only for immediate is  0. */
-    if (memOpnd->GetOffsetImmediate()->GetOffsetValue() != 0) {
-      return;
-    }
-
-    /* Only for intact memory addressing. */
-    if (!memOpnd->IsIntactIndexed()) {
-      return;
-    }
-
-    auto &regOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-
-    /* Check if dest operand of insn is idential with base register of nextInsn. */
-    if (memOpnd->GetBaseRegister() != &regOpnd) {
-      return;
-    }
-
-#ifdef USE_32BIT_REF
-    if (nextInsn->IsAccessRefField() && nextInsn->GetOperand(kInsnFirstOpnd).GetSize() > k32BitSize) {
-      return;
-    }
-#endif
-
-    /* Check if x0 is used after ldr insn, and if it is in live-out. */
-    if (IfOperandIsLiveAfterInsn(regOpnd, *nextInsn)) {
-      return;
-    }
-    auto &lsl = static_cast<BitShiftOperand&>(insn.GetOperand(kInsnFourthOpnd));
-    if (!CheckShiftValid(*nextInsn, lsl)) {
-      return;
-    }
-    auto &newBaseOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-    auto &newIndexOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
-    MemOperand &newMemOpnd =
-        aarch64CGFunc->GetOrCreateMemOpnd(MemOperand::kAddrModeBOrX, memOpnd->GetSize(), &newBaseOpnd,
-                                          &newIndexOpnd, static_cast<int32>(lsl.GetShiftAmount()),
-                                          false);
-    nextInsn->SetOperand(kInsnSecondOpnd, newMemOpnd);
     bb.RemoveInsn(insn);
   }
 }
