@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ast_parser.h"
+#include "driver_options.h"
 #include "mpl_logging.h"
 #include "mir_module.h"
 #include "mpl_logging.h"
@@ -2538,6 +2539,12 @@ GenericAttrs ASTParser::SolveFunctionAttributes(const clang::FunctionDecl &funcD
   if (attrs.GetAttr(GENATTR_static) && FEOptions::GetInstance().GetFuncInlineSize() != 0) {
     funcName = funcName + astFile->GetAstFileNameHashStr();
   }
+
+  // set inline functions as weak symbols as it's in C++
+  if (opts::inlineAsWeak == true && attrs.GetAttr(GENATTR_inline) && !attrs.GetAttr(GENATTR_static)) {
+    attrs.SetAttr(GENATTR_weak);
+  }
+
   return attrs;
 }
 
