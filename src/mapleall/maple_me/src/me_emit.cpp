@@ -170,12 +170,73 @@ bool ProfileGenEmit::PhaseRun(maple::MeFunction &f) {
         sym->SetIsDeleted();
       }
     }
+#ifdef yefeng
+    if (Options::profileGen ) {
+      std::unordered_map<BB*, bool> visitedBBs;
+      std::stack<BB*> listBBs;
+      std::vector<BB*> predDep(f.GetCfg()->GetAllBBs().size(), nullptr);
+      std::vector<BB*> succDep(f.GetCfg()->GetAllBBs().size(), nullptr);
+      // Set up pred-succ single fallthrough chain dependency
+      for (BB *bb : f.GetCfg()->GetAllBBs()) {
+        if (bb != nullptr && bb->GetSucc().size() != 0 &&
+           ((bb->GetKind() == kBBCondGoto) || (bb->GetKind() == kBBFallthru) || bb->GetKind() == kBBUnknown)) {
+          predDep[bb->GetSucc()[0]->GetBBId()] = bb;
+          succDep[bb->GetBBId()] = bb->GetSucc()[0];
+        }
+      }
+      // Emit all dependency chains of BBs firstd
+      for (BB *succ : succDep) {
+        if (!succ) {
+          continue;
+        }
+        BB *pred = predDep[succ->GetBBId()];
+        if (pred && !visitedBBs[pred]) {
+          pred->EmitBB(*mirFunction->GetBody(), false);
+          visitedBBs[pred] = true;
+          while (succ && !visitedBBs[succ]) {
+            succ->EmitBB(*mirFunction->GetBody(), false);
+            visitedBBs[succ] = true;
+            succ = succDep[succ->GetBBId()];
+          }
+        }
+      }
+      // Emit remaining BBs
+      for (BB *bb : f.GetCfg()->GetAllBBs()) {
+        if (bb == nullptr || visitedBBs[bb]) {
+          continue;
+        } else {
+          listBBs.push(bb);
+          while (!listBBs.empty()) {
+            bb = listBBs.top();
+            listBBs.pop();
+            bb->EmitBB(*mirFunction->GetBody(), false);
+            visitedBBs[bb] = true;
+            // Make sure default target BB to emit first
+            for (int32 idx = bb->GetSucc().size() - 1; idx >= 0; idx--) {
+              if (!visitedBBs[bb->GetSucc()[idx]]) {
+                listBBs.push(bb->GetSucc()[idx]);
+              }
+            }
+          }
+        }
+      }
+    } else {
+      for (BB *bb : f.GetCfg()->GetAllBBs()) {
+        if (bb == nullptr) {
+          continue;
+        }
+        bb->EmitBB(*mirFunction->GetBody(), false);
+      }
+    }
+
+#else
     for (BB *bb : f.GetCfg()->GetAllBBs()) {
       if (bb == nullptr) {
         continue;
       }
       bb->EmitBB(*mirFunction->GetBody(), false);
     }
+#endif
     ResetDependentedSymbolLive(mirFunction);
   }
   return false;
