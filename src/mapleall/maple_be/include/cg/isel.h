@@ -19,6 +19,11 @@
 #include "cgfunc.h"
 
 namespace maplebe {
+struct MirTypeInfo {
+  PrimType primType;
+  int32 offset = 0;
+  uint32 size = 0;  /* for aggType */
+};
 /* macro expansion instruction selection */
 class MPISel {
  public:
@@ -31,15 +36,18 @@ class MPISel {
 
   void DoMPIS();
 
-  CGFunc *GetCurFunc() {
+  CGFunc *GetCurFunc() const {
     return cgFunc;
   }
 
   Operand *HandleExpr(const BaseNode &parent, BaseNode &expr);
 
   void SelectDassign(const DassignNode &stmt, Operand &opndRhs);
-  void SelectIassign(const IassignNode &stmt, MPISel &iSel, BaseNode &addr, BaseNode &rhs);
+  void SelectDassignoff(DassignoffNode &stmt, Operand &opnd0);
+  void SelectIassign(const IassignNode &stmt, Operand &opndAddr, Operand &opndRhs);
   void SelectIassignoff(const IassignoffNode &stmt);
+  RegOperand *SelectRegread(RegreadNode &expr);
+  void SelectRegassign(RegassignNode &stmt, Operand &opnd0);
   Operand* SelectDread(const BaseNode &parent, const AddrofNode &expr);
   Operand* SelectBand(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   Operand* SelectAdd(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
@@ -48,43 +56,76 @@ class MPISel {
   Operand* SelectCvt(const BaseNode &parent, const TypeCvtNode &node, Operand &opnd0);
   Operand* SelectExtractbits(const BaseNode &parent, const ExtractbitsNode &node, Operand &opnd0);
   Operand *SelectDepositBits(const DepositbitsNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
-  CGImmOperand *SelectIntConst(MIRIntConst &intConst) const;
-  CGRegOperand *SelectRegread(RegreadNode &expr) const;
+  Operand *SelectAbs(UnaryNode &node, Operand &opnd0);
+  Operand *SelectAlloca(UnaryNode &node, Operand &opnd0);
+  Operand *SelectCGArrayElemAdd(BinaryNode &node, const BaseNode &parent);
+  ImmOperand *SelectIntConst(MIRIntConst &intConst, PrimType primType) const;
+  Operand *SelectLiteral(MIRDoubleConst &c, MIRFunction &func, uint32 labelIdx) const;
+  void SelectCallCommon(StmtNode &stmt, const MPISel &iSel);
   void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   Operand *SelectShift(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
-  void SelectShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, Opcode shiftDirect, PrimType primType);
+  void SelectShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, Opcode shiftDirect,
+                   PrimType opnd0Type, PrimType opnd1Type);
   void SelectBand(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
-  void SelectDiv(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
-
-  virtual void SelectReturn(Operand &opnd) = 0;
+  virtual void SelectReturn(NaryStmtNode &retNode, Operand &opnd) = 0;
+  virtual void SelectReturn() = 0;
+  virtual void SelectIntAggCopyReturn(MemOperand &symbolMem, uint64 aggSize) = 0;
+  virtual void SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd, Operand &opndRhs) = 0;
+  virtual void SelectAggCopy(MemOperand &lhs, MemOperand &rhs, uint32 copySize) = 0;
   virtual void SelectGoto(GotoNode &stmt) = 0;
   virtual void SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOpnd) = 0;
+  virtual void SelectIgoto(Operand &opnd0) = 0;
   virtual void SelectCall(CallNode &callNode) = 0;
+  virtual void SelectIcall(IcallNode &icallNode, Operand &opnd0) = 0;
+  virtual void SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) = 0;
+  virtual Operand *SelectDoubleConst(MIRDoubleConst &intConst, PrimType primType) const = 0;
   virtual Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent) = 0;
+  virtual Operand *SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) = 0;
+  virtual Operand *SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) = 0;
   virtual Operand &ProcessReturnReg(PrimType primType, int32 sReg) = 0 ;
   virtual void SelectCondGoto(CondGotoNode &stmt, BaseNode &condNode, Operand &opnd0) = 0;
   Operand *SelectBior(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
-  Operand *SelectBxor(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) const;
+  Operand *SelectBxor(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   Operand *SelectIread(const BaseNode &parent, const IreadNode &expr, int extraOffset = 0);
   Operand *SelectIreadoff(const BaseNode &parent, const IreadoffNode &ireadoff);
   virtual Operand *SelectMpy(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual Operand *SelectDiv(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
+  virtual Operand *SelectRem(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual Operand *SelectCmpOp(CompareNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
+  virtual Operand *SelectSelect(TernaryNode &expr, Operand &cond, Operand &trueOpnd, Operand &falseOpnd,
+                                const BaseNode &parent) = 0;
   virtual Operand *SelectStrLiteral(ConststrNode &constStr) = 0;
-  Operand *SelectBnot(const UnaryNode &node, Operand &opnd0, const BaseNode &parent) const;
+  virtual Operand *SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual void SelectAsm(AsmNode &node) = 0;
+  virtual void SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &opndRhs) = 0;
+  Operand *SelectBnot(const UnaryNode &node, Operand &opnd0, const BaseNode &parent);
+  Operand *SelectMin(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
+  Operand *SelectMax(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
+  Operand *SelectRetype(TypeCvtNode &node, Operand &opnd0);
  protected:
   MemPool *isMp;
   CGFunc *cgFunc;
   void SelectCopy(Operand &dest, Operand &src, PrimType toType, PrimType fromType);
-  void SelectCopy(Operand &dest, Operand &src, PrimType type);
-  void SelectIntCvt(maplebe::CGRegOperand &resOpnd, maplebe::Operand &opnd0, maple::PrimType toType) const;
-  CGRegOperand &SelectCopy2Reg(Operand &src, PrimType dtype);
+  void SelectCopy(Operand &dest, Operand &src, PrimType toType);
+  RegOperand &SelectCopy2Reg(Operand &src, PrimType toType, PrimType fromType);
+  RegOperand &SelectCopy2Reg(Operand &src, PrimType toType);
+  void SelectIntCvt(RegOperand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType);
+  void SelectCvtInt2Float(RegOperand &resOpnd, Operand &origOpnd0, PrimType toType, PrimType fromType);
+  void SelectFloatCvt(RegOperand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType);
+  void SelectCvtFloat2Int(RegOperand &resOpnd, Operand &origOpnd0, PrimType toType, PrimType fromType);
+  PrimType GetIntegerPrimTypeFromSize(bool isSigned, uint32 bitSize) const;
+  std::pair<FieldID, MIRType*> GetFieldIdAndMirTypeFromMirNode(const BaseNode &node);
+  MirTypeInfo GetMirTypeInfoFormFieldIdAndMirType(FieldID fieldId, MIRType *mirType);
+  MirTypeInfo GetMirTypeInfoFromMirNode(const BaseNode &node);
+  MemOperand *GetOrCreateMemOpndFromIreadNode(const IreadNode &expr, PrimType primType, int offset);
  private:
   StmtNode *HandleFuncEntry();
   void HandleFuncExit() const;
   void SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, Operand &opndRhs);
-  virtual CGMemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, FieldID fieldId) = 0;
+  void SelectDassignStruct(MIRSymbol &symbol, MemOperand &symbolMem, Operand &opndRhs);
+  virtual MemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, FieldID fieldId = 0) const = 0;
+  virtual MemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, uint32 opndSize, int64 offset) const = 0;
   virtual Operand &GetTargetRetOperand(PrimType primType, int32 sReg) = 0;
   void SelectBasicOp(Operand &resOpnd, Operand &opnd0, Operand &opnd1, MOperator mOp, PrimType primType);
   /*
@@ -92,11 +133,17 @@ class MPISel {
    * only Support conversion between registers and memory
    * alltypes -> reg -> mem
    */
-  template<typename destTy, typename srcTy>
-  void SelectCopyInsn(destTy &dest, srcTy &src, PrimType type) const;
-  void SelectNeg(Operand &resOpnd, Operand &opnd0) const;
+  void SelectCopyInsn(Operand &dest, Operand &src, PrimType type);
+  void SelectNeg(Operand &resOpnd, Operand &opnd0, PrimType primType) const;
+  void SelectBnot(Operand &resOpnd, Operand &opnd0, PrimType primType);
   void SelectBior(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
-  void SelectExtractbits(CGRegOperand &resOpnd, CGRegOperand &opnd0, uint8 bitOffset, uint8 bitSize, PrimType primType);
+  void SelectExtractbits(RegOperand &resOpnd, RegOperand &opnd0, uint8 bitOffset, uint8 bitSize, PrimType primType);
+  void SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
+  virtual RegOperand &GetTargetBasicPointer(PrimType primType) = 0;
+  virtual RegOperand &GetTargetStackPointer(PrimType primType) = 0;
+  void SelectMin(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
+  void SelectMax(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
+  virtual void SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
 };
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(InstructionSelector, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
