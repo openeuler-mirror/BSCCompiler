@@ -31,21 +31,6 @@ namespace maplebe {
     continue; \
   }
 
-#ifdef REMOVE_DOM_REDUNDANCY
-void AArch64RegSavesOpt::CreateReachingBBs(ReachInfo &rp, const BB &bb) {
-  (void)visited.insert(bb.GetId());
-  (void)rp.GetBBList().insert(bb.GetId());
-  for (auto succ : bb.GetSuccs()) {
-    if (visited.count(succ->GetId()) == 0) {
-      CreateReachingBBs(rp, *succ);
-    }
-  }
-#if RS_DUMP
-  M_LOG << " --ReachingBBs for BB " << bb.GetId() << " created\n";
-#endif
-}
-#endif
-
 void AArch64RegSavesOpt::InitData() {
   calleeBitsDef = cgFunc->GetMemoryPool()->NewArray<CalleeBitsType>(cgFunc->NumBBs());
   errno_t retDef = memset_s(calleeBitsDef, cgFunc->NumBBs() * sizeof(CalleeBitsType),
@@ -346,71 +331,6 @@ bool AArch64RegSavesOpt::AlreadySavedInDominatorList(const BB *bb, regno_t reg) 
   return false;                      /* not previously saved, to save at bb */
 }
 
-#ifdef REMOVE_DOM_REDUNDANCY
-/* Return true if reg is already to be saved in all paths to target
-   from already saved BBs */
-BB* AArch64RegSavesOpt::RemoveRedundancy(BB *target, regno_t reg) {
-  uint32 cbit = RegBitMap(reg);
-  if (regSavedBBs[cbit] == nullptr) {
-    return target;                                    /* no previously save */
-  }
-  MapleSet<BB*> &saveSet = regSavedBBs[cbit]->GetBBList();
-  BB *targ = target;
-  while (true) {
-    if (targ->GetPreds().empty()) {
-      break;                                          /* entry node */
-    }
-    BBID tbid = targ->GetId();
-    bool change = false;
-    for (BB *from : saveSet) {
-      BBID fbid = from->GetId();
-      if (tbid == fbid) {
-        continue;
-      }
-      ReachInfo *rp = GetReachingEntry(fbid);
-      if (rp->GetBBList().empty()) {
-        (void)visited.clear();
-        CreateReachingBBs(rp, from);
-      }
-      if (rp->ContainInReachingBBs(tbid)) {           /* BB reaches curbb */
-        change = true;
-        targ = GetDomInfo()->GetDom(tbid);
-        break;
-      }
-    }
-    if (!change) {
-      break;                                          /* targ is dest */
-    }
-  }
-
-  /* If the newly found blk reaches any already previously saved blocks,
-     remove these blks from bbSavedRegs */
-  ReachInfo *rp = GetReachingEntry(targ->GetId());
-  if (rp->GetBBList().empty()) {
-    CreateReachingBBs(rp, targ);
-  }
-  for (BB *bb : saveSet) {
-    if (bb->GetId() == targ->GetId()) {
-#if RS_DUMP
-      M_LOG << " --R" << (reg - 1) << " already saved in BB" << targ->GetId()<< "\n";
-#endif
-      continue;
-    } else if (bb->GetPreds().empty()) {
-      continue;
-    }
-    if (rp->ContainInReachingBBs(bb->GetId())) {
-      saveSet.erase(bb);
-      bbSavedRegs[bb->GetId()]->RemoveSaveReg(reg);
-#if RS_DUMP
-      M_LOG << " --R" << (reg - 1) << " save removed from BB" << bb->GetId() << "\n";
-#endif
-    }
-  }
-
-  return targ;
-}
-#endif
-
 BB* AArch64RegSavesOpt::FindLoopDominator(BB *bb, regno_t reg, bool *done) {
   BB *bbDom = bb;
   while (bbDom->GetLoop() != nullptr) {
@@ -470,14 +390,6 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
           mask <<= 1;
           continue;
         }
-
-#ifdef REMOVE_DOM_REDUNDANCY
-        bbDom = RemoveRedundancy(bbDom, reg);
-        if (regSavedBBs[i] == nullptr) {
-          regSavedBBs[i] = memPool->New<SavedBBInfo>(alloc);
-        }
-        regSavedBBs[i]->InsertBB(bbDom);
-#endif
 
         /* Check if a dominator of bbDom was already a location to save */
         if (AlreadySavedInDominatorList(bbDom, reg)) {
@@ -812,83 +724,6 @@ void AArch64RegSavesOpt::PrintSaveLocs(AArch64reg reg) {
   }
   M_LOG << "]\n";
 }
-
-/* DFS to verify the save/restore are in pair(s) within a path */
-#ifdef VERIFY
-void AArch64RegSavesOpt::Verify(regno_t reg, BB *bb, std::set<BB*, BBIdCmp> *visited, uint32 *s, uint32 *r) {
-  (void)visited->insert(bb);
-  BBId bid = bb->GetId();
-  M_LOG << bid << ",";    /* path trace can be long */
-
-  if (bbSavedRegs[bid] != nullptr) {
-    bool entryRestoreMet = false;
-    if (bbSavedRegs[bid]->ContainEntryReg(reg)) {
-      M_LOG << "[^" << bid << "],";  // entry restore found
-      if (*s == 0) {
-        M_LOG << "Alert: nR@" << bid << " found w/o save\n";
-        return;
-      }
-      /* complete s/xR found, continue */
-      M_LOG << "(" << *s << "," << bid << ") ";
-      *r = bid;
-      entryRestoreMet = true;
-    }
-    if (bbSavedRegs[bid]->ContainSaveReg(reg)) {
-      M_LOG << "[" << bid << "],";     // save found
-      if (*s != 0 && !entryRestoreMet) {
-        /* another save found before last save restored */
-        M_LOG << "Alert: save@" << bid << " found after save@" << *s << "\n";
-        return;
-      }
-      if (entryRestoreMet) {
-        *r = 0;
-      }
-      *s = bid;
-    }
-    if (bbSavedRegs[bid]->ContainExitReg(reg)) {
-      M_LOG << "[" << bid << "$],";    // exit restore found
-      if (*s == 0) {
-        M_LOG << "Alert: xR@" << bid << " found w/o save\n";
-        return;
-      }
-      /* complete s/xR found, continue */
-      M_LOG << "(" << *s << "," << bid << ") ";
-      *r = bid;
-    }
-  }
-
-  if (bb->GetSuccs().size() == 0) {
-    if (*s != 0 && *r == 0) {
-      M_LOG << "Alert: save@" << *s << " w/o restore reaches end";
-    }
-    M_LOG << " <Path " << *s << "->" << bid << " ended>\n";
-    *r = 0;
-  }
-  for (BB *sBB : bb->GetSuccs()) {
-    if (visited->count(sBB) == 0) {
-      Verify(reg, sBB, visited, s, r);
-    }
-  }
-  if (*s == bid) {
-    /* clear only when returned from previous calls to the orig save site */
-    /* clear savebid since all of its succs already visited */
-    *s = 0;
-  }
-  if (*r == bid) {
-    /* clear restorebid if all of its preds already visited */
-    bool clear = true;
-    for (BB *pBB : bb->GetPreds()) {
-      if (visited->count(pBB) == 0) {
-        clear = false;
-        break;
-      }
-    }
-    if (clear) {
-      *r = 0;
-    }
-  }
-}
-#endif
 
 void AArch64RegSavesOpt::InsertCalleeRestoreCode() {
   BBID bid = 0;
