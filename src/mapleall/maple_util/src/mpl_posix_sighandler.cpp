@@ -287,7 +287,7 @@ static void InitAlternativeStack() {
 
   stack_t stack;
   constexpr size_t stackSizeMultiplier = 4;
-  constexpr size_t stackSize = stackSizeMultiplier * SIGSTKSZ;
+  size_t stackSize = stackSizeMultiplier * SIGSTKSZ;
   stack.ss_size = stackSize;
   stack.ss_sp = std::malloc(stackSize);
   if (stack.ss_sp == nullptr) {
