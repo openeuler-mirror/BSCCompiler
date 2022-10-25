@@ -88,6 +88,9 @@ bool IpaSccPM::PhaseRun(MIRModule &m) {
   MeOption::mergeStmts = oldMerge;
   MeOption::propDuringBuild = oldProp;
   MeOption::layoutWithPredict = oldLayout;
+  if (Options::dumpPhase == "outline") {
+    ipaInfo->Dump();
+  }
   m.SetInIPA(false);
   return changed;
 }

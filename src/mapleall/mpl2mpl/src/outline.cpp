@@ -13,30 +13,10 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "outline.h"
-#include <algorithm>
-#include <cstddef>
-#include <functional>
-#include <iterator>
-#include <ostream>
-#include <string>
-#include <unordered_map>
-#include <unordered_set>
-#include "cfg_primitive_types.h"
-#include "global_tables.h"
 #include "ipa_collect.h"
 #include "ipa_phase_manager.h"
-#include "mir_builder.h"
-#include "mir_function.h"
-#include "mir_nodes.h"
-#include "mir_symbol.h"
-#include "mir_symbol_builder.h"
-#include "mir_type.h"
-#include "mpl_logging.h"
-#include "opcodes.h"
 #include "region_identify.h"
 #include "stmt_cost_analyzer.h"
-#include "stmt_identify.h"
-#include "types_def.h"
 
 namespace maple {
 static constexpr size_t kParameterNumberLimit = 8;
@@ -50,25 +30,28 @@ static bool ShareSameParameter(const BaseNode &lhs, const BaseNode &rhs) {
   if (rhs.GetOpCode() == OP_addrof) {
     return static_cast<const AddrofNode &>(rhs).MayAccessSameMemory(&lhs);
   }
+  if (lhs.GetOpCode() == OP_constval) {
+    return static_cast<const ConstvalNode &>(lhs).GetConstVal() == static_cast<const ConstvalNode &>(rhs).GetConstVal();
+  }
   return lhs.IsSameContent(&rhs);
 }
 
 template<typename Functor>
-static void ForEachOpnd(BaseNode &opnd, BaseNode *parent, Functor &opndProcessor) {
+static void ForEachOpnd(BaseNode &opnd, BaseNode &parent, Functor &opndProcessor) {
   if (opnd.GetOpCode() == OP_block) {
     auto &stmtList = static_cast<BlockNode &>(opnd).GetStmtNodes();
     for (auto it = stmtList.begin(); it != stmtList.end(); ++it) {
-      ForEachOpnd(*to_ptr(it), parent, opndProcessor);
+      ForEachOpnd(*to_ptr(it), opnd, opndProcessor);
     }
     return;
   }
-  opndProcessor(opnd, parent);
   for (size_t i = 0; i < opnd.GetNumOpnds(); ++i) {
-    ForEachOpnd(*opnd.Opnd(i), &opnd, opndProcessor);
+    ForEachOpnd(*opnd.Opnd(i), opnd, opndProcessor);
   }
+  opndProcessor(opnd, parent);
 }
 
-void OutlineCandidate::InsertIntoParameterList(BaseNode &expr) {
+size_t OutlineCandidate::InsertIntoParameterList(BaseNode &expr) {
   for (size_t i = 0; i < parameters.size(); ++i) {
     if (!ShareSameParameter(expr, *parameters[i])) {
       continue;
@@ -78,10 +61,12 @@ void OutlineCandidate::InsertIntoParameterList(BaseNode &expr) {
       parameters[i]->SetOpCode(OP_addrof);
       parameters[i]->SetPrimType(expr.GetPrimType());
     }
-    return;
+    return i;
   }
-  exprToParameterIndex[&expr] = parameters.size();
+  auto newIndex = parameters.size();
+  exprToParameterIndex[&expr] = newIndex;
   (void)parameters.emplace_back(expr.CloneTree(regionCandidate->GetFunction()->GetCodeMempoolAllocator()));
+  return newIndex;
 }
 
 class OutlineInfoCollector {
@@ -90,7 +75,7 @@ class OutlineInfoCollector {
   ~OutlineInfoCollector() {
     candidate = nullptr;
   }
-  void operator() (BaseNode &node, BaseNode *parent) {
+  void operator() (BaseNode &node, const BaseNode &parent) {
     (void)parent;
     switch (node.GetOpCode()) {
       case OP_callassigned:
@@ -109,7 +94,11 @@ class OutlineInfoCollector {
         break;
       }
       case OP_addrof: {
-        candidate->InsertIntoParameterList(node);
+        auto stIdx = static_cast<AddrofNode &>(node).GetStIdx();
+        if (stIdx.Islocal()) {
+          auto index = candidate->InsertIntoParameterList(node);
+          candidate->GetStIdxToParameterIndexMap()[stIdx] = index;
+        }
         break;
       }
       case OP_dread:
@@ -132,9 +121,10 @@ class OutlineInfoCollector {
   void CollectParameter(BaseNode &node) {
     auto &regionInputs = candidate->GetRegionCandidate()->GetRegionInPuts();
     auto symbolRegPair = RegionCandidate::GetSymbolRegPair(node);
-    if (regionInputs.find(symbolRegPair) != regionInputs.end()) {
-      candidate->InsertIntoParameterList(node);
+    if (regionInputs.find(symbolRegPair) == regionInputs.end()) {
+      return;
     }
+    (void)candidate->InsertIntoParameterList(node);
   }
   OutlineCandidate *candidate;
 };
@@ -154,21 +144,26 @@ class OutlineRegionExtractor {
     builder = nullptr;
   };
 
-  void operator() (BaseNode &node, BaseNode *parent) {
-    auto &exprToParameterMap = candidate->GetExprToParameterIndexMap();
+  void operator() (BaseNode &node, BaseNode &parent) {
+    auto &stIdxToParameterIndexMap = candidate->GetStIdxToParameterIndexMap();
     switch (node.GetOpCode()) {
       case OP_addrof:
       case OP_dread: {
-        if (exprToParameterMap.find(&node) != exprToParameterMap.end() &&
-            candidate->GetParameters()[exprToParameterMap[&node]]->GetOpCode() == OP_addrof) {
+        auto stIdx = static_cast<DreadNode &>(node).GetStIdx();
+        if (stIdxToParameterIndexMap.find(stIdx)!= stIdxToParameterIndexMap.end()) {
           ReplaceExpr(node, parent);
-          break;
+        } else {
+          ReplaceStIdx<DreadNode>(node);
         }
-        ReplaceStIdx<DreadNode>(node);
         break;
       }
       case OP_dassign: {
-        ReplaceStIdx<DassignNode>(node);
+        auto stIdx = static_cast<DassignNode &>(node).GetStIdx();
+        if (stIdxToParameterIndexMap.find(stIdx) != stIdxToParameterIndexMap.end()) {
+          RestoreBase(node, parent);
+        } else {
+          ReplaceStIdx<DassignNode>(node);
+        }
         break;
       }
       case OP_regread: {
@@ -202,6 +197,7 @@ class OutlineRegionExtractor {
         break;
       }
       default: {
+        auto exprToParameterMap = candidate->GetExprToParameterIndexMap();
         if (exprToParameterMap.find(&node) != exprToParameterMap.end()) {
           ReplaceExpr(node, parent);
         }
@@ -210,19 +206,71 @@ class OutlineRegionExtractor {
     }
   }
 
-  void GenerateInputAndOutput() {
+  void GenerateInput() {
+    for (auto *parameter : candidate->GetParameters()) {
+      MIRSymbol *symbol = nullptr;
+      switch (parameter->GetOpCode()) {
+        case OP_dread: {
+          auto *dread = static_cast<DreadNode *>(parameter);
+          auto stIdx = GetOrCreateNewStIdx(dread->GetStIdx());
+          symbol = newFunc->GetSymbolTabItem(stIdx.Idx());
+          symbol->SetStorageClass(kScFormal);
+          break;
+        }
+        case OP_regread: {
+          auto *regRead = static_cast<RegreadNode *>(parameter);
+          auto pregIdx = GetOrCreateNewPregIdx(regRead->GetRegIdx());
+          symbol = builder->CreatePregFormalSymbol(TyIdx(regRead->GetPrimType()), pregIdx, *newFunc);
+          break;
+        }
+        case OP_addrof:
+        case OP_constval:
+        case OP_conststr:
+        case OP_conststr16: {
+          auto *dread = static_cast<DreadNode *>(CreateNewExpr(*parameter));
+          auto stIdx = dread->GetStIdx();
+          symbol = newFunc->GetSymbolTabItem(stIdx.Idx());
+          symbol->SetStorageClass(kScFormal);
+          break;
+        }
+        default: {
+          CHECK_FATAL(false, "unexpected op code for formal symbol creation");
+          break;
+        }
+      }
+      (void)newFunc->GetFormalDefVec().emplace_back(FormalDef(symbol, symbol->GetTyIdx(), symbol->GetAttrs()));
+      (void)newFunc->GetMIRFuncType()->GetParamTypeList().emplace_back(symbol->GetTyIdx());
+      (void)newFunc->GetMIRFuncType()->GetParamAttrsList().emplace_back(symbol->GetAttrs());
+    }
+  }
+
+  void DealWithReturn() {
     ReplaceOutput();
-    GenerateInput();
     GenerateOutput();
   }
 
  private:
+  void RestoreBase(BaseNode &node, BaseNode &parent) {
+    auto &dassign = static_cast<DassignNode &>(node);
+    auto stIdx = dassign.GetStIdx();
+    if (stIdx.IsGlobal()) {
+      return;
+    }
+    auto *parameter = candidate->GetParameters()[candidate->GetStIdxToParameterIndexMap()[stIdx]];
+    auto *newParameter = exprMap[parameter];
+    auto *symbol = oldFunc->GetSymbolTabItem(stIdx.Idx());
+    auto *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*symbol->GetType());
+    auto *iassign = builder->CreateStmtIassign(*ptrType, dassign.GetFieldID(), newParameter, dassign.GetRHS());
+    static_cast<BlockNode &>(parent).ReplaceStmt1WithStmt2(&dassign, iassign);
+    candidate->GetReplacedStmtMap()[&node] = iassign;
+  }
+
   StIdx CreateNewStIdx(const StIdx oldStIdx) {
     auto *oldSym = oldFunc->GetSymbolTabItem(oldStIdx.Idx());
     auto *newSym = newFunc->GetSymTab()->CloneLocalSymbol(*oldSym);
     newSym->SetIsTmp(true);
     newSym->ResetIsDeleted();
-    if (newSym->IsFormal()) {
+    if (newSym->IsFormal() || newSym->IsPUStatic()) {
       newSym->SetStorageClass(kScAuto);
     }
     auto flag = newFunc->GetSymTab()->AddStOutside(newSym);
@@ -274,28 +322,29 @@ class OutlineRegionExtractor {
     return symbol;
   }
 
-  BaseNode *GetOrCreateNewExpr(BaseNode &node) {
+  BaseNode *ReloadVar(BaseNode &originNode, BaseNode &newBase) {
+    auto &dread = static_cast<DreadNode&>(originNode);
+    auto *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(TyIdx(dread.GetPrimType()));
+    return builder->CreateExprIread(dread.GetPrimType(), ptrType->GetTypeIndex(), 0, &newBase);
+  }
+
+  BaseNode *CreateNewExpr(BaseNode &node) {
+    auto primType = node.IsConstExpr() ? node.GetPrimType() : GetExactPtrPrimType();
+    auto *newSymbol = CreateNewSymbolForParameter(primType);
+    auto *returnNode = builder->CreateExprDread(*newSymbol);
+    exprMap[&node] = returnNode;
+    return returnNode;
+  }
+
+  BaseNode *GetNewExpr(BaseNode &node) {
     auto *srcNode = &node;
     auto &exprToParameterMap = candidate->GetExprToParameterIndexMap();
     if (exprToParameterMap.find(&node) == exprToParameterMap.end()) {
       return srcNode;
     }
     srcNode = candidate->GetParameters()[exprToParameterMap[srcNode]];
-    BaseNode *returnNode = nullptr;
-    if (exprMap.find(srcNode) != exprMap.end()) {
-      returnNode = exprMap[srcNode]->CloneTree(oldFunc->GetCodeMemPoolAllocator());
-    } else {
-      auto primType = node.IsConstExpr() ? srcNode->GetPrimType() : GetExactPtrPrimType();
-      auto *newSymbol = CreateNewSymbolForParameter(primType);
-      returnNode = builder->CreateExprDread(*newSymbol);
-      exprMap[srcNode] = returnNode;
-    }
-    if (node.GetOpCode() == OP_dread) {
-      auto &dread = static_cast<DreadNode&>(node);
-      auto *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(TyIdx(dread.GetPrimType()));
-      return builder->CreateExprIread(dread.GetPrimType(), ptrType->GetTypeIndex(), 0, returnNode);
-    }
-    return returnNode;
+    auto *returnNode = exprMap[srcNode]->CloneTree(oldFunc->GetCodeMemPoolAllocator());
+    return (node.GetOpCode() == OP_dread) ? ReloadVar(node, *returnNode) : returnNode;
   }
 
   template<typename T>
@@ -343,13 +392,10 @@ class OutlineRegionExtractor {
     }
   }
 
-  void ReplaceExpr(BaseNode &node, BaseNode* parent) {
-    if (!parent) {
-      return;
-    }
-    for (size_t i = 0; i < parent->NumOpnds(); ++i) {
-      if (parent->Opnd(i) == &node) {
-        parent->SetOpnd(GetOrCreateNewExpr(node), i);
+  void ReplaceExpr(BaseNode &node, BaseNode &parent) {
+    for (size_t i = 0; i < parent.NumOpnds(); ++i) {
+      if (parent.Opnd(i) == &node) {
+        parent.SetOpnd(GetNewExpr(node), i);
       }
     }
   }
@@ -372,46 +418,6 @@ class OutlineRegionExtractor {
         CHECK_FATAL(false, "unexpected op for return value");
         break;
       }
-    }
-  }
-
-  void GenerateInput() {
-    for (auto *parameter : candidate->GetParameters()) {
-      MIRSymbol *symbol = nullptr;
-      switch (parameter->GetOpCode()) {
-        case OP_dread: {
-          ReplaceStIdx<DreadNode>(*parameter);
-          auto *dread = static_cast<DreadNode*>(parameter);
-          auto stIdx = dread->GetStIdx();
-          symbol = newFunc->GetSymbolTabItem(stIdx.Idx());
-          symbol->SetStorageClass(kScFormal);
-          break;
-        }
-        case OP_regread: {
-          ReplacePregIdx<RegreadNode>(*parameter);
-          auto *regread = static_cast<RegreadNode*>(parameter);
-          auto pregIdx = regread->GetRegIdx();
-          symbol = builder->CreatePregFormalSymbol(TyIdx(regread->GetPrimType()), pregIdx, *newFunc);
-          break;
-        }
-        case OP_addrof:
-        case OP_constval:
-        case OP_conststr:
-        case OP_conststr16: {
-          auto *dread = static_cast<DreadNode*>(exprMap[parameter]);
-          auto stIdx = dread->GetStIdx();
-          symbol = newFunc->GetSymbolTabItem(stIdx.Idx());
-          symbol->SetStorageClass(kScFormal);
-          break;
-        }
-        default: {
-          CHECK_FATAL(false, "unexpected op code for formal symbol creation");
-          break;
-        }
-      }
-      (void)newFunc->GetFormalDefVec().emplace_back(FormalDef(symbol, symbol->GetTyIdx(), symbol->GetAttrs()));
-      (void)newFunc->GetMIRFuncType()->GetParamTypeList().emplace_back(symbol->GetTyIdx());
-      (void)newFunc->GetMIRFuncType()->GetParamAttrsList().emplace_back(symbol->GetAttrs());
     }
   }
 
@@ -444,7 +450,7 @@ void OutlineGroup::CollectOutlineInfo() {
     auto *region = outlineCandidate.GetRegionCandidate();
     auto collector = OutlineInfoCollector(&outlineCandidate);
     region->TraverseRegion([&collector] (const StmtIterator &it) {
-      ForEachOpnd(*to_ptr(it), nullptr, collector);
+      ForEachOpnd(*to_ptr(it), *to_ptr(it), collector);
     });
   }
 }
@@ -464,7 +470,7 @@ void OutlineGroup::PrepareExtraParameterLists() {
   for (auto &candidate : regionGroup) {
     for (auto valueNumber : extraParameterValueNumber) {
       auto *expr = candidate.GetRegionValueNumberToSrcExprMap()[valueNumber];
-      candidate.InsertIntoParameterList(*expr);
+      (void)candidate.InsertIntoParameterList(*expr);
     }
   }
 }
@@ -493,14 +499,20 @@ void OutlineGroup::ReplaceOutlineCandidateWithCall() {
 
 void OutlineGroup::CompleteOutlineFunction() {
   auto &candidate = regionGroup.front();
-  auto *region = candidate.GetRegionCandidate();
   auto extractor = OutlineRegionExtractor(&candidate, outlineFunc);
-  region->TraverseRegion([&extractor, this] (const StmtIterator &it) {
-    ForEachOpnd(*to_ptr(it), nullptr, extractor);
-    auto *newStmt = (it)->CloneTree(outlineFunc->GetCodeMempoolAllocator());
+  extractor.GenerateInput();
+  candidate.GetRegionCandidate()->TraverseRegion([&extractor, &candidate, this] (const StmtIterator &it) {
+    auto *stmt = to_ptr(it);
+    auto *region = candidate.GetRegionCandidate();
+    auto &replacedStmtMap = candidate.GetReplacedStmtMap();
+    ForEachOpnd(*stmt, *region->GetStart()->GetCurrBlock(), extractor);
+    auto replaced = replacedStmtMap.find(stmt) != replacedStmtMap.end();
+    auto *replacedStmt = replaced ? candidate.GetReplacedStmtMap()[stmt] : stmt;
+    auto *newStmt = replacedStmt->CloneTree(outlineFunc->GetCodeMempoolAllocator());
     outlineFunc->GetBody()->AddStatement(newStmt);
+    region->GetStart()->GetCurrBlock()->RemoveStmt(replacedStmt);
   });
-  extractor.GenerateInputAndOutput();
+  extractor.DealWithReturn();
 }
 
 void OutlineGroup::EraseOutlineRegion() {
@@ -584,7 +596,7 @@ void OutLine::Run() {
 
     auto cost = GetCost(outlineGroup, stmtCostAnalyzer);
     auto benefit = GetBenefit(outlineGroup, stmtCostAnalyzer);
-    if (benefit - cost < Options::outlineThreshold) {
+    if (benefit < cost || benefit - cost < Options::outlineThreshold) {
       continue;
     }
 
@@ -608,7 +620,7 @@ MIRFunction *OutLine::CreateNewOutlineFunction(PrimType returnType) {
   (void)module->GetFunctionList().emplace_back(newFunc);
   newFunc->SetBody(newFunc->GetCodeMempool()->New<BlockNode>());
   newFunc->SetAttr(FUNCATTR_static);
-  newFunc->SetAttr(FUNCATTR_noinline);
+  newFunc->SetAttr(FUNCATTR_outlined);
   newFunc->AllocSymTab();
   newFunc->AllocPregTab();
   newFunc->AllocLabelTab();

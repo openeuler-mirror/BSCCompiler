@@ -347,6 +347,9 @@ bool RegionIdentify::CompareSymbolStructure(const StIdx leftIdx, const StIdx rig
 }
 
 bool RegionIdentify::HasSameStructure(RegionCandidate &lhs, RegionCandidate &rhs) {
+  if (lhs.GetRegionOutPuts().size() != rhs.GetRegionOutPuts().size()) {
+    return false;
+  }
   auto *leftStmt = lhs.GetStart()->GetStmtNode();
   auto *rightStmt = rhs.GetStart()->GetStmtNode();
   while (leftStmt && rightStmt && leftStmt->GetStmtInfoId() <= lhs.GetEndId()) {
