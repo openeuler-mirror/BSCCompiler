@@ -23,6 +23,7 @@
 #include "me_dominance.h"
 #include "class_hierarchy_phase.h"
 #include "me_phase_manager.h"
+#include "type_based_alias_analysis.h"
 
 namespace maple {
 // This phase performs alias analysis based on union-based alias analysis algorithm and

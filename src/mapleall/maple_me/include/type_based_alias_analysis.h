@@ -16,7 +16,8 @@
 #ifndef MAPLE_ME_INCLUDE_TYPE_BASED_ALIAS_ANALYSIS_H
 #define MAPLE_ME_INCLUDE_TYPE_BASED_ALIAS_ANALYSIS_H
 #include "alias_class.h"
-namespace maple{
+
+namespace maple {
 class TypeBasedAliasAnalysis {
  public:
   static bool MayAlias(const OriginalSt *ostA, const OriginalSt *ostB);
@@ -24,26 +25,39 @@ class TypeBasedAliasAnalysis {
                                              const OriginalSt *rhsOst);
   static bool MayAliasTBAAForC(const OriginalSt *ostA, const OriginalSt *ostB);
   static void ClearOstTypeUnsafeInfo();
-  static std::vector<bool> &GetOstTypeUnsafe() {
-    return ostTypeUnsafe;
+  static std::vector<bool> &GetPtrTypeUnsafe() {
+    return ptrValueTypeUnsafe;
   }
-  static void SetOstTypeUnsafe(const OriginalSt &ost) {
-    size_t ostIdx = ost.GetIndex().GetIdx();
-    if (ostIdx >= ostTypeUnsafe.size()) {
-      ostTypeUnsafe.resize(ostIdx + 1, false);
+
+  static void SetVstValueTypeUnsafe(size_t vstIdx) {
+    if (vstIdx >= ptrValueTypeUnsafe.size()) {
+      ptrValueTypeUnsafe.resize(vstIdx + 1, false);
     }
-    ostTypeUnsafe[ostIdx] = true;
+    ptrValueTypeUnsafe[vstIdx] = true;
   }
-  static bool IsOstTypeUnsafe(const OriginalSt &ost) {
-    size_t ostIdx = ost.GetIndex().GetIdx();
-    if (ostIdx >= ostTypeUnsafe.size()) {
+
+  static void SetVstValueTypeUnsafe(const VersionSt &vst) {
+    SetVstValueTypeUnsafe(vst.GetIndex());
+  }
+
+  static bool IsValueTypeUnsafe(const VersionSt &vst) {
+    size_t vstIdx = vst.GetIndex();
+    if (vstIdx >= ptrValueTypeUnsafe.size()) {
       return false;
     }
-    return ostTypeUnsafe[ostIdx];
+    return ptrValueTypeUnsafe[vstIdx];
+  }
+
+  static bool IsMemTypeUnsafe(const OriginalSt &ost) {
+    auto prevLevVstIdx = ost.GetPointerVstIdx();
+    if (prevLevVstIdx > ptrValueTypeUnsafe.size()) {
+      return false;
+    }
+    return ptrValueTypeUnsafe[prevLevVstIdx];
   }
 
  private:
-  static std::vector<bool> ostTypeUnsafe; // index is OStIdx
+  static std::vector<bool> ptrValueTypeUnsafe; // index is OStIdx
 };
 } // namespace maple
-#endif //MAPLE_ME_INCLUDE_TYPE_BASED_ALIAS_ANALYSIS_H
+#endif // MAPLE_ME_INCLUDE_TYPE_BASED_ALIAS_ANALYSIS_H

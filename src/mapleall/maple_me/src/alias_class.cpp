@@ -19,6 +19,7 @@
 #include "mir_function.h"
 #include "mir_builder.h"
 #include "ipa_side_effect.h"
+#include "type_based_alias_analysis.h"
 
 namespace {
 using namespace maple;
@@ -1849,7 +1850,9 @@ void AliasClass::DumpClassSets(bool onlyDumpRoot) {
       }
       LogInfo::MapleLogger() << '\n';
     } else {
-      LogInfo::MapleLogger() << "Members of alias class " << ostIdx << ": ";
+      LogInfo::MapleLogger() << "Alias class members of: ";
+      ost->Dump();
+      LogInfo::MapleLogger() << ":\n";
       for (auto aliasedOstIdx : *aliasSet) {
         CHECK_FATAL(ssaTab.GetOriginalStFromID(OStIdx(aliasedOstIdx)), "orig st is nullptr!");
         ssaTab.GetOriginalStFromID(OStIdx(aliasedOstIdx))->Dump();

@@ -18,7 +18,6 @@
 #include "mempool_allocator.h"
 #include "ssa_tab.h"
 #include "union_find.h"
-#include "type_based_alias_analysis.h"
 
 namespace maple {
 constexpr int64 bitsPerByte = 8;
