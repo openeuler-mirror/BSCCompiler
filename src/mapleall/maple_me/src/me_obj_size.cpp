@@ -204,12 +204,20 @@ size_t OBJSize::DealWithSprintfAndVsprintf(const CallMeStmt &callMeStmt, const M
       return 0;
     }
     auto *src = callMeStmt.GetOpnd(4);
-    if (src->GetMeOp() == kMeOpConststr) {
+    src = GetStrMeExpr(*src);
+    if (src != nullptr) {
       return ComputeObjectSizeWithType(*src, 0);
     }
   }
   return 0;
 }
+
+const std::map<std::string, std::pair<size_t, size_t>> kIndexOfParam {
+    {"sprintf", {1, 2}},
+    {"snprintf", {2, 3}},
+    {"vsprintf", {1, 2}},
+    {"vsnprintf", {2, 3}}
+};
 
 // If do not know the size of the buffer, replace the function without check. Such as:
 // __memcpy_chk => memcpy
@@ -220,7 +228,12 @@ void OBJSize::ReplaceStmt(CallMeStmt &callMeStmt, const std::string &str) {
   if (kReplacedExceptArgs.find(str) != kReplacedExceptArgs.end()) {
     for (size_t i = 0; i < callMeStmt.GetOpnds().size(); ++i) {
       // When replacing with a function without check, the second and third parameters need to be deleted.
-      if (i == kSecondOpnd || i == kThirdOpnd) {
+      auto itOfIndex = kReplacedExceptArgs.find(str);
+      if (itOfIndex == kReplacedExceptArgs.end()) {
+        return;
+      }
+      auto itOfIndexParam = kIndexOfParam.find(str);
+      if (i == itOfIndexParam->second.first || i == itOfIndexParam->second.second) {
         continue;
       }
       newCallMeStmt->PushBackOpnd(callMeStmt.GetOpnd(i));
@@ -234,6 +247,8 @@ void OBJSize::ReplaceStmt(CallMeStmt &callMeStmt, const std::string &str) {
   for (auto &mu : *callMeStmt.GetMuList()) {
     (void)newCallMeStmt->GetMuList()->emplace(mu.first, mu.second);
   }
+  newCallMeStmt->SetMustDefList(*callMeStmt.GetMustDefList());
+  newCallMeStmt->SetChiList(*callMeStmt.GetChiList());
   callMeStmt.GetBB()->ReplaceMeStmt(&callMeStmt, newCallMeStmt);
 }
 
