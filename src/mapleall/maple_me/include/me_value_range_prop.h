@@ -549,6 +549,22 @@ class ValueRangePropagation {
   }
 
  private:
+  struct CompareExpr {
+    bool operator()(const MeExpr *expr1, const MeExpr *expr2) const {
+      ASSERT_NOT_NULL(expr1);
+      ASSERT_NOT_NULL(expr2);
+      return expr1->GetExprID() < expr2->GetExprID();
+    }
+  };
+
+  struct CompareBB {
+    bool operator()(const BB *bb1, const BB *bb2) const {
+      ASSERT_NOT_NULL(bb1);
+      ASSERT_NOT_NULL(bb2);
+      return bb1->GetBBId() < bb2->GetBBId();
+    }
+  };
+
   bool Insert2Caches(const BBId &bbID, int32 exprID, std::unique_ptr<ValueRange> valueRange,
       const MeExpr *opnd = nullptr);
 
@@ -574,9 +590,9 @@ class ValueRangePropagation {
         }
       }
     }
-    auto *domBB = dom.GetDom(bbID);
-    return (domBB == nullptr || domBB->GetBBId() == 0) ?
-        nullptr : FindValueRangeInCaches(domBB->GetBBId(), exprID, numberOfRecursions);
+    auto *domBB = dom.GetDom(bbID.GetIdx());
+    return (domBB == nullptr || domBB->GetID() == 0) ?
+        nullptr : FindValueRangeInCaches(BBId(domBB->GetID()), exprID, numberOfRecursions);
   }
 
   void Insert2AnalysisedArrayChecks(BBId bbID, MeExpr &array, MeExpr &index, Opcode op) {
@@ -638,11 +654,11 @@ class ValueRangePropagation {
     }
     auto it = pairOfExprs.find(&lhs);
     if (it == pairOfExprs.end()) {
-      std::map<BB*, std::set<MeExpr*>> valueOfPairOfExprs{
-          std::make_pair<BB*, std::set<MeExpr*>>(&bb, std::set<MeExpr*>{ &rhs }) };
+      std::map<BB*, std::set<MeExpr*, CompareExpr>, CompareBB> valueOfPairOfExprs{
+          std::make_pair<BB*, std::set<MeExpr*, CompareExpr>>(&bb, std::set<MeExpr*, CompareExpr>{&rhs }) };
       pairOfExprs[&lhs] = valueOfPairOfExprs;
     } else if (it->second.find(&bb) == it->second.end()) {
-      pairOfExprs[&lhs][&bb] = std::set<MeExpr*>{ &rhs };
+      pairOfExprs[&lhs][&bb] = std::set<MeExpr*, CompareExpr>{&rhs };
     } else {
       pairOfExprs[&lhs][&bb].insert(&rhs);
     }
@@ -688,7 +704,7 @@ class ValueRangePropagation {
       LoopDesc &loop, const BB &bb, ScalarMeExpr &init, ScalarMeExpr &backedge,
       const ScalarMeExpr &lhsOfPhi);
   bool AddOrSubWithConstant(PrimType pType, Opcode op, int64 lhsConstant, int64 rhsConstant, int64 &res) const;
-  std::unique_ptr<ValueRange> NegValueRange(const BB &bb, MeExpr &opnd);
+  std::unique_ptr<ValueRange> NegValueRange(const BB &bb, MeExpr &opnd, uint32 &numberOfRecursions);
   bool AddOrSubWithBound(Bound oldBound, Bound &resBound, int64 rhsConstant, Opcode op);
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(Opcode op, ValueRange &valueRange, int64 rhsConstant);
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(
@@ -848,7 +864,8 @@ class ValueRangePropagation {
   void CalculateVROfSubOpnd(BBId bbID, const MeExpr &opnd, ValueRange &valueRange);
   void CreateValueRangeForSubOpnd(const MeExpr &opnd, const BB &trueBranch, const BB &falseBranch,
       ValueRange &resTrueBranchVR, ValueRange &resFalseBranchVR);
-  ValueRange *DealWithNegWhenFindValueRange(const BB &bb, const MeExpr &expr, const MeExpr *preExpr);
+  ValueRange *DealWithNegWhenFindValueRange(
+      const BB &bb, const MeExpr &expr, const MeExpr *preExpr, uint32 &numberOfRecursions);
 
   MeFunction &func;
   MeIRMap &irMap;
@@ -879,14 +896,14 @@ class ValueRangePropagation {
   SafetyCheck *safetyCheckNonnull = nullptr;
   SafetyCheck *safetyCheckBoundary = nullptr;
   // The map collects the exprs which have the same valueRange in bbs.
-  std::map<MeExpr*, std::map<BB*, std::set<MeExpr*>>> pairOfExprs;
+  std::map<MeExpr*, std::map<BB*, std::set<MeExpr*, CompareExpr>, CompareBB>, CompareExpr> pairOfExprs;
   bool dealWithPhi = false;
   bool dealWithAssert = false;
   bool onlyPropVR = false; // When need deal with check, do not opt cfg.
   MeExprUseInfo *useInfo = nullptr;
   std::stack<bool> onlyPropVRStack;
   std::stack<bool> onlyRecordValueRangeInTempCache;
-  MapleVector<BB*>::iterator currItOfTravelReversePostOrder;
+  MapleVector<BaseGraphNode*>::iterator currItOfTravelReversePostOrder;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(MEValueRangePropagation, MeFunction)
