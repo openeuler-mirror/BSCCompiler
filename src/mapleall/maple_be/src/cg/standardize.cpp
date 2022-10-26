@@ -14,6 +14,8 @@
  */
 #include "isel.h"
 #include "standardize.h"
+#include "cg.h"
+
 namespace maplebe {
 
 void Standardize::DoStandardize() {
@@ -35,23 +37,21 @@ void Standardize::DoStandardize() {
       if (insn->IsMachineInstruction()) {
         continue;
       }
-      if (!TryFastTargetIRMapping(*insn)) {
-        if (insn->IsMove()) {
-          StdzMov(*insn);
-        } else if (insn->IsStore() || insn->IsLoad()) {
-          StdzStrLdr(*insn);
-        } else if (insn->IsBasicOp()) {
-          StdzBasicOp(*insn);
-        } else if (insn->IsUnaryOp()) {
-          StdzUnaryOp(*insn);
-        } else if (insn->IsConversion()) {
-          StdzCvtOp(*insn, *cgFunc);
-        } else if (insn->IsShift()) {
-          StdzShiftOp(*insn, *cgFunc);
-        } else {
-          LogInfo::MapleLogger() << "Need STDZ function for " << insn->GetInsnDescrption()->GetName() << "\n";
-          CHECK_FATAL(false, "NIY");
-        }
+      if (insn->IsMove()) {
+        StdzMov(*insn);
+      } else if (insn->IsStore() || insn->IsLoad()) {
+        StdzStrLdr(*insn);
+      } else if (insn->IsBasicOp()) {
+        StdzBasicOp(*insn);
+      } else if (insn->IsUnaryOp()) {
+        StdzUnaryOp(*insn, *cgFunc);
+      } else if (insn->IsConversion()) {
+        StdzCvtOp(*insn, *cgFunc);
+      } else if (insn->IsShift()) {
+        StdzShiftOp(*insn, *cgFunc);
+      } else {
+        LogInfo::MapleLogger() << "Need STDZ function for " << insn->GetDesc()->GetName() << "\n";
+        CHECK_FATAL(false, "NIY");
       }
     }
   }
@@ -79,9 +79,14 @@ void Standardize::AddressMapping(Insn &insn) const {
       break;
   }
   CHECK_FATAL(mOp != abstract::MOP_undef, "do two address mapping failed");
-  insn.SetOperand(kInsnSecondOpnd, dest);
-  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDescription::GetAbstractId(mOp));
-  (void)newInsn.AddOperandChain(dest).AddOperandChain(src1);
-  (void)cgFunc->GetCurBB()->InsertInsnBefore(insn, newInsn);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDesc::GetAbstractId(mOp));
+  (void)newInsn.AddOpndChain(dest).AddOpndChain(src1);
+  (void)insn.GetBB()->InsertInsnBefore(insn, newInsn);
+}
+
+bool InstructionStandardize::PhaseRun(maplebe::CGFunc &f) {
+  Standardize *stdz = f.GetCG()->CreateStandardize(*GetPhaseMemPool(), f);
+  stdz->DoStandardize();
+  return true;
 }
 }

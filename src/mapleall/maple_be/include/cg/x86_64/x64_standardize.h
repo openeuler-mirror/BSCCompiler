@@ -22,17 +22,19 @@ namespace maplebe {
 class X64Standardize : public Standardize {
  public:
   explicit X64Standardize(CGFunc &f) : Standardize(f) {
-    SetTwoAddressMapping(true);
+    SetAddressMapping(true);
   }
 
   ~X64Standardize() override = default;
 
  private:
-  bool TryFastTargetIRMapping(Insn &insn) override;
-
   void StdzMov(Insn &insn) override;
   void StdzStrLdr(Insn &insn) override;
   void StdzBasicOp(Insn &insn) override;
+  void StdzUnaryOp(Insn &insn, CGFunc &cgFunc) override;
+  void StdzCvtOp(Insn &insn, CGFunc &cgFunc) override;
+  void StdzShiftOp(Insn &insn, CGFunc &cgFunc) override;
+  void StdzFloatingNeg(Insn &insn, CGFunc &cgFunc);
 };
 }
 #endif  /* MAPLEBE_INCLUDEX_64_STANDARDIZE_H */

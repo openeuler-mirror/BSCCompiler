@@ -54,14 +54,18 @@ DEFINE_MOP(MOP_movq_m_r, {&OpndDesc::Mem64S,&OpndDesc::Reg64ID},ISLOAD,kLtAlu,"m
 DEFINE_MOP(MOP_movq_r_m, {&OpndDesc::Reg64IS,&OpndDesc::Mem64D},ISSTORE,kLtAlu,"movq","0,1",1)
 
 /* floating point mov */
+DEFINE_MOP(MOP_movd_fr_r, {&OpndDesc::Reg128FS,&OpndDesc::Reg32ID},ISSTORE,kLtAlu,"movd","0,1",1)
+DEFINE_MOP(MOP_movq_fr_r, {&OpndDesc::Reg128FS,&OpndDesc::Reg64ID},ISSTORE,kLtAlu,"movq","0,1",1)
+DEFINE_MOP(MOP_movq_r_fr, {&OpndDesc::Reg64IS,&OpndDesc::Reg128FD},ISSTORE,kLtAlu,"movq","0,1",1)
 DEFINE_MOP(MOP_movfs_m_r, {&OpndDesc::Mem32S,&OpndDesc::Reg128FD},ISLOAD,kLtAlu,"movss","0,1",1)
-DEFINE_MOP(MOP_movfs_r_m, {&OpndDesc::Reg32FS,&OpndDesc::Mem128D},ISLOAD,kLtAlu,"movss","0,1",1)
+DEFINE_MOP(MOP_movfs_r_m, {&OpndDesc::Reg32FS,&OpndDesc::Mem128D},ISSTORE,kLtAlu,"movss","0,1",1)
 DEFINE_MOP(MOP_movfd_m_r, {&OpndDesc::Mem64S,&OpndDesc::Reg128FD},ISLOAD,kLtAlu,"movsd","0,1",1)
 DEFINE_MOP(MOP_movfd_r_m, {&OpndDesc::Reg64IS,&OpndDesc::Mem128D},ISSTORE,kLtAlu,"movsd","0,1",1)
 
 /* movabs */
 //The movabs instruction to load arbitrary 64-bit constant into register and to load/store integer register from/to arbitrary constant 64-bit address is available
-DEFINE_MOP(MOP_movabs_i_r, {&OpndDesc::StImm64,&OpndDesc::Reg64ID},ISMOVE,kLtAlu,"movabs","0,1",1)
+DEFINE_MOP(MOP_movabs_i_r, {&OpndDesc::Imm64,&OpndDesc::Reg64ID},ISMOVE,kLtAlu,"movabs","0,1",1)
+DEFINE_MOP(MOP_movabs_s_r, {&OpndDesc::StImm64,&OpndDesc::Reg64ID},ISMOVE,kLtAlu,"movabs","0,1",1)
 DEFINE_MOP(MOP_movabs_l_r, {&OpndDesc::Lbl64,&OpndDesc::Reg64ID},ISMOVE,kLtAlu,"movabs","0,1",1)
 
 /* push & pop & lea */
@@ -463,6 +467,10 @@ DEFINE_MOP(MOP_imulw_r_r, {&OpndDesc::Reg16IS,&OpndDesc::Reg16IDS},0,kLtAlu,"imu
 DEFINE_MOP(MOP_imull_r_r, {&OpndDesc::Reg32IS,&OpndDesc::Reg32IDS},0,kLtAlu,"imull","0,1",1)
 DEFINE_MOP(MOP_imulq_r_r, {&OpndDesc::Reg64IS,&OpndDesc::Reg64IDS},0,kLtAlu,"imulq","0,1",1)
 
+/* mul float */
+DEFINE_MOP(MOP_mulfs_r_r, {&OpndDesc::Reg128FS,&OpndDesc::Reg128FDS},0,kLtAlu,"mulss","0,1",1)
+DEFINE_MOP(MOP_mulfd_r_r, {&OpndDesc::Reg128FS,&OpndDesc::Reg128FDS},0,kLtAlu,"mulsd","0,1",1)
+
 /* nop */
 // TODO: still not clear why we need so many forms of nop (except for patch)
 DEFINE_MOP(MOP_nopb, {&OpndDesc::Mem8S},0,kLtAlu,"nopb","",1)
@@ -484,9 +492,9 @@ DEFINE_MOP(MOP_movq_i_m, {&OpndDesc::Imm64,&OpndDesc::Mem64D},0,kLtAlu,"invalid"
 
 
 /* floating point */
-DEFINE_MOP(MOP_movfq_m_r, {&OpndDesc::Mem64S,&OpndDesc::Reg64ID},ISLOAD,kLtAlu,"movsd","0,1",1)
-DEFINE_MOP(MOP_movfq_r_m, {&OpndDesc::Reg64IS,&OpndDesc::Mem64D},ISSTORE,kLtAlu,"movsd","0,1",1)
-DEFINE_MOP(MOP_movfq_r_r, {&OpndDesc::Reg64IS,&OpndDesc::Reg64IS},ISSTORE,kLtAlu,"movsd","0,1",1)
+DEFINE_MOP(MOP_movfq_m_r, {&OpndDesc::Mem64S,&OpndDesc::Reg64FD},ISLOAD,kLtAlu,"movsd","0,1",1)
+DEFINE_MOP(MOP_movfq_r_m, {&OpndDesc::Reg64FS,&OpndDesc::Mem64D},ISSTORE,kLtAlu,"movsd","0,1",1)
+DEFINE_MOP(MOP_movfq_r_r, {&OpndDesc::Reg64FS,&OpndDesc::Reg64FS},ISSTORE,kLtAlu,"movsd","0,1",1)
 
 /* floating div */
 DEFINE_MOP(MOP_divsd_r, {&OpndDesc::Reg64FS, &OpndDesc::Reg64FDS},0,kLtAlu,"divsd","0,1",1)

@@ -52,26 +52,16 @@ class Standardize {
     return needAddrMapping;
   }
  private:
-  /*
-   * For cpu's isa which approximates to maple backend machine IR.
-   * For example in ARM.
-   * Two instruction which have same operands and properties are considered to be same.
-   * It is able to do one instruction mapping only. [SISO]
-   * Usage guide:
-   * 1. The order of target_md.def and abstarct_mmir.def need to be same
-   * 2. write target Instruction Description comparsion rule For InsnDescription.IsSame().
-   * Otherwise it will return false by default.
-   */
-  virtual bool TryFastTargetIRMapping(Insn &insn) = 0;
-
   virtual void StdzMov(Insn &insn) = 0;
   virtual void StdzStrLdr(Insn &insn) = 0;
   virtual void StdzBasicOp(Insn &insn) = 0;
-  virtual void StdzUnaryOp(Insn &insn) = 0;
+  virtual void StdzUnaryOp(Insn &insn, CGFunc &cgFunc) = 0;
   virtual void StdzCvtOp(Insn &insn, CGFunc &cgFunc) = 0;
   virtual void StdzShiftOp(Insn &insn, CGFunc &cgFunc) = 0;
   CGFunc *cgFunc;
   bool needAddrMapping = false;
 };
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(InstructionStandardize, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_END
 }
 #endif  /* MAPLEBE_INCLUDE_STANDARDIZE_H */

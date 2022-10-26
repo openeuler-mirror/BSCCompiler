@@ -26,7 +26,8 @@ DEFINE_MAPPING(abstract::MOP_copy_rr_8,   x64::MOP_movb_r_r)
 DEFINE_MAPPING(abstract::MOP_copy_rr_16,  x64::MOP_movw_r_r)
 DEFINE_MAPPING(abstract::MOP_copy_rr_32,  x64::MOP_movl_r_r)
 DEFINE_MAPPING(abstract::MOP_copy_rr_64,  x64::MOP_movq_r_r)
-DEFINE_MAPPING(abstract::MOP_copy_ff_64,  x64::MOP_movq_r_r)
+DEFINE_MAPPING(abstract::MOP_copy_ff_32,  x64::MOP_movl_r_r)
+DEFINE_MAPPING(abstract::MOP_copy_ff_64, x64::MOP_movq_r_r)
 
 /* str/load */
 DEFINE_MAPPING(abstract::MOP_str_8,       x64::MOP_movb_r_m)

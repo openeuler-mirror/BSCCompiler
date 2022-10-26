@@ -986,7 +986,7 @@ void MPISel::SelectCvtInt2Float(RegOperand &resOpnd, Operand &opnd0, PrimType to
   } else {
     CHECK_FATAL(false, "niy");
   }
-  RegOperand &regOpnd0 = SelectCopy2Reg(opnd0, newFromType);
+  RegOperand &regOpnd0 = SelectCopy2Reg(opnd0, fromType);
   RegOperand &tmpFloatOpnd = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(newFromType),
       cgFunc->GetRegTyFromPrimTy(newFromType));
   Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDesc::GetAbstractId(mOp));
@@ -1085,8 +1085,14 @@ Operand* MPISel::SelectNeg(const UnaryNode &node, Operand &opnd0, const BaseNode
 }
 
 void MPISel::SelectNeg(Operand &resOpnd, Operand &opnd0, PrimType primType) const {
-  const static auto fastNegMappingFunc = DEF_MOPERATOR_MAPPING_FUNC(neg);
-  MOperator mOp = fastNegMappingFunc(GetPrimTypeBitSize(primType));
+  MOperator mOp = abstract::MOP_undef;
+  if (IsPrimitiveInteger(primType)) {
+    const static auto fastNegMappingFunc = DEF_MOPERATOR_MAPPING_FUNC(neg);
+    mOp = fastNegMappingFunc(GetPrimTypeBitSize(primType));
+  } else {
+    const static auto fastNegFloatMappingFunc = DEF_FLOAT_MOPERATOR_MAPPING_FUNC(neg);
+    mOp = fastNegFloatMappingFunc(GetPrimTypeBitSize(primType));
+  }
   Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDesc::GetAbstractId(mOp));
   (void)insn.AddOpndChain(resOpnd).AddOpndChain(opnd0);
   cgFunc->GetCurBB()->AppendInsn(insn);
