@@ -180,3 +180,7 @@ BUILTIN_FUNC_EMIT("__atomic_exchange_8", &ASTCallExpr::EmitBuiltinAtomicExchange
 BUILTIN_FUNC_EMIT("__builtin_return_address", &ASTCallExpr::EmitBuiltinReturnAddress)
 BUILTIN_FUNC_EMIT("__builtin_extract_return_addr", &ASTCallExpr::EmitBuiltinExtractReturnAddr)
 BUILTIN_FUNC_EMIT("__builtin_object_size", &ASTCallExpr::EmitBuiltinObjectSize)
+
+BUILTIN_FUNC_EMIT("__builtin_bswap64", &ASTCallExpr::EmitBuiltinBswap64)
+BUILTIN_FUNC_EMIT("__builtin_bswap32", &ASTCallExpr::EmitBuiltinBswap32)
+BUILTIN_FUNC_EMIT("__builtin_bswap16", &ASTCallExpr::EmitBuiltinBswap16)

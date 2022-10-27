@@ -766,6 +766,18 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinExpf(std::list<UniqueFEIRStmt> &stmts) co
   return CreateIntrinsicopForC(stmts, INTRN_C_expf);
 }
 
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinBswap64(std::list<UniqueFEIRStmt> &stmts) const {
+  return CreateIntrinsicopForC(stmts, INTRN_C_bswap64);
+}
+
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinBswap32(std::list<UniqueFEIRStmt> &stmts) const {
+  return CreateIntrinsicopForC(stmts, INTRN_C_bswap32);
+}
+
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinBswap16(std::list<UniqueFEIRStmt> &stmts) const {
+  return CreateIntrinsicopForC(stmts, INTRN_C_bswap16);
+}
+
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinFmax(std::list<UniqueFEIRStmt> &stmts) const {
   return CreateBinaryExpr(stmts, OP_max);
 }
