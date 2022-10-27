@@ -40,7 +40,7 @@ ASTO2 = {
                 "mplcg": "-O2 --fpic --quiet"
             },
             global_option="",
-            infile="${APP}.mpl"
+            infiles=["${APP}.mpl"]
         ),
         GenBin(
             infile="${APP}.s",

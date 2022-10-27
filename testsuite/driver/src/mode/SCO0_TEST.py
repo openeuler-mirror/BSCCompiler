@@ -41,10 +41,10 @@ SCO0_TEST = {
                 "mplcg": "--O0 --patch-long-branch --quiet --no-pie --fpic --verbose-asm"
             },
             global_option="",
-            infile="${APP}.mpl"
+            infiles=["${APP}.mpl"]
         ),
         CLinker(
-            infile="${APP}.s",
+            infiles=["${APP}.s"],
             front_option="-O2 -std=c99",
             outfile="${APP}.o",
             back_option="",
@@ -53,7 +53,7 @@ SCO0_TEST = {
     ],
     "link": [
         CLinker(
-            infile="${APP}",
+            infiles=["${APP}"],
             front_option="-std=gnu99 -no-pie",
             outfile="${EXE}",
             back_option="-lm -L${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/",
