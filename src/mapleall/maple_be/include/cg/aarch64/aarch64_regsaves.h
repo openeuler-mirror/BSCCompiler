@@ -158,7 +158,7 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   void DetermineCalleeSaveLocationsPre();
   void DetermineCalleeRestoreLocations();
   int32 FindCalleeBase() const;
-  void AdjustRegOffsets();
+  void SetupRegOffsets();
   void InsertCalleeSaveCode();
   void InsertCalleeRestoreCode();
   void PrintSaveLocs(AArch64reg reg);

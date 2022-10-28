@@ -435,14 +435,6 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsPre() {
   M_LOG << "Determining regsave sites using ssa_pre for " << cgFunc->GetName() << ":\n";
 #endif
   const MapleVector<AArch64reg> &callees = aarchCGFunc->GetCalleeSavedRegs();
-  int32 offset = FindCalleeBase();
-  for (auto reg : callees) {
-    SKIP_FPLR(reg);
-    if (regOffset.find(reg) == regOffset.end()) {
-      regOffset[reg] = static_cast<uint32>(offset);
-      offset += static_cast<int32>(kIntregBytelen);
-    }
-  }
   /* do 2 regs at a time to force store pairs */
   for (uint32 i = 0; i < callees.size(); ++i) {
     AArch64reg reg1 = callees[i];
@@ -630,16 +622,21 @@ int32 AArch64RegSavesOpt::FindCalleeBase() const {
   return offset;
 }
 
-void AArch64RegSavesOpt::AdjustRegOffsets() {
+void AArch64RegSavesOpt::SetupRegOffsets() {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
-  int32 regsInProEpilog = static_cast<int32>(aarchCGFunc->GetProEpilogSavedRegs().size() - 2);
-  if (regsInProEpilog > 0) {
-    const MapleVector<AArch64reg> &callees = aarchCGFunc->GetCalleeSavedRegs();
-    for (auto reg : callees) {
-      SKIP_FPLR(reg);
-      if (regOffset.find(reg) != regOffset.end()) {
-        regOffset[reg] += static_cast<uint32>(regsInProEpilog * kBitsPerByte);
-      }
+  const MapleVector<AArch64reg> &proEpilogRegs = aarchCGFunc->GetProEpilogSavedRegs();
+  int32 regsInProEpilog = static_cast<int32>(proEpilogRegs.size() - 2);
+  const MapleVector<AArch64reg> &callees = aarchCGFunc->GetCalleeSavedRegs();
+
+  int32 offset = FindCalleeBase();
+  for (auto reg : callees) {
+    SKIP_FPLR(reg);
+    if (std::count(proEpilogRegs.begin(), proEpilogRegs.end(), reg)) {
+      continue;
+    }
+    if (regOffset.find(reg) == regOffset.end()) {
+      regOffset[reg] = static_cast<uint32>(offset + (regsInProEpilog * kBitsPerByte));
+      offset += static_cast<int32>(kIntregBytelen);
     }
   }
 }
@@ -846,8 +843,9 @@ void AArch64RegSavesOpt::Run() {
   }
 #endif
 
-  /* Adjust assigned offsets if there are regs to be saved in prolog */
-  AdjustRegOffsets();
+  /* Assign stack offset to each shrinkwrapped register, skip over the offsets
+     for registers saved in prolog */
+  SetupRegOffsets();
 
   /* Generate callee save instrs at found sites */
   InsertCalleeSaveCode();
