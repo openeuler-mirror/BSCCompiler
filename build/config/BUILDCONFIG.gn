@@ -67,6 +67,7 @@ MAPLEALL_ROOT = "${MAPLE_ROOT}/src/mapleall"
 HIR2MPL_ROOT = "${MAPLE_ROOT}/src/hir2mpl"
 MAPLE_MRT_ROOT = "${MAPLE_ROOT}/src/mrt"
 THIRD_PARTY_ROOT = "${MAPLE_ROOT}/third_party"
+MAPLEENG_ROOT = "${MAPLE_ROOT}/src/MapleEng"
 
 # Put all built library files under lib
 GN_ARCHIVE_OUTPUT_DIRECTORY = "${MAPLE_BUILD_OUTPUT}/ar/host-x86_64-${OPT}"

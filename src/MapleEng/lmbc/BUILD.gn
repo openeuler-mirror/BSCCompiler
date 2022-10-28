@@ -1,0 +1,54 @@
+#
+# Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+#
+# OpenArkCompiler is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#     http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+# FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+#
+configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
+
+include_directories = [
+  "${MAPLEALL_ROOT}/maple_ir/include",
+  "${MAPLEALL_ROOT}/mpl2mpl/include",
+  "${MAPLEALL_ROOT}/maple_util/include",
+  "${MAPLEALL_ROOT}/maple_driver/include",
+  "${MAPLEALL_ROOT}/mempool/include",
+  "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
+  "${MAPLEALL_ROOT}/maple_ipa/include",
+  "${MAPLEALL_ROOT}/maple_ipa/include/old",
+  "${MAPLEALL_ROOT}/maple_me/include",
+  "${MAPLEALL_ROOT}/maple_phase/include",
+  "${MAPLEENG_ROOT}/lmbc/include"
+]
+
+src_mplsh_lmbc = [
+   "src/mplsh.cpp",
+   "src/init.cpp",
+   "src/mfunction.cpp",
+   "src/eng_shim.cpp",
+   "src/load_store.cpp",
+   "src/invoke_method.cpp",
+]
+
+executable("mplsh-lmbc") {
+  sources = src_mplsh_lmbc
+  include_dirs = include_directories
+  deps = [
+    "${MAPLEALL_ROOT}/maple_ir:libmplir",
+    "${MAPLEALL_ROOT}/mempool:libmempool",
+    "${MAPLEALL_ROOT}/mpl2mpl:libmpl2mpl",
+    "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
+  ]
+
+  libs = [
+    "ffi",
+    "dl",
+  ]
+}
