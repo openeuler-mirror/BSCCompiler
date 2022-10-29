@@ -352,7 +352,7 @@ class ExtenToMovPattern : public OptimizePattern {
   bool CheckHideUxtw(const Insn &insn, regno_t regno) const;
   bool CheckUxtw(Insn &insn);
   bool BitNotAffected(Insn &insn, uint32 validNum); /* check whether significant bits are affected */
-  bool CheckSrcReg(Insn &insn, regno_t srcRegNo, uint32 validNum);
+  bool CheckSrcReg(Insn &insn, regno_t srcRegNo, uint32 validNum, std::vector<Insn *> &checkedInsns);
 
   MOperator replaceMop = MOP_undef;
 };
@@ -448,6 +448,36 @@ class SameRHSPropPattern : public OptimizePattern {
   bool FindSameRHSInsnInBB(Insn &insn);
   Insn *prevInsn = nullptr;
   std::vector<MOperator> candidates;
+};
+
+/*
+ * ldr  r0, [r19, 8]
+ * ldrh r1, [r19, 16]
+ * ldrh r2, [r19, 18]      (r0,r1,r2 are call parameters)
+ * ====>
+ * ldp  x0, x1 [r19, 8]
+ * ubfx x2, x1, 16, 16
+ *
+ * we do this pattern because parameters can be passed without the unused high bit is cleared
+ */
+class ContinuousLdrPattern : public OptimizePattern {
+ public:
+  explicit ContinuousLdrPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
+  bool CheckCondition(Insn &insn) final;
+  void Optimize(Insn &insn) final;
+  void Run() final;
+
+ protected:
+  void Init() final {}
+
+ private:
+  static bool IsMopMatch(const Insn &insn);
+  bool IsUsedBySameCall(Insn &insn1, Insn &insn2, Insn &insn3) const;
+  static bool IsMemValid(const MemOperand &memopnd);
+  static bool IsImmValid(MOperator mop, const ImmOperand &imm);
+  static int64 GetMemOffsetValue(const Insn &insn);
+
+  std::vector<Insn *> insnList;
 };
 }  /* namespace maplebe */
 

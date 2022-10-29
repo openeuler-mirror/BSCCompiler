@@ -1434,7 +1434,7 @@ bool ExtendShiftPattern::CheckCondition(Insn &insn) {
   regno_t regNo = regOperand.GetRegisterNumber();
   VRegVersion *useVersion = optSsaInfo->FindSSAVersion(regNo);
   defInsn = FindDefInsn(useVersion);
-  // useVersion must not be nullptr when defInsn is nullptr
+  // useVersion must not be nullptr when defInsn is not nullptr
   if (!defInsn || (useVersion->GetAllUseInsns().size() > 1)) {
     return false;
   }
