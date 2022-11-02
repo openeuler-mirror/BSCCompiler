@@ -168,6 +168,9 @@ bool SSAProp::CanOstProped(OriginalSt *ost) const {
 //   1) rhs is leaf node and,
 //   2) prop rhs must not cross a new version
 bool SSAProp::Propagatable(BaseNode *rhs) const {
+  if (rhs->GetOpCode() == OP_iaddrof) {
+    return Propagatable(rhs->Opnd(0));
+  }
   if (!rhs->IsLeaf()) { // propagate non-leaf expr will generate compound expr
     return false;
   }
@@ -376,9 +379,9 @@ void SSAProp::TraversalBB(BB &bb) {
     TraverseStmt(&stmt, &bb);
   }
   // traverse dominator children
-  auto &domChildren = dom->GetDomChildren(bb.GetBBId());
+  auto &domChildren = dom->GetDomChildren(bb.GetID());
   for (auto it = domChildren.begin(); it != domChildren.end(); ++it) {
-    TraversalBB(*func->GetCfg()->GetBBFromID(*it));
+    TraversalBB(*func->GetCfg()->GetBBFromID(BBId(*it)));
   }
 
   // recover vstLive
@@ -407,7 +410,7 @@ void MESSAProp::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MESSAProp::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   CHECK_NULL_FATAL(dom);
   if (!f.IsMplIRAvailable()) {
     return false;
