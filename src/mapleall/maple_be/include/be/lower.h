@@ -265,6 +265,12 @@ class CGLowerer {
   static constexpr int kMCCSyncEnterFast2 = 2;
   static constexpr int kMCCSyncEnterFast3 = 3;
 
+  void BuildLabel2FreqMap();
+
+  std::unordered_map<LabelIdx, uint64> &GetLabel2Freq() {
+    return l2fMap;
+  }
+
  protected:
   /*
    * true if the lower level (e.g. mplcg) can handle the intrinsic directly.
@@ -334,6 +340,7 @@ class CGLowerer {
   uint32 labelIdx = 0;
   static std::unordered_map<IntrinDesc*, PUIdx> intrinFuncIDs;
   static std::unordered_map<std::string, size_t> arrayClassCacheIndex;
+  std::unordered_map<LabelIdx, uint64> l2fMap; // Map label to frequency on profileUse
 };
 }  /* namespace maplebe */
 

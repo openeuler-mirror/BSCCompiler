@@ -1877,7 +1877,7 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
           defaultLabel = mirBuilder->CreateStmtLabel(newLabelIdx);
         }
         SwitchLowerer switchLowerer(mirModule, static_cast<SwitchNode&>(*stmt), switchAllocator);
-	BlockNode *blk = switchLowerer.LowerSwitch(newLabelIdx);
+        BlockNode *blk = switchLowerer.LowerSwitch(newLabelIdx);
         if (blk->GetFirst() != nullptr && defaultLabel != nullptr && IsSwitchToRangeGoto(*blk)) {
           blk->AddStatement(defaultLabel);
         }
@@ -3946,6 +3946,9 @@ bool CGLowerer::IsIntrinsicCallHandledAtLowerLevel(MIRIntrinsicID intrinsic) con
 bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) const {
   switch (intrinsic) {
 #if TARGAARCH64 || TARGX86_64
+    case INTRN_C_bswap64:
+    case INTRN_C_bswap32:
+    case INTRN_C_bswap16:
     case INTRN_C_cos:
     case INTRN_C_cosf:
     case INTRN_C_cosh:
@@ -4118,12 +4121,25 @@ void CGLowerer::InitArrayClassCacheTableIndex() {
   }
 }
 
+void CGLowerer::BuildLabel2FreqMap() {
+  StmtNodes stmtNodes = GetCurrentFunc()->GetBody()->GetStmtNodes();
+  FuncProfInfo* funcProfile = mirModule.CurFunction()->GetFuncProfData();
+  if (Options::profileUse && (funcProfile != nullptr)) {
+    for (StmtNode& stmt : stmtNodes) {
+      if (stmt.GetOpCode() == OP_label) {
+        l2fMap[static_cast<LabelNode&>(stmt).GetLabelIdx()] = funcProfile->GetStmtFreq(stmt.GetStmtID());
+      }
+    }
+  }
+}
+
 void CGLowerer::LowerFunc(MIRFunction &func) {
   labelIdx = 0;
   SetCurrentFunc(&func);
   hasTry = false;
   LowerEntry(func);
   LowerPseudoRegs(func);
+  BuildLabel2FreqMap();
   BlockNode *origBody = func.GetBody();
   CHECK_FATAL(origBody != nullptr, "origBody should not be nullptr");
 

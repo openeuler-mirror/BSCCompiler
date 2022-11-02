@@ -144,9 +144,6 @@ bool MEEmit::PhaseRun(maple::MeFunction &f) {
       f.GetCfg()->DumpToFile("meemit", true);
     }
   }
-  if (Options::profileUse && f.GetMirFunc()->GetFuncProfData()) {
-    f.GetMirFunc()->SetFuncProfData(nullptr);
-  }
   return false;
 }
 

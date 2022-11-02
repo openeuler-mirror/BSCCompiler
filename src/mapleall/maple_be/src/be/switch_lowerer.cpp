@@ -47,6 +47,10 @@
 #include "mir_lower.h"  /* "../../../maple_ir/include/mir_lower.h" */
 
 namespace maplebe {
+static bool CasePairKeyLessThan(const CasePair &left, const CasePair &right) {
+  return left.first < right.first;
+}
+
 void SwitchLowerer::FindClusters(MapleVector<Cluster> &clusters) const {
   int32 length = static_cast<int>(stmt->GetSwitchTable().size());
   int32 i = 0;
@@ -258,20 +262,62 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
   }
   if (end < (start + kClusterSwitchCutoff)) {
     /* generate equality checks for what remains */
-    while ((start <= end) && (switchItems[start].second == 0)) {
-      if ((start == end) && lowBlockNodeChecked && highBlockNodeChecked) {
-        cGoto = reinterpret_cast<CondGotoNode*>(BuildGotoNode(switchItems[start].first));  /* can omit the condition */
-      } else {
-        cGoto = BuildCondGotoNode(switchItems[start].first, OP_brtrue, *BuildCmpNode(OP_eq, switchItems[start].first));
+    std::vector <std::pair<uint64, int32>> freq2case;
+    int32 lastIdx = -1;
+    bool freqPriority = false;
+    // The setting of kClusterSwitchDensityLow to such a lower value (0.2) makes other strategies less useful
+    if (Options::profileUse && cgLowerer->GetLabel2Freq().size()) {
+      for (int32 idx = start; idx <= end; idx++) {
+        if (switchItems[static_cast<uint32>(idx)].second == 0) {
+          freq2case.push_back(std::make_pair(cgLowerer->GetLabel2Freq()[stmt->GetCasePair(static_cast<uint32>(
+              switchItems[static_cast<uint32>(idx)].first)).second], switchItems[static_cast<uint32>(idx)].first));
+          lastIdx = idx;
+        } else {
+          break;
+        }
       }
-      if (cGoto != nullptr) {
-        localBlk->AddStatement(cGoto);
+
+      std::sort(freq2case.rbegin(), freq2case.rend());
+      if (freq2case.size() > 0 && freq2case[0].first != freq2case[freq2case.size() - 1].first) {
+        freqPriority = true;
       }
-      if (lowBlockNodeChecked && (start < end)) {
-        lowBlockNodeChecked = (stmt->GetCasePair(switchItems[start].first).first + 1 ==
-                         stmt->GetCasePair(switchItems[start + 1].first).first);
+    }
+
+    if (Options::profileUse && freqPriority) {
+      for (std::pair<uint64, int32> f2c : freq2case) {
+        uint32 idx = static_cast<uint32>(f2c.second);
+        cGoto = BuildCondGotoNode(switchItems[idx].first, OP_brtrue, *BuildCmpNode(OP_eq, switchItems[idx].first));
+        if (cGoto != nullptr) {
+          localBlk->AddStatement(cGoto);
+        }
       }
-      ++start;
+
+      if (lastIdx != -1) {
+        if (lowBlockNodeChecked && (lastIdx < end)) {
+          lowBlockNodeChecked = (
+              stmt->GetCasePair(static_cast<uint32>(switchItems[static_cast<uint32>(lastIdx)].first)).first + 1 ==
+              stmt->GetCasePair(static_cast<uint32>(switchItems[static_cast<uint32>(lastIdx + 1)].first)).first);
+        }
+        start = lastIdx + 1;
+      }
+    } else {
+      while ((start <= end) && (switchItems[static_cast<uint32>(start)].second == 0)) {
+        if ((start == end) && lowBlockNodeChecked && highBlockNodeChecked) {
+          /* can omit the condition */
+          cGoto = reinterpret_cast<CondGotoNode*>(BuildGotoNode(switchItems[static_cast<uint32>(start)].first));
+        } else {
+          cGoto = BuildCondGotoNode(switchItems[static_cast<uint32>(start)].first, OP_brtrue,
+                                    *BuildCmpNode(OP_eq, switchItems[static_cast<uint32>(start)].first));
+        }
+        if (cGoto != nullptr) {
+          localBlk->AddStatement(cGoto);
+        }
+        if (lowBlockNodeChecked && (start < end)) {
+          lowBlockNodeChecked = (stmt->GetCasePair(switchItems[static_cast<uint32>(start)].first).first + 1 ==
+                           stmt->GetCasePair(switchItems[static_cast<uint32>(start + 1)].first).first);
+        }
+        ++start;
+      }
     }
     if (start <= end) {  /* recursive call */
       BlockNode *tmp = BuildCodeForSwitchItems(start, end, lowBlockNodeChecked, highBlockNodeChecked);
@@ -287,8 +333,8 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
     return localBlk;
   }
 
-  int64 lowestTag = stmt->GetCasePair(switchItems[start].first).first;
-  int64 highestTag = stmt->GetCasePair(switchItems[end].first).first;
+  int64 lowestTag = stmt->GetCasePair(switchItems[static_cast<uint32>(start)].first).first;
+  int64 highestTag = stmt->GetCasePair(switchItems[static_cast<uint32>(end)].first).first;
 
   /*
    * if lowestTag and higesttag have the same sign, use difference
@@ -343,6 +389,7 @@ BlockNode *SwitchLowerer::LowerSwitch(LabelIdx newLabelIdx) {
   }
 
   MapleVector<Cluster> clusters(ownAllocator->Adapter());
+  stmt->SortCasePair(CasePairKeyLessThan);
   FindClusters(clusters);
   InitSwitchItems(clusters);
   BlockNode *blkNode = BuildCodeForSwitchItems(0, static_cast<int>(switchItems.size()) - 1, false, false, newLabelIdx);

@@ -16,6 +16,7 @@
 #define MAPLEBE_INCLUDE_BE_SWITCH_LOWERER_H
 #include "mir_nodes.h"
 #include "mir_module.h"
+#include "lower.h"
 
 namespace maplebe {
 using namespace maple;
@@ -23,6 +24,14 @@ class BELowerer;
 
 class SwitchLowerer {
  public:
+  SwitchLowerer(maple::MIRModule &mod, maple::SwitchNode &stmt,
+                CGLowerer *lower, maple::MapleAllocator &allocator)
+      : mirModule(mod),
+        stmt(&stmt),
+        cgLowerer(lower),
+        switchItems(allocator.Adapter()),
+        ownAllocator(&allocator) {}
+
   SwitchLowerer(maple::MIRModule &mod, maple::SwitchNode &stmt,
                 maple::MapleAllocator &allocator)
       : mirModule(mod),
@@ -40,6 +49,7 @@ class SwitchLowerer {
 
   maple::MIRModule &mirModule;
   maple::SwitchNode *stmt;
+  CGLowerer *cgLowerer;
   /*
    * the original switch table is sorted and then each dense (in terms of the
    * case tags) region is condensed into 1 switch item; in the switchItems
