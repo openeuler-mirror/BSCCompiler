@@ -138,7 +138,7 @@ std::vector<Insn*> Rematerializer::Rematerialize(CGFunc &cgFunc, RegOperand &reg
       const MIRSymbol *symbol = rematInfo.sym;
       int32 offset = 0;
       if (fieldID != 0) {
-        ASSERT(symbol->GetType()->IsMIRStructType(), "non-zero fieldID for non-structure");
+        ASSERT(symbol->GetType()->IsMIRStructType() || symbol->GetType()->IsMIRUnionType(), "non-zero fieldID for non-structure");
         MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
         offset = cgFunc.GetBecommon().GetFieldOffset(*structType, fieldID).first;
       }
