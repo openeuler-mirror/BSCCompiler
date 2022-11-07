@@ -172,6 +172,11 @@ bool IsSameContent(const BaseNode *exprA, const BaseNode *exprB, bool isZeroVstE
       auto *ireadB = static_cast<IreadNode *>(nodeB);
       return ireadA->GetTyIdx() == ireadB->GetTyIdx() && ireadA->GetFieldID() == ireadB->GetFieldID();
     }
+    case OP_iaddrof: {
+      auto *ireadA = static_cast<const IreadNode *>(exprA);
+      auto *ireadB = static_cast<const IreadNode *>(exprB);
+      return ireadA->GetTyIdx() == ireadB->GetTyIdx() && ireadA->GetFieldID() == ireadB->GetFieldID();
+    }
     case OP_ireadoff: {
       return static_cast<const IreadoffNode *>(exprA)->GetOffset() ==
              static_cast<const IreadoffNode *>(exprB)->GetOffset();
