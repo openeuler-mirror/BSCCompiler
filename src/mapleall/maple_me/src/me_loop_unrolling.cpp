@@ -487,15 +487,9 @@ bool LoopUnrolling::SplitCondGotoBB() {
 
   for (auto *bb : exitBB->GetSucc()) {
     bb->ReplacePred(exitBB, newCondGotoBB);
-    if (profValid) {
-      newCondGotoBB->GetSuccFreq().push_back(0);
-    }
   }
 
   exitBB->AddSucc(*newCondGotoBB);
-  if (profValid) {
-    exitBB->GetSuccFreq().push_back(0);
-  }
   exitBB->RemoveMeStmt(lastStmt);
   newCondGotoBB->InsertMeStmtLastBr(lastStmt);
   return true;
@@ -1251,7 +1245,7 @@ bool MELoopUnrolling::PhaseRun(maple::MeFunction &f) {
   loopUnrollingExe.ExecuteLoopUnrolling(f, *irMap, cands, *meLoop, loopUnrollingAlloc);
   if (loopUnrollingExe.IsCFGChange()) {
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
-    auto dom = FORCE_GET(MEDominance);
+    auto dom = FORCE_EXEC(MEDominance)->GetDomResult();
     MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands);
     ssaUpdate.Run();
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);

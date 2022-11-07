@@ -1157,6 +1157,10 @@ bool OptimizeBB::RemoveSuccFromNoReturnBB() {
     cfg->GetCommonExitBB()->AddExit(*currBB);
     currBB->SetAttributes(kBBAttrIsExit);
     ResetBBRunAgain();
+    // add edge Frequency to exitbb
+    if (cfg->UpdateCFGFreq()) {
+      currBB->PushBackSuccFreq(0);
+    }
     return true;
   }
   return false;
@@ -2660,7 +2664,7 @@ bool MEOptimizeCFG::PhaseRun(maple::MeFunction &f) {
     // split critical edges
     (void)MeSplitCEdge(debug).SplitCriticalEdgeForMeFunc(f);
     FORCE_INVALID(MEDominance, f);
-    Dominance *dom = FORCE_GET(MEDominance);
+    Dominance *dom = FORCE_EXEC(MEDominance)->GetDomResult();
     if (!cands.empty()) {
       MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands);
       ssaUpdate.Run();

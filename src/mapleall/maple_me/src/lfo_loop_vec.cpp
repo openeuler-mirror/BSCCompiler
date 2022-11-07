@@ -1528,10 +1528,6 @@ void LoopVectorization::VectorizeReductionStmt(StmtNode *stmt, LoopTransPlan *tp
   StmtNode *copyStmt = stmt->CloneTree(*codeMPAlloc);
   IntrinsicopNode *intrnvecSum = GenSumVecStmt(regReadlhsvec, regReadlhsvec->GetPrimType());
   copyStmt->GetRHS()->SetOpnd(intrnvecSum, 1);
-  FuncProfInfo *profData = mirFunc->GetFuncProfData();
-  if (profData) {
-    profData->CopyStmtFreq(copyStmt->GetStmtID(), stmt->GetStmtID());
-  }
   tp->vecInfo->afterLoopStmts.push_back(copyStmt);
   doloopbody->RemoveStmt(stmt);
 }

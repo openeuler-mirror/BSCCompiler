@@ -365,10 +365,6 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent) {
   switch (meStmt->GetOp()) {
     case OP_dassign: {
       DassignMeStmt *dsmestmt = static_cast<DassignMeStmt *>(meStmt);
-      if (dsmestmt->GetRHS()->GetMeOp() == kMeOpVar &&
-          static_cast<VarMeExpr*>(dsmestmt->GetRHS())->GetOst() == dsmestmt->GetLHS()->GetOst()) {
-        return nullptr;  // identity assignment introduced by LFO
-      }
       DassignNode *dass = codeMP->New<DassignNode>();
       MIRSymbol *sym = dsmestmt->GetLHS()->GetOst()->GetMIRSymbol();
       dass->SetStIdx(sym->GetStIdx());
@@ -972,10 +968,6 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
   MeStmt *mestmt = curbb->GetFirstMe();
   while (mestmt->GetOp() != OP_brfalse && mestmt->GetOp() != OP_brtrue) {
     StmtNode *stmt = EmitPreMeStmt(mestmt, curBlk);
-    if (stmt == nullptr) {
-      mestmt = mestmt->GetNext();
-      continue;
-    }
     UpdateStmtInfo(*mestmt, *stmt, *curBlk, curbb->GetFrequency());
     curBlk->AddStatement(stmt);
     if (GetFuncProfData() &&
@@ -1134,9 +1126,7 @@ bool MEPreMeEmission::PhaseRun(MeFunction &f) {
   ASSERT(hmap != nullptr, "irmapbuild has problem");
 
   MIRFunction *mirfunction = f.GetMirFunc();
-  if (mirfunction->GetCodeMempool() != nullptr) {
-    memPoolCtrler.DeleteMemPool(mirfunction->GetCodeMempool());
-  }
+  mirfunction->ReleaseCodeMemory();
   mirfunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR from preemission::Emit()"));
   MemPool *preMeMP = GetPhaseMemPool();
   emitter = preMeMP->New<PreMeEmitter>(hmap, f.GetPreMeFunc(), preMeMP);

@@ -3985,12 +3985,13 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(
     uint64 edgeFreq = 0;
     if (func.GetCfg()->UpdateCFGFreq()) {
       edgeFreq = pred.GetSuccFreq()[index];
+      ASSERT(bb.GetFrequency() >= edgeFreq, "sanity check");
     }
     pred.RemoveSucc(bb);
     pred.AddSucc(*newBB, index);
     newBB->AddSucc(trueBranch);
     if (func.GetCfg()->UpdateCFGFreq()) {
-      if (bb.GetFrequency() >= edgeFreq) {
+      if (bb.GetFrequency() > edgeFreq) {
         bb.SetFrequency(static_cast<uint32>(bb.GetFrequency() - edgeFreq));
         bb.UpdateEdgeFreqs();
       }
