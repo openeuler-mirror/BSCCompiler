@@ -4957,7 +4957,7 @@ void AArch64CGFunc::SelectRelationOperator(RelationOperator operatorCode, Operan
 
       if (bitNum <= k16ValidBit && tail0BitNum != 0) {
         int64 newImm = (static_cast<uint64>(immVal) >> static_cast<uint32>(tail0BitNum)) & 0xFFFF;
-        ImmOperand &immOpnd1 = CreateImmOperand(newImm, k16BitSize, false);
+        ImmOperand &immOpnd1 = CreateImmOperand(newImm, k32BitSize, false);
         SelectCopyImm(regOpnd, immOpnd1, primType);
         MOperator mOp = SelectRelationMop(operatorCode, kRegImm, is64Bits, false, true);
         int32 bitLen = is64Bits ? kBitLenOfShift64Bits : kBitLenOfShift32Bits;
