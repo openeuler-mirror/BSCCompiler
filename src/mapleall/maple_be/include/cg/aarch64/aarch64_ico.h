@@ -55,32 +55,28 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
   ~AArch64ICOIfThenElsePattern() override = default;
   bool Optimize(BB &curBB) override;
  protected:
-  bool BuildCondMovInsn(BB &cmpBB, const BB &bb, const std::map<Operand*, std::vector<Operand*>> &ifDestSrcMap,
+  bool BuildCondMovInsn(const BB &bb, const std::map<Operand*, std::vector<Operand*>> &ifDestSrcMap,
                         const std::map<Operand*, std::vector<Operand*>> &elseDestSrcMap, bool elseBBIsProcessed,
                         std::vector<Insn*> &generateInsn);
-  bool DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joinBB);
+  bool DoOpt(BB *ifBB, BB *elseBB, BB &joinBB);
   void GenerateInsnForImm(const Insn &branchInsn, Operand &ifDest, Operand &elseDest, RegOperand &destReg,
                           std::vector<Insn*> &generateInsn) const;
-  Operand *GetDestReg(const std::map<Operand*, std::vector<Operand*>> &destSrcMap,
-                      const RegOperand &destReg) const;
+  Operand *GetDestReg(const std::map<Operand*, std::vector<Operand*>> &destSrcMap, const RegOperand &destReg) const;
   void GenerateInsnForReg(const Insn &branchInsn, Operand &ifDest, Operand &elseDest, RegOperand &destReg,
                           std::vector<Insn*> &generateInsn) const;
   RegOperand *GenerateRegAndTempInsn(Operand &dest, const RegOperand &destReg, std::vector<Insn*> &generateInsn) const;
   bool CheckHasSameDest(std::vector<Insn*> &lInsn, std::vector<Insn*> &rInsn) const;
   bool CheckModifiedRegister(Insn &insn, std::map<Operand*, std::vector<Operand*>> &destSrcMap,
-      std::vector<Operand*> &src, const Operand &dest, const Insn *cmpInsn, const Operand *flagOpnd,
-      std::map<Operand*, Insn*> &dest2InsnMap, Insn **toBeRremovedOutOfCurrBB) const;
+      std::vector<Operand*> &src, std::map<Operand*, Insn*> &dest2InsnMap, Insn **toBeRremovedOutOfCurrBB) const;
   bool CheckCondMoveBB(BB *bb, std::map<Operand*, std::vector<Operand*>> &destSrcMap,
-      std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn,
-      Operand *flagOpnd, Insn *cmpInsn, Insn **toBeRremovedOutOfCurrBB) const;
-  bool CheckModifiedInCmpInsn(const Insn &insn, const Insn &cmpInsn, const Operand *flagOpnd) const;
-  bool DoHostBeforeDoCselOpt(BB &cmpBB, BB &ifBB, BB &elseBB, Insn &cmpInsn);
+      std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn, Insn **toBeRremovedOutOfCurrBB) const;
+  bool CheckModifiedInCmpInsn(const Insn &insn) const;
+  bool DoHostBeforeDoCselOpt(BB &ifBB, BB &elseBB);
   void UpdateTemps(std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn,
       std::map<Operand*, std::vector<Operand*>> &destSrcMap, const Insn &oldInsn, Insn *newInsn);
-  void MoveSetInsn2CmpBB(Insn &toBeRremoved2CmpBB, BB &currBB, BB &cmpBB, Insn &cmpInsn,
-      std::vector<Operand *> &anotherBranchDestRegs, std::vector<Operand *> &destRegs,
-      std::vector<Insn *> &setInsn, std::map<Operand *, std::vector<Operand *>> &destSrcMap, Insn **newInsn);
-  void RevertMoveInsns(BB &cmpBB, BB *bb, Insn *prevInsnInBB, Insn *newInsnOfBB,
+  Insn *MoveSetInsn2CmpBB(Insn &toBeRremoved2CmpBB, BB &currBB,
+      std::vector<Operand *> &anotherBranchDestRegs, std::map<Operand *, std::vector<Operand *>> &destSrcMap);
+  void RevertMoveInsns(BB *bb, Insn *prevInsnInBB, Insn *newInsnOfBB,
       Insn *insnInBBToBeRremovedOutOfCurrBB);
   bool IsExpansionMOperator(const Insn &insn) const;
   bool IsMovMOperator(const Insn &insn) const;
@@ -89,6 +85,11 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
   bool Has2SrcOpndSetInsn(const Insn &insn) const;
   bool IsSetInsnMOperator(const Insn &insn) const;
   bool IsSetInsn(const Insn &insn, Operand **dest, std::vector<Operand*> &src) const;
+
+ private:
+  BB *cmpBB = nullptr;
+  Insn *cmpInsn = nullptr;
+  Operand *flagOpnd = nullptr;
 };
 
 /* If( cmp || cmp ) then or If( cmp && cmp ) then
