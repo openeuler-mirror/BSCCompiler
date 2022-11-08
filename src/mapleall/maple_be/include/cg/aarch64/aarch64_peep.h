@@ -1526,21 +1526,6 @@ class ReplaceIncDecWithIncPattern : public CGPeepPattern {
 };
 
 /*
- * Optimize the following patterns:
- * sxth  r4, r4         ====> strh r4, [r0, r3]
- * strh  r4, [r0, r3]
- *
- * sxtb  r4, r4         ====> strb r4, [r0, r3]
- * strb  r4, [r0, r3]
- */
-class RemoveSxtBeforeStrAArch64 : public PeepPattern {
- public:
-  explicit RemoveSxtBeforeStrAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~RemoveSxtBeforeStrAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
-};
-
-/*
  * Replace following pattern:
  * sxtw  x1, w0
  * lsl   x2, x1, #3  ====>  sbfiz x2, x0, #3, #32
