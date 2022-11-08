@@ -45,7 +45,9 @@ void RegionCandidate::CollectRegionInputAndOutput(StmtInfo &stmtInfo, CollectIpa
       }
       (void)regionOutputs.insert(src);
       auto &useStmtInfo = ipaInfo.GetStmtInfo()[usePos];
-      if (HasDefinitionOutofRegion(useStmtInfo.GetRegDefUse()[regIdx])) {
+      auto iter = useStmtInfo.GetRegDefUse().find(regIdx);
+      if (iter != useStmtInfo.GetRegDefUse().end() &&
+          HasDefinitionOutofRegion(iter->second)) {
         (void)regionInputs.insert(src);
       }
     }
@@ -62,7 +64,9 @@ void RegionCandidate::CollectRegionInputAndOutput(StmtInfo &stmtInfo, CollectIpa
       }
       (void)regionOutputs.insert(src);
       auto &useStmtInfo = ipaInfo.GetStmtInfo()[usePos];
-      if (HasDefinitionOutofRegion(useStmtInfo.GetSymbolDefUse()[stIdx])) {
+      auto iter = useStmtInfo.GetSymbolDefUse().find(stIdx);
+      if (iter != useStmtInfo.GetSymbolDefUse().end() &&
+          HasDefinitionOutofRegion(iter->second)) {
         (void)regionInputs.insert(src);
       }
     }
@@ -132,7 +136,8 @@ void RegionIdentify::RegionInit() {
     return;
   }
   (void)integerString.emplace_back(0);
-  (void)ipaInfo->GetStmtInfo().emplace_back(StmtInfo(nullptr, kInvalidPuIdx));
+  (void)ipaInfo->GetStmtInfo().emplace_back(
+      StmtInfo(nullptr, kInvalidPuIdx, ipaInfo->GetAllocator()));
   SuffixArray sa(integerString, integerString.size(), ipaInfo->GetCurrNewStmtIndex());
   sa.Run(true);
   CreateRegionCandidates(sa);
@@ -264,17 +269,21 @@ bool RegionIdentify::CheckCompatibilifyAmongRegionComponents(BaseNode &lhs, Base
   if (lhs.GetOpCode() == OP_block) {
     auto *leftStmt = static_cast<BlockNode&>(lhs).GetFirst();
     auto *rightStmt = static_cast<BlockNode&>(rhs).GetFirst();
-    while (leftStmt != nullptr) {
+    while (leftStmt != nullptr && rightStmt != nullptr) {
       if (!CheckCompatibilifyAmongRegionComponents(*leftStmt, *rightStmt)) {
         return false;
       }
       leftStmt = leftStmt->GetNext();
       rightStmt = rightStmt->GetNext();
     }
-    return true;
+    return (leftStmt == nullptr) && (rightStmt == nullptr);
   }
 
   if (!CheckCompatibilifyBetweenSrcs(lhs, rhs)) {
+    return false;
+  }
+
+  if (lhs.GetNumOpnds() != rhs.GetNumOpnds()) {
     return false;
   }
 
