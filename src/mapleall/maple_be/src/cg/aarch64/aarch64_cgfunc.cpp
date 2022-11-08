@@ -6100,7 +6100,9 @@ void AArch64CGFunc::SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOp
 
   int32 minIdx = switchTable[0].first;
   SelectAdd(*addOpnd, opnd0,
-            CreateImmOperand(-minIdx - rangeGotoNode.GetTagOffset(), GetPrimTypeBitSize(itype), true), itype);
+            CreateImmOperand(-static_cast<int64>(minIdx) - static_cast<int64>(rangeGotoNode.GetTagOffset()),
+                             GetPrimTypeBitSize(itype), true),
+            itype);
 
   /* contains the index */
   if (addOpnd->GetSize() != GetPrimTypeBitSize(PTY_u64)) {
@@ -8787,8 +8789,8 @@ void AArch64CGFunc::SelectCall(CallNode &callNode) {
   MIRType *retType = fn->GetReturnType();
 
   if (GetCG()->GenerateVerboseCG()) {
-    const std::string &comment = fsym->GetName();
-    GetCurBB()->AppendInsn(CreateCommentInsn(comment));
+    auto &comment = GetOpndBuilder()->CreateComment(fsym->GetName());
+    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildCommentInsn(comment));
   }
 
   ListOperand *srcOpnds = CreateListOpnd(*GetFuncScopeAllocator());
@@ -8821,7 +8823,8 @@ void AArch64CGFunc::SelectCall(CallNode &callNode) {
     SelectParmList(callNode, *srcOpnds, callNative);
   }
   if (callNative) {
-    GetCurBB()->AppendInsn(CreateCommentInsn("call native func"));
+    auto &comment = GetOpndBuilder()->CreateComment("call native func");
+    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildCommentInsn(comment));
 
     BaseNode *funcArgExpr = callNode.Opnd(0);
     PrimType ptype = funcArgExpr->GetPrimType();
@@ -8946,7 +8949,8 @@ void AArch64CGFunc::SelectMembar(StmtNode &membar) {
 }
 
 void AArch64CGFunc::SelectComment(CommentNode &comment) {
-  GetCurBB()->AppendInsn(CreateCommentInsn(comment.GetComment()));
+  auto &commentOpnd = GetOpndBuilder()->CreateComment(comment.GetComment());
+  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildCommentInsn(commentOpnd));
 }
 
 void AArch64CGFunc::SelectReturn(Operand *opnd0) {
@@ -9680,8 +9684,8 @@ void AArch64CGFunc::SelectLibCallNArg(const std::string &funcName, std::vector<O
   st->SetTyIdx(GetBecommon().BeGetOrCreateFunctionType(retType->GetTypeIndex(), vec, vecAt)->GetTypeIndex());
 
   if (GetCG()->GenerateVerboseCG()) {
-    const std::string &comment = "lib call : " + newName;
-    GetCurBB()->AppendInsn(CreateCommentInsn(comment));
+    auto &comment = GetOpndBuilder()->CreateComment("lib call : " + newName);
+    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildCommentInsn(comment));
   }
 
   AArch64CallConvImpl parmLocator(GetBecommon());
@@ -10545,8 +10549,8 @@ void AArch64CGFunc::SelectIntrinCall(IntrinsiccallNode &intrinsicCallNode) {
   MIRIntrinsicID intrinsic = intrinsicCallNode.GetIntrinsic();
 
   if (GetCG()->GenerateVerboseCG()) {
-    std::string comment = GetIntrinsicName(intrinsic);
-    GetCurBB()->AppendInsn(CreateCommentInsn(comment));
+    auto &comment = GetOpndBuilder()->CreateComment(GetIntrinsicName(intrinsic));
+    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildCommentInsn(comment));
   }
 
   /*

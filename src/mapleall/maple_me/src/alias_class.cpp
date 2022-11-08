@@ -766,10 +766,11 @@ bool AliasClass::IsGlobalOstTypeUnsafe(const OriginalSt &ost) const {
     return false;
   }
   const GSymbolTable &gSymbolTable = GlobalTables::GetGsymTable();
-  static std::vector<bool> unsafeGSym(gSymbolTable.GetSymbolTableSize(), false); // index is SyIdx
-  static bool hasInited = false; // if unsafeGSym is initialed before cannot be checked by unsafeGSym.size
-  if (!hasInited) {
-    for (size_t i = 0; i < gSymbolTable.GetSymbolTableSize(); ++i) {
+  static auto unsafeGSym = std::vector<bool>();  // index is SyIdx
+  if (unsafeGSym.size() < gSymbolTable.GetSymbolTableSize()) {
+    auto oldSize = unsafeGSym.size();
+    unsafeGSym.resize(gSymbolTable.GetSymbolTableSize(), false);
+    for (size_t i = oldSize; i < gSymbolTable.GetSymbolTableSize(); ++i) {
       const MIRSymbol *gSym = gSymbolTable.GetSymbol(i);
       if (gSym == nullptr) {
         continue;
@@ -784,8 +785,8 @@ bool AliasClass::IsGlobalOstTypeUnsafe(const OriginalSt &ost) const {
         }
       }
     }
-    hasInited = true;
   }
+  CHECK_FATAL(sym->GetStIndex() < unsafeGSym.size(), "unsafeGsym buffer overflow");
   return unsafeGSym[sym->GetStIndex()];
 }
 // Propagate type unsafe info as soon as assign set has been created.

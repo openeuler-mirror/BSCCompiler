@@ -84,6 +84,9 @@ class OriginalSt {
         if (type->IsMIRArrayType()) {
           type = static_cast<MIRArrayType*>(type)->GetElemType();
         }
+        if (!type->IsMIRStructType()) {
+          return false;
+        }
         MIRStructType *structType = static_cast<MIRStructType*>(type);
         FieldAttrs fattrs = structType->GetFieldAttrs(fieldID);
         if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
