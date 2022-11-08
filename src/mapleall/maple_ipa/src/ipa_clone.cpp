@@ -43,6 +43,10 @@ void IpaClone::InitParams() {
   }
 }
 
+bool IpaClone::IsBrCondOrIf(Opcode op) const {
+  return op == OP_brfalse || op == OP_brtrue || op == OP_if;
+}
+
 MIRSymbol *IpaClone::IpaCloneLocalSymbol(const MIRSymbol &oldSym, const MIRFunction &newFunc) {
   MemPool *newMP = newFunc.GetDataMemPool();
   MIRSymbol *newSym = newMP->New<MIRSymbol>(oldSym);
@@ -199,7 +203,18 @@ void IpaClone::CopyFuncInfo(MIRFunction &originalFunction, MIRFunction &newFunc)
   }
 }
 
-bool IpaClone::CheckCostModel(uint32 paramIndex, std::vector<int64_t> &calleeValue, uint32 impSize) const {
+bool IpaClone::CheckCostModel(uint32 paramIndex, std::vector<int64_t> &calleeValue,
+                              std::vector<ImpExpr> &result) const {
+  uint32 impSize = 0;
+  for (auto impExpr : result) {
+    if (curFunc->GetStmtNodeFromMeId(impExpr.GetStmtId()) == nullptr) {
+      continue;
+    }
+    if (curFunc->GetStmtNodeFromMeId(impExpr.GetStmtId())->IsCondBr() ||
+        curFunc->GetStmtNodeFromMeId(impExpr.GetStmtId())->GetOpCode() == OP_if) {
+      ++impSize;
+    }
+  }
   if (impSize >= numOfImpExprHighBound) {
     return true;
   }
@@ -229,6 +244,9 @@ void IpaClone::ReplaceIfCondtion(MIRFunction *newFunc, std::vector<ImpExpr> &res
     uint32 stmtId = result[static_cast<uint32>(index)].GetStmtId();
     StmtNode *newReplace = newFunc->GetStmtNodeFromMeId(stmtId);
     ASSERT(newReplace != nullptr, "null ptr check");
+    if (newReplace->GetOpCode() == OP_switch) {
+      continue;
+    }
     if (newReplace->GetOpCode() != OP_if && newReplace->GetOpCode() != OP_brtrue &&
         newReplace->GetOpCode() != OP_brfalse) {
       ASSERT(false, "ERROR: cann't find the replace statement");
@@ -240,6 +258,52 @@ void IpaClone::ReplaceIfCondtion(MIRFunction *newFunc, std::vector<ImpExpr> &res
     ifStmtNode->SetOpnd(constNode, 0);
   }
   return;
+}
+
+void IpaClone::RemoveSwitchCase(MIRFunction &newFunc, SwitchNode &switchStmt, std::vector<int64_t> &calleeValue) const {
+  auto iter = switchStmt.GetSwitchTable().begin();
+  while (iter < switchStmt.GetSwitchTable().end()) {
+    bool isNeed = false;
+    for (size_t j = 0; j < calleeValue.size(); ++j) {
+      int64_t value = calleeValue[j];
+      if (switchStmt.GetSwitchOpnd()->GetOpCode() == OP_neg) {
+        value = -value;
+      }
+      if (value == iter->first) {
+        isNeed = true;
+        break;
+      }
+    }
+    if (!isNeed) {
+      iter = switchStmt.GetSwitchTable().erase(iter);
+    } else {
+      ++iter;
+    }
+  }
+  if (switchStmt.GetSwitchTable().size() == calleeValue.size()) {
+    StmtNode *stmt = newFunc.GetBody()->GetFirst();
+    for (; stmt != newFunc.GetBody()->GetLast(); stmt = stmt->GetNext()) {
+      if (stmt->GetOpCode() == OP_label &&
+          static_cast<LabelNode*>(stmt)->GetLabelIdx() == switchStmt.GetDefaultLabel()) {
+        switchStmt.SetDefaultLabel(0);
+        newFunc.GetBody()->RemoveStmt(stmt);
+        break;
+      }
+    }
+  }
+}
+
+void IpaClone::RemoveUnneedSwitchCase(MIRFunction &newFunc, std::vector<ImpExpr> &result,
+                                      std::vector<int64_t> &calleeValue) const {
+  for (size_t i = 0; i < result.size(); ++i) {
+    uint32 stmtId = result[i].GetStmtId();
+    StmtNode *newSwitch = newFunc.GetStmtNodeFromMeId(stmtId);
+    if (newSwitch->GetOpCode() != OP_switch) {
+      continue;
+    }
+    SwitchNode *switchStmtNode = static_cast<SwitchNode*>(newSwitch);
+    RemoveSwitchCase(newFunc, *switchStmtNode, calleeValue);
+  }
 }
 
 void IpaClone::ModifyParameterSideEffect(MIRFunction *newFunc, uint32 paramIndex) const {
@@ -312,7 +376,7 @@ void IpaClone::DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramInd
   for (auto &eval : std::as_const(evalMap)) {
     uint64_t evalValue = eval.first;
     std::vector<int64_t> calleeValue = eval.second;
-    if (!CheckCostModel(paramIndex, calleeValue, static_cast<uint32>(result.size()))) {
+    if (!CheckCostModel(paramIndex, calleeValue, result)) {
       continue;
     }
     if (index > numOfCloneVersions) {
@@ -340,6 +404,7 @@ void IpaClone::DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramInd
       newFunc = IpaCloneFunction(*curFunc, newFuncName);
     }
     ReplaceIfCondtion(newFunc, result, evalValue);
+    RemoveUnneedSwitchCase(*newFunc, result, calleeValue);
     for (auto &value: calleeValue) {
       bool optCallerParam = false;
       if (calleeValue.size() == 1) {
@@ -400,6 +465,9 @@ void IpaClone::EvalCompareResult(std::vector<ImpExpr> &result, std::map<uint32, 
         continue;
       }
       runFlag = true;
+      if (stmt->GetOpCode() == OP_switch) {
+        continue;
+      }
       IfStmtNode* ifStmt = static_cast<IfStmtNode*>(stmt);
       CompareNode *cond = static_cast<CompareNode*>(ifStmt->Opnd(0));
       if (cond->Opnd(0)->GetOpCode() == OP_intrinsicop &&
@@ -441,9 +509,11 @@ void IpaClone::EvalImportantExpression(MIRFunction *func, std::vector<ImpExpr> &
     // Later: Now we just the consider one parameter important expression
     std::vector<ImpExpr> filterRes;
     if (!evalMap.empty()) {
+      bool hasBrExpr = false;
       for (auto &expr : result) {
         if (expr.GetParamIndex() == static_cast<uint32>(index) &&
             func->GetStmtNodeFromMeId(expr.GetStmtId()) != nullptr) {
+          hasBrExpr = IsBrCondOrIf(func->GetStmtNodeFromMeId(expr.GetStmtId())->GetOpCode()) || hasBrExpr;
           (void)filterRes.emplace_back(expr);
           // Resolve most numOfImpExprUpper important expression
           if (filterRes.size() > kNumOfImpExprUpper) {
@@ -451,8 +521,10 @@ void IpaClone::EvalImportantExpression(MIRFunction *func, std::vector<ImpExpr> &
           }
         }
       }
-      DecideCloneFunction(filterRes, static_cast<uint32>(index), evalMap);
-      return;
+      if (hasBrExpr) {
+        DecideCloneFunction(filterRes, static_cast<uint32>(index), evalMap);
+        return;
+      }
     }
   }
 }
@@ -503,6 +575,16 @@ void IpaClone::CloneNoImportantExpressFunction(MIRFunction *func, uint32 paramIn
   }
 }
 
+bool IpaClone::CheckImportantExprHasBr(const std::vector<ImpExpr> &exprVec) const {
+  for (auto expr : exprVec) {
+    if (curFunc->GetStmtNodeFromMeId(expr.GetStmtId()) != nullptr &&
+        IsBrCondOrIf(curFunc->GetStmtNodeFromMeId(expr.GetStmtId())->GetOpCode())) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void IpaClone::DoIpaClone() {
   InitParams();
   for (uint32 i = 0; i < GlobalTables::GetFunctionTable().GetFuncTable().size(); ++i) {
@@ -510,9 +592,13 @@ void IpaClone::DoIpaClone() {
     if (func == nullptr) {
       continue;
     }
+    if (Options::stackProtectorStrong && func->GetMayWriteToAddrofStack()) {
+      continue;
+    }
     curFunc = func;
     std::map<PUIdx, std::vector<ImpExpr>> &funcImportantExpr = mirModule->GetFuncImportantExpr();
-    if (funcImportantExpr.find(func->GetPuidx()) != funcImportantExpr.end()) {
+    if (funcImportantExpr.find(func->GetPuidx()) != funcImportantExpr.end() &&
+        CheckImportantExprHasBr(funcImportantExpr[func->GetPuidx()])) {
       EvalImportantExpression(func, funcImportantExpr[func->GetPuidx()]);
     } else {
       auto &calleeInfo = mirModule->GetCalleeParamAboutInt();

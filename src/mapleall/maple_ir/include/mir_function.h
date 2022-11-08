@@ -1293,6 +1293,10 @@ class MIRFunction {
     mayWriteToAddrofStack = true;
   }
 
+  void UnsetMayWriteToAddrofStack() {
+    mayWriteToAddrofStack = false;
+  }
+
   bool GetMayWriteToAddrofStack() const {
     return mayWriteToAddrofStack;
   }

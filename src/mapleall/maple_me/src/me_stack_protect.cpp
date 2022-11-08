@@ -312,7 +312,15 @@ bool MeStackProtect::IsMeStmtSafe(const MeStmt &stmt) const {
  * Note: Arguments are not considered as stack variables here
  */
 void MeStackProtect::CheckAddrofStack() {
-  f->GetMirFunc()->CheckMayWriteToAddrofStack();
+  auto *mirFunc = f->GetMirFunc();
+  mirFunc->CheckMayWriteToAddrofStack();
+  mirFunc->UnsetMayWriteToAddrofStack();  // reset it before analysis
+  if (MayWriteStack()) {
+    mirFunc->SetMayWriteToAddrofStack();
+  }
+}
+
+bool MeStackProtect::MayWriteStack() {
   auto *cfg = f->GetCfg();
   for (BB *bb: cfg->GetAllBBs()) {
     if (bb == nullptr || bb == cfg->GetCommonEntryBB() || bb == cfg->GetCommonExitBB()) {
@@ -321,9 +329,16 @@ void MeStackProtect::CheckAddrofStack() {
     for (auto &stmt: bb->GetMeStmts()) {
       if (!IsMeStmtSafe(stmt)) {
         f->GetMirFunc()->SetMayWriteToAddrofStack();
-        return;
+        return true;
       }
     }
   }
+  return false;
+}
+
+bool FuncMayWriteStack(MeFunction &func) {
+  MeStackProtect checker(func);
+  return checker.MayWriteStack();
 }
 }
+

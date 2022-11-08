@@ -1,0 +1,103 @@
+/*
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under the Mulan PSL v1.
+ * You can use this software according to the terms and conditions of the Mulan PSL v1.
+ * You may obtain a copy of Mulan PSL v1 at:
+ *
+ *     http://license.coscl.org.cn/MulanPSL
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v1 for more details.
+ */
+
+// (code, type, desc)
+// final ok
+// we should mark kIFT_FinalOk carefully, because it will ignore most size limits
+DEF_IF(kIFC_Ok, kIFT_FinalOk, "[ok] normally inlined")
+
+DEF_IF(kIFC_DeclaredExternInline, kIFT_FinalOk, "[ok] callee is declared 'extern inline'")
+
+DEF_IF(kIFC_DeclaredAlwaysInline, kIFT_FinalOk, "[ok] callee is declared 'always_inline'")
+
+DEF_IF(kIFC_HardCoded, kIFT_FinalOk, "[ok] callee is hard coded to be inlined")
+
+DEF_IF(kIFC_InlineList, kIFT_FinalOk, "[ok] callee is in the inline list")
+
+DEF_IF(kIFC_InlineListCallsite, kIFT_FinalOk, "[ok] callsite is in the inline list")
+
+DEF_IF(kIFC_ProfileHotCallsite, kIFT_FinalOk, "[ok] profile shows this is a hot callsite")
+
+DEF_IF(kIFC_ExternGnuInlineCalleeDepth0, kIFT_FinalOk, "[ok] depth == 0 'extern gnu_inline' should always be inlined")
+
+// mutate
+DEF_IF(kIFC_NeedFurtherAnalysis, kIFT_Mutable, "need further analysis")
+
+DEF_IF(kIFC_NotDeclaredInlineTooBig, kIFT_Mutable, "callee is not declared 'inline' and callee size is too big")
+
+DEF_IF(kIFC_NotDeclaredInlineGrow, kIFT_Mutable, "callee is not declared 'inline' and size will grow")
+
+DEF_IF(kIFC_UnlikelyCall, kIFT_Mutable, "unlikely callsite")
+
+DEF_IF(kIFC_OutOfEarlyInline, kIFT_Mutable, "early inlining is not responsible for it")
+
+DEF_IF(kIFC_OutOfGreedyInline, kIFT_Mutable, "greedy inlining is not responsible for it")
+
+// final fail
+DEF_IF(kIFC_EmptyCallee, kIFT_FinalFail, "callee's body is not available")
+
+DEF_IF(kIFC_ProfileColdCallsite, kIFT_FinalFail, "profile shows this is a cold callsite")
+
+DEF_IF(kIFC_Unsafe, kIFT_FinalFail, "unsafe inline")
+
+DEF_IF(kIFC_UnsafeRegion, kIFT_FinalFail, "callee is unsafe but callStmt is in safe region")
+
+DEF_IF(kIFC_DeclaredNoinline, kIFT_FinalFail, "callee is declared 'noinline'")
+
+DEF_IF(kIFC_ExcludedCaller, kIFT_FinalFail, "caller is in the excluded list")
+
+DEF_IF(kIFC_ExcludedCallee, kIFT_FinalFail, "callee is in the excluded list")
+
+DEF_IF(kIFC_MCCFunc, kIFT_FinalFail, "callee is MCC runtime func")
+
+DEF_IF(kIFC_RCUnsafe, kIFT_FinalFail, "RC unsafe")
+
+DEF_IF(kIFC_Attr, kIFT_FinalFail, "callee has uninlinable attributes")
+
+DEF_IF(kIFC_ArgToFormalError, kIFT_FinalFail, "incompatible type conversion from arguments to formals")
+
+DEF_IF(kIFC_SetjmpCallee, kIFT_FinalFail, "callee is setjmp")
+
+DEF_IF(kIFC_SetjmpInCallee, kIFT_FinalFail, "callee contains setjmp call")
+
+DEF_IF(kIFC_AddrTakenLabel, kIFT_FinalFail, "callee has address taken labels")
+
+// mark uninlinable such as recursive level too much, VMStack
+DEF_IF(kIFC_MarkUninlinable, kIFT_FinalFail, "callee was marked uninlinable")
+
+DEF_IF(kIFC_GinlineRecursiveCall, kIFT_FinalFail, "resursive inlining has not been supported by ginline")
+
+DEF_IF(kIFC_TooBigForEInline, kIFT_FinalFail, "callee is too big for early inline")
+
+DEF_IF(kIFC_TooBigForGInline, kIFT_FinalFail, "callee is too big for greedy inline")
+
+DEF_IF(kIFC_NoinlineList, kIFT_FinalFail, "callee is in the noinline list")
+
+DEF_IF(kIFC_NoinlineListCallsite, kIFT_FinalFail, "callsite is in the noinline list")
+
+DEF_IF(kIFC_IndirectCall, kIFT_FinalFail, "inlining indirect call is not supported")
+
+DEF_IF(kIFC_NotInCallgraph, kIFT_FinalFail, "callee is not in the callgraph")
+
+DEF_IF(kIFC_ExternGnuInlineCaller, kIFT_FinalFail, "caller is declared 'extern gnu_inline'")
+
+DEF_IF(kIFC_ExternGnuInlineCalleeDepthN, kIFT_FinalFail, "depth >= 1 'extern gnu_inline' should not be inlined")
+
+DEF_IF(kIFC_Outlined, kIFT_FinalFail, "outlined func will not be inlined any more")
+
+DEF_IF(kIFC_PreventedBySameHotCall, kIFT_FinalFail, "same callsites with hot freq have been inlined")
+
+DEF_IF(kIFC_PreventedBySPS, kIFT_FinalFail, "callsite is prevented from inlining by --stack-protector-strong")
+

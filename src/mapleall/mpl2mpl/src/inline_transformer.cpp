@@ -16,6 +16,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <vector>
 
 #include "global_tables.h"
 #include "mpl_logging.h"
@@ -33,6 +34,36 @@ namespace maple {
 //   Step 7: Remove the successive goto statement and label statement in some circumstances.
 //   Step 8: Replace the call-stmt with new CALLEE'body.
 //   Step 9: Update inlined_times.
+
+// mapping stmtId of orig callStmt to stmtId of cloned callStmt
+struct CallStmtIdMap : public CallBackData {
+  // we did not override CallBackData::Free() because callIdMap is managed by caller
+  std::map<uint32, uint32> callIdMap;
+};
+
+void RecordCallStmtIdMap(const BlockNode &oldBlock, BlockNode &newBlock, const StmtNode &oldStmt,
+    StmtNode &newStmt, CallBackData *data) {
+  (void)oldBlock;
+  (void)newBlock;
+  if (newStmt.GetOpCode() != OP_call && newStmt.GetOpCode() != OP_callassigned) {
+    return;
+  }
+  CHECK_NULL_FATAL(data);
+  auto &callIdMap = static_cast<CallStmtIdMap*>(data)->callIdMap;
+  (void)callIdMap.emplace(oldStmt.GetStmtID(), newStmt.GetStmtID());
+}
+
+void UpdateEnclosingBlockCallback(const BlockNode &oldBlock, BlockNode &newBlock, const StmtNode &oldStmt,
+    StmtNode &newStmt, CallBackData *data) {
+  (void)oldBlock;
+  (void)oldStmt;
+  CHECK_FATAL(data == nullptr, "Should be null");
+  CallNode *callNode = safe_cast<CallNode>(&newStmt);
+  if (callNode == nullptr) {
+    return;
+  }
+  callNode->SetEnclosingBlock(&newBlock);
+}
 
 // Common rename function
 uint32 InlineTransformer::RenameSymbols(uint32 inlinedTimes) const {
@@ -192,7 +223,10 @@ void InlineTransformer::ReplaceLabels(BaseNode &baseNode, uint32 labIdxOff) cons
     ASSERT(false, "InlineTransformer::ReplaceLabels: OP_multiway and OP_rangegoto are not supported");
   } else if (baseNode.GetOpCode() == OP_switch) {
     SwitchNode *switchNode = static_cast<SwitchNode*>(&baseNode);
-    switchNode->SetDefaultLabel(switchNode->GetDefaultLabel() + labIdxOff);
+    // defaultLabel with value 0 is invalid, we should keep its value
+    if (switchNode->GetDefaultLabel() != 0) {
+      switchNode->SetDefaultLabel(switchNode->GetDefaultLabel() + labIdxOff);
+    }
     for (uint32_t i = 0; i < switchNode->GetSwitchTable().size(); ++i) {
       LabelIdx idx = switchNode->GetSwitchTable()[i].second + labIdxOff;
       switchNode->UpdateCaseLabelAt(i, idx);
@@ -307,7 +341,7 @@ GotoNode *InlineTransformer::DoUpdateReturnStmts(BlockNode &newBody, StmtNode &s
       dStmt = builder.CreateStmtRegassign(mirPreg->GetPrimType(), pregIdx, currBaseNode);
     }
     dStmt->SetSrcPos(stmt.GetSrcPos());
-    if (Options::profileUse) {
+    if (updateFreq) {
       caller.GetFuncProfData()->CopyStmtFreq(dStmt->GetStmtID(), stmt.GetStmtID());
       caller.GetFuncProfData()->CopyStmtFreq(gotoNode->GetStmtID(), stmt.GetStmtID());
       caller.GetFuncProfData()->EraseStmtFreq(stmt.GetStmtID());
@@ -315,7 +349,7 @@ GotoNode *InlineTransformer::DoUpdateReturnStmts(BlockNode &newBody, StmtNode &s
     newBody.ReplaceStmt1WithStmt2(&stmt, dStmt);
     newBody.InsertAfter(dStmt, gotoNode);
   } else {
-    if (Options::profileUse) {
+    if (updateFreq) {
       caller.GetFuncProfData()->CopyStmtFreq(gotoNode->GetStmtID(), stmt.GetStmtID());
       caller.GetFuncProfData()->EraseStmtFreq(stmt.GetStmtID());
     }
@@ -329,8 +363,9 @@ GotoNode *InlineTransformer::UpdateReturnStmts(BlockNode &newBody, const CallRet
   // Examples:
   // For callee: return f ==>
   //             rval = f; goto label x;
-  GotoNode *lastGoto = nullptr;
+  GotoNode *resultGoto = nullptr;
   for (auto &stmt : newBody.GetStmtNodes()) {
+    GotoNode *lastGoto = nullptr;
     switch (stmt.GetOpCode()) {
       case OP_foreachelem:
         lastGoto = UpdateReturnStmts(*static_cast<ForeachelemNode&>(stmt).GetLoopBody(), callReturnVector, retCount);
@@ -358,13 +393,17 @@ GotoNode *InlineTransformer::UpdateReturnStmts(BlockNode &newBody, const CallRet
       default:
         break;
     }
+    if (lastGoto != nullptr) {
+      resultGoto = lastGoto;
+    }
   }
-  return lastGoto;
+  return resultGoto;
 }
 
 static void UpdateAddrofConstForPStatic(MIRConst &mirConst, MIRFunction &func,
                                         const std::vector<uint32> &oldStIdx2New) {
   auto constKind = mirConst.GetKind();
+  CHECK_FATAL(constKind != kConstLblConst, "should not be here");
   if (constKind == kConstAddrof) {
     auto *addrofConst = static_cast<MIRAddrofConst*>(&mirConst);
     StIdx valueStIdx = addrofConst->GetSymbolIndex();
@@ -458,10 +497,9 @@ BlockNode *InlineTransformer::CloneFuncBody(BlockNode &funcBody, bool recursiveF
   if (callee.IsFromMpltInline()) {
     return funcBody.CloneTree(theMIRModule->GetCurFuncCodeMPAllocator());
   }
-  if (Options::profileUse) {
+  if (updateFreq) {
     auto *callerProfData = caller.GetFuncProfData();
     auto *calleeProfData = callee.GetFuncProfData();
-    ASSERT(callerProfData && calleeProfData, "nullptr check");
     uint64_t callsiteFreq = callerProfData->GetStmtFreq(callStmt.GetStmtID());
     uint64_t calleeEntryFreq = calleeProfData->GetFuncFrequency();
     uint32_t updateOp = (kKeepOrigFreq | kUpdateFreqbyScale);
@@ -478,6 +516,12 @@ BlockNode *InlineTransformer::CloneFuncBody(BlockNode &funcBody, bool recursiveF
     }
     return blockNode;
   } else {
+    std::set<std::string> funcName = {
+        "memcpy", "memset", "strncpy", "strcpy", "stpcpy", "vsprintf", "vsnprintf", "snprintf", "sprintf", "strcat",
+        "strncat", "mempcpy", "memmove", "__mempcpy_inline"};
+    if (funcName.find(callee.GetName()) != funcName.end() && callee.GetBody() != nullptr) {
+      return funcBody.CloneTreeWithSrcPosition(*theMIRModule, caller.GetNameStrIdx(), true, callStmt.GetSrcPos());
+    }
     return funcBody.CloneTreeWithSrcPosition(*theMIRModule);
   }
 }
@@ -562,7 +606,7 @@ void InlineTransformer::AssignActualsToFormals(BlockNode &newBody, uint32 stIdxO
     CHECK_NULL_FATAL(currBaseNode);
     CHECK_NULL_FATAL(formal);
     AssignActualToFormal(newBody, stIdxOff, regIdxOff, *currBaseNode, *formal);
-    if (Options::profileUse) {
+    if (updateFreq) {
       caller.GetFuncProfData()->CopyStmtFreq(newBody.GetFirst()->GetStmtID(), callStmt.GetStmtID());
     }
   }
@@ -606,12 +650,12 @@ void InlineTransformer::HandleReturn(BlockNode &newBody) {
       }
     }
   }
-  if (Options::profileUse && (labelStmt != nullptr) && (newBody.GetLast() == labelStmt)) {
+  if (updateFreq && (labelStmt != nullptr) && (newBody.GetLast() == labelStmt)) {
     caller.GetFuncProfData()->CopyStmtFreq(labelStmt->GetStmtID(), callStmt.GetStmtID());
   }
 }
 
-void InlineTransformer::ReplaceCalleeBody(BlockNode &enclosingBlk, BlockNode &newBody) {
+void InlineTransformer::ReplaceCalleeBody(BlockNode &enclosingBlock, BlockNode &newBody) {
   // begin inlining function
   if (!Options::noComment) {
     MapleString beginCmt(theMIRModule->CurFuncCodeMemPool());
@@ -622,8 +666,8 @@ void InlineTransformer::ReplaceCalleeBody(BlockNode &enclosingBlk, BlockNode &ne
     }
     beginCmt += callee.GetName();
     StmtNode *commNode = builder.CreateStmtComment(beginCmt.c_str());
-    enclosingBlk.InsertBefore(&callStmt, commNode);
-    if (Options::profileUse) {
+    enclosingBlock.InsertBefore(&callStmt, commNode);
+    if (updateFreq) {
       caller.GetFuncProfData()->CopyStmtFreq(commNode->GetStmtID(), callStmt.GetStmtID());
     }
     // end inlining function
@@ -634,20 +678,20 @@ void InlineTransformer::ReplaceCalleeBody(BlockNode &enclosingBlk, BlockNode &ne
       endCmt += kSecondInlineEndComment;
     }
     endCmt += callee.GetName();
-    if (enclosingBlk.GetLast() != nullptr && &callStmt != enclosingBlk.GetLast()) {
+    if (enclosingBlock.GetLast() != nullptr && &callStmt != enclosingBlock.GetLast()) {
       CHECK_FATAL(callStmt.GetNext() != nullptr, "null ptr check");
     }
     commNode = builder.CreateStmtComment(endCmt.c_str());
-    enclosingBlk.InsertAfter(&callStmt, commNode);
-    if (Options::profileUse) {
+    enclosingBlock.InsertAfter(&callStmt, commNode);
+    if (updateFreq) {
       caller.GetFuncProfData()->CopyStmtFreq(commNode->GetStmtID(), callStmt.GetStmtID());
     }
     CHECK_FATAL(callStmt.GetNext() != nullptr, "null ptr check");
   }
   if (newBody.IsEmpty()) {
-    enclosingBlk.RemoveStmt(&callStmt);
+    enclosingBlock.RemoveStmt(&callStmt);
   } else {
-    enclosingBlk.ReplaceStmtWithBlock(callStmt, newBody);
+    enclosingBlock.ReplaceStmtWithBlock(callStmt, newBody);
   }
 }
 
@@ -663,7 +707,7 @@ void InlineTransformer::GenReturnLabel(BlockNode &newBody, uint32 inlinedTimes) 
     // record the created label
     labelStmt = builder.CreateStmtLabel(returnLabelIdx);
     newBody.AddStatement(labelStmt);
-    if (Options::profileUse) {
+    if (updateFreq) {
       caller.GetFuncProfData()->CopyStmtFreq(labelStmt->GetStmtID(), callStmt.GetStmtID());
     }
   }
@@ -702,7 +746,7 @@ void RecordCallId(BaseNode &baseNode, std::map<uint32, uint32> &callMeStmtIdMap)
 }
 
 // Inline CALLEE into CALLER.
-bool InlineTransformer::PerformInline(BlockNode &enclosingBlk) {
+bool InlineTransformer::PerformInline(std::vector<CallInfo*> *newCallInfo) {
   if (callee.IsEmpty()) {
     enclosingBlk.RemoveStmt(&callStmt);
     return false;
@@ -718,12 +762,16 @@ bool InlineTransformer::PerformInline(BlockNode &enclosingBlk) {
   // multiple definition for these static symbols
   ConvertPStaticToFStatic(callee);
   // Step 1: Clone CALLEE's body.
+  // Record callStmtId mapping from callee orig body to callee cloned body for merging inline summary
+  CallStmtIdMap mapWrapper;
+  if (stage == kGreedyInline) {
+    BlockCallBackMgr::AddCallBack(RecordCallStmtIdMap, &mapWrapper);
+  }
+  const std::map<uint32, uint32> &callIdMap = mapWrapper.callIdMap;
   BlockNode *newBody = GetClonedCalleeBody();
   CHECK_NULL_FATAL(newBody);
-  // Record callStmtId mapping from callee orig body to callee cloned body for merging inline summary
-  std::map<uint32, uint32> callIdMap;
-  if (Options::enableInlineSummary) {
-    RecordCallId(*newBody, callIdMap);
+  if (stage == kGreedyInline) {
+    BlockCallBackMgr::RemoveCallBack(RecordCallStmtIdMap);
   }
 
   // Step 2: Rename symbols, labels, pregs
@@ -742,17 +790,71 @@ bool InlineTransformer::PerformInline(BlockNode &enclosingBlk) {
   GenReturnLabel(*newBody, inlinedTimes);
   // Step 6: Handle return values.
   HandleReturn(*newBody);
-  // Step 7: Replace the call-stmt with new CALLEE'body.
+  // Step 7: Replace the call-stmt with new CALLEE'body. And do some update work.
   ReplaceCalleeBody(enclosingBlk, *newBody);
+  // replace the enclosingBlk of callsite in newbody with the enclosingBlk of current callStmt.
+  UpdateEnclosingBlock(*newBody);
+  if (stage == kGreedyInline) {
+    // Create new edges
+    CollectNewCallInfo(newBody, newCallInfo);
+    // and delete the inlined edge.
+    auto *callerNode = cg->GetCGNode(&caller);
+    CHECK_NULL_FATAL(callerNode);
+    callerNode->RemoveCallsite(callStmt.GetStmtID());
+  }
+
   // Step 8: Update inlined_times.
   calleeNode->IncreaseInlinedTimes();
   // Step 9: After inlining, if there exists nested try-catch block, flatten them all.
   HandleTryBlock(stmtBeforeCall, stmtAfterCall);
   // Step 10: Merge inline summary
-  if (Options::enableInlineSummary) {
+  if (stage == kGreedyInline) {
     MergeInlineSummary(caller, callee, callStmt, callIdMap);
   }
+  // Step 11: Merge other attributes
+  if (Options::stackProtectorStrong) {
+    if (callee.GetMayWriteToAddrofStack()) {
+      caller.SetMayWriteToAddrofStack();
+    }
+  }
   return true;
+}
+
+void InlineTransformer::CollectNewCallInfo(BaseNode *node, std::vector<CallInfo*> *newCallInfo) const {
+  if (node == nullptr) {
+    return;
+  }
+  if (node->GetOpCode() == OP_block) {
+    auto *block = static_cast<BlockNode*>(node);
+    for (auto &stmt : block->GetStmtNodes()) {
+      CollectNewCallInfo(&stmt, newCallInfo);
+    }
+  } else if (node->GetOpCode() == OP_callassigned || node->GetOpCode() == OP_call) {
+    CallNode *callNode = static_cast<CallNode*>(node);
+    if (callNode != nullptr) {
+      MIRFunction *newCallee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode->GetPUIdx());
+      CGNode *cgCallee = cg->GetCGNode(newCallee);
+      CGNode *cgCaller = cg->GetCGNode(&caller);
+      auto *callInfo = cg->AddCallsite(kCallTypeCall, *cgCaller, *cgCallee, *callNode);
+      if (newCallInfo != nullptr) {
+        newCallInfo->push_back(callInfo);
+      }
+      return;
+    }
+  }
+  for (size_t i = 0; i < node->NumOpnds(); ++i) {
+    CollectNewCallInfo(node->Opnd(i), newCallInfo);
+  }
+}
+
+void InlineTransformer::UpdateEnclosingBlock(BlockNode &body) const {
+  for (StmtNode &stmt : body.GetStmtNodes()) {
+    CallNode *callNode = safe_cast<CallNode>(stmt);
+    if (callNode == nullptr) {
+      continue;
+    }
+    callNode->SetEnclosingBlock(callStmt.GetEnclosingBlock());
+  }
 }
 
 void InlineTransformer::HandleTryBlock(StmtNode *stmtBeforeCall, StmtNode *stmtAfterCall) {

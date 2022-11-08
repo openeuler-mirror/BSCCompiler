@@ -19,6 +19,7 @@
 #include "option.h"
 #include "string_utils.h"
 #include "inline_summary.h"
+#include "me_stack_protect.h"
 #include "ipa_phase_manager.h"
 
 namespace maple {
@@ -174,7 +175,7 @@ void CollectIpaInfo::TransformStmtToIntegerSeries(MeStmt &meStmt) {
   if (!Options::doOutline) {
     return;
   }
-  auto stmtInfo = StmtInfo(&meStmt, curFunc->GetPuidx());
+  auto stmtInfo = StmtInfo(&meStmt, curFunc->GetPuidx(), allocator);
   auto integerValue = stmtInfoToIntegerMap[stmtInfo];
   if (integerValue == 0) {
     integerValue = stmtInfoToIntegerMap[stmtInfo] = GetCurrNewStmtIndex();
@@ -196,21 +197,32 @@ void CollectIpaInfo::Perform(MeFunction &func) {
       TraverseMeStmt(meStmt);
     }
   }
-  if (Options::enableInlineSummary) {
-    Dominance *dom =
-        static_cast<MEDominance*>(dataMap->GetVaildAnalysisPhase(func.GetUniqueID(), &MEDominance::id))->GetResult();
+  if (Options::enableGInline) {
+    auto dominancePhase = static_cast<MEDominance*>(
+        dataMap->GetVaildAnalysisPhase(func.GetUniqueID(), &MEDominance::id));
+    Dominance *dom = dominancePhase->GetDomResult();
+    CHECK_NULL_FATAL(dom);
+    Dominance *pdom = dominancePhase->GetPdomResult();
+    CHECK_NULL_FATAL(pdom);
     auto *meLoop = static_cast<MELoopAnalysis*>(
         dataMap->GetVaildAnalysisPhase(func.GetUniqueID(), &MELoopAnalysis::id))->GetResult();
-    auto collector = std::make_unique<InlineSummaryCollector>(module.GetInlineSummaryAlloc(), func, *dom, *meLoop);
-    collector->CollectInlineSummary();
+    InlineSummaryCollector collector(module.GetInlineSummaryAlloc(), func, *dom, *pdom, *meLoop);
+    collector.CollectInlineSummary();
+  }
+  if (Options::stackProtectorStrong) {
+    bool mayWriteStack = FuncMayWriteStack(func);
+    if (mayWriteStack) {
+      func.GetMirFunc()->SetMayWriteToAddrofStack();
+    }
   }
 }
 
-void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId stmtInfoId) {
-  if (cycleCheck->find(&scalar) != cycleCheck->end()) {
+void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId stmtInfoId,
+    std::unordered_set<ScalarMeExpr*> &cycleCheck) {
+  if (cycleCheck.find(&scalar) != cycleCheck.end()) {
     return;
   }
-  (void)cycleCheck->insert(&scalar);
+  (void)cycleCheck.insert(&scalar);
   auto *ost = scalar.GetOst();
   if (!ost->IsLocal() || ost->GetIndirectLev() != 0) {
     return;
@@ -225,7 +237,7 @@ void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId stmt
     }
     case kDefByPhi: {
       for (auto *scalarOpnd : scalar.GetDefPhi().GetOpnds()) {
-        CollectDefUsePosition(static_cast<ScalarMeExpr&>(*scalarOpnd), stmtInfoId);
+        CollectDefUsePosition(static_cast<ScalarMeExpr&>(*scalarOpnd), stmtInfoId, cycleCheck);
       }
       break;
     }
@@ -237,20 +249,21 @@ void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId stmt
         defUsePositionOfDefStmt.usePositions.push_back(stmtInfoId);
         break;
       }
-      CollectDefUsePosition(*scalar.GetDefChi().GetRHS(), stmtInfoId);
+      CollectDefUsePosition(*scalar.GetDefChi().GetRHS(), stmtInfoId, cycleCheck);
       break;
     }
   }
 }
 
-void CollectIpaInfo::TraverseMeExpr(MeExpr &meExpr, StmtInfoId stmtInfoId) {
+void CollectIpaInfo::TraverseMeExpr(MeExpr &meExpr, StmtInfoId stmtInfoId,
+    std::unordered_set<ScalarMeExpr*> &cycleCheck) {
   if (meExpr.IsScalar()) {
-    CollectDefUsePosition(static_cast<ScalarMeExpr&>(meExpr), stmtInfoId);
-    cycleCheck->clear();
+    CollectDefUsePosition(static_cast<ScalarMeExpr&>(meExpr), stmtInfoId, cycleCheck);
+    cycleCheck.clear();
     return;
   }
   for (size_t i = 0; i < meExpr.GetNumOpnds(); ++i) {
-    TraverseMeExpr(*meExpr.GetOpnd(i), stmtInfoId);
+    TraverseMeExpr(*meExpr.GetOpnd(i), stmtInfoId, cycleCheck);
   }
 }
 
@@ -299,7 +312,7 @@ StmtInfoId CollectIpaInfo::GetRealFirstStmtInfoId(BB &bb) {
 }
 
 void CollectIpaInfo::TraverseStmtInfo(size_t position) {
-  cycleCheck = new std::unordered_set<ScalarMeExpr *>;
+  std::unordered_set<ScalarMeExpr*> cycleCheck;
   for (size_t i = position; i < stmtInfoVector.size(); ++i) {
     auto *meStmt = stmtInfoVector[i].GetMeStmt();
     if (meStmt == nullptr) {
@@ -307,17 +320,19 @@ void CollectIpaInfo::TraverseStmtInfo(size_t position) {
     }
     CollectJumpInfo(*meStmt);
     for (size_t opndIndex = 0; opndIndex < meStmt->NumMeStmtOpnds(); ++opndIndex) {
-      TraverseMeExpr(*meStmt->GetOpnd(opndIndex), i);
+      TraverseMeExpr(*meStmt->GetOpnd(opndIndex), i, cycleCheck);
+    }
+    if (meStmt->GetOp() == OP_iassign && static_cast<IassignMeStmt *>(meStmt)->GetLHSVal()->GetBase()) {
+      TraverseMeExpr(*static_cast<IassignMeStmt *>(meStmt)->GetLHSVal()->GetBase(), i, cycleCheck);
     }
     auto *muList = meStmt->GetMuList();
     if (muList == nullptr) {
       continue;
     }
     for (auto &mu : *muList) {
-      CollectDefUsePosition(*mu.second, i);
+      CollectDefUsePosition(*mu.second, i, cycleCheck);
     }
   }
-  delete cycleCheck;
 }
 
 void CollectIpaInfo::RunOnScc(SCCNode<CGNode> &scc) {
