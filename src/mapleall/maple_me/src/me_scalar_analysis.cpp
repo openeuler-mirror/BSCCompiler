@@ -570,6 +570,9 @@ CRNode *LoopScalarAnalysisResult::GetCRAddNode(MeExpr *expr, std::vector<CRNode*
       CR *crRHS = static_cast<CR*>(crAddOpnds[crIndex]);
       crAddOpnds[0] = static_cast<CRNode*>(AddCRWithCR(*crLHS, *crRHS));
       if (crAddOpnds.size() == kNumOpnds) {
+        if (crAddOpnds[0]->GetCRType() == kCRNode && crAddOpnds[0]->GetOpnds().size() == 1) {
+          return static_cast<CR*>(crAddOpnds[0])->GetOpnd(0);
+        }
         return crAddOpnds[0];
       }
       crAddOpnds.erase(crAddOpnds.cbegin() + 1);
@@ -785,7 +788,12 @@ CR *LoopScalarAnalysisResult::AddCRWithCR(CR &lhsCR, CR &rhsCR) {
   size_t i = 0;
   for (; i < len; ++i) {
     std::vector<CRNode*> crAddOpnds{lhsCR.GetOpnd(i), rhsCR.GetOpnd(i)};
-    crOpnds.push_back(GetCRAddNode(nullptr, crAddOpnds));
+    auto *tempCRNode = GetCRAddNode(nullptr, crAddOpnds);
+    if (tempCRNode != nullptr && tempCRNode->GetCRType() == kCRConstNode &&
+        static_cast<CRConstNode*>(tempCRNode)->GetConstValue() == 0) {
+      continue;
+    }
+    crOpnds.push_back(tempCRNode);
   }
   if (i < lhsCR.GetOpndsSize()) {
     crOpnds.insert(crOpnds.cend(), lhsCR.GetOpnds().begin() + i, lhsCR.GetOpnds().end());
