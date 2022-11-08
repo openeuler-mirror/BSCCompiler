@@ -187,11 +187,11 @@ MeExpr *OBJSize::GetStrMeExpr(MeExpr &expr) {
 
 size_t OBJSize::DealWithSprintfAndVsprintf(const CallMeStmt &callMeStmt, const MIRFunction &calleeFunc) {
   if (calleeFunc.GetName() != kSprintfChk && calleeFunc.GetName() != kVsprintfChk) {
-    return 0;
+    return kInvalidDestSize;
   }
   auto *fmt = GetStrMeExpr(*callMeStmt.GetOpnd(3));
   if (fmt == nullptr || fmt->GetMeOp() != kMeOpConststr) {
-    return 0;
+    return kInvalidDestSize;
   }
   auto *constStrMeExpr = static_cast<ConststrMeExpr*>(fmt);
   auto &fmtStr = GlobalTables::GetUStrTable().GetStringFromStrIdx(constStrMeExpr->GetStrIdx());
@@ -201,7 +201,7 @@ size_t OBJSize::DealWithSprintfAndVsprintf(const CallMeStmt &callMeStmt, const M
   } else if (calleeFunc.GetName() == kSprintfChk && strcmp (fmtStr.c_str(), "%s") == 0) {
     // If the format is "%s" and first ... argument is a string literal, the size is the length of string literal.
     if (callMeStmt.GetOpnds().size() < 5) {
-      return 0;
+      return kInvalidDestSize;
     }
     auto *src = callMeStmt.GetOpnd(4);
     src = GetStrMeExpr(*src);
@@ -209,7 +209,7 @@ size_t OBJSize::DealWithSprintfAndVsprintf(const CallMeStmt &callMeStmt, const M
       return ComputeObjectSizeWithType(*src, 0);
     }
   }
-  return 0;
+  return kInvalidDestSize;
 }
 
 const std::map<std::string, std::pair<size_t, size_t>> kIndexOfParam {
