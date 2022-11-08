@@ -16,7 +16,7 @@
 #include "data_dep_base.h"
 
 namespace maplebe {
-void DataDepBase::ProcessNonMachineInsn(Insn &insn, MapleVector<Insn*> comments, MapleVector<DepNode*> &dataNodes,
+void DataDepBase::ProcessNonMachineInsn(Insn &insn, MapleVector<Insn*> &comments, MapleVector<DepNode*> &dataNodes,
                                         const Insn *&locInsn) {
   CHECK_FATAL(!insn.IsMachineInstruction(), "need non-machine-instruction");
   if (insn.IsImmaterialInsn()) {

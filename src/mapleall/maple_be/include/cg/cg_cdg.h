@@ -311,7 +311,8 @@ class CDGNode {
   }
 
   void CopyAndClearComments(MapleVector<Insn*> &comments) {
-    lastComments.assign(comments.begin(), comments.end());
+    lastComments = comments;
+    comments.clear();
   }
 
   void ClearLastComments() {

@@ -67,7 +67,7 @@ class DataDepBase {
     curCDGNode->ClearLastComments();
   }
 
-  void ProcessNonMachineInsn(Insn &insn, MapleVector<Insn*> comments, MapleVector<DepNode*> &dataNodes,
+  void ProcessNonMachineInsn(Insn &insn, MapleVector<Insn*> &comments, MapleVector<DepNode*> &dataNodes,
                              const Insn *&locInsn);
 
   void AddDependence4InsnInVectorByType(MapleVector<Insn*> &insns, Insn &insn, const DepType &type);
