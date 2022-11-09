@@ -14,9 +14,10 @@
  */
 #ifndef MAPLEBE_INCLUDE_CG_X64_X64_REG_INFO_H
 #define MAPLEBE_INCLUDE_CG_X64_X64_REG_INFO_H
+
 #include "reg_info.h"
+#include "x64_isa.h"
 #include "x64_abi.h"
-#include "x64_cg.h"
 
 namespace maplebe {
 static const std::map<regno_t, uint32> x64IntParamsRegIdx =
@@ -36,16 +37,19 @@ class X64RegInfo : public RegisterInfo {
   bool IsYieldPointReg(regno_t regNO) const override;
   bool IsUnconcernedReg(regno_t regNO) const override;
   bool IsUnconcernedReg(const RegOperand &regOpnd) const override;
+  bool IsFramePointReg(regno_t regNO) const override {
+    return (regNO == x64::RBP);
+  }
+  bool IsReservedReg(regno_t regNO, bool doMultiPass) const override {
+    return false;
+  }
   RegOperand *GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag) override;
-  ListOperand *CreateListOperand() override;
-  Insn *BuildMovInstruction(Operand &opnd0, Operand &opnd1) override;
   Insn *BuildStrInsn(uint32 regSize, PrimType stype, RegOperand &phyOpnd, MemOperand &memOpnd) override;
   Insn *BuildLdrInsn(uint32 regSize, PrimType stype, RegOperand &phyOpnd, MemOperand &memOpnd) override;
-  Insn *BuildCommentInsn(const std::string &comment) override;
   MemOperand *AdjustMemOperandIfOffsetOutOfRange(MemOperand *memOpnd, regno_t vrNum,
       bool isDest, Insn &insn, regno_t regNum, bool &isOutOfRange) override;
   bool IsGPRegister(regno_t regNO) const override {
-    return x64::IsGPRegister(static_cast<X64reg>(regNO));
+    return x64::IsGPRegister(static_cast<x64::X64reg>(regNO));
   }
   /* Those registers can not be overwrite. */
   bool IsUntouchableReg(regno_t regNO) const override{
@@ -69,11 +73,11 @@ class X64RegInfo : public RegisterInfo {
     return 0;
   }
   regno_t GetIntRetReg(uint32 idx) override {
-    CHECK_FATAL(idx <= x64::kNumIntReturnRegs, "index out of range in IntRetReg");
+    CHECK_FATAL(idx < x64::kNumIntReturnRegs, "index out of range in IntRetReg");
     return static_cast<regno_t>(x64::kIntReturnRegs[idx]);
   }
   regno_t GetFpRetReg(uint32 idx) override {
-    CHECK_FATAL(idx <= x64::kNumFloatReturnRegs, "index out of range in IntRetReg");
+    CHECK_FATAL(idx < x64::kNumFloatReturnRegs, "index out of range in FloatRetReg");
     return static_cast<regno_t>(x64::kFloatReturnRegs[idx]);
   }
   /* phys reg which can be pre-Assignment:
@@ -83,7 +87,7 @@ class X64RegInfo : public RegisterInfo {
    * FP return regs -- xmm0 ~ xmm1
    */
   bool IsPreAssignedReg(regno_t regNO) const override {
-    return x64::IsParamReg(static_cast<X64reg>(regNO)) ||
+    return x64::IsParamReg(static_cast<x64::X64reg>(regNO)) ||
            regNO == x64::RAX || regNO == x64::RDX;
   }
   uint32 GetIntParamRegIdx(regno_t regNO) const override {
@@ -110,22 +114,39 @@ class X64RegInfo : public RegisterInfo {
     return x64::kRinvalid;
   }
   bool IsAvailableReg(regno_t regNO) const override {
-    return x64::IsAvailableReg(static_cast<X64reg>(regNO));
+    return x64::IsAvailableReg(static_cast<x64::X64reg>(regNO));
   }
   bool IsVirtualRegister(const RegOperand &regOpnd) override {
-    return regOpnd.GetRegisterNumber() > kAllRegNum;
+    return regOpnd.GetRegisterNumber() > x64::kAllRegNum;
   }
   bool IsVirtualRegister(regno_t regno) override {
-    return regno > kAllRegNum;
+    return regno > x64::kAllRegNum;
   }
-  uint32 GetReservedSpillReg() override {
+  regno_t GetReservedSpillReg() override {
     return x64::kRinvalid;
   }
-  uint32 GetSecondReservedSpillReg() override {
+  regno_t GetSecondReservedSpillReg() override {
     return x64::kRinvalid;
+  }
+  regno_t GetYieldPointReg() const override {
+    return x64::kRinvalid;
+  }
+  regno_t GetStackPointReg() const override {
+    return x64::RSP;
   }
   bool IsSpillRegInRA(regno_t regNO, bool has3RegOpnd) override {
-    return x64::IsSpillRegInRA(static_cast<X64reg>(regNO), has3RegOpnd);
+    return x64::IsSpillRegInRA(static_cast<x64::X64reg>(regNO), has3RegOpnd);
+  }
+
+  regno_t GetIntSpillFillReg(size_t idx) const override {
+    static regno_t intRegs[kSpillMemOpndNum] = { 0 };
+    ASSERT(idx < kSpillMemOpndNum, "index out of range");
+    return intRegs[idx];
+  }
+  regno_t GetFpSpillFillReg(size_t idx) const override {
+    static regno_t fpRegs[kSpillMemOpndNum] = { 0 };
+    ASSERT(idx < kSpillMemOpndNum, "index out of range");
+    return fpRegs[idx];
   }
 };
 }  /* namespace maplebe */

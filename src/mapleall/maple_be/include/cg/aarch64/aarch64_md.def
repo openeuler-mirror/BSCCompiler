@@ -15,8 +15,6 @@
 /* InsnDesc format:
  * {mop, opndMD, properties, latency, name, format, atomicNum, validFunc(nullptr)}
  */
-/* MOP_undef, */
-DEFINE_MOP(MOP_undef, {},0,kLtUndef,"","",0)
 
 /* AARCH64 MOVES */
 /* MOP_xmovrr */
@@ -972,6 +970,19 @@ DEFINE_MOP(MOP_clinit, {&OpndDesc::Reg64ID,&OpndDesc::LiteralSrc},ISATOMIC|CANTH
 DEFINE_MOP(MOP_counter, {&OpndDesc::Reg64ID,&OpndDesc::LiteralSrc},ISATOMIC|CANTHROW,kLtClinit,"intrinsic_counter","0,1", 4)
 
 /*
+ * MOP_c_counter
+ * will be emit to seven instructions in a row:
+ * str x30, [sp , #-16]!
+ * adrp  x16, :got:__profile_table
+ * ldr x16, [x16,#:got_lo12:__profile_table]
+ * ldr x30, [x16 + offset]
+ * add x30, x30, #1
+ * str w30, [x16 + offset]
+ * ldr x30, [sp], #16
+ */
+DEFINE_MOP(MOP_c_counter, {&OpndDesc::LiteralSrc,&OpndDesc::Imm64},ISATOMIC|CANTHROW,kLtClinit,"intrinsic_counter","0,1", 8)
+
+/*
  * will be emit to two instrunctions in a row:
  * ldr wd, [xs]  // xd and xs should be differenct register
  * ldr wd, [xd]
@@ -1014,7 +1025,7 @@ DEFINE_MOP(MOP_arrayclass_cache_ldr, {&OpndDesc::Reg64ID,&OpndDesc::LiteralSrc},
  * ldr x17, [xs,#112]
  * ldr wzr, [x17]
  */
-DEFINE_MOP(MOP_clinit_tail, {&OpndDesc::Reg64IS},ISATOMIC|CANTHROW,kLtClinitTail,"intrinsic_clinit_tail","0",2)
+DEFINE_MOP(MOP_clinit_tail, {&OpndDesc::Reg64IS},ISATOMIC|CANTHROW|SPINTRINSIC,kLtClinitTail,"intrinsic_clinit_tail","0",2)
 
 /*
  * intrinsic Unsafe.getAndAddInt

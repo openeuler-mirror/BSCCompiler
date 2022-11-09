@@ -1568,7 +1568,8 @@ void ValueRangePropagation::DealWithNeg(const BB &bb, const OpMeExpr &opMeExpr) 
   CHECK_FATAL(opMeExpr.GetNumOpnds() == 1, "must have one opnd");
   auto *opnd = opMeExpr.GetOpnd(0);
   uint32 numberOfRecursions = 0;
-  auto res = NegValueRange(bb, *opnd, numberOfRecursions);
+  std::unordered_set<int32> foundExprs;
+  auto res = NegValueRange(bb, *opnd, numberOfRecursions, foundExprs);
   (void)Insert2Caches(bb.GetBBId(), opMeExpr.GetExprID(), std::move(res));
 }
 
@@ -2767,8 +2768,8 @@ void ValueRangePropagation::JudgeEqual(MeExpr &expr, ValueRange &vrOfLHS, ValueR
 }
 
 std::unique_ptr<ValueRange> ValueRangePropagation::NegValueRange(
-    const BB &bb, MeExpr &opnd, uint32 &numberOfRecursions) {
-  auto *valueRange = FindValueRange(bb, opnd, numberOfRecursions);
+    const BB &bb, MeExpr &opnd, uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs) {
+  auto *valueRange = FindValueRange(bb, opnd, numberOfRecursions, foundExprs);
   if (valueRange == nullptr) {
     return nullptr;
   }
@@ -2783,13 +2784,16 @@ std::unique_ptr<ValueRange> ValueRangePropagation::NegValueRange(
   return valueRangePtr;
 }
 
-ValueRange *ValueRangePropagation::DealWithNegWhenFindValueRange(
-    const BB &bb, const MeExpr &expr, const MeExpr *preExpr, uint32 &numberOfRecursions) {
+ValueRange *ValueRangePropagation::DealWithNegWhenFindValueRange(const BB &bb, const MeExpr &expr,
+    const MeExpr *preExpr, uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs) {
   auto *opnd = expr.GetOpnd(0);
+  if (!foundExprs.insert(opnd->GetExprID()).second) {
+    return nullptr;
+  }
   if (opnd == preExpr) {
     return nullptr;
   }
-  auto valueRangePtr = NegValueRange(bb, *opnd, numberOfRecursions);
+  auto valueRangePtr = NegValueRange(bb, *opnd, numberOfRecursions, foundExprs);
   if (valueRangePtr == nullptr) {
     return nullptr;
   }
@@ -2799,21 +2803,21 @@ ValueRange *ValueRangePropagation::DealWithNegWhenFindValueRange(
 }
 
 ValueRange *ValueRangePropagation::FindValueRangeWithCompareOp(
-    const BB &bb, MeExpr &expr, uint32 &numberOfRecursions, MeExpr *preExpr) {
+    const BB &bb, MeExpr &expr, uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs, MeExpr *preExpr) {
   auto op = expr.GetOp();
   if (op == OP_neg) {
-    return DealWithNegWhenFindValueRange(bb, expr, preExpr, numberOfRecursions);
+    return DealWithNegWhenFindValueRange(bb, expr, preExpr, numberOfRecursions, foundExprs);
   }
   if (!IsCompareHasReverseOp(op) || expr.GetNumOpnds() != kNumOperands) {
     return nullptr;
   }
   auto *opnd0 = expr.GetOpnd(0);
   auto *opnd1 = expr.GetOpnd(1);
-  auto *valueRangeOfOpnd0 = FindValueRange(bb, *opnd0, numberOfRecursions);
+  auto *valueRangeOfOpnd0 = FindValueRange(bb, *opnd0, numberOfRecursions, foundExprs);
   if (valueRangeOfOpnd0 == nullptr) {
     return nullptr;
   }
-  auto *valueRangeOfOpnd1 = FindValueRange(bb, *opnd1, numberOfRecursions);
+  auto *valueRangeOfOpnd1 = FindValueRange(bb, *opnd1, numberOfRecursions, foundExprs);
   if (valueRangeOfOpnd1 == nullptr || !valueRangeOfOpnd0->IsConstantRange() || !valueRangeOfOpnd1->IsConstantRange()) {
     return nullptr;
   }
@@ -2864,7 +2868,8 @@ bool ValueRangePropagation::IsSubOpndOfExpr(const MeExpr &expr, const MeExpr &su
 }
 
 // When the valueRange of expr is not exist, need find the valueRange of the def point or use points.
-ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr, uint32 &numberOfRecursionsArg) {
+ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr, uint32 &numberOfRecursionsArg,
+                                                  std::unordered_set<int32> &foundExprs) {
   if (numberOfRecursionsArg++ > kRecursionThreshold) {
     return nullptr;
   }
@@ -2873,7 +2878,7 @@ ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr, ui
   if (valueRange != nullptr) {
     return valueRange;
   }
-  valueRange = FindValueRangeWithCompareOp(bb, expr, numberOfRecursionsArg);
+  valueRange = FindValueRangeWithCompareOp(bb, expr, numberOfRecursionsArg, foundExprs);
   if (valueRange != nullptr) {
     return valueRange;
   }
@@ -2888,6 +2893,9 @@ ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr, ui
       continue;
     }
     for (auto itOfExprs = exprs.begin(); itOfExprs != exprs.end(); ++itOfExprs) {
+      if (!foundExprs.insert((*itOfExprs)->GetExprID()).second) {
+        return nullptr;
+      }
       recursions = 0;
       valueRange = FindValueRangeInCaches(bb.GetBBId(), (*itOfExprs)->GetExprID(), recursions);
       if (valueRange != nullptr && valueRange->IsEqualAfterCVT(expr.GetPrimType(), (*itOfExprs)->GetPrimType())) {
@@ -2903,7 +2911,7 @@ ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr, ui
         //     opnd[1] = OP cvt i32 i64 mx553
         continue;
       }
-      valueRange = FindValueRangeWithCompareOp(bb, **itOfExprs, numberOfRecursionsArg, &expr);
+      valueRange = FindValueRangeWithCompareOp(bb, **itOfExprs, numberOfRecursionsArg, foundExprs, &expr);
       if (valueRange != nullptr) {
         return valueRange;
       }

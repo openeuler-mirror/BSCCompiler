@@ -206,11 +206,11 @@ enum RefType : uint8 {
 /* LR is for each global vreg. */
 class LiveRange {
  public:
-  explicit LiveRange(MapleAllocator &allocator)
+  explicit LiveRange(uint32 maxRegNum, MapleAllocator &allocator)
       : lrAlloca(&allocator),
-        pregveto(allocator.Adapter()),
-        callDef(allocator.Adapter()),
-        forbidden(allocator.Adapter()),
+        pregveto(maxRegNum, false, allocator.Adapter()),
+        callDef(maxRegNum, false, allocator.Adapter()),
+        forbidden(maxRegNum, false, allocator.Adapter()),
         prefs(allocator.Adapter()),
         refMap(allocator.Adapter()),
         luMap(allocator.Adapter()) {}
@@ -360,10 +360,8 @@ class LiveRange {
   }
 
   void InitPregveto() {
-    pregveto.clear();
-    pregveto.resize(kMaxRegNum);
-    callDef.clear();
-    callDef.resize(kMaxRegNum);
+    pregveto.assign(pregveto.size(), false);
+    callDef.assign(callDef.size(), false);
   }
 
   bool GetPregveto(regno_t regno) const {
@@ -401,8 +399,7 @@ class LiveRange {
   }
 
   void InitForbidden() {
-    forbidden.clear();
-    forbidden.resize(kMaxRegNum);
+    forbidden.assign(forbidden.size(), false);
   }
 
   const MapleVector<bool> &GetForbidden() const {
@@ -701,9 +698,9 @@ class LiveRange {
   uint32 numBBMembers = 0;            /* number of bits set in bbMember */
   uint64 *bbMember = nullptr;         /* Same as smember, but use bit array */
 
-  MapleVector<bool> pregveto;         /* pregs cannot be assigned   -- SplitLr may clear forbidden */
-  MapleVector<bool> callDef;         /* pregs cannot be assigned   -- SplitLr may clear forbidden */
-  MapleVector<bool> forbidden;        /* pregs cannot be assigned */
+  MapleBitVector pregveto;         /* pregs cannot be assigned   -- SplitLr may clear forbidden */
+  MapleBitVector callDef;         /* pregs cannot be assigned   -- SplitLr may clear forbidden */
+  MapleBitVector forbidden;        /* pregs cannot be assigned */
   uint32 numPregveto = 0;
   uint32 numCallDef = 0;
   uint32 numForbidden = 0;
@@ -773,31 +770,22 @@ class LocalRaInfo {
 /* For each bb, record info pertain to allocation */
 class BBAssignInfo {
  public:
-  explicit BBAssignInfo(MapleAllocator &allocator)
-      : globalsAssigned(allocator.Adapter()),
+  explicit BBAssignInfo(uint32 maxRegNum, MapleAllocator &allocator)
+      : globalsAssigned(maxRegNum, false, allocator.Adapter()),
         regMap(allocator.Adapter()) {}
 
   ~BBAssignInfo() = default;
 
-  uint32 GetIntLocalRegsNeeded() const {
-    return intLocalRegsNeeded;
+  uint32 GetLocalRegsNeeded() const {
+    return localRegsNeeded;
   }
 
-  void SetIntLocalRegsNeeded(uint32 num) {
-    intLocalRegsNeeded = num;
-  }
-
-  uint32 GetFpLocalRegsNeeded() const {
-    return fpLocalRegsNeeded;
-  }
-
-  void SetFpLocalRegsNeeded(uint32 num) {
-    fpLocalRegsNeeded = num;
+  void SetLocalRegsNeeded(uint32 num) {
+    localRegsNeeded = num;
   }
 
   void InitGlobalAssigned() {
-    globalsAssigned.clear();
-    globalsAssigned.resize(kMaxRegNum);
+    globalsAssigned.assign(globalsAssigned.size(), false);
   }
 
   bool GetGlobalsAssigned(regno_t regNO) const {
@@ -829,9 +817,8 @@ class BBAssignInfo {
   }
 
  private:
-  uint32 intLocalRegsNeeded = 0;      /* num local reg needs for each bb */
-  uint32 fpLocalRegsNeeded  = 0;      /* num local reg needs for each bb */
-  MapleVector<bool> globalsAssigned;  /* globals used in a bb */
+  uint32 localRegsNeeded = 0;         /* num local reg needs for each bb */
+  MapleBitVector globalsAssigned;     /* globals used in a bb */
   MapleMap<regno_t, regno_t> regMap;  /* local vreg to preg mapping */
 };
 
@@ -839,9 +826,8 @@ class FinalizeRegisterInfo {
  public:
   explicit FinalizeRegisterInfo(MapleAllocator &allocator)
       : defOperands(allocator.Adapter()),
-        defIdx(allocator.Adapter()),
         useOperands(allocator.Adapter()),
-        useIdx(allocator.Adapter()) {}
+        useDefOperands(allocator.Adapter()) {}
 
   ~FinalizeRegisterInfo() = default;
   void ClearInfo() {
@@ -849,12 +835,11 @@ class FinalizeRegisterInfo {
     baseOperand = nullptr;
     offsetOperand = nullptr;
     defOperands.clear();
-    defIdx.clear();
     useOperands.clear();
-    useIdx.clear();
+    useDefOperands.clear();
   }
 
-  void SetBaseOperand(Operand &opnd, const int32 idx) {
+  void SetBaseOperand(Operand &opnd, uint32 idx) {
     baseOperand = &opnd;
     memOperandIdx = idx;
   }
@@ -863,14 +848,16 @@ class FinalizeRegisterInfo {
     offsetOperand = &opnd;
   }
 
-  void SetDefOperand(Operand &opnd, const int32 idx) {
-    defOperands.emplace_back(&opnd);
-    defIdx.emplace_back(idx);
+  void SetDefOperand(Operand &opnd, uint32 idx) {
+    defOperands.emplace_back(idx, &opnd);
   }
 
-  void SetUseOperand(Operand &opnd, const int32 idx) {
-    useOperands.emplace_back(&opnd);
-    useIdx.emplace_back(idx);
+  void SetUseOperand(Operand &opnd, uint32 idx) {
+    useOperands.emplace_back(idx, &opnd);
+  }
+
+  void SetUseDefOperand(Operand &opnd, uint32 idx) {
+    useDefOperands.emplace_back(idx, &opnd);
   }
 
   int32 GetMemOperandIdx() const {
@@ -885,208 +872,128 @@ class FinalizeRegisterInfo {
     return offsetOperand;
   }
 
-  size_t GetDefOperandsSize() const {
-    return defOperands.size();
+  const MapleVector<std::pair<uint32, Operand*>> &GetDefOperands() const {
+    return defOperands;
   }
 
-  const Operand *GetDefOperandsElem(size_t index) const {
-    return defOperands[index];
+  const MapleVector<std::pair<uint32, Operand*>> &GetUseOperands() const {
+    return useOperands;
   }
 
-  int32 GetDefIdxElem(size_t index) const {
-    return defIdx[index];
+  const MapleVector<std::pair<uint32, Operand*>> &GetUseDefOperands() const {
+    return useDefOperands;
   }
-
-  size_t GetUseOperandsSize() const {
-    return useOperands.size();
-  }
-
-  const Operand *GetUseOperandsElem(size_t index) const {
-    return useOperands[index];
-  }
-
-  int32 GetUseIdxElem(size_t index) const {
-    return useIdx[index];
-  }
-
  private:
-  int32 memOperandIdx = 0;
+  uint32 memOperandIdx = 0;
   Operand *baseOperand = nullptr;
   Operand *offsetOperand = nullptr;
-  MapleVector<Operand*> defOperands;
-  MapleVector<int32> defIdx;
-  MapleVector<Operand*> useOperands;
-  MapleVector<int32> useIdx;
+  MapleVector<std::pair<uint32, Operand*>> defOperands;
+  MapleVector<std::pair<uint32, Operand*>> useOperands;
+  MapleVector<std::pair<uint32, Operand*>> useDefOperands;
 };
 
 class LocalRegAllocator {
  public:
   LocalRegAllocator(CGFunc &cgFunc, MapleAllocator &allocator)
-      : intRegAssignmentMap(allocator.Adapter()),
-        fpRegAssignmentMap(allocator.Adapter()),
+      : regInfo(cgFunc.GetTargetRegInfo()),
+        regAssigned(allocator.Adapter()),
+        regSpilled(allocator.Adapter()),
+        regAssignmentMap(allocator.Adapter()),
+        pregUsed(allocator.Adapter()),
+        pregs(allocator.Adapter()),
         useInfo(allocator.Adapter()),
         defInfo(allocator.Adapter()) {
-    buckets = (cgFunc.GetMaxRegNum() / kU64) + 1;
-    intRegAssigned = cgFunc.GetMemoryPool()->NewArray<uint64>(buckets);
-    fpRegAssigned = cgFunc.GetMemoryPool()->NewArray<uint64>(buckets);
-    intRegSpilled = cgFunc.GetMemoryPool()->NewArray<uint64>(buckets);
-    fpRegSpilled = cgFunc.GetMemoryPool()->NewArray<uint64>(buckets);
+    regAssigned.resize(cgFunc.GetMaxRegNum(), false);
+    regSpilled.resize(cgFunc.GetMaxRegNum(), false);
+    pregUsed.resize(regInfo->GetAllRegNum(), false);
+    pregs.resize(regInfo->GetAllRegNum(), false);
   }
 
   ~LocalRegAllocator() = default;
 
   void ClearLocalRaInfo() {
-    ClearBitArrElement(intRegAssigned);
-    ClearBitArrElement(fpRegAssigned);
-    intRegAssignmentMap.clear();
-    fpRegAssignmentMap.clear();
-    intPregUsed = 0;
-    fpPregUsed = 0;
-    ClearBitArrElement(intRegSpilled);
-    ClearBitArrElement(fpRegSpilled);
-    numIntPregUsed = 0;
-    numFpPregUsed = 0;
+    regSpilled.assign(regSpilled.size(), false);
+    regAssigned.assign(regAssigned.size(), false);
+    regAssignmentMap.clear();
+    pregUsed.assign(pregUsed.size(), false);
   }
 
-  regno_t RegBaseUpdate(bool isInt) const {
-    return isInt ? 0 : V0 - R0;
+  bool IsInRegAssigned(regno_t regNO) const {
+    return regAssigned[regNO];
   }
 
-  bool IsInRegAssigned(regno_t regNO, bool isInt) const {
-    uint64 *regAssigned = nullptr;
-    if (isInt) {
-      regAssigned = intRegAssigned;
-    } else {
-      regAssigned = fpRegAssigned;
-    }
-    return IsBitArrElemSet(regAssigned, regNO);
+  void SetRegAssigned(regno_t regNO) {
+    regAssigned[regNO] = true;
   }
 
-  void SetRegAssigned(regno_t regNO, bool isInt) const {
-    if (isInt) {
-      SetBitArrElement(intRegAssigned, regNO);
-    } else {
-      SetBitArrElement(fpRegAssigned, regNO);
-    }
+  regno_t GetRegAssignmentItem(regno_t regKey) const {
+    auto iter = regAssignmentMap.find(regKey);
+    ASSERT(iter != regAssignmentMap.end(), "error reg assignmemt");
+    return iter->second;
   }
 
-  regno_t GetRegAssignmentItem(bool isInt, regno_t regKey) {
-    return isInt ? intRegAssignmentMap[regKey] : fpRegAssignmentMap[regKey];
-  }
-
-  void SetRegAssignmentMap(bool isInt, regno_t regKey, regno_t regValue) {
-    if (isInt) {
-      intRegAssignmentMap[regKey] = regValue;
-    } else {
-      fpRegAssignmentMap[regKey] = regValue;
-    }
+  void SetRegAssignmentMap(regno_t regKey, regno_t regValue) {
+    regAssignmentMap[regKey] = regValue;
   }
 
   /* only for HandleLocalRaDebug */
-  uint64 GetPregUsed(bool isInt) const {
-    if (isInt) {
-      return intPregUsed;
-    } else {
-      return fpPregUsed;
+  const MapleBitVector &GetPregUsed() const {
+    return pregUsed;
+  }
+
+  void SetPregUsed(regno_t regNO) {
+    if (!pregUsed[regNO]) {
+      pregUsed[regNO] = true;
+      ++numPregUsed;
     }
   }
 
-  void SetPregUsed(regno_t regNO, bool isInt) {
-    uint64 mask = 0;
-    if (isInt) {
-      mask = 1ULL << (regNO - R0);
-      if ((intPregUsed & mask) == 0) {
-        ++numIntPregUsed;
-        intPregUsed |= mask;
-      }
-    } else {
-      mask = 1ULL << (regNO - V0);
-      if ((fpPregUsed & mask) == 0) {
-        ++numFpPregUsed;
-        fpPregUsed |= mask;
-      }
-    }
+  bool IsInRegSpilled(regno_t regNO) const {
+    return regSpilled[regNO];
   }
 
-  bool IsInRegSpilled(regno_t regNO, bool isInt) const {
-    bool isSet;
-    if (isInt) {
-      isSet = IsBitArrElemSet(intRegSpilled, regNO);
-    } else {
-      isSet = IsBitArrElemSet(fpRegSpilled, regNO);
-    }
-    return isSet;
+  void SetRegSpilled(regno_t regNO) {
+    regSpilled[regNO] = true;
   }
 
-  void SetRegSpilled(regno_t regNO, bool isInt) const {
-    if (isInt) {
-      SetBitArrElement(intRegSpilled, regNO);
-    } else {
-      SetBitArrElement(fpRegSpilled, regNO);
-    }
+  const MapleBitVector &GetPregs() const {
+    return pregs;
   }
 
-  uint64 GetPregs(bool isInt) const {
-    if (isInt) {
-      return intPregs;
-    } else {
-      return fpPregs;
-    }
+  void SetPregs(regno_t regNO) {
+    pregs[regNO] = true;
   }
 
-  void SetPregs(regno_t regNO, bool isInt) {
-    if (isInt) {
-      intPregs |= 1ULL << (regNO - RegBaseUpdate(true));
-    } else {
-      fpPregs |= 1ULL << (regNO - RegBaseUpdate(false));
-    }
+  void ClearPregs(regno_t regNO) {
+    pregs[regNO] = false;
   }
 
-  void ClearPregs(regno_t regNO, bool isInt) {
-    if (isInt) {
-      intPregs &= ~(1ULL << (regNO - RegBaseUpdate(true)));
-    } else {
-      fpPregs &= ~(1ULL << (regNO - RegBaseUpdate(false)));
-    }
+  bool IsPregAvailable(regno_t regNO) const {
+    return pregs[regNO];
   }
 
-  bool IsPregAvailable(regno_t regNO, bool isInt) const {
-    bool isAvailable;
-    if (isInt) {
-      isAvailable = intPregs & (1ULL << (regNO - RegBaseUpdate(true)));
-    } else {
-      isAvailable = fpPregs & (1ULL << (regNO - RegBaseUpdate(false)));
-    }
-    return isAvailable;
-  }
-
-  void InitPregs(uint32 intMax, uint32 fpMax, bool hasYield, const MapleSet<uint32> &intSpillRegSet,
+  void InitPregs(bool hasYield, const MapleSet<uint32> &intSpillRegSet,
                  const MapleSet<uint32> &fpSpillRegSet) {
-    uint32 intBase = R0;
-    uint32 fpBase = V0;
-    intPregs = (1ULL << (intMax + 1)) - 1;
-    fpPregs = (1ULL << (((fpMax + 1) + fpBase) - RegBaseUpdate(false))) - 1;
-    for (uint32 regNO : intSpillRegSet) {
-      ClearPregs(regNO + intBase, true);
+    for (regno_t regNO : regInfo->GetAllRegs()) {
+      SetPregs(regNO);
     }
-    for (uint32 regNO : fpSpillRegSet) {
-      ClearPregs(regNO + fpBase, false);
+    for (regno_t regNO : intSpillRegSet) {
+      ClearPregs(regNO);
+    }
+    for (regno_t regNO : fpSpillRegSet) {
+      ClearPregs(regNO);
     }
     if (hasYield) {
-      ClearPregs(RYP, true);
+      ClearPregs(regInfo->GetYieldPointReg());
     }
 #ifdef RESERVED_REGS
-    intPregs &= ~(1ULL << R16);
-    intPregs &= ~(1ULL << R17);
+    ClearPregs(regInfo->GetReservedSpillReg());
+    ClearPregs(regInfo->GetSecondReservedSpillReg());
 #endif  /* RESERVED_REGS */
   }
 
-  const MapleMap<regno_t, regno_t> &GetIntRegAssignmentMap() const {
-    return intRegAssignmentMap;
-  }
-
-  const MapleMap<regno_t, regno_t> &GetFpRegAssignmentMap() const {
-    return fpRegAssignmentMap;
+  const MapleMap<regno_t, regno_t> &GetRegAssignmentMap() const {
+    return regAssignmentMap;
   }
 
   const MapleMap<regno_t, uint16> &GetUseInfo() const {
@@ -1133,45 +1040,22 @@ class LocalRegAllocator {
     defInfo.clear();
   }
 
-  uint32 GetNumIntPregUsed() const {
-    return numIntPregUsed;
-  }
-
-  uint32 GetNumFpPregUsed() const {
-    return numFpPregUsed;
+  uint32 GetNumPregUsed() const {
+    return numPregUsed;
   }
 
  private:
-  void ClearBitArrElement(uint64 *vec) const {
-    for (uint32 i = 0; i < buckets; ++i) {
-      vec[i] = 0UL;
-    }
-  }
-
-  void SetBitArrElement(uint64 *vec, regno_t regNO) const {
-    uint32 index = regNO / kU64;
-    uint64 bit = regNO % kU64;
-    vec[index] |= 1ULL << bit;
-  }
-
+  RegisterInfo *regInfo = nullptr;
   /* The following local vars keeps track of allocation information in bb. */
-  uint64 *intRegAssigned = nullptr;  /* in this set if vreg is assigned */
-  uint64 *fpRegAssigned = nullptr;
-  MapleMap<regno_t, regno_t> intRegAssignmentMap;  /* vreg -> preg map, which preg is the vreg assigned */
-  MapleMap<regno_t, regno_t> fpRegAssignmentMap;
-  uint64 intPregUsed = 0;  /* pregs used in bb */
-  uint64 fpPregUsed  = 0;
-  uint64 *intRegSpilled = nullptr;   /* on this list if vreg is spilled */
-  uint64 *fpRegSpilled = nullptr;
-
-  uint64 intPregs = 0;     /* available regs for assignement */
-  uint64 fpPregs  = 0;
+  MapleBitVector regAssigned;   /* in this set if vreg is assigned */
+  MapleBitVector regSpilled;    /* on this list if vreg is spilled */
+  MapleMap<regno_t, regno_t> regAssignmentMap;  /* vreg -> preg map, which preg is the vreg assigned */
+  MapleBitVector pregUsed;      /* pregs used in bb */
+  MapleBitVector pregs;     /* available regs for assignement */
   MapleMap<regno_t, uint16> useInfo;  /* copy of local ra info for useCnt */
   MapleMap<regno_t, uint16> defInfo;  /* copy of local ra info for defCnt */
 
-  uint32 numIntPregUsed = 0;
-  uint32 numFpPregUsed = 0;
-  uint32 buckets = 0;
+  uint32 numPregUsed = 0;
 };
 
 class SplitBBInfo {
@@ -1317,9 +1201,6 @@ class GraphColorRegAllocator : public RegAllocator {
   void PrintBBAssignInfo() const;
   void PrintBBs() const;
 
-  uint32 MaxIntPhysRegNum() const;
-  uint32 MaxFloatPhysRegNum() const;
-  bool IsReservedReg(regno_t regNO) const;
   void InitFreeRegPool();
   LiveRange *NewLiveRange();
   void CalculatePriority(LiveRange &lr) const;
@@ -1357,8 +1238,8 @@ class GraphColorRegAllocator : public RegAllocator {
   bool IsLocalReg(const LiveRange &lr) const;
   void HandleLocalRaDebug(regno_t regNO, const LocalRegAllocator &localRa, bool isInt) const;
   void HandleLocalRegAssignment(regno_t regNO, LocalRegAllocator &localRa, bool isInt);
-  void UpdateLocalRegDefUseCount(regno_t regNO, LocalRegAllocator &localRa, bool isDef, bool isInt) const;
-  void UpdateLocalRegConflict(regno_t regNO, LocalRegAllocator &localRa, bool isInt);
+  void UpdateLocalRegDefUseCount(regno_t regNO, LocalRegAllocator &localRa, bool isDef) const;
+  void UpdateLocalRegConflict(regno_t regNO, const LocalRegAllocator &localRa);
   void HandleLocalReg(Operand &op, LocalRegAllocator &localRa, const BBAssignInfo *bbInfo, bool isDef, bool isInt);
   void LocalRaRegSetEraseReg(LocalRegAllocator &localRa, regno_t regNO) const;
   bool LocalRaInitRegSet(LocalRegAllocator &localRa, uint32 bbId);
@@ -1371,8 +1252,8 @@ class GraphColorRegAllocator : public RegAllocator {
   void LocalRegisterAllocator(bool doAllocate);
   MemOperand *GetSpillOrReuseMem(LiveRange &lr, uint32 regSize, bool &isOutOfRange, Insn &insn, bool isDef);
   void SpillOperandForSpillPre(Insn &insn, const Operand &opnd, RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
-  void SpillOperandForSpillPost(Insn &insn, const Operand &opnd,
-      RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
+  void SpillOperandForSpillPost(Insn &insn, const Operand &opnd, RegOperand &phyOpnd,
+                                uint32 spillIdx, bool needSpill);
   MemOperand *GetConsistentReuseMem(const uint64 *conflict, const std::set<MemOperand*> &usedMemOpnd, uint32 size,
                                     RegType regType);
   MemOperand *GetCommonReuseMem(const uint64 *conflict, const std::set<MemOperand*> &usedMemOpnd, uint32 size,
@@ -1380,12 +1261,19 @@ class GraphColorRegAllocator : public RegAllocator {
   MemOperand *GetReuseMem(uint32 vregNO, uint32 size, RegType regType);
   MemOperand *GetSpillMem(uint32 vregNO, bool isDest, Insn &insn, regno_t regNO,
                           bool &isOutOfRange);
-  bool SetAvailableSpillReg(std::unordered_set<regno_t> &cannotUseReg, LiveRange &lr, uint64 &usedRegMask);
+  bool SetAvailableSpillReg(std::unordered_set<regno_t> &cannotUseReg, LiveRange &lr,
+                            MapleBitVector &usedRegMask);
   void CollectCannotUseReg(std::unordered_set<regno_t> &cannotUseReg, const LiveRange &lr, Insn &insn);
-  regno_t PickRegForSpill(uint64 &usedRegMask, RegType regType, uint32 spillIdx, bool &needSpillLr);
-  bool SetRegForSpill(LiveRange &lr, Insn &insn, uint32 spillIdx, uint64 &usedRegMask, bool isDef);
-  bool GetSpillReg(Insn &insn, LiveRange &lr, const uint32 &spillIdx, uint64 &usedRegMask, bool isDef);
-  RegOperand *GetReplaceOpndForLRA(Insn &insn, const Operand &opnd, uint32 &spillIdx, uint64 &usedRegMask, bool isDef);
+  regno_t PickRegForSpill(MapleBitVector &usedRegMask, RegType regType, uint32 spillIdx,
+                          bool &needSpillLr);
+  bool SetRegForSpill(LiveRange &lr, Insn &insn, uint32 spillIdx, MapleBitVector &usedRegMask,
+                      bool isDef);
+  bool GetSpillReg(Insn &insn, LiveRange &lr, const uint32 &spillIdx, MapleBitVector &usedRegMask,
+                   bool isDef);
+  RegOperand *GetReplaceOpndForLRA(Insn &insn, const Operand &opnd, uint32 &spillIdx,
+                                   MapleBitVector &usedRegMask, bool isDef);
+  RegOperand *GetReplaceUseDefOpndForLRA(Insn &insn, const Operand &opnd, uint32 &spillIdx,
+                                         MapleBitVector &usedRegMask);
   bool EncountPrevRef(const BB &pred, LiveRange &lr, bool isDef, std::vector<bool>& visitedMap);
   bool FoundPrevBeforeCall(Insn &insn, LiveRange &lr, bool isDef);
   bool EncountNextRef(const BB &succ, LiveRange &lr, bool isDef, std::vector<bool>& visitedMap);
@@ -1393,10 +1281,14 @@ class GraphColorRegAllocator : public RegAllocator {
   bool HavePrevRefInCurBB(Insn &insn, LiveRange &lr, bool &contSearch) const;
   bool HaveNextDefInCurBB(Insn &insn, LiveRange &lr, bool &contSearch) const;
   bool NeedCallerSave(Insn &insn, LiveRange &lr, bool isDef);
-  RegOperand *GetReplaceOpnd(Insn &insn, const Operand &opnd, uint32 &spillIdx, uint64 &usedRegMask, bool isDef);
+  RegOperand *GetReplaceOpnd(Insn &insn, const Operand &opnd, uint32 &spillIdx,
+                             MapleBitVector &usedRegMask, bool isDef);
+  RegOperand *GetReplaceUseDefOpnd(Insn &insn, const Operand &opnd, uint32 &spillIdx,
+                                   MapleBitVector &usedRegMask);
   void MarkCalleeSaveRegs();
-  void MarkUsedRegs(Operand &opnd, uint64 &usedRegMask);
-  uint64 FinalizeRegisterPreprocess(FinalizeRegisterInfo &fInfo, const Insn &insn, bool &needProcess);
+  void MarkUsedRegs(Operand &opnd, MapleBitVector &usedRegMask);
+  bool FinalizeRegisterPreprocess(FinalizeRegisterInfo &fInfo, const Insn &insn,
+                                  MapleBitVector &usedRegMask);
   void SplitVregAroundLoop(const CGFuncLoops &loop, const std::vector<LiveRange*> &lrs,
                            BB &headerPred, BB &exitSucc, const std::set<regno_t> &cands);
   bool LoopNeedSplit(const CGFuncLoops &loop, std::set<regno_t> &cands);
@@ -1490,7 +1382,6 @@ class GraphColorRegAllocator : public RegAllocator {
    *                          sp_reg1 <- [spillMemOpnds[1]]
    *                          sp_reg2 <- [spillMemOpnds[2]]
    */
-  static constexpr size_t kSpillMemOpndNum = 4;
   std::array<MemOperand*, kSpillMemOpndNum> spillMemOpnds = { nullptr };
   bool operandSpilled[kSpillMemOpndNum];
   bool needExtraSpillReg = false;
@@ -1506,7 +1397,6 @@ class GraphColorRegAllocator : public RegAllocator {
 #endif
   bool hasSpill = false;
   bool doMultiPass = false;
-  bool seenFP = false;
 };
 
 class CallerSavePre : public CGPre {

@@ -520,7 +520,8 @@ class ValueRangePropagation {
   void JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
       BB &bb, MeExpr &expr, std::set<MeExpr*> &visitedLHS, std::vector<MeStmt*> &stmts, bool &crossPhiNode);
   bool TheValueOfOpndIsInvaliedInABCO(const BB &bb, const MeStmt *meStmt, MeExpr &boundOpnd, bool updateCaches = true);
-  ValueRange *FindValueRange(const BB &bb, MeExpr &expr, uint32 &numberOfRecursions);
+  ValueRange *FindValueRange(const BB &bb, MeExpr &expr, uint32 &numberOfRecursions,
+      std::unordered_set<int32> &foundExprs);
   bool BrStmtInRange(const BB &bb, const ValueRange &leftRange, const ValueRange &rightRange, Opcode op,
                      PrimType opndType, bool judgeNotInRange = false);
   std::unique_ptr<ValueRange> CreateValueRangeOfNotEqualZero(PrimType pType) const {
@@ -545,7 +546,8 @@ class ValueRangePropagation {
 
   ValueRange *FindValueRangeAndInitNumOfRecursion(const BB &bb, MeExpr &expr) {
     uint32 numOfRecursion = 0;
-    return FindValueRange(bb, expr, numOfRecursion);
+    std::unordered_set<int32> foundExprs{expr.GetExprID()};
+    return FindValueRange(bb, expr, numOfRecursion, foundExprs);
   }
 
  private:
@@ -689,8 +691,8 @@ class ValueRangePropagation {
 
   // The pairOfExprs map collects the exprs which have the same valueRange in bbs,
   // the pair of expr and preExpr is element of pairOfExprs.
-  ValueRange *FindValueRangeWithCompareOp(
-      const BB &bb, MeExpr &expr, uint32 &numberOfRecursions, MeExpr *preExpr = nullptr);
+  ValueRange *FindValueRangeWithCompareOp(const BB &bb, MeExpr &expr, uint32 &numberOfRecursions,
+      std::unordered_set<int32> &foundExprs, MeExpr *preExpr = nullptr);
 
   void DealWithPhi(const BB &bb);
   void DealWithCondGoto(BB &bb, MeStmt &stmt);
@@ -704,7 +706,8 @@ class ValueRangePropagation {
       LoopDesc &loop, const BB &bb, ScalarMeExpr &init, ScalarMeExpr &backedge,
       const ScalarMeExpr &lhsOfPhi);
   bool AddOrSubWithConstant(PrimType pType, Opcode op, int64 lhsConstant, int64 rhsConstant, int64 &res) const;
-  std::unique_ptr<ValueRange> NegValueRange(const BB &bb, MeExpr &opnd, uint32 &numberOfRecursions);
+  std::unique_ptr<ValueRange> NegValueRange(const BB &bb, MeExpr &opnd, uint32 &numberOfRecursions,
+      std::unordered_set<int32> &foundExprs);
   bool AddOrSubWithBound(Bound oldBound, Bound &resBound, int64 rhsConstant, Opcode op);
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(Opcode op, ValueRange &valueRange, int64 rhsConstant);
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(
@@ -864,8 +867,8 @@ class ValueRangePropagation {
   void CalculateVROfSubOpnd(BBId bbID, const MeExpr &opnd, ValueRange &valueRange);
   void CreateValueRangeForSubOpnd(const MeExpr &opnd, const BB &trueBranch, const BB &falseBranch,
       ValueRange &resTrueBranchVR, ValueRange &resFalseBranchVR);
-  ValueRange *DealWithNegWhenFindValueRange(
-      const BB &bb, const MeExpr &expr, const MeExpr *preExpr, uint32 &numberOfRecursions);
+  ValueRange *DealWithNegWhenFindValueRange(const BB &bb, const MeExpr &expr, const MeExpr *preExpr,
+      uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs);
 
   MeFunction &func;
   MeIRMap &irMap;
