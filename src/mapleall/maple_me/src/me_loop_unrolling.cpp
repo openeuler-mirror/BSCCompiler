@@ -487,9 +487,15 @@ bool LoopUnrolling::SplitCondGotoBB() {
 
   for (auto *bb : exitBB->GetSucc()) {
     bb->ReplacePred(exitBB, newCondGotoBB);
+    if (profValid) {
+      newCondGotoBB->GetSuccFreq().push_back(0);
+    }
   }
 
   exitBB->AddSucc(*newCondGotoBB);
+  if (profValid) {
+    exitBB->GetSuccFreq().push_back(0);
+  }
   exitBB->RemoveMeStmt(lastStmt);
   newCondGotoBB->InsertMeStmtLastBr(lastStmt);
   return true;

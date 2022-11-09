@@ -1157,10 +1157,6 @@ bool OptimizeBB::RemoveSuccFromNoReturnBB() {
     cfg->GetCommonExitBB()->AddExit(*currBB);
     currBB->SetAttributes(kBBAttrIsExit);
     ResetBBRunAgain();
-    // add edge Frequency to exitbb
-    if (cfg->UpdateCFGFreq()) {
-      currBB->PushBackSuccFreq(0);
-    }
     return true;
   }
   return false;
