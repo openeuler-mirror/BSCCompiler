@@ -91,32 +91,8 @@ bool AArch64GenProEpilog::NeedProEpilog() {
   }
   return false;
 }
-
-void AArch64GenProEpilog::GenStackGuard(BB &bb) {
-  if (!stackProtect) {
-    return;
-  }
+MemOperand *AArch64GenProEpilog::GetDownStack() {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  BB *formerCurBB = cgFunc.GetCurBB();
-  aarchCGFunc.GetDummyBB()->ClearInsns();
-  aarchCGFunc.GetDummyBB()->SetIsProEpilog(true);
-  cgFunc.SetCurBB(*aarchCGFunc.GetDummyBB());
-
-  MIRSymbol *stkGuardSym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
-      GlobalTables::GetStrTable().GetStrIdxFromName(std::string("__stack_chk_guard")));
-  StImmOperand &stOpnd = aarchCGFunc.CreateStImmOperand(*stkGuardSym, 0, 0);
-  RegOperand &stAddrOpnd =
-    aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, GetPointerSize() * kBitsPerByte, kRegTyInt);
-  aarchCGFunc.SelectAddrof(stAddrOpnd, stOpnd);
-
-  MemOperand *guardMemOp =
-    aarchCGFunc.CreateMemOperand(MemOperand::kAddrModeBOi, GetPointerSize() * kBitsPerByte,
-        stAddrOpnd, nullptr, &aarchCGFunc.GetOrCreateOfstOpnd(0, k32BitSize), stkGuardSym);
-  MOperator mOp = aarchCGFunc.PickLdInsn(k64BitSize, PTY_u64);
-  Insn &insn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, stAddrOpnd, *guardMemOp);
-  insn.SetDoNotRemove(true);
-  cgFunc.GetCurBB()->AppendInsn(insn);
-
   uint64 vArea = 0;
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
@@ -138,8 +114,42 @@ void AArch64GenProEpilog::GenStackGuard(BB &bb) {
       aarchCGFunc.IsImmediateOffsetOutOfRange(*downStk, k64BitSize)) {
     downStk = &aarchCGFunc.SplitOffsetWithAddInstruction(*downStk, k64BitSize, R10);
   }
-  mOp = aarchCGFunc.PickStInsn(GetPointerSize() * kBitsPerByte, PTY_u64);
-  Insn &tmpInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, stAddrOpnd, *downStk);
+  return downStk;
+}
+
+void AArch64GenProEpilog::GenStackGuard() {
+  auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
+  aarchCGFunc.GetDummyBB()->ClearInsns();
+  cgFunc.SetCurBB(*aarchCGFunc.GetDummyBB());
+
+  MIRSymbol *stkGuardSym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
+      GlobalTables::GetStrTable().GetStrIdxFromName(std::string("__stack_chk_guard")));
+  StImmOperand &stOpnd = aarchCGFunc.CreateStImmOperand(*stkGuardSym, 0, 0);
+  RegOperand &stAddrOpnd =
+    aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, GetPointerSize() * kBitsPerByte, kRegTyInt);
+  aarchCGFunc.SelectAddrof(stAddrOpnd, stOpnd);
+
+  MemOperand *guardMemOp =
+    aarchCGFunc.CreateMemOperand(MemOperand::kAddrModeBOi, GetPointerSize() * kBitsPerByte,
+        stAddrOpnd, nullptr, &aarchCGFunc.GetOrCreateOfstOpnd(0, k32BitSize), stkGuardSym);
+  MOperator mOp = aarchCGFunc.PickLdInsn(k64BitSize, PTY_u64);
+  Insn &insn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, stAddrOpnd, *guardMemOp);
+  insn.SetDoNotRemove(true);
+  cgFunc.GetCurBB()->AppendInsn(insn);
+}
+
+void AArch64GenProEpilog::AddStackGuard(BB &bb) {
+  if (!stackProtect) {
+    return;
+  }
+  BB *formerCurBB = cgFunc.GetCurBB();
+  auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
+  aarchCGFunc.GetDummyBB()->SetIsProEpilog(true);
+  GenStackGuard();
+  RegOperand &stAddrOpnd =
+    aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, GetPointerSize() * kBitsPerByte, kRegTyInt);
+  auto mOp = aarchCGFunc.PickStInsn(GetPointerSize() * kBitsPerByte, PTY_u64);
+  Insn &tmpInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, stAddrOpnd, *GetDownStack());
   tmpInsn.SetDoNotRemove(true);
   cgFunc.GetCurBB()->AppendInsn(tmpInsn);
 
@@ -154,77 +164,41 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   }
 
   BB *formerCurBB = cgFunc.GetCurBB();
-  cgFunc.GetDummyBB()->ClearInsns();
-  cgFunc.SetCurBB(*(cgFunc.GetDummyBB()));
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-
-  const MIRSymbol *stkGuardSym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
-      GlobalTables::GetStrTable().GetStrIdxFromName(std::string("__stack_chk_guard")));
-  StImmOperand &stOpnd = aarchCGFunc.CreateStImmOperand(*stkGuardSym, 0, 0);
-  RegOperand &stAddrOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, GetPointerSize() * kBitsPerByte, kRegTyInt);
-  aarchCGFunc.SelectAddrof(stAddrOpnd, stOpnd);
-
-  MemOperand *guardMemOp = aarchCGFunc.CreateMemOperand(MemOperand::kAddrModeBOi,
-      GetPointerSize() * kBitsPerByte, stAddrOpnd, nullptr,
-      &aarchCGFunc.GetOrCreateOfstOpnd(0, k32BitSize),
-      stkGuardSym);
-  MOperator mOp = aarchCGFunc.PickLdInsn(k64BitSize, PTY_u64);
-  Insn &insn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, stAddrOpnd, *guardMemOp);
-  insn.SetDoNotRemove(true);
-  cgFunc.GetCurBB()->AppendInsn(insn);
-
-  uint64 vArea = 0;
-  if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs) &&
-      cgFunc.GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
-    AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
-    if (ml->GetSizeOfGRSaveArea() > 0) {
-      vArea += RoundUp(ml->GetSizeOfGRSaveArea(), kAarch64StackPtrAlignment);
-    }
-    if (ml->GetSizeOfVRSaveArea() > 0) {
-      vArea += RoundUp(ml->GetSizeOfVRSaveArea(), kAarch64StackPtrAlignment);
-    }
-  }
-
+  GenStackGuard();
+  RegOperand &stAddrOpnd =
+    aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, GetPointerSize() * kBitsPerByte, kRegTyInt);
   RegOperand &checkOp =
       aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R10, GetPointerSize() * kBitsPerByte, kRegTyInt);
-  int32 stkSize = static_cast<int32>(static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
-  if (useFP) {
-    stkSize -= static_cast<int32>(static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass());
-  }
-  int32 memSize = (stkSize - kOffset8MemPos) - static_cast<int32>(vArea);
-  MemOperand *downStk = aarchCGFunc.CreateStackMemOpnd(stackBaseReg, memSize, GetPointerSize() * kBitsPerByte);
-  if (downStk->GetMemVaryType() == kNotVary && aarchCGFunc.IsImmediateOffsetOutOfRange(*downStk, k64BitSize)) {
-    downStk = &aarchCGFunc.SplitOffsetWithAddInstruction(*downStk, k64BitSize, R10);
-  }
-  mOp = aarchCGFunc.PickLdInsn(GetPointerSize() * kBitsPerByte, PTY_u64);
-  Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, checkOp, *downStk);
+  auto mOp = aarchCGFunc.PickLdInsn(GetPointerSize() * kBitsPerByte, PTY_u64);
+  Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, checkOp, *GetDownStack());
   newInsn.SetDoNotRemove(true);
   cgFunc.GetCurBB()->AppendInsn(newInsn);
 
   cgFunc.SelectBxor(stAddrOpnd, stAddrOpnd, checkOp, PTY_u64);
   LabelIdx failLable = aarchCGFunc.CreateLabel();
-  aarchCGFunc.SelectCondGoto(aarchCGFunc.GetOrCreateLabelOperand(failLable), OP_brtrue, OP_eq,
+  aarchCGFunc.SelectCondGoto(aarchCGFunc.GetOrCreateLabelOperand(failLable), OP_brtrue, OP_ne,
                              stAddrOpnd, aarchCGFunc.CreateImmOperand(0, k64BitSize, false), PTY_u64, false);
 
   bb.AppendBBInsns(*(cgFunc.GetCurBB()));
 
   LabelIdx nextBBLableIdx = aarchCGFunc.CreateLabel();
-  BB *nextBB = aarchCGFunc.CreateNewBB(nextBBLableIdx, bb.IsUnreachable(), BB::kBBFallthru, bb.GetFrequency());
+  BB *nextBB = cgFunc.CreateNewBB(nextBBLableIdx, bb.IsUnreachable(), BB::kBBFallthru, bb.GetFrequency());
   bb.AppendBB(*nextBB);
   bb.PushBackSuccs(*nextBB);
   nextBB->PushBackPreds(bb);
-  cgFunc.SetCurBB(*nextBB);
+  if (cgFunc.GetLastBB() == &bb) {
+    cgFunc.SetLastBB(*nextBB);
+  }
+
+  BB *newBB = aarchCGFunc.CreateNewBB(failLable, bb.IsUnreachable(), bb.GetKind(), bb.GetFrequency());
+  cgFunc.SetCurBB(*newBB);
   MIRSymbol *failFunc = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
       GlobalTables::GetStrTable().GetStrIdxFromName(std::string("__stack_chk_fail")));
   ListOperand *srcOpnds = aarchCGFunc.CreateListOpnd(*cgFunc.GetFuncScopeAllocator());
   Insn &callInsn = aarchCGFunc.AppendCall(*failFunc, *srcOpnds);
   callInsn.SetDoNotRemove(true);
-
-  BB *newBB = cgFunc.CreateNewBB(failLable, bb.IsUnreachable(), bb.GetKind(), bb.GetFrequency());
   nextBB->AppendBB(*newBB);
-  if (cgFunc.GetLastBB() == &bb) {
-    cgFunc.SetLastBB(*newBB);
-  }
   bb.PushBackSuccs(*newBB);
   nextBB->PushBackSuccs(*newBB);
   newBB->PushBackPreds(*nextBB);
@@ -232,7 +206,7 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
 
   bb.SetKind(BB::kBBIf);
   cgFunc.SetCurBB(*formerCurBB);
-  return *newBB;
+  return *nextBB;
 }
 
 MemOperand *AArch64GenProEpilog::SplitStpLdpOffsetForCalleeSavedWithAddInstruction(CGFunc &cgFunc,
@@ -288,7 +262,7 @@ void AArch64GenProEpilog::AppendInstructionPushSingle(CGFunc &cgFunc,
   uint32 dataSize = GetPointerSize() * kBitsPerByte;
   if (aarchMemO1->GetMemVaryType() == kNotVary &&
       aarchCGFunc.IsImmediateOffsetOutOfRange(*aarchMemO1, dataSize)) {
-    o1 = &aarchCGFunc.SplitOffsetWithAddInstruction(*aarchMemO1, dataSize, R9);
+    o1 = &aarchCGFunc.SplitOffsetWithAddInstruction(*aarchMemO1, dataSize, R16);
   }
 
   Insn &pushInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, *o1);
@@ -358,12 +332,8 @@ Insn &AArch64GenProEpilog::CreateAndAppendInstructionForAllocateCallFrame(int64 
     allocInsn = &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
     AppendInstructionTo(*allocInsn, cgFunc);
   }
-  if (currCG->NeedInsertInstrumentationFunction()) {
-    aarchCGFunc.AppendCall(*currCG->GetInstrumentationFunction());
-  } else if (currCG->InstrumentWithDebugTraceCall()) {
+  if (currCG->InstrumentWithDebugTraceCall()) {
     aarchCGFunc.AppendCall(*currCG->GetDebugTraceEnterFunction());
-  } else if (currCG->InstrumentWithProfile()) {
-    aarchCGFunc.AppendCall(*currCG->GetProfileFunction());
   }
   return *allocInsn;
 }
@@ -372,7 +342,8 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrame(AArch64reg reg0, AA
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
   if (currCG->GenerateVerboseCG()) {
-    cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCommentInsn("allocate activation frame"));
+    auto &comment = cgFunc.GetOpndBuilder()->CreateComment("allocate activation frame");
+    cgFunc.GetCurBB()->AppendInsn(cgFunc.GetInsnBuilder()->BuildCommentInsn(comment));
   }
 
   Insn *ipoint = nullptr;
@@ -415,12 +386,8 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrame(AArch64reg reg0, AA
     MemOperand &o2 = aarchCGFunc.CreateCallFrameOperand(static_cast<int32>(-offset), GetPointerSize() * kBitsPerByte);
     ipoint = &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, o2);
     AppendInstructionTo(*ipoint, cgFunc);
-    if (currCG->NeedInsertInstrumentationFunction()) {
-      aarchCGFunc.AppendCall(*currCG->GetInstrumentationFunction());
-    } else if (currCG->InstrumentWithDebugTraceCall()) {
+    if (currCG->InstrumentWithDebugTraceCall()) {
       aarchCGFunc.AppendCall(*currCG->GetDebugTraceEnterFunction());
-    } else if (currCG->InstrumentWithProfile()) {
-      aarchCGFunc.AppendCall(*currCG->GetProfileFunction());
     }
   }
   ipoint->SetStackDef(true);
@@ -445,7 +412,8 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrameDebug(AArch64reg reg
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
   if (currCG->GenerateVerboseCG()) {
-    cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCommentInsn("allocate activation frame for debugging"));
+    auto &comment = cgFunc.GetOpndBuilder()->CreateComment("allocate activation frame for debugging");
+    cgFunc.GetCurBB()->AppendInsn(cgFunc.GetInsnBuilder()->BuildCommentInsn(comment));
   }
 
   int32 stackFrameSize = static_cast<int32>(
@@ -490,13 +458,8 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrameDebug(AArch64reg reg
       ipoint = &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
       AppendInstructionTo(*ipoint, cgFunc);
     }
-
-    if (currCG->NeedInsertInstrumentationFunction()) {
-      aarchCGFunc.AppendCall(*currCG->GetInstrumentationFunction());
-    } else if (currCG->InstrumentWithDebugTraceCall()) {
+    if (currCG->InstrumentWithDebugTraceCall()) {
       aarchCGFunc.AppendCall(*currCG->GetDebugTraceEnterFunction());
-    } else if (currCG->InstrumentWithProfile()) {
-      aarchCGFunc.AppendCall(*currCG->GetProfileFunction());
     }
   }
 }
@@ -524,7 +487,8 @@ void AArch64GenProEpilog::GeneratePushRegs() {
   AArch64reg fpRegFirstHalf = kRinvalid;
 
   if (currCG->GenerateVerboseCG()) {
-    cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCommentInsn("save callee-saved registers"));
+    auto &comment = cgFunc.GetOpndBuilder()->CreateComment("save callee-saved registers");
+    cgFunc.GetCurBB()->AppendInsn(cgFunc.GetInsnBuilder()->BuildCommentInsn(comment));
   }
 
   /*
@@ -540,7 +504,8 @@ void AArch64GenProEpilog::GeneratePushRegs() {
 
   if (useFP) {
     if (currCG->GenerateVerboseCG()) {
-      cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCommentInsn("copy SP to FP"));
+      auto &comment = cgFunc.GetOpndBuilder()->CreateComment("copy SP to FP");
+      cgFunc.GetCurBB()->AppendInsn(cgFunc.GetInsnBuilder()->BuildCommentInsn(comment));
     }
     Operand &spOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, k64BitSize, kRegTyInt);
     Operand &fpOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(stackBaseReg, k64BitSize, kRegTyInt);
@@ -782,14 +747,16 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
         static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
     if (stackFrameSize > 0) {
       if (currCG->GenerateVerboseCG()) {
-        cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCommentInsn("allocate activation frame"));
+        auto &comment = cgFunc.GetOpndBuilder()->CreateComment("allocate activation frame");
+        cgFunc.GetCurBB()->AppendInsn(cgFunc.GetInsnBuilder()->BuildCommentInsn(comment));
       }
       Operand &immOpnd = aarchCGFunc.CreateImmOperand(stackFrameSize, k32BitSize, true);
       aarchCGFunc.SelectSub(spOpnd, spOpnd, immOpnd, PTY_u64);
       cgFunc.GetCurBB()->GetLastInsn()->SetStackDef(true);
     }
     if (currCG->GenerateVerboseCG()) {
-      cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCommentInsn("copy SP to FP"));
+      auto &comment = cgFunc.GetOpndBuilder()->CreateComment("copy SP to FP");
+      cgFunc.GetCurBB()->AppendInsn(cgFunc.GetInsnBuilder()->BuildCommentInsn(comment));
     }
     if (useFP) {
       Operand &fpOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(stackBaseReg, k64BitSize, kRegTyInt);
@@ -852,7 +819,7 @@ void AArch64GenProEpilog::AppendInstructionPopSingle(CGFunc &cgFunc, AArch64reg 
   MemOperand *aarchMemO1 = static_cast<MemOperand*>(o1);
   uint32 dataSize = GetPointerSize() * kBitsPerByte;
   if (aarchMemO1->GetMemVaryType() == kNotVary && aarchCGFunc.IsImmediateOffsetOutOfRange(*aarchMemO1, dataSize)) {
-    o1 = &aarchCGFunc.SplitOffsetWithAddInstruction(*aarchMemO1, dataSize, R9);
+    o1 = &aarchCGFunc.SplitOffsetWithAddInstruction(*aarchMemO1, dataSize, R16);
   }
 
   Insn &popInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, *o1);
@@ -992,7 +959,8 @@ void AArch64GenProEpilog::GeneratePopRegs() {
   AArch64reg fpRegFirstHalf = kRinvalid;
 
   if (currCG->GenerateVerboseCG()) {
-    cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCommentInsn("restore callee-saved registers"));
+    auto &comment = cgFunc.GetOpndBuilder()->CreateComment("restore callee-saved registers");
+    cgFunc.GetCurBB()->AppendInsn(cgFunc.GetInsnBuilder()->BuildCommentInsn(comment));
   }
 
   MapleVector<AArch64reg>::const_iterator it = regsToRestore.begin();
@@ -1127,7 +1095,6 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
     }
     return;
   }
-
   /* generate stack protected instruction */
   BB &epilogBB = GenStackGuardCheckInsn(bb);
 
@@ -1153,7 +1120,8 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
     auto stackFrameSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
     if (stackFrameSize > 0) {
       if (currCG->GenerateVerboseCG()) {
-        cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCommentInsn("pop up activation frame"));
+        auto &comment = cgFunc.GetOpndBuilder()->CreateComment("pop up activation frame");
+        cgFunc.GetCurBB()->AppendInsn(cgFunc.GetInsnBuilder()->BuildCommentInsn(comment));
       }
 
       if (cgFunc.HasVLAOrAlloca()) {
@@ -1200,7 +1168,7 @@ void AArch64GenProEpilog::Run() {
   stackProtect = cgFunc.GetNeedStackProtect();
   cgFunc.SetHasProEpilogue(NeedProEpilog());
   if (cgFunc.GetHasProEpilogue()) {
-    GenStackGuard(*(cgFunc.GetFirstBB()));
+    AddStackGuard(*(cgFunc.GetFirstBB()));
   }
 
   if (cgFunc.IsExitBBsVecEmpty()) {

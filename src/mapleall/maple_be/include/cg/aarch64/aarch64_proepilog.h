@@ -49,7 +49,9 @@ class AArch64GenProEpilog : public GenProEpilog {
   static void AppendInstructionPopPair(CGFunc &cgFunc, AArch64reg reg0, AArch64reg reg1, RegType rty, int32 offset);
   void Run() override;
  private:
-  void GenStackGuard(BB &bb);
+  MemOperand *GetDownStack();
+  void GenStackGuard();
+  void AddStackGuard(BB &bb);
   BB &GenStackGuardCheckInsn(BB &bb);
   void AppendInstructionAllocateCallFrame(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void AppendInstructionAllocateCallFrameDebug(AArch64reg reg0, AArch64reg reg1, RegType rty);

@@ -388,6 +388,9 @@ void AArch64AsmEmitter::RecordRegInfo(FuncEmitInfo &funcEmitInfo) const {
       }
     }
   }
+  (void)referedRegs.insert(R16);
+  (void)referedRegs.insert(R17);
+  (void)referedRegs.insert(R18);
   mirFunc.SetReferedRegsValid(true);
 #ifdef DEBUG
   for (auto reg : referedRegs) {
@@ -397,6 +400,26 @@ void AArch64AsmEmitter::RecordRegInfo(FuncEmitInfo &funcEmitInfo) const {
   }
 #endif
   mirFunc.CopyReferedRegs(referedRegs);
+}
+
+/* if the last insn is call, then insert nop */
+static void InsertNopAfterLastCall(AArch64CGFunc &cgFunc) {
+    bool found = false;
+    FOR_ALL_BB_REV(bb, &cgFunc) {
+      FOR_BB_INSNS_REV(insn, bb) {
+        if (insn->IsMachineInstruction()) {
+          if (insn->IsCall()) {
+            Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_nop);
+            bb->InsertInsnAfter(*insn, newInsn);
+          }
+          found = true;
+          break;
+        }
+      }
+      if (found) {
+        break;
+      }
+    }
 }
 
 void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
@@ -487,22 +510,8 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   EmitRefToMethodDesc(funcEmitInfo, emitter);
   (void)emitter.Emit(funcStName + ":\n");
 
-  /* if the last  insn is call, then insert nop */
-  bool found = false;
-  FOR_ALL_BB_REV(bb, &aarchCGFunc) {
-    FOR_BB_INSNS_REV(insn, bb) {
-      if (insn->IsMachineInstruction()) {
-        if (insn->IsCall()) {
-          Insn &newInsn = aarchCGFunc.GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_nop);
-          bb->InsertInsnAfter(*insn, newInsn);
-        }
-        found = true;
-        break;
-      }
-    }
-    if (found) {
-      break;
-    }
+  if (cgFunc.GetFunction().IsJava()) {
+    InsertNopAfterLastCall(aarchCGFunc);
   }
 
   RecordRegInfo(funcEmitInfo);
@@ -566,64 +575,6 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
       emitter.IncreaseJavaInsnCount();
     } else if (ehFunc->NeedFastLSDA()) {
       EmitFastLSDA(funcEmitInfo);
-    }
-  }
-  uint32 size = static_cast<uint32>(cgFunc.GetFunction().GetSymTab()->GetSymbolTableSize());
-  for (uint32 i = 0; i < size; ++i) {
-    MIRSymbol *st = cgFunc.GetFunction().GetSymTab()->GetSymbolFromStIdx(i);
-    if (st == nullptr) {
-      continue;
-    }
-    MIRStorageClass storageClass = st->GetStorageClass();
-    MIRSymKind symKind = st->GetSKind();
-    if (storageClass == kScPstatic && symKind == kStConst) {
-      (void)emitter.Emit("\t.align 3\n");
-      (void)emitter.Emit(st->GetName() + ":\n");
-      if (st->GetKonst()->GetKind() == kConstStr16Const) {
-        MIRStr16Const *str16Const = safe_cast<MIRStr16Const>(st->GetKonst());
-        emitter.EmitStr16Constant(*str16Const);
-        (void)emitter.Emit("\n");
-        continue;
-      }
-      if (st->GetKonst()->GetKind() == kConstStrConst) {
-        MIRStrConst *strConst = safe_cast<MIRStrConst>(st->GetKonst());
-        emitter.EmitStrConstant(*strConst);
-        (void)emitter.Emit("\n");
-        continue;
-      }
-
-      switch (st->GetKonst()->GetType().GetPrimType()) {
-        case PTY_u32: {
-          MIRIntConst *intConst = safe_cast<MIRIntConst>(st->GetKonst());
-          (void)emitter.Emit("\t.long ").Emit(static_cast<uint32>(intConst->GetExtValue())).Emit("\n");
-          emitter.IncreaseJavaInsnCount();
-          break;
-        }
-        case PTY_f32: {
-          MIRFloatConst *floatConst = safe_cast<MIRFloatConst>(st->GetKonst());
-          (void)emitter.Emit("\t.word ").Emit(static_cast<uint32>(floatConst->GetIntValue())).Emit("\n");
-          emitter.IncreaseJavaInsnCount();
-          break;
-        }
-        case PTY_f64: {
-          MIRDoubleConst *doubleConst = safe_cast<MIRDoubleConst>(st->GetKonst());
-          auto emitF64 = [&](int64 first, int64 second) {
-            (void)emitter.Emit("\t.word ").Emit(first).Emit("\n");
-            emitter.IncreaseJavaInsnCount();
-            (void)emitter.Emit("\t.word ").Emit(second).Emit("\n");
-            emitter.IncreaseJavaInsnCount();
-          };
-          if (CGOptions::IsBigEndian()) {
-            emitF64(doubleConst->GetIntHigh32(), doubleConst->GetIntLow32());
-          } else {
-            emitF64(doubleConst->GetIntLow32(), doubleConst->GetIntHigh32());
-          }
-          break;
-        }
-        default:
-          ASSERT(false, "NYI");
-          break;
-      }
     }
   }
 
@@ -713,6 +664,10 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
     }
     case MOP_counter: {
       EmitCounter(emitter, insn);
+      return;
+    }
+    case MOP_c_counter: {
+      EmitCCounter(emitter, insn);
       return;
     }
     case MOP_asm: {
@@ -1211,6 +1166,50 @@ void AArch64AsmEmitter::EmitCounter(Emitter &emitter, const Insn &insn) const {
   (void)emitter.Emit("+").Emit(stImmOpnd->GetOffset());
   (void)emitter.Emit("]");
   (void)emitter.Emit("\n");
+}
+
+void AArch64AsmEmitter::EmitCCounter(Emitter &emitter, const Insn &insn) const {
+  const InsnDesc *md = &AArch64CG::kMd[MOP_c_counter];
+
+  Operand *opnd0 = &insn.GetOperand(kInsnFirstOpnd);
+  Operand *opnd1 = &insn.GetOperand(kInsnSecondOpnd);
+  const OpndDesc *prop1 = md->opndMD[kInsnSecondOpnd];
+  auto *stImmOpnd = static_cast<StImmOperand*>(opnd0);
+  CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Insn::EmitCounter");
+  /* spill linker register */
+  (void)emitter.Emit("\tstr\tx30, [sp, #-16]!\n");
+  /* get counter symbol address */
+  (void)emitter.Emit("\tadrp\tx16, ");
+
+  if (CGOptions::IsPIC()) {
+    (void)emitter.Emit(":got:");
+  }
+  (void)emitter.Emit(stImmOpnd->GetName()).Emit("\n");
+
+  if (CGOptions::IsPIC()) {
+    (void)emitter.Emit("\tldr\tx16, [x16, :got_lo12:");
+    (void)emitter.Emit(stImmOpnd->GetName());
+    (void)emitter.Emit("]\n");
+  } else {
+    (void)emitter.Emit("\tadd\tx16, x16, :lo12:\n");
+    (void)emitter.Emit(stImmOpnd->GetName());
+    (void)emitter.Emit("\n");
+  }
+
+  A64OpndEmitVisitor visitor(emitter, prop1);
+  /* load current count */
+  (void)emitter.Emit("\tldr\tx30, [x16, ");
+  opnd1->Accept(visitor);
+  (void)emitter.Emit("]\n");
+  /* increment */
+  (void)emitter.Emit("\tadd\tx30, x30, #1\n");
+  /* str new count */
+  (void)emitter.Emit("\tstr\tx30, [x16, ");
+  opnd1->Accept(visitor);
+  (void)emitter.Emit("]\n");
+
+  /* reload linker register */
+  (void)emitter.Emit("\tldr\tx30, [sp], #16\n");
 }
 
 void AArch64AsmEmitter::EmitAdrpLabel(Emitter &emitter, const Insn &insn) const {
