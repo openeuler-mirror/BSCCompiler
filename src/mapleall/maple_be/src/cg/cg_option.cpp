@@ -21,6 +21,7 @@
 #include "parser_opt.h"
 #include "mir_parser.h"
 #include "string_utils.h"
+#include "triple.h"
 
 namespace maplebe {
 using namespace maple;
@@ -60,6 +61,11 @@ uint32 CGOptions::alignMaxBBSize = 96;
 uint32 CGOptions::loopAlignPow = 4;
 uint32 CGOptions::jumpAlignPow = 5;
 uint32 CGOptions::funcAlignPow = 5;
+bool CGOptions::liteProfGen = false;
+bool CGOptions::liteProfUse = false;
+std::string CGOptions::liteProfile = "";
+std::string CGOptions::instrumentationWhiteList = "";
+std::string CGOptions::litePgoOutputFunction = "main";
 #if TARGAARCH64 || TARGRISCV64
 bool CGOptions::useBarriersForVolatile = false;
 #else
@@ -146,12 +152,17 @@ void CGOptions::DecideMplcgRealLevel(bool isDebug) {
     if (opts::cg::os) {
       optForSize = true;
     }
-    EnableO2();
-
     if (isDebug) {
       std::string oLog = (opts::cg::os == true) ? "Os" : "O2";
       LogInfo::MapleLogger() << "Real Mplcg level: " << oLog << "\n";
     }
+    EnableO2();
+  }
+  if (opts::cg::olitecg) {
+    if (isDebug) {
+      LogInfo::MapleLogger() << "Real Mplcg level: LiteCG\n";
+    }
+    EnableLiteCG();
   }
 }
 
@@ -235,22 +246,12 @@ bool CGOptions::SolveOptions(bool isDebug) {
     SetFastFuncsAsmFile(opts::cg::duplicateAsmList2);
   }
 
-  if (opts::cg::insertCall.IsEnabledByUser()) {
-    SetOption(kGenInsertCall);
-    SetInstrumentationFunction(opts::cg::insertCall);
-    SetInsertCall(true);
-  }
-
   if (opts::stackProtectorStrong.IsEnabledByUser()) {
     SetOption(kUseStackProtectorStrong);
   }
 
   if (opts::stackProtectorAll.IsEnabledByUser()) {
     SetOption(kUseStackProtectorAll);
-  }
-
-  if (opts::cg::unwindTables.IsEnabledByUser()) {
-    SetOption(kUseUnwindTables);
   }
 
   if (opts::cg::debug.IsEnabledByUser()) {
@@ -310,10 +311,6 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::cg::addDebugTrace.IsEnabledByUser()) {
     SetOption(kAddDebugTrace);
-  }
-
-  if (opts::cg::addFuncProfile.IsEnabledByUser()) {
-    SetOption(kAddFuncProfile);
   }
 
   if (opts::cg::suppressFileinfo.IsEnabledByUser()) {
@@ -417,6 +414,7 @@ bool CGOptions::SolveOptions(bool isDebug) {
     opts::cg::globalopt ? EnableGlobalOpt() : DisableGlobalOpt();
   }
 
+  // only on master
   if (opts::cg::hotcoldsplit.IsEnabledByUser()) {
     opts::cg::hotcoldsplit ? EnableHotColdSplit() : DisableHotColdSplit();
   }
@@ -470,6 +468,7 @@ bool CGOptions::SolveOptions(bool isDebug) {
   }
 
   if (opts::cg::nativeopt.IsEnabledByUser()) {
+    // FIXME: Disabling Looks strage: should be checked by author of the code
     DisableNativeOpt();
   }
 
@@ -555,6 +554,14 @@ bool CGOptions::SolveOptions(bool isDebug) {
     SetProfileData(opts::profile);
   }
 
+  if (opts::cg::unwindTables.IsEnabledByUser()) {
+    SetOption(kUseUnwindTables);
+  }
+
+  if (opts::cg::nativeopt.IsEnabledByUser()) {
+    DisableNativeOpt();
+  }
+
   if (opts::cg::floatAbi.IsEnabledByUser()) {
     SetABIType(opts::cg::floatAbi);
   }
@@ -591,13 +598,10 @@ bool CGOptions::SolveOptions(bool isDebug) {
     opts::cg::condbrAlign ? EnableCondBrAlign() : DisableCondBrAlign();
   }
 
-  if (opts::bigEndian.IsEnabledByUser()) {
-    opts::bigEndian ? EnableBigEndianInCG() : DisableBigEndianInCG();
-  }
-
-  if (opts::cg::arm64Ilp32.IsEnabledByUser()) {
-    opts::cg::arm64Ilp32 ? EnableArm64ilp32() : DisableArm64ilp32();
-  }
+  /* big endian can be set with several options: --target, -Be.
+   * Triple takes to account all these options and allows to detect big endian with IsBigEndian() interface */
+  Triple::GetTriple().IsBigEndian() ? EnableBigEndianInCG() : DisableBigEndianInCG();
+  (maple::Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) ? EnableArm64ilp32() : DisableArm64ilp32();
 
   if (opts::cg::cgSsa.IsEnabledByUser()) {
     opts::cg::cgSsa ? EnableCGSSA() : DisableCGSSA();
@@ -625,6 +629,31 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::cg::funcAlignPow.IsEnabledByUser()) {
     SetFuncAlignPow(opts::cg::funcAlignPow);
+  }
+
+  if (opts::cg::litePgoGen.IsEnabledByUser()) {
+    opts::cg::litePgoGen ? EnableLiteProfGen() : DisableLiteProfGen();
+  }
+
+  if (opts::cg::litePgoOutputFunc.IsEnabledByUser()) {
+    EnableLiteProfGen();
+    if (!opts::cg::litePgoOutputFunc.GetValue().empty()) {
+      SetLitePgoOutputFunction(opts::cg::litePgoOutputFunc);
+    }
+  }
+
+  if (opts::cg::instrumentationFile.IsEnabledByUser()) {
+    SetInstrumentationWhiteList(opts::cg::instrumentationFile);
+    if (!opts::cg::instrumentationFile.GetValue().empty()) {
+      EnableLiteProfGen();
+    }
+  }
+
+  if (opts::cg::litePgoFile.IsEnabledByUser()) {
+    SetLiteProfile(opts::cg::litePgoFile);
+    if (!opts::cg::litePgoFile.GetValue().empty()) {
+      EnableLiteProfUse();
+    }
   }
 
   /* override some options when loc, dwarf is generated */
@@ -727,11 +756,11 @@ void CGOptions::EnableO0() {
   doAlignAnalysis = false;
   doCondBrAlign = false;
   SetOption(kUseUnwindTables);
-#if ILP32
-  ClearOption(kUseStackProtectorStrong);
-#else
-  SetOption(kUseStackProtectorStrong);
-#endif
+  if (maple::Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) {
+    ClearOption(kUseStackProtectorStrong);
+  } else {
+    SetOption(kUseStackProtectorStrong);
+  }
   ClearOption(kUseStackProtectorAll);
   ClearOption(kConstFold);
   ClearOption(kProEpilogueOpt);
@@ -787,6 +816,35 @@ void CGOptions::EnableO2() {
   SetOption(kProEpilogueOpt);
   SetOption(kTailCallOpt);
 #endif
+}
+
+void CGOptions::EnableLiteCG() {
+  optimizeLevel = kLevelLiteCG;
+  doEBO = false;
+  doCGSSA = false;
+  doCFGO = false;
+  doICO = false;
+  doPrePeephole = false;
+  doPeephole = false;
+  doStoreLoadOpt = false;
+  doGlobalOpt = false;
+  doPreLSRAOpt = false;
+  doLocalRefSpill = false;
+  doCalleeToSpill = false;
+  doPreSchedule = false;
+  doSchedule = false;
+  doRegSavesOpt = false;
+  useSsaPreSave = false;
+  useSsuPreRestore = false;
+  doWriteRefFieldOpt = false;
+  doAlignAnalysis = false;
+  doCondBrAlign = false;
+
+  ClearOption(kUseStackProtectorStrong);
+  ClearOption(kUseStackProtectorAll);
+  ClearOption(kConstFold);
+  ClearOption(kProEpilogueOpt);
+  ClearOption(kTailCallOpt);
 }
 
 void CGOptions::SetTargetMachine(const std::string &str) {
