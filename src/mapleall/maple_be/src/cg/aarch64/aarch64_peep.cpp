@@ -2291,6 +2291,12 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
       manager->NormalPatternOpt<ReplaceDivToMultiPattern>(cgFunc->IsAfterRegAlloc());
       break;
     }
+    case MOP_xrevrr:
+    case MOP_wrevrr:
+    case MOP_wrevrr16: {
+      manager->NormalPatternOpt<NormRevTbzToTbzPattern>(!cgFunc->IsAfterRegAlloc());
+      break;
+    }
     case MOP_xbl: {
       if (JAVALANG) {
         manager->NormalPatternOpt<RemoveIncRefPattern>(!cgFunc->IsAfterRegAlloc());
@@ -4688,6 +4694,137 @@ bool UbfxToUxtwPattern::CheckCondition(Insn &insn) {
     return false;
   }
   return true;
+}
+
+bool NormRevTbzToTbzPattern::CheckCondition(Insn &insn) {
+  auto &revReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  for (Insn *nextInsn = insn.GetNextMachineInsn(); nextInsn != nullptr; nextInsn = nextInsn->GetNextMachineInsn()) {
+    MOperator useMop = nextInsn->GetMachineOpcode();
+    auto &useReg = static_cast<RegOperand&>(nextInsn->GetOperand(kInsnFirstOpnd));
+    if ((useMop == MOP_wtbnz || useMop == MOP_xtbnz || useMop == MOP_wtbz || useMop == MOP_xtbz) &&
+        useReg.Equals(revReg)) {
+      if (IfOperandIsLiveAfterInsn(useReg, *nextInsn)) {
+        return false;
+      }
+      tbzInsn = nextInsn;
+      return true;
+    }
+    uint32 opndSize = nextInsn->GetOperandSize();
+    for (uint32 i = 0; i < opndSize; i++) {
+      auto &duOpnd = nextInsn->GetOperand(i);
+      if (!duOpnd.IsRegister()) {
+        continue;
+      }
+      if ((static_cast<RegOperand&>(duOpnd)).GetRegisterNumber() != revReg.GetRegisterNumber()) {
+        continue;
+      }
+      return false;
+    }
+  }
+  return false;
+}
+
+void NormRevTbzToTbzPattern::SetRev16Value(const uint32 &oldValue, uint32 &revValue) {
+  switch (oldValue / k8BitSize) {
+    case k0BitSize:
+    case k2BitSize:
+    case k4BitSize:
+    case k6BitSize:
+      revValue = oldValue + k8BitSize;
+      break;
+    case k1BitSize:
+    case k3BitSize:
+    case k5BitSize:
+    case k7BitSize:
+      revValue = oldValue - k8BitSize;
+      break;
+    default:
+      CHECK_FATAL(false, "revValue must be the above value");
+  }
+}
+
+void NormRevTbzToTbzPattern::SetWrevValue(const uint32 &oldValue, uint32 &revValue) {
+  switch (oldValue / k8BitSize) {
+    case k0BitSize: {
+      revValue = oldValue + k24BitSize;
+      break;
+    }
+    case k1BitSize: {
+      revValue = oldValue + k8BitSize;
+      break;
+    }
+    case k2BitSize: {
+      revValue = oldValue - k8BitSize;
+      break;
+    }
+    case k4BitSize: {
+      revValue = oldValue - k24BitSize;
+      break;
+    }
+    default:
+      CHECK_FATAL(false, "revValue must be the above value");
+  }
+}
+
+void NormRevTbzToTbzPattern::SetXrevValue(const uint32 &oldValue, uint32 &revValue) {
+  switch (oldValue / k8BitSize) {
+    case k0BitSize:
+      revValue = oldValue + k56BitSize;
+      break;
+    case k1BitSize:
+      revValue = oldValue + k40BitSize;
+      break;
+    case k2BitSize:
+      revValue = oldValue + k24BitSize;
+      break;
+    case k3BitSize:
+      revValue = oldValue + k8BitSize;
+      break;
+    case k4BitSize:
+      revValue = oldValue - k8BitSize;
+      break;
+    case k5BitSize:
+      revValue = oldValue - k24BitSize;
+      break;
+    case k6BitSize:
+      revValue = oldValue - k40BitSize;
+      break;
+    case k7BitSize:
+      revValue = oldValue - k56BitSize;
+      break;
+    default:
+      CHECK_FATAL(false, "revValue must be the above value");
+  }
+}
+
+void NormRevTbzToTbzPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  auto &oldImmOpnd1 = static_cast<ImmOperand&>(tbzInsn->GetOperand(kInsnSecondOpnd));
+  uint32 oldValue = static_cast<uint32>(oldImmOpnd1.GetValue());
+  uint32 revValue = k0BitSize;
+  MOperator curMop = insn.GetMachineOpcode();
+  if (curMop == MOP_wrevrr16) {
+    SetRev16Value(oldValue, revValue);
+  } else if (curMop == MOP_wrevrr) {
+    SetWrevValue(oldValue, revValue);
+  } else if (curMop == MOP_xrevrr) {
+    SetXrevValue(oldValue, revValue);
+  }
+  auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  ImmOperand &newImmOpnd = aarFunc->CreateImmOperand(revValue, k6BitSize, false);
+  MOperator useMop = tbzInsn->GetMachineOpcode();
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(useMop, insn.GetOperand(kInsnSecondOpnd),
+                                                      newImmOpnd, tbzInsn->GetOperand(kInsnThirdOpnd));
+  bb.ReplaceInsn(*tbzInsn, newInsn);
+  optSuccess = true;
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    (void)prevs.emplace_back(&insn);
+    DumpAfterPattern(prevs, tbzInsn, &newInsn);
+  }
 }
 
 void UbfxAndCbzToTbzPattern::Run(BB &bb, Insn &insn) {

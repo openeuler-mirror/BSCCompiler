@@ -42,6 +42,7 @@ constexpr uint32 k8BitSize = 8;
 constexpr uint32 k16BitSize = 16;
 constexpr uint32 k24BitSize = 24;
 constexpr uint32 k32BitSize = 32;
+constexpr uint32 k40BitSize = 40;
 constexpr uint32 k48BitSize = 48;
 constexpr uint32 k56BitSize = 56;
 constexpr uint32 k64BitSize = 64;
@@ -49,6 +50,7 @@ constexpr uint32 k128BitSize = 128;
 constexpr uint32 k256BitSize = 256;
 constexpr uint32 k512BitSize = 512;
 constexpr uint32 k1024BitSize = 1024;
+constexpr uint32 k2048BitSize = 2048;
 
 constexpr int32 k1FConstInt = 31;
 constexpr int32 k0BitSizeInt = 0;
@@ -146,13 +148,11 @@ constexpr uint32 kTwoRegister = 2;
 constexpr uint32 kThreeRegister = 3;
 constexpr uint32 kFourRegister = 4;
 
-/* position of an operand within an instruction */
-constexpr uint32 kOperandPosition0 = 0;
-constexpr uint32 kOperandPosition1 = 1;
-constexpr uint32 kOperandPosition2 = 2;
-
 /* Size of struct for memcpy */
 constexpr uint32 kParmMemcpySize = 40;
+
+/* const value used in cfg */
+constexpr uint32 kSuccSizeOfIfBB = 2;
 
 /* Check whether the value is an even number. */
 constexpr int32 kDivide2 = 2;
@@ -219,6 +219,63 @@ constexpr double kMicroSecPerMilliSec = 1000.0;
 constexpr double kPercent = 100.0;
 
 constexpr int32 kZeroAsciiNum = 48;
+
+enum ConditionCode : uint8 {
+  CC_EQ, /* equal */
+  CC_NE, /* not equal */
+  CC_CS, /* carry set (== HS) */
+  CC_HS, /* unsigned higher or same (== CS) */
+  CC_CC, /* carry clear (== LO) */
+  CC_LO, /* Unsigned lower (== CC) */
+  CC_MI, /* Minus or negative result */
+  CC_PL, /* positive or zero result */
+  CC_VS, /* overflow */
+  CC_VC, /* no overflow */
+  CC_HI, /* unsigned higher */
+  CC_LS, /* unsigned lower or same */
+  CC_GE, /* signed greater than or equal */
+  CC_LT, /* signed less than */
+  CC_GT, /* signed greater than */
+  CC_LE, /* signed less than or equal */
+  CC_AL, /* always, this is the default. usually omitted. */
+  kCcLast
+};
+
+inline ConditionCode GetReverseCC(ConditionCode cc) {
+  switch (cc) {
+    case CC_NE:
+      return CC_EQ;
+    case CC_EQ:
+      return CC_NE;
+    case CC_HS:
+      return CC_LO;
+    case CC_LO:
+      return CC_HS;
+    case CC_MI:
+      return CC_PL;
+    case CC_PL:
+      return CC_MI;
+    case CC_VS:
+      return CC_VC;
+    case CC_VC:
+      return CC_VS;
+    case CC_HI:
+      return CC_LS;
+    case CC_LS:
+      return CC_HI;
+    case CC_LT:
+      return CC_GE;
+    case CC_GE:
+      return CC_LT;
+    case CC_GT:
+      return CC_LE;
+    case CC_LE:
+      return CC_GT;
+    default:
+      CHECK_FATAL(0, "unknown condition code");
+  }
+  return kCcLast;
+}
 
 inline bool IsPowerOf2Const(uint64 i) {
   return (i & (i - 1)) == 0;

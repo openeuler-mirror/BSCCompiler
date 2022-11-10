@@ -422,6 +422,34 @@ class AndCbzToTbzPattern : public CGPeepPattern {
   Insn *prevInsn = nullptr;
 };
 
+/* Norm pattern
+ * combine {rev / rev16} & {tbz / tbnz} ---> {tbz / tbnz}
+ * rev16  w0, w0
+ * tbz    w0, #14    ===>   tbz w0, #6
+ *
+ * rev  w0, w0
+ * tbz  w0, #14    ===>   tbz w0, #22
+ */
+class NormRevTbzToTbzPattern : public CGPeepPattern {
+ public:
+  NormRevTbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  NormRevTbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~NormRevTbzToTbzPattern() override = default;
+  std::string GetPatternName() override {
+    return "NormRevTbzToTbzPattern";
+  }
+  bool CheckCondition(Insn &insn) override;
+  void Run(BB &bb, Insn &insn) override;
+
+ private:
+  void SetRev16Value(const uint32 &oldValue, uint32 &revValue);
+  void SetWrevValue(const uint32 &oldValue, uint32 &revValue);
+  void SetXrevValue(const uint32 &oldValue, uint32 &revValue);
+  Insn *tbzInsn = nullptr;
+};
+
 class CombineSameArithmeticPattern : public CGPeepPattern {
  public:
   CombineSameArithmeticPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
