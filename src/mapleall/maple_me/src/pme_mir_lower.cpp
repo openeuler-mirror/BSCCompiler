@@ -121,7 +121,7 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     if (GetFuncProfData()) {
       GetFuncProfData()->CopyStmtFreq(evalstmt->GetStmtID(), ifstmt.GetStmtID());
     }
-  } else if (elseempty) {
+  } else if (elseempty && !GetFuncProfData()) {
     // brfalse <cond> <endlabel>
     // <thenPart>
     // label <endlabel>
@@ -158,7 +158,7 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
                         GetFuncProfData()->GetStmtFreq(ifstmt.GetThenPart()->GetStmtID());
       GetFuncProfData()->SetStmtFreq(labstmt->GetStmtID(), freq);
     }
-  } else if (thenempty) {
+  } else if (thenempty && !GetFuncProfData()) {
     // brtrue <cond> <endlabel>
     // <elsePart>
     // label <endlabel>
@@ -222,8 +222,11 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
       preMeFunc->label2IfInfo.insert(std::make_pair(elselabelidx, ifInfo));
     }
 
-    blk->AppendStatementsFromBlock(*ifstmt.GetThenPart());
-    bool fallthru_from_then = !OpCodeNoFallThrough(ifstmt.GetThenPart()->GetLast()->GetOpCode());
+    bool fallthru_from_then = true;
+    if (!thenempty) {
+      blk->AppendStatementsFromBlock(*ifstmt.GetThenPart());
+      fallthru_from_then = !OpCodeNoFallThrough(ifstmt.GetThenPart()->GetLast()->GetOpCode());
+    }
     LabelIdx endlabelidx = 0;
 
     if (fallthru_from_then) {
@@ -237,7 +240,11 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
       blk->AddStatement(gotostmt);
       // set stmtfreqs
       if (GetFuncProfData()) {
-        GetFuncProfData()->CopyStmtFreq(gotostmt->GetStmtID(), ifstmt.GetThenPart()->GetStmtID());
+        if (!thenempty) {
+          GetFuncProfData()->CopyStmtFreq(gotostmt->GetStmtID(), ifstmt.GetThenPart()->GetStmtID());
+        } else {
+          GetFuncProfData()->SetStmtFreq(gotostmt->GetStmtID(), 0);
+        }
       }
     }
 
@@ -247,17 +254,21 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     labstmt->SetSrcPos(pos);
     blk->AddStatement(labstmt);
 
-    blk->AppendStatementsFromBlock(*ifstmt.GetElsePart());
+    if (!elseempty) {
+      blk->AppendStatementsFromBlock(*ifstmt.GetElsePart());
+    }
 
     if (fallthru_from_then) {
       labstmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
       labstmt->SetLabelIdx(endlabelidx);
-      SrcPosition position = func->GetMirFunc()->GetScope()->GetScopeEndPos(ifstmt.GetElsePart()->GetSrcPos());
-      labstmt->SetSrcPos(position);
+      if (!elseempty) {
+        SrcPosition position = func->GetMirFunc()->GetScope()->GetScopeEndPos(ifstmt.GetElsePart()->GetSrcPos());
+        labstmt->SetSrcPos(position);
+      }
       blk->AddStatement(labstmt);
       // set stmtfreqs
-      if (GetFuncProfData()) {
-        GetFuncProfData()->CopyStmtFreq(labstmt->GetStmtID(), ifstmt.GetElsePart()->GetStmtID());
+      if (!elseempty && GetFuncProfData()) {
+        GetFuncProfData()->CopyStmtFreq(labstmt->GetStmtID(), ifstmt.GetStmtID());
       }
     }
     if (endlabelidx == 0) {  // create end label
@@ -266,7 +277,7 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
         preMeFunc->SetIfLabelCreatedByPreMe(endlabelidx);
       }
       LabelNode *endlabelnode = mirbuilder->CreateStmtLabel(endlabelidx);
-      SrcPosition position = func->GetMirFunc()->GetScope()->GetScopeEndPos(ifstmt.GetElsePart()->GetSrcPos());
+      SrcPosition position = func->GetMirFunc()->GetScope()->GetScopeEndPos(ifstmt.GetSrcPos());
       endlabelnode->SetSrcPos(position);
       blk->AddStatement(endlabelnode);
       // set stmtfreqs
@@ -275,6 +286,15 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
       }
     }
     ifInfo->endLabel = endlabelidx;
+  }
+  if (GetFuncProfData()) {
+    // generate extra label to avoid critical edge
+    LabelIdx extraLabelIdx = mirFunc->GetLabelTab()->CreateLabelWithPrefix('x');
+    preMeFunc->SetIfLabelCreatedByPreMe(extraLabelIdx);
+    LabelNode *extraLabelNode = mirbuilder->CreateStmtLabel(extraLabelIdx);
+    blk->AddStatement(extraLabelNode);
+    // set stmtfreqs
+    GetFuncProfData()->CopyStmtFreq(extraLabelNode->GetStmtID(), ifstmt.GetStmtID());
   }
   return blk;
 }
