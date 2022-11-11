@@ -170,7 +170,6 @@ bool ProfileGenEmit::PhaseRun(maple::MeFunction &f) {
         sym->SetIsDeleted();
       }
     }
-#ifdef yefeng
     if (Options::profileGen ) {
       std::unordered_map<BB*, bool> visitedBBs;
       std::stack<BB*> listBBs;
@@ -228,15 +227,6 @@ bool ProfileGenEmit::PhaseRun(maple::MeFunction &f) {
         bb->EmitBB(*mirFunction->GetBody(), false);
       }
     }
-
-#else
-    for (BB *bb : f.GetCfg()->GetAllBBs()) {
-      if (bb == nullptr) {
-        continue;
-      }
-      bb->EmitBB(*mirFunction->GetBody(), false);
-    }
-#endif
     ResetDependentedSymbolLive(mirFunction);
   }
   return false;
