@@ -40,6 +40,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGF
       }
     } else if (opnd.IsMemoryAccessOperand()) {
       auto &memOpnd = static_cast<MemOperand&>(opnd);
+      MemOperand *newMemOpnd1 = nullptr;
       if (((memOpnd.GetAddrMode() == MemOperand::kAddrModeBOi) ||
            (memOpnd.GetAddrMode() == MemOperand::kAddrModeBOrX)) &&
           memOpnd.GetBaseRegister() != nullptr) {
@@ -49,10 +50,10 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGF
         RegOperand *memBaseReg = memOpnd.GetBaseRegister();
         if (memBaseReg->GetRegisterNumber() == RFP) {
           RegOperand &newBaseOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(stackBaseReg, k64BitSize, kRegTyInt);
-          MemOperand &newMemOpnd = aarchCGFunc.GetOrCreateMemOpnd(
-              memOpnd.GetAddrMode(), memOpnd.GetSize(), &newBaseOpnd, memOpnd.GetIndexRegister(),
-              memOpnd.GetOffsetImmediate(), memOpnd.GetSymbol());
-          insn.SetOperand(i, newMemOpnd);
+          newMemOpnd1 = &aarchCGFunc.GetOrCreateMemOpnd(memOpnd.GetAddrMode(), memOpnd.GetSize(),
+                                                        &newBaseOpnd, memOpnd.GetIndexRegister(),
+                                                        memOpnd.GetOffsetImmediate(), memOpnd.GetSymbol());
+          insn.SetOperand(i, *newMemOpnd1);
           stackBaseOpnd = true;
         }
       }
@@ -71,9 +72,10 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGF
       if (ofstOpnd->GetVary() == kAdjustVary || ofstOpnd->GetVary() == kNotVary) {
         bool condition = aarchCGFunc.IsOperandImmValid(insn.GetMachineOpcode(), &memOpnd, i);
         if (!condition) {
-          MemOperand &newMemOpnd = aarchCGFunc.SplitOffsetWithAddInstruction(
+          memOpnd = (newMemOpnd1 == nullptr ? memOpnd : *newMemOpnd1);
+          MemOperand &newMemOpnd2 = aarchCGFunc.SplitOffsetWithAddInstruction(
               memOpnd, memOpnd.GetSize(), static_cast<AArch64reg>(R16), false, &insn, insn.IsLoadStorePair());
-          insn.SetOperand(i, newMemOpnd);
+          insn.SetOperand(i, newMemOpnd2);
         }
       }
     } else if (opnd.IsIntImmediate()) {
