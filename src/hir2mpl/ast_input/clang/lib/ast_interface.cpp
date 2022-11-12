@@ -36,7 +36,8 @@ const std::unordered_map<clang::attr::Kind, std::string> kUnsupportedFuncAttrsMa
     {clang::attr::NoSanitize, "no_sanitize"},
     {clang::attr::NoSplitStack, "no_split_stack"},
     {clang::attr::PatchableFunctionEntry, "patchable_function_entry"},
-    {clang::attr::Target, "target"}};
+    {clang::attr::Target, "target"},
+    {clang::attr::Alias, "alias"}};
 const std::unordered_map<clang::attr::Kind, std::string> kUnsupportedVarAttrsMap = {
     {clang::attr::Mode, "mode"},
     {clang::attr::NoCommon, "nocommon"},
@@ -53,9 +54,8 @@ bool LibAstFile::Open(const MapleString &fileName,
   astFileName = fileName;
   index = clang_createIndex(excludeDeclFromPCH, displayDiagnostics);
   translationUnit = clang_createTranslationUnit(index, fileName.c_str());
-  if (translationUnit == nullptr) {
-    return false;
-  }
+  CHECK_FATAL(translationUnit != nullptr, "The astfile %s content format is Non-conformance or astfile"
+              " version is different from hir2mpl version.", fileName.c_str());
   clang::ASTUnit *astUnit = translationUnit->TheASTUnit;
   if (astUnit == nullptr) {
     return false;
